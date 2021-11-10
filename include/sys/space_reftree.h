@@ -31,7 +31,7 @@
 #define	_SYS_SPACE_REFTREE_H
 
 #include <sys/range_tree.h>
-
+#include <sys/avl.h>
 #ifdef	__cplusplus
 extern "C" {
 #endif

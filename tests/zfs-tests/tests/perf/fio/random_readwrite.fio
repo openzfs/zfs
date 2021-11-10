@@ -10,7 +10,8 @@
 #
 
 #
-# Copyright (c) 2015, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2015, 2016, Delphix. All rights reserved.
+# Copyright (c) 2020, Kjeld Schouten-Lebbing. All rights reserved.
 #
 
 [global]
@@ -30,7 +31,9 @@ ioengine=psync
 sync=${SYNC_TYPE}
 direct=${DIRECT}
 numjobs=${NUMJOBS}
-buffer_compress_percentage=66
-buffer_compress_chunk=4096
+randseed=${RANDSEED}
+buffer_compress_percentage=${COMPPERCENT}
+buffer_pattern=0xdeadbeef
+buffer_compress_chunk=${COMPCHUNK}
 
 [job]

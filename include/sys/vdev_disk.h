@@ -42,13 +42,5 @@
 
 #ifdef _KERNEL
 #include <sys/vdev.h>
-
-typedef struct vdev_disk {
-	ddi_devid_t		vd_devid;
-	char			*vd_minor;
-	struct block_device	*vd_bdev;
-	krwlock_t		vd_lock;
-} vdev_disk_t;
-
 #endif /* _KERNEL */
 #endif /* _SYS_VDEV_DISK_H */

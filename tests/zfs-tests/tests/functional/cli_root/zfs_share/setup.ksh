@@ -27,10 +27,7 @@
 
 . $STF_SUITE/include/libtest.shlib
 
-share -s
-if [ $? -ne 0 ]; then
-	log_unsupported "The NFS utilities are not installed"
-fi
+check_nfs
 
 # Make sure NFS server is running before testing.
 setup_nfs_server

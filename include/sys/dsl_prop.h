@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright 2019 Joyent, Inc.
  */
 
 #ifndef	_SYS_DSL_PROP_H
@@ -61,6 +62,12 @@ typedef struct dsl_props_arg {
 	zprop_source_t pa_source;
 } dsl_props_arg_t;
 
+typedef struct dsl_props_set_arg {
+	const char *dpsa_dsname;
+	zprop_source_t dpsa_source;
+	nvlist_t *dpsa_props;
+} dsl_props_set_arg_t;
+
 void dsl_prop_init(dsl_dir_t *dd);
 void dsl_prop_fini(dsl_dir_t *dd);
 int dsl_prop_register(struct dsl_dataset *ds, const char *propname,
@@ -85,6 +92,8 @@ int dsl_prop_get_dd(struct dsl_dir *dd, const char *propname,
     int intsz, int numints, void *buf, char *setpoint,
     boolean_t snapshot);
 
+int dsl_props_set_check(void *arg, dmu_tx_t *tx);
+void dsl_props_set_sync(void *arg, dmu_tx_t *tx);
 void dsl_props_set_sync_impl(struct dsl_dataset *ds, zprop_source_t source,
     nvlist_t *props, dmu_tx_t *tx);
 void dsl_prop_set_sync_impl(struct dsl_dataset *ds, const char *propname,

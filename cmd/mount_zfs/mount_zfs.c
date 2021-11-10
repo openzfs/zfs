@@ -42,247 +42,46 @@
 
 libzfs_handle_t *g_zfs;
 
-typedef struct option_map {
-	const char *name;
-	unsigned long mntmask;
-	unsigned long zfsmask;
-} option_map_t;
-
-static const option_map_t option_map[] = {
-	/* Canonicalized filesystem independent options from mount(8) */
-	{ MNTOPT_NOAUTO,	MS_COMMENT,	ZS_COMMENT	},
-	{ MNTOPT_DEFAULTS,	MS_COMMENT,	ZS_COMMENT	},
-	{ MNTOPT_NODEVICES,	MS_NODEV,	ZS_COMMENT	},
-	{ MNTOPT_DIRSYNC,	MS_DIRSYNC,	ZS_COMMENT	},
-	{ MNTOPT_NOEXEC,	MS_NOEXEC,	ZS_COMMENT	},
-	{ MNTOPT_GROUP,		MS_GROUP,	ZS_COMMENT	},
-	{ MNTOPT_NETDEV,	MS_COMMENT,	ZS_COMMENT	},
-	{ MNTOPT_NOFAIL,	MS_COMMENT,	ZS_COMMENT	},
-	{ MNTOPT_NOSUID,	MS_NOSUID,	ZS_COMMENT	},
-	{ MNTOPT_OWNER,		MS_OWNER,	ZS_COMMENT	},
-	{ MNTOPT_REMOUNT,	MS_REMOUNT,	ZS_COMMENT	},
-	{ MNTOPT_RO,		MS_RDONLY,	ZS_COMMENT	},
-	{ MNTOPT_RW,		MS_COMMENT,	ZS_COMMENT	},
-	{ MNTOPT_SYNC,		MS_SYNCHRONOUS,	ZS_COMMENT	},
-	{ MNTOPT_USER,		MS_USERS,	ZS_COMMENT	},
-	{ MNTOPT_USERS,		MS_USERS,	ZS_COMMENT	},
-	/* acl flags passed with util-linux-2.24 mount command */
-	{ MNTOPT_ACL,		MS_POSIXACL,	ZS_COMMENT	},
-	{ MNTOPT_NOACL,		MS_COMMENT,	ZS_COMMENT	},
-	{ MNTOPT_POSIXACL,	MS_POSIXACL,	ZS_COMMENT	},
-#ifdef MS_NOATIME
-	{ MNTOPT_NOATIME,	MS_NOATIME,	ZS_COMMENT	},
-#endif
-#ifdef MS_NODIRATIME
-	{ MNTOPT_NODIRATIME,	MS_NODIRATIME,	ZS_COMMENT	},
-#endif
-#ifdef MS_RELATIME
-	{ MNTOPT_RELATIME,	MS_RELATIME,	ZS_COMMENT	},
-#endif
-#ifdef MS_STRICTATIME
-	{ MNTOPT_STRICTATIME,	MS_STRICTATIME,	ZS_COMMENT	},
-#endif
-#ifdef MS_LAZYTIME
-	{ MNTOPT_LAZYTIME,	MS_LAZYTIME,	ZS_COMMENT	},
-#endif
-	{ MNTOPT_CONTEXT,	MS_COMMENT,	ZS_COMMENT	},
-	{ MNTOPT_FSCONTEXT,	MS_COMMENT,	ZS_COMMENT	},
-	{ MNTOPT_DEFCONTEXT,	MS_COMMENT,	ZS_COMMENT	},
-	{ MNTOPT_ROOTCONTEXT,	MS_COMMENT,	ZS_COMMENT	},
-#ifdef MS_I_VERSION
-	{ MNTOPT_IVERSION,	MS_I_VERSION,	ZS_COMMENT	},
-#endif
-#ifdef MS_MANDLOCK
-	{ MNTOPT_NBMAND,	MS_MANDLOCK,	ZS_COMMENT	},
-#endif
-	/* Valid options not found in mount(8) */
-	{ MNTOPT_BIND,		MS_BIND,	ZS_COMMENT	},
-#ifdef MS_REC
-	{ MNTOPT_RBIND,		MS_BIND|MS_REC,	ZS_COMMENT	},
-#endif
-	{ MNTOPT_COMMENT,	MS_COMMENT,	ZS_COMMENT	},
-#ifdef MS_NOSUB
-	{ MNTOPT_NOSUB,		MS_NOSUB,	ZS_COMMENT	},
-#endif
-#ifdef MS_SILENT
-	{ MNTOPT_QUIET,		MS_SILENT,	ZS_COMMENT	},
-#endif
-	/* Custom zfs options */
-	{ MNTOPT_XATTR,		MS_COMMENT,	ZS_COMMENT	},
-	{ MNTOPT_NOXATTR,	MS_COMMENT,	ZS_COMMENT	},
-	{ MNTOPT_ZFSUTIL,	MS_COMMENT,	ZS_ZFSUTIL	},
-	{ NULL,			0,		0		} };
-
 /*
- * Break the mount option in to a name/value pair.  The name is
- * validated against the option map and mount flags set accordingly.
+ * Opportunistically convert a target string into a pool name. If the
+ * string does not represent a block device with a valid zfs label
+ * then it is passed through without modification.
  */
-static int
-parse_option(char *mntopt, unsigned long *mntflags,
-    unsigned long *zfsflags, int sloppy)
+static void
+parse_dataset(const char *target, char **dataset)
 {
-	const option_map_t *opt;
-	char *ptr, *name, *value = NULL;
-	int error = 0;
-
-	name = strdup(mntopt);
-	if (name == NULL)
-		return (ENOMEM);
-
-	for (ptr = name; ptr && *ptr; ptr++) {
-		if (*ptr == '=') {
-			*ptr = '\0';
-			value = ptr+1;
-			VERIFY3P(value, !=, NULL);
-			break;
-		}
-	}
-
-	for (opt = option_map; opt->name != NULL; opt++) {
-		if (strncmp(name, opt->name, strlen(name)) == 0) {
-			*mntflags |= opt->mntmask;
-			*zfsflags |= opt->zfsmask;
-			error = 0;
-			goto out;
-		}
-	}
-
-	if (!sloppy)
-		error = ENOENT;
-out:
-	/* If required further process on the value may be done here */
-	free(name);
-	return (error);
-}
-
-/*
- * Translate the mount option string in to MS_* mount flags for the
- * kernel vfs.  When sloppy is non-zero unknown options will be ignored
- * otherwise they are considered fatal are copied in to badopt.
- */
-static int
-parse_options(char *mntopts, unsigned long *mntflags, unsigned long *zfsflags,
-    int sloppy, char *badopt, char *mtabopt)
-{
-	int error = 0, quote = 0, flag = 0, count = 0;
-	char *ptr, *opt, *opts;
-
-	opts = strdup(mntopts);
-	if (opts == NULL)
-		return (ENOMEM);
-
-	*mntflags = 0;
-	opt = NULL;
-
 	/*
-	 * Scan through all mount options which must be comma delimited.
-	 * We must be careful to notice regions which are double quoted
-	 * and skip commas in these regions.  Each option is then checked
-	 * to determine if it is a known option.
+	 * Prior to util-linux 2.36.2, if a file or directory in the
+	 * current working directory was named 'dataset' then mount(8)
+	 * would prepend the current working directory to the dataset.
+	 * Check for it and strip the prepended path when it is added.
 	 */
-	for (ptr = opts; ptr && !flag; ptr++) {
-		if (opt == NULL)
-			opt = ptr;
-
-		if (*ptr == '"')
-			quote = !quote;
-
-		if (quote)
-			continue;
-
-		if (*ptr == '\0')
-			flag = 1;
-
-		if ((*ptr == ',') || (*ptr == '\0')) {
-			*ptr = '\0';
-
-			error = parse_option(opt, mntflags, zfsflags, sloppy);
-			if (error) {
-				strcpy(badopt, opt);
-				goto out;
-
-			}
-
-			if (!(*mntflags & MS_REMOUNT) &&
-			    !(*zfsflags & ZS_ZFSUTIL)) {
-				if (count > 0)
-					strlcat(mtabopt, ",", MNT_LINE_MAX);
-
-				strlcat(mtabopt, opt, MNT_LINE_MAX);
-				count++;
-			}
-
-			opt = NULL;
-		}
-	}
-
-out:
-	free(opts);
-	return (error);
-}
-
-/*
- * Return the pool/dataset to mount given the name passed to mount.  This
- * is expected to be of the form pool/dataset, however may also refer to
- * a block device if that device contains a valid zfs label.
- */
-static char *
-parse_dataset(char *dataset)
-{
 	char cwd[PATH_MAX];
-	struct stat64 statbuf;
-	int error;
-	int len;
-
-	/*
-	 * We expect a pool/dataset to be provided, however if we're
-	 * given a device which is a member of a zpool we attempt to
-	 * extract the pool name stored in the label.  Given the pool
-	 * name we can mount the root dataset.
-	 */
-	error = stat64(dataset, &statbuf);
-	if (error == 0) {
-		nvlist_t *config;
-		char *name;
-		int fd;
-
-		fd = open(dataset, O_RDONLY);
-		if (fd < 0)
-			goto out;
-
-		error = zpool_read_label(fd, &config, NULL);
-		(void) close(fd);
-		if (error)
-			goto out;
-
-		error = nvlist_lookup_string(config,
-		    ZPOOL_CONFIG_POOL_NAME, &name);
-		if (error) {
-			nvlist_free(config);
-		} else {
-			dataset = strdup(name);
-			nvlist_free(config);
-			return (dataset);
-		}
+	if (getcwd(cwd, PATH_MAX) == NULL) {
+		perror("getcwd");
+		return;
 	}
-out:
-	/*
-	 * If a file or directory in your current working directory is
-	 * named 'dataset' then mount(8) will prepend your current working
-	 * directory to the dataset.  There is no way to prevent this
-	 * behavior so we simply check for it and strip the prepended
-	 * patch when it is added.
-	 */
-	if (getcwd(cwd, PATH_MAX) == NULL)
-		return (dataset);
+	int len = strlen(cwd);
+	if (strncmp(cwd, target, len) == 0)
+		target += len;
 
-	len = strlen(cwd);
+	/* Assume pool/dataset is more likely */
+	strlcpy(*dataset, target, PATH_MAX);
 
-	/* Do not add one when cwd already ends in a trailing '/' */
-	if (strncmp(cwd, dataset, len) == 0)
-		return (dataset + len + (cwd[len-1] != '/'));
+	int fd = open(target, O_RDONLY | O_CLOEXEC);
+	if (fd < 0)
+		return;
 
-	return (dataset);
+	nvlist_t *cfg = NULL;
+	if (zpool_read_label(fd, &cfg, NULL) == 0) {
+		char *nm = NULL;
+		if (!nvlist_lookup_string(cfg, ZPOOL_CONFIG_POOL_NAME, &nm))
+			strlcpy(*dataset, nm, PATH_MAX);
+		nvlist_free(cfg);
+	}
+
+	if (close(fd))
+		perror("close");
 }
 
 /*
@@ -326,8 +125,8 @@ mtab_update(char *dataset, char *mntpoint, char *type, char *mntopts)
 	if (!fp) {
 		(void) fprintf(stderr, gettext(
 		    "filesystem '%s' was mounted, but /etc/mtab "
-		    "could not be opened due to error %d\n"),
-		    dataset, errno);
+		    "could not be opened due to error: %s\n"),
+		    dataset, strerror(errno));
 		return (MOUNT_FILEIO);
 	}
 
@@ -335,42 +134,14 @@ mtab_update(char *dataset, char *mntpoint, char *type, char *mntopts)
 	if (error) {
 		(void) fprintf(stderr, gettext(
 		    "filesystem '%s' was mounted, but /etc/mtab "
-		    "could not be updated due to error %d\n"),
-		    dataset, errno);
+		    "could not be updated due to error: %s\n"),
+		    dataset, strerror(errno));
 		return (MOUNT_FILEIO);
 	}
 
 	(void) endmntent(fp);
 
 	return (MOUNT_SUCCESS);
-}
-
-static void
-append_mntopt(const char *name, const char *val, char *mntopts,
-    char *mtabopt, boolean_t quote)
-{
-	char tmp[MNT_LINE_MAX];
-
-	snprintf(tmp, MNT_LINE_MAX, quote ? ",%s=\"%s\"" : ",%s=%s", name, val);
-
-	if (mntopts)
-		strlcat(mntopts, tmp, MNT_LINE_MAX);
-
-	if (mtabopt)
-		strlcat(mtabopt, tmp, MNT_LINE_MAX);
-}
-
-static void
-zfs_selinux_setcontext(zfs_handle_t *zhp, zfs_prop_t zpt, const char *name,
-    char *mntopts, char *mtabopt)
-{
-	char context[ZFS_MAXPROPLEN];
-
-	if (zfs_prop_get(zhp, zpt, context, sizeof (context),
-	    NULL, NULL, 0, B_FALSE) == 0) {
-		if (strcmp(context, "none") != 0)
-			append_mntopt(name, context, mntopts, mtabopt, B_TRUE);
-	}
 }
 
 int
@@ -383,12 +154,13 @@ main(int argc, char **argv)
 	char badopt[MNT_LINE_MAX] = { '\0' };
 	char mtabopt[MNT_LINE_MAX] = { '\0' };
 	char mntpoint[PATH_MAX];
-	char *dataset;
+	char dataset[PATH_MAX], *pdataset = dataset;
 	unsigned long mntflags = 0, zfsflags = 0, remount = 0;
 	int sloppy = 0, fake = 0, verbose = 0, nomtab = 0, zfsutil = 0;
 	int error, c;
 
 	(void) setlocale(LC_ALL, "");
+	(void) setlocale(LC_NUMERIC, "C");
 	(void) textdomain(TEXT_DOMAIN);
 
 	opterr = 0;
@@ -413,10 +185,11 @@ main(int argc, char **argv)
 			break;
 		case 'h':
 		case '?':
-			(void) fprintf(stderr, gettext("Invalid option '%c'\n"),
-			    optopt);
+			if (optopt)
+				(void) fprintf(stderr,
+				    gettext("Invalid option '%c'\n"), optopt);
 			(void) fprintf(stderr, gettext("Usage: mount.zfs "
-			    "[-sfnv] [-o options] <dataset> <mountpoint>\n"));
+			    "[-sfnvh] [-o options] <dataset> <mountpoint>\n"));
 			return (MOUNT_USAGE);
 		}
 	}
@@ -438,18 +211,18 @@ main(int argc, char **argv)
 		return (MOUNT_USAGE);
 	}
 
-	dataset = parse_dataset(argv[0]);
+	parse_dataset(argv[0], &pdataset);
 
 	/* canonicalize the mount point */
 	if (realpath(argv[1], mntpoint) == NULL) {
 		(void) fprintf(stderr, gettext("filesystem '%s' cannot be "
-		    "mounted at '%s' due to canonicalization error %d.\n"),
-		    dataset, argv[1], errno);
+		    "mounted at '%s' due to canonicalization error: %s\n"),
+		    dataset, argv[1], strerror(errno));
 		return (MOUNT_SYSERR);
 	}
 
 	/* validate mount options and set mntflags */
-	error = parse_options(mntopts, &mntflags, &zfsflags, sloppy,
+	error = zfs_parse_mount_options(mntopts, &mntflags, &zfsflags, sloppy,
 	    badopt, mtabopt);
 	if (error) {
 		switch (error) {
@@ -489,7 +262,7 @@ main(int argc, char **argv)
 		zfsutil = 1;
 
 	if ((g_zfs = libzfs_init()) == NULL) {
-		(void) fprintf(stderr, "%s", libzfs_error_init(errno));
+		(void) fprintf(stderr, "%s\n", libzfs_error_init(errno));
 		return (MOUNT_SYSERR);
 	}
 
@@ -502,32 +275,7 @@ main(int argc, char **argv)
 		return (MOUNT_USAGE);
 	}
 
-	/*
-	 * Checks to see if the ZFS_PROP_SELINUX_CONTEXT exists
-	 * if it does, create a tmp variable in case it's needed
-	 * checks to see if the selinux context is set to the default
-	 * if it is, allow the setting of the other context properties
-	 * this is needed because the 'context' property overrides others
-	 * if it is not the default, set the 'context' property
-	 */
-	if (zfs_prop_get(zhp, ZFS_PROP_SELINUX_CONTEXT, prop, sizeof (prop),
-	    NULL, NULL, 0, B_FALSE) == 0) {
-		if (strcmp(prop, "none") == 0) {
-			zfs_selinux_setcontext(zhp, ZFS_PROP_SELINUX_FSCONTEXT,
-			    MNTOPT_FSCONTEXT, mntopts, mtabopt);
-			zfs_selinux_setcontext(zhp, ZFS_PROP_SELINUX_DEFCONTEXT,
-			    MNTOPT_DEFCONTEXT, mntopts, mtabopt);
-			zfs_selinux_setcontext(zhp,
-			    ZFS_PROP_SELINUX_ROOTCONTEXT, MNTOPT_ROOTCONTEXT,
-			    mntopts, mtabopt);
-		} else {
-			append_mntopt(MNTOPT_CONTEXT, prop,
-			    mntopts, mtabopt, B_TRUE);
-		}
-	}
-
-	/* A hint used to determine an auto-mounted snapshot mount point */
-	append_mntopt(MNTOPT_MNTPOINT, mntpoint, mntopts, NULL, B_FALSE);
+	zfs_adjust_mount_options(zhp, mntpoint, mntopts, mtabopt);
 
 	/* treat all snapshots as legacy mount points */
 	if (zfs_get_type(zhp) == ZFS_TYPE_SNAPSHOT)
@@ -620,8 +368,8 @@ main(int argc, char **argv)
 				    "mount the filesystem again.\n"), dataset);
 				return (MOUNT_SYSERR);
 			}
-			/* fallthru */
 #endif
+			fallthrough;
 		default:
 			(void) fprintf(stderr, gettext("filesystem "
 			    "'%s' can not be mounted: %s\n"), dataset,

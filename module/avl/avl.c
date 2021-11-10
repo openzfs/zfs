@@ -96,6 +96,9 @@
  * which each have their own compilation environments and subsequent
  * requirements. Each of these environments must be considered when adding
  * dependencies from avl.c.
+ *
+ * Link to Illumos.org for more information on avl function:
+ * [1] https://illumos.org/man/9f/avl
  */
 
 #include <sys/types.h>
@@ -103,6 +106,7 @@
 #include <sys/debug.h>
 #include <sys/avl.h>
 #include <sys/cmn_err.h>
+#include <sys/mod.h>
 
 /*
  * Small arrays to translate between balance (or diff) values and child indices.
@@ -159,7 +163,7 @@ avl_walk(avl_tree_t *tree, void	*oldnode, int left)
 		    node = node->avl_child[right])
 			;
 	/*
-	 * Otherwise, return thru left children as far as we can.
+	 * Otherwise, return through left children as far as we can.
 	 */
 	} else {
 		for (;;) {
@@ -268,7 +272,7 @@ avl_find(avl_tree_t *tree, const void *value, avl_index_t *where)
 		diff = tree->avl_compar(value, AVL_NODE2DATA(node, off));
 		ASSERT(-1 <= diff && diff <= 1);
 		if (diff == 0) {
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 			if (where != NULL)
 				*where = 0;
 #endif
@@ -488,7 +492,6 @@ avl_insert(avl_tree_t *tree, void *new_data, avl_index_t where)
 	int which_child = AVL_INDEX2CHILD(where);
 	size_t off = tree->avl_offset;
 
-	ASSERT(tree);
 #ifdef _LP64
 	ASSERT(((uintptr_t)new_data & 0x7) == 0);
 #endif
@@ -577,7 +580,7 @@ avl_insert_here(
 {
 	avl_node_t *node;
 	int child = direction;	/* rely on AVL_BEFORE == 0, AVL_AFTER == 1 */
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 	int diff;
 #endif
 
@@ -592,7 +595,7 @@ avl_insert_here(
 	 */
 	node = AVL_DATA2NODE(here, tree->avl_offset);
 
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 	diff = tree->avl_compar(new_data, here);
 	ASSERT(-1 <= diff && diff <= 1);
 	ASSERT(diff != 0);
@@ -603,7 +606,7 @@ avl_insert_here(
 		node = node->avl_child[child];
 		child = 1 - child;
 		while (node->avl_child[child] != NULL) {
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 			diff = tree->avl_compar(new_data,
 			    AVL_NODE2DATA(node, tree->avl_offset));
 			ASSERT(-1 <= diff && diff <= 1);
@@ -612,7 +615,7 @@ avl_insert_here(
 #endif
 			node = node->avl_child[child];
 		}
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 		diff = tree->avl_compar(new_data,
 		    AVL_NODE2DATA(node, tree->avl_offset));
 		ASSERT(-1 <= diff && diff <= 1);
@@ -675,8 +678,6 @@ avl_remove(avl_tree_t *tree, void *data)
 	int right;
 	int which_child;
 	size_t off = tree->avl_offset;
-
-	ASSERT(tree);
 
 	delete = AVL_DATA2NODE(data, off);
 
@@ -808,6 +809,64 @@ avl_remove(avl_tree_t *tree, void *data)
 	} while (parent != NULL);
 }
 
+#define	AVL_REINSERT(tree, obj)		\
+	avl_remove((tree), (obj));	\
+	avl_add((tree), (obj))
+
+boolean_t
+avl_update_lt(avl_tree_t *t, void *obj)
+{
+	void *neighbor;
+
+	ASSERT(((neighbor = AVL_NEXT(t, obj)) == NULL) ||
+	    (t->avl_compar(obj, neighbor) <= 0));
+
+	neighbor = AVL_PREV(t, obj);
+	if ((neighbor != NULL) && (t->avl_compar(obj, neighbor) < 0)) {
+		AVL_REINSERT(t, obj);
+		return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
+boolean_t
+avl_update_gt(avl_tree_t *t, void *obj)
+{
+	void *neighbor;
+
+	ASSERT(((neighbor = AVL_PREV(t, obj)) == NULL) ||
+	    (t->avl_compar(obj, neighbor) >= 0));
+
+	neighbor = AVL_NEXT(t, obj);
+	if ((neighbor != NULL) && (t->avl_compar(obj, neighbor) > 0)) {
+		AVL_REINSERT(t, obj);
+		return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
+boolean_t
+avl_update(avl_tree_t *t, void *obj)
+{
+	void *neighbor;
+
+	neighbor = AVL_PREV(t, obj);
+	if ((neighbor != NULL) && (t->avl_compar(obj, neighbor) < 0)) {
+		AVL_REINSERT(t, obj);
+		return (B_TRUE);
+	}
+
+	neighbor = AVL_NEXT(t, obj);
+	if ((neighbor != NULL) && (t->avl_compar(obj, neighbor) > 0)) {
+		AVL_REINSERT(t, obj);
+		return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
 void
 avl_swap(avl_tree_t *tree1, avl_tree_t *tree2)
 {
@@ -816,7 +875,6 @@ avl_swap(avl_tree_t *tree1, avl_tree_t *tree2)
 
 	ASSERT3P(tree1->avl_compar, ==, tree2->avl_compar);
 	ASSERT3U(tree1->avl_offset, ==, tree2->avl_offset);
-	ASSERT3U(tree1->avl_size, ==, tree2->avl_size);
 
 	temp_node = tree1->avl_root;
 	temp_numnodes = tree1->avl_numnodes;
@@ -844,7 +902,6 @@ avl_create(avl_tree_t *tree, int (*compar) (const void *, const void *),
 	tree->avl_compar = compar;
 	tree->avl_root = NULL;
 	tree->avl_numnodes = 0;
-	tree->avl_size = size;
 	tree->avl_offset = offset;
 }
 
@@ -949,7 +1006,7 @@ avl_destroy_nodes(avl_tree_t *tree, void **cookie)
 	--tree->avl_numnodes;
 
 	/*
-	 * If we just did a right child or there isn't one, go up to parent.
+	 * If we just removed a right child or there isn't one, go up to parent.
 	 */
 	if (child == 1 || parent->avl_child[1] == NULL) {
 		node = parent;
@@ -993,7 +1050,6 @@ done:
 }
 
 #if defined(_KERNEL)
-#include <linux/module.h>
 
 static int __init
 avl_init(void)
@@ -1008,11 +1064,12 @@ avl_fini(void)
 
 module_init(avl_init);
 module_exit(avl_fini);
+#endif
 
-MODULE_DESCRIPTION("Generic AVL tree implementation");
-MODULE_AUTHOR(ZFS_META_AUTHOR);
-MODULE_LICENSE(ZFS_META_LICENSE);
-MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
+ZFS_MODULE_DESCRIPTION("Generic AVL tree implementation");
+ZFS_MODULE_AUTHOR(ZFS_META_AUTHOR);
+ZFS_MODULE_LICENSE(ZFS_META_LICENSE);
+ZFS_MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
 
 EXPORT_SYMBOL(avl_create);
 EXPORT_SYMBOL(avl_find);
@@ -1029,4 +1086,6 @@ EXPORT_SYMBOL(avl_remove);
 EXPORT_SYMBOL(avl_numnodes);
 EXPORT_SYMBOL(avl_destroy_nodes);
 EXPORT_SYMBOL(avl_destroy);
-#endif
+EXPORT_SYMBOL(avl_update_lt);
+EXPORT_SYMBOL(avl_update_gt);
+EXPORT_SYMBOL(avl_update);

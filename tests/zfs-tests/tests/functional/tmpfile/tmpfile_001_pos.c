@@ -28,7 +28,7 @@
 
 #define	BSZ 64
 
-void
+static void
 fill_random(char *buf, int len)
 {
 	int i;

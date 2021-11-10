@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
@@ -30,11 +30,12 @@
  * Copyright 2017 Nexenta Systems, Inc.
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
+ * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, Allan Jude
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
 
-#include <sys/zfeature.h>
 #include <sys/cred.h>
 #include <sys/zfs_context.h>
 #include <sys/dmu_objset.h>
@@ -193,8 +194,10 @@ compression_changed_cb(void *arg, uint64_t newval)
 	 */
 	ASSERT(newval != ZIO_COMPRESS_INHERIT);
 
-	os->os_compress = zio_compress_select(os->os_spa, newval,
-	    ZIO_COMPRESS_ON);
+	os->os_compress = zio_compress_select(os->os_spa,
+	    ZIO_COMPRESS_ALGO(newval), ZIO_COMPRESS_ON);
+	os->os_complevel = zio_complevel_select(os->os_spa, os->os_compress,
+	    ZIO_COMPRESS_LEVEL(newval), ZIO_COMPLEVEL_DEFAULT);
 }
 
 static void
@@ -323,7 +326,7 @@ smallblk_changed_cb(void *arg, uint64_t newval)
 	/*
 	 * Inheritance and range checking should have been done by now.
 	 */
-	ASSERT(newval <= SPA_OLD_MAXBLOCKSIZE);
+	ASSERT(newval <= SPA_MAXBLOCKSIZE);
 	ASSERT(ISP2(newval));
 
 	os->os_zpl_special_smallblock = newval;
@@ -392,11 +395,19 @@ dnode_hash(const objset_t *os, uint64_t obj)
 	return (crc);
 }
 
-unsigned int
+static unsigned int
 dnode_multilist_index_func(multilist_t *ml, void *obj)
 {
 	dnode_t *dn = obj;
-	return (dnode_hash(dn->dn_objset, dn->dn_object) %
+
+	/*
+	 * The low order bits of the hash value are thought to be
+	 * distributed evenly. Otherwise, in the case that the multilist
+	 * has a power of two number of sublists, each sublists' usage
+	 * would not be evenly distributed. In this context full 64bit
+	 * division would be a waste of time, so limit it to 32 bits.
+	 */
+	return ((unsigned int)dnode_hash(dn->dn_objset, dn->dn_object) %
 	    multilist_get_num_sublists(ml));
 }
 
@@ -412,6 +423,12 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	int i, err;
 
 	ASSERT(ds == NULL || MUTEX_HELD(&ds->ds_opening_lock));
+	ASSERT(!BP_IS_REDACTED(bp));
+
+	/*
+	 * We need the pool config lock to get properties.
+	 */
+	ASSERT(ds == NULL || dsl_pool_config_held(ds->ds_dir->dd_pool));
 
 	/*
 	 * The $ORIGIN dataset (if it exists) doesn't have an associated
@@ -502,19 +519,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	 * checksum/compression/copies.
 	 */
 	if (ds != NULL) {
-		boolean_t needlock = B_FALSE;
-
 		os->os_encrypted = (ds->ds_dir->dd_crypto_obj != 0);
-
-		/*
-		 * Note: it's valid to open the objset if the dataset is
-		 * long-held, in which case the pool_config lock will not
-		 * be held.
-		 */
-		if (!dsl_pool_config_held(dmu_objset_pool(os))) {
-			needlock = B_TRUE;
-			dsl_pool_config_enter(dmu_objset_pool(os), FTAG);
-		}
 
 		err = dsl_prop_register(ds,
 		    zfs_prop_to_name(ZFS_PROP_PRIMARYCACHE),
@@ -578,8 +583,6 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 				    smallblk_changed_cb, os);
 			}
 		}
-		if (needlock)
-			dsl_pool_config_exit(dmu_objset_pool(os), FTAG);
 		if (err != 0) {
 			arc_buf_destroy(os->os_phys_buf, &os->os_phys_buf);
 			kmem_free(os, sizeof (objset_t));
@@ -589,6 +592,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 		/* It's the meta-objset. */
 		os->os_checksum = ZIO_CHECKSUM_FLETCHER_4;
 		os->os_compress = ZIO_COMPRESS_ON;
+		os->os_complevel = ZIO_COMPLEVEL_DEFAULT;
 		os->os_encrypted = B_FALSE;
 		os->os_copies = spa_max_replication(spa);
 		os->os_dedup_checksum = ZIO_CHECKSUM_OFF;
@@ -605,7 +609,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	os->os_zil = zil_alloc(os, &os->os_zil_header);
 
 	for (i = 0; i < TXG_SIZE; i++) {
-		os->os_dirty_dnodes[i] = multilist_create(sizeof (dnode_t),
+		multilist_create(&os->os_dirty_dnodes[i], sizeof (dnode_t),
 		    offsetof(dnode_t, dn_dirty_link[i]),
 		    dnode_multilist_index_func);
 	}
@@ -649,11 +653,11 @@ dmu_objset_from_ds(dsl_dataset_t *ds, objset_t **osp)
 	int err = 0;
 
 	/*
-	 * We shouldn't be doing anything with dsl_dataset_t's unless the
-	 * pool_config lock is held, or the dataset is long-held.
+	 * We need the pool_config lock to manipulate the dsl_dataset_t.
+	 * Even if the dataset is long-held, we need the pool_config lock
+	 * to open the objset, as it needs to get properties.
 	 */
-	ASSERT(dsl_pool_config_held(ds->ds_dir->dd_pool) ||
-	    dsl_dataset_long_held(ds));
+	ASSERT(dsl_pool_config_held(ds->ds_dir->dd_pool));
 
 	mutex_enter(&ds->ds_opening_lock);
 	if (ds->ds_objset == NULL) {
@@ -686,8 +690,9 @@ dmu_objset_hold_flags(const char *name, boolean_t decrypt, void *tag,
 	dsl_pool_t *dp;
 	dsl_dataset_t *ds;
 	int err;
-	ds_hold_flags_t flags = (decrypt) ? DS_HOLD_FLAG_DECRYPT : 0;
+	ds_hold_flags_t flags;
 
+	flags = (decrypt) ? DS_HOLD_FLAG_DECRYPT : DS_HOLD_FLAG_NONE;
 	err = dsl_pool_hold(name, tag, &dp);
 	if (err != 0)
 		return (err);
@@ -759,8 +764,9 @@ dmu_objset_own(const char *name, dmu_objset_type_t type,
 	dsl_pool_t *dp;
 	dsl_dataset_t *ds;
 	int err;
-	ds_hold_flags_t flags = (decrypt) ? DS_HOLD_FLAG_DECRYPT : 0;
+	ds_hold_flags_t flags;
 
+	flags = (decrypt) ? DS_HOLD_FLAG_DECRYPT : DS_HOLD_FLAG_NONE;
 	err = dsl_pool_hold(name, FTAG, &dp);
 	if (err != 0)
 		return (err);
@@ -782,11 +788,15 @@ dmu_objset_own(const char *name, dmu_objset_type_t type,
 	 * speed up pool import times and to keep this txg reserved
 	 * completely for recovery work.
 	 */
-	if ((dmu_objset_userobjspace_upgradable(*osp) ||
-	    dmu_objset_projectquota_upgradable(*osp)) &&
-	    !readonly && !dp->dp_spa->spa_claiming &&
-	    (ds->ds_dir->dd_crypto_obj == 0 || decrypt))
-		dmu_objset_id_quota_upgrade(*osp);
+	if (!readonly && !dp->dp_spa->spa_claiming &&
+	    (ds->ds_dir->dd_crypto_obj == 0 || decrypt)) {
+		if (dmu_objset_userobjspace_upgradable(*osp) ||
+		    dmu_objset_projectquota_upgradable(*osp)) {
+			dmu_objset_id_quota_upgrade(*osp);
+		} else if (dmu_objset_userused_enabled(*osp)) {
+			dmu_objset_userspace_upgrade(*osp);
+		}
+	}
 
 	dsl_pool_rele(dp, FTAG);
 	return (0);
@@ -798,8 +808,9 @@ dmu_objset_own_obj(dsl_pool_t *dp, uint64_t obj, dmu_objset_type_t type,
 {
 	dsl_dataset_t *ds;
 	int err;
-	ds_hold_flags_t flags = (decrypt) ? DS_HOLD_FLAG_DECRYPT : 0;
+	ds_hold_flags_t flags;
 
+	flags = (decrypt) ? DS_HOLD_FLAG_DECRYPT : DS_HOLD_FLAG_NONE;
 	err = dsl_dataset_own_obj(dp, obj, flags, tag, &ds);
 	if (err != 0)
 		return (err);
@@ -816,9 +827,10 @@ dmu_objset_own_obj(dsl_pool_t *dp, uint64_t obj, dmu_objset_type_t type,
 void
 dmu_objset_rele_flags(objset_t *os, boolean_t decrypt, void *tag)
 {
-	ds_hold_flags_t flags = (decrypt) ? DS_HOLD_FLAG_DECRYPT : 0;
-
+	ds_hold_flags_t flags;
 	dsl_pool_t *dp = dmu_objset_pool(os);
+
+	flags = (decrypt) ? DS_HOLD_FLAG_DECRYPT : DS_HOLD_FLAG_NONE;
 	dsl_dataset_rele_flags(os->os_dsl_dataset, flags, tag);
 	dsl_pool_rele(dp, tag);
 }
@@ -846,7 +858,9 @@ dmu_objset_refresh_ownership(dsl_dataset_t *ds, dsl_dataset_t **newds,
 {
 	dsl_pool_t *dp;
 	char name[ZFS_MAX_DATASET_NAME_LEN];
+	ds_hold_flags_t flags;
 
+	flags = (decrypt) ? DS_HOLD_FLAG_DECRYPT : DS_HOLD_FLAG_NONE;
 	VERIFY3P(ds, !=, NULL);
 	VERIFY3P(ds->ds_owner, ==, tag);
 	VERIFY(dsl_dataset_long_held(ds));
@@ -854,21 +868,22 @@ dmu_objset_refresh_ownership(dsl_dataset_t *ds, dsl_dataset_t **newds,
 	dsl_dataset_name(ds, name);
 	dp = ds->ds_dir->dd_pool;
 	dsl_pool_config_enter(dp, FTAG);
-	dsl_dataset_disown(ds, decrypt, tag);
-	VERIFY0(dsl_dataset_own(dp, name,
-	    (decrypt) ? DS_HOLD_FLAG_DECRYPT : 0, tag, newds));
+	dsl_dataset_disown(ds, flags, tag);
+	VERIFY0(dsl_dataset_own(dp, name, flags, tag, newds));
 	dsl_pool_config_exit(dp, FTAG);
 }
 
 void
 dmu_objset_disown(objset_t *os, boolean_t decrypt, void *tag)
 {
+	ds_hold_flags_t flags;
+
+	flags = (decrypt) ? DS_HOLD_FLAG_DECRYPT : DS_HOLD_FLAG_NONE;
 	/*
 	 * Stop upgrading thread
 	 */
 	dmu_objset_upgrade_stop(os);
-	dsl_dataset_disown(os->os_dsl_dataset,
-	    (decrypt) ? DS_HOLD_FLAG_DECRYPT : 0, tag);
+	dsl_dataset_disown(os->os_dsl_dataset, flags, tag);
 }
 
 void
@@ -988,9 +1003,8 @@ dmu_objset_evict_done(objset_t *os)
 	mutex_destroy(&os->os_obj_lock);
 	mutex_destroy(&os->os_user_ptr_lock);
 	mutex_destroy(&os->os_upgrade_lock);
-	for (int i = 0; i < TXG_SIZE; i++) {
-		multilist_destroy(os->os_dirty_dnodes[i]);
-	}
+	for (int i = 0; i < TXG_SIZE; i++)
+		multilist_destroy(&os->os_dirty_dnodes[i]);
 	spa_evicting_os_deregister(os->os_spa, os);
 	kmem_free(os, sizeof (objset_t));
 }
@@ -1027,7 +1041,7 @@ dmu_objset_create_impl_dnstats(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 
 	/*
 	 * We don't want to have to increase the meta-dnode's nlevels
-	 * later, because then we could do it in quescing context while
+	 * later, because then we could do it in quiescing context while
 	 * we are also accessing it in open context.
 	 *
 	 * This precaution is not necessary for the MOS (ds == NULL),
@@ -1104,6 +1118,7 @@ dmu_objset_create_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 typedef struct dmu_objset_create_arg {
 	const char *doca_name;
 	cred_t *doca_cred;
+	proc_t *doca_proc;
 	void (*doca_userfunc)(objset_t *os, void *arg,
 	    cred_t *cr, dmu_tx_t *tx);
 	void *doca_userarg;
@@ -1148,7 +1163,7 @@ dmu_objset_create_check(void *arg, dmu_tx_t *tx)
 	}
 
 	error = dsl_fs_ss_limit_check(pdd, 1, ZFS_PROP_FILESYSTEM_LIMIT, NULL,
-	    doca->doca_cred);
+	    doca->doca_cred, doca->doca_proc);
 	if (error != 0) {
 		dsl_dir_rele(pdd, FTAG);
 		return (error);
@@ -1234,7 +1249,7 @@ dmu_objset_create_sync(void *arg, dmu_tx_t *tx)
 		}
 		VERIFY0(zio_wait(rzio));
 
-		dmu_objset_do_userquota_updates(os, tx);
+		dmu_objset_sync_done(os, tx);
 		taskq_wait(dp->dp_sync_taskq);
 		if (txg_list_member(&dp->dp_dirty_datasets, ds, tx->tx_txg)) {
 			ASSERT3P(ds->ds_key_mapping, !=, NULL);
@@ -1261,8 +1276,7 @@ dmu_objset_create_sync(void *arg, dmu_tx_t *tx)
 		mutex_exit(&ds->ds_lock);
 	}
 
-	spa_history_log_internal_ds(ds, "create", tx, "");
-	zvol_create_minors(spa, doca->doca_name, B_TRUE);
+	spa_history_log_internal_ds(ds, "create", tx, " ");
 
 	dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 	dsl_dir_rele(pdd, FTAG);
@@ -1277,6 +1291,7 @@ dmu_objset_create(const char *name, dmu_objset_type_t type, uint64_t flags,
 
 	doca.doca_name = name;
 	doca.doca_cred = CRED();
+	doca.doca_proc = curproc;
 	doca.doca_flags = flags;
 	doca.doca_userfunc = func;
 	doca.doca_userarg = arg;
@@ -1292,15 +1307,20 @@ dmu_objset_create(const char *name, dmu_objset_type_t type, uint64_t flags,
 	 */
 	doca.doca_dcp = (dcp != NULL) ? dcp : &tmp_dcp;
 
-	return (dsl_sync_task(name,
+	int rv = dsl_sync_task(name,
 	    dmu_objset_create_check, dmu_objset_create_sync, &doca,
-	    6, ZFS_SPACE_CHECK_NORMAL));
+	    6, ZFS_SPACE_CHECK_NORMAL);
+
+	if (rv == 0)
+		zvol_create_minor(name);
+	return (rv);
 }
 
 typedef struct dmu_objset_clone_arg {
 	const char *doca_clone;
 	const char *doca_origin;
 	cred_t *doca_cred;
+	proc_t *doca_proc;
 } dmu_objset_clone_arg_t;
 
 /*ARGSUSED*/
@@ -1329,7 +1349,7 @@ dmu_objset_clone_check(void *arg, dmu_tx_t *tx)
 	}
 
 	error = dsl_fs_ss_limit_check(pdd, 1, ZFS_PROP_FILESYSTEM_LIMIT, NULL,
-	    doca->doca_cred);
+	    doca->doca_cred, doca->doca_proc);
 	if (error != 0) {
 		dsl_dir_rele(pdd, FTAG);
 		return (SET_ERROR(EDQUOT));
@@ -1346,13 +1366,6 @@ dmu_objset_clone_check(void *arg, dmu_tx_t *tx)
 		dsl_dataset_rele(origin, FTAG);
 		dsl_dir_rele(pdd, FTAG);
 		return (SET_ERROR(EINVAL));
-	}
-
-	error = dmu_objset_clone_crypt_check(pdd, origin->ds_dir);
-	if (error != 0) {
-		dsl_dataset_rele(origin, FTAG);
-		dsl_dir_rele(pdd, FTAG);
-		return (error);
 	}
 
 	dsl_dataset_rele(origin, FTAG);
@@ -1381,8 +1394,7 @@ dmu_objset_clone_sync(void *arg, dmu_tx_t *tx)
 	VERIFY0(dsl_dataset_hold_obj(pdd->dd_pool, obj, FTAG, &ds));
 	dsl_dataset_name(origin, namebuf);
 	spa_history_log_internal_ds(ds, "clone", tx,
-	    "origin=%s (%llu)", namebuf, origin->ds_object);
-	zvol_create_minors(dp->dp_spa, doca->doca_clone, B_TRUE);
+	    "origin=%s (%llu)", namebuf, (u_longlong_t)origin->ds_object);
 	dsl_dataset_rele(ds, FTAG);
 	dsl_dataset_rele(origin, FTAG);
 	dsl_dir_rele(pdd, FTAG);
@@ -1396,105 +1408,16 @@ dmu_objset_clone(const char *clone, const char *origin)
 	doca.doca_clone = clone;
 	doca.doca_origin = origin;
 	doca.doca_cred = CRED();
+	doca.doca_proc = curproc;
 
-	return (dsl_sync_task(clone,
+	int rv = dsl_sync_task(clone,
 	    dmu_objset_clone_check, dmu_objset_clone_sync, &doca,
-	    6, ZFS_SPACE_CHECK_NORMAL));
-}
+	    6, ZFS_SPACE_CHECK_NORMAL);
 
-static int
-dmu_objset_remap_indirects_impl(objset_t *os, uint64_t last_removed_txg)
-{
-	int error = 0;
-	uint64_t object = 0;
-	while ((error = dmu_object_next(os, &object, B_FALSE, 0)) == 0) {
-		error = dmu_object_remap_indirects(os, object,
-		    last_removed_txg);
-		/*
-		 * If the ZPL removed the object before we managed to dnode_hold
-		 * it, we would get an ENOENT. If the ZPL declares its intent
-		 * to remove the object (dnode_free) before we manage to
-		 * dnode_hold it, we would get an EEXIST. In either case, we
-		 * want to continue remapping the other objects in the objset;
-		 * in all other cases, we want to break early.
-		 */
-		if (error != 0 && error != ENOENT && error != EEXIST) {
-			break;
-		}
-	}
-	if (error == ESRCH) {
-		error = 0;
-	}
-	return (error);
-}
+	if (rv == 0)
+		zvol_create_minor(clone);
 
-int
-dmu_objset_remap_indirects(const char *fsname)
-{
-	int error = 0;
-	objset_t *os = NULL;
-	uint64_t last_removed_txg;
-	uint64_t remap_start_txg;
-	dsl_dir_t *dd;
-
-	error = dmu_objset_hold(fsname, FTAG, &os);
-	if (error != 0) {
-		return (error);
-	}
-	dd = dmu_objset_ds(os)->ds_dir;
-
-	if (!spa_feature_is_enabled(dmu_objset_spa(os),
-	    SPA_FEATURE_OBSOLETE_COUNTS)) {
-		dmu_objset_rele(os, FTAG);
-		return (SET_ERROR(ENOTSUP));
-	}
-
-	if (dsl_dataset_is_snapshot(dmu_objset_ds(os))) {
-		dmu_objset_rele(os, FTAG);
-		return (SET_ERROR(EINVAL));
-	}
-
-	/*
-	 * If there has not been a removal, we're done.
-	 */
-	last_removed_txg = spa_get_last_removal_txg(dmu_objset_spa(os));
-	if (last_removed_txg == -1ULL) {
-		dmu_objset_rele(os, FTAG);
-		return (0);
-	}
-
-	/*
-	 * If we have remapped since the last removal, we're done.
-	 */
-	if (dsl_dir_is_zapified(dd)) {
-		uint64_t last_remap_txg;
-		if (zap_lookup(spa_meta_objset(dmu_objset_spa(os)),
-		    dd->dd_object, DD_FIELD_LAST_REMAP_TXG,
-		    sizeof (last_remap_txg), 1, &last_remap_txg) == 0 &&
-		    last_remap_txg > last_removed_txg) {
-			dmu_objset_rele(os, FTAG);
-			return (0);
-		}
-	}
-
-	dsl_dataset_long_hold(dmu_objset_ds(os), FTAG);
-	dsl_pool_rele(dmu_objset_pool(os), FTAG);
-
-	remap_start_txg = spa_last_synced_txg(dmu_objset_spa(os));
-	error = dmu_objset_remap_indirects_impl(os, last_removed_txg);
-	if (error == 0) {
-		/*
-		 * We update the last_remap_txg to be the start txg so that
-		 * we can guarantee that every block older than last_remap_txg
-		 * that can be remapped has been remapped.
-		 */
-		error = dsl_dir_update_last_remap_txg(dd, remap_start_txg);
-	}
-
-	dsl_dataset_long_rele(dmu_objset_ds(os), FTAG);
-	dsl_dataset_rele(dmu_objset_ds(os), FTAG);
-
-	return (error);
+	return (rv);
 }
 
 int
@@ -1505,7 +1428,7 @@ dmu_objset_snapshot_one(const char *fsname, const char *snapname)
 	nvlist_t *snaps = fnvlist_alloc();
 
 	fnvlist_add_boolean(snaps, longsnap);
-	strfree(longsnap);
+	kmem_strfree(longsnap);
 	err = dsl_dataset_snapshot(snaps, NULL, NULL);
 	fnvlist_free(snaps);
 	return (err);
@@ -1519,10 +1442,15 @@ dmu_objset_upgrade_task_cb(void *data)
 	mutex_enter(&os->os_upgrade_lock);
 	os->os_upgrade_status = EINTR;
 	if (!os->os_upgrade_exit) {
+		int status;
+
 		mutex_exit(&os->os_upgrade_lock);
 
-		os->os_upgrade_status = os->os_upgrade_cb(os);
+		status = os->os_upgrade_cb(os);
+
 		mutex_enter(&os->os_upgrade_lock);
+
+		os->os_upgrade_status = status;
 	}
 	os->os_upgrade_exit = B_TRUE;
 	os->os_upgrade_id = 0;
@@ -1550,6 +1478,8 @@ dmu_objset_upgrade(objset_t *os, dmu_objset_upgrade_cb_t cb)
 			dsl_dataset_long_rele(dmu_objset_ds(os), upgrade_tag);
 			os->os_upgrade_status = ENOMEM;
 		}
+	} else {
+		dsl_dataset_long_rele(dmu_objset_ds(os), upgrade_tag);
 	}
 	mutex_exit(&os->os_upgrade_lock);
 }
@@ -1584,7 +1514,7 @@ dmu_objset_sync_dnodes(multilist_sublist_t *list, dmu_tx_t *tx)
 		ASSERT(dn->dn_dbuf->db_data_pending);
 		/*
 		 * Initialize dn_zio outside dnode_sync() because the
-		 * meta-dnode needs to set it ouside dnode_sync().
+		 * meta-dnode needs to set it outside dnode_sync().
 		 */
 		dn->dn_zio = dn->dn_dbuf->db_data_pending->dr_zio;
 		ASSERT(dn->dn_zio);
@@ -1593,23 +1523,13 @@ dmu_objset_sync_dnodes(multilist_sublist_t *list, dmu_tx_t *tx)
 		multilist_sublist_remove(list, dn);
 
 		/*
-		 * If we are not doing useraccounting (os_synced_dnodes == NULL)
-		 * we are done with this dnode for this txg. Unset dn_dirty_txg
-		 * if later txgs aren't dirtying it so that future holders do
-		 * not get a stale value. Otherwise, we will do this in
-		 * userquota_updates_task() when processing has completely
-		 * finished for this txg.
+		 * See the comment above dnode_rele_task() for an explanation
+		 * of why this dnode hold is always needed (even when not
+		 * doing user accounting).
 		 */
-		multilist_t *newlist = dn->dn_objset->os_synced_dnodes;
-		if (newlist != NULL) {
-			(void) dnode_add_ref(dn, newlist);
-			multilist_insert(newlist, dn);
-		} else {
-			mutex_enter(&dn->dn_mtx);
-			if (dn->dn_dirty_txg == tx->tx_txg)
-				dn->dn_dirty_txg = 0;
-			mutex_exit(&dn->dn_mtx);
-		}
+		multilist_t *newlist = &dn->dn_objset->os_synced_dnodes;
+		(void) dnode_add_ref(dn, newlist);
+		multilist_insert(newlist, dn);
 
 		dnode_sync(dn, tx);
 	}
@@ -1699,10 +1619,12 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 	zio_t *zio;
 	list_t *list;
 	dbuf_dirty_record_t *dr;
+	int num_sublists;
+	multilist_t *ml;
 	blkptr_t *blkptr_copy = kmem_alloc(sizeof (*os->os_rootbp), KM_SLEEP);
 	*blkptr_copy = *os->os_rootbp;
 
-	dprintf_ds(os->os_dsl_dataset, "txg=%llu\n", tx->tx_txg);
+	dprintf_ds(os->os_dsl_dataset, "txg=%llu\n", (u_longlong_t)tx->tx_txg);
 
 	ASSERT(dmu_tx_is_syncing(tx));
 	/* XXX the write_done callback should really give us the tx... */
@@ -1769,28 +1691,27 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 
 	txgoff = tx->tx_txg & TXG_MASK;
 
-	if (dmu_objset_userused_enabled(os) &&
-	    (!os->os_encrypted || !dmu_objset_is_receiving(os))) {
-		/*
-		 * We must create the list here because it uses the
-		 * dn_dirty_link[] of this txg.  But it may already
-		 * exist because we call dsl_dataset_sync() twice per txg.
-		 */
-		if (os->os_synced_dnodes == NULL) {
-			os->os_synced_dnodes =
-			    multilist_create(sizeof (dnode_t),
-			    offsetof(dnode_t, dn_dirty_link[txgoff]),
-			    dnode_multilist_index_func);
-		} else {
-			ASSERT3U(os->os_synced_dnodes->ml_offset, ==,
-			    offsetof(dnode_t, dn_dirty_link[txgoff]));
-		}
+	/*
+	 * We must create the list here because it uses the
+	 * dn_dirty_link[] of this txg.  But it may already
+	 * exist because we call dsl_dataset_sync() twice per txg.
+	 */
+	if (os->os_synced_dnodes.ml_sublists == NULL) {
+		multilist_create(&os->os_synced_dnodes, sizeof (dnode_t),
+		    offsetof(dnode_t, dn_dirty_link[txgoff]),
+		    dnode_multilist_index_func);
+	} else {
+		ASSERT3U(os->os_synced_dnodes.ml_offset, ==,
+		    offsetof(dnode_t, dn_dirty_link[txgoff]));
 	}
 
-	for (int i = 0;
-	    i < multilist_get_num_sublists(os->os_dirty_dnodes[txgoff]); i++) {
+	ml = &os->os_dirty_dnodes[txgoff];
+	num_sublists = multilist_get_num_sublists(ml);
+	for (int i = 0; i < num_sublists; i++) {
+		if (multilist_sublist_is_empty_idx(ml, i))
+			continue;
 		sync_dnodes_arg_t *sda = kmem_alloc(sizeof (*sda), KM_SLEEP);
-		sda->sda_list = os->os_dirty_dnodes[txgoff];
+		sda->sda_list = ml;
 		sda->sda_sublist_idx = i;
 		sda->sda_tx = tx;
 		(void) taskq_dispatch(dmu_objset_pool(os)->dp_sync_taskq,
@@ -1803,8 +1724,7 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 	while ((dr = list_head(list)) != NULL) {
 		ASSERT0(dr->dr_dbuf->db_level);
 		list_remove(list, dr);
-		if (dr->dr_zio)
-			zio_nowait(dr->dr_zio);
+		zio_nowait(dr->dr_zio);
 	}
 
 	/* Enable dnode backfill if enough objects have been freed. */
@@ -1824,22 +1744,32 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 boolean_t
 dmu_objset_is_dirty(objset_t *os, uint64_t txg)
 {
-	return (!multilist_is_empty(os->os_dirty_dnodes[txg & TXG_MASK]));
+	return (!multilist_is_empty(&os->os_dirty_dnodes[txg & TXG_MASK]));
 }
 
-static objset_used_cb_t *used_cbs[DMU_OST_NUMTYPES];
+static file_info_cb_t *file_cbs[DMU_OST_NUMTYPES];
 
 void
-dmu_objset_register_type(dmu_objset_type_t ost, objset_used_cb_t *cb)
+dmu_objset_register_type(dmu_objset_type_t ost, file_info_cb_t *cb)
 {
-	used_cbs[ost] = cb;
+	file_cbs[ost] = cb;
+}
+
+int
+dmu_get_file_info(objset_t *os, dmu_object_type_t bonustype, const void *data,
+    zfs_file_info_t *zfi)
+{
+	file_info_cb_t *cb = file_cbs[os->os_phys->os_type];
+	if (cb == NULL)
+		return (EINVAL);
+	return (cb(bonustype, data, zfi));
 }
 
 boolean_t
 dmu_objset_userused_enabled(objset_t *os)
 {
 	return (spa_version(os->os_spa) >= SPA_VERSION_USERSPACE &&
-	    used_cbs[os->os_phys->os_type] != NULL &&
+	    file_cbs[os->os_phys->os_type] != NULL &&
 	    DMU_USERUSED_DNODE(os) != NULL);
 }
 
@@ -1853,7 +1783,7 @@ dmu_objset_userobjused_enabled(objset_t *os)
 boolean_t
 dmu_objset_projectquota_enabled(objset_t *os)
 {
-	return (used_cbs[os->os_phys->os_type] != NULL &&
+	return (file_cbs[os->os_phys->os_type] != NULL &&
 	    DMU_PROJECTUSED_DNODE(os) != NULL &&
 	    spa_feature_is_enabled(os->os_spa, SPA_FEATURE_PROJECT_QUOTA));
 }
@@ -1884,7 +1814,7 @@ userquota_compare(const void *l, const void *r)
 	 */
 	rv = strcmp(luqn->uqn_id, ruqn->uqn_id);
 
-	return (AVL_ISIGN(rv));
+	return (TREE_ISIGN(rv));
 }
 
 static void
@@ -1969,14 +1899,15 @@ do_userquota_update(objset_t *os, userquota_cache_t *cache, uint64_t used,
 		if (subtract)
 			delta = -delta;
 
-		(void) sprintf(name, "%llx", (longlong_t)user);
+		(void) snprintf(name, sizeof (name), "%llx", (longlong_t)user);
 		userquota_update_cache(&cache->uqc_user_deltas, name, delta);
 
-		(void) sprintf(name, "%llx", (longlong_t)group);
+		(void) snprintf(name, sizeof (name), "%llx", (longlong_t)group);
 		userquota_update_cache(&cache->uqc_group_deltas, name, delta);
 
 		if (dmu_objset_projectquota_enabled(os)) {
-			(void) sprintf(name, "%llx", (longlong_t)project);
+			(void) snprintf(name, sizeof (name), "%llx",
+			    (longlong_t)project);
 			userquota_update_cache(&cache->uqc_project_deltas,
 			    name, delta);
 		}
@@ -2024,7 +1955,7 @@ userquota_updates_task(void *arg)
 	userquota_cache_t cache = { { 0 } };
 
 	multilist_sublist_t *list =
-	    multilist_sublist_lock(os->os_synced_dnodes, uua->uua_sublist_idx);
+	    multilist_sublist_lock(&os->os_synced_dnodes, uua->uua_sublist_idx);
 
 	ASSERT(multilist_sublist_head(list) == NULL ||
 	    dmu_objset_userused_enabled(os));
@@ -2078,23 +2009,54 @@ userquota_updates_task(void *arg)
 				dn->dn_id_flags |= DN_ID_CHKED_BONUS;
 		}
 		dn->dn_id_flags &= ~(DN_ID_NEW_EXIST);
-		if (dn->dn_dirty_txg == spa_syncing_txg(os->os_spa))
-			dn->dn_dirty_txg = 0;
 		mutex_exit(&dn->dn_mtx);
 
 		multilist_sublist_remove(list, dn);
-		dnode_rele(dn, os->os_synced_dnodes);
+		dnode_rele(dn, &os->os_synced_dnodes);
 	}
 	do_userquota_cacheflush(os, &cache, tx);
 	multilist_sublist_unlock(list);
 	kmem_free(uua, sizeof (*uua));
 }
 
-void
-dmu_objset_do_userquota_updates(objset_t *os, dmu_tx_t *tx)
+/*
+ * Release dnode holds from dmu_objset_sync_dnodes().  When the dnode is being
+ * synced (i.e. we have issued the zio's for blocks in the dnode), it can't be
+ * evicted because the block containing the dnode can't be evicted until it is
+ * written out.  However, this hold is necessary to prevent the dnode_t from
+ * being moved (via dnode_move()) while it's still referenced by
+ * dbuf_dirty_record_t:dr_dnode.  And dr_dnode is needed for
+ * dirty_lightweight_leaf-type dirty records.
+ *
+ * If we are doing user-object accounting, the dnode_rele() happens from
+ * userquota_updates_task() instead.
+ */
+static void
+dnode_rele_task(void *arg)
+{
+	userquota_updates_arg_t *uua = arg;
+	objset_t *os = uua->uua_os;
+
+	multilist_sublist_t *list =
+	    multilist_sublist_lock(&os->os_synced_dnodes, uua->uua_sublist_idx);
+
+	dnode_t *dn;
+	while ((dn = multilist_sublist_head(list)) != NULL) {
+		multilist_sublist_remove(list, dn);
+		dnode_rele(dn, &os->os_synced_dnodes);
+	}
+	multilist_sublist_unlock(list);
+	kmem_free(uua, sizeof (*uua));
+}
+
+/*
+ * Return TRUE if userquota updates are needed.
+ */
+static boolean_t
+dmu_objset_do_userquota_updates_prep(objset_t *os, dmu_tx_t *tx)
 {
 	if (!dmu_objset_userused_enabled(os))
-		return;
+		return (B_FALSE);
 
 	/*
 	 * If this is a raw receive just return and handle accounting
@@ -2104,10 +2066,10 @@ dmu_objset_do_userquota_updates(objset_t *os, dmu_tx_t *tx)
 	 * used for recovery.
 	 */
 	if (os->os_encrypted && dmu_objset_is_receiving(os))
-		return;
+		return (B_FALSE);
 
 	if (tx->tx_txg <= os->os_spa->spa_claim_max_txg)
-		return;
+		return (B_FALSE);
 
 	/* Allocate the user/group/project used objects if necessary. */
 	if (DMU_USERUSED_DNODE(os)->dn_type == DMU_OT_NONE) {
@@ -2124,20 +2086,38 @@ dmu_objset_do_userquota_updates(objset_t *os, dmu_tx_t *tx)
 		VERIFY0(zap_create_claim(os, DMU_PROJECTUSED_OBJECT,
 		    DMU_OT_USERGROUP_USED, DMU_OT_NONE, 0, tx));
 	}
+	return (B_TRUE);
+}
 
-	for (int i = 0;
-	    i < multilist_get_num_sublists(os->os_synced_dnodes); i++) {
+/*
+ * Dispatch taskq tasks to dp_sync_taskq to update the user accounting, and
+ * also release the holds on the dnodes from dmu_objset_sync_dnodes().
+ * The caller must taskq_wait(dp_sync_taskq).
+ */
+void
+dmu_objset_sync_done(objset_t *os, dmu_tx_t *tx)
+{
+	boolean_t need_userquota = dmu_objset_do_userquota_updates_prep(os, tx);
+
+	int num_sublists = multilist_get_num_sublists(&os->os_synced_dnodes);
+	for (int i = 0; i < num_sublists; i++) {
 		userquota_updates_arg_t *uua =
 		    kmem_alloc(sizeof (*uua), KM_SLEEP);
 		uua->uua_os = os;
 		uua->uua_sublist_idx = i;
 		uua->uua_tx = tx;
-		/* note: caller does taskq_wait() */
+
+		/*
+		 * If we don't need to update userquotas, use
+		 * dnode_rele_task() to call dnode_rele()
+		 */
 		(void) taskq_dispatch(dmu_objset_pool(os)->dp_sync_taskq,
-		    userquota_updates_task, uua, 0);
+		    need_userquota ? userquota_updates_task : dnode_rele_task,
+		    uua, 0);
 		/* callback frees uua */
 	}
 }
+
 
 /*
  * Returns a pointer to data to find uid/gid from
@@ -2149,31 +2129,22 @@ dmu_objset_do_userquota_updates(objset_t *os, dmu_tx_t *tx)
 static void *
 dmu_objset_userquota_find_data(dmu_buf_impl_t *db, dmu_tx_t *tx)
 {
-	dbuf_dirty_record_t *dr, **drp;
+	dbuf_dirty_record_t *dr;
 	void *data;
 
 	if (db->db_dirtycnt == 0)
 		return (db->db.db_data);  /* Nothing is changing */
 
-	for (drp = &db->db_last_dirty; (dr = *drp) != NULL; drp = &dr->dr_next)
-		if (dr->dr_txg == tx->tx_txg)
-			break;
+	dr = dbuf_find_dirty_eq(db, tx->tx_txg);
 
 	if (dr == NULL) {
 		data = NULL;
 	} else {
-		dnode_t *dn;
-
-		DB_DNODE_ENTER(dr->dr_dbuf);
-		dn = DB_DNODE(dr->dr_dbuf);
-
-		if (dn->dn_bonuslen == 0 &&
+		if (dr->dr_dnode->dn_bonuslen == 0 &&
 		    dr->dr_dbuf->db_blkid == DMU_SPILL_BLKID)
 			data = dr->dt.dl.dr_data->b_data;
 		else
 			data = dr->dt.dl.dr_data;
-
-		DB_DNODE_EXIT(dr->dr_dbuf);
 	}
 
 	return (data);
@@ -2185,9 +2156,6 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 	objset_t *os = dn->dn_objset;
 	void *data = NULL;
 	dmu_buf_impl_t *db = NULL;
-	uint64_t *user = NULL;
-	uint64_t *group = NULL;
-	uint64_t *project = NULL;
 	int flags = dn->dn_id_flags;
 	int error;
 	boolean_t have_spill = B_FALSE;
@@ -2241,23 +2209,23 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 		return;
 	}
 
-	if (before) {
-		ASSERT(data);
-		user = &dn->dn_olduid;
-		group = &dn->dn_oldgid;
-		project = &dn->dn_oldprojid;
-	} else if (data) {
-		user = &dn->dn_newuid;
-		group = &dn->dn_newgid;
-		project = &dn->dn_newprojid;
-	}
-
 	/*
 	 * Must always call the callback in case the object
 	 * type has changed and that type isn't an object type to track
 	 */
-	error = used_cbs[os->os_phys->os_type](dn->dn_bonustype, data,
-	    user, group, project);
+	zfs_file_info_t zfi;
+	error = file_cbs[os->os_phys->os_type](dn->dn_bonustype, data, &zfi);
+
+	if (before) {
+		ASSERT(data);
+		dn->dn_olduid = zfi.zfi_user;
+		dn->dn_oldgid = zfi.zfi_group;
+		dn->dn_oldprojid = zfi.zfi_project;
+	} else if (data) {
+		dn->dn_newuid = zfi.zfi_user;
+		dn->dn_newgid = zfi.zfi_group;
+		dn->dn_newprojid = zfi.zfi_project;
+	}
 
 	/*
 	 * Preserve existing uid/gid when the callback can't determine
@@ -2366,8 +2334,8 @@ dmu_objset_space_upgrade(objset_t *os)
 	return (0);
 }
 
-int
-dmu_objset_userspace_upgrade(objset_t *os)
+static int
+dmu_objset_userspace_upgrade_cb(objset_t *os)
 {
 	int err = 0;
 
@@ -2387,6 +2355,12 @@ dmu_objset_userspace_upgrade(objset_t *os)
 	return (0);
 }
 
+void
+dmu_objset_userspace_upgrade(objset_t *os)
+{
+	dmu_objset_upgrade(os, dmu_objset_userspace_upgrade_cb);
+}
+
 static int
 dmu_objset_id_quota_upgrade_cb(objset_t *os)
 {
@@ -2397,14 +2371,15 @@ dmu_objset_id_quota_upgrade_cb(objset_t *os)
 		return (0);
 	if (dmu_objset_is_snapshot(os))
 		return (SET_ERROR(EINVAL));
-	if (!dmu_objset_userobjused_enabled(os))
+	if (!dmu_objset_userused_enabled(os))
 		return (SET_ERROR(ENOTSUP));
 	if (!dmu_objset_projectquota_enabled(os) &&
 	    dmu_objset_userobjspace_present(os))
 		return (SET_ERROR(ENOTSUP));
 
-	dmu_objset_ds(os)->ds_feature_activation[
-	    SPA_FEATURE_USEROBJ_ACCOUNTING] = (void *)B_TRUE;
+	if (dmu_objset_userobjused_enabled(os))
+		dmu_objset_ds(os)->ds_feature_activation[
+		    SPA_FEATURE_USEROBJ_ACCOUNTING] = (void *)B_TRUE;
 	if (dmu_objset_projectquota_enabled(os))
 		dmu_objset_ds(os)->ds_feature_activation[
 		    SPA_FEATURE_PROJECT_QUOTA] = (void *)B_TRUE;
@@ -2413,7 +2388,9 @@ dmu_objset_id_quota_upgrade_cb(objset_t *os)
 	if (err)
 		return (err);
 
-	os->os_flags |= OBJSET_FLAG_USEROBJACCOUNTING_COMPLETE;
+	os->os_flags |= OBJSET_FLAG_USERACCOUNTING_COMPLETE;
+	if (dmu_objset_userobjused_enabled(os))
+		os->os_flags |= OBJSET_FLAG_USEROBJACCOUNTING_COMPLETE;
 	if (dmu_objset_projectquota_enabled(os))
 		os->os_flags |= OBJSET_FLAG_PROJECTQUOTA_COMPLETE;
 
@@ -2494,7 +2471,7 @@ dmu_objset_is_snapshot(objset_t *os)
 }
 
 int
-dmu_snapshot_realname(objset_t *os, char *name, char *real, int maxlen,
+dmu_snapshot_realname(objset_t *os, const char *name, char *real, int maxlen,
     boolean_t *conflict)
 {
 	dsl_dataset_t *ds = os->os_dsl_dataset;
@@ -2535,7 +2512,7 @@ dmu_snapshot_list_next(objset_t *os, int namelen, char *name,
 		return (SET_ERROR(ENAMETOOLONG));
 	}
 
-	(void) strcpy(name, attr.za_name);
+	(void) strlcpy(name, attr.za_name, namelen);
 	if (idp)
 		*idp = attr.za_first_integer;
 	if (case_conflict)
@@ -2580,7 +2557,7 @@ dmu_dir_list_next(objset_t *os, int namelen, char *name,
 		return (SET_ERROR(ENAMETOOLONG));
 	}
 
-	(void) strcpy(name, attr.za_name);
+	(void) strlcpy(name, attr.za_name, namelen);
 	if (idp)
 		*idp = attr.za_first_integer;
 	zap_cursor_advance(&cursor);
@@ -2740,7 +2717,7 @@ dmu_objset_find_dp_cb(void *arg)
 
 	/*
 	 * We need to get a pool_config_lock here, as there are several
-	 * asssert(pool_config_held) down the stack. Getting a lock via
+	 * assert(pool_config_held) down the stack. Getting a lock via
 	 * dsl_pool_config_enter is risky, as it might be stalled by a
 	 * pending writer. This would deadlock, as the write lock can
 	 * only be granted when our parent thread gives up the lock.
@@ -2887,7 +2864,7 @@ dmu_objset_find_impl(spa_t *spa, const char *name,
 			err = dmu_objset_find_impl(spa, child,
 			    func, arg, flags);
 			dsl_pool_config_enter(dp, FTAG);
-			strfree(child);
+			kmem_strfree(child);
 			if (err != 0)
 				break;
 		}
@@ -2925,7 +2902,7 @@ dmu_objset_find_impl(spa_t *spa, const char *name,
 				dsl_pool_config_exit(dp, FTAG);
 				err = func(child, arg);
 				dsl_pool_config_enter(dp, FTAG);
-				strfree(child);
+				kmem_strfree(child);
 				if (err != 0)
 					break;
 			}
@@ -2948,7 +2925,7 @@ dmu_objset_find_impl(spa_t *spa, const char *name,
  * See comment above dmu_objset_find_impl().
  */
 int
-dmu_objset_find(char *name, int func(const char *, void *), void *arg,
+dmu_objset_find(const char *name, int func(const char *, void *), void *arg,
     int flags)
 {
 	spa_t *spa;
@@ -3000,9 +2977,17 @@ dmu_fsname(const char *snapname, char *buf)
 }
 
 /*
- * Call when we think we're going to write/free space in open context to track
- * the amount of dirty data in the open txg, which is also the amount
- * of memory that can not be evicted until this txg syncs.
+ * Call when we think we're going to write/free space in open context
+ * to track the amount of dirty data in the open txg, which is also the
+ * amount of memory that can not be evicted until this txg syncs.
+ *
+ * Note that there are two conditions where this can be called from
+ * syncing context:
+ *
+ * [1] When we just created the dataset, in which case we go on with
+ *     updating any accounting of dirty data as usual.
+ * [2] When we are dirtying MOS data, in which case we only update the
+ *     pool's accounting of dirty data.
  */
 void
 dmu_objset_willuse_space(objset_t *os, int64_t space, dmu_tx_t *tx)
@@ -3012,8 +2997,9 @@ dmu_objset_willuse_space(objset_t *os, int64_t space, dmu_tx_t *tx)
 
 	if (ds != NULL) {
 		dsl_dir_willuse_space(ds->ds_dir, aspace, tx);
-		dsl_pool_dirty_space(dmu_tx_pool(tx), space, tx);
 	}
+
+	dsl_pool_dirty_space(dmu_tx_pool(tx), space, tx);
 }
 
 #if defined(_KERNEL)
@@ -3049,7 +3035,7 @@ EXPORT_SYMBOL(dmu_objset_create_impl);
 EXPORT_SYMBOL(dmu_objset_open_impl);
 EXPORT_SYMBOL(dmu_objset_evict);
 EXPORT_SYMBOL(dmu_objset_register_type);
-EXPORT_SYMBOL(dmu_objset_do_userquota_updates);
+EXPORT_SYMBOL(dmu_objset_sync_done);
 EXPORT_SYMBOL(dmu_objset_userquota_get_ids);
 EXPORT_SYMBOL(dmu_objset_userused_enabled);
 EXPORT_SYMBOL(dmu_objset_userspace_upgrade);

@@ -27,18 +27,18 @@
 #ifndef _SYS_DATASET_KSTATS_H
 #define	_SYS_DATASET_KSTATS_H
 
-#include <sys/aggsum.h>
+#include <sys/wmsum.h>
 #include <sys/dmu.h>
 #include <sys/kstat.h>
 
-typedef struct dataset_aggsum_stats_t {
-	aggsum_t das_writes;
-	aggsum_t das_nwritten;
-	aggsum_t das_reads;
-	aggsum_t das_nread;
-	aggsum_t das_nunlinks;
-	aggsum_t das_nunlinked;
-} dataset_aggsum_stats_t;
+typedef struct dataset_sum_stats_t {
+	wmsum_t dss_writes;
+	wmsum_t dss_nwritten;
+	wmsum_t dss_reads;
+	wmsum_t dss_nread;
+	wmsum_t dss_nunlinks;
+	wmsum_t dss_nunlinked;
+} dataset_sum_stats_t;
 
 typedef struct dataset_kstat_values {
 	kstat_named_t dkv_ds_name;
@@ -59,7 +59,7 @@ typedef struct dataset_kstat_values {
 } dataset_kstat_values_t;
 
 typedef struct dataset_kstats {
-	dataset_aggsum_stats_t dk_aggsums;
+	dataset_sum_stats_t dk_sums;
 	kstat_t *dk_kstats;
 } dataset_kstats_t;
 

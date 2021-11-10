@@ -24,7 +24,7 @@
  */
 
 /*
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_METASLAB_IMPL_H
@@ -36,6 +36,7 @@
 #include <sys/vdev.h>
 #include <sys/txg.h>
 #include <sys/avl.h>
+#include <sys/multilist.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -136,6 +137,29 @@ typedef enum trace_alloc_type {
 #define	WEIGHT_SET_COUNT(weight, x)		BF64_SET((weight), 0, 54, x)
 
 /*
+ * Per-allocator data structure.
+ */
+typedef struct metaslab_class_allocator {
+	metaslab_group_t	*mca_rotor;
+	uint64_t		mca_aliquot;
+
+	/*
+	 * The allocation throttle works on a reservation system. Whenever
+	 * an asynchronous zio wants to perform an allocation it must
+	 * first reserve the number of blocks that it wants to allocate.
+	 * If there aren't sufficient slots available for the pending zio
+	 * then that I/O is throttled until more slots free up. The current
+	 * number of reserved allocations is maintained by the mca_alloc_slots
+	 * refcount. The mca_alloc_max_slots value determines the maximum
+	 * number of allocations that the system allows. Gang blocks are
+	 * allowed to reserve slots even if we've reached the maximum
+	 * number of allocations allowed.
+	 */
+	uint64_t		mca_alloc_max_slots;
+	zfs_refcount_t		mca_alloc_slots;
+} ____cacheline_aligned metaslab_class_allocator_t;
+
+/*
  * A metaslab class encompasses a category of allocatable top-level vdevs.
  * Each top-level vdev is associated with a metaslab group which defines
  * the allocatable region for that vdev. Examples of these categories include
@@ -144,7 +168,7 @@ typedef enum trace_alloc_type {
  * When a block allocation is requested from the SPA it is associated with a
  * metaslab_class_t, and only top-level vdevs (i.e. metaslab groups) belonging
  * to the class can be used to satisfy that request. Allocations are done
- * by traversing the metaslab groups that are linked off of the mc_rotor field.
+ * by traversing the metaslab groups that are linked off of the mca_rotor field.
  * This rotor points to the next metaslab group where allocations will be
  * attempted. Allocating a block is a 3 step process -- select the metaslab
  * group, select the metaslab, and then allocate the block. The metaslab
@@ -155,9 +179,7 @@ typedef enum trace_alloc_type {
 struct metaslab_class {
 	kmutex_t		mc_lock;
 	spa_t			*mc_spa;
-	metaslab_group_t	*mc_rotor;
 	metaslab_ops_t		*mc_ops;
-	uint64_t		mc_aliquot;
 
 	/*
 	 * Track the number of metaslab groups that have been initialized
@@ -172,21 +194,6 @@ struct metaslab_class {
 	 */
 	boolean_t		mc_alloc_throttle_enabled;
 
-	/*
-	 * The allocation throttle works on a reservation system. Whenever
-	 * an asynchronous zio wants to perform an allocation it must
-	 * first reserve the number of blocks that it wants to allocate.
-	 * If there aren't sufficient slots available for the pending zio
-	 * then that I/O is throttled until more slots free up. The current
-	 * number of reserved allocations is maintained by the mc_alloc_slots
-	 * refcount. The mc_alloc_max_slots value determines the maximum
-	 * number of allocations that the system allows. Gang blocks are
-	 * allowed to reserve slots even if we've reached the maximum
-	 * number of allocations allowed.
-	 */
-	uint64_t		*mc_alloc_max_slots;
-	zfs_refcount_t		*mc_alloc_slots;
-
 	uint64_t		mc_alloc_groups; /* # of allocatable groups */
 
 	uint64_t		mc_alloc;	/* total allocated space */
@@ -194,7 +201,25 @@ struct metaslab_class {
 	uint64_t		mc_space;	/* total space (alloc + free) */
 	uint64_t		mc_dspace;	/* total deflated space */
 	uint64_t		mc_histogram[RANGE_TREE_HISTOGRAM_SIZE];
+
+	/*
+	 * List of all loaded metaslabs in the class, sorted in order of most
+	 * recent use.
+	 */
+	multilist_t		mc_metaslab_txg_list;
+
+	metaslab_class_allocator_t	mc_allocator[];
 };
+
+/*
+ * Per-allocator data structure.
+ */
+typedef struct metaslab_group_allocator {
+	uint64_t	mga_cur_max_alloc_queue_depth;
+	zfs_refcount_t	mga_alloc_queue_depth;
+	metaslab_t	*mga_primary;
+	metaslab_t	*mga_secondary;
+} metaslab_group_allocator_t;
 
 /*
  * Metaslab groups encapsulate all the allocatable regions (i.e. metaslabs)
@@ -207,8 +232,6 @@ struct metaslab_class {
  */
 struct metaslab_group {
 	kmutex_t		mg_lock;
-	metaslab_t		**mg_primaries;
-	metaslab_t		**mg_secondaries;
 	avl_tree_t		mg_metaslab_tree;
 	uint64_t		mg_aliquot;
 	boolean_t		mg_allocatable;		/* can we allocate? */
@@ -243,7 +266,7 @@ struct metaslab_group {
 	 *
 	 * Each allocator in each metaslab group has a current queue depth
 	 * (mg_alloc_queue_depth[allocator]) and a current max queue depth
-	 * (mg_cur_max_alloc_queue_depth[allocator]), and each metaslab group
+	 * (mga_cur_max_alloc_queue_depth[allocator]), and each metaslab group
 	 * has an absolute max queue depth (mg_max_alloc_queue_depth).  We
 	 * add IOs to an allocator until the mg_alloc_queue_depth for that
 	 * allocator hits the cur_max. Every time an IO completes for a given
@@ -256,9 +279,7 @@ struct metaslab_group {
 	 * groups are unable to handle their share of allocations.
 	 */
 	uint64_t		mg_max_alloc_queue_depth;
-	uint64_t		*mg_cur_max_alloc_queue_depth;
-	zfs_refcount_t		*mg_alloc_queue_depth;
-	int			mg_allocators;
+
 	/*
 	 * A metalab group that can no longer allocate the minimum block
 	 * size will set mg_no_free_space. Once a metaslab group is out
@@ -276,6 +297,9 @@ struct metaslab_group {
 	boolean_t		mg_disabled_updating;
 	kmutex_t		mg_ms_disabled_lock;
 	kcondvar_t		mg_ms_disabled_cv;
+
+	int			mg_allocators;
+	metaslab_group_allocator_t	mg_allocator[];
 };
 
 /*
@@ -357,7 +381,7 @@ struct metaslab {
 	 * write to metaslab data on-disk (i.e flushing entries to
 	 * the metaslab's space map). It helps coordinate readers of
 	 * the metaslab's space map [see spa_vdev_remove_thread()]
-	 * with writers [see metaslab_sync()].
+	 * with writers [see metaslab_sync() or metaslab_flush()].
 	 *
 	 * Note that metaslab_load(), even though a reader, uses
 	 * a completely different mechanism to deal with the reading
@@ -378,6 +402,7 @@ struct metaslab {
 	range_tree_t	*ms_allocating[TXG_SIZE];
 	range_tree_t	*ms_allocatable;
 	uint64_t	ms_allocated_this_txg;
+	uint64_t	ms_allocating_total;
 
 	/*
 	 * The following range trees are accessed only from syncing context.
@@ -401,7 +426,6 @@ struct metaslab {
 
 	boolean_t	ms_condensing;	/* condensing? */
 	boolean_t	ms_condense_wanted;
-	uint64_t	ms_condense_checked_txg;
 
 	/*
 	 * The number of consumers which have disabled the metaslab.
@@ -414,6 +438,8 @@ struct metaslab {
 	 */
 	boolean_t	ms_loaded;
 	boolean_t	ms_loading;
+	kcondvar_t	ms_flush_cv;
+	boolean_t	ms_flushing;
 
 	/*
 	 * The following histograms count entries that are in the
@@ -474,6 +500,13 @@ struct metaslab {
 	 * stay cached.
 	 */
 	uint64_t	ms_selected_txg;
+	/*
+	 * ms_load/unload_time can be used for performance monitoring
+	 * (e.g. by dtrace or mdb).
+	 */
+	hrtime_t	ms_load_time;	/* time last loaded */
+	hrtime_t	ms_unload_time;	/* time last unloaded */
+	hrtime_t	ms_selected_time; /* time last allocated from */
 
 	uint64_t	ms_alloc_txg;	/* last successful alloc (debug only) */
 	uint64_t	ms_max_size;	/* maximum allocatable size	*/
@@ -493,18 +526,44 @@ struct metaslab {
 	 * only difference is that the ms_allocatable_by_size is ordered by
 	 * segment sizes.
 	 */
-	avl_tree_t	ms_allocatable_by_size;
+	zfs_btree_t		ms_allocatable_by_size;
+	zfs_btree_t		ms_unflushed_frees_by_size;
 	uint64_t	ms_lbas[MAX_LBAS];
 
 	metaslab_group_t *ms_group;	/* metaslab group		*/
 	avl_node_t	ms_group_node;	/* node in metaslab group tree	*/
 	txg_node_t	ms_txg_node;	/* per-txg dirty metaslab links	*/
+	avl_node_t	ms_spa_txg_node; /* node in spa_metaslabs_by_txg */
+	/*
+	 * Node in metaslab class's selected txg list
+	 */
+	multilist_node_t	ms_class_txg_node;
+
+	/*
+	 * Allocs and frees that are committed to the vdev log spacemap but
+	 * not yet to this metaslab's spacemap.
+	 */
+	range_tree_t	*ms_unflushed_allocs;
+	range_tree_t	*ms_unflushed_frees;
+
+	/*
+	 * We have flushed entries up to but not including this TXG. In
+	 * other words, all changes from this TXG and onward should not
+	 * be in this metaslab's space map and must be read from the
+	 * log space maps.
+	 */
+	uint64_t	ms_unflushed_txg;
 
 	/* updated every time we are done syncing the metaslab's space map */
 	uint64_t	ms_synced_length;
 
 	boolean_t	ms_new;
 };
+
+typedef struct metaslab_unflushed_phys {
+	/* on-disk counterpart of ms_unflushed_txg */
+	uint64_t	msp_unflushed_txg;
+} metaslab_unflushed_phys_t;
 
 #ifdef	__cplusplus
 }

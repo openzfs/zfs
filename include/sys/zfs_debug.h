@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2019 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_ZFS_DEBUG_H
@@ -55,10 +55,13 @@ extern int zfs_dbgmsg_enable;
 #define	ZFS_DEBUG_SET_ERROR		(1 << 9)
 #define	ZFS_DEBUG_INDIRECT_REMAP	(1 << 10)
 #define	ZFS_DEBUG_TRIM			(1 << 11)
+#define	ZFS_DEBUG_LOG_SPACEMAP		(1 << 12)
+#define	ZFS_DEBUG_METASLAB_ALLOC	(1 << 13)
 
+extern void __set_error(const char *file, const char *func, int line, int err);
 extern void __zfs_dbgmsg(char *buf);
 extern void __dprintf(boolean_t dprint, const char *file, const char *func,
-    int line, const char *fmt, ...);
+    int line, const char *fmt, ...)  __attribute__((format(printf, 5, 6)));
 
 /*
  * Some general principles for using zfs_dbgmsg():

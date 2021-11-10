@@ -51,9 +51,7 @@ function cleanup
 		log_must umount $mntp
 	fi
 
-	if datasetexists $vol; then
-		log_must zfs destroy $vol
-	fi
+	datasetexists $vol && destroy_dataset $vol
 
 	if [[ -d $mntp ]]; then
                 rm -rf $mntp
@@ -70,8 +68,8 @@ if [[ ! -d $mntp ]]; then
 	mkdir -p $mntp
 fi
 
-for val in 1 2 3; do
-	do_vol_test $NEWFS_DEFAULT_FS $val $mntp
+for copies in 1 2 3; do
+	do_vol_test $NEWFS_DEFAULT_FS $copies $mntp
 done
 
 log_pass "The volume space used by multiple copies is charged correctly as expected. "

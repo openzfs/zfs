@@ -14,4 +14,6 @@
 #include "setjmp_mips.S"
 #elif defined(__s390x__)
 #include "setjmp_s390x.S"
+#elif defined(__riscv)
+#include "setjmp_rv64g.S"
 #endif

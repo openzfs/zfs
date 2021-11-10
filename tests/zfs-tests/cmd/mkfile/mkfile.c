@@ -34,19 +34,17 @@
 #include <string.h>
 #include <libintl.h>
 #include <errno.h>
+#include <sys/stdtypes.h>
+#include <sys/sysmacros.h>
 
-#define	MIN(a, b)	((a) < (b) ? (a) : (b))
-
-#define	BLOCK_SIZE	512		/* bytes */
+#define	BLOCKSIZE	512		/* bytes */
 #define	KILOBYTE	1024
 #define	MEGABYTE	(KILOBYTE * KILOBYTE)
 #define	GIGABYTE	(KILOBYTE * MEGABYTE)
 
 #define	FILE_MODE	(S_ISVTX + S_IRUSR + S_IWUSR)
 
-typedef long long	offset_t;
-
-static void usage(void);
+static void usage(void) __attribute__((noreturn));
 
 int
 main(int argc, char **argv)
@@ -95,7 +93,7 @@ main(int argc, char **argv)
 			break;
 		case 'b':
 		case 'B':
-			mult = BLOCK_SIZE;
+			mult = BLOCKSIZE;
 			break;
 		case 'm':
 		case 'M':
@@ -141,8 +139,17 @@ main(int argc, char **argv)
 			argv++;
 			argc--;
 			continue;
-		}
-		if (lseek(fd, (off_t)size-1, SEEK_SET) < 0) {
+		} else if (fchown(fd, getuid(), getgid()) < 0) {
+			saverr = errno;
+			(void) fprintf(stderr, gettext(
+			    "Could not set owner/group of %s: %s\n"),
+			    argv[1], strerror(saverr));
+			(void) close(fd);
+			errors++;
+			argv++;
+			argc--;
+			continue;
+		} else if (lseek(fd, (off_t)size-1, SEEK_SET) < 0) {
 			saverr = errno;
 			(void) fprintf(stderr, gettext(
 			    "Could not seek to offset %ld in %s: %s\n"),
@@ -271,5 +278,4 @@ static void usage()
 	(void) fprintf(stderr, gettext(
 	    "Usage: mkfile [-nv] <size>[g|k|b|m] <name1> [<name2>] ...\n"));
 	exit(1);
-	/* NOTREACHED */
 }

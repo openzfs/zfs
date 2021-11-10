@@ -21,6 +21,7 @@
 
 /*
  * Copyright (c) 2009, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2018 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -45,7 +46,7 @@ ddt_zap_create(objset_t *os, uint64_t *objectp, dmu_tx_t *tx, boolean_t prehash)
 	    ddt_zap_leaf_blockshift, ddt_zap_indirect_blockshift,
 	    DMU_OT_NONE, 0, tx);
 
-	return (*objectp == 0 ? ENOTSUP : 0);
+	return (*objectp == 0 ? SET_ERROR(ENOTSUP) : 0);
 }
 
 static int
@@ -117,7 +118,18 @@ ddt_zap_walk(objset_t *os, uint64_t object, ddt_entry_t *dde, uint64_t *walk)
 	zap_attribute_t za;
 	int error;
 
-	zap_cursor_init_serialized(&zc, os, object, *walk);
+	if (*walk == 0) {
+		/*
+		 * We don't want to prefetch the entire ZAP object, because
+		 * it can be enormous.  Also the primary use of DDT iteration
+		 * is for scrubbing, in which case we will be issuing many
+		 * scrub I/Os for each ZAP block that we read in, so
+		 * reading the ZAP is unlikely to be the bottleneck.
+		 */
+		zap_cursor_init_noprefetch(&zc, os, object);
+	} else {
+		zap_cursor_init_serialized(&zc, os, object, *walk);
+	}
 	if ((error = zap_cursor_retrieve(&zc, &za)) == 0) {
 		uchar_t cbuf[sizeof (dde->dde_phys) + 1];
 		uint64_t csize = za.za_num_integers;

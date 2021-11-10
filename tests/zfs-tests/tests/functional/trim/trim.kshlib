@@ -18,7 +18,7 @@
 . $STF_SUITE/tests/functional/cli_root/zpool_trim/zpool_trim.kshlib
 
 #
-# Get the actual on disk disk for the provided file.
+# Get the actual size on disk for the provided file.
 #
 function get_size_mb
 {
@@ -33,17 +33,18 @@ function get_trim_io
 {
 	typeset pool="${1-:$TESTPOOL}"
 	typeset type="${2-:ind}"
+	typeset vdev="${3}"
 	typeset rval
 
 	# Sum the ind or agg columns of the trim request size histogram.
 	case "$type" in
 	"ind")
-		rval=$(zpool iostat -pr $pool | awk \
+		rval=$(zpool iostat -pr $pool $vdev | awk \
 		    '$1 ~ /[0-9].*/ { sum += $12 } END { print sum }')
 		echo -n "$rval"
 		;;
 	"agg")
-		rval=$(zpool iostat -pr $pool | awk \
+		rval=$(zpool iostat -pr $pool $vdev | awk \
 		    '$1 ~ /[0-9].*/ { sum += $13 } END { print sum }')
 		echo -n "$rval"
 		;;
@@ -61,9 +62,10 @@ function verify_trim_io
 	typeset pool="${1:-$TESTPOOL}"
 	typeset type="${2:-ind}"
 	typeset min_trim_ios=${3:-100}
+	typeset vdev="${4}"
 	typeset ios
 
-	ios=$(get_trim_io $pool $type)
+	ios=$(get_trim_io $pool $type $vdev)
 	if [[ $ios -ge $min_trim_ios ]]; then
 		log_note "Issued $ios $type trim IOs for pool $pool"
 	else
@@ -117,38 +119,4 @@ function verify_vdevs # op size vdevs
 			    "$tgt_op than $tgt_size MB"
 		fi
 	done
-}
-
-#
-# Wait for up to 120 seconds for trimming of the listed vdevs to complete.
-#
-function wait_trim # pool vdevs
-{
-	typeset stop_time=$(( $(date +%s) + 120 ))
-	typeset pool="$1"
-	shift
-	typeset vdevs=$@
-	typeset complete
-
-	while [[ $complete -eq 0 ]]; do
-		complete=1
-
-		for vdev in $vdevs; do
-			if [[ "$(trim_progress $pool $vdev)" -lt "100" ]]; then
-				complete=0
-				break
-			else
-				log_must eval "trim_prog_line $pool $vdev | \
-				    grep complete"
-			fi
-		done
-
-		if [ "$(date +%s)" -ge $stop_time ]; then
-			log_fail "Exceeded trim time limit of 120s"
-		fi
-
-		sleep 0.5
-	done
-
-	log_note "Pool completed trim successfully."
 }

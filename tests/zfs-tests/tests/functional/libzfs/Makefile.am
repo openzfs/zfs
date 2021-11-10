@@ -9,12 +9,8 @@ dist_pkgdata_SCRIPTS = \
 	setup.ksh \
 	libzfs_input.ksh
 
-DEFAULT_INCLUDES += \
-	-I$(top_srcdir)/include \
-	-I$(top_srcdir)/lib/libspl/include
-
 many_fds_LDADD = \
-	$(top_builddir)/lib/libzfs/libzfs.la
+	$(abs_top_builddir)/lib/libzfs/libzfs.la
 
 pkgexec_PROGRAMS = many_fds
 many_fds_SOURCES = many_fds.c

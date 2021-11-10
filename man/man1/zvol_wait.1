@@ -1,0 +1,32 @@
+.\"
+.\" This file and its contents are supplied under the terms of the
+.\" Common Development and Distribution License ("CDDL"), version 1.0.
+.\" You may only use this file in accordance with the terms of version
+.\" 1.0 of the CDDL.
+.\"
+.\" A full copy of the text of the CDDL should have accompanied this
+.\" source.  A copy of the CDDL is also available via the Internet at
+.\" http://www.illumos.org/license/CDDL.
+.\"
+.Dd May 27, 2021
+.Dt ZVOL_WAIT 1
+.Os
+.
+.Sh NAME
+.Nm zvol_wait
+.Nd wait for ZFS volume links to appear in /dev
+.Sh SYNOPSIS
+.Nm
+.
+.Sh DESCRIPTION
+When a ZFS pool is imported, the volumes within it will appear as block devices.
+As they're registered,
+.Xr udev 7
+asynchronously creates symlinks under
+.Pa /dev/zvol
+using the volumes' names.
+.Nm
+will wait for all those symlinks to be created before exiting.
+.
+.Sh SEE ALSO
+.Xr udev 7

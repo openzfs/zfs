@@ -40,69 +40,73 @@
 #ifndef	_LIBSPL_SYS_UIO_H
 #define	_LIBSPL_SYS_UIO_H
 
+#include <sys/types.h>
 #include_next <sys/uio.h>
 
+#ifdef __APPLE__
+#include <sys/_types/_iovec_t.h>
+#endif
+
+#include <stdint.h>
 typedef struct iovec iovec_t;
 
-typedef enum uio_rw {
+#if defined(__linux__) || defined(__APPLE__)
+typedef enum zfs_uio_rw {
 	UIO_READ =	0,
 	UIO_WRITE =	1,
-} uio_rw_t;
+} zfs_uio_rw_t;
 
-typedef enum uio_seg {
+typedef enum zfs_uio_seg {
 	UIO_USERSPACE =	0,
 	UIO_SYSSPACE =	1,
-	UIO_USERISPACE = 2,
-} uio_seg_t;
+} zfs_uio_seg_t;
 
-typedef struct uio {
+#elif defined(__FreeBSD__)
+typedef enum uio_seg  zfs_uio_seg_t;
+#endif
+
+typedef struct zfs_uio {
 	struct iovec	*uio_iov;	/* pointer to array of iovecs */
 	int		uio_iovcnt;	/* number of iovecs */
 	offset_t	uio_loffset;	/* file offset */
-	uio_seg_t	uio_segflg;	/* address space (kernel or user) */
+	zfs_uio_seg_t	uio_segflg;	/* address space (kernel or user) */
 	uint16_t	uio_fmode;	/* file mode flags */
 	uint16_t	uio_extflg;	/* extended flags */
-	offset_t	uio_limit;	/* u-limit (maximum byte offset) */
 	ssize_t		uio_resid;	/* residual count */
-} uio_t;
+} zfs_uio_t;
 
-typedef enum xuio_type {
-	UIOTYPE_ASYNCIO,
-	UIOTYPE_ZEROCOPY,
-} xuio_type_t;
+#define	zfs_uio_segflg(uio)		(uio)->uio_segflg
+#define	zfs_uio_offset(uio)		(uio)->uio_loffset
+#define	zfs_uio_resid(uio)		(uio)->uio_resid
+#define	zfs_uio_iovcnt(uio)		(uio)->uio_iovcnt
+#define	zfs_uio_iovlen(uio, idx)	(uio)->uio_iov[(idx)].iov_len
+#define	zfs_uio_iovbase(uio, idx)	(uio)->uio_iov[(idx)].iov_base
 
-#define	UIOA_IOV_MAX	16
+static inline void
+zfs_uio_iov_at_index(zfs_uio_t *uio, uint_t idx, void **base, uint64_t *len)
+{
+	*base = zfs_uio_iovbase(uio, idx);
+	*len = zfs_uio_iovlen(uio, idx);
+}
 
-typedef struct uioa_page_s {		/* locked uio_iov state */
-	int	uioa_pfncnt;		/* count of pfn_t(s) in *uioa_ppp */
-	void	**uioa_ppp;		/* page_t or pfn_t arrary */
-	caddr_t	uioa_base;		/* address base */
-	size_t	uioa_len;		/* span length */
-} uioa_page_t;
+static inline void
+zfs_uio_advance(zfs_uio_t *uio, size_t size)
+{
+	uio->uio_resid -= size;
+	uio->uio_loffset += size;
+}
 
-typedef struct xuio {
-	uio_t xu_uio;				/* embedded UIO structure */
+static inline offset_t
+zfs_uio_index_at_offset(zfs_uio_t *uio, offset_t off, uint_t *vec_idx)
+{
+	*vec_idx = 0;
+	while (*vec_idx < (uint_t)zfs_uio_iovcnt(uio) &&
+	    off >= (offset_t)zfs_uio_iovlen(uio, *vec_idx)) {
+		off -= zfs_uio_iovlen(uio, *vec_idx);
+		(*vec_idx)++;
+	}
 
-	/* Extended uio fields */
-	enum xuio_type xu_type;			/* uio type */
-	union {
-		struct {
-			uint32_t xu_a_state;	/* state of async i/o */
-			ssize_t xu_a_mbytes;	/* bytes moved */
-			uioa_page_t *xu_a_lcur;	/* uioa_locked[] pointer */
-			void **xu_a_lppp;	/* lcur->uioa_pppp[] pointer */
-			void *xu_a_hwst[4];	/* opaque hardware state */
-			uioa_page_t xu_a_locked[UIOA_IOV_MAX];
-		} xu_aio;
-
-		struct {
-			int xu_zc_rw;		/* read or write buffer */
-			void *xu_zc_priv;	/* fs specific */
-		} xu_zc;
-	} xu_ext;
-} xuio_t;
-
-#define	XUIO_XUZC_PRIV(xuio)	xuio->xu_ext.xu_zc.xu_zc_priv
-#define	XUIO_XUZC_RW(xuio)	xuio->xu_ext.xu_zc.xu_zc_rw
+	return (off);
+}
 
 #endif	/* _SYS_UIO_H */

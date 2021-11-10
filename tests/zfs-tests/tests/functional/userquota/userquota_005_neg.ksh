@@ -44,9 +44,7 @@
 
 function cleanup
 {
-	if datasetexists $snap_fs; then
-		log_must zfs destroy $snap_fs
-	fi
+	datasetexists $snap_fs && destroy_dataset $snap_fs
 
 	log_must cleanup_quota
 }
@@ -64,7 +62,7 @@ for user in "${no_users[@]}"; do
 	log_mustnot zfs set userquota@$user=100m $QFS
 done
 
-log_note "can set all numberic id even that id is not existed"
+log_note "can set all numeric id even if that id does not exist"
 log_must zfs set userquota@12345678=100m $QFS
 log_mustnot zfs set userquota@12345678=100m $snap_fs
 

@@ -1,3 +1,6 @@
+include $(top_srcdir)/config/Substfiles.am
+include $(top_srcdir)/config/Shellcheck.am
+
 pkgdracutdir = $(dracutdir)/modules.d/90zfs
 pkgdracut_SCRIPTS = \
 	export-zfs.sh \
@@ -7,31 +10,15 @@ pkgdracut_SCRIPTS = \
 	zfs-generator.sh \
 	zfs-load-key.sh \
 	zfs-needshutdown.sh \
-	zfs-lib.sh
+	zfs-lib.sh \
+	import-opts-generator.sh
 
 pkgdracut_DATA = \
-	zfs-env-bootfs.service
+	zfs-env-bootfs.service \
+	zfs-snapshot-bootfs.service \
+	zfs-rollback-bootfs.service
 
-EXTRA_DIST = \
-	$(top_srcdir)/contrib/dracut/90zfs/export-zfs.sh.in \
-	$(top_srcdir)/contrib/dracut/90zfs/module-setup.sh.in \
-	$(top_srcdir)/contrib/dracut/90zfs/mount-zfs.sh.in \
-	$(top_srcdir)/contrib/dracut/90zfs/parse-zfs.sh.in \
-	$(top_srcdir)/contrib/dracut/90zfs/zfs-generator.sh.in \
-	$(top_srcdir)/contrib/dracut/90zfs/zfs-load-key.sh.in \
-	$(top_srcdir)/contrib/dracut/90zfs/zfs-needshutdown.sh.in \
-	$(top_srcdir)/contrib/dracut/90zfs/zfs-lib.sh.in \
-	$(top_srcdir)/contrib/dracut/90zfs/zfs-env-bootfs.service.in
+SUBSTFILES += $(pkgdracut_SCRIPTS) $(pkgdracut_DATA)
 
-$(pkgdracut_SCRIPTS) $(pkgdracut_DATA) :%:%.in
-	-$(SED) -e 's,@bindir\@,$(bindir),g' \
-		-e 's,@sbindir\@,$(sbindir),g' \
-		-e 's,@udevdir\@,$(udevdir),g' \
-		-e 's,@udevruledir\@,$(udevruledir),g' \
-		-e 's,@sysconfdir\@,$(sysconfdir),g' \
-		-e 's,@systemdunitdir\@,$(systemdunitdir),g' \
-		-e 's,@mounthelperdir\@,$(mounthelperdir),g' \
-		$< >'$@'
-
-distclean-local::
-	-$(RM) $(pkgdracut_SCRIPTS) $(pkgdracut_DATA)
+# Provided by /bin/sleep, and, again, every implementation of that supports this
+CHECKBASHISMS_IGNORE = -e 'sleep only takes one integer' -e 'sleep 0.'

@@ -1,18 +1,16 @@
-src = @abs_top_srcdir@/module/zcommon
+ifneq ($(KBUILD_EXTMOD),)
+src = @abs_srcdir@
 obj = @abs_builddir@
-target_cpu = @target_cpu@
+endif
 
 MODULE := zcommon
 
 obj-$(CONFIG_ZFS) := $(MODULE).o
 
-ccflags-y := $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
-
 # Suppress unused-value warnings in sparc64 architecture headers
-ifeq ($(target_cpu),sparc64)
-ccflags-y += -Wno-unused-value
-endif
+ccflags-$(CONFIG_SPARC64) += -Wno-unused-value
 
+$(MODULE)-objs += cityhash.o
 $(MODULE)-objs += zfeature_common.o
 $(MODULE)-objs += zfs_comutil.o
 $(MODULE)-objs += zfs_deleg.o
@@ -21,7 +19,6 @@ $(MODULE)-objs += zfs_fletcher_superscalar.o
 $(MODULE)-objs += zfs_fletcher_superscalar4.o
 $(MODULE)-objs += zfs_namecheck.o
 $(MODULE)-objs += zfs_prop.o
-$(MODULE)-objs += zfs_uio.o
 $(MODULE)-objs += zpool_prop.o
 $(MODULE)-objs += zprop_common.o
 

@@ -29,6 +29,26 @@
 
 
 
+/* Return the number of bytes available on the stack. */
+#if defined (_KERNEL) && defined(__linux__)
+#include <asm/current.h>
+static intptr_t stack_remaining(void) {
+  intptr_t local;
+  local = (intptr_t)&local - (intptr_t)current->stack;
+  return local;
+}
+#elif defined (_KERNEL) && defined(__FreeBSD__)
+#include <sys/pcpu.h>
+static intptr_t stack_remaining(void) {
+  intptr_t local;
+  local = (intptr_t)&local - (intptr_t)curthread->td_kstack;
+  return local;
+}
+#else
+static intptr_t stack_remaining(void) {
+  return INTPTR_MAX;
+}
+#endif
 
 /*
 ** {======================================================
@@ -46,6 +66,7 @@
 
 #ifdef _KERNEL
 
+#ifdef __linux__
 #if defined(__i386__)
 #define	JMP_BUF_CNT	6
 #elif defined(__x86_64__)
@@ -61,7 +82,9 @@
 #elif defined(__mips__)
 #define JMP_BUF_CNT	12
 #elif defined(__s390x__)
-#define JMP_BUF_CNT	9
+#define JMP_BUF_CNT	18
+#elif defined(__riscv)
+#define JMP_BUF_CNT     64
 #else
 #define	JMP_BUF_CNT	1
 #endif
@@ -75,7 +98,7 @@ extern void longjmp(label_t *) __attribute__((__noreturn__));
 #define LUAI_TRY(L,c,a)		if (setjmp(&(c)->b) == 0) { a }
 #define luai_jmpbuf		label_t
 
-/* unsupported archs will build but not be able to run lua programs */
+/* unsupported arches will build but not be able to run lua programs */
 #if JMP_BUF_CNT == 1
 int setjmp (label_t *buf) {
 	return 1;
@@ -84,6 +107,11 @@ int setjmp (label_t *buf) {
 void longjmp (label_t * buf) {
 	for (;;);
 }
+#endif
+#else
+#define LUAI_THROW(L,c)		longjmp((c)->b, 1)
+#define LUAI_TRY(L,c,a)		if (setjmp((c)->b) == 0) { a }
+#define luai_jmpbuf		jmp_buf
 #endif
 
 #else /* _KERNEL */
@@ -436,8 +464,13 @@ void luaD_call (lua_State *L, StkId func, int nResults, int allowyield) {
     if (L->nCcalls == LUAI_MAXCCALLS)
       luaG_runerror(L, "C stack overflow");
     else if (L->nCcalls >= (LUAI_MAXCCALLS + (LUAI_MAXCCALLS>>3)))
-      luaD_throw(L, LUA_ERRERR);  /* error while handing stack error */
+      luaD_throw(L, LUA_ERRERR);  /* error while handling stack error */
   }
+  intptr_t remaining = stack_remaining();
+  if (L->runerror == 0 && remaining < LUAI_MINCSTACK)
+    luaG_runerror(L, "C stack overflow");
+  if (L->runerror != 0 && remaining < LUAI_MINCSTACK / 2)
+    luaD_throw(L, LUA_ERRERR);  /* error while handling stack error */
   if (!allowyield) L->nny++;
   if (!luaD_precall(L, func, nResults))  /* is a Lua function? */
     luaV_execute(L);  /* call it */

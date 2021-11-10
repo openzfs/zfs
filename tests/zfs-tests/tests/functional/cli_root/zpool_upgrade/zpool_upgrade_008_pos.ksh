@@ -30,6 +30,7 @@
 # Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
 #
 
+. $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zpool_upgrade/zpool_upgrade.kshlib
 
 #
@@ -67,7 +68,7 @@ MAX_VER=15
 
 for ver_old in $VERSIONS; do
 	typeset -n pool_name=ZPOOL_VERSION_${ver_old}_NAME
-	typeset ver_new=$(random $ver_old $MAX_VER)
+	typeset -i ver_new=$(random_int_between $ver_old $MAX_VER)
 
 	create_old_pool $ver_old
 	log_must zpool upgrade -V $ver_new $pool_name > /dev/null

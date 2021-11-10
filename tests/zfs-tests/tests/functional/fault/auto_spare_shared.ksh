@@ -42,7 +42,7 @@ if is_linux; then
 	# Add one 512b spare device (4Kn would generate IO errors on replace)
 	# NOTE: must be larger than other "file" vdevs and minimum SPA devsize:
 	# add 32m of fudge
-	load_scsi_debug $(($SPA_MINDEVSIZE/1024/1024+32)) 1 1 1 '512b'
+	load_scsi_debug $(($MINVDEVSIZE/1024/1024+32)) 1 1 1 '512b'
 else
 	log_unsupported "scsi debug module unsupported"
 fi
@@ -72,7 +72,7 @@ SPARE_DISKDEV="$(get_debug_device)"
 
 for vdev in $SAFE_FILEDEVPOOL1 $SAFE_FILEDEVPOOL2 $FAIL_FILEDEVPOOL1 \
     $FAIL_FILEDEVPOOL2 $SPARE_FILEDEV; do
-	log_must truncate -s $SPA_MINDEVSIZE $vdev
+	log_must truncate -s $MINVDEVSIZE $vdev
 done
 
 for spare in $SPARE_FILEDEV $SPARE_DISKDEV; do

@@ -16,7 +16,7 @@ DESCRIPTION
 
 SUPPORT
   If you find that they don't work for your platform, please report this
-  at the ZFS On Linux issue tracker at https://github.com/zfsonlinux/zfs/issues.
+  at the OpenZFS issue tracker at https://github.com/openzfs/zfs/issues.
 
   Please include:
 
@@ -35,7 +35,7 @@ SUPPORT
 
   If you're making your own distribution and you want the scripts to
   work on that, the biggest problem you'll (probably) have is the part
-  at the beginning of the "zfs-functions.in" file which sets up the
+  at the beginning of the "zfs-functions" file which sets up the
   logging output.
 
 INSTALLING INIT SCRIPT LINKS

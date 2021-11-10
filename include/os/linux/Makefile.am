@@ -1,0 +1,1 @@
+SUBDIRS = kernel spl zfs

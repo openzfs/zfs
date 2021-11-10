@@ -57,7 +57,7 @@ set -A args  "" "create" "create -s" "create -V" "create -s -V" \
     "set compressratio=" "set mounted=" "set origin=" "set quota=" \
     "set reservation=" "set volsize=" " set volblocksize=" "set recordsize=" \
     "set mountpoint=" "set devices=" "set exec=" "set setuid=" "set readonly=" \
-    "set zoned=" "set snapdir=" "set aclmode=" "set aclinherit=" \
+    "set snapdir=" "set aclmode=" "set aclinherit=" \
     "set quota=blah" "set reservation=blah" "set atime=blah" "set checksum=blah" \
     "set compression=blah" \
     "upgrade blah" "mount blah" "mount -o" \
@@ -65,6 +65,11 @@ set -A args  "" "create" "create -s" "create -V" "create -s -V" \
     "share" "unshare" "send" "send -i" "receive" "receive -d" "receive -vnF" \
     "recv" "recv -d" "recv -vnF" "allow" "unallow" \
     "blah blah" "-%" "--" "--?" "-*" "-="
+if is_freebsd; then
+	args+=("set jailed=")
+else
+	args+=("set zoned=")
+fi
 
 log_assert "Badly-formed zfs sub-command should return an error."
 

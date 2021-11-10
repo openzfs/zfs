@@ -47,7 +47,6 @@
 #include <unistd.h>
 #include <strings.h>
 
-static const int TRUE = 1;
 static char *filebase;
 
 static int
@@ -65,7 +64,7 @@ mover(void *a)
 
 	len = strlen(filebase) + 5;
 
-	while (TRUE) {
+	for (;;) {
 		idx = pickidx();
 		(void) snprintf(buf, len, "%s.%03d", filebase, idx);
 		ret = rename(filebase, buf);
@@ -85,7 +84,7 @@ cleaner(void *a)
 
 	len = strlen(filebase) + 5;
 
-	while (TRUE) {
+	for (;;) {
 		idx = pickidx();
 		(void) snprintf(buf, len, "%s.%03d", filebase, idx);
 		ret = remove(buf);
@@ -102,7 +101,7 @@ writer(void *a)
 	int *fd = (int *)a;
 	int ret;
 
-	while (TRUE) {
+	for (;;) {
 		if (*fd != -1)
 			(void) close (*fd);
 
@@ -143,7 +142,7 @@ main(int argc, char **argv)
 	(void) pthread_create(&tid, NULL, cleaner, NULL);
 	(void) pthread_create(&tid, NULL, writer, (void *) &fd);
 
-	while (TRUE) {
+	for (;;) {
 		int ret;
 		struct stat st;
 

@@ -40,7 +40,7 @@
 # 1. Create a pool & dataset
 # 2. Call readmmap binary
 # 3. unmount this file system
-# 4. Verify the integrity of this pool & dateset
+# 4. Verify the integrity of this pool & dataset
 #
 
 verify_runnable "global"

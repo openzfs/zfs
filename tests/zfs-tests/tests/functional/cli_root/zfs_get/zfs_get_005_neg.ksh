@@ -47,13 +47,19 @@ verify_runnable "both"
 typeset val_opts=(p r H)
 typeset v_props=(type used available creation volsize referenced compressratio \
     mounted origin recordsize quota reservation mountpoint sharenfs checksum \
-    compression atime devices exec readonly setuid zoned snapdir acltype \
+    compression atime devices exec readonly setuid snapdir version \
     aclinherit canmount primarycache secondarycache \
-    usedbychildren usedbydataset usedbyrefreservation usedbysnapshots version)
-
+    usedbychildren usedbydataset usedbyrefreservation usedbysnapshots)
+if is_freebsd; then
+	typeset v_props_os=(jailed aclmode)
+else
+	typeset v_props_os=(zoned acltype)
+fi
 typeset  userquota_props=(userquota@root groupquota@root userused@root \
     groupused@root)
-typeset val_props=("${v_props[@]}" "${userquota_props[@]}")
+typeset val_props=("${v_props[@]}" \
+    "${v_props_os[@]}" \
+    "${userquota_props[@]}")
 set -f	# Force shell does not parse '?' and '*' as the wildcard
 typeset inval_opts=(P R h ? *)
 typeset inval_props=(Type 0 ? * -on --on readonl time USED RATIO MOUNTED)

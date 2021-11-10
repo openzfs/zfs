@@ -1,9 +1,5 @@
 include $(top_srcdir)/config/Rules.am
 
-DEFAULT_INCLUDES += \
-	-I$(top_srcdir)/include \
-	-I$(top_srcdir)/lib/libspl/include
-
 sbin_PROGRAMS = zinject
 
 zinject_SOURCES = \
@@ -12,5 +8,8 @@ zinject_SOURCES = \
 	zinject.h
 
 zinject_LDADD = \
-	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libzfs/libzfs.la
+	$(abs_top_builddir)/lib/libzfs/libzfs.la \
+	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
+	$(abs_top_builddir)/lib/libnvpair/libnvpair.la
+
+include $(top_srcdir)/config/CppCheck.am

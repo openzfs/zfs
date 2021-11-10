@@ -141,24 +141,16 @@ function log_program_construct_args
 	pool=$1
 	shift
 
-	#
-	# Catch HERE document if it exists and save it within our
-	# temp file. The reason we do this is that since the
-	# log_must_program wrapper calls zfs-program twice (once
-	# for open context and once for syncing) the HERE doc
-	# is consumed in the first invocation and the second one
-	# does not have a program to run.
-	#
-	test -s /dev/stdin && cat > $tmpin
+	infile=$1
+	shift
 
 	#
-	# If $tmpin has contents it means that we consumed a HERE
-	# doc and $1 currently holds "-" (a dash). If there is no
-	# HERE doc and $tmpin is empty, then we copy the contents
-	# of the original channel program to $tmpin.
+	# Copy the contents of the original channel program to $tmpin.
 	#
-	[[ -s $tmpin ]] || cp $1 $tmpin
-	shift
+	# If $infile currently holds "-" (a dash) it means that we consume a
+	# HERE doc from stdin, otherwise $infile is a file path.
+	#
+	cat $infile > $tmpin
 
 	lua_args=$@
 

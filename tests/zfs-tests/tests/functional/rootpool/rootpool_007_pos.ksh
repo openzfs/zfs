@@ -45,8 +45,12 @@
 verify_runnable "global"
 
 function cleanup {
-	log_must zfs set compression=$orig_compress $rootfs
+	[[ -n "$orig_compress" ]] && \
+	    log_must zfs set compression=$orig_compress $rootfs
 }
+
+typeset assert_msg="the zfs rootfs's compression property can be set to \
+		   gzip and gzip[1-9]"
 
 log_onexit cleanup
 log_assert $assert_msg
@@ -54,9 +58,6 @@ log_assert $assert_msg
 typeset rootpool=$(get_rootpool)
 typeset rootfs=$(get_pool_prop bootfs $rootpool)
 typeset orig_compress=$(get_prop compression $rootfs)
-
-typeset assert_msg="the zfs rootfs's compression property can be set to \
-		   gzip and gzip[1-9]"
 
 set -A gtype "gzip" "gzip-1" "gzip-2" "gzip-3" "gzip-4" "gzip-5" \
 	     "gzip-6" "gzip-7" "gzip-8" "gzip-9"

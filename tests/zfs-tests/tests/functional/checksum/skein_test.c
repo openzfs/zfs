@@ -37,10 +37,7 @@
 #include <strings.h>
 #include <stdio.h>
 #include <sys/time.h>
-#define NOTE(x)
-
-typedef	enum boolean { B_FALSE, B_TRUE } boolean_t;
-typedef	unsigned long long	u_longlong_t;
+#include <sys/stdtypes.h>
 
 /*
  * Skein test suite using values from the Skein V1.3 specification found at:
@@ -287,7 +284,6 @@ main(int argc, char *argv[])
 			(void) printf("FAILED!\n");			\
 			failed = B_TRUE;				\
 		}							\
-		NOTE(CONSTCOND)						\
 	} while (0)
 
 #define	SKEIN_PERF_TEST(mode, diglen)					\
@@ -316,7 +312,6 @@ main(int argc, char *argv[])
 		}							\
 		(void) printf("Skein" #mode "/" #diglen "\t%llu us "	\
 		    "(%.02f CPB)\n", (u_longlong_t)delta, cpb);		\
-		NOTE(CONSTCOND)						\
 	} while (0)
 
 	(void) printf("Running algorithm correctness tests:\n");

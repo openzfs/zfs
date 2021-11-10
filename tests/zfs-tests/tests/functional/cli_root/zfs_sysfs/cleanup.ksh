@@ -27,4 +27,8 @@
 
 . $STF_SUITE/include/libtest.shlib
 
+if ! is_linux ; then
+	log_unsupported "sysfs is linux-only"
+fi
+
 default_cleanup

@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
 
@@ -45,9 +45,38 @@
 #include <sys/zfs_znode.h>
 #include <sys/fs/zfs.h>
 #include <sys/zap.h>
-#include <sys/refcount.h>
 #include <sys/zap_impl.h>
 #include <sys/zap_leaf.h>
+
+/*
+ * If zap_iterate_prefetch is set, we will prefetch the entire ZAP object
+ * (all leaf blocks) when we start iterating over it.
+ *
+ * For zap_cursor_init(), the callers all intend to iterate through all the
+ * entries.  There are a few cases where an error (typically i/o error) could
+ * cause it to bail out early.
+ *
+ * For zap_cursor_init_serialized(), there are callers that do the iteration
+ * outside of ZFS.  Typically they would iterate over everything, but we
+ * don't have control of that.  E.g. zfs_ioc_snapshot_list_next(),
+ * zcp_snapshots_iter(), and other iterators over things in the MOS - these
+ * are called by /sbin/zfs and channel programs.  The other example is
+ * zfs_readdir() which iterates over directory entries for the getdents()
+ * syscall.  /sbin/ls iterates to the end (unless it receives a signal), but
+ * userland doesn't have to.
+ *
+ * Given that the ZAP entries aren't returned in a specific order, the only
+ * legitimate use cases for partial iteration would be:
+ *
+ * 1. Pagination: e.g. you only want to display 100 entries at a time, so you
+ *    get the first 100 and then wait for the user to hit "next page", which
+ *    they may never do).
+ *
+ * 2. You want to know if there are more than X entries, without relying on
+ *    the zfs-specific implementation of the directory's st_size (which is
+ *    the number of entries).
+ */
+int zap_iterate_prefetch = B_TRUE;
 
 int fzap_default_block_shift = 14; /* 16k blocksize */
 
@@ -192,7 +221,8 @@ zap_table_grow(zap_t *zap, zap_table_phys_t *tbl,
 	tbl->zt_blks_copied++;
 
 	dprintf("copied block %llu of %llu\n",
-	    tbl->zt_blks_copied, tbl->zt_numblks);
+	    (u_longlong_t)tbl->zt_blks_copied,
+	    (u_longlong_t)tbl->zt_numblks);
 
 	if (tbl->zt_blks_copied == tbl->zt_numblks) {
 		(void) dmu_free_range(zap->zap_objset, zap->zap_object,
@@ -205,7 +235,7 @@ zap_table_grow(zap_t *zap, zap_table_phys_t *tbl,
 		tbl->zt_blks_copied = 0;
 
 		dprintf("finished; numblocks now %llu (%uk entries)\n",
-		    tbl->zt_numblks, 1<<(tbl->zt_shift-10));
+		    (u_longlong_t)tbl->zt_numblks, 1<<(tbl->zt_shift-10));
 	}
 
 	return (0);
@@ -220,7 +250,8 @@ zap_table_store(zap_t *zap, zap_table_phys_t *tbl, uint64_t idx, uint64_t val,
 	ASSERT(RW_LOCK_HELD(&zap->zap_rwlock));
 	ASSERT(tbl->zt_blk != 0);
 
-	dprintf("storing %llx at index %llx\n", val, idx);
+	dprintf("storing %llx at index %llx\n", (u_longlong_t)val,
+	    (u_longlong_t)idx);
 
 	uint64_t blk = idx >> (bs-3);
 	uint64_t off = idx & ((1<<(bs-3))-1);
@@ -1000,7 +1031,7 @@ zap_value_search(objset_t *os, uint64_t zapobj, uint64_t value, uint64_t mask,
 	    (err = zap_cursor_retrieve(&zc, za)) == 0;
 	    zap_cursor_advance(&zc)) {
 		if ((za->za_first_integer & mask) == (value & mask)) {
-			(void) strcpy(name, za->za_name);
+			(void) strlcpy(name, za->za_name, MAXNAMELEN);
 			break;
 		}
 	}
@@ -1189,6 +1220,21 @@ fzap_cursor_retrieve(zap_t *zap, zap_cursor_t *zc, zap_attribute_t *za)
 	/* retrieve the next entry at or after zc_hash/zc_cd */
 	/* if no entry, return ENOENT */
 
+	/*
+	 * If we are reading from the beginning, we're almost certain to
+	 * iterate over the entire ZAP object.  If there are multiple leaf
+	 * blocks (freeblk > 2), prefetch the whole object (up to
+	 * dmu_prefetch_max bytes), so that we read the leaf blocks
+	 * concurrently. (Unless noprefetch was requested via
+	 * zap_cursor_init_noprefetch()).
+	 */
+	if (zc->zc_hash == 0 && zap_iterate_prefetch &&
+	    zc->zc_prefetch && zap_f_phys(zap)->zap_freeblk > 2) {
+		dmu_prefetch(zc->zc_objset, zc->zc_zapobj, 0, 0,
+		    zap_f_phys(zap)->zap_freeblk << FZAP_BLOCK_SHIFT(zap),
+		    ZIO_PRIORITY_ASYNC_READ);
+	}
+
 	if (zc->zc_leaf &&
 	    (ZAP_HASH_IDX(zc->zc_hash,
 	    zap_leaf_phys(zc->zc_leaf)->l_hdr.lh_prefix_len) !=
@@ -1333,3 +1379,8 @@ fzap_get_stats(zap_t *zap, zap_stats_t *zs)
 		}
 	}
 }
+
+/* BEGIN CSTYLED */
+ZFS_MODULE_PARAM(zfs, , zap_iterate_prefetch, INT, ZMOD_RW,
+	"When iterating ZAP object, prefetch it");
+/* END CSTYLED */

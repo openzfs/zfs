@@ -1,0 +1,162 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
+.\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+.\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+.\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
+.\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
+.\" Copyright (c) 2014 Integros [integros.com]
+.\" Copyright 2019 Richard Laager. All rights reserved.
+.\" Copyright 2018 Nexenta Systems, Inc.
+.\" Copyright 2019 Joyent, Inc.
+.\"
+.Dd May 27, 2021
+.Dt ZFS-LIST 8
+.Os
+.
+.Sh NAME
+.Nm zfs-list
+.Nd list properties of ZFS datasets
+.Sh SYNOPSIS
+.Nm zfs
+.Cm list
+.Op Fl r Ns | Ns Fl d Ar depth
+.Op Fl Hp
+.Oo Fl o Ar property Ns Oo , Ns Ar property Oc Ns … Oc
+.Oo Fl s Ar property Oc Ns …
+.Oo Fl S Ar property Oc Ns …
+.Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns … Oc
+.Oo Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Oc Ns …
+.
+.Sh DESCRIPTION
+If specified, you can list property information by the absolute pathname or the
+relative pathname.
+By default, all file systems and volumes are displayed.
+Snapshots are displayed if the
+.Sy listsnapshots
+pool property is
+.Sy on
+.Po the default is
+.Sy off
+.Pc ,
+or if the
+.Fl t Sy snapshot
+or
+.Fl t Sy all
+options are specified.
+The following fields are displayed:
+.Sy name , Sy used , Sy available , Sy referenced , Sy mountpoint .
+.Bl -tag -width "-H"
+.It Fl H
+Used for scripting mode.
+Do not print headers and separate fields by a single tab instead of arbitrary
+white space.
+.It Fl S Ar property
+Same as the
+.Fl s
+option, but sorts by property in descending order.
+.It Fl d Ar depth
+Recursively display any children of the dataset, limiting the recursion to
+.Ar depth .
+A
+.Ar depth
+of
+.Sy 1
+will display only the dataset and its direct children.
+.It Fl o Ar property
+A comma-separated list of properties to display.
+The property must be:
+.Bl -bullet -compact
+.It
+One of the properties described in the
+.Sx Native Properties
+section of
+.Xr zfsprops 7
+.It
+A user property
+.It
+The value
+.Sy name
+to display the dataset name
+.It
+The value
+.Sy space
+to display space usage properties on file systems and volumes.
+This is a shortcut for specifying
+.Fl o Ns \ \& Ns Sy name , Ns Sy avail , Ns Sy used , Ns Sy usedsnap , Ns
+.Sy usedds , Ns Sy usedrefreserv , Ns Sy usedchild
+.Fl t Sy filesystem , Ns Sy volume .
+.El
+.It Fl p
+Display numbers in parsable
+.Pq exact
+values.
+.It Fl r
+Recursively display any children of the dataset on the command line.
+.It Fl s Ar property
+A property for sorting the output by column in ascending order based on the
+value of the property.
+The property must be one of the properties described in the
+.Sx Properties
+section of
+.Xr zfsprops 7
+or the value
+.Sy name
+to sort by the dataset name.
+Multiple properties can be specified at one time using multiple
+.Fl s
+property options.
+Multiple
+.Fl s
+options are evaluated from left to right in decreasing order of importance.
+The following is a list of sorting criteria:
+.Bl -bullet -compact
+.It
+Numeric types sort in numeric order.
+.It
+String types sort in alphabetical order.
+.It
+Types inappropriate for a row sort that row to the literal bottom, regardless of
+the specified ordering.
+.El
+.Pp
+If no sorting options are specified the existing behavior of
+.Nm zfs Cm list
+is preserved.
+.It Fl t Ar type
+A comma-separated list of types to display, where
+.Ar type
+is one of
+.Sy filesystem ,
+.Sy snapshot ,
+.Sy volume ,
+.Sy bookmark ,
+or
+.Sy all .
+For example, specifying
+.Fl t Sy snapshot
+displays only snapshots.
+.El
+.
+.Sh SEE ALSO
+.Xr zfsprops 7 ,
+.Xr zfs-get 8

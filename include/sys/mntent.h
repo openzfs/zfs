@@ -29,6 +29,8 @@
 #ifndef _SYS_MNTENT_H
 #define	_SYS_MNTENT_H
 
+#define	MNTMAXSTR	128
+
 #define	MNTTYPE_ZFS	"zfs"		/* ZFS file system */
 
 #define	MOUNT_SUCCESS	0x00		/* Success */
@@ -71,8 +73,15 @@
 #define	MNTOPT_STRICTATIME "strictatime" /* strict access time updates */
 #define	MNTOPT_NOSTRICTATIME "nostrictatime" /* No strict access time updates */
 #define	MNTOPT_LAZYTIME "lazytime"	/* Defer access time writing */
+#ifdef __linux__
 #define	MNTOPT_SETUID	"suid"		/* Both setuid and devices allowed */
 #define	MNTOPT_NOSETUID	"nosuid"	/* Neither setuid nor devices allowed */
+#elif defined(__FreeBSD__)
+#define	MNTOPT_SETUID	"setuid"	/* Set uid allowed */
+#define	MNTOPT_NOSETUID	"nosetuid"	/* Set uid not allowed */
+#else
+#error "unknown OS"
+#endif
 #define	MNTOPT_OWNER	"owner"		/* allow owner mount */
 #define	MNTOPT_NOOWNER	"noowner"	/* do not allow owner mount */
 #define	MNTOPT_REMOUNT	"remount"	/* change mount options */

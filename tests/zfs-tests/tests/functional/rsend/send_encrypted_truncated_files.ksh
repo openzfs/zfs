@@ -42,9 +42,9 @@ verify_runnable "both"
 function cleanup
 {
 	datasetexists $TESTPOOL/$TESTFS2 && \
-		log_must zfs destroy -r $TESTPOOL/$TESTFS2
+		destroy_dataset $TESTPOOL/$TESTFS2 -r
 	datasetexists $TESTPOOL/recv && \
-		log_must zfs destroy -r $TESTPOOL/recv
+		destroy_dataset $TESTPOOL/recv -r
 	[[ -f $keyfile ]] && log_must rm $keyfile
 	[[ -f $sendfile ]] && log_must rm $sendfile
 }
@@ -52,8 +52,16 @@ log_onexit cleanup
 
 function recursive_cksum
 {
-	find $1 -type f -exec sha256sum {} \; | \
-		sort -k 2 | awk '{ print $1 }' | sha256sum
+	case "$(uname)" in
+	FreeBSD)
+		find $1 -type f -exec sha256 -q {} \; | \
+		    sort | sha256digest
+		;;
+	*)
+		find $1 -type f -exec sha256sum {} \; | \
+		    sort -k 2 | awk '{ print $1 }' | sha256digest
+		;;
+	esac
 }
 
 log_assert "Verify 'zfs send -w' works with many different file layouts"

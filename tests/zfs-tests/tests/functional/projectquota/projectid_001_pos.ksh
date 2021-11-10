@@ -38,8 +38,8 @@
 #
 #
 # STRATEGY:
-#	1. Create a regular file and a directroy.
-#	2. Set project ID on both directroy and regular file.
+#	1. Create a regular file and a directory.
+#	2. Set project ID on both directory and regular file.
 #	3. New created subdir or regular file should inherit its parent's
 #	   project ID if its parent has project inherit flag.
 #	4. New created subdir should inherit its parent project's inherit flag.

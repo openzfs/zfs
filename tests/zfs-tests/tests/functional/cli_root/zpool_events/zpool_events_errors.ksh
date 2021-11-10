@@ -45,13 +45,13 @@ VDEV2=$TEST_BASE_DIR/file2
 VDEV3=$TEST_BASE_DIR/file3
 POOL=error_pool
 FILESIZE=$((20 * 1024 * 1024))
-OLD_CHECKSUMS=$(get_tunable zfs_checksum_events_per_second)
-OLD_LEN_MAX=$(get_tunable zfs_zevent_len_max)
+OLD_CHECKSUMS=$(get_tunable CHECKSUM_EVENTS_PER_SECOND)
+OLD_LEN_MAX=$(get_tunable ZEVENT_LEN_MAX)
 
 function cleanup
 {
-	log_must set_tunable64 zfs_checksum_events_per_second $OLD_CHECKSUMS
-	log_must set_tunable64 zfs_zevent_len_max $OLD_LEN_MAX
+	log_must set_tunable64 CHECKSUM_EVENTS_PER_SECOND $OLD_CHECKSUMS
+	log_must set_tunable64 ZEVENT_LEN_MAX $OLD_LEN_MAX
 
 	log_must zinject -c all
 	log_must zpool events -c
@@ -66,8 +66,8 @@ log_assert "Check that the number of zpool errors match the number of events"
 log_onexit cleanup
 
 # Set our thresholds high so we never ratelimit or drop events.
-set_tunable64 zfs_checksum_events_per_second 20000
-set_tunable64 zfs_zevent_len_max 20000
+set_tunable64 CHECKSUM_EVENTS_PER_SECOND 20000
+set_tunable64 ZEVENT_LEN_MAX 20000
 
 log_must truncate -s $MINVDEVSIZE $VDEV1 $VDEV2 $VDEV3
 log_must mkdir -p $MOUNTDIR
@@ -129,11 +129,11 @@ function do_test
 		fi
 	fi
 
-	if [ "$val" == "0" ] || [ "$events" == "" ] ; then
+	if [ -z "$val" -o $val -eq 0 -o -z "$events" -o $events -eq 0 ] ; then
 		log_fail "Didn't see any errors or events ($val/$events)"
 	fi
 
-	if [ "$val" != "$events" ] ; then
+	if [ $val -ne $events ] ; then
 		log_fail "$val $POOLTYPE $str errors != $events events"
 	else
 		log_note "$val $POOLTYPE $str errors == $events events"

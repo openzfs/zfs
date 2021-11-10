@@ -91,13 +91,13 @@ function cleanup
 		if ismounted $TESTPOOL/$TESTFS ; then
 			log_must zfs unmount $TESTPOOL/$TESTFS
 		fi
-		log_must zfs destroy $TESTPOOL/$TESTFS
+		destroy_dataset $TESTPOOL/$TESTFS
 	fi
 
 	destroy_pool $TESTPOOL
 
 	datasetexists $TESTPOOL2/$TESTVOL && \
-		log_must zfs destroy $TESTPOOL2/$TESTVOL
+		destroy_dataset $TESTPOOL2/$TESTVOL
 
 	destroy_pool $TESTPOOL2
 
@@ -154,8 +154,8 @@ for volsize in $VOLSIZES; do
 	log_note "Destroy zfs, volume & zpool"
 	log_must zfs destroy $TESTPOOL/$TESTFS
 	destroy_pool $TESTPOOL
-	log_must zfs destroy $TESTPOOL2/$TESTVOL
+	log_must_busy zfs destroy $TESTPOOL2/$TESTVOL
 	destroy_pool $TESTPOOL2
 done
 
-log_pass "Dateset can be created, mounted & destroy in largest pool succeeded."
+log_pass "Dataset can be created, mounted & destroy in largest pool succeeded."

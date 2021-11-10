@@ -25,7 +25,7 @@
 #
 # Strategy:
 # 1. Bookmark a ZFS snapshot
-# 2. Destroy the ZFS sanpshot
+# 2. Destroy the ZFS snapshot
 # 3. Destroy the filesystem for the receive
 # 4. Verify receive of the full send stream
 # 5. Start an incremental ZFS send of the ZFS bookmark, redirect output to a

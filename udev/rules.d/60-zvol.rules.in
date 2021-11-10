@@ -1,6 +1,11 @@
 # Persistent links for zvol
 #
 # persistent disk links: /dev/zvol/dataset_name
-# also creates compatibility symlink of /dev/dataset_name
+#
+# NOTE: We used to also create an additional tree of zvol symlinks located at
+#       /dev/dataset_name (i.e. without the 'zvol' path component) for
+#       compatibility reasons. These are no longer created anymore, and should
+#       not be relied upon.
+#       
 
-KERNEL=="zd*" SUBSYSTEM=="block" ACTION=="add|change" PROGRAM="@udevdir@/zvol_id $tempnode" SYMLINK+="zvol/%c %c"
+KERNEL=="zd*", SUBSYSTEM=="block", ACTION=="add|change", PROGRAM=="@udevdir@/zvol_id $devnode", SYMLINK+="zvol/%c"

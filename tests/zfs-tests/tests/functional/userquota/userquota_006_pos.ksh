@@ -44,9 +44,7 @@
 
 function cleanup
 {
-	if datasetexists $snap_fs; then
-		log_must zfs destroy $snap_fs
-	fi
+	datasetexists $snap_fs && destroy_dataset $snap_fs
 
 	log_must cleanup_quota
 }
@@ -67,7 +65,11 @@ done
 
 set -A no_groups "aidsf@dfsd@" "123223-dsfds#sdfsd" "mss_#ss" "1234"
 for group in "${no_groups[@]}"; do
-	log_mustnot eval "groupdel $group > /dev/null 2>&1"
+	if is_freebsd; then
+		log_mustnot eval "pw groupdel -n $group >/dev/null 2>&1"
+	else
+		log_mustnot eval "groupdel $group >/dev/null 2>&1"
+	fi
 	log_must eval "zfs get groupquota@$group $QFS >/dev/null 2>&1"
 	log_must eval "zfs get groupquota@$group $snap_fs >/dev/null 2>&1"
 done

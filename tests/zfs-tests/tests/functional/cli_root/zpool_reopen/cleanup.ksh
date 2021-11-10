@@ -20,6 +20,10 @@
 
 verify_runnable "global"
 
+if ! is_linux; then
+	log_unsupported "scsi debug module unsupported"
+fi
+
 cleanup_devices $DISKS
 
 # Unplug the disk and remove scsi_debug module

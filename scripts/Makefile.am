@@ -1,31 +1,40 @@
+include $(top_srcdir)/config/Shellcheck.am
+
 pkgdatadir = $(datadir)/@PACKAGE@
 
 dist_pkgdata_SCRIPTS = \
-	$(top_srcdir)/scripts/zimport.sh \
-	$(top_srcdir)/scripts/zfs.sh \
-	$(top_srcdir)/scripts/zfs-tests.sh \
-	$(top_srcdir)/scripts/zloop.sh \
-	$(top_srcdir)/scripts/zfs-helpers.sh
+	zimport.sh \
+	zfs.sh \
+	zfs-tests.sh \
+	zloop.sh \
+	zfs-helpers.sh
 
-EXTRA_DIST = \
+EXTRA_SCRIPTS = \
 	commitcheck.sh \
 	common.sh.in \
-	cstyle.pl \
 	dkms.mkconf \
 	dkms.postbuild \
-	enum-extract.pl \
 	kmodtool \
 	make_gitrev.sh \
 	man-dates.sh \
 	paxcheck.sh \
+	mancheck.sh
+
+EXTRA_DIST = \
+	cstyle.pl \
+	enum-extract.pl \
 	zfs2zol-patch.sed \
-	zol2zfs-patch.sed
+	zol2zfs-patch.sed \
+	$(EXTRA_SCRIPTS)
+
+SHELLCHECK_IGNORE = ,SC1117
+SHELLCHECKSCRIPTS = $(EXTRA_SCRIPTS)
 
 define EXTRA_ENVIRONMENT
 
 # Only required for in-tree use
 export INTREE="yes"
-export GDB="/usr/bin/libtool --mode=execute gdb"
+export GDB="libtool --mode=execute gdb"
 export LDMOD=/sbin/insmod
 
 export CMD_DIR=@abs_top_builddir@/cmd
@@ -34,8 +43,10 @@ export ZEDLET_ETC_DIR=$$CMD_DIR/zed/zed.d
 export ZEDLET_LIBEXEC_DIR=$$CMD_DIR/zed/zed.d
 export ZPOOL_SCRIPT_DIR=$$CMD_DIR/zpool/zpool.d
 export ZPOOL_SCRIPTS_PATH=$$CMD_DIR/zpool/zpool.d
+export ZPOOL_COMPAT_DIR=$$CMD_DIR/zpool/compatibility.d
 export CONTRIB_DIR=@abs_top_builddir@/contrib
 export LIB_DIR=@abs_top_builddir@/lib
+export SYSCONF_DIR=@abs_top_builddir@/etc
 
 export INSTALL_UDEV_DIR=@udevdir@
 export INSTALL_UDEV_RULE_DIR=@udevruledir@
@@ -51,6 +62,8 @@ export KMOD_ZCOMMON=@abs_top_builddir@/module/zcommon/zcommon.ko
 export KMOD_ZLUA=@abs_top_builddir@/module/lua/zlua.ko
 export KMOD_ICP=@abs_top_builddir@/module/icp/icp.ko
 export KMOD_ZFS=@abs_top_builddir@/module/zfs/zfs.ko
+export KMOD_FREEBSD=@abs_top_builddir@/module/openzfs.ko
+export KMOD_ZZSTD=@abs_top_builddir@/module/zstd/zzstd.ko
 endef
 
 export EXTRA_ENVIRONMENT
@@ -58,9 +71,10 @@ export EXTRA_ENVIRONMENT
 all-local:
 	-$(SED) -e '\|^export BIN_DIR=|s|$$|@abs_top_builddir@/bin|' \
 		-e '\|^export SBIN_DIR=|s|$$|@abs_top_builddir@/bin|' \
+		-e '\|^export LIBEXEC_DIR=|s|$$|@abs_top_builddir@/bin|' \
 		-e '\|^export ZTS_DIR=|s|$$|@abs_top_srcdir@/tests|' \
 		-e '\|^export SCRIPT_DIR=|s|$$|@abs_top_srcdir@/scripts|' \
-		common.sh.in >common.sh
+		$(abs_top_srcdir)/scripts/common.sh.in >common.sh
 	-echo "$$EXTRA_ENVIRONMENT" >>common.sh
 
 clean-local:
@@ -69,6 +83,8 @@ clean-local:
 install-data-hook:
 	-$(SED) -e '\|^export BIN_DIR=|s|$$|@bindir@|' \
 		-e '\|^export SBIN_DIR=|s|$$|@sbindir@|' \
+		-e '\|^export LIBEXEC_DIR=|s|$$|@zfsexecdir@|' \
 		-e '\|^export ZTS_DIR=|s|$$|@datadir@/@PACKAGE@|' \
 		-e '\|^export SCRIPT_DIR=|s|$$|@datadir@/@PACKAGE@|' \
-		common.sh.in >$(DESTDIR)$(datadir)/@PACKAGE@/common.sh
+		$(abs_top_srcdir)/scripts/common.sh.in \
+		>$(DESTDIR)$(datadir)/@PACKAGE@/common.sh

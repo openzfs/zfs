@@ -5,20 +5,10 @@
  */
 /* Copyright 2013 Doug Whiting. This code is released to the public domain. */
 
-#define	SKEIN_PORT_CODE		/* instantiate any code in skein_port.h */
-
 #include <sys/sysmacros.h>
 #include <sys/types.h>
 #include <sys/skein.h>		/* get the Skein API definitions   */
 #include "skein_impl.h"		/* get internal definitions */
-
-/* External function to process blkCnt (nonzero) full block(s) of data. */
-void Skein_256_Process_Block(Skein_256_Ctxt_t *ctx, const uint8_t *blkPtr,
-    size_t blkCnt, size_t byteCntAdd);
-void Skein_512_Process_Block(Skein_512_Ctxt_t *ctx, const uint8_t *blkPtr,
-    size_t blkCnt, size_t byteCntAdd);
-void Skein1024_Process_Block(Skein1024_Ctxt_t *ctx, const uint8_t *blkPtr,
-    size_t blkCnt, size_t byteCntAdd);
 
 /* 256-bit Skein */
 /* init the context for a straight hashing operation  */

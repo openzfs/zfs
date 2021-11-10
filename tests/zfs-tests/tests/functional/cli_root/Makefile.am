@@ -13,14 +13,15 @@ SUBDIRS = \
 	zfs_destroy \
 	zfs_diff \
 	zfs_get \
+	zfs_ids_to_path \
 	zfs_inherit \
+	zfs_jail \
 	zfs_load-key \
 	zfs_mount \
 	zfs_program \
 	zfs_promote \
 	zfs_property \
 	zfs_receive \
-	zfs_remap \
 	zfs_rename \
 	zfs_reservation \
 	zfs_rollback \
@@ -33,6 +34,7 @@ SUBDIRS = \
 	zfs_unmount \
 	zfs_unshare \
 	zfs_upgrade \
+	zfs_wait \
 	zpool \
 	zpool_add \
 	zpool_attach \
@@ -60,4 +62,5 @@ SUBDIRS = \
 	zpool_status \
 	zpool_sync \
 	zpool_trim \
-	zpool_upgrade
+	zpool_upgrade \
+	zpool_wait

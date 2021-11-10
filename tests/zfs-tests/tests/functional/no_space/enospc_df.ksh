@@ -58,7 +58,7 @@ log_must zfs umount $TESTPOOL/$TESTFS
 
 # Ensure the pool root filesystem shows in df output.
 # If the pool was full (available == 0) and the pool
-# root filesytem had very little in it (used < 1 block),
+# root filesystem had very little in it (used < 1 block),
 # the size reported to df was zero (issue #8253) and
 # df skipped the filesystem in its output.
 log_must eval "df -h | grep $TESTPOOL"

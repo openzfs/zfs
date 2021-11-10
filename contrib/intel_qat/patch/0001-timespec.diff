@@ -1,0 +1,35 @@
+This patch attempts to expose timespec and getnstimeofday which were
+explicitly hidden in the 5.6 kernel with the introduction of the
+following commits:
+
+git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=c766d1472c70d25ad475cf56042af1652e792b23
+git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=412c53a680a97cb1ae2c0ab60230e193bee86387
+
+Code received from users@dpdk.org, issue tracked under QATE-59888.
+
+---
+diff --git a/quickassist/lookaside/access_layer/src/sample_code/performance/framework/linux/kernel_space/cpa_sample_code_utils.c b/quickassist/lookaside/access_layer/src/sample_code/performance/framework/linux/kernel_space/cpa_sample_code_utils.c
+index 4639834..523e376 100644
+--- a/quickassist/lookaside/access_layer/src/sample_code/performance/framework/linux/kernel_space/cpa_sample_code_utils.c
++++ b/quickassist/lookaside/access_layer/src/sample_code/performance/framework/linux/kernel_space/cpa_sample_code_utils.c
+@@ -107,6 +107,8 @@ atomic_t arrived;
+ extern struct device perf_device;
+ #endif
+ 
++#define timespec timespec64
++#define getnstimeofday ktime_get_real_ts64
+ 
+ /* Define a number for timeout */
+ #define SAMPLE_CODE_MAX_LONG (0x7FFFFFFF)
+diff --git a/quickassist/qat/compat/qat_compat.h b/quickassist/qat/compat/qat_compat.h
+index 2a02eaf..3515092 100644
+--- a/quickassist/qat/compat/qat_compat.h
++++ b/quickassist/qat/compat/qat_compat.h
+@@ -466,4 +466,7 @@ static inline void pci_ignore_hotplug(struct pci_dev *dev)
+ #if (RHEL_RELEASE_CODE && RHEL_RELEASE_VERSION(7, 3) <= RHEL_RELEASE_CODE)
+ #define QAT_KPT_CAP_DISCOVERY
+ #endif
++
++#define timespec timespec64
++#define getnstimeofday ktime_get_real_ts64
+ #endif /* _QAT_COMPAT_H_ */

@@ -1,0 +1,103 @@
+# ZoL userland configuration.
+
+# NOTE: This file is intended for sysv init and initramfs.
+# Changing some of these settings may not make any difference on
+# systemd-based setup, e.g. setting ZFS_MOUNT=no will not prevent systemd
+# from launching zfs-mount.service during boot.
+# See: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=901436
+
+# To enable a boolean setting, set it to yes, on, true, or 1.
+# Anything else will be interpreted as unset.
+
+# Run `zfs mount -a` during system start?
+ZFS_MOUNT='yes'
+
+# Run `zfs unmount -a` during system stop?
+ZFS_UNMOUNT='yes'
+
+# Run `zfs share -a` during system start?
+# nb: The shareiscsi, sharenfs, and sharesmb dataset properties.
+ZFS_SHARE='yes'
+
+# Run `zfs unshare -a` during system stop?
+ZFS_UNSHARE='yes'
+
+# By default, a verbatim import of all pools is performed at boot based on the
+# contents of the default zpool cache file.  The contents of the cache are
+# managed automatically by the 'zpool import' and 'zpool export' commands.
+#
+# By setting this to 'yes', the system will instead search all devices for
+# pools and attempt to import them all at boot, even those that have been
+# exported.  Under this mode, the search path can be controlled by the
+# ZPOOL_IMPORT_PATH variable and a list of pools that should not be imported
+# can be listed in the ZFS_POOL_EXCEPTIONS variable.
+#
+# Note that importing all visible pools may include pools that you don't
+# expect, such as those on removable devices and SANs, and those pools may
+# proceed to mount themselves in places you do not want them to.  The results
+# can be unpredictable and possibly dangerous.  Only enable this option if you
+# understand this risk and have complete physical control over your system and
+# SAN to prevent the insertion of malicious pools.
+ZPOOL_IMPORT_ALL_VISIBLE='no'
+
+# Specify specific path(s) to look for device nodes and/or links for the
+# pool import(s). See zpool(8) for more information about this variable.
+# It supersedes the old USE_DISK_BY_ID which indicated that it would only
+# try '/dev/disk/by-id'.
+# The old variable will still work in the code, but is deprecated.
+#ZPOOL_IMPORT_PATH="/dev/disk/by-vdev:/dev/disk/by-id"
+
+# List of pools that should NOT be imported at boot
+# when ZPOOL_IMPORT_ALL_VISIBLE is 'yes'.
+# This is a space separated list.
+#ZFS_POOL_EXCEPTIONS="test2"
+
+# Should the datasets be mounted verbosely?
+# A mount counter will be used when mounting if set to 'yes'.
+VERBOSE_MOUNT='no'
+
+# Should we allow overlay mounts?
+# This is standard in Linux, but not ZFS which comes from Solaris where this
+# is not allowed).
+DO_OVERLAY_MOUNTS='no'
+
+# Any additional option to the 'zfs import' commandline?
+# Include '-o' for each option wanted.
+# You don't need to put '-f' in here, unless you want it ALL the time.
+# Using the option 'zfsforce=1' on the grub/kernel command line will
+# do the same, but on a case-to-case basis.
+ZPOOL_IMPORT_OPTS=""
+
+# Full path to the ZFS cache file?
+# See "cachefile" in zpool(8).
+# The default is "@sysconfdir@/zfs/zpool.cache".
+#ZPOOL_CACHE="@sysconfdir@/zfs/zpool.cache"
+#
+# Setting ZPOOL_CACHE to an empty string ('') AND setting ZPOOL_IMPORT_OPTS to
+# "-c @sysconfdir@/zfs/zpool.cache" will _enforce_ the use of a cache file.
+# This is needed in some cases (extreme amounts of VDEVs, multipath etc).
+# Generally, the use of a cache file is usually not recommended on Linux
+# because it sometimes is more trouble than it's worth (laptops with external
+# devices or when/if device nodes changes names).
+#ZPOOL_IMPORT_OPTS="-c @sysconfdir@/zfs/zpool.cache"
+#ZPOOL_CACHE=""
+
+# Any additional option to the 'zfs mount' command line?
+# Include '-o' for each option wanted.
+MOUNT_EXTRA_OPTIONS=""
+
+# Build kernel modules with the --enable-debug switch?
+# Only applicable for Debian GNU/Linux {dkms,initramfs}.
+ZFS_DKMS_ENABLE_DEBUG='no'
+
+# Build kernel modules with the --enable-debuginfo switch?
+# Only applicable for Debian GNU/Linux {dkms,initramfs}.
+ZFS_DKMS_ENABLE_DEBUGINFO='no'
+
+# Keep debugging symbols in kernel modules?
+# Only applicable for Debian GNU/Linux {dkms,initramfs}.
+ZFS_DKMS_DISABLE_STRIP='no'
+
+# Optional arguments for the ZFS Event Daemon (ZED).
+# See zed(8) for more information on available options.
+#ZED_ARGS="-M"

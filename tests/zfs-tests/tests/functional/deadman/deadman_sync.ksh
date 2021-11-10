@@ -46,17 +46,17 @@ function cleanup
 	log_must zinject -c all
 	default_cleanup_noexit
 
-	log_must set_tunable64 zfs_deadman_synctime_ms $SYNCTIME_DEFAULT
-	log_must set_tunable64 zfs_deadman_checktime_ms $CHECKTIME_DEFAULT
-	log_must set_tunable64 zfs_deadman_failmode $FAILMODE_DEFAULT
+	log_must set_tunable64 DEADMAN_SYNCTIME_MS $SYNCTIME_DEFAULT
+	log_must set_tunable64 DEADMAN_CHECKTIME_MS $CHECKTIME_DEFAULT
+	log_must set_tunable64 DEADMAN_FAILMODE $FAILMODE_DEFAULT
 }
 
 log_assert "Verify spa deadman detects a hung txg"
 log_onexit cleanup
 
-log_must set_tunable64 zfs_deadman_synctime_ms 5000
-log_must set_tunable64 zfs_deadman_checktime_ms 1000
-log_must set_tunable64 zfs_deadman_failmode "wait"
+log_must set_tunable64 DEADMAN_SYNCTIME_MS 5000
+log_must set_tunable64 DEADMAN_CHECKTIME_MS 1000
+log_must set_tunable64 DEADMAN_FAILMODE "wait"
 
 # Create a new pool in order to use the updated deadman settings.
 default_setup_noexit $DISK1
@@ -73,13 +73,17 @@ log_must zinject -c all
 log_must zpool sync
 
 # Log txg sync times for reference and the zpool event summary.
-log_must cat /proc/spl/kstat/zfs/$TESTPOOL/txgs
+if is_freebsd; then
+	log_must sysctl -n kstat.zfs.$TESTPOOL.txgs
+else
+	log_must cat /proc/spl/kstat/zfs/$TESTPOOL/txgs
+fi
 log_must zpool events
 
-# Verify at least 5 deadman events were logged.  The first after 5 seconds,
+# Verify at least 4 deadman events were logged.  The first after 5 seconds,
 # and another each second thereafter until the delay  is clearer.
 events=$(zpool events | grep -c ereport.fs.zfs.deadman)
-if [ "$events" -lt 5 ]; then
+if [ "$events" -lt 4 ]; then
 	log_fail "Expect >=5 deadman events, $events found"
 fi
 

@@ -8,10 +8,9 @@ dnl From Bruno Haible.
 
 dnl AC_LIB_PREFIX adds to the CPPFLAGS and LDFLAGS the flags that are needed
 dnl to access previously installed libraries. The basic assumption is that
-dnl a user will want packages to use other packages he previously installed
-dnl with the same --prefix option.
-dnl This macro is not needed if only AC_LIB_LINKFLAGS is used to locate
-dnl libraries, but is otherwise very convenient.
+dnl packages should use other packages that are installed with the same
+dnl --prefix option.  This macro is not needed if only AC_LIB_LINKFLAGS is
+dnl used to locate libraries, but is otherwise very convenient.
 AC_DEFUN([AC_LIB_PREFIX],
 [
   AC_BEFORE([$0], [AC_LIB_LINKFLAGS])

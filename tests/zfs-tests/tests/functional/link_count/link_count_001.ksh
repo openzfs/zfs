@@ -49,6 +49,10 @@ log_assert "Verify file link count is zero on zfs"
 export ITERS=10
 export NUMFILES=10000
 
+if is_freebsd; then
+	log_unsupported "Not applicable on FreeBSD"
+fi
+
 # Detect and make sure this test must be executed on a multi-process system
 if ! is_mp; then
 	log_unsupported "This test requires a multi-processor system."

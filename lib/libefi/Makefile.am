@@ -1,16 +1,15 @@
 include $(top_srcdir)/config/Rules.am
 
-DEFAULT_INCLUDES += \
-	-I$(top_srcdir)/include \
-	-I$(top_srcdir)/lib/libspl/include
+AM_CFLAGS += $(LIBUUID_CFLAGS) $(ZLIB_CFLAGS)
+AM_CFLAGS += -fvisibility=hidden
 
 noinst_LTLIBRARIES = libefi.la
 
 USER_C = \
 	rdwr_efi.c
 
-nodist_libefi_la_SOURCES = $(USER_C)
+libefi_la_SOURCES = $(USER_C)
 
-libefi_la_LIBADD = $(LIBUUID)
+libefi_la_LIBADD = $(LIBUUID_LIBS) $(ZLIB_LIBS)
 
-EXTRA_DIST = $(USER_C)
+include $(top_srcdir)/config/CppCheck.am

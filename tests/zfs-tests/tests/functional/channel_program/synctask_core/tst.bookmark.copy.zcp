@@ -1,0 +1,32 @@
+--
+-- This file and its contents are supplied under the terms of the
+-- Common Development and Distribution License ("CDDL"), version 1.0.
+-- You may only use this file in accordance with the terms of version
+-- 1.0 of the CDDL.
+--
+-- A full copy of the text of the CDDL should have accompanied this
+-- source.  A copy of the CDDL is also available via the Internet at
+-- http://www.illumos.org/license/CDDL.
+--
+
+--
+-- Copyright (c) 2019, 2020 by Christian Schwarz. All rights reserved.
+--
+
+-- This program should be invoked as "zfs program <pool> <prog> <fs> <source_book> <new_book>"
+
+args = ...
+argv = args["argv"]
+fs = argv[1]
+source = fs .. "#" .. argv[2]
+new = fs .. "#" .. argv[3]
+assert(zfs.sync.bookmark(source, new) == 0)
+books = {}
+count = 0
+for s in zfs.list.bookmarks(fs) do
+	count = count + 1
+	books[s] = 1
+end
+assert(count == 2)
+assert(books[source] == 1)
+assert(books[new] == 1)

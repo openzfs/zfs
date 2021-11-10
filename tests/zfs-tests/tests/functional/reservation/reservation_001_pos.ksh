@@ -115,7 +115,7 @@ for obj in $TESTPOOL/$TESTFS $OBJ_LIST; do
 
 	#
 	# Due to the way space is consumed and released by metadata we
-	# can't do an exact check here, but we do do a basic sanity
+	# can't do an exact check here, but we do a basic sanity
 	# check.
 	#
 	log_must within_limits $space_avail $new_space_avail $RESV_TOLERANCE

@@ -51,7 +51,7 @@ function uncompress_pool
 
 function cleanup
 {
-	log_must set_tunable32 zfs_disable_ivset_guid_check 0
+	log_must set_tunable32 DISABLE_IVSET_GUID_CHECK 0
 	poolexists $POOL_NAME && log_must zpool destroy $POOL_NAME
 	[[ -e /$TESTPOOL/$POOL_FILE ]] && rm /$TESTPOOL/$POOL_FILE
 	return 0
@@ -91,7 +91,7 @@ log_mustnot has_ivset_guid $POOL_NAME/testvol@snap3
 
 # 2. Prepare pool to fix existing datasets
 log_must zpool set feature@bookmark_v2=enabled $POOL_NAME
-log_must set_tunable32 zfs_disable_ivset_guid_check 1
+log_must set_tunable32 DISABLE_IVSET_GUID_CHECK 1
 log_must zfs create $POOL_NAME/fixed
 
 # 3. Use raw sends to fix datasets

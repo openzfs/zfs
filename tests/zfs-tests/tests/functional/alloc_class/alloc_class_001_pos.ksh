@@ -20,7 +20,8 @@
 
 #
 # DESCRIPTION:
-#	Creating a pool with a special device succeeds.
+#	Creating a pool with a special device succeeds, but only if
+#	"feature@allocation_classes" is enabled.
 #
 
 verify_runnable "global"
@@ -31,6 +32,9 @@ log_assert $claim
 log_onexit cleanup
 
 log_must disk_setup
+for type in special dedup; do
+	log_mustnot zpool create -d $TESTPOOL $CLASS_DISK0 $type $CLASS_DISK1
+done
 log_must zpool create $TESTPOOL raidz $ZPOOL_DISKS special mirror \
     $CLASS_DISK0 $CLASS_DISK1
 log_must display_status "$TESTPOOL"

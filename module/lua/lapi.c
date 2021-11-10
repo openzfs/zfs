@@ -1295,10 +1295,13 @@ lua_fini(void)
 module_init(lua_init);
 module_exit(lua_fini);
 
-MODULE_DESCRIPTION("Lua Interpreter for ZFS");
-MODULE_AUTHOR("Lua.org");
-MODULE_LICENSE("MIT");
-MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
+#endif
+/* END CSTYLED */
+
+ZFS_MODULE_DESCRIPTION("Lua Interpreter for ZFS");
+ZFS_MODULE_AUTHOR("Lua.org");
+ZFS_MODULE_LICENSE("Dual MIT/GPL");
+ZFS_MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
 
 EXPORT_SYMBOL(lua_absindex);
 EXPORT_SYMBOL(lua_atpanic);
@@ -1340,6 +1343,3 @@ EXPORT_SYMBOL(lua_tonumberx);
 EXPORT_SYMBOL(lua_touserdata);
 EXPORT_SYMBOL(lua_type);
 EXPORT_SYMBOL(lua_typename);
-
-#endif
-/* END CSTYLED */

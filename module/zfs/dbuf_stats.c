@@ -61,7 +61,7 @@ dbuf_stats_hash_table_headers(char *buf, size_t size)
 	return (0);
 }
 
-int
+static int
 __dbuf_stats_hash_table_data(char *buf, size_t size, dmu_buf_impl_t *db)
 {
 	arc_buf_info_t abi = { 0 };
@@ -134,7 +134,8 @@ dbuf_stats_hash_table_data(char *buf, size_t size, void *data)
 
 	ASSERT3S(dsh->idx, >=, 0);
 	ASSERT3S(dsh->idx, <=, h->hash_table_mask);
-	memset(buf, 0, size);
+	if (size)
+		buf[0] = 0;
 
 	mutex_enter(DBUF_HASH_MUTEX(h, dsh->idx));
 	for (db = h->hash_table[dsh->idx]; db != NULL; db = db->db_hash_next) {
@@ -225,7 +226,7 @@ dbuf_stats_destroy(void)
 	dbuf_stats_hash_table_destroy();
 }
 
-#if defined(_KERNEL)
-module_param(zfs_dbuf_state_index, int, 0644);
-MODULE_PARM_DESC(zfs_dbuf_state_index, "Calculate arc header index");
-#endif
+/* BEGIN CSTYLED */
+ZFS_MODULE_PARAM(zfs, zfs_, dbuf_state_index, INT, ZMOD_RW,
+	"Calculate arc header index");
+/* END CSTYLED */

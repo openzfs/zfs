@@ -43,8 +43,12 @@ if ! is_linux; then
 	fi
 fi
 
+if is_freebsd; then
+	log_must sysctl vfs.usermount=0
+fi
+
 if is_linux; then
-	log_must set_tunable64 zfs_admin_snapshot 0
+	log_must set_tunable64 ADMIN_SNAPSHOT 0
 fi
 
 default_cleanup

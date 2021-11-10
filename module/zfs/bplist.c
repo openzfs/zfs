@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  */
 
 #include <sys/bplist.h>
@@ -72,6 +72,20 @@ bplist_iterate(bplist_t *bpl, bplist_itor_t *func, void *arg, dmu_tx_t *tx)
 		func(arg, &bpe->bpe_blk, tx);
 		kmem_free(bpe, sizeof (*bpe));
 		mutex_enter(&bpl->bpl_lock);
+	}
+	mutex_exit(&bpl->bpl_lock);
+}
+
+void
+bplist_clear(bplist_t *bpl)
+{
+	bplist_entry_t *bpe;
+
+	mutex_enter(&bpl->bpl_lock);
+	while ((bpe = list_head(&bpl->bpl_list))) {
+		bplist_iterate_last_removed = bpe;
+		list_remove(&bpl->bpl_list, bpe);
+		kmem_free(bpe, sizeof (*bpe));
 	}
 	mutex_exit(&bpl->bpl_lock);
 }

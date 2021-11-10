@@ -24,14 +24,15 @@
 # 1. Create an encrypted dataset
 # 2. Create two snapshots of the dataset
 # 3. Perform 'zfs diff -Ft' and verify no errors occur
+# 4. Perform the same test on a dataset with large dnodes
 #
 
 verify_runnable "both"
 
 function cleanup
 {
-	datasetexists $TESTPOOL/$TESTFS1 && \
-		log_must zfs destroy -r $TESTPOOL/$TESTFS1
+	destroy_dataset "$TESTPOOL/$TESTFS1" "-r"
+	destroy_dataset "$TESTPOOL/$TESTFS2" "-r"
 }
 
 log_assert "'zfs diff' should work with encrypted datasets"
@@ -49,5 +50,14 @@ log_must zfs snapshot $TESTPOOL/$TESTFS1@snap2
 
 # 3. Perform 'zfs diff' and verify no errors occur
 log_must zfs diff -Ft $TESTPOOL/$TESTFS1@snap1 $TESTPOOL/$TESTFS1@snap2
+
+# 4. Perform the same test on a dataset with large dnodes
+log_must eval "echo 'password' | zfs create -o dnodesize=4k \
+	-o encryption=on -o keyformat=passphrase $TESTPOOL/$TESTFS2"
+MNTPOINT="$(get_prop mountpoint $TESTPOOL/$TESTFS2)"
+log_must zfs snapshot $TESTPOOL/$TESTFS2@snap1
+log_must touch "$MNTPOINT/file"
+log_must zfs snapshot $TESTPOOL/$TESTFS2@snap2
+log_must zfs diff -Ft $TESTPOOL/$TESTFS2@snap1 $TESTPOOL/$TESTFS2@snap2
 
 log_pass "'zfs diff' works with encrypted datasets"

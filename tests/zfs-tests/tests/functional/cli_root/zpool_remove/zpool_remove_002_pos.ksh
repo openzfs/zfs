@@ -50,10 +50,9 @@ function cleanup
 }
 
 log_onexit cleanup
-typeset disk=${DISK}
 
-typeset spare_devs1="${disk}${SLICE_PREFIX}${SLICE0}"
-typeset spare_devs2="${disk}${SLICE_PREFIX}${SLICE1}"
+typeset spare_devs1="${DISK0}"
+typeset spare_devs2="${DISK1}"
 
 log_assert "zpool remove can only remove inactive hotspare device from pool"
 

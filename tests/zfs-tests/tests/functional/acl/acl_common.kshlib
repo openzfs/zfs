@@ -34,7 +34,7 @@
 #
 # Get the given file/directory access mode
 #
-# $1 object -- file or directroy
+# $1 object -- file or directory
 #
 function get_mode #<obj>
 {
@@ -49,7 +49,7 @@ function get_mode #<obj>
 #
 # Get the given file/directory ACL
 #
-# $1 object -- file or directroy
+# $1 object -- file or directory
 #
 function get_acl #<obj>
 {
@@ -64,7 +64,7 @@ function get_acl #<obj>
 #
 # Get the given file/directory ACL
 #
-# $1 object -- file or directroy
+# $1 object -- file or directory
 #
 function get_compact_acl #<obj>
 {
@@ -243,12 +243,12 @@ function usr_exec #<commands> [...]
 #
 # Count how many ACEs for the specified file or directory.
 #
-# $1 file or directroy name
+# $1 file or directory name
 #
 function count_ACE #<file or dir name>
 {
 	if [[ ! -e $1 ]]; then
-		log_note "Need input file or directroy name."
+		log_note "Need input file or directory name."
 		return 1
 	fi
 
@@ -399,7 +399,7 @@ function rwx_node #user node acl_spec|access
 #
 # Get the given file/directory xattr
 #
-# $1 object -- file or directroy
+# $1 object -- file or directory
 #
 function get_xattr #<obj>
 {

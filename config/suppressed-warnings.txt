@@ -1,7 +1,0 @@
-#
-# Expected warnings which should be suppressed by buildbot
-#
-None : ^libtool: install: warning: relinking `.*'$
-None : ^libtool: install: warning: remember to run `libtool --finish .*'$
-None : ^libtool: install: warning: `.*' has not been installed in `.*'$
-None : ^warning: File listed twice:.*

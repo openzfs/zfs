@@ -66,7 +66,7 @@ log_must zfs create $childfs
 log_must zfs create $grandchild
 
 #
-# Setting different permissions to the same set on two level.
+# Setting different permissions to the same set on two levels.
 # But only assign the user at one level.
 #
 log_must zfs allow -s @set $perms1 $ROOT_TESTFS
@@ -74,7 +74,8 @@ log_must zfs allow -s @set $perms2 $childfs
 log_must zfs allow $STAFF1 @set $childfs
 
 #
-# Verify only perms2 is valid to user on the level which he was assigned.
+# Verify that the user only has the permissions that they were assigned
+# in each filesystem.
 #
 log_must verify_noperm $ROOT_TESTFS $perms1 $STAFF1
 for fs in $childfs $grandchild ; do

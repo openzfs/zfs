@@ -91,14 +91,28 @@ typeset -a pos_cmds_out=(
         }
     }
 }")
+
+#
+# N.B. json.tool is needed to guarantee consistent ordering of fields,
+# sed is needed to trim trailing space in CentOS 6's json.tool output
+#
+# As of Python 3.5 the behavior of json.tool changed to keep the order
+# the same as the input and the --sort-keys option was added.  Detect when
+# --sort-keys is supported and apply the option to ensure the expected order.
+#
+if python -m json.tool --sort-keys <<< "{}"; then
+	JSON_TOOL_CMD="python -m json.tool --sort-keys"
+else
+	JSON_TOOL_CMD="python -m json.tool"
+fi
+
 typeset -i cnt=0
 typeset cmd
 for cmd in ${pos_cmds[@]}; do
 	log_must zfs program $TESTPOOL $TESTZCP $TESTDS $cmd 2>&1
-	log_must zfs program $TESTPOOL -j $TESTZCP $TESTDS $cmd 2>&1
-	# json.tool is needed to guarantee consistent ordering of fields
-	# sed is needed to trim trailing space in CentOS 6's json.tool output
-	OUTPUT=$(zfs program $TESTPOOL -j $TESTZCP $TESTDS $cmd 2>&1 | python -m json.tool | sed 's/[[:space:]]*$//')
+	log_must zfs program -j $TESTPOOL $TESTZCP $TESTDS $cmd 2>&1
+	OUTPUT=$(zfs program -j $TESTPOOL $TESTZCP $TESTDS $cmd 2>&1 |
+	    $JSON_TOOL_CMD | sed 's/[[:space:]]*$//')
 	if [ "$OUTPUT" != "${pos_cmds_out[$cnt]}" ]; then
 		log_note "Got     :$OUTPUT"
 		log_note "Expected:${pos_cmds_out[$cnt]}"
@@ -120,9 +134,9 @@ For the property list, run: zfs set|get
 For the delegated permission list, run: zfs allow|unallow")
 cnt=0
 for cmd in ${neg_cmds[@]}; do
-	log_mustnot zfs program $TESTPOOL $TESTZCP $TESTDS $cmd 2>&1
-	log_mustnot zfs program $TESTPOOL -j $TESTZCP $TESTDS $cmd 2>&1
-	OUTPUT=$(zfs program $TESTPOOL -j $TESTZCP $TESTDS $cmd 2>&1)
+	log_mustnot zfs program $cmd $TESTPOOL $TESTZCP $TESTDS 2>&1
+	log_mustnot zfs program -j $cmd $TESTPOOL $TESTZCP $TESTDS 2>&1
+	OUTPUT=$(zfs program -j $cmd $TESTPOOL $TESTZCP $TESTDS 2>&1)
 	if [ "$OUTPUT" != "${neg_cmds_out[$cnt]}" ]; then
 		log_note "Got     :$OUTPUT"
 		log_note "Expected:${neg_cmds_out[$cnt]}"

@@ -1,0 +1,184 @@
+.\"
+.\" This file and its contents are supplied under the terms of the
+.\" Common Development and Distribution License ("CDDL"), version 1.0.
+.\" You may only use this file in accordance with the terms of version
+.\" 1.0 of the CDDL.
+.\"
+.\" A full copy of the text of the CDDL should have accompanied this
+.\" source.  A copy of the CDDL is also available via the Internet at
+.\" http://www.illumos.org/license/CDDL.
+.\"
+.\" Copyright 2014 Adam Stevko.  All rights reserved.
+.\" Copyright (c) 2015 by Delphix. All rights reserved.
+.\" Copyright (c) 2020 by AJ Jordan. All rights reserved.
+.\"
+.Dd May 26, 2021
+.Dt ARCSTAT 1
+.Os
+.
+.Sh NAME
+.Nm arcstat
+.Nd report ZFS ARC and L2ARC statistics
+.Sh SYNOPSIS
+.Nm
+.Op Fl havxp
+.Op Fl f Ar field Ns Op , Ns Ar field Ns …
+.Op Fl o Ar file
+.Op Fl s Ar string
+.Op Ar interval
+.Op Ar count
+.
+.Sh DESCRIPTION
+.Nm
+prints various ZFS ARC and L2ARC statistics in vmstat-like fashion:
+.Bl -tag -compact -offset Ds -width "l2asize"
+.It Sy c
+ARC target size
+.It Sy dh%
+Demand data hit percentage
+.It Sy dm%
+Demand data miss percentage
+.It Sy mfu
+MFU list hits per second
+.It Sy mh%
+Metadata hit percentage
+.It Sy mm%
+Metadata miss percentage
+.It Sy mru
+MRU list hits per second
+.It Sy ph%
+Prefetch hits percentage
+.It Sy pm%
+Prefetch miss percentage
+.It Sy dhit
+Demand data hits per second
+.It Sy dmis
+Demand data misses per second
+.It Sy hit%
+ARC hit percentage
+.It Sy hits
+ARC reads per second
+.It Sy mfug
+MFU ghost list hits per second
+.It Sy mhit
+Metadata hits per second
+.It Sy miss
+ARC misses per second
+.It Sy mmis
+Metadata misses per second
+.It Sy mrug
+MRU ghost list hits per second
+.It Sy phit
+Prefetch hits per second
+.It Sy pmis
+Prefetch misses per second
+.It Sy read
+Total ARC accesses per second
+.It Sy time
+Current time
+.It Sy size
+ARC size
+.It Sy arcsz
+Alias for
+.Sy size
+.It Sy dread
+Demand data accesses per second
+.It Sy eskip
+evict_skip per second
+.It Sy miss%
+ARC miss percentage
+.It Sy mread
+Metadata accesses per second
+.It Sy pread
+Prefetch accesses per second
+.It Sy l2hit%
+L2ARC access hit percentage
+.It Sy l2hits
+L2ARC hits per second
+.It Sy l2miss
+L2ARC misses per second
+.It Sy l2read
+Total L2ARC accesses per second
+.It Sy l2pref
+L2ARC prefetch allocated size per second
+.It Sy l2pref%
+L2ARC prefetch allocated size percentage
+.It Sy l2mfu
+L2ARC MFU allocated size per second
+.It Sy l2mfu%
+L2ARC MFU allocated size percentage
+.It Sy l2mru
+L2ARC MRU allocated size per second
+.It Sy l2mru%
+L2ARC MRU allocated size percentage
+.It Sy l2data
+L2ARC data (buf content) allocated size per second
+.It Sy l2data%
+L2ARC data (buf content) allocated size percentage
+.It Sy l2meta
+L2ARC metadata (buf content) allocated size per second
+.It Sy l2meta%
+L2ARC metadata (buf content) allocated size percentage
+.It Sy l2size
+Size of the L2ARC
+.It Sy mtxmis
+mutex_miss per second
+.It Sy l2bytes
+Bytes read per second from the L2ARC
+.It Sy l2miss%
+L2ARC access miss percentage
+.It Sy l2asize
+Actual (compressed) size of the L2ARC
+.It Sy grow
+ARC grow disabled
+.It Sy need
+ARC reclaim needed
+.It Sy free
+The ARC's idea of how much free memory there is, which includes evictable memory in the page cache.
+Since the ARC tries to keep
+.Sy avail
+above zero,
+.Sy avail
+is usually more instructive to observe than
+.Sy free .
+.It Sy avail
+The ARC's idea of how much free memory is available to it, which is a bit less than
+.Sy free .
+May temporarily be negative, in which case the ARC will reduce the target size
+.Sy c .
+.El
+.
+.Sh OPTIONS
+.Bl -tag -width "-v"
+.It Fl a
+Print all possible stats.
+.It Fl f
+Display only specific fields.
+See
+.Sx DESCRIPTION
+for supported statistics.
+.It Fl h
+Display help message.
+.It Fl o
+Report statistics to a file instead of the standard output.
+.It Fl p
+Disable auto-scaling of numerical fields (for raw, machine-parsable values).
+.It Fl s
+Display data with a specified separator (default: 2 spaces).
+.It Fl x
+Print extended stats
+.Pq same as Fl f Sy time , Ns Sy mfu , Ns Sy mru , Ns Sy mfug , Ns Sy mrug , Ns Sy eskip , Ns Sy mtxmis , Ns Sy dread , Ns Sy pread , Ns Sy read .
+.It Fl v
+Show field headers and definitions
+.El
+.
+.Sh OPERANDS
+The following operands are supported:
+.Bl -tag -compact -offset Ds -width "interval"
+.It Ar interval
+Specify the sampling interval in seconds.
+.It Ar count
+Display only
+.Ar count
+reports.
+.El

@@ -1,0 +1,842 @@
+.\"
+.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+.\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+.\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
+.\" The contents of this file are subject to the terms of the Common Development
+.\" and Distribution License (the "License").  You may not use this file except
+.\" in compliance with the License. You can obtain a copy of the license at
+.\" usr/src/OPENSOLARIS.LICENSE or http://www.opensolaris.org/os/licensing.
+.\"
+.\" See the License for the specific language governing permissions and
+.\" limitations under the License. When distributing Covered Code, include this
+.\" CDDL HEADER in each file and include the License file at
+.\" usr/src/OPENSOLARIS.LICENSE.  If applicable, add the following below this
+.\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
+.\" own identifying information:
+.\" Portions Copyright [yyyy] [name of copyright owner]
+.\" Copyright (c) 2019, Klara Inc.
+.\" Copyright (c) 2019, Allan Jude
+.\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
+.\"
+.Dd May 31, 2021
+.Dt ZPOOL-FEATURES 7
+.Os
+.
+.Sh NAME
+.Nm zpool-features
+.Nd description of ZFS pool features
+.
+.Sh DESCRIPTION
+ZFS pool on-disk format versions are specified via "features" which replace
+the old on-disk format numbers (the last supported on-disk format number is 28).
+To enable a feature on a pool use the
+.Nm zpool Cm upgrade ,
+or set the
+.Sy feature Ns @ Ns Ar feature-name
+property to
+.Sy enabled .
+Please also see the
+.Sx Compatibility feature sets
+section for information on how sets of features may be enabled together.
+.Pp
+The pool format does not affect file system version compatibility or the ability
+to send file systems between pools.
+.Pp
+Since most features can be enabled independently of each other, the on-disk
+format of the pool is specified by the set of all features marked as
+.Sy active
+on the pool.
+If the pool was created by another software version
+this set may include unsupported features.
+.
+.Ss Identifying features
+Every feature has a GUID of the form
+.Ar com.example : Ns Ar feature-name .
+The reversed DNS name ensures that the feature's GUID is unique across all ZFS
+implementations.
+When unsupported features are encountered on a pool they will
+be identified by their GUIDs.
+Refer to the documentation for the ZFS
+implementation that created the pool for information about those features.
+.Pp
+Each supported feature also has a short name.
+By convention a feature's short name is the portion of its GUID which follows the
+.Sq \&:
+(i.e.
+.Ar com.example : Ns Ar feature-name
+would have the short name
+.Ar feature-name ) ,
+however a feature's short name may differ across ZFS implementations if
+following the convention would result in name conflicts.
+.
+.Ss Feature states
+Features can be in one of three states:
+.Bl -tag -width "disabled"
+.It Sy active
+This feature's on-disk format changes are in effect on the pool.
+Support for this feature is required to import the pool in read-write mode.
+If this feature is not read-only compatible,
+support is also required to import the pool in read-only mode
+.Pq see Sx Read-only compatibility .
+.It Sy enabled
+An administrator has marked this feature as enabled on the pool, but the
+feature's on-disk format changes have not been made yet.
+The pool can still be imported by software that does not support this feature,
+but changes may be made to the on-disk format at any time
+which will move the feature to the
+.Sy active
+state.
+Some features may support returning to the
+.Sy enabled
+state after becoming
+.Sy active .
+See feature-specific documentation for details.
+.It Sy disabled
+This feature's on-disk format changes have not been made and will not be made
+unless an administrator moves the feature to the
+.Sy enabled
+state.
+Features cannot be disabled once they have been enabled.
+.El
+.Pp
+The state of supported features is exposed through pool properties of the form
+.Sy feature Ns @ Ns Ar short-name .
+.
+.Ss Read-only compatibility
+Some features may make on-disk format changes that do not interfere with other
+software's ability to read from the pool.
+These features are referred to as
+.Dq read-only compatible .
+If all unsupported features on a pool are read-only compatible,
+the pool can be imported in read-only mode by setting the
+.Sy readonly
+property during import (see
+.Xr zpool-import 8
+for details on importing pools).
+.
+.Ss Unsupported features
+For each unsupported feature enabled on an imported pool, a pool property
+named
+.Sy unsupported Ns @ Ns Ar feature-name
+will indicate why the import was allowed despite the unsupported feature.
+Possible values for this property are:
+.Bl -tag -width "readonly"
+.It Sy inactive
+The feature is in the
+.Sy enabled
+state and therefore the pool's on-disk
+format is still compatible with software that does not support this feature.
+.It Sy readonly
+The feature is read-only compatible and the pool has been imported in
+read-only mode.
+.El
+.
+.Ss Feature dependencies
+Some features depend on other features being enabled in order to function.
+Enabling a feature will automatically enable any features it depends on.
+.
+.Ss Compatibility feature sets
+It is sometimes necessary for a pool to maintain compatibility with a
+specific on-disk format, by enabling and disabling particular features.
+The
+.Sy compatibility
+feature facilitates this by allowing feature sets to be read from text files.
+When set to
+.Sy off
+(the default), compatibility feature sets are disabled
+(i.e. all features are enabled); when set to
+.Sy legacy ,
+no features are enabled.
+When set to a comma-separated list of filenames
+(each filename may either be an absolute path, or relative to
+.Pa /etc/zfs/compatibility.d
+or
+.Pa /usr/share/zfs/compatibility.d ) ,
+the lists of requested features are read from those files,
+separated by whitespace and/or commas.
+Only features present in all files are enabled.
+.Pp
+Simple sanity checks are applied to the files:
+they must be between 1B and 16kB in size, and must end with a newline character.
+.Pp
+The requested features are applied when a pool is created using
+.Nm zpool Cm create Fl o Sy compatibility Ns = Ns Ar …
+and controls which features are enabled when using
+.Nm zpool Cm upgrade .
+.Nm zpool Cm status
+will not show a warning about disabled features which are not part
+of the requested feature set.
+.Pp
+The special value
+.Sy legacy
+prevents any features from being enabled, either via
+.Nm zpool Cm upgrade
+or
+.Nm zpool Cm set Sy feature Ns @ Ns Ar feature-name Ns = Ns Sy enabled .
+This setting also prevents pools from being upgraded to newer on-disk versions.
+This is a safety measure to prevent new features from being
+accidentally enabled, breaking compatibility.
+.Pp
+By convention, compatibility files in
+.Pa /usr/share/zfs/compatibility.d
+are provided by the distribution, and include feature sets
+supported by important versions of popular distributions, and feature
+sets commonly supported at the start of each year.
+Compatibility files in
+.Pa /etc/zfs/compatibility.d ,
+if present, will take precedence over files with the same name in
+.Pa /usr/share/zfs/compatibility.d .
+.Pp
+If an unrecognized feature is found in these files, an error message will
+be shown.
+If the unrecognized feature is in a file in
+.Pa /etc/zfs/compatibility.d ,
+this is treated as an error and processing will stop.
+If the unrecognized feature is under
+.Pa /usr/share/zfs/compatibility.d ,
+this is treated as a warning and processing will continue.
+This difference is to allow distributions to include features
+which might not be recognized by the currently-installed binaries.
+.Pp
+Compatibility files may include comments:
+any text from
+.Sq #
+to the end of the line is ignored.
+.Pp
+.Sy Example :
+.Bd -literal -compact -offset 4n
+.No example# Nm cat Pa /usr/share/zfs/compatibility.d/grub2
+# Features which are supported by GRUB2
+async_destroy
+bookmarks
+embedded_data
+empty_bpobj
+enabled_txg
+extensible_dataset
+filesystem_limits
+hole_birth
+large_blocks
+lz4_compress
+spacemap_histogram
+
+.No example# Nm zpool Cm create Fl o Sy compatibility Ns = Ns Ar grub2 Ar bootpool Ar vdev
+.Ed
+.Pp
+See
+.Xr zpool-create 8
+and
+.Xr zpool-upgrade 8
+for more information on how these commands are affected by feature sets.
+.
+.de feature
+.It Sy \\$2
+.Bl -tag -compact -width "READ-ONLY COMPATIBLE"
+.It GUID
+.Sy \\$1:\\$2
+.if !"\\$4"" \{\
+.It DEPENDENCIES
+\fB\\$4\fP\c
+.if !"\\$5"" , \fB\\$5\fP\c
+.if !"\\$6"" , \fB\\$6\fP\c
+.if !"\\$7"" , \fB\\$7\fP\c
+.if !"\\$8"" , \fB\\$8\fP\c
+.if !"\\$9"" , \fB\\$9\fP\c
+.\}
+.It READ-ONLY COMPATIBLE
+\\$3
+.El
+.Pp
+..
+.
+.ds instant-never \
+.No This feature becomes Sy active No as soon as it is enabled \
+and will never return to being Sy enabled .
+.
+.ds remount-upgrade \
+.No Each filesystem will be upgraded automatically when remounted, \
+or when a new file is created under that filesystem. \
+The upgrade can also be triggered on filesystems via \
+Nm zfs Cm set Sy version Ns = Ns Sy current Ar fs . \
+No The upgrade process runs in the background and may take a while to complete \
+for filesystems containing large amounts of files.
+.
+.de checksum-spiel
+When the
+.Sy \\$1
+feature is set to
+.Sy enabled ,
+the administrator can turn on the
+.Sy \\$1
+checksum on any dataset using
+.Nm zfs Cm set Sy checksum Ns = Ns Sy \\$1 Ar dset
+.Po see Xr zfs-set 8 Pc .
+This feature becomes
+.Sy active
+once a
+.Sy checksum
+property has been set to
+.Sy \\$1 ,
+and will return to being
+.Sy enabled
+once all filesystems that have ever had their checksum set to
+.Sy \\$1
+are destroyed.
+..
+.
+.Sh FEATURES
+The following features are supported on this system:
+.Bl -tag -width Ds
+.feature org.zfsonlinux allocation_classes yes
+This feature enables support for separate allocation classes.
+.Pp
+This feature becomes
+.Sy active
+when a dedicated allocation class vdev (dedup or special) is created with the
+.Nm zpool Cm create No or Nm zpool Cm add No commands .
+With device removal, it can be returned to the
+.Sy enabled
+state if all the dedicated allocation class vdevs are removed.
+.
+.feature com.delphix async_destroy yes
+Destroying a file system requires traversing all of its data in order to
+return its used space to the pool.
+Without
+.Sy async_destroy ,
+the file system is not fully removed until all space has been reclaimed.
+If the destroy operation is interrupted by a reboot or power outage,
+the next attempt to open the pool will need to complete the destroy
+operation synchronously.
+.Pp
+When
+.Sy async_destroy
+is enabled, the file system's data will be reclaimed by a background process,
+allowing the destroy operation to complete
+without traversing the entire file system.
+The background process is able to resume
+interrupted destroys after the pool has been opened, eliminating the need
+to finish interrupted destroys as part of the open operation.
+The amount of space remaining to be reclaimed by the background process
+is available through the
+.Sy freeing
+property.
+.Pp
+This feature is only
+.Sy active
+while
+.Sy freeing
+is non-zero.
+.
+.feature com.delphix bookmarks yes extensible_dataset
+This feature enables use of the
+.Nm zfs Cm bookmark
+command.
+.Pp
+This feature is
+.Sy active
+while any bookmarks exist in the pool.
+All bookmarks in the pool can be listed by running
+.Nm zfs Cm list Fl t Sy bookmark Fl r Ar poolname .
+.
+.feature com.datto bookmark_v2 no bookmark extensible_dataset
+This feature enables the creation and management of larger bookmarks which are
+needed for other features in ZFS.
+.Pp
+This feature becomes
+.Sy active
+when a v2 bookmark is created and will be returned to the
+.Sy enabled
+state when all v2 bookmarks are destroyed.
+.
+.feature com.delphix bookmark_written no bookmark extensible_dataset bookmark_v2
+This feature enables additional bookmark accounting fields, enabling the
+.Sy written Ns # Ns Ar bookmark
+property (space written since a bookmark) and estimates of
+send stream sizes for incrementals from bookmarks.
+.Pp
+This feature becomes
+.Sy active
+when a bookmark is created and will be
+returned to the
+.Sy enabled
+state when all bookmarks with these fields are destroyed.
+.
+.feature org.openzfs device_rebuild yes
+This feature enables the ability for the
+.Nm zpool Cm attach
+and
+.Nm zpool Cm replace
+commands to perform sequential reconstruction
+(instead of healing reconstruction) when resilvering.
+.Pp
+Sequential reconstruction resilvers a device in LBA order without immediately
+verifying the checksums.
+Once complete, a scrub is started, which then verifies the checksums.
+This approach allows full redundancy to be restored to the pool
+in the minimum amount of time.
+This two-phase approach will take longer than a healing resilver
+when the time to verify the checksums is included.
+However, unless there is additional pool damage,
+no checksum errors should be reported by the scrub.
+This feature is incompatible with raidz configurations.
+.
+This feature becomes
+.Sy active
+while a sequential resilver is in progress, and returns to
+.Sy enabled
+when the resilver completes.
+.
+.feature com.delphix device_removal no
+This feature enables the
+.Nm zpool Cm remove
+command to remove top-level vdevs,
+evacuating them to reduce the total size of the pool.
+.Pp
+This feature becomes
+.Sy active
+when the
+.Nm zpool Cm remove
+command is used
+on a top-level vdev, and will never return to being
+.Sy enabled .
+.
+.feature org.openzfs draid no
+This feature enables use of the
+.Sy draid
+vdev type.
+dRAID is a variant of raidz which provides integrated distributed
+hot spares that allow faster resilvering while retaining the benefits of raidz.
+Data, parity, and spare space are organized in redundancy groups
+and distributed evenly over all of the devices.
+.Pp
+This feature becomes
+.Sy active
+when creating a pool which uses the
+.Sy draid
+vdev type, or when adding a new
+.Sy draid
+vdev to an existing pool.
+.
+.feature org.illumos edonr no extensible_dataset
+This feature enables the use of the Edon-R hash algorithm for checksum,
+including for nopwrite (if compression is also enabled, an overwrite of
+a block whose checksum matches the data being written will be ignored).
+In an abundance of caution, Edon-R requires verification when used with
+dedup:
+.Nm zfs Cm set Sy dedup Ns = Ns Sy edonr , Ns Sy verify
+.Po see Xr zfs-set 8 Pc .
+.Pp
+Edon-R is a very high-performance hash algorithm that was part
+of the NIST SHA-3 competition.
+It provides extremely high hash performance (over 350% faster than SHA-256),
+but was not selected because of its unsuitability
+as a general purpose secure hash algorithm.
+This implementation utilizes the new salted checksumming functionality
+in ZFS, which means that the checksum is pre-seeded with a secret
+256-bit random key (stored on the pool) before being fed the data block
+to be checksummed.
+Thus the produced checksums are unique to a given pool,
+preventing hash collision attacks on systems with dedup.
+.Pp
+.checksum-spiel edonr
+.Pp
+.Fx does not support the Sy edonr No feature.
+.
+.feature com.delphix embedded_data no
+This feature improves the performance and compression ratio of
+highly-compressible blocks.
+Blocks whose contents can compress to 112 bytes
+or smaller can take advantage of this feature.
+.Pp
+When this feature is enabled, the contents of highly-compressible blocks are
+stored in the block "pointer" itself (a misnomer in this case, as it contains
+the compressed data, rather than a pointer to its location on disk).
+Thus the space of the block (one sector, typically 512B or 4kB) is saved,
+and no additional I/O is needed to read and write the data block.
+.
+\*[instant-never]
+.
+.feature com.delphix empty_bpobj yes
+This feature increases the performance of creating and using a large
+number of snapshots of a single filesystem or volume, and also reduces
+the disk space required.
+.Pp
+When there are many snapshots, each snapshot uses many Block Pointer
+Objects (bpobjs) to track blocks associated with that snapshot.
+However, in common use cases, most of these bpobjs are empty.
+This feature allows us to create each bpobj on-demand,
+thus eliminating the empty bpobjs.
+.Pp
+This feature is
+.Sy active
+while there are any filesystems, volumes,
+or snapshots which were created after enabling this feature.
+.
+.feature com.delphix enabled_txg yes
+Once this feature is enabled, ZFS records the transaction group number
+in which new features are enabled.
+This has no user-visible impact, but other features may depend on this feature.
+.Pp
+This feature becomes
+.Sy active
+ as soon as it is enabled and will
+never return to being
+.Sy enabled .
+.
+.feature com.datto encryption no bookmark_v2 extensible_dataset
+This feature enables the creation and management of natively encrypted datasets.
+.Pp
+This feature becomes
+.Sy active
+when an encrypted dataset is created and will be returned to the
+.Sy enabled
+state when all datasets that use this feature are destroyed.
+.
+.feature com.delphix extensible_dataset no
+This feature allows more flexible use of internal ZFS data structures,
+and exists for other features to depend on.
+.Pp
+This feature will be
+.Sy active
+when the first dependent feature uses it, and will be returned to the
+.Sy enabled
+state when all datasets that use this feature are destroyed.
+.
+.feature com.joyent filesystem_limits yes extensible_dataset
+This feature enables filesystem and snapshot limits.
+These limits can be used to control how many filesystems and/or snapshots
+can be created at the point in the tree on which the limits are set.
+.Pp
+This feature is
+.Sy active
+once either of the limit properties has been set on a dataset.
+Once activated the feature is never deactivated.
+.
+.feature com.delphix hole_birth no enabled_txg
+This feature has/had bugs, the result of which is that, if you do a
+.Nm zfs Cm send Fl i
+.Pq or Fl R , No since it uses Fl i
+from an affected dataset, the receiving party will not see any checksum
+or other errors, but the resulting destination snapshot
+will not match the source.
+Its use by
+.Nm zfs Cm send Fl i
+has been disabled by default
+.Pq see Sy send_holes_without_birth_time No in Xr zfs 4 .
+.Pp
+This feature improves performance of incremental sends
+.Pq Nm zfs Cm send Fl i
+and receives for objects with many holes.
+The most common case of hole-filled objects is zvols.
+.Pp
+An incremental send stream from snapshot
+.Sy A No to snapshot Sy B
+contains information about every block that changed between
+.Sy A No and Sy B .
+Blocks which did not change between those snapshots can be
+identified and omitted from the stream using a piece of metadata called
+the "block birth time", but birth times are not recorded for holes
+(blocks filled only with zeroes).
+Since holes created after
+.Sy A No cannot be distinguished from holes created before Sy A ,
+information about every hole in the entire filesystem or zvol
+is included in the send stream.
+.Pp
+For workloads where holes are rare this is not a problem.
+However, when incrementally replicating filesystems or zvols with many holes
+(for example a zvol formatted with another filesystem) a lot of time will
+be spent sending and receiving unnecessary information about holes that
+already exist on the receiving side.
+.Pp
+Once the
+.Sy hole_birth
+feature has been enabled the block birth times
+of all new holes will be recorded.
+Incremental sends between snapshots created after this feature is enabled
+will use this new metadata to avoid sending information about holes that
+already exist on the receiving side.
+.Pp
+\*[instant-never]
+.
+.feature org.open-zfs large_blocks no extensible_dataset
+This feature allows the record size on a dataset to be set larger than 128kB.
+.Pp
+This feature becomes
+.Sy active
+once a dataset contains a file with a block size larger than 128kB,
+and will return to being
+.Sy enabled
+once all filesystems that have ever had their recordsize larger than 128kB
+are destroyed.
+.
+.feature org.zfsonlinux large_dnode no extensible_dataset
+This feature allows the size of dnodes in a dataset to be set larger than 512B.
+.
+This feature becomes
+.Sy active
+once a dataset contains an object with a dnode larger than 512B,
+which occurs as a result of setting the
+.Sy dnodesize
+dataset property to a value other than
+.Sy legacy .
+The feature will return to being
+.Sy enabled
+once all filesystems that have ever contained a dnode larger than 512B
+are destroyed.
+Large dnodes allow more data to be stored in the bonus buffer,
+thus potentially improving performance by avoiding the use of spill blocks.
+.
+.feature com.delphix livelist yes
+This feature allows clones to be deleted faster than the traditional method
+when a large number of random/sparse writes have been made to the clone.
+All blocks allocated and freed after a clone is created are tracked by the
+the clone's livelist which is referenced during the deletion of the clone.
+The feature is activated when a clone is created and remains
+.Sy active
+until all clones have been destroyed.
+.
+.feature com.delphix log_spacemap yes com.delphix:spacemap_v2
+This feature improves performance for heavily-fragmented pools,
+especially when workloads are heavy in random-writes.
+It does so by logging all the metaslab changes on a single spacemap every TXG
+instead of scattering multiple writes to all the metaslab spacemaps.
+.Pp
+\*[instant-never]
+.
+.feature org.illumos lz4_compress no
+.Sy lz4
+is a high-performance real-time compression algorithm that
+features significantly faster compression and decompression as well as a
+higher compression ratio than the older
+.Sy lzjb
+compression.
+Typically,
+.Sy lz4
+compression is approximately 50% faster on compressible data and 200% faster
+on incompressible data than
+.Sy lzjb .
+It is also approximately 80% faster on decompression,
+while giving approximately a 10% better compression ratio.
+.Pp
+When the
+.Sy lz4_compress
+feature is set to
+.Sy enabled ,
+the administrator can turn on
+.Sy lz4
+compression on any dataset on the pool using the
+.Xr zfs-set 8
+command.
+All newly written metadata will be compressed with the
+.Sy lz4
+algorithm.
+.Pp
+\*[instant-never]
+.
+.feature com.joyent multi_vdev_crash_dump no
+This feature allows a dump device to be configured with a pool comprised
+of multiple vdevs.
+Those vdevs may be arranged in any mirrored or raidz configuration.
+.Pp
+When the
+.Sy multi_vdev_crash_dump
+feature is set to
+.Sy enabled ,
+the administrator can use
+.Xr dumpadm 1M
+to configure a dump device on a pool comprised of multiple vdevs.
+.Pp
+Under
+.Fx
+and Linux this feature is unused, but registered for compatibility.
+New pools created on these systems will have the feature
+.Sy enabled
+but will never transition to
+.Sy active ,
+as this functionality is not required for crash dump support.
+Existing pools where this feature is
+.Sy active
+can be imported.
+.
+.feature com.delphix obsolete_counts yes device_removal
+This feature is an enhancement of
+.Sy device_removal ,
+which will over time reduce the memory used to track removed devices.
+When indirect blocks are freed or remapped,
+we note that their part of the indirect mapping is "obsolete" – no longer needed.
+.Pp
+This feature becomes
+.Sy active
+when the
+.Nm zpool Cm remove
+command is used on a top-level vdev, and will never return to being
+.Sy enabled .
+.
+.feature org.zfsonlinux project_quota yes extensible_dataset
+This feature allows administrators to account the spaces and objects usage
+information against the project identifier (ID).
+.Pp
+The project ID is an object-based attribute.
+When upgrading an existing filesystem,
+objects without a project ID will be assigned a zero project ID.
+When this feature is enabled, newly created objects inherit
+their parent directories' project ID if the parent's inherit flag is set
+.Pq via Nm chattr Sy [+-]P No or Nm zfs Cm project Fl s Ns | Ns Fl C .
+Otherwise, the new object's project ID will be zero.
+An object's project ID can be changed at any time by the owner
+(or privileged user) via
+.Nm chattr Fl p Ar prjid
+or
+.Nm zfs Cm project Fl p Ar prjid .
+.Pp
+This feature will become
+.Sy active
+as soon as it is enabled and will never return to being
+.Sy disabled .
+\*[remount-upgrade]
+.
+.feature com.delphix redaction_bookmarks no bookmarks extensible_dataset
+This feature enables the use of redacted
+.Nm zfs Cm send Ns s ,
+which create redaction bookmarks storing the list of blocks
+redacted by the send that created them.
+For more information about redacted sends, see
+.Xr zfs-send 8 .
+.
+.feature com.delphix redacted_datasets no extensible_dataset
+This feature enables the receiving of redacted
+.Nm zfs Cm send Ns
+streams. which create redacted datasets when received.
+These datasets are missing some of their blocks,
+and so cannot be safely mounted, and their contents cannot be safely read.
+For more information about redacted receives, see
+.Xr zfs-send 8 .
+.
+.feature com.datto resilver_defer yes
+This feature allows ZFS to postpone new resilvers if an existing one is already
+in progress.
+Without this feature, any new resilvers will cause the currently
+running one to be immediately restarted from the beginning.
+.Pp
+This feature becomes
+.Sy active
+once a resilver has been deferred, and returns to being
+.Sy enabled
+when the deferred resilver begins.
+.
+.feature org.illumos sha512 no extensible_dataset
+This feature enables the use of the SHA-512/256 truncated hash algorithm
+(FIPS 180-4) for checksum and dedup.
+The native 64-bit arithmetic of SHA-512 provides an approximate 50%
+performance boost over SHA-256 on 64-bit hardware
+and is thus a good minimum-change replacement candidate
+for systems where hash performance is important,
+but these systems cannot for whatever reason utilize the faster
+.Sy skein No and Sy edonr
+algorithms.
+.Pp
+.checksum-spiel sha512
+.
+.feature org.illumos skein no extensible_dataset
+This feature enables the use of the Skein hash algorithm for checksum and dedup.
+Skein is a high-performance secure hash algorithm that was a
+finalist in the NIST SHA-3 competition.
+It provides a very high security margin and high performance on 64-bit hardware
+(80% faster than SHA-256).
+This implementation also utilizes the new salted checksumming
+functionality in ZFS, which means that the checksum is pre-seeded with a
+secret 256-bit random key (stored on the pool) before being fed the data
+block to be checksummed.
+Thus the produced checksums are unique to a given pool,
+preventing hash collision attacks on systems with dedup.
+.Pp
+.checksum-spiel skein
+.
+.feature com.delphix spacemap_histogram yes
+This features allows ZFS to maintain more information about how free space
+is organized within the pool.
+If this feature is
+.Sy enabled ,
+it will be activated when a new space map object is created, or
+an existing space map is upgraded to the new format,
+and never returns back to being
+.Sy enabled .
+.
+.feature com.delphix spacemap_v2 yes
+This feature enables the use of the new space map encoding which
+consists of two words (instead of one) whenever it is advantageous.
+The new encoding allows space maps to represent large regions of
+space more efficiently on-disk while also increasing their maximum
+addressable offset.
+.Pp
+This feature becomes
+.Sy active
+once it is
+.Sy enabled ,
+and never returns back to being
+.Sy enabled .
+.
+.feature org.zfsonlinux userobj_accounting yes extensible_dataset
+This feature allows administrators to account the object usage information
+by user and group.
+.Pp
+\*[instant-never]
+\*[remount-upgrade]
+.
+.feature com.delphix zpool_checkpoint yes
+This feature enables the
+.Nm zpool Cm checkpoint
+command that can checkpoint the state of the pool
+at the time it was issued and later rewind back to it or discard it.
+.Pp
+This feature becomes
+.Sy active
+when the
+.Nm zpool Cm checkpoint
+command is used to checkpoint the pool.
+The feature will only return back to being
+.Sy enabled
+when the pool is rewound or the checkpoint has been discarded.
+.
+.feature org.freebsd zstd_compress no extensible_dataset
+.Sy zstd
+is a high-performance compression algorithm that features a
+combination of high compression ratios and high speed.
+Compared to
+.Sy gzip ,
+.Sy zstd
+offers slightly better compression at much higher speeds.
+Compared to
+.Sy lz4 ,
+.Sy zstd
+offers much better compression while being only modestly slower.
+Typically,
+.Sy zstd
+compression speed ranges from 250 to 500 MB/s per thread
+and decompression speed is over 1 GB/s per thread.
+.Pp
+When the
+.Sy zstd
+feature is set to
+.Sy enabled ,
+the administrator can turn on
+.Sy zstd
+compression of any dataset using
+.Nm zfs Cm set Sy compress Ns = Ns Sy zstd Ar dset
+.Po see Xr zfs-set 8 Pc .
+This feature becomes
+.Sy active
+once a
+.Sy compress
+property has been set to
+.Sy zstd ,
+and will return to being
+.Sy enabled
+once all filesystems that have ever had their
+.Sy compress
+property set to
+.Sy zstd
+are destroyed.
+.El
+.
+.Sh SEE ALSO
+.Xr zpool 8

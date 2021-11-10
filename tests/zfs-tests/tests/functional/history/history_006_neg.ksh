@@ -40,16 +40,14 @@
 # STRATEGY:
 #	1. Create a test pool.
 #	2. Separately invoke zfs list|get|holds|mount|unmount|share|unshare|send
-#	3. Verify they were not recored in pool history.
+#	3. Verify they were not recorded in pool history.
 #
 
 verify_runnable "global"
 
 function cleanup
 {
-	if datasetexists $fs ; then
-		log_must zfs destroy -rf $fs
-	fi
+	datasetexists $fs && destroy_dataset $fs -rf
 	log_must zfs create $fs
 }
 

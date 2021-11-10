@@ -157,9 +157,9 @@ extern int	odd_parity(ulong_t);
  * to 0 otherwise.
  */
 #define	BT_ATOMIC_SET(bitmap, bitindex) \
-	{ atomic_or_long(&(BT_WIM(bitmap, bitindex)), BT_BIW(bitindex)); }
+	{ atomic_or_ulong(&(BT_WIM(bitmap, bitindex)), BT_BIW(bitindex)); }
 #define	BT_ATOMIC_CLEAR(bitmap, bitindex) \
-	{ atomic_and_long(&(BT_WIM(bitmap, bitindex)), ~BT_BIW(bitindex)); }
+	{ atomic_and_ulong(&(BT_WIM(bitmap, bitindex)), ~BT_BIW(bitindex)); }
 
 #define	BT_ATOMIC_SET_EXCL(bitmap, bitindex, result) \
 	{ result = atomic_set_long_excl(&(BT_WIM(bitmap, bitindex)),	\

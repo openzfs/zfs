@@ -53,12 +53,10 @@ function cleanup
 	typeset bkup
 
 	for snap in $init_snap $inc_snap; do
-		snapexists $snap && \
-			log_must zfs destroy -f $snap
+		snapexists $snap && destroy_dataset $snap -f
 	done
 
-	datasetexists $rst_root && \
-		log_must zfs destroy -Rf $rst_root
+	datasetexists $rst_root && destroy_dataset $rst_root -Rf
 
 	for bkup in $full_bkup $inc_bkup; do
 		[[ -e $bkup ]] && \
@@ -82,8 +80,8 @@ log_must zfs snapshot $init_snap
 log_must eval "zfs send $init_snap > $full_bkup"
 
 log_note "'zfs receive' fails with invalid send streams."
-log_mustnot eval "zfs receive $rst_init_snap < /dev/zero"
-log_mustnot eval "zfs receive -d $rst_root </dev/zero"
+log_mustnot eval "cat </dev/zero | zfs receive $rst_init_snap"
+log_mustnot eval "cat </dev/zero | zfs receive -d $rst_root"
 
 log_must eval "zfs receive $rst_init_snap < $full_bkup"
 

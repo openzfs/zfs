@@ -48,7 +48,7 @@ set -A ENCRYPTION_ALGS "encryption=on" \
 	"encryption=aes-192-gcm" \
 	"encryption=aes-256-gcm"
 
-set -A ENCRYPTION_PROPS "encryption=aes-256-ccm" \
+set -A ENCRYPTION_PROPS "encryption=aes-256-gcm" \
 	"encryption=aes-128-ccm" \
 	"encryption=aes-192-ccm" \
 	"encryption=aes-256-ccm" \

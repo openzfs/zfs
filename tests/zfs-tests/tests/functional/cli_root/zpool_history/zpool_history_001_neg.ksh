@@ -38,7 +38,7 @@
 #
 # STRATEGY:
 #	1. Create pool, volume & snap
-#	2. Verify 'zpool history' can cope with incorret arguments.
+#	2. Verify 'zpool history' can cope with incorrect arguments.
 #
 
 verify_runnable "global"
@@ -51,8 +51,8 @@ set -A neg_opt "$TESTPOOL/$TESTCTR" "$TESTPOOL/$TESTVOL" "-t $TESTPOOL" \
 
 function cleanup
 {
-	datasetexists $clone && log_must zfs destroy $clone
-	datasetexists $snap && log_must zfs destroy $snap
+	datasetexists $clone && destroy_dataset $clone
+	datasetexists $snap && destroy_dataset $snap
 }
 
 log_assert "Verify 'zpool history' can deal with non-existent pools and " \

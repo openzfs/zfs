@@ -23,9 +23,33 @@
 # Copyright (c) 2017 by Lawrence Livermore National Security, LLC.
 # Use is subject to license terms.
 #
+# Copyright (c) 2020 by Delphix. All rights reserved.
+#
 
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/events/events.cfg
+
+#
+# wait for 'event' to show up in the log 'file'
+function file_wait_event # file event timeout
+{
+	file=$1
+	event=$2
+	timeout=${3:-120}
+
+	SECONDS=0
+
+	until grep -q "^ZEVENT_CLASS=$event" $ZED_DEBUG_LOG ; do
+		if [[ $SECONDS -gt $timeout ]]; then
+			echo file_wait_event exceeded $SECONDS seconds
+			return 1
+		fi
+
+		sleep 1
+	done
+
+	return 0;
+}
 
 #
 # Wait for up to 'timeout' seconds for the 'file' to settle, i.e.
@@ -41,6 +65,7 @@ function file_wait # file delay timeout
 
 	while [ $(( $(date +%s) - $(stat -c %Y $file) )) -lt $delay ]; do
 		if [[ $SECONDS -gt $timeout ]]; then
+			echo file_wait exceeded $SECONDS seconds
 			return 1
 		fi
 
@@ -52,30 +77,22 @@ function file_wait # file delay timeout
 
 function run_and_verify
 {
-	typeset delay event pool zedlog
+	typeset event pool
 	set -A events
 
-	while getopts "d:e:p:z:" opt; do
+	while getopts "e:p:" opt; do
 		case $opt in
-		d)
-			delay=$OPTARG
-			;;
 		e)
-			events[${#events[*]}+1]=$OPTARG
+			events+=("$OPTARG")
 			;;
 		p)
 			pool=$OPTARG
-			;;
-		z)
-			zedlog=$OPTARG
 			;;
 		esac
 	done
 	shift $(($OPTIND - 1))
 
 	pool=${pool:-$TESTPOOL}
-	delay=${delay:-3}
-	zedlog=${zedlog:-$ZED_DEBUG_LOG}
 	fullcmd="$1"
 	cmd=$(echo $fullcmd | awk '{print $1}')
 
@@ -87,21 +104,38 @@ function run_and_verify
 
 	# Remove any previous events from the logs.
 	log_must zpool events -c
-	log_must truncate -s 0 $zedlog
+	log_must truncate -s 0 $ZED_DEBUG_LOG
 
 	# Run the command as provided.
 	log_must eval "$fullcmd"
 
 	# Collect the new events and verify there are some.
 	log_must zpool sync -f
-	log_must file_wait $zedlog $delay
-	log_must cp $zedlog $TMP_EVENTS_ZED
 	log_must eval "zpool events >$TMP_EVENTS 2>/dev/null"
 	log_must eval "zpool events -v > $TMP_EVENTS_FULL 2>/dev/null"
 
 	log_must test -s $TMP_EVENTS
 	log_must test -s $TMP_EVENTS_FULL
-	log_must test -s $TMP_EVENTS_ZED
+
+	# If the only event is history then we don't observe zed debug log
+	if [[ "${events[0]}" != "sysevent.fs.zfs.history_event" ]]; then
+		# wait for all the non-history events to show up in the
+		# debug log, all-debug.sh filters history events.
+		for event in ${events[*]}; do
+			if [[ "$event" == \
+			    "sysevent.fs.zfs.history_event" ]]; then
+				continue
+			fi
+
+			log_must file_wait_event $ZED_DEBUG_LOG "$event"
+		done
+
+		log_must cp $ZED_DEBUG_LOG $TMP_EVENTS_ZED
+		log_must test -s $TMP_EVENTS_ZED
+
+		log_note "Events logged:"
+		grep "^ZEVENT_CLASS" $TMP_EVENTS_ZED
+	fi
 
 	log_note "Events generated:"
 	cat $TMP_EVENTS
@@ -117,6 +151,11 @@ function run_and_verify
 		    'BEGIN{FS="\n"; RS=""} $0 ~ event { print $0 }' \
 		    $TMP_EVENTS_FULL >$TMP_EVENT_FULL
 		log_must grep -q "pool = \"$pool\"" $TMP_EVENT_FULL
+
+		# all-debug.sh filters history events (seen in ZED_DEBUG_LOG)
+		if [[ "$event" == "sysevent.fs.zfs.history_event" ]]; then
+			continue
+		fi
 
 		# Verify the event was received by the ZED and logged.
 		awk -v event="$event" \

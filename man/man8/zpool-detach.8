@@ -1,0 +1,58 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+.\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
+.\" Copyright (c) 2017 Datto Inc.
+.\" Copyright (c) 2018 George Melikov. All Rights Reserved.
+.\" Copyright 2017 Nexenta Systems, Inc.
+.\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\"
+.Dd August 9, 2019
+.Dt ZPOOL-DETACH 8
+.Os
+.
+.Sh NAME
+.Nm zpool-detach
+.Nd detach device from ZFS mirror
+.Sh SYNOPSIS
+.Nm zpool
+.Cm detach
+.Ar pool device
+.
+.Sh DESCRIPTION
+Detaches
+.Ar device
+from a mirror.
+The operation is refused if there are no other valid replicas of the data.
+If
+.Ar device
+may be re-added to the pool later on then consider the
+.Nm zpool Cm offline
+command instead.
+.
+.Sh SEE ALSO
+.Xr zpool-attach 8 ,
+.Xr zpool-labelclear 8 ,
+.Xr zpool-offline 8 ,
+.Xr zpool-remove 8 ,
+.Xr zpool-replace 8 ,
+.Xr zpool-split 8

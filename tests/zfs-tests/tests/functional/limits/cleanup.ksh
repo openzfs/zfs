@@ -15,5 +15,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/delegate/delegate_common.kshlib
 
+cleanup_user_group
 default_cleanup

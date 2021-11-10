@@ -399,7 +399,7 @@ perm_set_compare(const void *arg1, const void *arg2)
 
 	val = strcmp(node1->p_setname, node2->p_setname);
 
-	return (AVL_ISIGN(val));
+	return (TREE_ISIGN(val));
 }
 
 /*

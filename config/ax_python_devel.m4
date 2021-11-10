@@ -97,9 +97,18 @@ AC_DEFUN([AX_PYTHON_DEVEL],[
 	# Check for a version of Python >= 2.1.0
 	#
 	AC_MSG_CHECKING([for a version of Python >= '2.1.0'])
-	ac_supports_python_ver=`$PYTHON -c "import sys; \
-		ver = sys.version.split ()[[0]]; \
-		print (ver >= '2.1.0')"`
+	ac_supports_python_ver=`cat<<EOD | $PYTHON -
+from __future__ import print_function;
+import sys;
+try:
+	from packaging import version;
+except ImportError:
+	from distlib import version;
+ver = sys.version.split ()[[0]];
+(tst_cmp, tst_ver) = ">= '2.1.0'".split ();
+tst_ver = tst_ver.strip ("'");
+eval ("print (version.LegacyVersion (ver)"+ tst_cmp +"version.LegacyVersion (tst_ver))")
+EOD`
 	if test "$ac_supports_python_ver" != "True"; then
 		if test -z "$PYTHON_NOVERSIONCHECK"; then
 			AC_MSG_RESULT([no])
@@ -126,9 +135,21 @@ to something else than an empty string.
 	#
 	if test -n "$1"; then
 		AC_MSG_CHECKING([for a version of Python $1])
-		ac_supports_python_ver=`$PYTHON -c "import sys; \
-			ver = sys.version.split ()[[0]]; \
-			print (ver $1)"`
+		# Why the strip ()?  Because if we don't, version.parse
+		# will, for example, report 3.10.0 >= '3.11.0'
+		ac_supports_python_ver=`cat<<EOD | $PYTHON -
+
+from __future__ import print_function;
+import sys;
+try:
+	from packaging import version;
+except ImportError:
+	from distlib import version;
+ver = sys.version.split ()[[0]];
+(tst_cmp, tst_ver) = "$1".split ();
+tst_ver = tst_ver.strip ("'");
+eval ("print (version.LegacyVersion (ver)"+ tst_cmp +"version.LegacyVersion (tst_ver))")
+EOD`
 		if test "$ac_supports_python_ver" = "True"; then
 		   AC_MSG_RESULT([yes])
 		else
@@ -148,8 +169,7 @@ variable to configure. See ``configure --help'' for reference.
 	# Check if you have distutils, else fail
 	#
 	AC_MSG_CHECKING([for the distutils Python package])
-	ac_distutils_result=`$PYTHON -c "import distutils" 2>&1`
-	if test $? -eq 0; then
+	if ac_distutils_result=`$PYTHON -c "import distutils" 2>&1`; then
 		AC_MSG_RESULT([yes])
 	else
 		AC_MSG_RESULT([no])
@@ -204,7 +224,7 @@ EOD`
 				ac_python_version=$PYTHON_VERSION
 			else
 				ac_python_version=`$PYTHON -c "import sys; \
-					print (sys.version[[:3]])"`
+					print ('.'.join(sys.version.split('.')[[:2]]))"`
 			fi
 		fi
 

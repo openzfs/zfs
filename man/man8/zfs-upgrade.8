@@ -1,0 +1,103 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
+.\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+.\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+.\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
+.\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
+.\" Copyright (c) 2014 Integros [integros.com]
+.\" Copyright 2019 Richard Laager. All rights reserved.
+.\" Copyright 2018 Nexenta Systems, Inc.
+.\" Copyright 2019 Joyent, Inc.
+.\"
+.Dd June 30, 2019
+.Dt ZFS-UPGRADE 8
+.Os
+.
+.Sh NAME
+.Nm zfs-upgrade
+.Nd manage on-disk version of ZFS filesystems
+.Sh SYNOPSIS
+.Nm zfs
+.Cm upgrade
+.Nm zfs
+.Cm upgrade
+.Fl v
+.Nm zfs
+.Cm upgrade
+.Op Fl r
+.Op Fl V Ar version
+.Fl a Ns | Ns Ar filesystem
+.
+.Sh DESCRIPTION
+.Bl -tag -width ""
+.It Xo
+.Nm zfs
+.Cm upgrade
+.Xc
+Displays a list of file systems that are not the most recent version.
+.It Xo
+.Nm zfs
+.Cm upgrade
+.Fl v
+.Xc
+Displays a list of currently supported file system versions.
+.It Xo
+.Nm zfs
+.Cm upgrade
+.Op Fl r
+.Op Fl V Ar version
+.Fl a Ns | Ns Ar filesystem
+.Xc
+Upgrades file systems to a new on-disk version.
+Once this is done, the file systems will no longer be accessible on systems
+running older versions of ZFS.
+.Nm zfs Cm send
+streams generated from new snapshots of these file systems cannot be accessed on
+systems running older versions of ZFS.
+.Pp
+In general, the file system version is independent of the pool version.
+See
+.Xr zpool-features 7
+for information on features of ZFS storage pools.
+.Pp
+In some cases, the file system version and the pool version are interrelated and
+the pool version must be upgraded before the file system version can be
+upgraded.
+.Bl -tag -width "filesystem"
+.It Fl V Ar version
+Upgrade to
+.Ar version .
+If not specified, upgrade to the most recent version.
+This
+option can only be used to increase the version number, and only up to the most
+recent version supported by this version of ZFS.
+.It Fl a
+Upgrade all file systems on all imported pools.
+.It Ar filesystem
+Upgrade the specified file system.
+.It Fl r
+Upgrade the specified file system and all descendent file systems.
+.El
+.El
+.Sh SEE ALSO
+.Xr zpool-upgrade 8

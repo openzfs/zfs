@@ -28,7 +28,7 @@
 #define	_SYS_SA_IMPL_H
 
 #include <sys/dmu.h>
-#include <sys/refcount.h>
+#include <sys/zfs_refcount.h>
 #include <sys/list.h>
 
 /*

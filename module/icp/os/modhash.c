@@ -48,7 +48,7 @@
  *	  The number returned need _not_ be between 0 and nchains.  The mod_hash
  *	  code will take care of doing that.  The second argument (after the
  *	  key) to the hashing function is a void * that represents
- *	  hash_alg_data-- this is provided so that the hashing algrorithm can
+ *	  hash_alg_data-- this is provided so that the hashing algorithm can
  *	  maintain some state across calls, or keep algorithm-specific
  *	  constants associated with the hash table.
  *
@@ -453,17 +453,19 @@ mod_hash_create_extended(
     int sleep)				/* whether to sleep for mem */
 {
 	mod_hash_t *mod_hash;
+	size_t size;
 	ASSERT(hname && keycmp && hash_alg && vdtor && kdtor);
 
 	if ((mod_hash = kmem_zalloc(MH_SIZE(nchains), sleep)) == NULL)
 		return (NULL);
 
-	mod_hash->mh_name = kmem_alloc(strlen(hname) + 1, sleep);
+	size = strlen(hname) + 1;
+	mod_hash->mh_name = kmem_alloc(size, sleep);
 	if (mod_hash->mh_name == NULL) {
 		kmem_free(mod_hash, MH_SIZE(nchains));
 		return (NULL);
 	}
-	(void) strcpy(mod_hash->mh_name, hname);
+	(void) strlcpy(mod_hash->mh_name, hname, size);
 
 	rw_init(&mod_hash->mh_contents, NULL, RW_DEFAULT, NULL);
 	mod_hash->mh_sleep = sleep;

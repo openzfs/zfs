@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 /*
- * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2019 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -34,7 +34,6 @@
 #include <sys/dsl_pool.h>
 #include <sys/zio.h>
 #include <sys/space_map.h>
-#include <sys/refcount.h>
 #include <sys/zfeature.h>
 
 /*
@@ -96,6 +95,7 @@ space_map_iterate(space_map_t *sm, uint64_t end, sm_cb_t callback, void *arg)
 	    ZIO_PRIORITY_SYNC_READ);
 
 	int error = 0;
+	uint64_t txg = 0, sync_pass = 0;
 	for (uint64_t block_base = 0; block_base < end && error == 0;
 	    block_base += blksz) {
 		dmu_buf_t *db;
@@ -117,8 +117,29 @@ space_map_iterate(space_map_t *sm, uint64_t end, sm_cb_t callback, void *arg)
 		    block_cursor < block_end && error == 0; block_cursor++) {
 			uint64_t e = *block_cursor;
 
-			if (sm_entry_is_debug(e)) /* Skip debug entries */
+			if (sm_entry_is_debug(e)) {
+				/*
+				 * Debug entries are only needed to record the
+				 * current TXG and sync pass if available.
+				 *
+				 * Note though that sometimes there can be
+				 * debug entries that are used as padding
+				 * at the end of space map blocks in-order
+				 * to not split a double-word entry in the
+				 * middle between two blocks. These entries
+				 * have their TXG field set to 0 and we
+				 * skip them without recording the TXG.
+				 * [see comment in space_map_write_seg()]
+				 */
+				uint64_t e_txg = SM_DEBUG_TXG_DECODE(e);
+				if (e_txg != 0) {
+					txg = e_txg;
+					sync_pass = SM_DEBUG_SYNCPASS_DECODE(e);
+				} else {
+					ASSERT0(SM_DEBUG_SYNCPASS_DECODE(e));
+				}
 				continue;
+			}
 
 			uint64_t raw_offset, raw_run, vdev_id;
 			maptype_t type;
@@ -158,7 +179,9 @@ space_map_iterate(space_map_t *sm, uint64_t end, sm_cb_t callback, void *arg)
 			    .sme_type = type,
 			    .sme_vdev = vdev_id,
 			    .sme_offset = entry_offset,
-			    .sme_run = entry_run
+			    .sme_run = entry_run,
+			    .sme_txg = txg,
+			    .sme_sync_pass = sync_pass
 			};
 			error = callback(&sme, arg);
 		}
@@ -523,8 +546,9 @@ space_map_write_intro_debug(space_map_t *sm, maptype_t maptype, dmu_tx_t *tx)
  * dbuf must be dirty for the changes in sm_phys to take effect.
  */
 static void
-space_map_write_seg(space_map_t *sm, range_seg_t *rs, maptype_t maptype,
-    uint64_t vdev_id, uint8_t words, dmu_buf_t **dbp, void *tag, dmu_tx_t *tx)
+space_map_write_seg(space_map_t *sm, uint64_t rstart, uint64_t rend,
+    maptype_t maptype, uint64_t vdev_id, uint8_t words, dmu_buf_t **dbp,
+    void *tag, dmu_tx_t *tx)
 {
 	ASSERT3U(words, !=, 0);
 	ASSERT3U(words, <=, 2);
@@ -548,14 +572,14 @@ space_map_write_seg(space_map_t *sm, range_seg_t *rs, maptype_t maptype,
 
 	ASSERT3P(block_cursor, <=, block_end);
 
-	uint64_t size = (rs->rs_end - rs->rs_start) >> sm->sm_shift;
-	uint64_t start = (rs->rs_start - sm->sm_start) >> sm->sm_shift;
+	uint64_t size = (rend - rstart) >> sm->sm_shift;
+	uint64_t start = (rstart - sm->sm_start) >> sm->sm_shift;
 	uint64_t run_max = (words == 2) ? SM2_RUN_MAX : SM_RUN_MAX;
 
-	ASSERT3U(rs->rs_start, >=, sm->sm_start);
-	ASSERT3U(rs->rs_start, <, sm->sm_start + sm->sm_size);
-	ASSERT3U(rs->rs_end - rs->rs_start, <=, sm->sm_size);
-	ASSERT3U(rs->rs_end, <=, sm->sm_start + sm->sm_size);
+	ASSERT3U(rstart, >=, sm->sm_start);
+	ASSERT3U(rstart, <, sm->sm_start + sm->sm_size);
+	ASSERT3U(rend - rstart, <=, sm->sm_size);
+	ASSERT3U(rend, <=, sm->sm_start + sm->sm_size);
 
 	while (size != 0) {
 		ASSERT3P(block_cursor, <=, block_end);
@@ -650,7 +674,7 @@ space_map_write_impl(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 
 	space_map_write_intro_debug(sm, maptype, tx);
 
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 	/*
 	 * We do this right after we write the intro debug entry
 	 * because the estimate does not take it into account.
@@ -673,10 +697,14 @@ space_map_write_impl(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 
 	dmu_buf_will_dirty(db, tx);
 
-	avl_tree_t *t = &rt->rt_root;
-	for (range_seg_t *rs = avl_first(t); rs != NULL; rs = AVL_NEXT(t, rs)) {
-		uint64_t offset = (rs->rs_start - sm->sm_start) >> sm->sm_shift;
-		uint64_t length = (rs->rs_end - rs->rs_start) >> sm->sm_shift;
+	zfs_btree_t *t = &rt->rt_root;
+	zfs_btree_index_t where;
+	for (range_seg_t *rs = zfs_btree_first(t, &where); rs != NULL;
+	    rs = zfs_btree_next(t, &where, &where)) {
+		uint64_t offset = (rs_get_start(rs, rt) - sm->sm_start) >>
+		    sm->sm_shift;
+		uint64_t length = (rs_get_end(rs, rt) - rs_get_start(rs, rt)) >>
+		    sm->sm_shift;
 		uint8_t words = 1;
 
 		/*
@@ -698,16 +726,16 @@ space_map_write_impl(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 		    length > SM_RUN_MAX ||
 		    vdev_id != SM_NO_VDEVID ||
 		    (zfs_force_some_double_word_sm_entries &&
-		    spa_get_random(100) == 0)))
+		    random_in_range(100) == 0)))
 			words = 2;
 
-		space_map_write_seg(sm, rs, maptype, vdev_id, words,
-		    &db, FTAG, tx);
+		space_map_write_seg(sm, rs_get_start(rs, rt), rs_get_end(rs,
+		    rt), maptype, vdev_id, words, &db, FTAG, tx);
 	}
 
 	dmu_buf_rele(db, FTAG);
 
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 	/*
 	 * We expect our estimation to be based on the worst case
 	 * scenario [see comment in space_map_estimate_optimal_size()].
@@ -749,7 +777,7 @@ space_map_write(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 	else
 		sm->sm_phys->smp_alloc -= range_tree_space(rt);
 
-	uint64_t nodes = avl_numnodes(&rt->rt_root);
+	uint64_t nodes = zfs_btree_numnodes(&rt->rt_root);
 	uint64_t rt_space = range_tree_space(rt);
 
 	space_map_write_impl(sm, rt, maptype, vdev_id, tx);
@@ -758,7 +786,7 @@ space_map_write(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 	 * Ensure that the space_map's accounting wasn't changed
 	 * while we were in the middle of writing it out.
 	 */
-	VERIFY3U(nodes, ==, avl_numnodes(&rt->rt_root));
+	VERIFY3U(nodes, ==, zfs_btree_numnodes(&rt->rt_root));
 	VERIFY3U(range_tree_space(rt), ==, rt_space);
 }
 
@@ -849,9 +877,11 @@ space_map_truncate(space_map_t *sm, int blocksize, dmu_tx_t *tx)
 	    doi.doi_data_block_size != blocksize ||
 	    doi.doi_metadata_block_size != 1 << space_map_ibs) {
 		zfs_dbgmsg("txg %llu, spa %s, sm %px, reallocating "
-		    "object[%llu]: old bonus %u, old blocksz %u",
-		    dmu_tx_get_txg(tx), spa_name(spa), sm, sm->sm_object,
-		    doi.doi_bonus_size, doi.doi_data_block_size);
+		    "object[%llu]: old bonus %llu, old blocksz %u",
+		    (u_longlong_t)dmu_tx_get_txg(tx), spa_name(spa), sm,
+		    (u_longlong_t)sm->sm_object,
+		    (u_longlong_t)doi.doi_bonus_size,
+		    doi.doi_data_block_size);
 
 		space_map_free(sm, tx);
 		dmu_buf_rele(sm->sm_dbuf, sm);
@@ -1066,4 +1096,12 @@ uint64_t
 space_map_length(space_map_t *sm)
 {
 	return (sm != NULL ? sm->sm_phys->smp_length : 0);
+}
+
+uint64_t
+space_map_nblocks(space_map_t *sm)
+{
+	if (sm == NULL)
+		return (0);
+	return (DIV_ROUND_UP(space_map_length(sm), sm->sm_blksz));
 }

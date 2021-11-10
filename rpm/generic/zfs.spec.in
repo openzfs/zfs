@@ -48,14 +48,15 @@
 %global _systemdgeneratordir %{_prefix}/lib/systemd/system-generators
 %endif
 
+%if %{undefined _pkgconfigdir}
+%global _pkgconfigdir %{_prefix}/%{_lib}/pkgconfig
+%endif
+
 %bcond_with    debug
 %bcond_with    debuginfo
 %bcond_with    asan
 %bcond_with    systemd
-
-# Exclude test-runner.py from the rpmbuild shebang check to allow it to run
-# under Python 2 and 3.
-%global __brp_mangle_shebangs_exclude_from test-runner.py
+%bcond_with    pam
 
 # Generic enable switch for systemd
 %if %{with systemd}
@@ -99,6 +100,7 @@
 %define __python_cffi_pkg         python%{__python_pkg_version}-cffi
 %define __python_setuptools_pkg   python%{__python_pkg_version}-setuptools
 %endif
+%define __python_sitelib          %(%{__python} -Esc "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
 
 # By default python-pyzfs is enabled, with the exception of
 # RHEL 6 which by default uses Python 2.6 which is too old.
@@ -115,19 +117,19 @@ Summary:        Commands to control the kernel modules and libraries
 
 Group:          System Environment/Kernel
 License:        @ZFS_META_LICENSE@
-URL:            http://zfsonlinux.org/
+URL:            https://github.com/openzfs/zfs
 Source0:        %{name}-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
-Requires:       libzpool2 = %{version}
-Requires:       libnvpair1 = %{version}
-Requires:       libuutil1 = %{version}
-Requires:       libzfs2 = %{version}
+Requires:       libzpool5 = %{version}
+Requires:       libnvpair3 = %{version}
+Requires:       libuutil3 = %{version}
+Requires:       libzfs5 = %{version}
 Requires:       %{name}-kmod = %{version}
 Provides:       %{name}-kmod-common = %{version}
 Obsoletes:      spl
 
-# zfs-fuse provides the same commands and man pages that ZoL does. Renaming
-# those on either side would conflict with all available documentation.
+# zfs-fuse provides the same commands and man pages that OpenZFS does.
+# Renaming those on either side would conflict with all available documentation.
 Conflicts:      zfs-fuse
 
 %if 0%{?rhel}%{?fedora}%{?suse_version}
@@ -138,9 +140,14 @@ BuildRequires:  libblkid-devel
 BuildRequires:  libudev-devel
 BuildRequires:  libattr-devel
 BuildRequires:  openssl-devel
-%if 0%{?fedora} >= 28
+# We don't directly use it, but if this isn't installed, rpmbuild as root can
+# crash+corrupt rpmdb
+# See issue #12071
+BuildRequires:  ncompress
+%if 0%{?fedora} >= 28 || 0%{?rhel} >= 8 || 0%{?centos} >= 8
 BuildRequires:  libtirpc-devel
 %endif
+
 Requires:       openssl
 %if 0%{?_systemd}
 BuildRequires: systemd
@@ -160,36 +167,48 @@ Requires:  sysstat
 %description
 This package contains the core ZFS command line utilities.
 
-%package -n libzpool2
+%package -n libzpool5
 Summary:        Native ZFS pool library for Linux
 Group:          System Environment/Kernel
+Obsoletes:      libzpool2
+Obsoletes:      libzpool4
 
-%description -n libzpool2
+%description -n libzpool5
 This package contains the zpool library, which provides support
 for managing zpools
 
-%post -n libzpool2 -p /sbin/ldconfig
-%postun -n libzpool2 -p /sbin/ldconfig
+%if %{defined ldconfig_scriptlets}
+%ldconfig_scriptlets -n libzpool5
+%else
+%post -n libzpool5 -p /sbin/ldconfig
+%postun -n libzpool5 -p /sbin/ldconfig
+%endif
 
-%package -n libnvpair1
+%package -n libnvpair3
 Summary:        Solaris name-value library for Linux
 Group:          System Environment/Kernel
+Obsoletes:      libnvpair1
 
-%description -n libnvpair1
+%description -n libnvpair3
 This package contains routines for packing and unpacking name-value
 pairs.  This functionality is used to portably transport data across
 process boundaries, between kernel and user space, and can be used
 to write self describing data structures on disk.
 
-%post -n libnvpair1 -p /sbin/ldconfig
-%postun -n libnvpair1 -p /sbin/ldconfig
+%if %{defined ldconfig_scriptlets}
+%ldconfig_scriptlets -n libnvpair3
+%else
+%post -n libnvpair3 -p /sbin/ldconfig
+%postun -n libnvpair3 -p /sbin/ldconfig
+%endif
 
-%package -n libuutil1
+%package -n libuutil3
 Summary:        Solaris userland utility library for Linux
 Group:          System Environment/Kernel
+Obsoletes:      libuutil1
 
-%description -n libuutil1
-This library provides a variety of compatibility functions for ZFS on Linux:
+%description -n libuutil3
+This library provides a variety of compatibility functions for OpenZFS:
  * libspl: The Solaris Porting Layer userland library, which provides APIs
    that make it possible to run Solaris user code in a Linux environment
    with relatively minimal modification.
@@ -199,32 +218,47 @@ This library provides a variety of compatibility functions for ZFS on Linux:
    partitioning.
  * libshare: NFS, SMB, and iSCSI service integration for ZFS.
 
-%post -n libuutil1 -p /sbin/ldconfig
-%postun -n libuutil1 -p /sbin/ldconfig
+%if %{defined ldconfig_scriptlets}
+%ldconfig_scriptlets -n libuutil3
+%else
+%post -n libuutil3 -p /sbin/ldconfig
+%postun -n libuutil3 -p /sbin/ldconfig
+%endif
 
-%package -n libzfs2
+# The library version is encoded in the package name.  When updating the
+# version information it is important to add an obsoletes line below for
+# the previous version of the package.
+%package -n libzfs5
 Summary:        Native ZFS filesystem library for Linux
 Group:          System Environment/Kernel
+Obsoletes:      libzfs2
+Obsoletes:      libzfs4
 
-%description -n libzfs2
+%description -n libzfs5
 This package provides support for managing ZFS filesystems
 
-%post -n libzfs2 -p /sbin/ldconfig
-%postun -n libzfs2 -p /sbin/ldconfig
+%if %{defined ldconfig_scriptlets}
+%ldconfig_scriptlets -n libzfs5
+%else
+%post -n libzfs5 -p /sbin/ldconfig
+%postun -n libzfs5 -p /sbin/ldconfig
+%endif
 
-%package -n libzfs2-devel
+%package -n libzfs5-devel
 Summary:        Development headers
 Group:          System Environment/Kernel
-Requires:       libzfs2 = %{version}
-Requires:       libzpool2 = %{version}
-Requires:       libnvpair1 = %{version}
-Requires:       libuutil1 = %{version}
-Provides:       libzpool2-devel
-Provides:       libnvpair1-devel
-Provides:       libuutil1-devel
+Requires:       libzfs5 = %{version}
+Requires:       libzpool5 = %{version}
+Requires:       libnvpair3 = %{version}
+Requires:       libuutil3 = %{version}
+Provides:       libzpool5-devel
+Provides:       libnvpair3-devel
+Provides:       libuutil3-devel
 Obsoletes:      zfs-devel
+Obsoletes:      libzfs2-devel
+Obsoletes:      libzfs4-devel
 
-%description -n libzfs2-devel
+%description -n libzfs5-devel
 This package contains the header files needed for building additional
 applications against the ZFS libraries.
 
@@ -255,7 +289,8 @@ validating the file system.
 %package dracut
 Summary:        Dracut module
 Group:          System Environment/Kernel
-Requires:       %{name}%{?_isa} = %{version}-%{release}
+BuildArch:	noarch
+Requires:       %{name} >= %{version}
 Requires:       dracut
 Requires:       /usr/bin/awk
 Requires:       grep
@@ -270,12 +305,17 @@ Summary:        Python %{python_version} wrapper for libzfs_core
 Group:          Development/Languages/Python
 License:        Apache-2.0
 BuildArch:      noarch
-Requires:       libzfs2 = %{version}
-Requires:       libnvpair1 = %{version}
+Requires:       libzfs5 = %{version}
+Requires:       libnvpair3 = %{version}
 Requires:       libffi
 Requires:       python%{__python_pkg_version}
 Requires:       %{__python_cffi_pkg}
 %if 0%{?rhel}%{?fedora}%{?suse_version}
+%if 0%{?rhel} >= 8 || 0%{?centos} >= 8 || 0%{?fedora} >= 28
+BuildRequires:  python3-packaging
+%else
+BuildRequires:  python-packaging
+%endif
 BuildRequires:  python%{__python_pkg_version}-devel
 BuildRequires:  %{__python_cffi_pkg}
 BuildRequires:  %{__python_setuptools_pkg}
@@ -320,7 +360,7 @@ image which is ZFS aware.
 
 %if 0%{?_systemd}
     %define systemd --enable-systemd --with-systemdunitdir=%{_unitdir} --with-systemdpresetdir=%{_presetdir} --with-systemdmodulesloaddir=%{_modulesloaddir} --with-systemdgeneratordir=%{_systemdgeneratordir} --disable-sysvinit
-    %define systemd_svcs zfs-import-cache.service zfs-import-scan.service zfs-mount.service zfs-share.service zfs-zed.service zfs.target zfs-import.target
+    %define systemd_svcs zfs-import-cache.service zfs-import-scan.service zfs-mount.service zfs-share.service zfs-zed.service zfs.target zfs-import.target zfs-volume-wait.service zfs-volumes.target
 %else
     %define systemd --enable-sysvinit --disable-systemd
 %endif
@@ -331,6 +371,12 @@ image which is ZFS aware.
     %define pyzfs --disable-pyzfs
 %endif
 
+%if %{with pam}
+    %define pam --enable-pam
+%else
+    %define pam --disable-pam
+%endif
+
 %setup -q
 
 %build
@@ -339,12 +385,16 @@ image which is ZFS aware.
     --with-udevdir=%{_udevdir} \
     --with-udevruledir=%{_udevruledir} \
     --with-dracutdir=%{_dracutdir} \
+    --with-pamconfigsdir=%{_datadir}/pam-configs \
+    --with-pammoduledir=%{_libdir}/security \
     --with-python=%{__python} \
+    --with-pkgconfigdir=%{_pkgconfigdir} \
     --disable-static \
     %{debug} \
     %{debuginfo} \
     %{asan} \
-    %{systemd}\
+    %{systemd} \
+    %{pam} \
     %{pyzfs}
 make %{?_smp_mflags}
 
@@ -352,6 +402,14 @@ make %{?_smp_mflags}
 %{__rm} -rf $RPM_BUILD_ROOT
 make install DESTDIR=%{?buildroot}
 find %{?buildroot}%{_libdir} -name '*.la' -exec rm -f {} \;
+%if 0%{!?__brp_mangle_shebangs:1}
+find %{?buildroot}%{_bindir} \
+    \( -name arc_summary -or -name arcstat -or -name dbufstat \) \
+    -exec %{__sed} -i 's|^#!.*|#!%{__python}|' {} \;
+find %{?buildroot}%{_datadir} \
+    \( -name test-runner.py -or -name zts-report.py \) \
+    -exec %{__sed} -i 's|^#!.*|#!%{__python}|' {} \;
+%endif
 
 %post
 %if 0%{?_systemd}
@@ -416,20 +474,32 @@ systemctl --system daemon-reload >/dev/null || true
 # Core utilities
 %{_sbindir}/*
 %{_bindir}/raidz_test
-%{_bindir}/zgenhostid
+%{_sbindir}/zgenhostid
+%{_bindir}/zvol_wait
 # Optional Python 2/3 scripts
 %{_bindir}/arc_summary
 %{_bindir}/arcstat
 %{_bindir}/dbufstat
 # Man pages
 %{_mandir}/man1/*
+%{_mandir}/man4/*
 %{_mandir}/man5/*
+%{_mandir}/man7/*
 %{_mandir}/man8/*
 # Configuration files and scripts
 %{_libexecdir}/%{name}
 %{_udevdir}/vdev_id
 %{_udevdir}/zvol_id
 %{_udevdir}/rules.d/*
+%{_datadir}/%{name}/compatibility.d
+%if ! 0%{?_systemd} || 0%{?_initramfs}
+# Files needed for sysvinit and initramfs-tools
+%{_sysconfdir}/%{name}/zfs-functions
+%config(noreplace) %{_initconfdir}/zfs
+%else
+%exclude %{_sysconfdir}/%{name}/zfs-functions
+%exclude %{_initconfdir}/zfs
+%endif
 %if 0%{?_systemd}
 %{_unitdir}/*
 %{_presetdir}/*
@@ -437,32 +507,41 @@ systemctl --system daemon-reload >/dev/null || true
 %{_systemdgeneratordir}/*
 %else
 %config(noreplace) %{_sysconfdir}/init.d/*
-%config(noreplace) %{_initconfdir}/zfs
 %endif
-%config(noreplace) %{_sysconfdir}/%{name}
+%config(noreplace) %{_sysconfdir}/%{name}/zed.d/*
+%config(noreplace) %{_sysconfdir}/%{name}/zpool.d/*
+%config(noreplace) %{_sysconfdir}/%{name}/vdev_id.conf.*.example
 %attr(440, root, root) %config(noreplace) %{_sysconfdir}/sudoers.d/*
+%if %{with pam}
+%{_libdir}/security/*
+%{_datadir}/pam-configs/*
+%endif
 
-%files -n libzpool2
+%files -n libzpool5
 %{_libdir}/libzpool.so.*
 
-%files -n libnvpair1
+%files -n libnvpair3
 %{_libdir}/libnvpair.so.*
 
-%files -n libuutil1
+%files -n libuutil3
 %{_libdir}/libuutil.so.*
 
-%files -n libzfs2
+%files -n libzfs5
 %{_libdir}/libzfs*.so.*
 
-%files -n libzfs2-devel
-%{_datadir}/pkgconfig/libzfs.pc
-%{_datadir}/pkgconfig/libzfs_core.pc
+%files -n libzfs5-devel
+%{_pkgconfigdir}/libzfs.pc
+%{_pkgconfigdir}/libzfsbootenv.pc
+%{_pkgconfigdir}/libzfs_core.pc
 %{_libdir}/*.so
 %{_includedir}/*
 %doc AUTHORS COPYRIGHT LICENSE NOTICE README.md
 
 %files test
-%{_datadir}/%{name}
+%{_datadir}/%{name}/zfs-tests
+%{_datadir}/%{name}/test-runner
+%{_datadir}/%{name}/runfiles
+%{_datadir}/%{name}/*.sh
 
 %files dracut
 %doc contrib/dracut/README.dracut.markdown
@@ -473,8 +552,8 @@ systemctl --system daemon-reload >/dev/null || true
 %doc contrib/pyzfs/README
 %doc contrib/pyzfs/LICENSE
 %defattr(-,root,root,-)
-%{python_sitelib}/libzfs_core/*
-%{python_sitelib}/pyzfs*
+%{__python_sitelib}/libzfs_core/*
+%{__python_sitelib}/pyzfs*
 %endif
 
 %if 0%{?_initramfs}

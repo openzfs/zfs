@@ -24,7 +24,7 @@
  */
 
 /*
- * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2019 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_SPACE_MAP_H
@@ -72,6 +72,11 @@ typedef struct space_map_phys {
 	 * bucket, smp_histogram[i], contains the number of free regions
 	 * whose size is:
 	 * 2^(i+sm_shift) <= size of free region in bytes < 2^(i+sm_shift+1)
+	 *
+	 * Note that, if log space map feature is enabled, histograms of
+	 * space maps that belong to metaslabs will take into account any
+	 * unflushed changes for their metaslabs, even though the actual
+	 * space map doesn't have entries for these changes.
 	 */
 	uint64_t	smp_histogram[SPACE_MAP_HISTOGRAM_SIZE];
 } space_map_phys_t;
@@ -143,6 +148,15 @@ typedef struct space_map_entry {
 	uint32_t sme_vdev;	/* max is 2^24-1; SM_NO_VDEVID if not present */
 	uint64_t sme_offset;	/* max is 2^63-1; units of sm_shift */
 	uint64_t sme_run;	/* max is 2^36; units of sm_shift */
+
+	/*
+	 * The following fields are not part of the actual space map entry
+	 * on-disk and they are populated with the values from the debug
+	 * entry most recently visited starting from the beginning to the
+	 * end of the space map.
+	 */
+	uint64_t sme_txg;
+	uint64_t sme_sync_pass;
 } space_map_entry_t;
 
 #define	SM_NO_VDEVID	(1 << SPA_VDEVBITS)
@@ -209,6 +223,8 @@ void space_map_histogram_add(space_map_t *sm, range_tree_t *rt,
 uint64_t space_map_object(space_map_t *sm);
 int64_t space_map_allocated(space_map_t *sm);
 uint64_t space_map_length(space_map_t *sm);
+uint64_t space_map_entries(space_map_t *sm, range_tree_t *rt);
+uint64_t space_map_nblocks(space_map_t *sm);
 
 void space_map_write(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
     uint64_t vdev_id, dmu_tx_t *tx);

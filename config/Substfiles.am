@@ -1,0 +1,36 @@
+subst_sed_cmd = \
+	-e 's|@bindir[@]|$(bindir)|g' \
+	-e 's|@sbindir[@]|$(sbindir)|g' \
+	-e 's|@datadir[@]|$(datadir)|g' \
+	-e 's|@sysconfdir[@]|$(sysconfdir)|g' \
+	-e 's|@runstatedir[@]|$(runstatedir)|g' \
+	-e 's|@initconfdir[@]|$(initconfdir)|g' \
+	-e 's|@initdir[@]|$(initdir)|g' \
+	-e 's|@mounthelperdir[@]|$(mounthelperdir)|g' \
+	-e 's|@systemdgeneratordir[@]|$(systemdgeneratordir)|g' \
+	-e 's|@systemdunitdir[@]|$(systemdunitdir)|g' \
+	-e 's|@udevdir[@]|$(udevdir)|g' \
+	-e 's|@udevruledir[@]|$(udevruledir)|g' \
+	-e 's|@zfsexecdir[@]|$(zfsexecdir)|g' \
+	-e 's|@PYTHON[@]|$(PYTHON)|g' \
+	-e 's|@PYTHON_SHEBANG[@]|$(PYTHON_SHEBANG)|g' \
+	-e 's|@DEFAULT_INIT_NFS_SERVER[@]|$(DEFAULT_INIT_NFS_SERVER)|g' \
+	-e 's|@DEFAULT_INIT_SHELL[@]|$(DEFAULT_INIT_SHELL)|g' \
+	-e 's|@LIBFETCH_DYNAMIC[@]|$(LIBFETCH_DYNAMIC)|g' \
+	-e 's|@LIBFETCH_SONAME[@]|$(LIBFETCH_SONAME)|g'
+
+SUBSTFILES =
+CLEANFILES = $(SUBSTFILES)
+EXTRA_DIST = $(SUBSTFILES:=.in)
+
+$(SUBSTFILES):%:%.in Makefile
+	$(AM_V_GEN)set -e; \
+	$(MKDIR_P) $$(dirname $@); \
+	$(RM) $@~; \
+	$(SED) $(subst_sed_cmd) $< >$@~; \
+	if grep -E '@[a-zA-Z0-9_]+@' $@~ >&2; then \
+		echo "Undefined substitution" >&2; \
+		exit 1; \
+	else test $$? -eq 1; fi; \
+	test -x $< && chmod +x $@~; \
+	mv -f $@~ $@

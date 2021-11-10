@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
  */
@@ -31,7 +31,6 @@
 #include <sys/dmu.h>
 #include <sys/zfs_context.h>
 #include <sys/zap.h>
-#include <sys/refcount.h>
 #include <sys/zap_impl.h>
 #include <sys/zap_leaf.h>
 #include <sys/avl.h>
@@ -230,7 +229,7 @@ zap_name_alloc(zap_t *zap, const char *key, matchtype_t mt)
 	return (zn);
 }
 
-zap_name_t *
+static zap_name_t *
 zap_name_alloc_uint64(zap_t *zap, const uint64_t *key, int numints)
 {
 	zap_name_t *zn = kmem_alloc(sizeof (zap_name_t), KM_SLEEP);
@@ -280,11 +279,11 @@ mze_compare(const void *arg1, const void *arg2)
 	const mzap_ent_t *mze1 = arg1;
 	const mzap_ent_t *mze2 = arg2;
 
-	int cmp = AVL_CMP(mze1->mze_hash, mze2->mze_hash);
+	int cmp = TREE_CMP(mze1->mze_hash, mze2->mze_hash);
 	if (likely(cmp))
 		return (cmp);
 
-	return (AVL_CMP(mze1->mze_cd, mze2->mze_cd));
+	return (TREE_CMP(mze1->mze_cd, mze2->mze_cd));
 }
 
 static void
@@ -564,7 +563,7 @@ zap_lockdir_impl(dmu_buf_t *db, void *tag, dmu_tx_t *tx,
 		uint64_t newsz = db->db_size + SPA_MINBLOCKSIZE;
 		if (newsz > MZAP_MAX_BLKSZ) {
 			dprintf("upgrading obj %llu: num_entries=%u\n",
-			    obj, zap->zap_m.zap_num_entries);
+			    (u_longlong_t)obj, zap->zap_m.zap_num_entries);
 			*zapp = zap;
 			int err = mzap_upgrade(zapp, tag, tx, 0);
 			if (err != 0)
@@ -657,7 +656,7 @@ mzap_upgrade(zap_t **zapp, void *tag, dmu_tx_t *tx, zap_flags_t flags)
 	}
 
 	dprintf("upgrading obj=%llu with %u chunks\n",
-	    zap->zap_object, nchunks);
+	    (u_longlong_t)zap->zap_object, nchunks);
 	/* XXX destroy the avl later, so we can use the stored hash value */
 	mze_destroy(zap);
 
@@ -668,7 +667,7 @@ mzap_upgrade(zap_t **zapp, void *tag, dmu_tx_t *tx, zap_flags_t flags)
 		if (mze->mze_name[0] == 0)
 			continue;
 		dprintf("adding %s=%llu\n",
-		    mze->mze_name, mze->mze_value);
+		    mze->mze_name, (u_longlong_t)mze->mze_value);
 		zap_name_t *zn = zap_name_alloc(zap, mze->mze_name, 0);
 		/* If we fail here, we would end up losing entries */
 		VERIFY0(fzap_add_cd(zn, 8, 1, &mze->mze_value, mze->mze_cd,
@@ -1340,7 +1339,8 @@ zap_update(objset_t *os, uint64_t zapobj, const char *name,
 	} else if (integer_size != 8 || num_integers != 1 ||
 	    strlen(name) >= MZAP_NAME_LEN) {
 		dprintf("upgrading obj %llu: intsz=%u numint=%llu name=%s\n",
-		    zapobj, integer_size, num_integers, name);
+		    (u_longlong_t)zapobj, integer_size,
+		    (u_longlong_t)num_integers, name);
 		err = mzap_upgrade(&zn->zn_zap, FTAG, tx, 0);
 		if (err == 0) {
 			err = fzap_update(zn, integer_size, num_integers,
@@ -1472,9 +1472,9 @@ zap_remove_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
  * Routines for iterating over the attributes.
  */
 
-void
-zap_cursor_init_serialized(zap_cursor_t *zc, objset_t *os, uint64_t zapobj,
-    uint64_t serialized)
+static void
+zap_cursor_init_impl(zap_cursor_t *zc, objset_t *os, uint64_t zapobj,
+    uint64_t serialized, boolean_t prefetch)
 {
 	zc->zc_objset = os;
 	zc->zc_zap = NULL;
@@ -1483,12 +1483,33 @@ zap_cursor_init_serialized(zap_cursor_t *zc, objset_t *os, uint64_t zapobj,
 	zc->zc_serialized = serialized;
 	zc->zc_hash = 0;
 	zc->zc_cd = 0;
+	zc->zc_prefetch = prefetch;
+}
+void
+zap_cursor_init_serialized(zap_cursor_t *zc, objset_t *os, uint64_t zapobj,
+    uint64_t serialized)
+{
+	zap_cursor_init_impl(zc, os, zapobj, serialized, B_TRUE);
 }
 
+/*
+ * Initialize a cursor at the beginning of the ZAP object.  The entire
+ * ZAP object will be prefetched.
+ */
 void
 zap_cursor_init(zap_cursor_t *zc, objset_t *os, uint64_t zapobj)
 {
-	zap_cursor_init_serialized(zc, os, zapobj, 0);
+	zap_cursor_init_impl(zc, os, zapobj, 0, B_TRUE);
+}
+
+/*
+ * Initialize a cursor at the beginning, but request that we not prefetch
+ * the entire ZAP object.
+ */
+void
+zap_cursor_init_noprefetch(zap_cursor_t *zc, objset_t *os, uint64_t zapobj)
+{
+	zap_cursor_init_impl(zc, os, zapobj, 0, B_FALSE);
 }
 
 void
@@ -1581,7 +1602,8 @@ zap_cursor_retrieve(zap_cursor_t *zc, zap_attribute_t *za)
 			za->za_integer_length = 8;
 			za->za_num_integers = 1;
 			za->za_first_integer = mzep->mze_value;
-			(void) strcpy(za->za_name, mzep->mze_name);
+			(void) strlcpy(za->za_name, mzep->mze_name,
+			    sizeof (za->za_name));
 			zc->zc_hash = mze->mze_hash;
 			zc->zc_cd = mze->mze_cd;
 			err = 0;

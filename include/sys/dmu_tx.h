@@ -32,7 +32,7 @@
 #include <sys/inttypes.h>
 #include <sys/dmu.h>
 #include <sys/txg.h>
-#include <sys/refcount.h>
+#include <sys/zfs_refcount.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -124,6 +124,7 @@ typedef struct dmu_tx_stats {
 	kstat_named_t dmu_tx_dirty_throttle;
 	kstat_named_t dmu_tx_dirty_delay;
 	kstat_named_t dmu_tx_dirty_over_max;
+	kstat_named_t dmu_tx_wrlog_over_max;
 	kstat_named_t dmu_tx_dirty_frees_delay;
 	kstat_named_t dmu_tx_quota;
 } dmu_tx_stats_t;

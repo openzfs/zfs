@@ -207,7 +207,7 @@ DEFINE_REC_METHODS(aarch64_neon);
 static boolean_t
 raidz_will_aarch64_neon_work(void)
 {
-	return (B_TRUE); // __arch64__ requires NEON
+	return (kfpu_allowed());
 }
 
 const raidz_impl_ops_t vdev_raidz_aarch64_neon_impl = {

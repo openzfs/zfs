@@ -4,33 +4,43 @@ dnl # The is_owner_or_cap() macro was renamed to inode_owner_or_capable(),
 dnl # This is used for permission checks in the xattr and file attribute call
 dnl # paths.
 dnl #
-AC_DEFUN([ZFS_AC_KERNEL_INODE_OWNER_OR_CAPABLE], [
-	AC_MSG_CHECKING([whether inode_owner_or_capable() exists])
-	ZFS_LINUX_TRY_COMPILE([
+dnl # 5.12 API change,
+dnl # inode_owner_or_capable() now takes struct user_namespace *
+dnl # to support idmapped mounts
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_OWNER_OR_CAPABLE], [
+	ZFS_LINUX_TEST_SRC([inode_owner_or_capable], [
 		#include <linux/fs.h>
 	],[
 		struct inode *ip = NULL;
 		(void) inode_owner_or_capable(ip);
+	])
+
+	ZFS_LINUX_TEST_SRC([inode_owner_or_capable_idmapped], [
+		#include <linux/fs.h>
 	],[
+		struct inode *ip = NULL;
+		(void) inode_owner_or_capable(&init_user_ns, ip);
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_INODE_OWNER_OR_CAPABLE], [
+	AC_MSG_CHECKING([whether inode_owner_or_capable() exists])
+	ZFS_LINUX_TEST_RESULT([inode_owner_or_capable], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_INODE_OWNER_OR_CAPABLE, 1,
 		    [inode_owner_or_capable() exists])
-	],[
+	], [
 		AC_MSG_RESULT(no)
-		AC_MSG_CHECKING([whether is_owner_or_cap() exists])
-		ZFS_LINUX_TRY_COMPILE([
-			#include <linux/fs.h>
-			#include <linux/sched.h>
-		],[
-			struct inode *ip = NULL;
-			(void) is_owner_or_cap(ip);
-		],[
+
+		AC_MSG_CHECKING(
+		    [whether inode_owner_or_capable() takes user_ns])
+		ZFS_LINUX_TEST_RESULT([inode_owner_or_capable_idmapped], [
 			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_IS_OWNER_OR_CAP, 1,
-			    [is_owner_or_cap() exists])
+			AC_DEFINE(HAVE_INODE_OWNER_OR_CAPABLE_IDMAPPED, 1,
+			    [inode_owner_or_capable() takes user_ns])
 		],[
-			AC_MSG_ERROR(no - Please file a bug report at
-			    https://github.com/zfsonlinux/zfs/issues/new)
+			ZFS_LINUX_TEST_ERROR([capability])
 		])
 	])
 ])

@@ -1,5 +1,6 @@
 #!/bin/ksh
-# file and its contents are supplied under the terms of the
+
+# This file and its contents are supplied under the terms of the
 # Common Development and Distribution License ("CDDL"), version 1.0.
 # You may only use this file in accordance with the terms of version
 # 1.0 of the CDDL.
@@ -10,7 +11,7 @@
 #
 
 #
-# Copyright (c) 2017 by Delphix. All rights reserved.
+# Copyright (c) 2017, 2021 by Delphix. All rights reserved.
 #
 
 #
@@ -44,22 +45,11 @@ populate_perf_filesystems
 # Aim to fill the pool to 50% capacity while accounting for a 3x compressratio.
 export TOTAL_SIZE=$(($(get_prop avail $PERFPOOL) * 3 / 2))
 
-# Variables for use by fio.
-if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
-	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
-	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
-	export PERF_NTHREADS=${PERF_NTHREADS:-'8 16 32 64'}
-	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
-	export PERF_SYNC_TYPES=${PERF_SYNC_TYPES:-'0 1'}
-	export PERF_IOSIZES='8k 64k'
-elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
-	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
-	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
-	export PERF_NTHREADS=${PERF_NTHREADS:-'64 128'}
-	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
-	export PERF_SYNC_TYPES=${PERF_SYNC_TYPES:-'1'}
-	export PERF_IOSIZES='8k'
-fi
+# Variables specific to this test for use by fio.
+export PERF_NTHREADS=${PERF_NTHREADS:-'64 128'}
+export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+export PERF_IOSIZES=${PERF_IOSIZES:-'8k'}
+export PERF_SYNC_TYPES=${PERF_SYNC_TYPES:-'0 1'}
 
 # Layout the files to be used by the readwrite tests. Create as many files
 # as the largest number of threads. An fio run with fewer threads will use
@@ -94,6 +84,6 @@ else
 	)
 fi
 
-log_note "Random reads and writes with $PERF_RUNTYPE settings"
+log_note "Random reads and writes with settings: $(print_perf_settings)"
 do_fio_run random_readwrite_fixed.fio false true
 log_pass "Measure IO stats during random read and write load"

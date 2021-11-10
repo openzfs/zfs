@@ -21,8 +21,9 @@
  */
 
 #include <unistd.h>
+#include <sys/param.h>
 
-size_t pagesize = 0;
+static size_t pagesize = 0;
 
 size_t
 spl_pagesize(void)

@@ -39,11 +39,12 @@ vdev_indirect_mapping_verify(vdev_indirect_mapping_t *vim)
 	EQUIV(vim->vim_phys->vimp_num_entries > 0,
 	    vim->vim_entries != NULL);
 	if (vim->vim_phys->vimp_num_entries > 0) {
-		ASSERTV(vdev_indirect_mapping_entry_phys_t *last_entry =
-		    &vim->vim_entries[vim->vim_phys->vimp_num_entries - 1]);
-		ASSERTV(uint64_t offset =
-		    DVA_MAPPING_GET_SRC_OFFSET(last_entry));
-		ASSERTV(uint64_t size = DVA_GET_ASIZE(&last_entry->vimep_dst));
+		vdev_indirect_mapping_entry_phys_t *last_entry __maybe_unused =
+		    &vim->vim_entries[vim->vim_phys->vimp_num_entries - 1];
+		uint64_t offset __maybe_unused =
+		    DVA_MAPPING_GET_SRC_OFFSET(last_entry);
+		uint64_t size __maybe_unused =
+		    DVA_GET_ASIZE(&last_entry->vimep_dst);
 
 		ASSERT3U(vim->vim_phys->vimp_max_offset, >=, offset + size);
 	}

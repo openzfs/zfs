@@ -57,7 +57,7 @@ function cleanup
 	typeset -i loop=0
 	while (($loop < $RESV_NUM_FS)); do
 		datasetexists $TESTPOOL/${TESTFS}$loop && \
-		    log_must zfs destroy -f $TESTPOOL/${TESTFS}$loop
+		    destroy_dataset $TESTPOOL/${TESTFS}$loop -f
 
 		[[ -d ${TESTDIR}$loop ]] && log_must rm -r ${TESTDIR}$loop
 
@@ -85,7 +85,7 @@ resv_size_set=`expr $resv_space_avail / $num_resv_fs`
 
 #
 # We set the reservations now, rather than when we created the filesystems
-# to allow us to take into account space used by the filsystem metadata
+# to allow us to take into account space used by the filesystem metadata
 #
 # Note we don't set a reservation on the first filesystem we created,
 # hence num=1 rather than zero below.

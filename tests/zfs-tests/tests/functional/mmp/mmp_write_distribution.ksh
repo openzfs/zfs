@@ -57,8 +57,8 @@ log_must zpool create -f $MMP_POOL mirror $MMP_DIR/file.{0,1} mirror $MMP_DIR/fi
 # Step 2
 log_must mmp_set_hostid $HOSTID1
 log_must zpool set multihost=on $MMP_POOL
-set_tunable64 zfs_multihost_history 0
-set_tunable64 zfs_multihost_history 40
+set_tunable64 MULTIHOST_HISTORY 0
+set_tunable64 MULTIHOST_HISTORY 40
 
 # Step 3
 # default settings, every leaf written once/second

@@ -1,0 +1,67 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
+.\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+.\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+.\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
+.\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
+.\" Copyright (c) 2014 Integros [integros.com]
+.\" Copyright 2019 Richard Laager. All rights reserved.
+.\" Copyright 2018 Nexenta Systems, Inc.
+.\" Copyright 2019 Joyent, Inc.
+.\" Copyright (c) 2019, 2020 by Christian Schwarz. All Rights Reserved.
+.\"
+.Dd May 27, 2021
+.Dt ZFS-BOOKMARK 8
+.Os
+.
+.Sh NAME
+.Nm zfs-bookmark
+.Nd create bookmark of ZFS snapshot
+.Sh SYNOPSIS
+.Nm zfs
+.Cm bookmark
+.Ar snapshot Ns | Ns Ar bookmark
+.Ar newbookmark
+.
+.Sh DESCRIPTION
+Creates a new bookmark of the given snapshot or bookmark.
+Bookmarks mark the point in time when the snapshot was created, and can be used
+as the incremental source for a
+.Nm zfs Cm send .
+.Pp
+When creating a bookmark from an existing redaction bookmark, the resulting
+bookmark is
+.Em not
+a redaction bookmark.
+.Pp
+This feature must be enabled to be used.
+See
+.Xr zpool-features 7
+for details on ZFS feature flags and the
+.Sy bookmarks
+feature.
+.
+.Sh SEE ALSO
+.Xr zfs-destroy 8 ,
+.Xr zfs-send 8 ,
+.Xr zfs-snapshot 8

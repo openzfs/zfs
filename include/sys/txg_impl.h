@@ -43,7 +43,7 @@ extern "C" {
  * the number of active transaction holds (tc_count). As transactions
  * are assigned into a transaction group the appropriate tc_count is
  * incremented to indicate that there are pending changes that have yet
- * to quiesce. Consumers evenutally call txg_rele_to_sync() to decrement
+ * to quiesce. Consumers eventually call txg_rele_to_sync() to decrement
  * the tc_count. A transaction group is not considered quiesced until all
  * tx_cpu structures have reached a tc_count of zero.
  *
@@ -78,7 +78,7 @@ struct tx_cpu {
 
 /*
  * The tx_state structure maintains the state information about the different
- * stages of the pool's transcation groups. A per pool tx_state structure
+ * stages of the pool's transaction groups. A per pool tx_state structure
  * is used to track this information. The tx_state structure also points to
  * an array of tx_cpu structures (described above). Although the tx_sync_lock
  * is used to protect the members of this structure, it is not used to

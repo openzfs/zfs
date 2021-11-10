@@ -45,7 +45,7 @@
 
 verify_runnable "global"
 
-if is_linux; then
+if is_linux || is_freebsd; then
 	log_unsupported "Requires additional dependencies"
 fi
 

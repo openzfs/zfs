@@ -37,7 +37,7 @@ function test_instr_limit
 	error=$(zfs program -t $lim $TESTPOOL $ZCP_ROOT/lua_core/tst.timeout.zcp 2>&1)
 	[[ $? -ne 0 ]] || log_fail "Channel program with limit $lim exited 0: $error"
 
-	instrs_run=$(echo $error | sed -n 's/.\+ \([0-9]*\) Lua instructions/\1/p')
+	instrs_run=$(echo $error | awk -F "chunk" '{print $2}' | awk '{print $1}')
 	if [[ $instrs_run -lt $(( $lim - 100 )) ]]; then
 		log_fail "Runtime (${instrs_run} instr) < limit (${lim} - 100 instr)"
 	elif [[ $instrs_run -gt $(( $lim + 100 )) ]]; then

@@ -6,7 +6,7 @@ dnl # number.  Start with a large known available unreserved minor and work
 dnl # our way down to lower value if a collision is detected.
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_MISC_MINOR], [
-	AC_MSG_CHECKING([for available /dev/zfs minor])
+	AC_MSG_CHECKING([whether /dev/zfs minor is available])
 
 	for i in $(seq 249 -1 200); do
 		if ! grep -q "^#define\s\+.*_MINOR\s\+.*$i" \

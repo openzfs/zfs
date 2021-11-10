@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -80,7 +80,7 @@ typedef struct zil_header {
  * Log blocks are chained together. Originally they were chained at the
  * end of the block. For performance reasons the chain was moved to the
  * beginning of the block which allows writes for only the data being used.
- * The older position is supported for backwards compatability.
+ * The older position is supported for backwards compatibility.
  *
  * The zio_eck_t contains a zec_cksum which for the intent log is
  * the sequence number of this log block. A seq of 0 is invalid.
@@ -373,7 +373,7 @@ typedef struct {
  *	- the write occupies only one block
  * WR_COPIED:
  *    If we know we'll immediately be committing the
- *    transaction (FSYNC or FDSYNC), then we allocate a larger
+ *    transaction (O_SYNC or O_DSYNC), then we allocate a larger
  *    log record here for the data and copy the data in.
  * WR_NEED_COPY:
  *    Otherwise we don't allocate a buffer, and *if* we need to
@@ -399,6 +399,7 @@ typedef struct itx {
 	void		*itx_callback_data; /* User data for the callback */
 	size_t		itx_size;	/* allocated itx structure size */
 	uint64_t	itx_oid;	/* object id */
+	uint64_t	itx_gen;	/* gen number for zfs_get_data */
 	lr_t		itx_lr;		/* common part of log record */
 	/* followed by type-specific part of lr_xx_t and its immediate data */
 } itx_t;
@@ -421,7 +422,7 @@ typedef struct zil_stats {
 
 	/*
 	 * Number of transactions (reads, writes, renames, etc.)
-	 * that have been commited.
+	 * that have been committed.
 	 */
 	kstat_named_t zil_itx_count;
 
@@ -462,12 +463,12 @@ extern zil_stats_t zil_stats;
 #define	ZIL_STAT_BUMP(stat) \
     ZIL_STAT_INCR(stat, 1);
 
-typedef int zil_parse_blk_func_t(zilog_t *zilog, blkptr_t *bp, void *arg,
+typedef int zil_parse_blk_func_t(zilog_t *zilog, const blkptr_t *bp, void *arg,
     uint64_t txg);
-typedef int zil_parse_lr_func_t(zilog_t *zilog, lr_t *lr, void *arg,
+typedef int zil_parse_lr_func_t(zilog_t *zilog, const lr_t *lr, void *arg,
     uint64_t txg);
 typedef int zil_replay_func_t(void *arg1, void *arg2, boolean_t byteswap);
-typedef int zil_get_data_t(void *arg, lr_write_t *lr, char *dbuf,
+typedef int zil_get_data_t(void *arg, uint64_t arg2, lr_write_t *lr, char *dbuf,
     struct lwb *lwb, zio_t *zio);
 
 extern int zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
@@ -493,8 +494,10 @@ extern itx_t	*zil_itx_create(uint64_t txtype, size_t lrsize);
 extern void	zil_itx_destroy(itx_t *itx);
 extern void	zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx);
 
+extern void	zil_async_to_sync(zilog_t *zilog, uint64_t oid);
 extern void	zil_commit(zilog_t *zilog, uint64_t oid);
 extern void	zil_commit_impl(zilog_t *zilog, uint64_t oid);
+extern void	zil_remove_async(zilog_t *zilog, uint64_t oid);
 
 extern int	zil_reset(const char *osname, void *txarg);
 extern int	zil_claim(struct dsl_pool *dp,
@@ -514,6 +517,9 @@ extern int	zil_bp_tree_add(zilog_t *zilog, const blkptr_t *bp);
 extern void	zil_set_sync(zilog_t *zilog, uint64_t syncval);
 
 extern void	zil_set_logbias(zilog_t *zilog, uint64_t slogval);
+
+extern uint64_t	zil_max_copied_data(zilog_t *zilog);
+extern uint64_t	zil_max_log_data(zilog_t *zilog);
 
 extern int zil_replay_disable;
 

@@ -1,0 +1,108 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+.\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
+.\" Copyright (c) 2017 Datto Inc.
+.\" Copyright (c) 2018 George Melikov. All Rights Reserved.
+.\" Copyright 2017 Nexenta Systems, Inc.
+.\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\"
+.Dd August 9, 2019
+.Dt ZPOOL-GET 8
+.Os
+.
+.Sh NAME
+.Nm zpool-get
+.Nd retrieve properties of ZFS storage pools
+.Sh SYNOPSIS
+.Nm zpool
+.Cm get
+.Op Fl Hp
+.Op Fl o Ar field Ns Oo , Ns Ar field Oc Ns …
+.Sy all Ns | Ns Ar property Ns Oo , Ns Ar property Oc Ns …
+.Oo Ar pool Oc Ns …
+.Nm zpool
+.Cm set
+.Ar property Ns = Ns Ar value
+.Ar pool
+.
+.Sh DESCRIPTION
+.Bl -tag -width Ds
+.It Xo
+.Nm zpool
+.Cm get
+.Op Fl Hp
+.Op Fl o Ar field Ns Oo , Ns Ar field Oc Ns …
+.Sy all Ns | Ns Ar property Ns Oo , Ns Ar property Oc Ns …
+.Oo Ar pool Oc Ns …
+.Xc
+Retrieves the given list of properties
+.Po
+or all properties if
+.Sy all
+is used
+.Pc
+for the specified storage pool(s).
+These properties are displayed with the following fields:
+.Bl -tag -compact -offset Ds -width "property"
+.It Sy name
+Name of storage pool.
+.It Sy property
+Property name.
+.It Sy value
+Property value.
+.It Sy source
+Property source, either
+.Sy default No or Sy local .
+.El
+.Pp
+See the
+.Xr zpoolprops 7
+manual page for more information on the available pool properties.
+.Bl -tag -compact -offset Ds -width "-o field"
+.It Fl H
+Scripted mode.
+Do not display headers, and separate fields by a single tab instead of arbitrary
+space.
+.It Fl o Ar field
+A comma-separated list of columns to display, defaults to
+.Sy name , Ns Sy property , Ns Sy value , Ns Sy source .
+.It Fl p
+Display numbers in parsable (exact) values.
+.El
+.It Xo
+.Nm zpool
+.Cm set
+.Ar property Ns = Ns Ar value
+.Ar pool
+.Xc
+Sets the given property on the specified pool.
+See the
+.Xr zpoolprops 7
+manual page for more information on what properties can be set and acceptable
+values.
+.El
+.
+.Sh SEE ALSO
+.Xr zpool-features 7 ,
+.Xr zpoolprops 7 ,
+.Xr zpool-list 8

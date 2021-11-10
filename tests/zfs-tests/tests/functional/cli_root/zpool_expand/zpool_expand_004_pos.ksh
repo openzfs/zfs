@@ -61,7 +61,7 @@ log_onexit cleanup
 
 log_assert "After vdev expansion, all 4 labels have the same set of uberblocks."
 
-for type in " " mirror raidz raidz2; do
+for type in " " mirror raidz draid; do
 	for i in 1 2 3; do
 		log_must truncate -s $org_size ${TEMPFILE}.$i
 	done

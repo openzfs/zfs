@@ -23,7 +23,7 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
-# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2020 by Delphix. All rights reserved.
 #
 
 . ${STF_TOOLS}/include/stf.shlib
@@ -68,6 +68,16 @@ function log_must
 	(( $? != 0 )) && log_fail
 }
 
+# Execute a positive test (expecting no stderr) and exit $STF_FAIL
+# if test fails
+# $@ - command to execute
+
+function log_must_nostderr
+{
+	log_pos_nostderr "$@"
+	(( $? != 0 )) && log_fail
+}
+
 # Execute a positive test but retry the command on failure if the output
 # matches an expected pattern.  Otherwise behave like log_must and exit
 # $STF_FAIL is test fails.
@@ -105,7 +115,7 @@ function log_must_retry
 					" assertion failure exited $status"
 				status=1
 			else
-				[[ -n $LOGAPI_DEBUG ]] && print $($out)
+				[[ -n $LOGAPI_DEBUG ]] && cat $logfile
 				_printsuccess "$@"
 			fi
 			break
@@ -165,6 +175,23 @@ function log_mustnot_expect
 	(( $? != 0 )) && log_fail
 }
 
+# Signal numbers are platform-dependent
+case $(uname) in
+Darwin|FreeBSD)
+	SIGBUS=10
+	SIGSEGV=11
+	;;
+illumos|Linux|*)
+	SIGBUS=7
+	SIGSEGV=11
+	;;
+esac
+EXIT_SUCCESS=0
+EXIT_NOTFOUND=127
+EXIT_SIGNAL=256
+EXIT_SIGBUS=$((EXIT_SIGNAL + SIGBUS))
+EXIT_SIGSEGV=$((EXIT_SIGNAL + SIGSEGV))
+
 # Execute and print command with status where success equals non-zero result
 # or output includes expected keyword
 #
@@ -191,19 +218,19 @@ function log_neg_expect
 	out="cat $logfile"
 
 	# unexpected status
-	if (( $status == 0 )); then
+	if (( $status == EXIT_SUCCESS )); then
 		 print -u2 $($out)
 		_printerror "$@" "unexpectedly exited $status"
 	# missing binary
-	elif (( $status == 127 )); then
+	elif (( $status == EXIT_NOTFOUND )); then
 		print -u2 $($out)
 		_printerror "$@" "unexpectedly exited $status (File not found)"
 	# bus error - core dump
-	elif (( $status == 138 )); then
+	elif (( $status == EXIT_SIGBUS )); then
 		print -u2 $($out)
 		_printerror "$@" "unexpectedly exited $status (Bus Error)"
 	# segmentation violation - core dump
-	elif (( $status == 139 )); then
+	elif (( $status == EXIT_SIGSEGV )); then
 		print -u2 $($out)
 		_printerror "$@" "unexpectedly exited $status (SEGV)"
 	else
@@ -227,7 +254,7 @@ function log_neg_expect
 		fi
 
 		if (( $ret == 0 )); then
-			[[ -n $LOGAPI_DEBUG ]] && print $($out)
+			[[ -n $LOGAPI_DEBUG ]] && cat $logfile
 			_printsuccess "$@" "exited $status"
 		fi
 	fi
@@ -267,7 +294,47 @@ function log_pos
 				" exited $status"
 			status=1
 		else
-			[[ -n $LOGAPI_DEBUG ]] && print $($out)
+			[[ -n $LOGAPI_DEBUG ]] && cat $logfile
+			_printsuccess "$@"
+		fi
+	fi
+	_recursive_output $logfile "false"
+	return $status
+}
+
+# Execute and print command with status where success equals zero result
+# and no stderr output
+#
+# $@ command to execute
+#
+# return 0 if command succeeds and no stderr output
+# return 1 othersie
+
+function log_pos_nostderr
+{
+	typeset out=""
+	typeset logfile="/tmp/log.$$"
+
+	while [[ -e $logfile ]]; do
+		logfile="$logfile.$$"
+	done
+
+	"$@" 2>$logfile
+	typeset status=$?
+	out="cat $logfile"
+	typeset out_msg=$($out)
+
+	if (( $status != 0 )) ; then
+		print -u2 $out_msg
+		_printerror "$@" "exited $status"
+	else
+		if [[ ! -z "$out_msg" ]]; then
+			print -u2 $out_msg
+			_printerror "$@" "message in stderr" \
+				" exited $status"
+			status=1
+		else
+			[[ -n $LOGAPI_DEBUG ]] && cat $logfile
 			_printsuccess "$@"
 		fi
 	fi
@@ -281,7 +348,23 @@ function log_pos
 
 function log_onexit
 {
-	_CLEANUP="$@"
+	_CLEANUP=("$*")
+}
+
+# Push an exit handler on the cleanup stack
+#
+# $@ - function(s) to perform on exit
+
+function log_onexit_push
+{
+	_CLEANUP+=("$*")
+}
+
+# Pop an exit handler off the cleanup stack
+
+function log_onexit_pop
+{
+	_CLEANUP=("${_CLEANUP[@]:0:${#_CLEANUP[@]}-1}")
 }
 
 #
@@ -387,6 +470,11 @@ function log_other
 	_endlog $STF_OTHER "$@"
 }
 
+function set_main_pid
+{
+	_MAINPID=$1
+}
+
 #
 # Internal functions
 #
@@ -421,16 +509,27 @@ function _endlog
 	shift
 	(( ${#@} > 0 )) && _printline "$@"
 
+	#
+	# If we're running in a subshell then just exit and let
+	# the parent handle the failures
+	#
+	if [[ -n "$_MAINPID" && $$ != "$_MAINPID" ]]; then
+		log_note "subshell exited: "$_MAINPID
+		exit $exitcode
+	fi
+
 	if [[ $exitcode == $STF_FAIL ]] ; then
 		_execute_testfail_callbacks
 	fi
 
-	if [[ -n $_CLEANUP ]] ; then
-		typeset cleanup=$_CLEANUP
-		log_onexit ""
+	typeset stack=("${_CLEANUP[@]}")
+	log_onexit ""
+	typeset i=${#stack[@]}
+	while (( i-- )); do
+		typeset cleanup="${stack[i]}"
 		log_note "Performing local cleanup via log_onexit ($cleanup)"
 		$cleanup
-	fi
+	done
 
 	exit $exitcode
 }

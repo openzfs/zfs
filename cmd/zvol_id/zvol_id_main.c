@@ -38,40 +38,39 @@
 static int
 ioctl_get_msg(char *var, int fd)
 {
-	int error = 0;
+	int ret;
 	char msg[ZFS_MAX_DATASET_NAME_LEN];
 
-	error = ioctl(fd, BLKZNAME, msg);
-	if (error < 0) {
-		return (error);
+	ret = ioctl(fd, BLKZNAME, msg);
+	if (ret < 0) {
+		return (ret);
 	}
 
 	snprintf(var, ZFS_MAX_DATASET_NAME_LEN, "%s", msg);
-	return (error);
+	return (ret);
 }
 
 int
 main(int argc, char **argv)
 {
-	int fd, error = 0;
+	int fd = -1, ret = 0, status = EXIT_FAILURE;
 	char zvol_name[ZFS_MAX_DATASET_NAME_LEN];
 	char *zvol_name_part = NULL;
 	char *dev_name;
 	struct stat64 statbuf;
 	int dev_minor, dev_part;
 	int i;
-	int rc;
 
 	if (argc < 2) {
-		printf("Usage: %s /dev/zvol_device_node\n", argv[0]);
-		return (EINVAL);
+		fprintf(stderr, "Usage: %s /dev/zvol_device_node\n", argv[0]);
+		goto fail;
 	}
 
 	dev_name = argv[1];
-	error = stat64(dev_name, &statbuf);
-	if (error != 0) {
-		printf("Unable to access device file: %s\n", dev_name);
-		return (errno);
+	ret = stat64(dev_name, &statbuf);
+	if (ret != 0) {
+		fprintf(stderr, "Unable to access device file: %s\n", dev_name);
+		goto fail;
 	}
 
 	dev_minor = minor(statbuf.st_rdev);
@@ -79,23 +78,23 @@ main(int argc, char **argv)
 
 	fd = open(dev_name, O_RDONLY);
 	if (fd < 0) {
-		printf("Unable to open device file: %s\n", dev_name);
-		return (errno);
+		fprintf(stderr, "Unable to open device file: %s\n", dev_name);
+		goto fail;
 	}
 
-	error = ioctl_get_msg(zvol_name, fd);
-	if (error < 0) {
-		printf("ioctl_get_msg failed:%s\n", strerror(errno));
-		return (errno);
+	ret = ioctl_get_msg(zvol_name, fd);
+	if (ret < 0) {
+		fprintf(stderr, "ioctl_get_msg failed: %s\n", strerror(errno));
+		goto fail;
 	}
 	if (dev_part > 0)
-		rc = asprintf(&zvol_name_part, "%s-part%d", zvol_name,
+		ret = asprintf(&zvol_name_part, "%s-part%d", zvol_name,
 		    dev_part);
 	else
-		rc = asprintf(&zvol_name_part, "%s", zvol_name);
+		ret = asprintf(&zvol_name_part, "%s", zvol_name);
 
-	if (rc == -1 || zvol_name_part == NULL)
-		goto error;
+	if (ret == -1 || zvol_name_part == NULL)
+		goto fail;
 
 	for (i = 0; i < strlen(zvol_name_part); i++) {
 		if (isblank(zvol_name_part[i]))
@@ -103,8 +102,13 @@ main(int argc, char **argv)
 	}
 
 	printf("%s\n", zvol_name_part);
-	free(zvol_name_part);
-error:
-	close(fd);
-	return (error);
+	status = EXIT_SUCCESS;
+
+fail:
+	if (zvol_name_part)
+		free(zvol_name_part);
+	if (fd >= 0)
+		close(fd);
+
+	return (status);
 }

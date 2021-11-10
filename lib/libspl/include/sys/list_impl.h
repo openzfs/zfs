@@ -34,8 +34,8 @@ extern "C" {
 #endif
 
 struct list_node {
-	struct list_node *list_next;
-	struct list_node *list_prev;
+	struct list_node *next;
+	struct list_node *prev;
 };
 
 struct list {

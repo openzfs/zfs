@@ -1,8 +1,5 @@
 %define module  @PACKAGE@
 
-# See comment in zfs.spec.in.
-%global __brp_mangle_shebangs_exclude_from arc_summary.py|arcstat.py|dbufstat.py|test-runner.py|zts-report.py
-
 %if !%{defined ksrc}
 %if 0%{?rhel}%{?fedora}
 %define ksrc    ${kernel_version##*___}
@@ -51,13 +48,20 @@ Summary:        Kernel module(s)
 
 Group:          System Environment/Kernel
 License:        @ZFS_META_LICENSE@
-URL:            http://zfsonlinux.org/
+URL:            https://github.com/openzfs/zfs
 Source0:        %{module}-%{version}.tar.gz
 Source10:       kmodtool
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id} -u -n)
 %if 0%{?rhel}%{?fedora}
 BuildRequires:  gcc, make
 BuildRequires:  elfutils-libelf-devel
+%endif
+
+%if 0%{?rhel}%{?fedora}%{?suse_version}
+# We don't directly use it, but if this isn't installed, rpmbuild as root can
+# crash+corrupt rpmdb
+# See issue #12071
+BuildRequires:  ncompress
 %endif
 
 # The developments headers will conflict with the dkms packages.
@@ -89,10 +93,6 @@ BuildRequires:  %{_bindir}/kmodtool
 # LDFLAGS are not sanitized by arch/*/Makefile for these architectures.
 %ifarch ppc ppc64 ppc64le aarch64
 %global __global_ldflags %{nil}
-%endif
-
-%if 0%{?fedora} >= 17
-%define prefix  /usr
 %endif
 
 # Kmodtool does its magic here.  A patched version of kmodtool is shipped

@@ -24,7 +24,7 @@
 #
 # Strategy:
 # 1. Create an origin fs with compression and sha256.
-# 2. Clone origin such that it inherits the properies.
+# 2. Clone origin such that it inherits the properties.
 # 3. Use dd with the sync flag to test the sync write path.
 #
 
@@ -34,7 +34,7 @@ log_onexit cleanup
 
 function cleanup
 {
-	datasetexists $origin && log_must zfs destroy -R $origin
+	datasetexists $origin && destroy_dataset $origin -R
 	log_must zfs create -o mountpoint=$TESTDIR $origin
 }
 

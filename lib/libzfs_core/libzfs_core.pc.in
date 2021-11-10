@@ -1,0 +1,13 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: libzfs_core
+Description: LibZFS core library
+Version: @VERSION@
+URL: https://github.com/openzfs/zfs
+Requires.private: @LIBBLKID_PC@ @LIBUUID_PC@ @LIBTIRPC_PC@ @ZLIB_PC@
+Cflags: -I${includedir}/libzfs -I${includedir}/libspl
+Libs: -L${libdir} -lzfs_core -lnvpair
+Libs.private: @LIBCLOCK_GETTIME@ @LIBUDEV_LIBS@ -lm -pthread

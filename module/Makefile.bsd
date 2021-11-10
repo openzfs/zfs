@@ -1,0 +1,369 @@
+.if !defined(WITH_CTF)
+WITH_CTF=1
+.endif
+
+.include <bsd.sys.mk>
+
+SRCDIR=${.CURDIR}
+INCDIR=${.CURDIR:H}/include
+
+KMOD=	openzfs
+
+.PATH:	${SRCDIR}/avl \
+	${SRCDIR}/lua \
+	${SRCDIR}/nvpair \
+	${SRCDIR}/os/freebsd/spl \
+	${SRCDIR}/os/freebsd/zfs \
+	${SRCDIR}/unicode \
+	${SRCDIR}/zcommon \
+	${SRCDIR}/zfs \
+	${SRCDIR}/zstd \
+	${SRCDIR}/zstd/lib
+
+
+
+CFLAGS+= -I${.OBJDIR:H}/include
+CFLAGS+= -I${INCDIR}
+CFLAGS+= -I${INCDIR}/os/freebsd
+CFLAGS+= -I${INCDIR}/os/freebsd/spl
+CFLAGS+= -I${INCDIR}/os/freebsd/zfs
+CFLAGS+= -I${SRCDIR}/zstd/include
+CFLAGS+= -include ${INCDIR}/os/freebsd/spl/sys/ccompile.h
+
+CFLAGS+= -D__KERNEL__ -DFREEBSD_NAMECACHE -DBUILDING_ZFS  -D__BSD_VISIBLE=1 \
+	 -DHAVE_UIO_ZEROCOPY -DWITHOUT_NETDUMP -D__KERNEL -D_SYS_CONDVAR_H_ \
+	 -D_SYS_VMEM_H_ -DKDTRACE_HOOKS -DSMP -DHAVE_KSID -DCOMPAT_FREEBSD11
+
+.if ${MACHINE_ARCH} == "amd64"
+CFLAGS+= -DHAVE_AVX2 -DHAVE_AVX -D__x86_64 -DHAVE_SSE2 -DHAVE_AVX512F -DHAVE_SSSE3
+.endif
+
+.if defined(WITH_DEBUG) && ${WITH_DEBUG} == "true"
+CFLAGS+= -DZFS_DEBUG -g
+.if defined(WITH_INVARIANTS) && ${WITH_INVARIANTS} == "true"
+ CFLAGS+= -DINVARIANTS -DWITNESS -DOPENSOLARIS_WITNESS
+.endif
+.if defined(WITH_O0) && ${WITH_O0} == "true"
+ CFLAGS+= -O0
+.endif
+.else
+CFLAGS += -DNDEBUG
+.endif
+
+.if defined(WITH_VFS_DEBUG) && ${WITH_VFS_DEBUG} == "true"
+# kernel must also be built with this option for this to work
+CFLAGS+= -DDEBUG_VFS_LOCKS
+.endif
+
+.if defined(WITH_GCOV) && ${WITH_GCOV} == "true"
+CFLAGS+=	 -fprofile-arcs -ftest-coverage
+.endif
+
+DEBUG_FLAGS=-g
+
+.if ${MACHINE_ARCH} == "i386" || ${MACHINE_ARCH} == "powerpc" || \
+	${MACHINE_ARCH} == "arm"
+CFLAGS+= -DBITS_PER_LONG=32
+.else
+CFLAGS+= -DBITS_PER_LONG=64
+.endif
+
+SRCS=	vnode_if.h device_if.h bus_if.h
+
+# avl
+SRCS+=	avl.c
+
+#lua
+SRCS+=	lapi.c \
+	lauxlib.c \
+	lbaselib.c \
+	lcode.c \
+	lcompat.c \
+	lcorolib.c \
+	lctype.c \
+	ldebug.c \
+	ldo.c \
+	lfunc.c \
+	lgc.c \
+	llex.c \
+	lmem.c \
+	lobject.c \
+	lopcodes.c \
+	lparser.c \
+	lstate.c \
+	lstring.c \
+	lstrlib.c \
+	ltable.c \
+	ltablib.c \
+	ltm.c \
+	lvm.c \
+	lzio.c
+
+#nvpair
+SRCS+=	nvpair.c \
+	fnvpair.c \
+	nvpair_alloc_spl.c \
+	nvpair_alloc_fixed.c
+
+#os/freebsd/spl
+SRCS+=	acl_common.c \
+	callb.c \
+	list.c \
+	sha256c.c \
+	sha512c.c \
+	spl_acl.c \
+	spl_cmn_err.c \
+	spl_dtrace.c \
+	spl_kmem.c \
+	spl_kstat.c \
+	spl_misc.c \
+	spl_policy.c \
+	spl_procfs_list.c \
+	spl_string.c \
+	spl_sunddi.c \
+	spl_sysevent.c \
+	spl_taskq.c \
+	spl_uio.c \
+	spl_vfs.c \
+	spl_vm.c \
+	spl_zlib.c \
+	spl_zone.c
+
+
+.if ${MACHINE_ARCH} == "i386" || ${MACHINE_ARCH} == "powerpc" || \
+	${MACHINE_ARCH} == "arm"
+SRCS+= spl_atomic.c
+.endif
+
+#os/freebsd/zfs
+SRCS+=	abd_os.c \
+	arc_os.c \
+	crypto_os.c \
+	dmu_os.c \
+	hkdf.c \
+	kmod_core.c \
+	spa_os.c \
+	sysctl_os.c \
+	vdev_file.c \
+	vdev_geom.c \
+	vdev_label_os.c \
+	zfs_acl.c \
+	zfs_ctldir.c \
+	zfs_debug.c \
+	zfs_dir.c \
+	zfs_ioctl_compat.c \
+	zfs_ioctl_os.c \
+	zfs_racct.c \
+	zfs_vfsops.c \
+	zfs_vnops_os.c \
+	zfs_znode.c \
+	zio_crypt.c \
+	zvol_os.c
+
+#unicode
+SRCS+=	uconv.c \
+	u8_textprep.c
+
+#zcommon
+SRCS+=	zfeature_common.c \
+	zfs_comutil.c \
+	zfs_deleg.c \
+	zfs_fletcher.c \
+	zfs_fletcher_avx512.c \
+	zfs_fletcher_intel.c \
+	zfs_fletcher_sse.c \
+	zfs_fletcher_superscalar.c \
+	zfs_fletcher_superscalar4.c \
+	zfs_namecheck.c \
+	zfs_prop.c \
+	zpool_prop.c \
+	zprop_common.c
+
+#zfs
+SRCS+=	abd.c \
+	aggsum.c \
+	arc.c \
+	blkptr.c \
+	bplist.c \
+	bpobj.c \
+	btree.c \
+	cityhash.c \
+	dbuf.c \
+	dbuf_stats.c \
+	bptree.c \
+	bqueue.c \
+	dataset_kstats.c \
+	ddt.c \
+	ddt_zap.c \
+	dmu.c \
+	dmu_diff.c \
+	dmu_object.c \
+	dmu_objset.c \
+	dmu_recv.c \
+	dmu_redact.c \
+	dmu_send.c \
+	dmu_traverse.c \
+	dmu_tx.c \
+	dmu_zfetch.c \
+	dnode.c \
+	dnode_sync.c \
+	dsl_dataset.c \
+	dsl_deadlist.c \
+	dsl_deleg.c \
+	dsl_bookmark.c \
+	dsl_dir.c \
+	dsl_crypt.c \
+	dsl_destroy.c \
+	dsl_pool.c \
+	dsl_prop.c \
+	dsl_scan.c \
+	dsl_synctask.c \
+	dsl_userhold.c \
+	fm.c \
+	gzip.c \
+	lzjb.c \
+	lz4.c \
+	metaslab.c \
+	mmp.c \
+	multilist.c \
+	objlist.c \
+	pathname.c \
+	range_tree.c \
+	refcount.c \
+	rrwlock.c \
+	sa.c \
+	sha256.c \
+	skein_zfs.c \
+	spa.c \
+	spa_boot.c \
+	spa_checkpoint.c \
+	spa_config.c \
+	spa_errlog.c \
+	spa_history.c \
+	spa_log_spacemap.c \
+	spa_misc.c \
+	spa_stats.c \
+	space_map.c \
+	space_reftree.c \
+	txg.c \
+	uberblock.c \
+	unique.c \
+	vdev.c \
+	vdev_cache.c \
+	vdev_draid.c \
+	vdev_draid_rand.c \
+	vdev_indirect.c \
+	vdev_indirect_births.c \
+	vdev_indirect_mapping.c \
+	vdev_initialize.c \
+	vdev_label.c \
+	vdev_mirror.c \
+	vdev_missing.c \
+	vdev_queue.c \
+	vdev_raidz.c \
+	vdev_raidz_math.c \
+	vdev_raidz_math_scalar.c \
+	vdev_rebuild.c \
+	vdev_raidz_math_avx2.c \
+	vdev_raidz_math_avx512bw.c \
+	vdev_raidz_math_avx512f.c \
+	vdev_raidz_math_sse2.c \
+	vdev_raidz_math_ssse3.c \
+	vdev_removal.c \
+	vdev_root.c \
+	vdev_trim.c \
+	zap.c \
+	zap_leaf.c \
+	zap_micro.c \
+	zcp.c \
+	zcp_get.c \
+	zcp_global.c \
+	zcp_iter.c \
+	zcp_set.c \
+	zcp_synctask.c \
+	zfeature.c \
+	zfs_byteswap.c \
+	zfs_file_os.c \
+	zfs_fm.c \
+	zfs_fuid.c \
+	zfs_ioctl.c \
+	zfs_log.c \
+	zfs_onexit.c \
+	zfs_quota.c \
+	zfs_ratelimit.c \
+	zfs_replay.c \
+	zfs_rlock.c \
+	zfs_sa.c \
+	zfs_vnops.c \
+	zil.c \
+	zio.c \
+	zio_checksum.c \
+	zio_compress.c \
+	zio_inject.c \
+	zle.c \
+	zrlock.c \
+	zthr.c \
+	zvol.c
+
+#zstd
+SRCS+=	zfs_zstd.c \
+	zstd.c
+
+beforeinstall:
+.if ${MK_DEBUG_FILES} != "no"
+	mtree -eu \
+	    -f /etc/mtree/BSD.debug.dist \
+	    -p ${DESTDIR}/usr/lib
+.endif
+
+.include <bsd.kmod.mk>
+
+
+CFLAGS.gcc+= -Wno-pointer-to-int-cast
+
+CFLAGS.lapi.c= -Wno-cast-qual
+CFLAGS.lcompat.c= -Wno-cast-qual
+CFLAGS.lobject.c= -Wno-cast-qual
+CFLAGS.ltable.c= -Wno-cast-qual
+CFLAGS.lvm.c= -Wno-cast-qual
+CFLAGS.nvpair.c= -DHAVE_RPC_TYPES -Wno-cast-qual
+CFLAGS.spl_string.c= -Wno-cast-qual
+CFLAGS.spl_vm.c= -Wno-cast-qual
+CFLAGS.spl_zlib.c= -Wno-cast-qual
+CFLAGS.abd.c= -Wno-cast-qual
+CFLAGS.zfs_log.c= -Wno-cast-qual
+CFLAGS.zfs_vnops_os.c= -Wno-pointer-arith
+CFLAGS.u8_textprep.c= -Wno-cast-qual
+CFLAGS.zfs_fletcher.c= -Wno-cast-qual -Wno-pointer-arith
+CFLAGS.zfs_fletcher_intel.c= -Wno-cast-qual -Wno-pointer-arith
+CFLAGS.zfs_fletcher_sse.c= -Wno-cast-qual -Wno-pointer-arith
+CFLAGS.zfs_fletcher_avx512.c= -Wno-cast-qual -Wno-pointer-arith
+CFLAGS.zprop_common.c= -Wno-cast-qual
+CFLAGS.ddt.c= -Wno-cast-qual
+CFLAGS.dmu.c= -Wno-cast-qual
+CFLAGS.dmu_traverse.c= -Wno-cast-qual
+CFLAGS.dsl_dir.c= -Wno-cast-qual
+CFLAGS.dsl_deadlist.c= -Wno-cast-qual
+CFLAGS.dsl_prop.c= -Wno-cast-qual
+CFLAGS.fm.c= -Wno-cast-qual
+CFLAGS.lz4.c= -Wno-cast-qual
+CFLAGS.spa.c= -Wno-cast-qual
+CFLAGS.spa_misc.c= -Wno-cast-qual
+CFLAGS.sysctl_os.c= -include ../zfs_config.h
+CFLAGS.vdev_draid.c= -Wno-cast-qual
+CFLAGS.vdev_raidz.c= -Wno-cast-qual
+CFLAGS.vdev_raidz_math.c= -Wno-cast-qual
+CFLAGS.vdev_raidz_math_scalar.c= -Wno-cast-qual
+CFLAGS.vdev_raidz_math_avx2.c= -Wno-cast-qual -Wno-duplicate-decl-specifier
+CFLAGS.vdev_raidz_math_avx512f.c= -Wno-cast-qual -Wno-duplicate-decl-specifier
+CFLAGS.vdev_raidz_math_sse2.c= -Wno-cast-qual -Wno-duplicate-decl-specifier
+CFLAGS.zap_leaf.c= -Wno-cast-qual
+CFLAGS.zap_micro.c= -Wno-cast-qual
+CFLAGS.zcp.c= -Wno-cast-qual
+CFLAGS.zfs_fm.c= -Wno-cast-qual
+CFLAGS.zfs_ioctl.c= -Wno-cast-qual
+CFLAGS.zil.c= -Wno-cast-qual
+CFLAGS.zio.c= -Wno-cast-qual
+CFLAGS.zrlock.c= -Wno-cast-qual
+CFLAGS.zfs_zstd.c= -Wno-cast-qual -Wno-pointer-arith
+CFLAGS.zstd.c= -fno-tree-vectorize -U__BMI__

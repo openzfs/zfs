@@ -18,54 +18,83 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2017 by Lawrence Livermore National Security, LLC.
 .\"
-.Dd September 16, 2017
-.Dt ZGENHOSTID 8 SMM
-.Os Linux
+.Dd May 26, 2021
+.Dt ZGENHOSTID 8
+.Os
+.
 .Sh NAME
 .Nm zgenhostid
-.Nd generate and store a hostid in
-.Em /etc/hostid
+.Nd generate host ID into /etc/hostid
 .Sh SYNOPSIS
 .Nm
+.Op Fl f
+.Op Fl o Ar filename
 .Op Ar hostid
+.
 .Sh DESCRIPTION
+Creates
+.Pa /etc/hostid
+file and stores the host ID in it.
 If
-.Em /etc/hostid
-does not exist, create it and store a hostid in it.  If the user provides
-.Op Ar hostid
-on the command line, store that value.  Otherwise, randomly generate a
-value to store.
-.Pp
-This emulates the
-.Xr genhostid 1
-utility and is provided for use on systems which do not include the utility.
+.Ar hostid
+was provided, validate and store that value.
+Otherwise, randomly generate an ID.
+.
 .Sh OPTIONS
-.Op Ar hostid
+.Bl -tag -width "-o filename"
+.It Fl h
+Display a summary of the command-line options.
+.It Fl f
+Allow output overwrite.
+.It Fl o Ar filename
+Write to
+.Pa filename
+instead of the default
+.Pa /etc/hostid .
+.It Ar hostid
 Specifies the value to be placed in
-.Em /etc/hostid .
-It must be a number with a value between 1 and 2^32-1.  This value
-.Sy must
-be unique among your systems.  It must be expressed in hexadecimal and be
-exactly 8 digits long.
-.Sh EXAMPLES
-.Bl -tag -width Ds
-.It Generate a random hostid and store it
-.Bd -literal
-# zgenhostid
-.Ed
-.It Record the libc-generated hostid in Em /etc/hostid
-.Bd -literal
-# zgenhostid $(hostid)
-.Ed
-.It Record a custom hostid (0xdeadbeef) in Em etc/hostid
-.Bd -literal
-# zgenhostid deadbeef
-.Ed
+.Pa /etc/hostid .
+It should be a number with a value between 1 and 2^32-1.
+If
+.Sy 0 ,
+generate a random ID.
+This value
+.Em must
+be unique among your systems.
+It
+.Em must
+be an 8-digit-long hexadecimal number, optionally prefixed by
+.Qq 0x .
 .El
+.
+.Sh FILES
+.Pa /etc/hostid
+.
+.Sh EXAMPLES
+.Bl -tag -width Bd
+.It Generate a random hostid and store it
+.Dl # Nm
+.It Record the libc-generated hostid in Pa /etc/hostid
+.Dl # Nm Qq $ Ns Pq Nm hostid
+.It Record a custom hostid Po Ar 0xdeadbeef Pc in Pa /etc/hostid
+.Dl # Nm Ar deadbeef
+.It Record a custom hostid Po Ar 0x01234567 Pc in Pa /tmp/hostid No and ovewrite the file if it exists
+.Dl # Nm Fl f o Ar /tmp/hostid 0x01234567
+.El
+.
 .Sh SEE ALSO
 .Xr genhostid 1 ,
 .Xr hostid 1 ,
-.Xr spl-module-parameters 5
+.Xr sethostid 3 ,
+.Xr spl 4
+.
+.Sh HISTORY
+.Nm
+emulates the
+.Xr genhostid 1
+utility and is provided for use on systems which
+do not include the utility or do not provide the
+.Xr sethostid 3
+function.

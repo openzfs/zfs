@@ -1,0 +1,178 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
+.\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+.\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+.\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
+.\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
+.\" Copyright (c) 2014 Integros [integros.com]
+.\" Copyright 2019 Richard Laager. All rights reserved.
+.\" Copyright 2018 Nexenta Systems, Inc.
+.\" Copyright 2019 Joyent, Inc.
+.\"
+.Dd June 30, 2019
+.Dt ZFS-DESTROY 8
+.Os
+.
+.Sh NAME
+.Nm zfs-destroy
+.Nd destroy ZFS dataset, snapshots, or bookmark
+.Sh SYNOPSIS
+.Nm zfs
+.Cm destroy
+.Op Fl Rfnprv
+.Ar filesystem Ns | Ns Ar volume
+.Nm zfs
+.Cm destroy
+.Op Fl Rdnprv
+.Ar filesystem Ns | Ns Ar volume Ns @ Ns Ar snap Ns
+.Oo % Ns Ar snap Ns Oo , Ns Ar snap Ns Oo % Ns Ar snap Oc Oc Oc Ns …
+.Nm zfs
+.Cm destroy
+.Ar filesystem Ns | Ns Ar volume Ns # Ns Ar bookmark
+.
+.Sh DESCRIPTION
+.Bl -tag -width ""
+.It Xo
+.Nm zfs
+.Cm destroy
+.Op Fl Rfnprv
+.Ar filesystem Ns | Ns Ar volume
+.Xc
+Destroys the given dataset.
+By default, the command unshares any file systems that are currently shared,
+unmounts any file systems that are currently mounted, and refuses to destroy a
+dataset that has active dependents
+.Pq children or clones .
+.Bl -tag -width "-R"
+.It Fl R
+Recursively destroy all dependents, including cloned file systems outside the
+target hierarchy.
+.It Fl f
+Forcibly unmount file systems.
+This option has no effect on non-file systems or unmounted file systems.
+.It Fl n
+Do a dry-run
+.Pq Qq No-op
+deletion.
+No data will be deleted.
+This is useful in conjunction with the
+.Fl v
+or
+.Fl p
+flags to determine what data would be deleted.
+.It Fl p
+Print machine-parsable verbose information about the deleted data.
+.It Fl r
+Recursively destroy all children.
+.It Fl v
+Print verbose information about the deleted data.
+.El
+.Pp
+Extreme care should be taken when applying either the
+.Fl r
+or the
+.Fl R
+options, as they can destroy large portions of a pool and cause unexpected
+behavior for mounted file systems in use.
+.It Xo
+.Nm zfs
+.Cm destroy
+.Op Fl Rdnprv
+.Ar filesystem Ns | Ns Ar volume Ns @ Ns Ar snap Ns
+.Oo % Ns Ar snap Ns Oo , Ns Ar snap Ns Oo % Ns Ar snap Oc Oc Oc Ns …
+.Xc
+The given snapshots are destroyed immediately if and only if the
+.Nm zfs Cm destroy
+command without the
+.Fl d
+option would have destroyed it.
+Such immediate destruction would occur, for example, if the snapshot had no
+clones and the user-initiated reference count were zero.
+.Pp
+If a snapshot does not qualify for immediate destruction, it is marked for
+deferred deletion.
+In this state, it exists as a usable, visible snapshot until both of the
+preconditions listed above are met, at which point it is destroyed.
+.Pp
+An inclusive range of snapshots may be specified by separating the first and
+last snapshots with a percent sign.
+The first and/or last snapshots may be left blank, in which case the
+filesystem's oldest or newest snapshot will be implied.
+.Pp
+Multiple snapshots
+.Pq or ranges of snapshots
+of the same filesystem or volume may be specified in a comma-separated list of
+snapshots.
+Only the snapshot's short name
+.Po the part after the
+.Sy @
+.Pc
+should be specified when using a range or comma-separated list to identify
+multiple snapshots.
+.Bl -tag -width "-R"
+.It Fl R
+Recursively destroy all clones of these snapshots, including the clones,
+snapshots, and children.
+If this flag is specified, the
+.Fl d
+flag will have no effect.
+.It Fl d
+Destroy immediately.
+If a snapshot cannot be destroyed now, mark it for deferred destruction.
+.It Fl n
+Do a dry-run
+.Pq Qq No-op
+deletion.
+No data will be deleted.
+This is useful in conjunction with the
+.Fl p
+or
+.Fl v
+flags to determine what data would be deleted.
+.It Fl p
+Print machine-parsable verbose information about the deleted data.
+.It Fl r
+Destroy
+.Pq or mark for deferred deletion
+all snapshots with this name in descendent file systems.
+.It Fl v
+Print verbose information about the deleted data.
+.Pp
+Extreme care should be taken when applying either the
+.Fl r
+or the
+.Fl R
+options, as they can destroy large portions of a pool and cause unexpected
+behavior for mounted file systems in use.
+.El
+.It Xo
+.Nm zfs
+.Cm destroy
+.Ar filesystem Ns | Ns Ar volume Ns # Ns Ar bookmark
+.Xc
+The given bookmark is destroyed.
+.El
+.
+.Sh SEE ALSO
+.Xr zfs-create 8 ,
+.Xr zfs-hold 8

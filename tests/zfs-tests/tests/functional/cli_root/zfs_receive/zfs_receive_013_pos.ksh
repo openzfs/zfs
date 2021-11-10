@@ -39,7 +39,7 @@ tpoolfile=$TEST_BASE_DIR/temptank.$$
 function cleanup
 {
     for fs in $src_fs $dst_fs; do
-        datasetexists $fs && log_must zfs destroy -rf $fs
+        datasetexists $fs && log_must destroy_dataset $fs -rf
     done
     zpool destroy $temppool
     [[ -f $streamfile ]] && log_must rm -f $streamfile
@@ -67,6 +67,8 @@ zfs snapshot $src_fs@snap3
 
 log_must eval "zfs send -D -R $src_fs@snap3 > $streamfile"
 log_must eval "zfs receive -v $dst_fs < $streamfile"
+log_must zfs destroy -r $dst_fs
+log_must eval "zstream redup $streamfile | zfs receive -v $dst_fs"
 
 cleanup
 

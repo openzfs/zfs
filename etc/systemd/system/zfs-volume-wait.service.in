@@ -1,0 +1,14 @@
+[Unit]
+Description=Wait for ZFS Volume (zvol) links in /dev
+DefaultDependencies=no
+After=systemd-udev-settle.service
+After=zfs-import.target
+ConditionPathIsDirectory=/sys/module/zfs
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=@bindir@/zvol_wait
+
+[Install]
+WantedBy=zfs-volumes.target

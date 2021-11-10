@@ -70,7 +70,7 @@ vdev_indirect_births_close(vdev_indirect_births_t *vib)
 	if (vib->vib_phys->vib_count > 0) {
 		uint64_t births_size = vdev_indirect_births_size_impl(vib);
 
-		kmem_free(vib->vib_entries, births_size);
+		vmem_free(vib->vib_entries, births_size);
 		vib->vib_entries = NULL;
 	}
 
@@ -108,7 +108,7 @@ vdev_indirect_births_open(objset_t *os, uint64_t births_object)
 
 	if (vib->vib_phys->vib_count > 0) {
 		uint64_t births_size = vdev_indirect_births_size_impl(vib);
-		vib->vib_entries = kmem_alloc(births_size, KM_SLEEP);
+		vib->vib_entries = vmem_alloc(births_size, KM_SLEEP);
 		VERIFY0(dmu_read(vib->vib_objset, vib->vib_object, 0,
 		    births_size, vib->vib_entries, DMU_READ_PREFETCH));
 	}
@@ -148,10 +148,10 @@ vdev_indirect_births_add_entry(vdev_indirect_births_t *vib,
 	vib->vib_phys->vib_count++;
 	new_size = vdev_indirect_births_size_impl(vib);
 
-	new_entries = kmem_alloc(new_size, KM_SLEEP);
+	new_entries = vmem_alloc(new_size, KM_SLEEP);
 	if (old_size > 0) {
 		bcopy(vib->vib_entries, new_entries, old_size);
-		kmem_free(vib->vib_entries, old_size);
+		vmem_free(vib->vib_entries, old_size);
 	}
 	new_entries[vib->vib_phys->vib_count - 1] = vibe;
 	vib->vib_entries = new_entries;

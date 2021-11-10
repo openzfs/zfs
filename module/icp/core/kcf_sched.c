@@ -182,7 +182,7 @@ kcf_areqnode_alloc(kcf_provider_desc_t *pd, kcf_context_t *ictx,
  *	  reached, signal the creator thread for more threads.
  *
  * If the two conditions above are not met, we don't need to do
- * any thing. The request will be picked up by one of the
+ * anything. The request will be picked up by one of the
  * worker threads when it becomes available.
  */
 static int
@@ -872,7 +872,7 @@ kcf_free_req(kcf_areq_node_t *areq)
  * Utility routine to remove a request from the chain of requests
  * hanging off a context.
  */
-void
+static void
 kcf_removereq_in_ctxchain(kcf_context_t *ictx, kcf_areq_node_t *areq)
 {
 	kcf_areq_node_t *cur, *prev;
@@ -909,7 +909,7 @@ kcf_removereq_in_ctxchain(kcf_context_t *ictx, kcf_areq_node_t *areq)
  *
  * The caller must hold the queue lock and request lock (an_lock).
  */
-void
+static void
 kcf_remove_node(kcf_areq_node_t *node)
 {
 	kcf_areq_node_t *nextp = node->an_next;
@@ -1182,7 +1182,7 @@ kcf_aop_done(kcf_areq_node_t *areq, int error)
 
 	/*
 	 * Handle recoverable errors. This has to be done first
-	 * before doing any thing else in this routine so that
+	 * before doing anything else in this routine so that
 	 * we do not change the state of the request.
 	 */
 	if (error != CRYPTO_SUCCESS && IS_RECOVERABLE(error)) {
@@ -1308,9 +1308,7 @@ kcf_reqid_insert(kcf_areq_node_t *areq)
 	kcf_areq_node_t *headp;
 	kcf_reqid_table_t *rt;
 
-	kpreempt_disable();
-	rt = kcf_reqid_table[CPU_SEQID & REQID_TABLE_MASK];
-	kpreempt_enable();
+	rt = kcf_reqid_table[CPU_SEQID_UNSTABLE & REQID_TABLE_MASK];
 
 	mutex_enter(&rt->rt_lock);
 
@@ -1432,7 +1430,7 @@ crypto_cancel_req(crypto_req_id_t id)
 			/*
 			 * There is no interface to remove an entry
 			 * once it is on the taskq. So, we do not do
-			 * any thing for a hardware provider.
+			 * anything for a hardware provider.
 			 */
 			break;
 		default:
@@ -1535,7 +1533,7 @@ kcf_misc_kstat_update(kstat_t *ksp, int rw)
 }
 
 /*
- * Allocate and initiatize a kcf_dual_req, used for saving the arguments of
+ * Allocate and initialize a kcf_dual_req, used for saving the arguments of
  * a dual operation or an atomic operation that has to be internally
  * simulated with multiple single steps.
  * crq determines the memory allocation flags.
@@ -1551,7 +1549,7 @@ kcf_alloc_req(crypto_call_req_t *crq)
 	if (kcr == NULL)
 		return (NULL);
 
-	/* Copy the whole crypto_call_req struct, as it isn't persistant */
+	/* Copy the whole crypto_call_req struct, as it isn't persistent */
 	if (crq != NULL)
 		kcr->kr_callreq = *crq;
 	else
@@ -1579,7 +1577,7 @@ kcf_next_req(void *next_req_arg, int status)
 	kcf_provider_desc_t *pd = NULL;
 	crypto_dual_data_t *ct = NULL;
 
-	/* Stop the processing if an error occured at this step */
+	/* Stop the processing if an error occurred at this step */
 	if (error != CRYPTO_SUCCESS) {
 out:
 		areq->an_reqarg = next_req->kr_callreq;

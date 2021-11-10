@@ -44,7 +44,7 @@
 verify_runnable "global"
 
 # properties
-set -A sharenfs_prop "off" "on" "rw"
+set -A sharenfs_prop "off" "on" "ro"
 set -A sharesmb_prop "off" "on"
 
 function cleanup

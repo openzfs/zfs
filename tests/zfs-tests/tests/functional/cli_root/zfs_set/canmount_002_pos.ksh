@@ -40,9 +40,11 @@
 #
 # STRATEGY:
 # 1. Setup a pool and create fs, volume, snapshot clone within it.
-# 2. Set canmount=noauto for each dataset and check the retuen value
-#    and check if it still can be mounted by mount -a.
+# 2. Set canmount=noauto for each dataset and check the return value
+#    and check if it still can be mounted by mount -a or shared by
+#    share -a
 # 3. mount each dataset(except volume) to see if it can be mounted.
+# 4. verify that a mounted dataset can be shared by share -a.
 #
 
 verify_runnable "both"
@@ -74,18 +76,17 @@ function cleanup
 	ds=$TESTPOOL/$TESTCLONE
 	if datasetexists $ds; then
 		mntp=$(get_prop mountpoint $ds)
-		log_must zfs destroy $ds
+		destroy_dataset $ds
 		if [[ -d $mntp ]]; then
 			rm -fr $mntp
 		fi
 	fi
 
-	if snapexists $TESTPOOL/$TESTFS@$TESTSNAP ; then
-		log_must zfs destroy -R $TESTPOOL/$TESTFS@$TESTSNAP
-	fi
-	if snapexists $TESTPOOL/$TESTVOL@$TESTSNAP ; then
-		log_must zfs destroy -R $TESTPOOL/$TESTVOL@$TESTSNAP
-	fi
+	snapexists $TESTPOOL/$TESTFS@$TESTSNAP && \
+		destroy_dataset $TESTPOOL/$TESTFS@$TESTSNAP -R
+
+	snapexists $TESTPOOL/$TESTVOL@$TESTSNAP && \
+		destroy_dataset $TESTPOOL/$TESTVOL@$TESTSNAP -R
 
 	zfs unmount -a > /dev/null 2>&1
 	log_must zfs mount -a
@@ -100,6 +101,7 @@ log_onexit cleanup
 
 set -A old_mnt
 set -A old_canmount
+set -A old_sharenfs
 typeset tmpmnt=/tmpmount$$
 typeset ds
 
@@ -113,6 +115,7 @@ while (( i < ${#dataset_pos[*]} )); do
 	ds=${dataset_pos[i]}
 	old_mnt[i]=$(get_prop mountpoint $ds)
 	old_canmount[i]=$(get_prop canmount $ds)
+	old_sharenfs[i]=$(get_prop sharenfs $ds)
 	(( i = i + 1 ))
 done
 
@@ -121,6 +124,7 @@ while (( i < ${#dataset_pos[*]} )) ; do
 	dataset=${dataset_pos[i]}
 	set_n_check_prop "noauto" "canmount" "$dataset"
 	log_must zfs set mountpoint=$tmpmnt $dataset
+	log_must zfs set sharenfs=on $dataset
 	if  ismounted $dataset; then
 		zfs unmount -a > /dev/null 2>&1
 		log_must mounted $dataset
@@ -128,6 +132,8 @@ while (( i < ${#dataset_pos[*]} )) ; do
 		log_must unmounted $dataset
 		log_must zfs mount -a
 		log_must unmounted $dataset
+		log_must zfs share -a
+		log_mustnot is_exported $tmpmnt
 	else
 		log_must zfs mount -a
 		log_must unmounted $dataset
@@ -137,6 +143,10 @@ while (( i < ${#dataset_pos[*]} )) ; do
 
 	log_must zfs mount $dataset
 	log_must mounted $dataset
+	log_must zfs share -a
+	log_must is_exported $tmpmnt
+
+	log_must zfs set sharenfs="${old_sharenfs[i]}" $dataset
 	log_must zfs set canmount="${old_canmount[i]}" $dataset
 	log_must zfs set mountpoint="${old_mnt[i]}" $dataset
 	(( i = i + 1 ))

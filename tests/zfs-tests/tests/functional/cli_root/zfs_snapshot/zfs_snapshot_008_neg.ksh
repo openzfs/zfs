@@ -34,7 +34,7 @@
 # STRATEGY:
 #	1. Create 2 separate zpools, zpool name lengths must be the same.
 #	2. Attempt to simultaneously create a snapshot of each pool.
-#	3. Veriy the snapshot creation failed.
+#	3. Verify the snapshot creation failed.
 #
 
 verify_runnable "both"

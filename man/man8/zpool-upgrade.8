@@ -1,0 +1,109 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+.\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
+.\" Copyright (c) 2017 Datto Inc.
+.\" Copyright (c) 2018 George Melikov. All Rights Reserved.
+.\" Copyright 2017 Nexenta Systems, Inc.
+.\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
+.\"
+.Dd August 9, 2019
+.Dt ZPOOL-UPGRADE 8
+.Os
+.
+.Sh NAME
+.Nm zpool-upgrade
+.Nd manage version and feature flags of ZFS storage pools
+.Sh SYNOPSIS
+.Nm zpool
+.Cm upgrade
+.Nm zpool
+.Cm upgrade
+.Fl v
+.Nm zpool
+.Cm upgrade
+.Op Fl V Ar version
+.Fl a Ns | Ns Ar pool Ns …
+.
+.Sh DESCRIPTION
+.Bl -tag -width Ds
+.It Xo
+.Nm zpool
+.Cm upgrade
+.Xc
+Displays pools which do not have all supported features enabled and pools
+formatted using a legacy ZFS version number.
+These pools can continue to be used, but some features may not be available.
+Use
+.Nm zpool Cm upgrade Fl a
+to enable all features on all pools (subject to the
+.Fl o Sy compatibility
+property).
+.It Xo
+.Nm zpool
+.Cm upgrade
+.Fl v
+.Xc
+Displays legacy ZFS versions supported by the this version of ZFS.
+See
+.Xr zpool-features 7
+for a description of feature flags features supported by this version of ZFS.
+.It Xo
+.Nm zpool
+.Cm upgrade
+.Op Fl V Ar version
+.Fl a Ns | Ns Ar pool Ns …
+.Xc
+Enables all supported features on the given pool.
+.Pp
+If the pool has specified compatibility feature sets using the
+.Fl o Sy compatibility
+property, only the features present in all requested compatibility sets will be
+enabled.
+If this property is set to
+.Ar legacy
+then no upgrade will take place.
+.Pp
+Once this is done, the pool will no longer be accessible on systems that do not
+support feature flags.
+See
+.Xr zpool-features 7
+for details on compatibility with systems that support feature flags, but do not
+support all features enabled on the pool.
+.Bl -tag -width Ds
+.It Fl a
+Enables all supported features (from specified compatibility sets, if any) on all
+pools.
+.It Fl V Ar version
+Upgrade to the specified legacy version.
+If specified, no features will be enabled on the pool.
+This option can only be used to increase the version number up to the last
+supported legacy version number.
+.El
+.El
+.
+.Sh SEE ALSO
+.Xr zpool-features 7 ,
+.Xr zpoolconcepts 7 ,
+.Xr zpoolprops 7 ,
+.Xr zpool-history 8

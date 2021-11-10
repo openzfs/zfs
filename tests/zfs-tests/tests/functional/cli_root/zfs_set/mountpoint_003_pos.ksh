@@ -76,6 +76,14 @@ if is_linux; then
 	if [[ $(linux_version) -lt $(linux_version "4.4") ]]; then
 		args+=("mand" "nomand")
 	fi
+elif is_freebsd; then
+	# 'xattr' and 'devices' are not supported on FreeBSD
+	# Perhaps more options need to be added.
+	set -A args \
+	"noexec"	"exec"	\
+	"ro"		"rw"	\
+	"nosuid"	"suid"	\
+	"atime"		"noatime"
 else
 	set -A args \
 	"devices"	"/devices/"	"nodevices"	"/nodevices/"	\
@@ -96,11 +104,11 @@ log_must zfs set mountpoint=legacy $testfs
 
 typeset i=0
 while ((i < ${#args[@]})); do
-	if is_linux; then
+	if is_linux || is_freebsd; then
 		log_must mount -t zfs -o ${args[$i]} $testfs $tmpmnt
 		
 		msg=$(mount | grep "$tmpmnt ")
-		
+
 		echo $msg | grep "${args[((i))]}" > /dev/null 2>&1
 		if (($? != 0)) ; then
 			echo $msg | grep "${args[((i-1))]}" > /dev/null 2>&1

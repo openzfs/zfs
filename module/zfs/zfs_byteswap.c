@@ -30,6 +30,9 @@
 #include <sys/zfs_sa.h>
 #include <sys/zfs_acl.h>
 
+#ifndef _KERNEL
+static
+#endif
 void
 zfs_oldace_byteswap(ace_t *ace, int ace_cnt)
 {
@@ -44,8 +47,11 @@ zfs_oldace_byteswap(ace_t *ace, int ace_cnt)
 }
 
 /*
- * swap ace_t and ace_oject_t
+ * swap ace_t and ace_object_t
  */
+#ifndef _KERNEL
+static
+#endif
 void
 zfs_ace_byteswap(void *buf, size_t size, boolean_t zfs_layout)
 {
@@ -70,7 +76,7 @@ zfs_ace_byteswap(void *buf, size_t size, boolean_t zfs_layout)
 			 * larger than needed to hold the aces
 			 * present.  As long as we do not do any
 			 * swapping beyond the end of our block we are
-			 * okay.  It it safe to swap any non-ace data
+			 * okay.  It is safe to swap any non-ace data
 			 * within the block since it is just zeros.
 			 */
 			if (ptr + sizeof (zfs_ace_hdr_t) > end) {

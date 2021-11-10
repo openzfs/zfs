@@ -1,0 +1,112 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+.\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
+.\" Copyright (c) 2017 Datto Inc.
+.\" Copyright (c) 2018 George Melikov. All Rights Reserved.
+.\" Copyright 2017 Nexenta Systems, Inc.
+.\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\"
+.Dd August 9, 2019
+.Dt ZPOOL-LIST 8
+.Os
+.
+.Sh NAME
+.Nm zpool-list
+.Nd list information about ZFS storage pools
+.Sh SYNOPSIS
+.Nm zpool
+.Cm list
+.Op Fl HgLpPv
+.Op Fl o Ar property Ns Oo , Ns Ar property Oc Ns …
+.Op Fl T Sy u Ns | Ns Sy d
+.Oo Ar pool Oc Ns …
+.Op Ar interval Op Ar count
+.
+.Sh DESCRIPTION
+Lists the given pools along with a health status and space usage.
+If no
+.Ar pool Ns s
+are specified, all pools in the system are listed.
+When given an
+.Ar interval ,
+the information is printed every
+.Ar interval
+seconds until killed.
+If
+.Ar count
+is specified, the command exits after
+.Ar count
+reports are printed.
+.Bl -tag -width Ds
+.It Fl g
+Display vdev GUIDs instead of the normal device names.
+These GUIDs can be used in place of device names for the zpool
+detach/offline/remove/replace commands.
+.It Fl H
+Scripted mode.
+Do not display headers, and separate fields by a single tab instead of arbitrary
+space.
+.It Fl o Ar property
+Comma-separated list of properties to display.
+See the
+.Xr zpoolprops 7
+manual page for a list of valid properties.
+The default list is
+.Sy name , size , allocated , free , checkpoint, expandsize , fragmentation ,
+.Sy capacity , dedupratio , health , altroot .
+.It Fl L
+Display real paths for vdevs resolving all symbolic links.
+This can be used to look up the current block device name regardless of the
+.Pa /dev/disk
+path used to open it.
+.It Fl p
+Display numbers in parsable
+.Pq exact
+values.
+.It Fl P
+Display full paths for vdevs instead of only the last component of
+the path.
+This can be used in conjunction with the
+.Fl L
+flag.
+.It Fl T Sy u Ns | Ns Sy d
+Display a time stamp.
+Specify
+.Sy u
+for a printed representation of the internal representation of time.
+See
+.Xr time 2 .
+Specify
+.Sy d
+for standard date format.
+See
+.Xr date 1 .
+.It Fl v
+Verbose statistics.
+Reports usage statistics for individual vdevs within the pool, in addition to
+the pool-wide statistics.
+.El
+.
+.Sh SEE ALSO
+.Xr zpool-import 8 ,
+.Xr zpool-status 8

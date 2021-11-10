@@ -36,7 +36,7 @@
 #	zfs allow can deal with invalid arguments.(Invalid options or combination)
 #
 # STRATEGY:
-#	1. Verify invalid argumets will cause error.
+#	1. Verify invalid arguments will cause error.
 #	2. Verify non-optional argument was missing will cause error.
 #	3. Verify invalid options cause error.
 #
@@ -51,7 +51,6 @@ longset="set123456789012345678901234567890123456789012345678901234567890123"
 for dtst in $DATASETS ; do
 	log_mustnot eval "zfs allow -s @$longset $dtst"
 	# Create non-existent permission set
-	typeset timestamp=$(date +'%F-%R:%S')
 	log_mustnot zfs allow -s @non-existent $dtst
 	log_mustnot zfs allow $STAFF "atime,created,mounted" $dtst
 	log_mustnot zfs allow $dtst $TESTPOOL

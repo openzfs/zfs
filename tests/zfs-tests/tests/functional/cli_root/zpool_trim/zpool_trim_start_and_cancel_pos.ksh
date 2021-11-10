@@ -20,29 +20,29 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
-. $STF_SUITE/tests/functional/cli_root/zpool_initialize/zpool_initialize.kshlib
+. $STF_SUITE/tests/functional/cli_root/zpool_trim/zpool_trim.kshlib
 
 #
 # DESCRIPTION:
-# Starting and stopping an initialize works.
+# Starting and stopping a trim works.
 #
 # STRATEGY:
 # 1. Create a one-disk pool.
-# 2. Start initializing and verify that initializing is active.
-# 3. Cancel initializing and verify that initializing is not active.
+# 2. Start trimming and verify that trimming is active.
+# 3. Cancel trimming and verify that trimming is not active.
 #
 
 DISK1=${DISKS%% *}
 
 log_must zpool create -f $TESTPOOL $DISK1
-log_must zpool initialize $TESTPOOL
+log_must zpool trim $TESTPOOL
 
-[[ -z "$(initialize_progress $TESTPOOL $DISK1)" ]] && \
-    log_fail "Initialize did not start"
+[[ -z "$(trim_progress $TESTPOOL $DISK1)" ]] && \
+    log_fail "TRIM did not start"
 
-log_must zpool initialize -c $TESTPOOL
+log_must zpool trim -c $TESTPOOL
 
-[[ -z "$(initialize_progress $TESTPOOL $DISK1)" ]] || \
-    log_fail "Initialize did not stop"
+[[ -z "$(trim_progress $TESTPOOL $DISK1)" ]] || \
+    log_fail "TRIM did not stop"
 
-log_pass "Initialize start + cancel works"
+log_pass "TRIM start + cancel works"

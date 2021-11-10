@@ -43,7 +43,7 @@ function cleanup
 {
 	default_cleanup_noexit
 	log_must mmp_clear_hostid
-	log_must set_tunable64 zfs_multihost_interval $MMP_INTERVAL_DEFAULT
+	log_must set_tunable64 MULTIHOST_INTERVAL $MMP_INTERVAL_DEFAULT
 }
 
 log_assert "multihost=on|off inactive pool activity checks"
@@ -103,7 +103,7 @@ log_mustnot import_no_activity_check $TESTPOOL "-f"
 # 9. Verify activity check duration based on mmp_write and mmp_fail
 # Specify a short test via tunables but import pool imported while
 # tunables set to default duration.
-log_must set_tunable64 zfs_multihost_interval $MMP_INTERVAL_MIN
+log_must set_tunable64 MULTIHOST_INTERVAL $MMP_INTERVAL_MIN
 log_must mmp_clear_hostid
 log_must mmp_set_hostid $HOSTID1
 log_must import_activity_check $TESTPOOL "-f" $MMP_TEST_DURATION_DEFAULT

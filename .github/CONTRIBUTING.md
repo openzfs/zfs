@@ -1,10 +1,12 @@
-# Contributing to ZFS on Linux
-<p align="center"><img src="http://zfsonlinux.org/images/zfs-linux.png"/></p>
+# Contributing to OpenZFS
+<p align="center">
+  <img alt="OpenZFS Logo"
+    src="https://openzfs.github.io/openzfs-docs/_static/img/logo/480px-Open-ZFS-Secondary-Logo-Colour-halfsize.png"/>
+</p>
 
 *First of all, thank you for taking the time to contribute!*
 
-By using the following guidelines, you can help us make ZFS on Linux even
-better.
+By using the following guidelines, you can help us make OpenZFS even better.
 
 ## Table Of Contents
 [What should I know before I get
@@ -32,17 +34,17 @@ started?](#what-should-i-know-before-i-get-started)
 
 Helpful resources
 
-  * [ZFS on Linux wiki](https://github.com/zfsonlinux/zfs/wiki)
-  * [OpenZFS Documentation](http://open-zfs.org/wiki/Developer_resources)
-  * [Git and GitHub for beginners](https://github.com/zfsonlinux/zfs/wiki/Git-and-GitHub-for-beginners)
+  * [OpenZFS Documentation](https://openzfs.github.io/openzfs-docs/)
+  * [OpenZFS Developer Resources](http://open-zfs.org/wiki/Developer_resources)
+  * [Git and GitHub for beginners](https://openzfs.github.io/openzfs-docs/Developer%20Resources/Git%20and%20GitHub%20for%20beginners.html)
 
 ## What should I know before I get started?
 
 ### Get ZFS
 You can build zfs packages by following [these
-instructions](https://github.com/zfsonlinux/zfs/wiki/Building-ZFS),
+instructions](https://openzfs.github.io/openzfs-docs/Developer%20Resources/Building%20ZFS.html),
 or install stable packages from [your distribution's
-repository](https://github.com/zfsonlinux/zfs/wiki/Getting-Started).
+repository](https://openzfs.github.io/openzfs-docs/Getting%20Started/index.html).
 
 ### Debug ZFS
 A variety of methods and tools are available to aid ZFS developers.
@@ -51,29 +53,30 @@ configure option should be set. This will enable additional correctness
 checks and all the ASSERTs to help quickly catch potential issues.
 
 In addition, there are numerous utilities and debugging files which
-provide visibility in to the inner workings of ZFS.  The most useful
-of these tools are discussed in detail on the [debugging ZFS wiki
-page](https://github.com/zfsonlinux/zfs/wiki/Debugging).
+provide visibility into the inner workings of ZFS.  The most useful
+of these tools are discussed in detail on the [Troubleshooting
+page](https://openzfs.github.io/openzfs-docs/Basic%20Concepts/Troubleshooting.html).
 
 ### Where can I ask for help?
-[The zfs-discuss mailing list or IRC](http://list.zfsonlinux.org)
-are the best places to ask for help. Please do not file support requests
-on the GitHub issue tracker.
+The [zfs-discuss mailing
+list](https://openzfs.github.io/openzfs-docs/Project%20and%20Community/Mailing%20Lists.html)
+or IRC are the best places to ask for help. Please do not file
+support requests on the GitHub issue tracker.
 
 ## How Can I Contribute?
 
 ### Reporting Bugs
 *Please* contact us via the [zfs-discuss mailing
-list or IRC](http://list.zfsonlinux.org) if you aren't
-certain that you are experiencing a bug.
+list](https://openzfs.github.io/openzfs-docs/Project%20and%20Community/Mailing%20Lists.html)
+or IRC if you aren't certain that you are experiencing a bug.
 
 If you run into an issue, please search our [issue
-tracker](https://github.com/zfsonlinux/zfs/issues) *first* to ensure the
+tracker](https://github.com/openzfs/zfs/issues) *first* to ensure the
 issue hasn't been reported before. Open a new issue only if you haven't
 found anything similar to your issue.
 
 You can open a new issue and search existing issues using the public [issue
-tracker](https://github.com/zfsonlinux/zfs/issues).
+tracker](https://github.com/openzfs/zfs/issues).
 
 #### When opening a new issue, please include the following information at the top of the issue:
 * What distribution (with version) you are using.
@@ -105,13 +108,13 @@ information like:
 * Stack traces which may be logged to `dmesg`.
 
 ### Suggesting Enhancements
-ZFS on Linux is a widely deployed production filesystem which is under
-active development. The team's primary focus is on fixing known issues,
-improving performance, and adding compelling new features.
+OpenZFS is a widely deployed production filesystem which is under active
+development. The team's primary focus is on fixing known issues, improving
+performance, and adding compelling new features.
 
 You can view the list of proposed features
-by filtering the issue tracker by the ["Feature"
-label](https://github.com/zfsonlinux/zfs/issues?q=is%3Aopen+is%3Aissue+label%3AFeature).
+by filtering the issue tracker by the ["Type: Feature"
+label](https://github.com/openzfs/zfs/issues?q=is%3Aopen+is%3Aissue+label%3A%22Type%3A+Feature%22).
 If you have an idea for a feature first check this list. If your idea already
 appears then add a +1 to the top most comment, this helps us gauge interest
 in that feature.
@@ -120,8 +123,11 @@ Otherwise, open a new issue and describe your proposed feature.  Why is this
 feature needed?  What problem does it solve?
 
 ### Pull Requests
-* All pull requests must be based on the current master branch and apply
-without conflicts.
+
+#### General
+
+* All pull requests, except backports and releases, must be based on the current master branch 
+and should apply without conflicts.
 * Please attempt to limit pull requests to a single commit which resolves
 one specific issue.
 * Make sure your commit messages are in the correct format. See the
@@ -133,16 +139,28 @@ logically independent patches which build on each other.  This makes large
 changes easier to review and approve which speeds up the merging process.
 * Try to keep pull requests simple. Simple code with comments is much easier
 to review and approve.
+* All proposed changes must be approved by an OpenZFS organization member.
+* If you have an idea you'd like to discuss or which requires additional testing, consider opening it as a draft pull request.
+Once everything is in good shape and the details have been worked out you can remove its draft status.
+Any required reviews can then be finalized and the pull request merged.
+
+#### Tests and Benchmarks
+* Every pull request will by tested by the buildbot on multiple platforms by running the [zfs-tests.sh and zloop.sh](
+https://openzfs.github.io/openzfs-docs/Developer%20Resources/Building%20ZFS.html#running-zloop-sh-and-zfs-tests-sh) test suites.
+* To verify your changes conform to the [style guidelines](
+https://github.com/openzfs/zfs/blob/master/.github/CONTRIBUTING.md#style-guides
+), please run `make checkstyle` and resolve any warnings.
+* Static code analysis of each pull request is performed by the buildbot; run `make lint` to check your changes.
 * Test cases should be provided when appropriate.
+This includes making sure new features have adequate code coverage.
 * If your pull request improves performance, please include some benchmarks.
 * The pull request must pass all required [ZFS
 Buildbot](http://build.zfsonlinux.org/) builders before
 being accepted. If you are experiencing intermittent TEST
 builder failures, you may be experiencing a [test suite
-issue](https://github.com/zfsonlinux/zfs/issues?q=is%3Aissue+is%3Aopen+label%3A%22Test+Suite%22).
-There are also various [buildbot options](https://github.com/zfsonlinux/zfs/wiki/Buildbot-Options)
+issue](https://github.com/openzfs/zfs/issues?q=is%3Aissue+is%3Aopen+label%3A%22Type%3A+Test+Suite%22).
+There are also various [buildbot options](https://openzfs.github.io/openzfs-docs/Developer%20Resources/Buildbot%20Options.html)
 to control how changes are tested.
-* All proposed changes must be approved by a ZFS on Linux organization member.
 
 ### Testing
 All help is appreciated! If you're in a position to run the latest code
@@ -152,15 +170,40 @@ range of realistic workloads, configurations and architectures we're better
 able quickly identify and resolve potential issues.
 
 Users can also run the [ZFS Test
-Suite](https://github.com/zfsonlinux/zfs/tree/master/tests) on their systems
+Suite](https://github.com/openzfs/zfs/tree/master/tests) on their systems
 to verify ZFS is behaving as intended.
 
 ## Style Guides
+
+### Repository Structure
+
+OpenZFS uses a standardised branching structure.
+- The "development and main branch", is the branch all development should be based on.
+- "Release branches" contain the latest released code for said version.
+- "Staging branches" contain selected commits prior to being released.
+
+**Branch Names:**
+- Development and Main branch: `master`
+- Release branches: `zfs-$VERSION-release`
+- Staging branches: `zfs-$VERSION-staging`
+
+`$VERSION` should be replaced with the `major.minor` version number.  
+_(This is the version number without the `.patch` version at the end)_
 
 ### Coding Conventions
 We currently use [C  Style  and  Coding  Standards  for
 SunOS](http://www.cis.upenn.edu/%7Elee/06cse480/data/cstyle.ms.pdf) as our
 coding convention.
+
+This repository has an `.editorconfig` file. If your editor [supports
+editorconfig](https://editorconfig.org/#download), it will
+automatically respect most of this project's whitespace preferences.
+
+Additionally, Git can help warn on whitespace problems as well:
+
+```
+git config --local core.whitespace trailing-space,space-before-tab,indent-with-non-tab,-tab-in-indent
+```
 
 ### Commit Message Formats
 #### New Changes
@@ -185,70 +228,6 @@ why the proposed approach was chosen or what bug you are
 attempting to solve.
 
 Signed-off-by: Contributor <contributor@email.com>
-```
-
-#### OpenZFS Patch Ports
-If you are porting OpenZFS patches, the commit message must meet
-the following guidelines:
-* The first line must be the summary line from the most important OpenZFS commit being ported.
-It must begin with `OpenZFS dddd, dddd - ` where `dddd` are OpenZFS issue numbers.
-* Provides a `Authored by:` line to attribute each patch for each original author.
-* Provides the `Reviewed by:` and `Approved by:` lines from each original
-OpenZFS commit.
-* Provides a `Ported-by:` line with the developer's name followed by
-their email for each OpenZFS commit.
-* Provides a `OpenZFS-issue:` line with link for each original illumos
-issue.
-* Provides a `OpenZFS-commit:` line with link for each original OpenZFS commit.
-* If necessary, provide some porting notes to describe any deviations from
-the original OpenZFS commits.
-
-An example OpenZFS patch port commit message for a single patch is provided
-below.
-```
-OpenZFS 1234 - Summary from the original OpenZFS commit
-
-Authored by: Original Author <original@email.com>
-Reviewed by: Reviewer One <reviewer1@email.com>
-Reviewed by: Reviewer Two <reviewer2@email.com>
-Approved by: Approver One <approver1@email.com>
-Ported-by: ZFS Contributor <contributor@email.com>
-
-Provide some porting notes here if necessary.
-
-OpenZFS-issue: https://www.illumos.org/issues/1234
-OpenZFS-commit: https://github.com/openzfs/openzfs/commit/abcd1234
-```
-
-If necessary, multiple OpenZFS patches can be combined in a single port.
-This is useful when you are porting a new patch and its subsequent bug
-fixes. An example commit message is provided below.
-```
-OpenZFS 1234, 5678 - Summary of most important OpenZFS commit
-
-1234 Summary from original OpenZFS commit for 1234
-
-Authored by: Original Author <original@email.com>
-Reviewed by: Reviewer Two <reviewer2@email.com>
-Approved by: Approver One <approver1@email.com>
-Ported-by: ZFS Contributor <contributor@email.com>
-
-Provide some porting notes here for 1234 if necessary.
-
-OpenZFS-issue: https://www.illumos.org/issues/1234
-OpenZFS-commit: https://github.com/openzfs/openzfs/commit/abcd1234
-
-5678 Summary from original OpenZFS commit for 5678
-
-Authored by: Original Author2 <original2@email.com>
-Reviewed by: Reviewer One <reviewer1@email.com>
-Approved by: Approver Two <approver2@email.com>
-Ported-by: ZFS Contributor <contributor@email.com>
-
-Provide some porting notes here for 5678 if necessary.
-
-OpenZFS-issue: https://www.illumos.org/issues/5678
-OpenZFS-commit: https://github.com/openzfs/openzfs/commit/efgh5678
 ```
 
 #### Coverity Defect Fixes
@@ -290,3 +269,13 @@ Git can append the `Signed-off-by` line to your commit messages. Simply
 provide the `-s` or `--signoff` option when performing a `git commit`.
 For more information about writing commit messages, visit [How to Write
 a Git Commit Message](https://chris.beams.io/posts/git-commit/).
+
+#### Co-authored By
+If someone else had part in your pull request, please add the following to the commit:
+`Co-authored-by: Name <gitregistered@email.address>`
+This is useful if their authorship was lost during squashing, rebasing, etc.,
+but may be used in any situation where there are co-authors.
+
+The email address used here should be the same as on the GitHub profile of said user.
+If said user does not have their email address public, please use the following instead:
+`Co-authored-by: Name <[username]@users.noreply.github.com>`

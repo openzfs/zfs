@@ -1,0 +1,109 @@
+--
+-- This file and its contents are supplied under the terms of the
+-- Common Development and Distribution License ("CDDL"), version 1.0.
+-- You may only use this file in accordance with the terms of version
+-- 1.0 of the CDDL.
+--
+-- A full copy of the text of the CDDL should have accompanied this
+-- source.  A copy of the CDDL is also available via the Internet at
+-- http://www.illumos.org/license/CDDL.
+--
+
+--
+-- Copyright (c) 2017 by Delphix. All rights reserved.
+-- Copyright 2020 Joyent, Inc.
+--
+
+arg = ...
+fs = arg["argv"][1]
+
+-- values from zfs.h
+maxname = 256       -- ZAP_MAXNAMELEN
+maxvalue = 8192     -- ZAP_MAXVALUELEN
+
+pos_props = {}
+neg_props = {}
+
+-- In lua, strings are immutable, so to avoid a bunch of copies, we
+-- build the value in a table and use concat (which appears to be the
+-- recommend method for such things).
+largeprop = {}
+for i = 0,maxvalue,8
+do
+    table.insert(largeprop, "aaaaaaaa")
+end
+-- add an extra character so we spill over the limit
+table.insert(largeprop, "b")
+
+largepropv = table.concat(largeprop)
+
+largepropname = { "b:" }
+for i = 0,maxname,8
+do
+    table.insert(largepropname, "aaaaaaaa")
+end
+largepropnamev = table.concat(largepropname)
+
+pos_props["a:prop"] = {"hello"}
+
+-- For neg_props, an optional expected error value can be added after the
+-- property value as seen below.
+neg_props["notaproperty"] = {"hello", EINVAL}
+neg_props["a:very.long.property.value"] = { largepropv, E2BIG }
+neg_props[largepropnamev] = {"greetings", ENAMETOOLONG }
+
+-- non-user properties aren't currently supported
+-- Even if they were, the argument must be a string due to requirements of
+-- the ZCP api.
+neg_props["mountpoint"] = {"/foo/bar"}
+neg_props["copies"] = { "2" }
+
+-- read-only properties should never succeed
+neg_props["guid"] = { "12345" }
+
+set_fail = {}
+val_fail = {}
+
+-- Test properties that should work
+for prop, values in pairs(pos_props) do
+    for i, val in ipairs(values) do
+        old_val, src = zfs.get_prop(fs, prop)
+
+        -- Attempt to set the property to the specified value
+        err = zfs.sync.set_prop(fs, prop, val)
+
+        if (err ~= 0) then
+            set_fail[prop] = err -- tuple of prop, val that resulted in error
+        else
+            -- use get_prop to check that the set took affect
+            new_val, src = zfs.get_prop(fs, prop)
+            if (tostring(new_val) ~= tostring(val)) then
+                val_fail[prop] = new_val
+            end
+
+            -- We modified the prop, restore old value (if one existed)
+            if (old_val ~= nil) then
+                err = zfs.sync.set_prop(fs, prop, old_val)
+                if (err ~= 0) then return err end
+            else
+                -- Didn't have an old value, delete (inherit) instead
+                err = zfs.sync.inherit(fs, prop)
+                if (err ~= 0) then return err end
+            end
+        end
+    end
+end
+
+-- Test properties that should fail
+for prop, expected in pairs(neg_props) do
+    exp_val = expected[1]
+    exp_err = expected[2]
+
+    -- Attempt to set the property to the specified value
+    err = zfs.sync.set_prop(fs, prop, exp_val)
+    if (err == 0 or (exp_err ~= nil and err ~= exp_err)) then
+        set_fail[prop] = err -- tuple of prop, val that resulted in error
+    end
+end
+
+return {set_fail, val_fail}

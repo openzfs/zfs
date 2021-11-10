@@ -1,0 +1,75 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
+.\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+.\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+.\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
+.\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
+.\" Copyright (c) 2014 Integros [integros.com]
+.\" Copyright 2019 Richard Laager. All rights reserved.
+.\" Copyright 2018 Nexenta Systems, Inc.
+.\" Copyright 2019 Joyent, Inc.
+.\"
+.Dd May 27, 2021
+.Dt ZFS-ROLLBACK 8
+.Os
+.
+.Sh NAME
+.Nm zfs-rollback
+.Nd roll ZFS dataset back to snapshot
+.Sh SYNOPSIS
+.Nm zfs
+.Cm rollback
+.Op Fl Rfr
+.Ar snapshot
+.
+.Sh DESCRIPTION
+When a dataset is rolled back, all data that has changed since the snapshot is
+discarded, and the dataset reverts to the state at the time of the snapshot.
+By default, the command refuses to roll back to a snapshot other than the most
+recent one.
+In order to do so, all intermediate snapshots and bookmarks must be destroyed by
+specifying the
+.Fl r
+option.
+.Pp
+The
+.Fl rR
+options do not recursively destroy the child snapshots of a recursive snapshot.
+Only direct snapshots of the specified filesystem are destroyed by either of
+these options.
+To completely roll back a recursive snapshot, you must roll back the individual
+child snapshots.
+.Bl -tag -width "-R"
+.It Fl R
+Destroy any more recent snapshots and bookmarks, as well as any clones of those
+snapshots.
+.It Fl f
+Used with the
+.Fl R
+option to force an unmount of any clone file systems that are to be destroyed.
+.It Fl r
+Destroy any snapshots and bookmarks more recent than the one specified.
+.El
+.
+.Sh SEE ALSO
+.Xr zfs-snapshot 8

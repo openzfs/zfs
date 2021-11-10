@@ -26,6 +26,7 @@
 
 #include <sys/dbuf.h>
 #include <sys/dmu.h>
+#include <sys/dmu_impl.h>
 #include <sys/dmu_objset.h>
 #include <sys/dmu_tx.h>
 #include <sys/dnode.h>
@@ -57,10 +58,8 @@ dmu_object_alloc_impl(objset_t *os, dmu_object_type_t ot, int blocksize,
 	int dnodes_per_chunk = 1 << dmu_object_alloc_chunk_shift;
 	int error;
 
-	kpreempt_disable();
-	cpuobj = &os->os_obj_next_percpu[CPU_SEQID %
+	cpuobj = &os->os_obj_next_percpu[CPU_SEQID_UNSTABLE %
 	    os->os_obj_next_percpu_len];
-	kpreempt_enable();
 
 	if (dn_slots == 0) {
 		dn_slots = DNODE_MIN_SLOTS;
@@ -504,7 +503,6 @@ dmu_object_free_zapified(objset_t *mos, uint64_t object, dmu_tx_t *tx)
 	VERIFY0(dmu_object_free(mos, object, tx));
 }
 
-#if defined(_KERNEL)
 EXPORT_SYMBOL(dmu_object_alloc);
 EXPORT_SYMBOL(dmu_object_alloc_ibs);
 EXPORT_SYMBOL(dmu_object_alloc_dnsize);
@@ -520,8 +518,6 @@ EXPORT_SYMBOL(dmu_object_zapify);
 EXPORT_SYMBOL(dmu_object_free_zapified);
 
 /* BEGIN CSTYLED */
-module_param(dmu_object_alloc_chunk_shift, int, 0644);
-MODULE_PARM_DESC(dmu_object_alloc_chunk_shift,
+ZFS_MODULE_PARAM(zfs, , dmu_object_alloc_chunk_shift, INT, ZMOD_RW,
 	"CPU-specific allocator grabs 2^N objects at once");
 /* END CSTYLED */
-#endif

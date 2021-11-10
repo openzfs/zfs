@@ -51,7 +51,7 @@ print_timestamp(uint_t timestamp_fmt)
 		fmt = nl_langinfo(_DATE_FMT);
 
 	if (timestamp_fmt == UDATE) {
-		(void) printf("%ld\n", t);
+		(void) printf("%lld\n", (longlong_t)t);
 	} else if (timestamp_fmt == DDATE) {
 		char dstr[64];
 		int len;

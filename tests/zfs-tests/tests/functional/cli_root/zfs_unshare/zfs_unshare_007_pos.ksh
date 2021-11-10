@@ -42,9 +42,8 @@ verify_runnable "global"
 
 function cleanup
 {
-	if datasetexists "$TESTPOOL/$TESTFS/shared1"; then
-		log_must zfs destroy -f $TESTPOOL/$TESTFS/shared1
-	fi
+	datasetexists "$TESTPOOL/$TESTFS/shared1" && \
+		destroy_dataset $TESTPOOL/$TESTFS/shared1 -f
 }
 
 log_assert "Verify 'zfs destroy' will unshare the dataset"
@@ -57,16 +56,12 @@ log_must zfs create \
 #
 # 2. Verify the datasets is shared.
 #
-# The "non-impl" variant of "is_shared" requires the dataset to exist.
-# Thus, we can only use the "impl" variant in step 4, below. To be
-# consistent with step 4, we also use the "impl" variant here.
-#
-log_must eval "is_shared_impl $TESTDIR/1"
+log_must is_shared $TESTDIR/1
 
 # 3. Invoke 'zfs destroy' on the dataset.
 log_must zfs destroy -f $TESTPOOL/$TESTFS/shared1
 
 # 4. Verify the dataset is not shared.
-log_mustnot eval "is_shared_impl $TESTDIR/1"
+log_mustnot is_shared $TESTDIR/1
 
 log_pass "'zfs destroy' will unshare the dataset."

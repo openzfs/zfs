@@ -37,7 +37,16 @@ function cleanup
 {
 	datasetexists $TESTPOOL && destroy_pool $TESTPOOL
 	rm -f $TEMPFILE
+	if is_freebsd ; then
+		log_must sysctl kern.geom.debugflags=$saved_debugflags
+	fi
 }
+
+if is_freebsd ; then
+	# FreeBSD won't allow writing to an in-use device without this set
+	saved_debugflags=$(sysctl -n kern.geom.debugflags)
+	log_must sysctl kern.geom.debugflags=16
+fi
 
 verify_runnable "global"
 verify_disk_count "$DISKS" 2

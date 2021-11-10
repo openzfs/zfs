@@ -22,6 +22,7 @@
 
 #
 # Copyright 2017, loli10K. All rights reserved.
+# Copyright (c) 2020 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -43,6 +44,7 @@ verify_runnable "global"
 
 function cleanup
 {
+	log_must set_tunable64 VDEV_FILE_PHYSICAL_ASHIFT $orig_ashift
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 	log_must rm -f $disk1 $disk2
 }
@@ -50,10 +52,18 @@ function cleanup
 log_assert "'zpool add' uses the ashift pool property value as default."
 log_onexit cleanup
 
-disk1=$TEST_BASE_DIR/$FILEDISK0
-disk2=$TEST_BASE_DIR/$FILEDISK1
+disk1=$TEST_BASE_DIR/disk1
+disk2=$TEST_BASE_DIR/disk2
 log_must mkfile $SIZE $disk1
 log_must mkfile $SIZE $disk2
+
+orig_ashift=$(get_tunable VDEV_FILE_PHYSICAL_ASHIFT)
+#
+# Set the file vdev's ashift to the max. Overriding
+# the ashift using the -o ashift property should still
+# be honored.
+#
+log_must set_tunable64 VDEV_FILE_PHYSICAL_ASHIFT 16
 
 typeset ashifts=("9" "10" "11" "12" "13" "14" "15" "16")
 for ashift in ${ashifts[@]}
@@ -77,7 +87,7 @@ do
 	for cmdval in ${ashifts[@]}
 	do
 		log_must zpool create -o ashift=$ashift $TESTPOOL $disk1
-		log_must zpool add $TESTPOOL -o ashift=$cmdval $disk2
+		log_must zpool add -o ashift=$cmdval $TESTPOOL $disk2
 		verify_ashift $disk2 $cmdval
 		if [[ $? -ne 0 ]]
 		then

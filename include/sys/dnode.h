@@ -32,7 +32,7 @@
 #include <sys/spa.h>
 #include <sys/txg.h>
 #include <sys/zio.h>
-#include <sys/refcount.h>
+#include <sys/zfs_refcount.h>
 #include <sys/dmu_zfetch.h>
 #include <sys/zrlock.h>
 #include <sys/multilist.h>
@@ -46,6 +46,7 @@ extern "C" {
  */
 #define	DNODE_MUST_BE_ALLOCATED	1
 #define	DNODE_MUST_BE_FREE	2
+#define	DNODE_DRY_RUN		4
 
 /*
  * dnode_next_offset() flags.
@@ -170,7 +171,7 @@ enum dnode_dirtycontext {
  * example, reading 32 dnodes from a 16k dnode block and all of the spill
  * blocks could issue 33 separate reads. Now suppose those dnodes have size
  * 1024 and therefore don't need spill blocks. Then the worst case number
- * of blocks read is reduced to from 33 to two--one per dnode block.
+ * of blocks read is reduced from 33 to two--one per dnode block.
  *
  * ZFS-on-Linux systems that make heavy use of extended attributes benefit
  * from this feature. In particular, ZFS-on-Linux supports the xattr=sa
@@ -231,8 +232,8 @@ typedef struct dnode_phys {
 	 * Both dn_pad2 and dn_pad3 are protected by the block's MAC. This
 	 * allows us to protect any fields that might be added here in the
 	 * future. In either case, developers will want to check
-	 * zio_crypt_init_uios_dnode() to ensure the new field is being
-	 * protected properly.
+	 * zio_crypt_init_uios_dnode() and zio_crypt_do_dnode_hmac_updates()
+	 * to ensure the new field is being protected and updated properly.
 	 */
 	uint64_t dn_pad3[4];
 
@@ -331,8 +332,9 @@ struct dnode {
 	uint64_t dn_assigned_txg;
 	uint64_t dn_dirty_txg;			/* txg dnode was last dirtied */
 	kcondvar_t dn_notxholds;
+	kcondvar_t dn_nodnholds;
 	enum dnode_dirtycontext dn_dirtyctx;
-	uint8_t *dn_dirtyctx_firstset;		/* dbg: contents meaningless */
+	void *dn_dirtyctx_firstset;		/* dbg: contents meaningless */
 
 	/* protected by own devices */
 	zfs_refcount_t dn_tx_holds;
@@ -370,6 +372,13 @@ struct dnode {
 	/* holds prefetch structure */
 	struct zfetch	dn_zfetch;
 };
+
+/*
+ * Since AVL already has embedded element counter, use dn_dbufs_count
+ * only for dbufs not counted there (bonus buffers) and just add them.
+ */
+#define	DN_DBUFS_COUNT(dn)	((dn)->dn_dbufs_count + \
+    avl_numnodes(&(dn)->dn_dbufs))
 
 /*
  * We use this (otherwise unused) bit to indicate if the value of
@@ -415,7 +424,10 @@ int dnode_hold_impl(struct objset *dd, uint64_t object, int flag, int dn_slots,
 boolean_t dnode_add_ref(dnode_t *dn, void *ref);
 void dnode_rele(dnode_t *dn, void *ref);
 void dnode_rele_and_unlock(dnode_t *dn, void *tag, boolean_t evicting);
+int dnode_try_claim(objset_t *os, uint64_t object, int slots);
+boolean_t dnode_is_dirty(dnode_t *dn);
 void dnode_setdirty(dnode_t *dn, dmu_tx_t *tx);
+void dnode_set_dirtyctx(dnode_t *dn, dmu_tx_t *tx, void *tag);
 void dnode_sync(dnode_t *dn, dmu_tx_t *tx);
 void dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
     dmu_object_type_t bonustype, int bonuslen, int dn_slots, dmu_tx_t *tx);
@@ -440,7 +452,6 @@ int dnode_next_offset(dnode_t *dn, int flags, uint64_t *off,
 void dnode_evict_dbufs(dnode_t *dn);
 void dnode_evict_bonus(dnode_t *dn);
 void dnode_free_interior_slots(dnode_t *dn);
-boolean_t dnode_needs_remap(const dnode_t *dn);
 
 #define	DNODE_IS_DIRTY(_dn)						\
 	((_dn)->dn_dirty_txg >= spa_syncing_txg((_dn)->dn_objset->os_spa))
@@ -533,11 +544,6 @@ typedef struct dnode_stats {
 	 */
 	kstat_named_t dnode_hold_free_overflow;
 	/*
-	 * Number of times a dnode_hold(...) was attempted on a dnode
-	 * which had already been unlinked in an earlier txg.
-	 */
-	kstat_named_t dnode_hold_free_txg;
-	/*
 	 * Number of times dnode_free_interior_slots() needed to retry
 	 * acquiring a slot zrl lock due to contention.
 	 */
@@ -595,14 +601,14 @@ extern dnode_stats_t dnode_stats;
 	char __db_buf[32]; \
 	uint64_t __db_obj = (dn)->dn_object; \
 	if (__db_obj == DMU_META_DNODE_OBJECT) \
-		(void) strcpy(__db_buf, "mdn"); \
+		(void) strlcpy(__db_buf, "mdn", sizeof (__db_buf));	\
 	else \
 		(void) snprintf(__db_buf, sizeof (__db_buf), "%lld", \
 		    (u_longlong_t)__db_obj);\
 	dprintf_ds((dn)->dn_objset->os_dsl_dataset, "obj=%s " fmt, \
 	    __db_buf, __VA_ARGS__); \
 	} \
-_NOTE(CONSTCOND) } while (0)
+} while (0)
 
 #define	DNODE_VERIFY(dn)		dnode_verify(dn)
 #define	FREE_VERIFY(db, start, end, tx)	free_verify(db, start, end, tx)

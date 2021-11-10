@@ -57,9 +57,8 @@ function cleanup
 log_onexit cleanup
 log_assert "'zfs list -d <n>' should get expected output."
 
-mntpnt=/var/tmp
-DEPTH_OUTPUT="$mntpnt/depth_output"
-EXPECT_OUTPUT="$mntpnt/expect_output"
+DEPTH_OUTPUT="$TEST_BASE_DIR/depth_output"
+EXPECT_OUTPUT="$TEST_BASE_DIR/expect_output"
 typeset -i old_val=0
 typeset -i j=0
 typeset -i fs=0

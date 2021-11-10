@@ -44,6 +44,7 @@
 verify_runnable "global"
 
 log_assert "log device can survive when one of the pool device get corrupted."
+log_must setup
 
 for type in "mirror" "raidz" "raidz2"; do
 	for spare in "" "spare"; do
@@ -63,7 +64,7 @@ for type in "mirror" "raidz" "raidz2"; do
 		# Corrupt a pool device to make the pool DEGRADED
 		# The oseek value below is to skip past the vdev label.
 		#
-		if is_linux; then
+		if is_linux || is_freebsd; then
 			log_must dd if=/dev/urandom of=$VDIR/a bs=1024k \
 			   seek=4 conv=notrunc count=50
 		else

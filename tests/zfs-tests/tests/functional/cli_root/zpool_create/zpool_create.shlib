@@ -45,7 +45,7 @@ function create_pool_test
 	typeset vdevs
 	eval "typeset -a diskarray=($3)"
 
-	for vdevs in "${diskarray[@]}";do
+	for vdevs in "${diskarray[@]}"; do
 		create_pool $pool $keywd $vdevs
 		log_must poolexists $pool
 		destroy_pool $pool
@@ -53,67 +53,15 @@ function create_pool_test
 }
 
 #
-# Create a ufs|ext file system and make a file within the file
-# system for storage pool vdev
+# Create a file for storage pool vdev
 # $1, file size
-# $2, file name
-# $3, disk name to create ufs|ext file system
 #
 function create_blockfile
 {
 	typeset size=$1
-	typeset file=$2
-	typeset disk=$3
-	typeset dir=`dirname $file`
-
-	if [[ -d $dir ]]; then
-		ismounted $dir $NEWFS_DEFAULT_FS
-		(( $? == 0 )) && \
-			log_must umount -f $dir
-	else
-		log_must mkdir -p $dir
-	fi
-
-	echo "y" | newfs ${DEV_RDSKDIR}/$disk >/dev/null 2>&1
-	(( $? != 0 )) &&
-		log_fail "Create file system fail."
-
-        log_must mount ${DEV_DSKDIR}/$disk $dir
-        log_must truncate -s $size $file
-}
-
-#
-# Umount the ufs|ext filesystem and remove the mountpoint
-# $1, the mount point
-#
-function clean_blockfile
-{
-	typeset dirs=$1
-
-	for dir in $dirs; do
-		if [[ -d $dir ]]; then
-			if is_linux; then
-				if ismounted $dir ext2; then
-					typeset dev=$(df -lht ext2 | \
-						grep "$dir" | \
-						awk '{print $1}')
-					log_must umount -f $dir
-					create_pool ${TESTPOOL}.tmp $dev
-					destroy_pool ${TESTPOOL}.tmp
-				fi
-			else
-				if ismounted $dir ufs; then
-					typeset dev=$(df -lhF ufs | \
-						grep "$dir" | \
-						awk '{print $1}')
-					log_must umount -f $dir
-					create_pool ${TESTPOOL}.tmp $dev
-					destroy_pool ${TESTPOOL}.tmp
-				fi
-			fi
-			log_must rm -rf $dir
-		fi
-	done
+	typeset file=$(mktemp)
+	truncate -s $size $file
+	echo $file
 }
 
 #
@@ -125,12 +73,12 @@ function find_vfstab_dev
 	typeset vfstabdevs=""
 	typeset line
 
-	if is_linux; then
-		vfstab="/etc/fstab"
-		tmpfile="$TEST_BASE_DIR/fstab.tmp"
-	else
+	if is_illumos; then
 		vfstab="/etc/vfstab"
 		tmpfile="$TEST_BASE_DIR/vfstab.tmp"
+	else
+		vfstab="/etc/fstab"
+		tmpfile="$TEST_BASE_DIR/fstab.tmp"
 	fi
 
 	cat $vfstab | grep "^${DEV_DSKDIR}" >$tmpfile
@@ -146,18 +94,97 @@ function find_vfstab_dev
 }
 
 #
-# Save the systme current dump device configuration
+# Save the system current dump device configuration
 #
 function save_dump_dev
 {
-	typeset dumpdev
+	typeset dumpdev=""
 
-	if is_linux; then
-		dumpdev=""
-	else
+	if is_illumos; then
 		typeset fnd="Dump device"
 		dumpdev=`dumpadm | grep "$fnd" | cut -f2 -d : | \
 			awk '{print $1}'`
 	fi
 	echo $dumpdev
+}
+
+#
+# Verify a pools enabled features match the provided feature set.
+# $1, pool name
+# $2, feature set(s)
+#
+# check_feature_set $TESTPOOL set1 set2 set3 ...
+#
+function check_feature_set
+{
+	typeset pool=$1
+	typeset feature_set=$2
+	shift
+
+	for set in "$@"; do
+		if test -e "$ZPOOL_COMPAT_DIR/$set"; then
+			file="$ZPOOL_COMPAT_DIR/$set"
+		else
+			log_fail "Missing feature file: $ZPOOL_COMPAT_DIR/$set"
+		fi
+	done
+
+	#
+	# Create a temporary file which contains all features which are
+	# common to the listed feature sets.  This is used for comparison
+	# below to determine which features should be enabled.
+	#
+	typeset tmpfile=$(mktemp)
+
+	while read line; do
+		typeset flag=1
+
+		if [[ "$line" == "#*" ]]; then
+			continue
+		fi
+
+		for set in "$@"; do
+			if ! grep -q "$line" $ZPOOL_COMPAT_DIR/$set; then
+				flag=0
+				break;
+			fi
+		done
+
+		if [[ $flag -eq 1 ]]; then
+			echo "$line" >>$tmpfile
+		fi
+	done <"$file"
+
+	#
+	# Verify every enabled feature appears in the merged feature set.
+	# Verify every disabled feature does not.
+	#
+	for feature in $(zpool get all $pool | \
+	    awk '$2 ~ /feature@/ { print $2 }'); do
+		state=$(get_pool_prop $feature $pool)
+		name=$(cut -d'@' -f2 <<<"$feature")
+
+		if [[ "$state" = "enabled" || "$state" = "active" ]]; then
+			if ! grep -q $name $tmpfile; then
+				cat $tmpfile
+				rm -f $tmpfile
+				log_fail "Enabled feature $name not " \
+				    "in feature set file"
+			fi
+		elif [[ "$state" = "disabled" ]]; then
+			if grep -q $name $tmpfile; then
+				cat $tmpfile
+				rm -f $tmpfile
+				log_fail "Disabled feature $name is " \
+				    "in feature set file"
+			fi
+		else
+			rm -f $tmpfile
+			log_fail "Feature $name in unknown state $state"
+		fi
+	done
+
+	log_note "Checked all features"
+
+	rm -f $tmpfile
 }

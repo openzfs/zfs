@@ -4,6 +4,3 @@ dist_pkgdata_SCRIPTS = \
 	cleanup.ksh \
 	write_dirs_001_pos.ksh \
 	write_dirs_002_pos.ksh
-
-dist_pkgdata_DATA = \
-	write_dirs.cfg

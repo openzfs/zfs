@@ -1,13 +1,13 @@
+bin_SCRIPTS = arc_summary
+
+CLEANFILES = arc_summary
 EXTRA_DIST = arc_summary2 arc_summary3
 
 if USING_PYTHON_2
-dist_bin_SCRIPTS = arc_summary2
-install-exec-hook:
-	mv $(DESTDIR)$(bindir)/arc_summary2 $(DESTDIR)$(bindir)/arc_summary
+SCRIPT = arc_summary2
+else
+SCRIPT = arc_summary3
 endif
 
-if USING_PYTHON_3
-dist_bin_SCRIPTS = arc_summary3
-install-exec-hook:
-	mv $(DESTDIR)$(bindir)/arc_summary3 $(DESTDIR)$(bindir)/arc_summary
-endif
+arc_summary: $(SCRIPT)
+	cp $< $@

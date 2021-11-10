@@ -1,0 +1,5 @@
+[suppress_type]
+	name = FILE*
+
+[suppress_type]
+	name = pthread_cond_t

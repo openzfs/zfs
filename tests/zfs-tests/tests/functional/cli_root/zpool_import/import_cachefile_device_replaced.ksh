@@ -59,7 +59,7 @@ function custom_cleanup
 	[[ -n ZFS_TXG_TIMEOUT ]] &&
 	    log_must set_zfs_txg_timeout $ZFS_TXG_TIMEOUT
 
-	log_must set_tunable32 zfs_scan_suspend_progress 0
+	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 0
 	cleanup
 }
 
@@ -87,7 +87,7 @@ function test_replacing_vdevs
 	log_must zpool export $TESTPOOL1
 	log_must cp $CPATHBKP $CPATH
 	log_must zpool import -c $CPATH -o cachefile=$CPATH $TESTPOOL1
-	log_must set_tunable32 zfs_scan_suspend_progress 1
+	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
 	log_must zpool replace $TESTPOOL1 $replacevdev $replaceby
 
 	# Cachefile: pool in resilvering state
@@ -96,7 +96,7 @@ function test_replacing_vdevs
 	# Confirm pool is still replacing
 	log_must pool_is_replacing $TESTPOOL1
 	log_must zpool export $TESTPOOL1
-	log_must set_tunable32 zfs_scan_suspend_progress 0
+	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 0
 
 	( $earlyremove ) && log_must rm $replacevdev
 
@@ -154,6 +154,12 @@ test_replacing_vdevs "raidz $VDEV0 $VDEV1 $VDEV2" \
 	"raidz $VDEV0 $VDEV3 $VDEV2" \
 	"$VDEV0 $VDEV1 $VDEV2" \
 	true 20
+
+test_replacing_vdevs "draid:1s $VDEV0 $VDEV1 $VDEV2 $VDEV3 $VDEV4" \
+	"$VDEV1" "$VDEV5" \
+	"draid $VDEV0 $VDEV5 $VDEV2 $VDEV3 $VDEV4 spares draid1-0-0" \
+	"$VDEV0 $VDEV1 $VDEV2 $VDEV3 $VDEV4" \
+	true 30
 
 set_zfs_txg_timeout $ZFS_TXG_TIMEOUT
 

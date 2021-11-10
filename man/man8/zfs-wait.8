@@ -1,0 +1,65 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+.\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
+.\" Copyright (c) 2017 Datto Inc.
+.\" Copyright (c) 2018 George Melikov. All Rights Reserved.
+.\" Copyright 2017 Nexenta Systems, Inc.
+.\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\"
+.Dd May 31, 2021
+.Dt ZFS-WAIT 8
+.Os
+.
+.Sh NAME
+.Nm zfs-wait
+.Nd wait for activity in ZFS filesystem to stop
+.Sh SYNOPSIS
+.Nm zfs
+.Cm wait
+.Op Fl t Ar activity Ns Oo , Ns Ar activity Ns Oc Ns …
+.Ar filesystem
+.
+.Sh DESCRIPTION
+Waits until all background activity of the given types has ceased in the given
+filesystem.
+The activity could cease because it has completed or because the filesystem has
+been destroyed or unmounted.
+If no activities are specified, the command waits until background activity of
+every type listed below has ceased.
+If there is no activity of the given types in progress, the command returns
+immediately.
+.Pp
+These are the possible values for
+.Ar activity ,
+along with what each one waits for:
+.Bl -tag -compact -offset Ds -width "deleteq"
+.It Sy deleteq
+The filesystem's internal delete queue to empty
+.El
+.Pp
+Note that the internal delete queue does not finish draining until
+all large files have had time to be fully destroyed and all open file
+handles to unlinked files are closed.
+.
+.Sh SEE ALSO
+.Xr lsof 8

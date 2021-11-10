@@ -27,9 +27,12 @@
 #if defined(__x86_64) && defined(HAVE_SSE2)
 
 #include <sys/types.h>
-#include <linux/simd_x86.h>
+#include <sys/simd.h>
+#include <sys/debug.h>
 
+#ifdef __linux__
 #define	__asm __asm__ __volatile__
+#endif
 
 #define	_REG_CNT(_0, _1, _2, _3, _4, _5, _6, _7, N, ...) N
 #define	REG_CNT(r...) _REG_CNT(r, 8, 7, 6, 5, 4, 3, 2, 1)
@@ -125,6 +128,8 @@ typedef struct v {
 		__asm(							\
 		    "movdqa %" VR0(r) ", %" VR1(r));			\
 		break;							\
+	default:							\
+		VERIFY(0);						\
 	}								\
 }
 
@@ -175,6 +180,8 @@ typedef struct v {
 		    "movdqa %%" VR0(r)", 0x00(%[DST])\n"		\
 		    : : [DST] "r" (dst));				\
 		break;							\
+	default:							\
+		VERIFY(0);						\
 	}								\
 }
 
@@ -508,6 +515,8 @@ gf_x2_mul_fns[256] = {
 		gf_x1_mul_fns[c]();					\
 		COPY(_mul_x1_acc, r);					\
 		break;							\
+	default:							\
+		VERIFY(0);						\
 	}								\
 }
 
@@ -607,7 +616,7 @@ DEFINE_REC_METHODS(sse2);
 static boolean_t
 raidz_will_sse2_work(void)
 {
-	return (zfs_sse_available() && zfs_sse2_available());
+	return (kfpu_allowed() && zfs_sse_available() && zfs_sse2_available());
 }
 
 const raidz_impl_ops_t vdev_raidz_sse2_impl = {

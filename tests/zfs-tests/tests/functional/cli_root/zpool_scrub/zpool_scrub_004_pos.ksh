@@ -46,7 +46,7 @@
 
 function cleanup
 {
-	log_must set_tunable32 zfs_scan_suspend_progress 0
+	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 0
 	rm -f $mntpnt/extra
 }
 
@@ -59,7 +59,7 @@ log_assert "Resilver prevent scrub from starting until the resilver completes"
 mntpnt=$(get_prop mountpoint $TESTPOOL/$TESTFS)
 
 # Temporarily prevent scan progress so our test doesn't race
-log_must set_tunable32 zfs_scan_suspend_progress 1
+log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
 
 while ! is_pool_resilvering $TESTPOOL; do
 	log_must zpool detach $TESTPOOL $DISK2
@@ -72,9 +72,7 @@ done
 log_must is_pool_resilvering $TESTPOOL
 log_mustnot zpool scrub $TESTPOOL
 
-log_must set_tunable32 zfs_scan_suspend_progress 0
-while ! is_pool_resilvered $TESTPOOL; do
-	sleep 1
-done
+log_must set_tunable32 SCAN_SUSPEND_PROGRESS 0
+log_must zpool wait -t resilver $TESTPOOL
 
 log_pass "Resilver prevent scrub from starting until the resilver completes"

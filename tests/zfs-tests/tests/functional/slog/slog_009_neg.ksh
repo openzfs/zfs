@@ -45,6 +45,7 @@ verify_runnable "global"
 
 log_assert "A raidz/raidz2 log can not be added to existed pool."
 log_onexit cleanup
+log_must setup
 
 for type in "" "mirror" "raidz" "raidz2"
 do

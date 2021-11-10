@@ -46,7 +46,7 @@
 #include <sys/byteorder.h>
 #include <sys/errno.h>
 #include <sys/u8_textprep_data.h>
-
+#include <sys/mod.h>
 
 /* The maximum possible number of bytes in a UTF-8 character. */
 #define	U8_MB_CUR_MAX			(4)
@@ -330,7 +330,7 @@ const uint8_t u8_valid_max_2nd_byte[0x100] = {
  * specific to UTF-8 and Unicode.
  */
 int
-u8_validate(char *u8str, size_t n, char **list, int flag, int *errnum)
+u8_validate(const char *u8str, size_t n, char **list, int flag, int *errnum)
 {
 	uchar_t *ib;
 	uchar_t *ibtail;
@@ -865,7 +865,9 @@ do_decomp(size_t uv, uchar_t *u8s, uchar_t *s, int sz,
 		start_id = u8_decomp_b4_16bit_tbl[uv][b3_tbl][b4];
 		end_id = u8_decomp_b4_16bit_tbl[uv][b3_tbl][b4 + 1];
 	} else {
+		// cppcheck-suppress arrayIndexOutOfBoundsCond
 		start_id = u8_decomp_b4_tbl[uv][b3_tbl][b4];
+		// cppcheck-suppress arrayIndexOutOfBoundsCond
 		end_id = u8_decomp_b4_tbl[uv][b3_tbl][b4 + 1];
 	}
 
@@ -884,7 +886,7 @@ do_decomp(size_t uv, uchar_t *u8s, uchar_t *s, int sz,
 	 *	| B0| B1| ... | Bm|
 	 *	+---+---+-...-+---+
 	 *
-	 *	The first byte, B0, is always less then 0xF5 (U8_DECOMP_BOTH).
+	 *	The first byte, B0, is always less than 0xF5 (U8_DECOMP_BOTH).
 	 *
 	 * (2) Canonical decomposition mappings:
 	 *
@@ -1012,7 +1014,9 @@ find_composition_start(size_t uv, uchar_t *s, size_t sz)
 		start_id = u8_composition_b4_16bit_tbl[uv][b3_tbl][b4];
 		end_id = u8_composition_b4_16bit_tbl[uv][b3_tbl][b4 + 1];
 	} else {
+		// cppcheck-suppress arrayIndexOutOfBoundsCond
 		start_id = u8_composition_b4_tbl[uv][b3_tbl][b4];
+		// cppcheck-suppress arrayIndexOutOfBoundsCond
 		end_id = u8_composition_b4_tbl[uv][b3_tbl][b4 + 1];
 	}
 
@@ -1710,7 +1714,7 @@ TURN_STREAM_SAFE:
 }
 
 /*
- * The do_norm_compare() function does string comparion based on Unicode
+ * The do_norm_compare() function does string comparison based on Unicode
  * simple case mappings and Unicode Normalization definitions.
  *
  * It does so by collecting a sequence of character at a time and comparing
@@ -2139,13 +2143,13 @@ unicode_fini(void)
 
 module_init(unicode_init);
 module_exit(unicode_fini);
+#endif
 
-MODULE_DESCRIPTION("Unicode implementation");
-MODULE_AUTHOR(ZFS_META_AUTHOR);
-MODULE_LICENSE(ZFS_META_LICENSE);
-MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
+ZFS_MODULE_DESCRIPTION("Unicode implementation");
+ZFS_MODULE_AUTHOR(ZFS_META_AUTHOR);
+ZFS_MODULE_LICENSE(ZFS_META_LICENSE);
+ZFS_MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
 
 EXPORT_SYMBOL(u8_validate);
 EXPORT_SYMBOL(u8_strcmp);
 EXPORT_SYMBOL(u8_textprep_str);
-#endif

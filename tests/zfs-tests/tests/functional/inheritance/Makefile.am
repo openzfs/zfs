@@ -4,6 +4,8 @@ dist_pkgdata_SCRIPTS = \
 	inherit_001_pos.ksh
 
 dist_pkgdata_DATA = \
+	README.config \
+	README.state \
 	inherit.kshlib \
 	config001.cfg \
 	config002.cfg \

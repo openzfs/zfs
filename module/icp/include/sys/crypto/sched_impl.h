@@ -381,7 +381,7 @@ typedef struct kcf_pool {
 
 	/*
 	 * cv & lock for the condition where more threads need to be
-	 * created. kp_user_lock also protects the three fileds above.
+	 * created. kp_user_lock also protects the three fields above.
 	 */
 	kcondvar_t	kp_user_cv;		/* Creator cond. variable */
 	kmutex_t	kp_user_lock;		/* Creator lock */
@@ -448,13 +448,13 @@ typedef struct kcf_ntfy_elem {
  * The following values are based on the assumption that it would
  * take around eight cpus to load a hardware provider (This is true for
  * at least one product) and a kernel client may come from different
- * low-priority interrupt levels. We will have CYRPTO_TASKQ_MIN number
+ * low-priority interrupt levels. We will have CRYPTO_TASKQ_MIN number
  * of cached taskq entries. The CRYPTO_TASKQ_MAX number is based on
  * a throughput of 1GB/s using 512-byte buffers. These are just
  * reasonable estimates and might need to change in future.
  */
 #define	CRYPTO_TASKQ_THREADS	8
-#define	CYRPTO_TASKQ_MIN	64
+#define	CRYPTO_TASKQ_MIN	64
 #define	CRYPTO_TASKQ_MAX	2 * 1024 * 1024
 
 extern int crypto_taskq_threads;

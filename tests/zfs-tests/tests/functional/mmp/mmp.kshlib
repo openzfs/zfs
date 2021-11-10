@@ -173,8 +173,8 @@ function seconds_mmp_waits_for_activity
 
 	typeset seconds=0
 	typeset devices=${#DISK[@]}
-	typeset import_intervals=$(get_tunable zfs_multihost_import_intervals)
-	typeset import_interval=$(get_tunable zfs_multihost_interval)
+	typeset import_intervals=$(get_tunable MULTIHOST_IMPORT_INTERVALS)
+	typeset import_interval=$(get_tunable MULTIHOST_INTERVAL)
 	typeset tmpfile=$(mktemp)
 	typeset mmp_fail
 	typeset mmp_write
@@ -241,8 +241,8 @@ function import_activity_check # pool opts act_test_duration
 
 function clear_mmp_history
 {
-	log_must set_tunable64 zfs_multihost_history $MMP_HISTORY_OFF
-	log_must set_tunable64 zfs_multihost_history $MMP_HISTORY
+	log_must set_tunable64 MULTIHOST_HISTORY $MMP_HISTORY_OFF
+	log_must set_tunable64 MULTIHOST_HISTORY $MMP_HISTORY
 }
 
 function count_skipped_mmp_writes # pool duration

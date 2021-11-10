@@ -1,0 +1,11 @@
+#
+# Default rules for running cppcheck against the user space components.
+#
+
+PHONY += cppcheck
+
+CPPCHECKFLAGS  = --std=c99 --quiet --max-configs=1 --error-exitcode=2
+CPPCHECKFLAGS += --inline-suppr -U_KERNEL
+
+cppcheck:
+	$(CPPCHECK) -j$(CPU_COUNT) $(CPPCHECKFLAGS) $(DEFAULT_INCLUDES) $(SOURCES)

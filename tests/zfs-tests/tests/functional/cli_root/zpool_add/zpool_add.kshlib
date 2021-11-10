@@ -40,12 +40,12 @@ function find_vfstab_dev
 	typeset vfstabdevs=""
 	typeset line
 
-	if is_linux; then
-		vfstab="/etc/fstab"
-		tmpfile="$TEST_BASE_DIR/fstab.tmp"
-	else
+	if is_illumos; then
 		vfstab="/etc/vfstab"
 		tmpfile="$TEST_BASE_DIR/vfstab.tmp"
+	else
+		vfstab="/etc/fstab"
+		tmpfile="$TEST_BASE_DIR/fstab.tmp"
 	fi
 
 	cat $vfstab | grep "^${DEV_DSKDIR}" >$tmpfile
@@ -69,7 +69,12 @@ function find_mnttab_dev
 	typeset mnttabdevs=""
 	typeset line
 
-	if is_linux; then
+	if is_freebsd; then
+		# FreeBSD doesn't have a mnttab file.
+		mount -p | awk -v dir="^${DEV_DSKDIR}" \
+		    '$1 ~ dir { print $1 }' | xargs
+		return 0
+	elif is_linux; then
 		typeset mnttab="/etc/mtab"
 		typeset tmpfile="$TEST_BASE_DIR/mtab.tmp"
 	else
@@ -90,36 +95,17 @@ function find_mnttab_dev
 }
 
 #
-# Save the systme current dump device configuration
+# Save the system current dump device configuration
 #
 function save_dump_dev
 {
 
-	typeset dumpdev
+	typeset dumpdev=""
 
-	if is_linux; then
-		dumpdev=""
-	else
+	if is_illumos; then
 		typeset fnd="Dump device"
 		dumpdev=`dumpadm | grep "$fnd" | cut -f2 -d : | \
 			awk '{print $1}'`
 	fi
 	echo $dumpdev
-}
-
-#
-# Common cleanup routine for partitions used in testing
-#
-function partition_cleanup
-{
-
-	if [[ -n $DISK ]]; then
-		partition_disk $SIZE $DISK 7
-	else
-		typeset disk=""
-		for disk in $DISK0 $DISK1; do
-			partition_disk $SIZE $disk 7
-		done
-	fi
-
 }

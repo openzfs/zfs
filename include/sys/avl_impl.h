@@ -25,8 +25,7 @@
  */
 
 #ifndef	_AVL_IMPL_H
-#define	_AVL_IMPL_H
-
+#define	_AVL_IMPL_H extern __attribute__((visibility("default")))
 
 
 /*
@@ -148,14 +147,16 @@ struct avl_tree {
 	int (*avl_compar)(const void *, const void *);
 	size_t avl_offset;		/* offsetof(type, avl_link_t field) */
 	ulong_t avl_numnodes;		/* number of nodes in the tree */
-	size_t avl_size;		/* sizeof user type struct */
+#ifndef _KERNEL
+	size_t avl_pad;			/* For backwards ABI compatibility. */
+#endif
 };
 
 
 /*
  * This will only by used via AVL_NEXT() or AVL_PREV()
  */
-extern void *avl_walk(struct avl_tree *, void *, int);
+_AVL_IMPL_H void *avl_walk(struct avl_tree *, void *, int);
 
 #ifdef	__cplusplus
 }

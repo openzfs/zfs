@@ -24,7 +24,7 @@
  */
 
 #ifndef	_SYS_EFI_PARTITION_H
-#define	_SYS_EFI_PARTITION_H
+#define	_SYS_EFI_PARTITION_H extern __attribute__((visibility("default")))
 
 #include <sys/uuid.h>
 
@@ -297,11 +297,11 @@ typedef struct efi_gpe {
  * checksums, and perform any necessary byte-swapping to the on-disk
  * format.
  */
-/* Solaris library abstraction for EFI partitons */
+/* Solaris library abstraction for EFI partitions */
 typedef struct dk_part	{
 	diskaddr_t	p_start;	/* starting LBA */
 	diskaddr_t	p_size;		/* size in blocks */
-	struct uuid	p_guid;		/* partion type GUID */
+	struct uuid	p_guid;		/* partition type GUID */
 	ushort_t	p_tag;		/* converted to part'n type GUID */
 	ushort_t	p_flag;		/* attributes */
 	char		p_name[EFI_PART_NAME_LEN]; /* partition name */
@@ -363,15 +363,15 @@ struct partition64 {
 #endif
 
 #ifndef _KERNEL
-extern	int	efi_alloc_and_init(int, uint32_t, struct dk_gpt **);
-extern	int	efi_alloc_and_read(int, struct dk_gpt **);
-extern	int	efi_write(int, struct dk_gpt *);
-extern	int	efi_rescan(int);
-extern	void	efi_free(struct dk_gpt *);
-extern	int	efi_type(int);
-extern	void	efi_err_check(struct dk_gpt *);
-extern	int	efi_auto_sense(int fd, struct dk_gpt **);
-extern	int	efi_use_whole_disk(int fd);
+_SYS_EFI_PARTITION_H int efi_debug;
+_SYS_EFI_PARTITION_H int efi_alloc_and_init(int, uint32_t, struct dk_gpt **);
+_SYS_EFI_PARTITION_H int efi_alloc_and_read(int, struct dk_gpt **);
+_SYS_EFI_PARTITION_H int efi_write(int, struct dk_gpt *);
+_SYS_EFI_PARTITION_H int efi_rescan(int);
+_SYS_EFI_PARTITION_H void efi_free(struct dk_gpt *);
+_SYS_EFI_PARTITION_H int efi_type(int);
+_SYS_EFI_PARTITION_H void efi_err_check(struct dk_gpt *);
+_SYS_EFI_PARTITION_H int efi_use_whole_disk(int fd);
 #endif
 
 #ifdef __cplusplus

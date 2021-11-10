@@ -54,7 +54,7 @@ function cleanup
 	typeset -i i=0
 	while ((i < snap_cnt)); do
 		typeset snap=$fs@snap.$i
-		datasetexists $snap && log_must zfs destroy -f $snap
+		datasetexists $snap && destroy_dataset $snap -f
 
 		((i += 1))
 	done

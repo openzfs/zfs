@@ -61,16 +61,18 @@ function cleanup
 			log_must rm -f $BACKUP
 		fi
 
-		# Our disk is back.  Now we can clear errors and destroy the
-		# pool cleanly.
-		log_must zpool clear $TESTPOOL2
+		if poolexists $TESTPOOL2 ; then
+			# Our disk is back.  Now we can clear errors and destroy the
+			# pool cleanly.
+			log_must zpool clear $TESTPOOL2
 
-		# Now that the disk is back and errors cleared, wait for our
-		# hung 'zpool scrub' to finish.
-		wait
+			# Now that the disk is back and errors cleared, wait for our
+			# hung 'zpool scrub' to finish.
+			wait
 
-		destroy_pool $TESTPOOL2
-		log_must rm $REALDISK
+			destroy_pool $TESTPOOL2
+		fi
+		log_must rm -f $REALDISK
 		unload_scsi_debug
 	fi
 }
@@ -105,8 +107,10 @@ check_all $TESTPOOL "ONLINE"
 
 # Fault one of the disks, and check that pool is degraded
 DISK1=$(echo "$DISKS" | awk '{print $2}')
-zpool offline -tf $TESTPOOL $DISK1
+log_must zpool offline -tf $TESTPOOL $DISK1
 check_all $TESTPOOL "DEGRADED"
+log_must zpool online $TESTPOOL $DISK1
+log_must zpool clear $TESTPOOL
 
 # Create a new pool out of a scsi_debug disk
 TESTPOOL2=testpool2
@@ -137,7 +141,7 @@ remove_disk $SDISK
 # background since the command will hang when the pool gets suspended.  The
 # command will resume and exit after we restore the missing disk later on.
 zpool scrub $TESTPOOL2 &
-sleep 1		# Give the scrub some time to run before we check if it fails
+sleep 3		# Give the scrub some time to run before we check if it fails
 
 log_must check_all $TESTPOOL2 "SUSPENDED"
 

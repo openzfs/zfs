@@ -30,18 +30,9 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
-. $STF_SUITE/tests/functional/write_dirs/write_dirs.cfg
 
 verify_runnable "global"
 
-if ! $(is_physical_device $DISKS) ; then
-	log_unsupported "This directory cannot be run on raw files."
-fi
-
-DISK=${DISKS%% *}
-if is_mpath_device $DISK; then
-         delete_partitions
-fi
-log_must set_partition 0 "" $SIZE $DISK
-
-default_setup "${DISK}${SLICE_PREFIX}${SLICE}"
+DISK=$TEST_BASE_DIR/disk0
+truncate -s 2G $DISK
+default_setup $DISK

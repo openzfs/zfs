@@ -40,7 +40,7 @@
  * minalloc and maxalloc values to be used for taskq_create().
  */
 int crypto_taskq_threads = CRYPTO_TASKQ_THREADS;
-int crypto_taskq_minalloc = CYRPTO_TASKQ_MIN;
+int crypto_taskq_minalloc = CRYPTO_TASKQ_MIN;
 int crypto_taskq_maxalloc = CRYPTO_TASKQ_MAX;
 
 static void remove_provider(kcf_provider_desc_t *);
@@ -261,7 +261,7 @@ crypto_register_provider(crypto_provider_info_t *info,
 			prov_desc->pd_kstat->ks_update = kcf_prov_kstat_update;
 			kstat_install(prov_desc->pd_kstat);
 		}
-		strfree(ks_name);
+		kmem_strfree(ks_name);
 	}
 
 	if (prov_desc->pd_prov_type == CRYPTO_HW_PROVIDER)

@@ -12,10 +12,11 @@
 #
 
 #
-# Copyright (c) 2015 by Delphix. All rights reserved.
+# Copyright (c) 2015, Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/rsend/rsend.kshlib
+. $STF_SUITE/include/properties.shlib
 
 #
 # Description:
@@ -34,7 +35,6 @@ verify_runnable "both"
 
 log_assert "Verify compressed streams are rejected if incompatible."
 
-typeset compress_types="off gzip lz4"
 typeset send_ds=$POOL2/testds
 typeset recv_ds=$POOL3/testds
 
@@ -49,9 +49,9 @@ log_onexit cleanup
 datasetexists $POOL3 && log_must zpool destroy $POOL3
 log_must zpool create -d $POOL3 $DISK3
 
-for compress in $compress_types; do
-	datasetexists $send_ds && log_must_busy zfs destroy -r $send_ds
-	datasetexists $recv_ds && log_must_busy zfs destroy -r $recv_ds
+for compress in "${compress_prop_vals[@]}"; do
+	datasetexists $send_ds && destroy_dataset $send_ds -r
+	datasetexists $recv_ds && destroy_dataset $recv_ds -r
 
 	log_must zfs create -o compress=$compress $send_ds
 	typeset dir=$(get_prop mountpoint $send_ds)

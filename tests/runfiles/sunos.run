@@ -1,0 +1,53 @@
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+[DEFAULT]
+pre = setup
+quiet = False
+pre_user = root
+user = root
+timeout = 600
+post_user = root
+post = cleanup
+failsafe_user = root
+failsafe = callbacks/zfs_failsafe
+outputdir = /var/tmp/test_results
+tags = ['functional']
+
+[tests/functional/inuse:illumos]
+tests = ['inuse_001_pos', 'inuse_003_pos', 'inuse_006_pos', 'inuse_007_pos']
+post =
+tags = ['functional', 'inuse']
+
+[tests/functional/cli_root/zpool_add:illumos]
+tests = ['zpool_add_005_pos']
+tags = ['functional', 'cli_root', 'zpool_add']
+
+[tests/functional/cli_root/zpool_create:illumos]
+tests = ['zpool_create_016_pos']
+tags = ['functional', 'cli_root', 'zpool_create']
+
+[tests/functional/privilege]
+tests = ['privilege_001_pos', 'privilege_002_pos']
+tags = ['functional', 'privilege']
+
+[tests/functional/xattr:illumos]
+tests = ['xattr_008_pos', 'xattr_009_neg', 'xattr_010_neg']
+tags = ['functional', 'xattr']
+
+[tests/functional/zvol/zvol_misc:illumos]
+tests = ['zvol_misc_001_neg', 'zvol_misc_003_neg', 'zvol_misc_004_pos',
+    'zvol_misc_005_neg', 'zvol_misc_006_pos']
+tags = ['functional', 'zvol', 'zvol_misc']
+
+[tests/functional/zvol/zvol_swap:illumos]
+tests = ['zvol_swap_003_pos', 'zvol_swap_005_pos', 'zvol_swap_006_pos']
+tags = ['functional', 'zvol', 'zvol_swap']

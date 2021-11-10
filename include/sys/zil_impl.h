@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -209,32 +209,19 @@ struct zilog {
 	uint_t		zl_prev_rotor;	/* rotor for zl_prev[] */
 	txg_node_t	zl_dirty_link;	/* protected by dp_dirty_zilogs list */
 	uint64_t	zl_dirty_max_txg; /* highest txg used to dirty zilog */
+	/*
+	 * Max block size for this ZIL.  Note that this can not be changed
+	 * while the ZIL is in use because consumers (ZPL/zvol) need to take
+	 * this into account when deciding between WR_COPIED and WR_NEED_COPY
+	 * (see zil_max_copied_data()).
+	 */
+	uint64_t	zl_max_block_size;
 };
 
 typedef struct zil_bp_node {
 	dva_t		zn_dva;
 	avl_node_t	zn_node;
 } zil_bp_node_t;
-
-/*
- * Maximum amount of write data that can be put into single log block.
- */
-#define	ZIL_MAX_LOG_DATA (SPA_OLD_MAXBLOCKSIZE - sizeof (zil_chain_t) - \
-    sizeof (lr_write_t))
-
-/*
- * Maximum amount of log space we agree to waste to reduce number of
- * WR_NEED_COPY chunks to reduce zl_get_data() overhead (~12%).
- */
-#define	ZIL_MAX_WASTE_SPACE (ZIL_MAX_LOG_DATA / 8)
-
-/*
- * Maximum amount of write data for WR_COPIED.  Fall back to WR_NEED_COPY
- * as more space efficient if we can't fit at least two log records into
- * maximum sized log block.
- */
-#define	ZIL_MAX_COPIED_DATA ((SPA_OLD_MAXBLOCKSIZE - \
-    sizeof (zil_chain_t)) / 2 - sizeof (lr_write_t))
 
 #ifdef	__cplusplus
 }

@@ -26,7 +26,7 @@
 /*
  * This file is intended for functions that ought to be common between user
  * land (libzfs) and the kernel. When many common routines need to be shared
- * then a separate file should to be created.
+ * then a separate file should be created.
  */
 
 #if !defined(_KERNEL)
@@ -60,6 +60,37 @@ zfs_allocatable_devs(nvlist_t *nv)
 		    &is_log);
 		if (!is_log)
 			return (B_TRUE);
+	}
+	return (B_FALSE);
+}
+
+/*
+ * Are there special vdevs?
+ */
+boolean_t
+zfs_special_devs(nvlist_t *nv, char *type)
+{
+	char *bias;
+	uint_t c;
+	nvlist_t **child;
+	uint_t children;
+
+	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) != 0) {
+		return (B_FALSE);
+	}
+	for (c = 0; c < children; c++) {
+		if (nvlist_lookup_string(child[c], ZPOOL_CONFIG_ALLOCATION_BIAS,
+		    &bias) == 0) {
+			if (strcmp(bias, VDEV_ALLOC_BIAS_SPECIAL) == 0 ||
+			    strcmp(bias, VDEV_ALLOC_BIAS_DEDUP) == 0) {
+				if (type != NULL && strcmp(bias, type) == 0) {
+					return (B_TRUE);
+				} else if (type == NULL) {
+					return (B_TRUE);
+				}
+			}
+		}
 	}
 	return (B_FALSE);
 }
@@ -223,6 +254,7 @@ zfs_dataset_name_hidden(const char *name)
 
 #if defined(_KERNEL)
 EXPORT_SYMBOL(zfs_allocatable_devs);
+EXPORT_SYMBOL(zfs_special_devs);
 EXPORT_SYMBOL(zpool_get_load_policy);
 EXPORT_SYMBOL(zfs_zpl_version_map);
 EXPORT_SYMBOL(zfs_spa_version_map);

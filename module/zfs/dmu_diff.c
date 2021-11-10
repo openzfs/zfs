@@ -20,7 +20,8 @@
  */
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
  */
 
 #include <sys/dmu.h>
@@ -39,33 +40,36 @@
 #include <sys/zap.h>
 #include <sys/zio_checksum.h>
 #include <sys/zfs_znode.h>
+#include <sys/zfs_file.h>
 
-struct diffarg {
-	struct vnode *da_vp;		/* file to which we are reporting */
+
+typedef struct dmu_diffarg {
+	zfs_file_t *da_fp;		/* file to which we are reporting */
 	offset_t *da_offp;
 	int da_err;			/* error that stopped diff search */
 	dmu_diff_record_t da_ddr;
-};
+} dmu_diffarg_t;
 
 static int
-write_record(struct diffarg *da)
+write_record(dmu_diffarg_t *da)
 {
-	ssize_t resid; /* have to get resid to get detailed errno */
+	zfs_file_t *fp;
+	ssize_t resid;
 
 	if (da->da_ddr.ddr_type == DDR_NONE) {
 		da->da_err = 0;
 		return (0);
 	}
 
-	da->da_err = vn_rdwr(UIO_WRITE, da->da_vp, (caddr_t)&da->da_ddr,
-	    sizeof (da->da_ddr), 0, UIO_SYSSPACE, FAPPEND,
-	    RLIM64_INFINITY, CRED(), &resid);
+	fp = da->da_fp;
+	da->da_err = zfs_file_write(fp, (caddr_t)&da->da_ddr,
+	    sizeof (da->da_ddr), &resid);
 	*da->da_offp += sizeof (da->da_ddr);
 	return (da->da_err);
 }
 
 static int
-report_free_dnode_range(struct diffarg *da, uint64_t first, uint64_t last)
+report_free_dnode_range(dmu_diffarg_t *da, uint64_t first, uint64_t last)
 {
 	ASSERT(first <= last);
 	if (da->da_ddr.ddr_type != DDR_FREE ||
@@ -82,7 +86,7 @@ report_free_dnode_range(struct diffarg *da, uint64_t first, uint64_t last)
 }
 
 static int
-report_dnode(struct diffarg *da, uint64_t object, dnode_phys_t *dnp)
+report_dnode(dmu_diffarg_t *da, uint64_t object, dnode_phys_t *dnp)
 {
 	ASSERT(dnp != NULL);
 	if (dnp->dn_type == DMU_OT_NONE)
@@ -109,13 +113,14 @@ static int
 diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
     const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
 {
-	struct diffarg *da = arg;
+	dmu_diffarg_t *da = arg;
 	int err = 0;
 
 	if (issig(JUSTLOOKING) && issig(FORREAL))
 		return (SET_ERROR(EINTR));
 
-	if (bp == NULL || zb->zb_object != DMU_META_DNODE_OBJECT)
+	if (zb->zb_level == ZB_DNODE_LEVEL ||
+	    zb->zb_object != DMU_META_DNODE_OBJECT)
 		return (0);
 
 	if (BP_IS_HOLE(bp)) {
@@ -130,7 +135,7 @@ diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		dnode_phys_t *blk;
 		arc_buf_t *abuf;
 		arc_flags_t aflags = ARC_FLAG_WAIT;
-		int blksz = BP_GET_LSIZE(bp);
+		int epb = BP_GET_LSIZE(bp) >> DNODE_SHIFT;
 		int zio_flags = ZIO_FLAG_CANFAIL;
 		int i;
 
@@ -142,7 +147,7 @@ diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 			return (SET_ERROR(EIO));
 
 		blk = abuf->b_data;
-		for (i = 0; i < blksz >> DNODE_SHIFT; i++) {
+		for (i = 0; i < epb; i += blk[i].dn_extra_slots + 1) {
 			uint64_t dnobj = (zb->zb_blkid <<
 			    (DNODE_BLOCK_SHIFT - DNODE_SHIFT)) + i;
 			err = report_dnode(da, dnobj, blk+i);
@@ -160,9 +165,9 @@ diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 
 int
 dmu_diff(const char *tosnap_name, const char *fromsnap_name,
-    struct vnode *vp, offset_t *offp)
+    zfs_file_t *fp, offset_t *offp)
 {
-	struct diffarg da;
+	dmu_diffarg_t da;
 	dsl_dataset_t *fromsnap;
 	dsl_dataset_t *tosnap;
 	dsl_pool_t *dp;
@@ -203,7 +208,7 @@ dmu_diff(const char *tosnap_name, const char *fromsnap_name,
 	dsl_dataset_long_hold(tosnap, FTAG);
 	dsl_pool_rele(dp, FTAG);
 
-	da.da_vp = vp;
+	da.da_fp = fp;
 	da.da_offp = offp;
 	da.da_ddr.ddr_type = DDR_NONE;
 	da.da_ddr.ddr_first = da.da_ddr.ddr_last = 0;

@@ -43,7 +43,7 @@ function cleanup
 {
 	[[ -z $msgs1 ]] || log_must rm $msgs1
 	[[ -z $msgs2 ]] || log_must rm $msgs2
-	datasetexists $FS && log_must zfs destroy -r $FS
+	datasetexists $FS && destroy_dataset $FS -r
 }
 
 typeset -r ZFS_DBGMSG=/proc/spl/kstat/zfs/dbgmsg
@@ -75,7 +75,7 @@ msgs2=$(mktemp) || log_fail
 # Truncate the result of the read that completed second in case it picked up an
 # extra message that was logged after the first read completed.
 #
-log_must truncate -s $(stat -c "%s" $msgs1) $msgs2
+log_must truncate -s $(stat_size $msgs1) $msgs2
 
 log_must diff $msgs1 $msgs2
 

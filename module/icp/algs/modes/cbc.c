@@ -60,8 +60,7 @@ cbc_encrypt_contiguous_blocks(cbc_ctx_t *ctx, char *data, size_t length,
 	}
 
 	lastp = (uint8_t *)ctx->cbc_iv;
-	if (out != NULL)
-		crypto_init_ptrs(out, &iov_or_mp, &offset);
+	crypto_init_ptrs(out, &iov_or_mp, &offset);
 
 	do {
 		/* Unprocessed data from last call. */
@@ -79,47 +78,28 @@ cbc_encrypt_contiguous_blocks(cbc_ctx_t *ctx, char *data, size_t length,
 			blockp = datap;
 		}
 
-		if (out == NULL) {
-			/*
-			 * XOR the previous cipher block or IV with the
-			 * current clear block.
-			 */
-			xor_block(lastp, blockp);
-			encrypt(ctx->cbc_keysched, blockp, blockp);
+		/*
+		 * XOR the previous cipher block or IV with the
+		 * current clear block.
+		 */
+		xor_block(blockp, lastp);
+		encrypt(ctx->cbc_keysched, lastp, lastp);
+		crypto_get_ptrs(out, &iov_or_mp, &offset, &out_data_1,
+		    &out_data_1_len, &out_data_2, block_size);
 
-			ctx->cbc_lastp = blockp;
-			lastp = blockp;
-
-			if (ctx->cbc_remainder_len > 0) {
-				bcopy(blockp, ctx->cbc_copy_to,
-				    ctx->cbc_remainder_len);
-				bcopy(blockp + ctx->cbc_remainder_len, datap,
-				    need);
-			}
+		/* copy block to where it belongs */
+		if (out_data_1_len == block_size) {
+			copy_block(lastp, out_data_1);
 		} else {
-			/*
-			 * XOR the previous cipher block or IV with the
-			 * current clear block.
-			 */
-			xor_block(blockp, lastp);
-			encrypt(ctx->cbc_keysched, lastp, lastp);
-			crypto_get_ptrs(out, &iov_or_mp, &offset, &out_data_1,
-			    &out_data_1_len, &out_data_2, block_size);
-
-			/* copy block to where it belongs */
-			if (out_data_1_len == block_size) {
-				copy_block(lastp, out_data_1);
-			} else {
-				bcopy(lastp, out_data_1, out_data_1_len);
-				if (out_data_2 != NULL) {
-					bcopy(lastp + out_data_1_len,
-					    out_data_2,
-					    block_size - out_data_1_len);
-				}
+			bcopy(lastp, out_data_1, out_data_1_len);
+			if (out_data_2 != NULL) {
+				bcopy(lastp + out_data_1_len,
+				    out_data_2,
+				    block_size - out_data_1_len);
 			}
-			/* update offset */
-			out->cd_offset += block_size;
 		}
+		/* update offset */
+		out->cd_offset += block_size;
 
 		/* Update pointer to next block of data to be processed. */
 		if (ctx->cbc_remainder_len != 0) {
@@ -187,8 +167,7 @@ cbc_decrypt_contiguous_blocks(cbc_ctx_t *ctx, char *data, size_t length,
 	}
 
 	lastp = ctx->cbc_lastp;
-	if (out != NULL)
-		crypto_init_ptrs(out, &iov_or_mp, &offset);
+	crypto_init_ptrs(out, &iov_or_mp, &offset);
 
 	do {
 		/* Unprocessed data from last call. */
@@ -209,13 +188,9 @@ cbc_decrypt_contiguous_blocks(cbc_ctx_t *ctx, char *data, size_t length,
 		/* LINTED: pointer alignment */
 		copy_block(blockp, (uint8_t *)OTHER((uint64_t *)lastp, ctx));
 
-		if (out != NULL) {
-			decrypt(ctx->cbc_keysched, blockp,
-			    (uint8_t *)ctx->cbc_remainder);
-			blockp = (uint8_t *)ctx->cbc_remainder;
-		} else {
-			decrypt(ctx->cbc_keysched, blockp, blockp);
-		}
+		decrypt(ctx->cbc_keysched, blockp,
+		    (uint8_t *)ctx->cbc_remainder);
+		blockp = (uint8_t *)ctx->cbc_remainder;
 
 		/*
 		 * XOR the previous cipher block or IV with the
@@ -226,24 +201,17 @@ cbc_decrypt_contiguous_blocks(cbc_ctx_t *ctx, char *data, size_t length,
 		/* LINTED: pointer alignment */
 		lastp = (uint8_t *)OTHER((uint64_t *)lastp, ctx);
 
-		if (out != NULL) {
-			crypto_get_ptrs(out, &iov_or_mp, &offset, &out_data_1,
-			    &out_data_1_len, &out_data_2, block_size);
+		crypto_get_ptrs(out, &iov_or_mp, &offset, &out_data_1,
+		    &out_data_1_len, &out_data_2, block_size);
 
-			bcopy(blockp, out_data_1, out_data_1_len);
-			if (out_data_2 != NULL) {
-				bcopy(blockp + out_data_1_len, out_data_2,
-				    block_size - out_data_1_len);
-			}
-
-			/* update offset */
-			out->cd_offset += block_size;
-
-		} else if (ctx->cbc_remainder_len > 0) {
-			/* copy temporary block to where it belongs */
-			bcopy(blockp, ctx->cbc_copy_to, ctx->cbc_remainder_len);
-			bcopy(blockp + ctx->cbc_remainder_len, datap, need);
+		bcopy(blockp, out_data_1, out_data_1_len);
+		if (out_data_2 != NULL) {
+			bcopy(blockp + out_data_1_len, out_data_2,
+			    block_size - out_data_1_len);
 		}
+
+		/* update offset */
+		out->cd_offset += block_size;
 
 		/* Update pointer to next block of data to be processed. */
 		if (ctx->cbc_remainder_len != 0) {

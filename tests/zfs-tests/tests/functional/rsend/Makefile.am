@@ -2,6 +2,8 @@ pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/rsend
 dist_pkgdata_SCRIPTS = \
 	setup.ksh \
 	cleanup.ksh \
+	recv_dedup.ksh \
+	recv_dedup_encrypted_zvol.ksh \
 	rsend_001_pos.ksh \
 	rsend_002_pos.ksh \
 	rsend_003_pos.ksh \
@@ -16,6 +18,7 @@ dist_pkgdata_SCRIPTS = \
 	rsend_012_pos.ksh \
 	rsend_013_pos.ksh \
 	rsend_014_pos.ksh \
+	rsend_016_neg.ksh \
 	rsend_019_pos.ksh \
 	rsend_020_pos.ksh \
 	rsend_021_pos.ksh \
@@ -25,7 +28,6 @@ dist_pkgdata_SCRIPTS = \
 	send_encrypted_hierarchy.ksh \
 	send_encrypted_props.ksh \
 	send_encrypted_truncated_files.ksh \
-	send-cD.ksh \
 	send-c_embedded_blocks.ksh \
 	send-c_incremental.ksh \
 	send-c_lz4_disabled.ksh \
@@ -40,16 +42,25 @@ dist_pkgdata_SCRIPTS = \
 	send-c_volume.ksh \
 	send-c_zstreamdump.ksh \
 	send-cpL_varied_recsize.ksh \
+	send-L_toggle.ksh \
 	send_freeobjects.ksh \
+	send_partial_dataset.ksh \
 	send_realloc_dnode_size.ksh \
 	send_realloc_files.ksh \
 	send_realloc_encrypted_files.ksh \
 	send_spill_block.ksh \
 	send_holds.ksh \
 	send_hole_birth.ksh \
+	send_invalid.ksh \
 	send_mixed_raw.ksh \
-	send-wDR_encrypted_zvol.ksh
+	send-wR_encrypted_zvol.ksh \
+	send_doall.ksh
 
 dist_pkgdata_DATA = \
+	dedup.zsend.bz2 \
+	dedup_encrypted_zvol.bz2 \
+	dedup_encrypted_zvol.zsend.bz2 \
+	fs.tar.gz \
 	rsend.cfg \
 	rsend.kshlib
+

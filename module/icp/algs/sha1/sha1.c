@@ -81,28 +81,6 @@ static uint8_t PADDING[64] = { 0x80, /* all zeros */ };
 #define	H(b, c, d)	(((b) & (c)) | (((b)|(c)) & (d)))
 
 /*
- * ROTATE_LEFT rotates x left n bits.
- */
-
-#if	defined(__GNUC__) && defined(_LP64)
-static __inline__ uint64_t
-ROTATE_LEFT(uint64_t value, uint32_t n)
-{
-	uint32_t t32;
-
-	t32 = (uint32_t)value;
-	return ((t32 << n) | (t32 >> (32 - n)));
-}
-
-#else
-
-#define	ROTATE_LEFT(x, n)	\
-	(((x) << (n)) | ((x) >> ((sizeof (x) * NBBY)-(n))))
-
-#endif
-
-
-/*
  * SHA1Init()
  *
  * purpose: initializes the sha1 context and begins and sha1 digest operation
@@ -248,16 +226,14 @@ typedef uint32_t sha1word;
  * careful programming can guarantee this for us.
  */
 
-#if	defined(_BIG_ENDIAN)
+#if	defined(_ZFS_BIG_ENDIAN)
 #define	LOAD_BIG_32(addr)	(*(uint32_t *)(addr))
 
 #elif	defined(HAVE_HTONL)
 #define	LOAD_BIG_32(addr) htonl(*((uint32_t *)(addr)))
 
 #else
-/* little endian -- will work on big endian, but slowly */
-#define	LOAD_BIG_32(addr)	\
-	(((addr)[0] << 24) | ((addr)[1] << 16) | ((addr)[2] << 8) | (addr)[3])
+#define	LOAD_BIG_32(addr)	BE_32(*((uint32_t *)(addr)))
 #endif	/* _BIG_ENDIAN */
 
 /*
@@ -268,6 +244,27 @@ typedef uint32_t sha1word;
 #else	/* !defined(W_ARRAY) */
 #define	W(n) w_ ## n
 #endif	/* !defined(W_ARRAY) */
+
+/*
+ * ROTATE_LEFT rotates x left n bits.
+ */
+
+#if	defined(__GNUC__) && defined(_LP64)
+static __inline__ uint64_t
+ROTATE_LEFT(uint64_t value, uint32_t n)
+{
+	uint32_t t32;
+
+	t32 = (uint32_t)value;
+	return ((t32 << n) | (t32 >> (32 - n)));
+}
+
+#else
+
+#define	ROTATE_LEFT(x, n)	\
+	(((x) << (n)) | ((x) >> ((sizeof (x) * NBBY)-(n))))
+
+#endif
 
 #if	defined(__sparc)
 

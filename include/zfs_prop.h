@@ -24,7 +24,7 @@
  */
 
 #ifndef	_ZFS_PROP_H
-#define	_ZFS_PROP_H
+#define	_ZFS_PROP_H extern __attribute__((visibility("default")))
 
 #include <sys/fs/zfs.h>
 #include <sys/types.h>
@@ -87,44 +87,46 @@ typedef struct {
 /*
  * zfs dataset property functions
  */
-void zfs_prop_init(void);
-zprop_type_t zfs_prop_get_type(zfs_prop_t);
-boolean_t zfs_prop_delegatable(zfs_prop_t prop);
-zprop_desc_t *zfs_prop_get_table(void);
+_ZFS_PROP_H void zfs_prop_init(void);
+_ZFS_PROP_H zprop_type_t zfs_prop_get_type(zfs_prop_t);
+_ZFS_PROP_H boolean_t zfs_prop_delegatable(zfs_prop_t prop);
+_ZFS_PROP_H zprop_desc_t *zfs_prop_get_table(void);
 
 /*
  * zpool property functions
  */
-void zpool_prop_init(void);
-zprop_type_t zpool_prop_get_type(zpool_prop_t);
-zprop_desc_t *zpool_prop_get_table(void);
+_ZFS_PROP_H void zpool_prop_init(void);
+_ZFS_PROP_H zprop_type_t zpool_prop_get_type(zpool_prop_t);
+_ZFS_PROP_H zprop_desc_t *zpool_prop_get_table(void);
 
 /*
  * Common routines to initialize property tables
  */
-void zprop_register_impl(int, const char *, zprop_type_t, uint64_t,
+_ZFS_PROP_H void zprop_register_impl(int, const char *, zprop_type_t, uint64_t,
     const char *, zprop_attr_t, int, const char *, const char *,
     boolean_t, boolean_t, const zprop_index_t *);
-void zprop_register_string(int, const char *, const char *,
+_ZFS_PROP_H void zprop_register_string(int, const char *, const char *,
     zprop_attr_t attr, int, const char *, const char *);
-void zprop_register_number(int, const char *, uint64_t, zprop_attr_t, int,
-    const char *, const char *);
-void zprop_register_index(int, const char *, uint64_t, zprop_attr_t, int,
-    const char *, const char *, const zprop_index_t *);
-void zprop_register_hidden(int, const char *, zprop_type_t, zprop_attr_t,
-    int, const char *);
+_ZFS_PROP_H void zprop_register_number(int, const char *, uint64_t,
+    zprop_attr_t, int, const char *, const char *);
+_ZFS_PROP_H void zprop_register_index(int, const char *, uint64_t, zprop_attr_t,
+    int, const char *, const char *, const zprop_index_t *);
+_ZFS_PROP_H void zprop_register_hidden(int, const char *, zprop_type_t,
+    zprop_attr_t, int, const char *);
 
 /*
  * Common routines for zfs and zpool property management
  */
-int zprop_iter_common(zprop_func, void *, boolean_t, boolean_t, zfs_type_t);
-int zprop_name_to_prop(const char *, zfs_type_t);
-int zprop_string_to_index(int, const char *, uint64_t *, zfs_type_t);
-int zprop_index_to_string(int, uint64_t, const char **, zfs_type_t);
-uint64_t zprop_random_value(int, uint64_t, zfs_type_t);
-const char *zprop_values(int, zfs_type_t);
-size_t zprop_width(int, boolean_t *, zfs_type_t);
-boolean_t zprop_valid_for_type(int, zfs_type_t, boolean_t);
+_ZFS_PROP_H int zprop_iter_common(zprop_func, void *, boolean_t, boolean_t,
+    zfs_type_t);
+_ZFS_PROP_H int zprop_name_to_prop(const char *, zfs_type_t);
+_ZFS_PROP_H int zprop_string_to_index(int, const char *, uint64_t *,
+    zfs_type_t);
+_ZFS_PROP_H int zprop_index_to_string(int, uint64_t, const char **, zfs_type_t);
+_ZFS_PROP_H uint64_t zprop_random_value(int, uint64_t, zfs_type_t);
+_ZFS_PROP_H const char *zprop_values(int, zfs_type_t);
+_ZFS_PROP_H size_t zprop_width(int, boolean_t *, zfs_type_t);
+_ZFS_PROP_H boolean_t zprop_valid_for_type(int, zfs_type_t, boolean_t);
 
 #ifdef	__cplusplus
 }

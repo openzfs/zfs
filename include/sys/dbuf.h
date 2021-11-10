@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
@@ -34,7 +34,7 @@
 #include <sys/zio.h>
 #include <sys/arc.h>
 #include <sys/zfs_context.h>
-#include <sys/refcount.h>
+#include <sys/zfs_refcount.h>
 #include <sys/zrlock.h>
 #include <sys/multilist.h>
 
@@ -108,6 +108,12 @@ typedef enum override_states {
 	DR_OVERRIDDEN
 } override_states_t;
 
+typedef enum db_lock_type {
+	DLT_NONE,
+	DLT_PARENT,
+	DLT_OBJSET
+} db_lock_type_t;
+
 typedef struct dbuf_dirty_record {
 	/* link on our parents dirty list */
 	list_node_t dr_dirty_node;
@@ -121,8 +127,18 @@ typedef struct dbuf_dirty_record {
 	/* pointer back to our dbuf */
 	struct dmu_buf_impl *dr_dbuf;
 
-	/* pointer to next dirty record */
-	struct dbuf_dirty_record *dr_next;
+	/* list link for dbuf dirty records */
+	list_node_t dr_dbuf_node;
+
+	/*
+	 * The dnode we are part of.  Note that the dnode can not be moved or
+	 * evicted due to the hold that's added by dnode_setdirty() or
+	 * dmu_objset_sync_dnodes(), and released by dnode_rele_task() or
+	 * userquota_updates_task().  This hold is necessary for
+	 * dirty_lightweight_leaf-type dirty records, which don't have a hold
+	 * on a dbuf.
+	 */
+	dnode_t *dr_dnode;
 
 	/* pointer to parent dirty record */
 	struct dbuf_dirty_record *dr_parent;
@@ -165,6 +181,17 @@ typedef struct dbuf_dirty_record {
 			uint8_t	dr_iv[ZIO_DATA_IV_LEN];
 			uint8_t	dr_mac[ZIO_DATA_MAC_LEN];
 		} dl;
+		struct dirty_lightweight_leaf {
+			/*
+			 * This dirty record refers to a leaf (level=0)
+			 * block, whose dbuf has not been instantiated for
+			 * performance reasons.
+			 */
+			uint64_t dr_blkid;
+			abd_t *dr_abd;
+			zio_prop_t dr_props;
+			enum zio_flag dr_flags;
+		} dll;
 	} dt;
 } dbuf_dirty_record_t;
 
@@ -200,6 +227,13 @@ typedef struct dmu_buf_impl {
 	 */
 	struct dmu_buf_impl *db_hash_next;
 
+	/*
+	 * Our link on the owner dnodes's dn_dbufs list.
+	 * Protected by its dn_dbufs_mtx.  Should be on the same cache line
+	 * as db_level and db_blkid for the best avl_add() performance.
+	 */
+	avl_node_t db_link;
+
 	/* our block number */
 	uint64_t db_blkid;
 
@@ -217,6 +251,22 @@ typedef struct dmu_buf_impl {
 	 */
 	uint8_t db_level;
 
+	/*
+	 * Protects db_buf's contents if they contain an indirect block or data
+	 * block of the meta-dnode. We use this lock to protect the structure of
+	 * the block tree. This means that when modifying this dbuf's data, we
+	 * grab its rwlock. When modifying its parent's data (including the
+	 * blkptr to this dbuf), we grab the parent's rwlock. The lock ordering
+	 * for this lock is:
+	 * 1) dn_struct_rwlock
+	 * 2) db_rwlock
+	 * We don't currently grab multiple dbufs' db_rwlocks at once.
+	 */
+	krwlock_t db_rwlock;
+
+	/* buffer holding our data */
+	arc_buf_t *db_buf;
+
 	/* db_mtx protects the members below */
 	kmutex_t db_mtx;
 
@@ -232,20 +282,11 @@ typedef struct dmu_buf_impl {
 	 */
 	zfs_refcount_t db_holds;
 
-	/* buffer holding our data */
-	arc_buf_t *db_buf;
-
 	kcondvar_t db_changed;
 	dbuf_dirty_record_t *db_data_pending;
 
-	/* pointer to most recent dirty record for this buffer */
-	dbuf_dirty_record_t *db_last_dirty;
-
-	/*
-	 * Our link on the owner dnodes's dn_dbufs list.
-	 * Protected by its dn_dbufs_mtx.
-	 */
-	avl_node_t db_link;
+	/* List of dirty records for the buffer sorted newest to oldest. */
+	list_t db_dirty_records;
 
 	/* Link in dbuf_cache or dbuf_metadata_cache */
 	multilist_node_t db_cache_link;
@@ -281,13 +322,15 @@ typedef struct dmu_buf_impl {
 } dmu_buf_impl_t;
 
 /* Note: the dbuf hash table is exposed only for the mdb module */
-#define	DBUF_MUTEXES 8192
+#define	DBUF_MUTEXES 2048
 #define	DBUF_HASH_MUTEX(h, idx) (&(h)->hash_mutexes[(idx) & (DBUF_MUTEXES-1)])
 typedef struct dbuf_hash_table {
 	uint64_t hash_table_mask;
 	dmu_buf_impl_t **hash_table;
-	kmutex_t hash_mutexes[DBUF_MUTEXES];
+	kmutex_t hash_mutexes[DBUF_MUTEXES] ____cacheline_aligned;
 } dbuf_hash_table_t;
+
+typedef void (*dbuf_prefetch_fn)(void *, boolean_t);
 
 uint64_t dbuf_whichblock(const struct dnode *di, const int64_t level,
     const uint64_t offset);
@@ -304,7 +347,10 @@ int dbuf_hold_impl(struct dnode *dn, uint8_t level, uint64_t blkid,
     boolean_t fail_sparse, boolean_t fail_uncached,
     void *tag, dmu_buf_impl_t **dbp);
 
-void dbuf_prefetch(struct dnode *dn, int64_t level, uint64_t blkid,
+int dbuf_prefetch_impl(struct dnode *dn, int64_t level, uint64_t blkid,
+    zio_priority_t prio, arc_flags_t aflags, dbuf_prefetch_fn cb,
+    void *arg);
+int dbuf_prefetch(struct dnode *dn, int64_t level, uint64_t blkid,
     zio_priority_t prio, arc_flags_t aflags);
 
 void dbuf_add_ref(dmu_buf_impl_t *db, void *tag);
@@ -324,18 +370,24 @@ void dmu_buf_will_fill(dmu_buf_t *db, dmu_tx_t *tx);
 void dmu_buf_fill_done(dmu_buf_t *db, dmu_tx_t *tx);
 void dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx);
 dbuf_dirty_record_t *dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx);
+dbuf_dirty_record_t *dbuf_dirty_lightweight(dnode_t *dn, uint64_t blkid,
+    dmu_tx_t *tx);
 arc_buf_t *dbuf_loan_arcbuf(dmu_buf_impl_t *db);
 void dmu_buf_write_embedded(dmu_buf_t *dbuf, void *data,
     bp_embedded_type_t etype, enum zio_compress comp,
     int uncompressed_size, int compressed_size, int byteorder, dmu_tx_t *tx);
 
+int dmu_lightweight_write_by_dnode(dnode_t *dn, uint64_t offset, abd_t *abd,
+    const struct zio_prop *zp, enum zio_flag flags, dmu_tx_t *tx);
+
+void dmu_buf_redact(dmu_buf_t *dbuf, dmu_tx_t *tx);
 void dbuf_destroy(dmu_buf_impl_t *db);
 
 void dbuf_unoverride(dbuf_dirty_record_t *dr);
 void dbuf_sync_list(list_t *list, int level, dmu_tx_t *tx);
 void dbuf_release_bp(dmu_buf_impl_t *db);
-
-boolean_t dbuf_can_remap(const dmu_buf_impl_t *buf);
+db_lock_type_t dmu_buf_lock_parent(dmu_buf_impl_t *db, krw_t rw, void *tag);
+void dmu_buf_unlock_parent(dmu_buf_impl_t *db, db_lock_type_t type, void *tag);
 
 void dbuf_free_range(struct dnode *dn, uint64_t start, uint64_t end,
     struct dmu_tx *);
@@ -344,6 +396,9 @@ void dbuf_new_size(dmu_buf_impl_t *db, int size, dmu_tx_t *tx);
 
 void dbuf_stats_init(dbuf_hash_table_t *hash);
 void dbuf_stats_destroy(void);
+
+int dbuf_dnode_findbp(dnode_t *dn, uint64_t level, uint64_t blkid,
+    blkptr_t *bp, uint16_t *datablkszsec, uint8_t *indblkshift);
 
 #define	DB_DNODE(_db)		((_db)->db_dnode_handle->dnh_dnode)
 #define	DB_DNODE_LOCK(_db)	((_db)->db_dnode_handle->dnh_zrlock)
@@ -355,6 +410,29 @@ void dbuf_init(void);
 void dbuf_fini(void);
 
 boolean_t dbuf_is_metadata(dmu_buf_impl_t *db);
+
+static inline dbuf_dirty_record_t *
+dbuf_find_dirty_lte(dmu_buf_impl_t *db, uint64_t txg)
+{
+	dbuf_dirty_record_t *dr;
+
+	for (dr = list_head(&db->db_dirty_records);
+	    dr != NULL && dr->dr_txg > txg;
+	    dr = list_next(&db->db_dirty_records, dr))
+		continue;
+	return (dr);
+}
+
+static inline dbuf_dirty_record_t *
+dbuf_find_dirty_eq(dmu_buf_impl_t *db, uint64_t txg)
+{
+	dbuf_dirty_record_t *dr;
+
+	dr = dbuf_find_dirty_lte(db, txg);
+	if (dr && dr->dr_txg == txg)
+		return (dr);
+	return (NULL);
+}
 
 #define	DBUF_GET_BUFC_TYPE(_db)	\
 	(dbuf_is_metadata(_db) ? ARC_BUFC_METADATA : ARC_BUFC_DATA)
@@ -387,7 +465,7 @@ boolean_t dbuf_is_metadata(dmu_buf_impl_t *db);
 	char __db_buf[32]; \
 	uint64_t __db_obj = (dbuf)->db.db_object; \
 	if (__db_obj == DMU_META_DNODE_OBJECT) \
-		(void) strcpy(__db_buf, "mdn"); \
+		(void) strlcpy(__db_buf, "mdn", sizeof (__db_buf));	\
 	else \
 		(void) snprintf(__db_buf, sizeof (__db_buf), "%lld", \
 		    (u_longlong_t)__db_obj); \
@@ -396,7 +474,7 @@ boolean_t dbuf_is_metadata(dmu_buf_impl_t *db);
 	    __db_buf, (dbuf)->db_level, \
 	    (u_longlong_t)(dbuf)->db_blkid, __VA_ARGS__); \
 	} \
-_NOTE(CONSTCOND) } while (0)
+} while (0)
 
 #define	dprintf_dbuf_bp(db, bp, fmt, ...) do {			\
 	if (zfs_flags & ZFS_DEBUG_DPRINTF) {			\
@@ -405,7 +483,7 @@ _NOTE(CONSTCOND) } while (0)
 	dprintf_dbuf(db, fmt " %s\n", __VA_ARGS__, __blkbuf);	\
 	kmem_free(__blkbuf, BP_SPRINTF_LEN);			\
 	}							\
-_NOTE(CONSTCOND) } while (0)
+} while (0)
 
 #define	DBUF_VERIFY(db)	dbuf_verify(db)
 

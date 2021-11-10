@@ -35,4 +35,4 @@
 
 log_mustnot raidz_test -T
 
-log_pass "raidz_test detects errors as espected."
+log_pass "raidz_test detects errors as expected."

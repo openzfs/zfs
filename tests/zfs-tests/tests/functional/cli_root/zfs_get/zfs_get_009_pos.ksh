@@ -55,9 +55,14 @@ log_onexit depth_fs_cleanup
 set -A all_props type used available creation volsize referenced \
 	compressratio mounted origin recordsize quota reservation mountpoint \
 	sharenfs checksum compression atime devices exec readonly setuid \
-	zoned snapdir acltype aclinherit canmount primarycache secondarycache \
+	snapdir aclinherit canmount primarycache secondarycache \
 	usedbychildren usedbydataset usedbyrefreservation usedbysnapshots \
 	userquota@root groupquota@root userused@root groupused@root
+if is_freebsd; then
+	set -A all_props ${all_props[*]} jailed aclmode
+else
+	set -A all_props ${all_props[*]} zoned acltype
+fi
 
 zfs upgrade -v > /dev/null 2>&1
 if [[ $? -eq 0 ]]; then
@@ -91,6 +96,17 @@ done
 log_must eval "zfs get -H -t snapshot -o name creation $DEPTH_FS > $DEPTH_OUTPUT"
 log_must eval "zfs get -H -t snapshot -d 1 -o name creation $DEPTH_FS > $EXPECT_OUTPUT"
 log_must diff $DEPTH_OUTPUT $EXPECT_OUTPUT
+
+# Ensure 'zfs get -t snap' works as a shorthand for 'zfs get -t snapshot'
+log_must eval "zfs get -H -t snap -d 1 -o name creation $DEPTH_FS > $DEPTH_OUTPUT"
+log_must eval "zfs get -H -t snapshot -d 1 -o name creation $DEPTH_FS > $EXPECT_OUTPUT"
+log_must diff $DEPTH_OUTPUT $EXPECT_OUTPUT
+
+# Ensure 'zfs get -t bookmark <dataset>' works as though -d 1 was specified
+log_must eval "zfs get -H -t bookmark -o name creation $DEPTH_FS > $DEPTH_OUTPUT"
+log_must eval "zfs get -H -t bookmark -d 1 -o name creation $DEPTH_FS > $EXPECT_OUTPUT"
+log_must diff $DEPTH_OUTPUT $EXPECT_OUTPUT
+
 
 log_pass "'zfs get -d <n>' should get expected output."
 

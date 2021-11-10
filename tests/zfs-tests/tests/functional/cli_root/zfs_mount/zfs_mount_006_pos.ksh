@@ -35,22 +35,20 @@
 
 #
 # DESCRIPTION:
-#	Invoke "zfs mount <filesystem>" with a filesystem
-#	mountpoint that is identical to an existing one.
-#	It will fail with a return code of 1.  For Linux,
-#	place a file in the directory to ensure the failure.
-#	Also for Linux, test overlay=off (default) in which case
-#	the mount will fail, and overlay=on, where the mount
-#	will succeed.
+#	Invoke "zfs mount <filesystem>" with a filesystem mountpoint that is
+#	identical to an existing one.  It will fail with a return code of 1
+#	when overlay=off.  Place a file in the directory to ensure the failure.
+#	Also test overlay=on (default) in which case the mount will not fail.
 #
 # STRATEGY:
 #	1. Prepare an existing mounted filesystem.
-#	2. Setup a new filesystem and make sure that it is unmounted.
-#	3. For Linux, place a file in the mount point folder.
-#       4. Mount the new filesystem using the various combinations
-#		- zfs set mountpoint=<identical path> <filesystem>
-#		- zfs set mountpoint=<top path> <filesystem>
-#       5. Verify that mount failed with return code of 1.
+#	2. Setup a new filesystem with overlay=off and make sure that it is
+#	   unmounted.
+#	3. Place a file in the mount point folder.
+#	4. Mount the new filesystem using the various combinations
+#	   - zfs set mountpoint=<identical path> <filesystem>
+#	   - zfs set mountpoint=<top path> <filesystem>
+#	5. Verify that mount failed with return code of 1.
 #	6. For Linux, also set overlay=on and verify the mount is
 #	   allowed.
 #
@@ -76,7 +74,7 @@ typeset -i ret=0
 
 log_assert "Verify that 'zfs $mountcmd <filesystem>'" \
 	"where the mountpoint is identical or on top of an existing one" \
-	"will fail with return code 1."
+	"will fail with return code 1 when overlay=off."
 
 log_onexit cleanup
 
@@ -98,8 +96,8 @@ done
 log_must zfs set mountpoint=$mtpt $TESTPOOL/$TESTFS
 log_must zfs $mountcmd $TESTPOOL/$TESTFS
 
-if is_linux; then
-	log_must zfs set overlay=off $TESTPOOL/$TESTFS
+log_must zfs set overlay=off $TESTPOOL/$TESTFS
+if ! is_illumos; then
 	touch $mtpt/file.1
 	log_must ls -l $mtpt | grep file
 fi
@@ -107,7 +105,7 @@ fi
 mounted $TESTPOOL/$TESTFS || \
 	log_unresolved "Filesystem $TESTPOOL/$TESTFS is unmounted"
 
-log_must zfs create $TESTPOOL/$TESTFS1
+log_must zfs create -o overlay=off $TESTPOOL/$TESTFS1
 
 unmounted $TESTPOOL/$TESTFS1 || \
 	log_must force_unmount $TESTPOOL/$TESTFS1
@@ -123,9 +121,9 @@ while [[ $depth -gt 0 ]] ; do
 
 	log_mustnot zfs $mountcmd $TESTPOOL/$TESTFS1
 
-	# For Linux, test the overlay=on feature which allows
-	# mounting of non-empty directory.
-	if is_linux; then
+	if ! is_illumos; then
+		# Test the overlay=on feature which allows
+		# mounting of non-empty directory.
 		log_must zfs set overlay=on $TESTPOOL/$TESTFS1
 		log_must zfs $mountcmd $TESTPOOL/$TESTFS1
 		log_must force_unmount $TESTPOOL/$TESTFS1

@@ -5,13 +5,15 @@ DefaultDependencies=no
 Requires=systemd-udev-settle.service
 After=systemd-udev-settle.service
 After=cryptsetup.target
+After=multipathd.target
 Before=zfs-import.target
-ConditionPathExists=!@sysconfdir@/zfs/zpool.cache
+ConditionFileNotEmpty=!@sysconfdir@/zfs/zpool.cache
+ConditionPathIsDirectory=/sys/module/zfs
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=@sbindir@/zpool import -aN -o cachefile=none
+ExecStart=@sbindir@/zpool import -aN -o cachefile=none $ZPOOL_IMPORT_OPTS
 
 [Install]
 WantedBy=zfs-import.target

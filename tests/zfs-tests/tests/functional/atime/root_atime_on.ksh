@@ -52,7 +52,7 @@ log_onexit cleanup
 
 #
 # Create $TESTFILE, snapshot and clone.
-# Same as 001 except that atime/relatime applies to root dataset (ZoL#8675).
+# Same as 001 except that atime/relatime applies to root dataset (OpenZFS#8675).
 #
 setup_snap_clone
 reset_atime

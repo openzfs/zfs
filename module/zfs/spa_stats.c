@@ -122,14 +122,11 @@ static void
 spa_read_history_init(spa_t *spa)
 {
 	spa_history_list_t *shl = &spa->spa_stats.read_history;
-	char *module;
 
 	shl->size = 0;
-
-	module = kmem_asprintf("zfs/%s", spa_name(spa));
-
 	shl->procfs_list.pl_private = shl;
-	procfs_list_install(module,
+	procfs_list_install("zfs",
+	    spa_name(spa),
 	    "reads",
 	    0600,
 	    &shl->procfs_list,
@@ -137,8 +134,6 @@ spa_read_history_init(spa_t *spa)
 	    spa_read_history_show_header,
 	    spa_read_history_clear,
 	    offsetof(spa_read_history_t, srh_node));
-
-	strfree(module);
 }
 
 static void
@@ -293,14 +288,11 @@ static void
 spa_txg_history_init(spa_t *spa)
 {
 	spa_history_list_t *shl = &spa->spa_stats.txg_history;
-	char *module;
 
 	shl->size = 0;
-
-	module = kmem_asprintf("zfs/%s", spa_name(spa));
-
 	shl->procfs_list.pl_private = shl;
-	procfs_list_install(module,
+	procfs_list_install("zfs",
+	    spa_name(spa),
 	    "txgs",
 	    0644,
 	    &shl->procfs_list,
@@ -308,8 +300,6 @@ spa_txg_history_init(spa_t *spa)
 	    spa_txg_history_show_header,
 	    spa_txg_history_clear,
 	    offsetof(spa_txg_history_t, sth_node));
-
-	strfree(module);
 }
 
 static void
@@ -478,11 +468,11 @@ spa_tx_assign_update(kstat_t *ksp, int rw)
 
 	if (rw == KSTAT_WRITE) {
 		for (i = 0; i < shk->count; i++)
-			((kstat_named_t *)shk->private)[i].value.ui64 = 0;
+			((kstat_named_t *)shk->priv)[i].value.ui64 = 0;
 	}
 
 	for (i = shk->count; i > 0; i--)
-		if (((kstat_named_t *)shk->private)[i-1].value.ui64 != 0)
+		if (((kstat_named_t *)shk->priv)[i-1].value.ui64 != 0)
 			break;
 
 	ksp->ks_ndata = i;
@@ -504,12 +494,12 @@ spa_tx_assign_init(spa_t *spa)
 
 	shk->count = 42; /* power of two buckets for 1ns to 2,199s */
 	shk->size = shk->count * sizeof (kstat_named_t);
-	shk->private = kmem_alloc(shk->size, KM_SLEEP);
+	shk->priv = kmem_alloc(shk->size, KM_SLEEP);
 
 	name = kmem_asprintf("zfs/%s", spa_name(spa));
 
 	for (i = 0; i < shk->count; i++) {
-		ks = &((kstat_named_t *)shk->private)[i];
+		ks = &((kstat_named_t *)shk->priv)[i];
 		ks->data_type = KSTAT_DATA_UINT64;
 		ks->value.ui64 = 0;
 		(void) snprintf(ks->name, KSTAT_STRLEN, "%llu ns",
@@ -522,14 +512,14 @@ spa_tx_assign_init(spa_t *spa)
 
 	if (ksp) {
 		ksp->ks_lock = &shk->lock;
-		ksp->ks_data = shk->private;
+		ksp->ks_data = shk->priv;
 		ksp->ks_ndata = shk->count;
 		ksp->ks_data_size = shk->size;
 		ksp->ks_private = spa;
 		ksp->ks_update = spa_tx_assign_update;
 		kstat_install(ksp);
 	}
-	strfree(name);
+	kmem_strfree(name);
 }
 
 static void
@@ -542,7 +532,7 @@ spa_tx_assign_destroy(spa_t *spa)
 	if (ksp)
 		kstat_delete(ksp);
 
-	kmem_free(shk->private, shk->size);
+	kmem_free(shk->priv, shk->size);
 	mutex_destroy(&shk->lock);
 }
 
@@ -555,55 +545,7 @@ spa_tx_assign_add_nsecs(spa_t *spa, uint64_t nsecs)
 	while (((1ULL << idx) < nsecs) && (idx < shk->size - 1))
 		idx++;
 
-	atomic_inc_64(&((kstat_named_t *)shk->private)[idx].value.ui64);
-}
-
-/*
- * ==========================================================================
- * SPA IO History Routines
- * ==========================================================================
- */
-static int
-spa_io_history_update(kstat_t *ksp, int rw)
-{
-	if (rw == KSTAT_WRITE)
-		memset(ksp->ks_data, 0, ksp->ks_data_size);
-
-	return (0);
-}
-
-static void
-spa_io_history_init(spa_t *spa)
-{
-	spa_history_kstat_t *shk = &spa->spa_stats.io_history;
-	char *name;
-	kstat_t *ksp;
-
-	mutex_init(&shk->lock, NULL, MUTEX_DEFAULT, NULL);
-
-	name = kmem_asprintf("zfs/%s", spa_name(spa));
-
-	ksp = kstat_create(name, 0, "io", "disk", KSTAT_TYPE_IO, 1, 0);
-	shk->kstat = ksp;
-
-	if (ksp) {
-		ksp->ks_lock = &shk->lock;
-		ksp->ks_private = spa;
-		ksp->ks_update = spa_io_history_update;
-		kstat_install(ksp);
-	}
-	strfree(name);
-}
-
-static void
-spa_io_history_destroy(spa_t *spa)
-{
-	spa_history_kstat_t *shk = &spa->spa_stats.io_history;
-
-	if (shk->kstat)
-		kstat_delete(shk->kstat);
-
-	mutex_destroy(&shk->lock);
+	atomic_inc_64(&((kstat_named_t *)shk->priv)[idx].value.ui64);
 }
 
 /*
@@ -675,7 +617,7 @@ spa_mmp_history_truncate(spa_history_list_t *shl, unsigned int size)
 	while (shl->size > size) {
 		smh = list_remove_head(&shl->procfs_list.pl_list);
 		if (smh->vdev_path)
-			strfree(smh->vdev_path);
+			kmem_strfree(smh->vdev_path);
 		kmem_free(smh, sizeof (spa_mmp_history_t));
 		shl->size--;
 	}
@@ -699,14 +641,12 @@ static void
 spa_mmp_history_init(spa_t *spa)
 {
 	spa_history_list_t *shl = &spa->spa_stats.mmp_history;
-	char *module;
 
 	shl->size = 0;
 
-	module = kmem_asprintf("zfs/%s", spa_name(spa));
-
 	shl->procfs_list.pl_private = shl;
-	procfs_list_install(module,
+	procfs_list_install("zfs",
+	    spa_name(spa),
 	    "multihost",
 	    0644,
 	    &shl->procfs_list,
@@ -714,8 +654,6 @@ spa_mmp_history_init(spa_t *spa)
 	    spa_mmp_history_show_header,
 	    spa_mmp_history_clear,
 	    offsetof(spa_mmp_history_t, smh_node));
-
-	strfree(module);
 }
 
 static void
@@ -814,7 +752,7 @@ spa_mmp_history_add(spa_t *spa, uint64_t txg, uint64_t timestamp,
 	if (vd) {
 		smh->vdev_guid = vd->vdev_guid;
 		if (vd->vdev_path)
-			smh->vdev_path = strdup(vd->vdev_path);
+			smh->vdev_path = kmem_strdup(vd->vdev_path);
 	}
 	smh->vdev_label = label;
 	smh->mmp_node_id = mmp_node_id;
@@ -835,7 +773,9 @@ spa_mmp_history_add(spa_t *spa, uint64_t txg, uint64_t timestamp,
 static void *
 spa_state_addr(kstat_t *ksp, loff_t n)
 {
-	return (ksp->ks_private);	/* return the spa_t */
+	if (n == 0)
+		return (ksp->ks_private);	/* return the spa_t */
+	return (NULL);
 }
 
 static int
@@ -876,7 +816,7 @@ spa_state_init(spa_t *spa)
 		kstat_install(ksp);
 	}
 
-	strfree(name);
+	kmem_strfree(name);
 }
 
 static void
@@ -903,6 +843,12 @@ static spa_iostats_t spa_iostats_template = {
 	{ "autotrim_bytes_skipped",		KSTAT_DATA_UINT64 },
 	{ "autotrim_extents_failed",		KSTAT_DATA_UINT64 },
 	{ "autotrim_bytes_failed",		KSTAT_DATA_UINT64 },
+	{ "simple_trim_extents_written",	KSTAT_DATA_UINT64 },
+	{ "simple_trim_bytes_written",		KSTAT_DATA_UINT64 },
+	{ "simple_trim_extents_skipped",	KSTAT_DATA_UINT64 },
+	{ "simple_trim_bytes_skipped",		KSTAT_DATA_UINT64 },
+	{ "simple_trim_extents_failed",		KSTAT_DATA_UINT64 },
+	{ "simple_trim_bytes_failed",		KSTAT_DATA_UINT64 },
 };
 
 #define	SPA_IOSTATS_ADD(stat, val) \
@@ -929,17 +875,24 @@ spa_iostats_trim_add(spa_t *spa, trim_type_t type,
 		SPA_IOSTATS_ADD(trim_bytes_skipped, bytes_skipped);
 		SPA_IOSTATS_ADD(trim_extents_failed, extents_failed);
 		SPA_IOSTATS_ADD(trim_bytes_failed, bytes_failed);
-	} else {
+	} else if (type == TRIM_TYPE_AUTO) {
 		SPA_IOSTATS_ADD(autotrim_extents_written, extents_written);
 		SPA_IOSTATS_ADD(autotrim_bytes_written, bytes_written);
 		SPA_IOSTATS_ADD(autotrim_extents_skipped, extents_skipped);
 		SPA_IOSTATS_ADD(autotrim_bytes_skipped, bytes_skipped);
 		SPA_IOSTATS_ADD(autotrim_extents_failed, extents_failed);
 		SPA_IOSTATS_ADD(autotrim_bytes_failed, bytes_failed);
+	} else {
+		SPA_IOSTATS_ADD(simple_trim_extents_written, extents_written);
+		SPA_IOSTATS_ADD(simple_trim_bytes_written, bytes_written);
+		SPA_IOSTATS_ADD(simple_trim_extents_skipped, extents_skipped);
+		SPA_IOSTATS_ADD(simple_trim_bytes_skipped, bytes_skipped);
+		SPA_IOSTATS_ADD(simple_trim_extents_failed, extents_failed);
+		SPA_IOSTATS_ADD(simple_trim_bytes_failed, bytes_failed);
 	}
 }
 
-int
+static int
 spa_iostats_update(kstat_t *ksp, int rw)
 {
 	if (rw == KSTAT_WRITE) {
@@ -973,7 +926,7 @@ spa_iostats_init(spa_t *spa)
 		kstat_install(ksp);
 	}
 
-	strfree(name);
+	kmem_strfree(name);
 }
 
 static void
@@ -995,7 +948,6 @@ spa_stats_init(spa_t *spa)
 	spa_read_history_init(spa);
 	spa_txg_history_init(spa);
 	spa_tx_assign_init(spa);
-	spa_io_history_init(spa);
 	spa_mmp_history_init(spa);
 	spa_state_init(spa);
 	spa_iostats_init(spa);
@@ -1009,26 +961,19 @@ spa_stats_destroy(spa_t *spa)
 	spa_tx_assign_destroy(spa);
 	spa_txg_history_destroy(spa);
 	spa_read_history_destroy(spa);
-	spa_io_history_destroy(spa);
 	spa_mmp_history_destroy(spa);
 }
 
-#if defined(_KERNEL)
-/* CSTYLED */
-module_param(zfs_read_history, int, 0644);
-MODULE_PARM_DESC(zfs_read_history,
-	"Historical statistics for the last N reads");
+/* BEGIN CSTYLED */
+ZFS_MODULE_PARAM(zfs, zfs_, read_history, INT, ZMOD_RW,
+    "Historical statistics for the last N reads");
 
-module_param(zfs_read_history_hits, int, 0644);
-MODULE_PARM_DESC(zfs_read_history_hits,
-	"Include cache hits in read history");
+ZFS_MODULE_PARAM(zfs, zfs_, read_history_hits, INT, ZMOD_RW,
+    "Include cache hits in read history");
 
-module_param(zfs_txg_history, int, 0644);
-MODULE_PARM_DESC(zfs_txg_history,
-	"Historical statistics for the last N txgs");
+ZFS_MODULE_PARAM(zfs_txg, zfs_txg_, history, INT, ZMOD_RW,
+    "Historical statistics for the last N txgs");
 
-module_param(zfs_multihost_history, int, 0644);
-MODULE_PARM_DESC(zfs_multihost_history,
-	"Historical statistics for last N multihost writes");
+ZFS_MODULE_PARAM(zfs_multihost, zfs_multihost_, history, INT, ZMOD_RW,
+    "Historical statistics for last N multihost writes");
 /* END CSTYLED */
-#endif

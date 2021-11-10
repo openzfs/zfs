@@ -26,9 +26,11 @@
 #if defined(__x86_64) && defined(HAVE_AVX2)
 
 #include <sys/types.h>
-#include <linux/simd_x86.h>
+#include <sys/simd.h>
 
+#ifdef __linux__
 #define	__asm __asm__ __volatile__
+#endif
 
 #define	_REG_CNT(_0, _1, _2, _3, _4, _5, _6, _7, N, ...) N
 #define	REG_CNT(r...) _REG_CNT(r, 8, 7, 6, 5, 4, 3, 2, 1)
@@ -396,7 +398,7 @@ DEFINE_REC_METHODS(avx2);
 static boolean_t
 raidz_will_avx2_work(void)
 {
-	return (zfs_avx_available() && zfs_avx2_available());
+	return (kfpu_allowed() && zfs_avx_available() && zfs_avx2_available());
 }
 
 const raidz_impl_ops_t vdev_raidz_avx2_impl = {

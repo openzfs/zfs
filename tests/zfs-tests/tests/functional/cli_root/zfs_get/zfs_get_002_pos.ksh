@@ -49,13 +49,19 @@ typeset options=(" " p r H)
 
 typeset zfs_props=("type" used available creation volsize referenced \
     compressratio mounted origin recordsize quota reservation mountpoint \
-    sharenfs checksum compression atime devices exec readonly setuid zoned \
-    snapdir acltype aclinherit canmount primarycache secondarycache \
-    usedbychildren usedbydataset usedbyrefreservation usedbysnapshots version)
-
+    sharenfs checksum compression atime devices exec readonly setuid \
+    snapdir aclinherit canmount primarycache secondarycache version \
+    usedbychildren usedbydataset usedbyrefreservation usedbysnapshots)
+if is_freebsd; then
+	typeset zfs_props_os=(jailed aclmode)
+else
+	typeset zfs_props_os=(zoned acltype)
+fi
 typeset userquota_props=(userquota@root groupquota@root userused@root \
     groupused@root)
-typeset props=("${zfs_props[@]}" "${userquota_props[@]}")
+typeset props=("${zfs_props[@]}" \
+    "${zfs_props_os[@]}" \
+    "${userquota_props[@]}")
 typeset dataset=($TESTPOOL/$TESTCTR $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL \
 	$TESTPOOL/$TESTFS@$TESTSNAP $TESTPOOL/$TESTVOL@$TESTSNAP)
 

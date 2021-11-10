@@ -47,22 +47,9 @@ verify_runnable "global"
 
 function cleanup
 {
-	if poolexists $TESTPOOL; then
-		destroy_pool $TESTPOOL
-	fi
-
-	if [[ -d $TESTDIR ]]; then
-		log_must rm -rf $TESTDIR
-	fi
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+	rm -rf $TESTDIR
 }
-
-if [[ -n $DISK ]]; then
-        disk=$DISK
-else
-        disk=$DISK0
-fi
-
-typeset pool_dev=${disk}${SLICE_PREFIX}${SLICE0}
 
 log_assert "'zpool create' should fail with mountpoint exists and not empty."
 log_onexit cleanup
@@ -81,7 +68,7 @@ while (( i < 2 )); do
 		log_must touch $TESTDIR/testfile
 	fi
 
-	log_mustnot zpool create -m $TESTDIR -f $TESTPOOL $pool_dev
+	log_mustnot zpool create -m $TESTDIR -f $TESTPOOL $DISK0
 	log_mustnot poolexists $TESTPOOL
 
 	(( i = i + 1 ))

@@ -1,0 +1,80 @@
+#!/bin/ksh
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright (c) 2018, 2019 by Delphix. All rights reserved.
+#
+
+typeset -a disk_array=($(find_disks $DISKS))
+
+typeset -r DISK1=${disk_array[0]}
+typeset -r DISK2=${disk_array[1]}
+typeset -r DISK3=${disk_array[2]}
+
+#
+# When the condition it is waiting for becomes true, 'zfs wait' should return
+# promptly. We want to enforce this, but any check will be racey because it will
+# take some small but indeterminate amount of time for the waiting thread to be
+# woken up and for the process to exit.
+#
+# To deal with this, we provide a grace period after the condition becomes true
+# during which 'zfs wait' can exit. If it hasn't exited by the time the grace
+# period expires we assume something is wrong and fail the test. While there is
+# no value that can really be correct, the idea is we choose something large
+# enough that it shouldn't cause issues in practice.
+#
+typeset -r WAIT_EXIT_GRACE=2.0
+
+function proc_exists # pid
+{
+	ps -p $1 >/dev/null
+}
+
+function proc_must_exist # pid
+{
+	proc_exists $1 || log_fail "zpool process exited too soon"
+}
+
+function proc_must_not_exist # pid
+{
+	proc_exists $1 && log_fail "zpool process took too long to exit"
+}
+
+function get_time
+{
+	date +'%H:%M:%S'
+}
+
+function kill_if_running
+{
+	typeset pid=$1
+	[[ $pid ]] && proc_exists $pid && log_must kill -s TERM $pid
+}
+
+# Log a command and then start it running in the background
+function log_bkgrnd
+{
+	log_note "$(get_time) Starting cmd in background '$@'"
+	"$@" &
+}
+
+# Check that a background process has completed and exited with a status of 0
+function bkgrnd_proc_succeeded
+{
+	typeset pid=$1
+
+	log_must sleep $WAIT_EXIT_GRACE
+
+	proc_must_not_exist $pid
+	wait $pid || log_fail "process exited with status $?"
+	log_note "$(get_time) wait completed successfully"
+}

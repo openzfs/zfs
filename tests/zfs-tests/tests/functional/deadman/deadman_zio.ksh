@@ -49,19 +49,19 @@ function cleanup
 	log_must zinject -c all
 	default_cleanup_noexit
 
-	log_must set_tunable64 zfs_deadman_ziotime_ms $ZIOTIME_DEFAULT
-	log_must set_tunable64 zfs_deadman_checktime_ms $CHECKTIME_DEFAULT
-	log_must set_tunable64 zfs_deadman_failmode $FAILMODE_DEFAULT
+	log_must set_tunable64 DEADMAN_ZIOTIME_MS $ZIOTIME_DEFAULT
+	log_must set_tunable64 DEADMAN_CHECKTIME_MS $CHECKTIME_DEFAULT
+	log_must set_tunable64 DEADMAN_FAILMODE $FAILMODE_DEFAULT
 }
 
 log_assert "Verify zio deadman detects a hung zio"
 log_onexit cleanup
 
 # 1. Reduce the zfs_deadman_ziotime_ms to 5s.
-log_must set_tunable64 zfs_deadman_ziotime_ms 5000
+log_must set_tunable64 DEADMAN_ZIOTIME_MS 5000
 # 2. Reduce the zfs_deadman_checktime_ms to 1s.
-log_must set_tunable64 zfs_deadman_checktime_ms 1000
-log_must set_tunable64 zfs_deadman_failmode "wait"
+log_must set_tunable64 DEADMAN_CHECKTIME_MS 1000
+log_must set_tunable64 DEADMAN_FAILMODE "wait"
 
 # Create a new pool in order to use the updated deadman settings.
 default_setup_noexit $DISK1

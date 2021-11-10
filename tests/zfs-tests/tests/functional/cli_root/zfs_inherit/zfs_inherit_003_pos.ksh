@@ -37,8 +37,8 @@
 # 'zfs inherit' should return an error with bad parameters in one command.
 #
 # STRATEGY:
-# 1. Set an array of bad options and invlid properties to 'zfs inherit'
-# 2. Execute 'zfs inherit' with bad options and passing invlid properties
+# 1. Set an array of bad options and invalid properties to 'zfs inherit'
+# 2. Execute 'zfs inherit' with bad options and passing invalid properties
 # 3. Verify an error is returned.
 #
 
@@ -47,9 +47,7 @@ verify_runnable "both"
 function cleanup
 {
 	for ds in $TESTPOOL $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL ; do
-		if snapexists $ds@$TESTSNAP; then
-			log_must zfs destroy $ds@$TESTSNAP
-		fi
+		snapexists $ds@$TESTSNAP && destroy_dataset $ds@$TESTSNAP
 	done
 	cleanup_user_prop $TESTPOOL
 }

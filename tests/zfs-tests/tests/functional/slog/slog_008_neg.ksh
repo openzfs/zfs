@@ -44,6 +44,7 @@ verify_runnable "global"
 
 log_assert "A raidz/raidz2 log is not supported."
 log_onexit cleanup
+log_must setup
 
 for type in "" "mirror" "raidz" "raidz2"
 do

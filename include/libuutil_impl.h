@@ -42,15 +42,8 @@ extern "C" {
 void uu_set_error(uint_t);
 
 
-/*PRINTFLIKE1*/
-void uu_panic(const char *format, ...);
+void uu_panic(const char *format, ...) __attribute__((format(printf, 1, 2)));
 
-
-struct uu_dprintf {
-	char	*uud_name;
-	uu_dprintf_severity_t uud_severity;
-	uint_t	uud_flags;
-};
 
 /*
  * For debugging purposes, libuutil keeps around linked lists of all uu_lists

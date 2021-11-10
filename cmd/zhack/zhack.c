@@ -48,16 +48,15 @@
 #include <sys/zio_compress.h>
 #include <sys/zfeature.h>
 #include <sys/dmu_tx.h>
+#include <zfeature_common.h>
 #include <libzutil.h>
-
-extern boolean_t zfeature_checks_disable;
 
 const char cmdname[] = "zhack";
 static importargs_t g_importargs;
 static char *g_pool;
 static boolean_t g_readonly;
 
-static void
+static __attribute__((noreturn)) void
 usage(void)
 {
 	(void) fprintf(stderr,
@@ -82,7 +81,7 @@ usage(void)
 }
 
 
-static void
+static __attribute__((noreturn)) __attribute__((format(printf, 3, 4))) void
 fatal(spa_t *spa, void *tag, const char *fmt, ...)
 {
 	va_list ap;
@@ -103,8 +102,8 @@ fatal(spa_t *spa, void *tag, const char *fmt, ...)
 
 /* ARGSUSED */
 static int
-space_delta_cb(dmu_object_type_t bonustype, void *data,
-    uint64_t *userp, uint64_t *groupp, uint64_t *projectp)
+space_delta_cb(dmu_object_type_t bonustype, const void *data,
+    zfs_file_info_t *zoi)
 {
 	/*
 	 * Is it a valid type of object to track?
@@ -113,7 +112,6 @@ space_delta_cb(dmu_object_type_t bonustype, void *data,
 		return (ENOENT);
 	(void) fprintf(stderr, "modifying object that needs user accounting");
 	abort();
-	/* NOTREACHED */
 }
 
 /*
@@ -126,7 +124,8 @@ zhack_import(char *target, boolean_t readonly)
 	nvlist_t *props;
 	int error;
 
-	kernel_init(readonly ? FREAD : (FREAD | FWRITE));
+	kernel_init(readonly ? SPA_MODE_READ :
+	    (SPA_MODE_READ | SPA_MODE_WRITE));
 
 	dmu_objset_register_type(DMU_OST_ZFS, space_delta_cb);
 
@@ -149,6 +148,7 @@ zhack_import(char *target, boolean_t readonly)
 	zfeature_checks_disable = B_TRUE;
 	error = spa_import(target, config, props,
 	    (readonly ?  ZFS_IMPORT_SKIP_MMP : ZFS_IMPORT_NORMAL));
+	fnvlist_free(config);
 	zfeature_checks_disable = B_FALSE;
 	if (error == EEXIST)
 		error = 0;
@@ -317,7 +317,8 @@ zhack_do_feature_enable(int argc, char **argv)
 	mos = spa->spa_meta_objset;
 
 	if (zfeature_is_supported(feature.fi_guid))
-		fatal(spa, FTAG, "'%s' is a real feature, will not enable");
+		fatal(spa, FTAG, "'%s' is a real feature, will not enable",
+		    feature.fi_guid);
 	if (0 == zap_contains(mos, spa->spa_feat_desc_obj, feature.fi_guid))
 		fatal(spa, FTAG, "feature already enabled: %s",
 		    feature.fi_guid);
@@ -411,7 +412,8 @@ zhack_do_feature_ref(int argc, char **argv)
 
 	if (zfeature_is_supported(feature.fi_guid)) {
 		fatal(spa, FTAG,
-		    "'%s' is a real feature, will not change refcount");
+		    "'%s' is a real feature, will not change refcount",
+		    feature.fi_guid);
 	}
 
 	if (0 == zap_contains(mos, spa->spa_feat_for_read_obj,

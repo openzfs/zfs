@@ -47,9 +47,7 @@ function cleanup
 {
 	! ismounted $fs && log_must zfs mount $fs
 
-	if datasetexists $fs1; then
-		log_must zfs destroy $fs1
-	fi
+	datasetexists $fs1 && destroy_dataset $fs1
 
 	if [[ -f $testfile ]]; then
 		log_must rm -f $testfile
@@ -73,7 +71,8 @@ log_must mkfile 1M $testfile $testfile1
 
 log_must zfs unmount $fs1
 log_must zfs set mountpoint=$mntpnt $fs1
-log_mustnot zfs mount $fs1
+log_must zfs mount $fs1
+log_must zfs unmount $fs1
 log_must zfs mount -O $fs1
 
 # Create new file in override mountpoint
@@ -83,7 +82,7 @@ log_must mkfile 1M $mntpnt/$TESTFILE2
 log_mustnot ls $testfile
 log_must ls $mntpnt/$TESTFILE1 $mntpnt/$TESTFILE2
 
-# Verify $TESTFILE2 was created in $fs1, rather then $fs
+# Verify $TESTFILE2 was created in $fs1, rather than $fs
 log_must zfs unmount $fs1
 log_must zfs set mountpoint=$mntpnt1 $fs1
 log_must zfs mount $fs1

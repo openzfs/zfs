@@ -88,7 +88,7 @@ gethrestime(inode_timespec_t *ts)
 	ts->tv_nsec = tv.tv_usec * NSEC_PER_USEC;
 }
 
-static inline time_t
+static inline uint64_t
 gethrestime_sec(void)
 {
 	struct timeval tv;

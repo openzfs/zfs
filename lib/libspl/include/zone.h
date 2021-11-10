@@ -26,25 +26,16 @@
 #ifndef _LIBSPL_ZONE_H
 #define	_LIBSPL_ZONE_H
 
-
-
 #include <sys/types.h>
 #include <sys/zone.h>
-#include <sys/priv.h>
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
 
 #define	GLOBAL_ZONEID		0
-#define	GLOBAL_ZONEID_NAME	"global"
 
-/*
- * Functions for mapping between id and name for active zones.
- */
 extern zoneid_t		getzoneid(void);
-extern zoneid_t		getzoneidbyname(const char *);
-extern ssize_t		getzonenamebyid(zoneid_t, char *, size_t);
 
 #ifdef	__cplusplus
 }

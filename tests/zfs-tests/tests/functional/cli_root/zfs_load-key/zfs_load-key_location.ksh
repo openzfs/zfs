@@ -44,7 +44,7 @@ verify_runnable "both"
 function cleanup
 {
 	datasetexists $TESTPOOL/$TESTFS1 && \
-		log_must zfs destroy $TESTPOOL/$TESTFS1
+		destroy_dataset $TESTPOOL/$TESTFS1
 }
 log_onexit cleanup
 
@@ -67,6 +67,11 @@ log_must verify_keylocation $TESTPOOL/$TESTFS1 "file://$key_location"
 
 log_must zfs unload-key $TESTPOOL/$TESTFS1
 log_must eval "echo $PASSPHRASE | zfs load-key -L prompt $TESTPOOL/$TESTFS1"
+log_must key_available $TESTPOOL/$TESTFS1
+log_must verify_keylocation $TESTPOOL/$TESTFS1 "file://$key_location"
+
+log_must zfs unload-key $TESTPOOL/$TESTFS1
+log_must zfs load-key -L $(get_https_base_url)/PASSPHRASE $TESTPOOL/$TESTFS1
 log_must key_available $TESTPOOL/$TESTFS1
 log_must verify_keylocation $TESTPOOL/$TESTFS1 "file://$key_location"
 

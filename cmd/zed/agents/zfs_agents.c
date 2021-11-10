@@ -13,6 +13,7 @@
 /*
  * Copyright (c) 2016, Intel Corporation.
  * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>
+ * Copyright (c) 2021 Hewlett Packard Enterprise Development LP
  */
 
 #include <libnvpair.h>
@@ -116,7 +117,8 @@ zfs_agent_iter_vdev(zpool_handle_t *zhp, nvlist_t *nvl, void *arg)
 	/*
 	 * On a devid match, grab the vdev guid and expansion time, if any.
 	 */
-	if ((nvlist_lookup_string(nvl, ZPOOL_CONFIG_DEVID, &path) == 0) &&
+	if (gsp->gs_devid != NULL &&
+	    (nvlist_lookup_string(nvl, ZPOOL_CONFIG_DEVID, &path) == 0) &&
 	    (strcmp(gsp->gs_devid, path) == 0)) {
 		(void) nvlist_lookup_uint64(nvl, ZPOOL_CONFIG_GUID,
 		    &gsp->gs_vdev_guid);
@@ -176,10 +178,12 @@ zfs_agent_post_event(const char *class, const char *subclass, nvlist_t *nvl)
 	}
 
 	/*
-	 * On ZFS on Linux, we don't get the expected FM_RESOURCE_REMOVED
-	 * ereport from vdev_disk layer after a hot unplug. Fortunately we
-	 * get a EC_DEV_REMOVE from our disk monitor and it is a suitable
+	 * On Linux, we don't get the expected FM_RESOURCE_REMOVED ereport
+	 * from the vdev_disk layer after a hot unplug. Fortunately we do
+	 * get an EC_DEV_REMOVE from our disk monitor and it is a suitable
 	 * proxy so we remap it here for the benefit of the diagnosis engine.
+	 * Starting in OpenZFS 2.0, we do get FM_RESOURCE_REMOVED from the spa
+	 * layer. Processing multiple FM_RESOURCE_REMOVED events is not harmful.
 	 */
 	if ((strcmp(class, EC_DEV_REMOVE) == 0) &&
 	    (strcmp(subclass, ESC_DISK) == 0) &&
@@ -208,12 +212,18 @@ zfs_agent_post_event(const char *class, const char *subclass, nvlist_t *nvl)
 		 * For multipath, spare and l2arc devices ZFS_EV_VDEV_GUID or
 		 * ZFS_EV_POOL_GUID may be missing so find them.
 		 */
-		(void) nvlist_lookup_string(nvl, DEV_IDENTIFIER,
-		    &search.gs_devid);
-		(void) zpool_iter(g_zfs_hdl, zfs_agent_iter_pool, &search);
-		pool_guid = search.gs_pool_guid;
-		vdev_guid = search.gs_vdev_guid;
-		devtype = search.gs_vdev_type;
+		if (pool_guid == 0 || vdev_guid == 0) {
+			if ((nvlist_lookup_string(nvl, DEV_IDENTIFIER,
+			    &search.gs_devid) == 0) &&
+			    (zpool_iter(g_zfs_hdl, zfs_agent_iter_pool, &search)
+			    == 1)) {
+				if (pool_guid == 0)
+					pool_guid = search.gs_pool_guid;
+				if (vdev_guid == 0)
+					vdev_guid = search.gs_vdev_guid;
+				devtype = search.gs_vdev_type;
+			}
+		}
 
 		/*
 		 * We want to avoid reporting "remove" events coming from
@@ -382,6 +392,7 @@ zfs_agent_init(libzfs_handle_t *zfs_hdl)
 		list_destroy(&agent_events);
 		zed_log_die("Failed to initialize agents");
 	}
+	pthread_setname_np(g_agents_tid, "agents");
 }
 
 void

@@ -244,7 +244,7 @@ static void auxsort (lua_State *L, int l, int u) {
   }  /* repeat the routine for the larger one */
 }
 
-static int sort (lua_State *L) {
+static int tsort (lua_State *L) {
   int n = aux_getn(L, 1);
   luaL_checkstack(L, 40, "");  /* assume array is smaller than 2^40 */
   if (!lua_isnoneornil(L, 2))  /* is there a 2nd argument? */
@@ -266,7 +266,7 @@ static const luaL_Reg tab_funcs[] = {
   {"pack", pack},
   {"unpack", unpack},
   {"remove", tremove},
-  {"sort", sort},
+  {"sort", tsort},
   {NULL, NULL}
 };
 

@@ -291,7 +291,7 @@ autodoc_member_order = 'bysource'
 
 #######################
 # Neutralize effects of function wrapping on documented signatures.
-# The affected signatures could be explcitly placed into the
+# The affected signatures could be explicitly placed into the
 # documentation (either in .rst files or as a first line of a
 # docstring).
 import functools

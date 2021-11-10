@@ -1,10 +1,30 @@
-dnl #
-dnl # Linux 4.11 API
-dnl # See torvalds/linux@a528d35
-dnl #
-AC_DEFUN([ZFS_AC_PATH_KERNEL_IOPS_GETATTR], [
-	AC_MSG_CHECKING([whether iops->getattr() takes a path])
-	ZFS_LINUX_TRY_COMPILE([
+AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_GETATTR], [
+	dnl #
+	dnl # Linux 5.12 API
+	dnl # The getattr I/O operations handler type was extended to require
+	dnl # a struct user_namespace* as its first arg, to support idmapped
+	dnl # mounts.
+	dnl #
+	ZFS_LINUX_TEST_SRC([inode_operations_getattr_userns], [
+		#include <linux/fs.h>
+
+		int test_getattr(
+			struct user_namespace *userns,
+		    const struct path *p, struct kstat *k,
+		    u32 request_mask, unsigned int query_flags)
+		    { return 0; }
+
+		static const struct inode_operations
+		    iops __attribute__ ((unused)) = {
+			.getattr = test_getattr,
+		};
+	],[])
+
+	dnl #
+	dnl # Linux 4.11 API
+	dnl # See torvalds/linux@a528d35
+	dnl #
+	ZFS_LINUX_TEST_SRC([inode_operations_getattr_path], [
 		#include <linux/fs.h>
 
 		int test_getattr(
@@ -16,24 +36,9 @@ AC_DEFUN([ZFS_AC_PATH_KERNEL_IOPS_GETATTR], [
 		    iops __attribute__ ((unused)) = {
 			.getattr = test_getattr,
 		};
-	],[
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_PATH_IOPS_GETATTR, 1,
-		    [iops->getattr() takes a path])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
+	],[])
 
-
-
-dnl #
-dnl # Linux 3.9 - 4.10 API
-dnl #
-AC_DEFUN([ZFS_AC_VFSMOUNT_KERNEL_IOPS_GETATTR], [
-	AC_MSG_CHECKING([whether iops->getattr() takes a vfsmount])
-	ZFS_LINUX_TRY_COMPILE([
+	ZFS_LINUX_TEST_SRC([inode_operations_getattr_vfsmount], [
 		#include <linux/fs.h>
 
 		int test_getattr(
@@ -45,23 +50,43 @@ AC_DEFUN([ZFS_AC_VFSMOUNT_KERNEL_IOPS_GETATTR], [
 		    iops __attribute__ ((unused)) = {
 			.getattr = test_getattr,
 		};
-	],[
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_VFSMOUNT_IOPS_GETATTR, 1,
-		    [iops->getattr() takes a vfsmount])
-	],[
-		AC_MSG_RESULT(no)
-	])
+	],[])
 ])
 
+AC_DEFUN([ZFS_AC_KERNEL_INODE_GETATTR], [
+	dnl #
+	dnl # Kernel 5.12 test
+	dnl #
+	AC_MSG_CHECKING([whether iops->getattr() takes user_namespace])
+	ZFS_LINUX_TEST_RESULT([inode_operations_getattr_userns], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_USERNS_IOPS_GETATTR, 1,
+		    [iops->getattr() takes struct user_namespace*])
+	],[
+		AC_MSG_RESULT(no)
 
-dnl #
-dnl # The interface of the getattr callback from the inode_operations
-dnl # structure changed.  Also, the interface of the simple_getattr()
-dnl # function provided by the kernel changed.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_INODE_OPERATIONS_GETATTR], [
-	ZFS_AC_PATH_KERNEL_IOPS_GETATTR
-	ZFS_AC_VFSMOUNT_KERNEL_IOPS_GETATTR
+		dnl #
+		dnl # Kernel 4.11 test
+		dnl #
+		AC_MSG_CHECKING([whether iops->getattr() takes a path])
+		ZFS_LINUX_TEST_RESULT([inode_operations_getattr_path], [
+			AC_MSG_RESULT(yes)
+			AC_DEFINE(HAVE_PATH_IOPS_GETATTR, 1,
+				[iops->getattr() takes a path])
+		],[
+			AC_MSG_RESULT(no)
+
+			dnl #
+			dnl # Kernel < 4.11 test
+			dnl #
+			AC_MSG_CHECKING([whether iops->getattr() takes a vfsmount])
+			ZFS_LINUX_TEST_RESULT([inode_operations_getattr_vfsmount], [
+				AC_MSG_RESULT(yes)
+				AC_DEFINE(HAVE_VFSMOUNT_IOPS_GETATTR, 1,
+					[iops->getattr() takes a vfsmount])
+			],[
+				AC_MSG_RESULT(no)
+			])
+		])
+	])
 ])

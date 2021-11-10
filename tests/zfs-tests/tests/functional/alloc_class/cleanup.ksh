@@ -21,7 +21,7 @@
 
 verify_runnable "global"
 
-default_cleanup
+default_cleanup_noexit
 disk_cleanup
 
 log_pass

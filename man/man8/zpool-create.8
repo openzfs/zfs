@@ -1,0 +1,211 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+.\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
+.\" Copyright (c) 2017 Datto Inc.
+.\" Copyright (c) 2018 George Melikov. All Rights Reserved.
+.\" Copyright 2017 Nexenta Systems, Inc.
+.\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
+.\"
+.Dd June 2, 2021
+.Dt ZPOOL-CREATE 8
+.Os
+.
+.Sh NAME
+.Nm zpool-create
+.Nd create ZFS storage pool
+.Sh SYNOPSIS
+.Nm zpool
+.Cm create
+.Op Fl dfn
+.Op Fl m Ar mountpoint
+.Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
+.Oo Fl o Sy feature@ Ns Ar feature Ns = Ns Ar value Oc
+.Op Fl o Ar compatibility Ns = Ns Sy off Ns | Ns Sy legacy Ns | Ns Ar file Ns Oo , Ns Ar file Oc Ns …
+.Oo Fl O Ar file-system-property Ns = Ns Ar value Oc Ns …
+.Op Fl R Ar root
+.Op Fl t Ar tname
+.Ar pool
+.Ar vdev Ns …
+.
+.Sh DESCRIPTION
+Creates a new storage pool containing the virtual devices specified on the
+command line.
+The pool name must begin with a letter, and can only contain
+alphanumeric characters as well as the underscore
+.Pq Qq Sy _ ,
+dash
+.Pq Qq Sy \&- ,
+colon
+.Pq Qq Sy \&: ,
+space
+.Pq Qq Sy \&\  ,
+and period
+.Pq Qq Sy \&. .
+The pool names
+.Sy mirror ,
+.Sy raidz ,
+.Sy draid ,
+.Sy spare
+and
+.Sy log
+are reserved, as are names beginning with
+.Sy mirror ,
+.Sy raidz ,
+.Sy draid ,
+and
+.Sy spare .
+The
+.Ar vdev
+specification is described in the
+.Sx Virtual Devices
+section of
+.Xr zpoolconcepts 7 .
+.Pp
+The command attempts to verify that each device specified is accessible and not
+currently in use by another subsystem.
+However this check is not robust enough
+to detect simultaneous attempts to use a new device in different pools, even if
+.Sy multihost Ns = Sy enabled .
+The administrator must ensure, that simultaneous invocations of any combination of
+.Nm zpool Cm replace ,
+.Nm zpool Cm create ,
+.Nm zpool Cm add ,
+or
+.Nm zpool Cm labelclear ,
+do not refer to the same device.
+Using the same device in two pools will result in pool corruption.
+.Pp
+There are some uses, such as being currently mounted, or specified as the
+dedicated dump device, that prevents a device from ever being used by ZFS.
+Other uses, such as having a preexisting UFS file system, can be overridden with
+.Fl f .
+.Pp
+The command also checks that the replication strategy for the pool is
+consistent.
+An attempt to combine redundant and non-redundant storage in a single pool,
+or to mix disks and files, results in an error unless
+.Fl f
+is specified.
+The use of differently-sized devices within a single raidz or mirror group is
+also flagged as an error unless
+.Fl f
+is specified.
+.Pp
+Unless the
+.Fl R
+option is specified, the default mount point is
+.Pa / Ns Ar pool .
+The mount point must not exist or must be empty, or else the root dataset
+will not be able to be be mounted.
+This can be overridden with the
+.Fl m
+option.
+.Pp
+By default all supported features are enabled on the new pool.
+The
+.Fl d
+option and the
+.Fl o Ar compatibility
+property
+.Pq e.g Fl o Sy compatibility Ns = Ns Ar 2020
+can be used to restrict the features that are enabled, so that the
+pool can be imported on other releases of ZFS.
+.Bl -tag -width "-t tname"
+.It Fl d
+Do not enable any features on the new pool.
+Individual features can be enabled by setting their corresponding properties to
+.Sy enabled
+with
+.Fl o .
+See
+.Xr zpool-features 7
+for details about feature properties.
+.It Fl f
+Forces use of
+.Ar vdev Ns s ,
+even if they appear in use or specify a conflicting replication level.
+Not all devices can be overridden in this manner.
+.It Fl m Ar mountpoint
+Sets the mount point for the root dataset.
+The default mount point is
+.Pa /pool
+or
+.Pa altroot/pool
+if
+.Sy altroot
+is specified.
+The mount point must be an absolute path,
+.Sy legacy ,
+or
+.Sy none .
+For more information on dataset mount points, see
+.Xr zfsprops 7 .
+.It Fl n
+Displays the configuration that would be used without actually creating the
+pool.
+The actual pool creation can still fail due to insufficient privileges or
+device sharing.
+.It Fl o Ar property Ns = Ns Ar value
+Sets the given pool properties.
+See
+.Xr zpoolprops 7
+for a list of valid properties that can be set.
+.It Fl o Ar compatibility Ns = Ns Sy off Ns | Ns Sy legacy Ns | Ns Ar file Ns Oo , Ns Ar file Oc Ns …
+Specifies compatibility feature sets.
+See
+.Xr zpool-features 7
+for more information about compatibility feature sets.
+.It Fl o Sy feature@ Ns Ar feature Ns = Ns Ar value
+Sets the given pool feature.
+See the
+.Xr zpool-features 7
+section for a list of valid features that can be set.
+Value can be either disabled or enabled.
+.It Fl O Ar file-system-property Ns = Ns Ar value
+Sets the given file system properties in the root file system of the pool.
+See
+.Xr zfsprops 7
+for a list of valid properties that can be set.
+.It Fl R Ar root
+Equivalent to
+.Fl o Sy cachefile Ns = Ns Sy none Fl o Sy altroot Ns = Ns Ar root
+.It Fl t Ar tname
+Sets the in-core pool name to
+.Ar tname
+while the on-disk name will be the name specified as
+.Ar pool .
+This will set the default of the
+.Sy cachefile
+property to
+.Sy none .
+This is intended
+to handle name space collisions when creating pools for other systems,
+such as virtual machines or physical machines whose pools live on network
+block devices.
+.El
+.
+.Sh SEE ALSO
+.Xr zpool-destroy 8 ,
+.Xr zpool-export 8 ,
+.Xr zpool-import 8

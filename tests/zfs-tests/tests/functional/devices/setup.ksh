@@ -32,4 +32,4 @@
 . $STF_SUITE/include/libtest.shlib
 
 DISK=${DISKS%% *}
-default_setup $DISK
+default_volume_setup $DISK

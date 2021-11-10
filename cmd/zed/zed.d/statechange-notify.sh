@@ -15,7 +15,7 @@
 # Send notification in response to a fault induced statechange
 #
 # ZEVENT_SUBCLASS: 'statechange'
-# ZEVENT_VDEV_STATE_STR: 'DEGRADED', 'FAULTED' or 'REMOVED'
+# ZEVENT_VDEV_STATE_STR: 'DEGRADED', 'FAULTED', 'REMOVED', or 'UNAVAIL'
 #
 # Exit codes:
 #   0: notification sent
@@ -31,13 +31,14 @@
 
 if [ "${ZEVENT_VDEV_STATE_STR}" != "FAULTED" ] \
         && [ "${ZEVENT_VDEV_STATE_STR}" != "DEGRADED" ] \
-        && [ "${ZEVENT_VDEV_STATE_STR}" != "REMOVED" ]; then
+        && [ "${ZEVENT_VDEV_STATE_STR}" != "REMOVED" ] \
+        && [ "${ZEVENT_VDEV_STATE_STR}" != "UNAVAIL" ]; then
     exit 3
 fi
 
 umask 077
 note_subject="ZFS device fault for pool ${ZEVENT_POOL_GUID} on $(hostname)"
-note_pathname="${TMPDIR:="/tmp"}/$(basename -- "$0").${ZEVENT_EID}.$$"
+note_pathname="$(mktemp)"
 {
     if [ "${ZEVENT_VDEV_STATE_STR}" = "FAULTED" ] ; then
         echo "The number of I/O errors associated with a ZFS device exceeded"

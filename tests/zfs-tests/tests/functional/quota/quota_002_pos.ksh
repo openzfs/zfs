@@ -61,6 +61,9 @@ function cleanup
 
 	[[ -e $TESTDIR/$TESTFILE2 ]] && \
             log_must rm $TESTDIR/$TESTFILE2
+
+	wait_freeing $TESTPOOL
+	sync_pool $TESTPOOL
 }
 
 log_onexit cleanup

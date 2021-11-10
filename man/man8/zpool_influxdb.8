@@ -1,0 +1,98 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at
+.\" https://opensource.org/licenses/CDDL-1.0
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright 2020 Richard Elling
+.\"
+.Dd May 26, 2021
+.Dt ZPOOL_INFLUXDB 8
+.Os
+.
+.Sh NAME
+.Nm zpool_influxdb
+.Nd collect ZFS pool statistics in InfluxDB line protocol format
+.Sh SYNOPSIS
+.Nm
+.Op Fl e Ns | Ns Fl -execd
+.Op Fl n Ns | Ns Fl -no-histogram
+.Op Fl s Ns | Ns Fl -sum-histogram-buckets
+.Op Fl t Ns | Ns Fl -tags Ar key Ns = Ns Ar value Ns Oo , Ns Ar key Ns = Ns Ar value Oc Ns …
+.Op Ar pool
+.
+.Sh DESCRIPTION
+.Nm
+produces InfluxDB-line-protocol-compatible metrics from zpools.
+Like the
+.Nm zpool
+command,
+.Nm
+reads the current pool status and statistics.
+Unlike the
+.Nm zpool
+command which is intended for humans,
+.Nm
+formats the output in the InfluxDB line protocol.
+The expected use is as a plugin to a
+metrics collector or aggregator, such as Telegraf.
+.Pp
+By default,
+.Nm
+prints pool metrics and status in the InfluxDB line protocol format.
+All pools are printed, similar to the
+.Nm zpool Cm status
+command.
+Providing a pool name restricts the output to the named pool.
+.
+.Sh OPTIONS
+.Bl -tag -width "-e, --execd"
+.It Fl e , -execd
+Run in daemon mode compatible with Telegraf's
+.Nm execd
+plugin.
+In this mode, the pools are sampled every time a
+newline appears on the standard input.
+.It Fl n , -no-histogram
+Do not print latency and I/O size histograms.
+This can reduce the total
+amount of data, but one should consider the value brought by the insights
+that latency and I/O size distributions provide.
+The resulting values
+are suitable for graphing with Grafana's heatmap plugin.
+.It Fl s , -sum-histogram-buckets
+Accumulates bucket values.
+By default, the values are not accumulated and the raw data appears as shown by
+.Nm zpool Cm iostat .
+This works well for Grafana's heatmap plugin.
+Summing the buckets produces output similar to Prometheus histograms.
+.It Fl t , Fl -tags Ar key Ns = Ns Ar value Ns Oo , Ns Ar key Ns = Ns Ar value Oc Ns …
+Adds specified tags to the tag set.
+No sanity checking is performed.
+See the InfluxDB Line Protocol format documentation for details on escaping
+special characters used in tags.
+.It Fl h , -help
+Print a usage summary.
+.El
+.
+.Sh SEE ALSO
+.Xr zpool-iostat 8 ,
+.Xr zpool-status 8 ,
+.Lk https://github.com/influxdata/influxdb "InfluxDB" ,
+.Lk https://github.com/influxdata/telegraf "Telegraf" ,
+.Lk https://grafana.com "Grafana" ,
+.Lk https://prometheus.io "Prometheus"

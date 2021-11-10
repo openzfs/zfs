@@ -58,4 +58,15 @@ for form in formC formD formKC formKD; do
 	destroy_testfs
 done
 
+for form in formC formD formKC formKD; do
+	create_testfs "-o normalization=$form"
+	log_must zfs create -o utf8only=off $TESTPOOL/$TESTFS/$TESTSUBFS
+	normalization=$(zfs get -H -o value normalization $TESTPOOL/$TESTFS/$TESTSUBFS)
+	if [[ $normalization != "none" ]]; then
+		log_fail "Turning off utf8only didn't set normalization to none"
+	fi
+	log_must zfs destroy $TESTPOOL/$TESTFS/$TESTSUBFS
+	destroy_testfs
+done
+
 log_pass "Can create FS with all supported normalization forms"

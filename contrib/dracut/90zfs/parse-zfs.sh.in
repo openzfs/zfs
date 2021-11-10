@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2034,SC2154
 
 . /lib/dracut-lib.sh
 
@@ -6,11 +7,7 @@
 spl_hostid=$(getarg spl_hostid=)
 if [ -n "${spl_hostid}" ] ; then
 	info "ZFS: Using hostid from command line: ${spl_hostid}"
-	AA=$(echo "${spl_hostid}" | cut -b 1,2)
-	BB=$(echo "${spl_hostid}" | cut -b 3,4)
-	CC=$(echo "${spl_hostid}" | cut -b 5,6)
-	DD=$(echo "${spl_hostid}" | cut -b 7,8)
-	echo -ne "\\x${DD}\\x${CC}\\x${BB}\\x${AA}" >/etc/hostid
+	zgenhostid -f "${spl_hostid}"
 elif [ -f "/etc/hostid" ] ; then
 	info "ZFS: Using hostid from /etc/hostid: $(hostid)"
 else
@@ -32,7 +29,7 @@ case "${root}" in
 		info "ZFS: Enabling autodetection of bootfs after udev settles."
 		;;
 
-	ZFS\=*|zfs:*|zfs:FILESYSTEM\=*|FILESYSTEM\=*)
+	ZFS=*|zfs:*|FILESYSTEM=*)
 		# root is explicit ZFS root.  Parse it now.  We can handle
 		# a root=... param in any of the following formats:
 		# root=ZFS=rpool/ROOT

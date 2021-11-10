@@ -699,7 +699,7 @@ typedef struct crypto_provider_info {
 
 /*
  * Provider status passed by a provider to crypto_provider_notification(9F)
- * and returned by the provider_stauts(9E) entry point.
+ * and returned by the provider_status(9E) entry point.
  */
 #define	CRYPTO_PROVIDER_READY		0
 #define	CRYPTO_PROVIDER_BUSY		1

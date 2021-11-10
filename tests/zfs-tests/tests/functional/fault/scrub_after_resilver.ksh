@@ -42,6 +42,7 @@ function cleanup
 	# Restore our zed.rc
 	log_must zed_rc_restore $zedrc_backup
 	default_cleanup_noexit
+	log_must zpool labelclear -f $DISK1
 }
 
 log_onexit cleanup

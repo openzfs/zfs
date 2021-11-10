@@ -39,4 +39,4 @@ else
    log_note "This machine is running ZFS Filesystem version $ZFS_VERSION"
 fi
 
-default_setup $DISKS
+default_setup "$DISKS"

@@ -15,6 +15,7 @@
 extern ssize_t lcompat_sprintf(char *, size_t size, const char *, ...);
 extern int64_t lcompat_strtoll(const char *, char **);
 extern int64_t lcompat_pow(int64_t, int64_t);
+extern int lcompat_hashnum(int64_t);
 
 /*
 ** ==================================================================
@@ -367,11 +368,7 @@ extern int64_t lcompat_pow(int64_t, int64_t);
 @@ LUAL_BUFFERSIZE is the buffer size used by the lauxlib buffer system.
 ** CHANGE it if it uses too much C-stack space.
 */
-#ifdef __linux__
 #define LUAL_BUFFERSIZE		512
-#else
-#define LUAL_BUFFERSIZE		1024
-#endif
 
 
 /*
@@ -495,7 +492,7 @@ extern int64_t lcompat_pow(int64_t, int64_t);
 ** a single double value, using NaN values to represent non-number
 ** values. The trick only works on 32-bit machines (ints and pointers
 ** are 32-bit values) with numbers represented as IEEE 754-2008 doubles
-** with conventional endianess (12345678 or 87654321), in CPUs that do
+** with conventional endianness (12345678 or 87654321), in CPUs that do
 ** not produce signaling NaN values (all NaNs are quiet).
 */
 

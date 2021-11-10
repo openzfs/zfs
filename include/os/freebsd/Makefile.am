@@ -1,0 +1,1 @@
+SUBDIRS = linux spl zfs

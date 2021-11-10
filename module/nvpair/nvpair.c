@@ -25,13 +25,24 @@
  * Copyright 2018 RackTop Systems.
  */
 
+/*
+ * Links to Illumos.org for more information on Interface Libraries:
+ * [1] https://illumos.org/man/3lib/libnvpair
+ * [2] https://illumos.org/man/3nvpair/nvlist_alloc
+ * [3] https://illumos.org/man/9f/nvlist_alloc
+ * [4] https://illumos.org/man/9f/nvlist_next_nvpair
+ * [5] https://illumos.org/man/9f/nvpair_value_byte
+ */
+
 #include <sys/debug.h>
 #include <sys/isa_defs.h>
 #include <sys/nvpair.h>
 #include <sys/nvpair_impl.h>
 #include <sys/types.h>
+#include <sys/param.h>
 #include <sys/strings.h>
 #include <rpc/xdr.h>
+#include <sys/mod.h>
 
 #if defined(_KERNEL)
 #include <sys/sunddi.h>
@@ -522,12 +533,14 @@ nvt_add_nvpair(nvlist_t *nvl, nvpair_t *nvp)
 	uint64_t index = hash & (priv->nvp_nbuckets - 1);
 
 	ASSERT3U(index, <, priv->nvp_nbuckets);
+	// cppcheck-suppress nullPointerRedundantCheck
 	i_nvp_t *bucket = tab[index];
 
 	/* insert link at the beginning of the bucket */
 	i_nvp_t *new_entry = NVPAIR2I_NVP(nvp);
 	ASSERT3P(new_entry->nvi_hashtable_next, ==, NULL);
 	new_entry->nvi_hashtable_next = bucket;
+	// cppcheck-suppress nullPointerRedundantCheck
 	tab[index] = new_entry;
 
 	priv->nvp_nentries++;
@@ -557,10 +570,10 @@ nvlist_nv_alloc(int kmflag)
 	switch (kmflag) {
 	case KM_SLEEP:
 		return (nv_alloc_sleep);
-	case KM_PUSHPAGE:
-		return (nv_alloc_pushpage);
-	default:
+	case KM_NOSLEEP:
 		return (nv_alloc_nosleep);
+	default:
+		return (nv_alloc_pushpage);
 	}
 #else
 	return (nv_alloc_nosleep);
@@ -1872,7 +1885,7 @@ nvlist_lookup_pairs(nvlist_t *nvl, int flag, ...)
  * (given 'ret' is non-NULL). If 'sep' is specified then 'name' will penitrate
  * multiple levels of embedded nvlists, with 'sep' as the separator. As an
  * example, if sep is '.', name might look like: "a" or "a.b" or "a.c[3]" or
- * "a.d[3].e[1]".  This matches the C syntax for array embed (for convience,
+ * "a.d[3].e[1]".  This matches the C syntax for array embed (for convenience,
  * code also supports "a.d[3]e[1]" syntax).
  *
  * If 'ip' is non-NULL and the last name component is an array, return the
@@ -2553,12 +2566,14 @@ nvlist_common(nvlist_t *nvl, char *buf, size_t *buflen, int encoding,
 	int err = 0;
 	nvstream_t nvs;
 	int nvl_endian;
-#ifdef	_LITTLE_ENDIAN
+#if defined(_ZFS_LITTLE_ENDIAN)
 	int host_endian = 1;
-#else
+#elif defined(_ZFS_BIG_ENDIAN)
 	int host_endian = 0;
-#endif	/* _LITTLE_ENDIAN */
-	nvs_header_t *nvh = (void *)buf;
+#else
+#error "No endian defined!"
+#endif	/* _ZFS_LITTLE_ENDIAN */
+	nvs_header_t *nvh;
 
 	if (buflen == NULL || nvl == NULL ||
 	    (nvs.nvs_priv = (nvpriv_t *)(uintptr_t)nvl->nvl_priv) == NULL)
@@ -2577,6 +2592,7 @@ nvlist_common(nvlist_t *nvl, char *buf, size_t *buflen, int encoding,
 		if (buf == NULL || *buflen < sizeof (nvs_header_t))
 			return (EINVAL);
 
+		nvh = (void *)buf;
 		nvh->nvh_encoding = encoding;
 		nvh->nvh_endian = nvl_endian = host_endian;
 		nvh->nvh_reserved1 = 0;
@@ -2588,6 +2604,7 @@ nvlist_common(nvlist_t *nvl, char *buf, size_t *buflen, int encoding,
 			return (EINVAL);
 
 		/* get method of encoding from first byte */
+		nvh = (void *)buf;
 		encoding = nvh->nvh_encoding;
 		nvl_endian = nvh->nvh_endian;
 		break;
@@ -3105,7 +3122,7 @@ nvs_native(nvstream_t *nvs, nvlist_t *nvl, char *buf, size_t *buflen)
  *
  * An xdr packed nvlist is encoded as:
  *
- *  - encoding methode and host endian (4 bytes)
+ *  - encoding method and host endian (4 bytes)
  *  - nvl_version (4 bytes)
  *  - nvl_nvflag (4 bytes)
  *
@@ -3199,12 +3216,64 @@ nvs_xdr_nvl_fini(nvstream_t *nvs)
 }
 
 /*
+ * xdrproc_t-compatible callbacks for xdr_array()
+ */
+
+#if defined(_KERNEL) && defined(__linux__) /* Linux kernel */
+
+#define	NVS_BUILD_XDRPROC_T(type)		\
+static bool_t					\
+nvs_xdr_nvp_##type(XDR *xdrs, void *ptr)	\
+{						\
+	return (xdr_##type(xdrs, ptr));		\
+}
+
+#elif !defined(_KERNEL) && defined(XDR_CONTROL) /* tirpc */
+
+#define	NVS_BUILD_XDRPROC_T(type)		\
+static bool_t					\
+nvs_xdr_nvp_##type(XDR *xdrs, ...)		\
+{						\
+	va_list args;				\
+	void *ptr;				\
+						\
+	va_start(args, xdrs);			\
+	ptr = va_arg(args, void *);		\
+	va_end(args);				\
+						\
+	return (xdr_##type(xdrs, ptr));		\
+}
+
+#else /* FreeBSD, sunrpc */
+
+#define	NVS_BUILD_XDRPROC_T(type)		\
+static bool_t					\
+nvs_xdr_nvp_##type(XDR *xdrs, void *ptr, ...)	\
+{						\
+	return (xdr_##type(xdrs, ptr));		\
+}
+
+#endif
+
+/* BEGIN CSTYLED */
+NVS_BUILD_XDRPROC_T(char);
+NVS_BUILD_XDRPROC_T(short);
+NVS_BUILD_XDRPROC_T(u_short);
+NVS_BUILD_XDRPROC_T(int);
+NVS_BUILD_XDRPROC_T(u_int);
+NVS_BUILD_XDRPROC_T(longlong_t);
+NVS_BUILD_XDRPROC_T(u_longlong_t);
+/* END CSTYLED */
+
+/*
  * The format of xdr encoded nvpair is:
  * encode_size, decode_size, name string, data type, nelem, data
  */
 static int
 nvs_xdr_nvp_op(nvstream_t *nvs, nvpair_t *nvp)
 {
+	ASSERT(nvs != NULL && nvp != NULL);
+
 	data_type_t type;
 	char	*buf;
 	char	*buf_end = (char *)nvp + nvp->nvp_size;
@@ -3213,7 +3282,7 @@ nvs_xdr_nvp_op(nvstream_t *nvs, nvpair_t *nvp)
 	bool_t	ret = FALSE;
 	XDR	*xdr = nvs->nvs_private;
 
-	ASSERT(xdr != NULL && nvp != NULL);
+	ASSERT(xdr != NULL);
 
 	/* name string */
 	if ((buf = NVP_NAME(nvp)) >= buf_end)
@@ -3320,38 +3389,38 @@ nvs_xdr_nvp_op(nvstream_t *nvs, nvpair_t *nvp)
 	case DATA_TYPE_INT8_ARRAY:
 	case DATA_TYPE_UINT8_ARRAY:
 		ret = xdr_array(xdr, &buf, &nelem, buflen, sizeof (int8_t),
-		    (xdrproc_t)xdr_char);
+		    nvs_xdr_nvp_char);
 		break;
 
 	case DATA_TYPE_INT16_ARRAY:
 		ret = xdr_array(xdr, &buf, &nelem, buflen / sizeof (int16_t),
-		    sizeof (int16_t), (xdrproc_t)xdr_short);
+		    sizeof (int16_t), nvs_xdr_nvp_short);
 		break;
 
 	case DATA_TYPE_UINT16_ARRAY:
 		ret = xdr_array(xdr, &buf, &nelem, buflen / sizeof (uint16_t),
-		    sizeof (uint16_t), (xdrproc_t)xdr_u_short);
+		    sizeof (uint16_t), nvs_xdr_nvp_u_short);
 		break;
 
 	case DATA_TYPE_BOOLEAN_ARRAY:
 	case DATA_TYPE_INT32_ARRAY:
 		ret = xdr_array(xdr, &buf, &nelem, buflen / sizeof (int32_t),
-		    sizeof (int32_t), (xdrproc_t)xdr_int);
+		    sizeof (int32_t), nvs_xdr_nvp_int);
 		break;
 
 	case DATA_TYPE_UINT32_ARRAY:
 		ret = xdr_array(xdr, &buf, &nelem, buflen / sizeof (uint32_t),
-		    sizeof (uint32_t), (xdrproc_t)xdr_u_int);
+		    sizeof (uint32_t), nvs_xdr_nvp_u_int);
 		break;
 
 	case DATA_TYPE_INT64_ARRAY:
 		ret = xdr_array(xdr, &buf, &nelem, buflen / sizeof (int64_t),
-		    sizeof (int64_t), (xdrproc_t)xdr_longlong_t);
+		    sizeof (int64_t), nvs_xdr_nvp_longlong_t);
 		break;
 
 	case DATA_TYPE_UINT64_ARRAY:
 		ret = xdr_array(xdr, &buf, &nelem, buflen / sizeof (uint64_t),
-		    sizeof (uint64_t), (xdrproc_t)xdr_u_longlong_t);
+		    sizeof (uint64_t), nvs_xdr_nvp_u_longlong_t);
 		break;
 
 	case DATA_TYPE_STRING_ARRAY: {
@@ -3499,7 +3568,7 @@ nvs_xdr_nvp_size(nvstream_t *nvs, nvpair_t *nvp, size_t *size)
  * the strings.  These pointers are not encoded into the packed xdr buffer.
  *
  * If the data is of type DATA_TYPE_STRING_ARRAY and all the strings are
- * of length 0, then each string is endcoded in xdr format as a single word.
+ * of length 0, then each string is encoded in xdr format as a single word.
  * Therefore when expanded to an nvpair there will be 2.25 word used for
  * each string.  (a int64_t allocated for pointer usage, and a single char
  * for the null termination.)
@@ -3601,11 +3670,12 @@ nvpair_fini(void)
 
 module_init(nvpair_init);
 module_exit(nvpair_fini);
+#endif
 
-MODULE_DESCRIPTION("Generic name/value pair implementation");
-MODULE_AUTHOR(ZFS_META_AUTHOR);
-MODULE_LICENSE(ZFS_META_LICENSE);
-MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
+ZFS_MODULE_DESCRIPTION("Generic name/value pair implementation");
+ZFS_MODULE_AUTHOR(ZFS_META_AUTHOR);
+ZFS_MODULE_LICENSE(ZFS_META_LICENSE);
+ZFS_MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
 
 EXPORT_SYMBOL(nv_alloc_init);
 EXPORT_SYMBOL(nv_alloc_reset);
@@ -3720,5 +3790,3 @@ EXPORT_SYMBOL(nvpair_value_uint64_array);
 EXPORT_SYMBOL(nvpair_value_string_array);
 EXPORT_SYMBOL(nvpair_value_nvlist_array);
 EXPORT_SYMBOL(nvpair_value_hrtime);
-
-#endif

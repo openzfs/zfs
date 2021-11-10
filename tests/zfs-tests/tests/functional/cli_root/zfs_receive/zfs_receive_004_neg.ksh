@@ -36,7 +36,7 @@
 #	Verify 'zfs receive' fails with malformed parameters.
 #
 # STRATEGY:
-#	1. Denfine malformed parameters array
+#	1. Define malformed parameters array
 #	2. Feed the malformed parameters to 'zfs receive'
 #	3. Verify the command should be failed
 #
@@ -49,8 +49,7 @@ function cleanup
 	typeset bkup
 
 	for snap in $init_snap $inc_snap $init_topsnap $inc_topsnap ; do
-		snapexists $snap && \
-			log_must zfs destroy -Rf $snap
+		snapexists $snap && destroy_dataset $snap -Rf
 	done
 
 	for bkup in $full_bkup $inc_bkup $full_topbkup $inc_topbkup; do
@@ -92,15 +91,10 @@ sync
 
 set -A badargs \
     "" "nonexistent-snap" "blah@blah" "-d" "-d nonexistent-dataset" \
-    "$TESTPOOL/$TESTFS" "$TESTPOOL1" "$TESTPOOL/fs@" "$TESTPOOL/fs@@mysnap" \
+    "$TESTPOOL1" "$TESTPOOL/fs@" "$TESTPOOL/fs@@mysnap" \
     "$TESTPOOL/fs@@" "$TESTPOOL/fs/@mysnap" "$TESTPOOL/fs@/mysnap" \
     "$TESTPOOL/nonexistent-fs/nonexistent-fs" "-d $TESTPOOL/nonexistent-fs" \
     "-d $TESTPOOL/$TESTFS/nonexistent-fs"
-
-if is_global_zone ; then
-	typeset -i n=${#badargs[@]}
-	badargs[$n]="-d $TESTPOOL"
-fi
 
 typeset -i i=0
 while (( i < ${#badargs[*]} ))

@@ -237,7 +237,7 @@ typedef struct kcf_provider_list {
 	struct kcf_provider_desc *pl_provider;
 } kcf_provider_list_t;
 
-/* atomic operations in linux implictly form a memory barrier */
+/* atomic operations in linux implicitly form a memory barrier */
 #define	membar_exit()
 
 /*

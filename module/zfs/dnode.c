@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
 
@@ -37,7 +37,7 @@
 #include <sys/zio.h>
 #include <sys/dmu_zfetch.h>
 #include <sys/range_tree.h>
-#include <sys/trace_dnode.h>
+#include <sys/trace_zfs.h>
 #include <sys/zfs_project.h>
 
 dnode_stats_t dnode_stats = {
@@ -55,7 +55,6 @@ dnode_stats_t dnode_stats = {
 	{ "dnode_hold_free_lock_retry",		KSTAT_DATA_UINT64 },
 	{ "dnode_hold_free_overflow",		KSTAT_DATA_UINT64 },
 	{ "dnode_hold_free_refcount",		KSTAT_DATA_UINT64 },
-	{ "dnode_hold_free_txg",		KSTAT_DATA_UINT64 },
 	{ "dnode_free_interior_lock_retry",	KSTAT_DATA_UINT64 },
 	{ "dnode_allocate",			KSTAT_DATA_UINT64 },
 	{ "dnode_reallocate",			KSTAT_DATA_UINT64 },
@@ -75,7 +74,7 @@ dnode_stats_t dnode_stats = {
 static kstat_t *dnode_ksp;
 static kmem_cache_t *dnode_cache;
 
-ASSERTV(static dnode_phys_t dnode_phys_zero);
+static dnode_phys_t dnode_phys_zero __maybe_unused;
 
 int zfs_default_bs = SPA_MINBLOCKSHIFT;
 int zfs_default_ibs = DN_MAX_INDBLKSHIFT;
@@ -90,11 +89,11 @@ dbuf_compare(const void *x1, const void *x2)
 	const dmu_buf_impl_t *d1 = x1;
 	const dmu_buf_impl_t *d2 = x2;
 
-	int cmp = AVL_CMP(d1->db_level, d2->db_level);
+	int cmp = TREE_CMP(d1->db_level, d2->db_level);
 	if (likely(cmp))
 		return (cmp);
 
-	cmp = AVL_CMP(d1->db_blkid, d2->db_blkid);
+	cmp = TREE_CMP(d1->db_blkid, d2->db_blkid);
 	if (likely(cmp))
 		return (cmp);
 
@@ -106,7 +105,7 @@ dbuf_compare(const void *x1, const void *x2)
 		return (1);
 	}
 
-	return (AVL_PCMP(d1, d2));
+	return (TREE_PCMP(d1, d2));
 }
 
 /* ARGSUSED */
@@ -120,6 +119,7 @@ dnode_cons(void *arg, void *unused, int kmflag)
 	mutex_init(&dn->dn_mtx, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&dn->dn_dbufs_mtx, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&dn->dn_notxholds, NULL, CV_DEFAULT, NULL);
+	cv_init(&dn->dn_nodnholds, NULL, CV_DEFAULT, NULL);
 
 	/*
 	 * Every dbuf has a reference, and dropping a tracked reference is
@@ -129,6 +129,7 @@ dnode_cons(void *arg, void *unused, int kmflag)
 	zfs_refcount_create(&dn->dn_tx_holds);
 	list_link_init(&dn->dn_link);
 
+	bzero(&dn->dn_next_type[0], sizeof (dn->dn_next_type));
 	bzero(&dn->dn_next_nblkptr[0], sizeof (dn->dn_next_nblkptr));
 	bzero(&dn->dn_next_nlevels[0], sizeof (dn->dn_next_nlevels));
 	bzero(&dn->dn_next_indblkshift[0], sizeof (dn->dn_next_indblkshift));
@@ -184,6 +185,7 @@ dnode_dest(void *arg, void *unused)
 	mutex_destroy(&dn->dn_mtx);
 	mutex_destroy(&dn->dn_dbufs_mtx);
 	cv_destroy(&dn->dn_notxholds);
+	cv_destroy(&dn->dn_nodnholds);
 	zfs_refcount_destroy(&dn->dn_holds);
 	zfs_refcount_destroy(&dn->dn_tx_holds);
 	ASSERT(!list_link_active(&dn->dn_link));
@@ -390,6 +392,14 @@ dnode_setbonuslen(dnode_t *dn, int newsize, dmu_tx_t *tx)
 	rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 	ASSERT3U(newsize, <=, DN_SLOTS_TO_BONUSLEN(dn->dn_num_slots) -
 	    (dn->dn_nblkptr-1) * sizeof (blkptr_t));
+
+	if (newsize < dn->dn_bonuslen) {
+		/* clear any data after the end of the new size */
+		size_t diff = dn->dn_bonuslen - newsize;
+		char *data_end = ((char *)dn->dn_bonus->db.db_data) + newsize;
+		bzero(data_end, diff);
+	}
+
 	dn->dn_bonuslen = newsize;
 	if (newsize == 0)
 		dn->dn_next_bonuslen[tx->tx_txg & TXG_MASK] = DN_ZERO_BONUSLEN;
@@ -439,7 +449,6 @@ dnode_create(objset_t *os, dnode_phys_t *dnp, dmu_buf_impl_t *db,
 	dnode_t *dn;
 
 	dn = kmem_cache_alloc(dnode_cache, KM_SLEEP);
-	ASSERT(!POINTER_IS_VALID(dn->dn_objset));
 	dn->dn_moved = 0;
 
 	/*
@@ -535,10 +544,7 @@ dnode_destroy(dnode_t *dn)
 	dn->dn_dirty_txg = 0;
 
 	dn->dn_dirtyctx = 0;
-	if (dn->dn_dirtyctx_firstset != NULL) {
-		kmem_free(dn->dn_dirtyctx_firstset, 1);
-		dn->dn_dirtyctx_firstset = NULL;
-	}
+	dn->dn_dirtyctx_firstset = NULL;
 	if (dn->dn_bonus != NULL) {
 		mutex_enter(&dn->dn_bonus->db_mtx);
 		dbuf_destroy(dn->dn_bonus);
@@ -587,7 +593,8 @@ dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
 	ibs = MIN(MAX(ibs, DN_MIN_INDBLKSHIFT), DN_MAX_INDBLKSHIFT);
 
 	dprintf("os=%p obj=%llu txg=%llu blocksize=%d ibs=%d dn_slots=%d\n",
-	    dn->dn_objset, dn->dn_object, tx->tx_txg, blocksize, ibs, dn_slots);
+	    dn->dn_objset, (u_longlong_t)dn->dn_object,
+	    (u_longlong_t)tx->tx_txg, blocksize, ibs, dn_slots);
 	DNODE_STAT_BUMP(dnode_allocate);
 
 	ASSERT(dn->dn_type == DMU_OT_NONE);
@@ -604,7 +611,6 @@ dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
 	ASSERT0(dn->dn_maxblkid);
 	ASSERT0(dn->dn_allocated_txg);
 	ASSERT0(dn->dn_assigned_txg);
-	ASSERT0(dn->dn_dirty_txg);
 	ASSERT(zfs_refcount_is_zero(&dn->dn_tx_holds));
 	ASSERT3U(zfs_refcount_count(&dn->dn_holds), <=, 1);
 	ASSERT(avl_is_empty(&dn->dn_dbufs));
@@ -643,10 +649,8 @@ dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
 	dn->dn_dirtyctx = 0;
 
 	dn->dn_free_txg = 0;
-	if (dn->dn_dirtyctx_firstset) {
-		kmem_free(dn->dn_dirtyctx_firstset, 1);
-		dn->dn_dirtyctx_firstset = NULL;
-	}
+	dn->dn_dirtyctx_firstset = NULL;
+	dn->dn_dirty_txg = 0;
 
 	dn->dn_allocated_txg = tx->tx_txg;
 	dn->dn_id_flags = 0;
@@ -752,7 +756,6 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	ASSERT(!RW_LOCK_HELD(&odn->dn_struct_rwlock));
 	ASSERT(MUTEX_NOT_HELD(&odn->dn_mtx));
 	ASSERT(MUTEX_NOT_HELD(&odn->dn_dbufs_mtx));
-	ASSERT(!RW_LOCK_HELD(&odn->dn_zfetch.zf_rwlock));
 
 	/* Copy fields. */
 	ndn->dn_objset = odn->dn_objset;
@@ -820,9 +823,7 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	ndn->dn_newgid = odn->dn_newgid;
 	ndn->dn_newprojid = odn->dn_newprojid;
 	ndn->dn_id_flags = odn->dn_id_flags;
-	dmu_zfetch_init(&ndn->dn_zfetch, NULL);
-	list_move_tail(&ndn->dn_zfetch.zf_stream, &odn->dn_zfetch.zf_stream);
-	ndn->dn_zfetch.zf_dnode = odn->dn_zfetch.zf_dnode;
+	dmu_zfetch_init(&ndn->dn_zfetch, ndn);
 
 	/*
 	 * Update back pointers. Updating the handle fixes the back pointer of
@@ -830,9 +831,6 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	 */
 	ASSERT(ndn->dn_handle->dnh_dnode == odn);
 	ndn->dn_handle->dnh_dnode = ndn;
-	if (ndn->dn_zfetch.zf_dnode == odn) {
-		ndn->dn_zfetch.zf_dnode = ndn;
-	}
 
 	/*
 	 * Invalidate the original dnode by clearing all of its back pointers.
@@ -998,7 +996,7 @@ dnode_move(void *buf, void *newbuf, size_t size, void *arg)
 	 */
 	refcount = zfs_refcount_count(&odn->dn_holds);
 	ASSERT(refcount >= 0);
-	dbufs = odn->dn_dbufs_count;
+	dbufs = DN_DBUFS_COUNT(odn);
 
 	/* We can't have more dbufs than dnode holds. */
 	ASSERT3U(dbufs, <=, refcount);
@@ -1025,7 +1023,7 @@ dnode_move(void *buf, void *newbuf, size_t size, void *arg)
 	list_link_replace(&odn->dn_link, &ndn->dn_link);
 	/* If the dnode was safe to move, the refcount cannot have changed. */
 	ASSERT(refcount == zfs_refcount_count(&ndn->dn_holds));
-	ASSERT(dbufs == ndn->dn_dbufs_count);
+	ASSERT(dbufs == DN_DBUFS_COUNT(ndn));
 	zrl_exit(&ndn->dn_handle->dnh_zrlock); /* handle has moved */
 	mutex_exit(&os->os_lock);
 
@@ -1171,13 +1169,15 @@ dnode_special_close(dnode_handle_t *dnh)
 	dnode_t *dn = dnh->dnh_dnode;
 
 	/*
-	 * Wait for final references to the dnode to clear.  This can
-	 * only happen if the arc is asynchronously evicting state that
-	 * has a hold on this dnode while we are trying to evict this
-	 * dnode.
+	 * Ensure dnode_rele_and_unlock() has released dn_mtx, after final
+	 * zfs_refcount_remove()
 	 */
-	while (zfs_refcount_count(&dn->dn_holds) > 0)
-		delay(1);
+	mutex_enter(&dn->dn_mtx);
+	if (zfs_refcount_count(&dn->dn_holds) > 0)
+		cv_wait(&dn->dn_nodnholds, &dn->dn_mtx);
+	mutex_exit(&dn->dn_mtx);
+	ASSERT3U(zfs_refcount_count(&dn->dn_holds), ==, 0);
+
 	ASSERT(dn->dn_dbuf == NULL ||
 	    dmu_buf_get_user(&dn->dn_dbuf->db) == NULL);
 	zrl_add(&dnh->dnh_zrlock);
@@ -1193,7 +1193,7 @@ dnode_special_open(objset_t *os, dnode_phys_t *dnp, uint64_t object,
 	dnode_t *dn;
 
 	zrl_init(&dnh->dnh_zrlock);
-	zrl_tryenter(&dnh->dnh_zrlock);
+	VERIFY3U(1, ==, zrl_tryenter(&dnh->dnh_zrlock));
 
 	dn = dnode_create(os, dnp, NULL, object, dnh);
 	DNODE_VERIFY(dn);
@@ -1255,6 +1255,10 @@ dnode_buf_evict_async(void *dbu)
  * as an extra dnode slot by an large dnode, in which case it returns
  * ENOENT.
  *
+ * If the DNODE_DRY_RUN flag is set, we don't actually hold the dnode, just
+ * return whether the hold would succeed or not. tag and dnp should set to
+ * NULL in this case.
+ *
  * errors:
  * EINVAL - Invalid object number or flags.
  * ENOSPC - Hole too small to fulfill "slots" request (DNODE_MUST_BE_FREE)
@@ -1283,6 +1287,7 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 
 	ASSERT(!(flag & DNODE_MUST_BE_ALLOCATED) || (slots == 0));
 	ASSERT(!(flag & DNODE_MUST_BE_FREE) || (slots > 0));
+	IMPLY(flag & DNODE_DRY_RUN, (tag == NULL) && (dnp == NULL));
 
 	/*
 	 * If you are holding the spa config lock as writer, you shouldn't
@@ -1312,8 +1317,11 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 		if ((flag & DNODE_MUST_BE_FREE) && type != DMU_OT_NONE)
 			return (SET_ERROR(EEXIST));
 		DNODE_VERIFY(dn);
-		(void) zfs_refcount_add(&dn->dn_holds, tag);
-		*dnp = dn;
+		/* Don't actually hold if dry run, just return 0 */
+		if (!(flag & DNODE_DRY_RUN)) {
+			(void) zfs_refcount_add(&dn->dn_holds, tag);
+			*dnp = dn;
+		}
 		return (0);
 	}
 
@@ -1331,7 +1339,6 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 	}
 
 	blk = dbuf_whichblock(mdn, 0, object * sizeof (dnode_phys_t));
-
 	db = dbuf_hold(mdn, blk, FTAG);
 	if (drop_struct_lock)
 		rw_exit(&mdn->dn_struct_rwlock);
@@ -1344,7 +1351,8 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 	 * We do not need to decrypt to read the dnode so it doesn't matter
 	 * if we get the encrypted or decrypted version.
 	 */
-	err = dbuf_read(db, NULL, DB_RF_CANFAIL | DB_RF_NO_DECRYPT);
+	err = dbuf_read(db, NULL, DB_RF_CANFAIL |
+	    DB_RF_NO_DECRYPT | DB_RF_NOPREFETCH);
 	if (err) {
 		DNODE_STAT_BUMP(dnode_hold_dbuf_read);
 		dbuf_rele(db, FTAG);
@@ -1455,6 +1463,14 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 			return (SET_ERROR(ENOENT));
 		}
 
+		/* Don't actually hold if dry run, just return 0 */
+		if (flag & DNODE_DRY_RUN) {
+			mutex_exit(&dn->dn_mtx);
+			dnode_slots_rele(dnc, idx, slots);
+			dbuf_rele(db, FTAG);
+			return (0);
+		}
+
 		DNODE_STAT_BUMP(dnode_hold_alloc_hits);
 	} else if (flag & DNODE_MUST_BE_FREE) {
 
@@ -1512,6 +1528,14 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 			return (SET_ERROR(EEXIST));
 		}
 
+		/* Don't actually hold if dry run, just return 0 */
+		if (flag & DNODE_DRY_RUN) {
+			mutex_exit(&dn->dn_mtx);
+			dnode_slots_rele(dnc, idx, slots);
+			dbuf_rele(db, FTAG);
+			return (0);
+		}
+
 		dnode_set_slots(dnc, idx + 1, slots - 1, DN_SLOT_INTERIOR);
 		DNODE_STAT_BUMP(dnode_hold_free_hits);
 	} else {
@@ -1519,15 +1543,7 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 		return (SET_ERROR(EINVAL));
 	}
 
-	if (dn->dn_free_txg) {
-		DNODE_STAT_BUMP(dnode_hold_free_txg);
-		type = dn->dn_type;
-		mutex_exit(&dn->dn_mtx);
-		dnode_slots_rele(dnc, idx, slots);
-		dbuf_rele(db, FTAG);
-		return (SET_ERROR((flag & DNODE_MUST_BE_ALLOCATED) ?
-		    ENOENT : EEXIST));
-	}
+	ASSERT0(dn->dn_free_txg);
 
 	if (zfs_refcount_add(&dn->dn_holds, tag) == 1)
 		dbuf_add_ref(db, dnh);
@@ -1538,6 +1554,7 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 	dnode_slots_rele(dnc, idx, slots);
 
 	DNODE_VERIFY(dn);
+	ASSERT3P(dnp, !=, NULL);
 	ASSERT3P(dn->dn_dbuf, ==, db);
 	ASSERT3U(dn->dn_object, ==, object);
 	dbuf_rele(db, FTAG);
@@ -1590,7 +1607,10 @@ dnode_rele_and_unlock(dnode_t *dn, void *tag, boolean_t evicting)
 	dnode_handle_t *dnh = dn->dn_handle;
 
 	refs = zfs_refcount_remove(&dn->dn_holds, tag);
+	if (refs == 0)
+		cv_broadcast(&dn->dn_nodnholds);
 	mutex_exit(&dn->dn_mtx);
+	/* dnode could get destroyed at this point, so don't use it anymore */
 
 	/*
 	 * It's unsafe to release the last hold on a dnode by dnode_rele() or
@@ -1618,6 +1638,36 @@ dnode_rele_and_unlock(dnode_t *dn, void *tag, boolean_t evicting)
 	}
 }
 
+/*
+ * Test whether we can create a dnode at the specified location.
+ */
+int
+dnode_try_claim(objset_t *os, uint64_t object, int slots)
+{
+	return (dnode_hold_impl(os, object, DNODE_MUST_BE_FREE | DNODE_DRY_RUN,
+	    slots, NULL, NULL));
+}
+
+/*
+ * Checks if the dnode contains any uncommitted dirty records.
+ */
+boolean_t
+dnode_is_dirty(dnode_t *dn)
+{
+	mutex_enter(&dn->dn_mtx);
+
+	for (int i = 0; i < TXG_SIZE; i++) {
+		if (list_head(&dn->dn_dirty_records[i]) != NULL) {
+			mutex_exit(&dn->dn_mtx);
+			return (B_TRUE);
+		}
+	}
+
+	mutex_exit(&dn->dn_mtx);
+
+	return (B_FALSE);
+}
+
 void
 dnode_setdirty(dnode_t *dn, dmu_tx_t *tx)
 {
@@ -1643,7 +1693,7 @@ dnode_setdirty(dnode_t *dn, dmu_tx_t *tx)
 	 */
 	dmu_objset_userquota_get_ids(dn, B_TRUE, tx);
 
-	multilist_t *dirtylist = os->os_dirty_dnodes[txg & TXG_MASK];
+	multilist_t *dirtylist = &os->os_dirty_dnodes[txg & TXG_MASK];
 	multilist_sublist_t *mls = multilist_sublist_lock_obj(dirtylist, dn);
 
 	/*
@@ -1662,7 +1712,7 @@ dnode_setdirty(dnode_t *dn, dmu_tx_t *tx)
 	ASSERT0(dn->dn_next_bonustype[txg & TXG_MASK]);
 
 	dprintf_ds(os->os_dsl_dataset, "obj=%llu txg=%llu\n",
-	    dn->dn_object, txg);
+	    (u_longlong_t)dn->dn_object, (u_longlong_t)txg);
 
 	multilist_sublist_insert_head(mls, dn);
 
@@ -1742,10 +1792,11 @@ dnode_set_blksz(dnode_t *dn, uint64_t size, int ibs, dmu_tx_t *tx)
 
 	/* resize the old block */
 	err = dbuf_hold_impl(dn, 0, 0, TRUE, FALSE, FTAG, &db);
-	if (err == 0)
+	if (err == 0) {
 		dbuf_new_size(db, size, tx);
-	else if (err != ENOENT)
+	} else if (err != ENOENT) {
 		goto fail;
+	}
 
 	dnode_setdblksz(dn, size);
 	dnode_setdirty(dn, tx);
@@ -1754,7 +1805,7 @@ dnode_set_blksz(dnode_t *dn, uint64_t size, int ibs, dmu_tx_t *tx)
 		dn->dn_indblkshift = ibs;
 		dn->dn_next_indblkshift[tx->tx_txg&TXG_MASK] = ibs;
 	}
-	/* rele after we have fixed the blocksize in the dnode */
+	/* release after we have fixed the blocksize in the dnode */
 	if (db)
 		dbuf_rele(db, FTAG);
 
@@ -1777,6 +1828,7 @@ dnode_set_nlevels_impl(dnode_t *dn, int new_nlevels, dmu_tx_t *tx)
 
 	ASSERT(RW_WRITE_HELD(&dn->dn_struct_rwlock));
 
+	ASSERT3U(new_nlevels, >, dn->dn_nlevels);
 	dn->dn_nlevels = new_nlevels;
 
 	ASSERT3U(new_nlevels, >, dn->dn_next_nlevels[txgoff]);
@@ -1794,10 +1846,12 @@ dnode_set_nlevels_impl(dnode_t *dn, int new_nlevels, dmu_tx_t *tx)
 	list = &dn->dn_dirty_records[txgoff];
 	for (dr = list_head(list); dr; dr = dr_next) {
 		dr_next = list_next(&dn->dn_dirty_records[txgoff], dr);
-		if (dr->dr_dbuf->db_level != new_nlevels-1 &&
+
+		IMPLY(dr->dr_dbuf == NULL, old_nlevels == 1);
+		if (dr->dr_dbuf == NULL ||
+		    (dr->dr_dbuf->db_level == old_nlevels - 1 &&
 		    dr->dr_dbuf->db_blkid != DMU_BONUS_BLKID &&
-		    dr->dr_dbuf->db_blkid != DMU_SPILL_BLKID) {
-			ASSERT(dr->dr_dbuf->db_level == old_nlevels-1);
+		    dr->dr_dbuf->db_blkid != DMU_SPILL_BLKID)) {
 			list_remove(&dn->dn_dirty_records[txgoff], dr);
 			list_insert_tail(&new->dt.di.dr_children, dr);
 			dr->dr_parent = new;
@@ -1915,18 +1969,20 @@ static void
 dnode_dirty_l1range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
     dmu_tx_t *tx)
 {
-	dmu_buf_impl_t db_search;
+	dmu_buf_impl_t *db_search;
 	dmu_buf_impl_t *db;
 	avl_index_t where;
 
+	db_search = kmem_zalloc(sizeof (dmu_buf_impl_t), KM_SLEEP);
+
 	mutex_enter(&dn->dn_dbufs_mtx);
 
-	db_search.db_level = 1;
-	db_search.db_blkid = start_blkid + 1;
-	db_search.db_state = DB_SEARCH;
+	db_search->db_level = 1;
+	db_search->db_blkid = start_blkid + 1;
+	db_search->db_state = DB_SEARCH;
 	for (;;) {
 
-		db = avl_find(&dn->dn_dbufs, &db_search, &where);
+		db = avl_find(&dn->dn_dbufs, db_search, &where);
 		if (db == NULL)
 			db = avl_nearest(&dn->dn_dbufs, where, AVL_AFTER);
 
@@ -1938,7 +1994,7 @@ dnode_dirty_l1range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 		/*
 		 * Setup the next blkid we want to search for.
 		 */
-		db_search.db_blkid = db->db_blkid + 1;
+		db_search->db_blkid = db->db_blkid + 1;
 		ASSERT3U(db->db_blkid, >=, start_blkid);
 
 		/*
@@ -1958,10 +2014,10 @@ dnode_dirty_l1range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 	/*
 	 * Walk all the in-core level-1 dbufs and verify they have been dirtied.
 	 */
-	db_search.db_level = 1;
-	db_search.db_blkid = start_blkid + 1;
-	db_search.db_state = DB_SEARCH;
-	db = avl_find(&dn->dn_dbufs, &db_search, &where);
+	db_search->db_level = 1;
+	db_search->db_blkid = start_blkid + 1;
+	db_search->db_state = DB_SEARCH;
+	db = avl_find(&dn->dn_dbufs, db_search, &where);
 	if (db == NULL)
 		db = avl_nearest(&dn->dn_dbufs, where, AVL_AFTER);
 	for (; db != NULL; db = AVL_NEXT(&dn->dn_dbufs, db)) {
@@ -1971,19 +2027,75 @@ dnode_dirty_l1range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 			ASSERT(db->db_dirtycnt > 0);
 	}
 #endif
+	kmem_free(db_search, sizeof (dmu_buf_impl_t));
 	mutex_exit(&dn->dn_dbufs_mtx);
+}
+
+void
+dnode_set_dirtyctx(dnode_t *dn, dmu_tx_t *tx, void *tag)
+{
+	/*
+	 * Don't set dirtyctx to SYNC if we're just modifying this as we
+	 * initialize the objset.
+	 */
+	if (dn->dn_dirtyctx == DN_UNDIRTIED) {
+		dsl_dataset_t *ds = dn->dn_objset->os_dsl_dataset;
+
+		if (ds != NULL) {
+			rrw_enter(&ds->ds_bp_rwlock, RW_READER, tag);
+		}
+		if (!BP_IS_HOLE(dn->dn_objset->os_rootbp)) {
+			if (dmu_tx_is_syncing(tx))
+				dn->dn_dirtyctx = DN_DIRTY_SYNC;
+			else
+				dn->dn_dirtyctx = DN_DIRTY_OPEN;
+			dn->dn_dirtyctx_firstset = tag;
+		}
+		if (ds != NULL) {
+			rrw_exit(&ds->ds_bp_rwlock, tag);
+		}
+	}
+}
+
+static void
+dnode_partial_zero(dnode_t *dn, uint64_t off, uint64_t blkoff, uint64_t len,
+    dmu_tx_t *tx)
+{
+	dmu_buf_impl_t *db;
+	int res;
+
+	rw_enter(&dn->dn_struct_rwlock, RW_READER);
+	res = dbuf_hold_impl(dn, 0, dbuf_whichblock(dn, 0, off), TRUE, FALSE,
+	    FTAG, &db);
+	rw_exit(&dn->dn_struct_rwlock);
+	if (res == 0) {
+		db_lock_type_t dblt;
+		boolean_t dirty;
+
+		dblt = dmu_buf_lock_parent(db, RW_READER, FTAG);
+		/* don't dirty if not on disk and not dirty */
+		dirty = !list_is_empty(&db->db_dirty_records) ||
+		    (db->db_blkptr && !BP_IS_HOLE(db->db_blkptr));
+		dmu_buf_unlock_parent(db, dblt, FTAG);
+		if (dirty) {
+			caddr_t data;
+
+			dmu_buf_will_dirty(&db->db, tx);
+			data = db->db.db_data;
+			bzero(data + blkoff, len);
+		}
+		dbuf_rele(db, FTAG);
+	}
 }
 
 void
 dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 {
-	dmu_buf_impl_t *db;
 	uint64_t blkoff, blkid, nblks;
 	int blksz, blkshift, head, tail;
 	int trunc = FALSE;
 	int epbs;
 
-	rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 	blksz = dn->dn_datablksz;
 	blkshift = dn->dn_datablkshift;
 	epbs = dn->dn_indblkshift - SPA_BLKPTRSHIFT;
@@ -2000,7 +2112,7 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 		head = P2NPHASE(off, blksz);
 		blkoff = P2PHASE(off, blksz);
 		if ((off >> blkshift) > dn->dn_maxblkid)
-			goto out;
+			return;
 	} else {
 		ASSERT(dn->dn_maxblkid == 0);
 		if (off == 0 && len >= blksz) {
@@ -2009,12 +2121,15 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 			 */
 			blkid = 0;
 			nblks = 1;
-			if (dn->dn_nlevels > 1)
+			if (dn->dn_nlevels > 1) {
+				rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 				dnode_dirty_l1(dn, 0, tx);
+				rw_exit(&dn->dn_struct_rwlock);
+			}
 			goto done;
 		} else if (off >= blksz) {
 			/* Freeing past end-of-data */
-			goto out;
+			return;
 		} else {
 			/* Freeing part of the block. */
 			head = blksz - off;
@@ -2027,32 +2142,18 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 		ASSERT3U(blkoff + head, ==, blksz);
 		if (len < head)
 			head = len;
-		if (dbuf_hold_impl(dn, 0, dbuf_whichblock(dn, 0, off),
-		    TRUE, FALSE, FTAG, &db) == 0) {
-			caddr_t data;
-
-			/* don't dirty if it isn't on disk and isn't dirty */
-			if (db->db_last_dirty ||
-			    (db->db_blkptr && !BP_IS_HOLE(db->db_blkptr))) {
-				rw_exit(&dn->dn_struct_rwlock);
-				dmu_buf_will_dirty(&db->db, tx);
-				rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
-				data = db->db.db_data;
-				bzero(data + blkoff, head);
-			}
-			dbuf_rele(db, FTAG);
-		}
+		dnode_partial_zero(dn, off, blkoff, head, tx);
 		off += head;
 		len -= head;
 	}
 
 	/* If the range was less than one block, we're done */
 	if (len == 0)
-		goto out;
+		return;
 
 	/* If the remaining range is past end of file, we're done */
 	if ((off >> blkshift) > dn->dn_maxblkid)
-		goto out;
+		return;
 
 	ASSERT(ISP2(blksz));
 	if (trunc)
@@ -2065,24 +2166,13 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 	if (tail) {
 		if (len < tail)
 			tail = len;
-		if (dbuf_hold_impl(dn, 0, dbuf_whichblock(dn, 0, off+len),
-		    TRUE, FALSE, FTAG, &db) == 0) {
-			/* don't dirty if not on disk and not dirty */
-			if (db->db_last_dirty ||
-			    (db->db_blkptr && !BP_IS_HOLE(db->db_blkptr))) {
-				rw_exit(&dn->dn_struct_rwlock);
-				dmu_buf_will_dirty(&db->db, tx);
-				rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
-				bzero(db->db.db_data, tail);
-			}
-			dbuf_rele(db, FTAG);
-		}
+		dnode_partial_zero(dn, off + len, 0, tail, tx);
 		len -= tail;
 	}
 
 	/* If the range did not include a full block, we are done */
 	if (len == 0)
-		goto out;
+		return;
 
 	ASSERT(IS_P2ALIGNED(off, blksz));
 	ASSERT(trunc || IS_P2ALIGNED(len, blksz));
@@ -2112,6 +2202,7 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 	 *    amount of space if we copy the freed BPs into deadlists.
 	 */
 	if (dn->dn_nlevels > 1) {
+		rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 		uint64_t first, last;
 
 		first = blkid >> epbs;
@@ -2156,6 +2247,7 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 
 			dnode_dirty_l1(dn, i, tx);
 		}
+		rw_exit(&dn->dn_struct_rwlock);
 	}
 
 done:
@@ -2165,22 +2257,21 @@ done:
 	 */
 	mutex_enter(&dn->dn_mtx);
 	{
-	int txgoff = tx->tx_txg & TXG_MASK;
-	if (dn->dn_free_ranges[txgoff] == NULL) {
-		dn->dn_free_ranges[txgoff] = range_tree_create(NULL, NULL);
-	}
-	range_tree_clear(dn->dn_free_ranges[txgoff], blkid, nblks);
-	range_tree_add(dn->dn_free_ranges[txgoff], blkid, nblks);
+		int txgoff = tx->tx_txg & TXG_MASK;
+		if (dn->dn_free_ranges[txgoff] == NULL) {
+			dn->dn_free_ranges[txgoff] = range_tree_create(NULL,
+			    RANGE_SEG64, NULL, 0, 0);
+		}
+		range_tree_clear(dn->dn_free_ranges[txgoff], blkid, nblks);
+		range_tree_add(dn->dn_free_ranges[txgoff], blkid, nblks);
 	}
 	dprintf_dnode(dn, "blkid=%llu nblks=%llu txg=%llu\n",
-	    blkid, nblks, tx->tx_txg);
+	    (u_longlong_t)blkid, (u_longlong_t)nblks,
+	    (u_longlong_t)tx->tx_txg);
 	mutex_exit(&dn->dn_mtx);
 
 	dbuf_free_range(dn, blkid, blkid + nblks - 1, tx);
 	dnode_setdirty(dn, tx);
-out:
-
-	rw_exit(&dn->dn_struct_rwlock);
 }
 
 static boolean_t
@@ -2289,6 +2380,8 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 	boolean_t hole;
 	int i, inc, error, span;
 
+	ASSERT(RW_LOCK_HELD(&dn->dn_struct_rwlock));
+
 	hole = ((flags & DNODE_FIND_HOLE) != 0);
 	inc = (flags & DNODE_FIND_BACKWARDS) ? -1 : 1;
 	ASSERT(txg == 0 || !hole);
@@ -2315,14 +2408,15 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 			return (SET_ERROR(ESRCH));
 		}
 		error = dbuf_read(db, NULL,
-		    DB_RF_CANFAIL | DB_RF_HAVESTRUCT | DB_RF_NO_DECRYPT);
+		    DB_RF_CANFAIL | DB_RF_HAVESTRUCT |
+		    DB_RF_NO_DECRYPT | DB_RF_NOPREFETCH);
 		if (error) {
 			dbuf_rele(db, FTAG);
 			return (error);
 		}
 		data = db->db.db_data;
+		rw_enter(&db->db_rwlock, RW_READER);
 	}
-
 
 	if (db != NULL && txg != 0 && (db->db_blkptr == NULL ||
 	    db->db_blkptr->blk_birth <= txg ||
@@ -2396,8 +2490,10 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 			error = SET_ERROR(ESRCH);
 	}
 
-	if (db)
+	if (db != NULL) {
+		rw_exit(&db->db_rwlock);
 		dbuf_rele(db, FTAG);
+	}
 
 	return (error);
 }
@@ -2483,3 +2579,13 @@ out:
 
 	return (error);
 }
+
+#if defined(_KERNEL)
+EXPORT_SYMBOL(dnode_hold);
+EXPORT_SYMBOL(dnode_rele);
+EXPORT_SYMBOL(dnode_set_nlevels);
+EXPORT_SYMBOL(dnode_set_blksz);
+EXPORT_SYMBOL(dnode_free_range);
+EXPORT_SYMBOL(dnode_evict_dbufs);
+EXPORT_SYMBOL(dnode_evict_bonus);
+#endif

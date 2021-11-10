@@ -26,6 +26,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/include/properties.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_set/zfs_set_common.kshlib
 
 #
@@ -41,7 +42,7 @@
 verify_runnable "both"
 
 set -A dataset "$TESTPOOL" "$TESTPOOL/$TESTFS" "$TESTPOOL/$TESTVOL"
-set -A values $(get_compress_opts zfs_set)
+set -A values "${compress_prop_vals[@]}"
 
 log_assert "Setting a valid compression on file system and volume, " \
 	"It should be successful."

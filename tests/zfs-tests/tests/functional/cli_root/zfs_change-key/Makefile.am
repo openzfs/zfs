@@ -4,6 +4,7 @@ dist_pkgdata_SCRIPTS = \
 	cleanup.ksh \
 	zfs_change-key.ksh \
 	zfs_change-key_child.ksh \
+	zfs_change-key_clones.ksh \
 	zfs_change-key_inherit.ksh \
 	zfs_change-key_format.ksh \
 	zfs_change-key_load.ksh \

@@ -46,9 +46,7 @@ function cleanup
 {
 	cleanup_quota
 
-	if datasetexists $snap_fs; then
-		log_must zfs destroy $snap_fs
-	fi
+	datasetexists $snap_fs && destroy_dataset $snap_fs
 }
 
 log_onexit cleanup
@@ -56,7 +54,7 @@ log_onexit cleanup
 typeset snap_fs=$QFS@snap
 log_assert "Check  set userquota and groupquota on snapshot"
 
-log_note "Check can not set user|group quuota on snapshot"
+log_note "Check can not set user|group quota on snapshot"
 log_must zfs snapshot $snap_fs
 
 log_mustnot zfs set userquota@$QUSER1=$UQUOTA_SIZE $snap_fs

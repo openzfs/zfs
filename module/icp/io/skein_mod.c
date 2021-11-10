@@ -25,6 +25,7 @@
 
 #include <sys/modctl.h>
 #include <sys/crypto/common.h>
+#include <sys/crypto/icp.h>
 #include <sys/crypto/spi.h>
 #include <sys/sysmacros.h>
 #define	SKEIN_MODULE_IMPL
@@ -178,7 +179,6 @@ typedef struct skein_ctx {
 			(void) Skein1024_ ## _op(&sc->sc_1024, __VA_ARGS__);\
 			break;						\
 		}							\
-		_NOTE(CONSTCOND)					\
 	} while (0)
 
 static int
@@ -271,22 +271,18 @@ skein_digest_update_uio(skein_ctx_t *ctx, const crypto_data_t *data)
 	size_t		length = data->cd_length;
 	uint_t		vec_idx = 0;
 	size_t		cur_len;
-	const uio_t	*uio = data->cd_uio;
+	zfs_uio_t	*uio = data->cd_uio;
 
 	/* we support only kernel buffer */
-	if (uio->uio_segflg != UIO_SYSSPACE)
+	if (zfs_uio_segflg(uio) != UIO_SYSSPACE)
 		return (CRYPTO_ARGUMENTS_BAD);
 
 	/*
 	 * Jump to the first iovec containing data to be
 	 * digested.
 	 */
-	while (vec_idx < uio->uio_iovcnt &&
-	    offset >= uio->uio_iov[vec_idx].iov_len) {
-		offset -= uio->uio_iov[vec_idx].iov_len;
-		vec_idx++;
-	}
-	if (vec_idx == uio->uio_iovcnt) {
+	offset = zfs_uio_index_at_offset(uio, offset, &vec_idx);
+	if (vec_idx == zfs_uio_iovcnt(uio)) {
 		/*
 		 * The caller specified an offset that is larger than the
 		 * total size of the buffers it provided.
@@ -297,16 +293,16 @@ skein_digest_update_uio(skein_ctx_t *ctx, const crypto_data_t *data)
 	/*
 	 * Now do the digesting on the iovecs.
 	 */
-	while (vec_idx < uio->uio_iovcnt && length > 0) {
-		cur_len = MIN(uio->uio_iov[vec_idx].iov_len - offset, length);
-		SKEIN_OP(ctx, Update, (uint8_t *)uio->uio_iov[vec_idx].iov_base
+	while (vec_idx < zfs_uio_iovcnt(uio) && length > 0) {
+		cur_len = MIN(zfs_uio_iovlen(uio, vec_idx) - offset, length);
+		SKEIN_OP(ctx, Update, (uint8_t *)zfs_uio_iovbase(uio, vec_idx)
 		    + offset, cur_len);
 		length -= cur_len;
 		vec_idx++;
 		offset = 0;
 	}
 
-	if (vec_idx == uio->uio_iovcnt && length > 0) {
+	if (vec_idx == zfs_uio_iovcnt(uio) && length > 0) {
 		/*
 		 * The end of the specified iovec's was reached but
 		 * the length requested could not be processed, i.e.
@@ -325,23 +321,19 @@ static int
 skein_digest_final_uio(skein_ctx_t *ctx, crypto_data_t *digest,
     crypto_req_handle_t req)
 {
-	off_t	offset = digest->cd_offset;
-	uint_t	vec_idx = 0;
-	uio_t	*uio = digest->cd_uio;
+	off_t offset = digest->cd_offset;
+	uint_t vec_idx = 0;
+	zfs_uio_t *uio = digest->cd_uio;
 
 	/* we support only kernel buffer */
-	if (uio->uio_segflg != UIO_SYSSPACE)
+	if (zfs_uio_segflg(uio) != UIO_SYSSPACE)
 		return (CRYPTO_ARGUMENTS_BAD);
 
 	/*
 	 * Jump to the first iovec containing ptr to the digest to be returned.
 	 */
-	while (vec_idx < uio->uio_iovcnt &&
-	    offset >= uio->uio_iov[vec_idx].iov_len) {
-		offset -= uio->uio_iov[vec_idx].iov_len;
-		vec_idx++;
-	}
-	if (vec_idx == uio->uio_iovcnt) {
+	offset = zfs_uio_index_at_offset(uio, offset, &vec_idx);
+	if (vec_idx == zfs_uio_iovcnt(uio)) {
 		/*
 		 * The caller specified an offset that is larger than the
 		 * total size of the buffers it provided.
@@ -349,10 +341,10 @@ skein_digest_final_uio(skein_ctx_t *ctx, crypto_data_t *digest,
 		return (CRYPTO_DATA_LEN_RANGE);
 	}
 	if (offset + CRYPTO_BITS2BYTES(ctx->sc_digest_bitlen) <=
-	    uio->uio_iov[vec_idx].iov_len) {
+	    zfs_uio_iovlen(uio, vec_idx)) {
 		/* The computed digest will fit in the current iovec. */
 		SKEIN_OP(ctx, Final,
-		    (uchar_t *)uio->uio_iov[vec_idx].iov_base + offset);
+		    (uchar_t *)zfs_uio_iovbase(uio, vec_idx) + offset);
 	} else {
 		uint8_t *digest_tmp;
 		off_t scratch_offset = 0;
@@ -364,11 +356,11 @@ skein_digest_final_uio(skein_ctx_t *ctx, crypto_data_t *digest,
 		if (digest_tmp == NULL)
 			return (CRYPTO_HOST_MEMORY);
 		SKEIN_OP(ctx, Final, digest_tmp);
-		while (vec_idx < uio->uio_iovcnt && length > 0) {
-			cur_len = MIN(uio->uio_iov[vec_idx].iov_len - offset,
+		while (vec_idx < zfs_uio_iovcnt(uio) && length > 0) {
+			cur_len = MIN(zfs_uio_iovlen(uio, vec_idx) - offset,
 			    length);
 			bcopy(digest_tmp + scratch_offset,
-			    uio->uio_iov[vec_idx].iov_base + offset, cur_len);
+			    zfs_uio_iovbase(uio, vec_idx) + offset, cur_len);
 
 			length -= cur_len;
 			vec_idx++;
@@ -377,7 +369,7 @@ skein_digest_final_uio(skein_ctx_t *ctx, crypto_data_t *digest,
 		}
 		kmem_free(digest_tmp, CRYPTO_BITS2BYTES(ctx->sc_digest_bitlen));
 
-		if (vec_idx == uio->uio_iovcnt && length > 0) {
+		if (vec_idx == zfs_uio_iovcnt(uio) && length > 0) {
 			/*
 			 * The end of the specified iovec's was reached but
 			 * the length requested could not be processed, i.e.

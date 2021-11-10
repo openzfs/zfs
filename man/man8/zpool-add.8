@@ -1,0 +1,101 @@
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+.\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
+.\" Copyright (c) 2017 Datto Inc.
+.\" Copyright (c) 2018 George Melikov. All Rights Reserved.
+.\" Copyright 2017 Nexenta Systems, Inc.
+.\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\"
+.Dd May 27, 2021
+.Dt ZPOOL-ADD 8
+.Os
+.
+.Sh NAME
+.Nm zpool-add
+.Nd add vdevs to ZFS storage pool
+.Sh SYNOPSIS
+.Nm zpool
+.Cm add
+.Op Fl fgLnP
+.Oo Fl o Ar property Ns = Ns Ar value Oc
+.Ar pool vdev Ns …
+.
+.Sh DESCRIPTION
+Adds the specified virtual devices to the given pool.
+The
+.Ar vdev
+specification is described in the
+.Em Virtual Devices
+section of
+.Xr zpoolconcepts 7 .
+The behavior of the
+.Fl f
+option, and the device checks performed are described in the
+.Nm zpool Cm create
+subcommand.
+.Bl -tag -width Ds
+.It Fl f
+Forces use of
+.Ar vdev Ns s ,
+even if they appear in use or specify a conflicting replication level.
+Not all devices can be overridden in this manner.
+.It Fl g
+Display
+.Ar vdev ,
+GUIDs instead of the normal device names.
+These GUIDs can be used in place of
+device names for the zpool detach/offline/remove/replace commands.
+.It Fl L
+Display real paths for
+.Ar vdev Ns s
+resolving all symbolic links.
+This can be used to look up the current block
+device name regardless of the
+.Pa /dev/disk
+path used to open it.
+.It Fl n
+Displays the configuration that would be used without actually adding the
+.Ar vdev Ns s .
+The actual pool creation can still fail due to insufficient privileges or
+device sharing.
+.It Fl P
+Display real paths for
+.Ar vdev Ns s
+instead of only the last component of the path.
+This can be used in conjunction with the
+.Fl L
+flag.
+.It Fl o Ar property Ns = Ns Ar value
+Sets the given pool properties.
+See the
+.Xr zpoolprops 7
+manual page for a list of valid properties that can be set.
+The only property supported at the moment is
+.Sy ashift .
+.El
+.
+.Sh SEE ALSO
+.Xr zpool-attach 8 ,
+.Xr zpool-import 8 ,
+.Xr zpool-initialize 8 ,
+.Xr zpool-online 8 ,
+.Xr zpool-remove 8

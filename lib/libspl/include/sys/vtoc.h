@@ -51,7 +51,7 @@ extern "C" {
  *		v_sanity		returned as VTOC_SANE
  *						if Disk Label was sane
  *		v_sectorsz		returned as 512
- *		v_reserved [all]	retunred as zero
+ *		v_reserved [all]	returned as zero
  *		timestamp [all]		returned as zero
  *
  *	See  dklabel.h, read_vtoc(), and write_vtoc().

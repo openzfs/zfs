@@ -39,7 +39,7 @@
  * function calls.
  */
 #include <sys/zrlock.h>
-#include <sys/trace_zrlock.h>
+#include <sys/trace_zfs.h>
 
 /*
  * A ZRL can be locked only while there are zero references, so ZRL_LOCKED is
@@ -154,15 +154,6 @@ zrl_exit(zrlock_t *zrl)
 	zrl->zr_refcount = 0;
 	cv_broadcast(&zrl->zr_cv);
 	mutex_exit(&zrl->zr_mtx);
-}
-
-int
-zrl_refcount(zrlock_t *zrl)
-{
-	ASSERT3S(zrl->zr_refcount, >, ZRL_DESTROYED);
-
-	int n = (int)zrl->zr_refcount;
-	return (n <= 0 ? 0 : n);
 }
 
 int

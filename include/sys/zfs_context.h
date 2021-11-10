@@ -21,16 +21,26 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
- * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
 #ifndef _SYS_ZFS_CONTEXT_H
 #define	_SYS_ZFS_CONTEXT_H
 
-#ifdef __KERNEL__
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#include <sys/note.h>
+/*
+ * This code compiles in three different contexts. When __KERNEL__ is defined,
+ * the code uses "unix-like" kernel interfaces. When _STANDALONE is defined, the
+ * code is running in a reduced capacity environment of the boot loader which is
+ * generally a subset of both POSIX and kernel interfaces (with a few unique
+ * interfaces too). When neither are defined, it's in a userland POSIX or
+ * similar environment.
+ */
+#if defined(__KERNEL__) || defined(_STANDALONE)
 #include <sys/types.h>
 #include <sys/atomic.h>
 #include <sys/sysmacros.h>
@@ -42,17 +52,14 @@
 #include <sys/vmem.h>
 #include <sys/taskq.h>
 #include <sys/param.h>
-#include <sys/kobj.h>
 #include <sys/disp.h>
 #include <sys/debug.h>
 #include <sys/random.h>
 #include <sys/strings.h>
 #include <sys/byteorder.h>
 #include <sys/list.h>
-#include <sys/uio_impl.h>
 #include <sys/time.h>
 #include <sys/zone.h>
-#include <sys/sdt.h>
 #include <sys/kstat.h>
 #include <sys/zfs_debug.h>
 #include <sys/sysevent.h>
@@ -63,10 +70,10 @@
 #include <sys/disp.h>
 #include <sys/trace.h>
 #include <sys/procfs_list.h>
-#include <linux/dcache_compat.h>
-#include <linux/utsname_compat.h>
-
-#else /* _KERNEL */
+#include <sys/mod.h>
+#include <sys/uio_impl.h>
+#include <sys/zfs_context_os.h>
+#else /* _KERNEL || _STANDALONE */
 
 #define	_SYS_MUTEX_H
 #define	_SYS_RWLOCK_H
@@ -88,7 +95,6 @@
 #include <pthread.h>
 #include <setjmp.h>
 #include <assert.h>
-#include <alloca.h>
 #include <umem.h>
 #include <limits.h>
 #include <atomic.h>
@@ -97,17 +103,15 @@
 #include <ctype.h>
 #include <signal.h>
 #include <sys/mman.h>
-#include <sys/note.h>
 #include <sys/types.h>
 #include <sys/cred.h>
 #include <sys/sysmacros.h>
-#include <sys/bitmap.h>
 #include <sys/resource.h>
 #include <sys/byteorder.h>
 #include <sys/list.h>
+#include <sys/mod.h>
 #include <sys/uio.h>
 #include <sys/zfs_debug.h>
-#include <sys/sdt.h>
 #include <sys/kstat.h>
 #include <sys/u8_textprep.h>
 #include <sys/sysevent.h>
@@ -115,6 +119,9 @@
 #include <sys/sunddi.h>
 #include <sys/debug.h>
 #include <sys/utsname.h>
+#include <sys/trace_zfs.h>
+
+#include <sys/zfs_context_os.h>
 
 /*
  * Stack
@@ -122,6 +129,7 @@
 
 #define	noinline	__attribute__((noinline))
 #define	likely(x)	__builtin_expect((x), 1)
+#define	unlikely(x)	__builtin_expect((x), 0)
 
 /*
  * Debugging
@@ -150,8 +158,6 @@ extern void vpanic(const char *, va_list)  __NORETURN;
 
 #define	fm_panic	panic
 
-extern int aok;
-
 /*
  * DTrace SDT probes have different signatures in userland than they do in
  * the kernel.  If they're being used in kernel code, re-define them out of
@@ -171,33 +177,39 @@ extern int aok;
 #ifdef DTRACE_PROBE
 #undef	DTRACE_PROBE
 #endif	/* DTRACE_PROBE */
-#define	DTRACE_PROBE(a) \
-	ZFS_PROBE0(#a)
+#define	DTRACE_PROBE(a)
 
 #ifdef DTRACE_PROBE1
 #undef	DTRACE_PROBE1
 #endif	/* DTRACE_PROBE1 */
-#define	DTRACE_PROBE1(a, b, c) \
-	ZFS_PROBE1(#a, (unsigned long)c)
+#define	DTRACE_PROBE1(a, b, c)
 
 #ifdef DTRACE_PROBE2
 #undef	DTRACE_PROBE2
 #endif	/* DTRACE_PROBE2 */
-#define	DTRACE_PROBE2(a, b, c, d, e) \
-	ZFS_PROBE2(#a, (unsigned long)c, (unsigned long)e)
+#define	DTRACE_PROBE2(a, b, c, d, e)
 
 #ifdef DTRACE_PROBE3
 #undef	DTRACE_PROBE3
 #endif	/* DTRACE_PROBE3 */
-#define	DTRACE_PROBE3(a, b, c, d, e, f, g) \
-	ZFS_PROBE3(#a, (unsigned long)c, (unsigned long)e, (unsigned long)g)
+#define	DTRACE_PROBE3(a, b, c, d, e, f, g)
 
 #ifdef DTRACE_PROBE4
 #undef	DTRACE_PROBE4
 #endif	/* DTRACE_PROBE4 */
-#define	DTRACE_PROBE4(a, b, c, d, e, f, g, h, i) \
-	ZFS_PROBE4(#a, (unsigned long)c, (unsigned long)e, (unsigned long)g, \
-	(unsigned long)i)
+#define	DTRACE_PROBE4(a, b, c, d, e, f, g, h, i)
+
+/*
+ * Tunables.
+ */
+typedef struct zfs_kernel_param {
+	const char *name;	/* unused stub */
+} zfs_kernel_param_t;
+
+#define	ZFS_MODULE_PARAM(scope_prefix, name_prefix, name, type, perm, desc)
+#define	ZFS_MODULE_PARAM_ARGS void
+#define	ZFS_MODULE_PARAM_CALL(scope_prefix, name_prefix, name, setfunc, \
+	getfunc, perm, desc)
 
 /*
  * Threads.
@@ -211,6 +223,9 @@ typedef pthread_t	kthread_t;
 #define	kpreempt(x)	yield()
 #define	getcomm()	"unknown"
 
+#define	thread_create_named(name, stk, stksize, func, arg, len, \
+    pp, state, pri)	\
+	zk_thread_create(func, arg, stksize, state)
 #define	thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
 	zk_thread_create(func, arg, stksize, state)
 #define	thread_exit()	pthread_exit(NULL)
@@ -257,6 +272,8 @@ extern void mutex_enter(kmutex_t *mp);
 extern void mutex_exit(kmutex_t *mp);
 extern int mutex_tryenter(kmutex_t *mp);
 
+#define	NESTED_SINGLE 1
+#define	mutex_enter_nested(mp, class) mutex_enter(mp)
 /*
  * RW locks
  */
@@ -305,17 +322,22 @@ typedef pthread_cond_t		kcondvar_t;
 extern void cv_init(kcondvar_t *cv, char *name, int type, void *arg);
 extern void cv_destroy(kcondvar_t *cv);
 extern void cv_wait(kcondvar_t *cv, kmutex_t *mp);
-extern clock_t cv_timedwait(kcondvar_t *cv, kmutex_t *mp, clock_t abstime);
-extern clock_t cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim,
+extern int cv_wait_sig(kcondvar_t *cv, kmutex_t *mp);
+extern int cv_timedwait(kcondvar_t *cv, kmutex_t *mp, clock_t abstime);
+extern int cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim,
     hrtime_t res, int flag);
 extern void cv_signal(kcondvar_t *cv);
 extern void cv_broadcast(kcondvar_t *cv);
 
 #define	cv_timedwait_io(cv, mp, at)		cv_timedwait(cv, mp, at)
+#define	cv_timedwait_idle(cv, mp, at)		cv_timedwait(cv, mp, at)
 #define	cv_timedwait_sig(cv, mp, at)		cv_timedwait(cv, mp, at)
-#define	cv_wait_sig(cv, mp)			cv_wait(cv, mp)
 #define	cv_wait_io(cv, mp)			cv_wait(cv, mp)
+#define	cv_wait_idle(cv, mp)			cv_wait(cv, mp)
+#define	cv_wait_io_sig(cv, mp)			cv_wait_sig(cv, mp)
 #define	cv_timedwait_sig_hires(cv, mp, t, r, f) \
+	cv_timedwait_hires(cv, mp, t, r, f)
+#define	cv_timedwait_idle_hires(cv, mp, t, r, f) \
 	cv_timedwait_hires(cv, mp, t, r, f)
 
 /*
@@ -323,31 +345,19 @@ extern void cv_broadcast(kcondvar_t *cv);
  */
 #define	tsd_get(k) pthread_getspecific(k)
 #define	tsd_set(k, v) pthread_setspecific(k, v)
-#define	tsd_create(kp, d) pthread_key_create(kp, d)
+#define	tsd_create(kp, d) pthread_key_create((pthread_key_t *)kp, d)
 #define	tsd_destroy(kp) /* nothing */
-
-/*
- * Thread-specific data
- */
-#define	tsd_get(k) pthread_getspecific(k)
-#define	tsd_set(k, v) pthread_setspecific(k, v)
-#define	tsd_create(kp, d) pthread_key_create(kp, d)
-#define	tsd_destroy(kp) /* nothing */
+#ifdef __FreeBSD__
+typedef off_t loff_t;
+#endif
 
 /*
  * kstat creation, installation and deletion
  */
 extern kstat_t *kstat_create(const char *, int,
     const char *, const char *, uchar_t, ulong_t, uchar_t);
-extern void kstat_named_init(kstat_named_t *, const char *, uchar_t);
 extern void kstat_install(kstat_t *);
 extern void kstat_delete(kstat_t *);
-extern void kstat_waitq_enter(kstat_io_t *);
-extern void kstat_waitq_exit(kstat_io_t *);
-extern void kstat_runq_enter(kstat_io_t *);
-extern void kstat_runq_exit(kstat_io_t *);
-extern void kstat_waitq_to_runq(kstat_io_t *);
-extern void kstat_runq_back_to_waitq(kstat_io_t *);
 extern void kstat_set_raw_ops(kstat_t *ksp,
     int (*headers)(char *buf, size_t size),
     int (*data)(char *buf, size_t size, void *data),
@@ -357,9 +367,6 @@ extern void kstat_set_raw_ops(kstat_t *ksp,
  * procfs list manipulation
  */
 
-struct seq_file { };
-void seq_printf(struct seq_file *m, const char *fmt, ...);
-
 typedef struct procfs_list {
 	void		*pl_private;
 	kmutex_t	pl_lock;
@@ -368,12 +375,17 @@ typedef struct procfs_list {
 	size_t		pl_node_offset;
 } procfs_list_t;
 
+#ifndef __cplusplus
+struct seq_file { };
+void seq_printf(struct seq_file *m, const char *fmt, ...);
+
 typedef struct procfs_list_node {
 	list_node_t	pln_link;
 	uint64_t	pln_id;
 } procfs_list_node_t;
 
 void procfs_list_install(const char *module,
+    const char *submodule,
     const char *name,
     mode_t mode,
     procfs_list_t *procfs_list,
@@ -384,6 +396,7 @@ void procfs_list_install(const char *module,
 void procfs_list_uninstall(procfs_list_t *procfs_list);
 void procfs_list_destroy(procfs_list_t *procfs_list);
 void procfs_list_add(procfs_list_t *procfs_list, void *p);
+#endif
 
 /*
  * Kernel memory
@@ -393,8 +406,7 @@ void procfs_list_add(procfs_list_t *procfs_list, void *p);
 #define	KM_NOSLEEP		UMEM_DEFAULT
 #define	KM_NORMALPRI		0	/* not needed with UMEM_DEFAULT */
 #define	KMC_NODEBUG		UMC_NODEBUG
-#define	KMC_KMEM		0x0
-#define	KMC_VMEM		0x0
+#define	KMC_KVMEM		0x0
 #define	kmem_alloc(_s, _f)	umem_alloc(_s, _f)
 #define	kmem_zalloc(_s, _f)	umem_zalloc(_s, _f)
 #define	kmem_free(_b, _s)	umem_free(_b, _s)
@@ -409,11 +421,8 @@ void procfs_list_add(procfs_list_t *procfs_list, void *p);
 #define	kmem_debugging()	0
 #define	kmem_cache_reap_now(_c)	umem_cache_reap_now(_c);
 #define	kmem_cache_set_move(_c, _cb)	/* nothing */
-#define	vmem_qcache_reap(_v)		/* nothing */
 #define	POINTER_INVALIDATE(_pp)		/* nothing */
 #define	POINTER_IS_VALID(_p)	0
-
-extern vmem_t *zio_arena;
 
 typedef umem_cache_t kmem_cache_t;
 
@@ -496,22 +505,13 @@ extern void	taskq_wait(taskq_t *);
 extern void	taskq_wait_id(taskq_t *, taskqid_t);
 extern void	taskq_wait_outstanding(taskq_t *, taskqid_t);
 extern int	taskq_member(taskq_t *, kthread_t *);
+extern taskq_t	*taskq_of_curthread(void);
 extern int	taskq_cancel_id(taskq_t *, taskqid_t);
 extern void	system_taskq_init(void);
 extern void	system_taskq_fini(void);
 
 #define	XVA_MAPSIZE	3
 #define	XVA_MAGIC	0x78766174
-
-/*
- * vnodes
- */
-typedef struct vnode {
-	uint64_t	v_size;
-	int		v_fd;
-	char		*v_path;
-	int		v_dump_fd;
-} vnode_t;
 
 extern char *vn_dumpdir;
 #define	AV_SCANSTAMP_SZ	32		/* length of anti-virus scanstamp */
@@ -561,7 +561,6 @@ typedef struct vsecattr {
 	size_t		vsa_aclentsz;	/* ACE size in bytes of vsa_aclentp */
 } vsecattr_t;
 
-#define	AT_TYPE		0x00001
 #define	AT_MODE		0x00002
 #define	AT_UID		0x00004
 #define	AT_GID		0x00008
@@ -581,42 +580,7 @@ typedef struct vsecattr {
 #define	CRCREAT		0
 
 #define	F_FREESP	11
-
-extern int fop_getattr(vnode_t *vp, vattr_t *vap);
-
-#define	VOP_CLOSE(vp, f, c, o, cr, ct)	vn_close(vp)
-#define	VOP_PUTPAGE(vp, of, sz, fl, cr, ct)	0
-#define	VOP_GETATTR(vp, vap, fl, cr, ct)  fop_getattr((vp), (vap));
-
-#define	VOP_FSYNC(vp, f, cr, ct)	fsync((vp)->v_fd)
-
-#if defined(HAVE_FILE_FALLOCATE) && \
-	defined(FALLOC_FL_PUNCH_HOLE) && \
-	defined(FALLOC_FL_KEEP_SIZE)
-#define	VOP_SPACE(vp, cmd, flck, fl, off, cr, ct) \
-	fallocate((vp)->v_fd, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, \
-	    (flck)->l_start, (flck)->l_len)
-#else
-#define	VOP_SPACE(vp, cmd, flck, fl, off, cr, ct) (0)
-#endif
-
-#define	VN_RELE(vp)	vn_close(vp)
-
-extern int vn_open(char *path, int x1, int oflags, int mode, vnode_t **vpp,
-    int x2, int x3);
-extern int vn_openat(char *path, int x1, int oflags, int mode, vnode_t **vpp,
-    int x2, int x3, vnode_t *vp, int fd);
-extern int vn_rdwr(int uio, vnode_t *vp, void *addr, ssize_t len,
-    offset_t offset, int x1, int x2, rlim64_t x3, void *x4, ssize_t *residp);
-extern void vn_close(vnode_t *vp);
-
-#define	vn_remove(path, x1, x2)		remove(path)
-#define	vn_rename(from, to, seg)	rename((from), (to))
-#define	vn_is_readonly(vp)		B_FALSE
-
-extern vnode_t *rootdir;
-
-#include <sys/file.h>		/* for FREAD, FWRITE, etc */
+#define	FIGNORECASE	0x80000 /* request case-insensitive lookups */
 
 /*
  * Random stuff
@@ -638,9 +602,9 @@ extern vnode_t *rootdir;
 extern void delay(clock_t ticks);
 
 #define	SEC_TO_TICK(sec)	((sec) * hz)
-#define	MSEC_TO_TICK(msec)	((msec) / (MILLISEC / hz))
-#define	USEC_TO_TICK(usec)	((usec) / (MICROSEC / hz))
-#define	NSEC_TO_TICK(usec)	((usec) / (NANOSEC / hz))
+#define	MSEC_TO_TICK(msec)	(howmany((hrtime_t)(msec) * hz, MILLISEC))
+#define	USEC_TO_TICK(usec)	(howmany((hrtime_t)(usec) * hz, MICROSEC))
+#define	NSEC_TO_TICK(nsec)	(howmany((hrtime_t)(nsec) * hz, NANOSEC))
 
 #define	max_ncpus	64
 #define	boot_ncpus	(sysconf(_SC_NPROCESSORS_ONLN))
@@ -653,6 +617,7 @@ extern void delay(clock_t ticks);
 #define	defclsyspri	0
 
 #define	CPU_SEQID	((uintptr_t)pthread_self() & (max_ncpus - 1))
+#define	CPU_SEQID_UNSTABLE	CPU_SEQID
 
 #define	kcred		NULL
 #define	CRED()		NULL
@@ -663,22 +628,37 @@ extern void delay(clock_t ticks);
 #define	NN_NUMBUF_SZ	(6)
 
 extern uint64_t physmem;
-extern char *random_path;
-extern char *urandom_path;
+extern const char *random_path;
+extern const char *urandom_path;
 
 extern int highbit64(uint64_t i);
 extern int lowbit64(uint64_t i);
 extern int random_get_bytes(uint8_t *ptr, size_t len);
 extern int random_get_pseudo_bytes(uint8_t *ptr, size_t len);
 
-extern void kernel_init(int);
+static __inline__ uint32_t
+random_in_range(uint32_t range)
+{
+	uint32_t r;
+
+	ASSERT(range != 0);
+
+	if (range == 1)
+		return (0);
+
+	(void) random_get_pseudo_bytes((uint8_t *)&r, sizeof (r));
+
+	return (r % range);
+}
+
+extern void kernel_init(int mode);
 extern void kernel_fini(void);
 extern void random_init(void);
 extern void random_fini(void);
 
 struct spa;
 extern void show_pool_stats(struct spa *);
-extern int set_global_var(char *arg);
+extern int set_global_var(char const *arg);
 
 typedef struct callb_cpr {
 	kmutex_t	*cc_lockp;
@@ -707,7 +687,8 @@ extern uint32_t zone_get_hostid(void *zonep);
 
 extern char *kmem_vasprintf(const char *fmt, va_list adx);
 extern char *kmem_asprintf(const char *fmt, ...);
-#define	strfree(str) kmem_free((str), strlen(str) + 1)
+#define	kmem_strfree(str) kmem_free((str), strlen(str) + 1)
+#define	kmem_strdup(s)  strdup(s)
 
 /*
  * Hostname information
@@ -747,16 +728,12 @@ typedef struct ace_object {
 #define	ACE_SYSTEM_AUDIT_OBJECT_ACE_TYPE	0x07
 #define	ACE_SYSTEM_ALARM_OBJECT_ACE_TYPE	0x08
 
-extern struct _buf *kobj_open_file(char *name);
-extern int kobj_read_file(struct _buf *file, char *buf, unsigned size,
-    unsigned off);
-extern void kobj_close_file(struct _buf *file);
-extern int kobj_get_filesize(struct _buf *file, uint64_t *size);
 extern int zfs_secpolicy_snapshot_perms(const char *name, cred_t *cr);
 extern int zfs_secpolicy_rename_perms(const char *from, const char *to,
     cred_t *cr);
 extern int zfs_secpolicy_destroy_perms(const char *name, cred_t *cr);
 extern int secpolicy_zfs(const cred_t *cr);
+extern int secpolicy_zfs_proc(const cred_t *cr, proc_t *proc);
 extern zoneid_t getzoneid(void);
 
 /* SID stuff */
@@ -789,7 +766,17 @@ extern void spl_fstrans_unmark(fstrans_cookie_t);
 extern int __spl_pf_fstrans_check(void);
 extern int kmem_cache_reap_active(void);
 
-#define	____cacheline_aligned
 
-#endif /* _KERNEL */
+/*
+ * Kernel modules
+ */
+#define	__init
+#define	__exit
+
+#endif  /* _KERNEL || _STANDALONE */
+
+#ifdef __cplusplus
+};
+#endif
+
 #endif	/* _SYS_ZFS_CONTEXT_H */

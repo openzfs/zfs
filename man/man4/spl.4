@@ -1,0 +1,195 @@
+.\"
+.\" The contents of this file are subject to the terms of the Common Development
+.\" and Distribution License (the "License").  You may not use this file except
+.\" in compliance with the License. You can obtain a copy of the license at
+.\" usr/src/OPENSOLARIS.LICENSE or http://www.opensolaris.org/os/licensing.
+.\"
+.\" See the License for the specific language governing permissions and
+.\" limitations under the License. When distributing Covered Code, include this
+.\" CDDL HEADER in each file and include the License file at
+.\" usr/src/OPENSOLARIS.LICENSE.  If applicable, add the following below this
+.\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
+.\" own identifying information:
+.\" Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" Copyright 2013 Turbo Fredriksson <turbo@bayour.com>. All rights reserved.
+.\"
+.Dd August 24, 2020
+.Dt SPL 4
+.Os
+.
+.Sh NAME
+.Nm spl
+.Nd parameters of the SPL kernel module
+.
+.Sh DESCRIPTION
+.Bl -tag -width Ds
+.It Sy spl_kmem_cache_kmem_threads Ns = Ns Sy 4 Pq uint
+The number of threads created for the spl_kmem_cache task queue.
+This task queue is responsible for allocating new slabs
+for use by the kmem caches.
+For the majority of systems and workloads only a small number of threads are
+required.
+.
+.It Sy spl_kmem_cache_reclaim Ns = Ns Sy 0 Pq uint
+When this is set it prevents Linux from being able to rapidly reclaim all the
+memory held by the kmem caches.
+This may be useful in circumstances where it's preferable that Linux
+reclaim memory from some other subsystem first.
+Setting this will increase the likelihood out of memory events on a memory
+constrained system.
+.
+.It Sy spl_kmem_cache_obj_per_slab Ns = Ns Sy 8 Pq uint
+The preferred number of objects per slab in the cache.
+In general, a larger value will increase the caches memory footprint
+while decreasing the time required to perform an allocation.
+Conversely, a smaller value will minimize the footprint
+and improve cache reclaim time but individual allocations may take longer.
+.
+.It Sy spl_kmem_cache_max_size Ns = Ns Sy 32 Po 64-bit Pc or Sy 4 Po 32-bit Pc Pq uint
+The maximum size of a kmem cache slab in MiB.
+This effectively limits the maximum cache object size to
+.Sy spl_kmem_cache_max_size Ns / Ns Sy spl_kmem_cache_obj_per_slab .
+.Pp
+Caches may not be created with
+object sized larger than this limit.
+.
+.It Sy spl_kmem_cache_slab_limit Ns = Ns Sy 16384 Pq uint
+For small objects the Linux slab allocator should be used to make the most
+efficient use of the memory.
+However, large objects are not supported by
+the Linux slab and therefore the SPL implementation is preferred.
+This value is used to determine the cutoff between a small and large object.
+.Pp
+Objects of size
+.Sy spl_kmem_cache_slab_limit
+or smaller will be allocated using the Linux slab allocator,
+large objects use the SPL allocator.
+A cutoff of 16K was determined to be optimal for architectures using 4K pages.
+.
+.It Sy spl_kmem_alloc_warn Ns = Ns Sy 32768 Pq uint
+As a general rule
+.Fn kmem_alloc
+allocations should be small,
+preferably just a few pages, since they must by physically contiguous.
+Therefore, a rate limited warning will be printed to the console for any
+.Fn kmem_alloc
+which exceeds a reasonable threshold.
+.Pp
+The default warning threshold is set to eight pages but capped at 32K to
+accommodate systems using large pages.
+This value was selected to be small enough to ensure
+the largest allocations are quickly noticed and fixed.
+But large enough to avoid logging any warnings when a allocation size is
+larger than optimal but not a serious concern.
+Since this value is tunable, developers are encouraged to set it lower
+when testing so any new largish allocations are quickly caught.
+These warnings may be disabled by setting the threshold to zero.
+.
+.It Sy spl_kmem_alloc_max Ns = Ns Sy KMALLOC_MAX_SIZE Ns / Ns Sy 4 Pq uint
+Large
+.Fn kmem_alloc
+allocations will fail if they exceed
+.Sy KMALLOC_MAX_SIZE .
+Allocations which are marginally smaller than this limit may succeed but
+should still be avoided due to the expense of locating a contiguous range
+of free pages.
+Therefore, a maximum kmem size with reasonable safely margin of 4x is set.
+.Fn kmem_alloc
+allocations larger than this maximum will quickly fail.
+.Fn vmem_alloc
+allocations less than or equal to this value will use
+.Fn kmalloc ,
+but shift to
+.Fn vmalloc
+when exceeding this value.
+.
+.It Sy spl_kmem_cache_magazine_size Ns = Ns Sy 0 Pq uint
+Cache magazines are an optimization designed to minimize the cost of
+allocating memory.
+They do this by keeping a per-cpu cache of recently
+freed objects, which can then be reallocated without taking a lock.
+This can improve performance on highly contended caches.
+However, because objects in magazines will prevent otherwise empty slabs
+from being immediately released this may not be ideal for low memory machines.
+.Pp
+For this reason,
+.Sy spl_kmem_cache_magazine_size
+can be used to set a maximum magazine size.
+When this value is set to 0 the magazine size will
+be automatically determined based on the object size.
+Otherwise magazines will be limited to 2-256 objects per magazine (i.e per cpu).
+Magazines may never be entirely disabled in this implementation.
+.
+.It Sy spl_hostid Ns = Ns Sy 0 Pq ulong
+The system hostid, when set this can be used to uniquely identify a system.
+By default this value is set to zero which indicates the hostid is disabled.
+It can be explicitly enabled by placing a unique non-zero value in
+.Pa /etc/hostid .
+.
+.It Sy spl_hostid_path Ns = Ns Pa /etc/hostid Pq charp
+The expected path to locate the system hostid when specified.
+This value may be overridden for non-standard configurations.
+.
+.It Sy spl_panic_halt Ns = Ns Sy 0 Pq uint
+Cause a kernel panic on assertion failures.
+When not enabled, the thread is halted to facilitate further debugging.
+.Pp
+Set to a non-zero value to enable.
+.
+.It Sy spl_taskq_kick Ns = Ns Sy 0 Pq uint
+Kick stuck taskq to spawn threads.
+When writing a non-zero value to it, it will scan all the taskqs.
+If any of them have a pending task more than 5 seconds old,
+it will kick it to spawn more threads.
+This can be used if you find a rare
+deadlock occurs because one or more taskqs didn't spawn a thread when it should.
+.
+.It Sy spl_taskq_thread_bind Ns = Ns Sy 0 Pq int
+Bind taskq threads to specific CPUs.
+When enabled all taskq threads will be distributed evenly
+across the available CPUs.
+By default, this behavior is disabled to allow the Linux scheduler
+the maximum flexibility to determine where a thread should run.
+.
+.It Sy spl_taskq_thread_dynamic Ns = Ns Sy 1 Pq int
+Allow dynamic taskqs.
+When enabled taskqs which set the
+.Sy TASKQ_DYNAMIC
+flag will by default create only a single thread.
+New threads will be created on demand up to a maximum allowed number
+to facilitate the completion of outstanding tasks.
+Threads which are no longer needed will be promptly destroyed.
+By default this behavior is enabled but it can be disabled to
+aid performance analysis or troubleshooting.
+.
+.It Sy spl_taskq_thread_priority Ns = Ns Sy 1 Pq int
+Allow newly created taskq threads to set a non-default scheduler priority.
+When enabled, the priority specified when a taskq is created will be applied
+to all threads created by that taskq.
+When disabled all threads will use the default Linux kernel thread priority.
+By default, this behavior is enabled.
+.
+.It Sy spl_taskq_thread_sequential Ns = Ns Sy 4 Pq int
+The number of items a taskq worker thread must handle without interruption
+before requesting a new worker thread be spawned.
+This is used to control
+how quickly taskqs ramp up the number of threads processing the queue.
+Because Linux thread creation and destruction are relatively inexpensive a
+small default value has been selected.
+This means that normally threads will be created aggressively which is desirable.
+Increasing this value will
+result in a slower thread creation rate which may be preferable for some
+configurations.
+.
+.It Sy spl_max_show_tasks Ns = Ns Sy 512 Pq uint
+The maximum number of tasks per pending list in each taskq shown in
+.Pa /proc/spl/taskq{,-all} .
+Write
+.Sy 0
+to turn off the limit.
+The proc file will walk the lists with lock held,
+reading it could cause a lock-up if the list grow too large
+without limiting the output.
+"(truncated)" will be shown if the list is larger than the limit.
+.El

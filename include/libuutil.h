@@ -81,15 +81,18 @@ const char *uu_strerror(uint32_t);
 extern void uu_alt_exit(int);
 extern const char *uu_setpname(char *);
 extern const char *uu_getpname(void);
-/*PRINTFLIKE1*/
-extern void uu_warn(const char *, ...);
-extern void uu_vwarn(const char *, va_list);
-/*PRINTFLIKE1*/
-extern void uu_die(const char *, ...) __NORETURN;
-extern void uu_vdie(const char *, va_list) __NORETURN;
-/*PRINTFLIKE2*/
-extern void uu_xdie(int, const char *, ...) __NORETURN;
-extern void uu_vxdie(int, const char *, va_list) __NORETURN;
+extern void uu_warn(const char *, ...)
+    __attribute__((format(printf, 1, 2)));
+extern void uu_vwarn(const char *, va_list)
+    __attribute__((format(printf, 1, 0)));
+extern void uu_die(const char *, ...)
+    __attribute__((format(printf, 1, 2))) __NORETURN;
+extern void uu_vdie(const char *, va_list)
+    __attribute__((format(printf, 1, 0))) __NORETURN;
+extern void uu_xdie(int, const char *, ...)
+    __attribute__((format(printf, 2, 3))) __NORETURN;
+extern void uu_vxdie(int, const char *, va_list)
+    __attribute__((format(printf, 2, 0))) __NORETURN;
 
 /*
  * Exit status functions (not to be used directly)
@@ -97,28 +100,6 @@ extern void uu_vxdie(int, const char *, va_list) __NORETURN;
 extern int *uu_exit_ok(void);
 extern int *uu_exit_fatal(void);
 extern int *uu_exit_usage(void);
-
-/*
- * Debug print facility functions.
- */
-typedef struct uu_dprintf uu_dprintf_t;
-
-typedef enum {
-	UU_DPRINTF_SILENT,
-	UU_DPRINTF_FATAL,
-	UU_DPRINTF_WARNING,
-	UU_DPRINTF_NOTICE,
-	UU_DPRINTF_INFO,
-	UU_DPRINTF_DEBUG
-} uu_dprintf_severity_t;
-
-extern uu_dprintf_t *uu_dprintf_create(const char *, uu_dprintf_severity_t,
-    uint_t);
-/*PRINTFLIKE3*/
-extern void uu_dprintf(uu_dprintf_t *, uu_dprintf_severity_t,
-    const char *, ...);
-extern void uu_dprintf_destroy(uu_dprintf_t *);
-extern const char *uu_dprintf_getname(uu_dprintf_t *);
 
 /*
  * Identifier test flags and function.
@@ -129,17 +110,12 @@ extern const char *uu_dprintf_getname(uu_dprintf_t *);
 int uu_check_name(const char *, uint_t);
 
 /*
- * File creation functions.
- */
-extern int uu_open_tmp(const char *dir, uint_t uflags);
-
-/*
  * Convenience functions.
  */
 #define	UU_NELEM(a)	(sizeof (a) / sizeof ((a)[0]))
 
-/*PRINTFLIKE1*/
-extern char *uu_msprintf(const char *format, ...);
+extern char *uu_msprintf(const char *format, ...)
+    __attribute__((format(printf, 1, 2)));
 extern void *uu_zalloc(size_t);
 extern char *uu_strdup(const char *);
 extern void uu_free(void *);
@@ -149,7 +125,6 @@ extern boolean_t uu_streq(const char *a, const char *b);
 extern char *uu_strndup(const char *s, size_t n);
 extern boolean_t uu_strbw(const char *a, const char *b);
 extern void *uu_memdup(const void *buf, size_t sz);
-extern void uu_dump(FILE *out, const char *prefix, const void *buf, size_t len);
 
 /*
  * Comparison function type definition.

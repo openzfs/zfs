@@ -38,8 +38,10 @@
 #include <sys/fs/zfs.h>
 #include <sys/fm/protocol.h>
 #include <sys/fm/fs/zfs.h>
+#include <libzutil.h>
 #include <libzfs.h>
 #include <string.h>
+#include <libgen.h>
 
 #include "zfs_agents.h"
 #include "fmd_api.h"
@@ -219,11 +221,17 @@ replace_with_spare(fmd_hdl_t *hdl, zpool_handle_t *zhp, nvlist_t *vdev)
 	 * replace it.
 	 */
 	for (s = 0; s < nspares; s++) {
-		char *spare_name;
+		boolean_t rebuild = B_FALSE;
+		char *spare_name, *type;
 
 		if (nvlist_lookup_string(spares[s], ZPOOL_CONFIG_PATH,
 		    &spare_name) != 0)
 			continue;
+
+		/* prefer sequential resilvering for distributed spares */
+		if ((nvlist_lookup_string(spares[s], ZPOOL_CONFIG_TYPE,
+		    &type) == 0) && strcmp(type, VDEV_TYPE_DRAID_SPARE) == 0)
+			rebuild = B_TRUE;
 
 		/* if set, add the "ashift" pool property to the spare nvlist */
 		if (source != ZPROP_SRC_DEFAULT)
@@ -234,10 +242,10 @@ replace_with_spare(fmd_hdl_t *hdl, zpool_handle_t *zhp, nvlist_t *vdev)
 		    ZPOOL_CONFIG_CHILDREN, &spares[s], 1);
 
 		fmd_hdl_debug(hdl, "zpool_vdev_replace '%s' with spare '%s'",
-		    dev_name, basename(spare_name));
+		    dev_name, zfs_basename(spare_name));
 
 		if (zpool_vdev_attach(zhp, dev_name, spare_name,
-		    replacement, B_TRUE) == 0) {
+		    replacement, B_TRUE, rebuild) == 0) {
 			free(dev_name);
 			nvlist_free(replacement);
 			return (B_TRUE);
@@ -319,12 +327,16 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 
 	fmd_hdl_debug(hdl, "zfs_retire_recv: '%s'", class);
 
+	nvlist_lookup_uint64(nvl, FM_EREPORT_PAYLOAD_ZFS_VDEV_STATE, &state);
+
 	/*
 	 * If this is a resource notifying us of device removal then simply
 	 * check for an available spare and continue unless the device is a
 	 * l2arc vdev, in which case we just offline it.
 	 */
-	if (strcmp(class, "resource.fs.zfs.removed") == 0) {
+	if (strcmp(class, "resource.fs.zfs.removed") == 0 ||
+	    (strcmp(class, "resource.fs.zfs.statechange") == 0 &&
+	    (state == VDEV_STATE_REMOVED || state == VDEV_STATE_FAULTED))) {
 		char *devtype;
 		char *devname;
 
@@ -347,9 +359,8 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 			zpool_vdev_offline(zhp, devname, B_TRUE);
 		} else if (!fmd_prop_get_int32(hdl, "spare_on_remove") ||
 		    replace_with_spare(hdl, zhp, vdev) == B_FALSE) {
-			/* Could not handle with spare: offline the device */
-			fmd_hdl_debug(hdl, "zpool_vdev_offline '%s'", devname);
-			zpool_vdev_offline(zhp, devname, B_TRUE);
+			/* Could not handle with spare */
+			fmd_hdl_debug(hdl, "no spare for '%s'", devname);
 		}
 
 		free(devname);
@@ -361,12 +372,11 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 		return;
 
 	/*
-	 * Note: on zfsonlinux statechange events are more than just
+	 * Note: on Linux statechange events are more than just
 	 * healthy ones so we need to confirm the actual state value.
 	 */
 	if (strcmp(class, "resource.fs.zfs.statechange") == 0 &&
-	    nvlist_lookup_uint64(nvl, FM_EREPORT_PAYLOAD_ZFS_VDEV_STATE,
-	    &state) == 0 && state == VDEV_STATE_HEALTHY) {
+	    state == VDEV_STATE_HEALTHY) {
 		zfs_vdev_repair(hdl, nvl);
 		return;
 	}
@@ -497,6 +507,7 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 		 * Attempt to substitute a hot spare.
 		 */
 		(void) replace_with_spare(hdl, zhp, vdev);
+
 		zpool_close(zhp);
 	}
 

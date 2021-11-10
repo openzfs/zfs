@@ -1,10 +1,10 @@
-src = @abs_top_srcdir@/module/avl
+ifneq ($(KBUILD_EXTMOD),)
+src = @abs_srcdir@
 obj = @abs_builddir@
+endif
 
 MODULE := zavl
 
 obj-$(CONFIG_ZFS) := $(MODULE).o
-
-ccflags-y := $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
 
 $(MODULE)-objs += avl.o

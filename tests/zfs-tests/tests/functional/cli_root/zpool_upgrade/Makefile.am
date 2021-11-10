@@ -12,7 +12,8 @@ dist_pkgdata_SCRIPTS = \
 	zpool_upgrade_006_neg.ksh \
 	zpool_upgrade_007_pos.ksh \
 	zpool_upgrade_008_pos.ksh \
-	zpool_upgrade_009_neg.ksh
+	zpool_upgrade_009_neg.ksh \
+	zpool_upgrade_features_001_pos.ksh
 
 dist_pkgdata_DATA = \
 	zpool_upgrade.cfg \

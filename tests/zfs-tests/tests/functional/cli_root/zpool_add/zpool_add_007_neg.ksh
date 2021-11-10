@@ -46,10 +46,7 @@ verify_runnable "global"
 
 function cleanup
 {
-	poolexists "$TESTPOOL" && \
-		destroy_pool "$TESTPOOL"
-
-	partition_cleanup
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 }
 
 log_assert "'zpool add' should return an error with badly-formed parameters."
@@ -57,10 +54,10 @@ log_assert "'zpool add' should return an error with badly-formed parameters."
 log_onexit cleanup
 
 set -A args "" "-f" "-n" "-?" "-nf" "-fn" "-f -n" "--f" "-blah" \
-	"-? $TESTPOOL ${disk}${SLICE_PREFIX}${SLICE1}"
+	"-? $TESTPOOL $DISK1"
 
-create_pool "$TESTPOOL" "${disk}${SLICE_PREFIX}${SLICE0}"
-log_must poolexists "$TESTPOOL"
+create_pool $TESTPOOL $DISK0
+log_must poolexists $TESTPOOL
 
 typeset -i i=0
 while (( $i < ${#args[*]} )); do

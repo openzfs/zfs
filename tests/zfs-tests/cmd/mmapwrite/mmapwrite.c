@@ -42,8 +42,8 @@
  * 2. In the same process, context #2, mmap page fault (which means the mm_sem
  *    is hold) occurred, zfs_dirty_inode open a txg failed, and wait previous
  *    txg "n" completed.
- * 3. context #1 call uiomove to write, however page fault is occurred in
- *    uiomove, which means it need mm_sem, but mm_sem is hold by
+ * 3. context #1 call zfs_uiomove to write, however page fault is occurred in
+ *    zfs_uiomove, which means it needs mm_sem, but mm_sem is hold by
  *    context #2, so it stuck and can't complete, then txg "n" will not
  *    complete.
  *
@@ -66,18 +66,14 @@ normal_writer(void *filename)
 		err(1, "failed to open %s", file_path);
 	}
 
-	char *buf = malloc(1);
+	char buf;
 	while (1) {
-		write_num = write(fd, buf, 1);
+		write_num = write(fd, &buf, 1);
 		if (write_num == 0) {
 			err(1, "write failed!");
 			break;
 		}
 		lseek(fd, page_size, SEEK_CUR);
-	}
-
-	if (buf) {
-		free(buf);
 	}
 }
 
@@ -140,7 +136,7 @@ main(int argc, char **argv)
 	int i = 0;
 
 	if (argc != 3) {
-		(void) printf("usage: %s <normal write file name>"
+		(void) printf("usage: %s <normal write file name> "
 		    "<map write file name>\n", argv[0]);
 		exit(1);
 	}
@@ -156,7 +152,6 @@ main(int argc, char **argv)
 		err(1, "pthread_create map_writer failed.");
 	}
 
-	/* NOTREACHED */
 	pthread_join(map_write_tid, NULL);
 	return (0);
 }

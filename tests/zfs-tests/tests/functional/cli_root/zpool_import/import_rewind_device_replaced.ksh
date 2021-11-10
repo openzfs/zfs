@@ -60,10 +60,10 @@ ZFS_TXG_TIMEOUT=""
 function custom_cleanup
 {
 	# Revert zfs_txg_timeout to defaults
-	[[ -n ZFS_TXG_TIMEOUT ]] &&
+	[[ -n $ZFS_TXG_TIMEOUT ]] &&
 	    log_must set_zfs_txg_timeout $ZFS_TXG_TIMEOUT
 	log_must rm -rf $BACKUP_DEVICE_DIR
-	log_must set_tunable32 zfs_scan_suspend_progress 0
+	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 0
 	cleanup
 }
 
@@ -102,13 +102,13 @@ function test_replace_vdev
 	log_must zpool import -d $DEVICE_DIR $TESTPOOL1
 
 	# Ensure resilvering doesn't complete.
-	log_must set_tunable32 zfs_scan_suspend_progress 1
+	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
 	log_must zpool replace $TESTPOOL1 $replacevdev $replaceby
 
 	# Confirm pool is still replacing
 	log_must pool_is_replacing $TESTPOOL1
 	log_must zpool export $TESTPOOL1
-	log_must set_tunable32 zfs_scan_suspend_progress 0
+	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 0
 
 	############################################################
 	# Test 1: rewind while device is resilvering.
@@ -151,7 +151,7 @@ function test_replace_vdev
 }
 
 # Record txg history
-is_linux && log_must set_tunable32 zfs_txg_history 100
+is_linux && log_must set_tunable32 TXG_HISTORY 100
 
 log_must mkdir -p $BACKUP_DEVICE_DIR
 # Make the devices bigger to reduce chances of overwriting MOS metadata.
@@ -175,6 +175,11 @@ test_replace_vdev "raidz $VDEV0 $VDEV1 $VDEV2" \
 	"$VDEV1" "$VDEV3" \
 	"raidz $VDEV0 $VDEV3 $VDEV2" \
 	"$VDEV0 $VDEV1 $VDEV2" 10
+
+test_replace_vdev "draid $VDEV0 $VDEV1 $VDEV2 $VDEV3" \
+	"$VDEV1" "$VDEV4" \
+	"draid $VDEV0 $VDEV4 $VDEV2 $VDEV3 spares draid1-0-0" \
+	"$VDEV0 $VDEV1 $VDEV2 $VDEV3" 10
 
 set_zfs_txg_timeout $ZFS_TXG_TIMEOUT
 

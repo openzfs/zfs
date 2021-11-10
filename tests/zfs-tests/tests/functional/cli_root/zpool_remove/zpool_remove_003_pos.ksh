@@ -54,17 +54,15 @@ function cleanup
 log_onexit cleanup
 typeset disk=${DISK}
 
-typeset spare_devs1="${disk}${SLICE_PREFIX}${SLICE0}"
-typeset spare_devs2="${disk}${SLICE_PREFIX}${SLICE1}"
-typeset spare_devs3="${disk}${SLICE_PREFIX}${SLICE3}"
-typeset spare_devs4="${disk}${SLICE_PREFIX}${SLICE4}"
+typeset spare_devs1="${DISK0}"
+typeset spare_devs2="${DISK1}"
+typeset spare_devs3="${DISK2}"
 
 log_assert "zpool remove can remove hotspare device which state go though" \
 	" active to inactive in pool"
 
 log_note "Check spare device which state go through active to inactive"
-log_must zpool create $TESTPOOL $spare_devs1 $spare_devs2 spare \
-                 $spare_devs3 $spare_devs4
+log_must zpool create $TESTPOOL $spare_devs1 $spare_devs2 spare $spare_devs3
 log_must zpool replace $TESTPOOL $spare_devs2 $spare_devs3
 log_mustnot zpool remove $TESTPOOL $spare_devs3
 log_must zpool detach $TESTPOOL $spare_devs3

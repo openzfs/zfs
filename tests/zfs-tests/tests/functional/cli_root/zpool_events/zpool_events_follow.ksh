@@ -56,8 +56,8 @@ done
 zpool_events_settle
 
 # 4. Verify 'zpool events -f' successfully recorded these new events
-EVENTS_LOG="$(cat $EVENTS_FILE | wc -l)"
-if [[ "$EVENTS_LOG" != "$EVENTS_NUM" ]]; then
+EVENTS_LOG=$(cat $EVENTS_FILE | wc -l)
+if [[ $EVENTS_LOG -ne $EVENTS_NUM ]]; then
 	log_fail "Unexpected number of events: $EVENTS_LOG != $EVENTS_NUM"
 fi
 

@@ -1,0 +1,72 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+.\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
+.\" Copyright (c) 2017 Datto Inc.
+.\" Copyright (c) 2018 George Melikov. All Rights Reserved.
+.\" Copyright 2017 Nexenta Systems, Inc.
+.\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\"
+.Dd February 16, 2020
+.Dt ZPOOL-EXPORT 8
+.Os
+.
+.Sh NAME
+.Nm zpool-export
+.Nd export ZFS storage pools
+.Sh SYNOPSIS
+.Nm zpool
+.Cm export
+.Op Fl f
+.Fl a Ns | Ns Ar pool Ns …
+.
+.Sh DESCRIPTION
+Exports the given pools from the system.
+All devices are marked as exported, but are still considered in use by other
+subsystems.
+The devices can be moved between systems
+.Pq even those of different endianness
+and imported as long as a sufficient number of devices are present.
+.Pp
+Before exporting the pool, all datasets within the pool are unmounted.
+A pool can not be exported if it has a shared spare that is currently being
+used.
+.Pp
+For pools to be portable, you must give the
+.Nm zpool
+command whole disks, not just partitions, so that ZFS can label the disks with
+portable EFI labels.
+Otherwise, disk drivers on platforms of different endianness will not recognize
+the disks.
+.Bl -tag -width Ds
+.It Fl a
+Exports all pools imported on the system.
+.It Fl f
+Forcefully unmount all datasets, and allow export of pools with active shared spares.
+.Pp
+This command will forcefully export the pool even if it has a shared spare that
+is currently being used.
+This may lead to potential data corruption.
+.El
+.
+.Sh SEE ALSO
+.Xr zpool-import 8

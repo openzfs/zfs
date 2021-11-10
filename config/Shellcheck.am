@@ -1,0 +1,22 @@
+.PHONY: shellcheck
+shellcheck: $(SCRIPTS) $(SHELLCHECKSCRIPTS)
+if HAVE_SHELLCHECK
+	[ -z "$(SCRIPTS)$(SHELLCHECKSCRIPTS)" ] && exit; shellcheck $$([ -n "$(SHELLCHECK_SHELL)" ] && echo "--shell=$(SHELLCHECK_SHELL)") --exclude=SC1090,SC1091$(SHELLCHECK_IGNORE) --format=gcc $(SCRIPTS) $(SHELLCHECKSCRIPTS)
+else
+	@[ -z "$(SCRIPTS)$(SHELLCHECKSCRIPTS)" ] && exit; echo "skipping shellcheck of" $(SCRIPTS) $(SHELLCHECKSCRIPTS) "because shellcheck is not installed"
+endif
+	@set -e; for dir in $(SHELLCHECKDIRS); do $(MAKE) -C $$dir shellcheck; done
+
+
+# command -v *is* specified by POSIX and every shell in existence supports it
+.PHONY: checkbashisms
+checkbashisms: $(SCRIPTS) $(SHELLCHECKSCRIPTS)
+if HAVE_CHECKBASHISMS
+	[ -z "$(SCRIPTS)$(SHELLCHECKSCRIPTS)" ] && exit; ! if [ -z "$(SHELLCHECK_SHELL)" ]; then \
+	    checkbashisms -npx $(SCRIPTS) $(SHELLCHECKSCRIPTS); else \
+	    for f in $(SCRIPTS) $(SHELLCHECKSCRIPTS); do echo $$f >&3; { echo '#!/bin/$(SHELLCHECK_SHELL)'; cat $$f; } | checkbashisms -npx; done; \
+	fi 3>&2 2>&1 | grep -vFe "'command' with option other than -p" -e 'command -v' $(CHECKBASHISMS_IGNORE) >&2
+else
+	@[ -z "$(SCRIPTS)$(SHELLCHECKSCRIPTS)" ] && exit; echo "skipping checkbashisms of" $(SCRIPTS) $(SHELLCHECKSCRIPTS) "because checkbashisms is not installed"
+endif
+	@set -e; for dir in $(SHELLCHECKDIRS); do $(MAKE) -C $$dir checkbashisms; done

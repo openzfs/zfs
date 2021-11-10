@@ -27,6 +27,10 @@
 
 . $STF_SUITE/include/libtest.shlib
 
+if ! is_linux ; then
+	log_unsupported "sysfs is linux-only"
+fi
+
 DISK=${DISKS%% *}
 
 default_container_volume_setup $DISK

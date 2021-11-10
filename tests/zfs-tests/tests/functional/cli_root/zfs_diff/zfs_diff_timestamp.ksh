@@ -31,9 +31,7 @@ verify_runnable "both"
 function cleanup
 {
 	for snap in $TESTSNAP1 $TESTSNAP2; do
-		if snapexists "$snap"; then
-			log_must zfs destroy "$snap"
-		fi
+		snapexists "$snap" && destroy_dataset "$snap"
 	done
 	find "$MNTPOINT" -type f -delete
 	rm -f "$FILEDIFF"
@@ -50,7 +48,7 @@ function create_random # <fspath> <count>
 
 	while (( i < count )); do
 		log_must touch "$fspath/file$i"
-		sleep $(random 3)
+		sleep $(random_int_between 1 3)
 		(( i = i + 1 ))
 	done
 }
@@ -84,7 +82,7 @@ do
 		continue;
 	fi
 
-	filetime="$(stat -c '%Z' $file)"
+	filetime=$(stat_ctime $file)
 	if [[ "$filetime" != "$ctime" ]]; then
 		log_fail "Unexpected ctime for file $file ($filetime != $ctime)"
 	else

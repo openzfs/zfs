@@ -42,7 +42,7 @@
 #
 # STRATEGY:
 # 1. Import pools of all versions
-# 2. Setup a test enviorment over the old pools.
+# 2. Setup a test environment over the old pools.
 # 3. Verify the commands related to 'zfs upgrade' succeed as expected.
 #
 

@@ -25,7 +25,7 @@
  */
 
 /*
- * This file imlements the minimal FMD module API required to support the
+ * This file implements the minimal FMD module API required to support the
  * fault logic modules in ZED. This support includes module registration,
  * memory allocation, module property accessors, basic case management,
  * one-shot timers and SERD engines.

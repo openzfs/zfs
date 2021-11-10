@@ -12,7 +12,7 @@
 #
 
 #
-# Copyright (c) 2016 by Delphix. All rights reserved.
+# Copyright (c) 2016, 2021 by Delphix. All rights reserved.
 #
 
 #
@@ -25,7 +25,7 @@
 # for all fio runs. The ARC is not cleared to ensure that all data is cached.
 #
 # This is basically a copy of the sequential_reads_cached test case, but with
-# a smaller dateset so that we can fit everything into the decompressed, linear
+# a smaller dataset so that we can fit everything into the decompressed, linear
 # space in the dbuf cache.
 #
 
@@ -47,24 +47,13 @@ recreate_perf_pool
 populate_perf_filesystems
 
 # Ensure the working set can be cached in the dbuf cache.
-export TOTAL_SIZE=$(($(get_max_dbuf_cache_size) * 3 / 4))
+export TOTAL_SIZE=$(($(get_dbuf_cache_size) * 3 / 4))
 
-# Variables for use by fio.
-if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
-	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
-	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
-	export PERF_NTHREADS=${PERF_NTHREADS:-'8 16 32 64'}
-	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
-	export PERF_SYNC_TYPES=${PERF_SYNC_TYPES:-'1'}
-	export PERF_IOSIZES=${PERF_IOSIZES:-'8k 64k 128k'}
-elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
-	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
-	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
-	export PERF_NTHREADS=${PERF_NTHREADS:-'64'}
-	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
-	export PERF_SYNC_TYPES=${PERF_SYNC_TYPES:-'1'}
-	export PERF_IOSIZES=${PERF_IOSIZES:-'64k'}
-fi
+# Variables specific to this test for use by fio.
+export PERF_NTHREADS=${PERF_NTHREADS:-'64'}
+export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+export PERF_IOSIZES=${PERF_IOSIZES:-'64k'}
+export PERF_SYNC_TYPES=${PERF_SYNC_TYPES:-'1'}
 
 # Layout the files to be used by the read tests. Create as many files as the
 # largest number of threads. An fio run with fewer threads will use a subset
@@ -101,6 +90,6 @@ else
 	)
 fi
 
-log_note "Sequential cached reads with $PERF_RUNTYPE settings"
+log_note "Sequential cached reads with settings: $(print_perf_settings)"
 do_fio_run sequential_reads.fio false false
 log_pass "Measure IO stats during sequential cached read load"

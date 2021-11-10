@@ -34,7 +34,7 @@
 
 #
 # DESCRIPTION:
-#	Verify that user can access file/directory if acltype=posixacl.
+#	Verify that user can access file/directory if acltype=posix.
 #
 # STRATEGY:
 #	1. Test access to file (mode=rw-)
@@ -50,7 +50,7 @@ function cleanup
 	rmdir $TESTDIR/dir.0
 }
 
-log_assert "Verify acltype=posixacl works on file"
+log_assert "Verify acltype=posix works on file"
 log_onexit cleanup
 
 # Test access to FILE

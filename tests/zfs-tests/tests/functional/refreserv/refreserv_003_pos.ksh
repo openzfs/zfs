@@ -38,7 +38,7 @@
 #	space outside of this refreservation.
 #
 # STRATEGY:
-#	1. Setting quota and refservation
+#	1. Setting quota and refreservation
 #	2. Verify snapshot can be created, when used =< quota - refreserv
 #	3. Verify failed to create snapshot, when used > quota - refreserv
 #

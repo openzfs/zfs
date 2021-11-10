@@ -1,0 +1,116 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+.\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
+.\" Copyright (c) 2017 Datto Inc.
+.\" Copyright (c) 2018 George Melikov. All Rights Reserved.
+.\" Copyright 2017 Nexenta Systems, Inc.
+.\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\"
+.Dd June 2, 2021
+.Dt ZPOOL-SPLIT 8
+.Os
+.
+.Sh NAME
+.Nm zpool-split
+.Nd split devices off ZFS storage pool, creating new pool
+.Sh SYNOPSIS
+.Nm zpool
+.Cm split
+.Op Fl gLlnP
+.Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
+.Op Fl R Ar root
+.Ar pool newpool
+.Oo Ar device Oc Ns …
+.
+.Sh DESCRIPTION
+Splits devices off
+.Ar pool
+creating
+.Ar newpool .
+All vdevs in
+.Ar pool
+must be mirrors and the pool must not be in the process of resilvering.
+At the time of the split,
+.Ar newpool
+will be a replica of
+.Ar pool .
+By default, the
+last device in each mirror is split from
+.Ar pool
+to create
+.Ar newpool .
+.Pp
+The optional device specification causes the specified device(s) to be
+included in the new
+.Ar pool
+and, should any devices remain unspecified,
+the last device in each mirror is used as would be by default.
+.Bl -tag -width Ds
+.It Fl g
+Display vdev GUIDs instead of the normal device names.
+These GUIDs can be used in place of device names for the zpool
+detach/offline/remove/replace commands.
+.It Fl L
+Display real paths for vdevs resolving all symbolic links.
+This can be used to look up the current block device name regardless of the
+.Pa /dev/disk/
+path used to open it.
+.It Fl l
+Indicates that this command will request encryption keys for all encrypted
+datasets it attempts to mount as it is bringing the new pool online.
+Note that if any datasets have
+.Sy keylocation Ns = Ns Sy prompt ,
+this command will block waiting for the keys to be entered.
+Without this flag, encrypted datasets will be left unavailable until the keys are loaded.
+.It Fl n
+Do a dry-run
+.Pq Qq No-op
+split: do not actually perform it.
+Print out the expected configuration of
+.Ar newpool .
+.It Fl P
+Display full paths for vdevs instead of only the last component of
+the path.
+This can be used in conjunction with the
+.Fl L
+flag.
+.It Fl o Ar property Ns = Ns Ar value
+Sets the specified property for
+.Ar newpool .
+See the
+.Xr zpoolprops 7
+manual page for more information on the available pool properties.
+.It Fl R Ar root
+Set
+.Sy altroot
+for
+.Ar newpool
+to
+.Ar root
+and automatically import it.
+.El
+.
+.Sh SEE ALSO
+.Xr zpool-import 8 ,
+.Xr zpool-list 8 ,
+.Xr zpool-remove 8

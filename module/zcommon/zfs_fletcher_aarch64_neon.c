@@ -43,7 +43,7 @@
 
 #if defined(__aarch64__)
 
-#include <linux/simd_aarch64.h>
+#include <sys/simd.h>
 #include <sys/spa_checksum.h>
 #include <sys/strings.h>
 #include <zfs_fletcher.h>
@@ -198,7 +198,7 @@ unsigned char SRC __attribute__((vector_size(16)));
 
 static boolean_t fletcher_4_aarch64_neon_valid(void)
 {
-	return (B_TRUE);
+	return (kfpu_allowed());
 }
 
 const fletcher_4_ops_t fletcher_4_aarch64_neon_ops = {

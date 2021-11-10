@@ -28,7 +28,7 @@
  */
 
 #ifndef	_AVL_H
-#define	_AVL_H
+#define	_AVL_H extern __attribute__((visibility("default")))
 
 /*
  * This is a private header file.  Applications should not directly include
@@ -97,7 +97,7 @@ extern "C" {
  *
  * 3. Use avl_destroy_nodes() to quickly process/free up any remaining nodes.
  *    Note that once you use avl_destroy_nodes(), you can no longer
- *    use any routine except avl_destroy_nodes() and avl_destoy().
+ *    use any routine except avl_destroy_nodes() and avl_destroy().
  *
  * 4. Use avl_destroy() to destroy the AVL tree itself.
  *
@@ -108,9 +108,9 @@ extern "C" {
 /*
  * AVL comparator helpers
  */
-#define	AVL_ISIGN(a)	(((a) > 0) - ((a) < 0))
-#define	AVL_CMP(a, b)	(((a) > (b)) - ((a) < (b)))
-#define	AVL_PCMP(a, b)	\
+#define	TREE_ISIGN(a)	(((a) > 0) - ((a) < 0))
+#define	TREE_CMP(a, b)	(((a) > (b)) - ((a) < (b)))
+#define	TREE_PCMP(a, b)	\
 	(((uintptr_t)(a) > (uintptr_t)(b)) - ((uintptr_t)(a) < (uintptr_t)(b)))
 
 /*
@@ -144,7 +144,7 @@ typedef uintptr_t avl_index_t;
  * user data structure which must contain a field of type avl_node_t.
  *
  * Also assume the user data structures looks like:
- *	stuct my_type {
+ *	struct my_type {
  *		...
  *		avl_node_t	my_link;
  *		...
@@ -160,7 +160,7 @@ typedef uintptr_t avl_index_t;
  * size   - the value of sizeof(struct my_type)
  * offset - the value of OFFSETOF(struct my_type, my_link)
  */
-extern void avl_create(avl_tree_t *tree,
+_AVL_H void avl_create(avl_tree_t *tree,
 	int (*compar) (const void *, const void *), size_t size, size_t offset);
 
 
@@ -172,7 +172,7 @@ extern void avl_create(avl_tree_t *tree,
  * node   - node that has the value being looked for
  * where  - position for use with avl_nearest() or avl_insert(), may be NULL
  */
-extern void *avl_find(avl_tree_t *tree, const void *node, avl_index_t *where);
+_AVL_H void *avl_find(avl_tree_t *tree, const void *node, avl_index_t *where);
 
 /*
  * Insert a node into the tree.
@@ -180,7 +180,7 @@ extern void *avl_find(avl_tree_t *tree, const void *node, avl_index_t *where);
  * node   - the node to insert
  * where  - position as returned from avl_find()
  */
-extern void avl_insert(avl_tree_t *tree, void *node, avl_index_t where);
+_AVL_H void avl_insert(avl_tree_t *tree, void *node, avl_index_t where);
 
 /*
  * Insert "new_data" in "tree" in the given "direction" either after
@@ -193,7 +193,7 @@ extern void avl_insert(avl_tree_t *tree, void *node, avl_index_t where);
  * here		- existing node in "tree"
  * direction	- either AVL_AFTER or AVL_BEFORE the data "here".
  */
-extern void avl_insert_here(avl_tree_t *tree, void *new_data, void *here,
+_AVL_H void avl_insert_here(avl_tree_t *tree, void *new_data, void *here,
     int direction);
 
 
@@ -202,8 +202,8 @@ extern void avl_insert_here(avl_tree_t *tree, void *new_data, void *here,
  * if the tree is empty.
  *
  */
-extern void *avl_first(avl_tree_t *tree);
-extern void *avl_last(avl_tree_t *tree);
+_AVL_H void *avl_first(avl_tree_t *tree);
+_AVL_H void *avl_last(avl_tree_t *tree);
 
 
 /*
@@ -239,7 +239,7 @@ extern void *avl_last(avl_tree_t *tree);
  *	else
  *		less = avl_nearest(tree, where, AVL_BEFORE);
  */
-extern void *avl_nearest(avl_tree_t *tree, avl_index_t where, int direction);
+_AVL_H void *avl_nearest(avl_tree_t *tree, avl_index_t where, int direction);
 
 
 /*
@@ -249,7 +249,7 @@ extern void *avl_nearest(avl_tree_t *tree, avl_index_t where, int direction);
  *
  * node   - the node to add
  */
-extern void avl_add(avl_tree_t *tree, void *node);
+_AVL_H void avl_add(avl_tree_t *tree, void *node);
 
 
 /*
@@ -257,22 +257,33 @@ extern void avl_add(avl_tree_t *tree, void *node);
  *
  * node   - the node to remove
  */
-extern void avl_remove(avl_tree_t *tree, void *node);
+_AVL_H void avl_remove(avl_tree_t *tree, void *node);
+
+/*
+ * Reinsert a node only if its order has changed relative to its nearest
+ * neighbors. To optimize performance avl_update_lt() checks only the previous
+ * node and avl_update_gt() checks only the next node. Use avl_update_lt() and
+ * avl_update_gt() only if you know the direction in which the order of the
+ * node may change.
+ */
+_AVL_H boolean_t avl_update(avl_tree_t *, void *);
+_AVL_H boolean_t avl_update_lt(avl_tree_t *, void *);
+_AVL_H boolean_t avl_update_gt(avl_tree_t *, void *);
 
 /*
  * Swaps the contents of the two trees.
  */
-extern void avl_swap(avl_tree_t *tree1, avl_tree_t *tree2);
+_AVL_H void avl_swap(avl_tree_t *tree1, avl_tree_t *tree2);
 
 /*
  * Return the number of nodes in the tree
  */
-extern ulong_t avl_numnodes(avl_tree_t *tree);
+_AVL_H ulong_t avl_numnodes(avl_tree_t *tree);
 
 /*
  * Return B_TRUE if there are zero nodes in the tree, B_FALSE otherwise.
  */
-extern boolean_t avl_is_empty(avl_tree_t *tree);
+_AVL_H boolean_t avl_is_empty(avl_tree_t *tree);
 
 /*
  * Used to destroy any remaining nodes in a tree. The cookie argument should
@@ -295,7 +306,7 @@ extern boolean_t avl_is_empty(avl_tree_t *tree);
  *		free(node);
  *	avl_destroy(tree);
  */
-extern void *avl_destroy_nodes(avl_tree_t *tree, void **cookie);
+_AVL_H void *avl_destroy_nodes(avl_tree_t *tree, void **cookie);
 
 
 /*
@@ -303,7 +314,7 @@ extern void *avl_destroy_nodes(avl_tree_t *tree, void **cookie);
  *
  * tree   - the empty tree to destroy
  */
-extern void avl_destroy(avl_tree_t *tree);
+_AVL_H void avl_destroy(avl_tree_t *tree);
 
 
 

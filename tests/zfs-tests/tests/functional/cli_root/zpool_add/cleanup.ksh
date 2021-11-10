@@ -32,11 +32,4 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zpool_add/zpool_add.kshlib
 
-DISK=${DISKS%% *}
-if is_mpath_device $DISK; then
-        delete_partitions
-fi
-
-cleanup_devices $DISKS
-
 log_pass

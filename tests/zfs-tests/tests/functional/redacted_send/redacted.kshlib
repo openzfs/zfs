@@ -1,0 +1,266 @@
+#!/bin/ksh
+
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or http://www.opensolaris.org/os/licensing.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright (c) 2016, 2018 by Delphix. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/rsend/rsend.kshlib
+. $STF_SUITE/tests/functional/redacted_send/redacted.cfg
+
+function setup_dataset
+{
+	typeset ds_name=$1
+	typeset opts=$2
+	typeset file_create_func=$3
+	typeset sendfs="$POOL/$ds_name"
+	[[ -n $file_create_func ]] || file_create_func=setup_common
+
+	log_must zfs create $opts $sendfs
+
+	$file_create_func $sendfs
+
+	log_must zfs snapshot $sendfs@snap
+	log_must zfs clone $opts $sendfs@snap $POOL/${ds_name}_clone
+	log_must zfs snapshot $POOL/${ds_name}_clone@snap
+}
+
+function setup_common
+{
+	typeset sendfs=$1
+
+	typeset mntpnt=$(get_prop mountpoint $sendfs)
+	typeset bs=$(get_prop recsize $sendfs)
+	log_must dd if=/dev/urandom of=$mntpnt/f1 bs=$bs count=16
+	log_must dd if=/dev/urandom of=$mntpnt/f2 bs=$bs count=32
+}
+
+function setup_embedded
+{
+	typeset sendfs=$1
+
+	typeset recsize
+	typeset mntpnt=$(get_prop mountpoint $sendfs)
+	for recsize in 512 1024 2048 4096 8192 16384; do
+		if is_illumos; then
+			log_must mkholes -d $((recsize - 8)):8 $mntpnt/$recsize
+		else
+			log_must dd if=/dev/urandom of=$mntpnt/$recsize bs=8 \
+			    count=1 seek=$(((recsize / 8) - 1))
+		fi
+	done
+}
+
+function setup_holes
+{
+	typeset sendfs=$1
+
+	typeset mntpnt=$(get_prop mountpoint $sendfs)
+	typeset M=$((1024 * 1024))
+
+	if is_illumos; then
+		log_must mkholes -d 0:$((8 * M)) $mntpnt/f1
+		log_must mkholes -d 0:$M -d $((7 * M)):$M $mntpnt/f2
+		log_must mkholes -d $M:$((6 * M)) -h $((7 * M)):$M $mntpnt/f3
+		log_must mkholes -h 0:$((8 * M)) $mntpnt/f4
+	else
+		log_must dd if=/dev/urandom of=$mntpnt/f1 bs=8M count=1
+
+		log_must dd if=/dev/urandom of=$mntpnt/f2 bs=1M count=1
+		log_must dd if=/dev/urandom of=$mntpnt/f2 bs=1M count=1 seek=7 \
+		    conv=notrunc
+
+		log_must dd if=/dev/urandom of=$mntpnt/f3 bs=1M count=6 seek=1
+		log_must truncate -s $((8 * M)) $mntpnt/f3
+
+		log_must truncate -s $((8 * M)) $mntpnt/f4
+	fi
+
+	log_must zfs create $sendfs/manyrm
+	for i in {1..256}; do
+		log_must stride_dd -i /dev/urandom -o $mntpnt/manyrm/f$i -b 512 \
+		    -c $(random_int_between 1 100) -s $(random_int_between 1 4)
+	done
+
+	log_must zfs snapshot $sendfs/manyrm@snap
+	log_must zfs clone $sendfs/manyrm@snap $sendfs/manyrm_clone
+	log_must zfs snapshot $sendfs/manyrm_clone@snap
+}
+
+function setup_incrementals
+{
+	typeset sendfs=$1
+
+	typeset mntpnt=$(get_prop mountpoint $sendfs)
+	typeset bs=$(get_prop recsize $sendfs)
+	log_must dd if=/dev/urandom of=$mntpnt/f1 bs=$bs count=16
+	log_must dd if=/dev/urandom of=$mntpnt/f2 bs=$bs count=32
+	log_must mkdir $mntpnt/d1
+	log_must eval "cat $mntpnt/f1 $mntpnt/f2 >$mntpnt/d1/f1"
+	log_must zfs snapshot $sendfs@snap0
+
+	log_must zfs clone $sendfs@snap0 $POOL/hole
+	mntpnt=$(get_prop mountpoint $POOL/hole)
+	log_must dd if=/dev/zero of=$mntpnt/f2 bs=$bs count=16 conv=notrunc
+	log_must zfs snapshot $POOL/hole@snap
+
+	log_must zfs clone $sendfs@snap0 $POOL/stride3
+	mntpnt=$(get_prop mountpoint $POOL/stride3)
+	log_must stride_dd -i /dev/urandom -o $mntpnt/f2 -b $bs -c 11 -s 3
+	log_must zfs snapshot $POOL/stride3@snap
+
+	log_must zfs clone $sendfs@snap0 $POOL/stride5
+	mntpnt=$(get_prop mountpoint $POOL/stride5)
+	log_must stride_dd -i /dev/urandom -o $mntpnt/f2 -b $bs -c 7 -s 5
+	log_must zfs snapshot $POOL/stride5@snap
+
+	log_must zfs clone $sendfs@snap0 $POOL/int
+	log_must zfs snapshot $POOL/int@snap
+
+	log_must zfs clone $POOL/int@snap $POOL/rm
+	mntpnt=$(get_prop mountpoint $POOL/rm)
+	log_must rm -rf $mntpnt/[df][12]
+	log_must zfs snapshot $POOL/rm@snap
+
+	log_must zfs clone $POOL/int@snap $POOL/write
+	mntpnt=$(get_prop mountpoint $POOL/write)
+	log_must dd if=/dev/urandom of=$mntpnt/f1 bs=512 count=16 conv=notrunc
+	log_must dd if=/dev/urandom of=$mntpnt/d1/f1 bs=512 count=16 seek=16 \
+	    conv=notrunc
+	log_must zfs snapshot $POOL/write@snap
+}
+
+function setup_mounts
+{
+	typeset sendfs=$1
+
+	typeset mntpnt=$(get_prop mountpoint $sendfs)
+	log_must touch $mntpnt/empty
+	log_must dd if=/dev/urandom of=$mntpnt/contents1 bs=512 count=2
+	log_must dd if=/dev/urandom of=$mntpnt/contents2 bs=512 count=2
+	log_must mkdir $mntpnt/dir1
+	log_must touch $mntpnt/dir1/empty
+	log_must dd if=/dev/urandom of=$mntpnt/dir1/contents1 bs=512 count=2
+	log_must dd if=/dev/urandom of=$mntpnt/dir1/contents2 bs=512 count=2
+	log_must mkdir $mntpnt/dir1/dir2
+	log_must touch $mntpnt/dir1/dir2/empty
+	log_must dd if=/dev/urandom of=$mntpnt/dir1/dir2/file bs=512 count=2
+
+	log_must zfs create -s -V 16p $sendfs/vol
+	log_must zfs snapshot $sendfs/vol@snap
+	log_must zfs clone $sendfs/vol@snap $sendfs/vol_clone
+	log_must zfs snapshot $sendfs/vol_clone@snap
+}
+
+function mount_redacted
+{
+	typeset flag=''
+	while getopts "f" opt; do
+		case $opt in
+		f)
+			flag='-f'
+			;;
+		esac
+	done
+	shift $(($OPTIND - 1))
+
+	typeset ds=$1
+	log_must set_tunable32 ALLOW_REDACTED_DATASET_MOUNT 1
+	zfs mount $flag -oro $ds || return 1
+	log_must set_tunable32 ALLOW_REDACTED_DATASET_MOUNT 0
+	return 0
+}
+
+function unmount_redacted
+{
+	typeset ds=$1
+
+	zfs unmount $ds
+}
+
+#
+# This function calls a utility that prints out the ranges where a file
+# and its redacted counterpart differ, each range on a new line like this:
+#
+# 0,131072
+# 1966080,131072
+# 3932160,131072
+#
+# The output is then checked against a variable containing the expected
+# output to verify the redacted ranges are the ones expected.
+#
+function compare_files
+{
+	typeset sendfs=$1
+	typeset recvfs=$2
+	typeset file=$3
+	typeset expected="$4"
+	typeset tmpfile="$tmpdir/get_file.out"
+
+	log_must mount_redacted -f $recvfs
+
+	typeset file1="$(get_prop mountpoint $sendfs)/$file"
+	typeset file2="$(get_prop mountpoint $recvfs)/$file"
+	log_note "Comparing $file1 and $file2"
+	[[ -f $file1 ]] || log_fail "File $file1 does not exist."
+	[[ -f $file2 ]] || log_fail "File $file2 does not exist."
+
+	log_must eval "get_diff $file1 $file2 >$tmpfile"
+	typeset range="$(cat $tmpfile)"
+	log_must unmount_redacted $recvfs
+	[[ "$expected" = "$range" ]] || log_fail "Unexpected range: $range"
+}
+
+function redacted_cleanup
+{
+	typeset ds_list=$@
+	typeset ds
+
+	for ds in $ds_list; do
+		zfs destroy -R $ds
+	done
+
+	set_tunable32 ALLOW_REDACTED_DATASET_MOUNT 0
+	rm -f $(get_prop mountpoint $POOL)/tmp/*
+}
+
+# Retrieve the redaction list of a bookmark or snapshot, using
+# the property or zdb output, as requested.
+function get_guid_list
+{
+	typeset filename=$1
+	typeset dataset=$2
+	typeset use_zdb=${3:-false}
+
+	if $use_zdb; then
+		guid_list=$(zdb -vvvv $dataset | sed -e 's/,//g' \
+		    -ne 's/^.*Snapshots: \[\(.*\)\]/\1/p')
+	else
+		guid_list=$(get_prop redact_snaps $dataset)
+	fi
+
+	for guid in $(echo $guid_list | tr ',' ' '); do
+		echo $guid
+	done | sort >$filename
+}

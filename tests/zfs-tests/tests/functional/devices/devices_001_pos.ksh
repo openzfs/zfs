@@ -42,7 +42,7 @@
 # 1. Create pool and file system.
 # 2. Set devices=on on this file system.
 # 3. Separately create block device file and character file.
-# 4. Separately read from those two device files.
+# 4. Separately read and write from those two device files.
 # 5. Check the return value, and make sure it succeeds.
 #
 
@@ -55,12 +55,18 @@ log_onexit cleanup
 log_must zfs set devices=on $TESTPOOL/$TESTFS
 
 #
-# Separately create block device file and character device file, then try to
-# open them and make sure it succeed.
+# Create block device file backed by a ZFS volume.
+# Verify it can be opened, written, and read.
 #
-create_dev_file b $TESTDIR/$TESTFILE1
-log_must dd if=$TESTDIR/$TESTFILE1 of=$TESTDIR/$TESTFILE1.out count=1
+create_dev_file b $TESTDIR/$TESTFILE1 $ZVOL_DEVDIR/$TESTPOOL/$TESTVOL
+log_must dd if=/dev/urandom of=$TESTDIR/$TESTFILE1.out1 count=1 bs=128k
+log_must dd if=$TESTDIR/$TESTFILE1.out1 of=$TESTDIR/$TESTFILE1 count=1 bs=128k
+log_must dd if=$TESTDIR/$TESTFILE1 of=$TESTDIR/$TESTFILE1.out2 count=1 bs=128k
+log_must cmp $TESTDIR/$TESTFILE1.out1 $TESTDIR/$TESTFILE1.out2
+
+# Create character device file backed by /dev/null
+# Verify it can be opened and written.
 create_dev_file c $TESTDIR/$TESTFILE2
-log_must dd if=$TESTDIR/$TESTFILE2 of=$TESTDIR/$TESTFILE2.out count=1
+log_must dd if=/dev/urandom of=$TESTDIR/$TESTFILE2 count=1 bs=128k
 
 log_pass "Setting devices=on on file system and testing it pass."

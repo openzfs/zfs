@@ -37,7 +37,7 @@
 #include <sys/sa.h>
 #include <sys/sa_impl.h>
 #include <sys/zfs_context.h>
-#include <sys/trace_dmu.h>
+#include <sys/trace_zfs.h>
 
 typedef void (*dmu_tx_hold_func_t)(dmu_tx_t *tx, struct dnode *dn,
     uint64_t arg1, uint64_t arg2);
@@ -53,6 +53,7 @@ dmu_tx_stats_t dmu_tx_stats = {
 	{ "dmu_tx_dirty_throttle",	KSTAT_DATA_UINT64 },
 	{ "dmu_tx_dirty_delay",		KSTAT_DATA_UINT64 },
 	{ "dmu_tx_dirty_over_max",	KSTAT_DATA_UINT64 },
+	{ "dmu_tx_wrlog_over_max",	KSTAT_DATA_UINT64 },
 	{ "dmu_tx_dirty_frees_delay",	KSTAT_DATA_UINT64 },
 	{ "dmu_tx_quota",		KSTAT_DATA_UINT64 },
 };
@@ -230,9 +231,6 @@ dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 
 	(void) zfs_refcount_add_many(&txh->txh_space_towrite, len, FTAG);
 
-	if (zfs_refcount_count(&txh->txh_space_towrite) > 2 * DMU_MAX_ACCESS)
-		err = SET_ERROR(EFBIG);
-
 	if (dn == NULL)
 		return;
 
@@ -314,23 +312,6 @@ dmu_tx_hold_write(dmu_tx_t *tx, uint64_t object, uint64_t off, int len)
 		dmu_tx_count_write(txh, off, len);
 		dmu_tx_count_dnode(txh);
 	}
-}
-
-void
-dmu_tx_hold_remap_l1indirect(dmu_tx_t *tx, uint64_t object)
-{
-	dmu_tx_hold_t *txh;
-
-	ASSERT(tx->tx_txg == 0);
-	txh = dmu_tx_hold_object_impl(tx, tx->tx_objset,
-	    object, THT_WRITE, 0, 0);
-	if (txh == NULL)
-		return;
-
-	dnode_t *dn = txh->txh_dnode;
-	(void) zfs_refcount_add_many(&txh->txh_space_towrite,
-	    1ULL << dn->dn_indblkshift, FTAG);
-	dmu_tx_count_dnode(txh);
 }
 
 void
@@ -633,7 +614,8 @@ dmu_tx_dirty_buf(dmu_tx_t *tx, dmu_buf_impl_t *db)
 			/* XXX txh_arg2 better not be zero... */
 
 			dprintf("found txh type %x beginblk=%llx endblk=%llx\n",
-			    txh->txh_type, beginblk, endblk);
+			    txh->txh_type, (u_longlong_t)beginblk,
+			    (u_longlong_t)endblk);
 
 			switch (txh->txh_type) {
 			case THT_WRITE:
@@ -904,6 +886,12 @@ dmu_tx_try_assign(dmu_tx_t *tx, uint64_t txg_how)
 	}
 
 	if (!tx->tx_dirty_delayed &&
+	    dsl_pool_wrlog_over_max(tx->tx_pool)) {
+		DMU_TX_STAT_BUMP(dmu_tx_wrlog_over_max);
+		return (SET_ERROR(ERESTART));
+	}
+
+	if (!tx->tx_dirty_delayed &&
 	    dsl_pool_need_dirty_delay(tx->tx_pool)) {
 		tx->tx_wait_dirty = B_TRUE;
 		DMU_TX_STAT_BUMP(dmu_tx_dirty_delay);
@@ -925,6 +913,25 @@ dmu_tx_try_assign(dmu_tx_t *tx, uint64_t txg_how)
 	    txh = list_next(&tx->tx_holds, txh)) {
 		dnode_t *dn = txh->txh_dnode;
 		if (dn != NULL) {
+			/*
+			 * This thread can't hold the dn_struct_rwlock
+			 * while assigning the tx, because this can lead to
+			 * deadlock. Specifically, if this dnode is already
+			 * assigned to an earlier txg, this thread may need
+			 * to wait for that txg to sync (the ERESTART case
+			 * below).  The other thread that has assigned this
+			 * dnode to an earlier txg prevents this txg from
+			 * syncing until its tx can complete (calling
+			 * dmu_tx_commit()), but it may need to acquire the
+			 * dn_struct_rwlock to do so (e.g. via
+			 * dmu_buf_hold*()).
+			 *
+			 * Note that this thread can't hold the lock for
+			 * read either, but the rwlock doesn't record
+			 * enough information to make that assertion.
+			 */
+			ASSERT(!RW_WRITE_HELD(&dn->dn_struct_rwlock));
+
 			mutex_enter(&dn->dn_mtx);
 			if (dn->dn_assigned_txg == tx->tx_txg - 1) {
 				mutex_exit(&dn->dn_mtx);
@@ -1013,6 +1020,22 @@ dmu_tx_unassign(dmu_tx_t *tx)
  * details on the throttle). This is used by the VFS operations, after
  * they have already called dmu_tx_wait() (though most likely on a
  * different tx).
+ *
+ * It is guaranteed that subsequent successful calls to dmu_tx_assign()
+ * will assign the tx to monotonically increasing txgs. Of course this is
+ * not strong monotonicity, because the same txg can be returned multiple
+ * times in a row. This guarantee holds both for subsequent calls from
+ * one thread and for multiple threads. For example, it is impossible to
+ * observe the following sequence of events:
+ *
+ *          Thread 1                            Thread 2
+ *
+ *     dmu_tx_assign(T1, ...)
+ *     1 <- dmu_tx_get_txg(T1)
+ *                                       dmu_tx_assign(T2, ...)
+ *                                       2 <- dmu_tx_get_txg(T2)
+ *     dmu_tx_assign(T3, ...)
+ *     1 <- dmu_tx_get_txg(T3)
  */
 int
 dmu_tx_assign(dmu_tx_t *tx, uint64_t txg_how)
@@ -1181,7 +1204,7 @@ dmu_tx_abort(dmu_tx_t *tx)
 	 * Call any registered callbacks with an error code.
 	 */
 	if (!list_is_empty(&tx->tx_callbacks))
-		dmu_tx_do_callbacks(&tx->tx_callbacks, ECANCELED);
+		dmu_tx_do_callbacks(&tx->tx_callbacks, SET_ERROR(ECANCELED));
 
 	dmu_tx_destroy(tx);
 }
@@ -1319,7 +1342,10 @@ dmu_tx_hold_sa(dmu_tx_t *tx, sa_handle_t *hdl, boolean_t may_grow)
 
 	object = sa_handle_object(hdl);
 
-	dmu_tx_hold_bonus(tx, object);
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)hdl->sa_bonus;
+	DB_DNODE_ENTER(db);
+	dmu_tx_hold_bonus_by_dnode(tx, DB_DNODE(db));
+	DB_DNODE_EXIT(db);
 
 	if (tx->tx_objset->os_sa->sa_master_obj == 0)
 		return;
@@ -1341,7 +1367,6 @@ dmu_tx_hold_sa(dmu_tx_t *tx, sa_handle_t *hdl, boolean_t may_grow)
 		ASSERT(tx->tx_txg == 0);
 		dmu_tx_hold_spill(tx, object);
 	} else {
-		dmu_buf_impl_t *db = (dmu_buf_impl_t *)hdl->sa_bonus;
 		dnode_t *dn;
 
 		DB_DNODE_ENTER(db);

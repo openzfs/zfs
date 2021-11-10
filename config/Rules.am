@@ -3,28 +3,66 @@
 # should include these rules and override or extend them as needed.
 #
 
-DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h
+PHONY =
+DEFAULT_INCLUDES = \
+	-include $(top_builddir)/zfs_config.h \
+	-I$(top_builddir)/include \
+	-I$(top_srcdir)/include \
+	-I$(top_srcdir)/module/icp/include \
+	-I$(top_srcdir)/lib/libspl/include
+
+if BUILD_LINUX
+DEFAULT_INCLUDES += \
+	-I$(top_srcdir)/lib/libspl/include/os/linux
+endif
+
+if BUILD_FREEBSD
+DEFAULT_INCLUDES += \
+	-I$(top_srcdir)/lib/libspl/include/os/freebsd
+endif
 
 AM_LIBTOOLFLAGS = --silent
 
-AM_CFLAGS  = -std=gnu99 -Wall -Wstrict-prototypes -fno-strict-aliasing
+AM_CFLAGS  = -std=gnu99 -Wall -Wstrict-prototypes -Wmissing-prototypes
+AM_CFLAGS += -fno-strict-aliasing
 AM_CFLAGS += $(NO_OMIT_FRAME_POINTER)
+AM_CFLAGS += $(IMPLICIT_FALLTHROUGH)
 AM_CFLAGS += $(DEBUG_CFLAGS)
 AM_CFLAGS += $(ASAN_CFLAGS)
-AM_CFLAGS += $(CODE_COVERAGE_CFLAGS)
+AM_CFLAGS += $(CODE_COVERAGE_CFLAGS) $(NO_FORMAT_ZERO_LENGTH)
+if BUILD_FREEBSD
+AM_CFLAGS += -fPIC -Werror -Wno-unknown-pragmas -Wno-enum-conversion
+AM_CFLAGS += -include $(top_srcdir)/include/os/freebsd/spl/sys/ccompile.h
+AM_CFLAGS += -I/usr/include -I/usr/local/include
+endif
 
 AM_CPPFLAGS  = -D_GNU_SOURCE
 AM_CPPFLAGS += -D_REENTRANT
 AM_CPPFLAGS += -D_FILE_OFFSET_BITS=64
 AM_CPPFLAGS += -D_LARGEFILE64_SOURCE
-AM_CPPFLAGS += -DHAVE_LARGE_STACKS=1
-AM_CPPFLAGS += -DTEXT_DOMAIN=\"zfs-linux-user\"
 AM_CPPFLAGS += -DLIBEXECDIR=\"$(libexecdir)\"
 AM_CPPFLAGS += -DRUNSTATEDIR=\"$(runstatedir)\"
 AM_CPPFLAGS += -DSBINDIR=\"$(sbindir)\"
 AM_CPPFLAGS += -DSYSCONFDIR=\"$(sysconfdir)\"
+AM_CPPFLAGS += -DPKGDATADIR=\"$(pkgdatadir)\"
 AM_CPPFLAGS += $(DEBUG_CPPFLAGS)
 AM_CPPFLAGS += $(CODE_COVERAGE_CPPFLAGS)
+if BUILD_LINUX
+AM_CPPFLAGS += -DTEXT_DOMAIN=\"zfs-linux-user\"
+endif
+if BUILD_FREEBSD
+AM_CPPFLAGS += -DTEXT_DOMAIN=\"zfs-freebsd-user\"
+endif
+AM_CPPFLAGS += -D"strtok(...)=strtok(__VA_ARGS__) __attribute__((deprecated(\"Use strtok_r(3) instead!\")))"
+AM_CPPFLAGS += -D"__xpg_basename(...)=__xpg_basename(__VA_ARGS__) __attribute__((deprecated(\"basename(3) is underspecified. Use zfs_basename() instead!\")))"
+AM_CPPFLAGS += -D"basename(...)=basename(__VA_ARGS__) __attribute__((deprecated(\"basename(3) is underspecified. Use zfs_basename() instead!\")))"
+AM_CPPFLAGS += -D"dirname(...)=dirname(__VA_ARGS__) __attribute__((deprecated(\"dirname(3) is underspecified. Use zfs_dirnamelen() instead!\")))"
 
 AM_LDFLAGS  = $(DEBUG_LDFLAGS)
 AM_LDFLAGS += $(ASAN_LDFLAGS)
+
+if BUILD_FREEBSD
+AM_LDFLAGS += -fstack-protector-strong -shared
+AM_LDFLAGS += -Wl,-x -Wl,--fatal-warnings -Wl,--warn-shared-textrel
+AM_LDFLAGS += -lm
+endif

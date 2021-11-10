@@ -1,3 +1,5 @@
+PHONY += deb-kmod deb-dkms deb-utils deb deb-local
+
 deb-local:
 	@(if test "${HAVE_DPKGBUILD}" = "no"; then \
 		echo -e "\n" \
@@ -12,7 +14,19 @@ deb-local:
 	"*** package for your distribution which provides ${ALIEN},\n" \
 	"*** re-run configure, and try again.\n"; \
 		exit 1; \
-	fi)
+	fi; \
+        if test "${ALIEN_MAJOR}" = "8" && \
+           test "${ALIEN_MINOR}" = "95"; then \
+        if test "${ALIEN_POINT}" = "1" || \
+           test "${ALIEN_POINT}" = "2" || \
+           test "${ALIEN_POINT}" = "3"; then \
+                /bin/echo -e "\n" \
+        "*** Installed version of ${ALIEN} is known to be broken;\n" \
+        "*** attempting to generate debs will fail! See\n" \
+        "*** https://github.com/openzfs/zfs/issues/11650 for details.\n"; \
+                exit 1; \
+        fi; \
+        fi)
 
 deb-kmod: deb-local rpm-kmod
 	name=${PACKAGE}; \
@@ -20,7 +34,7 @@ deb-kmod: deb-local rpm-kmod
 	arch=`$(RPM) -qp $${name}-kmod-$${version}.src.rpm --qf %{arch} | tail -1`; \
 	debarch=`$(DPKG) --print-architecture`; \
 	pkg1=kmod-$${name}*$${version}.$${arch}.rpm; \
-	fakeroot $(ALIEN) --bump=0 --scripts --to-deb --target=$$debarch $$pkg1; \
+	fakeroot $(ALIEN) --bump=0 --scripts --to-deb --target=$$debarch $$pkg1 || exit 1; \
 	$(RM) $$pkg1
 
 
@@ -30,31 +44,31 @@ deb-dkms: deb-local rpm-dkms
 	arch=`$(RPM) -qp $${name}-dkms-$${version}.src.rpm --qf %{arch} | tail -1`; \
 	debarch=`$(DPKG) --print-architecture`; \
 	pkg1=$${name}-dkms-$${version}.$${arch}.rpm; \
-	fakeroot $(ALIEN) --bump=0 --scripts --to-deb --target=$$debarch $$pkg1; \
+	fakeroot $(ALIEN) --bump=0 --scripts --to-deb --target=$$debarch $$pkg1 || exit 1; \
 	$(RM) $$pkg1
 
-deb-utils: deb-local rpm-utils
+deb-utils: deb-local rpm-utils-initramfs
 	name=${PACKAGE}; \
 	version=${VERSION}-${RELEASE}; \
 	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
 	debarch=`$(DPKG) --print-architecture`; \
 	pkg1=$${name}-$${version}.$${arch}.rpm; \
-	pkg2=libnvpair1-$${version}.$${arch}.rpm; \
-	pkg3=libuutil1-$${version}.$${arch}.rpm; \
-	pkg4=libzfs2-$${version}.$${arch}.rpm; \
-	pkg5=libzpool2-$${version}.$${arch}.rpm; \
-	pkg6=libzfs2-devel-$${version}.$${arch}.rpm; \
+	pkg2=libnvpair3-$${version}.$${arch}.rpm; \
+	pkg3=libuutil3-$${version}.$${arch}.rpm; \
+	pkg4=libzfs5-$${version}.$${arch}.rpm; \
+	pkg5=libzpool5-$${version}.$${arch}.rpm; \
+	pkg6=libzfs5-devel-$${version}.$${arch}.rpm; \
 	pkg7=$${name}-test-$${version}.$${arch}.rpm; \
-	pkg8=$${name}-dracut-$${version}.$${arch}.rpm; \
+	pkg8=$${name}-dracut-$${version}.noarch.rpm; \
 	pkg9=$${name}-initramfs-$${version}.$${arch}.rpm; \
 	pkg10=`ls python*-pyzfs-$${version}* | tail -1`; \
 ## Arguments need to be passed to dh_shlibdeps. Alien provides no mechanism
 ## to do this, so we install a shim onto the path which calls the real
 ## dh_shlibdeps with the required arguments.
-	path_prepend=`mktemp -d /tmp/intercept.XXX`; \
+	path_prepend=`mktemp -d /tmp/intercept.XXXXXX`; \
 	echo "#$(SHELL)" > $${path_prepend}/dh_shlibdeps; \
 	echo "`which dh_shlibdeps` -- \
-	 -xlibuutil1linux -xlibnvpair1linux -xlibzfs2linux -xlibzpool2linux" \
+	 -xlibuutil3linux -xlibnvpair3linux -xlibzfs5linux -xlibzpool5linux" \
 	 >> $${path_prepend}/dh_shlibdeps; \
 ## These -x arguments are passed to dpkg-shlibdeps, which exclude the
 ## Debianized packages from the auto-generated dependencies of the new debs,
@@ -63,7 +77,7 @@ deb-utils: deb-local rpm-utils
 	env PATH=$${path_prepend}:$${PATH} \
 	fakeroot $(ALIEN) --bump=0 --scripts --to-deb --target=$$debarch \
 	    $$pkg1 $$pkg2 $$pkg3 $$pkg4 $$pkg5 $$pkg6 $$pkg7 \
-	    $$pkg8 $$pkg9 $$pkg10; \
+	    $$pkg8 $$pkg9 $$pkg10 || exit 1; \
 	$(RM) $${path_prepend}/dh_shlibdeps; \
 	rmdir $${path_prepend}; \
 	$(RM) $$pkg1 $$pkg2 $$pkg3 $$pkg4 $$pkg5 $$pkg6 $$pkg7 \

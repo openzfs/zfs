@@ -26,7 +26,6 @@
 #include <sys/dmu.h>
 #include <sys/avl.h>
 #include <sys/zap.h>
-#include <sys/refcount.h>
 #include <sys/nvpair.h>
 #ifdef _KERNEL
 #include <sys/sid.h>
@@ -73,7 +72,7 @@ idx_compare(const void *arg1, const void *arg2)
 	const fuid_domain_t *node1 = (const fuid_domain_t *)arg1;
 	const fuid_domain_t *node2 = (const fuid_domain_t *)arg2;
 
-	return (AVL_CMP(node1->f_idx, node2->f_idx));
+	return (TREE_CMP(node1->f_idx, node2->f_idx));
 }
 
 /*
@@ -88,7 +87,7 @@ domain_compare(const void *arg1, const void *arg2)
 
 	val = strcmp(node1->f_ksid->kd_name, node2->f_ksid->kd_name);
 
-	return (AVL_ISIGN(val));
+	return (TREE_ISIGN(val));
 }
 
 void
@@ -382,17 +381,40 @@ zfs_fuid_find_by_idx(zfsvfs_t *zfsvfs, uint32_t idx)
 void
 zfs_fuid_map_ids(znode_t *zp, cred_t *cr, uid_t *uidp, uid_t *gidp)
 {
-	*uidp = zfs_fuid_map_id(ZTOZSB(zp), KUID_TO_SUID(ZTOI(zp)->i_uid),
+	*uidp = zfs_fuid_map_id(ZTOZSB(zp), KUID_TO_SUID(ZTOUID(zp)),
 	    cr, ZFS_OWNER);
-	*gidp = zfs_fuid_map_id(ZTOZSB(zp), KGID_TO_SGID(ZTOI(zp)->i_gid),
+	*gidp = zfs_fuid_map_id(ZTOZSB(zp), KGID_TO_SGID(ZTOGID(zp)),
 	    cr, ZFS_GROUP);
 }
 
+#ifdef __FreeBSD__
 uid_t
 zfs_fuid_map_id(zfsvfs_t *zfsvfs, uint64_t fuid,
     cred_t *cr, zfs_fuid_type_t type)
 {
-#ifdef HAVE_KSID
+	uint32_t index = FUID_INDEX(fuid);
+
+	if (index == 0)
+		return (fuid);
+
+	return (UID_NOBODY);
+}
+#elif defined(__linux__)
+uid_t
+zfs_fuid_map_id(zfsvfs_t *zfsvfs, uint64_t fuid,
+    cred_t *cr, zfs_fuid_type_t type)
+{
+	/*
+	 * The Linux port only supports POSIX IDs, use the passed id.
+	 */
+	return (fuid);
+}
+
+#else
+uid_t
+zfs_fuid_map_id(zfsvfs_t *zfsvfs, uint64_t fuid,
+    cred_t *cr, zfs_fuid_type_t type)
+{
 	uint32_t index = FUID_INDEX(fuid);
 	const char *domain;
 	uid_t id;
@@ -411,13 +433,8 @@ zfs_fuid_map_id(zfsvfs_t *zfsvfs, uint64_t fuid,
 		    FUID_RID(fuid), &id);
 	}
 	return (id);
-#else
-	/*
-	 * The Linux port only supports POSIX IDs, use the passed id.
-	 */
-	return (fuid);
-#endif /* HAVE_KSID */
 }
+#endif
 
 /*
  * Add a FUID node to the list of fuid's being created for this
@@ -560,9 +577,9 @@ zfs_fuid_create(zfsvfs_t *zfsvfs, uint64_t id, cred_t *cr,
 	const char *domain;
 	char *kdomain;
 	uint32_t fuid_idx = FUID_INDEX(id);
-	uint32_t rid;
+	uint32_t rid = 0;
 	idmap_stat status;
-	uint64_t idx = 0;
+	uint64_t idx = UID_NOBODY;
 	zfs_fuid_t *zfuid = NULL;
 	zfs_fuid_info_t *fuidp = NULL;
 
@@ -711,10 +728,11 @@ zfs_fuid_info_free(zfs_fuid_info_t *fuidp)
 boolean_t
 zfs_groupmember(zfsvfs_t *zfsvfs, uint64_t id, cred_t *cr)
 {
-#ifdef HAVE_KSID
+	uid_t		gid;
+
+#ifdef illumos
 	ksid_t		*ksid = crgetsid(cr, KSID_GROUP);
 	ksidlist_t	*ksidlist = crgetsidlist(cr);
-	uid_t		gid;
 
 	if (ksid && ksidlist) {
 		int		i;
@@ -747,15 +765,13 @@ zfs_groupmember(zfsvfs_t *zfsvfs, uint64_t id, cred_t *cr)
 			}
 		}
 	}
+#endif /* illumos */
 
 	/*
 	 * Not found in ksidlist, check posix groups
 	 */
 	gid = zfs_fuid_map_id(zfsvfs, id, cr, ZFS_GROUP);
 	return (groupmember(gid, cr));
-#else
-	return (B_TRUE);
-#endif
 }
 
 void
@@ -771,5 +787,25 @@ zfs_fuid_txhold(zfsvfs_t *zfsvfs, dmu_tx_t *tx)
 		dmu_tx_hold_write(tx, zfsvfs->z_fuid_obj, 0,
 		    FUID_SIZE_ESTIMATE(zfsvfs));
 	}
+}
+
+/*
+ * buf must be big enough (eg, 32 bytes)
+ */
+int
+zfs_id_to_fuidstr(zfsvfs_t *zfsvfs, const char *domain, uid_t rid,
+    char *buf, size_t len, boolean_t addok)
+{
+	uint64_t fuid;
+	int domainid = 0;
+
+	if (domain && domain[0]) {
+		domainid = zfs_fuid_find_by_domain(zfsvfs, domain, NULL, addok);
+		if (domainid == -1)
+			return (SET_ERROR(ENOENT));
+	}
+	fuid = FUID_ENCODE(domainid, rid);
+	(void) snprintf(buf, len, "%llx", (longlong_t)fuid);
+	return (0);
 }
 #endif

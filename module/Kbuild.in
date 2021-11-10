@@ -1,0 +1,47 @@
+# When integrated in to a monolithic kernel the spl module must appear
+# first.  This ensures its module initialization function is run before
+# any of the other module initialization functions which depend on it.
+ZFS_MODULES += spl/
+ZFS_MODULES += avl/
+ZFS_MODULES += icp/
+ZFS_MODULES += lua/
+ZFS_MODULES += nvpair/
+ZFS_MODULES += unicode/
+ZFS_MODULES += zcommon/
+ZFS_MODULES += zfs/
+ZFS_MODULES += zstd/
+
+# The rest is only relevant when run by kbuild
+ifneq ($(KERNELRELEASE),)
+
+obj-$(CONFIG_ZFS) := $(ZFS_MODULES)
+
+ZFS_MODULE_CFLAGS += -std=gnu99 -Wno-declaration-after-statement
+ZFS_MODULE_CFLAGS += -Wmissing-prototypes
+ZFS_MODULE_CFLAGS += @KERNEL_DEBUG_CFLAGS@  @NO_FORMAT_ZERO_LENGTH@
+
+ifneq ($(KBUILD_EXTMOD),)
+zfs_include = @abs_top_srcdir@/include
+ZFS_MODULE_CFLAGS += -include @abs_top_builddir@/zfs_config.h
+ZFS_MODULE_CFLAGS += -I@abs_top_builddir@/include
+else
+zfs_include = $(srctree)/include/zfs
+ZFS_MODULE_CFLAGS += -include $(zfs_include)/zfs_config.h
+endif
+
+ZFS_MODULE_CFLAGS += -I$(zfs_include)/os/linux/kernel
+ZFS_MODULE_CFLAGS += -I$(zfs_include)/os/linux/spl
+ZFS_MODULE_CFLAGS += -I$(zfs_include)/os/linux/zfs
+ZFS_MODULE_CFLAGS += -I$(zfs_include)
+ZFS_MODULE_CPPFLAGS += -D_KERNEL
+ZFS_MODULE_CPPFLAGS += @KERNEL_DEBUG_CPPFLAGS@
+
+ifneq ($(KBUILD_EXTMOD),)
+@CONFIG_QAT_TRUE@ZFS_MODULE_CFLAGS += -I@QAT_SRC@/include
+@CONFIG_QAT_TRUE@KBUILD_EXTRA_SYMBOLS += @QAT_SYMBOLS@
+endif
+
+subdir-asflags-y := $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
+subdir-ccflags-y := $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
+
+endif

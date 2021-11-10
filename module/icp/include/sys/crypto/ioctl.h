@@ -241,9 +241,6 @@ typedef struct crypto_logout32 {
 #define	CRYPTO_LOGIN			CRYPTO(40)
 #define	CRYPTO_LOGOUT			CRYPTO(41)
 
-/* flag for encrypt and decrypt operations */
-#define	CRYPTO_INPLACE_OPERATION	0x00000001
-
 /*
  * Cryptographic Ioctls
  */

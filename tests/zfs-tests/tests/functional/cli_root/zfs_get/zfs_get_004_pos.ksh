@@ -47,11 +47,9 @@ function cleanup
 {
 	[[ -e $propfile ]] && rm -f $propfile
 
-	datasetexists $clone  && \
-		log_must zfs destroy $clone
+	datasetexists $clone  && destroy_dataset $clone
 	for snap in $fssnap $volsnap ; do
-		snapexists $snap && \
-			log_must zfs destroy $snap
+		snapexists $snap && destroy_dataset $snap
 	done
 
 	if [[ -n $globalzone ]] ; then
@@ -64,8 +62,7 @@ function cleanup
 		done
 	else
 		for fs in $TESTPOOL/$TESTFS1 $TESTPOOL/$TESTFS2 $TESTPOOL/$TESTFS3; do
-			datasetexists $fs && \
-				log_must zfs destroy -rf $fs
+			datasetexists $fs && destroy_dataset $fs -rf
 		done
 	fi
 }
@@ -114,7 +111,7 @@ availspace=$(get_prop available $TESTPOOL)
 typeset -i i=0
 
 # make sure 'availspace' is larger then twice of FILESIZE to create a new pool.
-# If any, we only totally create 3 pools for multple datasets testing to limit
+# If any, we only totally create 3 pools for multiple datasets testing to limit
 # testing time
 while (( availspace > DFILESIZE )) && (( i < 3 )) ; do
 	(( i += 1 ))

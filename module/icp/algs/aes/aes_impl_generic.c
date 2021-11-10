@@ -1233,7 +1233,7 @@ const aes_impl_ops_t aes_generic_impl = {
 	.encrypt = &aes_generic_encrypt,
 	.decrypt = &aes_generic_decrypt,
 	.is_supported = &aes_generic_will_work,
-#if defined(_LITTLE_ENDIAN)
+#if defined(_ZFS_LITTLE_ENDIAN)
 	.needs_byteswap = B_TRUE,
 #else
 	.needs_byteswap = B_FALSE,

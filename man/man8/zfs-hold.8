@@ -1,0 +1,112 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
+.\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+.\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+.\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
+.\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
+.\" Copyright (c) 2014 Integros [integros.com]
+.\" Copyright 2019 Richard Laager. All rights reserved.
+.\" Copyright 2018 Nexenta Systems, Inc.
+.\" Copyright 2019 Joyent, Inc.
+.\"
+.Dd June 30, 2019
+.Dt ZFS-HOLD 8
+.Os
+.
+.Sh NAME
+.Nm zfs-hold
+.Nd hold ZFS snapshots to prevent their removal
+.Sh SYNOPSIS
+.Nm zfs
+.Cm hold
+.Op Fl r
+.Ar tag Ar snapshot Ns …
+.Nm zfs
+.Cm holds
+.Op Fl rH
+.Ar snapshot Ns …
+.Nm zfs
+.Cm release
+.Op Fl r
+.Ar tag Ar snapshot Ns …
+.
+.Sh DESCRIPTION
+.Bl -tag -width ""
+.It Xo
+.Nm zfs
+.Cm hold
+.Op Fl r
+.Ar tag Ar snapshot Ns …
+.Xc
+Adds a single reference, named with the
+.Ar tag
+argument, to the specified snapshots.
+Each snapshot has its own tag namespace, and tags must be unique within that
+space.
+.Pp
+If a hold exists on a snapshot, attempts to destroy that snapshot by using the
+.Nm zfs Cm destroy
+command return
+.Sy EBUSY .
+.Bl -tag -width "-r"
+.It Fl r
+Specifies that a hold with the given tag is applied recursively to the snapshots
+of all descendent file systems.
+.El
+.It Xo
+.Nm zfs
+.Cm holds
+.Op Fl rH
+.Ar snapshot Ns …
+.Xc
+Lists all existing user references for the given snapshot or snapshots.
+.Bl -tag -width "-r"
+.It Fl r
+Lists the holds that are set on the named descendent snapshots, in addition to
+listing the holds on the named snapshot.
+.It Fl H
+Do not print headers, use tab-delimited output.
+.El
+.It Xo
+.Nm zfs
+.Cm release
+.Op Fl r
+.Ar tag Ar snapshot Ns …
+.Xc
+Removes a single reference, named with the
+.Ar tag
+argument, from the specified snapshot or snapshots.
+The tag must already exist for each snapshot.
+If a hold exists on a snapshot, attempts to destroy that snapshot by using the
+.Nm zfs Cm destroy
+command return
+.Sy EBUSY .
+.Bl -tag -width "-r"
+.It Fl r
+Recursively releases a hold with the given tag on the snapshots of all
+descendent file systems.
+.El
+.El
+.
+.Sh SEE ALSO
+.Xr zfs-destroy 8

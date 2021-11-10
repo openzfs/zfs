@@ -1,15 +1,14 @@
-systemdgenerator_SCRIPTS = \
+include $(top_srcdir)/config/Rules.am
+
+systemdgenerator_PROGRAMS = \
 	zfs-mount-generator
 
-EXTRA_DIST = \
-	$(top_srcdir)/etc/systemd/system-generators/zfs-mount-generator.in
+zfs_mount_generator_SOURCES = \
+	zfs-mount-generator.c
 
-$(systemdgenerator_SCRIPTS): %: %.in
-	-$(SED) -e 's,@bindir\@,$(bindir),g' \
-		-e 's,@runstatedir\@,$(runstatedir),g' \
-		-e 's,@sbindir\@,$(sbindir),g' \
-		-e 's,@sysconfdir\@,$(sysconfdir),g' \
-		$< >'$@'
+zfs_mount_generator_LDADD = \
+	$(abs_top_builddir)/lib/libzfs/libzfs.la
 
-distclean-local::
-	-$(RM) $(systemdgenerator_SCRIPTS)
+zfs_mount_generator_LDFLAGS = -pthread
+
+include $(top_srcdir)/config/CppCheck.am

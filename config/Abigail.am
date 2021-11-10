@@ -1,0 +1,33 @@
+#
+# When performing an ABI check the following options are applied:
+#
+# --no-unreferenced-symbols: Exclude symbols which are not referenced by
+# any debug information.  Without this _init() and _fini() are incorrectly
+# reported on CentOS7 for libuutil.so.
+#
+# --headers-dir1: Limit ABI checks to public OpenZFS headers, otherwise
+# changes in public system headers are also reported.
+#
+# --suppressions: Honor a suppressions file for each library to provide
+# a mechanism for suppressing harmless warnings.
+#
+
+PHONY += checkabi storeabi
+
+checkabi:
+	for lib in $(lib_LTLIBRARIES) ; do \
+		abidiff --no-unreferenced-symbols \
+		    --headers-dir1 ../../include \
+		    --suppressions $${lib%.la}.suppr \
+		    $${lib%.la}.abi .libs/$${lib%.la}.so ; \
+	done
+
+storeabi:
+	cd .libs ; \
+	for lib in $(lib_LTLIBRARIES) ; do \
+		abidw --no-show-locs \
+		--no-corpus-path \
+		--no-comp-dir-path \
+		--type-id-style hash \
+		$${lib%.la}.so > ../$${lib%.la}.abi ; \
+	done

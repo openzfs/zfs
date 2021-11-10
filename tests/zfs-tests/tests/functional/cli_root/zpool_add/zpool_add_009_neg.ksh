@@ -47,12 +47,7 @@ verify_runnable "global"
 
 function cleanup
 {
-
-        poolexists "$TESTPOOL" && \
-                destroy_pool "$TESTPOOL"
-
-	partition_cleanup
-
+        poolexists $TESTPOOL && destroy_pool $TESTPOOL
 }
 
 log_assert "'zpool add' should fail if vdevs are the same or vdev is " \
@@ -60,12 +55,11 @@ log_assert "'zpool add' should fail if vdevs are the same or vdev is " \
 
 log_onexit cleanup
 
-create_pool "$TESTPOOL" "${disk}${SLICE_PREFIX}${SLICE0}"
-log_must poolexists "$TESTPOOL"
+create_pool $TESTPOOL $DISK0
+log_must poolexists $TESTPOOL
 
-log_mustnot zpool add -f "$TESTPOOL" ${disk}${SLICE_PREFIX}${SLICE1} \
-	${disk}${SLICE_PREFIX}${SLICE1}
-log_mustnot zpool add -f "$TESTPOOL" ${disk}${SLICE_PREFIX}${SLICE0}
+log_mustnot zpool add -f $TESTPOOL $DISK1 $DISK1
+log_mustnot zpool add -f $TESTPOOL $DISK0
 
 log_pass "'zpool add' get fail as expected if vdevs are the same or vdev is " \
 	"contained in the given pool."

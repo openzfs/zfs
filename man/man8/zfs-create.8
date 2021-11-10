@@ -1,0 +1,249 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
+.\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+.\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+.\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
+.\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
+.\" Copyright (c) 2014 Integros [integros.com]
+.\" Copyright 2019 Richard Laager. All rights reserved.
+.\" Copyright 2018 Nexenta Systems, Inc.
+.\" Copyright 2019 Joyent, Inc.
+.\"
+.Dd December 1, 2020
+.Dt ZFS-CREATE 8
+.Os
+.
+.Sh NAME
+.Nm zfs-create
+.Nd create ZFS dataset
+.Sh SYNOPSIS
+.Nm zfs
+.Cm create
+.Op Fl Pnpuv
+.Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
+.Ar filesystem
+.Nm zfs
+.Cm create
+.Op Fl ps
+.Op Fl b Ar blocksize
+.Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
+.Fl V Ar size Ar volume
+.
+.Sh DESCRIPTION
+.Bl -tag -width ""
+.It Xo
+.Nm zfs
+.Cm create
+.Op Fl Pnpuv
+.Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
+.Ar filesystem
+.Xc
+Creates a new ZFS file system.
+The file system is automatically mounted according to the
+.Sy mountpoint
+property inherited from the parent, unless the
+.Fl u
+option is used.
+.Bl -tag -width "-o"
+.It Fl o Ar property Ns = Ns Ar value
+Sets the specified property as if the command
+.Nm zfs Cm set Ar property Ns = Ns Ar value
+was invoked at the same time the dataset was created.
+Any editable ZFS property can also be set at creation time.
+Multiple
+.Fl o
+options can be specified.
+An error results if the same property is specified in multiple
+.Fl o
+options.
+.It Fl p
+Creates all the non-existing parent datasets.
+Datasets created in this manner are automatically mounted according to the
+.Sy mountpoint
+property inherited from their parent.
+Any property specified on the command line using the
+.Fl o
+option is ignored.
+If the target filesystem already exists, the operation completes successfully.
+.It Fl n
+Do a dry-run
+.Pq Qq No-op
+creation.
+No datasets will be created.
+This is useful in conjunction with the
+.Fl v
+or
+.Fl P
+flags to validate properties that are passed via
+.Fl o
+options and those implied by other options.
+The actual dataset creation can still fail due to insufficient privileges or
+available capacity.
+.It Fl P
+Print machine-parsable verbose information about the created dataset.
+Each line of output contains a key and one or two values, all separated by tabs.
+The
+.Sy create_ancestors
+and
+.Sy create
+keys have
+.Em filesystem
+as their only value.
+The
+.Sy create_ancestors
+key only appears if the
+.Fl p
+option is used.
+The
+.Sy property
+key has two values, a property name that property's value.
+The
+.Sy property
+key may appear zero or more times, once for each property that will be set local
+to
+.Em filesystem
+due to the use of the
+.Fl o
+option.
+.It Fl u
+Do not mount the newly created file system.
+.It Fl v
+Print verbose information about the created dataset.
+.El
+.It Xo
+.Nm zfs
+.Cm create
+.Op Fl ps
+.Op Fl b Ar blocksize
+.Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
+.Fl V Ar size Ar volume
+.Xc
+Creates a volume of the given size.
+The volume is exported as a block device in
+.Pa /dev/zvol/path ,
+where
+.Em path
+is the name of the volume in the ZFS namespace.
+The size represents the logical size as exported by the device.
+By default, a reservation of equal size is created.
+.Pp
+.Ar size
+is automatically rounded up to the nearest multiple of the
+.Sy blocksize .
+.Bl -tag -width "-b"
+.It Fl b Ar blocksize
+Equivalent to
+.Fl o Sy volblocksize Ns = Ns Ar blocksize .
+If this option is specified in conjunction with
+.Fl o Sy volblocksize ,
+the resulting behavior is undefined.
+.It Fl o Ar property Ns = Ns Ar value
+Sets the specified property as if the
+.Nm zfs Cm set Ar property Ns = Ns Ar value
+command was invoked at the same time the dataset was created.
+Any editable ZFS property can also be set at creation time.
+Multiple
+.Fl o
+options can be specified.
+An error results if the same property is specified in multiple
+.Fl o
+options.
+.It Fl p
+Creates all the non-existing parent datasets.
+Datasets created in this manner are automatically mounted according to the
+.Sy mountpoint
+property inherited from their parent.
+Any property specified on the command line using the
+.Fl o
+option is ignored.
+If the target filesystem already exists, the operation completes successfully.
+.It Fl s
+Creates a sparse volume with no reservation.
+See
+.Sy volsize
+in the
+.Em Native Properties
+section of
+.Xr zfsprops 7
+for more information about sparse volumes.
+.It Fl n
+Do a dry-run
+.Pq Qq No-op
+creation.
+No datasets will be created.
+This is useful in conjunction with the
+.Fl v
+or
+.Fl P
+flags to validate properties that are passed via
+.Fl o
+options and those implied by other options.
+The actual dataset creation can still fail due to insufficient privileges or
+available capacity.
+.It Fl P
+Print machine-parsable verbose information about the created dataset.
+Each line of output contains a key and one or two values, all separated by tabs.
+The
+.Sy create_ancestors
+and
+.Sy create
+keys have
+.Em volume
+as their only value.
+The
+.Sy create_ancestors
+key only appears if the
+.Fl p
+option is used.
+The
+.Sy property
+key has two values, a property name that property's value.
+The
+.Sy property
+key may appear zero or more times, once for each property that will be set local
+to
+.Em volume
+due to the use of the
+.Fl b
+or
+.Fl o
+options, as well as
+.Sy refreservation
+if the volume is not sparse.
+.It Fl v
+Print verbose information about the created dataset.
+.El
+.El
+.Ss ZFS Volumes as Swap
+ZFS volumes may be used as swap devices.
+After creating the volume with the
+.Nm zfs Cm create Fl V
+enable the swap area using the
+.Xr swapon 8
+command.
+Swapping to files on ZFS filesystems is not supported.
+.
+.Sh SEE ALSO
+.Xr zfs-destroy 8 ,
+.Xr zfs-list 8 ,
+.Xr zpool-create 8

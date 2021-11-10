@@ -1,0 +1,134 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+.\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
+.\" Copyright (c) 2017 Datto Inc.
+.\" Copyright (c) 2018 George Melikov. All Rights Reserved.
+.\" Copyright 2017 Nexenta Systems, Inc.
+.\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\"
+.Dd June 2, 2021
+.Dt ZPOOL-STATUS 8
+.Os
+.
+.Sh NAME
+.Nm zpool-status
+.Nd show detailed health status for ZFS storage pools
+.Sh SYNOPSIS
+.Nm zpool
+.Cm status
+.Op Fl DigLpPstvx
+.Op Fl T Sy u Ns | Ns Sy d
+.Op Fl c Op Ar SCRIPT1 Ns Oo , Ns Ar SCRIPT2 Oc Ns …
+.Oo Ar pool Oc Ns …
+.Op Ar interval Op Ar count
+.
+.Sh DESCRIPTION
+Displays the detailed health status for the given pools.
+If no
+.Ar pool
+is specified, then the status of each pool in the system is displayed.
+For more information on pool and device health, see the
+.Sx Device Failure and Recovery
+section of
+.Xr zpoolconcepts 7 .
+.Pp
+If a scrub or resilver is in progress, this command reports the percentage done
+and the estimated time to completion.
+Both of these are only approximate, because the amount of data in the pool and
+the other workloads on the system can change.
+.Bl -tag -width Ds
+.It Fl c Op Ar SCRIPT1 Ns Oo , Ns Ar SCRIPT2 Oc Ns …
+Run a script (or scripts) on each vdev and include the output as a new column
+in the
+.Nm zpool Cm status
+output.
+See the
+.Fl c
+option of
+.Nm zpool Cm iostat
+for complete details.
+.It Fl i
+Display vdev initialization status.
+.It Fl g
+Display vdev GUIDs instead of the normal device names
+These GUIDs can be used in place of device names for the zpool
+detach/offline/remove/replace commands.
+.It Fl L
+Display real paths for vdevs resolving all symbolic links.
+This can be used to look up the current block device name regardless of the
+.Pa /dev/disk/
+path used to open it.
+.It Fl p
+Display numbers in parsable (exact) values.
+.It Fl P
+Display full paths for vdevs instead of only the last component of
+the path.
+This can be used in conjunction with the
+.Fl L
+flag.
+.It Fl D
+Display a histogram of deduplication statistics, showing the allocated
+.Pq physically present on disk
+and referenced
+.Pq logically referenced in the pool
+block counts and sizes by reference count.
+.It Fl s
+Display the number of leaf VDEV slow IOs.
+This is the number of IOs that
+didn't complete in
+.Sy zio_slow_io_ms
+milliseconds (default 30 seconds).
+This does not necessarily mean the IOs failed to complete, just took an
+unreasonably long amount of time.
+This may indicate a problem with the underlying storage.
+.It Fl t
+Display vdev TRIM status.
+.It Fl T Sy u Ns | Ns Sy d
+Display a time stamp.
+Specify
+.Sy u
+for a printed representation of the internal representation of time.
+See
+.Xr time 2 .
+Specify
+.Sy d
+for standard date format.
+See
+.Xr date 1 .
+.It Fl v
+Displays verbose data error information, printing out a complete list of all
+data errors since the last complete pool scrub.
+.It Fl x
+Only display status for pools that are exhibiting errors or are otherwise
+unavailable.
+Warnings about pools not using the latest on-disk format will not be included.
+.El
+.
+.Sh SEE ALSO
+.Xr zpool-events 8 ,
+.Xr zpool-history 8 ,
+.Xr zpool-iostat 8 ,
+.Xr zpool-list 8 ,
+.Xr zpool-resilver 8 ,
+.Xr zpool-scrub 8 ,
+.Xr zpool-wait 8

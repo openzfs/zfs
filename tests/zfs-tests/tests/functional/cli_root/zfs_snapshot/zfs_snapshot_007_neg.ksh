@@ -46,9 +46,7 @@ function cleanup
 {
 	for fs in $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL $TESTPOOL/$TESTCTR $TESTPOOL ; do
 		typeset fssnap=$fs@snap
-		if datasetexists $fssnap ; then
-			log_must zfs destroy -rf $fssnap
-		fi
+		datasetexists $fssnap && destroy_dataset $fssnap -rf
 	done
 	cleanup_user_prop $TESTPOOL
 }
@@ -74,7 +72,12 @@ typeset ro_props="type used available avail creation referenced refer compressra
 	mounted origin"
 typeset snap_ro_props="volsize recordsize recsize quota reservation reserv mountpoint \
 	sharenfs checksum compression compress atime devices exec readonly rdonly \
-	setuid zoned"
+	setuid"
+if is_freebsd; then
+	snap_ro_props+=" jailed"
+else
+	snap_ro_props+=" zoned"
+fi
 
 zfs upgrade -v > /dev/null 2>&1
 if [[ $? -eq 0 ]]; then

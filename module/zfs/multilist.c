@@ -18,10 +18,7 @@
 
 #include <sys/zfs_context.h>
 #include <sys/multilist.h>
-#include <sys/trace_multilist.h>
-
-/* needed for spa_get_random() */
-#include <sys/spa.h>
+#include <sys/trace_zfs.h>
 
 /*
  * This overrides the number of sublists in each multilist_t, which defaults
@@ -33,7 +30,7 @@ int zfs_multilist_num_sublists = 0;
  * Given the object contained on the list, return a pointer to the
  * object's multilist_node_t structure it contains.
  */
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 static multilist_node_t *
 multilist_d2l(multilist_t *ml, void *obj)
 {
@@ -68,8 +65,8 @@ multilist_d2l(multilist_t *ml, void *obj)
  *     requirement, but a general rule of thumb in order to garner the
  *     best multi-threaded performance out of the data structure.
  */
-static multilist_t *
-multilist_create_impl(size_t size, size_t offset,
+static void
+multilist_create_impl(multilist_t *ml, size_t size, size_t offset,
     unsigned int num, multilist_sublist_index_func_t *index_func)
 {
 	ASSERT3U(size, >, 0);
@@ -77,7 +74,6 @@ multilist_create_impl(size_t size, size_t offset,
 	ASSERT3U(num, >, 0);
 	ASSERT3P(index_func, !=, NULL);
 
-	multilist_t *ml = kmem_alloc(sizeof (*ml), KM_SLEEP);
 	ml->ml_offset = offset;
 	ml->ml_num_sublists = num;
 	ml->ml_index_func = index_func;
@@ -92,16 +88,18 @@ multilist_create_impl(size_t size, size_t offset,
 		mutex_init(&mls->mls_lock, NULL, MUTEX_NOLOCKDEP, NULL);
 		list_create(&mls->mls_list, size, offset);
 	}
-	return (ml);
 }
 
 /*
- * Allocate a new multilist, using the default number of sublists
- * (the number of CPUs, or at least 4, or the tunable
- * zfs_multilist_num_sublists).
+ * Allocate a new multilist, using the default number of sublists (the number
+ * of CPUs, or at least 4, or the tunable zfs_multilist_num_sublists). Note
+ * that the multilists do not expand if more CPUs are hot-added. In that case,
+ * we will have less fanout than boot_ncpus, but we don't want to always
+ * reserve the RAM necessary to create the extra slots for additional CPUs up
+ * front, and dynamically adding them is a complex task.
  */
-multilist_t *
-multilist_create(size_t size, size_t offset,
+void
+multilist_create(multilist_t *ml, size_t size, size_t offset,
     multilist_sublist_index_func_t *index_func)
 {
 	int num_sublists;
@@ -112,7 +110,7 @@ multilist_create(size_t size, size_t offset,
 		num_sublists = MAX(boot_ncpus, 4);
 	}
 
-	return (multilist_create_impl(size, offset, num_sublists, index_func));
+	multilist_create_impl(ml, size, offset, num_sublists, index_func);
 }
 
 /*
@@ -138,7 +136,7 @@ multilist_destroy(multilist_t *ml)
 
 	ml->ml_num_sublists = 0;
 	ml->ml_offset = 0;
-	kmem_free(ml, sizeof (multilist_t));
+	ml->ml_sublists = NULL;
 }
 
 /*
@@ -274,7 +272,7 @@ multilist_get_num_sublists(multilist_t *ml)
 unsigned int
 multilist_get_random_index(multilist_t *ml)
 {
-	return (spa_get_random(ml->ml_num_sublists));
+	return (random_in_range(ml->ml_num_sublists));
 }
 
 /* Lock and return the sublist specified at the given index */
@@ -363,6 +361,28 @@ multilist_sublist_remove(multilist_sublist_t *mls, void *obj)
 	list_remove(&mls->mls_list, obj);
 }
 
+int
+multilist_sublist_is_empty(multilist_sublist_t *mls)
+{
+	ASSERT(MUTEX_HELD(&mls->mls_lock));
+	return (list_is_empty(&mls->mls_list));
+}
+
+int
+multilist_sublist_is_empty_idx(multilist_t *ml, unsigned int sublist_idx)
+{
+	multilist_sublist_t *mls;
+	int empty;
+
+	ASSERT3U(sublist_idx, <, ml->ml_num_sublists);
+	mls = &ml->ml_sublists[sublist_idx];
+	ASSERT(!MUTEX_HELD(&mls->mls_lock));
+	mutex_enter(&mls->mls_lock);
+	empty = list_is_empty(&mls->mls_list);
+	mutex_exit(&mls->mls_lock);
+	return (empty);
+}
+
 void *
 multilist_sublist_head(multilist_sublist_t *mls)
 {
@@ -403,13 +423,7 @@ multilist_link_active(multilist_node_t *link)
 	return (list_link_active(link));
 }
 
-#if defined(_KERNEL)
-
 /* BEGIN CSTYLED */
-
-module_param(zfs_multilist_num_sublists, int, 0644);
-MODULE_PARM_DESC(zfs_multilist_num_sublists,
+ZFS_MODULE_PARAM(zfs, zfs_, multilist_num_sublists, INT, ZMOD_RW,
 	"Number of sublists used in each multilist");
-
 /* END CSTYLED */
-#endif

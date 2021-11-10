@@ -29,4 +29,4 @@
 
 DISK=${DISKS%% *}
 
-default_setup $DISK
+default_mirror_setup $DISKS

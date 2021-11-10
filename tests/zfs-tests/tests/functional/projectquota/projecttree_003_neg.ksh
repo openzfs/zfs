@@ -43,8 +43,8 @@
 #	2. "-C" only supports "-r" and "-k".
 #	3. "-s" only supports "-r" and "-p".
 #	4. "-c", "-C" and "-s" can NOT be specified together.
-#	5. "-d" can overwirte former "-r".
-#	6. "-r" can overwirte former "-d".
+#	5. "-d" can overwrite former "-r".
+#	6. "-r" can overwrite former "-d".
 #	7. "-0" must be together with "-c".
 #	8. "-d" must be on directory.
 #	9. "-r" must be on directory.

@@ -37,7 +37,9 @@ extern "C" {
 
 #include <sys/inttypes.h>
 #include <sys/zfs_context.h>
-#include <sys/refcount.h>
+#include <sys/zfs_refcount.h>
+
+extern uint_t rrw_tsd_key;
 
 /*
  * A reader-writer lock implementation that allows re-entrant reads, but

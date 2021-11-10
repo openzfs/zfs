@@ -6,4 +6,5 @@ dist_pkgdata_DATA = \
 	random_readwrite_fixed.fio \
 	random_writes.fio \
 	sequential_reads.fio \
-	sequential_writes.fio
+	sequential_writes.fio \
+	sequential_readwrite.fio

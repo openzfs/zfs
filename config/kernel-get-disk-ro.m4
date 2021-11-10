@@ -1,21 +1,20 @@
 dnl #
 dnl # 2.6.x API change
 dnl #
-AC_DEFUN([ZFS_AC_KERNEL_GET_DISK_RO], [
-	AC_MSG_CHECKING([whether get_disk_ro() is available])
-	tmp_flags="$EXTRA_KCFLAGS"
-	EXTRA_KCFLAGS="${NO_UNUSED_BUT_SET_VARIABLE}"
-	ZFS_LINUX_TRY_COMPILE([
+AC_DEFUN([ZFS_AC_KERNEL_SRC_GET_DISK_RO], [
+	ZFS_LINUX_TEST_SRC([get_disk_ro], [
 		#include <linux/blkdev.h>
 	],[
 		struct gendisk *disk = NULL;
 		(void) get_disk_ro(disk);
-	],[
+	], [$NO_UNUSED_BUT_SET_VARIABLE])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_GET_DISK_RO], [
+	AC_MSG_CHECKING([whether get_disk_ro() is available])
+	ZFS_LINUX_TEST_RESULT([get_disk_ro], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_GET_DISK_RO, 1,
-		          [blk_disk_ro() is available])
 	],[
-		AC_MSG_RESULT(no)
+		ZFS_LINUX_TEST_ERROR([get_disk_ro()])
 	])
-	EXTRA_KCFLAGS="$tmp_flags"
 ])

@@ -83,7 +83,7 @@ else
 fi
 
 log_must zfs snapshot -r $snappool
-log_must block_device_wait
+block_device_wait
 
 #select the $TESTCTR as destroy point, $TESTCTR is a child of $TESTPOOL
 log_must zfs destroy -r $snapctr
@@ -92,7 +92,7 @@ for snap in $snapctr $snapctrvol $snapctrclone $snapctrfs; do
 		log_fail "The snapshot $snap is not destroyed correctly."
 done
 
-for snap in $snappool $snapfs $snapvol $ctrfs@$TESTSNAP1;do
+for snap in $snappool $snapfs $snapvol $ctrfs@$TESTSNAP1; do
 	! snapexists $snap && \
 		log_fail "The snapshot $snap should be not destroyed."
 done

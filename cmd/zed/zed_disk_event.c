@@ -72,6 +72,8 @@ zed_udev_event(const char *class, const char *subclass, nvlist_t *nvl)
 		zed_log_msg(LOG_INFO, "\t%s: %s", DEV_PATH, strval);
 	if (nvlist_lookup_string(nvl, DEV_IDENTIFIER, &strval) == 0)
 		zed_log_msg(LOG_INFO, "\t%s: %s", DEV_IDENTIFIER, strval);
+	if (nvlist_lookup_boolean(nvl, DEV_IS_PART) == B_TRUE)
+		zed_log_msg(LOG_INFO, "\t%s: B_TRUE", DEV_IS_PART);
 	if (nvlist_lookup_string(nvl, DEV_PHYS_PATH, &strval) == 0)
 		zed_log_msg(LOG_INFO, "\t%s: %s", DEV_PHYS_PATH, strval);
 	if (nvlist_lookup_uint64(nvl, DEV_SIZE, &numval) == 0)
@@ -379,6 +381,7 @@ zed_disk_event_init()
 		return (-1);
 	}
 
+	pthread_setname_np(g_mon_tid, "udev monitor");
 	zed_log_msg(LOG_INFO, "zed_disk_event_init");
 
 	return (0);

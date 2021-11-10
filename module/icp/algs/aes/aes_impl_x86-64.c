@@ -24,19 +24,7 @@
 
 #if defined(__x86_64)
 
-#include <linux/simd_x86.h>
-
-/* These functions are used to execute amd64 instructions for AMD or Intel: */
-extern int rijndael_key_setup_enc_amd64(uint32_t rk[],
-	const uint32_t cipherKey[], int keyBits);
-extern int rijndael_key_setup_dec_amd64(uint32_t rk[],
-	const uint32_t cipherKey[], int keyBits);
-extern void aes_encrypt_amd64(const uint32_t rk[], int Nr,
-	const uint32_t pt[4], uint32_t ct[4]);
-extern void aes_decrypt_amd64(const uint32_t rk[], int Nr,
-	const uint32_t ct[4], uint32_t pt[4]);
-
-
+#include <sys/simd.h>
 #include <aes/aes_impl.h>
 
 /*

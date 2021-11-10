@@ -30,7 +30,8 @@
 #       1. Create zfs filesystems
 #       2. Unmount a leaf filesystem
 #       3. Create a file in the above filesystem's mountpoint
-#       4. Verify that 'zfs mount -a' fails to mount the above
+#       4. Verify that 'zfs mount -a' succeeds if overlay=on and
+#          fails to mount the above if overlay=off
 #       5. Verify that all other filesystems were mounted
 #
 
@@ -82,15 +83,23 @@ done
 # Create a stray file in one filesystem's mountpoint
 touch $path/0/strayfile
 
-# Verify that zfs mount -a fails
 export __ZFS_POOL_RESTRICT="$TESTPOOL"
+
+# Verify that zfs mount -a succeeds with overlay=on (default)
+log_must zfs $mountall
+log_must mounted "$TESTPOOL/0"
+log_must zfs $unmountall
+
+# Verify that zfs mount -a succeeds with overlay=off
+log_must zfs set overlay=off "$TESTPOOL/0"
 log_mustnot zfs $mountall
+log_mustnot mounted "$TESTPOOL/0"
+
 unset __ZFS_POOL_RESTRICT
 
-# All filesystems except for "0" should be mounted
-log_mustnot mounted "$TESTPOOL/0"
+# All other filesystems should be mounted
 for ((i=1; i<$fscount; i++)); do
 	log_must mounted "$TESTPOOL/$i"
 done
 
-log_pass "'zfs $mountall' failed as expected."
+log_pass "'zfs $mountall' behaves as expected."

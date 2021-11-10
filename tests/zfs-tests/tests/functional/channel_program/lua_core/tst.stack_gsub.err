@@ -1,0 +1,18 @@
+Channel program execution failed:
+C stack overflow
+stack traceback:
+	[C]: in function 'gsub'
+	[string "channel program"]:17: in function <[string "channel program"]:16>
+	[C]: in function 'gsub'
+	[string "channel program"]:17: in function <[string "channel program"]:16>
+	[C]: in function 'gsub'
+	[string "channel program"]:17: in function <[string "channel program"]:16>
+	[C]: in function 'gsub'
+	[string "channel program"]:17: in function <[string "channel program"]:16>
+	[C]: in function 'gsub'
+	[string "channel program"]:17: in function <[string "channel program"]:16>
+	[C]: in function 'gsub'
+	[string "channel program"]:17: in function <[string "channel program"]:16>
+	[C]: in function 'gsub'
+	[string "channel program"]:17: in function <[string "channel program"]:16>
+	(...tail calls...)

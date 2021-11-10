@@ -1,9 +1,6 @@
 %bcond_with     debug
 %bcond_with     debuginfo
 
-# See comment in zfs.spec.in.
-%global __brp_mangle_shebangs_exclude_from arc_summary.py|arcstat.py|dbufstat.py|test-runner.py|zts-report.py
-
 Name:           @PACKAGE@-kmod
 Version:        @VERSION@
 Release:        @RELEASE@%{?dist}
@@ -11,7 +8,7 @@ Release:        @RELEASE@%{?dist}
 Summary:        Kernel module(s)
 Group:          System Environment/Kernel
 License:        @ZFS_META_LICENSE@
-URL:            http://zfsonlinux.org/
+URL:            https://github.com/openzfs/zfs
 BuildRequires:  %kernel_module_package_buildreqs
 Source0:        @PACKAGE@-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
@@ -20,8 +17,9 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 # by generating a preamble text file which kmodtool can append to the spec file.
 %(/bin/echo -e "\
 Requires:       @PACKAGE@ = %{version}\n\
-Conflicts:      @PACKAGE@-dkms\n\n" > %{_sourcedir}/kmod-preamble\n\
-Obsoletes:      spl-kmod)
+Conflicts:      @PACKAGE@-dkms\n\
+Obsoletes:      kmod-spl\n\
+Obsoletes:      spl-kmod\n\n" > %{_sourcedir}/kmod-preamble)
 
 # LDFLAGS are not sanitized by arch/*/Makefile for these architectures.
 %ifarch ppc ppc64 ppc64le aarch64
@@ -41,6 +39,7 @@ This package contains the ZFS kernel modules.
 %package -n kmod-%{kmod_name}-devel
 Summary:        ZFS kernel module(s) devel common
 Group:          System Environment/Kernel
+Provides:       kmod-spl-devel = %{version}
 
 %description -n  kmod-%{kmod_name}-devel
 This package provides the header files and objects to build kernel modules.

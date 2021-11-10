@@ -68,7 +68,7 @@ for i in $files ; do
 	test_zpool_script "$i" "$testpool" "zpool iostat -Pv -c"
 done
 
-# Test that we can run multiple scripts separated with a commma by running
+# Test that we can run multiple scripts separated with a comma by running
 # all the scripts in a single -c line.
 allscripts="$(echo $scripts | sed -r 's/[[:blank:]]+/,/g')"
 test_zpool_script "$allscripts" "$testpool" "zpool iostat -Pv -c"

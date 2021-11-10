@@ -19,7 +19,7 @@
 #	snapshots from the same datasets
 #
 # STRATEGY
-#	1. Create multiple snapshots for the same datset
+#	1. Create multiple snapshots for the same dataset
 #	2. Run zfs destroy for these snapshots for a mix of valid and
 #	   invalid snapshot names
 #	3. Run zfs destroy for snapshots from different datasets and
@@ -30,8 +30,8 @@
 
 function cleanup
 {
-	datasetexists $TESTPOOL/$TESTFS1 && zfs destroy -R $TESTPOOL/$TESTFS1
-	datasetexists $TESTPOOL/$TESTFS2 && zfs destroy -R $TESTPOOL/$TESTFS2
+	datasetexists $TESTPOOL/$TESTFS1 && destroy_dataset $TESTPOOL/$TESTFS1 -R
+	datasetexists $TESTPOOL/$TESTFS2 && destroy_dataset $TESTPOOL/$TESTFS2 -R
 	poolexists $TESTPOOL2 && zpool destroy $TESTPOOL2
 	rm -rf $VIRTUAL_DISK
 }

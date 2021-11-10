@@ -1,0 +1,72 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+.\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
+.\" Copyright (c) 2017 Datto Inc.
+.\" Copyright (c) 2018 George Melikov. All Rights Reserved.
+.\" Copyright 2017 Nexenta Systems, Inc.
+.\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\"
+.Dd May 27, 2021
+.Dt ZPOOL-CHECKPOINT 8
+.Os
+.
+.Sh NAME
+.Nm zpool-checkpoint
+.Nd check-point current ZFS storage pool state
+.Sh SYNOPSIS
+.Nm zpool
+.Cm checkpoint
+.Op Fl d Op Fl w
+.Ar pool
+.
+.Sh DESCRIPTION
+Checkpoints the current state of
+.Ar pool
+, which can be later restored by
+.Nm zpool Cm import --rewind-to-checkpoint .
+The existence of a checkpoint in a pool prohibits the following
+.Nm zpool
+subcommands:
+.Cm remove , attach , detach , split , No and Cm reguid .
+In addition, it may break reservation boundaries if the pool lacks free
+space.
+The
+.Nm zpool Cm status
+command indicates the existence of a checkpoint or the progress of discarding a
+checkpoint from a pool.
+.Nm zpool Cm list
+can be used to check how much space the checkpoint takes from the pool.
+.
+.Sh OPTIONS
+.Bl -tag -width Ds
+.It Fl d , -discard
+Discards an existing checkpoint from
+.Ar pool .
+.It Fl w , -wait
+Waits until the checkpoint has finished being discarded before returning.
+.El
+.
+.Sh SEE ALSO
+.Xr zfs-snapshot 8 ,
+.Xr zpool-import 8 ,
+.Xr zpool-status 8

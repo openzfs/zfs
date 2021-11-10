@@ -1,0 +1,98 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
+.\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+.\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+.\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
+.\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
+.\" Copyright (c) 2014 Integros [integros.com]
+.\" Copyright 2019 Richard Laager. All rights reserved.
+.\" Copyright 2018 Nexenta Systems, Inc.
+.\" Copyright 2019 Joyent, Inc.
+.\"
+.Dd May 29, 2021
+.Dt ZFS-DIFF 8
+.Os
+.
+.Sh NAME
+.Nm zfs-diff
+.Nd show difference between ZFS snapshots
+.Sh SYNOPSIS
+.Nm zfs
+.Cm diff
+.Op Fl FHt
+.Ar snapshot Ar snapshot Ns | Ns Ar filesystem
+.
+.Sh DESCRIPTION
+Display the difference between a snapshot of a given filesystem and another
+snapshot of that filesystem from a later time or the current contents of the
+filesystem.
+The first column is a character indicating the type of change, the other columns
+indicate pathname, new pathname
+.Pq in case of rename ,
+change in link count, and optionally file type and/or change time.
+The types of change are:
+.Bl -tag -compact -offset Ds -width "M"
+.It Sy -
+The path has been removed
+.It Sy +
+The path has been created
+.It Sy M
+The path has been modified
+.It Sy R
+The path has been renamed
+.El
+.Bl -tag -width "-F"
+.It Fl F
+Display an indication of the type of file, in a manner similar to the
+.Fl F
+option of
+.Xr ls 1 .
+.Bl -tag -compact -offset 2n -width "B"
+.It Sy B
+Block device
+.It Sy C
+Character device
+.It Sy /
+Directory
+.It Sy >
+Door
+.It Sy |\&
+Named pipe
+.It Sy @
+Symbolic link
+.It Sy P
+Event port
+.It Sy =
+Socket
+.It Sy F
+Regular file
+.El
+.It Fl H
+Give more parsable tab-separated output, without header lines and without
+arrows.
+.It Fl t
+Display the path's inode change time as the first column of output.
+.El
+.
+.Sh SEE ALSO
+.Xr zfs-snapshot 8

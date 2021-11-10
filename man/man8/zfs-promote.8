@@ -1,0 +1,64 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
+.\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+.\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+.\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
+.\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
+.\" Copyright (c) 2014 Integros [integros.com]
+.\" Copyright 2019 Richard Laager. All rights reserved.
+.\" Copyright 2018 Nexenta Systems, Inc.
+.\" Copyright 2019 Joyent, Inc.
+.\"
+.Dd June 30, 2019
+.Dt ZFS-PROMOTE 8
+.Os
+.
+.Sh NAME
+.Nm zfs-promote
+.Nd promote clone dataset to no longer depend on origin snapshot
+.Sh SYNOPSIS
+.Nm zfs
+.Cm promote
+.Ar clone
+.
+.Sh DESCRIPTION
+The
+.Nm zfs Cm promote
+command makes it possible to destroy the dataset that the clone was created from.
+The clone parent-child dependency relationship is reversed, so that the origin
+dataset becomes a clone of the specified dataset.
+.Pp
+The snapshot that was cloned, and any snapshots previous to this snapshot, are
+now owned by the promoted clone.
+The space they use moves from the origin dataset to the promoted clone, so
+enough space must be available to accommodate these snapshots.
+No new space is consumed by this operation, but the space accounting is
+adjusted.
+The promoted clone must not have any conflicting snapshot names of its own.
+The
+.Nm zfs Cm rename
+subcommand can be used to rename any conflicting snapshots.
+.
+.Sh SEE ALSO
+.Xr zfs-clone 8 ,
+.Xr zfs-rename 8

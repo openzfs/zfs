@@ -19,7 +19,7 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_LIBTIRPC], [
         ])
 
 	AS_IF([test "x$have_xdr" = "x"], [
-            FIND_SYSTEM_LIBRARY(LIBTIRPC, [libtirpc], [rpc/xdr.h], [tirpc], [tirpc], [xdrmem_create], [], [
+            ZFS_AC_FIND_SYSTEM_LIBRARY(LIBTIRPC, [libtirpc], [rpc/xdr.h], [tirpc], [tirpc], [xdrmem_create], [], [
 		AS_IF([test "x$with_tirpc" = "xyes"], [
 		    AC_MSG_FAILURE([--with-tirpc was given, but libtirpc is not available, try installing libtirpc-devel])
 		],[dnl ELSE

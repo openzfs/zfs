@@ -68,8 +68,7 @@ ccm_mode_encrypt_contiguous_blocks(ccm_ctx_t *ctx, char *data, size_t length,
 	}
 
 	lastp = (uint8_t *)ctx->ccm_cb;
-	if (out != NULL)
-		crypto_init_ptrs(out, &iov_or_mp, &offset);
+	crypto_init_ptrs(out, &iov_or_mp, &offset);
 
 	mac_buf = (uint8_t *)ctx->ccm_mac_buf;
 
@@ -108,13 +107,13 @@ ccm_mode_encrypt_contiguous_blocks(ccm_ctx_t *ctx, char *data, size_t length,
 		 * Increment counter. Counter bits are confined
 		 * to the bottom 64 bits of the counter block.
 		 */
-#ifdef _LITTLE_ENDIAN
+#ifdef _ZFS_LITTLE_ENDIAN
 		counter = ntohll(ctx->ccm_cb[1] & ctx->ccm_counter_mask);
 		counter = htonll(counter + 1);
 #else
 		counter = ctx->ccm_cb[1] & ctx->ccm_counter_mask;
 		counter++;
-#endif	/* _LITTLE_ENDIAN */
+#endif	/* _ZFS_LITTLE_ENDIAN */
 		counter &= ctx->ccm_counter_mask;
 		ctx->ccm_cb[1] =
 		    (ctx->ccm_cb[1] & ~(ctx->ccm_counter_mask)) | counter;
@@ -126,31 +125,22 @@ ccm_mode_encrypt_contiguous_blocks(ccm_ctx_t *ctx, char *data, size_t length,
 
 		ctx->ccm_processed_data_len += block_size;
 
-		if (out == NULL) {
-			if (ctx->ccm_remainder_len > 0) {
-				bcopy(blockp, ctx->ccm_copy_to,
-				    ctx->ccm_remainder_len);
-				bcopy(blockp + ctx->ccm_remainder_len, datap,
-				    need);
-			}
-		} else {
-			crypto_get_ptrs(out, &iov_or_mp, &offset, &out_data_1,
-			    &out_data_1_len, &out_data_2, block_size);
+		crypto_get_ptrs(out, &iov_or_mp, &offset, &out_data_1,
+		    &out_data_1_len, &out_data_2, block_size);
 
-			/* copy block to where it belongs */
-			if (out_data_1_len == block_size) {
-				copy_block(lastp, out_data_1);
-			} else {
-				bcopy(lastp, out_data_1, out_data_1_len);
-				if (out_data_2 != NULL) {
-					bcopy(lastp + out_data_1_len,
-					    out_data_2,
-					    block_size - out_data_1_len);
-				}
+		/* copy block to where it belongs */
+		if (out_data_1_len == block_size) {
+			copy_block(lastp, out_data_1);
+		} else {
+			bcopy(lastp, out_data_1, out_data_1_len);
+			if (out_data_2 != NULL) {
+				bcopy(lastp + out_data_1_len,
+				    out_data_2,
+				    block_size - out_data_1_len);
 			}
-			/* update offset */
-			out->cd_offset += block_size;
 		}
+		/* update offset */
+		out->cd_offset += block_size;
 
 		/* Update pointer to next block of data to be processed. */
 		if (ctx->ccm_remainder_len != 0) {
@@ -328,7 +318,7 @@ ccm_encrypt_final(ccm_ctx_t *ctx, crypto_data_t *out, size_t block_size,
  * This will only deal with decrypting the last block of the input that
  * might not be a multiple of block length.
  */
-void
+static void
 ccm_decrypt_incomplete_block(ccm_ctx_t *ctx,
     int (*encrypt_block)(const void *, const uint8_t *, uint8_t *))
 {
@@ -468,13 +458,13 @@ ccm_mode_decrypt_contiguous_blocks(ccm_ctx_t *ctx, char *data, size_t length,
 		 * Increment counter.
 		 * Counter bits are confined to the bottom 64 bits
 		 */
-#ifdef _LITTLE_ENDIAN
+#ifdef _ZFS_LITTLE_ENDIAN
 		counter = ntohll(ctx->ccm_cb[1] & ctx->ccm_counter_mask);
 		counter = htonll(counter + 1);
 #else
 		counter = ctx->ccm_cb[1] & ctx->ccm_counter_mask;
 		counter++;
-#endif	/* _LITTLE_ENDIAN */
+#endif	/* _ZFS_LITTLE_ENDIAN */
 		counter &= ctx->ccm_counter_mask;
 		ctx->ccm_cb[1] =
 		    (ctx->ccm_cb[1] & ~(ctx->ccm_counter_mask)) | counter;
@@ -583,7 +573,7 @@ ccm_decrypt_final(ccm_ctx_t *ctx, crypto_data_t *out, size_t block_size,
 	return (CRYPTO_SUCCESS);
 }
 
-int
+static int
 ccm_validate_args(CK_AES_CCM_PARAMS *ccm_param, boolean_t is_encrypt_init)
 {
 	size_t macSize, nonceSize;
@@ -694,7 +684,7 @@ ccm_format_initial_blocks(uchar_t *nonce, ulong_t nonceSize,
 		mask |= (1ULL << q);
 	}
 
-#ifdef _LITTLE_ENDIAN
+#ifdef _ZFS_LITTLE_ENDIAN
 	mask = htonll(mask);
 #endif
 	aes_ctx->ccm_counter_mask = mask;
@@ -768,11 +758,7 @@ encode_adata_len(ulong_t auth_data_len, uint8_t *encoded, size_t *encoded_len)
 	}
 }
 
-/*
- * The following function should be call at encrypt or decrypt init time
- * for AES CCM mode.
- */
-int
+static int
 ccm_init(ccm_ctx_t *ctx, unsigned char *nonce, size_t nonce_len,
     unsigned char *auth_data, size_t auth_data_len, size_t block_size,
     int (*encrypt_block)(const void *, const uint8_t *, uint8_t *),
@@ -856,6 +842,10 @@ ccm_init(ccm_ctx_t *ctx, unsigned char *nonce, size_t nonce_len,
 	return (CRYPTO_SUCCESS);
 }
 
+/*
+ * The following function should be call at encrypt or decrypt init time
+ * for AES CCM mode.
+ */
 int
 ccm_init_ctx(ccm_ctx_t *ccm_ctx, char *param, int kmflag,
     boolean_t is_encrypt_init, size_t block_size,
@@ -885,15 +875,13 @@ ccm_init_ctx(ccm_ctx_t *ccm_ctx, char *param, int kmflag,
 
 		ccm_ctx->ccm_flags |= CCM_MODE;
 	} else {
-		rv = CRYPTO_MECHANISM_PARAM_INVALID;
-		goto out;
+		return (CRYPTO_MECHANISM_PARAM_INVALID);
 	}
 
 	if (ccm_init(ccm_ctx, ccm_param->nonce, ccm_param->ulNonceSize,
 	    ccm_param->authData, ccm_param->ulAuthDataSize, block_size,
 	    encrypt_block, xor_block) != 0) {
-		rv = CRYPTO_MECHANISM_PARAM_INVALID;
-		goto out;
+		return (CRYPTO_MECHANISM_PARAM_INVALID);
 	}
 	if (!is_encrypt_init) {
 		/* allocate buffer for storing decrypted plaintext */
@@ -903,7 +891,6 @@ ccm_init_ctx(ccm_ctx_t *ccm_ctx, char *param, int kmflag,
 			rv = CRYPTO_HOST_MEMORY;
 		}
 	}
-out:
 	return (rv);
 }
 

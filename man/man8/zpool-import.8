@@ -1,0 +1,409 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+.\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
+.\" Copyright (c) 2017 Datto Inc.
+.\" Copyright (c) 2018 George Melikov. All Rights Reserved.
+.\" Copyright 2017 Nexenta Systems, Inc.
+.\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\"
+.Dd August 9, 2019
+.Dt ZPOOL-IMPORT 8
+.Os
+.
+.Sh NAME
+.Nm zpool-import
+.Nd import ZFS storage pools or list available pools
+.Sh SYNOPSIS
+.Nm zpool
+.Cm import
+.Op Fl D
+.Oo Fl d Ar dir Ns | Ns Ar device Oc Ns …
+.Nm zpool
+.Cm import
+.Fl a
+.Op Fl DflmN
+.Op Fl F Op Fl nTX
+.Op Fl -rewind-to-checkpoint
+.Op Fl c Ar cachefile Ns | Ns Fl d Ar dir Ns | Ns Ar device
+.Op Fl o Ar mntopts
+.Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
+.Op Fl R Ar root
+.Nm zpool
+.Cm import
+.Op Fl Dflmt
+.Op Fl F Op Fl nTX
+.Op Fl -rewind-to-checkpoint
+.Op Fl c Ar cachefile Ns | Ns Fl d Ar dir Ns | Ns Ar device
+.Op Fl o Ar mntopts
+.Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
+.Op Fl R Ar root
+.Op Fl s
+.Ar pool Ns | Ns Ar id
+.Op Ar newpool
+.
+.Sh DESCRIPTION
+.Bl -tag -width Ds
+.It Xo
+.Nm zpool
+.Cm import
+.Op Fl D
+.Oo Fl d Ar dir Ns | Ns Ar device Oc Ns …
+.Xc
+Lists pools available to import.
+If the
+.Fl d or
+.Fl c
+options are not specified, this command searches for devices using libblkid
+on Linux and geom on
+.Fx .
+The
+.Fl d
+option can be specified multiple times, and all directories are searched.
+If the device appears to be part of an exported pool, this command displays a
+summary of the pool with the name of the pool, a numeric identifier, as well as
+the vdev layout and current health of the device for each device or file.
+Destroyed pools, pools that were previously destroyed with the
+.Nm zpool Cm destroy
+command, are not listed unless the
+.Fl D
+option is specified.
+.Pp
+The numeric identifier is unique, and can be used instead of the pool name when
+multiple exported pools of the same name are available.
+.Bl -tag -width Ds
+.It Fl c Ar cachefile
+Reads configuration from the given
+.Ar cachefile
+that was created with the
+.Sy cachefile
+pool property.
+This
+.Ar cachefile
+is used instead of searching for devices.
+.It Fl d Ar dir Ns | Ns Ar device
+Uses
+.Ar device
+or searches for devices or files in
+.Ar dir .
+The
+.Fl d
+option can be specified multiple times.
+.It Fl D
+Lists destroyed pools only.
+.El
+.It Xo
+.Nm zpool
+.Cm import
+.Fl a
+.Op Fl DflmN
+.Op Fl F Op Fl nTX
+.Op Fl c Ar cachefile Ns | Ns Fl d Ar dir Ns | Ns Ar device
+.Op Fl o Ar mntopts
+.Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
+.Op Fl R Ar root
+.Op Fl s
+.Xc
+Imports all pools found in the search directories.
+Identical to the previous command, except that all pools with a sufficient
+number of devices available are imported.
+Destroyed pools, pools that were previously destroyed with the
+.Nm zpool Cm destroy
+command, will not be imported unless the
+.Fl D
+option is specified.
+.Bl -tag -width Ds
+.It Fl a
+Searches for and imports all pools found.
+.It Fl c Ar cachefile
+Reads configuration from the given
+.Ar cachefile
+that was created with the
+.Sy cachefile
+pool property.
+This
+.Ar cachefile
+is used instead of searching for devices.
+.It Fl d Ar dir Ns | Ns Ar device
+Uses
+.Ar device
+or searches for devices or files in
+.Ar dir .
+The
+.Fl d
+option can be specified multiple times.
+This option is incompatible with the
+.Fl c
+option.
+.It Fl D
+Imports destroyed pools only.
+The
+.Fl f
+option is also required.
+.It Fl f
+Forces import, even if the pool appears to be potentially active.
+.It Fl F
+Recovery mode for a non-importable pool.
+Attempt to return the pool to an importable state by discarding the last few
+transactions.
+Not all damaged pools can be recovered by using this option.
+If successful, the data from the discarded transactions is irretrievably lost.
+This option is ignored if the pool is importable or already imported.
+.It Fl l
+Indicates that this command will request encryption keys for all encrypted
+datasets it attempts to mount as it is bringing the pool online.
+Note that if any datasets have a
+.Sy keylocation
+of
+.Sy prompt
+this command will block waiting for the keys to be entered.
+Without this flag
+encrypted datasets will be left unavailable until the keys are loaded.
+.It Fl m
+Allows a pool to import when there is a missing log device.
+Recent transactions can be lost because the log device will be discarded.
+.It Fl n
+Used with the
+.Fl F
+recovery option.
+Determines whether a non-importable pool can be made importable again, but does
+not actually perform the pool recovery.
+For more details about pool recovery mode, see the
+.Fl F
+option, above.
+.It Fl N
+Import the pool without mounting any file systems.
+.It Fl o Ar mntopts
+Comma-separated list of mount options to use when mounting datasets within the
+pool.
+See
+.Xr zfs 8
+for a description of dataset properties and mount options.
+.It Fl o Ar property Ns = Ns Ar value
+Sets the specified property on the imported pool.
+See the
+.Xr zpoolprops 7
+manual page for more information on the available pool properties.
+.It Fl R Ar root
+Sets the
+.Sy cachefile
+property to
+.Sy none
+and the
+.Sy altroot
+property to
+.Ar root .
+.It Fl -rewind-to-checkpoint
+Rewinds pool to the checkpointed state.
+Once the pool is imported with this flag there is no way to undo the rewind.
+All changes and data that were written after the checkpoint are lost!
+The only exception is when the
+.Sy readonly
+mounting option is enabled.
+In this case, the checkpointed state of the pool is opened and an
+administrator can see how the pool would look like if they were
+to fully rewind.
+.It Fl s
+Scan using the default search path, the libblkid cache will not be
+consulted.
+A custom search path may be specified by setting the
+.Sy ZPOOL_IMPORT_PATH
+environment variable.
+.It Fl X
+Used with the
+.Fl F
+recovery option.
+Determines whether extreme measures to find a valid txg should take place.
+This allows the pool to
+be rolled back to a txg which is no longer guaranteed to be consistent.
+Pools imported at an inconsistent txg may contain uncorrectable checksum errors.
+For more details about pool recovery mode, see the
+.Fl F
+option, above.
+WARNING: This option can be extremely hazardous to the
+health of your pool and should only be used as a last resort.
+.It Fl T
+Specify the txg to use for rollback.
+Implies
+.Fl FX .
+For more details
+about pool recovery mode, see the
+.Fl X
+option, above.
+WARNING: This option can be extremely hazardous to the
+health of your pool and should only be used as a last resort.
+.El
+.It Xo
+.Nm zpool
+.Cm import
+.Op Fl Dflmt
+.Op Fl F Op Fl nTX
+.Op Fl c Ar cachefile Ns | Ns Fl d Ar dir Ns | Ns Ar device
+.Op Fl o Ar mntopts
+.Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
+.Op Fl R Ar root
+.Op Fl s
+.Ar pool Ns | Ns Ar id
+.Op Ar newpool
+.Xc
+Imports a specific pool.
+A pool can be identified by its name or the numeric identifier.
+If
+.Ar newpool
+is specified, the pool is imported using the name
+.Ar newpool .
+Otherwise, it is imported with the same name as its exported name.
+.Pp
+If a device is removed from a system without running
+.Nm zpool Cm export
+first, the device appears as potentially active.
+It cannot be determined if this was a failed export, or whether the device is
+really in use from another host.
+To import a pool in this state, the
+.Fl f
+option is required.
+.Bl -tag -width Ds
+.It Fl c Ar cachefile
+Reads configuration from the given
+.Ar cachefile
+that was created with the
+.Sy cachefile
+pool property.
+This
+.Ar cachefile
+is used instead of searching for devices.
+.It Fl d Ar dir Ns | Ns Ar device
+Uses
+.Ar device
+or searches for devices or files in
+.Ar dir .
+The
+.Fl d
+option can be specified multiple times.
+This option is incompatible with the
+.Fl c
+option.
+.It Fl D
+Imports destroyed pool.
+The
+.Fl f
+option is also required.
+.It Fl f
+Forces import, even if the pool appears to be potentially active.
+.It Fl F
+Recovery mode for a non-importable pool.
+Attempt to return the pool to an importable state by discarding the last few
+transactions.
+Not all damaged pools can be recovered by using this option.
+If successful, the data from the discarded transactions is irretrievably lost.
+This option is ignored if the pool is importable or already imported.
+.It Fl l
+Indicates that this command will request encryption keys for all encrypted
+datasets it attempts to mount as it is bringing the pool online.
+Note that if any datasets have a
+.Sy keylocation
+of
+.Sy prompt
+this command will block waiting for the keys to be entered.
+Without this flag
+encrypted datasets will be left unavailable until the keys are loaded.
+.It Fl m
+Allows a pool to import when there is a missing log device.
+Recent transactions can be lost because the log device will be discarded.
+.It Fl n
+Used with the
+.Fl F
+recovery option.
+Determines whether a non-importable pool can be made importable again, but does
+not actually perform the pool recovery.
+For more details about pool recovery mode, see the
+.Fl F
+option, above.
+.It Fl o Ar mntopts
+Comma-separated list of mount options to use when mounting datasets within the
+pool.
+See
+.Xr zfs 8
+for a description of dataset properties and mount options.
+.It Fl o Ar property Ns = Ns Ar value
+Sets the specified property on the imported pool.
+See the
+.Xr zpoolprops 7
+manual page for more information on the available pool properties.
+.It Fl R Ar root
+Sets the
+.Sy cachefile
+property to
+.Sy none
+and the
+.Sy altroot
+property to
+.Ar root .
+.It Fl s
+Scan using the default search path, the libblkid cache will not be
+consulted.
+A custom search path may be specified by setting the
+.Sy ZPOOL_IMPORT_PATH
+environment variable.
+.It Fl X
+Used with the
+.Fl F
+recovery option.
+Determines whether extreme measures to find a valid txg should take place.
+This allows the pool to
+be rolled back to a txg which is no longer guaranteed to be consistent.
+Pools imported at an inconsistent txg may contain uncorrectable
+checksum errors.
+For more details about pool recovery mode, see the
+.Fl F
+option, above.
+WARNING: This option can be extremely hazardous to the
+health of your pool and should only be used as a last resort.
+.It Fl T
+Specify the txg to use for rollback.
+Implies
+.Fl FX .
+For more details
+about pool recovery mode, see the
+.Fl X
+option, above.
+WARNING: This option can be extremely hazardous to the
+health of your pool and should only be used as a last resort.
+.It Fl t
+Used with
+.Sy newpool .
+Specifies that
+.Sy newpool
+is temporary.
+Temporary pool names last until export.
+Ensures that the original pool name will be used
+in all label updates and therefore is retained upon export.
+Will also set
+.Fl o Sy cachefile Ns = Ns Sy none
+when not explicitly specified.
+.El
+.El
+.
+.Sh SEE ALSO
+.Xr zpool-export 8 ,
+.Xr zpool-list 8 ,
+.Xr zpool-status 8

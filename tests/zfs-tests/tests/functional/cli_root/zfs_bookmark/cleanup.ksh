@@ -26,4 +26,6 @@
 
 . $STF_SUITE/include/libtest.shlib
 
+log_must zfs destroy "$TESTPOOL/$TESTFS/child"
+log_must zfs destroy "$TESTPOOL/${TESTFS}_with_suffix"
 default_cleanup

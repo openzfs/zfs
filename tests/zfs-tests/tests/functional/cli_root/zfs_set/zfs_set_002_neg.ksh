@@ -47,8 +47,13 @@ log_assert "'zfs set' fails with invalid arguments"
 
 set -A editable_props "quota" "reservation" "reserv" "volsize" "recordsize" "recsize" \
 		"mountpoint" "checksum" "compression" "compress" "atime" \
-		"devices" "exec" "setuid" "readonly" "zoned" "snapdir" "aclmode" \
+		"devices" "exec" "setuid" "readonly" "snapdir" "aclmode" \
 		"aclinherit" "canmount" "xattr" "copies" "version"
+if is_freebsd; then
+	editable_props+=("jailed")
+else
+	editable_props+=("zoned")
+fi
 
 for ds in $TESTPOOL $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL \
 	$TESTPOOL/$TESTFS@$TESTSNAP; do

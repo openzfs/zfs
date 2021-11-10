@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: OpenZFS Questions
+    url: https://github.com/openzfs/zfs/discussions/new
+    about: Ask the community for help
+  - name: OpenZFS Community Support Mailing list (Linux)
+    url: https://zfsonlinux.topicbox.com/groups/zfs-discuss
+    about: Get community support for OpenZFS on Linux
+  - name: FreeBSD Community Support Mailing list
+    url: https://lists.freebsd.org/mailman/listinfo/freebsd-fs
+    about: Get community support for OpenZFS on FreeBSD
+  - name: OpenZFS on IRC
+    url: https://web.libera.chat/#openzfs
+    about: Use IRC to get community support for OpenZFS

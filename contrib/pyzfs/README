@@ -25,4 +25,4 @@ a temporary directory specified by, for instance, TMP environment
 variable on a memory backed filesystem.
 
 Package documentation: http://pyzfs.readthedocs.org
-Package development: https://github.com/zfsonlinux/zfs
+Package development: https://github.com/openzfs/zfs

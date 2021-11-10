@@ -26,7 +26,6 @@
 
 #include <sys/skein.h>
 #include <sys/strings.h>
-#include <sys/note.h>
 #include "skein_impl.h"
 #include "skein_port.h"
 
@@ -139,7 +138,6 @@
 #define	Skein_Set_Tweak(ctxPtr, TWK_NUM, tVal)		\
 	do {						\
 		(ctxPtr)->h.T[TWK_NUM] = (tVal);	\
-		_NOTE(CONSTCOND)			\
 	} while (0)
 
 #define	Skein_Get_T0(ctxPtr)		Skein_Get_Tweak(ctxPtr, 0)
@@ -152,7 +150,6 @@
 	do {					\
 		Skein_Set_T0(ctxPtr, (T0));	\
 		Skein_Set_T1(ctxPtr, (T1));	\
-		_NOTE(CONSTCOND)		\
 	} while (0)
 
 #define	Skein_Set_Type(ctxPtr, BLK_TYPE)	\
@@ -166,24 +163,20 @@
 		Skein_Set_T0_T1(ctxPtr, 0, SKEIN_T1_FLAG_FIRST |	\
 		    SKEIN_T1_BLK_TYPE_ ## BLK_TYPE);			\
 		(ctxPtr)->h.bCnt = 0;	\
-		_NOTE(CONSTCOND)					\
 	} while (0)
 
 #define	Skein_Clear_First_Flag(hdr)					\
 	do {								\
 		(hdr).T[1] &= ~SKEIN_T1_FLAG_FIRST;			\
-		_NOTE(CONSTCOND)					\
 	} while (0)
 #define	Skein_Set_Bit_Pad_Flag(hdr)					\
 	do {								\
 		(hdr).T[1] |=  SKEIN_T1_FLAG_BIT_PAD;			\
-		_NOTE(CONSTCOND)					\
 	} while (0)
 
 #define	Skein_Set_Tree_Level(hdr, height)				\
 	do {								\
 		(hdr).T[1] |= SKEIN_T1_TREE_LEVEL(height);		\
-		_NOTE(CONSTCOND)					\
 	} while (0)
 
 /*
@@ -212,7 +205,6 @@
 	do {					\
 		if (!(x))			\
 			return (retCode);	\
-		_NOTE(CONSTCOND)		\
 	} while (0)
 /* internal error */
 #define	Skein_assert(x)	ASSERT(x)
@@ -280,5 +272,13 @@ extern const uint64_t SKEIN_512_IV_512[];
 extern const uint64_t SKEIN1024_IV_384[];
 extern const uint64_t SKEIN1024_IV_512[];
 extern const uint64_t SKEIN1024_IV_1024[];
+
+/* Functions to process blkCnt (nonzero) full block(s) of data. */
+void Skein_256_Process_Block(Skein_256_Ctxt_t *ctx, const uint8_t *blkPtr,
+    size_t blkCnt, size_t byteCntAdd);
+void Skein_512_Process_Block(Skein_512_Ctxt_t *ctx, const uint8_t *blkPtr,
+    size_t blkCnt, size_t byteCntAdd);
+void Skein1024_Process_Block(Skein1024_Ctxt_t *ctx, const uint8_t *blkPtr,
+    size_t blkCnt, size_t byteCntAdd);
 
 #endif	/* _SKEIN_IMPL_H_ */

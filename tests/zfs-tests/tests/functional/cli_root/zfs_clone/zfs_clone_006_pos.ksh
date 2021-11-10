@@ -49,9 +49,7 @@ verify_runnable "global"
 
 function cleanup
 {
-	if snapexists $SNAPFS1 ; then
-		log_must_busy zfs destroy -Rf $SNAPFS1
-	fi
+	snapexists $SNAPFS1 && destroy_dataset $SNAPFS1 -Rf
 }
 
 log_onexit cleanup

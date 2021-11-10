@@ -39,7 +39,7 @@ verify_runnable "both"
 
 function cleanup
 {
-	datasetexists $TEST_FS && log_must zfs destroy $TEST_FS
+	datasetexists $TEST_FS && destroy_dataset $TEST_FS
 }
 
 function verify_dnode_packing
@@ -71,6 +71,7 @@ for ((i=0; i < 100; i++)); do
 done
 
 log_must wait
+sync_pool $TESTPOOL
 
 verify_dnode_packing
 

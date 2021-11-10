@@ -9,6 +9,7 @@ dist_pkgdata_SCRIPTS = \
 	import_cachefile_device_replaced.ksh \
 	import_cachefile_mirror_attached.ksh \
 	import_cachefile_mirror_detached.ksh \
+	import_cachefile_paths_changed.ksh \
 	import_cachefile_shared_device.ksh \
 	import_devices_missing.ksh \
 	import_paths_changed.ksh \
@@ -29,6 +30,8 @@ dist_pkgdata_SCRIPTS = \
 	zpool_import_013_neg.ksh \
 	zpool_import_014_pos.ksh \
 	zpool_import_015_pos.ksh \
+	zpool_import_016_pos.ksh \
+	zpool_import_017_pos.ksh \
 	zpool_import_all_001_pos.ksh \
 	zpool_import_features_001_pos.ksh \
 	zpool_import_features_002_neg.ksh \

@@ -39,7 +39,7 @@
 # STRATEGY:
 #	1. Create a 5 ways mirror pool A with dev0/1/2/3/4, then destroy it.
 #	2. Create a stripe pool B with dev1. Then destroy it.
-#	3. Create a raidz2 pool C with dev2/3/4. Then destroy it.
+#	3. Create a draid2 pool C with dev2/3/4/5. Then destroy it.
 #	4. Create a raidz pool D with dev3/4. Then destroy it.
 #	5. Create a stripe pool E with dev4. Then destroy it.
 #	6. Verify 'zpool import -D -a' recover all the pools.
@@ -74,7 +74,7 @@ log_must zpool destroy $poolA
 log_must zpool create $poolB $VDEV1
 log_must zpool destroy $poolB
 
-log_must zpool create $poolC raidz2 $VDEV2 $VDEV3 $VDEV4
+log_must zpool create $poolC draid2 $VDEV2 $VDEV3 $VDEV4 $VDEV5
 log_must zpool destroy $poolC
 
 log_must zpool create $poolD raidz $VDEV3 $VDEV4

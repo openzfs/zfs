@@ -1,0 +1,187 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
+.\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+.\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+.\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
+.\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
+.\" Copyright (c) 2014 Integros [integros.com]
+.\" Copyright 2019 Richard Laager. All rights reserved.
+.\" Copyright 2018 Nexenta Systems, Inc.
+.\" Copyright 2019 Joyent, Inc.
+.\"
+.Dd June 30, 2019
+.Dt ZFS-USERSPACE 8
+.Os
+.
+.Sh NAME
+.Nm zfs-userspace
+.Nd display space and quotas of ZFS dataset
+.Sh SYNOPSIS
+.Nm zfs
+.Cm userspace
+.Op Fl Hinp
+.Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns … Oc
+.Oo Fl s Ar field Oc Ns …
+.Oo Fl S Ar field Oc Ns …
+.Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns … Oc
+.Ar filesystem Ns | Ns Ar snapshot Ns | Ns Ar path
+.Nm zfs
+.Cm groupspace
+.Op Fl Hinp
+.Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns … Oc
+.Oo Fl s Ar field Oc Ns …
+.Oo Fl S Ar field Oc Ns …
+.Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns … Oc
+.Ar filesystem Ns | Ns Ar snapshot Ns | Ns Ar path
+.Nm zfs
+.Cm projectspace
+.Op Fl Hp
+.Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns … Oc
+.Oo Fl s Ar field Oc Ns …
+.Oo Fl S Ar field Oc Ns …
+.Ar filesystem Ns | Ns Ar snapshot Ns | Ns Ar path
+.
+.Sh DESCRIPTION
+.Bl -tag -width ""
+.It Xo
+.Nm zfs
+.Cm userspace
+.Op Fl Hinp
+.Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns … Oc
+.Oo Fl s Ar field Oc Ns …
+.Oo Fl S Ar field Oc Ns …
+.Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns … Oc
+.Ar filesystem Ns | Ns Ar snapshot Ns | Ns Ar path
+.Xc
+Displays space consumed by, and quotas on, each user in the specified filesystem,
+snapshot, or path.
+If a path is given, the filesystem that contains that path will be used.
+This corresponds to the
+.Sy userused@ Ns Em user ,
+.Sy userobjused@ Ns Em user ,
+.Sy userquota@ Ns Em user ,
+and
+.Sy userobjquota@ Ns Em user
+properties.
+.Bl -tag -width "-S field"
+.It Fl H
+Do not print headers, use tab-delimited output.
+.It Fl S Ar field
+Sort by this field in reverse order.
+See
+.Fl s .
+.It Fl i
+Translate SID to POSIX ID.
+The POSIX ID may be ephemeral if no mapping exists.
+Normal POSIX interfaces
+.Pq like Xr stat 2 , Nm ls Fl l
+perform this translation, so the
+.Fl i
+option allows the output from
+.Nm zfs Cm userspace
+to be compared directly with those utilities.
+However,
+.Fl i
+may lead to confusion if some files were created by an SMB user before a
+SMB-to-POSIX name mapping was established.
+In such a case, some files will be owned by the SMB entity and some by the POSIX
+entity.
+However, the
+.Fl i
+option will report that the POSIX entity has the total usage and quota for both.
+.It Fl n
+Print numeric ID instead of user/group name.
+.It Fl o Ar field Ns Oo , Ns Ar field Oc Ns …
+Display only the specified fields from the following set:
+.Sy type ,
+.Sy name ,
+.Sy used ,
+.Sy quota .
+The default is to display all fields.
+.It Fl p
+Use exact
+.Pq parsable
+numeric output.
+.It Fl s Ar field
+Sort output by this field.
+The
+.Fl s
+and
+.Fl S
+flags may be specified multiple times to sort first by one field, then by
+another.
+The default is
+.Fl s Sy type Fl s Sy name .
+.It Fl t Ar type Ns Oo , Ns Ar type Oc Ns …
+Print only the specified types from the following set:
+.Sy all ,
+.Sy posixuser ,
+.Sy smbuser ,
+.Sy posixgroup ,
+.Sy smbgroup .
+The default is
+.Fl t Sy posixuser , Ns Sy smbuser .
+The default can be changed to include group types.
+.El
+.It Xo
+.Nm zfs
+.Cm groupspace
+.Op Fl Hinp
+.Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns … Oc
+.Oo Fl s Ar field Oc Ns …
+.Oo Fl S Ar field Oc Ns …
+.Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns … Oc
+.Ar filesystem Ns | Ns Ar snapshot
+.Xc
+Displays space consumed by, and quotas on, each group in the specified
+filesystem or snapshot.
+This subcommand is identical to
+.Cm userspace ,
+except that the default types to display are
+.Fl t Sy posixgroup , Ns Sy smbgroup .
+.It Xo
+.Nm zfs
+.Cm projectspace
+.Op Fl Hp
+.Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns … Oc
+.Oo Fl s Ar field Oc Ns …
+.Oo Fl S Ar field Oc Ns …
+.Ar filesystem Ns | Ns Ar snapshot Ns | Ns Ar path
+.Xc
+Displays space consumed by, and quotas on, each project in the specified
+filesystem or snapshot.
+This subcommand is identical to
+.Cm userspace ,
+except that the project identifier is a numeral, not a name.
+So need neither the option
+.Fl i
+for SID to POSIX ID nor
+.Fl n
+for numeric ID, nor
+.Fl t
+for types.
+.El
+.
+.Sh SEE ALSO
+.Xr zfsprops 7 ,
+.Xr zfs-set 8

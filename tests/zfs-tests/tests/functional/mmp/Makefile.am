@@ -12,6 +12,7 @@ dist_pkgdata_SCRIPTS = \
 	mmp_reset_interval.ksh \
 	mmp_on_zdb.ksh \
 	mmp_write_distribution.ksh \
+	mmp_hostid.ksh \
 	setup.ksh \
 	cleanup.ksh
 

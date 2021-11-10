@@ -32,7 +32,7 @@ of the error codes to the exceptions by interpreting a context
 in which the error code is produced.
 
 To submit an issue or contribute to development of this package
-please visit its `GitHub repository <https://github.com/zfsonlinux/zfs>`_.
+please visit its `GitHub repository <https://github.com/openzfs/zfs>`_.
 
 .. data:: MAXNAMELEN
 
@@ -73,7 +73,6 @@ from ._libzfs_core import (
     lzc_receive_with_cmdprops,
     lzc_receive_with_header,
     lzc_release,
-    lzc_remap,
     lzc_reopen,
     lzc_rollback,
     lzc_rollback_to,
@@ -129,7 +128,6 @@ __all__ = [
     'lzc_receive_with_cmdprops',
     'lzc_receive_with_header',
     'lzc_release',
-    'lzc_remap',
     'lzc_reopen',
     'lzc_rollback',
     'lzc_rollback_to',

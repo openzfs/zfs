@@ -1,0 +1,94 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+.\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
+.\" Copyright (c) 2017 Datto Inc.
+.\" Copyright (c) 2018 George Melikov. All Rights Reserved.
+.\" Copyright 2017 Nexenta Systems, Inc.
+.\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\"
+.Dd August 9, 2019
+.Dt ZPOOL-OFFLINE 8
+.Os
+.
+.Sh NAME
+.Nm zpool-offline
+.Nd take physical devices offline in ZFS storage pool
+.Sh SYNOPSIS
+.Nm zpool
+.Cm offline
+.Op Fl ft
+.Ar pool
+.Ar device Ns …
+.Nm zpool
+.Cm online
+.Op Fl e
+.Ar pool
+.Ar device Ns …
+.
+.Sh DESCRIPTION
+.Bl -tag -width Ds
+.It Xo
+.Nm zpool
+.Cm offline
+.Op Fl ft
+.Ar pool
+.Ar device Ns …
+.Xc
+Takes the specified physical device offline.
+While the
+.Ar device
+is offline, no attempt is made to read or write to the device.
+This command is not applicable to spares.
+.Bl -tag -width Ds
+.It Fl f
+Force fault.
+Instead of offlining the disk, put it into a faulted state.
+The fault will persist across imports unless the
+.Fl t
+flag was specified.
+.It Fl t
+Temporary.
+Upon reboot, the specified physical device reverts to its previous state.
+.El
+.It Xo
+.Nm zpool
+.Cm online
+.Op Fl e
+.Ar pool
+.Ar device Ns …
+.Xc
+Brings the specified physical device online.
+This command is not applicable to spares.
+.Bl -tag -width Ds
+.It Fl e
+Expand the device to use all available space.
+If the device is part of a mirror or raidz then all devices must be expanded
+before the new space will become available to the pool.
+.El
+.El
+.
+.Sh SEE ALSO
+.Xr zpool-detach 8 ,
+.Xr zpool-remove 8 ,
+.Xr zpool-reopen 8 ,
+.Xr zpool-resilver 8

@@ -41,7 +41,7 @@
 #	1. Create three directories
 #	2. Set tdir1 and tdir3 project ID as PRJID1,
 #	   set tdir2 project ID as PRJID2.
-#	3. Create regular file under tdir1. It inherits tdir1 proejct ID.
+#	3. Create regular file under tdir1. It inherits tdir1 project ID.
 #	4. Hardlink from tdir1's child to tdir2 should be denied,
 #	   move tdir1's child to tdir2 will be object recreated.
 #	5. Hardlink from tdir1's child to tdir3 should succeed.

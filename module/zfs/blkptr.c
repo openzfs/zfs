@@ -17,6 +17,7 @@
  * Copyright (c) 2013, 2016 by Delphix. All rights reserved.
  */
 
+#include <sys/blkptr.h>
 #include <sys/zfs_context.h>
 #include <sys/zio.h>
 #include <sys/zio_compress.h>
@@ -142,7 +143,7 @@ decode_embedded_bp(const blkptr_t *bp, void *buf, int buflen)
 		uint8_t dstbuf[BPE_PAYLOAD_SIZE];
 		decode_embedded_bp_compressed(bp, dstbuf);
 		VERIFY0(zio_decompress_data_buf(BP_GET_COMPRESS(bp),
-		    dstbuf, buf, psize, buflen));
+		    dstbuf, buf, psize, buflen, NULL));
 	} else {
 		ASSERT3U(lsize, ==, psize);
 		decode_embedded_bp_compressed(bp, buf);

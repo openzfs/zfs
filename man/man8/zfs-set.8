@@ -1,0 +1,182 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
+.\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+.\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+.\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
+.\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
+.\" Copyright (c) 2014 Integros [integros.com]
+.\" Copyright 2019 Richard Laager. All rights reserved.
+.\" Copyright 2018 Nexenta Systems, Inc.
+.\" Copyright 2019 Joyent, Inc.
+.\"
+.Dd June 2, 2021
+.Dt ZFS-SET 8
+.Os
+.
+.Sh NAME
+.Nm zfs-set
+.Nd set properties on ZFS datasets
+.Sh SYNOPSIS
+.Nm zfs
+.Cm set
+.Ar property Ns = Ns Ar value Oo Ar property Ns = Ns Ar value Oc Ns …
+.Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns …
+.Nm zfs
+.Cm get
+.Op Fl r Ns | Ns Fl d Ar depth
+.Op Fl Hp
+.Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns … Oc
+.Oo Fl s Ar source Ns Oo , Ns Ar source Oc Ns … Oc
+.Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns … Oc
+.Cm all Ns | Ns Ar property Ns Oo , Ns Ar property Oc Ns …
+.Oo Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns | Ns Ar bookmark Oc Ns …
+.Nm zfs
+.Cm inherit
+.Op Fl rS
+.Ar property Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns …
+.
+.Sh DESCRIPTION
+.Bl -tag -width ""
+.It Xo
+.Nm zfs
+.Cm set
+.Ar property Ns = Ns Ar value Oo Ar property Ns = Ns Ar value Oc Ns …
+.Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns …
+.Xc
+Only some properties can be edited.
+See
+.Xr zfsprops 7
+for more information on what properties can be set and acceptable
+values.
+Numeric values can be specified as exact values, or in a human-readable form
+with a suffix of
+.Sy B , K , M , G , T , P , E , Z
+.Po for bytes, kilobytes, megabytes, gigabytes, terabytes, petabytes, exabytes,
+or zettabytes, respectively
+.Pc .
+User properties can be set on snapshots.
+For more information, see the
+.Em User Properties
+section of
+.Xr zfsprops 7 .
+.It Xo
+.Nm zfs
+.Cm get
+.Op Fl r Ns | Ns Fl d Ar depth
+.Op Fl Hp
+.Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns … Oc
+.Oo Fl s Ar source Ns Oo , Ns Ar source Oc Ns … Oc
+.Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns … Oc
+.Cm all Ns | Ns Ar property Ns Oo , Ns Ar property Oc Ns …
+.Oo Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns | Ns Ar bookmark Oc Ns …
+.Xc
+Displays properties for the given datasets.
+If no datasets are specified, then the command displays properties for all
+datasets on the system.
+For each property, the following columns are displayed:
+.Bl -tag -compact -offset 4n -width "property"
+.It Sy name
+Dataset name
+.It Sy property
+Property name
+.It Sy value
+Property value
+.It Sy source
+Property source
+.Sy local , default , inherited , temporary , received , No or Sy - Pq none .
+.El
+.Pp
+All columns are displayed by default, though this can be controlled by using the
+.Fl o
+option.
+This command takes a comma-separated list of properties as described in the
+.Sx Native Properties
+and
+.Sx User Properties
+sections of
+.Xr zfsprops 7 .
+.Pp
+The value
+.Sy all
+can be used to display all properties that apply to the given dataset's type
+.Pq Sy filesystem , volume , snapshot , No or Sy bookmark .
+.Bl -tag -width "-s source"
+.It Fl H
+Display output in a form more easily parsed by scripts.
+Any headers are omitted, and fields are explicitly separated by a single tab
+instead of an arbitrary amount of space.
+.It Fl d Ar depth
+Recursively display any children of the dataset, limiting the recursion to
+.Ar depth .
+A depth of
+.Sy 1
+will display only the dataset and its direct children.
+.It Fl o Ar field
+A comma-separated list of columns to display, defaults to
+.Sy name , Ns Sy property , Ns Sy value , Ns Sy source .
+.It Fl p
+Display numbers in parsable
+.Pq exact
+values.
+.It Fl r
+Recursively display properties for any children.
+.It Fl s Ar source
+A comma-separated list of sources to display.
+Those properties coming from a source other than those in this list are ignored.
+Each source must be one of the following:
+.Sy local , default , inherited , temporary , received , No or Sy none .
+The default value is all sources.
+.It Fl t Ar type
+A comma-separated list of types to display, where
+.Ar type
+is one of
+.Sy filesystem , snapshot , volume , bookmark , No or Sy all .
+.El
+.It Xo
+.Nm zfs
+.Cm inherit
+.Op Fl rS
+.Ar property Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns …
+.Xc
+Clears the specified property, causing it to be inherited from an ancestor,
+restored to default if no ancestor has the property set, or with the
+.Fl S
+option reverted to the received value if one exists.
+See
+.Xr zfsprops 7
+for a listing of default values, and details on which properties can be
+inherited.
+.Bl -tag -width "-r"
+.It Fl r
+Recursively inherit the given property for all children.
+.It Fl S
+Revert the property to the received value if one exists; otherwise operate as
+if the
+.Fl S
+option was not specified.
+.El
+.El
+.
+.Sh SEE ALSO
+.Xr zfsprops 7 ,
+.Xr zfs-list 8

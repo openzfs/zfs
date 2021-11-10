@@ -55,31 +55,6 @@ function cleanup
 	log_must zfs destroy -rf $dest
 }
 
-#
-# Verify property $2 is set from source $4 on dataset $1 and has value $3.
-#
-# $1 checked dataset
-# $2 user property
-# $3 property value
-# $4 source
-#
-function check_prop_source
-{
-	typeset dataset=$1
-	typeset prop=$2
-	typeset value=$3
-	typeset source=$4
-	typeset chk_value=$(get_prop "$prop" "$dataset")
-	typeset chk_source=$(get_source "$prop" "$dataset")
-	if [[ "$chk_value" != "$value" || \
-	    "$chk_source" != "$4" ]]
-	then
-		return 1
-	else
-		return 0
-	fi
-}
-
 log_assert "ZFS successfully receive and restore properties."
 log_onexit cleanup
 

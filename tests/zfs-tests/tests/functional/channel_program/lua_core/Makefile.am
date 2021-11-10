@@ -21,6 +21,7 @@ dist_pkgdata_SCRIPTS = \
 	tst.return_nvlist_neg.ksh \
 	tst.return_nvlist_pos.ksh \
 	tst.return_recursive_table.ksh \
+	tst.stack_gsub.ksh \
 	tst.timeout.ksh
 
 dist_pkgdata_DATA = \
@@ -40,4 +41,6 @@ dist_pkgdata_DATA = \
 	tst.recursive.zcp \
 	tst.return_large.zcp \
 	tst.return_recursive_table.zcp \
+	tst.stack_gsub.err \
+	tst.stack_gsub.zcp \
 	tst.timeout.zcp

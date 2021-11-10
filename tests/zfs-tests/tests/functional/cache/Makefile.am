@@ -11,8 +11,9 @@ dist_pkgdata_SCRIPTS = \
 	cache_007_neg.ksh \
 	cache_008_neg.ksh \
 	cache_009_pos.ksh \
-	cache_010_neg.ksh \
-	cache_011_pos.ksh
+	cache_010_pos.ksh \
+	cache_011_pos.ksh \
+	cache_012_pos.ksh
 
 dist_pkgdata_DATA = \
 	cache.cfg \

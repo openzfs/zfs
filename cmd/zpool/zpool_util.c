@@ -50,6 +50,22 @@ safe_malloc(size_t size)
 }
 
 /*
+ * Utility function to guarantee realloc() success.
+ */
+void *
+safe_realloc(void *from, size_t size)
+{
+	void *data;
+
+	if ((data = realloc(from, size)) == NULL) {
+		(void) fprintf(stderr, "internal error: out of memory\n");
+		exit(1);
+	}
+
+	return (data);
+}
+
+/*
  * Display an out of memory error message and abort the current program.
  */
 void
@@ -96,20 +112,6 @@ array64_max(uint64_t array[], unsigned int len)
 		max = MAX(max, array[i]);
 
 	return (max);
-}
-
-/*
- * Return 1 if "str" is a number string, 0 otherwise.  Works for integer and
- * floating point numbers.
- */
-int
-isnumber(char *str)
-{
-	for (; *str; str++)
-		if (!(isdigit(*str) || (*str == '.')))
-			return (0);
-
-	return (1);
 }
 
 /*

@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2016 by Delphix. All rights reserved.
  * Copyright (c) 2019 by Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2021 Hewlett Packard Enterprise Development LP
  */
 
 #include <sys/spa.h>
@@ -29,11 +30,11 @@
 #include <sys/txg.h>
 #include <sys/vdev_impl.h>
 #include <sys/vdev_trim.h>
-#include <sys/refcount.h>
 #include <sys/metaslab_impl.h>
 #include <sys/dsl_synctask.h>
 #include <sys/zap.h>
 #include <sys/dmu_tx.h>
+#include <sys/arc_impl.h>
 
 /*
  * TRIM is a feature which is used to notify a SSD that some previously
@@ -311,13 +312,14 @@ vdev_trim_change_state(vdev_t *vd, vdev_trim_state_t new_state,
 			vd->vdev_trim_secure = secure;
 	}
 
-	boolean_t resumed = !!(vd->vdev_trim_state == VDEV_TRIM_SUSPENDED);
+	vdev_trim_state_t old_state = vd->vdev_trim_state;
+	boolean_t resumed = (old_state == VDEV_TRIM_SUSPENDED);
 	vd->vdev_trim_state = new_state;
 
 	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
 	VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
 	dsl_sync_task_nowait(spa_get_dsl(spa), vdev_trim_zap_update_sync,
-	    guid, 2, ZFS_SPACE_CHECK_NONE, tx);
+	    guid, tx);
 
 	switch (new_state) {
 	case VDEV_TRIM_ACTIVE:
@@ -332,9 +334,12 @@ vdev_trim_change_state(vdev_t *vd, vdev_trim_state_t new_state,
 		    "vdev=%s suspended", vd->vdev_path);
 		break;
 	case VDEV_TRIM_CANCELED:
-		spa_event_notify(spa, vd, NULL, ESC_ZFS_TRIM_CANCEL);
-		spa_history_log_internal(spa, "trim", tx,
-		    "vdev=%s canceled", vd->vdev_path);
+		if (old_state == VDEV_TRIM_ACTIVE ||
+		    old_state == VDEV_TRIM_SUSPENDED) {
+			spa_event_notify(spa, vd, NULL, ESC_ZFS_TRIM_CANCEL);
+			spa_history_log_internal(spa, "trim", tx,
+			    "vdev=%s canceled", vd->vdev_path);
+		}
 		break;
 	case VDEV_TRIM_COMPLETE:
 		spa_event_notify(spa, vd, NULL, ESC_ZFS_TRIM_FINISH);
@@ -346,6 +351,9 @@ vdev_trim_change_state(vdev_t *vd, vdev_trim_state_t new_state,
 	}
 
 	dmu_tx_commit(tx);
+
+	if (new_state != VDEV_TRIM_ACTIVE)
+		spa_notify_waiters(spa);
 }
 
 /*
@@ -420,6 +428,35 @@ vdev_autotrim_cb(zio_t *zio)
 }
 
 /*
+ * The zio_done_func_t done callback for each TRIM issued via
+ * vdev_trim_simple(). It is responsible for updating the TRIM stats and
+ * limiting the number of in flight TRIM I/Os.  Simple TRIM I/Os are best
+ * effort and are never reissued on failure.
+ */
+static void
+vdev_trim_simple_cb(zio_t *zio)
+{
+	vdev_t *vd = zio->io_vd;
+
+	mutex_enter(&vd->vdev_trim_io_lock);
+
+	if (zio->io_error != 0) {
+		vd->vdev_stat.vs_trim_errors++;
+		spa_iostats_trim_add(vd->vdev_spa, TRIM_TYPE_SIMPLE,
+		    0, 0, 0, 0, 1, zio->io_orig_size);
+	} else {
+		spa_iostats_trim_add(vd->vdev_spa, TRIM_TYPE_SIMPLE,
+		    1, zio->io_orig_size, 0, 0, 0, 0);
+	}
+
+	ASSERT3U(vd->vdev_trim_inflight[TRIM_TYPE_SIMPLE], >, 0);
+	vd->vdev_trim_inflight[TRIM_TYPE_SIMPLE]--;
+	cv_broadcast(&vd->vdev_trim_io_cv);
+	mutex_exit(&vd->vdev_trim_io_lock);
+
+	spa_config_exit(vd->vdev_spa, SCL_STATE_ALL, vd);
+}
+/*
  * Returns the average trim rate in bytes/sec for the ta->trim_vdev.
  */
 static uint64_t
@@ -438,6 +475,7 @@ vdev_trim_range(trim_args_t *ta, uint64_t start, uint64_t size)
 {
 	vdev_t *vd = ta->trim_vdev;
 	spa_t *spa = vd->vdev_spa;
+	void *cb;
 
 	mutex_enter(&vd->vdev_trim_io_lock);
 
@@ -448,7 +486,7 @@ vdev_trim_range(trim_args_t *ta, uint64_t start, uint64_t size)
 	if (ta->trim_type == TRIM_TYPE_MANUAL) {
 		while (vd->vdev_trim_rate != 0 && !vdev_trim_should_stop(vd) &&
 		    vdev_trim_calculate_rate(ta) > vd->vdev_trim_rate) {
-			cv_timedwait_sig(&vd->vdev_trim_io_cv,
+			cv_timedwait_idle(&vd->vdev_trim_io_cv,
 			    &vd->vdev_trim_io_lock, ddi_get_lbolt() +
 			    MSEC_TO_TICK(10));
 		}
@@ -456,8 +494,8 @@ vdev_trim_range(trim_args_t *ta, uint64_t start, uint64_t size)
 	ta->trim_bytes_done += size;
 
 	/* Limit in flight trimming I/Os */
-	while (vd->vdev_trim_inflight[0] + vd->vdev_trim_inflight[1] >=
-	    zfs_trim_queue_limit) {
+	while (vd->vdev_trim_inflight[0] + vd->vdev_trim_inflight[1] +
+	    vd->vdev_trim_inflight[2] >= zfs_trim_queue_limit) {
 		cv_wait(&vd->vdev_trim_io_cv, &vd->vdev_trim_io_lock);
 	}
 	vd->vdev_trim_inflight[ta->trim_type]++;
@@ -477,8 +515,7 @@ vdev_trim_range(trim_args_t *ta, uint64_t start, uint64_t size)
 
 		/* This is the first write of this txg. */
 		dsl_sync_task_nowait(spa_get_dsl(spa),
-		    vdev_trim_zap_update_sync, guid, 2,
-		    ZFS_SPACE_CHECK_RESERVED, tx);
+		    vdev_trim_zap_update_sync, guid, tx);
 	}
 
 	/*
@@ -502,10 +539,17 @@ vdev_trim_range(trim_args_t *ta, uint64_t start, uint64_t size)
 	if (ta->trim_type == TRIM_TYPE_MANUAL)
 		vd->vdev_trim_offset[txg & TXG_MASK] = start + size;
 
+	if (ta->trim_type == TRIM_TYPE_MANUAL) {
+		cb = vdev_trim_cb;
+	} else if (ta->trim_type == TRIM_TYPE_AUTO) {
+		cb = vdev_autotrim_cb;
+	} else {
+		cb = vdev_trim_simple_cb;
+	}
+
 	zio_nowait(zio_trim(spa->spa_txg_zio[txg & TXG_MASK], vd,
-	    start, size, ta->trim_type == TRIM_TYPE_MANUAL ?
-	    vdev_trim_cb : vdev_autotrim_cb, NULL,
-	    ZIO_PRIORITY_TRIM, ZIO_FLAG_CANFAIL, ta->trim_flags));
+	    start, size, cb, NULL, ZIO_PRIORITY_TRIM, ZIO_FLAG_CANFAIL,
+	    ta->trim_flags));
 	/* vdev_trim_cb and vdev_autotrim_cb release SCL_STATE_ALL */
 
 	dmu_tx_commit(tx);
@@ -523,7 +567,8 @@ static int
 vdev_trim_ranges(trim_args_t *ta)
 {
 	vdev_t *vd = ta->trim_vdev;
-	avl_tree_t *rt = &ta->trim_tree->rt_root;
+	zfs_btree_t *t = &ta->trim_tree->rt_root;
+	zfs_btree_index_t idx;
 	uint64_t extent_bytes_max = ta->trim_extent_bytes_max;
 	uint64_t extent_bytes_min = ta->trim_extent_bytes_min;
 	spa_t *spa = vd->vdev_spa;
@@ -531,9 +576,10 @@ vdev_trim_ranges(trim_args_t *ta)
 	ta->trim_start_time = gethrtime();
 	ta->trim_bytes_done = 0;
 
-	for (range_seg_t *rs = avl_first(rt); rs != NULL;
-	    rs = AVL_NEXT(rt, rs)) {
-		uint64_t size = rs->rs_end - rs->rs_start;
+	for (range_seg_t *rs = zfs_btree_first(t, &idx); rs != NULL;
+	    rs = zfs_btree_next(t, &idx, &idx)) {
+		uint64_t size = rs_get_end(rs, ta->trim_tree) - rs_get_start(rs,
+		    ta->trim_tree);
 
 		if (extent_bytes_min && size < extent_bytes_min) {
 			spa_iostats_trim_add(spa, ta->trim_type,
@@ -548,9 +594,9 @@ vdev_trim_ranges(trim_args_t *ta)
 			int error;
 
 			error = vdev_trim_range(ta, VDEV_LABEL_START_SIZE +
-			    rs->rs_start + (w * extent_bytes_max),
-			    MIN(size - (w * extent_bytes_max),
-			    extent_bytes_max));
+			    rs_get_start(rs, ta->trim_tree) +
+			    (w *extent_bytes_max), MIN(size -
+			    (w * extent_bytes_max), extent_bytes_max));
 			if (error != 0) {
 				return (error);
 			}
@@ -558,6 +604,32 @@ vdev_trim_ranges(trim_args_t *ta)
 	}
 
 	return (0);
+}
+
+static void
+vdev_trim_xlate_last_rs_end(void *arg, range_seg64_t *physical_rs)
+{
+	uint64_t *last_rs_end = (uint64_t *)arg;
+
+	if (physical_rs->rs_end > *last_rs_end)
+		*last_rs_end = physical_rs->rs_end;
+}
+
+static void
+vdev_trim_xlate_progress(void *arg, range_seg64_t *physical_rs)
+{
+	vdev_t *vd = (vdev_t *)arg;
+
+	uint64_t size = physical_rs->rs_end - physical_rs->rs_start;
+	vd->vdev_trim_bytes_est += size;
+
+	if (vd->vdev_trim_last_offset >= physical_rs->rs_end) {
+		vd->vdev_trim_bytes_done += size;
+	} else if (vd->vdev_trim_last_offset > physical_rs->rs_start &&
+	    vd->vdev_trim_last_offset <= physical_rs->rs_end) {
+		vd->vdev_trim_bytes_done +=
+		    vd->vdev_trim_last_offset - physical_rs->rs_start;
+	}
 }
 
 /*
@@ -577,27 +649,35 @@ vdev_trim_calculate_progress(vdev_t *vd)
 		metaslab_t *msp = vd->vdev_top->vdev_ms[i];
 		mutex_enter(&msp->ms_lock);
 
-		uint64_t ms_free = msp->ms_size -
-		    metaslab_allocated_space(msp);
-
-		if (vd->vdev_top->vdev_ops == &vdev_raidz_ops)
-			ms_free /= vd->vdev_top->vdev_children;
+		uint64_t ms_free = (msp->ms_size -
+		    metaslab_allocated_space(msp)) /
+		    vdev_get_ndisks(vd->vdev_top);
 
 		/*
 		 * Convert the metaslab range to a physical range
 		 * on our vdev. We use this to determine if we are
 		 * in the middle of this metaslab range.
 		 */
-		range_seg_t logical_rs, physical_rs;
+		range_seg64_t logical_rs, physical_rs, remain_rs;
 		logical_rs.rs_start = msp->ms_start;
 		logical_rs.rs_end = msp->ms_start + msp->ms_size;
-		vdev_xlate(vd, &logical_rs, &physical_rs);
 
+		/* Metaslab space after this offset has not been trimmed. */
+		vdev_xlate(vd, &logical_rs, &physical_rs, &remain_rs);
 		if (vd->vdev_trim_last_offset <= physical_rs.rs_start) {
 			vd->vdev_trim_bytes_est += ms_free;
 			mutex_exit(&msp->ms_lock);
 			continue;
-		} else if (vd->vdev_trim_last_offset > physical_rs.rs_end) {
+		}
+
+		/* Metaslab space before this offset has been trimmed */
+		uint64_t last_rs_end = physical_rs.rs_end;
+		if (!vdev_xlate_is_empty(&remain_rs)) {
+			vdev_xlate_walk(vd, &remain_rs,
+			    vdev_trim_xlate_last_rs_end, &last_rs_end);
+		}
+
+		if (vd->vdev_trim_last_offset > last_rs_end) {
 			vd->vdev_trim_bytes_done += ms_free;
 			vd->vdev_trim_bytes_est += ms_free;
 			mutex_exit(&msp->ms_lock);
@@ -611,25 +691,16 @@ vdev_trim_calculate_progress(vdev_t *vd)
 		 */
 		VERIFY0(metaslab_load(msp));
 
-		for (range_seg_t *rs = avl_first(&msp->ms_allocatable->rt_root);
-		    rs; rs = AVL_NEXT(&msp->ms_allocatable->rt_root, rs)) {
-			logical_rs.rs_start = rs->rs_start;
-			logical_rs.rs_end = rs->rs_end;
-			vdev_xlate(vd, &logical_rs, &physical_rs);
+		range_tree_t *rt = msp->ms_allocatable;
+		zfs_btree_t *bt = &rt->rt_root;
+		zfs_btree_index_t idx;
+		for (range_seg_t *rs = zfs_btree_first(bt, &idx);
+		    rs != NULL; rs = zfs_btree_next(bt, &idx, &idx)) {
+			logical_rs.rs_start = rs_get_start(rs, rt);
+			logical_rs.rs_end = rs_get_end(rs, rt);
 
-			uint64_t size = physical_rs.rs_end -
-			    physical_rs.rs_start;
-			vd->vdev_trim_bytes_est += size;
-			if (vd->vdev_trim_last_offset >= physical_rs.rs_end) {
-				vd->vdev_trim_bytes_done += size;
-			} else if (vd->vdev_trim_last_offset >
-			    physical_rs.rs_start &&
-			    vd->vdev_trim_last_offset <=
-			    physical_rs.rs_end) {
-				vd->vdev_trim_bytes_done +=
-				    vd->vdev_trim_last_offset -
-				    physical_rs.rs_start;
-			}
+			vdev_xlate_walk(vd, &logical_rs,
+			    vdev_trim_xlate_progress, vd);
 		}
 		mutex_exit(&msp->ms_lock);
 	}
@@ -697,8 +768,38 @@ vdev_trim_load(vdev_t *vd)
 	return (err);
 }
 
+static void
+vdev_trim_xlate_range_add(void *arg, range_seg64_t *physical_rs)
+{
+	trim_args_t *ta = arg;
+	vdev_t *vd = ta->trim_vdev;
+
+	/*
+	 * Only a manual trim will be traversing the vdev sequentially.
+	 * For an auto trim all valid ranges should be added.
+	 */
+	if (ta->trim_type == TRIM_TYPE_MANUAL) {
+
+		/* Only add segments that we have not visited yet */
+		if (physical_rs->rs_end <= vd->vdev_trim_last_offset)
+			return;
+
+		/* Pick up where we left off mid-range. */
+		if (vd->vdev_trim_last_offset > physical_rs->rs_start) {
+			ASSERT3U(physical_rs->rs_end, >,
+			    vd->vdev_trim_last_offset);
+			physical_rs->rs_start = vd->vdev_trim_last_offset;
+		}
+	}
+
+	ASSERT3U(physical_rs->rs_end, >, physical_rs->rs_start);
+
+	range_tree_add(ta->trim_tree, physical_rs->rs_start,
+	    physical_rs->rs_end - physical_rs->rs_start);
+}
+
 /*
- * Convert the logical range into a physical range and add it to the
+ * Convert the logical range into physical ranges and add them to the
  * range tree passed in the trim_args_t.
  */
 static void
@@ -706,7 +807,7 @@ vdev_trim_range_add(void *arg, uint64_t start, uint64_t size)
 {
 	trim_args_t *ta = arg;
 	vdev_t *vd = ta->trim_vdev;
-	range_seg_t logical_rs, physical_rs;
+	range_seg64_t logical_rs;
 	logical_rs.rs_start = start;
 	logical_rs.rs_end = start + size;
 
@@ -719,48 +820,11 @@ vdev_trim_range_add(void *arg, uint64_t start, uint64_t size)
 		metaslab_t *msp = ta->trim_msp;
 		VERIFY0(metaslab_load(msp));
 		VERIFY3B(msp->ms_loaded, ==, B_TRUE);
-		VERIFY(range_tree_find(msp->ms_allocatable, start, size));
+		VERIFY(range_tree_contains(msp->ms_allocatable, start, size));
 	}
 
 	ASSERT(vd->vdev_ops->vdev_op_leaf);
-	vdev_xlate(vd, &logical_rs, &physical_rs);
-
-	IMPLY(vd->vdev_top == vd,
-	    logical_rs.rs_start == physical_rs.rs_start);
-	IMPLY(vd->vdev_top == vd,
-	    logical_rs.rs_end == physical_rs.rs_end);
-
-	/*
-	 * Only a manual trim will be traversing the vdev sequentially.
-	 * For an auto trim all valid ranges should be added.
-	 */
-	if (ta->trim_type == TRIM_TYPE_MANUAL) {
-
-		/* Only add segments that we have not visited yet */
-		if (physical_rs.rs_end <= vd->vdev_trim_last_offset)
-			return;
-
-		/* Pick up where we left off mid-range. */
-		if (vd->vdev_trim_last_offset > physical_rs.rs_start) {
-			ASSERT3U(physical_rs.rs_end, >,
-			    vd->vdev_trim_last_offset);
-			physical_rs.rs_start = vd->vdev_trim_last_offset;
-		}
-	}
-
-	ASSERT3U(physical_rs.rs_end, >=, physical_rs.rs_start);
-
-	/*
-	 * With raidz, it's possible that the logical range does not live on
-	 * this leaf vdev. We only add the physical range to this vdev's if it
-	 * has a length greater than 0.
-	 */
-	if (physical_rs.rs_end > physical_rs.rs_start) {
-		range_tree_add(ta->trim_tree, physical_rs.rs_start,
-		    physical_rs.rs_end - physical_rs.rs_start);
-	} else {
-		ASSERT3U(physical_rs.rs_end, ==, physical_rs.rs_start);
-	}
+	vdev_xlate_walk(vd, &logical_rs, vdev_trim_xlate_range_add, arg);
 }
 
 /*
@@ -798,7 +862,7 @@ vdev_trim_thread(void *arg)
 	ta.trim_vdev = vd;
 	ta.trim_extent_bytes_max = zfs_trim_extent_bytes_max;
 	ta.trim_extent_bytes_min = zfs_trim_extent_bytes_min;
-	ta.trim_tree = range_tree_create(NULL, NULL);
+	ta.trim_tree = range_tree_create(NULL, RANGE_SEG64, NULL, 0, 0);
 	ta.trim_type = TRIM_TYPE_MANUAL;
 	ta.trim_flags = 0;
 
@@ -837,7 +901,7 @@ vdev_trim_thread(void *arg)
 		 */
 		if (msp->ms_sm == NULL && vd->vdev_trim_partial) {
 			mutex_exit(&msp->ms_lock);
-			metaslab_enable(msp, B_FALSE);
+			metaslab_enable(msp, B_FALSE, B_FALSE);
 			spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 			vdev_trim_calculate_progress(vd);
 			continue;
@@ -849,7 +913,7 @@ vdev_trim_thread(void *arg)
 		mutex_exit(&msp->ms_lock);
 
 		error = vdev_trim_ranges(&ta);
-		metaslab_enable(msp, B_TRUE);
+		metaslab_enable(msp, B_TRUE, B_FALSE);
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 
 		range_tree_vacate(ta.trim_tree, NULL, NULL);
@@ -867,10 +931,16 @@ vdev_trim_thread(void *arg)
 	range_tree_destroy(ta.trim_tree);
 
 	mutex_enter(&vd->vdev_trim_lock);
-	if (!vd->vdev_trim_exit_wanted && vdev_writeable(vd)) {
-		vdev_trim_change_state(vd, VDEV_TRIM_COMPLETE,
-		    vd->vdev_trim_rate, vd->vdev_trim_partial,
-		    vd->vdev_trim_secure);
+	if (!vd->vdev_trim_exit_wanted) {
+		if (vdev_writeable(vd)) {
+			vdev_trim_change_state(vd, VDEV_TRIM_COMPLETE,
+			    vd->vdev_trim_rate, vd->vdev_trim_partial,
+			    vd->vdev_trim_secure);
+		} else if (vd->vdev_faulted) {
+			vdev_trim_change_state(vd, VDEV_TRIM_CANCELED,
+			    vd->vdev_trim_rate, vd->vdev_trim_partial,
+			    vd->vdev_trim_secure);
+		}
 	}
 	ASSERT(vd->vdev_trim_thread != NULL || vd->vdev_trim_inflight[0] == 0);
 
@@ -888,6 +958,8 @@ vdev_trim_thread(void *arg)
 	vd->vdev_trim_thread = NULL;
 	cv_broadcast(&vd->vdev_trim_cv);
 	mutex_exit(&vd->vdev_trim_lock);
+
+	thread_exit();
 }
 
 /*
@@ -1006,6 +1078,7 @@ vdev_trim_stop_all(vdev_t *vd, vdev_trim_state_t tgt_state)
 {
 	spa_t *spa = vd->vdev_spa;
 	list_t vd_list;
+	vdev_t *vd_l2cache;
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
@@ -1013,6 +1086,17 @@ vdev_trim_stop_all(vdev_t *vd, vdev_trim_state_t tgt_state)
 	    offsetof(vdev_t, vdev_trim_node));
 
 	vdev_trim_stop_all_impl(vd, tgt_state, &vd_list);
+
+	/*
+	 * Iterate over cache devices and request stop trimming the
+	 * whole device in case we export the pool or remove the cache
+	 * device prematurely.
+	 */
+	for (int i = 0; i < spa->spa_l2cache.sav_count; i++) {
+		vd_l2cache = spa->spa_l2cache.sav_vdevs[i];
+		vdev_trim_stop_all_impl(vd_l2cache, tgt_state, &vd_list);
+	}
+
 	vdev_trim_stop_wait(spa, &vd_list);
 
 	if (vd->vdev_spa->spa_sync_on) {
@@ -1046,7 +1130,7 @@ vdev_trim_restart(vdev_t *vd)
 		    vd->vdev_leaf_zap, VDEV_LEAF_ZAP_TRIM_ACTION_TIME,
 		    sizeof (timestamp), 1, &timestamp);
 		ASSERT(err == 0 || err == ENOENT);
-		vd->vdev_trim_action_time = (time_t)timestamp;
+		vd->vdev_trim_action_time = timestamp;
 
 		if (vd->vdev_trim_state == VDEV_TRIM_SUSPENDED ||
 		    vd->vdev_offline) {
@@ -1080,7 +1164,7 @@ vdev_trim_range_verify(void *arg, uint64_t start, uint64_t size)
 
 	VERIFY3B(msp->ms_loaded, ==, B_TRUE);
 	VERIFY3U(msp->ms_disabled, >, 0);
-	VERIFY(range_tree_find(msp->ms_allocatable, start, size) != NULL);
+	VERIFY(range_tree_contains(msp->ms_allocatable, start, size));
 }
 
 /*
@@ -1154,7 +1238,7 @@ vdev_autotrim_thread(void *arg)
 			if (msp->ms_sm == NULL ||
 			    range_tree_is_empty(msp->ms_trim)) {
 				mutex_exit(&msp->ms_lock);
-				metaslab_enable(msp, B_FALSE);
+				metaslab_enable(msp, B_FALSE, B_FALSE);
 				continue;
 			}
 
@@ -1170,7 +1254,7 @@ vdev_autotrim_thread(void *arg)
 			 */
 			if (msp->ms_disabled > 1) {
 				mutex_exit(&msp->ms_lock);
-				metaslab_enable(msp, B_FALSE);
+				metaslab_enable(msp, B_FALSE, B_FALSE);
 				continue;
 			}
 
@@ -1178,7 +1262,8 @@ vdev_autotrim_thread(void *arg)
 			 * Allocate an empty range tree which is swapped in
 			 * for the existing ms_trim tree while it is processed.
 			 */
-			trim_tree = range_tree_create(NULL, NULL);
+			trim_tree = range_tree_create(NULL, RANGE_SEG64, NULL,
+			    0, 0);
 			range_tree_swap(&msp->ms_trim, &trim_tree);
 			ASSERT(range_tree_is_empty(msp->ms_trim));
 
@@ -1232,7 +1317,8 @@ vdev_autotrim_thread(void *arg)
 				if (!cvd->vdev_ops->vdev_op_leaf)
 					continue;
 
-				ta->trim_tree = range_tree_create(NULL, NULL);
+				ta->trim_tree = range_tree_create(NULL,
+				    RANGE_SEG64, NULL, 0, 0);
 				range_tree_walk(trim_tree,
 				    vdev_trim_range_add, ta);
 			}
@@ -1288,7 +1374,7 @@ vdev_autotrim_thread(void *arg)
 			range_tree_vacate(trim_tree, NULL, NULL);
 			range_tree_destroy(trim_tree);
 
-			metaslab_enable(msp, issued_trim);
+			metaslab_enable(msp, issued_trim, B_FALSE);
 			spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 
 			for (uint64_t c = 0; c < children; c++) {
@@ -1350,6 +1436,8 @@ vdev_autotrim_thread(void *arg)
 	vd->vdev_autotrim_thread = NULL;
 	cv_broadcast(&vd->vdev_autotrim_cv);
 	mutex_exit(&vd->vdev_autotrim_lock);
+
+	thread_exit();
 }
 
 /*
@@ -1425,7 +1513,189 @@ vdev_autotrim_restart(spa_t *spa)
 		vdev_autotrim(spa);
 }
 
-#if defined(_KERNEL)
+static void
+vdev_trim_l2arc_thread(void *arg)
+{
+	vdev_t		*vd = arg;
+	spa_t		*spa = vd->vdev_spa;
+	l2arc_dev_t	*dev = l2arc_vdev_get(vd);
+	trim_args_t	ta;
+	range_seg64_t 	physical_rs;
+
+	ASSERT(vdev_is_concrete(vd));
+	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+
+	vd->vdev_trim_last_offset = 0;
+	vd->vdev_trim_rate = 0;
+	vd->vdev_trim_partial = 0;
+	vd->vdev_trim_secure = 0;
+
+	bzero(&ta, sizeof (ta));
+	ta.trim_vdev = vd;
+	ta.trim_tree = range_tree_create(NULL, RANGE_SEG64, NULL, 0, 0);
+	ta.trim_type = TRIM_TYPE_MANUAL;
+	ta.trim_extent_bytes_max = zfs_trim_extent_bytes_max;
+	ta.trim_extent_bytes_min = SPA_MINBLOCKSIZE;
+	ta.trim_flags = 0;
+
+	physical_rs.rs_start = vd->vdev_trim_bytes_done = 0;
+	physical_rs.rs_end = vd->vdev_trim_bytes_est =
+	    vdev_get_min_asize(vd);
+
+	range_tree_add(ta.trim_tree, physical_rs.rs_start,
+	    physical_rs.rs_end - physical_rs.rs_start);
+
+	mutex_enter(&vd->vdev_trim_lock);
+	vdev_trim_change_state(vd, VDEV_TRIM_ACTIVE, 0, 0, 0);
+	mutex_exit(&vd->vdev_trim_lock);
+
+	(void) vdev_trim_ranges(&ta);
+
+	spa_config_exit(spa, SCL_CONFIG, FTAG);
+	mutex_enter(&vd->vdev_trim_io_lock);
+	while (vd->vdev_trim_inflight[TRIM_TYPE_MANUAL] > 0) {
+		cv_wait(&vd->vdev_trim_io_cv, &vd->vdev_trim_io_lock);
+	}
+	mutex_exit(&vd->vdev_trim_io_lock);
+
+	range_tree_vacate(ta.trim_tree, NULL, NULL);
+	range_tree_destroy(ta.trim_tree);
+
+	mutex_enter(&vd->vdev_trim_lock);
+	if (!vd->vdev_trim_exit_wanted && vdev_writeable(vd)) {
+		vdev_trim_change_state(vd, VDEV_TRIM_COMPLETE,
+		    vd->vdev_trim_rate, vd->vdev_trim_partial,
+		    vd->vdev_trim_secure);
+	}
+	ASSERT(vd->vdev_trim_thread != NULL ||
+	    vd->vdev_trim_inflight[TRIM_TYPE_MANUAL] == 0);
+
+	/*
+	 * Drop the vdev_trim_lock while we sync out the txg since it's
+	 * possible that a device might be trying to come online and
+	 * must check to see if it needs to restart a trim. That thread
+	 * will be holding the spa_config_lock which would prevent the
+	 * txg_wait_synced from completing. Same strategy as in
+	 * vdev_trim_thread().
+	 */
+	mutex_exit(&vd->vdev_trim_lock);
+	txg_wait_synced(spa_get_dsl(vd->vdev_spa), 0);
+	mutex_enter(&vd->vdev_trim_lock);
+
+	/*
+	 * Update the header of the cache device here, before
+	 * broadcasting vdev_trim_cv which may lead to the removal
+	 * of the device. The same applies for setting l2ad_trim_all to
+	 * false.
+	 */
+	spa_config_enter(vd->vdev_spa, SCL_L2ARC, vd,
+	    RW_READER);
+	bzero(dev->l2ad_dev_hdr, dev->l2ad_dev_hdr_asize);
+	l2arc_dev_hdr_update(dev);
+	spa_config_exit(vd->vdev_spa, SCL_L2ARC, vd);
+
+	vd->vdev_trim_thread = NULL;
+	if (vd->vdev_trim_state == VDEV_TRIM_COMPLETE)
+		dev->l2ad_trim_all = B_FALSE;
+
+	cv_broadcast(&vd->vdev_trim_cv);
+	mutex_exit(&vd->vdev_trim_lock);
+
+	thread_exit();
+}
+
+/*
+ * Punches out TRIM threads for the L2ARC devices in a spa and assigns them
+ * to vd->vdev_trim_thread variable. This facilitates the management of
+ * trimming the whole cache device using TRIM_TYPE_MANUAL upon addition
+ * to a pool or pool creation or when the header of the device is invalid.
+ */
+void
+vdev_trim_l2arc(spa_t *spa)
+{
+	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+
+	/*
+	 * Locate the spa's l2arc devices and kick off TRIM threads.
+	 */
+	for (int i = 0; i < spa->spa_l2cache.sav_count; i++) {
+		vdev_t *vd = spa->spa_l2cache.sav_vdevs[i];
+		l2arc_dev_t *dev = l2arc_vdev_get(vd);
+
+		if (dev == NULL || !dev->l2ad_trim_all) {
+			/*
+			 * Don't attempt TRIM if the vdev is UNAVAIL or if the
+			 * cache device was not marked for whole device TRIM
+			 * (ie l2arc_trim_ahead = 0, or the L2ARC device header
+			 * is valid with trim_state = VDEV_TRIM_COMPLETE and
+			 * l2ad_log_entries > 0).
+			 */
+			continue;
+		}
+
+		mutex_enter(&vd->vdev_trim_lock);
+		ASSERT(vd->vdev_ops->vdev_op_leaf);
+		ASSERT(vdev_is_concrete(vd));
+		ASSERT3P(vd->vdev_trim_thread, ==, NULL);
+		ASSERT(!vd->vdev_detached);
+		ASSERT(!vd->vdev_trim_exit_wanted);
+		ASSERT(!vd->vdev_top->vdev_removing);
+		vdev_trim_change_state(vd, VDEV_TRIM_ACTIVE, 0, 0, 0);
+		vd->vdev_trim_thread = thread_create(NULL, 0,
+		    vdev_trim_l2arc_thread, vd, 0, &p0, TS_RUN, maxclsyspri);
+		mutex_exit(&vd->vdev_trim_lock);
+	}
+}
+
+/*
+ * A wrapper which calls vdev_trim_ranges(). It is intended to be called
+ * on leaf vdevs.
+ */
+int
+vdev_trim_simple(vdev_t *vd, uint64_t start, uint64_t size)
+{
+	trim_args_t		ta;
+	range_seg64_t 		physical_rs;
+	int			error;
+	physical_rs.rs_start = start;
+	physical_rs.rs_end = start + size;
+
+	ASSERT(vdev_is_concrete(vd));
+	ASSERT(vd->vdev_ops->vdev_op_leaf);
+	ASSERT(!vd->vdev_detached);
+	ASSERT(!vd->vdev_top->vdev_removing);
+
+	bzero(&ta, sizeof (ta));
+	ta.trim_vdev = vd;
+	ta.trim_tree = range_tree_create(NULL, RANGE_SEG64, NULL, 0, 0);
+	ta.trim_type = TRIM_TYPE_SIMPLE;
+	ta.trim_extent_bytes_max = zfs_trim_extent_bytes_max;
+	ta.trim_extent_bytes_min = SPA_MINBLOCKSIZE;
+	ta.trim_flags = 0;
+
+	ASSERT3U(physical_rs.rs_end, >=, physical_rs.rs_start);
+
+	if (physical_rs.rs_end > physical_rs.rs_start) {
+		range_tree_add(ta.trim_tree, physical_rs.rs_start,
+		    physical_rs.rs_end - physical_rs.rs_start);
+	} else {
+		ASSERT3U(physical_rs.rs_end, ==, physical_rs.rs_start);
+	}
+
+	error = vdev_trim_ranges(&ta);
+
+	mutex_enter(&vd->vdev_trim_io_lock);
+	while (vd->vdev_trim_inflight[TRIM_TYPE_SIMPLE] > 0) {
+		cv_wait(&vd->vdev_trim_io_cv, &vd->vdev_trim_io_lock);
+	}
+	mutex_exit(&vd->vdev_trim_io_lock);
+
+	range_tree_vacate(ta.trim_tree, NULL, NULL);
+	range_tree_destroy(ta.trim_tree);
+
+	return (error);
+}
+
 EXPORT_SYMBOL(vdev_trim);
 EXPORT_SYMBOL(vdev_trim_stop);
 EXPORT_SYMBOL(vdev_trim_stop_all);
@@ -1435,26 +1705,22 @@ EXPORT_SYMBOL(vdev_autotrim);
 EXPORT_SYMBOL(vdev_autotrim_stop_all);
 EXPORT_SYMBOL(vdev_autotrim_stop_wait);
 EXPORT_SYMBOL(vdev_autotrim_restart);
+EXPORT_SYMBOL(vdev_trim_l2arc);
+EXPORT_SYMBOL(vdev_trim_simple);
 
 /* BEGIN CSTYLED */
-module_param(zfs_trim_extent_bytes_max, uint, 0644);
-MODULE_PARM_DESC(zfs_trim_extent_bytes_max,
+ZFS_MODULE_PARAM(zfs_trim, zfs_trim_, extent_bytes_max, UINT, ZMOD_RW,
     "Max size of TRIM commands, larger will be split");
 
-module_param(zfs_trim_extent_bytes_min, uint, 0644);
-MODULE_PARM_DESC(zfs_trim_extent_bytes_min,
+ZFS_MODULE_PARAM(zfs_trim, zfs_trim_, extent_bytes_min, UINT, ZMOD_RW,
     "Min size of TRIM commands, smaller will be skipped");
 
-module_param(zfs_trim_metaslab_skip, uint, 0644);
-MODULE_PARM_DESC(zfs_trim_metaslab_skip,
+ZFS_MODULE_PARAM(zfs_trim, zfs_trim_, metaslab_skip, UINT, ZMOD_RW,
     "Skip metaslabs which have never been initialized");
 
-module_param(zfs_trim_txg_batch, uint, 0644);
-MODULE_PARM_DESC(zfs_trim_txg_batch,
+ZFS_MODULE_PARAM(zfs_trim, zfs_trim_, txg_batch, UINT, ZMOD_RW,
     "Min number of txgs to aggregate frees before issuing TRIM");
 
-module_param(zfs_trim_queue_limit, uint, 0644);
-MODULE_PARM_DESC(zfs_trim_queue_limit,
+ZFS_MODULE_PARAM(zfs_trim, zfs_trim_, queue_limit, UINT, ZMOD_RW,
     "Max queued TRIMs outstanding per leaf vdev");
 /* END CSTYLED */
-#endif

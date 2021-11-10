@@ -138,22 +138,3 @@ function check_poolversion
 		log_fail "$pool: zpool reported version $actual, expected $vers"
 	fi
 }
-
-# A simple function to get a random number between two bounds
-# probably not the most efficient for large ranges, but it's okay.
-# Note since we're using $RANDOM, 32767 is the largest number we
-# can accept as the upper bound.
-# $1 lower bound
-# $2 upper bound
-function random
-{
-	typeset min=$1
-	typeset max=$2
-	typeset rand=0
-
-	while [[ $rand -lt $min ]] ; do
-		rand=$(( $RANDOM % $max + 1))
-	done
-
-	echo $rand
-}

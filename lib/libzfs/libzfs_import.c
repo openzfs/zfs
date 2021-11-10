@@ -26,7 +26,6 @@
  * Copyright (c) 2016, Intel Corporation.
  */
 
-#include <devid.h>
 #include <errno.h>
 #include <libintl.h>
 #include <libgen.h>
@@ -37,8 +36,9 @@
 #include <unistd.h>
 #include <sys/vdev_impl.h>
 #include <libzfs.h>
-#include <libzfs_impl.h>
+#include "libzfs_impl.h"
 #include <libzutil.h>
+#include <sys/arc_impl.h>
 
 /*
  * Returns true if the named pool matches the given GUID.
@@ -77,14 +77,14 @@ refresh_config(libzfs_handle_t *hdl, nvlist_t *config)
 	if (zcmd_write_conf_nvlist(hdl, &zc, config) != 0)
 		return (NULL);
 
-	dstbuf_size = MAX(CONFIG_BUF_MINSIZE, zc.zc_nvlist_conf_size * 4);
+	dstbuf_size = MAX(CONFIG_BUF_MINSIZE, zc.zc_nvlist_conf_size * 32);
 
 	if (zcmd_alloc_dst_nvlist(hdl, &zc, dstbuf_size) != 0) {
 		zcmd_free_nvlists(&zc);
 		return (NULL);
 	}
 
-	while ((err = ioctl(hdl->libzfs_fd, ZFS_IOC_POOL_TRYIMPORT,
+	while ((err = zfs_ioctl(hdl, ZFS_IOC_POOL_TRYIMPORT,
 	    &zc)) != 0 && errno == ENOMEM) {
 		if (zcmd_expand_dst_nvlist(hdl, &zc) != 0) {
 			zcmd_free_nvlists(&zc);
@@ -111,7 +111,6 @@ refresh_config_libzfs(void *handle, nvlist_t *tryconfig)
 {
 	return (refresh_config((libzfs_handle_t *)handle, tryconfig));
 }
-
 
 static int
 pool_active_libzfs(void *handle, const char *name, uint64_t guid,
@@ -147,8 +146,10 @@ zpool_clear_label(int fd)
 	struct stat64 statbuf;
 	int l;
 	vdev_label_t *label;
+	l2arc_dev_hdr_phys_t *l2dhdr;
 	uint64_t size;
-	int labels_cleared = 0;
+	int labels_cleared = 0, header_cleared = 0;
+	boolean_t clear_l2arc_header = B_FALSE;
 
 	if (fstat64_blk(fd, &statbuf) == -1)
 		return (0);
@@ -158,8 +159,13 @@ zpool_clear_label(int fd)
 	if ((label = calloc(1, sizeof (vdev_label_t))) == NULL)
 		return (-1);
 
+	if ((l2dhdr = calloc(1, sizeof (l2arc_dev_hdr_phys_t))) == NULL) {
+		free(label);
+		return (-1);
+	}
+
 	for (l = 0; l < VDEV_LABELS; l++) {
-		uint64_t state, guid;
+		uint64_t state, guid, l2cache;
 		nvlist_t *config;
 
 		if (pread64(fd, label, sizeof (vdev_label_t),
@@ -186,6 +192,15 @@ zpool_clear_label(int fd)
 			continue;
 		}
 
+		/* If the device is a cache device clear the header. */
+		if (!clear_l2arc_header) {
+			if (nvlist_lookup_uint64(config,
+			    ZPOOL_CONFIG_POOL_STATE, &l2cache) == 0 &&
+			    l2cache == POOL_STATE_L2CACHE) {
+				clear_l2arc_header = B_TRUE;
+			}
+		}
+
 		nvlist_free(config);
 
 		/*
@@ -203,7 +218,17 @@ zpool_clear_label(int fd)
 		}
 	}
 
+	/* Clear the L2ARC header. */
+	if (clear_l2arc_header) {
+		memset(l2dhdr, 0, sizeof (l2arc_dev_hdr_phys_t));
+		if (pwrite64(fd, l2dhdr, sizeof (l2arc_dev_hdr_phys_t),
+		    VDEV_LABEL_START_SIZE) == sizeof (l2arc_dev_hdr_phys_t)) {
+			header_cleared++;
+		}
+	}
+
 	free(label);
+	free(l2dhdr);
 
 	if (labels_cleared == 0)
 		return (-1);

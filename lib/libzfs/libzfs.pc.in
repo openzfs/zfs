@@ -6,7 +6,9 @@ includedir=@includedir@
 Name: libzfs
 Description: LibZFS library
 Version: @VERSION@
-URL: http://zfsonlinux.org
+URL: https://github.com/openzfs/zfs
 Requires: libzfs_core
+Requires.private: @LIBCRYPTO_PC@ @ZLIB_PC@
 Cflags: -I${includedir}/libzfs -I${includedir}/libspl
-Libs: -L${libdir} -lzfs
+Libs: -L${libdir} -lzfs -lnvpair
+Libs.private: -luutil -lm -pthread

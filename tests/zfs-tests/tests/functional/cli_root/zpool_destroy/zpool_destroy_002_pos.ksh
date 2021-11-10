@@ -59,7 +59,7 @@ function cleanup
 	typeset -i i=0
 	while (( $i < ${#datasets[*]} )); do
 		datasetexists ${datasets[i]} && \
-			log_must zfs destroy ${datasets[i]}
+			destroy_dataset ${datasets[i]}
 		(( i = i + 1 ))
 	done
 
@@ -73,9 +73,7 @@ log_assert "'zpool destroy -f <pool>' can forcely destroy the specified pool"
 
 log_onexit cleanup
 
-typeset cwd=""
-
-create_pool "$TESTPOOL" "$DISK"
+create_pool $TESTPOOL $DISK0
 log_must zfs create $TESTPOOL/$TESTFS
 log_must mkdir -p $TESTDIR
 log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
@@ -90,7 +88,6 @@ while (( $i < ${#datasets[*]} )); do
 	((i = i + 1))
 done
 
-cwd=$PWD
 log_note "'zpool destroy' without '-f' will fail " \
 	"while pool is busy."
 

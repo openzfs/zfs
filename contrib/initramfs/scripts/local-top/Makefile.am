@@ -1,3 +1,6 @@
-localtopdir = $(datarootdir)/initramfs-tools/scripts/local-top
+include $(top_srcdir)/config/Shellcheck.am
 
-EXTRA_DIST = zfs
+localtopdir = /usr/share/initramfs-tools/scripts/local-top
+
+dist_localtop_SCRIPTS = \
+        zfs

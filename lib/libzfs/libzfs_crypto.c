@@ -15,6 +15,7 @@
 
 /*
  * Copyright (c) 2017, Datto, Inc. All rights reserved.
+ * Copyright 2020 Joyent, Inc.
  */
 
 #include <sys/zfs_context.h>
@@ -25,6 +26,16 @@
 #include <signal.h>
 #include <errno.h>
 #include <openssl/evp.h>
+#if LIBFETCH_DYNAMIC
+#include <dlfcn.h>
+#endif
+#if LIBFETCH_IS_FETCH
+#include <sys/param.h>
+#include <stdio.h>
+#include <fetch.h>
+#elif LIBFETCH_IS_LIBCURL
+#include <curl/curl.h>
+#endif
 #include <libzfs.h>
 #include "libzfs_impl.h"
 #include "zfeature_common.h"
@@ -50,17 +61,23 @@
  * technically ok if the salt is known to the attacker).
  */
 
-typedef enum key_locator {
-	KEY_LOCATOR_NONE,
-	KEY_LOCATOR_PROMPT,
-	KEY_LOCATOR_URI
-} key_locator_t;
-
 #define	MIN_PASSPHRASE_LEN 8
 #define	MAX_PASSPHRASE_LEN 512
 #define	MAX_KEY_PROMPT_ATTEMPTS 3
 
 static int caught_interrupt;
+
+static int get_key_material_file(libzfs_handle_t *, const char *, const char *,
+    zfs_keyformat_t, boolean_t, uint8_t **, size_t *);
+static int get_key_material_https(libzfs_handle_t *, const char *, const char *,
+    zfs_keyformat_t, boolean_t, uint8_t **, size_t *);
+
+static zfs_uri_handler_t uri_handlers[] = {
+	{ "file", get_key_material_file },
+	{ "https", get_key_material_https },
+	{ "http", get_key_material_https },
+	{ NULL, NULL }
+};
 
 static int
 pkcs11_get_urandom(uint8_t *buf, size_t bytes)
@@ -68,7 +85,7 @@ pkcs11_get_urandom(uint8_t *buf, size_t bytes)
 	int rand;
 	ssize_t bytes_read = 0;
 
-	rand = open("/dev/urandom", O_RDONLY);
+	rand = open("/dev/urandom", O_RDONLY | O_CLOEXEC);
 
 	if (rand < 0)
 		return (rand);
@@ -85,15 +102,49 @@ pkcs11_get_urandom(uint8_t *buf, size_t bytes)
 	return (bytes_read);
 }
 
-static zfs_keylocation_t
-zfs_prop_parse_keylocation(const char *str)
+static int
+zfs_prop_parse_keylocation(libzfs_handle_t *restrict hdl, const char *str,
+    zfs_keylocation_t *restrict locp, char **restrict schemep)
 {
-	if (strcmp("prompt", str) == 0)
-		return (ZFS_KEYLOCATION_PROMPT);
-	else if (strlen(str) > 8 && strncmp("file:///", str, 8) == 0)
-		return (ZFS_KEYLOCATION_URI);
+	*locp = ZFS_KEYLOCATION_NONE;
+	*schemep = NULL;
 
-	return (ZFS_KEYLOCATION_NONE);
+	if (strcmp("prompt", str) == 0) {
+		*locp = ZFS_KEYLOCATION_PROMPT;
+		return (0);
+	}
+
+	regmatch_t pmatch[2];
+
+	if (regexec(&hdl->libzfs_urire, str, ARRAY_SIZE(pmatch),
+	    pmatch, 0) == 0) {
+		size_t scheme_len;
+
+		if (pmatch[1].rm_so == -1) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "Invalid URI"));
+			return (EINVAL);
+		}
+
+		scheme_len = pmatch[1].rm_eo - pmatch[1].rm_so;
+
+		*schemep = calloc(1, scheme_len + 1);
+		if (*schemep == NULL) {
+			int ret = errno;
+
+			errno = 0;
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "Invalid URI"));
+			return (ret);
+		}
+
+		(void) memcpy(*schemep, str + pmatch[1].rm_so, scheme_len);
+		*locp = ZFS_KEYLOCATION_URI;
+		return (0);
+	}
+
+	zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "Invalid keylocation"));
+	return (EINVAL);
 }
 
 static int
@@ -146,62 +197,235 @@ get_format_prompt_string(zfs_keyformat_t format)
 	}
 }
 
+/* do basic validation of the key material */
 static int
-get_key_material_raw(FILE *fd, const char *fsname, zfs_keyformat_t keyformat,
-    boolean_t again, boolean_t newkey, uint8_t **buf, size_t *len_out)
+validate_key(libzfs_handle_t *hdl, zfs_keyformat_t keyformat,
+    const char *key, size_t keylen)
 {
-	int ret = 0, bytes;
+	switch (keyformat) {
+	case ZFS_KEYFORMAT_RAW:
+		/* verify the key length is correct */
+		if (keylen < WRAPPING_KEY_LEN) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "Raw key too short (expected %u)."),
+			    WRAPPING_KEY_LEN);
+			return (EINVAL);
+		}
+
+		if (keylen > WRAPPING_KEY_LEN) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "Raw key too long (expected %u)."),
+			    WRAPPING_KEY_LEN);
+			return (EINVAL);
+		}
+		break;
+	case ZFS_KEYFORMAT_HEX:
+		/* verify the key length is correct */
+		if (keylen < WRAPPING_KEY_LEN * 2) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "Hex key too short (expected %u)."),
+			    WRAPPING_KEY_LEN * 2);
+			return (EINVAL);
+		}
+
+		if (keylen > WRAPPING_KEY_LEN * 2) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "Hex key too long (expected %u)."),
+			    WRAPPING_KEY_LEN * 2);
+			return (EINVAL);
+		}
+
+		/* check for invalid hex digits */
+		for (size_t i = 0; i < WRAPPING_KEY_LEN * 2; i++) {
+			if (!isxdigit(key[i])) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "Invalid hex character detected."));
+				return (EINVAL);
+			}
+		}
+		break;
+	case ZFS_KEYFORMAT_PASSPHRASE:
+		/* verify the length is within bounds */
+		if (keylen > MAX_PASSPHRASE_LEN) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "Passphrase too long (max %u)."),
+			    MAX_PASSPHRASE_LEN);
+			return (EINVAL);
+		}
+
+		if (keylen < MIN_PASSPHRASE_LEN) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "Passphrase too short (min %u)."),
+			    MIN_PASSPHRASE_LEN);
+			return (EINVAL);
+		}
+		break;
+	default:
+		/* can't happen, checked above */
+		break;
+	}
+
+	return (0);
+}
+
+static int
+libzfs_getpassphrase(zfs_keyformat_t keyformat, boolean_t is_reenter,
+    boolean_t new_key, const char *fsname,
+    char **restrict res, size_t *restrict reslen)
+{
+	FILE *f = stdin;
 	size_t buflen = 0;
+	ssize_t bytes;
+	int ret = 0;
 	struct termios old_term, new_term;
 	struct sigaction act, osigint, osigtstp;
 
-	*len_out = 0;
+	*res = NULL;
+	*reslen = 0;
 
-	if (isatty(fileno(fd))) {
-		/*
-		 * handle SIGINT and ignore SIGSTP. This is necessary to
-		 * restore the state of the terminal.
-		 */
-		caught_interrupt = 0;
-		act.sa_flags = 0;
-		(void) sigemptyset(&act.sa_mask);
-		act.sa_handler = catch_signal;
+	/*
+	 * handle SIGINT and ignore SIGSTP. This is necessary to
+	 * restore the state of the terminal.
+	 */
+	caught_interrupt = 0;
+	act.sa_flags = 0;
+	(void) sigemptyset(&act.sa_mask);
+	act.sa_handler = catch_signal;
 
-		(void) sigaction(SIGINT, &act, &osigint);
-		act.sa_handler = SIG_IGN;
-		(void) sigaction(SIGTSTP, &act, &osigtstp);
+	(void) sigaction(SIGINT, &act, &osigint);
+	act.sa_handler = SIG_IGN;
+	(void) sigaction(SIGTSTP, &act, &osigtstp);
 
-		/* prompt for the key */
-		if (fsname != NULL) {
-			(void) printf("%s %s%s for '%s': ",
-			    (again) ? "Re-enter" : "Enter",
-			    (newkey) ? "new " : "",
-			    get_format_prompt_string(keyformat), fsname);
-		} else {
-			(void) printf("%s %s%s: ",
-			    (again) ? "Re-enter" : "Enter",
-			    (newkey) ? "new " : "",
-			    get_format_prompt_string(keyformat));
+	(void) printf("%s %s%s",
+	    is_reenter ? "Re-enter" : "Enter",
+	    new_key ? "new " : "",
+	    get_format_prompt_string(keyformat));
+	if (fsname != NULL)
+		(void) printf(" for '%s'", fsname);
+	(void) fputc(':', stdout);
+	(void) fflush(stdout);
 
-		}
-		(void) fflush(stdout);
+	/* disable the terminal echo for key input */
+	(void) tcgetattr(fileno(f), &old_term);
 
-		/* disable the terminal echo for key input */
-		(void) tcgetattr(fileno(fd), &old_term);
+	new_term = old_term;
+	new_term.c_lflag &= ~(ECHO | ECHOE | ECHOK | ECHONL);
 
-		new_term = old_term;
-		new_term.c_lflag &= ~(ECHO | ECHOE | ECHOK | ECHONL);
-
-		ret = tcsetattr(fileno(fd), TCSAFLUSH, &new_term);
-		if (ret != 0) {
-			ret = errno;
-			errno = 0;
-			goto out;
-		}
+	ret = tcsetattr(fileno(f), TCSAFLUSH, &new_term);
+	if (ret != 0) {
+		ret = errno;
+		errno = 0;
+		goto out;
 	}
+
+	bytes = getline(res, &buflen, f);
+	if (bytes < 0) {
+		ret = errno;
+		errno = 0;
+		goto out;
+	}
+
+	/* trim the ending newline if it exists */
+	if (bytes > 0 && (*res)[bytes - 1] == '\n') {
+		(*res)[bytes - 1] = '\0';
+		bytes--;
+	}
+
+	*reslen = bytes;
+
+out:
+	/* reset the terminal */
+	(void) tcsetattr(fileno(f), TCSAFLUSH, &old_term);
+	(void) sigaction(SIGINT, &osigint, NULL);
+	(void) sigaction(SIGTSTP, &osigtstp, NULL);
+
+	/* if we caught a signal, re-throw it now */
+	if (caught_interrupt != 0)
+		(void) kill(getpid(), caught_interrupt);
+
+	/* print the newline that was not echo'd */
+	(void) printf("\n");
+
+	return (ret);
+}
+
+static int
+get_key_interactive(libzfs_handle_t *restrict hdl, const char *fsname,
+    zfs_keyformat_t keyformat, boolean_t confirm_key, boolean_t newkey,
+    uint8_t **restrict outbuf, size_t *restrict len_out)
+{
+	char *buf = NULL, *buf2 = NULL;
+	size_t buflen = 0, buf2len = 0;
+	int ret = 0;
+
+	ASSERT(isatty(fileno(stdin)));
+
+	/* raw keys cannot be entered on the terminal */
+	if (keyformat == ZFS_KEYFORMAT_RAW) {
+		ret = EINVAL;
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "Cannot enter raw keys on the terminal"));
+		goto out;
+	}
+
+	/* prompt for the key */
+	if ((ret = libzfs_getpassphrase(keyformat, B_FALSE, newkey, fsname,
+	    &buf, &buflen)) != 0) {
+		free(buf);
+		buf = NULL;
+		buflen = 0;
+		goto out;
+	}
+
+	if (!confirm_key)
+		goto out;
+
+	if ((ret = validate_key(hdl, keyformat, buf, buflen)) != 0) {
+		free(buf);
+		return (ret);
+	}
+
+	ret = libzfs_getpassphrase(keyformat, B_TRUE, newkey, fsname, &buf2,
+	    &buf2len);
+	if (ret != 0) {
+		free(buf);
+		free(buf2);
+		buf = buf2 = NULL;
+		buflen = buf2len = 0;
+		goto out;
+	}
+
+	if (buflen != buf2len || strcmp(buf, buf2) != 0) {
+		free(buf);
+		buf = NULL;
+		buflen = 0;
+
+		ret = EINVAL;
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "Provided keys do not match."));
+	}
+
+	free(buf2);
+
+out:
+	*outbuf = (uint8_t *)buf;
+	*len_out = buflen;
+	return (ret);
+}
+
+static int
+get_key_material_raw(FILE *fd, zfs_keyformat_t keyformat,
+    uint8_t **buf, size_t *len_out)
+{
+	int ret = 0;
+	size_t buflen = 0;
+
+	*len_out = 0;
 
 	/* read the key material */
 	if (keyformat != ZFS_KEYFORMAT_RAW) {
+		ssize_t bytes;
+
 		bytes = getline((char **)buf, &buflen, fd);
 		if (bytes < 0) {
 			ret = errno;
@@ -210,25 +434,29 @@ get_key_material_raw(FILE *fd, const char *fsname, zfs_keyformat_t keyformat,
 		}
 
 		/* trim the ending newline if it exists */
-		if ((*buf)[bytes - 1] == '\n') {
+		if (bytes > 0 && (*buf)[bytes - 1] == '\n') {
 			(*buf)[bytes - 1] = '\0';
 			bytes--;
 		}
+
+		*len_out = bytes;
 	} else {
+		size_t n;
+
 		/*
 		 * Raw keys may have newline characters in them and so can't
 		 * use getline(). Here we attempt to read 33 bytes so that we
 		 * can properly check the key length (the file should only have
 		 * 32 bytes).
 		 */
-		*buf = malloc((WRAPPING_KEY_LEN + 1) * sizeof (char));
+		*buf = malloc((WRAPPING_KEY_LEN + 1) * sizeof (uint8_t));
 		if (*buf == NULL) {
 			ret = ENOMEM;
 			goto out;
 		}
 
-		bytes = fread(*buf, 1, WRAPPING_KEY_LEN + 1, fd);
-		if (bytes < 0) {
+		n = fread(*buf, 1, WRAPPING_KEY_LEN + 1, fd);
+		if (n == 0 || ferror(fd)) {
 			/* size errors are handled by the calling function */
 			free(*buf);
 			*buf = NULL;
@@ -236,28 +464,209 @@ get_key_material_raw(FILE *fd, const char *fsname, zfs_keyformat_t keyformat,
 			errno = 0;
 			goto out;
 		}
+
+		*len_out = n;
 	}
-
-	*len_out = bytes;
-
 out:
-	if (isatty(fileno(fd))) {
-		/* reset the teminal */
-		(void) tcsetattr(fileno(fd), TCSAFLUSH, &old_term);
-		(void) sigaction(SIGINT, &osigint, NULL);
-		(void) sigaction(SIGTSTP, &osigtstp, NULL);
+	return (ret);
+}
 
-		/* if we caught a signal, re-throw it now */
-		if (caught_interrupt != 0) {
-			(void) kill(getpid(), caught_interrupt);
-		}
+static int
+get_key_material_file(libzfs_handle_t *hdl, const char *uri,
+    const char *fsname, zfs_keyformat_t keyformat, boolean_t newkey,
+    uint8_t **restrict buf, size_t *restrict len_out)
+{
+	FILE *f = NULL;
+	int ret = 0;
 
-		/* print the newline that was not echo'd */
-		printf("\n");
+	if (strlen(uri) < 7)
+		return (EINVAL);
+
+	if ((f = fopen(uri + 7, "re")) == NULL) {
+		ret = errno;
+		errno = 0;
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "Failed to open key material file: %s"), strerror(ret));
+		return (ret);
 	}
+
+	ret = get_key_material_raw(f, keyformat, buf, len_out);
+
+	(void) fclose(f);
 
 	return (ret);
+}
 
+static int
+get_key_material_https(libzfs_handle_t *hdl, const char *uri,
+    const char *fsname, zfs_keyformat_t keyformat, boolean_t newkey,
+    uint8_t **restrict buf, size_t *restrict len_out)
+{
+	int ret = 0;
+	FILE *key = NULL;
+	boolean_t is_http = strncmp(uri, "http:", strlen("http:")) == 0;
+
+	if (strlen(uri) < (is_http ? 7 : 8)) {
+		ret = EINVAL;
+		goto end;
+	}
+
+#if LIBFETCH_DYNAMIC
+#define	LOAD_FUNCTION(func) \
+	__typeof__(func) *func = dlsym(hdl->libfetch, #func);
+
+	if (hdl->libfetch == NULL)
+		hdl->libfetch = dlopen(LIBFETCH_SONAME, RTLD_LAZY);
+
+	if (hdl->libfetch == NULL) {
+		hdl->libfetch = (void *)-1;
+		char *err = dlerror();
+		if (err)
+			hdl->libfetch_load_error = strdup(err);
+	}
+
+	if (hdl->libfetch == (void *)-1) {
+		ret = ENOSYS;
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "Couldn't load %s: %s"),
+		    LIBFETCH_SONAME, hdl->libfetch_load_error ?: "(?)");
+		goto end;
+	}
+
+	boolean_t ok;
+#if LIBFETCH_IS_FETCH
+	LOAD_FUNCTION(fetchGetURL);
+	char *fetchLastErrString = dlsym(hdl->libfetch, "fetchLastErrString");
+
+	ok = fetchGetURL && fetchLastErrString;
+#elif LIBFETCH_IS_LIBCURL
+	LOAD_FUNCTION(curl_easy_init);
+	LOAD_FUNCTION(curl_easy_setopt);
+	LOAD_FUNCTION(curl_easy_perform);
+	LOAD_FUNCTION(curl_easy_cleanup);
+	LOAD_FUNCTION(curl_easy_strerror);
+	LOAD_FUNCTION(curl_easy_getinfo);
+
+	ok = curl_easy_init && curl_easy_setopt && curl_easy_perform &&
+	    curl_easy_cleanup && curl_easy_strerror && curl_easy_getinfo;
+#endif
+	if (!ok) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "keylocation=%s back-end %s missing symbols."),
+		    is_http ? "http://" : "https://", LIBFETCH_SONAME);
+		ret = ENOSYS;
+		goto end;
+	}
+#endif
+
+#if LIBFETCH_IS_FETCH
+	key = fetchGetURL(uri, "");
+	if (key == NULL) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "Couldn't GET %s: %s"),
+		    uri, fetchLastErrString);
+		ret = ENETDOWN;
+	}
+#elif LIBFETCH_IS_LIBCURL
+	CURL *curl = curl_easy_init();
+	if (curl == NULL) {
+		ret = ENOTSUP;
+		goto end;
+	}
+
+	int kfd = -1;
+#ifdef O_TMPFILE
+	kfd = open(getenv("TMPDIR") ?: "/tmp",
+	    O_RDWR | O_TMPFILE | O_EXCL | O_CLOEXEC, 0600);
+	if (kfd != -1)
+		goto kfdok;
+#endif
+
+	char *path;
+	if (asprintf(&path,
+	    "%s/libzfs-XXXXXXXX.https", getenv("TMPDIR") ?: "/tmp") == -1) {
+		ret = ENOMEM;
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "%s"),
+		    strerror(ret));
+		goto end;
+	}
+
+	kfd = mkostemps(path, strlen(".https"), O_CLOEXEC);
+	if (kfd == -1) {
+		ret = errno;
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "Couldn't create temporary file %s: %s"),
+		    path, strerror(ret));
+		free(path);
+		goto end;
+	}
+	(void) unlink(path);
+	free(path);
+
+kfdok:
+	if ((key = fdopen(kfd, "r+")) == NULL) {
+		ret = errno;
+		free(path);
+		(void) close(kfd);
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "Couldn't reopen temporary file: %s"), strerror(ret));
+		goto end;
+	}
+
+	char errbuf[CURL_ERROR_SIZE] = "";
+	char *cainfo = getenv("SSL_CA_CERT_FILE"); /* matches fetch(3) */
+	char *capath = getenv("SSL_CA_CERT_PATH"); /* matches fetch(3) */
+	char *clcert = getenv("SSL_CLIENT_CERT_FILE"); /* matches fetch(3) */
+	char *clkey  = getenv("SSL_CLIENT_KEY_FILE"); /* matches fetch(3) */
+	(void) curl_easy_setopt(curl, CURLOPT_URL, uri);
+	(void) curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+	(void) curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 30000L);
+	(void) curl_easy_setopt(curl, CURLOPT_WRITEDATA, key);
+	(void) curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
+	if (cainfo != NULL)
+		(void) curl_easy_setopt(curl, CURLOPT_CAINFO, cainfo);
+	if (capath != NULL)
+		(void) curl_easy_setopt(curl, CURLOPT_CAPATH, capath);
+	if (clcert != NULL)
+		(void) curl_easy_setopt(curl, CURLOPT_SSLCERT, clcert);
+	if (clkey != NULL)
+		(void) curl_easy_setopt(curl, CURLOPT_SSLKEY, clkey);
+
+	CURLcode res = curl_easy_perform(curl);
+
+	if (res != CURLE_OK) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "Failed to connect to %s: %s"),
+		    uri, strlen(errbuf) ? errbuf : curl_easy_strerror(res));
+		ret = ENETDOWN;
+	} else {
+		long resp = 200;
+		(void) curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &resp);
+
+		if (resp < 200 || resp >= 300) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "Couldn't GET %s: %ld"),
+			    uri, resp);
+			ret = ENOENT;
+		} else
+			rewind(key);
+	}
+
+	curl_easy_cleanup(curl);
+#else
+	zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+	    "No keylocation=%s back-end."), is_http ? "http://" : "https://");
+	ret = ENOSYS;
+#endif
+
+end:
+	if (ret == 0)
+		ret = get_key_material_raw(key, keyformat, buf, len_out);
+
+	if (key != NULL)
+		fclose(key);
+
+	return (ret);
 }
 
 /*
@@ -271,41 +680,58 @@ get_key_material(libzfs_handle_t *hdl, boolean_t do_verify, boolean_t newkey,
     zfs_keyformat_t keyformat, char *keylocation, const char *fsname,
     uint8_t **km_out, size_t *kmlen_out, boolean_t *can_retry_out)
 {
-	int ret, i;
+	int ret;
 	zfs_keylocation_t keyloc = ZFS_KEYLOCATION_NONE;
-	FILE *fd = NULL;
-	uint8_t *km = NULL, *km2 = NULL;
-	size_t kmlen, kmlen2;
+	uint8_t *km = NULL;
+	size_t kmlen = 0;
+	char *uri_scheme = NULL;
+	zfs_uri_handler_t *handler = NULL;
 	boolean_t can_retry = B_FALSE;
 
 	/* verify and parse the keylocation */
-	keyloc = zfs_prop_parse_keylocation(keylocation);
+	ret = zfs_prop_parse_keylocation(hdl, keylocation, &keyloc,
+	    &uri_scheme);
+	if (ret != 0)
+		goto error;
 
 	/* open the appropriate file descriptor */
 	switch (keyloc) {
 	case ZFS_KEYLOCATION_PROMPT:
-		fd = stdin;
-		if (isatty(fileno(fd))) {
-			can_retry = B_TRUE;
-
-			/* raw keys cannot be entered on the terminal */
-			if (keyformat == ZFS_KEYFORMAT_RAW) {
-				ret = EINVAL;
-				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "Cannot enter raw keys on the terminal"));
-				goto error;
-			}
+		if (isatty(fileno(stdin))) {
+			can_retry = keyformat != ZFS_KEYFORMAT_RAW;
+			ret = get_key_interactive(hdl, fsname, keyformat,
+			    do_verify, newkey, &km, &kmlen);
+		} else {
+			/* fetch the key material into the buffer */
+			ret = get_key_material_raw(stdin, keyformat, &km,
+			    &kmlen);
 		}
+
+		if (ret != 0)
+			goto error;
+
 		break;
 	case ZFS_KEYLOCATION_URI:
-		fd = fopen(&keylocation[7], "r");
-		if (!fd) {
-			ret = errno;
-			errno = 0;
+		ret = ENOTSUP;
+
+		for (handler = uri_handlers; handler->zuh_scheme != NULL;
+		    handler++) {
+			if (strcmp(handler->zuh_scheme, uri_scheme) != 0)
+				continue;
+
+			if ((ret = handler->zuh_handler(hdl, keylocation,
+			    fsname, keyformat, newkey, &km, &kmlen)) != 0)
+				goto error;
+
+			break;
+		}
+
+		if (ret == ENOTSUP) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "Failed to open key material file"));
+			    "URI scheme is not supported"));
 			goto error;
 		}
+
 		break;
 	default:
 		ret = EINVAL;
@@ -314,126 +740,27 @@ get_key_material(libzfs_handle_t *hdl, boolean_t do_verify, boolean_t newkey,
 		goto error;
 	}
 
-	/* fetch the key material into the buffer */
-	ret = get_key_material_raw(fd, fsname, keyformat, B_FALSE, newkey,
-	    &km, &kmlen);
-	if (ret != 0)
+	if ((ret = validate_key(hdl, keyformat, (const char *)km, kmlen)) != 0)
 		goto error;
-
-	/* do basic validation of the key material */
-	switch (keyformat) {
-	case ZFS_KEYFORMAT_RAW:
-		/* verify the key length is correct */
-		if (kmlen < WRAPPING_KEY_LEN) {
-			ret = EINVAL;
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "Raw key too short (expected %u)."),
-			    WRAPPING_KEY_LEN);
-			goto error;
-		}
-
-		if (kmlen > WRAPPING_KEY_LEN) {
-			ret = EINVAL;
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "Raw key too long (expected %u)."),
-			    WRAPPING_KEY_LEN);
-			goto error;
-		}
-		break;
-	case ZFS_KEYFORMAT_HEX:
-		/* verify the key length is correct */
-		if (kmlen < WRAPPING_KEY_LEN * 2) {
-			ret = EINVAL;
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "Hex key too short (expected %u)."),
-			    WRAPPING_KEY_LEN * 2);
-			goto error;
-		}
-
-		if (kmlen > WRAPPING_KEY_LEN * 2) {
-			ret = EINVAL;
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "Hex key too long (expected %u)."),
-			    WRAPPING_KEY_LEN * 2);
-			goto error;
-		}
-
-		/* check for invalid hex digits */
-		for (i = 0; i < WRAPPING_KEY_LEN * 2; i++) {
-			if (!isxdigit((char)km[i])) {
-				ret = EINVAL;
-				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "Invalid hex character detected."));
-				goto error;
-			}
-		}
-		break;
-	case ZFS_KEYFORMAT_PASSPHRASE:
-		/* verify the length is within bounds */
-		if (kmlen > MAX_PASSPHRASE_LEN) {
-			ret = EINVAL;
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "Passphrase too long (max %u)."),
-			    MAX_PASSPHRASE_LEN);
-			goto error;
-		}
-
-		if (kmlen < MIN_PASSPHRASE_LEN) {
-			ret = EINVAL;
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "Passphrase too short (min %u)."),
-			    MIN_PASSPHRASE_LEN);
-			goto error;
-		}
-		break;
-	default:
-		/* can't happen, checked above */
-		break;
-	}
-
-	if (do_verify && isatty(fileno(fd))) {
-		ret = get_key_material_raw(fd, fsname, keyformat, B_TRUE,
-		    newkey, &km2, &kmlen2);
-		if (ret != 0)
-			goto error;
-
-		if (kmlen2 != kmlen ||
-		    (memcmp((char *)km, (char *)km2, kmlen) != 0)) {
-			ret = EINVAL;
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "Provided keys do not match."));
-			goto error;
-		}
-	}
-
-	if (fd != stdin)
-		fclose(fd);
-
-	if (km2 != NULL)
-		free(km2);
 
 	*km_out = km;
 	*kmlen_out = kmlen;
 	if (can_retry_out != NULL)
 		*can_retry_out = can_retry;
 
+	free(uri_scheme);
 	return (0);
 
 error:
-	if (km != NULL)
-		free(km);
-
-	if (km2 != NULL)
-		free(km2);
-
-	if (fd != NULL && fd != stdin)
-		fclose(fd);
+	free(km);
 
 	*km_out = NULL;
 	*kmlen_out = 0;
+
 	if (can_retry_out != NULL)
 		*can_retry_out = can_retry;
 
+	free(uri_scheme);
 	return (ret);
 }
 
@@ -740,14 +1067,6 @@ zfs_crypto_create(libzfs_handle_t *hdl, char *parent_name, nvlist_t *props,
 		pcrypt = ZIO_CRYPT_OFF;
 	}
 
-	/* Check for encryption being explicitly truned off */
-	if (crypt == ZIO_CRYPT_OFF && pcrypt != ZIO_CRYPT_OFF) {
-		ret = EINVAL;
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "Invalid encryption value. Dataset must be encrypted."));
-		goto out;
-	}
-
 	/* Get the inherited encryption property if we don't have it locally */
 	if (!local_crypt)
 		crypt = pcrypt;
@@ -821,7 +1140,7 @@ zfs_crypto_create(libzfs_handle_t *hdl, char *parent_name, nvlist_t *props,
 		}
 
 		ret = populate_create_encryption_params_nvlists(hdl, NULL,
-		    B_FALSE, keyformat, keylocation, props, &wkeydata,
+		    B_TRUE, keyformat, keylocation, props, &wkeydata,
 		    &wkeylen);
 		if (ret != 0)
 			goto out;
@@ -849,10 +1168,7 @@ int
 zfs_crypto_clone_check(libzfs_handle_t *hdl, zfs_handle_t *origin_zhp,
     char *parent_name, nvlist_t *props)
 {
-	int ret;
 	char errbuf[1024];
-	zfs_handle_t *pzhp = NULL;
-	uint64_t pcrypt, ocrypt;
 
 	(void) snprintf(errbuf, sizeof (errbuf),
 	    dgettext(TEXT_DOMAIN, "Encryption clone error"));
@@ -865,40 +1181,12 @@ zfs_crypto_clone_check(libzfs_handle_t *hdl, zfs_handle_t *origin_zhp,
 	    nvlist_exists(props, zfs_prop_to_name(ZFS_PROP_KEYLOCATION)) ||
 	    nvlist_exists(props, zfs_prop_to_name(ZFS_PROP_ENCRYPTION)) ||
 	    nvlist_exists(props, zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS))) {
-		ret = EINVAL;
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 		    "Encryption properties must inherit from origin dataset."));
-		goto out;
+		return (EINVAL);
 	}
 
-	/* get a reference to parent dataset, should never be NULL */
-	pzhp = make_dataset_handle(hdl, parent_name);
-	if (pzhp == NULL) {
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "Failed to lookup parent."));
-		return (ENOENT);
-	}
-
-	/* Lookup parent's crypt */
-	pcrypt = zfs_prop_get_int(pzhp, ZFS_PROP_ENCRYPTION);
-	ocrypt = zfs_prop_get_int(origin_zhp, ZFS_PROP_ENCRYPTION);
-
-	/* all children of encrypted parents must be encrypted */
-	if (pcrypt != ZIO_CRYPT_OFF && ocrypt == ZIO_CRYPT_OFF) {
-		ret = EINVAL;
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "Cannot create unencrypted clone as a child "
-		    "of encrypted parent."));
-		goto out;
-	}
-
-	zfs_close(pzhp);
 	return (0);
-
-out:
-	if (pzhp != NULL)
-		zfs_close(pzhp);
-	return (ret);
 }
 
 typedef struct loadkeys_cbdata {
@@ -1360,7 +1648,7 @@ zfs_crypto_rewrap(zfs_handle_t *zhp, nvlist_t *raw_props, boolean_t inheritkey)
 
 		if (is_encroot) {
 			/*
-			 * If this is already an ecryption root, just keep
+			 * If this is already an encryption root, just keep
 			 * any properties not set by the user.
 			 */
 			if (keyformat == ZFS_KEYFORMAT_NONE) {

@@ -189,7 +189,7 @@ void key_mapping_rele(spa_t *spa, dsl_key_mapping_t *km, void *tag);
 int spa_keystore_lookup_key(spa_t *spa, uint64_t dsobj, void *tag,
     dsl_crypto_key_t **dck_out);
 
-int dsl_crypto_populate_key_nvlist(struct dsl_dataset *ds,
+int dsl_crypto_populate_key_nvlist(struct objset *os,
     uint64_t from_ivset_guid, nvlist_t **nvl_out);
 int dsl_crypto_recv_raw_key_check(struct dsl_dataset *ds,
     nvlist_t *nvl, dmu_tx_t *tx);
@@ -209,7 +209,6 @@ void dsl_dataset_create_crypt_sync(uint64_t dsobj, dsl_dir_t *dd,
     struct dsl_dataset *origin, dsl_crypto_params_t *dcp, dmu_tx_t *tx);
 uint64_t dsl_crypto_key_create_sync(uint64_t crypt, dsl_wrapping_key_t *wkey,
     dmu_tx_t *tx);
-int dmu_objset_clone_crypt_check(dsl_dir_t *parentdd, dsl_dir_t *origindd);
 uint64_t dsl_crypto_key_clone_sync(dsl_dir_t *origindd, dmu_tx_t *tx);
 void dsl_crypto_key_destroy_sync(uint64_t dckobj, dmu_tx_t *tx);
 

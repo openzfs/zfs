@@ -71,7 +71,7 @@ sa_attr_reg_t zfs_attr_table[ZPL_END+1] = {
 
 #ifdef _KERNEL
 int
-zfs_sa_readlink(znode_t *zp, uio_t *uio)
+zfs_sa_readlink(znode_t *zp, zfs_uio_t *uio)
 {
 	dmu_buf_t *db = sa_get_db(zp->z_sa_hdl);
 	size_t bufsz;
@@ -79,15 +79,16 @@ zfs_sa_readlink(znode_t *zp, uio_t *uio)
 
 	bufsz = zp->z_size;
 	if (bufsz + ZFS_OLD_ZNODE_PHYS_SIZE <= db->db_size) {
-		error = uiomove((caddr_t)db->db_data +
+		error = zfs_uiomove((caddr_t)db->db_data +
 		    ZFS_OLD_ZNODE_PHYS_SIZE,
-		    MIN((size_t)bufsz, uio->uio_resid), UIO_READ, uio);
+		    MIN((size_t)bufsz, zfs_uio_resid(uio)), UIO_READ, uio);
 	} else {
 		dmu_buf_t *dbp;
 		if ((error = dmu_buf_hold(ZTOZSB(zp)->z_os, zp->z_id,
 		    0, FTAG, &dbp, DMU_READ_NO_PREFETCH)) == 0) {
-			error = uiomove(dbp->db_data,
-			    MIN((size_t)bufsz, uio->uio_resid), UIO_READ, uio);
+			error = zfs_uiomove(dbp->db_data,
+			    MIN((size_t)bufsz, zfs_uio_resid(uio)), UIO_READ,
+			    uio);
 			dmu_buf_rele(dbp, FTAG);
 		}
 	}
@@ -300,7 +301,7 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 	 * and ready the ACL would require special "locked"
 	 * interfaces that would be messy
 	 */
-	if (zp->z_acl_cached == NULL || S_ISLNK(ZTOI(zp)->i_mode))
+	if (zp->z_acl_cached == NULL || Z_ISLNK(ZTOTYPE(zp)))
 		return;
 
 	/*
@@ -369,13 +370,13 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 	    &ctime, 16);
 	SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_CRTIME(zfsvfs), NULL,
 	    &crtime, 16);
-	links = ZTOI(zp)->i_nlink;
+	links = ZTONLNK(zp);
 	SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_LINKS(zfsvfs), NULL,
 	    &links, 8);
 	if (dmu_objset_projectquota_enabled(hdl->sa_os))
 		SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_PROJID(zfsvfs), NULL,
 		    &zp->z_projid, 8);
-	if (S_ISBLK(ZTOI(zp)->i_mode) || S_ISCHR(ZTOI(zp)->i_mode))
+	if (Z_ISBLK(ZTOTYPE(zp)) || Z_ISCHR(ZTOTYPE(zp)))
 		SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_RDEV(zfsvfs), NULL,
 		    &rdev, 8);
 	SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_DACL_COUNT(zfsvfs), NULL,

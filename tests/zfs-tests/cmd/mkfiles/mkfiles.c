@@ -55,6 +55,10 @@ main(int argc, char **argv)
 			(void) fprintf(stderr, "Failed to create %s %s\n", buf,
 			    strerror(errno));
 			return (-4);
+		} else if (fchown(fd, getuid(), getgid()) < 0) {
+			(void) fprintf(stderr, "Failed to chown %s %s\n", buf,
+			    strerror(errno));
+			return (-5);
 		}
 		(void) close(fd);
 	}

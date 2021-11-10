@@ -2,6 +2,7 @@ pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/cli_root/zpool_init
 dist_pkgdata_SCRIPTS = \
 	cleanup.ksh \
 	zpool_initialize_attach_detach_add_remove.ksh \
+	zpool_initialize_fault_export_import_online.ksh \
 	zpool_initialize_import_export.ksh \
 	zpool_initialize_offline_export_import_online.ksh \
 	zpool_initialize_online_offline.ksh \

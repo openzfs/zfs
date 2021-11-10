@@ -39,7 +39,7 @@
 #
 # STRATEGY:
 #	1. Create a tree with 4 level directories.
-#	2. Set project ID on both directroy and regular file via
+#	2. Set project ID on both directory and regular file via
 #	   "zfs project -p".
 #	3. Check the project ID via "zfs project".
 #	4. Set project inherit flag on kinds of level directories (and its

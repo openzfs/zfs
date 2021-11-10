@@ -1,0 +1,123 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
+.\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+.\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+.\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
+.\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
+.\" Copyright (c) 2014 Integros [integros.com]
+.\" Copyright 2019 Richard Laager. All rights reserved.
+.\" Copyright 2018 Nexenta Systems, Inc.
+.\" Copyright 2019 Joyent, Inc.
+.\"
+.Dd September 1, 2020
+.Dt ZFS-RENAME 8
+.Os
+.
+.Sh NAME
+.Nm zfs-rename
+.Nd rename ZFS dataset
+.Sh SYNOPSIS
+.Nm zfs
+.Cm rename
+.Op Fl f
+.Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
+.Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
+.Nm zfs
+.Cm rename
+.Fl p
+.Op Fl f
+.Ar filesystem Ns | Ns Ar volume
+.Ar filesystem Ns | Ns Ar volume
+.Nm zfs
+.Cm rename
+.Fl u
+.Op Fl f
+.Ar filesystem Ar filesystem
+.Nm zfs
+.Cm rename
+.Fl r
+.Ar snapshot Ar snapshot
+.
+.Sh DESCRIPTION
+.Bl -tag -width ""
+.It Xo
+.Nm zfs
+.Cm rename
+.Op Fl f
+.Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
+.Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
+.Xc
+.It Xo
+.Nm zfs
+.Cm rename
+.Fl p
+.Op Fl f
+.Ar filesystem Ns | Ns Ar volume
+.Ar filesystem Ns | Ns Ar volume
+.Xc
+.It Xo
+.Nm zfs
+.Cm rename
+.Fl u
+.Op Fl f
+.Ar filesystem
+.Ar filesystem
+.Xc
+Renames the given dataset.
+The new target can be located anywhere in the ZFS hierarchy, with the exception
+of snapshots.
+Snapshots can only be renamed within the parent file system or volume.
+When renaming a snapshot, the parent file system of the snapshot does not need
+to be specified as part of the second argument.
+Renamed file systems can inherit new mount points, in which case they are
+unmounted and remounted at the new mount point.
+.Bl -tag -width "-a"
+.It Fl f
+Force unmount any file systems that need to be unmounted in the process.
+This flag has no effect if used together with the
+.Fl u
+flag.
+.It Fl p
+Creates all the nonexistent parent datasets.
+Datasets created in this manner are automatically mounted according to the
+.Sy mountpoint
+property inherited from their parent.
+.It Fl u
+Do not remount file systems during rename.
+If a file system's
+.Sy mountpoint
+property is set to
+.Sy legacy
+or
+.Sy none ,
+the file system is not unmounted even if this option is not given.
+.El
+.It Xo
+.Nm zfs
+.Cm rename
+.Fl r
+.Ar snapshot Ar snapshot
+.Xc
+Recursively rename the snapshots of all descendent datasets.
+Snapshots are the only dataset that can be renamed recursively.
+.El

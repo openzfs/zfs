@@ -34,8 +34,8 @@ export TMPDEV=$TEST_BASE_DIR/zpool_upgrade_test.dat
 
 function cleanup_upgrade
 {
-	datasetexists $TESTPOOL/fs1 && log_must zfs destroy $TESTPOOL/fs1
-	datasetexists $TESTPOOL/fs2 && log_must zfs destroy $TESTPOOL/fs2
-	datasetexists $TESTPOOL/fs3 && log_must zfs destroy $TESTPOOL/fs3
-	datasetexists $TESTPOOL && log_must zpool destroy $TESTPOOL
+	destroy_dataset "$TESTPOOL/fs1"
+	destroy_dataset "$TESTPOOL/fs2"
+	destroy_dataset "$TESTPOOL/fs3"
+	destroy_pool "$TESTPOOL"
 }

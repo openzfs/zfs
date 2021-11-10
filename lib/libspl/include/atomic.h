@@ -79,7 +79,7 @@ extern void atomic_add_64(volatile uint64_t *, int64_t);
 #endif
 
 /*
- * Substract delta from target
+ * Subtract delta from target
  */
 extern void atomic_sub_8(volatile uint8_t *, int8_t);
 extern void atomic_sub_char(volatile uchar_t *, signed char);
@@ -173,7 +173,7 @@ extern uint64_t atomic_add_64_nv(volatile uint64_t *, int64_t);
 #endif
 
 /*
- * Substract delta from target
+ * Subtract delta from target
  */
 extern uint8_t atomic_sub_8_nv(volatile uint8_t *, int8_t);
 extern uchar_t atomic_sub_char_nv(volatile uchar_t *, signed char);
@@ -243,6 +243,49 @@ extern void *atomic_swap_ptr(volatile void *, void *);
 extern ulong_t atomic_swap_ulong(volatile ulong_t *, ulong_t);
 #if defined(_INT64_TYPE)
 extern uint64_t atomic_swap_64(volatile uint64_t *, uint64_t);
+#endif
+
+/*
+ * Atomically read variable.
+ */
+#define	atomic_load_char(p)	(*(volatile uchar_t *)(p))
+#define	atomic_load_short(p)	(*(volatile ushort_t *)(p))
+#define	atomic_load_int(p)	(*(volatile uint_t *)(p))
+#define	atomic_load_long(p)	(*(volatile ulong_t *)(p))
+#define	atomic_load_ptr(p)	(*(volatile __typeof(*p) *)(p))
+#define	atomic_load_8(p)	(*(volatile uint8_t *)(p))
+#define	atomic_load_16(p)	(*(volatile uint16_t *)(p))
+#define	atomic_load_32(p)	(*(volatile uint32_t *)(p))
+#ifdef _LP64
+#define	atomic_load_64(p)	(*(volatile uint64_t *)(p))
+#elif defined(_INT64_TYPE)
+extern uint64_t atomic_load_64(volatile uint64_t *);
+#endif
+
+/*
+ * Atomically write variable.
+ */
+#define	atomic_store_char(p, v)		\
+	(*(volatile uchar_t *)(p) = (uchar_t)(v))
+#define	atomic_store_short(p, v)	\
+	(*(volatile ushort_t *)(p) = (ushort_t)(v))
+#define	atomic_store_int(p, v)		\
+	(*(volatile uint_t *)(p) = (uint_t)(v))
+#define	atomic_store_long(p, v)		\
+	(*(volatile ulong_t *)(p) = (ulong_t)(v))
+#define	atomic_store_ptr(p, v)		\
+	(*(volatile __typeof(*p) *)(p) = (v))
+#define	atomic_store_8(p, v)		\
+	(*(volatile uint8_t *)(p) = (uint8_t)(v))
+#define	atomic_store_16(p, v)		\
+	(*(volatile uint16_t *)(p) = (uint16_t)(v))
+#define	atomic_store_32(p, v)		\
+	(*(volatile uint32_t *)(p) = (uint32_t)(v))
+#ifdef _LP64
+#define	atomic_store_64(p, v)		\
+	(*(volatile uint64_t *)(p) = (uint64_t)(v))
+#elif defined(_INT64_TYPE)
+extern void atomic_store_64(volatile uint64_t *, uint64_t);
 #endif
 
 /*

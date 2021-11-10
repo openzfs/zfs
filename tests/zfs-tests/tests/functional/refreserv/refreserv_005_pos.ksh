@@ -45,9 +45,9 @@ verify_runnable "global"
 
 function cleanup
 {
-	log_must zfs destroy -rf $TESTPOOL/$TESTFS
-	log_must zfs create $TESTPOOL/$TESTFS
-	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+	destroy_dataset "$fs" "-rf"
+	log_must zfs create $fs
+	log_must zfs set mountpoint=$TESTDIR $fs
 }
 
 log_assert "Volume (ref)reservation is not limited by volsize"

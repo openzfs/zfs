@@ -1,8 +1,9 @@
 include $(top_srcdir)/config/Rules.am
+include $(top_srcdir)/config/Shellcheck.am
 
-DEFAULT_INCLUDES += \
-	-I$(top_srcdir)/include \
-	-I$(top_srcdir)/lib/libspl/include
+AM_CFLAGS += $(LIBBLKID_CFLAGS) $(LIBUUID_CFLAGS)
+
+DEFAULT_INCLUDES += -I$(srcdir)
 
 sbin_PROGRAMS = zpool
 
@@ -13,19 +14,37 @@ zpool_SOURCES = \
 	zpool_util.h \
 	zpool_vdev.c
 
-zpool_LDADD = \
-	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libuutil/libuutil.la \
-	$(top_builddir)/lib/libzfs/libzfs.la
+if BUILD_FREEBSD
+zpool_SOURCES += os/freebsd/zpool_vdev_os.c
+endif
 
-zpool_LDADD += -lm $(LIBBLKID)
+if BUILD_LINUX
+zpool_SOURCES += os/linux/zpool_vdev_os.c
+endif
+
+zpool_LDADD = \
+	$(abs_top_builddir)/lib/libzfs/libzfs.la \
+	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
+	$(abs_top_builddir)/lib/libnvpair/libnvpair.la \
+	$(abs_top_builddir)/lib/libuutil/libuutil.la \
+	$(abs_top_builddir)/lib/libzutil/libzutil.la
+
+zpool_LDADD += $(LTLIBINTL)
+
+if BUILD_FREEBSD
+zpool_LDADD += -lgeom
+endif
+zpool_LDADD += -lm $(LIBBLKID_LIBS) $(LIBUUID_LIBS)
+
+include $(top_srcdir)/config/CppCheck.am
 
 zpoolconfdir = $(sysconfdir)/zfs/zpool.d
 zpoolexecdir = $(zfsexecdir)/zpool.d
 
-EXTRA_DIST = zpool.d/README
+EXTRA_DIST = zpool.d/README compatibility.d
 
 dist_zpoolexec_SCRIPTS = \
+	zpool.d/dm-deps \
 	zpool.d/enc \
 	zpool.d/encdev \
 	zpool.d/fault_led \
@@ -40,7 +59,6 @@ dist_zpoolexec_SCRIPTS = \
 	zpool.d/serial \
 	zpool.d/ses \
 	zpool.d/size \
-	zpool.d/slaves \
 	zpool.d/slot \
 	zpool.d/smart \
 	zpool.d/smartx \
@@ -70,6 +88,7 @@ dist_zpoolexec_SCRIPTS = \
 	zpool.d/test_ended
 
 zpoolconfdefaults = \
+	dm-deps \
 	enc \
 	encdev \
 	fault_led \
@@ -84,7 +103,6 @@ zpoolconfdefaults = \
 	serial \
 	ses \
 	size \
-	slaves \
 	slot \
 	smart \
 	smartx \
@@ -113,10 +131,59 @@ zpoolconfdefaults = \
 	test_progress \
 	test_ended
 
+zpoolcompatdir = $(pkgdatadir)/compatibility.d
+
+dist_zpoolcompat_DATA = \
+	compatibility.d/compat-2018 \
+	compatibility.d/compat-2019 \
+	compatibility.d/compat-2020 \
+	compatibility.d/compat-2021 \
+	compatibility.d/freebsd-11.0 \
+	compatibility.d/freebsd-11.2 \
+	compatibility.d/freebsd-11.3 \
+	compatibility.d/freenas-9.10.2 \
+	compatibility.d/grub2 \
+	compatibility.d/openzfsonosx-1.7.0 \
+	compatibility.d/openzfsonosx-1.8.1 \
+	compatibility.d/openzfsonosx-1.9.3 \
+	compatibility.d/openzfs-2.0-freebsd \
+	compatibility.d/openzfs-2.0-linux \
+	compatibility.d/openzfs-2.1-freebsd \
+	compatibility.d/openzfs-2.1-linux \
+	compatibility.d/zol-0.6.1 \
+	compatibility.d/zol-0.6.4 \
+	compatibility.d/zol-0.6.5 \
+	compatibility.d/zol-0.7 \
+	compatibility.d/zol-0.8
+
+# canonical <- alias symbolic link pairs
+# eg: "2018" is a link to "compat-2018"
+zpoolcompatlinks = \
+	"compat-2018		2018" \
+	"compat-2019		2019" \
+	"compat-2020		2020" \
+	"compat-2021		2021" \
+	"freebsd-11.0		freebsd-11.1" \
+	"freebsd-11.0		freenas-11.0" \
+	"freebsd-11.2		freenas-11.2" \
+	"freebsd-11.3		freebsd-11.4" \
+	"freebsd-11.3		freebsd-12.0" \
+	"freebsd-11.3		freebsd-12.1" \
+	"freebsd-11.3		freebsd-12.2" \
+	"freebsd-11.3		freenas-11.3" \
+	"freenas-11.0		freenas-11.1" \
+	"openzfsonosx-1.9.3	openzfsonosx-1.9.4" \
+	"openzfs-2.0-freebsd	truenas-12.0" \
+	"zol-0.7		ubuntu-18.04" \
+	"zol-0.8		ubuntu-20.04"
+
 install-data-hook:
 	$(MKDIR_P) "$(DESTDIR)$(zpoolconfdir)"
 	for f in $(zpoolconfdefaults); do \
 	  test -f "$(DESTDIR)$(zpoolconfdir)/$${f}" -o \
 	       -L "$(DESTDIR)$(zpoolconfdir)/$${f}" || \
 	    ln -s "$(zpoolexecdir)/$${f}" "$(DESTDIR)$(zpoolconfdir)"; \
+	done
+	for l in $(zpoolcompatlinks); do \
+		(cd "$(DESTDIR)$(zpoolcompatdir)"; ln -sf $${l} ); \
 	done

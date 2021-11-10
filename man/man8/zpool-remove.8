@@ -1,0 +1,111 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+.\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
+.\" Copyright (c) 2017 Datto Inc.
+.\" Copyright (c) 2018 George Melikov. All Rights Reserved.
+.\" Copyright 2017 Nexenta Systems, Inc.
+.\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\"
+.Dd August 9, 2019
+.Dt ZPOOL-REMOVE 8
+.Os
+.Sh NAME
+.Nm zpool-remove
+.Nd remove devices from ZFS storage pool
+.Sh SYNOPSIS
+.Nm zpool
+.Cm remove
+.Op Fl npw
+.Ar pool Ar device Ns …
+.Nm zpool
+.Cm remove
+.Fl s
+.Ar pool
+.Sh DESCRIPTION
+.Bl -tag -width Ds
+.It Xo
+.Nm zpool
+.Cm remove
+.Op Fl npw
+.Ar pool Ar device Ns …
+.Xc
+Removes the specified device from the pool.
+This command supports removing hot spare, cache, log, and both mirrored and
+non-redundant primary top-level vdevs, including dedup and special vdevs.
+.Pp
+Top-level vdevs can only be removed if the primary pool storage does not contain
+a top-level raidz vdev, all top-level vdevs have the same sector size, and the
+keys for all encrypted datasets are loaded.
+.Pp
+Removing a top-level vdev reduces the total amount of space in the storage pool.
+The specified device will be evacuated by copying all allocated space from it to
+the other devices in the pool.
+In this case, the
+.Nm zpool Cm remove
+command initiates the removal and returns, while the evacuation continues in
+the background.
+The removal progress can be monitored with
+.Nm zpool Cm status .
+If an IO error is encountered during the removal process it will be cancelled.
+The
+.Sy device_removal
+feature flag must be enabled to remove a top-level vdev, see
+.Xr zpool-features 7 .
+.Pp
+A mirrored top-level device (log or data) can be removed by specifying the top-level mirror for the
+same.
+Non-log devices or data devices that are part of a mirrored configuration can be removed using
+the
+.Nm zpool Cm detach
+command.
+.Bl -tag -width Ds
+.It Fl n
+Do not actually perform the removal
+.Pq Qq No-op .
+Instead, print the estimated amount of memory that will be used by the
+mapping table after the removal completes.
+This is nonzero only for top-level vdevs.
+.El
+.Bl -tag -width Ds
+.It Fl p
+Used in conjunction with the
+.Fl n
+flag, displays numbers as parsable (exact) values.
+.It Fl w
+Waits until the removal has completed before returning.
+.El
+.It Xo
+.Nm zpool
+.Cm remove
+.Fl s
+.Ar pool
+.Xc
+Stops and cancels an in-progress removal of a top-level vdev.
+.El
+.Sh SEE ALSO
+.Xr zpool-add 8 ,
+.Xr zpool-detach 8 ,
+.Xr zpool-labelclear 8 ,
+.Xr zpool-offline 8 ,
+.Xr zpool-replace 8 ,
+.Xr zpool-split 8

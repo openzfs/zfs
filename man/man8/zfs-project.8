@@ -1,0 +1,141 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
+.\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+.\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+.\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
+.\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
+.\" Copyright (c) 2014 Integros [integros.com]
+.\" Copyright 2019 Richard Laager. All rights reserved.
+.\" Copyright 2018 Nexenta Systems, Inc.
+.\" Copyright 2019 Joyent, Inc.
+.\"
+.Dd May 27, 2021
+.Dt ZFS-PROJECT 8
+.Os
+.
+.Sh NAME
+.Nm zfs-project
+.Nd manage projects in ZFS filesystem
+.Sh SYNOPSIS
+.Nm zfs
+.Cm project
+.Oo Fl d Ns | Ns Fl r Ns Oc
+.Ar file Ns | Ns Ar directory Ns …
+.Nm zfs
+.Cm project
+.Fl C
+.Oo Fl kr Ns Oc
+.Ar file Ns | Ns Ar directory Ns …
+.Nm zfs
+.Cm project
+.Fl c
+.Oo Fl 0 Ns Oc
+.Oo Fl d Ns | Ns Fl r Ns Oc
+.Op Fl p Ar id
+.Ar file Ns | Ns Ar directory Ns …
+.Nm zfs
+.Cm project
+.Op Fl p Ar id
+.Oo Fl rs Ns Oc
+.Ar file Ns | Ns Ar directory Ns …
+.
+.Sh DESCRIPTION
+.Bl -tag -width ""
+.It Xo
+.Nm zfs
+.Cm project
+.Oo Fl d Ns | Ns Fl r Ns Oc
+.Ar file Ns | Ns Ar directory Ns …
+.Xc
+List project identifier (ID) and inherit flag of files and directories.
+.Bl -tag -width "-d"
+.It Fl d
+Show the directory project ID and inherit flag, not its children.
+.It Fl r
+List subdirectories recursively.
+.El
+.It Xo
+.Nm zfs
+.Cm project
+.Fl C
+.Oo Fl kr Ns Oc
+.Ar file Ns | Ns Ar directory Ns …
+.Xc
+Clear project inherit flag and/or ID on the files and directories.
+.Bl -tag -width "-k"
+.It Fl k
+Keep the project ID unchanged.
+If not specified, the project ID will be reset to zero.
+.It Fl r
+Clear subdirectories' flags recursively.
+.El
+.It Xo
+.Nm zfs
+.Cm project
+.Fl c
+.Oo Fl 0 Ns Oc
+.Oo Fl d Ns | Ns Fl r Ns Oc
+.Op Fl p Ar id
+.Ar file Ns | Ns Ar directory Ns …
+.Xc
+Check project ID and inherit flag on the files and directories:
+report entries without the project inherit flag, or with project IDs different from the
+target directory's project ID or the one specified with
+.Fl p .
+.Bl -tag -width "-p id"
+.It Fl 0
+Delimit filenames with a NUL byte instead of newline.
+.It Fl d
+Check the directory project ID and inherit flag, not its children.
+.It Fl p Ar id
+Compare to
+.Ar id
+instead of the target files and directories' project IDs.
+.It Fl r
+Check subdirectories recursively.
+.El
+.It Xo
+.Nm zfs
+.Cm project
+.Fl p Ar id
+.Oo Fl rs Ns Oc
+.Ar file Ns | Ns Ar directory Ns …
+.Xc
+Set project ID and/or inherit flag on the files and directories.
+.Bl -tag -width "-p id"
+.It Fl p Ar id
+Set the project ID to the given value.
+.It Fl r
+Set on subdirectories recursively.
+.It Fl s
+Set project inherit flag on the given files and directories.
+This is usually used for setting up tree quotas with
+.Fl r .
+In that case, the directory's project ID
+will be set for all its descendants, unless specified explicitly with
+.Fl p .
+.El
+.El
+.
+.Sh SEE ALSO
+.Xr zfs-projectspace 8
