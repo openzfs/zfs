@@ -41,7 +41,13 @@ for i in $scripts ; do
 		val=$(ls "$VDEV_ENC_SYSFS_PATH/../device/scsi_generic" 2>/dev/null)
 		;;
 	fault_led)
-		val=$(cat "$VDEV_ENC_SYSFS_PATH/fault" 2>/dev/null)
+		# JBODs fault LED is called 'fault', NVMe fault LED is called
+		# 'attention'.
+		if [ -f "$VDEV_ENC_SYSFS_PATH/fault" ] ; then
+			val=$(cat "$VDEV_ENC_SYSFS_PATH/fault" 2>/dev/null)
+		elif [ -f "$VDEV_ENC_SYSFS_PATH/attention" ] ; then
+			val=$(cat "$VDEV_ENC_SYSFS_PATH/attention" 2>/dev/null)
+		fi
 		;;
 	locate_led)
 		val=$(cat "$VDEV_ENC_SYSFS_PATH/locate" 2>/dev/null)
