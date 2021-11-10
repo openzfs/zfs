@@ -4221,11 +4221,13 @@ print_label_numbers(char *prefix, cksum_record_t *rec)
 
 typedef struct zdb_label {
 	vdev_label_t label;
+	uint64_t label_offset;
 	nvlist_t *config_nv;
 	cksum_record_t *config;
 	cksum_record_t *uberblocks[MAX_UBERBLOCK_COUNT];
 	boolean_t header_printed;
 	boolean_t read_failed;
+	boolean_t cksum_valid;
 } zdb_label_t;
 
 static void
@@ -4239,7 +4241,8 @@ print_label_header(zdb_label_t *label, int l)
 		return;
 
 	(void) printf("------------------------------------\n");
-	(void) printf("LABEL %d\n", l);
+	(void) printf("LABEL %d %s\n", l,
+	    label->cksum_valid ? "" : "(Bad label cksum)");
 	(void) printf("------------------------------------\n");
 
 	label->header_printed = B_TRUE;
@@ -4751,6 +4754,42 @@ zdb_copy_object(objset_t *os, uint64_t srcobj, char *destfile)
 	return (err);
 }
 
+static boolean_t
+label_cksum_valid(vdev_label_t *label, uint64_t offset)
+{
+	zio_checksum_info_t *ci = &zio_checksum_table[ZIO_CHECKSUM_LABEL];
+	zio_cksum_t expected_cksum;
+	zio_cksum_t actual_cksum;
+	zio_cksum_t verifier;
+	zio_eck_t *eck;
+	int byteswap;
+
+	void *data = (char *)label + offsetof(vdev_label_t, vl_vdev_phys);
+	eck = (zio_eck_t *)((char *)(data) + VDEV_PHYS_SIZE) - 1;
+
+	offset += offsetof(vdev_label_t, vl_vdev_phys);
+	ZIO_SET_CHECKSUM(&verifier, offset, 0, 0, 0);
+
+	byteswap = (eck->zec_magic == BSWAP_64(ZEC_MAGIC));
+	if (byteswap)
+		byteswap_uint64_array(&verifier, sizeof (zio_cksum_t));
+
+	expected_cksum = eck->zec_cksum;
+	eck->zec_cksum = verifier;
+
+	abd_t *abd = abd_get_from_buf(data, VDEV_PHYS_SIZE);
+	ci->ci_func[byteswap](abd, VDEV_PHYS_SIZE, NULL, &actual_cksum);
+	abd_free(abd);
+
+	if (byteswap)
+		byteswap_uint64_array(&expected_cksum, sizeof (zio_cksum_t));
+
+	if (ZIO_CHECKSUM_EQUAL(actual_cksum, expected_cksum))
+		return (B_TRUE);
+
+	return (B_FALSE);
+}
+
 static int
 dump_label(const char *dev)
 {
@@ -4817,8 +4856,9 @@ dump_label(const char *dev)
 
 	/*
 	 * 1. Read the label from disk
-	 * 2. Unpack the configuration and insert in config tree.
-	 * 3. Traverse all uberblocks and insert in uberblock tree.
+	 * 2. Verify label cksum
+	 * 3. Unpack the configuration and insert in config tree.
+	 * 4. Traverse all uberblocks and insert in uberblock tree.
 	 */
 	for (int l = 0; l < VDEV_LABELS; l++) {
 		zdb_label_t *label = &labels[l];
@@ -4829,8 +4869,10 @@ dump_label(const char *dev)
 		zio_cksum_t cksum;
 		vdev_t vd;
 
+		label->label_offset = vdev_label_offset(psize, l, 0);
+
 		if (pread64(fd, &label->label, sizeof (label->label),
-		    vdev_label_offset(psize, l, 0)) != sizeof (label->label)) {
+		    label->label_offset) != sizeof (label->label)) {
 			if (!dump_opt['q'])
 				(void) printf("failed to read label %d\n", l);
 			label->read_failed = B_TRUE;
@@ -4839,6 +4881,8 @@ dump_label(const char *dev)
 		}
 
 		label->read_failed = B_FALSE;
+		label->cksum_valid = label_cksum_valid(&label->label,
+		    label->label_offset);
 
 		if (nvlist_unpack(buf, buflen, &config, 0) == 0) {
 			nvlist_t *vdev_tree = NULL;
