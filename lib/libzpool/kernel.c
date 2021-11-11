@@ -785,7 +785,9 @@ kernel_init(int mode)
 
 	umem_nofail_callback(umem_out_of_memory);
 
-	physmem = sysconf(_SC_PHYS_PAGES);
+	/* Allow physmem to be set externally prior to kernel init */
+	if (physmem == 0)
+		physmem = sysconf(_SC_PHYS_PAGES);
 
 	dprintf("physmem = %llu pages (%.2f GB)\n", (u_longlong_t)physmem,
 	    (double)physmem * sysconf(_SC_PAGE_SIZE) / (1ULL << 30));
