@@ -200,10 +200,6 @@ struct objset {
 #define	DMU_GROUPUSED_DNODE(os)	((os)->os_groupused_dnode.dnh_dnode)
 #define	DMU_PROJECTUSED_DNODE(os) ((os)->os_projectused_dnode.dnh_dnode)
 
-#define	DMU_OS_IS_L2CACHEABLE(os)				\
-	((os)->os_secondary_cache == ZFS_CACHE_ALL ||		\
-	(os)->os_secondary_cache == ZFS_CACHE_METADATA)
-
 /* called from zpl */
 int dmu_objset_hold(const char *name, void *tag, objset_t **osp);
 int dmu_objset_hold_flags(const char *name, boolean_t decrypt, void *tag,
