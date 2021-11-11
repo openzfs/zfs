@@ -317,6 +317,12 @@ tags = ['functional', 'cli_root', 'zfs_upgrade']
 tests = ['zfs_wait_deleteq']
 tags = ['functional', 'cli_root', 'zfs_wait']
 
+[tests/functional/cli_root/zhack]
+tests = ['zhack_label_checksum']
+pre =
+post =
+tags = ['functional', 'cli_root', 'zhack']
+
 [tests/functional/cli_root/zpool]
 tests = ['zpool_001_neg', 'zpool_002_pos', 'zpool_003_pos', 'zpool_colors']
 tags = ['functional', 'cli_root', 'zpool']

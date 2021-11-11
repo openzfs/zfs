@@ -33,6 +33,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <sys/stat.h>
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
@@ -41,6 +42,7 @@
 #include <sys/zfs_znode.h>
 #include <sys/dsl_synctask.h>
 #include <sys/vdev.h>
+#include <sys/vdev_impl.h>
 #include <sys/fs/zfs.h>
 #include <sys/dmu_objset.h>
 #include <sys/dsl_pool.h>
@@ -76,7 +78,12 @@ usage(void)
 	    "        -d decrease instead of increase the refcount\n"
 	    "        -m add the feature to the label if increasing refcount\n"
 	    "\n"
-	    "    <feature> : should be a feature guid\n");
+	    "    <feature> : should be a feature guid\n"
+	    "\n"
+	    "    label repair <device>\n"
+	    "        repair corrupted label checksums\n"
+	    "\n"
+	    "    <device> : path to vdev\n");
 	exit(1);
 }
 
@@ -471,6 +478,166 @@ zhack_do_feature(int argc, char **argv)
 	return (0);
 }
 
+static int
+zhack_repair_label_cksum(int argc, char **argv)
+{
+	zio_checksum_info_t *ci = &zio_checksum_table[ZIO_CHECKSUM_LABEL];
+	const char *cfg_keys[] = { ZPOOL_CONFIG_VERSION,
+	    ZPOOL_CONFIG_POOL_STATE, ZPOOL_CONFIG_GUID };
+	boolean_t labels_repaired[VDEV_LABELS];
+	boolean_t repaired = B_FALSE;
+	vdev_label_t labels[VDEV_LABELS];
+	struct stat st;
+	int fd;
+
+	bzero(labels_repaired, sizeof (labels_repaired));
+	bzero(labels, sizeof (labels));
+
+	abd_init();
+
+	argc -= 1;
+	argv += 1;
+
+	if (argc < 1) {
+		(void) fprintf(stderr, "error: missing device\n");
+		usage();
+	}
+
+	if ((fd = open(argv[0], O_RDWR)) == -1)
+		fatal(NULL, FTAG, "cannot open '%s': %s", argv[0],
+		    strerror(errno));
+
+	if (stat(argv[0], &st) != 0)
+		fatal(NULL, FTAG, "cannot stat '%s': %s", argv[0],
+		    strerror(errno));
+
+	for (int l = 0; l < VDEV_LABELS; l++) {
+		uint64_t label_offset, offset;
+		zio_cksum_t expected_cksum;
+		zio_cksum_t actual_cksum;
+		zio_cksum_t verifier;
+		zio_eck_t *eck;
+		nvlist_t *cfg;
+		int byteswap;
+		uint64_t val;
+		ssize_t err;
+
+		vdev_label_t *vl = &labels[l];
+
+		label_offset = vdev_label_offset(st.st_size, l, 0);
+		err = pread64(fd, vl, sizeof (vdev_label_t), label_offset);
+		if (err == -1) {
+			(void) fprintf(stderr, "error: cannot read "
+			    "label %d: %s\n", l, strerror(errno));
+			continue;
+		} else if (err != sizeof (vdev_label_t)) {
+			(void) fprintf(stderr, "error: bad label %d read size "
+			    "\n", l);
+			continue;
+		}
+
+		err = nvlist_unpack(vl->vl_vdev_phys.vp_nvlist,
+		    VDEV_PHYS_SIZE - sizeof (zio_eck_t), &cfg, 0);
+		if (err) {
+			(void) fprintf(stderr, "error: cannot unpack nvlist "
+			    "label %d\n", l);
+			continue;
+		}
+
+		for (int i = 0; i < ARRAY_SIZE(cfg_keys); i++) {
+			err = nvlist_lookup_uint64(cfg, cfg_keys[i], &val);
+			if (err) {
+				(void) fprintf(stderr, "error: label %d: "
+				    "cannot find nvlist key %s\n",
+				    l, cfg_keys[i]);
+				continue;
+			}
+		}
+
+		void *data = (char *)vl + offsetof(vdev_label_t, vl_vdev_phys);
+		eck = (zio_eck_t *)((char *)(data) + VDEV_PHYS_SIZE) - 1;
+
+		offset = label_offset + offsetof(vdev_label_t, vl_vdev_phys);
+		ZIO_SET_CHECKSUM(&verifier, offset, 0, 0, 0);
+
+		byteswap = (eck->zec_magic == BSWAP_64(ZEC_MAGIC));
+		if (byteswap)
+			byteswap_uint64_array(&verifier, sizeof (zio_cksum_t));
+
+		expected_cksum = eck->zec_cksum;
+		eck->zec_cksum = verifier;
+
+		abd_t *abd = abd_get_from_buf(data, VDEV_PHYS_SIZE);
+		ci->ci_func[byteswap](abd, VDEV_PHYS_SIZE, NULL, &actual_cksum);
+		abd_free(abd);
+
+		if (byteswap)
+			byteswap_uint64_array(&expected_cksum,
+			    sizeof (zio_cksum_t));
+
+		if (ZIO_CHECKSUM_EQUAL(actual_cksum, expected_cksum))
+			continue;
+
+		eck->zec_cksum = actual_cksum;
+
+		err = pwrite64(fd, data, VDEV_PHYS_SIZE, offset);
+		if (err == -1) {
+			(void) fprintf(stderr, "error: cannot write "
+			    "label %d: %s\n", l, strerror(errno));
+			continue;
+		} else if (err != VDEV_PHYS_SIZE) {
+			(void) fprintf(stderr, "error: bad write size "
+			    "label %d\n", l);
+			continue;
+		}
+
+		fsync(fd);
+
+		labels_repaired[l] = B_TRUE;
+	}
+
+	close(fd);
+
+	abd_fini();
+
+	for (int l = 0; l < VDEV_LABELS; l++) {
+		(void) printf("label %d: %s\n", l,
+		    labels_repaired[l] ? "repaired" : "skipped");
+		repaired |= labels_repaired[l];
+	}
+
+	if (repaired)
+		return (0);
+
+	return (1);
+}
+
+static int
+zhack_do_label(int argc, char **argv)
+{
+	char *subcommand;
+	int err;
+
+	argc--;
+	argv++;
+	if (argc == 0) {
+		(void) fprintf(stderr,
+		    "error: no label operation specified\n");
+		usage();
+	}
+
+	subcommand = argv[0];
+	if (strcmp(subcommand, "repair") == 0) {
+		err = zhack_repair_label_cksum(argc, argv);
+	} else {
+		(void) fprintf(stderr, "error: unknown subcommand: %s\n",
+		    subcommand);
+		usage();
+	}
+
+	return (err);
+}
+
 #define	MAX_NUM_PATHS 1024
 
 int
@@ -516,6 +683,8 @@ main(int argc, char **argv)
 
 	if (strcmp(subcommand, "feature") == 0) {
 		rv = zhack_do_feature(argc, argv);
+	} else if (strcmp(subcommand, "label") == 0) {
+		return (zhack_do_label(argc, argv));
 	} else {
 		(void) fprintf(stderr, "error: unknown subcommand: %s\n",
 		    subcommand);
