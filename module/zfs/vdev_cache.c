@@ -251,12 +251,15 @@ boolean_t
 vdev_cache_read(zio_t *zio)
 {
 	vdev_cache_t *vc = &zio->io_vd->vdev_cache;
-	vdev_cache_entry_t *ve, *ve_search;
+	vdev_cache_entry_t *ve, ve_search;
 	uint64_t cache_offset = P2ALIGN(zio->io_offset, VCBS);
 	zio_t *fio;
 	uint64_t cache_phase __maybe_unused = P2PHASE(zio->io_offset, VCBS);
 
 	ASSERT3U(zio->io_type, ==, ZIO_TYPE_READ);
+
+	if (zfs_vdev_cache_size == 0)
+		return (B_FALSE);
 
 	if (zio->io_flags & ZIO_FLAG_DONT_CACHE)
 		return (B_FALSE);
@@ -274,10 +277,8 @@ vdev_cache_read(zio_t *zio)
 
 	mutex_enter(&vc->vc_lock);
 
-	ve_search = kmem_alloc(sizeof (vdev_cache_entry_t), KM_SLEEP);
-	ve_search->ve_offset = cache_offset;
-	ve = avl_find(&vc->vc_offset_tree, ve_search, NULL);
-	kmem_free(ve_search, sizeof (vdev_cache_entry_t));
+	ve_search.ve_offset = cache_offset;
+	ve = avl_find(&vc->vc_offset_tree, &ve_search, NULL);
 
 	if (ve != NULL) {
 		if (ve->ve_missed_update) {
