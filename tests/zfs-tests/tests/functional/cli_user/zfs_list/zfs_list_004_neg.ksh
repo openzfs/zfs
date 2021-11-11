@@ -29,7 +29,7 @@
 # Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_user/zfs_list/zfs_list.kshlib
 
 #
 # DESCRIPTION:
@@ -55,8 +55,12 @@ paths="$TESTPOOL/NONEXISTFS $TESTPOOL/$TESTFS/NONEXISTFS \
 cd /tmp
 
 for fs in $paths ; do
-	log_mustnot zfs list $fs
-	log_mustnot zfs list -r $fs
+    # In cases when ZFS is on root, /tmp will belong to ZFS and hence must be
+    # skipped
+    if ! is_fs_type_zfs $fs; then
+        log_mustnot zfs list $fs
+        log_mustnot zfs list -r $fs
+    fi
 done
 
 log_pass "'zfs list [-r]' fails while the given dataset/path does not exist " \
