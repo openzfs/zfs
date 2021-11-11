@@ -51,7 +51,11 @@ module_param(spl_taskq_thread_sequential, int, 0644);
 MODULE_PARM_DESC(spl_taskq_thread_sequential,
 	"Create new taskq threads after N sequential tasks");
 
-/* Global system-wide dynamic task queue available for all consumers */
+/*
+ * Global system-wide dynamic task queue available for all consumers. This
+ * taskq is not intended for long-running tasks; instead, a dedicated taskq
+ * should be created.
+ */
 taskq_t *system_taskq;
 EXPORT_SYMBOL(system_taskq);
 /* Global dynamic task queue for long delay */

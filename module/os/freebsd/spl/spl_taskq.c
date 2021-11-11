@@ -55,6 +55,11 @@ __FBSDID("$FreeBSD$");
 static uint_t taskq_tsd;
 static uma_zone_t taskq_zone;
 
+/*
+ * Global system-wide dynamic task queue available for all consumers. This
+ * taskq is not intended for long-running tasks; instead, a dedicated taskq
+ * should be created.
+ */
 taskq_t *system_taskq = NULL;
 taskq_t *system_delay_taskq = NULL;
 taskq_t *dynamic_taskq = NULL;
