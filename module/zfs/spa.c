@@ -9451,12 +9451,11 @@ spa_upgrade(spa_t *spa, uint64_t version)
 	txg_wait_synced(spa_get_dsl(spa), 0);
 }
 
-boolean_t
-spa_has_spare(spa_t *spa, uint64_t guid)
+static boolean_t
+spa_has_aux_vdev(spa_t *spa, uint64_t guid, spa_aux_vdev_t *sav)
 {
 	int i;
-	uint64_t spareguid;
-	spa_aux_vdev_t *sav = &spa->spa_spares;
+	uint64_t vdev_guid;
 
 	for (i = 0; i < sav->sav_count; i++)
 		if (sav->sav_vdevs[i]->vdev_guid == guid)
@@ -9464,11 +9463,23 @@ spa_has_spare(spa_t *spa, uint64_t guid)
 
 	for (i = 0; i < sav->sav_npending; i++) {
 		if (nvlist_lookup_uint64(sav->sav_pending[i], ZPOOL_CONFIG_GUID,
-		    &spareguid) == 0 && spareguid == guid)
+		    &vdev_guid) == 0 && vdev_guid == guid)
 			return (B_TRUE);
 	}
 
 	return (B_FALSE);
+}
+
+boolean_t
+spa_has_l2cache(spa_t *spa, uint64_t guid)
+{
+	return (spa_has_aux_vdev(spa, guid, &spa->spa_l2cache));
+}
+
+boolean_t
+spa_has_spare(spa_t *spa, uint64_t guid)
+{
+	return (spa_has_aux_vdev(spa, guid, &spa->spa_spares));
 }
 
 /*
