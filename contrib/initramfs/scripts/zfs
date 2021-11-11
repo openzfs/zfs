@@ -105,8 +105,7 @@ find_rootfs()
 find_pools()
 {
 	pools=$("$@" 2> /dev/null | \
-		grep -E "pool:|^[a-zA-Z0-9]" | \
-		sed 's@.*: @@' | \
+		sed -Ee '/pool:|^[a-zA-Z0-9]/!d' -e 's@.*: @@' | \
 		tr '\n' ';')
 
 	echo "${pools%%;}" # Return without the last ';'.
@@ -428,7 +427,7 @@ decrypt_fs()
 			else
 				# Temporarily setting "printk" to "7" allows the prompt to appear even when the "quiet" kernel option has been used
 				echo "load-key" > /run/zfs_console_askpwd_cmd
-				storeprintk="$(awk '{print $1}' /proc/sys/kernel/printk)"
+				read -r storeprintk _ < /proc/sys/kernel/printk
 				echo 7 > /proc/sys/kernel/printk
 				$ZFS load-key "${ENCRYPTIONROOT}"
 				echo "$storeprintk" > /proc/sys/kernel/printk

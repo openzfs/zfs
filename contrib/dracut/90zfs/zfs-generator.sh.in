@@ -89,7 +89,7 @@ else
   _zfs_generator_cb() {
       dset="${1}"
       mpnt="${2}"
-      unit="sysroot$(echo "$mpnt" | sed 's;/;-;g').mount"
+      unit="sysroot$(echo "$mpnt" | tr '/' '-').mount"
 
       {
           echo "[Unit]"

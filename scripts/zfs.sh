@@ -91,7 +91,8 @@ check_modules_linux() {
 
 	for KMOD in $KMOD_SPL $KMOD_ZAVL $KMOD_ZNVPAIR $KMOD_ZUNICODE $KMOD_ZCOMMON \
 	    $KMOD_ZLUA $KMOD_ZZSTD $KMOD_ICP $KMOD_ZFS; do
-		NAME=$(basename "$KMOD" .ko)
+		NAME="${KMOD##*/}"
+		NAME="${NAME%.ko}"
 
 		if lsmod | grep -E -q "^${NAME}"; then
 			LOADED_MODULES="$LOADED_MODULES\t$NAME\n"
@@ -172,7 +173,8 @@ load_modules_linux() {
 unload_module_linux() {
 	KMOD=$1
 
-	NAME=$(basename "$KMOD" .ko)
+	NAME="${KMOD##*/}"
+	NAME="${NAME%.ko}"
 	FILE=$(modinfo "$KMOD" | awk '/^filename:/ {print $2}')
 	VERSION=$(modinfo "$KMOD" | awk '/^version:/ {print $2}')
 
@@ -198,8 +200,9 @@ unload_modules_freebsd() {
 unload_modules_linux() {
 	for KMOD in $KMOD_ZFS $KMOD_ICP $KMOD_ZZSTD $KMOD_ZLUA $KMOD_ZCOMMON \
 	    $KMOD_ZUNICODE $KMOD_ZNVPAIR  $KMOD_ZAVL $KMOD_SPL; do
-		NAME=$(basename "$KMOD" .ko)
-		USE_COUNT=$(lsmod | grep -E "^${NAME} " | awk '{print $3}')
+		NAME="${KMOD##*/}"
+		NAME="${NAME%.ko}"
+		USE_COUNT=$(lsmod | awk '/^'"${NAME}"'/ {print $3}')
 
 		if [ "$USE_COUNT" = "0" ] ; then
 			unload_module_linux "$KMOD" || return 1

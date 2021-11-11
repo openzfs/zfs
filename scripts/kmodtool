@@ -446,7 +446,7 @@ print_rpmtemplate ()
 
 myprog_help ()
 {
-	echo "Usage: $(basename ${0}) [OPTIONS]"
+	echo "Usage: ${0##*/} [OPTIONS]"
 	echo $'\n'"Creates a template to be used during kmod building"
 	echo $'\n'"Available options:"
 	echo " --filterfile <file>  -- filter the results with grep --file <file>"

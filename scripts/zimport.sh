@@ -486,7 +486,7 @@ for TAG in $POOL_TAGS; do
 		    "$POOL_DIR_COPY" || \
 		    fail "Failed to copy $POOL_DIR_PRISTINE to $POOL_DIR_COPY"
 		POOL_NAME=$($ZPOOL_CMD import -d "$POOL_DIR_COPY" | \
-		    awk '/pool:/ { print $2; exit 0 }')
+		    awk '/pool:/ { print $2; exit }')
 
 		if ! $ZPOOL_CMD import -N -d "$POOL_DIR_COPY"
 		    "$POOL_NAME" &>/dev/null; then

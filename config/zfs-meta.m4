@@ -73,14 +73,14 @@ AC_DEFUN([ZFS_AC_META], [
 		if test ! -f ".nogitrelease" && git rev-parse --git-dir > /dev/null 2>&1; then
 			_match="${ZFS_META_NAME}-${ZFS_META_VERSION}"
 			_alias=$(git describe --match=${_match} 2>/dev/null)
-			_release=$(echo ${_alias}|sed "s/${ZFS_META_NAME}//"|cut -f3- -d'-'|sed 's/-/_/g')
+			_release=$(echo ${_alias}|sed "s/${ZFS_META_NAME}//"|cut -f3- -d'-'|tr - _)
 			if test -n "${_release}"; then
 				ZFS_META_RELEASE=${_release}
 				_zfs_ac_meta_type="git describe"
 			else
 				_match="${ZFS_META_NAME}-${ZFS_META_VERSION}-${ZFS_META_RELEASE}"
 	                        _alias=$(git describe --match=${_match} 2>/dev/null)
-				_release=$(echo ${_alias}|sed 's/${ZFS_META_NAME}//'|cut -f3- -d'-'|sed 's/-/_/g')
+				_release=$(echo ${_alias}|sed 's/${ZFS_META_NAME}//'|cut -f3- -d'-'|tr - _)
 				if test -n "${_release}"; then
 					ZFS_META_RELEASE=${_release}
 					_zfs_ac_meta_type="git describe"
