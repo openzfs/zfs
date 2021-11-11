@@ -82,7 +82,7 @@ exit 1
 # Are we doing an upgrade?
 if [ "$1" = "1" -o "$1" = "upgrade" ] ; then
 	# Yes we are.  Are we upgrading to a new ZFS version?
-	NEWEST_VER=$(dkms status zfs | sed 's/,//g' | sort -r -V | awk '/installed/{print $2; exit}')
+	NEWEST_VER=$(dkms status zfs | tr -d , | sort -r -V | awk '/installed/{print $2; exit}')
 	if [ "$NEWEST_VER" != "%{version}" ] ; then
 		# Yes, it's a new ZFS version.  We'll uninstall the old module
 		# later on in this script.

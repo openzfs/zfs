@@ -9,7 +9,7 @@ iostat:		Show iostat values since boot (summary page).
 iostat-1s:	Do a single 1-second iostat sample and show values.
 iostat-10s:	Do a single 10-second iostat sample and show values."
 
-script=$(basename "$0")
+script="${0##*/}"
 if [ "$1" = "-h" ] ; then
 	echo "$helpstr" | grep "$script:" | tr -s '\t' | cut -f 2-
 	exit
@@ -42,7 +42,7 @@ else
 		${brief:+"-y"} \
 		${interval:+"$interval"} \
 		${interval:+"1"} \
-		"$VDEV_UPATH" | awk NF | tail -n 2)
+		"$VDEV_UPATH" | grep -v '^$' | tail -n 2)
 fi
 
 
@@ -61,7 +61,7 @@ fi
 cols=$(echo "$out" | head -n 1)
 
 # Get the values and tab separate them to make them cut-able.
-vals=$(echo "$out" | tail -n 1 | sed -r 's/[[:blank:]]+/\t/g')
+vals=$(echo "$out" | tail -n 1 | tr -s '[:space:]' '\t')
 
 i=0
 for col in $cols ; do

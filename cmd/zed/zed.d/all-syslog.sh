@@ -21,7 +21,7 @@ if [ "${ZED_SYSLOG_DISPLAY_GUIDS}" = "1" ]; then
     [ -n "${ZEVENT_VDEV_GUID}" ] && msg="${msg} vdev_guid=${ZEVENT_VDEV_GUID}"
 else
     [ -n "${ZEVENT_POOL}" ] && msg="${msg} pool='${ZEVENT_POOL}'"
-    [ -n "${ZEVENT_VDEV_PATH}" ] && msg="${msg} vdev=$(basename "${ZEVENT_VDEV_PATH}")"
+    [ -n "${ZEVENT_VDEV_PATH}" ] && msg="${msg} vdev=${ZEVENT_VDEV_PATH##*/}"
 fi
 
 # log pool state if state is anything other than 'ACTIVE'

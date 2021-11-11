@@ -34,7 +34,7 @@
 
 verify_runnable "both"
 
-fs=$TESTPOOL/$TESTFS/$(basename $0).$$
+fs=$TESTPOOL/$TESTFS/${0##*/}.$$
 
 function cleanup
 {

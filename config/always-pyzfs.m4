@@ -6,7 +6,7 @@ dnl # https://www.gnu.org/software/autoconf-archive/ax_python_module.html
 dnl # Required by ZFS_AC_CONFIG_ALWAYS_PYZFS.
 dnl #
 AC_DEFUN([ZFS_AC_PYTHON_MODULE], [
-	PYTHON_NAME=$(basename $PYTHON)
+	PYTHON_NAME=${PYTHON##*/}
 	AC_MSG_CHECKING([for $PYTHON_NAME module: $1])
 	AS_IF([$PYTHON -c "import $1" 2>/dev/null], [
 		AC_MSG_RESULT(yes)

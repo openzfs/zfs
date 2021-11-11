@@ -43,7 +43,7 @@ case "${root}" in
 		root="${root#FILESYSTEM=}"
 		root="zfs:${root#ZFS=}"
 		# switch + with spaces because kernel cmdline does not allow us to quote parameters
-		root=$(printf '%s\n' "$root" | sed "s/+/ /g")
+		root=$(echo "$root" | tr '+' ' ')
 		rootok=1
 		wait_for_zfs=1
 
