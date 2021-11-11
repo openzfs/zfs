@@ -1657,7 +1657,7 @@ dnode_is_dirty(dnode_t *dn)
 	mutex_enter(&dn->dn_mtx);
 
 	for (int i = 0; i < TXG_SIZE; i++) {
-		if (list_head(&dn->dn_dirty_records[i]) != NULL) {
+		if (multilist_link_active(&dn->dn_dirty_link[i])) {
 			mutex_exit(&dn->dn_mtx);
 			return (B_TRUE);
 		}
