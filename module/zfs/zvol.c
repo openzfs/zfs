@@ -867,54 +867,26 @@ int
 zvol_first_open(zvol_state_t *zv, boolean_t readonly)
 {
 	objset_t *os;
-	int error, locked = 0;
-	boolean_t ro;
+	int error;
 
 	ASSERT(RW_READ_HELD(&zv->zv_suspend_lock));
 	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
+	ASSERT(mutex_owned(&spa_namespace_lock));
 
-	/*
-	 * In all other cases the spa_namespace_lock is taken before the
-	 * bdev->bd_mutex lock.	 But in this case the Linux __blkdev_get()
-	 * function calls fops->open() with the bdev->bd_mutex lock held.
-	 * This deadlock can be easily observed with zvols used as vdevs.
-	 *
-	 * To avoid a potential lock inversion deadlock we preemptively
-	 * try to take the spa_namespace_lock().  Normally it will not
-	 * be contended and this is safe because spa_open_common() handles
-	 * the case where the caller already holds the spa_namespace_lock.
-	 *
-	 * When it is contended we risk a lock inversion if we were to
-	 * block waiting for the lock.	Luckily, the __blkdev_get()
-	 * function allows us to return -ERESTARTSYS which will result in
-	 * bdev->bd_mutex being dropped, reacquired, and fops->open() being
-	 * called again.  This process can be repeated safely until both
-	 * locks are acquired.
-	 */
-	if (!mutex_owned(&spa_namespace_lock)) {
-		locked = mutex_tryenter(&spa_namespace_lock);
-		if (!locked)
-			return (SET_ERROR(EINTR));
-	}
-
-	ro = (readonly || (strchr(zv->zv_name, '@') != NULL));
+	boolean_t ro = (readonly || (strchr(zv->zv_name, '@') != NULL));
 	error = dmu_objset_own(zv->zv_name, DMU_OST_ZVOL, ro, B_TRUE, zv, &os);
 	if (error)
-		goto out_mutex;
+		return (SET_ERROR(error));
 
 	zv->zv_objset = os;
 
 	error = zvol_setup_zv(zv);
-
 	if (error) {
 		dmu_objset_disown(os, 1, zv);
 		zv->zv_objset = NULL;
 	}
 
-out_mutex:
-	if (locked)
-		mutex_exit(&spa_namespace_lock);
-	return (SET_ERROR(error));
+	return (error);
 }
 
 void
