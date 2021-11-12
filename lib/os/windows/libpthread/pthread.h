@@ -1206,7 +1206,7 @@ static int pthread_setspecific(pthread_key_t key, const void *value)
 {
 	pthread_t t = pthread_self();
 
-	if (key > t->keymax) {
+	if (key >= t->keymax) {
 		int keymax = (key + 1) * 2;
 		void **kv = realloc(t->keyval, keymax * sizeof (void *));
 
