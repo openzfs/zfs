@@ -56,6 +56,7 @@ $(MODULE)-objs += fm.o
 $(MODULE)-objs += gzip.o
 $(MODULE)-objs += hkdf.o
 $(MODULE)-objs += lz4.o
+$(MODULE)-objs += lz4_zfs.o
 $(MODULE)-objs += lzjb.o
 $(MODULE)-objs += metaslab.o
 $(MODULE)-objs += mmp.o

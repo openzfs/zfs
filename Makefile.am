@@ -126,6 +126,7 @@ cstyle:
 		! -name 'zfs_config.*' ! -name '*.mod.c' \
 		! -name 'opt_global.h' ! -name '*_if*.h' \
 		! -path './module/zstd/lib/*' \
+		! -path './module/zfs/lz4.c' \
 		$(cstyle_line)
 
 filter_executable = -exec test -x '{}' \; -print
