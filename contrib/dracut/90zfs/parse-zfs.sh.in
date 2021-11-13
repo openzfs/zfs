@@ -49,11 +49,14 @@ case "${root}" in
 
 		info "ZFS: Set ${root} as bootfs."
 		;;
+
+	*)
+		info "ZFS: no ZFS-on-root"
 esac
 
 # Make sure Dracut is happy that we have a root and will wait for ZFS
 # modules to settle before mounting.
-if [ ${wait_for_zfs} -eq 1 ]; then
+if [ "${wait_for_zfs}" -eq 1 ]; then
 	ln -s /dev/null /dev/root 2>/dev/null
 	initqueuedir="${hookdir}/initqueue/finished"
 	test -d "${initqueuedir}" || {

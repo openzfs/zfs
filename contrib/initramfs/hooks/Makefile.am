@@ -7,4 +7,5 @@ hooks_SCRIPTS = \
 	zfs \
 	zfsunlock
 
+SHELLCHECK_OPTS = --enable=all
 SUBSTFILES += $(hooks_SCRIPTS)

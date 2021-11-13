@@ -1,7 +1,7 @@
 .PHONY: shellcheck
 shellcheck: $(SCRIPTS) $(SHELLCHECKSCRIPTS)
 if HAVE_SHELLCHECK
-	[ -z "$(SCRIPTS)$(SHELLCHECKSCRIPTS)" ] && exit; shellcheck $$([ -n "$(SHELLCHECK_SHELL)" ] && echo "--shell=$(SHELLCHECK_SHELL)") --exclude=SC1090,SC1091$(SHELLCHECK_IGNORE) --format=gcc $(SCRIPTS) $(SHELLCHECKSCRIPTS)
+	[ -z "$(SCRIPTS)$(SHELLCHECKSCRIPTS)" ] && exit; shellcheck --format=gcc --exclude=SC1090,SC1091,SC2250 $$([ -n "$(SHELLCHECK_SHELL)" ] && echo "--shell=$(SHELLCHECK_SHELL)") $(SHELLCHECK_OPTS) $(SCRIPTS) $(SHELLCHECKSCRIPTS)
 else
 	@[ -z "$(SCRIPTS)$(SHELLCHECKSCRIPTS)" ] && exit; echo "skipping shellcheck of" $(SCRIPTS) $(SHELLCHECKSCRIPTS) "because shellcheck is not installed"
 endif

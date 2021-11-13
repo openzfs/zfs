@@ -7,6 +7,7 @@ dist_initrd_SCRIPTS = \
 
 SUBDIRS = conf.d conf-hooks.d hooks scripts
 SHELLCHECKDIRS = hooks scripts
+SHELLCHECK_OPTS = --enable=all
 
 EXTRA_DIST = \
 	README.initramfs.markdown
