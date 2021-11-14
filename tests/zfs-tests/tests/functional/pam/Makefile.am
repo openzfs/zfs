@@ -4,4 +4,5 @@ dist_pkgdata_SCRIPTS = \
 	cleanup.ksh \
 	pam_basic.ksh \
 	pam_nounmount.ksh \
+	pam_short_password.ksh \
 	utilities.kshlib

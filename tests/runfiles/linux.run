@@ -125,7 +125,7 @@ tests = ['umount_unlinked_drain']
 tags = ['functional', 'mount']
 
 [tests/functional/pam:Linux]
-tests = ['pam_basic', 'pam_nounmount']
+tests = ['pam_basic', 'pam_nounmount', 'pam_short_password']
 tags = ['functional', 'pam']
 
 [tests/functional/procfs:Linux]
