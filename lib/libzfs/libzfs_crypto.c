@@ -245,8 +245,10 @@ validate_key(libzfs_handle_t *hdl, zfs_keyformat_t keyformat,
 		}
 		break;
 	case ZFS_KEYFORMAT_PASSPHRASE:
-		/* verify the length is within bounds when setting a new key,
-		 * but not when loading an existing key */
+		/*
+		 * Verify the length is within bounds when setting a new key,
+		 * but not when loading an existing key.
+		 */
 		if (!do_verify)
 			break;
 		if (keylen > MAX_PASSPHRASE_LEN) {
