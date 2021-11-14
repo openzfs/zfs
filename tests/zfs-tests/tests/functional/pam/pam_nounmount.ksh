@@ -26,22 +26,22 @@ log_mustnot ismounted "$TESTPOOL/pam/${username}"
 keystatus unavailable
 
 genconfig "homes=$TESTPOOL/pam runstatedir=${runstatedir} nounmount"
-echo "testpass" | pamtester pam_zfs_key_test ${username} open_session
+echo "testpass" | pamtester ${pamservice} ${username} open_session
 references 1
 log_must ismounted "$TESTPOOL/pam/${username}"
 keystatus available
 
-echo "testpass" | pamtester pam_zfs_key_test ${username} open_session
+echo "testpass" | pamtester ${pamservice} ${username} open_session
 references 2
 keystatus available
 log_must ismounted "$TESTPOOL/pam/${username}"
 
-log_must pamtester pam_zfs_key_test ${username} close_session
+log_must pamtester ${pamservice} ${username} close_session
 references 1
 keystatus available
 log_must ismounted "$TESTPOOL/pam/${username}"
 
-log_must pamtester pam_zfs_key_test ${username} close_session
+log_must pamtester ${pamservice} ${username} close_session
 references 0
 keystatus available
 log_must ismounted "$TESTPOOL/pam/${username}"

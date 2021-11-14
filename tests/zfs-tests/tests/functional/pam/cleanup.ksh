@@ -22,6 +22,7 @@
 
 . $STF_SUITE/tests/functional/pam/utilities.kshlib
 
+rmconfig
 destroy_pool $TESTPOOL
 del_user ${username}
 del_group pamtestgroup
