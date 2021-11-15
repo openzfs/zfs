@@ -165,6 +165,7 @@ struct send_range {
 			kmutex_t		lock;
 			kcondvar_t		cv;
 			boolean_t		io_outstanding;
+			boolean_t		io_compressed;
 			int			io_err;
 		} data;
 		struct srh {
@@ -450,7 +451,8 @@ dump_redact(dmu_send_cookie_t *dscp, uint64_t object, uint64_t offset,
 
 static int
 dmu_dump_write(dmu_send_cookie_t *dscp, dmu_object_type_t type, uint64_t object,
-    uint64_t offset, int lsize, int psize, const blkptr_t *bp, void *data)
+    uint64_t offset, int lsize, int psize, const blkptr_t *bp,
+    boolean_t io_compressed, void *data)
 {
 	uint64_t payload_size;
 	boolean_t raw = (dscp->dsc_featureflags & DMU_BACKUP_FEATURE_RAW);
@@ -487,7 +489,10 @@ dmu_dump_write(dmu_send_cookie_t *dscp, dmu_object_type_t type, uint64_t object,
 	drrw->drr_logical_size = lsize;
 
 	/* only set the compression fields if the buf is compressed or raw */
-	if (raw || lsize != psize) {
+	boolean_t compressed =
+	    (bp != NULL ? BP_GET_COMPRESS(bp) != ZIO_COMPRESS_OFF &&
+	    io_compressed : lsize != psize);
+	if (raw || compressed) {
 		ASSERT(raw || dscp->dsc_featureflags &
 		    DMU_BACKUP_FEATURE_COMPRESSED);
 		ASSERT(!BP_IS_EMBEDDED(bp));
@@ -1014,7 +1019,8 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 				int n = MIN(srdp->datablksz,
 				    SPA_OLD_MAXBLOCKSIZE);
 				err = dmu_dump_write(dscp, srdp->obj_type,
-				    range->object, offset, n, n, NULL, data);
+				    range->object, offset, n, n, NULL, B_FALSE,
+				    data);
 				offset += n;
 				/*
 				 * When doing dry run, data==NULL is used as a
@@ -1028,7 +1034,8 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 		} else {
 			err = dmu_dump_write(dscp, srdp->obj_type,
 			    range->object, offset,
-			    srdp->datablksz, srdp->datasz, bp, data);
+			    srdp->datablksz, srdp->datasz, bp,
+			    srdp->io_compressed, data);
 		}
 		return (err);
 	}
@@ -1682,6 +1689,8 @@ issue_data_read(struct send_reader_thread_arg *srta, struct send_range *range)
 	if (arc_err != 0) {
 		srdp->abd = abd_alloc_linear(srdp->datasz, B_FALSE);
 		srdp->io_outstanding = B_TRUE;
+		srdp->io_compressed = zioflags & ZIO_FLAG_RAW ||
+		    zioflags & ZIO_FLAG_RAW_COMPRESS;
 		zio_nowait(zio_read(NULL, os->os_spa, bp, srdp->abd,
 		    srdp->datasz, dmu_send_read_done, range,
 		    ZIO_PRIORITY_ASYNC_READ, zioflags, &zb));
