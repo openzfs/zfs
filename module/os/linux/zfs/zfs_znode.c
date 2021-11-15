@@ -351,7 +351,7 @@ zfs_znode_sa_init(zfsvfs_t *zfsvfs, znode_t *zp,
 void
 zfs_znode_dmu_fini(znode_t *zp)
 {
-	ASSERT(zfs_znode_held(ZTOZSB(zp), zp->z_id) || zp->z_unlinked ||
+	ASSERT(zfs_znode_held(ZTOZSB(zp), zp->z_id) ||
 	    RW_WRITE_HELD(&ZTOZSB(zp)->z_teardown_inactive_lock));
 
 	sa_handle_destroy(zp->z_sa_hdl);
@@ -1330,6 +1330,7 @@ zfs_zinactive(znode_t *zp)
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
 	uint64_t z_id = zp->z_id;
 	znode_hold_t *zh;
+	int err;
 
 	ASSERT(zp->z_sa_hdl);
 
@@ -1338,30 +1339,103 @@ zfs_zinactive(znode_t *zp)
 	 */
 	zh = zfs_znode_hold_enter(zfsvfs, z_id);
 
+	/*
+	 * Grab z_lock so we can access z_unlinked.
+	 */
 	mutex_enter(&zp->z_lock);
+	if (!zp->z_unlinked) {
+		/* XXX when does this happen? */
+		mutex_exit(&zp->z_lock);
+		goto out_dmu_fini;
+	}
+	mutex_exit(&zp->z_lock);
 
 	/*
-	 * If this was the last reference to a file with no links, remove
-	 * the file from the file system unless the file system is mounted
-	 * read-only.  That can happen, for example, if the file system was
-	 * originally read-write, the file was opened, then unlinked and
-	 * the file system was made read-only before the file was finally
-	 * closed.  The file will remain in the unlinked set.
+	 * This was the last reference to a file with no links.
+	 * Try to remove that file from the file system.
+	 * If the removal attempt fails, we give up because the VFS doesn't
+	 * allow us to fail at this point.
+	 * This causes the file to be leaked until we walk through the
+	 * unlinked set next time we mount the filesystem.
 	 */
-	if (zp->z_unlinked) {
-		ASSERT(!zfsvfs->z_issnap);
-		if (!zfs_is_readonly(zfsvfs) && !zfs_unlink_suspend_progress) {
-			mutex_exit(&zp->z_lock);
-			zfs_znode_hold_exit(zfsvfs, zh);
-			zfs_rmnode(zp);
-			return;
-		}
+	/* XXX: assert z_id is in unlinkedobj */
+
+	ASSERT(!zfsvfs->z_issnap);
+	if (unlikely(zfs_is_readonly(zfsvfs))) {
+		/*
+		 * The file system was originally read-write, the file was
+		 * opened, then unlinked and the file system was made read-only
+		 * before the file was finally closed.
+		 */
+		char osname[ZFS_MAX_DATASET_NAME_LEN];
+		dmu_objset_name(zfsvfs->z_os, osname);
+		zfs_dbgmsg("%s: leaking object %llu to unlinked set because "
+		    "the filesystem became readonly between unlink and close.",
+		    osname, z_id);
+		goto out_dmu_fini;
 	}
 
-	mutex_exit(&zp->z_lock);
+	if (unlikely(zfs_unlink_suspend_progress)) {
+		/*
+		 * This is used by the ZTS to intentionally leak into the
+		 * unlinked set; so, don't make unnecessary noise.
+		 */
+		goto out_dmu_fini;
+	}
+
+	/*
+	 * zfs_rmnode will invoke operations that call zfs_zget(), so,
+	 * drop the mutex and the hold now.
+	 */
+	zfs_znode_hold_exit(zfsvfs, zh);
+	/*
+	 * Until we aquire the hold again, we are racing with zfs_zget() now.
+	 * Note that zfs_zget can still happen, despite the file being
+	 * unreachable from userspace. Possible callers (non-exhaustive!):
+	 * - zfs_get_data (i.e., the ZIL)
+	 * - knfsd and friends, via zpl_fh_to_dentry (grep zfid_.*_t)
+	 */
+	err = zfs_rmnode(zp);
+	if (unlikely(err != 0)) {
+		char osname[ZFS_MAX_DATASET_NAME_LEN];
+		dmu_objset_name(zfsvfs->z_os, osname);
+		zfs_dbgmsg("%s: zfs_rmnode failed (err=%d) to remove object"
+		    " %llu; leaking space until remount.",
+		    osname, err, z_id);
+		zh = zfs_znode_hold_enter(zfsvfs, z_id);
+		goto out_dmu_fini;
+	} else {
+		/*
+		 * zfs_rmnode does dmu_fini internally, in zfs_delete_znode,
+		 * and zfs_delete_znode protects it with the znode hold.
+		 * No need to hold again here.
+		 */
+		goto out_exit;
+	}
+
+out_dmu_fini:
+	/*
+	 * We must hold the znode when calling zfs_znode_dmu_fini.
+	 * Otherwise, concurrent zfs_zget()'s can data-race, resulting in
+	 * use-after-free within zfs_zget(). The scenario is that another thread
+	 * executes zfs_zget(), which uses sa_get_user_data() to get the same
+	 * zp as the one in this function. Now, if that thread is interrupted
+	 * after it has read zp, and then current runs this function to
+	 * completion, and also reaches the end of zpl_inode_destroy, then
+	 * the memory behind zp has been freed and the racing zfs_zget thread
+	 * will do a use-after-free of that memory (its zp is dangling).
+	 * NB: the Linux VFS returns NULL for igrab(), and zfs_zget() retries
+	 *     in that case, but since the struct inode is embedded in znode_t,
+	 *     it's still a user-after free.
+	 */
+	ASSERT(zfs_znode_held(ZTOZSB(zp), zp->z_id));
 	zfs_znode_dmu_fini(zp);
 
 	zfs_znode_hold_exit(zfsvfs, zh);
+
+out_exit:
+	/* XXX: verify that zfs_znode_dmu_fini was called */
+	(void) 0;
 }
 
 #if defined(HAVE_INODE_TIMESPEC64_TIMES)

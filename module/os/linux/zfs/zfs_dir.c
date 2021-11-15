@@ -642,7 +642,7 @@ zfs_purgedir(znode_t *dzp)
 	return (skipped);
 }
 
-void
+int
 zfs_rmnode(znode_t *zp)
 {
 	zfsvfs_t	*zfsvfs = ZTOZSB(zp);
@@ -664,11 +664,8 @@ zfs_rmnode(znode_t *zp)
 		if (zfs_purgedir(zp) != 0) {
 			/*
 			 * Not enough space to delete some xattrs.
-			 * Leave it in the unlinked set.
 			 */
-			zfs_znode_dmu_fini(zp);
-
-			return;
+			return (SET_ERROR(ZFS_ERR_RMNODE_PURGEDIR_ERROR));
 		}
 	}
 
@@ -684,10 +681,8 @@ zfs_rmnode(znode_t *zp)
 		if (error) {
 			/*
 			 * Not enough space or we were interrupted by unmount.
-			 * Leave the file in the unlinked set.
 			 */
-			zfs_znode_dmu_fini(zp);
-			return;
+			return (error);
 		}
 	}
 
@@ -699,6 +694,7 @@ zfs_rmnode(znode_t *zp)
 	    &xattr_obj, sizeof (xattr_obj));
 	if (error == 0 && xattr_obj) {
 		error = zfs_zget(zfsvfs, xattr_obj, &xzp);
+		/* XXX why can't this fail? */
 		ASSERT(error == 0);
 	}
 
@@ -726,11 +722,17 @@ zfs_rmnode(znode_t *zp)
 		 * which point we'll call zfs_unlinked_drain() to process it).
 		 */
 		dmu_tx_abort(tx);
-		zfs_znode_dmu_fini(zp);
 		goto out;
 	}
 
 	if (xzp) {
+		/*
+		 * XXX what's the point of this assertion?
+		 * It's obviously always true due to the early exit above.
+		 * Maybe its original purpose was to cover the case
+		 * of zfs_zget(..., &xzp) returning an error?
+		 *
+		 */
 		ASSERT(error == 0);
 		mutex_enter(&xzp->z_lock);
 		xzp->z_unlinked = B_TRUE;	/* mark xzp for deletion */
@@ -745,10 +747,11 @@ zfs_rmnode(znode_t *zp)
 	mutex_enter(&os->os_dsl_dataset->ds_dir->dd_activity_lock);
 
 	/*
-	 * Remove this znode from the unlinked set.  If a has rollback has
-	 * occurred while a file is open and unlinked.  Then when the file
+	 * Remove this znode from the unlinked set.
+	 * This can fail with ENOENT: if a rollback has
+	 * occurred while a file is open and unlinked, then when the file
 	 * is closed post rollback it will not exist in the rolled back
-	 * version of the unlinked object.
+	 * version of the unlinked set.
 	 */
 	error = zap_remove_int(zfsvfs->z_os, zfsvfs->z_unlinkedobj,
 	    zp->z_id, tx);
@@ -764,11 +767,19 @@ zfs_rmnode(znode_t *zp)
 	dataset_kstats_update_nunlinked_kstat(&zfsvfs->z_kstat, 1);
 
 	zfs_znode_delete(zp, tx);
+	/*
+	 * zfs_znode_delete does zfs_znode_dmu_fini internally.
+	 * We use a return value of zero to indicate this to the caller,
+	 * which does the zfs_znode_dmu_fini for the error case.
+	 */
+	error = 0;
 
 	dmu_tx_commit(tx);
 out:
 	if (xzp)
 		zfs_zrele_async(xzp);
+
+	return (error);
 }
 
 static uint64_t
