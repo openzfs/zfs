@@ -88,6 +88,9 @@
 #if defined(HAVE_KERNEL_FPU_API_HEADER)
 #include <asm/fpu/api.h>
 #include <asm/fpu/internal.h>
+#if defined(HAVE_KERNEL_FPU_XCR_HEADER)
+#include <asm/fpu/xcr.h>
+#endif
 #else
 #include <asm/i387.h>
 #include <asm/xcr.h>
