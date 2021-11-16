@@ -38,10 +38,6 @@ tags = ['functional', 'atime']
 tests = ['chattr_001_pos', 'chattr_002_neg']
 tags = ['functional', 'chattr']
 
-[tests/functional/checksum:Linux]
-tests = ['run_edonr_test']
-tags = ['functional', 'checksum']
-
 [tests/functional/cli_root/zfs:Linux]
 tests = ['zfs_003_neg']
 tags = ['functional', 'cli_root', 'zfs']

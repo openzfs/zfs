@@ -46,10 +46,7 @@
 verify_runnable "both"
 
 set -A dataset "$TESTPOOL" "$TESTPOOL/$TESTFS" "$TESTPOOL/$TESTVOL"
-set -A values "on" "off" "fletcher2" "fletcher4" "sha256" "sha512" "skein" "noparity"
-if is_linux; then
-	values+=("edonr")
-fi
+set -A values "on" "off" "fletcher2" "fletcher4" "sha256" "sha512" "skein" "edonr" "noparity"
 
 log_assert "Setting a valid checksum on a file system, volume," \
 	"it should be successful."
