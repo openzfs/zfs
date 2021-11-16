@@ -1088,6 +1088,7 @@ range_alloc(enum type type, uint64_t object, uint64_t start_blkid,
 		cv_init(&range->sru.data.cv, NULL, CV_DEFAULT, NULL);
 		range->sru.data.io_outstanding = 0;
 		range->sru.data.io_err = 0;
+		range->sru.data.io_compressed = B_FALSE;
 	}
 	return (range);
 }
@@ -1653,10 +1654,13 @@ issue_data_read(struct send_reader_thread_arg *srta, struct send_range *range)
 
 	enum zio_flag zioflags = ZIO_FLAG_CANFAIL;
 
-	if (srta->featureflags & DMU_BACKUP_FEATURE_RAW)
+	if (srta->featureflags & DMU_BACKUP_FEATURE_RAW) {
 		zioflags |= ZIO_FLAG_RAW;
-	else if (request_compressed)
+		srdp->io_compressed = B_TRUE;
+	} else if (request_compressed) {
 		zioflags |= ZIO_FLAG_RAW_COMPRESS;
+		srdp->io_compressed = B_TRUE;
+	}
 
 	srdp->datasz = (zioflags & ZIO_FLAG_RAW_COMPRESS) ?
 	    BP_GET_PSIZE(bp) : BP_GET_LSIZE(bp);
@@ -1689,8 +1693,6 @@ issue_data_read(struct send_reader_thread_arg *srta, struct send_range *range)
 	if (arc_err != 0) {
 		srdp->abd = abd_alloc_linear(srdp->datasz, B_FALSE);
 		srdp->io_outstanding = B_TRUE;
-		srdp->io_compressed = zioflags & ZIO_FLAG_RAW ||
-		    zioflags & ZIO_FLAG_RAW_COMPRESS;
 		zio_nowait(zio_read(NULL, os->os_spa, bp, srdp->abd,
 		    srdp->datasz, dmu_send_read_done, range,
 		    ZIO_PRIORITY_ASYNC_READ, zioflags, &zb));
