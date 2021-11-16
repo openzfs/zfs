@@ -387,7 +387,7 @@ class ListMaybesAction(argparse.Action):
                  dest="SUPPRESS",
                  default="SUPPRESS",
                  help="list flaky tests and exit"):
-        super().__init__(
+        super(ListMaybesAction, self).__init__(
             option_strings=option_strings,
             dest=dest,
             default=default,
