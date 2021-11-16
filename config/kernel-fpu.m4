@@ -2,6 +2,9 @@ dnl #
 dnl # Handle differences in kernel FPU code.
 dnl #
 dnl # Kernel
+dnl # 5.16:	XCR code put into asm/fpu/xcr.h
+dnl # 		HAVE_KERNEL_FPU_XCR_HEADER
+dnl #
 dnl # 5.0:	Wrappers have been introduced to save/restore the FPU state.
 dnl #		This change was made to the 4.19.38 and 4.14.120 LTS kernels.
 dnl #		HAVE_KERNEL_FPU_INTERNAL
@@ -25,6 +28,18 @@ AC_DEFUN([ZFS_AC_KERNEL_FPU_HEADER], [
 		AC_DEFINE(HAVE_KERNEL_FPU_API_HEADER, 1,
 		    [kernel has asm/fpu/api.h])
 		AC_MSG_RESULT(asm/fpu/api.h)
+		AC_MSG_CHECKING([whether fpu/xcr header is available])
+		ZFS_LINUX_TRY_COMPILE([
+			#include <linux/module.h>
+			#include <asm/fpu/xcr.h>
+		],[
+		],[
+			AC_DEFINE(HAVE_KERNEL_FPU_XCR_HEADER, 1,
+				[kernel has asm/fpu/xcr.h])
+			AC_MSG_RESULT(asm/fpu/xcr.h)
+		],[
+			AC_MSG_RESULT(no asm/fpu/xcr.h)
+		])
 	],[
 		AC_MSG_RESULT(i387.h & xcr.h)
 	])
