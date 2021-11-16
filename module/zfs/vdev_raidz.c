@@ -4122,7 +4122,7 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 
 	for (uint64_t i = vre->vre_offset >> raidvd->vdev_ms_shift;
 	    i < raidvd->vdev_ms_count &&
-	    !zthr_iscancelled(spa->spa_raidz_expand_zthr) &&
+	    !zthr_iscancelled(zthr) &&
 	    vre->vre_failed_offset == UINT64_MAX; i++) {
 		metaslab_t *msp = raidvd->vdev_ms[i];
 
@@ -4175,7 +4175,7 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 		 */
 		range_tree_clear(rt, 0, vre->vre_offset);
 
-		while (!zthr_iscancelled(spa->spa_raidz_expand_zthr) &&
+		while (!zthr_iscancelled(zthr) &&
 		    !range_tree_is_empty(rt) &&
 		    vre->vre_failed_offset == UINT64_MAX) {
 
@@ -4197,7 +4197,7 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 			 */
 			while (raidz_expand_max_offset_pause != 0 &&
 			    raidz_expand_max_offset_pause <= vre->vre_offset &&
-			    !zthr_iscancelled(spa->spa_raidz_expand_zthr))
+			    !zthr_iscancelled(zthr))
 				delay(hz);
 
 			mutex_enter(&vre->vre_lock);
@@ -4259,7 +4259,7 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 	 */
 	txg_wait_synced(spa->spa_dsl_pool, 0);
 
-	if (!zthr_iscancelled(spa->spa_raidz_expand_zthr) &&
+	if (!zthr_iscancelled(zthr) &&
 	    vre->vre_failed_offset == UINT64_MAX) {
 		/*
 		 * We are not being canceled, so the reflow must be
