@@ -497,7 +497,7 @@ Tags: %s
             self.failsafe, failsafe_user, self.tags)
 
     def filter(self, keeplist):
-        self.tests = [ x for x in self.tests if x in keeplist ]
+        self.tests = [x for x in self.tests if x in keeplist]
 
     def verify(self):
         """
@@ -767,8 +767,8 @@ class TestRun(object):
             config.add_section(test)
             for prop in Test.props:
                 if prop not in self.props:
-                    config.set(testgroup, prop,
-                        getattr(self.testgroups[testgroup], prop))
+                    config.set(test, prop,
+                               getattr(self.tests[test], prop))
 
         for testgroup in sorted(self.testgroups.keys()):
             config.add_section(testgroup)
@@ -776,7 +776,7 @@ class TestRun(object):
             for prop in TestGroup.props:
                 if prop not in self.props:
                     config.set(testgroup, prop,
-                        getattr(self.testgroups[testgroup], prop))
+                               getattr(self.testgroups[testgroup], prop))
 
         try:
             with open(options.template, 'w') as f:
@@ -977,17 +977,17 @@ def filter_tests(testrun, options):
 
     failed = {}
     while True:
-            line = fh.readline()
-            if not line:
-                 break
-            m = re.match(r'Test: .*(tests/.*)/(\S+).*\[FAIL\]', line)
-            if not m:
-                continue
-            group, test = m.group(1, 2)
-            try:
-                failed[group].append(test)
-            except KeyError:
-                failed[group] = [ test ]
+        line = fh.readline()
+        if not line:
+            break
+        m = re.match(r'Test: .*(tests/.*)/(\S+).*\[FAIL\]', line)
+        if not m:
+            continue
+        group, test = m.group(1, 2)
+        try:
+            failed[group].append(test)
+        except KeyError:
+            failed[group] = [test]
     fh.close()
 
     testrun.filter(failed)

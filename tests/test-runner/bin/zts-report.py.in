@@ -381,6 +381,7 @@ def process_results(pathname):
 
     return d
 
+
 class ListMaybesAction(argparse.Action):
     def __init__(self,
                  option_strings,
@@ -393,10 +394,12 @@ class ListMaybesAction(argparse.Action):
             default=default,
             nargs=0,
             help=help)
+
     def __call__(self, parser, namespace, values, option_string=None):
         for test in maybe:
             print(test)
         sys.exit(0)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Analyze ZTS logs')
