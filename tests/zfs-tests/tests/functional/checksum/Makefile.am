@@ -21,13 +21,11 @@ dist_pkgdata_DATA = \
 pkgexecdir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/checksum
 
 pkgexec_PROGRAMS = \
+	edonr_test \
 	skein_test \
 	sha2_test
 
 skein_test_SOURCES = skein_test.c
 sha2_test_SOURCES = sha2_test.c
 
-if BUILD_LINUX
-pkgexec_PROGRAMS += edonr_test
 edonr_test_SOURCES = edonr_test.c
-endif
