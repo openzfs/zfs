@@ -484,7 +484,7 @@
  *    TASKQ_STATISTIC	- If set will enable bucket statistic (default).
  *
  * DELAY DISPATCH --------------------------------------------------------------
- * roger
+ * 
  * taskq_delay_dispatch():
  *     Create a tqd_delay node containing the dispatch information, and
  * expire time. It is inserted sorted by time. The "tqd_delay" pointer is
@@ -2085,6 +2085,8 @@ taskq_thread(void *arg)
 			freeit = B_TRUE;
 		}
 
+		int is_delayed = tqe->tqent_un.tqent_flags & TQENT_FLAG_DELAYED;
+
 		rw_enter(&tq->tq_threadlock, RW_READER);
 		start = gethrtime();
 		DTRACE_PROBE2(taskq__exec__start, taskq_t *, tq,
@@ -2096,10 +2098,8 @@ taskq_thread(void *arg)
 		rw_exit(&tq->tq_threadlock);
 
 		/* If we were launched as canceled, do some book keeping */
-		if (!(tq->tq_flags & TASKQ_DYNAMIC) &&
-		    (tqe->tqent_un.tqent_flags & TQENT_FLAG_DELAYED)) {
+		if (!(tq->tq_flags & TASKQ_DYNAMIC) && is_delayed) {
 			tqdelay_t *tqdnode;
-			tqe->tqent_un.tqent_flags &= ~TQENT_FLAG_DELAYED;
 			mutex_enter(&tqd_delay_lock);
 			/* Try to find this node on list */
 			for (tqdnode = list_head(&tqd_list);
