@@ -2589,6 +2589,12 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 				continue;
 			}
 
+			zfs_dbgmsg("zio=%px repairing c=%u devidx=%u "
+			    "offset=%llx",
+			    zio, c,
+			    rc->rc_devidx,
+			    (long long)rc->rc_offset);
+
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
 			    rc->rc_offset, rc->rc_abd, rc->rc_size,
 			    ZIO_TYPE_WRITE,
@@ -2614,19 +2620,28 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 
 			if (rc->rc_shadow_devidx == INT_MAX || rc->rc_size == 0)
 				continue;
-			vdev_t *cvd2 = vd->vdev_child[rc->rc_shadow_devidx];
+			vdev_t *cvd = vd->vdev_child[rc->rc_shadow_devidx];
+
+			zfs_dbgmsg("zio=%px overwriting c=%u shadow_devidx=%u "
+			    "shadow_offset=%llx",
+			    zio, c,
+			    rc->rc_shadow_devidx,
+			    (long long)rc->rc_shadow_offset);
 
 			/*
 			 * Note: We don't want to update the repair stats
 			 * because that would incorrectly indicate that there
-			 * was bad data to repair. By clearing the
-			 * SCAN_THREAD flag, we prevent this from happening,
-			 * despite having the REPAIR flag set.
+			 * was bad data to repair, which we aren't sure about.
+			 * By clearing the SCAN_THREAD flag, we prevent this
+			 * from happening, despite having the REPAIR flag set.
+			 * We need to set SELF_HEAL so that this i/o can't be
+			 * bypassed by zio_vdev_io_start().
 			 */
-			zio_t *cio = zio_vdev_child_io(zio, NULL, cvd2,
+			zio_t *cio = zio_vdev_child_io(zio, NULL, cvd,
 			    rc->rc_shadow_offset, rc->rc_abd, rc->rc_size,
 			    ZIO_TYPE_WRITE, ZIO_PRIORITY_ASYNC_WRITE,
-			    ZIO_FLAG_IO_REPAIR, NULL, NULL);
+			    ZIO_FLAG_IO_REPAIR | ZIO_FLAG_SELF_HEAL,
+			    NULL, NULL);
 			cio->io_flags &= ~ZIO_FLAG_SCAN_THREAD;
 			zio_nowait(cio);
 		}
@@ -3190,6 +3205,8 @@ void
 vdev_raidz_io_done(zio_t *zio)
 {
 	raidz_map_t *rm = zio->io_vsd;
+
+	zfs_dbgmsg("vdev_raidz_io_done(%px)", zio);
 
 	ASSERT(zio->io_bp != NULL);
 	if (zio->io_type == ZIO_TYPE_WRITE) {

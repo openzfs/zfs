@@ -45,7 +45,7 @@
 #	    - destroy the raidz pool
 
 typeset -r devs=6
-typeset -r dev_size_mb=512
+typeset -r dev_size_mb=128
 
 typeset -a disks
 
@@ -54,6 +54,8 @@ max_offset=$(get_tunable RAIDZ_EXPAND_MAX_OFFSET_PAUSE)
 
 function cleanup
 {
+	log_pos zpool status $TESTPOOL
+
 	poolexists "$TESTPOOL" && log_must_busy zpool destroy "$TESTPOOL"
 
 	for i in {0..$devs}; do
@@ -70,7 +72,7 @@ function wait_expand_paused
 	newcopied='1'
 	while [[ $oldcopied != $newcopied ]]; do
 		oldcopied=$newcopied
-		sleep 5
+		sleep 2
 		newcopied=$(zpool status $TESTPOOL | \
 		    grep 'copied out of' | \
 		    awk '{print $1}')
@@ -141,7 +143,8 @@ function test_scrub # <pool> <parity> <dir>
 	typeset dir=$3
 	typeset combrec=$4
 
-	randbyte=$(( ((RANDOM<<15) + RANDOM) % (dev_size_mb * (devs-1) * 1024 * 1024) ))
+	randbyte=$(( ((RANDOM<<15) + RANDOM) % \
+		(dev_size_mb * (devs-1) * 1024 * 1024) ))
 	log_must set_tunable64 RAIDZ_EXPAND_MAX_OFFSET_PAUSE $randbyte
 	log_must zpool attach $TESTPOOL ${raid}-0 $dir/dev-$devs
 	wait_expand_paused
@@ -155,14 +158,8 @@ function test_scrub # <pool> <parity> <dir>
 
 	log_must zpool import -o cachefile=none -d $dir $pool
 
-	log_must zpool scrub $pool
-
-	while ! is_pool_scrubbed $pool; do
-		sleep 1
-	done
-
+	log_must zpool scrub -w $pool
 	log_must zpool clear $pool
-
 	log_must zpool export $pool
 
 	for (( i=$nparity; i<$nparity*2; i=i+1 )); do
@@ -172,11 +169,7 @@ function test_scrub # <pool> <parity> <dir>
 
 	log_must zpool import -o cachefile=none -d $dir $pool
 
-	log_must zpool scrub $pool
-
-	while ! is_pool_scrubbed $pool; do
-		sleep 1
-	done
+	log_must zpool scrub -w $pool
 
 	log_must check_pool_status $pool "errors" "No known data errors"
 
