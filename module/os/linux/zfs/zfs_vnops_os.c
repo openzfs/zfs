@@ -3592,7 +3592,9 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	err = sa_bulk_update(zp->z_sa_hdl, bulk, cnt, tx);
 
 	zfs_log_write(zfsvfs->z_log, tx, TX_WRITE, zp, pgoff, pglen, 0,
-	    zfs_putpage_commit_cb, pp);
+		wbc->sync_mode != WB_SYNC_NONE ? zfs_putpage_commit_cb : NULL,
+		wbc->sync_mode != WB_SYNC_NONE ? pp : NULL);
+
 	dmu_tx_commit(tx);
 
 	zfs_rangelock_exit(lr);
@@ -3604,6 +3606,8 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 		 * performance reasons.
 		 */
 		zil_commit(zfsvfs->z_log, zp->z_id);
+	} else{
+		zfs_putpage_commit_cb(pp);
 	}
 
 	ZFS_EXIT(zfsvfs);
