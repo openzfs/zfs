@@ -76,7 +76,6 @@ POST_BUILD="scripts/dkms.postbuild
   -t \${dkms_tree}
 "
 AUTOINSTALL="yes"
-REMAKE_INITRD="no"
 MAKE[0]="make"
 STRIP[0]="\$(
   [[ -r \${PACKAGE_CONFIG} ]] \\
