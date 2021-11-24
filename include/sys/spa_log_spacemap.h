@@ -30,7 +30,10 @@
 
 typedef struct log_summary_entry {
 	uint64_t lse_start;	/* start TXG */
+	uint64_t lse_end;	/* last TXG */
+	uint64_t lse_txgcount;	/* # of TXGs */
 	uint64_t lse_mscount;	/* # of metaslabs needed to be flushed */
+	uint64_t lse_msdcount;	/* # of dirty metaslabs needed to be flushed */
 	uint64_t lse_blkcount;	/* blocks held by this entry  */
 	list_node_t lse_node;
 } log_summary_entry_t;
@@ -50,6 +53,7 @@ typedef struct spa_log_sm {
 	uint64_t sls_nblocks;	/* number of blocks in this log */
 	uint64_t sls_mscount;	/* # of metaslabs flushed in the log's txg */
 	avl_node_t sls_node;	/* node in spa_sm_logs_by_txg */
+	space_map_t *sls_sm;	/* space map pointer, if open */
 } spa_log_sm_t;
 
 int spa_ld_log_spacemaps(spa_t *);
@@ -68,8 +72,9 @@ uint64_t spa_log_sm_memused(spa_t *);
 void spa_log_sm_decrement_mscount(spa_t *, uint64_t);
 void spa_log_sm_increment_current_mscount(spa_t *);
 
-void spa_log_summary_add_flushed_metaslab(spa_t *);
-void spa_log_summary_decrement_mscount(spa_t *, uint64_t);
+void spa_log_summary_add_flushed_metaslab(spa_t *, boolean_t);
+void spa_log_summary_dirty_flushed_metaslab(spa_t *, uint64_t);
+void spa_log_summary_decrement_mscount(spa_t *, uint64_t, boolean_t);
 void spa_log_summary_decrement_blkcount(spa_t *, uint64_t);
 
 boolean_t spa_flush_all_logs_requested(spa_t *);

@@ -995,7 +995,12 @@ Thus we always allow at least this many log blocks.
 .It Sy zfs_unflushed_log_block_pct Ns = Ns Sy 400 Ns % Pq ulong
 Tunable used to determine the number of blocks that can be used for
 the spacemap log, expressed as a percentage of the total number of
-metaslabs in the pool.
+unflushed metaslabs in the pool.
+.
+.It Sy zfs_unflushed_log_txg_max Ns = Ns Sy 1000 Pq ulong
+Tunable limiting maximum time in TXGs any metaslab may remain unflushed.
+It effectively limits maximum number of unflushed per-TXG spacemap logs
+that need to be read after unclean pool export.
 .
 .It Sy zfs_unlink_suspend_progress Ns = Ns Sy 0 Ns | Ns 1 Pq uint
 When enabled, files will not be asynchronously removed from the list of pending
