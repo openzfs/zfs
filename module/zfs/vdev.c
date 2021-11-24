@@ -1523,13 +1523,6 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 	if (txg == 0)
 		spa_config_exit(spa, SCL_ALLOC, FTAG);
 
-	/*
-	 * Regardless whether this vdev was just added or it is being
-	 * expanded, the metaslab count has changed. Recalculate the
-	 * block limit.
-	 */
-	spa_log_sm_set_blocklimit(spa);
-
 	return (0);
 }
 

@@ -86,7 +86,7 @@ static int zfs_dmu_offset_next_sync = 1;
  * helps to limit the amount of memory that can be used by prefetching.
  * Larger objects should be prefetched a bit at a time.
  */
-static int dmu_prefetch_max = 8 * SPA_MAXBLOCKSIZE;
+int dmu_prefetch_max = 8 * SPA_MAXBLOCKSIZE;
 
 const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
 	{DMU_BSWAP_UINT8,  TRUE,  FALSE, FALSE, "unallocated"		},

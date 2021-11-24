@@ -4355,7 +4355,7 @@ spa_ld_load_vdev_metadata(spa_t *spa)
 
 	error = spa_ld_log_spacemaps(spa);
 	if (error != 0) {
-		spa_load_failed(spa, "spa_ld_log_sm_data failed [error=%d]",
+		spa_load_failed(spa, "spa_ld_log_spacemaps failed [error=%d]",
 		    error);
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, error));
 	}
