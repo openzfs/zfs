@@ -228,7 +228,8 @@ zfs_mod_supported_feature(const char *name)
 	 * that all features except edonr are supported.
 	 */
 
-#if defined(_KERNEL) || defined(LIB_ZPOOL_BUILD) || defined(__FreeBSD__)
+#if defined(_KERNEL) || defined(LIB_ZPOOL_BUILD) || \
+	defined(__FreeBSD__) || defined(__APPLE__)
 	return (B_TRUE);
 #else
 	return (zfs_mod_supported(ZFS_SYSFS_POOL_FEATURES, name));
