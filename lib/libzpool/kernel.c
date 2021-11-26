@@ -1405,3 +1405,27 @@ zfsvfs_update_fromname(const char *oldname, const char *newname)
 {
 	(void) oldname, (void) newname;
 }
+
+void
+spa_import_os(spa_t *spa)
+{
+	(void) spa;
+}
+
+void
+spa_export_os(spa_t *spa)
+{
+	(void) spa;
+}
+
+void
+spa_activate_os(spa_t *spa)
+{
+	(void) spa;
+}
+
+void
+spa_deactivate_os(spa_t *spa)
+{
+	(void) spa;
+}
