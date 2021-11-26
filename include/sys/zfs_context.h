@@ -509,6 +509,7 @@ extern taskq_t	*taskq_of_curthread(void);
 extern int	taskq_cancel_id(taskq_t *, taskqid_t);
 extern void	system_taskq_init(void);
 extern void	system_taskq_fini(void);
+extern boolean_t taskq_empty(taskq_t *);
 
 #define	XVA_MAPSIZE	3
 #define	XVA_MAGIC	0x78766174

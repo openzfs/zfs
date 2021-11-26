@@ -573,15 +573,6 @@ kcf_resubmit_request(kcf_areq_node_t *areq)
 	return (error);
 }
 
-static inline int EMPTY_TASKQ(taskq_t *tq)
-{
-#ifdef _KERNEL
-	return (tq->tq_lowest_id == tq->tq_next_id);
-#else
-	return (tq->tq_task.tqent_next == &tq->tq_task || tq->tq_active == 0);
-#endif
-}
-
 /*
  * Routine called by both ioctl and k-api. The consumer should
  * bundle the parameters into a kcf_req_params_t structure. A bunch
@@ -622,7 +613,7 @@ kcf_submit_request(kcf_provider_desc_t *pd, crypto_ctx_t *ctx,
 			 * request allocation and call the SPI directly.
 			 */
 			if ((pd->pd_flags & CRYPTO_SYNCHRONOUS) &&
-			    EMPTY_TASKQ(taskq)) {
+			    taskq_empty(taskq)) {
 				KCF_PROV_IREFHOLD(pd);
 				if (pd->pd_state == KCF_PROV_READY) {
 					error = common_submit_request(pd, ctx,
@@ -657,7 +648,7 @@ kcf_submit_request(kcf_provider_desc_t *pd, crypto_ctx_t *ctx,
 			 * case. This is unlike the asynchronous case where we
 			 * must always dispatch to the taskq.
 			 */
-			if (EMPTY_TASKQ(taskq) &&
+			if (taskq_empty(taskq) &&
 			    pd->pd_state == KCF_PROV_READY) {
 				process_req_hwp(sreq);
 			} else {

@@ -163,6 +163,8 @@ extern taskq_t *taskq_of_curthread(void);
 	((void) sizeof (dc), \
 	    taskq_create(name, nthreads, maxclsyspri, min, max, flags))
 
+extern boolean_t taskq_empty(taskq_t *);
+
 int spl_taskq_init(void);
 void spl_taskq_fini(void);
 
