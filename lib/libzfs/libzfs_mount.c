@@ -595,9 +595,13 @@ unmount_one(zfs_handle_t *zhp, const char *mountpoint, int flags)
 		default:
 			libzfs_err = EZFS_UMOUNTFAILED;
 		}
-		return (zfs_error_fmt(zhp->zfs_hdl, libzfs_err,
-		    dgettext(TEXT_DOMAIN, "cannot unmount '%s'"),
-		    mountpoint));
+		if (zhp) {
+			return (zfs_error_fmt(zhp->zfs_hdl, libzfs_err,
+			    dgettext(TEXT_DOMAIN, "cannot unmount '%s'"),
+			    mountpoint));
+		} else {
+			return (-1);
+		}
 	}
 
 	return (0);
