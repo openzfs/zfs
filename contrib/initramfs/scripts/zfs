@@ -596,7 +596,7 @@ setup_snapshot_booting()
 	retval=0
 
 	# Make sure that the snapshot specified actually exists.
-	if [ ! "$(get_fs_value "${snap}" type)" ]
+	if [ -z "$(get_fs_value "${snap}" type)" ]
 	then
 		# Snapshot does not exist (...@<null> ?)
 		# ask the user for a snapshot to use.
@@ -613,7 +613,8 @@ setup_snapshot_booting()
 	then
 		# If the destination dataset for the clone
 		# already exists, destroy it. Recursively
-		if [ "$(get_fs_value "${rootfs}_${snapname}" type)" ]; then
+		if [ -n "$(get_fs_value "${rootfs}_${snapname}" type)" ]
+		then
 			filesystems=$("${ZFS}" list -oname -tfilesystem -H \
 			    -r -Sname "${ZFS_BOOTFS}")
 			for fs in $filesystems; do
@@ -848,7 +849,7 @@ mountroot()
 		done
 		IFS="$OLD_IFS"
 
-		[ "$quiet" != "y" ] && zfs_log_end_msg $ZFS_ERROR
+		[ "$quiet" != "y" ] && zfs_log_end_msg "$ZFS_ERROR"
 	else
 		# No auto - use value from the command line option.
 

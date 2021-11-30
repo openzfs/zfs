@@ -5,3 +5,4 @@ EXTRA_DIST = \
 	zfs-trace.sh
 
 SHELLCHECKSCRIPTS = zfs-trace.sh
+SHELLCHECK_OPTS = --enable=all

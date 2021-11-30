@@ -19,6 +19,7 @@ pkgdracut_DATA = \
 	zfs-rollback-bootfs.service
 
 SUBSTFILES += $(pkgdracut_SCRIPTS) $(pkgdracut_DATA)
+SHELLCHECK_OPTS = --enable=all
 
 # Provided by /bin/sleep, and, again, every implementation of that supports this
 CHECKBASHISMS_IGNORE = -e 'sleep only takes one integer' -e 'sleep 0.'

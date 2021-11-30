@@ -70,6 +70,7 @@ import_pool() {
 }
 
 _mount_dataset_cb() {
+    # shellcheck disable=SC2154
     mount -o zfsutil -t zfs "${1}" "${NEWROOT}${2}"
 }
 
@@ -91,7 +92,7 @@ mount_dataset() {
         fi
     fi
 
-    return ${ret}
+    return "${ret}"
 }
 
 # for_relevant_root_children DATASET EXEC
@@ -117,7 +118,7 @@ for_relevant_root_children() {
                         ;;
                 esac
             done
-            exit ${_ret}
+            exit "${_ret}"
         )
 }
 
@@ -134,7 +135,7 @@ export_all() {
     done
     IFS="${OLDIFS}"
 
-    return ${ret}
+    return "${ret}"
 }
 
 # ask_for_password
@@ -171,6 +172,7 @@ ask_for_password() {
             --ply-tries) ply_tries="$2"; shift;;
             --tty-tries) tty_tries="$2"; shift;;
             --tty-echo-off) tty_echo_off=yes;;
+            *) echo "ask_for_password(): wrong opt '$1'" >&2;;
         esac
         shift
     done
@@ -202,6 +204,6 @@ ask_for_password() {
         fi
     } 9>/.console_lock
 
-    [ $ret -ne 0 ] && echo "Wrong password" >&2
-    return $ret
+    [ "$ret" -ne 0 ] && echo "Wrong password" >&2
+    return "$ret"
 }

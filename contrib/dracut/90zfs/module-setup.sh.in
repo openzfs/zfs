@@ -61,9 +61,9 @@ install() {
 		dracut_install /usr/lib*/gcc/**/libgcc_s.so*
 	fi
 	# shellcheck disable=SC2050
-	if [ @LIBFETCH_DYNAMIC@ != 0 ]; then
+	if [ "@LIBFETCH_DYNAMIC@" != 0 ]; then
 		for d in $libdirs; do
-			[ -e "$d/"@LIBFETCH_SONAME@ ] && dracut_install "$d/"@LIBFETCH_SONAME@
+			[ -e "$d/@LIBFETCH_SONAME@" ] && dracut_install "$d/@LIBFETCH_SONAME@"
 		done
 	fi
 	dracut_install @mounthelperdir@/mount.zfs
@@ -107,7 +107,7 @@ install() {
 		for _service in "zfs-import-scan.service" "zfs-import-cache.service" ; do
 			dracut_install "@systemdunitdir@/$_service"
 			if ! [ -L "${initdir}/$systemdsystemunitdir/zfs-import.target.wants/$_service" ]; then
-				ln -sf ../$_service "${initdir}/$systemdsystemunitdir/zfs-import.target.wants/$_service"
+				ln -sf "../$_service" "${initdir}/$systemdsystemunitdir/zfs-import.target.wants/$_service"
 				type mark_hostonly >/dev/null 2>&1 && mark_hostonly "@systemdunitdir@/$_service"
 			fi
 		done
