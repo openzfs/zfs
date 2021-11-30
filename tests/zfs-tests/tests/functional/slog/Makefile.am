@@ -17,9 +17,13 @@ dist_pkgdata_SCRIPTS = \
 	slog_013_pos.ksh \
 	slog_014_pos.ksh \
 	slog_015_neg.ksh \
-	slog_replay_fs_001.ksh \
-	slog_replay_fs_002.ksh \
-	slog_replay_volume.ksh
+	slog_replay_fs_001__lwb.ksh \
+	slog_replay_fs_002__lwb.ksh \
+	slog_replay_volume__lwb.ksh \
+	slog_replay_fs_001__pmem.ksh \
+	slog_replay_fs_002__pmem.ksh \
+	slog_replay_volume__pmem.ksh \
+	pmem_slog_001_neg.ksh
 
 dist_pkgdata_DATA = \
 	slog.cfg \

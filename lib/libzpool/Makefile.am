@@ -163,12 +163,19 @@ KERNEL_C = \
 	zfs_debug.c \
 	zfs_fm.c \
 	zfs_fuid.c \
+	zfs_pmem.c \
+	zfs_pmem_ops_avx512.c \
+	zfs_pmem_ops_libpmem.c \
 	zfs_racct.c \
 	zfs_sa.c \
 	zfs_znode.c \
 	zfs_ratelimit.c \
 	zfs_rlock.c \
 	zil.c \
+	zil_lwb.c \
+	zil_pmem.c \
+	zil_pmem_prb.c \
+	zil_pmem_spa.c \
 	zio.c \
 	zio_checksum.c \
 	zio_compress.c \
@@ -218,7 +225,7 @@ libzpool_la_LIBADD = \
 	$(abs_top_builddir)/lib/libzstd/libzstd.la \
 	$(abs_top_builddir)/lib/libzutil/libzutil.la
 
-libzpool_la_LIBADD += $(LIBCLOCK_GETTIME) $(ZLIB_LIBS) -ldl -lm
+libzpool_la_LIBADD += $(LIBCLOCK_GETTIME) $(ZLIB_LIBS) -ldl -lm -lpmem
 
 libzpool_la_LDFLAGS = -pthread
 

@@ -24,17 +24,46 @@
  */
 
 #include <assert.h>
+#include <pthread.h>
 
 int libspl_assert_ok = 0;
+
+libspl_abort_handler_fn_t libspl_alternative_abort_handler = NULL;
+void *libspl_alternative_abort_handler_arg;
+
+void
+libspl_set_alternative_abort_handler(libspl_abort_handler_fn_t h, void *arg)
+{
+	/* FIXME synchronization */
+	libspl_alternative_abort_handler_arg = arg;
+	libspl_alternative_abort_handler = h;
+}
 
 /* printf version of libspl_assert */
 void
 libspl_assertf(const char *file, const char *func, int line,
     const char *format, ...)
 {
-	va_list args;
+	void *h_arg = libspl_alternative_abort_handler_arg;
+	libspl_abort_handler_fn_t h = libspl_alternative_abort_handler;
 
+	va_list args;
+	va_list args_h;
 	va_start(args, format);
+	if (h != NULL) {
+		va_copy(args_h, args);
+		char *firstline;
+		int err = vasprintf(&firstline, format, args_h);
+		if (err == -1)
+			goto nohandler;
+		char *all;
+		err = asprintf(&all, "%s\nASSERT at %s:%d:%s()", firstline, file, line, func);
+		if (err == -1)
+			goto nohandler;
+		h(h_arg, all);
+		abort(); /* unrechable */
+	}
+nohandler:
 	vfprintf(stderr, format, args);
 	fprintf(stderr, "\n");
 	fprintf(stderr, "ASSERT at %s:%d:%s()", file, line, func);

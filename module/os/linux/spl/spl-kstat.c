@@ -713,3 +713,79 @@ spl_kstat_fini(void)
 	ASSERT(list_empty(&kstat_module_list));
 	mutex_destroy(&kstat_module_lock);
 }
+
+static int
+zfs_percpu_kstat__data(char *buf, size_t size, void *data)
+{
+       VERIFY3U(size, >=, 4096); /* ought to be enough */
+       struct zfs_percpu_counter_statset *ss = data;
+
+       size_t len = 0;
+
+	/* header */
+       for (int i = 0; i < ss->ncounters; i++) {
+               struct zfs_percpu_counter_stat *s = &ss->counters[i];
+               ASSERT3S(s->id, ==, i);
+
+               len += snprintf(buf + len, size - len, "%s", s->name);
+               if (i != ss->ncounters - 1) {
+                       len += snprintf(buf + len, size - len, " | ");
+               } else {
+                       len += snprintf(buf + len, size - len, "\n");
+               }
+       }
+
+	/* values */
+       for (int i = 0; i < ss->ncounters; i++) {
+               struct zfs_percpu_counter_stat *s = &ss->counters[i];
+               ASSERT3S(s->id, ==, i);
+
+               len += snprintf(buf + len, size - len, "%llu", percpu_counter_sum(&s->counter));
+               if (i != ss->ncounters - 1) {
+                       len += snprintf(buf + len, size - len, " | ");
+               } else {
+                       len += snprintf(buf + len, size - len, "\n");
+               }
+       }
+
+       return (0);
+}
+
+void
+zfs_percpu_counter_statset_create(struct zfs_percpu_counter_statset *ss) {
+	for (int i = 0; i < ss->ncounters; i++) {
+		struct zfs_percpu_counter_stat *s = &ss->counters[i];
+		ASSERT3S(s->id, ==, i);
+		percpu_counter_init(&s->counter, 0, GFP_KERNEL);
+	}
+
+	ss->kstat = kstat_create("zfs", 0, ss->kstat_name, "misc",
+	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL|KSTAT_FLAG_NO_HEADERS);
+
+	if (ss->kstat) {
+		ss->kstat->ks_data = ss;
+		ss->kstat->ks_ndata = 1;
+		kstat_set_raw_ops(ss->kstat,
+		    NULL,
+		    zfs_percpu_kstat__data,
+		    NULL);
+		kstat_install(ss->kstat);
+	}
+}
+EXPORT_SYMBOL(zfs_percpu_counter_statset_create);
+
+void
+zfs_percpu_counter_statset_destroy(struct zfs_percpu_counter_statset *ss) {
+
+	if (ss->kstat)
+		kstat_delete(ss->kstat);
+
+	for (int i = 0; i < ss->ncounters; i++) {
+		struct zfs_percpu_counter_stat *s = &ss->counters[i];
+		ASSERT3S(s->id, ==, i);
+		percpu_counter_destroy(&s->counter);
+	}
+
+	ss->kstat = NULL;
+}
+EXPORT_SYMBOL(zfs_percpu_counter_statset_destroy);

@@ -68,6 +68,37 @@ vdev_file_rele(vdev_t *vd)
 	ASSERT(vd->vdev_path != NULL);
 }
 
+
+#ifndef _KERNEL
+
+static int
+vdev_file_mmap_prot_from_mode(mode_t mode)
+{
+	switch (mode) {
+		case O_RDWR:	return (PROT_READ|PROT_WRITE);
+		case O_RDONLY:	return (PROT_READ);
+		case O_WRONLY:	return (PROT_WRITE);
+	}
+	panic("unexpected mode %d", mode);
+}
+
+/*
+ * Setting this to 0 (e.g. via zdb's -o flag) enables (semantically incorrect)
+ * use of files on non-DAX filesystems as DAX vdevs.
+ */
+int vdev_file_dax_mmap_sync = 1;
+
+static int
+vdev_file_mmap_flags(void)
+{
+	int mmap_flags = MAP_SHARED_VALIDATE|MAP_POPULATE;
+	if (vdev_file_dax_mmap_sync)
+		mmap_flags |= MAP_SYNC;
+	return (mmap_flags);
+}
+
+#endif
+
 static mode_t
 vdev_file_open_mode(spa_mode_t spa_mode)
 {
@@ -120,6 +151,17 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	}
 
 	/*
+	 * Get file open mode before the goto in the next block.
+	 * XXX should assert these values didn't change inbetween?
+	 */
+	mode_t mode;
+	mode = vdev_file_open_mode(spa_mode(vd->vdev_spa));
+#ifndef _KERNEL
+	int mm_prot = vdev_file_mmap_prot_from_mode(mode);
+	int mm_flags = vdev_file_mmap_flags();
+#endif
+
+	/*
 	 * Reopen the device if it's not currently open.  Otherwise,
 	 * just update the physical size of the device.
 	 */
@@ -139,8 +181,8 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	 */
 	ASSERT(vd->vdev_path != NULL && vd->vdev_path[0] == '/');
 
-	error = zfs_file_open(vd->vdev_path,
-	    vdev_file_open_mode(spa_mode(vd->vdev_spa)), 0, &fp);
+
+	error = zfs_file_open(vd->vdev_path, mode, 0, &fp);
 	if (error) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
 		return (error);
@@ -169,6 +211,28 @@ skip_open:
 		return (error);
 	}
 
+#ifdef _KERNEL
+	if (vd->vdev_isdax) {
+		panic("unimplemented");
+	}
+#else
+	if (vd->vdev_isdax) {
+		if (zfs_file_is_mmapped(vf->vf_file)) {
+			VERIFY(vd->vdev_reopening);
+			VERIFY0(zfs_file_munmap(vf->vf_file)); /* XXX */
+		}
+		error = zfs_file_mmap(vf->vf_file, mm_prot, mm_flags,
+		    zfa.zfa_size);
+	} else {
+		VERIFY(!zfs_file_is_mmapped(vf->vf_file));
+		error = 0;
+	}
+	if (error) {
+		vd->vdev_stat.vs_aux = VDEV_AUX_DAX_MAP_ERROR;
+		return (error);
+	}
+#endif
+
 	*max_psize = *psize = zfa.zfa_size;
 	*logical_ashift = vdev_file_logical_ashift;
 	*physical_ashift = vdev_file_physical_ashift;
@@ -185,7 +249,20 @@ vdev_file_close(vdev_t *vd)
 		return;
 
 	if (vf->vf_file != NULL) {
+#ifdef _KERNEL
+		if (vd->vdev_isdax) {
+			panic("unimplemented");
+		}
+#else
+		if (vd->vdev_isdax) {
+			if (zfs_file_is_mmapped(vf->vf_file)) {
+				(void) zfs_file_munmap(vf->vf_file);
+			} else {
+				/* might be closing due to other error */
+			}
+		}
 		(void) zfs_file_close(vf->vf_file);
+#endif
 	}
 
 	vd->vdev_delayed_close = B_FALSE;
@@ -304,6 +381,26 @@ vdev_file_io_done(zio_t *zio)
 {
 }
 
+#ifdef _KERNEL
+static int
+vdev_file_dax_mapping(vdev_t *v, void **base, uint64_t *len)
+{
+	return (-1);
+}
+#else
+static int
+vdev_file_dax_mapping(vdev_t *v, void **base, uint64_t *len)
+{
+	/* mmap either succeeds on open or causes the open to fail */
+	VERIFY3U(v->vdev_state, ==, VDEV_STATE_HEALTHY);
+
+	vdev_file_t *vf = v->vdev_tsd;
+	/* set up by vdev_file_open */
+	int err = zfs_file_get_mmap(vf->vf_file, base, len);
+	return (err);
+}
+#endif
+
 vdev_ops_t vdev_file_ops = {
 	.vdev_op_init = NULL,
 	.vdev_op_fini = NULL,
@@ -319,6 +416,7 @@ vdev_ops_t vdev_file_ops = {
 	.vdev_op_hold = vdev_file_hold,
 	.vdev_op_rele = vdev_file_rele,
 	.vdev_op_remap = NULL,
+	.vdev_op_dax_mapping = vdev_file_dax_mapping,
 	.vdev_op_xlate = vdev_default_xlate,
 	.vdev_op_rebuild_asize = NULL,
 	.vdev_op_metaslab_init = NULL,
@@ -349,6 +447,18 @@ vdev_file_fini(void)
  */
 #ifndef _KERNEL
 
+static int
+vdev_diskfile_dax_mapping(vdev_t *v, void **base, uint64_t *len)
+{
+	/* mmap either succeeds on open or causes the open to fail */
+	VERIFY3U(v->vdev_state, ==, VDEV_STATE_HEALTHY);
+
+	vdev_file_t *vf = v->vdev_tsd;
+	/* set up by vdev_file_open */
+	int err = zfs_file_get_mmap(vf->vf_file, base, len);
+	return (err);
+}
+
 vdev_ops_t vdev_disk_ops = {
 	.vdev_op_init = NULL,
 	.vdev_op_fini = NULL,
@@ -364,6 +474,7 @@ vdev_ops_t vdev_disk_ops = {
 	.vdev_op_hold = vdev_file_hold,
 	.vdev_op_rele = vdev_file_rele,
 	.vdev_op_remap = NULL,
+	.vdev_op_dax_mapping = vdev_diskfile_dax_mapping,
 	.vdev_op_xlate = vdev_default_xlate,
 	.vdev_op_rebuild_asize = NULL,
 	.vdev_op_metaslab_init = NULL,

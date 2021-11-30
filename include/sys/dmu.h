@@ -853,8 +853,12 @@ int dmu_write_uio(objset_t *os, uint64_t object, zfs_uio_t *uio, uint64_t size,
 	dmu_tx_t *tx);
 int dmu_write_uio_dbuf(dmu_buf_t *zdb, zfs_uio_t *uio, uint64_t size,
 	dmu_tx_t *tx);
+int dmu_write_uioandcc_dbuf(dmu_buf_t *zdb, zfs_uio_t *uio, void *cc_buf,
+    uint64_t size, dmu_tx_t *tx);
 int dmu_write_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
-	dmu_tx_t *tx);
+    dmu_tx_t *tx);
+int dmu_write_uioandcc_dnode(dnode_t *dn, zfs_uio_t *uio, void *cc_buf,
+    uint64_t size, dmu_tx_t *tx);
 #endif
 struct arc_buf *dmu_request_arcbuf(dmu_buf_t *handle, int size);
 void dmu_return_arcbuf(struct arc_buf *buf);

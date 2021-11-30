@@ -150,6 +150,8 @@ typedef enum zfs_error {
 	EZFS_NO_RESILVER_DEFER,	/* pool doesn't support resilver_defer */
 	EZFS_EXPORT_IN_PROGRESS,	/* currently exporting the pool */
 	EZFS_REBUILDING,	/* resilvering (sequential reconstrution) */
+	EZFS_ERR_CANNOT_OPEN_AS_DAX_DEVICE, /* cannot open vde in DAX mode */
+	EZFS_ERR_ZIL_PMEM_INVALID_SLOG_CONFIG,
 	EZFS_UNKNOWN
 } zfs_error_t;
 

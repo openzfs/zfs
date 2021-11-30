@@ -759,6 +759,14 @@ top:
 				dl = NULL;
 			}
 			error = zfs_freesp(zp, 0, 0, mode, TRUE);
+		} else {
+			/* we need to call zil_replaying() */
+			tx = dmu_tx_create(os);
+			error = dmu_tx_assign(tx, TXG_WAIT); /* XXX need to respected the `waited` variable here? */
+			VERIFY0(error); /* XXX need to handle errors? */
+			boolean_t replaying = zil_replaying(zilog, tx);
+			pr_debug("zfs_create, existing zp, no truncation, replaying=%d\n", replaying);
+			dmu_tx_commit(tx);
 		}
 	}
 out:
@@ -3595,8 +3603,11 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 
 	err = sa_bulk_update(zp->z_sa_hdl, bulk, cnt, tx);
 
-	zfs_log_write(zfsvfs->z_log, tx, TX_WRITE, zp, pgoff, pglen, 0,
-	    zfs_putpage_commit_cb, pp);
+	zfs_log_write_t log_write;
+
+	zfs_log_write_begin(zfsvfs->z_log, tx, 0, zp, pgoff, pglen,
+	    zfs_putpage_commit_cb, pp, &log_write);
+	zfs_log_write_finish(&log_write, pglen);
 	dmu_tx_commit(tx);
 
 	zfs_rangelock_exit(lr);

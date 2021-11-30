@@ -99,6 +99,7 @@ zfs_errno = enum_with_offset(1024, [
         'ZFS_ERR_RESILVER_IN_PROGRESS',
         'ZFS_ERR_REBUILD_IN_PROGRESS',
         'ZFS_ERR_BADPROP',
+        'ZFS_ERR_CANNOT_OPEN_AS_DAX_DEVICE',
     ],
     {}
 )

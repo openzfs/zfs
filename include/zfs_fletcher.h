@@ -31,6 +31,7 @@
 
 #include <sys/types.h>
 #include <sys/spa_checksum.h>
+#include <sys/simd.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -55,6 +56,8 @@ _ZFS_FLETCHER_H void fletcher_2_byteswap(const void *, uint64_t, const void *,
     zio_cksum_t *);
 _ZFS_FLETCHER_H void fletcher_4_native(const void *, uint64_t, const void *,
     zio_cksum_t *);
+_ZFS_FLETCHER_H void fletcher_4_native_kfpu_ctx(const void *, uint64_t,
+    zio_cksum_t *, zfs_kfpu_ctx_t *);
 _ZFS_FLETCHER_H int fletcher_2_incremental_native(void *, size_t, void *);
 _ZFS_FLETCHER_H int fletcher_2_incremental_byteswap(void *, size_t, void *);
 _ZFS_FLETCHER_H void fletcher_4_native_varsize(const void *, uint64_t,
@@ -91,24 +94,7 @@ typedef struct zfs_fletcher_aarch64_neon {
 	uint64_t v[2] __attribute__((aligned(16)));
 } zfs_fletcher_aarch64_neon_t;
 
-
-typedef union fletcher_4_ctx {
-	zio_cksum_t scalar;
-	zfs_fletcher_superscalar_t superscalar[4];
-
-#if defined(HAVE_SSE2) || (defined(HAVE_SSE2) && defined(HAVE_SSSE3))
-	zfs_fletcher_sse_t sse[4];
-#endif
-#if defined(HAVE_AVX) && defined(HAVE_AVX2)
-	zfs_fletcher_avx_t avx[4];
-#endif
-#if defined(__x86_64) && defined(HAVE_AVX512F)
-	zfs_fletcher_avx512_t avx512[4];
-#endif
-#if defined(__aarch64__)
-	zfs_fletcher_aarch64_neon_t aarch64_neon[4];
-#endif
-} fletcher_4_ctx_t;
+typedef struct fletcher_4_ctx fletcher_4_ctx_t;
 
 /*
  * fletcher checksum struct

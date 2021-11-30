@@ -54,6 +54,7 @@
 #include <sys/trace_zfs.h>
 #include <sys/zfs_racct.h>
 #include <sys/zfs_rlock.h>
+#include <sys/zil_lwb.h>
 #ifdef _KERNEL
 #include <sys/vmsystm.h>
 #include <sys/zfs_znode.h>
@@ -1285,6 +1286,12 @@ dmu_read_uio(objset_t *os, uint64_t object, zfs_uio_t *uio, uint64_t size)
 int
 dmu_write_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size, dmu_tx_t *tx)
 {
+	return (dmu_write_uioandcc_dnode(dn, uio, NULL, size, tx));
+}
+
+int
+dmu_write_uioandcc_dnode(dnode_t *dn, zfs_uio_t *uio, void *cc_buf, uint64_t size, dmu_tx_t *tx)
+{
 	dmu_buf_t **dbp;
 	int numbufs;
 	int err = 0;
@@ -1312,6 +1319,7 @@ dmu_write_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size, dmu_tx_t *tx)
 		else
 			dmu_buf_will_dirty(db, tx);
 
+		uint64_t written = uio->uio_resid;
 		/*
 		 * XXX zfs_uiomove could block forever (eg.nfs-backed
 		 * pages).  There needs to be a uiolockdown() function
@@ -1321,12 +1329,21 @@ dmu_write_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size, dmu_tx_t *tx)
 		err = zfs_uio_fault_move((char *)db->db_data + bufoff,
 		    tocpy, UIO_WRITE, uio);
 
+		ASSERT3S(uio->uio_resid, <=, written);
+		written -= uio->uio_resid;
+
+		if (cc_buf != NULL) {
+			bcopy(db->db_data + bufoff, cc_buf, written);
+			cc_buf += written;
+		}
+
 		if (tocpy == db->db_size)
 			dmu_buf_fill_done(db, tx);
 
 		if (err)
 			break;
 
+		ASSERT3U(written, ==, tocpy);
 		size -= tocpy;
 	}
 
@@ -1347,6 +1364,13 @@ int
 dmu_write_uio_dbuf(dmu_buf_t *zdb, zfs_uio_t *uio, uint64_t size,
     dmu_tx_t *tx)
 {
+	return (dmu_write_uioandcc_dbuf(zdb, uio, NULL, size, tx));
+}
+
+int
+dmu_write_uioandcc_dbuf(dmu_buf_t *zdb, zfs_uio_t *uio, void *cc_buf, uint64_t size,
+    dmu_tx_t *tx)
+{
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)zdb;
 	dnode_t *dn;
 	int err;
@@ -1356,7 +1380,7 @@ dmu_write_uio_dbuf(dmu_buf_t *zdb, zfs_uio_t *uio, uint64_t size,
 
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
-	err = dmu_write_uio_dnode(dn, uio, size, tx);
+	err = dmu_write_uioandcc_dnode(dn, uio, cc_buf, size, tx);
 	DB_DNODE_EXIT(db);
 
 	return (err);
@@ -1542,7 +1566,7 @@ dmu_sync_done(zio_t *zio, arc_buf_t *buf, void *varg)
 	 * the writes for the lwb have completed.
 	 */
 	if (zio->io_error == 0) {
-		zil_lwb_add_block(zgd->zgd_lwb, zgd->zgd_bp);
+		zillwb_lwb_add_block(zgd->zgd_lwb, zgd->zgd_bp);
 	}
 
 	mutex_enter(&db->db_mtx);
@@ -1600,7 +1624,7 @@ dmu_sync_late_arrival_done(zio_t *zio)
 		 * Record the vdev(s) backing this blkptr so they can be
 		 * flushed after the writes for the lwb have completed.
 		 */
-		zil_lwb_add_block(zgd->zgd_lwb, zgd->zgd_bp);
+		zillwb_lwb_add_block(zgd->zgd_lwb, zgd->zgd_bp);
 
 		if (!BP_IS_HOLE(bp)) {
 			blkptr_t *bp_orig __maybe_unused = &zio->io_bp_orig;
@@ -1640,7 +1664,7 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 	 * dmu_sync_late_arrival_done() being called, we have to ensure
 	 * the lwb's "max txg" takes this tx's txg into account.
 	 */
-	zil_lwb_add_txg(zgd->zgd_lwb, dmu_tx_get_txg(tx));
+	zillwb_lwb_add_txg(zgd->zgd_lwb, dmu_tx_get_txg(tx));
 
 	dsa = kmem_alloc(sizeof (dmu_sync_arg_t), KM_SLEEP);
 	dsa->dsa_dr = NULL;
@@ -2282,7 +2306,6 @@ void
 dmu_init(void)
 {
 	abd_init();
-	zfs_dbgmsg_init();
 	sa_cache_init();
 	dmu_objset_init();
 	dnode_init();
@@ -2304,7 +2327,6 @@ dmu_fini(void)
 	dnode_fini();
 	dmu_objset_fini();
 	sa_cache_fini();
-	zfs_dbgmsg_fini();
 	abd_fini();
 }
 

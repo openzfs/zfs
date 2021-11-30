@@ -233,7 +233,7 @@ src_set_vars() {
 	if [ "$TAG" = "installed" ]; then
 		ZPOOL_CMD=$(command -v zpool)
 		ZFS_CMD=$(command -v zfs)
-		ZFS_SH="/usr/share/zfs/zfs.sh"
+		ZFS_SH="/usr/local/share/zfs/zfs.sh" # FIXME: use $prefix
 	else
 		ZPOOL_CMD="./cmd/zpool/zpool"
 		ZFS_CMD="./cmd/zfs/zfs"

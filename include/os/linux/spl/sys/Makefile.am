@@ -23,6 +23,7 @@ KERNEL_H = \
 	mod_os.h \
 	mutex.h \
 	param.h \
+	pmem_spl.h \
 	processor.h \
 	proc.h \
 	procfs_list.h \
@@ -32,6 +33,8 @@ KERNEL_H = \
 	sid.h \
 	signal.h \
 	simd.h \
+	spl-sem.h \
+	spl-spinlock.h \
 	stat.h \
 	strings.h \
 	sunddi.h \

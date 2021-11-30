@@ -1,0 +1,16 @@
+[workspace]
+members = ["bindings", "zilpmem_test-rs"]
+
+[profile.bench]
+debug = true
+
+[profile.test]
+debug = true
+
+[profile.release]
+debug = true
+
+# make bindgen fly in bindings
+[profile.dev.build-override]
+opt-level = 3
+debug = false

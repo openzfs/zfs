@@ -202,8 +202,27 @@ spl_kvmalloc(size_t size, gfp_t lflags)
  * wrappers that enforce the common flags to ensure portability.
  */
 inline void *
-spl_kmem_alloc_impl(size_t size, int flags, int node)
+spl_kmem_alloc_impl(size_t size, size_t align, int flags, int node)
 {
+	/*
+	 * kmalloc guarantees that allocations are always aligned to at least
+	 * ARCH_KMALLOC_MINALIGN and that allocations that are ISP2(size)
+	 * are aligned to at least size.
+	 */
+	if (align == 0 || align <= ARCH_KMALLOC_MINALIGN) {
+		/* nothing to do */
+	} else {
+		/*
+		 * XXX don't leak the Linux implementation detail here. But we
+		 * can't just do a larger allocation and do the alignment
+		 * ourselves unless we add a new API to free aligned memory.
+		 */
+		VERIFY(ISP2(align));
+		IMPLY(align != 0, ISP2(size));
+		IMPLY(align != 0, align <= size);
+	}
+	/* done with alignment requirements */
+
 	gfp_t lflags = kmem_flags_convert(flags);
 	void *ptr;
 
@@ -321,7 +340,7 @@ spl_kmem_alloc_debug(size_t size, int flags, int node)
 {
 	void *ptr;
 
-	ptr = spl_kmem_alloc_impl(size, flags, node);
+	ptr = spl_kmem_alloc_impl(size, 0, flags, node);
 	if (ptr) {
 		kmem_alloc_used_add(size);
 		if (unlikely(kmem_alloc_used_read() > kmem_alloc_max))
@@ -472,7 +491,7 @@ spl_kmem_alloc(size_t size, int flags, const char *func, int line)
 	ASSERT0(flags & ~KM_PUBLIC_MASK);
 
 #if !defined(DEBUG_KMEM)
-	return (spl_kmem_alloc_impl(size, flags, NUMA_NO_NODE));
+	return (spl_kmem_alloc_impl(size, 0, flags, NUMA_NO_NODE));
 #elif !defined(DEBUG_KMEM_TRACKING)
 	return (spl_kmem_alloc_debug(size, flags, NUMA_NO_NODE));
 #else
@@ -480,6 +499,24 @@ spl_kmem_alloc(size_t size, int flags, const char *func, int line)
 #endif
 }
 EXPORT_SYMBOL(spl_kmem_alloc);
+
+
+void *
+spl_kmem_alloc_aligned(size_t size, size_t al, int flags,
+    const char *func, int line)
+{
+	ASSERT0(flags & ~KM_PUBLIC_MASK);
+
+#if !defined(DEBUG_KMEM)
+	return (spl_kmem_alloc_impl(size, al, flags, NUMA_NO_NODE));
+#elif !defined(DEBUG_KMEM_TRACKING)
+#error "FIXME"
+#else
+#error "FIXME"
+#endif
+}
+EXPORT_SYMBOL(spl_kmem_alloc_aligned);
+
 
 void *
 spl_kmem_zalloc(size_t size, int flags, const char *func, int line)
@@ -489,7 +526,7 @@ spl_kmem_zalloc(size_t size, int flags, const char *func, int line)
 	flags |= KM_ZERO;
 
 #if !defined(DEBUG_KMEM)
-	return (spl_kmem_alloc_impl(size, flags, NUMA_NO_NODE));
+	return (spl_kmem_alloc_impl(size, 0, flags, NUMA_NO_NODE));
 #elif !defined(DEBUG_KMEM_TRACKING)
 	return (spl_kmem_alloc_debug(size, flags, NUMA_NO_NODE));
 #else

@@ -44,7 +44,7 @@
 #include <sys/zfs_znode.h>
 #include <sys/spa_impl.h>
 #include <sys/vdev_impl.h>
-#include <sys/zil_impl.h>
+#include <sys/zil_lwb.h>
 #include <sys/zio_checksum.h>
 #include <sys/ddt.h>
 #include <sys/sa.h>
@@ -1261,6 +1261,7 @@ dsl_scan_should_clear(dsl_scan_t *scn)
 	alloc = metaslab_class_get_alloc(spa_normal_class(spa));
 	alloc += metaslab_class_get_alloc(spa_special_class(spa));
 	alloc += metaslab_class_get_alloc(spa_dedup_class(spa));
+	VERIFY0(metaslab_class_get_alloc(spa_exempt_class(spa)));
 
 	mlim_hard = MAX((physmem / zfs_scan_mem_lim_fact) * PAGESIZE,
 	    zfs_scan_mem_lim_min);
@@ -1380,18 +1381,19 @@ dsl_scan_check_suspend(dsl_scan_t *scn, const zbookmark_phys_t *zb)
 
 typedef struct zil_scan_arg {
 	dsl_pool_t	*zsa_dp;
-	zil_header_t	*zsa_zh;
+	const zil_header_lwb_t	*zsa_zh;
+	uint64_t zsa_claim_txg;
 } zil_scan_arg_t;
 
 /* ARGSUSED */
 static int
-dsl_scan_zil_block(zilog_t *zilog, const blkptr_t *bp, void *arg,
-    uint64_t claim_txg)
+dsl_scan_zillwb_block(const blkptr_t *bp, void *arg)
 {
 	zil_scan_arg_t *zsa = arg;
+	uint64_t claim_txg = zsa->zsa_claim_txg;
 	dsl_pool_t *dp = zsa->zsa_dp;
 	dsl_scan_t *scn = dp->dp_scan;
-	zil_header_t *zh = zsa->zsa_zh;
+	const zil_header_lwb_t *zh = zsa->zsa_zh;
 	zbookmark_phys_t zb;
 
 	ASSERT(!BP_IS_REDACTED(bp));
@@ -1407,8 +1409,9 @@ dsl_scan_zil_block(zilog_t *zilog, const blkptr_t *bp, void *arg,
 	if (claim_txg == 0 && bp->blk_birth >= spa_min_claim_txg(dp->dp_spa))
 		return (0);
 
-	SET_BOOKMARK(&zb, zh->zh_log.blk_cksum.zc_word[ZIL_ZC_OBJSET],
-	    ZB_ZIL_OBJECT, ZB_ZIL_LEVEL, bp->blk_cksum.zc_word[ZIL_ZC_SEQ]);
+	SET_BOOKMARK(&zb, zh->zh_log.blk_cksum.zc_word[ZILLWB_ZC_OBJSET],
+	    ZB_ZIL_OBJECT, ZB_ZIL_LEVEL,
+	    bp->blk_cksum.zc_word[ZILLWB_ZC_SEQ]);
 
 	VERIFY(0 == scan_funcs[scn->scn_phys.scn_func](dp, bp, &zb));
 	return (0);
@@ -1416,14 +1419,14 @@ dsl_scan_zil_block(zilog_t *zilog, const blkptr_t *bp, void *arg,
 
 /* ARGSUSED */
 static int
-dsl_scan_zil_record(zilog_t *zilog, const lr_t *lrc, void *arg,
-    uint64_t claim_txg)
+dsl_scan_zillwb_record(const lr_t *lrc, void *arg)
 {
 	if (lrc->lrc_txtype == TX_WRITE) {
 		zil_scan_arg_t *zsa = arg;
+		uint64_t claim_txg = zsa->zsa_claim_txg;
 		dsl_pool_t *dp = zsa->zsa_dp;
 		dsl_scan_t *scn = dp->dp_scan;
-		zil_header_t *zh = zsa->zsa_zh;
+		const zil_header_lwb_t *zh = zsa->zsa_zh;
 		const lr_write_t *lr = (const lr_write_t *)lrc;
 		const blkptr_t *bp = &lr->lr_blkptr;
 		zbookmark_phys_t zb;
@@ -1441,7 +1444,8 @@ dsl_scan_zil_record(zilog_t *zilog, const lr_t *lrc, void *arg,
 		if (claim_txg == 0 || bp->blk_birth < claim_txg)
 			return (0);
 
-		SET_BOOKMARK(&zb, zh->zh_log.blk_cksum.zc_word[ZIL_ZC_OBJSET],
+		SET_BOOKMARK(
+		    &zb, zh->zh_log.blk_cksum.zc_word[ZILLWB_ZC_OBJSET],
 		    lr->lr_foid, ZB_ZIL_LEVEL,
 		    lr->lr_offset / BP_GET_LSIZE(bp));
 
@@ -1451,11 +1455,10 @@ dsl_scan_zil_record(zilog_t *zilog, const lr_t *lrc, void *arg,
 }
 
 static void
-dsl_scan_zil(dsl_pool_t *dp, zil_header_t *zh)
+dsl_scan_zillwb(dsl_pool_t *dp, const zil_header_lwb_t *zh)
 {
 	uint64_t claim_txg = zh->zh_claim_txg;
-	zil_scan_arg_t zsa = { dp, zh };
-	zilog_t *zilog;
+	zil_scan_arg_t zsa = { dp, zh, claim_txg };
 
 	ASSERT(spa_writeable(dp->dp_spa));
 
@@ -1466,12 +1469,11 @@ dsl_scan_zil(dsl_pool_t *dp, zil_header_t *zh)
 	if (claim_txg == 0)
 		return;
 
-	zilog = zil_alloc(dp->dp_meta_objset, zh);
+	/* TODO we could change the priority to ZIO_PRIORITY_SCRUB */
+	(void) zillwb_parse_phys(dp->dp_spa, zh, dsl_scan_zillwb_block,
+	    dsl_scan_zillwb_record, &zsa, B_FALSE, ZIO_PRIORITY_SYNC_READ,
+	    NULL);
 
-	(void) zil_parse(zilog, dsl_scan_zil_block, dsl_scan_zil_record, &zsa,
-	    claim_txg, B_FALSE);
-
-	zil_free(zilog);
 }
 
 /*
@@ -2436,7 +2438,21 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 		if (dmu_objset_from_ds(ds, &os) != 0) {
 			goto out;
 		}
-		dsl_scan_zil(dp, &os->os_zil_header);
+		void const *zhk = NULL;
+		zh_kind_t kind = ZIL_KIND_UNINIT;
+		size_t zhk_size = 0;
+		VERIFY0(zil_kind_specific_data_from_header(dp->dp_spa, &os->os_zil_header, &zhk, &zhk_size, NULL, &kind));
+		switch (kind) {
+			case ZIL_KIND_LWB:
+				VERIFY3U(zhk_size, ==, sizeof(zil_header_lwb_t));
+				dsl_scan_zillwb(dp, zhk);
+				break;
+			case ZIL_KIND_PMEM:
+				/* XXX TODO ZIL-PMEM */
+				break;
+			default:
+				panic("unimplemented zil_kind = %d", kind);
+		}
 	}
 
 	/*

@@ -29,7 +29,7 @@
 #include <sys/spa_checksum.h>
 #include <sys/strings.h>
 #include <sys/simd.h>
-#include <zfs_fletcher.h>
+#include <zfs_fletcher_impl.h>
 
 #ifdef __linux__
 #define	__asm __asm__ __volatile__
@@ -94,7 +94,7 @@ fletcher_4_avx512f_native(fletcher_4_ctx_t *ctx, const void *buf, uint64_t size)
 	const uint32_t *ip = buf;
 	const uint32_t *ipend = (uint32_t *)((uint8_t *)ip + size);
 
-	kfpu_begin();
+	fletcher_4_kfpu_enter(ctx);
 
 	FLETCHER_4_AVX512_RESTORE_CTX(ctx);
 
@@ -108,7 +108,7 @@ fletcher_4_avx512f_native(fletcher_4_ctx_t *ctx, const void *buf, uint64_t size)
 
 	FLETCHER_4_AVX512_SAVE_CTX(ctx);
 
-	kfpu_end();
+	fletcher_4_kfpu_exit(ctx);
 }
 STACK_FRAME_NON_STANDARD(fletcher_4_avx512f_native);
 
@@ -120,7 +120,7 @@ fletcher_4_avx512f_byteswap(fletcher_4_ctx_t *ctx, const void *buf,
 	const uint32_t *ip = buf;
 	const uint32_t *ipend = (uint32_t *)((uint8_t *)ip + size);
 
-	kfpu_begin();
+	fletcher_4_kfpu_enter(ctx);
 
 	FLETCHER_4_AVX512_RESTORE_CTX(ctx);
 
@@ -152,7 +152,7 @@ fletcher_4_avx512f_byteswap(fletcher_4_ctx_t *ctx, const void *buf,
 
 	FLETCHER_4_AVX512_SAVE_CTX(ctx)
 
-	kfpu_end();
+	fletcher_4_kfpu_exit(ctx);
 }
 STACK_FRAME_NON_STANDARD(fletcher_4_avx512f_byteswap);
 
@@ -187,7 +187,7 @@ fletcher_4_avx512bw_byteswap(fletcher_4_ctx_t *ctx, const void *buf,
 	const uint32_t *ip = buf;
 	const uint32_t *ipend = (uint32_t *)((uint8_t *)ip + size);
 
-	kfpu_begin();
+	fletcher_4_kfpu_enter(ctx);
 
 	FLETCHER_4_AVX512_RESTORE_CTX(ctx);
 
@@ -206,7 +206,7 @@ fletcher_4_avx512bw_byteswap(fletcher_4_ctx_t *ctx, const void *buf,
 
 	FLETCHER_4_AVX512_SAVE_CTX(ctx)
 
-	kfpu_end();
+	fletcher_4_kfpu_exit(ctx);
 }
 STACK_FRAME_NON_STANDARD(fletcher_4_avx512bw_byteswap);
 

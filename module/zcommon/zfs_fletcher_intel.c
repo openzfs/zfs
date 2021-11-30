@@ -45,7 +45,7 @@
 #include <sys/spa_checksum.h>
 #include <sys/simd.h>
 #include <sys/strings.h>
-#include <zfs_fletcher.h>
+#include <zfs_fletcher_impl.h>
 
 static void
 fletcher_4_avx2_init(fletcher_4_ctx_t *ctx)
@@ -104,7 +104,7 @@ fletcher_4_avx2_native(fletcher_4_ctx_t *ctx, const void *buf, uint64_t size)
 	const uint64_t *ip = buf;
 	const uint64_t *ipend = (uint64_t *)((uint8_t *)ip + size);
 
-	kfpu_begin();
+	fletcher_4_kfpu_enter(ctx);
 
 	FLETCHER_4_AVX2_RESTORE_CTX(ctx);
 
@@ -119,7 +119,7 @@ fletcher_4_avx2_native(fletcher_4_ctx_t *ctx, const void *buf, uint64_t size)
 	FLETCHER_4_AVX2_SAVE_CTX(ctx);
 	asm volatile("vzeroupper");
 
-	kfpu_end();
+	fletcher_4_kfpu_exit(ctx);
 }
 
 static void
@@ -132,7 +132,7 @@ fletcher_4_avx2_byteswap(fletcher_4_ctx_t *ctx, const void *buf, uint64_t size)
 	const uint64_t *ip = buf;
 	const uint64_t *ipend = (uint64_t *)((uint8_t *)ip + size);
 
-	kfpu_begin();
+	fletcher_4_kfpu_enter(ctx);
 
 	FLETCHER_4_AVX2_RESTORE_CTX(ctx);
 
@@ -151,7 +151,7 @@ fletcher_4_avx2_byteswap(fletcher_4_ctx_t *ctx, const void *buf, uint64_t size)
 	FLETCHER_4_AVX2_SAVE_CTX(ctx);
 	asm volatile("vzeroupper");
 
-	kfpu_end();
+	fletcher_4_kfpu_exit(ctx);
 }
 
 static boolean_t fletcher_4_avx2_valid(void)

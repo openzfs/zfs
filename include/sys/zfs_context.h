@@ -73,6 +73,8 @@ extern "C" {
 #include <sys/mod.h>
 #include <sys/uio_impl.h>
 #include <sys/zfs_context_os.h>
+#include <sys/spl-sem.h>
+#include <sys/spl-spinlock.h>
 #else /* _KERNEL || _STANDALONE */
 
 #define	_SYS_MUTEX_H
@@ -93,6 +95,7 @@ extern "C" {
 #include <string.h>
 #include <strings.h>
 #include <pthread.h>
+#include <semaphore.h>
 #include <setjmp.h>
 #include <assert.h>
 #include <umem.h>
@@ -210,6 +213,8 @@ typedef struct zfs_kernel_param {
 #define	ZFS_MODULE_PARAM_ARGS void
 #define	ZFS_MODULE_PARAM_CALL(scope_prefix, name_prefix, name, setfunc, \
 	getfunc, perm, desc)
+#define	ZFS_MODULE_PARAM_FORWARD(from_scope_prefix, from_name_prefix, \
+	from_name, to_scope_prefix, to_name_prefix, to_name, perm)
 
 /*
  * Threads.
@@ -340,12 +345,36 @@ extern void cv_broadcast(kcondvar_t *cv);
 #define	cv_timedwait_idle_hires(cv, mp, t, r, f) \
 	cv_timedwait_hires(cv, mp, t, r, f)
 
+
+/*
+ * Semaphores
+ */
+typedef	sem_t	spl_sem_t;
+void spl_sem_init(spl_sem_t *sem, int n);
+void spl_sem_destroy(spl_sem_t *sem);
+void spl_sem_wait(spl_sem_t *sem);
+void spl_sem_post(spl_sem_t *sem);
+
+/*
+ * Spinlocks
+ */
+
+/*
+ * FIXME maybe define this to be a mutex? would hose the userspace benchmarks
+ * though
+ */
+typedef pthread_spinlock_t	spl_spinlock_t;
+void spl_spin_init(spl_spinlock_t *l);
+void spl_spin_destroy(spl_spinlock_t *l);
+void spl_spin_lock(spl_spinlock_t *l);
+void spl_spin_unlock(spl_spinlock_t *l);
+
 /*
  * Thread-specific data
  */
 #define	tsd_get(k) pthread_getspecific(k)
 #define	tsd_set(k, v) pthread_setspecific(k, v)
-#define	tsd_create(kp, d) pthread_key_create((pthread_key_t *)kp, d)
+#define	tsd_create(kp, d) VERIFY0(pthread_key_create((pthread_key_t *)kp, d))
 #define	tsd_destroy(kp) /* nothing */
 #ifdef __FreeBSD__
 typedef off_t loff_t;
@@ -408,6 +437,7 @@ void procfs_list_add(procfs_list_t *procfs_list, void *p);
 #define	KMC_NODEBUG		UMC_NODEBUG
 #define	KMC_KVMEM		0x0
 #define	kmem_alloc(_s, _f)	umem_alloc(_s, _f)
+#define	kmem_alloc_aligned(_s, _a, _f)	umem_alloc_aligned(_s, _a, _f)
 #define	kmem_zalloc(_s, _f)	umem_zalloc(_s, _f)
 #define	kmem_free(_b, _s)	umem_free(_b, _s)
 #define	vmem_alloc(_s, _f)	kmem_alloc(_s, _f)

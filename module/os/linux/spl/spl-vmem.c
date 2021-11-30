@@ -39,7 +39,7 @@ spl_vmem_alloc(size_t size, int flags, const char *func, int line)
 	flags |= KM_VMEM;
 
 #if !defined(DEBUG_KMEM)
-	return (spl_kmem_alloc_impl(size, flags, NUMA_NO_NODE));
+	return (spl_kmem_alloc_impl(size, 0, flags, NUMA_NO_NODE));
 #elif !defined(DEBUG_KMEM_TRACKING)
 	return (spl_kmem_alloc_debug(size, flags, NUMA_NO_NODE));
 #else
@@ -56,7 +56,7 @@ spl_vmem_zalloc(size_t size, int flags, const char *func, int line)
 	flags |= (KM_VMEM | KM_ZERO);
 
 #if !defined(DEBUG_KMEM)
-	return (spl_kmem_alloc_impl(size, flags, NUMA_NO_NODE));
+	return (spl_kmem_alloc_impl(size, 0, flags, NUMA_NO_NODE));
 #elif !defined(DEBUG_KMEM_TRACKING)
 	return (spl_kmem_alloc_debug(size, flags, NUMA_NO_NODE));
 #else

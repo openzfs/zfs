@@ -296,6 +296,12 @@ libzfs_error_description(libzfs_handle_t *hdl)
 	case EZFS_REBUILDING:
 		return (dgettext(TEXT_DOMAIN, "currently sequentially "
 		    "resilvering"));
+	case EZFS_ERR_CANNOT_OPEN_AS_DAX_DEVICE:
+		return (dgettext(TEXT_DOMAIN, "device cannot be opened in DAX "
+		    "mode"));
+	case EZFS_ERR_ZIL_PMEM_INVALID_SLOG_CONFIG:
+		return (dgettext(TEXT_DOMAIN, "ZIL-PMEM requires exactly one "
+		    "PMEM SLOG vdev"));
 	case EZFS_UNKNOWN:
 		return (dgettext(TEXT_DOMAIN, "unknown error"));
 	default:
@@ -715,6 +721,12 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 		break;
 	case ZFS_ERR_BADPROP:
 		zfs_verror(hdl, EZFS_BADPROP, fmt, ap);
+		break;
+	case ZFS_ERR_CANNOT_OPEN_AS_DAX_DEVICE:
+		zfs_verror(hdl, EZFS_ERR_CANNOT_OPEN_AS_DAX_DEVICE, fmt, ap);
+		break;
+	case ZFS_ERR_ZIL_PMEM_INVALID_SLOG_CONFIG:
+		zfs_verror(hdl, EZFS_ERR_ZIL_PMEM_INVALID_SLOG_CONFIG, fmt, ap);
 		break;
 	case ZFS_ERR_IOC_CMD_UNAVAIL:
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "the loaded zfs "

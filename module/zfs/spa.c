@@ -52,6 +52,8 @@
 #include <sys/dmu_tx.h>
 #include <sys/zap.h>
 #include <sys/zil.h>
+#include <sys/zil_lwb.h>
+#include <sys/zil_pmem_spa.h>
 #include <sys/ddt.h>
 #include <sys/vdev_impl.h>
 #include <sys/vdev_removal.h>
@@ -315,11 +317,13 @@ spa_prop_get_config(spa_t *spa, nvlist_t **nvp)
 		alloc += metaslab_class_get_alloc(spa_special_class(spa));
 		alloc += metaslab_class_get_alloc(spa_dedup_class(spa));
 		alloc += metaslab_class_get_alloc(spa_embedded_log_class(spa));
+		VERIFY0(metaslab_class_get_alloc(spa_exempt_class(spa)));
 
 		size = metaslab_class_get_space(mc);
 		size += metaslab_class_get_space(spa_special_class(spa));
 		size += metaslab_class_get_space(spa_dedup_class(spa));
 		size += metaslab_class_get_space(spa_embedded_log_class(spa));
+		size += metaslab_class_get_space(spa_exempt_class(spa));
 
 		spa_prop_add_list(*nvp, ZPOOL_PROP_NAME, spa_name(spa), 0, src);
 		spa_prop_add_list(*nvp, ZPOOL_PROP_SIZE, NULL, size, src);
@@ -1256,6 +1260,8 @@ spa_activate(spa_t *spa, spa_mode_t mode)
 	    metaslab_class_create(spa, zfs_metaslab_ops);
 	spa->spa_special_class = metaslab_class_create(spa, zfs_metaslab_ops);
 	spa->spa_dedup_class = metaslab_class_create(spa, zfs_metaslab_ops);
+	spa->spa_exempt_class =
+	    metaslab_class_create(spa, &zfs_metaslab_panic_ops);
 
 	/* Try to create a covering process */
 	mutex_enter(&spa->spa_proc_lock);
@@ -1413,6 +1419,9 @@ spa_deactivate(spa_t *spa)
 
 	metaslab_class_destroy(spa->spa_dedup_class);
 	spa->spa_dedup_class = NULL;
+
+	metaslab_class_destroy(spa->spa_exempt_class);
+	spa->spa_exempt_class = NULL;
 
 	/*
 	 * If this was part of an import or the open otherwise failed, we may
@@ -1649,6 +1658,8 @@ spa_unload(spa_t *spa)
 		kmem_free(spa->spa_async_zio_root, max_ncpus * sizeof (void *));
 		spa->spa_async_zio_root = NULL;
 	}
+
+	zilpmem_spa_unload(spa);
 
 	if (spa->spa_vdev_removal != NULL) {
 		spa_vdev_removal_destroy(spa->spa_vdev_removal);
@@ -2212,19 +2223,7 @@ spa_activate_log(spa_t *spa)
 int
 spa_reset_logs(spa_t *spa)
 {
-	int error;
-
-	error = dmu_objset_find(spa_name(spa), zil_reset,
-	    NULL, DS_FIND_CHILDREN);
-	if (error == 0) {
-		/*
-		 * We successfully offlined the log device, sync out the
-		 * current txg so that the "stubby" block can be removed
-		 * by zil_sync().
-		 */
-		txg_wait_synced(spa->spa_dsl_pool, 0);
-	}
-	return (error);
+	return (zil_reset_logs(spa));
 }
 
 static void
@@ -2235,16 +2234,11 @@ spa_aux_check_removed(spa_aux_vdev_t *sav)
 }
 
 void
-spa_claim_notify(zio_t *zio)
+spa_claim_notify(spa_t *spa, uint64_t claim_max_txg)
 {
-	spa_t *spa = zio->io_spa;
-
-	if (zio->io_error)
-		return;
-
 	mutex_enter(&spa->spa_props_lock);	/* any mutex will do */
-	if (spa->spa_claim_max_txg < zio->io_bp->blk_birth)
-		spa->spa_claim_max_txg = zio->io_bp->blk_birth;
+	if (spa->spa_claim_max_txg < claim_max_txg)
+		spa->spa_claim_max_txg = claim_max_txg;
 	mutex_exit(&spa->spa_props_lock);
 }
 
@@ -2254,7 +2248,7 @@ typedef struct spa_load_error {
 } spa_load_error_t;
 
 static void
-spa_load_verify_done(zio_t *zio)
+spa_load_verify_blk_cb_done(zio_t *zio)
 {
 	blkptr_t *bp = zio->io_bp;
 	spa_load_error_t *sle = zio->io_private;
@@ -2287,7 +2281,7 @@ int spa_load_verify_data = B_TRUE;
 
 /*ARGSUSED*/
 static int
-spa_load_verify_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
+spa_load_verify_blk_cb(spa_t *spa, const blkptr_t *bp,
     const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
 {
 	if (zb->zb_level == ZB_DNODE_LEVEL || BP_IS_HOLE(bp) ||
@@ -2315,11 +2309,133 @@ spa_load_verify_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	mutex_exit(&spa->spa_scrub_lock);
 
 	zio_nowait(zio_read(rio, spa, bp, abd_alloc_for_io(size, B_FALSE), size,
-	    spa_load_verify_done, rio->io_private, ZIO_PRIORITY_SCRUB,
+	    spa_load_verify_blk_cb_done, rio->io_private, ZIO_PRIORITY_SCRUB,
 	    ZIO_FLAG_SPECULATIVE | ZIO_FLAG_CANFAIL |
 	    ZIO_FLAG_SCRUB | ZIO_FLAG_RAW, zb));
 	return (0);
 }
+
+typedef struct {
+	void *slvza_spa;
+	uint64_t slvza_objset;
+	uint64_t slvza_claim_txg;
+	zio_t *slvza_rio;
+} spa_load_verify_zillwb_cb_arg_t;
+
+static int
+spa_load_verify_zillwb_cb_block(const blkptr_t *bp, void *arg)
+{
+	spa_load_verify_zillwb_cb_arg_t *slvza = arg;
+	uint64_t claim_txg = slvza->slvza_claim_txg;
+	zbookmark_phys_t zb;
+	spa_t *spa = slvza->slvza_spa;
+
+	if (BP_IS_HOLE(bp))
+		return (0);
+
+	if (claim_txg == 0 && bp->blk_birth >= spa_min_claim_txg(spa))
+		return (-1);
+
+	SET_BOOKMARK(&zb, slvza->slvza_objset, ZB_ZIL_OBJECT, ZB_ZIL_LEVEL,
+	    bp->blk_cksum.zc_word[ZILLWB_ZC_SEQ]);
+
+	(void) spa_load_verify_blk_cb(spa, bp, &zb, NULL, slvza->slvza_rio);
+
+	return (0);
+}
+
+static int
+spa_load_verify_zillwb_cb_record(const lr_t *lrc, void *arg)
+{
+	spa_load_verify_zillwb_cb_arg_t *slvza = arg;
+	uint64_t claim_txg = slvza->slvza_claim_txg;
+	spa_t *spa = slvza->slvza_spa;
+
+	if (lrc->lrc_txtype == TX_WRITE) {
+		lr_write_t *lr = (lr_write_t *)lrc;
+		blkptr_t *bp = &lr->lr_blkptr;
+		zbookmark_phys_t zb;
+
+		if (BP_IS_HOLE(bp))
+			return (0);
+
+		if (claim_txg == 0 || bp->blk_birth < claim_txg)
+			return (0);
+
+		SET_BOOKMARK(&zb, slvza->slvza_objset, lr->lr_foid,
+		    ZB_ZIL_LEVEL, lr->lr_offset / BP_GET_LSIZE(bp));
+
+		(void) spa_load_verify_blk_cb(spa, bp, &zb, NULL,
+		    slvza->slvza_rio);
+	}
+	return (0);
+}
+
+
+static int
+spa_load_verify_zillwb(spa_t *spa, uint64_t objset,
+    const zil_header_lwb_t *zh, void *arg)
+{
+	zio_t *rio = arg;
+	uint64_t claim_txg = zh->zh_claim_txg;
+
+	/*
+	 * We only want to visit blocks that have been claimed but not yet
+	 * replayed; plus blocks that are already stable in read-only mode.
+	 */
+	if (claim_txg == 0 && spa_writeable(spa))
+		return (0);
+
+	spa_load_verify_zillwb_cb_arg_t *slvza =
+	    kmem_zalloc(sizeof (spa_load_verify_zillwb_cb_arg_t), KM_SLEEP);
+	slvza->slvza_spa = spa;
+	slvza->slvza_objset = objset;
+	slvza->slvza_claim_txg = claim_txg;
+	slvza->slvza_rio = rio;
+
+	zillwb_parse_phys(spa, zh, spa_load_verify_zillwb_cb_block,
+	    spa_load_verify_zillwb_cb_record, slvza, B_FALSE,
+	    ZIO_PRIORITY_SCRUB, NULL);
+
+	kmem_free(slvza, sizeof (*slvza));
+
+	return (0);
+}
+
+
+static int
+spa_load_verify_zilpmem(spa_t *spa, uint64_t objset,
+    const zil_header_pmem_t *zh, void *arg)
+{
+	zfs_dbgmsg("spa_load_verify_zilpmem is unimplemented");
+	return (0); /* TODO */
+}
+
+
+static int
+spa_load_verify_zil_cb(spa_t *spa, uint64_t objset, const zil_header_t *zh,
+    void *arg)
+{
+	zh_kind_t kind = ZIL_KIND_UNINIT;
+	void const *zhk = NULL;
+	size_t zhk_size = 0;
+	VERIFY0(zil_kind_specific_data_from_header(spa, zh, &zhk, &zhk_size, NULL, &kind));
+	switch (kind) {
+		case ZIL_KIND_LWB:
+			VERIFY3U(zhk_size, ==, sizeof (zil_header_lwb_t));
+			return spa_load_verify_zillwb(spa, objset,
+			    zhk, arg);
+		case ZIL_KIND_PMEM:
+			VERIFY3U(zhk_size, ==, sizeof (zil_header_pmem_t));
+			return spa_load_verify_zilpmem(spa, objset,
+			    zhk, arg);
+
+		default:
+			panic("unreachable: zil_kind=%s",
+			    zil_kind_to_str(kind, NULL));
+	}
+}
+
 
 /* ARGSUSED */
 static int
@@ -2365,9 +2481,24 @@ spa_load_verify(spa_t *spa)
 			    spa_load_verify_data, spa_load_verify_metadata);
 		}
 
-		error = traverse_pool(spa, spa->spa_verify_min_txg,
+		error = traverse_pool_no_zil(spa, spa->spa_verify_min_txg,
 		    TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA |
-		    TRAVERSE_NO_DECRYPT, spa_load_verify_cb, rio);
+		    TRAVERSE_NO_DECRYPT, spa_load_verify_blk_cb, rio);
+
+		/*
+		 * TODO REVIEW: Before we moved ZIL traversal out of
+		 * traverse_pool into traverse_zil_headers, errors from ZIL
+		 * traversal were ignored. We maintain that behavior for now.
+		 *
+		 * TODO review: which flags do even make sense here?
+		 * TRAVERSE_{PRE,POST} sure don't (there is only one invocation)
+		 * TRAVERSE_PREFETCH_METADATA doesn't because we don't start
+		 * a prefetcher in the code (should we?).
+		 */
+		traverse_pool_zil_headers(spa, spa->spa_verify_min_txg,
+		    TRAVERSE_NO_DECRYPT,
+		    spa_load_verify_zil_cb, rio);
+
 	}
 
 	(void) zio_wait(rio);
@@ -4400,7 +4531,7 @@ spa_ld_verify_pool_data(spa_t *spa)
 }
 
 static void
-spa_ld_claim_log_blocks(spa_t *spa)
+spa_ld_claim_or_clear_logs(spa_t *spa)
 {
 	dmu_tx_t *tx;
 	dsl_pool_t *dp = spa_get_dsl(spa);
@@ -4409,14 +4540,20 @@ spa_ld_claim_log_blocks(spa_t *spa)
 	 * Claim log blocks that haven't been committed yet.
 	 * This must all happen in a single txg.
 	 * Note: spa_claim_max_txg is updated by spa_claim_notify(),
-	 * invoked from zil_claim_log_block()'s i/o done callback.
+	 * invoked from zillwb_claim_log_block()'s i/o done callback.
 	 * Price of rollback is that we abandon the log.
 	 */
 	spa->spa_claiming = B_TRUE;
 
 	tx = dmu_tx_create_assigned(dp, spa_first_txg(spa));
+	/*
+	 * XXX: we really shouldn't be dropping the error here.
+	 * We might be encountering a checksum (=EIO) error that
+	 * slipped in after spa_load_verify_logs reported all OK.
+	 * See https://github.com/openzfs/zfs/issues/11364
+	 */
 	(void) dmu_objset_find_dp(dp, dp->dp_root_dir_obj,
-	    zil_claim, tx, DS_FIND_CHILDREN);
+	    zil_claim_or_clear, tx, DS_FIND_CHILDREN);
 	dmu_tx_commit(tx);
 
 	spa->spa_claiming = B_FALSE;
@@ -4834,6 +4971,34 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 	if (error != 0)
 		return (error);
 
+	/* determine zil kind */
+	/* XXX this should actually be more dynamic */
+
+	dsl_pool_t *dp = spa_get_dsl(spa);
+	dsl_pool_config_enter(dp, FTAG);
+	dsl_dataset_t *ds;
+	error = dsl_dataset_hold_obj(dp, dsl_dir_phys(dp->dp_root_dir)->dd_head_dataset_obj, FTAG, &ds);
+	if (error != 0)
+		return (error);
+	objset_t *os;
+	error = dmu_objset_from_ds(ds, &os);
+	if (error != 0)
+		return (error);
+
+	zh_kind_t zk = ZIL_KIND_UNINIT;
+	VERIFY0(zil_kind_specific_data_from_header(spa, &os->os_zil_header, NULL, NULL, NULL, &zk));
+	spa->spa_zil_kind = zk;
+	if (spa->spa_zil_kind != ZIL_KIND_LWB) {
+		VERIFY(spa_feature_is_active(spa, SPA_FEATURE_ZIL_KINDS));
+	}
+	dsl_dataset_rele(ds, FTAG);
+	dsl_pool_config_exit(dp, FTAG);
+	dp = NULL; ds = NULL; os = NULL;
+
+	error = zilpmem_spa_load(spa);
+	if (error != 0)
+		return (error);
+
 	/*
 	 * Verify the logs now to make sure we don't have any unexpected errors
 	 * when we claim log blocks later.
@@ -4894,7 +5059,7 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 		/*
 		 * Traverse the ZIL and claim all blocks.
 		 */
-		spa_ld_claim_log_blocks(spa);
+		spa_ld_claim_or_clear_logs(spa);
 
 		/*
 		 * Kick-off the syncing thread.
@@ -5765,6 +5930,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	has_features = B_FALSE;
 	has_encryption = B_FALSE;
 	has_allocclass = B_FALSE;
+	volatile boolean_t has_zil_kinds = B_FALSE;
 	for (nvpair_t *elem = nvlist_next_nvpair(props, NULL);
 	    elem != NULL; elem = nvlist_next_nvpair(props, elem)) {
 		if (zpool_prop_feature(nvpair_name(elem))) {
@@ -5776,6 +5942,8 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 				has_encryption = B_TRUE;
 			if (feat == SPA_FEATURE_ALLOCATION_CLASSES)
 				has_allocclass = B_TRUE;
+			if (feat == SPA_FEATURE_ZIL_KINDS)
+				has_zil_kinds = B_TRUE;
 		}
 	}
 
@@ -5836,31 +6004,45 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	if (error == 0 && !zfs_allocatable_devs(nvroot))
 		error = SET_ERROR(EINVAL);
 
-	if (error == 0 &&
-	    (error = vdev_create(rvd, txg, B_FALSE)) == 0 &&
-	    (error = vdev_draid_spare_create(nvroot, rvd, &ndraid, 0)) == 0 &&
-	    (error = spa_validate_aux(spa, nvroot, txg, VDEV_ALLOC_ADD)) == 0) {
-		/*
-		 * instantiate the metaslab groups (this will dirty the vdevs)
-		 * we can no longer error exit past this point
-		 */
-		for (int c = 0; error == 0 && c < rvd->vdev_children; c++) {
-			vdev_t *vd = rvd->vdev_child[c];
+	if (error == 0)
+		error = vdev_create(rvd, txg, B_FALSE);
+	if (error == 0)
+		error = vdev_draid_spare_create(nvroot, rvd, &ndraid, 0);
+	if (error == 0)
+		error = spa_validate_aux(spa, nvroot, txg, VDEV_ALLOC_ADD);
 
-			vdev_metaslab_set_size(vd);
-			vdev_expand(vd, txg);
+	if (error == 0) {
+		spa->spa_zil_kind = zil_default_kind_get();
+		if (spa->spa_zil_kind != ZIL_KIND_LWB) {
+			error = has_zil_kinds ? 0 : SET_ERROR(ENOTSUP);
+		} else {
+			error = 0;
 		}
 	}
 
-	spa_config_exit(spa, SCL_ALL, FTAG);
+	if (error == 0)
+		error = zilpmem_spa_create(spa);
 
 	if (error != 0) {
+		spa_config_exit(spa, SCL_ALL, FTAG);
 		spa_unload(spa);
 		spa_deactivate(spa);
 		spa_remove(spa);
 		mutex_exit(&spa_namespace_lock);
 		return (error);
 	}
+
+	/*
+	 * instantiate the metaslab groups (this will dirty the vdevs)
+	 * NB: WE CAN NO LONGER ERROR EXIT PAST THIS POINT!
+	 */
+	for (int c = 0; error == 0 && c < rvd->vdev_children; c++) {
+		vdev_t *vd = rvd->vdev_child[c];
+		vdev_metaslab_set_size(vd);
+		vdev_expand(vd, txg);
+	}
+
+	spa_config_exit(spa, SCL_ALL, FTAG);
 
 	/*
 	 * Get the list of spares, if specified.
@@ -5891,7 +6073,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	}
 
 	spa->spa_is_initializing = B_TRUE;
-	spa->spa_dsl_pool = dp = dsl_pool_create(spa, zplprops, dcp, txg);
+	spa->spa_dsl_pool = dp = dsl_pool_create(spa, zplprops, dcp, has_zil_kinds, txg);
 	spa->spa_is_initializing = B_FALSE;
 
 	/*
@@ -6692,6 +6874,10 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 		return (spa_vdev_exit(spa, NULL, txg, error));
 	}
 
+	/* XXX see comment in zilpmem_reset_logs */
+	if (spa->spa_zil_kind == ZIL_KIND_PMEM)
+		return (spa_vdev_exit(spa, NULL, txg, ZFS_ERR_ZIL_PMEM_INVALID_SLOG_CONFIG));
+
 	if (rebuild) {
 		if (!spa_feature_is_enabled(spa, SPA_FEATURE_DEVICE_REBUILD))
 			return (spa_vdev_exit(spa, NULL, txg, ENOTSUP));
@@ -7216,6 +7402,9 @@ spa_vdev_initialize_impl(spa_t *spa, uint64_t guid, uint64_t cmd_type,
 	} else if (!vdev_writeable(vd)) {
 		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
 		return (SET_ERROR(EROFS));
+	} else if (vd->vdev_alloc_bias == VDEV_BIAS_EXEMPT) {
+		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
+		return (SET_ERROR(EOPNOTSUPP));
 	}
 	mutex_enter(&vd->vdev_initialize_lock);
 	spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
@@ -7327,6 +7516,9 @@ spa_vdev_trim_impl(spa_t *spa, uint64_t guid, uint64_t cmd_type,
 	} else if (!vdev_writeable(vd)) {
 		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
 		return (SET_ERROR(EROFS));
+	} else if (vd->vdev_alloc_bias == VDEV_BIAS_EXEMPT) {
+		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
+		return (SET_ERROR(EOPNOTSUPP));
 	} else if (!vd->vdev_has_trim) {
 		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
 		return (SET_ERROR(EOPNOTSUPP));
@@ -7454,6 +7646,11 @@ spa_vdev_split_mirror(spa_t *spa, char *newname, nvlist_t *config,
 		error = (spa_has_checkpoint(spa)) ?
 		    ZFS_ERR_CHECKPOINT_EXISTS : ZFS_ERR_DISCARDING_CHECKPOINT;
 		return (spa_vdev_exit(spa, NULL, txg, error));
+	}
+
+	if (spa->spa_zil_kind == ZIL_KIND_PMEM) {
+		/* XXX see comment in zilpmem_reset_logs */
+		return (spa_vdev_exit(spa, NULL, txg, SET_ERROR(ZFS_ERR_ZIL_PMEM_INVALID_SLOG_CONFIG)));
 	}
 
 	/* clear the log and flush everything up to now */
@@ -8103,6 +8300,7 @@ spa_async_thread(void *arg)
 		old_space += metaslab_class_get_space(spa_dedup_class(spa));
 		old_space += metaslab_class_get_space(
 		    spa_embedded_log_class(spa));
+		old_space += metaslab_class_get_space(spa_exempt_class(spa));
 
 		spa_config_update(spa, SPA_CONFIG_UPDATE_POOL);
 
@@ -8111,6 +8309,7 @@ spa_async_thread(void *arg)
 		new_space += metaslab_class_get_space(spa_dedup_class(spa));
 		new_space += metaslab_class_get_space(
 		    spa_embedded_log_class(spa));
+		new_space += metaslab_class_get_space(spa_exempt_class(spa));
 		mutex_exit(&spa_namespace_lock);
 
 		/*
@@ -9426,6 +9625,28 @@ spa_lookup_by_guid(spa_t *spa, uint64_t guid, boolean_t aux)
 	}
 
 	return (NULL);
+}
+
+static int
+spa_iter_dax_vdevs_impl(vdev_t *vd, spa_iter_vdevs_cb cb, void *arg)
+{
+	if (vd->vdev_isdax) {
+		VERIFY3U(vd->vdev_children, ==, 0);
+		return (cb(vd, arg));
+	}
+
+	int err = 0;
+	for (int c = 0; err == 0 && c < vd->vdev_children; c++) {
+		err = spa_iter_dax_vdevs_impl(vd->vdev_child[c], cb, arg);
+	}
+	return (err);
+}
+
+int
+spa_iter_dax_vdevs(spa_t *spa, spa_iter_vdevs_cb cb, void *arg)
+{
+	VERIFY(spa_config_held(spa, SCL_VDEV, RW_READER));
+	return (spa_iter_dax_vdevs_impl(spa->spa_root_vdev, cb, arg));
 }
 
 void

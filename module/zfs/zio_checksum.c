@@ -29,9 +29,9 @@
 #include <sys/spa_impl.h>
 #include <sys/zio.h>
 #include <sys/zio_checksum.h>
-#include <sys/zil.h>
+#include <sys/zil_lwb.h>
 #include <sys/abd.h>
-#include <zfs_fletcher.h>
+#include <zfs_fletcher_impl.h>
 
 /*
  * Checksum vectors.
@@ -133,6 +133,9 @@ abd_fletcher_4_native(abd_t *abd, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
 	fletcher_4_ctx_t ctx;
+	zfs_kfpu_ctx_t kfpu_ctx;
+	zfs_kfpu_ctx_init(&kfpu_ctx);
+	fletcher_4_ctx_init(&ctx, &kfpu_ctx);
 
 	zio_abd_checksum_data_t acd = {
 		.acd_byteorder	= ZIO_CHECKSUM_NATIVE,
@@ -150,6 +153,9 @@ abd_fletcher_4_byteswap(abd_t *abd, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
 	fletcher_4_ctx_t ctx;
+	zfs_kfpu_ctx_t kfpu_ctx;
+	zfs_kfpu_ctx_init(&kfpu_ctx);
+	fletcher_4_ctx_init(&ctx, &kfpu_ctx);
 
 	zio_abd_checksum_data_t acd = {
 		.acd_byteorder	= ZIO_CHECKSUM_BYTESWAP,
@@ -354,13 +360,13 @@ zio_checksum_compute(zio_t *zio, enum zio_checksum checksum,
 		bzero(&saved, sizeof (zio_cksum_t));
 
 		if (checksum == ZIO_CHECKSUM_ZILOG2) {
-			zil_chain_t zilc;
-			abd_copy_to_buf(&zilc, abd, sizeof (zil_chain_t));
+			zillwb_chain_t zilc;
+			abd_copy_to_buf(&zilc, abd, sizeof (zillwb_chain_t));
 
-			size = P2ROUNDUP_TYPED(zilc.zc_nused, ZIL_MIN_BLKSZ,
-			    uint64_t);
+			size = P2ROUNDUP_TYPED(zilc.zc_nused,
+			    ZILLWB_MIN_BLKSZ, uint64_t);
 			eck = zilc.zc_eck;
-			eck_offset = offsetof(zil_chain_t, zc_eck);
+			eck_offset = offsetof(zillwb_chain_t, zc_eck);
 		} else {
 			eck_offset = size - sizeof (zio_eck_t);
 			abd_copy_to_buf_off(&eck, abd, eck_offset,
@@ -422,13 +428,13 @@ zio_checksum_error_impl(spa_t *spa, const blkptr_t *bp,
 		size_t eck_offset;
 
 		if (checksum == ZIO_CHECKSUM_ZILOG2) {
-			zil_chain_t zilc;
+			zillwb_chain_t zilc;
 			uint64_t nused;
 
-			abd_copy_to_buf(&zilc, abd, sizeof (zil_chain_t));
+			abd_copy_to_buf(&zilc, abd, sizeof (zillwb_chain_t));
 
 			eck = zilc.zc_eck;
-			eck_offset = offsetof(zil_chain_t, zc_eck) +
+			eck_offset = offsetof(zillwb_chain_t, zc_eck) +
 			    offsetof(zio_eck_t, zec_cksum);
 
 			if (eck.zec_magic == ZEC_MAGIC) {
@@ -443,7 +449,8 @@ zio_checksum_error_impl(spa_t *spa, const blkptr_t *bp,
 				return (SET_ERROR(ECKSUM));
 			}
 
-			size = P2ROUNDUP_TYPED(nused, ZIL_MIN_BLKSZ, uint64_t);
+			size = P2ROUNDUP_TYPED(nused, ZILLWB_MIN_BLKSZ,
+			    uint64_t);
 		} else {
 			eck_offset = size - sizeof (zio_eck_t);
 			abd_copy_to_buf_off(&eck, abd, eck_offset,

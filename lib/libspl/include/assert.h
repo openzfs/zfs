@@ -47,6 +47,12 @@ libspl_assert(const char *buf, const char *file, const char *func, int line)
 	return (0);
 }
 
+
+typedef void(*libspl_abort_handler_fn_t)(void *arg, char *formatted_assert_msg);
+void libspl_set_alternative_abort_handler(libspl_abort_handler_fn_t h, void *arg);
+extern libspl_abort_handler_fn_t libspl_alternative_abort_handler;
+extern void *libspl_alternative_abort_handler_arg;
+
 #ifdef verify
 #undef verify
 #endif

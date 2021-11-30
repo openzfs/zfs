@@ -88,6 +88,8 @@ typedef void	vdev_remap_cb_t(uint64_t inner_offset, vdev_t *vd,
     uint64_t offset, uint64_t size, void *arg);
 typedef void	vdev_remap_func_t(vdev_t *vd, uint64_t offset, uint64_t size,
     vdev_remap_cb_t callback, void *arg);
+typedef int	vdev_dax_mapping_func_t(vdev_t *vd, void **base, uint64_t *len);
+
 /*
  * Given a target vdev, translates the logical range "in" to the physical
  * range "res"
@@ -117,6 +119,7 @@ typedef const struct vdev_ops {
 	vdev_hold_func_t		*vdev_op_hold;
 	vdev_rele_func_t		*vdev_op_rele;
 	vdev_remap_func_t		*vdev_op_remap;
+	vdev_dax_mapping_func_t		*vdev_op_dax_mapping;
 	vdev_xlation_func_t		*vdev_op_xlate;
 	vdev_rebuild_asize_func_t	*vdev_op_rebuild_asize;
 	vdev_metaslab_init_func_t	*vdev_op_metaslab_init;
@@ -174,11 +177,15 @@ struct vdev_queue {
 	kmutex_t	vq_lock;
 };
 
+/*
+ * NOTE: update spa_activate_allocation_classes when changing this enum.
+ */
 typedef enum vdev_alloc_bias {
 	VDEV_BIAS_NONE,
 	VDEV_BIAS_LOG,		/* dedicated to ZIL data (SLOG) */
 	VDEV_BIAS_SPECIAL,	/* dedicated to ddt, metadata, and small blks */
-	VDEV_BIAS_DEDUP		/* dedicated to dedup metadata */
+	VDEV_BIAS_DEDUP,	/* dedicated to dedup metadata */
+	VDEV_BIAS_EXEMPT	/* exempt from metaslab allocation */
 } vdev_alloc_bias_t;
 
 
@@ -295,6 +302,7 @@ struct vdev {
 	list_node_t	vdev_state_dirty_node; /* state dirty list	*/
 	uint64_t	vdev_deflate_ratio; /* deflation ratio (x512)	*/
 	uint64_t	vdev_islog;	/* is an intent log device	*/
+	uint64_t	vdev_isdax; 	/* is a DAX device 		*/
 	uint64_t	vdev_removing;	/* device is being removed?	*/
 	boolean_t	vdev_ishole;	/* is a hole in the namespace	*/
 	uint64_t	vdev_top_zap;

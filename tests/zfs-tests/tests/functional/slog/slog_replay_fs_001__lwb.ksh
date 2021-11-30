@@ -60,6 +60,7 @@ verify_runnable "global"
 
 log_assert "Replay of intent log succeeds."
 log_onexit cleanup
+only_for_zil_default_kind "zil-lwb"
 log_must setup
 
 #

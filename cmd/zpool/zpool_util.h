@@ -133,6 +133,14 @@ int check_file(const char *file, boolean_t force, boolean_t isspare);
 void after_zpool_upgrade(zpool_handle_t *zhp);
 int check_file_generic(const char *file, boolean_t force, boolean_t isspare);
 
+#define	DAX_DETECT_OVERRIDE_DAX		"dax"
+#define	DAX_DETECT_OVERRIDE_NODAX	"nodax"
+
+int dax_detect(const char *path, const char *type, const char *override,
+    boolean_t *is_dax);
+/* called by dax_detect */
+int dax_detect_os(const char *path, const char *type, boolean_t *is_dax);
+
 #ifdef	__cplusplus
 }
 #endif

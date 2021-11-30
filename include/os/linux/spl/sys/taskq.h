@@ -33,6 +33,7 @@
 #include <sys/thread.h>
 #include <sys/rwlock.h>
 #include <sys/wait.h>
+#include <sys/time.h>
 
 #define	TASKQ_NAMELEN		31
 
@@ -117,6 +118,7 @@ typedef struct taskq_ent {
 	taskq_t			*tqent_taskq;
 	uintptr_t		tqent_flags;
 	unsigned long		tqent_birth;
+	hrtime_t		tqent_birth_hr;
 } taskq_ent_t;
 
 #define	TQENT_FLAG_PREALLOC	0x1

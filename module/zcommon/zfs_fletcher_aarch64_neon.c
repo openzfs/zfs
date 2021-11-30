@@ -46,7 +46,7 @@
 #include <sys/simd.h>
 #include <sys/spa_checksum.h>
 #include <sys/strings.h>
-#include <zfs_fletcher.h>
+#include <zfs_fletcher_impl.h>
 
 static void
 fletcher_4_aarch64_neon_init(fletcher_4_ctx_t *ctx)
@@ -144,7 +144,7 @@ unsigned char TMP2 __attribute__((vector_size(16)));
 unsigned char SRC __attribute__((vector_size(16)));
 #endif
 
-	kfpu_begin();
+	fletcher_4_kfpu_enter(ctx);
 
 	NEON_INIT_LOOP();
 
@@ -154,7 +154,7 @@ unsigned char SRC __attribute__((vector_size(16)));
 
 	NEON_FINI_LOOP();
 
-	kfpu_end();
+	fletcher_4_kfpu_exit(ctx);
 }
 
 static void
@@ -183,7 +183,7 @@ unsigned char TMP2 __attribute__((vector_size(16)));
 unsigned char SRC __attribute__((vector_size(16)));
 #endif
 
-	kfpu_begin();
+	fletcher_4_kfpu_enter(ctx);
 
 	NEON_INIT_LOOP();
 
@@ -193,7 +193,7 @@ unsigned char SRC __attribute__((vector_size(16)));
 
 	NEON_FINI_LOOP();
 
-	kfpu_end();
+	fletcher_4_kfpu_exit(ctx);
 }
 
 static boolean_t fletcher_4_aarch64_neon_valid(void)

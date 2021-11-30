@@ -496,6 +496,7 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		fnvlist_add_uint64(nv, ZPOOL_CONFIG_ASIZE,
 		    vd->vdev_asize);
 		fnvlist_add_uint64(nv, ZPOOL_CONFIG_IS_LOG, vd->vdev_islog);
+		fnvlist_add_uint64(nv, ZPOOL_CONFIG_IS_DAX, vd->vdev_isdax);
 		if (vd->vdev_removing) {
 			fnvlist_add_uint64(nv, ZPOOL_CONFIG_REMOVING,
 			    vd->vdev_removing);
@@ -514,6 +515,9 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 				break;
 			case VDEV_BIAS_DEDUP:
 				bias = VDEV_ALLOC_BIAS_DEDUP;
+				break;
+			case VDEV_BIAS_EXEMPT:
+				bias = VDEV_ALLOC_BIAS_EXEMPT;
 				break;
 			default:
 				ASSERT3U(vd->vdev_alloc_bias, ==,

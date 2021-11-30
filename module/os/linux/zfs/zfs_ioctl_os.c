@@ -243,6 +243,7 @@ openzfs_init(void)
 		    ", rc = %d\n", ZFS_META_VERSION, ZFS_META_RELEASE,
 		    ZFS_DEBUG_STR, error);
 
+		/* Linux kernel module init return codes are 0 / -E */
 		return (-error);
 	}
 

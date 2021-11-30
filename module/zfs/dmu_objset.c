@@ -62,6 +62,7 @@
 #include <sys/spa_impl.h>
 #include <sys/dmu_recv.h>
 #include <sys/zfs_project.h>
+#include <sys/zil_pmem_spa.h>
 #include "zfs_namecheck.h"
 #include <sys/vdev_impl.h>
 #include <sys/arc.h>
@@ -88,6 +89,8 @@ int dmu_find_threads = 0;
 int dmu_rescan_dnode_threshold = 1 << DN_MAX_INDBLKSHIFT;
 
 static char *upgrade_tag = "upgrade_tag";
+
+static const zil_header_t zero_zil;
 
 static void dmu_objset_find_dp_cb(void *arg);
 
@@ -362,7 +365,7 @@ dmu_objset_byteswap(void *buf, size_t size)
 	ASSERT(size == OBJSET_PHYS_SIZE_V1 || size == OBJSET_PHYS_SIZE_V2 ||
 	    size == sizeof (objset_phys_t));
 	dnode_byteswap(&osp->os_meta_dnode);
-	byteswap_uint64_array(&osp->os_zil_header, sizeof (zil_header_t));
+	byteswap_uint64_array(&osp->os_zil_header, sizeof (zil_header_t)); /* TODO per-ZIL-kind byteswap routine */
 	osp->os_type = BSWAP_64(osp->os_type);
 	osp->os_flags = BSWAP_64(osp->os_flags);
 	if (size >= OBJSET_PHYS_SIZE_V2) {
@@ -532,7 +535,20 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 		    ARC_BUFC_METADATA, size);
 		os->os_phys = os->os_phys_buf->b_data;
 		bzero(os->os_phys, size);
+
+		/* Initialize the ZIL header */
+		if (ds != NULL) {
+			dsl_dataset_initialized_zil_header(ds, &os->os_phys->os_zil_header);
+		} else {
+			/* The MOS doesn't get a ZIL */
+			ASSERT(bcmp(&os->os_phys->os_zil_header, &zero_zil, sizeof (zero_zil)) == 0);
+		}
+
 	}
+	if (ds != NULL)
+		ASSERT(zil_validate_header_format(spa, &os->os_phys->os_zil_header) == B_TRUE);
+
+
 	/*
 	 * These properties will be filled in by the logic in zfs_get_zplprop()
 	 * when they are queried for the first time.
@@ -634,9 +650,24 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 		os->os_dnodesize = DNODE_MIN_SIZE;
 	}
 
-	if (ds == NULL || !ds->ds_is_snapshot)
-		os->os_zil_header = os->os_phys->os_zil_header;
-	os->os_zil = zil_alloc(os, &os->os_zil_header);
+	/* Alloc ZIL */
+	if (ds != NULL) {
+		if (!ds->ds_is_snapshot) {
+			os->os_zil_header = os->os_phys->os_zil_header;
+		} else {
+		    /*
+		     * XXX hack so that zil_alloc succeeds. We shouldn't be allocating ZILs for snapshots at all IMHO
+		     * NB: we only modify the dirty in-DRAM copy but it will never be synced
+		     */
+		    dsl_dataset_initialized_zil_header(ds, &os->os_zil_header);
+		}
+
+		os->os_zil = zil_alloc(os, &os->os_zil_header);
+	} else {
+		ASSERT(bcmp(&os->os_phys->os_zil_header, &zero_zil, sizeof (zero_zil)) == 0);
+		os->os_zil = NULL;
+	}
+	EQUIV((os->os_dsl_dataset != NULL), (os->os_zil != NULL));
 
 	for (i = 0; i < TXG_SIZE; i++) {
 		multilist_create(&os->os_dirty_dnodes[i], sizeof (dnode_t),
@@ -1012,7 +1043,11 @@ dmu_objset_evict_done(objset_t *os)
 		dnode_special_close(&os->os_userused_dnode);
 		dnode_special_close(&os->os_groupused_dnode);
 	}
-	zil_free(os->os_zil);
+
+	/* Regular datasets have a ZIL, the MOS doesn't */
+	EQUIV((os->os_dsl_dataset != NULL), (os->os_zil != NULL));
+	if (os->os_zil)
+		zil_free(os->os_zil);
 
 	arc_buf_destroy(os->os_phys_buf, &os->os_phys_buf);
 
@@ -1131,6 +1166,9 @@ dmu_objset_create_impl_dnstats(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 		}
 		os->os_flags = os->os_phys->os_flags;
 	}
+
+	if (ds != NULL)
+		zilpmem_spa_create_objset(spa, os, tx);
 
 	dsl_dataset_dirty(ds, tx);
 
@@ -1413,6 +1451,7 @@ dmu_objset_clone_sync(void *arg, dmu_tx_t *tx)
 	const char *tail;
 	dsl_dataset_t *origin, *ds;
 	uint64_t obj;
+	objset_t *os;
 	char namebuf[ZFS_MAX_DATASET_NAME_LEN];
 
 	VERIFY0(dsl_dir_hold(dp, doca->doca_clone, FTAG, &pdd, &tail));
@@ -1422,9 +1461,14 @@ dmu_objset_clone_sync(void *arg, dmu_tx_t *tx)
 	    doca->doca_cred, NULL, tx);
 
 	VERIFY0(dsl_dataset_hold_obj(pdd->dd_pool, obj, FTAG, &ds));
+	VERIFY0(dmu_objset_from_ds(ds, &os));
+
+	zilpmem_spa_create_objset(dp->dp_spa, os, tx);
+
 	dsl_dataset_name(origin, namebuf);
 	spa_history_log_internal_ds(ds, "clone", tx,
 	    "origin=%s (%llu)", namebuf, (u_longlong_t)origin->ds_object);
+
 	dsl_dataset_rele(ds, FTAG);
 	dsl_dataset_rele(origin, FTAG);
 	dsl_dir_rele(pdd, FTAG);
@@ -1766,8 +1810,12 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 	/*
 	 * Free intent log blocks up to this tx.
 	 */
-	zil_sync(os->os_zil, tx);
-	os->os_phys->os_zil_header = os->os_zil_header;
+	if (os->os_zil) {
+		zil_sync(os->os_zil, tx);
+		os->os_phys->os_zil_header = os->os_zil_header;
+	} else {
+		ASSERT(bcmp(&os->os_phys->os_zil_header, &zero_zil, sizeof (zero_zil)) == 0);
+	}
 	zio_nowait(zio);
 }
 

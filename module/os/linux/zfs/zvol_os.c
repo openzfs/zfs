@@ -26,17 +26,19 @@
 #include <sys/dbuf.h>
 #include <sys/dmu_traverse.h>
 #include <sys/dsl_dataset.h>
+#include <sys/dmu_objset.h>
 #include <sys/dsl_prop.h>
 #include <sys/dsl_dir.h>
 #include <sys/zap.h>
 #include <sys/zfeature.h>
-#include <sys/zil_impl.h>
 #include <sys/dmu_tx.h>
 #include <sys/zio.h>
 #include <sys/zfs_rlock.h>
 #include <sys/spa_impl.h>
 #include <sys/zvol.h>
 #include <sys/zvol_impl.h>
+#include <sys/zil_impl.h>
+#include <sys/zil_lwb.h>
 
 #include <linux/blkdev_compat.h>
 #include <linux/task_io_accounting_ops.h>
@@ -59,6 +61,7 @@ static struct ida zvol_ida;
 typedef struct zv_request_stack {
 	zvol_state_t	*zv;
 	struct bio	*bio;
+	hrtime_t	submit;
 } zv_request_t;
 
 typedef struct zv_request_task {
@@ -99,12 +102,61 @@ zvol_is_zvol_impl(const char *path)
 	return (B_FALSE);
 }
 
+
+enum zvol_os_linux_stat_id {
+	ZVOL_OS_LINUX_STAT_WRITE_COUNT,
+	ZVOL_OS_LINUX_STAT_WRITE_TOTAL,
+	ZVOL_OS_LINUX_STAT_WRITE_QDELAY,
+	ZVOL_OS_LINUX_STAT_WRITE_FLUSH,
+	ZVOL_OS_LINUX_STAT_WRITE_RANGELOCK_ENTER,
+	ZVOL_OS_LINUX_STAT_WRITE_HOLD_WRITE,
+	ZVOL_OS_LINUX_STAT_WRITE_LOG,
+	ZVOL_OS_LINUX_STAT_WRITE_BIO_END_IO,
+	ZVOL_OS_LINUX_STAT_WRITE_COMMIT,
+	/* FIXME discard(), etc */
+	_ZVOL_OS_LINUX_STAT_NUM,
+};
+
+struct zfs_percpu_counter_stat zvol_os_linux_stats[_ZVOL_OS_LINUX_STAT_NUM] = {
+	{ZVOL_OS_LINUX_STAT_WRITE_COUNT, "submit_bio__zvol_write(count)"},
+	{ZVOL_OS_LINUX_STAT_WRITE_TOTAL, "submit_bio__zvol_write(with_taskq_if_enabled)" },
+	{ZVOL_OS_LINUX_STAT_WRITE_QDELAY, "zvol_write__taskq_qdelay" },
+	{ZVOL_OS_LINUX_STAT_WRITE_FLUSH, "zvol_write__1zil_commit" },
+	{ZVOL_OS_LINUX_STAT_WRITE_RANGELOCK_ENTER, "zvol_write__rangelock_enter" },
+	{ZVOL_OS_LINUX_STAT_WRITE_HOLD_WRITE, "zvol_write__hold_write_by_dnode"},
+	{ZVOL_OS_LINUX_STAT_WRITE_LOG, "zvol_write__zvol_log_write_finish" },
+	{ZVOL_OS_LINUX_STAT_WRITE_BIO_END_IO, "zvol_write__bio_end_io"},
+	{ZVOL_OS_LINUX_STAT_WRITE_COMMIT, "zvol_write__2zil_commit" },
+};
+
+struct zfs_percpu_counter_statset zvol_os_linux_statset = {
+	.kstat_name = "zvol_os_linux",
+	.ncounters = _ZVOL_OS_LINUX_STAT_NUM,
+	.counters = zvol_os_linux_stats,
+};
+
+static void
+zvol_os_linux_kstat_init(void)
+{
+	zfs_percpu_counter_statset_create(&zvol_os_linux_statset);
+}
+
+static void
+zvol_os_linux_kstat_fini(void)
+{
+	zfs_percpu_counter_statset_destroy(&zvol_os_linux_statset);
+}
+
+
 static void
 zvol_write(zv_request_t *zvr)
 {
 	struct bio *bio = zvr->bio;
 	int error = 0;
 	zfs_uio_t uio;
+
+	const hrtime_t start = gethrtime();
+	zfs_percpu_counter_statset_add(&zvol_os_linux_statset, ZVOL_OS_LINUX_STAT_WRITE_QDELAY, start - zvr->submit);
 
 	zfs_uio_bvec_init(&uio, bio);
 
@@ -113,15 +165,18 @@ zvol_write(zv_request_t *zvr)
 	ASSERT3U(zv->zv_open_count, >, 0);
 	ASSERT3P(zv->zv_zilog, !=, NULL);
 
+	const hrtime_t flush_start = gethrtime();
 	/* bio marked as FLUSH need to flush before write */
 	if (bio_is_flush(bio))
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
+	const hrtime_t flush_end = gethrtime();
+	zfs_percpu_counter_statset_add(&zvol_os_linux_statset, ZVOL_OS_LINUX_STAT_WRITE_FLUSH, flush_end - flush_start);
 
 	/* Some requests are just for flush and nothing else. */
 	if (uio.uio_resid == 0) {
 		rw_exit(&zv->zv_suspend_lock);
 		BIO_END_IO(bio, 0);
-		return;
+		goto out;
 	}
 
 	struct request_queue *q = zv->zv_zso->zvo_queue;
@@ -136,9 +191,13 @@ zvol_write(zv_request_t *zvr)
 	boolean_t sync =
 	    bio_is_fua(bio) || zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS;
 
+	const hrtime_t lr_start = gethrtime();
 	zfs_locked_range_t *lr = zfs_rangelock_enter(&zv->zv_rangelock,
 	    uio.uio_loffset, uio.uio_resid, RL_WRITER);
+	const hrtime_t lr_end = gethrtime();
+	zfs_percpu_counter_statset_add(&zvol_os_linux_statset, ZVOL_OS_LINUX_STAT_WRITE_RANGELOCK_ENTER, lr_end - lr_start);
 
+	uint64_t need_wait = 0;
 	uint64_t volsize = zv->zv_volsize;
 	while (uio.uio_resid > 0 && uio.uio_loffset < volsize) {
 		uint64_t bytes = MIN(uio.uio_resid, DMU_MAX_ACCESS >> 1);
@@ -148,7 +207,10 @@ zvol_write(zv_request_t *zvr)
 		if (bytes > volsize - off)	/* don't write past the end */
 			bytes = volsize - off;
 
+		const hrtime_t hwbd_start = gethrtime();
 		dmu_tx_hold_write_by_dnode(tx, zv->zv_dn, off, bytes);
+		const hrtime_t hwbd_end = gethrtime();
+		zfs_percpu_counter_statset_add(&zvol_os_linux_statset, ZVOL_OS_LINUX_STAT_WRITE_HOLD_WRITE, hwbd_end - hwbd_start);
 
 		/* This will only fail for ENOSPC */
 		error = dmu_tx_assign(tx, TXG_WAIT);
@@ -156,10 +218,29 @@ zvol_write(zv_request_t *zvr)
 			dmu_tx_abort(tx);
 			break;
 		}
-		error = dmu_write_uio_dnode(zv->zv_dn, &uio, bytes, tx);
-		if (error == 0) {
-			zvol_log_write(zv, tx, off, bytes, sync);
+
+		zvol_log_write_t log_write;
+		zvol_log_write_begin(zv->zv_zilog, tx, zv, zv->zv_volblocksize, off, bytes, sync, &log_write);
+		uint8_t *log_write_buf;
+		size_t log_write_buf_size;
+		log_write_buf =
+		    zvol_log_write_get_prefill_buf(&log_write, &log_write_buf_size);
+		if (log_write_buf != 0) {
+			ASSERT3U(log_write_buf_size, ==, bytes);
 		}
+		error = dmu_write_uioandcc_dnode(zv->zv_dn, &uio, log_write_buf, bytes, tx);
+		if (error == 0) {
+			if (log_write_buf != NULL) {
+				zvol_log_write_prefilled(&log_write, bytes);
+			}
+			const hrtime_t pre = gethrtime();
+			need_wait = zvol_log_write_finish(&log_write, bytes);
+			const hrtime_t post = gethrtime();
+			zfs_percpu_counter_statset_add(&zvol_os_linux_statset, ZVOL_OS_LINUX_STAT_WRITE_LOG, post - pre);
+		} else {
+			zvol_log_write_cancel(&log_write);
+		}
+
 		dmu_tx_commit(tx);
 
 		if (error)
@@ -171,15 +252,32 @@ zvol_write(zv_request_t *zvr)
 	dataset_kstats_update_write_kstats(&zv->zv_kstat, nwritten);
 	task_io_account_write(nwritten);
 
+	if (need_wait != 0) {
+		pr_debug("zfs_log_write_finish() indicated that it needs to wait for txg=%llu to sync\n", need_wait);
+		txg_wait_synced(dmu_objset_pool(zil_objset(zv->zv_zilog)), need_wait);
+	}
+
+	const hrtime_t pre_sync = gethrtime();
 	if (sync)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
+	const hrtime_t post_sync = gethrtime();
+	zfs_percpu_counter_statset_add(&zvol_os_linux_statset, ZVOL_OS_LINUX_STAT_WRITE_COMMIT, post_sync - pre_sync);
 
 	rw_exit(&zv->zv_suspend_lock);
 
 	if (acct)
 		blk_generic_end_io_acct(q, disk, WRITE, bio, start_time);
 
+	const hrtime_t start_bio_end_io = gethrtime();
 	BIO_END_IO(bio, -error);
+	const hrtime_t end_bio_end_io = gethrtime();
+	zfs_percpu_counter_statset_add(&zvol_os_linux_statset, ZVOL_OS_LINUX_STAT_WRITE_BIO_END_IO, end_bio_end_io - start_bio_end_io);
+
+out:
+	(void) 0;
+	const hrtime_t end = gethrtime();
+	zfs_percpu_counter_statset_add(&zvol_os_linux_statset, ZVOL_OS_LINUX_STAT_WRITE_TOTAL, end - zvr->submit);
+	zfs_percpu_counter_statset_add(&zvol_os_linux_statset, ZVOL_OS_LINUX_STAT_WRITE_COUNT, 1);
 }
 
 static void
@@ -239,18 +337,24 @@ zvol_discard(zv_request_t *zvr)
 	zfs_locked_range_t *lr = zfs_rangelock_enter(&zv->zv_rangelock,
 	    start, size, RL_WRITER);
 
+	uint64_t need_wait = 0;
 	tx = dmu_tx_create(zv->zv_objset);
 	dmu_tx_mark_netfree(tx);
 	error = dmu_tx_assign(tx, TXG_WAIT);
 	if (error != 0) {
 		dmu_tx_abort(tx);
 	} else {
-		zvol_log_truncate(zv, tx, start, size, B_TRUE);
+		need_wait = zvol_log_truncate(zv, tx, start, size, B_TRUE);
 		dmu_tx_commit(tx);
 		error = dmu_free_long_range(zv->zv_objset,
 		    ZVOL_OBJ, start, size);
 	}
 	zfs_rangelock_exit(lr);
+
+	if (need_wait != 0) {
+		pr_debug("zfs_log_truncate() indicated that it needs to wait for txg=%llu to sync\n", need_wait);
+		txg_wait_synced(dmu_objset_pool(zil_objset(zv->zv_zilog)), need_wait);
+	}
 
 	if (error == 0 && sync)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
@@ -370,6 +474,7 @@ zvol_request(struct request_queue *q, struct bio *bio)
 	zv_request_t zvr = {
 		.zv = zv,
 		.bio = bio,
+		.submit = gethrtime(),
 	};
 	zv_request_task_t *task;
 
@@ -399,9 +504,12 @@ zvol_request(struct request_queue *q, struct bio *bio)
 				zv->zv_zilog = zil_open(zv->zv_objset,
 				    zvol_get_data);
 				zv->zv_flags |= ZVOL_WRITTEN_TO;
-				/* replay / destroy done in zvol_create_minor */
-				VERIFY0((zv->zv_zilog->zl_header->zh_flags &
-				    ZIL_REPLAY_NEEDED));
+				/*
+				 * Replay / destroy done in zvol_create_minor
+				 * but we need to adhere to ZIL's lifecycle
+				 * rules.
+				 */
+				zil_replay(zv->zv_objset, zv, zvol_replay_vector);
 			}
 			rw_downgrade(&zv->zv_suspend_lock);
 		}
@@ -1019,7 +1127,7 @@ zvol_os_create_minor(const char *name)
 	zv->zv_zilog = zil_open(os, zvol_get_data);
 	if (spa_writeable(dmu_objset_spa(os))) {
 		if (zil_replay_disable)
-			zil_destroy(zv->zv_zilog, B_FALSE);
+			zil_destroy(zv->zv_zilog);
 		else
 			zil_replay(os, zv, zvol_replay_vector);
 	}
@@ -1129,6 +1237,8 @@ zvol_init(void)
 		printk(KERN_INFO "ZFS: register_blkdev() failed %d\n", error);
 		return (error);
 	}
+	zvol_os_linux_kstat_init();
+
 	zvol_taskq = taskq_create(ZVOL_DRIVER, threads, maxclsyspri,
 	    threads * 2, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
 	if (zvol_taskq == NULL) {
@@ -1147,6 +1257,7 @@ zvol_fini(void)
 	zvol_fini_impl();
 	unregister_blkdev(zvol_major, ZVOL_DRIVER);
 	taskq_destroy(zvol_taskq);
+	zvol_os_linux_kstat_fini();
 	ida_destroy(&zvol_ida);
 }
 

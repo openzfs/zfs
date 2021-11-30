@@ -43,6 +43,7 @@
 #include <sys/zfs_context.h>
 #include <sys/zfs_onexit.h>
 #include <sys/zfs_vfsops.h>
+#include <sys/zfs_pmem.h>
 #include <sys/zstd/zstd.h>
 #include <sys/zvol.h>
 #include <zfs_fletcher.h>
@@ -403,6 +404,71 @@ cv_broadcast(kcondvar_t *cv)
 	VERIFY0(pthread_cond_broadcast(cv));
 }
 
+
+
+/*
+ * Semaphores
+ */
+typedef	sem_t	spl_sem_t;
+
+void
+spl_sem_init(spl_sem_t *sem, int n)
+{
+	VERIFY0(sem_init(sem, 0, n));
+}
+
+void
+spl_sem_destroy(spl_sem_t *sem)
+{
+	VERIFY0(sem_destroy(sem));
+}
+
+void
+spl_sem_wait(spl_sem_t *sem)
+{
+	VERIFY0(sem_wait(sem));
+}
+
+void
+spl_sem_post(spl_sem_t *sem)
+{
+	VERIFY0(sem_post(sem));
+}
+
+/*
+ * Spinlocks
+ */
+
+/*
+ * FIXME maybe define this to be a mutex? would hose the userspace benchmarks
+ * though
+ */
+typedef pthread_spinlock_t	spl_spinlock_t;
+
+void
+spl_spin_init(spl_spinlock_t *l)
+{
+	VERIFY0(pthread_spin_init(l, PTHREAD_PROCESS_PRIVATE));
+}
+
+void
+spl_spin_destroy(spl_spinlock_t *l)
+{
+	VERIFY0(pthread_spin_destroy(l));
+}
+
+void
+spl_spin_lock(spl_spinlock_t *l)
+{
+	VERIFY0(pthread_spin_lock(l));
+}
+
+void
+spl_spin_unlock(spl_spinlock_t *l)
+{
+	VERIFY0(pthread_spin_unlock(l));
+}
+
 /*
  * =========================================================================
  * procfs list
@@ -605,6 +671,18 @@ static char ce_suffix[CE_IGNORE][2] = { "", "\n", "\n", "" };
 void
 vpanic(const char *fmt, va_list adx)
 {
+	va_list adx_h;
+	if (libspl_alternative_abort_handler != NULL) {
+		va_copy(adx_h, adx);
+		char *msg;
+		int err = vasprintf(&msg, fmt, adx);
+		if (err == -1)
+			goto nohandler;
+		libspl_alternative_abort_handler(
+		    libspl_alternative_abort_handler_arg, msg);
+		abort();
+	}
+nohandler:
 	(void) fprintf(stderr, "error: ");
 	(void) vfprintf(stderr, fmt, adx);
 	(void) fprintf(stderr, "\n");
@@ -797,10 +875,14 @@ kernel_init(int mode)
 
 	VERIFY0(uname(&hw_utsname));
 
+	zfs_dbgmsg_init();
+
 	system_taskq_init();
 	icp_init();
 
 	zstd_init();
+
+	VERIFY0(zfs_pmem_ops_init());
 
 	spa_init((spa_mode_t)mode);
 
@@ -1051,6 +1133,8 @@ zfs_file_open(const char *path, int flags, int mode, zfs_file_t **fpp)
 	fp = umem_zalloc(sizeof (zfs_file_t), UMEM_NOFAIL);
 	fp->f_fd = fd;
 	fp->f_dump_fd = dump_fd;
+	fp->f_mmap = NULL;
+	fp->f_mmap_len = 0;
 	*fpp = fp;
 
 	return (0);
@@ -1059,11 +1143,65 @@ zfs_file_open(const char *path, int flags, int mode, zfs_file_t **fpp)
 void
 zfs_file_close(zfs_file_t *fp)
 {
+	VERIFY3P(fp->f_mmap, ==, NULL);
+	VERIFY3U(fp->f_mmap_len, ==, 0);
 	close(fp->f_fd);
 	if (fp->f_dump_fd != -1)
 		close(fp->f_dump_fd);
 
 	umem_free(fp, sizeof (zfs_file_t));
+}
+
+int
+zfs_file_mmap(zfs_file_t *fp, int prot, int flags, uint64_t len)
+{
+	VERIFY3P(fp->f_mmap, ==, NULL);
+	VERIFY3U(len, <=, __SIZE_MAX__); /* TODO correct constant? */
+	void *m = mmap(NULL, len, prot, flags, fp->f_fd, 0);
+	if (m == MAP_FAILED) {
+		char buf[1024];
+		zfs_dbgmsg("mmap failed with errno=%d: %s", errno,
+		    strerror_r(errno, buf, sizeof(buf)));
+		if (flags & MAP_SYNC) {
+			zfs_dbgmsg("MAP_FAILED and MMAP_SYNC is set. Perhaps "
+			" try zdb/ztest with -o vdev_file_dax_mmap_sync=0");
+		}
+		return (SET_ERROR(errno));
+	}
+	fp->f_mmap = m;
+	fp->f_mmap_len = len;
+	return (0);
+}
+
+int
+zfs_file_munmap(zfs_file_t *fp)
+{
+	VERIFY3P(fp->f_mmap, !=, NULL);
+	int err = munmap(fp->f_mmap, fp->f_mmap_len);
+	if (err == 0) {
+		fp->f_mmap = NULL;
+		fp->f_mmap_len = 0;
+	}
+	return (err);
+}
+
+int
+zfs_file_get_mmap(zfs_file_t *fp, void **base, uint64_t *len)
+{
+	if (fp->f_mmap == NULL) {
+		return (SET_ERROR(EINVAL)); /* TODO better error */
+	}
+	*base = fp->f_mmap;
+	*len = fp->f_mmap_len;
+	return (0);
+}
+
+boolean_t
+zfs_file_is_mmapped(zfs_file_t *fp)
+{
+	void *ignore1; uint64_t ignore2;
+	return (!zfs_file_get_mmap(fp, &ignore1, &ignore2));
+
 }
 
 /*

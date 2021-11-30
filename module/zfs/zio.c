@@ -36,6 +36,7 @@
 #include <sys/spa_impl.h>
 #include <sys/vdev_impl.h>
 #include <sys/vdev_trim.h>
+#include <sys/zil_lwb.h>
 #include <sys/zio_impl.h>
 #include <sys/zio_compress.h>
 #include <sys/zio_checksum.h>
@@ -541,9 +542,9 @@ zio_decrypt(zio_t *zio, abd_t *data, uint64_t size)
 	zio_crypt_decode_params_bp(bp, salt, iv);
 
 	if (ot == DMU_OT_INTENT_LOG) {
-		tmp = abd_borrow_buf_copy(zio->io_abd, sizeof (zil_chain_t));
+		tmp = abd_borrow_buf_copy(zio->io_abd, sizeof (zillwb_chain_t));
 		zio_crypt_decode_mac_zil(tmp, mac);
-		abd_return_buf(zio->io_abd, tmp, sizeof (zil_chain_t));
+		abd_return_buf(zio->io_abd, tmp, sizeof (zillwb_chain_t));
 	} else {
 		zio_crypt_decode_mac_bp(bp, mac);
 	}
@@ -1163,7 +1164,7 @@ zio_write(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
 zio_t *
 zio_rewrite(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp, abd_t *data,
     uint64_t size, zio_done_func_t *done, void *private,
-    zio_priority_t priority, enum zio_flag flags, zbookmark_phys_t *zb)
+    zio_priority_t priority, enum zio_flag flags, const zbookmark_phys_t *zb)
 {
 	zio_t *zio;
 
@@ -3745,6 +3746,15 @@ zio_vdev_io_start(zio_t *zio)
 		 */
 		vdev_mirror_ops.vdev_op_io_start(zio);
 		return (NULL);
+	}
+
+	/*
+	 * Only allow writes to the label space for VDEVs in the 'exempt' class.
+	 */
+	if (vd->vdev_alloc_bias == VDEV_BIAS_EXEMPT) {
+	    /* NB: we catch vdev_initialize and vdev_trim way up the stack */
+	    VERIFY(VDEV_OFFSET_IS_LABEL(vd, zio->io_offset));
+	    /* TODO VERIFY size within LABEL */
 	}
 
 	ASSERT3P(zio->io_logical, !=, zio);

@@ -42,4 +42,7 @@
 #define	kfpu_fini()		((void) 0)
 
 #endif
+
+#include <zfs_kfpu_ctx.h>
+
 #endif /* _LINUX_SIMD_H */

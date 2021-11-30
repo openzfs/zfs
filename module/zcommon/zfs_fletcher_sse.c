@@ -47,7 +47,7 @@
 #include <sys/spa_checksum.h>
 #include <sys/byteorder.h>
 #include <sys/strings.h>
-#include <zfs_fletcher.h>
+#include <zfs_fletcher_impl.h>
 
 static void
 fletcher_4_sse2_init(fletcher_4_ctx_t *ctx)
@@ -102,7 +102,7 @@ fletcher_4_sse2_native(fletcher_4_ctx_t *ctx, const void *buf, uint64_t size)
 	const uint64_t *ip = buf;
 	const uint64_t *ipend = (uint64_t *)((uint8_t *)ip + size);
 
-	kfpu_begin();
+	fletcher_4_kfpu_enter(ctx);
 
 	FLETCHER_4_SSE_RESTORE_CTX(ctx);
 
@@ -125,7 +125,7 @@ fletcher_4_sse2_native(fletcher_4_ctx_t *ctx, const void *buf, uint64_t size)
 
 	FLETCHER_4_SSE_SAVE_CTX(ctx);
 
-	kfpu_end();
+	fletcher_4_kfpu_exit(ctx);
 }
 
 static void
@@ -134,7 +134,7 @@ fletcher_4_sse2_byteswap(fletcher_4_ctx_t *ctx, const void *buf, uint64_t size)
 	const uint32_t *ip = buf;
 	const uint32_t *ipend = (uint32_t *)((uint8_t *)ip + size);
 
-	kfpu_begin();
+	fletcher_4_kfpu_enter(ctx);
 
 	FLETCHER_4_SSE_RESTORE_CTX(ctx);
 
@@ -152,7 +152,7 @@ fletcher_4_sse2_byteswap(fletcher_4_ctx_t *ctx, const void *buf, uint64_t size)
 
 	FLETCHER_4_SSE_SAVE_CTX(ctx);
 
-	kfpu_end();
+	fletcher_4_kfpu_exit(ctx);
 }
 
 static boolean_t fletcher_4_sse2_valid(void)
@@ -184,7 +184,7 @@ fletcher_4_ssse3_byteswap(fletcher_4_ctx_t *ctx, const void *buf, uint64_t size)
 	const uint64_t *ip = buf;
 	const uint64_t *ipend = (uint64_t *)((uint8_t *)ip + size);
 
-	kfpu_begin();
+	fletcher_4_kfpu_enter(ctx);
 
 	FLETCHER_4_SSE_RESTORE_CTX(ctx);
 
@@ -209,7 +209,7 @@ fletcher_4_ssse3_byteswap(fletcher_4_ctx_t *ctx, const void *buf, uint64_t size)
 
 	FLETCHER_4_SSE_SAVE_CTX(ctx);
 
-	kfpu_end();
+	fletcher_4_kfpu_exit(ctx);
 }
 
 static boolean_t fletcher_4_ssse3_valid(void)

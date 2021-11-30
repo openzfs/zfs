@@ -40,7 +40,7 @@
 #include <sys/dmu.h>
 #include <sys/stat.h>
 #include <sys/resource.h>
-#include <sys/zil.h>
+#include <sys/zil_lwb.h>
 #include <sys/zil_impl.h>
 #include <sys/spa_impl.h>
 #include <sys/abd.h>
@@ -60,11 +60,17 @@ print_log_bp(const blkptr_t *bp, const char *prefix)
 	(void) printf("%s%s\n", prefix, blkbuf);
 }
 
+typedef struct {
+	spa_t *pra_spa;
+	objset_t *pra_os;
+	uint64_t pra_claim_txg;
+} print_record_arg_t;
+
 /* ARGSUSED */
 static void
-zil_prt_rec_create(zilog_t *zilog, int txtype, const void *arg)
+zil_prt_rec_create(const print_record_arg_t *arg, int txtype, const lr_t *lrc)
 {
-	const lr_create_t *lr = arg;
+	const lr_create_t *lr = (const lr_create_t *)lrc;
 	time_t crtime = lr->lr_crtime[0];
 	char *name, *link;
 	lr_attr_t *lrattr;
@@ -98,9 +104,9 @@ zil_prt_rec_create(zilog_t *zilog, int txtype, const void *arg)
 
 /* ARGSUSED */
 static void
-zil_prt_rec_remove(zilog_t *zilog, int txtype, const void *arg)
+zil_prt_rec_remove(const print_record_arg_t *arg, int txtype, const lr_t *lrc)
 {
-	const lr_remove_t *lr = arg;
+	const lr_remove_t *lr = (const lr_remove_t *)lrc;
 
 	(void) printf("%sdoid %llu, name %s\n", tab_prefix,
 	    (u_longlong_t)lr->lr_doid, (char *)(lr + 1));
@@ -108,9 +114,9 @@ zil_prt_rec_remove(zilog_t *zilog, int txtype, const void *arg)
 
 /* ARGSUSED */
 static void
-zil_prt_rec_link(zilog_t *zilog, int txtype, const void *arg)
+zil_prt_rec_link(const print_record_arg_t *arg, int txtype, const lr_t *lrc)
 {
-	const lr_link_t *lr = arg;
+	const lr_link_t *lr = (const lr_link_t *)lrc;
 
 	(void) printf("%sdoid %llu, link_obj %llu, name %s\n", tab_prefix,
 	    (u_longlong_t)lr->lr_doid, (u_longlong_t)lr->lr_link_obj,
@@ -119,9 +125,9 @@ zil_prt_rec_link(zilog_t *zilog, int txtype, const void *arg)
 
 /* ARGSUSED */
 static void
-zil_prt_rec_rename(zilog_t *zilog, int txtype, const void *arg)
+zil_prt_rec_rename(const print_record_arg_t *arg, int txtype, const lr_t *lrc)
 {
-	const lr_rename_t *lr = arg;
+	const lr_rename_t *lr = (const lr_rename_t *)lrc;
 	char *snm = (char *)(lr + 1);
 	char *tnm = snm + strlen(snm) + 1;
 
@@ -148,9 +154,9 @@ zil_prt_rec_write_cb(void *data, size_t len, void *unused)
 
 /* ARGSUSED */
 static void
-zil_prt_rec_write(zilog_t *zilog, int txtype, const void *arg)
+zil_prt_rec_write(const print_record_arg_t *arg, int txtype, const lr_t *lrc)
 {
-	const lr_write_t *lr = arg;
+	const lr_write_t *lr = (const lr_write_t *)lrc;
 	abd_t *data;
 	const blkptr_t *bp = &lr->lr_blkptr;
 	zbookmark_phys_t zb;
@@ -167,7 +173,7 @@ zil_prt_rec_write(zilog_t *zilog, int txtype, const void *arg)
 	if (lr->lr_common.lrc_reclen == sizeof (lr_write_t)) {
 		(void) printf("%shas blkptr, %s\n", tab_prefix,
 		    !BP_IS_HOLE(bp) &&
-		    bp->blk_birth >= spa_min_claim_txg(zilog->zl_spa) ?
+		    bp->blk_birth >= spa_min_claim_txg(arg->pra_spa) ?
 		    "will claim" : "won't claim");
 		print_log_bp(bp, tab_prefix);
 
@@ -177,18 +183,18 @@ zil_prt_rec_write(zilog_t *zilog, int txtype, const void *arg)
 			(void) printf("%s<hole>\n", tab_prefix);
 			return;
 		}
-		if (bp->blk_birth < zilog->zl_header->zh_claim_txg) {
+		if (bp->blk_birth < arg->pra_claim_txg) {
 			(void) printf("%s<block already committed>\n",
 			    tab_prefix);
 			return;
 		}
 
-		SET_BOOKMARK(&zb, dmu_objset_id(zilog->zl_os),
+		SET_BOOKMARK(&zb, dmu_objset_id(arg->pra_os),
 		    lr->lr_foid, ZB_ZIL_LEVEL,
 		    lr->lr_offset / BP_GET_LSIZE(bp));
 
 		data = abd_alloc(BP_GET_LSIZE(bp), B_FALSE);
-		error = zio_wait(zio_read(NULL, zilog->zl_spa,
+		error = zio_wait(zio_read(NULL, arg->pra_spa,
 		    bp, data, BP_GET_LSIZE(bp), NULL, NULL,
 		    ZIO_PRIORITY_SYNC_READ, ZIO_FLAG_CANFAIL, &zb));
 		if (error)
@@ -211,9 +217,9 @@ out:
 
 /* ARGSUSED */
 static void
-zil_prt_rec_truncate(zilog_t *zilog, int txtype, const void *arg)
+zil_prt_rec_truncate(const print_record_arg_t *arg, int txtype, const lr_t *lrc)
 {
-	const lr_truncate_t *lr = arg;
+	const lr_truncate_t *lr = (const lr_truncate_t *)lrc;
 
 	(void) printf("%sfoid %llu, offset 0x%llx, length 0x%llx\n", tab_prefix,
 	    (u_longlong_t)lr->lr_foid, (longlong_t)lr->lr_offset,
@@ -222,9 +228,9 @@ zil_prt_rec_truncate(zilog_t *zilog, int txtype, const void *arg)
 
 /* ARGSUSED */
 static void
-zil_prt_rec_setattr(zilog_t *zilog, int txtype, const void *arg)
+zil_prt_rec_setattr(const print_record_arg_t *arg, int txtype, const lr_t *lrc)
 {
-	const lr_setattr_t *lr = arg;
+	const lr_setattr_t *lr = (const lr_setattr_t *)lrc;
 	time_t atime = (time_t)lr->lr_atime[0];
 	time_t mtime = (time_t)lr->lr_mtime[0];
 
@@ -268,15 +274,16 @@ zil_prt_rec_setattr(zilog_t *zilog, int txtype, const void *arg)
 
 /* ARGSUSED */
 static void
-zil_prt_rec_acl(zilog_t *zilog, int txtype, const void *arg)
+zil_prt_rec_acl(const print_record_arg_t *arg, int txtype, const lr_t *lrc)
 {
-	const lr_acl_t *lr = arg;
+	const lr_acl_t *lr = (const lr_acl_t *)lrc;
 
 	(void) printf("%sfoid %llu, aclcnt %llu\n", tab_prefix,
 	    (u_longlong_t)lr->lr_foid, (u_longlong_t)lr->lr_aclcnt);
 }
 
-typedef void (*zil_prt_rec_func_t)(zilog_t *, int, const void *);
+typedef void (*zil_prt_rec_func_t)(const print_record_arg_t *, int,
+    const lr_t *);
 typedef struct zil_rec_info {
 	zil_prt_rec_func_t	zri_print;
 	const char		*zri_name;
@@ -309,8 +316,10 @@ static zil_rec_info_t zil_rec_info[TX_MAX_TYPE] = {
 
 /* ARGSUSED */
 static int
-print_log_record(zilog_t *zilog, const lr_t *lr, void *arg, uint64_t claim_txg)
+print_log_record(const lr_t *lr, void *varg)
 {
+	print_record_arg_t *arg = varg;
+
 	int txtype;
 	int verbose = MAX(dump_opt['d'], dump_opt['i']);
 
@@ -328,8 +337,8 @@ print_log_record(zilog_t *zilog, const lr_t *lr, void *arg, uint64_t claim_txg)
 	    (u_longlong_t)lr->lrc_seq);
 
 	if (txtype && verbose >= 3) {
-		if (!zilog->zl_os->os_encrypted) {
-			zil_rec_info[txtype].zri_print(zilog, txtype, lr);
+		if (!arg->pra_os->os_encrypted) {
+			zil_rec_info[txtype].zri_print(arg, txtype, lr);
 		} else {
 			(void) printf("%s(encrypted)\n", tab_prefix);
 		}
@@ -343,9 +352,10 @@ print_log_record(zilog_t *zilog, const lr_t *lr, void *arg, uint64_t claim_txg)
 
 /* ARGSUSED */
 static int
-print_log_block(zilog_t *zilog, const blkptr_t *bp, void *arg,
-    uint64_t claim_txg)
+print_log_block(const blkptr_t *bp, void *varg)
 {
+	print_record_arg_t *arg = varg;
+
 	char blkbuf[BP_SPRINTF_LEN + 10];
 	int verbose = MAX(dump_opt['d'], dump_opt['i']);
 	const char *claim;
@@ -361,15 +371,15 @@ print_log_block(zilog_t *zilog, const blkptr_t *bp, void *arg,
 		blkbuf[0] = '\0';
 	}
 
-	if (claim_txg != 0)
+	if (arg->pra_claim_txg != 0)
 		claim = "already claimed";
-	else if (bp->blk_birth >= spa_min_claim_txg(zilog->zl_spa))
+	else if (bp->blk_birth >= spa_min_claim_txg(arg->pra_spa))
 		claim = "will claim";
 	else
 		claim = "won't claim";
 
 	(void) printf("\tBlock seqno %llu, %s%s\n",
-	    (u_longlong_t)bp->blk_cksum.zc_word[ZIL_ZC_SEQ], claim, blkbuf);
+	    (u_longlong_t)bp->blk_cksum.zc_word[ZILLWB_ZC_SEQ], claim, blkbuf);
 
 	return (0);
 }
@@ -396,11 +406,126 @@ print_log_stats(int verbose)
 	(void) printf("\n");
 }
 
+#include <sys/zil_pmem_impl.h>
+#include <sys/zil_pmem_spa.h>
+#include <sys/zil_pmem_prb_impl.h>
+#include <libnvpair.h>
+
 /* ARGSUSED */
 void
-dump_intent_log(zilog_t *zilog)
+dump_intent_log(zilog_t *super)
 {
-	const zil_header_t *zh = zilog->zl_header;
+	if (super->zl_vtable == &zilpmem_vtable) {
+
+		zilog_pmem_t *zilog = zilpmem_downcast(super);
+        (void) printf("\n    ZIL_PMEM State: 0x%x", zilog->zl_st);
+
+        boolean_t invalid;
+        const char *str = zilog_pmem_state_to_str(zilog->zl_st, &invalid);
+        ASSERT0(invalid);
+        (void) printf(" (%s)\n", str);
+
+        if (zilog->zl_st == ZLP_ST_SNAPSHOT)
+            return;
+
+		spa_prb_handle_t *sprbh = zilpmem_spa_prb_hold(zilog);
+		zilpmem_prb_handle_t *hdl = zilpmem_spa_prb_handle_ref_inner(sprbh);
+
+		const zil_header_pmem_t *zh_opaque = zilpmem_zil_header_const(zilog);
+		const zil_header_pmem_impl_t *zh = (const zil_header_pmem_impl_t*)zh_opaque;
+
+		char *zh_dbg = zil_header_pmem_debug_string(zh_opaque);
+		(void) printf("\n    ZIL_PMEM header: %s\n", zh_dbg);
+		kmem_strfree(zh_dbg);
+		printf("\n");
+
+		zfs_btree_t *entries;
+		entries = zilpem_prbh_find_all_entries(hdl, zh, 0);
+
+		size_t entry_buffer_size = 16 * (1<<20);
+		void *entry_buffer = kmem_alloc_aligned(entry_buffer_size, 512, KM_SLEEP);
+
+
+		zfs_btree_index_t where;
+		zilpmem_replay_node_t *rn = zfs_btree_first(entries, &where);
+		for (; rn != NULL; rn = zfs_btree_next(entries, &where, &where)) {
+
+			nvlist_t *rn_nvl = replay_node_to_nvlist(rn);
+
+			uint64_t body_required_size;
+			zilpmem_prb_replay_read_replay_node_result_t res;
+			VERIFY(entry_buffer_size >= sizeof(entry_header_t));
+			res = zilpmem_prb_replay_read_replay_node(rn, entry_buffer, entry_buffer + sizeof(entry_header_t), entry_buffer_size - sizeof(entry_header_t), &body_required_size);
+			if (res != READ_REPLAY_NODE_OK) {
+				printf("      read replay node error: %d\n", res);
+				continue;
+			}
+			const entry_header_t *eh = entry_buffer;
+
+			const entry_header_data_t *ehd = &eh->eh_data;
+			nvlist_t *ehnvl = entry_header_data_to_nvlist(ehd);
+			uint64_t unused;
+			ASSERT3S(nvlist_lookup_uint64(rn_nvl,
+			    "*rn_pmem_ptr", &unused), ==, ENOENT);
+			fnvlist_add_nvlist(rn_nvl, "*rn_pmem_ptr", ehnvl);
+			fnvlist_free(ehnvl);
+
+			fprintf(stdout, "    ");
+			nvlist_print_json(stdout, rn_nvl);
+			fprintf(stdout, "\n");
+
+			print_record_arg_t arg = {
+			    .pra_os = zilog->zl_super.zl_os,
+			    .pra_spa = zilog->zl_super.zl_spa,
+			};
+
+			boolean_t valid;
+			zil_header_pmem_claimtxg_from_header(
+			    zilpmem_zil_header_const(zilog),
+			    &arg.pra_claim_txg, &valid);
+			if (!valid)
+				arg.pra_claim_txg = 0;
+
+			lr_t *lr = (lr_t*)(eh + 1);
+			print_log_record(lr, &arg);
+
+			fnvlist_free(rn_nvl);
+		}
+
+		kmem_free(entry_buffer, entry_buffer_size);
+
+		check_replayable_result_t replayable =
+		    zilpmem_check_replayable(entries, &where,
+		    zh->zhpm_replay_state.claim_txg /* FIXME */);
+		fprintf(stdout,
+		    "\n    check_replayable_result.what ? %d\n",
+		    replayable.what);
+		fflush(stdout);
+
+		zfs_btree_clear(entries);
+		zfs_btree_destroy(entries);
+
+		hdl = NULL;
+		zilpmem_spa_prb_rele(zilog, sprbh);
+
+		fprintf(stdout, "\n");
+
+		return;
+
+	} if (super->zl_vtable != &zillwb_vtable) {
+		/*
+		 * TODO refactor this as a vfunc that only exists when compiling
+		 * zdb.
+		 */
+		zh_kind_t kind = 0;
+		VERIFY0(zil_kind_specific_data_from_header(super->zl_spa, super->zl_header, NULL, NULL, NULL, &kind));
+		(void) printf("\n    ZIL kind %u dump not supported by zdb\n", kind);
+		return;
+	}
+	zilog_lwb_t *zilog = zillwb_downcast(super);
+
+	const zil_header_lwb_t *zh =
+	    zillwb_zil_header_const(zilog);
 	int verbose = MAX(dump_opt['d'], dump_opt['i']);
 	int i;
 
@@ -419,14 +544,20 @@ dump_intent_log(zilog_t *zilog)
 		zil_rec_info[i].zri_count = 0;
 
 	/* see comment in zil_claim() or zil_check_log_chain() */
-	if (zilog->zl_spa->spa_uberblock.ub_checkpoint_txg != 0 &&
+	if (zilog->zl_super.zl_spa->spa_uberblock.ub_checkpoint_txg != 0 &&
 	    zh->zh_claim_txg == 0)
 		return;
 
 	if (verbose >= 2) {
 		(void) printf("\n");
-		(void) zil_parse(zilog, print_log_block, print_log_record, NULL,
-		    zh->zh_claim_txg, B_FALSE);
+		print_record_arg_t arg = {
+			.pra_os = zilog->zl_super.zl_os,
+			.pra_spa = zilog->zl_super.zl_spa,
+			.pra_claim_txg = zillwb_zil_header_const(zilog)->zh_claim_txg,
+		};
+		(void) zillwb_parse_phys(zilog->zl_super.zl_spa, zh,
+		    print_log_block, print_log_record, &arg, B_FALSE,
+		    ZIO_PRIORITY_SYNC_READ, NULL);
 		print_log_stats(verbose);
 	}
 }

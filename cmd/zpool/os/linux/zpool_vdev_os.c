@@ -409,6 +409,55 @@ check_device(const char *path, boolean_t force,
 void
 after_zpool_upgrade(zpool_handle_t *zhp)
 {
+
+}
+
+int
+dax_detect_os(const char *path, const char *type, boolean_t *is_dax)
+{
+	blkid_cache cache;
+	int error;
+	int ret;
+
+	if (strcmp(type, VDEV_TYPE_DISK) != 0) {
+		/* XXX check if on DAX file system => mmappable for ztest */
+		return (EZFS_BADTYPE);
+	}
+
+	error = blkid_get_cache(&cache, NULL);
+	if (error != 0) {
+		(void) fprintf(stderr, gettext("dax_detect: unable to access "
+		    "the blkid cache.\n"));
+		ret = -1;
+		goto ret0;
+	}
+
+	blkid_probe pr;
+	blkid_topology tp;
+
+	pr = blkid_new_probe_from_filename(path);
+	if (!pr) {
+		fprintf(stderr, gettext("dax_detect: unable to blkid probe\n"));
+		ret = -1;
+		goto ret1;
+	}
+
+	tp = blkid_probe_get_topology(pr);
+	if (!tp) {
+		fprintf(stderr,
+		    gettext("dax_detect: unable to get topology\n"));
+		ret = -1;
+		goto ret2;
+	}
+	*is_dax = blkid_topology_get_dax(tp);
+	ret = 0;
+
+ret2:
+	blkid_free_probe(pr);
+ret1:
+	blkid_put_cache(cache);
+ret0:
+	return (ret);
 }
 
 int

@@ -550,15 +550,28 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		const ssize_t nbytes =
 		    MIN(n, max_blksz - P2PHASE(woff, max_blksz));
 
+		zfs_log_write_t log_precopy;
+		zfs_log_write_begin(zilog, tx, ioflag, zp, woff, nbytes,
+		    NULL, NULL, &log_precopy);
+
 		ssize_t tx_bytes;
 		if (abuf == NULL) {
+			uint8_t *precopy_buf = NULL;
+			size_t precopy_buf_size;
+			precopy_buf = zfs_log_write_get_prefill_buf(
+			    &log_precopy, &precopy_buf_size);
+			if (precopy_buf != NULL) {
+				ASSERT3S(precopy_buf_size, ==, nbytes);
+			}
+
 			tx_bytes = zfs_uio_resid(uio);
 			zfs_uio_fault_disable(uio, B_TRUE);
-			error = dmu_write_uio_dbuf(sa_get_db(zp->z_sa_hdl),
-			    uio, nbytes, tx);
+			error = dmu_write_uioandcc_dbuf(sa_get_db(zp->z_sa_hdl),
+			    uio, precopy_buf, nbytes, tx);
 			zfs_uio_fault_disable(uio, B_FALSE);
 #ifdef __linux__
 			if (error == EFAULT) {
+				zfs_log_write_cancel(&log_precopy);
 				dmu_tx_commit(tx);
 				/*
 				 * Account for partial writes before
@@ -577,10 +590,13 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 			}
 #endif
 			if (error != 0) {
+				zfs_log_write_cancel(&log_precopy);
 				dmu_tx_commit(tx);
 				break;
 			}
 			tx_bytes -= zfs_uio_resid(uio);
+			if (precopy_buf != NULL)
+				zfs_log_write_prefilled(&log_precopy, tx_bytes);
 		} else {
 			/* Implied by abuf != NULL: */
 			ASSERT3S(n, >=, max_blksz);
@@ -621,6 +637,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		if (tx_bytes == 0) {
 			(void) sa_update(zp->z_sa_hdl, SA_ZPL_SIZE(zfsvfs),
 			    (void *)&zp->z_size, sizeof (uint64_t), tx);
+			zfs_log_write_cancel(&log_precopy); /* TODO correct? */
 			dmu_tx_commit(tx);
 			ASSERT(error != 0);
 			break;
@@ -672,8 +689,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 
 		error = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
 
-		zfs_log_write(zilog, tx, TX_WRITE, zp, woff, tx_bytes, ioflag,
-		    NULL, NULL);
+		zfs_log_write_finish(&log_precopy, tx_bytes);
 		dmu_tx_commit(tx);
 
 		if (error != 0)
@@ -756,14 +772,97 @@ zfs_setsecattr(znode_t *zp, vsecattr_t *vsecp, int flag, cred_t *cr)
 static int zil_fault_io = 0;
 #endif
 
-static void zfs_get_done(zgd_t *zgd, int error);
+static int
+zfs_get_data_zget(zfsvfs_t *zfsvfs, uint64_t object, uint64_t gen,
+    znode_t **zpp)
+{
+	uint64_t zp_gen;
+	int ret;
 
-/*
- * Get data to generate a TX_WRITE intent log record.
- */
-int
-zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
-    struct lwb *lwb, zio_t *zio)
+	/*
+	 * Nothing to do if the file has been removed
+	 */
+	if (zfs_zget(zfsvfs, object, zpp) != 0) {
+		ret = SET_ERROR(ENOENT);
+		goto out_return;
+	}
+	if ((*zpp)->z_unlinked) {
+		/*
+		 * Release the vnode asynchronously as we currently have the
+		 * txg stopped from syncing.
+		 */
+		ret = SET_ERROR(ENOENT);
+		goto out_zrele_async;
+	}
+	/* check if generation number matches */
+	if (sa_lookup((*zpp)->z_sa_hdl, SA_ZPL_GEN(zfsvfs), &zp_gen,
+	    sizeof (zp_gen)) != 0) {
+		ret = SET_ERROR(EIO);
+		goto out_zrele_async;
+	}
+	if (zp_gen != gen) {
+		ret = SET_ERROR(ENOENT);
+		goto out_zrele_async;
+	}
+
+	ret = 0;
+	goto out_return;
+
+out_zrele_async:
+	zfs_zrele_async((*zpp));
+out_return:
+	return (ret);
+}
+
+static int
+zfs_get_data_wr_need_copy(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
+    uint64_t bufsize)
+{
+
+	zfsvfs_t *zfsvfs = arg;
+	objset_t *os = zfsvfs->z_os;
+	znode_t *zp;
+	uint64_t object = lr->lr_foid;
+	uint64_t offset = lr->lr_offset;
+	uint64_t size = lr->lr_length;
+	int error = 0;
+
+	ASSERT3P(buf, !=, NULL);
+	ASSERT3U(size, !=, 0);
+	ASSERT3U(size, <=, bufsize);
+
+	error = zfs_get_data_zget(zfsvfs, object, gen, &zp);
+	if (error != 0) {
+		return (error);
+	}
+
+	zfs_locked_range_t *rl_lr = zfs_rangelock_enter(&zp->z_rangelock,
+	    offset, size, RL_READER);
+	/* test for truncation needs to be done while range locked */
+	if (offset >= zp->z_size) {
+		error = SET_ERROR(ENOENT);
+	} else {
+		error = dmu_read(os, object, offset, size, buf,
+		    DMU_READ_NO_PREFETCH);
+	}
+	ASSERT(error == 0 || error == ENOENT);
+	zfs_rangelock_exit(rl_lr);
+
+	/*
+	 * Release the vnode asynchronously as we currently have the
+	 * txg stopped from syncing.
+	 * XXX is this still true for wr_need_copy?
+	 */
+	zfs_zrele_async(zp);
+
+	return (error);
+
+}
+
+static void zfs_get_data_wr_indirect_done(zgd_t *zgd, int error);
+
+static int
+zfs_get_data_wr_indirect(void *arg, uint64_t gen, lr_write_t *lr, struct lwb *lwb, zio_t *zio)
 {
 	zfsvfs_t *zfsvfs = arg;
 	objset_t *os = zfsvfs->z_os;
@@ -774,34 +873,14 @@ zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
 	dmu_buf_t *db;
 	zgd_t *zgd;
 	int error = 0;
-	uint64_t zp_gen;
 
 	ASSERT3P(lwb, !=, NULL);
 	ASSERT3P(zio, !=, NULL);
 	ASSERT3U(size, !=, 0);
 
-	/*
-	 * Nothing to do if the file has been removed
-	 */
-	if (zfs_zget(zfsvfs, object, &zp) != 0)
-		return (SET_ERROR(ENOENT));
-	if (zp->z_unlinked) {
-		/*
-		 * Release the vnode asynchronously as we currently have the
-		 * txg stopped from syncing.
-		 */
-		zfs_zrele_async(zp);
-		return (SET_ERROR(ENOENT));
-	}
-	/* check if generation number matches */
-	if (sa_lookup(zp->z_sa_hdl, SA_ZPL_GEN(zfsvfs), &zp_gen,
-	    sizeof (zp_gen)) != 0) {
-		zfs_zrele_async(zp);
-		return (SET_ERROR(EIO));
-	}
-	if (zp_gen != gen) {
-		zfs_zrele_async(zp);
-		return (SET_ERROR(ENOENT));
+	error = zfs_get_data_zget(zfsvfs, object, gen, &zp);
+	if (error != 0) {
+		return (error);
 	}
 
 	zgd = (zgd_t *)kmem_zalloc(sizeof (zgd_t), KM_SLEEP);
@@ -809,101 +888,78 @@ zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
 	zgd->zgd_private = zp;
 
 	/*
-	 * Write records come in two flavors: immediate and indirect.
-	 * For small writes it's cheaper to store the data with the
-	 * log record (immediate); for large writes it's cheaper to
-	 * sync the data and get a pointer to it (indirect) so that
-	 * we don't have to write the data twice.
+	 * Have to lock the whole block to ensure when it's
+	 * written out and its checksum is being calculated
+	 * that no one can change the data. We need to re-check
+	 * blocksize after we get the lock in case it's changed!
 	 */
-	if (buf != NULL) { /* immediate write */
-		zgd->zgd_lr = zfs_rangelock_enter(&zp->z_rangelock,
-		    offset, size, RL_READER);
-		/* test for truncation needs to be done while range locked */
-		if (offset >= zp->z_size) {
-			error = SET_ERROR(ENOENT);
-		} else {
-			error = dmu_read(os, object, offset, size, buf,
-			    DMU_READ_NO_PREFETCH);
-		}
-		ASSERT(error == 0 || error == ENOENT);
-	} else { /* indirect write */
-		/*
-		 * Have to lock the whole block to ensure when it's
-		 * written out and its checksum is being calculated
-		 * that no one can change the data. We need to re-check
-		 * blocksize after we get the lock in case it's changed!
-		 */
-		for (;;) {
-			uint64_t blkoff;
-			size = zp->z_blksz;
-			blkoff = ISP2(size) ? P2PHASE(offset, size) : offset;
-			offset -= blkoff;
-			zgd->zgd_lr = zfs_rangelock_enter(&zp->z_rangelock,
-			    offset, size, RL_READER);
-			if (zp->z_blksz == size)
-				break;
-			offset += blkoff;
-			zfs_rangelock_exit(zgd->zgd_lr);
-		}
-		/* test for truncation needs to be done while range locked */
-		if (lr->lr_offset >= zp->z_size)
-			error = SET_ERROR(ENOENT);
+	for (;;) {
+		uint64_t blkoff;
+		size = zp->z_blksz;
+		blkoff = ISP2(size) ? P2PHASE(offset, size) : offset;
+		offset -= blkoff;
+		zgd->zgd_lr = zfs_rangelock_enter(&zp->z_rangelock, offset,
+		    size, RL_READER);
+		if (zp->z_blksz == size)
+			break;
+		offset += blkoff;
+		zfs_rangelock_exit(zgd->zgd_lr);
+	}
+	/* test for truncation needs to be done while range locked */
+	if (lr->lr_offset >= zp->z_size)
+		error = SET_ERROR(ENOENT);
 #ifdef ZFS_DEBUG
-		if (zil_fault_io) {
-			error = SET_ERROR(EIO);
-			zil_fault_io = 0;
-		}
+	if (zil_fault_io) {
+		error = SET_ERROR(EIO);
+		zil_fault_io = 0;
+	}
 #endif
+	if (error == 0)
+		error = dmu_buf_hold(os, object, offset, zgd, &db,
+		    DMU_READ_NO_PREFETCH);
+
+	if (error == 0) {
+		blkptr_t *bp = &lr->lr_blkptr;
+
+		zgd->zgd_db = db;
+		zgd->zgd_bp = bp;
+
+		ASSERT(db->db_offset == offset);
+		ASSERT(db->db_size == size);
+
+		error = dmu_sync(zio, lr->lr_common.lrc_txg,
+		    zfs_get_data_wr_indirect_done, zgd);
+		ASSERT(error || lr->lr_length <= size);
+
+		/*
+		 * On success, we need to wait for the write I/O initiated by
+		 * dmu_sync() to complete before we can release this dbuf.  We
+		 * will finish everything up in the zfs_get_done() callback.
+		 */
 		if (error == 0)
-			error = dmu_buf_hold(os, object, offset, zgd, &db,
-			    DMU_READ_NO_PREFETCH);
+			return (0);
 
-		if (error == 0) {
-			blkptr_t *bp = &lr->lr_blkptr;
-
-			zgd->zgd_db = db;
-			zgd->zgd_bp = bp;
-
-			ASSERT(db->db_offset == offset);
-			ASSERT(db->db_size == size);
-
-			error = dmu_sync(zio, lr->lr_common.lrc_txg,
-			    zfs_get_done, zgd);
-			ASSERT(error || lr->lr_length <= size);
-
+		if (error == EALREADY) {
+			lr->lr_common.lrc_txtype = TX_WRITE2;
 			/*
-			 * On success, we need to wait for the write I/O
-			 * initiated by dmu_sync() to complete before we can
-			 * release this dbuf.  We will finish everything up
-			 * in the zfs_get_done() callback.
+			 * TX_WRITE2 relies on the data previously written by
+			 * the TX_WRITE that caused EALREADY.  We zero out the
+			 * BP because it is the old, currently-on-disk BP.
 			 */
-			if (error == 0)
-				return (0);
-
-			if (error == EALREADY) {
-				lr->lr_common.lrc_txtype = TX_WRITE2;
-				/*
-				 * TX_WRITE2 relies on the data previously
-				 * written by the TX_WRITE that caused
-				 * EALREADY.  We zero out the BP because
-				 * it is the old, currently-on-disk BP.
-				 */
-				zgd->zgd_bp = NULL;
-				BP_ZERO(bp);
-				error = 0;
-			}
+			zgd->zgd_bp = NULL;
+			BP_ZERO(bp);
+			error = 0;
 		}
 	}
 
-	zfs_get_done(zgd, error);
+	zfs_get_data_wr_indirect_done(zgd, error);
 
 	return (error);
 }
 
-
 /* ARGSUSED */
 static void
-zfs_get_done(zgd_t *zgd, int error)
+zfs_get_data_wr_indirect_done(zgd_t *zgd, int error)
 {
 	znode_t *zp = zgd->zgd_private;
 
@@ -919,6 +975,17 @@ zfs_get_done(zgd_t *zgd, int error)
 	zfs_zrele_async(zp);
 
 	kmem_free(zgd, sizeof (zgd_t));
+}
+
+int
+zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
+    struct lwb *lwb, zio_t *zio)
+{
+	if (buf != NULL) {
+		return (zfs_get_data_wr_need_copy(arg, gen, lr, buf, lr->lr_length));
+	} else {
+		return (zfs_get_data_wr_indirect(arg, gen, lr, lwb, zio));
+	}
 }
 
 EXPORT_SYMBOL(zfs_access);
