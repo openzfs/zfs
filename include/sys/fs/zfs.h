@@ -54,7 +54,8 @@ typedef enum {
 	ZFS_TYPE_SNAPSHOT	= (1 << 1),
 	ZFS_TYPE_VOLUME		= (1 << 2),
 	ZFS_TYPE_POOL		= (1 << 3),
-	ZFS_TYPE_BOOKMARK	= (1 << 4)
+	ZFS_TYPE_BOOKMARK	= (1 << 4),
+	ZFS_TYPE_VDEV		= (1 << 5),
 } zfs_type_t;
 
 /*
@@ -252,6 +253,7 @@ typedef enum {
 
 /* Small enough to not hog a whole line of printout in zpool(8). */
 #define	ZPROP_MAX_COMMENT	32
+#define	ZPROP_BOOLEAN_NA	2
 
 #define	ZPROP_VALUE		"value"
 #define	ZPROP_SOURCE		"source"
@@ -299,6 +301,59 @@ typedef int (*zprop_func)(int, void *);
 #define	ZFS_WRITTEN_PROP_PREFIX_LEN	8
 
 /*
+ * VDEV properties are identified by these constants and must be added to the
+ * end of this list to ensure that external consumers are not affected
+ * by the change. If you make any changes to this list, be sure to update
+ * the property table in usr/src/common/zfs/zpool_prop.c.
+ */
+typedef enum {
+	VDEV_PROP_INVAL = -1,
+#define	VDEV_PROP_USER	VDEV_PROP_INVAL
+	VDEV_PROP_NAME,
+	VDEV_PROP_CAPACITY,
+	VDEV_PROP_STATE,
+	VDEV_PROP_GUID,
+	VDEV_PROP_ASIZE,
+	VDEV_PROP_PSIZE,
+	VDEV_PROP_ASHIFT,
+	VDEV_PROP_SIZE,
+	VDEV_PROP_FREE,
+	VDEV_PROP_ALLOCATED,
+	VDEV_PROP_COMMENT,
+	VDEV_PROP_EXPANDSZ,
+	VDEV_PROP_FRAGMENTATION,
+	VDEV_PROP_BOOTSIZE,
+	VDEV_PROP_PARITY,
+	VDEV_PROP_PATH,
+	VDEV_PROP_DEVID,
+	VDEV_PROP_PHYS_PATH,
+	VDEV_PROP_ENC_PATH,
+	VDEV_PROP_FRU,
+	VDEV_PROP_PARENT,
+	VDEV_PROP_CHILDREN,
+	VDEV_PROP_NUMCHILDREN,
+	VDEV_PROP_READ_ERRORS,
+	VDEV_PROP_WRITE_ERRORS,
+	VDEV_PROP_CHECKSUM_ERRORS,
+	VDEV_PROP_INITIALIZE_ERRORS,
+	VDEV_PROP_OPS_NULL,
+	VDEV_PROP_OPS_READ,
+	VDEV_PROP_OPS_WRITE,
+	VDEV_PROP_OPS_FREE,
+	VDEV_PROP_OPS_CLAIM,
+	VDEV_PROP_OPS_TRIM,
+	VDEV_PROP_BYTES_NULL,
+	VDEV_PROP_BYTES_READ,
+	VDEV_PROP_BYTES_WRITE,
+	VDEV_PROP_BYTES_FREE,
+	VDEV_PROP_BYTES_CLAIM,
+	VDEV_PROP_BYTES_TRIM,
+	VDEV_PROP_REMOVING,
+	VDEV_PROP_ALLOCATING,
+	VDEV_NUM_PROPS
+} vdev_prop_t;
+
+/*
  * Dataset property functions shared between libzfs and kernel.
  */
 _SYS_FS_ZFS_H const char *zfs_prop_default_string(zfs_prop_t);
@@ -336,6 +391,22 @@ _SYS_FS_ZFS_H int zpool_prop_index_to_string(zpool_prop_t, uint64_t,
 _SYS_FS_ZFS_H int zpool_prop_string_to_index(zpool_prop_t, const char *,
     uint64_t *);
 _SYS_FS_ZFS_H uint64_t zpool_prop_random_value(zpool_prop_t, uint64_t seed);
+
+/*
+ * VDEV property functions shared between libzfs and kernel.
+ */
+_SYS_FS_ZFS_H vdev_prop_t vdev_name_to_prop(const char *);
+_SYS_FS_ZFS_H boolean_t vdev_prop_user(const char *name);
+_SYS_FS_ZFS_H const char *vdev_prop_to_name(vdev_prop_t);
+_SYS_FS_ZFS_H const char *vdev_prop_default_string(vdev_prop_t);
+_SYS_FS_ZFS_H uint64_t vdev_prop_default_numeric(vdev_prop_t);
+_SYS_FS_ZFS_H boolean_t vdev_prop_readonly(vdev_prop_t prop);
+_SYS_FS_ZFS_H int vdev_prop_index_to_string(vdev_prop_t, uint64_t,
+    const char **);
+_SYS_FS_ZFS_H int vdev_prop_string_to_index(vdev_prop_t, const char *,
+    uint64_t *);
+_SYS_FS_ZFS_H boolean_t zpool_prop_vdev(const char *name);
+_SYS_FS_ZFS_H uint64_t vdev_prop_random_value(vdev_prop_t prop, uint64_t seed);
 
 /*
  * Definitions for the Delegation.
@@ -712,6 +783,7 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_ORIG_GUID		"orig_guid"
 #define	ZPOOL_CONFIG_SPLIT_GUID		"split_guid"
 #define	ZPOOL_CONFIG_SPLIT_LIST		"guid_list"
+#define	ZPOOL_CONFIG_NONALLOCATING	"non_allocating"
 #define	ZPOOL_CONFIG_REMOVING		"removing"
 #define	ZPOOL_CONFIG_RESILVER_TXG	"resilver_txg"
 #define	ZPOOL_CONFIG_REBUILD_TXG	"rebuild_txg"
@@ -1109,6 +1181,7 @@ typedef struct vdev_stat {
 	uint64_t	vs_configured_ashift;   /* TLV vdev_ashift */
 	uint64_t	vs_logical_ashift;	/* vdev_logical_ashift  */
 	uint64_t	vs_physical_ashift;	/* vdev_physical_ashift */
+	uint64_t	vs_noalloc;		/* allocations halted?	*/
 } vdev_stat_t;
 
 /* BEGIN CSTYLED */
@@ -1362,6 +1435,8 @@ typedef enum zfs_ioc {
 	ZFS_IOC_GET_BOOKMARK_PROPS,		/* 0x5a52 */
 	ZFS_IOC_WAIT,				/* 0x5a53 */
 	ZFS_IOC_WAIT_FS,			/* 0x5a54 */
+	ZFS_IOC_VDEV_GET_PROPS,			/* 0x5a55 */
+	ZFS_IOC_VDEV_SET_PROPS,			/* 0x5a56 */
 
 	/*
 	 * Per-platform (Optional) - 8/128 numbers reserved.
@@ -1417,6 +1492,7 @@ typedef enum {
 	ZFS_ERR_RESILVER_IN_PROGRESS,
 	ZFS_ERR_REBUILD_IN_PROGRESS,
 	ZFS_ERR_BADPROP,
+	ZFS_ERR_VDEV_NOTSUP,
 } zfs_errno_t;
 
 /*
@@ -1507,6 +1583,18 @@ typedef enum {
 #define	ZPOOL_WAIT_ACTIVITY		"wait_activity"
 #define	ZPOOL_WAIT_TAG			"wait_tag"
 #define	ZPOOL_WAIT_WAITED		"wait_waited"
+
+/*
+ * The following are names used when invoking ZFS_IOC_VDEV_GET_PROP.
+ */
+#define	ZPOOL_VDEV_PROPS_GET_VDEV	"vdevprops_get_vdev"
+#define	ZPOOL_VDEV_PROPS_GET_PROPS	"vdevprops_get_props"
+
+/*
+ * The following are names used when invoking ZFS_IOC_VDEV_SET_PROP.
+ */
+#define	ZPOOL_VDEV_PROPS_SET_VDEV	"vdevprops_set_vdev"
+#define	ZPOOL_VDEV_PROPS_SET_PROPS	"vdevprops_set_props"
 
 /*
  * The following are names used when invoking ZFS_IOC_WAIT_FS.

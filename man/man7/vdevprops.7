@@ -1,0 +1,172 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2021 Klara, Inc.
+.\"
+.Dd November 27, 2021
+.Dt VDEVPROPS 7
+.Os
+.
+.Sh NAME
+.Nm vdevprops
+.Nd native and user-defined properties of ZFS vdevs
+.
+.Sh DESCRIPTION
+Properties are divided into two types, native properties and user-defined
+.Pq or Qq user
+properties.
+Native properties either export internal statistics or control ZFS behavior.
+In addition, native properties are either editable or read-only.
+User properties have no effect on ZFS behavior, but you can use them to annotate
+vdevs in a way that is meaningful in your environment.
+For more information about user properties, see the
+.Sx User Properties
+section, below.
+.
+.Ss Native Properties
+Every vdev has a set of properties that export statistics about the vdev
+as well as control various behaviors.
+Properties are NOT inherited from top-level vdevs.
+.Pp
+The values of numeric properties can be specified using human-readable suffixes
+.Po for example,
+.Sy k , KB , M , Gb ,
+and so forth, up to
+.Sy Z
+for zettabyte
+.Pc .
+The following are all valid
+.Pq and equal
+specifications:
+.Li 1536M , 1.5g , 1.50GB .
+.Pp
+The values of non-numeric properties are case sensitive and must be lowercase.
+.Pp
+The following native properties consist of read-only statistics about the
+vdev.
+These properties can not be changed.
+.Bl -tag -width "fragmentation"
+.It Sy capacity
+Percentage of vdev space used
+.It Sy state
+state of this vdev such as online, faulted, or offline
+.It Sy guid
+globaly unique id of this vdev
+.It Sy asize
+The allocable size of this vdev
+.It Sy psize
+The physical size of this vdev
+.It Sy ashift
+The physical sector size of this vdev expressed as the power of two
+.It Sy size
+The total size of this vdev
+.It Sy free
+The amount of remaining free space on this vdev
+.It Sy allocated
+The amount of allocated space on this vdev
+.It Sy expandsize
+How much this vdev can expand by
+.It Sy fragmentation
+Percent of fragmentation in this vdev
+.It Sy parity
+The level of parity for this vdev
+.It Sy devid
+The device id for this vdev
+.It Sy physpath
+The physical path to the device
+.It Sy encpath
+The enclosure path to the device
+.It Sy fru
+Field Replacable Unit, usually a model number
+.It Sy parent
+Parent of this vdev
+.It Sy children
+Comma separated list of children of this vdev
+.It Sy numchildren
+The number of children belonging to this vdev
+.It Sy read_errors , write_errors , checksum_errors , initialize_errors
+The number of errors of each type encountered by this vdev
+.It Sy null_ops , read_ops , write_ops , free_ops , claim_ops , trim_ops
+The number of I/O operations of each type performed by this vdev
+.It Xo
+.Sy null_bytes , read_bytes , write_bytes , free_bytes , claim_bytes ,
+.Sy trim_bytes
+.Xc
+The cumulative size of all operations of each type performed by this vdev
+.It Sy removing
+If this device is currently being removed from the pool
+.El
+.Pp
+The following native properties can be used to change the behavior of a ZFS
+dataset.
+.Bl -tag -width "allocating"
+.It Sy comment
+A text comment up to 8192 characters long
+.It Sy bootsize
+The amount of space to reserve for the EFI system partition
+.It Sy path
+The path to the device for this vdev
+.It Sy allocating
+If this device should perform new allocations, used to disable a device
+when it is scheduled for later removal.
+See
+.Xr zpool-remove 8 .
+.El
+.Ss User Properties
+In addition to the standard native properties, ZFS supports arbitrary user
+properties.
+User properties have no effect on ZFS behavior, but applications or
+administrators can use them to annotate vdevs.
+.Pp
+User property names must contain a colon
+.Pq Qq Sy \&:
+character to distinguish them from native properties.
+They may contain lowercase letters, numbers, and the following punctuation
+characters: colon
+.Pq Qq Sy \&: ,
+dash
+.Pq Qq Sy - ,
+period
+.Pq Qq Sy \&. ,
+and underscore
+.Pq Qq Sy _ .
+The expected convention is that the property name is divided into two portions
+such as
+.Ar module : Ns Ar property ,
+but this namespace is not enforced by ZFS.
+User property names can be at most 256 characters, and cannot begin with a dash
+.Pq Qq Sy - .
+.Pp
+When making programmatic use of user properties, it is strongly suggested to use
+a reversed DNS domain name for the
+.Ar module
+component of property names to reduce the chance that two
+independently-developed packages use the same property name for different
+purposes.
+.Pp
+The values of user properties are arbitrary strings and
+are never validated.
+Use the
+.Nm zpool Cm set
+command with a blank value to clear a user property.
+Property values are limited to 8192 bytes.
+.Sh SEE ALSO
+.Xr zpoolprops 7 ,
+.Xr zpool-set 8

@@ -1394,6 +1394,18 @@ lzc_channel_program_nosync(const char *pool, const char *program,
 	    memlimit, argnvl, outnvl));
 }
 
+int
+lzc_get_vdev_prop(const char *poolname, nvlist_t *innvl, nvlist_t **outnvl)
+{
+	return (lzc_ioctl(ZFS_IOC_VDEV_GET_PROPS, poolname, innvl, outnvl));
+}
+
+int
+lzc_set_vdev_prop(const char *poolname, nvlist_t *innvl, nvlist_t **outnvl)
+{
+	return (lzc_ioctl(ZFS_IOC_VDEV_SET_PROPS, poolname, innvl, outnvl));
+}
+
 /*
  * Performs key management functions
  *

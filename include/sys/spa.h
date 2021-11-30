@@ -792,7 +792,8 @@ extern int spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot,
     int replacing, int rebuild);
 extern int spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid,
     int replace_done);
-extern int spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare);
+extern int spa_vdev_alloc(spa_t *spa, uint64_t guid);
+extern int spa_vdev_noalloc(spa_t *spa, uint64_t guid);
 extern boolean_t spa_vdev_remove_active(spa_t *spa);
 extern int spa_vdev_initialize(spa_t *spa, nvlist_t *nv, uint64_t cmd_type,
     nvlist_t *vdev_errlist);

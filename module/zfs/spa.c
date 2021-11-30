@@ -786,7 +786,7 @@ spa_prop_set(spa_t *spa, nvlist_t *nvp)
 			continue;
 
 		if (prop == ZPOOL_PROP_VERSION || prop == ZPOOL_PROP_INVAL) {
-			uint64_t ver;
+			uint64_t ver = 0;
 
 			if (prop == ZPOOL_PROP_VERSION) {
 				VERIFY(nvpair_value_uint64(elem, &ver) == 0);
