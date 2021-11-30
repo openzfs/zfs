@@ -185,9 +185,9 @@ __zfs_complete_ordered_arguments()
     # shellcheck disable=SC2086
     if __zfs_argument_chosen $list1
     then
-        COMPREPLY=($(compgen -W "$list2 $extra" -- "$cur"))
+        mapfile -t COMPREPLY < <(compgen -W "$list2 $extra" -- "$cur")
     else
-        COMPREPLY=($(compgen -W "$list1 $extra" -- "$cur"))
+        mapfile -t COMPREPLY < <(compgen -W "$list1 $extra" -- "$cur")
     fi
 }
 
@@ -197,9 +197,9 @@ __zfs_complete_multiple_options()
     local cur=$2
     local existing_opts
 
-    COMPREPLY=($(compgen -W "$options" -- "${cur##*,}"))
+    mapfile -t COMPREPLY < <(compgen -W "$options" -- "${cur##*,}")
     existing_opts=$(expr "$cur" : '\(.*,\)')
-    if [[ $existing_opts ]]
+    if [ -n "$existing_opts" ]
     then
         COMPREPLY=( "${COMPREPLY[@]/#/${existing_opts}}" )
     fi
@@ -210,7 +210,7 @@ __zfs_complete_switch()
     local options=$1
     if [[ ${cur:0:1} == - ]]
     then
-        COMPREPLY=($(compgen -W "-{$options}" -- "$cur"))
+        mapfile -t COMPREPLY < <(compgen -W "-{$options}" -- "$cur")
         return 0
     else
         return 1
@@ -244,7 +244,7 @@ __zfs_complete()
     if [[ ${prev##*/} == zfs ]]
     then
         cmds=$(__zfs_get_commands)
-        COMPREPLY=($(compgen -W "$cmds -?" -- "$cur"))
+        mapfile -t COMPREPLY < <(compgen -W "$cmds -?" -- "$cur")
         return 0
     fi
 
@@ -252,15 +252,15 @@ __zfs_complete()
         bookmark)
             if __zfs_argument_chosen
             then
-                COMPREPLY=($(compgen -W "${prev%@*}# ${prev/@/#}" -- "$cur"))
+                mapfile -t COMPREPLY < <(compgen -W "${prev%@*}# ${prev/@/#}" -- "$cur")
             else
-                COMPREPLY=($(compgen -W "$(__zfs_match_snapshot)" -- "$cur"))
+                mapfile -t COMPREPLY < <(compgen -W "$(__zfs_match_snapshot)" -- "$cur")
             fi
             ;;
         clone)
             case "${prev}" in
                 -o)
-                    COMPREPLY=($(compgen -W "$(__zfs_get_editable_properties)" -- "$cur"))
+                    mapfile -t COMPREPLY < <(compgen -W "$(__zfs_get_editable_properties)" -- "$cur")
                     __zfs_complete_nospace
                     ;;
                 *)
@@ -268,9 +268,9 @@ __zfs_complete()
                     then
                         if __zfs_argument_chosen
                         then
-                            COMPREPLY=($(compgen -W "$(__zfs_list_datasets)" -- "$cur"))
+                            mapfile -t COMPREPLY < <(compgen -W "$(__zfs_list_datasets)" -- "$cur")
                         else
-                            COMPREPLY=($(compgen -W "$(__zfs_match_snapshot)" -- "$cur"))
+                            mapfile -t COMPREPLY < <(compgen -W "$(__zfs_match_snapshot)" -- "$cur")
                         fi
                     fi
                     ;;
@@ -279,7 +279,7 @@ __zfs_complete()
         get)
             case "${prev}" in
                 -d)
-                    COMPREPLY=($(compgen -W "" -- "$cur"))
+                    mapfile -t COMPREPLY < <(compgen -W "" -- "$cur")
                     ;;
                 -t)
                     __zfs_complete_multiple_options "filesystem volume snapshot bookmark all" "$cur"
@@ -296,7 +296,7 @@ __zfs_complete()
                         # shellcheck disable=SC2046
                         if __zfs_argument_chosen $(__zfs_get_properties)
                         then
-                            COMPREPLY=($(compgen -W "$(__zfs_match_snapshot)" -- "$cur"))
+                            mapfile -t COMPREPLY < <(compgen -W "$(__zfs_match_snapshot)" -- "$cur")
                         else
                             __zfs_complete_multiple_options "$(__zfs_get_properties)" "$cur"
                         fi
@@ -313,7 +313,7 @@ __zfs_complete()
         list)
             case "${prev}" in
                 -d)
-                    COMPREPLY=($(compgen -W "" -- "$cur"))
+                    mapfile -t COMPREPLY < <(compgen -W "" -- "$cur")
                     ;;
                 -t)
                     __zfs_complete_multiple_options "filesystem volume snapshot bookmark all" "$cur"
@@ -322,23 +322,23 @@ __zfs_complete()
                     __zfs_complete_multiple_options "$(__zfs_get_properties)" "$cur"
                     ;;
                 -s|-S)
-                    COMPREPLY=($(compgen -W "$(__zfs_get_properties)" -- "$cur"))
+                    mapfile -t COMPREPLY < <(compgen -W "$(__zfs_get_properties)" -- "$cur")
                     ;;
                 *)
                     if ! __zfs_complete_switch "H,r,d,o,t,s,S"
                     then
-                        COMPREPLY=($(compgen -W "$(__zfs_match_snapshot)" -- "$cur"))
+                        mapfile -t COMPREPLY < <(compgen -W "$(__zfs_match_snapshot)" -- "$cur")
                     fi
                     ;;
             esac
             ;;
         promote)
-            COMPREPLY=($(compgen -W "$(__zfs_list_filesystems)" -- "$cur"))
+            mapfile -t COMPREPLY < <(compgen -W "$(__zfs_list_filesystems)" -- "$cur")
             ;;
         rollback)
             if ! __zfs_complete_switch "r,R,f"
             then
-                COMPREPLY=($(compgen -W "$(__zfs_match_snapshot)" -- "$cur"))
+                mapfile -t COMPREPLY < <(compgen -W "$(__zfs_match_snapshot)" -- "$cur")
             fi
             ;;
         send)
@@ -346,13 +346,13 @@ __zfs_complete()
             then
                 if __zfs_argument_chosen
                 then
-                    COMPREPLY=($(compgen -W "$(__zfs_match_snapshot)" -- "$cur"))
+                    mapfile -t COMPREPLY < <(compgen -W "$(__zfs_match_snapshot)" -- "$cur")
                 else
                     if [[ $prev == -*i* ]]
                     then
-                        COMPREPLY=($(compgen -W "$(__zfs_match_snapshot_or_bookmark)" -- "$cur"))
+                        mapfile -t COMPREPLY < <(compgen -W "$(__zfs_match_snapshot_or_bookmark)" -- "$cur")
                     else
-                        COMPREPLY=($(compgen -W "$(__zfs_match_snapshot)" -- "$cur"))
+                        mapfile -t COMPREPLY < <(compgen -W "$(__zfs_match_snapshot)" -- "$cur")
                     fi
                 fi
             fi
@@ -360,13 +360,13 @@ __zfs_complete()
         snapshot)
             case "${prev}" in
                 -o)
-                    COMPREPLY=($(compgen -W "$(__zfs_get_editable_properties)" -- "$cur"))
+                    mapfile -t COMPREPLY < <(compgen -W "$(__zfs_get_editable_properties)" -- "$cur")
                     __zfs_complete_nospace
                     ;;
                 *)
                     if ! __zfs_complete_switch "o,r"
                     then
-                        COMPREPLY=($(compgen -W "$(__zfs_match_snapshot)" -- "$cur"))
+                        mapfile -t COMPREPLY < <(compgen -W "$(__zfs_match_snapshot)" -- "$cur")
                         __zfs_complete_nospace
                     fi
                     ;;
@@ -379,12 +379,12 @@ __zfs_complete()
         upgrade)
             case "${prev}" in
                 -a|-V|-v)
-                    COMPREPLY=($(compgen -W "" -- "$cur"))
+                    mapfile -t COMPREPLY < <(compgen -W "" -- "$cur")
                     ;;
                 *)
                     if ! __zfs_complete_switch "a,V,v,r"
                     then
-                        COMPREPLY=($(compgen -W "$(__zfs_list_filesystems)" -- "$cur"))
+                        mapfile -t COMPREPLY < <(compgen -W "$(__zfs_list_filesystems)" -- "$cur")
                     fi
                     ;;
             esac
@@ -397,7 +397,7 @@ __zfs_complete()
             fi
             ;;
         *)
-            COMPREPLY=($(compgen -W "$(__zfs_match_snapshot)" -- "$cur"))
+            mapfile -t COMPREPLY < <(compgen -W "$(__zfs_match_snapshot)" -- "$cur")
             ;;
     esac
     if type __ltrim_colon_completions &> /dev/null
@@ -438,7 +438,7 @@ __zpool_complete()
     if [[ ${prev##*/} == zpool ]]
     then
         cmds=$(__zpool_get_commands)
-        COMPREPLY=($(compgen -W "$cmds" -- "$cur"))
+        mapfile -t COMPREPLY < <(compgen -W "$cmds" -- "$cur")
         return 0
     fi
 
@@ -452,7 +452,7 @@ __zpool_complete()
             then
                 _filedir -d
             else
-                COMPREPLY=($(compgen -W "$(__zpool_list_pools) -d" -- "$cur"))
+                mapfile -t COMPREPLY < <(compgen -W "$(__zpool_list_pools) -d" -- "$cur")
             fi
             return 0
             ;;
@@ -468,12 +468,12 @@ __zpool_complete()
             then
                 _filedir
             else
-                COMPREPLY=($(compgen -W "$pools" -- "$cur"))
+                mapfile -t COMPREPLY < <(compgen -W "$pools" -- "$cur")
             fi
             return 0
             ;;
         *)
-            COMPREPLY=($(compgen -W "$(__zpool_list_pools)" -- "$cur"))
+            mapfile -t COMPREPLY < <(compgen -W "$(__zpool_list_pools)" -- "$cur")
             return 0
             ;;
     esac

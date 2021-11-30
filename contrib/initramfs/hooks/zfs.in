@@ -30,8 +30,8 @@ find /lib/ -type f -name "libgcc_s.so.[1-9]" | while read -r libgcc; do
 done
 
 # shellcheck disable=SC2050
-if [ @LIBFETCH_DYNAMIC@ != 0 ]; then
-	find /lib/ -name @LIBFETCH_SONAME@ | while read -r libfetch; do
+if [ "@LIBFETCH_DYNAMIC@" != 0 ]; then
+	find /lib/ -name "@LIBFETCH_SONAME@" | while read -r libfetch; do
 		copy_exec "$libfetch"
 	done
 fi

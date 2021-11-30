@@ -20,7 +20,7 @@ _do_zpool_export() {
 		zpool list 2>&1 | vinfo
 	fi
 
-	return ${ret}
+	return "${ret}"
 }
 
 if command -v zpool >/dev/null; then
