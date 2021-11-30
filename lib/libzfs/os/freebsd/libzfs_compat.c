@@ -305,6 +305,10 @@ zfs_jail(zfs_handle_t *zhp, int jailid, int attach)
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 		    "bookmarks can not be jailed"));
 		return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
+	case ZFS_TYPE_VDEV:
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "vdevs can not be jailed"));
+		return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
 	case ZFS_TYPE_POOL:
 	case ZFS_TYPE_FILESYSTEM:
 		/* OK */

@@ -259,6 +259,22 @@
     <elf-symbol name='tpool_suspended' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='tpool_wait' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='update_vdev_config_dev_strs' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='vdev_expand_proplist' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='vdev_name_to_prop' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='vdev_prop_align_right' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='vdev_prop_column_name' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='vdev_prop_default_numeric' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='vdev_prop_default_string' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='vdev_prop_get_table' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='vdev_prop_get_type' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='vdev_prop_index_to_string' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='vdev_prop_init' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='vdev_prop_random_value' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='vdev_prop_readonly' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='vdev_prop_string_to_index' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='vdev_prop_to_name' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='vdev_prop_user' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='vdev_prop_values' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfeature_depends_on' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfeature_is_supported' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfeature_is_valid_guid' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -463,6 +479,7 @@
     <elf-symbol name='zpool_find_vdev' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_find_vdev_by_physpath' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_free_handles' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zpool_get_all_vdev_props' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_get_bootenv' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_get_config' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_get_errlog' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -477,6 +494,8 @@
     <elf-symbol name='zpool_get_state' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_get_state_str' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_get_status' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zpool_get_vdev_prop' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zpool_get_vdev_prop_value' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_history_unpack' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_import' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_import_props' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -514,6 +533,7 @@
     <elf-symbol name='zpool_prop_to_name' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_prop_unsupported' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_prop_values' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zpool_prop_vdev' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_props_refresh' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_read_label' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_refresh_stats' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -523,6 +543,7 @@
     <elf-symbol name='zpool_search_import' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_set_bootenv' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_set_prop' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zpool_set_vdev_prop' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_skip_pool' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_state_to_name' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_sync_one' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -557,6 +578,7 @@
     <elf-symbol name='zprop_register_number' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zprop_register_string' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zprop_string_to_index' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zprop_valid_char' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zprop_valid_for_type' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zprop_values' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zprop_width' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -2683,6 +2705,73 @@
       <parameter type-id='5d0c23fb' name='prop'/>
       <return type-id='c19b74c3'/>
     </function-decl>
+    <function-decl name='vdev_prop_get_table' mangled-name='vdev_prop_get_table' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='vdev_prop_get_table'>
+      <return type-id='76c8174b'/>
+    </function-decl>
+    <function-decl name='vdev_prop_init' mangled-name='vdev_prop_init' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='vdev_prop_init'>
+      <return type-id='48b5725f'/>
+    </function-decl>
+    <function-decl name='vdev_name_to_prop' mangled-name='vdev_name_to_prop' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='vdev_name_to_prop'>
+      <parameter type-id='80f4b756' name='propname'/>
+      <return type-id='5aa5c90c'/>
+    </function-decl>
+    <function-decl name='vdev_prop_user' mangled-name='vdev_prop_user' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='vdev_prop_user'>
+      <parameter type-id='80f4b756' name='name'/>
+      <return type-id='c19b74c3'/>
+    </function-decl>
+    <function-decl name='vdev_prop_to_name' mangled-name='vdev_prop_to_name' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='vdev_prop_to_name'>
+      <parameter type-id='5aa5c90c' name='prop'/>
+      <return type-id='80f4b756'/>
+    </function-decl>
+    <function-decl name='vdev_prop_get_type' mangled-name='vdev_prop_get_type' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='vdev_prop_get_type'>
+      <parameter type-id='5aa5c90c' name='prop'/>
+      <return type-id='31429eff'/>
+    </function-decl>
+    <function-decl name='vdev_prop_readonly' mangled-name='vdev_prop_readonly' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='vdev_prop_readonly'>
+      <parameter type-id='5aa5c90c' name='prop'/>
+      <return type-id='c19b74c3'/>
+    </function-decl>
+    <function-decl name='vdev_prop_default_string' mangled-name='vdev_prop_default_string' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='vdev_prop_default_string'>
+      <parameter type-id='5aa5c90c' name='prop'/>
+      <return type-id='80f4b756'/>
+    </function-decl>
+    <function-decl name='vdev_prop_default_numeric' mangled-name='vdev_prop_default_numeric' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='vdev_prop_default_numeric'>
+      <parameter type-id='5aa5c90c' name='prop'/>
+      <return type-id='9c313c2d'/>
+    </function-decl>
+    <function-decl name='vdev_prop_string_to_index' mangled-name='vdev_prop_string_to_index' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='vdev_prop_string_to_index'>
+      <parameter type-id='5aa5c90c' name='prop'/>
+      <parameter type-id='80f4b756' name='string'/>
+      <parameter type-id='5d6479ae' name='index'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='vdev_prop_index_to_string' mangled-name='vdev_prop_index_to_string' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='vdev_prop_index_to_string'>
+      <parameter type-id='5aa5c90c' name='prop'/>
+      <parameter type-id='9c313c2d' name='index'/>
+      <parameter type-id='7d3cd834' name='string'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='zpool_prop_vdev' mangled-name='zpool_prop_vdev' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_prop_vdev'>
+      <parameter type-id='80f4b756' name='name'/>
+      <return type-id='c19b74c3'/>
+    </function-decl>
+    <function-decl name='vdev_prop_random_value' mangled-name='vdev_prop_random_value' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='vdev_prop_random_value'>
+      <parameter type-id='5aa5c90c' name='prop'/>
+      <parameter type-id='9c313c2d' name='seed'/>
+      <return type-id='9c313c2d'/>
+    </function-decl>
+    <function-decl name='vdev_prop_values' mangled-name='vdev_prop_values' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='vdev_prop_values'>
+      <parameter type-id='5aa5c90c' name='prop'/>
+      <return type-id='80f4b756'/>
+    </function-decl>
+    <function-decl name='vdev_prop_column_name' mangled-name='vdev_prop_column_name' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='vdev_prop_column_name'>
+      <parameter type-id='5aa5c90c' name='prop'/>
+      <return type-id='80f4b756'/>
+    </function-decl>
+    <function-decl name='vdev_prop_align_right' mangled-name='vdev_prop_align_right' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='vdev_prop_align_right'>
+      <parameter type-id='5aa5c90c' name='prop'/>
+      <return type-id='c19b74c3'/>
+    </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='../../module/zcommon/zprop_common.c' language='LANG_C99'>
     <function-decl name='zprop_register_impl' mangled-name='zprop_register_impl' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zprop_register_impl'>
@@ -2783,6 +2872,10 @@
       <parameter type-id='2e45de5d' name='type'/>
       <parameter type-id='c19b74c3' name='headcheck'/>
       <return type-id='c19b74c3'/>
+    </function-decl>
+    <function-decl name='zprop_valid_char' mangled-name='zprop_valid_char' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zprop_valid_char'>
+      <parameter type-id='a84c031d' name='c'/>
+      <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zprop_width' mangled-name='zprop_width' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zprop_width'>
       <parameter type-id='95e97e5e' name='prop'/>
@@ -2886,6 +2979,7 @@
       <enumerator name='ZFS_TYPE_VOLUME' value='4'/>
       <enumerator name='ZFS_TYPE_POOL' value='8'/>
       <enumerator name='ZFS_TYPE_BOOKMARK' value='16'/>
+      <enumerator name='ZFS_TYPE_VDEV' value='32'/>
     </enum-decl>
     <typedef-decl name='zfs_type_t' type-id='5d8f7321' id='2e45de5d'/>
     <enum-decl name='dmu_objset_type' id='6b1b19f9'>
@@ -4216,6 +4310,53 @@
       <enumerator name='ZPOOL_NUM_PROPS' value='33'/>
     </enum-decl>
     <typedef-decl name='zpool_prop_t' type-id='af1ba157' id='5d0c23fb'/>
+    <enum-decl name='vdev_prop_t' naming-typedef-id='5aa5c90c' id='1573bec8'>
+      <underlying-type type-id='9cac1fee'/>
+      <enumerator name='VDEV_PROP_INVAL' value='-1'/>
+      <enumerator name='VDEV_PROP_NAME' value='0'/>
+      <enumerator name='VDEV_PROP_CAPACITY' value='1'/>
+      <enumerator name='VDEV_PROP_STATE' value='2'/>
+      <enumerator name='VDEV_PROP_GUID' value='3'/>
+      <enumerator name='VDEV_PROP_ASIZE' value='4'/>
+      <enumerator name='VDEV_PROP_PSIZE' value='5'/>
+      <enumerator name='VDEV_PROP_ASHIFT' value='6'/>
+      <enumerator name='VDEV_PROP_SIZE' value='7'/>
+      <enumerator name='VDEV_PROP_FREE' value='8'/>
+      <enumerator name='VDEV_PROP_ALLOCATED' value='9'/>
+      <enumerator name='VDEV_PROP_COMMENT' value='10'/>
+      <enumerator name='VDEV_PROP_EXPANDSZ' value='11'/>
+      <enumerator name='VDEV_PROP_FRAGMENTATION' value='12'/>
+      <enumerator name='VDEV_PROP_BOOTSIZE' value='13'/>
+      <enumerator name='VDEV_PROP_PARITY' value='14'/>
+      <enumerator name='VDEV_PROP_PATH' value='15'/>
+      <enumerator name='VDEV_PROP_DEVID' value='16'/>
+      <enumerator name='VDEV_PROP_PHYS_PATH' value='17'/>
+      <enumerator name='VDEV_PROP_ENC_PATH' value='18'/>
+      <enumerator name='VDEV_PROP_FRU' value='19'/>
+      <enumerator name='VDEV_PROP_PARENT' value='20'/>
+      <enumerator name='VDEV_PROP_CHILDREN' value='21'/>
+      <enumerator name='VDEV_PROP_NUMCHILDREN' value='22'/>
+      <enumerator name='VDEV_PROP_READ_ERRORS' value='23'/>
+      <enumerator name='VDEV_PROP_WRITE_ERRORS' value='24'/>
+      <enumerator name='VDEV_PROP_CHECKSUM_ERRORS' value='25'/>
+      <enumerator name='VDEV_PROP_INITIALIZE_ERRORS' value='26'/>
+      <enumerator name='VDEV_PROP_OPS_NULL' value='27'/>
+      <enumerator name='VDEV_PROP_OPS_READ' value='28'/>
+      <enumerator name='VDEV_PROP_OPS_WRITE' value='29'/>
+      <enumerator name='VDEV_PROP_OPS_FREE' value='30'/>
+      <enumerator name='VDEV_PROP_OPS_CLAIM' value='31'/>
+      <enumerator name='VDEV_PROP_OPS_TRIM' value='32'/>
+      <enumerator name='VDEV_PROP_BYTES_NULL' value='33'/>
+      <enumerator name='VDEV_PROP_BYTES_READ' value='34'/>
+      <enumerator name='VDEV_PROP_BYTES_WRITE' value='35'/>
+      <enumerator name='VDEV_PROP_BYTES_FREE' value='36'/>
+      <enumerator name='VDEV_PROP_BYTES_CLAIM' value='37'/>
+      <enumerator name='VDEV_PROP_BYTES_TRIM' value='38'/>
+      <enumerator name='VDEV_PROP_REMOVING' value='39'/>
+      <enumerator name='VDEV_PROP_ALLOCATING' value='40'/>
+      <enumerator name='VDEV_NUM_PROPS' value='41'/>
+    </enum-decl>
+    <typedef-decl name='vdev_prop_t' type-id='1573bec8' id='5aa5c90c'/>
     <enum-decl name='vdev_state' id='21566197'>
       <underlying-type type-id='9cac1fee'/>
       <enumerator name='VDEV_STATE_UNKNOWN' value='0'/>
@@ -4342,7 +4483,14 @@
     <function-decl name='zpool_expand_proplist' mangled-name='zpool_expand_proplist' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_expand_proplist'>
       <parameter type-id='4c81de99' name='zhp'/>
       <parameter type-id='e4378506' name='plp'/>
+      <parameter type-id='2e45de5d' name='type'/>
       <parameter type-id='c19b74c3' name='literal'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='vdev_expand_proplist' mangled-name='vdev_expand_proplist' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='vdev_expand_proplist'>
+      <parameter type-id='4c81de99' name='zhp'/>
+      <parameter type-id='80f4b756' name='vdevname'/>
+      <parameter type-id='e4378506' name='plp'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zpool_prop_get_feature' mangled-name='zpool_prop_get_feature' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_prop_get_feature'>
@@ -4680,6 +4828,40 @@
       <parameter type-id='b59d7dce' name='rlen'/>
       <return type-id='901b78d1'/>
     </function-decl>
+    <function-decl name='zpool_get_vdev_prop_value' mangled-name='zpool_get_vdev_prop_value' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_get_vdev_prop_value'>
+      <parameter type-id='5ce45b60' name='nvprop'/>
+      <parameter type-id='5aa5c90c' name='prop'/>
+      <parameter type-id='26a90f95' name='prop_name'/>
+      <parameter type-id='26a90f95' name='buf'/>
+      <parameter type-id='b59d7dce' name='len'/>
+      <parameter type-id='debc6aa3' name='srctype'/>
+      <parameter type-id='c19b74c3' name='literal'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='zpool_get_vdev_prop' mangled-name='zpool_get_vdev_prop' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_get_vdev_prop'>
+      <parameter type-id='4c81de99' name='zhp'/>
+      <parameter type-id='80f4b756' name='vdevname'/>
+      <parameter type-id='5aa5c90c' name='prop'/>
+      <parameter type-id='26a90f95' name='prop_name'/>
+      <parameter type-id='26a90f95' name='buf'/>
+      <parameter type-id='b59d7dce' name='len'/>
+      <parameter type-id='debc6aa3' name='srctype'/>
+      <parameter type-id='c19b74c3' name='literal'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='zpool_get_all_vdev_props' mangled-name='zpool_get_all_vdev_props' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_get_all_vdev_props'>
+      <parameter type-id='4c81de99' name='zhp'/>
+      <parameter type-id='80f4b756' name='vdevname'/>
+      <parameter type-id='857bb57e' name='outnvl'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='zpool_set_vdev_prop' mangled-name='zpool_set_vdev_prop' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_set_vdev_prop'>
+      <parameter type-id='4c81de99' name='zhp'/>
+      <parameter type-id='80f4b756' name='vdevname'/>
+      <parameter type-id='80f4b756' name='propname'/>
+      <parameter type-id='80f4b756' name='propval'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='libzfs_sendrecv.c' language='LANG_C99'>
     <class-decl name='sendflags' size-in-bits='544' is-struct='yes' visibility='default' id='f6aa15be'>
@@ -4922,7 +5104,19 @@
       <enumerator name='GET_COL_SOURCE' value='5'/>
     </enum-decl>
     <typedef-decl name='zfs_get_column_t' type-id='223bdcaa' id='19cefcee'/>
-    <class-decl name='zprop_get_cbdata' size-in-bits='640' is-struct='yes' visibility='default' id='f3d3c319'>
+    <class-decl name='vdev_cbdata' size-in-bits='192' is-struct='yes' visibility='default' id='b8006be8'>
+      <data-member access='public' layout-offset-in-bits='0'>
+        <var-decl name='cb_name_flags' type-id='95e97e5e' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='64'>
+        <var-decl name='cb_names' type-id='9b23c9ad' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='128'>
+        <var-decl name='cb_names_count' type-id='f0981eeb' visibility='default'/>
+      </data-member>
+    </class-decl>
+    <typedef-decl name='vdev_cbdata_t' type-id='b8006be8' id='a9679c94'/>
+    <class-decl name='zprop_get_cbdata' size-in-bits='832' is-struct='yes' visibility='default' id='f3d3c319'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='cb_sources' type-id='95e97e5e' visibility='default'/>
       </data-member>
@@ -4946,6 +5140,9 @@
       </data-member>
       <data-member access='public' layout-offset-in-bits='576'>
         <var-decl name='cb_type' type-id='2e45de5d' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='640'>
+        <var-decl name='cb_vdevs' type-id='a9679c94' visibility='default'/>
       </data-member>
     </class-decl>
     <typedef-decl name='zprop_get_cbdata_t' type-id='f3d3c319' id='f3d87113'/>

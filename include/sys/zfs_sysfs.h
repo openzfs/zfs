@@ -39,6 +39,7 @@ _SYS_ZFS_SYSFS_H boolean_t zfs_mod_supported(const char *, const char *);
 #endif
 
 #define	ZFS_SYSFS_POOL_PROPERTIES	"properties.pool"
+#define	ZFS_SYSFS_VDEV_PROPERTIES	"properties.vdev"
 #define	ZFS_SYSFS_DATASET_PROPERTIES	"properties.dataset"
 #define	ZFS_SYSFS_KERNEL_FEATURES	"features.kernel"
 #define	ZFS_SYSFS_POOL_FEATURES		"features.pool"
