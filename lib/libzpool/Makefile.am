@@ -58,8 +58,8 @@ KERNEL_C = \
 	bplist.c \
 	bpobj.c \
 	bptree.c \
-	btree.c \
 	bqueue.c \
+	btree.c \
 	cityhash.c \
 	dbuf.c \
 	dbuf_stats.c \
@@ -78,23 +78,23 @@ KERNEL_C = \
 	dnode.c \
 	dnode_sync.c \
 	dsl_bookmark.c \
+	dsl_crypt.c \
 	dsl_dataset.c \
 	dsl_deadlist.c \
 	dsl_deleg.c \
+	dsl_destroy.c \
 	dsl_dir.c \
-	dsl_crypt.c \
 	dsl_pool.c \
 	dsl_prop.c \
 	dsl_scan.c \
 	dsl_synctask.c \
-	dsl_destroy.c \
 	dsl_userhold.c \
 	edonr_zfs.c \
-	hkdf.c \
 	fm.c \
 	gzip.c \
-	lzjb.c \
+	hkdf.c \
 	lz4.c \
+	lzjb.c \
 	metaslab.c \
 	mmp.c \
 	multilist.c \
@@ -117,8 +117,8 @@ KERNEL_C = \
 	spa_stats.c \
 	space_map.c \
 	space_reftree.c \
-	txg.c \
 	trace.c \
+	txg.c \
 	uberblock.c \
 	unique.c \
 	vdev.c \
@@ -126,8 +126,8 @@ KERNEL_C = \
 	vdev_draid.c \
 	vdev_draid_rand.c \
 	vdev_file.c \
-	vdev_indirect_births.c \
 	vdev_indirect.c \
+	vdev_indirect_births.c \
 	vdev_indirect_mapping.c \
 	vdev_initialize.c \
 	vdev_label.c \
@@ -135,16 +135,16 @@ KERNEL_C = \
 	vdev_missing.c \
 	vdev_queue.c \
 	vdev_raidz.c \
+	vdev_raidz_math.c \
 	vdev_raidz_math_aarch64_neon.c \
 	vdev_raidz_math_aarch64_neonx2.c \
 	vdev_raidz_math_avx2.c \
 	vdev_raidz_math_avx512bw.c \
 	vdev_raidz_math_avx512f.c \
-	vdev_raidz_math.c \
+	vdev_raidz_math_powerpc_altivec.c \
 	vdev_raidz_math_scalar.c \
 	vdev_raidz_math_sse2.c \
 	vdev_raidz_math_ssse3.c \
-	vdev_raidz_math_powerpc_altivec.c \
 	vdev_rebuild.c \
 	vdev_removal.c \
 	vdev_root.c \
@@ -165,9 +165,9 @@ KERNEL_C = \
 	zfs_fuid.c \
 	zfs_racct.c \
 	zfs_sa.c \
-	zfs_znode.c \
 	zfs_ratelimit.c \
 	zfs_rlock.c \
+	zfs_znode.c \
 	zil.c \
 	zio.c \
 	zio_checksum.c \

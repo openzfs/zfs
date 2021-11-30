@@ -408,7 +408,7 @@ vdev_queue_class_max_active(spa_t *spa, vdev_queue_t *vq, zio_priority_t p)
 }
 
 /*
- * Return the i/o class to issue from, or ZIO_PRIORITY_MAX_QUEUEABLE if
+ * Return the i/o class to issue from, or ZIO_PRIORITY_NUM_QUEUEABLE if
  * there is no eligible class.
  */
 static zio_priority_t

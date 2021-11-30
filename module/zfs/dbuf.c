@@ -1997,8 +1997,8 @@ dbuf_free_range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 		mutex_exit(&db->db_mtx);
 	}
 
-	kmem_free(db_search, sizeof (dmu_buf_impl_t));
 	mutex_exit(&dn->dn_dbufs_mtx);
+	kmem_free(db_search, sizeof (dmu_buf_impl_t));
 }
 
 void
