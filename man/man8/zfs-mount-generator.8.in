@@ -142,22 +142,11 @@ ZEDLET, if enabled
 .Pq see Xr zed 8 .
 .
 .Sh ENVIRONMENT
-The
+If the
 .Sy ZFS_DEBUG
-environment variable can either be
-.Sy 0
-(default),
-.Sy 1
-(print summary accounting information at the end), or at least
-.Sy 2
-(print accounting information for each subprocess as it finishes).
-.
-If not present,
-.Pa /proc/cmdline
-is additionally checked for
-.Qq debug ,
-in which case the debug level is set to
-.Sy 2 .
+environment variable is nonzero
+.Pq or unset and Pa /proc/cmdline No contains Qq Sy debug ,
+print summary accounting information at the end.
 .
 .Sh EXAMPLES
 To begin, enable tracking for the pool:
