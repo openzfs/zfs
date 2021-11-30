@@ -724,18 +724,6 @@ zfs_name_to_prop(const char *propname)
 }
 
 /*
- * For user property names, we allow all lowercase alphanumeric characters, plus
- * a few useful punctuation characters.
- */
-static int
-valid_char(char c)
-{
-	return ((c >= 'a' && c <= 'z') ||
-	    (c >= '0' && c <= '9') ||
-	    c == '-' || c == '_' || c == '.' || c == ':');
-}
-
-/*
  * Returns true if this is a valid user-defined property (one with a ':').
  */
 boolean_t
@@ -747,7 +735,7 @@ zfs_prop_user(const char *name)
 
 	for (i = 0; i < strlen(name); i++) {
 		c = name[i];
-		if (!valid_char(c))
+		if (!zprop_valid_char(c))
 			return (B_FALSE);
 		if (c == ':')
 			foundsep = B_TRUE;

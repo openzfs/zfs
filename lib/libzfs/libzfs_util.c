@@ -298,6 +298,9 @@ libzfs_error_description(libzfs_handle_t *hdl)
 		    "resilvering"));
 	case EZFS_RAIDZ_EXPAND_IN_PROGRESS:
 		return (dgettext(TEXT_DOMAIN, "raidz expansion in progress"));
+	case EZFS_VDEV_NOTSUP:
+		return (dgettext(TEXT_DOMAIN, "operation not supported "
+		    "on this type of vdev"));
 	case EZFS_UNKNOWN:
 		return (dgettext(TEXT_DOMAIN, "unknown error"));
 	default:
@@ -718,6 +721,9 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 	case ZFS_ERR_BADPROP:
 		zfs_verror(hdl, EZFS_BADPROP, fmt, ap);
 		break;
+	case ZFS_ERR_VDEV_NOTSUP:
+		zfs_verror(hdl, EZFS_VDEV_NOTSUP, fmt, ap);
+		break;
 	case ZFS_ERR_IOC_CMD_UNAVAIL:
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "the loaded zfs "
 		    "module does not support this operation. A reboot may "
@@ -1039,6 +1045,7 @@ libzfs_init(void)
 	zfs_prop_init();
 	zpool_prop_init();
 	zpool_feature_init();
+	vdev_prop_init();
 	libzfs_mnttab_init(hdl);
 	fletcher_4_init();
 
@@ -1272,7 +1279,8 @@ zprop_print_headers(zprop_get_cbdata_t *cbp, zfs_type_t type)
 
 	/* first property is always NAME */
 	assert(cbp->cb_proplist->pl_prop ==
-	    ((type == ZFS_TYPE_POOL) ?  ZPOOL_PROP_NAME : ZFS_PROP_NAME));
+	    ((type == ZFS_TYPE_POOL) ? ZPOOL_PROP_NAME :
+	    ((type == ZFS_TYPE_VDEV) ? VDEV_PROP_NAME : ZFS_PROP_NAME)));
 
 	/*
 	 * Go through and calculate the widths for each column.  For the
@@ -1289,12 +1297,16 @@ zprop_print_headers(zprop_get_cbdata_t *cbp, zfs_type_t type)
 		if (pl->pl_prop != ZPROP_INVAL) {
 			const char *propname = (type == ZFS_TYPE_POOL) ?
 			    zpool_prop_to_name(pl->pl_prop) :
-			    zfs_prop_to_name(pl->pl_prop);
+			    ((type == ZFS_TYPE_VDEV) ?
+			    vdev_prop_to_name(pl->pl_prop) :
+			    zfs_prop_to_name(pl->pl_prop));
 
+			assert(propname != NULL);
 			len = strlen(propname);
 			if (len > cbp->cb_colwidths[GET_COL_PROPERTY])
 				cbp->cb_colwidths[GET_COL_PROPERTY] = len;
 		} else {
+			assert(pl->pl_user_prop != NULL);
 			len = strlen(pl->pl_user_prop);
 			if (len > cbp->cb_colwidths[GET_COL_PROPERTY])
 				cbp->cb_colwidths[GET_COL_PROPERTY] = len;
@@ -1319,9 +1331,10 @@ zprop_print_headers(zprop_get_cbdata_t *cbp, zfs_type_t type)
 		/*
 		 * 'NAME' and 'SOURCE' columns
 		 */
-		if (pl->pl_prop == (type == ZFS_TYPE_POOL ? ZPOOL_PROP_NAME :
-		    ZFS_PROP_NAME) &&
-		    pl->pl_width > cbp->cb_colwidths[GET_COL_NAME]) {
+		if (pl->pl_prop == ((type == ZFS_TYPE_POOL) ? ZPOOL_PROP_NAME :
+		    ((type == ZFS_TYPE_VDEV) ? VDEV_PROP_NAME :
+		    ZFS_PROP_NAME)) && pl->pl_width >
+		    cbp->cb_colwidths[GET_COL_NAME]) {
 			cbp->cb_colwidths[GET_COL_NAME] = pl->pl_width;
 			cbp->cb_colwidths[GET_COL_SOURCE] = pl->pl_width +
 			    strlen(dgettext(TEXT_DOMAIN, "inherited from"));
@@ -1602,6 +1615,9 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 	if (type == ZFS_TYPE_POOL) {
 		proptype = zpool_prop_get_type(prop);
 		propname = zpool_prop_to_name(prop);
+	} else if (type == ZFS_TYPE_VDEV) {
+		proptype = vdev_prop_get_type(prop);
+		propname = vdev_prop_to_name(prop);
 	} else {
 		proptype = zfs_prop_get_type(prop);
 		propname = zfs_prop_to_name(prop);
@@ -1752,15 +1768,15 @@ addlist(libzfs_handle_t *hdl, char *propname, zprop_list_t **listp,
 		prop = ZPROP_INVAL;
 
 	/*
-	 * When no property table entry can be found, return failure if
-	 * this is a pool property or if this isn't a user-defined
-	 * dataset property,
+	 * Return failure if no property table entry was found and this isn't
+	 * a user-defined property.
 	 */
 	if (prop == ZPROP_INVAL && ((type == ZFS_TYPE_POOL &&
 	    !zpool_prop_feature(propname) &&
 	    !zpool_prop_unsupported(propname)) ||
-	    (type == ZFS_TYPE_DATASET && !zfs_prop_user(propname) &&
-	    !zfs_prop_userquota(propname) && !zfs_prop_written(propname)))) {
+	    ((type == ZFS_TYPE_DATASET) && !zfs_prop_user(propname) &&
+	    !zfs_prop_userquota(propname) && !zfs_prop_written(propname)) ||
+	    ((type == ZFS_TYPE_VDEV) && !vdev_prop_user(propname)))) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 		    "invalid property '%s'"), propname);
 		return (zfs_error(hdl, EZFS_BADPROP,
@@ -1943,8 +1959,8 @@ zprop_expand_list(libzfs_handle_t *hdl, zprop_list_t **plp, zfs_type_t type)
 		if ((entry = zfs_alloc(hdl, sizeof (zprop_list_t))) == NULL)
 			return (-1);
 
-		entry->pl_prop = (type == ZFS_TYPE_POOL) ?  ZPOOL_PROP_NAME :
-		    ZFS_PROP_NAME;
+		entry->pl_prop = ((type == ZFS_TYPE_POOL) ?  ZPOOL_PROP_NAME :
+		    ((type == ZFS_TYPE_VDEV) ? VDEV_PROP_NAME : ZFS_PROP_NAME));
 		entry->pl_width = zprop_width(entry->pl_prop,
 		    &entry->pl_fixed, type);
 		entry->pl_all = B_TRUE;

@@ -90,6 +90,7 @@ struct zfs_mod_kobj {
 static zfs_mod_kobj_t kernel_features_kobj;
 static zfs_mod_kobj_t pool_features_kobj;
 static zfs_mod_kobj_t dataset_props_kobj;
+static zfs_mod_kobj_t vdev_props_kobj;
 static zfs_mod_kobj_t pool_props_kobj;
 
 /*
@@ -327,6 +328,20 @@ dataset_property_show(struct kobject *kobj, struct attribute *attr, char *buf)
 	ssize_t len;
 
 	ASSERT3U(prop, <, ZFS_NUM_PROPS);
+
+	len = zprop_sysfs_show(attr->name, &prop_tbl[prop], buf, PAGE_SIZE);
+
+	return (len);
+}
+
+static ssize_t
+vdev_property_show(struct kobject *kobj, struct attribute *attr, char *buf)
+{
+	vdev_prop_t prop = vdev_name_to_prop(kobject_name(kobj));
+	zprop_desc_t *prop_tbl = vdev_prop_get_table();
+	ssize_t len;
+
+	ASSERT3U(prop, <, VDEV_NUM_PROPS);
 
 	len = zprop_sysfs_show(attr->name, &prop_tbl[prop], buf, PAGE_SIZE);
 
@@ -577,6 +592,14 @@ zfs_sysfs_properties_init(zfs_mod_kobj_t *zfs_kobj, struct kobject *parent,
 		context.p2k_show_func = pool_property_show;
 		err = zfs_kobj_init(zfs_kobj, 0, ZPOOL_NUM_PROPS,
 		    pool_property_show);
+	} else if (type == ZFS_TYPE_VDEV) {
+		name = ZFS_SYSFS_VDEV_PROPERTIES;
+		context.p2k_table = vdev_prop_get_table();
+		context.p2k_attr_count = ZPOOL_PROP_ATTR_COUNT;
+		context.p2k_parent = zfs_kobj;
+		context.p2k_show_func = vdev_property_show;
+		err = zfs_kobj_init(zfs_kobj, 0, VDEV_NUM_PROPS,
+		    vdev_property_show);
 	} else {
 		name = ZFS_SYSFS_DATASET_PROPERTIES;
 		context.p2k_table = zfs_prop_get_table();
@@ -639,12 +662,22 @@ zfs_sysfs_init(void)
 		return;
 	}
 
+	err = zfs_sysfs_properties_init(&vdev_props_kobj, parent,
+	    ZFS_TYPE_VDEV);
+	if (err) {
+		zfs_kobj_fini(&kernel_features_kobj);
+		zfs_kobj_fini(&pool_features_kobj);
+		zfs_kobj_fini(&pool_props_kobj);
+		return;
+	}
+
 	err = zfs_sysfs_properties_init(&dataset_props_kobj, parent,
 	    ZFS_TYPE_FILESYSTEM);
 	if (err) {
 		zfs_kobj_fini(&kernel_features_kobj);
 		zfs_kobj_fini(&pool_features_kobj);
 		zfs_kobj_fini(&pool_props_kobj);
+		zfs_kobj_fini(&vdev_props_kobj);
 		return;
 	}
 }
@@ -657,6 +690,7 @@ zfs_sysfs_fini(void)
 	 */
 	zfs_kobj_fini(&kernel_features_kobj);
 	zfs_kobj_fini(&pool_features_kobj);
-	zfs_kobj_fini(&dataset_props_kobj);
 	zfs_kobj_fini(&pool_props_kobj);
+	zfs_kobj_fini(&vdev_props_kobj);
+	zfs_kobj_fini(&dataset_props_kobj);
 }

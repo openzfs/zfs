@@ -40,10 +40,26 @@
 .Op Fl o Ar field Ns Oo , Ns Ar field Oc Ns …
 .Sy all Ns | Ns Ar property Ns Oo , Ns Ar property Oc Ns …
 .Oo Ar pool Oc Ns …
+.
+.Nm zpool
+.Cm get
+.Op Fl Hp
+.Op Fl o Ar field Ns Oo , Ns Ar field Oc Ns …
+.Sy all Ns | Ns Ar property Ns Oo , Ns Ar property Oc Ns …
+.Ar pool
+.Oo Sy all-vdevs Ns | Ns
+.Ar vdev Oc Ns …
+.
 .Nm zpool
 .Cm set
 .Ar property Ns = Ns Ar value
 .Ar pool
+.
+.Nm zpool
+.Cm set
+.Ar property Ns = Ns Ar value
+.Ar pool
+.Ar vdev
 .
 .Sh DESCRIPTION
 .Bl -tag -width Ds
@@ -91,6 +107,56 @@ Display numbers in parsable (exact) values.
 .El
 .It Xo
 .Nm zpool
+.Cm get
+.Op Fl Hp
+.Op Fl o Ar field Ns Oo , Ns Ar field Oc Ns …
+.Sy all Ns | Ns Ar property Ns Oo , Ns Ar property Oc Ns …
+.Ar pool
+.Oo Sy all-vdevs Ns | Ns
+.Ar vdev Oc Ns …
+.Xc
+Retrieves the given list of properties
+.Po
+or all properties if
+.Sy all
+is used
+.Pc
+for the specified vdevs
+.Po
+or all vdevs if
+.Sy all-vdevs
+is used
+.Pc
+in the specified pool.
+These properties are displayed with the following fields:
+.Bl -tag -compact -offset Ds -width "property"
+.It Sy name
+Name of vdev.
+.It Sy property
+Property name.
+.It Sy value
+Property value.
+.It Sy source
+Property source, either
+.Sy default No or Sy local .
+.El
+.Pp
+See the
+.Xr vdevprops 7
+manual page for more information on the available pool properties.
+.Bl -tag -compact -offset Ds -width "-o field"
+.It Fl H
+Scripted mode.
+Do not display headers, and separate fields by a single tab instead of arbitrary
+space.
+.It Fl o Ar field
+A comma-separated list of columns to display, defaults to
+.Sy name , Ns Sy property , Ns Sy value , Ns Sy source .
+.It Fl p
+Display numbers in parsable (exact) values.
+.El
+.It Xo
+.Nm zpool
 .Cm set
 .Ar property Ns = Ns Ar value
 .Ar pool
@@ -100,9 +166,22 @@ See the
 .Xr zpoolprops 7
 manual page for more information on what properties can be set and acceptable
 values.
+.It Xo
+.Nm zpool
+.Cm set
+.Ar property Ns = Ns Ar value
+.Ar pool
+.Ar vdev
+.Xc
+Sets the given property on the specified vdev in the specified pool.
+See the
+.Xr vdevprops 7
+manual page for more information on what properties can be set and acceptable
+values.
 .El
 .
 .Sh SEE ALSO
+.Xr vdevprops 7 ,
 .Xr zpool-features 7 ,
 .Xr zpoolprops 7 ,
 .Xr zpool-list 8

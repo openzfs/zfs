@@ -3755,7 +3755,7 @@ zio_vdev_io_start(zio_t *zio)
 		 * Note: the code can handle other kinds of writes,
 		 * but we don't expect them.
 		 */
-		if (zio->io_vd->vdev_removing) {
+		if (zio->io_vd->vdev_noalloc) {
 			ASSERT(zio->io_flags &
 			    (ZIO_FLAG_PHYSICAL | ZIO_FLAG_SELF_HEAL |
 			    ZIO_FLAG_RESILVER | ZIO_FLAG_INDUCE_DAMAGE));
