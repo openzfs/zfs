@@ -1734,10 +1734,11 @@ print_vdev_metaslab_header(vdev_t *vd)
 }
 
 static void
-dump_metaslab_groups(spa_t *spa)
+dump_metaslab_groups(spa_t *spa, boolean_t show_special)
 {
 	vdev_t *rvd = spa->spa_root_vdev;
 	metaslab_class_t *mc = spa_normal_class(spa);
+	metaslab_class_t *smc = spa_special_class(spa);
 	uint64_t fragmentation;
 
 	metaslab_class_histogram_verify(mc);
@@ -1746,7 +1747,8 @@ dump_metaslab_groups(spa_t *spa)
 		vdev_t *tvd = rvd->vdev_child[c];
 		metaslab_group_t *mg = tvd->vdev_mg;
 
-		if (mg == NULL || mg->mg_class != mc)
+		if (mg == NULL || (mg->mg_class != mc &&
+		    (!show_special || mg->mg_class != smc)))
 			continue;
 
 		metaslab_group_histogram_verify(mg);
@@ -7673,7 +7675,7 @@ dump_zpool(spa_t *spa)
 	if (dump_opt['d'] > 2 || dump_opt['m'])
 		dump_metaslabs(spa);
 	if (dump_opt['M'])
-		dump_metaslab_groups(spa);
+		dump_metaslab_groups(spa, dump_opt['M'] > 1);
 	if (dump_opt['d'] > 2 || dump_opt['m']) {
 		dump_log_spacemaps(spa);
 		dump_log_spacemap_obsolete_stats(spa);

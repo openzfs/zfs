@@ -266,12 +266,10 @@ the percentage of free space in each space map.
 .It Fl mmmm
 Display every spacemap record.
 .It Fl M
-Display the offset, spacemap, and free space of each metaslab.
+Display all "normal" vdev metaslab group information - per-vdev metaslab count, fragmentation,
+and free space histogram, as well as overall pool fragmentation and histogram.
 .It Fl MM
-Also display information about the maximum contiguous free space and the
-percentage of free space in each space map.
-.It Fl MMM
-Display every spacemap record.
+"Special" vdevs are added to -M's normal output.
 .It Fl O Ar dataset path
 Look up the specified
 .Ar path
