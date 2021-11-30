@@ -27,9 +27,6 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/stat.h>
-#include <sys/wait.h>
-#include <sys/mman.h>
-#include <semaphore.h>
 #include <stdbool.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -44,25 +41,16 @@
 #include <errno.h>
 #include <libzfs.h>
 
+/*
+ * For debugging only.
+ *
+ * Free statics with trivial life-times,
+ * but saved line filenames are replaced with a static string.
+ */
+#define	FREE_STATICS false
+
+#define	nitems(arr) (sizeof (arr) / sizeof (*arr))
 #define	STRCMP ((int(*)(const void *, const void *))&strcmp)
-#define	PID_T_CMP ((int(*)(const void *, const void *))&pid_t_cmp)
-
-static int
-pid_t_cmp(const pid_t *lhs, const pid_t *rhs)
-{
-	/*
-	 * This is always valid, quoth sys_types.h(7posix):
-	 * > blksize_t, pid_t, and ssize_t shall be signed integer types.
-	 */
-	return (*lhs - *rhs);
-}
-
-#define	EXIT_ENOMEM() \
-	do { \
-		fprintf(stderr, PROGNAME "[%d]: " \
-		    "not enough memory (L%d)!\n", getpid(), __LINE__); \
-		_exit(1); \
-	} while (0)
 
 
 #define	PROGNAME "zfs-mount-generator"
@@ -80,20 +68,11 @@ pid_t_cmp(const pid_t *lhs, const pid_t *rhs)
 #define	URI_REGEX_S "^\\([A-Za-z][A-Za-z0-9+.\\-]*\\):\\/\\/\\(.*\\)$"
 static regex_t uri_regex;
 
-static char *argv0;
-
 static const char *destdir = "/tmp";
 static int destdir_fd = -1;
 
 static void *known_pools = NULL; /* tsearch() of C strings */
-static struct {
-	sem_t noauto_not_on_sem;
-
-	sem_t noauto_names_sem;
-	size_t noauto_names_len;
-	size_t noauto_names_max;
-	char noauto_names[][NAME_MAX];
-} *noauto_files;
+static void *noauto_files = NULL; /* tsearch() of C strings */
 
 
 static char *
@@ -103,8 +82,12 @@ systemd_escape(const char *input, const char *prepend, const char *append)
 	size_t applen = strlen(append);
 	size_t prelen = strlen(prepend);
 	char *ret = malloc(4 * len + prelen + applen + 1);
-	if (!ret)
-		EXIT_ENOMEM();
+	if (!ret) {
+		fprintf(stderr, PROGNAME "[%d]: "
+		    "out of memory to escape \"%s%s%s\"!\n",
+		    getpid(), prepend, input, append);
+		return (NULL);
+	}
 
 	memcpy(ret, prepend, prelen);
 	char *out = ret + prelen;
@@ -166,8 +149,12 @@ systemd_escape_path(char *input, const char *prepend, const char *append)
 {
 	if (strcmp(input, "/") == 0) {
 		char *ret;
-		if (asprintf(&ret, "%s-%s", prepend, append) == -1)
-			EXIT_ENOMEM();
+		if (asprintf(&ret, "%s-%s", prepend, append) == -1) {
+			fprintf(stderr, PROGNAME "[%d]: "
+			    "out of memory to escape \"%s%s%s\"!\n",
+			    getpid(), prepend, input, append);
+			ret = NULL;
+		}
 		return (ret);
 	} else {
 		/*
@@ -209,6 +196,10 @@ fopenat(int dirfd, const char *pathname, int flags,
 static int
 line_worker(char *line, const char *cachefile)
 {
+	int ret = 0;
+	void *tofree_all[8];
+	void **tofree = tofree_all;
+
 	char *toktmp;
 	/* BEGIN CSTYLED */
 	const char *dataset                     = strtok_r(line, "\t", &toktmp);
@@ -240,10 +231,8 @@ line_worker(char *line, const char *cachefile)
 	if (p_nbmand == NULL) {
 		fprintf(stderr, PROGNAME "[%d]: %s: not enough tokens!\n",
 		    getpid(), dataset);
-		return (1);
+		goto err;
 	}
-
-	strncpy(argv0, dataset, strlen(argv0));
 
 	/* Minimal pre-requisites to mount a ZFS dataset */
 	const char *after = "zfs-import.target";
@@ -280,28 +269,31 @@ line_worker(char *line, const char *cachefile)
 
 
 	if (strcmp(p_encroot, "-") != 0) {
-		char *keyloadunit =
+		char *keyloadunit = *(tofree++) =
 		    systemd_escape(p_encroot, "zfs-load-key@", ".service");
+		if (keyloadunit == NULL)
+			goto err;
 
 		if (strcmp(dataset, p_encroot) == 0) {
 			const char *keymountdep = NULL;
 			bool is_prompt = false;
+			bool need_network = false;
 
 			regmatch_t uri_matches[3];
 			if (regexec(&uri_regex, p_keyloc,
-			    sizeof (uri_matches) / sizeof (*uri_matches),
-			    uri_matches, 0) == 0) {
+			    nitems(uri_matches), uri_matches, 0) == 0) {
+				p_keyloc[uri_matches[1].rm_eo] = '\0';
 				p_keyloc[uri_matches[2].rm_eo] = '\0';
+				const char *scheme =
+				    &p_keyloc[uri_matches[1].rm_so];
 				const char *path =
 				    &p_keyloc[uri_matches[2].rm_so];
 
-				/*
-				 * Assumes all URI keylocations need
-				 * the mount for their path;
-				 * http://, for example, wouldn't
-				 * (but it'd need network-online.target et al.)
-				 */
-				keymountdep = path;
+				if (strcmp(scheme, "https") == 0 ||
+				    strcmp(scheme, "http") == 0)
+					need_network = true;
+				else
+					keymountdep = path;
 			} else {
 				if (strcmp(p_keyloc, "prompt") != 0)
 					fprintf(stderr, PROGNAME "[%d]: %s: "
@@ -321,7 +313,7 @@ line_worker(char *line, const char *cachefile)
 				    "couldn't open %s under %s: %s\n",
 				    getpid(), dataset, keyloadunit, destdir,
 				    strerror(errno));
-				return (1);
+				goto err;
 			}
 
 			fprintf(keyloadunit_f,
@@ -335,20 +327,22 @@ line_worker(char *line, const char *cachefile)
 			    "After=%s\n",
 			    dataset, cachefile, wants, after);
 
+			if (need_network)
+				fprintf(keyloadunit_f,
+				    "Wants=network-online.target\n"
+				    "After=network-online.target\n");
+
 			if (p_systemd_requires)
 				fprintf(keyloadunit_f,
 				    "Requires=%s\n", p_systemd_requires);
 
-			if (p_systemd_requiresmountsfor || keymountdep) {
-				fprintf(keyloadunit_f, "RequiresMountsFor=");
-				if (p_systemd_requiresmountsfor)
-					fprintf(keyloadunit_f,
-					    "%s ", p_systemd_requiresmountsfor);
-				if (keymountdep)
-					fprintf(keyloadunit_f,
-					    "'%s'", keymountdep);
-				fprintf(keyloadunit_f, "\n");
-			}
+			if (p_systemd_requiresmountsfor)
+				fprintf(keyloadunit_f,
+				    "RequiresMountsFor=%s\n",
+				    p_systemd_requiresmountsfor);
+			if (keymountdep)
+				fprintf(keyloadunit_f,
+				    "RequiresMountsFor='%s'\n", keymountdep);
 
 			/* BEGIN CSTYLED */
 			fprintf(keyloadunit_f,
@@ -393,9 +387,13 @@ line_worker(char *line, const char *cachefile)
 		if (after[0] == '\0')
 			after = keyloadunit;
 		else if (asprintf(&toktmp, "%s %s", after, keyloadunit) != -1)
-			after = toktmp;
-		else
-			EXIT_ENOMEM();
+			after = *(tofree++) = toktmp;
+		else {
+			fprintf(stderr, PROGNAME "[%d]: %s: "
+			    "out of memory to generate after=\"%s %s\"!\n",
+			    getpid(), dataset, after, keyloadunit);
+			goto err;
+		}
 	}
 
 
@@ -404,12 +402,12 @@ line_worker(char *line, const char *cachefile)
 	    strcmp(p_systemd_ignore, "off") == 0) {
 		/* ok */
 	} else if (strcmp(p_systemd_ignore, "on") == 0)
-		return (0);
+		goto end;
 	else {
 		fprintf(stderr, PROGNAME "[%d]: %s: "
 		    "invalid org.openzfs.systemd:ignore=%s\n",
 		    getpid(), dataset, p_systemd_ignore);
-		return (1);
+		goto err;
 	}
 
 	/* Check for canmount */
@@ -418,21 +416,21 @@ line_worker(char *line, const char *cachefile)
 	} else if (strcmp(p_canmount, "noauto") == 0)
 		noauto = true;
 	else if (strcmp(p_canmount, "off") == 0)
-		return (0);
+		goto end;
 	else {
 		fprintf(stderr, PROGNAME "[%d]: %s: invalid canmount=%s\n",
 		    getpid(), dataset, p_canmount);
-		return (1);
+		goto err;
 	}
 
 	/* Check for legacy and blank mountpoints */
 	if (strcmp(p_mountpoint, "legacy") == 0 ||
 	    strcmp(p_mountpoint, "none") == 0)
-		return (0);
+		goto end;
 	else if (p_mountpoint[0] != '/') {
 		fprintf(stderr, PROGNAME "[%d]: %s: invalid mountpoint=%s\n",
 		    getpid(), dataset, p_mountpoint);
-		return (1);
+		goto err;
 	}
 
 	/* Escape the mountpoint per systemd policy */
@@ -442,7 +440,7 @@ line_worker(char *line, const char *cachefile)
 		fprintf(stderr,
 		    PROGNAME "[%d]: %s: abnormal simplified mountpoint: %s\n",
 		    getpid(), dataset, p_mountpoint);
-		return (1);
+		goto err;
 	}
 
 
@@ -552,8 +550,7 @@ line_worker(char *line, const char *cachefile)
 	 * 	files if we're sure they were created by us. (see 5.)
 	 * 2.	We handle files differently based on canmount.
 	 * 	Units with canmount=on always have precedence over noauto.
-	 * 	This is enforced by the noauto_not_on_sem semaphore,
-	 * 	which is only unlocked when the last canmount=on process exits.
+	 * 	This is enforced by processing these units before all others.
 	 * 	It is important to use p_canmount and not noauto here,
 	 * 	since we categorise by canmount while other properties,
 	 * 	e.g. org.openzfs.systemd:wanted-by, also modify noauto.
@@ -561,7 +558,7 @@ line_worker(char *line, const char *cachefile)
 	 * 	Additionally, we use noauto_files to track the unit file names
 	 * 	(which are the systemd-escaped mountpoints) of all (exclusively)
 	 * 	noauto datasets that had a file created.
-	 * 4.	If the file to be created is found in the tracking array,
+	 * 4.	If the file to be created is found in the tracking tree,
 	 * 	we do NOT create it.
 	 * 5.	If a file exists for a noauto dataset,
 	 * 	we check whether the file name is in the array.
@@ -571,29 +568,14 @@ line_worker(char *line, const char *cachefile)
 	 * 	further noauto datasets creating a file for this path again.
 	 */
 
-	{
-		sem_t *our_sem = (strcmp(p_canmount, "on") == 0) ?
-		    &noauto_files->noauto_names_sem :
-		    &noauto_files->noauto_not_on_sem;
-		while (sem_wait(our_sem) == -1 && errno == EINTR)
-			;
-	}
-
 	struct stat stbuf;
 	bool already_exists = fstatat(destdir_fd, mountfile, &stbuf, 0) == 0;
+	bool is_known = tfind(mountfile, &noauto_files, STRCMP) != NULL;
 
-	bool is_known = false;
-	for (size_t i = 0; i < noauto_files->noauto_names_len; ++i) {
-		if (strncmp(
-		    noauto_files->noauto_names[i], mountfile, NAME_MAX) == 0) {
-			is_known = true;
-			break;
-		}
-	}
-
+	*(tofree++) = (void *)mountfile;
 	if (already_exists) {
 		if (is_known) {
-			/* If it's in $noauto_files, we must be noauto too */
+			/* If it's in noauto_files, we must be noauto too */
 
 			/* See 5 */
 			errno = 0;
@@ -614,43 +596,31 @@ line_worker(char *line, const char *cachefile)
 		}
 
 		/* File exists: skip current dataset */
-		if (strcmp(p_canmount, "on") == 0)
-			sem_post(&noauto_files->noauto_names_sem);
-		return (0);
+		goto end;
 	} else {
 		if (is_known) {
 			/* See 4 */
-			if (strcmp(p_canmount, "on") == 0)
-				sem_post(&noauto_files->noauto_names_sem);
-			return (0);
+			goto end;
 		} else if (strcmp(p_canmount, "noauto") == 0) {
-			if (noauto_files->noauto_names_len ==
-			    noauto_files->noauto_names_max)
+			if (tsearch(mountfile, &noauto_files, STRCMP) == NULL)
 				fprintf(stderr, PROGNAME "[%d]: %s: "
-				    "noauto dataset limit (%zu) reached! "
-				    "Not tracking %s. Please report this to "
-				    "https://github.com/openzfs/zfs\n",
-				    getpid(), dataset,
-				    noauto_files->noauto_names_max, mountfile);
-			else {
-				strncpy(noauto_files->noauto_names[
-				    noauto_files->noauto_names_len],
-				    mountfile, NAME_MAX);
-				++noauto_files->noauto_names_len;
-			}
+				    "out of memory for noauto datasets! "
+				    "Not tracking %s.\n",
+				    getpid(), dataset, mountfile);
+			else
+				/* mountfile escaped to noauto_files */
+				*(--tofree) = NULL;
 		}
 	}
 
 
 	FILE *mountfile_f = fopenat(destdir_fd, mountfile,
 	    O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, "w", 0644);
-	if (strcmp(p_canmount, "on") == 0)
-		sem_post(&noauto_files->noauto_names_sem);
 	if (!mountfile_f) {
 		fprintf(stderr,
 		    PROGNAME "[%d]: %s: couldn't open %s under %s: %s\n",
 		    getpid(), dataset, mountfile, destdir, strerror(errno));
-		return (1);
+		goto err;
 	}
 
 	fprintf(mountfile_f,
@@ -699,12 +669,17 @@ line_worker(char *line, const char *cachefile)
 	(void) fclose(mountfile_f);
 
 	if (!requiredby && !wantedby)
-		return (0);
+		goto end;
 
 	/* Finally, create the appropriate dependencies */
 	char *linktgt;
-	if (asprintf(&linktgt, "../%s", mountfile) == -1)
-		EXIT_ENOMEM();
+	if (asprintf(&linktgt, "../%s", mountfile) == -1) {
+		fprintf(stderr, PROGNAME "[%d]: %s: "
+		    "out of memory for dependents of %s!\n",
+		    getpid(), dataset, mountfile);
+		goto err;
+	}
+	*(tofree++) = linktgt;
 
 	char *dependencies[][2] = {
 		{"wants", wantedby},
@@ -719,8 +694,14 @@ line_worker(char *line, const char *cachefile)
 		    reqby;
 		    reqby = strtok_r(NULL, " ", &toktmp)) {
 			char *depdir;
-			if (asprintf(&depdir, "%s.%s", reqby, (*dep)[0]) == -1)
-				EXIT_ENOMEM();
+			if (asprintf(
+			    &depdir, "%s.%s", reqby, (*dep)[0]) == -1) {
+				fprintf(stderr, PROGNAME "[%d]: %s: "
+				    "out of memory for dependent dir name "
+				    "\"%s.%s\"!\n",
+				    getpid(), dataset, reqby, (*dep)[0]);
+				continue;
+			}
 
 			(void) mkdirat(destdir_fd, depdir, 0755);
 			int depdir_fd = openat(destdir_fd, depdir,
@@ -746,7 +727,24 @@ line_worker(char *line, const char *cachefile)
 		}
 	}
 
-	return (0);
+end:
+	if (tofree >= tofree_all + nitems(tofree_all)) {
+		/*
+		 * This won't happen as-is:
+		 * we've got 8 slots and allocate 4 things at most.
+		 */
+		fprintf(stderr,
+		    PROGNAME "[%d]: %s: need to free %zu > %zu!\n",
+		    getpid(), dataset, tofree - tofree_all, nitems(tofree_all));
+		ret = tofree - tofree_all;
+	}
+
+	while (tofree-- != tofree_all)
+		free(*tofree);
+	return (ret);
+err:
+	ret = 1;
+	goto end;
 }
 
 
@@ -780,12 +778,11 @@ main(int argc, char **argv)
 		if (kmfd >= 0) {
 			(void) dup2(kmfd, STDERR_FILENO);
 			(void) close(kmfd);
+
+			setlinebuf(stderr);
 		}
 	}
 
-	uint8_t debug = 0;
-
-	argv0 = argv[0];
 	switch (argc) {
 	case 1:
 		/* Use default */
@@ -844,33 +841,9 @@ main(int argc, char **argv)
 		}
 	}
 
-	{
-		/*
-		 * We could just get a gigabyte here and Not Care,
-		 * but if vm.overcommit_memory=2, then MAP_NORESERVE is ignored
-		 * and we'd try (and likely fail) to rip it out of swap
-		 */
-		noauto_files = mmap(NULL, 4 * 1024 * 1024,
-		    PROT_READ | PROT_WRITE,
-		    MAP_SHARED | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
-		if (noauto_files == MAP_FAILED) {
-			fprintf(stderr,
-			    PROGNAME "[%d]: couldn't allocate IPC region: %s\n",
-			    getpid(), strerror(errno));
-			_exit(1);
-		}
-
-		sem_init(&noauto_files->noauto_not_on_sem, true, 0);
-		sem_init(&noauto_files->noauto_names_sem, true, 1);
-		noauto_files->noauto_names_len = 0;
-		/* Works out to 16447ish, *well* enough */
-		noauto_files->noauto_names_max =
-		    (4 * 1024 * 1024 - sizeof (*noauto_files)) / NAME_MAX;
-	}
-
+	bool debug = false;
 	char *line = NULL;
 	size_t linelen = 0;
-	struct timespec time_start = {};
 	{
 		const char *dbgenv = getenv("ZFS_DEBUG");
 		if (dbgenv)
@@ -879,7 +852,7 @@ main(int argc, char **argv)
 			FILE *cmdline = fopen("/proc/cmdline", "re");
 			if (cmdline != NULL) {
 				if (getline(&line, &linelen, cmdline) >= 0)
-					debug = strstr(line, "debug") ? 2 : 0;
+					debug = strstr(line, "debug");
 				(void) fclose(cmdline);
 			}
 		}
@@ -888,19 +861,17 @@ main(int argc, char **argv)
 			dup2(STDERR_FILENO, STDOUT_FILENO);
 	}
 
-	size_t forked_canmount_on = 0;
-	size_t forked_canmount_not_on = 0;
-	size_t canmount_on_pids_len = 128;
-	pid_t *canmount_on_pids =
-	    malloc(canmount_on_pids_len * sizeof (*canmount_on_pids));
-	if (canmount_on_pids == NULL)
-		canmount_on_pids_len = 0;
-
+	struct timespec time_start = {};
 	if (debug)
 		clock_gettime(CLOCK_MONOTONIC_RAW, &time_start);
 
-	ssize_t read;
-	pid_t pid;
+	struct line {
+		char *line;
+		const char *fname;
+		struct line *next;
+	} *lines_canmount_not_on = NULL;
+
+	int ret = 0;
 	struct dirent *cachent;
 	while ((cachent = readdir(fslist_dir)) != NULL) {
 		if (strcmp(cachent->d_name, ".") == 0 ||
@@ -916,129 +887,67 @@ main(int argc, char **argv)
 			continue;
 		}
 
+		const char *filename = FREE_STATICS ? "(elided)" : NULL;
+
+		ssize_t read;
 		while ((read = getline(&line, &linelen, cachefile)) >= 0) {
 			line[read - 1] = '\0'; /* newline */
 
-			switch (pid = fork()) {
-			case -1:
-				fprintf(stderr,
-				    PROGNAME "[%d]: couldn't fork for %s: %s\n",
-				    getpid(), line, strerror(errno));
-				break;
-			case 0: /* child */
-				_exit(line_worker(line, cachent->d_name));
-			default: { /* parent */
-				char *tmp;
-				char *dset = strtok_r(line, "\t", &tmp);
-				strtok_r(NULL, "\t", &tmp);
-				char *canmount = strtok_r(NULL, "\t", &tmp);
-				bool canmount_on =
-				    canmount && strncmp(canmount, "on", 2) == 0;
+			char *canmount = line;
+			canmount += strcspn(canmount, "\t");
+			canmount += strspn(canmount, "\t");
+			canmount += strcspn(canmount, "\t");
+			canmount += strspn(canmount, "\t");
+			bool canmount_on = strncmp(canmount, "on", 2) == 0;
 
-				if (debug >= 2)
-					printf(PROGNAME ": forked %d, "
-					    "canmount_on=%d, dataset=%s\n",
-					    (int)pid, canmount_on, dset);
+			if (canmount_on)
+				ret |= line_worker(line, cachent->d_name);
+			else {
+				if (filename == NULL)
+					filename =
+					    strdup(cachent->d_name) ?: "(?)";
 
-				if (canmount_on &&
-				    forked_canmount_on ==
-				    canmount_on_pids_len) {
-					size_t new_len =
-					    (canmount_on_pids_len ?: 16) * 2;
-					void *new_pidlist =
-					    realloc(canmount_on_pids,
-					    new_len *
-					    sizeof (*canmount_on_pids));
-					if (!new_pidlist) {
-						fprintf(stderr,
-						    PROGNAME "[%d]: "
-						    "out of memory! "
-						    "Mount ordering may be "
-						    "affected.\n", getpid());
-						continue;
-					}
-
-					canmount_on_pids = new_pidlist;
-					canmount_on_pids_len = new_len;
+				struct line *l = calloc(1, sizeof (*l));
+				char *nl = strdup(line);
+				if (l == NULL || nl == NULL) {
+					fprintf(stderr, PROGNAME "[%d]: "
+					    "out of memory for \"%s\" in %s\n",
+					    getpid(), line, cachent->d_name);
+					free(l);
+					free(nl);
+					continue;
 				}
-
-				if (canmount_on) {
-					canmount_on_pids[forked_canmount_on] =
-					    pid;
-					++forked_canmount_on;
-				} else
-					++forked_canmount_not_on;
-				break;
-			}
+				l->line = nl;
+				l->fname = filename;
+				l->next = lines_canmount_not_on;
+				lines_canmount_not_on = l;
 			}
 		}
 
-		(void) fclose(cachefile);
+		fclose(cachefile);
 	}
 	free(line);
 
-	if (forked_canmount_on == 0) {
-		/* No canmount=on processes to finish, so don't deadlock here */
-		for (size_t i = 0; i < forked_canmount_not_on; ++i)
-			sem_post(&noauto_files->noauto_not_on_sem);
-	} else {
-		/* Likely a no-op, since we got these from a narrow fork loop */
-		qsort(canmount_on_pids, forked_canmount_on,
-		    sizeof (*canmount_on_pids), PID_T_CMP);
-	}
+	while (lines_canmount_not_on) {
+		struct line *l = lines_canmount_not_on;
+		lines_canmount_not_on = l->next;
 
-	int status, ret = 0;
-	struct rusage usage;
-	size_t forked_canmount_on_max = forked_canmount_on;
-	while ((pid = wait4(-1, &status, 0, &usage)) != -1) {
-		ret |= WEXITSTATUS(status) | WTERMSIG(status);
-
-		if (forked_canmount_on != 0) {
-			if (bsearch(&pid, canmount_on_pids,
-			    forked_canmount_on_max, sizeof (*canmount_on_pids),
-			    PID_T_CMP))
-				--forked_canmount_on;
-
-			if (forked_canmount_on == 0) {
-				/*
-				 * All canmount=on processes have finished,
-				 * let all the lower-priority ones finish now
-				 */
-				for (size_t i = 0;
-				    i < forked_canmount_not_on; ++i)
-					sem_post(
-					    &noauto_files->noauto_not_on_sem);
-			}
+		ret |= line_worker(l->line, l->fname);
+		if (FREE_STATICS) {
+			free(l->line);
+			free(l);
 		}
-
-		if (debug >= 2)
-			printf(PROGNAME ": %d done, user=%llu.%06us, "
-			    "system=%llu.%06us, maxrss=%ldB, ex=0x%x\n",
-			    (int)pid,
-			    (unsigned long long) usage.ru_utime.tv_sec,
-			    (unsigned int) usage.ru_utime.tv_usec,
-			    (unsigned long long) usage.ru_stime.tv_sec,
-			    (unsigned int) usage.ru_stime.tv_usec,
-			    usage.ru_maxrss * 1024, status);
 	}
 
 	if (debug) {
 		struct timespec time_end = {};
 		clock_gettime(CLOCK_MONOTONIC_RAW, &time_end);
 
+		struct rusage usage;
 		getrusage(RUSAGE_SELF, &usage);
 		printf(
 		    "\n"
-		    PROGNAME ": self    : "
-		    "user=%llu.%06us, system=%llu.%06us, maxrss=%ldB\n",
-		    (unsigned long long) usage.ru_utime.tv_sec,
-		    (unsigned int) usage.ru_utime.tv_usec,
-		    (unsigned long long) usage.ru_stime.tv_sec,
-		    (unsigned int) usage.ru_stime.tv_usec,
-		    usage.ru_maxrss * 1024);
-
-		getrusage(RUSAGE_CHILDREN, &usage);
-		printf(PROGNAME ": children: "
+		    PROGNAME ": "
 		    "user=%llu.%06us, system=%llu.%06us, maxrss=%ldB\n",
 		    (unsigned long long) usage.ru_utime.tv_sec,
 		    (unsigned int) usage.ru_utime.tv_usec,
@@ -1068,7 +977,7 @@ main(int argc, char **argv)
 		    time_init.tv_nsec / 1000000000;
 		time_init.tv_nsec %= 1000000000;
 
-		printf(PROGNAME ": wall    : "
+		printf(PROGNAME ": "
 		    "total=%llu.%09llus = "
 		    "init=%llu.%09llus + real=%llu.%09llus\n",
 		    (unsigned long long) time_init.tv_sec,
@@ -1077,7 +986,15 @@ main(int argc, char **argv)
 		    (unsigned long long) time_start.tv_nsec,
 		    (unsigned long long) time_end.tv_sec,
 		    (unsigned long long) time_end.tv_nsec);
+
+		fflush(stdout);
 	}
 
+	if (FREE_STATICS) {
+		closedir(fslist_dir);
+		tdestroy(noauto_files, free);
+		tdestroy(known_pools, free);
+		regfree(&uri_regex);
+	}
 	_exit(ret);
 }
