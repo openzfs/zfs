@@ -21,6 +21,10 @@
 # CDDL HEADER END
 #
 
+#
+# Copyright 2020 OmniOS Community Edition (OmniOSce) Association.
+#
+
 BASE_DIR=$(dirname "$0")
 SCRIPT_COMMON=common.sh
 if [ -f "${BASE_DIR}/${SCRIPT_COMMON}" ]; then
@@ -48,6 +52,7 @@ ITERATIONS=1
 ZFS_DBGMSG="$STF_SUITE/callbacks/zfs_dbgmsg.ksh"
 ZFS_DMESG="$STF_SUITE/callbacks/zfs_dmesg.ksh"
 UNAME=$(uname -s)
+RERUN=""
 
 # Override some defaults if on FreeBSD
 if [ "$UNAME" = "FreeBSD" ] ; then
@@ -322,6 +327,7 @@ OPTIONS:
 	-f          Use files only, disables block device tests
 	-S          Enable stack tracer (negative performance impact)
 	-c          Only create and populate constrained path
+	-R          Automatically rerun failing tests
 	-n NFSFILE  Use the nfsfile to determine the NFS configuration
 	-I NUM      Number of iterations
 	-d DIR      Use DIR for files and loopback devices
@@ -348,7 +354,7 @@ $0 -x
 EOF
 }
 
-while getopts 'hvqxkfScn:d:s:r:?t:T:u:I:' OPTION; do
+while getopts 'hvqxkfScRn:d:s:r:?t:T:u:I:' OPTION; do
 	case $OPTION in
 	h)
 		usage
@@ -375,6 +381,9 @@ while getopts 'hvqxkfScn:d:s:r:?t:T:u:I:' OPTION; do
 	c)
 		constrain_path
 		exit
+		;;
+	R)
+		RERUN="yes"
 		;;
 	n)
 		nfsfile=$OPTARG
@@ -694,12 +703,35 @@ ${TEST_RUNNER} ${QUIET:+-q} \
     -i "${STF_SUITE}" \
     -I "${ITERATIONS}" \
     2>&1 | tee "$RESULTS_FILE"
-
 #
 # Analyze the results.
 #
-${ZTS_REPORT} "$RESULTS_FILE" >"$REPORT_FILE"
+${ZTS_REPORT} ${RERUN:+--no-maybes} "$RESULTS_FILE" >"$REPORT_FILE"
 RESULT=$?
+
+if [ "$RESULT" -eq "2" ] && [ -n "$RERUN" ]; then
+	MAYBES="$($ZTS_REPORT --list-maybes)"
+	TEMP_RESULTS_FILE=$(mktemp -u -t zts-results-tmp.XXXXX -p "$FILEDIR")
+	TEST_LIST=$(mktemp -u -t test-list.XXXXX -p "$FILEDIR")
+	grep "^Test:.*\[FAIL\]" "$RESULTS_FILE" >"$TEMP_RESULTS_FILE"
+	for test_name in $MAYBES; do
+		grep "$test_name " "$TEMP_RESULTS_FILE" >>"$TEST_LIST"
+	done
+	${TEST_RUNNER} ${QUIET:+-q} \
+	    -c "${RUNFILES}" \
+	    -T "${TAGS}" \
+	    -i "${STF_SUITE}" \
+	    -I "${ITERATIONS}" \
+	    -l "${TEST_LIST}" \
+	    2>&1 | tee "$RESULTS_FILE"
+	#
+	# Analyze the results.
+	#
+	${ZTS_REPORT} --no-maybes "$RESULTS_FILE" >"$REPORT_FILE"
+	RESULT=$?
+fi
+
+
 cat "$REPORT_FILE"
 
 RESULTS_DIR=$(awk '/^Log directory/ { print $3 }' "$RESULTS_FILE")
