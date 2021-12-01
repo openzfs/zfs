@@ -21,6 +21,7 @@
 import os
 import re
 import sys
+import argparse
 
 #
 # This script parses the stdout of zfstest, which has this format:
@@ -357,10 +358,33 @@ def process_results(pathname):
     return d
 
 
+class ListMaybesAction(argparse.Action):
+    def __init__(self,
+                 option_strings,
+                 dest="SUPPRESS",
+                 default="SUPPRESS",
+                 help="list flaky tests and exit"):
+        super(ListMaybesAction, self).__init__(
+            option_strings=option_strings,
+            dest=dest,
+            default=default,
+            nargs=0,
+            help=help)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        for test in maybe:
+            print(test)
+        sys.exit(0)
+
+
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        usage('usage: %s <pathname>' % sys.argv[0])
-    results = process_results(sys.argv[1])
+    parser = argparse.ArgumentParser(description='Analyze ZTS logs')
+    parser.add_argument('logfile')
+    parser.add_argument('--list-maybes', action=ListMaybesAction)
+    parser.add_argument('--no-maybes', action='store_false', dest='maybes')
+    args = parser.parse_args()
+
+    results = process_results(args.logfile)
 
     if summary['total'] == 0:
         print("\n\nNo test results were found.")
@@ -369,6 +393,7 @@ if __name__ == "__main__":
 
     expected = []
     unexpected = []
+    all_maybes = True
 
     for test in list(results.keys()):
         if results[test] == "PASS":
@@ -381,11 +406,16 @@ if __name__ == "__main__":
             if setup in maybe and maybe[setup][0] == "SKIP":
                 continue
 
-        if ((test not in known or results[test] not in known[test][0]) and
-                (test not in maybe or results[test] not in maybe[test][0])):
-            unexpected.append(test)
-        else:
+        if (test in known and results[test] in known[test][0]):
             expected.append(test)
+        elif test in maybe and results[test] in maybe[test][0]:
+            if results[test] == 'SKIP' or args.maybes:
+                expected.append(test)
+            elif not args.maybes:
+                unexpected.append(test)
+        else:
+            unexpected.append(test)
+            all_maybes = False
 
     print("\nTests with results other than PASS that are expected:")
     for test in sorted(expected):
@@ -431,5 +461,7 @@ if __name__ == "__main__":
 
     if len(unexpected) == 0:
         sys.exit(0)
+    elif not args.maybes and all_maybes:
+        sys.exit(2)
     else:
         sys.exit(1)
