@@ -432,8 +432,8 @@ tests = ['grow_pool_001_pos', 'grow_replicas_001_pos']
 tags = ['functional', 'grow']
 
 [tests/functional/history]
-tests = ['history_004_pos', 'history_005_neg', 'history_006_neg',
-    'history_007_pos', 'history_008_pos', 'history_009_pos']
+tests = ['history_004_pos', 'history_005_neg', 'history_007_pos',
+    'history_009_pos']
 tags = ['functional', 'history']
 
 [tests/functional/hkdf]
@@ -561,12 +561,11 @@ tags = ['functional', 'slog']
 
 [tests/functional/snapshot]
 tests = ['clone_001_pos', 'rollback_001_pos', 'rollback_002_pos',
-    'rollback_003_pos', 'snapshot_001_pos', 'snapshot_002_pos',
-    'snapshot_003_pos', 'snapshot_004_pos', 'snapshot_005_pos',
-    'snapshot_006_pos', 'snapshot_007_pos', 'snapshot_008_pos',
-    'snapshot_009_pos', 'snapshot_010_pos', 'snapshot_011_pos',
-    'snapshot_012_pos', 'snapshot_013_pos', 'snapshot_014_pos',
-    'snapshot_017_pos']
+    'snapshot_001_pos', 'snapshot_002_pos', 'snapshot_003_pos',
+    'snapshot_004_pos', 'snapshot_005_pos', 'snapshot_006_pos',
+    'snapshot_007_pos', 'snapshot_008_pos', 'snapshot_009_pos',
+    'snapshot_010_pos', 'snapshot_011_pos', 'snapshot_012_pos',
+    'snapshot_013_pos', 'snapshot_014_pos', 'snapshot_017_pos']
 tags = ['functional', 'snapshot']
 
 [tests/functional/snapused]
