@@ -174,7 +174,7 @@ typedef struct ztest_shared_opts {
 	int zo_mirrors;
 	int zo_raid_children;
 	int zo_raid_parity;
-	char zo_raid_type[8];
+	int zo_draid_children;
 	int zo_draid_data;
 	int zo_draid_spares;
 	int zo_datasets;
@@ -203,6 +203,7 @@ typedef struct ztest_shared_opts {
 #define	DEFAULT_MIRRORS 2
 #define	DEFAULT_RAID_CHILDREN 4
 #define	DEFAULT_RAID_PARITY 1
+#define	DEFAULT_DRAID_CHILDREN 16
 #define	DEFAULT_DRAID_DATA 4
 #define	DEFAULT_DRAID_SPARES 1
 #define	DEFAULT_DATASETS_COUNT 7
@@ -231,8 +232,8 @@ static const ztest_shared_opts_t ztest_opts_defaults = {
 	.zo_mirrors = DEFAULT_MIRRORS,
 	.zo_raid_children = DEFAULT_RAID_CHILDREN,
 	.zo_raid_parity = DEFAULT_RAID_PARITY,
-	.zo_raid_type = VDEV_TYPE_RAIDZ,
 	.zo_vdev_size = DEFAULT_VDEV_SIZE,
+	.zo_draid_children = DEFAULT_DRAID_CHILDREN,
 	.zo_draid_data = DEFAULT_DRAID_DATA,	/* data drives */
 	.zo_draid_spares = DEFAULT_DRAID_SPARES, /* distributed spares */
 	.zo_datasets = DEFAULT_DATASETS_COUNT,
@@ -734,12 +735,12 @@ static ztest_option_t option_table[] = {
 	    "Alignment shift; use 0 for random", DEFAULT_ASHIFT, NULL},
 	{ 'm',	"mirror-copies", "INTEGER", "Number of mirror copies",
 	    DEFAULT_MIRRORS, NULL},
-	{ 'r',	"raid-disks", "INTEGER", "Number of raidz/draid disks",
+	{ 'r',	"raid-disks", "INTEGER", "Number of raidz disks",
 	    DEFAULT_RAID_CHILDREN, NULL},
 	{ 'R',	"raid-parity", "INTEGER", "Raid parity",
 	    DEFAULT_RAID_PARITY, NULL},
-	{ 'K',	"raid-kind", "raidz|draid|random", "Raid kind",
-	    NO_DEFAULT, "random"},
+	{ 'X', "draid-disks", "INTEGER", "Number of draid disks",
+	    DEFAULT_DRAID_CHILDREN, NULL},
 	{ 'D',	"draid-data", "INTEGER", "Number of draid data drives",
 	    DEFAULT_DRAID_DATA, NULL},
 	{ 'S',	"draid-spares", "INTEGER", "Number of draid spares",
@@ -927,7 +928,6 @@ process_options(int argc, char **argv)
 	int opt;
 	uint64_t value;
 	char altdir[MAXNAMELEN] = { 0 };
-	char raid_kind[8] = { "random" };
 
 	bcopy(&ztest_opts_defaults, zo, sizeof (*zo));
 
@@ -969,13 +969,13 @@ process_options(int argc, char **argv)
 			zo->zo_mirrors = value;
 			break;
 		case 'r':
-			zo->zo_raid_children = MAX(1, value);
+			zo->zo_raid_children = value;
 			break;
 		case 'R':
 			zo->zo_raid_parity = MIN(MAX(value, 1), 3);
 			break;
-		case 'K':
-			(void) strlcpy(raid_kind, optarg, sizeof (raid_kind));
+		case 'X':
+			zo->zo_draid_children = value;
 			break;
 		case 'D':
 			zo->zo_draid_data = MAX(1, value);
@@ -1070,55 +1070,6 @@ process_options(int argc, char **argv)
 	}
 
 	fini_options();
-
-	/* When raid choice is 'random' add a draid pool 50% of the time */
-	if (strcmp(raid_kind, "random") == 0) {
-		(void) strlcpy(raid_kind, (ztest_random(2) == 0) ?
-		    "draid" : "raidz", sizeof (raid_kind));
-
-		if (ztest_opts.zo_verbose >= 3)
-			(void) printf("choosing RAID type '%s'\n", raid_kind);
-	}
-
-	if (strcmp(raid_kind, "draid") == 0) {
-		uint64_t min_devsize;
-
-		/* With fewer disk use 256M, otherwise 128M is OK */
-		min_devsize = (ztest_opts.zo_raid_children < 16) ?
-		    (256ULL << 20) : (128ULL << 20);
-
-		/* No top-level mirrors with dRAID for now */
-		zo->zo_mirrors = 0;
-
-		/* Use more appropriate defaults for dRAID */
-		if (zo->zo_vdevs == ztest_opts_defaults.zo_vdevs)
-			zo->zo_vdevs = 1;
-		if (zo->zo_raid_children ==
-		    ztest_opts_defaults.zo_raid_children)
-			zo->zo_raid_children = 16;
-		if (zo->zo_ashift < 12)
-			zo->zo_ashift = 12;
-		if (zo->zo_vdev_size < min_devsize)
-			zo->zo_vdev_size = min_devsize;
-
-		if (zo->zo_draid_data + zo->zo_raid_parity >
-		    zo->zo_raid_children - zo->zo_draid_spares) {
-			(void) fprintf(stderr, "error: too few draid "
-			    "children (%d) for stripe width (%d)\n",
-			    zo->zo_raid_children,
-			    zo->zo_draid_data + zo->zo_raid_parity);
-			usage(B_FALSE);
-		}
-
-		(void) strlcpy(zo->zo_raid_type, VDEV_TYPE_DRAID,
-		    sizeof (zo->zo_raid_type));
-
-	} else /* using raidz */ {
-		ASSERT0(strcmp(raid_kind, "raidz"));
-
-		zo->zo_raid_parity = MIN(zo->zo_raid_parity,
-		    zo->zo_raid_children - 1);
-	}
 
 	zo->zo_vdevtime =
 	    (zo->zo_vdevs > 0 ? zo->zo_time * NANOSEC / zo->zo_vdevs :
@@ -1275,40 +1226,18 @@ make_vdev_raid(char *path, char *aux, char *pool, size_t size,
 	nvlist_t *raid, **child;
 	int c;
 
-	if (r < 2)
-		return (make_vdev_file(path, aux, pool, size, ashift));
+	ASSERT(r > 1);
+
 	child = umem_alloc(r * sizeof (nvlist_t *), UMEM_NOFAIL);
 
 	for (c = 0; c < r; c++)
 		child[c] = make_vdev_file(path, aux, pool, size, ashift);
 
 	raid = fnvlist_alloc();
-	fnvlist_add_string(raid, ZPOOL_CONFIG_TYPE,
-	    ztest_opts.zo_raid_type);
+	fnvlist_add_string(raid, ZPOOL_CONFIG_TYPE, VDEV_TYPE_RAIDZ);
 	fnvlist_add_uint64(raid, ZPOOL_CONFIG_NPARITY,
 	    ztest_opts.zo_raid_parity);
 	fnvlist_add_nvlist_array(raid, ZPOOL_CONFIG_CHILDREN, child, r);
-
-	if (strcmp(ztest_opts.zo_raid_type, VDEV_TYPE_DRAID) == 0) {
-		uint64_t ndata = ztest_opts.zo_draid_data;
-		uint64_t nparity = ztest_opts.zo_raid_parity;
-		uint64_t nspares = ztest_opts.zo_draid_spares;
-		uint64_t children = ztest_opts.zo_raid_children;
-		uint64_t ngroups = 1;
-
-		/*
-		 * Calculate the minimum number of groups required to fill a
-		 * slice. This is the LCM of the stripe width (data + parity)
-		 * and the number of data drives (children - spares).
-		 */
-		while (ngroups * (ndata + nparity) % (children - nspares) != 0)
-			ngroups++;
-
-		/* Store the basic dRAID configuration. */
-		fnvlist_add_uint64(raid, ZPOOL_CONFIG_DRAID_NDATA, ndata);
-		fnvlist_add_uint64(raid, ZPOOL_CONFIG_DRAID_NSPARES, nspares);
-		fnvlist_add_uint64(raid, ZPOOL_CONFIG_DRAID_NGROUPS, ngroups);
-	}
 
 	for (c = 0; c < r; c++)
 		fnvlist_free(child[c]);
@@ -1319,19 +1248,65 @@ make_vdev_raid(char *path, char *aux, char *pool, size_t size,
 }
 
 static nvlist_t *
+make_vdev_draid(char *path, char *aux, char *pool, size_t size,
+    uint64_t ashift, int d)
+{
+	nvlist_t *raid, **child;
+	int c;
+
+	ASSERT(d > 1);
+
+	child = umem_alloc(d * sizeof (nvlist_t *), UMEM_NOFAIL);
+
+	for (c = 0; c < d; c++)
+		child[c] = make_vdev_file(path, aux, pool, size, ashift);
+
+	raid = fnvlist_alloc();
+	fnvlist_add_string(raid, ZPOOL_CONFIG_TYPE, VDEV_TYPE_DRAID);
+	fnvlist_add_uint64(raid, ZPOOL_CONFIG_NPARITY,
+	    ztest_opts.zo_raid_parity);
+	fnvlist_add_nvlist_array(raid, ZPOOL_CONFIG_CHILDREN, child, d);
+
+	uint64_t ndata = ztest_opts.zo_draid_data;
+	uint64_t nparity = ztest_opts.zo_raid_parity;
+	uint64_t nspares = ztest_opts.zo_draid_spares;
+	uint64_t children = d;
+	uint64_t ngroups = 1;
+
+	/*
+	 * Calculate the minimum number of groups required to fill a
+	 * slice. This is the LCM of the stripe width (data + parity)
+	 * and the number of data drives (children - spares).
+	 */
+	while (ngroups * (ndata + nparity) % (children - nspares) != 0)
+		ngroups++;
+
+	/* Store the basic dRAID configuration. */
+	fnvlist_add_uint64(raid, ZPOOL_CONFIG_DRAID_NDATA, ndata);
+	fnvlist_add_uint64(raid, ZPOOL_CONFIG_DRAID_NSPARES, nspares);
+	fnvlist_add_uint64(raid, ZPOOL_CONFIG_DRAID_NGROUPS, ngroups);
+
+	for (c = 0; c < d; c++)
+		fnvlist_free(child[c]);
+
+	umem_free(child, d * sizeof (nvlist_t *));
+
+	return (raid);
+}
+
+static nvlist_t *
 make_vdev_mirror(char *path, char *aux, char *pool, size_t size,
-    uint64_t ashift, int r, int m)
+    uint64_t ashift, int m)
 {
 	nvlist_t *mirror, **child;
 	int c;
 
-	if (m < 1)
-		return (make_vdev_raid(path, aux, pool, size, ashift, r));
+	ASSERT(m > 1);
 
 	child = umem_alloc(m * sizeof (nvlist_t *), UMEM_NOFAIL);
 
 	for (c = 0; c < m; c++)
-		child[c] = make_vdev_raid(path, aux, pool, size, ashift, r);
+		child[c] = make_vdev_file(path, aux, pool, size, ashift);
 
 	mirror = fnvlist_alloc();
 	fnvlist_add_string(mirror, ZPOOL_CONFIG_TYPE, VDEV_TYPE_MIRROR);
@@ -1347,39 +1322,52 @@ make_vdev_mirror(char *path, char *aux, char *pool, size_t size,
 
 static nvlist_t *
 make_vdev_root(char *path, char *aux, char *pool, size_t size, uint64_t ashift,
-    const char *class, int r, int m, int t)
+    const char *class, int r, int m, int d)
 {
 	nvlist_t *root, **child;
-	int c;
-	boolean_t log;
+	int i = 0, c = 1 + !!r + !!m + !!d;
+	boolean_t log = (class != NULL && strcmp(class, "log") == 0);
 
-	ASSERT3S(t, >, 0);
+#if 0
+	printf("make_vdev_tree(+):aux=%s, class=%s, log=%d, r=%d, m=%d, d=%d\n",
+	    aux, class, log, r, m, d);
+	printf("make_vdev_tree():c=%d\n", c);
+#endif
 
-	log = (class != NULL && strcmp(class, "log") == 0);
+	child = umem_alloc(c * sizeof (nvlist_t *), UMEM_NOFAIL);
 
-	child = umem_alloc(t * sizeof (nvlist_t *), UMEM_NOFAIL);
+	child[i++] = make_vdev_file(path, aux, pool, size, ashift);
 
-	for (c = 0; c < t; c++) {
-		child[c] = make_vdev_mirror(path, aux, pool, size, ashift,
-		    r, m);
-		fnvlist_add_uint64(child[c], ZPOOL_CONFIG_IS_LOG, log);
+	if (m > 0) {
+		child[i] = make_vdev_mirror(path, aux, pool, size, ashift, m);
+		fnvlist_add_uint64(child[i], ZPOOL_CONFIG_IS_LOG, log);
 
 		if (class != NULL && class[0] != '\0') {
 			ASSERT(m > 1 || log);   /* expecting a mirror */
-			fnvlist_add_string(child[c],
+			fnvlist_add_string(child[i],
 			    ZPOOL_CONFIG_ALLOCATION_BIAS, class);
 		}
+
+		i++;
 	}
+
+	if (r > 0)
+		child[i++] = make_vdev_raid(path, aux, pool, size, ashift, r);
+
+	if (d > 0)
+		child[i++] = make_vdev_draid(path, aux, pool, size, ashift, d);
 
 	root = fnvlist_alloc();
 	fnvlist_add_string(root, ZPOOL_CONFIG_TYPE, VDEV_TYPE_ROOT);
 	fnvlist_add_nvlist_array(root, aux ? aux : ZPOOL_CONFIG_CHILDREN,
-	    child, t);
+	    child, c);
 
-	for (c = 0; c < t; c++)
-		fnvlist_free(child[c]);
+	for (i = 0; i < c; i++)
+		fnvlist_free(child[i]);
 
-	umem_free(child, t * sizeof (nvlist_t *));
+	umem_free(child, c * sizeof (nvlist_t *));
+
+	// dump_nvlist(root, 0);
 
 	return (root);
 }
@@ -2947,7 +2935,7 @@ ztest_spa_create_destroy(ztest_ds_t *zd, uint64_t id)
 	/*
 	 * Attempt to create using a bad file.
 	 */
-	nvroot = make_vdev_root("/dev/bogus", NULL, NULL, 0, 0, NULL, 0, 0, 1);
+	nvroot = make_vdev_root("/dev/bogus", NULL, NULL, 0, 0, NULL, 0, 0, 0);
 	VERIFY3U(ENOENT, ==,
 	    spa_create("ztest_bad_file", nvroot, NULL, NULL, NULL));
 	fnvlist_free(nvroot);
@@ -2955,7 +2943,7 @@ ztest_spa_create_destroy(ztest_ds_t *zd, uint64_t id)
 	/*
 	 * Attempt to create using a bad mirror.
 	 */
-	nvroot = make_vdev_root("/dev/bogus", NULL, NULL, 0, 0, NULL, 0, 2, 1);
+	nvroot = make_vdev_root("/dev/bogus", NULL, NULL, 0, 0, NULL, 0, 2, 0);
 	VERIFY3U(ENOENT, ==,
 	    spa_create("ztest_bad_mirror", nvroot, NULL, NULL, NULL));
 	fnvlist_free(nvroot);
@@ -2965,7 +2953,7 @@ ztest_spa_create_destroy(ztest_ds_t *zd, uint64_t id)
 	 * what's in the nvroot; we should fail with EEXIST.
 	 */
 	(void) pthread_rwlock_rdlock(&ztest_name_lock);
-	nvroot = make_vdev_root("/dev/bogus", NULL, NULL, 0, 0, NULL, 0, 0, 1);
+	nvroot = make_vdev_root("/dev/bogus", NULL, NULL, 0, 0, NULL, 0, 0, 0);
 	VERIFY3U(EEXIST, ==,
 	    spa_create(zo->zo_pool, nvroot, NULL, NULL, NULL));
 	fnvlist_free(nvroot);
@@ -3055,9 +3043,11 @@ ztest_spa_upgrade(ztest_ds_t *zd, uint64_t id)
 	if (ztest_opts.zo_mmp_test)
 		return;
 
+	/*
+	 * XXX not supported for draid
+	 */
 	/* dRAID added after feature flags, skip upgrade test. */
-	if (strcmp(ztest_opts.zo_raid_type, VDEV_TYPE_DRAID) == 0)
-		return;
+	return;
 
 	mutex_enter(&ztest_vdev_lock);
 	name = kmem_asprintf("%s_upgrade", ztest_opts.zo_pool);
@@ -3220,6 +3210,7 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 	if (ztest_opts.zo_mmp_test)
 		return;
 
+	/* XXX implement leaf selection */
 	mutex_enter(&ztest_vdev_lock);
 	leaves = MAX(zs->zs_mirrors + zs->zs_splits, 1) *
 	    ztest_opts.zo_raid_children;
@@ -3277,7 +3268,7 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 		nvroot = make_vdev_root(NULL, NULL, NULL,
 		    ztest_opts.zo_vdev_size, 0, (ztest_random(4) == 0) ?
 		    "log" : NULL, ztest_opts.zo_raid_children, zs->zs_mirrors,
-		    1);
+		    ztest_opts.zo_draid_children);
 
 		error = spa_vdev_add(spa, nvroot);
 		fnvlist_free(nvroot);
@@ -3331,6 +3322,7 @@ ztest_vdev_class_add(ztest_ds_t *zd, uint64_t id)
 		return;
 	}
 
+	/* XXX implement leaf selection */
 	leaves = MAX(zs->zs_mirrors + zs->zs_splits, 1) *
 	    ztest_opts.zo_raid_children;
 
@@ -3339,7 +3331,8 @@ ztest_vdev_class_add(ztest_ds_t *zd, uint64_t id)
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 
 	nvroot = make_vdev_root(NULL, NULL, NULL, ztest_opts.zo_vdev_size, 0,
-	    class, ztest_opts.zo_raid_children, zs->zs_mirrors, 1);
+	    class, ztest_opts.zo_raid_children, zs->zs_mirrors,
+	    ztest_opts.zo_draid_children);
 
 	error = spa_vdev_add(spa, nvroot);
 	fnvlist_free(nvroot);
@@ -3446,7 +3439,7 @@ ztest_vdev_aux_add_remove(ztest_ds_t *zd, uint64_t id)
 		 * Add a new device.
 		 */
 		nvlist_t *nvroot = make_vdev_root(NULL, aux, NULL,
-		    (ztest_opts.zo_vdev_size * 5) / 4, 0, NULL, 0, 0, 1);
+		    (ztest_opts.zo_vdev_size * 5) / 4, 0, NULL, 0, 0, 0);
 		error = spa_vdev_add(spa, nvroot);
 
 		switch (error) {
@@ -3503,6 +3496,7 @@ ztest_split_pool(ztest_ds_t *zd, uint64_t id)
 	if (ztest_opts.zo_mmp_test)
 		return;
 
+	/* XXX ztest_split_pool() require top level mirror vdev */
 	mutex_enter(&ztest_vdev_lock);
 
 	/* ensure we have a usable config; mirrors of raidz aren't supported */
@@ -3594,8 +3588,8 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	vdev_t *rvd = spa->spa_root_vdev;
 	vdev_t *oldvd, *newvd, *pvd;
 	nvlist_t *root;
-	uint64_t leaves;
-	uint64_t leaf, top;
+	uint64_t leaves = 1, leaves_mirror, leaves_raid, leaves_draid;
+	uint64_t leaf = 1, top;
 	uint64_t ashift = ztest_get_ashift();
 	uint64_t oldguid, pguid;
 	uint64_t oldsize, newsize;
@@ -3614,9 +3608,12 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	newpath = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
 
 	mutex_enter(&ztest_vdev_lock);
-	leaves = MAX(zs->zs_mirrors, 1) * ztest_opts.zo_raid_children;
-
 	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
+
+	/* XXX implement leaf selection */
+	leaves_mirror = ztest_opts.zo_mirrors;
+	leaves_raid = ztest_opts.zo_raid_children;
+	leaves_draid = ztest_opts.zo_draid_children;
 
 	/*
 	 * If a vdev is in the process of being removed, its removal may
@@ -3640,30 +3637,36 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	top = ztest_random_vdev_top(spa, B_TRUE);
 
 	/*
-	 * Pick a random leaf within it.
-	 */
-	leaf = ztest_random(leaves);
-
-	/*
 	 * Locate this vdev.
 	 */
 	oldvd = rvd->vdev_child[top];
 
-	/* pick a child from the mirror */
-	if (zs->zs_mirrors >= 1) {
+	if (strcmp(oldvd->vdev_ops->vdev_op_type, VDEV_TYPE_MIRROR) == 0) {
+		/* pick a child from the mirror */
+		leaf = ztest_random(leaves_mirror);
+		leaves = leaves_mirror;
+
 		ASSERT3P(oldvd->vdev_ops, ==, &vdev_mirror_ops);
 		ASSERT3U(oldvd->vdev_children, >=, zs->zs_mirrors);
-		oldvd = oldvd->vdev_child[leaf / ztest_opts.zo_raid_children];
-	}
+		oldvd = oldvd->vdev_child[leaf / leaves_mirror];
+	} else if (strcmp(oldvd->vdev_ops->vdev_op_type, VDEV_TYPE_RAIDZ) == 0 ||
+	    strcmp(oldvd->vdev_ops->vdev_op_type, VDEV_TYPE_DRAID) == 0) {
+		/* pick a child out of the raidz group */
+		if (strcmp(oldvd->vdev_ops->vdev_op_type, "raidz") == 0) {
+			leaf = ztest_random(leaves_raid);
+			leaves = leaves_raid;
 
-	/* pick a child out of the raidz group */
-	if (ztest_opts.zo_raid_children > 1) {
-		if (strcmp(oldvd->vdev_ops->vdev_op_type, "raidz") == 0)
 			ASSERT3P(oldvd->vdev_ops, ==, &vdev_raidz_ops);
-		else
+			ASSERT3U(oldvd->vdev_children, ==, leaves_raid);
+			oldvd = oldvd->vdev_child[leaf % leaves_raid];
+		} else {
+			leaf = ztest_random(leaves_draid);
+			leaves = leaves_draid;
+
 			ASSERT3P(oldvd->vdev_ops, ==, &vdev_draid_ops);
-		ASSERT3U(oldvd->vdev_children, ==, ztest_opts.zo_raid_children);
-		oldvd = oldvd->vdev_child[leaf % ztest_opts.zo_raid_children];
+			ASSERT3U(oldvd->vdev_children, ==, leaves_draid);
+			oldvd = oldvd->vdev_child[leaf % leaves_draid];
+		}
 	}
 
 	/*
@@ -3778,7 +3781,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	 * Build the nvlist describing newpath.
 	 */
 	root = make_vdev_root(newpath, NULL, NULL, newvd == NULL ? newsize : 0,
-	    ashift, NULL, 0, 0, 1);
+	    ashift, NULL, 0, 0, 0);
 
 	/*
 	 * When supported select either a healing or sequential resilver.
@@ -6044,6 +6047,7 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 		goto out;
 	}
 
+	/* XXX implement leaf selection */
 	maxfaults = MAXFAULTS(zs);
 	leaves = MAX(zs->zs_mirrors, 1) * ztest_opts.zo_raid_children;
 	mirror_save = zs->zs_mirrors;
@@ -7389,6 +7393,58 @@ ztest_import_impl(ztest_shared_t *zs)
 }
 
 /*
+ * XXX
+ * dump vdev tree structure periodically,
+ * remove it later
+ */
+static const char *
+vdev_ops(struct vdev *vd)
+{
+	if (vd->vdev_ops == &vdev_root_ops)
+		return "root";
+	else if (vd->vdev_ops == &vdev_mirror_ops)
+		return "mirror";
+	else if (vd->vdev_ops == &vdev_replacing_ops)
+		return "replacing";
+	else if (vd->vdev_ops == &vdev_raidz_ops)
+		return "raidz";
+	else if (vd->vdev_ops == &vdev_draid_ops)
+		return "draid";
+	else if (vd->vdev_ops == &vdev_draid_spare_ops)
+		return "draid_spare";
+	else if (vd->vdev_ops == &vdev_disk_ops)
+		return "disk";
+	else if (vd->vdev_ops == &vdev_file_ops)
+		return "file";
+	else if (vd->vdev_ops == &vdev_missing_ops)
+		return "missing";
+	else if (vd->vdev_ops == &vdev_hole_ops)
+		return "hole";
+	else if (vd->vdev_ops == &vdev_spare_ops)
+		return "spare";
+	else if (vd->vdev_ops == &vdev_indirect_ops)
+		return "indirect";
+
+	fatal(EINVAL, "Unknown vdev operation\n");
+
+	return NULL;
+}
+
+static void
+dump_vdev_tree(struct vdev* vd, int level)
+{
+	for (int i = 0; i < level; i++)
+		printf(".");
+
+	printf("lvl=%d => id=%lu,guid=%lx,ops=%s,psize=%ld,path=%s\n",
+	    level, vd->vdev_id, vd->vdev_guid,
+	    vdev_ops(vd), vd->vdev_psize, vd->vdev_path);
+
+	for (int i = 0; i < vd->vdev_children; i++)
+		dump_vdev_tree(vd->vdev_child[i], level + 1);
+}
+
+/*
  * Import a storage pool with the given name.
  */
 static void
@@ -7473,6 +7529,8 @@ ztest_run(ztest_shared_t *zs)
 		zs->zs_metaslab_sz =
 		    1ULL << spa->spa_root_vdev->vdev_child[0]->vdev_ms_shift;
 	}
+
+	dump_vdev_tree(spa->spa_root_vdev, 0);
 
 	metaslab_preload_limit = ztest_random(20) + 1;
 	ztest_spa = spa;
@@ -7717,7 +7775,8 @@ ztest_init(ztest_shared_t *zs)
 	zs->zs_splits = 0;
 	zs->zs_mirrors = ztest_opts.zo_mirrors;
 	nvroot = make_vdev_root(NULL, NULL, NULL, ztest_opts.zo_vdev_size, 0,
-	    NULL, ztest_opts.zo_raid_children, zs->zs_mirrors, 1);
+	    NULL, ztest_opts.zo_raid_children, zs->zs_mirrors,
+	    ztest_opts.zo_draid_children);
 	props = make_random_props();
 
 	/*
@@ -8065,12 +8124,11 @@ main(int argc, char **argv)
 
 	if (ztest_opts.zo_verbose >= 1) {
 		(void) printf("%"PRIu64" vdevs, %d datasets, %d threads,"
-		    "%d %s disks, %"PRIu64" seconds...\n\n",
+		    "%d disks, %"PRIu64" seconds...\n\n",
 		    ztest_opts.zo_vdevs,
 		    ztest_opts.zo_datasets,
 		    ztest_opts.zo_threads,
 		    ztest_opts.zo_raid_children,
-		    ztest_opts.zo_raid_type,
 		    ztest_opts.zo_time);
 	}
 
