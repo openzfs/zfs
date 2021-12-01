@@ -60,7 +60,7 @@ jobs:
         sudo rm -rf "$AGENT_TOOLSDIRECTORY"
     - name: Tests
       run: |
-        /usr/share/zfs/zfs-tests.sh -v -s 3G -r sanity
+        /usr/share/zfs/zfs-tests.sh -vR -s 3G -r sanity
     - name: Prepare artifacts
       if: failure()
       run: |
