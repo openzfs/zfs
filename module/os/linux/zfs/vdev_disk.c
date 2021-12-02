@@ -265,6 +265,11 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	 * a ENOENT failure at this point is highly likely to be transient
 	 * and it is reasonable to sleep and retry before giving up.  In
 	 * practice delays have been observed to be on the order of 100ms.
+	 *
+	 * When ERESTARTSYS is returned it indicates the block device is
+	 * a zvol which could not be opened due to the deadlock detection
+	 * logic in zvol_open().  Extend the timeout and retry the open
+	 * subsequent attempts are expected to eventually succeed.
 	 */
 	hrtime_t start = gethrtime();
 	bdev = ERR_PTR(-ENXIO);
@@ -273,6 +278,9 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 		    zfs_vdev_holder);
 		if (unlikely(PTR_ERR(bdev) == -ENOENT)) {
 			schedule_timeout(MSEC_TO_TICK(10));
+		} else if (unlikely(PTR_ERR(bdev) == -ERESTARTSYS)) {
+			timeout = MSEC2NSEC(zfs_vdev_open_timeout_ms * 10);
+			continue;
 		} else if (IS_ERR(bdev)) {
 			break;
 		}
