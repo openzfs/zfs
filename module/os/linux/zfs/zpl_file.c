@@ -251,9 +251,15 @@ zpl_uio_init(zfs_uio_t *uio, struct kiocb *kiocb, struct iov_iter *to,
 #if defined(HAVE_VFS_IOV_ITER)
 	zfs_uio_iov_iter_init(uio, to, pos, count, skip);
 #else
+#ifdef HAVE_IOV_ITER_TYPE
+	zfs_uio_iovec_init(uio, to->iov, to->nr_segs, pos,
+	    iov_iter_type(to) & ITER_KVEC ? UIO_SYSSPACE : UIO_USERSPACE,
+	    count, skip);
+#else
 	zfs_uio_iovec_init(uio, to->iov, to->nr_segs, pos,
 	    to->type & ITER_KVEC ? UIO_SYSSPACE : UIO_USERSPACE,
 	    count, skip);
+#endif
 #endif
 }
 
