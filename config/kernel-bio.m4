@@ -395,6 +395,33 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO_BDEV_DISK], [
 	])
 ])
 
+dnl #
+dnl # Linux 5.16 API
+dnl #
+dnl # The Linux 5.16 API for submit_bio changed the return type to be
+dnl # void instead of int
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_BDEV_SUBMIT_BIO_RETURNS_VOID], [
+	ZFS_LINUX_TEST_SRC([bio_bdev_submit_bio_void], [
+		#include <linux/blkdev.h>
+	],[
+		struct block_device_operations *bdev = NULL;
+		__attribute__((unused)) void(*f)(struct bio *) = bdev->submit_bio;
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_BDEV_SUBMIT_BIO_RETURNS_VOID], [
+	AC_MSG_CHECKING(
+		[whether block_device_operations->submit_bio() returns void])
+	ZFS_LINUX_TEST_RESULT([bio_bdev_submit_bio_void], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_BDEV_SUBMIT_BIO_RETURNS_VOID, 1,
+			[block_device_operations->submit_bio() returns void])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO], [
 	ZFS_AC_KERNEL_SRC_REQ
 	ZFS_AC_KERNEL_SRC_BIO_OPS
@@ -406,6 +433,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO], [
 	ZFS_AC_KERNEL_SRC_BIO_CURRENT_BIO_LIST
 	ZFS_AC_KERNEL_SRC_BLKG_TRYGET
 	ZFS_AC_KERNEL_SRC_BIO_BDEV_DISK
+	ZFS_AC_KERNEL_SRC_BDEV_SUBMIT_BIO_RETURNS_VOID
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BIO], [
@@ -428,4 +456,5 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO], [
 	ZFS_AC_KERNEL_BIO_CURRENT_BIO_LIST
 	ZFS_AC_KERNEL_BLKG_TRYGET
 	ZFS_AC_KERNEL_BIO_BDEV_DISK
+	ZFS_AC_KERNEL_BDEV_SUBMIT_BIO_RETURNS_VOID
 ])
