@@ -300,8 +300,13 @@ zvol_read(void *arg)
 }
 
 #ifdef HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS
+#ifdef HAVE_BDEV_SUBMIT_BIO_RETURNS_VOID
+static void
+zvol_submit_bio(struct bio *bio)
+#else
 static blk_qc_t
 zvol_submit_bio(struct bio *bio)
+#endif
 #else
 static MAKE_REQUEST_FN_RET
 zvol_request(struct request_queue *q, struct bio *bio)
@@ -444,8 +449,9 @@ zvol_request(struct request_queue *q, struct bio *bio)
 
 out:
 	spl_fstrans_unmark(cookie);
-#if defined(HAVE_MAKE_REQUEST_FN_RET_QC) || \
-	defined(HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS)
+#if (defined(HAVE_MAKE_REQUEST_FN_RET_QC) || \
+	defined(HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS)) && \
+	!defined(HAVE_BDEV_SUBMIT_BIO_RETURNS_VOID)
 	return (BLK_QC_T_NONE);
 #endif
 }
