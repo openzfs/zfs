@@ -191,6 +191,24 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO_SET_DEV], [
 	], [], [ZFS_META_LICENSE])
 ])
 
+dnl #
+dnl # Linux 5.16 API
+dnl #
+dnl # bio_set_dev is no longer a helper macro and is now an inline function,
+dnl # meaning that the function it calls internally can no longer be overridden
+dnl # by our code
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO_SET_DEV_MACRO], [
+	ZFS_LINUX_TEST_SRC([bio_set_dev_macro], [
+		#include <linux/bio.h>
+		#include <linux/fs.h>
+	],[
+		#ifndef bio_set_dev
+		#error Not a macro
+		#endif
+	], [], [ZFS_META_LICENSE])
+])
+
 AC_DEFUN([ZFS_AC_KERNEL_BIO_SET_DEV], [
 	AC_MSG_CHECKING([whether bio_set_dev() is available])
 	ZFS_LINUX_TEST_RESULT([bio_set_dev], [
@@ -204,6 +222,15 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO_SET_DEV], [
 			AC_MSG_RESULT(yes)
 			AC_DEFINE(HAVE_BIO_SET_DEV_GPL_ONLY, 1,
 			    [bio_set_dev() GPL-only])
+		])
+
+		AC_MSG_CHECKING([whether bio_set_dev() is a macro])
+		ZFS_LINUX_TEST_RESULT([bio_set_dev_macro], [
+			AC_MSG_RESULT(yes)
+			AC_DEFINE(HAVE_BIO_SET_DEV_MACRO, 1,
+			    [bio_set_dev() is a macro])
+		],[
+			AC_MSG_RESULT(no)
 		])
 	],[
 		AC_MSG_RESULT(no)
@@ -434,6 +461,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO], [
 	ZFS_AC_KERNEL_SRC_BLKG_TRYGET
 	ZFS_AC_KERNEL_SRC_BIO_BDEV_DISK
 	ZFS_AC_KERNEL_SRC_BDEV_SUBMIT_BIO_RETURNS_VOID
+	ZFS_AC_KERNEL_SRC_BIO_SET_DEV_MACRO
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BIO], [
