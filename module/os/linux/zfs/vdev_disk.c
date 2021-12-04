@@ -493,6 +493,7 @@ vdev_blkg_tryget(struct blkcg_gq *blkg)
 #elif defined(HAVE_BLKG_TRYGET)
 #define	vdev_blkg_tryget(bg)	blkg_tryget(bg)
 #endif
+#ifdef HAVE_BIO_SET_DEV_MACRO
 /*
  * The Linux 5.0 kernel updated the bio_set_dev() macro so it calls the
  * GPL-only bio_associate_blkg() symbol thus inadvertently converting
@@ -514,7 +515,30 @@ vdev_bio_associate_blkg(struct bio *bio)
 	if (q->root_blkg && vdev_blkg_tryget(q->root_blkg))
 		bio->bi_blkg = q->root_blkg;
 }
+
 #define	bio_associate_blkg vdev_bio_associate_blkg
+#else
+static inline void
+vdev_bio_set_dev(struct bio *bio, struct block_device *bdev)
+{
+#if defined(HAVE_BIO_BDEV_DISK)
+	struct request_queue *q = bdev->bd_disk->queue;
+#else
+	struct request_queue *q = bio->bi_disk->queue;
+#endif
+	bio_clear_flag(bio, BIO_REMAPPED);
+	if (bio->bi_bdev != bdev)
+		bio_clear_flag(bio, BIO_THROTTLED);
+	bio->bi_bdev = bdev;
+
+	ASSERT3P(q, !=, NULL);
+	ASSERT3P(bio->bi_blkg, ==, NULL);
+
+	if (q->root_blkg && vdev_blkg_tryget(q->root_blkg))
+		bio->bi_blkg = q->root_blkg;
+}
+#define	bio_set_dev		vdev_bio_set_dev
+#endif
 #endif
 #else
 /*
