@@ -406,6 +406,7 @@
 	zfs_ZSTD_insertAndFindFirstIndex_internal
 #define	ZSTD_insertBlock zfs_ZSTD_insertBlock
 #define	ZSTD_invalidateRepCodes zfs_ZSTD_invalidateRepCodes
+#define	ZSTD_isError zfs_ZSTD_isError
 #define	ZSTD_isFrame zfs_ZSTD_isFrame
 #define	ZSTD_ldm_adjustParameters zfs_ZSTD_ldm_adjustParameters
 #define	ZSTD_ldm_blockCompress zfs_ZSTD_ldm_blockCompress
