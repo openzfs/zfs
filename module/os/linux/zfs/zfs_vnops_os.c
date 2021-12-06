@@ -696,7 +696,7 @@ top:
 			 * Since, we failed to add the directory entry for it,
 			 * delete the newly created dnode.
 			 */
-			zfs_znode_delete(zp, tx);
+			zfs_znode_delete(zp, 0, tx);
 			remove_inode_hash(ZTOI(zp));
 			zfs_acl_ids_free(&acl_ids);
 			dmu_tx_commit(tx);
@@ -1297,7 +1297,7 @@ top:
 	 */
 	error = zfs_link_create(dl, zp, tx, ZNEW);
 	if (error != 0) {
-		zfs_znode_delete(zp, tx);
+		zfs_znode_delete(zp, 0, tx);
 		remove_inode_hash(ZTOI(zp));
 		goto out;
 	}
@@ -3144,7 +3144,7 @@ top:
 	 */
 	error = zfs_link_create(dl, zp, tx, ZNEW);
 	if (error != 0) {
-		zfs_znode_delete(zp, tx);
+		zfs_znode_delete(zp, 0, tx);
 		remove_inode_hash(ZTOI(zp));
 	} else {
 		if (flags & FIGNORECASE)

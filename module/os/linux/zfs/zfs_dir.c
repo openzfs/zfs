@@ -766,12 +766,7 @@ zfs_rmnode(znode_t *zp)
 
 	dataset_kstats_update_nunlinked_kstat(&zfsvfs->z_kstat, 1);
 
-	zfs_znode_delete(zp, tx);
-	/*
-	 * zfs_znode_delete does zfs_znode_dmu_fini internally.
-	 * We use a return value of zero to indicate this to the caller,
-	 * which does the zfs_znode_dmu_fini for the error case.
-	 */
+	zfs_znode_delete(zp, ZFS_ZNODE_DELETE_NO_DMU_FINI, tx);
 	error = 0;
 
 	dmu_tx_commit(tx);

@@ -251,7 +251,11 @@ extern int	zfs_znode_hold_compare(const void *, const void *);
 extern int	zfs_zget(zfsvfs_t *, uint64_t, znode_t **);
 extern int	zfs_rezget(znode_t *);
 extern void	zfs_zinactive(znode_t *);
-extern void	zfs_znode_delete(znode_t *, dmu_tx_t *);
+enum {
+	ZFS_ZNODE_DELETE_NO_DMU_FINI = 1 << 0,
+	ZFS_ZNODE_DELETE_ALL_VALID_FLAGS = ZFS_ZNODE_DELETE_NO_DMU_FINI,
+};
+extern void	zfs_znode_delete(znode_t *, int, dmu_tx_t *);
 extern void	zfs_remove_op_tables(void);
 extern int	zfs_create_op_tables(void);
 extern dev_t	zfs_cmpldev(uint64_t);

@@ -1306,8 +1306,10 @@ zfs_rezget(znode_t *zp)
 }
 
 void
-zfs_znode_delete(znode_t *zp, dmu_tx_t *tx)
+zfs_znode_delete(znode_t *zp, int flags, dmu_tx_t *tx)
 {
+	ASSERT0(flags & (~ZFS_ZNODE_DELETE_ALL_VALID_FLAGS));
+
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
 	objset_t *os = zfsvfs->z_os;
 	uint64_t obj = zp->z_id;
@@ -1385,17 +1387,17 @@ zfs_zinactive(znode_t *zp)
 
 	/*
 	 * zfs_rmnode will invoke operations that call zfs_zget(), so,
-	 * drop the mutex and the hold now.
+	 * drop the hold for the duration of the call.
+	 *
+	 * NB: Until we aquire the hold again, we are racing with zfs_zget().
+	 *     Calls to zfs_zget() can still happen, despite the file being
+	 *     unreachable from userspace. Possible callers (non-exhaustive!):
+	 *     - zfs_get_data (i.e., the ZIL)
+	 *     - knfsd and friends, via zpl_fh_to_dentry (grep zfid_.*_t)
 	 */
 	zfs_znode_hold_exit(zfsvfs, zh);
-	/*
-	 * Until we aquire the hold again, we are racing with zfs_zget() now.
-	 * Note that zfs_zget can still happen, despite the file being
-	 * unreachable from userspace. Possible callers (non-exhaustive!):
-	 * - zfs_get_data (i.e., the ZIL)
-	 * - knfsd and friends, via zpl_fh_to_dentry (grep zfid_.*_t)
-	 */
 	err = zfs_rmnode(zp);
+	zh = zfs_znode_hold_enter(zfsvfs, z_id);
 	if (unlikely(err != 0)) {
 		char osname[ZFS_MAX_DATASET_NAME_LEN];
 		dmu_objset_name(zfsvfs->z_os, osname);
@@ -1404,26 +1406,20 @@ zfs_zinactive(znode_t *zp)
 		    osname, err, z_id);
 		zh = zfs_znode_hold_enter(zfsvfs, z_id);
 		goto out_dmu_fini;
-	} else {
-		/*
-		 * zfs_rmnode does dmu_fini internally, in zfs_delete_znode,
-		 * and zfs_delete_znode protects it with the znode hold.
-		 * No need to hold again here.
-		 */
-		goto out_exit;
 	}
 
 out_dmu_fini:
 	/*
-	 * We must hold the znode when calling zfs_znode_dmu_fini.
+	 * We must be holding the znode when calling zfs_znode_dmu_fini.
 	 * Otherwise, concurrent zfs_zget()'s can data-race, resulting in
-	 * use-after-free within zfs_zget(). The scenario is that another thread
-	 * executes zfs_zget(), which uses sa_get_user_data() to get the same
-	 * zp as the one in this function. Now, if that thread is interrupted
-	 * after it has read zp, and then current runs this function to
-	 * completion, and also reaches the end of zpl_inode_destroy, then
-	 * the memory behind zp has been freed and the racing zfs_zget thread
-	 * will do a use-after-free of that memory (its zp is dangling).
+	 * a use-after-free of the znode memory within zfs_zget().
+	 * The scenario is that another thread executes zfs_zget() up to the
+	 * point where it gets a pointer to the same memory as this function
+	 * (from sa_get_user_data()). Now, if that thread is interrupted
+	 * after it got the pointer, and then current runs this here function to
+	 * completion as well as zpl_inode_destroy, then the memory pointed to
+	 * by zp has been freed and the racing zfs_zget thread will do a
+	 * use-after-free of that memory because its zp is a dangling pointer.
 	 * NB: the Linux VFS returns NULL for igrab(), and zfs_zget() retries
 	 *     in that case, but since the struct inode is embedded in znode_t,
 	 *     it's still a user-after free.
@@ -1432,10 +1428,6 @@ out_dmu_fini:
 	zfs_znode_dmu_fini(zp);
 
 	zfs_znode_hold_exit(zfsvfs, zh);
-
-out_exit:
-	/* XXX: verify that zfs_znode_dmu_fini was called */
-	(void) 0;
 }
 
 #if defined(HAVE_INODE_TIMESPEC64_TIMES)
