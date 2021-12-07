@@ -1707,7 +1707,7 @@ vdev_draid_spare_create(nvlist_t *nvroot, vdev_t *vd, uint64_t *ndraidp,
 	if (n > 0) {
 		(void) nvlist_remove_all(nvroot, ZPOOL_CONFIG_SPARES);
 		fnvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_SPARES,
-		    new_spares, n);
+		    (const nvlist_t **)new_spares, n);
 	}
 
 	for (int i = 0; i < n; i++)

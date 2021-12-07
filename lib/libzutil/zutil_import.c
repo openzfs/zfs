@@ -749,7 +749,7 @@ get_configs(libpc_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 		    nvlist_add_uint64(nvroot, ZPOOL_CONFIG_ID, 0ULL) != 0 ||
 		    nvlist_add_uint64(nvroot, ZPOOL_CONFIG_GUID, guid) != 0 ||
 		    nvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
-		    child, children) != 0) {
+		    (const nvlist_t **)child, children) != 0) {
 			nvlist_free(nvroot);
 			goto nomem;
 		}

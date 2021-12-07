@@ -702,7 +702,7 @@ i_fm_payload_set(nvlist_t *payload, const char *name, va_list ap)
 		case DATA_TYPE_STRING_ARRAY:
 			nelem = va_arg(ap, int);
 			ret = nvlist_add_string_array(payload, name,
-			    va_arg(ap, char **), nelem);
+			    va_arg(ap, const char **), nelem);
 			break;
 		case DATA_TYPE_NVLIST:
 			ret = nvlist_add_nvlist(payload, name,
@@ -711,7 +711,7 @@ i_fm_payload_set(nvlist_t *payload, const char *name, va_list ap)
 		case DATA_TYPE_NVLIST_ARRAY:
 			nelem = va_arg(ap, int);
 			ret = nvlist_add_nvlist_array(payload, name,
-			    va_arg(ap, nvlist_t **), nelem);
+			    va_arg(ap, const nvlist_t **), nelem);
 			break;
 		default:
 			ret = EINVAL;
@@ -867,8 +867,10 @@ fm_fmri_hc_set(nvlist_t *fmri, int version, const nvlist_t *auth,
 	}
 	va_end(ap);
 
-	if (nvlist_add_nvlist_array(fmri, FM_FMRI_HC_LIST, pairs, npairs) != 0)
+	if (nvlist_add_nvlist_array(fmri, FM_FMRI_HC_LIST,
+	    (const nvlist_t **)pairs, npairs) != 0) {
 		atomic_inc_64(&erpt_kstat_data.fmri_set_failed.value.ui64);
+	}
 
 	for (i = 0; i < npairs; i++)
 		fm_nvlist_destroy(pairs[i], FM_NVA_RETAIN);
@@ -961,8 +963,8 @@ fm_fmri_hc_create(nvlist_t *fmri, int version, const nvlist_t *auth,
 	/*
 	 * Create the fmri hc list
 	 */
-	if (nvlist_add_nvlist_array(fmri, FM_FMRI_HC_LIST, pairs,
-	    npairs + n) != 0) {
+	if (nvlist_add_nvlist_array(fmri, FM_FMRI_HC_LIST,
+	    (const nvlist_t **)pairs, npairs + n) != 0) {
 		atomic_inc_64(&erpt_kstat_data.fmri_set_failed.value.ui64);
 		return;
 	}
@@ -1128,7 +1130,7 @@ fm_fmri_mem_set(nvlist_t *fmri, int version, const nvlist_t *auth,
 
 	if (serial != NULL) {
 		if (nvlist_add_string_array(fmri, FM_FMRI_MEM_SERIAL_ID,
-		    (char **)&serial, 1) != 0) {
+		    (const char **)&serial, 1) != 0) {
 			atomic_inc_64(
 			    &erpt_kstat_data.fmri_set_failed.value.ui64);
 		}

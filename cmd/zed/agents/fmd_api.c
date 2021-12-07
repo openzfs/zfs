@@ -428,7 +428,8 @@ fmd_case_add_suspect(fmd_hdl_t *hdl, fmd_case_t *cp, nvlist_t *fault)
 	err |= nvlist_add_string(nvl, FM_SUSPECT_DIAG_CODE, code);
 	err |= nvlist_add_int64_array(nvl, FM_SUSPECT_DIAG_TIME, tod, 2);
 	err |= nvlist_add_uint32(nvl, FM_SUSPECT_FAULT_SZ, 1);
-	err |= nvlist_add_nvlist_array(nvl, FM_SUSPECT_FAULT_LIST, &fault, 1);
+	err |= nvlist_add_nvlist_array(nvl, FM_SUSPECT_FAULT_LIST,
+	    (const nvlist_t **)&fault, 1);
 
 	if (err)
 		zed_log_die("failed to populate nvlist");

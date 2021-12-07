@@ -669,7 +669,7 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 
 		if (idx) {
 			fnvlist_add_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
-			    child, idx);
+			    (const nvlist_t * const *)child, idx);
 		}
 
 		for (c = 0; c < idx; c++)

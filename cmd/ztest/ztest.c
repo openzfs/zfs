@@ -1287,7 +1287,8 @@ make_vdev_raid(char *path, char *aux, char *pool, size_t size,
 	    ztest_opts.zo_raid_type);
 	fnvlist_add_uint64(raid, ZPOOL_CONFIG_NPARITY,
 	    ztest_opts.zo_raid_parity);
-	fnvlist_add_nvlist_array(raid, ZPOOL_CONFIG_CHILDREN, child, r);
+	fnvlist_add_nvlist_array(raid, ZPOOL_CONFIG_CHILDREN,
+	    (const nvlist_t **)child, r);
 
 	if (strcmp(ztest_opts.zo_raid_type, VDEV_TYPE_DRAID) == 0) {
 		uint64_t ndata = ztest_opts.zo_draid_data;
@@ -1335,7 +1336,8 @@ make_vdev_mirror(char *path, char *aux, char *pool, size_t size,
 
 	mirror = fnvlist_alloc();
 	fnvlist_add_string(mirror, ZPOOL_CONFIG_TYPE, VDEV_TYPE_MIRROR);
-	fnvlist_add_nvlist_array(mirror, ZPOOL_CONFIG_CHILDREN, child, m);
+	fnvlist_add_nvlist_array(mirror, ZPOOL_CONFIG_CHILDREN,
+	    (const nvlist_t **)child, m);
 
 	for (c = 0; c < m; c++)
 		fnvlist_free(child[c]);
@@ -1374,7 +1376,7 @@ make_vdev_root(char *path, char *aux, char *pool, size_t size, uint64_t ashift,
 	root = fnvlist_alloc();
 	fnvlist_add_string(root, ZPOOL_CONFIG_TYPE, VDEV_TYPE_ROOT);
 	fnvlist_add_nvlist_array(root, aux ? aux : ZPOOL_CONFIG_CHILDREN,
-	    child, t);
+	    (const nvlist_t **)child, t);
 
 	for (c = 0; c < t; c++)
 		fnvlist_free(child[c]);
@@ -3550,8 +3552,8 @@ ztest_split_pool(ztest_ds_t *zd, uint64_t id)
 	/* OK, create a config that can be used to split */
 	split = fnvlist_alloc();
 	fnvlist_add_string(split, ZPOOL_CONFIG_TYPE, VDEV_TYPE_ROOT);
-	fnvlist_add_nvlist_array(split, ZPOOL_CONFIG_CHILDREN, schild,
-	    lastlogid != 0 ? lastlogid : schildren);
+	fnvlist_add_nvlist_array(split, ZPOOL_CONFIG_CHILDREN,
+	    (const nvlist_t **)schild, lastlogid != 0 ? lastlogid : schildren);
 
 	config = fnvlist_alloc();
 	fnvlist_add_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, split);
