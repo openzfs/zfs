@@ -232,7 +232,7 @@ run_tests(void)
 	}
 	{
 		char *const val[2] = { "0", "1" };
-		fnvlist_add_string_array(nvl, key, val, 2);
+		fnvlist_add_string_array(nvl, key, (const char **)val, 2);
 		test("string_array", B_TRUE, B_FALSE);
 	}
 	{
@@ -241,7 +241,7 @@ run_tests(void)
 		fnvlist_add_string(val[0], "subkey", "subvalue");
 		val[1] = fnvlist_alloc();
 		fnvlist_add_string(val[1], "subkey2", "subvalue2");
-		fnvlist_add_nvlist_array(nvl, key, val, 2);
+		fnvlist_add_nvlist_array(nvl, key, (const nvlist_t **)val, 2);
 		fnvlist_free(val[0]);
 		fnvlist_free(val[1]);
 		test("nvlist_array", B_FALSE, B_FALSE);

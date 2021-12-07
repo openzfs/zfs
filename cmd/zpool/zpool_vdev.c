@@ -1647,8 +1647,8 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 					}
 				}
 				verify(nvlist_add_nvlist_array(nv,
-				    ZPOOL_CONFIG_CHILDREN, child,
-				    children) == 0);
+				    ZPOOL_CONFIG_CHILDREN,
+				    (const nvlist_t **)child, children) == 0);
 
 				for (c = 0; c < children; c++)
 					nvlist_free(child[c]);
@@ -1713,13 +1713,13 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 	verify(nvlist_add_string(nvroot, ZPOOL_CONFIG_TYPE,
 	    VDEV_TYPE_ROOT) == 0);
 	verify(nvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
-	    top, toplevels) == 0);
+	    (const nvlist_t **)top, toplevels) == 0);
 	if (nspares != 0)
 		verify(nvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_SPARES,
-		    spares, nspares) == 0);
+		    (const nvlist_t **)spares, nspares) == 0);
 	if (nl2cache != 0)
 		verify(nvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_L2CACHE,
-		    l2cache, nl2cache) == 0);
+		    (const nvlist_t **)l2cache, nl2cache) == 0);
 
 spec_out:
 	for (t = 0; t < toplevels; t++)

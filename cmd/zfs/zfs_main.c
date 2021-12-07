@@ -8010,7 +8010,8 @@ zfs_do_channel_program(int argc, char **argv)
 	 * }
 	 */
 	nvlist_t *argnvl = fnvlist_alloc();
-	fnvlist_add_string_array(argnvl, ZCP_ARG_CLIARGV, argv + 2, argc - 2);
+	fnvlist_add_string_array(argnvl, ZCP_ARG_CLIARGV,
+	    (const char **)argv + 2, argc - 2);
 
 	if (sync_flag) {
 		ret = lzc_channel_program(poolname, progbuf,

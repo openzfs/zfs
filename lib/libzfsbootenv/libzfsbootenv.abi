@@ -5,6 +5,8 @@
     <dependency name='libc.so.6'/>
   </elf-needed>
   <elf-function-symbols>
+    <elf-symbol name='_fini' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='_init' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzbe_add_pair' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzbe_bootenv_print' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzbe_get_boot_device' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -18,7 +20,6 @@
     <type-decl name='char' size-in-bits='8' id='a84c031d'/>
     <type-decl name='int' size-in-bits='32' id='95e97e5e'/>
     <type-decl name='unnamed-enum-underlying-type-32' is-anonymous='yes' size-in-bits='32' alignment-in-bits='32' id='9cac1fee'/>
-    <type-decl name='void' id='48b5725f'/>
     <enum-decl name='lzbe_flags' id='2b77720b'>
       <underlying-type type-id='9cac1fee'/>
       <enumerator name='lzbe_add' value='0'/>
@@ -83,16 +84,21 @@
     <array-type-def dimensions='1' type-id='a84c031d' size-in-bits='160' id='664ac0b7'>
       <subrange length='20' type-id='7359adad' id='fdca39cf'/>
     </array-type-def>
-    <class-decl name='_IO_codecvt' is-struct='yes' visibility='default' is-declaration-only='yes' id='a4036571'/>
-    <class-decl name='_IO_marker' is-struct='yes' visibility='default' is-declaration-only='yes' id='010ae0b9'/>
-    <class-decl name='_IO_wide_data' is-struct='yes' visibility='default' is-declaration-only='yes' id='79bd3751'/>
     <type-decl name='long int' size-in-bits='64' id='bd54fe1a'/>
     <type-decl name='signed char' size-in-bits='8' id='28577a57'/>
     <type-decl name='unsigned short int' size-in-bits='16' id='8efea9e5'/>
-    <typedef-decl name='__off_t' type-id='bd54fe1a' id='79989e9c'/>
-    <typedef-decl name='__off64_t' type-id='bd54fe1a' id='724e4de6'/>
-    <typedef-decl name='FILE' type-id='ec1ed955' id='aa12d1ba'/>
     <typedef-decl name='_IO_lock_t' type-id='48b5725f' id='bb4788fa'/>
+    <class-decl name='_IO_marker' size-in-bits='192' is-struct='yes' visibility='default' id='010ae0b9'>
+      <data-member access='public' layout-offset-in-bits='0'>
+        <var-decl name='_next' type-id='e4c6fa61' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='64'>
+        <var-decl name='_sbuf' type-id='dca988a5' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='128'>
+        <var-decl name='_pos' type-id='95e97e5e' visibility='default'/>
+      </data-member>
+    </class-decl>
     <class-decl name='_IO_FILE' size-in-bits='1728' is-struct='yes' visibility='default' id='ec1ed955'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='_flags' type-id='95e97e5e' visibility='default'/>
@@ -161,16 +167,16 @@
         <var-decl name='_offset' type-id='724e4de6' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1216'>
-        <var-decl name='_codecvt' type-id='570f8c59' visibility='default'/>
+        <var-decl name='__pad1' type-id='eaa32e2f' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1280'>
-        <var-decl name='_wide_data' type-id='c65a1f29' visibility='default'/>
+        <var-decl name='__pad2' type-id='eaa32e2f' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1344'>
-        <var-decl name='_freeres_list' type-id='dca988a5' visibility='default'/>
+        <var-decl name='__pad3' type-id='eaa32e2f' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1408'>
-        <var-decl name='_freeres_buf' type-id='eaa32e2f' visibility='default'/>
+        <var-decl name='__pad4' type-id='eaa32e2f' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1472'>
         <var-decl name='__pad5' type-id='b59d7dce' visibility='default'/>
@@ -182,20 +188,19 @@
         <var-decl name='_unused2' type-id='664ac0b7' visibility='default'/>
       </data-member>
     </class-decl>
+    <typedef-decl name='__off_t' type-id='bd54fe1a' id='79989e9c'/>
+    <typedef-decl name='__off64_t' type-id='bd54fe1a' id='724e4de6'/>
+    <typedef-decl name='FILE' type-id='ec1ed955' id='aa12d1ba'/>
     <pointer-type-def type-id='aa12d1ba' size-in-bits='64' id='822cd80b'/>
     <pointer-type-def type-id='ec1ed955' size-in-bits='64' id='dca988a5'/>
-    <pointer-type-def type-id='a4036571' size-in-bits='64' id='570f8c59'/>
     <pointer-type-def type-id='bb4788fa' size-in-bits='64' id='cecf4ea7'/>
     <pointer-type-def type-id='010ae0b9' size-in-bits='64' id='e4c6fa61'/>
-    <pointer-type-def type-id='79bd3751' size-in-bits='64' id='c65a1f29'/>
-    <class-decl name='_IO_codecvt' is-struct='yes' visibility='default' is-declaration-only='yes' id='a4036571'/>
-    <class-decl name='_IO_marker' is-struct='yes' visibility='default' is-declaration-only='yes' id='010ae0b9'/>
-    <class-decl name='_IO_wide_data' is-struct='yes' visibility='default' is-declaration-only='yes' id='79bd3751'/>
     <function-decl name='lzbe_bootenv_print' mangled-name='lzbe_bootenv_print' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_bootenv_print'>
       <parameter type-id='80f4b756' name='pool'/>
       <parameter type-id='80f4b756' name='nvlist'/>
       <parameter type-id='822cd80b' name='of'/>
       <return type-id='95e97e5e'/>
     </function-decl>
+    <type-decl name='void' id='48b5725f'/>
   </abi-instr>
 </abi-corpus>

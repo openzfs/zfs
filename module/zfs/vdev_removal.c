@@ -353,7 +353,8 @@ spa_vdev_remove_aux(nvlist_t *config, char *name, nvlist_t **dev, int count,
 	}
 
 	VERIFY(nvlist_remove(config, name, DATA_TYPE_NVLIST_ARRAY) == 0);
-	VERIFY(nvlist_add_nvlist_array(config, name, newdev, count - 1) == 0);
+	fnvlist_add_nvlist_array(config, name, (const nvlist_t * const *)newdev,
+	    count - 1);
 
 	for (int i = 0; i < count - 1; i++)
 		nvlist_free(newdev[i]);
