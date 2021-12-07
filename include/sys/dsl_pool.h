@@ -64,6 +64,8 @@ extern int zfs_dirty_data_max_percent;
 extern int zfs_dirty_data_max_max_percent;
 extern int zfs_delay_min_dirty_percent;
 extern unsigned long zfs_delay_scale;
+extern unsigned long zfs_smoothing_scale;
+extern unsigned long zfs_smoothing_write;
 
 /* These macros are for indexing into the zfs_all_blkstats_t. */
 #define	DMU_OT_DEFERRED	DMU_OT_NONE
@@ -115,6 +117,7 @@ typedef struct dsl_pool {
 	kcondvar_t dp_spaceavail_cv;
 	uint64_t dp_dirty_pertxg[TXG_SIZE];
 	uint64_t dp_dirty_total;
+	hrtime_t dp_last_smooth;
 	uint64_t dp_long_free_dirty_pertxg[TXG_SIZE];
 	uint64_t dp_mos_used_delta;
 	uint64_t dp_mos_compressed_delta;

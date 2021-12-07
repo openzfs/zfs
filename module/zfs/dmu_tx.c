@@ -776,14 +776,16 @@ static const hrtime_t zfs_delay_max_ns = 100 * MICROSEC; /* 100 milliseconds */
  * of zfs_delay_scale to increase the steepness of the curve.
  */
 static void
-dmu_tx_delay(dmu_tx_t *tx, uint64_t dirty)
+dmu_tx_delay(dmu_tx_t *tx, uint64_t dirty, hrtime_t last_smooth)
 {
 	dsl_pool_t *dp = tx->tx_pool;
 	uint64_t delay_min_bytes =
 	    zfs_dirty_data_max * zfs_delay_min_dirty_percent / 100;
-	hrtime_t wakeup, min_tx_time, now;
+	hrtime_t wakeup, min_tx_time, now, smoothing_time, delay_time;
 
-	if (dirty <= delay_min_bytes)
+	now = gethrtime();
+
+	if (dirty <= delay_min_bytes && last_smooth <= now)
 		return;
 
 	/*
@@ -794,11 +796,20 @@ dmu_tx_delay(dmu_tx_t *tx, uint64_t dirty)
 	 */
 	ASSERT3U(dirty, <, zfs_dirty_data_max);
 
-	now = gethrtime();
-	min_tx_time = zfs_delay_scale *
-	    (dirty - delay_min_bytes) / (zfs_dirty_data_max - dirty);
-	min_tx_time = MIN(min_tx_time, zfs_delay_max_ns);
-	if (now > tx->tx_start + min_tx_time)
+	smoothing_time = 0;
+	delay_time = 0;
+
+	if (dirty > delay_min_bytes) {
+		delay_time = zfs_delay_scale *
+		    (dirty - delay_min_bytes) / (zfs_dirty_data_max - dirty);
+	}
+	if (last_smooth > now) {
+		smoothing_time = zfs_smoothing_scale * dirty /
+		    (zfs_dirty_data_max - dirty);
+	}
+
+	min_tx_time = MIN(MAX(smoothing_time, delay_time), zfs_delay_max_ns);
+	if (zfs_smoothing_write == 0 && now > tx->tx_start + min_tx_time)
 		return;
 
 	DTRACE_PROBE3(delay__mintime, dmu_tx_t *, tx, uint64_t, dirty,
@@ -808,6 +819,9 @@ dmu_tx_delay(dmu_tx_t *tx, uint64_t dirty)
 	wakeup = MAX(tx->tx_start + min_tx_time,
 	    dp->dp_last_wakeup + min_tx_time);
 	dp->dp_last_wakeup = wakeup;
+	if (dirty > delay_min_bytes) {
+		dp->dp_last_smooth = now + zfs_smoothing_write * NANOSEC;
+	}
 	mutex_exit(&dp->dp_lock);
 
 	zfs_sleep_until(wakeup);
@@ -1069,7 +1083,7 @@ dmu_tx_wait(dmu_tx_t *tx)
 {
 	spa_t *spa = tx->tx_pool->dp_spa;
 	dsl_pool_t *dp = tx->tx_pool;
-	hrtime_t before;
+	hrtime_t before, last_smooth;
 
 	ASSERT(tx->tx_txg == 0);
 	ASSERT(!dsl_pool_config_held(tx->tx_pool));
@@ -1089,10 +1103,11 @@ dmu_tx_wait(dmu_tx_t *tx)
 			DMU_TX_STAT_BUMP(dmu_tx_dirty_over_max);
 		while (dp->dp_dirty_total >= zfs_dirty_data_max)
 			cv_wait(&dp->dp_spaceavail_cv, &dp->dp_lock);
+		last_smooth = dp->dp_last_smooth;
 		dirty = dp->dp_dirty_total;
 		mutex_exit(&dp->dp_lock);
 
-		dmu_tx_delay(tx, dirty);
+		dmu_tx_delay(tx, dirty, last_smooth);
 
 		tx->tx_wait_dirty = B_FALSE;
 

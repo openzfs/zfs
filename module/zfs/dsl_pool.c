@@ -103,6 +103,7 @@ unsigned long zfs_dirty_data_max = 0;
 unsigned long zfs_dirty_data_max_max = 0;
 int zfs_dirty_data_max_percent = 10;
 int zfs_dirty_data_max_max_percent = 25;
+unsigned long zfs_smoothing_write = 0;
 
 /*
  * zfs_wrlog_data_max, the upper limit of TX_WRITE log data.
@@ -140,6 +141,7 @@ int zfs_delay_min_dirty_percent = 60;
  * multiply in dmu_tx_delay().
  */
 unsigned long zfs_delay_scale = 1000 * 1000 * 1000 / 2000;
+unsigned long zfs_smoothing_scale = 100000;
 
 /*
  * This determines the number of threads used by the dp_sync_taskq.
@@ -958,9 +960,10 @@ dsl_pool_need_dirty_delay(dsl_pool_t *dp)
 
 	mutex_enter(&dp->dp_lock);
 	uint64_t dirty = dp->dp_dirty_total;
+	hrtime_t last_delay = dp->dp_last_smooth;
 	mutex_exit(&dp->dp_lock);
 
-	return (dirty > delay_min_bytes);
+	return (dirty > delay_min_bytes || last_delay > gethrtime());
 }
 
 static boolean_t
@@ -1462,6 +1465,9 @@ ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_max, ULONG, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, wrlog_data_max, ULONG, ZMOD_RW,
 	"The size limit of write-transaction zil log data");
 
+ZFS_MODULE_PARAM(zfs, zfs_, smoothing_write, ULONG, ZMOD_RW,
+	"How long should we smooth write after last delay (sec)");
+
 /* zfs_dirty_data_max_max only applied at module load in arc_init(). */
 ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_max_max, ULONG, ZMOD_RD,
 	"zfs_dirty_data_max upper bound in bytes");
@@ -1471,6 +1477,9 @@ ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_sync_percent, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, delay_scale, ULONG, ZMOD_RW,
 	"How quickly delay approaches infinity");
+
+ZFS_MODULE_PARAM(zfs, zfs_, smoothing_scale, ULONG, ZMOD_RW,
+	"Delay smoothing scale");
 
 ZFS_MODULE_PARAM(zfs, zfs_, sync_taskq_batch_pct, INT, ZMOD_RW,
 	"Max percent of CPUs that are used to sync dirty data");

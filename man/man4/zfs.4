@@ -15,7 +15,7 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.Dd June 1, 2021
+.Dd January 8, 2021
 .Dt ZFS 4
 .Os
 .
@@ -943,6 +943,21 @@ This will smoothly handle between ten times and a tenth of this number.
 .No See Sx ZFS TRANSACTION DELAY .
 .Pp
 .Sy zfs_delay_scale No \(mu Sy zfs_dirty_data_max Em must No be smaller than Sy 2^64 .
+.
+.It Sy zfs_smoothing_write Ns = Ns Sy 0 Ns s Pq ulong
+This controls for how many seconds smoothing should be applied.
+The smoothing mechanism is used to add additional transaction delays
+after the amount of dirty data drops below
+.Sy zfs_delay_min_dirty_percent .
+This mechanism may be used to avoid stalls and uneven performance during
+heavy write workloads
+.
+.It Sy zfs_smoothing_scale Ns = Ns Sy 100000 Pq int
+Similar to
+.Sy zfs_delay_scale ,
+but for write smoothing.
+This variable controls the scale of smoothing curve.
+Larger values cause longer delays for a given amount of dirty data.
 .
 .It Sy zfs_disable_ivset_guid_check Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Disables requirement for IVset GUIDs to be present and match when doing a raw
