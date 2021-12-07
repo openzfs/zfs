@@ -128,3 +128,14 @@ function is_zvol_dumpified
 
 	zdb -dddd $volume 2 | grep -q "dumpsize"
 }
+
+# enable/disable blk-mq (if available)
+#
+# $1: 1 = enable, 0 = disable
+function set_blk_mq
+{
+	# Not all kernels support blk-mq
+	if tunable_exists VOL_USE_BLK_MQ ; then
+		log_must set_tunable32 VOL_USE_BLK_MQ $1
+	fi
+}
