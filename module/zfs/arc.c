@@ -2063,7 +2063,6 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 	} else {
 		ASSERT(hdr_compressed);
 		ASSERT(!compressed);
-		ASSERT3U(HDR_GET_LSIZE(hdr), !=, HDR_GET_PSIZE(hdr));
 
 		/*
 		 * If the buf is sharing its data with the hdr, unlink it and
