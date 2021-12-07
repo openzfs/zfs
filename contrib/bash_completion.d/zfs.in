@@ -69,7 +69,7 @@ __zfs_match_snapshot()
     else
         if [ "$cur" != "" ] && __zfs_list_datasets "$cur" &> /dev/null
         then
-            $__ZFS_CMD list -H -o name -s name -t filesystem -r "$cur" | tail -n +2
+            $__ZFS_CMD list -H -o name -s name -t filesystem,volume -r "$cur" | tail -n +2
             # We output the base dataset name even though we might be
             # completing a command that can only take a snapshot, because it
             # prevents bash from considering the completion finished when it
