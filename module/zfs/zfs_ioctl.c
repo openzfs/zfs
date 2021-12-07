@@ -7544,7 +7544,12 @@ zfsdev_state_init(void *priv)
 
 	ASSERT(MUTEX_HELD(&zfsdev_state_lock));
 
+#if defined(_WIN32) && defined(_KERNEL)
+	minor = minor((dev_t)priv);
+#else
 	minor = zfsdev_minor_alloc();
+#endif
+
 	if (minor == 0)
 		return (SET_ERROR(ENXIO));
 
