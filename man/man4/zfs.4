@@ -2207,9 +2207,55 @@ for each I/O submitter.
 When unset, requests are handled asynchronously by a thread pool.
 The number of requests which can be handled concurrently is controlled by
 .Sy zvol_threads .
+.Sy zvol_request_sync
+is ignored when running on a kernel that supports block multiqueue
+.Pq Li blk-mq .
 .
-.It Sy zvol_threads Ns = Ns Sy 32 Pq uint
-Max number of threads which can handle zvol I/O requests concurrently.
+.It Sy zvol_threads Ns = Ns Sy 0 Pq uint
+The number of threads to use for processing zvol block IOs.
+On older
+.No non- Ns Li blk-mq
+kernels,
+.Sy zvol_threads
+is the total number of threads to use for all zvols.
+On kernels that support
+.Li blk-mq
+.Sy zvol_threads
+is the total number of threads per zvol.
+If
+.Sy 0
+(the default) then internally set
+.Sy zvol_threads
+to the number of CPUs present.
+.It Sy zvol_use_blk_mq Ns = Ns Sy 0 Ns | Ns 1 Pq uint
+Set to
+.Sy 1
+to use the
+.Li blk-mq
+API for zvols.
+Set to
+.Sy 0
+(the default) to use the legacy zvol APIs.
+This setting can give better or worse zvol performance depending on
+the workload.
+This parameter will only appear if your kernel supports
+.Li blk-mq
+and is only read and assigned to a zvol at zvol load time.
+.
+.It Sy zvol_blk_mq_queue_depth Ns = Ns Sy 0 Pq uint
+The queue_depth value for the zvol
+.Li blk-mq
+interface.
+This parameter will only appear if your kernel supports
+.Li blk-mq
+and is only read at zvol load time.
+If
+.Sy 0
+(the default) then use the kernel's default queue depth.
+If you set
+.Sy zvol_blk_mq_queue_depth
+lower than the kernel's minimum queue depth, it will be internally
+capped to the kernel's minimum queue depth (currently 4 on 5.15 kernels).
 .
 .It Sy zvol_volmode Ns = Ns Sy 1 Pq uint
 Defines zvol block devices behaviour when

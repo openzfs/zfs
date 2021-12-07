@@ -5,6 +5,7 @@ dist_pkgdata_DATA = \
 
 SUBDIRS = \
 	zvol_ENOSPC \
+	zvol_stress \
 	zvol_cli \
 	zvol_misc \
 	zvol_swap
