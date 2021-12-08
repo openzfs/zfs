@@ -688,9 +688,8 @@ zfsdev_get_dev(void)
 void
 zfsdev_private_set_state(void *priv, zfsdev_state_t *zs)
 {
-	zfsdev_state_t **actual_zs = (zfsdev_state_t **)priv;
-	if (actual_zs != NULL)
-		*actual_zs = zs;
+	UNREFERENCED_PARAMETER(priv);
+	UNREFERENCED_PARAMETER(zs);
 }
 
 /* Loop all zs looking for matching dev_t */
