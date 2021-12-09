@@ -83,7 +83,7 @@ _sol_getmntent(FILE *fp, struct mnttab *mgetp)
 }
 
 static int
-getextmntent_impl(FILE *fp, struct extmnttab *mp, int len)
+getextmntent_impl(FILE *fp, struct extmnttab *mp)
 {
 	int ret;
 	struct stat64 st;
@@ -137,7 +137,7 @@ getextmntent(const char *path, struct extmnttab *entry, struct stat64 *statbuf)
 	 */
 
 	match = 0;
-	while (getextmntent_impl(fp, entry, sizeof (*entry)) == 0) {
+	while (getextmntent_impl(fp, entry) == 0) {
 		if (makedev(entry->mnt_major, entry->mnt_minor) ==
 		    statbuf->st_dev) {
 			match = 1;
