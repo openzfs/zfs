@@ -129,48 +129,35 @@ stream_bytes(FILE *fp, const char *string)
 	}
 }
 
-static void
-print_what(FILE *fp, mode_t what)
+static char
+get_what(mode_t what)
 {
-	char symbol;
-
 	switch (what & S_IFMT) {
 	case S_IFBLK:
-		symbol = 'B';
-		break;
+		return ('B');
 	case S_IFCHR:
-		symbol = 'C';
-		break;
+		return ('C');
 	case S_IFDIR:
-		symbol = '/';
-		break;
+		return ('/');
 #ifdef S_IFDOOR
 	case S_IFDOOR:
-		symbol = '>';
-		break;
+		return ('>');
 #endif
 	case S_IFIFO:
-		symbol = '|';
-		break;
+		return ('|');
 	case S_IFLNK:
-		symbol = '@';
-		break;
+		return ('@');
 #ifdef S_IFPORT
 	case S_IFPORT:
-		symbol = 'P';
-		break;
+		return ('P');
 #endif
 	case S_IFSOCK:
-		symbol = '=';
-		break;
+		return ('=');
 	case S_IFREG:
-		symbol = 'F';
-		break;
+		return ('F');
 	default:
-		symbol = '?';
-		break;
+		return ('?');
 	}
-	(void) fprintf(fp, "%c", symbol);
 }
 
 static void
@@ -194,10 +181,8 @@ print_rename(FILE *fp, differ_info_t *di, const char *old, const char *new,
 		    (longlong_t)isb->zs_ctime[0],
 		    (longlong_t)isb->zs_ctime[1]);
 	(void) fprintf(fp, "%c\t", ZDIFF_RENAMED);
-	if (di->classify) {
-		print_what(fp, isb->zs_mode);
-		(void) fprintf(fp, "\t");
-	}
+	if (di->classify)
+		(void) fprintf(fp, "%c\t", get_what(isb->zs_mode));
 	print_cmn(fp, di, old);
 	if (di->scripted)
 		(void) fprintf(fp, "\t");
@@ -216,10 +201,8 @@ print_link_change(FILE *fp, differ_info_t *di, int delta, const char *file,
 		    (longlong_t)isb->zs_ctime[0],
 		    (longlong_t)isb->zs_ctime[1]);
 	(void) fprintf(fp, "%c\t", ZDIFF_MODIFIED);
-	if (di->classify) {
-		print_what(fp, isb->zs_mode);
-		(void) fprintf(fp, "\t");
-	}
+	if (di->classify)
+		(void) fprintf(fp, "%c\t", get_what(isb->zs_mode));
 	print_cmn(fp, di, file);
 	(void) fprintf(fp, "\t(%+d)", delta);
 	(void) fprintf(fp, "\n");
@@ -234,10 +217,8 @@ print_file(FILE *fp, differ_info_t *di, char type, const char *file,
 		    (longlong_t)isb->zs_ctime[0],
 		    (longlong_t)isb->zs_ctime[1]);
 	(void) fprintf(fp, "%c\t", type);
-	if (di->classify) {
-		print_what(fp, isb->zs_mode);
-		(void) fprintf(fp, "\t");
-	}
+	if (di->classify)
+		(void) fprintf(fp, "%c\t", get_what(isb->zs_mode));
 	print_cmn(fp, di, file);
 	(void) fprintf(fp, "\n");
 }
