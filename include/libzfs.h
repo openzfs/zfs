@@ -795,9 +795,10 @@ extern int zfs_receive(libzfs_handle_t *, const char *, nvlist_t *,
     recvflags_t *, int, avl_tree_t *);
 
 typedef enum diff_flags {
-	ZFS_DIFF_PARSEABLE = 0x1,
-	ZFS_DIFF_TIMESTAMP = 0x2,
-	ZFS_DIFF_CLASSIFY = 0x4
+	ZFS_DIFF_PARSEABLE = 1 << 0,
+	ZFS_DIFF_TIMESTAMP = 1 << 1,
+	ZFS_DIFF_CLASSIFY = 1 << 2,
+	ZFS_DIFF_NO_MANGLE = 1 << 3
 } diff_flags_t;
 
 extern int zfs_show_diffs(zfs_handle_t *, int, const char *, const char *,
