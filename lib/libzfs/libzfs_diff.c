@@ -176,8 +176,13 @@ print_what(FILE *fp, mode_t what)
 static void
 print_cmn(FILE *fp, differ_info_t *di, const char *file)
 {
-	stream_bytes(fp, di->dsmnt);
-	stream_bytes(fp, file);
+	if (!di->no_mangle) {
+		stream_bytes(fp, di->dsmnt);
+		stream_bytes(fp, file);
+	} else {
+		(void) fputs(di->dsmnt, fp);
+		(void) fputs(file, fp);
+	}
 }
 
 static void
@@ -752,6 +757,7 @@ zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
 	di.scripted = (flags & ZFS_DIFF_PARSEABLE);
 	di.classify = (flags & ZFS_DIFF_CLASSIFY);
 	di.timestamped = (flags & ZFS_DIFF_TIMESTAMP);
+	di.no_mangle = (flags & ZFS_DIFF_NO_MANGLE);
 
 	di.outputfd = outfd;
 	di.datafd = pipefd[0];

@@ -39,7 +39,7 @@
 .Sh SYNOPSIS
 .Nm zfs
 .Cm diff
-.Op Fl FHt
+.Op Fl FHth
 .Ar snapshot Ar snapshot Ns | Ns Ar filesystem
 .
 .Sh DESCRIPTION
@@ -92,6 +92,10 @@ Give more parsable tab-separated output, without header lines and without
 arrows.
 .It Fl t
 Display the path's inode change time as the first column of output.
+.It Fl h
+Do not
+.Sy \e0 Ns Ar ooo Ns -escape
+non-ASCII paths.
 .El
 .
 .Sh SEE ALSO

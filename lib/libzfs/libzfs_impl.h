@@ -232,6 +232,7 @@ typedef struct differ_info {
 	boolean_t scripted;
 	boolean_t classify;
 	boolean_t timestamped;
+	boolean_t no_mangle;
 	uint64_t shares;
 	int zerr;
 	int cleanupfd;
