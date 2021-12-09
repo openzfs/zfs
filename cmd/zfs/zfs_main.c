@@ -7664,7 +7664,7 @@ zfs_do_diff(int argc, char **argv)
 	int c;
 	struct sigaction sa;
 
-	while ((c = getopt(argc, argv, "FHt")) != -1) {
+	while ((c = getopt(argc, argv, "FHth")) != -1) {
 		switch (c) {
 		case 'F':
 			flags |= ZFS_DIFF_CLASSIFY;
@@ -7674,6 +7674,9 @@ zfs_do_diff(int argc, char **argv)
 			break;
 		case 't':
 			flags |= ZFS_DIFF_TIMESTAMP;
+			break;
+		case 'h':
+			flags |= ZFS_DIFF_NO_MANGLE;
 			break;
 		default:
 			(void) fprintf(stderr,
