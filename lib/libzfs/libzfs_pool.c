@@ -5358,7 +5358,6 @@ zpool_set_vdev_prop(zpool_handle_t *zhp, const char *vdevname,
     const char *propname, const char *propval)
 {
 	int ret;
-	vdev_prop_t vprop;
 	nvlist_t *nvl = NULL;
 	nvlist_t *outnvl = NULL;
 	nvlist_t *props;
@@ -5369,8 +5368,6 @@ zpool_set_vdev_prop(zpool_handle_t *zhp, const char *vdevname,
 
 	if ((ret = zpool_vdev_guid(zhp, vdevname, &vdev_guid)) != 0)
 		return (ret);
-
-	vprop = vdev_name_to_prop(propname);
 
 	if (nvlist_alloc(&nvl, NV_UNIQUE_NAME, 0) != 0)
 		return (no_memory(zhp->zpool_hdl));
