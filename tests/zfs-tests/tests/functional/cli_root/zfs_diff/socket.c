@@ -24,7 +24,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* ARGSUSED */
 int
 main(int argc, char *argv[])
 {
