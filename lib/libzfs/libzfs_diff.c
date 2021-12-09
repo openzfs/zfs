@@ -122,9 +122,9 @@ stream_bytes(FILE *fp, const char *string)
 
 	while ((c = *string++) != '\0') {
 		if (c > ' ' && c != '\\' && c < '\177') {
-			(void) fprintf(fp, "%c", c);
+			(void) fputc(c, fp);
 		} else {
-			(void) fprintf(fp, "\\%04o", (uint8_t)c);
+			(void) fprintf(fp, "\\%04hho", (uint8_t)c);
 		}
 	}
 }
