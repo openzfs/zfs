@@ -159,8 +159,8 @@ extern uint64_t vnop_num_vnodes;
 extern uint64_t vnop_num_reclaims;
 extern uint32_t spl_hostid;
 
-extern unsigned long zfs_arc_max;
-extern unsigned long zfs_arc_min;
+extern uint64_t zfs_arc_max;
+extern uint64_t zfs_arc_min;
 extern uint64_t zfs_arc_meta_limit;
 extern uint64_t zfs_arc_meta_min;
 extern int zfs_arc_grow_retry;

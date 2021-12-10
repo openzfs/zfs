@@ -670,8 +670,8 @@ arc_kstat_update_windows(kstat_t *ksp, int rw)
 			    zfs_arc_min == 0)
 				arc_c_min = arc_meta_limit / 2;
 
-			dprintf("ZFS: set arc_meta_limit %lu, arc_c_min %lu,"
-			    "zfs_arc_meta_limit %lu\n",
+			dprintf("ZFS: set arc_meta_limit %llu, arc_c_min %llu,"
+			    "zfs_arc_meta_limit %llu\n",
 			    arc_meta_limit, arc_c_min, zfs_arc_meta_limit);
 		}
 

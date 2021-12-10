@@ -986,8 +986,8 @@ extern arc_state_t	ARC_mru;
 extern aggsum_t arc_size;
 extern uint_t zfs_arc_pc_percent;
 extern int arc_lotsfree_percent;
-extern unsigned long zfs_arc_min;
-extern unsigned long zfs_arc_max;
+extern uint64_t zfs_arc_min;
+extern uint64_t zfs_arc_max;
 
 extern void arc_reduce_target_size(int64_t to_free);
 extern boolean_t arc_reclaim_needed(void);
