@@ -107,11 +107,12 @@ fatal(spa_t *spa, void *tag, const char *fmt, ...)
 	exit(1);
 }
 
-/* ARGSUSED */
 static int
 space_delta_cb(dmu_object_type_t bonustype, const void *data,
     zfs_file_info_t *zoi)
 {
+	(void) data, (void) zoi;
+
 	/*
 	 * Is it a valid type of object to track?
 	 */
