@@ -497,11 +497,11 @@ print_all_handlers(void)
 	return (count + total);
 }
 
-/* ARGSUSED */
 static int
 cancel_one_handler(int id, const char *pool, zinject_record_t *record,
     void *data)
 {
+	(void) pool, (void) record, (void) data;
 	zfs_cmd_t zc = {"\0"};
 
 	zc.zc_guid = (uint64_t)id;
