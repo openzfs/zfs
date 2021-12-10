@@ -266,12 +266,8 @@ cmp_data(raidz_test_opts_t *opts, raidz_map_t *rm)
 static int
 init_rand(void *data, size_t size, void *private)
 {
-	int i;
-	int *dst = (int *)data;
-
-	for (i = 0; i < size / sizeof (int); i++)
-		dst[i] = rand_data[i];
-
+	(void) private;
+	memcpy(data, rand_data, size);
 	return (0);
 }
 
