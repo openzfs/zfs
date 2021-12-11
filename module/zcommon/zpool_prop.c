@@ -52,13 +52,13 @@ zpool_prop_get_table(void)
 void
 zpool_prop_init(void)
 {
-	static zprop_index_t boolean_table[] = {
+	static const zprop_index_t boolean_table[] = {
 		{ "off",	0},
 		{ "on",		1},
 		{ NULL }
 	};
 
-	static zprop_index_t failuremode_table[] = {
+	static const zprop_index_t failuremode_table[] = {
 		{ "wait",	ZIO_FAILURE_MODE_WAIT },
 		{ "continue",	ZIO_FAILURE_MODE_CONTINUE },
 		{ "panic",	ZIO_FAILURE_MODE_PANIC },
@@ -271,12 +271,12 @@ vdev_prop_get_table(void)
 void
 vdev_prop_init(void)
 {
-	static zprop_index_t boolean_table[] = {
+	static const zprop_index_t boolean_table[] = {
 		{ "off",	0},
 		{ "on",		1},
 		{ NULL }
 	};
-	static zprop_index_t boolean_na_table[] = {
+	static const zprop_index_t boolean_na_table[] = {
 		{ "off",	0},
 		{ "on",		1},
 		{ "-",		2},	/* ZPROP_BOOLEAN_NA */
