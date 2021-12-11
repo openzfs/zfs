@@ -263,7 +263,6 @@ replace_with_spare(fmd_hdl_t *hdl, zpool_handle_t *zhp, nvlist_t *vdev)
  * ASRU is now usable.  ZFS has found the device to be present and
  * functioning.
  */
-/*ARGSUSED*/
 static void
 zfs_vdev_repair(fmd_hdl_t *hdl, nvlist_t *nvl)
 {
@@ -302,11 +301,11 @@ zfs_vdev_repair(fmd_hdl_t *hdl, nvlist_t *nvl)
 	    vdev_guid, pool_guid);
 }
 
-/*ARGSUSED*/
 static void
 zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
     const char *class)
 {
+	(void) ep;
 	uint64_t pool_guid, vdev_guid;
 	zpool_handle_t *zhp;
 	nvlist_t *resource, *fault;
