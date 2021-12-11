@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2020, Datto Inc. All rights reserved.
  */
 
 #ifndef	_SYS_FS_ZFS_STAT_H
@@ -46,8 +47,19 @@ typedef struct zfs_stat {
 	uint64_t	zs_ctime[2];
 } zfs_stat_t;
 
+typedef struct zfs_diff_stat {
+	zfs_stat_t	zs;
+	uint64_t	zds_parent;
+	uint64_t	zds_flags;
+} zfs_diff_stat_t;
+
+extern int zfs_diff_stats(objset_t *osp, uint64_t obj, zfs_diff_stat_t *zds,
+    char *buf, int len);
+
 extern int zfs_obj_to_stats(objset_t *osp, uint64_t obj, zfs_stat_t *sb,
     char *buf, int len);
+
+extern boolean_t zfs_reserved_obj(uint64_t obj);
 
 #ifdef	__cplusplus
 }

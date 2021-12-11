@@ -773,6 +773,8 @@ extern int kmem_cache_reap_active(void);
 #define	__init
 #define	__exit
 
+extern boolean_t zfs_reserved_obj(uint64_t obj);
+
 #endif  /* _KERNEL || _STANDALONE */
 
 #ifdef __cplusplus

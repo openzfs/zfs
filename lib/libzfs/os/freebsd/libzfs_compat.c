@@ -261,12 +261,6 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, const char *name)
 }
 
 int
-find_shares_object(differ_info_t *di)
-{
-	return (0);
-}
-
-int
 zfs_destroy_snaps_nvl_os(libzfs_handle_t *hdl, nvlist_t *snaps)
 {
 	return (0);

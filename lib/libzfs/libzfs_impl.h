@@ -218,8 +218,10 @@ typedef struct {
 	int p_unshare_err;
 } proto_table_t;
 
+typedef struct path_mapper path_mapper_t;
+
 typedef struct differ_info {
-	zfs_handle_t *zhp;
+	libzfs_handle_t *hdl;
 	char *fromsnap;
 	char *frommnt;
 	char *tosnap;
@@ -236,9 +238,29 @@ typedef struct differ_info {
 	uint64_t shares;
 	int zerr;
 	int cleanupfd;
-	int outputfd;
 	int datafd;
+	int outputfd;
+	FILE *ofp;
+	path_mapper_t *frompm;
+	path_mapper_t *topm;
 } differ_info_t;
+
+typedef struct path_part path_part_t;
+struct path_part {
+	avl_node_t	pp_node;
+	uint64_t	pp_obj;
+	uint64_t	pp_parent;
+	char		pp_name[];
+};
+
+struct path_mapper {
+	avl_tree_t	pm_tree;
+	libzfs_handle_t	*pm_hdl;
+	int		pm_pipes[2];
+	int		pm_err;
+	const char	*pm_fsname;
+};
+extern proto_table_t proto_table[PROTO_END];
 
 extern int do_mount(zfs_handle_t *zhp, const char *mntpt, char *opts,
     int flags);

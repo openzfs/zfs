@@ -30,10 +30,11 @@
  * Copyright 2017 Nexenta Systems, Inc.
  * Copyright (c) 2019, Klara Inc.
  * Copyright (c) 2019, Allan Jude
+ * Copyright (c) 2020, Datto Inc. All rights reserved.
  * Copyright (c) 2020 The FreeBSD Foundation [1]
  *
  * [1] Portions of this software were developed by Allan Jude
- *     under sponsorship from the FreeBSD Foundation.
+ *     under sponsorship from the FreeBSD Foundation. 
  */
 
 #include <sys/dmu_objset.h>
@@ -2035,6 +2036,10 @@ dsl_dataset_snapshot_tmp(const char *fsname, const char *snapname,
 	spa_t *spa;
 	boolean_t needsuspend;
 	void *cookie;
+
+	/* dataset name + 1 for the "@" + the new snapshot name must fit */
+	if (strlen(fsname) + 1 + strlen(snapname) >= ZFS_MAX_DATASET_NAME_LEN)
+		return (SET_ERROR(ENAMETOOLONG));
 
 	ddsta.ddsta_fsname = fsname;
 	ddsta.ddsta_snapname = snapname;

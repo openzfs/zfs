@@ -150,6 +150,11 @@ _LIBZFS_CORE_H int lzc_get_bootenv(const char *, nvlist_t **);
 _LIBZFS_CORE_H int lzc_get_vdev_prop(const char *, nvlist_t *, nvlist_t **);
 _LIBZFS_CORE_H int lzc_set_vdev_prop(const char *, nvlist_t *, nvlist_t **);
 
+_LIBZFS_CORE_H int lzc_diff(const char *, const char *, int);
+_LIBZFS_CORE_H int lzc_dump_zap(const char *, uint64_t, int);
+_LIBZFS_CORE_H int lzc_diff_stats(const char *, uint64_t, nvlist_t **);
+
+
 #ifdef	__cplusplus
 }
 #endif
