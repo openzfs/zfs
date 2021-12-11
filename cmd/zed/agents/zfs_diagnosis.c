@@ -119,7 +119,7 @@ uu_list_t *zfs_cases;
  * Write out the persistent representation of an active case.
  */
 static void
-zfs_case_serialize(fmd_hdl_t *hdl, zfs_case_t *zcp)
+zfs_case_serialize(zfs_case_t *zcp)
 {
 	zcp->zc_data.zc_version = CASE_DATA_VERSION_SERD;
 }
@@ -209,10 +209,10 @@ zfs_mark_vdev(uint64_t pool_guid, nvlist_t *vd, er_timeval_t *loaded)
 	}
 }
 
-/*ARGSUSED*/
 static int
 zfs_mark_pool(zpool_handle_t *zhp, void *unused)
 {
+	(void) unused;
 	zfs_case_t *zcp;
 	uint64_t pool_guid;
 	uint64_t *tod;
@@ -373,8 +373,7 @@ zfs_serd_name(char *buf, uint64_t pool_guid, uint64_t vdev_guid,
  * case.
  */
 static void
-zfs_case_solve(fmd_hdl_t *hdl, zfs_case_t *zcp, const char *faultname,
-    boolean_t checkunusable)
+zfs_case_solve(fmd_hdl_t *hdl, zfs_case_t *zcp, const char *faultname)
 {
 	nvlist_t *detector, *fault;
 	boolean_t serialize;
@@ -412,7 +411,7 @@ zfs_case_solve(fmd_hdl_t *hdl, zfs_case_t *zcp, const char *faultname,
 		serialize = B_TRUE;
 	}
 	if (serialize)
-		zfs_case_serialize(hdl, zcp);
+		zfs_case_serialize(zcp);
 
 	nvlist_free(detector);
 }
@@ -424,10 +423,10 @@ timeval_earlier(er_timeval_t *a, er_timeval_t *b)
 	    (a->ertv_sec == b->ertv_sec && a->ertv_nsec < b->ertv_nsec));
 }
 
-/*ARGSUSED*/
 static void
 zfs_ereport_when(fmd_hdl_t *hdl, nvlist_t *nvl, er_timeval_t *when)
 {
+	(void) hdl;
 	int64_t *tod;
 	uint_t	nelem;
 
@@ -443,7 +442,6 @@ zfs_ereport_when(fmd_hdl_t *hdl, nvlist_t *nvl, er_timeval_t *when)
 /*
  * Main fmd entry point.
  */
-/*ARGSUSED*/
 static void
 zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 {
@@ -686,7 +684,7 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 			if (zcp->zc_data.zc_has_remove_timer) {
 				fmd_timer_remove(hdl, zcp->zc_remove_timer);
 				zcp->zc_data.zc_has_remove_timer = 0;
-				zfs_case_serialize(hdl, zcp);
+				zfs_case_serialize(zcp);
 			}
 			if (zcp->zc_data.zc_serd_io[0] != '\0')
 				fmd_serd_reset(hdl, zcp->zc_data.zc_serd_io);
@@ -751,18 +749,18 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 				fmd_case_close(hdl, dcp->zc_case);
 		}
 
-		zfs_case_solve(hdl, zcp, "fault.fs.zfs.pool", B_TRUE);
+		zfs_case_solve(hdl, zcp, "fault.fs.zfs.pool");
 	} else if (fmd_nvl_class_match(hdl, nvl,
 	    ZFS_MAKE_EREPORT(FM_EREPORT_ZFS_LOG_REPLAY))) {
 		/*
 		 * Pool level fault for reading the intent logs.
 		 */
-		zfs_case_solve(hdl, zcp, "fault.fs.zfs.log_replay", B_TRUE);
+		zfs_case_solve(hdl, zcp, "fault.fs.zfs.log_replay");
 	} else if (fmd_nvl_class_match(hdl, nvl, "ereport.fs.zfs.vdev.*")) {
 		/*
 		 * Device fault.
 		 */
-		zfs_case_solve(hdl, zcp, "fault.fs.zfs.device",  B_TRUE);
+		zfs_case_solve(hdl, zcp, "fault.fs.zfs.device");
 	} else if (fmd_nvl_class_match(hdl, nvl,
 	    ZFS_MAKE_EREPORT(FM_EREPORT_ZFS_IO)) ||
 	    fmd_nvl_class_match(hdl, nvl,
@@ -789,7 +787,7 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 				fmd_serd_create(hdl, zcp->zc_data.zc_serd_io,
 				    fmd_prop_get_int32(hdl, "io_N"),
 				    fmd_prop_get_int64(hdl, "io_T"));
-				zfs_case_serialize(hdl, zcp);
+				zfs_case_serialize(zcp);
 			}
 			if (fmd_serd_record(hdl, zcp->zc_data.zc_serd_io, ep))
 				checkremove = B_TRUE;
@@ -802,12 +800,12 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 				    zcp->zc_data.zc_serd_checksum,
 				    fmd_prop_get_int32(hdl, "checksum_N"),
 				    fmd_prop_get_int64(hdl, "checksum_T"));
-				zfs_case_serialize(hdl, zcp);
+				zfs_case_serialize(zcp);
 			}
 			if (fmd_serd_record(hdl,
 			    zcp->zc_data.zc_serd_checksum, ep)) {
 				zfs_case_solve(hdl, zcp,
-				    "fault.fs.zfs.vdev.checksum", B_FALSE);
+				    "fault.fs.zfs.vdev.checksum");
 			}
 		} else if (fmd_nvl_class_match(hdl, nvl,
 		    ZFS_MAKE_EREPORT(FM_EREPORT_ZFS_IO_FAILURE)) &&
@@ -817,12 +815,11 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 			if (strncmp(failmode, FM_EREPORT_FAILMODE_CONTINUE,
 			    strlen(FM_EREPORT_FAILMODE_CONTINUE)) == 0) {
 				zfs_case_solve(hdl, zcp,
-				    "fault.fs.zfs.io_failure_continue",
-				    B_FALSE);
+				    "fault.fs.zfs.io_failure_continue");
 			} else if (strncmp(failmode, FM_EREPORT_FAILMODE_WAIT,
 			    strlen(FM_EREPORT_FAILMODE_WAIT)) == 0) {
 				zfs_case_solve(hdl, zcp,
-				    "fault.fs.zfs.io_failure_wait", B_FALSE);
+				    "fault.fs.zfs.io_failure_wait");
 			}
 		} else if (fmd_nvl_class_match(hdl, nvl,
 		    ZFS_MAKE_EREPORT(FM_EREPORT_ZFS_PROBE_FAILURE))) {
@@ -844,7 +841,7 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 			    zfs_remove_timeout);
 			if (!zcp->zc_data.zc_has_remove_timer) {
 				zcp->zc_data.zc_has_remove_timer = 1;
-				zfs_case_serialize(hdl, zcp);
+				zfs_case_serialize(zcp);
 			}
 		}
 	}
@@ -854,14 +851,13 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
  * The timeout is fired when we diagnosed an I/O error, and it was not due to
  * device removal (which would cause the timeout to be cancelled).
  */
-/* ARGSUSED */
 static void
 zfs_fm_timeout(fmd_hdl_t *hdl, id_t id, void *data)
 {
 	zfs_case_t *zcp = data;
 
 	if (id == zcp->zc_remove_timer)
-		zfs_case_solve(hdl, zcp, "fault.fs.zfs.vdev.io", B_FALSE);
+		zfs_case_solve(hdl, zcp, "fault.fs.zfs.vdev.io");
 }
 
 /*
