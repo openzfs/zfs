@@ -211,7 +211,7 @@ run_test(int i, hkdf_tv_t *tv)
 }
 
 int
-main(int argc, char **argv)
+main(void)
 {
 	int ret, i;
 

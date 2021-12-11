@@ -49,7 +49,7 @@
 #include <strings.h>
 
 int
-main(int argc, char *argvp[])
+main(void)
 {
 	int i = 1;
 

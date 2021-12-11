@@ -137,9 +137,9 @@ usage(char *name)
 	exit(1);
 }
 
-/* ARGSUSED */
 static void
 sigxfsz(int signo)
 {
+	(void) signo;
 	(void) printf("\nlargest_file: sigxfsz() caught SIGXFSZ\n");
 }

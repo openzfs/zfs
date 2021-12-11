@@ -52,6 +52,7 @@ do_sync_io(struct iocb *iocb)
 int
 main(int argc, char **argv)
 {
+	(void) argc;
 	char *buf;
 	int page_size = getpagesize();
 	int buf_size = strtol(argv[2], NULL, 0);

@@ -35,9 +35,8 @@
 /*
  * Check if libzfs works with more than 255 held file handles.
  */
-/* ARGSUSED */
 int
-main(int argc, char **argv)
+main(void)
 {
 	int i;
 	struct rlimit limit;
