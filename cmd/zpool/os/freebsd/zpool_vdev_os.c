@@ -86,6 +86,7 @@ int
 check_device(const char *name, boolean_t force, boolean_t isspare,
     boolean_t iswholedisk)
 {
+	(void) iswholedisk;
 	char path[MAXPATHLEN];
 
 	if (strncmp(name, _PATH_DEV, sizeof (_PATH_DEV) - 1) != 0)
@@ -99,6 +100,7 @@ check_device(const char *name, boolean_t force, boolean_t isspare,
 boolean_t
 check_sector_size_database(char *path, int *sector_size)
 {
+	(void) path, (void) sector_size;
 	return (0);
 }
 
