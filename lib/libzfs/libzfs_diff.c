@@ -835,7 +835,7 @@ di_show_diffs(differ_info_t *di)
 	int iocerr;
 
 	if (pipe(pipefd)) {
-		zfs_error_aux(di->hdl, strerror(errno));
+		zfs_error_aux(di->hdl, "%s", strerror(errno));
 		return (zfs_error(di->hdl, EZFS_PIPEFAILED,
 		    dgettext(TEXT_DOMAIN, "zfs diff failed")));
 	}
@@ -854,7 +854,7 @@ di_show_diffs(differ_info_t *di)
 	if (iocerr == 0) {
 		(void) pthread_join(tid, NULL);
 		if (di->zerr != 0) {
-			zfs_error_aux(di->hdl, strerror(di->zerr));
+			zfs_error_aux(di->hdl, "%s", strerror(di->zerr));
 			return (zfs_error(di->hdl, EZFS_DIFF, di->errbuf));
 		}
 		return (0);
@@ -864,7 +864,7 @@ di_show_diffs(differ_info_t *di)
 	(void) pthread_join(tid, NULL);
 
 	if (di->zerr != 0 && di->zerr != EPIPE) {
-		zfs_error_aux(di->hdl, strerror(di->zerr));
+		zfs_error_aux(di->hdl, "%s", strerror(di->zerr));
 		return (zfs_error(di->hdl, EZFS_DIFF, di->errbuf));
 	}
 
@@ -876,7 +876,7 @@ di_show_diffs(differ_info_t *di)
 		zfs_error_aux(di->hdl, dgettext(TEXT_DOMAIN,
 		    "\n   Not an earlier snapshot from the same fs"));
 	} else if (errno != EPIPE || di->zerr == 0) {
-		zfs_error_aux(di->hdl, strerror(errno));
+		zfs_error_aux(di->hdl, "%s", strerror(errno));
 	}
 
 	return (zfs_error(di->hdl, EZFS_DIFFDATA,
