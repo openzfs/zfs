@@ -158,7 +158,7 @@ pathm_dir_thread(void *arg)
 
 	for (uint64_t iter = 0; ; iter++) {
 		path_part_t *pp;
-		path_part_t search;
+		path_part_t search = {0};
 		avl_index_t where = 0;
 		zap_pair_record_t zpr;
 
