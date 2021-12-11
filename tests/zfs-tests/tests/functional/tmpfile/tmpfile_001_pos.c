@@ -31,15 +31,13 @@
 static void
 fill_random(char *buf, int len)
 {
-	int i;
 	srand(time(NULL));
-	for (i = 0; i < len; i++) {
+	for (int i = 0; i < len; i++)
 		buf[i] = (char)rand();
-	}
 }
 
 int
-main(int argc, char *argv[])
+main(void)
 {
 	int i, fd;
 	char buf1[BSZ], buf2[BSZ] = {};
