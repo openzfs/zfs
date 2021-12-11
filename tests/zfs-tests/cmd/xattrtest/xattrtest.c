@@ -96,12 +96,12 @@ static char script[PATH_MAX] = "/bin/true";
 static char xattrbytes[XATTR_SIZE_MAX];
 
 static int
-usage(int argc, char **argv)
+usage(char *argv0)
 {
 	fprintf(stderr,
 	    "usage: %s [-hvycdrRk] [-n <nth>] [-f <files>] [-x <xattrs>]\n"
 	    "       [-s <bytes>] [-p <path>] [-t <script> ] [-o <phase>]\n",
-	    argv[0]);
+	    argv0);
 
 	fprintf(stderr,
 	    "  --help        -h           This help\n"
@@ -136,7 +136,7 @@ parse_args(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1) {
 		switch (c) {
 		case 'h':
-			return (usage(argc, argv));
+			return (usage(argv[0]));
 		case 'v':
 			verbose++;
 			break;
