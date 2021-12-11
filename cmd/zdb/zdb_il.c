@@ -60,10 +60,10 @@ print_log_bp(const blkptr_t *bp, const char *prefix)
 	(void) printf("%s%s\n", prefix, blkbuf);
 }
 
-/* ARGSUSED */
 static void
 zil_prt_rec_create(zilog_t *zilog, int txtype, const void *arg)
 {
+	(void) zilog;
 	const lr_create_t *lr = arg;
 	time_t crtime = lr->lr_crtime[0];
 	char *name, *link;
@@ -96,20 +96,20 @@ zil_prt_rec_create(zilog_t *zilog, int txtype, const void *arg)
 	    (u_longlong_t)lr->lr_gen, (u_longlong_t)lr->lr_rdev);
 }
 
-/* ARGSUSED */
 static void
 zil_prt_rec_remove(zilog_t *zilog, int txtype, const void *arg)
 {
+	(void) zilog, (void) txtype;
 	const lr_remove_t *lr = arg;
 
 	(void) printf("%sdoid %llu, name %s\n", tab_prefix,
 	    (u_longlong_t)lr->lr_doid, (char *)(lr + 1));
 }
 
-/* ARGSUSED */
 static void
 zil_prt_rec_link(zilog_t *zilog, int txtype, const void *arg)
 {
+	(void) zilog, (void) txtype;
 	const lr_link_t *lr = arg;
 
 	(void) printf("%sdoid %llu, link_obj %llu, name %s\n", tab_prefix,
@@ -117,10 +117,10 @@ zil_prt_rec_link(zilog_t *zilog, int txtype, const void *arg)
 	    (char *)(lr + 1));
 }
 
-/* ARGSUSED */
 static void
 zil_prt_rec_rename(zilog_t *zilog, int txtype, const void *arg)
 {
+	(void) zilog, (void) txtype;
 	const lr_rename_t *lr = arg;
 	char *snm = (char *)(lr + 1);
 	char *tnm = snm + strlen(snm) + 1;
@@ -130,10 +130,10 @@ zil_prt_rec_rename(zilog_t *zilog, int txtype, const void *arg)
 	(void) printf("%ssrc %s tgt %s\n", tab_prefix, snm, tnm);
 }
 
-/* ARGSUSED */
 static int
 zil_prt_rec_write_cb(void *data, size_t len, void *unused)
 {
+	(void) unused;
 	char *cdata = data;
 
 	for (size_t i = 0; i < len; i++) {
@@ -146,7 +146,6 @@ zil_prt_rec_write_cb(void *data, size_t len, void *unused)
 	return (0);
 }
 
-/* ARGSUSED */
 static void
 zil_prt_rec_write(zilog_t *zilog, int txtype, const void *arg)
 {
@@ -209,10 +208,10 @@ out:
 	abd_free(data);
 }
 
-/* ARGSUSED */
 static void
 zil_prt_rec_truncate(zilog_t *zilog, int txtype, const void *arg)
 {
+	(void) zilog, (void) txtype;
 	const lr_truncate_t *lr = arg;
 
 	(void) printf("%sfoid %llu, offset 0x%llx, length 0x%llx\n", tab_prefix,
@@ -220,10 +219,10 @@ zil_prt_rec_truncate(zilog_t *zilog, int txtype, const void *arg)
 	    (u_longlong_t)lr->lr_length);
 }
 
-/* ARGSUSED */
 static void
 zil_prt_rec_setattr(zilog_t *zilog, int txtype, const void *arg)
 {
+	(void) zilog, (void) txtype;
 	const lr_setattr_t *lr = arg;
 	time_t atime = (time_t)lr->lr_atime[0];
 	time_t mtime = (time_t)lr->lr_mtime[0];
@@ -266,10 +265,10 @@ zil_prt_rec_setattr(zilog_t *zilog, int txtype, const void *arg)
 	}
 }
 
-/* ARGSUSED */
 static void
 zil_prt_rec_acl(zilog_t *zilog, int txtype, const void *arg)
 {
+	(void) zilog, (void) txtype;
 	const lr_acl_t *lr = arg;
 
 	(void) printf("%sfoid %llu, aclcnt %llu\n", tab_prefix,
@@ -307,10 +306,10 @@ static zil_rec_info_t zil_rec_info[TX_MAX_TYPE] = {
 	{.zri_print = zil_prt_rec_write,    .zri_name = "TX_WRITE2          "},
 };
 
-/* ARGSUSED */
 static int
 print_log_record(zilog_t *zilog, const lr_t *lr, void *arg, uint64_t claim_txg)
 {
+	(void) arg, (void) claim_txg;
 	int txtype;
 	int verbose = MAX(dump_opt['d'], dump_opt['i']);
 
@@ -341,11 +340,11 @@ print_log_record(zilog_t *zilog, const lr_t *lr, void *arg, uint64_t claim_txg)
 	return (0);
 }
 
-/* ARGSUSED */
 static int
 print_log_block(zilog_t *zilog, const blkptr_t *bp, void *arg,
     uint64_t claim_txg)
 {
+	(void) arg;
 	char blkbuf[BP_SPRINTF_LEN + 10];
 	int verbose = MAX(dump_opt['d'], dump_opt['i']);
 	const char *claim;
@@ -396,7 +395,6 @@ print_log_stats(int verbose)
 	(void) printf("\n");
 }
 
-/* ARGSUSED */
 void
 dump_intent_log(zilog_t *zilog)
 {
