@@ -681,7 +681,7 @@ guid_iter(uint64_t pool_guid, uint64_t vdev_guid, const char *devid,
  * phys_path: 'pci-0000:04:00.0-sas-0x4433221106000000-lun-0'
  */
 static int
-zfs_deliver_add(nvlist_t *nvl, boolean_t is_lofi)
+zfs_deliver_add(nvlist_t *nvl)
 {
 	char *devpath = NULL, *devid;
 	uint64_t pool_guid = 0, vdev_guid = 0;
@@ -866,18 +866,15 @@ static int
 zfs_slm_deliver_event(const char *class, const char *subclass, nvlist_t *nvl)
 {
 	int ret;
-	boolean_t is_lofi = B_FALSE, is_check = B_FALSE, is_dle = B_FALSE;
+	boolean_t is_check = B_FALSE, is_dle = B_FALSE;
 
 	if (strcmp(class, EC_DEV_ADD) == 0) {
 		/*
 		 * We're mainly interested in disk additions, but we also listen
 		 * for new loop devices, to allow for simplified testing.
 		 */
-		if (strcmp(subclass, ESC_DISK) == 0)
-			is_lofi = B_FALSE;
-		else if (strcmp(subclass, ESC_LOFI) == 0)
-			is_lofi = B_TRUE;
-		else
+		if (strcmp(subclass, ESC_DISK) != 0 &&
+		    strcmp(subclass, ESC_LOFI) != 0)
 			return (0);
 
 		is_check = B_FALSE;
@@ -901,15 +898,16 @@ zfs_slm_deliver_event(const char *class, const char *subclass, nvlist_t *nvl)
 	else if (is_check)
 		ret = zfs_deliver_check(nvl);
 	else
-		ret = zfs_deliver_add(nvl, is_lofi);
+		ret = zfs_deliver_add(nvl);
 
 	return (ret);
 }
 
-/*ARGSUSED*/
 static void *
 zfs_enum_pools(void *arg)
 {
+	(void) arg;
+
 	(void) zpool_iter(g_zfshdl, zfs_unavail_pool, (void *)&g_pool_list);
 	/*
 	 * Linux - instead of using a thread pool, each list entry
