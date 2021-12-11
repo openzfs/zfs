@@ -327,6 +327,8 @@ zfs_agent_dispatch(const char *class, const char *subclass, nvlist_t *nvl)
 static void *
 zfs_agent_consumer_thread(void *arg)
 {
+	(void) arg;
+
 	for (;;) {
 		agent_event_t *event;
 
