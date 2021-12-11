@@ -97,6 +97,7 @@ _umem_logging_init(void)
 int
 fmd_hdl_register(fmd_hdl_t *hdl, int version, const fmd_hdl_info_t *mip)
 {
+	(void) version;
 	fmd_module_t *mp = (fmd_module_t *)hdl;
 
 	mp->mod_info = mip;
@@ -179,18 +180,21 @@ fmd_hdl_getspecific(fmd_hdl_t *hdl)
 void *
 fmd_hdl_alloc(fmd_hdl_t *hdl, size_t size, int flags)
 {
+	(void) hdl;
 	return (umem_alloc(size, flags));
 }
 
 void *
 fmd_hdl_zalloc(fmd_hdl_t *hdl, size_t size, int flags)
 {
+	(void) hdl;
 	return (umem_zalloc(size, flags));
 }
 
 void
 fmd_hdl_free(fmd_hdl_t *hdl, void *data, size_t size)
 {
+	(void) hdl;
 	umem_free(data, size);
 }
 
@@ -217,6 +221,8 @@ fmd_hdl_debug(fmd_hdl_t *hdl, const char *format, ...)
 int32_t
 fmd_prop_get_int32(fmd_hdl_t *hdl, const char *name)
 {
+	(void) hdl;
+
 	/*
 	 * These can be looked up in mp->modinfo->fmdi_props
 	 * For now we just hard code for phase 2. In the
@@ -234,6 +240,8 @@ fmd_prop_get_int32(fmd_hdl_t *hdl, const char *name)
 int64_t
 fmd_prop_get_int64(fmd_hdl_t *hdl, const char *name)
 {
+	(void) hdl;
+
 	/*
 	 * These can be looked up in mp->modinfo->fmdi_props
 	 * For now we just hard code for phase 2. In the
@@ -337,12 +345,14 @@ fmd_case_uuresolved(fmd_hdl_t *hdl, const char *uuid)
 int
 fmd_case_solved(fmd_hdl_t *hdl, fmd_case_t *cp)
 {
+	(void) hdl;
 	return ((cp->ci_state >= FMD_CASE_SOLVED) ? FMD_B_TRUE : FMD_B_FALSE);
 }
 
 void
 fmd_case_add_ereport(fmd_hdl_t *hdl, fmd_case_t *cp, fmd_event_t *ep)
 {
+	(void) hdl, (void) cp, (void) ep;
 }
 
 static void
@@ -444,19 +454,21 @@ fmd_case_add_suspect(fmd_hdl_t *hdl, fmd_case_t *cp, nvlist_t *fault)
 void
 fmd_case_setspecific(fmd_hdl_t *hdl, fmd_case_t *cp, void *data)
 {
+	(void) hdl;
 	cp->ci_data = data;
 }
 
 void *
 fmd_case_getspecific(fmd_hdl_t *hdl, fmd_case_t *cp)
 {
+	(void) hdl;
 	return (cp->ci_data);
 }
 
 void
 fmd_buf_create(fmd_hdl_t *hdl, fmd_case_t *cp, const char *name, size_t size)
 {
-	assert(strcmp(name, "data") == 0);
+	assert(strcmp(name, "data") == 0), (void) name;
 	assert(cp->ci_bufptr == NULL);
 	assert(size < (1024 * 1024));
 
@@ -468,7 +480,8 @@ void
 fmd_buf_read(fmd_hdl_t *hdl, fmd_case_t *cp,
     const char *name, void *buf, size_t size)
 {
-	assert(strcmp(name, "data") == 0);
+	(void) hdl;
+	assert(strcmp(name, "data") == 0), (void) name;
 	assert(cp->ci_bufptr != NULL);
 	assert(size <= cp->ci_bufsiz);
 
@@ -479,7 +492,8 @@ void
 fmd_buf_write(fmd_hdl_t *hdl, fmd_case_t *cp,
     const char *name, const void *buf, size_t size)
 {
-	assert(strcmp(name, "data") == 0);
+	(void) hdl;
+	assert(strcmp(name, "data") == 0), (void) name;
 	assert(cp->ci_bufptr != NULL);
 	assert(cp->ci_bufsiz >= size);
 
@@ -583,6 +597,7 @@ _timer_notify(union sigval sv)
 fmd_timer_t *
 fmd_timer_install(fmd_hdl_t *hdl, void *arg, fmd_event_t *ep, hrtime_t delta)
 {
+	(void) ep;
 	struct sigevent sev;
 	struct itimerspec its;
 	fmd_timer_t *ftp;
@@ -626,6 +641,7 @@ nvlist_t *
 fmd_nvl_create_fault(fmd_hdl_t *hdl, const char *class, uint8_t certainty,
     nvlist_t *asru, nvlist_t *fru, nvlist_t *resource)
 {
+	(void) hdl;
 	nvlist_t *nvl;
 	int err = 0;
 
@@ -689,6 +705,7 @@ fmd_strmatch(const char *s, const char *p)
 int
 fmd_nvl_class_match(fmd_hdl_t *hdl, nvlist_t *nvl, const char *pattern)
 {
+	(void) hdl;
 	char *class;
 
 	return (nvl != NULL &&
@@ -699,6 +716,7 @@ fmd_nvl_class_match(fmd_hdl_t *hdl, nvlist_t *nvl, const char *pattern)
 nvlist_t *
 fmd_nvl_alloc(fmd_hdl_t *hdl, int flags)
 {
+	(void) hdl, (void) flags;
 	nvlist_t *nvl = NULL;
 
 	if (nvlist_alloc(&nvl, NV_UNIQUE_NAME, 0) != 0)
