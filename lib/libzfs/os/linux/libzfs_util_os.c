@@ -187,6 +187,7 @@ find_shares_object(differ_info_t *di)
 int
 zfs_destroy_snaps_nvl_os(libzfs_handle_t *hdl, nvlist_t *snaps)
 {
+	(void) hdl, (void) snaps;
 	return (0);
 }
 

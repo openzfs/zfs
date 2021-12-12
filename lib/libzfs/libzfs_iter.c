@@ -39,7 +39,7 @@
 #include "libzfs_impl.h"
 
 static int
-zfs_iter_clones(zfs_handle_t *zhp, int flags, zfs_iter_f func, void *data)
+zfs_iter_clones(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 {
 	nvlist_t *nvl = zfs_get_clones_nvl(zhp);
 	nvpair_t *pair;
@@ -206,6 +206,7 @@ zfs_iter_snapshots(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 int
 zfs_iter_bookmarks(zfs_handle_t *zhp, int flags, zfs_iter_f func, void *data)
 {
+	(void) flags;
 	zfs_handle_t *nzhp;
 	nvlist_t *props = NULL;
 	nvlist_t *bmarks = NULL;
@@ -496,7 +497,7 @@ iter_dependents_cb(zfs_handle_t *zhp, void *arg)
 	ida->first = B_FALSE;
 
 	if (zhp->zfs_type == ZFS_TYPE_SNAPSHOT) {
-		err = zfs_iter_clones(zhp, ida->flags, iter_dependents_cb, ida);
+		err = zfs_iter_clones(zhp, iter_dependents_cb, ida);
 	} else if (zhp->zfs_type != ZFS_TYPE_BOOKMARK) {
 		iter_stack_frame_t isf;
 		iter_stack_frame_t *f;
