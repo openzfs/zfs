@@ -124,9 +124,9 @@ zpool_label_disk_wait(const char *path, int timeout_ms)
 	return (ENODEV);
 }
 
-/* ARGSUSED */
 boolean_t
 is_mpath_whole_disk(const char *path)
 {
+	(void) path;
 	return (B_FALSE);
 }
