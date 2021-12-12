@@ -244,12 +244,11 @@ zfs_is_mounted(zfs_handle_t *zhp, char **where)
  * Checks any higher order concerns about whether the given dataset is
  * mountable, false otherwise.  zfs_is_mountable_internal specifically assumes
  * that the caller has verified the sanity of mounting the dataset at
- * mountpoint to the extent the caller wants.
+ * its mountpoint to the extent the caller wants.
  */
 static boolean_t
-zfs_is_mountable_internal(zfs_handle_t *zhp, const char *mountpoint)
+zfs_is_mountable_internal(zfs_handle_t *zhp)
 {
-
 	if (zfs_prop_get_int(zhp, ZFS_PROP_ZONED) &&
 	    getzoneid() == GLOBAL_ZONEID)
 		return (B_FALSE);
@@ -282,7 +281,7 @@ zfs_is_mountable(zfs_handle_t *zhp, char *buf, size_t buflen,
 	if (zfs_prop_get_int(zhp, ZFS_PROP_CANMOUNT) == ZFS_CANMOUNT_OFF)
 		return (B_FALSE);
 
-	if (!zfs_is_mountable_internal(zhp, buf))
+	if (!zfs_is_mountable_internal(zhp))
 		return (B_FALSE);
 
 	if (zfs_prop_get_int(zhp, ZFS_PROP_REDACTED) && !(flags & MS_FORCE))
@@ -402,7 +401,7 @@ zfs_mount_at(zfs_handle_t *zhp, const char *options, int flags,
 		remount = 1;
 
 	/* Potentially duplicates some checks if invoked by zfs_mount(). */
-	if (!zfs_is_mountable_internal(zhp, mountpoint))
+	if (!zfs_is_mountable_internal(zhp))
 		return (0);
 
 	/*
