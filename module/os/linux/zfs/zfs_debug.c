@@ -84,6 +84,7 @@ zfs_dbgmsg_purge(int max_size)
 static int
 zfs_dbgmsg_clear(procfs_list_t *procfs_list)
 {
+	(void) procfs_list;
 	mutex_enter(&zfs_dbgmsgs.pl_lock);
 	zfs_dbgmsg_purge(0);
 	mutex_exit(&zfs_dbgmsgs.pl_lock);
