@@ -134,6 +134,7 @@ nfs_enable_share(sa_share_impl_t impl_share)
 static int
 nfs_disable_share_impl(sa_share_impl_t impl_share, FILE *tmpfile)
 {
+	(void) impl_share, (void) tmpfile;
 	return (SA_OK);
 }
 
