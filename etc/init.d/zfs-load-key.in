@@ -1,0 +1,131 @@
+#!@DEFAULT_INIT_SHELL@
+#
+# zfs-load-key  This script will load/unload the zfs filesystems keys.
+#
+# chkconfig:    2345 06 99
+# description:  This script will load or unload the zfs filesystems keys during
+#               system boot/shutdown. Only filesystems with key path set
+#               in keylocation property. See the zfs(8) man page for details.
+# probe: true
+#
+### BEGIN INIT INFO
+# Provides:          zfs-load-key
+# Required-Start:    $local_fs zfs-import
+# Required-Stop:     $local_fs zfs-import
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# X-Start-Before:    zfs-mount
+# X-Stop-After:      zfs-zed
+# Short-Description: Load ZFS keys for filesystems and volumes
+# Description: Run the `zfs load-key` or `zfs unload-key` commands.
+### END INIT INFO
+#
+# Released under the 2-clause BSD license.
+#
+# This script is based on debian/zfsutils.zfs.init from the
+# Debian GNU/kFreeBSD zfsutils 8.1-3 package, written by Aurelien Jarno.
+
+# Source the common init script
+. @sysconfdir@/zfs/zfs-functions
+
+# ----------------------------------------------------
+
+do_depend()
+{
+	# bootmisc will log to /var which may be a different zfs than root.
+	before bootmisc logger zfs-mount
+
+	after zfs-import sysfs
+	keyword -lxc -openvz -prefix -vserver
+}
+
+# Load keys for all datasets/filesystems
+do_load_keys()
+{
+	zfs_log_begin_msg "Load ZFS filesystem(s) keys"
+
+	"$ZFS" list -Ho name,encryptionroot,keystatus,keylocation |
+	    while IFS="	" read -r name encryptionroot keystatus keylocation; do
+		if [ "$encryptionroot" != "-" ] &&
+			[ "$name" = "$encryptionroot" ] &&
+			[ "$keystatus" = "unavailable" ] &&
+			[ "$keylocation" != "prompt" ] &&
+			[ "$keylocation" != "none" ]
+		then
+			zfs_action "Load key for $encryptionroot" \
+			    "$ZFS" load-key "$encryptionroot"
+		fi
+	done
+
+	zfs_log_end_msg 0
+
+	return 0
+}
+
+# Unload keys for all datasets/filesystems
+do_unload_keys()
+{
+	zfs_log_begin_msg "Unload ZFS filesystem(s) key"
+
+	"$ZFS" list -Ho name,encryptionroot,keystatus | sed '1!G;h;$!d' |
+	    while IFS="	" read -r name encryptionroot keystatus; do
+		if [ "$encryptionroot" != "-" ] &&
+			[ "$name" = "$encryptionroot" ] &&
+			[ "$keystatus" = "available" ]
+		then
+			zfs_action "Unload key for $encryptionroot" \
+			    "$ZFS" unload-key "$encryptionroot"
+		fi
+	done
+
+	zfs_log_end_msg 0
+
+	return 0
+}
+
+do_start()
+{
+	check_boolean "$ZFS_LOAD_KEY" || exit 0
+
+	check_module_loaded "zfs" || exit 0
+
+	do_load_keys
+}
+
+do_stop()
+{
+	check_boolean "$ZFS_UNLOAD_KEY" || exit 0
+
+	check_module_loaded "zfs" || exit 0
+
+	do_unload_keys
+}
+
+# ----------------------------------------------------
+
+if [ ! -e /sbin/openrc-run ]
+then
+	case "$1" in
+		start)
+			do_start
+			;;
+		stop)
+			do_stop
+			;;
+		force-reload|condrestart|reload|restart|status)
+			# no-op
+			;;
+		*)
+			[ -n "$1" ] && echo "Error: Unknown command $1."
+			echo "Usage: $0 {start|stop}"
+			exit 3
+			;;
+	esac
+
+	exit $?
+else
+	# Create wrapper functions since Gentoo don't use the case part.
+	depend() { do_depend; }
+	start() { do_start; }
+	stop() { do_stop; }
+fi

@@ -1,4 +1,4 @@
-# ZoL userland configuration.
+# OpenZFS userland configuration.
 
 # NOTE: This file is intended for sysv init and initramfs.
 # Changing some of these settings may not make any difference on
@@ -8,6 +8,12 @@
 
 # To enable a boolean setting, set it to yes, on, true, or 1.
 # Anything else will be interpreted as unset.
+
+# Run `zfs load-key` during system start?
+ZFS_LOAD_KEY='yes'
+
+# Run `zfs unload-key` during system stop?
+ZFS_UNLOAD_KEY='no'
 
 # Run `zfs mount -a` during system start?
 ZFS_MOUNT='yes'
