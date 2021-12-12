@@ -85,11 +85,11 @@ nv_fixed_alloc(nv_alloc_t *nva, size_t size)
 	return ((void *)new);
 }
 
-/*ARGSUSED*/
 static void
 nv_fixed_free(nv_alloc_t *nva, void *buf, size_t size)
 {
 	/* don't free memory in the pre-allocated buffer */
+	(void) nva, (void) buf, (void) size;
 }
 
 static void

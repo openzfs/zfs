@@ -82,13 +82,13 @@ fnvlist_pack(nvlist_t *nvl, size_t *sizep)
 	return (packed);
 }
 
-/*ARGSUSED*/
 void
 fnvlist_pack_free(char *pack, size_t size)
 {
 #ifdef _KERNEL
 	kmem_free(pack, size);
 #else
+	(void) size;
 	free(pack);
 #endif
 }
