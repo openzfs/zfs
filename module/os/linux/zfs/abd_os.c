@@ -205,6 +205,7 @@ abd_alloc_struct_impl(size_t size)
 	 * In Linux we do not use the size passed in during ABD
 	 * allocation, so we just ignore it.
 	 */
+	(void) size;
 	abd_t *abd = kmem_cache_alloc(abd_cache, KM_PUSHPAGE);
 	ASSERT3P(abd, !=, NULL);
 	ABDSTAT_INCR(abdstat_struct_size, sizeof (abd_t));
@@ -838,6 +839,7 @@ abd_t *
 abd_get_offset_scatter(abd_t *abd, abd_t *sabd, size_t off,
     size_t size)
 {
+	(void) size;
 	int i = 0;
 	struct scatterlist *sg = NULL;
 
