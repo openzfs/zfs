@@ -280,10 +280,10 @@ static unsigned long dbuf_metadata_cache_target_bytes(void);
 uint_t dbuf_cache_hiwater_pct = 10;
 uint_t dbuf_cache_lowater_pct = 10;
 
-/* ARGSUSED */
 static int
 dbuf_cons(void *vdb, void *unused, int kmflag)
 {
+	(void) unused, (void) kmflag;
 	dmu_buf_impl_t *db = vdb;
 	bzero(db, sizeof (dmu_buf_impl_t));
 
@@ -296,10 +296,10 @@ dbuf_cons(void *vdb, void *unused, int kmflag)
 	return (0);
 }
 
-/* ARGSUSED */
 static void
 dbuf_dest(void *vdb, void *unused)
 {
+	(void) unused;
 	dmu_buf_impl_t *db = vdb;
 	mutex_destroy(&db->db_mtx);
 	rw_destroy(&db->db_rwlock);
@@ -783,10 +783,10 @@ dbuf_evict_one(void)
  * of the dbuf cache is at or below the maximum size. Once the dbuf is aged
  * out of the cache it is destroyed and becomes eligible for arc eviction.
  */
-/* ARGSUSED */
 static void
 dbuf_evict_thread(void *unused)
 {
+	(void) unused;
 	callb_cpr_t cpr;
 
 	CALLB_CPR_INIT(&cpr, &dbuf_evict_lock, callb_generic_cpr, FTAG);
@@ -1339,6 +1339,7 @@ static void
 dbuf_read_done(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,
     arc_buf_t *buf, void *vdb)
 {
+	(void) zb, (void) bp;
 	dmu_buf_impl_t *db = vdb;
 
 	mutex_enter(&db->db_mtx);
@@ -1432,7 +1433,7 @@ dbuf_handle_indirect_hole(dmu_buf_impl_t *db, dnode_t *dn)
  * was taken, ENOENT if no action was taken.
  */
 static int
-dbuf_read_hole(dmu_buf_impl_t *db, dnode_t *dn, uint32_t flags)
+dbuf_read_hole(dmu_buf_impl_t *db, dnode_t *dn)
 {
 	ASSERT(MUTEX_HELD(&db->db_mtx));
 
@@ -1548,7 +1549,7 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags,
 		goto early_unlock;
 	}
 
-	err = dbuf_read_hole(db, dn, flags);
+	err = dbuf_read_hole(db, dn);
 	if (err == 0)
 		goto early_unlock;
 
@@ -2678,10 +2679,10 @@ dbuf_override_impl(dmu_buf_impl_t *db, const blkptr_t *bp, dmu_tx_t *tx)
 	dl->dr_overridden_by.blk_birth = dr->dr_txg;
 }
 
-/* ARGSUSED */
 void
 dmu_buf_fill_done(dmu_buf_t *dbuf, dmu_tx_t *tx)
 {
+	(void) tx;
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)dbuf;
 	dbuf_states_t old_state;
 	mutex_enter(&db->db_mtx);
@@ -3198,6 +3199,7 @@ static void
 dbuf_issue_final_prefetch_done(zio_t *zio, const zbookmark_phys_t *zb,
     const blkptr_t *iobp, arc_buf_t *abuf, void *private)
 {
+	(void) zio, (void) zb, (void) iobp;
 	dbuf_prefetch_arg_t *dpa = private;
 
 	dbuf_prefetch_fini(dpa, B_TRUE);
@@ -3246,6 +3248,7 @@ static void
 dbuf_prefetch_indirect_done(zio_t *zio, const zbookmark_phys_t *zb,
     const blkptr_t *iobp, arc_buf_t *abuf, void *private)
 {
+	(void) zb, (void) iobp;
 	dbuf_prefetch_arg_t *dpa = private;
 
 	ASSERT3S(dpa->dpa_zb.zb_level, <, dpa->dpa_curlevel);
@@ -4512,10 +4515,10 @@ dbuf_sync_list(list_t *list, int level, dmu_tx_t *tx)
 	}
 }
 
-/* ARGSUSED */
 static void
 dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 {
+	(void) buf;
 	dmu_buf_impl_t *db = vdb;
 	dnode_t *dn;
 	blkptr_t *bp = zio->io_bp;
@@ -4603,7 +4606,6 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 	dmu_buf_unlock_parent(db, dblt, FTAG);
 }
 
-/* ARGSUSED */
 /*
  * This function gets called just prior to running through the compression
  * stage of the zio pipeline. If we're an indirect block comprised of only
@@ -4614,6 +4616,7 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 static void
 dbuf_write_children_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 {
+	(void) zio, (void) buf;
 	dmu_buf_impl_t *db = vdb;
 	dnode_t *dn;
 	blkptr_t *bp;
@@ -4657,10 +4660,10 @@ dbuf_write_children_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
  * so this callback allows us to retire dirty space gradually, as the physical
  * i/os complete.
  */
-/* ARGSUSED */
 static void
 dbuf_write_physdone(zio_t *zio, arc_buf_t *buf, void *arg)
 {
+	(void) buf;
 	dmu_buf_impl_t *db = arg;
 	objset_t *os = db->db_objset;
 	dsl_pool_t *dp = dmu_objset_pool(os);
@@ -4679,10 +4682,10 @@ dbuf_write_physdone(zio_t *zio, arc_buf_t *buf, void *arg)
 	dsl_pool_undirty_space(dp, delta, zio->io_txg);
 }
 
-/* ARGSUSED */
 static void
 dbuf_write_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 {
+	(void) buf;
 	dmu_buf_impl_t *db = vdb;
 	blkptr_t *bp_orig = &zio->io_bp_orig;
 	blkptr_t *bp = db->db_blkptr;

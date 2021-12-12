@@ -2154,6 +2154,7 @@ vdev_draid_config_generate(vdev_t *vd, nvlist_t *nv)
 static int
 vdev_draid_init(spa_t *spa, nvlist_t *nv, void **tsd)
 {
+	(void) spa;
 	uint64_t ndata, nparity, nspares, ngroups;
 	int error;
 
@@ -2382,7 +2383,6 @@ vdev_draid_spare_get_child(vdev_t *vd, uint64_t physical_offset)
 	return (cvd);
 }
 
-/* ARGSUSED */
 static void
 vdev_draid_spare_close(vdev_t *vd)
 {
@@ -2641,10 +2641,10 @@ vdev_draid_spare_io_start(zio_t *zio)
 	zio_execute(zio);
 }
 
-/* ARGSUSED */
 static void
 vdev_draid_spare_io_done(zio_t *zio)
 {
+	(void) zio;
 }
 
 /*

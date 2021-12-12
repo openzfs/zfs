@@ -380,10 +380,10 @@ spa_checkpoint_discard_is_done(spa_t *spa)
 	return (B_TRUE);
 }
 
-/* ARGSUSED */
 boolean_t
 spa_checkpoint_discard_thread_check(void *arg, zthr_t *zthr)
 {
+	(void) zthr;
 	spa_t *spa = arg;
 
 	if (!spa_feature_is_active(spa, SPA_FEATURE_POOL_CHECKPOINT))
@@ -450,10 +450,10 @@ spa_checkpoint_discard_thread(void *arg, zthr_t *zthr)
 }
 
 
-/* ARGSUSED */
 static int
 spa_checkpoint_check(void *arg, dmu_tx_t *tx)
 {
+	(void) arg;
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
 
 	if (!spa_feature_is_enabled(spa, SPA_FEATURE_POOL_CHECKPOINT))
@@ -474,10 +474,10 @@ spa_checkpoint_check(void *arg, dmu_tx_t *tx)
 	return (0);
 }
 
-/* ARGSUSED */
 static void
 spa_checkpoint_sync(void *arg, dmu_tx_t *tx)
 {
+	(void) arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	spa_t *spa = dp->dp_spa;
 	uberblock_t checkpoint = spa->spa_ubsync;
@@ -571,10 +571,10 @@ spa_checkpoint(const char *pool)
 	return (error);
 }
 
-/* ARGSUSED */
 static int
 spa_checkpoint_discard_check(void *arg, dmu_tx_t *tx)
 {
+	(void) arg;
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
 
 	if (!spa_feature_is_active(spa, SPA_FEATURE_POOL_CHECKPOINT))
@@ -589,10 +589,10 @@ spa_checkpoint_discard_check(void *arg, dmu_tx_t *tx)
 	return (0);
 }
 
-/* ARGSUSED */
 static void
 spa_checkpoint_discard_sync(void *arg, dmu_tx_t *tx)
 {
+	(void) arg;
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
 
 	VERIFY0(zap_remove(spa_meta_objset(spa), DMU_POOL_DIRECTORY_OBJECT,
