@@ -664,7 +664,6 @@ typedef struct dmu_buf_user {
  * NOTE: This function should only be called once on a given dmu_buf_user_t.
  *       To allow enforcement of this, dbu must already be zeroed on entry.
  */
-/*ARGSUSED*/
 static inline void
 dmu_buf_init_user(dmu_buf_user_t *dbu, dmu_buf_evict_func_t *evict_func_sync,
     dmu_buf_evict_func_t *evict_func_async,
