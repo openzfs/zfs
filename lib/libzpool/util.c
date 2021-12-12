@@ -242,6 +242,7 @@ out_ret:
 static nvlist_t *
 refresh_config(void *unused, nvlist_t *tryconfig)
 {
+	(void) unused;
 	return (spa_tryimport(tryconfig));
 }
 
@@ -254,6 +255,7 @@ refresh_config(void *unused, nvlist_t *tryconfig)
 static int
 pool_active(void *unused, const char *name, uint64_t guid, boolean_t *isactive)
 {
+	(void) unused, (void) guid;
 	zfs_iocparm_t zp;
 	zfs_cmd_t *zc = NULL;
 	zfs_cmd_legacy_t *zcl = NULL;
@@ -322,6 +324,7 @@ static int
 pool_active(void *unused, const char *name, uint64_t guid,
     boolean_t *isactive)
 {
+	(void) unused, (void) guid;
 	int fd = open(ZFS_DEV, O_RDWR | O_CLOEXEC);
 	if (fd < 0)
 		return (-1);
