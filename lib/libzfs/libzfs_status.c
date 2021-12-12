@@ -96,48 +96,48 @@ static char *zfs_msgid_table[] = {
 
 #define	NMSGID	(sizeof (zfs_msgid_table) / sizeof (zfs_msgid_table[0]))
 
-/* ARGSUSED */
 static int
 vdev_missing(vdev_stat_t *vs, uint_t vsc)
 {
+	(void) vsc;
 	return (vs->vs_state == VDEV_STATE_CANT_OPEN &&
 	    vs->vs_aux == VDEV_AUX_OPEN_FAILED);
 }
 
-/* ARGSUSED */
 static int
 vdev_faulted(vdev_stat_t *vs, uint_t vsc)
 {
+	(void) vsc;
 	return (vs->vs_state == VDEV_STATE_FAULTED);
 }
 
-/* ARGSUSED */
 static int
 vdev_errors(vdev_stat_t *vs, uint_t vsc)
 {
+	(void) vsc;
 	return (vs->vs_state == VDEV_STATE_DEGRADED ||
 	    vs->vs_read_errors != 0 || vs->vs_write_errors != 0 ||
 	    vs->vs_checksum_errors != 0);
 }
 
-/* ARGSUSED */
 static int
 vdev_broken(vdev_stat_t *vs, uint_t vsc)
 {
+	(void) vsc;
 	return (vs->vs_state == VDEV_STATE_CANT_OPEN);
 }
 
-/* ARGSUSED */
 static int
 vdev_offlined(vdev_stat_t *vs, uint_t vsc)
 {
+	(void) vsc;
 	return (vs->vs_state == VDEV_STATE_OFFLINE);
 }
 
-/* ARGSUSED */
 static int
 vdev_removed(vdev_stat_t *vs, uint_t vsc)
 {
+	(void) vsc;
 	return (vs->vs_state == VDEV_STATE_REMOVED);
 }
 

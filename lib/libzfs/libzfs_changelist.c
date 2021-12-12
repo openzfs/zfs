@@ -592,7 +592,6 @@ compare_props(const void *a, const void *b, zfs_prop_t prop)
 		return (strcmp(propb, propa));
 }
 
-/*ARGSUSED*/
 static int
 compare_mountpoints(const void *a, const void *b, void *unused)
 {
@@ -602,13 +601,14 @@ compare_mountpoints(const void *a, const void *b, void *unused)
 	 * hierarchy that is different from the dataset hierarchy, and still
 	 * allow it to be changed.
 	 */
+	(void) unused;
 	return (compare_props(a, b, ZFS_PROP_MOUNTPOINT));
 }
 
-/*ARGSUSED*/
 static int
 compare_dataset_names(const void *a, const void *b, void *unused)
 {
+	(void) unused;
 	return (compare_props(a, b, ZFS_PROP_NAME));
 }
 

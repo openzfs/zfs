@@ -226,7 +226,6 @@ static struct fletcher_4_kstat {
 /* Indicate that benchmark has been completed */
 static boolean_t fletcher_4_initialized = B_FALSE;
 
-/*ARGSUSED*/
 void
 fletcher_init(zio_cksum_t *zcp)
 {
@@ -258,11 +257,11 @@ fletcher_2_incremental_native(void *buf, size_t size, void *data)
 	return (0);
 }
 
-/*ARGSUSED*/
 void
 fletcher_2_native(const void *buf, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
+	(void) ctx_template;
 	fletcher_init(zcp);
 	(void) fletcher_2_incremental_native((void *) buf, size, zcp);
 }
@@ -292,11 +291,11 @@ fletcher_2_incremental_byteswap(void *buf, size_t size, void *data)
 	return (0);
 }
 
-/*ARGSUSED*/
 void
 fletcher_2_byteswap(const void *buf, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
+	(void) ctx_template;
 	fletcher_init(zcp);
 	(void) fletcher_2_incremental_byteswap((void *) buf, size, zcp);
 }
@@ -460,11 +459,11 @@ fletcher_4_native_impl(const void *buf, uint64_t size, zio_cksum_t *zcp)
 	ops->fini_native(&ctx, zcp);
 }
 
-/*ARGSUSED*/
 void
 fletcher_4_native(const void *buf, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
+	(void) ctx_template;
 	const uint64_t p2size = P2ALIGN(size, FLETCHER_MIN_SIMD_SIZE);
 
 	ASSERT(IS_P2ALIGNED(size, sizeof (uint32_t)));
@@ -502,11 +501,11 @@ fletcher_4_byteswap_impl(const void *buf, uint64_t size, zio_cksum_t *zcp)
 	ops->fini_byteswap(&ctx, zcp);
 }
 
-/*ARGSUSED*/
 void
 fletcher_4_byteswap(const void *buf, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
+	(void) ctx_template;
 	const uint64_t p2size = P2ALIGN(size, FLETCHER_MIN_SIMD_SIZE);
 
 	ASSERT(IS_P2ALIGNED(size, sizeof (uint32_t)));
