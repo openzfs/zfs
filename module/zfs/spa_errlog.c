@@ -252,6 +252,8 @@ spa_get_errlog(spa_t *spa, void *uaddr, size_t *count)
 	mutex_exit(&spa->spa_errlist_lock);
 
 	mutex_exit(&spa->spa_errlog_lock);
+#else
+	(void) spa, (void) uaddr, (void) count;
 #endif
 
 	return (ret);

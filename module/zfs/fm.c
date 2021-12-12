@@ -483,17 +483,17 @@ zfs_zevent_destroy(zfs_zevent_t *ze)
 /*
  * Wrappers for FM nvlist allocators
  */
-/* ARGSUSED */
 static void *
 i_fm_alloc(nv_alloc_t *nva, size_t size)
 {
+	(void) nva;
 	return (kmem_zalloc(size, KM_SLEEP));
 }
 
-/* ARGSUSED */
 static void
 i_fm_free(nv_alloc_t *nva, void *buf, size_t size)
 {
+	(void) nva;
 	kmem_free(buf, size);
 }
 

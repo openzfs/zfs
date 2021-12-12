@@ -108,12 +108,11 @@ dbuf_compare(const void *x1, const void *x2)
 	return (TREE_PCMP(d1, d2));
 }
 
-/* ARGSUSED */
 static int
 dnode_cons(void *arg, void *unused, int kmflag)
 {
+	(void) unused, (void) kmflag;
 	dnode_t *dn = arg;
-	int i;
 
 	rw_init(&dn->dn_struct_rwlock, NULL, RW_NOLOCKDEP, NULL);
 	mutex_init(&dn->dn_mtx, NULL, MUTEX_DEFAULT, NULL);
@@ -139,7 +138,7 @@ dnode_cons(void *arg, void *unused, int kmflag)
 	bzero(&dn->dn_next_blksz[0], sizeof (dn->dn_next_blksz));
 	bzero(&dn->dn_next_maxblkid[0], sizeof (dn->dn_next_maxblkid));
 
-	for (i = 0; i < TXG_SIZE; i++) {
+	for (int i = 0; i < TXG_SIZE; i++) {
 		multilist_link_init(&dn->dn_dirty_link[i]);
 		dn->dn_free_ranges[i] = NULL;
 		list_create(&dn->dn_dirty_records[i],
@@ -174,11 +173,10 @@ dnode_cons(void *arg, void *unused, int kmflag)
 	return (0);
 }
 
-/* ARGSUSED */
 static void
 dnode_dest(void *arg, void *unused)
 {
-	int i;
+	(void) unused;
 	dnode_t *dn = arg;
 
 	rw_destroy(&dn->dn_struct_rwlock);
@@ -190,7 +188,7 @@ dnode_dest(void *arg, void *unused)
 	zfs_refcount_destroy(&dn->dn_tx_holds);
 	ASSERT(!list_link_active(&dn->dn_link));
 
-	for (i = 0; i < TXG_SIZE; i++) {
+	for (int i = 0; i < TXG_SIZE; i++) {
 		ASSERT(!multilist_link_active(&dn->dn_dirty_link[i]));
 		ASSERT3P(dn->dn_free_ranges[i], ==, NULL);
 		list_destroy(&dn->dn_dirty_records[i]);
@@ -889,7 +887,6 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	odn->dn_moved = (uint8_t)-1;
 }
 
-/*ARGSUSED*/
 static kmem_cbrc_t
 dnode_move(void *buf, void *newbuf, size_t size, void *arg)
 {

@@ -2943,11 +2943,11 @@ typedef struct dsl_dataset_rename_snapshot_arg {
 	dmu_tx_t *ddrsa_tx;
 } dsl_dataset_rename_snapshot_arg_t;
 
-/* ARGSUSED */
 static int
 dsl_dataset_rename_snapshot_check_impl(dsl_pool_t *dp,
     dsl_dataset_t *hds, void *arg)
 {
+	(void) dp;
 	dsl_dataset_rename_snapshot_arg_t *ddrsa = arg;
 	int error;
 	uint64_t val;
@@ -4305,7 +4305,6 @@ typedef struct dsl_dataset_set_qr_arg {
 } dsl_dataset_set_qr_arg_t;
 
 
-/* ARGSUSED */
 static int
 dsl_dataset_set_refquota_check(void *arg, dmu_tx_t *tx)
 {
@@ -4512,7 +4511,6 @@ typedef struct dsl_dataset_set_compression_arg {
 	uint64_t ddsca_value;
 } dsl_dataset_set_compression_arg_t;
 
-/* ARGSUSED */
 static int
 dsl_dataset_set_compression_check(void *arg, dmu_tx_t *tx)
 {

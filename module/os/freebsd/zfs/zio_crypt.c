@@ -1033,7 +1033,6 @@ error:
  * and le_bswap indicates whether a byteswap is needed to get this block
  * into little endian format.
  */
-/* ARGSUSED */
 int
 zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
     boolean_t should_bswap, uint8_t *portable_mac, uint8_t *local_mac)
@@ -1242,13 +1241,13 @@ zio_crypt_do_indirect_mac_checksum_abd(boolean_t generate, abd_t *abd,
  * It also means we'll only return one zfs_uio_t.
  */
 
-/* ARGSUSED */
 static int
 zio_crypt_init_uios_zil(boolean_t encrypt, uint8_t *plainbuf,
     uint8_t *cipherbuf, uint_t datalen, boolean_t byteswap, zfs_uio_t *puio,
     zfs_uio_t *out_uio, uint_t *enc_len, uint8_t **authbuf, uint_t *auth_len,
     boolean_t *no_crypt)
 {
+	(void) puio;
 	uint8_t *aadbuf = zio_buf_alloc(datalen);
 	uint8_t *src, *dst, *slrp, *dlrp, *blkend, *aadp;
 	iovec_t *dst_iovecs;
@@ -1545,12 +1544,12 @@ zio_crypt_init_uios_dnode(boolean_t encrypt, uint64_t version,
 	return (0);
 }
 
-/* ARGSUSED */
 static int
 zio_crypt_init_uios_normal(boolean_t encrypt, uint8_t *plainbuf,
     uint8_t *cipherbuf, uint_t datalen, zfs_uio_t *puio, zfs_uio_t *out_uio,
     uint_t *enc_len)
 {
+	(void) puio;
 	int ret;
 	uint_t nr_plain = 1, nr_cipher = 2;
 	iovec_t *plain_iovecs = NULL, *cipher_iovecs = NULL;

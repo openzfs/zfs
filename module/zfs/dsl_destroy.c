@@ -699,11 +699,11 @@ struct killarg {
 	dmu_tx_t *tx;
 };
 
-/* ARGSUSED */
 static int
 kill_blkptr(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
     const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
 {
+	(void) spa, (void) dnp;
 	struct killarg *ka = arg;
 	dmu_tx_t *tx = ka->tx;
 
@@ -1246,10 +1246,10 @@ dsl_destroy_head(const char *name)
  * inconsistent datasets, even if we encounter an error trying to
  * process one of them.
  */
-/* ARGSUSED */
 int
 dsl_destroy_inconsistent(const char *dsname, void *arg)
 {
+	(void) arg;
 	objset_t *os;
 
 	if (dmu_objset_hold(dsname, FTAG, &os) == 0) {

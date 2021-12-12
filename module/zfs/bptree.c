@@ -147,11 +147,11 @@ bptree_add(objset_t *os, uint64_t obj, blkptr_t *bp, uint64_t birth_txg,
 	dmu_buf_rele(db, FTAG);
 }
 
-/* ARGSUSED */
 static int
 bptree_visit_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
     const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
 {
+	(void) zilog, (void) dnp;
 	int err;
 	struct bptree_args *ba = arg;
 

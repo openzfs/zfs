@@ -212,20 +212,20 @@ sa_attr_type_t sa_dummy_zpl_layout[] = { 0 };
 static int sa_legacy_attr_count = ARRAY_SIZE(sa_legacy_attrs);
 static kmem_cache_t *sa_cache = NULL;
 
-/*ARGSUSED*/
 static int
 sa_cache_constructor(void *buf, void *unused, int kmflag)
 {
+	(void) unused, (void) kmflag;
 	sa_handle_t *hdl = buf;
 
 	mutex_init(&hdl->sa_lock, NULL, MUTEX_DEFAULT, NULL);
 	return (0);
 }
 
-/*ARGSUSED*/
 static void
 sa_cache_destructor(void *buf, void *unused)
 {
+	(void) unused;
 	sa_handle_t *hdl = buf;
 	mutex_destroy(&hdl->sa_lock);
 }
@@ -1218,11 +1218,11 @@ sa_attr_iter(objset_t *os, sa_hdr_phys_t *hdr, dmu_object_type_t type,
 	}
 }
 
-/*ARGSUSED*/
 static void
 sa_byteswap_cb(void *hdr, void *attr_addr, sa_attr_type_t attr,
     uint16_t length, int length_idx, boolean_t variable_length, void *userp)
 {
+	(void) hdr, (void) length_idx, (void) variable_length;
 	sa_handle_t *hdl = userp;
 	sa_os_t *sa = hdl->sa_os->os_sa;
 
@@ -1309,10 +1309,10 @@ sa_build_index(sa_handle_t *hdl, sa_buf_type_t buftype)
 	return (0);
 }
 
-/*ARGSUSED*/
 static void
 sa_evict_sync(void *dbu)
 {
+	(void) dbu;
 	panic("evicting sa dbuf\n");
 }
 

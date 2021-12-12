@@ -560,11 +560,11 @@ traverse_dnode(traverse_data_t *td, const blkptr_t *bp, const dnode_phys_t *dnp,
 	return (err);
 }
 
-/* ARGSUSED */
 static int
 traverse_prefetcher(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
     const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
 {
+	(void) zilog, (void) dnp;
 	prefetch_data_t *pfd = arg;
 	int zio_flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_SPECULATIVE;
 	arc_flags_t aflags = ARC_FLAG_NOWAIT | ARC_FLAG_PREFETCH |
