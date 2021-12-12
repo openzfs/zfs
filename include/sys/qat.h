@@ -171,7 +171,7 @@ extern int qat_init(void);
 extern void qat_fini(void);
 
 /* fake CpaStatus used to indicate data was not compressible */
-#define	CPA_STATUS_INCOMPRESSIBLE				(-127)
+#define	CPA_STATUS_INCOMPRESSIBLE		(-127)
 
 extern boolean_t qat_dc_use_accel(size_t s_len);
 extern boolean_t qat_crypt_use_accel(size_t s_len);
@@ -184,16 +184,24 @@ extern int qat_crypt(qat_encrypt_dir_t dir, uint8_t *src_buf, uint8_t *dst_buf,
 extern int qat_checksum(uint64_t cksum, uint8_t *buf, uint64_t size,
     zio_cksum_t *zcp);
 #else
-#define	CPA_STATUS_SUCCESS					0
-#define	CPA_STATUS_INCOMPRESSIBLE				(-127)
+#define	CPA_STATUS_SUCCESS			0
+#define	CPA_STATUS_INCOMPRESSIBLE		(-127)
 #define	qat_init()
 #define	qat_fini()
-#define	qat_dc_use_accel(s_len)					0
-#define	qat_crypt_use_accel(s_len)				0
-#define	qat_checksum_use_accel(s_len)				0
-#define	qat_compress(dir, s, sl, d, dl, cl)			0
-#define	qat_crypt(dir, s, d, a, al, i, db, k, c, el)		0
-#define	qat_checksum(c, buf, s, z)				0
+#define	qat_dc_use_accel(s_len)			((void) sizeof (s_len), 0)
+#define	qat_crypt_use_accel(s_len)		((void) sizeof (s_len), 0)
+#define	qat_checksum_use_accel(s_len)		((void) sizeof (s_len), 0)
+#define	qat_compress(dir, s, sl, d, dl, cl)			\
+	((void) sizeof (dir), (void) sizeof (s), (void) sizeof (sl), \
+	    (void) sizeof (d), (void) sizeof (dl), (void) sizeof (cl), 0)
+#define	qat_crypt(dir, s, d, a, al, i, db, k, c, el)		\
+	((void) sizeof (dir), (void) sizeof (s), (void) sizeof (d), \
+	    (void) sizeof (a),  (void) sizeof (al), (void) sizeof (i), \
+	    (void) sizeof (db), (void) sizeof (k), (void) sizeof (c), \
+	    (void) sizeof (el), 0)
+#define	qat_checksum(c, buf, s, z)				\
+	((void) sizeof (c), (void) sizeof (buf), (void) sizeof (s), \
+	    (void) sizeof (z), 0)
 #endif
 
 #endif /* _SYS_QAT_H */
