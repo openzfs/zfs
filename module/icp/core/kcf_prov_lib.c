@@ -40,6 +40,7 @@ int
 crypto_uio_data(crypto_data_t *data, uchar_t *buf, int len, cmd_type_t cmd,
     void *digest_ctx, void (*update)(void))
 {
+	(void) digest_ctx, (void) update;
 	zfs_uio_t *uiop = data->cd_uio;
 	off_t offset = data->cd_offset;
 	size_t length = len;

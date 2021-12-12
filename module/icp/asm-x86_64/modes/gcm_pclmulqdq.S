@@ -85,9 +85,9 @@
 
 #include <sys/types.h>
 
-/* ARGSUSED */
 void
 gcm_mul_pclmulqdq(uint64_t *x_in, uint64_t *y, uint64_t *res) {
+	(void) x_in, (void) y, (void) res;
 }
 
 #elif defined(HAVE_PCLMULQDQ)	/* guard by instruction set */

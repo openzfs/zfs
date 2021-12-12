@@ -114,7 +114,6 @@ out:
 	return (CRYPTO_SUCCESS);
 }
 
-/* ARGSUSED */
 void *
 ecb_alloc_ctx(int kmflag)
 {

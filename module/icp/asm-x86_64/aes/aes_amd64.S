@@ -186,15 +186,15 @@
 #if defined(lint) || defined(__lint)
 
 #include <sys/types.h>
-/* ARGSUSED */
 void
 aes_encrypt_amd64(const uint32_t rk[], int Nr, const uint32_t pt[4],
 	uint32_t ct[4]) {
+   (void) rk, (void) Nr, (void) pt, (void) ct;
 }
-/* ARGSUSED */
 void
 aes_decrypt_amd64(const uint32_t rk[], int Nr, const uint32_t ct[4],
 	uint32_t pt[4]) {
+   (void) rk, (void) Nr, (void) pt, (void) ct;
 }
 
 

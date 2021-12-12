@@ -254,10 +254,10 @@ sha2_mod_fini(void)
 /*
  * KCF software provider control entry points.
  */
-/* ARGSUSED */
 static void
 sha2_provider_status(crypto_provider_handle_t provider, uint_t *status)
 {
+	(void) provider;
 	*status = CRYPTO_PROVIDER_READY;
 }
 
@@ -438,11 +438,11 @@ sha2_digest_final_uio(SHA2_CTX *sha2_ctx, crypto_data_t *digest,
 	return (CRYPTO_SUCCESS);
 }
 
-/* ARGSUSED */
 static int
 sha2_digest(crypto_ctx_t *ctx, crypto_data_t *data, crypto_data_t *digest,
     crypto_req_handle_t req)
 {
+	(void) req;
 	int ret = CRYPTO_SUCCESS;
 	uint_t sha_digest_len;
 
@@ -526,11 +526,11 @@ sha2_digest(crypto_ctx_t *ctx, crypto_data_t *data, crypto_data_t *digest,
 	return (ret);
 }
 
-/* ARGSUSED */
 static int
 sha2_digest_update(crypto_ctx_t *ctx, crypto_data_t *data,
     crypto_req_handle_t req)
 {
+	(void) req;
 	int ret = CRYPTO_SUCCESS;
 
 	ASSERT(ctx->cc_provider_private != NULL);
@@ -555,11 +555,11 @@ sha2_digest_update(crypto_ctx_t *ctx, crypto_data_t *data,
 	return (ret);
 }
 
-/* ARGSUSED */
 static int
 sha2_digest_final(crypto_ctx_t *ctx, crypto_data_t *digest,
     crypto_req_handle_t req)
 {
+	(void) req;
 	int ret = CRYPTO_SUCCESS;
 	uint_t sha_digest_len;
 
@@ -618,13 +618,13 @@ sha2_digest_final(crypto_ctx_t *ctx, crypto_data_t *digest,
 	return (ret);
 }
 
-/* ARGSUSED */
 static int
 sha2_digest_atomic(crypto_provider_handle_t provider,
     crypto_session_id_t session_id, crypto_mechanism_t *mechanism,
     crypto_data_t *data, crypto_data_t *digest,
     crypto_req_handle_t req)
 {
+	(void) provider, (void) session_id, (void) req;
 	int ret = CRYPTO_SUCCESS;
 	SHA2_CTX sha2_ctx;
 	uint32_t sha_digest_len;
@@ -840,11 +840,11 @@ sha2_mac_init(crypto_ctx_t *ctx, crypto_mechanism_t *mechanism,
 	return (ret);
 }
 
-/* ARGSUSED */
 static int
 sha2_mac_update(crypto_ctx_t *ctx, crypto_data_t *data,
     crypto_req_handle_t req)
 {
+	(void) req;
 	int ret = CRYPTO_SUCCESS;
 
 	ASSERT(ctx->cc_provider_private != NULL);
@@ -870,10 +870,10 @@ sha2_mac_update(crypto_ctx_t *ctx, crypto_data_t *data,
 	return (ret);
 }
 
-/* ARGSUSED */
 static int
 sha2_mac_final(crypto_ctx_t *ctx, crypto_data_t *mac, crypto_req_handle_t req)
 {
+	(void) req;
 	int ret = CRYPTO_SUCCESS;
 	uchar_t digest[SHA512_DIGEST_LENGTH];
 	uint32_t digest_len, sha_digest_len;
@@ -983,13 +983,13 @@ sha2_mac_final(crypto_ctx_t *ctx, crypto_data_t *mac, crypto_req_handle_t req)
 	}								\
 }
 
-/* ARGSUSED */
 static int
 sha2_mac_atomic(crypto_provider_handle_t provider,
     crypto_session_id_t session_id, crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_data_t *data, crypto_data_t *mac,
     crypto_spi_ctx_template_t ctx_template, crypto_req_handle_t req)
 {
+	(void) provider, (void) session_id, (void) req;
 	int ret = CRYPTO_SUCCESS;
 	uchar_t digest[SHA512_DIGEST_LENGTH];
 	sha2_hmac_ctx_t sha2_hmac_ctx;
@@ -1121,13 +1121,13 @@ bail:
 	return (ret);
 }
 
-/* ARGSUSED */
 static int
 sha2_mac_verify_atomic(crypto_provider_handle_t provider,
     crypto_session_id_t session_id, crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_data_t *data, crypto_data_t *mac,
     crypto_spi_ctx_template_t ctx_template, crypto_req_handle_t req)
 {
+	(void) provider, (void) session_id, (void) req;
 	int ret = CRYPTO_SUCCESS;
 	uchar_t digest[SHA512_DIGEST_LENGTH];
 	sha2_hmac_ctx_t sha2_hmac_ctx;
@@ -1301,13 +1301,13 @@ bail:
  * KCF software provider context management entry points.
  */
 
-/* ARGSUSED */
 static int
 sha2_create_ctx_template(crypto_provider_handle_t provider,
     crypto_mechanism_t *mechanism, crypto_key_t *key,
     crypto_spi_ctx_template_t *ctx_template, size_t *ctx_template_size,
     crypto_req_handle_t req)
 {
+	(void) provider;
 	sha2_hmac_ctx_t *sha2_hmac_ctx_tmpl;
 	uint_t keylen_in_bytes = CRYPTO_BITS2BYTES(key->ck_length);
 	uint32_t sha_digest_len, sha_hmac_block_size;

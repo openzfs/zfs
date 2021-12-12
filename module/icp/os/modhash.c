@@ -172,16 +172,16 @@ kmutex_t mh_head_lock;
  * mod_hash_null_valdtor()
  * 	no-op key and value destructors.
  */
-/*ARGSUSED*/
 void
 mod_hash_null_keydtor(mod_hash_key_t key)
 {
+	(void) key;
 }
 
-/*ARGSUSED*/
 void
 mod_hash_null_valdtor(mod_hash_val_t val)
 {
+	(void) val;
 }
 
 /*
@@ -198,10 +198,10 @@ mod_hash_null_valdtor(mod_hash_val_t val)
  *	"Compilers: Principles, Tools & Techniques", by Aho, Sethi, Ullman
  */
 
-/*ARGSUSED*/
 uint_t
 mod_hash_bystr(void *hash_data, mod_hash_key_t key)
 {
+	(void) hash_data;
 	uint_t hash = 0;
 	uint_t g;
 	char *p, *k = (char *)key;
@@ -672,10 +672,10 @@ mod_hash_reserve_nosleep(mod_hash_t *hash, mod_hash_hndl_t *handlep)
 
 }
 
-/*ARGSUSED*/
 void
 mod_hash_cancel(mod_hash_t *hash, mod_hash_hndl_t *handlep)
 {
+	(void) hash;
 	kmem_cache_free(mh_e_cache, *handlep);
 	*handlep = (mod_hash_hndl_t)0;
 }

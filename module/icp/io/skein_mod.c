@@ -250,10 +250,10 @@ skein_mod_fini(void)
 /*
  * KCF software provider control entry points.
  */
-/* ARGSUSED */
 static void
 skein_provider_status(crypto_provider_handle_t provider, uint_t *status)
 {
+	(void) provider;
 	*status = CRYPTO_PROVIDER_READY;
 }
 
@@ -462,10 +462,10 @@ skein_digest(crypto_ctx_t *ctx, crypto_data_t *data, crypto_data_t *digest,
  * can push more data). This is used both for digest and MAC operation.
  * Supported input data formats are raw, uio and mblk.
  */
-/*ARGSUSED*/
 static int
 skein_update(crypto_ctx_t *ctx, crypto_data_t *data, crypto_req_handle_t req)
 {
+	(void) req;
 	int error = CRYPTO_SUCCESS;
 
 	ASSERT(SKEIN_CTX(ctx) != NULL);
@@ -491,7 +491,6 @@ skein_update(crypto_ctx_t *ctx, crypto_data_t *data, crypto_req_handle_t req)
  * for digest and MAC operation.
  * Supported output digest formats are raw, uio and mblk.
  */
-/*ARGSUSED*/
 static int
 skein_final(crypto_ctx_t *ctx, crypto_data_t *digest, crypto_req_handle_t req)
 {
@@ -537,15 +536,15 @@ skein_final(crypto_ctx_t *ctx, crypto_data_t *digest, crypto_req_handle_t req)
  * `data' and writing the output to `digest'.
  * Supported input/output formats are raw, uio and mblk.
  */
-/*ARGSUSED*/
 static int
 skein_digest_atomic(crypto_provider_handle_t provider,
     crypto_session_id_t session_id, crypto_mechanism_t *mechanism,
     crypto_data_t *data, crypto_data_t *digest, crypto_req_handle_t req)
 {
-	int		error;
-	skein_ctx_t	skein_ctx;
-	crypto_ctx_t	ctx;
+	(void) provider, (void) session_id, (void) req;
+	int	 error;
+	skein_ctx_t skein_ctx;
+	crypto_ctx_t ctx;
 	SKEIN_CTX_LVALUE(&ctx) = &skein_ctx;
 
 	/* Init */
@@ -640,7 +639,6 @@ errout:
  * The MAC update and final calls are reused from the regular digest code.
  */
 
-/*ARGSUSED*/
 /*
  * Same as skein_digest_atomic, performs an atomic Skein MAC operation in
  * one step. All the same properties apply to the arguments of this
@@ -653,9 +651,10 @@ skein_mac_atomic(crypto_provider_handle_t provider,
     crypto_spi_ctx_template_t ctx_template, crypto_req_handle_t req)
 {
 	/* faux crypto context just for skein_digest_{update,final} */
-	int		error;
-	crypto_ctx_t	ctx;
-	skein_ctx_t	skein_ctx;
+	(void) provider, (void) session_id;
+	int	 error;
+	crypto_ctx_t ctx;
+	skein_ctx_t skein_ctx;
 	SKEIN_CTX_LVALUE(&ctx) = &skein_ctx;
 
 	if (ctx_template != NULL) {
@@ -686,15 +685,15 @@ errout:
  * properties apply to the arguments of this function as to those of
  * skein_mac_init.
  */
-/*ARGSUSED*/
 static int
 skein_create_ctx_template(crypto_provider_handle_t provider,
     crypto_mechanism_t *mechanism, crypto_key_t *key,
     crypto_spi_ctx_template_t *ctx_template, size_t *ctx_template_size,
     crypto_req_handle_t req)
 {
-	int		error;
-	skein_ctx_t	*ctx_tmpl;
+	(void) provider;
+	int	 error;
+	skein_ctx_t *ctx_tmpl;
 
 	ctx_tmpl = kmem_alloc(sizeof (*ctx_tmpl), crypto_kmflag(req));
 	if (ctx_tmpl == NULL)

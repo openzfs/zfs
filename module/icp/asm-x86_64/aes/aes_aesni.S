@@ -154,26 +154,26 @@
 
 #include <sys/types.h>
 
-/* ARGSUSED */
 void
 aes_encrypt_intel(const uint32_t rk[], int Nr, const uint32_t pt[4],
     uint32_t ct[4]) {
+	(void) rk, (void) Nr, (void) pt, (void) ct;
 }
-/* ARGSUSED */
 void
 aes_decrypt_intel(const uint32_t rk[], int Nr, const uint32_t ct[4],
     uint32_t pt[4]) {
+	(void) rk, (void) Nr, (void) ct, (void) pt;
 }
-/* ARGSUSED */
 int
 rijndael_key_setup_enc_intel(uint32_t rk[], const uint32_t cipherKey[],
     uint64_t keyBits) {
+	(void) rk, (void) cipherKey, (void) keyBits;
 	return (0);
 }
-/* ARGSUSED */
 int
 rijndael_key_setup_dec_intel(uint32_t rk[], const uint32_t cipherKey[],
    uint64_t keyBits) {
+	(void) rk, (void) cipherKey, (void) keyBits;
 	return (0);
 }
 

@@ -199,13 +199,13 @@ out:
 	return (CRYPTO_SUCCESS);
 }
 
-/* ARGSUSED */
 int
 gcm_encrypt_final(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size,
     int (*encrypt_block)(const void *, const uint8_t *, uint8_t *),
     void (*copy_block)(uint8_t *, uint8_t *),
     void (*xor_block)(uint8_t *, uint8_t *))
 {
+	(void) copy_block;
 #ifdef CAN_USE_GCM_ASM
 	if (ctx->gcm_use_avx == B_TRUE)
 		return (gcm_encrypt_final_avx(ctx, out, block_size));
@@ -324,7 +324,6 @@ gcm_decrypt_incomplete_block(gcm_ctx_t *ctx, size_t block_size, size_t index,
 	}
 }
 
-/* ARGSUSED */
 int
 gcm_mode_decrypt_contiguous_blocks(gcm_ctx_t *ctx, char *data, size_t length,
     crypto_data_t *out, size_t block_size,
@@ -332,6 +331,8 @@ gcm_mode_decrypt_contiguous_blocks(gcm_ctx_t *ctx, char *data, size_t length,
     void (*copy_block)(uint8_t *, uint8_t *),
     void (*xor_block)(uint8_t *, uint8_t *))
 {
+	(void) out, (void) block_size, (void) encrypt_block, (void) copy_block,
+	    (void) xor_block;
 	size_t new_len;
 	uint8_t *new;
 

@@ -47,6 +47,7 @@ struct mod_ops mod_cryptoops = {
 static int
 mod_null(struct modlmisc *modl, struct modlinkage *modlp)
 {
+	(void) modl, (void) modlp;
 	return (0);
 }
 
@@ -56,6 +57,7 @@ mod_null(struct modlmisc *modl, struct modlinkage *modlp)
 static int
 mod_infonull(void *modl, struct modlinkage *modlp, int *p0)
 {
+	(void) modl, (void) modlp;
 	*p0 = -1;		/* for modinfo display */
 	return (0);
 }

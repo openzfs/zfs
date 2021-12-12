@@ -214,7 +214,6 @@ ctr_init_ctx(ctr_ctx_t *ctr_ctx, ulong_t count, uint8_t *cb,
 	return (CRYPTO_SUCCESS);
 }
 
-/* ARGSUSED */
 void *
 ctr_alloc_ctx(int kmflag)
 {

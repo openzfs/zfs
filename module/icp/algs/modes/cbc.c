@@ -137,7 +137,6 @@ out:
 #define	OTHER(a, ctx) \
 	(((a) == (ctx)->cbc_lastblock) ? (ctx)->cbc_iv : (ctx)->cbc_lastblock)
 
-/* ARGSUSED */
 int
 cbc_decrypt_contiguous_blocks(cbc_ctx_t *ctx, char *data, size_t length,
     crypto_data_t *out, size_t block_size,
@@ -259,7 +258,6 @@ cbc_init_ctx(cbc_ctx_t *cbc_ctx, char *param, size_t param_len,
 	return (CRYPTO_SUCCESS);
 }
 
-/* ARGSUSED */
 void *
 cbc_alloc_ctx(int kmflag)
 {
