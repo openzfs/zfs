@@ -35,8 +35,8 @@ extern "C" {
 #define	KM_SLEEP	0x00000000	/* same as KM_SLEEP */
 #define	KM_NOSLEEP	0x00000001	/* same as KM_NOSLEEP */
 
-#define	kmem_alloc(size, flags)		malloc(size)
-#define	kmem_free(ptr, size)		free(ptr)
+#define	kmem_alloc(size, flags)		((void) sizeof (flags), malloc(size))
+#define	kmem_free(ptr, size)		((void) sizeof (size), free(ptr))
 
 #ifdef	__cplusplus
 }
