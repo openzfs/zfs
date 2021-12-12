@@ -249,6 +249,8 @@ fullerr:
 static boolean_t
 nfs_is_shared_cb(void *userdata, char *line, boolean_t found_mountpoint)
 {
+	(void) line;
+
 	boolean_t *found = userdata;
 	*found = found_mountpoint;
 	return (!found_mountpoint);
