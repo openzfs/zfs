@@ -368,7 +368,7 @@ change_key(pam_handle_t *pamh, const char *ds_name,
 
 static int
 decrypt_mount(pam_handle_t *pamh, const char *ds_name,
-    const char *passphrase)
+    const char *passphrase, int do_mount)
 {
 	zfs_handle_t *ds = zfs_open(g_zfs, ds_name, ZFS_TYPE_FILESYSTEM);
 	if (ds == NULL) {
@@ -388,12 +388,14 @@ decrypt_mount(pam_handle_t *pamh, const char *ds_name,
 		zfs_close(ds);
 		return (-1);
 	}
-	ret = zfs_mount(ds, NULL, 0);
-	if (ret) {
-		pam_syslog(pamh, LOG_ERR, "mount failed: %d", ret);
-		zfs_close(ds);
-		return (-1);
-	}
+        if (do_mount) {
+                ret = zfs_mount(ds, NULL, 0);
+                if (ret) {
+                        pam_syslog(pamh, LOG_ERR, "mount failed: %d", ret);
+                        zfs_close(ds);
+                        return (-1);
+                }
+        }
 	zfs_close(ds);
 	return (0);
 }
@@ -431,7 +433,23 @@ typedef struct {
 	uid_t uid;
 	const char *username;
 	int unmount_and_unload;
+        int mount;
 } zfs_key_config_t;
+
+#define HOMES_PARAM "homes="
+#define HOMES_PARAM_LEN (sizeof(HOMES_PARAM) - 1)
+
+#define RUNSTATEDIR_PARAM "runstatedir="
+#define RUNSTATEDIR_PARAM_LEN (sizeof(RUNSTATEDIR_PARAM) - 1)
+
+#define NOUNMOUNT_PARAM "nounmount"
+#define NOUNMOUNT_PARAM_LEN (sizeof(NOUNMOUNT_PARAM) - 1)
+
+#define NOMOUNT_PARAM "nomount"
+#define NOMOUNT_PARAM_LEN (sizeof(NOUNMOUNT_PARAM) - 1)
+
+#define PROP_MOUNTPOINT_PARAM "prop_mountpoint"
+#define PROP_MOUNTPOINT_PARAM_LEN (sizeof(PROP_MOUNTPOINT_PARAM) - 1)
 
 static int
 zfs_key_config_load(pam_handle_t *pamh, zfs_key_config_t *config,
@@ -465,21 +483,33 @@ zfs_key_config_load(pam_handle_t *pamh, zfs_key_config_t *config,
 	config->uid = entry->pw_uid;
 	config->username = name;
 	config->unmount_and_unload = 1;
+        config->mount = 1;
 	config->dsname = NULL;
 	config->homedir = NULL;
 	for (int c = 0; c < argc; c++) {
-		if (strncmp(argv[c], "homes=", 6) == 0) {
+		if (strncmp(argv[c], HOMES_PARAM, HOMES_PARAM_LEN) == 0) {
 			free(config->homes_prefix);
-			config->homes_prefix = strdup(argv[c] + 6);
-		} else if (strncmp(argv[c], "runstatedir=", 12) == 0) {
+			config->homes_prefix =
+                          strdup(argv[c] + HOMES_PARAM_LEN);
+		} else if (strncmp(argv[c], RUNSTATEDIR_PARAM,
+                                   RUNSTATEDIR_PARAM_LEN) == 0) {
 			free(config->runstatedir);
-			config->runstatedir = strdup(argv[c] + 12);
-		} else if (strcmp(argv[c], "nounmount") == 0) {
+			config->runstatedir =
+                          strdup(argv[c] + RUNSTATEDIR_PARAM_LEN);
+		} else if (strcmp(argv[c], NOUNMOUNT_PARAM) == 0) {
 			config->unmount_and_unload = 0;
+		} else if (strcmp(argv[c], NOMOUNT_PARAM) == 0) {
+			config->unmount_and_unload = 0;
+			config->mount = 0;
 		} else if (strcmp(argv[c], "prop_mountpoint") == 0) {
 			config->homedir = strdup(entry->pw_dir);
-		}
+		} else {
+                        pam_syslog(pamh, LOG_NOTICE,
+                                   "ignored argument: %s", argv[c]);
+                }
+
 	}
+
 	return (0);
 }
 
@@ -770,7 +800,7 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
 		zfs_key_config_free(&config);
 		return (PAM_SERVICE_ERR);
 	}
-	if (decrypt_mount(pamh, dataset, token->value) == -1) {
+	if (decrypt_mount(pamh, dataset, token->value, config.mount) == -1) {
 		free(dataset);
 		pam_zfs_free();
 		zfs_key_config_free(&config);
