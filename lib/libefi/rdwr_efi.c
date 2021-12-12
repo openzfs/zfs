@@ -1564,6 +1564,7 @@ efi_type(int fd)
 	}
 	return (0);
 #else
+	(void) fd;
 	return (ENOSYS);
 #endif
 }
