@@ -91,29 +91,29 @@
  * invocation and passed to the checksum function.
  */
 
-/*ARGSUSED*/
 static void
 abd_checksum_off(abd_t *abd, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
+	(void) abd, (void) size, (void) ctx_template;
 	ZIO_SET_CHECKSUM(zcp, 0, 0, 0, 0);
 }
 
-/*ARGSUSED*/
 static void
 abd_fletcher_2_native(abd_t *abd, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
+	(void) ctx_template;
 	fletcher_init(zcp);
 	(void) abd_iterate_func(abd, 0, size,
 	    fletcher_2_incremental_native, zcp);
 }
 
-/*ARGSUSED*/
 static void
 abd_fletcher_2_byteswap(abd_t *abd, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
+	(void) ctx_template;
 	fletcher_init(zcp);
 	(void) abd_iterate_func(abd, 0, size,
 	    fletcher_2_incremental_byteswap, zcp);
@@ -127,11 +127,11 @@ abd_fletcher_4_impl(abd_t *abd, uint64_t size, zio_abd_checksum_data_t *acdp)
 	fletcher_4_abd_ops.acf_fini(acdp);
 }
 
-/*ARGSUSED*/
 void
 abd_fletcher_4_native(abd_t *abd, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
+	(void) ctx_template;
 	fletcher_4_ctx_t ctx;
 
 	zio_abd_checksum_data_t acd = {
@@ -144,11 +144,11 @@ abd_fletcher_4_native(abd_t *abd, uint64_t size,
 
 }
 
-/*ARGSUSED*/
 void
 abd_fletcher_4_byteswap(abd_t *abd, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
+	(void) ctx_template;
 	fletcher_4_ctx_t ctx;
 
 	zio_abd_checksum_data_t acd = {

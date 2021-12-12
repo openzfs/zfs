@@ -59,7 +59,7 @@
  * read I/Os, there  are basically three 'types' of I/O, which form a roughly
  * layered diagram:
  *
- *      +---------------+
+ * 	+---------------+
  * 	| Aggregate I/O |	No associated logical data or device
  * 	+---------------+
  *              |
@@ -205,7 +205,6 @@ static void zfs_ereport_schedule_cleaner(void);
 /*
  * background task to clean stale recent event nodes.
  */
-/*ARGSUSED*/
 static void
 zfs_ereport_cleaner(void *arg)
 {
@@ -992,10 +991,10 @@ annotate_ecksum(nvlist_t *ereport, zio_bad_cksum_t *info,
 	return (eip);
 }
 #else
-/*ARGSUSED*/
 void
 zfs_ereport_clear(spa_t *spa, vdev_t *vd)
 {
+	(void) spa, (void) vd;
 }
 #endif
 
@@ -1072,6 +1071,8 @@ zfs_ereport_is_valid(const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio)
 	    (zio != NULL) && (!zio->io_timestamp)) {
 		return (B_FALSE);
 	}
+#else
+	(void) subclass, (void) spa, (void) vd, (void) zio;
 #endif
 	return (B_TRUE);
 }
@@ -1112,6 +1113,9 @@ zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd,
 
 	/* Cleanup is handled by the callback function */
 	rc = zfs_zevent_post(ereport, detector, zfs_zevent_post_cb);
+#else
+	(void) subclass, (void) spa, (void) vd, (void) zb, (void) zio,
+	    (void) state;
 #endif
 	return (rc);
 }
@@ -1141,6 +1145,8 @@ zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd, const zbookmark_phys_t *zb,
 
 	if (zfs_is_ratelimiting_event(FM_EREPORT_ZFS_CHECKSUM, vd))
 		return (SET_ERROR(EBUSY));
+#else
+	(void) zb, (void) offset;
 #endif
 
 	report = kmem_zalloc(sizeof (*report), KM_SLEEP);
@@ -1193,6 +1199,9 @@ zfs_ereport_finish_checksum(zio_cksum_report_t *report, const abd_t *good_data,
 	report->zcr_ereport = report->zcr_detector = NULL;
 	if (info != NULL)
 		kmem_free(info, sizeof (*info));
+#else
+	(void) report, (void) good_data, (void) bad_data,
+	    (void) drop_if_identical;
 #endif
 }
 
@@ -1257,6 +1266,9 @@ zfs_ereport_post_checksum(spa_t *spa, vdev_t *vd, const zbookmark_phys_t *zb,
 		rc = zfs_zevent_post(ereport, detector, zfs_zevent_post_cb);
 		kmem_free(info, sizeof (*info));
 	}
+#else
+	(void) spa, (void) vd, (void) zb, (void) zio, (void) offset,
+	    (void) length, (void) good_data, (void) bad_data, (void) zbc;
 #endif
 	return (rc);
 }
@@ -1321,7 +1333,8 @@ zfs_event_create(spa_t *spa, vdev_t *vd, const char *type, const char *name,
 		while ((elem = nvlist_next_nvpair(aux, elem)) != NULL)
 			(void) nvlist_add_nvpair(resource, elem);
 	}
-
+#else
+	(void) spa, (void) vd, (void) type, (void) name, (void) aux;
 #endif
 	return (resource);
 }
@@ -1336,6 +1349,8 @@ zfs_post_common(spa_t *spa, vdev_t *vd, const char *type, const char *name,
 	resource = zfs_event_create(spa, vd, type, name, aux);
 	if (resource)
 		zfs_zevent_post(resource, NULL, zfs_zevent_post_cb);
+#else
+	(void) spa, (void) vd, (void) type, (void) name, (void) aux;
 #endif
 }
 
@@ -1399,6 +1414,8 @@ zfs_post_state_change(spa_t *spa, vdev_t *vd, uint64_t laststate)
 
 	if (aux)
 		fm_nvlist_destroy(aux, FM_NVA_FREE);
+#else
+	(void) spa, (void) vd, (void) laststate;
 #endif
 }
 

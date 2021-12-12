@@ -860,10 +860,10 @@ struct space_range_arg {
 	uint64_t uncomp;
 };
 
-/* ARGSUSED */
 static int
 space_range_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed, dmu_tx_t *tx)
 {
+	(void) bp_freed, (void) tx;
 	struct space_range_arg *sra = arg;
 
 	if (bp->blk_birth > sra->mintxg && bp->blk_birth <= sra->maxtxg) {
@@ -932,11 +932,11 @@ bpobj_space_range(bpobj_t *bpo, uint64_t mintxg, uint64_t maxtxg,
  * bpobj are designated as free or allocated that information is not preserved
  * in bplists.
  */
-/* ARGSUSED */
 int
 bplist_append_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
     dmu_tx_t *tx)
 {
+	(void) bp_freed, (void) tx;
 	bplist_t *bpl = arg;
 	bplist_append(bpl, bp);
 	return (0);

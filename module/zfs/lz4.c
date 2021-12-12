@@ -46,11 +46,11 @@ static int LZ4_compress64kCtx(void *ctx, const char *source, char *dest,
 
 static kmem_cache_t *lz4_cache;
 
-/*ARGSUSED*/
 size_t
 lz4_compress_zfs(void *s_start, void *d_start, size_t s_len,
     size_t d_len, int n)
 {
+	(void) n;
 	uint32_t bufsiz;
 	char *dest = d_start;
 
@@ -74,11 +74,11 @@ lz4_compress_zfs(void *s_start, void *d_start, size_t s_len,
 	return (bufsiz + sizeof (bufsiz));
 }
 
-/*ARGSUSED*/
 int
 lz4_decompress_zfs(void *s_start, void *d_start, size_t s_len,
     size_t d_len, int n)
 {
+	(void) n;
 	const char *src = s_start;
 	uint32_t bufsiz = BE_IN32(src);
 
@@ -463,7 +463,6 @@ LZ4_NbCommonBytes(register U32 val)
 
 /* Compression functions */
 
-/*ARGSUSED*/
 static int
 LZ4_compressCtx(void *ctx, const char *source, char *dest, int isize,
     int osize)
@@ -654,7 +653,6 @@ LZ4_compressCtx(void *ctx, const char *source, char *dest, int isize,
 	HASHLOG64K))
 #define	LZ4_HASH64K_VALUE(p)	LZ4_HASH64K_FUNCTION(A32(p))
 
-/*ARGSUSED*/
 static int
 LZ4_compress64kCtx(void *ctx, const char *source, char *dest, int isize,
     int osize)

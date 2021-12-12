@@ -504,10 +504,10 @@ dsl_prop_hascb(dsl_dataset_t *ds)
 	return (!list_is_empty(&ds->ds_prop_cbs));
 }
 
-/* ARGSUSED */
 static int
 dsl_prop_notify_all_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
 {
+	(void) arg;
 	dsl_dir_t *dd = ds->ds_dir;
 	dsl_prop_record_t *pr;
 	dsl_prop_cb_record_t *cbr;

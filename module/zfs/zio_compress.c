@@ -74,6 +74,7 @@ uint8_t
 zio_complevel_select(spa_t *spa, enum zio_compress compress, uint8_t child,
     uint8_t parent)
 {
+	(void) spa;
 	uint8_t result;
 
 	if (!ZIO_COMPRESS_HASLEVEL(compress))
@@ -110,10 +111,11 @@ zio_compress_select(spa_t *spa, enum zio_compress child,
 	return (result);
 }
 
-/*ARGSUSED*/
 static int
 zio_compress_zeroed_cb(void *data, size_t len, void *private)
 {
+	(void) private;
+
 	uint64_t *end = (uint64_t *)((char *)data + len);
 	for (uint64_t *word = (uint64_t *)data; word < end; word++)
 		if (*word != 0)

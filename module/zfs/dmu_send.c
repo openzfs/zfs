@@ -1097,11 +1097,11 @@ range_alloc(enum type type, uint64_t object, uint64_t start_blkid,
  * This is the callback function to traverse_dataset that acts as a worker
  * thread for dmu_send_impl.
  */
-/*ARGSUSED*/
 static int
 send_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
     const zbookmark_phys_t *zb, const struct dnode_phys *dnp, void *arg)
 {
+	(void) zilog;
 	struct send_thread_arg *sta = arg;
 	struct send_range *record;
 
@@ -2155,6 +2155,7 @@ setup_resume_points(struct dmu_send_params *dspp,
     struct send_merge_thread_arg *smt_arg, boolean_t resuming, objset_t *os,
     redaction_list_t *redact_rl, nvlist_t *nvl)
 {
+	(void) smt_arg;
 	dsl_dataset_t *to_ds = dspp->to_ds;
 	int err = 0;
 

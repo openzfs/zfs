@@ -129,10 +129,10 @@ static zcp_synctask_info_t zcp_synctask_destroy_info = {
 	.blocks_modified = 0
 };
 
-/* ARGSUSED */
 static int
 zcp_synctask_destroy(lua_State *state, boolean_t sync, nvlist_t *err_details)
 {
+	(void) err_details;
 	int err;
 	const char *dsname = lua_tostring(state, 1);
 
@@ -251,10 +251,10 @@ static zcp_synctask_info_t zcp_synctask_snapshot_info = {
 	.blocks_modified = 3
 };
 
-/* ARGSUSED */
 static int
 zcp_synctask_snapshot(lua_State *state, boolean_t sync, nvlist_t *err_details)
 {
+	(void) err_details;
 	int err;
 	dsl_dataset_snapshot_arg_t ddsa = { 0 };
 	const char *dsname = lua_tostring(state, 1);
@@ -354,6 +354,7 @@ static int
 zcp_synctask_inherit_prop(lua_State *state, boolean_t sync,
     nvlist_t *err_details)
 {
+	(void) err_details;
 	int err;
 	zcp_inherit_prop_arg_t zipa = { 0 };
 	dsl_props_set_arg_t *dpsa = &zipa.zipa_dpsa;
@@ -396,10 +397,10 @@ static zcp_synctask_info_t zcp_synctask_bookmark_info = {
 	.blocks_modified = 1,
 };
 
-/* ARGSUSED */
 static int
 zcp_synctask_bookmark(lua_State *state, boolean_t sync, nvlist_t *err_details)
 {
+	(void) err_details;
 	int err;
 	const char *source = lua_tostring(state, 1);
 	const char *new = lua_tostring(state, 2);
@@ -443,6 +444,7 @@ static zcp_synctask_info_t zcp_synctask_set_prop_info = {
 static int
 zcp_synctask_set_prop(lua_State *state, boolean_t sync, nvlist_t *err_details)
 {
+	(void) err_details;
 	int err;
 	zcp_set_prop_arg_t args = { 0 };
 

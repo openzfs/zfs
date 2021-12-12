@@ -32,10 +32,10 @@
 
 #define	DST_AVG_BLKSHIFT 14
 
-/* ARGSUSED */
 static int
 dsl_null_checkfunc(void *arg, dmu_tx_t *tx)
 {
+	(void) arg, (void) tx;
 	return (0);
 }
 

@@ -637,16 +637,15 @@ spa_condense_indirect_generate_new_mapping(vdev_t *vd,
 	}
 }
 
-/* ARGSUSED */
 static boolean_t
 spa_condense_indirect_thread_check(void *arg, zthr_t *zthr)
 {
+	(void) zthr;
 	spa_t *spa = arg;
 
 	return (spa->spa_condensing_indirect != NULL);
 }
 
-/* ARGSUSED */
 static void
 spa_condense_indirect_thread(void *arg, zthr_t *zthr)
 {
@@ -941,13 +940,12 @@ vdev_obsolete_counts_are_precise(vdev_t *vd, boolean_t *are_precise)
 	return (error);
 }
 
-/* ARGSUSED */
 static void
 vdev_indirect_close(vdev_t *vd)
 {
+	(void) vd;
 }
 
-/* ARGSUSED */
 static int
 vdev_indirect_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
     uint64_t *logical_ashift, uint64_t *physical_ashift)

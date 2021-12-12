@@ -249,11 +249,11 @@ zfs_get_deleteq(objset_t *os)
  * Third, if there is a deleted object, we need to create a redaction record for
  * all of the blocks in that object.
  */
-/*ARGSUSED*/
 static int
 redact_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
     const zbookmark_phys_t *zb, const struct dnode_phys *dnp, void *arg)
 {
+	(void) spa, (void) zilog;
 	struct redact_thread_arg *rta = arg;
 	struct redact_record *record;
 
