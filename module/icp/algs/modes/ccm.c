@@ -190,7 +190,6 @@ calculate_ccm_mac(ccm_ctx_t *ctx, uint8_t *ccm_mac,
 	}
 }
 
-/* ARGSUSED */
 int
 ccm_encrypt_final(ccm_ctx_t *ctx, crypto_data_t *out, size_t block_size,
     int (*encrypt_block)(const void *, const uint8_t *, uint8_t *),
@@ -342,7 +341,6 @@ ccm_decrypt_incomplete_block(ccm_ctx_t *ctx,
  * returned to the caller.  It will be returned when decrypt_final() is
  * called if the MAC matches
  */
-/* ARGSUSED */
 int
 ccm_mode_decrypt_contiguous_blocks(ccm_ctx_t *ctx, char *data, size_t length,
     crypto_data_t *out, size_t block_size,
@@ -350,6 +348,7 @@ ccm_mode_decrypt_contiguous_blocks(ccm_ctx_t *ctx, char *data, size_t length,
     void (*copy_block)(uint8_t *, uint8_t *),
     void (*xor_block)(uint8_t *, uint8_t *))
 {
+	(void) out;
 	size_t remainder = length;
 	size_t need = 0;
 	uint8_t *datap = (uint8_t *)data;

@@ -71,10 +71,10 @@
 #include <sys/stdint.h>
 #include <sha2/sha2.h>
 
-/* ARGSUSED */
 void
 SHA256TransformBlocks(SHA2_CTX *ctx, const void *in, size_t num)
 {
+	(void) ctx, (void) in, (void) num;
 }
 
 

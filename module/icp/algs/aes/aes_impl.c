@@ -206,7 +206,6 @@ aes_decrypt_block(const void *ks, const uint8_t *ct, uint8_t *pt)
  * size		Size of key schedule allocated, in bytes
  * kmflag	Flag passed to kmem_alloc(9F); ignored in userland.
  */
-/* ARGSUSED */
 void *
 aes_alloc_keysched(size_t *size, int kmflag)
 {

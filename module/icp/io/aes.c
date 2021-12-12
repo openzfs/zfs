@@ -311,10 +311,10 @@ init_keysched(crypto_key_t *key, void *newbie)
 /*
  * KCF software provider control entry points.
  */
-/* ARGSUSED */
 static void
 aes_provider_status(crypto_provider_handle_t provider, uint_t *status)
 {
+	(void) provider;
 	*status = CRYPTO_PROVIDER_READY;
 }
 
@@ -617,11 +617,11 @@ cleanup:
 }
 
 
-/* ARGSUSED */
 static int
 aes_encrypt_update(crypto_ctx_t *ctx, crypto_data_t *plaintext,
     crypto_data_t *ciphertext, crypto_req_handle_t req)
 {
+	(void) req;
 	off_t saved_offset;
 	size_t saved_length, out_len;
 	int ret = CRYPTO_SUCCESS;
@@ -769,11 +769,11 @@ aes_decrypt_update(crypto_ctx_t *ctx, crypto_data_t *ciphertext,
 	return (ret);
 }
 
-/* ARGSUSED */
 static int
 aes_encrypt_final(crypto_ctx_t *ctx, crypto_data_t *data,
     crypto_req_handle_t req)
 {
+	(void) req;
 	aes_ctx_t *aes_ctx;
 	int ret;
 
@@ -826,11 +826,11 @@ aes_encrypt_final(crypto_ctx_t *ctx, crypto_data_t *data,
 	return (CRYPTO_SUCCESS);
 }
 
-/* ARGSUSED */
 static int
 aes_decrypt_final(crypto_ctx_t *ctx, crypto_data_t *data,
     crypto_req_handle_t req)
 {
+	(void) req;
 	aes_ctx_t *aes_ctx;
 	int ret;
 	off_t saved_offset;
@@ -929,13 +929,13 @@ aes_decrypt_final(crypto_ctx_t *ctx, crypto_data_t *data,
 	return (CRYPTO_SUCCESS);
 }
 
-/* ARGSUSED */
 static int
 aes_encrypt_atomic(crypto_provider_handle_t provider,
     crypto_session_id_t session_id, crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_data_t *plaintext, crypto_data_t *ciphertext,
     crypto_spi_ctx_template_t template, crypto_req_handle_t req)
 {
+	(void) provider, (void) session_id;
 	aes_ctx_t aes_ctx;	/* on the stack */
 	off_t saved_offset;
 	size_t saved_length;
@@ -1065,13 +1065,13 @@ out:
 	return (ret);
 }
 
-/* ARGSUSED */
 static int
 aes_decrypt_atomic(crypto_provider_handle_t provider,
     crypto_session_id_t session_id, crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_data_t *ciphertext, crypto_data_t *plaintext,
     crypto_spi_ctx_template_t template, crypto_req_handle_t req)
 {
+	(void) provider, (void) session_id;
 	aes_ctx_t aes_ctx;	/* on the stack */
 	off_t saved_offset;
 	size_t saved_length;
@@ -1235,12 +1235,12 @@ out:
 /*
  * KCF software provider context template entry points.
  */
-/* ARGSUSED */
 static int
 aes_create_ctx_template(crypto_provider_handle_t provider,
     crypto_mechanism_t *mechanism, crypto_key_t *key,
     crypto_spi_ctx_template_t *tmpl, size_t *tmpl_size, crypto_req_handle_t req)
 {
+	(void) provider;
 	void *keysched;
 	size_t size;
 	int rv;
