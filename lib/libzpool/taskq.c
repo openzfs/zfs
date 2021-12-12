@@ -134,9 +134,10 @@ taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t tqflags)
 }
 
 taskqid_t
-taskq_dispatch_delay(taskq_t *tq,  task_func_t func, void *arg, uint_t tqflags,
+taskq_dispatch_delay(taskq_t *tq, task_func_t func, void *arg, uint_t tqflags,
     clock_t expire_time)
 {
+	(void) tq, (void) func, (void) arg, (void) tqflags, (void) expire_time;
 	return (0);
 }
 
@@ -199,12 +200,14 @@ taskq_wait(taskq_t *tq)
 void
 taskq_wait_id(taskq_t *tq, taskqid_t id)
 {
+	(void) id;
 	taskq_wait(tq);
 }
 
 void
 taskq_wait_outstanding(taskq_t *tq, taskqid_t id)
 {
+	(void) id;
 	taskq_wait(tq);
 }
 
@@ -247,11 +250,11 @@ taskq_thread(void *arg)
 	thread_exit();
 }
 
-/*ARGSUSED*/
 taskq_t *
 taskq_create(const char *name, int nthreads, pri_t pri,
     int minalloc, int maxalloc, uint_t flags)
 {
+	(void) pri;
 	taskq_t *tq = kmem_zalloc(sizeof (taskq_t), KM_SLEEP);
 	int t;
 
@@ -356,6 +359,7 @@ taskq_of_curthread(void)
 int
 taskq_cancel_id(taskq_t *tq, taskqid_t id)
 {
+	(void) tq, (void) id;
 	return (ENOENT);
 }
 
