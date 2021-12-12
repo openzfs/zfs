@@ -260,6 +260,7 @@ dmu_zfetch_stream_create(zfetch_t *zf, uint64_t blkid)
 static void
 dmu_zfetch_stream_done(void *arg, boolean_t io_issued)
 {
+	(void) io_issued;
 	zstream_t *zs = arg;
 
 	if (zfs_refcount_remove(&zs->zs_refs, NULL) == 0)

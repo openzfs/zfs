@@ -287,10 +287,10 @@ vdev_file_io_start(zio_t *zio)
 	    TQ_SLEEP), !=, 0);
 }
 
-/* ARGSUSED */
 static void
 vdev_file_io_done(zio_t *zio)
 {
+	(void) zio;
 }
 
 vdev_ops_t vdev_file_ops = {

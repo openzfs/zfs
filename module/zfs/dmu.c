@@ -812,13 +812,14 @@ get_next_chunk(dnode_t *dn, uint64_t *start, uint64_t minimum, uint64_t *l1blks)
  * otherwise return false.
  * Used below in dmu_free_long_range_impl() to enable abort when unmounting
  */
-/*ARGSUSED*/
 static boolean_t
 dmu_objset_zfs_unmounting(objset_t *os)
 {
 #ifdef _KERNEL
 	if (dmu_objset_type(os) == DMU_OST_ZFS)
 		return (zfs_get_vfs_flag_unmounted(os));
+#else
+	(void) os;
 #endif
 	return (B_FALSE);
 }
@@ -1502,10 +1503,10 @@ typedef struct {
 	dmu_tx_t		*dsa_tx;
 } dmu_sync_arg_t;
 
-/* ARGSUSED */
 static void
 dmu_sync_ready(zio_t *zio, arc_buf_t *buf, void *varg)
 {
+	(void) buf;
 	dmu_sync_arg_t *dsa = varg;
 	dmu_buf_t *db = dsa->dsa_zgd->zgd_db;
 	blkptr_t *bp = zio->io_bp;
@@ -1530,10 +1531,10 @@ dmu_sync_late_arrival_ready(zio_t *zio)
 	dmu_sync_ready(zio, NULL, zio->io_private);
 }
 
-/* ARGSUSED */
 static void
 dmu_sync_done(zio_t *zio, arc_buf_t *buf, void *varg)
 {
+	(void) buf;
 	dmu_sync_arg_t *dsa = varg;
 	dbuf_dirty_record_t *dr = dsa->dsa_dr;
 	dmu_buf_impl_t *db = dr->dr_dbuf;
@@ -2274,10 +2275,10 @@ byteswap_uint16_array(void *vbuf, size_t size)
 		buf[i] = BSWAP_16(buf[i]);
 }
 
-/* ARGSUSED */
 void
 byteswap_uint8_array(void *vbuf, size_t size)
 {
+	(void) vbuf, (void) size;
 }
 
 void

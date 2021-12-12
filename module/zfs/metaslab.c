@@ -1406,7 +1406,6 @@ metaslab_size_tree_full_load(range_tree_t *rt)
  * Create any block allocator specific components. The current allocators
  * rely on using both a size-ordered range_tree_t and an array of uint64_t's.
  */
-/* ARGSUSED */
 static void
 metaslab_rt_create(range_tree_t *rt, void *arg)
 {
@@ -1431,10 +1430,10 @@ metaslab_rt_create(range_tree_t *rt, void *arg)
 	mrap->mra_floor_shift = metaslab_by_size_min_shift;
 }
 
-/* ARGSUSED */
 static void
 metaslab_rt_destroy(range_tree_t *rt, void *arg)
 {
+	(void) rt;
 	metaslab_rt_arg_t *mrap = arg;
 	zfs_btree_t *size_tree = mrap->mra_bt;
 
@@ -1442,7 +1441,6 @@ metaslab_rt_destroy(range_tree_t *rt, void *arg)
 	kmem_free(mrap, sizeof (*mrap));
 }
 
-/* ARGSUSED */
 static void
 metaslab_rt_add(range_tree_t *rt, range_seg_t *rs, void *arg)
 {
@@ -1456,7 +1454,6 @@ metaslab_rt_add(range_tree_t *rt, range_seg_t *rs, void *arg)
 	zfs_btree_add(size_tree, rs);
 }
 
-/* ARGSUSED */
 static void
 metaslab_rt_remove(range_tree_t *rt, range_seg_t *rs, void *arg)
 {
@@ -1470,7 +1467,6 @@ metaslab_rt_remove(range_tree_t *rt, range_seg_t *rs, void *arg)
 	zfs_btree_remove(size_tree, rs);
 }
 
-/* ARGSUSED */
 static void
 metaslab_rt_vacate(range_tree_t *rt, void *arg)
 {
@@ -2240,6 +2236,8 @@ metaslab_potentially_evict(metaslab_class_t *mc)
 			inuse = spl_kmem_cache_inuse(zfs_btree_leaf_cache);
 		}
 	}
+#else
+	(void) mc;
 #endif
 }
 
@@ -4719,7 +4717,6 @@ metaslab_active_mask_verify(metaslab_t *msp)
 	}
 }
 
-/* ARGSUSED */
 static uint64_t
 metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
     uint64_t asize, uint64_t txg, boolean_t want_unique, dva_t *dva, int d,
@@ -5345,11 +5342,11 @@ metaslab_free_concrete(vdev_t *vd, uint64_t offset, uint64_t asize,
 	mutex_exit(&msp->ms_lock);
 }
 
-/* ARGSUSED */
 void
 metaslab_free_impl_cb(uint64_t inner_offset, vdev_t *vd, uint64_t offset,
     uint64_t size, void *arg)
 {
+	(void) inner_offset;
 	boolean_t *checkpoint = arg;
 
 	ASSERT3P(checkpoint, !=, NULL);
@@ -5715,11 +5712,11 @@ typedef struct metaslab_claim_cb_arg_t {
 	int		mcca_error;
 } metaslab_claim_cb_arg_t;
 
-/* ARGSUSED */
 static void
 metaslab_claim_impl_cb(uint64_t inner_offset, vdev_t *vd, uint64_t offset,
     uint64_t size, void *arg)
 {
+	(void) inner_offset;
 	metaslab_claim_cb_arg_t *mcca_arg = arg;
 
 	if (mcca_arg->mcca_error == 0) {
@@ -5971,11 +5968,12 @@ metaslab_fastwrite_unmark(spa_t *spa, const blkptr_t *bp)
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 }
 
-/* ARGSUSED */
 static void
 metaslab_check_free_impl_cb(uint64_t inner, vdev_t *vd, uint64_t offset,
     uint64_t size, void *arg)
 {
+	(void) inner, (void) arg;
+
 	if (vd->vdev_ops == &vdev_indirect_ops)
 		return;
 

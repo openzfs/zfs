@@ -700,10 +700,10 @@ dsl_scan_sync_state(dsl_scan_t *scn, dmu_tx_t *tx, state_sync_type_t sync_type)
 	}
 }
 
-/* ARGSUSED */
 int
 dsl_scan_setup_check(void *arg, dmu_tx_t *tx)
 {
+	(void) arg;
 	dsl_scan_t *scn = dmu_tx_pool(tx)->dp_scan;
 	vdev_t *rvd = scn->scn_dp->dp_spa->spa_root_vdev;
 
@@ -854,7 +854,6 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func)
 	    dsl_scan_setup_sync, &func, 0, ZFS_SPACE_CHECK_EXTRA_RESERVED));
 }
 
-/* ARGSUSED */
 static void
 dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 {
@@ -1001,10 +1000,10 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 	ASSERT(!dsl_scan_is_running(scn));
 }
 
-/* ARGSUSED */
 static int
 dsl_scan_cancel_check(void *arg, dmu_tx_t *tx)
 {
+	(void) arg;
 	dsl_scan_t *scn = dmu_tx_pool(tx)->dp_scan;
 
 	if (!dsl_scan_is_running(scn))
@@ -1012,10 +1011,10 @@ dsl_scan_cancel_check(void *arg, dmu_tx_t *tx)
 	return (0);
 }
 
-/* ARGSUSED */
 static void
 dsl_scan_cancel_sync(void *arg, dmu_tx_t *tx)
 {
+	(void) arg;
 	dsl_scan_t *scn = dmu_tx_pool(tx)->dp_scan;
 
 	dsl_scan_done(scn, B_FALSE, tx);
@@ -1377,11 +1376,11 @@ typedef struct zil_scan_arg {
 	zil_header_t	*zsa_zh;
 } zil_scan_arg_t;
 
-/* ARGSUSED */
 static int
 dsl_scan_zil_block(zilog_t *zilog, const blkptr_t *bp, void *arg,
     uint64_t claim_txg)
 {
+	(void) zilog;
 	zil_scan_arg_t *zsa = arg;
 	dsl_pool_t *dp = zsa->zsa_dp;
 	dsl_scan_t *scn = dp->dp_scan;
@@ -1408,11 +1407,11 @@ dsl_scan_zil_block(zilog_t *zilog, const blkptr_t *bp, void *arg,
 	return (0);
 }
 
-/* ARGSUSED */
 static int
 dsl_scan_zil_record(zilog_t *zilog, const lr_t *lrc, void *arg,
     uint64_t claim_txg)
 {
+	(void) zilog;
 	if (lrc->lrc_txtype == TX_WRITE) {
 		zil_scan_arg_t *zsa = arg;
 		dsl_pool_t *dp = zsa->zsa_dp;
@@ -1637,6 +1636,7 @@ static void
 dsl_scan_prefetch_cb(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,
     arc_buf_t *buf, void *private)
 {
+	(void) zio;
 	scan_prefetch_ctx_t *spc = private;
 	dsl_scan_t *scn = spc->spc_scn;
 	spa_t *spa = scn->scn_dp->dp_spa;
@@ -1696,7 +1696,6 @@ out:
 	scan_prefetch_ctx_rele(spc, scn);
 }
 
-/* ARGSUSED */
 static void
 dsl_scan_prefetch_thread(void *arg)
 {
@@ -2336,7 +2335,6 @@ dsl_scan_ds_clone_swapped(dsl_dataset_t *ds1, dsl_dataset_t *ds2, dmu_tx_t *tx)
 	dsl_scan_sync_state(scn, tx, SYNC_CACHED);
 }
 
-/* ARGSUSED */
 static int
 enqueue_clones_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
 {
@@ -2520,10 +2518,10 @@ out:
 	dsl_dataset_rele(ds, FTAG);
 }
 
-/* ARGSUSED */
 static int
 enqueue_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
 {
+	(void) arg;
 	dsl_dataset_t *ds;
 	int err;
 	dsl_scan_t *scn = dp->dp_scan;
@@ -2559,16 +2557,15 @@ enqueue_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
 	return (0);
 }
 
-/* ARGSUSED */
 void
 dsl_scan_ddt_entry(dsl_scan_t *scn, enum zio_checksum checksum,
     ddt_entry_t *dde, dmu_tx_t *tx)
 {
+	(void) tx;
 	const ddt_key_t *ddk = &dde->dde_key;
 	ddt_phys_t *ddp = dde->dde_phys;
 	blkptr_t bp;
 	zbookmark_phys_t zb = { 0 };
-	int p;
 
 	if (!dsl_scan_is_running(scn))
 		return;
@@ -2587,7 +2584,7 @@ dsl_scan_ddt_entry(dsl_scan_t *scn, enum zio_checksum checksum,
 	if (scn->scn_done_txg != 0)
 		return;
 
-	for (p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
+	for (int p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
 		if (ddp->ddp_phys_birth == 0 ||
 		    ddp->ddp_phys_birth > scn->scn_phys.scn_max_txg)
 			continue;

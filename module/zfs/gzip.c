@@ -83,10 +83,10 @@ gzip_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 	return ((size_t)dstlen);
 }
 
-/*ARGSUSED*/
 int
 gzip_decompress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 {
+	(void) n;
 	zlen_t dstlen = d_len;
 
 	ASSERT(d_len >= s_len);

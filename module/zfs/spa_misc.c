@@ -497,6 +497,7 @@ spa_config_tryenter(spa_t *spa, int locks, void *tag, krw_t rw)
 void
 spa_config_enter(spa_t *spa, int locks, const void *tag, krw_t rw)
 {
+	(void) tag;
 	int wlocks_held = 0;
 
 	ASSERT3U(SCL_LOCKS, <, sizeof (wlocks_held) * NBBY);
@@ -530,6 +531,7 @@ spa_config_enter(spa_t *spa, int locks, const void *tag, krw_t rw)
 void
 spa_config_exit(spa_t *spa, int locks, const void *tag)
 {
+	(void) tag;
 	for (int i = SCL_LOCKS - 1; i >= 0; i--) {
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		if (!(locks & (1 << i)))

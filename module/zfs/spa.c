@@ -834,7 +834,6 @@ spa_prop_clear_bootfs(spa_t *spa, uint64_t dsobj, dmu_tx_t *tx)
 	}
 }
 
-/*ARGSUSED*/
 static int
 spa_change_guid_check(void *arg, dmu_tx_t *tx)
 {
@@ -2281,11 +2280,12 @@ int spa_load_verify_shift = 4;
 int spa_load_verify_metadata = B_TRUE;
 int spa_load_verify_data = B_TRUE;
 
-/*ARGSUSED*/
 static int
 spa_load_verify_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
     const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
 {
+	(void) zilog, (void) dnp;
+
 	if (zb->zb_level == ZB_DNODE_LEVEL || BP_IS_HOLE(bp) ||
 	    BP_IS_EMBEDDED(bp) || BP_IS_REDACTED(bp))
 		return (0);
@@ -2317,10 +2317,11 @@ spa_load_verify_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	return (0);
 }
 
-/* ARGSUSED */
 static int
 verify_dataset_name_len(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
 {
+	(void) dp, (void) arg;
+
 	if (dsl_dataset_namelen(ds) >= ZFS_MAX_DATASET_NAME_LEN)
 		return (SET_ERROR(ENAMETOOLONG));
 
@@ -2450,10 +2451,10 @@ spa_livelist_delete_check(spa_t *spa)
 	return (spa->spa_livelists_to_delete != 0);
 }
 
-/* ARGSUSED */
 static boolean_t
 spa_livelist_delete_cb_check(void *arg, zthr_t *z)
 {
+	(void) z;
 	spa_t *spa = arg;
 	return (spa_livelist_delete_check(spa));
 }
@@ -2545,7 +2546,6 @@ livelist_delete_sync(void *arg, dmu_tx_t *tx)
  * be freed. Then, call a synctask which performs the actual frees and updates
  * the pool-wide livelist data.
  */
-/* ARGSUSED */
 static void
 spa_livelist_delete_cb(void *arg, zthr_t *z)
 {
@@ -2791,7 +2791,6 @@ spa_livelist_condense_cb(void *arg, zthr_t *t)
 		zfs_livelist_condense_zthr_cancel++;
 }
 
-/* ARGSUSED */
 /*
  * Check that there is something to condense but that a condense is not
  * already in progress and that condensing has not been cancelled.
@@ -2799,6 +2798,7 @@ spa_livelist_condense_cb(void *arg, zthr_t *t)
 static boolean_t
 spa_livelist_condense_cb_check(void *arg, zthr_t *z)
 {
+	(void) z;
 	spa_t *spa = arg;
 	if ((spa->spa_to_condense.ds != NULL) &&
 	    (spa->spa_to_condense.syncing == B_FALSE) &&
@@ -9474,6 +9474,7 @@ spa_upgrade(spa_t *spa, uint64_t version)
 boolean_t
 spa_has_spare(spa_t *spa, uint64_t guid)
 {
+	(void) spa;
 	int i;
 	uint64_t spareguid;
 	spa_aux_vdev_t *sav = &spa->spa_spares;
@@ -9826,6 +9827,8 @@ spa_event_create(spa_t *spa, vdev_t *vd, nvlist_t *hist_nvl, const char *name)
 		ev = kmem_alloc(sizeof (sysevent_t), KM_SLEEP);
 		ev->resource = resource;
 	}
+#else
+	(void) spa, (void) vd, (void) hist_nvl, (void) name;
 #endif
 	return (ev);
 }
@@ -9838,6 +9841,8 @@ spa_event_post(sysevent_t *ev)
 		zfs_zevent_post(ev->resource, NULL, zfs_zevent_post_cb);
 		kmem_free(ev, sizeof (*ev));
 	}
+#else
+	(void) ev;
 #endif
 }
 

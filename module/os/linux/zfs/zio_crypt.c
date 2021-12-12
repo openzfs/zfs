@@ -1776,6 +1776,7 @@ zio_crypt_init_uios_normal(boolean_t encrypt, uint8_t *plainbuf,
     uint8_t *cipherbuf, uint_t datalen, zfs_uio_t *puio, zfs_uio_t *cuio,
     uint_t *enc_len)
 {
+	(void) encrypt;
 	int ret;
 	uint_t nr_plain = 1, nr_cipher = 2;
 	iovec_t *plain_iovecs = NULL, *cipher_iovecs = NULL;
