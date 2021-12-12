@@ -424,6 +424,7 @@ fi
 %else
 if [ -x /sbin/chkconfig ]; then
     /sbin/chkconfig --add zfs-import
+    /sbin/chkconfig --add zfs-load-key
     /sbin/chkconfig --add zfs-mount
     /sbin/chkconfig --add zfs-share
     /sbin/chkconfig --add zfs-zed
@@ -454,6 +455,7 @@ fi
 %else
 if [ "$1" = "0" -o "$1" = "remove" ] && [ -x /sbin/chkconfig ]; then
     /sbin/chkconfig --del zfs-import
+    /sbin/chkconfig --del zfs-load-key
     /sbin/chkconfig --del zfs-mount
     /sbin/chkconfig --del zfs-share
     /sbin/chkconfig --del zfs-zed

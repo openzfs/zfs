@@ -1,5 +1,5 @@
-# This is a script with common functions etc used by zfs-import, zfs-mount,
-# zfs-share and zfs-zed.
+# This is a script with common functions etc used by zfs-import, zfs-load-key,
+# zfs-mount, zfs-share and zfs-zed.
 #
 # It is _NOT_ to be called independently
 #
@@ -92,6 +92,8 @@ ZPOOL="@sbindir@/zpool"
 ZPOOL_CACHE="@sysconfdir@/zfs/zpool.cache"
 
 # Sensible defaults
+ZFS_LOAD_KEY='yes'
+ZFS_UNLOAD_KEY='no'
 ZFS_MOUNT='yes'
 ZFS_UNMOUNT='yes'
 ZFS_SHARE='yes'
@@ -104,7 +106,8 @@ fi
 
 # ----------------------------------------------------
 
-export ZFS ZED ZPOOL ZPOOL_CACHE ZFS_MOUNT ZFS_UNMOUNT ZFS_SHARE ZFS_UNSHARE
+export ZFS ZED ZPOOL ZPOOL_CACHE ZFS_LOAD_KEY ZFS_UNLOAD_KEY ZFS_MOUNT ZFS_UNMOUNT \
+    ZFS_SHARE ZFS_UNSHARE
 
 zfs_action()
 {
