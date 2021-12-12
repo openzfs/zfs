@@ -24,9 +24,13 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildArch:      noarch
 
 Requires:       dkms >= 2.2.0.3
+Requires(post): dkms >= 2.2.0.3
+Requires(preun): dkms >= 2.2.0.3
 Requires:       gcc, make, perl, diffutils
+Requires(post): gcc, make, perl, diffutils
 %if 0%{?rhel}%{?fedora}%{?mageia}%{?suse_version}
 Requires:       kernel-devel >= @ZFS_META_KVER_MIN@, kernel-devel <= @ZFS_META_KVER_MAX@.999
+Requires(post): kernel-devel >= @ZFS_META_KVER_MIN@, kernel-devel <= @ZFS_META_KVER_MAX@.999
 Obsoletes:      spl-dkms
 %endif
 Provides:       %{module}-kmod = %{version}
