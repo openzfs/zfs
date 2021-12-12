@@ -36,10 +36,10 @@ nv_alloc_sys(nv_alloc_t *nva, size_t size)
 	return (kmem_alloc(size, (int)(uintptr_t)nva->nva_arg));
 }
 
-/*ARGSUSED*/
 static void
 nv_free_sys(nv_alloc_t *nva, void *buf, size_t size)
 {
+	(void) nva;
 	kmem_free(buf, size);
 }
 
