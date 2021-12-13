@@ -393,11 +393,11 @@ static void
 di_print_cmn(differ_info_t *di, const char *file)
 {
 	if (!di->no_mangle) {
-		stream_bytes(fp, di->dsmnt);
-		stream_bytes(fp, file);
+		stream_bytes(di->ofp, di->dsmnt);
+		stream_bytes(di->ofp, file);
 	} else {
-		(void) fputs(di->dsmnt, fp);
-		(void) fputs(file, fp);
+		(void) fputs(di->dsmnt, di->ofp);
+		(void) fputs(file, di->ofp);
 	}
 }
 
@@ -406,23 +406,23 @@ di_print_prefix(differ_info_t *di, char type, const char *path,
     zfs_diff_stat_t *zds)
 {
 	if (di->timestamped)
-		(void) fprintf(fp, "%10lld.%09lld\t",
-		    (longlong_t)isb->zs_ctime[0],
-		    (longlong_t)isb->zs_ctime[1]);
-	(void) fputs(ZDIFF_RENAMED "\t", fp);
+		(void) fprintf(di->ofp, "%10lld.%09lld\t",
+		    (longlong_t)zds->zs.zs_ctime[0],
+		    (longlong_t)zds->zs.zs_ctime[1]);
+	(void) fputs(ZDIFF_RENAMED "\t", di->ofp);
 	if (di->classify)
-		(void) fprintf(fp, "%c\t", get_what(isb->zs_mode));
-	di_print_cmn(fp, di, old);
+		(void) fprintf(di->ofp, "%c\t", get_what(zds->zs.zs_mode));
+	di_print_cmn(di, path);
 }
 
 static void
 di_print_rename(differ_info_t *di, const char *old, const char *new,
     zfs_diff_stat_t *zds)
 {
-	di_print_prefix(di, ZDIFF_RENAMED, old, zds);
-	(void) fputs(di->scripted ? "\t" : " -> ", fp);
-	di_print_cmn(fp, di, new);
-	(void) fputc('\n', fp);
+	di_print_prefix(di, *ZDIFF_RENAMED, old, zds);
+	(void) fputs(di->scripted ? "\t" : " -> ", di->ofp);
+	di_print_cmn(di, new);
+	(void) fputc('\n', di->ofp);
 }
 
 
@@ -430,7 +430,7 @@ static void
 di_print_link_change(differ_info_t *di, int delta, const char *file,
     zfs_diff_stat_t *zds)
 {
-	di_print_prefix(di, ZDIFF_MODIFIED, file, zds);
+	di_print_prefix(di, *ZDIFF_MODIFIED, file, zds);
 	(void) fprintf(di->ofp, "\t(%+d)\n", delta);
 }
 
@@ -509,7 +509,7 @@ di_write_inuse_diff(differ_info_t *di, dmu_diff_record_t *dr)
 				di_print_link_change(di, change,
 				    change > 0 ? fpath : tpath, tzs);
 			} else if (strcmp(fpath, tpath) == 0) {
-				di_print_file(di, ZDIFF_MODIFIED, fpath, tzs);
+				di_print_file(di, *ZDIFF_MODIFIED, fpath, tzs);
 			} else {
 				di_print_rename(di, fpath, tpath, tzs);
 			}
@@ -793,7 +793,7 @@ di_setup(differ_info_t *di, zfs_handle_t *zhp, int outfd, const char *fromsnap,
 	di->scripted = (flags & ZFS_DIFF_PARSEABLE);
 	di->classify = (flags & ZFS_DIFF_CLASSIFY);
 	di->timestamped = (flags & ZFS_DIFF_TIMESTAMP);
-	di.no_mangle = (flags & ZFS_DIFF_NO_MANGLE);
+	di->no_mangle = (flags & ZFS_DIFF_NO_MANGLE);
 
 	di->outputfd = outfd;
 

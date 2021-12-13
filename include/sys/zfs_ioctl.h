@@ -390,7 +390,7 @@ typedef enum diff_type {
 	DDR_NONE	= 0x0,
 	DDR_IN_TO	= 0x1,	/* dnode in to snap only */
 	DDR_IN_FROM	= 0x2,	/* dnode in from snap only */
-	DDR_IN_BOTH	= 0x3	/* dnode in both from and to snaps */
+	DDR_IN_BOTH	= (DDR_IN_TO | DDR_IN_FROM),
 } diff_type_t;
 
 /*
