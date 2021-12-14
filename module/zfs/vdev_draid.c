@@ -842,6 +842,53 @@ vdev_draid_map_alloc_empty(zio_t *zio, raidz_row_t *rr)
 }
 
 /*
+ * Verify that all empty sectors are zero filled before using them to
+ * calculate parity.  Otherwise, silent corruption in an empty sector will
+ * result in bad parity being generated.  That bad parity will then be
+ * considered authoritative and overwrite the good parity on disk.  This
+ * is possible because the checksum is only calculated over the data,
+ * thus it cannot be used to detect damage in empty sectors.
+ */
+int
+vdev_draid_map_verify_empty(zio_t *zio, raidz_row_t *rr)
+{
+	uint64_t skip_size = 1ULL << zio->io_vd->vdev_top->vdev_ashift;
+	uint64_t parity_size = rr->rr_col[0].rc_size;
+	uint64_t skip_off = parity_size - skip_size;
+	uint64_t empty_off = 0;
+	int ret = 0;
+
+	ASSERT3U(zio->io_type, ==, ZIO_TYPE_READ);
+	ASSERT3P(rr->rr_abd_empty, !=, NULL);
+	ASSERT3U(rr->rr_bigcols, >, 0);
+
+	void *zero_buf = kmem_zalloc(skip_size, KM_SLEEP);
+
+	for (int c = rr->rr_bigcols; c < rr->rr_cols; c++) {
+		raidz_col_t *rc = &rr->rr_col[c];
+
+		ASSERT3P(rc->rc_abd, !=, NULL);
+		ASSERT3U(rc->rc_size, ==, parity_size);
+
+		if (abd_cmp_buf_off(rc->rc_abd, zero_buf, skip_off,
+		    skip_size) != 0) {
+			vdev_raidz_checksum_error(zio, rc, rc->rc_abd);
+			abd_zero_off(rc->rc_abd, skip_off, skip_size);
+			rc->rc_error = SET_ERROR(ECKSUM);
+			ret++;
+		}
+
+		empty_off += skip_size;
+	}
+
+	ASSERT3U(empty_off, ==, abd_get_size(rr->rr_abd_empty));
+
+	kmem_free(zero_buf, skip_size);
+
+	return (ret);
+}
+
+/*
  * Given a logical address within a dRAID configuration, return the physical
  * address on the first drive in the group that this address maps to
  * (at position 'start' in permutation number 'perm').
