@@ -421,7 +421,7 @@ decrypt_fs()
 			elif [ -e /run/systemd/system ]; then
 				echo "systemd-ask-password" > /run/zfs_console_askpwd_cmd
 				for _ in 1 2 3; do
-					systemd-ask-password "Encrypted ZFS password for ${ENCRYPTIONROOT}" --no-tty | \
+					systemd-ask-password --no-tty "Encrypted ZFS password for ${ENCRYPTIONROOT}" | \
 						$ZFS load-key "${ENCRYPTIONROOT}" && break
 				done
 
