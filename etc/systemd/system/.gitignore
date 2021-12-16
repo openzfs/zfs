@@ -1,3 +1,4 @@
 *.service
 *.target
 *.preset
+*.timer
