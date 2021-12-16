@@ -116,8 +116,29 @@ scanned at 100M/s, and 68.4M of that file data has been
 scrubbed sequentially at 10.0M/s.
 .El
 .El
+.Sh PERIODIC SCRUB
+On machines using systemd, scrub timers can be enabled on per-pool basis.
+.Nm weekly
+and
+.Nm monthly
+timer units are provided.
+.Bl -tag -width Ds
+.It Xo
+.Xc
+.Nm systemctl
+.Cm enable
+.Cm zfs-scrub-\fIweekly\fB@\fIrpool\fB.timer
+.Cm --now
+.It Xo
+.Xc
+.Nm systemctl
+.Cm enable
+.Cm zfs-scrub-\fImonthly\fB@\fIotherpool\fB.timer
+.Cm --now
+.El
 .
 .Sh SEE ALSO
+.Xr systemd.timer 5 ,
 .Xr zpool-iostat 8 ,
 .Xr zpool-resilver 8 ,
 .Xr zpool-status 8

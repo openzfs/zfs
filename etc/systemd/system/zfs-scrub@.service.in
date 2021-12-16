@@ -1,0 +1,14 @@
+[Unit]
+Description=zpool scrub on %i
+Documentation=man:zpool-scrub(8)
+Requires=zfs.target
+After=zfs.target
+ConditionACPower=true
+ConditionPathIsDirectory=/sys/module/zfs
+
+[Service]
+ExecStart=/bin/sh -c '\
+if @sbindir@/zpool status %i | grep "scrub in progress"; then\
+exec @sbindir@/zpool wait -t scrub %i;\
+else exec @sbindir@/zpool scrub -w %i; fi'
+ExecStop=-/bin/sh -c '@sbindir@/zpool scrub -p %i 2>/dev/null || true'
