@@ -134,7 +134,6 @@ vn_flush_cached_data(vnode_t *vp, boolean_t sync)
 /* TODO: This field needs conversion! */
 #define	va_nblocks	va_bytes
 #define	va_blksize	va_blocksize
-#define	va_seq		va_gen
 
 #define	MAXOFFSET_T	OFF_MAX
 #define	EXCL		0
