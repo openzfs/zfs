@@ -496,7 +496,7 @@ zfsctl_common_getattr(vnode_t *vp, vattr_t *vap)
 	 */
 	vap->va_blksize = 0;
 	vap->va_nblocks = 0;
-	vap->va_seq = 0;
+	vap->va_gen = 0;
 	vn_fsid(vp, vap);
 	vap->va_mode = zfsctl_ctldir_mode;
 	vap->va_type = VDIR;
