@@ -74,7 +74,7 @@ zfs_prop_get_table(void)
 void
 zfs_prop_init(void)
 {
-	static zprop_index_t checksum_table[] = {
+	static const zprop_index_t checksum_table[] = {
 		{ "on",		ZIO_CHECKSUM_ON },
 		{ "off",	ZIO_CHECKSUM_OFF },
 		{ "fletcher2",	ZIO_CHECKSUM_FLETCHER_2 },
@@ -87,7 +87,7 @@ zfs_prop_init(void)
 		{ NULL }
 	};
 
-	static zprop_index_t dedup_table[] = {
+	static const zprop_index_t dedup_table[] = {
 		{ "on",		ZIO_CHECKSUM_ON },
 		{ "off",	ZIO_CHECKSUM_OFF },
 		{ "verify",	ZIO_CHECKSUM_ON | ZIO_CHECKSUM_VERIFY },
@@ -105,7 +105,7 @@ zfs_prop_init(void)
 		{ NULL }
 	};
 
-	static zprop_index_t compress_table[] = {
+	static const zprop_index_t compress_table[] = {
 		{ "on",		ZIO_COMPRESS_ON },
 		{ "off",	ZIO_COMPRESS_OFF },
 		{ "lzjb",	ZIO_COMPRESS_LZJB },
@@ -205,7 +205,7 @@ zfs_prop_init(void)
 		{ NULL }
 	};
 
-	static zprop_index_t crypto_table[] = {
+	static const zprop_index_t crypto_table[] = {
 		{ "on",			ZIO_CRYPT_ON },
 		{ "off",		ZIO_CRYPT_OFF },
 		{ "aes-128-ccm",	ZIO_CRYPT_AES_128_CCM },
@@ -217,7 +217,7 @@ zfs_prop_init(void)
 		{ NULL }
 	};
 
-	static zprop_index_t keyformat_table[] = {
+	static const zprop_index_t keyformat_table[] = {
 		{ "none",		ZFS_KEYFORMAT_NONE },
 		{ "raw",		ZFS_KEYFORMAT_RAW },
 		{ "hex",		ZFS_KEYFORMAT_HEX },
@@ -225,19 +225,19 @@ zfs_prop_init(void)
 		{ NULL }
 	};
 
-	static zprop_index_t snapdir_table[] = {
+	static const zprop_index_t snapdir_table[] = {
 		{ "hidden",	ZFS_SNAPDIR_HIDDEN },
 		{ "visible",	ZFS_SNAPDIR_VISIBLE },
 		{ NULL }
 	};
 
-	static zprop_index_t snapdev_table[] = {
+	static const zprop_index_t snapdev_table[] = {
 		{ "hidden",	ZFS_SNAPDEV_HIDDEN },
 		{ "visible",	ZFS_SNAPDEV_VISIBLE },
 		{ NULL }
 	};
 
-	static zprop_index_t acl_mode_table[] = {
+	static const zprop_index_t acl_mode_table[] = {
 		{ "discard",	ZFS_ACL_DISCARD },
 		{ "groupmask",	ZFS_ACL_GROUPMASK },
 		{ "passthrough", ZFS_ACL_PASSTHROUGH },
@@ -245,7 +245,7 @@ zfs_prop_init(void)
 		{ NULL }
 	};
 
-	static zprop_index_t acltype_table[] = {
+	static const zprop_index_t acltype_table[] = {
 		{ "off",	ZFS_ACLTYPE_OFF },
 		{ "posix",	ZFS_ACLTYPE_POSIX },
 		{ "nfsv4",	ZFS_ACLTYPE_NFSV4 },
@@ -255,7 +255,7 @@ zfs_prop_init(void)
 		{ NULL }
 	};
 
-	static zprop_index_t acl_inherit_table[] = {
+	static const zprop_index_t acl_inherit_table[] = {
 		{ "discard",	ZFS_ACL_DISCARD },
 		{ "noallow",	ZFS_ACL_NOALLOW },
 		{ "restricted",	ZFS_ACL_RESTRICTED },
@@ -265,14 +265,14 @@ zfs_prop_init(void)
 		{ NULL }
 	};
 
-	static zprop_index_t case_table[] = {
+	static const zprop_index_t case_table[] = {
 		{ "sensitive",		ZFS_CASE_SENSITIVE },
 		{ "insensitive",	ZFS_CASE_INSENSITIVE },
 		{ "mixed",		ZFS_CASE_MIXED },
 		{ NULL }
 	};
 
-	static zprop_index_t copies_table[] = {
+	static const zprop_index_t copies_table[] = {
 		{ "1",		1 },
 		{ "2",		2 },
 		{ "3",		3 },
@@ -284,7 +284,7 @@ zfs_prop_init(void)
 	 * u8_textprep() to represent the various normalization property
 	 * values.
 	 */
-	static zprop_index_t normalize_table[] = {
+	static const zprop_index_t normalize_table[] = {
 		{ "none",	0 },
 		{ "formD",	U8_TEXTPREP_NFD },
 		{ "formKC",	U8_TEXTPREP_NFKC },
@@ -293,7 +293,7 @@ zfs_prop_init(void)
 		{ NULL }
 	};
 
-	static zprop_index_t version_table[] = {
+	static const zprop_index_t version_table[] = {
 		{ "1",		1 },
 		{ "2",		2 },
 		{ "3",		3 },
@@ -303,47 +303,47 @@ zfs_prop_init(void)
 		{ NULL }
 	};
 
-	static zprop_index_t boolean_table[] = {
+	static const zprop_index_t boolean_table[] = {
 		{ "off",	0 },
 		{ "on",		1 },
 		{ NULL }
 	};
 
-	static zprop_index_t keystatus_table[] = {
+	static const zprop_index_t keystatus_table[] = {
 		{ "none",		ZFS_KEYSTATUS_NONE},
 		{ "unavailable",	ZFS_KEYSTATUS_UNAVAILABLE},
 		{ "available",		ZFS_KEYSTATUS_AVAILABLE},
 		{ NULL }
 	};
 
-	static zprop_index_t logbias_table[] = {
+	static const zprop_index_t logbias_table[] = {
 		{ "latency",	ZFS_LOGBIAS_LATENCY },
 		{ "throughput",	ZFS_LOGBIAS_THROUGHPUT },
 		{ NULL }
 	};
 
-	static zprop_index_t canmount_table[] = {
+	static const zprop_index_t canmount_table[] = {
 		{ "off",	ZFS_CANMOUNT_OFF },
 		{ "on",		ZFS_CANMOUNT_ON },
 		{ "noauto",	ZFS_CANMOUNT_NOAUTO },
 		{ NULL }
 	};
 
-	static zprop_index_t cache_table[] = {
+	static const zprop_index_t cache_table[] = {
 		{ "none",	ZFS_CACHE_NONE },
 		{ "metadata",	ZFS_CACHE_METADATA },
 		{ "all",	ZFS_CACHE_ALL },
 		{ NULL }
 	};
 
-	static zprop_index_t sync_table[] = {
+	static const zprop_index_t sync_table[] = {
 		{ "standard",	ZFS_SYNC_STANDARD },
 		{ "always",	ZFS_SYNC_ALWAYS },
 		{ "disabled",	ZFS_SYNC_DISABLED },
 		{ NULL }
 	};
 
-	static zprop_index_t xattr_table[] = {
+	static const zprop_index_t xattr_table[] = {
 		{ "off",	ZFS_XATTR_OFF },
 		{ "on",		ZFS_XATTR_DIR },
 		{ "sa",		ZFS_XATTR_SA },
@@ -351,7 +351,7 @@ zfs_prop_init(void)
 		{ NULL }
 	};
 
-	static zprop_index_t dnsize_table[] = {
+	static const zprop_index_t dnsize_table[] = {
 		{ "legacy",	ZFS_DNSIZE_LEGACY },
 		{ "auto",	ZFS_DNSIZE_AUTO },
 		{ "1k",		ZFS_DNSIZE_1K },
@@ -362,13 +362,13 @@ zfs_prop_init(void)
 		{ NULL }
 	};
 
-	static zprop_index_t redundant_metadata_table[] = {
+	static const zprop_index_t redundant_metadata_table[] = {
 		{ "all",	ZFS_REDUNDANT_METADATA_ALL },
 		{ "most",	ZFS_REDUNDANT_METADATA_MOST },
 		{ NULL }
 	};
 
-	static zprop_index_t volmode_table[] = {
+	static const zprop_index_t volmode_table[] = {
 		{ "default",	ZFS_VOLMODE_DEFAULT },
 		{ "full",	ZFS_VOLMODE_GEOM },
 		{ "geom",	ZFS_VOLMODE_GEOM },
