@@ -45,7 +45,7 @@ if [ "$(zpool list -H -o feature@encryption "${BOOTFS%%/*}")" = 'active' ]; then
         case "${KEYLOCATION%%://*}" in
             prompt)
                 for _ in 1 2 3; do
-                    systemd-ask-password "Encrypted ZFS password for ${BOOTFS}" --no-tty | zfs load-key "${ENCRYPTIONROOT}" && break
+                    systemd-ask-password --no-tty "Encrypted ZFS password for ${BOOTFS}" | zfs load-key "${ENCRYPTIONROOT}" && break
                 done
                 ;;
             http*)
