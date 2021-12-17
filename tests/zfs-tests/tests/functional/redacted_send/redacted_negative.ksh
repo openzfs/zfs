@@ -45,11 +45,11 @@ log_must zfs snapshot $clone2@snap
 
 # Incompatible flags
 log_must zfs redact $sendfs@snap2 book $clone1@snap
-log_mustnot eval "zfs send -R --redact book $sendfs@snap2 >$TEST_BASE_DIR/devnull"
+log_mustnot eval "zfs send -R --redact book $sendfs@snap2 > /dev/null"
 
 typeset arg
 for arg in "$sendfs" "$clone1#book"; do
-	log_mustnot eval "zfs send --redact book $arg >$TEST_BASE_DIR/devnull"
+	log_mustnot eval "zfs send --redact book $arg > /dev/null"
 done
 
 # Bad redaction list arguments
@@ -58,7 +58,7 @@ log_mustnot zfs redact $sendfs@snap1 book
 log_mustnot zfs redact $sendfs#book1 book4 $clone1
 log_mustnot zfs redact $sendfs@snap1 book snap2 snap3
 log_mustnot zfs redact $sendfs@snap1 book @snap2 @snap3
-log_mustnot eval "zfs send --redact $sendfs#book $sendfs@snap >$TEST_BASE_DIR/devnull"
+log_mustnot eval "zfs send --redact $sendfs#book $sendfs@snap > /dev/null"
 
 # Redaction snapshots not a descendant of tosnap
 log_mustnot zfs redact $sendfs@snap2 book $sendfs@snap2
@@ -66,7 +66,7 @@ log_must zfs redact $sendfs@snap2 book2 $clone1@snap $clone2@snap
 log_must eval "zfs send --redact book2 $sendfs@snap2 >$stream"
 log_must zfs redact $sendfs@snap2 book3 $clone1@snap $clone2@snap
 log_must eval "zfs send -i $sendfs@snap1 --redact book3 $sendfs@snap2 \
-    >$TEST_BASE_DIR/devnull"
+    > /dev/null"
 log_mustnot zfs redact $sendfs@snap3 $sendfs@snap3 $clone1@snap
 
 # Full redacted sends of redacted datasets are not allowed.

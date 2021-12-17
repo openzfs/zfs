@@ -28,7 +28,7 @@ function callback
 {
 	create_snapshot $TESTPOOL/$TESTFS $TESTSNAP
 	log_must ksh -c \
-	    "zfs send $TESTPOOL/$TESTFS@$TESTSNAP >$TEST_BASE_DIR/devnull"
+	    "zfs send $TESTPOOL/$TESTFS@$TESTSNAP > /dev/null"
 	return 0
 }
 
