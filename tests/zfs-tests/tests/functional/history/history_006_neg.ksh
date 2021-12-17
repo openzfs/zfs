@@ -75,7 +75,9 @@ if ! is_linux; then
 	log_must zfs share $fs
 	log_must zfs unshare $fs
 fi
-log_must zfs send -i $snap1 $snap2 > /dev/null
+# https://github.com/openzfs/zfs/issues/11445
+set -o pipefail
+log_must zfs send -i $snap1 $snap2 | cat > /dev/null
 log_must zfs holds $snap1
 
 log_must eval "zpool history $TESTPOOL > $NEW_HISTORY"
