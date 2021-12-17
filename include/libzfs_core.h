@@ -155,6 +155,8 @@ _LIBZFS_CORE_H int lzc_get_bootenv(const char *, nvlist_t **);
 _LIBZFS_CORE_H int lzc_get_vdev_prop(const char *, nvlist_t *, nvlist_t **);
 _LIBZFS_CORE_H int lzc_set_vdev_prop(const char *, nvlist_t *, nvlist_t **);
 
+_LIBZFS_CORE_H int lzc_scrub(zfs_ioc_t, const char *, nvlist_t *, nvlist_t **);
+
 #ifdef	__cplusplus
 }
 #endif

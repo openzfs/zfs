@@ -187,6 +187,7 @@
     <elf-symbol name='lzc_reopen' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_rollback' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_rollback_to' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='lzc_scrub' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_send' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_send_redacted' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_send_resume' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -1261,6 +1262,110 @@
       <enumerator name='POOL_TRIM_FUNCS' value='3'/>
     </enum-decl>
     <typedef-decl name='pool_trim_func_t' type-id='54ed608a' id='b1146b8d'/>
+    <enum-decl name='zfs_ioc' id='12033f13'>
+      <underlying-type type-id='9cac1fee'/>
+      <enumerator name='ZFS_IOC_FIRST' value='23040'/>
+      <enumerator name='ZFS_IOC' value='23040'/>
+      <enumerator name='ZFS_IOC_POOL_CREATE' value='23040'/>
+      <enumerator name='ZFS_IOC_POOL_DESTROY' value='23041'/>
+      <enumerator name='ZFS_IOC_POOL_IMPORT' value='23042'/>
+      <enumerator name='ZFS_IOC_POOL_EXPORT' value='23043'/>
+      <enumerator name='ZFS_IOC_POOL_CONFIGS' value='23044'/>
+      <enumerator name='ZFS_IOC_POOL_STATS' value='23045'/>
+      <enumerator name='ZFS_IOC_POOL_TRYIMPORT' value='23046'/>
+      <enumerator name='ZFS_IOC_POOL_SCAN' value='23047'/>
+      <enumerator name='ZFS_IOC_POOL_FREEZE' value='23048'/>
+      <enumerator name='ZFS_IOC_POOL_UPGRADE' value='23049'/>
+      <enumerator name='ZFS_IOC_POOL_GET_HISTORY' value='23050'/>
+      <enumerator name='ZFS_IOC_VDEV_ADD' value='23051'/>
+      <enumerator name='ZFS_IOC_VDEV_REMOVE' value='23052'/>
+      <enumerator name='ZFS_IOC_VDEV_SET_STATE' value='23053'/>
+      <enumerator name='ZFS_IOC_VDEV_ATTACH' value='23054'/>
+      <enumerator name='ZFS_IOC_VDEV_DETACH' value='23055'/>
+      <enumerator name='ZFS_IOC_VDEV_SETPATH' value='23056'/>
+      <enumerator name='ZFS_IOC_VDEV_SETFRU' value='23057'/>
+      <enumerator name='ZFS_IOC_OBJSET_STATS' value='23058'/>
+      <enumerator name='ZFS_IOC_OBJSET_ZPLPROPS' value='23059'/>
+      <enumerator name='ZFS_IOC_DATASET_LIST_NEXT' value='23060'/>
+      <enumerator name='ZFS_IOC_SNAPSHOT_LIST_NEXT' value='23061'/>
+      <enumerator name='ZFS_IOC_SET_PROP' value='23062'/>
+      <enumerator name='ZFS_IOC_CREATE' value='23063'/>
+      <enumerator name='ZFS_IOC_DESTROY' value='23064'/>
+      <enumerator name='ZFS_IOC_ROLLBACK' value='23065'/>
+      <enumerator name='ZFS_IOC_RENAME' value='23066'/>
+      <enumerator name='ZFS_IOC_RECV' value='23067'/>
+      <enumerator name='ZFS_IOC_SEND' value='23068'/>
+      <enumerator name='ZFS_IOC_INJECT_FAULT' value='23069'/>
+      <enumerator name='ZFS_IOC_CLEAR_FAULT' value='23070'/>
+      <enumerator name='ZFS_IOC_INJECT_LIST_NEXT' value='23071'/>
+      <enumerator name='ZFS_IOC_ERROR_LOG' value='23072'/>
+      <enumerator name='ZFS_IOC_CLEAR' value='23073'/>
+      <enumerator name='ZFS_IOC_PROMOTE' value='23074'/>
+      <enumerator name='ZFS_IOC_SNAPSHOT' value='23075'/>
+      <enumerator name='ZFS_IOC_DSOBJ_TO_DSNAME' value='23076'/>
+      <enumerator name='ZFS_IOC_OBJ_TO_PATH' value='23077'/>
+      <enumerator name='ZFS_IOC_POOL_SET_PROPS' value='23078'/>
+      <enumerator name='ZFS_IOC_POOL_GET_PROPS' value='23079'/>
+      <enumerator name='ZFS_IOC_SET_FSACL' value='23080'/>
+      <enumerator name='ZFS_IOC_GET_FSACL' value='23081'/>
+      <enumerator name='ZFS_IOC_SHARE' value='23082'/>
+      <enumerator name='ZFS_IOC_INHERIT_PROP' value='23083'/>
+      <enumerator name='ZFS_IOC_SMB_ACL' value='23084'/>
+      <enumerator name='ZFS_IOC_USERSPACE_ONE' value='23085'/>
+      <enumerator name='ZFS_IOC_USERSPACE_MANY' value='23086'/>
+      <enumerator name='ZFS_IOC_USERSPACE_UPGRADE' value='23087'/>
+      <enumerator name='ZFS_IOC_HOLD' value='23088'/>
+      <enumerator name='ZFS_IOC_RELEASE' value='23089'/>
+      <enumerator name='ZFS_IOC_GET_HOLDS' value='23090'/>
+      <enumerator name='ZFS_IOC_OBJSET_RECVD_PROPS' value='23091'/>
+      <enumerator name='ZFS_IOC_VDEV_SPLIT' value='23092'/>
+      <enumerator name='ZFS_IOC_NEXT_OBJ' value='23093'/>
+      <enumerator name='ZFS_IOC_DIFF' value='23094'/>
+      <enumerator name='ZFS_IOC_TMP_SNAPSHOT' value='23095'/>
+      <enumerator name='ZFS_IOC_OBJ_TO_STATS' value='23096'/>
+      <enumerator name='ZFS_IOC_SPACE_WRITTEN' value='23097'/>
+      <enumerator name='ZFS_IOC_SPACE_SNAPS' value='23098'/>
+      <enumerator name='ZFS_IOC_DESTROY_SNAPS' value='23099'/>
+      <enumerator name='ZFS_IOC_POOL_REGUID' value='23100'/>
+      <enumerator name='ZFS_IOC_POOL_REOPEN' value='23101'/>
+      <enumerator name='ZFS_IOC_SEND_PROGRESS' value='23102'/>
+      <enumerator name='ZFS_IOC_LOG_HISTORY' value='23103'/>
+      <enumerator name='ZFS_IOC_SEND_NEW' value='23104'/>
+      <enumerator name='ZFS_IOC_SEND_SPACE' value='23105'/>
+      <enumerator name='ZFS_IOC_CLONE' value='23106'/>
+      <enumerator name='ZFS_IOC_BOOKMARK' value='23107'/>
+      <enumerator name='ZFS_IOC_GET_BOOKMARKS' value='23108'/>
+      <enumerator name='ZFS_IOC_DESTROY_BOOKMARKS' value='23109'/>
+      <enumerator name='ZFS_IOC_RECV_NEW' value='23110'/>
+      <enumerator name='ZFS_IOC_POOL_SYNC' value='23111'/>
+      <enumerator name='ZFS_IOC_CHANNEL_PROGRAM' value='23112'/>
+      <enumerator name='ZFS_IOC_LOAD_KEY' value='23113'/>
+      <enumerator name='ZFS_IOC_UNLOAD_KEY' value='23114'/>
+      <enumerator name='ZFS_IOC_CHANGE_KEY' value='23115'/>
+      <enumerator name='ZFS_IOC_REMAP' value='23116'/>
+      <enumerator name='ZFS_IOC_POOL_CHECKPOINT' value='23117'/>
+      <enumerator name='ZFS_IOC_POOL_DISCARD_CHECKPOINT' value='23118'/>
+      <enumerator name='ZFS_IOC_POOL_INITIALIZE' value='23119'/>
+      <enumerator name='ZFS_IOC_POOL_TRIM' value='23120'/>
+      <enumerator name='ZFS_IOC_REDACT' value='23121'/>
+      <enumerator name='ZFS_IOC_GET_BOOKMARK_PROPS' value='23122'/>
+      <enumerator name='ZFS_IOC_WAIT' value='23123'/>
+      <enumerator name='ZFS_IOC_WAIT_FS' value='23124'/>
+      <enumerator name='ZFS_IOC_VDEV_GET_PROPS' value='23125'/>
+      <enumerator name='ZFS_IOC_VDEV_SET_PROPS' value='23126'/>
+      <enumerator name='ZFS_IOC_POOL_SCRUB' value='23127'/>
+      <enumerator name='ZFS_IOC_PLATFORM' value='23168'/>
+      <enumerator name='ZFS_IOC_EVENTS_NEXT' value='23169'/>
+      <enumerator name='ZFS_IOC_EVENTS_CLEAR' value='23170'/>
+      <enumerator name='ZFS_IOC_EVENTS_SEEK' value='23171'/>
+      <enumerator name='ZFS_IOC_NEXTBOOT' value='23172'/>
+      <enumerator name='ZFS_IOC_JAIL' value='23173'/>
+      <enumerator name='ZFS_IOC_UNJAIL' value='23174'/>
+      <enumerator name='ZFS_IOC_SET_BOOTENV' value='23175'/>
+      <enumerator name='ZFS_IOC_GET_BOOTENV' value='23176'/>
+      <enumerator name='ZFS_IOC_LAST' value='23177'/>
+    </enum-decl>
+    <typedef-decl name='zfs_ioc_t' type-id='12033f13' id='5b35941c'/>
     <enum-decl name='zpool_wait_activity_t' naming-typedef-id='73446457' id='849338e3'>
       <underlying-type type-id='9cac1fee'/>
       <enumerator name='ZPOOL_WAIT_CKPT_DISCARD' value='0'/>

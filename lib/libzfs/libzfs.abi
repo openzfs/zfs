@@ -5717,7 +5717,8 @@
       <enumerator name='POOL_SCAN_NONE' value='0'/>
       <enumerator name='POOL_SCAN_SCRUB' value='1'/>
       <enumerator name='POOL_SCAN_RESILVER' value='2'/>
-      <enumerator name='POOL_SCAN_FUNCS' value='3'/>
+      <enumerator name='POOL_SCAN_ERRORSCRUB' value='3'/>
+      <enumerator name='POOL_SCAN_FUNCS' value='4'/>
     </enum-decl>
     <typedef-decl name='pool_scan_func_t' type-id='1b092565' id='7313fbe2'/>
     <enum-decl name='pool_scrub_cmd' id='a1474cbd'>

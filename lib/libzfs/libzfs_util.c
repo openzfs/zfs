@@ -243,10 +243,20 @@ libzfs_error_description(libzfs_handle_t *hdl)
 		    "into a new one"));
 	case EZFS_SCRUB_PAUSED:
 		return (dgettext(TEXT_DOMAIN, "scrub is paused; "
-		    "use 'zpool scrub' to resume"));
+		    "use 'zpool scrub' to resume scrub"));
+	case EZFS_SCRUB_PAUSED_TO_CANCEL:
+		return (dgettext(TEXT_DOMAIN, "scrub is paused; "
+		    "use 'zpool scrub' to resume or 'zpool scrub -s' to "
+		    "cancel scrub"));
 	case EZFS_SCRUBBING:
 		return (dgettext(TEXT_DOMAIN, "currently scrubbing; "
-		    "use 'zpool scrub -s' to cancel current scrub"));
+		    "use 'zpool scrub -s' to cancel scrub"));
+	case EZFS_ERRORSCRUBBING:
+		return (dgettext(TEXT_DOMAIN, "currently error scrubbing; "
+		    "use 'zpool scrub -s' to cancel error scrub"));
+	case EZFS_ERRORSCRUB_PAUSED:
+		return (dgettext(TEXT_DOMAIN, "error scrub is paused; "
+		    "use 'zpool scrub -e' to resume error scrub"));
 	case EZFS_NO_SCRUB:
 		return (dgettext(TEXT_DOMAIN, "there is no active scrub"));
 	case EZFS_DIFF:

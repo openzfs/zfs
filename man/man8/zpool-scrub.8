@@ -38,6 +38,7 @@
 .Cm scrub
 .Op Fl s Ns | Ns Fl p
 .Op Fl w
+.Op Fl e
 .Ar pool Ns …
 .
 .Sh DESCRIPTION
@@ -61,6 +62,13 @@ device
 .Pc ,
 whereas scrubbing examines all data to discover silent errors due to hardware
 faults or disk failure.
+.Pp
+When scrubbing a pool with encrypted filesystems the keys do not need to be
+loaded.
+However, if the keys are not loaded and an unrepairable checksum error is
+detected the file name cannot be included in the
+.Nm zpool Cm status Fl v
+verbose error report.
 .Pp
 Because scrubbing and resilvering are I/O-intensive operations, ZFS only allows
 one at a time.
@@ -92,9 +100,20 @@ Once resumed the scrub will pick up from the place where it was last
 checkpointed to disk.
 To resume a paused scrub issue
 .Nm zpool Cm scrub
+or
+.Nm zpool Cm scrub
+.Fl e
 again.
 .It Fl w
 Wait until scrub has completed before returning.
+.It Fl e
+Only scrub files with known data errors as reported by
+.Nm zpool Cm status Fl v .
+The pool must have been scrubbed at least once with the
+.Sy head_errlog
+feature enabled to use this option.
+Error scrubbing cannot be run simultaneously with regular scrubbing or
+resilvering, nor can it be run when a regular scrub is paused.
 .El
 .Sh EXAMPLES
 .Ss Example 1

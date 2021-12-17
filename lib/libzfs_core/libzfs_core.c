@@ -248,6 +248,13 @@ out:
 }
 
 int
+lzc_scrub(zfs_ioc_t ioc, const char *name,
+    nvlist_t *source, nvlist_t **resultp)
+{
+	return (lzc_ioctl(ioc, name, source, resultp));
+}
+
+int
 lzc_create(const char *fsname, enum lzc_dataset_type type, nvlist_t *props,
     uint8_t *wkeydata, uint_t wkeylen)
 {
