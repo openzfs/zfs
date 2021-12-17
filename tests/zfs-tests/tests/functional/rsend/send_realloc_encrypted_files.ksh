@@ -72,12 +72,8 @@ if is_kmemleak; then
 	# to avoid timeout due to reduced performance.
 	nr_files=100
 	passes=2
-elif is_freebsd; then
-	# Use fewer files and passes on FreeBSD to avoid timeout.
-	nr_files=500
-	passes=2
 else
-	nr_files=1000
+	nr_files=300
 	passes=3
 fi
 
