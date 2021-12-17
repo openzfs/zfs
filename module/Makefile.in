@@ -90,7 +90,15 @@ modules_install-Linux:
 	if [ -n "$(DESTDIR)" ]; then \
 		find $$kmoddir -name 'modules.*' | xargs $(RM); \
 	fi
+	@# Debian ships tiny fake System.map files that are
+	@# syntactically valid but just say
+	@# "if you want system.map go install this package"
+	@# Naturally, depmod is less than amused by this.
+	@# So if we find it missing or with one of these present,
+	@# we check for the alternate path for the System.map
 	sysmap=$(INSTALL_MOD_PATH)/boot/System.map-@LINUX_VERSION@; \
+	{ [ -f "$$sysmap" ] && [ $$(wc -l < "$$sysmap") -ge 100 ]; } || \
+		sysmap=$(INSTALL_MOD_PATH)/usr/lib/debug/boot/System.map-@LINUX_VERSION@; \
 	if [ -f $$sysmap ]; then \
 		depmod -ae -F $$sysmap @LINUX_VERSION@; \
 	fi
