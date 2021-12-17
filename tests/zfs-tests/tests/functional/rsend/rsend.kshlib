@@ -121,6 +121,7 @@ function cleanup_pool
 	log_must rm -rf $BACKDIR/*
 
 	if is_global_zone ; then
+		log_must df >/dev/null
 		log_must_busy zfs destroy -Rf $pool
 	else
 		typeset list=$(zfs list -H -r -t all -o name $pool)
