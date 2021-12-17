@@ -68,11 +68,11 @@ function wait_for_action #pool timeout function
 {
 	typeset pool=$1
 	typeset -i timeout=$2
-	typeset func=$3
+	typeset funct=$3
 
 	while [ $timeout -gt 0 ]; do
 		(( --timeout ))
-		if ( $func $pool ); then
+		if ( $funct $pool ); then
 			return 0
 		fi
 		sleep 1
