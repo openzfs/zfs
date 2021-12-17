@@ -36,7 +36,7 @@ log_assert "Verify send -c streams are compressed"
 log_onexit cleanup_pool $POOL2
 
 typeset sendfs=$POOL2/$FS
-typeset megs=128
+typeset megs=64
 
 for prop in "${compress_prop_vals[@]}"; do
 	for compressible in 'yes' 'no'; do
