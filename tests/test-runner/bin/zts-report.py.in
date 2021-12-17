@@ -242,12 +242,6 @@ maybe = {
     'removal/removal_condense_export': ['FAIL', known_reason],
     'reservation/reservation_008_pos': ['FAIL', '7741'],
     'reservation/reservation_018_pos': ['FAIL', '5642'],
-    'rsend/rsend_019_pos': ['FAIL', '6086'],
-    'rsend/rsend_020_pos': ['FAIL', '6446'],
-    'rsend/rsend_021_pos': ['FAIL', '6446'],
-    'rsend/rsend_024_pos': ['FAIL', '5665'],
-    'rsend/send-c_volume': ['FAIL', '6087'],
-    'rsend/send_partial_dataset': ['FAIL', known_reason],
     'snapshot/clone_001_pos': ['FAIL', known_reason],
     'snapshot/snapshot_009_pos': ['FAIL', '7961'],
     'snapshot/snapshot_010_pos': ['FAIL', '7961'],
@@ -292,9 +286,6 @@ elif sys.platform.startswith('linux'):
         'mmp/mmp_exported_import': ['FAIL', known_reason],
         'mmp/mmp_inactive_import': ['FAIL', known_reason],
         'refreserv/refreserv_raidz': ['FAIL', known_reason],
-        'rsend/rsend_007_pos': ['FAIL', known_reason],
-        'rsend/rsend_010_pos': ['FAIL', known_reason],
-        'rsend/rsend_011_pos': ['FAIL', known_reason],
         'snapshot/rollback_003_pos': ['FAIL', known_reason],
     })
 
