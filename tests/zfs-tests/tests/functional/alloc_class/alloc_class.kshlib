@@ -62,6 +62,7 @@ function display_status
 	((ret |= $?))
 
 	kill -9 $pid
+	wait $pid 2> /dev/null
 
 	return $ret
 }
