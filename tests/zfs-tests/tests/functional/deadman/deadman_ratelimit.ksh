@@ -64,7 +64,7 @@ log_must file_write -b 1048576 -c 8 -o create -d 0 -f $mntpnt/file
 log_must zpool export $TESTPOOL
 log_must zpool import $TESTPOOL
 log_must zinject -d $DISK1 -D 5:1 $TESTPOOL
-log_must dd if=$mntpnt/file of=$TEST_BASE_DIR/devnull oflag=sync
+log_must dd if=$mntpnt/file of=/dev/null oflag=sync
 
 events=$(zpool events $TESTPOOL | grep -c ereport.fs.zfs.deadman)
 log_note "events=$events"

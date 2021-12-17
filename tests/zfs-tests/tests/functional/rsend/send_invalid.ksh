@@ -44,7 +44,7 @@ log_must zfs snap $testfs@snap0
 log_must zfs snap $testfs@snap1
 
 # Test bad send with the CLI
-log_mustnot eval "zfs send -i $testfs@snap1 $testfs@snap0 >$TEST_BASE_DIR/devnull"
+log_mustnot eval "zfs send -i $testfs@snap1 $testfs@snap0 > /dev/null"
 
 # Test bad send with libzfs/libzfs_core
 log_must badsend $testfs@snap0 $testfs@snap1
