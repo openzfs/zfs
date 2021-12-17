@@ -1947,8 +1947,18 @@
       </data-member>
     </class-decl>
     <typedef-decl name='zfeature_info_t' type-id='1178d146' id='83f29ca2'/>
+    <class-decl name='zfs_mod_supported_features' size-in-bits='128' is-struct='yes' visibility='default' id='3eee3342'>
+      <data-member access='public' layout-offset-in-bits='0'>
+        <var-decl name='tree' type-id='eaa32e2f' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='64'>
+        <var-decl name='all_features' type-id='c19b74c3' visibility='default'/>
+      </data-member>
+    </class-decl>
     <qualified-type-def type-id='d6618c78' const='yes' id='81a65028'/>
     <pointer-type-def type-id='81a65028' size-in-bits='64' id='1acff326'/>
+    <qualified-type-def type-id='3eee3342' const='yes' id='0c1d5bbb'/>
+    <pointer-type-def type-id='0c1d5bbb' size-in-bits='64' id='a3372543'/>
     <pointer-type-def type-id='d6618c78' size-in-bits='64' id='a8425263'/>
     <var-decl name='spa_feature_table' type-id='d96379d0' mangled-name='spa_feature_table' visibility='default' elf-symbol-id='spa_feature_table'/>
     <var-decl name='zfeature_checks_disable' type-id='c19b74c3' mangled-name='zfeature_checks_disable' visibility='default' elf-symbol-id='zfeature_checks_disable'/>
@@ -1978,6 +1988,7 @@
     <function-decl name='zfs_mod_supported' mangled-name='zfs_mod_supported' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_mod_supported'>
       <parameter type-id='80f4b756' name='scope'/>
       <parameter type-id='80f4b756' name='name'/>
+      <parameter type-id='a3372543' name='sfeatures'/>
       <return type-id='c19b74c3'/>
     </function-decl>
     <function-decl name='zpool_feature_init' mangled-name='zpool_feature_init' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_feature_init'>
@@ -2793,6 +2804,7 @@
       <parameter type-id='c19b74c3' name='rightalign'/>
       <parameter type-id='c19b74c3' name='visible'/>
       <parameter type-id='c8bc397b' name='idx_tbl'/>
+      <parameter type-id='a3372543' name='sfeatures'/>
       <return type-id='48b5725f'/>
     </function-decl>
     <function-decl name='zprop_register_string' mangled-name='zprop_register_string' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zprop_register_string'>
@@ -2803,6 +2815,7 @@
       <parameter type-id='95e97e5e' name='objset_types'/>
       <parameter type-id='80f4b756' name='values'/>
       <parameter type-id='80f4b756' name='colname'/>
+      <parameter type-id='a3372543' name='sfeatures'/>
       <return type-id='48b5725f'/>
     </function-decl>
     <function-decl name='zprop_register_number' mangled-name='zprop_register_number' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zprop_register_number'>
@@ -2813,6 +2826,7 @@
       <parameter type-id='95e97e5e' name='objset_types'/>
       <parameter type-id='80f4b756' name='values'/>
       <parameter type-id='80f4b756' name='colname'/>
+      <parameter type-id='a3372543' name='sfeatures'/>
       <return type-id='48b5725f'/>
     </function-decl>
     <function-decl name='zprop_register_index' mangled-name='zprop_register_index' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zprop_register_index'>
@@ -2824,6 +2838,7 @@
       <parameter type-id='80f4b756' name='values'/>
       <parameter type-id='80f4b756' name='colname'/>
       <parameter type-id='c8bc397b' name='idx_tbl'/>
+      <parameter type-id='a3372543' name='sfeatures'/>
       <return type-id='48b5725f'/>
     </function-decl>
     <function-decl name='zprop_register_hidden' mangled-name='zprop_register_hidden' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zprop_register_hidden'>
@@ -2833,6 +2848,7 @@
       <parameter type-id='999701cc' name='attr'/>
       <parameter type-id='95e97e5e' name='objset_types'/>
       <parameter type-id='80f4b756' name='colname'/>
+      <parameter type-id='a3372543' name='sfeatures'/>
       <return type-id='48b5725f'/>
     </function-decl>
     <function-decl name='zprop_iter_common' mangled-name='zprop_iter_common' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zprop_iter_common'>
