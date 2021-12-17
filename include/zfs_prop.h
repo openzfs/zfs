@@ -28,6 +28,7 @@
 
 #include <sys/fs/zfs.h>
 #include <sys/types.h>
+#include <sys/zfs_sysfs.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -111,15 +112,19 @@ _ZFS_PROP_H zprop_desc_t *vdev_prop_get_table(void);
  */
 _ZFS_PROP_H void zprop_register_impl(int, const char *, zprop_type_t, uint64_t,
     const char *, zprop_attr_t, int, const char *, const char *,
-    boolean_t, boolean_t, const zprop_index_t *);
+    boolean_t, boolean_t, const zprop_index_t *,
+    const struct zfs_mod_supported_features *);
 _ZFS_PROP_H void zprop_register_string(int, const char *, const char *,
-    zprop_attr_t attr, int, const char *, const char *);
+    zprop_attr_t attr, int, const char *, const char *,
+    const struct zfs_mod_supported_features *);
 _ZFS_PROP_H void zprop_register_number(int, const char *, uint64_t,
-    zprop_attr_t, int, const char *, const char *);
+    zprop_attr_t, int, const char *, const char *,
+    const struct zfs_mod_supported_features *);
 _ZFS_PROP_H void zprop_register_index(int, const char *, uint64_t, zprop_attr_t,
-    int, const char *, const char *, const zprop_index_t *);
+    int, const char *, const char *, const zprop_index_t *,
+    const struct zfs_mod_supported_features *);
 _ZFS_PROP_H void zprop_register_hidden(int, const char *, zprop_type_t,
-    zprop_attr_t, int, const char *);
+    zprop_attr_t, int, const char *, const struct zfs_mod_supported_features *);
 
 /*
  * Common routines for zfs and zpool property management
