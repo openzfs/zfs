@@ -38,6 +38,7 @@
 .Cm scrub
 .Op Fl s Ns | Ns Fl p
 .Op Fl w
+.Op Fl e
 .Ar pool Ns …
 .
 .Sh DESCRIPTION
@@ -92,9 +93,27 @@ Once resumed the scrub will pick up from the place where it was last
 checkpointed to disk.
 To resume a paused scrub issue
 .Nm zpool Cm scrub
+or
+.Nm zpool Cm scrub
+.Fl e
 again.
 .It Fl w
 Wait until scrub has completed before returning.
+.It Fl e
+Only scrub blocks in the error log.
+This is only supported if the head_errlog feature is enabled in the pool.
+It is strongly advised to run error scrubs with keys loaded and filesystems
+mounted in the case of encrypted filesystems.
+Otherwise, errors in encrypted filesystems that are unmounted or have unloaded
+keys will be reported as belonging to the root filesystem.
+Error scrubs can also be paused and canceled with
+.Fl p
+and
+.Fl s
+respectively.
+Error scrubbing is I/O-intensive and cannot run simultaneously with regular
+scrubbing or resilvering.
+It also cannot run if a regular scrub is in the paused state.
 .El
 .Sh EXAMPLES
 .Ss Example 1

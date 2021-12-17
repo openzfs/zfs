@@ -378,6 +378,7 @@ typedef struct dmu_buf {
 #define	DMU_POOL_DDT_STATS		"DDT-statistics"
 #define	DMU_POOL_CREATION_VERSION	"creation_version"
 #define	DMU_POOL_SCAN			"scan"
+#define	DMU_POOL_ERRORSCRUB		"error_scrub"
 #define	DMU_POOL_FREE_BPOBJ		"free_bpobj"
 #define	DMU_POOL_BPTREE_OBJ		"bptree_obj"
 #define	DMU_POOL_EMPTY_BPOBJ		"empty_bpobj"

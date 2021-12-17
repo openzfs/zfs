@@ -1969,6 +1969,12 @@ function is_pool_scrubbing #pool <verbose>
 	check_pool_status "$1" "scan" "scrub in progress since " $2
 }
 
+function is_pool_error_scrubbing #pool <verbose>
+{
+	check_pool_status "$1" "scrub" "error scrub in progress since " $2
+	return $?
+}
+
 function is_pool_scrubbed #pool <verbose>
 {
 	check_pool_status "$1" "scan" "scrub repaired" $2
@@ -1979,9 +1985,21 @@ function is_pool_scrub_stopped #pool <verbose>
 	check_pool_status "$1" "scan" "scrub canceled" $2
 }
 
+function is_pool_error_scrub_stopped #pool <verbose>
+{
+	check_pool_status "$1" "scrub" "error scrub canceled on " $2
+	return $?
+}
+
 function is_pool_scrub_paused #pool <verbose>
 {
 	check_pool_status "$1" "scan" "scrub paused since " $2
+}
+
+function is_pool_error_scrub_paused #pool <verbose>
+{
+	check_pool_status "$1" "scrub" "error scrub paused since " $2
+	return $?
 }
 
 function is_pool_removing #pool
