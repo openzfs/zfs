@@ -113,6 +113,12 @@ VFS_SMR_DECLARE;
 #define	VNCHECKREF(vp)
 #endif
 
+#if __FreeBSD_version >= 1400045
+typedef uint64_t cookie_t;
+#else
+typedef ulong_t cookie_t;
+#endif
+
 /*
  * Programming rules.
  *
@@ -1665,7 +1671,7 @@ zfs_rmdir(znode_t *dzp, const char *name, znode_t *cwd, cred_t *cr, int flags)
 /* ARGSUSED */
 static int
 zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, int *eofp,
-    int *ncookies, ulong_t **cookies)
+    int *ncookies, cookie_t **cookies)
 {
 	znode_t		*zp = VTOZ(vp);
 	iovec_t		*iovp;
@@ -1687,7 +1693,7 @@ zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, int *eofp,
 	boolean_t	check_sysattrs;
 	uint8_t		type;
 	int		ncooks;
-	ulong_t		*cooks = NULL;
+	cookie_t	*cooks = NULL;
 	int		flags = 0;
 
 	ZFS_ENTER(zfsvfs);
@@ -1764,7 +1770,7 @@ zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, int *eofp,
 		 */
 		ncooks = zfs_uio_resid(uio) / (sizeof (struct dirent) -
 		    sizeof (((struct dirent *)NULL)->d_name) + 1);
-		cooks = malloc(ncooks * sizeof (ulong_t), M_TEMP, M_WAITOK);
+		cooks = malloc(ncooks * sizeof (*cooks), M_TEMP, M_WAITOK);
 		*cookies = cooks;
 		*ncookies = ncooks;
 	}
@@ -4718,7 +4724,7 @@ struct vop_readdir_args {
 	struct ucred *a_cred;
 	int *a_eofflag;
 	int *a_ncookies;
-	ulong_t **a_cookies;
+	cookie_t **a_cookies;
 };
 #endif
 
