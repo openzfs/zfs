@@ -247,6 +247,17 @@ main(int argc, char **argv)
 				continue;
 			}
 		}
+		if (fsync(fd) < 0) {
+			saverr = errno;
+			(void) fprintf(stderr, gettext(
+			    "Error encountered when fsyncing %s: %s\n"),
+			    argv[1], strerror(saverr));
+			(void) close(fd);
+			errors++;
+			argv++;
+			argc--;
+			continue;
+		}
 		if (close(fd) < 0) {
 			saverr = errno;
 			(void) fprintf(stderr, gettext(
