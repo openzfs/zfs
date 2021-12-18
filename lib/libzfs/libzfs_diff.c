@@ -409,7 +409,7 @@ di_print_prefix(differ_info_t *di, char type, const char *path,
 		(void) fprintf(di->ofp, "%10lld.%09lld\t",
 		    (longlong_t)zds->zs.zs_ctime[0],
 		    (longlong_t)zds->zs.zs_ctime[1]);
-	(void) fputs(ZDIFF_RENAMED "\t", di->ofp);
+	(void) fprintf(di->ofp, "%c\t", type);
 	if (di->classify)
 		(void) fprintf(di->ofp, "%c\t", get_what(zds->zs.zs_mode));
 	di_print_cmn(di, path);
