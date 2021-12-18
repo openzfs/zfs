@@ -874,6 +874,10 @@ tags = ['functional', 'snapused']
 tests = ['sparse_001_pos']
 tags = ['functional', 'sparse']
 
+[tests/functional/stat]
+tests = ['stat_001_pos']
+tags = ['functional', 'stat']
+
 [tests/functional/suid]
 tests = ['suid_write_to_suid', 'suid_write_to_sgid', 'suid_write_to_suid_sgid',
     'suid_write_to_none']
