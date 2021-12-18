@@ -4076,6 +4076,20 @@ function stat_crtime #<path>
 	esac
 }
 
+function stat_generation #<path>
+{
+	typeset path=$1
+
+	case $(uname) in
+	Linux)
+		getversion "${path}"
+		;;
+	*)
+		stat -f %v "${path}"
+		;;
+	esac
+}
+
 # Run a command as if it was being run in a TTY.
 #
 # Usage:
