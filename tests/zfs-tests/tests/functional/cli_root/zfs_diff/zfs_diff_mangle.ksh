@@ -40,8 +40,8 @@ log_must zfs create "$DATASET"
 MNTPOINT="$(get_prop mountpoint "$DATASET")"
 log_must zfs snapshot "$TESTSNAP1"
 
-printf '%c\t'"$MNTPOINT/"'%s\n' M '' + 'śmieszny żupan'                       + 'достопримечательности'                                                                                                                                                                                              | sort > "$MNTPOINT/śmieszny żupan"
-printf '%c\t'"$MNTPOINT/"'%s\n' M '' + '\0305\0233mieszny\0040\0305\0274upan' + '\0320\0264\0320\0276\0321\0201\0321\0202\0320\0276\0320\0277\0321\0200\0320\0270\0320\0274\0320\0265\0321\0207\0320\0260\0321\0202\0320\0265\0320\0273\0321\0214\0320\0275\0320\0276\0321\0201\0321\0202\0320\0270' | sort > "$MNTPOINT/достопримечательности"
+printf '%c\t'"$MNTPOINT"'%s\n' M '' + '/śmieszny żupan'                       + '/достопримечательности'                                                                                                                                                                                              | sort > "$MNTPOINT/śmieszny żupan"
+printf '%c\t'"$MNTPOINT"'%s\n' M '' + '/\0305\0233mieszny\0040\0305\0274upan' + '/\0320\0264\0320\0276\0321\0201\0321\0202\0320\0276\0320\0277\0321\0200\0320\0270\0320\0274\0320\0265\0321\0207\0320\0260\0321\0202\0320\0265\0320\0273\0321\0214\0320\0275\0320\0276\0321\0201\0321\0202\0320\0270' | sort > "$MNTPOINT/достопримечательности"
 log_must diff -u <(zfs diff -h "$TESTSNAP1" | grep -vF '<xattrdir>' | sort) "$MNTPOINT/śmieszny żupan"
 log_must diff -u <(zfs diff    "$TESTSNAP1" | grep -vF '<xattrdir>' | sort) "$MNTPOINT/достопримечательности"
 
