@@ -88,7 +88,7 @@ for ((i = 1; i <= $snap_count; i++)); do
 		log_must cp $mntpnt/file $mntpnt/file$j
 	done
 
-	log_must sync
+	sync_all_pools
 	log_must mount $remount_ro $zdev $mntpnt
 	log_must zfs snap $TESTPOOL/$TESTVOL@snap$i
 	log_must mount $remount_rw $zdev $mntpnt

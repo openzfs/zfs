@@ -175,7 +175,8 @@ function do_testing #<clear type> <vdevs>
 	esac
 	dd if=/dev/zero of=$fbase.$i seek=512 bs=1024 count=$wcount conv=notrunc \
 			> /dev/null 2>&1
-	log_must sync
+	sync_all_pools
+	log_must sync #ensure the vdev files are written out
 	log_must zpool scrub -w $TESTPOOL1
 
 	check_err $TESTPOOL1 && \

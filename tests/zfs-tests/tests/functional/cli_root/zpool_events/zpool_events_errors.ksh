@@ -96,7 +96,7 @@ function do_test
 
 	if [ "$RW" == "write" ] ; then
 		log_must mkfile $FILESIZE $MOUNTDIR/file
-		log_must zpool sync $POOL
+		sync_pool $POOL
 	else
 		log_must zpool scrub $POOL
 		wait_scrubbed $POOL

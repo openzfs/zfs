@@ -75,7 +75,7 @@ log_assert "dbufstats produces correct statistics"
 log_onexit cleanup
 
 log_must file_write -o create -f "$TESTDIR/file" -b 1048576 -c 20 -d R
-log_must zpool sync
+sync_all_pools
 
 log_must eval "kstat dbufs > $DBUFS_FILE"
 log_must eval "kstat dbufstats '' > $DBUFSTATS_FILE"

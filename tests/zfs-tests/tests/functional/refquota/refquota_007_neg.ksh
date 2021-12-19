@@ -53,7 +53,7 @@ log_must mkfile 20M $mntpnt/$TESTFILE
 log_must zfs snapshot $FS@snap20M
 log_must rm $mntpnt/$TESTFILE
 
-log_must sync
+sync_all_pools
 
 log_must zfs set refquota=10M $FS
 log_mustnot zfs rollback $FS@snap20M

@@ -41,7 +41,7 @@ function cleanup
 	    log_must zpool detach $TESTPOOL $DISK2
 	get_disklist $TESTPOOL | grep $DISK3 >/dev/null && \
 	    log_must zpool detach $TESTPOOL $DISK3
-	log_must zpool sync $TESTPOOL
+	sync_pool $TESTPOOL
 }
 
 typeset pid

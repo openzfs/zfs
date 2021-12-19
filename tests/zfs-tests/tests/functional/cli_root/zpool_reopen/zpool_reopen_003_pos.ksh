@@ -64,6 +64,7 @@ log_must check_state $TESTPOOL "$REMOVED_DISK_ID" "unavail"
 # 3. Write a test file to the pool and calculate its checksum.
 TESTFILE=/$TESTPOOL/data
 log_must generate_random_file /$TESTPOOL/data $LARGE_FILE_SIZE
+sync_pool $TESTPOOL
 TESTFILE_MD5=$(md5digest $TESTFILE)
 
 # 4. Execute scrub.

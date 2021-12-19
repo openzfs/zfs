@@ -116,6 +116,7 @@ function setup_snap_env
 			if datasetnonexists $snap; then
 				log_must cp /etc/passwd $fname
 				if is_linux || is_freebsd; then
+					sync_all_pools
 					log_must sync
 				else
 					#

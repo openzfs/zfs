@@ -76,6 +76,6 @@ for i in 0 1 2; do
 done
 
 log_must kill $killpid
-sync
+sync_all_pools
 
 log_pass
