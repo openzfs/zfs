@@ -30,7 +30,7 @@
 #define	____cacheline_aligned
 #define	__NORETURN		__attribute__((__noreturn__))
 
-#if !defined(fallthrough)
+#if !defined(fallthrough) && !defined(_LIBCPP_VERSION)
 #if defined(HAVE_IMPLICIT_FALLTHROUGH)
 #define	fallthrough		__attribute__((__fallthrough__))
 #else
