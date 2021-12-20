@@ -1,3 +1,11 @@
+openzfs (2.1.2-1) unstable; urgency=medium
+
+  * Merged OpenZFS zfs-2.1.2-release
+  * Implement FS_IOC_GETVERSION
+  * Improve log spacemap load time after unclean export
+
+ -- Ryan Moeller <ryan@ixsystems.com>  Mon, 20 Dec 2021 10:00:00 -0400
+
 openzfs (2.1.2-0) unstable; urgency=medium
 
   * Merged OpenZFS zfs-2.1.2-staging
