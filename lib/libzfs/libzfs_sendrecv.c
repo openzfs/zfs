@@ -2542,7 +2542,7 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 			    "progress thread exited nonzero")));
 	}
 
-	if (flags->props || flags->holds || flags->backup) {
+	if (err == 0 && (flags->props || flags->holds || flags->backup)) {
 		/* Write the final end record. */
 		err = send_conclusion_record(fd, NULL);
 		if (err != 0)
