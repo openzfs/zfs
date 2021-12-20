@@ -46,6 +46,7 @@ unsigned int zvol_request_sync = 0;
 unsigned int zvol_prefetch_bytes = (128 * 1024);
 unsigned long zvol_max_discard_blocks = 16384;
 unsigned int zvol_threads = 32;
+unsigned int zvol_open_timeout_ms = 1000;
 
 struct zvol_state_os {
 	struct gendisk		*zvo_disk;	/* generic disk */
@@ -336,8 +337,13 @@ zvol_read_task(void *arg)
 }
 
 #ifdef HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS
+#ifdef HAVE_BDEV_SUBMIT_BIO_RETURNS_VOID
+static void
+zvol_submit_bio(struct bio *bio)
+#else
 static blk_qc_t
 zvol_submit_bio(struct bio *bio)
+#endif
 #else
 static MAKE_REQUEST_FN_RET
 zvol_request(struct request_queue *q, struct bio *bio)
@@ -478,8 +484,9 @@ zvol_request(struct request_queue *q, struct bio *bio)
 
 out:
 	spl_fstrans_unmark(cookie);
-#if defined(HAVE_MAKE_REQUEST_FN_RET_QC) || \
-	defined(HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS)
+#if (defined(HAVE_MAKE_REQUEST_FN_RET_QC) || \
+	defined(HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS)) && \
+	!defined(HAVE_BDEV_SUBMIT_BIO_RETURNS_VOID)
 	return (BLK_QC_T_NONE);
 #endif
 }
@@ -490,7 +497,13 @@ zvol_open(struct block_device *bdev, fmode_t flag)
 	zvol_state_t *zv;
 	int error = 0;
 	boolean_t drop_suspend = B_TRUE;
+	boolean_t drop_namespace = B_FALSE;
+#ifndef HAVE_BLKDEV_GET_ERESTARTSYS
+	hrtime_t timeout = MSEC2NSEC(zvol_open_timeout_ms);
+	hrtime_t start = gethrtime();
 
+retry:
+#endif
 	rw_enter(&zvol_state_lock, RW_READER);
 	/*
 	 * Obtain a copy of private_data under the zvol_state_lock to make
@@ -502,6 +515,49 @@ zvol_open(struct block_device *bdev, fmode_t flag)
 	if (zv == NULL) {
 		rw_exit(&zvol_state_lock);
 		return (SET_ERROR(-ENXIO));
+	}
+
+	if (zv->zv_open_count == 0 && !mutex_owned(&spa_namespace_lock)) {
+		/*
+		 * In all other call paths the spa_namespace_lock is taken
+		 * before the bdev->bd_mutex lock.  However, on open(2)
+		 * the __blkdev_get() function calls fops->open() with the
+		 * bdev->bd_mutex lock held.  This can result in a deadlock
+		 * when zvols from one pool are used as vdevs in another.
+		 *
+		 * To prevent a lock inversion deadlock we preemptively
+		 * take the spa_namespace_lock.  Normally the lock will not
+		 * be contended and this is safe because spa_open_common()
+		 * handles the case where the caller already holds the
+		 * spa_namespace_lock.
+		 *
+		 * When the lock cannot be aquired after multiple retries
+		 * this must be the vdev on zvol deadlock case and we have
+		 * no choice but to return an error.  For 5.12 and older
+		 * kernels returning -ERESTARTSYS will result in the
+		 * bdev->bd_mutex being dropped, then reacquired, and
+		 * fops->open() being called again.  This process can be
+		 * repeated safely until both locks are acquired.  For 5.13
+		 * and newer the -ERESTARTSYS retry logic was removed from
+		 * the kernel so the only option is to return the error for
+		 * the caller to handle it.
+		 */
+		if (!mutex_tryenter(&spa_namespace_lock)) {
+			rw_exit(&zvol_state_lock);
+
+#ifdef HAVE_BLKDEV_GET_ERESTARTSYS
+			schedule();
+			return (SET_ERROR(-ERESTARTSYS));
+#else
+			if ((gethrtime() - start) > timeout)
+				return (SET_ERROR(-ERESTARTSYS));
+
+			schedule_timeout(MSEC_TO_TICK(10));
+			goto retry;
+#endif
+		} else {
+			drop_namespace = B_TRUE;
+		}
 	}
 
 	mutex_enter(&zv->zv_state_lock);
@@ -543,6 +599,8 @@ zvol_open(struct block_device *bdev, fmode_t flag)
 	zv->zv_open_count++;
 
 	mutex_exit(&zv->zv_state_lock);
+	if (drop_namespace)
+		mutex_exit(&spa_namespace_lock);
 	if (drop_suspend)
 		rw_exit(&zv->zv_suspend_lock);
 
@@ -556,12 +614,11 @@ out_open_count:
 
 out_mutex:
 	mutex_exit(&zv->zv_state_lock);
+	if (drop_namespace)
+		mutex_exit(&spa_namespace_lock);
 	if (drop_suspend)
 		rw_exit(&zv->zv_suspend_lock);
-	if (error == -EINTR) {
-		error = -ERESTARTSYS;
-		schedule();
-	}
+
 	return (SET_ERROR(error));
 }
 

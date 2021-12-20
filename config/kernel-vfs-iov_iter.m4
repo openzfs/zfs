@@ -74,6 +74,14 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_IOV_ITER], [
 
 		bytes = copy_from_iter((void *)&buf, size, &iter);
 	])
+
+	ZFS_LINUX_TEST_SRC([iov_iter_type], [
+		#include <linux/fs.h>
+		#include <linux/uio.h>
+	],[
+		struct iov_iter iter = { 0 };
+		__attribute__((unused)) enum iter_type i = iov_iter_type(&iter);
+	])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_VFS_IOV_ITER], [
@@ -147,6 +155,20 @@ AC_DEFUN([ZFS_AC_KERNEL_VFS_IOV_ITER], [
 	],[
 		AC_MSG_RESULT(no)
 		enable_vfs_iov_iter="no"
+	])
+
+	dnl #
+	dnl # This checks for iov_iter_type() in linux/uio.h. It is not
+	dnl # required, however, and the module will compiled without it
+	dnl # using direct access of the member attribute
+	dnl #
+	AC_MSG_CHECKING([whether iov_iter_type() is available])
+	ZFS_LINUX_TEST_RESULT([iov_iter_type], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_IOV_ITER_TYPE, 1,
+		    [iov_iter_type() is available])
+	],[
+		AC_MSG_RESULT(no)
 	])
 
 	dnl #

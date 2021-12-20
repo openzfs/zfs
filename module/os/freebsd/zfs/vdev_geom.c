@@ -199,7 +199,6 @@ vdev_geom_orphan(struct g_consumer *cp)
 	 * async removal support to invoke a close on this
 	 * vdev once it is safe to do so.
 	 */
-	// cppcheck-suppress All
 	SLIST_FOREACH(elem, priv, elems) {
 		// cppcheck-suppress uninitvar
 		vdev_t *vd = elem->vd;

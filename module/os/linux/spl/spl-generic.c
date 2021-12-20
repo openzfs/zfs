@@ -657,6 +657,7 @@ hostid_read(uint32_t *hostid)
 		return (error);
 	}
 	size = stat.size;
+	// cppcheck-suppress sizeofwithnumericparameter
 	if (size < sizeof (HW_HOSTID_MASK)) {
 		filp_close(filp, 0);
 		return (EINVAL);

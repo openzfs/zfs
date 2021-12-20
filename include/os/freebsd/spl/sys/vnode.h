@@ -59,6 +59,8 @@ enum symfollow { NO_FOLLOW = NOFOLLOW };
 #include <sys/file.h>
 #include <sys/filedesc.h>
 #include <sys/syscallsubr.h>
+#include <sys/vm.h>
+#include <vm/vm_object.h>
 
 typedef	struct vop_vector	vnodeops_t;
 #define	VOP_FID		VOP_VPTOFH
@@ -83,6 +85,22 @@ vn_is_readonly(vnode_t *vp)
 #define	vn_has_cached_data(vp)	\
 	((vp)->v_object != NULL && \
 	(vp)->v_object->resident_page_count > 0)
+
+static __inline void
+vn_flush_cached_data(vnode_t *vp, boolean_t sync)
+{
+#if __FreeBSD_version > 1300054
+	if (vm_object_mightbedirty(vp->v_object)) {
+#else
+	if (vp->v_object->flags & OBJ_MIGHTBEDIRTY) {
+#endif
+		int flags = sync ? OBJPC_SYNC : 0;
+		zfs_vmobject_wlock(vp->v_object);
+		vm_object_page_clean(vp->v_object, 0, 0, flags);
+		zfs_vmobject_wunlock(vp->v_object);
+	}
+}
+
 #define	vn_exists(vp)		do { } while (0)
 #define	vn_invalid(vp)		do { } while (0)
 #define	vn_renamepath(tdvp, svp, tnm, lentnm)	do { } while (0)

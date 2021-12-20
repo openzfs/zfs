@@ -37,6 +37,9 @@
 #include <linux/blkpg.h>
 #include <linux/msdos_fs.h>
 #include <linux/vfs_compat.h>
+#ifdef HAVE_LINUX_BLK_CGROUP_HEADER
+#include <linux/blk-cgroup.h>
+#endif
 
 typedef struct vdev_disk {
 	struct block_device		*vd_bdev;
@@ -265,6 +268,11 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	 * a ENOENT failure at this point is highly likely to be transient
 	 * and it is reasonable to sleep and retry before giving up.  In
 	 * practice delays have been observed to be on the order of 100ms.
+	 *
+	 * When ERESTARTSYS is returned it indicates the block device is
+	 * a zvol which could not be opened due to the deadlock detection
+	 * logic in zvol_open().  Extend the timeout and retry the open
+	 * subsequent attempts are expected to eventually succeed.
 	 */
 	hrtime_t start = gethrtime();
 	bdev = ERR_PTR(-ENXIO);
@@ -273,6 +281,9 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 		    zfs_vdev_holder);
 		if (unlikely(PTR_ERR(bdev) == -ENOENT)) {
 			schedule_timeout(MSEC_TO_TICK(10));
+		} else if (unlikely(PTR_ERR(bdev) == -ERESTARTSYS)) {
+			timeout = MSEC2NSEC(zfs_vdev_open_timeout_ms * 10);
+			continue;
 		} else if (IS_ERR(bdev)) {
 			break;
 		}
@@ -433,9 +444,9 @@ static inline void
 vdev_submit_bio_impl(struct bio *bio)
 {
 #ifdef HAVE_1ARG_SUBMIT_BIO
-	submit_bio(bio);
+	(void) submit_bio(bio);
 #else
-	submit_bio(0, bio);
+	(void) submit_bio(0, bio);
 #endif
 }
 
@@ -485,6 +496,7 @@ vdev_blkg_tryget(struct blkcg_gq *blkg)
 #elif defined(HAVE_BLKG_TRYGET)
 #define	vdev_blkg_tryget(bg)	blkg_tryget(bg)
 #endif
+#ifdef HAVE_BIO_SET_DEV_MACRO
 /*
  * The Linux 5.0 kernel updated the bio_set_dev() macro so it calls the
  * GPL-only bio_associate_blkg() symbol thus inadvertently converting
@@ -506,7 +518,30 @@ vdev_bio_associate_blkg(struct bio *bio)
 	if (q->root_blkg && vdev_blkg_tryget(q->root_blkg))
 		bio->bi_blkg = q->root_blkg;
 }
+
 #define	bio_associate_blkg vdev_bio_associate_blkg
+#else
+static inline void
+vdev_bio_set_dev(struct bio *bio, struct block_device *bdev)
+{
+#if defined(HAVE_BIO_BDEV_DISK)
+	struct request_queue *q = bdev->bd_disk->queue;
+#else
+	struct request_queue *q = bio->bi_disk->queue;
+#endif
+	bio_clear_flag(bio, BIO_REMAPPED);
+	if (bio->bi_bdev != bdev)
+		bio_clear_flag(bio, BIO_THROTTLED);
+	bio->bi_bdev = bdev;
+
+	ASSERT3P(q, !=, NULL);
+	ASSERT3P(bio->bi_blkg, ==, NULL);
+
+	if (q->root_blkg && vdev_blkg_tryget(q->root_blkg))
+		bio->bi_blkg = q->root_blkg;
+}
+#define	bio_set_dev		vdev_bio_set_dev
+#endif
 #endif
 #else
 /*

@@ -159,6 +159,16 @@ void color_start(char *color);
 void color_end(void);
 int printf_color(char *color, char *format, ...);
 
+/*
+ * These functions are used by the ZFS libraries and cmd/zpool code, but are
+ * not exported in the ABI.
+ */
+typedef int (*pool_vdev_iter_f)(void *, nvlist_t *, void *);
+int for_each_vdev_cb(void *zhp, nvlist_t *nv, pool_vdev_iter_f func,
+    void *data);
+int for_each_vdev_in_nvlist(nvlist_t *nvroot, pool_vdev_iter_f func,
+    void *data);
+void update_vdevs_config_dev_sysfs_path(nvlist_t *config);
 #ifdef	__cplusplus
 }
 #endif

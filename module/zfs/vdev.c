@@ -2374,6 +2374,7 @@ vdev_validate(vdev_t *vd)
 static void
 vdev_copy_path_impl(vdev_t *svd, vdev_t *dvd)
 {
+	char *old, *new;
 	if (svd->vdev_path != NULL && dvd->vdev_path != NULL) {
 		if (strcmp(svd->vdev_path, dvd->vdev_path) != 0) {
 			zfs_dbgmsg("vdev_copy_path: vdev %llu: path changed "
@@ -2386,6 +2387,29 @@ vdev_copy_path_impl(vdev_t *svd, vdev_t *dvd)
 		dvd->vdev_path = spa_strdup(svd->vdev_path);
 		zfs_dbgmsg("vdev_copy_path: vdev %llu: path set to '%s'",
 		    (u_longlong_t)dvd->vdev_guid, dvd->vdev_path);
+	}
+
+	/*
+	 * Our enclosure sysfs path may have changed between imports
+	 */
+	old = dvd->vdev_enc_sysfs_path;
+	new = svd->vdev_enc_sysfs_path;
+	if ((old != NULL && new == NULL) ||
+	    (old == NULL && new != NULL) ||
+	    ((old != NULL && new != NULL) && strcmp(new, old) != 0)) {
+		zfs_dbgmsg("vdev_copy_path: vdev %llu: vdev_enc_sysfs_path "
+		    "changed from '%s' to '%s'", (u_longlong_t)dvd->vdev_guid,
+		    old, new);
+
+		if (dvd->vdev_enc_sysfs_path)
+			spa_strfree(dvd->vdev_enc_sysfs_path);
+
+		if (svd->vdev_enc_sysfs_path) {
+			dvd->vdev_enc_sysfs_path = spa_strdup(
+			    svd->vdev_enc_sysfs_path);
+		} else {
+			dvd->vdev_enc_sysfs_path = NULL;
+		}
 	}
 }
 

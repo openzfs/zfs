@@ -3556,7 +3556,11 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 
 		if (wbc->sync_mode != WB_SYNC_NONE) {
 			if (PageWriteback(pp))
+#ifdef HAVE_PAGEMAP_FOLIO_WAIT_BIT
+				folio_wait_bit(page_folio(pp), PG_writeback);
+#else
 				wait_on_page_bit(pp, PG_writeback);
+#endif
 		}
 
 		ZFS_EXIT(zfsvfs);
