@@ -54,6 +54,8 @@ vdev_indirect_mapping_verify(vdev_indirect_mapping_t *vim)
 
 	return (B_TRUE);
 }
+#else
+#define	vdev_indirect_mapping_verify(vim) ((void) sizeof (vim), B_TRUE)
 #endif
 
 uint64_t
