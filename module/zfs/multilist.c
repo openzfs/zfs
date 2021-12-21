@@ -36,6 +36,8 @@ multilist_d2l(multilist_t *ml, void *obj)
 {
 	return ((multilist_node_t *)((char *)obj + ml->ml_offset));
 }
+#else
+#define	multilist_d2l(ml, obj) ((void) sizeof (ml), (void) sizeof (obj), NULL)
 #endif
 
 /*
