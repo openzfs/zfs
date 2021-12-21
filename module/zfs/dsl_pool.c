@@ -664,6 +664,9 @@ dsl_early_sync_task_verify(dsl_pool_t *dp, uint64_t txg)
 
 	return (B_TRUE);
 }
+#else
+#define	dsl_early_sync_task_verify(dp, txg) \
+	((void) sizeof (dp), (void) sizeof (txg), B_TRUE)
 #endif
 
 void
