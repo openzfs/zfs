@@ -38,6 +38,8 @@ vdev_indirect_births_verify(vdev_indirect_births_t *vib)
 
 	return (B_TRUE);
 }
+#else
+#define	vdev_indirect_births_verify(vib) ((void) sizeof (vib), B_TRUE)
 #endif
 
 uint64_t
