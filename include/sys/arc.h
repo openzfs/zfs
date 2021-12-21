@@ -295,6 +295,8 @@ void arc_buf_freeze(arc_buf_t *buf);
 void arc_buf_thaw(arc_buf_t *buf);
 #ifdef ZFS_DEBUG
 int arc_referenced(arc_buf_t *buf);
+#else
+#define	arc_referenced(buf) ((void) sizeof (buf), 0)
 #endif
 
 int arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
