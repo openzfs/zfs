@@ -2996,6 +2996,8 @@ vdev_count_verify_zaps(vdev_t *vd)
 
 	return (total);
 }
+#else
+#define	vdev_count_verify_zaps(vd) ((void) sizeof (vd), 0)
 #endif
 
 /*
