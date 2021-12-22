@@ -29,7 +29,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/sysmacros.h>
 #include <errno.h>
+#ifdef __linux__
+#include <linux/fs.h>
+#endif
 
 static void
 seek_data(int fd, off_t offset, off_t expected)
