@@ -157,7 +157,7 @@ static const crypto_ctx_ops_t sha2_ctx_ops = {
 	.free_context = sha2_free_context
 };
 
-static const crypto_ops_t sha2_crypto_ops = {{{{{
+static const crypto_ops_t sha2_crypto_ops = {
 	&sha2_digest_ops,
 	NULL,
 	&sha2_mac_ops,
@@ -171,17 +171,16 @@ static const crypto_ops_t sha2_crypto_ops = {{{{{
 	NULL,
 	NULL,
 	&sha2_ctx_ops
-}}}}};
+};
 
-static const crypto_provider_info_t sha2_prov_info = {{{{
-	CRYPTO_SPI_VERSION_1,
+static const crypto_provider_info_t sha2_prov_info = {
 	"SHA2 Software Provider",
 	CRYPTO_SW_PROVIDER,
 	NULL,
 	&sha2_crypto_ops,
 	sizeof (sha2_mech_info_tab) / sizeof (crypto_mech_info_t),
 	sha2_mech_info_tab
-}}}};
+};
 
 static crypto_kcf_provider_handle_t sha2_prov_handle = 0;
 

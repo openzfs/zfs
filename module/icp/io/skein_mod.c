@@ -95,7 +95,7 @@ static const crypto_ctx_ops_t skein_ctx_ops = {
 	.free_context = skein_free_context
 };
 
-static const crypto_ops_t skein_crypto_ops = {{{{{
+static const crypto_ops_t skein_crypto_ops = {
 	&skein_digest_ops,
 	NULL,
 	&skein_mac_ops,
@@ -109,17 +109,16 @@ static const crypto_ops_t skein_crypto_ops = {{{{{
 	NULL,
 	NULL,
 	&skein_ctx_ops,
-}}}}};
+};
 
-static const crypto_provider_info_t skein_prov_info = {{{{
-	CRYPTO_SPI_VERSION_1,
+static const crypto_provider_info_t skein_prov_info = {
 	"Skein Software Provider",
 	CRYPTO_SW_PROVIDER,
 	NULL,
 	&skein_crypto_ops,
 	sizeof (skein_mech_info_tab) / sizeof (crypto_mech_info_t),
 	skein_mech_info_tab
-}}}};
+};
 
 static crypto_kcf_provider_handle_t skein_prov_handle = 0;
 
