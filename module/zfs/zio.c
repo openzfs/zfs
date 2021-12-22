@@ -57,7 +57,7 @@
  * I/O type descriptions
  * ==========================================================================
  */
-const char *zio_type_name[ZIO_TYPES] = {
+const char *const zio_type_name[ZIO_TYPES] = {
 	/*
 	 * Note: Linux kernel thread name length is limited
 	 * so these names will differ from upstream open zfs.
@@ -66,24 +66,24 @@ const char *zio_type_name[ZIO_TYPES] = {
 };
 
 int zio_dva_throttle_enabled = B_TRUE;
-int zio_deadman_log_all = B_FALSE;
+static int zio_deadman_log_all = B_FALSE;
 
 /*
  * ==========================================================================
  * I/O kmem caches
  * ==========================================================================
  */
-kmem_cache_t *zio_cache;
-kmem_cache_t *zio_link_cache;
+static kmem_cache_t *zio_cache;
+static kmem_cache_t *zio_link_cache;
 kmem_cache_t *zio_buf_cache[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
 kmem_cache_t *zio_data_buf_cache[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
 #if defined(ZFS_DEBUG) && !defined(_KERNEL)
-uint64_t zio_buf_cache_allocs[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
-uint64_t zio_buf_cache_frees[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
+static uint64_t zio_buf_cache_allocs[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
+static uint64_t zio_buf_cache_frees[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
 #endif
 
 /* Mark IOs as "slow" if they take longer than 30 seconds */
-int zio_slow_io_ms = (30 * MILLISEC);
+static int zio_slow_io_ms = (30 * MILLISEC);
 
 #define	BP_SPANB(indblkshift, level) \
 	(((uint64_t)1) << ((level) * ((indblkshift) - SPA_BLKPTRSHIFT)))
@@ -115,8 +115,8 @@ int zio_slow_io_ms = (30 * MILLISEC);
  * and may need to load new metaslabs to satisfy 128K allocations.
  */
 int zfs_sync_pass_deferred_free = 2; /* defer frees starting in this pass */
-int zfs_sync_pass_dont_compress = 8; /* don't compress starting in this pass */
-int zfs_sync_pass_rewrite = 2; /* rewrite new bps starting in this pass */
+static int zfs_sync_pass_dont_compress = 8; /* don't compress s. i. t. p. */
+static int zfs_sync_pass_rewrite = 2; /* rewrite new bps s. i. t. p. */
 
 /*
  * An allocating zio is one that either currently has the DVA allocate
@@ -129,12 +129,12 @@ int zfs_sync_pass_rewrite = 2; /* rewrite new bps starting in this pass */
  * allocations as well.
  */
 int zio_exclude_metadata = 0;
-int zio_requeue_io_start_cut_in_line = 1;
+static int zio_requeue_io_start_cut_in_line = 1;
 
 #ifdef ZFS_DEBUG
-int zio_buf_debug_limit = 16384;
+static const int zio_buf_debug_limit = 16384;
 #else
-int zio_buf_debug_limit = 0;
+static const int zio_buf_debug_limit = 0;
 #endif
 
 static inline void __zio_execute(zio_t *zio);

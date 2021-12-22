@@ -325,7 +325,7 @@ zfeature_register(spa_feature_t fid, const char *guid, const char *name,
     const struct zfs_mod_supported_features *sfeatures)
 {
 	zfeature_info_t *feature = &spa_feature_table[fid];
-	static spa_feature_t nodeps[] = { SPA_FEATURE_NONE };
+	static const spa_feature_t nodeps[] = { SPA_FEATURE_NONE };
 
 	ASSERT(name != NULL);
 	ASSERT(desc != NULL);

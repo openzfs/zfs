@@ -146,12 +146,12 @@ static int nvlist_add_common(nvlist_t *nvl, const char *name, data_type_t type,
 	((i_nvp_t *)((size_t)(nvp) - offsetof(i_nvp_t, nvi_nvp)))
 
 #ifdef _KERNEL
-int nvpair_max_recursion = 20;
+static const int nvpair_max_recursion = 20;
 #else
-int nvpair_max_recursion = 100;
+static const int nvpair_max_recursion = 100;
 #endif
 
-uint64_t nvlist_hashtable_init_size = (1 << 4);
+static const uint64_t nvlist_hashtable_init_size = (1 << 4);
 
 int
 nv_alloc_init(nv_alloc_t *nva, const nv_alloc_ops_t *nvo, /* args */ ...)

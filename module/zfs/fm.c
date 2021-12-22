@@ -68,7 +68,7 @@
 #include <sys/condvar.h>
 #include <sys/zfs_ioctl.h>
 
-int zfs_zevent_len_max = 512;
+static int zfs_zevent_len_max = 512;
 
 static int zevent_len_cur = 0;
 static int zevent_waiters = 0;
@@ -497,7 +497,7 @@ i_fm_free(nv_alloc_t *nva, void *buf, size_t size)
 	kmem_free(buf, size);
 }
 
-const nv_alloc_ops_t fm_mem_alloc_ops = {
+static const nv_alloc_ops_t fm_mem_alloc_ops = {
 	.nv_ao_init = NULL,
 	.nv_ao_fini = NULL,
 	.nv_ao_alloc = i_fm_alloc,

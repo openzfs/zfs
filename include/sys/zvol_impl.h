@@ -61,12 +61,11 @@ typedef struct zvol_state {
 } zvol_state_t;
 
 
-extern list_t zvol_state_list;
 extern krwlock_t zvol_state_lock;
 #define	ZVOL_HT_SIZE	1024
 extern struct hlist_head *zvol_htable;
 #define	ZVOL_HT_HEAD(hash)	(&zvol_htable[(hash) & (ZVOL_HT_SIZE-1)])
-extern zil_replay_func_t *zvol_replay_vector[TX_MAX_TYPE];
+extern zil_replay_func_t *const zvol_replay_vector[TX_MAX_TYPE];
 
 extern unsigned int zvol_volmode;
 extern unsigned int zvol_inhibit_dev;

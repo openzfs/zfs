@@ -65,7 +65,7 @@ static void SHA256Transform(SHA2_CTX *, const uint8_t *);
 static void SHA512Transform(SHA2_CTX *, const uint8_t *);
 #endif	/* __amd64 && _KERNEL */
 
-static uint8_t PADDING[128] = { 0x80, /* all zeros */ };
+static const uint8_t PADDING[128] = { 0x80, /* all zeros */ };
 
 /*
  * The low-level checksum routines use a lot of stack space. On systems where

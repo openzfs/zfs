@@ -99,7 +99,6 @@ extern const struct inode_operations zpl_ops_root;
 
 extern const struct file_operations zpl_fops_snapdir;
 extern const struct inode_operations zpl_ops_snapdir;
-extern const struct dentry_operations zpl_dops_snapdirs;
 
 extern const struct file_operations zpl_fops_shares;
 extern const struct inode_operations zpl_ops_shares;

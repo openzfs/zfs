@@ -103,7 +103,7 @@
  * Size of rebuild reads; defaults to 1MiB per data disk and is capped at
  * SPA_MAXBLOCKSIZE.
  */
-unsigned long zfs_rebuild_max_segment = 1024 * 1024;
+static unsigned long zfs_rebuild_max_segment = 1024 * 1024;
 
 /*
  * Maximum number of parallelly executed bytes per leaf vdev caused by a
@@ -121,14 +121,14 @@ unsigned long zfs_rebuild_max_segment = 1024 * 1024;
  * With a value of 32MB the sequential resilver write rate was measured at
  * 800MB/s sustained while rebuilding to a distributed spare.
  */
-unsigned long zfs_rebuild_vdev_limit = 32 << 20;
+static unsigned long zfs_rebuild_vdev_limit = 32 << 20;
 
 /*
  * Automatically start a pool scrub when the last active sequential resilver
  * completes in order to verify the checksums of all blocks which have been
  * resilvered. This option is enabled by default and is strongly recommended.
  */
-int zfs_rebuild_scrub_enabled = 1;
+static int zfs_rebuild_scrub_enabled = 1;
 
 /*
  * For vdev_rebuild_initiate_sync() and vdev_rebuild_reset_sync().

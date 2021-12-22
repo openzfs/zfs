@@ -64,12 +64,12 @@
 #endif
 #include <sys/zfs_file.h>
 
-int zfs_recv_queue_length = SPA_MAXBLOCKSIZE;
-int zfs_recv_queue_ff = 20;
-int zfs_recv_write_batch_size = 1024 * 1024;
+static int zfs_recv_queue_length = SPA_MAXBLOCKSIZE;
+static int zfs_recv_queue_ff = 20;
+static int zfs_recv_write_batch_size = 1024 * 1024;
 
-static char *dmu_recv_tag = "dmu_recv_tag";
-const char *recv_clone_name = "%recv";
+static void *const dmu_recv_tag = "dmu_recv_tag";
+const char *const recv_clone_name = "%recv";
 
 static int receive_read_payload_and_next_header(dmu_recv_cookie_t *ra, int len,
     void *buf);

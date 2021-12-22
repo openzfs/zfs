@@ -24,7 +24,6 @@
 #define	_ZFS_IOCTL_IMPL_H_
 
 extern kmutex_t zfsdev_state_lock;
-extern zfsdev_state_t *zfsdev_state_list;
 extern unsigned long zfs_max_nvlist_src_size;
 
 typedef int zfs_ioc_legacy_func_t(zfs_cmd_t *);

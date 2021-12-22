@@ -43,7 +43,7 @@
  * this version of ZFS won't change or delete them.
  */
 
-sa_attr_reg_t zfs_attr_table[ZPL_END+1] = {
+const sa_attr_reg_t zfs_attr_table[ZPL_END+1] = {
 	{"ZPL_ATIME", sizeof (uint64_t) * 2, SA_UINT64_ARRAY, 0},
 	{"ZPL_MTIME", sizeof (uint64_t) * 2, SA_UINT64_ARRAY, 1},
 	{"ZPL_CTIME", sizeof (uint64_t) * 2, SA_UINT64_ARRAY, 2},

@@ -35,15 +35,12 @@
 #include <sys/crypto/sched_impl.h>
 #include <sys/crypto/api.h>
 
-kcf_global_swq_t *gswq;	/* Global software queue */
+static kcf_global_swq_t *gswq;	/* Global software queue */
 
 /* Thread pool related variables */
 static kcf_pool_t *kcfpool;	/* Thread pool of kcfd LWPs */
-int kcf_maxthreads = 2;
-int kcf_minthreads = 1;
-int kcf_thr_multiple = 2;	/* Boot-time tunable for experimentation */
-static ulong_t	kcf_idlethr_timeout;
-#define	KCF_DEFAULT_THRTIMEOUT	60000000	/* 60 seconds */
+static const int kcf_maxthreads = 2;
+static const int kcf_minthreads = 1;
 
 /* kmem caches used by the scheduler */
 static kmem_cache_t *kcf_sreq_cache;
@@ -1289,8 +1286,6 @@ kcfpool_alloc()
 
 	mutex_init(&kcfpool->kp_user_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&kcfpool->kp_user_cv, NULL, CV_DEFAULT, NULL);
-
-	kcf_idlethr_timeout = KCF_DEFAULT_THRTIMEOUT;
 }
 
 /*

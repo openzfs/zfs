@@ -186,7 +186,7 @@
 #define	ZFS_KEY_MAX_SALT_USES_DEFAULT	400000000
 #define	ZFS_CURRENT_MAX_SALT_USES	\
 	(MIN(zfs_key_max_salt_uses, ZFS_KEY_MAX_SALT_USES_DEFAULT))
-unsigned long zfs_key_max_salt_uses = ZFS_KEY_MAX_SALT_USES_DEFAULT;
+static unsigned long zfs_key_max_salt_uses = ZFS_KEY_MAX_SALT_USES_DEFAULT;
 
 typedef struct blkptr_auth_buf {
 	uint64_t bab_prop;			/* blk_prop - portable mask */
@@ -194,7 +194,7 @@ typedef struct blkptr_auth_buf {
 	uint64_t bab_pad;			/* reserved for future use */
 } blkptr_auth_buf_t;
 
-zio_crypt_info_t zio_crypt_table[ZIO_CRYPT_FUNCTIONS] = {
+const zio_crypt_info_t zio_crypt_table[ZIO_CRYPT_FUNCTIONS] = {
 	{"",			ZC_TYPE_NONE,	0,	"inherit"},
 	{"",			ZC_TYPE_NONE,	0,	"on"},
 	{"",			ZC_TYPE_NONE,	0,	"off"},

@@ -58,7 +58,7 @@ typedef struct {
  */
 
 #define	CRYPTO_MECH_INVALID	((uint64_t)-1)
-extern crypto_mech_type_t crypto_mech2id(char *name);
+extern crypto_mech_type_t crypto_mech2id(const char *name);
 
 /*
  * Create and destroy context templates.

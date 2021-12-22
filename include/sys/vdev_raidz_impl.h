@@ -70,8 +70,8 @@ enum raidz_rec_op {
 	RAIDZ_REC_NUM = 7
 };
 
-extern const char *raidz_gen_name[RAIDZ_GEN_NUM];
-extern const char *raidz_rec_name[RAIDZ_REC_NUM];
+extern const char *const raidz_gen_name[RAIDZ_GEN_NUM];
+extern const char *const raidz_rec_name[RAIDZ_REC_NUM];
 
 /*
  * Methods used to define raidz implementation

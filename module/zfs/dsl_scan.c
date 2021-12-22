@@ -136,7 +136,7 @@ extern int zfs_vdev_async_write_active_min_dirty_percent;
  * this value can be set to 1 to enable checking before scanning each
  * block.
  */
-int zfs_scan_strict_mem_lim = B_FALSE;
+static int zfs_scan_strict_mem_lim = B_FALSE;
 
 /*
  * Maximum number of parallelly executed bytes per leaf vdev. We attempt
@@ -146,41 +146,42 @@ int zfs_scan_strict_mem_lim = B_FALSE;
  * overload the drives with I/O, since that is protected by
  * zfs_vdev_scrub_max_active.
  */
-unsigned long zfs_scan_vdev_limit = 4 << 20;
+static unsigned long zfs_scan_vdev_limit = 4 << 20;
 
-int zfs_scan_issue_strategy = 0;
-int zfs_scan_legacy = B_FALSE; /* don't queue & sort zios, go direct */
-unsigned long zfs_scan_max_ext_gap = 2 << 20; /* in bytes */
+static int zfs_scan_issue_strategy = 0;
+static int zfs_scan_legacy = B_FALSE; /* don't queue & sort zios, go direct */
+static unsigned long zfs_scan_max_ext_gap = 2 << 20; /* in bytes */
 
 /*
  * fill_weight is non-tunable at runtime, so we copy it at module init from
  * zfs_scan_fill_weight. Runtime adjustments to zfs_scan_fill_weight would
  * break queue sorting.
  */
-int zfs_scan_fill_weight = 3;
+static int zfs_scan_fill_weight = 3;
 static uint64_t fill_weight;
 
 /* See dsl_scan_should_clear() for details on the memory limit tunables */
-uint64_t zfs_scan_mem_lim_min = 16 << 20;	/* bytes */
-uint64_t zfs_scan_mem_lim_soft_max = 128 << 20;	/* bytes */
-int zfs_scan_mem_lim_fact = 20;		/* fraction of physmem */
-int zfs_scan_mem_lim_soft_fact = 20;	/* fraction of mem lim above */
+static const uint64_t zfs_scan_mem_lim_min = 16 << 20;	/* bytes */
+static const uint64_t zfs_scan_mem_lim_soft_max = 128 << 20;	/* bytes */
+static int zfs_scan_mem_lim_fact = 20;		/* fraction of physmem */
+static int zfs_scan_mem_lim_soft_fact = 20;	/* fraction of mem lim above */
 
-int zfs_scrub_min_time_ms = 1000; /* min millisecs to scrub per txg */
-int zfs_obsolete_min_time_ms = 500; /* min millisecs to obsolete per txg */
-int zfs_free_min_time_ms = 1000; /* min millisecs to free per txg */
-int zfs_resilver_min_time_ms = 3000; /* min millisecs to resilver per txg */
-int zfs_scan_checkpoint_intval = 7200; /* in seconds */
+static int zfs_scrub_min_time_ms = 1000; /* min millis to scrub per txg */
+static int zfs_obsolete_min_time_ms = 500; /* min millis to obsolete per txg */
+static int zfs_free_min_time_ms = 1000; /* min millis to free per txg */
+static int zfs_resilver_min_time_ms = 3000; /* min millis to resilver per txg */
+static int zfs_scan_checkpoint_intval = 7200; /* in seconds */
 int zfs_scan_suspend_progress = 0; /* set to prevent scans from progressing */
-int zfs_no_scrub_io = B_FALSE; /* set to disable scrub i/o */
-int zfs_no_scrub_prefetch = B_FALSE; /* set to disable scrub prefetch */
-enum ddt_class zfs_scrub_ddt_class_max = DDT_CLASS_DUPLICATE;
+static int zfs_no_scrub_io = B_FALSE; /* set to disable scrub i/o */
+static int zfs_no_scrub_prefetch = B_FALSE; /* set to disable scrub prefetch */
+static const enum ddt_class zfs_scrub_ddt_class_max = DDT_CLASS_DUPLICATE;
 /* max number of blocks to free in a single TXG */
-unsigned long zfs_async_block_max_blocks = ULONG_MAX;
+static unsigned long zfs_async_block_max_blocks = ULONG_MAX;
 /* max number of dedup blocks to free in a single TXG */
-unsigned long zfs_max_async_dedup_frees = 100000;
+static unsigned long zfs_max_async_dedup_frees = 100000;
 
-int zfs_resilver_disable_defer = 0; /* set to disable resilver deferring */
+/* set to disable resilver deferring */
+static int zfs_resilver_disable_defer = B_FALSE;
 
 /*
  * We wait a few txgs after importing a pool to begin scanning so that
@@ -201,7 +202,7 @@ int zfs_resilver_disable_defer = 0; /* set to disable resilver deferring */
 /*
  * Enable/disable the processing of the free_bpobj object.
  */
-int zfs_free_bpobj_enabled = 1;
+static int zfs_free_bpobj_enabled = 1;
 
 /* the order has to match pool_scan_type */
 static scan_cb_t *scan_funcs[POOL_SCAN_FUNCS] = {

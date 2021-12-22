@@ -39,7 +39,7 @@
 /*
  * Mechanism info structure passed to KCF during registration.
  */
-static crypto_mech_info_t aes_mech_info_tab[] = {
+static const crypto_mech_info_t aes_mech_info_tab[] = {
 	/* AES_ECB */
 	{SUN_CKM_AES_ECB, AES_ECB_MECH_INFO_TYPE,
 	    CRYPTO_FG_ENCRYPT | CRYPTO_FG_ENCRYPT_ATOMIC |
@@ -77,7 +77,7 @@ static crypto_mech_info_t aes_mech_info_tab[] = {
 
 static void aes_provider_status(crypto_provider_handle_t, uint_t *);
 
-static crypto_control_ops_t aes_control_ops = {
+static const crypto_control_ops_t aes_control_ops = {
 	aes_provider_status
 };
 
@@ -110,7 +110,7 @@ static int aes_decrypt_atomic(crypto_provider_handle_t, crypto_session_id_t,
     crypto_mechanism_t *, crypto_key_t *, crypto_data_t *,
     crypto_data_t *, crypto_spi_ctx_template_t, crypto_req_handle_t);
 
-static crypto_cipher_ops_t aes_cipher_ops = {
+static const crypto_cipher_ops_t aes_cipher_ops = {
 	.encrypt_init = aes_encrypt_init,
 	.encrypt = aes_encrypt,
 	.encrypt_update = aes_encrypt_update,
@@ -130,7 +130,7 @@ static int aes_mac_verify_atomic(crypto_provider_handle_t, crypto_session_id_t,
     crypto_mechanism_t *, crypto_key_t *, crypto_data_t *, crypto_data_t *,
     crypto_spi_ctx_template_t, crypto_req_handle_t);
 
-static crypto_mac_ops_t aes_mac_ops = {
+static const crypto_mac_ops_t aes_mac_ops = {
 	.mac_init = NULL,
 	.mac = NULL,
 	.mac_update = NULL,
@@ -144,12 +144,12 @@ static int aes_create_ctx_template(crypto_provider_handle_t,
     size_t *, crypto_req_handle_t);
 static int aes_free_context(crypto_ctx_t *);
 
-static crypto_ctx_ops_t aes_ctx_ops = {
+static const crypto_ctx_ops_t aes_ctx_ops = {
 	.create_ctx_template = aes_create_ctx_template,
 	.free_context = aes_free_context
 };
 
-static crypto_ops_t aes_crypto_ops = {{{{{
+static const crypto_ops_t aes_crypto_ops = {{{{{
 	&aes_control_ops,
 	NULL,
 	&aes_cipher_ops,
@@ -166,13 +166,13 @@ static crypto_ops_t aes_crypto_ops = {{{{{
 	&aes_ctx_ops
 }}}}};
 
-static crypto_provider_info_t aes_prov_info = {{{{
+static const crypto_provider_info_t aes_prov_info = {{{{
 	CRYPTO_SPI_VERSION_1,
 	"AES Software Provider",
 	CRYPTO_SW_PROVIDER,
 	NULL,
 	&aes_crypto_ops,
-	sizeof (aes_mech_info_tab)/sizeof (crypto_mech_info_t),
+	sizeof (aes_mech_info_tab) / sizeof (crypto_mech_info_t),
 	aes_mech_info_tab
 }}}};
 

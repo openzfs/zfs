@@ -206,7 +206,8 @@ typedef enum {
 	ZFS_NUM_USERQUOTA_PROPS
 } zfs_userquota_prop_t;
 
-_SYS_FS_ZFS_H const char *zfs_userquota_prop_prefixes[ZFS_NUM_USERQUOTA_PROPS];
+_SYS_FS_ZFS_H const char *const zfs_userquota_prop_prefixes[
+    ZFS_NUM_USERQUOTA_PROPS];
 
 /*
  * Pool properties are identified by these constants and must be added to the

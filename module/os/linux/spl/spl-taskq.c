@@ -32,21 +32,21 @@
 #include <linux/cpuhotplug.h>
 #endif
 
-int spl_taskq_thread_bind = 0;
+static int spl_taskq_thread_bind = 0;
 module_param(spl_taskq_thread_bind, int, 0644);
 MODULE_PARM_DESC(spl_taskq_thread_bind, "Bind taskq thread to CPU by default");
 
 
-int spl_taskq_thread_dynamic = 1;
+static int spl_taskq_thread_dynamic = 1;
 module_param(spl_taskq_thread_dynamic, int, 0444);
 MODULE_PARM_DESC(spl_taskq_thread_dynamic, "Allow dynamic taskq threads");
 
-int spl_taskq_thread_priority = 1;
+static int spl_taskq_thread_priority = 1;
 module_param(spl_taskq_thread_priority, int, 0644);
 MODULE_PARM_DESC(spl_taskq_thread_priority,
 	"Allow non-default priority for taskq threads");
 
-int spl_taskq_thread_sequential = 4;
+static int spl_taskq_thread_sequential = 4;
 module_param(spl_taskq_thread_sequential, int, 0644);
 MODULE_PARM_DESC(spl_taskq_thread_sequential,
 	"Create new taskq threads after N sequential tasks");

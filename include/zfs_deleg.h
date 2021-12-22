@@ -85,7 +85,7 @@ typedef struct zfs_deleg_perm_tab {
 	zfs_deleg_note_t z_note;
 } zfs_deleg_perm_tab_t;
 
-_ZFS_DELEG_H zfs_deleg_perm_tab_t zfs_deleg_perm_tab[];
+_ZFS_DELEG_H const zfs_deleg_perm_tab_t zfs_deleg_perm_tab[];
 
 _ZFS_DELEG_H int zfs_deleg_verify_nvlist(nvlist_t *nvlist);
 _ZFS_DELEG_H void zfs_deleg_whokey(char *attr, zfs_deleg_who_type_t type,

@@ -743,12 +743,12 @@ zcp_get_written_prop(lua_State *state, dsl_pool_t *dp,
 }
 
 static int zcp_get_prop(lua_State *state);
-static zcp_lib_info_t zcp_get_prop_info = {
+static const zcp_lib_info_t zcp_get_prop_info = {
 	.name = "get_prop",
 	.func = zcp_get_prop,
 	.pargs = {
-	    { .za_name = "dataset", .za_lua_type = LUA_TSTRING},
-	    { .za_name = "property", .za_lua_type =  LUA_TSTRING},
+	    { .za_name = "dataset", .za_lua_type = LUA_TSTRING },
+	    { .za_name = "property", .za_lua_type =  LUA_TSTRING },
 	    {NULL, 0}
 	},
 	.kwargs = {
@@ -762,7 +762,7 @@ zcp_get_prop(lua_State *state)
 	const char *dataset_name;
 	const char *property_name;
 	dsl_pool_t *dp = zcp_run_info(state)->zri_pool;
-	zcp_lib_info_t *libinfo = &zcp_get_prop_info;
+	const zcp_lib_info_t *libinfo = &zcp_get_prop_info;
 
 	zcp_parse_args(state, libinfo->name, libinfo->pargs, libinfo->kwargs);
 

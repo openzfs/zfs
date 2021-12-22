@@ -456,8 +456,6 @@ typedef struct zil_stats {
 	kstat_named_t zil_itx_metaslab_slog_bytes;
 } zil_stats_t;
 
-extern zil_stats_t zil_stats;
-
 #define	ZIL_STAT_INCR(stat, val) \
     atomic_add_64(&zil_stats.stat.value.ui64, (val));
 #define	ZIL_STAT_BUMP(stat) \
@@ -485,7 +483,7 @@ extern zilog_t	*zil_open(objset_t *os, zil_get_data_t *get_data);
 extern void	zil_close(zilog_t *zilog);
 
 extern void	zil_replay(objset_t *os, void *arg,
-    zil_replay_func_t *replay_func[TX_MAX_TYPE]);
+    zil_replay_func_t *const replay_func[TX_MAX_TYPE]);
 extern boolean_t zil_replaying(zilog_t *zilog, dmu_tx_t *tx);
 extern void	zil_destroy(zilog_t *zilog, boolean_t keep_first);
 extern void	zil_destroy_sync(zilog_t *zilog, dmu_tx_t *tx);

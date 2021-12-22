@@ -55,7 +55,7 @@
 #include <sys/wmsum.h>
 #include <sys/vdev_impl.h>
 
-kstat_t *dbuf_ksp;
+static kstat_t *dbuf_ksp;
 
 typedef struct dbuf_stats {
 	/*
@@ -225,12 +225,12 @@ typedef struct dbuf_cache {
 dbuf_cache_t dbuf_caches[DB_CACHE_MAX];
 
 /* Size limits for the caches */
-unsigned long dbuf_cache_max_bytes = ULONG_MAX;
-unsigned long dbuf_metadata_cache_max_bytes = ULONG_MAX;
+static unsigned long dbuf_cache_max_bytes = ULONG_MAX;
+static unsigned long dbuf_metadata_cache_max_bytes = ULONG_MAX;
 
 /* Set the default sizes of the caches to log2 fraction of arc size */
-int dbuf_cache_shift = 5;
-int dbuf_metadata_cache_shift = 6;
+static int dbuf_cache_shift = 5;
+static int dbuf_metadata_cache_shift = 6;
 
 static unsigned long dbuf_cache_target_bytes(void);
 static unsigned long dbuf_metadata_cache_target_bytes(void);
@@ -277,8 +277,8 @@ static unsigned long dbuf_metadata_cache_target_bytes(void);
 /*
  * The percentage above and below the maximum cache size.
  */
-uint_t dbuf_cache_hiwater_pct = 10;
-uint_t dbuf_cache_lowater_pct = 10;
+static uint_t dbuf_cache_hiwater_pct = 10;
+static uint_t dbuf_cache_lowater_pct = 10;
 
 static int
 dbuf_cons(void *vdb, void *unused, int kmflag)

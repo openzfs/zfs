@@ -41,7 +41,7 @@
  * When using fallocate(2) to preallocate space, inflate the requested
  * capacity check by 10% to account for the required metadata blocks.
  */
-unsigned int zfs_fallocate_reserve_percent = 110;
+static unsigned int zfs_fallocate_reserve_percent = 110;
 
 static int
 zpl_open(struct inode *ip, struct file *filp)

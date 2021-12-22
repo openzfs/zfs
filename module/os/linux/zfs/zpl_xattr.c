@@ -746,7 +746,7 @@ __zpl_xattr_user_set(struct inode *ip, const char *name,
 }
 ZPL_XATTR_SET_WRAPPER(zpl_xattr_user_set);
 
-xattr_handler_t zpl_xattr_user_handler =
+static xattr_handler_t zpl_xattr_user_handler =
 {
 	.prefix	= XATTR_USER_PREFIX,
 	.list	= zpl_xattr_user_list,
@@ -815,8 +815,7 @@ __zpl_xattr_trusted_set(struct inode *ip, const char *name,
 }
 ZPL_XATTR_SET_WRAPPER(zpl_xattr_trusted_set);
 
-xattr_handler_t zpl_xattr_trusted_handler =
-{
+static xattr_handler_t zpl_xattr_trusted_handler = {
 	.prefix	= XATTR_TRUSTED_PREFIX,
 	.list	= zpl_xattr_trusted_list,
 	.get	= zpl_xattr_trusted_get,
@@ -910,7 +909,7 @@ zpl_xattr_security_init(struct inode *ip, struct inode *dip,
 /*
  * Security xattr namespace handlers.
  */
-xattr_handler_t zpl_xattr_security_handler = {
+static xattr_handler_t zpl_xattr_security_handler = {
 	.prefix	= XATTR_SECURITY_PREFIX,
 	.list	= zpl_xattr_security_list,
 	.get	= zpl_xattr_security_get,
@@ -1333,8 +1332,7 @@ ZPL_XATTR_SET_WRAPPER(zpl_xattr_acl_set_default);
  * Use .name instead of .prefix when available. xattr_resolve_name will match
  * whole name and reject anything that has .name only as prefix.
  */
-xattr_handler_t zpl_xattr_acl_access_handler =
-{
+static xattr_handler_t zpl_xattr_acl_access_handler = {
 #ifdef HAVE_XATTR_HANDLER_NAME
 	.name	= XATTR_NAME_POSIX_ACL_ACCESS,
 #else
@@ -1356,8 +1354,7 @@ xattr_handler_t zpl_xattr_acl_access_handler =
  * Use .name instead of .prefix when available. xattr_resolve_name will match
  * whole name and reject anything that has .name only as prefix.
  */
-xattr_handler_t zpl_xattr_acl_default_handler =
-{
+static xattr_handler_t zpl_xattr_acl_default_handler = {
 #ifdef HAVE_XATTR_HANDLER_NAME
 	.name	= XATTR_NAME_POSIX_ACL_DEFAULT,
 #else

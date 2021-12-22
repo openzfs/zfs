@@ -2063,7 +2063,7 @@ ENTRY_NP(SHA512TransformBlocks)
 .cfi_endproc
 SET_SIZE(SHA512TransformBlocks)
 
-.data
+.section .rodata
 .align	64
 .type	K512,@object
 K512:

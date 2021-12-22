@@ -693,7 +693,7 @@ aes_decrypt_amd64(const uint32_t rk[], int Nr, const uint32_t ct[4],
  * int aes_encrypt(const unsigned char *in,
  *	unsigned char *out, const aes_encrypt_ctx cx[1])/
  */
-.data
+.section .rodata
 .align	64
 enc_tab:
 	enc_vals(u8)
@@ -798,7 +798,7 @@ ENTRY_NP(aes_encrypt_amd64)
  * int aes_decrypt(const unsigned char *in,
  *	unsigned char *out, const aes_encrypt_ctx cx[1])/
  */
-.data
+.section .rodata
 .align	64
 dec_tab:
 	dec_vals(v8)
