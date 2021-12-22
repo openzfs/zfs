@@ -714,8 +714,6 @@ typedef struct crypto_provider_info {
 extern int crypto_register_provider(const crypto_provider_info_t *,
 		crypto_kcf_provider_handle_t *);
 extern int crypto_unregister_provider(crypto_kcf_provider_handle_t);
-extern void crypto_provider_notification(crypto_kcf_provider_handle_t, uint_t);
-extern void crypto_op_notification(crypto_req_handle_t, int);
 extern int crypto_kmflag(crypto_req_handle_t);
 
 

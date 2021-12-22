@@ -769,7 +769,6 @@ kcf_get_mech_entry(crypto_mech_type_t mech_type, kcf_mech_entry_t **mep)
 	return (KCF_SUCCESS);
 }
 
-/* CURRENTLY UNSUPPORTED: attempting to load the module if it isn't found */
 /*
  * Lookup the hash table for an entry that matches the mechname.
  * If there are no hardware or software providers for the mechanism,
