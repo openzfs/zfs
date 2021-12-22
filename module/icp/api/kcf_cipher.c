@@ -198,8 +198,7 @@ crypto_cipher_init_prov(crypto_provider_t provider, crypto_session_id_t sid,
 		    mech, key, NULL, NULL, tmpl);
 	}
 
-	error = kcf_submit_request(real_provider, ctx, crq, &params,
-	    B_FALSE);
+	error = kcf_submit_request(real_provider, ctx, crq, &params);
 
 	if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER)
 		KCF_PROV_REFRELE(real_provider);
@@ -334,7 +333,7 @@ crypto_encrypt_prov(crypto_provider_t provider, crypto_session_id_t sid,
 	KCF_WRAP_ENCRYPT_OPS_PARAMS(&params, KCF_OP_ATOMIC, sid, mech, key,
 	    plaintext, ciphertext, tmpl);
 
-	error = kcf_submit_request(real_provider, NULL, crq, &params, B_FALSE);
+	error = kcf_submit_request(real_provider, NULL, crq, &params);
 	if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER)
 		KCF_PROV_REFRELE(real_provider);
 
@@ -400,7 +399,7 @@ retry:
 	} else {
 		KCF_WRAP_ENCRYPT_OPS_PARAMS(&params, KCF_OP_ATOMIC, pd->pd_sid,
 		    mech, key, plaintext, ciphertext, spi_ctx_tmpl);
-		error = kcf_submit_request(pd, NULL, crq, &params, B_FALSE);
+		error = kcf_submit_request(pd, NULL, crq, &params);
 	}
 
 	if (error != CRYPTO_SUCCESS && error != CRYPTO_QUEUED &&
@@ -502,7 +501,7 @@ crypto_encrypt_update(crypto_context_t context, crypto_data_t *plaintext,
 
 	KCF_WRAP_ENCRYPT_OPS_PARAMS(&params, KCF_OP_UPDATE,
 	    ctx->cc_session, NULL, NULL, plaintext, ciphertext, NULL);
-	error = kcf_submit_request(pd, ctx, cr, &params, B_FALSE);
+	error = kcf_submit_request(pd, ctx, cr, &params);
 
 	return (error);
 }
@@ -550,7 +549,7 @@ crypto_encrypt_final(crypto_context_t context, crypto_data_t *ciphertext,
 	} else {
 		KCF_WRAP_ENCRYPT_OPS_PARAMS(&params, KCF_OP_FINAL,
 		    ctx->cc_session, NULL, NULL, NULL, ciphertext, NULL);
-		error = kcf_submit_request(pd, ctx, cr, &params, B_FALSE);
+		error = kcf_submit_request(pd, ctx, cr, &params);
 	}
 
 	/* Release the hold done in kcf_new_ctx() during init step. */
@@ -616,7 +615,7 @@ crypto_decrypt_prov(crypto_provider_t provider, crypto_session_id_t sid,
 	KCF_WRAP_DECRYPT_OPS_PARAMS(&params, KCF_OP_ATOMIC, sid, mech, key,
 	    ciphertext, plaintext, tmpl);
 
-	rv = kcf_submit_request(real_provider, NULL, crq, &params, B_FALSE);
+	rv = kcf_submit_request(real_provider, NULL, crq, &params);
 	if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER)
 		KCF_PROV_REFRELE(real_provider);
 
@@ -683,7 +682,7 @@ retry:
 	} else {
 		KCF_WRAP_DECRYPT_OPS_PARAMS(&params, KCF_OP_ATOMIC, pd->pd_sid,
 		    mech, key, ciphertext, plaintext, spi_ctx_tmpl);
-		error = kcf_submit_request(pd, NULL, crq, &params, B_FALSE);
+		error = kcf_submit_request(pd, NULL, crq, &params);
 	}
 
 	if (error != CRYPTO_SUCCESS && error != CRYPTO_QUEUED &&
@@ -785,7 +784,7 @@ crypto_decrypt_update(crypto_context_t context, crypto_data_t *ciphertext,
 
 	KCF_WRAP_DECRYPT_OPS_PARAMS(&params, KCF_OP_UPDATE,
 	    ctx->cc_session, NULL, NULL, ciphertext, plaintext, NULL);
-	error = kcf_submit_request(pd, ctx, cr, &params, B_FALSE);
+	error = kcf_submit_request(pd, ctx, cr, &params);
 
 	return (error);
 }
@@ -834,77 +833,7 @@ crypto_decrypt_final(crypto_context_t context, crypto_data_t *plaintext,
 	} else {
 		KCF_WRAP_DECRYPT_OPS_PARAMS(&params, KCF_OP_FINAL,
 		    ctx->cc_session, NULL, NULL, NULL, plaintext, NULL);
-		error = kcf_submit_request(pd, ctx, cr, &params, B_FALSE);
-	}
-
-	/* Release the hold done in kcf_new_ctx() during init step. */
-	KCF_CONTEXT_COND_RELEASE(error, kcf_ctx);
-	return (error);
-}
-
-/*
- * See comments for crypto_encrypt_update().
- */
-int
-crypto_encrypt_single(crypto_context_t context, crypto_data_t *plaintext,
-    crypto_data_t *ciphertext, crypto_call_req_t *cr)
-{
-	crypto_ctx_t *ctx = (crypto_ctx_t *)context;
-	kcf_context_t *kcf_ctx;
-	kcf_provider_desc_t *pd;
-	int error;
-	kcf_req_params_t params;
-
-	if ((ctx == NULL) ||
-	    ((kcf_ctx = (kcf_context_t *)ctx->cc_framework_private) == NULL) ||
-	    ((pd = kcf_ctx->kc_prov_desc) == NULL)) {
-		return (CRYPTO_INVALID_CONTEXT);
-	}
-
-	/* The fast path for SW providers. */
-	if (CHECK_FASTPATH(cr, pd)) {
-		error = KCF_PROV_ENCRYPT(pd, ctx, plaintext,
-		    ciphertext, NULL);
-		KCF_PROV_INCRSTATS(pd, error);
-	} else {
-		KCF_WRAP_ENCRYPT_OPS_PARAMS(&params, KCF_OP_SINGLE, pd->pd_sid,
-		    NULL, NULL, plaintext, ciphertext, NULL);
-		error = kcf_submit_request(pd, ctx, cr, &params, B_FALSE);
-	}
-
-	/* Release the hold done in kcf_new_ctx() during init step. */
-	KCF_CONTEXT_COND_RELEASE(error, kcf_ctx);
-	return (error);
-}
-
-/*
- * See comments for crypto_decrypt_update().
- */
-int
-crypto_decrypt_single(crypto_context_t context, crypto_data_t *ciphertext,
-    crypto_data_t *plaintext, crypto_call_req_t *cr)
-{
-	crypto_ctx_t *ctx = (crypto_ctx_t *)context;
-	kcf_context_t *kcf_ctx;
-	kcf_provider_desc_t *pd;
-	int error;
-	kcf_req_params_t params;
-
-	if ((ctx == NULL) ||
-	    ((kcf_ctx = (kcf_context_t *)ctx->cc_framework_private) == NULL) ||
-	    ((pd = kcf_ctx->kc_prov_desc) == NULL)) {
-		return (CRYPTO_INVALID_CONTEXT);
-	}
-
-	/* The fast path for SW providers. */
-	if (CHECK_FASTPATH(cr, pd)) {
-		error = KCF_PROV_DECRYPT(pd, ctx, ciphertext,
-		    plaintext, NULL);
-		KCF_PROV_INCRSTATS(pd, error);
-	} else {
-		KCF_WRAP_DECRYPT_OPS_PARAMS(&params, KCF_OP_SINGLE, pd->pd_sid,
-		    NULL, NULL, ciphertext, plaintext, NULL);
-		error = kcf_submit_request(pd, ctx, cr, &params, B_FALSE);
+		error = kcf_submit_request(pd, ctx, cr, &params);
 	}
 
 	/* Release the hold done in kcf_new_ctx() during init step. */
@@ -925,6 +854,4 @@ EXPORT_SYMBOL(crypto_decrypt_init_prov);
 EXPORT_SYMBOL(crypto_decrypt_init);
 EXPORT_SYMBOL(crypto_decrypt_update);
 EXPORT_SYMBOL(crypto_decrypt_final);
-EXPORT_SYMBOL(crypto_encrypt_single);
-EXPORT_SYMBOL(crypto_decrypt_single);
 #endif

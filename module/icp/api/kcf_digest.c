@@ -109,7 +109,7 @@ crypto_digest_prov(crypto_provider_t provider, crypto_session_id_t sid,
 	    data, digest);
 
 	/* no crypto context to carry between multiple parts. */
-	rv = kcf_submit_request(real_provider, NULL, crq, &params, B_FALSE);
+	rv = kcf_submit_request(real_provider, NULL, crq, &params);
 	if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER)
 		KCF_PROV_REFRELE(real_provider);
 
@@ -159,8 +159,7 @@ retry:
 			    pd->pd_sid, mech, NULL, data, digest);
 
 			/* no crypto context to carry between multiple parts. */
-			error = kcf_submit_request(pd, NULL, crq, &params,
-			    B_FALSE);
+			error = kcf_submit_request(pd, NULL, crq, &params);
 		}
 	}
 
@@ -241,8 +240,7 @@ crypto_digest_init_prov(crypto_provider_t provider, crypto_session_id_t sid,
 	} else {
 		KCF_WRAP_DIGEST_OPS_PARAMS(&params, KCF_OP_INIT, sid,
 		    mech, NULL, NULL, NULL);
-		error = kcf_submit_request(real_provider, ctx, crq, &params,
-		    B_FALSE);
+		error = kcf_submit_request(real_provider, ctx, crq, &params);
 	}
 
 	if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER)
@@ -352,7 +350,7 @@ crypto_digest_update(crypto_context_t context, crypto_data_t *data,
 	} else {
 		KCF_WRAP_DIGEST_OPS_PARAMS(&params, KCF_OP_UPDATE,
 		    ctx->cc_session, NULL, NULL, data, NULL);
-		error = kcf_submit_request(pd, ctx, cr, &params, B_FALSE);
+		error = kcf_submit_request(pd, ctx, cr, &params);
 	}
 
 	return (error);
@@ -401,77 +399,7 @@ crypto_digest_final(crypto_context_t context, crypto_data_t *digest,
 	} else {
 		KCF_WRAP_DIGEST_OPS_PARAMS(&params, KCF_OP_FINAL,
 		    ctx->cc_session, NULL, NULL, NULL, digest);
-		error = kcf_submit_request(pd, ctx, cr, &params, B_FALSE);
-	}
-
-	/* Release the hold done in kcf_new_ctx() during init step. */
-	KCF_CONTEXT_COND_RELEASE(error, kcf_ctx);
-	return (error);
-}
-
-/*
- * Performs a digest update on the specified key. Note that there is
- * no k-API crypto_digest_key() equivalent of this function.
- */
-int
-crypto_digest_key_prov(crypto_context_t context, crypto_key_t *key,
-    crypto_call_req_t *cr)
-{
-	crypto_ctx_t *ctx = (crypto_ctx_t *)context;
-	kcf_context_t *kcf_ctx;
-	kcf_provider_desc_t *pd;
-	int error;
-	kcf_req_params_t params;
-
-	if ((ctx == NULL) ||
-	    ((kcf_ctx = (kcf_context_t *)ctx->cc_framework_private) == NULL) ||
-	    ((pd = kcf_ctx->kc_prov_desc) == NULL)) {
-		return (CRYPTO_INVALID_CONTEXT);
-	}
-
-	ASSERT(pd->pd_prov_type != CRYPTO_LOGICAL_PROVIDER);
-
-	/* The fast path for SW providers. */
-	if (CHECK_FASTPATH(cr, pd)) {
-		error = KCF_PROV_DIGEST_KEY(pd, ctx, key, NULL);
-		KCF_PROV_INCRSTATS(pd, error);
-	} else {
-		KCF_WRAP_DIGEST_OPS_PARAMS(&params, KCF_OP_DIGEST_KEY,
-		    ctx->cc_session, NULL, key, NULL, NULL);
-		error = kcf_submit_request(pd, ctx, cr, &params, B_FALSE);
-	}
-
-	return (error);
-}
-
-/*
- * See comments for crypto_digest_update() and crypto_digest_final().
- */
-int
-crypto_digest_single(crypto_context_t context, crypto_data_t *data,
-    crypto_data_t *digest, crypto_call_req_t *cr)
-{
-	crypto_ctx_t *ctx = (crypto_ctx_t *)context;
-	kcf_context_t *kcf_ctx;
-	kcf_provider_desc_t *pd;
-	int error;
-	kcf_req_params_t params;
-
-	if ((ctx == NULL) ||
-	    ((kcf_ctx = (kcf_context_t *)ctx->cc_framework_private) == NULL) ||
-	    ((pd = kcf_ctx->kc_prov_desc) == NULL)) {
-		return (CRYPTO_INVALID_CONTEXT);
-	}
-
-
-	/* The fast path for SW providers. */
-	if (CHECK_FASTPATH(cr, pd)) {
-		error = KCF_PROV_DIGEST(pd, ctx, data, digest, NULL);
-		KCF_PROV_INCRSTATS(pd, error);
-	} else {
-		KCF_WRAP_DIGEST_OPS_PARAMS(&params, KCF_OP_SINGLE, pd->pd_sid,
-		    NULL, NULL, data, digest);
-		error = kcf_submit_request(pd, ctx, cr, &params, B_FALSE);
+		error = kcf_submit_request(pd, ctx, cr, &params);
 	}
 
 	/* Release the hold done in kcf_new_ctx() during init step. */
@@ -486,6 +414,4 @@ EXPORT_SYMBOL(crypto_digest_init_prov);
 EXPORT_SYMBOL(crypto_digest_init);
 EXPORT_SYMBOL(crypto_digest_update);
 EXPORT_SYMBOL(crypto_digest_final);
-EXPORT_SYMBOL(crypto_digest_key_prov);
-EXPORT_SYMBOL(crypto_digest_single);
 #endif

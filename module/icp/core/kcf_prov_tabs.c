@@ -205,8 +205,7 @@ kcf_prov_tab_lookup(crypto_provider_id_t prov_id)
 }
 
 static void
-allocate_ops(const crypto_ops_t *src, crypto_ops_t *dst,
-    uint_t *mech_list_count)
+allocate_ops(const crypto_ops_t *src, crypto_ops_t *dst)
 {
 	if (src->co_digest_ops != NULL)
 		dst->co_digest_ops = kmem_alloc(sizeof (crypto_digest_ops_t),
@@ -220,62 +219,9 @@ allocate_ops(const crypto_ops_t *src, crypto_ops_t *dst,
 		dst->co_mac_ops = kmem_alloc(sizeof (crypto_mac_ops_t),
 		    KM_SLEEP);
 
-	if (src->co_sign_ops != NULL)
-		dst->co_sign_ops = kmem_alloc(sizeof (crypto_sign_ops_t),
-		    KM_SLEEP);
-
-	if (src->co_verify_ops != NULL)
-		dst->co_verify_ops = kmem_alloc(sizeof (crypto_verify_ops_t),
-		    KM_SLEEP);
-
-	if (src->co_dual_ops != NULL)
-		dst->co_dual_ops = kmem_alloc(sizeof (crypto_dual_ops_t),
-		    KM_SLEEP);
-
-	if (src->co_dual_cipher_mac_ops != NULL)
-		dst->co_dual_cipher_mac_ops = kmem_alloc(
-		    sizeof (crypto_dual_cipher_mac_ops_t), KM_SLEEP);
-
-	if (src->co_random_ops != NULL) {
-		dst->co_random_ops = kmem_alloc(
-		    sizeof (crypto_random_number_ops_t), KM_SLEEP);
-
-		/*
-		 * Allocate storage to store the array of supported mechanisms
-		 * specified by provider. We allocate extra mechanism storage
-		 * if the provider has random_ops since we keep an internal
-		 * mechanism, SUN_RANDOM, in this case.
-		 */
-		(*mech_list_count)++;
-	}
-
-	if (src->co_session_ops != NULL)
-		dst->co_session_ops = kmem_alloc(sizeof (crypto_session_ops_t),
-		    KM_SLEEP);
-
-	if (src->co_object_ops != NULL)
-		dst->co_object_ops = kmem_alloc(sizeof (crypto_object_ops_t),
-		    KM_SLEEP);
-
-	if (src->co_key_ops != NULL)
-		dst->co_key_ops = kmem_alloc(sizeof (crypto_key_ops_t),
-		    KM_SLEEP);
-
-	if (src->co_provider_ops != NULL)
-		dst->co_provider_ops = kmem_alloc(
-		    sizeof (crypto_provider_management_ops_t), KM_SLEEP);
-
 	if (src->co_ctx_ops != NULL)
 		dst->co_ctx_ops = kmem_alloc(sizeof (crypto_ctx_ops_t),
 		    KM_SLEEP);
-
-	if (src->co_mech_ops != NULL)
-		dst->co_mech_ops = kmem_alloc(sizeof (crypto_mech_ops_t),
-		    KM_SLEEP);
-
-	if (src->co_nostore_key_ops != NULL)
-		dst->co_nostore_key_ops =
-		    kmem_alloc(sizeof (crypto_nostore_key_ops_t), KM_SLEEP);
 }
 
 /*
@@ -289,7 +235,6 @@ kcf_provider_desc_t *
 kcf_alloc_provider_desc(const crypto_provider_info_t *info)
 {
 	kcf_provider_desc_t *desc;
-	uint_t mech_list_count = info->pi_mech_list_count;
 	const crypto_ops_t *src_ops = info->pi_ops_vector;
 
 	desc = kmem_zalloc(sizeof (kcf_provider_desc_t), KM_SLEEP);
@@ -319,15 +264,13 @@ kcf_alloc_provider_desc(const crypto_provider_info_t *info)
 	 * vectors are copied.
 	 */
 	crypto_ops_t *opvec = kmem_zalloc(sizeof (crypto_ops_t), KM_SLEEP);
-
-	if (info->pi_provider_type != CRYPTO_LOGICAL_PROVIDER) {
-		allocate_ops(src_ops, opvec, &mech_list_count);
-	}
+	if (info->pi_provider_type != CRYPTO_LOGICAL_PROVIDER)
+		allocate_ops(src_ops, opvec);
 	desc->pd_ops_vector = opvec;
 
-	desc->pd_mech_list_count = mech_list_count;
+	desc->pd_mech_list_count = info->pi_mech_list_count;
 	desc->pd_mechanisms = kmem_zalloc(sizeof (crypto_mech_info_t) *
-	    mech_list_count, KM_SLEEP);
+	    info->pi_mech_list_count, KM_SLEEP);
 	for (int i = 0; i < KCF_OPS_CLASSSIZE; i++)
 		for (int j = 0; j < KCF_MAXMECHTAB; j++)
 			desc->pd_mech_indx[i][j] = KCF_INVALID_INDX;
@@ -408,53 +351,9 @@ kcf_free_provider_desc(kcf_provider_desc_t *desc)
 			kmem_free(desc->pd_ops_vector->co_mac_ops,
 			    sizeof (crypto_mac_ops_t));
 
-		if (desc->pd_ops_vector->co_sign_ops != NULL)
-			kmem_free(desc->pd_ops_vector->co_sign_ops,
-			    sizeof (crypto_sign_ops_t));
-
-		if (desc->pd_ops_vector->co_verify_ops != NULL)
-			kmem_free(desc->pd_ops_vector->co_verify_ops,
-			    sizeof (crypto_verify_ops_t));
-
-		if (desc->pd_ops_vector->co_dual_ops != NULL)
-			kmem_free(desc->pd_ops_vector->co_dual_ops,
-			    sizeof (crypto_dual_ops_t));
-
-		if (desc->pd_ops_vector->co_dual_cipher_mac_ops != NULL)
-			kmem_free(desc->pd_ops_vector->co_dual_cipher_mac_ops,
-			    sizeof (crypto_dual_cipher_mac_ops_t));
-
-		if (desc->pd_ops_vector->co_random_ops != NULL)
-			kmem_free(desc->pd_ops_vector->co_random_ops,
-			    sizeof (crypto_random_number_ops_t));
-
-		if (desc->pd_ops_vector->co_session_ops != NULL)
-			kmem_free(desc->pd_ops_vector->co_session_ops,
-			    sizeof (crypto_session_ops_t));
-
-		if (desc->pd_ops_vector->co_object_ops != NULL)
-			kmem_free(desc->pd_ops_vector->co_object_ops,
-			    sizeof (crypto_object_ops_t));
-
-		if (desc->pd_ops_vector->co_key_ops != NULL)
-			kmem_free(desc->pd_ops_vector->co_key_ops,
-			    sizeof (crypto_key_ops_t));
-
-		if (desc->pd_ops_vector->co_provider_ops != NULL)
-			kmem_free(desc->pd_ops_vector->co_provider_ops,
-			    sizeof (crypto_provider_management_ops_t));
-
 		if (desc->pd_ops_vector->co_ctx_ops != NULL)
 			kmem_free(desc->pd_ops_vector->co_ctx_ops,
 			    sizeof (crypto_ctx_ops_t));
-
-		if (desc->pd_ops_vector->co_mech_ops != NULL)
-			kmem_free(desc->pd_ops_vector->co_mech_ops,
-			    sizeof (crypto_mech_ops_t));
-
-		if (desc->pd_ops_vector->co_nostore_key_ops != NULL)
-			kmem_free(desc->pd_ops_vector->co_nostore_key_ops,
-			    sizeof (crypto_nostore_key_ops_t));
 
 		kmem_free(desc->pd_ops_vector, sizeof (crypto_ops_t));
 	}
@@ -472,111 +371,6 @@ kcf_free_provider_desc(kcf_provider_desc_t *desc)
 	cv_destroy(&desc->pd_remove_cv);
 
 	kmem_free(desc, sizeof (kcf_provider_desc_t));
-}
-
-/*
- * Returns an array of hardware and logical provider descriptors,
- * a.k.a the PKCS#11 slot list. A REFHOLD is done on each descriptor
- * before the array is returned. The entire table can be freed by
- * calling kcf_free_provider_tab().
- */
-int
-kcf_get_slot_list(uint_t *count, kcf_provider_desc_t ***array,
-    boolean_t unverified)
-{
-	kcf_provider_desc_t *prov_desc;
-	kcf_provider_desc_t **p = NULL;
-	char *last;
-	uint_t cnt = 0;
-	uint_t i, j;
-	int rval = CRYPTO_SUCCESS;
-	size_t n, final_size;
-
-	/* count the providers */
-	mutex_enter(&prov_tab_mutex);
-	for (i = 0; i < KCF_MAX_PROVIDERS; i++) {
-		if ((prov_desc = prov_tab[i]) != NULL &&
-		    ((prov_desc->pd_prov_type == CRYPTO_HW_PROVIDER &&
-		    (prov_desc->pd_flags & CRYPTO_HIDE_PROVIDER) == 0) ||
-		    prov_desc->pd_prov_type == CRYPTO_LOGICAL_PROVIDER)) {
-			if (KCF_IS_PROV_USABLE(prov_desc) ||
-			    (unverified && KCF_IS_PROV_UNVERIFIED(prov_desc))) {
-				cnt++;
-			}
-		}
-	}
-	mutex_exit(&prov_tab_mutex);
-
-	if (cnt == 0)
-		goto out;
-
-	n = cnt * sizeof (kcf_provider_desc_t *);
-again:
-	p = kmem_zalloc(n, KM_SLEEP);
-
-	/* pointer to last entry in the array */
-	last = (char *)&p[cnt-1];
-
-	mutex_enter(&prov_tab_mutex);
-	/* fill the slot list */
-	for (i = 0, j = 0; i < KCF_MAX_PROVIDERS; i++) {
-		if ((prov_desc = prov_tab[i]) != NULL &&
-		    ((prov_desc->pd_prov_type == CRYPTO_HW_PROVIDER &&
-		    (prov_desc->pd_flags & CRYPTO_HIDE_PROVIDER) == 0) ||
-		    prov_desc->pd_prov_type == CRYPTO_LOGICAL_PROVIDER)) {
-			if (KCF_IS_PROV_USABLE(prov_desc) ||
-			    (unverified && KCF_IS_PROV_UNVERIFIED(prov_desc))) {
-				if ((char *)&p[j] > last) {
-					mutex_exit(&prov_tab_mutex);
-					kcf_free_provider_tab(cnt, p);
-					n = n << 1;
-					cnt = cnt << 1;
-					goto again;
-				}
-				p[j++] = prov_desc;
-				KCF_PROV_REFHOLD(prov_desc);
-			}
-		}
-	}
-	mutex_exit(&prov_tab_mutex);
-
-	final_size = j * sizeof (kcf_provider_desc_t *);
-	cnt = j;
-	ASSERT(final_size <= n);
-
-	/* check if buffer we allocated is too large */
-	if (final_size < n) {
-		char *final_buffer = NULL;
-
-		if (final_size > 0) {
-			final_buffer = kmem_alloc(final_size, KM_SLEEP);
-			bcopy(p, final_buffer, final_size);
-		}
-		kmem_free(p, n);
-		p = (kcf_provider_desc_t **)final_buffer;
-	}
-out:
-	*count = cnt;
-	*array = p;
-	return (rval);
-}
-
-/*
- * Free an array of hardware provider descriptors.  A REFRELE
- * is done on each descriptor before the table is freed.
- */
-void
-kcf_free_provider_tab(uint_t count, kcf_provider_desc_t **array)
-{
-	kcf_provider_desc_t *prov_desc;
-	int i;
-
-	for (i = 0; i < count; i++) {
-		if ((prov_desc = array[i]) != NULL) {
-			KCF_PROV_REFRELE(prov_desc);
-		}
-	}
-	kmem_free(array, count * sizeof (kcf_provider_desc_t *));
 }
 
 /*

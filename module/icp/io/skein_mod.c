@@ -99,15 +99,6 @@ static const crypto_ops_t skein_crypto_ops = {
 	&skein_digest_ops,
 	NULL,
 	&skein_mac_ops,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
 	&skein_ctx_ops,
 };
 

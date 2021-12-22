@@ -87,13 +87,6 @@ extern ulong_t kcf_swprov_hndl;
 #define	REQHNDL2_KMFLAG(rhndl) \
 	((rhndl == &kcf_swprov_hndl) ? KM_NOSLEEP : KM_SLEEP)
 
-/* Internal call_req flags. They start after the public ones in api.h */
-
-#define	CRYPTO_SETDUAL	0x00001000	/* Set the 'cont' boolean before */
-					/* submitting the request */
-#define	KCF_ISDUALREQ(crq)	\
-	(((crq) == NULL) ? B_FALSE : (crq->cr_flag & CRYPTO_SETDUAL))
-
 typedef struct kcf_prov_tried {
 	kcf_provider_desc_t	*pt_pd;
 	struct kcf_prov_tried	*pt_next;
@@ -182,7 +175,6 @@ typedef struct kcf_areq_node {
 
 	kcondvar_t		an_turn_cv;
 	boolean_t		an_is_my_turn;
-	boolean_t		an_isdual;	/* for internal reuse */
 
 	/*
 	 * Next and previous nodes in the global software
@@ -218,15 +210,6 @@ typedef struct kcf_areq_node {
 
 #define	NOTIFY_CLIENT(areq, err) (*(areq)->an_reqarg.cr_callback_func)(\
 	(areq)->an_reqarg.cr_callback_arg, err);
-
-/* For internally generated call requests for dual operations */
-typedef	struct kcf_call_req {
-	crypto_call_req_t	kr_callreq;	/* external client call req */
-	kcf_req_params_t	kr_params;	/* Params saved for next call */
-	kcf_areq_node_t		*kr_areq;	/* Use this areq */
-	off_t			kr_saveoffset;
-	size_t			kr_savelen;
-} kcf_dual_req_t;
 
 /*
  * The following are some what similar to macros in callo.h, which implement
@@ -488,14 +471,10 @@ extern kcf_prov_tried_t *kcf_insert_triedlist(kcf_prov_tried_t **,
 extern kcf_provider_desc_t *kcf_get_mech_provider(crypto_mech_type_t,
     kcf_mech_entry_t **, int *, kcf_prov_tried_t *, crypto_func_group_t,
     boolean_t, size_t);
-extern kcf_provider_desc_t *kcf_get_dual_provider(crypto_mechanism_t *,
-    crypto_mechanism_t *, kcf_mech_entry_t **, crypto_mech_type_t *,
-    crypto_mech_type_t *, int *, kcf_prov_tried_t *,
-    crypto_func_group_t, crypto_func_group_t, boolean_t, size_t);
 extern crypto_ctx_t *kcf_new_ctx(crypto_call_req_t  *, kcf_provider_desc_t *,
     crypto_session_id_t);
 extern int kcf_submit_request(kcf_provider_desc_t *, crypto_ctx_t *,
-    crypto_call_req_t *, kcf_req_params_t *, boolean_t);
+    crypto_call_req_t *, kcf_req_params_t *);
 extern void kcf_sched_destroy(void);
 extern void kcf_sched_init(void);
 extern void kcf_sched_start(void);
@@ -516,10 +495,6 @@ extern void crypto_bufcall_service(void);
 
 extern void kcf_walk_ntfylist(uint32_t, void *);
 extern void kcf_do_notify(kcf_provider_desc_t *, boolean_t);
-
-extern kcf_dual_req_t *kcf_alloc_req(crypto_call_req_t *);
-extern void kcf_next_req(void *, int);
-extern void kcf_last_req(void *, int);
 
 #ifdef __cplusplus
 }
