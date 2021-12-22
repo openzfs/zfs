@@ -571,7 +571,6 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	dmu_buf_t	*db;
 	timestruc_t	now;
 	uint64_t	gen, obj;
-	int		err;
 	int		bonuslen;
 	int		dnodesize;
 	sa_handle_t	*sa_hdl;
@@ -811,12 +810,11 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 		VERIFY0(zfs_aclset_common(*zpp, acl_ids->z_aclp, cr, tx));
 	}
 	if (!(flag & IS_ROOT_NODE)) {
-		vnode_t *vp;
-
-		vp = ZTOV(*zpp);
+		vnode_t *vp = ZTOV(*zpp);
 		vp->v_vflag |= VV_FORCEINSMQ;
-		err = insmntque(vp, zfsvfs->z_vfs);
+		int err = insmntque(vp, zfsvfs->z_vfs);
 		vp->v_vflag &= ~VV_FORCEINSMQ;
+		(void) err;
 		KASSERT(err == 0, ("insmntque() failed: error %d", err));
 	}
 	kmem_free(sa_attrs, sizeof (sa_bulk_attr_t) * ZPL_END);
