@@ -671,6 +671,13 @@ Minimum time "prescient prefetched" blocks are locked in the ARC.
 These blocks are meant to be prefetched fairly aggressively ahead of
 the code that may use them.
 .
+.It Sy zfs_arc_prune_task_threads Ns = Ns Sy 1 Pq int
+Number of arc_prune threads.
+.Fx
+does not need more than one.
+Linux may theoretically use one per mount point up to number of CPUs,
+but that was not proven to be useful.
+.
 .It Sy zfs_max_missing_tvds Ns = Ns Sy 0 Pq int
 Number of missing top-level vdevs which will be allowed during
 pool import (only in read-only mode).
