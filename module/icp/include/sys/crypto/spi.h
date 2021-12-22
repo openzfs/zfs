@@ -487,7 +487,7 @@ typedef struct crypto_nostore_key_ops {
  * supplied by a provider when it registers with the kernel
  * by calling crypto_register_provider(9F).
  */
-typedef struct crypto_ops_v1 {
+typedef struct crypto_ops {
 	const crypto_digest_ops_t			*co_digest_ops;
 	const crypto_cipher_ops_t			*co_cipher_ops;
 	const crypto_mac_ops_t			*co_mac_ops;
@@ -501,41 +501,9 @@ typedef struct crypto_ops_v1 {
 	crypto_key_ops_t			*co_key_ops;
 	crypto_provider_management_ops_t	*co_provider_ops;
 	const crypto_ctx_ops_t			*co_ctx_ops;
-} crypto_ops_v1_t;
-
-typedef struct crypto_ops_v2 {
-	crypto_ops_v1_t				v1_ops;
 	crypto_mech_ops_t			*co_mech_ops;
-} crypto_ops_v2_t;
-
-typedef struct crypto_ops_v3 {
-	crypto_ops_v2_t				v2_ops;
 	crypto_nostore_key_ops_t		*co_nostore_key_ops;
-} crypto_ops_v3_t;
-
-typedef struct crypto_ops {
-	union {
-		crypto_ops_v3_t	cou_v3;
-		crypto_ops_v2_t	cou_v2;
-		crypto_ops_v1_t	cou_v1;
-	} cou;
 } crypto_ops_t;
-
-#define	co_digest_ops			cou.cou_v1.co_digest_ops
-#define	co_cipher_ops			cou.cou_v1.co_cipher_ops
-#define	co_mac_ops			cou.cou_v1.co_mac_ops
-#define	co_sign_ops			cou.cou_v1.co_sign_ops
-#define	co_verify_ops			cou.cou_v1.co_verify_ops
-#define	co_dual_ops			cou.cou_v1.co_dual_ops
-#define	co_dual_cipher_mac_ops		cou.cou_v1.co_dual_cipher_mac_ops
-#define	co_random_ops			cou.cou_v1.co_random_ops
-#define	co_session_ops			cou.cou_v1.co_session_ops
-#define	co_object_ops			cou.cou_v1.co_object_ops
-#define	co_key_ops			cou.cou_v1.co_key_ops
-#define	co_provider_ops			cou.cou_v1.co_provider_ops
-#define	co_ctx_ops			cou.cou_v1.co_ctx_ops
-#define	co_mech_ops			cou.cou_v2.co_mech_ops
-#define	co_nostore_key_ops		cou.cou_v3.co_nostore_key_ops
 
 /*
  * The mechanism info structure crypto_mech_info_t contains a function group
@@ -636,8 +604,7 @@ typedef uint_t crypto_kcf_provider_handle_t;
  * register for the same device instance. In this case, the same
  * pi_provider_dev must be specified with a different pi_provider_handle.
  */
-typedef struct crypto_provider_info_v1 {
-	uint_t				pi_interface_version;
+typedef struct crypto_provider_info {
 	char				*pi_provider_description;
 	crypto_provider_type_t		pi_provider_type;
 	crypto_provider_handle_t	pi_provider_handle;
@@ -646,30 +613,8 @@ typedef struct crypto_provider_info_v1 {
 	const crypto_mech_info_t		*pi_mechanisms;
 	uint_t				pi_logical_provider_count;
 	crypto_kcf_provider_handle_t	*pi_logical_providers;
-} crypto_provider_info_v1_t;
-
-typedef struct crypto_provider_info_v2 {
-	crypto_provider_info_v1_t	v1_info;
 	uint_t				pi_flags;
-} crypto_provider_info_v2_t;
-
-typedef struct crypto_provider_info {
-	union {
-		crypto_provider_info_v2_t piu_v2;
-		crypto_provider_info_v1_t piu_v1;
-	} piu;
 } crypto_provider_info_t;
-
-#define	pi_interface_version		piu.piu_v1.pi_interface_version
-#define	pi_provider_description		piu.piu_v1.pi_provider_description
-#define	pi_provider_type		piu.piu_v1.pi_provider_type
-#define	pi_provider_handle		piu.piu_v1.pi_provider_handle
-#define	pi_ops_vector			piu.piu_v1.pi_ops_vector
-#define	pi_mech_list_count		piu.piu_v1.pi_mech_list_count
-#define	pi_mechanisms			piu.piu_v1.pi_mechanisms
-#define	pi_logical_provider_count	piu.piu_v1.pi_logical_provider_count
-#define	pi_logical_providers		piu.piu_v1.pi_logical_providers
-#define	pi_flags			piu.piu_v2.pi_flags
 
 /* hidden providers can only be accessed via a logical provider */
 #define	CRYPTO_HIDE_PROVIDER		0x00000001

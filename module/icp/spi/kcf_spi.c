@@ -70,7 +70,7 @@ static const kcf_prov_stats_t kcf_stats_ks_data_template = {
  * persistent.
  */
 static void
-copy_ops_vector_v1(const crypto_ops_t *src_ops, crypto_ops_t *dst_ops)
+copy_ops_vector(const crypto_ops_t *src_ops, crypto_ops_t *dst_ops)
 {
 	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_digest_ops);
 	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_cipher_ops);
@@ -85,17 +85,7 @@ copy_ops_vector_v1(const crypto_ops_t *src_ops, crypto_ops_t *dst_ops)
 	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_key_ops);
 	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_provider_ops);
 	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_ctx_ops);
-}
-
-static void
-copy_ops_vector_v2(const crypto_ops_t *src_ops, crypto_ops_t *dst_ops)
-{
 	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_mech_ops);
-}
-
-static void
-copy_ops_vector_v3(const crypto_ops_t *src_ops, crypto_ops_t *dst_ops)
-{
 	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_nostore_key_ops);
 }
 
@@ -115,9 +105,6 @@ crypto_register_provider(const crypto_provider_info_t *info,
 
 	kcf_provider_desc_t *prov_desc = NULL;
 	int ret = CRYPTO_ARGUMENTS_BAD;
-
-	if (info->pi_interface_version > CRYPTO_SPI_VERSION_3)
-		return (CRYPTO_VERSION_MISMATCH);
 
 	/*
 	 * Check provider type, must be software, hardware, or logical.
@@ -159,14 +146,8 @@ crypto_register_provider(const crypto_provider_info_t *info,
 			goto bail;
 		}
 		crypto_ops_t *pvec = (crypto_ops_t *)prov_desc->pd_ops_vector;
-		copy_ops_vector_v1(info->pi_ops_vector, pvec);
-		if (info->pi_interface_version >= CRYPTO_SPI_VERSION_2) {
-			copy_ops_vector_v2(info->pi_ops_vector, pvec);
-			prov_desc->pd_flags = info->pi_flags;
-		}
-		if (info->pi_interface_version == CRYPTO_SPI_VERSION_3) {
-			copy_ops_vector_v3(info->pi_ops_vector, pvec);
-		}
+		copy_ops_vector(info->pi_ops_vector, pvec);
+		prov_desc->pd_flags = info->pi_flags;
 	}
 
 	/* object_ops and nostore_key_ops are mutually exclusive */
