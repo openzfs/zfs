@@ -69,9 +69,7 @@ static const crypto_mech_info_t aes_mech_info_tab[] = {
 	{SUN_CKM_AES_GMAC, AES_GMAC_MECH_INFO_TYPE,
 	    CRYPTO_FG_ENCRYPT | CRYPTO_FG_ENCRYPT_ATOMIC |
 	    CRYPTO_FG_DECRYPT | CRYPTO_FG_DECRYPT_ATOMIC |
-	    CRYPTO_FG_MAC | CRYPTO_FG_MAC_ATOMIC |
-	    CRYPTO_FG_SIGN | CRYPTO_FG_SIGN_ATOMIC |
-	    CRYPTO_FG_VERIFY | CRYPTO_FG_VERIFY_ATOMIC,
+	    CRYPTO_FG_MAC | CRYPTO_FG_MAC_ATOMIC,
 	    AES_MIN_KEY_BYTES, AES_MAX_KEY_BYTES, CRYPTO_KEYSIZE_UNIT_IN_BYTES}
 };
 
@@ -147,16 +145,7 @@ static const crypto_ops_t aes_crypto_ops = {
 	NULL,
 	&aes_cipher_ops,
 	&aes_mac_ops,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	&aes_ctx_ops
+	&aes_ctx_ops,
 };
 
 static const crypto_provider_info_t aes_prov_info = {

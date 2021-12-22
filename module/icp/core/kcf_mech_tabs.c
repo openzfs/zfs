@@ -85,18 +85,12 @@
 static kcf_mech_entry_t kcf_digest_mechs_tab[KCF_MAXDIGEST];
 static kcf_mech_entry_t kcf_cipher_mechs_tab[KCF_MAXCIPHER];
 static kcf_mech_entry_t kcf_mac_mechs_tab[KCF_MAXMAC];
-static kcf_mech_entry_t kcf_sign_mechs_tab[KCF_MAXSIGN];
-static kcf_mech_entry_t kcf_keyops_mechs_tab[KCF_MAXKEYOPS];
-static kcf_mech_entry_t kcf_misc_mechs_tab[KCF_MAXMISC];
 
 const kcf_mech_entry_tab_t kcf_mech_tabs_tab[KCF_LAST_OPSCLASS + 1] = {
 	{0, NULL},				/* No class zero */
 	{KCF_MAXDIGEST, kcf_digest_mechs_tab},
 	{KCF_MAXCIPHER, kcf_cipher_mechs_tab},
 	{KCF_MAXMAC, kcf_mac_mechs_tab},
-	{KCF_MAXSIGN, kcf_sign_mechs_tab},
-	{KCF_MAXKEYOPS, kcf_keyops_mechs_tab},
-	{KCF_MAXMISC, kcf_misc_mechs_tab}
 };
 
 /*
@@ -240,10 +234,6 @@ kcf_init_mech_tabs(void)
 	kcf_mac_mechs_tab[3].me_threshold = kcf_sha1_threshold;
 
 
-	/* 1 random number generation pseudo mechanism */
-	(void) strncpy(kcf_misc_mechs_tab[0].me_name, SUN_RANDOM,
-	    CRYPTO_MAX_MECH_NAME);
-
 	kcf_mech_hash = mod_hash_create_strhash_nodtr("kcf mech2id hash",
 	    kcf_mech_hash_size, mod_hash_null_valdtor);
 
@@ -376,13 +366,8 @@ kcf_add_mech_provider(short mech_indx,
 	int error;
 	kcf_mech_entry_t *mech_entry = NULL;
 	crypto_mech_info_t *mech_info;
-	crypto_mech_type_t kcf_mech_type, mt;
-	kcf_prov_mech_desc_t *prov_mech, *prov_mech2;
-	crypto_func_group_t simple_fg_mask, dual_fg_mask;
-	crypto_mech_info_t *dmi;
-	crypto_mech_info_list_t *mil, *mil2;
-	kcf_mech_entry_t *me;
-	int i;
+	crypto_mech_type_t kcf_mech_type;
+	kcf_prov_mech_desc_t *prov_mech;
 
 	ASSERT(prov_desc->pd_prov_type != CRYPTO_LOGICAL_PROVIDER);
 
@@ -406,19 +391,8 @@ kcf_add_mech_provider(short mech_indx,
 			class = KCF_CIPHER_CLASS;
 		else if (fg & CRYPTO_FG_MAC || fg & CRYPTO_FG_MAC_ATOMIC)
 			class = KCF_MAC_CLASS;
-		else if (fg & CRYPTO_FG_SIGN || fg & CRYPTO_FG_VERIFY ||
-		    fg & CRYPTO_FG_SIGN_ATOMIC ||
-		    fg & CRYPTO_FG_VERIFY_ATOMIC ||
-		    fg & CRYPTO_FG_SIGN_RECOVER ||
-		    fg & CRYPTO_FG_VERIFY_RECOVER)
-			class = KCF_SIGN_CLASS;
-		else if (fg & CRYPTO_FG_GENERATE ||
-		    fg & CRYPTO_FG_GENERATE_KEY_PAIR ||
-		    fg & CRYPTO_FG_WRAP || fg & CRYPTO_FG_UNWRAP ||
-		    fg & CRYPTO_FG_DERIVE)
-			class = KCF_KEYOPS_CLASS;
 		else
-			class = KCF_MISC_CLASS;
+			__builtin_unreachable();
 
 		/*
 		 * Attempt to create a new mech_entry for the specified
@@ -447,95 +421,6 @@ kcf_add_mech_provider(short mech_indx,
 	KCF_PROV_REFHOLD(prov_desc);
 	KCF_PROV_IREFHOLD(prov_desc);
 
-	dual_fg_mask = mech_info->cm_func_group_mask & CRYPTO_FG_DUAL_MASK;
-
-	if (dual_fg_mask == ((crypto_func_group_t)0))
-		goto add_entry;
-
-	simple_fg_mask = (mech_info->cm_func_group_mask &
-	    CRYPTO_FG_SIMPLEOP_MASK) | CRYPTO_FG_RANDOM;
-
-	for (i = 0; i < prov_desc->pd_mech_list_count; i++) {
-		dmi = &prov_desc->pd_mechanisms[i];
-
-		/* skip self */
-		if (dmi->cm_mech_number == mech_info->cm_mech_number)
-			continue;
-
-		/* skip if not a dual operation mechanism */
-		if (!(dmi->cm_func_group_mask & dual_fg_mask) ||
-		    (dmi->cm_func_group_mask & simple_fg_mask))
-			continue;
-
-		mt = kcf_mech_hash_find(dmi->cm_mech_name);
-		if (mt == CRYPTO_MECH_INVALID)
-			continue;
-
-		if (kcf_get_mech_entry(mt, &me) != KCF_SUCCESS)
-			continue;
-
-		mil = kmem_zalloc(sizeof (*mil), KM_SLEEP);
-		mil2 = kmem_zalloc(sizeof (*mil2), KM_SLEEP);
-
-		/*
-		 * Ignore hard-coded entries in the mech table
-		 * if the provider hasn't registered.
-		 */
-		mutex_enter(&me->me_mutex);
-		if (me->me_hw_prov_chain == NULL && me->me_sw_prov == NULL) {
-			mutex_exit(&me->me_mutex);
-			kmem_free(mil, sizeof (*mil));
-			kmem_free(mil2, sizeof (*mil2));
-			continue;
-		}
-
-		/*
-		 * Add other dual mechanisms that have registered
-		 * with the framework to this mechanism's
-		 * cross-reference list.
-		 */
-		mil->ml_mech_info = *dmi; /* struct assignment */
-		mil->ml_kcf_mechid = mt;
-
-		/* add to head of list */
-		mil->ml_next = prov_mech->pm_mi_list;
-		prov_mech->pm_mi_list = mil;
-
-		if (prov_desc->pd_prov_type == CRYPTO_HW_PROVIDER)
-			prov_mech2 = me->me_hw_prov_chain;
-		else
-			prov_mech2 = me->me_sw_prov;
-
-		if (prov_mech2 == NULL) {
-			kmem_free(mil2, sizeof (*mil2));
-			mutex_exit(&me->me_mutex);
-			continue;
-		}
-
-		/*
-		 * Update all other cross-reference lists by
-		 * adding this new mechanism.
-		 */
-		while (prov_mech2 != NULL) {
-			if (prov_mech2->pm_prov_desc == prov_desc) {
-				/* struct assignment */
-				mil2->ml_mech_info = *mech_info;
-				mil2->ml_kcf_mechid = kcf_mech_type;
-
-				/* add to head of list */
-				mil2->ml_next = prov_mech2->pm_mi_list;
-				prov_mech2->pm_mi_list = mil2;
-				break;
-			}
-			prov_mech2 = prov_mech2->pm_next;
-		}
-		if (prov_mech2 == NULL)
-			kmem_free(mil2, sizeof (*mil2));
-
-		mutex_exit(&me->me_mutex);
-	}
-
-add_entry:
 	/*
 	 * Add new kcf_prov_mech_desc at the front of HW providers
 	 * chain.

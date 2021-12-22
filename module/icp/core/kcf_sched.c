@@ -66,8 +66,6 @@ static kcf_stats_t kcf_ksdata = {
 static kstat_t *kcf_misc_kstat = NULL;
 ulong_t kcf_swprov_hndl = 0;
 
-static kcf_areq_node_t *kcf_areqnode_alloc(kcf_provider_desc_t *,
-    kcf_context_t *, crypto_call_req_t *, kcf_req_params_t *, boolean_t);
 static int kcf_disp_sw_request(kcf_areq_node_t *);
 static void process_req_hwp(void *);
 static int kcf_enqueue(kcf_areq_node_t *);
@@ -121,7 +119,7 @@ kcf_new_ctx(crypto_call_req_t *crq, kcf_provider_desc_t *pd,
  */
 static kcf_areq_node_t *
 kcf_areqnode_alloc(kcf_provider_desc_t *pd, kcf_context_t *ictx,
-    crypto_call_req_t *crq, kcf_req_params_t *req, boolean_t isdual)
+    crypto_call_req_t *crq, kcf_req_params_t *req)
 {
 	kcf_areq_node_t	*arptr, *areq;
 
@@ -134,7 +132,6 @@ kcf_areqnode_alloc(kcf_provider_desc_t *pd, kcf_context_t *ictx,
 	arptr->an_reqarg = *crq;
 	arptr->an_params = *req;
 	arptr->an_context = ictx;
-	arptr->an_isdual = isdual;
 
 	arptr->an_next = arptr->an_prev = NULL;
 	KCF_PROV_REFHOLD(pd);
@@ -342,17 +339,16 @@ bail:
 /*
  * This routine checks if a request can be retried on another
  * provider. If true, mech1 is initialized to point to the mechanism
- * structure. mech2 is also initialized in case of a dual operation. fg
- * is initialized to the correct crypto_func_group_t bit flag. They are
- * initialized by this routine, so that the caller can pass them to a
- * kcf_get_mech_provider() or kcf_get_dual_provider() with no further change.
+ * structure. fg is initialized to the correct crypto_func_group_t bit flag.
+ * They are initialized by this routine, so that the caller can pass them to
+ * kcf_get_mech_provider() with no further change.
  *
  * We check that the request is for a init or atomic routine and that
  * it is for one of the operation groups used from k-api .
  */
 static boolean_t
 can_resubmit(kcf_areq_node_t *areq, crypto_mechanism_t **mech1,
-    crypto_mechanism_t **mech2, crypto_func_group_t *fg)
+    crypto_func_group_t *fg)
 {
 	kcf_req_params_t *params;
 	kcf_op_type_t optype;
@@ -384,44 +380,6 @@ can_resubmit(kcf_areq_node_t *areq, crypto_mechanism_t **mech1,
 		break;
 	}
 
-	case KCF_OG_SIGN: {
-		kcf_sign_ops_params_t *sops = &params->rp_u.sign_params;
-
-		sops->so_mech.cm_type = sops->so_framework_mechtype;
-		*mech1 = &sops->so_mech;
-		switch (optype) {
-		case KCF_OP_INIT:
-			*fg = CRYPTO_FG_SIGN;
-			break;
-		case KCF_OP_ATOMIC:
-			*fg = CRYPTO_FG_SIGN_ATOMIC;
-			break;
-		default:
-			ASSERT(optype == KCF_OP_SIGN_RECOVER_ATOMIC);
-			*fg = CRYPTO_FG_SIGN_RECOVER_ATOMIC;
-		}
-		break;
-	}
-
-	case KCF_OG_VERIFY: {
-		kcf_verify_ops_params_t *vops = &params->rp_u.verify_params;
-
-		vops->vo_mech.cm_type = vops->vo_framework_mechtype;
-		*mech1 = &vops->vo_mech;
-		switch (optype) {
-		case KCF_OP_INIT:
-			*fg = CRYPTO_FG_VERIFY;
-			break;
-		case KCF_OP_ATOMIC:
-			*fg = CRYPTO_FG_VERIFY_ATOMIC;
-			break;
-		default:
-			ASSERT(optype == KCF_OP_VERIFY_RECOVER_ATOMIC);
-			*fg = CRYPTO_FG_VERIFY_RECOVER_ATOMIC;
-		}
-		break;
-	}
-
 	case KCF_OG_ENCRYPT: {
 		kcf_encrypt_ops_params_t *eops = &params->rp_u.encrypt_params;
 
@@ -439,32 +397,6 @@ can_resubmit(kcf_areq_node_t *areq, crypto_mechanism_t **mech1,
 		*mech1 = &dcrops->dop_mech;
 		*fg = (optype == KCF_OP_INIT) ? CRYPTO_FG_DECRYPT :
 		    CRYPTO_FG_DECRYPT_ATOMIC;
-		break;
-	}
-
-	case KCF_OG_ENCRYPT_MAC: {
-		kcf_encrypt_mac_ops_params_t *eops =
-		    &params->rp_u.encrypt_mac_params;
-
-		eops->em_encr_mech.cm_type = eops->em_framework_encr_mechtype;
-		*mech1 = &eops->em_encr_mech;
-		eops->em_mac_mech.cm_type = eops->em_framework_mac_mechtype;
-		*mech2 = &eops->em_mac_mech;
-		*fg = (optype == KCF_OP_INIT) ? CRYPTO_FG_ENCRYPT_MAC :
-		    CRYPTO_FG_ENCRYPT_MAC_ATOMIC;
-		break;
-	}
-
-	case KCF_OG_MAC_DECRYPT: {
-		kcf_mac_decrypt_ops_params_t *dops =
-		    &params->rp_u.mac_decrypt_params;
-
-		dops->md_mac_mech.cm_type = dops->md_framework_mac_mechtype;
-		*mech1 = &dops->md_mac_mech;
-		dops->md_decr_mech.cm_type = dops->md_framework_decr_mechtype;
-		*mech2 = &dops->md_decr_mech;
-		*fg = (optype == KCF_OP_INIT) ? CRYPTO_FG_MAC_DECRYPT :
-		    CRYPTO_FG_MAC_DECRYPT_ATOMIC;
 		break;
 	}
 
@@ -491,11 +423,10 @@ kcf_resubmit_request(kcf_areq_node_t *areq)
 	kcf_context_t *ictx;
 	kcf_provider_desc_t *old_pd;
 	kcf_provider_desc_t *new_pd;
-	crypto_mechanism_t *mech1 = NULL, *mech2 = NULL;
-	crypto_mech_type_t prov_mt1, prov_mt2;
+	crypto_mechanism_t *mech1 = NULL;
 	crypto_func_group_t fg = 0;
 
-	if (!can_resubmit(areq, &mech1, &mech2, &fg))
+	if (!can_resubmit(areq, &mech1, &fg))
 		return (error);
 
 	old_pd = areq->an_provider;
@@ -508,17 +439,9 @@ kcf_resubmit_request(kcf_areq_node_t *areq)
 	    KM_NOSLEEP) == NULL)
 		return (error);
 
-	if (mech1 && !mech2) {
-		new_pd = kcf_get_mech_provider(mech1->cm_type, NULL, &error,
-		    areq->an_tried_plist, fg,
-		    (areq->an_reqarg.cr_flag & CRYPTO_RESTRICTED), 0);
-	} else {
-		ASSERT(mech1 != NULL && mech2 != NULL);
-
-		new_pd = kcf_get_dual_provider(mech1, mech2, NULL, &prov_mt1,
-		    &prov_mt2, &error, areq->an_tried_plist, fg, fg,
-		    (areq->an_reqarg.cr_flag & CRYPTO_RESTRICTED), 0);
-	}
+	new_pd = kcf_get_mech_provider(mech1->cm_type, NULL, &error,
+	    areq->an_tried_plist, fg,
+	    (areq->an_reqarg.cr_flag & CRYPTO_RESTRICTED), 0);
 
 	if (new_pd == NULL)
 		return (error);
@@ -588,7 +511,7 @@ kcf_resubmit_request(kcf_areq_node_t *areq)
  */
 int
 kcf_submit_request(kcf_provider_desc_t *pd, crypto_ctx_t *ctx,
-    crypto_call_req_t *crq, kcf_req_params_t *params, boolean_t cont)
+    crypto_call_req_t *crq, kcf_req_params_t *params)
 {
 	int error = CRYPTO_SUCCESS;
 	kcf_areq_node_t *areq;
@@ -703,16 +626,14 @@ kcf_submit_request(kcf_provider_desc_t *pd, crypto_ctx_t *ctx,
 				 * queue the request and return.
 				 */
 				areq = kcf_areqnode_alloc(pd, kcf_ctx, crq,
-				    params, cont);
+				    params);
 				if (areq == NULL)
 					error = CRYPTO_HOST_MEMORY;
 				else {
 					if (!(crq->cr_flag
 					    & CRYPTO_SKIP_REQID)) {
 					/*
-					 * Set the request handle. This handle
-					 * is used for any crypto_cancel_req(9f)
-					 * calls from the consumer. We have to
+					 * Set the request handle. We have to
 					 * do this before dispatching the
 					 * request.
 					 */
@@ -739,8 +660,7 @@ kcf_submit_request(kcf_provider_desc_t *pd, crypto_ctx_t *ctx,
 			/*
 			 * We need to queue the request and return.
 			 */
-			areq = kcf_areqnode_alloc(pd, kcf_ctx, crq, params,
-			    cont);
+			areq = kcf_areqnode_alloc(pd, kcf_ctx, crq, params);
 			if (areq == NULL) {
 				error = CRYPTO_HOST_MEMORY;
 				goto done;
@@ -760,10 +680,8 @@ kcf_submit_request(kcf_provider_desc_t *pd, crypto_ctx_t *ctx,
 
 			if (!(crq->cr_flag & CRYPTO_SKIP_REQID)) {
 			/*
-			 * Set the request handle. This handle is used
-			 * for any crypto_cancel_req(9f) calls from the
-			 * consumer. We have to do this before dispatching
-			 * the request.
+			 * Set the request handle. We have to do this
+			 * before dispatching the request.
 			 */
 			crq->cr_reqid = kcf_reqid_insert(areq);
 			}
@@ -854,66 +772,6 @@ kcf_free_req(kcf_areq_node_t *areq)
 	if (areq->an_tried_plist != NULL)
 		kcf_free_triedlist(areq->an_tried_plist);
 	kmem_cache_free(kcf_areq_cache, areq);
-}
-
-/*
- * Utility routine to remove a request from the chain of requests
- * hanging off a context.
- */
-static void
-kcf_removereq_in_ctxchain(kcf_context_t *ictx, kcf_areq_node_t *areq)
-{
-	kcf_areq_node_t *cur, *prev;
-
-	/*
-	 * Get context lock, search for areq in the chain and remove it.
-	 */
-	ASSERT(ictx != NULL);
-	mutex_enter(&ictx->kc_in_use_lock);
-	prev = cur = ictx->kc_req_chain_first;
-
-	while (cur != NULL) {
-		if (cur == areq) {
-			if (prev == cur) {
-				if ((ictx->kc_req_chain_first =
-				    cur->an_ctxchain_next) == NULL)
-					ictx->kc_req_chain_last = NULL;
-			} else {
-				if (cur == ictx->kc_req_chain_last)
-					ictx->kc_req_chain_last = prev;
-				prev->an_ctxchain_next = cur->an_ctxchain_next;
-			}
-
-			break;
-		}
-		prev = cur;
-		cur = cur->an_ctxchain_next;
-	}
-	mutex_exit(&ictx->kc_in_use_lock);
-}
-
-/*
- * Remove the specified node from the global software queue.
- *
- * The caller must hold the queue lock and request lock (an_lock).
- */
-static void
-kcf_remove_node(kcf_areq_node_t *node)
-{
-	kcf_areq_node_t *nextp = node->an_next;
-	kcf_areq_node_t *prevp = node->an_prev;
-
-	if (nextp != NULL)
-		nextp->an_prev = prevp;
-	else
-		gswq->gs_last = prevp;
-
-	if (prevp != NULL)
-		prevp->an_next = nextp;
-	else
-		gswq->gs_first = nextp;
-
-	node->an_state = REQ_CANCELED;
 }
 
 /*
@@ -1224,19 +1082,6 @@ kcf_aop_done(kcf_areq_node_t *areq, int error)
 		}
 	}
 
-	/* Deal with the internal continuation to this request first */
-
-	if (areq->an_isdual) {
-		kcf_dual_req_t *next_arg;
-		next_arg = (kcf_dual_req_t *)areq->an_reqarg.cr_callback_arg;
-		next_arg->kr_areq = areq;
-		KCF_AREQ_REFHOLD(areq);
-		areq->an_isdual = B_FALSE;
-
-		NOTIFY_CLIENT(areq, error);
-		return;
-	}
-
 	/*
 	 * If CRYPTO_NOTIFY_OPDONE flag is set, we should notify
 	 * always. If this flag is clear, we skip the notification
@@ -1345,146 +1190,6 @@ kcf_reqid_delete(kcf_areq_node_t *areq)
 }
 
 /*
- * Cancel a single asynchronous request.
- *
- * We guarantee that no problems will result from calling
- * crypto_cancel_req() for a request which is either running, or
- * has already completed. We remove the request from any queues
- * if it is possible. We wait for request completion if the
- * request is dispatched to a provider.
- *
- * Calling context:
- * 	Can be called from user context only.
- *
- * NOTE: We acquire the following locks in this routine (in order):
- *	- rt_lock (kcf_reqid_table_t)
- *	- gswq->gs_lock
- *	- areq->an_lock
- *	- ictx->kc_in_use_lock (from kcf_removereq_in_ctxchain())
- *
- * This locking order MUST be maintained in code every where else.
- */
-void
-crypto_cancel_req(crypto_req_id_t id)
-{
-	int indx;
-	kcf_areq_node_t *areq;
-	kcf_provider_desc_t *pd;
-	kcf_context_t *ictx;
-	kcf_reqid_table_t *rt;
-
-	rt = kcf_reqid_table[id & REQID_TABLE_MASK];
-	indx = REQID_HASH(id);
-
-	mutex_enter(&rt->rt_lock);
-	for (areq = rt->rt_idhash[indx]; areq; areq = areq->an_idnext) {
-	if (GET_REQID(areq) == id) {
-		/*
-		 * We found the request. It is either still waiting
-		 * in the framework queues or running at the provider.
-		 */
-		pd = areq->an_provider;
-		ASSERT(pd != NULL);
-
-		switch (pd->pd_prov_type) {
-		case CRYPTO_SW_PROVIDER:
-			mutex_enter(&gswq->gs_lock);
-			mutex_enter(&areq->an_lock);
-
-			/* This request can be safely canceled. */
-			if (areq->an_state <= REQ_WAITING) {
-				/* Remove from gswq, global software queue. */
-				kcf_remove_node(areq);
-				if ((ictx = areq->an_context) != NULL)
-					kcf_removereq_in_ctxchain(ictx, areq);
-
-				mutex_exit(&areq->an_lock);
-				mutex_exit(&gswq->gs_lock);
-				mutex_exit(&rt->rt_lock);
-
-				/* Remove areq from hash table and free it. */
-				kcf_reqid_delete(areq);
-				KCF_AREQ_REFRELE(areq);
-				return;
-			}
-
-			mutex_exit(&areq->an_lock);
-			mutex_exit(&gswq->gs_lock);
-			break;
-
-		case CRYPTO_HW_PROVIDER:
-			/*
-			 * There is no interface to remove an entry
-			 * once it is on the taskq. So, we do not do
-			 * anything for a hardware provider.
-			 */
-			break;
-		default:
-			break;
-		}
-
-		/*
-		 * The request is running. Wait for the request completion
-		 * to notify us.
-		 */
-		KCF_AREQ_REFHOLD(areq);
-		while (GET_REQID(areq) == id)
-			cv_wait(&areq->an_done, &rt->rt_lock);
-		KCF_AREQ_REFRELE(areq);
-		break;
-	}
-	}
-
-	mutex_exit(&rt->rt_lock);
-}
-
-/*
- * Cancel all asynchronous requests associated with the
- * passed in crypto context and free it.
- *
- * A client SHOULD NOT call this routine after calling a crypto_*_final
- * routine. This routine is called only during intermediate operations.
- * The client should not use the crypto context after this function returns
- * since we destroy it.
- *
- * Calling context:
- * 	Can be called from user context only.
- */
-void
-crypto_cancel_ctx(crypto_context_t ctx)
-{
-	kcf_context_t *ictx;
-	kcf_areq_node_t *areq;
-
-	if (ctx == NULL)
-		return;
-
-	ictx = (kcf_context_t *)((crypto_ctx_t *)ctx)->cc_framework_private;
-
-	mutex_enter(&ictx->kc_in_use_lock);
-
-	/* Walk the chain and cancel each request */
-	while ((areq = ictx->kc_req_chain_first) != NULL) {
-		/*
-		 * We have to drop the lock here as we may have
-		 * to wait for request completion. We hold the
-		 * request before dropping the lock though, so that it
-		 * won't be freed underneath us.
-		 */
-		KCF_AREQ_REFHOLD(areq);
-		mutex_exit(&ictx->kc_in_use_lock);
-
-		crypto_cancel_req(GET_REQID(areq));
-		KCF_AREQ_REFRELE(areq);
-
-		mutex_enter(&ictx->kc_in_use_lock);
-	}
-
-	mutex_exit(&ictx->kc_in_use_lock);
-	KCF_CONTEXT_REFRELE(ictx);
-}
-
-/*
  * Update kstats.
  */
 static int
@@ -1516,251 +1221,4 @@ kcf_misc_kstat_update(kstat_t *ksp, int rw)
 	ks_data->ks_taskq_maxalloc.value.ui32 = crypto_taskq_maxalloc;
 
 	return (0);
-}
-
-/*
- * Allocate and initialize a kcf_dual_req, used for saving the arguments of
- * a dual operation or an atomic operation that has to be internally
- * simulated with multiple single steps.
- * crq determines the memory allocation flags.
- */
-
-kcf_dual_req_t *
-kcf_alloc_req(crypto_call_req_t *crq)
-{
-	kcf_dual_req_t *kcr;
-
-	kcr = kmem_alloc(sizeof (kcf_dual_req_t), KCF_KMFLAG(crq));
-
-	if (kcr == NULL)
-		return (NULL);
-
-	/* Copy the whole crypto_call_req struct, as it isn't persistent */
-	if (crq != NULL)
-		kcr->kr_callreq = *crq;
-	else
-		bzero(&(kcr->kr_callreq), sizeof (crypto_call_req_t));
-	kcr->kr_areq = NULL;
-	kcr->kr_saveoffset = 0;
-	kcr->kr_savelen = 0;
-
-	return (kcr);
-}
-
-/*
- * Callback routine for the next part of a simulated dual part.
- * Schedules the next step.
- *
- * This routine can be called from interrupt context.
- */
-void
-kcf_next_req(void *next_req_arg, int status)
-{
-	kcf_dual_req_t *next_req = (kcf_dual_req_t *)next_req_arg;
-	kcf_req_params_t *params = &(next_req->kr_params);
-	kcf_areq_node_t *areq = next_req->kr_areq;
-	int error = status;
-	kcf_provider_desc_t *pd = NULL;
-	crypto_dual_data_t *ct = NULL;
-
-	/* Stop the processing if an error occurred at this step */
-	if (error != CRYPTO_SUCCESS) {
-out:
-		areq->an_reqarg = next_req->kr_callreq;
-		KCF_AREQ_REFRELE(areq);
-		kmem_free(next_req, sizeof (kcf_dual_req_t));
-		areq->an_isdual = B_FALSE;
-		kcf_aop_done(areq, error);
-		return;
-	}
-
-	switch (params->rp_opgrp) {
-	case KCF_OG_MAC: {
-
-		/*
-		 * The next req is submitted with the same reqid as the
-		 * first part. The consumer only got back that reqid, and
-		 * should still be able to cancel the operation during its
-		 * second step.
-		 */
-		kcf_mac_ops_params_t *mops = &(params->rp_u.mac_params);
-		crypto_ctx_template_t mac_tmpl;
-		kcf_mech_entry_t *me;
-
-		ct = (crypto_dual_data_t *)mops->mo_data;
-		mac_tmpl = (crypto_ctx_template_t)mops->mo_templ;
-
-		/* No expected recoverable failures, so no retry list */
-		pd = kcf_get_mech_provider(mops->mo_framework_mechtype,
-		    &me, &error, NULL, CRYPTO_FG_MAC_ATOMIC,
-		    (areq->an_reqarg.cr_flag & CRYPTO_RESTRICTED), ct->dd_len2);
-
-		if (pd == NULL) {
-			error = CRYPTO_MECH_NOT_SUPPORTED;
-			goto out;
-		}
-		/* Validate the MAC context template here */
-		if ((pd->pd_prov_type == CRYPTO_SW_PROVIDER) &&
-		    (mac_tmpl != NULL)) {
-			kcf_ctx_template_t *ctx_mac_tmpl;
-
-			ctx_mac_tmpl = (kcf_ctx_template_t *)mac_tmpl;
-
-			if (ctx_mac_tmpl->ct_generation != me->me_gen_swprov) {
-				KCF_PROV_REFRELE(pd);
-				error = CRYPTO_OLD_CTX_TEMPLATE;
-				goto out;
-			}
-			mops->mo_templ = ctx_mac_tmpl->ct_prov_tmpl;
-		}
-
-		break;
-	}
-	case KCF_OG_DECRYPT: {
-		kcf_decrypt_ops_params_t *dcrops =
-		    &(params->rp_u.decrypt_params);
-
-		ct = (crypto_dual_data_t *)dcrops->dop_ciphertext;
-		/* No expected recoverable failures, so no retry list */
-		pd = kcf_get_mech_provider(dcrops->dop_framework_mechtype,
-		    NULL, &error, NULL, CRYPTO_FG_DECRYPT_ATOMIC,
-		    (areq->an_reqarg.cr_flag & CRYPTO_RESTRICTED), ct->dd_len1);
-
-		if (pd == NULL) {
-			error = CRYPTO_MECH_NOT_SUPPORTED;
-			goto out;
-		}
-		break;
-	}
-	default:
-		break;
-	}
-
-	/* The second step uses len2 and offset2 of the dual_data */
-	next_req->kr_saveoffset = ct->dd_offset1;
-	next_req->kr_savelen = ct->dd_len1;
-	ct->dd_offset1 = ct->dd_offset2;
-	ct->dd_len1 = ct->dd_len2;
-
-	/* preserve if the caller is restricted */
-	if (areq->an_reqarg.cr_flag & CRYPTO_RESTRICTED) {
-		areq->an_reqarg.cr_flag = CRYPTO_RESTRICTED;
-	} else {
-		areq->an_reqarg.cr_flag = 0;
-	}
-
-	areq->an_reqarg.cr_callback_func = kcf_last_req;
-	areq->an_reqarg.cr_callback_arg = next_req;
-	areq->an_isdual = B_TRUE;
-
-	/*
-	 * We would like to call kcf_submit_request() here. But,
-	 * that is not possible as that routine allocates a new
-	 * kcf_areq_node_t request structure, while we need to
-	 * reuse the existing request structure.
-	 */
-	switch (pd->pd_prov_type) {
-	case CRYPTO_SW_PROVIDER:
-		error = common_submit_request(pd, NULL, params,
-		    KCF_RHNDL(KM_NOSLEEP));
-		break;
-
-	case CRYPTO_HW_PROVIDER: {
-		kcf_provider_desc_t *old_pd;
-		taskq_t *taskq = pd->pd_sched_info.ks_taskq;
-
-		/*
-		 * Set the params for the second step in the
-		 * dual-ops.
-		 */
-		areq->an_params = *params;
-		old_pd = areq->an_provider;
-		KCF_PROV_REFRELE(old_pd);
-		KCF_PROV_REFHOLD(pd);
-		areq->an_provider = pd;
-
-		/*
-		 * Note that we have to do a taskq_dispatch()
-		 * here as we may be in interrupt context.
-		 */
-		if (taskq_dispatch(taskq, process_req_hwp, areq,
-		    TQ_NOSLEEP) == (taskqid_t)0) {
-			error = CRYPTO_HOST_MEMORY;
-		} else {
-			error = CRYPTO_QUEUED;
-		}
-		break;
-	}
-	default:
-		break;
-	}
-
-	/*
-	 * We have to release the holds on the request and the provider
-	 * in all cases.
-	 */
-	KCF_AREQ_REFRELE(areq);
-	KCF_PROV_REFRELE(pd);
-
-	if (error != CRYPTO_QUEUED) {
-		/* restore, clean up, and invoke the client's callback */
-
-		ct->dd_offset1 = next_req->kr_saveoffset;
-		ct->dd_len1 = next_req->kr_savelen;
-		areq->an_reqarg = next_req->kr_callreq;
-		kmem_free(next_req, sizeof (kcf_dual_req_t));
-		areq->an_isdual = B_FALSE;
-		kcf_aop_done(areq, error);
-	}
-}
-
-/*
- * Last part of an emulated dual operation.
- * Clean up and restore ...
- */
-void
-kcf_last_req(void *last_req_arg, int status)
-{
-	kcf_dual_req_t *last_req = (kcf_dual_req_t *)last_req_arg;
-
-	kcf_req_params_t *params = &(last_req->kr_params);
-	kcf_areq_node_t *areq = last_req->kr_areq;
-	crypto_dual_data_t *ct = NULL;
-
-	switch (params->rp_opgrp) {
-	case KCF_OG_MAC: {
-		kcf_mac_ops_params_t *mops = &(params->rp_u.mac_params);
-
-		ct = (crypto_dual_data_t *)mops->mo_data;
-		break;
-	}
-	case KCF_OG_DECRYPT: {
-		kcf_decrypt_ops_params_t *dcrops =
-		    &(params->rp_u.decrypt_params);
-
-		ct = (crypto_dual_data_t *)dcrops->dop_ciphertext;
-		break;
-	}
-	default: {
-		panic("invalid kcf_op_group_t %d", (int)params->rp_opgrp);
-		return;
-	}
-	}
-	ct->dd_offset1 = last_req->kr_saveoffset;
-	ct->dd_len1 = last_req->kr_savelen;
-
-	/* The submitter used kcf_last_req as its callback */
-
-	if (areq == NULL) {
-		crypto_call_req_t *cr = &last_req->kr_callreq;
-
-		(*(cr->cr_callback_func))(cr->cr_callback_arg, status);
-		kmem_free(last_req, sizeof (kcf_dual_req_t));
-		return;
-	}
-	areq->an_reqarg = last_req->kr_callreq;
-	KCF_AREQ_REFRELE(areq);
-	kmem_free(last_req, sizeof (kcf_dual_req_t));
-	areq->an_isdual = B_FALSE;
-	kcf_aop_done(areq, status);
 }

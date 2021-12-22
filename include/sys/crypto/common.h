@@ -253,20 +253,6 @@ typedef struct crypto_data {
 #define	cd_uio		cdu.cdu_uio
 #define	cd_mp		cdu.cdu_mp
 
-typedef struct crypto_dual_data {
-	crypto_data_t		dd_data;	/* The data */
-	off_t			dd_offset2;	/* Used by dual operation */
-	size_t			dd_len2;	/* # of bytes to take	*/
-} crypto_dual_data_t;
-
-#define	dd_format	dd_data.cd_format
-#define	dd_offset1	dd_data.cd_offset
-#define	dd_len1		dd_data.cd_length
-#define	dd_miscdata	dd_data.cd_miscdata
-#define	dd_raw		dd_data.cd_raw
-#define	dd_uio		dd_data.cd_uio
-#define	dd_mp		dd_data.cd_mp
-
 /* The keys, and their contents */
 
 typedef enum {
@@ -430,26 +416,6 @@ typedef void *crypto_provider_t;
 #define	CRYPTO_EXT_SIZE_SERIAL		16
 #define	CRYPTO_EXT_SIZE_TIME		16
 
-typedef struct crypto_provider_ext_info {
-	uchar_t			ei_label[CRYPTO_EXT_SIZE_LABEL];
-	uchar_t			ei_manufacturerID[CRYPTO_EXT_SIZE_MANUF];
-	uchar_t			ei_model[CRYPTO_EXT_SIZE_MODEL];
-	uchar_t			ei_serial_number[CRYPTO_EXT_SIZE_SERIAL];
-	ulong_t			ei_flags;
-	ulong_t			ei_max_session_count;
-	ulong_t			ei_max_pin_len;
-	ulong_t			ei_min_pin_len;
-	ulong_t			ei_total_public_memory;
-	ulong_t			ei_free_public_memory;
-	ulong_t			ei_total_private_memory;
-	ulong_t			ei_free_private_memory;
-	crypto_version_t	ei_hardware_version;
-	crypto_version_t	ei_firmware_version;
-	uchar_t			ei_time[CRYPTO_EXT_SIZE_TIME];
-	int			ei_hash_max_input_len;
-	int			ei_hmac_max_input_len;
-} crypto_provider_ext_info_t;
-
 typedef uint_t		crypto_session_id_t;
 
 typedef enum cmd_type {
@@ -565,16 +531,6 @@ typedef enum cmd_type {
  * in kernelUtil.c when new error code is added.
  */
 #define	CRYPTO_LAST_ERROR			0x00000053
-
-/*
- * Special values that can be used to indicate that information is unavailable
- * or that there is not practical limit. These values can be used
- * by fields of the SPI crypto_provider_ext_info(9S) structure.
- * The value of CRYPTO_UNAVAILABLE_INFO should be the same as
- * CK_UNAVAILABLE_INFO in the PKCS#11 spec.
- */
-#define	CRYPTO_UNAVAILABLE_INFO		((ulong_t)(-1))
-#define	CRYPTO_EFFECTIVELY_INFINITE	0x0
 
 #ifdef __cplusplus
 }

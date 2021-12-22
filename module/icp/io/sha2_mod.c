@@ -161,16 +161,7 @@ static const crypto_ops_t sha2_crypto_ops = {
 	&sha2_digest_ops,
 	NULL,
 	&sha2_mac_ops,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	&sha2_ctx_ops
+	&sha2_ctx_ops,
 };
 
 static const crypto_provider_info_t sha2_prov_info = {
