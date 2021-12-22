@@ -13,9 +13,9 @@
 # Email address of the zpool administrator for receipt of notifications;
 #   multiple addresses can be specified if they are delimited by whitespace.
 # Email will only be sent if ZED_EMAIL_ADDR is defined.
-# Disabled by default; uncomment to enable.
+# Enabled by default; comment to disable.
 #
-#ZED_EMAIL_ADDR="root"
+ZED_EMAIL_ADDR="root"
 
 ##
 # Name or path of executable responsible for sending notifications via email;
