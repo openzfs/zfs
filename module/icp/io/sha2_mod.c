@@ -25,31 +25,12 @@
  */
 
 #include <sys/zfs_context.h>
-#include <sys/modctl.h>
 #include <sys/crypto/common.h>
 #include <sys/crypto/spi.h>
 #include <sys/crypto/icp.h>
 #define	_SHA2_IMPL
 #include <sys/sha2.h>
 #include <sha2/sha2_impl.h>
-
-/*
- * The sha2 module is created with two modlinkages:
- * - a modlmisc that allows consumers to directly call the entry points
- *   SHA2Init, SHA2Update, and SHA2Final.
- * - a modlcrypto that allows the module to register with the Kernel
- *   Cryptographic Framework (KCF) as a software provider for the SHA2
- *   mechanisms.
- */
-
-static struct modlcrypto modlcrypto = {
-	&mod_cryptoops,
-	"SHA2 Kernel SW Provider"
-};
-
-static struct modlinkage modlinkage = {
-	MODREV_1, {&modlcrypto, NULL}
-};
 
 /*
  * Macros to access the SHA2 or SHA2-HMAC contexts from a context passed
@@ -216,9 +197,6 @@ sha2_mod_init(void)
 {
 	int ret;
 
-	if ((ret = mod_install(&modlinkage)) != 0)
-		return (ret);
-
 	/*
 	 * Register with KCF. If the registration fails, log an
 	 * error but do not uninstall the module, since the functionality
@@ -235,7 +213,7 @@ sha2_mod_init(void)
 int
 sha2_mod_fini(void)
 {
-	int ret;
+	int ret = 0;
 
 	if (sha2_prov_handle != 0) {
 		if ((ret = crypto_unregister_provider(sha2_prov_handle)) !=
@@ -248,7 +226,7 @@ sha2_mod_fini(void)
 		sha2_prov_handle = 0;
 	}
 
-	return (mod_remove(&modlinkage));
+	return (ret);
 }
 
 /*
