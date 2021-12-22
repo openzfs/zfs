@@ -509,7 +509,6 @@ typedef struct crypto_minor {
  * of type kcf_prov_desc_t.
  */
 
-#define	KCF_PROV_CONTROL_OPS(pd)	((pd)->pd_ops_vector->co_control_ops)
 #define	KCF_PROV_CTX_OPS(pd)		((pd)->pd_ops_vector->co_ctx_ops)
 #define	KCF_PROV_DIGEST_OPS(pd)		((pd)->pd_ops_vector->co_digest_ops)
 #define	KCF_PROV_CIPHER_OPS(pd)		((pd)->pd_ops_vector->co_cipher_ops)
@@ -527,17 +526,6 @@ typedef struct crypto_minor {
 #define	KCF_PROV_MECH_OPS(pd)		((pd)->pd_ops_vector->co_mech_ops)
 #define	KCF_PROV_NOSTORE_KEY_OPS(pd)	\
 	((pd)->pd_ops_vector->co_nostore_key_ops)
-
-/*
- * Wrappers for crypto_control_ops(9S) entry points.
- */
-
-#define	KCF_PROV_STATUS(pd, status) ( \
-	(KCF_PROV_CONTROL_OPS(pd) && \
-	KCF_PROV_CONTROL_OPS(pd)->provider_status) ? \
-	KCF_PROV_CONTROL_OPS(pd)->provider_status( \
-	    (pd)->pd_prov_handle, status) : \
-	CRYPTO_NOT_SUPPORTED)
 
 /*
  * Wrappers for crypto_ctx_ops(9S) entry points.

@@ -75,12 +75,6 @@ static const crypto_mech_info_t aes_mech_info_tab[] = {
 	    AES_MIN_KEY_BYTES, AES_MAX_KEY_BYTES, CRYPTO_KEYSIZE_UNIT_IN_BYTES}
 };
 
-static void aes_provider_status(crypto_provider_handle_t, uint_t *);
-
-static const crypto_control_ops_t aes_control_ops = {
-	aes_provider_status
-};
-
 static int aes_encrypt_init(crypto_ctx_t *, crypto_mechanism_t *,
     crypto_key_t *, crypto_spi_ctx_template_t, crypto_req_handle_t);
 static int aes_decrypt_init(crypto_ctx_t *, crypto_mechanism_t *,
@@ -150,7 +144,6 @@ static const crypto_ctx_ops_t aes_ctx_ops = {
 };
 
 static const crypto_ops_t aes_crypto_ops = {{{{{
-	&aes_control_ops,
 	NULL,
 	&aes_cipher_ops,
 	&aes_mac_ops,
@@ -282,16 +275,6 @@ init_keysched(crypto_key_t *key, void *newbie)
 
 	aes_init_keysched(key->ck_data, key->ck_length, newbie);
 	return (CRYPTO_SUCCESS);
-}
-
-/*
- * KCF software provider control entry points.
- */
-static void
-aes_provider_status(crypto_provider_handle_t provider, uint_t *status)
-{
-	(void) provider;
-	*status = CRYPTO_PROVIDER_READY;
 }
 
 static int
