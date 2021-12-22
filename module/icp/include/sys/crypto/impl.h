@@ -34,7 +34,6 @@
 #include <sys/crypto/common.h>
 #include <sys/crypto/api.h>
 #include <sys/crypto/spi.h>
-#include <sys/crypto/ioctl.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -1276,9 +1275,6 @@ void crypto_free_dev_list(crypto_dev_list_entry_t *list, uint_t count);
 
 /* Miscellaneous */
 int crypto_get_mechanism_number(caddr_t name, crypto_mech_type_t *number);
-int crypto_get_function_list(crypto_provider_id_t id,
-    crypto_function_list_t **list, int kmflag);
-void crypto_free_function_list(crypto_function_list_t *list);
 int crypto_build_permitted_mech_names(kcf_provider_desc_t *,
     crypto_mech_name_t **, uint_t *, int);
 extern void kcf_destroy_mech_tabs(void);
