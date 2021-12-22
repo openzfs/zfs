@@ -121,6 +121,13 @@ function cleanup_pool
 	log_must rm -rf $BACKDIR/*
 
 	if is_global_zone ; then
+		#
+		# Linux: Issuing a `df` seems to properly force any negative
+		# dcache entries to be invalidated preventing failures when
+		# accessing the mount point. Additional investigation required.
+		#
+		# https://github.com/openzfs/zfs/issues/6143
+		#
 		log_must df >/dev/null
 		log_must_busy zfs destroy -Rf $pool
 	else
