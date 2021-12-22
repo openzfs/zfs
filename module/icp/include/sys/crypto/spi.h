@@ -120,16 +120,6 @@ typedef struct crypto_ctx {
 #define	CRYPTO_EXTF_SO_PIN_TO_BE_CHANGED		0x00800000
 
 /*
- * The crypto_control_ops structure contains pointers to control
- * operations for cryptographic providers.  It is passed through
- * the crypto_ops(9S) structure when providers register with the
- * kernel using crypto_register_provider(9F).
- */
-typedef struct crypto_control_ops {
-	void (*provider_status)(crypto_provider_handle_t, uint_t *);
-} __no_const crypto_control_ops_t;
-
-/*
  * The crypto_ctx_ops structure contains points to context and context
  * templates management operations for cryptographic providers. It is
  * passed through the crypto_ops(9S) structure when providers register
@@ -498,7 +488,6 @@ typedef struct crypto_nostore_key_ops {
  * by calling crypto_register_provider(9F).
  */
 typedef struct crypto_ops_v1 {
-	const crypto_control_ops_t			*co_control_ops;
 	const crypto_digest_ops_t			*co_digest_ops;
 	const crypto_cipher_ops_t			*co_cipher_ops;
 	const crypto_mac_ops_t			*co_mac_ops;
@@ -532,7 +521,6 @@ typedef struct crypto_ops {
 	} cou;
 } crypto_ops_t;
 
-#define	co_control_ops			cou.cou_v1.co_control_ops
 #define	co_digest_ops			cou.cou_v1.co_digest_ops
 #define	co_cipher_ops			cou.cou_v1.co_cipher_ops
 #define	co_mac_ops			cou.cou_v1.co_mac_ops
@@ -696,14 +684,6 @@ typedef struct crypto_provider_info {
 
 #define	CRYPTO_PIFLAGS_RESERVED2	0x40000000
 #define	CRYPTO_PIFLAGS_RESERVED1	0x80000000
-
-/*
- * Provider status passed by a provider to crypto_provider_notification(9F)
- * and returned by the provider_status(9E) entry point.
- */
-#define	CRYPTO_PROVIDER_READY		0
-#define	CRYPTO_PROVIDER_BUSY		1
-#define	CRYPTO_PROVIDER_FAILED		2
 
 /*
  * Functions exported by Solaris to cryptographic providers. Providers

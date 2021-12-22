@@ -72,7 +72,6 @@ static const kcf_prov_stats_t kcf_stats_ks_data_template = {
 static void
 copy_ops_vector_v1(const crypto_ops_t *src_ops, crypto_ops_t *dst_ops)
 {
-	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_control_ops);
 	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_digest_ops);
 	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_cipher_ops);
 	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_mac_ops);

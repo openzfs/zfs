@@ -51,12 +51,6 @@ static const crypto_mech_info_t skein_mech_info_tab[] = {
 	    CRYPTO_KEYSIZE_UNIT_IN_BYTES}
 };
 
-static void skein_provider_status(crypto_provider_handle_t, uint_t *);
-
-static const crypto_control_ops_t skein_control_ops = {
-	skein_provider_status
-};
-
 static int skein_digest_init(crypto_ctx_t *, crypto_mechanism_t *,
     crypto_req_handle_t);
 static int skein_digest(crypto_ctx_t *, crypto_data_t *, crypto_data_t *,
@@ -102,7 +96,6 @@ static const crypto_ctx_ops_t skein_ctx_ops = {
 };
 
 static const crypto_ops_t skein_crypto_ops = {{{{{
-	&skein_control_ops,
 	&skein_digest_ops,
 	NULL,
 	&skein_mac_ops,
@@ -220,16 +213,6 @@ skein_mod_fini(void)
 	}
 
 	return (0);
-}
-
-/*
- * KCF software provider control entry points.
- */
-static void
-skein_provider_status(crypto_provider_handle_t provider, uint_t *status)
-{
-	(void) provider;
-	*status = CRYPTO_PROVIDER_READY;
 }
 
 /*

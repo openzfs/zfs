@@ -105,12 +105,6 @@ static const crypto_mech_info_t sha2_mech_info_tab[] = {
 	    CRYPTO_KEYSIZE_UNIT_IN_BYTES}
 };
 
-static void sha2_provider_status(crypto_provider_handle_t, uint_t *);
-
-static const crypto_control_ops_t sha2_control_ops = {
-	sha2_provider_status
-};
-
 static int sha2_digest_init(crypto_ctx_t *, crypto_mechanism_t *,
     crypto_req_handle_t);
 static int sha2_digest(crypto_ctx_t *, crypto_data_t *, crypto_data_t *,
@@ -164,7 +158,6 @@ static const crypto_ctx_ops_t sha2_ctx_ops = {
 };
 
 static const crypto_ops_t sha2_crypto_ops = {{{{{
-	&sha2_control_ops,
 	&sha2_digest_ops,
 	NULL,
 	&sha2_mac_ops,
@@ -227,16 +220,6 @@ sha2_mod_fini(void)
 	}
 
 	return (ret);
-}
-
-/*
- * KCF software provider control entry points.
- */
-static void
-sha2_provider_status(crypto_provider_handle_t provider, uint_t *status)
-{
-	(void) provider;
-	*status = CRYPTO_PROVIDER_READY;
 }
 
 /*
