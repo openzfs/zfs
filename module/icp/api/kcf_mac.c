@@ -109,7 +109,7 @@ crypto_mac_prov(crypto_provider_t provider, crypto_session_id_t sid,
 
 	KCF_WRAP_MAC_OPS_PARAMS(&params, KCF_OP_ATOMIC, sid, mech, key,
 	    data, mac, tmpl);
-	rv = kcf_submit_request(real_provider, NULL, crq, &params, B_FALSE);
+	rv = kcf_submit_request(real_provider, NULL, crq, &params);
 	if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER)
 		KCF_PROV_REFRELE(real_provider);
 
@@ -187,8 +187,7 @@ retry:
 			KCF_WRAP_MAC_OPS_PARAMS(&params, KCF_OP_ATOMIC,
 			    pd->pd_sid, mech, key, data, mac, spi_ctx_tmpl);
 
-			error = kcf_submit_request(pd, NULL, crq, &params,
-			    KCF_ISDUALREQ(crq));
+			error = kcf_submit_request(pd, NULL, crq, &params);
 		}
 	}
 
@@ -234,7 +233,7 @@ crypto_mac_verify_prov(crypto_provider_t provider, crypto_session_id_t sid,
 
 	KCF_WRAP_MAC_OPS_PARAMS(&params, KCF_OP_MAC_VERIFY_ATOMIC, sid, mech,
 	    key, data, mac, tmpl);
-	rv = kcf_submit_request(real_provider, NULL, crq, &params, B_FALSE);
+	rv = kcf_submit_request(real_provider, NULL, crq, &params);
 	if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER)
 		KCF_PROV_REFRELE(real_provider);
 
@@ -308,8 +307,7 @@ retry:
 			    KCF_OP_MAC_VERIFY_ATOMIC, pd->pd_sid, mech,
 			    key, data, mac, spi_ctx_tmpl);
 
-			error = kcf_submit_request(pd, NULL, crq, &params,
-			    KCF_ISDUALREQ(crq));
+			error = kcf_submit_request(pd, NULL, crq, &params);
 		}
 	}
 
@@ -404,8 +402,7 @@ crypto_mac_init_prov(crypto_provider_t provider, crypto_session_id_t sid,
 	} else {
 		KCF_WRAP_MAC_OPS_PARAMS(&params, KCF_OP_INIT, sid, mech, key,
 		    NULL, NULL, tmpl);
-		rv = kcf_submit_request(real_provider, ctx, crq, &params,
-		    B_FALSE);
+		rv = kcf_submit_request(real_provider, ctx, crq, &params);
 	}
 
 	if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER)
@@ -539,7 +536,7 @@ crypto_mac_update(crypto_context_t context, crypto_data_t *data,
 	} else {
 		KCF_WRAP_MAC_OPS_PARAMS(&params, KCF_OP_UPDATE,
 		    ctx->cc_session, NULL, NULL, data, NULL, NULL);
-		rv = kcf_submit_request(pd, ctx, cr, &params, B_FALSE);
+		rv = kcf_submit_request(pd, ctx, cr, &params);
 	}
 
 	return (rv);
@@ -588,48 +585,12 @@ crypto_mac_final(crypto_context_t context, crypto_data_t *mac,
 	} else {
 		KCF_WRAP_MAC_OPS_PARAMS(&params, KCF_OP_FINAL,
 		    ctx->cc_session, NULL, NULL, NULL, mac, NULL);
-		rv = kcf_submit_request(pd, ctx, cr, &params, B_FALSE);
+		rv = kcf_submit_request(pd, ctx, cr, &params);
 	}
 
 	/* Release the hold done in kcf_new_ctx() during init step. */
 	KCF_CONTEXT_COND_RELEASE(rv, kcf_ctx);
 	return (rv);
-}
-
-/*
- * See comments for crypto_mac_update() and crypto_mac_final().
- */
-int
-crypto_mac_single(crypto_context_t context, crypto_data_t *data,
-    crypto_data_t *mac, crypto_call_req_t *cr)
-{
-	crypto_ctx_t *ctx = (crypto_ctx_t *)context;
-	kcf_context_t *kcf_ctx;
-	kcf_provider_desc_t *pd;
-	int error;
-	kcf_req_params_t params;
-
-
-	if ((ctx == NULL) ||
-	    ((kcf_ctx = (kcf_context_t *)ctx->cc_framework_private) == NULL) ||
-	    ((pd = kcf_ctx->kc_prov_desc) == NULL)) {
-		return (CRYPTO_INVALID_CONTEXT);
-	}
-
-
-	/* The fast path for SW providers. */
-	if (CHECK_FASTPATH(cr, pd)) {
-		error = KCF_PROV_MAC(pd, ctx, data, mac, NULL);
-		KCF_PROV_INCRSTATS(pd, error);
-	} else {
-		KCF_WRAP_MAC_OPS_PARAMS(&params, KCF_OP_SINGLE, pd->pd_sid,
-		    NULL, NULL, data, mac, NULL);
-		error = kcf_submit_request(pd, ctx, cr, &params, B_FALSE);
-	}
-
-	/* Release the hold done in kcf_new_ctx() during init step. */
-	KCF_CONTEXT_COND_RELEASE(error, kcf_ctx);
-	return (error);
 }
 
 #if defined(_KERNEL)
@@ -641,5 +602,4 @@ EXPORT_SYMBOL(crypto_mac_init_prov);
 EXPORT_SYMBOL(crypto_mac_init);
 EXPORT_SYMBOL(crypto_mac_update);
 EXPORT_SYMBOL(crypto_mac_final);
-EXPORT_SYMBOL(crypto_mac_single);
 #endif

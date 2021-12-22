@@ -75,18 +75,7 @@ copy_ops_vector(const crypto_ops_t *src_ops, crypto_ops_t *dst_ops)
 	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_digest_ops);
 	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_cipher_ops);
 	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_mac_ops);
-	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_sign_ops);
-	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_verify_ops);
-	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_dual_ops);
-	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_dual_cipher_mac_ops);
-	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_random_ops);
-	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_session_ops);
-	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_object_ops);
-	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_key_ops);
-	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_provider_ops);
 	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_ctx_ops);
-	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_mech_ops);
-	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_nostore_key_ops);
 }
 
 /*
@@ -150,12 +139,6 @@ crypto_register_provider(const crypto_provider_info_t *info,
 		prov_desc->pd_flags = info->pi_flags;
 	}
 
-	/* object_ops and nostore_key_ops are mutually exclusive */
-	if (prov_desc->pd_ops_vector->co_object_ops &&
-	    prov_desc->pd_ops_vector->co_nostore_key_ops) {
-		goto bail;
-	}
-
 	/* process the mechanisms supported by the provider */
 	if ((ret = init_prov_mechs(info, prov_desc)) != CRYPTO_SUCCESS)
 		goto bail;
@@ -183,32 +166,6 @@ crypto_register_provider(const crypto_provider_info_t *info,
 		    TASKQ_PREPOPULATE);
 	else
 		prov_desc->pd_sched_info.ks_taskq = NULL;
-
-	/* no kernel session to logical providers */
-	if (prov_desc->pd_prov_type != CRYPTO_LOGICAL_PROVIDER) {
-		/*
-		 * Open a session for session-oriented providers. This session
-		 * is used for all kernel consumers. This is fine as a provider
-		 * is required to support multiple thread access to a session.
-		 * We can do this only after the taskq has been created as we
-		 * do a kcf_submit_request() to open the session.
-		 */
-		if (KCF_PROV_SESSION_OPS(prov_desc) != NULL) {
-			kcf_req_params_t params;
-
-			KCF_WRAP_SESSION_OPS_PARAMS(&params,
-			    KCF_OP_SESSION_OPEN, &prov_desc->pd_sid, 0,
-			    CRYPTO_USER, NULL, 0, prov_desc);
-			ret = kcf_submit_request(prov_desc, NULL, NULL, &params,
-			    B_FALSE);
-
-			if (ret != CRYPTO_SUCCESS) {
-				undo_register_provider(prov_desc, B_TRUE);
-				ret = CRYPTO_FAILED;
-				goto bail;
-			}
-		}
-	}
 
 	if (prov_desc->pd_prov_type != CRYPTO_LOGICAL_PROVIDER) {
 		/*
@@ -434,29 +391,9 @@ init_prov_mechs(const crypto_provider_info_t *info, kcf_provider_desc_t *desc)
 	 * mechanism, SUN_RANDOM, in this case.
 	 */
 	if (info != NULL) {
-		if (info->pi_ops_vector->co_random_ops != NULL) {
-			crypto_mech_info_t *rand_mi;
-
-			/*
-			 * Need the following check as it is possible to have
-			 * a provider that implements just random_ops and has
-			 * pi_mechanisms == NULL.
-			 */
-			if (info->pi_mechanisms != NULL) {
-				bcopy(info->pi_mechanisms, desc->pd_mechanisms,
-				    sizeof (crypto_mech_info_t) * (mcount - 1));
-			}
-			rand_mi = &desc->pd_mechanisms[mcount - 1];
-
-			bzero(rand_mi, sizeof (crypto_mech_info_t));
-			(void) strncpy(rand_mi->cm_mech_name, SUN_RANDOM,
-			    CRYPTO_MAX_MECH_NAME);
-			rand_mi->cm_func_group_mask = CRYPTO_FG_RANDOM;
-		} else {
-			ASSERT(info->pi_mechanisms != NULL);
-			bcopy(info->pi_mechanisms, desc->pd_mechanisms,
-			    sizeof (crypto_mech_info_t) * mcount);
-		}
+		ASSERT(info->pi_mechanisms != NULL);
+		bcopy(info->pi_mechanisms, desc->pd_mechanisms,
+		    sizeof (crypto_mech_info_t) * mcount);
 	}
 
 	/*
@@ -576,26 +513,6 @@ undo_register_provider(kcf_provider_desc_t *desc, boolean_t remove_prov)
 	/* remove provider from providers table */
 	if (remove_prov)
 		(void) kcf_prov_tab_rem_provider(desc->pd_prov_id);
-}
-
-/*
- * Utility routine called from crypto_load_soft_disabled(). Callers
- * should have done a prior undo_register_provider().
- */
-void
-redo_register_provider(kcf_provider_desc_t *pd)
-{
-	/* process the mechanisms supported by the provider */
-	(void) init_prov_mechs(NULL, pd);
-
-	/*
-	 * Hold provider in providers table. We should not call
-	 * kcf_prov_tab_add_provider() here as the provider descriptor
-	 * is still valid which means it has an entry in the provider
-	 * table.
-	 */
-	KCF_PROV_REFHOLD(pd);
-	KCF_PROV_IREFHOLD(pd);
 }
 
 /*

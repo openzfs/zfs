@@ -117,7 +117,7 @@ typedef struct kcf_sched_info {
  * When impl.h is broken up (bug# 4703218), this will be done. For now,
  * we hardcode these values.
  */
-#define	KCF_OPS_CLASSSIZE	8
+#define	KCF_OPS_CLASSSIZE	4
 #define	KCF_MAXMECHTAB		32
 
 /*
@@ -393,21 +393,15 @@ extern kcf_soft_conf_entry_t *soft_config_list;
 #define	KCF_MAXDIGEST		16	/* Digests */
 #define	KCF_MAXCIPHER		64	/* Ciphers */
 #define	KCF_MAXMAC		40	/* Message authentication codes */
-#define	KCF_MAXSIGN		24	/* Sign/Verify */
-#define	KCF_MAXKEYOPS		116	/* Key generation and derivation */
-#define	KCF_MAXMISC		16	/* Others ... */
 
 typedef	enum {
 	KCF_DIGEST_CLASS = 1,
 	KCF_CIPHER_CLASS,
 	KCF_MAC_CLASS,
-	KCF_SIGN_CLASS,
-	KCF_KEYOPS_CLASS,
-	KCF_MISC_CLASS
 } kcf_ops_class_t;
 
 #define	KCF_FIRST_OPSCLASS	KCF_DIGEST_CLASS
-#define	KCF_LAST_OPSCLASS	KCF_MISC_CLASS
+#define	KCF_LAST_OPSCLASS	KCF_MAC_CLASS
 
 /* The table of all the kcf_xxx_mech_tab[]s, indexed by kcf_ops_class */
 
@@ -498,65 +492,15 @@ typedef struct crypto_minor {
 #define	KCF_INVALID_INDX	((ushort_t)-1)
 
 /*
- * kCF internal mechanism and function group for tracking RNG providers.
- */
-#define	SUN_RANDOM		"random"
-#define	CRYPTO_FG_RANDOM	0x80000000	/* generate_random() */
-
-/*
  * Wrappers for ops vectors. In the wrapper definitions below, the pd
  * argument always corresponds to a pointer to a provider descriptor
  * of type kcf_prov_desc_t.
  */
 
-#define	KCF_PROV_CTX_OPS(pd)		((pd)->pd_ops_vector->co_ctx_ops)
 #define	KCF_PROV_DIGEST_OPS(pd)		((pd)->pd_ops_vector->co_digest_ops)
 #define	KCF_PROV_CIPHER_OPS(pd)		((pd)->pd_ops_vector->co_cipher_ops)
 #define	KCF_PROV_MAC_OPS(pd)		((pd)->pd_ops_vector->co_mac_ops)
-#define	KCF_PROV_SIGN_OPS(pd)		((pd)->pd_ops_vector->co_sign_ops)
-#define	KCF_PROV_VERIFY_OPS(pd)		((pd)->pd_ops_vector->co_verify_ops)
-#define	KCF_PROV_DUAL_OPS(pd)		((pd)->pd_ops_vector->co_dual_ops)
-#define	KCF_PROV_DUAL_CIPHER_MAC_OPS(pd) \
-	((pd)->pd_ops_vector->co_dual_cipher_mac_ops)
-#define	KCF_PROV_RANDOM_OPS(pd)		((pd)->pd_ops_vector->co_random_ops)
-#define	KCF_PROV_SESSION_OPS(pd)	((pd)->pd_ops_vector->co_session_ops)
-#define	KCF_PROV_OBJECT_OPS(pd)		((pd)->pd_ops_vector->co_object_ops)
-#define	KCF_PROV_KEY_OPS(pd)		((pd)->pd_ops_vector->co_key_ops)
-#define	KCF_PROV_PROVIDER_OPS(pd)	((pd)->pd_ops_vector->co_provider_ops)
-#define	KCF_PROV_MECH_OPS(pd)		((pd)->pd_ops_vector->co_mech_ops)
-#define	KCF_PROV_NOSTORE_KEY_OPS(pd)	\
-	((pd)->pd_ops_vector->co_nostore_key_ops)
-
-/*
- * Wrappers for crypto_ctx_ops(9S) entry points.
- */
-
-#define	KCF_PROV_CREATE_CTX_TEMPLATE(pd, mech, key, template, size, req) ( \
-	(KCF_PROV_CTX_OPS(pd) && KCF_PROV_CTX_OPS(pd)->create_ctx_template) ? \
-	KCF_PROV_CTX_OPS(pd)->create_ctx_template( \
-	    (pd)->pd_prov_handle, mech, key, template, size, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_FREE_CONTEXT(pd, ctx) ( \
-	(KCF_PROV_CTX_OPS(pd) && KCF_PROV_CTX_OPS(pd)->free_context) ? \
-	KCF_PROV_CTX_OPS(pd)->free_context(ctx) : CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_COPYIN_MECH(pd, umech, kmech, errorp, mode) ( \
-	(KCF_PROV_MECH_OPS(pd) && KCF_PROV_MECH_OPS(pd)->copyin_mechanism) ? \
-	KCF_PROV_MECH_OPS(pd)->copyin_mechanism( \
-	    (pd)->pd_prov_handle, umech, kmech, errorp, mode) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_COPYOUT_MECH(pd, kmech, umech, errorp, mode) ( \
-	(KCF_PROV_MECH_OPS(pd) && KCF_PROV_MECH_OPS(pd)->copyout_mechanism) ? \
-	KCF_PROV_MECH_OPS(pd)->copyout_mechanism( \
-	    (pd)->pd_prov_handle, kmech, umech, errorp, mode) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_FREE_MECH(pd, prov_mech) ( \
-	(KCF_PROV_MECH_OPS(pd) && KCF_PROV_MECH_OPS(pd)->free_mechanism) ? \
-	KCF_PROV_MECH_OPS(pd)->free_mechanism( \
-	    (pd)->pd_prov_handle, prov_mech) : CRYPTO_NOT_SUPPORTED)
+#define	KCF_PROV_CTX_OPS(pd)		((pd)->pd_ops_vector->co_ctx_ops)
 
 /*
  * Wrappers for crypto_digest_ops(9S) entry points.
@@ -706,552 +650,21 @@ typedef struct crypto_minor {
 	CRYPTO_NOT_SUPPORTED)
 
 /*
- * Wrappers for crypto_sign_ops(9S) entry points.
+ * Wrappers for crypto_ctx_ops(9S) entry points.
  */
 
-#define	KCF_PROV_SIGN_INIT(pd, ctx, mech, key, template, req) ( \
-	(KCF_PROV_SIGN_OPS(pd) && KCF_PROV_SIGN_OPS(pd)->sign_init) ? \
-	KCF_PROV_SIGN_OPS(pd)->sign_init( \
-	    ctx, mech, key, template, req) : CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_SIGN(pd, ctx, data, sig, req) ( \
-	(KCF_PROV_SIGN_OPS(pd) && KCF_PROV_SIGN_OPS(pd)->sign) ? \
-	KCF_PROV_SIGN_OPS(pd)->sign(ctx, data, sig, req) : \
+#define	KCF_PROV_CREATE_CTX_TEMPLATE(pd, mech, key, template, size, req) ( \
+	(KCF_PROV_CTX_OPS(pd) && KCF_PROV_CTX_OPS(pd)->create_ctx_template) ? \
+	KCF_PROV_CTX_OPS(pd)->create_ctx_template( \
+	    (pd)->pd_prov_handle, mech, key, template, size, req) : \
 	CRYPTO_NOT_SUPPORTED)
 
-#define	KCF_PROV_SIGN_UPDATE(pd, ctx, data, req) ( \
-	(KCF_PROV_SIGN_OPS(pd) && KCF_PROV_SIGN_OPS(pd)->sign_update) ? \
-	KCF_PROV_SIGN_OPS(pd)->sign_update(ctx, data, req) : \
-	CRYPTO_NOT_SUPPORTED)
+#define	KCF_PROV_FREE_CONTEXT(pd, ctx) ( \
+	(KCF_PROV_CTX_OPS(pd) && KCF_PROV_CTX_OPS(pd)->free_context) ? \
+	KCF_PROV_CTX_OPS(pd)->free_context(ctx) : CRYPTO_NOT_SUPPORTED)
 
-#define	KCF_PROV_SIGN_FINAL(pd, ctx, sig, req) ( \
-	(KCF_PROV_SIGN_OPS(pd) && KCF_PROV_SIGN_OPS(pd)->sign_final) ? \
-	KCF_PROV_SIGN_OPS(pd)->sign_final(ctx, sig, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_SIGN_ATOMIC(pd, session, mech, key, data, template, \
-	    sig, req) ( \
-	(KCF_PROV_SIGN_OPS(pd) && KCF_PROV_SIGN_OPS(pd)->sign_atomic) ? \
-	KCF_PROV_SIGN_OPS(pd)->sign_atomic( \
-	    (pd)->pd_prov_handle, session, mech, key, data, sig, template, \
-	    req) : CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_SIGN_RECOVER_INIT(pd, ctx, mech, key, template, \
-	    req) ( \
-	(KCF_PROV_SIGN_OPS(pd) && KCF_PROV_SIGN_OPS(pd)->sign_recover_init) ? \
-	KCF_PROV_SIGN_OPS(pd)->sign_recover_init(ctx, mech, key, template, \
-	    req) : CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_SIGN_RECOVER(pd, ctx, data, sig, req) ( \
-	(KCF_PROV_SIGN_OPS(pd) && KCF_PROV_SIGN_OPS(pd)->sign_recover) ? \
-	KCF_PROV_SIGN_OPS(pd)->sign_recover(ctx, data, sig, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_SIGN_RECOVER_ATOMIC(pd, session, mech, key, data, template, \
-	    sig, req) ( \
-	(KCF_PROV_SIGN_OPS(pd) && \
-	KCF_PROV_SIGN_OPS(pd)->sign_recover_atomic) ? \
-	KCF_PROV_SIGN_OPS(pd)->sign_recover_atomic( \
-	    (pd)->pd_prov_handle, session, mech, key, data, sig, template, \
-	    req) : CRYPTO_NOT_SUPPORTED)
-
-/*
- * Wrappers for crypto_verify_ops(9S) entry points.
- */
-
-#define	KCF_PROV_VERIFY_INIT(pd, ctx, mech, key, template, req) ( \
-	(KCF_PROV_VERIFY_OPS(pd) && KCF_PROV_VERIFY_OPS(pd)->verify_init) ? \
-	KCF_PROV_VERIFY_OPS(pd)->verify_init(ctx, mech, key, template, \
-	    req) : CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_VERIFY(pd, ctx, data, sig, req) ( \
-	(KCF_PROV_VERIFY_OPS(pd) && KCF_PROV_VERIFY_OPS(pd)->do_verify) ? \
-	KCF_PROV_VERIFY_OPS(pd)->do_verify(ctx, data, sig, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_VERIFY_UPDATE(pd, ctx, data, req) ( \
-	(KCF_PROV_VERIFY_OPS(pd) && KCF_PROV_VERIFY_OPS(pd)->verify_update) ? \
-	KCF_PROV_VERIFY_OPS(pd)->verify_update(ctx, data, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_VERIFY_FINAL(pd, ctx, sig, req) ( \
-	(KCF_PROV_VERIFY_OPS(pd) && KCF_PROV_VERIFY_OPS(pd)->verify_final) ? \
-	KCF_PROV_VERIFY_OPS(pd)->verify_final(ctx, sig, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_VERIFY_ATOMIC(pd, session, mech, key, data, template, sig, \
-	    req) ( \
-	(KCF_PROV_VERIFY_OPS(pd) && KCF_PROV_VERIFY_OPS(pd)->verify_atomic) ? \
-	KCF_PROV_VERIFY_OPS(pd)->verify_atomic( \
-	    (pd)->pd_prov_handle, session, mech, key, data, sig, template, \
-	    req) : CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_VERIFY_RECOVER_INIT(pd, ctx, mech, key, template, \
-	    req) ( \
-	(KCF_PROV_VERIFY_OPS(pd) && \
-	KCF_PROV_VERIFY_OPS(pd)->verify_recover_init) ? \
-	KCF_PROV_VERIFY_OPS(pd)->verify_recover_init(ctx, mech, key, \
-	    template, req) : CRYPTO_NOT_SUPPORTED)
-
-/* verify_recover() CSPI routine has different argument order than verify() */
-#define	KCF_PROV_VERIFY_RECOVER(pd, ctx, sig, data, req) ( \
-	(KCF_PROV_VERIFY_OPS(pd) && KCF_PROV_VERIFY_OPS(pd)->verify_recover) ? \
-	KCF_PROV_VERIFY_OPS(pd)->verify_recover(ctx, sig, data, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-/*
- * verify_recover_atomic() CSPI routine has different argument order
- * than verify_atomic().
- */
-#define	KCF_PROV_VERIFY_RECOVER_ATOMIC(pd, session, mech, key, sig, \
-	    template, data,  req) ( \
-	(KCF_PROV_VERIFY_OPS(pd) && \
-	KCF_PROV_VERIFY_OPS(pd)->verify_recover_atomic) ? \
-	KCF_PROV_VERIFY_OPS(pd)->verify_recover_atomic( \
-	    (pd)->pd_prov_handle, session, mech, key, sig, data, template, \
-	    req) : CRYPTO_NOT_SUPPORTED)
-
-/*
- * Wrappers for crypto_dual_ops(9S) entry points.
- */
-
-#define	KCF_PROV_DIGEST_ENCRYPT_UPDATE(digest_ctx, encrypt_ctx, plaintext, \
-	    ciphertext, req) ( \
-	(KCF_PROV_DUAL_OPS(pd) && \
-	KCF_PROV_DUAL_OPS(pd)->digest_encrypt_update) ? \
-	KCF_PROV_DUAL_OPS(pd)->digest_encrypt_update( \
-	    digest_ctx, encrypt_ctx, plaintext, ciphertext, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_DECRYPT_DIGEST_UPDATE(decrypt_ctx, digest_ctx, ciphertext, \
-	    plaintext, req) ( \
-	(KCF_PROV_DUAL_OPS(pd) && \
-	KCF_PROV_DUAL_OPS(pd)->decrypt_digest_update) ? \
-	KCF_PROV_DUAL_OPS(pd)->decrypt_digest_update( \
-	    decrypt_ctx, digest_ctx, ciphertext, plaintext, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_SIGN_ENCRYPT_UPDATE(sign_ctx, encrypt_ctx, plaintext, \
-	    ciphertext, req) ( \
-	(KCF_PROV_DUAL_OPS(pd) && \
-	KCF_PROV_DUAL_OPS(pd)->sign_encrypt_update) ? \
-	KCF_PROV_DUAL_OPS(pd)->sign_encrypt_update( \
-	    sign_ctx, encrypt_ctx, plaintext, ciphertext, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_DECRYPT_VERIFY_UPDATE(decrypt_ctx, verify_ctx, ciphertext, \
-	    plaintext, req) ( \
-	(KCF_PROV_DUAL_OPS(pd) && \
-	KCF_PROV_DUAL_OPS(pd)->decrypt_verify_update) ? \
-	KCF_PROV_DUAL_OPS(pd)->decrypt_verify_update( \
-	    decrypt_ctx, verify_ctx, ciphertext, plaintext, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-/*
- * Wrappers for crypto_dual_cipher_mac_ops(9S) entry points.
- */
-
-#define	KCF_PROV_ENCRYPT_MAC_INIT(pd, ctx, encr_mech, encr_key, mac_mech, \
-	    mac_key, encr_ctx_template, mac_ctx_template, req) ( \
-	(KCF_PROV_DUAL_CIPHER_MAC_OPS(pd) && \
-	KCF_PROV_DUAL_CIPHER_MAC_OPS(pd)->encrypt_mac_init) ? \
-	KCF_PROV_DUAL_CIPHER_MAC_OPS(pd)->encrypt_mac_init( \
-	    ctx, encr_mech, encr_key, mac_mech, mac_key, encr_ctx_template, \
-	    mac_ctx_template, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_ENCRYPT_MAC(pd, ctx, plaintext, ciphertext, mac, req) ( \
-	(KCF_PROV_DUAL_CIPHER_MAC_OPS(pd) && \
-	KCF_PROV_DUAL_CIPHER_MAC_OPS(pd)->encrypt_mac) ? \
-	KCF_PROV_DUAL_CIPHER_MAC_OPS(pd)->encrypt_mac( \
-	    ctx, plaintext, ciphertext, mac, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_ENCRYPT_MAC_UPDATE(pd, ctx, plaintext, ciphertext, req) ( \
-	(KCF_PROV_DUAL_CIPHER_MAC_OPS(pd) && \
-	KCF_PROV_DUAL_CIPHER_MAC_OPS(pd)->encrypt_mac_update) ? \
-	KCF_PROV_DUAL_CIPHER_MAC_OPS(pd)->encrypt_mac_update( \
-	    ctx, plaintext, ciphertext, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_ENCRYPT_MAC_FINAL(pd, ctx, ciphertext, mac, req) ( \
-	(KCF_PROV_DUAL_CIPHER_MAC_OPS(pd) && \
-	KCF_PROV_DUAL_CIPHER_MAC_OPS(pd)->encrypt_mac_final) ? \
-	KCF_PROV_DUAL_CIPHER_MAC_OPS(pd)->encrypt_mac_final( \
-	    ctx, ciphertext, mac, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_ENCRYPT_MAC_ATOMIC(pd, session, encr_mech, encr_key, \
-	    mac_mech, mac_key, plaintext, ciphertext, mac, \
-	    encr_ctx_template, mac_ctx_template, req) ( \
-	(KCF_PROV_DUAL_CIPHER_MAC_OPS(pd) && \
-	KCF_PROV_DUAL_CIPHER_MAC_OPS(pd)->encrypt_mac_atomic) ? \
-	KCF_PROV_DUAL_CIPHER_MAC_OPS(pd)->encrypt_mac_atomic( \
-	    (pd)->pd_prov_handle, session, encr_mech, encr_key, \
-	    mac_mech, mac_key, plaintext, ciphertext, mac, \
-	    encr_ctx_template, mac_ctx_template, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_MAC_DECRYPT_INIT(pd, ctx, mac_mech, mac_key, decr_mech, \
-	    decr_key, mac_ctx_template, decr_ctx_template, req) ( \
-	(KCF_PROV_DUAL_CIPHER_MAC_OPS(pd) && \
-	KCF_PROV_DUAL_CIPHER_MAC_OPS(pd)->mac_decrypt_init) ? \
-	KCF_PROV_DUAL_CIPHER_MAC_OPS(pd)->mac_decrypt_init( \
-	    ctx, mac_mech, mac_key, decr_mech, decr_key, mac_ctx_template, \
-	    decr_ctx_template, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_MAC_DECRYPT(pd, ctx, ciphertext, mac, plaintext, req) ( \
-	(KCF_PROV_DUAL_CIPHER_MAC_OPS(pd) && \
-	KCF_PROV_DUAL_CIPHER_MAC_OPS(pd)->mac_decrypt) ? \
-	KCF_PROV_DUAL_CIPHER_MAC_OPS(pd)->mac_decrypt( \
-	    ctx, ciphertext, mac, plaintext, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_MAC_DECRYPT_UPDATE(pd, ctx, ciphertext, plaintext, req) ( \
-	(KCF_PROV_DUAL_CIPHER_MAC_OPS(pd) && \
-	KCF_PROV_DUAL_CIPHER_MAC_OPS(pd)->mac_decrypt_update) ? \
-	KCF_PROV_DUAL_CIPHER_MAC_OPS(pd)->mac_decrypt_update( \
-	    ctx, ciphertext, plaintext, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_MAC_DECRYPT_FINAL(pd, ctx, mac, plaintext, req) ( \
-	(KCF_PROV_DUAL_CIPHER_MAC_OPS(pd) && \
-	KCF_PROV_DUAL_CIPHER_MAC_OPS(pd)->mac_decrypt_final) ? \
-	KCF_PROV_DUAL_CIPHER_MAC_OPS(pd)->mac_decrypt_final( \
-	    ctx, mac, plaintext, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_MAC_DECRYPT_ATOMIC(pd, session, mac_mech, mac_key, \
-	    decr_mech, decr_key, ciphertext, mac, plaintext, \
-	    mac_ctx_template, decr_ctx_template, req) ( \
-	(KCF_PROV_DUAL_CIPHER_MAC_OPS(pd) && \
-	KCF_PROV_DUAL_CIPHER_MAC_OPS(pd)->mac_decrypt_atomic) ? \
-	KCF_PROV_DUAL_CIPHER_MAC_OPS(pd)->mac_decrypt_atomic( \
-	    (pd)->pd_prov_handle, session, mac_mech, mac_key, \
-	    decr_mech, decr_key, ciphertext, mac, plaintext, \
-	    mac_ctx_template, decr_ctx_template, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_MAC_VERIFY_DECRYPT_ATOMIC(pd, session, mac_mech, mac_key, \
-	    decr_mech, decr_key, ciphertext, mac, plaintext, \
-	    mac_ctx_template, decr_ctx_template, req) ( \
-	(KCF_PROV_DUAL_CIPHER_MAC_OPS(pd) && \
-	KCF_PROV_DUAL_CIPHER_MAC_OPS(pd)->mac_verify_decrypt_atomic \
-	    != NULL) ? \
-	KCF_PROV_DUAL_CIPHER_MAC_OPS(pd)->mac_verify_decrypt_atomic( \
-	    (pd)->pd_prov_handle, session, mac_mech, mac_key, \
-	    decr_mech, decr_key, ciphertext, mac, plaintext, \
-	    mac_ctx_template, decr_ctx_template, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-/*
- * Wrappers for crypto_random_number_ops(9S) entry points.
- */
-
-#define	KCF_PROV_SEED_RANDOM(pd, session, buf, len, est, flags, req) ( \
-	(KCF_PROV_RANDOM_OPS(pd) && KCF_PROV_RANDOM_OPS(pd)->seed_random) ? \
-	KCF_PROV_RANDOM_OPS(pd)->seed_random((pd)->pd_prov_handle, \
-	    session, buf, len, est, flags, req) : CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_GENERATE_RANDOM(pd, session, buf, len, req) ( \
-	(KCF_PROV_RANDOM_OPS(pd) && \
-	KCF_PROV_RANDOM_OPS(pd)->generate_random) ? \
-	KCF_PROV_RANDOM_OPS(pd)->generate_random((pd)->pd_prov_handle, \
-	    session, buf, len, req) : CRYPTO_NOT_SUPPORTED)
-
-/*
- * Wrappers for crypto_session_ops(9S) entry points.
- *
- * ops_pd is the provider descriptor that supplies the ops_vector.
- * pd is the descriptor that supplies the provider handle.
- * Only session open/close needs two handles.
- */
-
-#define	KCF_PROV_SESSION_OPEN(ops_pd, session, req, pd) ( \
-	(KCF_PROV_SESSION_OPS(ops_pd) && \
-	KCF_PROV_SESSION_OPS(ops_pd)->session_open) ? \
-	KCF_PROV_SESSION_OPS(ops_pd)->session_open((pd)->pd_prov_handle, \
-	    session, req) : CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_SESSION_CLOSE(ops_pd, session, req, pd) ( \
-	(KCF_PROV_SESSION_OPS(ops_pd) && \
-	KCF_PROV_SESSION_OPS(ops_pd)->session_close) ? \
-	KCF_PROV_SESSION_OPS(ops_pd)->session_close((pd)->pd_prov_handle, \
-	    session, req) : CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_SESSION_LOGIN(pd, session, user_type, pin, len, req) ( \
-	(KCF_PROV_SESSION_OPS(pd) && \
-	KCF_PROV_SESSION_OPS(pd)->session_login) ? \
-	KCF_PROV_SESSION_OPS(pd)->session_login((pd)->pd_prov_handle, \
-	    session, user_type, pin, len, req) : CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_SESSION_LOGOUT(pd, session, req) ( \
-	(KCF_PROV_SESSION_OPS(pd) && \
-	KCF_PROV_SESSION_OPS(pd)->session_logout) ? \
-	KCF_PROV_SESSION_OPS(pd)->session_logout((pd)->pd_prov_handle, \
-	    session, req) : CRYPTO_NOT_SUPPORTED)
-
-/*
- * Wrappers for crypto_object_ops(9S) entry points.
- */
-
-#define	KCF_PROV_OBJECT_CREATE(pd, session, template, count, object, req) ( \
-	(KCF_PROV_OBJECT_OPS(pd) && KCF_PROV_OBJECT_OPS(pd)->object_create) ? \
-	KCF_PROV_OBJECT_OPS(pd)->object_create((pd)->pd_prov_handle, \
-	    session, template, count, object, req) : CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_OBJECT_COPY(pd, session, object, template, count, \
-	    new_object, req) ( \
-	(KCF_PROV_OBJECT_OPS(pd) && KCF_PROV_OBJECT_OPS(pd)->object_copy) ? \
-	KCF_PROV_OBJECT_OPS(pd)->object_copy((pd)->pd_prov_handle, \
-	session, object, template, count, new_object, req) : \
-	    CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_OBJECT_DESTROY(pd, session, object, req) ( \
-	(KCF_PROV_OBJECT_OPS(pd) && KCF_PROV_OBJECT_OPS(pd)->object_destroy) ? \
-	KCF_PROV_OBJECT_OPS(pd)->object_destroy((pd)->pd_prov_handle, \
-	    session, object, req) : CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_OBJECT_GET_SIZE(pd, session, object, size, req) ( \
-	(KCF_PROV_OBJECT_OPS(pd) && \
-	KCF_PROV_OBJECT_OPS(pd)->object_get_size) ? \
-	KCF_PROV_OBJECT_OPS(pd)->object_get_size((pd)->pd_prov_handle, \
-	    session, object, size, req) : CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_OBJECT_GET_ATTRIBUTE_VALUE(pd, session, object, template, \
-	    count, req) ( \
-	(KCF_PROV_OBJECT_OPS(pd) && \
-	KCF_PROV_OBJECT_OPS(pd)->object_get_attribute_value) ? \
-	KCF_PROV_OBJECT_OPS(pd)->object_get_attribute_value( \
-	(pd)->pd_prov_handle, session, object, template, count, req) : \
-	    CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_OBJECT_SET_ATTRIBUTE_VALUE(pd, session, object, template, \
-	    count, req) ( \
-	(KCF_PROV_OBJECT_OPS(pd) && \
-	KCF_PROV_OBJECT_OPS(pd)->object_set_attribute_value) ? \
-	KCF_PROV_OBJECT_OPS(pd)->object_set_attribute_value( \
-	(pd)->pd_prov_handle, session, object, template, count, req) : \
-	    CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_OBJECT_FIND_INIT(pd, session, template, count, ppriv, \
-	    req) ( \
-	(KCF_PROV_OBJECT_OPS(pd) && \
-	KCF_PROV_OBJECT_OPS(pd)->object_find_init) ? \
-	KCF_PROV_OBJECT_OPS(pd)->object_find_init((pd)->pd_prov_handle, \
-	session, template, count, ppriv, req) : CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_OBJECT_FIND(pd, ppriv, objects, max_objects, object_count, \
-	    req) ( \
-	(KCF_PROV_OBJECT_OPS(pd) && KCF_PROV_OBJECT_OPS(pd)->object_find) ? \
-	KCF_PROV_OBJECT_OPS(pd)->object_find( \
-	(pd)->pd_prov_handle, ppriv, objects, max_objects, object_count, \
-	req) : CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_OBJECT_FIND_FINAL(pd, ppriv, req) ( \
-	(KCF_PROV_OBJECT_OPS(pd) && \
-	KCF_PROV_OBJECT_OPS(pd)->object_find_final) ? \
-	KCF_PROV_OBJECT_OPS(pd)->object_find_final( \
-	    (pd)->pd_prov_handle, ppriv, req) : CRYPTO_NOT_SUPPORTED)
-
-/*
- * Wrappers for crypto_key_ops(9S) entry points.
- */
-
-#define	KCF_PROV_KEY_GENERATE(pd, session, mech, template, count, object, \
-	    req) ( \
-	(KCF_PROV_KEY_OPS(pd) && KCF_PROV_KEY_OPS(pd)->key_generate) ? \
-	KCF_PROV_KEY_OPS(pd)->key_generate((pd)->pd_prov_handle, \
-	    session, mech, template, count, object, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_KEY_GENERATE_PAIR(pd, session, mech, pub_template, \
-	    pub_count, priv_template, priv_count, pub_key, priv_key, req) ( \
-	(KCF_PROV_KEY_OPS(pd) && KCF_PROV_KEY_OPS(pd)->key_generate_pair) ? \
-	KCF_PROV_KEY_OPS(pd)->key_generate_pair((pd)->pd_prov_handle, \
-	    session, mech, pub_template, pub_count, priv_template, \
-	    priv_count, pub_key, priv_key, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_KEY_WRAP(pd, session, mech, wrapping_key, key, wrapped_key, \
-	    wrapped_key_len, req) ( \
-	(KCF_PROV_KEY_OPS(pd) && KCF_PROV_KEY_OPS(pd)->key_wrap) ? \
-	KCF_PROV_KEY_OPS(pd)->key_wrap((pd)->pd_prov_handle, \
-	    session, mech, wrapping_key, key, wrapped_key, wrapped_key_len, \
-	    req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_KEY_UNWRAP(pd, session, mech, unwrapping_key, wrapped_key, \
-	    wrapped_key_len, template, count, key, req) ( \
-	(KCF_PROV_KEY_OPS(pd) && KCF_PROV_KEY_OPS(pd)->key_unwrap) ? \
-	KCF_PROV_KEY_OPS(pd)->key_unwrap((pd)->pd_prov_handle, \
-	    session, mech, unwrapping_key, wrapped_key, wrapped_key_len, \
-	    template, count, key, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_KEY_DERIVE(pd, session, mech, base_key, template, count, \
-	    key, req) ( \
-	(KCF_PROV_KEY_OPS(pd) && KCF_PROV_KEY_OPS(pd)->key_derive) ? \
-	KCF_PROV_KEY_OPS(pd)->key_derive((pd)->pd_prov_handle, \
-	    session, mech, base_key, template, count, key, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_KEY_CHECK(pd, mech, key) ( \
-	(KCF_PROV_KEY_OPS(pd) && KCF_PROV_KEY_OPS(pd)->key_check) ? \
-	KCF_PROV_KEY_OPS(pd)->key_check((pd)->pd_prov_handle, mech, key) : \
-	CRYPTO_NOT_SUPPORTED)
-
-/*
- * Wrappers for crypto_provider_management_ops(9S) entry points.
- *
- * ops_pd is the provider descriptor that supplies the ops_vector.
- * pd is the descriptor that supplies the provider handle.
- * Only ext_info needs two handles.
- */
-
-#define	KCF_PROV_EXT_INFO(ops_pd, provext_info, req, pd) ( \
-	(KCF_PROV_PROVIDER_OPS(ops_pd) && \
-	KCF_PROV_PROVIDER_OPS(ops_pd)->ext_info) ? \
-	KCF_PROV_PROVIDER_OPS(ops_pd)->ext_info((pd)->pd_prov_handle, \
-	    provext_info, req) : CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_INIT_TOKEN(pd, pin, pin_len, label, req) ( \
-	(KCF_PROV_PROVIDER_OPS(pd) && KCF_PROV_PROVIDER_OPS(pd)->init_token) ? \
-	KCF_PROV_PROVIDER_OPS(pd)->init_token((pd)->pd_prov_handle, \
-	    pin, pin_len, label, req) : CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_INIT_PIN(pd, session, pin, pin_len, req) ( \
-	(KCF_PROV_PROVIDER_OPS(pd) && KCF_PROV_PROVIDER_OPS(pd)->init_pin) ? \
-	KCF_PROV_PROVIDER_OPS(pd)->init_pin((pd)->pd_prov_handle, \
-	    session, pin, pin_len, req) : CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_SET_PIN(pd, session, old_pin, old_len, new_pin, new_len, \
-	    req) ( \
-	(KCF_PROV_PROVIDER_OPS(pd) && KCF_PROV_PROVIDER_OPS(pd)->set_pin) ? \
-	KCF_PROV_PROVIDER_OPS(pd)->set_pin((pd)->pd_prov_handle, \
-	session, old_pin, old_len, new_pin, new_len, req) : \
-	    CRYPTO_NOT_SUPPORTED)
-
-/*
- * Wrappers for crypto_nostore_key_ops(9S) entry points.
- */
-
-#define	KCF_PROV_NOSTORE_KEY_GENERATE(pd, session, mech, template, count, \
-	    out_template, out_count, req) ( \
-	(KCF_PROV_NOSTORE_KEY_OPS(pd) && \
-	    KCF_PROV_NOSTORE_KEY_OPS(pd)->nostore_key_generate) ? \
-	KCF_PROV_NOSTORE_KEY_OPS(pd)->nostore_key_generate( \
-	    (pd)->pd_prov_handle, session, mech, template, count, \
-	    out_template, out_count, req) : CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_NOSTORE_KEY_GENERATE_PAIR(pd, session, mech, pub_template, \
-	    pub_count, priv_template, priv_count, out_pub_template, \
-	    out_pub_count, out_priv_template, out_priv_count, req) ( \
-	(KCF_PROV_NOSTORE_KEY_OPS(pd) && \
-	    KCF_PROV_NOSTORE_KEY_OPS(pd)->nostore_key_generate_pair) ? \
-	KCF_PROV_NOSTORE_KEY_OPS(pd)->nostore_key_generate_pair( \
-	    (pd)->pd_prov_handle, session, mech, pub_template, pub_count, \
-	    priv_template, priv_count, out_pub_template, out_pub_count, \
-	    out_priv_template, out_priv_count, req) : CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_NOSTORE_KEY_DERIVE(pd, session, mech, base_key, template, \
-	    count, out_template, out_count, req) ( \
-	(KCF_PROV_NOSTORE_KEY_OPS(pd) && \
-	    KCF_PROV_NOSTORE_KEY_OPS(pd)->nostore_key_derive) ? \
-	KCF_PROV_NOSTORE_KEY_OPS(pd)->nostore_key_derive( \
-	    (pd)->pd_prov_handle, session, mech, base_key, template, count, \
-	    out_template, out_count, req) : CRYPTO_NOT_SUPPORTED)
-
-/*
- * The following routines are exported by the kcf module (/kernel/misc/kcf)
- * to the crypto and cryptoadmin modules.
- */
-
-/* Digest/mac/cipher entry points that take a provider descriptor and session */
-extern int crypto_digest_single(crypto_context_t, crypto_data_t *,
-    crypto_data_t *, crypto_call_req_t *);
-
-extern int crypto_mac_single(crypto_context_t, crypto_data_t *,
-    crypto_data_t *, crypto_call_req_t *);
-
-extern int crypto_encrypt_single(crypto_context_t, crypto_data_t *,
-    crypto_data_t *, crypto_call_req_t *);
-
-extern int crypto_decrypt_single(crypto_context_t, crypto_data_t *,
-    crypto_data_t *, crypto_call_req_t *);
-
-
-/* Other private digest/mac/cipher entry points not exported through k-API */
-extern int crypto_digest_key_prov(crypto_context_t, crypto_key_t *,
-    crypto_call_req_t *);
-
-/* Private sign entry points exported by KCF */
-extern int crypto_sign_single(crypto_context_t, crypto_data_t *,
-    crypto_data_t *, crypto_call_req_t *);
-
-extern int crypto_sign_recover_single(crypto_context_t, crypto_data_t *,
-    crypto_data_t *, crypto_call_req_t *);
-
-/* Private verify entry points exported by KCF */
-extern int crypto_verify_single(crypto_context_t, crypto_data_t *,
-    crypto_data_t *, crypto_call_req_t *);
-
-extern int crypto_verify_recover_single(crypto_context_t, crypto_data_t *,
-    crypto_data_t *, crypto_call_req_t *);
-
-/* Private dual operations entry points exported by KCF */
-extern int crypto_digest_encrypt_update(crypto_context_t, crypto_context_t,
-    crypto_data_t *, crypto_data_t *, crypto_call_req_t *);
-extern int crypto_decrypt_digest_update(crypto_context_t, crypto_context_t,
-    crypto_data_t *, crypto_data_t *, crypto_call_req_t *);
-extern int crypto_sign_encrypt_update(crypto_context_t, crypto_context_t,
-    crypto_data_t *, crypto_data_t *, crypto_call_req_t *);
-extern int crypto_decrypt_verify_update(crypto_context_t, crypto_context_t,
-    crypto_data_t *, crypto_data_t *, crypto_call_req_t *);
-
-/* Random Number Generation */
-int crypto_seed_random(crypto_provider_handle_t provider, uchar_t *buf,
-    size_t len, crypto_call_req_t *req);
-int crypto_generate_random(crypto_provider_handle_t provider, uchar_t *buf,
-    size_t len, crypto_call_req_t *req);
-
-/* Provider Management */
-int crypto_get_provider_info(crypto_provider_id_t id,
-    crypto_provider_info_t **info, crypto_call_req_t *req);
-int crypto_get_provider_mechanisms(crypto_minor_t *, crypto_provider_id_t id,
-    uint_t *count, crypto_mech_name_t **list);
-int crypto_init_token(crypto_provider_handle_t provider, char *pin,
-    size_t pin_len, char *label, crypto_call_req_t *);
-int crypto_init_pin(crypto_provider_handle_t provider, char *pin,
-    size_t pin_len, crypto_call_req_t *req);
-int crypto_set_pin(crypto_provider_handle_t provider, char *old_pin,
-    size_t old_len, char *new_pin, size_t new_len, crypto_call_req_t *req);
-void crypto_free_provider_list(crypto_provider_entry_t *list, uint_t count);
-void crypto_free_provider_info(crypto_provider_info_t *info);
-
-/* Administrative */
-int crypto_get_dev_list(uint_t *count, crypto_dev_list_entry_t **list);
-int crypto_get_soft_list(uint_t *count, char **list, size_t *len);
-int crypto_get_dev_info(char *name, uint_t instance, uint_t *count,
-    crypto_mech_name_t **list);
-int crypto_get_soft_info(caddr_t name, uint_t *count,
-    crypto_mech_name_t **list);
-int crypto_load_dev_disabled(char *name, uint_t instance, uint_t count,
-    crypto_mech_name_t *list);
-int crypto_load_soft_disabled(caddr_t name, uint_t count,
-    crypto_mech_name_t *list);
-int crypto_unload_soft_module(caddr_t path);
-int crypto_load_soft_config(caddr_t name, uint_t count,
-    crypto_mech_name_t *list);
-int crypto_load_door(uint_t did);
-void crypto_free_mech_list(crypto_mech_name_t *list, uint_t count);
-void crypto_free_dev_list(crypto_dev_list_entry_t *list, uint_t count);
 
 /* Miscellaneous */
-int crypto_get_mechanism_number(caddr_t name, crypto_mech_type_t *number);
-int crypto_build_permitted_mech_names(kcf_provider_desc_t *,
-    crypto_mech_name_t **, uint_t *, int);
 extern void kcf_destroy_mech_tabs(void);
 extern void kcf_init_mech_tabs(void);
 extern int kcf_add_mech_provider(short, kcf_provider_desc_t *,
@@ -1262,70 +675,26 @@ extern kcf_provider_desc_t *kcf_alloc_provider_desc(
     const crypto_provider_info_t *);
 extern void kcf_provider_zero_refcnt(kcf_provider_desc_t *);
 extern void kcf_free_provider_desc(kcf_provider_desc_t *);
-extern void kcf_soft_config_init(void);
-extern int get_sw_provider_for_mech(crypto_mech_name_t, char **);
 extern crypto_mech_type_t crypto_mech2id_common(const char *, boolean_t);
 extern void undo_register_provider(kcf_provider_desc_t *, boolean_t);
-extern void redo_register_provider(kcf_provider_desc_t *);
-extern void kcf_rnd_init(void);
-extern boolean_t kcf_rngprov_check(void);
-extern int kcf_rnd_get_pseudo_bytes(uint8_t *, size_t);
-extern int kcf_rnd_get_bytes(uint8_t *, size_t, boolean_t, boolean_t);
-extern int random_add_pseudo_entropy(uint8_t *, size_t, uint_t);
-extern void kcf_rnd_schedule_timeout(boolean_t);
 extern int crypto_uio_data(crypto_data_t *, uchar_t *, int, cmd_type_t,
     void *, void (*update)(void));
-extern int crypto_mblk_data(crypto_data_t *, uchar_t *, int, cmd_type_t,
-    void *, void (*update)(void));
 extern int crypto_put_output_data(uchar_t *, crypto_data_t *, int);
-extern int crypto_get_input_data(crypto_data_t *, uchar_t **, uchar_t *);
-extern int crypto_copy_key_to_ctx(crypto_key_t *, crypto_key_t **, size_t *,
-    int kmflag);
-extern int crypto_digest_data(crypto_data_t *, void *, uchar_t *,
-    void (*update)(void), void (*final)(void), uchar_t);
 extern int crypto_update_iov(void *, crypto_data_t *, crypto_data_t *,
     int (*cipher)(void *, caddr_t, size_t, crypto_data_t *),
     void (*copy_block)(uint8_t *, uint64_t *));
 extern int crypto_update_uio(void *, crypto_data_t *, crypto_data_t *,
     int (*cipher)(void *, caddr_t, size_t, crypto_data_t *),
     void (*copy_block)(uint8_t *, uint64_t *));
-extern int crypto_update_mp(void *, crypto_data_t *, crypto_data_t *,
-    int (*cipher)(void *, caddr_t, size_t, crypto_data_t *),
-    void (*copy_block)(uint8_t *, uint64_t *));
-extern int crypto_get_key_attr(crypto_key_t *, crypto_attr_type_t, uchar_t **,
-    ssize_t *);
 
 /* Access to the provider's table */
 extern void kcf_prov_tab_destroy(void);
 extern void kcf_prov_tab_init(void);
 extern int kcf_prov_tab_add_provider(kcf_provider_desc_t *);
 extern int kcf_prov_tab_rem_provider(crypto_provider_id_t);
-extern kcf_provider_desc_t *kcf_prov_tab_lookup_by_name(char *);
-extern kcf_provider_desc_t *kcf_prov_tab_lookup_by_dev(char *, uint_t);
-extern int kcf_get_hw_prov_tab(uint_t *, kcf_provider_desc_t ***, int,
-    char *, uint_t, boolean_t);
-extern int kcf_get_slot_list(uint_t *, kcf_provider_desc_t ***, boolean_t);
-extern void kcf_free_provider_tab(uint_t, kcf_provider_desc_t **);
 extern kcf_provider_desc_t *kcf_prov_tab_lookup(crypto_provider_id_t);
 extern int kcf_get_sw_prov(crypto_mech_type_t, kcf_provider_desc_t **,
     kcf_mech_entry_t **, boolean_t);
-
-/* Access to the policy table */
-extern boolean_t is_mech_disabled(kcf_provider_desc_t *, crypto_mech_name_t);
-extern boolean_t is_mech_disabled_byname(crypto_provider_type_t, char *,
-    uint_t, crypto_mech_name_t);
-extern void kcf_policy_tab_init(void);
-extern void kcf_policy_free_desc(kcf_policy_desc_t *);
-extern void kcf_policy_remove_by_name(char *, uint_t *, crypto_mech_name_t **);
-extern void kcf_policy_remove_by_dev(char *, uint_t, uint_t *,
-    crypto_mech_name_t **);
-extern kcf_policy_desc_t *kcf_policy_lookup_by_name(char *);
-extern kcf_policy_desc_t *kcf_policy_lookup_by_dev(char *, uint_t);
-extern int kcf_policy_load_soft_disabled(char *, uint_t, crypto_mech_name_t *,
-    uint_t *, crypto_mech_name_t **);
-extern int kcf_policy_load_dev_disabled(char *, uint_t, uint_t,
-    crypto_mech_name_t *, uint_t *, crypto_mech_name_t **);
-extern boolean_t in_soft_config_list(char *);
 
 
 #ifdef	__cplusplus
