@@ -23,32 +23,12 @@
  * Copyright 2013 Saso Kiselkov. All rights reserved.
  */
 
-#include <sys/modctl.h>
 #include <sys/crypto/common.h>
 #include <sys/crypto/icp.h>
 #include <sys/crypto/spi.h>
 #include <sys/sysmacros.h>
 #define	SKEIN_MODULE_IMPL
 #include <sys/skein.h>
-
-/*
- * Like the sha2 module, we create the skein module with two modlinkages:
- * - modlmisc to allow direct calls to Skein_* API functions.
- * - modlcrypto to integrate well into the Kernel Crypto Framework (KCF).
- */
-static struct modlmisc modlmisc = {
-	&mod_cryptoops,
-	"Skein Message-Digest Algorithm"
-};
-
-static struct modlcrypto modlcrypto = {
-	&mod_cryptoops,
-	"Skein Kernel SW Provider"
-};
-
-static struct modlinkage modlinkage = {
-	MODREV_1, {&modlmisc, &modlcrypto, NULL}
-};
 
 static crypto_mech_info_t skein_mech_info_tab[] = {
 	{CKM_SKEIN_256, SKEIN_256_MECH_INFO_TYPE,
@@ -214,11 +194,6 @@ skein_get_digest_bitlen(const crypto_mechanism_t *mechanism, size_t *result)
 int
 skein_mod_init(void)
 {
-	int error;
-
-	if ((error = mod_install(&modlinkage)) != 0)
-		return (error);
-
 	/*
 	 * Try to register with KCF - failure shouldn't unload us, since we
 	 * still may want to continue providing misc/skein functionality.
@@ -231,7 +206,7 @@ skein_mod_init(void)
 int
 skein_mod_fini(void)
 {
-	int ret;
+	int ret = 0;
 
 	if (skein_prov_handle != 0) {
 		if ((ret = crypto_unregister_provider(skein_prov_handle)) !=
@@ -244,7 +219,7 @@ skein_mod_fini(void)
 		skein_prov_handle = 0;
 	}
 
-	return (mod_remove(&modlinkage));
+	return (0);
 }
 
 /*

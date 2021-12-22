@@ -32,26 +32,9 @@
 #include <sys/crypto/spi.h>
 #include <sys/crypto/icp.h>
 #include <modes/modes.h>
-#include <sys/modctl.h>
 #define	_AES_IMPL
 #include <aes/aes_impl.h>
 #include <modes/gcm_impl.h>
-
-#define	CRYPTO_PROVIDER_NAME "aes"
-
-extern struct mod_ops mod_cryptoops;
-
-/*
- * Module linkage information for the kernel.
- */
-static struct modlcrypto modlcrypto = {
-	&mod_cryptoops,
-	"AES Kernel SW Provider"
-};
-
-static struct modlinkage modlinkage = {
-	MODREV_1, { (void *)&modlcrypto, NULL }
-};
 
 /*
  * Mechanism info structure passed to KCF during registration.
@@ -199,20 +182,13 @@ static crypto_data_t null_crypto_data = { CRYPTO_DATA_RAW };
 int
 aes_mod_init(void)
 {
-	int ret;
-
 	/* Determine the fastest available implementation. */
 	aes_impl_init();
 	gcm_impl_init();
 
-	if ((ret = mod_install(&modlinkage)) != 0)
-		return (ret);
-
 	/* Register with KCF.  If the registration fails, remove the module. */
-	if (crypto_register_provider(&aes_prov_info, &aes_prov_handle)) {
-		(void) mod_remove(&modlinkage);
+	if (crypto_register_provider(&aes_prov_info, &aes_prov_handle))
 		return (EACCES);
-	}
 
 	return (0);
 }
@@ -228,7 +204,7 @@ aes_mod_fini(void)
 		aes_prov_handle = 0;
 	}
 
-	return (mod_remove(&modlinkage));
+	return (0);
 }
 
 static int
