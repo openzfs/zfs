@@ -29,6 +29,12 @@
  * Portions copyright (c) 2013, Saso Kiselkov, All rights reserved
  */
 
+/*
+ * Unlike sha2 or skein, we won't expose edonr via the Kernel Cryptographic
+ * Framework (KCF), because Edon-R is *NOT* suitable for general-purpose
+ * cryptographic use. Users of Edon-R must interface directly to this module.
+ */
+
 #include <sys/strings.h>
 #include <sys/edonr.h>
 #include <sys/debug.h>

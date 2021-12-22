@@ -53,12 +53,10 @@ KERNEL_C = \
 	algs/skein/skein_iv.c \
 	illumos-crypto.c \
 	io/aes.c \
-	io/edonr_mod.c \
 	io/sha1_mod.c \
 	io/sha2_mod.c \
 	io/skein_mod.c \
 	os/modhash.c \
-	os/modconf.c \
 	core/kcf_sched.c \
 	core/kcf_prov_lib.c \
 	core/kcf_callprov.c \
