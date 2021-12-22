@@ -205,7 +205,7 @@ kcf_prov_tab_lookup(crypto_provider_id_t prov_id)
 }
 
 static void
-allocate_ops_v1(const crypto_ops_t *src, crypto_ops_t *dst,
+allocate_ops(const crypto_ops_t *src, crypto_ops_t *dst,
     uint_t *mech_list_count)
 {
 	if (src->co_digest_ops != NULL)
@@ -268,19 +268,11 @@ allocate_ops_v1(const crypto_ops_t *src, crypto_ops_t *dst,
 	if (src->co_ctx_ops != NULL)
 		dst->co_ctx_ops = kmem_alloc(sizeof (crypto_ctx_ops_t),
 		    KM_SLEEP);
-}
 
-static void
-allocate_ops_v2(const crypto_ops_t *src, crypto_ops_t *dst)
-{
 	if (src->co_mech_ops != NULL)
 		dst->co_mech_ops = kmem_alloc(sizeof (crypto_mech_ops_t),
 		    KM_SLEEP);
-}
 
-static void
-allocate_ops_v3(const crypto_ops_t *src, crypto_ops_t *dst)
-{
 	if (src->co_nostore_key_ops != NULL)
 		dst->co_nostore_key_ops =
 		    kmem_alloc(sizeof (crypto_nostore_key_ops_t), KM_SLEEP);
@@ -329,11 +321,7 @@ kcf_alloc_provider_desc(const crypto_provider_info_t *info)
 	crypto_ops_t *opvec = kmem_zalloc(sizeof (crypto_ops_t), KM_SLEEP);
 
 	if (info->pi_provider_type != CRYPTO_LOGICAL_PROVIDER) {
-		allocate_ops_v1(src_ops, opvec, &mech_list_count);
-		if (info->pi_interface_version >= CRYPTO_SPI_VERSION_2)
-			allocate_ops_v2(src_ops, opvec);
-		if (info->pi_interface_version == CRYPTO_SPI_VERSION_3)
-			allocate_ops_v3(src_ops, opvec);
+		allocate_ops(src_ops, opvec, &mech_list_count);
 	}
 	desc->pd_ops_vector = opvec;
 

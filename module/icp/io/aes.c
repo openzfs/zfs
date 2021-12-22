@@ -143,7 +143,7 @@ static const crypto_ctx_ops_t aes_ctx_ops = {
 	.free_context = aes_free_context
 };
 
-static const crypto_ops_t aes_crypto_ops = {{{{{
+static const crypto_ops_t aes_crypto_ops = {
 	NULL,
 	&aes_cipher_ops,
 	&aes_mac_ops,
@@ -157,17 +157,16 @@ static const crypto_ops_t aes_crypto_ops = {{{{{
 	NULL,
 	NULL,
 	&aes_ctx_ops
-}}}}};
+};
 
-static const crypto_provider_info_t aes_prov_info = {{{{
-	CRYPTO_SPI_VERSION_1,
+static const crypto_provider_info_t aes_prov_info = {
 	"AES Software Provider",
 	CRYPTO_SW_PROVIDER,
 	NULL,
 	&aes_crypto_ops,
 	sizeof (aes_mech_info_tab) / sizeof (crypto_mech_info_t),
 	aes_mech_info_tab
-}}}};
+};
 
 static crypto_kcf_provider_handle_t aes_prov_handle = 0;
 static crypto_data_t null_crypto_data = { CRYPTO_DATA_RAW };
