@@ -183,7 +183,6 @@ spa_import_rootpool(const char *name, bool checkpointrewind)
 	spa_t *spa;
 	vdev_t *rvd;
 	nvlist_t *config, *nvtop;
-	uint64_t txg;
 	char *pname;
 	int error;
 
@@ -196,7 +195,6 @@ spa_import_rootpool(const char *name, bool checkpointrewind)
 	if (config != NULL) {
 		pname = fnvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME);
 		VERIFY0(strcmp(name, pname));
-		txg = fnvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_TXG);
 
 		if ((spa = spa_lookup(pname)) != NULL) {
 			/*
