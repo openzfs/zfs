@@ -208,10 +208,6 @@ static void
 allocate_ops_v1(const crypto_ops_t *src, crypto_ops_t *dst,
     uint_t *mech_list_count)
 {
-	if (src->co_control_ops != NULL)
-		dst->co_control_ops = kmem_alloc(sizeof (crypto_control_ops_t),
-		    KM_SLEEP);
-
 	if (src->co_digest_ops != NULL)
 		dst->co_digest_ops = kmem_alloc(sizeof (crypto_digest_ops_t),
 		    KM_SLEEP);
@@ -412,11 +408,6 @@ kcf_free_provider_desc(kcf_provider_desc_t *desc)
 		    CRYPTO_PROVIDER_DESCR_MAX_LEN + 1);
 
 	if (desc->pd_ops_vector != NULL) {
-
-		if (desc->pd_ops_vector->co_control_ops != NULL)
-			kmem_free(desc->pd_ops_vector->co_control_ops,
-			    sizeof (crypto_control_ops_t));
-
 		if (desc->pd_ops_vector->co_digest_ops != NULL)
 			kmem_free(desc->pd_ops_vector->co_digest_ops,
 			    sizeof (crypto_digest_ops_t));
