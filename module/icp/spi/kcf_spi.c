@@ -96,19 +96,7 @@ crypto_register_provider(const crypto_provider_info_t *info,
 	prov_desc->pd_prov_handle = info->pi_provider_handle;
 
 	/* copy provider description string */
-	if (info->pi_provider_description != NULL) {
-		/*
-		 * pi_provider_descriptor is a string that can contain
-		 * up to CRYPTO_PROVIDER_DESCR_MAX_LEN + 1 characters
-		 * INCLUDING the terminating null character. A bcopy()
-		 * is necessary here as pd_description should not have
-		 * a null character. See comments in kcf_alloc_provider_desc()
-		 * for details on pd_description field.
-		 */
-		bcopy(info->pi_provider_description, prov_desc->pd_description,
-		    MIN(strlen(info->pi_provider_description),
-		    (size_t)CRYPTO_PROVIDER_DESCR_MAX_LEN));
-	}
+	prov_desc->pd_description = info->pi_provider_description;
 
 	/* Change from Illumos: the ops vector is persistent. */
 	if (info->pi_provider_type != CRYPTO_LOGICAL_PROVIDER) {

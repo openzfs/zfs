@@ -267,7 +267,7 @@ typedef uint_t crypto_kcf_provider_handle_t;
  * pi_provider_dev must be specified with a different pi_provider_handle.
  */
 typedef struct crypto_provider_info {
-	char				*pi_provider_description;
+	const char				*pi_provider_description;
 	crypto_provider_type_t		pi_provider_type;
 	crypto_provider_handle_t	pi_provider_handle;
 	const crypto_ops_t			*pi_ops_vector;
