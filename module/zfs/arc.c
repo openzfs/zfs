@@ -463,6 +463,11 @@ int zfs_arc_meta_strategy = ARC_STRATEGY_META_BALANCED;
 int zfs_arc_meta_adjust_restarts = 4096;
 int zfs_arc_lotsfree_percent = 10;
 
+/*
+ * Number of arc_prune threads
+ */
+static int zfs_arc_prune_task_threads = 1;
+
 /* The 6 states: */
 arc_state_t ARC_anon;
 arc_state_t ARC_mru;
@@ -7972,9 +7977,8 @@ arc_init(void)
 	    offsetof(arc_prune_t, p_node));
 	mutex_init(&arc_prune_mtx, NULL, MUTEX_DEFAULT, NULL);
 
-	arc_prune_taskq = taskq_create("arc_prune", 100, defclsyspri,
-	    boot_ncpus, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC |
-	    TASKQ_THREADS_CPU_PCT);
+	arc_prune_taskq = taskq_create("arc_prune", zfs_arc_prune_task_threads,
+	    defclsyspri, 100, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
 
 	arc_ksp = kstat_create("zfs", 0, "arcstats", "misc", KSTAT_TYPE_NAMED,
 	    sizeof (arc_stats) / sizeof (kstat_named_t), KSTAT_FLAG_VIRTUAL);
@@ -11106,4 +11110,7 @@ ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, eviction_pct, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, evict_batch_limit, INT, ZMOD_RW,
 	"The number of headers to evict per sublist before moving to the next");
+
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, prune_task_threads, INT, ZMOD_RW,
+	"Number of arc_prune threads");
 /* END CSTYLED */
