@@ -193,26 +193,6 @@ kcf_prov_tab_lookup(crypto_provider_id_t prov_id)
 	return (prov_desc);
 }
 
-static void
-allocate_ops(const crypto_ops_t *src, crypto_ops_t *dst)
-{
-	if (src->co_digest_ops != NULL)
-		dst->co_digest_ops = kmem_alloc(sizeof (crypto_digest_ops_t),
-		    KM_SLEEP);
-
-	if (src->co_cipher_ops != NULL)
-		dst->co_cipher_ops = kmem_alloc(sizeof (crypto_cipher_ops_t),
-		    KM_SLEEP);
-
-	if (src->co_mac_ops != NULL)
-		dst->co_mac_ops = kmem_alloc(sizeof (crypto_mac_ops_t),
-		    KM_SLEEP);
-
-	if (src->co_ctx_ops != NULL)
-		dst->co_ctx_ops = kmem_alloc(sizeof (crypto_ctx_ops_t),
-		    KM_SLEEP);
-}
-
 /*
  * Allocate a provider descriptor. mech_list_count specifies the
  * number of mechanisms supported by the providers, and is used
@@ -223,10 +203,8 @@ allocate_ops(const crypto_ops_t *src, crypto_ops_t *dst)
 kcf_provider_desc_t *
 kcf_alloc_provider_desc(const crypto_provider_info_t *info)
 {
-	kcf_provider_desc_t *desc;
-	const crypto_ops_t *src_ops = info->pi_ops_vector;
-
-	desc = kmem_zalloc(sizeof (kcf_provider_desc_t), KM_SLEEP);
+	kcf_provider_desc_t *desc =
+	    kmem_zalloc(sizeof (kcf_provider_desc_t), KM_SLEEP);
 
 	/*
 	 * pd_description serves two purposes
@@ -245,17 +223,6 @@ kcf_alloc_provider_desc(const crypto_provider_info_t *info)
 	(void) memset(desc->pd_description, ' ',
 	    CRYPTO_PROVIDER_DESCR_MAX_LEN);
 	desc->pd_description[CRYPTO_PROVIDER_DESCR_MAX_LEN] = '\0';
-
-	/*
-	 * Since the framework does not require the ops vector specified
-	 * by the providers during registration to be persistent,
-	 * KCF needs to allocate storage where copies of the ops
-	 * vectors are copied.
-	 */
-	crypto_ops_t *opvec = kmem_zalloc(sizeof (crypto_ops_t), KM_SLEEP);
-	if (info->pi_provider_type != CRYPTO_LOGICAL_PROVIDER)
-		allocate_ops(src_ops, opvec);
-	desc->pd_ops_vector = opvec;
 
 	desc->pd_mech_list_count = info->pi_mech_list_count;
 	desc->pd_mechanisms = kmem_zalloc(sizeof (crypto_mech_info_t) *
@@ -326,26 +293,6 @@ kcf_free_provider_desc(kcf_provider_desc_t *desc)
 	if (desc->pd_description != NULL)
 		kmem_free(desc->pd_description,
 		    CRYPTO_PROVIDER_DESCR_MAX_LEN + 1);
-
-	if (desc->pd_ops_vector != NULL) {
-		if (desc->pd_ops_vector->co_digest_ops != NULL)
-			kmem_free(desc->pd_ops_vector->co_digest_ops,
-			    sizeof (crypto_digest_ops_t));
-
-		if (desc->pd_ops_vector->co_cipher_ops != NULL)
-			kmem_free(desc->pd_ops_vector->co_cipher_ops,
-			    sizeof (crypto_cipher_ops_t));
-
-		if (desc->pd_ops_vector->co_mac_ops != NULL)
-			kmem_free(desc->pd_ops_vector->co_mac_ops,
-			    sizeof (crypto_mac_ops_t));
-
-		if (desc->pd_ops_vector->co_ctx_ops != NULL)
-			kmem_free(desc->pd_ops_vector->co_ctx_ops,
-			    sizeof (crypto_ctx_ops_t));
-
-		kmem_free(desc->pd_ops_vector, sizeof (crypto_ops_t));
-	}
 
 	if (desc->pd_mechanisms != NULL)
 		/* free the memory associated with the mechanism info's */

@@ -58,26 +58,6 @@ static const kcf_prov_stats_t kcf_stats_ks_data_template = {
 	{ "kcf_ops_returned_busy",	KSTAT_DATA_UINT64 }
 };
 
-#define	KCF_SPI_COPY_OPS(src, dst, ops) if ((src)->ops != NULL) \
-	memcpy((void *) (dst)->ops, (src)->ops, sizeof (*(src)->ops));
-
-/*
- * Copy an ops vector from src to dst. Used during provider registration
- * to copy the ops vector from the provider info structure to the
- * provider descriptor maintained by KCF.
- * Copying the ops vector specified by the provider is needed since the
- * framework does not require the provider info structure to be
- * persistent.
- */
-static void
-copy_ops_vector(const crypto_ops_t *src_ops, crypto_ops_t *dst_ops)
-{
-	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_digest_ops);
-	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_cipher_ops);
-	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_mac_ops);
-	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_ctx_ops);
-}
-
 /*
  * This routine is used to add cryptographic providers to the KEF framework.
  * Providers pass a crypto_provider_info structure to crypto_register_provider()
@@ -130,12 +110,9 @@ crypto_register_provider(const crypto_provider_info_t *info,
 		    (size_t)CRYPTO_PROVIDER_DESCR_MAX_LEN));
 	}
 
+	/* Change from Illumos: the ops vector is persistent. */
 	if (info->pi_provider_type != CRYPTO_LOGICAL_PROVIDER) {
-		if (info->pi_ops_vector == NULL) {
-			goto bail;
-		}
-		crypto_ops_t *pvec = (crypto_ops_t *)prov_desc->pd_ops_vector;
-		copy_ops_vector(info->pi_ops_vector, pvec);
+		prov_desc->pd_ops_vector = info->pi_ops_vector;
 		prov_desc->pd_flags = info->pi_flags;
 	}
 
