@@ -1251,6 +1251,11 @@ zfs_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 		*objects = 0;
 		for_each_online_node(sc.nid) {
 			*objects += (*shrinker->scan_objects)(shrinker, &sc);
+			/*
+			 * reset sc.nr_to_scan, modified by
+			 * scan_objects == super_cache_scan
+			 */
+			sc.nr_to_scan = nr_to_scan;
 		}
 	} else {
 			*objects = (*shrinker->scan_objects)(shrinker, &sc);
