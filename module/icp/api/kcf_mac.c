@@ -79,35 +79,13 @@
  *	the specified session id.
  *	When complete and successful, 'mac' will contain the message
  *	authentication code.
+ *	Relies on the KCF scheduler to choose a provider.
  *
  * Context:
  *	Process or interrupt, according to the semantics dictated by the 'crq'.
  *
  * Returns:
  *	See comment in the beginning of the file.
- */
-int
-crypto_mac_prov(crypto_provider_t provider, crypto_session_id_t sid,
-    crypto_mechanism_t *mech, crypto_data_t *data, crypto_key_t *key,
-    crypto_ctx_template_t tmpl, crypto_data_t *mac, crypto_call_req_t *crq)
-{
-	kcf_req_params_t params;
-	kcf_provider_desc_t *pd = provider;
-	kcf_provider_desc_t *real_provider = pd;
-	int rv;
-
-	ASSERT(KCF_PROV_REFHELD(pd));
-
-	KCF_WRAP_MAC_OPS_PARAMS(&params, KCF_OP_ATOMIC, sid, mech, key,
-	    data, mac, tmpl);
-	rv = kcf_submit_request(real_provider, NULL, crq, &params);
-
-	return (rv);
-}
-
-/*
- * Same as crypto_mac_prov(), but relies on the KCF scheduler to choose
- * a provider. See crypto_mac() comments for more information.
  */
 int
 crypto_mac(crypto_mechanism_t *mech, crypto_data_t *data,
@@ -183,27 +161,7 @@ retry:
  * Single part operation to compute the MAC corresponding to the specified
  * 'data' and to verify that it matches the MAC specified by 'mac'.
  * The other arguments are the same as the function crypto_mac_prov().
- */
-int
-crypto_mac_verify_prov(crypto_provider_t provider, crypto_session_id_t sid,
-    crypto_mechanism_t *mech, crypto_data_t *data, crypto_key_t *key,
-    crypto_ctx_template_t tmpl, crypto_data_t *mac, crypto_call_req_t *crq)
-{
-	kcf_req_params_t params;
-	kcf_provider_desc_t *pd = provider;
-	kcf_provider_desc_t *real_provider = pd;
-
-	ASSERT(KCF_PROV_REFHELD(pd));
-
-	KCF_WRAP_MAC_OPS_PARAMS(&params, KCF_OP_MAC_VERIFY_ATOMIC, sid, mech,
-	    key, data, mac, tmpl);
-
-	return (kcf_submit_request(real_provider, NULL, crq, &params));
-}
-
-/*
- * Same as crypto_mac_verify_prov(), but relies on the KCF scheduler to choose
- * a provider. See crypto_mac_verify_prov() comments for more information.
+ * Relies on the KCF scheduler to choose a provider.
  */
 int
 crypto_mac_verify(crypto_mechanism_t *mech, crypto_data_t *data,
@@ -511,9 +469,7 @@ crypto_mac_final(crypto_context_t context, crypto_data_t *mac,
 }
 
 #if defined(_KERNEL)
-EXPORT_SYMBOL(crypto_mac_prov);
 EXPORT_SYMBOL(crypto_mac);
-EXPORT_SYMBOL(crypto_mac_verify_prov);
 EXPORT_SYMBOL(crypto_mac_verify);
 EXPORT_SYMBOL(crypto_mac_init_prov);
 EXPORT_SYMBOL(crypto_mac_init);
