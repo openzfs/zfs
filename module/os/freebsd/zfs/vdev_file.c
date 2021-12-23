@@ -234,6 +234,7 @@ vdev_file_io_strategy(void *arg)
 		err = zfs_file_pwrite(vf->vf_file, buf, size, off, &resid);
 		abd_return_buf(zio->io_abd, buf, size);
 	}
+	zio->io_error = err;
 	if (resid != 0 && zio->io_error == 0)
 		zio->io_error = ENOSPC;
 
