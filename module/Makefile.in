@@ -51,10 +51,8 @@ endif
 FMAKE = env -u MAKEFLAGS make $(FMAKEFLAGS)
 
 modules-Linux:
-	list='$(SUBDIR_TARGETS)'; for targetdir in $$list; do \
-		$(MAKE) -C $$targetdir; \
-	done
-	$(MAKE) -C @LINUX_OBJ@ M=`pwd` @KERNEL_MAKE@ CONFIG_ZFS=m modules
+	list='$(SUBDIR_TARGETS)'; for td in $$list; do $(MAKE) -C $$td; done
+	$(MAKE) -C @LINUX_OBJ@ M="$$PWD" @KERNEL_MAKE@ CONFIG_ZFS=m modules
 
 modules-FreeBSD:
 	+$(FMAKE)
@@ -67,7 +65,7 @@ modules: modules-@ac_system@
 clean-Linux:
 	@# Only cleanup the kernel build directories when CONFIG_KERNEL
 	@# is defined.  This indicates that kernel modules should be built.
-@CONFIG_KERNEL_TRUE@	$(MAKE) -C @LINUX_OBJ@ M=`pwd` @KERNEL_MAKE@ clean
+@CONFIG_KERNEL_TRUE@	$(MAKE) -C @LINUX_OBJ@ M="$$PWD" @KERNEL_MAKE@ clean
 
 	if [ -f @LINUX_SYMBOLS@ ]; then $(RM) @LINUX_SYMBOLS@; fi
 	if [ -f Module.markers ]; then $(RM) Module.markers; fi
@@ -81,7 +79,7 @@ clean: clean-@ac_system@
 
 modules_install-Linux:
 	@# Install the kernel modules
-	$(MAKE) -C @LINUX_OBJ@ M=`pwd` modules_install \
+	$(MAKE) -C @LINUX_OBJ@ M="$$PWD" modules_install \
 		INSTALL_MOD_PATH=$(INSTALL_MOD_PATH) \
 		INSTALL_MOD_DIR=$(INSTALL_MOD_DIR) \
 		KERNELRELEASE=@LINUX_VERSION@
