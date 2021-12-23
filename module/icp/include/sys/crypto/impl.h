@@ -221,7 +221,7 @@ typedef struct kcf_provider_desc {
 	// int				pd_module_id;
 	// struct modctl			*pd_mctlp;
 	kcondvar_t			pd_remove_cv;
-	char				*pd_description;
+	const char				*pd_description;
 	uint_t				pd_flags;
 	uint_t				pd_hash_limit;
 	crypto_kcf_provider_handle_t	pd_kcf_prov_handle;

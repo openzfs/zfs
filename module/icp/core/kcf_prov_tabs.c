@@ -206,24 +206,6 @@ kcf_alloc_provider_desc(const crypto_provider_info_t *info)
 	kcf_provider_desc_t *desc =
 	    kmem_zalloc(sizeof (kcf_provider_desc_t), KM_SLEEP);
 
-	/*
-	 * pd_description serves two purposes
-	 * - Appears as a blank padded PKCS#11 style string, that will be
-	 *   returned to applications in CK_SLOT_INFO.slotDescription.
-	 *   This means that we should not have a null character in the
-	 *   first CRYPTO_PROVIDER_DESCR_MAX_LEN bytes.
-	 * - Appears as a null-terminated string that can be used by
-	 *   other kcf routines.
-	 *
-	 * So, we allocate enough room for one extra null terminator
-	 * which keeps every one happy.
-	 */
-	desc->pd_description = kmem_alloc(CRYPTO_PROVIDER_DESCR_MAX_LEN + 1,
-	    KM_SLEEP);
-	(void) memset(desc->pd_description, ' ',
-	    CRYPTO_PROVIDER_DESCR_MAX_LEN);
-	desc->pd_description[CRYPTO_PROVIDER_DESCR_MAX_LEN] = '\0';
-
 	desc->pd_mech_list_count = info->pi_mech_list_count;
 	desc->pd_mechanisms = kmem_zalloc(sizeof (crypto_mech_info_t) *
 	    info->pi_mech_list_count, KM_SLEEP);
@@ -289,10 +271,6 @@ kcf_free_provider_desc(kcf_provider_desc_t *desc)
 	mutex_exit(&prov_tab_mutex);
 
 	/* free the kernel memory associated with the provider descriptor */
-
-	if (desc->pd_description != NULL)
-		kmem_free(desc->pd_description,
-		    CRYPTO_PROVIDER_DESCR_MAX_LEN + 1);
 
 	if (desc->pd_mechanisms != NULL)
 		/* free the memory associated with the mechanism info's */
