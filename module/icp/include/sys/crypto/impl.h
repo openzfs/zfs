@@ -213,7 +213,7 @@ typedef struct kcf_provider_desc {
 	const crypto_ops_t			*pd_ops_vector;
 	ushort_t			pd_mech_indx[KCF_OPS_CLASSSIZE]\
 					    [KCF_MAXMECHTAB];
-	crypto_mech_info_t		*pd_mechanisms;
+	const crypto_mech_info_t		*pd_mechanisms;
 	kcf_sched_info_t		pd_sched_info;
 	uint_t				pd_mech_list_count;
 	// char				*pd_name;
@@ -669,7 +669,7 @@ extern void kcf_destroy_mech_tabs(void);
 extern void kcf_init_mech_tabs(void);
 extern int kcf_add_mech_provider(short, kcf_provider_desc_t *,
     kcf_prov_mech_desc_t **);
-extern void kcf_remove_mech_provider(char *, kcf_provider_desc_t *);
+extern void kcf_remove_mech_provider(const char *, kcf_provider_desc_t *);
 extern int kcf_get_mech_entry(crypto_mech_type_t, kcf_mech_entry_t **);
 extern kcf_provider_desc_t *kcf_alloc_provider_desc(
     const crypto_provider_info_t *);

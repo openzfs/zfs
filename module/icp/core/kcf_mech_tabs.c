@@ -280,7 +280,7 @@ kcf_init_mech_tabs(void)
  *	KCF_SUCCESS otherwise.
  */
 static int
-kcf_create_mech_entry(kcf_ops_class_t class, char *mechname)
+kcf_create_mech_entry(kcf_ops_class_t class, const char *mechname)
 {
 	crypto_mech_type_t mt;
 	kcf_mech_entry_t *me_tab;
@@ -365,7 +365,7 @@ kcf_add_mech_provider(short mech_indx,
 {
 	int error;
 	kcf_mech_entry_t *mech_entry = NULL;
-	crypto_mech_info_t *mech_info;
+	const crypto_mech_info_t *mech_info;
 	crypto_mech_type_t kcf_mech_type;
 	kcf_prov_mech_desc_t *prov_mech;
 
@@ -491,7 +491,7 @@ kcf_add_mech_provider(short mech_indx,
  *      User context only.
  */
 void
-kcf_remove_mech_provider(char *mech_name, kcf_provider_desc_t *prov_desc)
+kcf_remove_mech_provider(const char *mech_name, kcf_provider_desc_t *prov_desc)
 {
 	crypto_mech_type_t mech_type;
 	kcf_prov_mech_desc_t *prov_mech = NULL, *prov_chain;
