@@ -206,9 +206,6 @@ kcf_alloc_provider_desc(const crypto_provider_info_t *info)
 	kcf_provider_desc_t *desc =
 	    kmem_zalloc(sizeof (kcf_provider_desc_t), KM_SLEEP);
 
-	desc->pd_mech_list_count = info->pi_mech_list_count;
-	desc->pd_mechanisms = kmem_zalloc(sizeof (crypto_mech_info_t) *
-	    info->pi_mech_list_count, KM_SLEEP);
 	for (int i = 0; i < KCF_OPS_CLASSSIZE; i++)
 		for (int j = 0; j < KCF_MAXMECHTAB; j++)
 			desc->pd_mech_indx[i][j] = KCF_INVALID_INDX;
@@ -271,11 +268,6 @@ kcf_free_provider_desc(kcf_provider_desc_t *desc)
 	mutex_exit(&prov_tab_mutex);
 
 	/* free the kernel memory associated with the provider descriptor */
-
-	if (desc->pd_mechanisms != NULL)
-		/* free the memory associated with the mechanism info's */
-		kmem_free(desc->pd_mechanisms, sizeof (crypto_mech_info_t) *
-		    desc->pd_mech_list_count);
 
 	if (desc->pd_sched_info.ks_taskq != NULL)
 		taskq_destroy(desc->pd_sched_info.ks_taskq);
