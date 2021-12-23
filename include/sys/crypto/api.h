@@ -90,15 +90,9 @@ extern int crypto_digest_final(crypto_context_t ctx, crypto_data_t *digest,
 extern int crypto_mac(crypto_mechanism_t *mech, crypto_data_t *data,
     crypto_key_t *key, crypto_ctx_template_t tmpl, crypto_data_t *mac,
     crypto_call_req_t *cr);
-extern int crypto_mac_prov(crypto_provider_t, crypto_session_id_t,
-    crypto_mechanism_t *, crypto_data_t *, crypto_key_t *,
-    crypto_ctx_template_t, crypto_data_t *, crypto_call_req_t *);
 extern int crypto_mac_verify(crypto_mechanism_t *mech, crypto_data_t *data,
     crypto_key_t *key, crypto_ctx_template_t tmpl, crypto_data_t *mac,
     crypto_call_req_t *cr);
-extern int crypto_mac_verify_prov(crypto_provider_t, crypto_session_id_t,
-    crypto_mechanism_t *, crypto_data_t *, crypto_key_t *,
-    crypto_ctx_template_t, crypto_data_t *, crypto_call_req_t *);
 extern int crypto_mac_init(crypto_mechanism_t *mech, crypto_key_t *key,
     crypto_ctx_template_t tmpl, crypto_context_t *ctxp, crypto_call_req_t *cr);
 extern int crypto_mac_init_prov(crypto_provider_t, crypto_session_id_t,
