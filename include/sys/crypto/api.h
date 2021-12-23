@@ -115,39 +115,12 @@ extern int crypto_mac_final(crypto_context_t ctx, crypto_data_t *data,
 extern int crypto_encrypt(crypto_mechanism_t *mech, crypto_data_t *plaintext,
     crypto_key_t *key, crypto_ctx_template_t tmpl, crypto_data_t *ciphertext,
     crypto_call_req_t *cr);
-extern int crypto_encrypt_prov(crypto_provider_t, crypto_session_id_t,
-    crypto_mechanism_t *, crypto_data_t *, crypto_key_t *,
-    crypto_ctx_template_t, crypto_data_t *, crypto_call_req_t *);
-extern int crypto_encrypt_init(crypto_mechanism_t *mech, crypto_key_t *key,
-    crypto_ctx_template_t tmpl, crypto_context_t *ctxp, crypto_call_req_t *cr);
-extern int crypto_encrypt_init_prov(crypto_provider_t, crypto_session_id_t,
-    crypto_mechanism_t *, crypto_key_t *, crypto_ctx_template_t,
-    crypto_context_t *, crypto_call_req_t *);
-extern int crypto_encrypt_update(crypto_context_t ctx,
-    crypto_data_t *plaintext, crypto_data_t *ciphertext,
-    crypto_call_req_t *cr);
-extern int crypto_encrypt_final(crypto_context_t ctx,
-    crypto_data_t *ciphertext, crypto_call_req_t *cr);
 
 /*
  * Single and multi-part decryption operations.
  */
 extern int crypto_decrypt(crypto_mechanism_t *mech, crypto_data_t *ciphertext,
     crypto_key_t *key, crypto_ctx_template_t tmpl, crypto_data_t *plaintext,
-    crypto_call_req_t *cr);
-extern int crypto_decrypt_prov(crypto_provider_t, crypto_session_id_t,
-    crypto_mechanism_t *, crypto_data_t *, crypto_key_t *,
-    crypto_ctx_template_t, crypto_data_t *, crypto_call_req_t *);
-extern int crypto_decrypt_init(crypto_mechanism_t *mech, crypto_key_t *key,
-    crypto_ctx_template_t tmpl, crypto_context_t *ctxp,
-    crypto_call_req_t *cr);
-extern int crypto_decrypt_init_prov(crypto_provider_t, crypto_session_id_t,
-    crypto_mechanism_t *, crypto_key_t *, crypto_ctx_template_t,
-    crypto_context_t *, crypto_call_req_t *);
-extern int crypto_decrypt_update(crypto_context_t ctx,
-    crypto_data_t *ciphertext, crypto_data_t *plaintext,
-    crypto_call_req_t *cr);
-extern int crypto_decrypt_final(crypto_context_t ctx, crypto_data_t *plaintext,
     crypto_call_req_t *cr);
 
 /*
