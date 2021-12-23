@@ -45,7 +45,7 @@
 #include <sys/crypto/sched_impl.h>
 #include <sys/crypto/spi.h>
 
-#define	KCF_MAX_PROVIDERS	512	/* max number of providers */
+#define	KCF_MAX_PROVIDERS	8	/* max number of providers */
 
 /*
  * Prov_tab is an array of providers which is updated when
@@ -59,33 +59,25 @@
  *
  * prov_tab entries are not updated from kcf.conf or by cryptoadm(1M).
  */
-static kcf_provider_desc_t **prov_tab = NULL;
+static kcf_provider_desc_t *prov_tab[KCF_MAX_PROVIDERS];
 static kmutex_t prov_tab_mutex; /* ensure exclusive access to the table */
 static uint_t prov_tab_num = 0; /* number of providers in table */
-static uint_t prov_tab_max = KCF_MAX_PROVIDERS;
 
 void
 kcf_prov_tab_destroy(void)
 {
 	mutex_destroy(&prov_tab_mutex);
-
-	if (prov_tab)
-		kmem_free(prov_tab, prov_tab_max *
-		    sizeof (kcf_provider_desc_t *));
 }
 
 /*
  * Initialize a mutex and the KCF providers table, prov_tab.
- * The providers table is dynamically allocated with prov_tab_max entries.
+ * The providers table is dynamically allocated with KCF_MAX_PROVIDERS entries.
  * Called from kcf module _init().
  */
 void
 kcf_prov_tab_init(void)
 {
 	mutex_init(&prov_tab_mutex, NULL, MUTEX_DEFAULT, NULL);
-
-	prov_tab = kmem_zalloc(prov_tab_max * sizeof (kcf_provider_desc_t *),
-	    KM_SLEEP);
 }
 
 /*
@@ -100,8 +92,6 @@ int
 kcf_prov_tab_add_provider(kcf_provider_desc_t *prov_desc)
 {
 	uint_t i;
-
-	ASSERT(prov_tab != NULL);
 
 	mutex_enter(&prov_tab_mutex);
 
@@ -146,7 +136,6 @@ kcf_prov_tab_rem_provider(crypto_provider_id_t prov_id)
 {
 	kcf_provider_desc_t *prov_desc;
 
-	ASSERT(prov_tab != NULL);
 	ASSERT(prov_tab_num >= 0);
 
 	/*
