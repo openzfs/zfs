@@ -37,6 +37,8 @@ static dataset_kstat_values_t empty_dataset_kstats = {
 	{ "nread",	KSTAT_DATA_UINT64 },
 	{ "nunlinks",	KSTAT_DATA_UINT64 },
 	{ "nunlinked",	KSTAT_DATA_UINT64 },
+	{ "prunes",	KSTAT_DATA_UINT64 },
+	{ "prunes_skipped",	KSTAT_DATA_UINT64 },
 };
 
 static int
@@ -61,6 +63,10 @@ dataset_kstats_update(kstat_t *ksp, int rw)
 	    wmsum_value(&dk->dk_sums.dss_nunlinks);
 	dkv->dkv_nunlinked.value.ui64 =
 	    wmsum_value(&dk->dk_sums.dss_nunlinked);
+	dkv->dkv_prunes.value.ui64 =
+	    wmsum_value(&dk->dk_sums.dss_prunes);
+	dkv->dkv_prunes_skipped.value.ui64 =
+	    wmsum_value(&dk->dk_sums.dss_prunes_skipped);
 
 	return (0);
 }
@@ -146,6 +152,8 @@ dataset_kstats_create(dataset_kstats_t *dk, objset_t *objset)
 	wmsum_init(&dk->dk_sums.dss_nread, 0);
 	wmsum_init(&dk->dk_sums.dss_nunlinks, 0);
 	wmsum_init(&dk->dk_sums.dss_nunlinked, 0);
+	wmsum_init(&dk->dk_sums.dss_prunes, 0);
+	wmsum_init(&dk->dk_sums.dss_prunes_skipped, 0);
 }
 
 void
@@ -168,6 +176,8 @@ dataset_kstats_destroy(dataset_kstats_t *dk)
 	wmsum_fini(&dk->dk_sums.dss_nread);
 	wmsum_fini(&dk->dk_sums.dss_nunlinks);
 	wmsum_fini(&dk->dk_sums.dss_nunlinked);
+	wmsum_fini(&dk->dk_sums.dss_prunes);
+	wmsum_fini(&dk->dk_sums.dss_prunes_skipped);
 }
 
 void
@@ -212,4 +222,22 @@ dataset_kstats_update_nunlinked_kstat(dataset_kstats_t *dk, int64_t delta)
 		return;
 
 	wmsum_add(&dk->dk_sums.dss_nunlinked, delta);
+}
+
+void
+dataset_kstats_update_prunes_kstat(dataset_kstats_t *dk)
+{
+	if (dk->dk_kstats == NULL)
+		return;
+
+	wmsum_add(&dk->dk_sums.dss_prunes, 1);
+}
+
+void
+dataset_kstats_update_prunes_skipped_kstat(dataset_kstats_t *dk)
+{
+	if (dk->dk_kstats == NULL)
+		return;
+
+	wmsum_add(&dk->dk_sums.dss_prunes_skipped, 1);
 }

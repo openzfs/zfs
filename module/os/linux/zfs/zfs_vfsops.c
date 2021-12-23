@@ -25,6 +25,7 @@
 
 /* Portions Copyright 2010 Robert Milkowski */
 
+#include <sys/timer.h>
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/sysmacros.h>
@@ -59,8 +60,11 @@
 #include <sys/spa_boot.h>
 #include <sys/objlist.h>
 #include <sys/zpl.h>
+#include <sys/dataset_kstats.h>
 #include <linux/vfs_compat.h>
 #include "zfs_comutil.h"
+
+static unsigned int zfs_arc_prune_skip_ms = 2000;
 
 enum {
 	TOKEN_RO,
@@ -1244,6 +1248,15 @@ zfs_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 
 	ZFS_ENTER(zfsvfs);
 
+	/*
+	 * Skip this superblock if its time hasn't come
+	 */
+	if (ddi_time_before(ddi_get_lbolt(), zfsvfs->z_next_prune)) {
+		dataset_kstats_update_prunes_skipped_kstat(&zfsvfs->z_kstat);
+		goto zfs_exit;
+	}
+	dataset_kstats_update_prunes_kstat(&zfsvfs->z_kstat);
+
 #if defined(HAVE_SPLIT_SHRINKER_CALLBACK) && \
 	defined(SHRINK_CONTROL_HAS_NID) && \
 	defined(SHRINKER_NUMA_AWARE)
@@ -1272,6 +1285,27 @@ zfs_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 #error "No available dentry and inode cache pruning mechanism."
 #endif
 
+	if (zfs_arc_prune_skip_ms) {
+		if (*objects == 0) {
+			/*
+			 * Nothing is able to be pruned, skip pruning this
+			 * superblock for some milliseconds to avoid
+			 * continually trying to do something that can't be
+			 * done. Under pressure, this can save thousands of
+			 * scans a second per superblock.
+			 *
+			 * The delay time isn't critical, it needs to be long
+			 * enough to avoid excessive useless work, and short
+			 * enough that skipping the prune on this particular
+			 * superblock isn't going to cause problems.
+			 */
+			zfsvfs->z_next_prune = ddi_get_lbolt() +
+			    MSEC_TO_TICK(zfs_arc_prune_skip_ms);
+		} else {
+			zfsvfs->z_next_prune = 0;
+		}
+	}
+
 #if defined(HAVE_D_PRUNE_ALIASES) && !defined(D_PRUNE_ALIASES_IS_DEFAULT)
 #undef	D_PRUNE_ALIASES_IS_DEFAULT
 	/*
@@ -1283,6 +1317,7 @@ zfs_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 		*objects = zfs_prune_aliases(zfsvfs, nr_to_scan);
 #endif
 
+zfs_exit:
 	ZFS_EXIT(zfsvfs);
 
 	dprintf_ds(zfsvfs->z_os->os_dsl_dataset,
@@ -2175,3 +2210,9 @@ EXPORT_SYMBOL(zfs_statvfs);
 EXPORT_SYMBOL(zfs_vget);
 EXPORT_SYMBOL(zfs_prune);
 #endif
+
+/* BEGIN CSTYLED */
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, prune_skip_ms, UINT, ZMOD_RW,
+	"Skip pruning a superblock by this number of ms if nothing was pruned "
+	"the previous round");
+/* END CSTYLED */

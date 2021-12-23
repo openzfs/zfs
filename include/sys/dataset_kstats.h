@@ -38,6 +38,8 @@ typedef struct dataset_sum_stats_t {
 	wmsum_t dss_nread;
 	wmsum_t dss_nunlinks;
 	wmsum_t dss_nunlinked;
+	wmsum_t dss_prunes;
+	wmsum_t dss_prunes_skipped;
 } dataset_sum_stats_t;
 
 typedef struct dataset_kstat_values {
@@ -56,6 +58,16 @@ typedef struct dataset_kstat_values {
 	 * entry is removed from the unlinked set
 	 */
 	kstat_named_t dkv_nunlinked;
+	/*
+	 * nprune is initialized to zero on mount and is incremented when a
+	 * prune is performed
+	 */
+	kstat_named_t dkv_prunes;
+	/*
+	 * nprune_delayed is initialized to zero on mount and is incremented
+	 * when a prune is delayed
+	 */
+	kstat_named_t dkv_prunes_skipped;
 } dataset_kstat_values_t;
 
 typedef struct dataset_kstats {
@@ -71,5 +83,8 @@ void dataset_kstats_update_read_kstats(dataset_kstats_t *, int64_t);
 
 void dataset_kstats_update_nunlinks_kstat(dataset_kstats_t *, int64_t);
 void dataset_kstats_update_nunlinked_kstat(dataset_kstats_t *, int64_t);
+
+void dataset_kstats_update_prunes_kstat(dataset_kstats_t *);
+void dataset_kstats_update_prunes_skipped_kstat(dataset_kstats_t *);
 
 #endif /* _SYS_DATASET_KSTATS_H */

@@ -680,6 +680,25 @@ Minimum time "prescient prefetched" blocks are locked in the ARC.
 These blocks are meant to be prefetched fairly aggressively ahead of
 the code that may use them.
 .
+.It Sy zfs_arc_prune_skip_ms Ns = Ns Sy 2000 Ns ms Po 2s Pc Pq ulong
+If nothing is able to be pruned from a superblock, skip pruning the
+superblock for some milliseconds to avoid continually trying to do
+something that can't be done.
+Under pressure, this can save thousands of scans a second per superblock.
+The delay time isn't critical, it needs to be long enough to avoid
+excessive useless work, and short enough that skipping the prune on this
+particular superblock isn't going to cause problems.
+.Pp
+The parameter can be set to 0 (zero) to disable the delay,
+and only applies on Linux.
+.Pp
+The number of prunes and delayed prune attempts will be available in the
+.Va prunes
+and
+.Va prunes_skipped
+fields of
+.Pa /proc/spl/kstat/zfs/ Ns Ao Ar pool Ac Ns Pa /objset-0x Ns Aq Ar objset .
+.
 .It Sy zfs_arc_prune_task_threads Ns = Ns Sy 1 Pq int
 Number of arc_prune threads.
 .Fx
