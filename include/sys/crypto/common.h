@@ -369,12 +369,6 @@ typedef struct crypto_key32 {
 
 /* Providers */
 
-typedef enum {
-	CRYPTO_HW_PROVIDER = 0,
-	CRYPTO_SW_PROVIDER,
-	CRYPTO_LOGICAL_PROVIDER
-} crypto_provider_type_t;
-
 typedef uint32_t 	crypto_provider_id_t;
 #define	KCF_PROVID_INVALID	((uint32_t)-1)
 

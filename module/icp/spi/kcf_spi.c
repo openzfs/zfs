@@ -36,16 +36,6 @@
 #include <sys/crypto/sched_impl.h>
 #include <sys/crypto/spi.h>
 
-/*
- * minalloc and maxalloc values to be used for taskq_create().
- */
-const int crypto_taskq_threads = CRYPTO_TASKQ_THREADS;
-const int crypto_taskq_minalloc = CRYPTO_TASKQ_MIN;
-const int crypto_taskq_maxalloc = CRYPTO_TASKQ_MAX;
-
-static void remove_provider(kcf_provider_desc_t *);
-static void process_logical_providers(const crypto_provider_info_t *,
-    kcf_provider_desc_t *);
 static int init_prov_mechs(const crypto_provider_info_t *,
     kcf_provider_desc_t *);
 static int kcf_prov_kstat_update(kstat_t *, int);
@@ -63,34 +53,21 @@ static const kcf_prov_stats_t kcf_stats_ks_data_template = {
  * Providers pass a crypto_provider_info structure to crypto_register_provider()
  * and get back a handle.  The crypto_provider_info structure contains a
  * list of mechanisms supported by the provider and an ops vector containing
- * provider entry points.  Hardware providers call this routine in their attach
- * routines.  Software providers call this routine in their _init() routine.
+ * provider entry points.  Providers call this routine in their _init() routine.
  */
 int
 crypto_register_provider(const crypto_provider_info_t *info,
     crypto_kcf_provider_handle_t *handle)
 {
-	char *ks_name;
-
 	kcf_provider_desc_t *prov_desc = NULL;
 	int ret = CRYPTO_ARGUMENTS_BAD;
-
-	/*
-	 * Check provider type, must be software, hardware, or logical.
-	 */
-	if (info->pi_provider_type != CRYPTO_HW_PROVIDER &&
-	    info->pi_provider_type != CRYPTO_SW_PROVIDER &&
-	    info->pi_provider_type != CRYPTO_LOGICAL_PROVIDER)
-		return (CRYPTO_ARGUMENTS_BAD);
 
 	/*
 	 * Allocate and initialize a new provider descriptor. We also
 	 * hold it and release it when done.
 	 */
-	prov_desc = kcf_alloc_provider_desc(info);
+	prov_desc = kcf_alloc_provider_desc();
 	KCF_PROV_REFHOLD(prov_desc);
-
-	prov_desc->pd_prov_type = info->pi_provider_type;
 
 	/* provider-private handle, opaque to KCF */
 	prov_desc->pd_prov_handle = info->pi_provider_handle;
@@ -99,10 +76,8 @@ crypto_register_provider(const crypto_provider_info_t *info,
 	prov_desc->pd_description = info->pi_provider_description;
 
 	/* Change from Illumos: the ops vector is persistent. */
-	if (info->pi_provider_type != CRYPTO_LOGICAL_PROVIDER) {
-		prov_desc->pd_ops_vector = info->pi_ops_vector;
-		prov_desc->pd_flags = info->pi_flags;
-	}
+	prov_desc->pd_ops_vector = info->pi_ops_vector;
+	prov_desc->pd_flags = info->pi_flags;
 
 	/* process the mechanisms supported by the provider */
 	if ((ret = init_prov_mechs(info, prov_desc)) != CRYPTO_SUCCESS)
@@ -118,55 +93,32 @@ crypto_register_provider(const crypto_provider_info_t *info,
 	}
 
 	/*
-	 * We create a taskq only for a hardware provider. The global
-	 * software queue is used for software providers. We handle ordering
+	 * The global queue is used for providers. We handle ordering
 	 * of multi-part requests in the taskq routine. So, it is safe to
 	 * have multiple threads for the taskq. We pass TASKQ_PREPOPULATE flag
 	 * to keep some entries cached to improve performance.
 	 */
-	if (prov_desc->pd_prov_type == CRYPTO_HW_PROVIDER)
-		prov_desc->pd_sched_info.ks_taskq = taskq_create("kcf_taskq",
-		    CRYPTO_TASKQ_THREADS, minclsyspri,
-		    CRYPTO_TASKQ_MIN, CRYPTO_TASKQ_MAX,
-		    TASKQ_PREPOPULATE);
-	else
-		prov_desc->pd_sched_info.ks_taskq = NULL;
 
-	if (prov_desc->pd_prov_type != CRYPTO_LOGICAL_PROVIDER) {
-		/*
-		 * Create the kstat for this provider. There is a kstat
-		 * installed for each successfully registered provider.
-		 * This kstat is deleted, when the provider unregisters.
-		 */
-		if (prov_desc->pd_prov_type == CRYPTO_SW_PROVIDER) {
-			ks_name = kmem_asprintf("%s_%s",
-			    "NONAME", "provider_stats");
-		} else {
-			ks_name = kmem_asprintf("%s_%d_%u_%s",
-			    "NONAME", 0, prov_desc->pd_prov_id,
-			    "provider_stats");
-		}
+	/*
+	 * Create the kstat for this provider. There is a kstat
+	 * installed for each successfully registered provider.
+	 * This kstat is deleted, when the provider unregisters.
+	 */
+	prov_desc->pd_kstat = kstat_create("kcf", 0, "NONAME_provider_stats",
+	    "crypto", KSTAT_TYPE_NAMED, sizeof (kcf_prov_stats_t) /
+	    sizeof (kstat_named_t), KSTAT_FLAG_VIRTUAL);
 
-		prov_desc->pd_kstat = kstat_create("kcf", 0, ks_name, "crypto",
-		    KSTAT_TYPE_NAMED, sizeof (kcf_prov_stats_t) /
-		    sizeof (kstat_named_t), KSTAT_FLAG_VIRTUAL);
-
-		if (prov_desc->pd_kstat != NULL) {
-			bcopy(&kcf_stats_ks_data_template,
-			    &prov_desc->pd_ks_data,
-			    sizeof (kcf_stats_ks_data_template));
-			prov_desc->pd_kstat->ks_data = &prov_desc->pd_ks_data;
-			KCF_PROV_REFHOLD(prov_desc);
-			KCF_PROV_IREFHOLD(prov_desc);
-			prov_desc->pd_kstat->ks_private = prov_desc;
-			prov_desc->pd_kstat->ks_update = kcf_prov_kstat_update;
-			kstat_install(prov_desc->pd_kstat);
-		}
-		kmem_strfree(ks_name);
+	if (prov_desc->pd_kstat != NULL) {
+		bcopy(&kcf_stats_ks_data_template,
+		    &prov_desc->pd_ks_data,
+		    sizeof (kcf_stats_ks_data_template));
+		prov_desc->pd_kstat->ks_data = &prov_desc->pd_ks_data;
+		KCF_PROV_REFHOLD(prov_desc);
+		KCF_PROV_IREFHOLD(prov_desc);
+		prov_desc->pd_kstat->ks_private = prov_desc;
+		prov_desc->pd_kstat->ks_update = kcf_prov_kstat_update;
+		kstat_install(prov_desc->pd_kstat);
 	}
-
-	if (prov_desc->pd_prov_type == CRYPTO_HW_PROVIDER)
-		process_logical_providers(info, prov_desc);
 
 	mutex_enter(&prov_desc->pd_lock);
 	prov_desc->pd_state = KCF_PROV_READY;
@@ -183,8 +135,7 @@ bail:
 
 /*
  * This routine is used to notify the framework when a provider is being
- * removed.  Hardware providers call this routine in their detach routines.
- * Software providers call this routine in their _fini() routine.
+ * removed.  Providers call this routine in their _fini() routine.
  */
 int
 crypto_unregister_provider(crypto_kcf_provider_handle_t handle)
@@ -212,46 +163,30 @@ crypto_unregister_provider(crypto_kcf_provider_handle_t handle)
 	saved_state = desc->pd_state;
 	desc->pd_state = KCF_PROV_REMOVED;
 
-	if (saved_state == KCF_PROV_BUSY) {
+	/*
+	 * Check if this provider is currently being used.
+	 * pd_irefcnt is the number of holds from the internal
+	 * structures. We add one to account for the above lookup.
+	 */
+	if (desc->pd_refcnt > desc->pd_irefcnt + 1) {
+		desc->pd_state = saved_state;
+		mutex_exit(&desc->pd_lock);
+		/* Release reference held by kcf_prov_tab_lookup(). */
+		KCF_PROV_REFRELE(desc);
 		/*
-		 * The per-provider taskq threads may be waiting. We
-		 * signal them so that they can start failing requests.
+		 * The administrator will presumably stop the clients,
+		 * thus removing the holds, when they get the busy
+		 * return value.  Any retry will succeed then.
 		 */
-		cv_broadcast(&desc->pd_resume_cv);
-	}
-
-	if (desc->pd_prov_type == CRYPTO_SW_PROVIDER) {
-		/*
-		 * Check if this provider is currently being used.
-		 * pd_irefcnt is the number of holds from the internal
-		 * structures. We add one to account for the above lookup.
-		 */
-		if (desc->pd_refcnt > desc->pd_irefcnt + 1) {
-			desc->pd_state = saved_state;
-			mutex_exit(&desc->pd_lock);
-			/* Release reference held by kcf_prov_tab_lookup(). */
-			KCF_PROV_REFRELE(desc);
-			/*
-			 * The administrator presumably will stop the clients
-			 * thus removing the holds, when they get the busy
-			 * return value.  Any retry will succeed then.
-			 */
-			return (CRYPTO_BUSY);
-		}
+		return (CRYPTO_BUSY);
 	}
 	mutex_exit(&desc->pd_lock);
 
-	if (desc->pd_prov_type != CRYPTO_SW_PROVIDER) {
-		remove_provider(desc);
-	}
-
-	if (desc->pd_prov_type != CRYPTO_LOGICAL_PROVIDER) {
-		/* remove the provider from the mechanisms tables */
-		for (mech_idx = 0; mech_idx < desc->pd_mech_list_count;
-		    mech_idx++) {
-			kcf_remove_mech_provider(
-			    desc->pd_mechanisms[mech_idx].cm_mech_name, desc);
-		}
+	/* remove the provider from the mechanisms tables */
+	for (mech_idx = 0; mech_idx < desc->pd_mech_list_count;
+	    mech_idx++) {
+		kcf_remove_mech_provider(
+		    desc->pd_mechanisms[mech_idx].cm_mech_name, desc);
 	}
 
 	/* remove provider from providers table */
@@ -264,51 +199,34 @@ crypto_unregister_provider(crypto_kcf_provider_handle_t handle)
 
 	delete_kstat(desc);
 
-	if (desc->pd_prov_type == CRYPTO_SW_PROVIDER) {
-		/* Release reference held by kcf_prov_tab_lookup(). */
-		KCF_PROV_REFRELE(desc);
+	/* Release reference held by kcf_prov_tab_lookup(). */
+	KCF_PROV_REFRELE(desc);
 
-		/*
-		 * Wait till the existing requests complete.
-		 */
-		mutex_enter(&desc->pd_lock);
-		while (desc->pd_state != KCF_PROV_FREED)
-			cv_wait(&desc->pd_remove_cv, &desc->pd_lock);
-		mutex_exit(&desc->pd_lock);
-	} else {
-		/*
-		 * Wait until requests that have been sent to the provider
-		 * complete.
-		 */
-		mutex_enter(&desc->pd_lock);
-		while (desc->pd_irefcnt > 0)
-			cv_wait(&desc->pd_remove_cv, &desc->pd_lock);
-		mutex_exit(&desc->pd_lock);
-	}
+	/*
+	 * Wait till the existing requests complete.
+	 */
+	mutex_enter(&desc->pd_lock);
+	while (desc->pd_state != KCF_PROV_FREED)
+		cv_wait(&desc->pd_remove_cv, &desc->pd_lock);
+	mutex_exit(&desc->pd_lock);
 
 	kcf_do_notify(desc, B_FALSE);
 
-	if (desc->pd_prov_type == CRYPTO_SW_PROVIDER) {
-		/*
-		 * This is the only place where kcf_free_provider_desc()
-		 * is called directly. KCF_PROV_REFRELE() should free the
-		 * structure in all other places.
-		 */
-		ASSERT(desc->pd_state == KCF_PROV_FREED &&
-		    desc->pd_refcnt == 0);
-		kcf_free_provider_desc(desc);
-	} else {
-		KCF_PROV_REFRELE(desc);
-	}
+	/*
+	 * This is the only place where kcf_free_provider_desc()
+	 * is called directly. KCF_PROV_REFRELE() should free the
+	 * structure in all other places.
+	 */
+	ASSERT(desc->pd_state == KCF_PROV_FREED &&
+	    desc->pd_refcnt == 0);
+	kcf_free_provider_desc(desc);
 
 	return (CRYPTO_SUCCESS);
 }
 
 /*
- * This routine is used by software providers to determine
+ * This routine is used by providers to determine
  * whether to use KM_SLEEP or KM_NOSLEEP during memory allocation.
- * Note that hardware providers can always use KM_SLEEP. So,
- * they do not need to call this routine.
  *
  * This routine can be called from user or interrupt context.
  */
@@ -323,9 +241,6 @@ crypto_kmflag(crypto_req_handle_t handle)
  * during registration. A NULL crypto_provider_info_t indicates
  * an already initialized provider descriptor.
  *
- * Mechanisms are not added to the kernel's mechanism table if the
- * provider is a logical provider.
- *
  * Returns CRYPTO_SUCCESS on success, CRYPTO_ARGUMENTS if one
  * of the specified mechanisms was malformed, or CRYPTO_HOST_MEMORY
  * if the table of mechanisms is full.
@@ -338,15 +253,6 @@ init_prov_mechs(const crypto_provider_info_t *info, kcf_provider_desc_t *desc)
 	int err = CRYPTO_SUCCESS;
 	kcf_prov_mech_desc_t *pmd;
 	int desc_use_count = 0;
-
-	if (desc->pd_prov_type == CRYPTO_LOGICAL_PROVIDER) {
-		if (info != NULL) {
-			ASSERT(info->pi_mechanisms != NULL);
-			desc->pd_mech_list_count = info->pi_mech_list_count;
-			desc->pd_mechanisms = info->pi_mechanisms;
-		}
-		return (CRYPTO_SUCCESS);
-	}
 
 	/*
 	 * Copy the mechanism list from the provider info to the provider
@@ -403,12 +309,12 @@ init_prov_mechs(const crypto_provider_info_t *info, kcf_provider_desc_t *desc)
 	}
 
 	/*
-	 * Don't allow multiple software providers with disabled mechanisms
+	 * Don't allow multiple providers with disabled mechanisms
 	 * to register. Subsequent enabling of mechanisms will result in
-	 * an unsupported configuration, i.e. multiple software providers
+	 * an unsupported configuration, i.e. multiple providers
 	 * per mechanism.
 	 */
-	if (desc_use_count == 0 && desc->pd_prov_type == CRYPTO_SW_PROVIDER)
+	if (desc_use_count == 0)
 		return (CRYPTO_ARGUMENTS_BAD);
 
 	if (err == KCF_SUCCESS)
@@ -480,117 +386,6 @@ undo_register_provider(kcf_provider_desc_t *desc, boolean_t remove_prov)
 }
 
 /*
- * Add provider (p1) to another provider's array of providers (p2).
- * Hardware and logical providers use this array to cross-reference
- * each other.
- */
-static void
-add_provider_to_array(kcf_provider_desc_t *p1, kcf_provider_desc_t *p2)
-{
-	kcf_provider_list_t *new;
-
-	new = kmem_alloc(sizeof (kcf_provider_list_t), KM_SLEEP);
-	mutex_enter(&p2->pd_lock);
-	new->pl_next = p2->pd_provider_list;
-	p2->pd_provider_list = new;
-	KCF_PROV_IREFHOLD(p1);
-	new->pl_provider = p1;
-	mutex_exit(&p2->pd_lock);
-}
-
-/*
- * Remove provider (p1) from another provider's array of providers (p2).
- * Hardware and logical providers use this array to cross-reference
- * each other.
- */
-static void
-remove_provider_from_array(kcf_provider_desc_t *p1, kcf_provider_desc_t *p2)
-{
-
-	kcf_provider_list_t *pl = NULL, **prev;
-
-	mutex_enter(&p2->pd_lock);
-	for (pl = p2->pd_provider_list, prev = &p2->pd_provider_list;
-	    pl != NULL; prev = &pl->pl_next, pl = pl->pl_next) {
-		if (pl->pl_provider == p1) {
-			break;
-		}
-	}
-
-	if (p1 == NULL) {
-		mutex_exit(&p2->pd_lock);
-		return;
-	}
-
-	/* detach and free kcf_provider_list structure */
-	KCF_PROV_IREFRELE(p1);
-	*prev = pl->pl_next;
-	kmem_free(pl, sizeof (*pl));
-	mutex_exit(&p2->pd_lock);
-}
-
-/*
- * Convert an array of logical provider handles (crypto_provider_id)
- * stored in a crypto_provider_info structure into an array of provider
- * descriptors (kcf_provider_desc_t) attached to a logical provider.
- */
-static void
-process_logical_providers(const crypto_provider_info_t *info,
-    kcf_provider_desc_t *hp)
-{
-	kcf_provider_desc_t *lp;
-	crypto_provider_id_t handle;
-	int count = info->pi_logical_provider_count;
-	int i;
-
-	/* add hardware provider to each logical provider */
-	for (i = 0; i < count; i++) {
-		handle = info->pi_logical_providers[i];
-		lp = kcf_prov_tab_lookup((crypto_provider_id_t)handle);
-		if (lp == NULL) {
-			continue;
-		}
-		add_provider_to_array(hp, lp);
-		hp->pd_flags |= KCF_LPROV_MEMBER;
-
-		/*
-		 * A hardware provider has to have the provider descriptor of
-		 * every logical provider it belongs to, so it can be removed
-		 * from the logical provider if the hardware provider
-		 * unregisters from the framework.
-		 */
-		add_provider_to_array(lp, hp);
-		KCF_PROV_REFRELE(lp);
-	}
-}
-
-/*
- * This routine removes a provider from all of the logical or
- * hardware providers it belongs to, and frees the provider's
- * array of pointers to providers.
- */
-static void
-remove_provider(kcf_provider_desc_t *pp)
-{
-	kcf_provider_desc_t *p;
-	kcf_provider_list_t *e, *next;
-
-	mutex_enter(&pp->pd_lock);
-	for (e = pp->pd_provider_list; e != NULL; e = next) {
-		p = e->pl_provider;
-		remove_provider_from_array(pp, p);
-		if (p->pd_prov_type == CRYPTO_HW_PROVIDER &&
-		    p->pd_provider_list == NULL)
-			p->pd_flags &= ~KCF_LPROV_MEMBER;
-		KCF_PROV_IREFRELE(p);
-		next = e->pl_next;
-		kmem_free(e, sizeof (*e));
-	}
-	pp->pd_provider_list = NULL;
-	mutex_exit(&pp->pd_lock);
-}
-
-/*
  * Dispatch events as needed for a provider. is_added flag tells
  * whether the provider is registering or unregistering.
  */
@@ -600,36 +395,19 @@ kcf_do_notify(kcf_provider_desc_t *prov_desc, boolean_t is_added)
 	int i;
 	crypto_notify_event_change_t ec;
 
-	ASSERT(prov_desc->pd_state > KCF_PROV_VERIFICATION_FAILED);
+	ASSERT(prov_desc->pd_state > KCF_PROV_ALLOCATED);
 
 	/*
 	 * Inform interested clients of the mechanisms becoming
-	 * available/unavailable. We skip this for logical providers
-	 * as they do not affect mechanisms.
+	 * available/unavailable.
 	 */
-	if (prov_desc->pd_prov_type != CRYPTO_LOGICAL_PROVIDER) {
-		ec.ec_provider_type = prov_desc->pd_prov_type;
-		ec.ec_change = is_added ? CRYPTO_MECH_ADDED :
-		    CRYPTO_MECH_REMOVED;
-		for (i = 0; i < prov_desc->pd_mech_list_count; i++) {
-			(void) strlcpy(ec.ec_mech_name,
-			    prov_desc->pd_mechanisms[i].cm_mech_name,
-			    CRYPTO_MAX_MECH_NAME);
-			kcf_walk_ntfylist(CRYPTO_EVENT_MECHS_CHANGED, &ec);
-		}
-
-	}
-
-	/*
-	 * Inform interested clients about the new or departing provider.
-	 * In case of a logical provider, we need to notify the event only
-	 * for the logical provider and not for the underlying
-	 * providers which are known by the KCF_LPROV_MEMBER bit.
-	 */
-	if (prov_desc->pd_prov_type == CRYPTO_LOGICAL_PROVIDER ||
-	    (prov_desc->pd_flags & KCF_LPROV_MEMBER) == 0) {
-		kcf_walk_ntfylist(is_added ? CRYPTO_EVENT_PROVIDER_REGISTERED :
-		    CRYPTO_EVENT_PROVIDER_UNREGISTERED, prov_desc);
+	ec.ec_change = is_added ? CRYPTO_MECH_ADDED :
+	    CRYPTO_MECH_REMOVED;
+	for (i = 0; i < prov_desc->pd_mech_list_count; i++) {
+		(void) strlcpy(ec.ec_mech_name,
+		    prov_desc->pd_mechanisms[i].cm_mech_name,
+		    CRYPTO_MAX_MECH_NAME);
+		kcf_walk_ntfylist(CRYPTO_EVENT_MECHS_CHANGED, &ec);
 	}
 }
 

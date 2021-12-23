@@ -69,168 +69,6 @@ is_in_triedlist(kcf_provider_desc_t *pd, kcf_prov_tried_t *triedl)
 }
 
 /*
- * Search a mech entry's hardware provider list for the specified
- * provider. Return true if found.
- */
-static boolean_t
-is_valid_provider_for_mech(kcf_provider_desc_t *pd, kcf_mech_entry_t *me,
-    crypto_func_group_t fg)
-{
-	kcf_prov_mech_desc_t *prov_chain;
-
-	prov_chain = me->me_hw_prov_chain;
-	if (prov_chain != NULL) {
-		ASSERT(me->me_num_hwprov > 0);
-		for (; prov_chain != NULL; prov_chain = prov_chain->pm_next) {
-			if (prov_chain->pm_prov_desc == pd &&
-			    IS_FG_SUPPORTED(prov_chain, fg)) {
-				return (B_TRUE);
-			}
-		}
-	}
-	return (B_FALSE);
-}
-
-/*
- * This routine, given a logical provider, returns the least loaded
- * provider belonging to the logical provider. The provider must be
- * able to do the specified mechanism, i.e. check that the mechanism
- * hasn't been disabled. In addition, just in case providers are not
- * entirely equivalent, the provider's entry point is checked for
- * non-nullness. This is accomplished by having the caller pass, as
- * arguments, the offset of the function group (offset_1), and the
- * offset of the function within the function group (offset_2).
- * Returns NULL if no provider can be found.
- */
-int
-kcf_get_hardware_provider(crypto_mech_type_t mech_type_1,
-    crypto_mech_type_t mech_type_2, boolean_t call_restrict,
-    kcf_provider_desc_t *old, kcf_provider_desc_t **new, crypto_func_group_t fg)
-{
-	kcf_provider_desc_t *provider, *real_pd = old;
-	kcf_provider_desc_t *gpd = NULL;	/* good provider */
-	kcf_provider_desc_t *bpd = NULL;	/* busy provider */
-	kcf_provider_list_t *p;
-	kcf_ops_class_t class;
-	kcf_mech_entry_t *me;
-	const kcf_mech_entry_tab_t *me_tab;
-	int index, len, gqlen = INT_MAX, rv = CRYPTO_SUCCESS;
-
-	/* get the mech entry for the specified mechanism */
-	class = KCF_MECH2CLASS(mech_type_1);
-	if ((class < KCF_FIRST_OPSCLASS) || (class > KCF_LAST_OPSCLASS)) {
-		return (CRYPTO_MECHANISM_INVALID);
-	}
-
-	me_tab = &kcf_mech_tabs_tab[class];
-	index = KCF_MECH2INDEX(mech_type_1);
-	if ((index < 0) || (index >= me_tab->met_size)) {
-		return (CRYPTO_MECHANISM_INVALID);
-	}
-
-	me = &((me_tab->met_tab)[index]);
-	mutex_enter(&me->me_mutex);
-
-	/*
-	 * We assume the provider descriptor will not go away because
-	 * it is being held somewhere, i.e. its reference count has been
-	 * incremented. In the case of the crypto module, the provider
-	 * descriptor is held by the session structure.
-	 */
-	if (old->pd_prov_type == CRYPTO_LOGICAL_PROVIDER) {
-		if (old->pd_provider_list == NULL) {
-			real_pd = NULL;
-			rv = CRYPTO_DEVICE_ERROR;
-			goto out;
-		}
-		/*
-		 * Find the least loaded real provider. KCF_PROV_LOAD gives
-		 * the load (number of pending requests) of the provider.
-		 */
-		mutex_enter(&old->pd_lock);
-		p = old->pd_provider_list;
-		while (p != NULL) {
-			provider = p->pl_provider;
-
-			ASSERT(provider->pd_prov_type !=
-			    CRYPTO_LOGICAL_PROVIDER);
-
-			if (call_restrict &&
-			    (provider->pd_flags & KCF_PROV_RESTRICTED)) {
-				p = p->pl_next;
-				continue;
-			}
-
-			if (!is_valid_provider_for_mech(provider, me, fg)) {
-				p = p->pl_next;
-				continue;
-			}
-
-			/* provider does second mech */
-			if (mech_type_2 != CRYPTO_MECH_INVALID) {
-				int i;
-
-				i = KCF_TO_PROV_MECH_INDX(provider,
-				    mech_type_2);
-				if (i == KCF_INVALID_INDX) {
-					p = p->pl_next;
-					continue;
-				}
-			}
-
-			if (provider->pd_state != KCF_PROV_READY) {
-				/* choose BUSY if no READY providers */
-				if (provider->pd_state == KCF_PROV_BUSY)
-					bpd = provider;
-				p = p->pl_next;
-				continue;
-			}
-
-			len = KCF_PROV_LOAD(provider);
-			if (len < gqlen) {
-				gqlen = len;
-				gpd = provider;
-			}
-
-			p = p->pl_next;
-		}
-
-		if (gpd != NULL) {
-			real_pd = gpd;
-			KCF_PROV_REFHOLD(real_pd);
-		} else if (bpd != NULL) {
-			real_pd = bpd;
-			KCF_PROV_REFHOLD(real_pd);
-		} else {
-			/* can't find provider */
-			real_pd = NULL;
-			rv = CRYPTO_MECHANISM_INVALID;
-		}
-		mutex_exit(&old->pd_lock);
-
-	} else {
-		if (!KCF_IS_PROV_USABLE(old) ||
-		    (call_restrict && (old->pd_flags & KCF_PROV_RESTRICTED))) {
-			real_pd = NULL;
-			rv = CRYPTO_DEVICE_ERROR;
-			goto out;
-		}
-
-		if (!is_valid_provider_for_mech(old, me, fg)) {
-			real_pd = NULL;
-			rv = CRYPTO_MECHANISM_INVALID;
-			goto out;
-		}
-
-		KCF_PROV_REFHOLD(real_pd);
-	}
-out:
-	mutex_exit(&me->me_mutex);
-	*new = real_pd;
-	return (rv);
-}
-
-/*
  * Return the best provider for the specified mechanism. The provider
  * is held and it is the caller's responsibility to release it when done.
  * The fg input argument is used as a search criterion to pick a provider.
@@ -247,11 +85,10 @@ out:
 kcf_provider_desc_t *
 kcf_get_mech_provider(crypto_mech_type_t mech_type, kcf_mech_entry_t **mepp,
     int *error, kcf_prov_tried_t *triedl, crypto_func_group_t fg,
-    boolean_t call_restrict, size_t data_size)
+    boolean_t call_restrict)
 {
-	kcf_provider_desc_t *pd = NULL, *gpd = NULL;
-	kcf_prov_mech_desc_t *prov_chain, *mdesc;
-	int len, gqlen = INT_MAX;
+	kcf_provider_desc_t *pd = NULL;
+	kcf_prov_mech_desc_t *mdesc;
 	kcf_ops_class_t class;
 	int index;
 	kcf_mech_entry_t *me;
@@ -276,50 +113,7 @@ kcf_get_mech_provider(crypto_mech_type_t mech_type, kcf_mech_entry_t **mepp,
 
 	mutex_enter(&me->me_mutex);
 
-	prov_chain = me->me_hw_prov_chain;
-
-	/*
-	 * We check for the threshold for using a hardware provider for
-	 * this amount of data. If there is no software provider available
-	 * for the mechanism, then the threshold is ignored.
-	 */
-	if ((prov_chain != NULL) &&
-	    ((data_size == 0) || (me->me_threshold == 0) ||
-	    (data_size >= me->me_threshold) ||
-	    ((mdesc = me->me_sw_prov) == NULL) ||
-	    (!IS_FG_SUPPORTED(mdesc, fg)) ||
-	    (!KCF_IS_PROV_USABLE(mdesc->pm_prov_desc)))) {
-		ASSERT(me->me_num_hwprov > 0);
-		/* there is at least one provider */
-
-		/*
-		 * Find the least loaded real provider. KCF_PROV_LOAD gives
-		 * the load (number of pending requests) of the provider.
-		 */
-		while (prov_chain != NULL) {
-			pd = prov_chain->pm_prov_desc;
-
-			if (!IS_FG_SUPPORTED(prov_chain, fg) ||
-			    !KCF_IS_PROV_USABLE(pd) ||
-			    IS_PROVIDER_TRIED(pd, triedl) ||
-			    (call_restrict &&
-			    (pd->pd_flags & KCF_PROV_RESTRICTED))) {
-				prov_chain = prov_chain->pm_next;
-				continue;
-			}
-
-			if ((len = KCF_PROV_LOAD(pd)) < gqlen) {
-				gqlen = len;
-				gpd = pd;
-			}
-
-			prov_chain = prov_chain->pm_next;
-		}
-
-		pd = gpd;
-	}
-
-	/* No HW provider for this mech, is there a SW provider? */
+	/* Is there a provider? */
 	if (pd == NULL && (mdesc = me->me_sw_prov) != NULL) {
 		pd = mdesc->pm_prov_desc;
 		if (!IS_FG_SUPPORTED(mdesc, fg) ||

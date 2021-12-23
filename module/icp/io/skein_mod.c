@@ -104,7 +104,6 @@ static const crypto_ops_t skein_crypto_ops = {
 
 static const crypto_provider_info_t skein_prov_info = {
 	"Skein Software Provider",
-	CRYPTO_SW_PROVIDER,
 	NULL,
 	&skein_crypto_ops,
 	sizeof (skein_mech_info_tab) / sizeof (crypto_mech_info_t),

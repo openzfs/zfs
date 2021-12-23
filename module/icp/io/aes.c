@@ -150,7 +150,6 @@ static const crypto_ops_t aes_crypto_ops = {
 
 static const crypto_provider_info_t aes_prov_info = {
 	"AES Software Provider",
-	CRYPTO_SW_PROVIDER,
 	NULL,
 	&aes_crypto_ops,
 	sizeof (aes_mech_info_tab) / sizeof (crypto_mech_info_t),
