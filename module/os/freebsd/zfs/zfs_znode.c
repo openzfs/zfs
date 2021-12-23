@@ -934,11 +934,9 @@ zfs_zget(zfsvfs_t *zfsvfs, uint64_t obj_num, znode_t **zpp)
 	znode_t		*zp;
 	vnode_t		*vp;
 	sa_handle_t	*hdl;
-	struct thread	*td;
 	int locked;
 	int err;
 
-	td = curthread;
 	getnewvnode_reserve_();
 again:
 	*zpp = NULL;
@@ -964,7 +962,7 @@ again:
 
 	hdl = dmu_buf_get_user(db);
 	if (hdl != NULL) {
-		zp  = sa_get_userdata(hdl);
+		zp = sa_get_userdata(hdl);
 
 		/*
 		 * Since "SA" does immediate eviction we
