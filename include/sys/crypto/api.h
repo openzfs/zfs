@@ -168,7 +168,6 @@ typedef enum {
 /* The event_arg argument structure for CRYPTO_EVENT_PROVIDERS_CHANGE event */
 typedef struct crypto_notify_event_change {
 	crypto_mech_name_t ec_mech_name;
-	crypto_provider_type_t ec_provider_type;
 	crypto_event_change_t ec_change;
 } crypto_notify_event_change_t;
 

@@ -93,27 +93,14 @@ crypto_digest_prov(crypto_provider_t provider, crypto_session_id_t sid,
 	kcf_req_params_t params;
 	kcf_provider_desc_t *pd = provider;
 	kcf_provider_desc_t *real_provider = pd;
-	int rv;
 
 	ASSERT(KCF_PROV_REFHELD(pd));
 
-	if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER) {
-		rv = kcf_get_hardware_provider(mech->cm_type,
-		    CRYPTO_MECH_INVALID, CHECK_RESTRICT(crq),
-		    pd, &real_provider, CRYPTO_FG_DIGEST_ATOMIC);
-
-		if (rv != CRYPTO_SUCCESS)
-			return (rv);
-	}
 	KCF_WRAP_DIGEST_OPS_PARAMS(&params, KCF_OP_ATOMIC, sid, mech, NULL,
 	    data, digest);
 
 	/* no crypto context to carry between multiple parts. */
-	rv = kcf_submit_request(real_provider, NULL, crq, &params);
-	if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER)
-		KCF_PROV_REFRELE(real_provider);
-
-	return (rv);
+	return (kcf_submit_request(real_provider, NULL, crq, &params));
 }
 
 
@@ -133,8 +120,7 @@ crypto_digest(crypto_mechanism_t *mech, crypto_data_t *data,
 retry:
 	/* The pd is returned held */
 	if ((pd = kcf_get_mech_provider(mech->cm_type, NULL, &error, list,
-	    CRYPTO_FG_DIGEST_ATOMIC, CHECK_RESTRICT(crq),
-	    data->cd_length)) == NULL) {
+	    CRYPTO_FG_DIGEST_ATOMIC, CHECK_RESTRICT(crq))) == NULL) {
 		if (list != NULL)
 			kcf_free_triedlist(list);
 		return (error);
@@ -150,17 +136,11 @@ retry:
 		    digest, KCF_SWFP_RHNDL(crq));
 		KCF_PROV_INCRSTATS(pd, error);
 	} else {
-		if (pd->pd_prov_type == CRYPTO_HW_PROVIDER &&
-		    (pd->pd_flags & CRYPTO_HASH_NO_UPDATE) &&
-		    (data->cd_length > pd->pd_hash_limit)) {
-			error = CRYPTO_BUFFER_TOO_BIG;
-		} else {
-			KCF_WRAP_DIGEST_OPS_PARAMS(&params, KCF_OP_ATOMIC,
-			    pd->pd_sid, mech, NULL, data, digest);
+		KCF_WRAP_DIGEST_OPS_PARAMS(&params, KCF_OP_ATOMIC,
+		    pd->pd_sid, mech, NULL, data, digest);
 
-			/* no crypto context to carry between multiple parts. */
-			error = kcf_submit_request(pd, NULL, crq, &params);
-		}
+		/* no crypto context to carry between multiple parts. */
+		error = kcf_submit_request(pd, NULL, crq, &params);
 	}
 
 	if (error != CRYPTO_SUCCESS && error != CRYPTO_QUEUED &&
@@ -212,21 +192,9 @@ crypto_digest_init_prov(crypto_provider_t provider, crypto_session_id_t sid,
 
 	ASSERT(KCF_PROV_REFHELD(pd));
 
-	if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER) {
-		error = kcf_get_hardware_provider(mech->cm_type,
-		    CRYPTO_MECH_INVALID, CHECK_RESTRICT(crq), pd,
-		    &real_provider, CRYPTO_FG_DIGEST);
-
-		if (error != CRYPTO_SUCCESS)
-			return (error);
-	}
-
 	/* Allocate and initialize the canonical context */
-	if ((ctx = kcf_new_ctx(crq, real_provider, sid)) == NULL) {
-		if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER)
-			KCF_PROV_REFRELE(real_provider);
+	if ((ctx = kcf_new_ctx(crq, real_provider, sid)) == NULL)
 		return (CRYPTO_HOST_MEMORY);
-	}
 
 	/* The fast path for SW providers. */
 	if (CHECK_FASTPATH(crq, pd)) {
@@ -242,9 +210,6 @@ crypto_digest_init_prov(crypto_provider_t provider, crypto_session_id_t sid,
 		    mech, NULL, NULL, NULL);
 		error = kcf_submit_request(real_provider, ctx, crq, &params);
 	}
-
-	if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER)
-		KCF_PROV_REFRELE(real_provider);
 
 	if ((error == CRYPTO_SUCCESS) || (error == CRYPTO_QUEUED))
 		*ctxp = (crypto_context_t)ctx;
@@ -272,27 +237,14 @@ crypto_digest_init(crypto_mechanism_t *mech, crypto_context_t *ctxp,
 retry:
 	/* The pd is returned held */
 	if ((pd = kcf_get_mech_provider(mech->cm_type, NULL, &error,
-	    list, CRYPTO_FG_DIGEST, CHECK_RESTRICT(crq), 0)) == NULL) {
+	    list, CRYPTO_FG_DIGEST, CHECK_RESTRICT(crq))) == NULL) {
 		if (list != NULL)
 			kcf_free_triedlist(list);
 		return (error);
 	}
 
-	if (pd->pd_prov_type == CRYPTO_HW_PROVIDER &&
-	    (pd->pd_flags & CRYPTO_HASH_NO_UPDATE)) {
-		/*
-		 * The hardware provider has limited digest support.
-		 * So, we fallback early here to using a software provider.
-		 *
-		 * XXX - need to enhance to do the fallback later in
-		 * crypto_digest_update() if the size of accumulated input data
-		 * exceeds the maximum size digestable by hardware provider.
-		 */
-		error = CRYPTO_BUFFER_TOO_BIG;
-	} else {
-		error = crypto_digest_init_prov(pd, pd->pd_sid,
-		    mech, ctxp, crq);
-	}
+	error = crypto_digest_init_prov(pd, pd->pd_sid,
+	    mech, ctxp, crq);
 
 	if (error != CRYPTO_SUCCESS && error != CRYPTO_QUEUED &&
 	    IS_RECOVERABLE(error)) {
@@ -341,8 +293,6 @@ crypto_digest_update(crypto_context_t context, crypto_data_t *data,
 		return (CRYPTO_INVALID_CONTEXT);
 	}
 
-	ASSERT(pd->pd_prov_type != CRYPTO_LOGICAL_PROVIDER);
-
 	/* The fast path for SW providers. */
 	if (CHECK_FASTPATH(cr, pd)) {
 		error = KCF_PROV_DIGEST_UPDATE(pd, ctx, data, NULL);
@@ -389,8 +339,6 @@ crypto_digest_final(crypto_context_t context, crypto_data_t *digest,
 	    ((pd = kcf_ctx->kc_prov_desc) == NULL)) {
 		return (CRYPTO_INVALID_CONTEXT);
 	}
-
-	ASSERT(pd->pd_prov_type != CRYPTO_LOGICAL_PROVIDER);
 
 	/* The fast path for SW providers. */
 	if (CHECK_FASTPATH(cr, pd)) {

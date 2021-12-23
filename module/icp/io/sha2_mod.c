@@ -166,7 +166,6 @@ static const crypto_ops_t sha2_crypto_ops = {
 
 static const crypto_provider_info_t sha2_prov_info = {
 	"SHA2 Software Provider",
-	CRYPTO_SW_PROVIDER,
 	NULL,
 	&sha2_crypto_ops,
 	sizeof (sha2_mech_info_tab) / sizeof (crypto_mech_info_t),

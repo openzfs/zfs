@@ -98,20 +98,9 @@ crypto_mac_prov(crypto_provider_t provider, crypto_session_id_t sid,
 
 	ASSERT(KCF_PROV_REFHELD(pd));
 
-	if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER) {
-		rv = kcf_get_hardware_provider(mech->cm_type,
-		    CRYPTO_MECH_INVALID, CHECK_RESTRICT(crq), pd,
-		    &real_provider, CRYPTO_FG_MAC_ATOMIC);
-
-		if (rv != CRYPTO_SUCCESS)
-			return (rv);
-	}
-
 	KCF_WRAP_MAC_OPS_PARAMS(&params, KCF_OP_ATOMIC, sid, mech, key,
 	    data, mac, tmpl);
 	rv = kcf_submit_request(real_provider, NULL, crq, &params);
-	if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER)
-		KCF_PROV_REFRELE(real_provider);
 
 	return (rv);
 }
@@ -136,22 +125,19 @@ crypto_mac(crypto_mechanism_t *mech, crypto_data_t *data,
 retry:
 	/* The pd is returned held */
 	if ((pd = kcf_get_mech_provider(mech->cm_type, &me, &error,
-	    list, CRYPTO_FG_MAC_ATOMIC, CHECK_RESTRICT(crq),
-	    data->cd_length)) == NULL) {
+	    list, CRYPTO_FG_MAC_ATOMIC, CHECK_RESTRICT(crq))) == NULL) {
 		if (list != NULL)
 			kcf_free_triedlist(list);
 		return (error);
 	}
 
 	/*
-	 * For SW providers, check the validity of the context template
+	 * Check the validity of the context template
 	 * It is very rare that the generation number mis-matches, so
 	 * is acceptable to fail here, and let the consumer recover by
-	 * freeing this tmpl and create a new one for the key and new SW
-	 * provider
+	 * freeing this tmpl and create a new one for the key and new provider
 	 */
-	if ((pd->pd_prov_type == CRYPTO_SW_PROVIDER) &&
-	    ((ctx_tmpl = (kcf_ctx_template_t *)tmpl) != NULL)) {
+	if (((ctx_tmpl = (kcf_ctx_template_t *)tmpl) != NULL)) {
 		if (ctx_tmpl->ct_generation != me->me_gen_swprov) {
 			if (list != NULL)
 				kcf_free_triedlist(list);
@@ -173,22 +159,10 @@ retry:
 		    mac, spi_ctx_tmpl, KCF_SWFP_RHNDL(crq));
 		KCF_PROV_INCRSTATS(pd, error);
 	} else {
-		if (pd->pd_prov_type == CRYPTO_HW_PROVIDER &&
-		    (pd->pd_flags & CRYPTO_HASH_NO_UPDATE) &&
-		    (data->cd_length > pd->pd_hash_limit)) {
-			/*
-			 * XXX - We need a check to see if this is indeed
-			 * a HMAC. So far, all kernel clients use
-			 * this interface only for HMAC. So, this is fine
-			 * for now.
-			 */
-			error = CRYPTO_BUFFER_TOO_BIG;
-		} else {
-			KCF_WRAP_MAC_OPS_PARAMS(&params, KCF_OP_ATOMIC,
-			    pd->pd_sid, mech, key, data, mac, spi_ctx_tmpl);
+		KCF_WRAP_MAC_OPS_PARAMS(&params, KCF_OP_ATOMIC,
+		    pd->pd_sid, mech, key, data, mac, spi_ctx_tmpl);
 
-			error = kcf_submit_request(pd, NULL, crq, &params);
-		}
+		error = kcf_submit_request(pd, NULL, crq, &params);
 	}
 
 	if (error != CRYPTO_SUCCESS && error != CRYPTO_QUEUED &&
@@ -218,26 +192,13 @@ crypto_mac_verify_prov(crypto_provider_t provider, crypto_session_id_t sid,
 	kcf_req_params_t params;
 	kcf_provider_desc_t *pd = provider;
 	kcf_provider_desc_t *real_provider = pd;
-	int rv;
 
 	ASSERT(KCF_PROV_REFHELD(pd));
 
-	if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER) {
-		rv = kcf_get_hardware_provider(mech->cm_type,
-		    CRYPTO_MECH_INVALID, CHECK_RESTRICT(crq), pd,
-		    &real_provider, CRYPTO_FG_MAC_ATOMIC);
-
-		if (rv != CRYPTO_SUCCESS)
-			return (rv);
-	}
-
 	KCF_WRAP_MAC_OPS_PARAMS(&params, KCF_OP_MAC_VERIFY_ATOMIC, sid, mech,
 	    key, data, mac, tmpl);
-	rv = kcf_submit_request(real_provider, NULL, crq, &params);
-	if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER)
-		KCF_PROV_REFRELE(real_provider);
 
-	return (rv);
+	return (kcf_submit_request(real_provider, NULL, crq, &params));
 }
 
 /*
@@ -260,22 +221,19 @@ crypto_mac_verify(crypto_mechanism_t *mech, crypto_data_t *data,
 retry:
 	/* The pd is returned held */
 	if ((pd = kcf_get_mech_provider(mech->cm_type, &me, &error,
-	    list, CRYPTO_FG_MAC_ATOMIC, CHECK_RESTRICT(crq),
-	    data->cd_length)) == NULL) {
+	    list, CRYPTO_FG_MAC_ATOMIC, CHECK_RESTRICT(crq))) == NULL) {
 		if (list != NULL)
 			kcf_free_triedlist(list);
 		return (error);
 	}
 
 	/*
-	 * For SW providers, check the validity of the context template
+	 * Check the validity of the context template
 	 * It is very rare that the generation number mis-matches, so
 	 * is acceptable to fail here, and let the consumer recover by
-	 * freeing this tmpl and create a new one for the key and new SW
-	 * provider
+	 * freeing this tmpl and create a new one for the key and new provider
 	 */
-	if ((pd->pd_prov_type == CRYPTO_SW_PROVIDER) &&
-	    ((ctx_tmpl = (kcf_ctx_template_t *)tmpl) != NULL)) {
+	if (((ctx_tmpl = (kcf_ctx_template_t *)tmpl) != NULL)) {
 		if (ctx_tmpl->ct_generation != me->me_gen_swprov) {
 			if (list != NULL)
 				kcf_free_triedlist(list);
@@ -297,18 +255,11 @@ retry:
 		    data, mac, spi_ctx_tmpl, KCF_SWFP_RHNDL(crq));
 		KCF_PROV_INCRSTATS(pd, error);
 	} else {
-		if (pd->pd_prov_type == CRYPTO_HW_PROVIDER &&
-		    (pd->pd_flags & CRYPTO_HASH_NO_UPDATE) &&
-		    (data->cd_length > pd->pd_hash_limit)) {
-			/* see comments in crypto_mac() */
-			error = CRYPTO_BUFFER_TOO_BIG;
-		} else {
-			KCF_WRAP_MAC_OPS_PARAMS(&params,
-			    KCF_OP_MAC_VERIFY_ATOMIC, pd->pd_sid, mech,
-			    key, data, mac, spi_ctx_tmpl);
+		KCF_WRAP_MAC_OPS_PARAMS(&params,
+		    KCF_OP_MAC_VERIFY_ATOMIC, pd->pd_sid, mech,
+		    key, data, mac, spi_ctx_tmpl);
 
-			error = kcf_submit_request(pd, NULL, crq, &params);
-		}
+		error = kcf_submit_request(pd, NULL, crq, &params);
 	}
 
 	if (error != CRYPTO_SUCCESS && error != CRYPTO_QUEUED &&
@@ -374,21 +325,9 @@ crypto_mac_init_prov(crypto_provider_t provider, crypto_session_id_t sid,
 
 	ASSERT(KCF_PROV_REFHELD(pd));
 
-	if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER) {
-		rv = kcf_get_hardware_provider(mech->cm_type,
-		    CRYPTO_MECH_INVALID, CHECK_RESTRICT(crq), pd,
-		    &real_provider, CRYPTO_FG_MAC);
-
-		if (rv != CRYPTO_SUCCESS)
-			return (rv);
-	}
-
 	/* Allocate and initialize the canonical context */
-	if ((ctx = kcf_new_ctx(crq, real_provider, sid)) == NULL) {
-		if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER)
-			KCF_PROV_REFRELE(real_provider);
+	if ((ctx = kcf_new_ctx(crq, real_provider, sid)) == NULL)
 		return (CRYPTO_HOST_MEMORY);
-	}
 
 	/* The fast path for SW providers. */
 	if (CHECK_FASTPATH(crq, pd)) {
@@ -404,9 +343,6 @@ crypto_mac_init_prov(crypto_provider_t provider, crypto_session_id_t sid,
 		    NULL, NULL, tmpl);
 		rv = kcf_submit_request(real_provider, ctx, crq, &params);
 	}
-
-	if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER)
-		KCF_PROV_REFRELE(real_provider);
 
 	if ((rv == CRYPTO_SUCCESS) || (rv == CRYPTO_QUEUED))
 		*ctxp = (crypto_context_t)ctx;
@@ -438,22 +374,20 @@ crypto_mac_init(crypto_mechanism_t *mech, crypto_key_t *key,
 retry:
 	/* The pd is returned held */
 	if ((pd = kcf_get_mech_provider(mech->cm_type, &me, &error,
-	    list, CRYPTO_FG_MAC, CHECK_RESTRICT(crq), 0)) == NULL) {
+	    list, CRYPTO_FG_MAC, CHECK_RESTRICT(crq))) == NULL) {
 		if (list != NULL)
 			kcf_free_triedlist(list);
 		return (error);
 	}
 
 	/*
-	 * For SW providers, check the validity of the context template
+	 * Check the validity of the context template
 	 * It is very rare that the generation number mis-matches, so
 	 * is acceptable to fail here, and let the consumer recover by
-	 * freeing this tmpl and create a new one for the key and new SW
-	 * provider
+	 * freeing this tmpl and create a new one for the key and new provider
 	 */
 
-	if ((pd->pd_prov_type == CRYPTO_SW_PROVIDER) &&
-	    ((ctx_tmpl = (kcf_ctx_template_t *)tmpl) != NULL)) {
+	if (((ctx_tmpl = (kcf_ctx_template_t *)tmpl) != NULL)) {
 		if (ctx_tmpl->ct_generation != me->me_gen_swprov) {
 			if (list != NULL)
 				kcf_free_triedlist(list);
@@ -464,21 +398,8 @@ retry:
 		}
 	}
 
-	if (pd->pd_prov_type == CRYPTO_HW_PROVIDER &&
-	    (pd->pd_flags & CRYPTO_HASH_NO_UPDATE)) {
-		/*
-		 * The hardware provider has limited HMAC support.
-		 * So, we fallback early here to using a software provider.
-		 *
-		 * XXX - need to enhance to do the fallback later in
-		 * crypto_mac_update() if the size of accumulated input data
-		 * exceeds the maximum size digestable by hardware provider.
-		 */
-		error = CRYPTO_BUFFER_TOO_BIG;
-	} else {
-		error = crypto_mac_init_prov(pd, pd->pd_sid, mech, key,
-		    spi_ctx_tmpl, ctxp, crq);
-	}
+	error = crypto_mac_init_prov(pd, pd->pd_sid, mech, key,
+	    spi_ctx_tmpl, ctxp, crq);
 	if (error != CRYPTO_SUCCESS && error != CRYPTO_QUEUED &&
 	    IS_RECOVERABLE(error)) {
 		/* Add pd to the linked list of providers tried. */
@@ -527,8 +448,6 @@ crypto_mac_update(crypto_context_t context, crypto_data_t *data,
 		return (CRYPTO_INVALID_CONTEXT);
 	}
 
-	ASSERT(pd->pd_prov_type != CRYPTO_LOGICAL_PROVIDER);
-
 	/* The fast path for SW providers. */
 	if (CHECK_FASTPATH(cr, pd)) {
 		rv = KCF_PROV_MAC_UPDATE(pd, ctx, data, NULL);
@@ -575,8 +494,6 @@ crypto_mac_final(crypto_context_t context, crypto_data_t *mac,
 	    ((pd = kcf_ctx->kc_prov_desc) == NULL)) {
 		return (CRYPTO_INVALID_CONTEXT);
 	}
-
-	ASSERT(pd->pd_prov_type != CRYPTO_LOGICAL_PROVIDER);
 
 	/* The fast path for SW providers. */
 	if (CHECK_FASTPATH(cr, pd)) {

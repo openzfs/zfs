@@ -1229,13 +1229,6 @@ taskq_destroy(taskq_t *tq)
 }
 EXPORT_SYMBOL(taskq_destroy);
 
-boolean_t
-taskq_empty(taskq_t *tq)
-{
-	return (tq->tq_lowest_id == tq->tq_next_id);
-}
-EXPORT_SYMBOL(taskq_empty);
-
 static unsigned int spl_taskq_kick = 0;
 
 /*

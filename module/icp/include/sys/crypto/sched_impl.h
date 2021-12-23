@@ -59,23 +59,20 @@ typedef enum kcf_call_type {
 #define	CHECK_RESTRICT(crq) (crq != NULL &&	\
 	((crq)->cr_flag & CRYPTO_RESTRICTED))
 
-#define	CHECK_RESTRICT_FALSE	B_FALSE
-
 #define	CHECK_FASTPATH(crq, pd) ((crq) == NULL ||	\
-	!((crq)->cr_flag & CRYPTO_ALWAYS_QUEUE)) &&	\
-	(pd)->pd_prov_type == CRYPTO_SW_PROVIDER
+	!((crq)->cr_flag & CRYPTO_ALWAYS_QUEUE))
 
 #define	KCF_KMFLAG(crq)	(((crq) == NULL) ? KM_SLEEP : KM_NOSLEEP)
 
 /*
  * The framework keeps an internal handle to use in the adaptive
  * asynchronous case. This is the case when a client has the
- * CRYPTO_ALWAYS_QUEUE bit clear and a software provider is used for
+ * CRYPTO_ALWAYS_QUEUE bit clear and a provider is used for
  * the request. The request is completed in the context of the calling
  * thread and kernel memory must be allocated with KM_NOSLEEP.
  *
  * The framework passes a pointer to the handle in crypto_req_handle_t
- * argument when it calls the SPI of the software provider. The macros
+ * argument when it calls the SPI of the provider. The macros
  * KCF_RHNDL() and KCF_SWFP_RHNDL() are used to do this.
  *
  * When a provider asks the framework for kmflag value via
@@ -146,7 +143,7 @@ typedef struct kcf_sreq_node {
 /*
  * Node structure for asynchronous requests. A node can be on
  * on a chain of requests hanging of the internal context
- * structure and can be in the global software provider queue.
+ * structure and can be in the global provider queue.
  */
 typedef struct kcf_areq_node {
 	/* Should always be the first field in this structure */
@@ -176,11 +173,7 @@ typedef struct kcf_areq_node {
 	kcondvar_t		an_turn_cv;
 	boolean_t		an_is_my_turn;
 
-	/*
-	 * Next and previous nodes in the global software
-	 * queue. These fields are NULL for a hardware
-	 * provider since we use a taskq there.
-	 */
+	/* Next and previous nodes in the global queue. */
 	struct kcf_areq_node	*an_next;
 	struct kcf_areq_node	*an_prev;
 
@@ -244,8 +237,8 @@ typedef struct kcf_reqid_table {
 } kcf_reqid_table_t;
 
 /*
- * Global software provider queue structure. Requests to be
- * handled by a SW provider and have the ALWAYS_QUEUE flag set
+ * Global provider queue structure. Requests to be
+ * handled by a provider and have the ALWAYS_QUEUE flag set
  * get queued here.
  */
 typedef struct kcf_global_swq {
@@ -339,11 +332,11 @@ typedef	struct kcf_ctx_template {
 	uint_t				ct_generation;	/* generation # */
 	size_t				ct_size;	/* for freeing */
 	crypto_spi_ctx_template_t	ct_prov_tmpl;	/* context template */
-							/* from the SW prov */
+							/* from the provider */
 } kcf_ctx_template_t;
 
 /*
- * Structure for pool of threads working on global software queue.
+ * Structure for pool of threads working on the global queue.
  */
 typedef struct kcf_pool {
 	uint32_t	kp_threads;		/* Number of threads in pool */
@@ -431,18 +424,11 @@ typedef struct kcf_ntfy_elem {
  * The following values are based on the assumption that it would
  * take around eight cpus to load a hardware provider (This is true for
  * at least one product) and a kernel client may come from different
- * low-priority interrupt levels. We will have CRYPTO_TASKQ_MIN number
- * of cached taskq entries. The CRYPTO_TASKQ_MAX number is based on
+ * low-priority interrupt levels. The CRYPTO_TASKQ_MAX number is based on
  * a throughput of 1GB/s using 512-byte buffers. These are just
  * reasonable estimates and might need to change in future.
  */
-#define	CRYPTO_TASKQ_THREADS	8
-#define	CRYPTO_TASKQ_MIN	64
 #define	CRYPTO_TASKQ_MAX	2 * 1024 * 1024
-
-extern const int crypto_taskq_threads;
-extern const int crypto_taskq_minalloc;
-extern const int crypto_taskq_maxalloc;
 
 /*
  * All pending crypto bufcalls are put on a list. cbuf_list_lock
@@ -458,19 +444,12 @@ extern kcondvar_t cbuf_list_cv;
 extern kmutex_t ntfy_list_lock;
 extern kcondvar_t ntfy_list_cv;
 
-boolean_t kcf_get_next_logical_provider_member(kcf_provider_desc_t *,
-    kcf_provider_desc_t *, kcf_provider_desc_t **);
-extern int kcf_get_hardware_provider(crypto_mech_type_t, crypto_mech_type_t,
-    boolean_t, kcf_provider_desc_t *, kcf_provider_desc_t **,
-    crypto_func_group_t);
-extern int kcf_get_hardware_provider_nomech(offset_t, offset_t,
-    boolean_t, kcf_provider_desc_t *, kcf_provider_desc_t **);
 extern void kcf_free_triedlist(kcf_prov_tried_t *);
 extern kcf_prov_tried_t *kcf_insert_triedlist(kcf_prov_tried_t **,
     kcf_provider_desc_t *, int);
 extern kcf_provider_desc_t *kcf_get_mech_provider(crypto_mech_type_t,
     kcf_mech_entry_t **, int *, kcf_prov_tried_t *, crypto_func_group_t,
-    boolean_t, size_t);
+    boolean_t);
 extern crypto_ctx_t *kcf_new_ctx(crypto_call_req_t  *, kcf_provider_desc_t *,
     crypto_session_id_t);
 extern int kcf_submit_request(kcf_provider_desc_t *, crypto_ctx_t *,

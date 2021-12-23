@@ -35,7 +35,7 @@
 #include <sys/crypto/sched_impl.h>
 #include <sys/crypto/api.h>
 
-static kcf_global_swq_t *gswq;	/* Global software queue */
+static kcf_global_swq_t *gswq;	/* Global queue */
 
 /* Thread pool related variables */
 static kcf_pool_t *kcfpool;	/* Thread pool of kcfd LWPs */
@@ -58,16 +58,13 @@ static kcf_stats_t kcf_ksdata = {
 	{ "max threads in pool",	KSTAT_DATA_UINT32},
 	{ "requests in gswq",		KSTAT_DATA_UINT32},
 	{ "max requests in gswq",	KSTAT_DATA_UINT32},
-	{ "threads for HW taskq",	KSTAT_DATA_UINT32},
-	{ "minalloc for HW taskq",	KSTAT_DATA_UINT32},
-	{ "maxalloc for HW taskq",	KSTAT_DATA_UINT32}
+	{ "maxalloc for gwsq",		KSTAT_DATA_UINT32}
 };
 
 static kstat_t *kcf_misc_kstat = NULL;
 ulong_t kcf_swprov_hndl = 0;
 
 static int kcf_disp_sw_request(kcf_areq_node_t *);
-static void process_req_hwp(void *);
 static int kcf_enqueue(kcf_areq_node_t *);
 static void kcfpool_alloc(void);
 static void kcf_reqid_delete(kcf_areq_node_t *areq);
@@ -225,118 +222,6 @@ kcf_disp_sw_request(kcf_areq_node_t *areq)
 }
 
 /*
- * This routine is called by the taskq associated with
- * each hardware provider. We notify the kernel consumer
- * via the callback routine in case of CRYPTO_SUCCESS or
- * a failure.
- *
- * A request can be of type kcf_areq_node_t or of type
- * kcf_sreq_node_t.
- */
-static void
-process_req_hwp(void *ireq)
-{
-	int error = 0;
-	crypto_ctx_t *ctx;
-	kcf_call_type_t ctype;
-	kcf_provider_desc_t *pd;
-	kcf_areq_node_t *areq = (kcf_areq_node_t *)ireq;
-	kcf_sreq_node_t *sreq = (kcf_sreq_node_t *)ireq;
-
-	pd = ((ctype = GET_REQ_TYPE(ireq)) == CRYPTO_SYNCH) ?
-	    sreq->sn_provider : areq->an_provider;
-
-	/*
-	 * Wait if flow control is in effect for the provider. A
-	 * CRYPTO_PROVIDER_READY or CRYPTO_PROVIDER_FAILED
-	 * notification will signal us. We also get signaled if
-	 * the provider is unregistering.
-	 */
-	if (pd->pd_state == KCF_PROV_BUSY) {
-		mutex_enter(&pd->pd_lock);
-		while (pd->pd_state == KCF_PROV_BUSY)
-			cv_wait(&pd->pd_resume_cv, &pd->pd_lock);
-		mutex_exit(&pd->pd_lock);
-	}
-
-	/*
-	 * Bump the internal reference count while the request is being
-	 * processed. This is how we know when it's safe to unregister
-	 * a provider. This step must precede the pd_state check below.
-	 */
-	KCF_PROV_IREFHOLD(pd);
-
-	/*
-	 * Fail the request if the provider has failed. We return a
-	 * recoverable error and the notified clients attempt any
-	 * recovery. For async clients this is done in kcf_aop_done()
-	 * and for sync clients it is done in the k-api routines.
-	 */
-	if (pd->pd_state >= KCF_PROV_FAILED) {
-		error = CRYPTO_DEVICE_ERROR;
-		goto bail;
-	}
-
-	if (ctype == CRYPTO_SYNCH) {
-		mutex_enter(&sreq->sn_lock);
-		sreq->sn_state = REQ_INPROGRESS;
-		mutex_exit(&sreq->sn_lock);
-
-		ctx = sreq->sn_context ? &sreq->sn_context->kc_glbl_ctx : NULL;
-		error = common_submit_request(sreq->sn_provider, ctx,
-		    sreq->sn_params, sreq);
-	} else {
-		kcf_context_t *ictx;
-		ASSERT(ctype == CRYPTO_ASYNCH);
-
-		/*
-		 * We are in the per-hardware provider thread context and
-		 * hence can sleep. Note that the caller would have done
-		 * a taskq_dispatch(..., TQ_NOSLEEP) and would have returned.
-		 */
-		ctx = (ictx = areq->an_context) ? &ictx->kc_glbl_ctx : NULL;
-
-		mutex_enter(&areq->an_lock);
-		/*
-		 * We need to maintain ordering for multi-part requests.
-		 * an_is_my_turn is set to B_TRUE initially for a request
-		 * when it is enqueued and there are no other requests
-		 * for that context. It is set later from kcf_aop_done() when
-		 * the request before us in the chain of requests for the
-		 * context completes. We get signaled at that point.
-		 */
-		if (ictx != NULL) {
-			ASSERT(ictx->kc_prov_desc == areq->an_provider);
-
-			while (areq->an_is_my_turn == B_FALSE) {
-				cv_wait(&areq->an_turn_cv, &areq->an_lock);
-			}
-		}
-		areq->an_state = REQ_INPROGRESS;
-		mutex_exit(&areq->an_lock);
-
-		error = common_submit_request(areq->an_provider, ctx,
-		    &areq->an_params, areq);
-	}
-
-bail:
-	if (error == CRYPTO_QUEUED) {
-		/*
-		 * The request is queued by the provider and we should
-		 * get a crypto_op_notification() from the provider later.
-		 * We notify the consumer at that time.
-		 */
-		return;
-	} else {		/* CRYPTO_SUCCESS or other failure */
-		KCF_PROV_IREFRELE(pd);
-		if (ctype == CRYPTO_SYNCH)
-			kcf_sop_done(sreq, error);
-		else
-			kcf_aop_done(areq, error);
-	}
-}
-
-/*
  * This routine checks if a request can be retried on another
  * provider. If true, mech1 is initialized to point to the mechanism
  * structure. fg is initialized to the correct crypto_func_group_t bit flag.
@@ -441,7 +326,7 @@ kcf_resubmit_request(kcf_areq_node_t *areq)
 
 	new_pd = kcf_get_mech_provider(mech1->cm_type, NULL, &error,
 	    areq->an_tried_plist, fg,
-	    (areq->an_reqarg.cr_flag & CRYPTO_RESTRICTED), 0);
+	    (areq->an_reqarg.cr_flag & CRYPTO_RESTRICTED));
 
 	if (new_pd == NULL)
 		return (error);
@@ -472,26 +357,7 @@ kcf_resubmit_request(kcf_areq_node_t *areq)
 	areq->an_state = REQ_WAITING;
 	mutex_exit(&areq->an_lock);
 
-	switch (new_pd->pd_prov_type) {
-	case CRYPTO_SW_PROVIDER:
-		error = kcf_disp_sw_request(areq);
-		break;
-
-	case CRYPTO_HW_PROVIDER: {
-		taskq_t *taskq = new_pd->pd_sched_info.ks_taskq;
-
-		if (taskq_dispatch(taskq, process_req_hwp, areq, TQ_NOSLEEP) ==
-		    TASKQID_INVALID) {
-			error = CRYPTO_HOST_MEMORY;
-		} else {
-			error = CRYPTO_QUEUED;
-		}
-
-		break;
-	default:
-		break;
-	}
-	}
+	error = kcf_disp_sw_request(areq);
 
 	return (error);
 }
@@ -515,196 +381,58 @@ kcf_submit_request(kcf_provider_desc_t *pd, crypto_ctx_t *ctx,
 {
 	int error = CRYPTO_SUCCESS;
 	kcf_areq_node_t *areq;
-	kcf_sreq_node_t *sreq;
 	kcf_context_t *kcf_ctx;
-	taskq_t *taskq = pd->pd_sched_info.ks_taskq;
 
 	kcf_ctx = ctx ? (kcf_context_t *)ctx->cc_framework_private : NULL;
 
-	/* Synchronous cases */
+	/* Synchronous */
 	if (crq == NULL) {
-		switch (pd->pd_prov_type) {
-		case CRYPTO_SW_PROVIDER:
+		error = common_submit_request(pd, ctx, params,
+		    KCF_RHNDL(KM_SLEEP));
+	} else {	/* Asynchronous */
+		if (!(crq->cr_flag & CRYPTO_ALWAYS_QUEUE)) {
+			/*
+			 * This case has less overhead since there is
+			 * no switching of context.
+			 */
 			error = common_submit_request(pd, ctx, params,
-			    KCF_RHNDL(KM_SLEEP));
-			break;
-
-		case CRYPTO_HW_PROVIDER:
+			    KCF_RHNDL(KM_NOSLEEP));
+		} else {
 			/*
-			 * Special case for CRYPTO_SYNCHRONOUS providers that
-			 * never return a CRYPTO_QUEUED error. We skip any
-			 * request allocation and call the SPI directly.
+			 * CRYPTO_ALWAYS_QUEUE is set. We need to
+			 * queue the request and return.
 			 */
-			if ((pd->pd_flags & CRYPTO_SYNCHRONOUS) &&
-			    taskq_empty(taskq)) {
-				KCF_PROV_IREFHOLD(pd);
-				if (pd->pd_state == KCF_PROV_READY) {
-					error = common_submit_request(pd, ctx,
-					    params, KCF_RHNDL(KM_SLEEP));
-					KCF_PROV_IREFRELE(pd);
-					ASSERT(error != CRYPTO_QUEUED);
-					break;
-				}
-				KCF_PROV_IREFRELE(pd);
-			}
-
-			sreq = kmem_cache_alloc(kcf_sreq_cache, KM_SLEEP);
-			sreq->sn_state = REQ_ALLOCATED;
-			sreq->sn_rv = CRYPTO_FAILED;
-			sreq->sn_params = params;
-
-			/*
-			 * Note that we do not need to hold the context
-			 * for synchronous case as the context will never
-			 * become invalid underneath us. We do not need to hold
-			 * the provider here either as the caller has a hold.
-			 */
-			sreq->sn_context = kcf_ctx;
-			ASSERT(KCF_PROV_REFHELD(pd));
-			sreq->sn_provider = pd;
-
-			ASSERT(taskq != NULL);
-			/*
-			 * Call the SPI directly if the taskq is empty and the
-			 * provider is not busy, else dispatch to the taskq.
-			 * Calling directly is fine as this is the synchronous
-			 * case. This is unlike the asynchronous case where we
-			 * must always dispatch to the taskq.
-			 */
-			if (taskq_empty(taskq) &&
-			    pd->pd_state == KCF_PROV_READY) {
-				process_req_hwp(sreq);
-			} else {
+			areq = kcf_areqnode_alloc(pd, kcf_ctx, crq,
+			    params);
+			if (areq == NULL)
+				error = CRYPTO_HOST_MEMORY;
+			else {
+				if (!(crq->cr_flag
+				    & CRYPTO_SKIP_REQID)) {
 				/*
-				 * We can not tell from taskq_dispatch() return
-				 * value if we exceeded maxalloc. Hence the
-				 * check here. Since we are allowed to wait in
-				 * the synchronous case, we wait for the taskq
-				 * to become empty.
+				 * Set the request handle. We have to
+				 * do this before dispatching the
+				 * request.
 				 */
-				if (taskq->tq_nalloc >= crypto_taskq_maxalloc) {
-					taskq_wait(taskq);
+				crq->cr_reqid = kcf_reqid_insert(areq);
 				}
 
-				(void) taskq_dispatch(taskq, process_req_hwp,
-				    sreq, TQ_SLEEP);
-			}
-
-			/*
-			 * Wait for the notification to arrive,
-			 * if the operation is not done yet.
-			 * Bug# 4722589 will make the wait a cv_wait_sig().
-			 */
-			mutex_enter(&sreq->sn_lock);
-			while (sreq->sn_state < REQ_DONE)
-				cv_wait(&sreq->sn_cv, &sreq->sn_lock);
-			mutex_exit(&sreq->sn_lock);
-
-			error = sreq->sn_rv;
-			kmem_cache_free(kcf_sreq_cache, sreq);
-
-			break;
-
-		default:
-			error = CRYPTO_FAILED;
-			break;
-		}
-
-	} else {	/* Asynchronous cases */
-		switch (pd->pd_prov_type) {
-		case CRYPTO_SW_PROVIDER:
-			if (!(crq->cr_flag & CRYPTO_ALWAYS_QUEUE)) {
+				error = kcf_disp_sw_request(areq);
 				/*
-				 * This case has less overhead since there is
-				 * no switching of context.
+				 * There is an error processing this
+				 * request. Remove the handle and
+				 * release the request structure.
 				 */
-				error = common_submit_request(pd, ctx, params,
-				    KCF_RHNDL(KM_NOSLEEP));
-			} else {
-				/*
-				 * CRYPTO_ALWAYS_QUEUE is set. We need to
-				 * queue the request and return.
-				 */
-				areq = kcf_areqnode_alloc(pd, kcf_ctx, crq,
-				    params);
-				if (areq == NULL)
-					error = CRYPTO_HOST_MEMORY;
-				else {
+				if (error != CRYPTO_QUEUED) {
 					if (!(crq->cr_flag
-					    & CRYPTO_SKIP_REQID)) {
-					/*
-					 * Set the request handle. We have to
-					 * do this before dispatching the
-					 * request.
-					 */
-					crq->cr_reqid = kcf_reqid_insert(areq);
-					}
-
-					error = kcf_disp_sw_request(areq);
-					/*
-					 * There is an error processing this
-					 * request. Remove the handle and
-					 * release the request structure.
-					 */
-					if (error != CRYPTO_QUEUED) {
-						if (!(crq->cr_flag
-						    & CRYPTO_SKIP_REQID))
-							kcf_reqid_delete(areq);
-						KCF_AREQ_REFRELE(areq);
-					}
+					    & CRYPTO_SKIP_REQID))
+						kcf_reqid_delete(areq);
+					KCF_AREQ_REFRELE(areq);
 				}
 			}
-			break;
-
-		case CRYPTO_HW_PROVIDER:
-			/*
-			 * We need to queue the request and return.
-			 */
-			areq = kcf_areqnode_alloc(pd, kcf_ctx, crq, params);
-			if (areq == NULL) {
-				error = CRYPTO_HOST_MEMORY;
-				goto done;
-			}
-
-			ASSERT(taskq != NULL);
-			/*
-			 * We can not tell from taskq_dispatch() return
-			 * value if we exceeded maxalloc. Hence the check
-			 * here.
-			 */
-			if (taskq->tq_nalloc >= crypto_taskq_maxalloc) {
-				error = CRYPTO_BUSY;
-				KCF_AREQ_REFRELE(areq);
-				goto done;
-			}
-
-			if (!(crq->cr_flag & CRYPTO_SKIP_REQID)) {
-			/*
-			 * Set the request handle. We have to do this
-			 * before dispatching the request.
-			 */
-			crq->cr_reqid = kcf_reqid_insert(areq);
-			}
-
-			if (taskq_dispatch(taskq,
-			    process_req_hwp, areq, TQ_NOSLEEP) ==
-			    TASKQID_INVALID) {
-				error = CRYPTO_HOST_MEMORY;
-				if (!(crq->cr_flag & CRYPTO_SKIP_REQID))
-					kcf_reqid_delete(areq);
-				KCF_AREQ_REFRELE(areq);
-			} else {
-				error = CRYPTO_QUEUED;
-			}
-			break;
-
-		default:
-			error = CRYPTO_FAILED;
-			break;
 		}
 	}
 
-done:
 	return (error);
 }
 
@@ -750,7 +478,7 @@ kcf_free_context(kcf_context_t *kcf_ctx)
 	/* kcf_ctx->kc_prov_desc has a hold on pd */
 	KCF_PROV_REFRELE(kcf_ctx->kc_prov_desc);
 
-	/* check if this context is shared with a software provider */
+	/* check if this context is shared with a provider */
 	if ((gctx->cc_flags & CRYPTO_INIT_OPSTATE) &&
 	    kcf_ctx->kc_sw_prov_desc != NULL) {
 		KCF_PROV_REFRELE(kcf_ctx->kc_sw_prov_desc);
@@ -775,7 +503,7 @@ kcf_free_req(kcf_areq_node_t *areq)
 }
 
 /*
- * Add the request node to the end of the global software queue.
+ * Add the request node to the end of the global queue.
  *
  * The caller should not hold the queue lock. Returns 0 if the
  * request is successfully queued. Returns CRYPTO_BUSY if the limit
@@ -969,7 +697,7 @@ kcf_sched_init(void)
 	mutex_init(&gswq->gs_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&gswq->gs_cv, NULL, CV_DEFAULT, NULL);
 	gswq->gs_njobs = 0;
-	gswq->gs_maxjobs = kcf_maxthreads * crypto_taskq_maxalloc;
+	gswq->gs_maxjobs = kcf_maxthreads * CRYPTO_TASKQ_MAX;
 	gswq->gs_first = gswq->gs_last = NULL;
 
 	/* Initialize the global reqid table */
@@ -1216,9 +944,7 @@ kcf_misc_kstat_update(kstat_t *ksp, int rw)
 	ks_data->ks_maxthrs.value.ui32 = kcf_maxthreads;
 	ks_data->ks_swq_njobs.value.ui32 = gswq->gs_njobs;
 	ks_data->ks_swq_maxjobs.value.ui32 = gswq->gs_maxjobs;
-	ks_data->ks_taskq_threads.value.ui32 = crypto_taskq_threads;
-	ks_data->ks_taskq_minalloc.value.ui32 = crypto_taskq_minalloc;
-	ks_data->ks_taskq_maxalloc.value.ui32 = crypto_taskq_maxalloc;
+	ks_data->ks_swq_maxalloc.value.ui32 = CRYPTO_TASKQ_MAX;
 
 	return (0);
 }

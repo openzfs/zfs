@@ -62,9 +62,7 @@ typedef	struct kcf_stats {
 	kstat_named_t	ks_maxthrs;
 	kstat_named_t	ks_swq_njobs;
 	kstat_named_t	ks_swq_maxjobs;
-	kstat_named_t	ks_taskq_threads;
-	kstat_named_t	ks_taskq_minalloc;
-	kstat_named_t	ks_taskq_maxalloc;
+	kstat_named_t	ks_swq_maxalloc;
 } kcf_stats_t;
 
 /*
@@ -80,9 +78,6 @@ typedef struct kcf_sched_info {
 
 	/* The number of operations that returned CRYPTO_BUSY. */
 	uint64_t	ks_nbusy_rval;
-
-	/* taskq used to dispatch crypto requests */
-	taskq_t	*ks_taskq;
 } kcf_sched_info_t;
 
 /*
@@ -96,8 +91,7 @@ typedef struct kcf_sched_info {
  * acquire any locks here as it is not critical to get the exact number
  * and the lock contention may be too costly for this code path.
  */
-#define	KCF_PROV_LOAD(pd)	((pd)->pd_state != KCF_PROV_BUSY ?	\
-	(pd)->pd_irefcnt : (pd)->pd_sched_info.ks_taskq->tq_nalloc)
+#define	KCF_PROV_LOAD(pd)	((pd)->pd_irefcnt)
 
 #define	KCF_PROV_INCRSTATS(pd, error)	{				\
 	(pd)->pd_sched_info.ks_ndispatches++;				\
@@ -125,21 +119,17 @@ typedef struct kcf_sched_info {
  * the elements is important.
  *
  * Routines which get a provider or the list of providers
- * should pick only those that are either in KCF_PROV_READY state
- * or in KCF_PROV_BUSY state.
+ * should pick only those that are in KCF_PROV_READY state.
  */
 typedef enum {
 	KCF_PROV_ALLOCATED = 1,
-	KCF_PROV_UNVERIFIED,
-	KCF_PROV_VERIFICATION_FAILED,
 	/*
 	 * state < KCF_PROV_READY means the provider can not
 	 * be used at all.
 	 */
 	KCF_PROV_READY,
-	KCF_PROV_BUSY,
 	/*
-	 * state > KCF_PROV_BUSY means the provider can not
+	 * state > KCF_PROV_READY means the provider can not
 	 * be used for new requests.
 	 */
 	KCF_PROV_FAILED,
@@ -152,30 +142,23 @@ typedef enum {
 	KCF_PROV_FREED
 } kcf_prov_state_t;
 
-#define	KCF_IS_PROV_UNVERIFIED(pd) ((pd)->pd_state == KCF_PROV_UNVERIFIED)
-#define	KCF_IS_PROV_USABLE(pd) ((pd)->pd_state == KCF_PROV_READY || \
-	(pd)->pd_state == KCF_PROV_BUSY)
+#define	KCF_IS_PROV_USABLE(pd) ((pd)->pd_state == KCF_PROV_READY)
 #define	KCF_IS_PROV_REMOVED(pd)	((pd)->pd_state >= KCF_PROV_REMOVED)
 
 /* Internal flags valid for pd_flags field */
 #define	KCF_PROV_RESTRICTED	0x40000000
-#define	KCF_LPROV_MEMBER	0x80000000 /* is member of a logical provider */
 
 /*
  * A provider descriptor structure. There is one such structure per
  * provider. It is allocated and initialized at registration time and
  * freed when the provider unregisters.
  *
- * pd_prov_type:	Provider type, hardware or software
  * pd_sid:		Session ID of the provider used by kernel clients.
  *			This is valid only for session-oriented providers.
  * pd_refcnt:		Reference counter to this provider descriptor
  * pd_irefcnt:		References held by the framework internal structs
- * pd_lock:		lock protects pd_state and pd_provider_list
+ * pd_lock:		lock protects pd_state
  * pd_state:		State value of the provider
- * pd_provider_list:	Used to cross-reference logical providers and their
- *			members. Not used for software providers.
- * pd_resume_cv:	cv to wait for state to change from KCF_PROV_BUSY
  * pd_prov_handle:	Provider handle specified by provider
  * pd_ops_vector:	The ops vector specified by Provider
  * pd_mech_indx:	Lookup table which maps a core framework mechanism
@@ -185,10 +168,6 @@ typedef enum {
  * pd_sched_info:	Scheduling information associated with the provider
  * pd_mech_list_count:	The number of entries in pi_mechanisms, specified
  *			by the provider during registration
- * pd_name:		Device name or module name
- * pd_instance:		Device instance
- * pd_module_id:	Module ID returned by modload
- * pd_mctlp:		Pointer to modctl structure for this provider
  * pd_remove_cv:	cv to wait on while the provider queue drains
  * pd_description:	Provider description string
  * pd_flags		bitwise OR of pi_flags from crypto_provider_info_t
@@ -201,13 +180,11 @@ typedef enum {
  * pd_ks_data:		kstat data
  */
 typedef struct kcf_provider_desc {
-	crypto_provider_type_t		pd_prov_type;
 	crypto_session_id_t		pd_sid;
 	uint_t				pd_refcnt;
 	uint_t				pd_irefcnt;
 	kmutex_t			pd_lock;
 	kcf_prov_state_t		pd_state;
-	struct kcf_provider_list	*pd_provider_list;
 	kcondvar_t			pd_resume_cv;
 	crypto_provider_handle_t	pd_prov_handle;
 	const crypto_ops_t			*pd_ops_vector;
@@ -216,10 +193,6 @@ typedef struct kcf_provider_desc {
 	const crypto_mech_info_t		*pd_mechanisms;
 	kcf_sched_info_t		pd_sched_info;
 	uint_t				pd_mech_list_count;
-	// char				*pd_name;
-	// uint_t				pd_instance;
-	// int				pd_module_id;
-	// struct modctl			*pd_mctlp;
 	kcondvar_t			pd_remove_cv;
 	const char				*pd_description;
 	uint_t				pd_flags;
@@ -229,12 +202,6 @@ typedef struct kcf_provider_desc {
 	kstat_t				*pd_kstat;
 	kcf_prov_stats_t		pd_ks_data;
 } kcf_provider_desc_t;
-
-/* useful for making a list of providers */
-typedef struct kcf_provider_list {
-	struct kcf_provider_list *pl_next;
-	struct kcf_provider_desc *pl_provider;
-} kcf_provider_list_t;
 
 /* atomic operations in linux implicitly form a memory barrier */
 #define	membar_exit()
@@ -273,14 +240,6 @@ typedef struct kcf_provider_list {
 }
 
 
-/* list of crypto_mech_info_t valid as the second mech in a dual operation */
-
-typedef	struct crypto_mech_info_list {
-	struct crypto_mech_info_list	*ml_next;
-	crypto_mech_type_t		ml_kcf_mechid;	/* KCF's id */
-	crypto_mech_info_t		ml_mech_info;
-} crypto_mech_info_list_t;
-
 /*
  * An element in a mechanism provider descriptors chain.
  * The kcf_prov_mech_desc_t is duplicated in every chain the provider belongs
@@ -292,14 +251,8 @@ typedef struct kcf_prov_mech_desc {
 	struct kcf_mech_entry		*pm_me;		/* Back to the head */
 	struct kcf_prov_mech_desc	*pm_next;	/* Next in the chain */
 	crypto_mech_info_t		pm_mech_info;	/* Provider mech info */
-	crypto_mech_info_list_t		*pm_mi_list;	/* list for duals */
 	kcf_provider_desc_t		*pm_prov_desc;	/* Common desc. */
 } kcf_prov_mech_desc_t;
-
-/* and the notation shortcuts ... */
-#define	pm_provider_type	pm_prov_desc.pd_provider_type
-#define	pm_provider_handle	pm_prov_desc.pd_provider_handle
-#define	pm_ops_vector		pm_prov_desc.pd_ops_vector
 
 /*
  * A mechanism entry in an xxx_mech_tab[]. me_pad was deemed
@@ -309,16 +262,10 @@ typedef	struct kcf_mech_entry {
 	crypto_mech_name_t	me_name;	/* mechanism name */
 	crypto_mech_type_t	me_mechid;	/* Internal id for mechanism */
 	kmutex_t		me_mutex;	/* access protection	*/
-	kcf_prov_mech_desc_t	*me_hw_prov_chain;  /* list of HW providers */
-	kcf_prov_mech_desc_t	*me_sw_prov;    /* SW provider */
+	kcf_prov_mech_desc_t	*me_sw_prov;    /* provider */
 	/*
-	 * Number of HW providers in the chain. There is only one
-	 * SW provider. So, we need only a count of HW providers.
-	 */
-	int			me_num_hwprov;
-	/*
-	 * When a SW provider is present, this is the generation number that
-	 * ensures no objects from old SW providers are used in the new one
+	 * When a provider is present, this is the generation number that
+	 * ensures no objects from old providers are used in the new one
 	 */
 	uint32_t		me_gen_swprov;
 	/*
@@ -326,28 +273,6 @@ typedef	struct kcf_mech_entry {
 	 */
 	size_t			me_threshold;
 } kcf_mech_entry_t;
-
-/*
- * A policy descriptor structure. It is allocated and initialized
- * when administrative ioctls load disabled mechanisms.
- *
- * pd_prov_type:	Provider type, hardware or software
- * pd_name:		Device name or module name.
- * pd_instance:		Device instance.
- * pd_refcnt:		Reference counter for this policy descriptor
- * pd_mutex:		Protects array and count of disabled mechanisms.
- * pd_disabled_count:	Count of disabled mechanisms.
- * pd_disabled_mechs:	Array of disabled mechanisms.
- */
-typedef struct kcf_policy_desc {
-	crypto_provider_type_t	pd_prov_type;
-	char			*pd_name;
-	uint_t			pd_instance;
-	uint_t			pd_refcnt;
-	kmutex_t		pd_mutex;
-	uint_t			pd_disabled_count;
-	crypto_mech_name_t	*pd_disabled_mechs;
-} kcf_policy_desc_t;
 
 /*
  * If a component has a reference to a kcf_policy_desc_t,
@@ -369,21 +294,6 @@ typedef struct kcf_policy_desc {
 	if (atomic_add_32_nv(&(desc)->pd_refcnt, -1) == 0)	\
 		kcf_policy_free_desc(desc);			\
 }
-
-/*
- * This entry stores the name of a software module and its
- * mechanisms.  The mechanisms are 'hints' that are used to
- * trigger loading of the module.
- */
-typedef struct kcf_soft_conf_entry {
-	struct kcf_soft_conf_entry	*ce_next;
-	char				*ce_name;
-	crypto_mech_name_t		*ce_mechs;
-	uint_t				ce_count;
-} kcf_soft_conf_entry_t;
-
-extern kmutex_t soft_config_mutex;
-extern kcf_soft_conf_entry_t *soft_config_list;
 
 /*
  * Global tables. The sizes are from the predefined PKCS#11 v2.20 mechanisms,
@@ -671,8 +581,7 @@ extern int kcf_add_mech_provider(short, kcf_provider_desc_t *,
     kcf_prov_mech_desc_t **);
 extern void kcf_remove_mech_provider(const char *, kcf_provider_desc_t *);
 extern int kcf_get_mech_entry(crypto_mech_type_t, kcf_mech_entry_t **);
-extern kcf_provider_desc_t *kcf_alloc_provider_desc(
-    const crypto_provider_info_t *);
+extern kcf_provider_desc_t *kcf_alloc_provider_desc(void);
 extern void kcf_provider_zero_refcnt(kcf_provider_desc_t *);
 extern void kcf_free_provider_desc(kcf_provider_desc_t *);
 extern crypto_mech_type_t crypto_mech2id_common(const char *, boolean_t);
