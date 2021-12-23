@@ -159,7 +159,7 @@ crypto_cipher_init_prov(crypto_provider_t provider, crypto_session_id_t sid,
 	    KCF_CAN_SHARE_OPSTATE(pd, mech->cm_type)) {
 		kcf_context_t *tctxp = (kcf_context_t *)ctx;
 		kcf_provider_desc_t *tpd = NULL;
-		crypto_mech_info_t *sinfo;
+		const crypto_mech_info_t *sinfo;
 
 		if ((kcf_get_sw_prov(mech->cm_type, &tpd, &tctxp->kc_mech,
 		    B_FALSE) == CRYPTO_SUCCESS)) {

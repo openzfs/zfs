@@ -338,13 +338,12 @@ init_prov_mechs(const crypto_provider_info_t *info, kcf_provider_desc_t *desc)
 	int err = CRYPTO_SUCCESS;
 	kcf_prov_mech_desc_t *pmd;
 	int desc_use_count = 0;
-	int mcount = desc->pd_mech_list_count;
 
 	if (desc->pd_prov_type == CRYPTO_LOGICAL_PROVIDER) {
 		if (info != NULL) {
 			ASSERT(info->pi_mechanisms != NULL);
-			bcopy(info->pi_mechanisms, desc->pd_mechanisms,
-			    sizeof (crypto_mech_info_t) * mcount);
+			desc->pd_mech_list_count = info->pi_mech_list_count;
+			desc->pd_mechanisms = info->pi_mechanisms;
 		}
 		return (CRYPTO_SUCCESS);
 	}
@@ -357,8 +356,8 @@ init_prov_mechs(const crypto_provider_info_t *info, kcf_provider_desc_t *desc)
 	 */
 	if (info != NULL) {
 		ASSERT(info->pi_mechanisms != NULL);
-		bcopy(info->pi_mechanisms, desc->pd_mechanisms,
-		    sizeof (crypto_mech_info_t) * mcount);
+		desc->pd_mech_list_count = info->pi_mech_list_count;
+		desc->pd_mechanisms = info->pi_mechanisms;
 	}
 
 	/*
@@ -366,7 +365,7 @@ init_prov_mechs(const crypto_provider_info_t *info, kcf_provider_desc_t *desc)
 	 * to the corresponding KCF mechanism mech_entry chain.
 	 */
 	for (mech_idx = 0; mech_idx < desc->pd_mech_list_count; mech_idx++) {
-		crypto_mech_info_t *mi = &desc->pd_mechanisms[mech_idx];
+		const crypto_mech_info_t *mi = &desc->pd_mechanisms[mech_idx];
 
 		if ((mi->cm_mech_flags & CRYPTO_KEYSIZE_UNIT_IN_BITS) &&
 		    (mi->cm_mech_flags & CRYPTO_KEYSIZE_UNIT_IN_BYTES)) {
