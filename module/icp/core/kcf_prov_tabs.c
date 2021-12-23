@@ -201,7 +201,7 @@ kcf_prov_tab_lookup(crypto_provider_id_t prov_id)
  * since it is invoked from user context during provider registration.
  */
 kcf_provider_desc_t *
-kcf_alloc_provider_desc(const crypto_provider_info_t *info)
+kcf_alloc_provider_desc(void)
 {
 	kcf_provider_desc_t *desc =
 	    kmem_zalloc(sizeof (kcf_provider_desc_t), KM_SLEEP);
@@ -223,7 +223,7 @@ kcf_alloc_provider_desc(const crypto_provider_info_t *info)
 /*
  * Called by KCF_PROV_REFRELE when a provider's reference count drops
  * to zero. We free the descriptor when the last reference is released.
- * However, for software providers, we do not free it when there is an
+ * However, for providers, we do not free it when there is an
  * unregister thread waiting. We signal that thread in this case and
  * that thread is responsible for freeing the descriptor.
  */
@@ -231,22 +231,16 @@ void
 kcf_provider_zero_refcnt(kcf_provider_desc_t *desc)
 {
 	mutex_enter(&desc->pd_lock);
-	switch (desc->pd_prov_type) {
-	case CRYPTO_SW_PROVIDER:
-		if (desc->pd_state == KCF_PROV_REMOVED ||
-		    desc->pd_state == KCF_PROV_DISABLED) {
-			desc->pd_state = KCF_PROV_FREED;
-			cv_broadcast(&desc->pd_remove_cv);
-			mutex_exit(&desc->pd_lock);
-			break;
-		}
-		zfs_fallthrough;
-
-	case CRYPTO_HW_PROVIDER:
-	case CRYPTO_LOGICAL_PROVIDER:
+	if (desc->pd_state == KCF_PROV_REMOVED ||
+	    desc->pd_state == KCF_PROV_DISABLED) {
+		desc->pd_state = KCF_PROV_FREED;
+		cv_broadcast(&desc->pd_remove_cv);
 		mutex_exit(&desc->pd_lock);
-		kcf_free_provider_desc(desc);
+		return;
 	}
+
+	mutex_exit(&desc->pd_lock);
+	kcf_free_provider_desc(desc);
 }
 
 /*
@@ -269,9 +263,6 @@ kcf_free_provider_desc(kcf_provider_desc_t *desc)
 
 	/* free the kernel memory associated with the provider descriptor */
 
-	if (desc->pd_sched_info.ks_taskq != NULL)
-		taskq_destroy(desc->pd_sched_info.ks_taskq);
-
 	mutex_destroy(&desc->pd_lock);
 	cv_destroy(&desc->pd_resume_cv);
 	cv_destroy(&desc->pd_remove_cv);
@@ -281,7 +272,7 @@ kcf_free_provider_desc(kcf_provider_desc_t *desc)
 
 /*
  * Returns in the location pointed to by pd a pointer to the descriptor
- * for the software provider for the specified mechanism.
+ * for the provider for the specified mechanism.
  * The provider descriptor is returned held and it is the caller's
  * responsibility to release it when done. The mechanism entry
  * is returned if the optional argument mep is non NULL.
@@ -300,16 +291,16 @@ kcf_get_sw_prov(crypto_mech_type_t mech_type, kcf_provider_desc_t **pd,
 		return (CRYPTO_MECHANISM_INVALID);
 
 	/*
-	 * Get the software provider for this mechanism.
+	 * Get the provider for this mechanism.
 	 * Lock the mech_entry until we grab the 'pd'.
 	 */
 	mutex_enter(&me->me_mutex);
 
 	if (me->me_sw_prov == NULL ||
 	    (*pd = me->me_sw_prov->pm_prov_desc) == NULL) {
-		/* no SW provider for this mechanism */
+		/* no provider for this mechanism */
 		if (log_warn)
-			cmn_err(CE_WARN, "no SW provider for \"%s\"\n",
+			cmn_err(CE_WARN, "no provider for \"%s\"\n",
 			    me->me_name);
 		mutex_exit(&me->me_mutex);
 		return (CRYPTO_MECH_NOT_SUPPORTED);

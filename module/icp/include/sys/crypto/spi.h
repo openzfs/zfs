@@ -43,10 +43,6 @@ extern "C" {
 #define	__no_const
 #endif /* CONSTIFY_PLUGIN */
 
-#define	CRYPTO_SPI_VERSION_1	1
-#define	CRYPTO_SPI_VERSION_2	2
-#define	CRYPTO_SPI_VERSION_3	3
-
 /*
  * Provider-private handle. This handle is specified by a provider
  * when it registers by means of the pi_provider_handle field of
@@ -56,18 +52,16 @@ extern "C" {
 typedef void *crypto_provider_handle_t;
 
 /*
- * Context templates can be used to by software providers to pre-process
+ * Context templates can be used to by providers to pre-process
  * keying material, such as key schedules. They are allocated by
- * a software provider create_ctx_template(9E) entry point, and passed
+ * a provider create_ctx_template(9E) entry point, and passed
  * as argument to initialization and atomic provider entry points.
  */
 typedef void *crypto_spi_ctx_template_t;
 
 /*
  * Request handles are used by the kernel to identify an asynchronous
- * request being processed by a provider. It is passed by the kernel
- * to a hardware provider when submitting a request, and must be
- * specified by a provider when calling crypto_op_notification(9F)
+ * request being processed by a provider.
  */
 typedef void *crypto_req_handle_t;
 
@@ -268,18 +262,13 @@ typedef uint_t crypto_kcf_provider_handle_t;
  */
 typedef struct crypto_provider_info {
 	const char				*pi_provider_description;
-	crypto_provider_type_t		pi_provider_type;
 	crypto_provider_handle_t	pi_provider_handle;
 	const crypto_ops_t			*pi_ops_vector;
 	uint_t				pi_mech_list_count;
 	const crypto_mech_info_t		*pi_mechanisms;
-	uint_t				pi_logical_provider_count;
-	crypto_kcf_provider_handle_t	*pi_logical_providers;
 	uint_t				pi_flags;
 } crypto_provider_info_t;
 
-/* hidden providers can only be accessed via a logical provider */
-#define	CRYPTO_HIDE_PROVIDER		0x00000001
 /*
  * provider can not do multi-part digest (updates) and has a limit
  * on maximum input data that it can digest.

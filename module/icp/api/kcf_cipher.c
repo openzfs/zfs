@@ -110,27 +110,9 @@ crypto_cipher_init_prov(crypto_provider_t provider, crypto_session_id_t sid,
 
 	ASSERT(KCF_PROV_REFHELD(pd));
 
-	if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER) {
-		if (func == CRYPTO_FG_ENCRYPT) {
-			error = kcf_get_hardware_provider(mech->cm_type,
-			    CRYPTO_MECH_INVALID, CHECK_RESTRICT(crq), pd,
-			    &real_provider, CRYPTO_FG_ENCRYPT);
-		} else {
-			error = kcf_get_hardware_provider(mech->cm_type,
-			    CRYPTO_MECH_INVALID, CHECK_RESTRICT(crq), pd,
-			    &real_provider, CRYPTO_FG_DECRYPT);
-		}
-
-		if (error != CRYPTO_SUCCESS)
-			return (error);
-	}
-
 	/* Allocate and initialize the canonical context */
-	if ((ctx = kcf_new_ctx(crq, real_provider, sid)) == NULL) {
-		if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER)
-			KCF_PROV_REFRELE(real_provider);
+	if ((ctx = kcf_new_ctx(crq, real_provider, sid)) == NULL)
 		return (CRYPTO_HOST_MEMORY);
-	}
 
 	/* The fast path for SW providers. */
 	if (CHECK_FASTPATH(crq, pd)) {
@@ -153,42 +135,6 @@ crypto_cipher_init_prov(crypto_provider_t provider, crypto_session_id_t sid,
 		goto done;
 	}
 
-	/* Check if context sharing is possible */
-	if (pd->pd_prov_type == CRYPTO_HW_PROVIDER &&
-	    key->ck_format == CRYPTO_KEY_RAW &&
-	    KCF_CAN_SHARE_OPSTATE(pd, mech->cm_type)) {
-		kcf_context_t *tctxp = (kcf_context_t *)ctx;
-		kcf_provider_desc_t *tpd = NULL;
-		const crypto_mech_info_t *sinfo;
-
-		if ((kcf_get_sw_prov(mech->cm_type, &tpd, &tctxp->kc_mech,
-		    B_FALSE) == CRYPTO_SUCCESS)) {
-			int tlen;
-
-			sinfo = &(KCF_TO_PROV_MECHINFO(tpd, mech->cm_type));
-			/*
-			 * key->ck_length from the consumer is always in bits.
-			 * We convert it to be in the same unit registered by
-			 * the provider in order to do a comparison.
-			 */
-			if (sinfo->cm_mech_flags & CRYPTO_KEYSIZE_UNIT_IN_BYTES)
-				tlen = key->ck_length >> 3;
-			else
-				tlen = key->ck_length;
-			/*
-			 * Check if the software provider can support context
-			 * sharing and support this key length.
-			 */
-			if ((sinfo->cm_mech_flags & CRYPTO_CAN_SHARE_OPSTATE) &&
-			    (tlen >= sinfo->cm_min_key_length) &&
-			    (tlen <= sinfo->cm_max_key_length)) {
-				ctx->cc_flags = CRYPTO_INIT_OPSTATE;
-				tctxp->kc_sw_prov_desc = tpd;
-			} else
-				KCF_PROV_REFRELE(tpd);
-		}
-	}
-
 	if (func == CRYPTO_FG_ENCRYPT) {
 		KCF_WRAP_ENCRYPT_OPS_PARAMS(&params, KCF_OP_INIT, sid,
 		    mech, key, NULL, NULL, tmpl);
@@ -199,9 +145,6 @@ crypto_cipher_init_prov(crypto_provider_t provider, crypto_session_id_t sid,
 	}
 
 	error = kcf_submit_request(real_provider, ctx, crq, &params);
-
-	if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER)
-		KCF_PROV_REFRELE(real_provider);
 
 done:
 	if ((error == CRYPTO_SUCCESS) || (error == CRYPTO_QUEUED))
@@ -234,7 +177,7 @@ crypto_cipher_init(crypto_mechanism_t *mech, crypto_key_t *key,
 retry:
 	/* pd is returned held */
 	if ((pd = kcf_get_mech_provider(mech->cm_type, &me, &error,
-	    list, func, CHECK_RESTRICT(crq), 0)) == NULL) {
+	    list, func, CHECK_RESTRICT(crq))) == NULL) {
 		if (list != NULL)
 			kcf_free_triedlist(list);
 		return (error);
@@ -247,8 +190,7 @@ retry:
 	 * freeing this tmpl and create a new one for the key and new SW
 	 * provider
 	 */
-	if ((pd->pd_prov_type == CRYPTO_SW_PROVIDER) &&
-	    ((ctx_tmpl = (kcf_ctx_template_t *)tmpl) != NULL)) {
+	if (((ctx_tmpl = (kcf_ctx_template_t *)tmpl) != NULL)) {
 		if (ctx_tmpl->ct_generation != me->me_gen_swprov) {
 			if (list != NULL)
 				kcf_free_triedlist(list);
@@ -321,21 +263,10 @@ crypto_encrypt_prov(crypto_provider_t provider, crypto_session_id_t sid,
 
 	ASSERT(KCF_PROV_REFHELD(pd));
 
-	if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER) {
-		error = kcf_get_hardware_provider(mech->cm_type,
-		    CRYPTO_MECH_INVALID, CHECK_RESTRICT(crq), pd,
-		    &real_provider, CRYPTO_FG_ENCRYPT_ATOMIC);
-
-		if (error != CRYPTO_SUCCESS)
-			return (error);
-	}
-
 	KCF_WRAP_ENCRYPT_OPS_PARAMS(&params, KCF_OP_ATOMIC, sid, mech, key,
 	    plaintext, ciphertext, tmpl);
 
 	error = kcf_submit_request(real_provider, NULL, crq, &params);
-	if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER)
-		KCF_PROV_REFRELE(real_provider);
 
 	return (error);
 }
@@ -360,22 +291,19 @@ crypto_encrypt(crypto_mechanism_t *mech, crypto_data_t *plaintext,
 retry:
 	/* pd is returned held */
 	if ((pd = kcf_get_mech_provider(mech->cm_type, &me, &error,
-	    list, CRYPTO_FG_ENCRYPT_ATOMIC, CHECK_RESTRICT(crq),
-	    plaintext->cd_length)) == NULL) {
+	    list, CRYPTO_FG_ENCRYPT_ATOMIC, CHECK_RESTRICT(crq))) == NULL) {
 		if (list != NULL)
 			kcf_free_triedlist(list);
 		return (error);
 	}
 
 	/*
-	 * For SW providers, check the validity of the context template
+	 * Check the validity of the context template
 	 * It is very rare that the generation number mis-matches, so
 	 * is acceptable to fail here, and let the consumer recover by
-	 * freeing this tmpl and create a new one for the key and new SW
-	 * provider
+	 * freeing this tmpl and create a new one for the key and new provider
 	 */
-	if ((pd->pd_prov_type == CRYPTO_SW_PROVIDER) &&
-	    ((ctx_tmpl = (kcf_ctx_template_t *)tmpl) != NULL)) {
+	if (((ctx_tmpl = (kcf_ctx_template_t *)tmpl) != NULL)) {
 		if (ctx_tmpl->ct_generation != me->me_gen_swprov) {
 			if (list != NULL)
 				kcf_free_triedlist(list);
@@ -480,8 +408,6 @@ crypto_encrypt_update(crypto_context_t context, crypto_data_t *plaintext,
 		return (CRYPTO_INVALID_CONTEXT);
 	}
 
-	ASSERT(pd->pd_prov_type != CRYPTO_LOGICAL_PROVIDER);
-
 	/* The fast path for SW providers. */
 	if (CHECK_FASTPATH(cr, pd)) {
 		error = KCF_PROV_ENCRYPT_UPDATE(pd, ctx, plaintext,
@@ -540,8 +466,6 @@ crypto_encrypt_final(crypto_context_t context, crypto_data_t *ciphertext,
 		return (CRYPTO_INVALID_CONTEXT);
 	}
 
-	ASSERT(pd->pd_prov_type != CRYPTO_LOGICAL_PROVIDER);
-
 	/* The fast path for SW providers. */
 	if (CHECK_FASTPATH(cr, pd)) {
 		error = KCF_PROV_ENCRYPT_FINAL(pd, ctx, ciphertext, NULL);
@@ -599,27 +523,13 @@ crypto_decrypt_prov(crypto_provider_t provider, crypto_session_id_t sid,
 	kcf_req_params_t params;
 	kcf_provider_desc_t *pd = provider;
 	kcf_provider_desc_t *real_provider = pd;
-	int rv;
 
 	ASSERT(KCF_PROV_REFHELD(pd));
-
-	if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER) {
-		rv = kcf_get_hardware_provider(mech->cm_type,
-		    CRYPTO_MECH_INVALID, CHECK_RESTRICT(crq), pd,
-		    &real_provider, CRYPTO_FG_DECRYPT_ATOMIC);
-
-		if (rv != CRYPTO_SUCCESS)
-			return (rv);
-	}
 
 	KCF_WRAP_DECRYPT_OPS_PARAMS(&params, KCF_OP_ATOMIC, sid, mech, key,
 	    ciphertext, plaintext, tmpl);
 
-	rv = kcf_submit_request(real_provider, NULL, crq, &params);
-	if (pd->pd_prov_type == CRYPTO_LOGICAL_PROVIDER)
-		KCF_PROV_REFRELE(real_provider);
-
-	return (rv);
+	return (kcf_submit_request(real_provider, NULL, crq, &params));
 }
 
 /*
@@ -643,22 +553,19 @@ crypto_decrypt(crypto_mechanism_t *mech, crypto_data_t *ciphertext,
 retry:
 	/* pd is returned held */
 	if ((pd = kcf_get_mech_provider(mech->cm_type, &me, &error,
-	    list, CRYPTO_FG_DECRYPT_ATOMIC, CHECK_RESTRICT(crq),
-	    ciphertext->cd_length)) == NULL) {
+	    list, CRYPTO_FG_DECRYPT_ATOMIC, CHECK_RESTRICT(crq))) == NULL) {
 		if (list != NULL)
 			kcf_free_triedlist(list);
 		return (error);
 	}
 
 	/*
-	 * For SW providers, check the validity of the context template
+	 * Check the validity of the context template
 	 * It is very rare that the generation number mis-matches, so
 	 * is acceptable to fail here, and let the consumer recover by
-	 * freeing this tmpl and create a new one for the key and new SW
-	 * provider
+	 * freeing this tmpl and create a new one for the key and new provider
 	 */
-	if ((pd->pd_prov_type == CRYPTO_SW_PROVIDER) &&
-	    ((ctx_tmpl = (kcf_ctx_template_t *)tmpl) != NULL)) {
+	if (((ctx_tmpl = (kcf_ctx_template_t *)tmpl) != NULL)) {
 		if (ctx_tmpl->ct_generation != me->me_gen_swprov) {
 			if (list != NULL)
 				kcf_free_triedlist(list);
@@ -763,8 +670,6 @@ crypto_decrypt_update(crypto_context_t context, crypto_data_t *ciphertext,
 		return (CRYPTO_INVALID_CONTEXT);
 	}
 
-	ASSERT(pd->pd_prov_type != CRYPTO_LOGICAL_PROVIDER);
-
 	/* The fast path for SW providers. */
 	if (CHECK_FASTPATH(cr, pd)) {
 		error = KCF_PROV_DECRYPT_UPDATE(pd, ctx, ciphertext,
@@ -822,8 +727,6 @@ crypto_decrypt_final(crypto_context_t context, crypto_data_t *plaintext,
 	    ((pd = kcf_ctx->kc_prov_desc) == NULL)) {
 		return (CRYPTO_INVALID_CONTEXT);
 	}
-
-	ASSERT(pd->pd_prov_type != CRYPTO_LOGICAL_PROVIDER);
 
 	/* The fast path for SW providers. */
 	if (CHECK_FASTPATH(cr, pd)) {

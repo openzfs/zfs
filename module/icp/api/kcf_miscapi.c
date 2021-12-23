@@ -50,8 +50,8 @@ static kcf_ntfy_elem_t *ntfy_list_head;
  * Description:
  *	Walks the mechanisms tables, looking for an entry that matches the
  *	mechname. Once it find it, it builds the 64-bit mech_type and returns
- *	it.  If there are no hardware or software providers for the mechanism,
- *	but there is an unloaded software provider, this routine will attempt
+ *	it.  If there are no providers for the mechanism,
+ *	but there is an unloaded provider, this routine will attempt
  *	to load it.
  *
  * Context:
