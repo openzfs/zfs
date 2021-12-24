@@ -137,7 +137,6 @@ retry:
  * Arguments:
  *	pd:	pointer to the descriptor of the provider to use for this
  *		operation.
- *	sid:	provider session id.
  *	mech:	crypto_mechanism_t pointer.
  *		mech_type is a valid value previously returned by
  *		crypto_mech2id();
@@ -168,7 +167,7 @@ retry:
  *	See comment in the beginning of the file.
  */
 static int
-crypto_mac_init_prov(crypto_provider_t provider, crypto_session_id_t sid,
+crypto_mac_init_prov(crypto_provider_t provider,
     crypto_mechanism_t *mech, crypto_key_t *key, crypto_spi_ctx_template_t tmpl,
     crypto_context_t *ctxp, crypto_call_req_t *crq)
 {
@@ -180,7 +179,7 @@ crypto_mac_init_prov(crypto_provider_t provider, crypto_session_id_t sid,
 	ASSERT(KCF_PROV_REFHELD(pd));
 
 	/* Allocate and initialize the canonical context */
-	if ((ctx = kcf_new_ctx(crq, real_provider, sid)) == NULL)
+	if ((ctx = kcf_new_ctx(crq, real_provider)) == NULL)
 		return (CRYPTO_HOST_MEMORY);
 
 	crypto_mechanism_t lmech = *mech;
@@ -235,7 +234,7 @@ retry:
 	if (((ctx_tmpl = (kcf_ctx_template_t *)tmpl) != NULL))
 		spi_ctx_tmpl = ctx_tmpl->ct_prov_tmpl;
 
-	error = crypto_mac_init_prov(pd, pd->pd_sid, mech, key,
+	error = crypto_mac_init_prov(pd, mech, key,
 	    spi_ctx_tmpl, ctxp, crq);
 	if (error != CRYPTO_SUCCESS && error != CRYPTO_QUEUED &&
 	    IS_RECOVERABLE(error)) {

@@ -43,8 +43,7 @@ ulong_t kcf_swprov_hndl = 0;
  * Create a new context.
  */
 crypto_ctx_t *
-kcf_new_ctx(crypto_call_req_t *crq, kcf_provider_desc_t *pd,
-    crypto_session_id_t sid)
+kcf_new_ctx(crypto_call_req_t *crq, kcf_provider_desc_t *pd)
 {
 	crypto_ctx_t *ctx;
 	kcf_context_t *kcf_ctx;
@@ -62,11 +61,8 @@ kcf_new_ctx(crypto_call_req_t *crq, kcf_provider_desc_t *pd,
 
 	ctx = &kcf_ctx->kc_glbl_ctx;
 	ctx->cc_provider = pd->pd_prov_handle;
-	ctx->cc_session = sid;
 	ctx->cc_provider_private = NULL;
 	ctx->cc_framework_private = (void *)kcf_ctx;
-	ctx->cc_flags = 0;
-	ctx->cc_opstate = NULL;
 
 	return (ctx);
 }
@@ -106,12 +102,6 @@ kcf_free_context(kcf_context_t *kcf_ctx)
 
 	/* kcf_ctx->kc_prov_desc has a hold on pd */
 	KCF_PROV_REFRELE(kcf_ctx->kc_prov_desc);
-
-	/* check if this context is shared with a provider */
-	if ((gctx->cc_flags & CRYPTO_INIT_OPSTATE) &&
-	    kcf_ctx->kc_sw_prov_desc != NULL) {
-		KCF_PROV_REFRELE(kcf_ctx->kc_sw_prov_desc);
-	}
 
 	kmem_cache_free(kcf_context_cache, kcf_ctx);
 }
