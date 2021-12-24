@@ -145,9 +145,6 @@ typedef enum {
 #define	KCF_IS_PROV_USABLE(pd) ((pd)->pd_state == KCF_PROV_READY)
 #define	KCF_IS_PROV_REMOVED(pd)	((pd)->pd_state >= KCF_PROV_REMOVED)
 
-/* Internal flags valid for pd_flags field */
-#define	KCF_PROV_RESTRICTED	0x40000000
-
 /*
  * A provider descriptor structure. There is one such structure per
  * provider. It is allocated and initialized at registration time and
@@ -170,8 +167,6 @@ typedef enum {
  *			by the provider during registration
  * pd_remove_cv:	cv to wait on while the provider queue drains
  * pd_description:	Provider description string
- * pd_flags		bitwise OR of pi_flags from crypto_provider_info_t
- *			and other internal flags defined above.
  * pd_hash_limit	Maximum data size that hash mechanisms of this provider
  * 			can support.
  * pd_kcf_prov_handle:	KCF-private handle assigned by KCF
@@ -195,7 +190,6 @@ typedef struct kcf_provider_desc {
 	uint_t				pd_mech_list_count;
 	kcondvar_t			pd_remove_cv;
 	const char				*pd_description;
-	uint_t				pd_flags;
 	uint_t				pd_hash_limit;
 	crypto_kcf_provider_handle_t	pd_kcf_prov_handle;
 	crypto_provider_id_t		pd_prov_id;
