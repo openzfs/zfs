@@ -287,9 +287,6 @@ kcf_sched_destroy(void)
 		kmem_cache_destroy(kcf_areq_cache);
 	if (kcf_sreq_cache)
 		kmem_cache_destroy(kcf_sreq_cache);
-
-	mutex_destroy(&ntfy_list_lock);
-	cv_destroy(&ntfy_list_cv);
 }
 
 /*
@@ -338,10 +335,6 @@ kcf_sched_init(void)
 
 	/* Allocate and initialize the thread pool */
 	kcfpool_alloc();
-
-	/* Initialize the event notification list variables */
-	mutex_init(&ntfy_list_lock, NULL, MUTEX_DEFAULT, NULL);
-	cv_init(&ntfy_list_cv, NULL, CV_DEFAULT, NULL);
 
 	/* Create the kcf kstat */
 	kcf_misc_kstat = kstat_create("kcf", 0, "framework_stats", "crypto",

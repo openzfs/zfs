@@ -122,7 +122,6 @@ crypto_register_provider(const crypto_provider_info_t *info,
 	mutex_enter(&prov_desc->pd_lock);
 	prov_desc->pd_state = KCF_PROV_READY;
 	mutex_exit(&prov_desc->pd_lock);
-	kcf_do_notify(prov_desc, B_TRUE);
 
 	*handle = prov_desc->pd_kcf_prov_handle;
 	ret = CRYPTO_SUCCESS;
@@ -208,8 +207,6 @@ crypto_unregister_provider(crypto_kcf_provider_handle_t handle)
 	while (desc->pd_state != KCF_PROV_FREED)
 		cv_wait(&desc->pd_remove_cv, &desc->pd_lock);
 	mutex_exit(&desc->pd_lock);
-
-	kcf_do_notify(desc, B_FALSE);
 
 	/*
 	 * This is the only place where kcf_free_provider_desc()
@@ -364,32 +361,6 @@ undo_register_provider(kcf_provider_desc_t *desc, boolean_t remove_prov)
 	/* remove provider from providers table */
 	if (remove_prov)
 		(void) kcf_prov_tab_rem_provider(desc->pd_prov_id);
-}
-
-/*
- * Dispatch events as needed for a provider. is_added flag tells
- * whether the provider is registering or unregistering.
- */
-void
-kcf_do_notify(kcf_provider_desc_t *prov_desc, boolean_t is_added)
-{
-	int i;
-	crypto_notify_event_change_t ec;
-
-	ASSERT(prov_desc->pd_state > KCF_PROV_ALLOCATED);
-
-	/*
-	 * Inform interested clients of the mechanisms becoming
-	 * available/unavailable.
-	 */
-	ec.ec_change = is_added ? CRYPTO_MECH_ADDED :
-	    CRYPTO_MECH_REMOVED;
-	for (i = 0; i < prov_desc->pd_mech_list_count; i++) {
-		(void) strlcpy(ec.ec_mech_name,
-		    prov_desc->pd_mechanisms[i].cm_mech_name,
-		    CRYPTO_MAX_MECH_NAME);
-		kcf_walk_ntfylist(CRYPTO_EVENT_MECHS_CHANGED, &ec);
-	}
 }
 
 static void
