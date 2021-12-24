@@ -111,7 +111,6 @@ static const int kcf_bf_threshold = 512;
 static const int kcf_rc4_threshold = 512;
 
 static kmutex_t kcf_mech_tabs_lock;
-static uint32_t kcf_gen_swprov = 0;
 
 static const int kcf_mech_hash_size = 256;
 static mod_hash_t *kcf_mech_hash;	/* mech name to id hash */
@@ -446,9 +445,6 @@ kcf_add_mech_provider(short mech_indx,
 		 * this mechanism.
 		 */
 		mech_entry->me_sw_prov = prov_mech;
-
-		/* We'll wrap around after 4 billion registrations! */
-		mech_entry->me_gen_swprov = kcf_gen_swprov++;
 	}
 	mutex_exit(&mech_entry->me_mutex);
 
