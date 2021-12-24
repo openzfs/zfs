@@ -27,7 +27,6 @@ endif
 KERNEL_C = \
 	spi/kcf_spi.c \
 	api/kcf_ctxops.c \
-	api/kcf_digest.c \
 	api/kcf_cipher.c \
 	api/kcf_miscapi.c \
 	api/kcf_mac.c \
