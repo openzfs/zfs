@@ -38,15 +38,7 @@ typedef void *crypto_bc_t;
 typedef void *crypto_context_t;
 typedef void *crypto_ctx_template_t;
 
-typedef uint32_t crypto_call_flag_t;
-
-/* crypto_call_flag's values */
-#define	CRYPTO_NOTIFY_OPDONE	0x00000002	/* Notify intermediate steps */
-#define	CRYPTO_SKIP_REQID	0x00000004	/* Skip request ID generation */
-#define	CRYPTO_RESTRICTED	0x00000008	/* cannot use restricted prov */
-
 typedef struct {
-	crypto_call_flag_t	cr_flag;
 	void			(*cr_callback_func)(void *, int);
 	void			*cr_callback_arg;
 	crypto_req_id_t		cr_reqid;
