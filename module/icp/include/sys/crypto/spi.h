@@ -236,13 +236,6 @@ typedef struct crypto_mech_info {
 	ssize_t			cm_max_key_length;
 	uint32_t		cm_mech_flags;
 } crypto_mech_info_t;
-
-
-/*
- * The following is used by a provider that sets
- * CRYPTO_HASH_NO_UPDATE. It needs to specify the maximum
- * input data size it can digest in this field.
- */
 #define	cm_max_input_length	cm_max_key_length
 
 /*
@@ -266,20 +259,7 @@ typedef struct crypto_provider_info {
 	const crypto_ops_t			*pi_ops_vector;
 	uint_t				pi_mech_list_count;
 	const crypto_mech_info_t		*pi_mechanisms;
-	uint_t				pi_flags;
 } crypto_provider_info_t;
-
-/*
- * provider can not do multi-part digest (updates) and has a limit
- * on maximum input data that it can digest.
- */
-#define	CRYPTO_HASH_NO_UPDATE		0x00000002
-
-/* provider can handle the request without returning a CRYPTO_QUEUED */
-#define	CRYPTO_SYNCHRONOUS		0x00000004
-
-#define	CRYPTO_PIFLAGS_RESERVED2	0x40000000
-#define	CRYPTO_PIFLAGS_RESERVED1	0x80000000
 
 /*
  * Functions exported by Solaris to cryptographic providers. Providers

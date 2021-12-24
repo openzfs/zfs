@@ -114,8 +114,7 @@ kcf_get_mech_provider(crypto_mech_type_t mech_type, kcf_mech_entry_t **mepp,
 		pd = mdesc->pm_prov_desc;
 		if (!IS_FG_SUPPORTED(mdesc, fg) ||
 		    !KCF_IS_PROV_USABLE(pd) ||
-		    IS_PROVIDER_TRIED(pd, triedl) ||
-		    (pd->pd_flags & KCF_PROV_RESTRICTED))
+		    IS_PROVIDER_TRIED(pd, triedl))
 			pd = NULL;
 	}
 
