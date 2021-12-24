@@ -121,12 +121,6 @@ typedef struct kcf_sreq_node {
 	 */
 	int			sn_rv;
 
-	/*
-	 * parameters to call the SPI with. This can be
-	 * a pointer as we know the caller context/stack stays.
-	 */
-	struct kcf_req_params	*sn_params;
-
 	/* Internal context for this request */
 	struct kcf_context	*sn_context;
 
@@ -147,12 +141,6 @@ typedef struct kcf_areq_node {
 	kmutex_t		an_lock;
 	kcf_req_status_t	an_state;
 	crypto_call_req_t	an_reqarg;
-
-	/*
-	 * parameters to call the SPI with. We need to
-	 * save the params since the caller stack can go away.
-	 */
-	struct kcf_req_params	an_params;
 
 	/*
 	 * The next two fields should be NULL for operations that
@@ -448,10 +436,6 @@ extern crypto_ctx_t *kcf_new_ctx(crypto_call_req_t  *, kcf_provider_desc_t *,
 extern void kcf_sched_destroy(void);
 extern void kcf_sched_init(void);
 extern void kcf_sched_start(void);
-extern void kcf_sop_done(kcf_sreq_node_t *, int);
-extern void kcf_aop_done(kcf_areq_node_t *, int);
-extern int common_submit_request(kcf_provider_desc_t *,
-    crypto_ctx_t *, kcf_req_params_t *, crypto_req_handle_t);
 extern void kcf_free_context(kcf_context_t *);
 
 extern int kcf_svc_wait(int *);

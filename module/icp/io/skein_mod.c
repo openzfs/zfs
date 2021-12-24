@@ -65,7 +65,6 @@ static const crypto_digest_ops_t skein_digest_ops = {
 	.digest_init = skein_digest_init,
 	.digest = skein_digest,
 	.digest_update = skein_update,
-	.digest_key = NULL,
 	.digest_final = skein_final,
 	.digest_atomic = skein_digest_atomic
 };

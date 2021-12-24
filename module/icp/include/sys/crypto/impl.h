@@ -411,36 +411,6 @@ typedef struct crypto_minor {
 	CRYPTO_NOT_SUPPORTED)
 
 /*
- * The _ (underscore) in _digest is needed to avoid replacing the
- * function digest().
- */
-#define	KCF_PROV_DIGEST(pd, ctx, data, _digest, req) ( \
-	(KCF_PROV_DIGEST_OPS(pd) && KCF_PROV_DIGEST_OPS(pd)->digest) ? \
-	KCF_PROV_DIGEST_OPS(pd)->digest(ctx, data, _digest, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_DIGEST_UPDATE(pd, ctx, data, req) ( \
-	(KCF_PROV_DIGEST_OPS(pd) && KCF_PROV_DIGEST_OPS(pd)->digest_update) ? \
-	KCF_PROV_DIGEST_OPS(pd)->digest_update(ctx, data, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_DIGEST_KEY(pd, ctx, key, req) ( \
-	(KCF_PROV_DIGEST_OPS(pd) && KCF_PROV_DIGEST_OPS(pd)->digest_key) ? \
-	KCF_PROV_DIGEST_OPS(pd)->digest_key(ctx, key, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_DIGEST_FINAL(pd, ctx, digest, req) ( \
-	(KCF_PROV_DIGEST_OPS(pd) && KCF_PROV_DIGEST_OPS(pd)->digest_final) ? \
-	KCF_PROV_DIGEST_OPS(pd)->digest_final(ctx, digest, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_DIGEST_ATOMIC(pd, session, mech, data, digest, req) ( \
-	(KCF_PROV_DIGEST_OPS(pd) && KCF_PROV_DIGEST_OPS(pd)->digest_atomic) ? \
-	KCF_PROV_DIGEST_OPS(pd)->digest_atomic( \
-	    (pd)->pd_prov_handle, session, mech, data, digest, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-/*
  * Wrappers for crypto_cipher_ops(9S) entry points.
  */
 
@@ -450,50 +420,12 @@ typedef struct crypto_minor {
 	    req) : \
 	CRYPTO_NOT_SUPPORTED)
 
-#define	KCF_PROV_ENCRYPT(pd, ctx, plaintext, ciphertext, req) ( \
-	(KCF_PROV_CIPHER_OPS(pd) && KCF_PROV_CIPHER_OPS(pd)->encrypt) ? \
-	KCF_PROV_CIPHER_OPS(pd)->encrypt(ctx, plaintext, ciphertext, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_ENCRYPT_UPDATE(pd, ctx, plaintext, ciphertext, req) ( \
-	(KCF_PROV_CIPHER_OPS(pd) && KCF_PROV_CIPHER_OPS(pd)->encrypt_update) ? \
-	KCF_PROV_CIPHER_OPS(pd)->encrypt_update(ctx, plaintext, \
-	    ciphertext, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_ENCRYPT_FINAL(pd, ctx, ciphertext, req) ( \
-	(KCF_PROV_CIPHER_OPS(pd) && KCF_PROV_CIPHER_OPS(pd)->encrypt_final) ? \
-	KCF_PROV_CIPHER_OPS(pd)->encrypt_final(ctx, ciphertext, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
 #define	KCF_PROV_ENCRYPT_ATOMIC(pd, session, mech, key, plaintext, ciphertext, \
 	    template, req) ( \
 	(KCF_PROV_CIPHER_OPS(pd) && KCF_PROV_CIPHER_OPS(pd)->encrypt_atomic) ? \
 	KCF_PROV_CIPHER_OPS(pd)->encrypt_atomic( \
 	    (pd)->pd_prov_handle, session, mech, key, plaintext, ciphertext, \
 	    template, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_DECRYPT_INIT(pd, ctx, mech, key, template, req) ( \
-	(KCF_PROV_CIPHER_OPS(pd) && KCF_PROV_CIPHER_OPS(pd)->decrypt_init) ? \
-	KCF_PROV_CIPHER_OPS(pd)->decrypt_init(ctx, mech, key, template, \
-	    req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_DECRYPT(pd, ctx, ciphertext, plaintext, req) ( \
-	(KCF_PROV_CIPHER_OPS(pd) && KCF_PROV_CIPHER_OPS(pd)->decrypt) ? \
-	KCF_PROV_CIPHER_OPS(pd)->decrypt(ctx, ciphertext, plaintext, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_DECRYPT_UPDATE(pd, ctx, ciphertext, plaintext, req) ( \
-	(KCF_PROV_CIPHER_OPS(pd) && KCF_PROV_CIPHER_OPS(pd)->decrypt_update) ? \
-	KCF_PROV_CIPHER_OPS(pd)->decrypt_update(ctx, ciphertext, \
-	    plaintext, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_DECRYPT_FINAL(pd, ctx, plaintext, req) ( \
-	(KCF_PROV_CIPHER_OPS(pd) && KCF_PROV_CIPHER_OPS(pd)->decrypt_final) ? \
-	KCF_PROV_CIPHER_OPS(pd)->decrypt_final(ctx, plaintext, req) : \
 	CRYPTO_NOT_SUPPORTED)
 
 #define	KCF_PROV_DECRYPT_ATOMIC(pd, session, mech, key, ciphertext, plaintext, \
@@ -517,11 +449,6 @@ typedef struct crypto_minor {
  * The _ (underscore) in _mac is needed to avoid replacing the
  * function mac().
  */
-#define	KCF_PROV_MAC(pd, ctx, data, _mac, req) ( \
-	(KCF_PROV_MAC_OPS(pd) && KCF_PROV_MAC_OPS(pd)->mac) ? \
-	KCF_PROV_MAC_OPS(pd)->mac(ctx, data, _mac, req) : \
-	CRYPTO_NOT_SUPPORTED)
-
 #define	KCF_PROV_MAC_UPDATE(pd, ctx, data, req) ( \
 	(KCF_PROV_MAC_OPS(pd) && KCF_PROV_MAC_OPS(pd)->mac_update) ? \
 	KCF_PROV_MAC_OPS(pd)->mac_update(ctx, data, req) : \
@@ -536,14 +463,6 @@ typedef struct crypto_minor {
 	    req) ( \
 	(KCF_PROV_MAC_OPS(pd) && KCF_PROV_MAC_OPS(pd)->mac_atomic) ? \
 	KCF_PROV_MAC_OPS(pd)->mac_atomic( \
-	    (pd)->pd_prov_handle, session, mech, key, data, mac, template, \
-	    req) : \
-	CRYPTO_NOT_SUPPORTED)
-
-#define	KCF_PROV_MAC_VERIFY_ATOMIC(pd, session, mech, key, data, mac, \
-	    template, req) ( \
-	(KCF_PROV_MAC_OPS(pd) && KCF_PROV_MAC_OPS(pd)->mac_verify_atomic) ? \
-	KCF_PROV_MAC_OPS(pd)->mac_verify_atomic( \
 	    (pd)->pd_prov_handle, session, mech, key, data, mac, template, \
 	    req) : \
 	CRYPTO_NOT_SUPPORTED)
