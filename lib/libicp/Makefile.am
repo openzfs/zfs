@@ -14,15 +14,25 @@ ASM_SOURCES_C = asm-x86_64/aes/aeskey.c
 ASM_SOURCES_AS = \
 	asm-x86_64/aes/aes_amd64.S \
 	asm-x86_64/aes/aes_aesni.S \
+	asm-x86_64/blake3/blake3_avx2.S \
+	asm-x86_64/blake3/blake3_avx512.S \
+	asm-x86_64/blake3/blake3_sse2.S \
+	asm-x86_64/blake3/blake3_sse41.S \
 	asm-x86_64/modes/gcm_pclmulqdq.S \
 	asm-x86_64/modes/aesni-gcm-x86_64.S \
 	asm-x86_64/modes/ghash-x86_64.S \
 	asm-x86_64/sha1/sha1-x86_64.S \
 	asm-x86_64/sha2/sha256_impl.S \
 	asm-x86_64/sha2/sha512_impl.S
+else 
+if TARGET_CPU_AARCH64
+ASM_SOURCES_C =
+ASM_SOURCES_AS = \
+	asm-aarch64/blake3/blake3_neon.S
 else
 ASM_SOURCES_C =
 ASM_SOURCES_AS =
+endif
 endif
 
 KERNEL_C = \
@@ -37,6 +47,11 @@ KERNEL_C = \
 	algs/aes/aes_impl_x86-64.c \
 	algs/aes/aes_impl.c \
 	algs/aes/aes_modes.c \
+	algs/blake3/blake3.c \
+	algs/blake3/blake3_generic.c \
+	algs/blake3/blake3_impl.c \
+	algs/blake3/blake3_neon.c \
+	algs/blake3/blake3_x86-64.c \
 	algs/edonr/edonr.c \
 	algs/modes/modes.c \
 	algs/modes/cbc.c \

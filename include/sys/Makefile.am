@@ -9,6 +9,7 @@ COMMON_H = \
 	avl.h \
 	avl_impl.h \
 	bitops.h \
+	blake3.h \
 	blkptr.h \
 	bplist.h \
 	bpobj.h \

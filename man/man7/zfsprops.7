@@ -743,7 +743,7 @@ This property is not inherited.
 .It Xo
 .Sy checksum Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy fletcher2 Ns | Ns
 .Sy fletcher4 Ns | Ns Sy sha256 Ns | Ns Sy noparity Ns | Ns
-.Sy sha512 Ns | Ns Sy skein Ns | Ns Sy edonr
+.Sy sha512 Ns | Ns Sy skein Ns | Ns Sy edonr Ns | Ns Sy blake3
 .Xc
 Controls the checksum used to verify data integrity.
 The default value is
@@ -768,6 +768,7 @@ a recommended practice.
 The
 .Sy sha512 ,
 .Sy skein ,
+.Sy blake3 ,
 and
 .Sy edonr
 checksum algorithms require enabling the appropriate features on the pool.
@@ -981,7 +982,7 @@ mount options.
 .It Xo
 .Sy dedup Ns = Ns Sy off Ns | Ns Sy on Ns | Ns Sy verify Ns | Ns
 .Sy sha256 Ns Oo , Ns Sy verify Oc Ns | Ns Sy sha512 Ns Oo , Ns Sy verify Oc Ns | Ns Sy skein Ns Oo , Ns Sy verify Oc Ns | Ns
-.Sy edonr , Ns Sy verify
+.Sy edonr , Ns Sy verify Ns | Ns Sy blake3 Ns Oo , Ns Sy verify Oc Ns
 .Xc
 Configures deduplication for a dataset.
 The default value is

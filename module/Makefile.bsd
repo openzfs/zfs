@@ -10,6 +10,9 @@ INCDIR=${.CURDIR:H}/include
 KMOD=	openzfs
 
 .PATH:	${SRCDIR}/avl \
+	${SRCDIR}/icp/algs/blake3 \
+	${SRCDIR}/icp/asm-aarch64/blake3 \
+	${SRCDIR}/icp/asm-x86_64/blake3 \
 	${SRCDIR}/lua \
 	${SRCDIR}/nvpair \
 	${SRCDIR}/icp/algs/edonr \
@@ -29,6 +32,7 @@ CFLAGS+= -I${INCDIR}/os/freebsd
 CFLAGS+= -I${INCDIR}/os/freebsd/spl
 CFLAGS+= -I${INCDIR}/os/freebsd/zfs
 CFLAGS+= -I${SRCDIR}/zstd/include
+CFLAGS+= -I${SRCDIR}/icp/include
 CFLAGS+= -include ${INCDIR}/os/freebsd/spl/sys/ccompile.h
 
 CFLAGS+= -D__KERNEL__ -DFREEBSD_NAMECACHE -DBUILDING_ZFS  -D__BSD_VISIBLE=1 \
@@ -71,11 +75,27 @@ CFLAGS+= -DBITS_PER_LONG=64
 
 SRCS=	vnode_if.h device_if.h bus_if.h
 
-# avl
+#avl
 SRCS+=	avl.c
 
 # icp
 SRCS+=  edonr.c
+
+#icp/algs/blake3
+SRCS+=	blake3.c \
+	blake3_generic.c \
+	blake3_impl.c \
+	blake3_neon.c \
+	blake3_x86-64.c
+
+#icp/asm-aarch64/blake3
+SRCS+=	blake3_neon.S \
+
+#icp/asm-x86_64/blake3
+SRCS+=	blake3_avx2.S \
+	blake3_avx512.S \
+	blake3_sse2.S \
+	blake3_sse41.S
 
 #lua
 SRCS+=	lapi.c \
@@ -187,6 +207,7 @@ SRCS+=	zfeature_common.c \
 SRCS+=	abd.c \
 	aggsum.c \
 	arc.c \
+	blake3_zfs.c \
 	blkptr.c \
 	bplist.c \
 	bpobj.c \
@@ -288,6 +309,7 @@ SRCS+=	abd.c \
 	zcp_synctask.c \
 	zfeature.c \
 	zfs_byteswap.c \
+	zfs_chksum.c \
 	zfs_file_os.c \
 	zfs_fm.c \
 	zfs_fuid.c \

@@ -599,7 +599,7 @@
     <elf-symbol name='fletcher_4_superscalar_ops' size='64' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='libspl_assert_ok' size='4' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='libzfs_config_ops' size='16' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='spa_feature_table' size='1904' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='spa_feature_table' size='1960' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfeature_checks_disable' size='4' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_deleg_perm_tab' size='512' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_history_event_names' size='328' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -1862,8 +1862,8 @@
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='../../module/zcommon/zfeature_common.c' language='LANG_C99'>
-    <array-type-def dimensions='1' type-id='83f29ca2' size-in-bits='15232' id='d96379d0'>
-      <subrange length='34' type-id='7359adad' id='6a6a7e00'/>
+    <array-type-def dimensions='1' type-id='83f29ca2' size-in-bits='15680' id='d96379d0'>
+      <subrange length='35' type-id='7359adad' id='6a6a7e00'/>
     </array-type-def>
     <enum-decl name='spa_feature' id='33ecb627'>
       <underlying-type type-id='9cac1fee'/>
@@ -1902,7 +1902,8 @@
       <enumerator name='SPA_FEATURE_DEVICE_REBUILD' value='31'/>
       <enumerator name='SPA_FEATURE_ZSTD_COMPRESS' value='32'/>
       <enumerator name='SPA_FEATURE_DRAID' value='33'/>
-      <enumerator name='SPA_FEATURES' value='34'/>
+      <enumerator name='SPA_FEATURE_BLAKE3' value='34'/>
+      <enumerator name='SPA_FEATURES' value='35'/>
     </enum-decl>
     <typedef-decl name='spa_feature_t' type-id='33ecb627' id='d6618c78'/>
     <enum-decl name='zfeature_flags' id='6db816a4'>
