@@ -109,22 +109,8 @@ retry:
 		return (error);
 	}
 
-	/*
-	 * Check the validity of the context template
-	 * It is very rare that the generation number mis-matches, so
-	 * is acceptable to fail here, and let the consumer recover by
-	 * freeing this tmpl and create a new one for the key and new provider
-	 */
-	if (((ctx_tmpl = (kcf_ctx_template_t *)tmpl) != NULL)) {
-		if (ctx_tmpl->ct_generation != me->me_gen_swprov) {
-			if (list != NULL)
-				kcf_free_triedlist(list);
-			KCF_PROV_REFRELE(pd);
-			return (CRYPTO_OLD_CTX_TEMPLATE);
-		} else {
-			spi_ctx_tmpl = ctx_tmpl->ct_prov_tmpl;
-		}
-	}
+	if (((ctx_tmpl = (kcf_ctx_template_t *)tmpl) != NULL))
+		spi_ctx_tmpl = ctx_tmpl->ct_prov_tmpl;
 
 	/* The fast path for SW providers. */
 	if (CHECK_FASTPATH(crq, pd)) {
@@ -185,22 +171,8 @@ retry:
 		return (error);
 	}
 
-	/*
-	 * Check the validity of the context template
-	 * It is very rare that the generation number mis-matches, so
-	 * is acceptable to fail here, and let the consumer recover by
-	 * freeing this tmpl and create a new one for the key and new provider
-	 */
-	if (((ctx_tmpl = (kcf_ctx_template_t *)tmpl) != NULL)) {
-		if (ctx_tmpl->ct_generation != me->me_gen_swprov) {
-			if (list != NULL)
-				kcf_free_triedlist(list);
-			KCF_PROV_REFRELE(pd);
-			return (CRYPTO_OLD_CTX_TEMPLATE);
-		} else {
-			spi_ctx_tmpl = ctx_tmpl->ct_prov_tmpl;
-		}
-	}
+	if (((ctx_tmpl = (kcf_ctx_template_t *)tmpl) != NULL))
+		spi_ctx_tmpl = ctx_tmpl->ct_prov_tmpl;
 
 	/* The fast path for SW providers. */
 	if (CHECK_FASTPATH(crq, pd)) {
@@ -345,16 +317,8 @@ retry:
 	 * freeing this tmpl and create a new one for the key and new provider
 	 */
 
-	if (((ctx_tmpl = (kcf_ctx_template_t *)tmpl) != NULL)) {
-		if (ctx_tmpl->ct_generation != me->me_gen_swprov) {
-			if (list != NULL)
-				kcf_free_triedlist(list);
-			KCF_PROV_REFRELE(pd);
-			return (CRYPTO_OLD_CTX_TEMPLATE);
-		} else {
-			spi_ctx_tmpl = ctx_tmpl->ct_prov_tmpl;
-		}
-	}
+	if (((ctx_tmpl = (kcf_ctx_template_t *)tmpl) != NULL))
+		spi_ctx_tmpl = ctx_tmpl->ct_prov_tmpl;
 
 	error = crypto_mac_init_prov(pd, pd->pd_sid, mech, key,
 	    spi_ctx_tmpl, ctxp, crq);

@@ -264,11 +264,6 @@ typedef	struct kcf_mech_entry {
 	kmutex_t		me_mutex;	/* access protection	*/
 	kcf_prov_mech_desc_t	*me_sw_prov;    /* provider */
 	/*
-	 * When a provider is present, this is the generation number that
-	 * ensures no objects from old providers are used in the new one
-	 */
-	uint32_t		me_gen_swprov;
-	/*
 	 *  threshold for using hardware providers for this mech
 	 */
 	size_t			me_threshold;

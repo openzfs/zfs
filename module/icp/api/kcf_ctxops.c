@@ -104,7 +104,6 @@ crypto_create_ctx_template(crypto_mechanism_t *mech, crypto_key_t *key,
 	    &(ctx_tmpl->ct_prov_tmpl), &(ctx_tmpl->ct_size), KCF_RHNDL(kmflag));
 
 	if (error == CRYPTO_SUCCESS) {
-		ctx_tmpl->ct_generation = me->me_gen_swprov;
 		*ptmpl = ctx_tmpl;
 	} else {
 		kmem_free(ctx_tmpl, sizeof (kcf_ctx_template_t));
