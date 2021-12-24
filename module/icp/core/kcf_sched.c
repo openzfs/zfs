@@ -265,8 +265,7 @@ kcf_resubmit_request(kcf_areq_node_t *areq)
 		return (error);
 
 	new_pd = kcf_get_mech_provider(mech1->cm_type, NULL, &error,
-	    areq->an_tried_plist, fg,
-	    (areq->an_reqarg.cr_flag & CRYPTO_RESTRICTED));
+	    areq->an_tried_plist, fg);
 
 	if (new_pd == NULL)
 		return (error);
@@ -684,16 +683,13 @@ kcf_aop_done(kcf_areq_node_t *areq, int error)
 	 * atomic operations.
 	 */
 	skip_notify = (IS_UPDATE_OP(optype) || IS_INIT_OP(optype)) &&
-	    (!(areq->an_reqarg.cr_flag & CRYPTO_NOTIFY_OPDONE)) &&
 	    (error == CRYPTO_SUCCESS);
 
 	if (!skip_notify) {
 		NOTIFY_CLIENT(areq, error);
 	}
 
-	if (!(areq->an_reqarg.cr_flag & CRYPTO_SKIP_REQID))
-		kcf_reqid_delete(areq);
-
+	kcf_reqid_delete(areq);
 	KCF_AREQ_REFRELE(areq);
 }
 
