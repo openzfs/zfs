@@ -492,7 +492,6 @@ extern int kcf_get_mech_entry(crypto_mech_type_t, kcf_mech_entry_t **);
 extern kcf_provider_desc_t *kcf_alloc_provider_desc(void);
 extern void kcf_provider_zero_refcnt(kcf_provider_desc_t *);
 extern void kcf_free_provider_desc(kcf_provider_desc_t *);
-extern crypto_mech_type_t crypto_mech2id_common(const char *, boolean_t);
 extern void undo_register_provider(kcf_provider_desc_t *, boolean_t);
 extern int crypto_uio_data(crypto_data_t *, uchar_t *, int, cmd_type_t,
     void *, void (*update)(void));

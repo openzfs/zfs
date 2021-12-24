@@ -346,61 +346,6 @@ typedef struct kcf_pool {
 } kcf_pool_t;
 
 
-/*
- * State of a crypto bufcall element.
- */
-typedef enum cbuf_state {
-	CBUF_FREE = 1,
-	CBUF_WAITING,
-	CBUF_RUNNING
-} cbuf_state_t;
-
-/*
- * Structure of a crypto bufcall element.
- */
-typedef struct kcf_cbuf_elem {
-	/*
-	 * lock and cv to wait for CBUF_RUNNING to be done
-	 * kc_lock also protects kc_state.
-	 */
-	kmutex_t		kc_lock;
-	kcondvar_t		kc_cv;
-	cbuf_state_t		kc_state;
-
-	struct kcf_cbuf_elem	*kc_next;
-	struct kcf_cbuf_elem	*kc_prev;
-
-	void			(*kc_func)(void *arg);
-	void			*kc_arg;
-} kcf_cbuf_elem_t;
-
-/*
- * State of a notify element.
- */
-typedef enum ntfy_elem_state {
-	NTFY_WAITING = 1,
-	NTFY_RUNNING
-} ntfy_elem_state_t;
-
-/*
- * Structure of a notify list element.
- */
-typedef struct kcf_ntfy_elem {
-	/*
-	 * lock and cv to wait for NTFY_RUNNING to be done.
-	 * kn_lock also protects kn_state.
-	 */
-	kmutex_t			kn_lock;
-	kcondvar_t			kn_cv;
-	ntfy_elem_state_t		kn_state;
-
-	struct kcf_ntfy_elem		*kn_next;
-	struct kcf_ntfy_elem		*kn_prev;
-
-	crypto_notify_callback_t	kn_func;
-	uint32_t			kn_event_mask;
-} kcf_ntfy_elem_t;
-
 
 /*
  * The following values are based on the assumption that it would
@@ -412,19 +357,6 @@ typedef struct kcf_ntfy_elem {
  */
 #define	CRYPTO_TASKQ_MAX	2 * 1024 * 1024
 
-/*
- * All pending crypto bufcalls are put on a list. cbuf_list_lock
- * protects changes to this list.
- */
-extern kmutex_t cbuf_list_lock;
-extern kcondvar_t cbuf_list_cv;
-
-/*
- * All event subscribers are put on a list. kcf_notify_list_lock
- * protects changes to this list.
- */
-extern kmutex_t ntfy_list_lock;
-extern kcondvar_t ntfy_list_cv;
 
 extern void kcf_free_triedlist(kcf_prov_tried_t *);
 extern kcf_prov_tried_t *kcf_insert_triedlist(kcf_prov_tried_t **,
@@ -447,7 +379,6 @@ extern void verify_unverified_providers(void);
 extern void kcf_free_req(kcf_areq_node_t *areq);
 extern void crypto_bufcall_service(void);
 
-extern void kcf_walk_ntfylist(uint32_t, void *);
 extern void kcf_do_notify(kcf_provider_desc_t *, boolean_t);
 
 #ifdef __cplusplus
