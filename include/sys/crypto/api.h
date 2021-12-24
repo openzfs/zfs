@@ -68,23 +68,6 @@ extern int crypto_create_ctx_template(crypto_mechanism_t *mech,
 extern void crypto_destroy_ctx_template(crypto_ctx_template_t tmpl);
 
 /*
- * Single and multi-part digest operations.
- */
-extern int crypto_digest(crypto_mechanism_t *mech, crypto_data_t *data,
-    crypto_data_t *digest, crypto_call_req_t *cr);
-extern int crypto_digest_prov(crypto_provider_t, crypto_session_id_t,
-    crypto_mechanism_t *, crypto_data_t *, crypto_data_t *,
-    crypto_call_req_t *);
-extern int crypto_digest_init(crypto_mechanism_t *mech, crypto_context_t *ctxp,
-    crypto_call_req_t *cr);
-extern int crypto_digest_init_prov(crypto_provider_t, crypto_session_id_t,
-    crypto_mechanism_t *, crypto_context_t *, crypto_call_req_t *);
-extern int crypto_digest_update(crypto_context_t ctx, crypto_data_t *data,
-    crypto_call_req_t *cr);
-extern int crypto_digest_final(crypto_context_t ctx, crypto_data_t *digest,
-    crypto_call_req_t *cr);
-
-/*
  * Single and multi-part MAC operations.
  */
 extern int crypto_mac(crypto_mechanism_t *mech, crypto_data_t *data,

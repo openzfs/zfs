@@ -15,7 +15,6 @@ ccflags-y := -I$(icp_include)
 
 $(MODULE)-objs += illumos-crypto.o
 $(MODULE)-objs += api/kcf_cipher.o
-$(MODULE)-objs += api/kcf_digest.o
 $(MODULE)-objs += api/kcf_mac.o
 $(MODULE)-objs += api/kcf_miscapi.o
 $(MODULE)-objs += api/kcf_ctxops.o
