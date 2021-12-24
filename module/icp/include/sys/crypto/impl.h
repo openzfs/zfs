@@ -54,17 +54,6 @@ typedef	struct kcf_prov_stats {
 	kstat_named_t	ps_ops_busy_rval;
 } kcf_prov_stats_t;
 
-/* Various kcf stats. Not protected. */
-typedef	struct kcf_stats {
-	kstat_named_t	ks_thrs_in_pool;
-	kstat_named_t	ks_idle_thrs;
-	kstat_named_t	ks_minthrs;
-	kstat_named_t	ks_maxthrs;
-	kstat_named_t	ks_swq_njobs;
-	kstat_named_t	ks_swq_maxjobs;
-	kstat_named_t	ks_swq_maxalloc;
-} kcf_stats_t;
-
 /*
  * Keep all the information needed by the scheduler from
  * this provider.

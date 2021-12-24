@@ -41,21 +41,6 @@ extern "C" {
 #include <sys/crypto/common.h>
 #include <sys/crypto/ops_impl.h>
 
-typedef void (kcf_func_t)(void *, int);
-
-typedef enum kcf_req_status {
-	REQ_ALLOCATED = 1,
-	REQ_WAITING,		/* At the framework level */
-	REQ_INPROGRESS,		/* At the provider level */
-	REQ_DONE,
-	REQ_CANCELED
-} kcf_req_status_t;
-
-typedef enum kcf_call_type {
-	CRYPTO_SYNCH = 1,
-	CRYPTO_ASYNCH
-} kcf_call_type_t;
-
 #define	KCF_KMFLAG(crq)	(((crq) == NULL) ? KM_SLEEP : KM_NOSLEEP)
 
 /*
@@ -101,143 +86,6 @@ typedef struct kcf_prov_tried {
 #define	KCF_ATOMIC_DECR(x)	atomic_add_32(&(x), -1)
 
 /*
- * Node structure for synchronous requests.
- */
-typedef struct kcf_sreq_node {
-	/* Should always be the first field in this structure */
-	kcf_call_type_t		sn_type;
-	/*
-	 * sn_cv and sr_lock are used to wait for the
-	 * operation to complete. sn_lock also protects
-	 * the sn_state field.
-	 */
-	kcondvar_t		sn_cv;
-	kmutex_t		sn_lock;
-	kcf_req_status_t	sn_state;
-
-	/*
-	 * Return value from the operation. This will be
-	 * one of the CRYPTO_* errors defined in common.h.
-	 */
-	int			sn_rv;
-
-	/* Internal context for this request */
-	struct kcf_context	*sn_context;
-
-	/* Provider handling this request */
-	kcf_provider_desc_t	*sn_provider;
-} kcf_sreq_node_t;
-
-/*
- * Node structure for asynchronous requests. A node can be on
- * on a chain of requests hanging of the internal context
- * structure and can be in the global provider queue.
- */
-typedef struct kcf_areq_node {
-	/* Should always be the first field in this structure */
-	kcf_call_type_t		an_type;
-
-	/* an_lock protects the field an_state  */
-	kmutex_t		an_lock;
-	kcf_req_status_t	an_state;
-	crypto_call_req_t	an_reqarg;
-
-	/*
-	 * The next two fields should be NULL for operations that
-	 * don't need a context.
-	 */
-	/* Internal context for this request */
-	struct kcf_context	*an_context;
-
-	/* next in chain of requests for context */
-	struct kcf_areq_node	*an_ctxchain_next;
-
-	kcondvar_t		an_turn_cv;
-	boolean_t		an_is_my_turn;
-
-	/* Next and previous nodes in the global queue. */
-	struct kcf_areq_node	*an_next;
-	struct kcf_areq_node	*an_prev;
-
-	/* Provider handling this request */
-	kcf_provider_desc_t	*an_provider;
-	kcf_prov_tried_t	*an_tried_plist;
-
-	struct kcf_areq_node	*an_idnext;	/* Next in ID hash */
-	struct kcf_areq_node	*an_idprev;	/* Prev in ID hash */
-	kcondvar_t		an_done;	/* Signal request completion */
-	uint_t			an_refcnt;
-} kcf_areq_node_t;
-
-#define	KCF_AREQ_REFHOLD(areq) {		\
-	atomic_add_32(&(areq)->an_refcnt, 1);	\
-	ASSERT((areq)->an_refcnt != 0);		\
-}
-
-#define	KCF_AREQ_REFRELE(areq) {				\
-	ASSERT((areq)->an_refcnt != 0);				\
-	membar_exit();						\
-	if (atomic_add_32_nv(&(areq)->an_refcnt, -1) == 0)	\
-		kcf_free_req(areq);				\
-}
-
-#define	GET_REQ_TYPE(arg) *((kcf_call_type_t *)(arg))
-
-#define	NOTIFY_CLIENT(areq, err) (*(areq)->an_reqarg.cr_callback_func)(\
-	(areq)->an_reqarg.cr_callback_arg, err);
-
-/*
- * The following are some what similar to macros in callo.h, which implement
- * callout tables.
- *
- * The lower four bits of the ID are used to encode the table ID to
- * index in to. The REQID_COUNTER_HIGH bit is used to avoid any check for
- * wrap around when generating ID. We assume that there won't be a request
- * which takes more time than 2^^(sizeof (long) - 5) other requests submitted
- * after it. This ensures there won't be any ID collision.
- */
-#define	REQID_COUNTER_HIGH	(1UL << (8 * sizeof (long) - 1))
-#define	REQID_COUNTER_SHIFT	4
-#define	REQID_COUNTER_LOW	(1 << REQID_COUNTER_SHIFT)
-#define	REQID_TABLES		16
-#define	REQID_TABLE_MASK	(REQID_TABLES - 1)
-
-#define	REQID_BUCKETS		512
-#define	REQID_BUCKET_MASK	(REQID_BUCKETS - 1)
-#define	REQID_HASH(id)	(((id) >> REQID_COUNTER_SHIFT) & REQID_BUCKET_MASK)
-
-#define	GET_REQID(areq) (areq)->an_reqarg.cr_reqid
-#define	SET_REQID(areq, val)	GET_REQID(areq) = val
-
-/*
- * Hash table for async requests.
- */
-typedef struct kcf_reqid_table {
-	kmutex_t		rt_lock;
-	crypto_req_id_t		rt_curid;
-	kcf_areq_node_t		*rt_idhash[REQID_BUCKETS];
-} kcf_reqid_table_t;
-
-/*
- * Global provider queue structure. Requests to be
- * handled by a provider and have the ALWAYS_QUEUE flag set
- * get queued here.
- */
-typedef struct kcf_global_swq {
-	/*
-	 * gs_cv and gs_lock are used to wait for new requests.
-	 * gs_lock protects the changes to the queue.
-	 */
-	kcondvar_t		gs_cv;
-	kmutex_t		gs_lock;
-	uint_t			gs_njobs;
-	uint_t			gs_maxjobs;
-	kcf_areq_node_t		*gs_first;
-	kcf_areq_node_t		*gs_last;
-} kcf_global_swq_t;
-
-
-/*
  * Internal representation of a canonical context. We contain crypto_ctx_t
  * structure in order to have just one memory allocation. The SPI
  * ((crypto_ctx_t *)ctx)->cc_framework_private maps to this structure.
@@ -245,18 +93,8 @@ typedef struct kcf_global_swq {
 typedef struct kcf_context {
 	crypto_ctx_t		kc_glbl_ctx;
 	uint_t			kc_refcnt;
-	kmutex_t		kc_in_use_lock;
-	/*
-	 * kc_req_chain_first and kc_req_chain_last are used to chain
-	 * multiple async requests using the same context. They should be
-	 * NULL for sync requests.
-	 */
-	kcf_areq_node_t		*kc_req_chain_first;
-	kcf_areq_node_t		*kc_req_chain_last;
 	kcf_provider_desc_t	*kc_prov_desc;	/* Prov. descriptor */
 	kcf_provider_desc_t	*kc_sw_prov_desc;	/* Prov. descriptor */
-	kcf_mech_entry_t	*kc_mech;
-	struct kcf_context	*kc_secondctx;	/* for dual contexts */
 } kcf_context_t;
 
 /*
@@ -310,52 +148,10 @@ typedef struct kcf_context {
  * A crypto_ctx_template_t is internally a pointer to this struct
  */
 typedef	struct kcf_ctx_template {
-	crypto_kcf_provider_handle_t	ct_prov_handle;	/* provider handle */
-	uint_t				ct_generation;	/* generation # */
 	size_t				ct_size;	/* for freeing */
 	crypto_spi_ctx_template_t	ct_prov_tmpl;	/* context template */
 							/* from the provider */
 } kcf_ctx_template_t;
-
-/*
- * Structure for pool of threads working on the global queue.
- */
-typedef struct kcf_pool {
-	uint32_t	kp_threads;		/* Number of threads in pool */
-	uint32_t	kp_idlethreads;		/* Idle threads in pool */
-	uint32_t	kp_blockedthreads;	/* Blocked threads in pool */
-
-	/*
-	 * cv & lock to monitor the condition when no threads
-	 * are around. In this case the failover thread kicks in.
-	 */
-	kcondvar_t	kp_nothr_cv;
-	kmutex_t	kp_thread_lock;
-
-	/* Userspace thread creator variables. */
-	boolean_t	kp_signal_create_thread; /* Create requested flag  */
-	int		kp_nthrs;		/* # of threads to create */
-	boolean_t	kp_user_waiting;	/* Thread waiting for work */
-
-	/*
-	 * cv & lock for the condition where more threads need to be
-	 * created. kp_user_lock also protects the three fields above.
-	 */
-	kcondvar_t	kp_user_cv;		/* Creator cond. variable */
-	kmutex_t	kp_user_lock;		/* Creator lock */
-} kcf_pool_t;
-
-
-
-/*
- * The following values are based on the assumption that it would
- * take around eight cpus to load a hardware provider (This is true for
- * at least one product) and a kernel client may come from different
- * low-priority interrupt levels. The CRYPTO_TASKQ_MAX number is based on
- * a throughput of 1GB/s using 512-byte buffers. These are just
- * reasonable estimates and might need to change in future.
- */
-#define	CRYPTO_TASKQ_MAX	2 * 1024 * 1024
 
 
 extern void kcf_free_triedlist(kcf_prov_tried_t *);
@@ -367,19 +163,7 @@ extern crypto_ctx_t *kcf_new_ctx(crypto_call_req_t  *, kcf_provider_desc_t *,
     crypto_session_id_t);
 extern void kcf_sched_destroy(void);
 extern void kcf_sched_init(void);
-extern void kcf_sched_start(void);
 extern void kcf_free_context(kcf_context_t *);
-
-extern int kcf_svc_wait(int *);
-extern int kcf_svc_do_run(void);
-extern int kcf_need_signature_verification(kcf_provider_desc_t *);
-extern void kcf_verify_signature(void *);
-extern struct modctl *kcf_get_modctl(crypto_provider_info_t *);
-extern void verify_unverified_providers(void);
-extern void kcf_free_req(kcf_areq_node_t *areq);
-extern void crypto_bufcall_service(void);
-
-extern void kcf_do_notify(kcf_provider_desc_t *, boolean_t);
 
 #ifdef __cplusplus
 }
