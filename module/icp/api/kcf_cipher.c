@@ -75,7 +75,6 @@ crypto_encrypt(crypto_mechanism_t *mech, crypto_data_t *plaintext,
 {
 	int error;
 	kcf_mech_entry_t *me;
-	kcf_req_params_t params;
 	kcf_provider_desc_t *pd;
 	kcf_ctx_template_t *ctx_tmpl;
 	crypto_spi_ctx_template_t spi_ctx_tmpl = NULL;
@@ -93,21 +92,11 @@ retry:
 	if (((ctx_tmpl = (kcf_ctx_template_t *)tmpl) != NULL))
 		spi_ctx_tmpl = ctx_tmpl->ct_prov_tmpl;
 
-	/* The fast path for SW providers. */
-	if (CHECK_FASTPATH(crq, pd)) {
-		crypto_mechanism_t lmech;
-
-		lmech = *mech;
-		KCF_SET_PROVIDER_MECHNUM(mech->cm_type, pd, &lmech);
-
-		error = KCF_PROV_ENCRYPT_ATOMIC(pd, pd->pd_sid, &lmech, key,
-		    plaintext, ciphertext, spi_ctx_tmpl, KCF_SWFP_RHNDL(crq));
-		KCF_PROV_INCRSTATS(pd, error);
-	} else {
-		KCF_WRAP_ENCRYPT_OPS_PARAMS(&params, KCF_OP_ATOMIC, pd->pd_sid,
-		    mech, key, plaintext, ciphertext, spi_ctx_tmpl);
-		error = kcf_submit_request(pd, NULL, crq, &params);
-	}
+	crypto_mechanism_t lmech = *mech;
+	KCF_SET_PROVIDER_MECHNUM(mech->cm_type, pd, &lmech);
+	error = KCF_PROV_ENCRYPT_ATOMIC(pd, pd->pd_sid, &lmech, key,
+	    plaintext, ciphertext, spi_ctx_tmpl, KCF_SWFP_RHNDL(crq));
+	KCF_PROV_INCRSTATS(pd, error);
 
 	if (error != CRYPTO_SUCCESS && error != CRYPTO_QUEUED &&
 	    IS_RECOVERABLE(error)) {
@@ -164,7 +153,6 @@ crypto_decrypt(crypto_mechanism_t *mech, crypto_data_t *ciphertext,
 {
 	int error;
 	kcf_mech_entry_t *me;
-	kcf_req_params_t params;
 	kcf_provider_desc_t *pd;
 	kcf_ctx_template_t *ctx_tmpl;
 	crypto_spi_ctx_template_t spi_ctx_tmpl = NULL;
@@ -182,21 +170,12 @@ retry:
 	if (((ctx_tmpl = (kcf_ctx_template_t *)tmpl) != NULL))
 		spi_ctx_tmpl = ctx_tmpl->ct_prov_tmpl;
 
-	/* The fast path for SW providers. */
-	if (CHECK_FASTPATH(crq, pd)) {
-		crypto_mechanism_t lmech;
+	crypto_mechanism_t lmech = *mech;
+	KCF_SET_PROVIDER_MECHNUM(mech->cm_type, pd, &lmech);
 
-		lmech = *mech;
-		KCF_SET_PROVIDER_MECHNUM(mech->cm_type, pd, &lmech);
-
-		error = KCF_PROV_DECRYPT_ATOMIC(pd, pd->pd_sid, &lmech, key,
-		    ciphertext, plaintext, spi_ctx_tmpl, KCF_SWFP_RHNDL(crq));
-		KCF_PROV_INCRSTATS(pd, error);
-	} else {
-		KCF_WRAP_DECRYPT_OPS_PARAMS(&params, KCF_OP_ATOMIC, pd->pd_sid,
-		    mech, key, ciphertext, plaintext, spi_ctx_tmpl);
-		error = kcf_submit_request(pd, NULL, crq, &params);
-	}
+	error = KCF_PROV_DECRYPT_ATOMIC(pd, pd->pd_sid, &lmech, key,
+	    ciphertext, plaintext, spi_ctx_tmpl, KCF_SWFP_RHNDL(crq));
+	KCF_PROV_INCRSTATS(pd, error);
 
 	if (error != CRYPTO_SUCCESS && error != CRYPTO_QUEUED &&
 	    IS_RECOVERABLE(error)) {

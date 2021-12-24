@@ -114,15 +114,15 @@ hkdf_sha512_expand(uint8_t *extract_key, uint8_t *info, uint_t info_len,
 		if (ret != CRYPTO_SUCCESS)
 			return (SET_ERROR(EIO));
 
-		ret = crypto_mac_update(ctx, &T_cd, NULL);
+		ret = crypto_mac_update(ctx, &T_cd);
 		if (ret != CRYPTO_SUCCESS)
 			return (SET_ERROR(EIO));
 
-		ret = crypto_mac_update(ctx, &info_cd, NULL);
+		ret = crypto_mac_update(ctx, &info_cd);
 		if (ret != CRYPTO_SUCCESS)
 			return (SET_ERROR(EIO));
 
-		ret = crypto_mac_update(ctx, &c_cd, NULL);
+		ret = crypto_mac_update(ctx, &c_cd);
 		if (ret != CRYPTO_SUCCESS)
 			return (SET_ERROR(EIO));
 
@@ -130,7 +130,7 @@ hkdf_sha512_expand(uint8_t *extract_key, uint8_t *info, uint_t info_len,
 		T_cd.cd_length = T_len;
 		T_cd.cd_raw.iov_len = T_cd.cd_length;
 
-		ret = crypto_mac_final(ctx, &T_cd, NULL);
+		ret = crypto_mac_final(ctx, &T_cd);
 		if (ret != CRYPTO_SUCCESS)
 			return (SET_ERROR(EIO));
 

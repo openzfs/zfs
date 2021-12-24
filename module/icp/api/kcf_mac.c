@@ -94,7 +94,6 @@ crypto_mac(crypto_mechanism_t *mech, crypto_data_t *data,
 {
 	int error;
 	kcf_mech_entry_t *me;
-	kcf_req_params_t params;
 	kcf_provider_desc_t *pd;
 	kcf_ctx_template_t *ctx_tmpl;
 	crypto_spi_ctx_template_t spi_ctx_tmpl = NULL;
@@ -112,85 +111,11 @@ retry:
 	if (((ctx_tmpl = (kcf_ctx_template_t *)tmpl) != NULL))
 		spi_ctx_tmpl = ctx_tmpl->ct_prov_tmpl;
 
-	/* The fast path for SW providers. */
-	if (CHECK_FASTPATH(crq, pd)) {
-		crypto_mechanism_t lmech;
-
-		lmech = *mech;
-		KCF_SET_PROVIDER_MECHNUM(mech->cm_type, pd, &lmech);
-
-		error = KCF_PROV_MAC_ATOMIC(pd, pd->pd_sid, &lmech, key, data,
-		    mac, spi_ctx_tmpl, KCF_SWFP_RHNDL(crq));
-		KCF_PROV_INCRSTATS(pd, error);
-	} else {
-		KCF_WRAP_MAC_OPS_PARAMS(&params, KCF_OP_ATOMIC,
-		    pd->pd_sid, mech, key, data, mac, spi_ctx_tmpl);
-
-		error = kcf_submit_request(pd, NULL, crq, &params);
-	}
-
-	if (error != CRYPTO_SUCCESS && error != CRYPTO_QUEUED &&
-	    IS_RECOVERABLE(error)) {
-		/* Add pd to the linked list of providers tried. */
-		if (kcf_insert_triedlist(&list, pd, KCF_KMFLAG(crq)) != NULL)
-			goto retry;
-	}
-
-	if (list != NULL)
-		kcf_free_triedlist(list);
-
-	KCF_PROV_REFRELE(pd);
-	return (error);
-}
-
-/*
- * Single part operation to compute the MAC corresponding to the specified
- * 'data' and to verify that it matches the MAC specified by 'mac'.
- * The other arguments are the same as the function crypto_mac_prov().
- * Relies on the KCF scheduler to choose a provider.
- */
-int
-crypto_mac_verify(crypto_mechanism_t *mech, crypto_data_t *data,
-    crypto_key_t *key, crypto_ctx_template_t tmpl, crypto_data_t *mac,
-    crypto_call_req_t *crq)
-{
-	int error;
-	kcf_mech_entry_t *me;
-	kcf_req_params_t params;
-	kcf_provider_desc_t *pd;
-	kcf_ctx_template_t *ctx_tmpl;
-	crypto_spi_ctx_template_t spi_ctx_tmpl = NULL;
-	kcf_prov_tried_t *list = NULL;
-
-retry:
-	/* The pd is returned held */
-	if ((pd = kcf_get_mech_provider(mech->cm_type, &me, &error,
-	    list, CRYPTO_FG_MAC_ATOMIC, CHECK_RESTRICT(crq))) == NULL) {
-		if (list != NULL)
-			kcf_free_triedlist(list);
-		return (error);
-	}
-
-	if (((ctx_tmpl = (kcf_ctx_template_t *)tmpl) != NULL))
-		spi_ctx_tmpl = ctx_tmpl->ct_prov_tmpl;
-
-	/* The fast path for SW providers. */
-	if (CHECK_FASTPATH(crq, pd)) {
-		crypto_mechanism_t lmech;
-
-		lmech = *mech;
-		KCF_SET_PROVIDER_MECHNUM(mech->cm_type, pd, &lmech);
-
-		error = KCF_PROV_MAC_VERIFY_ATOMIC(pd, pd->pd_sid, &lmech, key,
-		    data, mac, spi_ctx_tmpl, KCF_SWFP_RHNDL(crq));
-		KCF_PROV_INCRSTATS(pd, error);
-	} else {
-		KCF_WRAP_MAC_OPS_PARAMS(&params,
-		    KCF_OP_MAC_VERIFY_ATOMIC, pd->pd_sid, mech,
-		    key, data, mac, spi_ctx_tmpl);
-
-		error = kcf_submit_request(pd, NULL, crq, &params);
-	}
+	crypto_mechanism_t lmech = *mech;
+	KCF_SET_PROVIDER_MECHNUM(mech->cm_type, pd, &lmech);
+	error = KCF_PROV_MAC_ATOMIC(pd, pd->pd_sid, &lmech, key, data,
+	    mac, spi_ctx_tmpl, KCF_SWFP_RHNDL(crq));
+	KCF_PROV_INCRSTATS(pd, error);
 
 	if (error != CRYPTO_SUCCESS && error != CRYPTO_QUEUED &&
 	    IS_RECOVERABLE(error)) {
@@ -242,14 +167,13 @@ retry:
  * Returns:
  *	See comment in the beginning of the file.
  */
-int
+static int
 crypto_mac_init_prov(crypto_provider_t provider, crypto_session_id_t sid,
     crypto_mechanism_t *mech, crypto_key_t *key, crypto_spi_ctx_template_t tmpl,
     crypto_context_t *ctxp, crypto_call_req_t *crq)
 {
 	int rv;
 	crypto_ctx_t *ctx;
-	kcf_req_params_t params;
 	kcf_provider_desc_t *pd = provider;
 	kcf_provider_desc_t *real_provider = pd;
 
@@ -259,20 +183,11 @@ crypto_mac_init_prov(crypto_provider_t provider, crypto_session_id_t sid,
 	if ((ctx = kcf_new_ctx(crq, real_provider, sid)) == NULL)
 		return (CRYPTO_HOST_MEMORY);
 
-	/* The fast path for SW providers. */
-	if (CHECK_FASTPATH(crq, pd)) {
-		crypto_mechanism_t lmech;
-
-		lmech = *mech;
-		KCF_SET_PROVIDER_MECHNUM(mech->cm_type, real_provider, &lmech);
-		rv = KCF_PROV_MAC_INIT(real_provider, ctx, &lmech, key, tmpl,
-		    KCF_SWFP_RHNDL(crq));
-		KCF_PROV_INCRSTATS(pd, rv);
-	} else {
-		KCF_WRAP_MAC_OPS_PARAMS(&params, KCF_OP_INIT, sid, mech, key,
-		    NULL, NULL, tmpl);
-		rv = kcf_submit_request(real_provider, ctx, crq, &params);
-	}
+	crypto_mechanism_t lmech = *mech;
+	KCF_SET_PROVIDER_MECHNUM(mech->cm_type, real_provider, &lmech);
+	rv = KCF_PROV_MAC_INIT(real_provider, ctx, &lmech, key, tmpl,
+	    KCF_SWFP_RHNDL(crq));
+	KCF_PROV_INCRSTATS(pd, rv);
 
 	if ((rv == CRYPTO_SUCCESS) || (rv == CRYPTO_QUEUED))
 		*ctxp = (crypto_context_t)ctx;
@@ -342,11 +257,9 @@ retry:
  * Arguments:
  *	context: A crypto_context_t initialized by mac_init().
  *	data: The message part to be MAC'ed
- *	cr:	crypto_call_req_t calling conditions and call back info.
  *
  * Description:
- *	Asynchronously submits a request for, or synchronously performs a
- *	part of a MAC operation.
+ *	Synchronously performs a part of a MAC operation.
  *
  * Context:
  *	Process or interrupt, according to the semantics dictated by the 'cr'.
@@ -355,14 +268,11 @@ retry:
  *	See comment in the beginning of the file.
  */
 int
-crypto_mac_update(crypto_context_t context, crypto_data_t *data,
-    crypto_call_req_t *cr)
+crypto_mac_update(crypto_context_t context, crypto_data_t *data)
 {
 	crypto_ctx_t *ctx = (crypto_ctx_t *)context;
 	kcf_context_t *kcf_ctx;
 	kcf_provider_desc_t *pd;
-	kcf_req_params_t params;
-	int rv;
 
 	if ((ctx == NULL) ||
 	    ((kcf_ctx = (kcf_context_t *)ctx->cc_framework_private) == NULL) ||
@@ -370,16 +280,8 @@ crypto_mac_update(crypto_context_t context, crypto_data_t *data,
 		return (CRYPTO_INVALID_CONTEXT);
 	}
 
-	/* The fast path for SW providers. */
-	if (CHECK_FASTPATH(cr, pd)) {
-		rv = KCF_PROV_MAC_UPDATE(pd, ctx, data, NULL);
-		KCF_PROV_INCRSTATS(pd, rv);
-	} else {
-		KCF_WRAP_MAC_OPS_PARAMS(&params, KCF_OP_UPDATE,
-		    ctx->cc_session, NULL, NULL, data, NULL, NULL);
-		rv = kcf_submit_request(pd, ctx, cr, &params);
-	}
-
+	int rv = KCF_PROV_MAC_UPDATE(pd, ctx, data, NULL);
+	KCF_PROV_INCRSTATS(pd, rv);
 	return (rv);
 }
 
@@ -389,11 +291,9 @@ crypto_mac_update(crypto_context_t context, crypto_data_t *data,
  * Arguments:
  *	context: A crypto_context_t initialized by mac_init().
  *	mac: Storage for the message authentication code.
- *	cr:	crypto_call_req_t calling conditions and call back info.
  *
  * Description:
- *	Asynchronously submits a request for, or synchronously performs a
- *	part of a message authentication operation.
+ *	Synchronously performs a part of a message authentication operation.
  *
  * Context:
  *	Process or interrupt, according to the semantics dictated by the 'cr'.
@@ -402,14 +302,11 @@ crypto_mac_update(crypto_context_t context, crypto_data_t *data,
  *	See comment in the beginning of the file.
  */
 int
-crypto_mac_final(crypto_context_t context, crypto_data_t *mac,
-    crypto_call_req_t *cr)
+crypto_mac_final(crypto_context_t context, crypto_data_t *mac)
 {
 	crypto_ctx_t *ctx = (crypto_ctx_t *)context;
 	kcf_context_t *kcf_ctx;
 	kcf_provider_desc_t *pd;
-	kcf_req_params_t params;
-	int rv;
 
 	if ((ctx == NULL) ||
 	    ((kcf_ctx = (kcf_context_t *)ctx->cc_framework_private) == NULL) ||
@@ -417,15 +314,8 @@ crypto_mac_final(crypto_context_t context, crypto_data_t *mac,
 		return (CRYPTO_INVALID_CONTEXT);
 	}
 
-	/* The fast path for SW providers. */
-	if (CHECK_FASTPATH(cr, pd)) {
-		rv = KCF_PROV_MAC_FINAL(pd, ctx, mac, NULL);
-		KCF_PROV_INCRSTATS(pd, rv);
-	} else {
-		KCF_WRAP_MAC_OPS_PARAMS(&params, KCF_OP_FINAL,
-		    ctx->cc_session, NULL, NULL, NULL, mac, NULL);
-		rv = kcf_submit_request(pd, ctx, cr, &params);
-	}
+	int rv = KCF_PROV_MAC_FINAL(pd, ctx, mac, NULL);
+	KCF_PROV_INCRSTATS(pd, rv);
 
 	/* Release the hold done in kcf_new_ctx() during init step. */
 	KCF_CONTEXT_COND_RELEASE(rv, kcf_ctx);
@@ -434,8 +324,6 @@ crypto_mac_final(crypto_context_t context, crypto_data_t *mac,
 
 #if defined(_KERNEL)
 EXPORT_SYMBOL(crypto_mac);
-EXPORT_SYMBOL(crypto_mac_verify);
-EXPORT_SYMBOL(crypto_mac_init_prov);
 EXPORT_SYMBOL(crypto_mac_init);
 EXPORT_SYMBOL(crypto_mac_update);
 EXPORT_SYMBOL(crypto_mac_final);
