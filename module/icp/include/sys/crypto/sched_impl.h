@@ -82,9 +82,6 @@ typedef struct kcf_prov_tried {
 	error == CRYPTO_KEY_SIZE_RANGE ||	\
 	error == CRYPTO_NO_PERMISSION)
 
-#define	KCF_ATOMIC_INCR(x)	atomic_add_32(&(x), 1)
-#define	KCF_ATOMIC_DECR(x)	atomic_add_32(&(x), -1)
-
 /*
  * Internal representation of a canonical context. We contain crypto_ctx_t
  * structure in order to have just one memory allocation. The SPI
@@ -96,16 +93,6 @@ typedef struct kcf_context {
 	kcf_provider_desc_t	*kc_prov_desc;	/* Prov. descriptor */
 	kcf_provider_desc_t	*kc_sw_prov_desc;	/* Prov. descriptor */
 } kcf_context_t;
-
-/*
- * Bump up the reference count on the framework private context. A
- * global context or a request that references this structure should
- * do a hold.
- */
-#define	KCF_CONTEXT_REFHOLD(ictx) {		\
-	atomic_add_32(&(ictx)->kc_refcnt, 1);	\
-	ASSERT((ictx)->kc_refcnt != 0);		\
-}
 
 /*
  * Decrement the reference count on the framework private context.
@@ -159,8 +146,7 @@ extern kcf_prov_tried_t *kcf_insert_triedlist(kcf_prov_tried_t **,
     kcf_provider_desc_t *, int);
 extern kcf_provider_desc_t *kcf_get_mech_provider(crypto_mech_type_t,
     kcf_mech_entry_t **, int *, kcf_prov_tried_t *, crypto_func_group_t);
-extern crypto_ctx_t *kcf_new_ctx(crypto_call_req_t  *, kcf_provider_desc_t *,
-    crypto_session_id_t);
+extern crypto_ctx_t *kcf_new_ctx(crypto_call_req_t  *, kcf_provider_desc_t *);
 extern void kcf_sched_destroy(void);
 extern void kcf_sched_init(void);
 extern void kcf_free_context(kcf_context_t *);

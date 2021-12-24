@@ -65,10 +65,6 @@ typedef void *crypto_spi_ctx_template_t;
  */
 typedef void *crypto_req_handle_t;
 
-/* Values for cc_flags field */
-#define	CRYPTO_INIT_OPSTATE	0x00000001 /* allocate and init cc_opstate */
-#define	CRYPTO_USE_OPSTATE	0x00000002 /* .. start using it as context */
-
 /*
  * The context structure is passed from the kernel to a provider.
  * It contains the information needed to process a multi-part or
@@ -81,11 +77,8 @@ typedef void *crypto_req_handle_t;
  */
 typedef struct crypto_ctx {
 	crypto_provider_handle_t cc_provider;
-	crypto_session_id_t	cc_session;
 	void			*cc_provider_private;	/* owned by provider */
 	void			*cc_framework_private;	/* owned by framework */
-	uint32_t		cc_flags;		/* flags */
-	void			*cc_opstate;		/* state */
 } crypto_ctx_t;
 
 /*
