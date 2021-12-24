@@ -41,7 +41,6 @@ typedef void *crypto_ctx_template_t;
 typedef uint32_t crypto_call_flag_t;
 
 /* crypto_call_flag's values */
-#define	CRYPTO_ALWAYS_QUEUE	0x00000001	/* ALWAYS queue the req. */
 #define	CRYPTO_NOTIFY_OPDONE	0x00000002	/* Notify intermediate steps */
 #define	CRYPTO_SKIP_REQID	0x00000004	/* Skip request ID generation */
 #define	CRYPTO_RESTRICTED	0x00000008	/* cannot use restricted prov */
@@ -73,18 +72,10 @@ extern void crypto_destroy_ctx_template(crypto_ctx_template_t tmpl);
 extern int crypto_mac(crypto_mechanism_t *mech, crypto_data_t *data,
     crypto_key_t *key, crypto_ctx_template_t tmpl, crypto_data_t *mac,
     crypto_call_req_t *cr);
-extern int crypto_mac_verify(crypto_mechanism_t *mech, crypto_data_t *data,
-    crypto_key_t *key, crypto_ctx_template_t tmpl, crypto_data_t *mac,
-    crypto_call_req_t *cr);
 extern int crypto_mac_init(crypto_mechanism_t *mech, crypto_key_t *key,
     crypto_ctx_template_t tmpl, crypto_context_t *ctxp, crypto_call_req_t *cr);
-extern int crypto_mac_init_prov(crypto_provider_t, crypto_session_id_t,
-    crypto_mechanism_t *, crypto_key_t *, crypto_ctx_template_t,
-    crypto_context_t *, crypto_call_req_t *);
-extern int crypto_mac_update(crypto_context_t ctx, crypto_data_t *data,
-    crypto_call_req_t *cr);
-extern int crypto_mac_final(crypto_context_t ctx, crypto_data_t *data,
-    crypto_call_req_t *cr);
+extern int crypto_mac_update(crypto_context_t ctx, crypto_data_t *data);
+extern int crypto_mac_final(crypto_context_t ctx, crypto_data_t *data);
 
 /*
  * Single and multi-part encryption operations.

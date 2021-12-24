@@ -1004,7 +1004,7 @@ zio_crypt_bp_do_hmac_updates(crypto_context_t ctx, uint64_t version,
 	cd.cd_raw.iov_base = (char *)&bab;
 	cd.cd_raw.iov_len = cd.cd_length;
 
-	ret = crypto_mac_update(ctx, &cd, NULL);
+	ret = crypto_mac_update(ctx, &cd);
 	if (ret != CRYPTO_SUCCESS) {
 		ret = SET_ERROR(EIO);
 		goto error;
@@ -1075,7 +1075,7 @@ zio_crypt_do_dnode_hmac_updates(crypto_context_t ctx, uint64_t version,
 	cd.cd_raw.iov_base = (char *)adnp;
 	cd.cd_raw.iov_len = cd.cd_length;
 
-	ret = crypto_mac_update(ctx, &cd, NULL);
+	ret = crypto_mac_update(ctx, &cd);
 	if (ret != CRYPTO_SUCCESS) {
 		ret = SET_ERROR(EIO);
 		goto error;
@@ -1160,7 +1160,7 @@ zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
 	cd.cd_raw.iov_base = (char *)&intval;
 	cd.cd_raw.iov_len = cd.cd_length;
 
-	ret = crypto_mac_update(ctx, &cd, NULL);
+	ret = crypto_mac_update(ctx, &cd);
 	if (ret != CRYPTO_SUCCESS) {
 		ret = SET_ERROR(EIO);
 		goto error;
@@ -1178,7 +1178,7 @@ zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
 	cd.cd_raw.iov_base = (char *)&intval;
 	cd.cd_raw.iov_len = cd.cd_length;
 
-	ret = crypto_mac_update(ctx, &cd, NULL);
+	ret = crypto_mac_update(ctx, &cd);
 	if (ret != CRYPTO_SUCCESS) {
 		ret = SET_ERROR(EIO);
 		goto error;
@@ -1195,7 +1195,7 @@ zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
 	cd.cd_raw.iov_base = (char *)raw_portable_mac;
 	cd.cd_raw.iov_len = cd.cd_length;
 
-	ret = crypto_mac_final(ctx, &cd, NULL);
+	ret = crypto_mac_final(ctx, &cd);
 	if (ret != CRYPTO_SUCCESS) {
 		ret = SET_ERROR(EIO);
 		goto error;
@@ -1253,7 +1253,7 @@ zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
 	cd.cd_raw.iov_base = (char *)&intval;
 	cd.cd_raw.iov_len = cd.cd_length;
 
-	ret = crypto_mac_update(ctx, &cd, NULL);
+	ret = crypto_mac_update(ctx, &cd);
 	if (ret != CRYPTO_SUCCESS) {
 		ret = SET_ERROR(EIO);
 		goto error;
@@ -1287,7 +1287,7 @@ zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
 	cd.cd_raw.iov_base = (char *)raw_local_mac;
 	cd.cd_raw.iov_len = cd.cd_length;
 
-	ret = crypto_mac_final(ctx, &cd, NULL);
+	ret = crypto_mac_final(ctx, &cd);
 	if (ret != CRYPTO_SUCCESS) {
 		ret = SET_ERROR(EIO);
 		goto error;

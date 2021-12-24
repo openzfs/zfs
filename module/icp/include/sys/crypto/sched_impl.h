@@ -59,9 +59,6 @@ typedef enum kcf_call_type {
 #define	CHECK_RESTRICT(crq) (crq != NULL &&	\
 	((crq)->cr_flag & CRYPTO_RESTRICTED))
 
-#define	CHECK_FASTPATH(crq, pd) ((crq) == NULL ||	\
-	!((crq)->cr_flag & CRYPTO_ALWAYS_QUEUE))
-
 #define	KCF_KMFLAG(crq)	(((crq) == NULL) ? KM_SLEEP : KM_NOSLEEP)
 
 /*
@@ -452,8 +449,6 @@ extern kcf_provider_desc_t *kcf_get_mech_provider(crypto_mech_type_t,
     boolean_t);
 extern crypto_ctx_t *kcf_new_ctx(crypto_call_req_t  *, kcf_provider_desc_t *,
     crypto_session_id_t);
-extern int kcf_submit_request(kcf_provider_desc_t *, crypto_ctx_t *,
-    crypto_call_req_t *, kcf_req_params_t *);
 extern void kcf_sched_destroy(void);
 extern void kcf_sched_init(void);
 extern void kcf_sched_start(void);

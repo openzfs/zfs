@@ -68,7 +68,6 @@ static int kcf_disp_sw_request(kcf_areq_node_t *);
 static int kcf_enqueue(kcf_areq_node_t *);
 static void kcfpool_alloc(void);
 static void kcf_reqid_delete(kcf_areq_node_t *areq);
-static crypto_req_id_t kcf_reqid_insert(kcf_areq_node_t *areq);
 static int kcf_misc_kstat_update(kstat_t *ksp, int rw);
 
 /*
@@ -105,65 +104,6 @@ kcf_new_ctx(crypto_call_req_t *crq, kcf_provider_desc_t *pd,
 	ctx->cc_opstate = NULL;
 
 	return (ctx);
-}
-
-/*
- * Allocate a new async request node.
- *
- * ictx - Framework private context pointer
- * crq - Has callback function and argument. Should be non NULL.
- * req - The parameters to pass to the SPI
- */
-static kcf_areq_node_t *
-kcf_areqnode_alloc(kcf_provider_desc_t *pd, kcf_context_t *ictx,
-    crypto_call_req_t *crq, kcf_req_params_t *req)
-{
-	kcf_areq_node_t	*arptr, *areq;
-
-	ASSERT(crq != NULL);
-	arptr = kmem_cache_alloc(kcf_areq_cache, KM_NOSLEEP);
-	if (arptr == NULL)
-		return (NULL);
-
-	arptr->an_state = REQ_ALLOCATED;
-	arptr->an_reqarg = *crq;
-	arptr->an_params = *req;
-	arptr->an_context = ictx;
-
-	arptr->an_next = arptr->an_prev = NULL;
-	KCF_PROV_REFHOLD(pd);
-	arptr->an_provider = pd;
-	arptr->an_tried_plist = NULL;
-	arptr->an_refcnt = 1;
-	arptr->an_idnext = arptr->an_idprev = NULL;
-
-	/*
-	 * Requests for context-less operations do not use the
-	 * fields - an_is_my_turn, and an_ctxchain_next.
-	 */
-	if (ictx == NULL)
-		return (arptr);
-
-	KCF_CONTEXT_REFHOLD(ictx);
-	/*
-	 * Chain this request to the context.
-	 */
-	mutex_enter(&ictx->kc_in_use_lock);
-	arptr->an_ctxchain_next = NULL;
-	if ((areq = ictx->kc_req_chain_last) == NULL) {
-		arptr->an_is_my_turn = B_TRUE;
-		ictx->kc_req_chain_last =
-		    ictx->kc_req_chain_first = arptr;
-	} else {
-		ASSERT(ictx->kc_req_chain_first != NULL);
-		arptr->an_is_my_turn = B_FALSE;
-		/* Insert the new request to the end of the chain. */
-		areq->an_ctxchain_next = arptr;
-		ictx->kc_req_chain_last = arptr;
-	}
-	mutex_exit(&ictx->kc_in_use_lock);
-
-	return (arptr);
 }
 
 /*
@@ -358,80 +298,6 @@ kcf_resubmit_request(kcf_areq_node_t *areq)
 	mutex_exit(&areq->an_lock);
 
 	error = kcf_disp_sw_request(areq);
-
-	return (error);
-}
-
-/*
- * Routine called by both ioctl and k-api. The consumer should
- * bundle the parameters into a kcf_req_params_t structure. A bunch
- * of macros are available in ops_impl.h for this bundling. They are:
- *
- * 	KCF_WRAP_DIGEST_OPS_PARAMS()
- *	KCF_WRAP_MAC_OPS_PARAMS()
- *	KCF_WRAP_ENCRYPT_OPS_PARAMS()
- *	KCF_WRAP_DECRYPT_OPS_PARAMS() ... etc.
- *
- * It is the caller's responsibility to free the ctx argument when
- * appropriate. See the KCF_CONTEXT_COND_RELEASE macro for details.
- */
-int
-kcf_submit_request(kcf_provider_desc_t *pd, crypto_ctx_t *ctx,
-    crypto_call_req_t *crq, kcf_req_params_t *params)
-{
-	int error = CRYPTO_SUCCESS;
-	kcf_areq_node_t *areq;
-	kcf_context_t *kcf_ctx;
-
-	kcf_ctx = ctx ? (kcf_context_t *)ctx->cc_framework_private : NULL;
-
-	/* Synchronous */
-	if (crq == NULL) {
-		error = common_submit_request(pd, ctx, params,
-		    KCF_RHNDL(KM_SLEEP));
-	} else {	/* Asynchronous */
-		if (!(crq->cr_flag & CRYPTO_ALWAYS_QUEUE)) {
-			/*
-			 * This case has less overhead since there is
-			 * no switching of context.
-			 */
-			error = common_submit_request(pd, ctx, params,
-			    KCF_RHNDL(KM_NOSLEEP));
-		} else {
-			/*
-			 * CRYPTO_ALWAYS_QUEUE is set. We need to
-			 * queue the request and return.
-			 */
-			areq = kcf_areqnode_alloc(pd, kcf_ctx, crq,
-			    params);
-			if (areq == NULL)
-				error = CRYPTO_HOST_MEMORY;
-			else {
-				if (!(crq->cr_flag
-				    & CRYPTO_SKIP_REQID)) {
-				/*
-				 * Set the request handle. We have to
-				 * do this before dispatching the
-				 * request.
-				 */
-				crq->cr_reqid = kcf_reqid_insert(areq);
-				}
-
-				error = kcf_disp_sw_request(areq);
-				/*
-				 * There is an error processing this
-				 * request. Remove the handle and
-				 * release the request structure.
-				 */
-				if (error != CRYPTO_QUEUED) {
-					if (!(crq->cr_flag
-					    & CRYPTO_SKIP_REQID))
-						kcf_reqid_delete(areq);
-					KCF_AREQ_REFRELE(areq);
-				}
-			}
-		}
-	}
 
 	return (error);
 }
@@ -850,40 +716,6 @@ kcfpool_alloc()
 
 	mutex_init(&kcfpool->kp_user_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&kcfpool->kp_user_cv, NULL, CV_DEFAULT, NULL);
-}
-
-/*
- * Insert the async request in the hash table after assigning it
- * an ID. Returns the ID.
- *
- * The ID is used by the caller to pass as an argument to a
- * cancel_req() routine later.
- */
-static crypto_req_id_t
-kcf_reqid_insert(kcf_areq_node_t *areq)
-{
-	int indx;
-	crypto_req_id_t id;
-	kcf_areq_node_t *headp;
-	kcf_reqid_table_t *rt;
-
-	rt = kcf_reqid_table[CPU_SEQID_UNSTABLE & REQID_TABLE_MASK];
-
-	mutex_enter(&rt->rt_lock);
-
-	rt->rt_curid = id =
-	    (rt->rt_curid - REQID_COUNTER_LOW) | REQID_COUNTER_HIGH;
-	SET_REQID(areq, id);
-	indx = REQID_HASH(id);
-	headp = areq->an_idnext = rt->rt_idhash[indx];
-	areq->an_idprev = NULL;
-	if (headp != NULL)
-		headp->an_idprev = areq;
-
-	rt->rt_idhash[indx] = areq;
-	mutex_exit(&rt->rt_lock);
-
-	return (id);
 }
 
 /*
