@@ -28,7 +28,6 @@ KERNEL_C = \
 	spi/kcf_spi.c \
 	api/kcf_ctxops.c \
 	api/kcf_cipher.c \
-	api/kcf_miscapi.c \
 	api/kcf_mac.c \
 	algs/aes/aes_impl_aesni.c \
 	algs/aes/aes_impl_generic.c \

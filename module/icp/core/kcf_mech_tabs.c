@@ -557,14 +557,37 @@ kcf_get_mech_entry(crypto_mech_type_t mech_type, kcf_mech_entry_t **mep)
 }
 
 /*
+ * crypto_mech2id()
+ *
+ * Arguments:
+ *	. mechname: A null-terminated string identifying the mechanism name.
+ *
+ * Description:
+ *	Walks the mechanisms tables, looking for an entry that matches the
+ *	mechname. Once it find it, it builds the 64-bit mech_type and returns
+ *	it.  If there are no providers for the mechanism,
+ *	but there is an unloaded provider, this routine will attempt
+ *	to load it.
+ *
+ * Context:
+ *	Process and interruption.
+ *
+ * Returns:
+ *	The unique mechanism identified by 'mechname', if found.
+ *	CRYPTO_MECH_INVALID otherwise.
+ */
+/*
  * Lookup the hash table for an entry that matches the mechname.
  * If there are no providers for the mechanism,
  * but there is an unloaded provider, this routine will attempt
  * to load it.
  */
 crypto_mech_type_t
-crypto_mech2id_common(const char *mechname, boolean_t load_module)
+crypto_mech2id(const char *mechname)
 {
-	(void) load_module;
 	return (kcf_mech_hash_find(mechname));
 }
+
+#if defined(_KERNEL)
+EXPORT_SYMBOL(crypto_mech2id);
+#endif
