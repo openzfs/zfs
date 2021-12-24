@@ -83,7 +83,7 @@ crypto_encrypt(crypto_mechanism_t *mech, crypto_data_t *plaintext,
 retry:
 	/* pd is returned held */
 	if ((pd = kcf_get_mech_provider(mech->cm_type, &me, &error,
-	    list, CRYPTO_FG_ENCRYPT_ATOMIC, CHECK_RESTRICT(crq))) == NULL) {
+	    list, CRYPTO_FG_ENCRYPT_ATOMIC)) == NULL) {
 		if (list != NULL)
 			kcf_free_triedlist(list);
 		return (error);
@@ -161,7 +161,7 @@ crypto_decrypt(crypto_mechanism_t *mech, crypto_data_t *ciphertext,
 retry:
 	/* pd is returned held */
 	if ((pd = kcf_get_mech_provider(mech->cm_type, &me, &error,
-	    list, CRYPTO_FG_DECRYPT_ATOMIC, CHECK_RESTRICT(crq))) == NULL) {
+	    list, CRYPTO_FG_DECRYPT_ATOMIC)) == NULL) {
 		if (list != NULL)
 			kcf_free_triedlist(list);
 		return (error);

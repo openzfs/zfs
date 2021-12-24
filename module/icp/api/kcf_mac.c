@@ -102,7 +102,7 @@ crypto_mac(crypto_mechanism_t *mech, crypto_data_t *data,
 retry:
 	/* The pd is returned held */
 	if ((pd = kcf_get_mech_provider(mech->cm_type, &me, &error,
-	    list, CRYPTO_FG_MAC_ATOMIC, CHECK_RESTRICT(crq))) == NULL) {
+	    list, CRYPTO_FG_MAC_ATOMIC)) == NULL) {
 		if (list != NULL)
 			kcf_free_triedlist(list);
 		return (error);
@@ -219,7 +219,7 @@ crypto_mac_init(crypto_mechanism_t *mech, crypto_key_t *key,
 retry:
 	/* The pd is returned held */
 	if ((pd = kcf_get_mech_provider(mech->cm_type, &me, &error,
-	    list, CRYPTO_FG_MAC, CHECK_RESTRICT(crq))) == NULL) {
+	    list, CRYPTO_FG_MAC)) == NULL) {
 		if (list != NULL)
 			kcf_free_triedlist(list);
 		return (error);

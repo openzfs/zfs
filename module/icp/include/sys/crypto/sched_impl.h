@@ -56,9 +56,6 @@ typedef enum kcf_call_type {
 	CRYPTO_ASYNCH
 } kcf_call_type_t;
 
-#define	CHECK_RESTRICT(crq) (crq != NULL &&	\
-	((crq)->cr_flag & CRYPTO_RESTRICTED))
-
 #define	KCF_KMFLAG(crq)	(((crq) == NULL) ? KM_SLEEP : KM_NOSLEEP)
 
 /*
@@ -445,8 +442,7 @@ extern void kcf_free_triedlist(kcf_prov_tried_t *);
 extern kcf_prov_tried_t *kcf_insert_triedlist(kcf_prov_tried_t **,
     kcf_provider_desc_t *, int);
 extern kcf_provider_desc_t *kcf_get_mech_provider(crypto_mech_type_t,
-    kcf_mech_entry_t **, int *, kcf_prov_tried_t *, crypto_func_group_t,
-    boolean_t);
+    kcf_mech_entry_t **, int *, kcf_prov_tried_t *, crypto_func_group_t);
 extern crypto_ctx_t *kcf_new_ctx(crypto_call_req_t  *, kcf_provider_desc_t *,
     crypto_session_id_t);
 extern void kcf_sched_destroy(void);

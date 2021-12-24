@@ -78,14 +78,10 @@ is_in_triedlist(kcf_provider_desc_t *pd, kcf_prov_tried_t *triedl)
  * search to find one. This is fine as we assume there are only a few
  * number of providers in this list. If this assumption ever changes,
  * we should revisit this.
- *
- * call_restrict represents if the caller should not be allowed to
- * use restricted providers.
  */
 kcf_provider_desc_t *
 kcf_get_mech_provider(crypto_mech_type_t mech_type, kcf_mech_entry_t **mepp,
-    int *error, kcf_prov_tried_t *triedl, crypto_func_group_t fg,
-    boolean_t call_restrict)
+    int *error, kcf_prov_tried_t *triedl, crypto_func_group_t fg)
 {
 	kcf_provider_desc_t *pd = NULL;
 	kcf_prov_mech_desc_t *mdesc;
@@ -119,7 +115,7 @@ kcf_get_mech_provider(crypto_mech_type_t mech_type, kcf_mech_entry_t **mepp,
 		if (!IS_FG_SUPPORTED(mdesc, fg) ||
 		    !KCF_IS_PROV_USABLE(pd) ||
 		    IS_PROVIDER_TRIED(pd, triedl) ||
-		    (call_restrict && (pd->pd_flags & KCF_PROV_RESTRICTED)))
+		    (pd->pd_flags & KCF_PROV_RESTRICTED))
 			pd = NULL;
 	}
 
