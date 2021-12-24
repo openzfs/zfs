@@ -77,7 +77,6 @@ crypto_register_provider(const crypto_provider_info_t *info,
 
 	/* Change from Illumos: the ops vector is persistent. */
 	prov_desc->pd_ops_vector = info->pi_ops_vector;
-	prov_desc->pd_flags = info->pi_flags;
 
 	/* process the mechanisms supported by the provider */
 	if ((ret = init_prov_mechs(info, prov_desc)) != CRYPTO_SUCCESS)
@@ -277,24 +276,6 @@ init_prov_mechs(const crypto_provider_info_t *info, kcf_provider_desc_t *desc)
 		    (mi->cm_mech_flags & CRYPTO_KEYSIZE_UNIT_IN_BYTES)) {
 			err = CRYPTO_ARGUMENTS_BAD;
 			break;
-		}
-
-		if (desc->pd_flags & CRYPTO_HASH_NO_UPDATE &&
-		    mi->cm_func_group_mask & CRYPTO_FG_DIGEST) {
-			/*
-			 * We ask the provider to specify the limit
-			 * per hash mechanism. But, in practice, a
-			 * hardware limitation means all hash mechanisms
-			 * will have the same maximum size allowed for
-			 * input data. So, we make it a per provider
-			 * limit to keep it simple.
-			 */
-			if (mi->cm_max_input_length == 0) {
-				err = CRYPTO_ARGUMENTS_BAD;
-				break;
-			} else {
-				desc->pd_hash_limit = mi->cm_max_input_length;
-			}
 		}
 
 		if ((err = kcf_add_mech_provider(mech_idx, desc, &pmd)) !=
