@@ -121,7 +121,6 @@ static const crypto_digest_ops_t sha2_digest_ops = {
 	.digest_init = sha2_digest_init,
 	.digest = sha2_digest,
 	.digest_update = sha2_digest_update,
-	.digest_key = NULL,
 	.digest_final = sha2_digest_final,
 	.digest_atomic = sha2_digest_atomic
 };
