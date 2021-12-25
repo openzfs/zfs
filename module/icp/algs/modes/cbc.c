@@ -242,19 +242,12 @@ int
 cbc_init_ctx(cbc_ctx_t *cbc_ctx, char *param, size_t param_len,
     size_t block_size, void (*copy_block)(uint8_t *, uint64_t *))
 {
-	/*
-	 * Copy IV into context.
-	 *
-	 * If cm_param == NULL then the IV comes from the
-	 * cd_miscdata field in the crypto_data structure.
-	 */
-	if (param != NULL) {
-		ASSERT(param_len == block_size);
-		copy_block((uchar_t *)param, cbc_ctx->cbc_iv);
-	}
+	/* Copy IV into context. */
+	ASSERT3P(param, !=, NULL);
+	ASSERT3U(param_len, ==, block_size);
 
-	cbc_ctx->cbc_lastp = (uint8_t *)&cbc_ctx->cbc_iv[0];
-	cbc_ctx->cbc_flags |= CBC_MODE;
+	copy_block((uchar_t *)param, cbc_ctx->cbc_iv);
+
 	return (CRYPTO_SUCCESS);
 }
 

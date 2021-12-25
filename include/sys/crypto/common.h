@@ -214,19 +214,6 @@ typedef uint32_t crypto_keysize_unit_t;
 #define	SUN_CKM_ECDSA_SHA1		"CKM_ECDSA_SHA1"
 #define	SUN_CKM_ECDSA			"CKM_ECDSA"
 
-/* Shared operation context format for CKM_RC4 */
-typedef struct {
-#if defined(__amd64)
-	uint32_t	i, j;
-	uint32_t	arr[256];
-	uint32_t	flag;
-#else
-	uchar_t		arr[256];
-	uchar_t		i, j;
-#endif /* __amd64 */
-	uint64_t	pad;		/* For 64-bit alignment */
-} arcfour_state_t;
-
 /* Data arguments of cryptographic operations */
 
 typedef enum crypto_data_format {
@@ -238,20 +225,14 @@ typedef struct crypto_data {
 	crypto_data_format_t	cd_format;	/* Format identifier	*/
 	off_t			cd_offset;	/* Offset from the beginning */
 	size_t			cd_length;	/* # of bytes in use */
-	caddr_t			cd_miscdata;	/* ancillary data */
 	union {
 		/* Raw format */
-		iovec_t cdu_raw;		/* Pointer and length	    */
+		iovec_t cd_raw;		/* Pointer and length	    */
 
 		/* uio scatter-gather format */
-		zfs_uio_t	*cdu_uio;
-
-	} cdu;	/* Crypto Data Union */
+		zfs_uio_t	*cd_uio;
+	};	/* Crypto Data Union */
 } crypto_data_t;
-
-#define	cd_raw		cdu.cdu_raw
-#define	cd_uio		cdu.cdu_uio
-#define	cd_mp		cdu.cdu_mp
 
 /* The keys, and their contents */
 
