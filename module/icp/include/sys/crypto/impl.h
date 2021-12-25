@@ -479,8 +479,6 @@ extern kcf_provider_desc_t *kcf_alloc_provider_desc(void);
 extern void kcf_provider_zero_refcnt(kcf_provider_desc_t *);
 extern void kcf_free_provider_desc(kcf_provider_desc_t *);
 extern void undo_register_provider(kcf_provider_desc_t *, boolean_t);
-extern int crypto_uio_data(crypto_data_t *, uchar_t *, int, cmd_type_t,
-    void *, void (*update)(void));
 extern int crypto_put_output_data(uchar_t *, crypto_data_t *, int);
 extern int crypto_update_iov(void *, crypto_data_t *, crypto_data_t *,
     int (*cipher)(void *, caddr_t, size_t, crypto_data_t *),

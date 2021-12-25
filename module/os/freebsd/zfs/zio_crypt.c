@@ -270,11 +270,9 @@ zio_crypt_key_init(uint64_t crypt, zio_crypt_key_t *key)
 		goto error;
 
 	/* initialize keys for the ICP */
-	key->zk_current_key.ck_format = CRYPTO_KEY_RAW;
 	key->zk_current_key.ck_data = key->zk_current_keydata;
 	key->zk_current_key.ck_length = CRYPTO_BYTES2BITS(keydata_len);
 
-	key->zk_hmac_key.ck_format = CRYPTO_KEY_RAW;
 	key->zk_hmac_key.ck_data = &key->zk_hmac_key;
 	key->zk_hmac_key.ck_length = CRYPTO_BYTES2BITS(SHA512_HMAC_KEYLEN);
 
@@ -437,7 +435,6 @@ zio_crypt_key_wrap(crypto_key_t *cwkey, zio_crypt_key_t *key, uint8_t *iv,
 	uint_t enc_len, keydata_len, aad_len;
 
 	ASSERT3U(crypt, <, ZIO_CRYPT_FUNCTIONS);
-	ASSERT3U(cwkey->ck_format, ==, CRYPTO_KEY_RAW);
 
 	zfs_uio_init(&cuio, &cuio_s);
 
@@ -518,7 +515,6 @@ zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t version,
 	uint_t enc_len, keydata_len, aad_len;
 
 	ASSERT3U(crypt, <, ZIO_CRYPT_FUNCTIONS);
-	ASSERT3U(cwkey->ck_format, ==, CRYPTO_KEY_RAW);
 
 	keydata_len = zio_crypt_table[crypt].ci_keylen;
 	rw_init(&key->zk_salt_lock, NULL, RW_DEFAULT, NULL);
@@ -586,11 +582,9 @@ zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t version,
 		goto error;
 
 	/* initialize keys for ICP */
-	key->zk_current_key.ck_format = CRYPTO_KEY_RAW;
 	key->zk_current_key.ck_data = key->zk_current_keydata;
 	key->zk_current_key.ck_length = CRYPTO_BYTES2BITS(keydata_len);
 
-	key->zk_hmac_key.ck_format = CRYPTO_KEY_RAW;
 	key->zk_hmac_key.ck_data = key->zk_hmac_keydata;
 	key->zk_hmac_key.ck_length = CRYPTO_BYTES2BITS(SHA512_HMAC_KEYLEN);
 
@@ -1727,7 +1721,6 @@ zio_do_crypt_data(boolean_t encrypt, zio_crypt_key_t *key,
 		    salt, ZIO_DATA_SALT_LEN, enc_keydata, keydata_len);
 		if (ret != 0)
 			goto error;
-		tmp_ckey.ck_format = CRYPTO_KEY_RAW;
 		tmp_ckey.ck_data = enc_keydata;
 		tmp_ckey.ck_length = CRYPTO_BYTES2BITS(keydata_len);
 

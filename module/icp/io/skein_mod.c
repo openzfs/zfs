@@ -530,8 +530,6 @@ skein_mac_ctx_build(skein_ctx_t *ctx, crypto_mechanism_t *mechanism,
 
 	if (!VALID_SKEIN_MAC_MECH(mechanism->cm_type))
 		return (CRYPTO_MECHANISM_INVALID);
-	if (key->ck_format != CRYPTO_KEY_RAW)
-		return (CRYPTO_ARGUMENTS_BAD);
 	ctx->sc_mech_type = mechanism->cm_type;
 	error = skein_get_digest_bitlen(mechanism, &ctx->sc_digest_bitlen);
 	if (error != CRYPTO_SUCCESS)

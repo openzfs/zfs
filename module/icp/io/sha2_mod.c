@@ -737,9 +737,6 @@ sha2_mac_init(crypto_ctx_t *ctx, crypto_mechanism_t *mechanism,
 		return (CRYPTO_MECHANISM_INVALID);
 	}
 
-	if (key->ck_format != CRYPTO_KEY_RAW)
-		return (CRYPTO_ARGUMENTS_BAD);
-
 	ctx->cc_provider_private = kmem_alloc(sizeof (sha2_hmac_ctx_t),
 	    crypto_kmflag(req));
 	if (ctx->cc_provider_private == NULL)
@@ -971,10 +968,6 @@ sha2_mac_atomic(crypto_provider_handle_t provider,
 		return (CRYPTO_MECHANISM_INVALID);
 	}
 
-	/* Add support for key by attributes (RFE 4706552) */
-	if (key->ck_format != CRYPTO_KEY_RAW)
-		return (CRYPTO_ARGUMENTS_BAD);
-
 	if (ctx_template != NULL) {
 		/* reuse context template */
 		bcopy(ctx_template, &sha2_hmac_ctx, sizeof (sha2_hmac_ctx_t));
@@ -1108,10 +1101,6 @@ sha2_mac_verify_atomic(crypto_provider_handle_t provider,
 	default:
 		return (CRYPTO_MECHANISM_INVALID);
 	}
-
-	/* Add support for key by attributes (RFE 4706552) */
-	if (key->ck_format != CRYPTO_KEY_RAW)
-		return (CRYPTO_ARGUMENTS_BAD);
 
 	if (ctx_template != NULL) {
 		/* reuse context template */
@@ -1286,10 +1275,6 @@ sha2_create_ctx_template(crypto_provider_handle_t provider,
 	default:
 		return (CRYPTO_MECHANISM_INVALID);
 	}
-
-	/* Add support for key by attributes (RFE 4706552) */
-	if (key->ck_format != CRYPTO_KEY_RAW)
-		return (CRYPTO_ARGUMENTS_BAD);
 
 	/*
 	 * Allocate and initialize SHA2 context.
