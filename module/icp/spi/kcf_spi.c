@@ -221,18 +221,6 @@ crypto_unregister_provider(crypto_kcf_provider_handle_t handle)
 }
 
 /*
- * This routine is used by providers to determine
- * whether to use KM_SLEEP or KM_NOSLEEP during memory allocation.
- *
- * This routine can be called from user or interrupt context.
- */
-int
-crypto_kmflag(crypto_req_handle_t handle)
-{
-	return (REQHNDL2_KMFLAG(handle));
-}
-
-/*
  * Process the mechanism info structures specified by the provider
  * during registration. A NULL crypto_provider_info_t indicates
  * an already initialized provider descriptor.

@@ -52,7 +52,7 @@ hkdf_sha512_extract(uint8_t *salt, uint_t salt_len, uint8_t *key_material,
 	output_cd.cd_raw.iov_base = (char *)out_buf;
 	output_cd.cd_raw.iov_len = output_cd.cd_length;
 
-	ret = crypto_mac(&mech, &input_cd, &key, NULL, &output_cd, NULL);
+	ret = crypto_mac(&mech, &input_cd, &key, NULL, &output_cd);
 	if (ret != CRYPTO_SUCCESS)
 		return (SET_ERROR(EIO));
 
@@ -108,7 +108,7 @@ hkdf_sha512_expand(uint8_t *extract_key, uint8_t *info, uint_t info_len,
 		T_cd.cd_length = T_len;
 		T_cd.cd_raw.iov_len = T_cd.cd_length;
 
-		ret = crypto_mac_init(&mech, &key, NULL, &ctx, NULL);
+		ret = crypto_mac_init(&mech, &key, NULL, &ctx);
 		if (ret != CRYPTO_SUCCESS)
 			return (SET_ERROR(EIO));
 

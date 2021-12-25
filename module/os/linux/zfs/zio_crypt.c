@@ -269,13 +269,13 @@ zio_crypt_key_init(uint64_t crypt, zio_crypt_key_t *key)
 	 */
 	mech.cm_type = crypto_mech2id(zio_crypt_table[crypt].ci_mechname);
 	ret = crypto_create_ctx_template(&mech, &key->zk_current_key,
-	    &key->zk_current_tmpl, KM_SLEEP);
+	    &key->zk_current_tmpl);
 	if (ret != CRYPTO_SUCCESS)
 		key->zk_current_tmpl = NULL;
 
 	mech.cm_type = crypto_mech2id(SUN_CKM_SHA512_HMAC);
 	ret = crypto_create_ctx_template(&mech, &key->zk_hmac_key,
-	    &key->zk_hmac_tmpl, KM_SLEEP);
+	    &key->zk_hmac_tmpl);
 	if (ret != CRYPTO_SUCCESS)
 		key->zk_hmac_tmpl = NULL;
 
@@ -323,7 +323,7 @@ zio_crypt_key_change_salt(zio_crypt_key_t *key)
 	/* destroy the old context template and create the new one */
 	crypto_destroy_ctx_template(key->zk_current_tmpl);
 	ret = crypto_create_ctx_template(&mech, &key->zk_current_key,
-	    &key->zk_current_tmpl, KM_SLEEP);
+	    &key->zk_current_tmpl);
 	if (ret != CRYPTO_SUCCESS)
 		key->zk_current_tmpl = NULL;
 
@@ -447,15 +447,13 @@ zio_do_crypt_uio(boolean_t encrypt, uint64_t crypt, crypto_key_t *key,
 
 	/* perform the actual encryption */
 	if (encrypt) {
-		ret = crypto_encrypt(&mech, &plaindata, key, tmpl, &cipherdata,
-		    NULL);
+		ret = crypto_encrypt(&mech, &plaindata, key, tmpl, &cipherdata);
 		if (ret != CRYPTO_SUCCESS) {
 			ret = SET_ERROR(EIO);
 			goto error;
 		}
 	} else {
-		ret = crypto_decrypt(&mech, &cipherdata, key, tmpl, &plaindata,
-		    NULL);
+		ret = crypto_decrypt(&mech, &cipherdata, key, tmpl, &plaindata);
 		if (ret != CRYPTO_SUCCESS) {
 			ASSERT3U(ret, ==, CRYPTO_INVALID_MAC);
 			ret = SET_ERROR(ECKSUM);
@@ -619,13 +617,13 @@ zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t version,
 	 */
 	mech.cm_type = crypto_mech2id(zio_crypt_table[crypt].ci_mechname);
 	ret = crypto_create_ctx_template(&mech, &key->zk_current_key,
-	    &key->zk_current_tmpl, KM_SLEEP);
+	    &key->zk_current_tmpl);
 	if (ret != CRYPTO_SUCCESS)
 		key->zk_current_tmpl = NULL;
 
 	mech.cm_type = crypto_mech2id(SUN_CKM_SHA512_HMAC);
 	ret = crypto_create_ctx_template(&mech, &key->zk_hmac_key,
-	    &key->zk_hmac_tmpl, KM_SLEEP);
+	    &key->zk_hmac_tmpl);
 	if (ret != CRYPTO_SUCCESS)
 		key->zk_hmac_tmpl = NULL;
 
@@ -689,7 +687,7 @@ zio_crypt_do_hmac(zio_crypt_key_t *key, uint8_t *data, uint_t datalen,
 
 	/* generate the hmac */
 	ret = crypto_mac(&mech, &in_data, &key->zk_hmac_key, key->zk_hmac_tmpl,
-	    &digest_data, NULL);
+	    &digest_data);
 	if (ret != CRYPTO_SUCCESS) {
 		ret = SET_ERROR(EIO);
 		goto error;
@@ -1139,7 +1137,7 @@ zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
 	cd.cd_offset = 0;
 
 	/* calculate the portable MAC from the portable fields and metadnode */
-	ret = crypto_mac_init(&mech, &key->zk_hmac_key, NULL, &ctx, NULL);
+	ret = crypto_mac_init(&mech, &key->zk_hmac_key, NULL, &ctx);
 	if (ret != CRYPTO_SUCCESS) {
 		ret = SET_ERROR(EIO);
 		goto error;
@@ -1226,7 +1224,7 @@ zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
 	}
 
 	/* calculate the local MAC from the userused and groupused dnodes */
-	ret = crypto_mac_init(&mech, &key->zk_hmac_key, NULL, &ctx, NULL);
+	ret = crypto_mac_init(&mech, &key->zk_hmac_key, NULL, &ctx);
 	if (ret != CRYPTO_SUCCESS) {
 		ret = SET_ERROR(EIO);
 		goto error;

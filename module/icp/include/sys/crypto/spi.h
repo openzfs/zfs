@@ -60,12 +60,6 @@ typedef void *crypto_provider_handle_t;
 typedef void *crypto_spi_ctx_template_t;
 
 /*
- * Request handles are used by the kernel to identify an asynchronous
- * request being processed by a provider.
- */
-typedef void *crypto_req_handle_t;
-
-/*
  * The context structure is passed from the kernel to a provider.
  * It contains the information needed to process a multi-part or
  * single part operation. The context structure is not used
@@ -88,18 +82,14 @@ typedef struct crypto_ctx {
  * kernel using crypto_register_provider(9F).
  */
 typedef struct crypto_digest_ops {
-	int (*digest_init)(crypto_ctx_t *, crypto_mechanism_t *,
-	    crypto_req_handle_t);
-	int (*digest)(crypto_ctx_t *, crypto_data_t *, crypto_data_t *,
-	    crypto_req_handle_t);
-	int (*digest_update)(crypto_ctx_t *, crypto_data_t *,
-	    crypto_req_handle_t);
-	int (*digest_key)(crypto_ctx_t *, crypto_key_t *, crypto_req_handle_t);
-	int (*digest_final)(crypto_ctx_t *, crypto_data_t *,
-	    crypto_req_handle_t);
+	int (*digest_init)(crypto_ctx_t *, crypto_mechanism_t *);
+	int (*digest)(crypto_ctx_t *, crypto_data_t *, crypto_data_t *);
+	int (*digest_update)(crypto_ctx_t *, crypto_data_t *);
+	int (*digest_key)(crypto_ctx_t *, crypto_key_t *);
+	int (*digest_final)(crypto_ctx_t *, crypto_data_t *);
 	int (*digest_atomic)(crypto_provider_handle_t, crypto_session_id_t,
 	    crypto_mechanism_t *, crypto_data_t *,
-	    crypto_data_t *, crypto_req_handle_t);
+	    crypto_data_t *);
 } __no_const crypto_digest_ops_t;
 
 /*
@@ -111,29 +101,29 @@ typedef struct crypto_digest_ops {
 typedef struct crypto_cipher_ops {
 	int (*encrypt_init)(crypto_ctx_t *,
 	    crypto_mechanism_t *, crypto_key_t *,
-	    crypto_spi_ctx_template_t, crypto_req_handle_t);
+	    crypto_spi_ctx_template_t);
 	int (*encrypt)(crypto_ctx_t *,
-	    crypto_data_t *, crypto_data_t *, crypto_req_handle_t);
+	    crypto_data_t *, crypto_data_t *);
 	int (*encrypt_update)(crypto_ctx_t *,
-	    crypto_data_t *, crypto_data_t *, crypto_req_handle_t);
+	    crypto_data_t *, crypto_data_t *);
 	int (*encrypt_final)(crypto_ctx_t *,
-	    crypto_data_t *, crypto_req_handle_t);
+	    crypto_data_t *);
 	int (*encrypt_atomic)(crypto_provider_handle_t, crypto_session_id_t,
 	    crypto_mechanism_t *, crypto_key_t *, crypto_data_t *,
-	    crypto_data_t *, crypto_spi_ctx_template_t, crypto_req_handle_t);
+	    crypto_data_t *, crypto_spi_ctx_template_t);
 
 	int (*decrypt_init)(crypto_ctx_t *,
 	    crypto_mechanism_t *, crypto_key_t *,
-	    crypto_spi_ctx_template_t, crypto_req_handle_t);
+	    crypto_spi_ctx_template_t);
 	int (*decrypt)(crypto_ctx_t *,
-	    crypto_data_t *, crypto_data_t *, crypto_req_handle_t);
+	    crypto_data_t *, crypto_data_t *);
 	int (*decrypt_update)(crypto_ctx_t *,
-	    crypto_data_t *, crypto_data_t *, crypto_req_handle_t);
+	    crypto_data_t *, crypto_data_t *);
 	int (*decrypt_final)(crypto_ctx_t *,
-	    crypto_data_t *, crypto_req_handle_t);
+	    crypto_data_t *);
 	int (*decrypt_atomic)(crypto_provider_handle_t, crypto_session_id_t,
 	    crypto_mechanism_t *, crypto_key_t *, crypto_data_t *,
-	    crypto_data_t *, crypto_spi_ctx_template_t, crypto_req_handle_t);
+	    crypto_data_t *, crypto_spi_ctx_template_t);
 } __no_const crypto_cipher_ops_t;
 
 /*
@@ -145,21 +135,19 @@ typedef struct crypto_cipher_ops {
 typedef struct crypto_mac_ops {
 	int (*mac_init)(crypto_ctx_t *,
 	    crypto_mechanism_t *, crypto_key_t *,
-	    crypto_spi_ctx_template_t, crypto_req_handle_t);
+	    crypto_spi_ctx_template_t);
 	int (*mac)(crypto_ctx_t *,
-	    crypto_data_t *, crypto_data_t *, crypto_req_handle_t);
+	    crypto_data_t *, crypto_data_t *);
 	int (*mac_update)(crypto_ctx_t *,
-	    crypto_data_t *, crypto_req_handle_t);
+	    crypto_data_t *);
 	int (*mac_final)(crypto_ctx_t *,
-	    crypto_data_t *, crypto_req_handle_t);
+	    crypto_data_t *);
 	int (*mac_atomic)(crypto_provider_handle_t, crypto_session_id_t,
 	    crypto_mechanism_t *, crypto_key_t *, crypto_data_t *,
-	    crypto_data_t *, crypto_spi_ctx_template_t,
-	    crypto_req_handle_t);
+	    crypto_data_t *, crypto_spi_ctx_template_t);
 	int (*mac_verify_atomic)(crypto_provider_handle_t, crypto_session_id_t,
 	    crypto_mechanism_t *, crypto_key_t *, crypto_data_t *,
-	    crypto_data_t *, crypto_spi_ctx_template_t,
-	    crypto_req_handle_t);
+	    crypto_data_t *, crypto_spi_ctx_template_t);
 } __no_const crypto_mac_ops_t;
 
 /*
@@ -171,7 +159,7 @@ typedef struct crypto_mac_ops {
 typedef struct crypto_ctx_ops {
 	int (*create_ctx_template)(crypto_provider_handle_t,
 	    crypto_mechanism_t *, crypto_key_t *,
-	    crypto_spi_ctx_template_t *, size_t *, crypto_req_handle_t);
+	    crypto_spi_ctx_template_t *, size_t *);
 	int (*free_context)(crypto_ctx_t *);
 } __no_const crypto_ctx_ops_t;
 
@@ -263,7 +251,6 @@ typedef struct crypto_provider_info {
 extern int crypto_register_provider(const crypto_provider_info_t *,
 		crypto_kcf_provider_handle_t *);
 extern int crypto_unregister_provider(crypto_kcf_provider_handle_t);
-extern int crypto_kmflag(crypto_req_handle_t);
 
 
 #ifdef	__cplusplus

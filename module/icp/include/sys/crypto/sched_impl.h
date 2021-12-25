@@ -40,28 +40,6 @@ extern "C" {
 #include <sys/crypto/impl.h>
 #include <sys/crypto/common.h>
 
-#define	KCF_KMFLAG(crq)	(((crq) == NULL) ? KM_SLEEP : KM_NOSLEEP)
-
-/*
- * The framework keeps an internal handle to use in the adaptive
- * asynchronous case. This is the case when a client has the
- * CRYPTO_ALWAYS_QUEUE bit clear and a provider is used for
- * the request. The request is completed in the context of the calling
- * thread and kernel memory must be allocated with KM_NOSLEEP.
- *
- * The framework passes a pointer to the handle in crypto_req_handle_t
- * argument when it calls the SPI of the provider. The macros
- * KCF_RHNDL() and KCF_SWFP_RHNDL() are used to do this.
- *
- * When a provider asks the framework for kmflag value via
- * crypto_kmflag(9S) we use REQHNDL2_KMFLAG() macro.
- */
-extern ulong_t kcf_swprov_hndl;
-#define	KCF_RHNDL(kmflag) (((kmflag) == KM_SLEEP) ? NULL : &kcf_swprov_hndl)
-#define	KCF_SWFP_RHNDL(crq) (((crq) == NULL) ? NULL : &kcf_swprov_hndl)
-#define	REQHNDL2_KMFLAG(rhndl) \
-	((rhndl == &kcf_swprov_hndl) ? KM_NOSLEEP : KM_SLEEP)
-
 typedef struct kcf_prov_tried {
 	kcf_provider_desc_t	*pt_pd;
 	struct kcf_prov_tried	*pt_next;
@@ -144,7 +122,7 @@ extern kcf_prov_tried_t *kcf_insert_triedlist(kcf_prov_tried_t **,
     kcf_provider_desc_t *, int);
 extern kcf_provider_desc_t *kcf_get_mech_provider(crypto_mech_type_t,
     kcf_mech_entry_t **, int *, kcf_prov_tried_t *, crypto_func_group_t);
-extern crypto_ctx_t *kcf_new_ctx(crypto_call_req_t  *, kcf_provider_desc_t *);
+extern crypto_ctx_t *kcf_new_ctx(kcf_provider_desc_t *);
 extern void kcf_sched_destroy(void);
 extern void kcf_sched_init(void);
 extern void kcf_free_context(kcf_context_t *);

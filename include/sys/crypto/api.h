@@ -36,8 +36,6 @@ extern "C" {
 typedef void *crypto_context_t;
 typedef void *crypto_ctx_template_t;
 
-typedef struct {} crypto_call_req_t;
-
 /*
  * Returns the mechanism type corresponding to a mechanism name.
  */
@@ -48,17 +46,16 @@ extern crypto_mech_type_t crypto_mech2id(const char *name);
  * Create and destroy context templates.
  */
 extern int crypto_create_ctx_template(crypto_mechanism_t *mech,
-    crypto_key_t *key, crypto_ctx_template_t *tmpl, int kmflag);
+    crypto_key_t *key, crypto_ctx_template_t *tmpl);
 extern void crypto_destroy_ctx_template(crypto_ctx_template_t tmpl);
 
 /*
  * Single and multi-part MAC operations.
  */
 extern int crypto_mac(crypto_mechanism_t *mech, crypto_data_t *data,
-    crypto_key_t *key, crypto_ctx_template_t tmpl, crypto_data_t *mac,
-    crypto_call_req_t *cr);
+    crypto_key_t *key, crypto_ctx_template_t tmpl, crypto_data_t *mac);
 extern int crypto_mac_init(crypto_mechanism_t *mech, crypto_key_t *key,
-    crypto_ctx_template_t tmpl, crypto_context_t *ctxp, crypto_call_req_t *cr);
+    crypto_ctx_template_t tmpl, crypto_context_t *ctxp);
 extern int crypto_mac_update(crypto_context_t ctx, crypto_data_t *data);
 extern int crypto_mac_final(crypto_context_t ctx, crypto_data_t *data);
 
@@ -66,11 +63,9 @@ extern int crypto_mac_final(crypto_context_t ctx, crypto_data_t *data);
  * Single-part encryption/decryption operations.
  */
 extern int crypto_encrypt(crypto_mechanism_t *mech, crypto_data_t *plaintext,
-    crypto_key_t *key, crypto_ctx_template_t tmpl, crypto_data_t *ciphertext,
-    crypto_call_req_t *cr);
+    crypto_key_t *key, crypto_ctx_template_t tmpl, crypto_data_t *ciphertext);
 extern int crypto_decrypt(crypto_mechanism_t *mech, crypto_data_t *ciphertext,
-    crypto_key_t *key, crypto_ctx_template_t tmpl, crypto_data_t *plaintext,
-    crypto_call_req_t *cr);
+    crypto_key_t *key, crypto_ctx_template_t tmpl, crypto_data_t *plaintext);
 
 #ifdef	__cplusplus
 }

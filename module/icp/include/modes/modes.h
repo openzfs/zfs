@@ -207,10 +207,6 @@ typedef struct ccm_ctx {
  *
  * gcm_len_a_len_c:	64-bit representations of the bit lengths of
  *			AAD and ciphertext.
- *
- * gcm_kmflag:		Current value of kmflag. Used for allocating
- *			the plaintext buffer during decryption and a
- *			gcm_avx_chunk_size'd buffer for avx enabled encryption.
  */
 typedef struct gcm_ctx {
 	struct common_ctx gcm_common;
@@ -231,7 +227,6 @@ typedef struct gcm_ctx {
 	uint64_t gcm_J0[2];
 	uint64_t gcm_len_a_len_c[2];
 	uint8_t *gcm_pt_buf;
-	int gcm_kmflag;
 #ifdef CAN_USE_GCM_ASM
 	boolean_t gcm_use_avx;
 #endif
@@ -402,7 +397,6 @@ extern void *ccm_alloc_ctx(int);
 extern void *gcm_alloc_ctx(int);
 extern void *gmac_alloc_ctx(int);
 extern void crypto_free_mode_ctx(void *);
-extern void gcm_set_kmflag(gcm_ctx_t *, int);
 
 #ifdef	__cplusplus
 }

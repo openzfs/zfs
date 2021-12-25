@@ -67,7 +67,6 @@
  *	tmpl:	a crypto_ctx_template_t, opaque template of a context of a
  *		MAC with the 'mech' using 'key'. 'tmpl' is created by
  *		a previous call to crypto_create_ctx_template().
- *	cr:	crypto_call_req_t calling conditions and call back info.
  *
  * Description:
  *	Asynchronously submits a request for, or synchronously performs a
@@ -78,16 +77,12 @@
  *	authentication code.
  *	Relies on the KCF scheduler to choose a provider.
  *
- * Context:
- *	Process or interrupt, according to the semantics dictated by the 'crq'.
- *
  * Returns:
  *	See comment in the beginning of the file.
  */
 int
 crypto_mac(crypto_mechanism_t *mech, crypto_data_t *data,
-    crypto_key_t *key, crypto_ctx_template_t tmpl, crypto_data_t *mac,
-    crypto_call_req_t *crq)
+    crypto_key_t *key, crypto_ctx_template_t tmpl, crypto_data_t *mac)
 {
 	int error;
 	kcf_mech_entry_t *me;
@@ -111,12 +106,12 @@ retry:
 	crypto_mechanism_t lmech = *mech;
 	KCF_SET_PROVIDER_MECHNUM(mech->cm_type, pd, &lmech);
 	error = KCF_PROV_MAC_ATOMIC(pd, pd->pd_sid, &lmech, key, data,
-	    mac, spi_ctx_tmpl, KCF_SWFP_RHNDL(crq));
+	    mac, spi_ctx_tmpl);
 	KCF_PROV_INCRSTATS(pd, error);
 
 	if (error != CRYPTO_SUCCESS && IS_RECOVERABLE(error)) {
 		/* Add pd to the linked list of providers tried. */
-		if (kcf_insert_triedlist(&list, pd, KCF_KMFLAG(crq)) != NULL)
+		if (kcf_insert_triedlist(&list, pd, KM_SLEEP) != NULL)
 			goto retry;
 	}
 
@@ -143,7 +138,6 @@ retry:
  *		MAC with the 'mech' using 'key'. 'tmpl' is created by
  *		a previous call to crypto_create_ctx_template().
  *	ctxp:	Pointer to a crypto_context_t.
- *	cr:	crypto_call_req_t calling conditions and call back info.
  *
  * Description:
  *	Asynchronously submits a request for, or synchronously performs the
@@ -156,16 +150,13 @@ retry:
  *	The caller should hold a reference on the specified provider
  *	descriptor before calling this function.
  *
- * Context:
- *	Process or interrupt, according to the semantics dictated by the 'cr'.
- *
  * Returns:
  *	See comment in the beginning of the file.
  */
 static int
 crypto_mac_init_prov(kcf_provider_desc_t *pd,
     crypto_mechanism_t *mech, crypto_key_t *key, crypto_spi_ctx_template_t tmpl,
-    crypto_context_t *ctxp, crypto_call_req_t *crq)
+    crypto_context_t *ctxp)
 {
 	int rv;
 	crypto_ctx_t *ctx;
@@ -174,13 +165,12 @@ crypto_mac_init_prov(kcf_provider_desc_t *pd,
 	ASSERT(KCF_PROV_REFHELD(pd));
 
 	/* Allocate and initialize the canonical context */
-	if ((ctx = kcf_new_ctx(crq, real_provider)) == NULL)
+	if ((ctx = kcf_new_ctx(real_provider)) == NULL)
 		return (CRYPTO_HOST_MEMORY);
 
 	crypto_mechanism_t lmech = *mech;
 	KCF_SET_PROVIDER_MECHNUM(mech->cm_type, real_provider, &lmech);
-	rv = KCF_PROV_MAC_INIT(real_provider, ctx, &lmech, key, tmpl,
-	    KCF_SWFP_RHNDL(crq));
+	rv = KCF_PROV_MAC_INIT(real_provider, ctx, &lmech, key, tmpl);
 	KCF_PROV_INCRSTATS(pd, rv);
 
 	if (rv == CRYPTO_SUCCESS)
@@ -200,8 +190,7 @@ crypto_mac_init_prov(kcf_provider_desc_t *pd,
  */
 int
 crypto_mac_init(crypto_mechanism_t *mech, crypto_key_t *key,
-    crypto_ctx_template_t tmpl, crypto_context_t *ctxp,
-    crypto_call_req_t  *crq)
+    crypto_ctx_template_t tmpl, crypto_context_t *ctxp)
 {
 	int error;
 	kcf_mech_entry_t *me;
@@ -230,10 +219,10 @@ retry:
 		spi_ctx_tmpl = ctx_tmpl->ct_prov_tmpl;
 
 	error = crypto_mac_init_prov(pd, mech, key,
-	    spi_ctx_tmpl, ctxp, crq);
+	    spi_ctx_tmpl, ctxp);
 	if (error != CRYPTO_SUCCESS && IS_RECOVERABLE(error)) {
 		/* Add pd to the linked list of providers tried. */
-		if (kcf_insert_triedlist(&list, pd, KCF_KMFLAG(crq)) != NULL)
+		if (kcf_insert_triedlist(&list, pd, KM_SLEEP) != NULL)
 			goto retry;
 	}
 
@@ -254,9 +243,6 @@ retry:
  * Description:
  *	Synchronously performs a part of a MAC operation.
  *
- * Context:
- *	Process or interrupt, according to the semantics dictated by the 'cr'.
- *
  * Returns:
  *	See comment in the beginning of the file.
  */
@@ -273,7 +259,7 @@ crypto_mac_update(crypto_context_t context, crypto_data_t *data)
 		return (CRYPTO_INVALID_CONTEXT);
 	}
 
-	int rv = KCF_PROV_MAC_UPDATE(pd, ctx, data, NULL);
+	int rv = KCF_PROV_MAC_UPDATE(pd, ctx, data);
 	KCF_PROV_INCRSTATS(pd, rv);
 	return (rv);
 }
@@ -287,9 +273,6 @@ crypto_mac_update(crypto_context_t context, crypto_data_t *data)
  *
  * Description:
  *	Synchronously performs a part of a message authentication operation.
- *
- * Context:
- *	Process or interrupt, according to the semantics dictated by the 'cr'.
  *
  * Returns:
  *	See comment in the beginning of the file.
@@ -307,7 +290,7 @@ crypto_mac_final(crypto_context_t context, crypto_data_t *mac)
 		return (CRYPTO_INVALID_CONTEXT);
 	}
 
-	int rv = KCF_PROV_MAC_FINAL(pd, ctx, mac, NULL);
+	int rv = KCF_PROV_MAC_FINAL(pd, ctx, mac);
 	KCF_PROV_INCRSTATS(pd, rv);
 
 	/* Release the hold done in kcf_new_ctx() during init step. */
