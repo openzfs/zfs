@@ -75,13 +75,8 @@
 
 /* RFE 4687834 Will deal with the extensibility of these tables later */
 
-static kcf_mech_entry_t kcf_digest_mechs_tab[KCF_MAXDIGEST] = {
-	{ SUN_CKM_SHA1 },
-};
-static kcf_mech_entry_t kcf_cipher_mechs_tab[KCF_MAXCIPHER] = {
-	{ SUN_CKM_AES_CBC },
-	{ SUN_CKM_AES_ECB },
-};
+static kcf_mech_entry_t kcf_digest_mechs_tab[KCF_MAXDIGEST];
+static kcf_mech_entry_t kcf_cipher_mechs_tab[KCF_MAXCIPHER];
 static kcf_mech_entry_t kcf_mac_mechs_tab[KCF_MAXMAC];
 
 const kcf_mech_entry_tab_t kcf_mech_tabs_tab[KCF_LAST_OPSCLASS + 1] = {
@@ -118,23 +113,8 @@ kcf_destroy_mech_tabs(void)
 void
 kcf_init_mech_tabs(void)
 {
-	kcf_ops_class_t class;
-	kcf_mech_entry_t *me_tab;
-
-	/* Then the pre-defined mechanism entries */
 	avl_create(&kcf_mech_hash, kcf_mech_hash_compar,
 	    sizeof (kcf_mech_entry_t), offsetof(kcf_mech_entry_t, me_node));
-
-	for (class = KCF_FIRST_OPSCLASS; class <= KCF_LAST_OPSCLASS; class++) {
-		int max = kcf_mech_tabs_tab[class].met_size;
-		me_tab = kcf_mech_tabs_tab[class].met_tab;
-		for (int i = 0; i < max; i++) {
-			if (me_tab[i].me_name[0] != 0) {
-				me_tab[i].me_mechid = KCF_MECHID(class, i);
-				avl_add(&kcf_mech_hash, &me_tab[i]);
-			}
-		}
-	}
 }
 
 /*
