@@ -36,7 +36,6 @@ hkdf_sha512_extract(uint8_t *salt, uint_t salt_len, uint8_t *key_material,
 	mech.cm_param_len = 0;
 
 	/* initialize the salt as a crypto key */
-	key.ck_format = CRYPTO_KEY_RAW;
 	key.ck_length = CRYPTO_BYTES2BITS(salt_len);
 	key.ck_data = salt;
 
@@ -83,7 +82,6 @@ hkdf_sha512_expand(uint8_t *extract_key, uint8_t *info, uint_t info_len,
 	mech.cm_param_len = 0;
 
 	/* initialize the salt as a crypto key */
-	key.ck_format = CRYPTO_KEY_RAW;
 	key.ck_length = CRYPTO_BYTES2BITS(SHA512_DIGEST_LENGTH);
 	key.ck_data = extract_key;
 

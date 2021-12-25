@@ -242,23 +242,14 @@ aes_check_mech_param(crypto_mechanism_t *mechanism, aes_ctx_t **ctx, int kmflag)
 static int
 init_keysched(crypto_key_t *key, void *newbie)
 {
-	/*
-	 * Only keys by value are supported by this module.
-	 */
-	switch (key->ck_format) {
-	case CRYPTO_KEY_RAW:
-		if (key->ck_length < AES_MINBITS ||
-		    key->ck_length > AES_MAXBITS) {
-			return (CRYPTO_KEY_SIZE_RANGE);
-		}
-
-		/* key length must be either 128, 192, or 256 */
-		if ((key->ck_length & 63) != 0)
-			return (CRYPTO_KEY_SIZE_RANGE);
-		break;
-	default:
-		return (CRYPTO_KEY_TYPE_INCONSISTENT);
+	if (key->ck_length < AES_MINBITS ||
+	    key->ck_length > AES_MAXBITS) {
+		return (CRYPTO_KEY_SIZE_RANGE);
 	}
+
+	/* key length must be either 128, 192, or 256 */
+	if ((key->ck_length & 63) != 0)
+		return (CRYPTO_KEY_SIZE_RANGE);
 
 	aes_init_keysched(key->ck_data, key->ck_length, newbie);
 	return (CRYPTO_SUCCESS);
@@ -293,13 +284,6 @@ aes_common_init(crypto_ctx_t *ctx, crypto_mechanism_t *mechanism,
 	aes_ctx_t *aes_ctx;
 	int rv;
 	int kmflag;
-
-	/*
-	 * Only keys by value are supported by this module.
-	 */
-	if (key->ck_format != CRYPTO_KEY_RAW) {
-		return (CRYPTO_KEY_TYPE_INCONSISTENT);
-	}
 
 	kmflag = crypto_kmflag(req);
 	if ((rv = aes_check_mech_param(mechanism, &aes_ctx, kmflag))

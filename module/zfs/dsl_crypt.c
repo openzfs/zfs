@@ -119,7 +119,6 @@ dsl_wrapping_key_create(uint8_t *wkeydata, zfs_keyformat_t keyformat,
 	/* allocate and initialize the underlying crypto key */
 	wkey->wk_key.ck_data = kmem_alloc(WRAPPING_KEY_LEN, KM_SLEEP);
 
-	wkey->wk_key.ck_format = CRYPTO_KEY_RAW;
 	wkey->wk_key.ck_length = CRYPTO_BYTES2BITS(WRAPPING_KEY_LEN);
 	bcopy(wkeydata, wkey->wk_key.ck_data, WRAPPING_KEY_LEN);
 
