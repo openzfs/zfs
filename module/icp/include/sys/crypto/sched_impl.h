@@ -39,7 +39,6 @@ extern "C" {
 #include <sys/crypto/spi.h>
 #include <sys/crypto/impl.h>
 #include <sys/crypto/common.h>
-#include <sys/crypto/ops_impl.h>
 
 #define	KCF_KMFLAG(crq)	(((crq) == NULL) ? KM_SLEEP : KM_NOSLEEP)
 
@@ -124,6 +123,11 @@ typedef struct kcf_context {
  */
 #define	KCF_CONTEXT_DONE(rv)					\
 	((rv) != CRYPTO_BUSY &&	(rv) != CRYPTO_BUFFER_TOO_SMALL)
+
+
+#define	KCF_SET_PROVIDER_MECHNUM(fmtype, pd, mechp)			\
+	(mechp)->cm_type =						\
+	    KCF_TO_PROV_MECHNUM(pd, fmtype);
 
 /*
  * A crypto_ctx_template_t is internally a pointer to this struct
