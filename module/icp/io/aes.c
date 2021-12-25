@@ -582,13 +582,11 @@ aes_encrypt_update(crypto_ctx_t *ctx, crypto_data_t *plaintext,
 	switch (plaintext->cd_format) {
 	case CRYPTO_DATA_RAW:
 		ret = crypto_update_iov(ctx->cc_provider_private,
-		    plaintext, ciphertext, aes_encrypt_contiguous_blocks,
-		    aes_copy_block64);
+		    plaintext, ciphertext, aes_encrypt_contiguous_blocks);
 		break;
 	case CRYPTO_DATA_UIO:
 		ret = crypto_update_uio(ctx->cc_provider_private,
-		    plaintext, ciphertext, aes_encrypt_contiguous_blocks,
-		    aes_copy_block64);
+		    plaintext, ciphertext, aes_encrypt_contiguous_blocks);
 		break;
 	default:
 		ret = CRYPTO_ARGUMENTS_BAD;
@@ -661,13 +659,11 @@ aes_decrypt_update(crypto_ctx_t *ctx, crypto_data_t *ciphertext,
 	switch (ciphertext->cd_format) {
 	case CRYPTO_DATA_RAW:
 		ret = crypto_update_iov(ctx->cc_provider_private,
-		    ciphertext, plaintext, aes_decrypt_contiguous_blocks,
-		    aes_copy_block64);
+		    ciphertext, plaintext, aes_decrypt_contiguous_blocks);
 		break;
 	case CRYPTO_DATA_UIO:
 		ret = crypto_update_uio(ctx->cc_provider_private,
-		    ciphertext, plaintext, aes_decrypt_contiguous_blocks,
-		    aes_copy_block64);
+		    ciphertext, plaintext, aes_decrypt_contiguous_blocks);
 		break;
 	default:
 		ret = CRYPTO_ARGUMENTS_BAD;
@@ -930,11 +926,11 @@ aes_encrypt_atomic(crypto_provider_handle_t provider,
 	switch (plaintext->cd_format) {
 	case CRYPTO_DATA_RAW:
 		ret = crypto_update_iov(&aes_ctx, plaintext, ciphertext,
-		    aes_encrypt_contiguous_blocks, aes_copy_block64);
+		    aes_encrypt_contiguous_blocks);
 		break;
 	case CRYPTO_DATA_UIO:
 		ret = crypto_update_uio(&aes_ctx, plaintext, ciphertext,
-		    aes_encrypt_contiguous_blocks, aes_copy_block64);
+		    aes_encrypt_contiguous_blocks);
 		break;
 	default:
 		ret = CRYPTO_ARGUMENTS_BAD;
@@ -1071,11 +1067,11 @@ aes_decrypt_atomic(crypto_provider_handle_t provider,
 	switch (ciphertext->cd_format) {
 	case CRYPTO_DATA_RAW:
 		ret = crypto_update_iov(&aes_ctx, ciphertext, plaintext,
-		    aes_decrypt_contiguous_blocks, aes_copy_block64);
+		    aes_decrypt_contiguous_blocks);
 		break;
 	case CRYPTO_DATA_UIO:
 		ret = crypto_update_uio(&aes_ctx, ciphertext, plaintext,
-		    aes_decrypt_contiguous_blocks, aes_copy_block64);
+		    aes_decrypt_contiguous_blocks);
 		break;
 	default:
 		ret = CRYPTO_ARGUMENTS_BAD;
