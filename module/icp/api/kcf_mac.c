@@ -40,8 +40,6 @@
  * presence of the arguments.
  *
  *	CRYPTO_SUCCESS:	The operation completed successfully.
- *	CRYPTO_QUEUED:	A request was submitted successfully. The callback
- *			routine will be called when the operation is done.
  *	CRYPTO_INVALID_MECH_NUMBER, CRYPTO_INVALID_MECH_PARAM, or
  *	CRYPTO_INVALID_MECH for problems with the 'mech'.
  *	CRYPTO_INVALID_DATA for bogus 'data'
@@ -117,8 +115,7 @@ retry:
 	    mac, spi_ctx_tmpl, KCF_SWFP_RHNDL(crq));
 	KCF_PROV_INCRSTATS(pd, error);
 
-	if (error != CRYPTO_SUCCESS && error != CRYPTO_QUEUED &&
-	    IS_RECOVERABLE(error)) {
+	if (error != CRYPTO_SUCCESS && IS_RECOVERABLE(error)) {
 		/* Add pd to the linked list of providers tried. */
 		if (kcf_insert_triedlist(&list, pd, KCF_KMFLAG(crq)) != NULL)
 			goto retry;
@@ -188,7 +185,7 @@ crypto_mac_init_prov(crypto_provider_t provider,
 	    KCF_SWFP_RHNDL(crq));
 	KCF_PROV_INCRSTATS(pd, rv);
 
-	if ((rv == CRYPTO_SUCCESS) || (rv == CRYPTO_QUEUED))
+	if (rv == CRYPTO_SUCCESS)
 		*ctxp = (crypto_context_t)ctx;
 	else {
 		/* Release the hold done in kcf_new_ctx(). */
@@ -236,8 +233,7 @@ retry:
 
 	error = crypto_mac_init_prov(pd, mech, key,
 	    spi_ctx_tmpl, ctxp, crq);
-	if (error != CRYPTO_SUCCESS && error != CRYPTO_QUEUED &&
-	    IS_RECOVERABLE(error)) {
+	if (error != CRYPTO_SUCCESS && IS_RECOVERABLE(error)) {
 		/* Add pd to the linked list of providers tried. */
 		if (kcf_insert_triedlist(&list, pd, KCF_KMFLAG(crq)) != NULL)
 			goto retry;
