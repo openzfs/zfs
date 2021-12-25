@@ -146,8 +146,6 @@ kcf_destroy_mech_tabs(void)
 	for (class = KCF_FIRST_OPSCLASS; class <= KCF_LAST_OPSCLASS; class++) {
 		max = kcf_mech_tabs_tab[class].met_size;
 		me_tab = kcf_mech_tabs_tab[class].met_tab;
-		for (i = 0; i < max; i++)
-			mutex_destroy(&(me_tab[i].me_mutex));
 	}
 }
 
@@ -176,8 +174,6 @@ kcf_init_mech_tabs(void)
 		int max = kcf_mech_tabs_tab[class].met_size;
 		me_tab = kcf_mech_tabs_tab[class].met_tab;
 		for (int i = 0; i < max; i++) {
-			mutex_init(&(me_tab[i].me_mutex), NULL,
-			    MUTEX_DEFAULT, NULL);
 			if (me_tab[i].me_name[0] != 0) {
 				me_tab[i].me_mechid = KCF_MECHID(class, i);
 				(void) mod_hash_insert(kcf_mech_hash,
@@ -242,7 +238,6 @@ kcf_create_mech_entry(kcf_ops_class_t class, const char *mechname)
 	size = kcf_mech_tabs_tab[class].met_size;
 
 	while (i < size) {
-		mutex_enter(&(me_tab[i].me_mutex));
 		if (me_tab[i].me_name[0] == 0) {
 			/* Found an empty spot */
 			(void) strlcpy(me_tab[i].me_name, mechname,
@@ -250,14 +245,12 @@ kcf_create_mech_entry(kcf_ops_class_t class, const char *mechname)
 			me_tab[i].me_name[CRYPTO_MAX_MECH_NAME-1] = '\0';
 			me_tab[i].me_mechid = KCF_MECHID(class, i);
 
-			mutex_exit(&(me_tab[i].me_mutex));
 			/* Add the new mechanism to the hash table */
 			(void) mod_hash_insert(kcf_mech_hash,
 			    (mod_hash_key_t)me_tab[i].me_name,
 			    (mod_hash_val_t)&(me_tab[i].me_mechid));
 			break;
 		}
-		mutex_exit(&(me_tab[i].me_mutex));
 		i++;
 	}
 
@@ -353,7 +346,6 @@ kcf_add_mech_provider(short mech_indx,
 	 * Add new kcf_prov_mech_desc at the front of HW providers
 	 * chain.
 	 */
-	mutex_enter(&mech_entry->me_mutex);
 	if (mech_entry->me_sw_prov != NULL) {
 		/*
 		 * There is already a provider for this mechanism.
@@ -377,7 +369,6 @@ kcf_add_mech_provider(short mech_indx,
 		 */
 		mech_entry->me_sw_prov = prov_mech;
 	}
-	mutex_exit(&mech_entry->me_mutex);
 
 	*pmdpp = prov_mech;
 
@@ -425,16 +416,13 @@ kcf_remove_mech_provider(const char *mech_name, kcf_provider_desc_t *prov_desc)
 		return;
 	}
 
-	mutex_enter(&mech_entry->me_mutex);
 	if (mech_entry->me_sw_prov == NULL ||
 	    mech_entry->me_sw_prov->pm_prov_desc != prov_desc) {
 		/* not the provider for this mechanism */
-		mutex_exit(&mech_entry->me_mutex);
 		return;
 	}
 	prov_mech = mech_entry->me_sw_prov;
 	mech_entry->me_sw_prov = NULL;
-	mutex_exit(&mech_entry->me_mutex);
 
 	/* free entry  */
 	KCF_PROV_REFRELE(prov_mech->pm_prov_desc);
