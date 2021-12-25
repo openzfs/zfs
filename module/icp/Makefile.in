@@ -26,7 +26,6 @@ $(MODULE)-objs += spi/kcf_spi.o
 $(MODULE)-objs += io/aes.o
 $(MODULE)-objs += io/sha2_mod.o
 $(MODULE)-objs += io/skein_mod.o
-$(MODULE)-objs += os/modhash.o
 $(MODULE)-objs += algs/modes/cbc.o
 $(MODULE)-objs += algs/modes/ccm.o
 $(MODULE)-objs += algs/modes/ctr.o

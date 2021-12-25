@@ -51,7 +51,6 @@ KERNEL_C = \
 	io/aes.c \
 	io/sha2_mod.c \
 	io/skein_mod.c \
-	os/modhash.c \
 	core/kcf_sched.c \
 	core/kcf_prov_lib.c \
 	core/kcf_callprov.c \
