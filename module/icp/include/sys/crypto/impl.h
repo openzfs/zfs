@@ -246,10 +246,6 @@ typedef	struct kcf_mech_entry {
 	crypto_mech_type_t	me_mechid;	/* Internal id for mechanism */
 	kmutex_t		me_mutex;	/* access protection	*/
 	kcf_prov_mech_desc_t	*me_sw_prov;    /* provider */
-	/*
-	 *  threshold for using hardware providers for this mech
-	 */
-	size_t			me_threshold;
 } kcf_mech_entry_t;
 
 /*

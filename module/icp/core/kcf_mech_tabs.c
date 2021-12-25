@@ -82,9 +82,27 @@
 
 /* RFE 4687834 Will deal with the extensibility of these tables later */
 
-static kcf_mech_entry_t kcf_digest_mechs_tab[KCF_MAXDIGEST];
-static kcf_mech_entry_t kcf_cipher_mechs_tab[KCF_MAXCIPHER];
-static kcf_mech_entry_t kcf_mac_mechs_tab[KCF_MAXMAC];
+static kcf_mech_entry_t kcf_digest_mechs_tab[KCF_MAXDIGEST] = {
+	{ SUN_CKM_MD5 },
+	{ SUN_CKM_SHA1 },
+};
+static kcf_mech_entry_t kcf_cipher_mechs_tab[KCF_MAXCIPHER] = {
+	{ SUN_CKM_DES_CBC },
+	{ SUN_CKM_DES3_CBC },
+	{ SUN_CKM_DES_ECB },
+	{ SUN_CKM_DES3_ECB },
+	{ SUN_CKM_BLOWFISH_CBC },
+	{ SUN_CKM_BLOWFISH_ECB },
+	{ SUN_CKM_AES_CBC },
+	{ SUN_CKM_AES_ECB },
+	{ SUN_CKM_RC4 },
+};
+static kcf_mech_entry_t kcf_mac_mechs_tab[KCF_MAXMAC] = {
+	{ SUN_CKM_MD5_HMAC },
+	{ SUN_CKM_MD5_HMAC_GENERAL },
+	{ SUN_CKM_SHA1_HMAC },
+	{ SUN_CKM_SHA1_HMAC_GENERAL },
+};
 
 const kcf_mech_entry_tab_t kcf_mech_tabs_tab[KCF_LAST_OPSCLASS + 1] = {
 	{0, NULL},				/* No class zero */
@@ -92,23 +110,6 @@ const kcf_mech_entry_tab_t kcf_mech_tabs_tab[KCF_LAST_OPSCLASS + 1] = {
 	{KCF_MAXCIPHER, kcf_cipher_mechs_tab},
 	{KCF_MAXMAC, kcf_mac_mechs_tab},
 };
-
-/*
- * Per-algorithm internal thresholds for the minimum input size of before
- * offloading to hardware provider.
- * Dispatching a crypto operation  to a hardware provider entails paying the
- * cost of an additional context switch.  Measurements with Sun Accelerator 4000
- * shows that 512-byte jobs or smaller are better handled in software.
- * There is room for refinement here.
- *
- */
-static const int kcf_md5_threshold = 512;
-static const int kcf_sha1_threshold = 512;
-static const int kcf_des_threshold = 512;
-static const int kcf_des3_threshold = 512;
-static const int kcf_aes_threshold = 512;
-static const int kcf_bf_threshold = 512;
-static const int kcf_rc4_threshold = 512;
 
 static kmutex_t kcf_mech_tabs_lock;
 
@@ -167,71 +168,6 @@ kcf_init_mech_tabs(void)
 	mutex_init(&kcf_mech_tabs_lock, NULL, MUTEX_DEFAULT, NULL);
 
 	/* Then the pre-defined mechanism entries */
-
-	/* Two digests */
-	(void) strncpy(kcf_digest_mechs_tab[0].me_name, SUN_CKM_MD5,
-	    CRYPTO_MAX_MECH_NAME);
-	kcf_digest_mechs_tab[0].me_threshold = kcf_md5_threshold;
-
-	(void) strncpy(kcf_digest_mechs_tab[1].me_name, SUN_CKM_SHA1,
-	    CRYPTO_MAX_MECH_NAME);
-	kcf_digest_mechs_tab[1].me_threshold = kcf_sha1_threshold;
-
-	/* The symmetric ciphers in various modes */
-	(void) strncpy(kcf_cipher_mechs_tab[0].me_name, SUN_CKM_DES_CBC,
-	    CRYPTO_MAX_MECH_NAME);
-	kcf_cipher_mechs_tab[0].me_threshold = kcf_des_threshold;
-
-	(void) strncpy(kcf_cipher_mechs_tab[1].me_name, SUN_CKM_DES3_CBC,
-	    CRYPTO_MAX_MECH_NAME);
-	kcf_cipher_mechs_tab[1].me_threshold = kcf_des3_threshold;
-
-	(void) strncpy(kcf_cipher_mechs_tab[2].me_name, SUN_CKM_DES_ECB,
-	    CRYPTO_MAX_MECH_NAME);
-	kcf_cipher_mechs_tab[2].me_threshold = kcf_des_threshold;
-
-	(void) strncpy(kcf_cipher_mechs_tab[3].me_name, SUN_CKM_DES3_ECB,
-	    CRYPTO_MAX_MECH_NAME);
-	kcf_cipher_mechs_tab[3].me_threshold = kcf_des3_threshold;
-
-	(void) strncpy(kcf_cipher_mechs_tab[4].me_name, SUN_CKM_BLOWFISH_CBC,
-	    CRYPTO_MAX_MECH_NAME);
-	kcf_cipher_mechs_tab[4].me_threshold = kcf_bf_threshold;
-
-	(void) strncpy(kcf_cipher_mechs_tab[5].me_name, SUN_CKM_BLOWFISH_ECB,
-	    CRYPTO_MAX_MECH_NAME);
-	kcf_cipher_mechs_tab[5].me_threshold = kcf_bf_threshold;
-
-	(void) strncpy(kcf_cipher_mechs_tab[6].me_name, SUN_CKM_AES_CBC,
-	    CRYPTO_MAX_MECH_NAME);
-	kcf_cipher_mechs_tab[6].me_threshold = kcf_aes_threshold;
-
-	(void) strncpy(kcf_cipher_mechs_tab[7].me_name, SUN_CKM_AES_ECB,
-	    CRYPTO_MAX_MECH_NAME);
-	kcf_cipher_mechs_tab[7].me_threshold = kcf_aes_threshold;
-
-	(void) strncpy(kcf_cipher_mechs_tab[8].me_name, SUN_CKM_RC4,
-	    CRYPTO_MAX_MECH_NAME);
-	kcf_cipher_mechs_tab[8].me_threshold = kcf_rc4_threshold;
-
-
-	/* 4 HMACs */
-	(void) strncpy(kcf_mac_mechs_tab[0].me_name, SUN_CKM_MD5_HMAC,
-	    CRYPTO_MAX_MECH_NAME);
-	kcf_mac_mechs_tab[0].me_threshold = kcf_md5_threshold;
-
-	(void) strncpy(kcf_mac_mechs_tab[1].me_name, SUN_CKM_MD5_HMAC_GENERAL,
-	    CRYPTO_MAX_MECH_NAME);
-	kcf_mac_mechs_tab[1].me_threshold = kcf_md5_threshold;
-
-	(void) strncpy(kcf_mac_mechs_tab[2].me_name, SUN_CKM_SHA1_HMAC,
-	    CRYPTO_MAX_MECH_NAME);
-	kcf_mac_mechs_tab[2].me_threshold = kcf_sha1_threshold;
-
-	(void) strncpy(kcf_mac_mechs_tab[3].me_name, SUN_CKM_SHA1_HMAC_GENERAL,
-	    CRYPTO_MAX_MECH_NAME);
-	kcf_mac_mechs_tab[3].me_threshold = kcf_sha1_threshold;
-
 
 	kcf_mech_hash = mod_hash_create_strhash_nodtr("kcf mech2id hash",
 	    kcf_mech_hash_size, mod_hash_null_valdtor);
@@ -313,11 +249,6 @@ kcf_create_mech_entry(kcf_ops_class_t class, const char *mechname)
 			    CRYPTO_MAX_MECH_NAME);
 			me_tab[i].me_name[CRYPTO_MAX_MECH_NAME-1] = '\0';
 			me_tab[i].me_mechid = KCF_MECHID(class, i);
-			/*
-			 * No a-priori information about the new mechanism, so
-			 * the threshold is set to zero.
-			 */
-			me_tab[i].me_threshold = 0;
 
 			mutex_exit(&(me_tab[i].me_mutex));
 			/* Add the new mechanism to the hash table */
