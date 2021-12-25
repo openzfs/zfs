@@ -27,7 +27,6 @@
 #include <sys/crypto/common.h>
 #include <sys/crypto/api.h>
 #include <sys/crypto/impl.h>
-#include <sys/modhash.h>
 
 /* Cryptographic mechanisms tables and their access functions */
 
@@ -55,9 +54,6 @@
 /*
  * Locking conventions:
  * --------------------
- * A global mutex, kcf_mech_tabs_lock, serializes writes to the
- * mechanism table via kcf_create_mech_entry().
- *
  * A mutex is associated with every entry of the tables.
  * The mutex is acquired whenever the entry is accessed for
  * 1) retrieving the mech_id (comparing the mech name)
@@ -71,9 +67,6 @@
  * The number of providers for a particular mechanism is not expected to be
  * long enough to justify the cost of using rwlocks, so the per-mechanism
  * entry mutex won't be very *hot*.
- *
- * When both kcf_mech_tabs_lock and a mech_entry mutex need to be held,
- * kcf_mech_tabs_lock must always be acquired first.
  *
  */
 
@@ -111,42 +104,22 @@ const kcf_mech_entry_tab_t kcf_mech_tabs_tab[KCF_LAST_OPSCLASS + 1] = {
 	{KCF_MAXMAC, kcf_mac_mechs_tab},
 };
 
-static kmutex_t kcf_mech_tabs_lock;
+static avl_tree_t kcf_mech_hash;
 
-static const int kcf_mech_hash_size = 256;
-static mod_hash_t *kcf_mech_hash;	/* mech name to id hash */
-
-static crypto_mech_type_t
-kcf_mech_hash_find(const char *mechname)
+static int
+kcf_mech_hash_compar(const void *lhs, const void *rhs)
 {
-	mod_hash_val_t hv;
-	crypto_mech_type_t mt;
-
-	mt = CRYPTO_MECH_INVALID;
-	if (mod_hash_find(kcf_mech_hash, (mod_hash_key_t)mechname, &hv) == 0) {
-		mt = *(crypto_mech_type_t *)hv;
-		ASSERT(mt != CRYPTO_MECH_INVALID);
-	}
-
-	return (mt);
+	const kcf_mech_entry_t *l = lhs, *r = rhs;
+	int cmp = strncmp(l->me_name, r->me_name, CRYPTO_MAX_MECH_NAME);
+	return ((0 < cmp) - (cmp < 0));
 }
 
 void
 kcf_destroy_mech_tabs(void)
 {
-	int i, max;
-	kcf_ops_class_t class;
-	kcf_mech_entry_t *me_tab;
-
-	if (kcf_mech_hash)
-		mod_hash_destroy_hash(kcf_mech_hash);
-
-	mutex_destroy(&kcf_mech_tabs_lock);
-
-	for (class = KCF_FIRST_OPSCLASS; class <= KCF_LAST_OPSCLASS; class++) {
-		max = kcf_mech_tabs_tab[class].met_size;
-		me_tab = kcf_mech_tabs_tab[class].met_tab;
-	}
+	for (void *cookie = NULL; avl_destroy_nodes(&kcf_mech_hash, &cookie); )
+		;
+	avl_destroy(&kcf_mech_hash);
 }
 
 /*
@@ -161,14 +134,9 @@ kcf_init_mech_tabs(void)
 	kcf_ops_class_t class;
 	kcf_mech_entry_t *me_tab;
 
-	/* Initializes the mutex locks. */
-
-	mutex_init(&kcf_mech_tabs_lock, NULL, MUTEX_DEFAULT, NULL);
-
 	/* Then the pre-defined mechanism entries */
-
-	kcf_mech_hash = mod_hash_create_strhash_nodtr("kcf mech2id hash",
-	    kcf_mech_hash_size, mod_hash_null_valdtor);
+	avl_create(&kcf_mech_hash, kcf_mech_hash_compar,
+	    sizeof (kcf_mech_entry_t), offsetof(kcf_mech_entry_t, me_node));
 
 	for (class = KCF_FIRST_OPSCLASS; class <= KCF_LAST_OPSCLASS; class++) {
 		int max = kcf_mech_tabs_tab[class].met_size;
@@ -176,9 +144,7 @@ kcf_init_mech_tabs(void)
 		for (int i = 0; i < max; i++) {
 			if (me_tab[i].me_name[0] != 0) {
 				me_tab[i].me_mechid = KCF_MECHID(class, i);
-				(void) mod_hash_insert(kcf_mech_hash,
-				    (mod_hash_key_t)me_tab[i].me_name,
-				    (mod_hash_val_t)&(me_tab[i].me_mechid));
+				avl_add(&kcf_mech_hash, &me_tab[i]);
 			}
 		}
 	}
@@ -213,10 +179,6 @@ kcf_init_mech_tabs(void)
 static int
 kcf_create_mech_entry(kcf_ops_class_t class, const char *mechname)
 {
-	crypto_mech_type_t mt;
-	kcf_mech_entry_t *me_tab;
-	int i = 0, size;
-
 	if ((class < KCF_FIRST_OPSCLASS) || (class > KCF_LAST_OPSCLASS))
 		return (KCF_INVALID_MECH_CLASS);
 
@@ -226,41 +188,28 @@ kcf_create_mech_entry(kcf_ops_class_t class, const char *mechname)
 	 * First check if the mechanism is already in one of the tables.
 	 * The mech_entry could be in another class.
 	 */
-	mutex_enter(&kcf_mech_tabs_lock);
-	mt = kcf_mech_hash_find(mechname);
-	if (mt != CRYPTO_MECH_INVALID) {
-		/* Nothing to do, regardless the suggested class. */
-		mutex_exit(&kcf_mech_tabs_lock);
+	avl_index_t where = 0;
+	kcf_mech_entry_t tmptab;
+	strlcpy(tmptab.me_name, mechname, CRYPTO_MAX_MECH_NAME);
+	if (avl_find(&kcf_mech_hash, &tmptab, &where) != NULL)
 		return (KCF_SUCCESS);
-	}
 	/* Now take the next unused mech entry in the class's tab */
-	me_tab = kcf_mech_tabs_tab[class].met_tab;
-	size = kcf_mech_tabs_tab[class].met_size;
+	kcf_mech_entry_t *me_tab = kcf_mech_tabs_tab[class].met_tab;
+	int size = kcf_mech_tabs_tab[class].met_size;
 
-	while (i < size) {
+	for (int i = 0; i < size; ++i)
 		if (me_tab[i].me_name[0] == 0) {
 			/* Found an empty spot */
-			(void) strlcpy(me_tab[i].me_name, mechname,
+			strlcpy(me_tab[i].me_name, mechname,
 			    CRYPTO_MAX_MECH_NAME);
-			me_tab[i].me_name[CRYPTO_MAX_MECH_NAME-1] = '\0';
 			me_tab[i].me_mechid = KCF_MECHID(class, i);
 
 			/* Add the new mechanism to the hash table */
-			(void) mod_hash_insert(kcf_mech_hash,
-			    (mod_hash_key_t)me_tab[i].me_name,
-			    (mod_hash_val_t)&(me_tab[i].me_mechid));
-			break;
+			avl_insert(&kcf_mech_hash, &me_tab[i], where);
+			return (KCF_SUCCESS);
 		}
-		i++;
-	}
 
-	mutex_exit(&kcf_mech_tabs_lock);
-
-	if (i == size) {
-		return (KCF_MECH_TAB_FULL);
-	}
-
-	return (KCF_SUCCESS);
+	return (KCF_MECH_TAB_FULL);
 }
 
 /*
@@ -299,7 +248,7 @@ kcf_add_mech_provider(short mech_indx,
 	 * Find the class corresponding to the function group flag of
 	 * the mechanism.
 	 */
-	kcf_mech_type = kcf_mech_hash_find(mech_info->cm_mech_name);
+	kcf_mech_type = crypto_mech2id(mech_info->cm_mech_name);
 	if (kcf_mech_type == CRYPTO_MECH_INVALID) {
 		crypto_func_group_t fg = mech_info->cm_func_group_mask;
 		kcf_ops_class_t class;
@@ -325,7 +274,7 @@ kcf_add_mech_provider(short mech_indx,
 			return (error);
 		}
 		/* get the KCF mech type that was assigned to the mechanism */
-		kcf_mech_type = kcf_mech_hash_find(mech_info->cm_mech_name);
+		kcf_mech_type = crypto_mech2id(mech_info->cm_mech_name);
 		ASSERT(kcf_mech_type != CRYPTO_MECH_INVALID);
 	}
 
@@ -398,7 +347,7 @@ kcf_remove_mech_provider(const char *mech_name, kcf_provider_desc_t *prov_desc)
 	kcf_mech_entry_t *mech_entry;
 
 	/* get the KCF mech type that was assigned to the mechanism */
-	if ((mech_type = kcf_mech_hash_find(mech_name)) ==
+	if ((mech_type = crypto_mech2id(mech_name)) ==
 	    CRYPTO_MECH_INVALID) {
 		/*
 		 * Provider was not allowed for this mech due to policy or
@@ -484,9 +433,7 @@ kcf_get_mech_entry(crypto_mech_type_t mech_type, kcf_mech_entry_t **mep)
  * Description:
  *	Walks the mechanisms tables, looking for an entry that matches the
  *	mechname. Once it find it, it builds the 64-bit mech_type and returns
- *	it.  If there are no providers for the mechanism,
- *	but there is an unloaded provider, this routine will attempt
- *	to load it.
+ *	it.
  *
  * Context:
  *	Process and interruption.
@@ -504,7 +451,15 @@ kcf_get_mech_entry(crypto_mech_type_t mech_type, kcf_mech_entry_t **mep)
 crypto_mech_type_t
 crypto_mech2id(const char *mechname)
 {
-	return (kcf_mech_hash_find(mechname));
+	kcf_mech_entry_t tmptab, *found;
+	strlcpy(tmptab.me_name, mechname, CRYPTO_MAX_MECH_NAME);
+
+	if ((found = avl_find(&kcf_mech_hash, &tmptab, NULL))) {
+		ASSERT(found->me_mechid != CRYPTO_MECH_INVALID);
+		return (found->me_mechid);
+	}
+
+	return (CRYPTO_MECH_INVALID);
 }
 
 #if defined(_KERNEL)

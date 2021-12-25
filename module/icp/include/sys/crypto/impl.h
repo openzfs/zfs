@@ -34,6 +34,7 @@
 #include <sys/crypto/common.h>
 #include <sys/crypto/api.h>
 #include <sys/crypto/spi.h>
+#include <sys/avl.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -245,6 +246,7 @@ typedef	struct kcf_mech_entry {
 	crypto_mech_name_t	me_name;	/* mechanism name */
 	crypto_mech_type_t	me_mechid;	/* Internal id for mechanism */
 	kcf_prov_mech_desc_t	*me_sw_prov;    /* provider */
+	avl_node_t	me_node;
 } kcf_mech_entry_t;
 
 /*
@@ -300,7 +302,7 @@ extern const kcf_mech_entry_tab_t kcf_mech_tabs_tab[];
 
 #define	KCF_MECH2CLASS(mech_type) ((kcf_ops_class_t)((mech_type) >> 32))
 
-#define	KCF_MECH2INDEX(mech_type) ((int)(mech_type))
+#define	KCF_MECH2INDEX(mech_type) ((int)((mech_type) & 0xFFFFFFFF))
 
 #define	KCF_TO_PROV_MECH_INDX(pd, mech_type) 			\
 	((pd)->pd_mech_indx[KCF_MECH2CLASS(mech_type)] 		\

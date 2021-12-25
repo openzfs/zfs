@@ -36,7 +36,6 @@
 #include <sys/crypto/api.h>
 #include <sys/crypto/impl.h>
 #include <sys/crypto/sched_impl.h>
-#include <sys/modhash_impl.h>
 #include <sys/crypto/icp.h>
 
 /*
@@ -114,16 +113,12 @@ icp_fini(void)
 	kcf_sched_destroy();
 	kcf_prov_tab_destroy();
 	kcf_destroy_mech_tabs();
-	mod_hash_fini();
 }
 
 /* roughly equivalent to kcf.c: _init() */
 int __init
 icp_init(void)
 {
-	/* initialize the mod hash module */
-	mod_hash_init();
-
 	/* initialize the mechanisms tables supported out-of-the-box */
 	kcf_init_mech_tabs();
 
