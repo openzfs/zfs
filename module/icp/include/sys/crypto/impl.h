@@ -314,10 +314,6 @@ extern const kcf_mech_entry_tab_t kcf_mech_tabs_tab[];
 #define	KCF_TO_PROV_MECHNUM(pd, mech_type)			\
 	(KCF_TO_PROV_MECHINFO(pd, mech_type).cm_mech_number)
 
-#define	KCF_CAN_SHARE_OPSTATE(pd, mech_type)			\
-	((KCF_TO_PROV_MECHINFO(pd, mech_type).cm_mech_flags) &	\
-	CRYPTO_CAN_SHARE_OPSTATE)
-
 /* ps_refcnt is protected by cm_lock in the crypto_minor structure */
 typedef struct crypto_provider_session {
 	struct crypto_provider_session *ps_next;

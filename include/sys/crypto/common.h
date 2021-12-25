@@ -51,16 +51,6 @@ typedef struct crypto_mechanism {
 	size_t			cm_param_len;	/* mech. parameter len */
 } crypto_mechanism_t;
 
-#ifdef  _SYSCALL32
-
-typedef struct crypto_mechanism32 {
-	crypto_mech_type_t	cm_type;	/* mechanism type */
-	caddr32_t		cm_param;	/* mech. parameter */
-	size32_t		cm_param_len;   /* mech. parameter len */
-} crypto_mechanism32_t;
-
-#endif  /* _SYSCALL32 */
-
 /* CK_AES_CTR_PARAMS provides parameters to the CKM_AES_CTR mechanism */
 typedef struct CK_AES_CTR_PARAMS {
 	ulong_t	ulCounterBits;
@@ -95,63 +85,6 @@ typedef struct CK_AES_GMAC_PARAMS {
 } CK_AES_GMAC_PARAMS;
 
 /*
- * CK_ECDH1_DERIVE_PARAMS provides the parameters to the
- * CKM_ECDH1_KEY_DERIVE mechanism
- */
-typedef struct CK_ECDH1_DERIVE_PARAMS {
-	ulong_t		kdf;
-	ulong_t		ulSharedDataLen;
-	uchar_t		*pSharedData;
-	ulong_t		ulPublicDataLen;
-	uchar_t		*pPublicData;
-} CK_ECDH1_DERIVE_PARAMS;
-
-#ifdef  _SYSCALL32
-
-/* needed for 32-bit applications running on 64-bit kernels */
-typedef struct CK_AES_CTR_PARAMS32 {
-	uint32_t ulCounterBits;
-	uint8_t cb[16];
-} CK_AES_CTR_PARAMS32;
-
-/* needed for 32-bit applications running on 64-bit kernels */
-typedef struct CK_AES_CCM_PARAMS32 {
-	uint32_t ulMACSize;
-	uint32_t ulNonceSize;
-	uint32_t ulAuthDataSize;
-	uint32_t ulDataSize;
-	caddr32_t nonce;
-	caddr32_t authData;
-} CK_AES_CCM_PARAMS32;
-
-/* needed for 32-bit applications running on 64-bit kernels */
-typedef struct CK_AES_GCM_PARAMS32 {
-	caddr32_t pIv;
-	uint32_t ulIvLen;
-	uint32_t ulIvBits;
-	caddr32_t pAAD;
-	uint32_t ulAADLen;
-	uint32_t ulTagBits;
-} CK_AES_GCM_PARAMS32;
-
-/* needed for 32-bit applications running on 64-bit kernels */
-typedef struct CK_AES_GMAC_PARAMS32 {
-	caddr32_t pIv;
-	caddr32_t pAAD;
-	uint32_t ulAADLen;
-} CK_AES_GMAC_PARAMS32;
-
-typedef struct CK_ECDH1_DERIVE_PARAMS32 {
-	uint32_t	kdf;
-	uint32_t	ulSharedDataLen;
-	caddr32_t	pSharedData;
-	uint32_t	ulPublicDataLen;
-	caddr32_t	pPublicData;
-} CK_ECDH1_DERIVE_PARAMS32;
-
-#endif  /* _SYSCALL32 */
-
-/*
  * The measurement unit bit flag for a mechanism's minimum or maximum key size.
  * The unit are mechanism dependent.  It can be in bits or in bytes.
  */
@@ -166,7 +99,6 @@ typedef uint32_t crypto_keysize_unit_t;
  */
 #define	CRYPTO_KEYSIZE_UNIT_IN_BITS	0x00000001
 #define	CRYPTO_KEYSIZE_UNIT_IN_BYTES	0x00000002
-#define	CRYPTO_CAN_SHARE_OPSTATE	0x00000004 /* supports sharing */
 
 
 /* Mechanisms supported out-of-the-box */
