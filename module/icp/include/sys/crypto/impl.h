@@ -244,7 +244,6 @@ typedef struct kcf_prov_mech_desc {
 typedef	struct kcf_mech_entry {
 	crypto_mech_name_t	me_name;	/* mechanism name */
 	crypto_mech_type_t	me_mechid;	/* Internal id for mechanism */
-	kmutex_t		me_mutex;	/* access protection	*/
 	kcf_prov_mech_desc_t	*me_sw_prov;    /* provider */
 } kcf_mech_entry_t;
 

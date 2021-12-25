@@ -107,8 +107,6 @@ kcf_get_mech_provider(crypto_mech_type_t mech_type, kcf_mech_entry_t **mepp,
 	if (mepp != NULL)
 		*mepp = me;
 
-	mutex_enter(&me->me_mutex);
-
 	/* Is there a provider? */
 	if (pd == NULL && (mdesc = me->me_sw_prov) != NULL) {
 		pd = mdesc->pm_prov_desc;
@@ -130,6 +128,5 @@ kcf_get_mech_provider(crypto_mech_type_t mech_type, kcf_mech_entry_t **mepp,
 	} else
 		KCF_PROV_REFHOLD(pd);
 
-	mutex_exit(&me->me_mutex);
 	return (pd);
 }

@@ -290,24 +290,17 @@ kcf_get_sw_prov(crypto_mech_type_t mech_type, kcf_provider_desc_t **pd,
 	if (kcf_get_mech_entry(mech_type, &me) != KCF_SUCCESS)
 		return (CRYPTO_MECHANISM_INVALID);
 
-	/*
-	 * Get the provider for this mechanism.
-	 * Lock the mech_entry until we grab the 'pd'.
-	 */
-	mutex_enter(&me->me_mutex);
-
+	/* Get the provider for this mechanism. */
 	if (me->me_sw_prov == NULL ||
 	    (*pd = me->me_sw_prov->pm_prov_desc) == NULL) {
 		/* no provider for this mechanism */
 		if (log_warn)
 			cmn_err(CE_WARN, "no provider for \"%s\"\n",
 			    me->me_name);
-		mutex_exit(&me->me_mutex);
 		return (CRYPTO_MECH_NOT_SUPPORTED);
 	}
 
 	KCF_PROV_REFHOLD(*pd);
-	mutex_exit(&me->me_mutex);
 
 	if (mep != NULL)
 		*mep = me;
