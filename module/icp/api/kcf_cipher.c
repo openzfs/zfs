@@ -98,8 +98,7 @@ retry:
 	    plaintext, ciphertext, spi_ctx_tmpl, KCF_SWFP_RHNDL(crq));
 	KCF_PROV_INCRSTATS(pd, error);
 
-	if (error != CRYPTO_SUCCESS && error != CRYPTO_QUEUED &&
-	    IS_RECOVERABLE(error)) {
+	if (error != CRYPTO_SUCCESS && IS_RECOVERABLE(error)) {
 		/* Add pd to the linked list of providers tried. */
 		if (kcf_insert_triedlist(&list, pd, KCF_KMFLAG(crq)) != NULL)
 			goto retry;
@@ -177,8 +176,7 @@ retry:
 	    ciphertext, plaintext, spi_ctx_tmpl, KCF_SWFP_RHNDL(crq));
 	KCF_PROV_INCRSTATS(pd, error);
 
-	if (error != CRYPTO_SUCCESS && error != CRYPTO_QUEUED &&
-	    IS_RECOVERABLE(error)) {
+	if (error != CRYPTO_SUCCESS && IS_RECOVERABLE(error)) {
 		/* Add pd to the linked list of providers tried. */
 		if (kcf_insert_triedlist(&list, pd, KCF_KMFLAG(crq)) != NULL)
 			goto retry;

@@ -87,7 +87,7 @@ typedef struct kcf_sched_info {
 	(pd)->pd_sched_info.ks_ndispatches++;				\
 	if (error == CRYPTO_BUSY)					\
 		(pd)->pd_sched_info.ks_nbusy_rval++;			\
-	else if (error != CRYPTO_SUCCESS && error != CRYPTO_QUEUED)	\
+	else if (error != CRYPTO_SUCCESS)	\
 		(pd)->pd_sched_info.ks_nfails++;			\
 }
 

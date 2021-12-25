@@ -75,12 +75,8 @@ typedef struct kcf_prov_tried {
 	(tlist != NULL && is_in_triedlist(pd, tlist))
 
 #define	IS_RECOVERABLE(error)			\
-	(error == CRYPTO_BUFFER_TOO_BIG ||	\
-	error == CRYPTO_BUSY ||			\
-	error == CRYPTO_DEVICE_ERROR ||		\
-	error == CRYPTO_DEVICE_MEMORY ||	\
-	error == CRYPTO_KEY_SIZE_RANGE ||	\
-	error == CRYPTO_NO_PERMISSION)
+	(error == CRYPTO_BUSY ||			\
+	error == CRYPTO_KEY_SIZE_RANGE)
 
 /*
  * Internal representation of a canonical context. We contain crypto_ctx_t
@@ -107,10 +103,9 @@ typedef struct kcf_context {
 }
 
 /*
- * Check if we can release the context now. In case of CRYPTO_QUEUED
- * we do not release it as we can do it only after the provider notified
- * us. In case of CRYPTO_BUSY, the client can retry the request using
- * the context, so we do not release the context.
+ * Check if we can release the context now. In case of CRYPTO_BUSY,
+ * the client can retry the request using the context,
+ * so we do not release the context.
  *
  * This macro should be called only from the final routine in
  * an init/update/final sequence. We do not release the context in case
@@ -128,8 +123,7 @@ typedef struct kcf_context {
  * This macro determines whether we're done with a context.
  */
 #define	KCF_CONTEXT_DONE(rv)					\
-	((rv) != CRYPTO_QUEUED && (rv) != CRYPTO_BUSY &&	\
-	    (rv) != CRYPTO_BUFFER_TOO_SMALL)
+	((rv) != CRYPTO_BUSY &&	(rv) != CRYPTO_BUFFER_TOO_SMALL)
 
 /*
  * A crypto_ctx_template_t is internally a pointer to this struct
