@@ -52,7 +52,6 @@
  *	tmpl:	a crypto_ctx_template_t, opaque template of a context of an
  *		encryption with the 'mech' using 'key'. 'tmpl' is created by
  *		a previous call to crypto_create_ctx_template().
- *	cr:	crypto_call_req_t calling conditions and call back info.
  *
  * Description:
  *	Asynchronously submits a request for, or synchronously performs a
@@ -62,16 +61,12 @@
  *	message.
  *	Relies on the KCF scheduler to pick a provider.
  *
- * Context:
- *	Process or interrupt, according to the semantics dictated by the 'cr'.
- *
  * Returns:
  *	See comment in the beginning of the file.
  */
 int
 crypto_encrypt(crypto_mechanism_t *mech, crypto_data_t *plaintext,
-    crypto_key_t *key, crypto_ctx_template_t tmpl, crypto_data_t *ciphertext,
-    crypto_call_req_t *crq)
+    crypto_key_t *key, crypto_ctx_template_t tmpl, crypto_data_t *ciphertext)
 {
 	int error;
 	kcf_mech_entry_t *me;
@@ -95,12 +90,12 @@ retry:
 	crypto_mechanism_t lmech = *mech;
 	KCF_SET_PROVIDER_MECHNUM(mech->cm_type, pd, &lmech);
 	error = KCF_PROV_ENCRYPT_ATOMIC(pd, pd->pd_sid, &lmech, key,
-	    plaintext, ciphertext, spi_ctx_tmpl, KCF_SWFP_RHNDL(crq));
+	    plaintext, ciphertext, spi_ctx_tmpl);
 	KCF_PROV_INCRSTATS(pd, error);
 
 	if (error != CRYPTO_SUCCESS && IS_RECOVERABLE(error)) {
 		/* Add pd to the linked list of providers tried. */
-		if (kcf_insert_triedlist(&list, pd, KCF_KMFLAG(crq)) != NULL)
+		if (kcf_insert_triedlist(&list, pd, KM_SLEEP) != NULL)
 			goto retry;
 	}
 
@@ -129,7 +124,6 @@ retry:
  *	tmpl:	a crypto_ctx_template_t, opaque template of a context of an
  *		encryption with the 'mech' using 'key'. 'tmpl' is created by
  *		a previous call to crypto_create_ctx_template().
- *	cr:	crypto_call_req_t calling conditions and call back info.
  *
  * Description:
  *	Asynchronously submits a request for, or synchronously performs a
@@ -139,16 +133,12 @@ retry:
  *	message.
  *	Relies on the KCF scheduler to choose a provider.
  *
- * Context:
- *	Process or interrupt, according to the semantics dictated by the 'cr'.
- *
  * Returns:
  *	See comment in the beginning of the file.
  */
 int
 crypto_decrypt(crypto_mechanism_t *mech, crypto_data_t *ciphertext,
-    crypto_key_t *key, crypto_ctx_template_t tmpl, crypto_data_t *plaintext,
-    crypto_call_req_t *crq)
+    crypto_key_t *key, crypto_ctx_template_t tmpl, crypto_data_t *plaintext)
 {
 	int error;
 	kcf_mech_entry_t *me;
@@ -173,12 +163,12 @@ retry:
 	KCF_SET_PROVIDER_MECHNUM(mech->cm_type, pd, &lmech);
 
 	error = KCF_PROV_DECRYPT_ATOMIC(pd, pd->pd_sid, &lmech, key,
-	    ciphertext, plaintext, spi_ctx_tmpl, KCF_SWFP_RHNDL(crq));
+	    ciphertext, plaintext, spi_ctx_tmpl);
 	KCF_PROV_INCRSTATS(pd, error);
 
 	if (error != CRYPTO_SUCCESS && IS_RECOVERABLE(error)) {
 		/* Add pd to the linked list of providers tried. */
-		if (kcf_insert_triedlist(&list, pd, KCF_KMFLAG(crq)) != NULL)
+		if (kcf_insert_triedlist(&list, pd, KM_SLEEP) != NULL)
 			goto retry;
 	}
 
