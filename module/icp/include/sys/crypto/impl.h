@@ -76,7 +76,7 @@ typedef struct kcf_sched_info {
  * other purposes, that base value is mostly same across all providers.
  * So, it is a good measure of the load on a provider when it is not
  * in a busy state. Once a provider notifies it is busy, requests
- * backup in the taskq. So, we use tq_nalloc in that case which gives
+ * back up in the taskq. So, we use tq_nalloc in that case which gives
  * the number of task entries in the task queue. Note that we do not
  * acquire any locks here as it is not critical to get the exact number
  * and the lock contention may be too costly for this code path.
@@ -387,76 +387,73 @@ typedef struct crypto_minor {
  * Wrappers for crypto_digest_ops(9S) entry points.
  */
 
-#define	KCF_PROV_DIGEST_INIT(pd, ctx, mech, req) ( \
+#define	KCF_PROV_DIGEST_INIT(pd, ctx, mech) ( \
 	(KCF_PROV_DIGEST_OPS(pd) && KCF_PROV_DIGEST_OPS(pd)->digest_init) ? \
-	KCF_PROV_DIGEST_OPS(pd)->digest_init(ctx, mech, req) : \
+	KCF_PROV_DIGEST_OPS(pd)->digest_init(ctx, mech) : \
 	CRYPTO_NOT_SUPPORTED)
 
 /*
  * Wrappers for crypto_cipher_ops(9S) entry points.
  */
 
-#define	KCF_PROV_ENCRYPT_INIT(pd, ctx, mech, key, template, req) ( \
+#define	KCF_PROV_ENCRYPT_INIT(pd, ctx, mech, key, template) ( \
 	(KCF_PROV_CIPHER_OPS(pd) && KCF_PROV_CIPHER_OPS(pd)->encrypt_init) ? \
-	KCF_PROV_CIPHER_OPS(pd)->encrypt_init(ctx, mech, key, template, \
-	    req) : \
+	KCF_PROV_CIPHER_OPS(pd)->encrypt_init(ctx, mech, key, template) : \
 	CRYPTO_NOT_SUPPORTED)
 
 #define	KCF_PROV_ENCRYPT_ATOMIC(pd, session, mech, key, plaintext, ciphertext, \
-	    template, req) ( \
+	    template) ( \
 	(KCF_PROV_CIPHER_OPS(pd) && KCF_PROV_CIPHER_OPS(pd)->encrypt_atomic) ? \
 	KCF_PROV_CIPHER_OPS(pd)->encrypt_atomic( \
 	    (pd)->pd_prov_handle, session, mech, key, plaintext, ciphertext, \
-	    template, req) : \
+	    template) : \
 	CRYPTO_NOT_SUPPORTED)
 
 #define	KCF_PROV_DECRYPT_ATOMIC(pd, session, mech, key, ciphertext, plaintext, \
-	    template, req) ( \
+	    template) ( \
 	(KCF_PROV_CIPHER_OPS(pd) && KCF_PROV_CIPHER_OPS(pd)->decrypt_atomic) ? \
 	KCF_PROV_CIPHER_OPS(pd)->decrypt_atomic( \
 	    (pd)->pd_prov_handle, session, mech, key, ciphertext, plaintext, \
-	    template, req) : \
+	    template) : \
 	CRYPTO_NOT_SUPPORTED)
 
 /*
  * Wrappers for crypto_mac_ops(9S) entry points.
  */
 
-#define	KCF_PROV_MAC_INIT(pd, ctx, mech, key, template, req) ( \
+#define	KCF_PROV_MAC_INIT(pd, ctx, mech, key, template) ( \
 	(KCF_PROV_MAC_OPS(pd) && KCF_PROV_MAC_OPS(pd)->mac_init) ? \
-	KCF_PROV_MAC_OPS(pd)->mac_init(ctx, mech, key, template, req) \
+	KCF_PROV_MAC_OPS(pd)->mac_init(ctx, mech, key, template) \
 	: CRYPTO_NOT_SUPPORTED)
 
 /*
  * The _ (underscore) in _mac is needed to avoid replacing the
  * function mac().
  */
-#define	KCF_PROV_MAC_UPDATE(pd, ctx, data, req) ( \
+#define	KCF_PROV_MAC_UPDATE(pd, ctx, data) ( \
 	(KCF_PROV_MAC_OPS(pd) && KCF_PROV_MAC_OPS(pd)->mac_update) ? \
-	KCF_PROV_MAC_OPS(pd)->mac_update(ctx, data, req) : \
+	KCF_PROV_MAC_OPS(pd)->mac_update(ctx, data) : \
 	CRYPTO_NOT_SUPPORTED)
 
-#define	KCF_PROV_MAC_FINAL(pd, ctx, mac, req) ( \
+#define	KCF_PROV_MAC_FINAL(pd, ctx, mac) ( \
 	(KCF_PROV_MAC_OPS(pd) && KCF_PROV_MAC_OPS(pd)->mac_final) ? \
-	KCF_PROV_MAC_OPS(pd)->mac_final(ctx, mac, req) : \
+	KCF_PROV_MAC_OPS(pd)->mac_final(ctx, mac) : \
 	CRYPTO_NOT_SUPPORTED)
 
-#define	KCF_PROV_MAC_ATOMIC(pd, session, mech, key, data, mac, template, \
-	    req) ( \
+#define	KCF_PROV_MAC_ATOMIC(pd, session, mech, key, data, mac, template) ( \
 	(KCF_PROV_MAC_OPS(pd) && KCF_PROV_MAC_OPS(pd)->mac_atomic) ? \
 	KCF_PROV_MAC_OPS(pd)->mac_atomic( \
-	    (pd)->pd_prov_handle, session, mech, key, data, mac, template, \
-	    req) : \
+	    (pd)->pd_prov_handle, session, mech, key, data, mac, template) : \
 	CRYPTO_NOT_SUPPORTED)
 
 /*
  * Wrappers for crypto_ctx_ops(9S) entry points.
  */
 
-#define	KCF_PROV_CREATE_CTX_TEMPLATE(pd, mech, key, template, size, req) ( \
+#define	KCF_PROV_CREATE_CTX_TEMPLATE(pd, mech, key, template, size) ( \
 	(KCF_PROV_CTX_OPS(pd) && KCF_PROV_CTX_OPS(pd)->create_ctx_template) ? \
 	KCF_PROV_CTX_OPS(pd)->create_ctx_template( \
-	    (pd)->pd_prov_handle, mech, key, template, size, req) : \
+	    (pd)->pd_prov_handle, mech, key, template, size) : \
 	CRYPTO_NOT_SUPPORTED)
 
 #define	KCF_PROV_FREE_CONTEXT(pd, ctx) ( \

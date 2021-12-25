@@ -37,19 +37,17 @@
 
 /* kmem caches used by the scheduler */
 static kmem_cache_t *kcf_context_cache;
-ulong_t kcf_swprov_hndl = 0;
 
 /*
  * Create a new context.
  */
 crypto_ctx_t *
-kcf_new_ctx(crypto_call_req_t *crq, kcf_provider_desc_t *pd)
+kcf_new_ctx(kcf_provider_desc_t *pd)
 {
 	crypto_ctx_t *ctx;
 	kcf_context_t *kcf_ctx;
 
-	kcf_ctx = kmem_cache_alloc(kcf_context_cache,
-	    (crq == NULL) ? KM_SLEEP : KM_NOSLEEP);
+	kcf_ctx = kmem_cache_alloc(kcf_context_cache, KM_SLEEP);
 	if (kcf_ctx == NULL)
 		return (NULL);
 

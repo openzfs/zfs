@@ -48,7 +48,6 @@
  *	ptmpl:	a storage for the opaque crypto_ctx_template_t, allocated and
  *		initialized by the software provider this routine is
  *		dispatched to.
- *	kmflag:	KM_SLEEP/KM_NOSLEEP mem. alloc. flag.
  *
  * Description:
  *	Redirects the call to the software provider of the specified
@@ -69,7 +68,7 @@
  */
 int
 crypto_create_ctx_template(crypto_mechanism_t *mech, crypto_key_t *key,
-    crypto_ctx_template_t *ptmpl, int kmflag)
+    crypto_ctx_template_t *ptmpl)
 {
 	int error;
 	kcf_mech_entry_t *me;
@@ -90,7 +89,7 @@ crypto_create_ctx_template(crypto_mechanism_t *mech, crypto_key_t *key,
 		return (error);
 
 	if ((ctx_tmpl = (kcf_ctx_template_t *)kmem_alloc(
-	    sizeof (kcf_ctx_template_t), kmflag)) == NULL) {
+	    sizeof (kcf_ctx_template_t), KM_SLEEP)) == NULL) {
 		KCF_PROV_REFRELE(pd);
 		return (CRYPTO_HOST_MEMORY);
 	}
@@ -101,7 +100,7 @@ crypto_create_ctx_template(crypto_mechanism_t *mech, crypto_key_t *key,
 	prov_mech.cm_param_len = mech->cm_param_len;
 
 	error = KCF_PROV_CREATE_CTX_TEMPLATE(pd, &prov_mech, key,
-	    &(ctx_tmpl->ct_prov_tmpl), &(ctx_tmpl->ct_size), KCF_RHNDL(kmflag));
+	    &(ctx_tmpl->ct_prov_tmpl), &(ctx_tmpl->ct_size));
 
 	if (error == CRYPTO_SUCCESS) {
 		*ptmpl = ctx_tmpl;
