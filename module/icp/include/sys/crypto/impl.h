@@ -481,11 +481,9 @@ extern void kcf_free_provider_desc(kcf_provider_desc_t *);
 extern void undo_register_provider(kcf_provider_desc_t *, boolean_t);
 extern int crypto_put_output_data(uchar_t *, crypto_data_t *, int);
 extern int crypto_update_iov(void *, crypto_data_t *, crypto_data_t *,
-    int (*cipher)(void *, caddr_t, size_t, crypto_data_t *),
-    void (*copy_block)(uint8_t *, uint64_t *));
+    int (*cipher)(void *, caddr_t, size_t, crypto_data_t *));
 extern int crypto_update_uio(void *, crypto_data_t *, crypto_data_t *,
-    int (*cipher)(void *, caddr_t, size_t, crypto_data_t *),
-    void (*copy_block)(uint8_t *, uint64_t *));
+    int (*cipher)(void *, caddr_t, size_t, crypto_data_t *));
 
 /* Access to the provider's table */
 extern void kcf_prov_tab_destroy(void);

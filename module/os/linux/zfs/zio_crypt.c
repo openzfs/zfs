@@ -438,13 +438,11 @@ zio_do_crypt_uio(boolean_t encrypt, uint64_t crypt, crypto_key_t *key,
 	plaindata.cd_format = CRYPTO_DATA_UIO;
 	plaindata.cd_offset = 0;
 	plaindata.cd_uio = puio;
-	plaindata.cd_miscdata = NULL;
 	plaindata.cd_length = plain_full_len;
 
 	cipherdata.cd_format = CRYPTO_DATA_UIO;
 	cipherdata.cd_offset = 0;
 	cipherdata.cd_uio = cuio;
-	cipherdata.cd_miscdata = NULL;
 	cipherdata.cd_length = datalen + maclen;
 
 	/* perform the actual encryption */

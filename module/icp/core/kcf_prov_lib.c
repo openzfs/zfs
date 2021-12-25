@@ -114,33 +114,21 @@ crypto_put_output_data(uchar_t *buf, crypto_data_t *output, int len)
 
 int
 crypto_update_iov(void *ctx, crypto_data_t *input, crypto_data_t *output,
-    int (*cipher)(void *, caddr_t, size_t, crypto_data_t *),
-    void (*copy_block)(uint8_t *, uint64_t *))
+    int (*cipher)(void *, caddr_t, size_t, crypto_data_t *))
 {
-	common_ctx_t *common_ctx = ctx;
-	int rv;
-
 	ASSERT(input != output);
-	if (input->cd_miscdata != NULL) {
-		copy_block((uint8_t *)input->cd_miscdata,
-		    &common_ctx->cc_iv[0]);
-	}
 
 	if (input->cd_raw.iov_len < input->cd_length)
 		return (CRYPTO_ARGUMENTS_BAD);
 
-	rv = (cipher)(ctx, input->cd_raw.iov_base + input->cd_offset,
-	    input->cd_length, output);
-
-	return (rv);
+	return ((cipher)(ctx, input->cd_raw.iov_base + input->cd_offset,
+	    input->cd_length, output));
 }
 
 int
 crypto_update_uio(void *ctx, crypto_data_t *input, crypto_data_t *output,
-    int (*cipher)(void *, caddr_t, size_t, crypto_data_t *),
-    void (*copy_block)(uint8_t *, uint64_t *))
+    int (*cipher)(void *, caddr_t, size_t, crypto_data_t *))
 {
-	common_ctx_t *common_ctx = ctx;
 	zfs_uio_t *uiop = input->cd_uio;
 	off_t offset = input->cd_offset;
 	size_t length = input->cd_length;
@@ -148,10 +136,6 @@ crypto_update_uio(void *ctx, crypto_data_t *input, crypto_data_t *output,
 	size_t cur_len;
 
 	ASSERT(input != output);
-	if (input->cd_miscdata != NULL) {
-		copy_block((uint8_t *)input->cd_miscdata,
-		    &common_ctx->cc_iv[0]);
-	}
 
 	if (zfs_uio_segflg(input->cd_uio) != UIO_SYSSPACE) {
 		return (CRYPTO_ARGUMENTS_BAD);
