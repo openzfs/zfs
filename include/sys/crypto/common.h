@@ -170,12 +170,6 @@ typedef uint32_t crypto_keysize_unit_t;
 
 
 /* Mechanisms supported out-of-the-box */
-#define	SUN_CKM_MD5			"CKM_MD5"
-#define	SUN_CKM_MD5_HMAC		"CKM_MD5_HMAC"
-#define	SUN_CKM_MD5_HMAC_GENERAL	"CKM_MD5_HMAC_GENERAL"
-#define	SUN_CKM_SHA1			"CKM_SHA_1"
-#define	SUN_CKM_SHA1_HMAC		"CKM_SHA_1_HMAC"
-#define	SUN_CKM_SHA1_HMAC_GENERAL	"CKM_SHA_1_HMAC_GENERAL"
 #define	SUN_CKM_SHA256			"CKM_SHA256"
 #define	SUN_CKM_SHA256_HMAC		"CKM_SHA256_HMAC"
 #define	SUN_CKM_SHA256_HMAC_GENERAL	"CKM_SHA256_HMAC_GENERAL"
@@ -187,19 +181,12 @@ typedef uint32_t crypto_keysize_unit_t;
 #define	SUN_CKM_SHA512_HMAC_GENERAL	"CKM_SHA512_HMAC_GENERAL"
 #define	SUN_CKM_SHA512_224		"CKM_SHA512_224"
 #define	SUN_CKM_SHA512_256		"CKM_SHA512_256"
-#define	SUN_CKM_DES_CBC			"CKM_DES_CBC"
-#define	SUN_CKM_DES3_CBC		"CKM_DES3_CBC"
-#define	SUN_CKM_DES_ECB			"CKM_DES_ECB"
-#define	SUN_CKM_DES3_ECB		"CKM_DES3_ECB"
-#define	SUN_CKM_BLOWFISH_CBC		"CKM_BLOWFISH_CBC"
-#define	SUN_CKM_BLOWFISH_ECB		"CKM_BLOWFISH_ECB"
 #define	SUN_CKM_AES_CBC			"CKM_AES_CBC"
 #define	SUN_CKM_AES_ECB			"CKM_AES_ECB"
 #define	SUN_CKM_AES_CTR			"CKM_AES_CTR"
 #define	SUN_CKM_AES_CCM			"CKM_AES_CCM"
 #define	SUN_CKM_AES_GCM			"CKM_AES_GCM"
 #define	SUN_CKM_AES_GMAC		"CKM_AES_GMAC"
-#define	SUN_CKM_RC4			"CKM_RC4"
 
 /* Data arguments of cryptographic operations */
 
