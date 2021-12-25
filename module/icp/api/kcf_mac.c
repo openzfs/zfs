@@ -164,13 +164,12 @@ retry:
  *	See comment in the beginning of the file.
  */
 static int
-crypto_mac_init_prov(crypto_provider_t provider,
+crypto_mac_init_prov(kcf_provider_desc_t *pd,
     crypto_mechanism_t *mech, crypto_key_t *key, crypto_spi_ctx_template_t tmpl,
     crypto_context_t *ctxp, crypto_call_req_t *crq)
 {
 	int rv;
 	crypto_ctx_t *ctx;
-	kcf_provider_desc_t *pd = provider;
 	kcf_provider_desc_t *real_provider = pd;
 
 	ASSERT(KCF_PROV_REFHELD(pd));

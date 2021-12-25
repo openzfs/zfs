@@ -255,108 +255,10 @@ typedef struct crypto_data {
 
 /* The keys, and their contents */
 
-typedef enum {
-	CRYPTO_KEY_RAW = 1,	/* ck_data is a cleartext key */
-	CRYPTO_KEY_REFERENCE,	/* ck_obj_id is an opaque reference */
-	CRYPTO_KEY_ATTR_LIST	/* ck_attrs is a list of object attributes */
-} crypto_key_format_t;
-
-typedef uint64_t crypto_attr_type_t;
-
-/* Attribute types to use for passing a RSA public key or a private key. */
-#define	SUN_CKA_MODULUS			0x00000120
-#define	SUN_CKA_MODULUS_BITS		0x00000121
-#define	SUN_CKA_PUBLIC_EXPONENT		0x00000122
-#define	SUN_CKA_PRIVATE_EXPONENT	0x00000123
-#define	SUN_CKA_PRIME_1			0x00000124
-#define	SUN_CKA_PRIME_2			0x00000125
-#define	SUN_CKA_EXPONENT_1		0x00000126
-#define	SUN_CKA_EXPONENT_2		0x00000127
-#define	SUN_CKA_COEFFICIENT		0x00000128
-#define	SUN_CKA_PRIME			0x00000130
-#define	SUN_CKA_SUBPRIME		0x00000131
-#define	SUN_CKA_BASE			0x00000132
-
-#define	CKK_EC			0x00000003
-#define	CKK_GENERIC_SECRET	0x00000010
-#define	CKK_RC4			0x00000012
-#define	CKK_AES			0x0000001F
-#define	CKK_DES			0x00000013
-#define	CKK_DES2		0x00000014
-#define	CKK_DES3		0x00000015
-
-#define	CKO_PUBLIC_KEY		0x00000002
-#define	CKO_PRIVATE_KEY		0x00000003
-#define	CKA_CLASS		0x00000000
-#define	CKA_VALUE		0x00000011
-#define	CKA_KEY_TYPE		0x00000100
-#define	CKA_VALUE_LEN		0x00000161
-#define	CKA_EC_PARAMS		0x00000180
-#define	CKA_EC_POINT		0x00000181
-
-typedef uint32_t	crypto_object_id_t;
-
-typedef struct crypto_object_attribute {
-	crypto_attr_type_t	oa_type;	/* attribute type */
-	caddr_t			oa_value;	/* attribute value */
-	ssize_t			oa_value_len;	/* length of attribute value */
-} crypto_object_attribute_t;
-
-typedef struct crypto_key {
-	crypto_key_format_t	ck_format;	/* format identifier */
-	union {
-		/* for CRYPTO_KEY_RAW ck_format */
-		struct {
-			uint_t	cku_v_length;	/* # of bits in ck_data   */
-			void	*cku_v_data;	/* ptr to key value */
-		} cku_key_value;
-
-		/* for CRYPTO_KEY_REFERENCE ck_format */
-		crypto_object_id_t cku_key_id;	/* reference to object key */
-
-		/* for CRYPTO_KEY_ATTR_LIST ck_format */
-		struct {
-			uint_t cku_a_count;	/* number of attributes */
-			crypto_object_attribute_t *cku_a_oattr;
-		} cku_key_attrs;
-	} cku_data;				/* Crypto Key union */
+typedef struct {
+	uint_t	ck_length;	/* # of bits in ck_data   */
+	void	*ck_data;	/* ptr to key value */
 } crypto_key_t;
-
-#ifdef  _SYSCALL32
-
-typedef struct crypto_object_attribute32 {
-	uint64_t	oa_type;	/* attribute type */
-	caddr32_t	oa_value;	/* attribute value */
-	ssize32_t	oa_value_len;	/* length of attribute value */
-} crypto_object_attribute32_t;
-
-typedef struct crypto_key32 {
-	crypto_key_format_t	ck_format;	/* format identifier */
-	union {
-		/* for CRYPTO_KEY_RAW ck_format */
-		struct {
-			uint32_t cku_v_length;	/* # of bytes in ck_data */
-			caddr32_t cku_v_data;	/* ptr to key value */
-		} cku_key_value;
-
-		/* for CRYPTO_KEY_REFERENCE ck_format */
-		crypto_object_id_t cku_key_id; /* reference to object key */
-
-		/* for CRYPTO_KEY_ATTR_LIST ck_format */
-		struct {
-			uint32_t cku_a_count;	/* number of attributes */
-			caddr32_t cku_a_oattr;
-		} cku_key_attrs;
-	} cku_data;				/* Crypto Key union */
-} crypto_key32_t;
-
-#endif  /* _SYSCALL32 */
-
-#define	ck_data		cku_data.cku_key_value.cku_v_data
-#define	ck_length	cku_data.cku_key_value.cku_v_length
-#define	ck_obj_id	cku_data.cku_key_id
-#define	ck_count	cku_data.cku_key_attrs.cku_a_count
-#define	ck_attrs	cku_data.cku_key_attrs.cku_a_oattr
 
 /*
  * Raw key lengths are expressed in number of bits.
@@ -372,63 +274,10 @@ typedef struct crypto_key32 {
 typedef uint32_t 	crypto_provider_id_t;
 #define	KCF_PROVID_INVALID	((uint32_t)-1)
 
-typedef struct crypto_provider_entry {
-	crypto_provider_id_t	pe_provider_id;
-	uint_t			pe_mechanism_count;
-} crypto_provider_entry_t;
-
-typedef struct crypto_dev_list_entry {
-	char			le_dev_name[MAXNAMELEN];
-	uint_t			le_dev_instance;
-	uint_t			le_mechanism_count;
-} crypto_dev_list_entry_t;
-
-/* User type for authentication ioctls and SPI entry points */
-
-typedef enum crypto_user_type {
-	CRYPTO_SO = 0,
-	CRYPTO_USER
-} crypto_user_type_t;
-
-/* Version for provider management ioctls and SPI entry points */
-
-typedef struct crypto_version {
-	uchar_t	cv_major;
-	uchar_t	cv_minor;
-} crypto_version_t;
-
 /* session data structure opaque to the consumer */
 typedef void *crypto_session_t;
 
-/* provider data structure opaque to the consumer */
-typedef void *crypto_provider_t;
-
-/* Limits used by both consumers and providers */
-#define	CRYPTO_EXT_SIZE_LABEL		32
-#define	CRYPTO_EXT_SIZE_MANUF		32
-#define	CRYPTO_EXT_SIZE_MODEL		16
-#define	CRYPTO_EXT_SIZE_SERIAL		16
-#define	CRYPTO_EXT_SIZE_TIME		16
-
 typedef uint_t		crypto_session_id_t;
-
-typedef enum cmd_type {
-	COPY_FROM_DATA,
-	COPY_TO_DATA,
-	COMPARE_TO_DATA,
-	MD5_DIGEST_DATA,
-	SHA1_DIGEST_DATA,
-	SHA2_DIGEST_DATA,
-	GHASH_DATA
-} cmd_type_t;
-
-#define	CRYPTO_DO_UPDATE	0x01
-#define	CRYPTO_DO_FINAL		0x02
-#define	CRYPTO_DO_MD5		0x04
-#define	CRYPTO_DO_SHA1		0x08
-#define	CRYPTO_DO_SIGN		0x10
-#define	CRYPTO_DO_VERIFY	0x20
-#define	CRYPTO_DO_SHA2		0x40
 
 #define	PROVIDER_OWNS_KEY_SCHEDULE	0x00000001
 

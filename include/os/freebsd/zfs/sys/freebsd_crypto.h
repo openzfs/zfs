@@ -42,8 +42,6 @@
 #define	SUN_CKM_AES_GCM	"CKM_AES_GCM"
 #define	SUN_CKM_SHA512_HMAC	"CKM_SHA512_HMAC"
 
-#define	CRYPTO_KEY_RAW	1
-
 #define	CRYPTO_BITS2BYTES(n) ((n) == 0 ? 0 : (((n) - 1) >> 3) + 1)
 #define	CRYPTO_BYTES2BITS(n) ((n) << 3)
 
@@ -61,12 +59,11 @@ typedef struct freebsd_crypt_session {
 typedef void *crypto_mechanism_t;
 typedef void *crypto_ctx_template_t;
 /*
- * Unlike the ICP crypto_key type, this only
+ * Like the ICP crypto_key type, this only
  * supports <data, length> (the equivalent of
- * CRYPTO_KEY_RAW).
+ * the former CRYPTO_KEY_RAW).
  */
 typedef struct crypto_key {
-	int	ck_format;	/* Unused, but minimizes code diff */
 	void	*ck_data;
 	size_t	ck_length;
 } crypto_key_t;

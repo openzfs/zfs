@@ -210,12 +210,12 @@ freebsd_crypt_uio_debug_log(boolean_t encrypt,
 	uint8_t *p = NULL;
 	size_t total = 0;
 
-	printf("%s(%s, %p, { %s, %d, %d, %s }, %p, { %d, %p, %u }, "
+	printf("%s(%s, %p, { %s, %d, %d, %s }, %p, { %p, %u }, "
 	    "%p, %u, %u)\n",
 	    __FUNCTION__, encrypt ? "encrypt" : "decrypt", input_sessionp,
 	    c_info->ci_algname, c_info->ci_crypt_type,
 	    (unsigned int)c_info->ci_keylen, c_info->ci_name,
-	    data_uio, key->ck_format, key->ck_data,
+	    data_uio, key->ck_data,
 	    (unsigned int)key->ck_length,
 	    ivbuf, (unsigned int)datalen, (unsigned int)auth_len);
 	printf("\tkey = { ");
@@ -247,11 +247,11 @@ freebsd_crypt_newsession(freebsd_crypt_session_t *sessp,
 	int error = 0;
 
 #ifdef FCRYPTO_DEBUG
-	printf("%s(%p, { %s, %d, %d, %s }, { %d, %p, %u })\n",
+	printf("%s(%p, { %s, %d, %d, %s }, { %p, %u })\n",
 	    __FUNCTION__, sessp,
 	    c_info->ci_algname, c_info->ci_crypt_type,
 	    (unsigned int)c_info->ci_keylen, c_info->ci_name,
-	    key->ck_format, key->ck_data, (unsigned int)key->ck_length);
+	    key->ck_data, (unsigned int)key->ck_length);
 	printf("\tkey = { ");
 	for (int i = 0; i < key->ck_length / 8; i++) {
 		uint8_t *b = (uint8_t *)key->ck_data;
@@ -391,11 +391,11 @@ freebsd_crypt_newsession(freebsd_crypt_session_t *sessp,
 	crypto_session_t sid;
 
 #ifdef FCRYPTO_DEBUG
-	printf("%s(%p, { %s, %d, %d, %s }, { %d, %p, %u })\n",
+	printf("%s(%p, { %s, %d, %d, %s }, { %p, %u })\n",
 	    __FUNCTION__, sessp,
 	    c_info->ci_algname, c_info->ci_crypt_type,
 	    (unsigned int)c_info->ci_keylen, c_info->ci_name,
-	    key->ck_format, key->ck_data, (unsigned int)key->ck_length);
+	    key->ck_data, (unsigned int)key->ck_length);
 	printf("\tkey = { ");
 	for (int i = 0; i < key->ck_length / 8; i++) {
 		uint8_t *b = (uint8_t *)key->ck_data;

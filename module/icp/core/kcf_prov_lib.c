@@ -33,14 +33,12 @@
  */
 
 /*
- * Utility routine to apply the command, 'cmd', to the
+ * Utility routine to apply the command COPY_TO_DATA to the
  * data in the uio structure.
  */
-int
-crypto_uio_data(crypto_data_t *data, uchar_t *buf, int len, cmd_type_t cmd,
-    void *digest_ctx, void (*update)(void))
+static int
+crypto_uio_copy_to_data(crypto_data_t *data, uchar_t *buf, int len)
 {
-	(void) digest_ctx, (void) update;
 	zfs_uio_t *uiop = data->cd_uio;
 	off_t offset = data->cd_offset;
 	size_t length = len;
@@ -72,26 +70,8 @@ crypto_uio_data(crypto_data_t *data, uchar_t *buf, int len, cmd_type_t cmd,
 		    offset, length);
 
 		datap = (uchar_t *)(zfs_uio_iovbase(uiop, vec_idx) + offset);
-		switch (cmd) {
-		case COPY_FROM_DATA:
-			bcopy(datap, buf, cur_len);
-			buf += cur_len;
-			break;
-		case COPY_TO_DATA:
-			bcopy(buf, datap, cur_len);
-			buf += cur_len;
-			break;
-		case COMPARE_TO_DATA:
-			if (bcmp(datap, buf, cur_len))
-				return (CRYPTO_SIGNATURE_INVALID);
-			buf += cur_len;
-			break;
-		case MD5_DIGEST_DATA:
-		case SHA1_DIGEST_DATA:
-		case SHA2_DIGEST_DATA:
-		case GHASH_DATA:
-			return (CRYPTO_ARGUMENTS_BAD);
-		}
+		bcopy(buf, datap, cur_len);
+		buf += cur_len;
 
 		length -= cur_len;
 		vec_idx++;
@@ -100,16 +80,11 @@ crypto_uio_data(crypto_data_t *data, uchar_t *buf, int len, cmd_type_t cmd,
 
 	if (vec_idx == zfs_uio_iovcnt(uiop) && length > 0) {
 		/*
-		 * The end of the specified iovec's was reached but
+		 * The end of the specified iovecs was reached but
 		 * the length requested could not be processed.
 		 */
-		switch (cmd) {
-		case COPY_TO_DATA:
-			data->cd_length = len;
-			return (CRYPTO_BUFFER_TOO_SMALL);
-		default:
-			return (CRYPTO_DATA_LEN_RANGE);
-		}
+		data->cd_length = len;
+		return (CRYPTO_BUFFER_TOO_SMALL);
 	}
 
 	return (CRYPTO_SUCCESS);
@@ -129,8 +104,7 @@ crypto_put_output_data(uchar_t *buf, crypto_data_t *output, int len)
 		break;
 
 	case CRYPTO_DATA_UIO:
-		return (crypto_uio_data(output, buf, len,
-		    COPY_TO_DATA, NULL, NULL));
+		return (crypto_uio_copy_to_data(output, buf, len));
 	default:
 		return (CRYPTO_ARGUMENTS_BAD);
 	}
