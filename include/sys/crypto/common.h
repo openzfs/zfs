@@ -170,7 +170,6 @@ typedef uint32_t crypto_keysize_unit_t;
 
 
 /* Mechanisms supported out-of-the-box */
-#define	SUN_CKM_MD4			"CKM_MD4"
 #define	SUN_CKM_MD5			"CKM_MD5"
 #define	SUN_CKM_MD5_HMAC		"CKM_MD5_HMAC"
 #define	SUN_CKM_MD5_HMAC_GENERAL	"CKM_MD5_HMAC_GENERAL"
@@ -200,19 +199,7 @@ typedef uint32_t crypto_keysize_unit_t;
 #define	SUN_CKM_AES_CCM			"CKM_AES_CCM"
 #define	SUN_CKM_AES_GCM			"CKM_AES_GCM"
 #define	SUN_CKM_AES_GMAC		"CKM_AES_GMAC"
-#define	SUN_CKM_AES_CFB128		"CKM_AES_CFB128"
 #define	SUN_CKM_RC4			"CKM_RC4"
-#define	SUN_CKM_RSA_PKCS		"CKM_RSA_PKCS"
-#define	SUN_CKM_RSA_X_509		"CKM_RSA_X_509"
-#define	SUN_CKM_MD5_RSA_PKCS		"CKM_MD5_RSA_PKCS"
-#define	SUN_CKM_SHA1_RSA_PKCS		"CKM_SHA1_RSA_PKCS"
-#define	SUN_CKM_SHA256_RSA_PKCS		"CKM_SHA256_RSA_PKCS"
-#define	SUN_CKM_SHA384_RSA_PKCS		"CKM_SHA384_RSA_PKCS"
-#define	SUN_CKM_SHA512_RSA_PKCS		"CKM_SHA512_RSA_PKCS"
-#define	SUN_CKM_EC_KEY_PAIR_GEN		"CKM_EC_KEY_PAIR_GEN"
-#define	SUN_CKM_ECDH1_DERIVE		"CKM_ECDH1_DERIVE"
-#define	SUN_CKM_ECDSA_SHA1		"CKM_ECDSA_SHA1"
-#define	SUN_CKM_ECDSA			"CKM_ECDSA"
 
 /* Data arguments of cryptographic operations */
 
