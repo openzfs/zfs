@@ -45,8 +45,7 @@
  *	CRYPTO_INVALID_DATA for bogus 'data'
  *	CRYPTO_HOST_MEMORY for failure to allocate memory to handle this work.
  *	CRYPTO_INVALID_CONTEXT: Not a valid context.
- *	CRYPTO_BUSY:	Cannot process the request now. Schedule a
- *			crypto_bufcall(), or try later.
+ *	CRYPTO_BUSY:	Cannot process the request now. Try later.
  *	CRYPTO_NOT_SUPPORTED and CRYPTO_MECH_NOT_SUPPORTED: No provider is
  *			capable of a function or a mechanism.
  *	CRYPTO_INVALID_KEY: bogus 'key' argument.
