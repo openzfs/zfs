@@ -76,26 +76,13 @@
 /* RFE 4687834 Will deal with the extensibility of these tables later */
 
 static kcf_mech_entry_t kcf_digest_mechs_tab[KCF_MAXDIGEST] = {
-	{ SUN_CKM_MD5 },
 	{ SUN_CKM_SHA1 },
 };
 static kcf_mech_entry_t kcf_cipher_mechs_tab[KCF_MAXCIPHER] = {
-	{ SUN_CKM_DES_CBC },
-	{ SUN_CKM_DES3_CBC },
-	{ SUN_CKM_DES_ECB },
-	{ SUN_CKM_DES3_ECB },
-	{ SUN_CKM_BLOWFISH_CBC },
-	{ SUN_CKM_BLOWFISH_ECB },
 	{ SUN_CKM_AES_CBC },
 	{ SUN_CKM_AES_ECB },
-	{ SUN_CKM_RC4 },
 };
-static kcf_mech_entry_t kcf_mac_mechs_tab[KCF_MAXMAC] = {
-	{ SUN_CKM_MD5_HMAC },
-	{ SUN_CKM_MD5_HMAC_GENERAL },
-	{ SUN_CKM_SHA1_HMAC },
-	{ SUN_CKM_SHA1_HMAC_GENERAL },
-};
+static kcf_mech_entry_t kcf_mac_mechs_tab[KCF_MAXMAC];
 
 const kcf_mech_entry_tab_t kcf_mech_tabs_tab[KCF_LAST_OPSCLASS + 1] = {
 	{0, NULL},				/* No class zero */
