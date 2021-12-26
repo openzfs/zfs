@@ -1,4 +1,5 @@
 # OpenZFS userland configuration.
+# shellcheck disable=SC2154
 
 # NOTE: This file is intended for sysv init and initramfs.
 # Changing some of these settings may not make any difference on
