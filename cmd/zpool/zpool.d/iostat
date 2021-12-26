@@ -27,6 +27,7 @@ elif [ "$script" = "iostat-10s" ] ; then
 	brief="yes"
 fi
 
+# shellcheck disable=SC2154
 if [ -f "$VDEV_UPATH" ] ; then
 	# We're a file-based vdev, iostat doesn't work on us.  Do nothing.
 	exit
@@ -67,7 +68,7 @@ i=0
 for col in $cols ; do
 	i=$((i+1))
 	# Skip the first column since it's just the device name
-	if [ $i -eq 1 ]; then
+	if [ "$i" -eq 1 ]; then
 		continue
 	fi
 
