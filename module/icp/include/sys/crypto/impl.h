@@ -140,8 +140,6 @@ typedef enum {
  * provider. It is allocated and initialized at registration time and
  * freed when the provider unregisters.
  *
- * pd_sid:		Session ID of the provider used by kernel clients.
- *			This is valid only for session-oriented providers.
  * pd_refcnt:		Reference counter to this provider descriptor
  * pd_irefcnt:		References held by the framework internal structs
  * pd_lock:		lock protects pd_state
@@ -164,7 +162,6 @@ typedef enum {
  * pd_ks_data:		kstat data
  */
 typedef struct kcf_provider_desc {
-	crypto_session_id_t		pd_sid;
 	uint_t				pd_refcnt;
 	uint_t				pd_irefcnt;
 	kmutex_t			pd_lock;
@@ -312,54 +309,6 @@ extern const kcf_mech_entry_tab_t kcf_mech_tabs_tab[];
 #define	KCF_TO_PROV_MECHNUM(pd, mech_type)			\
 	(KCF_TO_PROV_MECHINFO(pd, mech_type).cm_mech_number)
 
-/* ps_refcnt is protected by cm_lock in the crypto_minor structure */
-typedef struct crypto_provider_session {
-	struct crypto_provider_session *ps_next;
-	crypto_session_id_t		ps_session;
-	kcf_provider_desc_t		*ps_provider;
-	kcf_provider_desc_t		*ps_real_provider;
-	uint_t				ps_refcnt;
-} crypto_provider_session_t;
-
-typedef struct crypto_session_data {
-	kmutex_t			sd_lock;
-	kcondvar_t			sd_cv;
-	uint32_t			sd_flags;
-	int				sd_pre_approved_amount;
-	crypto_ctx_t			*sd_digest_ctx;
-	crypto_ctx_t			*sd_encr_ctx;
-	crypto_ctx_t			*sd_decr_ctx;
-	crypto_ctx_t			*sd_sign_ctx;
-	crypto_ctx_t			*sd_verify_ctx;
-	crypto_ctx_t			*sd_sign_recover_ctx;
-	crypto_ctx_t			*sd_verify_recover_ctx;
-	kcf_provider_desc_t		*sd_provider;
-	void				*sd_find_init_cookie;
-	crypto_provider_session_t	*sd_provider_session;
-} crypto_session_data_t;
-
-#define	CRYPTO_SESSION_IN_USE		0x00000001
-#define	CRYPTO_SESSION_IS_BUSY		0x00000002
-#define	CRYPTO_SESSION_IS_CLOSED	0x00000004
-
-#define	KCF_MAX_PIN_LEN			1024
-
-/*
- * Per-minor info.
- *
- * cm_lock protects everything in this structure except for cm_refcnt.
- */
-typedef struct crypto_minor {
-	uint_t				cm_refcnt;
-	kmutex_t			cm_lock;
-	kcondvar_t			cm_cv;
-	crypto_session_data_t		**cm_session_table;
-	uint_t				cm_session_table_count;
-	kcf_provider_desc_t		**cm_provider_array;
-	uint_t				cm_provider_count;
-	crypto_provider_session_t	*cm_provider_session;
-} crypto_minor_t;
-
 /*
  * Return codes for internal functions
  */
@@ -399,18 +348,18 @@ typedef struct crypto_minor {
 	KCF_PROV_CIPHER_OPS(pd)->encrypt_init(ctx, mech, key, template) : \
 	CRYPTO_NOT_SUPPORTED)
 
-#define	KCF_PROV_ENCRYPT_ATOMIC(pd, session, mech, key, plaintext, ciphertext, \
+#define	KCF_PROV_ENCRYPT_ATOMIC(pd, mech, key, plaintext, ciphertext, \
 	    template) ( \
 	(KCF_PROV_CIPHER_OPS(pd) && KCF_PROV_CIPHER_OPS(pd)->encrypt_atomic) ? \
 	KCF_PROV_CIPHER_OPS(pd)->encrypt_atomic( \
-	    session, mech, key, plaintext, ciphertext, template) : \
+	    mech, key, plaintext, ciphertext, template) : \
 	CRYPTO_NOT_SUPPORTED)
 
-#define	KCF_PROV_DECRYPT_ATOMIC(pd, session, mech, key, ciphertext, plaintext, \
+#define	KCF_PROV_DECRYPT_ATOMIC(pd, mech, key, ciphertext, plaintext, \
 	    template) ( \
 	(KCF_PROV_CIPHER_OPS(pd) && KCF_PROV_CIPHER_OPS(pd)->decrypt_atomic) ? \
 	KCF_PROV_CIPHER_OPS(pd)->decrypt_atomic( \
-	    session, mech, key, ciphertext, plaintext, template) : \
+	    mech, key, ciphertext, plaintext, template) : \
 	CRYPTO_NOT_SUPPORTED)
 
 /*
@@ -436,10 +385,10 @@ typedef struct crypto_minor {
 	KCF_PROV_MAC_OPS(pd)->mac_final(ctx, mac) : \
 	CRYPTO_NOT_SUPPORTED)
 
-#define	KCF_PROV_MAC_ATOMIC(pd, session, mech, key, data, mac, template) ( \
+#define	KCF_PROV_MAC_ATOMIC(pd, mech, key, data, mac, template) ( \
 	(KCF_PROV_MAC_OPS(pd) && KCF_PROV_MAC_OPS(pd)->mac_atomic) ? \
 	KCF_PROV_MAC_OPS(pd)->mac_atomic( \
-	    session, mech, key, data, mac, template) : \
+	    mech, key, data, mac, template) : \
 	CRYPTO_NOT_SUPPORTED)
 
 /*

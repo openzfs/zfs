@@ -78,8 +78,7 @@ typedef struct crypto_digest_ops {
 	int (*digest_update)(crypto_ctx_t *, crypto_data_t *);
 	int (*digest_key)(crypto_ctx_t *, crypto_key_t *);
 	int (*digest_final)(crypto_ctx_t *, crypto_data_t *);
-	int (*digest_atomic)(crypto_session_id_t,
-	    crypto_mechanism_t *, crypto_data_t *,
+	int (*digest_atomic)(crypto_mechanism_t *, crypto_data_t *,
 	    crypto_data_t *);
 } __no_const crypto_digest_ops_t;
 
@@ -99,9 +98,8 @@ typedef struct crypto_cipher_ops {
 	    crypto_data_t *, crypto_data_t *);
 	int (*encrypt_final)(crypto_ctx_t *,
 	    crypto_data_t *);
-	int (*encrypt_atomic)(crypto_session_id_t,
-	    crypto_mechanism_t *, crypto_key_t *, crypto_data_t *,
-	    crypto_data_t *, crypto_spi_ctx_template_t);
+	int (*encrypt_atomic)(crypto_mechanism_t *, crypto_key_t *,
+	    crypto_data_t *, crypto_data_t *, crypto_spi_ctx_template_t);
 
 	int (*decrypt_init)(crypto_ctx_t *,
 	    crypto_mechanism_t *, crypto_key_t *,
@@ -112,9 +110,8 @@ typedef struct crypto_cipher_ops {
 	    crypto_data_t *, crypto_data_t *);
 	int (*decrypt_final)(crypto_ctx_t *,
 	    crypto_data_t *);
-	int (*decrypt_atomic)(crypto_session_id_t,
-	    crypto_mechanism_t *, crypto_key_t *, crypto_data_t *,
-	    crypto_data_t *, crypto_spi_ctx_template_t);
+	int (*decrypt_atomic)(crypto_mechanism_t *, crypto_key_t *,
+	    crypto_data_t *, crypto_data_t *, crypto_spi_ctx_template_t);
 } __no_const crypto_cipher_ops_t;
 
 /*
@@ -133,12 +130,10 @@ typedef struct crypto_mac_ops {
 	    crypto_data_t *);
 	int (*mac_final)(crypto_ctx_t *,
 	    crypto_data_t *);
-	int (*mac_atomic)(crypto_session_id_t,
-	    crypto_mechanism_t *, crypto_key_t *, crypto_data_t *,
-	    crypto_data_t *, crypto_spi_ctx_template_t);
-	int (*mac_verify_atomic)(crypto_session_id_t,
-	    crypto_mechanism_t *, crypto_key_t *, crypto_data_t *,
-	    crypto_data_t *, crypto_spi_ctx_template_t);
+	int (*mac_atomic)(crypto_mechanism_t *, crypto_key_t *,
+	    crypto_data_t *, crypto_data_t *, crypto_spi_ctx_template_t);
+	int (*mac_verify_atomic)(crypto_mechanism_t *, crypto_key_t *,
+	    crypto_data_t *, crypto_data_t *, crypto_spi_ctx_template_t);
 } __no_const crypto_mac_ops_t;
 
 /*

@@ -94,8 +94,8 @@ static int sha2_digest_init(crypto_ctx_t *, crypto_mechanism_t *);
 static int sha2_digest(crypto_ctx_t *, crypto_data_t *, crypto_data_t *);
 static int sha2_digest_update(crypto_ctx_t *, crypto_data_t *);
 static int sha2_digest_final(crypto_ctx_t *, crypto_data_t *);
-static int sha2_digest_atomic(crypto_session_id_t,
-    crypto_mechanism_t *, crypto_data_t *, crypto_data_t *);
+static int sha2_digest_atomic(crypto_mechanism_t *, crypto_data_t *,
+    crypto_data_t *);
 
 static const crypto_digest_ops_t sha2_digest_ops = {
 	.digest_init = sha2_digest_init,
@@ -109,12 +109,10 @@ static int sha2_mac_init(crypto_ctx_t *, crypto_mechanism_t *, crypto_key_t *,
     crypto_spi_ctx_template_t);
 static int sha2_mac_update(crypto_ctx_t *, crypto_data_t *);
 static int sha2_mac_final(crypto_ctx_t *, crypto_data_t *);
-static int sha2_mac_atomic(crypto_session_id_t,
-    crypto_mechanism_t *, crypto_key_t *, crypto_data_t *, crypto_data_t *,
-    crypto_spi_ctx_template_t);
-static int sha2_mac_verify_atomic(crypto_session_id_t,
-    crypto_mechanism_t *, crypto_key_t *, crypto_data_t *, crypto_data_t *,
-    crypto_spi_ctx_template_t);
+static int sha2_mac_atomic(crypto_mechanism_t *, crypto_key_t *,
+    crypto_data_t *, crypto_data_t *, crypto_spi_ctx_template_t);
+static int sha2_mac_verify_atomic(crypto_mechanism_t *, crypto_key_t *,
+    crypto_data_t *, crypto_data_t *, crypto_spi_ctx_template_t);
 
 static const crypto_mac_ops_t sha2_mac_ops = {
 	.mac_init = sha2_mac_init,
@@ -537,10 +535,9 @@ sha2_digest_final(crypto_ctx_t *ctx, crypto_data_t *digest)
 }
 
 static int
-sha2_digest_atomic(crypto_session_id_t session_id,
-    crypto_mechanism_t *mechanism, crypto_data_t *data, crypto_data_t *digest)
+sha2_digest_atomic(crypto_mechanism_t *mechanism, crypto_data_t *data,
+    crypto_data_t *digest)
 {
-	(void) session_id;
 	int ret = CRYPTO_SUCCESS;
 	SHA2_CTX sha2_ctx;
 	uint32_t sha_digest_len;
@@ -898,11 +895,10 @@ sha2_mac_final(crypto_ctx_t *ctx, crypto_data_t *mac)
 }
 
 static int
-sha2_mac_atomic(crypto_session_id_t session_id, crypto_mechanism_t *mechanism,
+sha2_mac_atomic(crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_data_t *data, crypto_data_t *mac,
     crypto_spi_ctx_template_t ctx_template)
 {
-	(void) session_id;
 	int ret = CRYPTO_SUCCESS;
 	uchar_t digest[SHA512_DIGEST_LENGTH];
 	sha2_hmac_ctx_t sha2_hmac_ctx;
@@ -1031,12 +1027,10 @@ bail:
 }
 
 static int
-sha2_mac_verify_atomic(crypto_session_id_t session_id,
-    crypto_mechanism_t *mechanism,
+sha2_mac_verify_atomic(crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_data_t *data, crypto_data_t *mac,
     crypto_spi_ctx_template_t ctx_template)
 {
-	(void) session_id;
 	int ret = CRYPTO_SUCCESS;
 	uchar_t digest[SHA512_DIGEST_LENGTH];
 	sha2_hmac_ctx_t sha2_hmac_ctx;

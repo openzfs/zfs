@@ -81,16 +81,14 @@ static int aes_decrypt_final(crypto_ctx_t *, crypto_data_t *);
 static int aes_encrypt(crypto_ctx_t *, crypto_data_t *, crypto_data_t *);
 static int aes_encrypt_update(crypto_ctx_t *, crypto_data_t *,
     crypto_data_t *);
-static int aes_encrypt_atomic(crypto_session_id_t,
-    crypto_mechanism_t *, crypto_key_t *, crypto_data_t *,
-    crypto_data_t *, crypto_spi_ctx_template_t);
+static int aes_encrypt_atomic(crypto_mechanism_t *, crypto_key_t *,
+    crypto_data_t *, crypto_data_t *, crypto_spi_ctx_template_t);
 
 static int aes_decrypt(crypto_ctx_t *, crypto_data_t *, crypto_data_t *);
 static int aes_decrypt_update(crypto_ctx_t *, crypto_data_t *,
     crypto_data_t *);
-static int aes_decrypt_atomic(crypto_session_id_t,
-    crypto_mechanism_t *, crypto_key_t *, crypto_data_t *,
-    crypto_data_t *, crypto_spi_ctx_template_t);
+static int aes_decrypt_atomic(crypto_mechanism_t *, crypto_key_t *,
+    crypto_data_t *, crypto_data_t *, crypto_spi_ctx_template_t);
 
 static const crypto_cipher_ops_t aes_cipher_ops = {
 	.encrypt_init = aes_encrypt_init,
@@ -105,12 +103,10 @@ static const crypto_cipher_ops_t aes_cipher_ops = {
 	.decrypt_atomic = aes_decrypt_atomic
 };
 
-static int aes_mac_atomic(crypto_session_id_t,
-    crypto_mechanism_t *, crypto_key_t *, crypto_data_t *, crypto_data_t *,
-    crypto_spi_ctx_template_t);
-static int aes_mac_verify_atomic(crypto_session_id_t,
-    crypto_mechanism_t *, crypto_key_t *, crypto_data_t *, crypto_data_t *,
-    crypto_spi_ctx_template_t);
+static int aes_mac_atomic(crypto_mechanism_t *, crypto_key_t *, crypto_data_t *,
+    crypto_data_t *, crypto_spi_ctx_template_t);
+static int aes_mac_verify_atomic(crypto_mechanism_t *, crypto_key_t *,
+    crypto_data_t *, crypto_data_t *, crypto_spi_ctx_template_t);
 
 static const crypto_mac_ops_t aes_mac_ops = {
 	.mac_init = NULL,
@@ -832,12 +828,10 @@ aes_decrypt_final(crypto_ctx_t *ctx, crypto_data_t *data)
 }
 
 static int
-aes_encrypt_atomic(crypto_session_id_t session_id,
-    crypto_mechanism_t *mechanism,
+aes_encrypt_atomic(crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_data_t *plaintext, crypto_data_t *ciphertext,
     crypto_spi_ctx_template_t template)
 {
-	(void) session_id;
 	aes_ctx_t aes_ctx;	/* on the stack */
 	off_t saved_offset;
 	size_t saved_length;
@@ -968,12 +962,10 @@ out:
 }
 
 static int
-aes_decrypt_atomic(crypto_session_id_t session_id,
-    crypto_mechanism_t *mechanism,
+aes_decrypt_atomic(crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_data_t *ciphertext, crypto_data_t *plaintext,
     crypto_spi_ctx_template_t template)
 {
-	(void) session_id;
 	aes_ctx_t aes_ctx;	/* on the stack */
 	off_t saved_offset;
 	size_t saved_length;
@@ -1308,7 +1300,7 @@ process_gmac_mech(crypto_mechanism_t *mech, crypto_data_t *data,
 }
 
 static int
-aes_mac_atomic(crypto_session_id_t session_id, crypto_mechanism_t *mechanism,
+aes_mac_atomic(crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_data_t *data, crypto_data_t *mac,
     crypto_spi_ctx_template_t template)
 {
@@ -1324,14 +1316,13 @@ aes_mac_atomic(crypto_session_id_t session_id, crypto_mechanism_t *mechanism,
 	gcm_mech.cm_param_len = sizeof (CK_AES_GCM_PARAMS);
 	gcm_mech.cm_param = (char *)&gcm_params;
 
-	return (aes_encrypt_atomic(session_id, &gcm_mech,
+	return (aes_encrypt_atomic(&gcm_mech,
 	    key, &null_crypto_data, mac, template));
 }
 
 static int
-aes_mac_verify_atomic(crypto_session_id_t session_id,
-    crypto_mechanism_t *mechanism, crypto_key_t *key, crypto_data_t *data,
-    crypto_data_t *mac, crypto_spi_ctx_template_t template)
+aes_mac_verify_atomic(crypto_mechanism_t *mechanism, crypto_key_t *key,
+    crypto_data_t *data, crypto_data_t *mac, crypto_spi_ctx_template_t template)
 {
 	CK_AES_GCM_PARAMS gcm_params;
 	crypto_mechanism_t gcm_mech;
@@ -1345,6 +1336,6 @@ aes_mac_verify_atomic(crypto_session_id_t session_id,
 	gcm_mech.cm_param_len = sizeof (CK_AES_GCM_PARAMS);
 	gcm_mech.cm_param = (char *)&gcm_params;
 
-	return (aes_decrypt_atomic(session_id, &gcm_mech,
+	return (aes_decrypt_atomic(&gcm_mech,
 	    key, mac, &null_crypto_data, template));
 }

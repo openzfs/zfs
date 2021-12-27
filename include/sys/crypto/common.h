@@ -154,8 +154,6 @@ typedef uint32_t 	crypto_provider_id_t;
 /* session data structure opaque to the consumer */
 typedef void *crypto_session_t;
 
-typedef uint_t		crypto_session_id_t;
-
 #define	PROVIDER_OWNS_KEY_SCHEDULE	0x00000001
 
 /*

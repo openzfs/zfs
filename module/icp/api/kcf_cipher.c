@@ -89,7 +89,7 @@ retry:
 
 	crypto_mechanism_t lmech = *mech;
 	KCF_SET_PROVIDER_MECHNUM(mech->cm_type, pd, &lmech);
-	error = KCF_PROV_ENCRYPT_ATOMIC(pd, pd->pd_sid, &lmech, key,
+	error = KCF_PROV_ENCRYPT_ATOMIC(pd, &lmech, key,
 	    plaintext, ciphertext, spi_ctx_tmpl);
 	KCF_PROV_INCRSTATS(pd, error);
 
@@ -162,7 +162,7 @@ retry:
 	crypto_mechanism_t lmech = *mech;
 	KCF_SET_PROVIDER_MECHNUM(mech->cm_type, pd, &lmech);
 
-	error = KCF_PROV_DECRYPT_ATOMIC(pd, pd->pd_sid, &lmech, key,
+	error = KCF_PROV_DECRYPT_ATOMIC(pd, &lmech, key,
 	    ciphertext, plaintext, spi_ctx_tmpl);
 	KCF_PROV_INCRSTATS(pd, error);
 
