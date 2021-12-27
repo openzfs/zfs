@@ -38,6 +38,7 @@
 extern "C" {
 #endif
 
+/* Benchmark the chksums of ZFS when the module is loading */
 void chksum_init(void);
 void chksum_fini(void);
 
