@@ -152,8 +152,7 @@ function generate_files
 #
 function mv_files
 {
-        find $1 -type f -print | xargs -I "{}" \
-                mv {} $2 > /dev/null 2>&1
+        find $1 -type f -exec mv {} $2 \; > /dev/null 2>&1
 }
 
 #
@@ -165,8 +164,7 @@ function mv_files
 function count_files
 {
         typeset -i file_num
-        file_num=`find $1  -type f -print | \
-                wc -l`
+        file_num=$(find $1 -type f -print | wc -l)
         (( file_num != $2 )) && \
                 log_fail "The file number of target directory"\
                         "$2 is not equal to that of the source "\
