@@ -44,14 +44,6 @@ extern "C" {
 #endif /* CONSTIFY_PLUGIN */
 
 /*
- * Provider-private handle. This handle is specified by a provider
- * when it registers by means of the pi_provider_handle field of
- * the crypto_provider_info structure, and passed to the provider
- * when its entry points are invoked.
- */
-typedef void *crypto_provider_handle_t;
-
-/*
  * Context templates can be used to by providers to pre-process
  * keying material, such as key schedules. They are allocated by
  * a provider create_ctx_template(9E) entry point, and passed
@@ -70,7 +62,6 @@ typedef void *crypto_spi_ctx_template_t;
  * as separate arguments to Provider routines.
  */
 typedef struct crypto_ctx {
-	crypto_provider_handle_t cc_provider;
 	void			*cc_provider_private;	/* owned by provider */
 	void			*cc_framework_private;	/* owned by framework */
 } crypto_ctx_t;
@@ -87,7 +78,7 @@ typedef struct crypto_digest_ops {
 	int (*digest_update)(crypto_ctx_t *, crypto_data_t *);
 	int (*digest_key)(crypto_ctx_t *, crypto_key_t *);
 	int (*digest_final)(crypto_ctx_t *, crypto_data_t *);
-	int (*digest_atomic)(crypto_provider_handle_t, crypto_session_id_t,
+	int (*digest_atomic)(crypto_session_id_t,
 	    crypto_mechanism_t *, crypto_data_t *,
 	    crypto_data_t *);
 } __no_const crypto_digest_ops_t;
@@ -108,7 +99,7 @@ typedef struct crypto_cipher_ops {
 	    crypto_data_t *, crypto_data_t *);
 	int (*encrypt_final)(crypto_ctx_t *,
 	    crypto_data_t *);
-	int (*encrypt_atomic)(crypto_provider_handle_t, crypto_session_id_t,
+	int (*encrypt_atomic)(crypto_session_id_t,
 	    crypto_mechanism_t *, crypto_key_t *, crypto_data_t *,
 	    crypto_data_t *, crypto_spi_ctx_template_t);
 
@@ -121,7 +112,7 @@ typedef struct crypto_cipher_ops {
 	    crypto_data_t *, crypto_data_t *);
 	int (*decrypt_final)(crypto_ctx_t *,
 	    crypto_data_t *);
-	int (*decrypt_atomic)(crypto_provider_handle_t, crypto_session_id_t,
+	int (*decrypt_atomic)(crypto_session_id_t,
 	    crypto_mechanism_t *, crypto_key_t *, crypto_data_t *,
 	    crypto_data_t *, crypto_spi_ctx_template_t);
 } __no_const crypto_cipher_ops_t;
@@ -142,10 +133,10 @@ typedef struct crypto_mac_ops {
 	    crypto_data_t *);
 	int (*mac_final)(crypto_ctx_t *,
 	    crypto_data_t *);
-	int (*mac_atomic)(crypto_provider_handle_t, crypto_session_id_t,
+	int (*mac_atomic)(crypto_session_id_t,
 	    crypto_mechanism_t *, crypto_key_t *, crypto_data_t *,
 	    crypto_data_t *, crypto_spi_ctx_template_t);
-	int (*mac_verify_atomic)(crypto_provider_handle_t, crypto_session_id_t,
+	int (*mac_verify_atomic)(crypto_session_id_t,
 	    crypto_mechanism_t *, crypto_key_t *, crypto_data_t *,
 	    crypto_data_t *, crypto_spi_ctx_template_t);
 } __no_const crypto_mac_ops_t;
@@ -157,8 +148,7 @@ typedef struct crypto_mac_ops {
  * with the kernel using crypto_register_provider(9F).
  */
 typedef struct crypto_ctx_ops {
-	int (*create_ctx_template)(crypto_provider_handle_t,
-	    crypto_mechanism_t *, crypto_key_t *,
+	int (*create_ctx_template)(crypto_mechanism_t *, crypto_key_t *,
 	    crypto_spi_ctx_template_t *, size_t *);
 	int (*free_context)(crypto_ctx_t *);
 } __no_const crypto_ctx_ops_t;
@@ -230,13 +220,10 @@ typedef uint_t crypto_kcf_provider_handle_t;
 
 /*
  * Provider information. Passed as argument to crypto_register_provider(9F).
- * Describes the provider and its capabilities. Multiple providers can
- * register for the same device instance. In this case, the same
- * pi_provider_dev must be specified with a different pi_provider_handle.
+ * Describes the provider and its capabilities.
  */
 typedef struct crypto_provider_info {
 	const char				*pi_provider_description;
-	crypto_provider_handle_t	pi_provider_handle;
 	const crypto_ops_t			*pi_ops_vector;
 	uint_t				pi_mech_list_count;
 	const crypto_mech_info_t		*pi_mechanisms;

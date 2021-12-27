@@ -69,9 +69,6 @@ crypto_register_provider(const crypto_provider_info_t *info,
 	prov_desc = kcf_alloc_provider_desc();
 	KCF_PROV_REFHOLD(prov_desc);
 
-	/* provider-private handle, opaque to KCF */
-	prov_desc->pd_prov_handle = info->pi_provider_handle;
-
 	/* copy provider description string */
 	prov_desc->pd_description = info->pi_provider_description;
 
