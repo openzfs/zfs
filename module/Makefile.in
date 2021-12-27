@@ -67,10 +67,8 @@ clean-Linux:
 	@# is defined.  This indicates that kernel modules should be built.
 @CONFIG_KERNEL_TRUE@	$(MAKE) -C @LINUX_OBJ@ M="$$PWD" @KERNEL_MAKE@ clean
 
-	if [ -f @LINUX_SYMBOLS@ ]; then $(RM) @LINUX_SYMBOLS@; fi
-	if [ -f Module.markers ]; then $(RM) Module.markers; fi
-
-	find . -name '*.ur-safe' -type f -print | xargs $(RM)
+	$(RM) @LINUX_SYMBOLS@ Module.markers
+	find . -name '*.ur-safe' -type f -delete
 
 clean-FreeBSD:
 	+$(FMAKE) clean
@@ -86,7 +84,7 @@ modules_install-Linux:
 	@# Remove extraneous build products when packaging
 	kmoddir=$(INSTALL_MOD_PATH)/lib/modules/@LINUX_VERSION@; \
 	if [ -n "$(DESTDIR)" ]; then \
-		find $$kmoddir -name 'modules.*' | xargs $(RM); \
+		find $$kmoddir -name 'modules.*' -delete; \
 	fi
 	@# Debian ships tiny fake System.map files that are
 	@# syntactically valid but just say
