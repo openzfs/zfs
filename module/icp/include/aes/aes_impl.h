@@ -83,14 +83,7 @@ extern "C" {
 
 /* AES key size definitions */
 #define	AES_MINBITS		128
-#define	AES_MINBYTES		((AES_MINBITS) >> 3)
 #define	AES_MAXBITS		256
-#define	AES_MAXBYTES		((AES_MAXBITS) >> 3)
-
-#define	AES_MIN_KEY_BYTES	((AES_MINBITS) >> 3)
-#define	AES_MAX_KEY_BYTES	((AES_MAXBITS) >> 3)
-#define	AES_192_KEY_BYTES	24
-#define	AES_IV_LEN		16
 
 /* AES key schedule may be implemented with 32- or 64-bit elements: */
 #define	AES_32BIT_KS		32

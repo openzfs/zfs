@@ -90,13 +90,6 @@ typedef struct CK_AES_GMAC_PARAMS {
  */
 typedef uint32_t crypto_keysize_unit_t;
 
-/*
- * The following bit flags are valid in cm_mech_flags field in
- * the crypto_mech_info_t structure of the SPI.
- */
-#define	CRYPTO_KEYSIZE_UNIT_IN_BITS	0x00000001
-#define	CRYPTO_KEYSIZE_UNIT_IN_BYTES	0x00000002
-
 
 /* Mechanisms supported out-of-the-box */
 #define	SUN_CKM_SHA256			"CKM_SHA256"
