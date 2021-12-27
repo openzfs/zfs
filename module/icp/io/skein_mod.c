@@ -55,7 +55,7 @@ static int skein_digest_init(crypto_ctx_t *, crypto_mechanism_t *);
 static int skein_digest(crypto_ctx_t *, crypto_data_t *, crypto_data_t *);
 static int skein_update(crypto_ctx_t *, crypto_data_t *);
 static int skein_final(crypto_ctx_t *, crypto_data_t *);
-static int skein_digest_atomic(crypto_provider_handle_t, crypto_session_id_t,
+static int skein_digest_atomic(crypto_session_id_t,
     crypto_mechanism_t *, crypto_data_t *, crypto_data_t *);
 
 static const crypto_digest_ops_t skein_digest_ops = {
@@ -68,7 +68,7 @@ static const crypto_digest_ops_t skein_digest_ops = {
 
 static int skein_mac_init(crypto_ctx_t *, crypto_mechanism_t *, crypto_key_t *,
     crypto_spi_ctx_template_t);
-static int skein_mac_atomic(crypto_provider_handle_t, crypto_session_id_t,
+static int skein_mac_atomic(crypto_session_id_t,
     crypto_mechanism_t *, crypto_key_t *, crypto_data_t *, crypto_data_t *,
     crypto_spi_ctx_template_t);
 
@@ -81,9 +81,8 @@ static const crypto_mac_ops_t skein_mac_ops = {
 	.mac_verify_atomic = NULL
 };
 
-static int skein_create_ctx_template(crypto_provider_handle_t,
-    crypto_mechanism_t *, crypto_key_t *, crypto_spi_ctx_template_t *,
-    size_t *);
+static int skein_create_ctx_template(crypto_mechanism_t *, crypto_key_t *,
+    crypto_spi_ctx_template_t *, size_t *);
 static int skein_free_context(crypto_ctx_t *);
 
 static const crypto_ctx_ops_t skein_ctx_ops = {
@@ -100,7 +99,6 @@ static const crypto_ops_t skein_crypto_ops = {
 
 static const crypto_provider_info_t skein_prov_info = {
 	"Skein Software Provider",
-	NULL,
 	&skein_crypto_ops,
 	sizeof (skein_mech_info_tab) / sizeof (crypto_mech_info_t),
 	skein_mech_info_tab
@@ -475,11 +473,10 @@ skein_final(crypto_ctx_t *ctx, crypto_data_t *digest)
  * Supported input/output formats are raw, uio and mblk.
  */
 static int
-skein_digest_atomic(crypto_provider_handle_t provider,
-    crypto_session_id_t session_id, crypto_mechanism_t *mechanism,
-    crypto_data_t *data, crypto_data_t *digest)
+skein_digest_atomic(crypto_session_id_t session_id,
+    crypto_mechanism_t *mechanism, crypto_data_t *data, crypto_data_t *digest)
 {
-	(void) provider, (void) session_id;
+	(void) session_id;
 	int	 error;
 	skein_ctx_t skein_ctx;
 	crypto_ctx_t ctx;
@@ -579,13 +576,12 @@ errout:
  * function as to those of the partial operations above.
  */
 static int
-skein_mac_atomic(crypto_provider_handle_t provider,
-    crypto_session_id_t session_id, crypto_mechanism_t *mechanism,
+skein_mac_atomic(crypto_session_id_t session_id, crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_data_t *data, crypto_data_t *mac,
     crypto_spi_ctx_template_t ctx_template)
 {
 	/* faux crypto context just for skein_digest_{update,final} */
-	(void) provider, (void) session_id;
+	(void) session_id;
 	int	 error;
 	crypto_ctx_t ctx;
 	skein_ctx_t skein_ctx;
@@ -620,11 +616,9 @@ errout:
  * skein_mac_init.
  */
 static int
-skein_create_ctx_template(crypto_provider_handle_t provider,
-    crypto_mechanism_t *mechanism, crypto_key_t *key,
+skein_create_ctx_template(crypto_mechanism_t *mechanism, crypto_key_t *key,
     crypto_spi_ctx_template_t *ctx_template, size_t *ctx_template_size)
 {
-	(void) provider;
 	int	 error;
 	skein_ctx_t *ctx_tmpl;
 

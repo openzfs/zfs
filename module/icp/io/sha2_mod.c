@@ -109,7 +109,7 @@ static int sha2_digest_init(crypto_ctx_t *, crypto_mechanism_t *);
 static int sha2_digest(crypto_ctx_t *, crypto_data_t *, crypto_data_t *);
 static int sha2_digest_update(crypto_ctx_t *, crypto_data_t *);
 static int sha2_digest_final(crypto_ctx_t *, crypto_data_t *);
-static int sha2_digest_atomic(crypto_provider_handle_t, crypto_session_id_t,
+static int sha2_digest_atomic(crypto_session_id_t,
     crypto_mechanism_t *, crypto_data_t *, crypto_data_t *);
 
 static const crypto_digest_ops_t sha2_digest_ops = {
@@ -124,10 +124,10 @@ static int sha2_mac_init(crypto_ctx_t *, crypto_mechanism_t *, crypto_key_t *,
     crypto_spi_ctx_template_t);
 static int sha2_mac_update(crypto_ctx_t *, crypto_data_t *);
 static int sha2_mac_final(crypto_ctx_t *, crypto_data_t *);
-static int sha2_mac_atomic(crypto_provider_handle_t, crypto_session_id_t,
+static int sha2_mac_atomic(crypto_session_id_t,
     crypto_mechanism_t *, crypto_key_t *, crypto_data_t *, crypto_data_t *,
     crypto_spi_ctx_template_t);
-static int sha2_mac_verify_atomic(crypto_provider_handle_t, crypto_session_id_t,
+static int sha2_mac_verify_atomic(crypto_session_id_t,
     crypto_mechanism_t *, crypto_key_t *, crypto_data_t *, crypto_data_t *,
     crypto_spi_ctx_template_t);
 
@@ -140,9 +140,8 @@ static const crypto_mac_ops_t sha2_mac_ops = {
 	.mac_verify_atomic = sha2_mac_verify_atomic
 };
 
-static int sha2_create_ctx_template(crypto_provider_handle_t,
-    crypto_mechanism_t *, crypto_key_t *, crypto_spi_ctx_template_t *,
-    size_t *);
+static int sha2_create_ctx_template(crypto_mechanism_t *, crypto_key_t *,
+    crypto_spi_ctx_template_t *, size_t *);
 static int sha2_free_context(crypto_ctx_t *);
 
 static const crypto_ctx_ops_t sha2_ctx_ops = {
@@ -159,7 +158,6 @@ static const crypto_ops_t sha2_crypto_ops = {
 
 static const crypto_provider_info_t sha2_prov_info = {
 	"SHA2 Software Provider",
-	NULL,
 	&sha2_crypto_ops,
 	sizeof (sha2_mech_info_tab) / sizeof (crypto_mech_info_t),
 	sha2_mech_info_tab
@@ -554,11 +552,10 @@ sha2_digest_final(crypto_ctx_t *ctx, crypto_data_t *digest)
 }
 
 static int
-sha2_digest_atomic(crypto_provider_handle_t provider,
-    crypto_session_id_t session_id, crypto_mechanism_t *mechanism,
-    crypto_data_t *data, crypto_data_t *digest)
+sha2_digest_atomic(crypto_session_id_t session_id,
+    crypto_mechanism_t *mechanism, crypto_data_t *data, crypto_data_t *digest)
 {
-	(void) provider, (void) session_id;
+	(void) session_id;
 	int ret = CRYPTO_SUCCESS;
 	SHA2_CTX sha2_ctx;
 	uint32_t sha_digest_len;
@@ -916,12 +913,11 @@ sha2_mac_final(crypto_ctx_t *ctx, crypto_data_t *mac)
 }
 
 static int
-sha2_mac_atomic(crypto_provider_handle_t provider,
-    crypto_session_id_t session_id, crypto_mechanism_t *mechanism,
+sha2_mac_atomic(crypto_session_id_t session_id, crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_data_t *data, crypto_data_t *mac,
     crypto_spi_ctx_template_t ctx_template)
 {
-	(void) provider, (void) session_id;
+	(void) session_id;
 	int ret = CRYPTO_SUCCESS;
 	uchar_t digest[SHA512_DIGEST_LENGTH];
 	sha2_hmac_ctx_t sha2_hmac_ctx;
@@ -1050,12 +1046,12 @@ bail:
 }
 
 static int
-sha2_mac_verify_atomic(crypto_provider_handle_t provider,
-    crypto_session_id_t session_id, crypto_mechanism_t *mechanism,
+sha2_mac_verify_atomic(crypto_session_id_t session_id,
+    crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_data_t *data, crypto_data_t *mac,
     crypto_spi_ctx_template_t ctx_template)
 {
-	(void) provider, (void) session_id;
+	(void) session_id;
 	int ret = CRYPTO_SUCCESS;
 	uchar_t digest[SHA512_DIGEST_LENGTH];
 	sha2_hmac_ctx_t sha2_hmac_ctx;
@@ -1226,11 +1222,9 @@ bail:
  */
 
 static int
-sha2_create_ctx_template(crypto_provider_handle_t provider,
-    crypto_mechanism_t *mechanism, crypto_key_t *key,
+sha2_create_ctx_template(crypto_mechanism_t *mechanism, crypto_key_t *key,
     crypto_spi_ctx_template_t *ctx_template, size_t *ctx_template_size)
 {
-	(void) provider;
 	sha2_hmac_ctx_t *sha2_hmac_ctx_tmpl;
 	uint_t keylen_in_bytes = CRYPTO_BITS2BYTES(key->ck_length);
 	uint32_t sha_digest_len, sha_hmac_block_size;

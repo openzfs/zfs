@@ -146,7 +146,6 @@ typedef enum {
  * pd_irefcnt:		References held by the framework internal structs
  * pd_lock:		lock protects pd_state
  * pd_state:		State value of the provider
- * pd_prov_handle:	Provider handle specified by provider
  * pd_ops_vector:	The ops vector specified by Provider
  * pd_mech_indx:	Lookup table which maps a core framework mechanism
  *			number to an index in pd_mechanisms array
@@ -171,7 +170,6 @@ typedef struct kcf_provider_desc {
 	kmutex_t			pd_lock;
 	kcf_prov_state_t		pd_state;
 	kcondvar_t			pd_resume_cv;
-	crypto_provider_handle_t	pd_prov_handle;
 	const crypto_ops_t			*pd_ops_vector;
 	ushort_t			pd_mech_indx[KCF_OPS_CLASSSIZE]\
 					    [KCF_MAXMECHTAB];
@@ -405,16 +403,14 @@ typedef struct crypto_minor {
 	    template) ( \
 	(KCF_PROV_CIPHER_OPS(pd) && KCF_PROV_CIPHER_OPS(pd)->encrypt_atomic) ? \
 	KCF_PROV_CIPHER_OPS(pd)->encrypt_atomic( \
-	    (pd)->pd_prov_handle, session, mech, key, plaintext, ciphertext, \
-	    template) : \
+	    session, mech, key, plaintext, ciphertext, template) : \
 	CRYPTO_NOT_SUPPORTED)
 
 #define	KCF_PROV_DECRYPT_ATOMIC(pd, session, mech, key, ciphertext, plaintext, \
 	    template) ( \
 	(KCF_PROV_CIPHER_OPS(pd) && KCF_PROV_CIPHER_OPS(pd)->decrypt_atomic) ? \
 	KCF_PROV_CIPHER_OPS(pd)->decrypt_atomic( \
-	    (pd)->pd_prov_handle, session, mech, key, ciphertext, plaintext, \
-	    template) : \
+	    session, mech, key, ciphertext, plaintext, template) : \
 	CRYPTO_NOT_SUPPORTED)
 
 /*
@@ -443,7 +439,7 @@ typedef struct crypto_minor {
 #define	KCF_PROV_MAC_ATOMIC(pd, session, mech, key, data, mac, template) ( \
 	(KCF_PROV_MAC_OPS(pd) && KCF_PROV_MAC_OPS(pd)->mac_atomic) ? \
 	KCF_PROV_MAC_OPS(pd)->mac_atomic( \
-	    (pd)->pd_prov_handle, session, mech, key, data, mac, template) : \
+	    session, mech, key, data, mac, template) : \
 	CRYPTO_NOT_SUPPORTED)
 
 /*
@@ -453,7 +449,7 @@ typedef struct crypto_minor {
 #define	KCF_PROV_CREATE_CTX_TEMPLATE(pd, mech, key, template, size) ( \
 	(KCF_PROV_CTX_OPS(pd) && KCF_PROV_CTX_OPS(pd)->create_ctx_template) ? \
 	KCF_PROV_CTX_OPS(pd)->create_ctx_template( \
-	    (pd)->pd_prov_handle, mech, key, template, size) : \
+	    mech, key, template, size) : \
 	CRYPTO_NOT_SUPPORTED)
 
 #define	KCF_PROV_FREE_CONTEXT(pd, ctx) ( \

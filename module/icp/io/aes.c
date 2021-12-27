@@ -87,14 +87,14 @@ static int aes_decrypt_final(crypto_ctx_t *, crypto_data_t *);
 static int aes_encrypt(crypto_ctx_t *, crypto_data_t *, crypto_data_t *);
 static int aes_encrypt_update(crypto_ctx_t *, crypto_data_t *,
     crypto_data_t *);
-static int aes_encrypt_atomic(crypto_provider_handle_t, crypto_session_id_t,
+static int aes_encrypt_atomic(crypto_session_id_t,
     crypto_mechanism_t *, crypto_key_t *, crypto_data_t *,
     crypto_data_t *, crypto_spi_ctx_template_t);
 
 static int aes_decrypt(crypto_ctx_t *, crypto_data_t *, crypto_data_t *);
 static int aes_decrypt_update(crypto_ctx_t *, crypto_data_t *,
     crypto_data_t *);
-static int aes_decrypt_atomic(crypto_provider_handle_t, crypto_session_id_t,
+static int aes_decrypt_atomic(crypto_session_id_t,
     crypto_mechanism_t *, crypto_key_t *, crypto_data_t *,
     crypto_data_t *, crypto_spi_ctx_template_t);
 
@@ -111,10 +111,10 @@ static const crypto_cipher_ops_t aes_cipher_ops = {
 	.decrypt_atomic = aes_decrypt_atomic
 };
 
-static int aes_mac_atomic(crypto_provider_handle_t, crypto_session_id_t,
+static int aes_mac_atomic(crypto_session_id_t,
     crypto_mechanism_t *, crypto_key_t *, crypto_data_t *, crypto_data_t *,
     crypto_spi_ctx_template_t);
-static int aes_mac_verify_atomic(crypto_provider_handle_t, crypto_session_id_t,
+static int aes_mac_verify_atomic(crypto_session_id_t,
     crypto_mechanism_t *, crypto_key_t *, crypto_data_t *, crypto_data_t *,
     crypto_spi_ctx_template_t);
 
@@ -127,9 +127,8 @@ static const crypto_mac_ops_t aes_mac_ops = {
 	.mac_verify_atomic = aes_mac_verify_atomic
 };
 
-static int aes_create_ctx_template(crypto_provider_handle_t,
-    crypto_mechanism_t *, crypto_key_t *, crypto_spi_ctx_template_t *,
-    size_t *);
+static int aes_create_ctx_template(crypto_mechanism_t *, crypto_key_t *,
+    crypto_spi_ctx_template_t *, size_t *);
 static int aes_free_context(crypto_ctx_t *);
 
 static const crypto_ctx_ops_t aes_ctx_ops = {
@@ -146,7 +145,6 @@ static const crypto_ops_t aes_crypto_ops = {
 
 static const crypto_provider_info_t aes_prov_info = {
 	"AES Software Provider",
-	NULL,
 	&aes_crypto_ops,
 	sizeof (aes_mech_info_tab) / sizeof (crypto_mech_info_t),
 	aes_mech_info_tab
@@ -840,12 +838,12 @@ aes_decrypt_final(crypto_ctx_t *ctx, crypto_data_t *data)
 }
 
 static int
-aes_encrypt_atomic(crypto_provider_handle_t provider,
-    crypto_session_id_t session_id, crypto_mechanism_t *mechanism,
+aes_encrypt_atomic(crypto_session_id_t session_id,
+    crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_data_t *plaintext, crypto_data_t *ciphertext,
     crypto_spi_ctx_template_t template)
 {
-	(void) provider, (void) session_id;
+	(void) session_id;
 	aes_ctx_t aes_ctx;	/* on the stack */
 	off_t saved_offset;
 	size_t saved_length;
@@ -976,12 +974,12 @@ out:
 }
 
 static int
-aes_decrypt_atomic(crypto_provider_handle_t provider,
-    crypto_session_id_t session_id, crypto_mechanism_t *mechanism,
+aes_decrypt_atomic(crypto_session_id_t session_id,
+    crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_data_t *ciphertext, crypto_data_t *plaintext,
     crypto_spi_ctx_template_t template)
 {
-	(void) provider, (void) session_id;
+	(void) session_id;
 	aes_ctx_t aes_ctx;	/* on the stack */
 	off_t saved_offset;
 	size_t saved_length;
@@ -1142,11 +1140,9 @@ out:
  * KCF software provider context template entry points.
  */
 static int
-aes_create_ctx_template(crypto_provider_handle_t provider,
-    crypto_mechanism_t *mechanism, crypto_key_t *key,
+aes_create_ctx_template(crypto_mechanism_t *mechanism, crypto_key_t *key,
     crypto_spi_ctx_template_t *tmpl, size_t *tmpl_size)
 {
-	(void) provider;
 	void *keysched;
 	size_t size;
 	int rv;
@@ -1318,8 +1314,7 @@ process_gmac_mech(crypto_mechanism_t *mech, crypto_data_t *data,
 }
 
 static int
-aes_mac_atomic(crypto_provider_handle_t provider,
-    crypto_session_id_t session_id, crypto_mechanism_t *mechanism,
+aes_mac_atomic(crypto_session_id_t session_id, crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_data_t *data, crypto_data_t *mac,
     crypto_spi_ctx_template_t template)
 {
@@ -1335,15 +1330,14 @@ aes_mac_atomic(crypto_provider_handle_t provider,
 	gcm_mech.cm_param_len = sizeof (CK_AES_GCM_PARAMS);
 	gcm_mech.cm_param = (char *)&gcm_params;
 
-	return (aes_encrypt_atomic(provider, session_id, &gcm_mech,
+	return (aes_encrypt_atomic(session_id, &gcm_mech,
 	    key, &null_crypto_data, mac, template));
 }
 
 static int
-aes_mac_verify_atomic(crypto_provider_handle_t provider,
-    crypto_session_id_t session_id, crypto_mechanism_t *mechanism,
-    crypto_key_t *key, crypto_data_t *data, crypto_data_t *mac,
-    crypto_spi_ctx_template_t template)
+aes_mac_verify_atomic(crypto_session_id_t session_id,
+    crypto_mechanism_t *mechanism, crypto_key_t *key, crypto_data_t *data,
+    crypto_data_t *mac, crypto_spi_ctx_template_t template)
 {
 	CK_AES_GCM_PARAMS gcm_params;
 	crypto_mechanism_t gcm_mech;
@@ -1357,6 +1351,6 @@ aes_mac_verify_atomic(crypto_provider_handle_t provider,
 	gcm_mech.cm_param_len = sizeof (CK_AES_GCM_PARAMS);
 	gcm_mech.cm_param = (char *)&gcm_params;
 
-	return (aes_decrypt_atomic(provider, session_id, &gcm_mech,
+	return (aes_decrypt_atomic(session_id, &gcm_mech,
 	    key, mac, &null_crypto_data, template));
 }

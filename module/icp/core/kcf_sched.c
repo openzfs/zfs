@@ -58,7 +58,6 @@ kcf_new_ctx(kcf_provider_desc_t *pd)
 	kcf_ctx->kc_sw_prov_desc = NULL;
 
 	ctx = &kcf_ctx->kc_glbl_ctx;
-	ctx->cc_provider = pd->pd_prov_handle;
 	ctx->cc_provider_private = NULL;
 	ctx->cc_framework_private = (void *)kcf_ctx;
 
