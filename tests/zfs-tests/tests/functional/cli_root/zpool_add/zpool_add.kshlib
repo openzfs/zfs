@@ -57,7 +57,7 @@ function find_mnttab_dev
 	if is_freebsd; then
 		# FreeBSD doesn't have a mnttab file.
 		mount -p | awk -v dir="^${DEV_DSKDIR}" \
-		    '$1 ~ dir { print $1 }' | xargs
+		    '$1 ~ dir { print $1 }'
 		return 0
 	elif is_linux; then
 		typeset mnttab="/etc/mtab"

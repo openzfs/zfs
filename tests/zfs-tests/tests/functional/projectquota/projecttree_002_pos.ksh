@@ -109,8 +109,7 @@ log_must eval "zfs project -cr $PRJDIR/a1/a2 | grep a3 | grep 'not set'"
 log_must eval "zfs project -cr $PRJDIR/a1/a2 | grep d4 | grep 'not set'"
 log_must eval "zfs project $PRJDIR/a1/a2/a3/d4 | grep '0 \-'"
 
-log_must eval \
-    "zfs project -cr -0 $PRJDIR/a1/a2 | xargs -0 zfs project -s -p $PRJID2"
+log_must eval "zfs project -s -p $PRJID2 $(zfs project -cr0 $PRJDIR/a1/a2 | tr '\0' '\t')"
 log_mustnot eval "zfs project -cr $PRJDIR/a1/a2 | grep a3 | grep 'not set'"
 log_mustnot eval "zfs project -cr $PRJDIR/a1/a2 | grep d4 | grep 'not set'"
 
