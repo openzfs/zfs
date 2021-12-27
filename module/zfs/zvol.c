@@ -1353,13 +1353,12 @@ static void
 zvol_rename_minors_impl(const char *oldname, const char *newname)
 {
 	zvol_state_t *zv, *zv_next;
-	int oldnamelen, newnamelen;
+	int oldnamelen;
 
 	if (zvol_inhibit_dev)
 		return;
 
 	oldnamelen = strlen(oldname);
-	newnamelen = strlen(newname);
 
 	rw_enter(&zvol_state_lock, RW_READER);
 
