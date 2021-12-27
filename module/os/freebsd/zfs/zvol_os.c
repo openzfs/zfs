@@ -1063,7 +1063,7 @@ zvol_cdev_ioctl(struct cdev *dev, ulong_t cmd, caddr_t data,
 	zvol_state_t *zv;
 	zfs_locked_range_t *lr;
 	off_t offset, length;
-	int i, error;
+	int error;
 	boolean_t sync;
 
 	zv = dev->si_drv2;
@@ -1072,7 +1072,6 @@ zvol_cdev_ioctl(struct cdev *dev, ulong_t cmd, caddr_t data,
 	KASSERT(zv->zv_open_count > 0,
 	    ("Device with zero access count in %s", __func__));
 
-	i = IOCPARM_LEN(cmd);
 	switch (cmd) {
 	case DIOCGSECTORSIZE:
 		*(uint32_t *)data = DEV_BSIZE;
