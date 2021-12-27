@@ -203,11 +203,7 @@ typedef struct crypto_mech_info {
 	crypto_mech_name_t	cm_mech_name;
 	crypto_mech_type_t	cm_mech_number;
 	crypto_func_group_t	cm_func_group_mask;
-	ssize_t			cm_min_key_length;
-	ssize_t			cm_max_key_length;
-	uint32_t		cm_mech_flags;
 } crypto_mech_info_t;
-#define	cm_max_input_length	cm_max_key_length
 
 /*
  * crypto_kcf_provider_handle_t is a handle allocated by the kernel.
