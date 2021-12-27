@@ -49,8 +49,8 @@ static int skein_digest_init(crypto_ctx_t *, crypto_mechanism_t *);
 static int skein_digest(crypto_ctx_t *, crypto_data_t *, crypto_data_t *);
 static int skein_update(crypto_ctx_t *, crypto_data_t *);
 static int skein_final(crypto_ctx_t *, crypto_data_t *);
-static int skein_digest_atomic(crypto_session_id_t,
-    crypto_mechanism_t *, crypto_data_t *, crypto_data_t *);
+static int skein_digest_atomic(crypto_mechanism_t *, crypto_data_t *,
+    crypto_data_t *);
 
 static const crypto_digest_ops_t skein_digest_ops = {
 	.digest_init = skein_digest_init,
@@ -62,9 +62,8 @@ static const crypto_digest_ops_t skein_digest_ops = {
 
 static int skein_mac_init(crypto_ctx_t *, crypto_mechanism_t *, crypto_key_t *,
     crypto_spi_ctx_template_t);
-static int skein_mac_atomic(crypto_session_id_t,
-    crypto_mechanism_t *, crypto_key_t *, crypto_data_t *, crypto_data_t *,
-    crypto_spi_ctx_template_t);
+static int skein_mac_atomic(crypto_mechanism_t *, crypto_key_t *,
+    crypto_data_t *, crypto_data_t *, crypto_spi_ctx_template_t);
 
 static const crypto_mac_ops_t skein_mac_ops = {
 	.mac_init = skein_mac_init,
@@ -467,10 +466,9 @@ skein_final(crypto_ctx_t *ctx, crypto_data_t *digest)
  * Supported input/output formats are raw, uio and mblk.
  */
 static int
-skein_digest_atomic(crypto_session_id_t session_id,
-    crypto_mechanism_t *mechanism, crypto_data_t *data, crypto_data_t *digest)
+skein_digest_atomic(crypto_mechanism_t *mechanism, crypto_data_t *data,
+    crypto_data_t *digest)
 {
-	(void) session_id;
 	int	 error;
 	skein_ctx_t skein_ctx;
 	crypto_ctx_t ctx;
@@ -570,12 +568,11 @@ errout:
  * function as to those of the partial operations above.
  */
 static int
-skein_mac_atomic(crypto_session_id_t session_id, crypto_mechanism_t *mechanism,
+skein_mac_atomic(crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_data_t *data, crypto_data_t *mac,
     crypto_spi_ctx_template_t ctx_template)
 {
 	/* faux crypto context just for skein_digest_{update,final} */
-	(void) session_id;
 	int	 error;
 	crypto_ctx_t ctx;
 	skein_ctx_t skein_ctx;
