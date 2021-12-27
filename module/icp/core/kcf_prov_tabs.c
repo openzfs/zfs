@@ -214,7 +214,6 @@ kcf_alloc_provider_desc(void)
 	desc->pd_state = KCF_PROV_ALLOCATED;
 
 	mutex_init(&desc->pd_lock, NULL, MUTEX_DEFAULT, NULL);
-	cv_init(&desc->pd_resume_cv, NULL, CV_DEFAULT, NULL);
 	cv_init(&desc->pd_remove_cv, NULL, CV_DEFAULT, NULL);
 
 	return (desc);
@@ -264,7 +263,6 @@ kcf_free_provider_desc(kcf_provider_desc_t *desc)
 	/* free the kernel memory associated with the provider descriptor */
 
 	mutex_destroy(&desc->pd_lock);
-	cv_destroy(&desc->pd_resume_cv);
 	cv_destroy(&desc->pd_remove_cv);
 
 	kmem_free(desc, sizeof (kcf_provider_desc_t));
