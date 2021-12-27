@@ -105,7 +105,7 @@ retry:
 
 	crypto_mechanism_t lmech = *mech;
 	KCF_SET_PROVIDER_MECHNUM(mech->cm_type, pd, &lmech);
-	error = KCF_PROV_MAC_ATOMIC(pd, pd->pd_sid, &lmech, key, data,
+	error = KCF_PROV_MAC_ATOMIC(pd, &lmech, key, data,
 	    mac, spi_ctx_tmpl);
 	KCF_PROV_INCRSTATS(pd, error);
 
