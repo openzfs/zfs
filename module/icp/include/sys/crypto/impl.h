@@ -81,8 +81,6 @@ typedef struct kcf_sched_info {
  * acquire any locks here as it is not critical to get the exact number
  * and the lock contention may be too costly for this code path.
  */
-#define	KCF_PROV_LOAD(pd)	((pd)->pd_irefcnt)
-
 #define	KCF_PROV_INCRSTATS(pd, error)	{				\
 	(pd)->pd_sched_info.ks_ndispatches++;				\
 	if (error == CRYPTO_BUSY)					\
@@ -154,8 +152,6 @@ typedef enum {
  *			by the provider during registration
  * pd_remove_cv:	cv to wait on while the provider queue drains
  * pd_description:	Provider description string
- * pd_hash_limit	Maximum data size that hash mechanisms of this provider
- * 			can support.
  * pd_kcf_prov_handle:	KCF-private handle assigned by KCF
  * pd_prov_id:		Identification # assigned by KCF to provider
  * pd_kstat:		kstat associated with the provider
@@ -166,7 +162,6 @@ typedef struct kcf_provider_desc {
 	uint_t				pd_irefcnt;
 	kmutex_t			pd_lock;
 	kcf_prov_state_t		pd_state;
-	kcondvar_t			pd_resume_cv;
 	const crypto_ops_t			*pd_ops_vector;
 	ushort_t			pd_mech_indx[KCF_OPS_CLASSSIZE]\
 					    [KCF_MAXMECHTAB];
@@ -175,7 +170,6 @@ typedef struct kcf_provider_desc {
 	uint_t				pd_mech_list_count;
 	kcondvar_t			pd_remove_cv;
 	const char				*pd_description;
-	uint_t				pd_hash_limit;
 	crypto_kcf_provider_handle_t	pd_kcf_prov_handle;
 	crypto_provider_id_t		pd_prov_id;
 	kstat_t				*pd_kstat;
