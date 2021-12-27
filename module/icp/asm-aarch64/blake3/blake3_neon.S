@@ -308,7 +308,7 @@ _blake3_hash_many_neon:                  // @_blake3_hash_many_neon
 .LBB2_9:                                //   in Loop: Header=BB2_11 Depth=2
 	orr	w26, w26, w28
 .LBB2_10:                               //   in Loop: Header=BB2_11 Depth=2
-	bl	blake3_impl_get_generic_ops
+	bl	blake3_impl_get_ops
 	ldr	x8, [x0]
 	add	x0, sp, #400                    // =400
 	mov	w2, #64
