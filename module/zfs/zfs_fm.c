@@ -825,9 +825,6 @@ annotate_ecksum(nvlist_t *ereport, zio_bad_cksum_t *info,
 	const uint64_t *good;
 	const uint64_t *bad;
 
-	uint64_t allset = 0;
-	uint64_t allcleared = 0;
-
 	size_t nui64s = size / sizeof (uint64_t);
 
 	size_t inline_size;
@@ -928,9 +925,6 @@ annotate_ecksum(nvlist_t *ereport, zio_bad_cksum_t *info,
 			set = ((~good[idx]) & bad[idx]);
 			// bits set in good, but not in bad
 			cleared = (good[idx] & (~bad[idx]));
-
-			allset |= set;
-			allcleared |= cleared;
 
 			if (!no_inline) {
 				ASSERT3U(offset, <, inline_size);
