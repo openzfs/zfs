@@ -26,7 +26,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd May 27, 2021
+.Dd December 29, 2021
 .Dt ZPOOL-CLEAR 8
 .Os
 .
@@ -36,6 +36,7 @@
 .Sh SYNOPSIS
 .Nm zpool
 .Cm clear
+.Op Fl F Op Fl nX
 .Ar pool
 .Oo Ar device Oc Ns …
 .
@@ -52,8 +53,30 @@ Pools with
 enabled which have been suspended cannot be resumed.
 While the pool was suspended, it may have been imported on
 another host, and resuming I/O could result in pool damage.
+.Pp
+.
+.Bl -tag -width Ds -compact
+.It Fl F
+Force import by rewinding
+.Pq no further than Sy 2 No transactions past the last uberblock sync .
+.\" ^ TXG_DEFER_SIZE inlined here
+.
+.It Fl n
+Dry-run rewind: show how far back time needs to be rewound.
+.
+.It Fl X
+eXtreme rewind: try going back to the initial transaction if possible.
+.Pp
+These options pose obvious potential for data loss, and
+.Fl X
+may induce catastrophic pool failure.
+Confer with
+.Xr zpool-import 8
+so as to their applicability.
+.El
 .
 .Sh SEE ALSO
 .Xr zdb 8 ,
+.Xr zpool-import 8 ,
 .Xr zpool-reopen 8 ,
 .Xr zpool-status 8
