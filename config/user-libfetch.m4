@@ -32,7 +32,7 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_LIBFETCH], [
 		have_libfetch=1
 		LIBFETCH_IS_FETCH=1
 		LIBFETCH_DYNAMIC=1
-		LIBFETCH_SONAME='"libfetch.so.6"'
+		LIBFETCH_SONAME="libfetch.so.6"
 		LIBFETCH_LIBS="-ldl"
 		AC_MSG_RESULT([fetch(3)])
 	], [])
@@ -45,7 +45,7 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_LIBFETCH], [
 			LIBFETCH_IS_LIBCURL=1
 			if test "$(curl-config --built-shared)" = "yes"; then
 				LIBFETCH_DYNAMIC=1
-				LIBFETCH_SONAME='"libcurl.so.4"'
+				LIBFETCH_SONAME="libcurl.so.4"
 				LIBFETCH_LIBS="-ldl"
 				AC_MSG_RESULT([libcurl])
 			else
@@ -67,5 +67,5 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_LIBFETCH], [
 	AC_DEFINE_UNQUOTED([LIBFETCH_IS_FETCH], [$LIBFETCH_IS_FETCH], [libfetch is fetch(3)])
 	AC_DEFINE_UNQUOTED([LIBFETCH_IS_LIBCURL], [$LIBFETCH_IS_LIBCURL], [libfetch is libcurl])
 	AC_DEFINE_UNQUOTED([LIBFETCH_DYNAMIC], [$LIBFETCH_DYNAMIC], [whether the chosen libfetch is to be loaded at run-time])
-	AC_DEFINE_UNQUOTED([LIBFETCH_SONAME], [$LIBFETCH_SONAME], [soname of chosen libfetch])
+	AC_DEFINE_UNQUOTED([LIBFETCH_SONAME], ["$LIBFETCH_SONAME"], [soname of chosen libfetch])
 ])
