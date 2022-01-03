@@ -938,7 +938,7 @@ pam_sm_close_session(pam_handle_t *pamh, int flags,
 	int debug = config.debug;
 	if (debug) {
 		pam_syslog(pamh, LOG_DEBUG,
-		    "pam_sm_open_session");
+		    "pam_sm_close_session");
 	}
 	if (config.uid < 1000) {
 		if (debug) {
@@ -996,7 +996,7 @@ pam_sm_close_session(pam_handle_t *pamh, int flags,
 	zfs_key_config_free(&config);
 	if (debug) {
 		pam_syslog(pamh, LOG_DEBUG,
-		    "pam_sm_open_session end");
+		    "pam_sm_close_session end");
 	}
 	return (PAM_SUCCESS);
 }
