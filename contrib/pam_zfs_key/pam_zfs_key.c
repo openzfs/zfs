@@ -661,8 +661,26 @@ pam_sm_authenticate(pam_handle_t *pamh, int flags,
 {
 	(void) flags, (void) argc, (void) argv;
 
+	zfs_key_config_t config;
+	zfs_key_config_load(pamh, &config, argc, argv);
+	int debug = config.debug;
+	if (debug) {
+		pam_syslog(pamh, LOG_DEBUG,
+		    "pam_sm_authenticate.");
+	}
+
 	if (pw_fetch_lazy(pamh) == NULL) {
+		pam_syslog(pamh, LOG_ERR,
+		    "Cannot fetch password.");
+
+		zfs_key_config_free(&config);
 		return (PAM_AUTH_ERR);
+	}
+
+	zfs_key_config_free(&config);
+	if (debug) {
+		pam_syslog(pamh, LOG_DEBUG,
+		    "pam_sm_authenticate end.");
 	}
 
 	return (PAM_SUCCESS);
