@@ -232,7 +232,7 @@ pam_zfs_init(pam_handle_t *pamh)
 	int error = 0;
 	if ((g_zfs = libzfs_init()) == NULL) {
 		error = errno;
-		pam_syslog(pamh, LOG_ERR, "Zfs initialization error: %s",
+		pam_syslog(pamh, LOG_ERR, "zfs initialization error: %s",
 		    libzfs_error_init(error));
 	}
 	return (error);
@@ -571,17 +571,17 @@ zfs_key_config_modify_session_counter(pam_handle_t *pamh,
 {
 	const char *runtime_path = config->runstatedir;
 	if (mkdir(runtime_path, S_IRWXU) != 0 && errno != EEXIST) {
-		pam_syslog(pamh, LOG_ERR, "Can't create runtime path: %d",
+		pam_syslog(pamh, LOG_ERR, "can't create runtime path: %d",
 		    errno);
 		return (-1);
 	}
 	if (chown(runtime_path, 0, 0) != 0) {
-		pam_syslog(pamh, LOG_ERR, "Can't chown runtime path: %d",
+		pam_syslog(pamh, LOG_ERR, "can't chown runtime path: %d",
 		    errno);
 		return (-1);
 	}
 	if (chmod(runtime_path, S_IRWXU) != 0) {
-		pam_syslog(pamh, LOG_ERR, "Can't chmod runtime path: %d",
+		pam_syslog(pamh, LOG_ERR, "can't chmod runtime path: %d",
 		    errno);
 		return (-1);
 	}
@@ -598,7 +598,7 @@ zfs_key_config_modify_session_counter(pam_handle_t *pamh,
 	    config->uid);
 
 	if (config->debug) {
-		pam_syslog(pamh, LOG_DEBUG, "Counter file path: %s",
+		pam_syslog(pamh, LOG_DEBUG, "counter file path: %s",
 		    counter_path);
 	}
 
@@ -607,11 +607,11 @@ zfs_key_config_modify_session_counter(pam_handle_t *pamh,
 	    S_IRUSR | S_IWUSR);
 	free(counter_path);
 	if (fd < 0) {
-		pam_syslog(pamh, LOG_ERR, "Can't open counter file: %d", errno);
+		pam_syslog(pamh, LOG_ERR, "can't open counter file (errno: %d)", errno);
 		return (-1);
 	}
 	if (flock(fd, LOCK_EX) != 0) {
-		pam_syslog(pamh, LOG_ERR, "Can't lock counter file: %d", errno);
+		pam_syslog(pamh, LOG_ERR, "can't lock counter file (errno: %d)", errno);
 		close(fd);
 		return (-1);
 	}
@@ -627,7 +627,7 @@ zfs_key_config_modify_session_counter(pam_handle_t *pamh,
 	*pos = 0;
 
 	if (config->debug) {
-		pam_syslog(pamh, LOG_DEBUG, "Counter file content: %s",
+		pam_syslog(pamh, LOG_DEBUG, "counter file content: '%s'",
 		    counter);
 	}
 
@@ -638,7 +638,7 @@ zfs_key_config_modify_session_counter(pam_handle_t *pamh,
 	}
 	lseek(fd, 0, SEEK_SET);
 	if (ftruncate(fd, 0) != 0) {
-		pam_syslog(pamh, LOG_ERR, "Can't truncate counter file: %d",
+		pam_syslog(pamh, LOG_ERR, "can't truncate counter file: '%d'",
 		    errno);
 		close(fd);
 		return (-1);
@@ -666,12 +666,12 @@ pam_sm_authenticate(pam_handle_t *pamh, int flags,
 	int debug = config.debug;
 	if (debug) {
 		pam_syslog(pamh, LOG_DEBUG,
-		    "pam_sm_authenticate.");
+		    "pam_sm_authenticate");
 	}
 
 	if (pw_fetch_lazy(pamh) == NULL) {
 		pam_syslog(pamh, LOG_ERR,
-		    "Cannot fetch password.");
+		    "cannot fetch password");
 
 		zfs_key_config_free(&config);
 		return (PAM_AUTH_ERR);
@@ -680,7 +680,7 @@ pam_sm_authenticate(pam_handle_t *pamh, int flags,
 	zfs_key_config_free(&config);
 	if (debug) {
 		pam_syslog(pamh, LOG_DEBUG,
-		    "pam_sm_authenticate end.");
+		    "pam_sm_authenticate end");
 	}
 
 	return (PAM_SUCCESS);
@@ -702,7 +702,7 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 {
 	if (geteuid() != 0) {
 		pam_syslog(pamh, LOG_ERR,
-		    "Cannot zfs_mount when not being root.");
+		    "cannot zfs_mount when not being root");
 		return (PAM_PERM_DENIED);
 	}
 	zfs_key_config_t config;
@@ -713,12 +713,12 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 
 	if (debug) {
 		pam_syslog(pamh, LOG_DEBUG,
-		    "pam_sm_chauthtok.");
+		    "pam_sm_chauthtok");
 	}
 	if (config.uid < 1000) {
 		if (config.debug) {
 			pam_syslog(pamh, LOG_INFO,
-			    "Ignoring user with low uid (%d).", config.uid);
+			    "ignoring user with low uid (%d)", config.uid);
 		}
 		zfs_key_config_free(&config);
 		return (PAM_SUCCESS);
@@ -727,7 +727,7 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 		if (pam_zfs_init(pamh) != 0) {
 			if (debug) {
 				pam_syslog(pamh, LOG_ERR,
-				    "Cannot init libzfs.");
+				    "cannot init libzfs");
 			}
 			zfs_key_config_free(&config);
 			return (PAM_SERVICE_ERR);
@@ -736,7 +736,7 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 		if (!dataset) {
 			if (debug) {
 				pam_syslog(pamh, LOG_ERR,
-				    "Cannot read dataset name.");
+				    "cannot read dataset name");
 			}
 			pam_zfs_free();
 			zfs_key_config_free(&config);
@@ -746,7 +746,7 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 		if (key_loaded == -1) {
 			if (debug) {
 				pam_syslog(pamh, LOG_ERR,
-				    "Key loading error.");
+				    "Key loading error");
 			}
 			free(dataset);
 			pam_zfs_free();
@@ -768,7 +768,7 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 		if (token == NULL) {
 			if (debug) {
 				pam_syslog(pamh, LOG_ERR,
-				    "Cannot read passoword token.");
+				    "cannot read passoword token");
 			}
 			zfs_key_config_free(&config);
 			return (PAM_SERVICE_ERR);
@@ -776,7 +776,7 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 		if (pam_zfs_init(pamh) != 0) {
 			if (debug) {
 				pam_syslog(pamh, LOG_ERR,
-				    "Cannot init libzfs.");
+				    "cannot init libzfs");
 			}
 			zfs_key_config_free(&config);
 			return (PAM_SERVICE_ERR);
@@ -785,7 +785,7 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 		if (!dataset) {
 			if (debug) {
 				pam_syslog(pamh, LOG_ERR,
-				    "Cannot read dataset name.");
+				    "cannot read dataset name");
 			}
 			pam_zfs_free();
 			zfs_key_config_free(&config);
@@ -794,7 +794,7 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 		if (change_key(pamh, dataset, token->value) == -1) {
 			if (debug) {
 				pam_syslog(pamh, LOG_ERR,
-				    "Cannot change password.");
+				    "cannot change password");
 			}
 			free(dataset);
 			pam_zfs_free();
@@ -813,7 +813,7 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 
 	if (debug) {
 		pam_syslog(pamh, LOG_DEBUG,
-		    "pam_sm_chauthtok end.");
+		    "pam_sm_chauthtok end");
 	}
 	return (PAM_SUCCESS);
 }
@@ -826,7 +826,7 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
 
 	if (geteuid() != 0) {
 		pam_syslog(pamh, LOG_ERR,
-		    "Cannot zfs_mount when not being root.");
+		    "cannot zfs_mount when not being root");
 		return (PAM_SUCCESS);
 	}
 	zfs_key_config_t config;
@@ -834,12 +834,12 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
 	int debug = config.debug;
 	if (debug) {
 		pam_syslog(pamh, LOG_DEBUG,
-		    "pam_sm_open_session.");
+		    "pam_sm_open_session");
 	}
 	if (config.uid < 1000) {
 		if (debug) {
 			pam_syslog(pamh, LOG_INFO,
-			    "Ignoring user with low uid (%d).", config.uid);
+			    "ignoring user with low uid (%d)", config.uid);
 		}
 		zfs_key_config_free(&config);
 		return (PAM_SUCCESS);
@@ -849,14 +849,14 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
 	if (counter != 1) {
 		if (debug) {
 			pam_syslog(pamh, LOG_DEBUG,
-			    "Not first pam_sm_open_session (%d).", counter);
+			    "not first pam_sm_open_session (%d)", counter);
 		}
 		zfs_key_config_free(&config);
 		return (PAM_SUCCESS);
 	} else if (counter < 1) {
 		if (debug) {
 			pam_syslog(pamh, LOG_ERR,
-			    "Cannot init counter for session (err: %d).",
+			    "cannot init counter for session (err: %d)",
 			    counter);
 		}
 		zfs_key_config_free(&config);
@@ -867,7 +867,7 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
 	if (token == NULL) {
 		if (debug) {
 			pam_syslog(pamh, LOG_ERR,
-			    "Cannot read passoword token.");
+			    "cannot read passoword token");
 		}
 		zfs_key_config_free(&config);
 		return (PAM_SESSION_ERR);
@@ -875,7 +875,7 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
 	if (pam_zfs_init(pamh) != 0) {
 		if (debug) {
 			pam_syslog(pamh, LOG_ERR,
-			    "Cannot init libzfs.");
+			    "cannot init libzfs");
 		}
 		zfs_key_config_free(&config);
 		return (PAM_SERVICE_ERR);
@@ -884,7 +884,7 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
 	if (!dataset) {
 		if (debug) {
 			pam_syslog(pamh, LOG_ERR,
-			    "Cannot read dataset name.");
+			    "cannot read dataset name");
 		}
 		pam_zfs_free();
 		zfs_key_config_free(&config);
@@ -893,7 +893,7 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
 	if (decrypt_mount(pamh, dataset, token->value) == -1) {
 		if (debug) {
 			pam_syslog(pamh, LOG_ERR,
-			    "Cannot decrypt amd mount dataset '%s'.",
+			    "cannot decrypt amd mount dataset '%s'",
 			    dataset);
 		}
 		free(dataset);
@@ -907,14 +907,14 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
 	if (pw_clear(pamh) == -1) {
 		if (debug) {
 			pam_syslog(pamh, LOG_ERR,
-			    "Cannot clear pw.");
+			    "cannot clear pw");
 		}
 		return (PAM_SERVICE_ERR);
 	}
 
 	if (debug) {
 		pam_syslog(pamh, LOG_DEBUG,
-		    "pam_sm_open_session end.");
+		    "pam_sm_open_session end");
 	}
 
 	return (PAM_SUCCESS);
@@ -930,7 +930,7 @@ pam_sm_close_session(pam_handle_t *pamh, int flags,
 
 	if (geteuid() != 0) {
 		pam_syslog(pamh, LOG_ERR,
-		    "Cannot zfs_mount when not being root.");
+		    "cannot zfs_mount when not being root");
 		return (PAM_SUCCESS);
 	}
 	zfs_key_config_t config;
@@ -938,12 +938,12 @@ pam_sm_close_session(pam_handle_t *pamh, int flags,
 	int debug = config.debug;
 	if (debug) {
 		pam_syslog(pamh, LOG_DEBUG,
-		    "pam_sm_open_session.");
+		    "pam_sm_open_session");
 	}
 	if (config.uid < 1000) {
 		if (debug) {
 			pam_syslog(pamh, LOG_INFO,
-			    "Ignoring user with low uid (%d).", config.uid);
+			    "ignoring user with low uid (%d)", config.uid);
 		}
 		zfs_key_config_free(&config);
 		return (PAM_SUCCESS);
@@ -953,7 +953,7 @@ pam_sm_close_session(pam_handle_t *pamh, int flags,
 	if (counter != 0) {
 		if (debug) {
 			pam_syslog(pamh, LOG_DEBUG,
-			    "Not last pam_sm_close_session (%d).", counter);
+			    "not last pam_sm_close_session (%d)", counter);
 		}
 		zfs_key_config_free(&config);
 		return (PAM_SUCCESS);
@@ -963,7 +963,7 @@ pam_sm_close_session(pam_handle_t *pamh, int flags,
 		if (pam_zfs_init(pamh) != 0) {
 			if (debug) {
 				pam_syslog(pamh, LOG_ERR,
-				    "Cannot init libzfs.");
+				    "cannot init libzfs");
 			}
 			zfs_key_config_free(&config);
 			return (PAM_SERVICE_ERR);
@@ -972,7 +972,7 @@ pam_sm_close_session(pam_handle_t *pamh, int flags,
 		if (!dataset) {
 			if (debug) {
 				pam_syslog(pamh, LOG_ERR,
-				    "Cannot read dataset name.");
+				    "cannot read dataset name");
 			}
 			pam_zfs_free();
 			zfs_key_config_free(&config);
@@ -981,7 +981,7 @@ pam_sm_close_session(pam_handle_t *pamh, int flags,
 		if (unmount_unload(pamh, dataset) == -1) {
 			if (debug) {
 				pam_syslog(pamh, LOG_ERR,
-				    "Cannot unmount dataset '%s' and unload key.",
+				    "cannot unmount dataset '%s' and unload key",
 				    dataset);
 			}
 			free(dataset);
@@ -996,7 +996,7 @@ pam_sm_close_session(pam_handle_t *pamh, int flags,
 	zfs_key_config_free(&config);
 	if (debug) {
 		pam_syslog(pamh, LOG_DEBUG,
-		    "pam_sm_open_session end.");
+		    "pam_sm_open_session end");
 	}
 	return (PAM_SUCCESS);
 }
