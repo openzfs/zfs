@@ -17,7 +17,6 @@ ASM_SOURCES_AS = \
 	asm-x86_64/modes/gcm_pclmulqdq.S \
 	asm-x86_64/modes/aesni-gcm-x86_64.S \
 	asm-x86_64/modes/ghash-x86_64.S \
-	asm-x86_64/sha1/sha1-x86_64.S \
 	asm-x86_64/sha2/sha256_impl.S \
 	asm-x86_64/sha2/sha512_impl.S
 else
@@ -46,7 +45,6 @@ KERNEL_C = \
 	algs/modes/ctr.c \
 	algs/modes/ccm.c \
 	algs/modes/ecb.c \
-	algs/sha1/sha1.c \
 	algs/sha2/sha2.c \
 	algs/skein/skein.c \
 	algs/skein/skein_block.c \
@@ -54,7 +52,6 @@ KERNEL_C = \
 	illumos-crypto.c \
 	io/aes.c \
 	io/edonr_mod.c \
-	io/sha1_mod.c \
 	io/sha2_mod.c \
 	io/skein_mod.c \
 	os/modhash.c \
