@@ -33,6 +33,7 @@ extern "C" {
 #endif
 
 struct zio;
+struct raidz_col;
 struct raidz_row;
 struct raidz_map;
 struct vdev_raidz;
@@ -55,6 +56,7 @@ void vdev_raidz_generate_parity(struct raidz_map *);
 void vdev_raidz_reconstruct(struct raidz_map *, const int *, int);
 void vdev_raidz_child_done(zio_t *);
 void vdev_raidz_io_done(zio_t *);
+void vdev_raidz_checksum_error(zio_t *, struct raidz_col *, abd_t *);
 struct raidz_row *vdev_raidz_row_alloc(int);
 void vdev_raidz_reflow_copy_scratch(spa_t *);
 void raidz_dtl_reassessed(vdev_t *);

@@ -2399,8 +2399,8 @@ vdev_raidz_io_start(zio_t *zio)
 /*
  * Report a checksum error for a child of a RAID-Z device.
  */
-static void
-raidz_checksum_error(zio_t *zio, raidz_col_t *rc, abd_t *bad_data)
+void
+vdev_raidz_checksum_error(zio_t *zio, raidz_col_t *rc, abd_t *bad_data)
 {
 	vdev_t *vd = zio->io_vd->vdev_child[rc->rc_devidx];
 
@@ -2471,6 +2471,13 @@ raidz_parity_verify(zio_t *zio, raidz_row_t *rr)
 	}
 
 	/*
+	 * Verify any empty sectors are zero filled to ensure the parity
+	 * is calculated correctly even if these non-data sectors are damaged.
+	 */
+	if (rr->rr_nempty && rr->rr_abd_empty != NULL)
+		ret += vdev_draid_map_verify_empty(zio, rr);
+
+	/*
 	 * Regenerates parity even for !tried||rc_error!=0 columns.  This
 	 * isn't harmful but it does have the side effect of fixing stuff
 	 * we didn't realize was necessary (i.e. even if we return 0).
@@ -2487,7 +2494,7 @@ raidz_parity_verify(zio_t *zio, raidz_row_t *rr)
 			zfs_dbgmsg("raidz_parity_verify found error on "
 			    "col=%u devidx=%u",
 			    c, (int)rc->rc_devidx);
-			raidz_checksum_error(zio, rc, orig[c]);
+			vdev_raidz_checksum_error(zio, rc, orig[c]);
 			rc->rc_error = SET_ERROR(ECKSUM);
 			ret++;
 		}
@@ -2560,7 +2567,6 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 #endif
 		int n = raidz_parity_verify(zio, rr);
 		unexpected_errors += n;
-		ASSERT3U(parity_errors + n, <=, rr->rr_firstdatacol);
 	}
 
 	if (zio->io_error == 0 && spa_writeable(zio->io_spa) &&
@@ -2812,7 +2818,7 @@ raidz_reconstruct(zio_t *zio, int *ltgts, int ntgts, int nparity)
 					 */
 					if (rc->rc_error == 0 &&
 					    c >= rr->rr_firstdatacol) {
-						raidz_checksum_error(zio,
+						vdev_raidz_checksum_error(zio,
 						    rc, rc->rc_orig_data);
 						rc->rc_error =
 						    SET_ERROR(ECKSUM);
