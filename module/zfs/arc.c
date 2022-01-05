@@ -9487,12 +9487,6 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 				continue;
 			}
 
-			/*
-			 * We rely on the L1 portion of the header below, so
-			 * it's invalid for this header to have been evicted out
-			 * of the ghost cache, prior to being written out. The
-			 * ARC_FLAG_L2_WRITING bit ensures this won't happen.
-			 */
 			ASSERT(HDR_HAS_L1HDR(hdr));
 
 			ASSERT3U(HDR_GET_PSIZE(hdr), >, 0);
@@ -9516,12 +9510,6 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 			 * ARC_FLAG_L2_WRITING bit ensures this won't happen.
 			 */
 			arc_hdr_set_flags(hdr, ARC_FLAG_L2_WRITING);
-			ASSERT(HDR_HAS_L1HDR(hdr));
-
-			ASSERT3U(HDR_GET_PSIZE(hdr), >, 0);
-			ASSERT(hdr->b_l1hdr.b_pabd != NULL ||
-			    HDR_HAS_RABD(hdr));
-			ASSERT3U(arc_hdr_size(hdr), >, 0);
 
 			/*
 			 * If this header has b_rabd, we can use this since it
