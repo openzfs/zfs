@@ -1791,6 +1791,7 @@ zfs_fhtovp(vfs_t *vfsp, fid_t *fidp, int flags, vnode_t **vpp)
 	vnode_t		*dvp;
 	uint64_t	object = 0;
 	uint64_t	fid_gen = 0;
+	uint64_t	setgen = 0;
 	uint64_t	gen_mask;
 	uint64_t	zp_gen;
 	int 		i, err;
@@ -1806,7 +1807,6 @@ zfs_fhtovp(vfs_t *vfsp, fid_t *fidp, int flags, vnode_t **vpp)
 	if (zfsvfs->z_parent == zfsvfs && fidp->fid_len == LONG_FID_LEN) {
 		zfid_long_t	*zlfid = (zfid_long_t *)fidp;
 		uint64_t	objsetid = 0;
-		uint64_t	setgen = 0;
 
 		for (i = 0; i < sizeof (zlfid->zf_setid); i++)
 			objsetid |= ((uint64_t)zlfid->zf_setid[i]) << (8 * i);
@@ -1832,6 +1832,12 @@ zfs_fhtovp(vfs_t *vfsp, fid_t *fidp, int flags, vnode_t **vpp)
 			fid_gen |= ((uint64_t)zfid->zf_gen[i]) << (8 * i);
 	} else {
 		ZFS_EXIT(zfsvfs);
+		return (SET_ERROR(EINVAL));
+	}
+
+	if (fidp->fid_len == LONG_FID_LEN && (fid_gen > 1 || setgen != 0)) {
+		dprintf("snapdir fid: fid_gen (%llu) and setgen (%llu)\n",
+		    (u_longlong_t)fid_gen, (u_longlong_t)setgen);
 		return (SET_ERROR(EINVAL));
 	}
 
