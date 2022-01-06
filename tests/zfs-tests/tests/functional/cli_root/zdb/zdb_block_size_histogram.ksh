@@ -128,7 +128,7 @@ function histo_populate_test_pool
 	# to the device.  This 'sync' command prevents that from 
 	# happening.
 	####################
-	log_must zpool sync ${pool}
+	sync_pool ${pool}
 }
 function histo_check_test_pool
 {

@@ -73,7 +73,7 @@ log_must zpool attach $TESTPOOL1 ${VDEV_FILES[0]} $SPARE_VDEV_FILE
 log_note "waiting for read errors to start showing up"
 for iter in {0..59}
 do
-	zpool sync $TESTPOOL1
+	sync_pool $TESTPOOL1
 	err=$(zpool status $TESTPOOL1 | grep ${VDEV_FILES[0]} | awk '{print $3}')
 	(( $err > 0 )) && break
 	sleep 1
@@ -92,8 +92,8 @@ done
 (( $finish == 0 )) && log_fail "resilver took too long to finish"
 
 # wait a few syncs to ensure that zfs does not restart the resilver
-log_must zpool sync $TESTPOOL1
-log_must zpool sync $TESTPOOL1
+sync_pool $TESTPOOL1
+sync_pool $TESTPOOL1
 
 # check if resilver was restarted
 start=$(zpool events | grep "sysevent.fs.zfs.resilver_start" | wc -l)

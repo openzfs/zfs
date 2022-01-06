@@ -90,7 +90,8 @@ for disk in $DISKLIST; do
 done
 
 log_must kill $killpid
-sync
+sync_all_pools
+log_must sync
 
 typeset dir=$(get_device_dir $DISKS)
 verify_filesys "$TESTPOOL" "$TESTPOOL/$TESTFS" "$dir"

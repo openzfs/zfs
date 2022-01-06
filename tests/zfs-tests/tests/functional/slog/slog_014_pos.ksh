@@ -58,7 +58,7 @@ for type in "mirror" "raidz" "raidz2"; do
                 # Ensure the file has been synced out before attempting to
                 # corrupt its contents.
                 #
-                sync
+                sync_all_pools
 
 		#
 		# Corrupt a pool device to make the pool DEGRADED

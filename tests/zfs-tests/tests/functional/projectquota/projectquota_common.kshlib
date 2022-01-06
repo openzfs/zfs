@@ -51,7 +51,7 @@ function cleanup_projectquota
 	[[ -d $PRJDIR1 ]] && log_must rm -rf $PRJDIR1
 	[[ -d $PRJDIR2 ]] && log_must rm -rf $PRJDIR2
 	[[ -d $PRJDIR3 ]] && log_must rm -rf $PRJDIR3
-	sync
+	sync_all_pools
 
 	return 0
 }

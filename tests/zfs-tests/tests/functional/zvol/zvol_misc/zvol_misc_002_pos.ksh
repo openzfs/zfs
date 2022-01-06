@@ -84,7 +84,7 @@ while (( 1 )); do
 done
 
 if is_linux || is_freebsd ; then
-	log_must sync
+	sync_all_pools
 else
 	log_must lockfs -f $TESTDIR
 fi

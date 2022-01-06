@@ -66,7 +66,7 @@ function test_condense
 	# sync between each write to make sure a new entry is created
 	for i in {0..4}; do
 	    log_must mkfile 5m /$TESTPOOL/$TESTCLONE/testfile$i
-	    log_must zpool sync $TESTPOOL
+	    sync_pool $TESTPOOL
 	done
 
 	check_ll_len "5 entries" "Unexpected livelist size"
@@ -74,7 +74,7 @@ function test_condense
 	# sync between each write to allow for a condense of the previous entry
 	for i in {0..4}; do
 	    log_must mkfile 5m /$TESTPOOL/$TESTCLONE/testfile$i
-	    log_must zpool sync $TESTPOOL
+	    sync_pool $TESTPOOL
 	done
 
 	check_ll_len "6 entries" "Condense did not occur"
@@ -91,7 +91,7 @@ function test_deactivated
 
 	log_must mkfile 5m /$TESTPOOL/$TESTCLONE/$TESTFILE0
 	log_must mkfile 5m /$TESTPOOL/$TESTCLONE/$TESTFILE1
-	log_must zpool sync $TESTPOOL
+	sync_pool $TESTPOOL
 	# snapshot and clone share 'atestfile', 33 percent
 	check_livelist_gone
 	log_must zfs destroy -R $TESTPOOL/$TESTCLONE
@@ -103,7 +103,7 @@ function test_deactivated
 	log_must mkfile 5m /$TESTPOOL/$TESTCLONE/$TESTFILE0
 	log_must mkfile 5m /$TESTPOOL/$TESTCLONE/$TESTFILE1
 	log_must mkfile 5m /$TESTPOOL/$TESTCLONE/$TESTFILE2
-	log_must zpool sync $TESTPOOL
+	sync_pool $TESTPOOL
 	# snapshot and clone share 'atestfile', 25 percent
 	check_livelist_exists $TESTCLONE
 	log_must rm /$TESTPOOL/$TESTCLONE/atestfile

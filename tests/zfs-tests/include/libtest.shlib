@@ -3104,6 +3104,7 @@ function datasetcksum
 {
 	typeset cksum
 	sync
+	sync_all_pools
 	cksum=$(zdb -vvv $1 | grep "^Dataset $1 \[" | grep "cksum" \
 		| awk -F= '{print $7}')
 	echo $cksum
@@ -3514,6 +3515,24 @@ function sync_pool #pool <force>
 		log_must zpool sync -f $pool
 	else
 		log_must zpool sync $pool
+	fi
+
+	return 0
+}
+
+#
+# Sync all pools
+#
+# $1 boolean to force uberblock (and config including zpool cache file) update
+#
+function sync_all_pools #<force>
+{
+	typeset force=${1:-false}
+
+	if [[ $force == true ]]; then
+		log_must zpool sync -f
+	else
+		log_must zpool sync
 	fi
 
 	return 0

@@ -44,7 +44,7 @@ DISK3="$(echo $DISKS | cut -d' ' -f3)"
 
 log_must dd if=/dev/urandom of=/$TESTDIR/testfile bs=10M count=1
 
-log_must zpool sync
+sync_all_pools
 
 log_must zpool offline -f $TESTPOOL $DISK3
 log_must wait_for_degraded $TESTPOOL

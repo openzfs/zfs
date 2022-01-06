@@ -483,7 +483,7 @@ function verify_userprop
 	typeset stamp=${perm}.${user}.$RANDOM
 
 	user_run $user zfs set "$user:ts=$stamp" $dtst
-	zpool sync ${dtst%%/*}
+	sync_pool ${dtst%%/*}
 	if [[ $stamp != $(get_prop "$user:ts" $dtst) ]]; then
 		return 1
 	fi

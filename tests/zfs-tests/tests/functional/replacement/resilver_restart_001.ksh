@@ -153,9 +153,9 @@ do
 	# offline then online a vdev to introduce a new DTL range after current
 	# scan, which should restart (or defer) the resilver
 	log_must zpool offline $TESTPOOL1 ${VDEV_FILES[2]}
-	log_must zpool sync $TESTPOOL1
+	sync_pool $TESTPOOL1
 	log_must zpool online $TESTPOOL1 ${VDEV_FILES[2]}
-	log_must zpool sync $TESTPOOL1
+	sync_pool $TESTPOOL1
 
 	# there should now be 2 resilver starts w/o defer, 1 with defer
 	verify_restarts ' after offline/online' "${RESTARTS[1]}" "${VDEVS[1]}"
@@ -177,8 +177,8 @@ do
 	log_must is_pool_resilvered $TESTPOOL1
 
 	# wait for a few txg's to see if a resilver happens
-	log_must zpool sync $TESTPOOL1
-	log_must zpool sync $TESTPOOL1
+	sync_pool $TESTPOOL1
+	sync_pool $TESTPOOL1
 
 	# there should now be 2 resilver starts
 	verify_restarts ' after resilver' "${RESTARTS[3]}" "${VDEVS[3]}"

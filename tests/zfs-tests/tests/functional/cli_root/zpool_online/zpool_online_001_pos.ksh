@@ -77,7 +77,7 @@ for disk in $DISKLIST; do
 	i=0
 	while [[ $i -lt ${#args[*]} ]]; do
 
-		log_must sync_pool $TESTPOOL
+		sync_pool $TESTPOOL
 		log_must zpool offline $TESTPOOL $disk
 		check_state $TESTPOOL $disk "offline"
 		if [[ $? != 0 ]]; then

@@ -49,12 +49,12 @@ log_must truncate -s $SPA_MINDEVSIZE $DEVICE2 $DEVICE3 $DEVICE4 $DEVICE5
 
 log_must zpool create -f $TESTPOOL $DEVICE1 $DEVICE2 \
     log $DEVICE3 cache $DEVICE4 spare $DEVICE5
-log_must zpool sync
+sync_all_pools
 
 # Remove each type of vdev and verify the label can be cleared.
 for dev in $DEVICE5 $DEVICE4 $DEVICE3 $DEVICE2; do
 	log_must zpool remove $TESTPOOL $dev
-	log_must zpool sync $TESTPOOL
+	sync_pool $TESTPOOL true
 	log_must zpool labelclear $dev
 	log_mustnot zdb -lq $dev
 done

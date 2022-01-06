@@ -65,7 +65,7 @@ log_must zfs set groupquota@$QGROUP=500m $QFS
 mkmount_writable $QFS
 log_must user_run $QUSER1 mkfile 50m $QFILE
 
-sync
+sync_all_pools
 
 log_must zfs snapshot $snap_fs
 

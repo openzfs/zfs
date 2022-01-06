@@ -97,7 +97,7 @@ log_must zfs snapshot $TESTPOOL/$TESTFS2@snap1
 for i in {1..1000}; do
 	log_must rm /$TESTPOOL/$TESTFS2/dir/file-$i
 done
-sync
+sync_all_pools
 
 log_must zfs snapshot $TESTPOOL/$TESTFS2@snap2
 expected_cksum=$(recursive_cksum /$TESTPOOL/$TESTFS2)

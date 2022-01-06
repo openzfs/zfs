@@ -155,7 +155,7 @@ CRYPT_MNTPFS="$(get_prop mountpoint $TESTFS/crypt)"
 log_must touch $CRYPT_MNTPFS/file.dat
 log_must mount $RO $TESTFS/crypt $CRYPT_MNTPFS
 log_must umount -f $CRYPT_MNTPFS
-zpool sync $TESTPOOL
+sync_pool $TESTPOOL
 
 # 6. Re-import the pool readonly
 log_must zpool export $TESTPOOL

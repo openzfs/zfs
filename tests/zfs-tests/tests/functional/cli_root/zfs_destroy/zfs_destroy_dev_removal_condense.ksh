@@ -65,7 +65,7 @@ log_must zfs clone $TESTPOOL2/$TESTFS@snap $TESTPOOL2/$TESTCLONE
 # Create initial files and pause condense zthr on next execution
 log_must mkfile 10m /$TESTPOOL2/$TESTCLONE/A
 log_must mkfile 1m /$TESTPOOL2/$TESTCLONE/B
-log_must zpool sync $TESTPOOL2
+sync_pool $TESTPOOL2
 set_tunable32 LIVELIST_CONDENSE_SYNC_PAUSE 1
 
 # Add a new dev and remove the old one
@@ -76,15 +76,15 @@ wait_for_removal $TESTPOOL2
 set_tunable32 LIVELIST_CONDENSE_NEW_ALLOC 0
 # Trigger a condense
 log_must mkfile 10m /$TESTPOOL2/$TESTCLONE/A
-log_must zpool sync $TESTPOOL2
+sync_pool $TESTPOOL2
 log_must mkfile 10m /$TESTPOOL2/$TESTCLONE/A
-log_must zpool sync $TESTPOOL2
+sync_pool $TESTPOOL2
 # Write remapped blkptrs which will modify the livelist mid-condense
 log_must mkfile 1m /$TESTPOOL2/$TESTCLONE/B
 
 # Resume condense thr
 set_tunable32 LIVELIST_CONDENSE_SYNC_PAUSE 0
-log_must zpool sync $TESTPOOL2
+sync_pool $TESTPOOL2
 # Check that we've added new ALLOC blkptrs during the condense
 [[ "0" < "$(get_tunable LIVELIST_CONDENSE_NEW_ALLOC)" ]] || \
     log_fail "removal/condense test failed"

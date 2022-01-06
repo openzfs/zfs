@@ -111,7 +111,7 @@ log_must zpool create -f -m $MOUNTDIR -o failmode=continue $POOL raidz $VDEV1 $V
 log_must zfs set compression=off recordsize=16k $POOL
 # create a file full of zeros
 log_must mkfile -v $FILESIZE $FILEPATH
-log_must zpool sync $POOL
+sync_pool $POOL
 
 # run once and observe the checksum errors
 damage_and_repair 1

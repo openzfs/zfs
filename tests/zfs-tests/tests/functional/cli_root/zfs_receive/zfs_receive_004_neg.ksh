@@ -87,7 +87,7 @@ log_must zfs snapshot $inc_snap
 log_must eval "zfs send -i $init_snap $inc_snap > $inc_bkup"
 log_must touch /$TESTDIR/bar
 
-sync
+sync_all_pools
 
 set -A badargs \
     "" "nonexistent-snap" "blah@blah" "-d" "-d nonexistent-dataset" \

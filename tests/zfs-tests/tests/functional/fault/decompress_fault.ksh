@@ -45,7 +45,7 @@ log_must set_tunable64 COMPRESSED_ARC_ENABLED 0
 log_must zfs create -o compression=on $TESTPOOL/fs
 mntpt=$(get_prop mountpoint $TESTPOOL/fs)
 write_compressible $mntpt 32m 1 1024k "testfile"
-log_must sync
+sync_all_pools
 log_must zfs umount $TESTPOOL/fs
 log_must zfs mount $TESTPOOL/fs
 log_must zinject -a -t data -e decompress -f 20 $mntpt/testfile.0

@@ -595,7 +595,7 @@ function list_file_blocks # input_file
 	else
 		AWK='awk'
 	fi
-	log_must zpool sync -f
+	sync_all_pools true
 	zdb -dddddd $ds $objnum | $AWK -v pad=$((4<<20)) -v bs=512 '
 	    /^$/ { looking = 0 }
 	    looking {

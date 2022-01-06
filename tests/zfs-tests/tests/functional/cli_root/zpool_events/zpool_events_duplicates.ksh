@@ -112,7 +112,7 @@ function do_dup_test
 
 	if [ "$RW" == "write" ] ; then
 		log_must mkfile $FILESIZE $FILEPATH
-		log_must zpool sync $POOL
+		sync_pool $POOL
 	fi
 
 	log_must zinject -c all

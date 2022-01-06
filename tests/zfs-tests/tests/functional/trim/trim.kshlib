@@ -91,7 +91,7 @@ function wait_trim_io # pool type txgs
 			return
 		fi
 
-		zpool sync -f
+		sync_all_pools true
 		((i = i + 1))
 	done
 

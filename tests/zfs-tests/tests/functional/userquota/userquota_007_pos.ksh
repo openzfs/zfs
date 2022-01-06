@@ -63,7 +63,7 @@ log_must zfs get groupquota@$QGROUP $QFS
 log_note "write some data to the $QFS"
 mkmount_writable $QFS
 log_must user_run $QUSER1 mkfile 100m $QFILE
-sync
+sync_all_pools
 
 log_note "set user|group quota at a smaller size than it current usage"
 log_must zfs set userquota@$QUSER1=90m $QFS

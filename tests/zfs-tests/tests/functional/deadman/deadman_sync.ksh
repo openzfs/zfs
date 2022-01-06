@@ -70,7 +70,7 @@ log_must file_write -b 1048576 -c 8 -o create -d 0 -f $mntpnt/file
 sleep 10
 
 log_must zinject -c all
-log_must zpool sync
+sync_all_pools
 
 # Log txg sync times for reference and the zpool event summary.
 if is_freebsd; then

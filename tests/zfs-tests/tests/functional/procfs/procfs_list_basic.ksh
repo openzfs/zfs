@@ -65,7 +65,7 @@ log_must zfs create $FS
 for i in {1..20}; do
 	log_must zfs snapshot "$FS@testsnapshot$i"
 done
-log_must zpool sync $TESTPOOL
+sync_pool $TESTPOOL
 
 #
 # Read the debug message file in small chunks to make sure that the read is
