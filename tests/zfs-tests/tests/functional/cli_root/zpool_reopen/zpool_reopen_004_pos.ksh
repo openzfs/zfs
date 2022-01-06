@@ -62,6 +62,7 @@ log_must zpool reopen -n $TESTPOOL
 log_must check_state $TESTPOOL "$REMOVED_DISK_ID" "unavail"
 # 3. Write test file to pool.
 log_must generate_random_file /$TESTPOOL/data $LARGE_FILE_SIZE
+sync_pool $TESTPOOL
 # 4. Execute scrub.
 # add delay to I/O requests for remaining disk in pool
 log_must zinject -d $DISK2 -D125:1 $TESTPOOL

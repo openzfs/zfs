@@ -102,7 +102,7 @@ else
 	log_must mount $VOLUME $MNTPNT
 	FSTYPE=$NEWFS_DEFAULT_FS
 fi
-log_must zpool sync
+sync_all_pools
 
 #
 # 2. Freeze TESTVOL

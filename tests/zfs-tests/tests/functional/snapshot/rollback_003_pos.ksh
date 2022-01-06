@@ -82,6 +82,7 @@ log_must zfs rollback $SNAPPOOL
 log_mustnot zfs snapshot $SNAPPOOL
 
 log_must touch /$TESTPOOL/$TESTFILE
+sync_pool $TESTPOOL
 
 log_must zfs rollback $SNAPPOOL
 log_must zfs create $TESTPOOL/$TESTFILE

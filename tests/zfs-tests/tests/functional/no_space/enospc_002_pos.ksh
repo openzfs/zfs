@@ -56,7 +56,7 @@ for i in $(seq 100); do
 	(( $ret != $ENOSPC )) && \
 	    log_fail "file.$i returned: $ret rather than ENOSPC."
 
-	log_must zpool sync -f
+	sync_all_pools true
 done
 
 log_mustnot_expect space zfs create $TESTPOOL/$TESTFS/subfs

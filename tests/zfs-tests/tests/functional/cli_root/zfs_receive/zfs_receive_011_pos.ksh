@@ -65,14 +65,14 @@ origdir=$(get_prop mountpoint $orig)
 #	2. Create two equal-sized large files.
 log_must mkfile 5M $origdir/file1
 log_must mkfile 5M $origdir/file2
-log_must sync
+sync_all_pools
 
 #	3. Snapshot the filesystem.
 log_must zfs snapshot $orig@1
 
 #	4. Remove one of the two large files.
 log_must rm $origdir/file2
-log_must sync
+sync_all_pools
 
 #	5. Create a refquota larger than one file, but smaller than both.
 log_must zfs set refquota=8M $orig

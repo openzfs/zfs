@@ -110,7 +110,7 @@ function run_and_verify
 	log_must eval "$fullcmd"
 
 	# Collect the new events and verify there are some.
-	log_must zpool sync -f
+	sync_all_pools true
 	log_must eval "zpool events >$TMP_EVENTS 2>/dev/null"
 	log_must eval "zpool events -v > $TMP_EVENTS_FULL 2>/dev/null"
 

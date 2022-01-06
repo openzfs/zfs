@@ -64,7 +64,7 @@ log_must set_tunable64 SLOW_IO_EVENTS_PER_SECOND 1000
 # Create 20ms IOs
 log_must zinject -d $DISK -D20:100 $TESTPOOL
 log_must mkfile 1048576 /$TESTPOOL/testfile
-log_must zpool sync $TESTPOOL
+sync_pool $TESTPOOL
 
 log_must zinject -c all
 SLOW_IOS=$(zpool status -sp | grep "$DISK" | awk '{print $6}')

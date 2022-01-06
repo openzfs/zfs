@@ -83,7 +83,7 @@ log_must zinject -d $DISK1 -D10000:1 $TESTPOOL
 log_must eval "dd if=/$mntpnt/file1 of=/dev/null bs=1048576 &"
 sleep 10
 log_must zinject -c all
-log_must zpool sync
+sync_all_pools
 wait
 
 # 5. Verify a "deadman" event is posted.  The first appears after 5

@@ -54,12 +54,12 @@ function test_dedup
 	# Note: We sync before and after so all dedup blocks belong to the
 	#       same TXG, otherwise they won't look identical to the livelist
 	#       iterator due to their logical birth TXG being different.
-	log_must zpool sync $TESTPOOL
+	sync_pool $TESTPOOL
 	log_must cp /$TESTPOOL/$TESTCLONE/data /$TESTPOOL/$TESTCLONE/data-dup-0
 	log_must cp /$TESTPOOL/$TESTCLONE/data /$TESTPOOL/$TESTCLONE/data-dup-1
 	log_must cp /$TESTPOOL/$TESTCLONE/data /$TESTPOOL/$TESTCLONE/data-dup-2
 	log_must cp /$TESTPOOL/$TESTCLONE/data /$TESTPOOL/$TESTCLONE/data-dup-3
-	log_must zpool sync $TESTPOOL
+	sync_pool $TESTPOOL
 	check_livelist_exists $TESTCLONE
 
 	# Introduce "double frees"
@@ -67,10 +67,10 @@ function test_dedup
 	#   was what triggered past panics.
 	# Note: Similarly to the previouys step we sync before and after our
 	#       our deletions so all the entries end up in the same TXG.
-	log_must zpool sync $TESTPOOL
+	sync_pool $TESTPOOL
 	log_must rm /$TESTPOOL/$TESTCLONE/data-dup-2
 	log_must rm /$TESTPOOL/$TESTCLONE/data-dup-3
-	log_must zpool sync $TESTPOOL
+	sync_pool $TESTPOOL
 	check_livelist_exists $TESTCLONE
 
 	log_must zfs destroy $TESTPOOL/$TESTCLONE

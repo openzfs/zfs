@@ -62,9 +62,9 @@ test_pool ()
 	log_must zfs snapshot $POOL/fs@a
 	while true; do
 		log_must find $mntpnt/ -type f -delete
-		sync
+		sync_all_pools
 		log_must mkfiles "$mntpnt/" 4000
-		sync
+		sync_all_pools
 		# check if we started reusing objects
 		object=$(ls -i $mntpnt | sort -n | awk -v object=$object \
 		    '{if ($1 <= object) {exit 1}} END {print $1}')

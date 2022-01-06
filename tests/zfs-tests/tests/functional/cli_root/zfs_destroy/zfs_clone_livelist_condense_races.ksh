@@ -49,11 +49,11 @@ function delete_race
 	set_tunable32 "$1" 0
 	log_must zfs clone $TESTPOOL/$TESTFS1@snap $TESTPOOL/$TESTCLONE
 	for i in {1..5}; do
-		log_must zpool sync $TESTPOOL
+		sync_pool $TESTPOOL
 		log_must mkfile 5m /$TESTPOOL/$TESTCLONE/out
 	done
 	log_must zfs destroy $TESTPOOL/$TESTCLONE
-	log_must zpool sync $TESTPOOL
+	sync_pool $TESTPOOL
 	[[ "1" == "$(get_tunable "$1")" ]] || \
 	    log_fail "delete/condense race test failed"
 }
@@ -63,7 +63,7 @@ function export_race
 	set_tunable32 "$1" 0
 	log_must zfs clone $TESTPOOL/$TESTFS1@snap $TESTPOOL/$TESTCLONE
 	for i in {1..5}; do
-		log_must zpool sync $TESTPOOL
+		sync_pool $TESTPOOL
 		log_must mkfile 5m /$TESTPOOL/$TESTCLONE/out
 	done
 	log_must zpool export $TESTPOOL
@@ -78,12 +78,12 @@ function disable_race
 	set_tunable32 "$1" 0
 	log_must zfs clone $TESTPOOL/$TESTFS1@snap $TESTPOOL/$TESTCLONE
 	for i in {1..5}; do
-		log_must zpool sync $TESTPOOL
+		sync_pool $TESTPOOL
 		log_must mkfile 5m /$TESTPOOL/$TESTCLONE/out
 	done
 	# overwrite the file shared with the origin to trigger disable
 	log_must mkfile 100m /$TESTPOOL/$TESTCLONE/atestfile
-	log_must zpool sync $TESTPOOL
+	sync_pool $TESTPOOL
 	[[ "1" == "$(get_tunable "$1")" ]] || \
 	    log_fail "disable/condense race test failed"
 	log_must zfs destroy $TESTPOOL/$TESTCLONE
@@ -95,7 +95,7 @@ log_onexit cleanup
 
 log_must zfs create $TESTPOOL/$TESTFS1
 log_must mkfile 100m /$TESTPOOL/$TESTFS1/atestfile
-log_must zpool sync $TESTPOOL
+sync_pool $TESTPOOL
 log_must zfs snapshot $TESTPOOL/$TESTFS1@snap
 
 # Reduce livelist size to trigger condense more easily

@@ -64,7 +64,7 @@ typeset snap_fs=$QFS@snap
 log_must zfs set userquota@$QUSER1=100m $QFS
 mkmount_writable $QFS
 log_must user_run $QUSER1 mkfile 50m $QFILE
-sync
+sync_all_pools
 
 log_must zfs snapshot $snap_fs
 

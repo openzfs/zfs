@@ -42,7 +42,7 @@ DISK1=${DISKS%% *}
 
 log_must zpool create -f $TESTPOOL $DISK1
 log_must dd if=/dev/urandom of=/$TESTPOOL/file1 bs=1M count=30
-log_must sync
+sync_all_pools
 
 log_must zpool initialize $TESTPOOL
 
@@ -52,7 +52,7 @@ log_must zdb -cc $TESTPOOL
     log_fail "Initializing did not start"
 
 log_must dd if=/dev/urandom of=/$TESTPOOL/file2 bs=1M count=30
-log_must sync
+sync_all_pools
 
 log_must zdb -cc $TESTPOOL
 

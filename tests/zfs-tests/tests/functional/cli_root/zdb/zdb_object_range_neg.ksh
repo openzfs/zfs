@@ -40,7 +40,7 @@ verify_runnable "both"
 verify_disk_count "$DISKS" 2
 default_mirror_setup_noexit $DISKS
 
-log_must zpool sync
+sync_all_pools
 
 set -A bad_flags a b c   e   g h i j k l   n o p q r s t u v w x y   \
                    B C D E F G H I J K L M N O P Q R S T U V W X Y Z \
