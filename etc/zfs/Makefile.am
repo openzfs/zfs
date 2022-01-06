@@ -15,4 +15,5 @@ pkgsysconf_SCRIPTS = \
 
 SUBSTFILES += $(pkgsysconf_SCRIPTS)
 
-SHELLCHECK_SHELL = dash # local variables
+SHELLCHECK_OPTS = --enable=all
+SHELLCHECK_SHELL = dash

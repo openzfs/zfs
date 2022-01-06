@@ -1,4 +1,5 @@
 #!@DEFAULT_INIT_SHELL@
+# shellcheck disable=SC2154
 #
 # zfs-mount     This script will mount/umount the zfs filesystems.
 #
@@ -68,7 +69,7 @@ do_mount()
 	check_boolean "$DO_OVERLAY_MOUNTS" && overlay=O
 
 	zfs_action "Mounting ZFS filesystem(s)" \
-	    "$ZFS" mount -a$verbose$overlay "$MOUNT_EXTRA_OPTIONS"
+	    "$ZFS" mount "-a$verbose$overlay" "$MOUNT_EXTRA_OPTIONS"
 
 	# Require each volume/filesystem to have 'noauto' and no fsck
 	# option. This shouldn't really be necessary, as long as one

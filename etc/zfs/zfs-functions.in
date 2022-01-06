@@ -46,6 +46,7 @@ elif type success > /dev/null 2>&1 ; then
 
 	zfs_log_begin_msg() { printf "%s" "$1 "; }
 	zfs_log_end_msg() {
+		# shellcheck disable=SC2154
 		zfs_set_ifs "$OLD_IFS"
 		if [ "$1" -eq 0 ]; then
 			success
@@ -119,12 +120,12 @@ zfs_action()
 	$CMD
 	ret=$?
 	if [ "$ret" -eq 0 ]; then
-		zfs_log_end_msg $ret
+		zfs_log_end_msg "$ret"
 	else
-		zfs_log_failure_msg $ret
+		zfs_log_failure_msg "$ret"
 	fi
 
-	return $ret
+	return "$ret"
 }
 
 # Returns
