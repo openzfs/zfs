@@ -110,7 +110,7 @@ A value of
 disables this feature.
 .
 .It Sy l2arc_exclude_special Ns = Ns Sy 0 Ns | Ns 1 Pq int
-Controls whether buffers present on special vdevs are eligibile for caching
+Controls whether buffers present on special vdevs are eligible for caching
 into L2ARC.
 If set to 1, exclude dbufs on special vdevs from being cached to L2ARC.
 .
@@ -1142,7 +1142,7 @@ Maximum number of blocks freed in a single TXG.
 Maximum number of dedup blocks freed in a single TXG.
 .
 .It Sy zfs_override_estimate_recordsize Ns = Ns Sy 0 Pq ulong
-If nonzer, override record size calculation for
+If nonzero, override record size calculation for
 .Nm zfs Cm send
 estimates.
 .
@@ -1256,7 +1256,7 @@ For non-interactive I/O (scrub, resilver, removal, initialize and rebuild),
 the number of concurrently-active I/O operations is limited to
 .Sy zfs_*_min_active ,
 unless the vdev is "idle".
-When there are no interactive I/O operatinons active (synchronous or otherwise),
+When there are no interactive I/O operations active (synchronous or otherwise),
 and
 .Sy zfs_vdev_nia_delay
 operations have completed since the last interactive operation,
