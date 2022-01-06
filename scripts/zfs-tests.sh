@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2154
 #
 # CDDL HEADER START
 #
@@ -422,6 +423,8 @@ while getopts 'hvqxkfScRn:d:s:r:?t:T:u:I:' OPTION; do
 		usage
 		exit
 		;;
+	*)
+		;;
 	esac
 done
 
@@ -442,7 +445,7 @@ if [ -n "$SINGLETEST" ]; then
 		SINGLEQUIET="True"
 	fi
 
-	cat >$RUNFILE_DIR/$RUNFILES << EOF
+	cat >"${RUNFILE_DIR}/${RUNFILES}" << EOF
 [DEFAULT]
 pre =
 quiet = $SINGLEQUIET
@@ -466,7 +469,7 @@ EOF
 		CLEANUPSCRIPT="cleanup"
 	fi
 
-	cat >>$RUNFILE_DIR/$RUNFILES << EOF
+	cat >>"${RUNFILE_DIR}/${RUNFILES}" << EOF
 
 [$SINGLETESTDIR]
 tests = ['$SINGLETESTFILE']
@@ -745,4 +748,4 @@ if [ -n "$SINGLETEST" ]; then
 	rm -f "$RUNFILES" >/dev/null 2>&1
 fi
 
-exit ${RESULT}
+exit "${RESULT}"
