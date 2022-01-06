@@ -39,6 +39,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <getopt.h>
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
@@ -820,65 +821,87 @@ usage(void)
 	    "            z     ZAPs\n"
 	    "            -     Negate effect of next flag\n\n");
 	(void) fprintf(stderr, "    Options to control amount of output:\n");
-	(void) fprintf(stderr, "        -b block statistics\n");
-	(void) fprintf(stderr, "        -c checksum all metadata (twice for "
-	    "all data) blocks\n");
-	(void) fprintf(stderr, "        -C config (or cachefile if alone)\n");
-	(void) fprintf(stderr, "        -d dataset(s)\n");
-	(void) fprintf(stderr, "        -D dedup statistics\n");
-	(void) fprintf(stderr, "        -E decode and display block from an "
-	    "embedded block pointer\n");
-	(void) fprintf(stderr, "        -h pool history\n");
-	(void) fprintf(stderr, "        -i intent logs\n");
-	(void) fprintf(stderr, "        -l read label contents\n");
-	(void) fprintf(stderr, "        -k examine the checkpointed state "
-	    "of the pool\n");
-	(void) fprintf(stderr, "        -L disable leak tracking (do not "
-	    "load spacemaps)\n");
-	(void) fprintf(stderr, "        -m metaslabs\n");
-	(void) fprintf(stderr, "        -M metaslab groups\n");
-	(void) fprintf(stderr, "        -O perform object lookups by path\n");
-	(void) fprintf(stderr, "        -r copy an object by path to file\n");
-	(void) fprintf(stderr, "        -R read and display block from a "
-	    "device\n");
-	(void) fprintf(stderr, "        -s report stats on zdb's I/O\n");
-	(void) fprintf(stderr, "        -S simulate dedup to measure effect\n");
-	(void) fprintf(stderr, "        -v verbose (applies to all "
-	    "others)\n");
-	(void) fprintf(stderr, "        -y perform livelist and metaslab "
-	    "validation on any livelists being deleted\n\n");
+	(void) fprintf(stderr, "        -b --block-stats             "
+	    "block statistics\n");
+	(void) fprintf(stderr, "        -c --checksum                "
+	    "checksum all metadata (twice for all data) blocks\n");
+	(void) fprintf(stderr, "        -C --config                  "
+	    "config (or cachefile if alone)\n");
+	(void) fprintf(stderr, "        -d --datasets                "
+	    "dataset(s)\n");
+	(void) fprintf(stderr, "        -D --dedup-stats             "
+	    "dedup statistics\n");
+	(void) fprintf(stderr, "        -E --embedded-block-pointer=INTEGER\n"
+	    "                                     decode and display block "
+	    "from an embedded block pointer\n");
+	(void) fprintf(stderr, "        -h --history                 "
+	    "pool history\n");
+	(void) fprintf(stderr, "        -i --intent-logs             "
+	    "intent logs\n");
+	(void) fprintf(stderr, "        -l --label                   "
+	    "read label contents\n");
+	(void) fprintf(stderr, "        -k --checkpointed-state      "
+	    "examine the checkpointed state of the pool\n");
+	(void) fprintf(stderr, "        -L --disable-leak-tracking   "
+	    "disable leak tracking (do not load spacemaps)\n");
+	(void) fprintf(stderr, "        -m --metaslabs               "
+	    "metaslabs\n");
+	(void) fprintf(stderr, "        -M --metaslab-groups         "
+	    "metaslab groups\n");
+	(void) fprintf(stderr, "        -O --object-lookups          "
+	    "perform object lookups by path\n");
+	(void) fprintf(stderr, "        -r --copy-object             "
+	    "copy an object by path to file\n");
+	(void) fprintf(stderr, "        -R --read-block              "
+	    "read and display block from a device\n");
+	(void) fprintf(stderr, "        -s --io-stats                "
+	    "report stats on zdb's I/O\n");
+	(void) fprintf(stderr, "        -S --simulate-dedup          "
+	    "simulate dedup to measure effect\n");
+	(void) fprintf(stderr, "        -v --verbose                 "
+	    "verbose (applies to all others)\n");
+	(void) fprintf(stderr, "        -y --livelist                "
+	    "perform livelist and metaslab validation on any livelists being "
+	    "deleted\n\n");
 	(void) fprintf(stderr, "    Below options are intended for use "
 	    "with other options:\n");
-	(void) fprintf(stderr, "        -A ignore assertions (-A), enable "
-	    "panic recovery (-AA) or both (-AAA)\n");
-	(void) fprintf(stderr, "        -e pool is exported/destroyed/"
-	    "has altroot/not in a cachefile\n");
-	(void) fprintf(stderr, "        -F attempt automatic rewind within "
-	    "safe range of transaction groups\n");
-	(void) fprintf(stderr, "        -G dump zfs_dbgmsg buffer before "
-	    "exiting\n");
-	(void) fprintf(stderr, "        -I <number of inflight I/Os> -- "
-	    "specify the maximum number of\n           "
-	    "checksumming I/Os [default is 200]\n");
-	(void) fprintf(stderr, "        -o <variable>=<value> set global "
-	    "variable to an unsigned 32-bit integer\n");
-	(void) fprintf(stderr, "        -p <path> -- use one or more with "
-	    "-e to specify path to vdev dir\n");
-	(void) fprintf(stderr, "        -P print numbers in parseable form\n");
-	(void) fprintf(stderr, "        -q don't print label contents\n");
-	(void) fprintf(stderr, "        -t <txg> -- highest txg to use when "
-	    "searching for uberblocks\n");
-	(void) fprintf(stderr, "        -u uberblock\n");
-	(void) fprintf(stderr, "        -U <cachefile_path> -- use alternate "
-	    "cachefile\n");
-	(void) fprintf(stderr, "        -V do verbatim import\n");
-	(void) fprintf(stderr, "        -x <dumpdir> -- "
+	(void) fprintf(stderr, "        -A --ignore-assertions       "
+	    "ignore assertions (-A), enable panic recovery (-AA) or both "
+	    "(-AAA)\n");
+	(void) fprintf(stderr, "        -e --exported                "
+	    "pool is exported/destroyed/has altroot/not in a cachefile\n");
+	(void) fprintf(stderr, "        -F --automatic-rewind        "
+	    "attempt automatic rewind within safe range of transaction "
+	    "groups\n");
+	(void) fprintf(stderr, "        -G --dump-debug-msg          "
+	    "dump zfs_dbgmsg buffer before exiting\n");
+	(void) fprintf(stderr, "        -I --inflight=INTEGER        "
+	    "specify the maximum number of checksumming I/Os "
+	    "[default is 200]\n");
+	(void) fprintf(stderr, "        -o --option=\"OPTION=INTEGER\" "
+	    "set global variable to an unsigned 32-bit integer\n");
+	(void) fprintf(stderr, "        -p --path==PATH              "
+	    "use one or more with -e to specify path to vdev dir\n");
+	(void) fprintf(stderr, "        -P --parseable               "
+	    "print numbers in parseable form\n");
+	(void) fprintf(stderr, "        -q --skip-label              "
+	    "don't print label contents\n");
+	(void) fprintf(stderr, "        -t --txg=INTEGER             "
+	    "highest txg to use when searching for uberblocks\n");
+	(void) fprintf(stderr, "        -u --uberblock               "
+	    "uberblock\n");
+	(void) fprintf(stderr, "        -U --cachefile=PATH          "
+	    "use alternate cachefile\n");
+	(void) fprintf(stderr, "        -V --verbatim                "
+	    "do verbatim import\n");
+	(void) fprintf(stderr, "        -x --dump-blocks=PATH        "
 	    "dump all read blocks into specified directory\n");
-	(void) fprintf(stderr, "        -X attempt extreme rewind (does not "
-	    "work with dataset)\n");
-	(void) fprintf(stderr, "        -Y attempt all reconstruction "
-	    "combinations for split blocks\n");
-	(void) fprintf(stderr, "        -Z show ZSTD headers \n");
+	(void) fprintf(stderr, "        -X --extreme-rewind          "
+	    "attempt extreme rewind (does not work with dataset)\n");
+	(void) fprintf(stderr, "        -Y --all-reconstruction      "
+	    "attempt all reconstruction combinations for split blocks\n");
+	(void) fprintf(stderr, "        -Z --zstd-headers            "
+	    "show ZSTD headers \n");
 	(void) fprintf(stderr, "Specify an option more than once (e.g. -bb) "
 	    "to make only that option verbose\n");
 	(void) fprintf(stderr, "Default is to dump everything non-verbosely\n");
@@ -8410,8 +8433,50 @@ main(int argc, char **argv)
 	 */
 	zfs_btree_verify_intensity = 3;
 
-	while ((c = getopt(argc, argv,
-	    "AbcCdDeEFGhiI:klLmMo:Op:PqrRsSt:uU:vVx:XYyZ")) != -1) {
+	struct option long_options[] = {
+		{"ignore-assertions",	no_argument,		NULL, 'A'},
+		{"block-stats",		no_argument,		NULL, 'b'},
+		{"checksum",		no_argument,		NULL, 'c'},
+		{"config",		no_argument,		NULL, 'C'},
+		{"datasets",		no_argument,		NULL, 'd'},
+		{"dedup-stats",		no_argument,		NULL, 'D'},
+		{"exported",		no_argument,		NULL, 'e'},
+		{"embedded-block-pointer",	no_argument,	NULL, 'E'},
+		{"automatic-rewind",	no_argument,		NULL, 'F'},
+		{"dump-debug-msg",	no_argument,		NULL, 'G'},
+		{"history",		no_argument,		NULL, 'h'},
+		{"intent-logs",		no_argument,		NULL, 'i'},
+		{"inflight",		required_argument,	NULL, 'I'},
+		{"checkpointed-state",	no_argument,		NULL, 'k'},
+		{"label",		no_argument,		NULL, 'l'},
+		{"disable-leak-tracking",	no_argument,	NULL, 'L'},
+		{"metaslabs",		no_argument,		NULL, 'm'},
+		{"metaslab-groups",	no_argument,		NULL, 'M'},
+		{"option",		required_argument,	NULL, 'o'},
+		{"object-lookups",	no_argument,		NULL, 'O'},
+		{"path",		required_argument,	NULL, 'p'},
+		{"parseable",		no_argument,		NULL, 'P'},
+		{"skip-label",		no_argument,		NULL, 'q'},
+		{"copy-object",		no_argument,		NULL, 'r'},
+		{"read-block",		no_argument,		NULL, 'R'},
+		{"io-stats",		no_argument,		NULL, 's'},
+		{"simulate-dedup",	no_argument,		NULL, 'S'},
+		{"txg",			required_argument,	NULL, 't'},
+		{"uberblock",		no_argument,		NULL, 'u'},
+		{"cachefile",		required_argument,	NULL, 'U'},
+		{"verbose",		no_argument,		NULL, 'v'},
+		{"verbatim",		no_argument,		NULL, 'V'},
+		{"dump-blocks",		required_argument,	NULL, 'x'},
+		{"extreme-rewind",	no_argument,		NULL, 'X'},
+		{"all-reconstruction",	no_argument,		NULL, 'Y'},
+		{"livelist",		no_argument,		NULL, 'y'},
+		{"zstd-headers",	no_argument,		NULL, 'Z'},
+		{0, 0, 0, 0}
+	};
+
+	while ((c = getopt_long(argc, argv,
+	    "AbcCdDeEFGhiI:klLmMo:Op:PqrRsSt:uU:vVx:XYyZ",
+	    long_options, NULL)) != -1) {
 		switch (c) {
 		case 'b':
 		case 'c':
