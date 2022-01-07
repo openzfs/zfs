@@ -265,8 +265,11 @@ typedef	struct kcf_mech_entry {
  */
 
 #define	KCF_MAXDIGEST		16	/* Digests */
-#define	KCF_MAXCIPHER		64	/* Ciphers */
+#define	KCF_MAXCIPHER		32	/* Ciphers */
 #define	KCF_MAXMAC		40	/* Message authentication codes */
+
+_Static_assert(KCF_MAXCIPHER == KCF_MAXMECHTAB,
+	"KCF_MAXCIPHER != KCF_MAXMECHTAB");	/* See KCF_MAXMECHTAB comment */
 
 typedef	enum {
 	KCF_DIGEST_CLASS = 1,
@@ -276,6 +279,9 @@ typedef	enum {
 
 #define	KCF_FIRST_OPSCLASS	KCF_DIGEST_CLASS
 #define	KCF_LAST_OPSCLASS	KCF_MAC_CLASS
+_Static_assert(
+    KCF_OPS_CLASSSIZE == (KCF_LAST_OPSCLASS - KCF_FIRST_OPSCLASS + 2),
+	"KCF_OPS_CLASSSIZE doesn't match kcf_ops_class_t!");
 
 /* The table of all the kcf_xxx_mech_tab[]s, indexed by kcf_ops_class */
 
