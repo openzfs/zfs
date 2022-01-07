@@ -8,12 +8,14 @@ if [ "$1" = "-h" ] ; then
 	exit
 fi
 
+# shellcheck disable=SC2154
 if [ -b "$VDEV_UPATH" ]; then
 	device="${VDEV_UPATH##*/}"
 	read -r val 2>/dev/null < "/sys/block/$device/queue/rotational"
 	case "$val" in
 		0) MEDIA="ssd" ;;
 		1) MEDIA="hdd" ;;
+		*) MEDIA="invalid" ;;
 	esac
 
 	vpd_pg83="/sys/block/$device/device/vpd_pg83"

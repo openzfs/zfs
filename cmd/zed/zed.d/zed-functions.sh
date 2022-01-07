@@ -1,5 +1,5 @@
 #!/bin/sh
-# shellcheck disable=SC2039
+# shellcheck disable=SC2154,SC3043
 # zed-functions.sh
 #
 # ZED helper functions for use in ZEDLETs
@@ -266,7 +266,7 @@ zed_notify_email()
         | sed   -e "s/@ADDRESS@/${ZED_EMAIL_ADDR}/g" \
                 -e "s/@SUBJECT@/${subject}/g")"
 
-    # shellcheck disable=SC2086
+    # shellcheck disable=SC2086,SC2248
     eval ${ZED_EMAIL_PROG} ${ZED_EMAIL_OPTS} < "${pathname}" >/dev/null 2>&1
     rv=$?
     if [ "${rv}" -ne 0 ]; then

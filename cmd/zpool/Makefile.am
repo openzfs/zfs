@@ -5,6 +5,8 @@ AM_CFLAGS += $(LIBBLKID_CFLAGS) $(LIBUUID_CFLAGS)
 
 DEFAULT_INCLUDES += -I$(srcdir)
 
+SHELLCHECK_OPTS = --enable=all
+
 sbin_PROGRAMS = zpool
 
 zpool_SOURCES = \

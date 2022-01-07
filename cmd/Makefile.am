@@ -7,8 +7,9 @@ SUBDIRS += zpool_influxdb
 CPPCHECKDIRS  = zfs zpool zdb zhack zinject zstream ztest
 CPPCHECKDIRS += raidz_test zfs_ids_to_path zpool_influxdb
 
-# TODO: #12084: SHELLCHECKDIRS = fsck_zfs vdev_id zpool
-SHELLCHECKDIRS = fsck_zfs zpool
+# TODO: #12084: SHELLCHECKDIRS += vdev_id
+SHELLCHECKDIRS = fsck_zfs zed zpool zvol_wait
+SHELLCHECK_OPTS = --enable=all
 
 if USING_PYTHON
 SUBDIRS += arcstat arc_summary dbufstat

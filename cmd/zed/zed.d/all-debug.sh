@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2154
 #
 # Log all environment variables to ZED_DEBUG_LOG.
 #

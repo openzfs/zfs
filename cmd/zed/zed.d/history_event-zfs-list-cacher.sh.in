@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2154
 #
 # Track changes to enumerated pools for use in early-boot
 set -ef
@@ -72,7 +73,7 @@ PROPS="name,mountpoint,canmount,atime,relatime,devices,exec\
 ,org.openzfs.systemd:wanted-by,org.openzfs.systemd:required-by\
 ,org.openzfs.systemd:nofail,org.openzfs.systemd:ignore"
 
-"${ZFS}" list -H -t filesystem -o $PROPS -r "${ZEVENT_POOL}" > "${FSLIST_TMP}"
+"${ZFS}" list -H -t filesystem -o "${PROPS}" -r "${ZEVENT_POOL}" > "${FSLIST_TMP}"
 
 # Sort the output so that it is stable
 sort "${FSLIST_TMP}" -o "${FSLIST_TMP}"

@@ -3,6 +3,7 @@
 #
 # This file should be owned by root and permissioned 0600.
 ##
+# shellcheck disable=SC2034
 
 ##
 # Absolute path to the debug output file.

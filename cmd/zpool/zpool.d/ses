@@ -24,6 +24,7 @@ else
 fi
 
 for i in $scripts ; do
+	# shellcheck disable=SC2154
 	if [ -z "$VDEV_ENC_SYSFS_PATH" ] ; then
 		echo "$i="
 		continue
@@ -52,7 +53,9 @@ for i in $scripts ; do
 	locate_led)
 		val=$(cat "$VDEV_ENC_SYSFS_PATH/locate" 2>/dev/null)
 		;;
+	*)
+		val=invalid
+		;;
 	esac
 	echo "$i=$val"
 done
-

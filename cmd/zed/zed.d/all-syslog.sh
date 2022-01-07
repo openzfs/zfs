@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2154
 #
 # Copyright (C) 2013-2014 Lawrence Livermore National Security, LLC.
 # Copyright (c) 2020 by Delphix. All rights reserved.

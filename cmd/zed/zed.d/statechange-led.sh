@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2154
 #
 # Turn off/on vdevs' enclosure fault LEDs when their pool's state changes.
 #
@@ -126,6 +127,9 @@ state_to_val()
 		ONLINE)
 			echo 0
 			;;
+		*)
+			echo "invalid state: $state"
+			;;
 	esac
 }
 
@@ -138,26 +142,24 @@ nvme_dev_to_slot()
 	dev="$1"
 
 	# Get the address "0000:01:00.0"
-	address=$(cat "/sys/class/block/$dev/device/address")
+	read -r address < "/sys/class/block/$dev/device/address"
 
-	# For each /sys/bus/pci/slots subdir that is an actual number
-	# (rather than weird directories like "1-3/").
-	# shellcheck disable=SC2010
-	for i in $(ls /sys/bus/pci/slots/ | grep -E "^[0-9]+$") ; do
-		this_address=$(cat "/sys/bus/pci/slots/$i/address")
+	find /sys/bus/pci/slots -regex '.*/[0-9]+/address$' | \
+		while read -r sys_addr; do
+			read -r this_address < "$sys_addr"
 
-		# The format of address is a little different between
-		# /sys/class/block/$dev/device/address and
-		# /sys/bus/pci/slots/
-		#
-		# address=           "0000:01:00.0"
-		# this_address =     "0000:01:00"
-		#
-		if echo "$address" | grep -Eq ^"$this_address" ; then
-			echo "/sys/bus/pci/slots/$i"
-			break
-		fi
-	done
+			# The format of address is a little different between
+			# /sys/class/block/$dev/device/address and
+			# /sys/bus/pci/slots/
+			#
+			# address=           "0000:01:00.0"
+			# this_address =     "0000:01:00"
+			#
+			if echo "$address" | grep -Eq ^"$this_address" ; then
+				echo "${sys_addr%/*}"
+				break
+			fi
+			done
 }
 
 

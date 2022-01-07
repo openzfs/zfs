@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2154
 #
 # Send notification in response to a TRIM_FINISH. The event
 # will be received for each vdev in the pool which was trimmed.
