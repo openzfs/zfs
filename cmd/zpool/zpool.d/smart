@@ -69,6 +69,7 @@ if [ "$1" = "-h" ] ; then
         exit
 fi
 
+# shellcheck disable=SC2154
 if [ -b "$VDEV_UPATH" ] && PATH="/usr/sbin:$PATH" command -v smartctl > /dev/null || [ -n "$samples" ] ; then
 	if [ -n "$samples" ] ; then
 		# cat a smartctl output text file instead of running smartctl

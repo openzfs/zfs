@@ -9,6 +9,7 @@ if [ "$1" = "-h" ] ; then
 	exit
 fi
 
+# shellcheck disable=SC2154
 dev="$VDEV_PATH"
 
 # If the VDEV path is a symlink, resolve it to a real device

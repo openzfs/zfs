@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2154
 # resilver_finish-start-scrub.sh
 # Run a scrub after a resilver
 #
