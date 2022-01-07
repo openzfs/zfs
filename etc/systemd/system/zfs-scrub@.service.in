@@ -7,8 +7,9 @@ ConditionACPower=true
 ConditionPathIsDirectory=/sys/module/zfs
 
 [Service]
+EnvironmentFile=-@initconfdir@/zfs
 ExecStart=/bin/sh -c '\
-if @sbindir@/zpool status %i | grep "scrub in progress"; then\
+if @sbindir@/zpool status %i | grep -q "scrub in progress"; then\
 exec @sbindir@/zpool wait -t scrub %i;\
 else exec @sbindir@/zpool scrub -w %i; fi'
 ExecStop=-/bin/sh -c '@sbindir@/zpool scrub -p %i 2>/dev/null || true'

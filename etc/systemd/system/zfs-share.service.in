@@ -13,6 +13,7 @@ ConditionPathIsDirectory=/sys/module/zfs
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+EnvironmentFile=-@initconfdir@/zfs
 ExecStart=@sbindir@/zfs share -a
 
 [Install]
