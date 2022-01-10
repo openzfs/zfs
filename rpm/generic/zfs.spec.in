@@ -3,7 +3,7 @@
 
 # Set the default udev directory based on distribution.
 %if %{undefined _udevdir}
-%if 0%{?fedora} >= 17 || 0%{?rhel} >= 7 || 0%{?centos} >= 7
+%if 0%{?fedora}%{?rhel}%{?centos}
 %global _udevdir    %{_prefix}/lib/udev
 %else
 %global _udevdir    /lib/udev
@@ -12,7 +12,7 @@
 
 # Set the default udevrule directory based on distribution.
 %if %{undefined _udevruledir}
-%if 0%{?fedora} >= 17 || 0%{?rhel} >= 7 || 0%{?centos} >= 7
+%if 0%{?fedora}%{?rhel}%{?centos}
 %global _udevruledir    %{_prefix}/lib/udev/rules.d
 %else
 %global _udevruledir    /lib/udev/rules.d
@@ -21,7 +21,7 @@
 
 # Set the default dracut directory based on distribution.
 %if %{undefined _dracutdir}
-%if 0%{?fedora} >= 17 || 0%{?rhel} >= 7 || 0%{?centos} >= 7
+%if 0%{?fedora}%{?rhel}%{?centos}
 %global _dracutdir  %{_prefix}/lib/dracut
 %else
 %global _dracutdir  %{_prefix}/share/dracut
@@ -57,58 +57,27 @@
 %bcond_with    asan
 %bcond_with    systemd
 %bcond_with    pam
+%bcond_without pyzfs
 
 # Generic enable switch for systemd
 %if %{with systemd}
 %define _systemd 1
 %endif
 
-# RHEL >= 7 comes with systemd
-%if 0%{?rhel} >= 7
+# Distros below support systemd
+%if 0%{?rhel}%{?fedora}%{?centos}%{?suse_version}
 %define _systemd 1
 %endif
 
-# Fedora >= 15 comes with systemd, but only >= 18 has
-# the proper macros
-%if 0%{?fedora} >= 18
-%define _systemd 1
-%endif
-
-# opensuse >= 12.1 comes with systemd, but only >= 13.1
-# has the proper macros
-%if 0%{?suse_version} >= 1310
-%define _systemd 1
-%endif
-
-# When not specified default to distribution provided version.  This
-# is normally Python 3, but for RHEL <= 7 only Python 2 is provided.
+# When not specified default to distribution provided version.
 %if %{undefined __use_python}
-%if 0%{?rhel} && 0%{?rhel} <= 7
-%define __python                  /usr/bin/python2
-%define __python_pkg_version      2
-%define __python_cffi_pkg         python-cffi
-%define __python_setuptools_pkg   python-setuptools
-%else
 %define __python                  /usr/bin/python3
 %define __python_pkg_version      3
-%define __python_cffi_pkg         python3-cffi
-%define __python_setuptools_pkg   python3-setuptools
-%endif
 %else
 %define __python                  %{__use_python}
 %define __python_pkg_version      %{__use_python_pkg_version}
-%define __python_cffi_pkg         python%{__python_pkg_version}-cffi
-%define __python_setuptools_pkg   python%{__python_pkg_version}-setuptools
 %endif
 %define __python_sitelib          %(%{__python} -Esc "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
-
-# By default python-pyzfs is enabled, with the exception of
-# RHEL 6 which by default uses Python 2.6 which is too old.
-%if 0%{?rhel} == 6
-%bcond_with    pyzfs
-%else
-%bcond_without pyzfs
-%endif
 
 Name:           @PACKAGE@
 Version:        @VERSION@
@@ -132,7 +101,7 @@ Obsoletes:      spl
 # Renaming those on either side would conflict with all available documentation.
 Conflicts:      zfs-fuse
 
-%if 0%{?rhel}%{?fedora}%{?suse_version}
+%if 0%{?rhel}%{?centos}%{?fedora}%{?suse_version}
 BuildRequires:  gcc, make
 BuildRequires:  zlib-devel
 BuildRequires:  libuuid-devel
@@ -144,7 +113,7 @@ BuildRequires:  openssl-devel
 # crash+corrupt rpmdb
 # See issue #12071
 BuildRequires:  ncompress
-%if 0%{?fedora} >= 28 || 0%{?rhel} >= 8 || 0%{?centos} >= 8
+%if 0%{?fedora} || 0%{?rhel} >= 8 || 0%{?centos} >= 8
 BuildRequires:  libtirpc-devel
 %endif
 
@@ -277,7 +246,7 @@ Requires:       sudo
 Requires:       sysstat
 Requires:       libaio
 Requires:       python%{__python_pkg_version}
-%if 0%{?rhel}%{?fedora}%{?suse_version}
+%if 0%{?rhel}%{?centos}%{?fedora}%{?suse_version}
 BuildRequires:  libaio-devel
 %endif
 AutoReqProv:    no
@@ -300,6 +269,8 @@ This package contains a dracut module used to construct an initramfs
 image which is ZFS aware.
 
 %if %{with pyzfs}
+# Enforce `python36-` package prefix for CentOS 7
+# since dependencies come from EPEL and are named this way
 %package -n python%{__python_pkg_version}-pyzfs
 Summary:        Python %{python_version} wrapper for libzfs_core
 Group:          Development/Languages/Python
@@ -309,16 +280,26 @@ Requires:       libzfs5 = %{version}
 Requires:       libnvpair3 = %{version}
 Requires:       libffi
 Requires:       python%{__python_pkg_version}
-Requires:       %{__python_cffi_pkg}
-%if 0%{?rhel}%{?fedora}%{?suse_version}
-%if 0%{?rhel} >= 8 || 0%{?centos} >= 8 || 0%{?fedora} >= 28
-BuildRequires:  python3-packaging
+
+%if 0%{?centos} == 7
+Requires:       python36-cffi
 %else
-BuildRequires:  python-packaging
+Requires:       python%{__python_pkg_version}-cffi
 %endif
+
+%if 0%{?rhel}%{?centos}%{?fedora}%{?suse_version}
+%if 0%{?centos} == 7
+BuildRequires:  python36-packaging
+BuildRequires:  python36-devel
+BuildRequires:  python36-cffi
+BuildRequires:  python36-setuptools
+%else
+BuildRequires:  python%{__python_pkg_version}-packaging
 BuildRequires:  python%{__python_pkg_version}-devel
-BuildRequires:  %{__python_cffi_pkg}
-BuildRequires:  %{__python_setuptools_pkg}
+BuildRequires:  python%{__python_pkg_version}-cffi
+BuildRequires:  python%{__python_pkg_version}-setuptools
+%endif
+
 BuildRequires:  libffi-devel
 %endif
 
@@ -478,7 +459,7 @@ systemctl --system daemon-reload >/dev/null || true
 %{_bindir}/raidz_test
 %{_sbindir}/zgenhostid
 %{_bindir}/zvol_wait
-# Optional Python 2/3 scripts
+# Optional Python 3 scripts
 %{_bindir}/arc_summary
 %{_bindir}/arcstat
 %{_bindir}/dbufstat

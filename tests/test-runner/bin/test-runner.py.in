@@ -15,19 +15,14 @@
 # Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 # Copyright (c) 2019 Datto Inc.
 #
-# This script must remain compatible with Python 2.6+ and Python 3.4+.
+# This script must remain compatible with Python 3.6+.
 #
-
-# some python 2.7 system don't have a configparser shim
-try:
-    import configparser
-except ImportError:
-    import ConfigParser as configparser
 
 import os
 import sys
 import ctypes
 import re
+import configparser
 
 from datetime import datetime
 from optparse import OptionParser
@@ -37,7 +32,7 @@ from select import select
 from subprocess import PIPE
 from subprocess import Popen
 from threading import Timer
-from time import time
+from time import time, CLOCK_MONOTONIC_RAW
 
 BASEDIR = '/var/tmp/test_results'
 TESTDIR = '/usr/share/zfs/'
@@ -48,9 +43,6 @@ LOG_FILE = 'LOG_FILE'
 LOG_OUT = 'LOG_OUT'
 LOG_ERR = 'LOG_ERR'
 LOG_FILE_OBJ = None
-
-# some python 2.7 system don't have a concept of monotonic time
-CLOCK_MONOTONIC_RAW = 4  # see <linux/time.h>
 
 
 class timespec(ctypes.Structure):
