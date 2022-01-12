@@ -1348,7 +1348,7 @@ zfs_mount_task(void *arg)
 	    sizeof (mountpoint), NULL, NULL, 0, B_FALSE) == 0);
 
 	if (mp->mnt_func(handles[idx], mp->mnt_data) != 0)
-		return;
+		goto out;
 
 	/*
 	 * We dispatch tasks to mount filesystems with mountpoints underneath
@@ -1369,6 +1369,8 @@ zfs_mount_task(void *arg)
 		zfs_dispatch_mount(mp->mnt_hdl, handles, num_handles, i,
 		    mp->mnt_func, mp->mnt_data, mp->mnt_tp);
 	}
+
+out:
 	free(mp);
 }
 
