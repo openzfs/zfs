@@ -3136,7 +3136,7 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 {
 	int ret = 0;
 	zpool_handle_t *zhp;
-	char *name;
+	const char *name;
 	uint64_t version;
 
 	name = fnvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME);
@@ -3157,7 +3157,7 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 			    ZPOOL_CONFIG_MMP_STATE);
 
 		if (mmp_state == MMP_STATE_ACTIVE) {
-			char *hostname = "<unknown>";
+			const char *hostname = "<unknown>";
 			uint64_t hostid = 0;
 
 			if (nvlist_exists(nvinfo, ZPOOL_CONFIG_MMP_HOSTNAME))
@@ -3179,8 +3179,8 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 			    "system's hostid is not set. Set a unique hostid "
 			    "with the zgenhostid(8) command.\n"), name);
 		} else {
-			char *hostname = "<unknown>";
-			uint64_t timestamp = 0;
+			const char *hostname = "<unknown>";
+			time_t timestamp = 0;
 			uint64_t hostid = 0;
 
 			if (nvlist_exists(config, ZPOOL_CONFIG_HOSTNAME))
@@ -3200,7 +3200,7 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 			    "Last accessed by %s (hostid=%lx) at %s"
 			    "The pool can be imported, use 'zpool import -f' "
 			    "to import the pool.\n"), name, hostname,
-			    (unsigned long)hostid, ctime((time_t *)&timestamp));
+			    (unsigned long)hostid, ctime(&timestamp));
 		}
 
 		return (1);
@@ -3210,7 +3210,7 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 		return (1);
 
 	if (newname != NULL)
-		name = (char *)newname;
+		name = newname;
 
 	if ((zhp = zpool_open_canfail(g_zfs, name)) == NULL)
 		return (1);
