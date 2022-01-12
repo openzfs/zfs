@@ -30,7 +30,7 @@
 #include <impl/impl.h>
 
 static const struct {
-	char *name;
+	const char *name;
 	uint32_t sel;
 } alg_impl_opts[] = {
 	{ "cycle", ALG_IMPL_CYCLE },
@@ -236,7 +236,7 @@ alg_impl_get(alg_impl_conf_t *conf, char *buffer)
 {
 	int cnt = 0;
 	size_t i = 0;
-	char *fmt = NULL;
+	const char *fmt = NULL;
 	const uint32_t impl = atomic_load_32(&conf->icp_alg_impl);
 
 	ASSERT(conf->initialized);

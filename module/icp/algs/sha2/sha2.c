@@ -81,14 +81,14 @@ static void sha256_alg_impl_benchmark(
 static void
 SHA256TransformBlocksGeneric(uint32_t *state, const void *in, size_t num);
 
-static alg_impl_ops_t sha256_impl_generic = {
+static const alg_impl_ops_t sha256_impl_generic = {
 	SHA256TransformBlocksGeneric, alg_impl_will_always_work, 0, "generic"};
 
 #if defined(__amd64)
 extern void
 sha256_x86_64_transform(uint32_t *state, const void *in, size_t num);
 
-static alg_impl_ops_t sha256_x86_64 = {
+static const alg_impl_ops_t sha256_x86_64 = {
 	sha256_x86_64_transform, alg_impl_will_always_work, 1, "x86_64"};
 #endif
 
@@ -100,7 +100,7 @@ sha256_avx_will_work(void)
 }
 
 extern void sha256_avx_transform(uint64_t *state, const void *in, size_t num);
-static alg_impl_ops_t sha256_avx = {
+static const alg_impl_ops_t sha256_avx = {
 	sha256_avx_transform, sha256_avx_will_work, 10, "sha-avx"};
 #endif
 
@@ -112,7 +112,7 @@ sha256_ssse3_will_work(void)
 }
 
 extern void sha256_ssse3_transform(uint64_t *state, const void *in, size_t num);
-static alg_impl_ops_t sha256_ssse3 = {
+static const alg_impl_ops_t sha256_ssse3 = {
 	sha256_ssse3_transform, sha256_ssse3_will_work, 30, "sha-ssse3"};
 #endif
 
@@ -124,12 +124,12 @@ sha256_ni_will_work(void)
 }
 
 extern void sha256_ni_transform(uint64_t *state, const void *in, size_t num);
-static alg_impl_ops_t sha256_ni = {
+static const alg_impl_ops_t sha256_ni = {
 	sha256_ni_transform, sha256_ni_will_work, 40, "sha-ni"};
 #endif
 
 /* All compiled in implementations */
-static const alg_impl_ops_t *sha256_all_impl[] = {
+static const alg_impl_ops_t *const sha256_all_impl[] = {
 	&sha256_impl_generic,
 #if defined(__amd64)
 	&sha256_x86_64,
@@ -175,14 +175,14 @@ static void sha512_alg_impl_benchmark(
 static void
 SHA512TransformBlocksGeneric(uint64_t *state, const void *in, size_t num);
 
-static alg_impl_ops_t sha512_impl_generic = {
+static const alg_impl_ops_t sha512_impl_generic = {
 	SHA512TransformBlocksGeneric, alg_impl_will_always_work, 0, "generic"};
 
 #if defined(__amd64)
 extern void
 sha512_x86_64_transform(uint64_t *state, const void *in, size_t num);
 
-static alg_impl_ops_t sha512_x86_64 = {
+static const alg_impl_ops_t sha512_x86_64 = {
 	sha512_x86_64_transform, alg_impl_will_always_work, 1, "x86_64"};
 #endif
 
@@ -194,7 +194,7 @@ sha512_avx_will_work(void)
 }
 
 extern void sha512_avx_transform(uint64_t *state, const void *in, size_t num);
-static alg_impl_ops_t sha512_avx = {
+static const alg_impl_ops_t sha512_avx = {
 	sha512_avx_transform, sha512_avx_will_work, 10, "sha-avx"};
 #endif
 
@@ -206,7 +206,7 @@ sha512_avx2_will_work(void)
 }
 
 extern void sha512_avx2_transform(uint64_t *state, const void *in, size_t num);
-static alg_impl_ops_t sha512_avx2 = {
+static const alg_impl_ops_t sha512_avx2 = {
 	sha512_avx2_transform, sha512_avx2_will_work, 20, "sha-avx2"};
 #endif
 
@@ -218,12 +218,12 @@ sha512_ssse3_will_work(void)
 }
 
 extern void sha512_ssse3_transform(uint64_t *state, const void *in, size_t num);
-static alg_impl_ops_t sha512_ssse3 = {
+static const alg_impl_ops_t sha512_ssse3 = {
 	sha512_ssse3_transform, sha512_ssse3_will_work, 30, "sha-ssse3"};
 #endif
 
 /* All compiled in implementations */
-static const alg_impl_ops_t *sha512_all_impl[] = {
+static const alg_impl_ops_t *const sha512_all_impl[] = {
 	&sha512_impl_generic,
 #if defined(__amd64)
 	&sha512_x86_64,

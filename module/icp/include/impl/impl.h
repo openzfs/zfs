@@ -84,7 +84,7 @@ typedef struct {
 typedef struct alg_impl_conf {
 	const char *name; /* Name of algorithm. */
 
-	const alg_impl_ops_t **available; /* Available implementations. */
+	const alg_impl_ops_t *const *available; /* Available implementations. */
 	uint32_t available_n; /* Length of available. */
 
 	const alg_impl_ops_t **supported; /* Supported implementations. */
@@ -109,7 +109,7 @@ typedef struct alg_impl_conf {
 	alg_impl_ops_bandwidth_t bandwidth_fastest; /* Fastest result. */
 
 	alg_impl_ops_t fastest; /* Fastest implementation. */
-	alg_impl_ops_t *generic; /* Fallback generic implementation. */
+	const alg_impl_ops_t *generic; /* Fallback generic implementation. */
 
 	boolean_t initialized; /* Is configuration initilized. */
 
