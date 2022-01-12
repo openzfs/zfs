@@ -3218,11 +3218,9 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 	 * Loading keys is best effort. We don't want to return immediately
 	 * if it fails but we do want to give the error to the caller.
 	 */
-	if (flags & ZFS_IMPORT_LOAD_KEYS) {
-		ret = zfs_crypto_attempt_load_keys(g_zfs, name);
-		if (ret != 0)
+	if (flags & ZFS_IMPORT_LOAD_KEYS &&
+	    zfs_crypto_attempt_load_keys(g_zfs, name) != 0)
 			ret = 1;
-	}
 
 	if (zpool_get_state(zhp) != POOL_STATE_UNAVAIL &&
 	    !(flags & ZFS_IMPORT_ONLY) &&
@@ -3272,7 +3270,7 @@ import_pools(nvlist_t *pools, nvlist_t *props, char *mntopts, int flags,
 			if (first)
 				first = B_FALSE;
 			else if (!do_all)
-				(void) printf("\n");
+				(void) putchar('\n');
 
 			if (do_all) {
 				err |= do_import(config, NULL, mntopts,
@@ -3723,9 +3721,8 @@ zpool_do_import(int argc, char **argv)
 	if (argc == 0 && geteuid() != 0) {
 		(void) fprintf(stderr, gettext("cannot "
 		    "discover pools: permission denied\n"));
-		if (searchdirs != NULL)
-			free(searchdirs);
 
+		free(searchdirs);
 		nvlist_free(props);
 		nvlist_free(policy);
 		return (1);
