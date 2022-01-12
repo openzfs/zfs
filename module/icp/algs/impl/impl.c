@@ -146,7 +146,10 @@ alg_impl_init(alg_impl_conf_t *conf)
 			uint64_t run_count = 0;
 			uint64_t start, run_time_ns;
 
-			kpreempt_disable();
+			if (ops->uses_fpu == B_TRUE) {
+				kfpu_begin();
+			}
+
 			start = gethrtime();
 			do {
 				for (c = 0; c < 32; c++, run_count++) {
@@ -155,7 +158,10 @@ alg_impl_init(alg_impl_conf_t *conf)
 				}
 				run_time_ns = gethrtime() - start;
 			} while (run_time_ns < BENCHMARK_NS);
-			kpreempt_enable();
+
+			if (ops->uses_fpu == B_TRUE) {
+				kfpu_end();
+			}
 
 			run_bw = buffer_size * run_count * NANOSEC;
 			run_bw /= run_time_ns;	/* B/s */

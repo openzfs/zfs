@@ -82,14 +82,16 @@ static void
 SHA256TransformBlocksGeneric(uint32_t *state, const void *in, size_t num);
 
 static const alg_impl_ops_t sha256_impl_generic = {
-	SHA256TransformBlocksGeneric, alg_impl_will_always_work, 0, "generic"};
+	SHA256TransformBlocksGeneric, alg_impl_will_always_work, 0, "generic",
+	B_FALSE};
 
 #if defined(__amd64)
 extern void
 sha256_x86_64_transform(uint32_t *state, const void *in, size_t num);
 
 static const alg_impl_ops_t sha256_x86_64 = {
-	sha256_x86_64_transform, alg_impl_will_always_work, 1, "x86_64"};
+	sha256_x86_64_transform, alg_impl_will_always_work, 1, "x86_64",
+	B_FALSE};
 #endif
 
 #if defined(__amd64) && defined(HAVE_AVX)
@@ -101,7 +103,7 @@ sha256_avx_will_work(void)
 
 extern void sha256_avx_transform(uint64_t *state, const void *in, size_t num);
 static const alg_impl_ops_t sha256_avx = {
-	sha256_avx_transform, sha256_avx_will_work, 10, "sha-avx"};
+	sha256_avx_transform, sha256_avx_will_work, 10, "sha-avx", B_TRUE};
 #endif
 
 #if defined(__amd64) && defined(HAVE_SSSE3)
@@ -113,7 +115,8 @@ sha256_ssse3_will_work(void)
 
 extern void sha256_ssse3_transform(uint64_t *state, const void *in, size_t num);
 static const alg_impl_ops_t sha256_ssse3 = {
-	sha256_ssse3_transform, sha256_ssse3_will_work, 30, "sha-ssse3"};
+	sha256_ssse3_transform, sha256_ssse3_will_work, 30, "sha-ssse3",
+	B_TRUE};
 #endif
 
 #if defined(__amd64) && defined(HAVE_SHA)
@@ -125,7 +128,7 @@ sha256_ni_will_work(void)
 
 extern void sha256_ni_transform(uint64_t *state, const void *in, size_t num);
 static const alg_impl_ops_t sha256_ni = {
-	sha256_ni_transform, sha256_ni_will_work, 40, "sha-ni"};
+	sha256_ni_transform, sha256_ni_will_work, 40, "sha-ni", B_TRUE};
 #endif
 
 /* All compiled in implementations */
@@ -176,14 +179,16 @@ static void
 SHA512TransformBlocksGeneric(uint64_t *state, const void *in, size_t num);
 
 static const alg_impl_ops_t sha512_impl_generic = {
-	SHA512TransformBlocksGeneric, alg_impl_will_always_work, 0, "generic"};
+	SHA512TransformBlocksGeneric, alg_impl_will_always_work, 0, "generic",
+	B_FALSE};
 
 #if defined(__amd64)
 extern void
 sha512_x86_64_transform(uint64_t *state, const void *in, size_t num);
 
 static const alg_impl_ops_t sha512_x86_64 = {
-	sha512_x86_64_transform, alg_impl_will_always_work, 1, "x86_64"};
+	sha512_x86_64_transform, alg_impl_will_always_work, 1, "x86_64",
+	B_TRUE};
 #endif
 
 #if defined(__amd64) && defined(HAVE_AVX)
@@ -195,7 +200,7 @@ sha512_avx_will_work(void)
 
 extern void sha512_avx_transform(uint64_t *state, const void *in, size_t num);
 static const alg_impl_ops_t sha512_avx = {
-	sha512_avx_transform, sha512_avx_will_work, 10, "sha-avx"};
+	sha512_avx_transform, sha512_avx_will_work, 10, "sha-avx", B_TRUE};
 #endif
 
 #if defined(__amd64) && defined(HAVE_AVX2)
@@ -207,7 +212,7 @@ sha512_avx2_will_work(void)
 
 extern void sha512_avx2_transform(uint64_t *state, const void *in, size_t num);
 static const alg_impl_ops_t sha512_avx2 = {
-	sha512_avx2_transform, sha512_avx2_will_work, 20, "sha-avx2"};
+	sha512_avx2_transform, sha512_avx2_will_work, 20, "sha-avx2", B_TRUE};
 #endif
 
 #if defined(__amd64) && defined(HAVE_SSSE3)
@@ -219,7 +224,8 @@ sha512_ssse3_will_work(void)
 
 extern void sha512_ssse3_transform(uint64_t *state, const void *in, size_t num);
 static const alg_impl_ops_t sha512_ssse3 = {
-	sha512_ssse3_transform, sha512_ssse3_will_work, 30, "sha-ssse3"};
+	sha512_ssse3_transform, sha512_ssse3_will_work, 30, "sha-ssse3",
+	B_TRUE};
 #endif
 
 /* All compiled in implementations */
@@ -1002,6 +1008,7 @@ SHA2Update(SHA2_CTX *ctx, const void *inptr, size_t input_len)
 #if	defined(__amd64) && defined(_KERNEL)
 	sha256_block_f sha256_impl = NULL;
 	sha512_block_f sha512_impl = NULL;
+	boolean_t uses_fpu = B_FALSE;
 #endif
 
 	/* check for noop */
@@ -1023,6 +1030,7 @@ SHA2Update(SHA2_CTX *ctx, const void *inptr, size_t input_len)
 #if	defined(__amd64) && defined(_KERNEL)
 		const alg_impl_ops_t *ops = alg_impl_get_ops(&sha256_conf_impl);
 		sha256_impl = (sha256_block_f)(ops->ctx);
+		uses_fpu = ops->uses_fpu;
 #endif
 	} else {
 		buf_limit = 128;
@@ -1039,6 +1047,7 @@ SHA2Update(SHA2_CTX *ctx, const void *inptr, size_t input_len)
 #if	defined(__amd64) && defined(_KERNEL)
 		const alg_impl_ops_t *ops = alg_impl_get_ops(&sha512_conf_impl);
 		sha512_impl = (sha512_block_f)(ops->ctx);
+		uses_fpu = ops->uses_fpu;
 #endif
 	}
 
@@ -1067,12 +1076,20 @@ SHA2Update(SHA2_CTX *ctx, const void *inptr, size_t input_len)
 				SHA512Transform(
 				    ctx->state.s64, ctx->buf_un.buf8);
 #else
+			if (uses_fpu == B_TRUE) {
+				kfpu_begin();
+			}
+
 			if (algotype <= SHA256_HMAC_GEN_MECH_INFO_TYPE)
 				sha256_impl(
 				    ctx->state.s32, ctx->buf_un.buf8, 1);
 			else
 				sha512_impl(
 				    ctx->state.s64, ctx->buf_un.buf8, 1);
+
+			if (uses_fpu == B_TRUE) {
+				kfpu_end();
+			}
 #endif
 			i = buf_len;
 		}
@@ -1095,16 +1112,32 @@ SHA2Update(SHA2_CTX *ctx, const void *inptr, size_t input_len)
 		if (algotype <= SHA256_HMAC_GEN_MECH_INFO_TYPE) {
 			block_count = (input_len - i) >> 6;
 			if (block_count > 0) {
+				if (uses_fpu == B_TRUE) {
+					kfpu_begin();
+				}
+
 				sha256_impl(
 				    ctx->state.s32, &input[i], block_count);
 				i += block_count << 6;
+
+				if (uses_fpu == B_TRUE) {
+					kfpu_end();
+				}
 			}
 		} else {
 			block_count = (input_len - i) >> 7;
 			if (block_count > 0) {
+				if (uses_fpu == B_TRUE) {
+					kfpu_begin();
+				}
+
 				sha512_impl(
 				    ctx->state.s64, &input[i], block_count);
 				i += block_count << 7;
+
+				if (uses_fpu == B_TRUE) {
+					kfpu_end();
+				}
 			}
 		}
 #endif	/* !__amd64 || !_KERNEL */

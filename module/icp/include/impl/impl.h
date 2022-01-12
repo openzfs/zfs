@@ -52,6 +52,9 @@ typedef struct alg_impl_ops {
 
 	/* Name of implementation variant. */
 	char name[ALG_IMPL_NAME_MAX];
+
+	/* Implementation uses FPU and requires kfpu_begin/kfpu_end. */
+	boolean_t uses_fpu;
 } alg_impl_ops_t;
 
 /* Fastest algorithm implementation. */
