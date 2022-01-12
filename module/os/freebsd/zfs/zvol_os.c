@@ -1196,7 +1196,7 @@ zvol_ensure_zilog(zvol_state_t *zv)
 			zv->zv_zilog = zil_open(zv->zv_objset,
 			    zvol_get_data);
 			zv->zv_flags |= ZVOL_WRITTEN_TO;
-			/* replay / destroy done in zvol_create_minor_impl() */
+			/* replay / destroy done in zvol_os_create_minor() */
 			VERIFY0(zv->zv_zilog->zl_header->zh_flags &
 			    ZIL_REPLAY_NEEDED);
 		}
@@ -1204,14 +1204,14 @@ zvol_ensure_zilog(zvol_state_t *zv)
 	}
 }
 
-static boolean_t
-zvol_is_zvol_impl(const char *device)
+boolean_t
+zvol_os_is_zvol(const char *device)
 {
 	return (device && strncmp(device, ZVOL_DIR, strlen(ZVOL_DIR)) == 0);
 }
 
-static void
-zvol_rename_minor(zvol_state_t *zv, const char *newname)
+void
+zvol_os_rename_minor(zvol_state_t *zv, const char *newname)
 {
 	ASSERT(RW_LOCK_HELD(&zvol_state_lock));
 	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
@@ -1282,8 +1282,8 @@ zvol_rename_minor(zvol_state_t *zv, const char *newname)
 /*
  * Remove minor node for the specified volume.
  */
-static void
-zvol_free(zvol_state_t *zv)
+void
+zvol_os_free(zvol_state_t *zv)
 {
 	ASSERT(!RW_LOCK_HELD(&zv->zv_suspend_lock));
 	ASSERT(!MUTEX_HELD(&zv->zv_state_lock));
@@ -1324,8 +1324,8 @@ zvol_free(zvol_state_t *zv)
 /*
  * Create a minor node (plus a whole lot more) for the specified volume.
  */
-static int
-zvol_create_minor_impl(const char *name)
+int
+zvol_os_create_minor(const char *name)
 {
 	zvol_state_t *zv;
 	objset_t *os;
@@ -1463,8 +1463,8 @@ out_doi:
 	return (error);
 }
 
-static void
-zvol_clear_private(zvol_state_t *zv)
+void
+zvol_os_clear_private(zvol_state_t *zv)
 {
 	ASSERT(RW_LOCK_HELD(&zvol_state_lock));
 	if (zv->zv_volmode == ZFS_VOLMODE_GEOM) {
@@ -1492,8 +1492,8 @@ zvol_clear_private(zvol_state_t *zv)
 	}
 }
 
-static int
-zvol_update_volsize(zvol_state_t *zv, uint64_t volsize)
+int
+zvol_os_update_volsize(zvol_state_t *zv, uint64_t volsize)
 {
 	zv->zv_volsize = volsize;
 	if (zv->zv_volmode == ZFS_VOLMODE_GEOM) {
@@ -1522,28 +1522,17 @@ zvol_update_volsize(zvol_state_t *zv, uint64_t volsize)
 	return (0);
 }
 
-static void
-zvol_set_disk_ro_impl(zvol_state_t *zv, int flags)
+void
+zvol_os_set_disk_ro(zvol_state_t *zv, int flags)
 {
 	// XXX? set_disk_ro(zv->zv_zso->zvo_disk, flags);
 }
 
-static void
-zvol_set_capacity_impl(zvol_state_t *zv, uint64_t capacity)
+void
+zvol_os_set_capacity(zvol_state_t *zv, uint64_t capacity)
 {
 	// XXX? set_capacity(zv->zv_zso->zvo_disk, capacity);
 }
-
-const static zvol_platform_ops_t zvol_freebsd_ops = {
-	.zv_free = zvol_free,
-	.zv_rename_minor = zvol_rename_minor,
-	.zv_create_minor = zvol_create_minor_impl,
-	.zv_update_volsize = zvol_update_volsize,
-	.zv_clear_private = zvol_clear_private,
-	.zv_is_zvol = zvol_is_zvol_impl,
-	.zv_set_disk_ro = zvol_set_disk_ro_impl,
-	.zv_set_capacity = zvol_set_capacity_impl,
-};
 
 /*
  * Public interfaces
@@ -1559,7 +1548,6 @@ int
 zvol_init(void)
 {
 	zvol_init_impl();
-	zvol_register_ops(&zvol_freebsd_ops);
 	return (0);
 }
 
