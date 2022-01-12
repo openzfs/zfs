@@ -108,8 +108,7 @@ job_cleanup(void *arg)
 	tpool_active_t **activepp;
 
 	pthread_mutex_lock(&tpool->tp_mutex);
-	/* CSTYLED */
-	for (activepp = &tpool->tp_active;; activepp = &activep->tpa_next) {
+	for (activepp = &tpool->tp_active; ; activepp = &activep->tpa_next) {
 		activep = *activepp;
 		if (activep->tpa_tid == my_tid) {
 			*activepp = activep->tpa_next;
