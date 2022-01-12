@@ -3039,9 +3039,8 @@ show_import(nvlist_t *config, boolean_t report_error)
 				    ZPOOL_CONFIG_MMP_HOSTID);
 
 			(void) printf(gettext(" action: The pool must be "
-			    "exported from %s (hostid=%lx)\n\tbefore it "
-			    "can be safely imported.\n"), hostname,
-			    (unsigned long) hostid);
+			    "exported from %s (hostid=%"PRIx64")\n\tbefore it "
+			    "can be safely imported.\n"), hostname, hostid);
 			break;
 		case ZPOOL_STATUS_HOSTID_REQUIRED:
 			(void) printf(gettext(" action: Set a unique system "
@@ -3170,9 +3169,9 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 
 			(void) fprintf(stderr, gettext("cannot import '%s': "
 			    "pool is imported on %s (hostid: "
-			    "0x%lx)\nExport the pool on the other system, "
-			    "then run 'zpool import'.\n"),
-			    name, hostname, (unsigned long) hostid);
+			    "0x%"PRIx64")\nExport the pool on the other "
+			    "system, then run 'zpool import'.\n"),
+			    name, hostname, hostid);
 		} else if (mmp_state == MMP_STATE_NO_HOSTID) {
 			(void) fprintf(stderr, gettext("Cannot import '%s': "
 			    "pool has the multihost property on and the\n"
@@ -3197,10 +3196,10 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 
 			(void) fprintf(stderr, gettext("cannot import '%s': "
 			    "pool was previously in use from another system.\n"
-			    "Last accessed by %s (hostid=%lx) at %s"
+			    "Last accessed by %s (hostid=%"PRIx64") at %s"
 			    "The pool can be imported, use 'zpool import -f' "
 			    "to import the pool.\n"), name, hostname,
-			    (unsigned long)hostid, ctime(&timestamp));
+			    hostid, ctime(&timestamp));
 		}
 
 		return (1);
