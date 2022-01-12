@@ -189,7 +189,7 @@ extern void changelist_remove(prop_changelist_t *, const char *);
 extern void changelist_free(prop_changelist_t *);
 extern prop_changelist_t *changelist_gather(zfs_handle_t *, zfs_prop_t, int,
     int);
-extern int changelist_unshare(prop_changelist_t *, zfs_share_proto_t *);
+extern int changelist_unshare(prop_changelist_t *, const zfs_share_proto_t *);
 extern int changelist_haszonedchild(prop_changelist_t *);
 
 extern void remove_mountpoint(zfs_handle_t *);
@@ -240,14 +240,13 @@ typedef struct differ_info {
 	int datafd;
 } differ_info_t;
 
-extern proto_table_t proto_table[PROTO_END];
-
 extern int do_mount(zfs_handle_t *zhp, const char *mntpt, char *opts,
     int flags);
 extern int do_unmount(zfs_handle_t *zhp, const char *mntpt, int flags);
 extern int zfs_mount_delegation_check(void);
-extern int zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto);
-extern int zfs_unshare_proto(zfs_handle_t *, const char *, zfs_share_proto_t *);
+extern int zfs_share_proto(zfs_handle_t *zhp, const zfs_share_proto_t *proto);
+extern int zfs_unshare_proto(zfs_handle_t *, const char *,
+    const zfs_share_proto_t *);
 extern int unshare_one(libzfs_handle_t *hdl, const char *name,
     const char *mountpoint, zfs_share_proto_t proto);
 extern boolean_t zfs_is_mountable(zfs_handle_t *zhp, char *buf, size_t buflen,
@@ -259,7 +258,7 @@ extern int zpool_relabel_disk(libzfs_handle_t *hdl, const char *path,
     const char *msg);
 extern int find_shares_object(differ_info_t *di);
 extern void libzfs_set_pipe_max(int infd);
-extern void zfs_commit_proto(zfs_share_proto_t *);
+extern void zfs_commit_proto(const zfs_share_proto_t *);
 
 #ifdef	__cplusplus
 }
