@@ -51,10 +51,10 @@
 #include <sys/stdint.h>
 #include <sha2/sha2.h>
 
-/* ARGSUSED */
 void
 sha256_avx_transform(uint32_t *state, const void *in, size_t num)
 {
+	(void) state, (void) in, (void) num;
 }
 
 

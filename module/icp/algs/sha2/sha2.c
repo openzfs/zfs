@@ -99,7 +99,7 @@ sha256_avx_will_work(void)
 	return (kfpu_allowed() && zfs_avx_available());
 }
 
-extern void sha256_avx_transform(SHA2_CTX *ctx, const void *in, size_t num);
+extern void sha256_avx_transform(uint64_t *state, const void *in, size_t num);
 static alg_impl_ops_t sha256_avx = {
 	sha256_avx_transform, sha256_avx_will_work, 10, "sha-avx"};
 #endif
@@ -111,7 +111,7 @@ sha256_ssse3_will_work(void)
 	return (kfpu_allowed() && zfs_ssse3_available());
 }
 
-extern void sha256_ssse3_transform(SHA2_CTX *ctx, const void *in, size_t num);
+extern void sha256_ssse3_transform(uint64_t *state, const void *in, size_t num);
 static alg_impl_ops_t sha256_ssse3 = {
 	sha256_ssse3_transform, sha256_ssse3_will_work, 30, "sha-ssse3"};
 #endif
@@ -123,7 +123,7 @@ sha256_ni_will_work(void)
 	return (kfpu_allowed() && zfs_sha_available());
 }
 
-extern void sha256_ni_transform(SHA2_CTX *ctx, const void *in, size_t num);
+extern void sha256_ni_transform(uint64_t *state, const void *in, size_t num);
 static alg_impl_ops_t sha256_ni = {
 	sha256_ni_transform, sha256_ni_will_work, 40, "sha-ni"};
 #endif
@@ -193,7 +193,7 @@ sha512_avx_will_work(void)
 	return (kfpu_allowed() && zfs_avx_available());
 }
 
-extern void sha512_avx_transform(SHA2_CTX *ctx, const void *in, size_t num);
+extern void sha512_avx_transform(uint64_t *state, const void *in, size_t num);
 static alg_impl_ops_t sha512_avx = {
 	sha512_avx_transform, sha512_avx_will_work, 10, "sha-avx"};
 #endif
@@ -205,7 +205,7 @@ sha512_avx2_will_work(void)
 	return (kfpu_allowed() && zfs_avx2_available());
 }
 
-extern void sha512_avx2_transform(SHA2_CTX *ctx, const void *in, size_t num);
+extern void sha512_avx2_transform(uint64_t *state, const void *in, size_t num);
 static alg_impl_ops_t sha512_avx2 = {
 	sha512_avx2_transform, sha512_avx2_will_work, 20, "sha-avx2"};
 #endif
@@ -217,7 +217,7 @@ sha512_ssse3_will_work(void)
 	return (kfpu_allowed() && zfs_ssse3_available());
 }
 
-extern void sha512_ssse3_transform(SHA2_CTX *ctx, const void *in, size_t num);
+extern void sha512_ssse3_transform(uint64_t *state, const void *in, size_t num);
 static alg_impl_ops_t sha512_ssse3 = {
 	sha512_ssse3_transform, sha512_ssse3_will_work, 30, "sha-ssse3"};
 #endif
