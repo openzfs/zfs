@@ -348,7 +348,7 @@ When a vdev is added, target this number of metaslabs per top-level vdev.
 Default limit for metaslab size.
 .
 .It Sy zfs_vdev_max_auto_ashift Ns = Ns Sy ASHIFT_MAX Po 16 Pc Pq ulong
-Maximum ashift used when optimizing for logical -> physical sector size on new
+Maximum ashift used when optimizing for logical \[->] physical sector size on new
 top-level vdevs.
 .
 .It Sy zfs_vdev_min_auto_ashift Ns = Ns Sy ASHIFT_MIN Po 9 Pc Pq ulong
@@ -498,7 +498,7 @@ linear in kernel memory.
 Disabling can improve performance in some code paths
 at the expense of fragmented kernel memory.
 .
-.It Sy zfs_abd_scatter_max_order Ns = Ns Sy MAX_ORDER-1 Pq uint
+.It Sy zfs_abd_scatter_max_order Ns = Ns Sy MAX_ORDER\-1 Pq uint
 Maximum number of consecutive memory pages allocated in a single block for
 scatter/gather lists.
 .Pp
@@ -595,7 +595,9 @@ Under Linux, half of system memory will be used as the limit.
 Under
 .Fx ,
 the larger of
-.Sy all_system_memory - 1GB No and Sy 5/8 * all_system_memory
+.Sy all_system_memory No \- Sy 1GB
+and
+.Sy 5/8 No \(mu Sy all_system_memory
 will be used as the limit.
 This value must be at least
 .Sy 67108864 Ns B Pq 64MB .
@@ -666,7 +668,9 @@ to evict the required number of metadata buffers.
 Min size of ARC in bytes.
 .No If set to Sy 0 , arc_c_min
 will default to consuming the larger of
-.Sy 32MB No or Sy all_system_memory/32 .
+.Sy 32MB
+and
+.Sy all_system_memory No / Sy 32 .
 .
 .It Sy zfs_arc_min_prefetch_ms Ns = Ns Sy 0 Ns ms Ns Po Ns ≡ Ns 1s Pc Pq int
 Minimum time prefetched blocks are locked in the ARC.
@@ -726,10 +730,10 @@ ARC target size
 .Pq Sy arc_c
 by thresholds determined by this parameter.
 Exceeding by
-.Sy ( arc_c >> zfs_arc_overflow_shift ) * 0.5
+.Sy ( arc_c No >> Sy zfs_arc_overflow_shift ) No / Sy 2
 starts ARC reclamation process.
 If that appears insufficient, exceeding by
-.Sy ( arc_c >> zfs_arc_overflow_shift ) * 1.5
+.Sy ( arc_c No >> Sy zfs_arc_overflow_shift ) No \(mu Sy 1.5
 blocks new buffer allocation until the reclaim thread catches up.
 Started reclamation process continues till ARC size returns below the
 target size.
@@ -938,7 +942,7 @@ by the maximum number of operations per second.
 This will smoothly handle between ten times and a tenth of this number.
 .No See Sx ZFS TRANSACTION DELAY .
 .Pp
-.Sy zfs_delay_scale * zfs_dirty_data_max Em must be smaller than Sy 2^64 .
+.Sy zfs_delay_scale No \(mu Sy zfs_dirty_data_max Em must No be smaller than Sy 2^64 .
 .
 .It Sy zfs_disable_ivset_guid_check Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Disables requirement for IVset GUIDs to be present and match when doing a raw
@@ -1140,11 +1144,6 @@ Maximum number of blocks freed in a single TXG.
 .
 .It Sy zfs_max_async_dedup_frees Ns = Ns Sy 100000 Po 10^5 Pc Pq ulong
 Maximum number of dedup blocks freed in a single TXG.
-.
-.It Sy zfs_override_estimate_recordsize Ns = Ns Sy 0 Pq ulong
-If nonzero, override record size calculation for
-.Nm zfs Cm send
-estimates.
 .
 .It Sy zfs_vdev_async_read_max_active Ns = Ns Sy 3 Pq int
 Maximum asynchronous read I/O operations active to each device.
@@ -1422,7 +1421,7 @@ This option is used by the test suite to track race conditions.
 .
 .It Sy zfs_livelist_condense_sync_pause Ns = Ns Sy 0 Ns | Ns 1 Pq int
 When set, the livelist condense process pauses indefinitely before
-executing the synctask -
+executing the synctask \(em
 .Fn spa_livelist_condense_sync .
 This option is used by the test suite to trigger race conditions.
 .
@@ -1531,7 +1530,7 @@ This is one of the factors used to determine the
 length of the activity check during import.
 .Pp
 The multihost write period is
-.Sy zfs_multihost_interval / leaf-vdevs .
+.Sy zfs_multihost_interval No / Sy leaf-vdevs .
 On average a multihost write will be issued for each leaf vdev
 every
 .Sy zfs_multihost_interval
@@ -1548,7 +1547,7 @@ the risk of failing to detect an active pool.
 The total activity check time is never allowed to drop below one second.
 .Pp
 On import the activity check waits a minimum amount of time determined by
-.Sy zfs_multihost_interval * zfs_multihost_import_intervals ,
+.Sy zfs_multihost_interval No \(mu Sy zfs_multihost_import_intervals ,
 or the same product computed on the host which last had the pool imported,
 whichever is greater.
 The activity check time may be further extended if the value of MMP
@@ -1573,7 +1572,7 @@ its configuration may take action such as suspending the pool or offlining a
 device.
 .Pp
 Otherwise, the pool will be suspended if
-.Sy zfs_multihost_fail_intervals * zfs_multihost_interval
+.Sy zfs_multihost_fail_intervals No \(mu Sy zfs_multihost_interval
 milliseconds pass without a successful MMP write.
 This guarantees the activity test will see MMP writes if the pool is imported.
 .Sy 1 No is equivalent to Sy 2 ;
@@ -1805,7 +1804,7 @@ remove the spill block from an existing object.
 Including unmodified copies of the spill blocks creates a backwards-compatible
 stream which will recreate a spill block if it was incorrectly removed.
 .
-.It Sy zfs_send_no_prefetch_queue_ff Ns = Ns Sy 20 Ns ^-1 Pq int
+.It Sy zfs_send_no_prefetch_queue_ff Ns = Ns Sy 20 Ns ^\-1 Pq int
 The fill fraction of the
 .Nm zfs Cm send
 internal queues.
@@ -1816,7 +1815,7 @@ The maximum number of bytes allowed in
 .Nm zfs Cm send Ns 's
 internal queues.
 .
-.It Sy zfs_send_queue_ff Ns = Ns Sy 20 Ns ^-1 Pq int
+.It Sy zfs_send_queue_ff Ns = Ns Sy 20 Ns ^\-1 Pq int
 The fill fraction of the
 .Nm zfs Cm send
 prefetch queue.
@@ -1827,7 +1826,7 @@ The maximum number of bytes allowed that will be prefetched by
 .Nm zfs Cm send .
 This value must be at least twice the maximum block size in use.
 .
-.It Sy zfs_recv_queue_ff Ns = Ns Sy 20 Ns ^-1 Pq int
+.It Sy zfs_recv_queue_ff Ns = Ns Sy 20 Ns ^\-1 Pq int
 The fill fraction of the
 .Nm zfs Cm receive
 queue.
@@ -2099,7 +2098,7 @@ Limit SLOG write size per commit executed with synchronous priority.
 Any writes above that will be executed with lower (asynchronous) priority
 to limit potential SLOG device abuse by single active ZIL writer.
 .
-.It Sy zfs_embedded_slog_min_ms Ns = Ns Sy 64  Pq int
+.It Sy zfs_embedded_slog_min_ms Ns = Ns Sy 64 Pq int
 Usually, one metaslab from each normal-class vdev is dedicated for use by
 the ZIL to log synchronous writes.
 However, if there are fewer than
@@ -2319,7 +2318,7 @@ This credits the transaction for "time already served",
 e.g. reading indirect blocks.
 .Pp
 The minimum time for a transaction to take is calculated as
-.Dl min_time = min( Ns Sy zfs_delay_scale No * (dirty - min) / (max - dirty), 100ms)
+.D1 min_time = min( Ns Sy zfs_delay_scale No \(mu Po Sy dirty No \- Sy min Pc / Po Sy max No \- Sy dirty Pc , 100ms)
 .Pp
 The delay has two degrees of freedom that can be adjusted via tunables.
 The percentage of dirty data at which we start to delay is defined by
