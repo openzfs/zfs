@@ -191,21 +191,13 @@ elif sys.platform.startswith('linux'):
         # there, so we fall back on modinfo
         command = ["/sbin/modinfo", request, "-0"]
 
-        # The recommended way to do this is with subprocess.run(). However,
-        # some installed versions of Python are < 3.5, so we offer them
-        # the option of doing it the old way (for now)
         info = ''
 
         try:
 
-            if 'run' in dir(subprocess):
-                info = subprocess.run(command, stdout=subprocess.PIPE,
-                                      universal_newlines=True)
-                raw_output = info.stdout.split('\0')
-            else:
-                info = subprocess.check_output(command,
-                                               universal_newlines=True)
-                raw_output = info.split('\0')
+            info = subprocess.run(command, stdout=subprocess.PIPE,
+                                  check=True, universal_newlines=True)
+            raw_output = info.stdout.split('\0')
 
         except subprocess.CalledProcessError:
             print("Error: Descriptions not available",
