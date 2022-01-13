@@ -88,7 +88,7 @@ log_must zfs snapshot $POOL/fs@c
 # 4. Create an empty file and add xattrs to it to exercise reclaiming a
 #    dnode that requires more than 1 slot for its bonus buffer (Zol #7433)
 log_must zfs set compression=on xattr=sa $POOL/fs
-log_must eval "python -c 'print \"a\" * 512' |
+log_must eval "python3 -c 'print \"a\" * 512' |
     set_xattr_stdin bigval /$POOL/fs/attrs"
 log_must zfs snapshot $POOL/fs@d
 

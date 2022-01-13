@@ -15,7 +15,7 @@
 # Copyright (c) 2017 by Delphix. All rights reserved.
 # Copyright (c) 2018 by Lawrence Livermore National Security, LLC.
 #
-# This script must remain compatible with Python 2.6+ and Python 3.4+.
+# This script must remain compatible with Python 3.6+.
 #
 
 import os
@@ -62,13 +62,13 @@ known_reason = 'Known issue'
 exec_reason = 'Test user execute permissions required for utilities'
 
 #
-# Some tests require a minimum python version of 3.5 and will be skipped when
+# Some tests require a minimum python version of 3.6 and will be skipped when
 # the default system version is too old.  There may also be tests which require
-# additional python modules be installed, for example python-cffi is required
+# additional python modules be installed, for example python3-cffi is required
 # by the pyzfs tests.
 #
-python_reason = 'Python v3.5 or newer required'
-python_deps_reason = 'Python modules missing: python-cffi'
+python_reason = 'Python v3.6 or newer required'
+python_deps_reason = 'Python modules missing: python3-cffi'
 
 #
 # Some tests require the O_TMPFILE flag which was first introduced in the
