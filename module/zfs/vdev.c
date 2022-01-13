@@ -5476,7 +5476,10 @@ vdev_props_set_sync(void *arg, dmu_tx_t *tx)
 	vdev_guid = fnvlist_lookup_uint64(nvp, ZPOOL_VDEV_PROPS_SET_VDEV);
 	nvprops = fnvlist_lookup_nvlist(nvp, ZPOOL_VDEV_PROPS_SET_PROPS);
 	vd = spa_lookup_by_guid(spa, vdev_guid, B_TRUE);
-	VERIFY(vd != NULL);
+
+	/* this vdev could get removed while waiting for this sync task */
+	if (vd == NULL)
+		return;
 
 	mutex_enter(&spa->spa_props_lock);
 
