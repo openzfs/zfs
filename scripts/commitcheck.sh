@@ -51,7 +51,7 @@ new_change_commit()
         error=1
     fi
 
-    return $error
+    return "$error"
 }
 
 is_coverity_fix()
@@ -99,7 +99,7 @@ coverity_fix_commit()
         error=1
     fi
 
-    return $error
+    return "$error"
 }
 
 if [ -n "$1" ]; then

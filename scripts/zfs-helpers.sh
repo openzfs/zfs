@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2154
 #
 # This script is designed to facilitate in-tree development and testing
 # by installing symlinks on your system which refer to in-tree helper
@@ -84,6 +85,8 @@ while getopts 'hdirv' OPTION; do
 	?)
 		usage
 		exit
+		;;
+	*)
 		;;
 	esac
 done

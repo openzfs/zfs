@@ -69,7 +69,7 @@ KEEP="no"
 VERBOSE="no"
 COLOR="yes"
 REPO="https://github.com/openzfs"
-IMAGES_DIR="$SCRIPTDIR/zfs-images/"
+IMAGES_DIR="${BASE_DIR}/zfs-images/"
 IMAGES_TAR="https://github.com/openzfs/zfs-images/tarball/master"
 ERROR=0
 
@@ -140,7 +140,7 @@ while getopts 'hvckr:s:i:p:f:o:?' OPTION; do
 	o)
 		POOL_CREATE_OPTIONS="$OPTARG"
 		;;
-	?)
+	*)
 		usage
 		exit 1
 		;;
@@ -170,7 +170,7 @@ populate() {
 	for DIR in $DIRS; do
 		COUNT=$((RANDOM % MAX_DIR_SIZE))
 
-		for _ in $(seq $COUNT); do
+		for _ in $(seq "$COUNT"); do
 			FILE=$(mktemp -p "$DIR")
 			SIZE=$((RANDOM % MAX_FILE_SIZE))
 			dd if=/dev/urandom of="$FILE" bs=1k \
@@ -471,7 +471,7 @@ for TAG in $POOL_TAGS; do
 	# Verify 'zpool import' works for all listed source versions.
 	for SRC_TAG in $SRC_TAGS; do
 
-		if [ $SKIP -eq 1 ]; then
+		if [ "$SKIP" -eq 1 ]; then
 			skip_nonewline
 			continue
 		fi
@@ -509,4 +509,4 @@ if [ "$KEEP" = "no" ]; then
 	rm -Rf "$TEST_DIR"
 fi
 
-exit $ERROR
+exit "$ERROR"

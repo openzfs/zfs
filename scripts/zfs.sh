@@ -75,6 +75,8 @@ while getopts 'hvruS' OPTION; do
 		usage
 		exit
 		;;
+	*)
+		;;
 	esac
 done
 
@@ -271,6 +273,10 @@ if [ "$UNLOAD" = "yes" ]; then
 	           stack_check_linux
 	           unload_modules_linux
 		   ;;
+		*)
+	           echo "unknown system: $UNAME" >&2
+	           exit 1
+		   ;;
 	esac
 fi
 if [ "$LOAD" = "yes" ]; then
@@ -284,6 +290,10 @@ if [ "$LOAD" = "yes" ]; then
 		   load_modules_linux "$@"
 		   udevadm trigger
 		   udevadm settle
+		   ;;
+		*)
+	           echo "unknown system: $UNAME" >&2
+	           exit 1
 		   ;;
 	esac
 fi
