@@ -87,7 +87,7 @@ log_must xattrtest -f 10 -x 3 -s 32768 -r -k -p /$TESTPOOL/$TESTFS2/xattrsadir
 # OpenZFS issue #7432
 log_must zfs set compression=on xattr=sa $TESTPOOL/$TESTFS2
 log_must touch /$TESTPOOL/$TESTFS2/attrs
-log_must eval "python -c 'print \"a\" * 4096' | \
+log_must eval "python3 -c 'print \"a\" * 4096' | \
 	set_xattr_stdin bigval /$TESTPOOL/$TESTFS2/attrs"
 log_must zfs set compression=off xattr=on $TESTPOOL/$TESTFS2
 

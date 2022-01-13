@@ -30,7 +30,7 @@ verify_runnable "global"
 # Verify that the required dependencies for testing are installed.
 @PYTHON@ -c "import cffi" 2>/dev/null
 if [ $? -eq 1 ]; then
-	log_unsupported "python-cffi not found by Python"
+	log_unsupported "python3-cffi not found by Python"
 fi
 
 # We don't just try to "import libzfs_core" because we want to skip these tests
