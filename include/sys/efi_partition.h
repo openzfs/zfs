@@ -369,7 +369,6 @@ _SYS_EFI_PARTITION_H int efi_alloc_and_read(int, struct dk_gpt **);
 _SYS_EFI_PARTITION_H int efi_write(int, struct dk_gpt *);
 _SYS_EFI_PARTITION_H int efi_rescan(int);
 _SYS_EFI_PARTITION_H void efi_free(struct dk_gpt *);
-_SYS_EFI_PARTITION_H int efi_type(int);
 _SYS_EFI_PARTITION_H void efi_err_check(struct dk_gpt *);
 _SYS_EFI_PARTITION_H int efi_use_whole_disk(int fd);
 #endif
