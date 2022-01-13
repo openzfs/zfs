@@ -327,7 +327,7 @@ do_mount(zfs_handle_t *zhp, const char *mntpt, char *opts, int flags)
 
 	if (!libzfs_envvar_is_set("ZFS_MOUNT_HELPER")) {
 		char badopt[MNT_LINE_MAX] = {0};
-		unsigned long mntflags = flags, zfsflags;
+		unsigned long mntflags = flags, zfsflags = 0;
 		char myopts[MNT_LINE_MAX] = {0};
 
 		if (zfs_parse_mount_options(opts, &mntflags,
