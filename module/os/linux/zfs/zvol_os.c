@@ -1110,7 +1110,11 @@ out_doi:
 		rw_enter(&zvol_state_lock, RW_WRITER);
 		zvol_insert(zv);
 		rw_exit(&zvol_state_lock);
+#ifdef HAVE_ADD_DISK_RET
+		error = add_disk(zv->zv_zso->zvo_disk);
+#else
 		add_disk(zv->zv_zso->zvo_disk);
+#endif
 	} else {
 		ida_simple_remove(&zvol_ida, idx);
 	}
