@@ -34,6 +34,10 @@
 #include <asm/uaccess.h>
 #include <sys/types.h>
 
+#if defined(HAVE_VFS_IOV_ITER) && defined(HAVE_FAULT_IN_IOV_ITER_READABLE)
+#define	iov_iter_fault_in_readable(a, b)	fault_in_iov_iter_readable(a, b)
+#endif
+
 typedef struct iovec iovec_t;
 
 typedef enum zfs_uio_rw {
