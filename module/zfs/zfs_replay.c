@@ -967,7 +967,7 @@ zfs_replay_acl(void *arg1, void *arg2, boolean_t byteswap)
 /*
  * Callback vectors for replaying records
  */
-zil_replay_func_t *zfs_replay_vector[TX_MAX_TYPE] = {
+zil_replay_func_t *const zfs_replay_vector[TX_MAX_TYPE] = {
 	zfs_replay_error,	/* no such type */
 	zfs_replay_create,	/* TX_CREATE */
 	zfs_replay_create,	/* TX_MKDIR */

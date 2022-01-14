@@ -186,7 +186,7 @@ uint_t zfs_multihost_import_intervals = MMP_DEFAULT_IMPORT_INTERVALS;
  */
 uint_t zfs_multihost_fail_intervals = MMP_DEFAULT_FAIL_INTERVALS;
 
-char *mmp_tag = "mmp_write_uberblock";
+static void *const mmp_tag = "mmp_write_uberblock";
 static void mmp_thread(void *arg);
 
 void

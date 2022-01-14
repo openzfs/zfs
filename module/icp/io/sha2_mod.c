@@ -60,7 +60,7 @@
 /*
  * Mechanism info structure passed to KCF during registration.
  */
-static crypto_mech_info_t sha2_mech_info_tab[] = {
+static const crypto_mech_info_t sha2_mech_info_tab[] = {
 	/* SHA256 */
 	{SUN_CKM_SHA256, SHA256_MECH_INFO_TYPE,
 	    CRYPTO_FG_DIGEST | CRYPTO_FG_DIGEST_ATOMIC,
@@ -107,7 +107,7 @@ static crypto_mech_info_t sha2_mech_info_tab[] = {
 
 static void sha2_provider_status(crypto_provider_handle_t, uint_t *);
 
-static crypto_control_ops_t sha2_control_ops = {
+static const crypto_control_ops_t sha2_control_ops = {
 	sha2_provider_status
 };
 
@@ -123,7 +123,7 @@ static int sha2_digest_atomic(crypto_provider_handle_t, crypto_session_id_t,
     crypto_mechanism_t *, crypto_data_t *, crypto_data_t *,
     crypto_req_handle_t);
 
-static crypto_digest_ops_t sha2_digest_ops = {
+static const crypto_digest_ops_t sha2_digest_ops = {
 	.digest_init = sha2_digest_init,
 	.digest = sha2_digest,
 	.digest_update = sha2_digest_update,
@@ -144,7 +144,7 @@ static int sha2_mac_verify_atomic(crypto_provider_handle_t, crypto_session_id_t,
     crypto_mechanism_t *, crypto_key_t *, crypto_data_t *, crypto_data_t *,
     crypto_spi_ctx_template_t, crypto_req_handle_t);
 
-static crypto_mac_ops_t sha2_mac_ops = {
+static const crypto_mac_ops_t sha2_mac_ops = {
 	.mac_init = sha2_mac_init,
 	.mac = NULL,
 	.mac_update = sha2_mac_update,
@@ -158,12 +158,12 @@ static int sha2_create_ctx_template(crypto_provider_handle_t,
     size_t *, crypto_req_handle_t);
 static int sha2_free_context(crypto_ctx_t *);
 
-static crypto_ctx_ops_t sha2_ctx_ops = {
+static const crypto_ctx_ops_t sha2_ctx_ops = {
 	.create_ctx_template = sha2_create_ctx_template,
 	.free_context = sha2_free_context
 };
 
-static crypto_ops_t sha2_crypto_ops = {{{{{
+static const crypto_ops_t sha2_crypto_ops = {{{{{
 	&sha2_control_ops,
 	&sha2_digest_ops,
 	NULL,
@@ -180,13 +180,13 @@ static crypto_ops_t sha2_crypto_ops = {{{{{
 	&sha2_ctx_ops
 }}}}};
 
-static crypto_provider_info_t sha2_prov_info = {{{{
+static const crypto_provider_info_t sha2_prov_info = {{{{
 	CRYPTO_SPI_VERSION_1,
 	"SHA2 Software Provider",
 	CRYPTO_SW_PROVIDER,
 	NULL,
 	&sha2_crypto_ops,
-	sizeof (sha2_mech_info_tab)/sizeof (crypto_mech_info_t),
+	sizeof (sha2_mech_info_tab) / sizeof (crypto_mech_info_t),
 	sha2_mech_info_tab
 }}}};
 

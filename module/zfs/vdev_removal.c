@@ -94,7 +94,7 @@ typedef struct vdev_copy_arg {
  * doing a device removal.  This determines how much i/o we can have
  * in flight concurrently.
  */
-int zfs_remove_max_copy_bytes = 64 * 1024 * 1024;
+static const int zfs_remove_max_copy_bytes = 64 * 1024 * 1024;
 
 /*
  * The largest contiguous segment that we will attempt to allocate when
@@ -112,7 +112,7 @@ int zfs_remove_max_segment = SPA_MAXBLOCKSIZE;
  * not be cancelled.  This can result in a normally recoverable block
  * becoming permanently damaged and is not recommended.
  */
-int zfs_removal_ignore_errors = 0;
+static int zfs_removal_ignore_errors = 0;
 
 /*
  * Allow a remap segment to span free chunks of at most this size. The main

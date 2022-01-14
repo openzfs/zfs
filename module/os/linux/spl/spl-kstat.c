@@ -358,7 +358,7 @@ kstat_seq_stop(struct seq_file *f, void *v)
 	mutex_exit(ksp->ks_lock);
 }
 
-static struct seq_operations kstat_seq_ops = {
+static const struct seq_operations kstat_seq_ops = {
 	.show  = kstat_seq_show,
 	.start = kstat_seq_start,
 	.next  = kstat_seq_next,

@@ -320,7 +320,7 @@ mappedread(znode_t *zp, int nbytes, zfs_uio_t *uio)
 }
 #endif /* _KERNEL */
 
-unsigned long zfs_delete_blocks = DMU_MAX_DELETEBLKCNT;
+static unsigned long zfs_delete_blocks = DMU_MAX_DELETEBLKCNT;
 
 /*
  * Write the bytes to a file.

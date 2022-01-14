@@ -452,7 +452,7 @@ _LIBZFS_H void zpool_print_unsup_feat(nvlist_t *config);
  */
 struct zfs_cmd;
 
-_LIBZFS_H const char *zfs_history_event_names[];
+_LIBZFS_H const char *const zfs_history_event_names[];
 
 typedef enum {
 	VDEV_NAME_PATH		= 1 << 0,

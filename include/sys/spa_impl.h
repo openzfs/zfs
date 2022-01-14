@@ -444,7 +444,7 @@ struct spa {
 };
 
 extern char *spa_config_path;
-extern char *zfs_deadman_failmode;
+extern const char *zfs_deadman_failmode;
 extern int spa_slop_shift;
 extern void spa_taskq_dispatch_ent(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
     task_func_t *func, void *arg, uint_t flags, taskq_ent_t *ent);

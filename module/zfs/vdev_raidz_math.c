@@ -43,7 +43,7 @@ static raidz_impl_ops_t vdev_raidz_fastest_impl = {
 };
 
 /* All compiled in implementations */
-const raidz_impl_ops_t *raidz_all_maths[] = {
+static const raidz_impl_ops_t *const raidz_all_maths[] = {
 	&vdev_raidz_original_impl,
 	&vdev_raidz_scalar_impl,
 #if defined(__x86_64) && defined(HAVE_SSE2)	/* only x86_64 for now */
@@ -268,10 +268,10 @@ vdev_raidz_math_reconstruct(raidz_map_t *rm, raidz_row_t *rr,
 		return (rec_fn(rr, dt));
 }
 
-const char *raidz_gen_name[] = {
+const char *const raidz_gen_name[] = {
 	"gen_p", "gen_pq", "gen_pqr"
 };
-const char *raidz_rec_name[] = {
+const char *const raidz_rec_name[] = {
 	"rec_p", "rec_q", "rec_r",
 	"rec_pq", "rec_pr", "rec_qr", "rec_pqr"
 };
@@ -283,18 +283,15 @@ const char *raidz_rec_name[] = {
 static int
 raidz_math_kstat_headers(char *buf, size_t size)
 {
-	int i;
-	ssize_t off;
-
 	ASSERT3U(size, >=, RAIDZ_KSTAT_LINE_LEN);
 
-	off = snprintf(buf, size, "%-17s", "implementation");
+	ssize_t off = snprintf(buf, size, "%-17s", "implementation");
 
-	for (i = 0; i < ARRAY_SIZE(raidz_gen_name); i++)
+	for (int i = 0; i < ARRAY_SIZE(raidz_gen_name); i++)
 		off += snprintf(buf + off, size - off, "%-16s",
 		    raidz_gen_name[i]);
 
-	for (i = 0; i < ARRAY_SIZE(raidz_rec_name); i++)
+	for (int i = 0; i < ARRAY_SIZE(raidz_rec_name); i++)
 		off += snprintf(buf + off, size - off, "%-16s",
 		    raidz_rec_name[i]);
 

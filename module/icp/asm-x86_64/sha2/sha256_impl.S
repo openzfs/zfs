@@ -2062,7 +2062,7 @@ ENTRY_NP(SHA256TransformBlocks)
 .cfi_endproc
 SET_SIZE(SHA256TransformBlocks)
 
-.data
+.section .rodata
 .align	64
 .type	K256,@object
 K256:

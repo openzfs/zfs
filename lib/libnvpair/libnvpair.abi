@@ -3,8 +3,6 @@
     <dependency name='libc.so.6'/>
   </elf-needed>
   <elf-function-symbols>
-    <elf-symbol name='_fini' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='_init' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='dump_nvlist' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='fnvlist_add_boolean' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='fnvlist_add_boolean_array' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -1332,7 +1330,8 @@
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='../../module/nvpair/nvpair_alloc_fixed.c' language='LANG_C99'>
-    <var-decl name='nv_fixed_ops' type-id='ee1d4944' mangled-name='nv_fixed_ops' visibility='default' elf-symbol-id='nv_fixed_ops'/>
+    <qualified-type-def type-id='ee1d4944' const='yes' id='4b95388f'/>
+    <var-decl name='nv_fixed_ops' type-id='4b95388f' mangled-name='nv_fixed_ops' visibility='default' elf-symbol-id='nv_fixed_ops'/>
   </abi-instr>
   <abi-instr address-size='64' path='libnvpair.c' language='LANG_C99'>
     <type-decl name='char' size-in-bits='8' id='a84c031d'/>
@@ -1342,6 +1341,10 @@
     <array-type-def dimensions='1' type-id='a84c031d' size-in-bits='160' id='664ac0b7'>
       <subrange length='20' type-id='7359adad' id='fdca39cf'/>
     </array-type-def>
+    <class-decl name='_IO_codecvt' is-struct='yes' visibility='default' is-declaration-only='yes' id='a4036571'/>
+    <class-decl name='_IO_marker' is-struct='yes' visibility='default' is-declaration-only='yes' id='010ae0b9'/>
+    <class-decl name='_IO_wide_data' is-struct='yes' visibility='default' is-declaration-only='yes' id='79bd3751'/>
+    <class-decl name='re_dfa_t' is-struct='yes' visibility='default' is-declaration-only='yes' id='b48d2441'/>
     <type-decl name='double' size-in-bits='64' id='a0eb0f08'/>
     <type-decl name='int' size-in-bits='32' id='95e97e5e'/>
     <type-decl name='long int' size-in-bits='64' id='bd54fe1a'/>
@@ -1354,6 +1357,7 @@
     <type-decl name='unsigned long int' size-in-bits='64' id='7359adad'/>
     <type-decl name='unsigned short int' size-in-bits='16' id='8efea9e5'/>
     <type-decl name='variadic parameter type' id='2c1145c5'/>
+    <type-decl name='void' id='48b5725f'/>
     <typedef-decl name='nvlist_prtctl_t' type-id='196db161' id='b0c1ff8d'/>
     <enum-decl name='nvlist_indent_mode' id='628aafab'>
       <underlying-type type-id='9cac1fee'/>
@@ -1775,16 +1779,17 @@
         <var-decl name='nvprt_custops' type-id='7be54adb' visibility='default'/>
       </data-member>
     </class-decl>
+    <typedef-decl name='__re_long_size_t' type-id='7359adad' id='ba516949'/>
     <typedef-decl name='reg_syntax_t' type-id='7359adad' id='1b72c3b3'/>
     <class-decl name='re_pattern_buffer' size-in-bits='512' is-struct='yes' visibility='default' id='19fc9a8c'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='buffer' type-id='cf536864' visibility='default'/>
+        <var-decl name='buffer' type-id='33976309' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='allocated' type-id='7359adad' visibility='default'/>
+        <var-decl name='allocated' type-id='ba516949' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='128'>
-        <var-decl name='used' type-id='7359adad' visibility='default'/>
+        <var-decl name='used' type-id='ba516949' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='192'>
         <var-decl name='syntax' type-id='1b72c3b3' visibility='default'/>
@@ -1821,18 +1826,26 @@
       </data-member>
     </class-decl>
     <typedef-decl name='regex_t' type-id='19fc9a8c' id='aca3bac8'/>
+    <typedef-decl name='int8_t' type-id='2171a512' id='ee31ee44'/>
+    <typedef-decl name='int16_t' type-id='03896e23' id='23bd8cb5'/>
+    <typedef-decl name='int32_t' type-id='33f57a65' id='3ff5601b'/>
+    <typedef-decl name='int64_t' type-id='0c9942d2' id='9da381c4'/>
+    <typedef-decl name='uint8_t' type-id='c51d6389' id='b96825af'/>
+    <typedef-decl name='uint16_t' type-id='253c2d2a' id='149c6638'/>
+    <typedef-decl name='uint32_t' type-id='62f1140c' id='8f92235e'/>
+    <typedef-decl name='uint64_t' type-id='8910171f' id='9c313c2d'/>
+    <typedef-decl name='__int8_t' type-id='28577a57' id='2171a512'/>
+    <typedef-decl name='__uint8_t' type-id='002ac4a6' id='c51d6389'/>
+    <typedef-decl name='__int16_t' type-id='a2185560' id='03896e23'/>
+    <typedef-decl name='__uint16_t' type-id='8efea9e5' id='253c2d2a'/>
+    <typedef-decl name='__int32_t' type-id='95e97e5e' id='33f57a65'/>
+    <typedef-decl name='__uint32_t' type-id='f0981eeb' id='62f1140c'/>
+    <typedef-decl name='__int64_t' type-id='bd54fe1a' id='0c9942d2'/>
+    <typedef-decl name='__uint64_t' type-id='7359adad' id='8910171f'/>
+    <typedef-decl name='__off_t' type-id='bd54fe1a' id='79989e9c'/>
+    <typedef-decl name='__off64_t' type-id='bd54fe1a' id='724e4de6'/>
+    <typedef-decl name='FILE' type-id='ec1ed955' id='aa12d1ba'/>
     <typedef-decl name='_IO_lock_t' type-id='48b5725f' id='bb4788fa'/>
-    <class-decl name='_IO_marker' size-in-bits='192' is-struct='yes' visibility='default' id='010ae0b9'>
-      <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='_next' type-id='e4c6fa61' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='_sbuf' type-id='dca988a5' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='128'>
-        <var-decl name='_pos' type-id='95e97e5e' visibility='default'/>
-      </data-member>
-    </class-decl>
     <class-decl name='_IO_FILE' size-in-bits='1728' is-struct='yes' visibility='default' id='ec1ed955'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='_flags' type-id='95e97e5e' visibility='default'/>
@@ -1901,16 +1914,16 @@
         <var-decl name='_offset' type-id='724e4de6' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1216'>
-        <var-decl name='__pad1' type-id='eaa32e2f' visibility='default'/>
+        <var-decl name='_codecvt' type-id='570f8c59' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1280'>
-        <var-decl name='__pad2' type-id='eaa32e2f' visibility='default'/>
+        <var-decl name='_wide_data' type-id='c65a1f29' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1344'>
-        <var-decl name='__pad3' type-id='eaa32e2f' visibility='default'/>
+        <var-decl name='_freeres_list' type-id='dca988a5' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1408'>
-        <var-decl name='__pad4' type-id='eaa32e2f' visibility='default'/>
+        <var-decl name='_freeres_buf' type-id='eaa32e2f' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1472'>
         <var-decl name='__pad5' type-id='b59d7dce' visibility='default'/>
@@ -1922,30 +1935,13 @@
         <var-decl name='_unused2' type-id='664ac0b7' visibility='default'/>
       </data-member>
     </class-decl>
-    <typedef-decl name='int8_t' type-id='2171a512' id='ee31ee44'/>
-    <typedef-decl name='int16_t' type-id='03896e23' id='23bd8cb5'/>
-    <typedef-decl name='int32_t' type-id='33f57a65' id='3ff5601b'/>
-    <typedef-decl name='int64_t' type-id='0c9942d2' id='9da381c4'/>
-    <typedef-decl name='uint8_t' type-id='c51d6389' id='b96825af'/>
-    <typedef-decl name='uint16_t' type-id='253c2d2a' id='149c6638'/>
-    <typedef-decl name='uint32_t' type-id='62f1140c' id='8f92235e'/>
-    <typedef-decl name='uint64_t' type-id='8910171f' id='9c313c2d'/>
-    <typedef-decl name='__int8_t' type-id='28577a57' id='2171a512'/>
-    <typedef-decl name='__uint8_t' type-id='002ac4a6' id='c51d6389'/>
-    <typedef-decl name='__int16_t' type-id='a2185560' id='03896e23'/>
-    <typedef-decl name='__uint16_t' type-id='8efea9e5' id='253c2d2a'/>
-    <typedef-decl name='__int32_t' type-id='95e97e5e' id='33f57a65'/>
-    <typedef-decl name='__uint32_t' type-id='f0981eeb' id='62f1140c'/>
-    <typedef-decl name='__int64_t' type-id='bd54fe1a' id='0c9942d2'/>
-    <typedef-decl name='__uint64_t' type-id='7359adad' id='8910171f'/>
-    <typedef-decl name='__off_t' type-id='bd54fe1a' id='79989e9c'/>
-    <typedef-decl name='__off64_t' type-id='bd54fe1a' id='724e4de6'/>
-    <typedef-decl name='FILE' type-id='ec1ed955' id='aa12d1ba'/>
     <typedef-decl name='size_t' type-id='7359adad' id='b59d7dce'/>
     <pointer-type-def type-id='aa12d1ba' size-in-bits='64' id='822cd80b'/>
     <pointer-type-def type-id='ec1ed955' size-in-bits='64' id='dca988a5'/>
+    <pointer-type-def type-id='a4036571' size-in-bits='64' id='570f8c59'/>
     <pointer-type-def type-id='bb4788fa' size-in-bits='64' id='cecf4ea7'/>
     <pointer-type-def type-id='010ae0b9' size-in-bits='64' id='e4c6fa61'/>
+    <pointer-type-def type-id='79bd3751' size-in-bits='64' id='c65a1f29'/>
     <pointer-type-def type-id='c19b74c3' size-in-bits='64' id='37e3bd22'/>
     <pointer-type-def type-id='a84c031d' size-in-bits='64' id='26a90f95'/>
     <pointer-type-def type-id='26a90f95' size-in-bits='64' id='9b23c9ad'/>
@@ -2014,6 +2010,7 @@
     <pointer-type-def type-id='8e8d4be3' size-in-bits='64' id='5ce45b60'/>
     <pointer-type-def type-id='5ce45b60' size-in-bits='64' id='857bb57e'/>
     <pointer-type-def type-id='57928edf' size-in-bits='64' id='3fa542f0'/>
+    <pointer-type-def type-id='b48d2441' size-in-bits='64' id='33976309'/>
     <pointer-type-def type-id='aca3bac8' size-in-bits='64' id='d33f11cb'/>
     <pointer-type-def type-id='d8bf0010' size-in-bits='64' id='45b65157'/>
     <pointer-type-def type-id='149c6638' size-in-bits='64' id='8a121f49'/>
@@ -2022,6 +2019,10 @@
     <pointer-type-def type-id='b96825af' size-in-bits='64' id='ae3e8ca6'/>
     <pointer-type-def type-id='002ac4a6' size-in-bits='64' id='cf536864'/>
     <pointer-type-def type-id='48b5725f' size-in-bits='64' id='eaa32e2f'/>
+    <class-decl name='_IO_codecvt' is-struct='yes' visibility='default' is-declaration-only='yes' id='a4036571'/>
+    <class-decl name='_IO_marker' is-struct='yes' visibility='default' is-declaration-only='yes' id='010ae0b9'/>
+    <class-decl name='_IO_wide_data' is-struct='yes' visibility='default' is-declaration-only='yes' id='79bd3751'/>
+    <class-decl name='re_dfa_t' is-struct='yes' visibility='default' is-declaration-only='yes' id='b48d2441'/>
     <function-decl name='nvlist_prtctl_setdest' mangled-name='nvlist_prtctl_setdest' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctl_setdest'>
       <parameter type-id='b0c1ff8d' name='pctl'/>
       <parameter type-id='822cd80b' name='fp'/>
@@ -2710,7 +2711,6 @@
       <parameter type-id='3502e3ff'/>
       <return type-id='95e97e5e'/>
     </function-type>
-    <type-decl name='void' id='48b5725f'/>
   </abi-instr>
   <abi-instr address-size='64' path='libnvpair_json.c' language='LANG_C99'>
     <function-decl name='nvlist_print_json' mangled-name='nvlist_print_json' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_print_json'>
@@ -2766,10 +2766,11 @@
     <pointer-type-def type-id='aca16c06' size-in-bits='64' id='ee1d4944'/>
     <pointer-type-def type-id='e9ff7293' size-in-bits='64' id='76da8447'/>
     <pointer-type-def type-id='cca08635' size-in-bits='64' id='11871392'/>
+    <qualified-type-def type-id='11871392' const='yes' id='e1cbfe1d'/>
     <pointer-type-def type-id='51a21b4b' size-in-bits='64' id='fe356f6f'/>
     <pointer-type-def type-id='1169c032' size-in-bits='64' id='520da3f4'/>
     <pointer-type-def type-id='9fff962e' size-in-bits='64' id='9ff7f508'/>
-    <var-decl name='nv_alloc_nosleep' type-id='11871392' mangled-name='nv_alloc_nosleep' visibility='default' elf-symbol-id='nv_alloc_nosleep'/>
+    <var-decl name='nv_alloc_nosleep' type-id='e1cbfe1d' mangled-name='nv_alloc_nosleep' visibility='default' elf-symbol-id='nv_alloc_nosleep'/>
     <function-type size-in-bits='64' id='e9ff7293'>
       <parameter type-id='11871392'/>
       <parameter type-id='b7f2d5e6'/>

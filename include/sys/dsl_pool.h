@@ -60,7 +60,6 @@ struct dsl_deadlist;
 extern unsigned long zfs_dirty_data_max;
 extern unsigned long zfs_dirty_data_max_max;
 extern unsigned long zfs_wrlog_data_max;
-extern int zfs_dirty_data_sync_percent;
 extern int zfs_dirty_data_max_percent;
 extern int zfs_dirty_data_max_max_percent;
 extern int zfs_delay_min_dirty_percent;

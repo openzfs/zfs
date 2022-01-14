@@ -185,13 +185,7 @@
 #define	ZFS_KEY_MAX_SALT_USES_DEFAULT	400000000
 #define	ZFS_CURRENT_MAX_SALT_USES	\
 	(MIN(zfs_key_max_salt_uses, ZFS_KEY_MAX_SALT_USES_DEFAULT))
-unsigned long zfs_key_max_salt_uses = ZFS_KEY_MAX_SALT_USES_DEFAULT;
-
-/*
- * Set to a nonzero value to cause zio_do_crypt_uio() to fail 1/this many
- * calls, to test decryption error handling code paths.
- */
-uint64_t zio_decrypt_fail_fraction = 0;
+static unsigned long zfs_key_max_salt_uses = ZFS_KEY_MAX_SALT_USES_DEFAULT;
 
 typedef struct blkptr_auth_buf {
 	uint64_t bab_prop;			/* blk_prop - portable mask */
@@ -199,7 +193,7 @@ typedef struct blkptr_auth_buf {
 	uint64_t bab_pad;			/* reserved for future use */
 } blkptr_auth_buf_t;
 
-zio_crypt_info_t zio_crypt_table[ZIO_CRYPT_FUNCTIONS] = {
+const zio_crypt_info_t zio_crypt_table[ZIO_CRYPT_FUNCTIONS] = {
 	{"",			ZC_TYPE_NONE,	0,	"inherit"},
 	{"",			ZC_TYPE_NONE,	0,	"on"},
 	{"",			ZC_TYPE_NONE,	0,	"off"},
@@ -237,7 +231,7 @@ zio_crypt_key_init(uint64_t crypt, zio_crypt_key_t *key)
 	int ret;
 	crypto_mechanism_t mech __unused;
 	uint_t keydata_len;
-	zio_crypt_info_t *ci = NULL;
+	const zio_crypt_info_t *ci = NULL;
 
 	ASSERT3P(key, !=, NULL);
 	ASSERT3U(crypt, <, ZIO_CRYPT_FUNCTIONS);
@@ -406,16 +400,13 @@ zio_do_crypt_uio_opencrypto(boolean_t encrypt, freebsd_crypt_session_t *sess,
     uint64_t crypt, crypto_key_t *key, uint8_t *ivbuf, uint_t datalen,
     zfs_uio_t *uio, uint_t auth_len)
 {
-	zio_crypt_info_t *ci;
-	int ret;
-
-	ci = &zio_crypt_table[crypt];
+	const zio_crypt_info_t *ci = &zio_crypt_table[crypt];
 	if (ci->ci_crypt_type != ZC_TYPE_GCM &&
 	    ci->ci_crypt_type != ZC_TYPE_CCM)
 		return (ENOTSUP);
 
 
-	ret = freebsd_crypt_uio(encrypt, sess, ci, uio, key, ivbuf,
+	int ret = freebsd_crypt_uio(encrypt, sess, ci, uio, key, ivbuf,
 	    datalen, auth_len);
 	if (ret != 0) {
 #ifdef FCRYPTO_DEBUG

@@ -352,7 +352,7 @@ static list_t arc_evict_waiters;
  * can still happen, even during the potentially long time that arc_size is
  * more than arc_c.
  */
-int zfs_arc_eviction_pct = 200;
+static int zfs_arc_eviction_pct = 200;
 
 /*
  * The number of headers to evict in arc_evict_state_impl() before
@@ -361,7 +361,7 @@ int zfs_arc_eviction_pct = 200;
  * oldest header in the arc state), but comes with higher overhead
  * (i.e. more invocations of arc_evict_state_impl()).
  */
-int zfs_arc_evict_batch_limit = 10;
+static int zfs_arc_evict_batch_limit = 10;
 
 /* number of seconds before growing cache again */
 int arc_grow_retry = 5;
@@ -369,13 +369,13 @@ int arc_grow_retry = 5;
 /*
  * Minimum time between calls to arc_kmem_reap_soon().
  */
-int arc_kmem_cache_reap_retry_ms = 1000;
+static const int arc_kmem_cache_reap_retry_ms = 1000;
 
 /* shift of arc_c for calculating overflow limit in arc_get_data_impl */
-int zfs_arc_overflow_shift = 8;
+static int zfs_arc_overflow_shift = 8;
 
 /* shift of arc_c for calculating both min and max arc_p */
-int arc_p_min_shift = 4;
+static int arc_p_min_shift = 4;
 
 /* log2(fraction of arc to reclaim) */
 int arc_shrink_shift = 7;
@@ -421,19 +421,22 @@ unsigned long zfs_arc_max = 0;
 unsigned long zfs_arc_min = 0;
 unsigned long zfs_arc_meta_limit = 0;
 unsigned long zfs_arc_meta_min = 0;
-unsigned long zfs_arc_dnode_limit = 0;
-unsigned long zfs_arc_dnode_reduce_percent = 10;
-int zfs_arc_grow_retry = 0;
-int zfs_arc_shrink_shift = 0;
-int zfs_arc_p_min_shift = 0;
+static unsigned long zfs_arc_dnode_limit = 0;
+static unsigned long zfs_arc_dnode_reduce_percent = 10;
+static int zfs_arc_grow_retry = 0;
+static int zfs_arc_shrink_shift = 0;
+static int zfs_arc_p_min_shift = 0;
 int zfs_arc_average_blocksize = 8 * 1024; /* 8KB */
 
 /*
- * ARC dirty data constraints for arc_tempreserve_space() throttle.
+ * ARC dirty data constraints for arc_tempreserve_space() throttle:
+ * * total dirty data limit
+ * * anon block dirty limit
+ * * each pool's anon allowance
  */
-unsigned long zfs_arc_dirty_limit_percent = 50;	/* total dirty data limit */
-unsigned long zfs_arc_anon_limit_percent = 25;	/* anon block dirty limit */
-unsigned long zfs_arc_pool_dirty_percent = 20;	/* each pool's anon allowance */
+static const unsigned long zfs_arc_dirty_limit_percent = 50;
+static const unsigned long zfs_arc_anon_limit_percent = 25;
+static const unsigned long zfs_arc_pool_dirty_percent = 20;
 
 /*
  * Enable or disable compressed arc buffers.
@@ -444,24 +447,24 @@ int zfs_compressed_arc_enabled = B_TRUE;
  * ARC will evict meta buffers that exceed arc_meta_limit. This
  * tunable make arc_meta_limit adjustable for different workloads.
  */
-unsigned long zfs_arc_meta_limit_percent = 75;
+static unsigned long zfs_arc_meta_limit_percent = 75;
 
 /*
  * Percentage that can be consumed by dnodes of ARC meta buffers.
  */
-unsigned long zfs_arc_dnode_limit_percent = 10;
+static unsigned long zfs_arc_dnode_limit_percent = 10;
 
 /*
- * These tunables are Linux specific
+ * These tunables are Linux-specific
  */
-unsigned long zfs_arc_sys_free = 0;
-int zfs_arc_min_prefetch_ms = 0;
-int zfs_arc_min_prescient_prefetch_ms = 0;
-int zfs_arc_p_dampener_disable = 1;
-int zfs_arc_meta_prune = 10000;
-int zfs_arc_meta_strategy = ARC_STRATEGY_META_BALANCED;
-int zfs_arc_meta_adjust_restarts = 4096;
-int zfs_arc_lotsfree_percent = 10;
+static unsigned long zfs_arc_sys_free = 0;
+static int zfs_arc_min_prefetch_ms = 0;
+static int zfs_arc_min_prescient_prefetch_ms = 0;
+static int zfs_arc_p_dampener_disable = 1;
+static int zfs_arc_meta_prune = 10000;
+static int zfs_arc_meta_strategy = ARC_STRATEGY_META_BALANCED;
+static int zfs_arc_meta_adjust_restarts = 4096;
+static int zfs_arc_lotsfree_percent = 10;
 
 /*
  * Number of arc_prune threads
@@ -651,7 +654,7 @@ arc_sums_t arc_sums;
 		ARCSTAT(stat) = x; \
 	} while (0)
 
-kstat_t			*arc_ksp;
+static kstat_t			*arc_ksp;
 
 /*
  * There are several ARC variables that are critical to export as kstats --
@@ -785,7 +788,7 @@ unsigned long l2arc_feed_min_ms = L2ARC_FEED_MIN_MS;	/* min interval msecs */
 int l2arc_noprefetch = B_TRUE;			/* don't cache prefetch bufs */
 int l2arc_feed_again = B_TRUE;			/* turbo warmup */
 int l2arc_norw = B_FALSE;			/* no reads during writes */
-int l2arc_meta_percent = 33;			/* limit on headers size */
+static int l2arc_meta_percent = 33;		/* limit on headers size */
 
 /*
  * L2ARC Internals
@@ -886,7 +889,7 @@ int l2arc_exclude_special = 0;
  * l2arc_mfuonly : A ZFS module parameter that controls whether only MFU
  * 		metadata and data are cached from ARC into L2ARC.
  */
-int l2arc_mfuonly = 0;
+static int l2arc_mfuonly = 0;
 
 /*
  * L2ARC TRIM
@@ -903,7 +906,7 @@ int l2arc_mfuonly = 0;
  * 		will vary depending of how well the specific device handles
  * 		these commands.
  */
-unsigned long l2arc_trim_ahead = 0;
+static unsigned long l2arc_trim_ahead = 0;
 
 /*
  * Performance tuning of L2ARC persistence:
@@ -918,8 +921,8 @@ unsigned long l2arc_trim_ahead = 0;
  * 		data. In this case do not write log blocks in L2ARC in order
  * 		not to waste space.
  */
-int l2arc_rebuild_enabled = B_TRUE;
-unsigned long l2arc_rebuild_blocks_min_l2size = 1024 * 1024 * 1024;
+static int l2arc_rebuild_enabled = B_TRUE;
+static unsigned long l2arc_rebuild_blocks_min_l2size = 1024 * 1024 * 1024;
 
 /* L2ARC persistence rebuild control routines. */
 void l2arc_rebuild_vdev(vdev_t *vd, boolean_t reopen);
@@ -4810,8 +4813,6 @@ arc_kmem_reap_soon(void)
 	size_t			i;
 	kmem_cache_t		*prev_cache = NULL;
 	kmem_cache_t		*prev_data_cache = NULL;
-	extern kmem_cache_t	*zio_buf_cache[];
-	extern kmem_cache_t	*zio_data_buf_cache[];
 
 #ifdef _KERNEL
 	if ((aggsum_compare(&arc_sums.arcstat_meta_used,

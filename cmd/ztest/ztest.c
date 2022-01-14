@@ -253,7 +253,7 @@ extern uint64_t metaslab_force_ganging;
 extern uint64_t metaslab_df_alloc_threshold;
 extern unsigned long zfs_deadman_synctime_ms;
 extern int metaslab_preload_limit;
-extern boolean_t zfs_compressed_arc_enabled;
+extern int zfs_compressed_arc_enabled;
 extern int zfs_abd_scatter_enabled;
 extern int dmu_object_alloc_chunk_shift;
 extern boolean_t zfs_force_some_double_word_sm_entries;

@@ -31,8 +31,8 @@
 #include <sys/zap.h>
 #include <sys/dmu_tx.h>
 
-int ddt_zap_leaf_blockshift = 12;
-int ddt_zap_indirect_blockshift = 12;
+static const int ddt_zap_leaf_blockshift = 12;
+static const int ddt_zap_indirect_blockshift = 12;
 
 static int
 ddt_zap_create(objset_t *os, uint64_t *objectp, dmu_tx_t *tx, boolean_t prehash)

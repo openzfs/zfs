@@ -626,8 +626,6 @@ extern uint64_t vdev_get_ndisks(vdev_t *vd);
  * Global variables
  */
 extern int zfs_vdev_standard_sm_blksz;
-/* zdb uses this tunable, so it must be declared here to make lint happy. */
-extern int zfs_vdev_cache_size;
 
 /*
  * Functions from vdev_indirect.c

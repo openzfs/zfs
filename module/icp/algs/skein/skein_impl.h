@@ -263,8 +263,6 @@ extern const uint64_t SKEIN_256_IV_128[];
 extern const uint64_t SKEIN_256_IV_160[];
 extern const uint64_t SKEIN_256_IV_224[];
 extern const uint64_t SKEIN_256_IV_256[];
-extern const uint64_t SKEIN_512_IV_128[];
-extern const uint64_t SKEIN_512_IV_160[];
 extern const uint64_t SKEIN_512_IV_224[];
 extern const uint64_t SKEIN_512_IV_256[];
 extern const uint64_t SKEIN_512_IV_384[];

@@ -222,7 +222,7 @@
 #include <sys/zfs_ioctl_impl.h>
 
 kmutex_t zfsdev_state_lock;
-zfsdev_state_t *zfsdev_state_list;
+static zfsdev_state_t *zfsdev_state_list;
 
 /*
  * Limit maximum nvlist size.  We don't want users passing in insane values
@@ -236,7 +236,7 @@ unsigned long zfs_max_nvlist_src_size = 0;
  * the logged size to this many bytes.  This must be less than DMU_MAX_ACCESS.
  * This applies primarily to zfs_ioc_channel_program().
  */
-unsigned long zfs_history_output_max = 1024 * 1024;
+static unsigned long zfs_history_output_max = 1024 * 1024;
 
 uint_t zfs_fsyncer_key;
 uint_t zfs_allow_log_key;
@@ -6094,10 +6094,6 @@ zfs_ioc_share(zfs_cmd_t *zc)
 {
 	return (SET_ERROR(ENOSYS));
 }
-
-ace_t full_access[] = {
-	{(uid_t)-1, ACE_ALL_PERMS, ACE_EVERYONE, 0}
-};
 
 /*
  * inputs:

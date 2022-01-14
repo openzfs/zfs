@@ -78,16 +78,16 @@ krwlock_t os_lock;
  * datasets.
  * Default is 4 times the number of leaf vdevs.
  */
-int dmu_find_threads = 0;
+static const int dmu_find_threads = 0;
 
 /*
  * Backfill lower metadnode objects after this many have been freed.
  * Backfilling negatively impacts object creation rates, so only do it
  * if there are enough holes to fill.
  */
-int dmu_rescan_dnode_threshold = 1 << DN_MAX_INDBLKSHIFT;
+static const int dmu_rescan_dnode_threshold = 1 << DN_MAX_INDBLKSHIFT;
 
-static char *upgrade_tag = "upgrade_tag";
+static const char *upgrade_tag = "upgrade_tag";
 
 static void dmu_objset_find_dp_cb(void *arg);
 

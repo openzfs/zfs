@@ -61,7 +61,7 @@
 #endif /* !MACHINE_IS_BIG_ENDIAN && !MACHINE_IS_LITTLE_ENDIAN */
 
 #if !defined(MACHINE_IS_BIG_ENDIAN) && !defined(MACHINE_IS_LITTLE_ENDIAN)
-#error unknown machine byte sex
+#error unknown machine byte order
 #endif
 
 #define	BYTEORDER_INCLUDED
