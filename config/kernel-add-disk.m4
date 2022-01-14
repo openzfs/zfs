@@ -13,7 +13,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_ADD_DISK], [
 	])
 
 ])
-
 AC_DEFUN([ZFS_AC_KERNEL_ADD_DISK], [
 	AC_MSG_CHECKING([whether add_disk() returns int])
 	ZFS_LINUX_TEST_RESULT([add_disk_ret],
