@@ -70,7 +70,7 @@ typedef struct zio_crypt_info {
 	char *ci_name;
 } zio_crypt_info_t;
 
-extern zio_crypt_info_t zio_crypt_table[ZIO_CRYPT_FUNCTIONS];
+extern const zio_crypt_info_t zio_crypt_table[ZIO_CRYPT_FUNCTIONS];
 
 /* in memory representation of an unwrapped key that is loaded into memory */
 typedef struct zio_crypt_key {

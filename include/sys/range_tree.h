@@ -63,7 +63,7 @@ typedef struct range_tree {
 	 */
 	uint8_t		rt_shift;
 	uint64_t	rt_start;
-	range_tree_ops_t *rt_ops;
+	const range_tree_ops_t *rt_ops;
 
 	/* rt_btree_compare should only be set if rt_arg is a b-tree */
 	void		*rt_arg;
@@ -278,11 +278,11 @@ rs_set_fill(range_seg_t *rs, range_tree_t *rt, uint64_t fill)
 
 typedef void range_tree_func_t(void *arg, uint64_t start, uint64_t size);
 
-range_tree_t *range_tree_create_impl(range_tree_ops_t *ops,
+range_tree_t *range_tree_create_impl(const range_tree_ops_t *ops,
     range_seg_type_t type, void *arg, uint64_t start, uint64_t shift,
     int (*zfs_btree_compare) (const void *, const void *), uint64_t gap);
-range_tree_t *range_tree_create(range_tree_ops_t *ops, range_seg_type_t type,
-    void *arg, uint64_t start, uint64_t shift);
+range_tree_t *range_tree_create(const range_tree_ops_t *ops,
+    range_seg_type_t type, void *arg, uint64_t start, uint64_t shift);
 void range_tree_destroy(range_tree_t *rt);
 boolean_t range_tree_contains(range_tree_t *rt, uint64_t start, uint64_t size);
 range_seg_t *range_tree_find(range_tree_t *rt, uint64_t start, uint64_t size);
@@ -321,7 +321,7 @@ void rt_btree_destroy(range_tree_t *rt, void *arg);
 void rt_btree_add(range_tree_t *rt, range_seg_t *rs, void *arg);
 void rt_btree_remove(range_tree_t *rt, range_seg_t *rs, void *arg);
 void rt_btree_vacate(range_tree_t *rt, void *arg);
-extern range_tree_ops_t rt_btree_ops;
+extern const range_tree_ops_t rt_btree_ops;
 
 #ifdef	__cplusplus
 }

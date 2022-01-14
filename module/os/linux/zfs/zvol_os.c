@@ -41,12 +41,12 @@
 #include <linux/blkdev_compat.h>
 #include <linux/task_io_accounting_ops.h>
 
-unsigned int zvol_major = ZVOL_MAJOR;
-unsigned int zvol_request_sync = 0;
-unsigned int zvol_prefetch_bytes = (128 * 1024);
-unsigned long zvol_max_discard_blocks = 16384;
-unsigned int zvol_threads = 32;
-unsigned int zvol_open_timeout_ms = 1000;
+static unsigned int zvol_major = ZVOL_MAJOR;
+static unsigned int zvol_request_sync = 0;
+static unsigned int zvol_prefetch_bytes = (128 * 1024);
+static unsigned long zvol_max_discard_blocks = 16384;
+static unsigned int zvol_threads = 32;
+static const unsigned int zvol_open_timeout_ms = 1000;
 
 struct zvol_state_os {
 	struct gendisk		*zvo_disk;	/* generic disk */
@@ -802,7 +802,7 @@ zvol_getgeo(struct block_device *bdev, struct hd_geometry *geo)
 	return (0);
 }
 
-static struct block_device_operations zvol_ops = {
+static const struct block_device_operations zvol_ops = {
 	.open			= zvol_open,
 	.release		= zvol_release,
 	.ioctl			= zvol_ioctl,

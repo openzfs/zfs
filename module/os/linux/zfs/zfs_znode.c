@@ -80,7 +80,7 @@ unsigned int zfs_object_mutex_size = ZFS_OBJ_MTX_SZ;
  * This is used by the test suite so that it can delay znodes from being
  * freed in order to inspect the unlinked set.
  */
-int zfs_unlink_suspend_progress = 0;
+static int zfs_unlink_suspend_progress = 0;
 
 /*
  * This callback is invoked when acquiring a RL_WRITER or RL_APPEND lock on

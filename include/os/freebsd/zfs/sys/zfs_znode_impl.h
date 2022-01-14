@@ -175,8 +175,7 @@ extern void	zfs_tstamp_update_setup_ext(struct znode *,
     uint_t, uint64_t [2], uint64_t [2], boolean_t have_tx);
 extern void zfs_znode_free(struct znode *);
 
-extern zil_replay_func_t *zfs_replay_vector[TX_MAX_TYPE];
-extern int zfsfstype;
+extern zil_replay_func_t *const zfs_replay_vector[TX_MAX_TYPE];
 
 extern int zfs_znode_parent_and_name(struct znode *zp, struct znode **dzpp,
     char *buf);

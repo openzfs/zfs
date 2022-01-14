@@ -188,8 +188,8 @@ range_tree_seg_gap_compare(const void *x1, const void *x2)
 }
 
 range_tree_t *
-range_tree_create_impl(range_tree_ops_t *ops, range_seg_type_t type, void *arg,
-    uint64_t start, uint64_t shift,
+range_tree_create_impl(const range_tree_ops_t *ops, range_seg_type_t type,
+    void *arg, uint64_t start, uint64_t shift,
     int (*zfs_btree_compare) (const void *, const void *),
     uint64_t gap)
 {
@@ -232,7 +232,7 @@ range_tree_create_impl(range_tree_ops_t *ops, range_seg_type_t type, void *arg,
 }
 
 range_tree_t *
-range_tree_create(range_tree_ops_t *ops, range_seg_type_t type,
+range_tree_create(const range_tree_ops_t *ops, range_seg_type_t type,
     void *arg, uint64_t start, uint64_t shift)
 {
 	return (range_tree_create_impl(ops, type, arg, start, shift, NULL, 0));
@@ -801,7 +801,7 @@ rt_btree_vacate(range_tree_t *rt, void *arg)
 	rt_btree_create(rt, arg);
 }
 
-range_tree_ops_t rt_btree_ops = {
+const range_tree_ops_t rt_btree_ops = {
 	.rtop_create = rt_btree_create,
 	.rtop_destroy = rt_btree_destroy,
 	.rtop_add = rt_btree_add,

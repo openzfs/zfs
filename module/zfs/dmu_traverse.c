@@ -39,9 +39,9 @@
 #include <sys/callb.h>
 #include <sys/zfeature.h>
 
-int32_t zfs_pd_bytes_max = 50 * 1024 * 1024;	/* 50MB */
-int32_t send_holes_without_birth_time = 1;
-int32_t zfs_traverse_indirect_prefetch_limit = 32;
+static int32_t zfs_pd_bytes_max = 50 * 1024 * 1024;	/* 50MB */
+static int32_t send_holes_without_birth_time = 1;
+static int32_t zfs_traverse_indirect_prefetch_limit = 32;
 
 typedef struct prefetch_data {
 	kmutex_t pd_mtx;

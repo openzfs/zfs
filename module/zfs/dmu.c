@@ -62,7 +62,7 @@
 /*
  * Enable/disable nopwrite feature.
  */
-int zfs_nopwrite_enabled = 1;
+static int zfs_nopwrite_enabled = 1;
 
 /*
  * Tunable to control percentage of dirtied L1 blocks from frees allowed into
@@ -70,7 +70,7 @@ int zfs_nopwrite_enabled = 1;
  * will wait until the next TXG.
  * A value of zero will disable this throttle.
  */
-unsigned long zfs_per_txg_dirty_frees_percent = 5;
+static unsigned long zfs_per_txg_dirty_frees_percent = 5;
 
 /*
  * Enable/disable forcing txg sync when dirty checking for holes with lseek().
@@ -79,14 +79,14 @@ unsigned long zfs_per_txg_dirty_frees_percent = 5;
  * Disabling this option will result in holes never being reported in dirty
  * files which is always safe.
  */
-int zfs_dmu_offset_next_sync = 1;
+static int zfs_dmu_offset_next_sync = 1;
 
 /*
  * Limit the amount we can prefetch with one call to this amount.  This
  * helps to limit the amount of memory that can be used by prefetching.
  * Larger objects should be prefetched a bit at a time.
  */
-int dmu_prefetch_max = 8 * SPA_MAXBLOCKSIZE;
+static int dmu_prefetch_max = 8 * SPA_MAXBLOCKSIZE;
 
 const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
 	{DMU_BSWAP_UINT8,  TRUE,  FALSE, FALSE, "unallocated"		},
@@ -1940,7 +1940,7 @@ dmu_object_set_compress(objset_t *os, uint64_t object, uint8_t compress,
  * When the "redundant_metadata" property is set to "most", only indirect
  * blocks of this level and higher will have an additional ditto block.
  */
-int zfs_redundant_metadata_most_ditto_level = 2;
+static const int zfs_redundant_metadata_most_ditto_level = 2;
 
 void
 dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)

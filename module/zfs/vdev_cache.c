@@ -83,13 +83,13 @@
  * it by setting the zfs_vdev_cache_size to zero.  Note that Solaris 11
  * has made these same changes.
  */
-int zfs_vdev_cache_max = 1<<14;			/* 16KB */
-int zfs_vdev_cache_size = 0;
-int zfs_vdev_cache_bshift = 16;
+static int zfs_vdev_cache_max = 1<<14;			/* 16KB */
+static int zfs_vdev_cache_size = 0;
+static int zfs_vdev_cache_bshift = 16;
 
 #define	VCBS (1 << zfs_vdev_cache_bshift)	/* 64KB */
 
-kstat_t	*vdc_ksp = NULL;
+static kstat_t	*vdc_ksp = NULL;
 
 typedef struct vdc_stats {
 	kstat_named_t vdc_stat_delegations;

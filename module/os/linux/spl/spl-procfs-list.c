@@ -158,7 +158,7 @@ procfs_list_seq_stop(struct seq_file *f, void *p)
 	mutex_exit(&procfs_list->pl_lock);
 }
 
-static struct seq_operations procfs_list_seq_ops = {
+static const struct seq_operations procfs_list_seq_ops = {
 	.show  = procfs_list_seq_show,
 	.start = procfs_list_seq_start,
 	.next  = procfs_list_seq_next,

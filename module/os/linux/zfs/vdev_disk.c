@@ -919,7 +919,7 @@ param_set_vdev_scheduler(const char *val, zfs_kernel_param_t *kp)
 	return (error);
 }
 
-char *zfs_vdev_scheduler = "unused";
+static const char *zfs_vdev_scheduler = "unused";
 module_param_call(zfs_vdev_scheduler, param_set_vdev_scheduler,
     param_get_charp, &zfs_vdev_scheduler, 0644);
 MODULE_PARM_DESC(zfs_vdev_scheduler, "I/O scheduler");

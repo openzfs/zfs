@@ -30,7 +30,7 @@
 #define	SKEIN_MODULE_IMPL
 #include <sys/skein.h>
 
-static crypto_mech_info_t skein_mech_info_tab[] = {
+static const crypto_mech_info_t skein_mech_info_tab[] = {
 	{CKM_SKEIN_256, SKEIN_256_MECH_INFO_TYPE,
 	    CRYPTO_FG_DIGEST | CRYPTO_FG_DIGEST_ATOMIC,
 	    0, 0, CRYPTO_KEYSIZE_UNIT_IN_BITS},
@@ -53,7 +53,7 @@ static crypto_mech_info_t skein_mech_info_tab[] = {
 
 static void skein_provider_status(crypto_provider_handle_t, uint_t *);
 
-static crypto_control_ops_t skein_control_ops = {
+static const crypto_control_ops_t skein_control_ops = {
 	skein_provider_status
 };
 
@@ -67,7 +67,7 @@ static int skein_digest_atomic(crypto_provider_handle_t, crypto_session_id_t,
     crypto_mechanism_t *, crypto_data_t *, crypto_data_t *,
     crypto_req_handle_t);
 
-static crypto_digest_ops_t skein_digest_ops = {
+static const crypto_digest_ops_t skein_digest_ops = {
 	.digest_init = skein_digest_init,
 	.digest = skein_digest,
 	.digest_update = skein_update,
@@ -82,7 +82,7 @@ static int skein_mac_atomic(crypto_provider_handle_t, crypto_session_id_t,
     crypto_mechanism_t *, crypto_key_t *, crypto_data_t *, crypto_data_t *,
     crypto_spi_ctx_template_t, crypto_req_handle_t);
 
-static crypto_mac_ops_t skein_mac_ops = {
+static const crypto_mac_ops_t skein_mac_ops = {
 	.mac_init = skein_mac_init,
 	.mac = NULL,
 	.mac_update = skein_update, /* using regular digest update is OK here */
@@ -96,12 +96,12 @@ static int skein_create_ctx_template(crypto_provider_handle_t,
     size_t *, crypto_req_handle_t);
 static int skein_free_context(crypto_ctx_t *);
 
-static crypto_ctx_ops_t skein_ctx_ops = {
+static const crypto_ctx_ops_t skein_ctx_ops = {
 	.create_ctx_template = skein_create_ctx_template,
 	.free_context = skein_free_context
 };
 
-static crypto_ops_t skein_crypto_ops = {{{{{
+static const crypto_ops_t skein_crypto_ops = {{{{{
 	&skein_control_ops,
 	&skein_digest_ops,
 	NULL,
@@ -118,7 +118,7 @@ static crypto_ops_t skein_crypto_ops = {{{{{
 	&skein_ctx_ops,
 }}}}};
 
-static crypto_provider_info_t skein_prov_info = {{{{
+static const crypto_provider_info_t skein_prov_info = {{{{
 	CRYPTO_SPI_VERSION_1,
 	"Skein Software Provider",
 	CRYPTO_SW_PROVIDER,

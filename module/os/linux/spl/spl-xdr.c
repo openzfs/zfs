@@ -127,8 +127,8 @@
  * space or MMIO space), the computer may explode.
  */
 
-static struct xdr_ops xdrmem_encode_ops;
-static struct xdr_ops xdrmem_decode_ops;
+static const struct xdr_ops xdrmem_encode_ops;
+static const struct xdr_ops xdrmem_decode_ops;
 
 void
 xdrmem_create(XDR *xdrs, const caddr_t addr, const uint_t size,
@@ -489,7 +489,7 @@ fail:
 	return (FALSE);
 }
 
-static struct xdr_ops xdrmem_encode_ops = {
+static const struct xdr_ops xdrmem_encode_ops = {
 	.xdr_control		= xdrmem_control,
 	.xdr_char		= xdrmem_enc_char,
 	.xdr_u_short		= xdrmem_enc_ushort,
@@ -500,7 +500,7 @@ static struct xdr_ops xdrmem_encode_ops = {
 	.xdr_array		= xdr_enc_array
 };
 
-static struct xdr_ops xdrmem_decode_ops = {
+static const struct xdr_ops xdrmem_decode_ops = {
 	.xdr_control		= xdrmem_control,
 	.xdr_char		= xdrmem_dec_char,
 	.xdr_u_short		= xdrmem_dec_ushort,

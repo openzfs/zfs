@@ -91,8 +91,7 @@ typedef enum zpl_attr {
 #define	SA_FLAGS_OFFSET		48
 #define	SA_PROJID_OFFSET	128
 
-extern sa_attr_reg_t zfs_attr_table[ZPL_END + 1];
-extern sa_attr_reg_t zfs_legacy_attr_table[ZPL_END + 1];
+extern const sa_attr_reg_t zfs_attr_table[ZPL_END + 1];
 
 /*
  * This is a deprecated data structure that only exists for

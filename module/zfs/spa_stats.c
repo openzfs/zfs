@@ -28,22 +28,22 @@
 /*
  * Keeps stats on last N reads per spa_t, disabled by default.
  */
-int zfs_read_history = 0;
+static int zfs_read_history = B_FALSE;
 
 /*
  * Include cache hits in history, disabled by default.
  */
-int zfs_read_history_hits = 0;
+static int zfs_read_history_hits = B_FALSE;
 
 /*
  * Keeps stats on the last 100 txgs by default.
  */
-int zfs_txg_history = 100;
+static int zfs_txg_history = 100;
 
 /*
  * Keeps stats on the last N MMP updates, disabled by default.
  */
-int zfs_multihost_history = 0;
+int zfs_multihost_history = B_FALSE;
 
 /*
  * ==========================================================================
@@ -830,7 +830,7 @@ spa_health_destroy(spa_t *spa)
 	mutex_destroy(&shk->lock);
 }
 
-static spa_iostats_t spa_iostats_template = {
+static const spa_iostats_t spa_iostats_template = {
 	{ "trim_extents_written",		KSTAT_DATA_UINT64 },
 	{ "trim_bytes_written",			KSTAT_DATA_UINT64 },
 	{ "trim_extents_skipped",		KSTAT_DATA_UINT64 },

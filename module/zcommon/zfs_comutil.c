@@ -158,13 +158,11 @@ static zfs_version_spa_map_t zfs_version_table[] = {
 int
 zfs_zpl_version_map(int spa_version)
 {
-	int i;
 	int version = -1;
 
-	for (i = 0; zfs_version_table[i].version_spa; i++) {
+	for (int i = 0; zfs_version_table[i].version_spa; i++)
 		if (spa_version >= zfs_version_table[i].version_spa)
 			version = zfs_version_table[i].version_zpl;
-	}
 
 	return (version);
 }
@@ -176,22 +174,18 @@ zfs_zpl_version_map(int spa_version)
 int
 zfs_spa_version_map(int zpl_version)
 {
-	int i;
-	int version = -1;
-
-	for (i = 0; zfs_version_table[i].version_zpl; i++) {
+	for (int i = 0; zfs_version_table[i].version_zpl; i++)
 		if (zfs_version_table[i].version_zpl >= zpl_version)
 			return (zfs_version_table[i].version_spa);
-	}
 
-	return (version);
+	return (-1);
 }
 
 /*
  * This is the table of legacy internal event names; it should not be modified.
  * The internal events are now stored in the history log as strings.
  */
-const char *zfs_history_event_names[ZFS_NUM_LEGACY_HISTORY_EVENTS] = {
+const char *const zfs_history_event_names[ZFS_NUM_LEGACY_HISTORY_EVENTS] = {
 	"invalid event",
 	"pool create",
 	"vdev add",
@@ -243,9 +237,7 @@ zfs_dataset_name_hidden(const char *name)
 	 * internal datasets (which have a $ in their name), and
 	 * temporary datasets (which have a % in their name).
 	 */
-	if (strchr(name, '$') != NULL)
-		return (B_TRUE);
-	if (strchr(name, '%') != NULL)
+	if (strpbrk(name, "$%") != NULL)
 		return (B_TRUE);
 	if (!INGLOBALZONE(curproc) && !zone_dataset_visible(name, NULL))
 		return (B_TRUE);

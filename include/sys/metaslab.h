@@ -43,7 +43,7 @@ typedef struct metaslab_ops {
 } metaslab_ops_t;
 
 
-extern metaslab_ops_t *zfs_metaslab_ops;
+extern const metaslab_ops_t zfs_metaslab_ops;
 
 int metaslab_init(metaslab_group_t *, uint64_t, uint64_t, uint64_t,
     metaslab_t **);
@@ -101,7 +101,7 @@ void metaslab_stat_fini(void);
 void metaslab_trace_init(zio_alloc_list_t *);
 void metaslab_trace_fini(zio_alloc_list_t *);
 
-metaslab_class_t *metaslab_class_create(spa_t *, metaslab_ops_t *);
+metaslab_class_t *metaslab_class_create(spa_t *, const metaslab_ops_t *);
 void metaslab_class_destroy(metaslab_class_t *);
 int metaslab_class_validate(metaslab_class_t *);
 void metaslab_class_histogram_verify(metaslab_class_t *);

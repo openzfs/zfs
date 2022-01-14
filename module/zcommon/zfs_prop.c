@@ -50,7 +50,7 @@
 static zprop_desc_t zfs_prop_table[ZFS_NUM_PROPS];
 
 /* Note this is indexed by zfs_userquota_prop_t, keep the order the same */
-const char *zfs_userquota_prop_prefixes[] = {
+const char *const zfs_userquota_prop_prefixes[] = {
 	"userused@",
 	"userquota@",
 	"groupused@",

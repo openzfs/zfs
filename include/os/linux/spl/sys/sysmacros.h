@@ -113,7 +113,6 @@
 #endif
 
 /* Missing globals */
-extern char spl_gitrev[64];
 extern unsigned long spl_hostid;
 
 /* Missing misc functions */

@@ -121,7 +121,7 @@ typedef struct mirror_map {
 	mirror_child_t	mm_child[];
 } mirror_map_t;
 
-static int vdev_mirror_shift = 21;
+static const int vdev_mirror_shift = 21;
 
 /*
  * The load configuration settings below are tuned by default for

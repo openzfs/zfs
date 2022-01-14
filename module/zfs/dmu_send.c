@@ -67,7 +67,7 @@
 #endif
 
 /* Set this tunable to TRUE to replace corrupt data with 0x2f5baddb10c */
-int zfs_send_corrupt_data = B_FALSE;
+static int zfs_send_corrupt_data = B_FALSE;
 /*
  * This tunable controls the amount of data (measured in bytes) that will be
  * prefetched by zfs send.  If the main thread is blocking on reads that haven't
@@ -75,7 +75,7 @@ int zfs_send_corrupt_data = B_FALSE;
  * thread is issuing new reads because the prefetches have fallen out of the
  * cache, this may need to be decreased.
  */
-int zfs_send_queue_length = SPA_MAXBLOCKSIZE;
+static int zfs_send_queue_length = SPA_MAXBLOCKSIZE;
 /*
  * This tunable controls the length of the queues that zfs send worker threads
  * use to communicate.  If the send_main_thread is blocking on these queues,
@@ -83,7 +83,7 @@ int zfs_send_queue_length = SPA_MAXBLOCKSIZE;
  * at the start of a send as these threads consume all the available IO
  * resources, this variable may need to be decreased.
  */
-int zfs_send_no_prefetch_queue_length = 1024 * 1024;
+static int zfs_send_no_prefetch_queue_length = 1024 * 1024;
 /*
  * These tunables control the fill fraction of the queues by zfs send.  The fill
  * fraction controls the frequency with which threads have to be cv_signaled.
@@ -91,19 +91,19 @@ int zfs_send_no_prefetch_queue_length = 1024 * 1024;
  * down.  If the queues empty before the signalled thread can catch up, then
  * these should be tuned up.
  */
-int zfs_send_queue_ff = 20;
-int zfs_send_no_prefetch_queue_ff = 20;
+static int zfs_send_queue_ff = 20;
+static int zfs_send_no_prefetch_queue_ff = 20;
 
 /*
  * Use this to override the recordsize calculation for fast zfs send estimates.
  */
-int zfs_override_estimate_recordsize = 0;
+static int zfs_override_estimate_recordsize = 0;
 
 /* Set this tunable to FALSE to disable setting of DRR_FLAG_FREERECORDS */
-int zfs_send_set_freerecords_bit = B_TRUE;
+static const boolean_t zfs_send_set_freerecords_bit = B_TRUE;
 
 /* Set this tunable to FALSE is disable sending unmodified spill blocks. */
-int zfs_send_unmodified_spill_blocks = B_TRUE;
+static int zfs_send_unmodified_spill_blocks = B_TRUE;
 
 static inline boolean_t
 overflow_multiply(uint64_t a, uint64_t b, uint64_t *c)

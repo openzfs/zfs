@@ -33,8 +33,8 @@ typedef struct zfs_dbgmsg {
 	char			zdm_msg[1]; /* variable length allocation */
 } zfs_dbgmsg_t;
 
-procfs_list_t zfs_dbgmsgs;
-int zfs_dbgmsg_size = 0;
+static procfs_list_t zfs_dbgmsgs;
+static int zfs_dbgmsg_size = 0;
 int zfs_dbgmsg_maxsize = 4<<20; /* 4MB */
 
 /*
@@ -49,7 +49,7 @@ int zfs_dbgmsg_maxsize = 4<<20; /* 4MB */
  * # Clear the kernel debug message log.
  * echo 0 >/proc/spl/kstat/zfs/dbgmsg
  */
-int zfs_dbgmsg_enable = 1;
+int zfs_dbgmsg_enable = B_TRUE;
 
 static int
 zfs_dbgmsg_show_header(struct seq_file *f)

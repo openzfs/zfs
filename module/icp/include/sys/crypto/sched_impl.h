@@ -457,12 +457,9 @@ typedef struct kcf_ntfy_elem {
 #define	CRYPTO_TASKQ_MIN	64
 #define	CRYPTO_TASKQ_MAX	2 * 1024 * 1024
 
-extern int crypto_taskq_threads;
-extern int crypto_taskq_minalloc;
-extern int crypto_taskq_maxalloc;
-extern kcf_global_swq_t *gswq;
-extern int kcf_maxthreads;
-extern int kcf_minthreads;
+extern const int crypto_taskq_threads;
+extern const int crypto_taskq_minalloc;
+extern const int crypto_taskq_maxalloc;
 
 /*
  * All pending crypto bufcalls are put on a list. cbuf_list_lock

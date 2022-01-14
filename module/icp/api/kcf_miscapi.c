@@ -62,7 +62,7 @@ static kcf_ntfy_elem_t *ntfy_list_head;
  *	CRYPTO_MECH_INVALID otherwise.
  */
 crypto_mech_type_t
-crypto_mech2id(char *mechname)
+crypto_mech2id(const char *mechname)
 {
 	return (crypto_mech2id_common(mechname, B_TRUE));
 }

@@ -139,11 +139,7 @@ static const uchar_t remaining_bytes_tbl[0x100] = {
  * the first byte of a UTF-8 character.  Index is remaining bytes at above of
  * the character.
  */
-#ifdef	_KERNEL
-const uchar_t u8_masks_tbl[6] = { 0x00, 0x1f, 0x0f, 0x07, 0x03, 0x01 };
-#else
 static const uchar_t u8_masks_tbl[6] = { 0x00, 0x1f, 0x0f, 0x07, 0x03, 0x01 };
-#endif	/* _KERNEL */
 
 /*
  * The following two vectors are to provide valid minimum and

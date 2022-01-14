@@ -779,7 +779,7 @@ static gcm_impl_ops_t gcm_fastest_impl = {
 };
 
 /* All compiled in implementations */
-const gcm_impl_ops_t *gcm_all_impl[] = {
+static const gcm_impl_ops_t *gcm_all_impl[] = {
 	&gcm_generic_impl,
 #if defined(__x86_64) && defined(HAVE_PCLMULQDQ)
 	&gcm_pclmulqdq_impl,
@@ -1046,9 +1046,6 @@ MODULE_PARM_DESC(icp_gcm_impl, "Select gcm implementation.");
 #define	GCM_AVX_MAX_CHUNK_SIZE \
 	(((128*1024)/GCM_AVX_MIN_DECRYPT_BYTES) * GCM_AVX_MIN_DECRYPT_BYTES)
 
-/* Get the chunk size module parameter. */
-#define	GCM_CHUNK_SIZE_READ *(volatile uint32_t *) &gcm_avx_chunk_size
-
 /* Clear the FPU registers since they hold sensitive internal state. */
 #define	clear_fpu_regs() clear_fpu_regs_avx()
 #define	GHASH_AVX(ctx, in, len) \
@@ -1056,6 +1053,9 @@ MODULE_PARM_DESC(icp_gcm_impl, "Select gcm implementation.");
     in, len)
 
 #define	gcm_incr_counter_block(ctx) gcm_incr_counter_block_by(ctx, 1)
+
+/* Get the chunk size module parameter. */
+#define	GCM_CHUNK_SIZE_READ *(volatile uint32_t *) &gcm_avx_chunk_size
 
 /*
  * Module parameter: number of bytes to process at once while owning the FPU.

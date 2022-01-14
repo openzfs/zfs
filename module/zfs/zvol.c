@@ -90,9 +90,9 @@ unsigned int zvol_inhibit_dev = 0;
 unsigned int zvol_volmode = ZFS_VOLMODE_GEOM;
 
 struct hlist_head *zvol_htable;
-list_t zvol_state_list;
+static list_t zvol_state_list;
 krwlock_t zvol_state_lock;
-const zvol_platform_ops_t *ops;
+static const zvol_platform_ops_t *ops;
 
 typedef enum {
 	ZVOL_ASYNC_REMOVE_MINORS,
@@ -486,6 +486,7 @@ zvol_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 static int
 zvol_replay_err(void *arg1, void *arg2, boolean_t byteswap)
 {
+	(void) arg1, (void) arg2, (void) byteswap;
 	return (SET_ERROR(ENOTSUP));
 }
 
@@ -493,7 +494,7 @@ zvol_replay_err(void *arg1, void *arg2, boolean_t byteswap)
  * Callback vectors for replaying records.
  * Only TX_WRITE and TX_TRUNCATE are needed for zvol.
  */
-zil_replay_func_t *zvol_replay_vector[TX_MAX_TYPE] = {
+zil_replay_func_t *const zvol_replay_vector[TX_MAX_TYPE] = {
 	zvol_replay_err,	/* no such transaction type */
 	zvol_replay_err,	/* TX_CREATE */
 	zvol_replay_err,	/* TX_MKDIR */
@@ -521,7 +522,7 @@ zil_replay_func_t *zvol_replay_vector[TX_MAX_TYPE] = {
  * We store data in the log buffers if it's small enough.
  * Otherwise we will later flush the data out via dmu_sync().
  */
-ssize_t zvol_immediate_write_sz = 32768;
+static const ssize_t zvol_immediate_write_sz = 32768;
 
 void
 zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,

@@ -114,15 +114,15 @@ zcp_sync_task(lua_State *state, dsl_checkfunc_t *checkfunc,
 
 
 static int zcp_synctask_destroy(lua_State *, boolean_t, nvlist_t *);
-static zcp_synctask_info_t zcp_synctask_destroy_info = {
+static const zcp_synctask_info_t zcp_synctask_destroy_info = {
 	.name = "destroy",
 	.func = zcp_synctask_destroy,
 	.pargs = {
-	    {.za_name = "filesystem | snapshot", .za_lua_type = LUA_TSTRING},
+	    {.za_name = "filesystem | snapshot", .za_lua_type = LUA_TSTRING },
 	    {NULL, 0}
 	},
 	.kwargs = {
-	    {.za_name = "defer", .za_lua_type = LUA_TBOOLEAN},
+	    {.za_name = "defer", .za_lua_type = LUA_TBOOLEAN },
 	    {NULL, 0}
 	},
 	.space_check = ZFS_SPACE_CHECK_DESTROY,
@@ -167,11 +167,11 @@ zcp_synctask_destroy(lua_State *state, boolean_t sync, nvlist_t *err_details)
 }
 
 static int zcp_synctask_promote(lua_State *, boolean_t, nvlist_t *);
-static zcp_synctask_info_t zcp_synctask_promote_info = {
+static const zcp_synctask_info_t zcp_synctask_promote_info = {
 	.name = "promote",
 	.func = zcp_synctask_promote,
 	.pargs = {
-	    {.za_name = "clone", .za_lua_type = LUA_TSTRING},
+	    {.za_name = "clone", .za_lua_type = LUA_TSTRING },
 	    {NULL, 0}
 	},
 	.kwargs = {
@@ -205,13 +205,13 @@ zcp_synctask_promote(lua_State *state, boolean_t sync, nvlist_t *err_details)
 }
 
 static int zcp_synctask_rollback(lua_State *, boolean_t, nvlist_t *err_details);
-static zcp_synctask_info_t zcp_synctask_rollback_info = {
+static const zcp_synctask_info_t zcp_synctask_rollback_info = {
 	.name = "rollback",
 	.func = zcp_synctask_rollback,
 	.space_check = ZFS_SPACE_CHECK_RESERVED,
 	.blocks_modified = 1,
 	.pargs = {
-	    {.za_name = "filesystem", .za_lua_type = LUA_TSTRING},
+	    {.za_name = "filesystem", .za_lua_type = LUA_TSTRING },
 	    {0, 0}
 	},
 	.kwargs = {
@@ -236,12 +236,12 @@ zcp_synctask_rollback(lua_State *state, boolean_t sync, nvlist_t *err_details)
 }
 
 static int zcp_synctask_snapshot(lua_State *, boolean_t, nvlist_t *);
-static zcp_synctask_info_t zcp_synctask_snapshot_info = {
+static const zcp_synctask_info_t zcp_synctask_snapshot_info = {
 	.name = "snapshot",
 	.func = zcp_synctask_snapshot,
 	.pargs = {
 	    {.za_name = "filesystem@snapname | volume@snapname",
-	    .za_lua_type = LUA_TSTRING},
+	    .za_lua_type = LUA_TSTRING },
 	    {NULL, 0}
 	},
 	.kwargs = {
@@ -304,7 +304,7 @@ zcp_synctask_snapshot(lua_State *state, boolean_t sync, nvlist_t *err_details)
 
 static int zcp_synctask_inherit_prop(lua_State *, boolean_t,
     nvlist_t *err_details);
-static zcp_synctask_info_t zcp_synctask_inherit_prop_info = {
+static const zcp_synctask_info_t zcp_synctask_inherit_prop_info = {
 	.name = "inherit",
 	.func = zcp_synctask_inherit_prop,
 	.space_check = ZFS_SPACE_CHECK_RESERVED,
@@ -382,12 +382,12 @@ zcp_synctask_inherit_prop(lua_State *state, boolean_t sync,
 }
 
 static int zcp_synctask_bookmark(lua_State *, boolean_t, nvlist_t *);
-static zcp_synctask_info_t zcp_synctask_bookmark_info = {
+static const zcp_synctask_info_t zcp_synctask_bookmark_info = {
 	.name = "bookmark",
 	.func = zcp_synctask_bookmark,
 	.pargs = {
-	    {.za_name = "snapshot | bookmark", .za_lua_type = LUA_TSTRING},
-	    {.za_name = "bookmark", .za_lua_type = LUA_TSTRING},
+	    {.za_name = "snapshot | bookmark", .za_lua_type = LUA_TSTRING },
+	    {.za_name = "bookmark", .za_lua_type = LUA_TSTRING },
 	    {NULL, 0}
 	},
 	.kwargs = {
@@ -425,15 +425,15 @@ zcp_synctask_bookmark(lua_State *state, boolean_t sync, nvlist_t *err_details)
 }
 
 static int zcp_synctask_set_prop(lua_State *, boolean_t, nvlist_t *err_details);
-static zcp_synctask_info_t zcp_synctask_set_prop_info = {
+static const zcp_synctask_info_t zcp_synctask_set_prop_info = {
 	.name = "set_prop",
 	.func = zcp_synctask_set_prop,
 	.space_check = ZFS_SPACE_CHECK_RESERVED,
 	.blocks_modified = 2,
 	.pargs = {
-		{ .za_name = "dataset", .za_lua_type = LUA_TSTRING},
-		{ .za_name = "property", .za_lua_type =  LUA_TSTRING},
-		{ .za_name = "value", .za_lua_type =  LUA_TSTRING},
+		{ .za_name = "dataset", .za_lua_type = LUA_TSTRING },
+		{ .za_name = "property", .za_lua_type =  LUA_TSTRING },
+		{ .za_name = "value", .za_lua_type =  LUA_TSTRING },
 		{ NULL, 0 }
 	},
 	.kwargs = {
@@ -524,8 +524,7 @@ zcp_synctask_wrapper(lua_State *state)
 int
 zcp_load_synctask_lib(lua_State *state, boolean_t sync)
 {
-	int i;
-	zcp_synctask_info_t *zcp_synctask_funcs[] = {
+	const zcp_synctask_info_t *zcp_synctask_funcs[] = {
 		&zcp_synctask_destroy_info,
 		&zcp_synctask_promote_info,
 		&zcp_synctask_rollback_info,
@@ -538,13 +537,12 @@ zcp_load_synctask_lib(lua_State *state, boolean_t sync)
 
 	lua_newtable(state);
 
-	for (i = 0; zcp_synctask_funcs[i] != NULL; i++) {
-		zcp_synctask_info_t *info = zcp_synctask_funcs[i];
-		lua_pushlightuserdata(state, info);
+	for (int i = 0; zcp_synctask_funcs[i] != NULL; i++) {
+		const zcp_synctask_info_t *info = zcp_synctask_funcs[i];
+		lua_pushlightuserdata(state, (void *)(uintptr_t)info);
 		lua_pushboolean(state, sync);
 		lua_pushcclosure(state, &zcp_synctask_wrapper, 2);
 		lua_setfield(state, -2, info->name);
-		info++;
 	}
 
 	return (1);

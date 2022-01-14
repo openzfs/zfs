@@ -135,12 +135,12 @@ struct nv_alloc_ops {
 	void (*nv_ao_reset)(nv_alloc_t *);
 };
 
-_SYS_NVPAIR_H const nv_alloc_ops_t *nv_fixed_ops;
-_SYS_NVPAIR_H nv_alloc_t *nv_alloc_nosleep;
+_SYS_NVPAIR_H const nv_alloc_ops_t *const nv_fixed_ops;
+_SYS_NVPAIR_H nv_alloc_t *const nv_alloc_nosleep;
 
 #if defined(_KERNEL)
-_SYS_NVPAIR_H nv_alloc_t *nv_alloc_sleep;
-_SYS_NVPAIR_H nv_alloc_t *nv_alloc_pushpage;
+_SYS_NVPAIR_H nv_alloc_t *const nv_alloc_sleep;
+_SYS_NVPAIR_H nv_alloc_t *const nv_alloc_pushpage;
 #endif
 
 _SYS_NVPAIR_H int nv_alloc_init(nv_alloc_t *, const nv_alloc_ops_t *,

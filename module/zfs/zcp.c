@@ -108,7 +108,7 @@
 
 #define	ZCP_NVLIST_MAX_DEPTH 20
 
-uint64_t zfs_lua_check_instrlimit_interval = 100;
+static const uint64_t zfs_lua_check_instrlimit_interval = 100;
 unsigned long zfs_lua_max_instrlimit = ZCP_MAX_INSTRLIMIT;
 unsigned long zfs_lua_max_memlimit = ZCP_MAX_MEMLIMIT;
 
@@ -631,11 +631,11 @@ zcp_dataset_hold(lua_State *state, dsl_pool_t *dp, const char *dsname,
 }
 
 static int zcp_debug(lua_State *);
-static zcp_lib_info_t zcp_debug_info = {
+static const zcp_lib_info_t zcp_debug_info = {
 	.name = "debug",
 	.func = zcp_debug,
 	.pargs = {
-	    { .za_name = "debug string", .za_lua_type = LUA_TSTRING},
+	    { .za_name = "debug string", .za_lua_type = LUA_TSTRING },
 	    {NULL, 0}
 	},
 	.kwargs = {
@@ -648,7 +648,7 @@ zcp_debug(lua_State *state)
 {
 	const char *dbgstring;
 	zcp_run_info_t *ri = zcp_run_info(state);
-	zcp_lib_info_t *libinfo = &zcp_debug_info;
+	const zcp_lib_info_t *libinfo = &zcp_debug_info;
 
 	zcp_parse_args(state, libinfo->name, libinfo->pargs, libinfo->kwargs);
 
@@ -661,11 +661,11 @@ zcp_debug(lua_State *state)
 }
 
 static int zcp_exists(lua_State *);
-static zcp_lib_info_t zcp_exists_info = {
+static const zcp_lib_info_t zcp_exists_info = {
 	.name = "exists",
 	.func = zcp_exists,
 	.pargs = {
-	    { .za_name = "dataset", .za_lua_type = LUA_TSTRING},
+	    { .za_name = "dataset", .za_lua_type = LUA_TSTRING },
 	    {NULL, 0}
 	},
 	.kwargs = {
@@ -678,7 +678,7 @@ zcp_exists(lua_State *state)
 {
 	zcp_run_info_t *ri = zcp_run_info(state);
 	dsl_pool_t *dp = ri->zri_pool;
-	zcp_lib_info_t *libinfo = &zcp_exists_info;
+	const zcp_lib_info_t *libinfo = &zcp_exists_info;
 
 	zcp_parse_args(state, libinfo->name, libinfo->pargs, libinfo->kwargs);
 

@@ -149,8 +149,6 @@ struct {
 #define	abd_for_each_sg(abd, sg, n, i)	\
 	for_each_sg(ABD_SCATTER(abd).abd_sgl, sg, n, i)
 
-unsigned zfs_abd_scatter_max_order = MAX_ORDER - 1;
-
 /*
  * zfs_abd_scatter_min_size is the minimum allocation size to use scatter
  * ABD's.  Smaller allocations will use linear ABD's which uses
@@ -173,7 +171,7 @@ unsigned zfs_abd_scatter_max_order = MAX_ORDER - 1;
  * By default we use linear allocations for 512B and 1KB, and scatter
  * allocations for larger (1.5KB and up).
  */
-int zfs_abd_scatter_min_size = 512 * 3;
+static int zfs_abd_scatter_min_size = 512 * 3;
 
 /*
  * We use a scattered SPA_MAXBLOCKSIZE sized ABD whose pages are
@@ -221,6 +219,8 @@ abd_free_struct_impl(abd_t *abd)
 }
 
 #ifdef _KERNEL
+static unsigned zfs_abd_scatter_max_order = MAX_ORDER - 1;
+
 /*
  * Mark zfs data pages so they can be excluded from kernel crash dumps
  */

@@ -124,14 +124,14 @@ static taskqid_t recent_events_cleaner_tqid;
  * This setting can be changed dynamically and setting it to zero
  * disables duplicate detection.
  */
-unsigned int zfs_zevent_retain_max = 2000;
+static unsigned int zfs_zevent_retain_max = 2000;
 
 /*
  * The lifespan for a recent ereport entry. The default of 15 minutes is
  * intended to outlive the zfs diagnosis engine's threshold of 10 errors
  * over a period of 10 minutes.
  */
-unsigned int zfs_zevent_retain_expire_secs = 900;
+static unsigned int zfs_zevent_retain_expire_secs = 900;
 
 typedef enum zfs_subclass {
 	ZSC_IO,

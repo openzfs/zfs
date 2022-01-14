@@ -39,18 +39,19 @@
 /*
  * minalloc and maxalloc values to be used for taskq_create().
  */
-int crypto_taskq_threads = CRYPTO_TASKQ_THREADS;
-int crypto_taskq_minalloc = CRYPTO_TASKQ_MIN;
-int crypto_taskq_maxalloc = CRYPTO_TASKQ_MAX;
+const int crypto_taskq_threads = CRYPTO_TASKQ_THREADS;
+const int crypto_taskq_minalloc = CRYPTO_TASKQ_MIN;
+const int crypto_taskq_maxalloc = CRYPTO_TASKQ_MAX;
 
 static void remove_provider(kcf_provider_desc_t *);
-static void process_logical_providers(crypto_provider_info_t *,
+static void process_logical_providers(const crypto_provider_info_t *,
     kcf_provider_desc_t *);
-static int init_prov_mechs(crypto_provider_info_t *, kcf_provider_desc_t *);
+static int init_prov_mechs(const crypto_provider_info_t *,
+    kcf_provider_desc_t *);
 static int kcf_prov_kstat_update(kstat_t *, int);
 static void delete_kstat(kcf_provider_desc_t *);
 
-static kcf_prov_stats_t kcf_stats_ks_data_template = {
+static const kcf_prov_stats_t kcf_stats_ks_data_template = {
 	{ "kcf_ops_total",		KSTAT_DATA_UINT64 },
 	{ "kcf_ops_passed",		KSTAT_DATA_UINT64 },
 	{ "kcf_ops_failed",		KSTAT_DATA_UINT64 },
@@ -58,7 +59,7 @@ static kcf_prov_stats_t kcf_stats_ks_data_template = {
 };
 
 #define	KCF_SPI_COPY_OPS(src, dst, ops) if ((src)->ops != NULL) \
-	*((dst)->ops) = *((src)->ops);
+	memcpy((void *) (dst)->ops, (src)->ops, sizeof (*(src)->ops));
 
 /*
  * Copy an ops vector from src to dst. Used during provider registration
@@ -69,7 +70,7 @@ static kcf_prov_stats_t kcf_stats_ks_data_template = {
  * persistent.
  */
 static void
-copy_ops_vector_v1(crypto_ops_t *src_ops, crypto_ops_t *dst_ops)
+copy_ops_vector_v1(const crypto_ops_t *src_ops, crypto_ops_t *dst_ops)
 {
 	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_control_ops);
 	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_digest_ops);
@@ -88,13 +89,13 @@ copy_ops_vector_v1(crypto_ops_t *src_ops, crypto_ops_t *dst_ops)
 }
 
 static void
-copy_ops_vector_v2(crypto_ops_t *src_ops, crypto_ops_t *dst_ops)
+copy_ops_vector_v2(const crypto_ops_t *src_ops, crypto_ops_t *dst_ops)
 {
 	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_mech_ops);
 }
 
 static void
-copy_ops_vector_v3(crypto_ops_t *src_ops, crypto_ops_t *dst_ops)
+copy_ops_vector_v3(const crypto_ops_t *src_ops, crypto_ops_t *dst_ops)
 {
 	KCF_SPI_COPY_OPS(src_ops, dst_ops, co_nostore_key_ops);
 }
@@ -108,7 +109,7 @@ copy_ops_vector_v3(crypto_ops_t *src_ops, crypto_ops_t *dst_ops)
  * routines.  Software providers call this routine in their _init() routine.
  */
 int
-crypto_register_provider(crypto_provider_info_t *info,
+crypto_register_provider(const crypto_provider_info_t *info,
     crypto_kcf_provider_handle_t *handle)
 {
 	char *ks_name;
@@ -158,16 +159,14 @@ crypto_register_provider(crypto_provider_info_t *info,
 		if (info->pi_ops_vector == NULL) {
 			goto bail;
 		}
-		copy_ops_vector_v1(info->pi_ops_vector,
-		    prov_desc->pd_ops_vector);
+		crypto_ops_t *pvec = (crypto_ops_t *)prov_desc->pd_ops_vector;
+		copy_ops_vector_v1(info->pi_ops_vector, pvec);
 		if (info->pi_interface_version >= CRYPTO_SPI_VERSION_2) {
-			copy_ops_vector_v2(info->pi_ops_vector,
-			    prov_desc->pd_ops_vector);
+			copy_ops_vector_v2(info->pi_ops_vector, pvec);
 			prov_desc->pd_flags = info->pi_flags;
 		}
 		if (info->pi_interface_version == CRYPTO_SPI_VERSION_3) {
-			copy_ops_vector_v3(info->pi_ops_vector,
-			    prov_desc->pd_ops_vector);
+			copy_ops_vector_v3(info->pi_ops_vector, pvec);
 		}
 	}
 
@@ -199,8 +198,8 @@ crypto_register_provider(crypto_provider_info_t *info,
 	 */
 	if (prov_desc->pd_prov_type == CRYPTO_HW_PROVIDER)
 		prov_desc->pd_sched_info.ks_taskq = taskq_create("kcf_taskq",
-		    crypto_taskq_threads, minclsyspri,
-		    crypto_taskq_minalloc, crypto_taskq_maxalloc,
+		    CRYPTO_TASKQ_THREADS, minclsyspri,
+		    CRYPTO_TASKQ_MIN, CRYPTO_TASKQ_MAX,
 		    TASKQ_PREPOPULATE);
 	else
 		prov_desc->pd_sched_info.ks_taskq = NULL;
@@ -566,7 +565,7 @@ crypto_kmflag(crypto_req_handle_t handle)
  * if the table of mechanisms is full.
  */
 static int
-init_prov_mechs(crypto_provider_info_t *info, kcf_provider_desc_t *desc)
+init_prov_mechs(const crypto_provider_info_t *info, kcf_provider_desc_t *desc)
 {
 	uint_t mech_idx;
 	uint_t cleanup_idx;
@@ -811,7 +810,8 @@ remove_provider_from_array(kcf_provider_desc_t *p1, kcf_provider_desc_t *p2)
  * descriptors (kcf_provider_desc_t) attached to a logical provider.
  */
 static void
-process_logical_providers(crypto_provider_info_t *info, kcf_provider_desc_t *hp)
+process_logical_providers(const crypto_provider_info_t *info,
+    kcf_provider_desc_t *hp)
 {
 	kcf_provider_desc_t *lp;
 	crypto_provider_id_t handle;

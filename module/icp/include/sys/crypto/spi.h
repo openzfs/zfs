@@ -498,10 +498,10 @@ typedef struct crypto_nostore_key_ops {
  * by calling crypto_register_provider(9F).
  */
 typedef struct crypto_ops_v1 {
-	crypto_control_ops_t			*co_control_ops;
-	crypto_digest_ops_t			*co_digest_ops;
-	crypto_cipher_ops_t			*co_cipher_ops;
-	crypto_mac_ops_t			*co_mac_ops;
+	const crypto_control_ops_t			*co_control_ops;
+	const crypto_digest_ops_t			*co_digest_ops;
+	const crypto_cipher_ops_t			*co_cipher_ops;
+	const crypto_mac_ops_t			*co_mac_ops;
 	crypto_sign_ops_t			*co_sign_ops;
 	crypto_verify_ops_t			*co_verify_ops;
 	crypto_dual_ops_t			*co_dual_ops;
@@ -511,7 +511,7 @@ typedef struct crypto_ops_v1 {
 	crypto_object_ops_t			*co_object_ops;
 	crypto_key_ops_t			*co_key_ops;
 	crypto_provider_management_ops_t	*co_provider_ops;
-	crypto_ctx_ops_t			*co_ctx_ops;
+	const crypto_ctx_ops_t			*co_ctx_ops;
 } crypto_ops_v1_t;
 
 typedef struct crypto_ops_v2 {
@@ -653,9 +653,9 @@ typedef struct crypto_provider_info_v1 {
 	char				*pi_provider_description;
 	crypto_provider_type_t		pi_provider_type;
 	crypto_provider_handle_t	pi_provider_handle;
-	crypto_ops_t			*pi_ops_vector;
+	const crypto_ops_t			*pi_ops_vector;
 	uint_t				pi_mech_list_count;
-	crypto_mech_info_t		*pi_mechanisms;
+	const crypto_mech_info_t		*pi_mechanisms;
 	uint_t				pi_logical_provider_count;
 	crypto_kcf_provider_handle_t	*pi_logical_providers;
 } crypto_provider_info_v1_t;
@@ -711,7 +711,7 @@ typedef struct crypto_provider_info {
  * of state changes, and notify the kernel when a asynchronous request
  * completed.
  */
-extern int crypto_register_provider(crypto_provider_info_t *,
+extern int crypto_register_provider(const crypto_provider_info_t *,
 		crypto_kcf_provider_handle_t *);
 extern int crypto_unregister_provider(crypto_kcf_provider_handle_t);
 extern void crypto_provider_notification(crypto_kcf_provider_handle_t, uint_t);

@@ -89,12 +89,12 @@
  * committed to stable storage. Please refer to the zil_commit_waiter()
  * function (and the comments within it) for more details.
  */
-int zfs_commit_timeout_pct = 5;
+static int zfs_commit_timeout_pct = 5;
 
 /*
  * See zil.h for more information about these fields.
  */
-zil_stats_t zil_stats = {
+static zil_stats_t zil_stats = {
 	{ "zil_commit_count",			KSTAT_DATA_UINT64 },
 	{ "zil_commit_writer_count",		KSTAT_DATA_UINT64 },
 	{ "zil_itx_count",			KSTAT_DATA_UINT64 },
@@ -123,14 +123,14 @@ int zil_replay_disable = 0;
  * will cause ZIL corruption on power loss if a volatile out-of-order
  * write cache is enabled.
  */
-int zil_nocacheflush = 0;
+static int zil_nocacheflush = 0;
 
 /*
  * Limit SLOG write size per commit executed with synchronous priority.
  * Any writes above that will be executed with lower (asynchronous) priority
  * to limit potential SLOG device abuse by single active ZIL writer.
  */
-unsigned long zil_slog_bulk = 768 * 1024;
+static unsigned long zil_slog_bulk = 768 * 1024;
 
 static kmem_cache_t *zil_lwb_cache;
 static kmem_cache_t *zil_zcw_cache;
@@ -1451,7 +1451,7 @@ zil_lwb_write_open(zilog_t *zilog, lwb_t *lwb)
  * aligned to 4KB) actually gets written. However, we can't always just
  * allocate SPA_OLD_MAXBLOCKSIZE as the slog space could be exhausted.
  */
-struct {
+static const struct {
 	uint64_t	limit;
 	uint64_t	blksz;
 } zil_block_buckets[] = {
@@ -1469,7 +1469,7 @@ struct {
  * initialized.  Otherwise this should not be used directly; see
  * zl_max_block_size instead.
  */
-int zil_maxblocksize = SPA_OLD_MAXBLOCKSIZE;
+static int zil_maxblocksize = SPA_OLD_MAXBLOCKSIZE;
 
 /*
  * Start a log block write and advance to the next log block.
@@ -3509,7 +3509,7 @@ zil_resume(void *cookie)
 }
 
 typedef struct zil_replay_arg {
-	zil_replay_func_t **zr_replay;
+	zil_replay_func_t *const *zr_replay;
 	void		*zr_arg;
 	boolean_t	zr_byteswap;
 	char		*zr_lr;
@@ -3630,7 +3630,8 @@ zil_incr_blks(zilog_t *zilog, const blkptr_t *bp, void *arg, uint64_t claim_txg)
  * If this dataset has a non-empty intent log, replay it and destroy it.
  */
 void
-zil_replay(objset_t *os, void *arg, zil_replay_func_t *replay_func[TX_MAX_TYPE])
+zil_replay(objset_t *os, void *arg,
+    zil_replay_func_t *const replay_func[TX_MAX_TYPE])
 {
 	zilog_t *zilog = dmu_objset_zil(os);
 	const zil_header_t *zh = zilog->zl_header;

@@ -117,7 +117,7 @@ unsigned long zfs_wrlog_data_max = 0;
  * zfs_dirty_data_max), push out a txg.  This should be less than
  * zfs_vdev_async_write_active_min_dirty_percent.
  */
-int zfs_dirty_data_sync_percent = 20;
+static int zfs_dirty_data_sync_percent = 20;
 
 /*
  * Once there is this amount of dirty data, the dmu_tx_delay() will kick in
@@ -144,7 +144,7 @@ unsigned long zfs_delay_scale = 1000 * 1000 * 1000 / 2000;
 /*
  * This determines the number of threads used by the dp_sync_taskq.
  */
-int zfs_sync_taskq_batch_pct = 75;
+static int zfs_sync_taskq_batch_pct = 75;
 
 /*
  * These tunables determine the behavior of how zil_itxg_clean() is
@@ -172,9 +172,9 @@ int zfs_sync_taskq_batch_pct = 75;
  * Additionally, the number of threads used by the taskq can be
  * configured via the "zfs_zil_clean_taskq_nthr_pct" tunable.
  */
-int zfs_zil_clean_taskq_nthr_pct = 100;
-int zfs_zil_clean_taskq_minalloc = 1024;
-int zfs_zil_clean_taskq_maxalloc = 1024 * 1024;
+static int zfs_zil_clean_taskq_nthr_pct = 100;
+static int zfs_zil_clean_taskq_minalloc = 1024;
+static int zfs_zil_clean_taskq_maxalloc = 1024 * 1024;
 
 int
 dsl_pool_open_special_dir(dsl_pool_t *dp, const char *name, dsl_dir_t **ddp)

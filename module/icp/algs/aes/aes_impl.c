@@ -225,7 +225,7 @@ static aes_impl_ops_t aes_fastest_impl = {
 };
 
 /* All compiled in implementations */
-const aes_impl_ops_t *aes_all_impl[] = {
+static const aes_impl_ops_t *aes_all_impl[] = {
 	&aes_generic_impl,
 #if defined(__x86_64)
 	&aes_x86_64_impl,

@@ -107,12 +107,12 @@ zcp_clones_iter(lua_State *state)
 }
 
 static int zcp_clones_list(lua_State *);
-static zcp_list_info_t zcp_clones_list_info = {
+static const zcp_list_info_t zcp_clones_list_info = {
 	.name = "clones",
 	.func = zcp_clones_list,
 	.gc = NULL,
 	.pargs = {
-	    { .za_name = "snapshot", .za_lua_type = LUA_TSTRING},
+	    { .za_name = "snapshot", .za_lua_type = LUA_TSTRING },
 	    {NULL, 0}
 	},
 	.kwargs = {
@@ -194,12 +194,12 @@ zcp_snapshots_iter(lua_State *state)
 }
 
 static int zcp_snapshots_list(lua_State *);
-static zcp_list_info_t zcp_snapshots_list_info = {
+static const zcp_list_info_t zcp_snapshots_list_info = {
 	.name = "snapshots",
 	.func = zcp_snapshots_list,
 	.gc = NULL,
 	.pargs = {
-	    { .za_name = "filesystem | volume", .za_lua_type = LUA_TSTRING},
+	    { .za_name = "filesystem | volume", .za_lua_type = LUA_TSTRING },
 	    {NULL, 0}
 	},
 	.kwargs = {
@@ -281,12 +281,12 @@ zcp_children_iter(lua_State *state)
 }
 
 static int zcp_children_list(lua_State *);
-static zcp_list_info_t zcp_children_list_info = {
+static const zcp_list_info_t zcp_children_list_info = {
 	.name = "children",
 	.func = zcp_children_list,
 	.gc = NULL,
 	.pargs = {
-	    { .za_name = "filesystem | volume", .za_lua_type = LUA_TSTRING},
+	    { .za_name = "filesystem | volume", .za_lua_type = LUA_TSTRING },
 	    {NULL, 0}
 	},
 	.kwargs = {
@@ -361,13 +361,13 @@ zcp_user_props_iter(lua_State *state)
 }
 
 static int zcp_user_props_list(lua_State *);
-static zcp_list_info_t zcp_user_props_list_info = {
+static const zcp_list_info_t zcp_user_props_list_info = {
 	.name = "user_properties",
 	.func = zcp_user_props_list,
 	.gc = zcp_user_props_list_gc,
 	.pargs = {
 	    { .za_name = "filesystem | snapshot | volume",
-	    .za_lua_type = LUA_TSTRING},
+	    .za_lua_type = LUA_TSTRING },
 	    {NULL, 0}
 	},
 	.kwargs = {
@@ -383,13 +383,13 @@ static zcp_list_info_t zcp_user_props_list_info = {
  * versions of ZFS, we declare 'properties' as an alias for
  * 'user_properties'.
  */
-static zcp_list_info_t zcp_props_list_info = {
+static const zcp_list_info_t zcp_props_list_info = {
 	.name = "properties",
 	.func = zcp_user_props_list,
 	.gc = zcp_user_props_list_gc,
 	.pargs = {
 	    { .za_name = "filesystem | snapshot | volume",
-	    .za_lua_type = LUA_TSTRING},
+	    .za_lua_type = LUA_TSTRING },
 	    {NULL, 0}
 	},
 	.kwargs = {
@@ -444,11 +444,11 @@ zcp_dataset_system_props(dsl_dataset_t *ds, nvlist_t *nv)
 }
 
 static int zcp_system_props_list(lua_State *);
-static zcp_list_info_t zcp_system_props_list_info = {
+static const zcp_list_info_t zcp_system_props_list_info = {
 	.name = "system_properties",
 	.func = zcp_system_props_list,
 	.pargs = {
-	    { .za_name = "dataset", .za_lua_type = LUA_TSTRING},
+	    { .za_name = "dataset", .za_lua_type = LUA_TSTRING },
 	    {NULL, 0}
 	},
 	.kwargs = {
@@ -467,7 +467,7 @@ zcp_system_props_list(lua_State *state)
 	char errbuf[128];
 	const char *dataset_name;
 	dsl_pool_t *dp = zcp_run_info(state)->zri_pool;
-	zcp_list_info_t *libinfo = &zcp_system_props_list_info;
+	const zcp_list_info_t *libinfo = &zcp_system_props_list_info;
 	zcp_parse_args(state, libinfo->name, libinfo->pargs, libinfo->kwargs);
 	dataset_name = lua_tostring(state, 1);
 	nvlist_t *nv = fnvlist_alloc();
@@ -566,11 +566,11 @@ zcp_bookmarks_iter(lua_State *state)
 }
 
 static int zcp_bookmarks_list(lua_State *);
-static zcp_list_info_t zcp_bookmarks_list_info = {
+static const zcp_list_info_t zcp_bookmarks_list_info = {
 	.name = "bookmarks",
 	.func = zcp_bookmarks_list,
 	.pargs = {
-	    { .za_name = "dataset", .za_lua_type = LUA_TSTRING},
+	    { .za_name = "dataset", .za_lua_type = LUA_TSTRING },
 	    {NULL, 0}
 	},
 	.kwargs = {
@@ -654,12 +654,12 @@ zcp_holds_iter(lua_State *state)
 }
 
 static int zcp_holds_list(lua_State *);
-static zcp_list_info_t zcp_holds_list_info = {
+static const zcp_list_info_t zcp_holds_list_info = {
 	.name = "holds",
 	.func = zcp_holds_list,
 	.gc = NULL,
 	.pargs = {
-	    { .za_name = "snapshot", .za_lua_type = LUA_TSTRING},
+	    { .za_name = "snapshot", .za_lua_type = LUA_TSTRING },
 	    {NULL, 0}
 	},
 	.kwargs = {
@@ -710,8 +710,7 @@ zcp_list_func(lua_State *state)
 int
 zcp_load_list_lib(lua_State *state)
 {
-	int i;
-	zcp_list_info_t *zcp_list_funcs[] = {
+	const zcp_list_info_t *zcp_list_funcs[] = {
 		&zcp_children_list_info,
 		&zcp_snapshots_list_info,
 		&zcp_user_props_list_info,
@@ -725,8 +724,8 @@ zcp_load_list_lib(lua_State *state)
 
 	lua_newtable(state);
 
-	for (i = 0; zcp_list_funcs[i] != NULL; i++) {
-		zcp_list_info_t *info = zcp_list_funcs[i];
+	for (int i = 0; zcp_list_funcs[i] != NULL; i++) {
+		const zcp_list_info_t *info = zcp_list_funcs[i];
 
 		if (info->gc != NULL) {
 			/*
@@ -741,10 +740,9 @@ zcp_load_list_lib(lua_State *state)
 			lua_pop(state, 1);
 		}
 
-		lua_pushlightuserdata(state, info);
+		lua_pushlightuserdata(state, (void *)(uintptr_t)info);
 		lua_pushcclosure(state, &zcp_list_func, 1);
 		lua_setfield(state, -2, info->name);
-		info++;
 	}
 
 	return (1);

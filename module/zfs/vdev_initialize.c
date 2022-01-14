@@ -37,16 +37,16 @@
  * Value that is written to disk during initialization.
  */
 #ifdef _ILP32
-unsigned long zfs_initialize_value = 0xdeadbeefUL;
+static unsigned long zfs_initialize_value = 0xdeadbeefUL;
 #else
-unsigned long zfs_initialize_value = 0xdeadbeefdeadbeeeULL;
+static unsigned long zfs_initialize_value = 0xdeadbeefdeadbeeeULL;
 #endif
 
 /* maximum number of I/Os outstanding per leaf vdev */
-int zfs_initialize_limit = 1;
+static const int zfs_initialize_limit = 1;
 
 /* size of initializing writes; default 1MiB, see zfs_remove_max_segment */
-unsigned long zfs_initialize_chunk_size = 1024 * 1024;
+static unsigned long zfs_initialize_chunk_size = 1024 * 1024;
 
 static boolean_t
 vdev_initialize_should_stop(vdev_t *vd)

@@ -35,6 +35,7 @@
 #include <linux/seq_file.h>
 #include <linux/uaccess.h>
 #include <linux/version.h>
+#include "zfs_gitrev.h"
 
 #if defined(CONSTIFY_PLUGIN) && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 typedef struct ctl_table __no_const spl_ctl_table;
@@ -461,7 +462,7 @@ slab_seq_stop(struct seq_file *f, void *v)
 	up_read(&spl_kmem_cache_sem);
 }
 
-static struct seq_operations slab_seq_ops = {
+static const struct seq_operations slab_seq_ops = {
 	.show  = slab_seq_show,
 	.start = slab_seq_start,
 	.next  = slab_seq_next,
@@ -494,14 +495,14 @@ taskq_seq_stop(struct seq_file *f, void *v)
 	up_read(&tq_list_sem);
 }
 
-static struct seq_operations taskq_all_seq_ops = {
+static const struct seq_operations taskq_all_seq_ops = {
 	.show	= taskq_all_seq_show,
 	.start	= taskq_seq_start,
 	.next	= taskq_seq_next,
 	.stop	= taskq_seq_stop,
 };
 
-static struct seq_operations taskq_seq_ops = {
+static const struct seq_operations taskq_seq_ops = {
 	.show	= taskq_seq_show,
 	.start	= taskq_seq_start,
 	.next	= taskq_seq_next,
@@ -612,8 +613,8 @@ static struct ctl_table spl_table[] = {
 	 */
 	{
 		.procname	= "gitrev",
-		.data		= spl_gitrev,
-		.maxlen		= sizeof (spl_gitrev),
+		.data		= (char *)ZFS_META_GITREV,
+		.maxlen		= sizeof (ZFS_META_GITREV),
 		.mode		= 0444,
 		.proc_handler	= &proc_dostring,
 	},

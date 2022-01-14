@@ -53,7 +53,6 @@
 #include <zfeature_common.h>
 #include <libzutil.h>
 
-const char cmdname[] = "zhack";
 static importargs_t g_importargs;
 static char *g_pool;
 static boolean_t g_readonly;
@@ -62,9 +61,9 @@ static __attribute__((noreturn)) void
 usage(void)
 {
 	(void) fprintf(stderr,
-	    "Usage: %s [-c cachefile] [-d dir] <subcommand> <args> ...\n"
+	    "Usage: zhack [-c cachefile] [-d dir] <subcommand> <args> ...\n"
 	    "where <subcommand> <args> is one of the following:\n"
-	    "\n", cmdname);
+	    "\n");
 
 	(void) fprintf(stderr,
 	    "    feature stat <pool>\n"
@@ -99,10 +98,10 @@ fatal(spa_t *spa, void *tag, const char *fmt, ...)
 	}
 
 	va_start(ap, fmt);
-	(void) fprintf(stderr, "%s: ", cmdname);
+	(void) fputs("zhack: ", stderr);
 	(void) vfprintf(stderr, fmt, ap);
 	va_end(ap);
-	(void) fprintf(stderr, "\n");
+	(void) fputc('\n', stderr);
 
 	exit(1);
 }
@@ -277,7 +276,7 @@ zhack_do_feature_enable(int argc, char **argv)
 	spa_t *spa;
 	objset_t *mos;
 	zfeature_info_t feature;
-	spa_feature_t nodeps[] = { SPA_FEATURE_NONE };
+	const spa_feature_t nodeps[] = { SPA_FEATURE_NONE };
 
 	/*
 	 * Features are not added to the pool's label until their refcounts
@@ -374,7 +373,7 @@ zhack_do_feature_ref(int argc, char **argv)
 	spa_t *spa;
 	objset_t *mos;
 	zfeature_info_t feature;
-	spa_feature_t nodeps[] = { SPA_FEATURE_NONE };
+	const spa_feature_t nodeps[] = { SPA_FEATURE_NONE };
 
 	/*
 	 * fi_desc does not matter here because it was written to disk

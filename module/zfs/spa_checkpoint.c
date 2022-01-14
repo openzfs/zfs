@@ -158,7 +158,7 @@
  * amount of checkpointed data that has been freed within them while
  * the pool had a checkpoint.
  */
-unsigned long zfs_spa_discard_memory_limit = 16 * 1024 * 1024;
+static unsigned long zfs_spa_discard_memory_limit = 16 * 1024 * 1024;
 
 int
 spa_checkpoint_get_stats(spa_t *spa, pool_checkpoint_stat_t *pcs)

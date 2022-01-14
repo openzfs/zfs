@@ -200,7 +200,7 @@ typedef enum {
 #define	I_				U8_ILLEGAL_CHAR
 #define	O_				U8_OUT_OF_RANGE_CHAR
 
-const int8_t u8_number_of_bytes[0x100] = {
+static const int8_t u8_number_of_bytes[0x100] = {
 	1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,
 	1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,
 	1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,
@@ -238,7 +238,7 @@ const int8_t u8_number_of_bytes[0x100] = {
 #undef	I_
 #undef	O_
 
-const uint8_t u8_valid_min_2nd_byte[0x100] = {
+static const uint8_t u8_valid_min_2nd_byte[0x100] = {
 	0,    0,    0,    0,    0,    0,    0,    0,
 	0,    0,    0,    0,    0,    0,    0,    0,
 	0,    0,    0,    0,    0,    0,    0,    0,
@@ -280,7 +280,7 @@ const uint8_t u8_valid_min_2nd_byte[0x100] = {
 	0,    0,    0,    0,    0,    0,    0,    0,
 };
 
-const uint8_t u8_valid_max_2nd_byte[0x100] = {
+static const uint8_t u8_valid_max_2nd_byte[0x100] = {
 	0,    0,    0,    0,    0,    0,    0,    0,
 	0,    0,    0,    0,    0,    0,    0,    0,
 	0,    0,    0,    0,    0,    0,    0,    0,

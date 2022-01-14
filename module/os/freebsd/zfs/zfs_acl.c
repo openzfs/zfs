@@ -171,7 +171,7 @@ zfs_ace_v0_data(void *acep, void **datap)
 	return (0);
 }
 
-static acl_ops_t zfs_acl_v0_ops = {
+static const acl_ops_t zfs_acl_v0_ops = {
 	zfs_ace_v0_get_mask,
 	zfs_ace_v0_set_mask,
 	zfs_ace_v0_get_flags,
@@ -307,7 +307,7 @@ zfs_ace_fuid_data(void *acep, void **datap)
 	}
 }
 
-static acl_ops_t zfs_acl_fuid_ops = {
+static const acl_ops_t zfs_acl_fuid_ops = {
 	zfs_ace_fuid_get_mask,
 	zfs_ace_fuid_set_mask,
 	zfs_ace_fuid_get_flags,

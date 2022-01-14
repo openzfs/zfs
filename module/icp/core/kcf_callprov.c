@@ -116,7 +116,7 @@ kcf_get_hardware_provider(crypto_mech_type_t mech_type_1,
 	kcf_provider_list_t *p;
 	kcf_ops_class_t class;
 	kcf_mech_entry_t *me;
-	kcf_mech_entry_tab_t *me_tab;
+	const kcf_mech_entry_tab_t *me_tab;
 	int index, len, gqlen = INT_MAX, rv = CRYPTO_SUCCESS;
 
 	/* get the mech entry for the specified mechanism */
@@ -258,7 +258,7 @@ kcf_get_mech_provider(crypto_mech_type_t mech_type, kcf_mech_entry_t **mepp,
 	kcf_ops_class_t class;
 	int index;
 	kcf_mech_entry_t *me;
-	kcf_mech_entry_tab_t *me_tab;
+	const kcf_mech_entry_tab_t *me_tab;
 
 	class = KCF_MECH2CLASS(mech_type);
 	if ((class < KCF_FIRST_OPSCLASS) || (class > KCF_LAST_OPSCLASS)) {
