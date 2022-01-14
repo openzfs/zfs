@@ -64,6 +64,7 @@ dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_KVMALLOC], [
 	ZFS_LINUX_TEST_SRC([kvmalloc], [
 		#include <linux/mm.h>
+		#include <linux/slab.h>
 	],[
 		void *p __attribute__ ((unused));
 
