@@ -44,9 +44,12 @@ Clears device errors in a pool.
 If no arguments are specified, all device errors within the pool are cleared.
 If one or more devices is specified, only those errors associated with the
 specified device or devices are cleared.
-If
+.Pp
+If the pool was suspended it will be brought back online provided the
+devices can be accessed.
+Pools with
 .Sy multihost
-is enabled and the pool has been suspended, this will not resume I/O.
+enabled which have been suspended cannot be resumed.
 While the pool was suspended, it may have been imported on
 another host, and resuming I/O could result in pool damage.
 .
