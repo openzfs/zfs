@@ -337,7 +337,8 @@ The behavior of such an event is determined as follows:
 .Bl -tag -width "continue"
 .It Sy wait
 Blocks all I/O access until the device connectivity is recovered and the errors
-are cleared.
+are cleared with
+.Nm zpool Cm clear .
 This is the default behavior.
 .It Sy continue
 Returns
