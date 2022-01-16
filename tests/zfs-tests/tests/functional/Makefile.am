@@ -35,6 +35,7 @@ SUBDIRS = \
 	l2arc \
 	large_files \
 	largest_pool \
+	libtest \
 	libzfs \
 	limits \
 	link_count \
