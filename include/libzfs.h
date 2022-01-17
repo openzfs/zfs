@@ -419,6 +419,11 @@ typedef enum {
 	ZPOOL_STATUS_NON_NATIVE_ASHIFT,	/* (e.g. 512e dev with ashift of 9) */
 	ZPOOL_STATUS_COMPATIBILITY_ERR,	/* bad 'compatibility' property */
 	ZPOOL_STATUS_INCOMPATIBLE_FEAT,	/* feature set outside compatibility */
+	/*
+	 * Pool won't use the given L2ARC because this software version uses
+	 * the Nutanix shared L2ARC.
+	 */
+	ZPOOL_STATUS_USES_NTNX_SHARED_L2ARC,
 
 	/*
 	 * Finally, the following indicates a healthy pool.
