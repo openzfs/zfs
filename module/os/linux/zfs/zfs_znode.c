@@ -1404,7 +1404,6 @@ zfs_zinactive(znode_t *zp)
 		zfs_dbgmsg("%s: zfs_rmnode failed (err=%d) to remove object"
 		    " %llu; leaking space until remount.",
 		    osname, err, z_id);
-		zh = zfs_znode_hold_enter(zfsvfs, z_id);
 		goto out_dmu_fini;
 	}
 
