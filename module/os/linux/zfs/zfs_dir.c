@@ -694,7 +694,6 @@ zfs_rmnode(znode_t *zp)
 	    &xattr_obj, sizeof (xattr_obj));
 	if (error == 0 && xattr_obj) {
 		error = zfs_zget(zfsvfs, xattr_obj, &xzp);
-		/* XXX why can't this fail? */
 		ASSERT(error == 0);
 	}
 
@@ -726,13 +725,6 @@ zfs_rmnode(znode_t *zp)
 	}
 
 	if (xzp) {
-		/*
-		 * XXX what's the point of this assertion?
-		 * It's obviously always true due to the early exit above.
-		 * Maybe its original purpose was to cover the case
-		 * of zfs_zget(..., &xzp) returning an error?
-		 *
-		 */
 		ASSERT(error == 0);
 		mutex_enter(&xzp->z_lock);
 		xzp->z_unlinked = B_TRUE;	/* mark xzp for deletion */

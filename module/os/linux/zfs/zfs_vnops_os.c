@@ -3713,7 +3713,6 @@ zfs_inactive(struct inode *ip)
 		zfs_sa_upgrade_txholds(tx, zp);
 		error = dmu_tx_assign(tx, TXG_WAIT);
 		if (error) {
-			/* XXX we should at least log the error? */
 			dmu_tx_abort(tx);
 		} else {
 			ZFS_TIME_ENCODE(&ip->i_atime, atime);
