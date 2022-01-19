@@ -66,7 +66,7 @@ void
 __thread_exit(void)
 {
 	tsd_exit();
-	complete_and_exit(NULL, 0);
+	SPL_KTHREAD_COMPLETE_AND_EXIT(NULL, 0);
 	/* Unreachable */
 }
 EXPORT_SYMBOL(__thread_exit);
