@@ -64,7 +64,7 @@ log_must set_tunable64 TRIM_EXTENT_BYTES_MIN 4096
 
 log_must mkdir "$TESTDIR"
 log_must truncate -s $LARGESIZE "$LARGEFILE"
-log_must zpool create $TESTPOOL "$LARGEFILE"
+log_must zpool create -O compression=off $TESTPOOL "$LARGEFILE"
 log_must mkfile $(( floor(LARGESIZE * 0.80) )) /$TESTPOOL/file
 sync_all_pools
 

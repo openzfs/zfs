@@ -30,3 +30,4 @@
 DISK=${DISKS%% *}
 
 default_setup $DISK
+zfs set compression=off $TESTPOOL/$TESTFS

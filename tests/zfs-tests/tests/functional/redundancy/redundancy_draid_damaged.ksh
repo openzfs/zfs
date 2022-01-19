@@ -85,7 +85,9 @@ function test_sequential_resilver # <pool> <parity> <dir>
 
 	for (( i=0; i<$nparity; i=i+1 )); do
 		spare=draid${nparity}-0-$i
-		log_must zpool replace -fsw $pool $dir/dev-$i $spare
+		zpool status $pool
+		zpool replace -fsw $pool $dir/dev-$i $spare
+		zpool status $pool
 	done
 
 	log_must zpool scrub -w $pool
@@ -128,7 +130,7 @@ for nparity in 1 2 3; do
 	raid=draid${nparity}:${nparity}s
 	dir=$TEST_BASE_DIR
 
-	log_must zpool create -f -o cachefile=none $TESTPOOL $raid ${disks[@]}
+	log_must zpool create -O compression=off -f -o cachefile=none $TESTPOOL $raid ${disks[@]}
 	log_must zfs set primarycache=metadata $TESTPOOL
 
 	log_must zfs create $TESTPOOL/fs

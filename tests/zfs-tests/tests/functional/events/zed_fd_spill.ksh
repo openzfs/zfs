@@ -47,8 +47,14 @@ log_onexit cleanup
 logdir="$(mktemp -d)"
 log_must ln -s "$logdir" /tmp/zts-zed_fd_spill-logdir
 
+
 self="$(readlink -f "$0")"
-log_must ln -s "${self%/*}/zed_fd_spill-zedlet" "${ZEDLET_DIR}/all-dumpfds"
+zedlet="${self%/*}/zed_fd_spill-zedlet"
+log_must ln -s $zedlet "${ZEDLET_DIR}/all-dumpfds"
+
+# zed will cry foul and refuse to run it if this isn't true
+sudo chown root $zedlet
+sudo chmod 700 $zedlet
 
 log_must zpool events -c
 log_must zed_stop

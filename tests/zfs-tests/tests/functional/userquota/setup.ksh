@@ -53,4 +53,6 @@ if [ $? -ne 0 ]; then
 fi
 
 DISK=${DISKS%% *}
-default_setup $DISK
+default_setup_noexit $DISK
+log_must zfs set compression=off $TESTPOOL
+log_pass

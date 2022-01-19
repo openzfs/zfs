@@ -35,4 +35,6 @@ verify_runnable "global"
 
 DISK=$TEST_BASE_DIR/disk0
 truncate -s 2G $DISK
-default_setup $DISK
+default_setup_noexit $DISK
+log_must zfs set compression=off $TESTPOOL
+log_pass
