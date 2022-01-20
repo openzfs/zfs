@@ -695,6 +695,7 @@ fi
 #
 # Run all the tests as specified.
 #
+set -o pipefail
 msg "${TEST_RUNNER} ${QUIET:+-q}" \
     "-c \"${RUNFILES}\"" \
     "-T \"${TAGS}\"" \
@@ -706,6 +707,10 @@ ${TEST_RUNNER} ${QUIET:+-q} \
     -i "${STF_SUITE}" \
     -I "${ITERATIONS}" \
     2>&1 | tee "$RESULTS_FILE"
+
+RUNRESULT=$?
+set +o pipefail
+
 #
 # Analyze the results.
 #
@@ -746,6 +751,11 @@ rm -f "$RESULTS_FILE" "$REPORT_FILE"
 
 if [ -n "$SINGLETEST" ]; then
 	rm -f "$RUNFILES" >/dev/null 2>&1
+fi
+
+# If the test runner errored out, we probably care.
+if [ $RUNRESULT -ne "0" ]; then
+       RESULT=$RUNRESULT
 fi
 
 exit "${RESULT}"
