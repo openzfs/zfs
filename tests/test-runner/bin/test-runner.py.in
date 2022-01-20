@@ -32,11 +32,12 @@ from select import select
 from subprocess import PIPE
 from subprocess import Popen
 from threading import Timer
+from time import time
 # CLOCK_MONOTONIC_RAW is only on Linux and macOS
 try:
-  from time import CLOCK_MONOTONIC_RAW as CLOCK_MONO
-except:
-  from time import CLOCK_MONOTONIC as CLOCK_MONO
+    from time import CLOCK_MONOTONIC_RAW as CLOCK_MONO
+except ImportError:
+    from time import CLOCK_MONOTONIC as CLOCK_MONO
 
 BASEDIR = '/var/tmp/test_results'
 TESTDIR = '/usr/share/zfs/'
