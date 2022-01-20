@@ -496,8 +496,7 @@ zvol_open(struct block_device *bdev, fmode_t flag)
 {
 	zvol_state_t *zv;
 	int error = 0;
-	boolean_t drop_suspend = B_TRUE;
-	boolean_t drop_namespace = B_FALSE;
+	boolean_t drop_suspend = B_FALSE;
 #ifndef HAVE_BLKDEV_GET_ERESTARTSYS
 	hrtime_t timeout = MSEC2NSEC(zvol_open_timeout_ms);
 	hrtime_t start = gethrtime();
@@ -517,7 +516,36 @@ retry:
 		return (SET_ERROR(-ENXIO));
 	}
 
-	if (zv->zv_open_count == 0 && !mutex_owned(&spa_namespace_lock)) {
+	mutex_enter(&zv->zv_state_lock);
+	/*
+	 * Make sure zvol is not suspended during first open
+	 * (hold zv_suspend_lock) and respect proper lock acquisition
+	 * ordering - zv_suspend_lock before zv_state_lock
+	 */
+	if (zv->zv_open_count == 0) {
+		if (!rw_tryenter(&zv->zv_suspend_lock, RW_READER)) {
+			mutex_exit(&zv->zv_state_lock);
+			rw_enter(&zv->zv_suspend_lock, RW_READER);
+			mutex_enter(&zv->zv_state_lock);
+			/* check to see if zv_suspend_lock is needed */
+			if (zv->zv_open_count != 0) {
+				rw_exit(&zv->zv_suspend_lock);
+			} else {
+				drop_suspend = B_TRUE;
+			}
+		} else {
+			drop_suspend = B_TRUE;
+		}
+	}
+	rw_exit(&zvol_state_lock);
+
+	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
+
+	if (zv->zv_open_count == 0) {
+		boolean_t drop_namespace = B_FALSE;
+
+		ASSERT(RW_READ_HELD(&zv->zv_suspend_lock));
+
 		/*
 		 * In all other call paths the spa_namespace_lock is taken
 		 * before the bdev->bd_mutex lock.  However, on open(2)
@@ -542,84 +570,51 @@ retry:
 		 * the kernel so the only option is to return the error for
 		 * the caller to handle it.
 		 */
-		if (!mutex_tryenter(&spa_namespace_lock)) {
-			rw_exit(&zvol_state_lock);
+		if (!mutex_owned(&spa_namespace_lock)) {
+			if (!mutex_tryenter(&spa_namespace_lock)) {
+				mutex_exit(&zv->zv_state_lock);
+				rw_exit(&zv->zv_suspend_lock);
 
 #ifdef HAVE_BLKDEV_GET_ERESTARTSYS
-			schedule();
-			return (SET_ERROR(-ERESTARTSYS));
-#else
-			if ((gethrtime() - start) > timeout)
+				schedule();
 				return (SET_ERROR(-ERESTARTSYS));
+#else
+				if ((gethrtime() - start) > timeout)
+					return (SET_ERROR(-ERESTARTSYS));
 
-			schedule_timeout(MSEC_TO_TICK(10));
-			goto retry;
+				schedule_timeout(MSEC_TO_TICK(10));
+				goto retry;
 #endif
-		} else {
-			drop_namespace = B_TRUE;
-		}
-	}
-
-	mutex_enter(&zv->zv_state_lock);
-	/*
-	 * make sure zvol is not suspended during first open
-	 * (hold zv_suspend_lock) and respect proper lock acquisition
-	 * ordering - zv_suspend_lock before zv_state_lock
-	 */
-	if (zv->zv_open_count == 0) {
-		if (!rw_tryenter(&zv->zv_suspend_lock, RW_READER)) {
-			mutex_exit(&zv->zv_state_lock);
-			rw_enter(&zv->zv_suspend_lock, RW_READER);
-			mutex_enter(&zv->zv_state_lock);
-			/* check to see if zv_suspend_lock is needed */
-			if (zv->zv_open_count != 0) {
-				rw_exit(&zv->zv_suspend_lock);
-				drop_suspend = B_FALSE;
+			} else {
+				drop_namespace = B_TRUE;
 			}
 		}
-	} else {
-		drop_suspend = B_FALSE;
-	}
-	rw_exit(&zvol_state_lock);
 
-	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
-
-	if (zv->zv_open_count == 0) {
-		ASSERT(RW_READ_HELD(&zv->zv_suspend_lock));
 		error = -zvol_first_open(zv, !(flag & FMODE_WRITE));
-		if (error)
-			goto out_mutex;
+
+		if (drop_namespace)
+			mutex_exit(&spa_namespace_lock);
 	}
 
-	if ((flag & FMODE_WRITE) && (zv->zv_flags & ZVOL_RDONLY)) {
-		error = -EROFS;
-		goto out_open_count;
-	}
+	if (error == 0) {
+		if ((flag & FMODE_WRITE) && (zv->zv_flags & ZVOL_RDONLY)) {
+			if (zv->zv_open_count == 0)
+				zvol_last_close(zv);
 
-	zv->zv_open_count++;
+			error = SET_ERROR(-EROFS);
+		} else {
+			zv->zv_open_count++;
+		}
+	}
 
 	mutex_exit(&zv->zv_state_lock);
-	if (drop_namespace)
-		mutex_exit(&spa_namespace_lock);
 	if (drop_suspend)
 		rw_exit(&zv->zv_suspend_lock);
 
-	zfs_check_media_change(bdev);
+	if (error == 0)
+		zfs_check_media_change(bdev);
 
-	return (0);
-
-out_open_count:
-	if (zv->zv_open_count == 0)
-		zvol_last_close(zv);
-
-out_mutex:
-	mutex_exit(&zv->zv_state_lock);
-	if (drop_namespace)
-		mutex_exit(&spa_namespace_lock);
-	if (drop_suspend)
-		rw_exit(&zv->zv_suspend_lock);
-
-	return (SET_ERROR(error));
+	return (error);
 }
 
 static void

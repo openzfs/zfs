@@ -423,15 +423,21 @@ nfs_commit_shares(void)
 	struct pidfh *pfh;
 	pid_t mountdpid;
 
+start:
 	pfh = pidfile_open(_PATH_MOUNTDPID, 0600, &mountdpid);
 	if (pfh != NULL) {
-		/* Mountd is not running. */
+		/* mountd(8) is not running. */
 		pidfile_remove(pfh);
 		return (SA_OK);
 	}
 	if (errno != EEXIST) {
 		/* Cannot open pidfile for some reason. */
 		return (SA_SYSTEM_ERR);
+	}
+	if (mountdpid == -1) {
+		/* mountd(8) exists, but didn't write the PID yet */
+		usleep(500);
+		goto start;
 	}
 	/* We have mountd(8) PID in mountdpid variable. */
 	kill(mountdpid, SIGHUP);
