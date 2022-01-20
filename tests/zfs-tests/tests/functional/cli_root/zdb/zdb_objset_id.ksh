@@ -30,10 +30,16 @@
 # 6. Confirm names
 # 7. Run zdb -dddddd pool/objsetID objectID (hex) 
 # 8. Confirm names
-# 9. Obtain objsetID from /proc/spl/kstat/zfs/testpool/obset-0x<ID>
+# 9. Repeat with zdb -NNNNNN pool/objsetID objectID
+# 10. Obtain objsetID from /proc/spl/kstat/zfs/testpool/obset-0x<ID>
 #    (linux only)
-# 10. Run zdb -dddddd pool/objsetID (hex)
-# 11. Match name from zdb against proc entry
+# 11. Run zdb -dddddd pool/objsetID (hex)
+# 12. Match name from zdb against proc entry
+# 13. Create dataset with hex numeric name
+# 14. Create dataset with decimal numeric name
+# 15. zdb -d for numeric datasets succeeds
+# 16. zdb -N for numeric datasets fails
+# 17. zdb -dN for numeric datasets fails
 #
 
 function cleanup
@@ -78,6 +84,17 @@ do
 	(( $? != 0 )) && log_fail \
 	    "zdb -dddddd $TESTPOOL/$id $obj failed $reason"
 	obj=$(printf "0x%X" $obj)
+
+	log_note "zdb -NNNNNN $TESTPOOL/$id $obj"
+        output=$(zdb -NNNNNN $TESTPOOL/$id $obj)
+        reason="($TESTPOOL/$TESTFS not in zdb output)"
+        echo $output |grep "$TESTPOOL/$TESTFS" > /dev/null
+        (( $? != 0 )) && log_fail \
+            "zdb -NNNNNN $TESTPOOL/$id $obj failed $reason"
+        reason="(file1 not in zdb output)"
+        echo $output |grep "file1" > /dev/null
+        (( $? != 0 )) && log_fail \
+            "zdb -NNNNNN $TESTPOOL/$id $obj failed $reason"
 done
 
 if is_linux; then
@@ -93,5 +110,24 @@ if is_linux; then
 	(( $? != 0 )) && log_fail \
 	    "zdb -dddddd $TESTPOOL/$objset_hex failed $reason"
 fi
+
+log_must zfs create $TESTPOOL/0x400
+log_must zfs create $TESTPOOL/100
+output=$(zdb -d $TESTPOOL/0x400)
+reason="($TESTPOOL/0x400 not in zdb output)"
+echo $output |grep "$TESTPOOL/0x400" > /dev/null
+(( $? != 0 )) && log_fail \
+    "zdb -d $TESTPOOL/0x400 failed $reason"
+output=$(zdb -d $TESTPOOL/100)
+reason="($TESTPOOL/100 not in zdb output)"
+echo $output |grep "$TESTPOOL/100" > /dev/null
+(( $? != 0 )) && log_fail \
+    "zdb -d $TESTPOOL/100 failed $reason"
+
+# force numeric interpretation, should fail
+log_mustnot zdb -N $TESTPOOL/0x400
+log_mustnot zdb -N $TESTPOOL/100
+log_mustnot zdb -Nd $TESTPOOL/0x400
+log_mustnot zdb -Nd $TESTPOOL/100
 
 log_pass "zdb -d <pool>/<objset ID> generates the correct names."
