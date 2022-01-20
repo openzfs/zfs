@@ -695,21 +695,20 @@ fi
 #
 # Run all the tests as specified.
 #
-set -o pipefail
+EVILRES=$(mktemp -u -t test-runner-error)
 msg "${TEST_RUNNER} ${QUIET:+-q}" \
     "-c \"${RUNFILES}\"" \
     "-T \"${TAGS}\"" \
     "-i \"${STF_SUITE}\"" \
     "-I \"${ITERATIONS}\""
-${TEST_RUNNER} ${QUIET:+-q} \
+(${TEST_RUNNER} ${QUIET:+-q} \
     -c "${RUNFILES}" \
     -T "${TAGS}" \
     -i "${STF_SUITE}" \
     -I "${ITERATIONS}" \
-    2>&1 | tee "$RESULTS_FILE"
+    2>&1 ; echo $? > $EVILRES; )| tee "$RESULTS_FILE"
 
-RUNRESULT=$?
-set +o pipefail
+RUNRESULT=$(cat $EVILRES)
 
 #
 # Analyze the results.
