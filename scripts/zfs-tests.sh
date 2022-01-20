@@ -706,9 +706,9 @@ msg "${TEST_RUNNER} ${QUIET:+-q}" \
     -T "${TAGS}" \
     -i "${STF_SUITE}" \
     -I "${ITERATIONS}" \
-    2>&1 ; echo $? > $EVILRES; )| tee "$RESULTS_FILE"
+    2>&1 ; echo $? > "$EVILRES"; )| tee "$RESULTS_FILE"
 
-RUNRESULT=$(cat $EVILRES)
+RUNRESULT=$(cat "$EVILRES")
 
 #
 # Analyze the results.
@@ -753,7 +753,7 @@ if [ -n "$SINGLETEST" ]; then
 fi
 
 # If the test runner errored out, we probably care.
-if [ $RUNRESULT -ne "0" ]; then
+if [ "$RUNRESULT" -ne "0" ]; then
        RESULT=$RUNRESULT
 fi
 
