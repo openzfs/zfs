@@ -32,7 +32,7 @@ from select import select
 from subprocess import PIPE
 from subprocess import Popen
 from threading import Timer
-from time import time, CLOCK_MONOTONIC_RAW
+from time import time, CLOCK_MONOTONIC
 
 BASEDIR = '/var/tmp/test_results'
 TESTDIR = '/usr/share/zfs/'
@@ -59,7 +59,7 @@ clock_gettime.argtypes = [ctypes.c_int, ctypes.POINTER(timespec)]
 
 def monotonic_time():
     t = timespec()
-    if clock_gettime(CLOCK_MONOTONIC_RAW, ctypes.pointer(t)) != 0:
+    if clock_gettime(CLOCK_MONOTONIC, ctypes.pointer(t)) != 0:
         errno_ = ctypes.get_errno()
         raise OSError(errno_, os.strerror(errno_))
     return t.tv_sec + t.tv_nsec * 1e-9
