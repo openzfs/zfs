@@ -964,16 +964,14 @@ spa_stats_destroy(spa_t *spa)
 	spa_mmp_history_destroy(spa);
 }
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs, zfs_, read_history, INT, ZMOD_RW,
-    "Historical statistics for the last N reads");
+	"Historical statistics for the last N reads");
 
 ZFS_MODULE_PARAM(zfs, zfs_, read_history_hits, INT, ZMOD_RW,
-    "Include cache hits in read history");
+	"Include cache hits in read history");
 
 ZFS_MODULE_PARAM(zfs_txg, zfs_txg_, history, INT, ZMOD_RW,
-    "Historical statistics for the last N txgs");
+	"Historical statistics for the last N txgs");
 
 ZFS_MODULE_PARAM(zfs_multihost, zfs_multihost_, history, INT, ZMOD_RW,
-    "Historical statistics for last N multihost writes");
-/* END CSTYLED */
+	"Historical statistics for last N multihost writes");

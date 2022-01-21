@@ -93,12 +93,10 @@ sysctl_vfs_zfs_arc_free_target(SYSCTL_HANDLER_ARGS)
 	return (0);
 }
 SYSCTL_DECL(_vfs_zfs);
-/* BEGIN CSTYLED */
 SYSCTL_PROC(_vfs_zfs, OID_AUTO, arc_free_target,
     CTLTYPE_UINT | CTLFLAG_MPSAFE | CTLFLAG_RW, 0, sizeof (uint_t),
     sysctl_vfs_zfs_arc_free_target, "IU",
-    "Desired number of free pages below which ARC triggers reclaim");
-/* END CSTYLED */
+	"Desired number of free pages below which ARC triggers reclaim");
 
 int64_t
 arc_available_memory(void)

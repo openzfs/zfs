@@ -1,4 +1,3 @@
-/* BEGIN CSTYLED */
 /*
 ** $Id: llex.c,v 2.63.1.3 2015/02/09 17:56:34 roberto Exp $
 ** Lexical Analyzer
@@ -528,4 +527,3 @@ int luaX_lookahead (LexState *ls) {
   ls->lookahead.token = llex(ls, &ls->lookahead.seminfo);
   return ls->lookahead.token;
 }
-/* END CSTYLED */

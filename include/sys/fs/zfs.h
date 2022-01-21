@@ -1185,11 +1185,9 @@ typedef struct vdev_stat {
 	uint64_t	vs_noalloc;		/* allocations halted?	*/
 } vdev_stat_t;
 
-/* BEGIN CSTYLED */
 #define	VDEV_STAT_VALID(field, uint64_t_field_count) \
-    ((uint64_t_field_count * sizeof (uint64_t)) >=	 \
-     (offsetof(vdev_stat_t, field) + sizeof (((vdev_stat_t *)NULL)->field)))
-/* END CSTYLED */
+((uint64_t_field_count * sizeof (uint64_t)) >=	 \
+	(offsetof(vdev_stat_t, field) + sizeof (((vdev_stat_t *)NULL)->field)))
 
 /*
  * Extended stats

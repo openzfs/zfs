@@ -1,4 +1,3 @@
-/* BEGIN CSTYLED */
 /*
 ** $Id: lapi.c,v 2.171.1.1 2013/04/12 18:48:47 roberto Exp $
 ** Lua API
@@ -1296,7 +1295,6 @@ module_init(lua_init);
 module_exit(lua_fini);
 
 #endif
-/* END CSTYLED */
 
 ZFS_MODULE_DESCRIPTION("Lua Interpreter for ZFS");
 ZFS_MODULE_AUTHOR("Lua.org");

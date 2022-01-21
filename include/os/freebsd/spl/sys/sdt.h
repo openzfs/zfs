@@ -30,8 +30,8 @@
 #define	_OPENSOLARIS_SYS_SDT_H_
 
 #include_next <sys/sdt.h>
-/* BEGIN CSTYLED */
 #ifdef KDTRACE_HOOKS
+/* CSTYLED */
 SDT_PROBE_DECLARE(sdt, , , set__error);
 
 #define	SET_ERROR(err) \

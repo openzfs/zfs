@@ -1,4 +1,3 @@
-/* BEGIN CSTYLED */
 /*
 ** $Id: lctype.h,v 1.12.1.1 2013/04/12 18:48:47 roberto Exp $
 ** 'ctype' functions for Lua
@@ -91,4 +90,3 @@ LUAI_DDEC const lu_byte luai_ctype_[UCHAR_MAX + 2];
 #endif			/* } */
 
 #endif
-/* END CSTYLED */

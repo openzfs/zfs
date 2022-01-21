@@ -48,13 +48,12 @@
 #include <sys/cred.h>
 #include <sys/vnode.h>
 
-/* BEGIN CSTYLED */
 unsigned long spl_hostid = 0;
 EXPORT_SYMBOL(spl_hostid);
 
+/* CSTYLED */
 module_param(spl_hostid, ulong, 0644);
 MODULE_PARM_DESC(spl_hostid, "The system hostid.");
-/* END CSTYLED */
 
 proc_t p0;
 EXPORT_SYMBOL(p0);
@@ -268,11 +267,10 @@ __udivdi3(uint64_t u, uint64_t v)
 }
 EXPORT_SYMBOL(__udivdi3);
 
-/* BEGIN CSTYLED */
 #ifndef abs64
+/* CSTYLED */
 #define	abs64(x)	({ uint64_t t = (x) >> 63; ((x) ^ t) - t; })
 #endif
-/* END CSTYLED */
 
 /*
  * Implementation of 64-bit signed division for 32-bit machines.
@@ -384,11 +382,9 @@ __aeabi_uldivmod(uint64_t u, uint64_t v)
 		register uint32_t r2 asm("r2") = (mod & 0xFFFFFFFF);
 		register uint32_t r3 asm("r3") = (mod >> 32);
 
-		/* BEGIN CSTYLED */
 		asm volatile(""
-		    : "+r"(r0), "+r"(r1), "+r"(r2),"+r"(r3)  /* output */
-		    : "r"(r0), "r"(r1), "r"(r2), "r"(r3));   /* input */
-		/* END CSTYLED */
+		    : "+r"(r0), "+r"(r1), "+r"(r2), "+r"(r3)  /* output */
+		    : "r"(r0), "r"(r1), "r"(r2), "r"(r3));    /* input */
 
 		return; /* r0; */
 	}
@@ -409,11 +405,9 @@ __aeabi_ldivmod(int64_t u, int64_t v)
 		register uint32_t r2 asm("r2") = (mod & 0xFFFFFFFF);
 		register uint32_t r3 asm("r3") = (mod >> 32);
 
-		/* BEGIN CSTYLED */
 		asm volatile(""
-		    : "+r"(r0), "+r"(r1), "+r"(r2),"+r"(r3)  /* output */
-		    : "r"(r0), "r"(r1), "r"(r2), "r"(r3));   /* input */
-		/* END CSTYLED */
+		    : "+r"(r0), "+r"(r1), "+r"(r2), "+r"(r3)  /* output */
+		    : "r"(r0), "r"(r1), "r"(r2), "r"(r3));    /* input */
 
 		return; /* r0; */
 	}

@@ -963,20 +963,21 @@ vdev_ops_t vdev_spare_ops = {
 	.vdev_op_leaf = B_FALSE			/* not a leaf vdev */
 };
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_vdev_mirror, zfs_vdev_mirror_, rotating_inc, INT, ZMOD_RW,
-	"Rotating media load increment for non-seeking I/O's");
+	"Rotating media load increment for non-seeking I/Os");
 
-ZFS_MODULE_PARAM(zfs_vdev_mirror, zfs_vdev_mirror_, rotating_seek_inc, INT, ZMOD_RW,
-	"Rotating media load increment for seeking I/O's");
+ZFS_MODULE_PARAM(zfs_vdev_mirror, zfs_vdev_mirror_, rotating_seek_inc, INT,
+	ZMOD_RW, "Rotating media load increment for seeking I/Os");
 
-ZFS_MODULE_PARAM(zfs_vdev_mirror, zfs_vdev_mirror_, rotating_seek_offset, INT, ZMOD_RW,
+/* BEGIN CSTYLED */
+ZFS_MODULE_PARAM(zfs_vdev_mirror, zfs_vdev_mirror_, rotating_seek_offset, INT,
+	ZMOD_RW,
 	"Offset in bytes from the last I/O which triggers "
 	"a reduced rotating media seek increment");
-
-ZFS_MODULE_PARAM(zfs_vdev_mirror, zfs_vdev_mirror_, non_rotating_inc, INT, ZMOD_RW,
-	"Non-rotating media load increment for non-seeking I/O's");
-
-ZFS_MODULE_PARAM(zfs_vdev_mirror, zfs_vdev_mirror_, non_rotating_seek_inc, INT, ZMOD_RW,
-	"Non-rotating media load increment for seeking I/O's");
 /* END CSTYLED */
+
+ZFS_MODULE_PARAM(zfs_vdev_mirror, zfs_vdev_mirror_, non_rotating_inc, INT,
+	ZMOD_RW, "Non-rotating media load increment for non-seeking I/Os");
+
+ZFS_MODULE_PARAM(zfs_vdev_mirror, zfs_vdev_mirror_, non_rotating_seek_inc, INT,
+	ZMOD_RW, "Non-rotating media load increment for seeking I/Os");

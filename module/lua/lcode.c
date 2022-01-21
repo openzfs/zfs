@@ -1,4 +1,3 @@
-/* BEGIN CSTYLED */
 /*
 ** $Id: lcode.c,v 2.62.1.1 2013/04/12 18:48:47 roberto Exp $
 ** Code generator for Lua
@@ -885,4 +884,3 @@ void luaK_setlist (FuncState *fs, int base, int nelems, int tostore) {
     luaX_syntaxerror(fs->ls, "constructor too long");
   fs->freereg = base + 1;  /* free registers with list values */
 }
-/* END CSTYLED */
