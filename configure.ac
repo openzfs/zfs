@@ -147,8 +147,6 @@ AC_CONFIG_FILES([
 	lib/libshare/Makefile
 	lib/libspl/Makefile
 	lib/libspl/include/Makefile
-	lib/libspl/include/ia32/Makefile
-	lib/libspl/include/ia32/sys/Makefile
 	lib/libspl/include/os/Makefile
 	lib/libspl/include/os/freebsd/Makefile
 	lib/libspl/include/os/freebsd/sys/Makefile
