@@ -50,7 +50,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 #include <time.h>
 #include <unistd.h>
 #include <pwd.h>
@@ -10205,7 +10204,7 @@ zpool_do_get(int argc, char **argv)
 			memset(&cb.cb_columns, 0, sizeof (cb.cb_columns));
 			i = 0;
 			while (*optarg != '\0') {
-				static char *col_subopts[] =
+				static char *col_opts[] =
 				{ "name", "property", "value", "source",
 				"all", NULL };
 
@@ -10216,7 +10215,7 @@ zpool_do_get(int argc, char **argv)
 					usage(B_FALSE);
 				}
 
-				switch (getsubopt(&optarg, col_subopts,
+				switch (getsubopt(&optarg, col_opts,
 				    &value)) {
 				case 0:
 					cb.cb_columns[i++] = GET_COL_NAME;
@@ -10786,9 +10785,7 @@ int
 zpool_do_wait(int argc, char **argv)
 {
 	boolean_t verbose = B_FALSE;
-	int c;
-	char *value;
-	int i;
+	int c, i;
 	unsigned long count;
 	pthread_t status_thr;
 	int error = 0;
@@ -10822,28 +10819,28 @@ zpool_do_wait(int argc, char **argv)
 			get_timestamp_arg(*optarg);
 			break;
 		case 't':
-		{
-			static char *col_subopts[] = { "discard", "free",
-			    "initialize", "replace", "remove", "resilver",
-			    "scrub", "trim", "raidz_expand", NULL };
-
 			/* Reset activities array */
 			memset(&wd.wd_enabled, 0, sizeof (wd.wd_enabled));
-			while (*optarg != '\0') {
-				int activity = getsubopt(&optarg, col_subopts,
-				    &value);
 
-				if (activity < 0) {
-					(void) fprintf(stderr,
-					    gettext("invalid activity '%s'\n"),
-					    value);
-					usage(B_FALSE);
-				}
 
-				wd.wd_enabled[activity] = B_TRUE;
+			for (char *tok; (tok = strsep(&optarg, ",")); ) {
+				static const char *const col_opts[] = {
+				    "discard", "free", "initialize", "replace",
+				    "remove", "resilver", "scrub", "trim", "raidz_expand" };
+
+
+				for (i = 0; i < ARRAY_SIZE(col_opts); ++i)
+					if (strcmp(tok, col_opts[i]) == 0) {
+						wd.wd_enabled[i] = B_TRUE;
+						goto found;
+					}
+
+				(void) fprintf(stderr,
+				    gettext("invalid activity '%s'\n"), tok);
+				usage(B_FALSE);
+found:;
 			}
 			break;
-		}
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
 			    optopt);
