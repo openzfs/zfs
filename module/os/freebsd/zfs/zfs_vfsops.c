@@ -1777,8 +1777,10 @@ zfs_checkexp(vfs_t *vfsp, struct sockaddr *nam, int *extflagsp,
 	    credanonp, numsecflavors, secflavors));
 }
 
-CTASSERT(SHORT_FID_LEN <= sizeof (struct fid));
-CTASSERT(LONG_FID_LEN <= sizeof (struct fid));
+_Static_assert(sizeof (struct fid) >= SHORT_FID_LEN,
+	"struct fid bigger than SHORT_FID_LEN");
+_Static_assert(sizeof (struct fid) >= LONG_FID_LEN,
+	"struct fid bigger than LONG_FID_LEN");
 
 static int
 zfs_fhtovp(vfs_t *vfsp, fid_t *fidp, int flags, vnode_t **vpp)

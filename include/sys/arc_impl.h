@@ -250,7 +250,8 @@ typedef struct l2arc_dev_hdr_phys {
 	const uint64_t		dh_pad[30];	/* pad to 512 bytes */
 	zio_eck_t		dh_tail;
 } l2arc_dev_hdr_phys_t;
-CTASSERT_GLOBAL(sizeof (l2arc_dev_hdr_phys_t) == SPA_MINBLOCKSIZE);
+_Static_assert(sizeof (l2arc_dev_hdr_phys_t) == SPA_MINBLOCKSIZE,
+	"l2arc_dev_hdr_phys_t wrong size");
 
 /*
  * A single ARC buffer header entry in a l2arc_log_blk_phys_t.
@@ -307,10 +308,12 @@ typedef struct l2arc_log_blk_phys {
  * The size of l2arc_log_blk_phys_t has to be power-of-2 aligned with
  * SPA_MINBLOCKSHIFT because of L2BLK_SET_*SIZE macros.
  */
-CTASSERT_GLOBAL(IS_P2ALIGNED(sizeof (l2arc_log_blk_phys_t),
-    1ULL << SPA_MINBLOCKSHIFT));
-CTASSERT_GLOBAL(sizeof (l2arc_log_blk_phys_t) >= SPA_MINBLOCKSIZE);
-CTASSERT_GLOBAL(sizeof (l2arc_log_blk_phys_t) <= SPA_MAXBLOCKSIZE);
+_Static_assert(IS_P2ALIGNED(sizeof (l2arc_log_blk_phys_t),
+    1ULL << SPA_MINBLOCKSHIFT), "l2arc_log_blk_phys_t misaligned");
+_Static_assert(sizeof (l2arc_log_blk_phys_t) >= SPA_MINBLOCKSIZE,
+	"l2arc_log_blk_phys_t too small");
+_Static_assert(sizeof (l2arc_log_blk_phys_t) <= SPA_MAXBLOCKSIZE,
+	"l2arc_log_blk_phys_t too big");
 
 /*
  * These structures hold in-flight abd buffers for log blocks as they're being

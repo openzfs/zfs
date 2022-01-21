@@ -521,8 +521,8 @@ typedef struct vdev_boot_envblock {
 			sizeof (zio_eck_t)];
 	zio_eck_t	vbe_zbt;
 } vdev_boot_envblock_t;
-
-CTASSERT_GLOBAL(sizeof (vdev_boot_envblock_t) == VDEV_PAD_SIZE);
+_Static_assert(sizeof (vdev_boot_envblock_t) == VDEV_PAD_SIZE,
+	"vdev_boot_envblock_t wrong size");
 
 typedef struct vdev_label {
 	char		vl_pad1[VDEV_PAD_SIZE];			/*  8K */

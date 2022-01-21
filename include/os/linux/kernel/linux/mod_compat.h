@@ -109,8 +109,9 @@ enum scope_prefix_types {
  *   dmu_prefetch_max
  */
 #define	ZFS_MODULE_PARAM(scope_prefix, name_prefix, name, type, perm, desc) \
-	CTASSERT_GLOBAL( \
-	    sizeof (scope_prefix) == sizeof (enum scope_prefix_types)); \
+	_Static_assert( \
+	    sizeof (scope_prefix) == sizeof (enum scope_prefix_types), \
+	    "" #scope_prefix " size mismatch with enum scope_prefix_types"); \
 	module_param(name_prefix ## name, type, perm); \
 	MODULE_PARM_DESC(name_prefix ## name, desc)
 
@@ -138,8 +139,9 @@ enum scope_prefix_types {
  */
 #define	ZFS_MODULE_PARAM_CALL( \
     scope_prefix, name_prefix, name, setfunc, getfunc, perm, desc) \
-	CTASSERT_GLOBAL( \
-	    sizeof (scope_prefix) == sizeof (enum scope_prefix_types)); \
+	_Static_assert( \
+	    sizeof (scope_prefix) == sizeof (enum scope_prefix_types), \
+	    "" #scope_prefix " size mismatch with enum scope_prefix_types"); \
 	module_param_call(name_prefix ## name, setfunc, getfunc, \
 	    &name_prefix ## name, perm); \
 	MODULE_PARM_DESC(name_prefix ## name, desc)
@@ -150,8 +152,9 @@ enum scope_prefix_types {
  */
 #define	ZFS_MODULE_VIRTUAL_PARAM_CALL( \
     scope_prefix, name_prefix, name, setfunc, getfunc, perm, desc) \
-	CTASSERT_GLOBAL(\
-	    sizeof (scope_prefix) == sizeof (enum scope_prefix_types)); \
+	_Static_assert( \
+	    sizeof (scope_prefix) == sizeof (enum scope_prefix_types), \
+	    "" #scope_prefix " size mismatch with enum scope_prefix_types"); \
 	module_param_call(name_prefix ## name, setfunc, getfunc, NULL, perm); \
 	MODULE_PARM_DESC(name_prefix ## name, desc)
 
