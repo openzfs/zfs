@@ -1,4 +1,3 @@
-/* BEGIN CSTYLED */
 /*
 ** $Id: lgc.h,v 2.58.1.1 2013/04/12 18:48:47 roberto Exp $
 ** Garbage Collector
@@ -156,4 +155,3 @@ LUAI_FUNC void luaC_checkupvalcolor (global_State *g, UpVal *uv);
 LUAI_FUNC void luaC_changemode (lua_State *L, int mode);
 
 #endif
-/* END CSTYLED */

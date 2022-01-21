@@ -68,12 +68,10 @@ DECLARE_EVENT_CLASS(zfs_removing_class_3,
 );
 /* END CSTYLED */
 
-/* BEGIN CSTYLED */
-#define DEFINE_REMOVE_FREE_EVENT(name) \
+#define	DEFINE_REMOVE_FREE_EVENT(name) \
 DEFINE_EVENT(zfs_removing_class_3, name, \
-	TP_PROTO(spa_t *spa, uint64_t offset, uint64_t size), \
-	TP_ARGS(spa, offset, size))
-/* END CSTYLED */
+    TP_PROTO(spa_t *spa, uint64_t offset, uint64_t size), \
+    TP_ARGS(spa, offset, size))
 DEFINE_REMOVE_FREE_EVENT(zfs_remove__free__synced);
 DEFINE_REMOVE_FREE_EVENT(zfs_remove__free__unvisited);
 
@@ -107,12 +105,10 @@ DECLARE_EVENT_CLASS(zfs_removing_class_4,
 	    __entry->vdev_size, __entry->vdev_txg)
 );
 
-/* BEGIN CSTYLED */
 #define DEFINE_REMOVE_FREE_EVENT_TXG(name) \
 DEFINE_EVENT(zfs_removing_class_4, name, \
-	TP_PROTO(spa_t *spa, uint64_t offset, uint64_t size,uint64_t txg), \
-	TP_ARGS(spa, offset, size, txg))
-/* END CSTYLED */
+    TP_PROTO(spa_t *spa, uint64_t offset, uint64_t size,uint64_t txg), \
+    TP_ARGS(spa, offset, size, txg))
 DEFINE_REMOVE_FREE_EVENT_TXG(zfs_remove__free__inflight);
 
 #endif /* _TRACE_VDEV_H */

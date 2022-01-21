@@ -1447,7 +1447,6 @@ dsl_pool_config_held_writer(dsl_pool_t *dp)
 EXPORT_SYMBOL(dsl_pool_config_enter);
 EXPORT_SYMBOL(dsl_pool_config_exit);
 
-/* BEGIN CSTYLED */
 /* zfs_dirty_data_max_percent only applied at module load in arc_init(). */
 ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_max_percent, INT, ZMOD_RD,
 	"Max percent of RAM allowed to be dirty");
@@ -1486,4 +1485,3 @@ ZFS_MODULE_PARAM(zfs_zil, zfs_zil_, clean_taskq_minalloc, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_zil, zfs_zil_, clean_taskq_maxalloc, INT, ZMOD_RW,
 	"Max number of taskq entries that are cached");
-/* END CSTYLED */

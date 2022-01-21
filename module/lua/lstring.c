@@ -1,4 +1,3 @@
-/* BEGIN CSTYLED */
 /*
 ** $Id: lstring.c,v 2.26.1.1 2013/04/12 18:48:47 roberto Exp $
 ** String table (keeps all strings handled by Lua)
@@ -183,4 +182,3 @@ Udata *luaS_newudata (lua_State *L, size_t s, Table *e) {
   u->uv.env = e;
   return u;
 }
-/* END CSTYLED */

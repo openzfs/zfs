@@ -1,4 +1,3 @@
-/* BEGIN CSTYLED */
 /*
 ** $Id: lstrlib.c,v 1.178.1.1 2013/04/12 18:48:47 roberto Exp $
 ** Standard library for string operations and pattern-matching
@@ -1037,4 +1036,3 @@ LUAMOD_API int luaopen_string (lua_State *L) {
 EXPORT_SYMBOL(luaopen_string);
 
 #endif
-/* END CSTYLED */

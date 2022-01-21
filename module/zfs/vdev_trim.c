@@ -1709,19 +1709,17 @@ EXPORT_SYMBOL(vdev_autotrim_restart);
 EXPORT_SYMBOL(vdev_trim_l2arc);
 EXPORT_SYMBOL(vdev_trim_simple);
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_trim, zfs_trim_, extent_bytes_max, UINT, ZMOD_RW,
-    "Max size of TRIM commands, larger will be split");
+	"Max size of TRIM commands, larger will be split");
 
 ZFS_MODULE_PARAM(zfs_trim, zfs_trim_, extent_bytes_min, UINT, ZMOD_RW,
-    "Min size of TRIM commands, smaller will be skipped");
+	"Min size of TRIM commands, smaller will be skipped");
 
 ZFS_MODULE_PARAM(zfs_trim, zfs_trim_, metaslab_skip, UINT, ZMOD_RW,
-    "Skip metaslabs which have never been initialized");
+	"Skip metaslabs which have never been initialized");
 
 ZFS_MODULE_PARAM(zfs_trim, zfs_trim_, txg_batch, UINT, ZMOD_RW,
-    "Min number of txgs to aggregate frees before issuing TRIM");
+	"Min number of txgs to aggregate frees before issuing TRIM");
 
 ZFS_MODULE_PARAM(zfs_trim, zfs_trim_, queue_limit, UINT, ZMOD_RW,
-    "Max queued TRIMs outstanding per leaf vdev");
-/* END CSTYLED */
+	"Max queued TRIMs outstanding per leaf vdev");

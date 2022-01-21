@@ -113,8 +113,8 @@ spl_mutex_lockdep_on_maybe(kmutex_t *mp)			\
 	VERIFY3P(mutex_owner(mp), ==, NULL);			\
 }
 
-/* BEGIN CSTYLED */
 #define	mutex_tryenter(mp)					\
+/* CSTYLED */								\
 ({								\
 	int _rc_;						\
 								\
@@ -125,7 +125,6 @@ spl_mutex_lockdep_on_maybe(kmutex_t *mp)			\
 								\
 	_rc_;							\
 })
-/* END CSTYLED */
 
 #define	NESTED_SINGLE 1
 

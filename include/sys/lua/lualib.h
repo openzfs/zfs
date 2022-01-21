@@ -1,4 +1,3 @@
-/* BEGIN CSTYLED */
 /*
 ** $Id: lualib.h,v 1.43.1.1 2013/04/12 18:48:47 roberto Exp $
 ** Lua standard libraries
@@ -54,4 +53,3 @@ LUALIB_API void (luaL_openlibs) (lua_State *L);
 
 
 #endif
-/* END CSTYLED */

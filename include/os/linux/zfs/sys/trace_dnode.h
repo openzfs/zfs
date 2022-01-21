@@ -105,12 +105,10 @@ DECLARE_EVENT_CLASS(zfs_dnode_move_class,
 );
 /* END CSTYLED */
 
-/* BEGIN CSTYLED */
 #define	DEFINE_DNODE_MOVE_EVENT(name) \
 DEFINE_EVENT(zfs_dnode_move_class, name, \
-	TP_PROTO(dnode_t *dn, int64_t refcount, uint32_t dbufs), \
-	TP_ARGS(dn, refcount, dbufs))
-/* END CSTYLED */
+    TP_PROTO(dnode_t *dn, int64_t refcount, uint32_t dbufs), \
+    TP_ARGS(dn, refcount, dbufs))
 DEFINE_DNODE_MOVE_EVENT(zfs_dnode__move);
 
 #endif /* _TRACE_DNODE_H */

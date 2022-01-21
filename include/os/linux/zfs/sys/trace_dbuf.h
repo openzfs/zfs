@@ -117,20 +117,16 @@ DECLARE_EVENT_CLASS(zfs_dbuf_state_class,
 );
 /* END CSTYLED */
 
-/* BEGIN CSTYLED */
 #define	DEFINE_DBUF_EVENT(name) \
 DEFINE_EVENT(zfs_dbuf_class, name, \
-	TP_PROTO(dmu_buf_impl_t *db, zio_t *zio), \
-	TP_ARGS(db, zio))
-/* END CSTYLED */
+    TP_PROTO(dmu_buf_impl_t *db, zio_t *zio), \
+    TP_ARGS(db, zio))
 DEFINE_DBUF_EVENT(zfs_blocked__read);
 
-/* BEGIN CSTYLED */
 #define	DEFINE_DBUF_STATE_EVENT(name) \
 DEFINE_EVENT(zfs_dbuf_state_class, name, \
-	TP_PROTO(dmu_buf_impl_t *db, const char *why), \
-	TP_ARGS(db, why))
-/* END CSTYLED */
+    TP_PROTO(dmu_buf_impl_t *db, const char *why), \
+    TP_ARGS(db, why))
 DEFINE_DBUF_STATE_EVENT(zfs_dbuf__state_change);
 
 /* BEGIN CSTYLED */
@@ -143,12 +139,10 @@ DECLARE_EVENT_CLASS(zfs_dbuf_evict_one_class,
 );
 /* END CSTYLED */
 
-/* BEGIN CSTYLED */
 #define	DEFINE_DBUF_EVICT_ONE_EVENT(name) \
 DEFINE_EVENT(zfs_dbuf_evict_one_class, name, \
-	TP_PROTO(dmu_buf_impl_t *db, multilist_sublist_t *mls), \
-	TP_ARGS(db, mls))
-/* END CSTYLED */
+    TP_PROTO(dmu_buf_impl_t *db, multilist_sublist_t *mls), \
+    TP_ARGS(db, mls))
 DEFINE_DBUF_EVICT_ONE_EVENT(zfs_dbuf__evict__one);
 
 #endif /* _TRACE_DBUF_H */

@@ -4377,7 +4377,6 @@ dsl_scan_assess_vdev(dsl_pool_t *dp, vdev_t *vd)
 		spa_async_request(dp->dp_spa, SPA_ASYNC_RESILVER);
 }
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs, zfs_, scan_vdev_limit, ULONG, ZMOD_RW,
 	"Max bytes in flight per leaf vdev for scrubs and resilvers");
 
@@ -4415,8 +4414,7 @@ ZFS_MODULE_PARAM(zfs, zfs_, scan_mem_lim_fact, INT, ZMOD_RW,
 	"Fraction of RAM for scan hard limit");
 
 ZFS_MODULE_PARAM(zfs, zfs_, scan_issue_strategy, INT, ZMOD_RW,
-	"IO issuing strategy during scrubbing. "
-	"0 = default, 1 = LBA, 2 = size");
+	"IO issuing strategy during scrubbing. 0 = default, 1 = LBA, 2 = size");
 
 ZFS_MODULE_PARAM(zfs, zfs_, scan_legacy, INT, ZMOD_RW,
 	"Scrub using legacy non-sequential method");
@@ -4438,4 +4436,3 @@ ZFS_MODULE_PARAM(zfs, zfs_, scan_fill_weight, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, resilver_disable_defer, INT, ZMOD_RW,
 	"Process all resilvers immediately");
-/* END CSTYLED */
