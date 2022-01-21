@@ -338,7 +338,7 @@ out:
 int
 zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 {
-	int error = 0;
+	int error = 0, error1;
 	ssize_t start_resid = zfs_uio_resid(uio);
 
 	/*
@@ -576,7 +576,11 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 				continue;
 			}
 #endif
-			if (error != 0) {
+			/*
+			 * On FreeBSD, EFAULT should be propagated back to the
+			 * VFS, which will handle faulting and will retry.
+			 */
+			if (error != 0 && error != EFAULT) {
 				dmu_tx_commit(tx);
 				break;
 			}
@@ -660,7 +664,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		while ((end_size = zp->z_size) < zfs_uio_offset(uio)) {
 			(void) atomic_cas_64(&zp->z_size, end_size,
 			    zfs_uio_offset(uio));
-			ASSERT(error == 0);
+			ASSERT(error == 0 || error == EFAULT);
 		}
 		/*
 		 * If we are replaying and eof is non zero then force
@@ -670,7 +674,10 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		if (zfsvfs->z_replay && zfsvfs->z_replay_eof != 0)
 			zp->z_size = zfsvfs->z_replay_eof;
 
-		error = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
+		error1 = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
+		if (error1 != 0)
+			/* Avoid clobbering EFAULT. */
+			error = error1;
 
 		zfs_log_write(zilog, tx, TX_WRITE, zp, woff, tx_bytes, ioflag,
 		    NULL, NULL);
