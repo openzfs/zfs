@@ -125,7 +125,6 @@ void spl_dumpstack(void);
 		    "failed (0 == %lld)\n",				\
 		    (long long) (_verify3_right));			\
 	} while (0)
-#define	CTASSERT_GLOBAL(x)	CTASSERT(x)
 
 /*
  * Debugging disabled (--disable-debug)
