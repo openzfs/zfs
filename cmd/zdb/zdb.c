@@ -1228,9 +1228,9 @@ dump_bpobj(objset_t *os, uint64_t object, void *data, size_t size)
 	char bytes[32], comp[32], uncomp[32];
 
 	/* make sure the output won't get truncated */
-	CTASSERT(sizeof (bytes) >= NN_NUMBUF_SZ);
-	CTASSERT(sizeof (comp) >= NN_NUMBUF_SZ);
-	CTASSERT(sizeof (uncomp) >= NN_NUMBUF_SZ);
+	_Static_assert(sizeof (bytes) >= NN_NUMBUF_SZ, "bytes truncated");
+	_Static_assert(sizeof (comp) >= NN_NUMBUF_SZ, "comp truncated");
+	_Static_assert(sizeof (uncomp) >= NN_NUMBUF_SZ, "uncomp truncated");
 
 	if (bpop == NULL)
 		return;
@@ -1655,7 +1655,7 @@ dump_metaslab_stats(metaslab_t *msp)
 	int free_pct = range_tree_space(rt) * 100 / msp->ms_size;
 
 	/* max sure nicenum has enough space */
-	CTASSERT(sizeof (maxbuf) >= NN_NUMBUF_SZ);
+	_Static_assert(sizeof (maxbuf) >= NN_NUMBUF_SZ, "maxbuf truncated");
 
 	zdb_nicenum(metaslab_largest_allocatable(msp), maxbuf, sizeof (maxbuf));
 
@@ -2490,7 +2490,7 @@ dump_dsl_dir(objset_t *os, uint64_t object, void *data, size_t size)
 	char nice[32];
 
 	/* make sure nicenum has enough space */
-	CTASSERT(sizeof (nice) >= NN_NUMBUF_SZ);
+	_Static_assert(sizeof (nice) >= NN_NUMBUF_SZ, "nice truncated");
 
 	if (dd == NULL)
 		return;
@@ -2548,10 +2548,12 @@ dump_dsl_dataset(objset_t *os, uint64_t object, void *data, size_t size)
 	char blkbuf[BP_SPRINTF_LEN];
 
 	/* make sure nicenum has enough space */
-	CTASSERT(sizeof (used) >= NN_NUMBUF_SZ);
-	CTASSERT(sizeof (compressed) >= NN_NUMBUF_SZ);
-	CTASSERT(sizeof (uncompressed) >= NN_NUMBUF_SZ);
-	CTASSERT(sizeof (unique) >= NN_NUMBUF_SZ);
+	_Static_assert(sizeof (used) >= NN_NUMBUF_SZ, "used truncated");
+	_Static_assert(sizeof (compressed) >= NN_NUMBUF_SZ,
+	    "compressed truncated");
+	_Static_assert(sizeof (uncompressed) >= NN_NUMBUF_SZ,
+	    "uncompressed truncated");
+	_Static_assert(sizeof (unique) >= NN_NUMBUF_SZ, "unique truncated");
 
 	if (ds == NULL)
 		return;
@@ -2622,7 +2624,7 @@ dump_bptree(objset_t *os, uint64_t obj, const char *name)
 	dmu_buf_t *db;
 
 	/* make sure nicenum has enough space */
-	CTASSERT(sizeof (bytes) >= NN_NUMBUF_SZ);
+	_Static_assert(sizeof (bytes) >= NN_NUMBUF_SZ, "bytes truncated");
 
 	if (dump_opt['d'] < 3)
 		return;
@@ -2663,9 +2665,9 @@ dump_full_bpobj(bpobj_t *bpo, const char *name, int indent)
 	uint64_t i;
 
 	/* make sure nicenum has enough space */
-	CTASSERT(sizeof (bytes) >= NN_NUMBUF_SZ);
-	CTASSERT(sizeof (comp) >= NN_NUMBUF_SZ);
-	CTASSERT(sizeof (uncomp) >= NN_NUMBUF_SZ);
+	_Static_assert(sizeof (bytes) >= NN_NUMBUF_SZ, "bytes truncated");
+	_Static_assert(sizeof (comp) >= NN_NUMBUF_SZ, "comp truncated");
+	_Static_assert(sizeof (uncomp) >= NN_NUMBUF_SZ, "uncomp truncated");
 
 	if (dump_opt['d'] < 3)
 		return;
@@ -2941,10 +2943,10 @@ dump_blkptr_list(dsl_deadlist_t *dl, char *name)
 	}
 
 	/* make sure nicenum has enough space */
-	CTASSERT(sizeof (bytes) >= NN_NUMBUF_SZ);
-	CTASSERT(sizeof (comp) >= NN_NUMBUF_SZ);
-	CTASSERT(sizeof (uncomp) >= NN_NUMBUF_SZ);
-	CTASSERT(sizeof (entries) >= NN_NUMBUF_SZ);
+	_Static_assert(sizeof (bytes) >= NN_NUMBUF_SZ, "bytes truncated");
+	_Static_assert(sizeof (comp) >= NN_NUMBUF_SZ, "comp truncated");
+	_Static_assert(sizeof (uncomp) >= NN_NUMBUF_SZ, "uncomp truncated");
+	_Static_assert(sizeof (entries) >= NN_NUMBUF_SZ, "entries truncated");
 
 	if (dump_opt['d'] < 3)
 		return;
@@ -3428,11 +3430,12 @@ dump_object(objset_t *os, uint64_t object, int verbosity,
 	int error;
 
 	/* make sure nicenum has enough space */
-	CTASSERT(sizeof (iblk) >= NN_NUMBUF_SZ);
-	CTASSERT(sizeof (dblk) >= NN_NUMBUF_SZ);
-	CTASSERT(sizeof (lsize) >= NN_NUMBUF_SZ);
-	CTASSERT(sizeof (asize) >= NN_NUMBUF_SZ);
-	CTASSERT(sizeof (bonus_size) >= NN_NUMBUF_SZ);
+	_Static_assert(sizeof (iblk) >= NN_NUMBUF_SZ, "iblk truncated");
+	_Static_assert(sizeof (dblk) >= NN_NUMBUF_SZ, "dblk truncated");
+	_Static_assert(sizeof (lsize) >= NN_NUMBUF_SZ, "lsize truncated");
+	_Static_assert(sizeof (asize) >= NN_NUMBUF_SZ, "asize truncated");
+	_Static_assert(sizeof (bonus_size) >= NN_NUMBUF_SZ,
+	    "bonus_size truncated");
 
 	if (*print_header) {
 		(void) printf("\n%10s  %3s  %5s  %5s  %5s  %6s  %5s  %6s  %s\n",
@@ -3581,7 +3584,8 @@ dump_object(objset_t *os, uint64_t object, int verbosity,
 		for (;;) {
 			char segsize[32];
 			/* make sure nicenum has enough space */
-			CTASSERT(sizeof (segsize) >= NN_NUMBUF_SZ);
+			_Static_assert(sizeof (segsize) >= NN_NUMBUF_SZ,
+			    "segsize truncated");
 			error = dnode_next_offset(dn,
 			    0, &start, minlvl, blkfill, 0);
 			if (error)
@@ -3770,7 +3774,7 @@ dump_objset(objset_t *os)
 	uint64_t flags;
 
 	/* make sure nicenum has enough space */
-	CTASSERT(sizeof (numbuf) >= NN_NUMBUF_SZ);
+	_Static_assert(sizeof (numbuf) >= NN_NUMBUF_SZ, "numbuf truncated");
 
 	dsl_pool_config_enter(dmu_objset_pool(os), FTAG);
 	dmu_objset_fast_stat(os, &dds);
@@ -5542,7 +5546,7 @@ zdb_blkptr_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		    (zcb->zcb_totalasize - bytes) / 1024 / kb_per_sec;
 
 		/* make sure nicenum has enough space */
-		CTASSERT(sizeof (buf) >= NN_NUMBUF_SZ);
+		_Static_assert(sizeof (buf) >= NN_NUMBUF_SZ, "buf truncated");
 
 		zfs_nicebytes(bytes, buf, sizeof (buf));
 		(void) fprintf(stderr,
@@ -6651,12 +6655,18 @@ dump_block_stats(spa_t *spa)
 			const char *typename;
 
 			/* make sure nicenum has enough space */
-			CTASSERT(sizeof (csize) >= NN_NUMBUF_SZ);
-			CTASSERT(sizeof (lsize) >= NN_NUMBUF_SZ);
-			CTASSERT(sizeof (psize) >= NN_NUMBUF_SZ);
-			CTASSERT(sizeof (asize) >= NN_NUMBUF_SZ);
-			CTASSERT(sizeof (avg) >= NN_NUMBUF_SZ);
-			CTASSERT(sizeof (gang) >= NN_NUMBUF_SZ);
+			_Static_assert(sizeof (csize) >= NN_NUMBUF_SZ,
+			    "csize truncated");
+			_Static_assert(sizeof (lsize) >= NN_NUMBUF_SZ,
+			    "lsize truncated");
+			_Static_assert(sizeof (psize) >= NN_NUMBUF_SZ,
+			    "psize truncated");
+			_Static_assert(sizeof (asize) >= NN_NUMBUF_SZ,
+			    "asize truncated");
+			_Static_assert(sizeof (avg) >= NN_NUMBUF_SZ,
+			    "avg truncated");
+			_Static_assert(sizeof (gang) >= NN_NUMBUF_SZ,
+			    "gang truncated");
 
 			if (t < DMU_OT_NUMTYPES)
 				typename = dmu_ot[t].ot_name;

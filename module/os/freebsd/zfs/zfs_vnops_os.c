@@ -3937,8 +3937,10 @@ zfs_inactive(vnode_t *vp, cred_t *cr, caller_context_t *ct)
 }
 
 
-CTASSERT(sizeof (struct zfid_short) <= sizeof (struct fid));
-CTASSERT(sizeof (struct zfid_long) <= sizeof (struct fid));
+_Static_assert(sizeof (struct zfid_short) <= sizeof (struct fid),
+	"struct zfid_short bigger than struct fid");
+_Static_assert(sizeof (struct zfid_long) <= sizeof (struct fid),
+	"struct zfid_long bigger than struct fid");
 
 /*ARGSUSED*/
 static int
