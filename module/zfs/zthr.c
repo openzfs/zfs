@@ -469,6 +469,12 @@ zthr_iscancelled(zthr_t *t)
 	return (cancelled);
 }
 
+boolean_t
+zthr_iscurthread(zthr_t *t)
+{
+	return (t->zthr_thread == curthread);
+}
+
 /*
  * Wait for the zthr to finish its current function. Similar to
  * zthr_iscancelled, you can use zthr_has_waiters to have the zthr_func end
