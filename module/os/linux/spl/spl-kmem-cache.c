@@ -57,7 +57,6 @@
 #endif
 
 /* BEGIN CSTYLED */
-
 /*
  * Cache magazines are an optimization designed to minimize the cost of
  * allocating memory.  They do this by keeping a per-cpu cache of recently

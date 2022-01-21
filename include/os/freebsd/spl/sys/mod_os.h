@@ -43,10 +43,10 @@
 #define	ZMOD_RW CTLFLAG_RWTUN
 #define	ZMOD_RD CTLFLAG_RDTUN
 
-/* BEGIN CSTYLED */
 #define	ZFS_MODULE_PARAM(scope_prefix, name_prefix, name, type, perm, desc) \
     SYSCTL_DECL(_vfs_ ## scope_prefix); \
-    SYSCTL_##type(_vfs_ ## scope_prefix, OID_AUTO, name, perm, &name_prefix ## name, 0, desc)
+    SYSCTL_##type(_vfs_ ## scope_prefix, OID_AUTO, name, perm, \
+	&name_prefix ## name, 0, desc)
 
 #define	ZFS_MODULE_PARAM_ARGS	SYSCTL_HANDLER_ARGS
 
@@ -54,8 +54,10 @@
     SYSCTL_DECL(parent); \
     SYSCTL_PROC(parent, OID_AUTO, name, perm | args, desc)
 
-#define	ZFS_MODULE_PARAM_CALL(scope_prefix, name_prefix, name, func, _, perm, desc) \
-    ZFS_MODULE_PARAM_CALL_IMPL(_vfs_ ## scope_prefix, name, perm, func ## _args(name_prefix ## name), desc)
+#define	ZFS_MODULE_PARAM_CALL( \
+    scope_prefix, name_prefix, name, func, _, perm, desc) \
+	ZFS_MODULE_PARAM_CALL_IMPL(_vfs_ ## scope_prefix, name, perm, \
+	    func ## _args(name_prefix ## name), desc)
 
 #define	ZFS_MODULE_VIRTUAL_PARAM_CALL ZFS_MODULE_PARAM_CALL
 
@@ -96,29 +98,28 @@
     CTLTYPE_STRING, NULL, 0, fletcher_4_param, "A"
 
 #include <sys/kernel.h>
-#define	module_init(fn)							\
+#define	module_init(fn) \
 static void \
 wrap_ ## fn(void *dummy __unused) \
-{								 \
-	fn();						 \
-}																		\
+{ \
+	fn(); \
+} \
 SYSINIT(zfs_ ## fn, SI_SUB_LAST, SI_ORDER_FIRST, wrap_ ## fn, NULL)
 
-#define	module_init_early(fn)							\
+#define	module_init_early(fn) \
 static void \
 wrap_ ## fn(void *dummy __unused) \
-{								 \
-	fn();						 \
-}																		\
+{ \
+	fn(); \
+} \
 SYSINIT(zfs_ ## fn, SI_SUB_INT_CONFIG_HOOKS, SI_ORDER_FIRST, wrap_ ## fn, NULL)
 
-#define	module_exit(fn) 							\
+#define	module_exit(fn) \
 static void \
 wrap_ ## fn(void *dummy __unused) \
-{								 \
-	fn();						 \
-}																		\
+{ \
+	fn(); \
+} \
 SYSUNINIT(zfs_ ## fn, SI_SUB_LAST, SI_ORDER_FIRST, wrap_ ## fn, NULL)
-/* END CSTYLED */
 
 #endif /* SPL_MOD_H */

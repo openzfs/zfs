@@ -65,12 +65,10 @@ DECLARE_EVENT_CLASS(zfs_dprintf_class,
 );
 /* END CSTYLED */
 
-/* BEGIN CSTYLED */
 #define	DEFINE_DPRINTF_EVENT(name) \
 DEFINE_EVENT(zfs_dprintf_class, name, \
-	TP_PROTO(const char *msg), \
-	TP_ARGS(msg))
-/* END CSTYLED */
+    TP_PROTO(const char *msg), \
+    TP_ARGS(msg))
 DEFINE_DPRINTF_EVENT(zfs_zfs__dprintf);
 
 #endif /* _TRACE_DBGMSG_H */

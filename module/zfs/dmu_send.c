@@ -3084,7 +3084,6 @@ out:
 	return (err);
 }
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_send, zfs_send_, corrupt_data, INT, ZMOD_RW,
 	"Allow sending corrupt data");
 
@@ -3105,4 +3104,3 @@ ZFS_MODULE_PARAM(zfs_send, zfs_send_, no_prefetch_queue_ff, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_send, zfs_, override_estimate_recordsize, INT, ZMOD_RW,
 	"Override block size estimate with fixed size");
-/* END CSTYLED */

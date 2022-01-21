@@ -1031,12 +1031,11 @@ vdev_queue_last_offset(vdev_t *vd)
 	return (vd->vdev_queue.vq_last_offset);
 }
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, aggregation_limit, INT, ZMOD_RW,
 	"Max vdev I/O aggregation size");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, aggregation_limit_non_rotating, INT, ZMOD_RW,
-	"Max vdev I/O aggregation size for non-rotating media");
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, aggregation_limit_non_rotating, INT,
+	ZMOD_RW, "Max vdev I/O aggregation size for non-rotating media");
 
 ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, aggregate_trim, INT, ZMOD_RW,
 	"Allow TRIM I/O to be aggregated");
@@ -1050,11 +1049,11 @@ ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, write_gap_limit, INT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, max_active, INT, ZMOD_RW,
 	"Maximum number of active I/Os per vdev");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, async_write_active_max_dirty_percent, INT, ZMOD_RW,
-	"Async write concurrency max threshold");
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, async_write_active_max_dirty_percent, INT,
+	ZMOD_RW, "Async write concurrency max threshold");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, async_write_active_min_dirty_percent, INT, ZMOD_RW,
-	"Async write concurrency min threshold");
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, async_write_active_min_dirty_percent, INT,
+	ZMOD_RW, "Async write concurrency min threshold");
 
 ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, async_read_max_active, INT, ZMOD_RW,
 	"Max active async read I/Os per vdev");
@@ -1118,4 +1117,3 @@ ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, nia_delay, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, queue_depth_pct, INT, ZMOD_RW,
 	"Queue depth percentage for each top-level vdev");
-/* END CSTYLED */

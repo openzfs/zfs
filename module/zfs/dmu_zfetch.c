@@ -531,7 +531,6 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data,
 		dmu_zfetch_run(zs, missed, have_lock);
 }
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_prefetch, zfs_prefetch_, disable, INT, ZMOD_RW,
 	"Disable all ZFS prefetching");
 
@@ -549,4 +548,3 @@ ZFS_MODULE_PARAM(zfs_prefetch, zfetch_, max_idistance, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_prefetch, zfetch_, array_rd_sz, ULONG, ZMOD_RW,
 	"Number of bytes in a array_read");
-/* END CSTYLED */

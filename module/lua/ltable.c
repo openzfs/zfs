@@ -1,4 +1,3 @@
-/* BEGIN CSTYLED */
 /*
 ** $Id: ltable.c,v 2.72.1.1 2013/04/12 18:48:47 roberto Exp $
 ** Lua tables (hash)
@@ -589,4 +588,3 @@ Node *luaH_mainposition (const Table *t, const TValue *key) {
 int luaH_isdummy (Node *n) { return isdummy(n); }
 
 #endif
-/* END CSTYLED */

@@ -613,7 +613,6 @@ EXPORT_SYMBOL(spa_config_set);
 EXPORT_SYMBOL(spa_config_generate);
 EXPORT_SYMBOL(spa_config_update);
 
-/* BEGIN CSTYLED */
 #ifdef __linux__
 /* string sysctls require a char array on FreeBSD */
 ZFS_MODULE_PARAM(zfs_spa, spa_, config_path, STRING, ZMOD_RD,
@@ -622,4 +621,3 @@ ZFS_MODULE_PARAM(zfs_spa, spa_, config_path, STRING, ZMOD_RD,
 
 ZFS_MODULE_PARAM(zfs, zfs_, autoimport_disable, INT, ZMOD_RW,
 	"Disable pool import at module load");
-/* END CSTYLED */

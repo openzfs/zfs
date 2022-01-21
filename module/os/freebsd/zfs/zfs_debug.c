@@ -245,10 +245,8 @@ zfs_dbgmsg_print(const char *tag)
 }
 #endif /* _KERNEL */
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs, zfs_, dbgmsg_enable, INT, ZMOD_RW,
-    "Enable ZFS debug message log");
+	"Enable ZFS debug message log");
 
 ZFS_MODULE_PARAM(zfs, zfs_, dbgmsg_maxsize, INT, ZMOD_RW,
-    "Maximum ZFS debug log size");
-/* END CSTYLED */
+	"Maximum ZFS debug log size");

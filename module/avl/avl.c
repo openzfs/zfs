@@ -319,7 +319,6 @@ avl_rotation(avl_tree_t *tree, avl_node_t *node, int balance)
 	int which_child = AVL_XCHILD(node);
 	int child_bal = AVL_XBALANCE(child);
 
-	/* BEGIN CSTYLED */
 	/*
 	 * case 1 : node is overly left heavy, the left child is balanced or
 	 * also left heavy. This requires the following rotation.
@@ -345,7 +344,6 @@ avl_rotation(avl_tree_t *tree, avl_node_t *node, int balance)
 	 * we detect this situation by noting that child's balance is not
 	 * right_heavy.
 	 */
-	/* END CSTYLED */
 	if (child_bal != right_heavy) {
 
 		/*
@@ -388,7 +386,6 @@ avl_rotation(avl_tree_t *tree, avl_node_t *node, int balance)
 		return (child_bal == 0);
 	}
 
-	/* BEGIN CSTYLED */
 	/*
 	 * case 2 : When node is left heavy, but child is right heavy we use
 	 * a different rotation.
@@ -420,7 +417,6 @@ avl_rotation(avl_tree_t *tree, avl_node_t *node, int balance)
 	 *	 if gchild was right_heavy, then child is now left heavy
 	 *		else it is balanced
 	 */
-	/* END CSTYLED */
 	gchild = child->avl_child[right];
 	gleft = gchild->avl_child[left];
 	gright = gchild->avl_child[right];

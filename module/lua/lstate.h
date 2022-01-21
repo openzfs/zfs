@@ -1,4 +1,3 @@
-/* BEGIN CSTYLED */
 /*
 ** $Id: lstate.h,v 2.82.1.1 2013/04/12 18:48:47 roberto Exp $
 ** Global State
@@ -227,4 +226,3 @@ LUAI_FUNC void luaE_freeCI (lua_State *L);
 
 
 #endif
-/* END CSTYLED */

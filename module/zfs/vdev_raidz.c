@@ -1351,7 +1351,6 @@ vdev_raidz_reconstruct_pq(raidz_row_t *rr, int *tgts, int ntgts)
 	rr->rr_col[VDEV_RAIDZ_Q].rc_abd = qdata;
 }
 
-/* BEGIN CSTYLED */
 /*
  * In the general case of reconstruction, we must solve the system of linear
  * equations defined by the coefficients used to generate parity as well as
@@ -1503,7 +1502,6 @@ vdev_raidz_reconstruct_pq(raidz_row_t *rr, int *tgts, int ntgts)
  * that reason, we only build the coefficients in the rows that correspond to
  * targeted columns.
  */
-/* END CSTYLED */
 
 static void
 vdev_raidz_matrix_init(raidz_row_t *rr, int n, int nmap, int *map,

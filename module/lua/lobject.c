@@ -1,4 +1,3 @@
-/* BEGIN CSTYLED */
 /*
 ** $Id: lobject.c,v 2.58.1.1 2013/04/12 18:48:47 roberto Exp $
 ** Some generic functions over Lua objects
@@ -279,4 +278,3 @@ void luaO_chunkid (char *out, const char *source, size_t bufflen) {
     memcpy(out, POS, (LL(POS) + 1) * sizeof(char));
   }
 }
-/* END CSTYLED */

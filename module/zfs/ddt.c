@@ -1180,7 +1180,5 @@ ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_entry_t *dde)
 	return (SET_ERROR(ENOENT));
 }
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_dedup, zfs_dedup_, prefetch, INT, ZMOD_RW,
 	"Enable prefetching dedup-ed blks");
-/* END CSTYLED */

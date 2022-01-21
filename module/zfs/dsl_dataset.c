@@ -4957,7 +4957,6 @@ dsl_dataset_activate_redaction(dsl_dataset_t *ds, uint64_t *redact_snaps,
 	ds->ds_feature[SPA_FEATURE_REDACTED_DATASETS] = ftuaa;
 }
 
-/* BEGIN CSTYLED */
 #if defined(_LP64)
 #define	RECORDSIZE_PERM ZMOD_RW
 #else
@@ -4969,7 +4968,6 @@ ZFS_MODULE_PARAM(zfs, zfs_, max_recordsize, INT, RECORDSIZE_PERM,
 
 ZFS_MODULE_PARAM(zfs, zfs_, allow_redacted_dataset_mount, INT, ZMOD_RW,
 	"Allow mounting of redacted datasets");
-/* END CSTYLED */
 
 EXPORT_SYMBOL(dsl_dataset_hold);
 EXPORT_SYMBOL(dsl_dataset_hold_flags);

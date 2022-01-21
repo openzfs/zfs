@@ -1,4 +1,3 @@
-/* BEGIN CSTYLED */
 /*
 ** $Id: lopcodes.c,v 1.49.1.1 2013/04/12 18:48:47 roberto Exp $
 ** Opcodes for Lua virtual machine
@@ -105,4 +104,3 @@ LUAI_DDEF const lu_byte luaP_opmodes[NUM_OPCODES] = {
  ,opmode(0, 1, OpArgU, OpArgN, iABC)		/* OP_VARARG */
  ,opmode(0, 0, OpArgU, OpArgU, iAx)		/* OP_EXTRAARG */
 };
-/* END CSTYLED */

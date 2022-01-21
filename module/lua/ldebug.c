@@ -1,4 +1,3 @@
-/* BEGIN CSTYLED */
 /*
 ** $Id: ldebug.c,v 2.90.1.4 2015/02/19 17:05:13 roberto Exp $
 ** Debug Interface
@@ -605,4 +604,3 @@ l_noret luaG_runerror (lua_State *L, const char *fmt, ...) {
   luaG_errormsg(L);
   L->runerror--;
 }
-/* END CSTYLED */

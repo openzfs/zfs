@@ -2346,7 +2346,6 @@ EXPORT_SYMBOL(dmu_assign_arcbuf_by_dbuf);
 EXPORT_SYMBOL(dmu_buf_hold);
 EXPORT_SYMBOL(dmu_ot);
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs, zfs_, nopwrite_enabled, INT, ZMOD_RW,
 	"Enable NOP writes");
 
@@ -2356,6 +2355,6 @@ ZFS_MODULE_PARAM(zfs, zfs_, per_txg_dirty_frees_percent, ULONG, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, dmu_offset_next_sync, INT, ZMOD_RW,
 	"Enable forcing txg sync to find holes");
 
+/* CSTYLED */
 ZFS_MODULE_PARAM(zfs, , dmu_prefetch_max, INT, ZMOD_RW,
 	"Limit one prefetch call to this size");
-/* END CSTYLED */

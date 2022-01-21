@@ -7862,10 +7862,8 @@ zfs_kmod_fini(void)
 	tsd_destroy(&zfs_allow_log_key);
 }
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs, zfs_, max_nvlist_src_size, ULONG, ZMOD_RW,
-    "Maximum size in bytes allowed for src nvlist passed with ZFS ioctls");
+	"Maximum size in bytes allowed for src nvlist passed with ZFS ioctls");
 
 ZFS_MODULE_PARAM(zfs, zfs_, history_output_max, ULONG, ZMOD_RW,
-    "Maximum size in bytes of ZFS ioctl output that will be logged");
-/* END CSTYLED */
+	"Maximum size in bytes of ZFS ioctl output that will be logged");

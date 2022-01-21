@@ -5034,7 +5034,6 @@ EXPORT_SYMBOL(zio_data_buf_alloc);
 EXPORT_SYMBOL(zio_buf_free);
 EXPORT_SYMBOL(zio_data_buf_free);
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_zio, zio_, slow_io_ms, INT, ZMOD_RW,
 	"Max I/O completion time (milliseconds) before marking it as slow");
 
@@ -5055,4 +5054,3 @@ ZFS_MODULE_PARAM(zfs_zio, zio_, dva_throttle_enabled, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_zio, zio_, deadman_log_all, INT, ZMOD_RW,
 	"Log all slow ZIOs, not just those with vdevs");
-/* END CSTYLED */

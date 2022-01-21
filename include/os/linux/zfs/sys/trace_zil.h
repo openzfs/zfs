@@ -170,14 +170,12 @@ DECLARE_EVENT_CLASS(zfs_zil_process_itx_class,
 );
 /* END CSTYLED */
 
-/* BEGIN CSTYLED */
 #define	DEFINE_ZIL_PROCESS_ITX_EVENT(name) \
 DEFINE_EVENT(zfs_zil_process_itx_class, name, \
-	TP_PROTO(zilog_t *zilog, itx_t *itx), \
-	TP_ARGS(zilog, itx))
+    TP_PROTO(zilog_t *zilog, itx_t *itx), \
+    TP_ARGS(zilog, itx))
 DEFINE_ZIL_PROCESS_ITX_EVENT(zfs_zil__process__commit__itx);
 DEFINE_ZIL_PROCESS_ITX_EVENT(zfs_zil__process__normal__itx);
-/* END CSTYLED */
 
 /*
  * Generic support for two argument tracepoints of the form:
@@ -203,13 +201,11 @@ DECLARE_EVENT_CLASS(zfs_zil_commit_io_error_class,
 	    ZILOG_TP_PRINTK_ARGS, ZCW_TP_PRINTK_ARGS)
 );
 
-/* BEGIN CSTYLED */
 #define	DEFINE_ZIL_COMMIT_IO_ERROR_EVENT(name) \
 DEFINE_EVENT(zfs_zil_commit_io_error_class, name, \
-	TP_PROTO(zilog_t *zilog, zil_commit_waiter_t *zcw), \
-	TP_ARGS(zilog, zcw))
+    TP_PROTO(zilog_t *zilog, zil_commit_waiter_t *zcw), \
+    TP_ARGS(zilog, zcw))
 DEFINE_ZIL_COMMIT_IO_ERROR_EVENT(zfs_zil__commit__io__error);
-/* END CSTYLED */
 
 #endif /* _TRACE_ZIL_H */
 

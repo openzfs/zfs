@@ -968,11 +968,9 @@ fletcher_4_param(ZFS_MODULE_PARAM_ARGS)
  * Users can choose "cycle" to exercise all implementations, but this is
  * for testing purpose therefore it can only be set in user space.
  */
-/* BEGIN CSTYLED */
 ZFS_MODULE_VIRTUAL_PARAM_CALL(zfs, zfs_, fletcher_4_impl,
-	fletcher_4_param_set, fletcher_4_param_get, ZMOD_RW,
+    fletcher_4_param_set, fletcher_4_param_get, ZMOD_RW,
 	"Select fletcher 4 implementation.");
-/* END CSTYLED */
 
 EXPORT_SYMBOL(fletcher_init);
 EXPORT_SYMBOL(fletcher_2_incremental_native);

@@ -1,4 +1,3 @@
-/* BEGIN CSTYLED */
 /*
 ** $Id: ldo.c,v 2.108.1.3 2013/11/08 18:22:50 roberto Exp $
 ** Stack and Call structure of Lua
@@ -746,4 +745,3 @@ int luaD_protectedparser (lua_State *L, ZIO *z, const char *name,
   L->nny--;
   return status;
 }
-/* END CSTYLED */

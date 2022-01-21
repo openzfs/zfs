@@ -1,4 +1,3 @@
-/* BEGIN CSTYLED */
 /*
 ** $Id: ltm.c,v 2.14.1.1 2013/04/12 18:48:47 roberto Exp $
 ** Tag methods
@@ -73,4 +72,3 @@ const TValue *luaT_gettmbyobj (lua_State *L, const TValue *o, TMS event) {
   }
   return (mt ? luaH_getstr(mt, G(L)->tmname[event]) : luaO_nilobject);
 }
-/* END CSTYLED */

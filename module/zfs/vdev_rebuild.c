@@ -1138,7 +1138,6 @@ vdev_rebuild_get_stats(vdev_t *tvd, vdev_rebuild_stat_t *vrs)
 	return (error);
 }
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs, zfs_, rebuild_max_segment, ULONG, ZMOD_RW,
 	"Max segment size in bytes of rebuild reads");
 
@@ -1147,4 +1146,3 @@ ZFS_MODULE_PARAM(zfs, zfs_, rebuild_vdev_limit, ULONG, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, rebuild_scrub_enabled, INT, ZMOD_RW,
 	"Automatically scrub after sequential resilver completes");
-/* END CSTYLED */

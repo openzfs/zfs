@@ -180,11 +180,10 @@ taskq_seq_show_headers(struct seq_file *f)
 #define	LHEAD_ACTIVE	4
 #define	LHEAD_SIZE	5
 
-/* BEGIN CSTYLED */
 static unsigned int spl_max_show_tasks = 512;
+/* CSTYLED */
 module_param(spl_max_show_tasks, uint, 0644);
 MODULE_PARM_DESC(spl_max_show_tasks, "Max number of tasks shown in taskq proc");
-/* END CSTYLED */
 
 static int
 taskq_seq_show_impl(struct seq_file *f, void *p, boolean_t allflag)

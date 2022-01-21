@@ -1,4 +1,3 @@
-/* BEGIN CSTYLED */
 /*
 ** $Id: lobject.h,v 2.71.1.2 2014/05/07 14:14:58 roberto Exp $
 ** Type definitions for Lua objects
@@ -602,4 +601,3 @@ LUAI_FUNC void luaO_chunkid (char *out, const char *source, size_t len);
 
 
 #endif
-/* END CSTYLED */

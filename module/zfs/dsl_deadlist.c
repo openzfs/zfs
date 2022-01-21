@@ -1034,10 +1034,8 @@ dsl_process_sub_livelist(bpobj_t *bpobj, bplist_t *to_free, zthr_t *t,
 	return (err);
 }
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_livelist, zfs_livelist_, max_entries, ULONG, ZMOD_RW,
 	"Size to start the next sub-livelist in a livelist");
 
 ZFS_MODULE_PARAM(zfs_livelist, zfs_livelist_, min_percent_shared, INT, ZMOD_RW,
 	"Threshold at which livelist is disabled");
-/* END CSTYLED */

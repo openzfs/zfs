@@ -226,7 +226,5 @@ dbuf_stats_destroy(void)
 	dbuf_stats_hash_table_destroy();
 }
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs, zfs_, dbuf_state_index, INT, ZMOD_RW,
 	"Calculate arc header index");
-/* END CSTYLED */

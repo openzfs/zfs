@@ -26,6 +26,7 @@
 #include <sys/kmem.h>
 #include <sys/vmem.h>
 
+/* BEGIN CSTYLED */
 /*
  * As a general rule kmem_alloc() allocations should be small, preferably
  * just a few pages since they must by physically contiguous.  Therefore, a
@@ -41,7 +42,6 @@
  * allocations are quickly caught.  These warnings may be disabled by setting
  * the threshold to zero.
  */
-/* BEGIN CSTYLED */
 unsigned int spl_kmem_alloc_warn = MIN(16 * PAGE_SIZE, 64 * 1024);
 module_param(spl_kmem_alloc_warn, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_alloc_warn,

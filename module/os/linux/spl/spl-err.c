@@ -32,11 +32,10 @@
  * analysis and other such goodies.
  * But we would still default to the current default of not to do that.
  */
-/* BEGIN CSTYLED */
 unsigned int spl_panic_halt;
+/* CSTYLED */
 module_param(spl_panic_halt, uint, 0644);
 MODULE_PARM_DESC(spl_panic_halt, "Cause kernel panic on assertion failures");
-/* END CSTYLED */
 
 void
 spl_dumpstack(void)
