@@ -518,7 +518,7 @@ print_vdev_prop_cb(int prop, void *cb)
  * that command.  Otherwise, iterate over the entire command table and display
  * a complete usage message.
  */
-static void
+static _Noreturn void
 usage(boolean_t requested)
 {
 	FILE *fp = requested ? stdout : stderr;
@@ -10069,7 +10069,6 @@ zpool_do_get(int argc, char **argv)
 	zprop_list_t fake_name = { 0 };
 	int ret;
 	int c, i;
-	char *value;
 	char *propstr = NULL;
 
 	cb.cb_first = B_TRUE;
@@ -10098,10 +10097,14 @@ zpool_do_get(int argc, char **argv)
 		case 'o':
 			memset(&cb.cb_columns, 0, sizeof (cb.cb_columns));
 			i = 0;
-			while (*optarg != '\0') {
-				static char *col_subopts[] =
+
+			for (char *tok; (tok = strsep(&optarg, ",")); ) {
+				static const char *const col_opts[] =
 				{ "name", "property", "value", "source",
-				"all", NULL };
+				    "all" };
+				static const zfs_get_column_t col_cols[] =
+				{ GET_COL_NAME, GET_COL_PROPERTY, GET_COL_VALUE,
+				    GET_COL_SOURCE };
 
 				if (i == ZFS_GET_NCOLS) {
 					(void) fprintf(stderr, gettext("too "
@@ -10110,21 +10113,16 @@ zpool_do_get(int argc, char **argv)
 					usage(B_FALSE);
 				}
 
-				switch (getsubopt(&optarg, col_subopts,
-				    &value)) {
-				case 0:
-					cb.cb_columns[i++] = GET_COL_NAME;
-					break;
-				case 1:
-					cb.cb_columns[i++] = GET_COL_PROPERTY;
-					break;
-				case 2:
-					cb.cb_columns[i++] = GET_COL_VALUE;
-					break;
-				case 3:
-					cb.cb_columns[i++] = GET_COL_SOURCE;
-					break;
-				case 4:
+				for (c = 0; c < ARRAY_SIZE(col_opts); ++c)
+					if (strcmp(tok, col_opts[c]) == 0)
+						goto found;
+
+				(void) fprintf(stderr,
+				    gettext("invalid column name '%s'\n"), tok);
+				usage(B_FALSE);
+
+found:
+				if (c >= 4) {
 					if (i > 0) {
 						(void) fprintf(stderr,
 						    gettext("\"all\" conflicts "
@@ -10132,18 +10130,12 @@ zpool_do_get(int argc, char **argv)
 						    "given to -o option\n"));
 						usage(B_FALSE);
 					}
-					cb.cb_columns[0] = GET_COL_NAME;
-					cb.cb_columns[1] = GET_COL_PROPERTY;
-					cb.cb_columns[2] = GET_COL_VALUE;
-					cb.cb_columns[3] = GET_COL_SOURCE;
+
+					memcpy(cb.cb_columns, col_cols,
+					    sizeof (col_cols));
 					i = ZFS_GET_NCOLS;
-					break;
-				default:
-					(void) fprintf(stderr,
-					    gettext("invalid column name "
-					    "'%s'\n"), value);
-					usage(B_FALSE);
-				}
+				} else
+					cb.cb_columns[i++] = col_cols[c];
 			}
 			break;
 		case '?':
