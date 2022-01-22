@@ -18,12 +18,10 @@
  */
 
 #include <stdio.h>
-#include <strings.h>
+#include <string.h>
 #include <sys/crypto/icp.h>
 #include <sys/sha2.h>
 #include <sys/hkdf.h>
-
-#define	NELEMS(x)  (sizeof (x) / sizeof ((x)[0]))
 
 /*
  * Byte arrays are given as char pointers so that they
@@ -214,7 +212,7 @@ main(void)
 
 	icp_init();
 
-	for (i = 0; i < NELEMS(test_vectors); i++) {
+	for (i = 0; i < ARRAY_SIZE(test_vectors); i++) {
 		ret = run_test(i, &test_vectors[i]);
 		if (ret != 0)
 			break;

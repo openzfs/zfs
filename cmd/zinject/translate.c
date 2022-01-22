@@ -31,7 +31,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <strings.h>
+#include <string.h>
 #include <sys/file.h>
 #include <sys/mntent.h>
 #include <sys/mnttab.h>
@@ -186,6 +186,7 @@ initialize_range(err_type_t type, int level, char *range,
 	switch (type) {
 	default:
 		break;
+
 	case TYPE_DATA:
 		break;
 

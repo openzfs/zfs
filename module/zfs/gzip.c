@@ -28,7 +28,6 @@
 
 #include <sys/debug.h>
 #include <sys/types.h>
-#include <sys/strings.h>
 #include <sys/qat.h>
 #include <sys/zio_compress.h>
 

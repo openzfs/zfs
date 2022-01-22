@@ -52,7 +52,7 @@ extern "C" {
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <strings.h>
+#include <string.h>
 
 #define	BLOCKSZ		8192
 #define	DATA		0xa5

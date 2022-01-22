@@ -27,7 +27,7 @@
 #include <sys/byteorder.h>
 #include <sys/frame.h>
 #include <sys/spa_checksum.h>
-#include <sys/strings.h>
+#include <sys/string.h>
 #include <sys/simd.h>
 #include <zfs_fletcher.h>
 
