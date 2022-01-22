@@ -498,7 +498,7 @@ usage_prop_cb(int prop, void *cb)
  * that command.  Otherwise, iterate over the entire command table and display
  * a complete usage message.
  */
-static void
+static _Noreturn void
 usage(boolean_t requested)
 {
 	int i;
@@ -3551,13 +3551,12 @@ static int
 zfs_do_list(int argc, char **argv)
 {
 	int c;
-	static char default_fields[] =
+	char default_fields[] =
 	    "name,used,available,referenced,mountpoint";
 	int types = ZFS_TYPE_DATASET;
 	boolean_t types_specified = B_FALSE;
-	char *fields = NULL;
+	char *fields = default_fields;
 	list_cbdata_t cb = { 0 };
-	char *value;
 	int limit = 0;
 	int ret = 0;
 	zfs_sort_column_t *sortcol = NULL;
@@ -3602,36 +3601,29 @@ zfs_do_list(int argc, char **argv)
 			types = 0;
 			types_specified = B_TRUE;
 			flags &= ~ZFS_ITER_PROP_LISTSNAPS;
-			while (*optarg != '\0') {
-				static char *type_subopts[] = { "filesystem",
-				    "volume", "snapshot", "snap", "bookmark",
-				    "all", NULL };
 
-				switch (getsubopt(&optarg, type_subopts,
-				    &value)) {
-				case 0:
-					types |= ZFS_TYPE_FILESYSTEM;
-					break;
-				case 1:
-					types |= ZFS_TYPE_VOLUME;
-					break;
-				case 2:
-				case 3:
-					types |= ZFS_TYPE_SNAPSHOT;
-					break;
-				case 4:
-					types |= ZFS_TYPE_BOOKMARK;
-					break;
-				case 5:
-					types = ZFS_TYPE_DATASET |
-					    ZFS_TYPE_BOOKMARK;
-					break;
-				default:
-					(void) fprintf(stderr,
-					    gettext("invalid type '%s'\n"),
-					    value);
-					usage(B_FALSE);
-				}
+			for (char *tok; (tok = strsep(&optarg, ",")); ) {
+				static const char *const type_subopts[] = {
+					"filesystem", "volume",
+					"snapshot", "snap",
+					"bookmark",
+					"all" };
+				static const int type_types[] = {
+					ZFS_TYPE_FILESYSTEM, ZFS_TYPE_VOLUME,
+					ZFS_TYPE_SNAPSHOT, ZFS_TYPE_SNAPSHOT,
+					ZFS_TYPE_BOOKMARK,
+					ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK };
+
+				for (c = 0; c < ARRAY_SIZE(type_subopts); ++c)
+					if (strcmp(tok, type_subopts[c]) == 0) {
+						types |= type_types[c];
+						goto found3;
+					}
+
+				(void) fprintf(stderr,
+				    gettext("invalid type '%s'\n"), tok);
+				usage(B_FALSE);
+found3:;
 			}
 			break;
 		case ':':
@@ -3648,9 +3640,6 @@ zfs_do_list(int argc, char **argv)
 
 	argc -= optind;
 	argv += optind;
-
-	if (fields == NULL)
-		fields = default_fields;
 
 	/*
 	 * If we are only going to list snapshot names and sort by name,
