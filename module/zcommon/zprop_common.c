@@ -85,6 +85,11 @@ zfs_mod_supported_prop(const char *name, zfs_type_t type,
 #if defined(_KERNEL) || defined(LIB_ZPOOL_BUILD) || defined(__FreeBSD__)
 	(void) name, (void) type, (void) sfeatures;
 	return (B_TRUE);
+#elif defined(_UZFS)
+/*
+ * this may need to be changed for some property in future
+ */
+	return (B_TRUE);
 #else
 	return (zfs_mod_supported(type == ZFS_TYPE_POOL ?
 	    ZFS_SYSFS_POOL_PROPERTIES : (type == ZFS_TYPE_VDEV ?

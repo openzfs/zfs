@@ -64,6 +64,8 @@ ZFS_AC_DEBUG_KMEM
 ZFS_AC_DEBUG_KMEM_TRACKING
 ZFS_AC_DEBUG_INVARIANTS
 
+ZFS_UZFS
+
 AC_CONFIG_FILES([
 	Makefile
 	cmd/Makefile
@@ -82,6 +84,7 @@ AC_CONFIG_FILES([
 	cmd/zgenhostid/Makefile
 	cmd/zhack/Makefile
 	cmd/zinject/Makefile
+	cmd/uzfs/Makefile
 	cmd/zpool/Makefile
 	cmd/zstream/Makefile
 	cmd/ztest/Makefile

@@ -21,6 +21,11 @@ CPPCHECKDIRS += mount_zfs zed zgenhostid zvol_id
 SHELLCHECKDIRS += zed
 endif
 
+if ENABLE_UZFS
+SUBDIRS += uzfs
+CPPCHECKDIRS += uzfs
+endif
+
 PHONY = cppcheck
 cppcheck: $(CPPCHECKDIRS)
 	set -e ; for dir in $(CPPCHECKDIRS) ; do \

@@ -92,7 +92,7 @@
 #include <sys/stat.h>
 #include <sys/zfs_ioctl.h>
 
-static int g_fd = -1;
+int g_fd __attribute__((visibility("default"))) = -1;
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
 static int g_refcount;
 
@@ -137,11 +137,13 @@ libzfs_core_init(void)
 {
 	(void) pthread_mutex_lock(&g_lock);
 	if (g_refcount == 0) {
+#ifndef	_UZFS
 		g_fd = open(ZFS_DEV, O_RDWR|O_CLOEXEC);
 		if (g_fd < 0) {
 			(void) pthread_mutex_unlock(&g_lock);
 			return (errno);
 		}
+#endif
 	}
 	g_refcount++;
 

@@ -70,6 +70,11 @@
 #include <math.h>
 
 #include <libzfs.h>
+
+#ifdef _UZFS
+#include <libuzfs.h>
+#endif
+
 #include <libzutil.h>
 
 #include "zpool_util.h"
@@ -1785,6 +1790,10 @@ zpool_do_create(int argc, char **argv)
 		ret = 1;
 		if (zpool_create(g_zfs, poolname,
 		    nvroot, props, fsprops) == 0) {
+#ifdef _UZFS
+			ret = 0;
+			(void) tname;
+#else
 			zfs_handle_t *pool = zfs_open(g_zfs,
 			    tname ? tname : poolname, ZFS_TYPE_FILESYSTEM);
 			if (pool != NULL) {
@@ -1794,6 +1803,7 @@ zpool_do_create(int argc, char **argv)
 				}
 				zfs_close(pool);
 			}
+#endif
 		} else if (libzfs_errno(g_zfs) == EZFS_INVALIDNAME) {
 			(void) fprintf(stderr, gettext("pool name may have "
 			    "been omitted\n"));
@@ -3225,12 +3235,14 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 			ret = 1;
 	}
 
+#ifndef _UZFS
 	if (zpool_get_state(zhp) != POOL_STATE_UNAVAIL &&
 	    !(flags & ZFS_IMPORT_ONLY) &&
 	    zpool_enable_datasets(zhp, mntopts, 0) != 0) {
 		zpool_close(zhp);
 		return (1);
 	}
+#endif
 
 	zpool_close(zhp);
 	return (ret);
@@ -10925,6 +10937,17 @@ main(int argc, char **argv)
 		(void) fprintf(stderr, "%s\n", libzfs_error_init(errno));
 		return (1);
 	}
+
+#ifdef _UZFS
+	/*
+	 * initialize uzfs client
+	 */
+	if (libuzfs_client_init(g_zfs) < 0) {
+		(void) fprintf(stderr, "%s",
+		    "failed to initialize libuzfs client\n");
+		return (1);
+	}
+#endif
 
 	libzfs_print_on_error(g_zfs, B_TRUE);
 

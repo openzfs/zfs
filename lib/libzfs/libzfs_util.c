@@ -54,6 +54,11 @@
 #include <sys/wait.h>
 
 #include <libzfs.h>
+
+#ifdef	_UZFS
+#include <libuzfs.h>
+#endif
+
 #include <libzfs_core.h>
 
 #include "libzfs_impl.h"
@@ -1012,10 +1017,12 @@ libzfs_init(void)
 	int error;
 	char *env;
 
+#ifndef _UZFS
 	if ((error = libzfs_load_module()) != 0) {
 		errno = error;
 		return (NULL);
 	}
+#endif
 
 	if ((hdl = calloc(1, sizeof (libzfs_handle_t))) == NULL) {
 		return (NULL);
@@ -1025,6 +1032,15 @@ libzfs_init(void)
 		free(hdl);
 		return (NULL);
 	}
+
+#ifndef _UZFS
+	if ((hdl->libzfs_fd = open(ZFS_DEV, O_RDWR|O_EXCL)) < 0) {
+		free(hdl);
+		return (NULL);
+	}
+#else
+	hdl->libzfs_fd = -1;
+#endif
 
 	if ((hdl->libzfs_fd = open(ZFS_DEV, O_RDWR|O_EXCL|O_CLOEXEC)) < 0) {
 		free(hdl);

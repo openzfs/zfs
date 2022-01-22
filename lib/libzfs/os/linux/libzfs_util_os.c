@@ -45,11 +45,52 @@
 
 #define	ZDIFF_SHARESDIR		"/.zfs/shares/"
 
+#if !defined(_UZFS)
 int
 zfs_ioctl(libzfs_handle_t *hdl, int request, zfs_cmd_t *zc)
 {
 	return (ioctl(hdl->libzfs_fd, request, zc));
 }
+
+#else
+
+#include <libuzfs.h>
+
+/*
+ * process ioctl from client, zfs/zpool cmd, in userspace
+ */
+int
+zfs_ioctl(libzfs_handle_t *hdl, int request, zfs_cmd_t *zc)
+{
+	int fd = hdl->libzfs_fd;
+	/*
+	 * uZFS kernel does not handle multithreaded ioctl call parallely.
+	 * Here giving an illusion to the kernel that the call is coming
+	 * from a different process so that it can execute it parallely.
+	 */
+	if (!is_main_thread()) {
+		fd = uzfs_client_init(UZFS_SOCK);
+	}
+
+	if (uzfs_send_ioctl(fd, request, zc)) {
+		perror("ioctl send failed\n");
+		exit(1);
+	}
+
+	int ret = uzfs_recv_response(fd, zc);
+
+	int err = (ret < 0 ? errno : ret);
+
+	if (!is_main_thread()) {
+		close(fd);
+	}
+
+	if (err)
+		return (SET_ERR(err));
+
+	return (0);
+}
+#endif /* _UZFS */
 
 const char *
 libzfs_error_init(int error)
