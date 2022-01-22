@@ -2088,38 +2088,27 @@ found:
 
 		case 's':
 			cb.cb_sources = 0;
-			while (*optarg != '\0') {
-				static char *source_subopts[] = {
-					"local", "default", "inherited",
-					"received", "temporary", "none",
-					NULL };
 
-				switch (getsubopt(&optarg, source_subopts,
-				    &value)) {
-				case 0:
-					cb.cb_sources |= ZPROP_SRC_LOCAL;
-					break;
-				case 1:
-					cb.cb_sources |= ZPROP_SRC_DEFAULT;
-					break;
-				case 2:
-					cb.cb_sources |= ZPROP_SRC_INHERITED;
-					break;
-				case 3:
-					cb.cb_sources |= ZPROP_SRC_RECEIVED;
-					break;
-				case 4:
-					cb.cb_sources |= ZPROP_SRC_TEMPORARY;
-					break;
-				case 5:
-					cb.cb_sources |= ZPROP_SRC_NONE;
-					break;
-				default:
-					(void) fprintf(stderr,
-					    gettext("invalid source "
-					    "'%s'\n"), value);
-					usage(B_FALSE);
-				}
+			for (char *tok; (tok = strsep(&optarg, ",")); ) {
+				static const char *const source_opt[] = {
+					"local", "default",
+					"inherited", "received",
+					"temporary", "none" };
+				static const int source_flg[] = {
+					ZPROP_SRC_LOCAL, ZPROP_SRC_DEFAULT,
+					ZPROP_SRC_INHERITED, ZPROP_SRC_RECEIVED,
+					ZPROP_SRC_TEMPORARY, ZPROP_SRC_NONE };
+
+				for (i = 0; i < ARRAY_SIZE(source_opt); ++i)
+					if (strcmp(tok, source_opt[i]) == 0) {
+						cb.cb_sources |= source_flg[i];
+						goto found2;
+					}
+
+				(void) fprintf(stderr,
+				    gettext("invalid source '%s'\n"), tok);
+				usage(B_FALSE);
+found2:;
 			}
 			break;
 
