@@ -342,11 +342,11 @@ fmd_case_uuresolved(fmd_hdl_t *hdl, const char *uuid)
 	fmd_hdl_debug(hdl, "case resolved by uuid (%s)", uuid);
 }
 
-int
+boolean_t
 fmd_case_solved(fmd_hdl_t *hdl, fmd_case_t *cp)
 {
 	(void) hdl;
-	return ((cp->ci_state >= FMD_CASE_SOLVED) ? FMD_B_TRUE : FMD_B_FALSE);
+	return (cp->ci_state >= FMD_CASE_SOLVED);
 }
 
 void
@@ -560,7 +560,7 @@ fmd_serd_record(fmd_hdl_t *hdl, const char *name, fmd_event_t *ep)
 	if ((sgp = fmd_serd_eng_lookup(&mp->mod_serds, name)) == NULL) {
 		zed_log_msg(LOG_ERR, "failed to add record to SERD engine '%s'",
 		    name);
-		return (FMD_B_FALSE);
+		return (0);
 	}
 	err = fmd_serd_eng_record(sgp, ep->ev_hrt);
 

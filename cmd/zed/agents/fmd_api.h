@@ -72,10 +72,6 @@ typedef struct fmd_case {
 } fmd_case_t;
 
 
-#define	FMD_B_FALSE	0		/* false value for booleans as int */
-#define	FMD_B_TRUE	1		/* true value for booleans as int */
-
-
 #define	FMD_CASE_UNSOLVED	0	/* case is not yet solved (waiting) */
 #define	FMD_CASE_SOLVED		1	/* case is solved (suspects added) */
 #define	FMD_CASE_CLOSE_WAIT	2	/* case is executing fmdo_close() */
@@ -176,8 +172,7 @@ extern int fmd_case_uuclosed(fmd_hdl_t *, const char *);
 extern int fmd_case_uuisresolved(fmd_hdl_t *, const char *);
 extern void fmd_case_uuresolved(fmd_hdl_t *, const char *);
 
-extern int fmd_case_solved(fmd_hdl_t *, fmd_case_t *);
-extern int fmd_case_closed(fmd_hdl_t *, fmd_case_t *);
+extern boolean_t fmd_case_solved(fmd_hdl_t *, fmd_case_t *);
 
 extern void fmd_case_add_ereport(fmd_hdl_t *, fmd_case_t *, fmd_event_t *);
 extern void fmd_case_add_serd(fmd_hdl_t *, fmd_case_t *, const char *);
