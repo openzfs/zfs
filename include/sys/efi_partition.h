@@ -73,6 +73,11 @@ typedef struct efi_gpe_Attrs {
 			RequiredPartition	:1;
 } efi_gpe_Attrs_t;
 
+/* MBR partition identification tags */
+#define	V_UNASSIGNED	0x00		/* unassigned partition */
+#define	V_USR		0x04		/* Usr filesystem */
+#define	V_RESERVED	0x0b		/* SMI reserved data */
+
 /*
  * 6a96237f-1dd2-11b2-99a6-080020736631	V_UNASSIGNED (not used as such)
  * 6a898cc3-1dd2-11b2-99a6-080020736631	V_USR
@@ -355,6 +360,11 @@ struct partition64 {
 #endif
 
 #ifndef _KERNEL
+#define	VT_ERROR	(-2)		/* errno supplies specific error */
+#define	VT_EIO		(-3)		/* I/O error accessing vtoc */
+#define	VT_EINVAL	(-4)		/* illegal value in vtoc or request */
+#define	VT_ENOSPC	(-6)		/* requested space not found */
+
 _SYS_EFI_PARTITION_H int efi_debug;
 _SYS_EFI_PARTITION_H int efi_alloc_and_init(int, uint32_t, struct dk_gpt **);
 _SYS_EFI_PARTITION_H int efi_alloc_and_read(int, struct dk_gpt **);
