@@ -38,7 +38,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <strings.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <libgen.h>

@@ -36,7 +36,7 @@
  */
 
 #include <sys/types.h>
-#include <sys/strings.h>
+#include <sys/string.h>
 #include <sys/param.h>
 #include <sys/sysmacros.h>
 #include <sys/debug.h>

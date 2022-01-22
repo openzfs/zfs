@@ -38,7 +38,7 @@
 #include <sys/fm/protocol.h>
 #include <uuid/uuid.h>
 #include <signal.h>
-#include <strings.h>
+#include <string.h>
 #include <time.h>
 
 #include "fmd_api.h"

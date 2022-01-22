@@ -39,8 +39,6 @@ __FBSDID("$FreeBSD$");
 #include <sys/sysctl.h>
 #include <opencrypto/cryptodev.h>
 #include <opencrypto/xform.h>
-#else
-#include <strings.h>
 #endif
 
 #include <sys/zio_crypt.h>

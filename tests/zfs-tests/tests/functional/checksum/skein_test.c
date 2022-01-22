@@ -34,7 +34,7 @@
 
 #include <sys/skein.h>
 #include <stdlib.h>
-#include <strings.h>
+#include <string.h>
 #include <stdio.h>
 #include <sys/time.h>
 #include <sys/stdtypes.h>

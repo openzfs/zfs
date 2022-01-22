@@ -45,7 +45,6 @@
 #include <sys/stat.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <strings.h>
 
 static char *filebase;
 

@@ -40,7 +40,7 @@
 #include <sys/nvpair_impl.h>
 #include <sys/types.h>
 #include <sys/param.h>
-#include <sys/strings.h>
+#include <sys/string.h>
 #include <rpc/xdr.h>
 #include <sys/mod.h>
 
@@ -53,7 +53,7 @@
 #include <stddef.h>
 #endif
 
-#define	skip_whitespace(p)	while ((*(p) == ' ') || (*(p) == '\t')) p++
+#define	skip_whitespace(p)	while ((*(p) == ' ') || (*(p) == '\t')) (p)++
 
 /*
  * nvpair.c - Provides kernel & userland interfaces for manipulating
