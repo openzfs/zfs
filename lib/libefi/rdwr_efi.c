@@ -35,7 +35,6 @@
 #include <libintl.h>
 #include <sys/types.h>
 #include <sys/dkio.h>
-#include <sys/vtoc.h>
 #include <sys/mhd.h>
 #include <sys/param.h>
 #include <sys/dktp/fdisk.h>
@@ -856,7 +855,6 @@ efi_read(int fd, struct dk_gpt *vtoc)
 	}
 
 	for (i = 0; i < vtoc->efi_nparts; i++) {
-
 		UUID_LE_CONVERT(vtoc->efi_parts[i].p_guid,
 		    efi_parts[i].efi_gpe_PartitionTypeGUID);
 
