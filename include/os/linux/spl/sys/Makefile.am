@@ -33,7 +33,7 @@ KERNEL_H = \
 	signal.h \
 	simd.h \
 	stat.h \
-	strings.h \
+	string.h \
 	sunddi.h \
 	sysmacros.h \
 	systeminfo.h \

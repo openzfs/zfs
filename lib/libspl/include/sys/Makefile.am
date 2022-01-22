@@ -29,7 +29,7 @@ libspl_HEADERS = \
 	simd.h \
 	stack.h \
 	stdtypes.h \
-	strings.h \
+	string.h \
 	stropts.h \
 	sunddi.h \
 	systeminfo.h \

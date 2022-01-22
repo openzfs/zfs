@@ -58,6 +58,9 @@ AM_CPPFLAGS += -D"strtok(...)=strtok(__VA_ARGS__) __attribute__((deprecated(\"Us
 AM_CPPFLAGS += -D"__xpg_basename(...)=__xpg_basename(__VA_ARGS__) __attribute__((deprecated(\"basename(3) is underspecified. Use zfs_basename() instead!\")))"
 AM_CPPFLAGS += -D"basename(...)=basename(__VA_ARGS__) __attribute__((deprecated(\"basename(3) is underspecified. Use zfs_basename() instead!\")))"
 AM_CPPFLAGS += -D"dirname(...)=dirname(__VA_ARGS__) __attribute__((deprecated(\"dirname(3) is underspecified. Use zfs_dirnamelen() instead!\")))"
+AM_CPPFLAGS += -D"bcopy(...)=__attribute__((deprecated(\"bcopy(3) is deprecated. Use memcpy(3)/memmove(3) instead!\"))) bcopy(__VA_ARGS__)"
+AM_CPPFLAGS += -D"bcmp(...)=__attribute__((deprecated(\"bcmp(3) is deprecated. Use memcmp(3) instead!\"))) bcmp(__VA_ARGS__)"
+AM_CPPFLAGS += -D"bzero(...)=__attribute__((deprecated(\"bzero(3) is deprecated. Use memset(3) instead!\"))) bzero(__VA_ARGS__)"
 
 if ASAN_ENABLED
 AM_CPPFLAGS += -DZFS_ASAN_ENABLED

@@ -37,7 +37,6 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <stddef.h>
-#include <strings.h>
 #include <unistd.h>
 #include <assert.h>
 #include <grp.h>
