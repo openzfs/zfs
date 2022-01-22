@@ -234,7 +234,7 @@ fmd_serd_eng_record(fmd_serd_eng_t *sgp, hrtime_t hrt)
 	if (sgp->sg_flags & FMD_SERD_FIRED) {
 		serd_log_msg("  SERD Engine: record %s already fired!",
 		    sgp->sg_name);
-		return (FMD_B_FALSE);
+		return (B_FALSE);
 	}
 
 	while (sgp->sg_count >= sgp->sg_n)
@@ -259,11 +259,11 @@ fmd_serd_eng_record(fmd_serd_eng_t *sgp, hrtime_t hrt)
 	    fmd_event_delta(oep->se_hrt, sep->se_hrt) <= sgp->sg_t) {
 		sgp->sg_flags |= FMD_SERD_FIRED | FMD_SERD_DIRTY;
 		serd_log_msg("  SERD Engine: fired %s", sgp->sg_name);
-		return (FMD_B_TRUE);
+		return (B_TRUE);
 	}
 
 	sgp->sg_flags |= FMD_SERD_DIRTY;
-	return (FMD_B_FALSE);
+	return (B_FALSE);
 }
 
 int
