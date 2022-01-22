@@ -10211,7 +10211,7 @@ zpool_do_get(int argc, char **argv)
 				{ GET_COL_NAME, GET_COL_PROPERTY, GET_COL_VALUE,
 				    GET_COL_SOURCE };
 
-				if (i == ZFS_GET_NCOLS) {
+				if (i == ZFS_GET_NCOLS - 1) {
 					(void) fprintf(stderr, gettext("too "
 					"many fields given to -o "
 					"option\n"));
@@ -10238,7 +10238,7 @@ found:
 
 					memcpy(cb.cb_columns, col_cols,
 					    sizeof (col_cols));
-					i = ZFS_GET_NCOLS;
+					i = ZFS_GET_NCOLS - 1;
 				} else
 					cb.cb_columns[i++] = col_cols[c];
 			}
