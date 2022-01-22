@@ -25,7 +25,7 @@
 #define	_SKEIN_IMPL_H_
 
 #include <sys/skein.h>
-#include <sys/strings.h>
+#include <sys/string.h>
 #include "skein_impl.h"
 #include "skein_port.h"
 

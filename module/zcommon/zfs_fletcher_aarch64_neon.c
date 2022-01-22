@@ -45,7 +45,7 @@
 
 #include <sys/simd.h>
 #include <sys/spa_checksum.h>
-#include <sys/strings.h>
+#include <sys/string.h>
 #include <zfs_fletcher.h>
 
 ZFS_NO_SANITIZE_UNDEFINED

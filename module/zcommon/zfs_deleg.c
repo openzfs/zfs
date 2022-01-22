@@ -36,7 +36,7 @@
 #include <libnvpair.h>
 #include <ctype.h>
 #endif
-#include <sys/strings.h>
+#include <sys/string.h>
 #include <sys/dsl_deleg.h>
 #include "zfs_prop.h"
 #include "zfs_deleg.h"

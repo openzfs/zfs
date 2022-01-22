@@ -42,7 +42,7 @@
 #include <linux/ctype.h>
 #include <sys/disp.h>
 #include <sys/random.h>
-#include <sys/strings.h>
+#include <sys/string.h>
 #include <linux/kmod.h>
 #include <linux/mod_compat.h>
 #include <sys/cred.h>

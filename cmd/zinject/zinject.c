@@ -144,6 +144,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <strings.h>
 #include <unistd.h>
 
@@ -159,7 +160,7 @@
 libzfs_handle_t *g_zfs;
 int zfs_fd;
 
-static const char *errtable[TYPE_INVAL] = {
+static const char *const errtable[TYPE_INVAL] = {
 	"data",
 	"dnode",
 	"mos",

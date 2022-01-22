@@ -35,7 +35,7 @@
  * cryptographic use. Users of Edon-R must interface directly to this module.
  */
 
-#include <sys/strings.h>
+#include <sys/string.h>
 #include <sys/edonr.h>
 #include <sys/debug.h>
 

@@ -20,7 +20,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 #include <libzfs_core.h>
 #include <libzutil.h>
 
@@ -33,19 +32,19 @@
  * Test the nvpair inputs for the non-legacy zfs ioctl commands.
  */
 
-boolean_t unexpected_failures;
-int zfs_fd;
-const char *active_test;
+static boolean_t unexpected_failures;
+static int zfs_fd;
+static const char *active_test;
 
 /*
  * Tracks which zfs_ioc_t commands were tested
  */
-boolean_t ioc_tested[ZFS_IOC_LAST - ZFS_IOC_FIRST];
+static boolean_t ioc_tested[ZFS_IOC_LAST - ZFS_IOC_FIRST];
 
 /*
  * Legacy ioctls that are skipped (for now)
  */
-static unsigned ioc_skip[] = {
+static const zfs_ioc_t ioc_skip[] = {
 	ZFS_IOC_POOL_CREATE,
 	ZFS_IOC_POOL_DESTROY,
 	ZFS_IOC_POOL_IMPORT,

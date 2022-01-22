@@ -20,13 +20,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 #include <libzfs_core.h>
 #include <sys/nvpair.h>
 
-nvlist_t *nvl;
-const char *pool;
-boolean_t unexpected_failures;
+static nvlist_t *nvl;
+static const char *pool;
+static boolean_t unexpected_failures;
 
 static boolean_t
 nvlist_equal(nvlist_t *nvla, nvlist_t *nvlb)
