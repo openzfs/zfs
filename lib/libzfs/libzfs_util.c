@@ -1749,14 +1749,10 @@ error:
 }
 
 static int
-addlist(libzfs_handle_t *hdl, char *propname, zprop_list_t **listp,
+addlist(libzfs_handle_t *hdl, const char *propname, zprop_list_t **listp,
     zfs_type_t type)
 {
-	int prop;
-	zprop_list_t *entry;
-
-	prop = zprop_name_to_prop(propname, type);
-
+	int prop = zprop_name_to_prop(propname, type);
 	if (prop != ZPROP_INVAL && !zprop_valid_for_type(prop, type, B_FALSE))
 		prop = ZPROP_INVAL;
 
@@ -1776,7 +1772,8 @@ addlist(libzfs_handle_t *hdl, char *propname, zprop_list_t **listp,
 		    dgettext(TEXT_DOMAIN, "bad property list")));
 	}
 
-	entry = zfs_alloc(hdl, sizeof (zprop_list_t));
+	zprop_list_t *entry = zfs_alloc(hdl, sizeof (*entry));
+
 	entry->pl_prop = prop;
 	if (prop == ZPROP_INVAL) {
 		entry->pl_user_prop = zfs_strdup(hdl, propname);
@@ -1819,61 +1816,24 @@ zprop_get_list(libzfs_handle_t *hdl, char *props, zprop_list_t **listp,
 		    "bad property list")));
 	}
 
-	/*
-	 * It would be nice to use getsubopt() here, but the inclusion of column
-	 * aliases makes this more effort than it's worth.
-	 */
-	while (*props != '\0') {
-		size_t len;
-		char *p;
-		char c;
-
-		if ((p = strchr(props, ',')) == NULL) {
-			len = strlen(props);
-			p = props + len;
-		} else {
-			len = p - props;
-		}
-
-		/*
-		 * Check for empty options.
-		 */
-		if (len == 0) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "empty property name"));
-			return (zfs_error(hdl, EZFS_BADPROP,
-			    dgettext(TEXT_DOMAIN, "bad property list")));
-		}
-
-		/*
-		 * Check all regular property names.
-		 */
-		c = props[len];
-		props[len] = '\0';
-
-		if (strcmp(props, "space") == 0) {
-			static char *spaceprops[] = {
+	for (char *p; (p = strsep(&props, ",")); )
+		if (strcmp(p, "space") == 0) {
+			static const char *const spaceprops[] = {
 				"name", "avail", "used", "usedbysnapshots",
 				"usedbydataset", "usedbyrefreservation",
-				"usedbychildren", NULL
+				"usedbychildren"
 			};
-			int i;
 
-			for (i = 0; spaceprops[i]; i++) {
+			for (int i = 0; i < ARRAY_SIZE(spaceprops); i++) {
 				if (addlist(hdl, spaceprops[i], listp, type))
 					return (-1);
 				listp = &(*listp)->pl_next;
 			}
 		} else {
-			if (addlist(hdl, props, listp, type))
+			if (addlist(hdl, p, listp, type))
 				return (-1);
 			listp = &(*listp)->pl_next;
 		}
-
-		props = p;
-		if (c == ',')
-			props++;
-	}
 
 	return (0);
 }
