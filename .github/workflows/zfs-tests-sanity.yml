@@ -55,7 +55,7 @@ jobs:
         df -h /
     - name: Tests
       run: |
-        /usr/share/zfs/zfs-tests.sh -vR -s 3G -r sanity
+        /usr/share/zfs/zfs-tests.sh -vR -s 3G -r sanity | contrib/zfs-tests-color.sh
       timeout-minutes: 330
     - name: Prepare artifacts
       if: failure()
