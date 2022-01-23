@@ -70,10 +70,6 @@ The following fields are displayed:
 Used for scripting mode.
 Do not print headers and separate fields by a single tab instead of arbitrary
 white space.
-.It Fl S Ar property
-Same as the
-.Fl s
-option, but sorts by property in descending order.
 .It Fl d Ar depth
 Recursively display any children of the dataset, limiting the recursion to
 .Ar depth .
@@ -142,6 +138,10 @@ the specified ordering.
 If no sorting options are specified the existing behavior of
 .Nm zfs Cm list
 is preserved.
+.It Fl S Ar property
+Same as
+.Fl s ,
+but sorts by property in descending order.
 .It Fl t Ar type
 A comma-separated list of types to display, where
 .Ar type
