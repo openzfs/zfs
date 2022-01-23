@@ -11,7 +11,7 @@ fault_led:	Show value of the disk enclosure slot fault LED.
 locate_led:	Show value of the disk enclosure slot locate LED.
 ses:		Show disk's enc, enc device, slot, and fault/locate LED values."
 
-script=$(basename "$0")
+script="${0##*/}"
 if [ "$1" = "-h" ] ; then
 	echo "$helpstr" | grep "$script:" | tr -s '\t' | cut -f 2-
 	exit
@@ -24,6 +24,7 @@ else
 fi
 
 for i in $scripts ; do
+	# shellcheck disable=SC2154
 	if [ -z "$VDEV_ENC_SYSFS_PATH" ] ; then
 		echo "$i="
 		continue
@@ -41,12 +42,20 @@ for i in $scripts ; do
 		val=$(ls "$VDEV_ENC_SYSFS_PATH/../device/scsi_generic" 2>/dev/null)
 		;;
 	fault_led)
-		val=$(cat "$VDEV_ENC_SYSFS_PATH/fault" 2>/dev/null)
+		# JBODs fault LED is called 'fault', NVMe fault LED is called
+		# 'attention'.
+		if [ -f "$VDEV_ENC_SYSFS_PATH/fault" ] ; then
+			val=$(cat "$VDEV_ENC_SYSFS_PATH/fault" 2>/dev/null)
+		elif [ -f "$VDEV_ENC_SYSFS_PATH/attention" ] ; then
+			val=$(cat "$VDEV_ENC_SYSFS_PATH/attention" 2>/dev/null)
+		fi
 		;;
 	locate_led)
 		val=$(cat "$VDEV_ENC_SYSFS_PATH/locate" 2>/dev/null)
 		;;
+	*)
+		val=invalid
+		;;
 	esac
 	echo "$i=$val"
 done
-

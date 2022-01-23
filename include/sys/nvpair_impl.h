@@ -74,7 +74,7 @@ struct i_nvp {
 typedef struct {
 	i_nvp_t		*nvp_list;	/* linked list of nvpairs */
 	i_nvp_t		*nvp_last;	/* last nvpair */
-	i_nvp_t		*nvp_curr;	/* current walker nvpair */
+	const i_nvp_t	*nvp_curr;	/* current walker nvpair */
 	nv_alloc_t	*nvp_nva;	/* pluggable allocator */
 	uint32_t	nvp_stat;	/* internal state */
 

@@ -12,6 +12,7 @@ KMOD=	openzfs
 .PATH:	${SRCDIR}/avl \
 	${SRCDIR}/lua \
 	${SRCDIR}/nvpair \
+	${SRCDIR}/icp/algs/edonr \
 	${SRCDIR}/os/freebsd/spl \
 	${SRCDIR}/os/freebsd/zfs \
 	${SRCDIR}/unicode \
@@ -72,6 +73,9 @@ SRCS=	vnode_if.h device_if.h bus_if.h
 
 # avl
 SRCS+=	avl.c
+
+# icp
+SRCS+=  edonr.c
 
 #lua
 SRCS+=	lapi.c \
@@ -219,10 +223,12 @@ SRCS+=	abd.c \
 	dsl_scan.c \
 	dsl_synctask.c \
 	dsl_userhold.c \
+	edonr_zfs.c \
 	fm.c \
 	gzip.c \
 	lzjb.c \
 	lz4.c \
+	lz4_zfs.c \
 	metaslab.c \
 	mmp.c \
 	multilist.c \
@@ -263,12 +269,12 @@ SRCS+=	abd.c \
 	vdev_raidz.c \
 	vdev_raidz_math.c \
 	vdev_raidz_math_scalar.c \
-	vdev_rebuild.c \
 	vdev_raidz_math_avx2.c \
 	vdev_raidz_math_avx512bw.c \
 	vdev_raidz_math_avx512f.c \
 	vdev_raidz_math_sse2.c \
 	vdev_raidz_math_ssse3.c \
+	vdev_rebuild.c \
 	vdev_removal.c \
 	vdev_root.c \
 	vdev_trim.c \
@@ -345,8 +351,9 @@ CFLAGS.dmu_traverse.c= -Wno-cast-qual
 CFLAGS.dsl_dir.c= -Wno-cast-qual
 CFLAGS.dsl_deadlist.c= -Wno-cast-qual
 CFLAGS.dsl_prop.c= -Wno-cast-qual
+CFLAGS.edonr.c=-Wno-cast-qual
 CFLAGS.fm.c= -Wno-cast-qual
-CFLAGS.lz4.c= -Wno-cast-qual
+CFLAGS.lz4_zfs.c= -Wno-cast-qual
 CFLAGS.spa.c= -Wno-cast-qual
 CFLAGS.spa_misc.c= -Wno-cast-qual
 CFLAGS.sysctl_os.c= -include ../zfs_config.h

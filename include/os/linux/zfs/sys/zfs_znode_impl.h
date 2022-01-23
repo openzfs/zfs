@@ -36,20 +36,20 @@
 #include <sys/list.h>
 #include <sys/dmu.h>
 #include <sys/sa.h>
+#include <sys/time.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/rrwlock.h>
 #include <sys/zfs_sa.h>
 #include <sys/zfs_stat.h>
 #include <sys/zfs_rlock.h>
 
-
 #ifdef	__cplusplus
 extern "C" {
 #endif
 
 #define	ZNODE_OS_FIELDS			\
+	inode_timespec_t z_btime; /* creation/birth time (cached) */ \
 	struct inode	z_inode;
-
 
 /*
  * Convert between znode pointers and inode pointers
@@ -71,6 +71,7 @@ extern "C" {
 #define	Z_ISDIR(type)	S_ISDIR(type)
 
 #define	zn_has_cached_data(zp)		((zp)->z_is_mapped)
+#define	zn_flush_cached_data(zp, sync)	write_inode_now(ZTOI(zp), sync)
 #define	zn_rlimit_fsize(zp, uio)	(0)
 
 /*
@@ -172,8 +173,7 @@ extern caddr_t zfs_map_page(page_t *, enum seg_rw);
 extern void zfs_unmap_page(page_t *, caddr_t);
 #endif /* HAVE_UIO_RW */
 
-extern zil_replay_func_t *zfs_replay_vector[TX_MAX_TYPE];
-extern int zfsfstype;
+extern zil_replay_func_t *const zfs_replay_vector[TX_MAX_TYPE];
 
 #ifdef	__cplusplus
 }

@@ -47,7 +47,7 @@
 #include <sys/dsl_crypt.h>
 #include <libzfs.h>
 
-#include "libzfs_impl.h"
+#include "../../libzfs_impl.h"
 #include <thread_pool.h>
 
 #define	ZS_COMMENT	0x00000000	/* comment */
@@ -327,7 +327,7 @@ do_mount(zfs_handle_t *zhp, const char *mntpt, char *opts, int flags)
 
 	if (!libzfs_envvar_is_set("ZFS_MOUNT_HELPER")) {
 		char badopt[MNT_LINE_MAX] = {0};
-		unsigned long mntflags = flags, zfsflags;
+		unsigned long mntflags = flags, zfsflags = 0;
 		char myopts[MNT_LINE_MAX] = {0};
 
 		if (zfs_parse_mount_options(opts, &mntflags,
@@ -374,8 +374,10 @@ do_mount(zfs_handle_t *zhp, const char *mntpt, char *opts, int flags)
 }
 
 int
-do_unmount(const char *mntpt, int flags)
+do_unmount(zfs_handle_t *zhp, const char *mntpt, int flags)
 {
+	(void) zhp;
+
 	if (!libzfs_envvar_is_set("ZFS_MOUNT_HELPER")) {
 		int rv = umount2(mntpt, flags);
 
@@ -410,4 +412,18 @@ int
 zfs_mount_delegation_check(void)
 {
 	return ((geteuid() != 0) ? EACCES : 0);
+}
+
+/* Called from the tail end of zpool_disable_datasets() */
+void
+zpool_disable_datasets_os(zpool_handle_t *zhp, boolean_t force)
+{
+	(void) zhp, (void) force;
+}
+
+/* Called from the tail end of zfs_unmount() */
+void
+zpool_disable_volume_os(const char *name)
+{
+	(void) name;
 }

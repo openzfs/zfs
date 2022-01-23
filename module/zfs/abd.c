@@ -108,15 +108,14 @@ int zfs_abd_scatter_enabled = B_TRUE;
 void
 abd_verify(abd_t *abd)
 {
+#ifdef ZFS_DEBUG
 	ASSERT3U(abd->abd_size, >, 0);
 	ASSERT3U(abd->abd_size, <=, SPA_MAXBLOCKSIZE);
 	ASSERT3U(abd->abd_flags, ==, abd->abd_flags & (ABD_FLAG_LINEAR |
 	    ABD_FLAG_OWNER | ABD_FLAG_META | ABD_FLAG_MULTI_ZONE |
 	    ABD_FLAG_MULTI_CHUNK | ABD_FLAG_LINEAR_PAGE | ABD_FLAG_GANG |
 	    ABD_FLAG_GANG_FREE | ABD_FLAG_ZEROS | ABD_FLAG_ALLOCD));
-#ifdef ZFS_DEBUG
 	IMPLY(abd->abd_parent != NULL, !(abd->abd_flags & ABD_FLAG_OWNER));
-#endif
 	IMPLY(abd->abd_flags & ABD_FLAG_META, abd->abd_flags & ABD_FLAG_OWNER);
 	if (abd_is_linear(abd)) {
 		ASSERT3P(ABD_LINEAR_BUF(abd), !=, NULL);
@@ -133,6 +132,7 @@ abd_verify(abd_t *abd)
 	} else {
 		abd_verify_scatter(abd);
 	}
+#endif
 }
 
 static void
@@ -181,7 +181,7 @@ abd_free_struct(abd_t *abd)
 abd_t *
 abd_alloc(size_t size, boolean_t is_metadata)
 {
-	if (!zfs_abd_scatter_enabled || abd_size_alloc_linear(size))
+	if (abd_size_alloc_linear(size))
 		return (abd_alloc_linear(size, is_metadata));
 
 	VERIFY3U(size, <=, SPA_MAXBLOCKSIZE);
@@ -531,7 +531,7 @@ abd_get_offset_impl(abd_t *abd, abd_t *sabd, size_t off, size_t size)
 		}
 		ASSERT3U(left, ==, 0);
 	} else {
-		abd = abd_get_offset_scatter(abd, sabd, off);
+		abd = abd_get_offset_scatter(abd, sabd, off, size);
 	}
 
 	ASSERT3P(abd, !=, NULL);
@@ -889,10 +889,10 @@ abd_copy_from_buf_off(abd_t *abd, const void *buf, size_t off, size_t size)
 	    &ba_ptr);
 }
 
-/*ARGSUSED*/
 static int
 abd_zero_off_cb(void *buf, size_t size, void *private)
 {
+	(void) private;
 	(void) memset(buf, 0, size);
 	return (0);
 }
@@ -967,10 +967,10 @@ abd_iterate_func2(abd_t *dabd, abd_t *sabd, size_t doff, size_t soff,
 	return (ret);
 }
 
-/*ARGSUSED*/
 static int
 abd_copy_off_cb(void *dbuf, void *sbuf, size_t size, void *private)
 {
+	(void) private;
 	(void) memcpy(dbuf, sbuf, size);
 	return (0);
 }
@@ -985,10 +985,10 @@ abd_copy_off(abd_t *dabd, abd_t *sabd, size_t doff, size_t soff, size_t size)
 	    abd_copy_off_cb, NULL);
 }
 
-/*ARGSUSED*/
 static int
 abd_cmp_cb(void *bufa, void *bufb, size_t size, void *private)
 {
+	(void) private;
 	return (memcmp(bufa, bufb, size));
 }
 
@@ -1066,10 +1066,10 @@ abd_raidz_gen_iterate(abd_t **cabds, abd_t *dabd,
 		switch (parity) {
 			case 3:
 				len = MIN(caiters[2].iter_mapsize, len);
-				/* falls through */
+				fallthrough;
 			case 2:
 				len = MIN(caiters[1].iter_mapsize, len);
-				/* falls through */
+				fallthrough;
 			case 1:
 				len = MIN(caiters[0].iter_mapsize, len);
 		}
@@ -1179,11 +1179,11 @@ abd_raidz_rec_iterate(abd_t **cabds, abd_t **tabds,
 			case 3:
 				len = MIN(xiters[2].iter_mapsize, len);
 				len = MIN(citers[2].iter_mapsize, len);
-				/* falls through */
+				fallthrough;
 			case 2:
 				len = MIN(xiters[1].iter_mapsize, len);
 				len = MIN(citers[1].iter_mapsize, len);
-				/* falls through */
+				fallthrough;
 			case 1:
 				len = MIN(xiters[0].iter_mapsize, len);
 				len = MIN(citers[0].iter_mapsize, len);

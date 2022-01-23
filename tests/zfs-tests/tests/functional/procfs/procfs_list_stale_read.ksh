@@ -50,7 +50,7 @@ function cleanup
 function sync_n
 {
 	for i in {1..$1}; do
-		log_must zpool sync $TESTPOOL
+		sync_pool $TESTPOOL
 	done
 	return 0
 }

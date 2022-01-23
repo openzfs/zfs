@@ -108,7 +108,7 @@ function create_multiple_fs # num_fs base_fs_name base_mnt_name
 
 #
 # This function compute the largest volume size which is multiple of volume
-# block size (default 8K) and not greater than the largest expected volsize.
+# block size (default 16K) and not greater than the largest expected volsize.
 #
 # $1 The largest expected volume size.
 # $2 The volume block size
@@ -116,7 +116,7 @@ function create_multiple_fs # num_fs base_fs_name base_mnt_name
 function floor_volsize #<largest_volsize> [volblksize]
 {
 	typeset largest_volsize=$1
-	typeset volblksize=${2:-8192}
+	typeset volblksize=${2:-16384}
 
 	if ((largest_volsize < volblksize)); then
 		log_fail "The largest_volsize must be greater than volblksize."
@@ -157,7 +157,7 @@ function volsize_to_reservation
 		typeset volblocksize=$(get_prop volblocksize $vol)
 	else
 		typeset ncopies=1
-		typeset volblocksize=8192
+		typeset volblocksize=16384
 	fi
 	typeset nblocks=$((volsize / volblocksize))
 

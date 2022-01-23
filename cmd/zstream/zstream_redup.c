@@ -22,7 +22,6 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <libzfs_impl.h>
 #include <libzfs.h>
 #include <libzutil.h>
 #include <stddef.h>

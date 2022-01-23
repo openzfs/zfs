@@ -50,72 +50,6 @@ kstat_resize_raw(kstat_t *ksp)
 	return (0);
 }
 
-void
-kstat_waitq_enter(kstat_io_t *kiop)
-{
-	hrtime_t new, delta;
-	ulong_t wcnt;
-
-	new = gethrtime();
-	delta = new - kiop->wlastupdate;
-	kiop->wlastupdate = new;
-	wcnt = kiop->wcnt++;
-	if (wcnt != 0) {
-		kiop->wlentime += delta * wcnt;
-		kiop->wtime += delta;
-	}
-}
-EXPORT_SYMBOL(kstat_waitq_enter);
-
-void
-kstat_waitq_exit(kstat_io_t *kiop)
-{
-	hrtime_t new, delta;
-	ulong_t wcnt;
-
-	new = gethrtime();
-	delta = new - kiop->wlastupdate;
-	kiop->wlastupdate = new;
-	wcnt = kiop->wcnt--;
-	ASSERT((int)wcnt > 0);
-	kiop->wlentime += delta * wcnt;
-	kiop->wtime += delta;
-}
-EXPORT_SYMBOL(kstat_waitq_exit);
-
-void
-kstat_runq_enter(kstat_io_t *kiop)
-{
-	hrtime_t new, delta;
-	ulong_t rcnt;
-
-	new = gethrtime();
-	delta = new - kiop->rlastupdate;
-	kiop->rlastupdate = new;
-	rcnt = kiop->rcnt++;
-	if (rcnt != 0) {
-		kiop->rlentime += delta * rcnt;
-		kiop->rtime += delta;
-	}
-}
-EXPORT_SYMBOL(kstat_runq_enter);
-
-void
-kstat_runq_exit(kstat_io_t *kiop)
-{
-	hrtime_t new, delta;
-	ulong_t rcnt;
-
-	new = gethrtime();
-	delta = new - kiop->rlastupdate;
-	kiop->rlastupdate = new;
-	rcnt = kiop->rcnt--;
-	ASSERT((int)rcnt > 0);
-	kiop->rlentime += delta * rcnt;
-	kiop->rtime += delta;
-}
-EXPORT_SYMBOL(kstat_runq_exit);
-
 static int
 kstat_seq_show_headers(struct seq_file *f)
 {
@@ -424,7 +358,7 @@ kstat_seq_stop(struct seq_file *f, void *v)
 	mutex_exit(ksp->ks_lock);
 }
 
-static struct seq_operations kstat_seq_ops = {
+static const struct seq_operations kstat_seq_ops = {
 	.show  = kstat_seq_show,
 	.start = kstat_seq_start,
 	.next  = kstat_seq_next,

@@ -23,7 +23,6 @@
  * Copyright 2013 Saso Kiselkov. All rights reserved.
  */
 
-#include <sys/modctl.h>
 #include <sys/crypto/common.h>
 #include <sys/crypto/icp.h>
 #include <sys/crypto/spi.h>
@@ -31,26 +30,7 @@
 #define	SKEIN_MODULE_IMPL
 #include <sys/skein.h>
 
-/*
- * Like the sha2 module, we create the skein module with two modlinkages:
- * - modlmisc to allow direct calls to Skein_* API functions.
- * - modlcrypto to integrate well into the Kernel Crypto Framework (KCF).
- */
-static struct modlmisc modlmisc = {
-	&mod_cryptoops,
-	"Skein Message-Digest Algorithm"
-};
-
-static struct modlcrypto modlcrypto = {
-	&mod_cryptoops,
-	"Skein Kernel SW Provider"
-};
-
-static struct modlinkage modlinkage = {
-	MODREV_1, {&modlmisc, &modlcrypto, NULL}
-};
-
-static crypto_mech_info_t skein_mech_info_tab[] = {
+static const crypto_mech_info_t skein_mech_info_tab[] = {
 	{CKM_SKEIN_256, SKEIN_256_MECH_INFO_TYPE,
 	    CRYPTO_FG_DIGEST | CRYPTO_FG_DIGEST_ATOMIC,
 	    0, 0, CRYPTO_KEYSIZE_UNIT_IN_BITS},
@@ -73,7 +53,7 @@ static crypto_mech_info_t skein_mech_info_tab[] = {
 
 static void skein_provider_status(crypto_provider_handle_t, uint_t *);
 
-static crypto_control_ops_t skein_control_ops = {
+static const crypto_control_ops_t skein_control_ops = {
 	skein_provider_status
 };
 
@@ -87,7 +67,7 @@ static int skein_digest_atomic(crypto_provider_handle_t, crypto_session_id_t,
     crypto_mechanism_t *, crypto_data_t *, crypto_data_t *,
     crypto_req_handle_t);
 
-static crypto_digest_ops_t skein_digest_ops = {
+static const crypto_digest_ops_t skein_digest_ops = {
 	.digest_init = skein_digest_init,
 	.digest = skein_digest,
 	.digest_update = skein_update,
@@ -102,7 +82,7 @@ static int skein_mac_atomic(crypto_provider_handle_t, crypto_session_id_t,
     crypto_mechanism_t *, crypto_key_t *, crypto_data_t *, crypto_data_t *,
     crypto_spi_ctx_template_t, crypto_req_handle_t);
 
-static crypto_mac_ops_t skein_mac_ops = {
+static const crypto_mac_ops_t skein_mac_ops = {
 	.mac_init = skein_mac_init,
 	.mac = NULL,
 	.mac_update = skein_update, /* using regular digest update is OK here */
@@ -116,12 +96,12 @@ static int skein_create_ctx_template(crypto_provider_handle_t,
     size_t *, crypto_req_handle_t);
 static int skein_free_context(crypto_ctx_t *);
 
-static crypto_ctx_ops_t skein_ctx_ops = {
+static const crypto_ctx_ops_t skein_ctx_ops = {
 	.create_ctx_template = skein_create_ctx_template,
 	.free_context = skein_free_context
 };
 
-static crypto_ops_t skein_crypto_ops = {{{{{
+static const crypto_ops_t skein_crypto_ops = {{{{{
 	&skein_control_ops,
 	&skein_digest_ops,
 	NULL,
@@ -138,7 +118,7 @@ static crypto_ops_t skein_crypto_ops = {{{{{
 	&skein_ctx_ops,
 }}}}};
 
-static crypto_provider_info_t skein_prov_info = {{{{
+static const crypto_provider_info_t skein_prov_info = {{{{
 	CRYPTO_SPI_VERSION_1,
 	"Skein Software Provider",
 	CRYPTO_SW_PROVIDER,
@@ -179,7 +159,6 @@ typedef struct skein_ctx {
 			(void) Skein1024_ ## _op(&sc->sc_1024, __VA_ARGS__);\
 			break;						\
 		}							\
-		_NOTE(CONSTCOND)					\
 	} while (0)
 
 static int
@@ -215,11 +194,6 @@ skein_get_digest_bitlen(const crypto_mechanism_t *mechanism, size_t *result)
 int
 skein_mod_init(void)
 {
-	int error;
-
-	if ((error = mod_install(&modlinkage)) != 0)
-		return (error);
-
 	/*
 	 * Try to register with KCF - failure shouldn't unload us, since we
 	 * still may want to continue providing misc/skein functionality.
@@ -232,7 +206,7 @@ skein_mod_init(void)
 int
 skein_mod_fini(void)
 {
-	int ret;
+	int ret = 0;
 
 	if (skein_prov_handle != 0) {
 		if ((ret = crypto_unregister_provider(skein_prov_handle)) !=
@@ -245,16 +219,16 @@ skein_mod_fini(void)
 		skein_prov_handle = 0;
 	}
 
-	return (mod_remove(&modlinkage));
+	return (0);
 }
 
 /*
  * KCF software provider control entry points.
  */
-/* ARGSUSED */
 static void
 skein_provider_status(crypto_provider_handle_t provider, uint_t *status)
 {
+	(void) provider;
 	*status = CRYPTO_PROVIDER_READY;
 }
 
@@ -463,10 +437,10 @@ skein_digest(crypto_ctx_t *ctx, crypto_data_t *data, crypto_data_t *digest,
  * can push more data). This is used both for digest and MAC operation.
  * Supported input data formats are raw, uio and mblk.
  */
-/*ARGSUSED*/
 static int
 skein_update(crypto_ctx_t *ctx, crypto_data_t *data, crypto_req_handle_t req)
 {
+	(void) req;
 	int error = CRYPTO_SUCCESS;
 
 	ASSERT(SKEIN_CTX(ctx) != NULL);
@@ -492,7 +466,6 @@ skein_update(crypto_ctx_t *ctx, crypto_data_t *data, crypto_req_handle_t req)
  * for digest and MAC operation.
  * Supported output digest formats are raw, uio and mblk.
  */
-/*ARGSUSED*/
 static int
 skein_final(crypto_ctx_t *ctx, crypto_data_t *digest, crypto_req_handle_t req)
 {
@@ -538,15 +511,15 @@ skein_final(crypto_ctx_t *ctx, crypto_data_t *digest, crypto_req_handle_t req)
  * `data' and writing the output to `digest'.
  * Supported input/output formats are raw, uio and mblk.
  */
-/*ARGSUSED*/
 static int
 skein_digest_atomic(crypto_provider_handle_t provider,
     crypto_session_id_t session_id, crypto_mechanism_t *mechanism,
     crypto_data_t *data, crypto_data_t *digest, crypto_req_handle_t req)
 {
-	int		error;
-	skein_ctx_t	skein_ctx;
-	crypto_ctx_t	ctx;
+	(void) provider, (void) session_id, (void) req;
+	int	 error;
+	skein_ctx_t skein_ctx;
+	crypto_ctx_t ctx;
 	SKEIN_CTX_LVALUE(&ctx) = &skein_ctx;
 
 	/* Init */
@@ -641,7 +614,6 @@ errout:
  * The MAC update and final calls are reused from the regular digest code.
  */
 
-/*ARGSUSED*/
 /*
  * Same as skein_digest_atomic, performs an atomic Skein MAC operation in
  * one step. All the same properties apply to the arguments of this
@@ -654,9 +626,10 @@ skein_mac_atomic(crypto_provider_handle_t provider,
     crypto_spi_ctx_template_t ctx_template, crypto_req_handle_t req)
 {
 	/* faux crypto context just for skein_digest_{update,final} */
-	int		error;
-	crypto_ctx_t	ctx;
-	skein_ctx_t	skein_ctx;
+	(void) provider, (void) session_id;
+	int	 error;
+	crypto_ctx_t ctx;
+	skein_ctx_t skein_ctx;
 	SKEIN_CTX_LVALUE(&ctx) = &skein_ctx;
 
 	if (ctx_template != NULL) {
@@ -687,15 +660,15 @@ errout:
  * properties apply to the arguments of this function as to those of
  * skein_mac_init.
  */
-/*ARGSUSED*/
 static int
 skein_create_ctx_template(crypto_provider_handle_t provider,
     crypto_mechanism_t *mechanism, crypto_key_t *key,
     crypto_spi_ctx_template_t *ctx_template, size_t *ctx_template_size,
     crypto_req_handle_t req)
 {
-	int		error;
-	skein_ctx_t	*ctx_tmpl;
+	(void) provider;
+	int	 error;
+	skein_ctx_t *ctx_tmpl;
 
 	ctx_tmpl = kmem_alloc(sizeof (*ctx_tmpl), crypto_kmflag(req));
 	if (ctx_tmpl == NULL)

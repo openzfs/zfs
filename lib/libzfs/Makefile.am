@@ -8,6 +8,7 @@ VPATH = \
 # Suppress unused but set variable warnings often due to ASSERTs
 AM_CFLAGS += $(NO_UNUSED_BUT_SET_VARIABLE)
 AM_CFLAGS += $(LIBCRYPTO_CFLAGS) $(ZLIB_CFLAGS)
+AM_CFLAGS += -fvisibility=hidden
 
 pkgconfig_DATA = libzfs.pc
 
@@ -16,6 +17,7 @@ lib_LTLIBRARIES = libzfs.la
 include $(top_srcdir)/config/Abigail.am
 
 USER_C = \
+	libzfs_impl.h \
 	libzfs_changelist.c \
 	libzfs_config.c \
 	libzfs_crypto.c \
@@ -33,7 +35,6 @@ USER_C = \
 if BUILD_FREEBSD
 USER_C += \
 	os/freebsd/libzfs_compat.c \
-	os/freebsd/libzfs_ioctl_compat.c \
 	os/freebsd/libzfs_zmount.c
 endif
 
@@ -73,9 +74,10 @@ libzfs_la_LIBADD = \
 	$(abs_top_builddir)/lib/libshare/libshare.la \
 	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
 	$(abs_top_builddir)/lib/libnvpair/libnvpair.la \
+	$(abs_top_builddir)/lib/libzutil/libzutil.la \
 	$(abs_top_builddir)/lib/libuutil/libuutil.la
 
-libzfs_la_LIBADD += -lm $(LIBCRYPTO_LIBS) $(ZLIB_LIBS) $(LTLIBINTL)
+libzfs_la_LIBADD += -lm $(LIBCRYPTO_LIBS) $(ZLIB_LIBS) $(LIBFETCH_LIBS) $(LTLIBINTL)
 
 libzfs_la_LDFLAGS = -pthread
 

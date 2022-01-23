@@ -295,6 +295,7 @@ struct vdev {
 	list_node_t	vdev_state_dirty_node; /* state dirty list	*/
 	uint64_t	vdev_deflate_ratio; /* deflation ratio (x512)	*/
 	uint64_t	vdev_islog;	/* is an intent log device	*/
+	uint64_t	vdev_noalloc;	/* device is passivated?	*/
 	uint64_t	vdev_removing;	/* device is being removed?	*/
 	boolean_t	vdev_ishole;	/* is a hole in the namespace	*/
 	uint64_t	vdev_top_zap;
@@ -625,8 +626,6 @@ extern uint64_t vdev_get_ndisks(vdev_t *vd);
  * Global variables
  */
 extern int zfs_vdev_standard_sm_blksz;
-/* zdb uses this tunable, so it must be declared here to make lint happy. */
-extern int zfs_vdev_cache_size;
 
 /*
  * Functions from vdev_indirect.c

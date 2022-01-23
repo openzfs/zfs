@@ -59,7 +59,7 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 
 	dn->dn_phys->dn_nlevels = new_level;
 	dprintf("os=%p obj=%llu, increase to %d\n", dn->dn_objset,
-	    dn->dn_object, dn->dn_phys->dn_nlevels);
+	    (u_longlong_t)dn->dn_object, dn->dn_phys->dn_nlevels);
 
 	/*
 	 * Lock ordering requires that we hold the children's db_mutexes (by
@@ -136,7 +136,8 @@ free_blocks(dnode_t *dn, blkptr_t *bp, int num, dmu_tx_t *tx)
 	dsl_dataset_t *ds = dn->dn_objset->os_dsl_dataset;
 	uint64_t bytesfreed = 0;
 
-	dprintf("ds=%p obj=%llx num=%d\n", ds, dn->dn_object, num);
+	dprintf("ds=%p obj=%llx num=%d\n", ds, (u_longlong_t)dn->dn_object,
+	    num);
 
 	for (int i = 0; i < num; i++, bp++) {
 		if (BP_IS_HOLE(bp))
@@ -654,8 +655,13 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 			    DNODE_FLAG_USEROBJUSED_ACCOUNTED;
 		mutex_exit(&dn->dn_mtx);
 		dmu_objset_userquota_get_ids(dn, B_FALSE, tx);
-	} else {
-		/* Once we account for it, we should always account for it */
+	} else if (!(os->os_encrypted && dmu_objset_is_receiving(os))) {
+		/*
+		 * Once we account for it, we should always account for it,
+		 * except for the case of a raw receive. We will not be able
+		 * to account for it until the receiving dataset has been
+		 * mounted.
+		 */
 		ASSERT(!(dn->dn_phys->dn_flags &
 		    DNODE_FLAG_USERUSED_ACCOUNTED));
 		ASSERT(!(dn->dn_phys->dn_flags &

@@ -812,7 +812,12 @@ vdev_draid_map_alloc_empty(zio_t *zio, raidz_row_t *rr)
 			/* this is a "big column", nothing to add */
 			ASSERT3P(rc->rc_abd, !=, NULL);
 		} else {
-			/* short data column, add a skip sector */
+			/*
+			 * short data column, add a skip sector and clear
+			 * rc_tried to force the entire column to be re-read
+			 * thereby including the missing skip sector data
+			 * which is needed for reconstruction.
+			 */
 			ASSERT3U(rc->rc_size + skip_size, ==, parity_size);
 			ASSERT3U(rr->rr_nempty, !=, 0);
 			ASSERT3P(rc->rc_abd, !=, NULL);
@@ -823,6 +828,7 @@ vdev_draid_map_alloc_empty(zio_t *zio, raidz_row_t *rr)
 			abd_gang_add(rc->rc_abd, abd_get_offset_size(
 			    rr->rr_abd_empty, skip_off, skip_size), B_TRUE);
 			skip_off += skip_size;
+			rc->rc_tried = 0;
 		}
 
 		/*
@@ -833,6 +839,53 @@ vdev_draid_map_alloc_empty(zio_t *zio, raidz_row_t *rr)
 	}
 
 	ASSERT3U(skip_off, ==, rr->rr_nempty * skip_size);
+}
+
+/*
+ * Verify that all empty sectors are zero filled before using them to
+ * calculate parity.  Otherwise, silent corruption in an empty sector will
+ * result in bad parity being generated.  That bad parity will then be
+ * considered authoritative and overwrite the good parity on disk.  This
+ * is possible because the checksum is only calculated over the data,
+ * thus it cannot be used to detect damage in empty sectors.
+ */
+int
+vdev_draid_map_verify_empty(zio_t *zio, raidz_row_t *rr)
+{
+	uint64_t skip_size = 1ULL << zio->io_vd->vdev_top->vdev_ashift;
+	uint64_t parity_size = rr->rr_col[0].rc_size;
+	uint64_t skip_off = parity_size - skip_size;
+	uint64_t empty_off = 0;
+	int ret = 0;
+
+	ASSERT3U(zio->io_type, ==, ZIO_TYPE_READ);
+	ASSERT3P(rr->rr_abd_empty, !=, NULL);
+	ASSERT3U(rr->rr_bigcols, >, 0);
+
+	void *zero_buf = kmem_zalloc(skip_size, KM_SLEEP);
+
+	for (int c = rr->rr_bigcols; c < rr->rr_cols; c++) {
+		raidz_col_t *rc = &rr->rr_col[c];
+
+		ASSERT3P(rc->rc_abd, !=, NULL);
+		ASSERT3U(rc->rc_size, ==, parity_size);
+
+		if (abd_cmp_buf_off(rc->rc_abd, zero_buf, skip_off,
+		    skip_size) != 0) {
+			vdev_raidz_checksum_error(zio, rc, rc->rc_abd);
+			abd_zero_off(rc->rc_abd, skip_off, skip_size);
+			rc->rc_error = SET_ERROR(ECKSUM);
+			ret++;
+		}
+
+		empty_off += skip_size;
+	}
+
+	ASSERT3U(empty_off, ==, abd_get_size(rr->rr_abd_empty));
+
+	kmem_free(zero_buf, skip_size);
+
+	return (ret);
 }
 
 /*
@@ -1003,7 +1056,8 @@ vdev_draid_map_alloc_row(zio_t *zio, raidz_row_t **rrp, uint64_t io_offset,
 		rc->rc_error = 0;
 		rc->rc_tried = 0;
 		rc->rc_skipped = 0;
-		rc->rc_repair = 0;
+		rc->rc_force_repair = 0;
+		rc->rc_allow_repair = 1;
 		rc->rc_need_orig_restore = B_FALSE;
 
 		if (q == 0 && i >= bc)
@@ -1125,7 +1179,8 @@ vdev_draid_min_asize(vdev_t *vd)
 
 	ASSERT3P(vd->vdev_ops, ==, &vdev_draid_ops);
 
-	return ((vd->vdev_min_asize + vdc->vdc_ndisks - 1) / (vdc->vdc_ndisks));
+	return (VDEV_DRAID_REFLOW_RESERVE +
+	    (vd->vdev_min_asize + vdc->vdc_ndisks - 1) / (vdc->vdc_ndisks));
 }
 
 /*
@@ -1699,7 +1754,7 @@ vdev_draid_spare_create(nvlist_t *nvroot, vdev_t *vd, uint64_t *ndraidp,
 	if (n > 0) {
 		(void) nvlist_remove_all(nvroot, ZPOOL_CONFIG_SPARES);
 		fnvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_SPARES,
-		    new_spares, n);
+		    (const nvlist_t **)new_spares, n);
 	}
 
 	for (int i = 0; i < n; i++)
@@ -1885,6 +1940,36 @@ vdev_draid_io_start_read(zio_t *zio, raidz_row_t *rr)
 			vdev_t *svd;
 
 			/*
+			 * Sequential rebuilds need to always consider the data
+			 * on the child being rebuilt to be stale.  This is
+			 * important when all columns are available to aid
+			 * known reconstruction in identifing which columns
+			 * contain incorrect data.
+			 *
+			 * Furthermore, all repairs need to be constrained to
+			 * the devices being rebuilt because without a checksum
+			 * we cannot verify the data is actually correct and
+			 * performing an incorrect repair could result in
+			 * locking in damage and making the data unrecoverable.
+			 */
+			if (zio->io_priority == ZIO_PRIORITY_REBUILD) {
+				if (vdev_draid_rebuilding(cvd)) {
+					if (c >= rr->rr_firstdatacol)
+						rr->rr_missingdata++;
+					else
+						rr->rr_missingparity++;
+					rc->rc_error = SET_ERROR(ESTALE);
+					rc->rc_skipped = 1;
+					rc->rc_allow_repair = 1;
+					continue;
+				} else {
+					rc->rc_allow_repair = 0;
+				}
+			} else {
+				rc->rc_allow_repair = 1;
+			}
+
+			/*
 			 * If this child is a distributed spare then the
 			 * offset might reside on the vdev being replaced.
 			 * In which case this data must be written to the
@@ -1897,7 +1982,10 @@ vdev_draid_io_start_read(zio_t *zio, raidz_row_t *rr)
 				    rc->rc_offset);
 				if (svd && (svd->vdev_ops == &vdev_spare_ops ||
 				    svd->vdev_ops == &vdev_replacing_ops)) {
-					rc->rc_repair = 1;
+					rc->rc_force_repair = 1;
+
+					if (vdev_draid_rebuilding(svd))
+						rc->rc_allow_repair = 1;
 				}
 			}
 
@@ -1908,7 +1996,8 @@ vdev_draid_io_start_read(zio_t *zio, raidz_row_t *rr)
 			if ((cvd->vdev_ops == &vdev_spare_ops ||
 			    cvd->vdev_ops == &vdev_replacing_ops) &&
 			    vdev_draid_rebuilding(cvd)) {
-				rc->rc_repair = 1;
+				rc->rc_force_repair = 1;
+				rc->rc_allow_repair = 1;
 			}
 		}
 	}
@@ -2112,6 +2201,7 @@ vdev_draid_config_generate(vdev_t *vd, nvlist_t *nv)
 static int
 vdev_draid_init(spa_t *spa, nvlist_t *nv, void **tsd)
 {
+	(void) spa;
 	uint64_t ndata, nparity, nspares, ngroups;
 	int error;
 
@@ -2340,7 +2430,6 @@ vdev_draid_spare_get_child(vdev_t *vd, uint64_t physical_offset)
 	return (cvd);
 }
 
-/* ARGSUSED */
 static void
 vdev_draid_spare_close(vdev_t *vd)
 {
@@ -2599,10 +2688,10 @@ vdev_draid_spare_io_start(zio_t *zio)
 	zio_execute(zio);
 }
 
-/* ARGSUSED */
 static void
 vdev_draid_spare_io_done(zio_t *zio)
 {
+	(void) zio;
 }
 
 /*

@@ -13,7 +13,7 @@ ConditionPathIsDirectory=/sys/module/zfs
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=@sbindir@/zpool import -aN -o cachefile=none
+ExecStart=@sbindir@/zpool import -aN -o cachefile=none $ZPOOL_IMPORT_OPTS
 
 [Install]
 WantedBy=zfs-import.target

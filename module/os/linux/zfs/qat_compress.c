@@ -419,30 +419,11 @@ qat_compress_impl(qat_compress_dir_t dir, char *src, int src_len,
 			goto fail;
 		}
 
-		flat_buf_dst = (CpaFlatBuffer *)(buf_list_dst + 1);
-		/* move to the last page */
-		flat_buf_dst += (compressed_sz + hdr_sz) >> PAGE_SHIFT;
+		/* get adler32 checksum and append footer */
+		*(Cpa32U*)(dst + hdr_sz + compressed_sz) =
+		    BSWAP_32(dc_results.checksum);
 
-		/* no space for gzip footer in the last page */
-		if (((compressed_sz + hdr_sz) % PAGE_SIZE)
-		    + ZLIB_FOOT_SZ > PAGE_SIZE) {
-			status = CPA_STATUS_INCOMPRESSIBLE;
-			goto fail;
-		}
-
-		/* jump to the end of the buffer and append footer */
-		flat_buf_dst->pData =
-		    (char *)((unsigned long)flat_buf_dst->pData & PAGE_MASK)
-		    + ((compressed_sz + hdr_sz) % PAGE_SIZE);
-		flat_buf_dst->dataLenInBytes = ZLIB_FOOT_SZ;
-
-		dc_results.produced = 0;
-		status = cpaDcGenerateFooter(session_handle,
-		    flat_buf_dst, &dc_results);
-		if (status != CPA_STATUS_SUCCESS)
-			goto fail;
-
-		*c_len = compressed_sz + dc_results.produced + hdr_sz;
+		*c_len = hdr_sz + compressed_sz + ZLIB_FOOT_SZ;
 		QAT_STAT_INCR(comp_total_out_bytes, *c_len);
 	} else {
 		ASSERT3U(dir, ==, QAT_DECOMPRESS);

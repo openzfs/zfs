@@ -168,7 +168,7 @@ out:
 	(void) close(fd);
 }
 
-static const char *
+static const char * const
 zpool_default_import_path[] = {
 	"/dev"
 };
@@ -243,7 +243,14 @@ zpool_find_import_blkid(libpc_handle_t *hdl, pthread_mutex_t *lock,
 }
 
 int
-zfs_dev_flush(int fd __unused)
+zfs_dev_flush(int fd)
 {
+	(void) fd;
 	return (0);
+}
+
+void
+update_vdevs_config_dev_sysfs_path(nvlist_t *config)
+{
+	(void) config;
 }

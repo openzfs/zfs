@@ -45,12 +45,13 @@ verify_runnable "both"
 function cleanup
 {
 	datasetexists $TESTPOOL/$TESTFS1 && \
-		log_must zfs destroy -r $TESTPOOL/$TESTFS1
+		destroy_dataset $TESTPOOL/$TESTFS1 -r
+	cleanup_https
 }
 log_onexit cleanup
 
-log_assert "Key location can only be 'prompt' or a file path for encryption" \
-	"roots, and 'none' for unencrypted volumes"
+log_assert "Key location can only be 'prompt', 'file://', or 'https://'" \
+	"for encryption roots, and 'none' for unencrypted volumes"
 
 log_must eval "echo $PASSPHRASE > /$TESTPOOL/pkey"
 
@@ -64,18 +65,14 @@ log_must zfs create -o encryption=on -o keyformat=passphrase \
 	-o keylocation=file:///$TESTPOOL/pkey $TESTPOOL/$TESTFS1
 
 log_mustnot zfs set keylocation=none $TESTPOOL/$TESTFS1
-if true; then
-	log_mustnot zfs set keylocation=/$TESTPOOL/pkey $TESTPOOL/$TESTFS1
-else
-	### SOON: ###
-	# file:///$TESTPOOL/pkey and /$TESTPOOL/pkey are equivalent on FreeBSD
-	# thanks to libfetch. Eventually we want to make the other platforms
-	# work this way as well, either by porting libfetch or by other means.
-	log_must zfs set keylocation=/$TESTPOOL/pkey $TESTPOOL/$TESTFS1
-fi
+log_mustnot zfs set keylocation=/$TESTPOOL/pkey $TESTPOOL/$TESTFS1
 
 log_must zfs set keylocation=file:///$TESTPOOL/pkey $TESTPOOL/$TESTFS1
 log_must verify_keylocation $TESTPOOL/$TESTFS1 "file:///$TESTPOOL/pkey"
+
+setup_https
+log_must zfs set keylocation=$(get_https_base_url)/PASSPHRASE $TESTPOOL/$TESTFS1
+log_must verify_keylocation $TESTPOOL/$TESTFS1 "$(get_https_base_url)/PASSPHRASE"
 
 log_must zfs set keylocation=prompt $TESTPOOL/$TESTFS1
 log_must verify_keylocation $TESTPOOL/$TESTFS1 "prompt"
@@ -97,5 +94,5 @@ log_mustnot zfs set keylocation=/$TESTPOOL/pkey $TESTPOOL/$TESTFS1/child
 
 log_must verify_keylocation $TESTPOOL/$TESTFS1/child "none"
 
-log_pass "Key location can only be 'prompt' or a file path for encryption" \
-	"roots, and 'none' for unencrypted volumes"
+log_pass "Key location can only be 'prompt', 'file://', or 'https://'" \
+	"for encryption roots, and 'none' for unencrypted volumes"

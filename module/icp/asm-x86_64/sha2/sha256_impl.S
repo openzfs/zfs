@@ -71,10 +71,10 @@
 #include <sys/stdint.h>
 #include <sha2/sha2.h>
 
-/* ARGSUSED */
 void
 SHA256TransformBlocks(SHA2_CTX *ctx, const void *in, size_t num)
 {
+	(void) ctx, (void) in, (void) num;
 }
 
 
@@ -2062,7 +2062,7 @@ ENTRY_NP(SHA256TransformBlocks)
 .cfi_endproc
 SET_SIZE(SHA256TransformBlocks)
 
-.data
+.section .rodata
 .align	64
 .type	K256,@object
 K256:

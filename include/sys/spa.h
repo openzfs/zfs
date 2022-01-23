@@ -73,27 +73,6 @@ struct dsl_dataset;
 struct dsl_crypto_params;
 
 /*
- * We currently support block sizes from 512 bytes to 16MB.
- * The benefits of larger blocks, and thus larger IO, need to be weighed
- * against the cost of COWing a giant block to modify one byte, and the
- * large latency of reading or writing a large block.
- *
- * Note that although blocks up to 16MB are supported, the recordsize
- * property can not be set larger than zfs_max_recordsize (default 1MB).
- * See the comment near zfs_max_recordsize in dsl_dataset.c for details.
- *
- * Note that although the LSIZE field of the blkptr_t can store sizes up
- * to 32MB, the dnode's dn_datablkszsec can only store sizes up to
- * 32MB - 512 bytes.  Therefore, we limit SPA_MAXBLOCKSIZE to 16MB.
- */
-#define	SPA_MINBLOCKSHIFT	9
-#define	SPA_OLD_MAXBLOCKSHIFT	17
-#define	SPA_MAXBLOCKSHIFT	24
-#define	SPA_MINBLOCKSIZE	(1ULL << SPA_MINBLOCKSHIFT)
-#define	SPA_OLD_MAXBLOCKSIZE	(1ULL << SPA_OLD_MAXBLOCKSHIFT)
-#define	SPA_MAXBLOCKSIZE	(1ULL << SPA_MAXBLOCKSHIFT)
-
-/*
  * Alignment Shift (ashift) is an immutable, internal top-level vdev property
  * which can only be set at vdev creation time. Physical writes are always done
  * according to it, which makes 2^ashift the smallest possible IO on a vdev.
@@ -349,7 +328,7 @@ typedef struct zio_cksum_salt {
 #define	BPE_SET_ETYPE(bp, t)	do { \
 	ASSERT(BP_IS_EMBEDDED(bp)); \
 	BF64_SET((bp)->blk_prop, 40, 8, t); \
-_NOTE(CONSTCOND) } while (0)
+} while (0)
 
 #define	BPE_GET_LSIZE(bp)	\
 	(ASSERT(BP_IS_EMBEDDED(bp)), \
@@ -357,7 +336,7 @@ _NOTE(CONSTCOND) } while (0)
 #define	BPE_SET_LSIZE(bp, x)	do { \
 	ASSERT(BP_IS_EMBEDDED(bp)); \
 	BF64_SET_SB((bp)->blk_prop, 0, 25, 0, 1, x); \
-_NOTE(CONSTCOND) } while (0)
+} while (0)
 
 #define	BPE_GET_PSIZE(bp)	\
 	(ASSERT(BP_IS_EMBEDDED(bp)), \
@@ -365,7 +344,7 @@ _NOTE(CONSTCOND) } while (0)
 #define	BPE_SET_PSIZE(bp, x)	do { \
 	ASSERT(BP_IS_EMBEDDED(bp)); \
 	BF64_SET_SB((bp)->blk_prop, 25, 7, 0, 1, x); \
-_NOTE(CONSTCOND) } while (0)
+} while (0)
 
 typedef enum bp_embedded_type {
 	BP_EMBEDDED_TYPE_DATA,
@@ -440,7 +419,7 @@ typedef struct blkptr {
 	ASSERT(!BP_IS_EMBEDDED(bp)); \
 	BF64_SET_SB((bp)->blk_prop, \
 	    0, SPA_LSIZEBITS, SPA_MINBLOCKSHIFT, 1, x); \
-_NOTE(CONSTCOND) } while (0)
+} while (0)
 
 #define	BP_GET_PSIZE(bp)	\
 	(BP_IS_EMBEDDED(bp) ? 0 : \
@@ -449,7 +428,7 @@ _NOTE(CONSTCOND) } while (0)
 	ASSERT(!BP_IS_EMBEDDED(bp)); \
 	BF64_SET_SB((bp)->blk_prop, \
 	    16, SPA_PSIZEBITS, SPA_MINBLOCKSHIFT, 1, x); \
-_NOTE(CONSTCOND) } while (0)
+} while (0)
 
 #define	BP_GET_COMPRESS(bp)		\
 	BF64_GET((bp)->blk_prop, 32, SPA_COMPRESSBITS)
@@ -465,7 +444,7 @@ _NOTE(CONSTCOND) } while (0)
 #define	BP_SET_CHECKSUM(bp, x)		do { \
 	ASSERT(!BP_IS_EMBEDDED(bp)); \
 	BF64_SET((bp)->blk_prop, 40, 8, x); \
-_NOTE(CONSTCOND) } while (0)
+} while (0)
 
 #define	BP_GET_TYPE(bp)			BF64_GET((bp)->blk_prop, 48, 8)
 #define	BP_SET_TYPE(bp, x)		BF64_SET((bp)->blk_prop, 48, 8, x)
@@ -813,7 +792,8 @@ extern int spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot,
     int replacing, int rebuild);
 extern int spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid,
     int replace_done);
-extern int spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare);
+extern int spa_vdev_alloc(spa_t *spa, uint64_t guid);
+extern int spa_vdev_noalloc(spa_t *spa, uint64_t guid);
 extern boolean_t spa_vdev_remove_active(spa_t *spa);
 extern int spa_vdev_initialize(spa_t *spa, nvlist_t *nv, uint64_t cmd_type,
     nvlist_t *vdev_errlist);
@@ -916,7 +896,6 @@ typedef struct spa_stats {
 	spa_history_list_t	read_history;
 	spa_history_list_t	txg_history;
 	spa_history_kstat_t	tx_assign_histogram;
-	spa_history_kstat_t	io_history;
 	spa_history_list_t	mmp_history;
 	spa_history_kstat_t	state;		/* pool state */
 	spa_history_kstat_t	iostats;
@@ -1078,8 +1057,10 @@ extern uint64_t spa_dirty_data(spa_t *spa);
 extern spa_autotrim_t spa_get_autotrim(spa_t *spa);
 
 /* Miscellaneous support routines */
-extern void spa_load_failed(spa_t *spa, const char *fmt, ...);
-extern void spa_load_note(spa_t *spa, const char *fmt, ...);
+extern void spa_load_failed(spa_t *spa, const char *fmt, ...)
+    __attribute__((format(printf, 2, 3)));
+extern void spa_load_note(spa_t *spa, const char *fmt, ...)
+    __attribute__((format(printf, 2, 3)));
 extern void spa_activate_mos_feature(spa_t *spa, const char *feature,
     dmu_tx_t *tx);
 extern void spa_deactivate_mos_feature(spa_t *spa, const char *feature);
@@ -1087,7 +1068,6 @@ extern spa_t *spa_by_guid(uint64_t pool_guid, uint64_t device_guid);
 extern boolean_t spa_guid_exists(uint64_t pool_guid, uint64_t device_guid);
 extern char *spa_strdup(const char *);
 extern void spa_strfree(char *);
-extern uint64_t spa_get_random(uint64_t range);
 extern uint64_t spa_generate_guid(spa_t *spa);
 extern void snprintf_blkptr(char *buf, size_t buflen, const blkptr_t *bp);
 extern void spa_freeze(spa_t *spa);
@@ -1096,6 +1076,7 @@ extern void spa_upgrade(spa_t *spa, uint64_t version);
 extern void spa_evict_all(void);
 extern vdev_t *spa_lookup_by_guid(spa_t *spa, uint64_t guid,
     boolean_t l2cache);
+extern boolean_t spa_has_l2cache(spa_t *, uint64_t guid);
 extern boolean_t spa_has_spare(spa_t *, uint64_t guid);
 extern uint64_t dva_get_dsize_sync(spa_t *spa, const dva_t *dva);
 extern uint64_t bp_get_dsize_sync(spa_t *spa, const blkptr_t *bp);
@@ -1191,6 +1172,8 @@ extern void spa_configfile_set(spa_t *, nvlist_t *, boolean_t);
 /* asynchronous event notification */
 extern void spa_event_notify(spa_t *spa, vdev_t *vdev, nvlist_t *hist_nvl,
     const char *name);
+extern void zfs_ereport_zvol_post(const char *subclass, const char *name,
+    const char *device_name, const char *raw_name);
 
 /* waiting for pool activities to complete */
 extern int spa_wait(const char *pool, zpool_wait_activity_t activity,
@@ -1214,7 +1197,7 @@ int param_set_deadman_failmode(ZFS_MODULE_PARAM_ARGS);
 	dprintf(fmt " %s\n", __VA_ARGS__, __blkbuf);		\
 	kmem_free(__blkbuf, BP_SPRINTF_LEN);			\
 	} \
-_NOTE(CONSTCOND) } while (0)
+} while (0)
 #else
 #define	dprintf_bp(bp, fmt, ...)
 #endif
@@ -1224,6 +1207,9 @@ extern int zfs_deadman_enabled;
 extern unsigned long zfs_deadman_synctime_ms;
 extern unsigned long zfs_deadman_ziotime_ms;
 extern unsigned long zfs_deadman_checktime_ms;
+
+extern kmem_cache_t *zio_buf_cache[];
+extern kmem_cache_t *zio_data_buf_cache[];
 
 #ifdef	__cplusplus
 }

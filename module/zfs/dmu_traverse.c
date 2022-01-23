@@ -39,9 +39,9 @@
 #include <sys/callb.h>
 #include <sys/zfeature.h>
 
-int32_t zfs_pd_bytes_max = 50 * 1024 * 1024;	/* 50MB */
-int32_t send_holes_without_birth_time = 1;
-int32_t zfs_traverse_indirect_prefetch_limit = 32;
+static int32_t zfs_pd_bytes_max = 50 * 1024 * 1024;	/* 50MB */
+static int32_t send_holes_without_birth_time = 1;
+static int32_t zfs_traverse_indirect_prefetch_limit = 32;
 
 typedef struct prefetch_data {
 	kmutex_t pd_mtx;
@@ -560,11 +560,11 @@ traverse_dnode(traverse_data_t *td, const blkptr_t *bp, const dnode_phys_t *dnp,
 	return (err);
 }
 
-/* ARGSUSED */
 static int
 traverse_prefetcher(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
     const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
 {
+	(void) zilog, (void) dnp;
 	prefetch_data_t *pfd = arg;
 	int zio_flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_SPECULATIVE;
 	arc_flags_t aflags = ARC_FLAG_NOWAIT | ARC_FLAG_PREFETCH |

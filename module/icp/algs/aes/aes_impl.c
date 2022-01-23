@@ -206,7 +206,6 @@ aes_decrypt_block(const void *ks, const uint8_t *ct, uint8_t *pt)
  * size		Size of key schedule allocated, in bytes
  * kmflag	Flag passed to kmem_alloc(9F); ignored in userland.
  */
-/* ARGSUSED */
 void *
 aes_alloc_keysched(size_t *size, int kmflag)
 {
@@ -226,7 +225,7 @@ static aes_impl_ops_t aes_fastest_impl = {
 };
 
 /* All compiled in implementations */
-const aes_impl_ops_t *aes_all_impl[] = {
+static const aes_impl_ops_t *aes_all_impl[] = {
 	&aes_generic_impl,
 #if defined(__x86_64)
 	&aes_x86_64_impl,

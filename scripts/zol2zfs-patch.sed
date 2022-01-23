@@ -12,7 +12,7 @@ s:lib/libzfs:usr/src/lib/libzfs/common:g
 s:lib/libzfs_core:usr/src/lib/libzfs_core/common:g
 s:lib/libzpool:lib/libzpool/common:g
 s:lib/libzpool:usr/src/lib/libzpool:g
-s:man/man5/zpool-features.5:usr/src/man/man5/zpool-features.5:g
+s:man/man7/zpool-features.7:usr/src/man/man5/zpool-features.5:g
 s:man/man8/zfs.8:usr/src/man/man1m/zfs.1m:g
 s:module/nvpair:usr/src/common/nvpair:g
 s:module/zcommon:usr/src/common/zfs/:g

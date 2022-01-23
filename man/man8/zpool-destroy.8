@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
@@ -27,29 +26,23 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd August 9, 2019
+.Dd May 31, 2021
 .Dt ZPOOL-DESTROY 8
 .Os
+.
 .Sh NAME
 .Nm zpool-destroy
-.Nd Destroys the given ZFS storage pool, freeing up any devices for other use
+.Nd destroy ZFS storage pool
 .Sh SYNOPSIS
 .Nm zpool
 .Cm destroy
 .Op Fl f
 .Ar pool
+.
 .Sh DESCRIPTION
-.Bl -tag -width Ds
-.It Xo
-.Nm zpool
-.Cm destroy
-.Op Fl f
-.Ar pool
-.Xc
 Destroys the given pool, freeing up any devices for other use.
 This command tries to unmount any active datasets before destroying the pool.
 .Bl -tag -width Ds
 .It Fl f
-Forces any active datasets contained within the pool to be unmounted.
-.El
+Forcefully unmount all active datasets.
 .El

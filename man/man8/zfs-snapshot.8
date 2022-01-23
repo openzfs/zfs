@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
 .\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
@@ -30,48 +29,42 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd June 30, 2019
+.Dd May 27, 2021
 .Dt ZFS-SNAPSHOT 8
 .Os
+.
 .Sh NAME
 .Nm zfs-snapshot
-.Nd Creates snapshots with the given names.
+.Nd create snapshots of ZFS datasets
 .Sh SYNOPSIS
 .Nm zfs
 .Cm snapshot
 .Op Fl r
-.Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
-.Ar filesystem Ns @ Ns Ar snapname Ns | Ns Ar volume Ns @ Ns Ar snapname Ns ...
+.Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
+.Ar dataset Ns @ Ns Ar snapname Ns …
+.
 .Sh DESCRIPTION
-.Bl -tag -width ""
-.It Xo
-.Nm zfs
-.Cm snapshot
-.Op Fl r
-.Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
-.Ar filesystem Ns @ Ns Ar snapname Ns | Ns Ar volume Ns @ Ns Ar snapname Ns ...
-.Xc
 All previous modifications by successful system calls to the file system are
 part of the snapshots.
 Snapshots are taken atomically, so that all snapshots correspond to the same
 moment in time.
 .Nm zfs Cm snap
 can be used as an alias for
-.Nm zfs Cm snapshot.
+.Nm zfs Cm snapshot .
 See the
-.Em Snapshots
+.Sx Snapshots
 section of
-.Xr zfsconcepts 8
+.Xr zfsconcepts 7
 for details.
 .Bl -tag -width "-o"
 .It Fl o Ar property Ns = Ns Ar value
-Sets the specified property; see
+Set the specified property; see
 .Nm zfs Cm create
 for details.
 .It Fl r
 Recursively create snapshots of all descendent datasets
 .El
-.El
+.
 .Sh SEE ALSO
 .Xr zfs-bookmark 8 ,
 .Xr zfs-clone 8 ,

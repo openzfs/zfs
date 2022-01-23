@@ -80,7 +80,7 @@ DECLARE_EVENT_CLASS(zfs_arc_buf_hdr_class,
 	    __entry->hdr_mru_ghost_hits	= ab->b_l1hdr.b_mru_ghost_hits;
 	    __entry->hdr_mfu_hits	= ab->b_l1hdr.b_mfu_hits;
 	    __entry->hdr_mfu_ghost_hits	= ab->b_l1hdr.b_mfu_ghost_hits;
-	    __entry->hdr_l2_hits	= ab->b_l1hdr.b_l2_hits;
+	    __entry->hdr_l2_hits	= ab->b_l2hdr.b_hits;
 	    __entry->hdr_refcount	= ab->b_l1hdr.b_refcnt.rc_count;
 	),
 	TP_printk("hdr { dva 0x%llx:0x%llx birth %llu "
@@ -238,7 +238,7 @@ DECLARE_EVENT_CLASS(zfs_arc_miss_class,
 	    __entry->hdr_mru_ghost_hits	= hdr->b_l1hdr.b_mru_ghost_hits;
 	    __entry->hdr_mfu_hits	= hdr->b_l1hdr.b_mfu_hits;
 	    __entry->hdr_mfu_ghost_hits	= hdr->b_l1hdr.b_mfu_ghost_hits;
-	    __entry->hdr_l2_hits	= hdr->b_l1hdr.b_l2_hits;
+	    __entry->hdr_l2_hits	= hdr->b_l2hdr.b_hits;
 	    __entry->hdr_refcount	= hdr->b_l1hdr.b_refcnt.rc_count;
 
 	    __entry->bp_dva0[0]		= bp->blk_dva[0].dva_word[0];

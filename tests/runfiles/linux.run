@@ -38,10 +38,6 @@ tags = ['functional', 'atime']
 tests = ['chattr_001_pos', 'chattr_002_neg']
 tags = ['functional', 'chattr']
 
-[tests/functional/checksum:Linux]
-tests = ['run_edonr_test']
-tags = ['functional', 'checksum']
-
 [tests/functional/cli_root/zfs:Linux]
 tests = ['zfs_003_neg']
 tags = ['functional', 'cli_root', 'zfs']
@@ -53,7 +49,7 @@ tags = ['functional', 'cli_root', 'zfs_mount']
 
 [tests/functional/cli_root/zfs_share:Linux]
 tests = ['zfs_share_005_pos', 'zfs_share_007_neg', 'zfs_share_009_neg',
-    'zfs_share_012_pos']
+    'zfs_share_012_pos', 'zfs_share_013_pos']
 tags = ['functional', 'cli_root', 'zfs_share']
 
 [tests/functional/cli_root/zfs_sysfs:Linux]
@@ -94,14 +90,15 @@ tests = ['events_001_pos', 'events_002_pos', 'zed_rc_filter', 'zed_fd_spill']
 tags = ['functional', 'events']
 
 [tests/functional/fallocate:Linux]
-tests = ['fallocate_prealloc', 'fallocate_punch-hole']
+tests = ['fallocate_prealloc']
 tags = ['functional', 'fallocate']
 
 [tests/functional/fault:Linux]
-tests = ['auto_offline_001_pos', 'auto_online_001_pos', 'auto_replace_001_pos',
-    'auto_spare_001_pos', 'auto_spare_002_pos', 'auto_spare_multiple',
-    'auto_spare_ashift', 'auto_spare_shared', 'decrypt_fault',
-    'decompress_fault', 'scrub_after_resilver', 'zpool_status_-s']
+tests = ['auto_offline_001_pos', 'auto_online_001_pos', 'auto_online_002_pos',
+    'auto_replace_001_pos', 'auto_spare_001_pos', 'auto_spare_002_pos',
+    'auto_spare_multiple', 'auto_spare_ashift', 'auto_spare_shared',
+    'decrypt_fault', 'decompress_fault', 'scrub_after_resilver',
+    'zpool_status_-s']
 tags = ['functional', 'fault']
 
 [tests/functional/features/large_dnode:Linux]
@@ -128,7 +125,7 @@ tests = ['umount_unlinked_drain']
 tags = ['functional', 'mount']
 
 [tests/functional/pam:Linux]
-tests = ['pam_basic', 'pam_nounmount']
+tests = ['pam_basic', 'pam_nounmount', 'pam_short_password']
 tags = ['functional', 'pam']
 
 [tests/functional/procfs:Linux]

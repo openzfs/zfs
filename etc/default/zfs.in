@@ -1,4 +1,5 @@
-# ZoL userland configuration.
+# OpenZFS userland configuration.
+# shellcheck disable=SC2154
 
 # NOTE: This file is intended for sysv init and initramfs.
 # Changing some of these settings may not make any difference on
@@ -8,6 +9,13 @@
 
 # To enable a boolean setting, set it to yes, on, true, or 1.
 # Anything else will be interpreted as unset.
+# shellcheck disable=SC2034
+
+# Run `zfs load-key` during system start?
+ZFS_LOAD_KEY='yes'
+
+# Run `zfs unload-key` during system stop?
+ZFS_UNLOAD_KEY='no'
 
 # Run `zfs mount -a` during system start?
 ZFS_MOUNT='yes'

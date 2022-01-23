@@ -34,10 +34,10 @@ ZFS_MAX_DATASET_NAME_LEN=256
 function cleanup
 {
 	for ds in $datasets; do
-		datasetexists $ds && log_must zfs destroy -r $ds
+		datasetexists $ds && destroy_dataset $ds -r
 	done
-	zfs destroy -r $TESTPOOL/TESTFS4
-	zfs destroy -r $TESTPOOL/TESTFS5
+	destroy_dataset $TESTPOOL/TESTFS4 -r
+	destroy_dataset $TESTPOOL/TESTFS5 -r
 }
 datasets="$TESTPOOL/$TESTFS1 $TESTPOOL/$TESTFS2
     $TESTPOOL/$TESTFS3"
@@ -70,8 +70,7 @@ i=0
 while (( i < ${#valid_args[*]} )); do
 	log_must zfs snapshot ${valid_args[i]}
 	for token in ${valid_args[i]}; do
-		log_must snapexists $token && \
-		    log_must zfs destroy $token
+		snapexists $token && destroy_dataset $token
 	done
 	((i = i + 1))
 done

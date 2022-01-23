@@ -1,4 +1,5 @@
 #!@DEFAULT_INIT_SHELL@
+# shellcheck disable=SC2154
 #
 # zfs-share     This script will network share zfs filesystems and volumes.
 #
@@ -22,10 +23,8 @@
 #
 # Released under the 2-clause BSD license.
 #
-# The original script that acted as a template for this script came from
-# the Debian GNU/Linux kFreeBSD ZFS packages (which did not include a
-# licensing stansa) in the commit dated Mar 24, 2011:
-#   https://github.com/zfsonlinux/pkg-zfs/commit/80a3ae582b59c0250d7912ba794dca9e669e605a
+# This script is based on debian/zfsutils.zfs.init from the
+# Debian GNU/kFreeBSD zfsutils 8.1-3 package, written by Aurelien Jarno.
 
 # Source the common init script
 . @sysconfdir@/zfs/zfs-functions

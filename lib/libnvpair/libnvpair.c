@@ -28,7 +28,6 @@
 #include <libintl.h>
 #include <sys/types.h>
 #include <sys/inttypes.h>
-#include <sys/note.h>
 #include <stdarg.h>
 #include "libnvpair.h"
 
@@ -191,9 +190,9 @@ static int \
 nvprint_##type_and_variant(nvlist_prtctl_t pctl, void *private, \
     nvlist_t *nvl, const char *name, vtype value) \
 { \
+	(void) private; \
+	(void) nvl; \
 	FILE *fp = pctl->nvprt_fp; \
-	NOTE(ARGUNUSED(private)) \
-	NOTE(ARGUNUSED(nvl)) \
 	indent(pctl, 1); \
 	(void) fprintf(fp, pctl->nvprt_nmfmt, name); \
 	(void) fprintf(fp, vfmt, (ptype)value); \
@@ -224,10 +223,10 @@ static int \
 nvaprint_##type_and_variant(nvlist_prtctl_t pctl, void *private, \
     nvlist_t *nvl, const char *name, vtype *valuep, uint_t count) \
 { \
+	(void) private; \
+	(void) nvl; \
 	FILE *fp = pctl->nvprt_fp; \
 	uint_t i; \
-	NOTE(ARGUNUSED(private)) \
-	NOTE(ARGUNUSED(nvl)) \
 	for (i = 0; i < count; i++) { \
 		if (i == 0 || pctl->nvprt_btwnarrfmt_nl) { \
 			indent(pctl, 1); \
@@ -254,11 +253,11 @@ NVLIST_ARRPRTFUNC(int64_array, int64_t, longlong_t, "%lld")
 NVLIST_ARRPRTFUNC(uint64_array, uint64_t, u_longlong_t, "0x%llx")
 NVLIST_ARRPRTFUNC(string_array, char *, char *, "%s")
 
-/*ARGSUSED*/
 static int
 nvprint_nvlist(nvlist_prtctl_t pctl, void *private,
     nvlist_t *nvl, const char *name, nvlist_t *value)
 {
+	(void) private, (void) nvl;
 	FILE *fp = pctl->nvprt_fp;
 
 	indent(pctl, 1);
@@ -274,11 +273,11 @@ nvprint_nvlist(nvlist_prtctl_t pctl, void *private,
 	return (1);
 }
 
-/*ARGSUSED*/
 static int
 nvaprint_nvlist_array(nvlist_prtctl_t pctl, void *private,
     nvlist_t *nvl, const char *name, nvlist_t **valuep, uint_t count)
 {
+	(void) private, (void) nvl;
 	FILE *fp = pctl->nvprt_fp;
 	uint_t i;
 

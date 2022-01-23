@@ -8,7 +8,6 @@ KERNEL_H = \
 	ccompile.h \
 	cmn_err.h \
 	condvar.h \
-	console.h \
 	cred.h \
 	ctype.h \
 	debug.h \
@@ -69,6 +68,7 @@ KERNEL_H = \
 	vmsystm.h \
 	vnode_impl.h \
 	vnode.h \
+	wmsum.h \
 	zmod.h \
 	zone.h
 

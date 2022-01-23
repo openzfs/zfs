@@ -110,7 +110,7 @@ test_stat_mode(mode_t mask)
 }
 
 int
-main(int argc, char *argv[])
+main(void)
 {
 	fprintf(stdout, "Verify stat(2) for O_TMPFILE file considers umask.\n");
 

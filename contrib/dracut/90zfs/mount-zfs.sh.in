@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2034,SC2154
 
 . /lib/dracut-zfs-lib.sh
 
@@ -38,11 +39,10 @@ modprobe zfs 2>/dev/null
 udevadm settle
 
 if [ "${root}" = "zfs:AUTO" ] ; then
-	ZFS_DATASET="$(find_bootfs)"
-	if [ $? -ne 0 ] ; then
+	if ! ZFS_DATASET="$(find_bootfs)" ; then
+		# shellcheck disable=SC2086
 		zpool import -N -a ${ZPOOL_IMPORT_OPTS}
-		ZFS_DATASET="$(find_bootfs)"
-		if [ $? -ne 0 ] ; then
+		if ! ZFS_DATASET="$(find_bootfs)" ; then
 			warn "ZFS: No bootfs attribute found in importable pools."
 			export_all -F
 
@@ -58,7 +58,7 @@ ZFS_POOL="${ZFS_DATASET%%/*}"
 
 if import_pool "${ZFS_POOL}" ; then
 	# Load keys if we can or if we need to
-	if [ "$(zpool list -H -o feature@encryption "$(echo "${ZFS_POOL}" | awk -F/ '{print $1}')")" = 'active' ]; then
+	if [ "$(zpool list -H -o feature@encryption "${ZFS_POOL}")" = 'active' ]; then
 		# if the root dataset has encryption enabled
 		ENCRYPTIONROOT="$(zfs get -H -o value encryptionroot "${ZFS_DATASET}")"
 		if ! [ "${ENCRYPTIONROOT}" = "-" ]; then

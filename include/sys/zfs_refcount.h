@@ -72,6 +72,14 @@ int zfs_refcount_is_zero(zfs_refcount_t *);
 int64_t zfs_refcount_count(zfs_refcount_t *);
 int64_t zfs_refcount_add(zfs_refcount_t *, const void *);
 int64_t zfs_refcount_remove(zfs_refcount_t *, const void *);
+/*
+ * Note that (add|remove)_many add/remove one reference with "number" N,
+ * _not_ make N references with "number" 1, which is what vanilla
+ * zfs_refcount_(add|remove) would do if called N times.
+ *
+ * Attempting to remove a reference with number N when none exists is a
+ * panic on debug kernels with reference_tracking enabled.
+ */
 int64_t zfs_refcount_add_many(zfs_refcount_t *, uint64_t, const void *);
 int64_t zfs_refcount_remove_many(zfs_refcount_t *, uint64_t, const void *);
 void zfs_refcount_transfer(zfs_refcount_t *, zfs_refcount_t *);
@@ -96,8 +104,8 @@ typedef struct refcount {
 #define	zfs_refcount_create_tracked(rc) ((rc)->rc_count = 0)
 #define	zfs_refcount_destroy(rc) ((rc)->rc_count = 0)
 #define	zfs_refcount_destroy_many(rc, number) ((rc)->rc_count = 0)
-#define	zfs_refcount_is_zero(rc) ((rc)->rc_count == 0)
-#define	zfs_refcount_count(rc) ((rc)->rc_count)
+#define	zfs_refcount_is_zero(rc) (zfs_refcount_count(rc) == 0)
+#define	zfs_refcount_count(rc) atomic_load_64(&(rc)->rc_count)
 #define	zfs_refcount_add(rc, holder) atomic_inc_64_nv(&(rc)->rc_count)
 #define	zfs_refcount_remove(rc, holder) atomic_dec_64_nv(&(rc)->rc_count)
 #define	zfs_refcount_add_many(rc, number, holder) \
@@ -105,13 +113,13 @@ typedef struct refcount {
 #define	zfs_refcount_remove_many(rc, number, holder) \
 	atomic_add_64_nv(&(rc)->rc_count, -number)
 #define	zfs_refcount_transfer(dst, src) { \
-	uint64_t __tmp = (src)->rc_count; \
+	uint64_t __tmp = zfs_refcount_count(src); \
 	atomic_add_64(&(src)->rc_count, -__tmp); \
 	atomic_add_64(&(dst)->rc_count, __tmp); \
 }
 #define	zfs_refcount_transfer_ownership(rc, ch, nh)		((void)0)
 #define	zfs_refcount_transfer_ownership_many(rc, nr, ch, nh)	((void)0)
-#define	zfs_refcount_held(rc, holder)			((rc)->rc_count > 0)
+#define	zfs_refcount_held(rc, holder)		(zfs_refcount_count(rc) > 0)
 #define	zfs_refcount_not_held(rc, holder)		(B_TRUE)
 
 #define	zfs_refcount_init()

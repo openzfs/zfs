@@ -67,7 +67,7 @@
 #endif
 
 /* Set this tunable to TRUE to replace corrupt data with 0x2f5baddb10c */
-int zfs_send_corrupt_data = B_FALSE;
+static int zfs_send_corrupt_data = B_FALSE;
 /*
  * This tunable controls the amount of data (measured in bytes) that will be
  * prefetched by zfs send.  If the main thread is blocking on reads that haven't
@@ -75,7 +75,7 @@ int zfs_send_corrupt_data = B_FALSE;
  * thread is issuing new reads because the prefetches have fallen out of the
  * cache, this may need to be decreased.
  */
-int zfs_send_queue_length = SPA_MAXBLOCKSIZE;
+static int zfs_send_queue_length = SPA_MAXBLOCKSIZE;
 /*
  * This tunable controls the length of the queues that zfs send worker threads
  * use to communicate.  If the send_main_thread is blocking on these queues,
@@ -83,7 +83,7 @@ int zfs_send_queue_length = SPA_MAXBLOCKSIZE;
  * at the start of a send as these threads consume all the available IO
  * resources, this variable may need to be decreased.
  */
-int zfs_send_no_prefetch_queue_length = 1024 * 1024;
+static int zfs_send_no_prefetch_queue_length = 1024 * 1024;
 /*
  * These tunables control the fill fraction of the queues by zfs send.  The fill
  * fraction controls the frequency with which threads have to be cv_signaled.
@@ -91,19 +91,19 @@ int zfs_send_no_prefetch_queue_length = 1024 * 1024;
  * down.  If the queues empty before the signalled thread can catch up, then
  * these should be tuned up.
  */
-int zfs_send_queue_ff = 20;
-int zfs_send_no_prefetch_queue_ff = 20;
+static int zfs_send_queue_ff = 20;
+static int zfs_send_no_prefetch_queue_ff = 20;
 
 /*
  * Use this to override the recordsize calculation for fast zfs send estimates.
  */
-int zfs_override_estimate_recordsize = 0;
+static int zfs_override_estimate_recordsize = 0;
 
 /* Set this tunable to FALSE to disable setting of DRR_FLAG_FREERECORDS */
-int zfs_send_set_freerecords_bit = B_TRUE;
+static const boolean_t zfs_send_set_freerecords_bit = B_TRUE;
 
 /* Set this tunable to FALSE is disable sending unmodified spill blocks. */
-int zfs_send_unmodified_spill_blocks = B_TRUE;
+static int zfs_send_unmodified_spill_blocks = B_TRUE;
 
 static inline boolean_t
 overflow_multiply(uint64_t a, uint64_t b, uint64_t *c)
@@ -165,6 +165,7 @@ struct send_range {
 			kmutex_t		lock;
 			kcondvar_t		cv;
 			boolean_t		io_outstanding;
+			boolean_t		io_compressed;
 			int			io_err;
 		} data;
 		struct srh {
@@ -450,7 +451,8 @@ dump_redact(dmu_send_cookie_t *dscp, uint64_t object, uint64_t offset,
 
 static int
 dmu_dump_write(dmu_send_cookie_t *dscp, dmu_object_type_t type, uint64_t object,
-    uint64_t offset, int lsize, int psize, const blkptr_t *bp, void *data)
+    uint64_t offset, int lsize, int psize, const blkptr_t *bp,
+    boolean_t io_compressed, void *data)
 {
 	uint64_t payload_size;
 	boolean_t raw = (dscp->dsc_featureflags & DMU_BACKUP_FEATURE_RAW);
@@ -487,7 +489,10 @@ dmu_dump_write(dmu_send_cookie_t *dscp, dmu_object_type_t type, uint64_t object,
 	drrw->drr_logical_size = lsize;
 
 	/* only set the compression fields if the buf is compressed or raw */
-	if (raw || lsize != psize) {
+	boolean_t compressed =
+	    (bp != NULL ? BP_GET_COMPRESS(bp) != ZIO_COMPRESS_OFF &&
+	    io_compressed : lsize != psize);
+	if (raw || compressed) {
 		ASSERT(raw || dscp->dsc_featureflags &
 		    DMU_BACKUP_FEATURE_COMPRESSED);
 		ASSERT(!BP_IS_EMBEDDED(bp));
@@ -1014,7 +1019,8 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 				int n = MIN(srdp->datablksz,
 				    SPA_OLD_MAXBLOCKSIZE);
 				err = dmu_dump_write(dscp, srdp->obj_type,
-				    range->object, offset, n, n, NULL, data);
+				    range->object, offset, n, n, NULL, B_FALSE,
+				    data);
 				offset += n;
 				/*
 				 * When doing dry run, data==NULL is used as a
@@ -1028,7 +1034,8 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 		} else {
 			err = dmu_dump_write(dscp, srdp->obj_type,
 			    range->object, offset,
-			    srdp->datablksz, srdp->datasz, bp, data);
+			    srdp->datablksz, srdp->datasz, bp,
+			    srdp->io_compressed, data);
 		}
 		return (err);
 	}
@@ -1081,6 +1088,7 @@ range_alloc(enum type type, uint64_t object, uint64_t start_blkid,
 		cv_init(&range->sru.data.cv, NULL, CV_DEFAULT, NULL);
 		range->sru.data.io_outstanding = 0;
 		range->sru.data.io_err = 0;
+		range->sru.data.io_compressed = B_FALSE;
 	}
 	return (range);
 }
@@ -1089,11 +1097,11 @@ range_alloc(enum type type, uint64_t object, uint64_t start_blkid,
  * This is the callback function to traverse_dataset that acts as a worker
  * thread for dmu_send_impl.
  */
-/*ARGSUSED*/
 static int
 send_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
     const zbookmark_phys_t *zb, const struct dnode_phys *dnp, void *arg)
 {
+	(void) zilog;
 	struct send_thread_arg *sta = arg;
 	struct send_range *record;
 
@@ -1646,10 +1654,13 @@ issue_data_read(struct send_reader_thread_arg *srta, struct send_range *range)
 
 	enum zio_flag zioflags = ZIO_FLAG_CANFAIL;
 
-	if (srta->featureflags & DMU_BACKUP_FEATURE_RAW)
+	if (srta->featureflags & DMU_BACKUP_FEATURE_RAW) {
 		zioflags |= ZIO_FLAG_RAW;
-	else if (request_compressed)
+		srdp->io_compressed = B_TRUE;
+	} else if (request_compressed) {
 		zioflags |= ZIO_FLAG_RAW_COMPRESS;
+		srdp->io_compressed = B_TRUE;
+	}
 
 	srdp->datasz = (zioflags & ZIO_FLAG_RAW_COMPRESS) ?
 	    BP_GET_PSIZE(bp) : BP_GET_LSIZE(bp);
@@ -2054,6 +2065,8 @@ setup_to_thread(struct send_thread_arg *to_arg, objset_t *to_os,
 	to_arg->flags = TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA;
 	if (rawok)
 		to_arg->flags |= TRAVERSE_NO_DECRYPT;
+	if (zfs_send_corrupt_data)
+		to_arg->flags |= TRAVERSE_HARD;
 	to_arg->num_blocks_visited = &dssp->dss_blocks;
 	(void) thread_create(NULL, 0, send_traverse_thread, to_arg, 0,
 	    curproc, TS_RUN, minclsyspri);
@@ -2142,6 +2155,7 @@ setup_resume_points(struct dmu_send_params *dspp,
     struct send_merge_thread_arg *smt_arg, boolean_t resuming, objset_t *os,
     redaction_list_t *redact_rl, nvlist_t *nvl)
 {
+	(void) smt_arg;
 	dsl_dataset_t *to_ds = dspp->to_ds;
 	int err = 0;
 

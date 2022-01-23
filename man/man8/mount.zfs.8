@@ -1,4 +1,3 @@
-'\" t
 .\"
 .\" CDDL HEADER START
 .\"
@@ -19,126 +18,75 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright 2013 Darik Horn <dajhorn@vanadac.com>. All rights reserved.
 .\"
-.TH MOUNT.ZFS 8 "Aug 24, 2020" OpenZFS
-
-.SH NAME
-mount.zfs \- mount a ZFS filesystem
-.SH SYNOPSIS
-.LP
-.BI "mount.zfs [\-sfnvh] [\-o " options "]" " dataset mountpoint
-
-.SH DESCRIPTION
-.BR mount.zfs
-is part of the zfsutils package for Linux. It is a helper program that
-is usually invoked by the
-.BR mount (8)
+.Dd May 24, 2021
+.Dt MOUNT.ZFS 8
+.Os
+.
+.Sh NAME
+.Nm mount.zfs
+.Nd mount ZFS filesystem
+.Sh SYNOPSIS
+.Nm
+.Op Fl sfnvh
+.Op Fl o Ar options
+.Ar dataset
+.Ar mountpoint
+.
+.Sh DESCRIPTION
+The
+.Nm
+helper is used by
+.Xr mount 8
+to mount filesystem snapshots and
+.Sy mountpoint= Ns Ar legacy
+ZFS filesystems, as well as by
+.Xr zfs 8
+when the
+.Sy ZFS_MOUNT_HELPER
+environment variable is not set.
+Users should should invoke either
+.Xr mount 8
 or
-.BR zfs (8)
-commands to mount a ZFS dataset.
-
-All
-.I options
-are handled according to the FILESYSTEM INDEPENDENT MOUNT OPTIONS
-section in the
-.BR mount (8)
-manual, except for those described below.
-
-The
-.I dataset
-parameter is a ZFS filesystem name, as output by the
-.B "zfs list -H -o name
-command. This parameter never has a leading slash character and is
-not a device name.
-
-The
-.I mountpoint
-parameter is the path name of a directory.
-
-
-.SH OPTIONS
-.TP
-.BI "\-s"
-Ignore bad or sloppy mount options.
-.TP
-.BI "\-f"
-Do a fake mount; do not perform the mount operation.
-.TP
-.BI "\-n"
-Do not update the /etc/mtab file.
-.TP
-.BI "\-v"
-Increase verbosity.
-.TP
-.BI "\-h"
+.Xr zfs 8
+in most cases.
+.Pp
+.Ar options
+are handled according to the
+.Em Temporary Mount Point Properties
+section in
+.Xr zfsprops 7 ,
+except for those described below.
+.Pp
+If
+.Pa /etc/mtab
+is a regular file and
+.Fl n
+was not specified, it will be updated via libmount.
+.
+.Sh OPTIONS
+.Bl -tag -width "-o xa"
+.It Fl s
+Ignore unknown (sloppy) mount options.
+.It Fl f
+Do everything except actually executing the system call.
+.It Fl n
+Never update
+.Pa /etc/mtab .
+.It Fl v
+Print resolved mount options and parser state.
+.It Fl h
 Print the usage message.
-.TP
-.BI "\-o context"
-This flag sets the SELinux context for all files in the filesystem
-under that mountpoint.
-.TP
-.BI "\-o fscontext"
-This flag sets the SELinux context for the filesystem being mounted.
-.TP
-.BI "\-o defcontext"
-This flag sets the SELinux context for unlabeled files.
-.TP
-.BI "\-o rootcontext"
-This flag sets the SELinux context for the root inode of the filesystem.
-.TP
-.BI "\-o legacy"
-This private flag indicates that the
-.I dataset
-has an entry in the /etc/fstab file.
-.TP
-.BI "\-o noxattr"
-This private flag disables extended attributes.
-.TP
-.BI "\-o xattr
-This private flag enables directory-based extended attributes and, if
-appropriate, adds a ZFS context to the selinux system policy.
-.TP
-.BI "\-o saxattr
-This private flag enables system attributed-based extended attributes and, if
-appropriate, adds a ZFS context to the selinux system policy.
-.TP
-.BI "\-o dirxattr
-Equivalent to
-.BR xattr .
-.TP
-.BI "\-o zfsutil"
+.It Fl o Ar zfsutil
 This private flag indicates that
-.BR mount (8)
+.Xr mount 8
 is being called by the
-.BR zfs (8)
+.Xr zfs 8
 command.
-
-.SH NOTES
-ZFS conventionally requires that the
-.I mountpoint
-be an empty directory, but the Linux implementation inconsistently
-enforces the requirement.
-
-The
-.BR mount.zfs
-helper does not mount the contents of zvols.
-
-.SH FILES
-.TP 18n
-.I /etc/fstab
-The static filesystem table.
-.TP
-.I /etc/mtab
-The mounted filesystem table.
-.SH "AUTHORS"
-The primary author of
-.BR mount.zfs
-is Brian Behlendorf <behlendorf1@llnl.gov>.
-
-This man page was written by Darik Horn <dajhorn@vanadac.com>.
-.SH "SEE ALSO"
-.BR fstab (5),
-.BR mount (8),
-.BR zfs (8)
+.El
+.
+.Sh SEE ALSO
+.Xr fstab 5 ,
+.Xr mount 8 ,
+.Xr zfs-mount 8

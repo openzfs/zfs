@@ -175,18 +175,6 @@
  *	return (error);			// done, report error
  */
 
-/*
- * Virus scanning is unsupported.  It would be possible to add a hook
- * here to performance the required virus scan.  This could be done
- * entirely in the kernel or potentially as an update to invoke a
- * scanning utility.
- */
-static int
-zfs_vscan(struct inode *ip, cred_t *cr, int async)
-{
-	return (0);
-}
-
 /* ARGSUSED */
 int
 zfs_open(struct inode *ip, int mode, int flag, cred_t *cr)
@@ -202,15 +190,6 @@ zfs_open(struct inode *ip, int mode, int flag, cred_t *cr)
 	    ((flag & O_APPEND) == 0)) {
 		ZFS_EXIT(zfsvfs);
 		return (SET_ERROR(EPERM));
-	}
-
-	/* Virus scan eligible files on open */
-	if (!zfs_has_ctldir(zp) && zfsvfs->z_vscan && S_ISREG(ip->i_mode) &&
-	    !(zp->z_pflags & ZFS_AV_QUARANTINED) && zp->z_size > 0) {
-		if (zfs_vscan(ip, cr, 0) != 0) {
-			ZFS_EXIT(zfsvfs);
-			return (SET_ERROR(EACCES));
-		}
 	}
 
 	/* Keep a count of the synchronous opens in the znode */
@@ -234,10 +213,6 @@ zfs_close(struct inode *ip, int flag, cred_t *cr)
 	/* Decrement the synchronous opens in the znode */
 	if (flag & O_SYNC)
 		atomic_dec_32(&zp->z_sync_cnt);
-
-	if (!zfs_has_ctldir(zp) && zfsvfs->z_vscan && S_ISREG(ip->i_mode) &&
-	    !(zp->z_pflags & ZFS_AV_QUARANTINED) && zp->z_size > 0)
-		VERIFY(zfs_vscan(ip, cr, 1) == 0);
 
 	ZFS_EXIT(zfsvfs);
 	return (0);
@@ -345,7 +320,7 @@ mappedread(znode_t *zp, int nbytes, zfs_uio_t *uio)
 }
 #endif /* _KERNEL */
 
-unsigned long zfs_delete_blocks = DMU_MAX_DELETEBLKCNT;
+static unsigned long zfs_delete_blocks = DMU_MAX_DELETEBLKCNT;
 
 /*
  * Write the bytes to a file.
@@ -392,6 +367,12 @@ zfs_write_simple(znode_t *zp, const void *data, size_t len,
 	return (error);
 }
 
+static void
+zfs_rele_async_task(void *arg)
+{
+	iput(arg);
+}
+
 void
 zfs_zrele_async(znode_t *zp)
 {
@@ -411,7 +392,7 @@ zfs_zrele_async(znode_t *zp)
 	 */
 	if (!atomic_add_unless(&ip->i_count, -1, 1)) {
 		VERIFY(taskq_dispatch(dsl_pool_zrele_taskq(dmu_objset_pool(os)),
-		    (task_func_t *)iput, ip, TQ_SLEEP) != TASKQID_INVALID);
+		    zfs_rele_async_task, ip, TQ_SLEEP) != TASKQID_INVALID);
 	}
 }
 
@@ -3550,7 +3531,11 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 
 		if (wbc->sync_mode != WB_SYNC_NONE) {
 			if (PageWriteback(pp))
+#ifdef HAVE_PAGEMAP_FOLIO_WAIT_BIT
+				folio_wait_bit(page_folio(pp), PG_writeback);
+#else
 				wait_on_page_bit(pp, PG_writeback);
+#endif
 		}
 
 		ZFS_EXIT(zfsvfs);
@@ -3950,6 +3935,13 @@ zfs_fid(struct inode *ip, fid_t *fidp)
 	int		size, i, error;
 
 	ZFS_ENTER(zfsvfs);
+
+	if (fidp->fid_len < SHORT_FID_LEN) {
+		fidp->fid_len = SHORT_FID_LEN;
+		ZFS_EXIT(zfsvfs);
+		return (SET_ERROR(ENOSPC));
+	}
+
 	ZFS_VERIFY_ZP(zp);
 
 	if ((error = sa_lookup(zp->z_sa_hdl, SA_ZPL_GEN(zfsvfs),

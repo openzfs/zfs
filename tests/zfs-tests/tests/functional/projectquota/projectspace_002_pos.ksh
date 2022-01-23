@@ -44,9 +44,7 @@
 
 function cleanup
 {
-	if datasetexists $snapfs; then
-		log_must zfs destroy $snapfs
-	fi
+	datasetexists $snapfs && destroy_dataset $snapfs
 
 	log_must cleanup_projectquota
 }
@@ -65,7 +63,7 @@ mkmount_writable $QFS
 log_must user_run $PUSER mkdir $PRJDIR
 log_must chattr +P -p $PRJID1 $PRJDIR
 log_must user_run $PUSER mkfile 50m $PRJDIR/qf
-sync
+sync_all_pools
 
 typeset snapfs=$QFS@snap
 

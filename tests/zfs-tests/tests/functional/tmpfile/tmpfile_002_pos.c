@@ -25,7 +25,7 @@
  */
 
 int
-main(int argc, char *argv[])
+main(void)
 {
 	int i, fd, ret;
 	char spath[1024], dpath[1024];

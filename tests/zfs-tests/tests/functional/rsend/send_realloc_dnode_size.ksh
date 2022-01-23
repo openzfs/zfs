@@ -49,13 +49,8 @@ function cleanup
 	rm -f $BACKDIR/fs-dn-2k
 	rm -f $BACKDIR/fs-attr
 
-	if datasetexists $POOL/fs ; then
-		log_must zfs destroy -rR $POOL/fs
-	fi
-
-	if datasetexists $POOL/newfs ; then
-		log_must zfs destroy -rR $POOL/newfs
-	fi
+	datasetexists $POOL/fs && destroy_dataset $POOL/fs -rR
+	datasetexists $POOL/newfs && destroy_dataset $POOL/newfs -rR
 }
 
 log_onexit cleanup
@@ -93,7 +88,7 @@ log_must zfs snapshot $POOL/fs@c
 # 4. Create an empty file and add xattrs to it to exercise reclaiming a
 #    dnode that requires more than 1 slot for its bonus buffer (Zol #7433)
 log_must zfs set compression=on xattr=sa $POOL/fs
-log_must eval "python -c 'print \"a\" * 512' |
+log_must eval "python3 -c 'print \"a\" * 512' |
     set_xattr_stdin bigval /$POOL/fs/attrs"
 log_must zfs snapshot $POOL/fs@d
 

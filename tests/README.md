@@ -1,6 +1,6 @@
 # ZFS Test Suite README
 
-1) Building and installing the ZFS Test Suite
+### 1) Building and installing the ZFS Test Suite
 
 The ZFS Test Suite runs under the test-runner framework.  This framework
 is built along side the standard ZFS utilities and is included as part of
@@ -22,7 +22,7 @@ may be provided for your distribution.
     $ yum install zfs-test
     $ apt-get install zfs-test
 
-2) Running the ZFS Test Suite
+### 2) Running the ZFS Test Suite
 
 The pre-requisites for running the ZFS Test Suite are:
 
@@ -111,7 +111,7 @@ the files that zfs-tests.sh uses are available for reference under
 
 Otherwise user can set needed tags to run only specific tests.
 
-3) Test results
+### 3) Test results
 
 While the ZFS Test Suite is running, one informational line is printed at the
 end of each test, and a results summary is printed at the end of the run. The
@@ -146,7 +146,112 @@ with the `zfs-tests.sh` wrapper script will look something like this:
     Results Summary
     SKIP	  52
     PASS	 1129
-    
+
     Running Time:	02:35:33
     Percent passed:	95.6%
     Log directory:	/var/tmp/test_results/20180515T054509
+
+### 4) Example of adding and running test-case (zpool_example)
+
+  This broadly boils down to 5 steps
+  1. Create/Set password-less sudo for user running test case.
+  2. Edit configure.ac, Makefile.am appropriately
+  3. Create/Modify .run files
+  4. Create actual test-scripts
+  5. Run Test case
+
+  Will look at each of them in depth.
+
+  * Set password-less sudo for 'Test' user as test script cannot be run as root
+  * Edit file **configure.ac** and include line under AC_CONFIG_FILES section
+    ~~~~
+      tests/zfs-tests/tests/functional/cli_root/zpool_example/Makefile
+    ~~~~
+  * Edit file **tests/runfiles/Makefile.am** and add line *zpool_example*.
+    ~~~~
+      pkgdatadir = $(datadir)/@PACKAGE@/runfiles
+      dist_pkgdata_DATA = \
+        zpool_example.run \
+        common.run \
+        freebsd.run \
+        linux.run \
+        longevity.run \
+        perf-regression.run \
+        sanity.run \
+        sunos.run
+    ~~~~
+  * Create file **tests/runfiles/zpool_example.run**. This defines the most
+    common properties when run with test-runner.py or zfs-tests.sh.
+    ~~~~
+      [DEFAULT]
+      timeout = 600
+      outputdir = /var/tmp/test_results
+      tags = ['functional']
+
+      tests = ['zpool_example_001_pos']
+    ~~~~
+    If adding test-case to an already existing suite the runfile would
+    already be present and it needs to be only updated. For example, adding
+    **zpool_example_002_pos** to the above runfile only update the **"tests ="**
+    section of the runfile as shown below
+    ~~~~
+      [DEFAULT]
+      timeout = 600
+      outputdir = /var/tmp/test_results
+      tags = ['functional']
+
+      tests = ['zpool_example_001_pos', 'zpool_example_002_pos']
+    ~~~~
+
+  * Edit **tests/zfs-tests/tests/functional/cli_root/Makefile.am** and add line
+    under SUBDIRS.
+    ~~~~
+      zpool_example \ (Make sure to escape the line end as there will be other folders names following)
+    ~~~~
+  * Create new file **tests/zfs-tests/tests/functional/cli_root/zpool_example/Makefile.am**
+    the contents of the file could be as below. What it says it that now we have
+    a test case *zpool_example_001_pos.ksh*
+    ~~~~
+      pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/cli_root/zpool_example
+      dist_pkgdata_SCRIPTS = \
+        zpool_example_001_pos.ksh
+    ~~~~
+  * We can now create our test-case zpool_example_001_pos.ksh under
+    **tests/zfs-tests/tests/functional/cli_root/zpool_example/**.
+    ~~~~
+	# DESCRIPTION:
+	#	zpool_example Test
+	#
+	# STRATEGY:
+	#	1. Demo a very basic test case
+	#
+
+	DISKS_DEV1="/dev/loop0"
+	DISKS_DEV2="/dev/loop1"
+	TESTPOOL=EXAMPLE_POOL
+
+	function cleanup
+	{
+		# Cleanup
+		destroy_pool $TESTPOOL
+		log_must rm -f $DISKS_DEV1
+		log_must rm -f $DISKS_DEV2
+	}
+
+	log_assert "zpool_example"
+	# Run function "cleanup" on exit
+	log_onexit cleanup
+
+	# Prep backend device
+	log_must dd if=/dev/zero of=$DISKS_DEV1 bs=512 count=140000
+	log_must dd if=/dev/zero of=$DISKS_DEV2 bs=512 count=140000
+
+	# Create pool
+	log_must zpool create $TESTPOOL $type $DISKS_DEV1 $DISKS_DEV2
+
+	log_pass "zpool_example"
+    ~~~~
+  * Run Test case, which can be done in two ways. Described in detail above in
+    section 2.
+    * test-runner.py (This takes run file as input. See *zpool_example.run*)
+    * zfs-tests.sh. Can execute the run file or individual tests

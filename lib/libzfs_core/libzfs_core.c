@@ -158,8 +158,7 @@ libzfs_core_fini(void)
 	(void) pthread_mutex_lock(&g_lock);
 	ASSERT3S(g_refcount, >, 0);
 
-	if (g_refcount > 0)
-		g_refcount--;
+	g_refcount--;
 
 	if (g_refcount == 0 && g_fd != -1) {
 		(void) close(g_fd);
@@ -210,7 +209,7 @@ lzc_ioctl(zfs_ioc_t ioc, const char *name,
 		}
 	}
 
-	while (zfs_ioctl_fd(g_fd, ioc, &zc) != 0) {
+	while (lzc_ioctl_fd(g_fd, ioc, &zc) != 0) {
 		/*
 		 * If ioctl exited with ENOMEM, we retry the ioctl after
 		 * increasing the size of the destination nvlist.
@@ -299,7 +298,7 @@ lzc_promote(const char *fsname, char *snapnamebuf, int snapnamelen)
 	VERIFY3S(g_fd, !=, -1);
 
 	(void) strlcpy(zc.zc_name, fsname, sizeof (zc.zc_name));
-	if (zfs_ioctl_fd(g_fd, ZFS_IOC_PROMOTE, &zc) != 0) {
+	if (lzc_ioctl_fd(g_fd, ZFS_IOC_PROMOTE, &zc) != 0) {
 		int error = errno;
 		if (error == EEXIST && snapnamebuf != NULL)
 			(void) strlcpy(snapnamebuf, zc.zc_string, snapnamelen);
@@ -318,11 +317,12 @@ lzc_rename(const char *source, const char *target)
 	VERIFY3S(g_fd, !=, -1);
 	(void) strlcpy(zc.zc_name, source, sizeof (zc.zc_name));
 	(void) strlcpy(zc.zc_value, target, sizeof (zc.zc_value));
-	error = zfs_ioctl_fd(g_fd, ZFS_IOC_RENAME, &zc);
+	error = lzc_ioctl_fd(g_fd, ZFS_IOC_RENAME, &zc);
 	if (error != 0)
 		error = errno;
 	return (error);
 }
+
 int
 lzc_destroy(const char *fsname)
 {
@@ -468,7 +468,7 @@ lzc_exists(const char *dataset)
 	VERIFY3S(g_fd, !=, -1);
 
 	(void) strlcpy(zc.zc_name, dataset, sizeof (zc.zc_name));
-	return (zfs_ioctl_fd(g_fd, ZFS_IOC_OBJSET_STATS, &zc) == 0);
+	return (lzc_ioctl_fd(g_fd, ZFS_IOC_OBJSET_STATS, &zc) == 0);
 }
 
 /*
@@ -476,10 +476,10 @@ lzc_exists(const char *dataset)
  * It was added to preserve the function signature in case it is
  * needed in the future.
  */
-/*ARGSUSED*/
 int
 lzc_sync(const char *pool_name, nvlist_t *innvl, nvlist_t **outnvl)
 {
+	(void) outnvl;
 	return (lzc_ioctl(ZFS_IOC_POOL_SYNC, pool_name, innvl, NULL));
 }
 
@@ -925,7 +925,7 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 		zc.zc_nvlist_dst = (uint64_t)(uintptr_t)
 		    malloc(zc.zc_nvlist_dst_size);
 
-		error = zfs_ioctl_fd(g_fd, ZFS_IOC_RECV, &zc);
+		error = lzc_ioctl_fd(g_fd, ZFS_IOC_RECV, &zc);
 		if (error != 0) {
 			error = errno;
 		} else {
@@ -1025,12 +1025,14 @@ lzc_receive_with_header(const char *snapname, nvlist_t *props,
  * The 'errors' nvlist contains an entry for each unapplied received
  * property.  Callers are responsible for freeing this nvlist.
  */
-int lzc_receive_one(const char *snapname, nvlist_t *props,
+int
+lzc_receive_one(const char *snapname, nvlist_t *props,
     const char *origin, boolean_t force, boolean_t resumable, boolean_t raw,
     int input_fd, const dmu_replay_record_t *begin_record, int cleanup_fd,
     uint64_t *read_bytes, uint64_t *errflags, uint64_t *action_handle,
     nvlist_t **errors)
 {
+	(void) action_handle, (void) cleanup_fd;
 	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
 	    resumable, raw, input_fd, begin_record,
 	    read_bytes, errflags, errors));
@@ -1044,13 +1046,15 @@ int lzc_receive_one(const char *snapname, nvlist_t *props,
  * exclude ('zfs receive -x') properties. Callers are responsible for freeing
  * this nvlist
  */
-int lzc_receive_with_cmdprops(const char *snapname, nvlist_t *props,
+int
+lzc_receive_with_cmdprops(const char *snapname, nvlist_t *props,
     nvlist_t *cmdprops, uint8_t *wkeydata, uint_t wkeylen, const char *origin,
     boolean_t force, boolean_t resumable, boolean_t raw, int input_fd,
     const dmu_replay_record_t *begin_record, int cleanup_fd,
     uint64_t *read_bytes, uint64_t *errflags, uint64_t *action_handle,
     nvlist_t **errors)
 {
+	(void) action_handle, (void) cleanup_fd;
 	return (recv_impl(snapname, props, cmdprops, wkeydata, wkeylen, origin,
 	    force, resumable, raw, input_fd, begin_record,
 	    read_bytes, errflags, errors));
@@ -1390,6 +1394,18 @@ lzc_channel_program_nosync(const char *pool, const char *program,
 {
 	return (lzc_channel_program_impl(pool, program, B_FALSE, timeout,
 	    memlimit, argnvl, outnvl));
+}
+
+int
+lzc_get_vdev_prop(const char *poolname, nvlist_t *innvl, nvlist_t **outnvl)
+{
+	return (lzc_ioctl(ZFS_IOC_VDEV_GET_PROPS, poolname, innvl, outnvl));
+}
+
+int
+lzc_set_vdev_prop(const char *poolname, nvlist_t *innvl, nvlist_t **outnvl)
+{
+	return (lzc_ioctl(ZFS_IOC_VDEV_SET_PROPS, poolname, innvl, outnvl));
 }
 
 /*

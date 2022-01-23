@@ -37,11 +37,11 @@
 static int *rand_data;
 raidz_test_opts_t rto_opts;
 
-static char gdb[256];
-static const char gdb_tmpl[] = "gdb -ex \"set pagination 0\" -p %d";
+static char pid_s[16];
 
 static void sig_handler(int signo)
 {
+	int old_errno = errno;
 	struct sigaction action;
 	/*
 	 * Restore default action and re-raise signal so SIGSEGV and
@@ -52,10 +52,19 @@ static void sig_handler(int signo)
 	action.sa_flags = 0;
 	(void) sigaction(signo, &action, NULL);
 
-	if (rto_opts.rto_gdb)
-		if (system(gdb)) { }
+	if (rto_opts.rto_gdb) {
+		pid_t pid = fork();
+		if (pid == 0) {
+			execlp("gdb", "gdb", "-ex", "set pagination 0",
+			    "-p", pid_s, NULL);
+			_exit(-1);
+		} else if (pid > 0)
+			while (waitpid(pid, NULL, 0) == -1 && errno == EINTR)
+				;
+	}
 
 	raise(signo);
+	errno = old_errno;
 }
 
 static void print_opts(raidz_test_opts_t *opts, boolean_t force)
@@ -257,12 +266,8 @@ cmp_data(raidz_test_opts_t *opts, raidz_map_t *rm)
 static int
 init_rand(void *data, size_t size, void *private)
 {
-	int i;
-	int *dst = (int *)data;
-
-	for (i = 0; i < size / sizeof (int); i++)
-		dst[i] = rand_data[i];
-
+	(void) private;
+	memcpy(data, rand_data, size);
 	return (0);
 }
 
@@ -978,8 +983,8 @@ main(int argc, char **argv)
 	struct sigaction action;
 	int err = 0;
 
-	/* init gdb string early */
-	(void) sprintf(gdb, gdb_tmpl, getpid());
+	/* init gdb pid string early */
+	(void) sprintf(pid_s, "%d", getpid());
 
 	action.sa_handler = sig_handler;
 	sigemptyset(&action.sa_mask);

@@ -57,7 +57,7 @@ log_assert "Destroying top level filesystem with reservation allows more " \
 function cleanup
 {
 	datasetexists $TESTPOOL/$TESTFS1 && \
-	    log_must zfs destroy $TESTPOOL/$TESTFS1
+		destroy_dataset $TESTPOOL/$TESTFS1
 
 	[[ -e $TESTDIR/$TESTFILE1 ]] && log_must rm -rf $TESTDIR/$TESTFILE1
 	[[ -e $TESTDIR/$TESTFILE2 ]] && log_must rm -rf $TESTDIR/$TESTFILE2

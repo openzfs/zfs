@@ -171,7 +171,7 @@ zfs_ace_v0_data(void *acep, void **datap)
 	return (0);
 }
 
-static acl_ops_t zfs_acl_v0_ops = {
+static const acl_ops_t zfs_acl_v0_ops = {
 	.ace_mask_get = zfs_ace_v0_get_mask,
 	.ace_mask_set = zfs_ace_v0_set_mask,
 	.ace_flags_get = zfs_ace_v0_get_flags,
@@ -269,7 +269,7 @@ zfs_ace_fuid_size(void *acep)
 		    entry_type == OWNING_GROUP ||
 		    entry_type == ACE_EVERYONE)
 			return (sizeof (zfs_ace_hdr_t));
-		/*FALLTHROUGH*/
+		fallthrough;
 	default:
 		return (sizeof (zfs_ace_t));
 	}
@@ -307,7 +307,7 @@ zfs_ace_fuid_data(void *acep, void **datap)
 	}
 }
 
-static acl_ops_t zfs_acl_fuid_ops = {
+static const acl_ops_t zfs_acl_fuid_ops = {
 	.ace_mask_get = zfs_ace_fuid_get_mask,
 	.ace_mask_set = zfs_ace_fuid_set_mask,
 	.ace_flags_get = zfs_ace_fuid_get_flags,
@@ -2317,7 +2317,7 @@ zfs_zaccess_aces_check(znode_t *zp, uint32_t *working_mode,
 			break;
 		case OWNING_GROUP:
 			who = gowner;
-			/*FALLTHROUGH*/
+			fallthrough;
 		case ACE_IDENTIFIER_GROUP:
 			checkit = zfs_groupmember(zfsvfs, who, cr);
 			break;
@@ -2702,7 +2702,7 @@ zfs_zaccess_unix(znode_t *zp, mode_t mode, cred_t *cr)
 }
 
 /* See zfs_zaccess_delete() */
-int zfs_write_implies_delete_child = 1;
+static const boolean_t zfs_write_implies_delete_child = B_TRUE;
 
 /*
  * Determine whether delete access should be granted.

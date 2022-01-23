@@ -3,6 +3,7 @@ include $(top_srcdir)/config/Rules.am
 # Suppress unused but set variable warnings often due to ASSERTs
 AM_CFLAGS += $(NO_UNUSED_BUT_SET_VARIABLE)
 AM_CFLAGS += $(LIBBLKID_CFLAGS) $(LIBUDEV_CFLAGS)
+AM_CFLAGS += -fvisibility=hidden
 
 DEFAULT_INCLUDES += -I$(srcdir)
 
@@ -18,21 +19,13 @@ USER_C = \
 if BUILD_LINUX
 USER_C += \
 	os/linux/zutil_device_path_os.c \
-	os/linux/zutil_import_os.c \
-	os/linux/zutil_compat.c
+	os/linux/zutil_import_os.c
 endif
 
 if BUILD_FREEBSD
-DEFAULT_INCLUDES += -I$(top_srcdir)/include/os/freebsd/zfs
-
 USER_C += \
 	os/freebsd/zutil_device_path_os.c \
-	os/freebsd/zutil_import_os.c \
-	os/freebsd/zutil_compat.c
-
-VPATH += $(top_srcdir)/module/os/freebsd/zfs
-
-nodist_libzutil_la_SOURCES = zfs_ioctl_compat.c
+	os/freebsd/zutil_import_os.c
 endif
 
 libzutil_la_SOURCES = $(USER_C)

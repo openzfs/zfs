@@ -52,6 +52,8 @@
 #include <zone.h>
 #include <grp.h>
 #include <pwd.h>
+#include <umem.h>
+#include <pthread.h>
 #include <signal.h>
 #include <sys/list.h>
 #include <sys/mkdev.h>
@@ -78,7 +80,6 @@
 #include "zfs_iter.h"
 #include "zfs_util.h"
 #include "zfs_comutil.h"
-#include "libzfs_impl.h"
 #include "zfs_projectutil.h"
 
 libzfs_handle_t *g_zfs;
@@ -316,7 +317,7 @@ get_usage(zfs_help_t idx)
 	case HELP_SEND:
 		return (gettext("\tsend [-DnPpRvLecwhb] [-[i|I] snapshot] "
 		    "<snapshot>\n"
-		    "\tsend [-nvPLecw] [-i snapshot|bookmark] "
+		    "\tsend [-DnvPLecw] [-i snapshot|bookmark] "
 		    "<filesystem|volume|snapshot>\n"
 		    "\tsend [-DnPpvLec] [-i bookmark|snapshot] "
 		    "--redact <bookmark> <snapshot>\n"
@@ -413,10 +414,9 @@ get_usage(zfs_help_t idx)
 		return (gettext("\tunjail <jailid|jailname> <filesystem>\n"));
 	case HELP_WAIT:
 		return (gettext("\twait [-t <activity>] <filesystem>\n"));
+	default:
+		__builtin_unreachable();
 	}
-
-	abort();
-	/* NOTREACHED */
 }
 
 void
@@ -725,6 +725,32 @@ finish_progress(char *done)
 	}
 	free(pt_header);
 	pt_header = NULL;
+}
+
+/* This function checks if the passed fd refers to /dev/null or /dev/zero */
+#ifdef __linux__
+static boolean_t
+is_dev_nullzero(int fd)
+{
+	struct stat st;
+	fstat(fd, &st);
+	return (major(st.st_rdev) == 1 && (minor(st.st_rdev) == 3 /* null */ ||
+	    minor(st.st_rdev) == 5 /* zero */));
+}
+#endif
+
+static void
+note_dev_error(int err, int fd)
+{
+#ifdef __linux__
+	if (err == EINVAL && is_dev_nullzero(fd)) {
+		(void) fprintf(stderr,
+		    gettext("Error: Writing directly to /dev/{null,zero} files"
+		    " on certain kernels is not currently implemented.\n"
+		    "(As a workaround, "
+		    "try \"zfs send [...] | cat > /dev/null\")\n"));
+	}
+#endif
 }
 
 static int
@@ -1882,6 +1908,7 @@ get_callback(zfs_handle_t *zhp, void *data)
 {
 	char buf[ZFS_MAXPROPLEN];
 	char rbuf[ZFS_MAXPROPLEN];
+	zprop_source_t sourcetype;
 	char source[ZFS_MAX_DATASET_NAME_LEN];
 	zprop_get_cbdata_t *cbp = data;
 	nvlist_t *user_props = zfs_get_user_props(zhp);
@@ -1892,7 +1919,6 @@ get_callback(zfs_handle_t *zhp, void *data)
 	boolean_t received = is_recvd_column(cbp);
 
 	for (; pl != NULL; pl = pl->pl_next) {
-		zprop_source_t sourcetype = cbp->cb_sources;
 		char *recvdval = NULL;
 		/*
 		 * Skip the special fake placeholder.  This will also skip over
@@ -3315,7 +3341,7 @@ zfs_do_userspace(int argc, char **argv)
 	if ((zhp = zfs_path_to_zhandle(g_zfs, argv[0], ZFS_TYPE_FILESYSTEM |
 	    ZFS_TYPE_SNAPSHOT)) == NULL)
 		return (1);
-	if (zhp->zfs_head_type != ZFS_TYPE_FILESYSTEM) {
+	if (zfs_get_underlying_type(zhp) != ZFS_TYPE_FILESYSTEM) {
 		(void) fprintf(stderr, gettext("operation is only applicable "
 		    "to filesystems and their snapshots\n"));
 		zfs_close(zhp);
@@ -3734,7 +3760,6 @@ zfs_do_list(int argc, char **argv)
  * The '-p' flag creates all the non-existing ancestors of the target first.
  * The '-u' flag prevents file systems from being remounted during rename.
  */
-/* ARGSUSED */
 static int
 zfs_do_rename(int argc, char **argv)
 {
@@ -3833,7 +3858,6 @@ zfs_do_rename(int argc, char **argv)
  *
  * Promotes the given clone fs to be the parent
  */
-/* ARGSUSED */
 static int
 zfs_do_promote(int argc, char **argv)
 {
@@ -4484,7 +4508,6 @@ zfs_do_send(int argc, char **argv)
 			usage(B_FALSE);
 			break;
 		case '?':
-			/*FALLTHROUGH*/
 		default:
 			/*
 			 * If an invalid flag was passed, optopt contains the
@@ -4571,11 +4594,16 @@ zfs_do_send(int argc, char **argv)
 
 		err = zfs_send_saved(zhp, &flags, STDOUT_FILENO,
 		    resume_token);
+		if (err != 0)
+			note_dev_error(errno, STDOUT_FILENO);
 		zfs_close(zhp);
 		return (err != 0);
 	} else if (resume_token != NULL) {
-		return (zfs_send_resume(g_zfs, &flags, STDOUT_FILENO,
-		    resume_token));
+		err = zfs_send_resume(g_zfs, &flags, STDOUT_FILENO,
+		    resume_token);
+		if (err != 0)
+			note_dev_error(errno, STDOUT_FILENO);
+		return (err);
 	}
 
 	if (flags.skipmissing && !flags.replicate) {
@@ -4626,6 +4654,8 @@ zfs_do_send(int argc, char **argv)
 		err = zfs_send_one(zhp, fromname, STDOUT_FILENO, &flags,
 		    redactbook);
 		zfs_close(zhp);
+		if (err != 0)
+			note_dev_error(errno, STDOUT_FILENO);
 		return (err != 0);
 	}
 
@@ -4660,7 +4690,7 @@ zfs_do_send(int argc, char **argv)
 	 */
 	if (fromname && (cp = strchr(fromname, '@')) != NULL) {
 		char origin[ZFS_MAX_DATASET_NAME_LEN];
-		zprop_source_t src = ZPROP_SRC_NONE;
+		zprop_source_t src;
 
 		(void) zfs_prop_get(zhp, ZFS_PROP_ORIGIN,
 		    origin, sizeof (origin), &src, NULL, 0, B_FALSE);
@@ -4702,6 +4732,7 @@ zfs_do_send(int argc, char **argv)
 		nvlist_free(dbgnv);
 	}
 	zfs_close(zhp);
+	note_dev_error(errno, STDOUT_FILENO);
 
 	return (err != 0);
 }
@@ -5062,10 +5093,10 @@ who_type2weight(zfs_deleg_who_type_t who_type)
 	return (res);
 }
 
-/* ARGSUSED */
 static int
 who_perm_compare(const void *larg, const void *rarg, void *unused)
 {
+	(void) unused;
 	const who_perm_node_t *l = larg;
 	const who_perm_node_t *r = rarg;
 	zfs_deleg_who_type_t ltype = l->who_perm.who_type;
@@ -5085,10 +5116,10 @@ who_perm_compare(const void *larg, const void *rarg, void *unused)
 		return (-1);
 }
 
-/* ARGSUSED */
 static int
 deleg_perm_compare(const void *larg, const void *rarg, void *unused)
 {
+	(void) unused;
 	const deleg_perm_node_t *l = larg;
 	const deleg_perm_node_t *r = rarg;
 	int res =  strncmp(l->dpn_perm.dp_name, r->dpn_perm.dp_name,
@@ -7177,10 +7208,10 @@ typedef struct unshare_unmount_node {
 	uu_avl_node_t	un_avlnode;
 } unshare_unmount_node_t;
 
-/* ARGSUSED */
 static int
 unshare_unmount_compare(const void *larg, const void *rarg, void *unused)
 {
+	(void) unused;
 	const unshare_unmount_node_t *l = larg;
 	const unshare_unmount_node_t *r = rarg;
 
@@ -7433,6 +7464,7 @@ unshare_unmount(int op, int argc, char **argv)
 				if (zfs_prop_get_int(zhp, ZFS_PROP_CANMOUNT) ==
 				    ZFS_CANMOUNT_NOAUTO)
 					continue;
+				break;
 			default:
 				break;
 			}
@@ -7630,7 +7662,7 @@ zfs_do_diff(int argc, char **argv)
 	int c;
 	struct sigaction sa;
 
-	while ((c = getopt(argc, argv, "FHt")) != -1) {
+	while ((c = getopt(argc, argv, "FHth")) != -1) {
 		switch (c) {
 		case 'F':
 			flags |= ZFS_DIFF_CLASSIFY;
@@ -7640,6 +7672,9 @@ zfs_do_diff(int argc, char **argv)
 			break;
 		case 't':
 			flags |= ZFS_DIFF_TIMESTAMP;
+			break;
+		case 'h':
+			flags |= ZFS_DIFF_NO_MANGLE;
 			break;
 		default:
 			(void) fprintf(stderr,
@@ -7976,7 +8011,8 @@ zfs_do_channel_program(int argc, char **argv)
 	 * }
 	 */
 	nvlist_t *argnvl = fnvlist_alloc();
-	fnvlist_add_string_array(argnvl, ZCP_ARG_CLIARGV, argv + 2, argc - 2);
+	fnvlist_add_string_array(argnvl, ZCP_ARG_CLIARGV,
+	    (const char **)argv + 2, argc - 2);
 
 	if (sync_flag) {
 		ret = lzc_channel_program(poolname, progbuf,
@@ -8576,6 +8612,8 @@ zfs_do_wait(int argc, char **argv)
 static int
 zfs_do_version(int argc, char **argv)
 {
+	(void) argc, (void) argv;
+
 	if (zfs_version_print() == -1)
 		return (1);
 
@@ -8700,7 +8738,6 @@ main(int argc, char **argv)
 /*
  * Attach/detach the given dataset to/from the given jail
  */
-/* ARGSUSED */
 static int
 zfs_do_jail_impl(int argc, char **argv, boolean_t attach)
 {
@@ -8738,7 +8775,6 @@ zfs_do_jail_impl(int argc, char **argv, boolean_t attach)
  *
  * Attach the given dataset to the given jail
  */
-/* ARGSUSED */
 static int
 zfs_do_jail(int argc, char **argv)
 {
@@ -8750,7 +8786,6 @@ zfs_do_jail(int argc, char **argv)
  *
  * Detach the given dataset from the given jail
  */
-/* ARGSUSED */
 static int
 zfs_do_unjail(int argc, char **argv)
 {

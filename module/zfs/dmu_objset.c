@@ -63,6 +63,8 @@
 #include <sys/dmu_recv.h>
 #include <sys/zfs_project.h>
 #include "zfs_namecheck.h"
+#include <sys/vdev_impl.h>
+#include <sys/arc.h>
 
 /*
  * Needed to close a window in dnode_move() that allows the objset to be freed
@@ -76,16 +78,16 @@ krwlock_t os_lock;
  * datasets.
  * Default is 4 times the number of leaf vdevs.
  */
-int dmu_find_threads = 0;
+static const int dmu_find_threads = 0;
 
 /*
  * Backfill lower metadnode objects after this many have been freed.
  * Backfilling negatively impacts object creation rates, so only do it
  * if there are enough holes to fill.
  */
-int dmu_rescan_dnode_threshold = 1 << DN_MAX_INDBLKSHIFT;
+static const int dmu_rescan_dnode_threshold = 1 << DN_MAX_INDBLKSHIFT;
 
-static char *upgrade_tag = "upgrade_tag";
+static const char *upgrade_tag = "upgrade_tag";
 
 static void dmu_objset_find_dp_cb(void *arg);
 
@@ -399,8 +401,44 @@ static unsigned int
 dnode_multilist_index_func(multilist_t *ml, void *obj)
 {
 	dnode_t *dn = obj;
-	return (dnode_hash(dn->dn_objset, dn->dn_object) %
+
+	/*
+	 * The low order bits of the hash value are thought to be
+	 * distributed evenly. Otherwise, in the case that the multilist
+	 * has a power of two number of sublists, each sublists' usage
+	 * would not be evenly distributed. In this context full 64bit
+	 * division would be a waste of time, so limit it to 32 bits.
+	 */
+	return ((unsigned int)dnode_hash(dn->dn_objset, dn->dn_object) %
 	    multilist_get_num_sublists(ml));
+}
+
+static inline boolean_t
+dmu_os_is_l2cacheable(objset_t *os)
+{
+	vdev_t *vd = NULL;
+	zfs_cache_type_t cache = os->os_secondary_cache;
+	blkptr_t *bp = os->os_rootbp;
+
+	if (bp != NULL && !BP_IS_HOLE(bp)) {
+		uint64_t vdev = DVA_GET_VDEV(bp->blk_dva);
+		vdev_t *rvd = os->os_spa->spa_root_vdev;
+
+		if (vdev < rvd->vdev_children)
+			vd = rvd->vdev_child[vdev];
+
+		if (cache == ZFS_CACHE_ALL || cache == ZFS_CACHE_METADATA) {
+			if (vd == NULL)
+				return (B_TRUE);
+
+			if ((vd->vdev_alloc_bias != VDEV_BIAS_SPECIAL &&
+			    vd->vdev_alloc_bias != VDEV_BIAS_DEDUP) ||
+			    l2arc_exclude_special == 0)
+				return (B_TRUE);
+		}
+	}
+
+	return (B_FALSE);
 }
 
 /*
@@ -445,7 +483,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 		SET_BOOKMARK(&zb, ds ? ds->ds_object : DMU_META_OBJSET,
 		    ZB_ROOT_OBJECT, ZB_ROOT_LEVEL, ZB_ROOT_BLKID);
 
-		if (DMU_OS_IS_L2CACHEABLE(os))
+		if (dmu_os_is_l2cacheable(os))
 			aflags |= ARC_FLAG_L2CACHE;
 
 		if (ds != NULL && ds->ds_dir->dd_crypto_obj != 0) {
@@ -601,7 +639,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	os->os_zil = zil_alloc(os, &os->os_zil_header);
 
 	for (i = 0; i < TXG_SIZE; i++) {
-		os->os_dirty_dnodes[i] = multilist_create(sizeof (dnode_t),
+		multilist_create(&os->os_dirty_dnodes[i], sizeof (dnode_t),
 		    offsetof(dnode_t, dn_dirty_link[i]),
 		    dnode_multilist_index_func);
 	}
@@ -713,9 +751,9 @@ static int
 dmu_objset_own_impl(dsl_dataset_t *ds, dmu_objset_type_t type,
     boolean_t readonly, boolean_t decrypt, void *tag, objset_t **osp)
 {
-	int err;
+	(void) tag;
 
-	err = dmu_objset_from_ds(ds, osp);
+	int err = dmu_objset_from_ds(ds, osp);
 	if (err != 0) {
 		return (err);
 	} else if (type != DMU_OST_ANY && type != (*osp)->os_phys->os_type) {
@@ -995,9 +1033,8 @@ dmu_objset_evict_done(objset_t *os)
 	mutex_destroy(&os->os_obj_lock);
 	mutex_destroy(&os->os_user_ptr_lock);
 	mutex_destroy(&os->os_upgrade_lock);
-	for (int i = 0; i < TXG_SIZE; i++) {
-		multilist_destroy(os->os_dirty_dnodes[i]);
-	}
+	for (int i = 0; i < TXG_SIZE; i++)
+		multilist_destroy(&os->os_dirty_dnodes[i]);
 	spa_evicting_os_deregister(os->os_spa, os);
 	kmem_free(os, sizeof (objset_t));
 }
@@ -1120,7 +1157,6 @@ typedef struct dmu_objset_create_arg {
 	dsl_crypto_params_t *doca_dcp;
 } dmu_objset_create_arg_t;
 
-/*ARGSUSED*/
 static int
 dmu_objset_create_check(void *arg, dmu_tx_t *tx)
 {
@@ -1316,7 +1352,6 @@ typedef struct dmu_objset_clone_arg {
 	proc_t *doca_proc;
 } dmu_objset_clone_arg_t;
 
-/*ARGSUSED*/
 static int
 dmu_objset_clone_check(void *arg, dmu_tx_t *tx)
 {
@@ -1520,7 +1555,7 @@ dmu_objset_sync_dnodes(multilist_sublist_t *list, dmu_tx_t *tx)
 		 * of why this dnode hold is always needed (even when not
 		 * doing user accounting).
 		 */
-		multilist_t *newlist = dn->dn_objset->os_synced_dnodes;
+		multilist_t *newlist = &dn->dn_objset->os_synced_dnodes;
 		(void) dnode_add_ref(dn, newlist);
 		multilist_insert(newlist, dn);
 
@@ -1528,10 +1563,10 @@ dmu_objset_sync_dnodes(multilist_sublist_t *list, dmu_tx_t *tx)
 	}
 }
 
-/* ARGSUSED */
 static void
 dmu_objset_write_ready(zio_t *zio, arc_buf_t *abuf, void *arg)
 {
+	(void) abuf;
 	blkptr_t *bp = zio->io_bp;
 	objset_t *os = arg;
 	dnode_phys_t *dnp = &os->os_phys->os_meta_dnode;
@@ -1559,10 +1594,10 @@ dmu_objset_write_ready(zio_t *zio, arc_buf_t *abuf, void *arg)
 		rrw_exit(&os->os_dsl_dataset->ds_bp_rwlock, FTAG);
 }
 
-/* ARGSUSED */
 static void
 dmu_objset_write_done(zio_t *zio, arc_buf_t *abuf, void *arg)
 {
+	(void) abuf;
 	blkptr_t *bp = zio->io_bp;
 	blkptr_t *bp_orig = &zio->io_bp_orig;
 	objset_t *os = arg;
@@ -1617,7 +1652,7 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 	blkptr_t *blkptr_copy = kmem_alloc(sizeof (*os->os_rootbp), KM_SLEEP);
 	*blkptr_copy = *os->os_rootbp;
 
-	dprintf_ds(os->os_dsl_dataset, "txg=%llu\n", tx->tx_txg);
+	dprintf_ds(os->os_dsl_dataset, "txg=%llu\n", (u_longlong_t)tx->tx_txg);
 
 	ASSERT(dmu_tx_is_syncing(tx));
 	/* XXX the write_done callback should really give us the tx... */
@@ -1656,7 +1691,7 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 	}
 
 	zio = arc_write(pio, os->os_spa, tx->tx_txg,
-	    blkptr_copy, os->os_phys_buf, DMU_OS_IS_L2CACHEABLE(os),
+	    blkptr_copy, os->os_phys_buf, dmu_os_is_l2cacheable(os),
 	    &zp, dmu_objset_write_ready, NULL, NULL, dmu_objset_write_done,
 	    os, ZIO_PRIORITY_ASYNC_WRITE, ZIO_FLAG_MUSTSUCCEED, &zb);
 
@@ -1689,17 +1724,16 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 	 * dn_dirty_link[] of this txg.  But it may already
 	 * exist because we call dsl_dataset_sync() twice per txg.
 	 */
-	if (os->os_synced_dnodes == NULL) {
-		os->os_synced_dnodes =
-		    multilist_create(sizeof (dnode_t),
+	if (os->os_synced_dnodes.ml_sublists == NULL) {
+		multilist_create(&os->os_synced_dnodes, sizeof (dnode_t),
 		    offsetof(dnode_t, dn_dirty_link[txgoff]),
 		    dnode_multilist_index_func);
 	} else {
-		ASSERT3U(os->os_synced_dnodes->ml_offset, ==,
+		ASSERT3U(os->os_synced_dnodes.ml_offset, ==,
 		    offsetof(dnode_t, dn_dirty_link[txgoff]));
 	}
 
-	ml = os->os_dirty_dnodes[txgoff];
+	ml = &os->os_dirty_dnodes[txgoff];
 	num_sublists = multilist_get_num_sublists(ml);
 	for (int i = 0; i < num_sublists; i++) {
 		if (multilist_sublist_is_empty_idx(ml, i))
@@ -1738,7 +1772,7 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 boolean_t
 dmu_objset_is_dirty(objset_t *os, uint64_t txg)
 {
-	return (!multilist_is_empty(os->os_dirty_dnodes[txg & TXG_MASK]));
+	return (!multilist_is_empty(&os->os_dirty_dnodes[txg & TXG_MASK]));
 }
 
 static file_info_cb_t *file_cbs[DMU_OST_NUMTYPES];
@@ -1949,7 +1983,7 @@ userquota_updates_task(void *arg)
 	userquota_cache_t cache = { { 0 } };
 
 	multilist_sublist_t *list =
-	    multilist_sublist_lock(os->os_synced_dnodes, uua->uua_sublist_idx);
+	    multilist_sublist_lock(&os->os_synced_dnodes, uua->uua_sublist_idx);
 
 	ASSERT(multilist_sublist_head(list) == NULL ||
 	    dmu_objset_userused_enabled(os));
@@ -2006,7 +2040,7 @@ userquota_updates_task(void *arg)
 		mutex_exit(&dn->dn_mtx);
 
 		multilist_sublist_remove(list, dn);
-		dnode_rele(dn, os->os_synced_dnodes);
+		dnode_rele(dn, &os->os_synced_dnodes);
 	}
 	do_userquota_cacheflush(os, &cache, tx);
 	multilist_sublist_unlock(list);
@@ -2032,12 +2066,12 @@ dnode_rele_task(void *arg)
 	objset_t *os = uua->uua_os;
 
 	multilist_sublist_t *list =
-	    multilist_sublist_lock(os->os_synced_dnodes, uua->uua_sublist_idx);
+	    multilist_sublist_lock(&os->os_synced_dnodes, uua->uua_sublist_idx);
 
 	dnode_t *dn;
 	while ((dn = multilist_sublist_head(list)) != NULL) {
 		multilist_sublist_remove(list, dn);
-		dnode_rele(dn, os->os_synced_dnodes);
+		dnode_rele(dn, &os->os_synced_dnodes);
 	}
 	multilist_sublist_unlock(list);
 	kmem_free(uua, sizeof (*uua));
@@ -2093,7 +2127,7 @@ dmu_objset_sync_done(objset_t *os, dmu_tx_t *tx)
 {
 	boolean_t need_userquota = dmu_objset_do_userquota_updates_prep(os, tx);
 
-	int num_sublists = multilist_get_num_sublists(os->os_synced_dnodes);
+	int num_sublists = multilist_get_num_sublists(&os->os_synced_dnodes);
 	for (int i = 0; i < num_sublists; i++) {
 		userquota_updates_arg_t *uua =
 		    kmem_alloc(sizeof (*uua), KM_SLEEP);

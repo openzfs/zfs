@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
@@ -27,40 +26,33 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd August 9, 2019
+.Dd May 27, 2021
 .Dt ZPOOL-INITIALIZE 8
 .Os
+.
 .Sh NAME
 .Nm zpool-initialize
-.Nd Write to all unallocated regions of eligible devices in a ZFS storage pool
+.Nd write to unallocated regions of ZFS storage pool
 .Sh SYNOPSIS
 .Nm zpool
 .Cm initialize
-.Op Fl c | Fl s
+.Op Fl c Ns | Ns Fl s
 .Op Fl w
 .Ar pool
-.Op Ar device Ns ...
+.Oo Ar device Oc Ns …
+.
 .Sh DESCRIPTION
-.Bl -tag -width Ds
-.It Xo
-.Nm zpool
-.Cm initialize
-.Op Fl c | Fl s
-.Op Fl w
-.Ar pool
-.Op Ar device Ns ...
-.Xc
 Begins initializing by writing to all unallocated regions on the specified
 devices, or all eligible devices in the pool if no individual devices are
 specified.
 Only leaf data or log devices may be initialized.
 .Bl -tag -width Ds
-.It Fl c, -cancel
+.It Fl c , -cancel
 Cancel initializing on the specified devices, or all eligible devices if none
 are specified.
 If one or more target devices are invalid or are not currently being
 initialized, the command will fail and no cancellation will occur on any device.
-.It Fl s -suspend
+.It Fl s , -suspend
 Suspend initializing on the specified devices, or all eligible devices if none
 are specified.
 If one or more target devices are invalid or are not currently being
@@ -68,10 +60,10 @@ initialized, the command will fail and no suspension will occur on any device.
 Initializing can then be resumed by running
 .Nm zpool Cm initialize
 with no flags on the relevant target devices.
-.It Fl w, -wait
+.It Fl w , -wait
 Wait until the devices have finished initializing before returning.
 .El
-.El
+.
 .Sh SEE ALSO
 .Xr zpool-add 8 ,
 .Xr zpool-attach 8 ,

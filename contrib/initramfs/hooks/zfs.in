@@ -1,109 +1,56 @@
 #!/bin/sh
 #
-# Add ZoL filesystem capabilities to an initrd, usually for a native ZFS root.
+# Add OpenZFS filesystem capabilities to an initrd, usually for a native ZFS root.
 #
 
-# This hook installs udev rules for ZoL.
-PREREQ="udev"
-
-# These prerequisites are provided by the zfsutils package. The zdb utility is
-# not strictly required, but it can be useful at the initramfs recovery prompt.
-COPY_EXEC_LIST="@sbindir@/zdb @sbindir@/zpool @sbindir@/zfs"
-COPY_EXEC_LIST="$COPY_EXEC_LIST @mounthelperdir@/mount.zfs @udevdir@/vdev_id"
-COPY_EXEC_LIST="$COPY_EXEC_LIST @udevdir@/zvol_id"
-COPY_FILE_LIST="/etc/hostid @sysconfdir@/zfs/zpool.cache"
-COPY_FILE_LIST="$COPY_FILE_LIST @initconfdir@/zfs"
-COPY_FILE_LIST="$COPY_FILE_LIST @sysconfdir@/zfs/zfs-functions"
-COPY_FILE_LIST="$COPY_FILE_LIST @sysconfdir@/zfs/vdev_id.conf"
-COPY_FILE_LIST="$COPY_FILE_LIST @udevruledir@/60-zvol.rules"
-COPY_FILE_LIST="$COPY_FILE_LIST @udevruledir@/69-vdev.rules"
-
-# These prerequisites are provided by the base system.
-COPY_EXEC_LIST="$COPY_EXEC_LIST /usr/bin/dirname /bin/hostname /sbin/blkid"
-COPY_EXEC_LIST="$COPY_EXEC_LIST /usr/bin/env"
-COPY_EXEC_LIST="$COPY_EXEC_LIST $(which systemd-ask-password)"
-
-# Explicitly specify all kernel modules because automatic dependency resolution
-# is unreliable on many systems.
-BASE_MODULES="zlib_deflate spl zavl zcommon znvpair zunicode zlua zfs icp"
-CRPT_MODULES="sun-ccm sun-gcm sun-ctr"
-MANUAL_ADD_MODULES_LIST="$BASE_MODULES"
-
-# Generic result code.
-RC=0
-
-case $1 in
-prereqs)
-	echo "$PREREQ"
-	exit 0
-	;;
-esac
-
-for ii in $COPY_EXEC_LIST
-do
-	if [ ! -x "$ii" ]
-	then
-		echo "Error: $ii is not executable."
-		RC=2
-	fi
-done
-
-if [ "$RC" -ne 0 ]
-then
-	exit "$RC"
+if [ "$1" = "prereqs" ]; then
+	echo "udev"
+	exit
 fi
 
 . /usr/share/initramfs-tools/hook-functions
 
-mkdir -p "$DESTDIR/etc/"
-
-# ZDB uses pthreads for some functions, but the library dependency is not
-# automatically detected. The `find` utility and extended `cp` options are
-# used here because libgcc_s.so could be in a subdirectory of /lib for
-# multi-arch installations.
-cp --target-directory="$DESTDIR" --parents $(find /lib/ -type f -name libgcc_s.so.1)
-
-for ii in $COPY_EXEC_LIST
-do
-	copy_exec "$ii"
+for req in "@sbindir@/zpool" "@sbindir@/zfs" "@mounthelperdir@/mount.zfs"; do
+	copy_exec "$req" || {
+		echo "$req not available!" >&2
+		exit 2
+	}
 done
 
-for ii in $COPY_FILE_LIST
-do
-	dir=$(dirname "$ii")
-	[ -d "$dir" ] && mkdir -p "$DESTDIR/$dir"
-	[ -f "$ii" ] && cp -p "$ii" "$DESTDIR/$ii"
+copy_exec "@udevdir@/vdev_id"
+copy_exec "@udevdir@/zvol_id"
+if command -v systemd-ask-password > /dev/null; then
+	copy_exec "$(command -v systemd-ask-password)"
+fi
+
+# We use pthreads, but i-t from buster doesn't automatically
+# copy this indirect dependency: this can be removed when buster finally dies.
+find /lib/ -type f -name "libgcc_s.so.[1-9]" | while read -r libgcc; do
+	copy_exec "$libgcc"
 done
 
-for ii in $MANUAL_ADD_MODULES_LIST
-do
-	manual_add_modules "$ii"
-done
+# shellcheck disable=SC2050
+if [ @LIBFETCH_DYNAMIC@ -gt 0 ]; then
+	find /lib/ -name "@LIBFETCH_SONAME@" | while read -r libfetch; do
+		copy_exec "$libfetch"
+	done
+fi
 
-if [ -f "/etc/hostname" ]
-then
-	cp -p "/etc/hostname" "$DESTDIR/etc/"
+copy_file config "/etc/hostid"
+copy_file cache  "@sysconfdir@/zfs/zpool.cache"
+copy_file config "@initconfdir@/zfs"
+copy_file config "@sysconfdir@/zfs/zfs-functions"
+copy_file config "@sysconfdir@/zfs/vdev_id.conf"
+copy_file rule   "@udevruledir@/60-zvol.rules"
+copy_file rule   "@udevruledir@/69-vdev.rules"
+
+manual_add_modules zfs
+
+if [ -f "/etc/hostname" ]; then
+	copy_file config "/etc/hostname"
 else
-	hostname >"$DESTDIR/etc/hostname"
+	hostname="$(mktemp -t hostname.XXXXXXXXXX)"
+	hostname > "$hostname"
+	copy_file config "$hostname" "/etc/hostname"
+	rm -f "$hostname"
 fi
-
-for ii in zfs zfs.conf spl spl.conf
-do
-	if [ -f "/etc/modprobe.d/$ii" ]; then
-		if [ ! -d "$DESTDIR/etc/modprobe.d" ]; then
-			mkdir -p $DESTDIR/etc/modprobe.d
-		fi
-		cp -p "/etc/modprobe.d/$ii" $DESTDIR/etc/modprobe.d/
-	fi
-done
-
-# With pull request #1476 (not yet merged) comes a verbose warning
-# if /usr/bin/net doesn't exist or isn't executable. Just create
-# a dummy...
-[ ! -d "$DESTDIR/usr/bin" ] && mkdir -p "$DESTDIR/usr/bin"
-if [ ! -x "$DESTDIR/usr/bin/net" ]; then
-    touch "$DESTDIR/usr/bin/net"
-    chmod +x "$DESTDIR/usr/bin/net"
-fi
-
-exit 0

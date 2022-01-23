@@ -37,6 +37,8 @@ zfs_racct_read(uint64_t size, uint64_t iops)
 		racct_add_force(curproc, RACCT_READIOPS, iops);
 		PROC_UNLOCK(curproc);
 	}
+#else
+	(void) size;
 #endif /* RACCT */
 }
 
@@ -51,5 +53,7 @@ zfs_racct_write(uint64_t size, uint64_t iops)
 		racct_add_force(curproc, RACCT_WRITEIOPS, iops);
 		PROC_UNLOCK(curproc);
 	}
+#else
+	(void) size;
 #endif /* RACCT */
 }

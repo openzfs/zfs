@@ -35,6 +35,7 @@ SUBDIRS = \
 	zfs_unshare \
 	zfs_upgrade \
 	zfs_wait \
+	zhack \
 	zpool \
 	zpool_add \
 	zpool_attach \

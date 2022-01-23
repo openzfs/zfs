@@ -27,6 +27,7 @@
 # Copyright (c) 2017, Lawrence Livermore National Security LLC.
 # Copyright (c) 2017, Datto Inc. All rights reserved.
 # Copyright (c) 2017, Open-E Inc. All rights reserved.
+# Copyright (c) 2021, The FreeBSD Foundation.
 # Use is subject to license terms.
 #
 
@@ -251,7 +252,7 @@ function unmounted
 
 function splitline
 {
-	echo $1 | sed "s/,/ /g"
+	echo $1 | tr ',' ' '
 }
 
 function default_setup
@@ -1091,9 +1092,7 @@ function get_endslice #<disk> <slice>
 	case "$(uname)" in
 	Linux)
 		endcyl=$(parted -s $DEV_DSKDIR/$disk -- unit cyl print | \
-			grep "part${slice}" | \
-			awk '{print $3}' | \
-			sed 's,cyl,,')
+			awk "/part${slice}/"' {sub(/cyl/, "", $3); print $3}')
 		((endcyl = (endcyl + 1)))
 		;;
 	FreeBSD)
@@ -1460,7 +1459,7 @@ function is_shared_smb
 	if datasetnonexists "$fs" ; then
 		return 1
 	else
-		fs=$(echo $fs | sed 's@/@_@g')
+		fs=$(echo $fs | tr / _)
 	fi
 
 	if is_linux; then
@@ -1897,13 +1896,11 @@ function zfs_zones_setup #zone_name zone_root zone_ip
 	block_device_wait
 
 	#
-	# If current system support slog, add slog device for pool
+	# Add slog device for pool
 	#
-	if verify_slog_support ; then
-		typeset sdevs="$TEST_BASE_DIR/sdev1 $TEST_BASE_DIR/sdev2"
-		log_must mkfile $MINVDEVSIZE $sdevs
-		log_must zpool add $pool_name log mirror $sdevs
-	fi
+	typeset sdevs="$TEST_BASE_DIR/sdev1 $TEST_BASE_DIR/sdev2"
+	log_must mkfile $MINVDEVSIZE $sdevs
+	log_must zpool add $pool_name log mirror $sdevs
 
 	# this isn't supported just yet.
 	# Create a filesystem. In order to add this to
@@ -3068,28 +3065,6 @@ function random_get
 }
 
 #
-# Detect if the current system support slog
-#
-function verify_slog_support
-{
-	typeset dir=$TEST_BASE_DIR/disk.$$
-	typeset pool=foo.$$
-	typeset vdev=$dir/a
-	typeset sdev=$dir/b
-
-	mkdir -p $dir
-	mkfile $MINVDEVSIZE $vdev $sdev
-
-	typeset -i ret=0
-	if ! zpool create -n $pool $vdev log $sdev > /dev/null 2>&1; then
-		ret=1
-	fi
-	rm -r $dir
-
-	return $ret
-}
-
-#
 # The function will generate a dataset name with specific length
 # $1, the length of the name
 # $2, the base string to construct the name
@@ -3129,6 +3104,7 @@ function datasetcksum
 {
 	typeset cksum
 	sync
+	sync_all_pools
 	cksum=$(zdb -vvv $1 | grep "^Dataset $1 \[" | grep "cksum" \
 		| awk -F= '{print $7}')
 	echo $cksum
@@ -3539,6 +3515,24 @@ function sync_pool #pool <force>
 		log_must zpool sync -f $pool
 	else
 		log_must zpool sync $pool
+	fi
+
+	return 0
+}
+
+#
+# Sync all pools
+#
+# $1 boolean to force uberblock (and config including zpool cache file) update
+#
+function sync_all_pools #<force>
+{
+	typeset force=${1:-false}
+
+	if [[ $force == true ]]; then
+		log_must zpool sync -f
+	else
+		log_must zpool sync
 	fi
 
 	return 0
@@ -4048,6 +4042,48 @@ function stat_size #<path>
 	esac
 }
 
+function stat_ctime #<path>
+{
+	typeset path=$1
+
+	case $(uname) in
+	FreeBSD)
+		stat -f %c "$path"
+		;;
+	*)
+		stat -c %Z "$path"
+		;;
+	esac
+}
+
+function stat_crtime #<path>
+{
+	typeset path=$1
+
+	case $(uname) in
+	FreeBSD)
+		stat -f %B "$path"
+		;;
+	*)
+		stat -c %W "$path"
+		;;
+	esac
+}
+
+function stat_generation #<path>
+{
+	typeset path=$1
+
+	case $(uname) in
+	Linux)
+		getversion "${path}"
+		;;
+	*)
+		stat -f %v "${path}"
+		;;
+	esac
+}
+
 # Run a command as if it was being run in a TTY.
 #
 # Usage:
@@ -4183,6 +4219,25 @@ function get_arcstat # stat
 		;;
 	Linux)
 		kstat arcstats | awk "/$stat/ { print \$3 }"
+		;;
+	*)
+		false
+		;;
+	esac
+}
+
+function punch_hole # offset length file
+{
+	typeset offset=$1
+	typeset length=$2
+	typeset file=$3
+
+	case $(uname) in
+	FreeBSD)
+		truncate -d -o $offset -l $length "$file"
+		;;
+	Linux)
+		fallocate --punch-hole --offset $offset --length $length "$file"
 		;;
 	*)
 		false

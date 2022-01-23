@@ -3,7 +3,7 @@
  *
  * Developed at Lawrence Livermore National Laboratory (LLNL-CODE-403049).
  * Copyright (C) 2013-2014 Lawrence Livermore National Security, LLC.
- * Refer to the ZoL git commit log for authoritative copyright attribution.
+ * Refer to the OpenZFS git commit log for authoritative copyright attribution.
  *
  * The contents of this file are subject to the terms of the
  * Common Development and Distribution License Version 1.0 (CDDL-1.0).
@@ -36,6 +36,7 @@ static volatile sig_atomic_t _got_hup = 0;
 static void
 _exit_handler(int signum)
 {
+	(void) signum;
 	_got_exit = 1;
 }
 
@@ -45,6 +46,7 @@ _exit_handler(int signum)
 static void
 _hup_handler(int signum)
 {
+	(void) signum;
 	_got_hup = 1;
 }
 
@@ -291,7 +293,7 @@ idle:
 		rv = zed_event_service(&zcp);
 
 		/* ENODEV: When kernel module is unloaded (osx) */
-		if (rv == ENODEV)
+		if (rv != 0)
 			break;
 	}
 

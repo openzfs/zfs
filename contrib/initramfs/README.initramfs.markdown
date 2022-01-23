@@ -78,7 +78,7 @@ To use this feature:
 1. Install the `dropbear-initramfs` package.  You may wish to uninstall the
    `cryptsetup-initramfs` package to avoid warnings.
 2. Add your SSH key(s) to `/etc/dropbear-initramfs/authorized_keys`.  Note
-   that Dropbear does not support ed25519 keys; use RSA (2048-bit or more)
-   instead.
+   that Dropbear does not support ed25519 keys before version 2020.79; 
+   in that case, use RSA (2048-bit or more) instead.
 3. Rebuild the initramfs with your keys: `update-initramfs -u`
 4. During the system boot, login via SSH and run: `zfsunlock`

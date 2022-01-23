@@ -44,17 +44,14 @@
 #include <sys/random.h>
 #include <sys/strings.h>
 #include <linux/kmod.h>
-#include "zfs_gitrev.h"
 #include <linux/mod_compat.h>
 #include <sys/cred.h>
 #include <sys/vnode.h>
 
-char spl_gitrev[64] = ZFS_META_GITREV;
-
 /* BEGIN CSTYLED */
 unsigned long spl_hostid = 0;
 EXPORT_SYMBOL(spl_hostid);
-/* BEGIN CSTYLED */
+
 module_param(spl_hostid, ulong, 0644);
 MODULE_PARM_DESC(spl_hostid, "The system hostid.");
 /* END CSTYLED */
@@ -586,8 +583,10 @@ spl_getattr(struct file *filp, struct kstat *stat)
 	    AT_STATX_SYNC_AS_STAT);
 #elif defined(HAVE_2ARGS_VFS_GETATTR)
 	rc = vfs_getattr(&filp->f_path, stat);
-#else
+#elif defined(HAVE_3ARGS_VFS_GETATTR)
 	rc = vfs_getattr(filp->f_path.mnt, filp->f_dentry, stat);
+#else
+#error "No available vfs_getattr()"
 #endif
 	if (rc)
 		return (-rc);
@@ -630,7 +629,7 @@ spl_getattr(struct file *filp, struct kstat *stat)
  *
  */
 
-char *spl_hostid_path = HW_HOSTID_PATH;
+static char *spl_hostid_path = HW_HOSTID_PATH;
 module_param(spl_hostid_path, charp, 0444);
 MODULE_PARM_DESC(spl_hostid_path, "The system hostid file (/etc/hostid)");
 
@@ -655,6 +654,7 @@ hostid_read(uint32_t *hostid)
 		return (error);
 	}
 	size = stat.size;
+	// cppcheck-suppress sizeofwithnumericparameter
 	if (size < sizeof (HW_HOSTID_MASK)) {
 		filp_close(filp, 0);
 		return (EINVAL);

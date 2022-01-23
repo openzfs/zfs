@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
@@ -27,33 +26,33 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd August 9, 2019
+.Dd May 27, 2021
 .Dt ZPOOL-CLEAR 8
 .Os
+.
 .Sh NAME
 .Nm zpool-clear
-.Nd Clears device errors in a ZFS storage pool.
+.Nd clear device errors in ZFS storage pool
 .Sh SYNOPSIS
 .Nm zpool
 .Cm clear
 .Ar pool
-.Op Ar device
+.Oo Ar device Oc Ns …
+.
 .Sh DESCRIPTION
-.Bl -tag -width Ds
-.It Xo
-.Nm zpool
-.Cm clear
-.Ar pool
-.Op Ar device
-.Xc
 Clears device errors in a pool.
 If no arguments are specified, all device errors within the pool are cleared.
 If one or more devices is specified, only those errors associated with the
 specified device or devices are cleared.
-If multihost is enabled, and the pool has been suspended, this will not
-resume I/O.  While the pool was suspended, it may have been imported on
+.Pp
+If the pool was suspended it will be brought back online provided the
+devices can be accessed.
+Pools with
+.Sy multihost
+enabled which have been suspended cannot be resumed.
+While the pool was suspended, it may have been imported on
 another host, and resuming I/O could result in pool damage.
-.El
+.
 .Sh SEE ALSO
 .Xr zdb 8 ,
 .Xr zpool-reopen 8 ,

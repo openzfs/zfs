@@ -30,18 +30,19 @@
 #include <errno.h>
 #include <string.h>
 
-static void
+
+static __attribute__((noreturn)) void
 usage(char *progname)
 {
 	(void) fprintf(stderr, "Usage: %s <dirname|filename>\n", progname);
 	exit(1);
 }
 
-static void
-fail(char *err, int rval)
+static __attribute__((noreturn)) void
+fail(char *err)
 {
 	perror(err);
-	exit(rval);
+	exit(1);
 }
 
 static void
@@ -50,7 +51,7 @@ daemonize(void)
 	pid_t	pid;
 
 	if ((pid = fork()) < 0) {
-		fail("fork", 1);
+		fail("fork");
 	} else if (pid != 0) {
 		(void) fprintf(stdout, "%ld\n", (long)pid);
 		exit(0);
@@ -62,27 +63,32 @@ daemonize(void)
 	(void) close(2);
 }
 
+
+static const char *
+get_basename(const char *path)
+{
+	const char *bn = strrchr(path, '/');
+	return (bn ? bn + 1 : path);
+}
+
+static ssize_t
+get_dirnamelen(const char *path)
+{
+	const char *end = strrchr(path, '/');
+	return (end ? end - path : -1);
+}
+
 int
 main(int argc, char *argv[])
 {
-	int		ret, c;
+	int		c;
 	boolean_t	isdir = B_FALSE;
-	boolean_t	fflag = B_FALSE;
-	boolean_t	rflag = B_FALSE;
 	struct stat	sbuf;
 	char		*fpath = NULL;
 	char		*prog = argv[0];
 
-	while ((c = getopt(argc, argv, "fr")) != -1) {
+	while ((c = getopt(argc, argv, "")) != -1) {
 		switch (c) {
-		/* Open the file or directory read only */
-		case 'r':
-			rflag = B_TRUE;
-			break;
-		/* Run in the foreground */
-		case 'f':
-			fflag = B_TRUE;
-			break;
 		default:
 			usage(prog);
 		}
@@ -94,84 +100,68 @@ main(int argc, char *argv[])
 	if (argc != 1)
 		usage(prog);
 
-	if ((ret = stat(argv[0], &sbuf)) != 0) {
-		char	*arg, *dname, *fname;
-		int	arglen;
-		char	*slash;
-		int	rc;
+	if (stat(argv[0], &sbuf) != 0) {
+		char	*arg;
+		const char	*dname, *fname;
+		size_t	arglen;
+		ssize_t	dnamelen;
 
 		/*
 		 * The argument supplied doesn't exist. Copy the path, and
 		 * remove the trailing slash if present.
 		 */
 		if ((arg = strdup(argv[0])) == NULL)
-			fail("strdup", 1);
+			fail("strdup");
 		arglen = strlen(arg);
 		if (arg[arglen - 1] == '/')
 			arg[arglen - 1] = '\0';
 
-		/*
-		 * Get the directory and file names, using the current directory
-		 * if the provided path doesn't specify a directory at all.
-		 */
-		if ((slash = strrchr(arg, '/')) == NULL) {
-			dname = strdup(".");
-			fname = strdup(arg);
-		} else {
-			*slash = '\0';
-			dname = strdup(arg);
-			fname = strdup(slash + 1);
-		}
-		free(arg);
-		if (dname == NULL || fname == NULL)
-			fail("strdup", 1);
+		/* Get the directory and file names. */
+		fname = get_basename(arg);
+		dname = arg;
+		if ((dnamelen = get_dirnamelen(arg)) != -1)
+			arg[dnamelen] = '\0';
+		else
+			dname = ".";
 
 		/* The directory portion of the path must exist */
-		if ((ret = stat(dname, &sbuf)) != 0 || !(sbuf.st_mode &
-		    S_IFDIR))
+		if (stat(dname, &sbuf) != 0 || !(sbuf.st_mode & S_IFDIR))
 			usage(prog);
 
-		rc = asprintf(&fpath, "%s/%s", dname, fname);
-		free(dname);
-		free(fname);
-		if (rc == -1 || fpath == NULL)
-			fail("asprintf", 1);
+		if (asprintf(&fpath, "%s/%s", dname, fname) == -1)
+			fail("asprintf");
 
-	} else if ((sbuf.st_mode & S_IFMT) == S_IFREG ||
-	    (sbuf.st_mode & S_IFMT) == S_IFLNK ||
-	    (sbuf.st_mode & S_IFMT) == S_IFCHR ||
-	    (sbuf.st_mode & S_IFMT) == S_IFBLK) {
-		fpath = strdup(argv[0]);
-	} else if ((sbuf.st_mode & S_IFMT) == S_IFDIR) {
-		fpath = strdup(argv[0]);
-		isdir = B_TRUE;
-	} else {
-		usage(prog);
-	}
+		free(arg);
+	} else
+		switch (sbuf.st_mode & S_IFMT) {
+			case S_IFDIR:
+				isdir = B_TRUE;
+				fallthrough;
+			case S_IFLNK:
+			case S_IFCHR:
+			case S_IFBLK:
+				if ((fpath = strdup(argv[0])) == NULL)
+					fail("strdup");
+				break;
+			default:
+				usage(prog);
+		}
 
-	if (fpath == NULL)
-		fail("strdup", 1);
+	if (!isdir) {
+		int	fd;
 
-	if (isdir == B_FALSE) {
-		int	fd, flags;
-		mode_t	mode = S_IRUSR | S_IWUSR;
-
-		flags = rflag == B_FALSE ? O_CREAT | O_RDWR : O_RDONLY;
-
-		if ((fd = open(fpath, flags, mode)) < 0)
-			fail("open", 1);
+		if ((fd = open(fpath, O_CREAT | O_RDWR, 0600)) < 0)
+			fail("open");
 	} else {
 		DIR	*dp;
 
 		if ((dp = opendir(fpath)) == NULL)
-			fail("opendir", 1);
+			fail("opendir");
 	}
 	free(fpath);
 
-	if (fflag == B_FALSE)
-		daemonize();
+	daemonize();
 	(void) pause();
 
-	/* NOTREACHED */
 	return (0);
 }

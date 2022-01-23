@@ -1,4 +1,3 @@
-'\" t
 .\"
 .\" CDDL HEADER START
 .\"
@@ -19,63 +18,115 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright 2013 Darik Horn <dajhorn@vanadac.com>. All rights reserved.
 .\"
-.TH ZHACK 1 "Aug 24, 2020" OpenZFS
-
-.SH NAME
-zhack \- libzpool debugging tool
-.SH DESCRIPTION
+.\" lint-ok: WARNING: sections out of conventional order: Sh SYNOPSIS
+.\"
+.Dd May 26, 2021
+.Dt ZHACK 1
+.Os
+.
+.Sh NAME
+.Nm zhack
+.Nd libzpool debugging tool
+.Sh DESCRIPTION
 This utility pokes configuration changes directly into a ZFS pool,
 which is dangerous and can cause data corruption.
-.SH SYNOPSIS
-.LP
-.BI "zhack [\-c " "cachefile" "] [\-d " "dir" "] <" "subcommand" "> [" "arguments" "]"
-.SH OPTIONS
-.HP
-.BI "\-c" " cachefile"
-.IP
-Read the \fIpool\fR configuration from the \fIcachefile\fR, which is
-/etc/zfs/zpool.cache by default.
-.HP
-.BI "\-d" " dir"
-.IP
-Search for \fIpool\fR members in the \fIdir\fR path. Can be specified
-more than once.
-.SH SUBCOMMANDS
-.LP
-.BI "feature stat " "pool"
-.IP
+.Sh SYNOPSIS
+.Bl -tag -width Ds
+.It Xo
+.Nm zhack
+.Cm feature stat
+.Ar pool
+.Xc
 List feature flags.
-.LP
-.BI "feature enable [\-d " "description" "] [\-r] " "pool guid"
-.IP
-Add a new feature to \fIpool\fR that is uniquely identified by
-\fIguid\fR, which is specified in the same form as a zfs(8) user
-property.
-.IP
-The \fIdescription\fR is a short human readable explanation of the new
+.
+.It Xo
+.Nm zhack
+.Cm feature enable
+.Op Fl d Ar description
+.Op Fl r
+.Ar pool
+.Ar guid
+.Xc
+Add a new feature to
+.Ar pool
+that is uniquely identified by
+.Ar guid ,
+which is specified in the same form as a
+.Xr zfs 8
+user property.
+.Pp
+The
+.Ar description
+is a short human readable explanation of the new feature.
+.Pp
+The
+.Fl r
+flag indicates that
+.Ar pool
+can be safely opened in read-only mode by a system that does not understand the
+.Ar guid
 feature.
-.IP
-The \fB\-r\fR switch indicates that \fIpool\fR can be safely opened
-in read-only mode by a system that does not have the \fIguid\fR
-feature.
-.LP
-.BI "feature ref [\-d|\-m] " "pool guid"
-.IP
-Increment the reference count of the \fIguid\fR feature in \fIpool\fR.
-.IP
-The \fB\-d\fR switch decrements the reference count of the \fIguid\fR
-feature in \fIpool\fR.
-.IP
-The \fB\-m\fR switch indicates that the \fIguid\fR feature is now
-required to read the pool MOS.
-.SH EXAMPLES
-.LP
-.nf
-# zhack feature stat tank
-
+.
+.It Xo
+.Nm zhack
+.Cm feature ref
+.Op Fl d Ns | Ns Fl m
+.Ar pool
+.Ar guid
+.Xc
+Increment the reference count of the
+.Ar guid
+feature in
+.Ar pool .
+.Pp
+The
+.Fl d
+flag decrements the reference count of the
+.Ar guid
+feature in
+.Ar pool
+instead.
+.Pp
+The
+.Fl m
+flag indicates that the
+.Ar guid
+feature is now required to read the pool MOS.
+.
+.It Xo
+.Nm zhack
+.Cm label repair
+.Ar device
+.Xc
+Repair corrupted labels by rewriting the checksum using the presumed valid contents of the label.
+.El
+.
+.Sh GLOBAL OPTIONS
+The following can be passed to all
+.Nm
+invocations before any subcommand:
+.Bl -tag -width "-d dir"
+.It Fl c Ar cachefile
+Read
+.Ar pool
+configuration from the
+.Ar cachefile ,
+which is
+.Pa /etc/zfs/zpool.cache
+by default.
+.It Fl d Ar dir
+Search for
+.Ar pool
+members in
+.Ar dir .
+Can be specified more than once.
+.El
+.
+.Sh EXAMPLES
+.Bd -literal
+.No # Nm zhack Cm feature stat Ar tank
 for_read_obj:
 	org.illumos:lz4_compress = 0
 for_write_obj:
@@ -85,14 +136,12 @@ descriptions_obj:
 	com.delphix:async_destroy = Destroy filesystems asynchronously.
 	com.delphix:empty_bpobj = Snapshots use less space.
 	org.illumos:lz4_compress = LZ4 compression algorithm support.
-.LP
-# zhack feature enable -d 'Predict future disk failures.' \\
-    tank com.example:clairvoyance
-.LP
-# zhack feature ref tank com.example:clairvoyance
-.SH AUTHORS
-This man page was written by Darik Horn <dajhorn@vanadac.com>.
-.SH SEE ALSO
-.BR zfs (8),
-.BR zpool-features (5),
-.BR ztest (1)
+
+.No # Nm zhack Cm feature enable Fl d No 'Predict future disk failures.' Ar tank com.example:clairvoyance
+.No # Nm zhack Cm feature ref Ar tank com.example:clairvoyance
+.Ed
+.
+.Sh SEE ALSO
+.Xr ztest 1 ,
+.Xr zpool-features 7 ,
+.Xr zfs 8

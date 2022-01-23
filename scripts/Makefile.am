@@ -1,3 +1,5 @@
+include $(top_srcdir)/config/Shellcheck.am
+
 pkgdatadir = $(datadir)/@PACKAGE@
 
 dist_pkgdata_SCRIPTS = \
@@ -7,19 +9,26 @@ dist_pkgdata_SCRIPTS = \
 	zloop.sh \
 	zfs-helpers.sh
 
-EXTRA_DIST = \
+EXTRA_SCRIPTS = \
 	commitcheck.sh \
 	common.sh.in \
-	cstyle.pl \
 	dkms.mkconf \
 	dkms.postbuild \
-	enum-extract.pl \
 	kmodtool \
 	make_gitrev.sh \
 	man-dates.sh \
 	paxcheck.sh \
+	mancheck.sh
+
+EXTRA_DIST = \
+	cstyle.pl \
+	enum-extract.pl \
 	zfs2zol-patch.sed \
-	zol2zfs-patch.sed
+	zol2zfs-patch.sed \
+	$(EXTRA_SCRIPTS)
+
+SHELLCHECKSCRIPTS = $(EXTRA_SCRIPTS)
+SHELLCHECK_OPTS = --enable=all
 
 define EXTRA_ENVIRONMENT
 

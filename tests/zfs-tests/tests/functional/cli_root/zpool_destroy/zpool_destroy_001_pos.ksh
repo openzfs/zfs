@@ -48,8 +48,7 @@ verify_runnable "global"
 function cleanup
 {
 	poolexists $TESTPOOL2 && destroy_pool $TESTPOOL2
-	datasetexists $TESTPOOL1/$TESTVOL && \
-		log_must zfs destroy -f $TESTPOOL1/$TESTVOL
+	datasetexists $TESTPOOL1/$TESTVOL && destroy_dataset $TESTPOOL1/$TESTVOL -f
 
 	typeset pool
 	for pool in $TESTPOOL1 $TESTPOOL; do

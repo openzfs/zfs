@@ -129,9 +129,9 @@ umem_zalloc(size_t size, int flags)
 }
 
 static inline void
-umem_free(void *ptr, size_t size __maybe_unused)
+umem_free(const void *ptr, size_t size __maybe_unused)
 {
-	free(ptr);
+	free((void *)ptr);
 }
 
 static inline void

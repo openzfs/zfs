@@ -63,7 +63,7 @@ lzbe_set_boot_device(const char *pool, lzbe_flags_t flag, const char *device)
 			/* Drop this nvlist */
 			fnvlist_free(nv);
 		}
-		/* FALLTHROUGH */
+		fallthrough;
 	case lzbe_replace:
 		nv = fnvlist_alloc();
 		break;
@@ -88,12 +88,11 @@ lzbe_set_boot_device(const char *pool, lzbe_flags_t flag, const char *device)
 		if (strncmp(device, "zfs:", 4) == 0) {
 			fnvlist_add_string(nv, OS_BOOTONCE, device);
 		} else {
-			descriptor = NULL;
-			if (asprintf(&descriptor, "zfs:%s:", device) > 0)
+			if (asprintf(&descriptor, "zfs:%s:", device) > 0) {
 				fnvlist_add_string(nv, OS_BOOTONCE, descriptor);
-			else
+				free(descriptor);
+			} else
 				rv = ENOMEM;
-			free(descriptor);
 		}
 	}
 

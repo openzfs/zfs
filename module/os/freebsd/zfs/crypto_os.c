@@ -172,11 +172,13 @@ zfs_crypto_dispatch(freebsd_crypt_session_t *session, 	struct cryptop *crp)
 			break;
 		mtx_lock(&session->fs_lock);
 		while (session->fs_done == false)
-			msleep(crp, &session->fs_lock, PRIBIO,
-			    "zfs_crypto", hz/5);
+			msleep(crp, &session->fs_lock, 0,
+			    "zfs_crypto", 0);
 		mtx_unlock(&session->fs_lock);
 
-		if (crp->crp_etype != EAGAIN) {
+		if (crp->crp_etype == ENOMEM) {
+			pause("zcrnomem", 1);
+		} else if (crp->crp_etype != EAGAIN) {
 			error = crp->crp_etype;
 			break;
 		}
@@ -196,7 +198,7 @@ zfs_crypto_dispatch(freebsd_crypt_session_t *session, 	struct cryptop *crp)
 static void
 freebsd_crypt_uio_debug_log(boolean_t encrypt,
     freebsd_crypt_session_t *input_sessionp,
-    struct zio_crypt_info *c_info,
+    const struct zio_crypt_info *c_info,
     zfs_uio_t *data_uio,
     crypto_key_t *key,
     uint8_t *ivbuf,
@@ -239,7 +241,7 @@ freebsd_crypt_uio_debug_log(boolean_t encrypt,
 #if __FreeBSD_version >= 1300087
 int
 freebsd_crypt_newsession(freebsd_crypt_session_t *sessp,
-    struct zio_crypt_info *c_info, crypto_key_t *key)
+    const struct zio_crypt_info *c_info, crypto_key_t *key)
 {
 	struct crypto_session_params csp;
 	int error = 0;
@@ -320,7 +322,7 @@ bad:
 int
 freebsd_crypt_uio(boolean_t encrypt,
     freebsd_crypt_session_t *input_sessionp,
-    struct zio_crypt_info *c_info,
+    const struct zio_crypt_info *c_info,
     zfs_uio_t *data_uio,
     crypto_key_t *key,
     uint8_t *ivbuf,
@@ -380,7 +382,7 @@ out:
 #else
 int
 freebsd_crypt_newsession(freebsd_crypt_session_t *sessp,
-    struct zio_crypt_info *c_info, crypto_key_t *key)
+    const struct zio_crypt_info *c_info, crypto_key_t *key)
 {
 	struct cryptoini cria, crie, *crip;
 	struct enc_xform *xform;
@@ -490,7 +492,7 @@ bad:
 int
 freebsd_crypt_uio(boolean_t encrypt,
     freebsd_crypt_session_t *input_sessionp,
-    struct zio_crypt_info *c_info,
+    const struct zio_crypt_info *c_info,
     zfs_uio_t *data_uio,
     crypto_key_t *key,
     uint8_t *ivbuf,

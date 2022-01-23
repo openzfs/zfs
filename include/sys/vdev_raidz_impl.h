@@ -70,8 +70,8 @@ enum raidz_rec_op {
 	RAIDZ_REC_NUM = 7
 };
 
-extern const char *raidz_gen_name[RAIDZ_GEN_NUM];
-extern const char *raidz_rec_name[RAIDZ_REC_NUM];
+extern const char *const raidz_gen_name[RAIDZ_GEN_NUM];
+extern const char *const raidz_rec_name[RAIDZ_REC_NUM];
 
 /*
  * Methods used to define raidz implementation
@@ -113,7 +113,8 @@ typedef struct raidz_col {
 	uint8_t rc_tried;		/* Did we attempt this I/O column? */
 	uint8_t rc_skipped;		/* Did we skip this I/O column? */
 	uint8_t rc_need_orig_restore;	/* need to restore from orig_data? */
-	uint8_t rc_repair;		/* Write good data to this column */
+	uint8_t rc_force_repair;	/* Write good data to this column */
+	uint8_t rc_allow_repair;	/* Allow repair I/O to this column */
 } raidz_col_t;
 
 typedef struct raidz_row {

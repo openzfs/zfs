@@ -102,9 +102,7 @@ function cleanup_testenv
 
 	pkill mkbusy
 
-	if datasetexists $CTR; then
-		log_must zfs destroy -Rf $CTR
-	fi
+	datasetexists $CTR && destroy_dataset $CTR -Rf
 }
 
 #
@@ -155,7 +153,7 @@ function check_livelist_exists
 function check_livelist_gone
 {
 	log_must zpool wait -t free $TESTPOOL
-	zpool sync
+	sync_all_pools
 	zdb -vvvvv $TESTPOOL | grep "Livelist" && \
 		log_fail "zdb found Livelist after the clone is deleted."
 }

@@ -78,11 +78,11 @@
  */
 
 /*
- * We will borrow aggsum_borrow_multiplier times the current request, so we will
- * have to get the as_lock approximately every aggsum_borrow_multiplier calls to
- * aggsum_delta().
+ * We will borrow 2^aggsum_borrow_shift times the current request, so we will
+ * have to get the as_lock approximately every 2^aggsum_borrow_shift calls to
+ * aggsum_add().
  */
-static uint_t aggsum_borrow_multiplier = 10;
+static uint_t aggsum_borrow_shift = 4;
 
 void
 aggsum_init(aggsum_t *as, uint64_t value)
@@ -90,9 +90,14 @@ aggsum_init(aggsum_t *as, uint64_t value)
 	bzero(as, sizeof (*as));
 	as->as_lower_bound = as->as_upper_bound = value;
 	mutex_init(&as->as_lock, NULL, MUTEX_DEFAULT, NULL);
-	as->as_numbuckets = boot_ncpus;
-	as->as_buckets = kmem_zalloc(boot_ncpus * sizeof (aggsum_bucket_t),
-	    KM_SLEEP);
+	/*
+	 * Too many buckets may hurt read performance without improving
+	 * write.  From 12 CPUs use bucket per 2 CPUs, from 48 per 4, etc.
+	 */
+	as->as_bucketshift = highbit64(boot_ncpus / 6) / 2;
+	as->as_numbuckets = ((boot_ncpus - 1) >> as->as_bucketshift) + 1;
+	as->as_buckets = kmem_zalloc(as->as_numbuckets *
+	    sizeof (aggsum_bucket_t), KM_SLEEP);
 	for (int i = 0; i < as->as_numbuckets; i++) {
 		mutex_init(&as->as_buckets[i].asc_lock,
 		    NULL, MUTEX_DEFAULT, NULL);
@@ -111,59 +116,49 @@ aggsum_fini(aggsum_t *as)
 int64_t
 aggsum_lower_bound(aggsum_t *as)
 {
-	return (as->as_lower_bound);
+	return (atomic_load_64((volatile uint64_t *)&as->as_lower_bound));
 }
 
-int64_t
+uint64_t
 aggsum_upper_bound(aggsum_t *as)
 {
-	return (as->as_upper_bound);
-}
-
-static void
-aggsum_flush_bucket(aggsum_t *as, struct aggsum_bucket *asb)
-{
-	ASSERT(MUTEX_HELD(&as->as_lock));
-	ASSERT(MUTEX_HELD(&asb->asc_lock));
-
-	/*
-	 * We use atomic instructions for this because we read the upper and
-	 * lower bounds without the lock, so we need stores to be atomic.
-	 */
-	atomic_add_64((volatile uint64_t *)&as->as_lower_bound,
-	    asb->asc_delta + asb->asc_borrowed);
-	atomic_add_64((volatile uint64_t *)&as->as_upper_bound,
-	    asb->asc_delta - asb->asc_borrowed);
-	asb->asc_delta = 0;
-	asb->asc_borrowed = 0;
+	return (atomic_load_64(&as->as_upper_bound));
 }
 
 uint64_t
 aggsum_value(aggsum_t *as)
 {
-	int64_t rv;
+	int64_t lb;
+	uint64_t ub;
 
 	mutex_enter(&as->as_lock);
-	if (as->as_lower_bound == as->as_upper_bound) {
-		rv = as->as_lower_bound;
+	lb = as->as_lower_bound;
+	ub = as->as_upper_bound;
+	if (lb == ub) {
 		for (int i = 0; i < as->as_numbuckets; i++) {
 			ASSERT0(as->as_buckets[i].asc_delta);
 			ASSERT0(as->as_buckets[i].asc_borrowed);
 		}
 		mutex_exit(&as->as_lock);
-		return (rv);
+		return (lb);
 	}
 	for (int i = 0; i < as->as_numbuckets; i++) {
 		struct aggsum_bucket *asb = &as->as_buckets[i];
+		if (asb->asc_borrowed == 0)
+			continue;
 		mutex_enter(&asb->asc_lock);
-		aggsum_flush_bucket(as, asb);
+		lb += asb->asc_delta + asb->asc_borrowed;
+		ub += asb->asc_delta - asb->asc_borrowed;
+		asb->asc_delta = 0;
+		asb->asc_borrowed = 0;
 		mutex_exit(&asb->asc_lock);
 	}
-	VERIFY3U(as->as_lower_bound, ==, as->as_upper_bound);
-	rv = as->as_lower_bound;
+	ASSERT3U(lb, ==, ub);
+	atomic_store_64((volatile uint64_t *)&as->as_lower_bound, lb);
+	atomic_store_64(&as->as_upper_bound, lb);
 	mutex_exit(&as->as_lock);
 
-	return (rv);
+	return (lb);
 }
 
 void
@@ -172,7 +167,8 @@ aggsum_add(aggsum_t *as, int64_t delta)
 	struct aggsum_bucket *asb;
 	int64_t borrow;
 
-	asb = &as->as_buckets[CPU_SEQID_UNSTABLE % as->as_numbuckets];
+	asb = &as->as_buckets[(CPU_SEQID_UNSTABLE >> as->as_bucketshift) %
+	    as->as_numbuckets];
 
 	/* Try fast path if we already borrowed enough before. */
 	mutex_enter(&asb->asc_lock);
@@ -188,21 +184,22 @@ aggsum_add(aggsum_t *as, int64_t delta)
 	 * We haven't borrowed enough.  Take the global lock and borrow
 	 * considering what is requested now and what we borrowed before.
 	 */
-	borrow = (delta < 0 ? -delta : delta) * aggsum_borrow_multiplier;
+	borrow = (delta < 0 ? -delta : delta);
+	borrow <<= aggsum_borrow_shift + as->as_bucketshift;
 	mutex_enter(&as->as_lock);
-	mutex_enter(&asb->asc_lock);
-	delta += asb->asc_delta;
-	asb->asc_delta = 0;
 	if (borrow >= asb->asc_borrowed)
 		borrow -= asb->asc_borrowed;
 	else
 		borrow = (borrow - (int64_t)asb->asc_borrowed) / 4;
+	mutex_enter(&asb->asc_lock);
+	delta += asb->asc_delta;
+	asb->asc_delta = 0;
 	asb->asc_borrowed += borrow;
-	atomic_add_64((volatile uint64_t *)&as->as_lower_bound,
-	    delta - borrow);
-	atomic_add_64((volatile uint64_t *)&as->as_upper_bound,
-	    delta + borrow);
 	mutex_exit(&asb->asc_lock);
+	atomic_store_64((volatile uint64_t *)&as->as_lower_bound,
+	    as->as_lower_bound + delta - borrow);
+	atomic_store_64(&as->as_upper_bound,
+	    as->as_upper_bound + delta + borrow);
 	mutex_exit(&as->as_lock);
 }
 
@@ -214,27 +211,35 @@ aggsum_add(aggsum_t *as, int64_t delta)
 int
 aggsum_compare(aggsum_t *as, uint64_t target)
 {
-	if (as->as_upper_bound < target)
+	int64_t lb;
+	uint64_t ub;
+	int i;
+
+	if (atomic_load_64(&as->as_upper_bound) < target)
 		return (-1);
-	if (as->as_lower_bound > target)
+	lb = atomic_load_64((volatile uint64_t *)&as->as_lower_bound);
+	if (lb > 0 && (uint64_t)lb > target)
 		return (1);
 	mutex_enter(&as->as_lock);
-	for (int i = 0; i < as->as_numbuckets; i++) {
+	lb = as->as_lower_bound;
+	ub = as->as_upper_bound;
+	for (i = 0; i < as->as_numbuckets; i++) {
 		struct aggsum_bucket *asb = &as->as_buckets[i];
+		if (asb->asc_borrowed == 0)
+			continue;
 		mutex_enter(&asb->asc_lock);
-		aggsum_flush_bucket(as, asb);
+		lb += asb->asc_delta + asb->asc_borrowed;
+		ub += asb->asc_delta - asb->asc_borrowed;
+		asb->asc_delta = 0;
+		asb->asc_borrowed = 0;
 		mutex_exit(&asb->asc_lock);
-		if (as->as_upper_bound < target) {
-			mutex_exit(&as->as_lock);
-			return (-1);
-		}
-		if (as->as_lower_bound > target) {
-			mutex_exit(&as->as_lock);
-			return (1);
-		}
+		if (ub < target || (lb > 0 && (uint64_t)lb > target))
+			break;
 	}
-	VERIFY3U(as->as_lower_bound, ==, as->as_upper_bound);
-	ASSERT3U(as->as_lower_bound, ==, target);
+	if (i >= as->as_numbuckets)
+		ASSERT3U(lb, ==, ub);
+	atomic_store_64((volatile uint64_t *)&as->as_lower_bound, lb);
+	atomic_store_64(&as->as_upper_bound, ub);
 	mutex_exit(&as->as_lock);
-	return (0);
+	return (ub < target ? -1 : (uint64_t)lb > target ? 1 : 0);
 }

@@ -48,7 +48,7 @@ function cleanup_quota
 
 	[[ -f $QFILE ]] && log_must rm -f $QFILE
 	[[ -f $OFILE ]] && log_must rm -f $OFILE
-	sync
+	sync_all_pools
 
 	return 0
 }

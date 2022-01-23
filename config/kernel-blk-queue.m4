@@ -23,8 +23,8 @@ AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE_PLUG], [
 ])
 
 dnl #
-dnl # 2.6.32 - 4.11, statically allocated bdi in request_queue
-dnl # 4.12 - x.y, dynamically allocated bdi in request_queue
+dnl # 2.6.32 - 4.11: statically allocated bdi in request_queue
+dnl # 4.12: dynamically allocated bdi in request_queue
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE_BDI], [
 	ZFS_LINUX_TEST_SRC([blk_queue_bdi], [
@@ -48,7 +48,45 @@ AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE_BDI], [
 ])
 
 dnl #
-dnl # 2.6.32 - 4.x API,
+dnl # 5.9: added blk_queue_update_readahead(),
+dnl # 5.15: renamed to disk_update_readahead()
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE_UPDATE_READAHEAD], [
+	ZFS_LINUX_TEST_SRC([blk_queue_update_readahead], [
+		#include <linux/blkdev.h>
+	],[
+		struct request_queue q;
+		blk_queue_update_readahead(&q);
+	])
+
+	ZFS_LINUX_TEST_SRC([disk_update_readahead], [
+		#include <linux/blkdev.h>
+	],[
+		struct gendisk disk;
+		disk_update_readahead(&disk);
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE_UPDATE_READAHEAD], [
+	AC_MSG_CHECKING([whether blk_queue_update_readahead() exists])
+	ZFS_LINUX_TEST_RESULT([blk_queue_update_readahead], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_BLK_QUEUE_UPDATE_READAHEAD, 1,
+		    [blk_queue_update_readahead() exists])
+	],[
+		AC_MSG_CHECKING([whether disk_update_readahead() exists])
+		ZFS_LINUX_TEST_RESULT([disk_update_readahead], [
+			AC_MSG_RESULT(yes)
+			AC_DEFINE(HAVE_DISK_UPDATE_READAHEAD, 1,
+			    [disk_update_readahead() exists])
+		],[
+			AC_MSG_RESULT(no)
+		])
+	])
+])
+
+dnl #
+dnl # 2.6.32 API,
 dnl #   blk_queue_discard()
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE_DISCARD], [
@@ -71,7 +109,7 @@ AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE_DISCARD], [
 ])
 
 dnl #
-dnl # 4.8 - 4.x API,
+dnl # 4.8 API,
 dnl #   blk_queue_secure_erase()
 dnl #
 dnl # 2.6.36 - 4.7 API,
@@ -280,6 +318,7 @@ AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE_MAX_SEGMENTS], [
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE], [
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_PLUG
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_BDI
+	ZFS_AC_KERNEL_SRC_BLK_QUEUE_UPDATE_READAHEAD
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_DISCARD
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_SECURE_ERASE
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_FLAG_SET
@@ -292,6 +331,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE], [
 AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE], [
 	ZFS_AC_KERNEL_BLK_QUEUE_PLUG
 	ZFS_AC_KERNEL_BLK_QUEUE_BDI
+	ZFS_AC_KERNEL_BLK_QUEUE_UPDATE_READAHEAD
 	ZFS_AC_KERNEL_BLK_QUEUE_DISCARD
 	ZFS_AC_KERNEL_BLK_QUEUE_SECURE_ERASE
 	ZFS_AC_KERNEL_BLK_QUEUE_FLAG_SET

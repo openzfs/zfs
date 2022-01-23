@@ -33,22 +33,25 @@ typedef struct zfs_dbgmsg {
 	char zdm_msg[1]; /* variable length allocation */
 } zfs_dbgmsg_t;
 
-list_t zfs_dbgmsgs;
-int zfs_dbgmsg_size = 0;
-kmutex_t zfs_dbgmsgs_lock;
+static list_t zfs_dbgmsgs;
+static int zfs_dbgmsg_size = 0;
+static kmutex_t zfs_dbgmsgs_lock;
 int zfs_dbgmsg_maxsize = 4<<20; /* 4MB */
-kstat_t *zfs_dbgmsg_kstat;
+static kstat_t *zfs_dbgmsg_kstat;
 
 /*
  * Internal ZFS debug messages are enabled by default.
  *
- * # Print debug messages
+ * # Print debug messages as they're logged
  * dtrace -n 'zfs-dbgmsg { print(stringof(arg0)); }'
+ *
+ * # Print all logged dbgmsg entries
+ * sysctl kstat.zfs.misc.dbgmsg
  *
  * # Disable the kernel debug message log.
  * sysctl vfs.zfs.dbgmsg_enable=0
  */
-int zfs_dbgmsg_enable = 1;
+int zfs_dbgmsg_enable = B_TRUE;
 
 static int
 zfs_dbgmsg_headers(char *buf, size_t size)
@@ -178,7 +181,7 @@ __set_error(const char *file, const char *func, int line, int err)
 	 * $ echo 512 >/sys/module/zfs/parameters/zfs_flags
 	 */
 	if (zfs_flags & ZFS_DEBUG_SET_ERROR)
-		__dprintf(B_FALSE, file, func, line, "error %lu", err);
+		__dprintf(B_FALSE, file, func, line, "error %lu", (ulong_t)err);
 }
 
 #ifdef _KERNEL

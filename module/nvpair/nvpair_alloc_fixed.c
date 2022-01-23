@@ -85,11 +85,11 @@ nv_fixed_alloc(nv_alloc_t *nva, size_t size)
 	return ((void *)new);
 }
 
-/*ARGSUSED*/
 static void
 nv_fixed_free(nv_alloc_t *nva, void *buf, size_t size)
 {
 	/* don't free memory in the pre-allocated buffer */
+	(void) nva, (void) buf, (void) size;
 }
 
 static void
@@ -100,7 +100,7 @@ nv_fixed_reset(nv_alloc_t *nva)
 	nvb->nvb_cur = (uintptr_t)&nvb[1];
 }
 
-const nv_alloc_ops_t nv_fixed_ops_def = {
+static const nv_alloc_ops_t nv_fixed_ops_def = {
 	.nv_ao_init = nv_fixed_init,
 	.nv_ao_fini = NULL,
 	.nv_ao_alloc = nv_fixed_alloc,
@@ -108,7 +108,7 @@ const nv_alloc_ops_t nv_fixed_ops_def = {
 	.nv_ao_reset = nv_fixed_reset
 };
 
-const nv_alloc_ops_t *nv_fixed_ops = &nv_fixed_ops_def;
+const nv_alloc_ops_t *const nv_fixed_ops = &nv_fixed_ops_def;
 
 #if defined(_KERNEL)
 EXPORT_SYMBOL(nv_fixed_ops);

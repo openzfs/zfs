@@ -5,12 +5,8 @@ command -v getargbool >/dev/null || {
     # Compatibility with older Dracut versions.
     # With apologies to the Dracut developers.
     getargbool() {
-        if ! [ -z "$_b" ]; then
-                unset _b
-        fi
         _default="$1"; shift
-        _b=$(getarg "$@")
-        [ $? -ne 0 ] &&  [ -z "$_b" ] && _b="$_default"
+        ! _b=$(getarg "$@") && [ -z "$_b" ] && _b="$_default"
         if [ -n "$_b" ]; then
             [ "$_b" = "0" ] && return 1
             [ "$_b" = "no" ] && return 1
@@ -63,6 +59,7 @@ import_pool() {
 
     if ! zpool list -H "${pool}" > /dev/null 2>&1; then
         info "ZFS: Importing pool ${pool}..."
+        # shellcheck disable=SC2086
         if ! zpool import -N ${ZPOOL_IMPORT_OPTS} "${pool}" ; then
             warn "ZFS: Unable to import pool ${pool}"
             return 1
@@ -73,6 +70,7 @@ import_pool() {
 }
 
 _mount_dataset_cb() {
+    # shellcheck disable=SC2154
     mount -o zfsutil -t zfs "${1}" "${NEWROOT}${2}"
 }
 
@@ -94,7 +92,7 @@ mount_dataset() {
         fi
     fi
 
-    return ${ret}
+    return "${ret}"
 }
 
 # for_relevant_root_children DATASET EXEC
@@ -120,25 +118,24 @@ for_relevant_root_children() {
                         ;;
                 esac
             done
-            exit ${_ret}
+            exit "${_ret}"
         )
 }
 
 # export_all OPTS
 #   exports all imported zfs pools.
 export_all() {
-    opts="${@}"
     ret=0
 
     IFS="${NEWLINE}"
     for pool in $(zpool list -H -o name) ; do
         if zpool list -H "${pool}" > /dev/null 2>&1; then
-            zpool export "${pool}" ${opts} || ret=$?
+            zpool export "${pool}" "$@" || ret=$?
         fi
     done
     IFS="${OLDIFS}"
 
-    return ${ret}
+    return "${ret}"
 }
 
 # ask_for_password
@@ -175,6 +172,7 @@ ask_for_password() {
             --ply-tries) ply_tries="$2"; shift;;
             --tty-tries) tty_tries="$2"; shift;;
             --tty-echo-off) tty_echo_off=yes;;
+            *) echo "ask_for_password(): wrong opt '$1'" >&2;;
         esac
         shift
     done
@@ -183,8 +181,8 @@ ask_for_password() {
         # Prompt for password with plymouth, if installed and running.
         if plymouth --ping 2>/dev/null; then
             plymouth ask-for-password \
-                --prompt "$ply_prompt" --number-of-tries="$ply_tries" \
-                --command="$ply_cmd"
+                --prompt "$ply_prompt" --number-of-tries="$ply_tries" | \
+                eval "$ply_cmd"
             ret=$?
         else
             if [ "$tty_echo_off" = yes ]; then
@@ -206,6 +204,6 @@ ask_for_password() {
         fi
     } 9>/.console_lock
 
-    [ $ret -ne 0 ] && echo "Wrong password" >&2
-    return $ret
+    [ "$ret" -ne 0 ] && echo "Wrong password" >&2
+    return "$ret"
 }

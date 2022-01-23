@@ -1,7 +1,6 @@
 #!/bin/sh
 
-# shellcheck disable=SC2039
-if ! type scanelf > /dev/null 2>&1; then
+if ! command -v scanelf > /dev/null; then
     echo "scanelf (from pax-utils) is required for these checks." >&2
     exit 3
 fi
@@ -41,4 +40,4 @@ if [ x"${OUT}" != x ]; then
     echo
 fi
 
-exit $RET
+exit "$RET"

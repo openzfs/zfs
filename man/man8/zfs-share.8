@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
 .\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
@@ -30,28 +29,40 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd June 30, 2019
+.Dd May 17, 2021
 .Dt ZFS-SHARE 8
 .Os
+.
 .Sh NAME
 .Nm zfs-share
-.Nd Shares and unshares available ZFS filesystems.
+.Nd share and unshare ZFS filesystems
 .Sh SYNOPSIS
 .Nm zfs
 .Cm share
-.Fl a | Ar filesystem
+.Op Fl l
+.Fl a Ns | Ns Ar filesystem
 .Nm zfs
 .Cm unshare
-.Fl a | Ar filesystem Ns | Ns Ar mountpoint
+.Fl a Ns | Ns Ar filesystem Ns | Ns Ar mountpoint
+.
 .Sh DESCRIPTION
 .Bl -tag -width ""
 .It Xo
 .Nm zfs
 .Cm share
-.Fl a | Ar filesystem
+.Op Fl l
+.Fl a Ns | Ns Ar filesystem
 .Xc
 Shares available ZFS file systems.
 .Bl -tag -width "-a"
+.It Fl l
+Load keys for encrypted filesystems as they are being mounted.
+This is equivalent to executing
+.Nm zfs Cm load-key
+on each encryption root before mounting it.
+Note that if a filesystem has
+.Sy keylocation Ns = Ns Sy prompt ,
+this will cause the terminal to interactively block after asking for the key.
 .It Fl a
 Share all available ZFS file systems.
 Invoked automatically as part of the boot process.
@@ -70,7 +81,7 @@ property is set.
 .It Xo
 .Nm zfs
 .Cm unshare
-.Fl a | Ar filesystem Ns | Ns Ar mountpoint
+.Fl a Ns | Ns Ar filesystem Ns | Ns Ar mountpoint
 .Xc
 Unshares currently shared ZFS file systems.
 .Bl -tag -width "-a"
@@ -82,7 +93,8 @@ Unshare the specified filesystem.
 The command can also be given a path to a ZFS file system shared on the system.
 .El
 .El
+.
 .Sh SEE ALSO
 .Xr exports 5 ,
 .Xr smb.conf 5 ,
-.Xr zfsprops 8
+.Xr zfsprops 7

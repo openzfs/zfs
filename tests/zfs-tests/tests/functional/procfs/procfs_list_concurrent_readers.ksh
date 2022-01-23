@@ -43,7 +43,7 @@ function cleanup
 {
 	[[ -z $msgs1 ]] || log_must rm $msgs1
 	[[ -z $msgs2 ]] || log_must rm $msgs2
-	datasetexists $FS && log_must zfs destroy -r $FS
+	datasetexists $FS && destroy_dataset $FS -r
 }
 
 typeset -r ZFS_DBGMSG=/proc/spl/kstat/zfs/dbgmsg
@@ -60,7 +60,7 @@ log_must zfs create $FS
 for i in {1..20}; do
 	log_must zfs snapshot "$FS@testsnapshot$i"
 done
-log_must zpool sync $TESTPOOL
+sync_pool $TESTPOOL
 
 msgs1=$(mktemp) || log_fail
 msgs2=$(mktemp) || log_fail

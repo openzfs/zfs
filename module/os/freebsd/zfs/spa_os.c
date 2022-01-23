@@ -152,8 +152,8 @@ spa_generate_rootconf(const char *name)
 	fnvlist_add_string(nvroot, ZPOOL_CONFIG_TYPE, VDEV_TYPE_ROOT);
 	fnvlist_add_uint64(nvroot, ZPOOL_CONFIG_ID, 0ULL);
 	fnvlist_add_uint64(nvroot, ZPOOL_CONFIG_GUID, pgid);
-	fnvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN, tops,
-	    nchildren);
+	fnvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
+	    (const nvlist_t * const *)tops, nchildren);
 
 	/*
 	 * Replace the existing vdev_tree with the new root vdev in
@@ -183,7 +183,6 @@ spa_import_rootpool(const char *name, bool checkpointrewind)
 	spa_t *spa;
 	vdev_t *rvd;
 	nvlist_t *config, *nvtop;
-	uint64_t txg;
 	char *pname;
 	int error;
 
@@ -196,7 +195,6 @@ spa_import_rootpool(const char *name, bool checkpointrewind)
 	if (config != NULL) {
 		pname = fnvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME);
 		VERIFY0(strcmp(name, pname));
-		txg = fnvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_TXG);
 
 		if ((spa = spa_lookup(pname)) != NULL) {
 			/*

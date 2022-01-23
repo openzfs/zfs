@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2154
 #
 # Copyright (C) 2013-2014 Lawrence Livermore National Security, LLC.
 # Copyright (c) 2020 by Delphix. All rights reserved.
@@ -21,7 +22,7 @@ if [ "${ZED_SYSLOG_DISPLAY_GUIDS}" = "1" ]; then
     [ -n "${ZEVENT_VDEV_GUID}" ] && msg="${msg} vdev_guid=${ZEVENT_VDEV_GUID}"
 else
     [ -n "${ZEVENT_POOL}" ] && msg="${msg} pool='${ZEVENT_POOL}'"
-    [ -n "${ZEVENT_VDEV_PATH}" ] && msg="${msg} vdev=$(basename "${ZEVENT_VDEV_PATH}")"
+    [ -n "${ZEVENT_VDEV_PATH}" ] && msg="${msg} vdev=${ZEVENT_VDEV_PATH##*/}"
 fi
 
 # log pool state if state is anything other than 'ACTIVE'
@@ -42,6 +43,7 @@ fi
     msg="${msg} delay=$((ZEVENT_ZIO_DELAY / 1000000))ms"
 
 # list the bookmark data together
+# shellcheck disable=SC2153
 [ -n "${ZEVENT_ZIO_OBJSET}" ] && \
     msg="${msg} bookmark=${ZEVENT_ZIO_OBJSET}:${ZEVENT_ZIO_OBJECT}:${ZEVENT_ZIO_LEVEL}:${ZEVENT_ZIO_BLKID}"
 

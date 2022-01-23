@@ -104,7 +104,7 @@ log_must zfs clone "$SNAP" "$CLONE"
 for i in {1..50}; do
 	log_must dd if=/dev/urandom of="/$CLONE/testfile$i" bs=1k count=512
 	# Force each new file to be tracked by a new livelist
-	log_must zpool sync $TESTPOOL
+	sync_pool $TESTPOOL
 done
 log_must zfs destroy "$CLONE"
 test_wait

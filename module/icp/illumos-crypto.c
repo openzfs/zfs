@@ -61,16 +61,15 @@
  * the future it may make sense to have encryption algorithms that are
  * loadable into the ICP at runtime via separate kernel modules.
  * However, considering that this code will probably not see much use
- * outside of zfs and zfs encryption only requires aes and sha256
+ * outside of zfs and zfs encryption only requires a select few
  * algorithms it seemed like more trouble than it was worth to port over
  * Illumos's kernel module structure to a Linux kernel module. In
  * addition, The Illumos code related to keeping track of kernel modules
- * is very much tied to the Illumos OS and proved difficult to port to
- * Linux. Therefore, the structure of the ICP was simplified to work
- * statically and several pieces of code responsible for keeping track
- * of Illumos kernel modules were removed and simplified. All module
- * initialization and destruction is now called in this file during
- * Linux kernel module loading and unloading.
+ * is very much tied to the Illumos OS and proved difficult to port.
+ * Therefore, the structure of the ICP was simplified to work
+ * statically and all the Illumos kernel module loading subsystem was removed.
+ * All module initialization and destruction is now called in this file
+ * during kernel module loading and unloading.
  *
  * 4) Adding destructors: The Illumos Crypto Layer is built into
  * the Illumos kernel and is not meant to be unloaded. Some destructors
@@ -111,8 +110,6 @@ icp_fini(void)
 {
 	skein_mod_fini();
 	sha2_mod_fini();
-	sha1_mod_fini();
-	edonr_mod_fini();
 	aes_mod_fini();
 	kcf_sched_destroy();
 	kcf_prov_tab_destroy();
@@ -141,8 +138,6 @@ icp_init(void)
 
 	/* initialize algorithms */
 	aes_mod_init();
-	edonr_mod_init();
-	sha1_mod_init();
 	sha2_mod_init();
 	skein_mod_init();
 

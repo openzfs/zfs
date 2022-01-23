@@ -1,8 +1,11 @@
 include $(top_srcdir)/config/Rules.am
+include $(top_srcdir)/config/Shellcheck.am
 
 AM_CFLAGS += $(LIBUDEV_CFLAGS) $(LIBUUID_CFLAGS)
 
 SUBDIRS = zed.d
+SHELLCHECKDIRS = $(SUBDIRS)
+SHELLCHECK_OPTS = --enable=all
 
 sbin_PROGRAMS = zed
 

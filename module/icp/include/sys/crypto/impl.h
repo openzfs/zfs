@@ -34,7 +34,6 @@
 #include <sys/crypto/common.h>
 #include <sys/crypto/api.h>
 #include <sys/crypto/spi.h>
-#include <sys/crypto/ioctl.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -211,7 +210,7 @@ typedef struct kcf_provider_desc {
 	struct kcf_provider_list	*pd_provider_list;
 	kcondvar_t			pd_resume_cv;
 	crypto_provider_handle_t	pd_prov_handle;
-	crypto_ops_t			*pd_ops_vector;
+	const crypto_ops_t			*pd_ops_vector;
 	ushort_t			pd_mech_indx[KCF_OPS_CLASSSIZE]\
 					    [KCF_MAXMECHTAB];
 	crypto_mech_info_t		*pd_mechanisms;
@@ -398,19 +397,6 @@ extern kcf_soft_conf_entry_t *soft_config_list;
 #define	KCF_MAXKEYOPS		116	/* Key generation and derivation */
 #define	KCF_MAXMISC		16	/* Others ... */
 
-#define	KCF_MAXMECHS		KCF_MAXDIGEST + KCF_MAXCIPHER + KCF_MAXMAC + \
-				KCF_MAXSIGN + KCF_MAXKEYOPS + \
-				KCF_MAXMISC
-
-extern kcf_mech_entry_t kcf_digest_mechs_tab[];
-extern kcf_mech_entry_t kcf_cipher_mechs_tab[];
-extern kcf_mech_entry_t kcf_mac_mechs_tab[];
-extern kcf_mech_entry_t kcf_sign_mechs_tab[];
-extern kcf_mech_entry_t kcf_keyops_mechs_tab[];
-extern kcf_mech_entry_t kcf_misc_mechs_tab[];
-
-extern kmutex_t kcf_mech_tabs_lock;
-
 typedef	enum {
 	KCF_DIGEST_CLASS = 1,
 	KCF_CIPHER_CLASS,
@@ -430,7 +416,7 @@ typedef	struct kcf_mech_entry_tab {
 	kcf_mech_entry_t	*met_tab;	/* the table		 */
 } kcf_mech_entry_tab_t;
 
-extern kcf_mech_entry_tab_t kcf_mech_tabs_tab[];
+extern const kcf_mech_entry_tab_t kcf_mech_tabs_tab[];
 
 #define	KCF_MECHID(class, index)				\
 	(((crypto_mech_type_t)(class) << 32) | (crypto_mech_type_t)(index))
@@ -1276,9 +1262,6 @@ void crypto_free_dev_list(crypto_dev_list_entry_t *list, uint_t count);
 
 /* Miscellaneous */
 int crypto_get_mechanism_number(caddr_t name, crypto_mech_type_t *number);
-int crypto_get_function_list(crypto_provider_id_t id,
-    crypto_function_list_t **list, int kmflag);
-void crypto_free_function_list(crypto_function_list_t *list);
 int crypto_build_permitted_mech_names(kcf_provider_desc_t *,
     crypto_mech_name_t **, uint_t *, int);
 extern void kcf_destroy_mech_tabs(void);
@@ -1287,12 +1270,13 @@ extern int kcf_add_mech_provider(short, kcf_provider_desc_t *,
     kcf_prov_mech_desc_t **);
 extern void kcf_remove_mech_provider(char *, kcf_provider_desc_t *);
 extern int kcf_get_mech_entry(crypto_mech_type_t, kcf_mech_entry_t **);
-extern kcf_provider_desc_t *kcf_alloc_provider_desc(crypto_provider_info_t *);
+extern kcf_provider_desc_t *kcf_alloc_provider_desc(
+    const crypto_provider_info_t *);
 extern void kcf_provider_zero_refcnt(kcf_provider_desc_t *);
 extern void kcf_free_provider_desc(kcf_provider_desc_t *);
 extern void kcf_soft_config_init(void);
 extern int get_sw_provider_for_mech(crypto_mech_name_t, char **);
-extern crypto_mech_type_t crypto_mech2id_common(char *, boolean_t);
+extern crypto_mech_type_t crypto_mech2id_common(const char *, boolean_t);
 extern void undo_register_provider(kcf_provider_desc_t *, boolean_t);
 extern void redo_register_provider(kcf_provider_desc_t *);
 extern void kcf_rnd_init(void);

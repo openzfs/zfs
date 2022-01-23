@@ -41,7 +41,7 @@ orig_top=$(get_top_vd_zap $DISK $conf)
 orig_leaf=$(get_leaf_vd_zap $DISK $conf)
 assert_zap_common $TESTPOOL $DISK "top" $orig_top
 assert_zap_common $TESTPOOL $DISK "leaf" $orig_leaf
-log_must zpool sync
+sync_all_pools
 
 # Export the pool.
 log_must zpool export $TESTPOOL

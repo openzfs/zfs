@@ -34,7 +34,7 @@ function create_testfs
 function destroy_testfs
 {
 	if datasetexists $TESTPOOL/$TESTFS ; then
-		log_must zfs destroy -f $TESTPOOL/$TESTFS
+		destroy_dataset $TESTPOOL/$TESTFS -f
 		rm -rf $TESTDIR || log_unresolved Could not remove $TESTDIR
 	fi
 }

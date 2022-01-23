@@ -65,7 +65,7 @@ for recsize in 512 1024 2048 4096 8192 16384; do
 	grep -q "EMBEDDED" $tmpdir/recv.zdb || \
 	    log_fail "Obj $recv_obj not embedded in $recvfs"
 
-	cat $stream | zstreamdump -v | log_must grep -q \
+	cat $stream | zstream dump -v | log_must grep -q \
 	    "WRITE_EMBEDDED object = $send_obj offset = 0"
 done
 
@@ -96,7 +96,7 @@ for recsize in 1024 4096 16384; do
 	grep -q "EMBEDDED" $tmpdir/recv.zdb || \
 	    log_fail "Obj $recv_obj not embedded in $recvfs"
 
-	cat $stream | zstreamdump -v | log_must grep -q \
+	cat $stream | zstream dump -v | log_must grep -q \
 	    "WRITE_EMBEDDED object = $send_obj offset = 0"
 done
 

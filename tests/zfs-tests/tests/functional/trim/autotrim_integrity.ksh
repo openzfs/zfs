@@ -73,7 +73,7 @@ for type in "" "mirror" "raidz" "draid"; do
 		filesize=$((4096 + ((RANDOM * 691) % 131072) ))
 		log_must rm -rf $dir
 		log_must fill_fs $dir 10 10 $filesize 1 R
-		zpool sync
+		sync_all_pools
 	done
 	log_must du -hs /$TESTPOOL
 

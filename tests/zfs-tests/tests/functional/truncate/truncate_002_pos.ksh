@@ -58,7 +58,7 @@ log_must dd if=/dev/urandom of=$srcfile bs=1024k count=1
 log_onexit cleanup
 log_must cp $srcfile $TESTDIR/$TESTFILE
 log_must cp /dev/null $TESTDIR/$TESTFILE
-log_must sync
+sync_all_pools
 if [[ -s $TESTDIR/$TESTFILE ]]; then
 	log_note "$(ls -l $TESTDIR/$TESTFILE)"
 	log_fail "testfile not truncated"

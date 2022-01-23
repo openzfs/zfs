@@ -86,7 +86,6 @@
 boolean_t error_seen;
 boolean_t is_force;
 
-/*PRINTFLIKE1*/
 void
 vdev_error(const char *fmt, ...)
 {
@@ -113,7 +112,7 @@ vdev_error(const char *fmt, ...)
  * not in use by another pool, and not in use by swap.
  */
 int
-check_file(const char *file, boolean_t force, boolean_t isspare)
+check_file_generic(const char *file, boolean_t force, boolean_t isspare)
 {
 	char  *name;
 	int fd;
@@ -704,8 +703,11 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 						    "are present\n"),
 						    raidz->zprl_type,
 						    mirror->zprl_type,
+						    (u_longlong_t)
 						    raidz->zprl_parity,
+						    (u_longlong_t)
 						    mirror->zprl_children - 1,
+						    (u_longlong_t)
 						    mirror->zprl_children);
 					else
 						return (NULL);
@@ -728,7 +730,9 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 						    "%llu are present\n"),
 						    lastrep.zprl_type,
 						    rep.zprl_type,
+						    (u_longlong_t)
 						    lastrep.zprl_parity,
+						    (u_longlong_t)
 						    rep.zprl_parity);
 					else
 						return (NULL);
@@ -755,8 +759,9 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 					    "mismatched replication level: "
 					    "both %llu and %llu device parity "
 					    "%s vdevs are present\n"),
+					    (u_longlong_t)
 					    lastrep.zprl_parity,
-					    rep.zprl_parity,
+					    (u_longlong_t)rep.zprl_parity,
 					    rep.zprl_type);
 				else
 					return (NULL);
@@ -769,7 +774,9 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 					    "mismatched replication level: "
 					    "both %llu-way and %llu-way %s "
 					    "vdevs are present\n"),
+					    (u_longlong_t)
 					    lastrep.zprl_children,
+					    (u_longlong_t)
 					    rep.zprl_children,
 					    rep.zprl_type);
 				else
@@ -854,9 +861,9 @@ check_replication(nvlist_t *config, nvlist_t *newroot)
 				    "and %s vdevs, %llu vs. %llu (%llu-way)\n"),
 				    raidz->zprl_type,
 				    mirror->zprl_type,
-				    raidz->zprl_parity,
-				    mirror->zprl_children - 1,
-				    mirror->zprl_children);
+				    (u_longlong_t)raidz->zprl_parity,
+				    (u_longlong_t)mirror->zprl_children - 1,
+				    (u_longlong_t)mirror->zprl_children);
 				ret = -1;
 			}
 		} else if (strcmp(current->zprl_type, new->zprl_type) != 0) {
@@ -869,14 +876,17 @@ check_replication(nvlist_t *config, nvlist_t *newroot)
 			vdev_error(gettext(
 			    "mismatched replication level: pool uses %llu "
 			    "device parity and new vdev uses %llu\n"),
-			    current->zprl_parity, new->zprl_parity);
+			    (u_longlong_t)current->zprl_parity,
+			    (u_longlong_t)new->zprl_parity);
 			ret = -1;
 		} else if (current->zprl_children != new->zprl_children) {
 			vdev_error(gettext(
 			    "mismatched replication level: pool uses %llu-way "
 			    "%s and new vdev uses %llu-way %s\n"),
-			    current->zprl_children, current->zprl_type,
-			    new->zprl_children, new->zprl_type);
+			    (u_longlong_t)current->zprl_children,
+			    current->zprl_type,
+			    (u_longlong_t)new->zprl_children,
+			    new->zprl_type);
 			ret = -1;
 		}
 	}
@@ -1637,8 +1647,8 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 					}
 				}
 				verify(nvlist_add_nvlist_array(nv,
-				    ZPOOL_CONFIG_CHILDREN, child,
-				    children) == 0);
+				    ZPOOL_CONFIG_CHILDREN,
+				    (const nvlist_t **)child, children) == 0);
 
 				for (c = 0; c < children; c++)
 					nvlist_free(child[c]);
@@ -1703,13 +1713,13 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 	verify(nvlist_add_string(nvroot, ZPOOL_CONFIG_TYPE,
 	    VDEV_TYPE_ROOT) == 0);
 	verify(nvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
-	    top, toplevels) == 0);
+	    (const nvlist_t **)top, toplevels) == 0);
 	if (nspares != 0)
 		verify(nvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_SPARES,
-		    spares, nspares) == 0);
+		    (const nvlist_t **)spares, nspares) == 0);
 	if (nl2cache != 0)
 		verify(nvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_L2CACHE,
-		    l2cache, nl2cache) == 0);
+		    (const nvlist_t **)l2cache, nl2cache) == 0);
 
 spec_out:
 	for (t = 0; t < toplevels; t++)

@@ -3,6 +3,7 @@
 #
 # This file should be owned by root and permissioned 0600.
 ##
+# shellcheck disable=SC2034
 
 ##
 # Absolute path to the debug output file.
@@ -13,9 +14,9 @@
 # Email address of the zpool administrator for receipt of notifications;
 #   multiple addresses can be specified if they are delimited by whitespace.
 # Email will only be sent if ZED_EMAIL_ADDR is defined.
-# Disabled by default; uncomment to enable.
+# Enabled by default; comment to disable.
 #
-#ZED_EMAIL_ADDR="root"
+ZED_EMAIL_ADDR="root"
 
 ##
 # Name or path of executable responsible for sending notifications via email;
@@ -83,14 +84,31 @@
 #ZED_SLACK_WEBHOOK_URL=""
 
 ##
+# Pushover token.
+# This defines the application from which the notification will be sent.
+#   <https://pushover.net/api#registration>
+# Disabled by default; uncomment to enable.
+# ZED_PUSHOVER_USER, below, must also be configured.
+#
+#ZED_PUSHOVER_TOKEN=""
+
+##
+# Pushover user key.
+# This defines which user or group will receive Pushover notifications.
+#  <https://pushover.net/api#identifiers>
+# Disabled by default; uncomment to enable.
+# ZED_PUSHOVER_TOKEN, above, must also be configured.
+#ZED_PUSHOVER_USER=""
+
+##
 # Default directory for zed state files.
 #
 #ZED_RUNDIR="/var/run"
 
 ##
 # Turn on/off enclosure LEDs when drives get DEGRADED/FAULTED.  This works for
-# device mapper and multipath devices as well.  Your enclosure must be
-# supported by the Linux SES driver for this to work.
+# device mapper and multipath devices as well.  This works with JBOD enclosures
+# and NVMe PCI drives (assuming they're supported by Linux in sysfs).
 #
 ZED_USE_ENCLOSURE_LEDS=1
 

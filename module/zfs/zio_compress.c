@@ -74,6 +74,7 @@ uint8_t
 zio_complevel_select(spa_t *spa, enum zio_compress compress, uint8_t child,
     uint8_t parent)
 {
+	(void) spa;
 	uint8_t result;
 
 	if (!ZIO_COMPRESS_HASLEVEL(compress))
@@ -110,10 +111,11 @@ zio_compress_select(spa_t *spa, enum zio_compress child,
 	return (result);
 }
 
-/*ARGSUSED*/
 static int
 zio_compress_zeroed_cb(void *data, size_t len, void *private)
 {
+	(void) private;
+
 	uint64_t *end = (uint64_t *)((char *)data + len);
 	for (uint64_t *word = (uint64_t *)data; word < end; word++)
 		if (*word != 0)
@@ -201,7 +203,7 @@ zio_decompress_data(enum zio_compress c, abd_t *src, void *dst,
 	 * in non-ECC RAM), we handle this error (and test it).
 	 */
 	if (zio_decompress_fail_fraction != 0 &&
-	    spa_get_random(zio_decompress_fail_fraction) == 0)
+	    random_in_range(zio_decompress_fail_fraction) == 0)
 		ret = SET_ERROR(EINVAL);
 
 	return (ret);
@@ -214,7 +216,7 @@ zio_compress_to_feature(enum zio_compress comp)
 	case ZIO_COMPRESS_ZSTD:
 		return (SPA_FEATURE_ZSTD_COMPRESS);
 	default:
-		/* fallthru */;
+		break;
 	}
 	return (SPA_FEATURE_NONE);
 }

@@ -27,7 +27,7 @@
  */
 
 #ifndef	_ZFS_NAMECHECK_H
-#define	_ZFS_NAMECHECK_H
+#define	_ZFS_NAMECHECK_H extern __attribute__((visibility("default")))
 
 #ifdef	__cplusplus
 extern "C" {
@@ -51,18 +51,22 @@ typedef enum {
 
 #define	ZFS_PERMSET_MAXLEN	64
 
-extern int zfs_max_dataset_nesting;
+_ZFS_NAMECHECK_H int zfs_max_dataset_nesting;
 
-int get_dataset_depth(const char *);
-int pool_namecheck(const char *, namecheck_err_t *, char *);
-int entity_namecheck(const char *, namecheck_err_t *, char *);
-int dataset_namecheck(const char *, namecheck_err_t *, char *);
-int snapshot_namecheck(const char *, namecheck_err_t *, char *);
-int bookmark_namecheck(const char *, namecheck_err_t *, char *);
-int dataset_nestcheck(const char *);
-int mountpoint_namecheck(const char *, namecheck_err_t *);
-int zfs_component_namecheck(const char *, namecheck_err_t *, char *);
-int permset_namecheck(const char *, namecheck_err_t *, char *);
+_ZFS_NAMECHECK_H int get_dataset_depth(const char *);
+_ZFS_NAMECHECK_H int pool_namecheck(const char *, namecheck_err_t *, char *);
+_ZFS_NAMECHECK_H int entity_namecheck(const char *, namecheck_err_t *, char *);
+_ZFS_NAMECHECK_H int dataset_namecheck(const char *, namecheck_err_t *, char *);
+_ZFS_NAMECHECK_H int snapshot_namecheck(const char *, namecheck_err_t *,
+    char *);
+_ZFS_NAMECHECK_H int bookmark_namecheck(const char *, namecheck_err_t *,
+    char *);
+_ZFS_NAMECHECK_H int dataset_nestcheck(const char *);
+_ZFS_NAMECHECK_H int mountpoint_namecheck(const char *, namecheck_err_t *);
+_ZFS_NAMECHECK_H int zfs_component_namecheck(const char *, namecheck_err_t *,
+    char *);
+_ZFS_NAMECHECK_H int permset_namecheck(const char *, namecheck_err_t *,
+    char *);
 
 #ifdef	__cplusplus
 }

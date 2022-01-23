@@ -73,7 +73,7 @@ function scan_scsi_hosts
 function block_device_wait
 {
 	if is_linux; then
-		udevadm trigger $*
+		udevadm trigger $* 2>/dev/null
 		typeset start=$SECONDS
 		udevadm settle
 		typeset elapsed=$((SECONDS - start))
@@ -93,7 +93,7 @@ function block_device_wait
 		typeset missing=false
 		typeset dev
 		for dev in "${@}"; do
-			if ! [[ -f $dev ]]; then
+			if ! [[ -e $dev ]]; then
 				missing=true
 				break
 			fi
@@ -595,7 +595,7 @@ function list_file_blocks # input_file
 	else
 		AWK='awk'
 	fi
-	log_must zpool sync -f
+	sync_all_pools true
 	zdb -dddddd $ds $objnum | $AWK -v pad=$((4<<20)) -v bs=512 '
 	    /^$/ { looking = 0 }
 	    looking {
@@ -651,4 +651,17 @@ function corrupt_blocks_at_level # input_file corrupt_level
 
 	# This is necessary for pools made of loop devices.
 	sync
+}
+
+function corrupt_label_checksum # label_number vdev_path
+{
+	typeset label_size=$((256*1024))
+	typeset vdev_size=$(stat_size ${2})
+	typeset -a offsets=("$((128*1024 - 32))" \
+	    "$(($label_size + (128*1024 - 32)))" \
+	    "$(($vdev_size - $label_size - (128*1024 + 32)))" \
+	    "$(($vdev_size - (128*1024 + 32)))")
+
+	dd if=/dev/urandom of=${2} seek=${offsets[$1]} bs=1 count=32 \
+	    conv=notrunc
 }

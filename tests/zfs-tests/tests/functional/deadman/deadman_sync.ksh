@@ -70,7 +70,7 @@ log_must file_write -b 1048576 -c 8 -o create -d 0 -f $mntpnt/file
 sleep 10
 
 log_must zinject -c all
-log_must zpool sync
+sync_all_pools
 
 # Log txg sync times for reference and the zpool event summary.
 if is_freebsd; then
@@ -80,10 +80,10 @@ else
 fi
 log_must zpool events
 
-# Verify at least 5 deadman events were logged.  The first after 5 seconds,
+# Verify at least 4 deadman events were logged.  The first after 5 seconds,
 # and another each second thereafter until the delay  is clearer.
 events=$(zpool events | grep -c ereport.fs.zfs.deadman)
-if [ "$events" -lt 5 ]; then
+if [ "$events" -lt 4 ]; then
 	log_fail "Expect >=5 deadman events, $events found"
 fi
 

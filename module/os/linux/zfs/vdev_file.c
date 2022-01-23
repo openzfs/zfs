@@ -53,8 +53,8 @@ static taskq_t *vdev_file_taskq;
  * impact the vdev_ashift setting which can only be set at vdev creation
  * time.
  */
-unsigned long vdev_file_logical_ashift = SPA_MINBLOCKSHIFT;
-unsigned long vdev_file_physical_ashift = SPA_MINBLOCKSHIFT;
+static unsigned long vdev_file_logical_ashift = SPA_MINBLOCKSHIFT;
+static unsigned long vdev_file_physical_ashift = SPA_MINBLOCKSHIFT;
 
 static void
 vdev_file_hold(vdev_t *vd)
@@ -298,10 +298,10 @@ vdev_file_io_start(zio_t *zio)
 	    TQ_SLEEP), !=, TASKQID_INVALID);
 }
 
-/* ARGSUSED */
 static void
 vdev_file_io_done(zio_t *zio)
 {
+	(void) zio;
 }
 
 vdev_ops_t vdev_file_ops = {

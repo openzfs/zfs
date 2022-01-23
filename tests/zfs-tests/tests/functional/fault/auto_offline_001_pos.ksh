@@ -102,7 +102,7 @@ do
 	# 2. Simulate physical removal of one device
 	remove_disk $removedev
 	log_must mkfile 1m $mntpnt/file
-	log_must zpool sync $TESTPOOL
+	sync_pool $TESTPOOL
 
 	# 3. Verify the device is unavailable.
 	log_must wait_vdev_state $TESTPOOL $removedev "UNAVAIL"
@@ -134,7 +134,7 @@ do
 	# 2. Simulate physical removal of one device
 	remove_disk $removedev
 	log_must mkfile 1m $mntpnt/file
-	log_must zpool sync $TESTPOOL
+	sync_pool $TESTPOOL
 
 	# 3. Verify the device is handled by the spare.
 	log_must wait_hotspare_state $TESTPOOL $sparedev "INUSE"
@@ -171,7 +171,7 @@ do
 	# 3. Simulate physical removal of one device
 	remove_disk $removedev
 	log_must mkfile 1m $mntpnt/file
-	log_must zpool sync $TESTPOOL
+	sync_pool $TESTPOOL
 
 	# 4. Verify the device is unavailable
 	log_must wait_vdev_state $TESTPOOL $removedev "UNAVAIL"

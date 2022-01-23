@@ -47,7 +47,7 @@ verify_disk_count "$DISKS" 2
 
 default_mirror_setup_noexit $DISKS
 file_write -o create -w -f $init_data -b $blksize -c $write_count
-log_must zpool sync $TESTPOOL
+sync_pool $TESTPOOL
 
 output=$(zdb -r $TESTPOOL/$TESTFS file1 $tmpfile)
 log_must cmp $init_data $tmpfile

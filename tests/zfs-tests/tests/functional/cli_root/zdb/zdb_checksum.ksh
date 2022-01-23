@@ -50,6 +50,7 @@ listing=$(ls -i $init_data)
 set -A array $listing
 obj=${array[0]}
 log_note "file $init_data has object number $obj"
+sync_pool $TESTPOOL
 
 output=$(zdb -ddddddbbbbbb $TESTPOOL/$TESTFS $obj 2> /dev/null \
     |grep -m 1 "L0 DVA" |head -n1)

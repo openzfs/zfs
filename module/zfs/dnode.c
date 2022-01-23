@@ -108,12 +108,11 @@ dbuf_compare(const void *x1, const void *x2)
 	return (TREE_PCMP(d1, d2));
 }
 
-/* ARGSUSED */
 static int
 dnode_cons(void *arg, void *unused, int kmflag)
 {
+	(void) unused, (void) kmflag;
 	dnode_t *dn = arg;
-	int i;
 
 	rw_init(&dn->dn_struct_rwlock, NULL, RW_NOLOCKDEP, NULL);
 	mutex_init(&dn->dn_mtx, NULL, MUTEX_DEFAULT, NULL);
@@ -129,6 +128,7 @@ dnode_cons(void *arg, void *unused, int kmflag)
 	zfs_refcount_create(&dn->dn_tx_holds);
 	list_link_init(&dn->dn_link);
 
+	bzero(&dn->dn_next_type[0], sizeof (dn->dn_next_type));
 	bzero(&dn->dn_next_nblkptr[0], sizeof (dn->dn_next_nblkptr));
 	bzero(&dn->dn_next_nlevels[0], sizeof (dn->dn_next_nlevels));
 	bzero(&dn->dn_next_indblkshift[0], sizeof (dn->dn_next_indblkshift));
@@ -138,7 +138,7 @@ dnode_cons(void *arg, void *unused, int kmflag)
 	bzero(&dn->dn_next_blksz[0], sizeof (dn->dn_next_blksz));
 	bzero(&dn->dn_next_maxblkid[0], sizeof (dn->dn_next_maxblkid));
 
-	for (i = 0; i < TXG_SIZE; i++) {
+	for (int i = 0; i < TXG_SIZE; i++) {
 		multilist_link_init(&dn->dn_dirty_link[i]);
 		dn->dn_free_ranges[i] = NULL;
 		list_create(&dn->dn_dirty_records[i],
@@ -173,11 +173,10 @@ dnode_cons(void *arg, void *unused, int kmflag)
 	return (0);
 }
 
-/* ARGSUSED */
 static void
 dnode_dest(void *arg, void *unused)
 {
-	int i;
+	(void) unused;
 	dnode_t *dn = arg;
 
 	rw_destroy(&dn->dn_struct_rwlock);
@@ -189,7 +188,7 @@ dnode_dest(void *arg, void *unused)
 	zfs_refcount_destroy(&dn->dn_tx_holds);
 	ASSERT(!list_link_active(&dn->dn_link));
 
-	for (i = 0; i < TXG_SIZE; i++) {
+	for (int i = 0; i < TXG_SIZE; i++) {
 		ASSERT(!multilist_link_active(&dn->dn_dirty_link[i]));
 		ASSERT3P(dn->dn_free_ranges[i], ==, NULL);
 		list_destroy(&dn->dn_dirty_records[i]);
@@ -592,7 +591,8 @@ dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
 	ibs = MIN(MAX(ibs, DN_MIN_INDBLKSHIFT), DN_MAX_INDBLKSHIFT);
 
 	dprintf("os=%p obj=%llu txg=%llu blocksize=%d ibs=%d dn_slots=%d\n",
-	    dn->dn_objset, dn->dn_object, tx->tx_txg, blocksize, ibs, dn_slots);
+	    dn->dn_objset, (u_longlong_t)dn->dn_object,
+	    (u_longlong_t)tx->tx_txg, blocksize, ibs, dn_slots);
 	DNODE_STAT_BUMP(dnode_allocate);
 
 	ASSERT(dn->dn_type == DMU_OT_NONE);
@@ -754,7 +754,6 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	ASSERT(!RW_LOCK_HELD(&odn->dn_struct_rwlock));
 	ASSERT(MUTEX_NOT_HELD(&odn->dn_mtx));
 	ASSERT(MUTEX_NOT_HELD(&odn->dn_dbufs_mtx));
-	ASSERT(!MUTEX_HELD(&odn->dn_zfetch.zf_lock));
 
 	/* Copy fields. */
 	ndn->dn_objset = odn->dn_objset;
@@ -822,9 +821,7 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	ndn->dn_newgid = odn->dn_newgid;
 	ndn->dn_newprojid = odn->dn_newprojid;
 	ndn->dn_id_flags = odn->dn_id_flags;
-	dmu_zfetch_init(&ndn->dn_zfetch, NULL);
-	list_move_tail(&ndn->dn_zfetch.zf_stream, &odn->dn_zfetch.zf_stream);
-	ndn->dn_zfetch.zf_dnode = odn->dn_zfetch.zf_dnode;
+	dmu_zfetch_init(&ndn->dn_zfetch, ndn);
 
 	/*
 	 * Update back pointers. Updating the handle fixes the back pointer of
@@ -832,9 +829,6 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	 */
 	ASSERT(ndn->dn_handle->dnh_dnode == odn);
 	ndn->dn_handle->dnh_dnode = ndn;
-	if (ndn->dn_zfetch.zf_dnode == odn) {
-		ndn->dn_zfetch.zf_dnode = ndn;
-	}
 
 	/*
 	 * Invalidate the original dnode by clearing all of its back pointers.
@@ -893,7 +887,6 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	odn->dn_moved = (uint8_t)-1;
 }
 
-/*ARGSUSED*/
 static kmem_cbrc_t
 dnode_move(void *buf, void *newbuf, size_t size, void *arg)
 {
@@ -1625,7 +1618,9 @@ dnode_rele_and_unlock(dnode_t *dn, void *tag, boolean_t evicting)
 	 * other direct or indirect hold on the dnode must first drop the dnode
 	 * handle.
 	 */
+#ifdef ZFS_DEBUG
 	ASSERT(refs > 0 || dnh->dnh_zrlock.zr_owner != curthread);
+#endif
 
 	/* NOTE: the DNODE_DNODE does not have a dn_dbuf */
 	if (refs == 0 && db != NULL) {
@@ -1650,6 +1645,26 @@ dnode_try_claim(objset_t *os, uint64_t object, int slots)
 {
 	return (dnode_hold_impl(os, object, DNODE_MUST_BE_FREE | DNODE_DRY_RUN,
 	    slots, NULL, NULL));
+}
+
+/*
+ * Checks if the dnode contains any uncommitted dirty records.
+ */
+boolean_t
+dnode_is_dirty(dnode_t *dn)
+{
+	mutex_enter(&dn->dn_mtx);
+
+	for (int i = 0; i < TXG_SIZE; i++) {
+		if (multilist_link_active(&dn->dn_dirty_link[i])) {
+			mutex_exit(&dn->dn_mtx);
+			return (B_TRUE);
+		}
+	}
+
+	mutex_exit(&dn->dn_mtx);
+
+	return (B_FALSE);
 }
 
 void
@@ -1677,7 +1692,7 @@ dnode_setdirty(dnode_t *dn, dmu_tx_t *tx)
 	 */
 	dmu_objset_userquota_get_ids(dn, B_TRUE, tx);
 
-	multilist_t *dirtylist = os->os_dirty_dnodes[txg & TXG_MASK];
+	multilist_t *dirtylist = &os->os_dirty_dnodes[txg & TXG_MASK];
 	multilist_sublist_t *mls = multilist_sublist_lock_obj(dirtylist, dn);
 
 	/*
@@ -1696,7 +1711,7 @@ dnode_setdirty(dnode_t *dn, dmu_tx_t *tx)
 	ASSERT0(dn->dn_next_bonustype[txg & TXG_MASK]);
 
 	dprintf_ds(os->os_dsl_dataset, "obj=%llu txg=%llu\n",
-	    dn->dn_object, txg);
+	    (u_longlong_t)dn->dn_object, (u_longlong_t)txg);
 
 	multilist_sublist_insert_head(mls, dn);
 
@@ -2041,10 +2056,40 @@ dnode_set_dirtyctx(dnode_t *dn, dmu_tx_t *tx, void *tag)
 	}
 }
 
+static void
+dnode_partial_zero(dnode_t *dn, uint64_t off, uint64_t blkoff, uint64_t len,
+    dmu_tx_t *tx)
+{
+	dmu_buf_impl_t *db;
+	int res;
+
+	rw_enter(&dn->dn_struct_rwlock, RW_READER);
+	res = dbuf_hold_impl(dn, 0, dbuf_whichblock(dn, 0, off), TRUE, FALSE,
+	    FTAG, &db);
+	rw_exit(&dn->dn_struct_rwlock);
+	if (res == 0) {
+		db_lock_type_t dblt;
+		boolean_t dirty;
+
+		dblt = dmu_buf_lock_parent(db, RW_READER, FTAG);
+		/* don't dirty if not on disk and not dirty */
+		dirty = !list_is_empty(&db->db_dirty_records) ||
+		    (db->db_blkptr && !BP_IS_HOLE(db->db_blkptr));
+		dmu_buf_unlock_parent(db, dblt, FTAG);
+		if (dirty) {
+			caddr_t data;
+
+			dmu_buf_will_dirty(&db->db, tx);
+			data = db->db.db_data;
+			bzero(data + blkoff, len);
+		}
+		dbuf_rele(db, FTAG);
+	}
+}
+
 void
 dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 {
-	dmu_buf_impl_t *db;
 	uint64_t blkoff, blkid, nblks;
 	int blksz, blkshift, head, tail;
 	int trunc = FALSE;
@@ -2093,31 +2138,10 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 	}
 	/* zero out any partial block data at the start of the range */
 	if (head) {
-		int res;
 		ASSERT3U(blkoff + head, ==, blksz);
 		if (len < head)
 			head = len;
-		rw_enter(&dn->dn_struct_rwlock, RW_READER);
-		res = dbuf_hold_impl(dn, 0, dbuf_whichblock(dn, 0, off),
-		    TRUE, FALSE, FTAG, &db);
-		rw_exit(&dn->dn_struct_rwlock);
-		if (res == 0) {
-			caddr_t data;
-			boolean_t dirty;
-
-			db_lock_type_t dblt = dmu_buf_lock_parent(db, RW_READER,
-			    FTAG);
-			/* don't dirty if it isn't on disk and isn't dirty */
-			dirty = !list_is_empty(&db->db_dirty_records) ||
-			    (db->db_blkptr && !BP_IS_HOLE(db->db_blkptr));
-			dmu_buf_unlock_parent(db, dblt, FTAG);
-			if (dirty) {
-				dmu_buf_will_dirty(&db->db, tx);
-				data = db->db.db_data;
-				bzero(data + blkoff, head);
-			}
-			dbuf_rele(db, FTAG);
-		}
+		dnode_partial_zero(dn, off, blkoff, head, tx);
 		off += head;
 		len -= head;
 	}
@@ -2139,27 +2163,9 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 	ASSERT0(P2PHASE(off, blksz));
 	/* zero out any partial block data at the end of the range */
 	if (tail) {
-		int res;
 		if (len < tail)
 			tail = len;
-		rw_enter(&dn->dn_struct_rwlock, RW_READER);
-		res = dbuf_hold_impl(dn, 0, dbuf_whichblock(dn, 0, off+len),
-		    TRUE, FALSE, FTAG, &db);
-		rw_exit(&dn->dn_struct_rwlock);
-		if (res == 0) {
-			boolean_t dirty;
-			/* don't dirty if not on disk and not dirty */
-			db_lock_type_t type = dmu_buf_lock_parent(db, RW_READER,
-			    FTAG);
-			dirty = !list_is_empty(&db->db_dirty_records) ||
-			    (db->db_blkptr && !BP_IS_HOLE(db->db_blkptr));
-			dmu_buf_unlock_parent(db, type, FTAG);
-			if (dirty) {
-				dmu_buf_will_dirty(&db->db, tx);
-				bzero(db->db.db_data, tail);
-			}
-			dbuf_rele(db, FTAG);
-		}
+		dnode_partial_zero(dn, off + len, 0, tail, tx);
 		len -= tail;
 	}
 
@@ -2259,7 +2265,8 @@ done:
 		range_tree_add(dn->dn_free_ranges[txgoff], blkid, nblks);
 	}
 	dprintf_dnode(dn, "blkid=%llu nblks=%llu txg=%llu\n",
-	    blkid, nblks, tx->tx_txg);
+	    (u_longlong_t)blkid, (u_longlong_t)nblks,
+	    (u_longlong_t)tx->tx_txg);
 	mutex_exit(&dn->dn_mtx);
 
 	dbuf_free_range(dn, blkid, blkid + nblks - 1, tx);

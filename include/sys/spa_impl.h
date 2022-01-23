@@ -57,6 +57,11 @@
 extern "C" {
 #endif
 
+typedef struct spa_alloc {
+	kmutex_t	spaa_lock;
+	avl_tree_t	spaa_tree;
+} ____cacheline_aligned spa_alloc_t;
+
 typedef struct spa_error_entry {
 	zbookmark_phys_t	se_bookmark;
 	char			*se_name;
@@ -141,9 +146,9 @@ typedef struct spa_config_lock {
 	kmutex_t	scl_lock;
 	kthread_t	*scl_writer;
 	int		scl_write_wanted;
+	int		scl_count;
 	kcondvar_t	scl_cv;
-	zfs_refcount_t	scl_count;
-} spa_config_lock_t;
+} ____cacheline_aligned spa_config_lock_t;
 
 typedef struct spa_config_dirent {
 	list_node_t	scd_link;
@@ -250,13 +255,11 @@ struct spa {
 	list_t		spa_config_dirty_list;	/* vdevs with dirty config */
 	list_t		spa_state_dirty_list;	/* vdevs with dirty state */
 	/*
-	 * spa_alloc_locks and spa_alloc_trees are arrays, whose lengths are
-	 * stored in spa_alloc_count. There is one tree and one lock for each
-	 * allocator, to help improve allocation performance in write-heavy
-	 * workloads.
+	 * spa_allocs is an array, whose lengths is stored in spa_alloc_count.
+	 * There is one tree and one lock for each allocator, to help improve
+	 * allocation performance in write-heavy workloads.
 	 */
-	kmutex_t	*spa_alloc_locks;
-	avl_tree_t	*spa_alloc_trees;
+	spa_alloc_t	*spa_allocs;
 	int		spa_alloc_count;
 
 	spa_aux_vdev_t	spa_spares;		/* hot spares */
@@ -305,6 +308,7 @@ struct spa {
 	uint64_t	spa_missing_tvds;	/* unopenable tvds on load */
 	uint64_t	spa_missing_tvds_allowed; /* allow loading spa? */
 
+	uint64_t	spa_nonallocating_dspace;
 	spa_removing_phys_t spa_removing_phys;
 	spa_vdev_removal_t *spa_vdev_removal;
 
@@ -367,6 +371,7 @@ struct spa {
 	boolean_t	spa_is_root;		/* pool is root */
 	int		spa_minref;		/* num refs when first opened */
 	spa_mode_t	spa_mode;		/* SPA_MODE_{READ|WRITE} */
+	boolean_t	spa_read_spacemaps;	/* spacemaps available if ro */
 	spa_log_state_t spa_log_state;		/* log state */
 	uint64_t	spa_autoexpand;		/* lun expansion on/off */
 	ddt_t		*spa_ddt[ZIO_CHECKSUM_FUNCTIONS]; /* in-core DDTs */
@@ -439,7 +444,7 @@ struct spa {
 };
 
 extern char *spa_config_path;
-extern char *zfs_deadman_failmode;
+extern const char *zfs_deadman_failmode;
 extern int spa_slop_shift;
 extern void spa_taskq_dispatch_ent(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
     task_func_t *func, void *arg, uint_t flags, taskq_ent_t *ent);

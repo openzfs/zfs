@@ -16,6 +16,7 @@ SUBDIRS = \
 	cli_user \
 	compression \
 	cp_files \
+	crtime \
 	ctime \
 	deadman \
 	delegate \
@@ -72,6 +73,7 @@ SUBDIRS = \
 	snapshot \
 	snapused \
 	sparse \
+	stat \
 	suid \
 	threadsappend \
 	trim \

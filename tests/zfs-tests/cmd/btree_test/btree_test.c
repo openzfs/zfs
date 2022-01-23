@@ -294,6 +294,7 @@ drain_tree(zfs_btree_t *bt, char *why)
 static int
 stress_tree(zfs_btree_t *bt, char *why)
 {
+	(void) why;
 	avl_tree_t avl;
 	int_node_t *node;
 	struct timeval tp;

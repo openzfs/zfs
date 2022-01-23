@@ -29,12 +29,6 @@
 int aes_mod_init(void);
 int aes_mod_fini(void);
 
-int edonr_mod_init(void);
-int edonr_mod_fini(void);
-
-int sha1_mod_init(void);
-int sha1_mod_fini(void);
-
 int sha2_mod_init(void);
 int sha2_mod_fini(void);
 

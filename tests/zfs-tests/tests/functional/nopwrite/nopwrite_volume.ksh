@@ -37,7 +37,7 @@ log_onexit cleanup
 
 function cleanup
 {
-	datasetexists $origin && log_must zfs destroy -R $origin
+	datasetexists $origin && destroy_dataset $origin -R
 	# No need to recreate the volume as no other tests expect it.
 }
 
@@ -45,14 +45,14 @@ log_assert "nopwrite works on volumes"
 
 log_must zfs set compress=on $origin
 log_must zfs set checksum=sha256 $origin
-dd if=/dev/urandom of=$vol bs=8192 count=4096 conv=notrunc >/dev/null \
+dd if=/dev/urandom of=$vol bs=16384 count=2048 conv=notrunc >/dev/null \
     2>&1 || log_fail "dd into $origin failed."
 zfs snapshot $origin@a || log_fail "zfs snap failed"
 log_must zfs clone $origin@a $clone
 log_must zfs set compress=on $clone
 log_must zfs set checksum=sha256 $clone
 block_device_wait
-dd if=$vol of=$volclone bs=8192 count=4096 conv=notrunc >/dev/null 2>&1 || \
+dd if=$vol of=$volclone bs=16384 count=2048 conv=notrunc >/dev/null 2>&1 || \
     log_fail "dd into $clone failed."
 log_must verify_nopwrite $origin $origin@a $clone
 

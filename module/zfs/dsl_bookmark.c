@@ -1203,7 +1203,6 @@ dsl_redaction_list_long_rele(redaction_list_t *rl, void *tag)
 	(void) zfs_refcount_remove(&rl->rl_longholds, tag);
 }
 
-/* ARGSUSED */
 static void
 redaction_list_evict_sync(void *rlu)
 {
@@ -1470,10 +1469,11 @@ dsl_bookmark_next_changed(dsl_dataset_t *head, dsl_dataset_t *origin,
  * Adjust the FBN of any bookmarks that reference this block, whose "next"
  * is the head dataset.
  */
-/* ARGSUSED */
 void
 dsl_bookmark_block_killed(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 {
+	(void) tx;
+
 	/*
 	 * Iterate over bookmarks whose "next" is the head dataset.
 	 */

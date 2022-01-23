@@ -219,9 +219,8 @@ zfs_sort_only_by_name(const zfs_sort_column_t *sc)
 	    sc->sc_prop == ZFS_PROP_NAME);
 }
 
-/* ARGSUSED */
 static int
-zfs_compare(const void *larg, const void *rarg, void *unused)
+zfs_compare(const void *larg, const void *rarg)
 {
 	zfs_handle_t *l = ((zfs_node_t *)larg)->zn_handle;
 	zfs_handle_t *r = ((zfs_node_t *)rarg)->zn_handle;
@@ -382,7 +381,7 @@ zfs_sort(const void *larg, const void *rarg, void *data)
 		}
 	}
 
-	return (zfs_compare(larg, rarg, NULL));
+	return (zfs_compare(larg, rarg));
 }
 
 int

@@ -71,7 +71,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <inttypes.h>
-#include <libzfs_impl.h>
+#include <libzfs.h>
 
 #define	POOL_MEASUREMENT	"zpool_stats"
 #define	SCAN_MEASUREMENT	"zpool_scan_stats"
@@ -101,9 +101,10 @@ typedef int (*stat_printer_f)(nvlist_t *, const char *, const char *);
  * caller is responsible for freeing result
  */
 static char *
-escape_string(char *s)
+escape_string(const char *s)
 {
-	char *c, *d;
+	const char *c;
+	char *d;
 	char *t = (char *)malloc(ZFS_MAX_DATASET_NAME_LEN * 2);
 	if (t == NULL) {
 		fprintf(stderr, "error: cannot allocate memory\n");
@@ -117,6 +118,7 @@ escape_string(char *s)
 		case '=':
 		case '\\':
 			*d++ = '\\';
+			fallthrough;
 		default:
 			*d = *c;
 		}
@@ -409,6 +411,7 @@ print_vdev_latency_stats(nvlist_t *nvroot, const char *pool_name,
 #ifdef ZPOOL_CONFIG_VDEV_TRIM_LAT_HISTO
 	    {ZPOOL_CONFIG_VDEV_TRIM_LAT_HISTO,    "trim", 0},
 #endif
+	    {ZPOOL_CONFIG_VDEV_REBUILD_LAT_HISTO,    "rebuild", 0},
 	    {NULL,	NULL}
 	};
 
@@ -504,6 +507,8 @@ print_vdev_size_stats(nvlist_t *nvroot, const char *pool_name,
 	    {ZPOOL_CONFIG_VDEV_IND_TRIM_HISTO,    "trim_write_ind"},
 	    {ZPOOL_CONFIG_VDEV_AGG_TRIM_HISTO,    "trim_write_agg"},
 #endif
+	    {ZPOOL_CONFIG_VDEV_IND_REBUILD_HISTO,    "rebuild_write_ind"},
+	    {ZPOOL_CONFIG_VDEV_AGG_REBUILD_HISTO,    "rebuild_write_agg"},
 	    {NULL,	NULL}
 	};
 
@@ -583,11 +588,13 @@ print_queue_stats(nvlist_t *nvroot, const char *pool_name,
 	    {ZPOOL_CONFIG_VDEV_ASYNC_R_ACTIVE_QUEUE,	"async_r_active"},
 	    {ZPOOL_CONFIG_VDEV_ASYNC_W_ACTIVE_QUEUE,	"async_w_active"},
 	    {ZPOOL_CONFIG_VDEV_SCRUB_ACTIVE_QUEUE,	"async_scrub_active"},
+	    {ZPOOL_CONFIG_VDEV_REBUILD_ACTIVE_QUEUE,	"rebuild_active"},
 	    {ZPOOL_CONFIG_VDEV_SYNC_R_PEND_QUEUE,	"sync_r_pend"},
 	    {ZPOOL_CONFIG_VDEV_SYNC_W_PEND_QUEUE,	"sync_w_pend"},
 	    {ZPOOL_CONFIG_VDEV_ASYNC_R_PEND_QUEUE,	"async_r_pend"},
 	    {ZPOOL_CONFIG_VDEV_ASYNC_W_PEND_QUEUE,	"async_w_pend"},
 	    {ZPOOL_CONFIG_VDEV_SCRUB_PEND_QUEUE,	"async_scrub_pend"},
+	    {ZPOOL_CONFIG_VDEV_REBUILD_PEND_QUEUE,	"rebuild_pend"},
 	    {NULL,	NULL}
 	};
 
@@ -634,11 +641,13 @@ print_top_level_vdev_stats(nvlist_t *nvroot, const char *pool_name)
 	    {ZPOOL_CONFIG_VDEV_ASYNC_R_ACTIVE_QUEUE, "async_r_active_queue"},
 	    {ZPOOL_CONFIG_VDEV_ASYNC_W_ACTIVE_QUEUE, "async_w_active_queue"},
 	    {ZPOOL_CONFIG_VDEV_SCRUB_ACTIVE_QUEUE, "async_scrub_active_queue"},
+	    {ZPOOL_CONFIG_VDEV_REBUILD_ACTIVE_QUEUE, "rebuild_active_queue"},
 	    {ZPOOL_CONFIG_VDEV_SYNC_R_PEND_QUEUE, "sync_r_pend_queue"},
 	    {ZPOOL_CONFIG_VDEV_SYNC_W_PEND_QUEUE, "sync_w_pend_queue"},
 	    {ZPOOL_CONFIG_VDEV_ASYNC_R_PEND_QUEUE, "async_r_pend_queue"},
 	    {ZPOOL_CONFIG_VDEV_ASYNC_W_PEND_QUEUE, "async_w_pend_queue"},
 	    {ZPOOL_CONFIG_VDEV_SCRUB_PEND_QUEUE, "async_scrub_pend_queue"},
+	    {ZPOOL_CONFIG_VDEV_REBUILD_PEND_QUEUE, "rebuild_pend_queue"},
 	    {NULL, NULL}
 	};
 
@@ -683,9 +692,8 @@ print_recursive_stats(stat_printer_f func, nvlist_t *nvroot,
 
 	if (descend && nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
 	    &child, &children) == 0) {
-		(void) strncpy(vdev_name, get_vdev_name(nvroot, parent_name),
+		(void) strlcpy(vdev_name, get_vdev_name(nvroot, parent_name),
 		    sizeof (vdev_name));
-		vdev_name[sizeof (vdev_name) - 1] = '\0';
 
 		for (c = 0; c < children; c++) {
 			print_recursive_stats(func, child[c], pool_name,
@@ -714,7 +722,7 @@ print_stats(zpool_handle_t *zhp, void *data)
 
 	/* if not this pool return quickly */
 	if (data &&
-	    strncmp(data, zhp->zpool_name, ZFS_MAX_DATASET_NAME_LEN) != 0) {
+	    strncmp(data, zpool_get_name(zhp), ZFS_MAX_DATASET_NAME_LEN) != 0) {
 		zpool_close(zhp);
 		return (0);
 	}
@@ -742,7 +750,7 @@ print_stats(zpool_handle_t *zhp, void *data)
 		return (3);
 	}
 
-	pool_name = escape_string(zhp->zpool_name);
+	pool_name = escape_string(zpool_get_name(zhp));
 	err = print_recursive_stats(print_summary_stats, nvroot,
 	    pool_name, NULL, 1);
 	/* if any of these return an error, skip the rest */

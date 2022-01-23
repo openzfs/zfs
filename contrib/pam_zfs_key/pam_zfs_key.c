@@ -41,6 +41,7 @@
 
 #if	defined(__linux__)
 #include <security/pam_ext.h>
+#define	MAP_FLAGS MAP_PRIVATE | MAP_ANONYMOUS
 #elif	defined(__FreeBSD__)
 #include <security/pam_appl.h>
 static void
@@ -51,10 +52,11 @@ pam_syslog(pam_handle_t *pamh, int loglevel, const char *fmt, ...)
 	vsyslog(loglevel, fmt, args);
 	va_end(args);
 }
+#define	MAP_FLAGS MAP_PRIVATE | MAP_ANON | MAP_NOCORE
 #endif
 
 #include <string.h>
-
+#include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/file.h>
@@ -69,10 +71,37 @@ static libzfs_handle_t *g_zfs;
 
 static void destroy_pw(pam_handle_t *pamh, void *data, int errcode);
 
+typedef int (*mlock_func_t) (const void *, size_t);
+
 typedef struct {
 	size_t len;
 	char *value;
 } pw_password_t;
+
+/*
+ * Try to mlock(2) or munlock(2) addr while handling EAGAIN by retrying ten
+ * times and sleeping 10 milliseconds in between for a total of 0.1
+ * seconds. lock_func must point to either mlock(2) or munlock(2).
+ */
+static int
+try_lock(mlock_func_t lock_func, const void *addr, size_t len)
+{
+	int err;
+	int retries = 10;
+	useconds_t sleep_dur = 10 * 1000;
+
+	if ((err = (*lock_func)(addr, len)) != EAGAIN) {
+		return (err);
+	}
+	for (int i = retries; i > 0; --i) {
+		(void) usleep(sleep_dur);
+		if ((err = (*lock_func)(addr, len)) != EAGAIN) {
+			break;
+		}
+	}
+	return (err);
+}
+
 
 static pw_password_t *
 alloc_pw_size(size_t len)
@@ -82,29 +111,39 @@ alloc_pw_size(size_t len)
 		return (NULL);
 	}
 	pw->len = len;
-	pw->value = malloc(len);
-	if (!pw->value) {
+	/*
+	 * We use mmap(2) rather than malloc(3) since later on we mlock(2) the
+	 * memory region. Since mlock(2) and munlock(2) operate on whole memory
+	 * pages we should allocate a whole page here as mmap(2) does. Further
+	 * this ensures that the addresses passed to mlock(2) an munlock(2) are
+	 * on a page boundary as suggested by FreeBSD and required by some
+	 * other implementations. Finally we avoid inadvertently munlocking
+	 * memory mlocked by an concurrently running instance of us.
+	 */
+	pw->value = mmap(NULL, pw->len, PROT_READ | PROT_WRITE, MAP_FLAGS,
+	    -1, 0);
+
+	if (pw->value == MAP_FAILED) {
 		free(pw);
 		return (NULL);
 	}
-	mlock(pw->value, pw->len);
+	if (try_lock(mlock, pw->value, pw->len) != 0) {
+		(void) munmap(pw->value, pw->len);
+		free(pw);
+		return (NULL);
+	}
 	return (pw);
 }
 
 static pw_password_t *
 alloc_pw_string(const char *source)
 {
-	pw_password_t *pw = malloc(sizeof (pw_password_t));
+	size_t len = strlen(source) + 1;
+	pw_password_t *pw = alloc_pw_size(len);
+
 	if (!pw) {
 		return (NULL);
 	}
-	pw->len = strlen(source) + 1;
-	pw->value = malloc(pw->len);
-	if (!pw->value) {
-		free(pw);
-		return (NULL);
-	}
-	mlock(pw->value, pw->len);
 	memcpy(pw->value, source, pw->len);
 	return (pw);
 }
@@ -113,8 +152,9 @@ static void
 pw_free(pw_password_t *pw)
 {
 	bzero(pw->value, pw->len);
-	munlock(pw->value, pw->len);
-	free(pw->value);
+	if (try_lock(munlock, pw->value, pw->len) == 0) {
+		(void) munmap(pw->value, pw->len);
+	}
 	free(pw);
 }
 
@@ -179,6 +219,8 @@ pw_clear(pam_handle_t *pamh)
 static void
 destroy_pw(pam_handle_t *pamh, void *data, int errcode)
 {
+	(void) pamh, (void) errcode;
+
 	if (data != NULL) {
 		pw_free((pw_password_t *)data);
 	}
@@ -598,6 +640,8 @@ PAM_EXTERN int
 pam_sm_authenticate(pam_handle_t *pamh, int flags,
     int argc, const char **argv)
 {
+	(void) flags, (void) argc, (void) argv;
+
 	if (pw_fetch_lazy(pamh) == NULL) {
 		return (PAM_AUTH_ERR);
 	}
@@ -610,6 +654,7 @@ PAM_EXTERN int
 pam_sm_setcred(pam_handle_t *pamh, int flags,
     int argc, const char **argv)
 {
+	(void) pamh, (void) flags, (void) argc, (void) argv;
 	return (PAM_SUCCESS);
 }
 
@@ -697,6 +742,8 @@ PAM_EXTERN int
 pam_sm_open_session(pam_handle_t *pamh, int flags,
     int argc, const char **argv)
 {
+	(void) flags;
+
 	if (geteuid() != 0) {
 		pam_syslog(pamh, LOG_ERR,
 		    "Cannot zfs_mount when not being root.");
@@ -751,6 +798,8 @@ PAM_EXTERN int
 pam_sm_close_session(pam_handle_t *pamh, int flags,
     int argc, const char **argv)
 {
+	(void) flags;
+
 	if (geteuid() != 0) {
 		pam_syslog(pamh, LOG_ERR,
 		    "Cannot zfs_mount when not being root.");

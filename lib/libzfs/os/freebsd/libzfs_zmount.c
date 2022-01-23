@@ -43,7 +43,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/errno.h>
 #include <libzfs.h>
 
-#include "libzfs_impl.h"
+#include "../../libzfs_impl.h"
 
 static void
 build_iovec(struct iovec **iov, int *iovlen, const char *name, void *val,
@@ -97,11 +97,6 @@ do_mount_(const char *spec, const char *dir, int mflag, char *fstype,
 	iovlen = 0;
 	if (strstr(optstr, MNTOPT_REMOUNT) != NULL)
 		build_iovec(&iov, &iovlen, "update", NULL, 0);
-	if (strstr(optstr, MNTOPT_NOXATTR) == NULL &&
-	    strstr(optstr, MNTOPT_XATTR) == NULL &&
-	    strstr(optstr, MNTOPT_SAXATTR) == NULL &&
-	    strstr(optstr, MNTOPT_DIRXATTR) == NULL)
-		build_iovec(&iov, &iovlen, "xattr", NULL, 0);
 	if (mflag & MS_RDONLY)
 		build_iovec(&iov, &iovlen, "ro", NULL, 0);
 	build_iovec(&iov, &iovlen, "fstype", fstype, (size_t)-1);
@@ -126,8 +121,9 @@ do_mount(zfs_handle_t *zhp, const char *mntpt, char *opts, int flags)
 }
 
 int
-do_unmount(const char *mntpt, int flags)
+do_unmount(zfs_handle_t *zhp, const char *mntpt, int flags)
 {
+	(void) zhp;
 	if (unmount(mntpt, flags) < 0)
 		return (errno);
 	return (0);
@@ -137,4 +133,18 @@ int
 zfs_mount_delegation_check(void)
 {
 	return (0);
+}
+
+/* Called from the tail end of zpool_disable_datasets() */
+void
+zpool_disable_datasets_os(zpool_handle_t *zhp, boolean_t force)
+{
+	(void) zhp, (void) force;
+}
+
+/* Called from the tail end of zfs_unmount() */
+void
+zpool_disable_volume_os(const char *name)
+{
+	(void) name;
 }

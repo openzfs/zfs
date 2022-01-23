@@ -47,19 +47,12 @@ verify_runnable "both"
 
 function cleanup
 {
-	datasetexists $SNAPFS && \
-		log_must zfs destroy -Rf $SNAPFS
-	datasetexists $TESTPOOL/$TESTFS@snap_a && \
-		log_must zfs destroy -Rf $TESTPOOL/$TESTFS@snap_a
-	datasetexists $TESTPOOL/$TESTFS@snap_b && \
-		log_must zfs destroy -Rf $TESTPOOL/$TESTFS@snap_b
-	datasetexists $TESTPOOL/$TESTCLONE@snap_a && \
-		log_must zfs destroy -Rf $TESTPOOL/$TESTCLONE@snap_a
-
-	datasetexists $TESTPOOL/$TESTCLONE && \
-		log_must zfs destroy $TESTPOOL/$TESTCLONE
-	datasetexists $TESTPOOL/$TESTFS && \
-		log_must zfs destroy $TESTPOOL/$TESTFS
+	datasetexists $SNAPFS && destroy_dataset $SNAPFS -Rf
+	datasetexists $TESTPOOL/$TESTFS@snap_a && destroy_dataset $TESTPOOL/$TESTFS@snap_a -Rf
+	datasetexists $TESTPOOL/$TESTFS@snap_b && destroy_dataset $TESTPOOL/$TESTFS@snap_b -Rf
+	datasetexists $TESTPOOL/$TESTCLONE@snap_a && destroy_dataset $TESTPOOL/$TESTCLONE@snap_a -Rf
+	datasetexists $TESTPOOL/$TESTCLONE && destroy_dataset $TESTPOOL/$TESTCLONE
+	datasetexists $TESTPOOL/$TESTFS && destroy_dataset $TESTPOOL/$TESTFS
 
 	log_must zfs create $TESTPOOL/$TESTFS
 	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS

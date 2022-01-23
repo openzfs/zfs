@@ -191,6 +191,24 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO_SET_DEV], [
 	], [], [ZFS_META_LICENSE])
 ])
 
+dnl #
+dnl # Linux 5.16 API
+dnl #
+dnl # bio_set_dev is no longer a helper macro and is now an inline function,
+dnl # meaning that the function it calls internally can no longer be overridden
+dnl # by our code
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO_SET_DEV_MACRO], [
+	ZFS_LINUX_TEST_SRC([bio_set_dev_macro], [
+		#include <linux/bio.h>
+		#include <linux/fs.h>
+	],[
+		#ifndef bio_set_dev
+		#error Not a macro
+		#endif
+	], [], [ZFS_META_LICENSE])
+])
+
 AC_DEFUN([ZFS_AC_KERNEL_BIO_SET_DEV], [
 	AC_MSG_CHECKING([whether bio_set_dev() is available])
 	ZFS_LINUX_TEST_RESULT([bio_set_dev], [
@@ -204,6 +222,15 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO_SET_DEV], [
 			AC_MSG_RESULT(yes)
 			AC_DEFINE(HAVE_BIO_SET_DEV_GPL_ONLY, 1,
 			    [bio_set_dev() GPL-only])
+		])
+
+		AC_MSG_CHECKING([whether bio_set_dev() is a macro])
+		ZFS_LINUX_TEST_RESULT([bio_set_dev_macro], [
+			AC_MSG_RESULT(yes)
+			AC_DEFINE(HAVE_BIO_SET_DEV_MACRO, 1,
+			    [bio_set_dev() is a macro])
+		],[
+			AC_MSG_RESULT(no)
 		])
 	],[
 		AC_MSG_RESULT(no)
@@ -294,9 +321,8 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO_SUBMIT_BIO], [
 	ZFS_LINUX_TEST_SRC([submit_bio], [
 		#include <linux/bio.h>
 	],[
-		blk_qc_t blk_qc;
 		struct bio *bio = NULL;
-		blk_qc = submit_bio(bio);
+		(void) submit_bio(bio);
 	])
 ])
 
@@ -396,6 +422,58 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO_BDEV_DISK], [
 	])
 ])
 
+dnl #
+dnl # Linux 5.16 API
+dnl #
+dnl # The Linux 5.16 API for submit_bio changed the return type to be
+dnl # void instead of int
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_BDEV_SUBMIT_BIO_RETURNS_VOID], [
+	ZFS_LINUX_TEST_SRC([bio_bdev_submit_bio_void], [
+		#include <linux/blkdev.h>
+	],[
+		struct block_device_operations *bdev = NULL;
+		__attribute__((unused)) void(*f)(struct bio *) = bdev->submit_bio;
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_BDEV_SUBMIT_BIO_RETURNS_VOID], [
+	AC_MSG_CHECKING(
+		[whether block_device_operations->submit_bio() returns void])
+	ZFS_LINUX_TEST_RESULT([bio_bdev_submit_bio_void], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_BDEV_SUBMIT_BIO_RETURNS_VOID, 1,
+			[block_device_operations->submit_bio() returns void])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # Linux 5.16 API
+dnl #
+dnl # The Linux 5.16 API moved struct blkcg_gq into linux/blk-cgroup.h, which
+dnl # has been around since 2015. This test looks for the presence of that
+dnl # header, so that it can be conditionally included where it exists, but
+dnl # still be backward compatible with kernels that pre-date its introduction.
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_CGROUP_HEADER], [
+	ZFS_LINUX_TEST_SRC([blk_cgroup_header], [
+		#include <linux/blk-cgroup.h>
+	], [])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_BLK_CGROUP_HEADER], [
+	AC_MSG_CHECKING([for existence of linux/blk-cgroup.h])
+	ZFS_LINUX_TEST_RESULT([blk_cgroup_header],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_LINUX_BLK_CGROUP_HEADER, 1,
+			[linux/blk-cgroup.h exists])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO], [
 	ZFS_AC_KERNEL_SRC_REQ
 	ZFS_AC_KERNEL_SRC_BIO_OPS
@@ -407,6 +485,9 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO], [
 	ZFS_AC_KERNEL_SRC_BIO_CURRENT_BIO_LIST
 	ZFS_AC_KERNEL_SRC_BLKG_TRYGET
 	ZFS_AC_KERNEL_SRC_BIO_BDEV_DISK
+	ZFS_AC_KERNEL_SRC_BDEV_SUBMIT_BIO_RETURNS_VOID
+	ZFS_AC_KERNEL_SRC_BIO_SET_DEV_MACRO
+	ZFS_AC_KERNEL_SRC_BLK_CGROUP_HEADER
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BIO], [
@@ -429,4 +510,6 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO], [
 	ZFS_AC_KERNEL_BIO_CURRENT_BIO_LIST
 	ZFS_AC_KERNEL_BLKG_TRYGET
 	ZFS_AC_KERNEL_BIO_BDEV_DISK
+	ZFS_AC_KERNEL_BDEV_SUBMIT_BIO_RETURNS_VOID
+	ZFS_AC_KERNEL_BLK_CGROUP_HEADER
 ])

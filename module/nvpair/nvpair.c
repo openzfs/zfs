@@ -146,12 +146,12 @@ static int nvlist_add_common(nvlist_t *nvl, const char *name, data_type_t type,
 	((i_nvp_t *)((size_t)(nvp) - offsetof(i_nvp_t, nvi_nvp)))
 
 #ifdef _KERNEL
-int nvpair_max_recursion = 20;
+static const int nvpair_max_recursion = 20;
 #else
-int nvpair_max_recursion = 100;
+static const int nvpair_max_recursion = 100;
 #endif
 
-uint64_t nvlist_hashtable_init_size = (1 << 4);
+static const uint64_t nvlist_hashtable_init_size = (1 << 4);
 
 int
 nv_alloc_init(nv_alloc_t *nva, const nv_alloc_ops_t *nvo, /* args */ ...)
@@ -308,7 +308,7 @@ nvt_hash(const char *p)
 }
 
 static boolean_t
-nvt_nvpair_match(nvpair_t *nvp1, nvpair_t *nvp2, uint32_t nvflag)
+nvt_nvpair_match(const nvpair_t *nvp1, const nvpair_t *nvp2, uint32_t nvflag)
 {
 	boolean_t match = B_FALSE;
 	if (nvflag & NV_UNIQUE_NAME_TYPE) {
@@ -324,9 +324,9 @@ nvt_nvpair_match(nvpair_t *nvp1, nvpair_t *nvp2, uint32_t nvflag)
 }
 
 static nvpair_t *
-nvt_lookup_name_type(nvlist_t *nvl, const char *name, data_type_t type)
+nvt_lookup_name_type(const nvlist_t *nvl, const char *name, data_type_t type)
 {
-	nvpriv_t *priv = (nvpriv_t *)(uintptr_t)nvl->nvl_priv;
+	const nvpriv_t *priv = (const nvpriv_t *)(uintptr_t)nvl->nvl_priv;
 	ASSERT(priv != NULL);
 
 	i_nvp_t **tab = priv->nvp_hashtable;
@@ -356,7 +356,7 @@ nvt_lookup_name_type(nvlist_t *nvl, const char *name, data_type_t type)
 }
 
 static nvpair_t *
-nvt_lookup_name(nvlist_t *nvl, const char *name)
+nvt_lookup_name(const nvlist_t *nvl, const char *name)
 {
 	return (nvt_lookup_name_type(nvl, name, DATA_TYPE_DONTCARE));
 }
@@ -462,7 +462,7 @@ nvt_shrink(nvpriv_t *priv)
 }
 
 static int
-nvt_remove_nvpair(nvlist_t *nvl, nvpair_t *nvp)
+nvt_remove_nvpair(nvlist_t *nvl, const nvpair_t *nvp)
 {
 	nvpriv_t *priv = (nvpriv_t *)(uintptr_t)nvl->nvl_priv;
 
@@ -533,12 +533,14 @@ nvt_add_nvpair(nvlist_t *nvl, nvpair_t *nvp)
 	uint64_t index = hash & (priv->nvp_nbuckets - 1);
 
 	ASSERT3U(index, <, priv->nvp_nbuckets);
+	// cppcheck-suppress nullPointerRedundantCheck
 	i_nvp_t *bucket = tab[index];
 
 	/* insert link at the beginning of the bucket */
 	i_nvp_t *new_entry = NVPAIR2I_NVP(nvp);
 	ASSERT3P(new_entry->nvi_hashtable_next, ==, NULL);
 	new_entry->nvi_hashtable_next = bucket;
+	// cppcheck-suppress nullPointerRedundantCheck
 	tab[index] = new_entry;
 
 	priv->nvp_nentries++;
@@ -574,6 +576,7 @@ nvlist_nv_alloc(int kmflag)
 		return (nv_alloc_pushpage);
 	}
 #else
+	(void) kmflag;
 	return (nv_alloc_nosleep);
 #endif /* _KERNEL */
 }
@@ -814,16 +817,16 @@ i_validate_nvpair(nvpair_t *nvp)
 }
 
 static int
-nvlist_copy_pairs(nvlist_t *snvl, nvlist_t *dnvl)
+nvlist_copy_pairs(const nvlist_t *snvl, nvlist_t *dnvl)
 {
-	nvpriv_t *priv;
-	i_nvp_t *curr;
+	const nvpriv_t *priv;
+	const i_nvp_t *curr;
 
-	if ((priv = (nvpriv_t *)(uintptr_t)snvl->nvl_priv) == NULL)
+	if ((priv = (const nvpriv_t *)(uintptr_t)snvl->nvl_priv) == NULL)
 		return (EINVAL);
 
 	for (curr = priv->nvp_list; curr != NULL; curr = curr->nvi_next) {
-		nvpair_t *nvp = &curr->nvi_nvp;
+		const nvpair_t *nvp = &curr->nvi_nvp;
 		int err;
 
 		if ((err = nvlist_add_common(dnvl, NVP_NAME(nvp), NVP_TYPE(nvp),
@@ -894,10 +897,10 @@ nvlist_free(nvlist_t *nvl)
 }
 
 static int
-nvlist_contains_nvp(nvlist_t *nvl, nvpair_t *nvp)
+nvlist_contains_nvp(const nvlist_t *nvl, const nvpair_t *nvp)
 {
-	nvpriv_t *priv = (nvpriv_t *)(uintptr_t)nvl->nvl_priv;
-	i_nvp_t *curr;
+	const nvpriv_t *priv = (const nvpriv_t *)(uintptr_t)nvl->nvl_priv;
+	const i_nvp_t *curr;
 
 	if (nvp == NULL)
 		return (0);
@@ -913,13 +916,13 @@ nvlist_contains_nvp(nvlist_t *nvl, nvpair_t *nvp)
  * Make a copy of nvlist
  */
 int
-nvlist_dup(nvlist_t *nvl, nvlist_t **nvlp, int kmflag)
+nvlist_dup(const nvlist_t *nvl, nvlist_t **nvlp, int kmflag)
 {
 	return (nvlist_xdup(nvl, nvlp, nvlist_nv_alloc(kmflag)));
 }
 
 int
-nvlist_xdup(nvlist_t *nvl, nvlist_t **nvlp, nv_alloc_t *nva)
+nvlist_xdup(const nvlist_t *nvl, nvlist_t **nvlp, nv_alloc_t *nva)
 {
 	int err;
 	nvlist_t *ret;
@@ -1354,68 +1357,77 @@ nvlist_add_string(nvlist_t *nvl, const char *name, const char *val)
 
 int
 nvlist_add_boolean_array(nvlist_t *nvl, const char *name,
-    boolean_t *a, uint_t n)
+    const boolean_t *a, uint_t n)
 {
 	return (nvlist_add_common(nvl, name, DATA_TYPE_BOOLEAN_ARRAY, n, a));
 }
 
 int
-nvlist_add_byte_array(nvlist_t *nvl, const char *name, uchar_t *a, uint_t n)
+nvlist_add_byte_array(nvlist_t *nvl, const char *name, const uchar_t *a,
+    uint_t n)
 {
 	return (nvlist_add_common(nvl, name, DATA_TYPE_BYTE_ARRAY, n, a));
 }
 
 int
-nvlist_add_int8_array(nvlist_t *nvl, const char *name, int8_t *a, uint_t n)
+nvlist_add_int8_array(nvlist_t *nvl, const char *name, const int8_t *a,
+    uint_t n)
 {
 	return (nvlist_add_common(nvl, name, DATA_TYPE_INT8_ARRAY, n, a));
 }
 
 int
-nvlist_add_uint8_array(nvlist_t *nvl, const char *name, uint8_t *a, uint_t n)
+nvlist_add_uint8_array(nvlist_t *nvl, const char *name, const uint8_t *a,
+    uint_t n)
 {
 	return (nvlist_add_common(nvl, name, DATA_TYPE_UINT8_ARRAY, n, a));
 }
 
 int
-nvlist_add_int16_array(nvlist_t *nvl, const char *name, int16_t *a, uint_t n)
+nvlist_add_int16_array(nvlist_t *nvl, const char *name, const int16_t *a,
+    uint_t n)
 {
 	return (nvlist_add_common(nvl, name, DATA_TYPE_INT16_ARRAY, n, a));
 }
 
 int
-nvlist_add_uint16_array(nvlist_t *nvl, const char *name, uint16_t *a, uint_t n)
+nvlist_add_uint16_array(nvlist_t *nvl, const char *name, const uint16_t *a,
+    uint_t n)
 {
 	return (nvlist_add_common(nvl, name, DATA_TYPE_UINT16_ARRAY, n, a));
 }
 
 int
-nvlist_add_int32_array(nvlist_t *nvl, const char *name, int32_t *a, uint_t n)
+nvlist_add_int32_array(nvlist_t *nvl, const char *name, const int32_t *a,
+    uint_t n)
 {
 	return (nvlist_add_common(nvl, name, DATA_TYPE_INT32_ARRAY, n, a));
 }
 
 int
-nvlist_add_uint32_array(nvlist_t *nvl, const char *name, uint32_t *a, uint_t n)
+nvlist_add_uint32_array(nvlist_t *nvl, const char *name, const uint32_t *a,
+    uint_t n)
 {
 	return (nvlist_add_common(nvl, name, DATA_TYPE_UINT32_ARRAY, n, a));
 }
 
 int
-nvlist_add_int64_array(nvlist_t *nvl, const char *name, int64_t *a, uint_t n)
+nvlist_add_int64_array(nvlist_t *nvl, const char *name, const int64_t *a,
+    uint_t n)
 {
 	return (nvlist_add_common(nvl, name, DATA_TYPE_INT64_ARRAY, n, a));
 }
 
 int
-nvlist_add_uint64_array(nvlist_t *nvl, const char *name, uint64_t *a, uint_t n)
+nvlist_add_uint64_array(nvlist_t *nvl, const char *name, const uint64_t *a,
+    uint_t n)
 {
 	return (nvlist_add_common(nvl, name, DATA_TYPE_UINT64_ARRAY, n, a));
 }
 
 int
 nvlist_add_string_array(nvlist_t *nvl, const char *name,
-    char *const *a, uint_t n)
+    const char *const *a, uint_t n)
 {
 	return (nvlist_add_common(nvl, name, DATA_TYPE_STRING_ARRAY, n, a));
 }
@@ -1427,20 +1439,21 @@ nvlist_add_hrtime(nvlist_t *nvl, const char *name, hrtime_t val)
 }
 
 int
-nvlist_add_nvlist(nvlist_t *nvl, const char *name, nvlist_t *val)
+nvlist_add_nvlist(nvlist_t *nvl, const char *name, const nvlist_t *val)
 {
 	return (nvlist_add_common(nvl, name, DATA_TYPE_NVLIST, 1, val));
 }
 
 int
-nvlist_add_nvlist_array(nvlist_t *nvl, const char *name, nvlist_t **a, uint_t n)
+nvlist_add_nvlist_array(nvlist_t *nvl, const char *name,
+    const nvlist_t * const *a, uint_t n)
 {
 	return (nvlist_add_common(nvl, name, DATA_TYPE_NVLIST_ARRAY, n, a));
 }
 
 /* reading name-value pairs */
 nvpair_t *
-nvlist_next_nvpair(nvlist_t *nvl, nvpair_t *nvp)
+nvlist_next_nvpair(nvlist_t *nvl, const nvpair_t *nvp)
 {
 	nvpriv_t *priv;
 	i_nvp_t *curr;
@@ -1469,7 +1482,7 @@ nvlist_next_nvpair(nvlist_t *nvl, nvpair_t *nvp)
 }
 
 nvpair_t *
-nvlist_prev_nvpair(nvlist_t *nvl, nvpair_t *nvp)
+nvlist_prev_nvpair(nvlist_t *nvl, const nvpair_t *nvp)
 {
 	nvpriv_t *priv;
 	i_nvp_t *curr;
@@ -1493,31 +1506,31 @@ nvlist_prev_nvpair(nvlist_t *nvl, nvpair_t *nvp)
 }
 
 boolean_t
-nvlist_empty(nvlist_t *nvl)
+nvlist_empty(const nvlist_t *nvl)
 {
-	nvpriv_t *priv;
+	const nvpriv_t *priv;
 
 	if (nvl == NULL ||
-	    (priv = (nvpriv_t *)(uintptr_t)nvl->nvl_priv) == NULL)
+	    (priv = (const nvpriv_t *)(uintptr_t)nvl->nvl_priv) == NULL)
 		return (B_TRUE);
 
 	return (priv->nvp_list == NULL);
 }
 
 char *
-nvpair_name(nvpair_t *nvp)
+nvpair_name(const nvpair_t *nvp)
 {
 	return (NVP_NAME(nvp));
 }
 
 data_type_t
-nvpair_type(nvpair_t *nvp)
+nvpair_type(const nvpair_t *nvp)
 {
 	return (NVP_TYPE(nvp));
 }
 
 int
-nvpair_type_is_array(nvpair_t *nvp)
+nvpair_type_is_array(const nvpair_t *nvp)
 {
 	data_type_t type = NVP_TYPE(nvp);
 
@@ -1539,7 +1552,8 @@ nvpair_type_is_array(nvpair_t *nvp)
 }
 
 static int
-nvpair_value_common(nvpair_t *nvp, data_type_t type, uint_t *nelem, void *data)
+nvpair_value_common(const nvpair_t *nvp, data_type_t type, uint_t *nelem,
+    void *data)
 {
 	int value_sz;
 
@@ -1583,6 +1597,10 @@ nvpair_value_common(nvpair_t *nvp, data_type_t type, uint_t *nelem, void *data)
 	case DATA_TYPE_STRING:
 		if (data == NULL)
 			return (EINVAL);
+		/*
+		 * This discards the const from nvp, so all callers for these
+		 * types must not accept const nvpairs.
+		 */
 		*(void **)data = (void *)NVP_VALUE(nvp);
 		if (nelem != NULL)
 			*nelem = 1;
@@ -1602,6 +1620,10 @@ nvpair_value_common(nvpair_t *nvp, data_type_t type, uint_t *nelem, void *data)
 	case DATA_TYPE_NVLIST_ARRAY:
 		if (nelem == NULL || data == NULL)
 			return (EINVAL);
+		/*
+		 * This discards the const from nvp, so all callers for these
+		 * types must not accept const nvpairs.
+		 */
 		if ((*nelem = NVP_NELEM(nvp)) != 0)
 			*(void **)data = (void *)NVP_VALUE(nvp);
 		else
@@ -1616,7 +1638,7 @@ nvpair_value_common(nvpair_t *nvp, data_type_t type, uint_t *nelem, void *data)
 }
 
 static int
-nvlist_lookup_common(nvlist_t *nvl, const char *name, data_type_t type,
+nvlist_lookup_common(const nvlist_t *nvl, const char *name, data_type_t type,
     uint_t *nelem, void *data)
 {
 	if (name == NULL || nvl == NULL || nvl->nvl_priv == 0)
@@ -1633,75 +1655,76 @@ nvlist_lookup_common(nvlist_t *nvl, const char *name, data_type_t type,
 }
 
 int
-nvlist_lookup_boolean(nvlist_t *nvl, const char *name)
+nvlist_lookup_boolean(const nvlist_t *nvl, const char *name)
 {
 	return (nvlist_lookup_common(nvl, name, DATA_TYPE_BOOLEAN, NULL, NULL));
 }
 
 int
-nvlist_lookup_boolean_value(nvlist_t *nvl, const char *name, boolean_t *val)
+nvlist_lookup_boolean_value(const nvlist_t *nvl, const char *name,
+    boolean_t *val)
 {
 	return (nvlist_lookup_common(nvl, name,
 	    DATA_TYPE_BOOLEAN_VALUE, NULL, val));
 }
 
 int
-nvlist_lookup_byte(nvlist_t *nvl, const char *name, uchar_t *val)
+nvlist_lookup_byte(const nvlist_t *nvl, const char *name, uchar_t *val)
 {
 	return (nvlist_lookup_common(nvl, name, DATA_TYPE_BYTE, NULL, val));
 }
 
 int
-nvlist_lookup_int8(nvlist_t *nvl, const char *name, int8_t *val)
+nvlist_lookup_int8(const nvlist_t *nvl, const char *name, int8_t *val)
 {
 	return (nvlist_lookup_common(nvl, name, DATA_TYPE_INT8, NULL, val));
 }
 
 int
-nvlist_lookup_uint8(nvlist_t *nvl, const char *name, uint8_t *val)
+nvlist_lookup_uint8(const nvlist_t *nvl, const char *name, uint8_t *val)
 {
 	return (nvlist_lookup_common(nvl, name, DATA_TYPE_UINT8, NULL, val));
 }
 
 int
-nvlist_lookup_int16(nvlist_t *nvl, const char *name, int16_t *val)
+nvlist_lookup_int16(const nvlist_t *nvl, const char *name, int16_t *val)
 {
 	return (nvlist_lookup_common(nvl, name, DATA_TYPE_INT16, NULL, val));
 }
 
 int
-nvlist_lookup_uint16(nvlist_t *nvl, const char *name, uint16_t *val)
+nvlist_lookup_uint16(const nvlist_t *nvl, const char *name, uint16_t *val)
 {
 	return (nvlist_lookup_common(nvl, name, DATA_TYPE_UINT16, NULL, val));
 }
 
 int
-nvlist_lookup_int32(nvlist_t *nvl, const char *name, int32_t *val)
+nvlist_lookup_int32(const nvlist_t *nvl, const char *name, int32_t *val)
 {
 	return (nvlist_lookup_common(nvl, name, DATA_TYPE_INT32, NULL, val));
 }
 
 int
-nvlist_lookup_uint32(nvlist_t *nvl, const char *name, uint32_t *val)
+nvlist_lookup_uint32(const nvlist_t *nvl, const char *name, uint32_t *val)
 {
 	return (nvlist_lookup_common(nvl, name, DATA_TYPE_UINT32, NULL, val));
 }
 
 int
-nvlist_lookup_int64(nvlist_t *nvl, const char *name, int64_t *val)
+nvlist_lookup_int64(const nvlist_t *nvl, const char *name, int64_t *val)
 {
 	return (nvlist_lookup_common(nvl, name, DATA_TYPE_INT64, NULL, val));
 }
 
 int
-nvlist_lookup_uint64(nvlist_t *nvl, const char *name, uint64_t *val)
+nvlist_lookup_uint64(const nvlist_t *nvl, const char *name, uint64_t *val)
 {
 	return (nvlist_lookup_common(nvl, name, DATA_TYPE_UINT64, NULL, val));
 }
 
 #if !defined(_KERNEL)
 int
-nvlist_lookup_double(nvlist_t *nvl, const char *name, double *val)
+nvlist_lookup_double(const nvlist_t *nvl, const char *name, double *val)
 {
 	return (nvlist_lookup_common(nvl, name, DATA_TYPE_DOUBLE, NULL, val));
 }
@@ -2077,7 +2100,7 @@ int nvlist_lookup_nvpair_embedded_index(nvlist_t *nvl,
 }
 
 boolean_t
-nvlist_exists(nvlist_t *nvl, const char *name)
+nvlist_exists(const nvlist_t *nvl, const char *name)
 {
 	nvpriv_t *priv;
 	nvpair_t *nvp;
@@ -2098,68 +2121,68 @@ nvlist_exists(nvlist_t *nvl, const char *name)
 }
 
 int
-nvpair_value_boolean_value(nvpair_t *nvp, boolean_t *val)
+nvpair_value_boolean_value(const nvpair_t *nvp, boolean_t *val)
 {
 	return (nvpair_value_common(nvp, DATA_TYPE_BOOLEAN_VALUE, NULL, val));
 }
 
 int
-nvpair_value_byte(nvpair_t *nvp, uchar_t *val)
+nvpair_value_byte(const nvpair_t *nvp, uchar_t *val)
 {
 	return (nvpair_value_common(nvp, DATA_TYPE_BYTE, NULL, val));
 }
 
 int
-nvpair_value_int8(nvpair_t *nvp, int8_t *val)
+nvpair_value_int8(const nvpair_t *nvp, int8_t *val)
 {
 	return (nvpair_value_common(nvp, DATA_TYPE_INT8, NULL, val));
 }
 
 int
-nvpair_value_uint8(nvpair_t *nvp, uint8_t *val)
+nvpair_value_uint8(const nvpair_t *nvp, uint8_t *val)
 {
 	return (nvpair_value_common(nvp, DATA_TYPE_UINT8, NULL, val));
 }
 
 int
-nvpair_value_int16(nvpair_t *nvp, int16_t *val)
+nvpair_value_int16(const nvpair_t *nvp, int16_t *val)
 {
 	return (nvpair_value_common(nvp, DATA_TYPE_INT16, NULL, val));
 }
 
 int
-nvpair_value_uint16(nvpair_t *nvp, uint16_t *val)
+nvpair_value_uint16(const nvpair_t *nvp, uint16_t *val)
 {
 	return (nvpair_value_common(nvp, DATA_TYPE_UINT16, NULL, val));
 }
 
 int
-nvpair_value_int32(nvpair_t *nvp, int32_t *val)
+nvpair_value_int32(const nvpair_t *nvp, int32_t *val)
 {
 	return (nvpair_value_common(nvp, DATA_TYPE_INT32, NULL, val));
 }
 
 int
-nvpair_value_uint32(nvpair_t *nvp, uint32_t *val)
+nvpair_value_uint32(const nvpair_t *nvp, uint32_t *val)
 {
 	return (nvpair_value_common(nvp, DATA_TYPE_UINT32, NULL, val));
 }
 
 int
-nvpair_value_int64(nvpair_t *nvp, int64_t *val)
+nvpair_value_int64(const nvpair_t *nvp, int64_t *val)
 {
 	return (nvpair_value_common(nvp, DATA_TYPE_INT64, NULL, val));
 }
 
 int
-nvpair_value_uint64(nvpair_t *nvp, uint64_t *val)
+nvpair_value_uint64(const nvpair_t *nvp, uint64_t *val)
 {
 	return (nvpair_value_common(nvp, DATA_TYPE_UINT64, NULL, val));
 }
 
 #if !defined(_KERNEL)
 int
-nvpair_value_double(nvpair_t *nvp, double *val)
+nvpair_value_double(const nvpair_t *nvp, double *val)
 {
 	return (nvpair_value_common(nvp, DATA_TYPE_DOUBLE, NULL, val));
 }
@@ -2274,10 +2297,11 @@ nvlist_add_nvpair(nvlist_t *nvl, nvpair_t *nvp)
  * the values are taken from nvl in the case of duplicates.
  * Return 0 on success.
  */
-/*ARGSUSED*/
 int
 nvlist_merge(nvlist_t *dst, nvlist_t *nvl, int flag)
 {
+	(void) flag;
+
 	if (nvl == NULL || dst == NULL)
 		return (EINVAL);
 
@@ -2781,10 +2805,10 @@ nvs_native_create(nvstream_t *nvs, nvs_native_t *native, char *buf,
 	}
 }
 
-/*ARGSUSED*/
 static void
 nvs_native_destroy(nvstream_t *nvs)
 {
+	(void) nvs;
 }
 
 static int
@@ -3214,12 +3238,64 @@ nvs_xdr_nvl_fini(nvstream_t *nvs)
 }
 
 /*
+ * xdrproc_t-compatible callbacks for xdr_array()
+ */
+
+#if defined(_KERNEL) && defined(__linux__) /* Linux kernel */
+
+#define	NVS_BUILD_XDRPROC_T(type)		\
+static bool_t					\
+nvs_xdr_nvp_##type(XDR *xdrs, void *ptr)	\
+{						\
+	return (xdr_##type(xdrs, ptr));		\
+}
+
+#elif !defined(_KERNEL) && defined(XDR_CONTROL) /* tirpc */
+
+#define	NVS_BUILD_XDRPROC_T(type)		\
+static bool_t					\
+nvs_xdr_nvp_##type(XDR *xdrs, ...)		\
+{						\
+	va_list args;				\
+	void *ptr;				\
+						\
+	va_start(args, xdrs);			\
+	ptr = va_arg(args, void *);		\
+	va_end(args);				\
+						\
+	return (xdr_##type(xdrs, ptr));		\
+}
+
+#else /* FreeBSD, sunrpc */
+
+#define	NVS_BUILD_XDRPROC_T(type)		\
+static bool_t					\
+nvs_xdr_nvp_##type(XDR *xdrs, void *ptr, ...)	\
+{						\
+	return (xdr_##type(xdrs, ptr));		\
+}
+
+#endif
+
+/* BEGIN CSTYLED */
+NVS_BUILD_XDRPROC_T(char);
+NVS_BUILD_XDRPROC_T(short);
+NVS_BUILD_XDRPROC_T(u_short);
+NVS_BUILD_XDRPROC_T(int);
+NVS_BUILD_XDRPROC_T(u_int);
+NVS_BUILD_XDRPROC_T(longlong_t);
+NVS_BUILD_XDRPROC_T(u_longlong_t);
+/* END CSTYLED */
+
+/*
  * The format of xdr encoded nvpair is:
  * encode_size, decode_size, name string, data type, nelem, data
  */
 static int
 nvs_xdr_nvp_op(nvstream_t *nvs, nvpair_t *nvp)
 {
+	ASSERT(nvs != NULL && nvp != NULL);
+
 	data_type_t type;
 	char	*buf;
 	char	*buf_end = (char *)nvp + nvp->nvp_size;
@@ -3228,7 +3304,7 @@ nvs_xdr_nvp_op(nvstream_t *nvs, nvpair_t *nvp)
 	bool_t	ret = FALSE;
 	XDR	*xdr = nvs->nvs_private;
 
-	ASSERT(xdr != NULL && nvp != NULL);
+	ASSERT(xdr != NULL);
 
 	/* name string */
 	if ((buf = NVP_NAME(nvp)) >= buf_end)
@@ -3335,38 +3411,38 @@ nvs_xdr_nvp_op(nvstream_t *nvs, nvpair_t *nvp)
 	case DATA_TYPE_INT8_ARRAY:
 	case DATA_TYPE_UINT8_ARRAY:
 		ret = xdr_array(xdr, &buf, &nelem, buflen, sizeof (int8_t),
-		    (xdrproc_t)xdr_char);
+		    nvs_xdr_nvp_char);
 		break;
 
 	case DATA_TYPE_INT16_ARRAY:
 		ret = xdr_array(xdr, &buf, &nelem, buflen / sizeof (int16_t),
-		    sizeof (int16_t), (xdrproc_t)xdr_short);
+		    sizeof (int16_t), nvs_xdr_nvp_short);
 		break;
 
 	case DATA_TYPE_UINT16_ARRAY:
 		ret = xdr_array(xdr, &buf, &nelem, buflen / sizeof (uint16_t),
-		    sizeof (uint16_t), (xdrproc_t)xdr_u_short);
+		    sizeof (uint16_t), nvs_xdr_nvp_u_short);
 		break;
 
 	case DATA_TYPE_BOOLEAN_ARRAY:
 	case DATA_TYPE_INT32_ARRAY:
 		ret = xdr_array(xdr, &buf, &nelem, buflen / sizeof (int32_t),
-		    sizeof (int32_t), (xdrproc_t)xdr_int);
+		    sizeof (int32_t), nvs_xdr_nvp_int);
 		break;
 
 	case DATA_TYPE_UINT32_ARRAY:
 		ret = xdr_array(xdr, &buf, &nelem, buflen / sizeof (uint32_t),
-		    sizeof (uint32_t), (xdrproc_t)xdr_u_int);
+		    sizeof (uint32_t), nvs_xdr_nvp_u_int);
 		break;
 
 	case DATA_TYPE_INT64_ARRAY:
 		ret = xdr_array(xdr, &buf, &nelem, buflen / sizeof (int64_t),
-		    sizeof (int64_t), (xdrproc_t)xdr_longlong_t);
+		    sizeof (int64_t), nvs_xdr_nvp_longlong_t);
 		break;
 
 	case DATA_TYPE_UINT64_ARRAY:
 		ret = xdr_array(xdr, &buf, &nelem, buflen / sizeof (uint64_t),
-		    sizeof (uint64_t), (xdrproc_t)xdr_u_longlong_t);
+		    sizeof (uint64_t), nvs_xdr_nvp_u_longlong_t);
 		break;
 
 	case DATA_TYPE_STRING_ARRAY: {

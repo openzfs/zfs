@@ -71,7 +71,7 @@ for fails in $(seq $MMP_FAIL_INTERVALS_MIN $((MMP_FAIL_INTERVALS_MIN*2))); do
 	for interval in $(seq $MMP_INTERVAL_MIN 200 $MMP_INTERVAL_DEFAULT); do
 		log_must set_tunable64 MULTIHOST_FAIL_INTERVALS $fails
 		log_must set_tunable64 MULTIHOST_INTERVAL $interval
-		log_must sync_pool $TESTPOOL
+		sync_pool $TESTPOOL
 		typeset mmp_fail=$(zdb $TESTPOOL 2>/dev/null |
 		    awk '/mmp_fail/ {print $NF}')
 		if [ $fails -ne $mmp_fail ]; then

@@ -20,148 +20,141 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.TH CSTYLE 1 "Aug 24, 2020" OpenZFS
-.SH NAME
-.I cstyle
-\- check for some common stylistic errors in C source files
-.SH SYNOPSIS
-\fBcstyle [-chpvCP] [-o constructs] [file...]\fP
-.LP
-.SH DESCRIPTION
-.IX "OS-Net build tools" "cstyle" "" "\fBcstyle\fP"
-.LP
-.I cstyle
-inspects C source files (*.c and *.h) for common stylistic errors.  It
-attempts to check for the cstyle documented in
-\fIhttp://www.cis.upenn.edu/~lee/06cse480/data/cstyle.ms.pdf\fP.
+.Dd May 26, 2021
+.Dt CSTYLE 1
+.Os
+.
+.Sh NAME
+.Nm cstyle
+.Nd check for some common stylistic errors in C source files
+.Sh SYNOPSIS
+.Nm
+.Op Fl chpvCP
+.Op Fl o Ar construct Ns Op , Ns Ar construct Ns …
+.Oo Ar file Oc Ns …
+.Sh DESCRIPTION
+.Nm
+inspects C source files (*.c and *.h) for common stylistic errors.
+It attempts to check for the cstyle documented in
+.Lk http://www.cis.upenn.edu/~lee/06cse480/data/cstyle.ms.pdf .
 Note that there is much in that document that
-.I cannot
-be checked for; just because your code is \fBcstyle(1)\fP clean does not
-mean that you've followed Sun's C style.  \fICaveat emptor\fP.
-.LP
-.SH OPTIONS
-.LP
+.Em cannot
+be checked for; just because your code is
+.Nm Ns -clean
+does not mean that you've followed Sun's C style.
+.Em Caveat emptor .
+.
+.Sh OPTIONS
 The following options are supported:
-.TP 4
-.B \-c
-Check continuation line indentation inside of functions.  Sun's C style
+.Bl -tag -width "-c"
+.It Fl c
+Check continuation line indentation inside of functions.
+Sun's C style
 states that all statements must be indented to an appropriate tab stop,
-and any continuation lines after them must be indented \fIexactly\fP four
-spaces from the start line.  This option enables a series of checks
-designed to find continuation line problems within functions only.  The
-checks have some limitations;  see CONTINUATION CHECKING, below.
-.LP
-.TP 4
-.B \-h
-Performs heuristic checks that are sometimes wrong.  Not generally used.
-.LP
-.TP 4
-.B \-p
-Performs some of the more picky checks.  Includes ANSI #else and #endif
-rules, and tries to detect spaces after casts.  Used as part of the
-putback checks.
-.LP
-.TP 4
-.B \-v
-Verbose output;  includes the text of the line of error, and, for
-\fB-c\fP, the first statement in the current continuation block.
-.LP
-.TP 4
-.B \-C
+and any continuation lines after them must be indented
+.Em exactly
+four spaces from the start line.
+This option enables a series of checks designed to find
+continuation line problems within functions only.
+The checks have some limitations; see
+.Sy CONTINUATION CHECKING ,
+below.
+.It Fl h
+Performs heuristic checks that are sometimes wrong.
+Not generally used.
+.It Fl p
+Performs some of the more picky checks.
+Includes ANSI
+.Sy #else
+and
+.Sy #endif
+rules, and tries to detect spaces after casts.
+Used as part of the putback checks.
+.It Fl v
+Verbose output; includes the text of the line of error, and, for
+.Fl c ,
+the first statement in the current continuation block.
+.It Fl C
 Ignore errors in header comments (i.e. block comments starting in the
-first column).  Not generally used.
-.LP
-.TP 4
-.B \-P
-Check for use of non-POSIX types.  Historically, types like "u_int" and
-"u_long" were used, but they are now deprecated in favor of the POSIX
-types uint_t, ulong_t, etc.  This detects any use of the deprecated
-types.  Used as part of the putback checks.
-.LP
-.TP 4
-.B \-o \fIconstructs\fP
-Allow a comma-separated list of additional constructs.  Available
-constructs include:
-.LP
-.TP 10
-.B doxygen
-Allow doxygen-style block comments (\fB/**\fP and \fB/*!\fP)
-.LP
-.TP 10
-.B splint
-Allow splint-style lint comments (\fB/*@...@*/\fP)
-.LP
-.SH NOTES
-.LP
-The cstyle rule for the OS/Net consolidation is that all new files must
-be \fB-pP\fP clean.  For existing files, the following invocations are
-run against both the old and new files:
-.LP
-.TP 4
-\fBcstyle file\fB
-.LP
-.TP 4
-\fBcstyle -p file\fB
-.LP
-.TP 4
-\fBcstyle -pP file\fB
-.LP
-If the old file gave no errors for one of the invocations, the new file
-must also give no errors.  This way, files can only become more clean.
-.LP
-.SH CONTINUATION CHECKING
-.LP
+first column).
+Not generally used.
+.It Fl P
+Check for use of non-POSIX types.
+Historically, types like
+.Sy u_int
+and
+.Sy u_long
+were used, but they are now deprecated in favor of the POSIX
+types
+.Sy uint_t ,
+.Sy ulong_t ,
+etc.
+This detects any use of the deprecated types.
+Used as part of the putback checks.
+.It Fl o Ar construct Ns Op , Ns Ar construct Ns …
+Available constructs include:
+.Bl -tag -compact -width "doxygen"
+.It Sy doxygen
+Allow doxygen-style block comments
+.Pq Sy /** No and Sy /*!\& .
+.It Sy splint
+Allow splint-style lint comments
+.Pq Sy /*@ Ns ... Ns Sy @*/ .
+.El
+.El
+.
+.Sh CONTINUATION CHECKING
 The continuation checker is a reasonably simple state machine that knows
 something about how C is laid out, and can match parenthesis, etc. over
-multiple lines.  It does have some limitations:
-.LP
-.TP 4
-.B 1.
+multiple lines.
+It does have some limitations:
+.Bl -enum
+.It
 Preprocessor macros which cause unmatched parenthesis will confuse the
-checker for that line.  To fix this, you'll need to make sure that each
-branch of the #if statement has balanced parenthesis.
-.LP
-.TP 4
-.B 2.
-Some \fBcpp\fP macros do not require ;s after them.  Any such macros
-*must* be ALL_CAPS; any lower case letters will cause bad output.
-.LP
-The bad output will generally be corrected after the next \fB;\fP,
-\fB{\fP, or \fB}\fP.
-.LP
-Some continuation error messages deserve some additional explanation
-.LP
-.TP 4
-.B
-multiple statements continued over multiple lines
-A multi-line statement which is not broken at statement
-boundaries.  For example:
-.RS 4
-.HP 4
+checker for that line.
+To fix this, you'll need to make sure that each branch of the
+.Sy #if
+statement has balanced parenthesis.
+.It
+Some
+.Xr cpp 1
+macros do not require
+.Sy ;\& Ns s after them.
+Any such macros
+.Em must
+be ALL_CAPS; any lower case letters will cause bad output.
+.Pp
+The bad output will generally be corrected after the next
+.Sy ;\& , { , No or Sy } .
+.El
+Some continuation error messages deserve some additional explanation:
+.Bl -tag -width Ds
+.It Sy multiple statements continued over multiple lines
+A multi-line statement which is not broken at statement boundaries.
+For example:
+.Bd -literal -compact -offset Ds
 if (this_is_a_long_variable == another_variable) a =
-.br
-b + c;
-.LP
-Will trigger this error.  Instead, do:
-.HP 8
+    b + c;
+.Ed
+.Pp
+Will trigger this error.
+Instead, do:
+.Bd -literal -compact -offset Ds
 if (this_is_a_long_variable == another_variable)
-.br
-a = b + c;
-.RE
-.LP
-.TP 4
-.B
-empty if/for/while body not on its own line
+    a = b + c;
+.Ed
+.It Sy empty if/for/while body not on its own line
 For visibility, empty bodies for if, for, and while statements should be
-on their own line.  For example:
-.RS 4
-.HP 4
+on their own line.
+For example:
+.Bd -literal -compact -offset Ds
 while (do_something(&x) == 0);
-.LP
-Will trigger this error.  Instead, do:
-.HP 8
+.Ed
+.Pp
+Will trigger this error.
+Instead, do:
+.Bd -literal -compact -offset Ds
 while (do_something(&x) == 0)
-.br
-;
-.RE
-
+    ;
+.Ed
+.El

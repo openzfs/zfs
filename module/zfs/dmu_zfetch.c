@@ -34,6 +34,7 @@
 #include <sys/dmu.h>
 #include <sys/dbuf.h>
 #include <sys/kstat.h>
+#include <sys/wmsum.h>
 
 /*
  * This tunable disables predictive prefetch.  Note that it leaves "prescient"
@@ -42,12 +43,12 @@
  * so it can't hurt performance.
  */
 
-int zfs_prefetch_disable = B_FALSE;
+static int zfs_prefetch_disable = B_FALSE;
 
 /* max # of streams per zfetch */
-unsigned int	zfetch_max_streams = 8;
+static unsigned int	zfetch_max_streams = 8;
 /* min time before stream reclaim */
-unsigned int	zfetch_min_sec_reap = 2;
+static unsigned int	zfetch_min_sec_reap = 2;
 /* max bytes to prefetch per stream (default 8MB) */
 unsigned int	zfetch_max_distance = 8 * 1024 * 1024;
 /* max bytes to prefetch indirects for per stream (default 64MB) */
@@ -69,27 +70,54 @@ static zfetch_stats_t zfetch_stats = {
 	{ "io_issued",		KSTAT_DATA_UINT64 },
 };
 
-#define	ZFETCHSTAT_BUMP(stat) \
-	atomic_inc_64(&zfetch_stats.stat.value.ui64)
+struct {
+	wmsum_t zfetchstat_hits;
+	wmsum_t zfetchstat_misses;
+	wmsum_t zfetchstat_max_streams;
+	wmsum_t zfetchstat_io_issued;
+} zfetch_sums;
+
+#define	ZFETCHSTAT_BUMP(stat)					\
+	wmsum_add(&zfetch_sums.stat, 1)
 #define	ZFETCHSTAT_ADD(stat, val)				\
-	atomic_add_64(&zfetch_stats.stat.value.ui64, val)
-#define	ZFETCHSTAT_SET(stat, val)				\
-	zfetch_stats.stat.value.ui64 = val
-#define	ZFETCHSTAT_GET(stat)					\
-	zfetch_stats.stat.value.ui64
+	wmsum_add(&zfetch_sums.stat, val)
 
 
-kstat_t		*zfetch_ksp;
+static kstat_t		*zfetch_ksp;
+
+static int
+zfetch_kstats_update(kstat_t *ksp, int rw)
+{
+	zfetch_stats_t *zs = ksp->ks_data;
+
+	if (rw == KSTAT_WRITE)
+		return (EACCES);
+	zs->zfetchstat_hits.value.ui64 =
+	    wmsum_value(&zfetch_sums.zfetchstat_hits);
+	zs->zfetchstat_misses.value.ui64 =
+	    wmsum_value(&zfetch_sums.zfetchstat_misses);
+	zs->zfetchstat_max_streams.value.ui64 =
+	    wmsum_value(&zfetch_sums.zfetchstat_max_streams);
+	zs->zfetchstat_io_issued.value.ui64 =
+	    wmsum_value(&zfetch_sums.zfetchstat_io_issued);
+	return (0);
+}
 
 void
 zfetch_init(void)
 {
+	wmsum_init(&zfetch_sums.zfetchstat_hits, 0);
+	wmsum_init(&zfetch_sums.zfetchstat_misses, 0);
+	wmsum_init(&zfetch_sums.zfetchstat_max_streams, 0);
+	wmsum_init(&zfetch_sums.zfetchstat_io_issued, 0);
+
 	zfetch_ksp = kstat_create("zfs", 0, "zfetchstats", "misc",
 	    KSTAT_TYPE_NAMED, sizeof (zfetch_stats) / sizeof (kstat_named_t),
 	    KSTAT_FLAG_VIRTUAL);
 
 	if (zfetch_ksp != NULL) {
 		zfetch_ksp->ks_data = &zfetch_stats;
+		zfetch_ksp->ks_update = zfetch_kstats_update;
 		kstat_install(zfetch_ksp);
 	}
 }
@@ -101,6 +129,11 @@ zfetch_fini(void)
 		kstat_delete(zfetch_ksp);
 		zfetch_ksp = NULL;
 	}
+
+	wmsum_fini(&zfetch_sums.zfetchstat_hits);
+	wmsum_fini(&zfetch_sums.zfetchstat_misses);
+	wmsum_fini(&zfetch_sums.zfetchstat_max_streams);
+	wmsum_fini(&zfetch_sums.zfetchstat_io_issued);
 }
 
 /*
@@ -126,6 +159,8 @@ static void
 dmu_zfetch_stream_fini(zstream_t *zs)
 {
 	ASSERT(!list_link_active(&zs->zs_node));
+	zfs_refcount_destroy(&zs->zs_callers);
+	zfs_refcount_destroy(&zs->zs_refs);
 	kmem_free(zs, sizeof (*zs));
 }
 
@@ -225,6 +260,7 @@ dmu_zfetch_stream_create(zfetch_t *zf, uint64_t blkid)
 static void
 dmu_zfetch_stream_done(void *arg, boolean_t io_issued)
 {
+	(void) io_issued;
 	zstream_t *zs = arg;
 
 	if (zfs_refcount_remove(&zs->zs_refs, NULL) == 0)
@@ -453,7 +489,8 @@ dmu_zfetch_run(zstream_t *zs, boolean_t missed, boolean_t have_lock)
 	issued = pf_end - pf_start + ipf_end - ipf_start;
 	if (issued > 1) {
 		/* More references on top of taken in dmu_zfetch_prepare(). */
-		zfs_refcount_add_many(&zs->zs_refs, issued - 1, NULL);
+		for (int i = 0; i < issued - 1; i++)
+			zfs_refcount_add(&zs->zs_refs, NULL);
 	} else if (issued == 0) {
 		/* Some other thread has done our work, so drop the ref. */
 		if (zfs_refcount_remove(&zs->zs_refs, NULL) == 0)

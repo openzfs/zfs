@@ -31,9 +31,7 @@ verify_runnable "both"
 function cleanup
 {
 	for snap in $TESTSNAP1 $TESTSNAP2; do
-		if snapexists "$snap"; then
-			log_must zfs destroy "$snap"
-		fi
+		snapexists "$snap" && destroy_dataset "$snap"
 	done
 	find "$MNTPOINT" -type f -delete
 	rm -f "$FILEDIFF"
@@ -84,11 +82,7 @@ do
 		continue;
 	fi
 
-	if is_freebsd; then
-		filetime="$(stat -f "%c" $file)"
-	else
-		filetime="$(stat -c '%Z' $file)"
-	fi
+	filetime=$(stat_ctime $file)
 	if [[ "$filetime" != "$ctime" ]]; then
 		log_fail "Unexpected ctime for file $file ($filetime != $ctime)"
 	else

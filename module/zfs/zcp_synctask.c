@@ -54,6 +54,12 @@ typedef struct zcp_synctask_info {
 	int blocks_modified;
 } zcp_synctask_info_t;
 
+static void
+zcp_synctask_cleanup(void *arg)
+{
+	fnvlist_free(arg);
+}
+
 /*
  * Generic synctask interface for channel program syncfuncs.
  *
@@ -108,25 +114,25 @@ zcp_sync_task(lua_State *state, dsl_checkfunc_t *checkfunc,
 
 
 static int zcp_synctask_destroy(lua_State *, boolean_t, nvlist_t *);
-static zcp_synctask_info_t zcp_synctask_destroy_info = {
+static const zcp_synctask_info_t zcp_synctask_destroy_info = {
 	.name = "destroy",
 	.func = zcp_synctask_destroy,
 	.pargs = {
-	    {.za_name = "filesystem | snapshot", .za_lua_type = LUA_TSTRING},
+	    {.za_name = "filesystem | snapshot", .za_lua_type = LUA_TSTRING },
 	    {NULL, 0}
 	},
 	.kwargs = {
-	    {.za_name = "defer", .za_lua_type = LUA_TBOOLEAN},
+	    {.za_name = "defer", .za_lua_type = LUA_TBOOLEAN },
 	    {NULL, 0}
 	},
 	.space_check = ZFS_SPACE_CHECK_DESTROY,
 	.blocks_modified = 0
 };
 
-/* ARGSUSED */
 static int
 zcp_synctask_destroy(lua_State *state, boolean_t sync, nvlist_t *err_details)
 {
+	(void) err_details;
 	int err;
 	const char *dsname = lua_tostring(state, 1);
 
@@ -161,11 +167,11 @@ zcp_synctask_destroy(lua_State *state, boolean_t sync, nvlist_t *err_details)
 }
 
 static int zcp_synctask_promote(lua_State *, boolean_t, nvlist_t *);
-static zcp_synctask_info_t zcp_synctask_promote_info = {
+static const zcp_synctask_info_t zcp_synctask_promote_info = {
 	.name = "promote",
 	.func = zcp_synctask_promote,
 	.pargs = {
-	    {.za_name = "clone", .za_lua_type = LUA_TSTRING},
+	    {.za_name = "clone", .za_lua_type = LUA_TSTRING },
 	    {NULL, 0}
 	},
 	.kwargs = {
@@ -199,13 +205,13 @@ zcp_synctask_promote(lua_State *state, boolean_t sync, nvlist_t *err_details)
 }
 
 static int zcp_synctask_rollback(lua_State *, boolean_t, nvlist_t *err_details);
-static zcp_synctask_info_t zcp_synctask_rollback_info = {
+static const zcp_synctask_info_t zcp_synctask_rollback_info = {
 	.name = "rollback",
 	.func = zcp_synctask_rollback,
 	.space_check = ZFS_SPACE_CHECK_RESERVED,
 	.blocks_modified = 1,
 	.pargs = {
-	    {.za_name = "filesystem", .za_lua_type = LUA_TSTRING},
+	    {.za_name = "filesystem", .za_lua_type = LUA_TSTRING },
 	    {0, 0}
 	},
 	.kwargs = {
@@ -230,12 +236,12 @@ zcp_synctask_rollback(lua_State *state, boolean_t sync, nvlist_t *err_details)
 }
 
 static int zcp_synctask_snapshot(lua_State *, boolean_t, nvlist_t *);
-static zcp_synctask_info_t zcp_synctask_snapshot_info = {
+static const zcp_synctask_info_t zcp_synctask_snapshot_info = {
 	.name = "snapshot",
 	.func = zcp_synctask_snapshot,
 	.pargs = {
 	    {.za_name = "filesystem@snapname | volume@snapname",
-	    .za_lua_type = LUA_TSTRING},
+	    .za_lua_type = LUA_TSTRING },
 	    {NULL, 0}
 	},
 	.kwargs = {
@@ -245,10 +251,10 @@ static zcp_synctask_info_t zcp_synctask_snapshot_info = {
 	.blocks_modified = 3
 };
 
-/* ARGSUSED */
 static int
 zcp_synctask_snapshot(lua_State *state, boolean_t sync, nvlist_t *err_details)
 {
+	(void) err_details;
 	int err;
 	dsl_dataset_snapshot_arg_t ddsa = { 0 };
 	const char *dsname = lua_tostring(state, 1);
@@ -275,7 +281,7 @@ zcp_synctask_snapshot(lua_State *state, boolean_t sync, nvlist_t *err_details)
 	fnvlist_add_boolean(ddsa.ddsa_snaps, dsname);
 
 	zcp_cleanup_handler_t *zch = zcp_register_cleanup(state,
-	    (zcp_cleanup_t *)&fnvlist_free, ddsa.ddsa_snaps);
+	    zcp_synctask_cleanup, ddsa.ddsa_snaps);
 
 	err = zcp_sync_task(state, dsl_dataset_snapshot_check,
 	    dsl_dataset_snapshot_sync, &ddsa, sync, dsname);
@@ -298,7 +304,7 @@ zcp_synctask_snapshot(lua_State *state, boolean_t sync, nvlist_t *err_details)
 
 static int zcp_synctask_inherit_prop(lua_State *, boolean_t,
     nvlist_t *err_details);
-static zcp_synctask_info_t zcp_synctask_inherit_prop_info = {
+static const zcp_synctask_info_t zcp_synctask_inherit_prop_info = {
 	.name = "inherit",
 	.func = zcp_synctask_inherit_prop,
 	.space_check = ZFS_SPACE_CHECK_RESERVED,
@@ -348,6 +354,7 @@ static int
 zcp_synctask_inherit_prop(lua_State *state, boolean_t sync,
     nvlist_t *err_details)
 {
+	(void) err_details;
 	int err;
 	zcp_inherit_prop_arg_t zipa = { 0 };
 	dsl_props_set_arg_t *dpsa = &zipa.zipa_dpsa;
@@ -363,7 +370,7 @@ zcp_synctask_inherit_prop(lua_State *state, boolean_t sync,
 	fnvlist_add_boolean(dpsa->dpsa_props, prop);
 
 	zcp_cleanup_handler_t *zch = zcp_register_cleanup(state,
-	    (zcp_cleanup_t *)&fnvlist_free, dpsa->dpsa_props);
+	    zcp_synctask_cleanup, dpsa->dpsa_props);
 
 	err = zcp_sync_task(state, zcp_synctask_inherit_prop_check,
 	    zcp_synctask_inherit_prop_sync, &zipa, sync, dsname);
@@ -375,12 +382,12 @@ zcp_synctask_inherit_prop(lua_State *state, boolean_t sync,
 }
 
 static int zcp_synctask_bookmark(lua_State *, boolean_t, nvlist_t *);
-static zcp_synctask_info_t zcp_synctask_bookmark_info = {
+static const zcp_synctask_info_t zcp_synctask_bookmark_info = {
 	.name = "bookmark",
 	.func = zcp_synctask_bookmark,
 	.pargs = {
-	    {.za_name = "snapshot | bookmark", .za_lua_type = LUA_TSTRING},
-	    {.za_name = "bookmark", .za_lua_type = LUA_TSTRING},
+	    {.za_name = "snapshot | bookmark", .za_lua_type = LUA_TSTRING },
+	    {.za_name = "bookmark", .za_lua_type = LUA_TSTRING },
 	    {NULL, 0}
 	},
 	.kwargs = {
@@ -390,10 +397,10 @@ static zcp_synctask_info_t zcp_synctask_bookmark_info = {
 	.blocks_modified = 1,
 };
 
-/* ARGSUSED */
 static int
 zcp_synctask_bookmark(lua_State *state, boolean_t sync, nvlist_t *err_details)
 {
+	(void) err_details;
 	int err;
 	const char *source = lua_tostring(state, 1);
 	const char *new = lua_tostring(state, 2);
@@ -402,7 +409,7 @@ zcp_synctask_bookmark(lua_State *state, boolean_t sync, nvlist_t *err_details)
 	fnvlist_add_string(bmarks, new, source);
 
 	zcp_cleanup_handler_t *zch = zcp_register_cleanup(state,
-	    (zcp_cleanup_t *)&fnvlist_free, bmarks);
+	    zcp_synctask_cleanup, bmarks);
 
 	dsl_bookmark_create_arg_t dbca = {
 		.dbca_bmarks = bmarks,
@@ -418,15 +425,15 @@ zcp_synctask_bookmark(lua_State *state, boolean_t sync, nvlist_t *err_details)
 }
 
 static int zcp_synctask_set_prop(lua_State *, boolean_t, nvlist_t *err_details);
-static zcp_synctask_info_t zcp_synctask_set_prop_info = {
+static const zcp_synctask_info_t zcp_synctask_set_prop_info = {
 	.name = "set_prop",
 	.func = zcp_synctask_set_prop,
 	.space_check = ZFS_SPACE_CHECK_RESERVED,
 	.blocks_modified = 2,
 	.pargs = {
-		{ .za_name = "dataset", .za_lua_type = LUA_TSTRING},
-		{ .za_name = "property", .za_lua_type =  LUA_TSTRING},
-		{ .za_name = "value", .za_lua_type =  LUA_TSTRING},
+		{ .za_name = "dataset", .za_lua_type = LUA_TSTRING },
+		{ .za_name = "property", .za_lua_type =  LUA_TSTRING },
+		{ .za_name = "value", .za_lua_type =  LUA_TSTRING },
 		{ NULL, 0 }
 	},
 	.kwargs = {
@@ -437,6 +444,7 @@ static zcp_synctask_info_t zcp_synctask_set_prop_info = {
 static int
 zcp_synctask_set_prop(lua_State *state, boolean_t sync, nvlist_t *err_details)
 {
+	(void) err_details;
 	int err;
 	zcp_set_prop_arg_t args = { 0 };
 
@@ -467,8 +475,7 @@ zcp_synctask_wrapper(lua_State *state)
 	 * Make sure err_details is properly freed, even if a fatal error is
 	 * thrown during the synctask.
 	 */
-	zch = zcp_register_cleanup(state,
-	    (zcp_cleanup_t *)&fnvlist_free, err_details);
+	zch = zcp_register_cleanup(state, zcp_synctask_cleanup, err_details);
 
 	zcp_synctask_info_t *info = lua_touserdata(state, lua_upvalueindex(1));
 	boolean_t sync = lua_toboolean(state, lua_upvalueindex(2));
@@ -517,8 +524,7 @@ zcp_synctask_wrapper(lua_State *state)
 int
 zcp_load_synctask_lib(lua_State *state, boolean_t sync)
 {
-	int i;
-	zcp_synctask_info_t *zcp_synctask_funcs[] = {
+	const zcp_synctask_info_t *zcp_synctask_funcs[] = {
 		&zcp_synctask_destroy_info,
 		&zcp_synctask_promote_info,
 		&zcp_synctask_rollback_info,
@@ -531,13 +537,12 @@ zcp_load_synctask_lib(lua_State *state, boolean_t sync)
 
 	lua_newtable(state);
 
-	for (i = 0; zcp_synctask_funcs[i] != NULL; i++) {
-		zcp_synctask_info_t *info = zcp_synctask_funcs[i];
-		lua_pushlightuserdata(state, info);
+	for (int i = 0; zcp_synctask_funcs[i] != NULL; i++) {
+		const zcp_synctask_info_t *info = zcp_synctask_funcs[i];
+		lua_pushlightuserdata(state, (void *)(uintptr_t)info);
 		lua_pushboolean(state, sync);
 		lua_pushcclosure(state, &zcp_synctask_wrapper, 2);
 		lua_setfield(state, -2, info->name);
-		info++;
 	}
 
 	return (1);

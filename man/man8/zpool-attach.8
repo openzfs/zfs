@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
@@ -30,24 +29,18 @@
 .Dd May 15, 2020
 .Dt ZPOOL-ATTACH 8
 .Os
+.
 .Sh NAME
 .Nm zpool-attach
-.Nd Attach a new device to an existing ZFS virtual device (vdev).
+.Nd attach new device to existing ZFS vdev
 .Sh SYNOPSIS
 .Nm zpool
 .Cm attach
 .Op Fl fsw
 .Oo Fl o Ar property Ns = Ns Ar value Oc
 .Ar pool device new_device
+.
 .Sh DESCRIPTION
-.Bl -tag -width Ds
-.It Xo
-.Nm zpool
-.Cm attach
-.Op Fl fsw
-.Oo Fl o Ar property Ns = Ns Ar value Oc
-.Ar pool device new_device
-.Xc
 Attaches
 .Ar new_device
 to the existing
@@ -76,15 +69,17 @@ Forces use of
 even if it appears to be in use.
 Not all devices can be overridden in this manner.
 .It Fl o Ar property Ns = Ns Ar value
-Sets the given pool properties. See the
-.Xr zpoolprops 8
-manual page for a list of valid properties that can be set. The only property
-supported at the moment is ashift.
+Sets the given pool properties.
+See the
+.Xr zpoolprops 7
+manual page for a list of valid properties that can be set.
+The only property supported at the moment is
+.Sy ashift .
 .It Fl s
 The
 .Ar new_device
 is reconstructed sequentially to restore redundancy as quickly as possible.
-Checksums are not verfied during sequential reconstruction so a scrub is
+Checksums are not verified during sequential reconstruction so a scrub is
 started when the resilver completes.
 Sequential reconstruction is not supported for raidz configurations.
 .It Fl w
@@ -92,10 +87,10 @@ Waits until
 .Ar new_device
 has finished resilvering before returning.
 .El
-.El
+.
 .Sh SEE ALSO
-.Xr zpool-detach 8 ,
 .Xr zpool-add 8 ,
+.Xr zpool-detach 8 ,
 .Xr zpool-import 8 ,
 .Xr zpool-initialize 8 ,
 .Xr zpool-online 8 ,

@@ -4,6 +4,10 @@ dnl # The is_owner_or_cap() macro was renamed to inode_owner_or_capable(),
 dnl # This is used for permission checks in the xattr and file attribute call
 dnl # paths.
 dnl #
+dnl # 5.12 API change,
+dnl # inode_owner_or_capable() now takes struct user_namespace *
+dnl # to support idmapped mounts
+dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_OWNER_OR_CAPABLE], [
 	ZFS_LINUX_TEST_SRC([inode_owner_or_capable], [
 		#include <linux/fs.h>

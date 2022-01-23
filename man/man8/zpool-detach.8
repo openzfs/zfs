@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
@@ -30,32 +29,30 @@
 .Dd August 9, 2019
 .Dt ZPOOL-DETACH 8
 .Os
+.
 .Sh NAME
 .Nm zpool-detach
-.Nd Detaches a device from a ZFS mirror vdev (virtual device)
+.Nd detach device from ZFS mirror
 .Sh SYNOPSIS
 .Nm zpool
 .Cm detach
 .Ar pool device
+.
 .Sh DESCRIPTION
-.Bl -tag -width Ds
-.It Xo
-.Nm zpool
-.Cm detach
-.Ar pool device
-.Xc
 Detaches
 .Ar device
 from a mirror.
 The operation is refused if there are no other valid replicas of the data.
-If device may be re-added to the pool later on then consider the
-.Sy zpool offline
+If
+.Ar device
+may be re-added to the pool later on then consider the
+.Nm zpool Cm offline
 command instead.
-.El
+.
 .Sh SEE ALSO
 .Xr zpool-attach 8 ,
-.Xr zpool-offline 8 ,
 .Xr zpool-labelclear 8 ,
+.Xr zpool-offline 8 ,
 .Xr zpool-remove 8 ,
 .Xr zpool-replace 8 ,
 .Xr zpool-split 8

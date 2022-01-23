@@ -72,7 +72,7 @@
  * will be limited to 2-256 objects per magazine (i.e per cpu).  Magazines
  * may never be entirely disabled in this implementation.
  */
-unsigned int spl_kmem_cache_magazine_size = 0;
+static unsigned int spl_kmem_cache_magazine_size = 0;
 module_param(spl_kmem_cache_magazine_size, uint, 0444);
 MODULE_PARM_DESC(spl_kmem_cache_magazine_size,
 	"Default magazine size (2-256), set automatically (0)");
@@ -84,15 +84,15 @@ MODULE_PARM_DESC(spl_kmem_cache_magazine_size,
  * setting this value to KMC_RECLAIM_ONCE limits how aggressively the cache
  * is reclaimed.  This may increase the likelihood of out of memory events.
  */
-unsigned int spl_kmem_cache_reclaim = 0 /* KMC_RECLAIM_ONCE */;
+static unsigned int spl_kmem_cache_reclaim = 0 /* KMC_RECLAIM_ONCE */;
 module_param(spl_kmem_cache_reclaim, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_cache_reclaim, "Single reclaim pass (0x1)");
 
-unsigned int spl_kmem_cache_obj_per_slab = SPL_KMEM_CACHE_OBJ_PER_SLAB;
+static unsigned int spl_kmem_cache_obj_per_slab = SPL_KMEM_CACHE_OBJ_PER_SLAB;
 module_param(spl_kmem_cache_obj_per_slab, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_cache_obj_per_slab, "Number of objects per slab");
 
-unsigned int spl_kmem_cache_max_size = SPL_KMEM_CACHE_MAX_SIZE;
+static unsigned int spl_kmem_cache_max_size = SPL_KMEM_CACHE_MAX_SIZE;
 module_param(spl_kmem_cache_max_size, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_cache_max_size, "Maximum size of slab in MB");
 
@@ -100,13 +100,10 @@ MODULE_PARM_DESC(spl_kmem_cache_max_size, "Maximum size of slab in MB");
  * For small objects the Linux slab allocator should be used to make the most
  * efficient use of the memory.  However, large objects are not supported by
  * the Linux slab and therefore the SPL implementation is preferred.  A cutoff
- * of 16K was determined to be optimal for architectures using 4K pages.
+ * of 16K was determined to be optimal for architectures using 4K pages and
+ * to also work well on architecutres using larger 64K page sizes.
  */
-#if PAGE_SIZE == 4096
-unsigned int spl_kmem_cache_slab_limit = 16384;
-#else
-unsigned int spl_kmem_cache_slab_limit = 0;
-#endif
+static unsigned int spl_kmem_cache_slab_limit = 16384;
 module_param(spl_kmem_cache_slab_limit, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_cache_slab_limit,
 	"Objects less than N bytes use the Linux slab");
@@ -115,7 +112,7 @@ MODULE_PARM_DESC(spl_kmem_cache_slab_limit,
  * The number of threads available to allocate new slabs for caches.  This
  * should not need to be tuned but it is available for performance analysis.
  */
-unsigned int spl_kmem_cache_kmem_threads = 4;
+static unsigned int spl_kmem_cache_kmem_threads = 4;
 module_param(spl_kmem_cache_kmem_threads, uint, 0444);
 MODULE_PARM_DESC(spl_kmem_cache_kmem_threads,
 	"Number of spl_kmem_cache threads");
@@ -527,9 +524,7 @@ spl_cache_flush(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flush)
  * Size a slab based on the size of each aligned object plus spl_kmem_obj_t.
  * When on-slab we want to target spl_kmem_cache_obj_per_slab.  However,
  * for very small objects we may end up with more than this so as not
- * to waste space in the minimal allocation of a single page.  Also for
- * very large objects we may use as few as spl_kmem_cache_obj_per_slab_min,
- * lower than this and we will fail.
+ * to waste space in the minimal allocation of a single page.
  */
 static int
 spl_slab_size(spl_kmem_cache_t *skc, uint32_t *objs, uint32_t *size)

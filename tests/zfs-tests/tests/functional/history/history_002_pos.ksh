@@ -49,7 +49,7 @@ function cleanup
 	[[ -f $tmpfile ]] && rm -f $tmpfile
 	[[ -f $tmpfile2 ]] && rm -f $tmpfile2
 	for dataset in $fs $newfs $fsclone $vol $newvol $volclone; do
-		datasetexists $dataset && zfs destroy -Rf $dataset
+		datasetexists $dataset && destroy_dataset $dataset -Rf
 	done
 	rm -rf /history.$$
 }

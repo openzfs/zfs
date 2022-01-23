@@ -42,7 +42,7 @@ __FBSDID("$FreeBSD$");
 #include <unistd.h>
 #include <libintl.h>
 
-#include "libzfs_impl.h"
+#include <libshare.h>
 #include "libshare_impl.h"
 #include "nfs.h"
 
@@ -53,42 +53,6 @@ __FBSDID("$FreeBSD$");
 #define	ZFS_EXPORTS_LOCK	ZFS_EXPORTS_FILE".lock"
 
 static sa_fstype_t *nfs_fstype;
-
-/*
- * Read one line from a file. Skip comments, empty lines and a line with a
- * mountpoint specified in the 'skip' argument.
- *
- * NOTE: This function returns a static buffer and thus is not thread-safe.
- */
-static char *
-zgetline(FILE *fd, const char *skip)
-{
-	static char line[MAXLINESIZE];
-	size_t len, skiplen = 0;
-	char *s, last;
-
-	if (skip != NULL)
-		skiplen = strlen(skip);
-	for (;;) {
-		s = fgets(line, sizeof (line), fd);
-		if (s == NULL)
-			return (NULL);
-		/* Skip empty lines and comments. */
-		if (line[0] == '\n' || line[0] == '#')
-			continue;
-		len = strlen(line);
-		if (line[len - 1] == '\n')
-			line[len - 1] = '\0';
-		last = line[skiplen];
-		/* Skip the given mountpoint. */
-		if (skip != NULL && strncmp(skip, line, skiplen) == 0 &&
-		    (last == '\t' || last == ' ' || last == '\0')) {
-			continue;
-		}
-		break;
-	}
-	return (line);
-}
 
 /*
  * This function translate options to a format acceptable by exports(5), eg.
@@ -143,79 +107,16 @@ translate_opts(const char *shareopts)
 	return (newopts);
 }
 
-/*
- * This function copies all entries from the exports file to "filename",
- * omitting any entries for the specified mountpoint.
- */
-__attribute__((visibility("hidden"))) int
-nfs_copy_entries(char *filename, const char *mountpoint)
-{
-	int error = SA_OK;
-	char *line;
-
-	FILE *oldfp = fopen(ZFS_EXPORTS_FILE, "re");
-	FILE *newfp = fopen(filename, "w+e");
-	if (newfp == NULL) {
-		fprintf(stderr, "failed to open %s file: %s", filename,
-		    strerror(errno));
-		fclose(oldfp);
-		return (SA_SYSTEM_ERR);
-	}
-	fputs(FILE_HEADER, newfp);
-
-	/*
-	 * The ZFS_EXPORTS_FILE may not exist yet. If that's the
-	 * case then just write out the new file.
-	 */
-	if (oldfp != NULL) {
-		while ((line = zgetline(oldfp, mountpoint)) != NULL)
-			fprintf(newfp, "%s\n", line);
-		if (ferror(oldfp) != 0) {
-			error = ferror(oldfp);
-		}
-		if (fclose(oldfp) != 0) {
-			fprintf(stderr, "Unable to close file %s: %s\n",
-			    filename, strerror(errno));
-			error = error != 0 ? error : SA_SYSTEM_ERR;
-		}
-	}
-
-	if (error == 0 && ferror(newfp) != 0) {
-		error = ferror(newfp);
-	}
-
-	if (fclose(newfp) != 0) {
-		fprintf(stderr, "Unable to close file %s: %s\n",
-		    filename, strerror(errno));
-		error = error != 0 ? error : SA_SYSTEM_ERR;
-	}
-	return (error);
-}
-
 static int
-nfs_enable_share_impl(sa_share_impl_t impl_share, char *filename)
+nfs_enable_share_impl(sa_share_impl_t impl_share, FILE *tmpfile)
 {
-	FILE *fp = fopen(filename, "a+e");
-	if (fp == NULL) {
-		fprintf(stderr, "failed to open %s file: %s", filename,
-		    strerror(errno));
-		return (SA_SYSTEM_ERR);
-	}
-
 	char *shareopts = FSINFO(impl_share, nfs_fstype)->shareopts;
 	if (strcmp(shareopts, "on") == 0)
 		shareopts = "";
 
-	if (fprintf(fp, "%s\t%s\n", impl_share->sa_mountpoint,
+	if (fprintf(tmpfile, "%s\t%s\n", impl_share->sa_mountpoint,
 	    translate_opts(shareopts)) < 0) {
-		fprintf(stderr, "failed to write to %s\n", filename);
-		fclose(fp);
-		return (SA_SYSTEM_ERR);
-	}
-
-	if (fclose(fp) != 0) {
-		fprintf(stderr, "Unable to close file %s: %s\n",
-		    filename, strerror(errno));
+		fprintf(stderr, "failed to write to temporary file\n");
 		return (SA_SYSTEM_ERR);
 	}
 
@@ -231,8 +132,9 @@ nfs_enable_share(sa_share_impl_t impl_share)
 }
 
 static int
-nfs_disable_share_impl(sa_share_impl_t impl_share, char *filename)
+nfs_disable_share_impl(sa_share_impl_t impl_share, FILE *tmpfile)
 {
+	(void) impl_share, (void) tmpfile;
 	return (SA_OK);
 }
 
@@ -247,35 +149,7 @@ nfs_disable_share(sa_share_impl_t impl_share)
 static boolean_t
 nfs_is_shared(sa_share_impl_t impl_share)
 {
-	char *s, last, line[MAXLINESIZE];
-	size_t len;
-	char *mntpoint = impl_share->sa_mountpoint;
-	size_t mntlen = strlen(mntpoint);
-
-	FILE *fp = fopen(ZFS_EXPORTS_FILE, "re");
-	if (fp == NULL)
-		return (B_FALSE);
-
-	for (;;) {
-		s = fgets(line, sizeof (line), fp);
-		if (s == NULL)
-			return (B_FALSE);
-		/* Skip empty lines and comments. */
-		if (line[0] == '\n' || line[0] == '#')
-			continue;
-		len = strlen(line);
-		if (line[len - 1] == '\n')
-			line[len - 1] = '\0';
-		last = line[mntlen];
-		/* Skip the given mountpoint. */
-		if (strncmp(mntpoint, line, mntlen) == 0 &&
-		    (last == '\t' || last == ' ' || last == '\0')) {
-			fclose(fp);
-			return (B_TRUE);
-		}
-	}
-	fclose(fp);
-	return (B_FALSE);
+	return (nfs_is_shared_impl(ZFS_EXPORTS_FILE, impl_share));
 }
 
 static int
@@ -306,15 +180,21 @@ nfs_commit_shares(void)
 	struct pidfh *pfh;
 	pid_t mountdpid;
 
+start:
 	pfh = pidfile_open(_PATH_MOUNTDPID, 0600, &mountdpid);
 	if (pfh != NULL) {
-		/* Mountd is not running. */
+		/* mountd(8) is not running. */
 		pidfile_remove(pfh);
 		return (SA_OK);
 	}
 	if (errno != EEXIST) {
 		/* Cannot open pidfile for some reason. */
 		return (SA_SYSTEM_ERR);
+	}
+	if (mountdpid == -1) {
+		/* mountd(8) exists, but didn't write the PID yet */
+		usleep(500);
+		goto start;
 	}
 	/* We have mountd(8) PID in mountdpid variable. */
 	kill(mountdpid, SIGHUP);

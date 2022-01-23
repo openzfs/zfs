@@ -80,7 +80,7 @@ unsigned int zfs_object_mutex_size = ZFS_OBJ_MTX_SZ;
  * This is used by the test suite so that it can delay znodes from being
  * freed in order to inspect the unlinked set.
  */
-int zfs_unlink_suspend_progress = 0;
+static int zfs_unlink_suspend_progress = 0;
 
 /*
  * This callback is invoked when acquiring a RL_WRITER or RL_APPEND lock on
@@ -430,7 +430,7 @@ zfs_inode_set_ops(zfsvfs_t *zfsvfs, struct inode *ip)
 	case S_IFBLK:
 		(void) sa_lookup(ITOZ(ip)->z_sa_hdl, SA_ZPL_RDEV(zfsvfs), &rdev,
 		    sizeof (rdev));
-		/*FALLTHROUGH*/
+		fallthrough;
 	case S_IFIFO:
 	case S_IFSOCK:
 		init_special_inode(ip, ip->i_mode, rdev);
@@ -525,9 +525,9 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	uint64_t tmp_gen;
 	uint64_t links;
 	uint64_t z_uid, z_gid;
-	uint64_t atime[2], mtime[2], ctime[2];
+	uint64_t atime[2], mtime[2], ctime[2], btime[2];
 	uint64_t projid = ZFS_DEFAULT_PROJID;
-	sa_bulk_attr_t bulk[11];
+	sa_bulk_attr_t bulk[12];
 	int count = 0;
 
 	ASSERT(zfsvfs != NULL);
@@ -569,6 +569,7 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_ATIME(zfsvfs), NULL, &atime, 16);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(zfsvfs), NULL, &mtime, 16);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zfsvfs), NULL, &ctime, 16);
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CRTIME(zfsvfs), NULL, &btime, 16);
 
 	if (sa_bulk_lookup(zp->z_sa_hdl, bulk, count) != 0 || tmp_gen == 0 ||
 	    (dmu_objset_projectquota_enabled(zfsvfs->z_os) &&
@@ -596,6 +597,7 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	ZFS_TIME_DECODE(&ip->i_atime, atime);
 	ZFS_TIME_DECODE(&ip->i_mtime, mtime);
 	ZFS_TIME_DECODE(&ip->i_ctime, ctime);
+	ZFS_TIME_DECODE(&zp->z_btime, btime);
 
 	ip->i_ino = zp->z_id;
 	zfs_znode_update_vfs(zp);
@@ -606,17 +608,24 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	 * number is already hashed for this super block.  This can never
 	 * happen because the inode numbers map 1:1 with the object numbers.
 	 *
-	 * The one exception is rolling back a mounted file system, but in
-	 * this case all the active inode are unhashed during the rollback.
+	 * Exceptions include rolling back a mounted file system, either
+	 * from the zfs rollback or zfs recv command.
+	 *
+	 * Active inodes are unhashed during the rollback, but since zrele
+	 * can happen asynchronously, we can't guarantee they've been
+	 * unhashed.  This can cause hash collisions in unlinked drain
+	 * processing so do not hash unlinked znodes.
 	 */
-	VERIFY3S(insert_inode_locked(ip), ==, 0);
+	if (links > 0)
+		VERIFY3S(insert_inode_locked(ip), ==, 0);
 
 	mutex_enter(&zfsvfs->z_znodes_lock);
 	list_insert_tail(&zfsvfs->z_all_znodes, zp);
 	zfsvfs->z_nr_znodes++;
 	mutex_exit(&zfsvfs->z_znodes_lock);
 
-	unlock_new_inode(ip);
+	if (links > 0)
+		unlock_new_inode(ip);
 	return (zp);
 
 error:
@@ -1162,12 +1171,12 @@ zfs_rezget(znode_t *zp)
 	uint64_t obj_num = zp->z_id;
 	uint64_t mode;
 	uint64_t links;
-	sa_bulk_attr_t bulk[10];
+	sa_bulk_attr_t bulk[11];
 	int err;
 	int count = 0;
 	uint64_t gen;
 	uint64_t z_uid, z_gid;
-	uint64_t atime[2], mtime[2], ctime[2];
+	uint64_t atime[2], mtime[2], ctime[2], btime[2];
 	uint64_t projid = ZFS_DEFAULT_PROJID;
 	znode_hold_t *zh;
 
@@ -1237,6 +1246,7 @@ zfs_rezget(znode_t *zp)
 	    &mtime, 16);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zfsvfs), NULL,
 	    &ctime, 16);
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CRTIME(zfsvfs), NULL, &btime, 16);
 
 	if (sa_bulk_lookup(zp->z_sa_hdl, bulk, count)) {
 		zfs_znode_dmu_fini(zp);
@@ -1262,6 +1272,7 @@ zfs_rezget(znode_t *zp)
 	ZFS_TIME_DECODE(&ZTOI(zp)->i_atime, atime);
 	ZFS_TIME_DECODE(&ZTOI(zp)->i_mtime, mtime);
 	ZFS_TIME_DECODE(&ZTOI(zp)->i_ctime, ctime);
+	ZFS_TIME_DECODE(&zp->z_btime, btime);
 
 	if ((uint32_t)gen != ZTOI(zp)->i_generation) {
 		zfs_znode_dmu_fini(zp);

@@ -185,10 +185,11 @@ main(int argc, char **argv)
 			break;
 		case 'h':
 		case '?':
-			(void) fprintf(stderr, gettext("Invalid option '%c'\n"),
-			    optopt);
+			if (optopt)
+				(void) fprintf(stderr,
+				    gettext("Invalid option '%c'\n"), optopt);
 			(void) fprintf(stderr, gettext("Usage: mount.zfs "
-			    "[-sfnv] [-o options] <dataset> <mountpoint>\n"));
+			    "[-sfnvh] [-o options] <dataset> <mountpoint>\n"));
 			return (MOUNT_USAGE);
 		}
 	}
@@ -367,8 +368,8 @@ main(int argc, char **argv)
 				    "mount the filesystem again.\n"), dataset);
 				return (MOUNT_SYSERR);
 			}
-			/* fallthru */
 #endif
+			fallthrough;
 		default:
 			(void) fprintf(stderr, gettext("filesystem "
 			    "'%s' can not be mounted: %s\n"), dataset,

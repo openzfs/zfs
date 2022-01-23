@@ -46,9 +46,7 @@
 
 function cleanup
 {
-	if datasetexists $snapfs; then
-		log_must zfs destroy $snapfs
-	fi
+	datasetexists $snapfs && destroy_dataset $snapfs
 
 	log_must rm -f ${QFILE}_*
 	log_must cleanup_quota
@@ -80,7 +78,7 @@ log_must zfs set xattr=sa $QFS
 log_must user_run $QUSER1 mkfiles ${QFILE}_1 $user1_cnt
 log_must user_run $QUSER2 mkfiles ${QFILE}_2 $user2_cnt
 ((grp_cnt = user1_cnt + user2_cnt))
-sync_pool
+sync_all_pools
 
 typeset snapfs=$QFS@snap
 

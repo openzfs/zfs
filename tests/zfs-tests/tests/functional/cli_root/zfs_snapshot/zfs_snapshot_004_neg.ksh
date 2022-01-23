@@ -44,9 +44,7 @@ verify_runnable "both"
 
 function cleanup
 {
-	if datasetexists $initfs ; then
-		log_must zfs destroy -rf $initfs
-	fi
+	datasetexists $initfs && destroy_dataset $initfs -rf
 }
 
 log_assert "Verify recursive snapshotting could not break ZFS."
@@ -70,9 +68,7 @@ while ((ret == 0)); do
 		# is incorrect
 		#
 		if ((len >= 255)); then
-			if datasetexists $basefs; then
-				log_must zfs destroy -r $basefs
-			fi
+			datasetexists $basefs && destroy_dataset $basefs -r
 			basefs=${basefs%/*}
 			len=$(echo $basefs| wc -c)
 		fi

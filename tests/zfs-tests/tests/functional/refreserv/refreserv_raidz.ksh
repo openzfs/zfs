@@ -110,7 +110,7 @@ for parity in 1 2 3; do
 			block_device_wait "/dev/zvol/$vol"
 			log_must dd if=/dev/zero of=/dev/zvol/$vol \
 			    bs=1024k count=$volsize
-			sync
+			sync_pool $TESTPOOL
 
 			ref=$(zfs get -Hpo value referenced "$vol")
 			refres=$(zfs get -Hpo value refreservation "$vol")

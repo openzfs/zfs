@@ -116,3 +116,22 @@ function verify_reverse_sort { # command list name
 			"unexpected number of filesystems found in list output!"
 	fi
 }
+
+function is_fs_type_zfs {
+
+    typeset dirname=$1
+    typeset fs="$(df $dirname | tail -1 | awk '{print $NF}')"
+
+    if is_freebsd; then
+        fs_type=$(mount | awk -v fs=$fs '{if ($3 == fs) print $4}' \
+            | sed -n 's/(\(.*\),/\1/p')
+    elif is_linux; then
+        fs_type=$(mount | awk -v fs=$fs '{if ($3 == fs) print $5}')
+    fi
+
+    if [[ $fs_type == "zfs" ]]; then
+        true
+    else
+        false
+    fi
+}

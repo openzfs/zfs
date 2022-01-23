@@ -33,8 +33,8 @@ typedef struct zfs_dbgmsg {
 	char			zdm_msg[1]; /* variable length allocation */
 } zfs_dbgmsg_t;
 
-procfs_list_t zfs_dbgmsgs;
-int zfs_dbgmsg_size = 0;
+static procfs_list_t zfs_dbgmsgs;
+static int zfs_dbgmsg_size = 0;
 int zfs_dbgmsg_maxsize = 4<<20; /* 4MB */
 
 /*
@@ -49,7 +49,7 @@ int zfs_dbgmsg_maxsize = 4<<20; /* 4MB */
  * # Clear the kernel debug message log.
  * echo 0 >/proc/spl/kstat/zfs/dbgmsg
  */
-int zfs_dbgmsg_enable = 1;
+int zfs_dbgmsg_enable = B_TRUE;
 
 static int
 zfs_dbgmsg_show_header(struct seq_file *f)
@@ -84,6 +84,7 @@ zfs_dbgmsg_purge(int max_size)
 static int
 zfs_dbgmsg_clear(procfs_list_t *procfs_list)
 {
+	(void) procfs_list;
 	mutex_enter(&zfs_dbgmsgs.pl_lock);
 	zfs_dbgmsg_purge(0);
 	mutex_exit(&zfs_dbgmsgs.pl_lock);
@@ -127,7 +128,8 @@ __set_error(const char *file, const char *func, int line, int err)
 	 * $ echo 512 >/sys/module/zfs/parameters/zfs_flags
 	 */
 	if (zfs_flags & ZFS_DEBUG_SET_ERROR)
-		__dprintf(B_FALSE, file, func, line, "error %lu", err);
+		__dprintf(B_FALSE, file, func, line, "error %lu",
+		    (ulong_t)err);
 }
 
 void

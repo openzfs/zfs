@@ -654,7 +654,7 @@ dsl_destroy_snapshots_nvl(nvlist_t *snaps, boolean_t defer,
 		char *errorstr = NULL;
 		(void) nvlist_lookup_string(result, ZCP_RET_ERROR, &errorstr);
 		if (errorstr != NULL) {
-			zfs_dbgmsg(errorstr);
+			zfs_dbgmsg("%s", errorstr);
 		}
 		fnvlist_free(wrapper);
 		fnvlist_free(result);
@@ -699,11 +699,11 @@ struct killarg {
 	dmu_tx_t *tx;
 };
 
-/* ARGSUSED */
 static int
 kill_blkptr(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
     const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
 {
+	(void) spa, (void) dnp;
 	struct killarg *ka = arg;
 	dmu_tx_t *tx = ka->tx;
 
@@ -1246,10 +1246,10 @@ dsl_destroy_head(const char *name)
  * inconsistent datasets, even if we encounter an error trying to
  * process one of them.
  */
-/* ARGSUSED */
 int
 dsl_destroy_inconsistent(const char *dsname, void *arg)
 {
+	(void) arg;
 	objset_t *os;
 
 	if (dmu_objset_hold(dsname, FTAG, &os) == 0) {

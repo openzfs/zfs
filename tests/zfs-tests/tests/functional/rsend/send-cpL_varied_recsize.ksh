@@ -55,8 +55,8 @@ verify_runnable "both"
 
 function cleanup
 {
-	datasetexists $TESTPOOL/128k && log_must_busy zfs destroy $TESTPOOL/128k
-	datasetexists $TESTPOOL/1m && log_must_busy zfs destroy $TESTPOOL/1m
+	datasetexists $TESTPOOL/128k && destroy_dataset $TESTPOOL/128k
+	datasetexists $TESTPOOL/1m && destroy_dataset $TESTPOOL/1m
 	cleanup_pool $POOL2
 	destroy_pool $POOL3
 }
@@ -134,7 +134,7 @@ function check
 	[[ -f $stream ]] && log_must rm $stream
 	log_must eval "zfs send $flags $send_snap >$stream"
 	$verify eval "zfs recv $recv_ds <$stream"
-	typeset stream_size=$(cat $stream | zstreamdump | sed -n \
+	typeset stream_size=$(cat $stream | zstream dump | sed -n \
 	    's/	Total write size = \(.*\) (0x.*)/\1/p')
 
 	#

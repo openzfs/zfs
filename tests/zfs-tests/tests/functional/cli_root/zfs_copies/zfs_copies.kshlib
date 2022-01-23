@@ -83,25 +83,24 @@ function do_vol_test
 
 	vol=$TESTPOOL/$TESTVOL1
 	vol_b_path=$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL1
-	vol_r_path=$ZVOL_RDEVDIR/$TESTPOOL/$TESTVOL1
 
 	log_must zfs create -V $VOLSIZE -o copies=$copies $vol
 	log_must zfs set refreservation=none $vol
-	block_device_wait
+	block_device_wait $vol_b_path
 
 	case "$type" in
 	"ext2")
 		if is_freebsd; then
 			log_unsupported "ext2 test not implemented for freebsd"
 		fi
-		log_must eval "new_fs $vol_r_path >/dev/null 2>&1"
+		log_must eval "new_fs $vol_b_path >/dev/null 2>&1"
 		log_must mount -o rw $vol_b_path $mntp
 		;;
 	"ufs")
 		if is_linux; then
 			log_unsupported "ufs test not implemented for linux"
 		fi
-		log_must eval "new_fs $vol_r_path >/dev/null 2>&1"
+		log_must eval "new_fs $vol_b_path >/dev/null 2>&1"
 		log_must mount $vol_b_path $mntp
 		;;
 	"zfs")

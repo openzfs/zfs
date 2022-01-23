@@ -39,7 +39,7 @@
 
 function cleanup
 {
-	datasetexists $TESTPOOL/$TESTFS1 && zfs destroy -R $TESTPOOL/$TESTFS1
+	datasetexists $TESTPOOL/$TESTFS1 && destroy_dataset $TESTPOOL/$TESTFS1 -R
 	# reset the livelist sublist size to its original value
 	set_tunable64 LIVELIST_MAX_ENTRIES $ORIGINAL_MAX
 }
@@ -47,7 +47,7 @@ function cleanup
 function clone_write_file
 {
 	log_must mkfile 1m /$TESTPOOL/$1/$2
-	log_must zpool sync $TESTPOOL
+	sync_pool $TESTPOOL
 }
 
 function test_one_empty

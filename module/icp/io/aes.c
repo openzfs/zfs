@@ -32,31 +32,14 @@
 #include <sys/crypto/spi.h>
 #include <sys/crypto/icp.h>
 #include <modes/modes.h>
-#include <sys/modctl.h>
 #define	_AES_IMPL
 #include <aes/aes_impl.h>
 #include <modes/gcm_impl.h>
 
-#define	CRYPTO_PROVIDER_NAME "aes"
-
-extern struct mod_ops mod_cryptoops;
-
-/*
- * Module linkage information for the kernel.
- */
-static struct modlcrypto modlcrypto = {
-	&mod_cryptoops,
-	"AES Kernel SW Provider"
-};
-
-static struct modlinkage modlinkage = {
-	MODREV_1, { (void *)&modlcrypto, NULL }
-};
-
 /*
  * Mechanism info structure passed to KCF during registration.
  */
-static crypto_mech_info_t aes_mech_info_tab[] = {
+static const crypto_mech_info_t aes_mech_info_tab[] = {
 	/* AES_ECB */
 	{SUN_CKM_AES_ECB, AES_ECB_MECH_INFO_TYPE,
 	    CRYPTO_FG_ENCRYPT | CRYPTO_FG_ENCRYPT_ATOMIC |
@@ -94,7 +77,7 @@ static crypto_mech_info_t aes_mech_info_tab[] = {
 
 static void aes_provider_status(crypto_provider_handle_t, uint_t *);
 
-static crypto_control_ops_t aes_control_ops = {
+static const crypto_control_ops_t aes_control_ops = {
 	aes_provider_status
 };
 
@@ -127,7 +110,7 @@ static int aes_decrypt_atomic(crypto_provider_handle_t, crypto_session_id_t,
     crypto_mechanism_t *, crypto_key_t *, crypto_data_t *,
     crypto_data_t *, crypto_spi_ctx_template_t, crypto_req_handle_t);
 
-static crypto_cipher_ops_t aes_cipher_ops = {
+static const crypto_cipher_ops_t aes_cipher_ops = {
 	.encrypt_init = aes_encrypt_init,
 	.encrypt = aes_encrypt,
 	.encrypt_update = aes_encrypt_update,
@@ -147,7 +130,7 @@ static int aes_mac_verify_atomic(crypto_provider_handle_t, crypto_session_id_t,
     crypto_mechanism_t *, crypto_key_t *, crypto_data_t *, crypto_data_t *,
     crypto_spi_ctx_template_t, crypto_req_handle_t);
 
-static crypto_mac_ops_t aes_mac_ops = {
+static const crypto_mac_ops_t aes_mac_ops = {
 	.mac_init = NULL,
 	.mac = NULL,
 	.mac_update = NULL,
@@ -161,12 +144,12 @@ static int aes_create_ctx_template(crypto_provider_handle_t,
     size_t *, crypto_req_handle_t);
 static int aes_free_context(crypto_ctx_t *);
 
-static crypto_ctx_ops_t aes_ctx_ops = {
+static const crypto_ctx_ops_t aes_ctx_ops = {
 	.create_ctx_template = aes_create_ctx_template,
 	.free_context = aes_free_context
 };
 
-static crypto_ops_t aes_crypto_ops = {{{{{
+static const crypto_ops_t aes_crypto_ops = {{{{{
 	&aes_control_ops,
 	NULL,
 	&aes_cipher_ops,
@@ -183,13 +166,13 @@ static crypto_ops_t aes_crypto_ops = {{{{{
 	&aes_ctx_ops
 }}}}};
 
-static crypto_provider_info_t aes_prov_info = {{{{
+static const crypto_provider_info_t aes_prov_info = {{{{
 	CRYPTO_SPI_VERSION_1,
 	"AES Software Provider",
 	CRYPTO_SW_PROVIDER,
 	NULL,
 	&aes_crypto_ops,
-	sizeof (aes_mech_info_tab)/sizeof (crypto_mech_info_t),
+	sizeof (aes_mech_info_tab) / sizeof (crypto_mech_info_t),
 	aes_mech_info_tab
 }}}};
 
@@ -199,20 +182,13 @@ static crypto_data_t null_crypto_data = { CRYPTO_DATA_RAW };
 int
 aes_mod_init(void)
 {
-	int ret;
-
 	/* Determine the fastest available implementation. */
 	aes_impl_init();
 	gcm_impl_init();
 
-	if ((ret = mod_install(&modlinkage)) != 0)
-		return (ret);
-
 	/* Register with KCF.  If the registration fails, remove the module. */
-	if (crypto_register_provider(&aes_prov_info, &aes_prov_handle)) {
-		(void) mod_remove(&modlinkage);
+	if (crypto_register_provider(&aes_prov_info, &aes_prov_handle))
 		return (EACCES);
-	}
 
 	return (0);
 }
@@ -228,7 +204,7 @@ aes_mod_fini(void)
 		aes_prov_handle = 0;
 	}
 
-	return (mod_remove(&modlinkage));
+	return (0);
 }
 
 static int
@@ -311,10 +287,10 @@ init_keysched(crypto_key_t *key, void *newbie)
 /*
  * KCF software provider control entry points.
  */
-/* ARGSUSED */
 static void
 aes_provider_status(crypto_provider_handle_t provider, uint_t *status)
 {
+	(void) provider;
 	*status = CRYPTO_PROVIDER_READY;
 }
 
@@ -617,11 +593,11 @@ cleanup:
 }
 
 
-/* ARGSUSED */
 static int
 aes_encrypt_update(crypto_ctx_t *ctx, crypto_data_t *plaintext,
     crypto_data_t *ciphertext, crypto_req_handle_t req)
 {
+	(void) req;
 	off_t saved_offset;
 	size_t saved_length, out_len;
 	int ret = CRYPTO_SUCCESS;
@@ -769,11 +745,11 @@ aes_decrypt_update(crypto_ctx_t *ctx, crypto_data_t *ciphertext,
 	return (ret);
 }
 
-/* ARGSUSED */
 static int
 aes_encrypt_final(crypto_ctx_t *ctx, crypto_data_t *data,
     crypto_req_handle_t req)
 {
+	(void) req;
 	aes_ctx_t *aes_ctx;
 	int ret;
 
@@ -826,11 +802,11 @@ aes_encrypt_final(crypto_ctx_t *ctx, crypto_data_t *data,
 	return (CRYPTO_SUCCESS);
 }
 
-/* ARGSUSED */
 static int
 aes_decrypt_final(crypto_ctx_t *ctx, crypto_data_t *data,
     crypto_req_handle_t req)
 {
+	(void) req;
 	aes_ctx_t *aes_ctx;
 	int ret;
 	off_t saved_offset;
@@ -929,13 +905,13 @@ aes_decrypt_final(crypto_ctx_t *ctx, crypto_data_t *data,
 	return (CRYPTO_SUCCESS);
 }
 
-/* ARGSUSED */
 static int
 aes_encrypt_atomic(crypto_provider_handle_t provider,
     crypto_session_id_t session_id, crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_data_t *plaintext, crypto_data_t *ciphertext,
     crypto_spi_ctx_template_t template, crypto_req_handle_t req)
 {
+	(void) provider, (void) session_id;
 	aes_ctx_t aes_ctx;	/* on the stack */
 	off_t saved_offset;
 	size_t saved_length;
@@ -976,7 +952,7 @@ aes_encrypt_atomic(crypto_provider_handle_t provider,
 	case AES_GMAC_MECH_INFO_TYPE:
 		if (plaintext->cd_length != 0)
 			return (CRYPTO_ARGUMENTS_BAD);
-		/* FALLTHRU */
+		fallthrough;
 	case AES_GCM_MECH_INFO_TYPE:
 		length_needed = plaintext->cd_length + aes_ctx.ac_tag_len;
 		break;
@@ -1065,13 +1041,13 @@ out:
 	return (ret);
 }
 
-/* ARGSUSED */
 static int
 aes_decrypt_atomic(crypto_provider_handle_t provider,
     crypto_session_id_t session_id, crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_data_t *ciphertext, crypto_data_t *plaintext,
     crypto_spi_ctx_template_t template, crypto_req_handle_t req)
 {
+	(void) provider, (void) session_id;
 	aes_ctx_t aes_ctx;	/* on the stack */
 	off_t saved_offset;
 	size_t saved_length;
@@ -1235,12 +1211,12 @@ out:
 /*
  * KCF software provider context template entry points.
  */
-/* ARGSUSED */
 static int
 aes_create_ctx_template(crypto_provider_handle_t provider,
     crypto_mechanism_t *mechanism, crypto_key_t *key,
     crypto_spi_ctx_template_t *tmpl, size_t *tmpl_size, crypto_req_handle_t req)
 {
+	(void) provider;
 	void *keysched;
 	size_t size;
 	int rv;

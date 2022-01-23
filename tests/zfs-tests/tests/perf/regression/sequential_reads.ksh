@@ -12,7 +12,7 @@
 #
 
 #
-# Copyright (c) 2015, 2020 by Delphix. All rights reserved.
+# Copyright (c) 2015, 2021 by Delphix. All rights reserved.
 #
 
 #
@@ -55,28 +55,11 @@ populate_perf_filesystems
 # Aim to fill the pool to 50% capacity while accounting for a 3x compressratio.
 export TOTAL_SIZE=$(($(get_prop avail $PERFPOOL) * 3 / 2))
 
-# Variables for use by fio.
-if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
-	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
-	export PERF_RANDSEED=${PERF_RANDSEED:-'1234'}
-	export PERF_COMPPERCENT=${PERF_COMPPERCENT:-'66'}
-	export PERF_COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
-	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
-	export PERF_NTHREADS=${PERF_NTHREADS:-'8 16 32 64'}
-	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
-	export PERF_SYNC_TYPES=${PERF_SYNC_TYPES:-'1'}
-	export PERF_IOSIZES=${PERF_IOSIZES:-'8k 64k 128k'}
-elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
-	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
-	export PERF_RANDSEED=${PERF_RANDSEED:-'1234'}
-	export PERF_COMPPERCENT=${PERF_COMPPERCENT:-'66'}
-	export PERF_COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
-	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
-	export PERF_NTHREADS=${PERF_NTHREADS:-'8 16'}
-	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
-	export PERF_SYNC_TYPES=${PERF_SYNC_TYPES:-'1'}
-	export PERF_IOSIZES=${PERF_IOSIZES:-'128k 1m'}
-fi
+# Variables specific to this test for use by fio.
+export PERF_NTHREADS=${PERF_NTHREADS:-'8 16'}
+export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+export PERF_IOSIZES=${PERF_IOSIZES:-'128k 1m'}
+export PERF_SYNC_TYPES=${PERF_SYNC_TYPES:-'1'}
 
 # Layout the files to be used by the read tests. Create as many files as the
 # largest number of threads. An fio run with fewer threads will use a subset
@@ -111,6 +94,6 @@ else
 	)
 fi
 
-log_note "Sequential reads with $PERF_RUNTYPE settings"
+log_note "Sequential reads with settings: $(print_perf_settings)"
 do_fio_run sequential_reads.fio false true
 log_pass "Measure IO stats during sequential read load"

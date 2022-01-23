@@ -796,12 +796,6 @@ extern void kstat_delete_byname(const char *, int, const char *);
 extern void kstat_delete_byname_zone(const char *, int, const char *, zoneid_t);
 extern void kstat_named_init(kstat_named_t *, const char *, uchar_t);
 extern void kstat_timer_init(kstat_timer_t *, const char *);
-extern void kstat_waitq_enter(kstat_io_t *);
-extern void kstat_waitq_exit(kstat_io_t *);
-extern void kstat_runq_enter(kstat_io_t *);
-extern void kstat_runq_exit(kstat_io_t *);
-extern void kstat_waitq_to_runq(kstat_io_t *);
-extern void kstat_runq_back_to_waitq(kstat_io_t *);
 extern void kstat_timer_start(kstat_timer_t *);
 extern void kstat_timer_stop(kstat_timer_t *);
 

@@ -53,6 +53,7 @@ dmu_tx_stats_t dmu_tx_stats = {
 	{ "dmu_tx_dirty_throttle",	KSTAT_DATA_UINT64 },
 	{ "dmu_tx_dirty_delay",		KSTAT_DATA_UINT64 },
 	{ "dmu_tx_dirty_over_max",	KSTAT_DATA_UINT64 },
+	{ "dmu_tx_wrlog_over_max",	KSTAT_DATA_UINT64 },
 	{ "dmu_tx_dirty_frees_delay",	KSTAT_DATA_UINT64 },
 	{ "dmu_tx_quota",		KSTAT_DATA_UINT64 },
 };
@@ -613,7 +614,8 @@ dmu_tx_dirty_buf(dmu_tx_t *tx, dmu_buf_impl_t *db)
 			/* XXX txh_arg2 better not be zero... */
 
 			dprintf("found txh type %x beginblk=%llx endblk=%llx\n",
-			    txh->txh_type, beginblk, endblk);
+			    txh->txh_type, (u_longlong_t)beginblk,
+			    (u_longlong_t)endblk);
 
 			switch (txh->txh_type) {
 			case THT_WRITE:
@@ -681,8 +683,7 @@ dmu_tx_dirty_buf(dmu_tx_t *tx, dmu_buf_impl_t *db)
  * If we can't do 10 iops, something is wrong.  Let us go ahead
  * and hit zfs_dirty_data_max.
  */
-hrtime_t zfs_delay_max_ns = 100 * MICROSEC; /* 100 milliseconds */
-int zfs_delay_resolution_ns = 100 * 1000; /* 100 microseconds */
+static const hrtime_t zfs_delay_max_ns = 100 * MICROSEC; /* 100 milliseconds */
 
 /*
  * We delay transactions when we've determined that the backend storage
@@ -880,6 +881,12 @@ dmu_tx_try_assign(dmu_tx_t *tx, uint64_t txg_how)
 		    !(txg_how & TXG_WAIT))
 			return (SET_ERROR(EIO));
 
+		return (SET_ERROR(ERESTART));
+	}
+
+	if (!tx->tx_dirty_delayed &&
+	    dsl_pool_wrlog_over_max(tx->tx_pool)) {
+		DMU_TX_STAT_BUMP(dmu_tx_wrlog_over_max);
 		return (SET_ERROR(ERESTART));
 	}
 

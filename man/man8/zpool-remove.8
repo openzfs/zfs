@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
@@ -32,12 +31,12 @@
 .Os
 .Sh NAME
 .Nm zpool-remove
-.Nd Remove a device from a ZFS storage pool
+.Nd remove devices from ZFS storage pool
 .Sh SYNOPSIS
 .Nm zpool
 .Cm remove
 .Op Fl npw
-.Ar pool Ar device Ns ...
+.Ar pool Ar device Ns …
 .Nm zpool
 .Cm remove
 .Fl s
@@ -48,16 +47,16 @@
 .Nm zpool
 .Cm remove
 .Op Fl npw
-.Ar pool Ar device Ns ...
+.Ar pool Ar device Ns …
 .Xc
 Removes the specified device from the pool.
 This command supports removing hot spare, cache, log, and both mirrored and
 non-redundant primary top-level vdevs, including dedup and special vdevs.
-When the primary pool storage includes a top-level raidz vdev only hot spare,
-cache, and log devices can be removed.
-Note that keys for all encrypted datasets must be loaded for top-level vdevs
-to be removed.
-.sp
+.Pp
+Top-level vdevs can only be removed if the primary pool storage does not contain
+a top-level raidz vdev, all top-level vdevs have the same sector size, and the
+keys for all encrypted datasets are loaded.
+.Pp
 Removing a top-level vdev reduces the total amount of space in the storage pool.
 The specified device will be evacuated by copying all allocated space from it to
 the other devices in the pool.
@@ -67,11 +66,11 @@ command initiates the removal and returns, while the evacuation continues in
 the background.
 The removal progress can be monitored with
 .Nm zpool Cm status .
-If an IO error is encountered during the removal process it will be
-cancelled. The
+If an IO error is encountered during the removal process it will be cancelled.
+The
 .Sy device_removal
 feature flag must be enabled to remove a top-level vdev, see
-.Xr zpool-features 5 .
+.Xr zpool-features 7 .
 .Pp
 A mirrored top-level device (log or data) can be removed by specifying the top-level mirror for the
 same.
@@ -81,7 +80,8 @@ the
 command.
 .Bl -tag -width Ds
 .It Fl n
-Do not actually perform the removal ("no-op").
+Do not actually perform the removal
+.Pq Qq No-op .
 Instead, print the estimated amount of memory that will be used by the
 mapping table after the removal completes.
 This is nonzero only for top-level vdevs.
@@ -105,7 +105,7 @@ Stops and cancels an in-progress removal of a top-level vdev.
 .Sh SEE ALSO
 .Xr zpool-add 8 ,
 .Xr zpool-detach 8 ,
-.Xr zpool-offline 8 ,
 .Xr zpool-labelclear 8 ,
+.Xr zpool-offline 8 ,
 .Xr zpool-replace 8 ,
 .Xr zpool-split 8

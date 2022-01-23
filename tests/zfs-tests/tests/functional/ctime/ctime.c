@@ -97,6 +97,13 @@ get_file_time(const char *pfile, int what, time_t *ptr)
 	}
 }
 
+static ssize_t
+get_dirnamelen(const char *path)
+{
+	const char *end = strrchr(path, '/');
+	return (end ? end - path : -1);
+}
+
 static int
 do_read(const char *pfile)
 {
@@ -149,22 +156,18 @@ static int
 do_link(const char *pfile)
 {
 	int ret = 0;
-	char link_file[BUFSIZ] = { 0 };
-	char pfile_copy[BUFSIZ] = { 0 };
-	char *dname;
+	char link_file[BUFSIZ + 16] = { 0 };
 
 	if (pfile == NULL) {
 		return (-1);
 	}
 
-	strncpy(pfile_copy, pfile, sizeof (pfile_copy)-1);
-	pfile_copy[sizeof (pfile_copy) - 1] = '\0';
 	/*
 	 * Figure out source file directory name, and create
 	 * the link file in the same directory.
 	 */
-	dname = dirname((char *)pfile_copy);
-	(void) snprintf(link_file, BUFSIZ, "%s/%s", dname, "link_file");
+	(void) snprintf(link_file, sizeof (link_file),
+	    "%.*s/%s", (int)get_dirnamelen(pfile), pfile, "link_file");
 
 	if (link(pfile, link_file) == -1) {
 		(void) fprintf(stderr, "link(%s, %s) failed with errno %d\n",
@@ -300,9 +303,8 @@ static timetest_t timetest_table[] = {
 
 #define	NCOMMAND (sizeof (timetest_table) / sizeof (timetest_table[0]))
 
-/* ARGSUSED */
 int
-main(int argc, char *argv[])
+main(void)
 {
 	int i, ret, fd;
 	char *penv[] = {"TESTDIR", "TESTFILE0"};
@@ -321,7 +323,7 @@ main(int argc, char *argv[])
 	(void) snprintf(tfile, sizeof (tfile), "%s/%s", penv[0], penv[1]);
 
 	/*
-	 * If the test file is exists, remove it first.
+	 * If the test file exists, remove it first.
 	 */
 	if (access(tfile, F_OK) == 0) {
 		(void) unlink(tfile);

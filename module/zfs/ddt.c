@@ -423,8 +423,8 @@ ddt_stat_add(ddt_stat_t *dst, const ddt_stat_t *src, uint64_t neg)
 
 	ASSERT(neg == 0 || neg == -1ULL);	/* add or subtract */
 
-	while (d < d_end)
-		*d++ += (*s++ ^ neg) - neg;
+	for (int i = 0; i < d_end - d; i++)
+		d[i] += (s[i] ^ neg) - neg;
 }
 
 static void
@@ -503,7 +503,7 @@ ddt_get_dedup_histogram(spa_t *spa, ddt_histogram_t *ddh)
 {
 	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
 		ddt_t *ddt = spa->spa_ddt[c];
-		for (enum ddt_type type = 0; type < DDT_TYPES; type++) {
+		for (enum ddt_type type = 0; type < DDT_TYPES && ddt; type++) {
 			for (enum ddt_class class = 0; class < DDT_CLASSES;
 			    class++) {
 				ddt_histogram_add(ddh,
@@ -570,7 +570,6 @@ ddt_compress(void *src, uchar_t *dst, size_t s_len, size_t d_len)
 	}
 
 	*version = cpfunc;
-	/* CONSTCOND */
 	if (ZFS_HOST_BYTEORDER)
 		*version |= DDT_COMPRESS_BYTEORDER_MASK;
 

@@ -63,9 +63,18 @@ extern int zpl_xattr_security_init(struct inode *ip, struct inode *dip,
     const struct qstr *qstr);
 #if defined(CONFIG_FS_POSIX_ACL)
 #if defined(HAVE_SET_ACL)
+#if defined(HAVE_SET_ACL_USERNS)
+extern int zpl_set_acl(struct user_namespace *userns, struct inode *ip,
+    struct posix_acl *acl, int type);
+#else
 extern int zpl_set_acl(struct inode *ip, struct posix_acl *acl, int type);
+#endif /* HAVE_SET_ACL_USERNS */
 #endif /* HAVE_SET_ACL */
+#if defined(HAVE_GET_ACL_RCU)
+extern struct posix_acl *zpl_get_acl(struct inode *ip, int type, bool rcu);
+#elif defined(HAVE_GET_ACL)
 extern struct posix_acl *zpl_get_acl(struct inode *ip, int type);
+#endif
 extern int zpl_init_acl(struct inode *ip, struct inode *dir);
 extern int zpl_chmod_acl(struct inode *ip);
 #else
@@ -90,7 +99,6 @@ extern const struct inode_operations zpl_ops_root;
 
 extern const struct file_operations zpl_fops_snapdir;
 extern const struct inode_operations zpl_ops_snapdir;
-extern const struct dentry_operations zpl_dops_snapdirs;
 
 extern const struct file_operations zpl_fops_shares;
 extern const struct inode_operations zpl_ops_shares;

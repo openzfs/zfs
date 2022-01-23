@@ -82,14 +82,14 @@
 
 /* RFE 4687834 Will deal with the extensibility of these tables later */
 
-kcf_mech_entry_t kcf_digest_mechs_tab[KCF_MAXDIGEST];
-kcf_mech_entry_t kcf_cipher_mechs_tab[KCF_MAXCIPHER];
-kcf_mech_entry_t kcf_mac_mechs_tab[KCF_MAXMAC];
-kcf_mech_entry_t kcf_sign_mechs_tab[KCF_MAXSIGN];
-kcf_mech_entry_t kcf_keyops_mechs_tab[KCF_MAXKEYOPS];
-kcf_mech_entry_t kcf_misc_mechs_tab[KCF_MAXMISC];
+static kcf_mech_entry_t kcf_digest_mechs_tab[KCF_MAXDIGEST];
+static kcf_mech_entry_t kcf_cipher_mechs_tab[KCF_MAXCIPHER];
+static kcf_mech_entry_t kcf_mac_mechs_tab[KCF_MAXMAC];
+static kcf_mech_entry_t kcf_sign_mechs_tab[KCF_MAXSIGN];
+static kcf_mech_entry_t kcf_keyops_mechs_tab[KCF_MAXKEYOPS];
+static kcf_mech_entry_t kcf_misc_mechs_tab[KCF_MAXMISC];
 
-kcf_mech_entry_tab_t kcf_mech_tabs_tab[KCF_LAST_OPSCLASS + 1] = {
+const kcf_mech_entry_tab_t kcf_mech_tabs_tab[KCF_LAST_OPSCLASS + 1] = {
 	{0, NULL},				/* No class zero */
 	{KCF_MAXDIGEST, kcf_digest_mechs_tab},
 	{KCF_MAXCIPHER, kcf_cipher_mechs_tab},
@@ -108,22 +108,22 @@ kcf_mech_entry_tab_t kcf_mech_tabs_tab[KCF_LAST_OPSCLASS + 1] = {
  * There is room for refinement here.
  *
  */
-int kcf_md5_threshold = 512;
-int kcf_sha1_threshold = 512;
-int kcf_des_threshold = 512;
-int kcf_des3_threshold = 512;
-int kcf_aes_threshold = 512;
-int kcf_bf_threshold = 512;
-int kcf_rc4_threshold = 512;
+static const int kcf_md5_threshold = 512;
+static const int kcf_sha1_threshold = 512;
+static const int kcf_des_threshold = 512;
+static const int kcf_des3_threshold = 512;
+static const int kcf_aes_threshold = 512;
+static const int kcf_bf_threshold = 512;
+static const int kcf_rc4_threshold = 512;
 
-kmutex_t kcf_mech_tabs_lock;
+static kmutex_t kcf_mech_tabs_lock;
 static uint32_t kcf_gen_swprov = 0;
 
-int kcf_mech_hash_size = 256;
-mod_hash_t *kcf_mech_hash;	/* mech name to id hash */
+static const int kcf_mech_hash_size = 256;
+static mod_hash_t *kcf_mech_hash;	/* mech name to id hash */
 
 static crypto_mech_type_t
-kcf_mech_hash_find(char *mechname)
+kcf_mech_hash_find(const char *mechname)
 {
 	mod_hash_val_t hv;
 	crypto_mech_type_t mt;
@@ -166,7 +166,6 @@ kcf_destroy_mech_tabs(void)
 void
 kcf_init_mech_tabs(void)
 {
-	int i, max;
 	kcf_ops_class_t class;
 	kcf_mech_entry_t *me_tab;
 
@@ -249,9 +248,9 @@ kcf_init_mech_tabs(void)
 	    kcf_mech_hash_size, mod_hash_null_valdtor);
 
 	for (class = KCF_FIRST_OPSCLASS; class <= KCF_LAST_OPSCLASS; class++) {
-		max = kcf_mech_tabs_tab[class].met_size;
+		int max = kcf_mech_tabs_tab[class].met_size;
 		me_tab = kcf_mech_tabs_tab[class].met_tab;
-		for (i = 0; i < max; i++) {
+		for (int i = 0; i < max; i++) {
 			mutex_init(&(me_tab[i].me_mutex), NULL,
 			    MUTEX_DEFAULT, NULL);
 			if (me_tab[i].me_name[0] != 0) {
@@ -747,7 +746,7 @@ kcf_get_mech_entry(crypto_mech_type_t mech_type, kcf_mech_entry_t **mep)
 {
 	kcf_ops_class_t		class;
 	int			index;
-	kcf_mech_entry_tab_t	*me_tab;
+	const kcf_mech_entry_tab_t	*me_tab;
 
 	ASSERT(mep != NULL);
 
@@ -776,16 +775,10 @@ kcf_get_mech_entry(crypto_mech_type_t mech_type, kcf_mech_entry_t **mep)
  * If there are no hardware or software providers for the mechanism,
  * but there is an unloaded software provider, this routine will attempt
  * to load it.
- *
- * If the MOD_NOAUTOUNLOAD flag is not set, a software provider is
- * in constant danger of being unloaded.  For consumers that call
- * crypto_mech2id() only once, the provider will not be reloaded
- * if it becomes unloaded.  If a provider gets loaded elsewhere
- * without the MOD_NOAUTOUNLOAD flag being set, we set it now.
  */
 crypto_mech_type_t
-crypto_mech2id_common(char *mechname, boolean_t load_module)
+crypto_mech2id_common(const char *mechname, boolean_t load_module)
 {
-	crypto_mech_type_t mt = kcf_mech_hash_find(mechname);
-	return (mt);
+	(void) load_module;
+	return (kcf_mech_hash_find(mechname));
 }

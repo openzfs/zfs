@@ -7,7 +7,7 @@ REF="HEAD"
 test_commit_bodylength()
 {
     length="72"
-    body=$(git log -n 1 --pretty=%b "$REF" | grep -Ev "http(s)*://" | grep -E -m 1 ".{$((length + 1))}")
+    body=$(git log --no-show-signature -n 1 --pretty=%b "$REF" | grep -Ev "http(s)*://" | grep -E -m 1 ".{$((length + 1))}")
     if [ -n "$body" ]; then
         echo "error: commit message body contains line over ${length} characters"
         return 1
@@ -20,7 +20,7 @@ test_commit_bodylength()
 check_tagged_line()
 {
     regex='^[[:space:]]*'"$1"':[[:space:]][[:print:]]+[[:space:]]<[[:graph:]]+>$'
-    foundline=$(git log -n 1 "$REF" | grep -E -m 1 "$regex")
+    foundline=$(git log --no-show-signature -n 1 "$REF" | grep -E -m 1 "$regex")
     if [ -z "$foundline" ]; then
         echo "error: missing \"$1\""
         return 1
@@ -35,7 +35,7 @@ new_change_commit()
     error=0
 
     # subject is not longer than 72 characters
-    long_subject=$(git log -n 1 --pretty=%s "$REF" | grep -E -m 1 '.{73}')
+    long_subject=$(git log --no-show-signature -n 1 --pretty=%s "$REF" | grep -E -m 1 '.{73}')
     if [ -n "$long_subject" ]; then
         echo "error: commit subject over 72 characters"
         error=1
@@ -51,13 +51,13 @@ new_change_commit()
         error=1
     fi
 
-    return $error
+    return "$error"
 }
 
 is_coverity_fix()
 {
     # subject starts with Fix coverity defects means it's a coverity fix
-    subject=$(git log -n 1 --pretty=%s "$REF" | grep -E -m 1 '^Fix coverity defects')
+    subject=$(git log --no-show-signature -n 1 --pretty=%s "$REF" | grep -E -m 1 '^Fix coverity defects')
     if [ -n "$subject" ]; then
         return 0
     fi
@@ -70,7 +70,7 @@ coverity_fix_commit()
     error=0
 
     # subject starts with Fix coverity defects: CID dddd, dddd...
-    subject=$(git log -n 1 --pretty=%s "$REF" |
+    subject=$(git log --no-show-signature -n 1 --pretty=%s "$REF" |
         grep -E -m 1 'Fix coverity defects: CID [[:digit:]]+(, [[:digit:]]+)*')
     if [ -z "$subject" ]; then
         echo "error: Coverity defect fixes must have a subject line that starts with \"Fix coverity defects: CID dddd\""
@@ -86,10 +86,8 @@ coverity_fix_commit()
     OLDIFS=$IFS
     IFS='
 '
-    for line in $(git log -n 1 --pretty=%b "$REF" | grep -E '^CID'); do
-        echo "$line" | grep -E '^CID [[:digit:]]+: ([[:graph:]]+|[[:space:]])+ \(([[:upper:]]|\_)+\)' > /dev/null
-        # shellcheck disable=SC2181
-        if [ $? -ne 0 ]; then
+    for line in $(git log --no-show-signature -n 1 --pretty=%b "$REF" | grep -E '^CID'); do
+        if ! echo "$line" | grep -qE '^CID [[:digit:]]+: ([[:graph:]]+|[[:space:]])+ \(([[:upper:]]|\_)+\)'; then
             echo "error: commit message has an improperly formatted CID defect line"
             error=1
         fi
@@ -101,7 +99,7 @@ coverity_fix_commit()
         error=1
     fi
 
-    return $error
+    return "$error"
 }
 
 if [ -n "$1" ]; then

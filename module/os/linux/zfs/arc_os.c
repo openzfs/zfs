@@ -135,7 +135,7 @@ arc_available_memory(void)
 static uint64_t
 arc_evictable_memory(void)
 {
-	int64_t asize = aggsum_value(&arc_size);
+	int64_t asize = aggsum_value(&arc_sums.arcstat_size);
 	uint64_t arc_clean =
 	    zfs_refcount_count(&arc_mru->arcs_esize[ARC_BUFC_DATA]) +
 	    zfs_refcount_count(&arc_mru->arcs_esize[ARC_BUFC_METADATA]) +
@@ -217,7 +217,7 @@ arc_shrinker_scan(struct shrinker *shrink, struct shrink_control *sc)
 	 * for the requested amount of data to be evicted.
 	 */
 	arc_reduce_target_size(ptob(sc->nr_to_scan));
-	arc_wait_for_eviction(ptob(sc->nr_to_scan));
+	arc_wait_for_eviction(ptob(sc->nr_to_scan), B_FALSE);
 	if (current->reclaim_state != NULL)
 		current->reclaim_state->reclaimed_slab += sc->nr_to_scan;
 
@@ -372,6 +372,18 @@ param_set_arc_long(const char *buf, zfs_kernel_param_t *kp)
 }
 
 int
+param_set_arc_min(const char *buf, zfs_kernel_param_t *kp)
+{
+	return (param_set_arc_long(buf, kp));
+}
+
+int
+param_set_arc_max(const char *buf, zfs_kernel_param_t *kp)
+{
+	return (param_set_arc_long(buf, kp));
+}
+
+int
 param_set_arc_int(const char *buf, zfs_kernel_param_t *kp)
 {
 	int error;
@@ -386,11 +398,11 @@ param_set_arc_int(const char *buf, zfs_kernel_param_t *kp)
 }
 
 #ifdef CONFIG_MEMORY_HOTPLUG
-/* ARGSUSED */
 static int
 arc_hotplug_callback(struct notifier_block *self, unsigned long action,
     void *arg)
 {
+	(void) self, (void) arg;
 	uint64_t allmem = arc_all_memory();
 	if (action != MEM_ONLINE)
 		return (NOTIFY_OK);
@@ -437,7 +449,7 @@ arc_available_memory(void)
 	int64_t lowest = INT64_MAX;
 
 	/* Every 100 calls, free a small amount */
-	if (spa_get_random(100) == 0)
+	if (random_in_range(100) == 0)
 		lowest = -1024;
 
 	return (lowest);
@@ -446,6 +458,7 @@ arc_available_memory(void)
 int
 arc_memory_throttle(spa_t *spa, uint64_t reserve, uint64_t txg)
 {
+	(void) spa, (void) reserve, (void) txg;
 	return (0);
 }
 
@@ -458,7 +471,7 @@ arc_all_memory(void)
 uint64_t
 arc_free_memory(void)
 {
-	return (spa_get_random(arc_all_memory() * 20 / 100));
+	return (random_in_range(arc_all_memory() * 20 / 100));
 }
 
 void

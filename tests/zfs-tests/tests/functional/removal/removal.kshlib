@@ -69,7 +69,7 @@ function attempt_during_removal # pool disk callback [args]
 	# We want to make sure that the removal started
 	# before issuing the callback.
 	#
-	sync
+	sync_pool $pool
 	log_must is_pool_removing $pool
 
 	log_must $callback "$@"

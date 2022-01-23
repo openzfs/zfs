@@ -71,8 +71,9 @@ struct multilist {
 	multilist_sublist_index_func_t	*ml_index_func;
 };
 
+void multilist_create(multilist_t *, size_t, size_t,
+    multilist_sublist_index_func_t *);
 void multilist_destroy(multilist_t *);
-multilist_t *multilist_create(size_t, size_t, multilist_sublist_index_func_t *);
 
 void multilist_insert(multilist_t *, void *);
 void multilist_remove(multilist_t *, void *);

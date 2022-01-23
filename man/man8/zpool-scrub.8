@@ -18,36 +18,29 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
 .\" Copyright (c) 2017 Datto Inc.
-.\" Copyright (c) 2018 George Melikov. All Rights Reserved.
+.\" Copyright (c) 2018, 2021 George Melikov. All Rights Reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd August 9, 2019
+.Dd July 25, 2021
 .Dt ZPOOL-SCRUB 8
 .Os
+.
 .Sh NAME
 .Nm zpool-scrub
-.Nd Begin a scrub or resume a paused scrub of a ZFS storage pool
+.Nd begin or resume scrub of ZFS storage pools
 .Sh SYNOPSIS
 .Nm zpool
 .Cm scrub
-.Op Fl s | Fl p
+.Op Fl s Ns | Ns Fl p
 .Op Fl w
-.Ar pool Ns ...
+.Ar pool Ns …
+.
 .Sh DESCRIPTION
-.Bl -tag -width Ds
-.It Xo
-.Nm zpool
-.Cm scrub
-.Op Fl s | Fl p
-.Op Fl w
-.Ar pool Ns ...
-.Xc
 Begins a scrub or resumes a paused scrub.
 The scrub examines all data in the specified pools to verify that it checksums
 correctly.
@@ -71,6 +64,11 @@ faults or disk failure.
 .Pp
 Because scrubbing and resilvering are I/O-intensive operations, ZFS only allows
 one at a time.
+.Pp
+A scrub is split into two parts: metadata scanning and block scrubbing.
+The metadata scanning sorts blocks into large sequential ranges which can then
+be read much more efficiently from disk when issuing the scrub I/O.
+.Pp
 If a scrub is paused, the
 .Nm zpool Cm scrub
 resumes it.
@@ -78,13 +76,13 @@ If a resilver is in progress, ZFS does not allow a scrub to be started until the
 resilver completes.
 .Pp
 Note that, due to changes in pool data on a live system, it is possible for
-scrubs to progress slightly beyond 100% completion. During this period, no
-completion time estimate will be provided.
-.Bl -tag -width Ds
+scrubs to progress slightly beyond 100% completion.
+During this period, no completion time estimate will be provided.
+.
+.Sh OPTIONS
+.Bl -tag -width "-s"
 .It Fl s
 Stop scrubbing.
-.El
-.Bl -tag -width Ds
 .It Fl p
 Pause scrubbing.
 Scrub pause state and progress are periodically synced to disk.
@@ -98,8 +96,49 @@ again.
 .It Fl w
 Wait until scrub has completed before returning.
 .El
+.Sh EXAMPLES
+.Bl -tag -width "Exam"
+.It Sy Example 1 : Status of pool with ongoing scrub:
+Output:
+.Bd -literal -compact -offset Ds
+.No # Nm zpool Cm status
+  ...
+  scan: scrub in progress since Sun Jul 25 16:07:49 2021
+        403M scanned at 100M/s, 68.4M issued at 10.0M/s, 405M total
+        0B repaired, 16.91% done, 00:00:04 to go
+  ...
+.Ed
+Where:
+.Bl -dash -offset indent
+.It
+Metadata which references 403M of file data has been
+scanned at 100M/s, and 68.4M of that file data has been
+scrubbed sequentially at 10.0M/s.
 .El
+.El
+.Sh PERIODIC SCRUB
+On machines using systemd, scrub timers can be enabled on per-pool basis.
+.Nm weekly
+and
+.Nm monthly
+timer units are provided.
+.Bl -tag -width Ds
+.It Xo
+.Xc
+.Nm systemctl
+.Cm enable
+.Cm zfs-scrub-\fIweekly\fB@\fIrpool\fB.timer
+.Cm --now
+.It Xo
+.Xc
+.Nm systemctl
+.Cm enable
+.Cm zfs-scrub-\fImonthly\fB@\fIotherpool\fB.timer
+.Cm --now
+.El
+.
 .Sh SEE ALSO
+.Xr systemd.timer 5 ,
 .Xr zpool-iostat 8 ,
 .Xr zpool-resilver 8 ,
 .Xr zpool-status 8

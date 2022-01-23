@@ -2097,10 +2097,8 @@ dsl_crypto_recv_raw_objset_sync(dsl_dataset_t *ds, dmu_objset_type_t ostype,
 	 */
 	arc_release(os->os_phys_buf, &os->os_phys_buf);
 	bcopy(portable_mac, os->os_phys->os_portable_mac, ZIO_OBJSET_MAC_LEN);
-	os->os_phys->os_flags &= ~OBJSET_FLAG_USERACCOUNTING_COMPLETE;
-	os->os_phys->os_flags &= ~OBJSET_FLAG_USEROBJACCOUNTING_COMPLETE;
-	os->os_flags = os->os_phys->os_flags;
 	bzero(os->os_phys->os_local_mac, ZIO_OBJSET_MAC_LEN);
+	os->os_flags &= ~OBJSET_FLAG_USERACCOUNTING_COMPLETE;
 	os->os_next_write_raw[tx->tx_txg & TXG_MASK] = B_TRUE;
 
 	/* set metadnode compression and checksum */

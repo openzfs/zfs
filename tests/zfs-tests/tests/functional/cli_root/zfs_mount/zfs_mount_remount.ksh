@@ -48,7 +48,7 @@ function cleanup
 {
 	log_must_busy zpool export $TESTPOOL
 	log_must zpool import $TESTPOOL
-	snapexists $TESTSNAP && log_must zfs destroy $TESTSNAP
+	snapexists $TESTSNAP && destroy_dataset $TESTSNAP
 	[[ -d $MNTPSNAP ]] && log_must rmdir $MNTPSNAP
 	return 0
 }
@@ -155,7 +155,7 @@ CRYPT_MNTPFS="$(get_prop mountpoint $TESTFS/crypt)"
 log_must touch $CRYPT_MNTPFS/file.dat
 log_must mount $RO $TESTFS/crypt $CRYPT_MNTPFS
 log_must umount -f $CRYPT_MNTPFS
-zpool sync $TESTPOOL
+sync_pool $TESTPOOL
 
 # 6. Re-import the pool readonly
 log_must zpool export $TESTPOOL

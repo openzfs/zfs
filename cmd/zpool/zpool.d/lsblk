@@ -48,7 +48,7 @@ size:	Show the disk capacity.
 vendor:	Show the disk vendor.
 lsblk:	Show the disk size, vendor, and model number."
 
-script=$(basename "$0")
+script="${0##*/}"
 
 if [ "$1" = "-h" ] ; then
         echo "$helpstr" | grep "$script:" | tr -s '\t' | cut -f 2-
@@ -66,6 +66,7 @@ for i in $list ; do
 
 	# Special case: Looking up the size of a file-based vdev can't
 	# be done with lsblk.
+	# shellcheck disable=SC2154
 	if [ "$i" = "size" ] && [ -f "$VDEV_UPATH" ] ; then
 		size=$(du -h --apparent-size "$VDEV_UPATH" | cut -f 1)
 		echo "size=$size"

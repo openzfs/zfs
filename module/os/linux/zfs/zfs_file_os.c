@@ -279,8 +279,10 @@ zfs_file_getattr(zfs_file_t *filp, zfs_file_attr_t *zfattr)
 	    AT_STATX_SYNC_AS_STAT);
 #elif defined(HAVE_2ARGS_VFS_GETATTR)
 	rc = vfs_getattr(&filp->f_path, &stat);
-#else
+#elif defined(HAVE_3ARGS_VFS_GETATTR)
 	rc = vfs_getattr(filp->f_path.mnt, filp->f_dentry, &stat);
+#else
+#error "No available vfs_getattr()"
 #endif
 	if (rc)
 		return (-rc);
@@ -405,36 +407,22 @@ zfs_file_unlink(const char *path)
  * Get reference to file pointer
  *
  * fd - input file descriptor
- * fpp - pointer to file pointer
  *
- * Returns 0 on success EBADF on failure.
+ * Returns pointer to file struct or NULL
  */
-int
-zfs_file_get(int fd, zfs_file_t **fpp)
+zfs_file_t *
+zfs_file_get(int fd)
 {
-	zfs_file_t *fp;
-
-	fp = fget(fd);
-	if (fp == NULL)
-		return (EBADF);
-
-	*fpp = fp;
-
-	return (0);
+	return (fget(fd));
 }
 
 /*
  * Drop reference to file pointer
  *
- * fd - input file descriptor
+ * fp - input file struct pointer
  */
 void
-zfs_file_put(int fd)
+zfs_file_put(zfs_file_t *fp)
 {
-	struct file *fp;
-
-	if ((fp = fget(fd)) != NULL) {
-		fput(fp);
-		fput(fp);
-	}
+	fput(fp);
 }

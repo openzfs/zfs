@@ -93,6 +93,7 @@ while [[ $i -le $COUNT ]]; do
 
         (( i = i + 1 ))
 done
+sync_pool $TESTPOOL
 
 #
 # Now rollback to latest snapshot

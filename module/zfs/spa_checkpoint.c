@@ -158,7 +158,7 @@
  * amount of checkpointed data that has been freed within them while
  * the pool had a checkpoint.
  */
-unsigned long zfs_spa_discard_memory_limit = 16 * 1024 * 1024;
+static unsigned long zfs_spa_discard_memory_limit = 16 * 1024 * 1024;
 
 int
 spa_checkpoint_get_stats(spa_t *spa, pool_checkpoint_stat_t *pcs)
@@ -337,17 +337,18 @@ spa_checkpoint_discard_thread_sync(void *arg, dmu_tx_t *tx)
 	spa_checkpoint_accounting_verify(vd->vdev_spa);
 #endif
 
-	zfs_dbgmsg("discarding checkpoint: txg %llu, vdev id %d, "
+	zfs_dbgmsg("discarding checkpoint: txg %llu, vdev id %lld, "
 	    "deleted %llu words - %llu words are left",
-	    tx->tx_txg, vd->vdev_id, (words_before - words_after),
-	    words_after);
+	    (u_longlong_t)tx->tx_txg, (longlong_t)vd->vdev_id,
+	    (u_longlong_t)(words_before - words_after),
+	    (u_longlong_t)words_after);
 
 	if (error != EINTR) {
 		if (error != 0) {
-			zfs_panic_recover("zfs: error %d was returned "
+			zfs_panic_recover("zfs: error %lld was returned "
 			    "while incrementally destroying the checkpoint "
-			    "space map of vdev %llu\n",
-			    error, vd->vdev_id);
+			    "space map of vdev %u\n",
+			    (longlong_t)error, vd->vdev_id);
 		}
 		ASSERT0(words_after);
 		ASSERT0(space_map_allocated(vd->vdev_checkpoint_sm));
@@ -379,10 +380,10 @@ spa_checkpoint_discard_is_done(spa_t *spa)
 	return (B_TRUE);
 }
 
-/* ARGSUSED */
 boolean_t
 spa_checkpoint_discard_thread_check(void *arg, zthr_t *zthr)
 {
+	(void) zthr;
 	spa_t *spa = arg;
 
 	if (!spa_feature_is_active(spa, SPA_FEATURE_POOL_CHECKPOINT))
@@ -449,10 +450,10 @@ spa_checkpoint_discard_thread(void *arg, zthr_t *zthr)
 }
 
 
-/* ARGSUSED */
 static int
 spa_checkpoint_check(void *arg, dmu_tx_t *tx)
 {
+	(void) arg;
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
 
 	if (!spa_feature_is_enabled(spa, SPA_FEATURE_POOL_CHECKPOINT))
@@ -473,10 +474,10 @@ spa_checkpoint_check(void *arg, dmu_tx_t *tx)
 	return (0);
 }
 
-/* ARGSUSED */
 static void
 spa_checkpoint_sync(void *arg, dmu_tx_t *tx)
 {
+	(void) arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	spa_t *spa = dp->dp_spa;
 	uberblock_t checkpoint = spa->spa_ubsync;
@@ -570,10 +571,10 @@ spa_checkpoint(const char *pool)
 	return (error);
 }
 
-/* ARGSUSED */
 static int
 spa_checkpoint_discard_check(void *arg, dmu_tx_t *tx)
 {
+	(void) arg;
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
 
 	if (!spa_feature_is_active(spa, SPA_FEATURE_POOL_CHECKPOINT))
@@ -588,10 +589,10 @@ spa_checkpoint_discard_check(void *arg, dmu_tx_t *tx)
 	return (0);
 }
 
-/* ARGSUSED */
 static void
 spa_checkpoint_discard_sync(void *arg, dmu_tx_t *tx)
 {
+	(void) arg;
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
 
 	VERIFY0(zap_remove(spa_meta_objset(spa), DMU_POOL_DIRECTORY_OBJECT,

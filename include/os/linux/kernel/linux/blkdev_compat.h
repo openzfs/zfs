@@ -30,9 +30,9 @@
 #define	_ZFS_BLKDEV_H
 
 #include <linux/blkdev.h>
-#include <linux/elevator.h>
 #include <linux/backing-dev.h>
 #include <linux/hdreg.h>
+#include <linux/major.h>
 #include <linux/msdos_fs.h>	/* for SECTOR_* */
 
 #ifndef HAVE_BLK_QUEUE_FLAG_SET
@@ -52,7 +52,7 @@ blk_queue_flag_clear(unsigned int flag, struct request_queue *q)
 #endif
 
 /*
- * 4.7 - 4.x API,
+ * 4.7 API,
  * The blk_queue_write_cache() interface has replaced blk_queue_flush()
  * interface.  However, the new interface is GPL-only thus we implement
  * our own trivial wrapper when the GPL-only version is detected.
@@ -92,10 +92,13 @@ blk_queue_set_write_cache(struct request_queue *q, bool wc, bool fua)
 static inline void
 blk_queue_set_read_ahead(struct request_queue *q, unsigned long ra_pages)
 {
+#if !defined(HAVE_BLK_QUEUE_UPDATE_READAHEAD) && \
+	!defined(HAVE_DISK_UPDATE_READAHEAD)
 #ifdef HAVE_BLK_QUEUE_BDI_DYNAMIC
 	q->backing_dev_info->ra_pages = ra_pages;
 #else
 	q->backing_dev_info.ra_pages = ra_pages;
+#endif
 #endif
 }
 
@@ -254,7 +257,7 @@ bio_set_bi_error(struct bio *bio, int error)
 #endif /* HAVE_1ARG_BIO_END_IO_T */
 
 /*
- * 4.1 - x.y.z API,
+ * 4.1 API,
  * 3.10.0 CentOS 7.x API,
  *   blkdev_reread_part()
  *
@@ -277,18 +280,22 @@ bio_set_bi_error(struct bio *bio, int error)
 static inline int
 zfs_check_media_change(struct block_device *bdev)
 {
+#ifdef HAVE_BLOCK_DEVICE_OPERATIONS_REVALIDATE_DISK
 	struct gendisk *gd = bdev->bd_disk;
 	const struct block_device_operations *bdo = gd->fops;
+#endif
 
 	if (!bdev_check_media_change(bdev))
 		return (0);
 
+#ifdef HAVE_BLOCK_DEVICE_OPERATIONS_REVALIDATE_DISK
 	/*
 	 * Force revalidation, to mimic the old behavior of
 	 * check_disk_change()
 	 */
 	if (bdo->revalidate_disk)
 		bdo->revalidate_disk(gd);
+#endif
 
 	return (0);
 }
@@ -366,7 +373,7 @@ bio_set_op_attrs(struct bio *bio, unsigned rw, unsigned flags)
  *
  * 4.8 - 4.9 API,
  *   REQ_FLUSH was renamed to REQ_PREFLUSH.  For consistency with previous
- *   ZoL releases, prefer the WRITE_FLUSH_FUA flag set if it's available.
+ *   OpenZFS releases, prefer the WRITE_FLUSH_FUA flag set if it's available.
  *
  * 4.10 API,
  *   The read/write flags and their modifiers, including WRITE_FLUSH,
@@ -387,7 +394,7 @@ bio_set_flush(struct bio *bio)
 }
 
 /*
- * 4.8 - 4.x API,
+ * 4.8 API,
  *   REQ_OP_FLUSH
  *
  * 4.8-rc0 - 4.8-rc1,
@@ -417,7 +424,7 @@ bio_is_flush(struct bio *bio)
 }
 
 /*
- * 4.8 - 4.x API,
+ * 4.8 API,
  *   REQ_FUA flag moved to bio->bi_opf
  *
  * 2.6.x - 4.7 API,
@@ -436,7 +443,7 @@ bio_is_fua(struct bio *bio)
 }
 
 /*
- * 4.8 - 4.x API,
+ * 4.8 API,
  *   REQ_OP_DISCARD
  *
  * 2.6.36 - 4.7 API,
@@ -458,7 +465,7 @@ bio_is_discard(struct bio *bio)
 }
 
 /*
- * 4.8 - 4.x API,
+ * 4.8 API,
  *   REQ_OP_SECURE_ERASE
  *
  * 2.6.36 - 4.7 API,
@@ -488,7 +495,7 @@ blk_queue_discard_granularity(struct request_queue *q, unsigned int dg)
 }
 
 /*
- * 4.8 - 4.x API,
+ * 4.8 API,
  *   blk_queue_secure_erase()
  *
  * 2.6.36 - 4.7 API,

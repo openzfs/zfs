@@ -42,7 +42,7 @@
 #include "zfs_deleg.h"
 #include "zfs_namecheck.h"
 
-zfs_deleg_perm_tab_t zfs_deleg_perm_tab[] = {
+const zfs_deleg_perm_tab_t zfs_deleg_perm_tab[] = {
 	{ZFS_DELEG_PERM_ALLOW},
 	{ZFS_DELEG_PERM_BOOKMARK},
 	{ZFS_DELEG_PERM_CLONE},
@@ -89,15 +89,12 @@ zfs_valid_permission_name(const char *perm)
 const char *
 zfs_deleg_canonicalize_perm(const char *perm)
 {
-	int i;
-	zfs_prop_t prop;
-
-	for (i = 0; zfs_deleg_perm_tab[i].z_perm != NULL; i++) {
+	for (int i = 0; zfs_deleg_perm_tab[i].z_perm != NULL; i++) {
 		if (strcmp(perm, zfs_deleg_perm_tab[i].z_perm) == 0)
 			return (perm);
 	}
 
-	prop = zfs_name_to_prop(perm);
+	zfs_prop_t prop = zfs_name_to_prop(perm);
 	if (prop != ZPROP_INVAL && zfs_prop_delegatable(prop))
 		return (zfs_prop_to_name(prop));
 	return (NULL);

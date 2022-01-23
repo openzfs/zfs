@@ -49,8 +49,7 @@ function cleanup
 	typeset bkup
 
 	for snap in $init_snap $inc_snap $init_topsnap $inc_topsnap ; do
-		snapexists $snap && \
-			log_must zfs destroy -Rf $snap
+		snapexists $snap && destroy_dataset $snap -Rf
 	done
 
 	for bkup in $full_bkup $inc_bkup $full_topbkup $inc_topbkup; do
@@ -88,7 +87,7 @@ log_must zfs snapshot $inc_snap
 log_must eval "zfs send -i $init_snap $inc_snap > $inc_bkup"
 log_must touch /$TESTDIR/bar
 
-sync
+sync_all_pools
 
 set -A badargs \
     "" "nonexistent-snap" "blah@blah" "-d" "-d nonexistent-dataset" \

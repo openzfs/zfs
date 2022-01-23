@@ -38,7 +38,7 @@
 #include <libzfs.h>
 #include <libzfs_core.h>
 
-#include "libzfs_impl.h"
+#include "../../libzfs_impl.h"
 #include "zfs_prop.h"
 #include <libzutil.h>
 #include <sys/zfs_sysfs.h>
@@ -181,6 +181,13 @@ find_shares_object(differ_info_t *di)
 	}
 
 	di->shares = (uint64_t)sb.st_ino;
+	return (0);
+}
+
+int
+zfs_destroy_snaps_nvl_os(libzfs_handle_t *hdl, nvlist_t *snaps)
+{
+	(void) hdl, (void) snaps;
 	return (0);
 }
 

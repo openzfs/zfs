@@ -116,7 +116,8 @@ range_tree_stat_verify(range_tree_t *rt)
 	for (i = 0; i < RANGE_TREE_HISTOGRAM_SIZE; i++) {
 		if (hist[i] != rt->rt_histogram[i]) {
 			zfs_dbgmsg("i=%d, hist=%px, hist=%llu, rt_hist=%llu",
-			    i, hist, hist[i], rt->rt_histogram[i]);
+			    i, hist, (u_longlong_t)hist[i],
+			    (u_longlong_t)rt->rt_histogram[i]);
 		}
 		VERIFY3U(hist[i], ==, rt->rt_histogram[i]);
 	}
@@ -187,8 +188,8 @@ range_tree_seg_gap_compare(const void *x1, const void *x2)
 }
 
 range_tree_t *
-range_tree_create_impl(range_tree_ops_t *ops, range_seg_type_t type, void *arg,
-    uint64_t start, uint64_t shift,
+range_tree_create_impl(const range_tree_ops_t *ops, range_seg_type_t type,
+    void *arg, uint64_t start, uint64_t shift,
     int (*zfs_btree_compare) (const void *, const void *),
     uint64_t gap)
 {
@@ -231,7 +232,7 @@ range_tree_create_impl(range_tree_ops_t *ops, range_seg_type_t type, void *arg,
 }
 
 range_tree_t *
-range_tree_create(range_tree_ops_t *ops, range_seg_type_t type,
+range_tree_create(const range_tree_ops_t *ops, range_seg_type_t type,
     void *arg, uint64_t start, uint64_t shift)
 {
 	return (range_tree_create_impl(ops, type, arg, start, shift, NULL, 0));
@@ -740,7 +741,6 @@ range_tree_is_empty(range_tree_t *rt)
 	return (range_tree_space(rt) == 0);
 }
 
-/* ARGSUSED */
 void
 rt_btree_create(range_tree_t *rt, void *arg)
 {
@@ -763,35 +763,34 @@ rt_btree_create(range_tree_t *rt, void *arg)
 	zfs_btree_create(size_tree, rt->rt_btree_compare, size);
 }
 
-/* ARGSUSED */
 void
 rt_btree_destroy(range_tree_t *rt, void *arg)
 {
+	(void) rt;
 	zfs_btree_t *size_tree = arg;
 	ASSERT0(zfs_btree_numnodes(size_tree));
 
 	zfs_btree_destroy(size_tree);
 }
 
-/* ARGSUSED */
 void
 rt_btree_add(range_tree_t *rt, range_seg_t *rs, void *arg)
 {
+	(void) rt;
 	zfs_btree_t *size_tree = arg;
 
 	zfs_btree_add(size_tree, rs);
 }
 
-/* ARGSUSED */
 void
 rt_btree_remove(range_tree_t *rt, range_seg_t *rs, void *arg)
 {
+	(void) rt;
 	zfs_btree_t *size_tree = arg;
 
 	zfs_btree_remove(size_tree, rs);
 }
 
-/* ARGSUSED */
 void
 rt_btree_vacate(range_tree_t *rt, void *arg)
 {
@@ -802,7 +801,7 @@ rt_btree_vacate(range_tree_t *rt, void *arg)
 	rt_btree_create(rt, arg);
 }
 
-range_tree_ops_t rt_btree_ops = {
+const range_tree_ops_t rt_btree_ops = {
 	.rtop_create = rt_btree_create,
 	.rtop_destroy = rt_btree_destroy,
 	.rtop_add = rt_btree_add,

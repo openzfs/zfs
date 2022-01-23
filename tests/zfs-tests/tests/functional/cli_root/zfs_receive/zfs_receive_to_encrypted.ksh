@@ -38,10 +38,10 @@ verify_runnable "both"
 
 function cleanup
 {
-	snapexists $snap && log_must_busy zfs destroy -f $snap
+	snapexists $snap && destroy_dataset $snap -f
 
 	datasetexists $TESTPOOL/$TESTFS1 && \
-		log_must zfs destroy -r $TESTPOOL/$TESTFS1
+		destroy_dataset $TESTPOOL/$TESTFS1 -r
 }
 
 log_onexit cleanup

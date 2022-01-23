@@ -1,3 +1,5 @@
+include $(top_srcdir)/config/Shellcheck.am
+
 ACLOCAL_AMFLAGS = -I config
 
 SUBDIRS = include
@@ -6,7 +8,7 @@ SUBDIRS += rpm
 endif
 
 if CONFIG_USER
-SUBDIRS += etc man scripts lib tests cmd contrib
+SUBDIRS += man scripts lib tests cmd etc contrib
 if BUILD_LINUX
 SUBDIRS += udev
 endif
@@ -112,6 +114,11 @@ commitcheck:
 		${top_srcdir}/scripts/commitcheck.sh; \
 	fi
 
+if HAVE_PARALLEL
+cstyle_line = -print0 | parallel -X0 ${top_srcdir}/scripts/cstyle.pl -cpP {}
+else
+cstyle_line = -exec ${top_srcdir}/scripts/cstyle.pl -cpP {} +
+endif
 PHONY += cstyle
 cstyle:
 	@find ${top_srcdir} -name build -prune \
@@ -119,63 +126,35 @@ cstyle:
 		! -name 'zfs_config.*' ! -name '*.mod.c' \
 		! -name 'opt_global.h' ! -name '*_if*.h' \
 		! -path './module/zstd/lib/*' \
-		-exec ${top_srcdir}/scripts/cstyle.pl -cpP {} \+
+		! -path './module/zfs/lz4.c' \
+		$(cstyle_line)
 
 filter_executable = -exec test -x '{}' \; -print
 
-PHONY += shellcheck
-shellcheck:
-	@if type shellcheck > /dev/null 2>&1; then \
-		shellcheck --exclude=SC1090 --exclude=SC1117 --format=gcc \
-			$$(find ${top_srcdir}/scripts/*.sh -type f) \
-			$$(find ${top_srcdir}/cmd/zed/zed.d/*.sh -type f) \
-			$$(find ${top_srcdir}/cmd/zpool/zpool.d/* \
-			-type f ${filter_executable}); \
-	else \
-		echo "skipping shellcheck because shellcheck is not installed"; \
-	fi
+SHELLCHECKDIRS = cmd contrib etc scripts tests
+SHELLCHECKSCRIPTS = autogen.sh
 
 PHONY += checkabi storeabi
-checkabi: lib
+
+checklibabiversion:
+	libabiversion=`abidw -v | $(SED) 's/[^0-9]//g'`; \
+	if test $$libabiversion -lt "200"; then \
+        /bin/echo -e "\n" \
+        "*** Please use libabigail 2.0.0 version or newer;\n" \
+        "*** otherwise results are not consistent!\n" \
+        "(or see https://github.com/openzfs/libabigail-docker )\n"; \
+        exit 1; \
+    fi;
+
+checkabi: checklibabiversion lib
 	$(MAKE) -C lib checkabi
 
-storeabi: lib
+storeabi: checklibabiversion lib
 	$(MAKE) -C lib storeabi
-
-PHONY += checkbashisms
-checkbashisms:
-	@if type checkbashisms > /dev/null 2>&1; then \
-		checkbashisms -n -p -x \
-			$$(find ${top_srcdir} \
-				-name '.git' -prune \
-				-o -name 'build' -prune \
-				-o -name 'tests' -prune \
-				-o -name 'config' -prune \
-				-o -name 'zed-functions.sh*' -prune \
-				-o -name 'zfs-import*' -prune \
-				-o -name 'zfs-mount*' -prune \
-				-o -name 'zfs-zed*' -prune \
-				-o -name 'smart' -prune \
-				-o -name 'paxcheck.sh' -prune \
-				-o -name 'make_gitrev.sh' -prune \
-				-o -name '90zfs' -prune \
-				-o -type f ! -name 'config*' \
-				! -name 'libtool' \
-			-exec sh -c 'awk "NR==1 && /#!.*bin\/sh.*/ {print FILENAME;}" "{}"' \;); \
-	else \
-		echo "skipping checkbashisms because checkbashisms is not installed"; \
-	fi
 
 PHONY += mancheck
 mancheck:
-	@if type mandoc > /dev/null 2>&1; then \
-		find ${top_srcdir}/man/man8 -type f -name 'zfs.8' \
-			-o -name 'zpool.8' -o -name 'zdb.8' \
-			-o -name 'zgenhostid.8' | \
-			xargs mandoc -Tlint -Werror; \
-	else \
-		echo "skipping mancheck because mandoc is not installed"; \
-	fi
+	${top_srcdir}/scripts/mancheck.sh ${top_srcdir}/man ${top_srcdir}/tests/test-runner/man
 
 if BUILD_LINUX
 stat_fmt = -c '%A %n'
