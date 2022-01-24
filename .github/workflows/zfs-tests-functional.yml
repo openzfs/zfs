@@ -64,6 +64,7 @@ jobs:
     - name: Tests
       run: |
         /usr/share/zfs/zfs-tests.sh -vR -s 3G
+      timeout-minutes: 330
     - name: Prepare artifacts
       if: failure()
       run: |
