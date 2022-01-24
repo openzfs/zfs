@@ -418,7 +418,7 @@ proc_kstat_open(struct inode *inode, struct file *filp)
 		return (rc);
 
 	f = filp->private_data;
-	f->private = PDE_DATA(inode);
+	f->private = SPL_PDE_DATA(inode);
 
 	return (0);
 }
