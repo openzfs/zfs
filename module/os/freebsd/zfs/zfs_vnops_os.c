@@ -5476,15 +5476,14 @@ zfs_getextattr(struct vop_getextattr_args *ap)
 
 	boolean_t compat = (zfsvfs->z_flags & ZSB_XATTR_COMPAT) != 0;
 	error = zfs_getextattr_impl(ap, compat);
-	if (error == ENOENT && ap->a_attrnamespace == EXTATTR_NAMESPACE_USER) {
+	if ((error == ENOENT || error == ENOATTR) &&
+	    ap->a_attrnamespace == EXTATTR_NAMESPACE_USER) {
 		/*
 		 * Fall back to the alternate namespace format if we failed to
 		 * find a user xattr.
 		 */
 		error = zfs_getextattr_impl(ap, !compat);
 	}
-	if (error == ENOENT)
-		error = SET_ERROR(ENOATTR);
 
 	rw_exit(&zp->z_xattr_lock);
 	ZFS_EXIT(zfsvfs);
@@ -5620,15 +5619,14 @@ zfs_deleteextattr(struct vop_deleteextattr_args *ap)
 
 	boolean_t compat = (zfsvfs->z_flags & ZSB_XATTR_COMPAT) != 0;
 	error = zfs_deleteextattr_impl(ap, compat);
-	if (error == ENOENT && ap->a_attrnamespace == EXTATTR_NAMESPACE_USER) {
+	if ((error == ENOENT || error == ENOATTR) &&
+	    ap->a_attrnamespace == EXTATTR_NAMESPACE_USER) {
 		/*
 		 * Fall back to the alternate namespace format if we failed to
 		 * find a user xattr.
 		 */
 		error = zfs_deleteextattr_impl(ap, !compat);
 	}
-	if (error == ENOENT)
-		error = SET_ERROR(ENOATTR);
 
 	rw_exit(&zp->z_xattr_lock);
 	ZFS_EXIT(zfsvfs);
@@ -5744,6 +5742,8 @@ zfs_setextattr_impl(struct vop_setextattr_args *ap, boolean_t compat)
 
 	struct vop_deleteextattr_args vda = {
 		.a_vp = ap->a_vp,
+		.a_attrnamespace = ap->a_attrnamespace,
+		.a_name = ap->a_name,
 		.a_cred = ap->a_cred,
 		.a_td = ap->a_td,
 	};
