@@ -117,10 +117,15 @@ BuildRequires:  ncompress
 BuildRequires:  libtirpc-devel
 %endif
 
+%if %{with pam}
+BuildRequires:  pam-devel
+%endif
+
 Requires:       openssl
 %if 0%{?_systemd}
 BuildRequires: systemd
 %endif
+
 %endif
 
 %if 0%{?_systemd}
