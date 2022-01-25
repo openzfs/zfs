@@ -729,7 +729,6 @@ static int
 __zpl_xattr_user_get(struct inode *ip, const char *name,
     void *value, size_t size)
 {
-	boolean_t compat = !!(ITOZSB(ip)->z_flags & ZSB_XATTR_COMPAT);
 	int error;
 	/* xattr_resolve_name will do this for us if this is defined */
 #ifndef HAVE_XATTR_HANDLER_NAME
@@ -747,7 +746,7 @@ __zpl_xattr_user_get(struct inode *ip, const char *name,
 	 * try again with the namespace prefix.
 	 */
 	error = zpl_xattr_get(ip, name, value, size);
-	if (!compat || error == -ENODATA) {
+	if (error == -ENODATA) {
 		char *xattr_name;
 		xattr_name = kmem_asprintf("%s%s", XATTR_USER_PREFIX, name);
 		error = zpl_xattr_get(ip, xattr_name, value, size);
@@ -762,8 +761,6 @@ static int
 __zpl_xattr_user_set(struct inode *ip, const char *name,
     const void *value, size_t size, int flags)
 {
-	char *xattr_name;
-	boolean_t compat = !!(ITOZSB(ip)->z_flags & ZSB_XATTR_COMPAT);
 	int error = 0;
 	/* xattr_resolve_name will do this for us if this is defined */
 #ifndef HAVE_XATTR_HANDLER_NAME
@@ -784,19 +781,40 @@ __zpl_xattr_user_set(struct inode *ip, const char *name,
 	 *   XATTR_CREATE: fail if xattr already exists
 	 *   XATTR_REPLACE: fail if xattr does not exist
 	 */
-	xattr_name = kmem_asprintf("%s%s", XATTR_USER_PREFIX, name);
-	if (compat)
-		error = zpl_xattr_set(ip, xattr_name, NULL, 0, flags);
-	if (!compat)
-		error = zpl_xattr_set(ip, xattr_name, value, size, flags);
-	kmem_strfree(xattr_name);
-
-	if (!compat || error == -EEXIST)
-		return (error);
-	if (error == 0 && (flags & XATTR_REPLACE))
+	boolean_t compat = !!(ITOZSB(ip)->z_flags & ZSB_XATTR_COMPAT);
+	char *prefixed_name = kmem_asprintf("%s%s", XATTR_USER_PREFIX, name);
+	const char *clear_name, *set_name;
+	if (compat) {
+		clear_name = prefixed_name;
+		set_name = name;
+	} else {
+		clear_name = name;
+		set_name = prefixed_name;
+	}
+	/*
+	 * Clear the old value with the alternative name format, if it exists.
+	 */
+	error = zpl_xattr_set(ip, clear_name, NULL, 0, flags);
+	/*
+	 * XATTR_CREATE was specified and we failed to clear the xattr
+	 * because it already exists.  Stop here.
+	 */
+	if (error == -EEXIST)
+		goto out;
+	/*
+	 * If XATTR_REPLACE was specified and we succeeded to clear
+	 * an xattr, we don't need to replace anything when setting
+	 * the new value.  If we failed with -ENODATA that's fine,
+	 * there was nothing to be cleared and we can ignore the error.
+	 */
+	if (error == 0)
 		flags &= ~XATTR_REPLACE;
-	error = zpl_xattr_set(ip, name, value, size, flags);
-
+	/*
+	 * Set the new value with the configured name format.
+	 */
+	error = zpl_xattr_set(ip, set_name, value, size, flags);
+out:
+	kmem_strfree(prefixed_name);
 	return (error);
 }
 ZPL_XATTR_SET_WRAPPER(zpl_xattr_user_set);
@@ -1932,14 +1950,11 @@ static enum xattr_permission
 zpl_xattr_permission(xattr_filldir_t *xf, const char *name, int name_len)
 {
 	const struct xattr_handler *handler;
-	struct dentry *d = xf->dentry;
-	boolean_t compat = !!(ITOZSB(d->d_inode)->z_flags & ZSB_XATTR_COMPAT);
+	struct dentry *d __maybe_unused = xf->dentry;
 	enum xattr_permission perm = XAPERM_ALLOW;
 
 	handler = zpl_xattr_handler(name);
 	if (handler == NULL) {
-		if (!compat)
-			return (XAPERM_DENY);
 		/* Do not expose FreeBSD system namespace xattrs. */
 		if (ZFS_XA_NS_PREFIX_MATCH(FREEBSD, name))
 			return (XAPERM_DENY);
