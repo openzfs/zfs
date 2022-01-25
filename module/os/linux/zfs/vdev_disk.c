@@ -446,7 +446,7 @@ vdev_submit_bio_impl(struct bio *bio)
 #ifdef HAVE_1ARG_SUBMIT_BIO
 	(void) submit_bio(bio);
 #else
-	(void) submit_bio(0, bio);
+	(void) submit_bio(bio_data_dir(bio), bio);
 #endif
 }
 
