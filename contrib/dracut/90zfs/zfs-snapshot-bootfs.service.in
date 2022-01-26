@@ -9,6 +9,6 @@ ConditionKernelCommandLine=bootfs.snapshot
 [Service]
 # ${BOOTFS} should have been set by zfs-env-bootfs.service
 Type=oneshot
-ExecStartPre=/bin/sh -c 'test -n "${BOOTFS}"'
+ExecStartPre=/bin/test -n ${BOOTFS}
 ExecStart=-/bin/sh -c '. /lib/dracut-lib.sh; SNAPNAME="$(getarg bootfs.snapshot)"; exec @sbindir@/zfs snapshot "${BOOTFS}@${SNAPNAME:-%v}"'
 RemainAfterExit=yes
