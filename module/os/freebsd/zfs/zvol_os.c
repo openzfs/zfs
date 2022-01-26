@@ -928,8 +928,8 @@ retry:
 		 */
 		if (!mutex_owned(&spa_namespace_lock)) {
 			if (!mutex_tryenter(&spa_namespace_lock)) {
-				rw_exit(&zvol_state_lock);
-				mutex_enter(&spa_namespace_lock);
+				mutex_exit(&zv->zv_state_lock);
+				rw_exit(&zv->zv_suspend_lock);
 				kern_yield(PRI_USER);
 				goto retry;
 			} else {
