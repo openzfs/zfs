@@ -540,7 +540,7 @@ systemctl --system daemon-reload >/dev/null || true
 %{_datadir}/%{name}/*.sh
 
 %files dracut
-%doc contrib/dracut/README.dracut.markdown
+%doc contrib/dracut/README.md
 %{_dracutdir}/modules.d/*
 
 %if %{with pyzfs}
@@ -554,7 +554,7 @@ systemctl --system daemon-reload >/dev/null || true
 
 %if 0%{?_initramfs}
 %files initramfs
-%doc contrib/initramfs/README.initramfs.markdown
+%doc contrib/initramfs/README.md
 /usr/share/initramfs-tools/*
 %else
 # Since we're not building the initramfs package,
