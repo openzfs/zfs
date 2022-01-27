@@ -1,0 +1,1 @@
+/var/run/pam_zfs_key(/.*)?		gen_context(system_u:object_r:pam_var_run_t,s0)

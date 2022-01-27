@@ -17,3 +17,9 @@ pam_zfs_key_la_LDFLAGS = -version-info 1:0:0 -avoid-version -module -shared
 pam_zfs_key_la_LIBADD += -lpam $(LIBCRYPTO_LIBS)
 
 dist_pamconfigs_DATA = zfs_key
+
+if PAM_ZFS_SELINUX_ENABLED
+SUBDIRS = selinux
+endif
+
+DIST_SUBDIRS = selinux

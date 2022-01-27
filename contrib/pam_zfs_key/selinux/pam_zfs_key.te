@@ -1,0 +1,17 @@
+policy_module(pam_zfs_key, 1.0.0)
+
+########################################
+#
+# pam_zfs_key local policy
+#
+
+gen_require(`
+	type local_login_t;
+	type sshd_t;
+
+	type passwd_t;
+')
+pam_zfs_key_session(local_login_t)
+pam_zfs_key_session(sshd_t)
+
+pam_zfs_key_password(passwd_t)
