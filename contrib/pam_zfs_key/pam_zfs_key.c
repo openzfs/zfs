@@ -377,6 +377,10 @@ decrypt_mount(pam_handle_t *pamh, const char *ds_name,
 		pam_syslog(pamh, LOG_ERR, "dataset %s not found", ds_name);
 		return (-1);
 	}
+	if (zfs_prop_get_int(ds, ZFS_PROP_MOUNTED)) {
+		zfs_close(ds);
+		return (0);
+	}
 	pw_password_t *key = prepare_passphrase(pamh, ds, passphrase, NULL);
 	if (key == NULL) {
 		zfs_close(ds);
@@ -756,11 +760,7 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
 		return (PAM_SUCCESS);
 	}
 
-	int counter = zfs_key_config_modify_session_counter(pamh, &config, 1);
-	if (counter != 1) {
-		zfs_key_config_free(&config);
-		return (PAM_SUCCESS);
-	}
+	(void) zfs_key_config_modify_session_counter(pamh, &config, 1);
 
 	const pw_password_t *token = pw_get(pamh);
 	if (token == NULL) {
