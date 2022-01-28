@@ -880,7 +880,7 @@ tags = ['functional', 'stat']
 
 [tests/functional/suid]
 tests = ['suid_write_to_suid', 'suid_write_to_sgid', 'suid_write_to_suid_sgid',
-    'suid_write_to_none']
+    'suid_write_to_none', 'suid_write_zil_replay']
 tags = ['functional', 'suid']
 
 [tests/functional/threadsappend]

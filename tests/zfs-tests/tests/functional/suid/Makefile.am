@@ -7,6 +7,7 @@ dist_pkgdata_SCRIPTS = \
 	suid_write_to_sgid.ksh \
 	suid_write_to_suid_sgid.ksh \
 	suid_write_to_none.ksh \
+	suid_write_zil_replay.ksh \
 	cleanup.ksh \
 	setup.ksh
 
