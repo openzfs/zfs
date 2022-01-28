@@ -3101,7 +3101,7 @@ created_before(libzfs_handle_t *hdl, avl_tree_t *avl,
  */
 static int
 recv_fix_encryption_hierarchy(libzfs_handle_t *hdl, const char *top_zfs,
-    nvlist_t *stream_nv, avl_tree_t *stream_avl)
+    nvlist_t *stream_nv)
 {
 	int err;
 	nvpair_t *fselem = NULL;
@@ -3728,7 +3728,7 @@ zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
 
 	if (raw && softerr == 0 && *top_zfs != NULL) {
 		softerr = recv_fix_encryption_hierarchy(hdl, *top_zfs,
-		    stream_nv, stream_avl);
+		    stream_nv);
 	}
 
 out:
@@ -4991,7 +4991,7 @@ zfs_receive_checkprops(libzfs_handle_t *hdl, nvlist_t *props,
 		if (prop == ZPROP_INVAL) {
 			if (!zfs_prop_user(name)) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "invalid property '%s'"), name);
+				    "%s: invalid property '%s'"), errbuf, name);
 				return (B_FALSE);
 			}
 			continue;
@@ -5015,7 +5015,7 @@ zfs_receive_checkprops(libzfs_handle_t *hdl, nvlist_t *props,
 		if (zfs_prop_readonly(prop) || prop == ZFS_PROP_VERSION ||
 		    prop == ZFS_PROP_VOLSIZE) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "invalid property '%s'"), name);
+			    "%s: invalid property '%s'"), errbuf, name);
 			return (B_FALSE);
 		}
 	}
@@ -5041,9 +5041,8 @@ zfs_receive_impl(libzfs_handle_t *hdl, const char *tosnap,
 	    "cannot receive"));
 
 	/* check cmdline props, raise an error if they cannot be received */
-	if (!zfs_receive_checkprops(hdl, cmdprops, errbuf)) {
-		return (zfs_error(hdl, EZFS_BADPROP, errbuf));
-	}
+	if (!zfs_receive_checkprops(hdl, cmdprops, errbuf))
+		return (-1);
 
 	if (flags->isprefix &&
 	    !zfs_dataset_exists(hdl, tosnap, ZFS_TYPE_DATASET)) {
