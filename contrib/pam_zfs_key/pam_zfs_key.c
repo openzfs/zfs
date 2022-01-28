@@ -635,6 +635,35 @@ zfs_key_config_modify_session_counter(pam_handle_t *pamh,
 	return (counter_value);
 }
 
+/*
+ * This module only works if every opened session is later closed.  There are
+ * known and common service(s) which violate this norm; warn if they are
+ * detected.
+ *
+ * Specifically, these <services> include "systemd-user".
+ *
+ * Workaround:
+ *  session [success=1 default=ignore] pam_succeed_if.so service in <services>
+ *  session optional                   pam_zfs_key.so
+ */
+static int
+session_roundtrip_check(pam_handle_t *pamh)
+{
+	const char *service;
+	int ret = pam_get_item(pamh, PAM_SERVICE, (const void **)&service);
+	if (ret != PAM_SUCCESS) {
+		pam_syslog(pamh, LOG_NOTICE, "Unable to identify PAM service");
+		return (-1);
+	}
+	if (strcmp("systemd-user", service) == 0) {
+		pam_syslog(pamh, LOG_WARNING,
+		    "Key may not be unloaded because of "
+		    "https://github.com/systemd/systemd/issues/8598");
+		return (1);
+	}
+	return (0);
+}
+
 __attribute__((visibility("default")))
 PAM_EXTERN int
 pam_sm_authenticate(pam_handle_t *pamh, int flags,
@@ -749,6 +778,7 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
 		    "Cannot zfs_mount when not being root.");
 		return (PAM_SUCCESS);
 	}
+	(void) session_roundtrip_check(pamh);
 	zfs_key_config_t config;
 	zfs_key_config_load(pamh, &config, argc, argv);
 	if (config.uid < 1000) {
