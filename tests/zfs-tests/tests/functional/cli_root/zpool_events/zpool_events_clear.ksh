@@ -44,6 +44,7 @@ done
 # wait a bit to allow the kernel module to process new events
 zpool_events_settle
 EVENTS_NUM=$(zpool events -H | wc -l)
+EVENTS_NUM=${EVENTS_NUM##* }
 
 # 3. Verify 'zpool events -c' successfully clear new events
 CLEAR_OUTPUT=$(zpool events -c)
