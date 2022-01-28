@@ -88,7 +88,8 @@ uu_warn_internal(int err, const char *format, va_list alist)
 	if (pname != NULL)
 		(void) fprintf(stderr, "%s: ", pname);
 
-	(void) vfprintf(stderr, format, alist);
+	if (format != NULL)
+		(void) vfprintf(stderr, format, alist);
 
 	if (strrchr(format, '\n') == NULL)
 		(void) fprintf(stderr, ": %s\n", strerror(err));

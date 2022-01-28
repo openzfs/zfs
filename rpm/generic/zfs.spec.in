@@ -55,6 +55,7 @@
 %bcond_with    debug
 %bcond_with    debuginfo
 %bcond_with    asan
+%bcond_with    ubsan
 %bcond_with    systemd
 %bcond_with    pam
 %bcond_without pyzfs
@@ -344,6 +345,12 @@ image which is ZFS aware.
     %define asan --disable-asan
 %endif
 
+%if %{with ubsan}
+    %define ubsan --enable-ubsan
+%else
+    %define ubsan --disable-ubsan
+%endif
+
 %if 0%{?_systemd}
     %define systemd --enable-systemd --with-systemdunitdir=%{_unitdir} --with-systemdpresetdir=%{_presetdir} --with-systemdmodulesloaddir=%{_modulesloaddir} --with-systemdgeneratordir=%{_systemdgeneratordir} --disable-sysvinit
     %define systemd_svcs zfs-import-cache.service zfs-import-scan.service zfs-mount.service zfs-share.service zfs-zed.service zfs.target zfs-import.target zfs-volume-wait.service zfs-volumes.target
@@ -379,6 +386,7 @@ image which is ZFS aware.
     %{debug} \
     %{debuginfo} \
     %{asan} \
+    %{ubsan} \
     %{systemd} \
     %{pam} \
     %{pyzfs}

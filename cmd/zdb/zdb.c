@@ -8654,7 +8654,7 @@ main(int argc, char **argv)
 			dump_opt[c] += verbose;
 	}
 
-	libspl_assert_ok = (dump_opt['A'] == 1) || (dump_opt['A'] > 2);
+	libspl_set_assert_ok((dump_opt['A'] == 1) || (dump_opt['A'] > 2));
 	zfs_recover = (dump_opt['A'] > 1);
 
 	argc -= optind;

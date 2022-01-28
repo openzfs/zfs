@@ -29,6 +29,7 @@ AM_CFLAGS += $(NO_OMIT_FRAME_POINTER)
 AM_CFLAGS += $(IMPLICIT_FALLTHROUGH)
 AM_CFLAGS += $(DEBUG_CFLAGS)
 AM_CFLAGS += $(ASAN_CFLAGS)
+AM_CFLAGS += $(UBSAN_CFLAGS)
 AM_CFLAGS += $(CODE_COVERAGE_CFLAGS) $(NO_FORMAT_ZERO_LENGTH)
 if BUILD_FREEBSD
 AM_CFLAGS += -fPIC -Werror -Wno-unknown-pragmas -Wno-enum-conversion
@@ -58,8 +59,17 @@ AM_CPPFLAGS += -D"__xpg_basename(...)=__xpg_basename(__VA_ARGS__) __attribute__(
 AM_CPPFLAGS += -D"basename(...)=basename(__VA_ARGS__) __attribute__((deprecated(\"basename(3) is underspecified. Use zfs_basename() instead!\")))"
 AM_CPPFLAGS += -D"dirname(...)=dirname(__VA_ARGS__) __attribute__((deprecated(\"dirname(3) is underspecified. Use zfs_dirnamelen() instead!\")))"
 
+if ASAN_ENABLED
+AM_CPPFLAGS += -DZFS_ASAN_ENABLED
+endif
+
+if UBSAN_ENABLED
+AM_CPPFLAGS += -DZFS_UBSAN_ENABLED
+endif
+
 AM_LDFLAGS  = $(DEBUG_LDFLAGS)
 AM_LDFLAGS += $(ASAN_LDFLAGS)
+AM_LDFLAGS += $(UBSAN_LDFLAGS)
 
 if BUILD_FREEBSD
 AM_LDFLAGS += -fstack-protector-strong -shared

@@ -1760,17 +1760,19 @@ zpool_do_create(int argc, char **argv)
 			    "feature@%s", feat->fi_uname);
 
 			if (!nvlist_lookup_string(props, propname, &propval)) {
-				if (strcmp(propval, ZFS_FEATURE_DISABLED) == 0)
+				if (strcmp(propval,
+				    ZFS_FEATURE_DISABLED) == 0) {
 					(void) nvlist_remove_all(props,
 					    propname);
-				if (strcmp(propval,
+				} else if (strcmp(propval,
 				    ZFS_FEATURE_ENABLED) == 0 &&
-				    !requested_features[i])
+				    !requested_features[i]) {
 					(void) fprintf(stderr, gettext(
 					    "Warning: feature \"%s\" enabled "
 					    "but is not in specified "
 					    "'compatibility' feature set.\n"),
 					    feat->fi_uname);
+				}
 			} else if (
 			    enable_pool_features &&
 			    feat->fi_zfs_mod_supported &&
@@ -9214,7 +9216,7 @@ zpool_do_upgrade(int argc, char **argv)
 		}
 	}
 
-	(void) printf(gettext("This system supports ZFS pool feature "
+	(void) printf("%s", gettext("This system supports ZFS pool feature "
 	    "flags.\n\n"));
 	if (showversions) {
 		int i;
