@@ -4168,7 +4168,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
     avl_tree_t *stream_avl, char **top_zfs,
     const char *finalsnap, nvlist_t *cmdprops)
 {
-	time_t begin_time;
+	struct timespec begin_time;
 	int ioctl_err, ioctl_errno, err;
 	char *cp;
 	struct drr_begin *drrb = &drr->drr_u.drr_begin;
@@ -4202,7 +4202,10 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	uint8_t *wkeydata = NULL;
 	uint_t wkeylen = 0;
 
-	begin_time = time(NULL);
+#ifndef CLOCK_MONOTONIC_RAW
+#define	CLOCK_MONOTONIC_RAW CLOCK_MONOTONIC
+#endif
+	clock_gettime(CLOCK_MONOTONIC_RAW, &begin_time);
 	bzero(origin, MAXNAMELEN);
 	bzero(tmp_keylocation, MAXNAMELEN);
 
@@ -4987,14 +4990,23 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		char buf1[64];
 		char buf2[64];
 		uint64_t bytes = read_bytes;
-		time_t delta = time(NULL) - begin_time;
-		if (delta == 0)
-			delta = 1;
+		struct timespec delta;
+		clock_gettime(CLOCK_MONOTONIC_RAW, &delta);
+		if (begin_time.tv_nsec > delta.tv_nsec) {
+			delta.tv_nsec =
+			    1000000000 + delta.tv_nsec - begin_time.tv_nsec;
+			delta.tv_sec -= 1;
+		} else
+			delta.tv_nsec -= begin_time.tv_nsec;
+		delta.tv_sec -= begin_time.tv_sec;
+		if (delta.tv_sec == 0 && delta.tv_nsec == 0)
+			delta.tv_nsec = 1;
+		double delta_f = delta.tv_sec + (delta.tv_nsec / 1e9);
 		zfs_nicebytes(bytes, buf1, sizeof (buf1));
-		zfs_nicebytes(bytes/delta, buf2, sizeof (buf1));
+		zfs_nicebytes(bytes / delta_f, buf2, sizeof (buf2));
 
-		(void) printf("received %s stream in %lld seconds (%s/sec)\n",
-		    buf1, (longlong_t)delta, buf2);
+		(void) printf("received %s stream in %.2f seconds (%s/sec)\n",
+		    buf1, delta_f, buf2);
 	}
 
 	err = 0;
