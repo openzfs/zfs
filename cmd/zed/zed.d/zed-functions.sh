@@ -417,7 +417,7 @@ zed_notify_slack_webhook()
 
     # Construct the JSON message for posting.
     #
-    msg_json="$(printf '{"text": "*%s*\n%s"}' "${subject}" "${msg_body}" )"
+    msg_json="$(printf '{"text": "*%s*\\n%s"}' "${subject}" "${msg_body}" )"
 
     # Send the POST request and check for errors.
     #
