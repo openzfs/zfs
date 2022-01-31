@@ -48,9 +48,9 @@ typedef enum {
 typedef	struct sx	krwlock_t;
 
 #ifndef OPENSOLARIS_WITNESS
-#define	RW_FLAGS	(SX_DUPOK | SX_NOWITNESS)
+#define	RW_FLAGS	(SX_DUPOK | SX_NEW | SX_NOWITNESS)
 #else
-#define	RW_FLAGS	(SX_DUPOK)
+#define	RW_FLAGS	(SX_DUPOK | SX_NEW)
 #endif
 
 #define	RW_READ_HELD(x)		(rw_read_held((x)))
@@ -60,9 +60,6 @@ typedef	struct sx	krwlock_t;
 #define	rw_init(lock, desc, type, arg)	do {				\
 	const char *_name;						\
 	ASSERT((type) == 0 || (type) == RW_DEFAULT);			\
-	KASSERT(((lock)->lock_object.lo_flags & LO_ALLMASK) !=		\
-	    LO_EXPECTED, ("lock %s already initialized", #lock));	\
-	bzero((lock), sizeof (struct sx));				\
 	for (_name = #lock; *_name != '\0'; _name++) {			\
 		if (*_name >= 'a' && *_name <= 'z')			\
 			break;						\
