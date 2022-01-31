@@ -181,7 +181,7 @@ write_map(const char *filename, nvlist_t *allcfgs)
 	 * no locking, it only guarantees the packed nvlist on disk
 	 * is updated atomically and is internally consistent.
 	 */
-	char *tmpname = calloc(MAXPATHLEN, 1);
+	char *tmpname = calloc(1, MAXPATHLEN);
 	if (tmpname == NULL) {
 		free(buf);
 		return (ENOMEM);

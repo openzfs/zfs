@@ -818,7 +818,7 @@ main(int argc, char *argv[])
 			break;
 		case 't':
 			tagslen = strlen(optarg) + 2;
-			tags = calloc(tagslen, 1);
+			tags = calloc(1, tagslen);
 			if (tags == NULL) {
 				fprintf(stderr,
 				    "error: cannot allocate memory "
