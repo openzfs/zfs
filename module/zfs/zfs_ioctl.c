@@ -373,7 +373,6 @@ zfs_log_history(zfs_cmd_t *zc)
  * Policy for top-level read operations (list pools).  Requires no privileges,
  * and can be used in the local zone, as there is no associated dataset.
  */
-/* ARGSUSED */
 static int
 zfs_secpolicy_none(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 {
@@ -384,7 +383,6 @@ zfs_secpolicy_none(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
  * Policy for dataset read operations (list children, get statistics).  Requires
  * no privileges, but must be visible in the local zone.
  */
-/* ARGSUSED */
 static int
 zfs_secpolicy_read(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 {
@@ -1101,7 +1099,6 @@ zfs_secpolicy_diff(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 /*
  * Policy for object to name lookups (both from and to datasets).
  */
-/* ARGSUSED */
 static int
 zfs_secpolicy_diff2(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 {
