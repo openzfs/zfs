@@ -700,12 +700,14 @@ msg "${TEST_RUNNER} ${QUIET:+-q}" \
     "-T \"${TAGS}\"" \
     "-i \"${STF_SUITE}\"" \
     "-I \"${ITERATIONS}\""
-${TEST_RUNNER} ${QUIET:+-q} \
+{ ${TEST_RUNNER} ${QUIET:+-q} \
     -c "${RUNFILES}" \
     -T "${TAGS}" \
     -i "${STF_SUITE}" \
     -I "${ITERATIONS}" \
-    2>&1 | tee "$RESULTS_FILE"
+    2>&1; echo $? >"$REPORT_FILE"; } | tee "$RESULTS_FILE"
+read -r RUNRESULT <"$REPORT_FILE"
+
 #
 # Analyze the results.
 #
@@ -720,13 +722,14 @@ if [ "$RESULT" -eq "2" ] && [ -n "$RERUN" ]; then
 	for test_name in $MAYBES; do
 		grep "$test_name " "$TEMP_RESULTS_FILE" >>"$TEST_LIST"
 	done
-	${TEST_RUNNER} ${QUIET:+-q} \
+	{ ${TEST_RUNNER} ${QUIET:+-q} \
 	    -c "${RUNFILES}" \
 	    -T "${TAGS}" \
 	    -i "${STF_SUITE}" \
 	    -I "${ITERATIONS}" \
 	    -l "${TEST_LIST}" \
-	    2>&1 | tee "$RESULTS_FILE"
+	    2>&1; echo $? >"$REPORT_FILE"; } | tee "$RESULTS_FILE"
+	read -r RUNRESULT <"$REPORT_FILE"
 	#
 	# Analyze the results.
 	#
@@ -748,4 +751,4 @@ if [ -n "$SINGLETEST" ]; then
 	rm -f "$RUNFILES" >/dev/null 2>&1
 fi
 
-exit "${RESULT}"
+[ "$RUNRESULT" -gt 3 ] && exit "$RUNRESULT" || exit "$RESULT"
