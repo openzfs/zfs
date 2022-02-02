@@ -40,54 +40,10 @@
 extern "C" {
 #endif
 
-#define	KCF_MODULE "kcf"
-
 /*
  * Prefixes convention: structures internal to the kernel cryptographic
  * framework start with 'kcf_'. Exposed structure start with 'crypto_'.
  */
-
-/* Provider stats. Not protected. */
-typedef	struct kcf_prov_stats {
-	kstat_named_t	ps_ops_total;
-	kstat_named_t	ps_ops_passed;
-	kstat_named_t	ps_ops_failed;
-	kstat_named_t	ps_ops_busy_rval;
-} kcf_prov_stats_t;
-
-/*
- * Keep all the information needed by the scheduler from
- * this provider.
- */
-typedef struct kcf_sched_info {
-	/* The number of operations dispatched. */
-	uint64_t	ks_ndispatches;
-
-	/* The number of operations that failed. */
-	uint64_t	ks_nfails;
-
-	/* The number of operations that returned CRYPTO_BUSY. */
-	uint64_t	ks_nbusy_rval;
-} kcf_sched_info_t;
-
-/*
- * pd_irefcnt approximates the number of inflight requests to the
- * provider. Though we increment this counter during registration for
- * other purposes, that base value is mostly same across all providers.
- * So, it is a good measure of the load on a provider when it is not
- * in a busy state. Once a provider notifies it is busy, requests
- * back up in the taskq. So, we use tq_nalloc in that case which gives
- * the number of task entries in the task queue. Note that we do not
- * acquire any locks here as it is not critical to get the exact number
- * and the lock contention may be too costly for this code path.
- */
-#define	KCF_PROV_INCRSTATS(pd, error)	{				\
-	(pd)->pd_sched_info.ks_ndispatches++;				\
-	if (error == CRYPTO_BUSY)					\
-		(pd)->pd_sched_info.ks_nbusy_rval++;			\
-	else if (error != CRYPTO_SUCCESS)	\
-		(pd)->pd_sched_info.ks_nfails++;			\
-}
 
 
 /*
@@ -147,15 +103,12 @@ typedef enum {
  *			number to an index in pd_mechanisms array
  * pd_mechanisms:	Array of mechanisms supported by the provider, specified
  *			by the provider during registration
- * pd_sched_info:	Scheduling information associated with the provider
  * pd_mech_list_count:	The number of entries in pi_mechanisms, specified
  *			by the provider during registration
  * pd_remove_cv:	cv to wait on while the provider queue drains
  * pd_description:	Provider description string
  * pd_kcf_prov_handle:	KCF-private handle assigned by KCF
  * pd_prov_id:		Identification # assigned by KCF to provider
- * pd_kstat:		kstat associated with the provider
- * pd_ks_data:		kstat data
  */
 typedef struct kcf_provider_desc {
 	uint_t				pd_refcnt;
@@ -166,14 +119,11 @@ typedef struct kcf_provider_desc {
 	ushort_t			pd_mech_indx[KCF_OPS_CLASSSIZE]\
 					    [KCF_MAXMECHTAB];
 	const crypto_mech_info_t		*pd_mechanisms;
-	kcf_sched_info_t		pd_sched_info;
 	uint_t				pd_mech_list_count;
 	kcondvar_t			pd_remove_cv;
 	const char				*pd_description;
 	crypto_kcf_provider_handle_t	pd_kcf_prov_handle;
 	crypto_provider_id_t		pd_prov_id;
-	kstat_t				*pd_kstat;
-	kcf_prov_stats_t		pd_ks_data;
 } kcf_provider_desc_t;
 
 /* atomic operations in linux implicitly form a memory barrier */
