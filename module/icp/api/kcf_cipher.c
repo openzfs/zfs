@@ -91,7 +91,6 @@ retry:
 	KCF_SET_PROVIDER_MECHNUM(mech->cm_type, pd, &lmech);
 	error = KCF_PROV_ENCRYPT_ATOMIC(pd, &lmech, key,
 	    plaintext, ciphertext, spi_ctx_tmpl);
-	KCF_PROV_INCRSTATS(pd, error);
 
 	if (error != CRYPTO_SUCCESS && IS_RECOVERABLE(error)) {
 		/* Add pd to the linked list of providers tried. */
@@ -164,7 +163,6 @@ retry:
 
 	error = KCF_PROV_DECRYPT_ATOMIC(pd, &lmech, key,
 	    ciphertext, plaintext, spi_ctx_tmpl);
-	KCF_PROV_INCRSTATS(pd, error);
 
 	if (error != CRYPTO_SUCCESS && IS_RECOVERABLE(error)) {
 		/* Add pd to the linked list of providers tried. */

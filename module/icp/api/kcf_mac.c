@@ -107,7 +107,6 @@ retry:
 	KCF_SET_PROVIDER_MECHNUM(mech->cm_type, pd, &lmech);
 	error = KCF_PROV_MAC_ATOMIC(pd, &lmech, key, data,
 	    mac, spi_ctx_tmpl);
-	KCF_PROV_INCRSTATS(pd, error);
 
 	if (error != CRYPTO_SUCCESS && IS_RECOVERABLE(error)) {
 		/* Add pd to the linked list of providers tried. */
@@ -171,7 +170,6 @@ crypto_mac_init_prov(kcf_provider_desc_t *pd,
 	crypto_mechanism_t lmech = *mech;
 	KCF_SET_PROVIDER_MECHNUM(mech->cm_type, real_provider, &lmech);
 	rv = KCF_PROV_MAC_INIT(real_provider, ctx, &lmech, key, tmpl);
-	KCF_PROV_INCRSTATS(pd, rv);
 
 	if (rv == CRYPTO_SUCCESS)
 		*ctxp = (crypto_context_t)ctx;
@@ -259,9 +257,7 @@ crypto_mac_update(crypto_context_t context, crypto_data_t *data)
 		return (CRYPTO_INVALID_CONTEXT);
 	}
 
-	int rv = KCF_PROV_MAC_UPDATE(pd, ctx, data);
-	KCF_PROV_INCRSTATS(pd, rv);
-	return (rv);
+	return (KCF_PROV_MAC_UPDATE(pd, ctx, data));
 }
 
 /*
@@ -291,7 +287,6 @@ crypto_mac_final(crypto_context_t context, crypto_data_t *mac)
 	}
 
 	int rv = KCF_PROV_MAC_FINAL(pd, ctx, mac);
-	KCF_PROV_INCRSTATS(pd, rv);
 
 	/* Release the hold done in kcf_new_ctx() during init step. */
 	KCF_CONTEXT_COND_RELEASE(rv, kcf_ctx);
