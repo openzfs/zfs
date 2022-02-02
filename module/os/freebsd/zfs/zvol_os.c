@@ -92,6 +92,7 @@
 #include <sys/zio_checksum.h>
 #include <sys/zil_impl.h>
 #include <sys/filio.h>
+#include <sys/freebsd_event.h>
 
 #include <geom/geom.h>
 #include <sys/zvol.h>
@@ -123,6 +124,7 @@ struct zvol_state_os {
 		struct zvol_state_dev {
 			struct cdev *zsd_cdev;
 			uint64_t zsd_sync_cnt;
+			struct selinfo zsd_selinfo;
 		} _zso_dev;
 
 		/* volmode=geom */
@@ -167,6 +169,7 @@ static d_ioctl_t	zvol_cdev_ioctl;
 static d_read_t		zvol_cdev_read;
 static d_write_t	zvol_cdev_write;
 static d_strategy_t	zvol_geom_bio_strategy;
+static d_kqfilter_t	zvol_cdev_kqfilter;
 
 static struct cdevsw zvol_cdevsw = {
 	.d_name =	"zvol",
@@ -178,6 +181,16 @@ static struct cdevsw zvol_cdevsw = {
 	.d_read =	zvol_cdev_read,
 	.d_write =	zvol_cdev_write,
 	.d_strategy =	zvol_geom_bio_strategy,
+	.d_kqfilter =	zvol_cdev_kqfilter,
+};
+
+static void		zvol_filter_detach(struct knote *kn);
+static int		zvol_filter_vnode(struct knote *kn, long hint);
+
+static struct filterops zvol_filterops_vnode = {
+	.f_isfd = 1,
+	.f_detach = zvol_filter_detach,
+	.f_event = zvol_filter_vnode,
 };
 
 extern uint_t zfs_geom_probe_vdev_key;
@@ -599,6 +612,49 @@ zvol_geom_bio_getattr(struct bio *bp)
 			return (0);
 	}
 	return (1);
+}
+
+static void
+zvol_filter_detach(struct knote *kn)
+{
+	zvol_state_t *zv;
+	struct zvol_state_dev *zsd;
+
+	zv = kn->kn_hook;
+	zsd = &zv->zv_zso->zso_dev;
+
+	knlist_remove(&zsd->zsd_selinfo.si_note, kn, 0);
+}
+
+static int
+zvol_filter_vnode(struct knote *kn, long hint)
+{
+	kn->kn_fflags |= kn->kn_sfflags & hint;
+
+	return (kn->kn_fflags != 0);
+}
+
+static int
+zvol_cdev_kqfilter(struct cdev *dev, struct knote *kn)
+{
+	zvol_state_t *zv;
+	struct zvol_state_dev *zsd;
+
+	zv = dev->si_drv2;
+	zsd = &zv->zv_zso->zso_dev;
+
+	if (kn->kn_filter != EVFILT_VNODE)
+		return (EINVAL);
+
+	/* XXX: extend support for other NOTE_* events */
+	if (kn->kn_sfflags != NOTE_ATTRIB)
+		return (EINVAL);
+
+	kn->kn_fop = &zvol_filterops_vnode;
+	kn->kn_hook = zv;
+	knlist_add(&zsd->zsd_selinfo.si_note, kn, 0);
+
+	return (0);
 }
 
 static void
@@ -1306,6 +1362,8 @@ zvol_os_free(zvol_state_t *zv)
 		if (dev != NULL) {
 			ASSERT3P(dev->si_drv2, ==, NULL);
 			destroy_dev(dev);
+			knlist_clear(&zsd->zsd_selinfo.si_note, 0);
+			knlist_destroy(&zsd->zsd_selinfo.si_note);
 		}
 	}
 
@@ -1409,6 +1467,8 @@ zvol_os_create_minor(const char *name)
 			dev->si_iosize_max = MAXPHYS;
 #endif
 			zsd->zsd_cdev = dev;
+			knlist_init_sx(&zsd->zsd_selinfo.si_note,
+			    &zv->zv_state_lock);
 		}
 	}
 	(void) strlcpy(zv->zv_name, name, MAXPATHLEN);
@@ -1515,6 +1575,10 @@ zvol_os_update_volsize(zvol_state_t *zv, uint64_t volsize)
 			g_resize_provider(pp, zv->zv_volsize);
 
 		g_topology_unlock();
+	} else if (zv->zv_volmode == ZFS_VOLMODE_DEV) {
+		struct zvol_state_dev *zsd = &zv->zv_zso->zso_dev;
+
+		KNOTE_UNLOCKED(&zsd->zsd_selinfo.si_note, NOTE_ATTRIB);
 	}
 	return (0);
 }
