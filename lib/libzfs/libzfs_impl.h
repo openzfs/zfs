@@ -260,7 +260,7 @@ struct path_mapper {
 	int		pm_err;
 	const char	*pm_fsname;
 };
-extern proto_table_t proto_table[PROTO_END];
+extern const proto_table_t proto_table[PROTO_END];
 
 extern int do_mount(zfs_handle_t *zhp, const char *mntpt, char *opts,
     int flags);

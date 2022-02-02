@@ -2393,8 +2393,8 @@ get_receive_resume_token_impl(dsl_dataset_t *ds)
 	}
 	if (dsl_dataset_feature_is_active(ds,
 	    SPA_FEATURE_REDACTED_DATASETS)) {
-		uint64_t num_redact_snaps;
-		uint64_t *redact_snaps;
+		uint64_t num_redact_snaps = 0;
+		uint64_t *redact_snaps = 0;
 		VERIFY(dsl_dataset_get_uint64_array_feature(ds,
 		    SPA_FEATURE_REDACTED_DATASETS, &num_redact_snaps,
 		    &redact_snaps));
