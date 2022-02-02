@@ -38,15 +38,6 @@
 
 static int init_prov_mechs(const crypto_provider_info_t *,
     kcf_provider_desc_t *);
-static int kcf_prov_kstat_update(kstat_t *, int);
-static void delete_kstat(kcf_provider_desc_t *);
-
-static const kcf_prov_stats_t kcf_stats_ks_data_template = {
-	{ "kcf_ops_total",		KSTAT_DATA_UINT64 },
-	{ "kcf_ops_passed",		KSTAT_DATA_UINT64 },
-	{ "kcf_ops_failed",		KSTAT_DATA_UINT64 },
-	{ "kcf_ops_returned_busy",	KSTAT_DATA_UINT64 }
-};
 
 /*
  * This routine is used to add cryptographic providers to the KEF framework.
@@ -94,27 +85,6 @@ crypto_register_provider(const crypto_provider_info_t *info,
 	 * have multiple threads for the taskq. We pass TASKQ_PREPOPULATE flag
 	 * to keep some entries cached to improve performance.
 	 */
-
-	/*
-	 * Create the kstat for this provider. There is a kstat
-	 * installed for each successfully registered provider.
-	 * This kstat is deleted, when the provider unregisters.
-	 */
-	prov_desc->pd_kstat = kstat_create("kcf", 0, "NONAME_provider_stats",
-	    "crypto", KSTAT_TYPE_NAMED, sizeof (kcf_prov_stats_t) /
-	    sizeof (kstat_named_t), KSTAT_FLAG_VIRTUAL);
-
-	if (prov_desc->pd_kstat != NULL) {
-		bcopy(&kcf_stats_ks_data_template,
-		    &prov_desc->pd_ks_data,
-		    sizeof (kcf_stats_ks_data_template));
-		prov_desc->pd_kstat->ks_data = &prov_desc->pd_ks_data;
-		KCF_PROV_REFHOLD(prov_desc);
-		KCF_PROV_IREFHOLD(prov_desc);
-		prov_desc->pd_kstat->ks_private = prov_desc;
-		prov_desc->pd_kstat->ks_update = kcf_prov_kstat_update;
-		kstat_install(prov_desc->pd_kstat);
-	}
 
 	mutex_enter(&prov_desc->pd_lock);
 	prov_desc->pd_state = KCF_PROV_READY;
@@ -191,8 +161,6 @@ crypto_unregister_provider(crypto_kcf_provider_handle_t handle)
 		KCF_PROV_REFRELE(desc);
 		return (CRYPTO_UNKNOWN_PROVIDER);
 	}
-
-	delete_kstat(desc);
 
 	/* Release reference held by kcf_prov_tab_lookup(). */
 	KCF_PROV_REFRELE(desc);
@@ -291,35 +259,6 @@ init_prov_mechs(const crypto_provider_info_t *info, kcf_provider_desc_t *desc)
 }
 
 /*
- * Update routine for kstat. Only privileged users are allowed to
- * access this information, since this information is sensitive.
- * There are some cryptographic attacks (e.g. traffic analysis)
- * which can use this information.
- */
-static int
-kcf_prov_kstat_update(kstat_t *ksp, int rw)
-{
-	kcf_prov_stats_t *ks_data;
-	kcf_provider_desc_t *pd = (kcf_provider_desc_t *)ksp->ks_private;
-
-	if (rw == KSTAT_WRITE)
-		return (EACCES);
-
-	ks_data = ksp->ks_data;
-
-	ks_data->ps_ops_total.value.ui64 = pd->pd_sched_info.ks_ndispatches;
-	ks_data->ps_ops_failed.value.ui64 = pd->pd_sched_info.ks_nfails;
-	ks_data->ps_ops_busy_rval.value.ui64 = pd->pd_sched_info.ks_nbusy_rval;
-	ks_data->ps_ops_passed.value.ui64 =
-	    pd->pd_sched_info.ks_ndispatches -
-	    pd->pd_sched_info.ks_nfails -
-	    pd->pd_sched_info.ks_nbusy_rval;
-
-	return (0);
-}
-
-
-/*
  * Utility routine called from failure paths in crypto_register_provider()
  * and from crypto_load_soft_disabled().
  */
@@ -338,20 +277,4 @@ undo_register_provider(kcf_provider_desc_t *desc, boolean_t remove_prov)
 	/* remove provider from providers table */
 	if (remove_prov)
 		(void) kcf_prov_tab_rem_provider(desc->pd_prov_id);
-}
-
-static void
-delete_kstat(kcf_provider_desc_t *desc)
-{
-	/* destroy the kstat created for this provider */
-	if (desc->pd_kstat != NULL) {
-		kcf_provider_desc_t *kspd = desc->pd_kstat->ks_private;
-
-		/* release reference held by desc->pd_kstat->ks_private */
-		ASSERT(desc == kspd);
-		kstat_delete(kspd->pd_kstat);
-		desc->pd_kstat = NULL;
-		KCF_PROV_REFRELE(kspd);
-		KCF_PROV_IREFRELE(kspd);
-	}
 }
