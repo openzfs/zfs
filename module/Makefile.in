@@ -52,7 +52,9 @@ FMAKE = env -u MAKEFLAGS make $(FMAKEFLAGS)
 
 modules-Linux:
 	list='$(SUBDIR_TARGETS)'; for td in $$list; do $(MAKE) -C $$td; done
-	$(MAKE) -C @LINUX_OBJ@ M="$$PWD" @KERNEL_MAKE@ CONFIG_ZFS=m modules
+	$(MAKE) -C @LINUX_OBJ@ $(if @KERNEL_CC@,CC=@KERNEL_CC@) \
+		$(if @KERNEL_LD@,LD=@KERNEL_LD@) $(if @KERNEL_LLVM@,LLVM=@KERNEL_LLVM@) \
+		M="$$PWD" @KERNEL_MAKE@ CONFIG_ZFS=m modules
 
 modules-FreeBSD:
 	+$(FMAKE)
