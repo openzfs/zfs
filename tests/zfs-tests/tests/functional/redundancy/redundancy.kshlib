@@ -243,7 +243,7 @@ function get_vdevs #pool cnt
 	typeset -i cnt=$2
 
 	typeset all_devs=$(zpool iostat -v $pool | awk '{print $1}'| \
-		egrep -v "^pool$|^capacity$|^mirror$|^raidz1$|^raidz2$|^raidz3$|^draid1.*|^draid2.*|^draid3.*|---" | \
+		egrep -v "^pool$|^capacity$|^mirror\-[0-9]$|^raidz[1-3]\-[0-9]$|^draid[1-3].*\-[0-9]$|---" | \
 		egrep -v "/old$|^$pool$")
 	typeset -i i=0
 	typeset vdevs

@@ -4825,7 +4825,7 @@ children:
 			continue;
 
 		vname = zpool_vdev_name(g_zfs, zhp, newchild[c],
-		    cb->cb_name_flags);
+		    cb->cb_name_flags | VDEV_NAME_TYPE_ID);
 		ret += print_vdev_stats(zhp, vname, oldnv ? oldchild[c] : NULL,
 		    newchild[c], cb, depth + 2);
 		free(vname);
@@ -4868,7 +4868,7 @@ children:
 			}
 
 			vname = zpool_vdev_name(g_zfs, zhp, newchild[c],
-			    cb->cb_name_flags);
+			    cb->cb_name_flags | VDEV_NAME_TYPE_ID);
 			ret += print_vdev_stats(zhp, vname, oldnv ?
 			    oldchild[c] : NULL, newchild[c], cb, depth + 2);
 			free(vname);
@@ -6182,7 +6182,7 @@ print_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 			continue;
 
 		vname = zpool_vdev_name(g_zfs, zhp, child[c],
-		    cb->cb_name_flags);
+		    cb->cb_name_flags | VDEV_NAME_TYPE_ID);
 		print_list_stats(zhp, vname, child[c], cb, depth + 2, B_FALSE);
 		free(vname);
 	}
@@ -6216,7 +6216,7 @@ print_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 				printed = B_TRUE;
 			}
 			vname = zpool_vdev_name(g_zfs, zhp, child[c],
-			    cb->cb_name_flags);
+			    cb->cb_name_flags | VDEV_NAME_TYPE_ID);
 			print_list_stats(zhp, vname, child[c], cb, depth + 2,
 			    B_FALSE);
 			free(vname);
