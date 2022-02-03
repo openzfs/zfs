@@ -147,6 +147,12 @@ tags = ['functional', 'projectquota']
 tests = ['send_realloc_dnode_size', 'send_encrypted_files']
 tags = ['functional', 'rsend']
 
+[tests/functional/simd:Linux]
+pre =
+post =
+tests = ['simd_supported']
+tags = ['functional', 'simd']
+
 [tests/functional/snapshot:Linux]
 tests = ['snapshot_015_pos', 'snapshot_016_pos']
 tags = ['functional', 'snapshot']

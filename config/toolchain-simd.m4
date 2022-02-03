@@ -24,6 +24,9 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_TOOLCHAIN_SIMD], [
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AES
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_PCLMULQDQ
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_MOVBE
+			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVE
+			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVEOPT
+			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVES
 			;;
 	esac
 ])
@@ -418,6 +421,69 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_MOVBE], [
 	]])], [
 		AC_MSG_RESULT([yes])
 		AC_DEFINE([HAVE_MOVBE], 1, [Define if host toolchain supports MOVBE])
+	], [
+		AC_MSG_RESULT([no])
+	])
+])
+
+dnl #
+dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVE
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVE], [
+	AC_MSG_CHECKING([whether host toolchain supports XSAVE])
+
+	AC_LINK_IFELSE([AC_LANG_SOURCE([
+	[
+		void main()
+		{
+		  char b[4096] __attribute__ ((aligned (64)));
+		  __asm__ __volatile__("xsave %[b]\n" : : [b] "m" (*b) : "memory");
+		}
+	]])], [
+		AC_MSG_RESULT([yes])
+		AC_DEFINE([HAVE_XSAVE], 1, [Define if host toolchain supports XSAVE])
+	], [
+		AC_MSG_RESULT([no])
+	])
+])
+
+dnl #
+dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVEOPT
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVEOPT], [
+	AC_MSG_CHECKING([whether host toolchain supports XSAVEOPT])
+
+	AC_LINK_IFELSE([AC_LANG_SOURCE([
+	[
+		void main()
+		{
+		  char b[4096] __attribute__ ((aligned (64)));
+		  __asm__ __volatile__("xsaveopt %[b]\n" : : [b] "m" (*b) : "memory");
+		}
+	]])], [
+		AC_MSG_RESULT([yes])
+		AC_DEFINE([HAVE_XSAVEOPT], 1, [Define if host toolchain supports XSAVEOPT])
+	], [
+		AC_MSG_RESULT([no])
+	])
+])
+
+dnl #
+dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVES
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVES], [
+	AC_MSG_CHECKING([whether host toolchain supports XSAVES])
+
+	AC_LINK_IFELSE([AC_LANG_SOURCE([
+	[
+		void main()
+		{
+		  char b[4096] __attribute__ ((aligned (64)));
+		  __asm__ __volatile__("xsaves %[b]\n" : : [b] "m" (*b) : "memory");
+		}
+	]])], [
+		AC_MSG_RESULT([yes])
+		AC_DEFINE([HAVE_XSAVES], 1, [Define if host toolchain supports XSAVES])
 	], [
 		AC_MSG_RESULT([no])
 	])
