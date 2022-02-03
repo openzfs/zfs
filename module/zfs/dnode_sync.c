@@ -854,6 +854,8 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 		dnode_rele(dn, (void *)(uintptr_t)tx->tx_txg);
 	}
 
+	ASSERT3U(dnp->dn_bonuslen, <=, DN_MAX_BONUS_LEN(dnp));
+
 	/*
 	 * Although we have dropped our reference to the dnode, it
 	 * can't be evicted until its written, and we haven't yet
