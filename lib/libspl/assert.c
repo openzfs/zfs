@@ -25,7 +25,13 @@
 
 #include <assert.h>
 
-int libspl_assert_ok = 0;
+static boolean_t libspl_assert_ok = B_FALSE;
+
+void
+libspl_set_assert_ok(boolean_t val)
+{
+	libspl_assert_ok = val;
+}
 
 /* printf version of libspl_assert */
 void

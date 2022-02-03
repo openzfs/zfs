@@ -89,7 +89,6 @@ elif is_freebsd; then
 fi
 ulimit -c unlimited
 
-export ASAN_OPTIONS="abort_on_error=1:disable_coredump=0"
 export ZFS_ABORT=yes
 
 zpool >/dev/null 2>&1

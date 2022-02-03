@@ -58,7 +58,7 @@ main(void)
 		exit(3);
 	}
 
-	if ((ret = system("sudo zpool freeze $TESTPOOL"))) {
+	if ((ret = system("sudo -E zpool freeze $TESTPOOL"))) {
 		if (ret == -1)
 			perror("system \"zpool freeze\"");
 		else
@@ -69,7 +69,7 @@ main(void)
 
 	close(fd);
 
-	if ((ret = system("sudo zpool export $TESTPOOL"))) {
+	if ((ret = system("sudo -E zpool export $TESTPOOL"))) {
 		if (ret == -1)
 			perror("system \"zpool export\"");
 		else
@@ -78,7 +78,7 @@ main(void)
 		exit(4);
 	}
 
-	if ((ret = system("sudo zpool import $TESTPOOL"))) {
+	if ((ret = system("sudo -E zpool import $TESTPOOL"))) {
 		if (ret == -1)
 			perror("system \"zpool import\"");
 		else

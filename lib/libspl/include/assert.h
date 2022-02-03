@@ -32,9 +32,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <sys/types.h>
 
 /* Set to non-zero to avoid abort()ing on an assertion failure */
-extern int libspl_assert_ok;
+extern void libspl_set_assert_ok(boolean_t val);
 
 /* printf version of libspl_assert */
 extern void libspl_assertf(const char *file, const char *func, int line,

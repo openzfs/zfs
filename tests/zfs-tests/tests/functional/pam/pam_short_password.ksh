@@ -27,6 +27,10 @@
 
 . $STF_SUITE/tests/functional/pam/utilities.kshlib
 
+if [ -n "$ASAN_OPTIONS" ]; then
+	export LD_PRELOAD=$(ldd "$(command -v zfs)" | awk '/libasan\.so/ {print $3}')
+fi
+
 if [[ -z pamservice ]]; then
 	pamservice=pam_zfs_key_test
 fi
