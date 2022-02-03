@@ -1821,6 +1821,19 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 
 	ASSERT(!BP_IS_REDACTED(bp));
 
+	/*
+	 * There is an unlikely case of encountering dnodes with contradicting
+	 * dn_bonuslen and DNODE_FLAG_SPILL_BLKPTR flag before in files created
+	 * or modified before commit 4254acb was merged. As it is not possible
+	 * to know which of the two is correct, report an error.
+	 */
+	if (dnp != NULL &&
+	    dnp->dn_bonuslen > DN_MAX_BONUS_LEN(dnp)) {
+		scn->scn_phys.scn_errors++;
+		spa_log_error(dp->dp_spa, zb);
+		return (SET_ERROR(EINVAL));
+	}
+
 	if (BP_GET_LEVEL(bp) > 0) {
 		arc_flags_t flags = ARC_FLAG_WAIT;
 		int i;
