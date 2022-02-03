@@ -29,86 +29,16 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
-
-static void
-test_stat_mode(mode_t extra)
-{
-	struct stat st;
-	int i, fd;
-	char fpath[1024];
-	char *penv[] = {"TESTDIR", "TESTFILE0"};
-	char buf[] = "test";
-	mode_t res;
-	mode_t mode = 0777 | extra;
-
-	/*
-	 * Get the environment variable values.
-	 */
-	for (i = 0; i < sizeof (penv) / sizeof (char *); i++) {
-		if ((penv[i] = getenv(penv[i])) == NULL) {
-			fprintf(stderr, "getenv(penv[%d])\n", i);
-			exit(1);
-		}
-	}
-
-	umask(0);
-	if (stat(penv[0], &st) == -1 && mkdir(penv[0], mode) == -1) {
-		perror("mkdir");
-		exit(2);
-	}
-
-	snprintf(fpath, sizeof (fpath), "%s/%s", penv[0], penv[1]);
-	unlink(fpath);
-	if (stat(fpath, &st) == 0) {
-		fprintf(stderr, "%s exists\n", fpath);
-		exit(3);
-	}
-
-	fd = creat(fpath, mode);
-	if (fd == -1) {
-		perror("creat");
-		exit(4);
-	}
-	close(fd);
-
-	if (setuid(65534) == -1) {
-		perror("setuid");
-		exit(5);
-	}
-
-	fd = open(fpath, O_RDWR);
-	if (fd == -1) {
-		perror("open");
-		exit(6);
-	}
-
-	if (write(fd, buf, sizeof (buf)) == -1) {
-		perror("write");
-		exit(7);
-	}
-	close(fd);
-
-	if (stat(fpath, &st) == -1) {
-		perror("stat");
-		exit(8);
-	}
-	unlink(fpath);
-
-	/* Verify SUID/SGID are dropped */
-	res = st.st_mode & (0777 | S_ISUID | S_ISGID);
-	if (res != (mode & 0777)) {
-		fprintf(stderr, "stat(2) %o\n", res);
-		exit(9);
-	}
-}
+#include <stdbool.h>
 
 int
 main(int argc, char *argv[])
 {
-	const char *name;
+	const char *name, *phase;
 	mode_t extra;
+	struct stat st;
 
-	if (argc < 2) {
+	if (argc < 3) {
 		fprintf(stderr, "Invalid argc\n");
 		exit(1);
 	}
@@ -127,7 +57,77 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 
-	test_stat_mode(extra);
+	const char *testdir = getenv("TESTDIR");
+	if (!testdir) {
+		fprintf(stderr, "getenv(TESTDIR)\n");
+		exit(1);
+	}
+
+	umask(0);
+	if (stat(testdir, &st) == -1 && mkdir(testdir, 0777) == -1) {
+		perror("mkdir");
+		exit(2);
+	}
+
+	char fpath[1024];
+	snprintf(fpath, sizeof (fpath), "%s/%s", testdir, name);
+
+
+	phase = argv[2];
+	if (strcmp(phase, "PRECRASH") == 0) {
+
+		/* clean up last run */
+		unlink(fpath);
+		if (stat(fpath, &st) == 0) {
+			fprintf(stderr, "%s exists\n", fpath);
+			exit(3);
+		}
+
+		int fd;
+
+		fd = creat(fpath, 0777 | extra);
+		if (fd == -1) {
+			perror("creat");
+			exit(4);
+		}
+		close(fd);
+
+		if (setuid(65534) == -1) {
+			perror("setuid");
+			exit(5);
+		}
+
+		fd = open(fpath, O_RDWR);
+		if (fd == -1) {
+			perror("open");
+			exit(6);
+		}
+
+		const char buf[] = "test";
+		if (write(fd, buf, sizeof (buf)) == -1) {
+			perror("write");
+			exit(7);
+		}
+		close(fd);
+
+	} else if (strcmp(phase, "REPLAY") == 0) {
+		/* created in PRECRASH run */
+	} else {
+		fprintf(stderr, "Invalid phase %s\n", phase);
+		exit(1);
+	}
+
+	if (stat(fpath, &st) == -1) {
+			perror("stat");
+			exit(8);
+		}
+
+	/* Verify SUID/SGID are dropped */
+	mode_t res = st.st_mode & (0777 | S_ISUID | S_ISGID);
+	if (res != 0777) {
+		fprintf(stderr, "stat(2) %o\n", res);
+		exit(9);
+	}
 
 	return (0);
 }
