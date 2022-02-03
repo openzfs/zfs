@@ -16,6 +16,10 @@
 
 . $STF_SUITE/include/libtest.shlib
 
+if [ -n "$ASAN_OPTIONS" ]; then
+	export LD_PRELOAD=$(ldd "$(command -v zfs)" | awk '/libasan\.so/ {print $3}')
+fi
+
 #
 # DESCRIPTION:
 #	Verify the libzfs_core Python test suite can be run successfully

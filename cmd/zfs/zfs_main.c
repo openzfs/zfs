@@ -575,8 +575,9 @@ usage(boolean_t requested)
 
 		(void) fprintf(fp, gettext("\nSizes are specified in bytes "
 		    "with standard units such as K, M, G, etc.\n"));
-		(void) fprintf(fp, gettext("\nUser-defined properties can "
-		    "be specified by using a name containing a colon (:).\n"));
+		(void) fprintf(fp, "%s", gettext("\nUser-defined properties "
+		    "can be specified by using a name containing a colon "
+		    "(:).\n"));
 		(void) fprintf(fp, gettext("\nThe {user|group|project}"
 		    "[obj]{used|quota}@ properties must be appended with\n"
 		    "a user|group|project specifier of one of these forms:\n"

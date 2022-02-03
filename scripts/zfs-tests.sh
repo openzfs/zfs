@@ -148,7 +148,7 @@ trap cleanup EXIT
 # be dangerous and should only be used in a dedicated test environment.
 #
 cleanup_all() {
-	TEST_POOLS=$(sudo "$ZPOOL" list -H -o name | grep testpool)
+	TEST_POOLS=$(sudo env ASAN_OPTIONS=detect_leaks=false "$ZPOOL" list -H -o name | grep testpool)
 	if [ "$UNAME" = "FreeBSD" ] ; then
 		TEST_LOOPBACKS=$(sudo "${LOSETUP}" -l)
 	else
@@ -160,7 +160,7 @@ cleanup_all() {
 	msg "--- Cleanup ---"
 	msg "Removing pool(s):     $(echo "${TEST_POOLS}" | tr '\n' ' ')"
 	for TEST_POOL in $TEST_POOLS; do
-		sudo "$ZPOOL" destroy "${TEST_POOL}"
+		sudo env ASAN_OPTIONS=detect_leaks=false "$ZPOOL" destroy "${TEST_POOL}"
 	done
 
 	if [ "$UNAME" != "FreeBSD" ] ; then
@@ -554,7 +554,7 @@ fi
 # space-delimited to newline-delimited.
 #
 if [ -z "${KEEP}" ]; then
-	KEEP="$(sudo "$ZPOOL" list -H -o name)"
+	KEEP="$(sudo env ASAN_OPTIONS=detect_leaks=false "$ZPOOL" list -H -o name)"
 	if [ -z "${KEEP}" ]; then
 		KEEP="rpool"
 	fi

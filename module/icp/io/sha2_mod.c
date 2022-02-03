@@ -710,8 +710,13 @@ sha2_mac_init_ctx(sha2_hmac_ctx_t *ctx, void *keyval, uint_t length_in_bytes)
 
 	(void) bzero(ipad, block_size);
 	(void) bzero(opad, block_size);
-	(void) bcopy(keyval, ipad, length_in_bytes);
-	(void) bcopy(keyval, opad, length_in_bytes);
+
+	if (keyval != NULL) {
+		(void) bcopy(keyval, ipad, length_in_bytes);
+		(void) bcopy(keyval, opad, length_in_bytes);
+	} else {
+		ASSERT0(length_in_bytes);
+	}
 
 	/* XOR key with ipad (0x36) and opad (0x5c) */
 	for (i = 0; i < blocks_per_int64; i ++) {

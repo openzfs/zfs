@@ -35,6 +35,21 @@
 #include <sys/zfs_znode.h>
 #include <sys/fs/zfs.h>
 
+#if defined(ZFS_ASAN_ENABLED)
+/*
+ * zvol_id is invoked by udev with the help of ptrace()
+ * making sanitized binary with leak detection croak
+ * because of tracing mechanisms collision
+ */
+extern const char *__asan_default_options(void);
+
+const char *__asan_default_options(void) {
+	return ("abort_on_error=true:halt_on_error=true:"
+		"allocator_may_return_null=true:disable_coredump=false:"
+		"detect_stack_use_after_return=true:detect_leaks=false");
+}
+#endif
+
 static int
 ioctl_get_msg(char *var, int fd)
 {

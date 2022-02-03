@@ -215,7 +215,8 @@ shift $((OPTIND - 1))
 
 # enable core dumps
 ulimit -c unlimited
-export ASAN_OPTIONS=abort_on_error=1:disable_coredump=0
+export ASAN_OPTIONS=abort_on_error=true:halt_on_error=true:allocator_may_return_null=true:disable_coredump=false:detect_stack_use_after_return=true
+export UBSAN_OPTIONS=abort_on_error=true:halt_on_error=true:print_stacktrace=true
 
 if [[ -f "$(core_file)" ]]; then
 	echo -n "There's a core dump here you might want to look at first... "

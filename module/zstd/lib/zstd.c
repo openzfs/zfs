@@ -279,12 +279,9 @@ intptr_t __msan_test_shadow(const volatile void *x, size_t size);
 #endif
 
 /* detects whether we are being compiled under asan */
-#if defined (__has_feature)
-#  if __has_feature(address_sanitizer)
-#    define ADDRESS_SANITIZER 1
-#  endif
-#elif defined(__SANITIZE_ADDRESS__)
+#if defined (ZFS_ASAN_ENABLED)
 #  define ADDRESS_SANITIZER 1
+#  define ZSTD_ASAN_DONT_POISON_WORKSPACE
 #endif
 
 #if defined (ADDRESS_SANITIZER)

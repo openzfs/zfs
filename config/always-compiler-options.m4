@@ -46,6 +46,53 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_ASAN], [
 ])
 
 dnl #
+dnl # Enabled -fsanitize=undefined if supported by gcc.
+dnl #
+dnl # LDFLAGS needs -fsanitize=undefined at all times so libraries compiled with
+dnl # it will be linked successfully. CFLAGS will vary by binary being built.
+dnl #
+dnl # The UBSAN_OPTIONS environment variable can be used to further control
+dnl # the behavior of binaries and libraries build with -fsanitize=undefined.
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_UBSAN], [
+	AC_MSG_CHECKING([whether to build with -fsanitize=undefined support])
+	AC_ARG_ENABLE([ubsan],
+		[AS_HELP_STRING([--enable-ubsan],
+		[Enable -fsanitize=undefined support  @<:@default=no@:>@])],
+		[],
+		[enable_ubsan=no])
+
+	AM_CONDITIONAL([UBSAN_ENABLED], [test x$enable_ubsan = xyes])
+	AC_SUBST([UBSAN_ENABLED], [$enable_ubsan])
+	AC_MSG_RESULT($enable_ubsan)
+
+	AS_IF([ test "$enable_ubsan" = "yes" ], [
+		AC_MSG_CHECKING([whether $CC supports -fsanitize=undefined])
+		saved_cflags="$CFLAGS"
+		CFLAGS="$CFLAGS -Werror -fsanitize=undefined"
+		AC_LINK_IFELSE([
+			AC_LANG_SOURCE([[ int main() { return 0; } ]])
+		], [
+			UBSAN_CFLAGS="-fsanitize=undefined"
+			UBSAN_LDFLAGS="-fsanitize=undefined"
+			UBSAN_ZFS="_with_ubsan"
+			AC_MSG_RESULT([yes])
+		], [
+			AC_MSG_ERROR([$CC does not support -fsanitize=undefined])
+		])
+		CFLAGS="$saved_cflags"
+	], [
+		UBSAN_CFLAGS=""
+		UBSAN_LDFLAGS=""
+		UBSAN_ZFS="_without_ubsan"
+	])
+
+	AC_SUBST([UBSAN_CFLAGS])
+	AC_SUBST([UBSAN_LDFLAGS])
+	AC_SUBST([UBSAN_ZFS])
+])
+
+dnl #
 dnl # Check if gcc supports -Wframe-larger-than=<size> option.
 dnl #
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_FRAME_LARGER_THAN], [

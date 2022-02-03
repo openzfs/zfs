@@ -32,7 +32,7 @@ jobs:
         sh autogen.sh
     - name: Configure
       run: |
-        ./configure --enable-debug --enable-debuginfo
+        ./configure --enable-debug --enable-debuginfo --enable-asan --enable-ubsan
     - name: Make
       run: |
         make --no-print-directory -s pkg-utils pkg-kmod

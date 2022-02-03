@@ -155,6 +155,21 @@ done
 
 export MAX_PARTITIONS=8
 
+if [ "@ASAN_ENABLED@" = "yes" ]; then
+	export ASAN_OPTIONS=abort_on_error=true:halt_on_error=true:allocator_may_return_null=true:disable_coredump=false:detect_stack_use_after_return=true
+
+	# TODO
+	# disable memory leaks detection
+	# there are quite many of them and they are not as
+	# destructive to CLI programs as they are to daemons
+	export ASAN_OPTIONS="$ASAN_OPTIONS:detect_leaks=false"
+fi
+
+if [ "@UBSAN_ENABLED@" = "yes" ]; then
+	export UBSAN_OPTIONS=abort_on_error=true:halt_on_error=true:print_stacktrace=true
+fi
+
+
 case $(uname -o) in
 GNU/Linux)
 	unpack_opts="--sparse -xf"

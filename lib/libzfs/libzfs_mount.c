@@ -1611,7 +1611,8 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 	 * At this point, we have the entire list of filesystems, so sort it by
 	 * mountpoint.
 	 */
-	qsort(sets, used, sizeof (struct sets_s), mountpoint_compare);
+	if (used != 0)
+		qsort(sets, used, sizeof (struct sets_s), mountpoint_compare);
 
 	/*
 	 * Walk through and first unshare everything.

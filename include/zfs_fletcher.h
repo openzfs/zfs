@@ -160,4 +160,20 @@ _ZFS_FLETCHER_H const fletcher_4_ops_t fletcher_4_aarch64_neon_ops;
 }
 #endif
 
+#if	defined(ZFS_UBSAN_ENABLED)
+#if	defined(__has_attribute)
+#if	__has_attribute(no_sanitize_undefined)
+#define	ZFS_NO_SANITIZE_UNDEFINED __attribute__((no_sanitize_undefined))
+#elif	__has_attribute(no_sanitize)
+#define	ZFS_NO_SANITIZE_UNDEFINED __attribute__((no_sanitize("undefined")))
+#else
+#error	"Compiler has to support attribute "
+	"`no_sanitize_undefined` or `no_sanitize(\"undefined\")`"
+	"when compiling with UBSan enabled"
+#endif	/* __has_attribute(no_sanitize_undefined) */
+#endif	/* defined(__has_attribute) */
+#else
+#define	ZFS_NO_SANITIZE_UNDEFINED
+#endif	/* defined(ZFS_UBSAN_ENABLED) */
+
 #endif	/* _ZFS_FLETCHER_H */
