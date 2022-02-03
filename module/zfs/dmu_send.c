@@ -763,6 +763,8 @@ dump_dnode(dmu_send_cookie_t *dscp, const blkptr_t *bp, uint64_t object,
 		 * to send it.
 		 */
 		if (bonuslen != 0) {
+			if (drro->drr_bonuslen > DN_MAX_BONUS_LEN(dnp))
+				return (SET_ERROR(EINVAL));
 			drro->drr_raw_bonuslen = DN_MAX_BONUS_LEN(dnp);
 			bonuslen = drro->drr_raw_bonuslen;
 		}

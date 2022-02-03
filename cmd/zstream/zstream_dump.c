@@ -461,6 +461,14 @@ zstream_do_dump(int argc, char *argv[])
 				    BSWAP_64(drro->drr_maxblkid);
 			}
 
+			if (drro->drr_bonuslen > drro->drr_raw_bonuslen) {
+				(void) fprintf(stderr,
+				    "Warning: Object %llu has bonuslen = "
+				    "%u > raw_bonuslen = %u\n\n",
+				    (u_longlong_t)drro->drr_object,
+				    drro->drr_bonuslen, drro->drr_raw_bonuslen);
+			}
+
 			payload_size = DRR_OBJECT_PAYLOAD_SIZE(drro);
 
 			if (verbose) {
