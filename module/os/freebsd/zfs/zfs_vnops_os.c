@@ -966,7 +966,7 @@ zfs_lookup(vnode_t *dvp, const char *nm, vnode_t **vpp,
 				cnp->cn_flags |= SAVENAME;
 				break;
 			}
-			fallthrough;
+			zfs_fallthrough;
 		case DELETE:
 			if (error == 0)
 				cnp->cn_flags |= SAVENAME;
