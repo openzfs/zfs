@@ -242,7 +242,6 @@ maybe = {
     'largest_pool/largest_pool_001_pos': ['FAIL', known_reason],
     'mmp/mmp_on_uberblocks': ['FAIL', known_reason],
     'pyzfs/pyzfs_unittest': ['SKIP', python_deps_reason],
-    'no_space/enospc_002_pos': ['FAIL', enospc_reason],
     'pool_checkpoint/checkpoint_discard_busy': ['FAIL', '11946'],
     'projectquota/setup': ['SKIP', exec_reason],
     'redundancy/redundancy_004_neg': ['FAIL', '7290'],
