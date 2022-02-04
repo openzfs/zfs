@@ -321,7 +321,7 @@ vdev_raidz_exp2(const uint8_t a, const unsigned exp)
  * Galois Field operations.
  *
  * gf_exp2	- computes 2 raised to the given power
- * gf_exp2	- computes 4 raised to the given power
+ * gf_exp4	- computes 4 raised to the given power
  * gf_mul	- multiplication
  * gf_div	- division
  * gf_inv	- multiplicative inverse
