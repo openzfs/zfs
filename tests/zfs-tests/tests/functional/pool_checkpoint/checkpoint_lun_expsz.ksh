@@ -48,14 +48,18 @@ log_must zpool checkpoint $NESTEDPOOL
 log_must truncate -s $EXPSZ $FILEDISK1
 log_must zpool online -e $NESTEDPOOL $FILEDISK1
 NEWSZ=$(zpool list -v | grep "$FILEDISK1" | awk '{print $2}')
+DEXPSZ=$(zpool list -v | grep "$FILEDISK1" | awk '{print $6}')
 nested_change_state_after_checkpoint
 log_mustnot [ "$INITSZ" = "$NEWSZ" ]
+log_must [ "$DEXPSZ" = "-" ]
 
 log_must zpool export $NESTEDPOOL
 log_must zpool import -d $FILEDISKDIR --rewind-to-checkpoint $NESTEDPOOL
 
 nested_verify_pre_checkpoint_state
 FINSZ=$(zpool list -v | grep "$FILEDISK1" | awk '{print $2}')
-log_must [ "$INITSZ" = "$FINSZ" ]
+DEXPSZ=$(zpool list -v | grep "$FILEDISK1" | awk '{print $6}')
+log_must [ "$EXPSZ" = "$FINSZ" ]
+log_must [ "$DEXPSZ" != "-" ]
 
 log_pass "LUN expansion rewinded correctly."
