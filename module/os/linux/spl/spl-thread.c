@@ -66,7 +66,7 @@ void
 __thread_exit(void)
 {
 	tsd_exit();
-	complete_and_exit(NULL, 0);
+	SPL_KTHREAD_COMPLETE_AND_EXIT(NULL, 0);
 	/* Unreachable */
 }
 EXPORT_SYMBOL(__thread_exit);
@@ -188,7 +188,12 @@ issig(int why)
 
 	spin_lock_irq(&task->sighand->siglock);
 	int ret;
+#ifdef HAVE_DEQUEUE_SIGNAL_4ARG
+	enum pid_type __type;
+	if ((ret = dequeue_signal(task, &set, &__info, &__type)) != 0) {
+#else
 	if ((ret = dequeue_signal(task, &set, &__info)) != 0) {
+#endif
 #ifdef HAVE_SIGNAL_STOP
 		spin_unlock_irq(&task->sighand->siglock);
 		kernel_signal_stop();

@@ -33,7 +33,8 @@ function file_in_special_vdev # <dataset> <inode>
 {
 	typeset dataset="$1"
 	typeset inum="$2"
-	typeset num_normal=$(echo $ZPOOL_DISKS | wc -w | xargs)
+	typeset num_normal=$(echo $ZPOOL_DISKS | wc -w)
+	num_normal=${num_normal##* }
 
 	zdb -dddddd $dataset $inum | awk -v d=$num_normal '{
 # find DVAs from string "offset level dva" only for L0 (data) blocks

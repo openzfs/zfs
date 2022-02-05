@@ -839,7 +839,8 @@ tests = ['recv_dedup', 'recv_dedup_encrypted_zvol', 'rsend_001_pos',
     'send_freeobjects', 'send_realloc_files',
     'send_realloc_encrypted_files', 'send_spill_block', 'send_holds',
     'send_hole_birth', 'send_mixed_raw', 'send-wR_encrypted_zvol',
-    'send_partial_dataset', 'send_invalid', 'send_doall']
+    'send_partial_dataset', 'send_invalid', 'send_doall',
+    'send_raw_spill_block']
 tags = ['functional', 'rsend']
 
 [tests/functional/scrub_mirror]
@@ -880,7 +881,7 @@ tags = ['functional', 'stat']
 
 [tests/functional/suid]
 tests = ['suid_write_to_suid', 'suid_write_to_sgid', 'suid_write_to_suid_sgid',
-    'suid_write_to_none']
+    'suid_write_to_none', 'suid_write_zil_replay']
 tags = ['functional', 'suid']
 
 [tests/functional/threadsappend]

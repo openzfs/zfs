@@ -763,6 +763,8 @@ dump_dnode(dmu_send_cookie_t *dscp, const blkptr_t *bp, uint64_t object,
 		 * to send it.
 		 */
 		if (bonuslen != 0) {
+			if (drro->drr_bonuslen > DN_MAX_BONUS_LEN(dnp))
+				return (SET_ERROR(EINVAL));
 			drro->drr_raw_bonuslen = DN_MAX_BONUS_LEN(dnp);
 			bonuslen = drro->drr_raw_bonuslen;
 		}
@@ -3084,7 +3086,6 @@ out:
 	return (err);
 }
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_send, zfs_send_, corrupt_data, INT, ZMOD_RW,
 	"Allow sending corrupt data");
 
@@ -3105,4 +3106,3 @@ ZFS_MODULE_PARAM(zfs_send, zfs_send_, no_prefetch_queue_ff, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_send, zfs_, override_estimate_recordsize, INT, ZMOD_RW,
 	"Override block size estimate with fixed size");
-/* END CSTYLED */

@@ -1,20 +1,22 @@
 dnl #
-dnl # 3.10 API change,
-dnl # PDE is replaced by PDE_DATA
+dnl # 5.17 API: PDE_DATA() renamed to pde_data(),
+dnl # 359745d78351c6f5442435f81549f0207ece28aa ("proc: remove PDE_DATA() completely")
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_PDE_DATA], [
 	ZFS_LINUX_TEST_SRC([pde_data], [
 		#include <linux/proc_fs.h>
 	], [
-		PDE_DATA(NULL);
+		pde_data(NULL);
 	])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_PDE_DATA], [
-	AC_MSG_CHECKING([whether PDE_DATA() is available])
-	ZFS_LINUX_TEST_RESULT_SYMBOL([pde_data], [PDE_DATA], [], [
+	AC_MSG_CHECKING([whether pde_data() is lowercase])
+	ZFS_LINUX_TEST_RESULT([pde_data], [
 		AC_MSG_RESULT(yes)
-	],[
-		ZFS_LINUX_TEST_ERROR([PDE_DATA])
+		AC_DEFINE(SPL_PDE_DATA, pde_data, [pde_data() is pde_data()])
+	], [
+		AC_MSG_RESULT(no)
+		AC_DEFINE(SPL_PDE_DATA, PDE_DATA, [pde_data() is PDE_DATA()])
 	])
 ])

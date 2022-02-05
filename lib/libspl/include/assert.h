@@ -32,9 +32,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <sys/types.h>
 
 /* Set to non-zero to avoid abort()ing on an assertion failure */
-extern int libspl_assert_ok;
+extern void libspl_set_assert_ok(boolean_t val);
 
 /* printf version of libspl_assert */
 extern void libspl_assertf(const char *file, const char *func, int line,
@@ -111,24 +112,22 @@ do {									\
 #undef assert
 #endif
 
-/* Compile time assert */
-#define	CTASSERT_GLOBAL(x)		_CTASSERT(x, __LINE__)
-#define	CTASSERT(x)			{ _CTASSERT(x, __LINE__); }
-#define	_CTASSERT(x, y)			__CTASSERT(x, y)
-#define	__CTASSERT(x, y)						\
-	typedef char __attribute__((unused))				\
-	__compile_time_assertion__ ## y[(x) ? 1 : -1]
-
 #ifdef NDEBUG
-#define	ASSERT3B(x, y, z)	((void) sizeof (!!(x)), (void) sizeof (!!(z)))
-#define	ASSERT3S(x, y, z)	((void) sizeof (!!(x)), (void) sizeof (!!(z)))
-#define	ASSERT3U(x, y, z)	((void) sizeof (!!(x)), (void) sizeof (!!(z)))
-#define	ASSERT3P(x, y, z)	((void) sizeof (!!(x)), (void) sizeof (!!(z)))
-#define	ASSERT0(x)		((void) sizeof (!!(x)))
-#define	ASSERT(x)		((void) sizeof (!!(x)))
-#define	assert(x)		((void) sizeof (!!(x)))
-#define	IMPLY(A, B)		((void) sizeof (!!(A)), (void) sizeof (!!(B)))
-#define	EQUIV(A, B)		((void) sizeof (!!(A)), (void) sizeof (!!(B)))
+#define	ASSERT3B(x, y, z)						\
+	((void) sizeof ((uintptr_t)(x)), (void) sizeof ((uintptr_t)(z)))
+#define	ASSERT3S(x, y, z)						\
+	((void) sizeof ((uintptr_t)(x)), (void) sizeof ((uintptr_t)(z)))
+#define	ASSERT3U(x, y, z)						\
+	((void) sizeof ((uintptr_t)(x)), (void) sizeof ((uintptr_t)(z)))
+#define	ASSERT3P(x, y, z)						\
+	((void) sizeof ((uintptr_t)(x)), (void) sizeof ((uintptr_t)(z)))
+#define	ASSERT0(x)		((void) sizeof ((uintptr_t)(x)))
+#define	ASSERT(x)		((void) sizeof ((uintptr_t)(x)))
+#define	assert(x)		((void) sizeof ((uintptr_t)(x)))
+#define	IMPLY(A, B)							\
+	((void) sizeof ((uintptr_t)(A)), (void) sizeof ((uintptr_t)(B)))
+#define	EQUIV(A, B)							\
+	((void) sizeof ((uintptr_t)(A)), (void) sizeof ((uintptr_t)(B)))
 #else
 #define	ASSERT3B	VERIFY3B
 #define	ASSERT3S	VERIFY3S

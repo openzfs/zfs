@@ -187,11 +187,7 @@ static void obj_ungrab(objpool_t *const objpool, void* const obj);
  * and while ASAN does this, KASAN defines that and does not. So to avoid
  * changing the external code, we do this.
  */
-#if defined(__has_feature)
-#if __has_feature(address_sanitizer)
-#define	ADDRESS_SANITIZER 1
-#endif
-#elif defined(__SANITIZE_ADDRESS__)
+#if defined(ZFS_ASAN_ENABLED)
 #define	ADDRESS_SANITIZER 1
 #endif
 #if defined(_KERNEL) && defined(ADDRESS_SANITIZER)

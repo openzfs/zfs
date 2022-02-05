@@ -1,4 +1,3 @@
-/* BEGIN CSTYLED */
 /*
 ** $Id: lfunc.c,v 2.30.1.1 2013/04/12 18:48:47 roberto Exp $
 ** Auxiliary functions to manipulate prototypes and closures
@@ -157,4 +156,3 @@ const char *luaF_getlocalname (const Proto *f, int local_number, int pc) {
   }
   return NULL;  /* not found */
 }
-/* END CSTYLED */

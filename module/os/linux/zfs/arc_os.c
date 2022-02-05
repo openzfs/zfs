@@ -536,7 +536,5 @@ arc_prune_async(int64_t adjust)
 	mutex_exit(&arc_prune_mtx);
 }
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, shrinker_limit, INT, ZMOD_RW,
 	"Limit on number of pages that ARC shrinker can reclaim at once");
-/* END CSTYLED */

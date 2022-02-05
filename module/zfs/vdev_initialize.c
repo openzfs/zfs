@@ -765,10 +765,8 @@ EXPORT_SYMBOL(vdev_initialize_stop_all);
 EXPORT_SYMBOL(vdev_initialize_stop_wait);
 EXPORT_SYMBOL(vdev_initialize_restart);
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs, zfs_, initialize_value, ULONG, ZMOD_RW,
 	"Value written during zpool initialize");
 
 ZFS_MODULE_PARAM(zfs, zfs_, initialize_chunk_size, ULONG, ZMOD_RW,
 	"Size in bytes of writes by zpool initialize");
-/* END CSTYLED */

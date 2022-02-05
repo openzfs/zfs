@@ -36,28 +36,13 @@
 #
 function find_vfstab_dev
 {
-	typeset vfstabdev
-	typeset vfstabdevs=""
-	typeset line
-
 	if is_illumos; then
 		vfstab="/etc/vfstab"
-		tmpfile="$TEST_BASE_DIR/vfstab.tmp"
 	else
 		vfstab="/etc/fstab"
-		tmpfile="$TEST_BASE_DIR/fstab.tmp"
 	fi
 
-	cat $vfstab | grep "^${DEV_DSKDIR}" >$tmpfile
-	while read -r line
-	do
-		vfstabdev=`echo "$line" | awk '{print $1}'`
-		vfstabdev=${vfstabdev%%:}
-		vfstabdevs="$vfstabdev $vfstabdevs"
-	done <$tmpfile
-
-	rm -f $tmpfile
-	echo $vfstabdevs
+	awk -v pat="^${DEV_DSKDIR}" '$0 ~ pat {sub(/:$/, "", $1); print $1}' $vfstab
 }
 
 #
@@ -72,7 +57,7 @@ function find_mnttab_dev
 	if is_freebsd; then
 		# FreeBSD doesn't have a mnttab file.
 		mount -p | awk -v dir="^${DEV_DSKDIR}" \
-		    '$1 ~ dir { print $1 }' | xargs
+		    '$1 ~ dir { print $1 }'
 		return 0
 	elif is_linux; then
 		typeset mnttab="/etc/mtab"

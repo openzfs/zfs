@@ -98,12 +98,10 @@ DECLARE_EVENT_CLASS(zfs_arc_buf_hdr_class,
 );
 /* END CSTYLED */
 
-/* BEGIN CSTYLED */
 #define	DEFINE_ARC_BUF_HDR_EVENT(name) \
 DEFINE_EVENT(zfs_arc_buf_hdr_class, name, \
-	TP_PROTO(arc_buf_hdr_t *ab), \
-	TP_ARGS(ab))
-/* END CSTYLED */
+    TP_PROTO(arc_buf_hdr_t *ab), \
+    TP_ARGS(ab))
 DEFINE_ARC_BUF_HDR_EVENT(zfs_arc__hit);
 DEFINE_ARC_BUF_HDR_EVENT(zfs_arc__evict);
 DEFINE_ARC_BUF_HDR_EVENT(zfs_arc__delete);
@@ -143,12 +141,10 @@ DECLARE_EVENT_CLASS(zfs_l2arc_rw_class,
 );
 /* END CSTYLED */
 
-/* BEGIN CSTYLED */
 #define	DEFINE_L2ARC_RW_EVENT(name) \
 DEFINE_EVENT(zfs_l2arc_rw_class, name, \
-	TP_PROTO(vdev_t *vd, zio_t *zio), \
-	TP_ARGS(vd, zio))
-/* END CSTYLED */
+    TP_PROTO(vdev_t *vd, zio_t *zio), \
+    TP_ARGS(vd, zio))
 DEFINE_L2ARC_RW_EVENT(zfs_l2arc__read);
 DEFINE_L2ARC_RW_EVENT(zfs_l2arc__write);
 
@@ -170,12 +166,10 @@ DECLARE_EVENT_CLASS(zfs_l2arc_iodone_class,
 );
 /* END CSTYLED */
 
-/* BEGIN CSTYLED */
 #define	DEFINE_L2ARC_IODONE_EVENT(name) \
 DEFINE_EVENT(zfs_l2arc_iodone_class, name, \
-	TP_PROTO(zio_t *zio, l2arc_write_callback_t *cb), \
-	TP_ARGS(zio, cb))
-/* END CSTYLED */
+    TP_PROTO(zio_t *zio, l2arc_write_callback_t *cb), \
+    TP_ARGS(zio, cb))
 DEFINE_L2ARC_IODONE_EVENT(zfs_l2arc__iodone);
 
 
@@ -284,13 +278,11 @@ DECLARE_EVENT_CLASS(zfs_arc_miss_class,
 );
 /* END CSTYLED */
 
-/* BEGIN CSTYLED */
 #define	DEFINE_ARC_MISS_EVENT(name) \
 DEFINE_EVENT(zfs_arc_miss_class, name, \
-	TP_PROTO(arc_buf_hdr_t *hdr, \
-	    const blkptr_t *bp, uint64_t size, const zbookmark_phys_t *zb), \
-	TP_ARGS(hdr, bp, size, zb))
-/* END CSTYLED */
+    TP_PROTO(arc_buf_hdr_t *hdr, \
+    const blkptr_t *bp, uint64_t size, const zbookmark_phys_t *zb), \
+    TP_ARGS(hdr, bp, size, zb))
 DEFINE_ARC_MISS_EVENT(zfs_arc__miss);
 
 /*
@@ -345,13 +337,10 @@ DECLARE_EVENT_CLASS(zfs_l2arc_evict_class,
 );
 /* END CSTYLED */
 
-/* BEGIN CSTYLED */
 #define	DEFINE_L2ARC_EVICT_EVENT(name) \
 DEFINE_EVENT(zfs_l2arc_evict_class, name, \
-	TP_PROTO(l2arc_dev_t *dev, \
-	    list_t *buflist, uint64_t taddr, boolean_t all), \
-	TP_ARGS(dev, buflist, taddr, all))
-/* END CSTYLED */
+    TP_PROTO(l2arc_dev_t *dev, list_t *buflist, uint64_t taddr, boolean_t all),\
+    TP_ARGS(dev, buflist, taddr, all))
 DEFINE_L2ARC_EVICT_EVENT(zfs_l2arc__evict);
 
 /*
@@ -381,12 +370,10 @@ DECLARE_EVENT_CLASS(zfs_arc_wait_for_eviction_class,
 );
 /* END CSTYLED */
 
-/* BEGIN CSTYLED */
 #define	DEFINE_ARC_WAIT_FOR_EVICTION_EVENT(name) \
 DEFINE_EVENT(zfs_arc_wait_for_eviction_class, name, \
-	TP_PROTO(uint64_t amount, uint64_t arc_evict_count, uint64_t aew_count), \
-	TP_ARGS(amount, arc_evict_count, aew_count))
-/* END CSTYLED */
+    TP_PROTO(uint64_t amount, uint64_t arc_evict_count, uint64_t aew_count), \
+    TP_ARGS(amount, arc_evict_count, aew_count))
 DEFINE_ARC_WAIT_FOR_EVICTION_EVENT(zfs_arc__wait__for__eviction);
 
 #endif /* _TRACE_ARC_H */

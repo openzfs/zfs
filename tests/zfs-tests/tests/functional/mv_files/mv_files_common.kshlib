@@ -30,55 +30,6 @@
 
 . $STF_SUITE/tests/functional/mv_files/mv_files.cfg
 
-#
-# Determine whether this version of the ksh being
-# executed has a bug where the limit of background
-# processes of 25.
-#
-function check_bg_procs_limit_num
-{
-echo "#!/bin/ksh" > $TEST_BASE_DIR/exitsZero.ksh
-echo  "exit 0" >> $TEST_BASE_DIR/exitsZero.ksh
-chmod 777 $TEST_BASE_DIR/exitsZero.ksh
-
-cat <<EOF > $TEST_BASE_DIR/testbackgprocs.ksh
-#!/bin/ksh
-#
-# exitsZero.ksh is a one line script
-# that exit with status of "0"
-#
-
-PIDS=""
-typeset -i i=1
-while [ \$i -le 50 ]
-do
-	$TEST_BASE_DIR/exitsZero.ksh &
-        PIDS="\$PIDS \$!"
-        (( i = i + 1 ))
-done
-
-sleep 1
-
-for pid in \$PIDS
-do
-	wait \$pid
-        (( \$? == 127 )) && exit 1
-done
-exit 0
-EOF
-
-ksh $TEST_BASE_DIR/testbackgprocs.ksh
-if [[ $? -eq 1 ]]; then
-#
-# Current ksh being executed has a limit
-# of 25 background processes.
-#
-	return 1
-else
-        return 0
-fi
-}
-
 function init_setup
 {
 
@@ -152,8 +103,7 @@ function generate_files
 #
 function mv_files
 {
-        find $1 -type f -print | xargs -I "{}" \
-                mv {} $2 > /dev/null 2>&1
+        find $1 -type f -exec mv {} $2 \; > /dev/null 2>&1
 }
 
 #
@@ -165,8 +115,7 @@ function mv_files
 function count_files
 {
         typeset -i file_num
-        file_num=`find $1  -type f -print | \
-                wc -l`
+        file_num=$(find $1 -type f -print | wc -l | tr -d ' ')
         (( file_num != $2 )) && \
                 log_fail "The file number of target directory"\
                         "$2 is not equal to that of the source "\

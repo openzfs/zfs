@@ -345,7 +345,7 @@ changelist_rename(prop_changelist_t *clp, const char *src, const char *dst)
  * unshare all the datasets in the list.
  */
 int
-changelist_unshare(prop_changelist_t *clp, zfs_share_proto_t *proto)
+changelist_unshare(prop_changelist_t *clp, const zfs_share_proto_t *proto)
 {
 	prop_changenode_t *cn;
 	uu_avl_walk_t *walk;

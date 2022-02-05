@@ -40,26 +40,20 @@
  * DTRACE_PROBE1(...,
  *     taskq_ent_t *, ...);
  */
-/* BEGIN CSTYLED */
 DECLARE_EVENT_CLASS(zfs_taskq_ent_class,
-	TP_PROTO(taskq_ent_t *taskq_ent),
-	TP_ARGS(taskq_ent),
-	TP_STRUCT__entry(
-	    __field(taskq_ent_t *,	taskq_ent)
-	),
-	TP_fast_assign(
-	    __entry->taskq_ent	= taskq_ent;
-	),
-	TP_printk("taskq_ent %p", __entry->taskq_ent)
+    TP_PROTO(taskq_ent_t *taskq_ent),
+    TP_ARGS(taskq_ent),
+    TP_STRUCT__entry(__field(taskq_ent_t *, taskq_ent)),
+    TP_fast_assign(
+	__entry->taskq_ent = taskq_ent;
+),
+    TP_printk("taskq_ent %p", __entry->taskq_ent)
 );
-/* END CSTYLED */
 
-/* BEGIN CSTYLED */
-#define DEFINE_TASKQ_EVENT(name) \
+#define	DEFINE_TASKQ_EVENT(name) \
 DEFINE_EVENT(zfs_taskq_ent_class, name, \
-	TP_PROTO(taskq_ent_t *taskq_ent), \
-	TP_ARGS(taskq_ent))
-/* END CSTYLED */
+    TP_PROTO(taskq_ent_t *taskq_ent), \
+    TP_ARGS(taskq_ent))
 DEFINE_TASKQ_EVENT(zfs_taskq_ent__birth);
 DEFINE_TASKQ_EVENT(zfs_taskq_ent__start);
 DEFINE_TASKQ_EVENT(zfs_taskq_ent__finish);

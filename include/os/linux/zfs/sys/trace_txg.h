@@ -55,12 +55,10 @@ DECLARE_EVENT_CLASS(zfs_txg_class,
 );
 /* END CSTYLED */
 
-/* BEGIN CSTYLED */
 #define	DEFINE_TXG_EVENT(name) \
 DEFINE_EVENT(zfs_txg_class, name, \
-	TP_PROTO(dsl_pool_t *dp, uint64_t txg), \
-	TP_ARGS(dp, txg))
-/* END CSTYLED */
+    TP_PROTO(dsl_pool_t *dp, uint64_t txg), \
+    TP_ARGS(dp, txg))
 DEFINE_TXG_EVENT(zfs_dsl_pool_sync__done);
 DEFINE_TXG_EVENT(zfs_txg__quiescing);
 DEFINE_TXG_EVENT(zfs_txg__opened);

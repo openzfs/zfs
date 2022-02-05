@@ -3717,7 +3717,6 @@ EXPORT_SYMBOL(zil_bp_tree_add);
 EXPORT_SYMBOL(zil_set_sync);
 EXPORT_SYMBOL(zil_set_logbias);
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs, zfs_, commit_timeout_pct, INT, ZMOD_RW,
 	"ZIL block open timeout percentage");
 
@@ -3732,4 +3731,3 @@ ZFS_MODULE_PARAM(zfs_zil, zil_, slog_bulk, ULONG, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_zil, zil_, maxblocksize, INT, ZMOD_RW,
 	"Limit in bytes of ZIL log block size");
-/* END CSTYLED */

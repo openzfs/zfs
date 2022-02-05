@@ -102,21 +102,21 @@ static zfs_share_type_t zfs_is_shared_proto(zfs_handle_t *, char **,
  * The share protocols table must be in the same order as the zfs_share_proto_t
  * enum in libzfs_impl.h
  */
-proto_table_t proto_table[PROTO_END] = {
+static const proto_table_t proto_table[PROTO_END] = {
 	{ZFS_PROP_SHARENFS, "nfs", EZFS_SHARENFSFAILED, EZFS_UNSHARENFSFAILED},
 	{ZFS_PROP_SHARESMB, "smb", EZFS_SHARESMBFAILED, EZFS_UNSHARESMBFAILED},
 };
 
-static zfs_share_proto_t nfs_only[] = {
+static const zfs_share_proto_t nfs_only[] = {
 	PROTO_NFS,
 	PROTO_END
 };
 
-static zfs_share_proto_t smb_only[] = {
+static const zfs_share_proto_t smb_only[] = {
 	PROTO_SMB,
 	PROTO_END
 };
-static zfs_share_proto_t share_all_proto[] = {
+static const zfs_share_proto_t share_all_proto[] = {
 	PROTO_NFS,
 	PROTO_SMB,
 	PROTO_END
@@ -706,7 +706,7 @@ boolean_t
 zfs_is_shared(zfs_handle_t *zhp)
 {
 	zfs_share_type_t rc = 0;
-	zfs_share_proto_t *curr_proto;
+	const zfs_share_proto_t *curr_proto;
 
 	if (ZFS_IS_VOLUME(zhp))
 		return (B_FALSE);
@@ -762,12 +762,12 @@ is_shared(const char *mountpoint, zfs_share_proto_t proto)
  * on "libshare" to do the dirty work for us.
  */
 int
-zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
+zfs_share_proto(zfs_handle_t *zhp, const zfs_share_proto_t *proto)
 {
 	char mountpoint[ZFS_MAXPROPLEN];
 	char shareopts[ZFS_MAXPROPLEN];
 	char sourcestr[ZFS_MAXPROPLEN];
-	zfs_share_proto_t *curr_proto;
+	const zfs_share_proto_t *curr_proto;
 	zprop_source_t sourcetype;
 	int err = 0;
 
@@ -872,12 +872,11 @@ zfs_parse_options(char *options, zfs_share_proto_t proto)
 }
 
 void
-zfs_commit_proto(zfs_share_proto_t *proto)
+zfs_commit_proto(const zfs_share_proto_t *proto)
 {
-	zfs_share_proto_t *curr_proto;
-	for (curr_proto = proto; *curr_proto != PROTO_END; curr_proto++) {
+	const zfs_share_proto_t *curr_proto;
+	for (curr_proto = proto; *curr_proto != PROTO_END; curr_proto++)
 		sa_commit_shares(proto_table[*curr_proto].p_name);
-	}
 }
 
 void
@@ -932,7 +931,7 @@ zfs_shareall(zfs_handle_t *zhp)
  */
 int
 zfs_unshare_proto(zfs_handle_t *zhp, const char *mountpoint,
-    zfs_share_proto_t *proto)
+    const zfs_share_proto_t *proto)
 {
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	struct mnttab entry;
@@ -944,7 +943,7 @@ zfs_unshare_proto(zfs_handle_t *zhp, const char *mountpoint,
 
 	if (mountpoint != NULL || ((zfs_get_type(zhp) == ZFS_TYPE_FILESYSTEM) &&
 	    libzfs_mnttab_find(hdl, zfs_get_name(zhp), &entry) == 0)) {
-		zfs_share_proto_t *curr_proto;
+		const zfs_share_proto_t *curr_proto;
 
 		if (mountpoint == NULL)
 			mntpt = zfs_strdup(zhp->zfs_hdl, entry.mnt_mountp);
@@ -984,7 +983,7 @@ zfs_unshare_smb(zfs_handle_t *zhp, const char *mountpoint)
  * Same as zfs_unmountall(), but for NFS and SMB unshares.
  */
 static int
-zfs_unshareall_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
+zfs_unshareall_proto(zfs_handle_t *zhp, const zfs_share_proto_t *proto)
 {
 	prop_changelist_t *clp;
 	int ret;
@@ -1353,7 +1352,7 @@ zfs_mount_task(void *arg)
 	    sizeof (mountpoint), NULL, NULL, 0, B_FALSE) == 0);
 
 	if (mp->mnt_func(handles[idx], mp->mnt_data) != 0)
-		return;
+		goto out;
 
 	/*
 	 * We dispatch tasks to mount filesystems with mountpoints underneath
@@ -1374,6 +1373,8 @@ zfs_mount_task(void *arg)
 		zfs_dispatch_mount(mp->mnt_hdl, handles, num_handles, i,
 		    mp->mnt_func, mp->mnt_data, mp->mnt_tp);
 	}
+
+out:
 	free(mp);
 }
 
@@ -1610,13 +1611,14 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 	 * At this point, we have the entire list of filesystems, so sort it by
 	 * mountpoint.
 	 */
-	qsort(sets, used, sizeof (struct sets_s), mountpoint_compare);
+	if (used != 0)
+		qsort(sets, used, sizeof (struct sets_s), mountpoint_compare);
 
 	/*
 	 * Walk through and first unshare everything.
 	 */
 	for (i = 0; i < used; i++) {
-		zfs_share_proto_t *curr_proto;
+		const zfs_share_proto_t *curr_proto;
 		for (curr_proto = share_all_proto; *curr_proto != PROTO_END;
 		    curr_proto++) {
 			if (is_shared(sets[i].mountpoint, *curr_proto) &&

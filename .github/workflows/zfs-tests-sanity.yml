@@ -28,7 +28,7 @@ jobs:
         sh autogen.sh
     - name: Configure
       run: |
-        ./configure --enable-debug --enable-debuginfo
+        ./configure --enable-debug --enable-debuginfo --enable-asan --enable-ubsan
     - name: Make
       run: |
         make --no-print-directory -s pkg-utils pkg-kmod
@@ -60,6 +60,7 @@ jobs:
     - name: Tests
       run: |
         /usr/share/zfs/zfs-tests.sh -vR -s 3G -r sanity
+      timeout-minutes: 330
     - name: Prepare artifacts
       if: failure()
       run: |

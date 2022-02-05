@@ -3389,7 +3389,6 @@ dmu_objset_is_receiving(objset_t *os)
 	    os->os_dsl_dataset->ds_owner == dmu_recv_tag);
 }
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_recv, zfs_recv_, queue_length, INT, ZMOD_RW,
 	"Maximum receive queue length");
 
@@ -3398,4 +3397,3 @@ ZFS_MODULE_PARAM(zfs_recv, zfs_recv_, queue_ff, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_recv, zfs_recv_, write_batch_size, INT, ZMOD_RW,
 	"Maximum amount of writes to batch into one transaction");
-/* END CSTYLED */

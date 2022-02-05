@@ -53,7 +53,6 @@ verify_runnable "global"
 
 function cleanup
 {
-	PIDS=""
 	rm -f $OLDDIR/* >/dev/null 2>&1
 	rm -f $NEWDIR_IN_FS/* >/dev/null 2>&1
 }

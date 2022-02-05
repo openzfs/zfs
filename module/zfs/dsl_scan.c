@@ -1827,6 +1827,19 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 
 	ASSERT(!BP_IS_REDACTED(bp));
 
+	/*
+	 * There is an unlikely case of encountering dnodes with contradicting
+	 * dn_bonuslen and DNODE_FLAG_SPILL_BLKPTR flag before in files created
+	 * or modified before commit 4254acb was merged. As it is not possible
+	 * to know which of the two is correct, report an error.
+	 */
+	if (dnp != NULL &&
+	    dnp->dn_bonuslen > DN_MAX_BONUS_LEN(dnp)) {
+		scn->scn_phys.scn_errors++;
+		spa_log_error(dp->dp_spa, zb);
+		return (SET_ERROR(EINVAL));
+	}
+
 	if (BP_GET_LEVEL(bp) > 0) {
 		arc_flags_t flags = ARC_FLAG_WAIT;
 		int i;
@@ -4377,7 +4390,6 @@ dsl_scan_assess_vdev(dsl_pool_t *dp, vdev_t *vd)
 		spa_async_request(dp->dp_spa, SPA_ASYNC_RESILVER);
 }
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs, zfs_, scan_vdev_limit, ULONG, ZMOD_RW,
 	"Max bytes in flight per leaf vdev for scrubs and resilvers");
 
@@ -4415,8 +4427,7 @@ ZFS_MODULE_PARAM(zfs, zfs_, scan_mem_lim_fact, INT, ZMOD_RW,
 	"Fraction of RAM for scan hard limit");
 
 ZFS_MODULE_PARAM(zfs, zfs_, scan_issue_strategy, INT, ZMOD_RW,
-	"IO issuing strategy during scrubbing. "
-	"0 = default, 1 = LBA, 2 = size");
+	"IO issuing strategy during scrubbing. 0 = default, 1 = LBA, 2 = size");
 
 ZFS_MODULE_PARAM(zfs, zfs_, scan_legacy, INT, ZMOD_RW,
 	"Scrub using legacy non-sequential method");
@@ -4438,4 +4449,3 @@ ZFS_MODULE_PARAM(zfs, zfs_, scan_fill_weight, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, resilver_disable_defer, INT, ZMOD_RW,
 	"Process all resilvers immediately");
-/* END CSTYLED */

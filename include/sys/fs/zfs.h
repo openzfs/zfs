@@ -838,6 +838,7 @@ typedef struct zpool_load_policy {
 
 /* Rewind data discovered */
 #define	ZPOOL_CONFIG_LOAD_TIME		"rewind_txg_ts"
+#define	ZPOOL_CONFIG_LOAD_META_ERRORS	"verify_meta_errors"
 #define	ZPOOL_CONFIG_LOAD_DATA_ERRORS	"verify_data_errors"
 #define	ZPOOL_CONFIG_REWIND_TIME	"seconds_of_rewind"
 
@@ -1185,11 +1186,9 @@ typedef struct vdev_stat {
 	uint64_t	vs_noalloc;		/* allocations halted?	*/
 } vdev_stat_t;
 
-/* BEGIN CSTYLED */
 #define	VDEV_STAT_VALID(field, uint64_t_field_count) \
-    ((uint64_t_field_count * sizeof (uint64_t)) >=	 \
-     (offsetof(vdev_stat_t, field) + sizeof (((vdev_stat_t *)NULL)->field)))
-/* END CSTYLED */
+((uint64_t_field_count * sizeof (uint64_t)) >=	 \
+	(offsetof(vdev_stat_t, field) + sizeof (((vdev_stat_t *)NULL)->field)))
 
 /*
  * Extended stats

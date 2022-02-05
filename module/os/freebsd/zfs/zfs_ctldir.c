@@ -685,7 +685,8 @@ zfsctl_root_readdir(struct vop_readdir_args *ap)
 	if (zfs_uio_offset(&uio) != dots_offset)
 		return (SET_ERROR(EINVAL));
 
-	CTASSERT(sizeof (node->snapdir->sn_name) <= sizeof (entry.d_name));
+	_Static_assert(sizeof (node->snapdir->sn_name) <= sizeof (entry.d_name),
+	    "node->snapdir->sn_name too big for entry.d_name");
 	entry.d_fileno = node->snapdir->sn_id;
 	entry.d_type = DT_DIR;
 	strcpy(entry.d_name, node->snapdir->sn_name);

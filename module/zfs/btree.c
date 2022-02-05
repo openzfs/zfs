@@ -536,7 +536,6 @@ zfs_btree_insert_into_parent(zfs_btree_t *tree, zfs_btree_hdr_t *old_node,
 	ASSERT3P(old_node->bth_parent, ==, new_node->bth_parent);
 	uint64_t size = tree->bt_elem_size;
 	zfs_btree_core_t *parent = old_node->bth_parent;
-	zfs_btree_hdr_t *par_hdr = &parent->btc_hdr;
 
 	/*
 	 * If this is the root node we were splitting, we create a new root
@@ -568,6 +567,7 @@ zfs_btree_insert_into_parent(zfs_btree_t *tree, zfs_btree_hdr_t *old_node,
 	 * Since we have the new separator, binary search for where to put
 	 * new_node.
 	 */
+	zfs_btree_hdr_t *par_hdr = &parent->btc_hdr;
 	zfs_btree_index_t idx;
 	ASSERT(par_hdr->bth_core);
 	VERIFY3P(zfs_btree_find_in_buf(tree, parent->btc_elems,
@@ -1898,7 +1898,8 @@ static uint64_t
 zfs_btree_verify_counts_helper(zfs_btree_t *tree, zfs_btree_hdr_t *hdr)
 {
 	if (!hdr->bth_core) {
-		if (tree->bt_root != hdr && hdr != &tree->bt_bulk->btl_hdr) {
+		if (tree->bt_root != hdr && tree->bt_bulk &&
+		    hdr != &tree->bt_bulk->btl_hdr) {
 			uint64_t capacity = P2ALIGN((BTREE_LEAF_SIZE -
 			    sizeof (zfs_btree_hdr_t)) / tree->bt_elem_size, 2);
 			VERIFY3U(hdr->bth_count, >=, (capacity / 2) - 1);
