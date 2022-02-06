@@ -19,16 +19,18 @@ depends() {
 }
 
 installkernel() {
-	instmods zfs
+	instmods -c zfs
 }
 
 install() {
-	inst_rules \
-		@udevruledir@/90-zfs.rules \
-		@udevruledir@/69-vdev.rules \
-		@udevruledir@/60-zvol.rules
+	for i in "90-zfs.rules" "69-vdev.rules" "60-zvol.rules"; do
+		if ! dracut_install "@udevdir@/$i"; then
+			dfatal "Failed to install udev rule: $i"
+			exit 1
+		fi
+	done
 	
-	dracut_install \
+	inst_multiple \
 		@sbindir@/zgenhostid \
 		@sbindir@/zfs \
 		@sbindir@/zpool \
@@ -40,10 +42,25 @@ install() {
 		awk \
 		tr \
 		cut \
-		head
-		
-	inst_libdir_file "libgcc_s.so*"
+		head ||
+		{ dfatal "Failed to install essential binaries"; exit 1; }
 	
+	# Lines 71-90 adapted from
+	# https://github.com/zbm-dev/zfsbootmenu/blob/9a03eab2b75647170bdc383903735a694ecd0ed6/dracut/module-setup.sh#L71
+	
+	if ! ldd "$( command -v zpool )" | grep -qF 'libgcc_s.so'; then
+		# On systems with gcc-config (Gentoo, Funtoo, etc.), use it to find libgcc_s
+		if command -v gcc-config >/dev/null 2>&1; then
+			dracut_install "/usr/lib/gcc/$(s=$(gcc-config -c); echo "${s%-*}/${s##*-}")/libgcc_s.so.1" ||
+				{ dfatal "Unable to install libgcc_s.so"; exit 1; }
+			# Otherwise, use dracut's library installation function to find the right one
+		elif ! inst_libdir_file "libgcc_s.so*"; then
+			# If all else fails, just try looking for some gcc arch directory
+			dracut_install /usr/lib/gcc/*/*/libgcc_s.so* ||
+				{ dfatal "Unable to install libgcc_s.so"; exit 1; }
+		fi
+	fi
+
 	inst_hook cmdline 95 "${moddir}/parse-zfs.sh"
 	if [ -n "$systemdutildir" ] ; then
 		inst_script "${moddir}/zfs-generator.sh" "$systemdutildir"/system-generators/dracut-zfs-generator
@@ -75,7 +92,10 @@ install() {
 
 	if dracut_module_included "systemd"; then
 
-		dracut_install systemd-ask-password systemd-tty-ask-password-agent
+		dracut_install \
+			systemd-ask-password \
+			systemd-tty-ask-password-agent ||
+			{ dfatal "Failed to install essential systemd binaries"; exit 1; }
 
 		mkdir -p "${initdir}/$systemdsystemunitdir/zfs-import.target.wants"
 		for _service in "zfs-import-scan.service" "zfs-import-cache.service" ; do
