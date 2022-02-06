@@ -15,5 +15,4 @@ pkgsysconf_SCRIPTS = \
 
 SUBSTFILES += $(pkgsysconf_SCRIPTS)
 
-SHELLCHECK_OPTS = --enable=all
-SHELLCHECK_SHELL = dash
+SHELLCHECK_SHELL = sh

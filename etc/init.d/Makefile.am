@@ -7,5 +7,4 @@ init_SCRIPTS = zfs-import zfs-load-key zfs-mount zfs-share zfs-zed
 
 SUBSTFILES += $(init_SCRIPTS)
 
-SHELLCHECK_SHELL = dash
-SHELLCHECK_OPTS = --enable=all
+SHELLCHECK_SHELL = sh
