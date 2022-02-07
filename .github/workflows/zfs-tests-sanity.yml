@@ -6,7 +6,7 @@ on:
 
 jobs:
   tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v2
       with:
@@ -14,24 +14,17 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install --yes -qq build-essential autoconf libtool gdb lcov \
-          git alien fakeroot wget curl bc fio acl \
-          sysstat mdadm lsscsi parted gdebi attr dbench watchdog ksh \
-          nfs-kernel-server samba rng-tools xz-utils \
-          zlib1g-dev uuid-dev libblkid-dev libselinux-dev \
-          xfslibs-dev libattr1-dev libacl1-dev libudev-dev libdevmapper-dev \
-          libssl-dev libffi-dev libaio-dev libelf-dev libmount-dev \
-          libpam0g-dev pamtester libcurl4-openssl-dev \
-          python3 python3-dev python3-setuptools python3-cffi python3-packaging
+        xargs --arg-file=${{ github.workspace }}/.github/workflows/build-dependencies.txt sudo apt-get install -qq
+        sudo apt-get clean
     - name: Autogen.sh
       run: |
-        sh autogen.sh
+        ./autogen.sh
     - name: Configure
       run: |
         ./configure --enable-debug --enable-debuginfo --enable-asan --enable-ubsan
     - name: Make
       run: |
-        make --no-print-directory -s pkg-utils pkg-kmod
+        make -j$(nproc) --no-print-directory --silent pkg-utils pkg-kmod
     - name: Install
       run: |
         sudo dpkg -i *.deb
@@ -57,6 +50,9 @@ jobs:
         sudo rm -rf /opt/ghc
         sudo rm -rf "/usr/local/share/boost"
         sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+    - name: Clear the kernel ring buffer
+      run: |
+        sudo dmesg -c >/var/tmp/dmesg-prerun
     - name: Tests
       run: |
         /usr/share/zfs/zfs-tests.sh -vR -s 3G -r sanity
@@ -66,13 +62,15 @@ jobs:
       run: |
         RESULTS_PATH=$(readlink -f /var/tmp/test_results/current)
         sudo dmesg > $RESULTS_PATH/dmesg
-        sudo cp /var/log/syslog $RESULTS_PATH/
+        sudo cp /var/log/syslog /var/tmp/dmesg-prerun $RESULTS_PATH/
         sudo chmod +r $RESULTS_PATH/*
         # Replace ':' in dir names, actions/upload-artifact doesn't support it
         for f in $(find /var/tmp/test_results -name '*:*'); do mv "$f" "${f//:/__}"; done
     - uses: actions/upload-artifact@v2
       if: failure()
       with:
-        name: Test logs
-        path: /var/tmp/test_results/20*/
+        name: Test logs Ubuntu-${{ matrix.os }}
+        path: |
+          /var/tmp/test_results/*
+          !/var/tmp/test_results/current
         if-no-files-found: ignore
