@@ -9,4 +9,3 @@ SUBDIRS = local-top
 
 SHELLCHECKDIRS = $(SUBDIRS)
 SHELLCHECK_SHELL = sh
-SHELLCHECK_OPTS = --enable=all

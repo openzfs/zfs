@@ -10,4 +10,3 @@ SUBSTFILES += $(noinst_DATA)
 
 SHELLCHECKSCRIPTS = $(noinst_DATA)
 SHELLCHECK_SHELL = bash
-SHELLCHECK_OPTS = --enable=all

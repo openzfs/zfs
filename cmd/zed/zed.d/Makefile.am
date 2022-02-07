@@ -11,8 +11,7 @@ dist_zedconf_DATA = \
 	zed.rc
 
 SHELLCHECKSCRIPTS = zed-functions.sh zed.rc
-SHELLCHECK_OPTS = --enable=all
-SHELLCHECK_SHELL = dash
+SHELLCHECK_SHELL = sh
 
 zedexecdir = $(zfsexecdir)/zed.d
 
