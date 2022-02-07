@@ -93,17 +93,13 @@ void zvol_wait_close(zvol_state_t *zv);
 /*
  * platform dependent functions exported to platform independent code
  */
-typedef struct zvol_platform_ops {
-	void (*zv_free)(zvol_state_t *);
-	void (*zv_rename_minor)(zvol_state_t *, const char *);
-	int (*zv_create_minor)(const char *);
-	int (*zv_update_volsize)(zvol_state_t *, uint64_t);
-	boolean_t (*zv_is_zvol)(const char *);
-	void (*zv_clear_private)(zvol_state_t *);
-	void (*zv_set_disk_ro)(zvol_state_t *, int flags);
-	void (*zv_set_capacity)(zvol_state_t *, uint64_t capacity);
-} zvol_platform_ops_t;
-
-void zvol_register_ops(const zvol_platform_ops_t *ops);
+void zvol_os_free(zvol_state_t *zv);
+void zvol_os_rename_minor(zvol_state_t *zv, const char *newname);
+int zvol_os_create_minor(const char *name);
+int zvol_os_update_volsize(zvol_state_t *zv, uint64_t volsize);
+boolean_t zvol_os_is_zvol(const char *path);
+void zvol_os_clear_private(zvol_state_t *zv);
+void zvol_os_set_disk_ro(zvol_state_t *zv, int flags);
+void zvol_os_set_capacity(zvol_state_t *zv, uint64_t capacity);
 
 #endif
