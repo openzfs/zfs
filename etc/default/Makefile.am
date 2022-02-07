@@ -5,5 +5,4 @@ initconf_SCRIPTS = zfs
 
 SUBSTFILES += $(initconf_SCRIPTS)
 
-SHELLCHECK_SHELL = dash
-SHELLCHECK_OPTS = --enable=all
+SHELLCHECK_SHELL = sh

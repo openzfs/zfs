@@ -1,7 +1,15 @@
 .PHONY: shellcheck
 shellcheck: $(SCRIPTS) $(SHELLCHECKSCRIPTS)
+
+# ShellCheck exclusions
+#
+# ShellCheck can't follow non-constant source. Use a directive to specify location. [SC1090]
+# Not following: a was not specified as input (see shellcheck -x). [SC1091]
+# Prefer putting braces around variable references even when not strictly required. [SC2250]
+# In POSIX sh, 'local' is undefined. [SC2039] # older ShellCheck versions
+# In POSIX sh, 'local' is undefined. [SC3043] # newer ShellCheck versions
 if HAVE_SHELLCHECK
-	[ -z "$(SCRIPTS)$(SHELLCHECKSCRIPTS)" ] && exit; shellcheck --format=gcc --exclude=SC1090,SC1091,SC2250 $$([ -n "$(SHELLCHECK_SHELL)" ] && echo "--shell=$(SHELLCHECK_SHELL)") $(SHELLCHECK_OPTS) $(SCRIPTS) $(SHELLCHECKSCRIPTS)
+	[ -z "$(SCRIPTS)$(SHELLCHECKSCRIPTS)" ] && exit; shellcheck --format=gcc --enable=all --exclude=SC1090,SC1091,SC2039,SC2250,SC3043 $$([ -n "$(SHELLCHECK_SHELL)" ] && echo "--shell=$(SHELLCHECK_SHELL)") $(SHELLCHECK_OPTS) $(SCRIPTS) $(SHELLCHECKSCRIPTS)
 else
 	@[ -z "$(SCRIPTS)$(SHELLCHECKSCRIPTS)" ] && exit; echo "skipping shellcheck of" $(SCRIPTS) $(SHELLCHECKSCRIPTS) "because shellcheck is not installed"
 endif

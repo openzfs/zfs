@@ -10,4 +10,3 @@ endif
 DIST_SUBDIRS = bash_completion.d bpftrace dracut initramfs pam_zfs_key pyzfs zcp
 
 SHELLCHECKDIRS = bash_completion.d bpftrace dracut initramfs
-SHELLCHECK_OPTS = --enable=all

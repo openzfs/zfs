@@ -5,4 +5,3 @@ dist_sbin_SCRIPTS = fsck.zfs
 
 SUBSTFILES += $(dist_sbin_SCRIPTS)
 
-SHELLCHECK_OPTS = --enable=all
