@@ -15,6 +15,9 @@ jobs:
     - uses: actions/checkout@v2
       with:
         ref: ${{ github.event.pull_request.head.sha }}
+    - name: Reclaim disk space
+      run: |
+        ${{ github.workspace }}/.github/workflows/scripts/reclaim_disk_space.sh
     - name: Install dependencies
       run: |
         sudo apt-get update
@@ -48,15 +51,12 @@ jobs:
             sudo udevadm control --reload-rules
           fi
         fi
-        # Workaround to provide additional free space for testing.
-        #   https://github.com/actions/virtual-environments/issues/2840
-        sudo rm -rf /usr/share/dotnet
-        sudo rm -rf /opt/ghc
-        sudo rm -rf "/usr/local/share/boost"
-        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
     - name: Clear the kernel ring buffer
       run: |
         sudo dmesg -c >/var/tmp/dmesg-prerun
+    - name: Report disk space
+      run: |
+        df -h /
     - name: Tests
       run: |
         /usr/share/zfs/zfs-tests.sh -vR -s 3G
