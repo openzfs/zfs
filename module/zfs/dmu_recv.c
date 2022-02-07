@@ -597,7 +597,15 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 		if (!(flags & DRR_FLAG_SPILL_BLOCK))
 			return (SET_ERROR(ZFS_ERR_SPILL_BLOCK_FLAG_MISSING));
 	} else {
-		dsflags |= DS_HOLD_FLAG_DECRYPT;
+		/*
+		 * We support unencrypted datasets below encrypted ones now,
+		 * so add the DS_HOLD_FLAG_DECRYPT flag only if we are dealing
+		 * with a dataset we may encrypt.
+		 */
+		if (drba->drba_dcp != NULL &&
+		    drba->drba_dcp->cp_crypt != ZIO_CRYPT_OFF) {
+			dsflags |= DS_HOLD_FLAG_DECRYPT;
+		}
 	}
 
 	error = dsl_dataset_hold_flags(dp, tofs, dsflags, FTAG, &ds);
