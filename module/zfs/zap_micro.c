@@ -41,8 +41,6 @@
 #include <sys/sunddi.h>
 #endif
 
-extern inline mzap_phys_t *zap_m_phys(zap_t *zap);
-
 static int mzap_upgrade(zap_t **zapp,
     void *tag, dmu_tx_t *tx, zap_flags_t flags);
 

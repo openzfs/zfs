@@ -121,8 +121,6 @@
  * dsl_dir_init_fs_ss_count().
  */
 
-extern inline dsl_dir_phys_t *dsl_dir_phys(dsl_dir_t *dd);
-
 static uint64_t dsl_dir_space_towrite(dsl_dir_t *dd);
 
 typedef struct ddulrt_arg {
