@@ -246,13 +246,6 @@ main(int argc, char **argv)
 		}
 	}
 
-	if (verbose)
-		(void) fprintf(stdout, gettext("mount.zfs:\n"
-		    "  dataset:    \"%s\"\n  mountpoint: \"%s\"\n"
-		    "  mountflags: 0x%lx\n  zfsflags:   0x%lx\n"
-		    "  mountopts:  \"%s\"\n  mtabopts:   \"%s\"\n"),
-		    dataset, mntpoint, mntflags, zfsflags, mntopts, mtabopt);
-
 	if (mntflags & MS_REMOUNT) {
 		nomtab = 1;
 		remount = 1;
@@ -275,7 +268,10 @@ main(int argc, char **argv)
 		return (MOUNT_USAGE);
 	}
 
-	zfs_adjust_mount_options(zhp, mntpoint, mntopts, mtabopt);
+	if (!zfsutil || sloppy ||
+	    libzfs_envvar_is_set("ZFS_MOUNT_HELPER")) {
+		zfs_adjust_mount_options(zhp, mntpoint, mntopts, mtabopt);
+	}
 
 	/* treat all snapshots as legacy mount points */
 	if (zfs_get_type(zhp) == ZFS_TYPE_SNAPSHOT)
@@ -293,11 +289,10 @@ main(int argc, char **argv)
 	if (zfs_version == 0) {
 		fprintf(stderr, gettext("unable to fetch "
 		    "ZFS version for filesystem '%s'\n"), dataset);
+		zfs_close(zhp);
+		libzfs_fini(g_zfs);
 		return (MOUNT_SYSERR);
 	}
-
-	zfs_close(zhp);
-	libzfs_fini(g_zfs);
 
 	/*
 	 * Legacy mount points may only be mounted using 'mount', never using
@@ -316,6 +311,8 @@ main(int argc, char **argv)
 		    "Use 'zfs set mountpoint=%s' or 'mount -t zfs %s %s'.\n"
 		    "See zfs(8) for more information.\n"),
 		    dataset, mntpoint, dataset, mntpoint);
+		zfs_close(zhp);
+		libzfs_fini(g_zfs);
 		return (MOUNT_USAGE);
 	}
 
@@ -326,13 +323,37 @@ main(int argc, char **argv)
 		    "Use 'zfs set mountpoint=%s' or 'zfs mount %s'.\n"
 		    "See zfs(8) for more information.\n"),
 		    dataset, "legacy", dataset);
+		zfs_close(zhp);
+		libzfs_fini(g_zfs);
 		return (MOUNT_USAGE);
 	}
 
+	if (verbose)
+		(void) fprintf(stdout, gettext("mount.zfs:\n"
+		    "  dataset:    \"%s\"\n  mountpoint: \"%s\"\n"
+		    "  mountflags: 0x%lx\n  zfsflags:   0x%lx\n"
+		    "  mountopts:  \"%s\"\n  mtabopts:   \"%s\"\n"),
+		    dataset, mntpoint, mntflags, zfsflags, mntopts, mtabopt);
+
 	if (!fake) {
-		error = mount(dataset, mntpoint, MNTTYPE_ZFS,
-		    mntflags, mntopts);
+		if (zfsutil && !sloppy &&
+		    !libzfs_envvar_is_set("ZFS_MOUNT_HELPER")) {
+			error = zfs_mount_at(zhp, mntopts, mntflags, mntpoint);
+			if (error) {
+				(void) fprintf(stderr, "zfs_mount_at() failed: "
+				    "%s", libzfs_error_description(g_zfs));
+				zfs_close(zhp);
+				libzfs_fini(g_zfs);
+				return (MOUNT_SYSERR);
+			}
+		} else {
+			error = mount(dataset, mntpoint, MNTTYPE_ZFS,
+			    mntflags, mntopts);
+		}
 	}
+
+	zfs_close(zhp);
+	libzfs_fini(g_zfs);
 
 	if (error) {
 		switch (errno) {
