@@ -368,6 +368,9 @@ AC_DEFUN([ZFS_AC_RPM], [
 		RPM_DEFINE_KMOD=${RPM_DEFINE_KMOD}' --define "kernels $(LINUX_VERSION)"'
 		RPM_DEFINE_KMOD=${RPM_DEFINE_KMOD}' --define "ksrc $(LINUX)"'
 		RPM_DEFINE_KMOD=${RPM_DEFINE_KMOD}' --define "kobj $(LINUX_OBJ)"'
+		RPM_DEFINE_KMOD=${RPM_DEFINE_KMOD}' --define "kernel_cc KERNEL_CC=$(KERNEL_CC)"'
+		RPM_DEFINE_KMOD=${RPM_DEFINE_KMOD}' --define "kernel_ld KERNEL_LD=$(KERNEL_LD)"'
+		RPM_DEFINE_KMOD=${RPM_DEFINE_KMOD}' --define "kernel_llvm KERNEL_LLVM=$(KERNEL_LLVM)"'
 	])
 
 	RPM_DEFINE_DKMS=''
