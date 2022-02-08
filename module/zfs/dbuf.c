@@ -170,11 +170,6 @@ static void dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx);
 static void dbuf_sync_leaf_verify_bonus_dnode(dbuf_dirty_record_t *dr);
 static int dbuf_read_verify_dnode_crypt(dmu_buf_impl_t *db, uint32_t flags);
 
-extern inline void dmu_buf_init_user(dmu_buf_user_t *dbu,
-    dmu_buf_evict_func_t *evict_func_sync,
-    dmu_buf_evict_func_t *evict_func_async,
-    dmu_buf_t **clear_on_evict_dbufp);
-
 /*
  * Global data structures and functions for the dbuf cache.
  */

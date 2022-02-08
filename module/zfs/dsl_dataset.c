@@ -90,8 +90,6 @@ int zfs_allow_redacted_dataset_mount = 0;
 
 #define	DS_REF_MAX	(1ULL << 62)
 
-extern inline dsl_dataset_phys_t *dsl_dataset_phys(dsl_dataset_t *ds);
-
 static void dsl_dataset_set_remap_deadlist_object(dsl_dataset_t *ds,
     uint64_t obj, dmu_tx_t *tx);
 static void dsl_dataset_unset_remap_deadlist_object(dsl_dataset_t *ds,
