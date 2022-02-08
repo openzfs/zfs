@@ -140,7 +140,10 @@ for kernel_version in %{?kernel_versions}; do
         --with-linux=%{ksrc} \
         --with-linux-obj=%{kobj} \
         %{debug} \
-        %{debuginfo}
+        %{debuginfo} \
+        %{?kernel_cc} \
+        %{?kernel_ld} \
+        %{?kernel_llvm}
     make %{?_smp_mflags}
     cd ..
 done
