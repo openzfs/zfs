@@ -1,9 +1,12 @@
-dnl # 
+dnl #
 dnl # Handle differences in kernel FPU code.
 dnl #
 dnl # Kernel
 dnl # 5.16:	XCR code put into asm/fpu/xcr.h
-dnl # 		HAVE_KERNEL_FPU_XCR_HEADER
+dnl #		HAVE_KERNEL_FPU_XCR_HEADER
+dnl #
+dnl #		XSTATE_XSAVE and XSTATE_XRESTORE aren't accessible any more
+dnl #		HAVE_KERNEL_FPU_XSAVE_INTERNAL
 dnl #
 dnl # 5.0:	Wrappers have been introduced to save/restore the FPU state.
 dnl #		This change was made to the 4.19.38 and 4.14.120 LTS kernels.
@@ -107,6 +110,36 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_FPU], [
 		struct fxregs_state *fxr __attribute__ ((unused)) = &st->fxsave;
 		struct xregs_state *xr __attribute__ ((unused)) = &st->xsave;
 	])
+
+	ZFS_LINUX_TEST_SRC([fpu_xsave_internal], [
+		#include <linux/sched.h>
+		#if defined(__x86_64) || defined(__x86_64__) || \
+		    defined(__i386) || defined(__i386__)
+		#if !defined(__x86)
+		#define __x86
+		#endif
+		#endif
+
+		#if !defined(__x86)
+		#error Unsupported architecture
+		#endif
+
+		#include <linux/types.h>
+		#ifdef HAVE_KERNEL_FPU_API_HEADER
+		#include <asm/fpu/api.h>
+		#include <asm/fpu/internal.h>
+		#else
+		#include <asm/i387.h>
+		#include <asm/xcr.h>
+		#endif
+
+	],[
+		struct fpu *fpu = &current->thread.fpu;
+		union fpregs_state *st = &fpu->fpstate->regs;
+		struct fregs_state *fr __attribute__ ((unused)) = &st->fsave;
+		struct fxregs_state *fxr __attribute__ ((unused)) = &st->fxsave;
+		struct xregs_state *xr __attribute__ ((unused)) = &st->xsave;
+	])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_FPU], [
@@ -139,7 +172,13 @@ AC_DEFUN([ZFS_AC_KERNEL_FPU], [
 				AC_DEFINE(HAVE_KERNEL_FPU_INTERNAL, 1,
 				    [kernel fpu internal])
 			],[
+				ZFS_LINUX_TEST_RESULT([fpu_xsave_internal], [
+				    AC_MSG_RESULT(internal with internal XSAVE)
+				    AC_DEFINE(HAVE_KERNEL_FPU_XSAVE_INTERNAL, 1,
+					[kernel fpu and XSAVE internal])
+			    ],[
 				AC_MSG_RESULT(unavailable)
+			    ])
 			])
 		])
 	])
