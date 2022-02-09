@@ -4141,6 +4141,9 @@ zfs_getpages(struct vnode *vp, vm_page_t *ma, int count, int *rbehind,
 	if (lr != NULL)
 		zfs_rangelock_exit(lr);
 	ZFS_ACCESSTIME_STAMP(zfsvfs, zp);
+
+	dataset_kstats_update_read_kstats(&zfsvfs->z_kstat, count*PAGE_SIZE);
+
 	ZFS_EXIT(zfsvfs);
 
 	if (error != 0)
@@ -4318,6 +4321,9 @@ out:
 	if ((flags & (zfs_vm_pagerput_sync | zfs_vm_pagerput_inval)) != 0 ||
 	    zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zfsvfs->z_log, zp->z_id);
+
+	dataset_kstats_update_write_kstats(&zfsvfs->z_kstat, len);
+
 	ZFS_EXIT(zfsvfs);
 	return (rtvals[0]);
 }

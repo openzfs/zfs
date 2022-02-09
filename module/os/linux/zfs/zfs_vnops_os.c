@@ -3635,6 +3635,8 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 		zil_commit(zfsvfs->z_log, zp->z_id);
 	}
 
+	dataset_kstats_update_write_kstats(&zfsvfs->z_kstat, pglen);
+
 	ZFS_EXIT(zfsvfs);
 	return (err);
 }
@@ -3829,6 +3831,8 @@ zfs_getpage(struct inode *ip, struct page *pl[], int nr_pages)
 	ZFS_VERIFY_ZP(zp);
 
 	err = zfs_fillpage(ip, pl, nr_pages);
+
+	dataset_kstats_update_read_kstats(&zfsvfs->z_kstat, nr_pages*PAGESIZE);
 
 	ZFS_EXIT(zfsvfs);
 	return (err);
