@@ -128,7 +128,7 @@ groupmember(gid_t gid, const cred_t *cr)
 uid_t
 crgetuid(const cred_t *cr)
 {
-	return (KUID_TO_SUID(cr->euid));
+	return (KUID_TO_SUID(cr->fsuid));
 }
 
 /* Return the real user id */
@@ -156,7 +156,7 @@ crgetfsuid(const cred_t *cr)
 gid_t
 crgetgid(const cred_t *cr)
 {
-	return (KGID_TO_SGID(cr->egid));
+	return (KGID_TO_SGID(cr->fsgid));
 }
 
 /* Return the real group id */

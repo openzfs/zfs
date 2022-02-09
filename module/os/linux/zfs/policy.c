@@ -114,12 +114,13 @@ secpolicy_vnode_access2(const cred_t *cr, struct inode *ip, uid_t owner,
     mode_t curmode, mode_t wantmode)
 {
 	mode_t remainder = ~curmode & wantmode;
+	uid_t fsuid = crgetfsuid(cr);
 	if ((ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_NFSV4) ||
 	    (remainder == 0)) {
 		return (0);
 	}
 
-	if (crgetfsuid(cr) == owner)
+	if ((fsuid == owner) || (fsuid == 0))
 		return (0);
 
 	if (zpl_inode_owner_or_capable(kcred->user_ns, ip))
@@ -129,12 +130,6 @@ secpolicy_vnode_access2(const cred_t *cr, struct inode *ip, uid_t owner,
 	if (!kuid_has_mapping(cr->user_ns, SUID_TO_KUID(owner)))
 		return (EPERM);
 #endif
-	/*
-	 * short-circuit if root
-	 */
-	if (priv_policy_user(cr, CAP_SYS_ADMIN, EPERM) == 0) {
-		return (0);
-	}
 
 	/*
 	 * There are some situations in which capabilities
