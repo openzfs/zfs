@@ -27,7 +27,8 @@ dist_pkgdata_SCRIPTS = \
 	zfs_receive_raw.ksh \
 	zfs_receive_raw_incremental.ksh \
 	zfs_receive_raw_-d.ksh \
-	zfs_receive_-e.ksh
+	zfs_receive_-e.ksh \
+	zfs_receive_-wR-encrypted-mix.ksh
 
 dist_pkgdata_DATA = \
 	zstd_test_data.txt
