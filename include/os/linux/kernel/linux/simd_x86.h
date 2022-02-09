@@ -136,9 +136,27 @@
  * When the kernel_fpu_* symbols are unavailable then provide our own
  * versions which allow the FPU to be safely used.
  */
+#if defined(HAVE_KERNEL_FPU_INTERNAL) || defined(HAVE_KERNEL_FPU_XSAVE_INTERNAL)
+
+#if defined(HAVE_KERNEL_FPU_XSAVE_INTERNAL)
+/*
+ * Some sanity checks.
+ * HAVE_KERNEL_FPU_INTERNAL and HAVE_KERNEL_FPU_XSAVE_INTERNAL are exclusive.
+ */
 #if defined(HAVE_KERNEL_FPU_INTERNAL)
+#error "HAVE_KERNEL_FPU_INTERNAL and HAVE_KERNEL_FPU_XSAVE_INTERNAL defined"
+#endif
+/*
+ * For kernels >= 5.16 we have to use inline assembly with the XSAVE{,OPT,S}
+ * instructions, so we need the toolchain to support at least XSAVE.
+ */
+#if !defined(HAVE_XSAVE)
+#error "Toolchain needs to support the XSAVE assembler instruction"
+#endif
+#endif
 
 #include <linux/mm.h>
+#include <linux/slab.h>
 
 extern union fpregs_state **zfs_kfpu_fpregs;
 
@@ -191,7 +209,9 @@ kfpu_init(void)
 }
 
 #define	kfpu_allowed()		1
+#if defined(HAVE_KERNEL_FPU_INTERNAL)
 #define	ex_handler_fprestore	ex_handler_default
+#endif
 
 /*
  * FPU save and restore instructions.
@@ -206,6 +226,7 @@ kfpu_init(void)
 #define	kfpu_fxsr_clean(rval)	__asm("fnclex; emms; fildl %P[addr]" \
 				    : : [addr] "m" (rval));
 
+#if defined(HAVE_KERNEL_FPU_INTERNAL)
 static inline void
 kfpu_save_xsave(struct xregs_state *addr, uint64_t mask)
 {
@@ -217,6 +238,21 @@ kfpu_save_xsave(struct xregs_state *addr, uint64_t mask)
 	XSTATE_XSAVE(addr, low, hi, err);
 	WARN_ON_ONCE(err);
 }
+#endif /* defined(HAVE_KERNEL_FPU_INTERNAL) */
+
+#if defined(HAVE_KERNEL_FPU_XSAVE_INTERNAL)
+#define	kfpu_do_xsave(instruction, addr, mask)			\
+{								\
+	uint32_t low, hi;					\
+								\
+	low = mask;						\
+	hi = (uint64_t)(mask) >> 32;				\
+	__asm(instruction " %[dst]\n\t"				\
+	    :							\
+	    : [dst] "m" (*(addr)), "a" (low), "d" (hi)		\
+	    : "memory");					\
+}
+#endif /* defined(HAVE_KERNEL_FPU_XSAVE_INTERNAL) */
 
 static inline void
 kfpu_save_fxsr(struct fxregs_state *addr)
@@ -233,6 +269,7 @@ kfpu_save_fsave(struct fregs_state *addr)
 	kfpu_fnsave(addr);
 }
 
+#if defined(HAVE_KERNEL_FPU_INTERNAL)
 static inline void
 kfpu_begin(void)
 {
@@ -250,7 +287,6 @@ kfpu_begin(void)
 	 * FPU state to be correctly preserved and restored.
 	 */
 	union fpregs_state *state = zfs_kfpu_fpregs[smp_processor_id()];
-
 	if (static_cpu_has(X86_FEATURE_XSAVE)) {
 		kfpu_save_xsave(&state->xsave, ~0);
 	} else if (static_cpu_has(X86_FEATURE_FXSR)) {
@@ -259,7 +295,50 @@ kfpu_begin(void)
 		kfpu_save_fsave(&state->fsave);
 	}
 }
+#endif /* defined(HAVE_KERNEL_FPU_INTERNAL) */
 
+#if defined(HAVE_KERNEL_FPU_XSAVE_INTERNAL)
+static inline void
+kfpu_begin(void)
+{
+	/*
+	 * Preemption and interrupts must be disabled for the critical
+	 * region where the FPU state is being modified.
+	 */
+	preempt_disable();
+	local_irq_disable();
+
+	/*
+	 * The current FPU registers need to be preserved by kfpu_begin()
+	 * and restored by kfpu_end().  They are stored in a dedicated
+	 * per-cpu variable, not in the task struct, this allows any user
+	 * FPU state to be correctly preserved and restored.
+	 */
+	union fpregs_state *state = zfs_kfpu_fpregs[smp_processor_id()];
+#if defined(HAVE_XSAVES)
+	if (static_cpu_has(X86_FEATURE_XSAVES)) {
+		kfpu_do_xsave("xsaves", &state->xsave, ~0);
+		goto out;
+	}
+#endif
+#if defined(HAVE_XSAVEOPT)
+	if (static_cpu_has(X86_FEATURE_XSAVEOPT)) {
+		kfpu_do_xsave("xsaveopt", &state->xsave, ~0);
+		goto out;
+	}
+#endif
+	if (static_cpu_has(X86_FEATURE_XSAVE)) {
+		kfpu_do_xsave("xsave", &state->xsave, ~0);
+	} else if (static_cpu_has(X86_FEATURE_FXSR)) {
+		kfpu_save_fxsr(&state->fxsave);
+	} else {
+		kfpu_save_fsave(&state->fsave);
+	}
+out:
+}
+#endif /* defined(HAVE_KERNEL_FPU_XSAVE_INTERNAL) */
+
+#if defined(HAVE_KERNEL_FPU_INTERNAL)
 static inline void
 kfpu_restore_xsave(struct xregs_state *addr, uint64_t mask)
 {
@@ -269,6 +348,21 @@ kfpu_restore_xsave(struct xregs_state *addr, uint64_t mask)
 	hi = mask >> 32;
 	XSTATE_XRESTORE(addr, low, hi);
 }
+#endif /* defined(HAVE_KERNEL_FPU_INTERNAL) */
+
+#if defined(HAVE_KERNEL_FPU_XSAVE_INTERNAL)
+#define	kfpu_do_xrstor(instruction, addr, mask)			\
+{								\
+	uint32_t low, hi;					\
+								\
+	low = mask;						\
+	hi = (uint64_t)(mask) >> 32;				\
+	__asm(instruction " %[src]"				\
+	    :							\
+	    : [src] "m" (*(addr)), "a" (low), "d" (hi)		\
+	    : "memory");					\
+}
+#endif /* defined(HAVE_KERNEL_FPU_XSAVE_INTERNAL) */
 
 static inline void
 kfpu_restore_fxsr(struct fxregs_state *addr)
@@ -294,6 +388,7 @@ kfpu_restore_fsave(struct fregs_state *addr)
 	kfpu_frstor(addr);
 }
 
+#if defined(HAVE_KERNEL_FPU_INTERNAL)
 static inline void
 kfpu_end(void)
 {
@@ -310,6 +405,32 @@ kfpu_end(void)
 	local_irq_enable();
 	preempt_enable();
 }
+#endif /* defined(HAVE_KERNEL_FPU_INTERNAL) */
+
+#if defined(HAVE_KERNEL_FPU_XSAVE_INTERNAL)
+static inline void
+kfpu_end(void)
+{
+	union fpregs_state *state = zfs_kfpu_fpregs[smp_processor_id()];
+#if defined(HAVE_XSAVES)
+	if (static_cpu_has(X86_FEATURE_XSAVES)) {
+		kfpu_do_xrstor("xrstors", &state->xsave, ~0);
+		goto out;
+	}
+#endif
+	if (static_cpu_has(X86_FEATURE_XSAVE)) {
+		kfpu_do_xrstor("xrstor", &state->xsave, ~0);
+	} else if (static_cpu_has(X86_FEATURE_FXSR)) {
+		kfpu_save_fxsr(&state->fxsave);
+	} else {
+		kfpu_save_fsave(&state->fsave);
+	}
+out:
+	local_irq_enable();
+	preempt_enable();
+
+}
+#endif /* defined(HAVE_KERNEL_FPU_XSAVE_INTERNAL) */
 
 #else
 
@@ -322,7 +443,7 @@ kfpu_end(void)
 #define	kfpu_init()		0
 #define	kfpu_fini()		((void) 0)
 
-#endif /* defined(HAVE_KERNEL_FPU_INTERNAL) */
+#endif /* defined(HAVE_KERNEL_FPU_INTERNAL || HAVE_KERNEL_FPU_XSAVE_INTERNAL) */
 #endif /* defined(KERNEL_EXPORTS_X86_FPU) */
 
 /*
