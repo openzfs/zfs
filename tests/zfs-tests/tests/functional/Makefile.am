@@ -89,5 +89,6 @@ SUBDIRS = \
 
 if BUILD_LINUX
 SUBDIRS += \
+	simd \
 	tmpfile
 endif
