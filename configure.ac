@@ -383,6 +383,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/rootpool/Makefile
 	tests/zfs-tests/tests/functional/rsend/Makefile
 	tests/zfs-tests/tests/functional/scrub_mirror/Makefile
+	tests/zfs-tests/tests/functional/simd/Makefile
 	tests/zfs-tests/tests/functional/slog/Makefile
 	tests/zfs-tests/tests/functional/snapshot/Makefile
 	tests/zfs-tests/tests/functional/snapused/Makefile
