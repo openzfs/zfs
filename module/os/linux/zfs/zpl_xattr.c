@@ -492,8 +492,8 @@ zpl_xattr_set_dir(struct inode *ip, const char *name, const void *value,
 		vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
 		vap->va_mode = xattr_mode;
 		vap->va_mask = ATTR_MODE;
-		vap->va_uid = crgetfsuid(cr);
-		vap->va_gid = crgetfsgid(cr);
+		vap->va_uid = crgetuid(cr);
+		vap->va_gid = crgetgid(cr);
 
 		error = -zfs_create(dxzp, (char *)name, vap, 0, 0644, &xzp,
 		    cr, 0, NULL);

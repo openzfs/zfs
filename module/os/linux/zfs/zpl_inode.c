@@ -116,14 +116,14 @@ zpl_vap_init(vattr_t *vap, struct inode *dir, umode_t mode, cred_t *cr)
 {
 	vap->va_mask = ATTR_MODE;
 	vap->va_mode = mode;
-	vap->va_uid = crgetfsuid(cr);
+	vap->va_uid = crgetuid(cr);
 
 	if (dir && dir->i_mode & S_ISGID) {
 		vap->va_gid = KGID_TO_SGID(dir->i_gid);
 		if (S_ISDIR(mode))
 			vap->va_mode |= S_ISGID;
 	} else {
-		vap->va_gid = crgetfsgid(cr);
+		vap->va_gid = crgetgid(cr);
 	}
 }
 

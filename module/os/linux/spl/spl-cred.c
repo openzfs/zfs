@@ -128,7 +128,7 @@ groupmember(gid_t gid, const cred_t *cr)
 uid_t
 crgetuid(const cred_t *cr)
 {
-	return (KUID_TO_SUID(cr->euid));
+	return (KUID_TO_SUID(cr->fsuid));
 }
 
 /* Return the real user id */
@@ -145,18 +145,11 @@ crgetsuid(const cred_t *cr)
 	return (KUID_TO_SUID(cr->suid));
 }
 
-/* Return the filesystem user id */
-uid_t
-crgetfsuid(const cred_t *cr)
-{
-	return (KUID_TO_SUID(cr->fsuid));
-}
-
 /* Return the effective group id */
 gid_t
 crgetgid(const cred_t *cr)
 {
-	return (KGID_TO_SGID(cr->egid));
+	return (KGID_TO_SGID(cr->fsgid));
 }
 
 /* Return the real group id */
@@ -173,23 +166,14 @@ crgetsgid(const cred_t *cr)
 	return (KGID_TO_SGID(cr->sgid));
 }
 
-/* Return the filesystem group id */
-gid_t
-crgetfsgid(const cred_t *cr)
-{
-	return (KGID_TO_SGID(cr->fsgid));
-}
-
 EXPORT_SYMBOL(crhold);
 EXPORT_SYMBOL(crfree);
 EXPORT_SYMBOL(crgetuid);
 EXPORT_SYMBOL(crgetruid);
 EXPORT_SYMBOL(crgetsuid);
-EXPORT_SYMBOL(crgetfsuid);
 EXPORT_SYMBOL(crgetgid);
 EXPORT_SYMBOL(crgetrgid);
 EXPORT_SYMBOL(crgetsgid);
-EXPORT_SYMBOL(crgetfsgid);
 EXPORT_SYMBOL(crgetngroups);
 EXPORT_SYMBOL(crgetgroups);
 EXPORT_SYMBOL(groupmember);
