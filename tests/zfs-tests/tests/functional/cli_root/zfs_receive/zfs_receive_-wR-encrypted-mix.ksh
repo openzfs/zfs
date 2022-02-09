@@ -35,9 +35,9 @@
 #
 # STRATEGY:
 # 1. Create the dataset hierarchy
-# 3. Snapshot the dataset hierarchy
-# 5. Send -Rw the dataset hierarchy and receive uinto a toplevel dataset
-# 6. Check the encryption property of the received datasets
+# 2. Snapshot the dataset hierarchy
+# 3. Send -Rw the dataset hierarchy and receive into a top-level dataset
+# 4. Check the encryption property of the received datasets
 
 verify_runnable "both"
 
