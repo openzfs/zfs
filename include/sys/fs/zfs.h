@@ -186,7 +186,6 @@ typedef enum {
 	ZFS_PROP_IVSET_GUID,		/* not exposed to the user */
 	ZFS_PROP_REDACTED,
 	ZFS_PROP_REDACT_SNAPS,
-	ZFS_PROP_XATTR_COMPAT,
 	ZFS_NUM_PROPS
 } zfs_prop_t;
 
@@ -457,11 +456,6 @@ typedef enum zfs_key_location {
 
 #define	DEFAULT_PBKDF2_ITERATIONS 350000
 #define	MIN_PBKDF2_ITERATIONS 100000
-
-typedef enum zfs_xattr_compat {
-	ZFS_XATTR_COMPAT_LINUX = 0,
-	ZFS_XATTR_COMPAT_ALL,
-} zfs_xattr_compat_t;
 
 /*
  * On-disk version number.

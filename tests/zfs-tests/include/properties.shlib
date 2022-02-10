@@ -31,11 +31,10 @@ typeset -a redundant_metadata_prop_vals=('all' 'most')
 typeset -a secondarycache_prop_vals=('all' 'none' 'metadata')
 typeset -a snapdir_prop_vals=('hidden' 'visible')
 typeset -a sync_prop_vals=('standard' 'always' 'disabled')
-typeset -a xattr_compat_prop_vals=('all' 'linux')
 
 typeset -a fs_props=('compress' 'checksum' 'recsize'
     'canmount' 'copies' 'logbias' 'primarycache' 'redundant_metadata'
-    'secondarycache' 'snapdir' 'sync' 'xattr_compat')
+    'secondarycache' 'snapdir' 'sync')
 typeset -a vol_props=('compress' 'checksum' 'copies' 'logbias' 'primarycache'
     'secondarycache' 'redundant_metadata' 'sync')
 
