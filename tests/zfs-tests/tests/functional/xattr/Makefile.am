@@ -14,7 +14,8 @@ dist_pkgdata_SCRIPTS = \
 	xattr_010_neg.ksh \
 	xattr_011_pos.ksh \
 	xattr_012_pos.ksh \
-	xattr_013_pos.ksh
+	xattr_013_pos.ksh \
+	xattr_compat.ksh
 
 dist_pkgdata_DATA = \
 	xattr_common.kshlib \

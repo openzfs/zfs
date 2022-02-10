@@ -125,6 +125,8 @@ typedef struct xattr_filldir {
 static enum xattr_permission zpl_xattr_permission(xattr_filldir_t *,
     const char *, int);
 
+static int zfs_xattr_compat = 0;
+
 /*
  * Determine is a given xattr name should be visible and if so copy it
  * in to the provided buffer (xf->buf).
@@ -773,18 +775,17 @@ __zpl_xattr_user_set(struct inode *ip, const char *name,
 		return (-EOPNOTSUPP);
 
 	/*
-	 * Remove any namespaced version of the xattr so we only set the
-	 * version compatible with other platforms.
+	 * Remove alternate compat version of the xattr so we only set the
+	 * version specified by the zfs_xattr_compat tunable.
 	 *
 	 * The following flags must be handled correctly:
 	 *
 	 *   XATTR_CREATE: fail if xattr already exists
 	 *   XATTR_REPLACE: fail if xattr does not exist
 	 */
-	boolean_t compat = !!(ITOZSB(ip)->z_flags & ZSB_XATTR_COMPAT);
 	char *prefixed_name = kmem_asprintf("%s%s", XATTR_USER_PREFIX, name);
 	const char *clear_name, *set_name;
-	if (compat) {
+	if (zfs_xattr_compat) {
 		clear_name = prefixed_name;
 		set_name = name;
 	} else {
@@ -2081,3 +2082,6 @@ zpl_posix_acl_release_impl(struct posix_acl *acl)
 		    NULL, TQ_SLEEP, ddi_get_lbolt() + ACL_REL_SCHED);
 }
 #endif
+
+ZFS_MODULE_PARAM(zfs, zfs_, xattr_compat, INT, ZMOD_RW,
+	"Use legacy ZFS xattr naming for writing new user namespace xattrs");

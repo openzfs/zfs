@@ -1841,29 +1841,6 @@ are equivalent to the
 and
 .Sy noxattr
 mount options.
-.It Sy xattr_compat Ns = Ns Sy all Ns | Ns Sy linux
-Controls the preferred encoding of xattrs in the user namespace.
-When set to
-.Sy all
-(the default), xattrs written in the user namespace are stored in a
-format compatible across all supported platforms, and xattrs in the user
-namespace from all platforms are accessible.
-There is no notion of xattr namespaces on illumos, so all xattrs from
-illumos are presented in the user namespace on other platforms.
-The xattrs not in the user namespace are considered platform-specific and are
-not exposed on other platforms.
-Existing xattrs in the
-.Sy xattr_compat=linux
-format are accessible and are replaced with the cross-platform compatible
-format when written.
-When set to
-.Sy linux ,
-xattrs written in the user namespace are stored in a format that is compatible
-with upstream OpenZFS on Linux but not compatible with ZFS on other platforms.
-.Pp
-The default value in TrueNAS SCALE is
-.Sy xattr_compat=linux
-until this property is merged into upstream OpenZFS.
 .It Sy jailed Ns = Ns Sy off Ns | Ns Sy on
 Controls whether the dataset is managed from a jail.
 See

@@ -1999,8 +1999,7 @@
       <enumerator name='ZFS_PROP_IVSET_GUID' value='92'/>
       <enumerator name='ZFS_PROP_REDACTED' value='93'/>
       <enumerator name='ZFS_PROP_REDACT_SNAPS' value='94'/>
-      <enumerator name='ZFS_PROP_XATTR_COMPAT' value='95'/>
-      <enumerator name='ZFS_NUM_PROPS' value='96'/>
+      <enumerator name='ZFS_NUM_PROPS' value='95'/>
     </enum-decl>
     <typedef-decl name='zfs_prop_t' type-id='4b000d60' id='58603c44'/>
     <class-decl name='nvlist' size-in-bits='192' is-struct='yes' visibility='default' id='ac266fd9'>
