@@ -54,6 +54,8 @@ write_count=8
 blksize=131072
 verify_runnable "global"
 verify_disk_count "$DISKS" 2
+hex_ds=$TESTPOOL/0x400000
+num_ds=$TESTPOOL/100000
 
 default_mirror_setup_noexit $DISKS
 file_write -o create -w -f $init_data -b $blksize -c $write_count
@@ -111,23 +113,23 @@ if is_linux; then
 	    "zdb -dddddd $TESTPOOL/$objset_hex failed $reason"
 fi
 
-log_must zfs create $TESTPOOL/0x400
-log_must zfs create $TESTPOOL/100
-output=$(zdb -d $TESTPOOL/0x400)
+log_must zfs create $hex_ds
+log_must zfs create $num_ds
+output=$(zdb -d $hex_ds)
 reason="($TESTPOOL/0x400 not in zdb output)"
-echo $output |grep "$TESTPOOL/0x400" > /dev/null
+echo $output |grep "$hex_ds" > /dev/null
 (( $? != 0 )) && log_fail \
-    "zdb -d $TESTPOOL/0x400 failed $reason"
-output=$(zdb -d $TESTPOOL/100)
-reason="($TESTPOOL/100 not in zdb output)"
-echo $output |grep "$TESTPOOL/100" > /dev/null
+    "zdb -d $hex_ds failed $reason"
+output=$(zdb -d $num_ds)
+reason="($num_ds not in zdb output)"
+echo $output |grep "$num_ds" > /dev/null
 (( $? != 0 )) && log_fail \
-    "zdb -d $TESTPOOL/100 failed $reason"
+    "zdb -d $num_ds failed $reason"
 
-# force numeric interpretation, should fail
-log_mustnot zdb -N $TESTPOOL/0x400
-log_mustnot zdb -N $TESTPOOL/100
-log_mustnot zdb -Nd $TESTPOOL/0x400
-log_mustnot zdb -Nd $TESTPOOL/100
+# force numeric interpretation, expect fail
+log_mustnot zdb -N $hex_ds
+log_mustnot zdb -N $num_ds
+log_mustnot zdb -Nd $hex_ds
+log_mustnot zdb -Nd $num_ds
 
 log_pass "zdb -d <pool>/<objset ID> generates the correct names."
