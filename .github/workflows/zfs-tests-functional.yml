@@ -59,7 +59,9 @@ jobs:
         df -h /
     - name: Tests
       run: |
+        set -o pipefail
         /usr/share/zfs/zfs-tests.sh -vR -s 3G | contrib/zfs-tests-color.sh
+      shell: bash
       timeout-minutes: 330
     - name: Prepare artifacts
       if: failure()
