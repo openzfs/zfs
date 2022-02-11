@@ -8,6 +8,8 @@ VPATH = \
 # and required CFLAGS for libtirpc
 AM_CFLAGS += $(FRAME_LARGER_THAN) $(LIBTIRPC_CFLAGS)
 AM_CFLAGS += -fvisibility=hidden
+# See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=54020
+AM_CFLAGS += -no-suppress
 
 # wchar_t is undefined-signedness, but we compare to >=0; this warns with unsigned wchar_t
 libnvpair_json.$(OBJEXT): CFLAGS += -Wno-type-limits

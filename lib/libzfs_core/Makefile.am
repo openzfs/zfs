@@ -3,6 +3,8 @@ include $(top_srcdir)/config/Rules.am
 pkgconfig_DATA = libzfs_core.pc
 
 AM_CFLAGS += -fvisibility=hidden
+# See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=54020
+AM_CFLAGS += -no-suppress
 
 lib_LTLIBRARIES = libzfs_core.la
 

@@ -24,6 +24,9 @@ AM_CFLAGS += $(ZLIB_CFLAGS)
 
 AM_CFLAGS += -DLIB_ZPOOL_BUILD
 
+# See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=54020
+AM_CFLAGS += -no-suppress
+
 lib_LTLIBRARIES = libzpool.la
 
 USER_C = \
