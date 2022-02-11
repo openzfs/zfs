@@ -318,13 +318,13 @@ kfpu_begin(void)
 #if defined(HAVE_XSAVES)
 	if (static_cpu_has(X86_FEATURE_XSAVES)) {
 		kfpu_do_xsave("xsaves", &state->xsave, ~0);
-		goto out;
+		return;
 	}
 #endif
 #if defined(HAVE_XSAVEOPT)
 	if (static_cpu_has(X86_FEATURE_XSAVEOPT)) {
 		kfpu_do_xsave("xsaveopt", &state->xsave, ~0);
-		goto out;
+		return;
 	}
 #endif
 	if (static_cpu_has(X86_FEATURE_XSAVE)) {
@@ -334,7 +334,6 @@ kfpu_begin(void)
 	} else {
 		kfpu_save_fsave(&state->fsave);
 	}
-out:
 }
 #endif /* defined(HAVE_KERNEL_FPU_XSAVE_INTERNAL) */
 
