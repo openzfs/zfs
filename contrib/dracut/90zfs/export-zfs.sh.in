@@ -1,14 +1,12 @@
 #!/bin/sh
 
-. /lib/dracut-zfs-lib.sh
-
 _do_zpool_export() {
 	ret=0
 	errs=""
 	final="${1}"
 
 	info "ZFS: Exporting ZFS storage pools..."
-	errs=$(export_all -F 2>&1)
+	errs=$(zpool export -aF 2>&1)
 	ret=$?
 	[ -z "${errs}" ] || echo "${errs}" | vwarn
 	if [ "x${ret}" != "x0" ]; then
