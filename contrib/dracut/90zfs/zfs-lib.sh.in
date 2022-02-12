@@ -122,22 +122,6 @@ for_relevant_root_children() {
         )
 }
 
-# export_all OPTS
-#   exports all imported zfs pools.
-export_all() {
-    ret=0
-
-    IFS="${NEWLINE}"
-    for pool in $(zpool list -H -o name) ; do
-        if zpool list -H "${pool}" > /dev/null 2>&1; then
-            zpool export "${pool}" "$@" || ret=$?
-        fi
-    done
-    IFS="${OLDIFS}"
-
-    return "${ret}"
-}
-
 # ask_for_password
 #
 # Wraps around plymouth ask-for-password and adds fallback to tty password ask
