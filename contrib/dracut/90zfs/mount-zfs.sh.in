@@ -44,7 +44,7 @@ if [ "${root}" = "zfs:AUTO" ] ; then
 		zpool import -N -a ${ZPOOL_IMPORT_OPTS}
 		if ! ZFS_DATASET="$(find_bootfs)" ; then
 			warn "ZFS: No bootfs attribute found in importable pools."
-			export_all -F
+			zpool export -aF
 
 			rootok=0
 			return 1
