@@ -44,12 +44,12 @@ populate_test_pool
 log_must zpool checkpoint $TESTPOOL
 test_change_state_after_checkpoint
 
-log_must zpool export $TESTPOOL
+log_must_busy zpool export $TESTPOOL
 log_must zpool import -o readonly=on --rewind-to-checkpoint $TESTPOOL
 
 test_verify_pre_checkpoint_state "ro-check"
 
-log_must zpool export $TESTPOOL
+log_must_busy zpool export $TESTPOOL
 log_must zpool import $TESTPOOL
 
 test_verify_post_checkpoint_state
