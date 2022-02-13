@@ -72,7 +72,7 @@ log_onexit cleanup
 
 log_assert "zpool can be autoexpanded after set autoexpand=on on vdev expansion"
 
-for type in " " mirror raidz draid; do
+for type in " " mirror raidz draid:1s; do
 	log_note "Setting up loopback, scsi_debug, and file vdevs"
 	log_must truncate -s $org_size $FILE_LO
 	DEV1=$(losetup -f)
@@ -144,7 +144,7 @@ for type in " " mirror raidz draid; do
 			if [[ $? -ne 0 ]] ; then
 				log_fail "pool $TESTPOOL1 has not expanded"
 			fi
-		elif [[ $type == "draid" ]]; then
+		elif [[ $type == "draid:1s" ]]; then
 			typeset expansion_size=$((2*($exp_size-$org_size)))
 			zpool history -il $TESTPOOL1 | \
 			    grep "pool '$TESTPOOL1' size:" | \
