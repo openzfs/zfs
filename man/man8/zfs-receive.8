@@ -319,7 +319,7 @@ received as an encryption root, specify encryption properties in the same
 manner as is required for
 .Nm zfs Cm create .
 For instance:
-.Dl # Nm zfs Cm send Pa tank/test@snap1 | Nm zfs Cm recv Fl o Sy encryption Ns = Ns Sy on Fl o Sy keyformat=passphrase Fl o Sy keylocation Ns = Ns Pa file:///path/to/keyfile
+.Dl # Nm zfs Cm send Pa tank/test@snap1 | Nm zfs Cm recv Fl o Sy encryption Ns = Ns Sy on Fl o Sy keyformat Ns = Ns Sy passphrase Fl o Sy keylocation Ns = Ns Pa file:///path/to/keyfile
 .Pp
 Note that
 .Fl o Sy keylocation Ns = Ns Sy prompt
