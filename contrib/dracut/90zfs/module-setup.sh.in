@@ -6,8 +6,8 @@ check() {
 	[ "${1}" = "-d" ] && return 0
 
 	# Verify the zfs tool chain
-	for tool in "@sbindir@/zgenhostid" "@sbindir@/zpool" "@sbindir@/zfs" "@mounthelperdir@/mount.zfs" ; do
-		test -x "$tool" || return 1
+	for tool in "zgenhostid" "zpool" "zfs" "mount.zfs"; do
+		command -v "${tool}" >/dev/null || return 1
 	done
 
 	return 0
@@ -24,7 +24,7 @@ installkernel() {
 
 install() {
 	inst_rules 90-zfs.rules 69-vdev.rules 60-zvol.rules
-	
+
 	inst_multiple \
 		zgenhostid \
 		zfs \
@@ -37,91 +37,70 @@ install() {
 		cut \
 		head ||
 		{ dfatal "Failed to install essential binaries"; exit 1; }
-	
-	# Lines 71-90 adapted from
-	# https://github.com/zbm-dev/zfsbootmenu/blob/9a03eab2b75647170bdc383903735a694ecd0ed6/dracut/module-setup.sh#L71
-	
-	if ! ldd "$( command -v zpool )" | grep -qF 'libgcc_s.so'; then
+
+	# Adapted from https://github.com/zbm-dev/zfsbootmenu
+
+	if ! ldd "$(command -v zpool)" | grep -qF 'libgcc_s.so'; then
 		# On systems with gcc-config (Gentoo, Funtoo, etc.), use it to find libgcc_s
-		if command -v gcc-config >/dev/null 2>&1; then
-			dracut_install "/usr/lib/gcc/$(s=$(gcc-config -c); echo "${s%-*}/${s##*-}")/libgcc_s.so.1" ||
+		if command -v gcc-config >/dev/null; then
+			inst_simple "/usr/lib/gcc/$(s=$(gcc-config -c); echo "${s%-*}/${s##*-}")/libgcc_s.so.1" ||
 				{ dfatal "Unable to install libgcc_s.so"; exit 1; }
 			# Otherwise, use dracut's library installation function to find the right one
 		elif ! inst_libdir_file "libgcc_s.so*"; then
 			# If all else fails, just try looking for some gcc arch directory
-			dracut_install /usr/lib/gcc/*/*/libgcc_s.so* ||
+			inst_simple /usr/lib/gcc/*/*/libgcc_s.so* ||
 				{ dfatal "Unable to install libgcc_s.so"; exit 1; }
 		fi
 	fi
 
 	inst_hook cmdline 95 "${moddir}/parse-zfs.sh"
-	if [ -n "$systemdutildir" ] ; then
-		inst_script "${moddir}/zfs-generator.sh" "$systemdutildir"/system-generators/dracut-zfs-generator
+	if [ -n "${systemdutildir}" ]; then
+		inst_script "${moddir}/zfs-generator.sh" "${systemdutildir}/system-generators/dracut-zfs-generator"
 	fi
 	inst_hook pre-mount 90 "${moddir}/zfs-load-key.sh"
 	inst_hook mount 98 "${moddir}/mount-zfs.sh"
 	inst_hook cleanup 99 "${moddir}/zfs-needshutdown.sh"
 	inst_hook shutdown 20 "${moddir}/export-zfs.sh"
 
-	inst_simple "${moddir}/zfs-lib.sh" "/lib/dracut-zfs-lib.sh"
-	if [ -e @sysconfdir@/zfs/zpool.cache ]; then
-		inst @sysconfdir@/zfs/zpool.cache
-		type mark_hostonly >/dev/null 2>&1 && mark_hostonly @sysconfdir@/zfs/zpool.cache
-	fi
+	inst_script "${moddir}/zfs-lib.sh" "/lib/dracut-zfs-lib.sh"
 
-	if [ -e @sysconfdir@/zfs/vdev_id.conf ]; then
-		inst @sysconfdir@/zfs/vdev_id.conf
-		type mark_hostonly >/dev/null 2>&1 && mark_hostonly @sysconfdir@/zfs/vdev_id.conf
-	fi
+	# -H ensures they are marked host-only
+	# -o ensures there is no error upon absence of these files
+	inst_multiple -o -H \
+		"@sysconfdir@/zfs/zpool.cache" \
+		"@sysconfdir@/zfs/vdev_id.conf"
 
 	# Synchronize initramfs and system hostid
-	if [ -f @sysconfdir@/hostid ]; then
-		inst @sysconfdir@/hostid
-		type mark_hostonly >/dev/null 2>&1 && mark_hostonly @sysconfdir@/hostid
-	elif HOSTID="$(hostid 2>/dev/null)" && [ "${HOSTID}" != "00000000" ]; then
-		zgenhostid -o "${initdir}@sysconfdir@/hostid" "${HOSTID}"
-		type mark_hostonly >/dev/null 2>&1 && mark_hostonly @sysconfdir@/hostid
+	if ! inst_simple -H @sysconfdir@/hostid; then
+		if HOSTID="$(hostid 2>/dev/null)" && [ "${HOSTID}" != "00000000" ]; then
+			zgenhostid -o "${initdir}@sysconfdir@/hostid" "${HOSTID}"
+			mark_hostonly @sysconfdir@/hostid
+		fi
 	fi
 
 	if dracut_module_included "systemd"; then
 
-		dracut_install \
-			systemd-ask-password \
-			systemd-tty-ask-password-agent ||
-			{ dfatal "Failed to install essential systemd binaries"; exit 1; }
+		inst_simple "${systemdsystemunitdir}/zfs-import.target"
+		systemctl -q --root "${initdir}" add-wants initrd.target zfs-import.target
 
-		mkdir -p "${initdir}/$systemdsystemunitdir/zfs-import.target.wants"
-		for _service in "zfs-import-scan.service" "zfs-import-cache.service" ; do
-			dracut_install "@systemdunitdir@/$_service"
-			if ! [ -L "${initdir}/$systemdsystemunitdir/zfs-import.target.wants/$_service" ]; then
-				ln -sf "../$_service" "${initdir}/$systemdsystemunitdir/zfs-import.target.wants/$_service"
-				type mark_hostonly >/dev/null 2>&1 && mark_hostonly "@systemdunitdir@/$_service"
-			fi
+		inst_simple "${moddir}/zfs-env-bootfs.service" "${systemdsystemunitdir}/zfs-env-bootfs.service"
+		systemctl -q --root "${initdir}" add-wants zfs-import.target zfs-env-bootfs.service
+
+		for _service in \
+			"zfs-import-scan.service" \
+			"zfs-import-cache.service" \
+			"zfs-load-module.service"; do
+			inst_simple "${systemdsystemunitdir}/${_service}"
+			systemctl -q --root "${initdir}" add-wants zfs-import.target "${_service}"
 		done
 
-		inst "${moddir}"/zfs-env-bootfs.service "${systemdsystemunitdir}"/zfs-env-bootfs.service
-		ln -s ../zfs-env-bootfs.service "${initdir}/${systemdsystemunitdir}/zfs-import.target.wants"/zfs-env-bootfs.service
-		type mark_hostonly >/dev/null 2>&1 && mark_hostonly @systemdunitdir@/zfs-env-bootfs.service
-
-		mkdir -p "${initdir}/$systemdsystemunitdir/initrd.target.wants"
-		dracut_install @systemdunitdir@/zfs-import.target
-		if ! [ -L "${initdir}/$systemdsystemunitdir/initrd.target.wants"/zfs-import.target ]; then
-			ln -s ../zfs-import.target "${initdir}/$systemdsystemunitdir/initrd.target.wants"/zfs-import.target
-			type mark_hostonly >/dev/null 2>&1 && mark_hostonly @systemdunitdir@/zfs-import.target
-		fi
-
-		for _service in zfs-snapshot-bootfs.service zfs-rollback-bootfs.service ; do
-			inst "${moddir}/$_service" "${systemdsystemunitdir}/$_service"
-			if ! [ -L "${initdir}/$systemdsystemunitdir/initrd.target.wants/$_service" ]; then
-				ln -s "../$_service" "${initdir}/$systemdsystemunitdir/initrd.target.wants/$_service"
-			fi
+		for _service in \
+			"zfs-snapshot-bootfs.service" \
+			"zfs-rollback-bootfs.service"; do
+			inst_simple "${moddir}/${_service}" "${systemdsystemunitdir}/${_service}"
+			systemctl -q --root "${initdir}" add-wants initrd.target "${_service}"
 		done
 
-		# There isn't a pkg-config variable for this,
-		# and dracut doesn't automatically resolve anything this'd be next to
-		local systemdsystemenvironmentgeneratordir
-		systemdsystemenvironmentgeneratordir="$(pkg-config --variable=prefix systemd || echo "/usr")/lib/systemd/system-environment-generators"
-		mkdir -p "${initdir}/${systemdsystemenvironmentgeneratordir}"
-		inst "${moddir}"/import-opts-generator.sh "${systemdsystemenvironmentgeneratordir}"/zfs-import-opts.sh
+		inst_simple "${moddir}/import-opts-generator.sh" "${systemdutildir}/system-environment-generators/zfs-import-opts.sh"
 	fi
 }
