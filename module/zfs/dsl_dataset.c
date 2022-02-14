@@ -2386,18 +2386,18 @@ get_receive_resume_token_impl(dsl_dataset_t *ds)
 	}
 	if (dsl_dataset_feature_is_active(ds,
 	    SPA_FEATURE_REDACTED_DATASETS)) {
-		uint64_t num_redact_snaps;
-		uint64_t *redact_snaps;
-		VERIFY(dsl_dataset_get_uint64_array_feature(ds,
+		uint64_t num_redact_snaps = 0;
+		uint64_t *redact_snaps = NULL;
+		VERIFY3B(dsl_dataset_get_uint64_array_feature(ds,
 		    SPA_FEATURE_REDACTED_DATASETS, &num_redact_snaps,
-		    &redact_snaps));
+		    &redact_snaps), ==, B_TRUE);
 		fnvlist_add_uint64_array(token_nv, "redact_snaps",
 		    redact_snaps, num_redact_snaps);
 	}
 	if (zap_contains(dp->dp_meta_objset, ds->ds_object,
 	    DS_FIELD_RESUME_REDACT_BOOKMARK_SNAPS) == 0) {
-		uint64_t num_redact_snaps, int_size;
-		uint64_t *redact_snaps;
+		uint64_t num_redact_snaps = 0, int_size = 0;
+		uint64_t *redact_snaps = NULL;
 		VERIFY0(zap_length(dp->dp_meta_objset, ds->ds_object,
 		    DS_FIELD_RESUME_REDACT_BOOKMARK_SNAPS, &int_size,
 		    &num_redact_snaps));
