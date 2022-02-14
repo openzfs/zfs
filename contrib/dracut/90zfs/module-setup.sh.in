@@ -23,20 +23,13 @@ installkernel() {
 }
 
 install() {
-	for i in "90-zfs.rules" "69-vdev.rules" "60-zvol.rules"; do
-		if ! dracut_install "@udevdir@/$i"; then
-			dfatal "Failed to install udev rule: $i"
-			exit 1
-		fi
-	done
+	inst_rules 90-zfs.rules 69-vdev.rules 60-zvol.rules
 	
 	inst_multiple \
-		@sbindir@/zgenhostid \
-		@sbindir@/zfs \
-		@sbindir@/zpool \
-		@udevdir@/vdev_id \
-		@udevdir@/zvol_id \
-		@mounthelperdir@/mount.zfs \
+		zgenhostid \
+		zfs \
+		zpool \
+		mount.zfs \
 		hostid \
 		grep \
 		awk \
