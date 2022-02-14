@@ -5023,11 +5023,10 @@ static boolean_t
 zfs_receive_checkprops(libzfs_handle_t *hdl, nvlist_t *props,
     const char *errbuf)
 {
-	nvpair_t *nvp;
+	nvpair_t *nvp = NULL;
 	zfs_prop_t prop;
 	const char *name;
 
-	nvp = NULL;
 	while ((nvp = nvlist_next_nvpair(props, nvp)) != NULL) {
 		name = nvpair_name(nvp);
 		prop = zfs_name_to_prop(name);
@@ -5086,7 +5085,7 @@ zfs_receive_impl(libzfs_handle_t *hdl, const char *tosnap,
 
 	/* check cmdline props, raise an error if they cannot be received */
 	if (!zfs_receive_checkprops(hdl, cmdprops, errbuf))
-		return (-1);
+		return (zfs_error(hdl, EZFS_BADPROP, errbuf));
 
 	if (flags->isprefix &&
 	    !zfs_dataset_exists(hdl, tosnap, ZFS_TYPE_DATASET)) {
