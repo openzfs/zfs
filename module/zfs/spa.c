@@ -9852,7 +9852,7 @@ spa_activity_in_progress(spa_t *spa, zpool_wait_activity_t activity,
 		*in_progress = vdev_rebuild_active(spa->spa_root_vdev);
 		if (*in_progress)
 			break;
-		fallthrough;
+		zfs_fallthrough;
 	case ZPOOL_WAIT_SCRUB:
 	{
 		boolean_t scanning, paused, is_scrub;

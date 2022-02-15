@@ -4947,7 +4947,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 				(void) zfs_error(hdl, EZFS_BUSY, errbuf);
 				break;
 			}
-			fallthrough;
+			zfs_fallthrough;
 		default:
 			(void) zfs_standard_error(hdl, ioctl_errno, errbuf);
 		}
