@@ -30,13 +30,13 @@
 .Op Fl t Ar txg
 .Op Fl U Ar cache
 .Op Fl x Ar dumpdir
-.Op Ar poolname Ns Op / Ns Ar dataset | objset ID
+.Op Ar poolname Ns Op / Ns Ar dataset Ns | Ns Ar objset-ID
 .Op Ar object Ns | Ns Ar range Ns …
 .Nm
 .Op Fl AdiPv
 .Op Fl e Oo Fl V Oc Oo Fl p Ar path Oc Ns …
 .Op Fl U Ar cache
-.Ar poolname Ns Op Ar / Ns Ar dataset | objset ID
+.Ar poolname Ns Op Ar / Ns Ar dataset Ns | Ns Ar objset-ID
 .Op Ar object Ns | Ns Ar range Ns …
 .Nm
 .Fl C
@@ -84,7 +84,7 @@ some amount of consistency checking.
 It is a not a general purpose tool and options
 .Pq and facilities
 may change.
-This is not a
+It is not a
 .Xr fsck 8
 utility.
 .Pp
@@ -140,9 +140,9 @@ size, and object count.
 See
 .Fl N
 for determining if
-.Op Ar poolname Ns Op / Ns Ar dataset | objset ID
+.Ar poolname Ns Op / Ns Ar dataset Ns | Ns Ar objset-ID
 is to use the specified
-.Op Ar dataset | objset ID
+.Ar dataset Ns | Ns Ar objset-ID
 as a string (dataset name) or a number (objset ID) when
 datasets have numeric names.
 .Pp
@@ -198,7 +198,7 @@ compression ratio
 inflation due to the zfs copies property
 .Pq Sy copies ,
 and an overall effective ratio
-.Pq Sy dedup No * Sy compress No / Sy copies .
+.Pq Sy dedup No \(mu Sy compress No / Sy copies .
 .It Fl DD
 Display a histogram of deduplication statistics, showing the allocated
 .Pq physically present on disk
@@ -287,9 +287,9 @@ Display every spacemap record.
 Same as
 .Fl d
 but force zdb to interpret the
-.Op Ar dataset | objset ID
+.Op Ar dataset Ns | Ns Ar objset-ID
 in
-.Op Ar poolname Ns Op / Ns Ar dataset | objset ID
+.Op Ar poolname Ns Op / Ns Ar dataset Ns | Ns Ar objset-ID
 as a numeric objset ID.
 .It Fl O Ar dataset path
 Look up the specified
@@ -410,7 +410,7 @@ The default value is 200.
 This option affects the performance of the
 .Fl c
 option.
-.It Fl o , -option Ns = Ns Ar var Ns = Ns Ar value …
+.It Fl o , -option Ns = Ns Ar var Ns = Ns Ar value Ns …
 Set the given global libzpool variable to the provided value.
 The value must be an unsigned 32-bit integer.
 Currently only little-endian systems are supported to avoid accidentally setting
