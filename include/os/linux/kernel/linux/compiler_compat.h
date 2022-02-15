@@ -28,11 +28,11 @@
 
 #include <linux/compiler.h>
 
-#if !defined(fallthrough)
+#if !defined(zfs_fallthrough)
 #if defined(HAVE_IMPLICIT_FALLTHROUGH)
-#define	fallthrough		__attribute__((__fallthrough__))
+#define	zfs_fallthrough		__attribute__((__fallthrough__))
 #else
-#define	fallthrough		((void)0)
+#define	zfs_fallthrough		((void)0)
 #endif
 #endif
 

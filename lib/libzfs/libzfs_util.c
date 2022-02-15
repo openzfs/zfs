@@ -600,8 +600,8 @@ zfs_setprop_error(libzfs_handle_t *hdl, zfs_prop_t prop, int err,
 			(void) zfs_error(hdl, EZFS_VOLTOOBIG, errbuf);
 			break;
 		}
+		zfs_fallthrough;
 #endif
-		fallthrough;
 	default:
 		(void) zfs_standard_error(hdl, err, errbuf);
 	}
