@@ -1183,6 +1183,11 @@ extern int spa_wait_tag(const char *name, zpool_wait_activity_t activity,
 extern void spa_notify_waiters(spa_t *spa);
 extern void spa_wake_waiters(spa_t *spa);
 
+extern void spa_import_os(spa_t *spa);
+extern void spa_export_os(spa_t *spa);
+extern void spa_activate_os(spa_t *spa);
+extern void spa_deactivate_os(spa_t *spa);
+
 /* module param call functions */
 int param_set_deadman_ziotime(ZFS_MODULE_PARAM_ARGS);
 int param_set_deadman_synctime(ZFS_MODULE_PARAM_ARGS);
