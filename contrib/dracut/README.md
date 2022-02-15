@@ -27,6 +27,8 @@ If the root dataset contains children with `mountpoint=`s of `/etc`, `/bin`, `/l
 
    The dataset can be at any depth, including being the pool's root dataset (i.e. `root=zfs:pool`).
 
+   `rootfstype=zfs` is mostly equivalent to `root=zfs:AUTO`.
+
 2. `spl_hostid`: passed to `zgenhostid -f`, useful to override the `/etc/hostid` file baked into the initrd.
 
 3. `bootfs.snapshot`, `bootfs.snapshot=snapshot-name`: enables `zfs-snapshot-bootfs.service`,
