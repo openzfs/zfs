@@ -918,7 +918,7 @@ out:
  *	 ip - ctime (if nlink > 0)
  */
 
-uint64_t null_xattr = 0;
+static uint64_t null_xattr = 0;
 
 /*ARGSUSED*/
 int
