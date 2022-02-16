@@ -47,6 +47,7 @@ static sa_fstype_t *smb_fstype;
 static int
 smb_enable_share(sa_share_impl_t impl_share)
 {
+	(void) impl_share;
 	fprintf(stderr, "No SMB support in FreeBSD yet.\n");
 	return (SA_NOT_SUPPORTED);
 }
@@ -56,6 +57,7 @@ smb_enable_share(sa_share_impl_t impl_share)
 static int
 smb_disable_share(sa_share_impl_t impl_share)
 {
+	(void) impl_share;
 	fprintf(stderr, "No SMB support in FreeBSD yet.\n");
 	return (SA_NOT_SUPPORTED);
 }
@@ -66,6 +68,7 @@ smb_disable_share(sa_share_impl_t impl_share)
 static int
 smb_validate_shareopts(const char *shareopts)
 {
+	(void) shareopts;
 	fprintf(stderr, "No SMB support in FreeBSD yet.\n");
 	return (SA_NOT_SUPPORTED);
 }
@@ -76,6 +79,7 @@ smb_validate_shareopts(const char *shareopts)
 static boolean_t
 smb_is_share_active(sa_share_impl_t impl_share)
 {
+	(void) impl_share;
 	return (B_FALSE);
 }
 
@@ -88,6 +92,7 @@ smb_is_share_active(sa_share_impl_t impl_share)
 static int
 smb_update_shareopts(sa_share_impl_t impl_share, const char *shareopts)
 {
+	(void) impl_share, (void) shareopts;
 	return (SA_OK);
 }
 
