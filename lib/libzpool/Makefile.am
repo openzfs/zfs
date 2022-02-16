@@ -17,9 +17,6 @@ endif
 # Unconditionally enable debugging for libzpool
 AM_CPPFLAGS += -DDEBUG -UNDEBUG -DZFS_DEBUG
 
-# Suppress unused but set variable warnings often due to ASSERTs
-AM_CFLAGS += $(NO_UNUSED_BUT_SET_VARIABLE)
-
 # Includes kernel code generate warnings for large stack frames
 AM_CFLAGS += $(FRAME_LARGER_THAN)
 
