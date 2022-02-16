@@ -1937,7 +1937,7 @@ zio_do_crypt_data(boolean_t encrypt, zio_crypt_key_t *key,
 	 */
 	if (qat_crypt_use_accel(datalen) &&
 	    ot != DMU_OT_INTENT_LOG && ot != DMU_OT_DNODE) {
-		uint8_t *srcbuf, *dstbuf;
+		uint8_t __attribute__((unused)) *srcbuf, *dstbuf;
 
 		if (encrypt) {
 			srcbuf = plainbuf;

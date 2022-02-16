@@ -1,5 +1,8 @@
 include $(top_srcdir)/config/Rules.am
 
+# https://gcc.gnu.org/bugzilla/show_bug.cgi?id=61118
+AM_CFLAGS += $(NO_CLOBBERED)
+
 noinst_LTLIBRARIES = libtpool.la
 
 USER_C = \

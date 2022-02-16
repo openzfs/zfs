@@ -6,7 +6,6 @@ VPATH = \
 	$(top_srcdir)/lib/libzfs
 
 # Suppress unused but set variable warnings often due to ASSERTs
-AM_CFLAGS += $(NO_UNUSED_BUT_SET_VARIABLE)
 AM_CFLAGS += $(LIBCRYPTO_CFLAGS) $(ZLIB_CFLAGS)
 
 pkgconfig_DATA = libzfs.pc
