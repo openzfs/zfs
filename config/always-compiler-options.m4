@@ -135,7 +135,7 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_FORMAT_TRUNCATION], [
 ])
 
 dnl #
-dnl # Check if gcc supports -Wno-format-truncation option.
+dnl # Check if gcc supports -Wno-format-zero-length option.
 dnl #
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_FORMAT_ZERO_LENGTH], [
 	AC_MSG_CHECKING([whether $CC supports -Wno-format-zero-length])
@@ -183,29 +183,29 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_BOOL_COMPARE], [
 ])
 
 dnl #
-dnl # Check if gcc supports -Wno-unused-but-set-variable option.
+dnl # Check if gcc supports -Wno-clobbered option.
 dnl #
-dnl # We actually invoke gcc with the -Wunused-but-set-variable option
+dnl # We actually invoke gcc with the -Wclobbered option
 dnl # and infer the 'no-' version does or doesn't exist based upon
 dnl # the results.  This is required because when checking any of
 dnl # no- prefixed options gcc always returns success.
 dnl #
-AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_UNUSED_BUT_SET_VARIABLE], [
-	AC_MSG_CHECKING([whether $CC supports -Wno-unused-but-set-variable])
+AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_CLOBBERED], [
+	AC_MSG_CHECKING([whether $CC supports -Wno-clobbered])
 
 	saved_flags="$CFLAGS"
-	CFLAGS="$CFLAGS -Werror -Wunused-but-set-variable"
+	CFLAGS="$CFLAGS -Werror -Wclobbered"
 
 	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
-		NO_UNUSED_BUT_SET_VARIABLE=-Wno-unused-but-set-variable
+		NO_CLOBBERED=-Wno-clobbered
 		AC_MSG_RESULT([yes])
 	], [
-		NO_UNUSED_BUT_SET_VARIABLE=
+		NO_CLOBBERED=
 		AC_MSG_RESULT([no])
 	])
 
 	CFLAGS="$saved_flags"
-	AC_SUBST([NO_UNUSED_BUT_SET_VARIABLE])
+	AC_SUBST([NO_CLOBBERED])
 ])
 
 dnl #
