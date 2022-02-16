@@ -294,11 +294,13 @@ send_iterate_snap(zfs_handle_t *zhp, void *arg)
 	uint64_t guid = zhp->zfs_dmustats.dds_guid;
 	uint64_t txg = zhp->zfs_dmustats.dds_creation_txg;
 	boolean_t isfromsnap, istosnap, istosnapwithnofrom;
-	char *snapname = strrchr(zhp->zfs_name, '@') + 1;
+	char *snapname;
 	const char *from = sd->fromsnap;
 	const char *to = sd->tosnap;
 
-	assert(snapname != (NULL + 1));
+	snapname = strrchr(zhp->zfs_name, '@');
+	assert(snapname != NULL);
+	++snapname;
 
 	isfromsnap = (from != NULL && strcmp(from, snapname) == 0);
 	istosnap = (to != NULL && strcmp(to, snapname) == 0);
