@@ -397,7 +397,6 @@ zfs_is_readonly(zfsvfs_t *zfsvfs)
 	return (!!(zfsvfs->z_vfs->vfs_flag & VFS_RDONLY));
 }
 
-/*ARGSUSED*/
 static int
 zfs_sync(vfs_t *vfsp, int waitfor)
 {
@@ -1310,7 +1309,6 @@ fetch_osname_options(char *name, bool *checkpointrewind)
 	}
 }
 
-/*ARGSUSED*/
 static int
 zfs_mount(vfs_t *vfsp)
 {
@@ -1641,7 +1639,6 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	return (0);
 }
 
-/*ARGSUSED*/
 static int
 zfs_umount(vfs_t *vfsp, int fflag)
 {

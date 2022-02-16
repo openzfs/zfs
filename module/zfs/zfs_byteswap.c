@@ -36,9 +36,7 @@ static
 void
 zfs_oldace_byteswap(ace_t *ace, int ace_cnt)
 {
-	int i;
-
-	for (i = 0; i != ace_cnt; i++, ace++) {
+	for (int i = 0; i != ace_cnt; i++, ace++) {
 		ace->a_who = BSWAP_32(ace->a_who);
 		ace->a_access_mask = BSWAP_32(ace->a_access_mask);
 		ace->a_flags = BSWAP_16(ace->a_flags);
@@ -138,23 +136,16 @@ zfs_ace_byteswap(void *buf, size_t size, boolean_t zfs_layout)
 	}
 }
 
-/* ARGSUSED */
 void
 zfs_oldacl_byteswap(void *buf, size_t size)
 {
-	int cnt;
-
 	/*
 	 * Arggh, since we don't know how many ACEs are in
 	 * the array, we have to swap the entire block
 	 */
-
-	cnt = size / sizeof (ace_t);
-
-	zfs_oldace_byteswap((ace_t *)buf, cnt);
+	zfs_oldace_byteswap((ace_t *)buf, size / sizeof (ace_t));
 }
 
-/* ARGSUSED */
 void
 zfs_acl_byteswap(void *buf, size_t size)
 {

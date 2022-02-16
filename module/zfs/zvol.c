@@ -613,10 +613,10 @@ zvol_log_truncate(zvol_state_t *zv, dmu_tx_t *tx, uint64_t off, uint64_t len,
 }
 
 
-/* ARGSUSED */
 static void
 zvol_get_done(zgd_t *zgd, int error)
 {
+	(void) error;
 	if (zgd->zgd_db)
 		dmu_buf_rele(zgd->zgd_db, zgd);
 
@@ -1511,10 +1511,10 @@ zvol_set_snapdev_check(void *arg, dmu_tx_t *tx)
 	return (error);
 }
 
-/* ARGSUSED */
 static int
 zvol_set_snapdev_sync_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
 {
+	(void) arg;
 	char dsname[MAXNAMELEN];
 	zvol_task_t *task;
 	uint64_t snapdev;
@@ -1597,10 +1597,10 @@ zvol_set_volmode_check(void *arg, dmu_tx_t *tx)
 	return (error);
 }
 
-/* ARGSUSED */
 static int
 zvol_set_volmode_sync_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
 {
+	(void) arg;
 	char dsname[MAXNAMELEN];
 	zvol_task_t *task;
 	uint64_t volmode;

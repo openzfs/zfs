@@ -154,7 +154,6 @@ zfs_holey(znode_t *zp, ulong_t cmd, loff_t *off)
 }
 #endif /* SEEK_HOLE && SEEK_DATA */
 
-/*ARGSUSED*/
 int
 zfs_access(znode_t *zp, int mode, int flag, cred_t *cr)
 {
@@ -192,10 +191,10 @@ static unsigned long zfs_vnops_read_chunk_size = 1024 * 1024; /* Tunable */
  * Side Effects:
  *	inode - atime updated if byte count > 0
  */
-/* ARGSUSED */
 int
 zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 {
+	(void) cr;
 	int error = 0;
 	boolean_t frsync = B_FALSE;
 
@@ -389,8 +388,6 @@ zfs_clear_setid_bits_if_necessary(zfsvfs_t *zfsvfs, znode_t *zp, cred_t *cr,
  * Timestamps:
  *	ip - ctime|mtime updated if byte count > 0
  */
-
-/* ARGSUSED */
 int
 zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 {
@@ -779,7 +776,6 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	return (0);
 }
 
-/*ARGSUSED*/
 int
 zfs_getsecattr(znode_t *zp, vsecattr_t *vsecp, int flag, cred_t *cr)
 {
@@ -795,7 +791,6 @@ zfs_getsecattr(znode_t *zp, vsecattr_t *vsecp, int flag, cred_t *cr)
 	return (error);
 }
 
-/*ARGSUSED*/
 int
 zfs_setsecattr(znode_t *zp, vsecattr_t *vsecp, int flag, cred_t *cr)
 {
@@ -965,10 +960,10 @@ zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
 }
 
 
-/* ARGSUSED */
 static void
 zfs_get_done(zgd_t *zgd, int error)
 {
+	(void) error;
 	znode_t *zp = zgd->zgd_private;
 
 	if (zgd->zgd_db)

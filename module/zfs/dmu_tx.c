@@ -219,7 +219,6 @@ dmu_tx_check_ioerr(zio_t *zio, dnode_t *dn, int level, uint64_t blkid)
 	return (err);
 }
 
-/* ARGSUSED */
 static void
 dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 {

@@ -203,7 +203,6 @@ static int zvol_geom_bio_getattr(struct bio *bp);
  * GEOM mode implementation
  */
 
-/*ARGSUSED*/
 static int
 zvol_geom_open(struct g_provider *pp, int flag, int count)
 {
@@ -336,10 +335,10 @@ out_locked:
 	return (err);
 }
 
-/*ARGSUSED*/
 static int
 zvol_geom_close(struct g_provider *pp, int flag, int count)
 {
+	(void) flag;
 	zvol_state_t *zv;
 	boolean_t drop_suspend = B_TRUE;
 	int new_open_count;
