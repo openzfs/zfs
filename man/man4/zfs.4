@@ -2129,6 +2129,30 @@ When enabled, the maximum number of pending allocations per top-level vdev
 is limited by
 .Sy zfs_vdev_queue_depth_pct .
 .
+.It Sy zfs_xattr_compat Ns = Ns 0 Ns | Ns 1 Pq int
+Control the naming scheme used when setting new xattrs in the user namespace.
+If
+.Sy 0
+.Pq the default on Linux ,
+user namespace xattr names are prefixed with the namespace, to be backwards
+compatible with previous versions of ZFS on Linux.
+If
+.Sy 1
+.Pq the default on Fx ,
+user namespace xattr names are not prefixed, to be backwards compatible with
+previous versions of ZFS on illumos and
+.Fx .
+.Pp
+Either naming scheme can be read on this and future versions of ZFS, regardless
+of this tunable, but legacy ZFS on illumos or
+.Fx
+are unable to read user namespace xattrs written in the Linux format, and
+legacy versions of ZFS on Linux are unable to read user namespace xattrs written
+in the legacy ZFS format.
+.Pp
+An existing xattr with the alternate naming scheme is removed when overwriting
+the xattr so as to not accumulate duplicates.
+.
 .It Sy zio_requeue_io_start_cut_in_line Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Prioritize requeued I/O.
 .

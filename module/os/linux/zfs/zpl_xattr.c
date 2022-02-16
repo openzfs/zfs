@@ -84,6 +84,12 @@
 #include <sys/vfs.h>
 #include <sys/zpl.h>
 
+enum xattr_permission {
+	XAPERM_DENY,
+	XAPERM_ALLOW,
+	XAPERM_COMPAT,
+};
+
 typedef struct xattr_filldir {
 	size_t size;
 	size_t offset;
@@ -91,33 +97,10 @@ typedef struct xattr_filldir {
 	struct dentry *dentry;
 } xattr_filldir_t;
 
-static const struct xattr_handler *zpl_xattr_handler(const char *);
+static enum xattr_permission zpl_xattr_permission(xattr_filldir_t *,
+    const char *, int);
 
-static int
-zpl_xattr_permission(xattr_filldir_t *xf, const char *name, int name_len)
-{
-	static const struct xattr_handler *handler;
-	struct dentry *d = xf->dentry;
-
-	handler = zpl_xattr_handler(name);
-	if (!handler)
-		return (0);
-
-	if (handler->list) {
-#if defined(HAVE_XATTR_LIST_SIMPLE)
-		if (!handler->list(d))
-			return (0);
-#elif defined(HAVE_XATTR_LIST_DENTRY)
-		if (!handler->list(d, NULL, 0, name, name_len, 0))
-			return (0);
-#elif defined(HAVE_XATTR_LIST_HANDLER)
-		if (!handler->list(handler, d, NULL, 0, name, name_len))
-			return (0);
-#endif
-	}
-
-	return (1);
-}
+static int zfs_xattr_compat = 0;
 
 /*
  * Determine is a given xattr name should be visible and if so copy it
@@ -126,9 +109,26 @@ zpl_xattr_permission(xattr_filldir_t *xf, const char *name, int name_len)
 static int
 zpl_xattr_filldir(xattr_filldir_t *xf, const char *name, int name_len)
 {
+	enum xattr_permission perm;
+
 	/* Check permissions using the per-namespace list xattr handler. */
-	if (!zpl_xattr_permission(xf, name, name_len))
+	perm = zpl_xattr_permission(xf, name, name_len);
+	if (perm == XAPERM_DENY)
 		return (0);
+
+	/* Prefix the name with "user." if it does not have a namespace. */
+	if (perm == XAPERM_COMPAT) {
+		if (xf->buf) {
+			if (xf->offset + XATTR_USER_PREFIX_LEN + 1 > xf->size)
+				return (-ERANGE);
+
+			memcpy(xf->buf + xf->offset, XATTR_USER_PREFIX,
+			    XATTR_USER_PREFIX_LEN);
+			xf->buf[xf->offset + XATTR_USER_PREFIX_LEN] = '\0';
+		}
+
+		xf->offset += XATTR_USER_PREFIX_LEN;
+	}
 
 	/* When xf->buf is NULL only calculate the required size. */
 	if (xf->buf) {
@@ -706,19 +706,28 @@ static int
 __zpl_xattr_user_get(struct inode *ip, const char *name,
     void *value, size_t size)
 {
-	char *xattr_name;
 	int error;
 	/* xattr_resolve_name will do this for us if this is defined */
 #ifndef HAVE_XATTR_HANDLER_NAME
 	if (strcmp(name, "") == 0)
 		return (-EINVAL);
 #endif
+	if (ZFS_XA_NS_PREFIX_FORBIDDEN(name))
+		return (-EINVAL);
 	if (!(ITOZSB(ip)->z_flags & ZSB_XATTR))
 		return (-EOPNOTSUPP);
 
-	xattr_name = kmem_asprintf("%s%s", XATTR_USER_PREFIX, name);
+	/*
+	 * Try to look up the name with the namespace prefix first for
+	 * compatibility with xattrs from this platform.  If that fails,
+	 * try again without the namespace prefix for compatibility with
+	 * other platforms.
+	 */
+	char *xattr_name = kmem_asprintf("%s%s", XATTR_USER_PREFIX, name);
 	error = zpl_xattr_get(ip, xattr_name, value, size);
 	kmem_strfree(xattr_name);
+	if (error == -ENODATA)
+		error = zpl_xattr_get(ip, name, value, size);
 
 	return (error);
 }
@@ -728,20 +737,59 @@ static int
 __zpl_xattr_user_set(struct inode *ip, const char *name,
     const void *value, size_t size, int flags)
 {
-	char *xattr_name;
-	int error;
+	int error = 0;
 	/* xattr_resolve_name will do this for us if this is defined */
 #ifndef HAVE_XATTR_HANDLER_NAME
 	if (strcmp(name, "") == 0)
 		return (-EINVAL);
 #endif
+	if (ZFS_XA_NS_PREFIX_FORBIDDEN(name))
+		return (-EINVAL);
 	if (!(ITOZSB(ip)->z_flags & ZSB_XATTR))
 		return (-EOPNOTSUPP);
 
-	xattr_name = kmem_asprintf("%s%s", XATTR_USER_PREFIX, name);
-	error = zpl_xattr_set(ip, xattr_name, value, size, flags);
-	kmem_strfree(xattr_name);
-
+	/*
+	 * Remove alternate compat version of the xattr so we only set the
+	 * version specified by the zfs_xattr_compat tunable.
+	 *
+	 * The following flags must be handled correctly:
+	 *
+	 *   XATTR_CREATE: fail if xattr already exists
+	 *   XATTR_REPLACE: fail if xattr does not exist
+	 */
+	char *prefixed_name = kmem_asprintf("%s%s", XATTR_USER_PREFIX, name);
+	const char *clear_name, *set_name;
+	if (zfs_xattr_compat) {
+		clear_name = prefixed_name;
+		set_name = name;
+	} else {
+		clear_name = name;
+		set_name = prefixed_name;
+	}
+	/*
+	 * Clear the old value with the alternative name format, if it exists.
+	 */
+	error = zpl_xattr_set(ip, clear_name, NULL, 0, flags);
+	/*
+	 * XATTR_CREATE was specified and we failed to clear the xattr
+	 * because it already exists.  Stop here.
+	 */
+	if (error == -EEXIST)
+		goto out;
+	/*
+	 * If XATTR_REPLACE was specified and we succeeded to clear
+	 * an xattr, we don't need to replace anything when setting
+	 * the new value.  If we failed with -ENODATA that's fine,
+	 * there was nothing to be cleared and we can ignore the error.
+	 */
+	if (error == 0)
+		flags &= ~XATTR_REPLACE;
+	/*
+	 * Set the new value with the configured name format.
+	 */
+	error = zpl_xattr_set(ip, set_name, value, size, flags);
+out:
+	kmem_strfree(prefixed_name);
 	return (error);
 }
 ZPL_XATTR_SET_WRAPPER(zpl_xattr_user_set);
@@ -1411,6 +1459,42 @@ zpl_xattr_handler(const char *name)
 	return (NULL);
 }
 
+static enum xattr_permission
+zpl_xattr_permission(xattr_filldir_t *xf, const char *name, int name_len)
+{
+	const struct xattr_handler *handler;
+	struct dentry *d __maybe_unused = xf->dentry;
+	enum xattr_permission perm = XAPERM_ALLOW;
+
+	handler = zpl_xattr_handler(name);
+	if (handler == NULL) {
+		/* Do not expose FreeBSD system namespace xattrs. */
+		if (ZFS_XA_NS_PREFIX_MATCH(FREEBSD, name))
+			return (XAPERM_DENY);
+		/*
+		 * Anything that doesn't match a known namespace gets put in the
+		 * user namespace for compatibility with other platforms.
+		 */
+		perm = XAPERM_COMPAT;
+		handler = &zpl_xattr_user_handler;
+	}
+
+	if (handler->list) {
+#if defined(HAVE_XATTR_LIST_SIMPLE)
+		if (!handler->list(d))
+			return (XAPERM_DENY);
+#elif defined(HAVE_XATTR_LIST_DENTRY)
+		if (!handler->list(d, NULL, 0, name, name_len, 0))
+			return (XAPERM_DENY);
+#elif defined(HAVE_XATTR_LIST_HANDLER)
+		if (!handler->list(handler, d, NULL, 0, name, name_len))
+			return (XAPERM_DENY);
+#endif
+	}
+
+	return (perm);
+}
+
 #if !defined(HAVE_POSIX_ACL_RELEASE) || defined(HAVE_POSIX_ACL_RELEASE_GPL_ONLY)
 struct acl_rel_struct {
 	struct acl_rel_struct *next;
@@ -1510,3 +1594,6 @@ zpl_posix_acl_release_impl(struct posix_acl *acl)
 		    NULL, TQ_SLEEP, ddi_get_lbolt() + ACL_REL_SCHED);
 }
 #endif
+
+ZFS_MODULE_PARAM(zfs, zfs_, xattr_compat, INT, ZMOD_RW,
+	"Use legacy ZFS xattr naming for writing new user namespace xattrs");

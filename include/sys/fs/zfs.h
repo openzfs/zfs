@@ -1709,7 +1709,6 @@ typedef enum {
 #define	ZFS_EV_HIST_DSID	"history_dsid"
 #define	ZFS_EV_RESILVER_TYPE	"resilver_type"
 
-
 /*
  * We currently support block sizes from 512 bytes to 16MB.
  * The benefits of larger blocks, and thus larger IO, need to be weighed
@@ -1731,7 +1730,6 @@ typedef enum {
 #define	SPA_OLD_MAXBLOCKSIZE	(1ULL << SPA_OLD_MAXBLOCKSHIFT)
 #define	SPA_MAXBLOCKSIZE	(1ULL << SPA_MAXBLOCKSHIFT)
 
-
 /* supported encryption algorithms */
 enum zio_encrypt {
 	ZIO_CRYPT_INHERIT = 0,
@@ -1749,6 +1747,34 @@ enum zio_encrypt {
 #define	ZIO_CRYPT_ON_VALUE	ZIO_CRYPT_AES_256_GCM
 #define	ZIO_CRYPT_DEFAULT	ZIO_CRYPT_OFF
 
+/*
+ * xattr namespace prefixes.  These are forbidden in xattr names.
+ *
+ * For cross-platform compatibility, xattrs in the user namespace should not be
+ * prefixed with the namespace name, but for backwards compatibility with older
+ * ZFS on Linux versions we do prefix the namespace.
+ */
+#define	ZFS_XA_NS_FREEBSD_PREFIX		"freebsd:"
+#define	ZFS_XA_NS_FREEBSD_PREFIX_LEN		strlen("freebsd:")
+#define	ZFS_XA_NS_LINUX_SECURITY_PREFIX		"security."
+#define	ZFS_XA_NS_LINUX_SECURITY_PREFIX_LEN	strlen("security.")
+#define	ZFS_XA_NS_LINUX_SYSTEM_PREFIX		"system."
+#define	ZFS_XA_NS_LINUX_SYSTEM_PREFIX_LEN	strlen("system.")
+#define	ZFS_XA_NS_LINUX_TRUSTED_PREFIX		"trusted."
+#define	ZFS_XA_NS_LINUX_TRUSTED_PREFIX_LEN	strlen("trusted.")
+#define	ZFS_XA_NS_LINUX_USER_PREFIX		"user."
+#define	ZFS_XA_NS_LINUX_USER_PREFIX_LEN		strlen("user.")
+
+#define	ZFS_XA_NS_PREFIX_MATCH(ns, name) \
+	(strncmp(name, ZFS_XA_NS_##ns##_PREFIX, \
+	ZFS_XA_NS_##ns##_PREFIX_LEN) == 0)
+
+#define	ZFS_XA_NS_PREFIX_FORBIDDEN(name) \
+	(ZFS_XA_NS_PREFIX_MATCH(FREEBSD, name) || \
+	    ZFS_XA_NS_PREFIX_MATCH(LINUX_SECURITY, name) || \
+	    ZFS_XA_NS_PREFIX_MATCH(LINUX_SYSTEM, name) || \
+	    ZFS_XA_NS_PREFIX_MATCH(LINUX_TRUSTED, name) || \
+	    ZFS_XA_NS_PREFIX_MATCH(LINUX_USER, name))
 
 #ifdef	__cplusplus
 }
