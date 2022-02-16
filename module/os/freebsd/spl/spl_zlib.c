@@ -40,19 +40,17 @@ __FBSDID("$FreeBSD$");
 #include <sys/kobj.h>
 
 
-/*ARGSUSED*/
 static void *
 zcalloc(void *opaque, uint_t items, uint_t size)
 {
-
+	(void) opaque;
 	return (malloc((size_t)items*size, M_SOLARIS, M_NOWAIT));
 }
 
-/*ARGSUSED*/
 static void
 zcfree(void *opaque, void *ptr)
 {
-
+	(void) opaque;
 	free(ptr, M_SOLARIS);
 }
 

@@ -156,10 +156,10 @@ zfs_znode_cache_constructor(void *buf, void *arg, int kmflags)
 	return (0);
 }
 
-/*ARGSUSED*/
 static void
 zfs_znode_cache_destructor(void *buf, void *arg)
 {
+	(void) arg;
 	znode_t *zp = buf;
 
 	ASSERT(!POINTER_IS_VALID(zp->z_zfsvfs));

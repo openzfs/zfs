@@ -248,7 +248,6 @@ spa_history_log_notify(spa_t *spa, nvlist_t *nvl)
 /*
  * Write out a history event.
  */
-/*ARGSUSED*/
 static void
 spa_history_log_sync(void *arg, dmu_tx_t *tx)
 {

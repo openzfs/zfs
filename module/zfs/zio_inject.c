@@ -341,15 +341,14 @@ zio_handle_label_injection(zio_t *zio, int error)
 	return (ret);
 }
 
-/*ARGSUSED*/
 static int
 zio_inject_bitflip_cb(void *data, size_t len, void *private)
 {
-	zio_t *zio __maybe_unused = private;
+	zio_t *zio = private;
 	uint8_t *buffer = data;
 	uint_t byte = random_in_range(len);
 
-	ASSERT(zio->io_type == ZIO_TYPE_READ);
+	ASSERT3U(zio->io_type, ==, ZIO_TYPE_READ);
 
 	/* flip a single random bit in an abd data buffer */
 	buffer[byte] ^= 1 << random_in_range(8);
