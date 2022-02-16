@@ -140,7 +140,7 @@ my %old2posix = (
 );
 
 my $lint_re = qr/\/\*(?:
-	ARGSUSED[0-9]*|NOTREACHED|LINTLIBRARY|VARARGS[0-9]*|
+	NOTREACHED|LINTLIBRARY|VARARGS[0-9]*|
 	CONSTCOND|CONSTANTCOND|CONSTANTCONDITION|EMPTY|
 	FALLTHRU|FALLTHROUGH|LINTED.*?|PRINTFLIKE[0-9]*|
 	PROTOLIB[0-9]*|SCANFLIKE[0-9]*|CSTYLED.*?
@@ -384,6 +384,9 @@ line: while (<$filehandle>) {
 	}
 	if (/[^ \t(]\/\*/ && !/\w\(\/\*.*\*\/\);/) {
 		err("comment preceded by non-blank");
+	}
+	if (/ARGSUSED/) {
+		err("ARGSUSED directive");
 	}
 
 	# is this the beginning or ending of a function?
