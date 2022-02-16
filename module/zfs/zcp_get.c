@@ -230,7 +230,7 @@ get_special_prop(lua_State *state, dsl_dataset_t *ds, const char *dsname,
 	char *strval = kmem_alloc(ZAP_MAXVALUELEN, KM_SLEEP);
 	char setpoint[ZFS_MAX_DATASET_NAME_LEN] =
 	    "Internal error - setpoint not determined";
-	zfs_type_t ds_type;
+	zfs_type_t ds_type = -1;
 	zprop_type_t prop_type = zfs_prop_get_type(zfs_prop);
 	(void) get_objset_type(ds, &ds_type);
 
