@@ -280,6 +280,35 @@ AC_DEFUN([ZFS_AC_MODULE_SYMVERS], [
 dnl #
 dnl # Detect the kernel to be built against
 dnl #
+dnl # Most modern Linux distributions have separate locations for bare
+dnl # source (source) and prebuilt (build) files. Additionally, there are
+dnl # `source` and `build` symlinks in `/lib/modules/$(KERNEL_VERSION)`
+dnl # pointing to them. The directory search order is now:
+dnl # 
+dnl # - `configure` command line values if both `--with-linux` and
+dnl #   `--with-linux-obj` were defined
+dnl # 
+dnl # - If only `--with-linux` was defined, `--with-linux-obj` is assumed
+dnl #   to have the same value as `--with-linux`
+dnl # 
+dnl # - If neither `--with-linux` nor `--with-linux-obj` were defined
+dnl #   autodetection is used:
+dnl # 
+dnl #   - `/lib/modules/$(uname -r)/{source,build}` respectively, if exist.
+dnl # 
+dnl #   - If only `/lib/modules/$(uname -r)/build` exists, it is assumed
+dnl #     to be both source and build directory.
+dnl # 
+dnl #   - The first directory in `/lib/modules` with the highest version
+dnl #     number according to `sort -V` which contains both `source` and
+dnl #     `build` symlinks/directories. If module directory contains only
+dnl #     `build` component, it is assumed to be both source and build
+dnl #     directory.
+dnl # 
+dnl #   - Last resort: the first directory matching `/usr/src/kernels/*`
+dnl #     and `/usr/src/linux-*` with the highest version number according
+dnl #     to `sort -V` is assumed to be both source and build directory.
+dnl #
 AC_DEFUN([ZFS_AC_KERNEL], [
 	AC_ARG_WITH([linux],
 		AS_HELP_STRING([--with-linux=PATH],
@@ -291,24 +320,51 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 		[Path to kernel build objects]),
 		[kernelbuild="$withval"])
 
-	AC_MSG_CHECKING([kernel source directory])
-	AS_IF([test -z "$kernelsrc"], [
-		AS_IF([test -e "/lib/modules/$(uname -r)/source"], [
-			headersdir="/lib/modules/$(uname -r)/source"
-			sourcelink=$(readlink -f "$headersdir")
+	AC_MSG_CHECKING([kernel source and build directories])
+	AS_IF([test -n "$kernelsrc" && test -z "$kernelbuild"], [
+		kernelbuild="$kernelsrc"
+	], [test -z "$kernelsrc"], [
+		AS_IF([test -e "/lib/modules/$(uname -r)/source" && \
+		       test -e "/lib/modules/$(uname -r)/build"], [
+			src="/lib/modules/$(uname -r)/source"
+			build="/lib/modules/$(uname -r)/build"
 		], [test -e "/lib/modules/$(uname -r)/build"], [
-			headersdir="/lib/modules/$(uname -r)/build"
-			sourcelink=$(readlink -f "$headersdir")
+			build="/lib/modules/$(uname -r)/build"
+			src="$build"
 		], [
-			sourcelink=$(ls -1d /usr/src/kernels/* \
-			             /usr/src/linux-* \
-			             2>/dev/null | grep -v obj | tail -1)
+			src=
+
+			for d in $(ls -1d /lib/modules/* 2>/dev/null | sort -Vr); do
+				if test -e "$d/source" && test -e "$d/build"; then
+					src="$d/source"
+					build="$d/build"
+					break
+				fi
+
+				if test -e "$d/build"; then
+					src="$d/build"
+					build="$d/build"
+					break
+				fi
+			done
+
+			# the least reliable method
+			if test -z "$src"; then
+				src=$(ls -1d /usr/src/kernels/* /usr/src/linux-* \
+				      2>/dev/null | grep -v obj | sort -Vr | head -1)
+				build="$src"
+			fi
 		])
 
-		AS_IF([test -n "$sourcelink" && test -e ${sourcelink}], [
-			kernelsrc=`readlink -f ${sourcelink}`
+		AS_IF([test -n "$src" && test -e "$src"], [
+			kernelsrc=$(readlink -e "$src")
 		], [
 			kernelsrc="[Not found]"
+		])
+		AS_IF([test -n "$build" && test -e "$build"], [
+			kernelbuild=$(readlink -e "$build")
+		], [
+			kernelbuild="[Not found]"
 		])
 	], [
 		AS_IF([test "$kernelsrc" = "NONE"], [
@@ -317,29 +373,18 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 		withlinux=yes
 	])
 
+	AC_MSG_RESULT([done])
+	AC_MSG_CHECKING([kernel source directory])
 	AC_MSG_RESULT([$kernelsrc])
-	AS_IF([test ! -d "$kernelsrc"], [
+	AC_MSG_CHECKING([kernel build directory])
+	AC_MSG_RESULT([$kernelbuild])
+	AS_IF([test ! -d "$kernelsrc" || test ! -d "$kernelbuild"], [
 		AC_MSG_ERROR([
 	*** Please make sure the kernel devel package for your distribution
 	*** is installed and then try again.  If that fails, you can specify the
-	*** location of the kernel source with the '--with-linux=PATH' option.])
+	*** location of the kernel source and build with the '--with-linux=PATH' and
+	*** '--with-linux-obj=PATH' options respectively.])
 	])
-
-	AC_MSG_CHECKING([kernel build directory])
-	AS_IF([test -z "$kernelbuild"], [
-		AS_IF([test x$withlinux != xyes -a -e "/lib/modules/$(uname -r)/build"], [
-			kernelbuild=`readlink -f /lib/modules/$(uname -r)/build`
-		], [test -d ${kernelsrc}-obj/${target_cpu}/${target_cpu}], [
-			kernelbuild=${kernelsrc}-obj/${target_cpu}/${target_cpu}
-		], [test -d ${kernelsrc}-obj/${target_cpu}/default], [
-			kernelbuild=${kernelsrc}-obj/${target_cpu}/default
-		], [test -d `dirname ${kernelsrc}`/build-${target_cpu}], [
-			kernelbuild=`dirname ${kernelsrc}`/build-${target_cpu}
-		], [
-			kernelbuild=${kernelsrc}
-		])
-	])
-	AC_MSG_RESULT([$kernelbuild])
 
 	AC_MSG_CHECKING([kernel source version])
 	utsrelease1=$kernelbuild/include/linux/version.h
