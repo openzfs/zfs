@@ -6,13 +6,16 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS_CHECK_EVENTS], [
 		#include <linux/blkdev.h>
 
 		unsigned int blk_check_events(struct gendisk *disk,
-		    unsigned int clearing) { return (0); }
+		    unsigned int clearing) {
+			(void) disk, (void) clearing;
+			return (0);
+		}
 
 		static const struct block_device_operations
 		    bops __attribute__ ((unused)) = {
 			.check_events	= blk_check_events,
 		};
-	], [], [$NO_UNUSED_BUT_SET_VARIABLE])
+	], [], [])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BLOCK_DEVICE_OPERATIONS_CHECK_EVENTS], [
@@ -31,7 +34,10 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS_RELEASE_VOID], [
 	ZFS_LINUX_TEST_SRC([block_device_operations_release_void], [
 		#include <linux/blkdev.h>
 
-		void blk_release(struct gendisk *g, fmode_t mode) { return; }
+		void blk_release(struct gendisk *g, fmode_t mode) {
+			(void) g, (void) mode;
+			return;
+		}
 
 		static const struct block_device_operations
 		    bops __attribute__ ((unused)) = {
@@ -40,7 +46,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS_RELEASE_VOID], [
 			.ioctl		= NULL,
 			.compat_ioctl	= NULL,
 		};
-	], [], [$NO_UNUSED_BUT_SET_VARIABLE])
+	], [], [])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BLOCK_DEVICE_OPERATIONS_RELEASE_VOID], [
@@ -61,6 +67,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS_REVALIDATE_DISK], [
 		#include <linux/blkdev.h>
 
 		int blk_revalidate_disk(struct gendisk *disk) {
+			(void) disk;
 			return(0);
 		}
 
@@ -68,7 +75,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS_REVALIDATE_DISK], [
 		    bops __attribute__ ((unused)) = {
 			.revalidate_disk	= blk_revalidate_disk,
 		};
-	], [], [$NO_UNUSED_BUT_SET_VARIABLE])
+	], [], [])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BLOCK_DEVICE_OPERATIONS_REVALIDATE_DISK], [
