@@ -751,6 +751,8 @@ note_dev_error(int err, int fd)
 		    "(As a workaround, "
 		    "try \"zfs send [...] | cat > /dev/null\")\n"));
 	}
+#else
+	(void) err, (void) fd;
 #endif
 }
 

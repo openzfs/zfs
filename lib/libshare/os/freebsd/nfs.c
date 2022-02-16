@@ -155,6 +155,7 @@ nfs_is_shared(sa_share_impl_t impl_share)
 static int
 nfs_validate_shareopts(const char *shareopts)
 {
+	(void) shareopts;
 	return (SA_OK);
 }
 

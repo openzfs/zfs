@@ -42,6 +42,7 @@ void
 libzfs_set_pipe_max(int infd)
 {
 	/* FreeBSD automatically resizes */
+	(void) infd;
 }
 
 static int
@@ -251,24 +252,28 @@ libzfs_load_module(void)
 int
 zpool_relabel_disk(libzfs_handle_t *hdl, const char *path, const char *msg)
 {
+	(void) hdl, (void) path, (void) msg;
 	return (0);
 }
 
 int
 zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, const char *name)
 {
+	(void) hdl, (void) zhp, (void) name;
 	return (0);
 }
 
 int
 find_shares_object(differ_info_t *di)
 {
+	(void) di;
 	return (0);
 }
 
 int
 zfs_destroy_snaps_nvl_os(libzfs_handle_t *hdl, nvlist_t *snaps)
 {
+	(void) hdl, (void) snaps;
 	return (0);
 }
 
