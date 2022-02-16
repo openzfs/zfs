@@ -18,7 +18,8 @@ EXTRA_SCRIPTS = \
 	make_gitrev.sh \
 	man-dates.sh \
 	paxcheck.sh \
-	mancheck.sh
+	mancheck.sh \
+	zfs-tests-color.sh
 
 EXTRA_DIST = \
 	cstyle.pl \
