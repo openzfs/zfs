@@ -41,7 +41,6 @@ skein_incremental(void *buf, size_t size, void *arg)
  * function requires the presence of a ctx_template that should be allocated
  * using abd_checksum_skein_tmpl_init.
  */
-/*ARGSUSED*/
 void
 abd_checksum_skein_native(abd_t *abd, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)

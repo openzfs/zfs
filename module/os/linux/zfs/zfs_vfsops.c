@@ -256,10 +256,10 @@ zfs_is_readonly(zfsvfs_t *zfsvfs)
 	return (!!(zfsvfs->z_sb->s_flags & SB_RDONLY));
 }
 
-/*ARGSUSED*/
 int
 zfs_sync(struct super_block *sb, int wait, cred_t *cr)
 {
+	(void) cr;
 	zfsvfs_t *zfsvfs = sb->s_fs_info;
 
 	/*
@@ -1600,7 +1600,6 @@ zfs_preumount(struct super_block *sb)
  * Called once all other unmount released tear down has occurred.
  * It is our responsibility to release any remaining infrastructure.
  */
-/*ARGSUSED*/
 int
 zfs_umount(struct super_block *sb)
 {
@@ -2128,7 +2127,6 @@ zfs_get_vfs_flag_unmounted(objset_t *os)
 	return (unmounted);
 }
 
-/*ARGSUSED*/
 void
 zfsvfs_update_fromname(const char *oldname, const char *newname)
 {
@@ -2136,6 +2134,7 @@ zfsvfs_update_fromname(const char *oldname, const char *newname)
 	 * We don't need to do anything here, the devname is always current by
 	 * virtue of zfsvfs->z_sb->s_op->show_devname.
 	 */
+	(void) oldname, (void) newname;
 }
 
 void

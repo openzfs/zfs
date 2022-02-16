@@ -1828,7 +1828,6 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 	return (0);
 }
 
-/* ARGSUSED */
 noinline static int
 receive_freeobjects(struct receive_writer_arg *rwa,
     struct drr_freeobjects *drrfo)
@@ -2230,7 +2229,6 @@ receive_spill(struct receive_writer_arg *rwa, struct drr_spill *drrs,
 	return (0);
 }
 
-/* ARGSUSED */
 noinline static int
 receive_free(struct receive_writer_arg *rwa, struct drr_free *drrf)
 {
@@ -2305,7 +2303,6 @@ receive_object_range(struct receive_writer_arg *rwa,
  * Until we have the ability to redact large ranges of data efficiently, we
  * process these records as frees.
  */
-/* ARGSUSED */
 noinline static int
 receive_redact(struct receive_writer_arg *rwa, struct drr_redact *drrr)
 {
@@ -2454,7 +2451,6 @@ receive_read_payload_and_next_header(dmu_recv_cookie_t *drc, int len, void *buf)
  * numbers in the ignore list. In practice, we receive up to 32 object records
  * before receiving write records, so the list can have up to 32 nodes in it.
  */
-/* ARGSUSED */
 static void
 receive_read_prefetch(dmu_recv_cookie_t *drc, uint64_t object, uint64_t offset,
     uint64_t length)

@@ -45,7 +45,6 @@ edonr_incremental(void *buf, size_t size, void *arg)
 /*
  * Native zio_checksum interface for the Edon-R hash function.
  */
-/*ARGSUSED*/
 void
 abd_checksum_edonr_native(abd_t *abd, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)

@@ -456,10 +456,10 @@ zfsctl_common_open(struct vop_open_args *ap)
 /*
  * Common close routine.  Nothing to do here.
  */
-/* ARGSUSED */
 static int
 zfsctl_common_close(struct vop_close_args *ap)
 {
+	(void) ap;
 	return (0);
 }
 

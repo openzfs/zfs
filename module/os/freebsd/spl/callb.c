@@ -338,10 +338,10 @@ callb_generic_cpr(void *arg, int code)
  * The generic callback function associated with kernel threads which
  * are always considered safe.
  */
-/* ARGSUSED */
 boolean_t
 callb_generic_cpr_safe(void *arg, int code)
 {
+	(void) arg, (void) code;
 	return (B_TRUE);
 }
 /*

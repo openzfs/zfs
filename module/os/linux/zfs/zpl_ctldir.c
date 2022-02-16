@@ -36,7 +36,6 @@
 /*
  * Common open routine.  Disallow any write access.
  */
-/* ARGSUSED */
 static int
 zpl_common_open(struct inode *ip, struct file *filp)
 {
@@ -99,7 +98,6 @@ zpl_root_readdir(struct file *filp, void *dirent, filldir_t filldir)
 /*
  * Get root directory attributes.
  */
-/* ARGSUSED */
 static int
 #ifdef HAVE_USERNS_IOPS_GETATTR
 zpl_root_getattr_impl(struct user_namespace *user_ns,
@@ -110,10 +108,15 @@ zpl_root_getattr_impl(const struct path *path, struct kstat *stat,
     u32 request_mask, unsigned int query_flags)
 #endif
 {
+	(void) request_mask, (void) query_flags;
 	struct inode *ip = path->dentry->d_inode;
 
-#if defined(HAVE_GENERIC_FILLATTR_USERNS) && defined(HAVE_USERNS_IOPS_GETATTR)
+#ifdef HAVE_USERNS_IOPS_GETATTR
+#ifdef HAVE_GENERIC_FILLATTR_USERNS
 	generic_fillattr(user_ns, ip, stat);
+#else
+	(void) user_ns;
+#endif
 #else
 	generic_fillattr(ip, stat);
 #endif
@@ -382,7 +385,6 @@ zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, umode_t mode)
 /*
  * Get snapshot directory attributes.
  */
-/* ARGSUSED */
 static int
 #ifdef HAVE_USERNS_IOPS_GETATTR
 zpl_snapdir_getattr_impl(struct user_namespace *user_ns,
@@ -393,12 +395,17 @@ zpl_snapdir_getattr_impl(const struct path *path, struct kstat *stat,
     u32 request_mask, unsigned int query_flags)
 #endif
 {
+	(void) request_mask, (void) query_flags;
 	struct inode *ip = path->dentry->d_inode;
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
 
 	ZPL_ENTER(zfsvfs);
-#if defined(HAVE_GENERIC_FILLATTR_USERNS) && defined(HAVE_USERNS_IOPS_GETATTR)
+#ifdef HAVE_USERNS_IOPS_GETATTR
+#ifdef HAVE_GENERIC_FILLATTR_USERNS
 	generic_fillattr(user_ns, ip, stat);
+#else
+	(void) user_ns;
+#endif
 #else
 	generic_fillattr(ip, stat);
 #endif
@@ -524,7 +531,6 @@ zpl_shares_readdir(struct file *filp, void *dirent, filldir_t filldir)
 }
 #endif /* !HAVE_VFS_ITERATE && !HAVE_VFS_ITERATE_SHARED */
 
-/* ARGSUSED */
 static int
 #ifdef HAVE_USERNS_IOPS_GETATTR
 zpl_shares_getattr_impl(struct user_namespace *user_ns,
@@ -535,6 +541,7 @@ zpl_shares_getattr_impl(const struct path *path, struct kstat *stat,
     u32 request_mask, unsigned int query_flags)
 #endif
 {
+	(void) request_mask, (void) query_flags;
 	struct inode *ip = path->dentry->d_inode;
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
 	znode_t *dzp;
@@ -543,8 +550,12 @@ zpl_shares_getattr_impl(const struct path *path, struct kstat *stat,
 	ZPL_ENTER(zfsvfs);
 
 	if (zfsvfs->z_shares_dir == 0) {
-#if defined(HAVE_GENERIC_FILLATTR_USERNS) && defined(HAVE_USERNS_IOPS_GETATTR)
+#ifdef HAVE_USERNS_IOPS_GETATTR
+#ifdef HAVE_GENERIC_FILLATTR_USERNS
 		generic_fillattr(user_ns, path->dentry->d_inode, stat);
+#else
+		(void) user_ns;
+#endif
 #else
 		generic_fillattr(path->dentry->d_inode, stat);
 #endif
@@ -556,8 +567,12 @@ zpl_shares_getattr_impl(const struct path *path, struct kstat *stat,
 
 	error = -zfs_zget(zfsvfs, zfsvfs->z_shares_dir, &dzp);
 	if (error == 0) {
-#if defined(HAVE_GENERIC_FILLATTR_USERNS) && defined(HAVE_USERNS_IOPS_GETATTR)
+#ifdef HAVE_USERNS_IOPS_GETATTR
+#ifdef HAVE_GENERIC_FILLATTR_USERNS
 		error = -zfs_getattr_fast(user_ns, ZTOI(dzp), stat);
+#else
+		(void) user_ns;
+#endif
 #else
 		error = -zfs_getattr_fast(kcred->user_ns, ZTOI(dzp), stat);
 #endif

@@ -80,10 +80,10 @@ zfs_init_vattr(vattr_t *vap, uint64_t mask, uint64_t mode,
 	vap->va_nodeid = nodeid;
 }
 
-/* ARGSUSED */
 static int
 zfs_replay_error(void *arg1, void *arg2, boolean_t byteswap)
 {
+	(void) arg1, (void) arg2, (void) byteswap;
 	return (SET_ERROR(ENOTSUP));
 }
 
