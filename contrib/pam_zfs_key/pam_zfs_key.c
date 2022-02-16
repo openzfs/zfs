@@ -47,6 +47,7 @@
 static void
 pam_syslog(pam_handle_t *pamh, int loglevel, const char *fmt, ...)
 {
+	(void) pamh;
 	va_list args;
 	va_start(args, fmt);
 	vsyslog(loglevel, fmt, args);
