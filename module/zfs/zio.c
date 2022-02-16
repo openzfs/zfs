@@ -1773,7 +1773,13 @@ zio_write_compress(zio_t *zio)
 		    zio->io_abd, NULL, lsize, zp->zp_complevel);
 		if (psize == 0 || psize >= lsize)
 			compress = ZIO_COMPRESS_OFF;
-	} else if (zio->io_flags & ZIO_FLAG_RAW_COMPRESS) {
+	} else if (zio->io_flags & ZIO_FLAG_RAW_COMPRESS &&
+	    !(zio->io_flags & ZIO_FLAG_RAW_ENCRYPT)) {
+		/*
+		 * If we are raw receiving an encrypted dataset we should not
+		 * take this codepath because it will change the on-disk block
+		 * and decryption will fail.
+		 */
 		size_t rounded = MIN((size_t)roundup(psize,
 		    spa->spa_min_alloc), lsize);
 
