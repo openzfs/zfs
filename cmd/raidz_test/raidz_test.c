@@ -71,12 +71,13 @@ static void print_opts(raidz_test_opts_t *opts, boolean_t force)
 {
 	char *verbose;
 	switch (opts->rto_v) {
-		case 0:
+		case D_ALL:
 			verbose = "no";
 			break;
-		case 1:
+		case D_INFO:
 			verbose = "info";
 			break;
+		case D_DEBUG:
 		default:
 			verbose = "debug";
 			break;
@@ -119,7 +120,7 @@ static void usage(boolean_t requested)
 	    "\t[-B benchmark all raidz implementations]\n"
 	    "\t[-e use expanded raidz map (default: %s)]\n"
 	    "\t[-r expanded raidz map reflow offset (default: %llx)]\n"
-	    "\t[-v increase verbosity (default: %zu)]\n"
+	    "\t[-v increase verbosity (default: %d)]\n"
 	    "\t[-h (print help)]\n"
 	    "\t[-T test the test, see if failure would be detected]\n"
 	    "\t[-D debug (attach gdb on SIGSEGV)]\n"
@@ -131,7 +132,7 @@ static void usage(boolean_t requested)
 	    rto_opts.rto_sweep ? "yes" : "no",		/* -S */
 	    rto_opts.rto_expand ? "yes" : "no",		/* -e */
 	    (u_longlong_t)o->rto_expand_offset,		/* -r */
-	    o->rto_v);					/* -d */
+	    o->rto_v);					/* -v */
 
 	exit(requested ? 0 : 1);
 }

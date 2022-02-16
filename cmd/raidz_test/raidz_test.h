@@ -28,7 +28,7 @@
 
 #include <sys/spa.h>
 
-static const char *raidz_impl_names[] = {
+static const char *const raidz_impl_names[] = {
 	"original",
 	"scalar",
 	"sse2",
@@ -42,12 +42,18 @@ static const char *raidz_impl_names[] = {
 	NULL
 };
 
+enum raidz_verbosity {
+	D_ALL,
+	D_INFO,
+	D_DEBUG,
+};
+
 typedef struct raidz_test_opts {
 	size_t rto_ashift;
 	uint64_t rto_offset;
 	size_t rto_dcols;
 	size_t rto_dsize;
-	size_t rto_v;
+	enum raidz_verbosity rto_v;
 	size_t rto_sweep;
 	size_t rto_sweep_timeout;
 	size_t rto_benchmark;
@@ -68,7 +74,7 @@ static const raidz_test_opts_t rto_opts_defaults = {
 	.rto_offset = 1ULL << 0,
 	.rto_dcols = 8,
 	.rto_dsize = 1<<19,
-	.rto_v = 0,
+	.rto_v = D_ALL,
 	.rto_sweep = 0,
 	.rto_benchmark = 0,
 	.rto_expand = 0,
@@ -85,10 +91,6 @@ static inline size_t ilog2(size_t a)
 	return (a > 1 ? 1 + ilog2(a >> 1) : 0);
 }
 
-
-#define	D_ALL	0
-#define	D_INFO	1
-#define	D_DEBUG	2
 
 #define	LOG(lvl, a...)				\
 {						\
