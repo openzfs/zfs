@@ -24,6 +24,11 @@ AM_CFLAGS += $(ZLIB_CFLAGS)
 
 AM_CFLAGS += -DLIB_ZPOOL_BUILD
 
+# For the void (*)(void *) -> void *(*)(void *) cast in zk_thread_create()
+# See https://github.com/openzfs/zfs/pull/13110#discussion_r808450136
+kernel.$(OBJEXT): CFLAGS += -Wno-cast-function-type
+kernel.l$(OBJEXT): CFLAGS += -Wno-cast-function-type
+
 lib_LTLIBRARIES = libzpool.la
 
 USER_C = \
