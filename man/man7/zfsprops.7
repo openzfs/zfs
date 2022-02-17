@@ -1610,8 +1610,11 @@ the file systems are unshared.
 .Pp
 The share is created with the ACL (Access Control List) "Everyone:F" ("F"
 stands for "full permissions", i.e. read and write permissions) and no guest
-access (which means Samba must be able to authenticate a real user, system
-passwd/shadow, LDAP or smbpasswd based) by default.
+access (which means Samba must be able to authenticate a real user \(em
+.Xr passwd 5 Ns / Ns Xr shadow 5 Ns - ,
+LDAP- or
+.Xr smbpasswd 5 Ns -based )
+by default.
 This means that any additional access control
 (disallow specific user specific access etc) must be done on the underlying file system.
 .It Sy sharenfs Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Ar opts
@@ -1816,12 +1819,12 @@ The default value is
 This property is not used by OpenZFS.
 .It Sy xattr Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy sa
 Controls whether extended attributes are enabled for this file system.
-Two styles of extended attributes are supported: either directory based
-or system attribute based.
+Two styles of extended attributes are supported: either directory-based
+or system-attribute-based.
 .Pp
 The default value of
 .Sy on
-enables directory based extended attributes.
+enables directory-based extended attributes.
 This style of extended attribute imposes no practical limit
 on either the size or number of attributes which can be set on a file.
 Although under Linux the
@@ -1833,7 +1836,7 @@ system calls limit the maximum size to
 This is the most compatible
 style of extended attribute and is supported by all ZFS implementations.
 .Pp
-System attribute based xattrs can be enabled by setting the value to
+System-attribute-based xattrs can be enabled by setting the value to
 .Sy sa .
 The key advantage of this type of xattr is improved performance.
 Storing extended attributes as system attributes
@@ -1843,7 +1846,7 @@ Up to
 of data may be stored per-file in the space reserved for system attributes.
 If there is not enough space available for an extended attribute
 then it will be automatically written as a directory-based xattr.
-System attribute based extended attributes are not accessible
+System-attribute-based extended attributes are not accessible
 on platforms which do not support the
 .Sy xattr Ns = Ns Sy sa
 feature.
@@ -1853,7 +1856,7 @@ on both
 .Fx
 and Linux.
 .Pp
-The use of system attribute based xattrs is strongly encouraged for users of
+The use of system-attribute-based xattrs is strongly encouraged for users of
 SELinux or POSIX ACLs.
 Both of these features heavily rely on extended
 attributes and benefit significantly from the reduced access time.
