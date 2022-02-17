@@ -25,7 +25,7 @@
 .Nm
 .Op Fl AbcdDFGhikLMNPsvXYy
 .Op Fl e Oo Fl V Oc Oo Fl p Ar path Oc Ns …
-.Op Fl I Ar inflight I/Os
+.Op Fl I Ar inflight-I/O-ops
 .Oo Fl o Ar var Ns = Ns Ar value Oc Ns …
 .Op Fl t Ar txg
 .Op Fl U Ar cache
@@ -404,8 +404,8 @@ transactions.
 Dump the contents of the zfs_dbgmsg buffer before exiting
 .Nm .
 zfs_dbgmsg is a buffer used by ZFS to dump advanced debug information.
-.It Fl I , -inflight Ns = Ns Ar inflight I/Os
-Limit the number of outstanding checksum I/Os to the specified value.
+.It Fl I , -inflight Ns = Ns Ar inflight-I/O-ops
+Limit the number of outstanding checksum I/O operations to the specified value.
 The default value is 200.
 This option affects the performance of the
 .Fl c

@@ -71,18 +71,18 @@ Force a vdev into the DEGRADED or FAULTED state.
 .Fl D Ar latency : Ns Ar lanes
 .Ar pool
 .Xc
-Add an artificial delay to IO requests on a particular
+Add an artificial delay to I/O requests on a particular
 device, such that the requests take a minimum of
 .Ar latency
 milliseconds to complete.
 Each delay has an associated number of
 .Ar lanes
 which defines the number of concurrent
-IO requests that can be processed.
+I/O requests that can be processed.
 .Pp
 For example, with a single lane delay of 10 ms
 .No (\& Ns Fl D Ar 10 : Ns Ar 1 ) ,
-the device will only be able to service a single IO request
+the device will only be able to service a single I/O request
 at a time with each request taking 10 ms to complete.
 So, if only a single request is submitted every 10 ms, the
 average latency will be 10 ms; but if more than one request
