@@ -880,7 +880,7 @@ is set, then the deadman behavior is invoked as described by
 .Sy zfs_deadman_failmode .
 By default, the deadman is enabled and set to
 .Sy wait
-which results in "hung" I/Os only being logged.
+which results in "hung" I/O operations only being logged.
 The deadman is automatically disabled when a pool gets suspended.
 .
 .It Sy zfs_deadman_failmode Ns = Ns Sy wait Pq charp
@@ -964,7 +964,7 @@ will result in objects waiting when there is not actually contention on the
 same object.
 .
 .It Sy zfs_slow_io_events_per_second Ns = Ns Sy 20 Ns /s Pq int
-Rate limit delay and deadman zevents (which report slow I/Os) to this many per
+Rate limit delay and deadman zevents (which report slow I/O operations) to this many per
 second.
 .
 .It Sy zfs_unflushed_max_mem_amt Ns = Ns Sy 1073741824 Ns B Po 1GB Pc Pq ulong
@@ -990,7 +990,7 @@ This tunable is important because it involves a trade-off between import
 time after an unclean export and the frequency of flushing metaslabs.
 The higher this number is, the more log blocks we allow when the pool is
 active which means that we flush metaslabs less often and thus decrease
-the number of I/Os for spacemap updates per TXG.
+the number of I/O operations for spacemap updates per TXG.
 At the same time though, that means that in the event of an unclean export,
 there will be more log spacemap blocks for us to read, inducing overhead
 in the import time of the pool.
@@ -1683,8 +1683,8 @@ This should only be used as a last resort,
 as it typically results in leaked space, or worse.
 .
 .It Sy zfs_removal_ignore_errors Ns = Ns Sy 0 Ns | Ns 1 Pq int
-Ignore hard IO errors during device removal.
-When set, if a device encounters a hard IO error during the removal process
+Ignore hard I/O errors during device removal.
+When set, if a device encounters a hard I/O error during the removal process
 the removal will not be cancelled.
 This can result in a normally recoverable block becoming permanently damaged
 and is hence not recommended.
@@ -1948,7 +1948,7 @@ Historical statistics for this many latest TXGs will be available in
 Flush dirty data to disk at least every this many seconds (maximum TXG duration).
 .
 .It Sy zfs_vdev_aggregate_trim Ns = Ns Sy 0 Ns | Ns 1 Pq int
-Allow TRIM I/Os to be aggregated.
+Allow TRIM I/O operations to be aggregated.
 This is normally not helpful because the extents to be trimmed
 will have been already been aggregated by the metaslab.
 This option is provided for debugging and performance analysis.

@@ -1828,7 +1828,8 @@ Although under Linux the
 .Xr getxattr 2
 and
 .Xr setxattr 2
-system calls limit the maximum size to 64K.
+system calls limit the maximum size to
+.Sy 64K .
 This is the most compatible
 style of extended attribute and is supported by all ZFS implementations.
 .Pp
@@ -1836,10 +1837,12 @@ System attribute based xattrs can be enabled by setting the value to
 .Sy sa .
 The key advantage of this type of xattr is improved performance.
 Storing extended attributes as system attributes
-significantly decreases the amount of disk IO required.
-Up to 64K of data may be stored per-file in the space reserved for system attributes.
+significantly decreases the amount of disk I/O required.
+Up to
+.Sy 64K
+of data may be stored per-file in the space reserved for system attributes.
 If there is not enough space available for an extended attribute
-then it will be automatically written as a directory based xattr.
+then it will be automatically written as a directory-based xattr.
 System attribute based extended attributes are not accessible
 on platforms which do not support the
 .Sy xattr Ns = Ns Sy sa
