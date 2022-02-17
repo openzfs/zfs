@@ -100,6 +100,9 @@ vcmn_err(int ce, const char *fmt, va_list ap)
 		break;
 	case CE_PANIC:
 		printk(KERN_EMERG "PANIC: %s\n", msg);
+		if (spl_panic_halt)
+			panic("%s", msg);
+
 		spl_dumpstack();
 
 		/* Halt the thread to facilitate further debugging */
