@@ -50,6 +50,7 @@ assert_zap_common $TESTPOOL $DISK "top" $orig_top
 
 disk2=$(echo $DISKS | awk '{print $2}')
 log_must zpool attach $TESTPOOL $DISK $disk2
+log_must zpool wait -t resilver $TESTPOOL
 log_must zdb -PC $TESTPOOL > $conf
 
 # Ensure top-level ZAP was transferred successfully.
