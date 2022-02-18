@@ -37,7 +37,7 @@ extern "C" {
 
 /*
  * Additional file level attributes, that are stored
- * in the upper half of zp_flags
+ * in the upper half of z_pflags
  */
 #define	ZFS_READONLY		0x0000000100000000ull
 #define	ZFS_HIDDEN		0x0000000200000000ull

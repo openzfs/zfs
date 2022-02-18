@@ -149,6 +149,10 @@ tests = ['projectid_001_pos', 'projectid_002_pos', 'projectid_003_pos',
     'projecttree_001_pos', 'projecttree_002_pos', 'projecttree_003_neg']
 tags = ['functional', 'projectquota']
 
+[tests/functional/dos_attributes:Linux]
+tests = ['read_dos_attrs_001', 'write_dos_attrs_001']
+tags = ['functional', 'dos_attributes']
+
 [tests/functional/rsend:Linux]
 tests = ['send_realloc_dnode_size', 'send_encrypted_files']
 tags = ['functional', 'rsend']
