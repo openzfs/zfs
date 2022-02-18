@@ -449,14 +449,19 @@ make_dataset_handle_common(zfs_handle_t *zhp, zfs_cmd_t *zc)
 	 * We've managed to open the dataset and gather statistics.  Determine
 	 * the high-level type.
 	 */
-	if (zhp->zfs_dmustats.dds_type == DMU_OST_ZVOL)
+	if (zhp->zfs_dmustats.dds_type == DMU_OST_ZVOL) {
 		zhp->zfs_head_type = ZFS_TYPE_VOLUME;
-	else if (zhp->zfs_dmustats.dds_type == DMU_OST_ZFS)
+	} else if (zhp->zfs_dmustats.dds_type == DMU_OST_ZFS) {
 		zhp->zfs_head_type = ZFS_TYPE_FILESYSTEM;
-	else if (zhp->zfs_dmustats.dds_type == DMU_OST_OTHER)
+	} else if (zhp->zfs_dmustats.dds_type == DMU_OST_OTHER) {
+		errno = EINVAL;
 		return (-1);
-	else
+	} else if (zhp->zfs_dmustats.dds_inconsistent) {
+		errno = EBUSY;
+		return (-1);
+	} else {
 		abort();
+	}
 
 	if (zhp->zfs_dmustats.dds_is_snapshot)
 		zhp->zfs_type = ZFS_TYPE_SNAPSHOT;
