@@ -31,11 +31,13 @@ from pwd import getpwuid
 from select import select
 from subprocess import PIPE
 from subprocess import Popen
+from subprocess import check_output
 from threading import Timer
 from time import time, CLOCK_MONOTONIC
 
 BASEDIR = '/var/tmp/test_results'
 TESTDIR = '/usr/share/zfs/'
+KMEMLEAK_FILE = '/sys/kernel/debug/kmemleak'
 KILL = 'kill'
 TRUE = 'true'
 SUDO = 'sudo'
@@ -75,6 +77,7 @@ class Result(object):
         self.runtime = ''
         self.stdout = []
         self.stderr = []
+        self.kmemleak = ''
         self.result = ''
 
     def done(self, proc, killed, reran):
@@ -90,6 +93,9 @@ class Result(object):
         if killed:
             self.result = 'KILLED'
             Result.runresults['KILLED'] += 1
+        elif len(self.kmemleak) > 0:
+            self.result = 'FAIL'
+            Result.runresults['FAIL'] += 1
         elif self.returncode == 0:
             self.result = 'PASS'
             Result.runresults['PASS'] += 1
@@ -250,7 +256,7 @@ User: %s
 
         return out.lines, err.lines
 
-    def run(self, dryrun):
+    def run(self, dryrun, kmemleak):
         """
         This is the main function that runs each individual test.
         Determine whether or not the command requires sudo, and modify it
@@ -270,6 +276,11 @@ User: %s
             fail('%s' % e)
 
         self.result.starttime = monotonic_time()
+
+        if kmemleak:
+            cmd = f'echo clear | {SUDO} tee {KMEMLEAK_FILE}'
+            check_output(cmd, shell=True)
+
         proc = Popen(privcmd, stdout=PIPE, stderr=PIPE)
         # Allow a special timeout value of 0 to mean infinity
         if int(self.timeout) == 0:
@@ -279,6 +290,12 @@ User: %s
         try:
             t.start()
             self.result.stdout, self.result.stderr = self.collect_output(proc)
+
+            if kmemleak:
+                cmd = f'echo scan | {SUDO} tee {KMEMLEAK_FILE}'
+                check_output(cmd, shell=True)
+                cmd = f'{SUDO} cat {KMEMLEAK_FILE}'
+                self.result.kmemleak = check_output(cmd, shell=True)
         except KeyboardInterrupt:
             self.kill_cmd(proc, True)
             fail('\nRun terminated at user request.')
@@ -355,6 +372,9 @@ User: %s
             with open(os.path.join(self.outputdir, 'merged'), 'wb') as merged:
                 for _, line in lines:
                     os.write(merged.fileno(), b'%s\n' % line)
+        if len(self.result.kmemleak):
+            with open(os.path.join(self.outputdir, 'kmemleak'), 'wb') as kmem:
+                kmem.write(self.result.kmemleak)
 
 
 class Test(Cmd):
@@ -439,14 +459,14 @@ Tags: %s
 
         cont = True
         if len(pretest.pathname):
-            pretest.run(options.dryrun)
+            pretest.run(options.dryrun, False)
             cont = pretest.result.result == 'PASS'
             pretest.log(options)
 
         if cont:
-            test.run(options.dryrun)
+            test.run(options.dryrun, options.kmemleak)
             if test.result.result == 'KILLED' and len(failsafe.pathname):
-                failsafe.run(options.dryrun)
+                failsafe.run(options.dryrun, False)
                 failsafe.log(options, suppress_console=True)
         else:
             test.skip()
@@ -454,7 +474,7 @@ Tags: %s
         test.log(options)
 
         if len(posttest.pathname):
-            posttest.run(options.dryrun)
+            posttest.run(options.dryrun, False)
             posttest.log(options)
 
 
@@ -557,7 +577,7 @@ Tags: %s
 
         cont = True
         if len(pretest.pathname):
-            pretest.run(options.dryrun)
+            pretest.run(options.dryrun, False)
             cont = pretest.result.result == 'PASS'
             pretest.log(options)
 
@@ -570,9 +590,9 @@ Tags: %s
             failsafe = Cmd(self.failsafe, outputdir=odir, timeout=self.timeout,
                            user=self.failsafe_user, identifier=self.identifier)
             if cont:
-                test.run(options.dryrun)
+                test.run(options.dryrun, options.kmemleak)
                 if test.result.result == 'KILLED' and len(failsafe.pathname):
-                    failsafe.run(options.dryrun)
+                    failsafe.run(options.dryrun, False)
                     failsafe.log(options, suppress_console=True)
             else:
                 test.skip()
@@ -580,7 +600,7 @@ Tags: %s
             test.log(options)
 
         if len(posttest.pathname):
-            posttest.run(options.dryrun)
+            posttest.run(options.dryrun, False)
             posttest.log(options)
 
 
@@ -845,6 +865,11 @@ class TestRun(object):
         else:
             write_log('Could not make a symlink to directory %s\n' %
                       self.outputdir, LOG_ERR)
+
+        if options.kmemleak:
+            cmd = f'echo scan=0 | {SUDO} tee {KMEMLEAK_FILE}'
+            check_output(cmd, shell=True)
+
         iteration = 0
         while iteration < options.iterations:
             for test in sorted(self.tests.keys()):
@@ -990,6 +1015,14 @@ def fail(retstr, ret=1):
     exit(ret)
 
 
+def kmemleak_cb(option, opt_str, value, parser):
+    if not os.path.exists(KMEMLEAK_FILE):
+        fail(f"File '{KMEMLEAK_FILE}' doesn't exist. " +
+             "Enable CONFIG_DEBUG_KMEMLEAK in kernel configuration.")
+
+    setattr(parser.values, option.dest, True)
+
+
 def options_cb(option, opt_str, value, parser):
     path_options = ['outputdir', 'template', 'testdir', 'logfile']
 
@@ -1027,6 +1060,9 @@ def parse_args():
     parser.add_option('-i', action='callback', callback=options_cb,
                       default=TESTDIR, dest='testdir', type='string',
                       metavar='testdir', help='Specify a test directory.')
+    parser.add_option('-m', action='callback', callback=kmemleak_cb,
+                      default=False, dest='kmemleak',
+                      help='Enable kmemleak reporting (Linux only)')
     parser.add_option('-p', action='callback', callback=options_cb,
                       default='', dest='pre', metavar='script',
                       type='string', help='Specify a pre script.')
