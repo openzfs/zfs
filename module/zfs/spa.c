@@ -8139,7 +8139,7 @@ spa_async_autoexpand(spa_t *spa, vdev_t *vd)
 	spa_event_notify(vd->vdev_spa, vd, NULL, ESC_ZFS_VDEV_AUTOEXPAND);
 }
 
-static void
+static _Noreturn void
 spa_async_thread(void *arg)
 {
 	spa_t *spa = (spa_t *)arg;

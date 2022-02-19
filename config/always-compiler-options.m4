@@ -182,32 +182,6 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_CLOBBERED], [
 ])
 
 dnl #
-dnl # Check if cc supports -Wno-cast-function-type option.
-dnl #
-dnl # We actually invoke it with the --cast-function-type option
-dnl # and infer the 'no-' version does or doesn't exist based upon
-dnl # the results.  This is required because when checking any of
-dnl # no- prefixed options gcc always returns success.
-dnl #
-AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_CAST_FUNCTION_TYPE], [
-	AC_MSG_CHECKING([whether $CC supports -Wno-cast-function-type])
-
-	saved_flags="$CFLAGS"
-	CFLAGS="$CFLAGS -Werror -Wcast-function-type"
-
-	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
-		NO_CAST_FUNCTION_TYPE=-Wno-cast-function-type
-		AC_MSG_RESULT([yes])
-	], [
-		NO_CAST_FUNCTION_TYPE=
-		AC_MSG_RESULT([no])
-	])
-
-	CFLAGS="$saved_flags"
-	AC_SUBST([NO_CAST_FUNCTION_TYPE])
-])
-
-dnl #
 dnl # Check if cc supports -Wimplicit-fallthrough option.
 dnl #
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_IMPLICIT_FALLTHROUGH], [

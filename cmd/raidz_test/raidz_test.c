@@ -840,7 +840,7 @@ static kcondvar_t sem_cv;
 static int max_free_slots;
 static int free_slots;
 
-static void
+static _Noreturn void
 sweep_thread(void *arg)
 {
 	int err = 0;
