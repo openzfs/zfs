@@ -62,6 +62,35 @@ list_zvols() {
 	done
 }
 
+if [ -n "$1" ] ; then
+	devnode="/dev/zvol/${1}"
+	OLDIFS="$IFS"
+	IFS="	"
+	# shellcheck disable=SC2046
+	if ! should_process_zvol $(zfs list -H -o name,volmode,receive_resume_token,redact_snaps "$1") ; then
+		exit 0
+	fi
+	IFS="$OLDIFS"
+
+	outerloop=0
+	while [ "$outerloop" -lt 20 ] ; do
+		innerloop=0
+		while [ "$innerloop" -lt 30 ] ; do
+			[ -e "$devnode" ] && [ ! -L "$devnode" ] && exit 0
+			innerloop="$(( innerloop + 1))"
+			sleep 1
+		done
+		if ! zfs list "$1" 2>/dev/null >/dev/null ; then
+			# The dataset was deleted
+			exit 0
+		fi
+		outerloop="$(( outerloop + 1 ))"
+		sleep 1
+	done
+
+	exit 1
+fi
+
 zvols=$(list_zvols)
 zvols_count=$(count_zvols)
 if [ "$zvols_count" -eq 0 ]; then
