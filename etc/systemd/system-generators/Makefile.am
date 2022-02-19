@@ -9,6 +9,4 @@ zfs_mount_generator_SOURCES = \
 zfs_mount_generator_LDADD = \
 	$(abs_top_builddir)/lib/libzfs/libzfs.la
 
-zfs_mount_generator_LDFLAGS = -pthread
-
 include $(top_srcdir)/config/CppCheck.am
