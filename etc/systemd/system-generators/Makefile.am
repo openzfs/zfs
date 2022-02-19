@@ -1,5 +1,7 @@
 include $(top_srcdir)/config/Rules.am
 
+AM_CPPFLAGS += -DSYSTEMDUNITDIR=\"$(systemdunitdir)\"
+
 systemdgenerator_PROGRAMS = \
 	zfs-mount-generator
 
