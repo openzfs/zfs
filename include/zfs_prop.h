@@ -76,10 +76,11 @@ typedef struct {
 					/* fs | vol | snap; or pool */
 	const char *pd_values;		/* string telling acceptable values */
 	const char *pd_colname;		/* column header for "zfs list" */
-	boolean_t pd_rightalign;	/* column alignment for "zfs list" */
-	boolean_t pd_visible;		/* do we list this property with the */
+	boolean_t pd_rightalign: 1;	/* column alignment for "zfs list" */
+	boolean_t pd_visible: 1;	/* do we list this property with the */
 					/* "zfs get" help message */
-	boolean_t pd_zfs_mod_supported;	/* supported by running zfs module */
+	boolean_t pd_zfs_mod_supported: 1; /* supported by running zfs module */
+	boolean_t pd_always_flex: 1;	/* never fixed-width */
 	const zprop_index_t *pd_table;	/* for index properties, a table */
 					/* defining the possible values */
 	size_t pd_table_size;		/* number of entries in pd_table[] */
@@ -112,19 +113,20 @@ _ZFS_PROP_H zprop_desc_t *vdev_prop_get_table(void);
  */
 _ZFS_PROP_H void zprop_register_impl(int, const char *, zprop_type_t, uint64_t,
     const char *, zprop_attr_t, int, const char *, const char *,
-    boolean_t, boolean_t, const zprop_index_t *,
+    boolean_t, boolean_t, boolean_t, const zprop_index_t *,
     const struct zfs_mod_supported_features *);
 _ZFS_PROP_H void zprop_register_string(int, const char *, const char *,
     zprop_attr_t attr, int, const char *, const char *,
     const struct zfs_mod_supported_features *);
 _ZFS_PROP_H void zprop_register_number(int, const char *, uint64_t,
-    zprop_attr_t, int, const char *, const char *,
+    zprop_attr_t, int, const char *, const char *, boolean_t,
     const struct zfs_mod_supported_features *);
 _ZFS_PROP_H void zprop_register_index(int, const char *, uint64_t, zprop_attr_t,
     int, const char *, const char *, const zprop_index_t *,
     const struct zfs_mod_supported_features *);
 _ZFS_PROP_H void zprop_register_hidden(int, const char *, zprop_type_t,
-    zprop_attr_t, int, const char *, const struct zfs_mod_supported_features *);
+    zprop_attr_t, int, const char *, boolean_t,
+    const struct zfs_mod_supported_features *);
 
 /*
  * Common routines for zfs and zpool property management

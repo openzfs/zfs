@@ -347,6 +347,8 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 		case ZPOOL_PROP_FREEING:
 		case ZPOOL_PROP_LEAKED:
 		case ZPOOL_PROP_ASHIFT:
+		case ZPOOL_PROP_MAXBLOCKSIZE:
+		case ZPOOL_PROP_MAXDNODESIZE:
 			if (literal)
 				(void) snprintf(buf, len, "%llu",
 				    (u_longlong_t)intval);
@@ -5160,6 +5162,7 @@ zpool_get_vdev_prop_value(nvlist_t *nvprop, vdev_prop_t prop, char *prop_name,
 		case VDEV_PROP_ASIZE:
 		case VDEV_PROP_PSIZE:
 		case VDEV_PROP_SIZE:
+		case VDEV_PROP_BOOTSIZE:
 		case VDEV_PROP_ALLOCATED:
 		case VDEV_PROP_FREE:
 		case VDEV_PROP_READ_ERRORS:

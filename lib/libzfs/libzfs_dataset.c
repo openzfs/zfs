@@ -2903,6 +2903,8 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 		break;
 
 	case ZFS_PROP_GUID:
+	case ZFS_PROP_KEY_GUID:
+	case ZFS_PROP_IVSET_GUID:
 	case ZFS_PROP_CREATETXG:
 	case ZFS_PROP_OBJSETID:
 	case ZFS_PROP_PBKDF2_ITERS:
