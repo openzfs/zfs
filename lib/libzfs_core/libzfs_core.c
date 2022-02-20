@@ -586,6 +586,30 @@ lzc_get_holds(const char *snapname, nvlist_t **holdsp)
 	return (lzc_ioctl(ZFS_IOC_GET_HOLDS, snapname, NULL, holdsp));
 }
 
+static void
+max_pipe_buffer(int infd)
+{
+#if __linux__
+	FILE *procf = fopen("/proc/sys/fs/pipe-max-size", "re");
+
+	if (procf != NULL) {
+		unsigned long max_psize;
+		long cur_psize;
+		if (fscanf(procf, "%lu", &max_psize) > 0) {
+			cur_psize = fcntl(infd, F_GETPIPE_SZ);
+			if (cur_psize > 0 &&
+			    max_psize > (unsigned long) cur_psize)
+				fcntl(infd, F_SETPIPE_SZ,
+				    max_psize);
+		}
+		fclose(procf);
+	}
+#else
+	/* FreeBSD automatically resizes */
+	(void) infd;
+#endif
+}
+
 /*
  * Generate a zfs send stream for the specified snapshot and write it to
  * the specified file descriptor.
@@ -810,6 +834,16 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 			return (ENOENT);
 		*slashp = '\0';
 	}
+
+	/*
+	 * It is not uncommon for gigabytes to be processed by zfs receive.
+	 * Speculatively increase the buffer size if supported by the platform.
+	 */
+	struct stat sb;
+	if (fstat(input_fd, &sb) == -1)
+		return (errno);
+	if (S_ISFIFO(sb.st_mode))
+		max_pipe_buffer(input_fd);
 
 	/*
 	 * The begin_record is normally a non-byteswapped BEGIN record.
