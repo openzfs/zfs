@@ -257,7 +257,6 @@ extern int libzfs_load_module(void);
 extern int zpool_relabel_disk(libzfs_handle_t *hdl, const char *path,
     const char *msg);
 extern int find_shares_object(differ_info_t *di);
-extern void libzfs_set_pipe_max(int infd);
 extern void zfs_commit_proto(const zfs_share_proto_t *);
 
 #ifdef	__cplusplus
