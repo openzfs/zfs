@@ -728,34 +728,6 @@ finish_progress(char *done)
 	pt_header = NULL;
 }
 
-/* This function checks if the passed fd refers to /dev/null or /dev/zero */
-#ifdef __linux__
-static boolean_t
-is_dev_nullzero(int fd)
-{
-	struct stat st;
-	fstat(fd, &st);
-	return (major(st.st_rdev) == 1 && (minor(st.st_rdev) == 3 /* null */ ||
-	    minor(st.st_rdev) == 5 /* zero */));
-}
-#endif
-
-static void
-note_dev_error(int err, int fd)
-{
-#ifdef __linux__
-	if (err == EINVAL && is_dev_nullzero(fd)) {
-		(void) fprintf(stderr,
-		    gettext("Error: Writing directly to /dev/{null,zero} files"
-		    " on certain kernels is not currently implemented.\n"
-		    "(As a workaround, "
-		    "try \"zfs send [...] | cat > /dev/null\")\n"));
-	}
-#else
-	(void) err, (void) fd;
-#endif
-}
-
 static int
 zfs_mount_and_share(libzfs_handle_t *hdl, const char *dataset, zfs_type_t type)
 {
@@ -4597,16 +4569,11 @@ zfs_do_send(int argc, char **argv)
 
 		err = zfs_send_saved(zhp, &flags, STDOUT_FILENO,
 		    resume_token);
-		if (err != 0)
-			note_dev_error(errno, STDOUT_FILENO);
 		zfs_close(zhp);
 		return (err != 0);
 	} else if (resume_token != NULL) {
-		err = zfs_send_resume(g_zfs, &flags, STDOUT_FILENO,
-		    resume_token);
-		if (err != 0)
-			note_dev_error(errno, STDOUT_FILENO);
-		return (err);
+		return (zfs_send_resume(g_zfs, &flags, STDOUT_FILENO,
+		    resume_token));
 	}
 
 	if (flags.skipmissing && !flags.replicate) {
@@ -4657,8 +4624,6 @@ zfs_do_send(int argc, char **argv)
 		err = zfs_send_one(zhp, fromname, STDOUT_FILENO, &flags,
 		    redactbook);
 		zfs_close(zhp);
-		if (err != 0)
-			note_dev_error(errno, STDOUT_FILENO);
 		return (err != 0);
 	}
 
@@ -4735,7 +4700,6 @@ zfs_do_send(int argc, char **argv)
 		nvlist_free(dbgnv);
 	}
 	zfs_close(zhp);
-	note_dev_error(errno, STDOUT_FILENO);
 
 	return (err != 0);
 }
