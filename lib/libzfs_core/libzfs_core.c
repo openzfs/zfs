@@ -91,6 +91,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/zfs_ioctl.h>
+#if __FreeBSD__
+#define	BIG_PIPE_SIZE (64 * 1024) /* From sys/pipe.h */
+#endif
 
 static int g_fd = -1;
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -586,27 +589,31 @@ lzc_get_holds(const char *snapname, nvlist_t **holdsp)
 	return (lzc_ioctl(ZFS_IOC_GET_HOLDS, snapname, NULL, holdsp));
 }
 
-static void
+static unsigned int
 max_pipe_buffer(int infd)
 {
 #if __linux__
-	FILE *procf = fopen("/proc/sys/fs/pipe-max-size", "re");
+	static unsigned int max;
+	if (max == 0) {
+		max = 1048576; /* fs/pipe.c default */
 
-	if (procf != NULL) {
-		unsigned long max_psize;
-		long cur_psize;
-		if (fscanf(procf, "%lu", &max_psize) > 0) {
-			cur_psize = fcntl(infd, F_GETPIPE_SZ);
-			if (cur_psize > 0 &&
-			    max_psize > (unsigned long) cur_psize)
-				fcntl(infd, F_SETPIPE_SZ,
-				    max_psize);
+		FILE *procf = fopen("/proc/sys/fs/pipe-max-size", "re");
+		if (procf != NULL) {
+			if (fscanf(procf, "%u", &max) <= 0) {
+				/* ignore error: max untouched if parse fails */
+			}
+			fclose(procf);
 		}
-		fclose(procf);
 	}
+
+	unsigned int cur = fcntl(infd, F_GETPIPE_SZ);
+	if (cur < max && fcntl(infd, F_SETPIPE_SZ, max) != -1)
+		cur = max;
+	return (cur);
 #else
 	/* FreeBSD automatically resizes */
 	(void) infd;
+	return (BIG_PIPE_SIZE);
 #endif
 }
 
@@ -843,7 +850,7 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 	if (fstat(input_fd, &sb) == -1)
 		return (errno);
 	if (S_ISFIFO(sb.st_mode))
-		max_pipe_buffer(input_fd);
+		(void) max_pipe_buffer(input_fd);
 
 	/*
 	 * The begin_record is normally a non-byteswapped BEGIN record.
