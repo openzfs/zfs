@@ -4688,7 +4688,7 @@ print_iostat_default(vdev_stat_t *vs, iostat_cbdata_t *cb, double scale)
 	    format, column_width, cb->cb_scripted);
 }
 
-static const char *class_name[] = {
+static const char *const class_name[] = {
 	VDEV_ALLOC_BIAS_DEDUP,
 	VDEV_ALLOC_BIAS_SPECIAL,
 	VDEV_ALLOC_CLASS_LOGS
@@ -4857,7 +4857,7 @@ children:
 	/*
 	 * print all other top-level devices
 	 */
-	for (uint_t n = 0; n < 3; n++) {
+	for (uint_t n = 0; n < ARRAY_SIZE(class_name); n++) {
 		boolean_t printed = B_FALSE;
 
 		for (c = 0; c < children; c++) {
@@ -6220,7 +6220,7 @@ print_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 	}
 
 	/* list the classes: 'logs', 'dedup', and 'special' */
-	for (uint_t n = 0; n < 3; n++) {
+	for (uint_t n = 0; n < ARRAY_SIZE(class_name); n++) {
 		boolean_t printed = B_FALSE;
 
 		for (c = 0; c < children; c++) {
