@@ -437,6 +437,9 @@ zprop_width(int prop, boolean_t *fixed, zfs_type_t type)
 	prop_tbl = zprop_get_proptable(type);
 	pd = &prop_tbl[prop];
 
+	if (type != ZFS_TYPE_POOL && type != ZFS_TYPE_VDEV)
+		type = ZFS_TYPE_FILESYSTEM;
+
 	*fixed = B_TRUE;
 
 	/*
@@ -460,15 +463,16 @@ zprop_width(int prop, boolean_t *fixed, zfs_type_t type)
 		 * 'creation' is handled specially because it's a number
 		 * internally, but displayed as a date string.
 		 */
-		if (prop == ZFS_PROP_CREATION)
+		if (type == ZFS_TYPE_FILESYSTEM && prop == ZFS_PROP_CREATION)
 			*fixed = B_FALSE;
 		/*
 		 * 'health' is handled specially because it's a number
 		 * internally, but displayed as a fixed 8 character string.
 		 */
-		if (prop == ZPOOL_PROP_HEALTH)
+		if (type == ZFS_TYPE_POOL && prop == ZPOOL_PROP_HEALTH)
 			ret = 8;
 		break;
+
 	case PROP_TYPE_INDEX:
 		idx = prop_tbl[prop].pd_table;
 		for (i = 0; idx[i].pi_name != NULL; i++) {
