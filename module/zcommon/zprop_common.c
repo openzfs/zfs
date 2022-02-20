@@ -97,7 +97,8 @@ void
 zprop_register_impl(int prop, const char *name, zprop_type_t type,
     uint64_t numdefault, const char *strdefault, zprop_attr_t attr,
     int objset_types, const char *values, const char *colname,
-    boolean_t rightalign, boolean_t visible, const zprop_index_t *idx_tbl,
+    boolean_t rightalign, boolean_t visible, boolean_t flex,
+    const zprop_index_t *idx_tbl,
     const struct zfs_mod_supported_features *sfeatures)
 {
 	zprop_desc_t *prop_tbl = zprop_get_proptable(objset_types);
@@ -122,6 +123,7 @@ zprop_register_impl(int prop, const char *name, zprop_type_t type,
 	pd->pd_visible = visible;
 	pd->pd_zfs_mod_supported =
 	    zfs_mod_supported_prop(name, objset_types, sfeatures);
+	pd->pd_always_flex = flex;
 	pd->pd_table = idx_tbl;
 	pd->pd_table_size = 0;
 	while (idx_tbl && (idx_tbl++)->pi_name != NULL)
@@ -134,17 +136,20 @@ zprop_register_string(int prop, const char *name, const char *def,
     const char *colname, const struct zfs_mod_supported_features *sfeatures)
 {
 	zprop_register_impl(prop, name, PROP_TYPE_STRING, 0, def, attr,
-	    objset_types, values, colname, B_FALSE, B_TRUE, NULL, sfeatures);
+	    objset_types, values, colname, B_FALSE, B_TRUE, B_FALSE, NULL,
+	    sfeatures);
 
 }
 
 void
 zprop_register_number(int prop, const char *name, uint64_t def,
     zprop_attr_t attr, int objset_types, const char *values,
-    const char *colname, const struct zfs_mod_supported_features *sfeatures)
+    const char *colname, boolean_t flex,
+    const struct zfs_mod_supported_features *sfeatures)
 {
 	zprop_register_impl(prop, name, PROP_TYPE_NUMBER, def, NULL, attr,
-	    objset_types, values, colname, B_TRUE, B_TRUE, NULL, sfeatures);
+	    objset_types, values, colname, B_TRUE, B_TRUE, flex, NULL,
+	    sfeatures);
 }
 
 void
@@ -154,17 +159,18 @@ zprop_register_index(int prop, const char *name, uint64_t def,
     const struct zfs_mod_supported_features *sfeatures)
 {
 	zprop_register_impl(prop, name, PROP_TYPE_INDEX, def, NULL, attr,
-	    objset_types, values, colname, B_FALSE, B_TRUE, idx_tbl, sfeatures);
+	    objset_types, values, colname, B_FALSE, B_TRUE, B_FALSE, idx_tbl,
+	    sfeatures);
 }
 
 void
 zprop_register_hidden(int prop, const char *name, zprop_type_t type,
-    zprop_attr_t attr, int objset_types, const char *colname,
+    zprop_attr_t attr, int objset_types, const char *colname, boolean_t flex,
     const struct zfs_mod_supported_features *sfeatures)
 {
 	zprop_register_impl(prop, name, type, 0, NULL, attr,
 	    objset_types, NULL, colname,
-	    type == PROP_TYPE_NUMBER, B_FALSE, NULL, sfeatures);
+	    type == PROP_TYPE_NUMBER, B_FALSE, flex, NULL, sfeatures);
 }
 
 
@@ -440,7 +446,7 @@ zprop_width(int prop, boolean_t *fixed, zfs_type_t type)
 	if (type != ZFS_TYPE_POOL && type != ZFS_TYPE_VDEV)
 		type = ZFS_TYPE_FILESYSTEM;
 
-	*fixed = B_TRUE;
+	*fixed = !pd->pd_always_flex;
 
 	/*
 	 * Start with the width of the column name.
@@ -460,12 +466,6 @@ zprop_width(int prop, boolean_t *fixed, zfs_type_t type)
 		if (ret < 5)
 			ret = 5;
 		/*
-		 * 'creation' is handled specially because it's a number
-		 * internally, but displayed as a date string.
-		 */
-		if (type == ZFS_TYPE_FILESYSTEM && prop == ZFS_PROP_CREATION)
-			*fixed = B_FALSE;
-		/*
 		 * 'health' is handled specially because it's a number
 		 * internally, but displayed as a fixed 8 character string.
 		 */
@@ -482,7 +482,6 @@ zprop_width(int prop, boolean_t *fixed, zfs_type_t type)
 		break;
 
 	case PROP_TYPE_STRING:
-		*fixed = B_FALSE;
 		break;
 	}
 
