@@ -5243,13 +5243,6 @@ zfs_receive(libzfs_handle_t *hdl, const char *tosnap, nvlist_t *props,
 		return (-2);
 	}
 
-	/*
-	 * It is not uncommon for gigabytes to be processed in zfs receive.
-	 * Speculatively increase the buffer size if supported by the platform.
-	 */
-	if (S_ISFIFO(sb.st_mode))
-		libzfs_set_pipe_max(infd);
-
 	if (props) {
 		err = nvlist_lookup_string(props, "origin", &originsnap);
 		if (err && err != ENOENT)
