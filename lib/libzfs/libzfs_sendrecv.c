@@ -4177,7 +4177,6 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	char errbuf[1024];
 	const char *chopprefix;
 	boolean_t newfs = B_FALSE;
-	boolean_t stream_wantsnewfs, stream_resumingnewfs;
 	boolean_t newprops = B_FALSE;
 	uint64_t read_bytes = 0;
 	uint64_t errflags = 0;
@@ -4368,7 +4367,8 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		if (flags->verbose)
 			(void) printf("using provided clone origin %s\n",
 			    origin);
-	} else if (drrb->drr_flags & DRR_FLAG_CLONE) {
+	} else if (drrb->drr_flags & DRR_FLAG_CLONE &&
+	    !flags->allow_clone_as_incremental) {
 		if (guid_to_name(hdl, destsnap,
 		    drrb->drr_fromguid, B_FALSE, origin) != 0) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -4399,10 +4399,14 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	    DMU_BACKUP_FEATURE_RAW;
 	boolean_t embedded = DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo) &
 	    DMU_BACKUP_FEATURE_EMBED_DATA;
-	stream_wantsnewfs = (drrb->drr_fromguid == 0 ||
-	    (drrb->drr_flags & DRR_FLAG_CLONE) || originsnap) && !resuming;
-	stream_resumingnewfs = (drrb->drr_fromguid == 0 ||
-	    (drrb->drr_flags & DRR_FLAG_CLONE) || originsnap) && resuming;
+	/* next two, see dmu_recv.c */
+	const boolean_t stream_wants_clone = drrb->drr_flags & DRR_FLAG_CLONE &&
+	    !flags->allow_clone_as_incremental;
+	const boolean_t caller_wants_clone = originsnap != NULL;
+	const boolean_t stream_wantsnewfs = (drrb->drr_fromguid == 0 ||
+	    stream_wants_clone || caller_wants_clone) && !resuming;
+	const boolean_t stream_resumingnewfs = (drrb->drr_fromguid == 0 ||
+	    stream_wants_clone || caller_wants_clone) && resuming;
 
 	if (stream_wantsnewfs) {
 		/*
@@ -4736,7 +4740,8 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	}
 
 	err = ioctl_err = lzc_receive_with_cmdprops(destsnap, rcvprops,
-	    oxprops, wkeydata, wkeylen, origin, flags->force, flags->resumable,
+	    oxprops, wkeydata, wkeylen, origin,
+	    flags->allow_clone_as_incremental, flags->force, flags->resumable,
 	    raw, infd, drr_noswap, -1, &read_bytes, &errflags,
 	    NULL, &prop_errors);
 	ioctl_errno = ioctl_err;

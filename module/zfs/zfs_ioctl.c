@@ -4923,7 +4923,8 @@ static boolean_t zfs_ioc_recv_inject_err;
  * encountered errors, if any. It's the callers responsibility to free.
  */
 static int
-zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
+zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin,
+    boolean_t allow_clone_as_incremental, nvlist_t *recvprops,
     nvlist_t *localprops, nvlist_t *hidden_args, boolean_t force,
     boolean_t resumable, int input_fd,
     dmu_replay_record_t *begin_record, uint64_t *read_bytes,
@@ -4951,8 +4952,8 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
 
 	noff = off = zfs_file_off(input_fp);
 	error = dmu_recv_begin(tofs, tosnap, begin_record, force,
-	    resumable, localprops, hidden_args, origin, &drc, input_fp,
-	    &off);
+	    resumable, localprops, hidden_args, origin,
+	    allow_clone_as_incremental, &drc, input_fp, &off);
 	if (error != 0)
 		goto out;
 	tofs_was_redacted = dsl_get_redacted(drc.drc_ds);
@@ -5292,9 +5293,9 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 	begin_record.drr_payloadlen = 0;
 	begin_record.drr_u.drr_begin = zc->zc_begin_record;
 
-	error = zfs_ioc_recv_impl(tofs, tosnap, origin, recvdprops, localprops,
-	    NULL, zc->zc_guid, B_FALSE, zc->zc_cookie, &begin_record,
-	    &zc->zc_cookie, &zc->zc_obj, &errors);
+	error = zfs_ioc_recv_impl(tofs, tosnap, origin, B_FALSE, recvdprops,
+	    localprops, NULL, zc->zc_guid, B_FALSE, zc->zc_cookie,
+	    &begin_record, &zc->zc_cookie, &zc->zc_obj, &errors);
 	nvlist_free(recvdprops);
 	nvlist_free(localprops);
 
@@ -5339,17 +5340,18 @@ zfs_ioc_recv(zfs_cmd_t *zc)
  * }
  */
 static const zfs_ioc_key_t zfs_keys_recv_new[] = {
-	{"snapname",		DATA_TYPE_STRING,	0},
-	{"props",		DATA_TYPE_NVLIST,	ZK_OPTIONAL},
-	{"localprops",		DATA_TYPE_NVLIST,	ZK_OPTIONAL},
-	{"origin",		DATA_TYPE_STRING,	ZK_OPTIONAL},
-	{"begin_record",	DATA_TYPE_BYTE_ARRAY,	0},
-	{"input_fd",		DATA_TYPE_INT32,	0},
-	{"force",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
-	{"resumable",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
-	{"cleanup_fd",		DATA_TYPE_INT32,	ZK_OPTIONAL},
-	{"action_handle",	DATA_TYPE_UINT64,	ZK_OPTIONAL},
-	{"hidden_args",		DATA_TYPE_NVLIST,	ZK_OPTIONAL},
+	{"snapname",			DATA_TYPE_STRING,	0},
+	{"props",			DATA_TYPE_NVLIST,	ZK_OPTIONAL},
+	{"localprops",			DATA_TYPE_NVLIST,	ZK_OPTIONAL},
+	{"origin",			DATA_TYPE_STRING,	ZK_OPTIONAL},
+	{"allow_clone_as_incremental",	DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
+	{"begin_record",		DATA_TYPE_BYTE_ARRAY,	0},
+	{"input_fd",			DATA_TYPE_INT32,	0},
+	{"force",			DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
+	{"resumable",			DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
+	{"cleanup_fd",			DATA_TYPE_INT32,	ZK_OPTIONAL},
+	{"action_handle",		DATA_TYPE_UINT64,	ZK_OPTIONAL},
+	{"hidden_args",			DATA_TYPE_NVLIST,	ZK_OPTIONAL},
 };
 
 static int
@@ -5367,6 +5369,7 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	char tofs[ZFS_MAX_DATASET_NAME_LEN];
 	boolean_t force;
 	boolean_t resumable;
+	boolean_t allow_clone_as_incremental;
 	uint64_t read_bytes = 0;
 	uint64_t errflags = 0;
 	int input_fd = -1;
@@ -5397,6 +5400,9 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	force = nvlist_exists(innvl, "force");
 	resumable = nvlist_exists(innvl, "resumable");
 
+	allow_clone_as_incremental =
+	    nvlist_exists(innvl, "allow_clone_as_incremental");
+
 	/* we still use "props" here for backwards compatibility */
 	error = nvlist_lookup_nvlist(innvl, "props", &recvprops);
 	if (error && error != ENOENT)
@@ -5410,7 +5416,8 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	if (error && error != ENOENT)
 		return (error);
 
-	error = zfs_ioc_recv_impl(tofs, tosnap, origin, recvprops, localprops,
+	error = zfs_ioc_recv_impl(tofs, tosnap, origin,
+	    allow_clone_as_incremental, recvprops, localprops,
 	    hidden_args, force, resumable, input_fd, begin_record,
 	    &read_bytes, &errflags, &errors);
 

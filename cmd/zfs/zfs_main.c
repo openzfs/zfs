@@ -4755,7 +4755,7 @@ zfs_do_receive(int argc, char **argv)
 		nomem();
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":o:x:dehMnuvFsA")) != -1) {
+	while ((c = getopt(argc, argv, ":o:x:CdehMnuvFsA")) != -1) {
 		switch (c) {
 		case 'o':
 			if (!parseprop(props, optarg)) {
@@ -4786,6 +4786,9 @@ zfs_do_receive(int argc, char **argv)
 				usage(B_FALSE);
 			}
 			flags.istail = B_TRUE;
+			break;
+		case 'C':
+			flags.allow_clone_as_incremental = B_TRUE;
 			break;
 		case 'h':
 			flags.skipholds = B_TRUE;
