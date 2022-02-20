@@ -289,8 +289,8 @@ function check_prop_source
 
 	if [[ "$chk_value" != "$value" || "$chk_source" != "$source" ]]
 	then
-		log_note "expected (value '$value', source '$source'), got \
-			(value '$chk_value', source '$chk_source')"
+		log_note "expected (value '$value', source '$source')," \
+			"got (value '$chk_value', source '$chk_source')"
 		return 1
 	else
 		return 0
@@ -318,6 +318,8 @@ function check_prop_inherit
         if [[ "$value" != "$inherited_value" || \
             "$source" != "inherited from $inherited_dtst" ]]
         then
+                log_note "expected (value '$inherited_value', source 'inherited from $inherited_dtst')," \
+                        "got (value '$value', source '$source')"
                 return 1
         else
                 return 0
@@ -341,7 +343,7 @@ function check_prop_received
 
         received=$(zfs get -H -o received "$prop" "$dataset")
         if (($? != 0)); then
-                log_fail "Unable to get $prop received value for dataset " \
+                log_fail "Unable to get $prop received value for dataset" \
                     "$dataset"
         fi
         if [[ "$received" == "$value" ]]
