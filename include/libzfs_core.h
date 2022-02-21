@@ -86,6 +86,7 @@ enum lzc_send_flags {
 	LZC_SEND_FLAG_SAVED = 1 << 4,
 };
 
+_LIBZFS_CORE_H int lzc_send_wrapper(int (*)(int, void *), int, void *);
 _LIBZFS_CORE_H int lzc_send(const char *, const char *, int,
     enum lzc_send_flags);
 _LIBZFS_CORE_H int lzc_send_resume(const char *, const char *, int,
