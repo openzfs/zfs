@@ -1682,8 +1682,8 @@ lzc_flags_from_resume_nvl(nvlist_t *resume_nvl)
 }
 
 static int
-zfs_send_resume_impl(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
-    nvlist_t *resume_nvl)
+zfs_send_resume_impl_cb_impl(libzfs_handle_t *hdl, sendflags_t *flags,
+    int outfd, nvlist_t *resume_nvl)
 {
 	char errbuf[1024];
 	char *toname;
@@ -1891,6 +1891,32 @@ zfs_send_resume_impl(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
 	zfs_close(zhp);
 
 	return (error);
+}
+
+struct zfs_send_resume_impl {
+	libzfs_handle_t *hdl;
+	sendflags_t *flags;
+	nvlist_t *resume_nvl;
+};
+
+static int
+zfs_send_resume_impl_cb(int outfd, void *arg)
+{
+	struct zfs_send_resume_impl *zsri = arg;
+	return (zfs_send_resume_impl_cb_impl(zsri->hdl, zsri->flags, outfd,
+	    zsri->resume_nvl));
+}
+
+static int
+zfs_send_resume_impl(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
+    nvlist_t *resume_nvl)
+{
+	struct zfs_send_resume_impl zsri = {
+		.hdl = hdl,
+		.flags = flags,
+		.resume_nvl = resume_nvl,
+	};
+	return (lzc_send_wrapper(zfs_send_resume_impl_cb, outfd, &zsri));
 }
 
 int
@@ -2170,9 +2196,11 @@ send_prelim_records(zfs_handle_t *zhp, const char *from, int fd,
  * if "replicate" is set.  If "doall" is set, dump all the intermediate
  * snapshots. The DMU_COMPOUNDSTREAM header is used in the "doall"
  * case too. If "props" is set, send properties.
+ *
+ * Pre-wrapped (cf. lzc_send_wrapper()).
  */
-int
-zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
+static int
+zfs_send_cb_impl(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
     sendflags_t *flags, int outfd, snapfilter_cb_t filter_func,
     void *cb_arg, nvlist_t **debugnvp)
 {
@@ -2374,6 +2402,42 @@ err_out:
 	return (err);
 }
 
+struct zfs_send {
+	zfs_handle_t *zhp;
+	const char *fromsnap;
+	const char *tosnap;
+	sendflags_t *flags;
+	snapfilter_cb_t *filter_func;
+	void *cb_arg;
+	nvlist_t **debugnvp;
+};
+
+static int
+zfs_send_cb(int outfd, void *arg)
+{
+	struct zfs_send *zs = arg;
+	return (zfs_send_cb_impl(zs->zhp, zs->fromsnap, zs->tosnap, zs->flags,
+	    outfd, zs->filter_func, zs->cb_arg, zs->debugnvp));
+}
+
+int
+zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
+    sendflags_t *flags, int outfd, snapfilter_cb_t filter_func,
+    void *cb_arg, nvlist_t **debugnvp)
+{
+	struct zfs_send arg = {
+		.zhp = zhp,
+		.fromsnap = fromsnap,
+		.tosnap = tosnap,
+		.flags = flags,
+		.filter_func = filter_func,
+		.cb_arg = cb_arg,
+		.debugnvp = debugnvp,
+	};
+	return (lzc_send_wrapper(zfs_send_cb, outfd, &arg));
+}
+
+
 static zfs_handle_t *
 name_to_dir_handle(libzfs_handle_t *hdl, const char *snapname)
 {
@@ -2450,10 +2514,12 @@ snapshot_is_before(zfs_handle_t *earlier, zfs_handle_t *later)
  * The "zhp" argument is the handle of the dataset to send (typically a
  * snapshot).  The "from" argument is the full name of the snapshot or
  * bookmark that is the incremental source.
+ *
+ * Pre-wrapped (cf. lzc_send_wrapper()).
  */
-int
-zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
-    const char *redactbook)
+static int
+zfs_send_one_cb_impl(zfs_handle_t *zhp, const char *from, int fd,
+    sendflags_t *flags, const char *redactbook)
 {
 	int err;
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
@@ -2640,6 +2706,34 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 		}
 	}
 	return (err != 0);
+}
+
+struct zfs_send_one {
+	zfs_handle_t *zhp;
+	const char *from;
+	sendflags_t *flags;
+	const char *redactbook;
+};
+
+static int
+zfs_send_one_cb(int fd, void *arg)
+{
+	struct zfs_send_one *zso = arg;
+	return (zfs_send_one_cb_impl(zso->zhp, zso->from, fd, zso->flags,
+	    zso->redactbook));
+}
+
+int
+zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
+    const char *redactbook)
+{
+	struct zfs_send_one zso = {
+		.zhp = zhp,
+		.from = from,
+		.flags = flags,
+		.redactbook = redactbook,
+	};
+	return (lzc_send_wrapper(zfs_send_one_cb, fd, &zso));
 }
 
 /*
