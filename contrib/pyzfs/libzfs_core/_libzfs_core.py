@@ -1308,8 +1308,8 @@ def lzc_receive_one(
 @_uncommitted()
 def lzc_receive_with_cmdprops(
     snapname, fd, begin_record, force=False, resumable=False, raw=False,
-    origin=None, props=None, cmdprops=None, key=None, cleanup_fd=-1,
-    action_handle=0
+    origin=None, allow_clone_as_incremental=False, props=None, cmdprops=None,
+    key=None, cleanup_fd=-1, action_handle=0
 ):
     '''
     Like :func:`lzc_receive_one`, but allows the caller to pass an additional
@@ -1331,6 +1331,8 @@ def lzc_receive_with_cmdprops(
     :param origin: the optional origin snapshot name if the stream is for a
         clone.
     :type origin: bytes or None
+    :param bool allow_clone_as_incremental: allow receiving a clone stream as
+        an incremental stream into an existing dataset.
     :param props: the properties to set on the snapshot as *received*
         properties.
     :type props: dict of bytes : Any
@@ -1419,8 +1421,8 @@ def lzc_receive_with_cmdprops(
     with nvlist_out(properrs) as c_errors:
         ret = _lib.lzc_receive_with_cmdprops(
             snapname, nvlist, cmdnvlist, key, len(key), c_origin,
-            force, resumable, raw, fd, begin_record, cleanup_fd, c_read_bytes,
-            c_errflags, c_action_handle, c_errors)
+            allow_clone_as_incremental, force, resumable, raw, fd, begin_record,
+            cleanup_fd, c_read_bytes, c_errflags, c_action_handle, c_errors)
     errors.lzc_receive_translate_errors(
         ret, snapname, fd, force, raw, False, False, origin, properrs)
     return (int(c_read_bytes[0]), action_handle)
