@@ -667,6 +667,20 @@ getf_vnode(void *fp)
 }
 
 void
+releasefp(struct spl_fileproc *fp)
+{
+	if (fp->f_fp)
+		ObDereferenceObject(fp->f_fp);
+
+	/* Remove node from the list */
+	mutex_enter(&spl_getf_lock);
+	list_remove(&spl_getf_list, fp);
+	mutex_exit(&spl_getf_lock);
+
+	/* Free the node */
+	kmem_free(fp, sizeof (*fp));
+}
+void
 releasef(uint64_t fd)
 {
 
@@ -688,18 +702,8 @@ releasef(uint64_t fd)
 		return; // Not found
 
 	// printf("SPL: releasing %p\n", fp);
-
-	// Release the hold from getf().
-	if (fp->f_fp)
-		ObDereferenceObject(fp->f_fp);
-
-	// Remove node from the list
-	mutex_enter(&spl_getf_lock);
-	list_remove(&spl_getf_list, fp);
-	mutex_exit(&spl_getf_lock);
-
-	// Free the node
-	kmem_free(fp, sizeof (*fp));
+        releasefp(fp);
+	
 #endif
 }
 

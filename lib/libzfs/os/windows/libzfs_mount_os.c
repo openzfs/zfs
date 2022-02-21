@@ -477,3 +477,17 @@ zfs_snapshot_unmount(zfs_handle_t *zhp, int flags)
 
 	return (ret);
 }
+
+/* Called from the tail end of zpool_disable_datasets() */
+void
+zpool_disable_datasets_os(zpool_handle_t *zhp, boolean_t force)
+{
+	(void) zhp, (void) force;
+}
+
+/* Called from the tail end of zfs_unmount() */
+void
+zpool_disable_volume_os(const char *name)
+{
+	(void) name;
+}

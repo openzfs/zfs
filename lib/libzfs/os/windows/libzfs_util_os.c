@@ -49,7 +49,7 @@
 int
 zfs_ioctl(libzfs_handle_t *hdl, int request, zfs_cmd_t *zc)
 {
-	return (zfs_ioctl_fd(hdl->libzfs_fd, request, zc));
+	return (lzc_ioctl_fd(hdl->libzfs_fd, request, zc));
 }
 
 const char *
@@ -269,6 +269,7 @@ done:
 void
 zfs_rollback_os(zfs_handle_t *zhp)
 {
+	(void) zhp;
 }
 
 
@@ -281,5 +282,12 @@ int
 libzfs_run_process_impl(const char *path, char *argv[], char *env[],
     int flags, char **lines[], int *lines_cnt)
 {
+	return (0);
+}
+
+int
+zfs_destroy_snaps_nvl_os(libzfs_handle_t *hdl, nvlist_t *snaps)
+{
+	(void) hdl, (void) snaps;
 	return (0);
 }

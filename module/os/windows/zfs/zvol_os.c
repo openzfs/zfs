@@ -52,6 +52,7 @@ extern void wzvol_clear_targetid(uint8_t targetid, uint8_t lun,
     zvol_state_t *zv);
 extern void wzvol_announce_buschange(void);
 extern int wzvol_assign_targetid(zvol_state_t *zv);
+extern list_t zvol_state_list;
 
 typedef struct zv_request {
 	zvol_state_t *zv;
@@ -1006,17 +1007,6 @@ zvol_os_ioctl(dev_t dev, unsigned long cmd, caddr_t data, int isblk,
 	return (SET_ERROR(error));
 }
 
-const static zvol_platform_ops_t zvol_windows_ops = {
-	.zv_free = zvol_os_free,
-	.zv_rename_minor = zvol_os_rename_minor,
-	.zv_create_minor = zvol_os_create_minor,
-	.zv_update_volsize = zvol_os_update_volsize,
-	.zv_clear_private = zvol_os_clear_private,
-	.zv_is_zvol = zvol_os_is_zvol,
-	.zv_set_disk_ro = zvol_os_set_disk_ro,
-	.zv_set_capacity = zvol_os_set_capacity,
-};
-
 int
 zvol_init(void)
 {
@@ -1029,7 +1019,6 @@ zvol_init(void)
 	}
 
 	zvol_init_impl();
-	zvol_register_ops(&zvol_windows_ops);
 	return (0);
 }
 

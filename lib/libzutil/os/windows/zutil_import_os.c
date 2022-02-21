@@ -1238,3 +1238,9 @@ zfs_resolve_shortname_os(const char *name, char *path, size_t len)
 	}
 	return (ENOENT);
 }
+
+void
+update_vdevs_config_dev_sysfs_path(nvlist_t *config)
+{
+	(void) config;
+}

@@ -205,7 +205,7 @@ windows_kstat_update(kstat_t *ksp, int rw)
 		zfs_vnop_skip_unlinked_drain =
 		    ks->win32_skip_unlinked_drain.value.ui64;
 		zfs_vfs_sync_paranoia = ks->win32_use_system_sync.value.ui64;
-
+#if 0
 		/* L2ARC */
 		l2arc_write_max = ks->l2arc_write_max.value.ui64;
 		l2arc_write_boost = ks->l2arc_write_boost.value.ui64;
@@ -265,8 +265,8 @@ windows_kstat_update(kstat_t *ksp, int rw)
 		    ks->zfs_delay_scale.value.i64;
 		spa_asize_inflation =
 		    ks->spa_asize_inflation.value.i64;
-		zfs_prefetch_disable =
-		    ks->zfs_prefetch_disable.value.i64;
+		//zfs_prefetch_disable =
+		//    ks->zfs_prefetch_disable.value.i64;
 		zfetch_max_streams =
 		    ks->zfetch_max_streams.value.i64;
 		zfetch_min_sec_reap =
@@ -289,8 +289,8 @@ windows_kstat_update(kstat_t *ksp, int rw)
 		    ks->zfs_txg_timeout.value.i64;
 		zfs_vdev_cache_max =
 		    ks->zfs_vdev_cache_max.value.i64;
-		zfs_vdev_cache_size =
-		    ks->zfs_vdev_cache_size.value.i64;
+		// zfs_vdev_cache_size =
+		//    ks->zfs_vdev_cache_size.value.i64;
 		zfs_no_scrub_io =
 		    ks->zfs_no_scrub_io.value.i64;
 		zfs_no_scrub_prefetch =
@@ -376,7 +376,7 @@ windows_kstat_update(kstat_t *ksp, int rw)
 		    ks->zfs_vdev_initialize_value.value.ui64;
 		zfs_autoimport_disable =
 		    ks->zfs_autoimport_disable.value.ui64;
-
+#endif
 	} else {
 
 		/* kstat READ */
@@ -395,7 +395,7 @@ windows_kstat_update(kstat_t *ksp, int rw)
 		ks->win32_skip_unlinked_drain.value.ui64 =
 		    zfs_vnop_skip_unlinked_drain;
 		ks->win32_use_system_sync.value.ui64 = zfs_vfs_sync_paranoia;
-
+#if 0
 		/* L2ARC */
 		ks->l2arc_write_max.value.ui64 = l2arc_write_max;
 		ks->l2arc_write_boost.value.ui64 = l2arc_write_boost;
@@ -454,8 +454,8 @@ windows_kstat_update(kstat_t *ksp, int rw)
 		    zfs_delay_scale;
 		ks->spa_asize_inflation.value.i64 =
 		    spa_asize_inflation;
-		ks->zfs_prefetch_disable.value.i64 =
-		    zfs_prefetch_disable;
+		//ks->zfs_prefetch_disable.value.i64 =
+		//    zfs_prefetch_disable;
 		ks->zfetch_max_streams.value.i64 =
 		    zfetch_max_streams;
 		ks->zfetch_min_sec_reap.value.i64 =
@@ -478,8 +478,8 @@ windows_kstat_update(kstat_t *ksp, int rw)
 		    zfs_txg_timeout;
 		ks->zfs_vdev_cache_max.value.i64 =
 		    zfs_vdev_cache_max;
-		ks->zfs_vdev_cache_size.value.i64 =
-		    zfs_vdev_cache_size;
+		// ks->zfs_vdev_cache_size.value.i64 =
+		//    zfs_vdev_cache_size;
 		ks->zfs_no_scrub_io.value.i64 =
 		    zfs_no_scrub_io;
 		ks->zfs_no_scrub_prefetch.value.i64 =
@@ -561,8 +561,9 @@ windows_kstat_update(kstat_t *ksp, int rw)
 		    zfs_initialize_value;
 		ks->zfs_autoimport_disable.value.ui64 =
 		    zfs_autoimport_disable;
+#endif
 	}
-	arc_kstat_update_windows(ksp, rw);
+	// arc_kstat_update_windows(ksp, rw);
 	return (0);
 }
 

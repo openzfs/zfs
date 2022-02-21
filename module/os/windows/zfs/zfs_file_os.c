@@ -409,13 +409,10 @@ zfs_file_unlink(const char *path)
  *
  * Returns 0 on success EBADF on failure.
  */
-int
-zfs_file_get(int fd, zfs_file_t **fpp)
+zfs_file_t *
+zfs_file_get(int fd)
 {
-	*fpp = getf(fd);
-	if (*fpp == NULL)
-		return (EBADF);
-	return (0);
+	return (getf(fd));
 }
 
 /*
@@ -424,7 +421,7 @@ zfs_file_get(int fd, zfs_file_t **fpp)
  * fd - input file descriptor
  */
 void
-zfs_file_put(int fd)
+zfs_file_put(zfs_file_t *fp)
 {
-	releasef(fd);
+	releasefp(fp);
 }

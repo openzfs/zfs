@@ -31,6 +31,8 @@
 #include <sys/timer.h>
 #include <sys/condvar.h>
 
+#include <stdbool.h>
+
 /*
  * seg_kmem is the primary kernel memory segment driver.  It
  * maps the kernel heap [kernelheap, ekernelheap), module text,
@@ -98,14 +100,12 @@ void segkmem_free(vmem_t *vmp, void *inaddr, size_t size);
 
 /* Total memory held allocated */
 uint64_t segkmem_total_mem_allocated = 0;
+
 /* primary kernel heap arena */
 vmem_t *heap_arena;
-/* qcaches for zio and abd arenas */
-vmem_t *zio_arena_parent;
-/* arena for allocating file data */
-vmem_t *zio_arena;
-/* and for allocation of zfs metadata */
-vmem_t *zio_metadata_arena;
+
+/* qcaches abd */
+vmem_t *abd_arena;
 
 #ifdef _KERNEL
 extern uint64_t total_memory;
@@ -144,7 +144,7 @@ osif_malloc(uint64_t size)
 }
 
 void
-osif_free(void* buf, uint64_t size)
+osif_free(void *buf, uint64_t size)
 {
 #ifdef _KERNEL
 	ExFreePoolWithTag(buf, '!SFZ');
@@ -160,15 +160,13 @@ osif_free(void* buf, uint64_t size)
  * Configure vmem, such that the heap arena is fed,
  * and drains to the kernel low level allocator.
  */
-extern vmem_t *vmem_init(const char *, void *, uint32_t, uint32_t,
-    vmem_alloc_t *, vmem_free_t *);
-
 void
 kernelheap_init()
 {
-	heap_arena = vmem_init("heap", NULL, 0, PAGESIZE,
-	    (vmem_alloc_t *)segkmem_alloc, (vmem_free_t *)segkmem_free);
+	heap_arena = vmem_init("heap", NULL, 0, PAGESIZE, segkmem_alloc,
+	    segkmem_free);
 }
+
 
 void
 kernelheap_fini(void)
@@ -204,58 +202,30 @@ segkmem_free(vmem_t *vmp, void *inaddr, size_t size)
 // smd: we nevertheless plumb in an arena with heap as parent, so that
 // we can track stats and maintain the VM_ / qc settings differently
 void
-segkmem_zio_init()
+segkmem_abd_init()
 {
-
-	// note:  from startup.c and vm_machparam: SEGZIOMINSIZE = 512M.
-	// and SEGZSIOMAXSIZE = 512G; if physmem is between the two, then
-	// segziosize is (physmem - SEGZIOMAXSIZE) / 2.
-
-	// Illumos does not segregate zio_metadata_arena out of heap,
-	// almost exclusively for reasons involving panic dump data
-	// retention. However, parenting zio_metadata_arena to
-	// spl_root_arena and giving it its own qcaches provides better
-	// kstat observability *and* noticeably better performance in
-	// realworld (zfs/dmu) metadata-heavy activity.    Additionally,
-	// the qcaches pester spl_heap_arena only for slabs 256k and bigger,
-	// and each of the qcache entries (powers of two from PAGESIZE to
-	// 64k) are *exact-fit* and therefore dramatically reduce internal
-	// fragmentation and more than pay off for the extra code and (tiny)
-	// extra data for holding the arenas' segment tables.
+	/*
+	 * OpenZFS does not segregate the abd kmem cache out of the general
+	 * heap, leading to large numbers of short-lived slabs exchanged
+	 * between the kmem cache and it's parent.  XNU absorbs this with a
+	 * qcache, following its history of absorbing the pre-ABD zio file and
+	 * metadata caches being qcached (which raises the exchanges with the
+	 * general heap from PAGESIZE to 256k).
+	 */
 
 	extern vmem_t *spl_heap_arena;
 
-	zio_arena_parent = vmem_create("zfs_qcache", NULL, 0,
+	abd_arena = vmem_create("abd_cache", NULL, 0,
 	    PAGESIZE, vmem_alloc, vmem_free, spl_heap_arena,
-	    16 * 1024, VM_SLEEP | VMC_TIMEFREE);
+	    131072, VM_SLEEP | VMC_NO_QCACHE | VM_FIRSTFIT);
 
-	ASSERT(zio_arena_parent != NULL);
-
-	zio_arena = vmem_create("zfs_file_data", NULL, 0,
-	    PAGESIZE, vmem_alloc, vmem_free, zio_arena_parent,
-	    0, VM_SLEEP);
-
-	zio_metadata_arena = vmem_create("zfs_metadata", NULL, 0,
-	    PAGESIZE, vmem_alloc, vmem_free, zio_arena_parent,
-	    0, VM_SLEEP);
-
-	ASSERT(zio_arena != NULL);
-	ASSERT(zio_metadata_arena != NULL);
-
-	extern void spl_zio_no_grow_init(void);
-	spl_zio_no_grow_init();
+	ASSERT(abd_arena != NULL);
 }
 
 void
-segkmem_zio_fini(void)
+segkmem_abd_fini(void)
 {
-	if (zio_arena) {
-		vmem_destroy(zio_arena);
-	}
-	if (zio_metadata_arena) {
-		vmem_destroy(zio_metadata_arena);
-	}
-	if (zio_arena_parent) {
-		vmem_destroy(zio_arena_parent);
+	if (abd_arena) {
+		vmem_destroy(abd_arena);
 	}
 }

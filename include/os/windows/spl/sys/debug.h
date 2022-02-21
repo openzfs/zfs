@@ -247,4 +247,6 @@ extern void printBuffer(const char *fmt, ...);
 	typedef char __attribute__((unused))	\
 	__compile_time_assertion__ ## y[(x) ? 1 : -1]
 
+#define	zfs_fallthrough	    __attribute__((__fallthrough__))
+
 #endif /* SPL_DEBUG_H */

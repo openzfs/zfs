@@ -47,6 +47,7 @@ wdk_add_library(zfskern
   gzip.c
   hkdf.c
   lz4.c
+  lz4_zfs.c
   lzjb.c
   metaslab.c
   mmp.c

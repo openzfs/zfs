@@ -194,7 +194,7 @@ typedef struct blkptr_auth_buf {
 	uint64_t bab_pad;			/* reserved for future use */
 } blkptr_auth_buf_t;
 
-zio_crypt_info_t zio_crypt_table[ZIO_CRYPT_FUNCTIONS] = {
+const zio_crypt_info_t zio_crypt_table[ZIO_CRYPT_FUNCTIONS] = {
 	{"",			ZC_TYPE_NONE,	0,	"inherit"},
 	{"",			ZC_TYPE_NONE,	0,	"on"},
 	{"",			ZC_TYPE_NONE,	0,	"off"},

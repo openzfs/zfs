@@ -14,7 +14,7 @@ wdk_add_library(icpkern
   algs/modes/gcm.c
   algs/modes/gcm_generic.c
   algs/modes/modes.c
-  algs/sha1/sha1.c
+#  algs/sha1/sha1.c
   algs/sha2/sha2.c
   algs/skein/skein.c
   algs/skein/skein_block.c
@@ -43,12 +43,12 @@ wdk_add_library(icpkern
   core/kcf_sched.c
   illumos-crypto.c
   io/aes.c
-  io/sha1_mod.c
+#  io/sha1_mod.c
   io/sha2_mod.c
-  io/edonr_mod.c
+#  io/edonr_mod.c
   io/skein_mod.c
   #os/bitmap_arch.c
-  os/modconf.c
+#  os/modconf.c
   os/modhash.c
   spi/kcf_spi.c
 )

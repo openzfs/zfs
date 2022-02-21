@@ -86,6 +86,7 @@ add_library(libzpool
     "${MODULE_DIR}/zfs/gzip.c"
     "${MODULE_DIR}/zfs/hkdf.c"
     "${MODULE_DIR}/zfs/lz4.c"
+    "${MODULE_DIR}/zfs/lz4_zfs.c"
     "${MODULE_DIR}/zfs/lzjb.c"
     "${MODULE_DIR}/zfs/metaslab.c"
     "${MODULE_DIR}/zfs/mmp.c"

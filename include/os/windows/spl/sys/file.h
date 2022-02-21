@@ -46,6 +46,8 @@ struct spl_fileproc {
 
 void *getf(uint64_t fd);
 void releasef(uint64_t fd);
+void releasefp(struct spl_fileproc *fp);
+
 /* O3X extended - get vnode from previos getf() */
 struct vnode *getf_vnode(void *fp);
 

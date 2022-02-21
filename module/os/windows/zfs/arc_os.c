@@ -154,7 +154,7 @@ arc_memory_throttle(spa_t *spa, uint64_t reserve, uint64_t txg)
  */
 static void arc_kmem_reap_now(void)
 {
-	arc_wait_for_eviction(0);
+	arc_wait_for_eviction(0, B_FALSE);
 
 	/* arc.c will do the heavy lifting */
 	arc_kmem_reap_soon();
@@ -208,7 +208,7 @@ arc_reclaim_thread(void *unused)
 			    (arc_c >> arc_shrink_shift)));
 		}
 
-		arc_wait_for_eviction(0);
+		arc_wait_for_eviction(0, B_FALSE);
 
 		int64_t free_memory = arc_available_memory();
 
@@ -607,7 +607,7 @@ arc_os_fini(void)
 #define	arc_meta_max	ARCSTAT(arcstat_meta_max) /* max size of metadata */
 
 /* So close, they made arc_min_prefetch_ms be static, but no others */
-
+#if 0
 int
 arc_kstat_update_windows(kstat_t *ksp, int rw)
 {
@@ -735,7 +735,7 @@ arc_kstat_update_windows(kstat_t *ksp, int rw)
 	}
 	return (0);
 }
-
+#endif
 
 /*
  * Helper function for arc_prune_async() it is responsible for safely
