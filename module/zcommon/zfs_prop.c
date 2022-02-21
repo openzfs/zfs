@@ -725,7 +725,7 @@ zfs_prop_init(void)
 	    "DRIVELETTER", sfeatures);
 	zprop_register_index(ZFS_PROP_MIMIC, "com.apple.mimic", 0,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM, "off | ntfs",
-	    "COM.APPLE.MIMIC_HFS", mimic_table, sfeature);
+	    "COM.APPLE.MIMIC_HFS", mimic_table, sfeatures);
 #endif
 
 	/*
