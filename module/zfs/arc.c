@@ -419,8 +419,8 @@ boolean_t arc_warm;
 /*
  * These tunables are for performance analysis.
  */
-unsigned long zfs_arc_max = 0;
-unsigned long zfs_arc_min = 0;
+uint64_t zfs_arc_max = 0;
+uint64_t zfs_arc_min = 0;
 unsigned long zfs_arc_meta_limit = 0;
 unsigned long zfs_arc_meta_min = 0;
 static unsigned long zfs_arc_dnode_limit = 0;
