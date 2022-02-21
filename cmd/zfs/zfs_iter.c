@@ -453,23 +453,21 @@ zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
 		cb.cb_flags |= ZFS_ITER_RECURSE;
 		ret = zfs_iter_root(g_zfs, zfs_callback, &cb);
 	} else {
-		int i;
-		zfs_handle_t *zhp;
-		zfs_type_t argtype;
+		zfs_handle_t *zhp = NULL;
+		zfs_type_t argtype = types;
 
 		/*
 		 * If we're recursive, then we always allow filesystems as
 		 * arguments.  If we also are interested in snapshots or
 		 * bookmarks, then we can take volumes as well.
 		 */
-		argtype = types;
 		if (flags & ZFS_ITER_RECURSE) {
 			argtype |= ZFS_TYPE_FILESYSTEM;
 			if (types & (ZFS_TYPE_SNAPSHOT | ZFS_TYPE_BOOKMARK))
 				argtype |= ZFS_TYPE_VOLUME;
 		}
 
-		for (i = 0; i < argc; i++) {
+		for (int i = 0; i < argc; i++) {
 			if (flags & ZFS_ITER_ARGS_CAN_BE_PATHS) {
 				zhp = zfs_path_to_zhandle(g_zfs, argv[i],
 				    argtype);

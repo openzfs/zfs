@@ -754,6 +754,9 @@ no_dev:
 
 	return (ret);
 #else
+	(void) path;
+	(void) ds;
+	(void) wholedisk;
 	return (ENOENT);
 #endif
 }

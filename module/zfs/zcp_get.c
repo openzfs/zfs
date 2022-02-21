@@ -76,9 +76,8 @@ get_objset_type(dsl_dataset_t *ds, zfs_type_t *type)
 static int
 get_objset_type_name(dsl_dataset_t *ds, char *str)
 {
-	int error;
-	zfs_type_t type;
-	error = get_objset_type(ds, &type);
+	zfs_type_t type = ZFS_TYPE_INVALID;
+	int error = get_objset_type(ds, &type);
 	if (error != 0)
 		return (error);
 	switch (type) {
@@ -230,7 +229,7 @@ get_special_prop(lua_State *state, dsl_dataset_t *ds, const char *dsname,
 	char *strval = kmem_alloc(ZAP_MAXVALUELEN, KM_SLEEP);
 	char setpoint[ZFS_MAX_DATASET_NAME_LEN] =
 	    "Internal error - setpoint not determined";
-	zfs_type_t ds_type = -1;
+	zfs_type_t ds_type = ZFS_TYPE_INVALID;
 	zprop_type_t prop_type = zfs_prop_get_type(zfs_prop);
 	(void) get_objset_type(ds, &ds_type);
 
@@ -497,8 +496,7 @@ get_zap_prop(lua_State *state, dsl_dataset_t *ds, zfs_prop_t zfs_prop)
 boolean_t
 prop_valid_for_ds(dsl_dataset_t *ds, zfs_prop_t zfs_prop)
 {
-	int error;
-	zfs_type_t zfs_type;
+	zfs_type_t zfs_type = ZFS_TYPE_INVALID;
 
 	/* properties not supported */
 	if ((zfs_prop == ZFS_PROP_ISCSIOPTIONS) ||
@@ -509,7 +507,7 @@ prop_valid_for_ds(dsl_dataset_t *ds, zfs_prop_t zfs_prop)
 	if ((zfs_prop == ZFS_PROP_ORIGIN) && (!dsl_dir_is_clone(ds->ds_dir)))
 		return (B_FALSE);
 
-	error = get_objset_type(ds, &zfs_type);
+	int error = get_objset_type(ds, &zfs_type);
 	if (error != 0)
 		return (B_FALSE);
 	return (zfs_prop_valid_for_type(zfs_prop, zfs_type, B_FALSE));

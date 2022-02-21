@@ -3972,13 +3972,10 @@ zfs_clone(zfs_handle_t *zhp, const char *target, nvlist_t *props)
 	/* do the clone */
 
 	if (props) {
-		zfs_type_t type;
+		zfs_type_t type = ZFS_TYPE_FILESYSTEM;
 
-		if (ZFS_IS_VOLUME(zhp)) {
+		if (ZFS_IS_VOLUME(zhp))
 			type = ZFS_TYPE_VOLUME;
-		} else {
-			type = ZFS_TYPE_FILESYSTEM;
-		}
 		if ((props = zfs_valid_proplist(hdl, type, props, zoned,
 		    zhp, zhp->zpool_hdl, B_TRUE, errbuf)) == NULL)
 			return (-1);

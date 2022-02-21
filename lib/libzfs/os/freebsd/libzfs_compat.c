@@ -199,7 +199,7 @@ execvpe(const char *name, char * const argv[], char * const envp[])
 	return (execvPe(name, path, argv, envp));
 }
 
-#define	ERRBUFLEN 256
+#define	ERRBUFLEN 1024
 
 static __thread char errbuf[ERRBUFLEN];
 
@@ -207,10 +207,10 @@ const char *
 libzfs_error_init(int error)
 {
 	char *msg = errbuf;
-	size_t len, msglen = ERRBUFLEN;
+	size_t msglen = sizeof (errbuf);
 
 	if (modfind("zfs") < 0) {
-		len = snprintf(msg, msglen, dgettext(TEXT_DOMAIN,
+		size_t len = snprintf(msg, msglen, dgettext(TEXT_DOMAIN,
 		    "Failed to load %s module: "), ZFS_KMOD);
 		msg += len;
 		msglen -= len;
@@ -285,7 +285,6 @@ zfs_jail(zfs_handle_t *zhp, int jailid, int attach)
 {
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	zfs_cmd_t zc = {"\0"};
-	char errbuf[1024];
 	unsigned long cmd;
 	int ret;
 
@@ -313,6 +312,10 @@ zfs_jail(zfs_handle_t *zhp, int jailid, int attach)
 	case ZFS_TYPE_VDEV:
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 		    "vdevs can not be jailed"));
+		return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
+	case ZFS_TYPE_INVALID:
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "invalid zfs_type_t: ZFS_TYPE_INVALID"));
 		return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
 	case ZFS_TYPE_POOL:
 	case ZFS_TYPE_FILESYSTEM:

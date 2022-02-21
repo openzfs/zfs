@@ -807,8 +807,9 @@ dump_ioctl(zfs_handle_t *zhp, const char *fromsnap, uint64_t fromsnap_obj,
 		char errbuf[1024];
 		int error = errno;
 
-		(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
-		    "warning: cannot send '%s'"), zhp->zfs_name);
+		(void) snprintf(errbuf, sizeof (errbuf), "%s '%s'",
+		    dgettext(TEXT_DOMAIN, "warning: cannot send"),
+		    zhp->zfs_name);
 
 		if (debugnv != NULL) {
 			fnvlist_add_uint64(thisdbg, "error", error);
@@ -4196,7 +4197,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	nvlist_t *rcvprops = NULL; /* props received from the send stream */
 	nvlist_t *oxprops = NULL; /* override (-o) and exclude (-x) props */
 	nvlist_t *origprops = NULL; /* original props (if destination exists) */
-	zfs_type_t type;
+	zfs_type_t type = ZFS_TYPE_INVALID;
 	boolean_t toplevel = B_FALSE;
 	boolean_t zoned = B_FALSE;
 	boolean_t hastoken = B_FALSE;

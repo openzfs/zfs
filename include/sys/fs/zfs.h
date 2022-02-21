@@ -50,6 +50,7 @@ extern "C" {
  * combined into masks that can be passed to various functions.
  */
 typedef enum {
+	ZFS_TYPE_INVALID	= 0,
 	ZFS_TYPE_FILESYSTEM	= (1 << 0),
 	ZFS_TYPE_SNAPSHOT	= (1 << 1),
 	ZFS_TYPE_VOLUME		= (1 << 2),
