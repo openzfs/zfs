@@ -66,15 +66,17 @@ The pool names
 .Sy mirror ,
 .Sy raidz ,
 .Sy draid ,
-.Sy spare
+.Sy spare ,
+.Sy special ,
 and
 .Sy log
 are reserved, as are names beginning with
 .Sy mirror ,
 .Sy raidz ,
 .Sy draid ,
+.Sy spare ,
 and
-.Sy spare .
+.Sy special .
 The
 .Ar vdev
 specification is described in the
@@ -205,7 +207,40 @@ such as virtual machines or physical machines whose pools live on network
 block devices.
 .El
 .
+.Sh EXAMPLES
+.Bl -tag -width "Exam"
+.It Sy Example 1 : No Creating a RAID-Z Storage Pool
+The following command creates a pool with a single raidz root vdev that
+consists of six disks:
+.Dl # Nm zpool Cm create Ar tank Sy raidz Ar sda sdb sdc sdd sde sdf
+.
+.It Sy Example 2 : No Creating a Mirrored Storage Pool
+The following command creates a pool with two mirrors, where each mirror
+contains two disks:
+.Dl # Nm zpool Cm create Ar tank Sy mirror Ar sda sdb Sy mirror Ar sdc sdd
+.
+.It Sy Example 3 : No Creating a ZFS Storage Pool by Using Partitions
+The following command creates an unmirrored pool using two disk partitions:
+.Dl # Nm zpool Cm create Ar tank sda1 sdb2
+.
+.It Sy Example 4 : No Creating a ZFS Storage Pool by Using Files
+The following command creates an unmirrored pool using files.
+While not recommended, a pool based on files can be useful for experimental
+purposes.
+.Dl # Nm zpool Cm create Ar tank /path/to/file/a /path/to/file/b
+.
+.It Sy Example 5 : No Creating a ZFS Storage Pool with a Hot Spare
+The following command creates a new pool with an available hot spare:
+.Dl # Nm zpool Cm create Ar tank Sy mirror Ar sda sdb Sy spare Ar sdc
+.
+.It Sy Example 6 : No Creating a ZFS Pool with Mirrored Separate Intent Logs
+The following command creates a ZFS storage pool consisting of two, two-way
+mirrors and mirrored log devices:
+.Dl # Nm zpool Cm create Ar pool Sy mirror Ar sda sdb Sy mirror Ar sdc sdd Sy log mirror Ar sde sdf
+.
 .Sh SEE ALSO
+.Xr zpool 8 ,
+.Xr zpoolconcepts 7 ,
 .Xr zpool-destroy 8 ,
 .Xr zpool-export 8 ,
 .Xr zpool-import 8
