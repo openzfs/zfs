@@ -61,6 +61,7 @@ function test_common
 	typeset detachvdev="${4:-}"
 	typeset removevdev="${5:-}"
 	typeset finalpool="${6:-}"
+	typeset retval=1
 
 	typeset poolcheck="$poolcreate"
 
@@ -120,19 +121,30 @@ function test_common
 	# while having a checkpoint, we take it after the
 	# operation that changes the config.
 	#
+	# However, it is possible the MOS data was overwritten
+	# in which case the pool will either be unimportable, or
+	# may have been rewound prior to the data being written.
+	# In which case an error is returned and test_common()
+	# is retried by the caller to minimize false positives.
+	#
 	log_must zpool checkpoint $TESTPOOL1
 
 	log_must overwrite_data $TESTPOOL1 ""
 
 	log_must zpool export $TESTPOOL1
 
-	log_must zpool import -d $DEVICE_DIR -T $txg $TESTPOOL1
-	log_must check_pool_config $TESTPOOL1 "$poolcheck"
+	zpool import -d $DEVICE_DIR -T $txg $TESTPOOL1
+	if (( $? == 0 )); then
+		verify_data_md5sums $MD5FILE
+		if (( $? == 0 )); then
+			retval=0
+		fi
 
-	log_must verify_data_md5sums $MD5FILE
+		log_must check_pool_config $TESTPOOL1 "$poolcheck"
+		log_must zpool destroy $TESTPOOL1
+	fi
 
 	# Cleanup
-	log_must zpool destroy $TESTPOOL1
 	if [[ -n $pathstochange ]]; then
 		for dev in $pathstochange; do
 			log_must mv "${dev}_new" $dev
@@ -143,6 +155,7 @@ function test_common
 	log_must zpool destroy $TESTPOOL2
 
 	log_note ""
+	return $retval
 }
 
 function test_add_vdevs
@@ -152,7 +165,12 @@ function test_add_vdevs
 
 	log_note "$0: pool '$poolcreate', add $addvdevs."
 
-	test_common "$poolcreate" "$addvdevs"
+	for retry in $(seq 1 5); do
+		test_common "$poolcreate" "$addvdevs" && return
+		log_note "Retry $retry / 5 for test_add_vdevs()"
+	done
+
+	log_fail "Exhausted all 5 retries for test_add_vdevs()"
 }
 
 function test_attach_vdev
@@ -163,7 +181,12 @@ function test_attach_vdev
 
 	log_note "$0: pool '$poolcreate', attach $attachvdev to $attachto."
 
-	test_common "$poolcreate" "" "$attachto $attachvdev"
+	for retry in $(seq 1 5); do
+		test_common "$poolcreate" "" "$attachto $attachvdev" && return
+		log_note "Retry $retry / 5 for test_attach_vdev()"
+	done
+
+	log_fail "Exhausted all 5 retries for test_attach_vdev()"
 }
 
 function test_detach_vdev
@@ -173,7 +196,12 @@ function test_detach_vdev
 
 	log_note "$0: pool '$poolcreate', detach $detachvdev."
 
-	test_common "$poolcreate" "" "" "$detachvdev"
+	for retry in $(seq 1 5); do
+		test_common "$poolcreate" "" "" "$detachvdev" && return
+		log_note "Retry $retry / 5 for test_detach_vdev()"
+	done
+
+	log_fail "Exhausted all 5 retries for test_detach_vdev()"
 }
 
 function test_attach_detach_vdev
@@ -186,7 +214,13 @@ function test_attach_detach_vdev
 	log_note "$0: pool '$poolcreate', attach $attachvdev to $attachto," \
 	    "then detach $detachvdev."
 
-	test_common "$poolcreate" "" "$attachto $attachvdev" "$detachvdev"
+	for retry in $(seq 1 5); do
+		test_common "$poolcreate" "" "$attachto $attachvdev" \
+		    "$detachvdev" && return
+		log_note "Retry $retry / 5 for test_attach_detach_vdev()"
+	done
+
+	log_fail "Exhausted all 5 retries for test_attach_detach_vdev()"
 }
 
 function test_remove_vdev
@@ -197,7 +231,13 @@ function test_remove_vdev
 
 	log_note "$0: pool '$poolcreate', remove $removevdev."
 
-	test_common "$poolcreate" "" "" "" "$removevdev" "$finalpool"
+	for retry in $(seq 1 5); do
+		test_common "$poolcreate" "" "" "" "$removevdev" \
+		    "$finalpool" && return
+		log_note "Retry $retry / 5 for test_remove_vdev()"
+	done
+
+	log_fail "Exhausted all 5 retries for test_remove_vdev()"
 }
 
 # Record txg history
