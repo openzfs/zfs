@@ -778,6 +778,24 @@ by user and group.
 \*[instant-never]
 \*[remount-upgrade]
 .
+.feature org.openzfs zilsaxattr yes extensible_dataset
+This feature enables
+.Sy xattr Ns = Ns Sy sa
+extended attribute logging in the ZIL.
+If enabled, extended attribute changes
+.Pq both Sy xattrdir Ns = Ns Sy dir No and Sy xattr Ns = Ns Sy sa
+are guaranteed to be durable if either the dataset had
+.Sy sync Ns = Ns Sy always
+set at the time the changes were made, or
+.Xr sync 2
+is called on the dataset after the changes were made.
+.Pp
+This feature becomes
+.Sy active
+when a ZIL is created for at least one dataset and will be returned to the
+.Sy enabled
+state when it is destroyed for all datasets that use this feature.
+.
 .feature com.delphix zpool_checkpoint yes
 This feature enables the
 .Nm zpool Cm checkpoint

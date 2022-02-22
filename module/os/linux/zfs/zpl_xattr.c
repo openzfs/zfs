@@ -578,7 +578,7 @@ zpl_xattr_set_sa(struct inode *ip, const char *name, const void *value,
 	 * will be reconstructed from the ARC when next accessed.
 	 */
 	if (error == 0)
-		error = -zfs_sa_set_xattr(zp);
+		error = -zfs_sa_set_xattr(zp, name, value, size);
 
 	if (error) {
 		nvlist_free(nvl);

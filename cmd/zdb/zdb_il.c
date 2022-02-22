@@ -266,6 +266,29 @@ zil_prt_rec_setattr(zilog_t *zilog, int txtype, const void *arg)
 }
 
 static void
+zil_prt_rec_setsaxattr(zilog_t *zilog, int txtype, const void *arg)
+{
+	(void) zilog, (void) txtype;
+	const lr_setsaxattr_t *lr = arg;
+
+	char *name = (char *)(lr + 1);
+	(void) printf("%sfoid %llu\n", tab_prefix,
+	    (u_longlong_t)lr->lr_foid);
+
+	(void) printf("%sXAT_NAME  %s\n", tab_prefix, name);
+	if (lr->lr_size == 0) {
+		(void) printf("%sXAT_VALUE  NULL\n", tab_prefix);
+	} else {
+		(void) printf("%sXAT_VALUE  ", tab_prefix);
+		char *val = name + (strlen(name) + 1);
+		for (int i = 0; i < lr->lr_size; i++) {
+			(void) printf("%c", *val);
+			val++;
+		}
+	}
+}
+
+static void
 zil_prt_rec_acl(zilog_t *zilog, int txtype, const void *arg)
 {
 	(void) zilog, (void) txtype;
@@ -304,6 +327,8 @@ static zil_rec_info_t zil_rec_info[TX_MAX_TYPE] = {
 	{.zri_print = zil_prt_rec_create,   .zri_name = "TX_MKDIR_ATTR      "},
 	{.zri_print = zil_prt_rec_create,   .zri_name = "TX_MKDIR_ACL_ATTR  "},
 	{.zri_print = zil_prt_rec_write,    .zri_name = "TX_WRITE2          "},
+	{.zri_print = zil_prt_rec_setsaxattr,
+	    .zri_name = "TX_SETSAXATTR      "},
 };
 
 static int

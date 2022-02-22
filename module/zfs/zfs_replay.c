@@ -47,6 +47,8 @@
 #include <sys/atomic.h>
 #include <sys/cred.h>
 #include <sys/zpl.h>
+#include <sys/dmu_objset.h>
+#include <sys/zfeature.h>
 
 /*
  * NB: FreeBSD expects to be able to do vnode locking in lookup and
@@ -869,6 +871,86 @@ zfs_replay_setattr(void *arg1, void *arg2, boolean_t byteswap)
 }
 
 static int
+zfs_replay_setsaxattr(void *arg1, void *arg2, boolean_t byteswap)
+{
+	zfsvfs_t *zfsvfs = arg1;
+	lr_setsaxattr_t *lr = arg2;
+	znode_t *zp;
+	nvlist_t *nvl;
+	size_t sa_size;
+	char *name;
+	char *value;
+	size_t size;
+	int error = 0;
+
+	ASSERT(spa_feature_is_active(zfsvfs->z_os->os_spa,
+	    SPA_FEATURE_ZILSAXATTR));
+	if (byteswap)
+		byteswap_uint64_array(lr, sizeof (*lr));
+
+	if ((error = zfs_zget(zfsvfs, lr->lr_foid, &zp)) != 0)
+		return (error);
+
+	rw_enter(&zp->z_xattr_lock, RW_WRITER);
+	mutex_enter(&zp->z_lock);
+	if (zp->z_xattr_cached == NULL)
+		error = zfs_sa_get_xattr(zp);
+	mutex_exit(&zp->z_lock);
+
+	if (error)
+		goto out;
+
+	ASSERT(zp->z_xattr_cached);
+	nvl = zp->z_xattr_cached;
+
+	/* Get xattr name, value and size from log record */
+	size = lr->lr_size;
+	name = (char *)(lr + 1);
+	if (size == 0) {
+		value = NULL;
+		error = nvlist_remove(nvl, name, DATA_TYPE_BYTE_ARRAY);
+	} else {
+		value = name + strlen(name) + 1;
+		/* Limited to 32k to keep nvpair memory allocations small */
+		if (size > DXATTR_MAX_ENTRY_SIZE) {
+			error = SET_ERROR(EFBIG);
+			goto out;
+		}
+
+		/* Prevent the DXATTR SA from consuming the entire SA region */
+		error = nvlist_size(nvl, &sa_size, NV_ENCODE_XDR);
+		if (error)
+			goto out;
+
+		if (sa_size > DXATTR_MAX_SA_SIZE) {
+			error = SET_ERROR(EFBIG);
+			goto out;
+		}
+
+		error = nvlist_add_byte_array(nvl, name, (uchar_t *)value,
+		    size);
+	}
+
+	/*
+	 * Update the SA for additions, modifications, and removals. On
+	 * error drop the inconsistent cached version of the nvlist, it
+	 * will be reconstructed from the ARC when next accessed.
+	 */
+	if (error == 0)
+		error = zfs_sa_set_xattr(zp, name, value, size);
+
+	if (error) {
+		nvlist_free(nvl);
+		zp->z_xattr_cached = NULL;
+	}
+
+out:
+	rw_exit(&zp->z_xattr_lock);
+	zrele(zp);
+	return (error);
+}
+
+static int
 zfs_replay_acl_v0(void *arg1, void *arg2, boolean_t byteswap)
 {
 	zfsvfs_t *zfsvfs = arg1;
@@ -989,4 +1071,5 @@ zil_replay_func_t *const zfs_replay_vector[TX_MAX_TYPE] = {
 	zfs_replay_create,	/* TX_MKDIR_ATTR */
 	zfs_replay_create_acl,	/* TX_MKDIR_ACL_ATTR */
 	zfs_replay_write2,	/* TX_WRITE2 */
+	zfs_replay_setsaxattr,	/* TX_SETSAXATTR */
 };

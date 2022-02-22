@@ -664,6 +664,38 @@ zilog_is_dirty(zilog_t *zilog)
 }
 
 /*
+ * Its called in zil_commit context (zil_process_commit_list()/zil_create()).
+ * It activates SPA_FEATURE_ZILSAXATTR feature, if its enabled.
+ * Check dsl_dataset_feature_is_active to avoid txg_wait_synced() on every
+ * zil_commit.
+ */
+static void
+zil_commit_activate_saxattr_feature(zilog_t *zilog)
+{
+	dsl_dataset_t *ds = dmu_objset_ds(zilog->zl_os);
+	uint64_t txg = 0;
+	dmu_tx_t *tx = NULL;
+
+	if (spa_feature_is_enabled(zilog->zl_spa,
+	    SPA_FEATURE_ZILSAXATTR) &&
+	    dmu_objset_type(zilog->zl_os) != DMU_OST_ZVOL &&
+	    !dsl_dataset_feature_is_active(ds,
+	    SPA_FEATURE_ZILSAXATTR)) {
+		tx = dmu_tx_create(zilog->zl_os);
+		VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
+		dsl_dataset_dirty(ds, tx);
+		txg = dmu_tx_get_txg(tx);
+
+		mutex_enter(&ds->ds_lock);
+		ds->ds_feature_activation[SPA_FEATURE_ZILSAXATTR] =
+		    (void *)B_TRUE;
+		mutex_exit(&ds->ds_lock);
+		dmu_tx_commit(tx);
+		txg_wait_synced(zilog->zl_dmu_pool, txg);
+	}
+}
+
+/*
  * Create an on-disk intent log.
  */
 static lwb_t *
@@ -677,6 +709,8 @@ zil_create(zilog_t *zilog)
 	int error = 0;
 	boolean_t fastwrite = FALSE;
 	boolean_t slog = FALSE;
+	dsl_dataset_t *ds = dmu_objset_ds(zilog->zl_os);
+
 
 	/*
 	 * Wait for any previous destroy to complete.
@@ -724,9 +758,33 @@ zil_create(zilog_t *zilog)
 	 * (zh is part of the MOS, so we cannot modify it in open context.)
 	 */
 	if (tx != NULL) {
+		/*
+		 * If "zilsaxattr" feature is enabled on zpool, then activate
+		 * it now when we're creating the ZIL chain. We can't wait with
+		 * this until we write the first xattr log record because we
+		 * need to wait for the feature activation to sync out.
+		 */
+		if (spa_feature_is_enabled(zilog->zl_spa,
+		    SPA_FEATURE_ZILSAXATTR) && dmu_objset_type(zilog->zl_os) !=
+		    DMU_OST_ZVOL) {
+			mutex_enter(&ds->ds_lock);
+			ds->ds_feature_activation[SPA_FEATURE_ZILSAXATTR] =
+			    (void *)B_TRUE;
+			mutex_exit(&ds->ds_lock);
+		}
+
 		dmu_tx_commit(tx);
 		txg_wait_synced(zilog->zl_dmu_pool, txg);
+	} else {
+		/*
+		 * This branch covers the case where we enable the feature on a
+		 * zpool that has existing ZIL headers.
+		 */
+		zil_commit_activate_saxattr_feature(zilog);
 	}
+	IMPLY(spa_feature_is_enabled(zilog->zl_spa, SPA_FEATURE_ZILSAXATTR) &&
+	    dmu_objset_type(zilog->zl_os) != DMU_OST_ZVOL,
+	    dsl_dataset_feature_is_active(ds, SPA_FEATURE_ZILSAXATTR));
 
 	ASSERT(error != 0 || bcmp(&blk, &zh->zh_log, sizeof (blk)) == 0);
 	IMPLY(error == 0, lwb != NULL);
@@ -2297,6 +2355,11 @@ zil_process_commit_list(zilog_t *zilog)
 	if (lwb == NULL) {
 		lwb = zil_create(zilog);
 	} else {
+		/*
+		 * Activate SPA_FEATURE_ZILSAXATTR for the cases where ZIL will
+		 * have already been created (zl_lwb_list not empty).
+		 */
+		zil_commit_activate_saxattr_feature(zilog);
 		ASSERT3S(lwb->lwb_state, !=, LWB_STATE_ISSUED);
 		ASSERT3S(lwb->lwb_state, !=, LWB_STATE_WRITE_DONE);
 		ASSERT3S(lwb->lwb_state, !=, LWB_STATE_FLUSH_DONE);
@@ -3075,6 +3138,7 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 
 	if (zilog->zl_destroy_txg == txg) {
 		blkptr_t blk = zh->zh_log;
+		dsl_dataset_t *ds = dmu_objset_ds(zilog->zl_os);
 
 		ASSERT(list_head(&zilog->zl_lwb_list) == NULL);
 
@@ -3092,6 +3156,16 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 			 */
 			zil_init_log_chain(zilog, &blk);
 			zh->zh_log = blk;
+		} else {
+			/*
+			 * A destroyed ZIL chain can't contain any TX_SETSAXATTR
+			 * records. So, deactivate the feature for this dataset.
+			 * We activate it again when we start a new ZIL chain.
+			 */
+			if (dsl_dataset_feature_is_active(ds,
+			    SPA_FEATURE_ZILSAXATTR))
+				dsl_dataset_deactivate_feature(ds,
+				    SPA_FEATURE_ZILSAXATTR, tx);
 		}
 	}
 

@@ -162,7 +162,8 @@ typedef enum zil_create {
 #define	TX_MKDIR_ATTR		18	/* mkdir with attr */
 #define	TX_MKDIR_ACL_ATTR	19	/* mkdir with ACL + attrs */
 #define	TX_WRITE2		20	/* dmu_sync EALREADY write */
-#define	TX_MAX_TYPE		21	/* Max transaction type */
+#define	TX_SETSAXATTR		21	/* Set sa xattrs on file */
+#define	TX_MAX_TYPE		22	/* Max transaction type */
 
 /*
  * The transactions for mkdir, symlink, remove, rmdir, link, and rename
@@ -182,7 +183,8 @@ typedef enum zil_create {
 	(txtype) == TX_SETATTR ||	\
 	(txtype) == TX_ACL_V0 ||	\
 	(txtype) == TX_ACL ||		\
-	(txtype) == TX_WRITE2)
+	(txtype) == TX_WRITE2 ||	\
+	(txtype) == TX_SETSAXATTR)
 
 /*
  * The number of dnode slots consumed by the object is stored in the 8
@@ -334,6 +336,13 @@ typedef struct {
 	uint64_t	lr_mtime[2];	/* modification time */
 	/* optional attribute lr_attr_t may be here */
 } lr_setattr_t;
+
+typedef struct {
+	lr_t		lr_common;	/* common portion of log record */
+	uint64_t	lr_foid;	/* file object to change attributes */
+	uint64_t	lr_size;
+	/* xattr name and value follows */
+} lr_setsaxattr_t;
 
 typedef struct {
 	lr_t		lr_common;	/* common portion of log record */

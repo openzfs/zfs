@@ -5549,7 +5549,7 @@ zfs_deleteextattr_sa(struct vop_deleteextattr_args *ap, const char *attrname)
 	if (error != 0)
 		error = SET_ERROR(error);
 	else
-		error = zfs_sa_set_xattr(zp);
+		error = zfs_sa_set_xattr(zp, attrname, NULL, 0);
 	if (error != 0) {
 		zp->z_xattr_cached = NULL;
 		nvlist_free(nvl);
@@ -5706,9 +5706,9 @@ zfs_setextattr_sa(struct vop_setextattr_args *ap, const char *attrname)
 		if (error != 0)
 			error = SET_ERROR(error);
 	}
-	kmem_free(buf, entry_size);
 	if (error == 0)
-		error = zfs_sa_set_xattr(zp);
+		error = zfs_sa_set_xattr(zp, attrname, buf, entry_size);
+	kmem_free(buf, entry_size);
 	if (error != 0) {
 		zp->z_xattr_cached = NULL;
 		nvlist_free(nvl);
