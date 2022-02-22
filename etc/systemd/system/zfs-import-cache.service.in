@@ -14,6 +14,7 @@ ConditionPathIsDirectory=/sys/module/zfs
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+EnvironmentFile=-@initconfdir@/zfs
 ExecStart=@sbindir@/zpool import -c @sysconfdir@/zfs/zpool.cache -aN $ZPOOL_IMPORT_OPTS
 
 [Install]
