@@ -4,6 +4,7 @@ Documentation=man:zed(8)
 ConditionPathIsDirectory=/sys/module/zfs
 
 [Service]
+EnvironmentFile=-@initconfdir@/zfs
 ExecStart=@sbindir@/zed -F
 Restart=on-abort
 
