@@ -721,6 +721,40 @@ zfs_log_setattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 }
 
 /*
+ * Handles TX_SETSAXATTR transactions.
+ */
+void
+zfs_log_setsaxattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
+    znode_t *zp, const char *name, const void *value, size_t size)
+{
+	itx_t		*itx;
+	lr_setsaxattr_t	*lr;
+	size_t		recsize = sizeof (lr_setsaxattr_t);
+	void		*xattrstart;
+	int		namelen;
+
+	if (zil_replaying(zilog, tx) || zp->z_unlinked)
+		return;
+
+	namelen = strlen(name) + 1;
+	recsize += (namelen + size);
+	itx = zil_itx_create(txtype, recsize);
+	lr = (lr_setsaxattr_t *)&itx->itx_lr;
+	lr->lr_foid = zp->z_id;
+	xattrstart = (char *)(lr + 1);
+	bcopy(name, xattrstart, namelen);
+	if (value != NULL) {
+		bcopy(value, (char *)xattrstart + namelen, size);
+		lr->lr_size = size;
+	} else {
+		lr->lr_size = 0;
+	}
+
+	itx->itx_sync = (zp->z_sync_cnt != 0);
+	zil_itx_assign(zilog, itx, tx);
+}
+
+/*
  * Handles TX_ACL transactions.
  */
 void
