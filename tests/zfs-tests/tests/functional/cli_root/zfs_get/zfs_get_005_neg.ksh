@@ -93,12 +93,7 @@ function test_options
 	for dst in ${dataset[@]}; do
 		for opt in $opts; do
 			for prop in $props; do
-				zfs get $opt -- $prop $dst > /dev/null 2>&1
-				ret=$?
-				if [[ $ret == 0 ]]; then
-					log_fail "zfs get $opt -- $prop " \
-					    "$dst unexpectedly succeeded."
-				fi
+				log_mustnot eval "zfs get $opt -- $prop $dst > /dev/null"
 			done
 		done
 	done
@@ -118,12 +113,7 @@ function test_options_bookmarks
 	for dst in ${bookmark[@]}; do
 		for opt in $opts; do
 			for prop in $props; do
-				zfs get $opt -- $prop $dst > /dev/null 2>&1
-				ret=$?
-				if [[ $ret == 0 ]]; then
-					log_fail "zfs get $opt -- $prop " \
-					    "$dst unexpectedly succeeded."
-				fi
+				log_mustnot eval "zfs get $opt -- $prop $dst > /dev/null"
 			done
 		done
 	done
