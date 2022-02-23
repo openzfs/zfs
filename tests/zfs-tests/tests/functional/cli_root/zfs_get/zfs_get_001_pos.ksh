@@ -154,12 +154,7 @@ typeset -i i=0
 while ((i < ${#dataset[@]})); do
 	for opt in "${options[@]}"; do
 		for prop in ${all_props[@]}; do
-			eval "zfs get $opt $prop ${dataset[i]} > \
-			    $TESTDIR/$TESTFILE0"
-			ret=$?
-			if [[ $ret != 0 ]]; then
-				log_fail "zfs get returned: $ret"
-			fi
+			log_must eval "zfs get $opt $prop ${dataset[i]} > $TESTDIR/$TESTFILE0"
 			check_return_value ${dataset[i]} "$prop" "$opt"
 		done
 	done
@@ -170,12 +165,7 @@ i=0
 while ((i < ${#bookmark[@]})); do
 	for opt in "${options[@]}"; do
 		for prop in ${bookmark_props[@]}; do
-			eval "zfs get $opt $prop ${bookmark[i]} > \
-			    $TESTDIR/$TESTFILE0"
-			ret=$?
-			if [[ $ret != 0 ]]; then
-				log_fail "zfs get returned: $ret"
-			fi
+			log_must eval "zfs get $opt $prop ${bookmark[i]} > $TESTDIR/$TESTFILE0"
 			check_return_value ${bookmark[i]} "$prop" "$opt"
 		done
 	done
