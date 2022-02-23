@@ -108,12 +108,8 @@ fi
 log_must export ZFS_ABORT=yes
 
 for subcmd in "${cmds[@]}" "${badparams[@]}"; do
-	zfs $subcmd >/dev/null 2>&1 && log_fail "$subcmd passed incorrectly."
-	if [[ ! -e $corefile ]]; then
-		log_fail "zfs $subcmd cannot generate core file with " \
-		    "ZFS_ABORT set."
-	fi
-	log_must rm -f $corefile
+	log_mustnot eval "zfs $subcmd >/dev/null 2>&1"
+	log_must rm $corefile
 done
 
 log_pass "With ZFS_ABORT set, zfs command can abort and generate core file " \
