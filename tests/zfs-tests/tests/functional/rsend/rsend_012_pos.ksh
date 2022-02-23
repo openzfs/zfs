@@ -52,18 +52,13 @@ function edited_prop
 		"get")
 			typeset props=$(zfs inherit 2>&1 | \
 				awk '$2=="YES" {print $1}' | \
-				egrep -v "^vol|\.\.\.$")
+				grep -Ev "^vol|\.\.\.$")
 			for item in $props ; do
 				if [[ $item == "mlslabel" ]] && \
 					! is_te_enabled ; then
 					continue
 				fi
-				zfs get -H -o property,value $item $ds >> \
-					$backfile
-				if (($? != 0)); then
-					log_fail "zfs get -H -o property,value"\
-						"$item $ds > $backfile"
-				fi
+				log_must eval "zfs get -H -o property,value $item $ds >> $backfile"
 			done
 			;;
 		"set")
@@ -72,11 +67,8 @@ function edited_prop
 			fi
 
 			typeset prop value
-			while read prop value ; do
-				eval zfs set $prop='$value' $ds
-				if (($? != 0)); then
-					log_fail "zfs set $prop=$value $ds"
-				fi
+			while read -r prop value; do
+				log_must zfs set "$prop=$value" "$ds"
 			done < $backfile
 			;;
 		*)

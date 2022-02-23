@@ -55,7 +55,6 @@ function log_note
 function log_neg
 {
 	log_neg_expect ""  "$@"
-	return $?
 }
 
 # Execute a positive test and exit $STF_FAIL is test fails
@@ -64,8 +63,7 @@ function log_neg
 
 function log_must
 {
-	log_pos "$@"
-	(( $? != 0 )) && log_fail
+	log_pos "$@" || log_fail
 }
 
 # Execute a positive test (expecting no stderr) and exit $STF_FAIL
@@ -74,8 +72,7 @@ function log_must
 
 function log_must_nostderr
 {
-	log_pos_nostderr "$@"
-	(( $? != 0 )) && log_fail
+	log_pos_nostderr "$@" || log_fail
 }
 
 # Execute a positive test but retry the command on failure if the output
@@ -149,8 +146,7 @@ function log_must_retry
 # $@ - command to execute
 function log_must_busy
 {
-	log_must_retry "busy" 5 "$@"
-	(( $? != 0 )) && log_fail
+	log_must_retry "busy" 5 "$@" || log_fail
 }
 
 # Execute a negative test and exit $STF_FAIL if test passes
@@ -159,8 +155,7 @@ function log_must_busy
 
 function log_mustnot
 {
-	log_neg "$@"
-	(( $? != 0 )) && log_fail
+	log_neg "$@" || log_fail
 }
 
 # Execute a negative test with keyword expected, and exit
@@ -171,8 +166,7 @@ function log_mustnot
 
 function log_mustnot_expect
 {
-	log_neg_expect "$@"
-	(( $? != 0 )) && log_fail
+	log_neg_expect "$@" || log_fail
 }
 
 # Signal numbers are platform-dependent
@@ -576,5 +570,5 @@ function _recursive_output #logfile
 		fi
 		rm -f $logfile
 		logfile="$logfile.$$"
-        done
+	done
 }
