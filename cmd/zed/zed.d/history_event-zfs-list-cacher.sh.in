@@ -46,7 +46,7 @@ case "${ZEVENT_HISTORY_INTERNAL_NAME}" in
     set|inherit)
         # Only act if one of the tracked properties is altered.
         case "${ZEVENT_HISTORY_INTERNAL_STR%%=*}" in
-            canmount|mountpoint|atime|relatime|devices|exec|readonly| \
+            canmount|mountpoint|atime|relatime|lazytime|devices|exec|readonly| \
               setuid|nbmand|encroot|keylocation|org.openzfs.systemd:requires| \
               org.openzfs.systemd:requires-mounts-for| \
               org.openzfs.systemd:before|org.openzfs.systemd:after| \
@@ -66,7 +66,7 @@ esac
 zed_lock "${FSLIST}"
 trap abort_alter EXIT
 
-PROPS="name,mountpoint,canmount,atime,relatime,devices,exec\
+PROPS="name,mountpoint,canmount,atime,relatime,lazytime,devices,exec\
 ,readonly,setuid,nbmand,encroot,keylocation\
 ,org.openzfs.systemd:requires,org.openzfs.systemd:requires-mounts-for\
 ,org.openzfs.systemd:before,org.openzfs.systemd:after\
