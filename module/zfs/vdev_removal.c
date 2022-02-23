@@ -1364,6 +1364,8 @@ vdev_remove_complete(spa_t *spa)
 	ASSERT3P(vd->vdev_initialize_thread, ==, NULL);
 	ASSERT3P(vd->vdev_trim_thread, ==, NULL);
 	ASSERT3P(vd->vdev_autotrim_thread, ==, NULL);
+	vdev_rebuild_stop_wait(vd);
+	ASSERT3P(vd->vdev_rebuild_thread, ==, NULL);
 	uint64_t vdev_space = spa_deflate(spa) ?
 	    vd->vdev_stat.vs_dspace : vd->vdev_stat.vs_space;
 
