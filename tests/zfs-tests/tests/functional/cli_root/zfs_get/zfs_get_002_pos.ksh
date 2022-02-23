@@ -85,11 +85,7 @@ for dst in ${dataset[@]}; do
 	for opt in "" $(gen_option_str "${options[*]}" "-" "" $opt_numb); do
 		for prop in $(gen_option_str "${props[*]}" "" "," $prop_numb)
 		do
-			zfs get $opt $prop $dst > /dev/null 2>&1
-			ret=$?
-			if [[ $ret != 0 ]]; then
-				log_fail "zfs get $opt $prop $dst (Code: $ret)"
-			fi
+			log_must eval "zfs get $opt $prop $dst > /dev/null"
 		done
 	done
 done

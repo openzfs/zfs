@@ -120,7 +120,7 @@ typeset str
 typeset -i ret
 for volsize in $VOLSIZES; do
 	log_note "Create a pool which will contain a volume device"
-	create_pool $TESTPOOL2 "$DISKS"
+	log_must create_pool $TESTPOOL2 "$DISKS"
 
 	log_note "Create a volume device of desired sizes: $volsize"
 	str=$(zfs create -sV $volsize $TESTPOOL2/$TESTVOL 2>&1)
@@ -140,7 +140,7 @@ for volsize in $VOLSIZES; do
 	block_device_wait
 
 	log_note "Create the largest pool allowed using the volume vdev"
-	create_pool $TESTPOOL "$VOL_PATH"
+	log_must create_pool $TESTPOOL "$VOL_PATH"
 
 	log_note "Create a zfs file system in the largest pool"
 	log_must zfs create $TESTPOOL/$TESTFS
