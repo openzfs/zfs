@@ -215,6 +215,11 @@ zed_udev_monitor(void *arg)
 		if (type != NULL && type[0] != '\0' &&
 		    strcmp(type, "disk") == 0 &&
 		    part != NULL && part[0] != '\0') {
+			zed_log_msg(LOG_INFO,
+			    "%s: skip %s since it has a %s partition already",
+			    __func__,
+			    udev_device_get_property_value(dev, "DEVNAME"),
+			    part);
 			/* skip and wait for partition event */
 			udev_device_unref(dev);
 			continue;
@@ -229,6 +234,11 @@ zed_udev_monitor(void *arg)
 			sectors = udev_device_get_sysattr_value(dev, "size");
 		if (sectors != NULL &&
 		    strtoull(sectors, NULL, 10) < MINIMUM_SECTORS) {
+			zed_log_msg(LOG_INFO,
+			    "%s: %s sectors %s < %llu (minimum)",
+			    __func__,
+			    udev_device_get_property_value(dev, "DEVNAME"),
+			    sectors, MINIMUM_SECTORS);
 			udev_device_unref(dev);
 			continue;
 		}
