@@ -8,6 +8,9 @@ dnl #
 dnl #		XSTATE_XSAVE and XSTATE_XRESTORE aren't accessible any more
 dnl #		HAVE_KERNEL_FPU_XSAVE_INTERNAL
 dnl #
+dnl # 5.11:	kernel_fpu_begin() is an inlined function now, so don't check
+dnl #		for it inside the kernel symbols.
+dnl #
 dnl # 5.0:	Wrappers have been introduced to save/restore the FPU state.
 dnl #		This change was made to the 4.19.38 and 4.14.120 LTS kernels.
 dnl #		HAVE_KERNEL_FPU_INTERNAL
@@ -147,8 +150,7 @@ AC_DEFUN([ZFS_AC_KERNEL_FPU], [
 	dnl # Legacy kernel
 	dnl #
 	AC_MSG_CHECKING([whether kernel fpu is available])
-	ZFS_LINUX_TEST_RESULT_SYMBOL([kernel_fpu_license],
-	    [kernel_fpu_begin], [arch/x86/kernel/fpu/core.c], [
+	ZFS_LINUX_TEST_RESULT([kernel_fpu_license], [
 		AC_MSG_RESULT(kernel_fpu_*)
 		AC_DEFINE(HAVE_KERNEL_FPU, 1,
 		    [kernel has kernel_fpu_* functions])
