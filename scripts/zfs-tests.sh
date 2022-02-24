@@ -54,6 +54,7 @@ ZFS_DBGMSG="$STF_SUITE/callbacks/zfs_dbgmsg.ksh"
 ZFS_DMESG="$STF_SUITE/callbacks/zfs_dmesg.ksh"
 UNAME=$(uname -s)
 RERUN=""
+KMEMLEAK=""
 
 # Override some defaults if on FreeBSD
 if [ "$UNAME" = "FreeBSD" ] ; then
@@ -329,6 +330,7 @@ OPTIONS:
 	-S          Enable stack tracer (negative performance impact)
 	-c          Only create and populate constrained path
 	-R          Automatically rerun failing tests
+	-m          Enable kmemleak reporting (Linux only)
 	-n NFSFILE  Use the nfsfile to determine the NFS configuration
 	-I NUM      Number of iterations
 	-d DIR      Use DIR for files and loopback devices
@@ -355,7 +357,7 @@ $0 -x
 EOF
 }
 
-while getopts 'hvqxkfScRn:d:s:r:?t:T:u:I:' OPTION; do
+while getopts 'hvqxkfScRmn:d:s:r:?t:T:u:I:' OPTION; do
 	case $OPTION in
 	h)
 		usage
@@ -385,6 +387,9 @@ while getopts 'hvqxkfScRn:d:s:r:?t:T:u:I:' OPTION; do
 		;;
 	R)
 		RERUN="yes"
+		;;
+	m)
+		KMEMLEAK="yes"
 		;;
 	n)
 		nfsfile=$OPTARG
@@ -695,12 +700,16 @@ fi
 #
 # Run all the tests as specified.
 #
-msg "${TEST_RUNNER} ${QUIET:+-q}" \
+msg "${TEST_RUNNER}" \
+    "${QUIET:+-q}" \
+    "${KMEMLEAK:+-m}" \
     "-c \"${RUNFILES}\"" \
     "-T \"${TAGS}\"" \
     "-i \"${STF_SUITE}\"" \
     "-I \"${ITERATIONS}\""
-{ ${TEST_RUNNER} ${QUIET:+-q} \
+{ ${TEST_RUNNER} \
+    ${QUIET:+-q} \
+    ${KMEMLEAK:+-m} \
     -c "${RUNFILES}" \
     -T "${TAGS}" \
     -i "${STF_SUITE}" \
@@ -722,7 +731,9 @@ if [ "$RESULT" -eq "2" ] && [ -n "$RERUN" ]; then
 	for test_name in $MAYBES; do
 		grep "$test_name " "$TEMP_RESULTS_FILE" >>"$TEST_LIST"
 	done
-	{ ${TEST_RUNNER} ${QUIET:+-q} \
+	{ ${TEST_RUNNER} \
+            ${QUIET:+-q} \
+            ${KMEMLEAK:+-m} \
 	    -c "${RUNFILES}" \
 	    -T "${TAGS}" \
 	    -i "${STF_SUITE}" \
