@@ -98,7 +98,7 @@ ratio
 but distributed among the larger set of disks.
 New blocks will be written with the new data-to-parity ratio (e.g. a 5-wide
 RAID-Z2 which has been expanded once to 6-wide, has 4 data and 2 parity).
-However, the vdev's "assumed parity ratio" does not change, so slightly less
+However, the vdev's assumed parity ratio does not change, so slightly less
 space than is expected may be reported for newly-written blocks, according to
 .Nm zfs Cm list ,
 .Nm df ,
