@@ -119,7 +119,7 @@ dmu_write_pages(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 			    db->db_offset + bufoff);
 			thiscpy = MIN(PAGESIZE, tocpy - copied);
 			va = zfs_map_page(*ma, &sf);
-			bcopy(va, (char *)db->db_data + bufoff, thiscpy);
+			memcpy((char *)db->db_data + bufoff, va, thiscpy);
 			zfs_unmap_page(sf);
 			ma += 1;
 			bufoff += PAGESIZE;
@@ -189,7 +189,7 @@ dmu_read_pages(objset_t *os, uint64_t object, vm_page_t *ma, int count,
 		ASSERT3U(db->db_size, >, PAGE_SIZE);
 		bufoff = IDX_TO_OFF(m->pindex) % db->db_size;
 		va = zfs_map_page(m, &sf);
-		bcopy((char *)db->db_data + bufoff, va, PAGESIZE);
+		memcpy(va, (char *)db->db_data + bufoff, PAGESIZE);
 		zfs_unmap_page(sf);
 		vm_page_valid(m);
 		dmu_page_lock(m);
@@ -231,7 +231,7 @@ dmu_read_pages(objset_t *os, uint64_t object, vm_page_t *ma, int count,
 		tocpy = MIN(db->db_size - bufoff, PAGESIZE - pgoff);
 		ASSERT3S(tocpy, >=, 0);
 		if (m != bogus_page)
-			bcopy((char *)db->db_data + bufoff, va + pgoff, tocpy);
+			memcpy(va + pgoff, (char *)db->db_data + bufoff, tocpy);
 
 		pgoff += tocpy;
 		ASSERT3S(pgoff, >=, 0);
@@ -287,7 +287,7 @@ dmu_read_pages(objset_t *os, uint64_t object, vm_page_t *ma, int count,
 #endif
 	if (pgoff != 0) {
 		ASSERT3P(m, !=, bogus_page);
-		bzero(va + pgoff, PAGESIZE - pgoff);
+		memset(va + pgoff, 0, PAGESIZE - pgoff);
 		zfs_unmap_page(sf);
 		vm_page_valid(m);
 	}
@@ -309,11 +309,11 @@ dmu_read_pages(objset_t *os, uint64_t object, vm_page_t *ma, int count,
 		bufoff = IDX_TO_OFF(m->pindex) % db->db_size;
 		tocpy = MIN(db->db_size - bufoff, PAGESIZE);
 		va = zfs_map_page(m, &sf);
-		bcopy((char *)db->db_data + bufoff, va, tocpy);
+		memcpy(va, (char *)db->db_data + bufoff, tocpy);
 		if (tocpy < PAGESIZE) {
 			ASSERT3S(i, ==, *rahead - 1);
 			ASSERT3U((db->db_size & PAGE_MASK), !=, 0);
-			bzero(va + tocpy, PAGESIZE - tocpy);
+			memset(va + tocpy, 0, PAGESIZE - tocpy);
 		}
 		zfs_unmap_page(sf);
 		vm_page_valid(m);

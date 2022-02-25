@@ -1150,7 +1150,7 @@ zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd, const zbookmark_phys_t *zb,
 	/* copy the checksum failure information if it was provided */
 	if (info != NULL) {
 		report->zcr_ckinfo = kmem_zalloc(sizeof (*info), KM_SLEEP);
-		bcopy(info, report->zcr_ckinfo, sizeof (*info));
+		memcpy(report->zcr_ckinfo, info, sizeof (*info));
 	}
 
 	report->zcr_sector = 1ULL << vd->vdev_top->vdev_ashift;

@@ -766,7 +766,7 @@ eval_maps(uint64_t children, int passes, uint64_t *map_seed,
 static int
 draid_generate(int argc, char *argv[])
 {
-	char filename[MAXPATHLEN];
+	char filename[MAXPATHLEN] = {0};
 	uint64_t map_seed;
 	int c, fd, error, verbose = 0, passes = 1, continuous = 0;
 	int min_children = VDEV_DRAID_MIN_CHILDREN;
@@ -824,10 +824,9 @@ draid_generate(int argc, char *argv[])
 		}
 	}
 
-	if (argc > optind) {
-		bzero(filename, MAXPATHLEN);
+	if (argc > optind)
 		strncpy(filename, argv[optind], MAXPATHLEN - 1);
-	} else {
+	else {
 		(void) fprintf(stderr, "A FILE must be specified.\n");
 		return (1);
 	}
@@ -926,7 +925,7 @@ restart:
 static int
 draid_verify(int argc, char *argv[])
 {
-	char filename[MAXPATHLEN];
+	char filename[MAXPATHLEN] = {0};
 	int n = 0, c, error, verbose = 1;
 	int check_ratios = 0;
 
@@ -956,7 +955,6 @@ draid_verify(int argc, char *argv[])
 		if (abspath == NULL)
 			return (ENOMEM);
 
-		bzero(filename, MAXPATHLEN);
 		if (realpath(argv[optind], abspath) != NULL)
 			strncpy(filename, abspath, MAXPATHLEN - 1);
 		else
@@ -980,9 +978,8 @@ draid_verify(int argc, char *argv[])
 	    children <= VDEV_DRAID_MAX_CHILDREN;
 	    children++) {
 		draid_map_t *map;
-		char key[8];
+		char key[8] = {0};
 
-		bzero(key, 8);
 		snprintf(key, 8, "%llu", (u_longlong_t)children);
 
 		error = alloc_fixed_map(children, &map);
@@ -1126,7 +1123,7 @@ draid_verify(int argc, char *argv[])
 static int
 draid_dump(int argc, char *argv[])
 {
-	char filename[MAXPATHLEN];
+	char filename[MAXPATHLEN] = {0};
 	int c, error, verbose = 1;
 	int min_children = VDEV_DRAID_MIN_CHILDREN;
 	int max_children = VDEV_DRAID_MAX_CHILDREN;
@@ -1167,10 +1164,9 @@ draid_dump(int argc, char *argv[])
 		}
 	}
 
-	if (argc > optind) {
-		bzero(filename, MAXPATHLEN);
+	if (argc > optind)
 		strncpy(filename, argv[optind], MAXPATHLEN - 1);
-	} else {
+	else {
 		(void) fprintf(stderr, "A FILE must be specified.\n");
 		return (1);
 	}
@@ -1202,13 +1198,12 @@ draid_dump(int argc, char *argv[])
 static int
 draid_table(int argc, char *argv[])
 {
-	char filename[MAXPATHLEN];
+	char filename[MAXPATHLEN] = {0};
 	int error;
 
-	if (argc > optind) {
-		bzero(filename, MAXPATHLEN);
+	if (argc > optind)
 		strncpy(filename, argv[optind], MAXPATHLEN - 1);
-	} else {
+	else {
 		(void) fprintf(stderr, "A FILE must be specified.\n");
 		return (1);
 	}
@@ -1221,9 +1216,8 @@ draid_table(int argc, char *argv[])
 	    children++) {
 		uint64_t seed, checksum, nperms, avg_ratio;
 		nvlist_t *cfg;
-		char key[8];
+		char key[8] = {0};
 
-		bzero(key, 8);
 		snprintf(key, 8, "%llu", (u_longlong_t)children);
 
 		error = read_map_key(filename, key, &cfg);
@@ -1317,7 +1311,7 @@ draid_merge_impl(nvlist_t *allcfgs, const char *srcfilename, int *mergedp)
 static int
 draid_merge(int argc, char *argv[])
 {
-	char filename[MAXPATHLEN];
+	char filename[MAXPATHLEN] = {0};
 	int c, error, total_merged = 0, verbose = 0;
 	nvlist_t *allcfgs;
 
@@ -1345,7 +1339,6 @@ draid_merge(int argc, char *argv[])
 		return (1);
 	}
 
-	bzero(filename, MAXPATHLEN);
 	strncpy(filename, argv[optind], MAXPATHLEN - 1);
 	optind++;
 
@@ -1358,10 +1351,9 @@ draid_merge(int argc, char *argv[])
 	}
 
 	while (optind < argc) {
-		char srcfilename[MAXPATHLEN];
+		char srcfilename[MAXPATHLEN] = {0};
 		int merged = 0;
 
-		bzero(srcfilename, MAXPATHLEN);
 		strncpy(srcfilename, argv[optind], MAXPATHLEN - 1);
 
 		error = draid_merge_impl(allcfgs, srcfilename, &merged);

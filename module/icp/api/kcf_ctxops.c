@@ -138,7 +138,7 @@ crypto_destroy_ctx_template(crypto_ctx_template_t tmpl)
 
 	ASSERT(ctx_tmpl->ct_prov_tmpl != NULL);
 
-	bzero(ctx_tmpl->ct_prov_tmpl, ctx_tmpl->ct_size);
+	memset(ctx_tmpl->ct_prov_tmpl, 0, ctx_tmpl->ct_size);
 	kmem_free(ctx_tmpl->ct_prov_tmpl, ctx_tmpl->ct_size);
 	kmem_free(ctx_tmpl, sizeof (kcf_ctx_template_t));
 }

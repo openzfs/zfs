@@ -132,7 +132,7 @@ hkdf_sha512_expand(uint8_t *extract_key, uint8_t *info, uint_t info_len,
 		if (ret != CRYPTO_SUCCESS)
 			return (SET_ERROR(EIO));
 
-		bcopy(T, out_buf + pos,
+		memcpy(out_buf + pos, T,
 		    (i != N) ? SHA512_DIGEST_LENGTH : (out_len - pos));
 		pos += SHA512_DIGEST_LENGTH;
 	}

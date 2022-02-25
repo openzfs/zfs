@@ -771,7 +771,6 @@ spl_init(void)
 {
 	int rc = 0;
 
-	bzero(&p0, sizeof (proc_t));
 	spl_random_init();
 
 	if ((rc = spl_kvmem_init()))

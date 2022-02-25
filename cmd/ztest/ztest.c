@@ -930,9 +930,9 @@ process_options(int argc, char **argv)
 	int opt;
 	uint64_t value;
 	char altdir[MAXNAMELEN] = { 0 };
-	char raid_kind[8] = { "random" };
+	char raid_kind[8] = "random";
 
-	bcopy(&ztest_opts_defaults, zo, sizeof (*zo));
+	memcpy(zo, &ztest_opts_defaults, sizeof (*zo));
 
 	init_options();
 
@@ -1887,7 +1887,7 @@ ztest_log_create(ztest_ds_t *zd, dmu_tx_t *tx, lr_create_t *lr)
 		return;
 
 	itx = zil_itx_create(TX_CREATE, sizeof (*lr) + namesize);
-	bcopy(&lr->lr_common + 1, &itx->itx_lr + 1,
+	memcpy(&itx->itx_lr + 1, &lr->lr_common + 1,
 	    sizeof (*lr) + namesize - sizeof (lr_t));
 
 	zil_itx_assign(zd->zd_zilog, itx, tx);
@@ -1904,7 +1904,7 @@ ztest_log_remove(ztest_ds_t *zd, dmu_tx_t *tx, lr_remove_t *lr, uint64_t object)
 		return;
 
 	itx = zil_itx_create(TX_REMOVE, sizeof (*lr) + namesize);
-	bcopy(&lr->lr_common + 1, &itx->itx_lr + 1,
+	memcpy(&itx->itx_lr + 1, &lr->lr_common + 1,
 	    sizeof (*lr) + namesize - sizeof (lr_t));
 
 	itx->itx_oid = object;
@@ -1937,7 +1937,7 @@ ztest_log_write(ztest_ds_t *zd, dmu_tx_t *tx, lr_write_t *lr)
 	itx->itx_wr_state = write_state;
 	itx->itx_sync = (ztest_random(8) == 0);
 
-	bcopy(&lr->lr_common + 1, &itx->itx_lr + 1,
+	memcpy(&itx->itx_lr + 1, &lr->lr_common + 1,
 	    sizeof (*lr) - sizeof (lr_t));
 
 	zil_itx_assign(zd->zd_zilog, itx, tx);
@@ -1952,7 +1952,7 @@ ztest_log_truncate(ztest_ds_t *zd, dmu_tx_t *tx, lr_truncate_t *lr)
 		return;
 
 	itx = zil_itx_create(TX_TRUNCATE, sizeof (*lr));
-	bcopy(&lr->lr_common + 1, &itx->itx_lr + 1,
+	memcpy(&itx->itx_lr + 1, &lr->lr_common + 1,
 	    sizeof (*lr) - sizeof (lr_t));
 
 	itx->itx_sync = B_FALSE;
@@ -1968,7 +1968,7 @@ ztest_log_setattr(ztest_ds_t *zd, dmu_tx_t *tx, lr_setattr_t *lr)
 		return;
 
 	itx = zil_itx_create(TX_SETATTR, sizeof (*lr));
-	bcopy(&lr->lr_common + 1, &itx->itx_lr + 1,
+	memcpy(&itx->itx_lr + 1, &lr->lr_common + 1,
 	    sizeof (*lr) - sizeof (lr_t));
 
 	itx->itx_sync = B_FALSE;
@@ -2233,7 +2233,7 @@ ztest_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 	if (abuf == NULL) {
 		dmu_write(os, lr->lr_foid, offset, length, data, tx);
 	} else {
-		bcopy(data, abuf->b_data, length);
+		memcpy(abuf->b_data, data, length);
 		dmu_assign_arcbuf_by_dbuf(db, offset, abuf, tx);
 	}
 
@@ -2506,7 +2506,7 @@ ztest_lr_alloc(size_t lrsize, char *name)
 	lr = umem_zalloc(lrsize + namesize, UMEM_NOFAIL);
 
 	if (name)
-		bcopy(name, lr + lrsize, namesize);
+		memcpy(lr + lrsize, name, namesize);
 
 	return (lr);
 }
@@ -2663,7 +2663,7 @@ ztest_write(ztest_ds_t *zd, uint64_t object, uint64_t offset, uint64_t size,
 	lr->lr_blkoff = 0;
 	BP_ZERO(&lr->lr_blkptr);
 
-	bcopy(data, lr + 1, size);
+	memcpy(lr + 1, data, size);
 
 	error = ztest_replay_write(zd, lr, B_FALSE);
 
@@ -2787,7 +2787,7 @@ ztest_io(ztest_ds_t *zd, uint64_t object, uint64_t offset)
 		break;
 
 	case ZTEST_IO_WRITE_ZEROES:
-		bzero(data, blocksize);
+		memset(data, 0, blocksize);
 		(void) ztest_write(zd, object, offset, blocksize, data);
 		break;
 
@@ -4844,16 +4844,16 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 			    "got %"PRIx64", wanted %"PRIx64"+%"PRIx64"",
 			    pack->bw_index, n, i);
 
-		if (bcmp(pack, bigH, sizeof (bufwad_t)) != 0)
+		if (memcmp(pack, bigH, sizeof (bufwad_t)) != 0)
 			fatal(B_FALSE, "pack/bigH mismatch in %p/%p",
 			    pack, bigH);
 
-		if (bcmp(pack, bigT, sizeof (bufwad_t)) != 0)
+		if (memcmp(pack, bigT, sizeof (bufwad_t)) != 0)
 			fatal(B_FALSE, "pack/bigT mismatch in %p/%p",
 			    pack, bigT);
 
 		if (freeit) {
-			bzero(pack, sizeof (bufwad_t));
+			memset(pack, 0, sizeof (bufwad_t));
 		} else {
 			pack->bw_index = n + i;
 			pack->bw_txg = txg;
@@ -4899,8 +4899,8 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 		VERIFY0(dmu_read(os, bigobj, bigoff,
 		    bigsize, bigcheck, DMU_READ_PREFETCH));
 
-		ASSERT0(bcmp(packbuf, packcheck, packsize));
-		ASSERT0(bcmp(bigbuf, bigcheck, bigsize));
+		ASSERT0(memcmp(packbuf, packcheck, packsize));
+		ASSERT0(memcmp(bigbuf, bigcheck, bigsize));
 
 		umem_free(packcheck, packsize);
 		umem_free(bigcheck, bigsize);
@@ -4947,11 +4947,11 @@ compare_and_update_pbbufs(uint64_t s, bufwad_t *packbuf, bufwad_t *bigbuf,
 			    "got %"PRIx64", wanted %"PRIx64"+%"PRIx64"",
 			    pack->bw_index, n, i);
 
-		if (bcmp(pack, bigH, sizeof (bufwad_t)) != 0)
+		if (memcmp(pack, bigH, sizeof (bufwad_t)) != 0)
 			fatal(B_FALSE, "pack/bigH mismatch in %p/%p",
 			    pack, bigH);
 
-		if (bcmp(pack, bigT, sizeof (bufwad_t)) != 0)
+		if (memcmp(pack, bigT, sizeof (bufwad_t)) != 0)
 			fatal(B_FALSE, "pack/bigT mismatch in %p/%p",
 			    pack, bigT);
 
@@ -5139,15 +5139,16 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 		for (off = bigoff, j = 0; j < s; j++, off += chunksize) {
 			dmu_buf_t *dbt;
 			if (i != 5 || chunksize < (SPA_MINBLOCKSIZE * 2)) {
-				bcopy((caddr_t)bigbuf + (off - bigoff),
-				    bigbuf_arcbufs[j]->b_data, chunksize);
+				memcpy(bigbuf_arcbufs[j]->b_data,
+				    (caddr_t)bigbuf + (off - bigoff),
+				    chunksize);
 			} else {
-				bcopy((caddr_t)bigbuf + (off - bigoff),
-				    bigbuf_arcbufs[2 * j]->b_data,
+				memcpy(bigbuf_arcbufs[2 * j]->b_data,
+				    (caddr_t)bigbuf + (off - bigoff),
 				    chunksize / 2);
-				bcopy((caddr_t)bigbuf + (off - bigoff) +
+				memcpy(bigbuf_arcbufs[2 * j + 1]->b_data,
+				    (caddr_t)bigbuf + (off - bigoff) +
 				    chunksize / 2,
-				    bigbuf_arcbufs[2 * j + 1]->b_data,
 				    chunksize / 2);
 			}
 
@@ -5183,8 +5184,8 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 			VERIFY0(dmu_read(os, bigobj, bigoff,
 			    bigsize, bigcheck, DMU_READ_PREFETCH));
 
-			ASSERT0(bcmp(packbuf, packcheck, packsize));
-			ASSERT0(bcmp(bigbuf, bigcheck, bigsize));
+			ASSERT0(memcmp(packbuf, packcheck, packsize));
+			ASSERT0(memcmp(bigbuf, bigcheck, bigsize));
 
 			umem_free(packcheck, packsize);
 			umem_free(bigcheck, bigsize);
@@ -5337,7 +5338,7 @@ ztest_zap(ztest_ds_t *zd, uint64_t id)
 	prop = ztest_random(ZTEST_ZAP_MAX_PROPS);
 	(void) sprintf(propname, "prop_%"PRIu64"", prop);
 	(void) sprintf(txgname, "txg_%"PRIu64"", prop);
-	bzero(value, sizeof (value));
+	memset(value, 0, sizeof (value));
 	last_txg = 0;
 
 	/*
@@ -5529,11 +5530,11 @@ ztest_zap_parallel(ztest_ds_t *zd, uint64_t id)
 			umem_free(od, sizeof (ztest_od_t));
 			return;
 		}
-		bcopy(name, string_value, namelen);
+		memcpy(string_value, name, namelen);
 	} else {
 		tx = NULL;
 		txg = 0;
-		bzero(string_value, namelen);
+		memset(string_value, 0, namelen);
 	}
 
 	switch (i) {
@@ -5552,7 +5553,7 @@ ztest_zap_parallel(ztest_ds_t *zd, uint64_t id)
 		error = zap_lookup(os, object, name, wsize, wc, data);
 		if (error == 0) {
 			if (data == string_value &&
-			    bcmp(name, data, namelen) != 0)
+			    memcmp(name, data, namelen) != 0)
 				fatal(B_FALSE, "name '%s' != val '%s' len %d",
 				    name, (char *)data, namelen);
 		} else {
@@ -6436,8 +6437,8 @@ ztest_fletcher(ztest_ds_t *zd, uint64_t id)
 			fletcher_4_byteswap(buf, size, NULL, &zc_byteswap);
 			fletcher_4_native(buf, size, NULL, &zc);
 
-			VERIFY0(bcmp(&zc, &zc_ref, sizeof (zc)));
-			VERIFY0(bcmp(&zc_byteswap, &zc_ref_byteswap,
+			VERIFY0(memcmp(&zc, &zc_ref, sizeof (zc)));
+			VERIFY0(memcmp(&zc_byteswap, &zc_ref_byteswap,
 			    sizeof (zc_byteswap)));
 
 			/* Test ABD - data */
@@ -6445,8 +6446,8 @@ ztest_fletcher(ztest_ds_t *zd, uint64_t id)
 			    &zc_byteswap);
 			abd_fletcher_4_native(abd_data, size, NULL, &zc);
 
-			VERIFY0(bcmp(&zc, &zc_ref, sizeof (zc)));
-			VERIFY0(bcmp(&zc_byteswap, &zc_ref_byteswap,
+			VERIFY0(memcmp(&zc, &zc_ref, sizeof (zc)));
+			VERIFY0(memcmp(&zc_byteswap, &zc_ref_byteswap,
 			    sizeof (zc_byteswap)));
 
 			/* Test ABD - metadata */
@@ -6454,8 +6455,8 @@ ztest_fletcher(ztest_ds_t *zd, uint64_t id)
 			    &zc_byteswap);
 			abd_fletcher_4_native(abd_meta, size, NULL, &zc);
 
-			VERIFY0(bcmp(&zc, &zc_ref, sizeof (zc)));
-			VERIFY0(bcmp(&zc_byteswap, &zc_ref_byteswap,
+			VERIFY0(memcmp(&zc, &zc_ref, sizeof (zc)));
+			VERIFY0(memcmp(&zc_byteswap, &zc_ref_byteswap,
 			    sizeof (zc_byteswap)));
 
 		}
@@ -7960,7 +7961,7 @@ ztest_run_init(void)
 	 * Create and initialize our storage pool.
 	 */
 	for (i = 1; i <= ztest_opts.zo_init; i++) {
-		bzero(zs, sizeof (ztest_shared_t));
+		memset(zs, 0, sizeof (*zs));
 		if (ztest_opts.zo_verbose >= 3 &&
 		    ztest_opts.zo_init != 1) {
 			(void) printf("ztest_init(), pass %d\n", i);
@@ -8041,12 +8042,12 @@ main(int argc, char **argv)
 		setup_data_fd();
 		setup_hdr();
 		setup_data();
-		bcopy(&ztest_opts, ztest_shared_opts,
+		memcpy(ztest_shared_opts, &ztest_opts,
 		    sizeof (*ztest_shared_opts));
 	} else {
 		ztest_fd_data = atoi(fd_data_str);
 		setup_data();
-		bcopy(ztest_shared_opts, &ztest_opts, sizeof (ztest_opts));
+		memcpy(&ztest_opts, ztest_shared_opts, sizeof (ztest_opts));
 	}
 	ASSERT3U(ztest_opts.zo_datasets, ==, ztest_shared_hdr->zh_ds_count);
 

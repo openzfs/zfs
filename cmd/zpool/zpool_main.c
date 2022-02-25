@@ -10097,7 +10097,7 @@ zpool_do_get(int argc, char **argv)
 			cb.cb_scripted = B_TRUE;
 			break;
 		case 'o':
-			bzero(&cb.cb_columns, sizeof (cb.cb_columns));
+			memset(&cb.cb_columns, 0, sizeof (cb.cb_columns));
 			i = 0;
 			while (*optarg != '\0') {
 				static char *col_subopts[] =
@@ -10714,7 +10714,7 @@ zpool_do_wait(int argc, char **argv)
 			    "scrub", "trim", NULL };
 
 			/* Reset activities array */
-			bzero(&wd.wd_enabled, sizeof (wd.wd_enabled));
+			memset(&wd.wd_enabled, 0, sizeof (wd.wd_enabled));
 			while (*optarg != '\0') {
 				int activity = getsubopt(&optarg, col_subopts,
 				    &value);

@@ -721,7 +721,7 @@ zfsctl_root_vptocnp(struct vop_vptocnp_args *ap)
 	VOP_UNLOCK1(dvp);
 	*ap->a_vpp = dvp;
 	*ap->a_buflen -= sizeof (dotzfs_name);
-	bcopy(dotzfs_name, ap->a_buf + *ap->a_buflen, sizeof (dotzfs_name));
+	memcpy(ap->a_buf + *ap->a_buflen, dotzfs_name, sizeof (dotzfs_name));
 	return (0);
 }
 
@@ -1214,7 +1214,7 @@ zfsctl_snapshot_vptocnp(struct vop_vptocnp_args *ap)
 		VOP_UNLOCK1(dvp);
 		*ap->a_vpp = dvp;
 		*ap->a_buflen -= len;
-		bcopy(node->sn_name, ap->a_buf + *ap->a_buflen, len);
+		memcpy(ap->a_buf + *ap->a_buflen, node->sn_name, len);
 	}
 	vfs_unbusy(mp);
 #if __FreeBSD_version >= 1300045

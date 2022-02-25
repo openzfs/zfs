@@ -822,7 +822,7 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 	IMPLY(lsize != psize, (flags & ZIO_FLAG_RAW_COMPRESS) != 0);
 
 	zio = kmem_cache_alloc(zio_cache, KM_SLEEP);
-	bzero(zio, sizeof (zio_t));
+	memset(zio, 0, sizeof (zio_t));
 
 	mutex_init(&zio->io_lock, NULL, MUTEX_NOLOCKDEP, NULL);
 	cv_init(&zio->io_cv, NULL, CV_DEFAULT, NULL);
@@ -2883,7 +2883,7 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 
 	gn = zio_gang_node_alloc(gnpp);
 	gbh = gn->gn_gbh;
-	bzero(gbh, SPA_GANGBLOCKSIZE);
+	memset(gbh, 0, SPA_GANGBLOCKSIZE);
 	gbh_abd = abd_get_from_buf(gbh, SPA_GANGBLOCKSIZE);
 
 	/*
@@ -2912,9 +2912,9 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 		zp.zp_nopwrite = B_FALSE;
 		zp.zp_encrypt = gio->io_prop.zp_encrypt;
 		zp.zp_byteorder = gio->io_prop.zp_byteorder;
-		bzero(zp.zp_salt, ZIO_DATA_SALT_LEN);
-		bzero(zp.zp_iv, ZIO_DATA_IV_LEN);
-		bzero(zp.zp_mac, ZIO_DATA_MAC_LEN);
+		memset(zp.zp_salt, 0, ZIO_DATA_SALT_LEN);
+		memset(zp.zp_iv, 0, ZIO_DATA_IV_LEN);
+		memset(zp.zp_mac, 0, ZIO_DATA_MAC_LEN);
 
 		zio_t *cio = zio_write(zio, spa, txg, &gbh->zg_blkptr[g],
 		    has_data ? abd_get_offset(pio->io_abd, pio->io_size -
@@ -3011,7 +3011,7 @@ zio_nop_write(zio_t *zio)
 		ASSERT3U(BP_GET_PSIZE(bp), ==, BP_GET_PSIZE(bp_orig));
 		ASSERT3U(BP_GET_LSIZE(bp), ==, BP_GET_LSIZE(bp_orig));
 		ASSERT(zp->zp_compress != ZIO_COMPRESS_OFF);
-		ASSERT(bcmp(&bp->blk_prop, &bp_orig->blk_prop,
+		ASSERT(memcmp(&bp->blk_prop, &bp_orig->blk_prop,
 		    sizeof (uint64_t)) == 0);
 
 		/*
@@ -4561,7 +4561,7 @@ zio_done(zio_t *zio)
 	if (zio->io_bp != NULL && !BP_IS_EMBEDDED(zio->io_bp)) {
 		ASSERT(zio->io_bp->blk_pad[0] == 0);
 		ASSERT(zio->io_bp->blk_pad[1] == 0);
-		ASSERT(bcmp(zio->io_bp, &zio->io_bp_copy,
+		ASSERT(memcmp(zio->io_bp, &zio->io_bp_copy,
 		    sizeof (blkptr_t)) == 0 ||
 		    (zio->io_bp == zio_unique_parent(zio)->io_bp));
 		if (zio->io_type == ZIO_TYPE_WRITE && !BP_IS_HOLE(zio->io_bp) &&

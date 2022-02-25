@@ -1779,10 +1779,8 @@ vdev_raidz_checksum_error(zio_t *zio, raidz_col_t *rc, abd_t *bad_data)
 static int
 raidz_checksum_verify(zio_t *zio)
 {
-	zio_bad_cksum_t zbc;
+	zio_bad_cksum_t zbc = {{{0}}};
 	raidz_map_t *rm = zio->io_vsd;
-
-	bzero(&zbc, sizeof (zio_bad_cksum_t));
 
 	int ret = zio_checksum_error(zio, &zbc);
 	if (ret != 0 && zbc.zbc_injected != 0)

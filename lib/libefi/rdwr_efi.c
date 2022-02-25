@@ -865,7 +865,7 @@ efi_read(int fd, struct dk_gpt *vtoc)
 		    j < sizeof (conversion_array)
 		    / sizeof (struct uuid_to_ptag); j++) {
 
-			if (bcmp(&vtoc->efi_parts[i].p_guid,
+			if (memcmp(&vtoc->efi_parts[i].p_guid,
 			    &conversion_array[j].uuid,
 			    sizeof (struct uuid)) == 0) {
 				vtoc->efi_parts[i].p_tag = j;
@@ -920,18 +920,17 @@ write_pmbr(int fd, struct dk_gpt *vtoc)
 	/* LINTED -- always longlong aligned */
 	dk_ioc.dki_data = (efi_gpt_t *)buf;
 	if (efi_ioctl(fd, DKIOCGETEFI, &dk_ioc) == -1) {
-		(void) memcpy(&mb, buf, sizeof (mb));
-		bzero(&mb, sizeof (mb));
+		memset(&mb, 0, sizeof (mb));
 		mb.signature = LE_16(MBB_MAGIC);
 	} else {
 		(void) memcpy(&mb, buf, sizeof (mb));
 		if (mb.signature != LE_16(MBB_MAGIC)) {
-			bzero(&mb, sizeof (mb));
+			memset(&mb, 0, sizeof (mb));
 			mb.signature = LE_16(MBB_MAGIC);
 		}
 	}
 
-	bzero(&mb.parts, sizeof (mb.parts));
+	memset(&mb.parts, 0, sizeof (mb.parts));
 	cp = (uchar_t *)&mb.parts[0];
 	/* bootable or not */
 	*cp++ = 0;
@@ -1455,8 +1454,8 @@ efi_write(int fd, struct dk_gpt *vtoc)
 			(void) uuid_generate((uchar_t *)
 			    &vtoc->efi_parts[i].p_uguid);
 		}
-		bcopy(&vtoc->efi_parts[i].p_uguid,
-		    &efi_parts[i].efi_gpe_UniquePartitionGUID,
+		memcpy(&efi_parts[i].efi_gpe_UniquePartitionGUID,
+		    &vtoc->efi_parts[i].p_uguid,
 		    sizeof (uuid_t));
 	}
 	efi->efi_gpt_PartitionEntryArrayCRC32 =

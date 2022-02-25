@@ -51,8 +51,8 @@ cbc_encrypt_contiguous_blocks(cbc_ctx_t *ctx, char *data, size_t length,
 
 	if (length + ctx->cbc_remainder_len < block_size) {
 		/* accumulate bytes here and return */
-		bcopy(datap,
-		    (uint8_t *)ctx->cbc_remainder + ctx->cbc_remainder_len,
+		memcpy((uint8_t *)ctx->cbc_remainder + ctx->cbc_remainder_len,
+		    datap,
 		    length);
 		ctx->cbc_remainder_len += length;
 		ctx->cbc_copy_to = datap;
@@ -70,8 +70,8 @@ cbc_encrypt_contiguous_blocks(cbc_ctx_t *ctx, char *data, size_t length,
 			if (need > remainder)
 				return (CRYPTO_DATA_LEN_RANGE);
 
-			bcopy(datap, &((uint8_t *)ctx->cbc_remainder)
-			    [ctx->cbc_remainder_len], need);
+			memcpy(&((uint8_t *)ctx->cbc_remainder)
+			    [ctx->cbc_remainder_len], datap, need);
 
 			blockp = (uint8_t *)ctx->cbc_remainder;
 		} else {
@@ -91,10 +91,10 @@ cbc_encrypt_contiguous_blocks(cbc_ctx_t *ctx, char *data, size_t length,
 		if (out_data_1_len == block_size) {
 			copy_block(lastp, out_data_1);
 		} else {
-			bcopy(lastp, out_data_1, out_data_1_len);
+			memcpy(out_data_1, lastp, out_data_1_len);
 			if (out_data_2 != NULL) {
-				bcopy(lastp + out_data_1_len,
-				    out_data_2,
+				memcpy(out_data_2,
+				    lastp + out_data_1_len,
 				    block_size - out_data_1_len);
 			}
 		}
@@ -113,7 +113,7 @@ cbc_encrypt_contiguous_blocks(cbc_ctx_t *ctx, char *data, size_t length,
 
 		/* Incomplete last block. */
 		if (remainder > 0 && remainder < block_size) {
-			bcopy(datap, ctx->cbc_remainder, remainder);
+			memcpy(ctx->cbc_remainder, datap, remainder);
 			ctx->cbc_remainder_len = remainder;
 			ctx->cbc_copy_to = datap;
 			goto out;
@@ -157,8 +157,8 @@ cbc_decrypt_contiguous_blocks(cbc_ctx_t *ctx, char *data, size_t length,
 
 	if (length + ctx->cbc_remainder_len < block_size) {
 		/* accumulate bytes here and return */
-		bcopy(datap,
-		    (uint8_t *)ctx->cbc_remainder + ctx->cbc_remainder_len,
+		memcpy((uint8_t *)ctx->cbc_remainder + ctx->cbc_remainder_len,
+		    datap,
 		    length);
 		ctx->cbc_remainder_len += length;
 		ctx->cbc_copy_to = datap;
@@ -176,8 +176,8 @@ cbc_decrypt_contiguous_blocks(cbc_ctx_t *ctx, char *data, size_t length,
 			if (need > remainder)
 				return (CRYPTO_ENCRYPTED_DATA_LEN_RANGE);
 
-			bcopy(datap, &((uint8_t *)ctx->cbc_remainder)
-			    [ctx->cbc_remainder_len], need);
+			memcpy(&((uint8_t *)ctx->cbc_remainder)
+			    [ctx->cbc_remainder_len], datap, need);
 
 			blockp = (uint8_t *)ctx->cbc_remainder;
 		} else {
@@ -203,9 +203,9 @@ cbc_decrypt_contiguous_blocks(cbc_ctx_t *ctx, char *data, size_t length,
 		crypto_get_ptrs(out, &iov_or_mp, &offset, &out_data_1,
 		    &out_data_1_len, &out_data_2, block_size);
 
-		bcopy(blockp, out_data_1, out_data_1_len);
+		memcpy(out_data_1, blockp, out_data_1_len);
 		if (out_data_2 != NULL) {
-			bcopy(blockp + out_data_1_len, out_data_2,
+			memcpy(out_data_2, blockp + out_data_1_len,
 			    block_size - out_data_1_len);
 		}
 
@@ -224,7 +224,7 @@ cbc_decrypt_contiguous_blocks(cbc_ctx_t *ctx, char *data, size_t length,
 
 		/* Incomplete last block. */
 		if (remainder > 0 && remainder < block_size) {
-			bcopy(datap, ctx->cbc_remainder, remainder);
+			memcpy(ctx->cbc_remainder, datap, remainder);
 			ctx->cbc_remainder_len = remainder;
 			ctx->cbc_lastp = lastp;
 			ctx->cbc_copy_to = datap;

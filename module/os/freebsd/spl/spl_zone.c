@@ -184,7 +184,7 @@ zone_dataset_visible(const char *dataset, int *write)
 	LIST_FOREACH(zd, head, zd_next) {
 		len = strlen(zd->zd_dataset);
 		if (strlen(dataset) >= len &&
-		    bcmp(dataset, zd->zd_dataset, len) == 0 &&
+		    memcmp(dataset, zd->zd_dataset, len) == 0 &&
 		    (dataset[len] == '\0' || dataset[len] == '/' ||
 		    dataset[len] == '@')) {
 			if (write)
@@ -206,7 +206,7 @@ zone_dataset_visible(const char *dataset, int *write)
 		if (dataset[len - 1] == '/')
 			len--;	/* Ignore trailing slash */
 		if (len < strlen(zd->zd_dataset) &&
-		    bcmp(dataset, zd->zd_dataset, len) == 0 &&
+		    memcmp(dataset, zd->zd_dataset, len) == 0 &&
 		    zd->zd_dataset[len] == '/') {
 			if (write)
 				*write = 0;

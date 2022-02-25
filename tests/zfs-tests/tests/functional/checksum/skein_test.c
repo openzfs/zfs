@@ -278,7 +278,7 @@ main(int argc, char *argv[])
 		(void) Skein ## mode ## _Final(&ctx, digest);		\
 		(void) printf("Skein" #mode "/" #diglen			\
 		    "\tMessage: " #_m "\tResult: ");			\
-		if (bcmp(digest, testdigest, diglen / 8) == 0) {	\
+		if (memcmp(digest, testdigest, diglen / 8) == 0) {	\
 			(void) printf("OK\n");				\
 		} else {						\
 			(void) printf("FAILED!\n");			\
@@ -295,7 +295,7 @@ main(int argc, char *argv[])
 		double		cpb = 0;				\
 		int		i;					\
 		struct timeval	start, end;				\
-		bzero(block, sizeof (block));				\
+		memset(block, 0, sizeof (block));			\
 		(void) gettimeofday(&start, NULL);			\
 		(void) Skein ## mode ## _Init(&ctx, diglen);		\
 		for (i = 0; i < 8192; i++) {				\

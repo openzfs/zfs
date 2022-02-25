@@ -539,7 +539,7 @@ mappedread_sf(znode_t *zp, int nbytes, zfs_uio_t *uio)
 			error = dmu_read(os, zp->z_id, start, bytes, va,
 			    DMU_READ_PREFETCH);
 			if (bytes != PAGESIZE && error == 0)
-				bzero(va + bytes, PAGESIZE - bytes);
+				memset(va + bytes, 0, PAGESIZE - bytes);
 			zfs_unmap_page(sf);
 			zfs_vmobject_wlock_12(obj);
 #if  __FreeBSD_version >= 1300081
@@ -5273,7 +5273,7 @@ zfs_create_attrname(int attrnamespace, const char *name, char *attrname,
 {
 	const char *namespace, *prefix, *suffix;
 
-	bzero(attrname, size);
+	memset(attrname, 0, size);
 
 	switch (attrnamespace) {
 	case EXTATTR_NAMESPACE_USER:
@@ -6142,7 +6142,7 @@ zfs_vptocnp(struct vop_vptocnp_args *ap)
 		}
 		if (error == 0) {
 			*ap->a_buflen -= len;
-			bcopy(name, ap->a_buf + *ap->a_buflen, len);
+			memcpy(ap->a_buf + *ap->a_buflen, name, len);
 			*ap->a_vpp = ZTOV(dzp);
 		}
 		ZFS_EXIT(zfsvfs);
