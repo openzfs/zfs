@@ -85,10 +85,10 @@ do_mount_(const char *spec, const char *dir, int mflag, char *fstype,
 	assert(dir != NULL);
 	assert(fstype != NULL);
 	assert(strcmp(fstype, MNTTYPE_ZFS) == 0);
-	assert(dataptr == NULL);
-	assert(datalen == 0);
+	assert(dataptr == NULL), (void) dataptr;
+	assert(datalen == 0), (void) datalen;
 	assert(optptr != NULL);
-	assert(optlen > 0);
+	assert(optlen > 0), (void) optlen;
 
 	tofree = optstr = strdup(optptr);
 	assert(optstr != NULL);
