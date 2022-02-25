@@ -128,15 +128,15 @@ dnode_cons(void *arg, void *unused, int kmflag)
 	zfs_refcount_create(&dn->dn_tx_holds);
 	list_link_init(&dn->dn_link);
 
-	bzero(&dn->dn_next_type[0], sizeof (dn->dn_next_type));
-	bzero(&dn->dn_next_nblkptr[0], sizeof (dn->dn_next_nblkptr));
-	bzero(&dn->dn_next_nlevels[0], sizeof (dn->dn_next_nlevels));
-	bzero(&dn->dn_next_indblkshift[0], sizeof (dn->dn_next_indblkshift));
-	bzero(&dn->dn_next_bonustype[0], sizeof (dn->dn_next_bonustype));
-	bzero(&dn->dn_rm_spillblk[0], sizeof (dn->dn_rm_spillblk));
-	bzero(&dn->dn_next_bonuslen[0], sizeof (dn->dn_next_bonuslen));
-	bzero(&dn->dn_next_blksz[0], sizeof (dn->dn_next_blksz));
-	bzero(&dn->dn_next_maxblkid[0], sizeof (dn->dn_next_maxblkid));
+	memset(dn->dn_next_type, 0, sizeof (dn->dn_next_type));
+	memset(dn->dn_next_nblkptr, 0, sizeof (dn->dn_next_nblkptr));
+	memset(dn->dn_next_nlevels, 0, sizeof (dn->dn_next_nlevels));
+	memset(dn->dn_next_indblkshift, 0, sizeof (dn->dn_next_indblkshift));
+	memset(dn->dn_next_bonustype, 0, sizeof (dn->dn_next_bonustype));
+	memset(dn->dn_rm_spillblk, 0, sizeof (dn->dn_rm_spillblk));
+	memset(dn->dn_next_bonuslen, 0, sizeof (dn->dn_next_bonuslen));
+	memset(dn->dn_next_blksz, 0, sizeof (dn->dn_next_blksz));
+	memset(dn->dn_next_maxblkid, 0, sizeof (dn->dn_next_maxblkid));
 
 	for (int i = 0; i < TXG_SIZE; i++) {
 		multilist_link_init(&dn->dn_dirty_link[i]);
@@ -317,7 +317,7 @@ dnode_byteswap(dnode_phys_t *dnp)
 	int i;
 
 	if (dnp->dn_type == DMU_OT_NONE) {
-		bzero(dnp, sizeof (dnode_phys_t));
+		memset(dnp, 0, sizeof (dnode_phys_t));
 		return;
 	}
 
@@ -395,7 +395,7 @@ dnode_setbonuslen(dnode_t *dn, int newsize, dmu_tx_t *tx)
 		/* clear any data after the end of the new size */
 		size_t diff = dn->dn_bonuslen - newsize;
 		char *data_end = ((char *)dn->dn_bonus->db.db_data) + newsize;
-		bzero(data_end, diff);
+		memset(data_end, 0, diff);
 	}
 
 	dn->dn_bonuslen = newsize;
@@ -596,7 +596,7 @@ dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
 	DNODE_STAT_BUMP(dnode_allocate);
 
 	ASSERT(dn->dn_type == DMU_OT_NONE);
-	ASSERT(bcmp(dn->dn_phys, &dnode_phys_zero, sizeof (dnode_phys_t)) == 0);
+	ASSERT0(memcmp(dn->dn_phys, &dnode_phys_zero, sizeof (dnode_phys_t)));
 	ASSERT(dn->dn_phys->dn_type == DMU_OT_NONE);
 	ASSERT(ot != DMU_OT_NONE);
 	ASSERT(DMU_OT_IS_VALID(ot));
@@ -749,8 +749,6 @@ dnode_reallocate(dnode_t *dn, dmu_object_type_t ot, int blocksize,
 static void
 dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 {
-	int i;
-
 	ASSERT(!RW_LOCK_HELD(&odn->dn_struct_rwlock));
 	ASSERT(MUTEX_NOT_HELD(&odn->dn_mtx));
 	ASSERT(MUTEX_NOT_HELD(&odn->dn_dbufs_mtx));
@@ -774,29 +772,29 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	ndn->dn_datablksz = odn->dn_datablksz;
 	ndn->dn_maxblkid = odn->dn_maxblkid;
 	ndn->dn_num_slots = odn->dn_num_slots;
-	bcopy(&odn->dn_next_type[0], &ndn->dn_next_type[0],
+	memcpy(ndn->dn_next_type, odn->dn_next_type,
 	    sizeof (odn->dn_next_type));
-	bcopy(&odn->dn_next_nblkptr[0], &ndn->dn_next_nblkptr[0],
+	memcpy(ndn->dn_next_nblkptr, odn->dn_next_nblkptr,
 	    sizeof (odn->dn_next_nblkptr));
-	bcopy(&odn->dn_next_nlevels[0], &ndn->dn_next_nlevels[0],
+	memcpy(ndn->dn_next_nlevels, odn->dn_next_nlevels,
 	    sizeof (odn->dn_next_nlevels));
-	bcopy(&odn->dn_next_indblkshift[0], &ndn->dn_next_indblkshift[0],
+	memcpy(ndn->dn_next_indblkshift, odn->dn_next_indblkshift,
 	    sizeof (odn->dn_next_indblkshift));
-	bcopy(&odn->dn_next_bonustype[0], &ndn->dn_next_bonustype[0],
+	memcpy(ndn->dn_next_bonustype, odn->dn_next_bonustype,
 	    sizeof (odn->dn_next_bonustype));
-	bcopy(&odn->dn_rm_spillblk[0], &ndn->dn_rm_spillblk[0],
+	memcpy(ndn->dn_rm_spillblk, odn->dn_rm_spillblk,
 	    sizeof (odn->dn_rm_spillblk));
-	bcopy(&odn->dn_next_bonuslen[0], &ndn->dn_next_bonuslen[0],
+	memcpy(ndn->dn_next_bonuslen, odn->dn_next_bonuslen,
 	    sizeof (odn->dn_next_bonuslen));
-	bcopy(&odn->dn_next_blksz[0], &ndn->dn_next_blksz[0],
+	memcpy(ndn->dn_next_blksz, odn->dn_next_blksz,
 	    sizeof (odn->dn_next_blksz));
-	bcopy(&odn->dn_next_maxblkid[0], &ndn->dn_next_maxblkid[0],
+	memcpy(ndn->dn_next_maxblkid, odn->dn_next_maxblkid,
 	    sizeof (odn->dn_next_maxblkid));
-	for (i = 0; i < TXG_SIZE; i++) {
+	for (int i = 0; i < TXG_SIZE; i++) {
 		list_move_tail(&ndn->dn_dirty_records[i],
 		    &odn->dn_dirty_records[i]);
 	}
-	bcopy(&odn->dn_free_ranges[0], &ndn->dn_free_ranges[0],
+	memcpy(ndn->dn_free_ranges, odn->dn_free_ranges,
 	    sizeof (odn->dn_free_ranges));
 	ndn->dn_allocated_txg = odn->dn_allocated_txg;
 	ndn->dn_free_txg = odn->dn_free_txg;
@@ -850,7 +848,7 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	/*
 	 * Satisfy the destructor.
 	 */
-	for (i = 0; i < TXG_SIZE; i++) {
+	for (int i = 0; i < TXG_SIZE; i++) {
 		list_create(&odn->dn_dirty_records[i],
 		    sizeof (dbuf_dirty_record_t),
 		    offsetof(dbuf_dirty_record_t, dr_dirty_node));
@@ -2081,7 +2079,7 @@ dnode_partial_zero(dnode_t *dn, uint64_t off, uint64_t blkoff, uint64_t len,
 
 			dmu_buf_will_dirty(&db->db, tx);
 			data = db->db.db_data;
-			bzero(data + blkoff, len);
+			memset(data + blkoff, 0, len);
 		}
 		dbuf_rele(db, FTAG);
 	}

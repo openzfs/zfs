@@ -159,7 +159,7 @@ zfs_btree_create(zfs_btree_t *tree, int (*compar) (const void *, const void *),
 	 */
 	ASSERT3U(size, <=, (BTREE_LEAF_SIZE - sizeof (zfs_btree_hdr_t)) / 4);
 
-	bzero(tree, sizeof (*tree));
+	memset(tree, 0, sizeof (*tree));
 	tree->bt_compar = compar;
 	tree->bt_elem_size = size;
 	tree->bt_height = -1;

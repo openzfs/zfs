@@ -53,7 +53,7 @@ ZFS_NO_SANITIZE_UNDEFINED
 static void
 fletcher_4_sse2_init(fletcher_4_ctx_t *ctx)
 {
-	bzero(ctx->sse, 4 * sizeof (zfs_fletcher_sse_t));
+	memset(ctx->sse, 0, 4 * sizeof (zfs_fletcher_sse_t));
 }
 
 ZFS_NO_SANITIZE_UNDEFINED

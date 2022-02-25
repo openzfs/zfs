@@ -1148,7 +1148,7 @@ dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
 	dmu_recv_begin_arg_t drba = { 0 };
 	int err;
 
-	bzero(drc, sizeof (dmu_recv_cookie_t));
+	memset(drc, 0, sizeof (dmu_recv_cookie_t));
 	drc->drc_drr_begin = drr_begin;
 	drc->drc_drrb = &drr_begin->drr_u.drr_begin;
 	drc->drc_tosnap = tosnap;
@@ -1211,7 +1211,6 @@ dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
 		    dmu_recv_resume_begin_check, dmu_recv_resume_begin_sync,
 		    &drba, 5, ZFS_SPACE_CHECK_NORMAL);
 	} else {
-
 		/*
 		 * For non-raw, non-incremental, non-resuming receives the
 		 * user can specify encryption parameters on the command line
@@ -1808,7 +1807,7 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		dmu_buf_will_dirty(db, tx);
 
 		ASSERT3U(db->db_size, >=, drro->drr_bonuslen);
-		bcopy(data, db->db_data, DRR_OBJECT_PAYLOAD_SIZE(drro));
+		memcpy(db->db_data, data, DRR_OBJECT_PAYLOAD_SIZE(drro));
 
 		/*
 		 * Raw bonus buffers have their byteorder determined by the
@@ -1949,11 +1948,11 @@ flush_write_batch_impl(struct receive_writer_arg *rwa)
 				zp.zp_byteorder = ZFS_HOST_BYTEORDER ^
 				    !!DRR_IS_RAW_BYTESWAPPED(drrw->drr_flags) ^
 				    rwa->byteswap;
-				bcopy(drrw->drr_salt, zp.zp_salt,
+				memcpy(zp.zp_salt, drrw->drr_salt,
 				    ZIO_DATA_SALT_LEN);
-				bcopy(drrw->drr_iv, zp.zp_iv,
+				memcpy(zp.zp_iv, drrw->drr_iv,
 				    ZIO_DATA_IV_LEN);
-				bcopy(drrw->drr_mac, zp.zp_mac,
+				memcpy(zp.zp_mac, drrw->drr_mac,
 				    ZIO_DATA_MAC_LEN);
 				if (DMU_OT_IS_ENCRYPTED(zp.zp_type)) {
 					zp.zp_nopwrite = B_FALSE;
@@ -2218,7 +2217,7 @@ receive_spill(struct receive_writer_arg *rwa, struct drr_spill *drrs,
 		}
 	}
 
-	bcopy(abd_to_buf(abd), abuf->b_data, DRR_SPILL_PAYLOAD_SIZE(drrs));
+	memcpy(abuf->b_data, abd_to_buf(abd), DRR_SPILL_PAYLOAD_SIZE(drrs));
 	abd_free(abd);
 	dbuf_assign_arcbuf((dmu_buf_impl_t *)db_spill, abuf, tx);
 
@@ -2291,9 +2290,9 @@ receive_object_range(struct receive_writer_arg *rwa,
 	rwa->or_crypt_params_present = B_TRUE;
 	rwa->or_firstobj = drror->drr_firstobj;
 	rwa->or_numslots = drror->drr_numslots;
-	bcopy(drror->drr_salt, rwa->or_salt, ZIO_DATA_SALT_LEN);
-	bcopy(drror->drr_iv, rwa->or_iv, ZIO_DATA_IV_LEN);
-	bcopy(drror->drr_mac, rwa->or_mac, ZIO_DATA_MAC_LEN);
+	memcpy(rwa->or_salt, drror->drr_salt, ZIO_DATA_SALT_LEN);
+	memcpy(rwa->or_iv, drror->drr_iv, ZIO_DATA_IV_LEN);
+	memcpy(rwa->or_mac, drror->drr_mac, ZIO_DATA_MAC_LEN);
 	rwa->or_byteorder = byteorder;
 
 	return (0);

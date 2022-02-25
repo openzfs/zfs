@@ -351,7 +351,7 @@ zio_checksum_compute(zio_t *zio, enum zio_checksum checksum,
 		zio_eck_t eck;
 		size_t eck_offset;
 
-		bzero(&saved, sizeof (zio_cksum_t));
+		memset(&saved, 0, sizeof (zio_cksum_t));
 
 		if (checksum == ZIO_CHECKSUM_ZILOG2) {
 			zil_chain_t zilc;

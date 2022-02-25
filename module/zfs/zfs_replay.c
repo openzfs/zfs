@@ -70,7 +70,7 @@ static void
 zfs_init_vattr(vattr_t *vap, uint64_t mask, uint64_t mode,
     uint64_t uid, uint64_t gid, uint64_t rdev, uint64_t nodeid)
 {
-	bzero(vap, sizeof (*vap));
+	memset(vap, 0, sizeof (*vap));
 	vap->va_mask = (uint_t)mask;
 	vap->va_mode = mode;
 #if defined(__FreeBSD__) || defined(__APPLE__)
@@ -143,13 +143,13 @@ zfs_replay_xvattr(lr_attr_t *lrattr, xvattr_t *xvap)
 	if (XVA_ISSET_REQ(xvap, XAT_AV_SCANSTAMP)) {
 		ASSERT(!XVA_ISSET_REQ(xvap, XAT_PROJID));
 
-		bcopy(scanstamp, xoap->xoa_av_scanstamp, AV_SCANSTAMP_SZ);
+		memcpy(xoap->xoa_av_scanstamp, scanstamp, AV_SCANSTAMP_SZ);
 	} else if (XVA_ISSET_REQ(xvap, XAT_PROJID)) {
 		/*
 		 * XAT_PROJID and XAT_AV_SCANSTAMP will never be valid
 		 * at the same time, so we can share the same space.
 		 */
-		bcopy(scanstamp, &xoap->xoa_projid, sizeof (uint64_t));
+		memcpy(&xoap->xoa_projid, scanstamp, sizeof (uint64_t));
 	}
 	if (XVA_ISSET_REQ(xvap, XAT_REPARSE))
 		xoap->xoa_reparse = ((*attrs & XAT0_REPARSE) != 0);
@@ -791,7 +791,7 @@ zfs_replay_truncate(void *arg1, void *arg2, boolean_t byteswap)
 	zfsvfs_t *zfsvfs = arg1;
 	lr_truncate_t *lr = arg2;
 	znode_t *zp;
-	flock64_t fl;
+	flock64_t fl = {0};
 	int error;
 
 	if (byteswap)
@@ -800,7 +800,6 @@ zfs_replay_truncate(void *arg1, void *arg2, boolean_t byteswap)
 	if ((error = zfs_zget(zfsvfs, lr->lr_foid, &zp)) != 0)
 		return (error);
 
-	bzero(&fl, sizeof (fl));
 	fl.l_type = F_WRLCK;
 	fl.l_whence = SEEK_SET;
 	fl.l_start = lr->lr_offset;
@@ -956,7 +955,7 @@ zfs_replay_acl_v0(void *arg1, void *arg2, boolean_t byteswap)
 	zfsvfs_t *zfsvfs = arg1;
 	lr_acl_v0_t *lr = arg2;
 	ace_t *ace = (ace_t *)(lr + 1);	/* ace array follows lr_acl_t */
-	vsecattr_t vsa;
+	vsecattr_t vsa = {0};
 	znode_t *zp;
 	int error;
 
@@ -968,7 +967,6 @@ zfs_replay_acl_v0(void *arg1, void *arg2, boolean_t byteswap)
 	if ((error = zfs_zget(zfsvfs, lr->lr_foid, &zp)) != 0)
 		return (error);
 
-	bzero(&vsa, sizeof (vsa));
 	vsa.vsa_mask = VSA_ACE | VSA_ACECNT;
 	vsa.vsa_aclcnt = lr->lr_aclcnt;
 	vsa.vsa_aclentsz = sizeof (ace_t) * vsa.vsa_aclcnt;
@@ -1002,7 +1000,7 @@ zfs_replay_acl(void *arg1, void *arg2, boolean_t byteswap)
 	zfsvfs_t *zfsvfs = arg1;
 	lr_acl_t *lr = arg2;
 	ace_t *ace = (ace_t *)(lr + 1);
-	vsecattr_t vsa;
+	vsecattr_t vsa = {0};
 	znode_t *zp;
 	int error;
 
@@ -1019,7 +1017,6 @@ zfs_replay_acl(void *arg1, void *arg2, boolean_t byteswap)
 	if ((error = zfs_zget(zfsvfs, lr->lr_foid, &zp)) != 0)
 		return (error);
 
-	bzero(&vsa, sizeof (vsa));
 	vsa.vsa_mask = VSA_ACE | VSA_ACECNT | VSA_ACE_ACLFLAGS;
 	vsa.vsa_aclcnt = lr->lr_aclcnt;
 	vsa.vsa_aclentp = ace;

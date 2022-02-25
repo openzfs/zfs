@@ -250,7 +250,8 @@ kcf_add_mech_provider(short mech_indx,
 
 	/* allocate and initialize new kcf_prov_mech_desc */
 	prov_mech = kmem_zalloc(sizeof (kcf_prov_mech_desc_t), KM_SLEEP);
-	bcopy(mech_info, &prov_mech->pm_mech_info, sizeof (crypto_mech_info_t));
+	memcpy(&prov_mech->pm_mech_info, mech_info,
+	    sizeof (crypto_mech_info_t));
 	prov_mech->pm_prov_desc = prov_desc;
 	prov_desc->pd_mech_indx[KCF_MECH2CLASS(kcf_mech_type)]
 	    [KCF_MECH2INDEX(kcf_mech_type)] = mech_indx;

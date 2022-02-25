@@ -155,7 +155,7 @@ crypto_free_mode_ctx(void *ctx)
 #ifdef CAN_USE_GCM_ASM
 		if (((gcm_ctx_t *)ctx)->gcm_Htable != NULL) {
 			gcm_ctx_t *gcm_ctx = (gcm_ctx_t *)ctx;
-			bzero(gcm_ctx->gcm_Htable, gcm_ctx->gcm_htab_len);
+			memset(gcm_ctx->gcm_Htable, 0, gcm_ctx->gcm_htab_len);
 			kmem_free(gcm_ctx->gcm_Htable, gcm_ctx->gcm_htab_len);
 		}
 #endif

@@ -126,8 +126,8 @@
  * which has been filled either by:
  *
  *	1. a compression step, which will be mostly cached, or
- *	2. a bcopy() or copyin(), which will be uncached (because the
- *	   copy is cache-bypassing).
+ *	2. a memcpy() or copyin(), which will be uncached
+ *	   (because the copy is cache-bypassing).
  *
  * For both cached and uncached data, both fletcher checksums are much faster
  * than sha-256, and slower than 'off', which doesn't touch the data at all.

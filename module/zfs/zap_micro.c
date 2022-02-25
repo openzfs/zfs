@@ -641,7 +641,7 @@ mzap_upgrade(zap_t **zapp, void *tag, dmu_tx_t *tx, zap_flags_t flags)
 
 	int sz = zap->zap_dbuf->db_size;
 	mzap_phys_t *mzp = vmem_alloc(sz, KM_SLEEP);
-	bcopy(zap->zap_dbuf->db_data, mzp, sz);
+	memcpy(mzp, zap->zap_dbuf->db_data, sz);
 	int nchunks = zap->zap_m.zap_num_chunks;
 
 	if (!flags) {
@@ -1407,7 +1407,7 @@ zap_remove_impl(zap_t *zap, const char *name,
 			err = SET_ERROR(ENOENT);
 		} else {
 			zap->zap_m.zap_num_entries--;
-			bzero(&zap_m_phys(zap)->mz_chunk[mze->mze_chunkid],
+			memset(&zap_m_phys(zap)->mz_chunk[mze->mze_chunkid], 0,
 			    sizeof (mzap_ent_phys_t));
 			mze_remove(zap, mze);
 		}
@@ -1632,7 +1632,7 @@ zap_get_stats(objset_t *os, uint64_t zapobj, zap_stats_t *zs)
 	if (err != 0)
 		return (err);
 
-	bzero(zs, sizeof (zap_stats_t));
+	memset(zs, 0, sizeof (zap_stats_t));
 
 	if (zap->zap_ismicro) {
 		zs->zs_blocksize = zap->zap_dbuf->db_size;

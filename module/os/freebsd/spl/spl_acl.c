@@ -40,7 +40,7 @@ struct zfs2bsd {
 	int		zb_bsd;
 };
 
-struct zfs2bsd perms[] = {{ACE_READ_DATA, ACL_READ_DATA},
+static const struct zfs2bsd perms[] = {{ACE_READ_DATA, ACL_READ_DATA},
 			{ACE_WRITE_DATA, ACL_WRITE_DATA},
 			{ACE_EXECUTE, ACL_EXECUTE},
 			{ACE_APPEND_DATA, ACL_APPEND_DATA},
@@ -56,7 +56,7 @@ struct zfs2bsd perms[] = {{ACE_READ_DATA, ACL_READ_DATA},
 			{ACE_SYNCHRONIZE, ACL_SYNCHRONIZE},
 			{0, 0}};
 
-struct zfs2bsd flags[] = {{ACE_FILE_INHERIT_ACE,
+static const struct zfs2bsd flags[] = {{ACE_FILE_INHERIT_ACE,
 			    ACL_ENTRY_FILE_INHERIT},
 			{ACE_DIRECTORY_INHERIT_ACE,
 			    ACL_ENTRY_DIRECTORY_INHERIT},
@@ -122,7 +122,7 @@ acl_from_aces(struct acl *aclp, const ace_t *aces, int nentries)
 		return (EINVAL);
 	}
 
-	bzero(aclp, sizeof (*aclp));
+	memset(aclp, 0, sizeof (*aclp));
 	aclp->acl_maxcnt = ACL_MAX_ENTRIES;
 	aclp->acl_cnt = nentries;
 
@@ -177,7 +177,7 @@ aces_from_acl(ace_t *aces, int *nentries, const struct acl *aclp)
 	const struct acl_entry *entry;
 	ace_t *ace;
 
-	bzero(aces, sizeof (*aces) * aclp->acl_cnt);
+	memset(aces, 0, sizeof (*aces) * aclp->acl_cnt);
 
 	*nentries = aclp->acl_cnt;
 

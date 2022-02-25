@@ -13,12 +13,6 @@
  * Copyright (c) 2017 by Delphix. All rights reserved.
  */
 
-/*
- * The following is defined so the source can use
- * lrand48() and srand48().
- */
-#define	__EXTENSIONS__
-
 #include <stdint.h>
 #include <string.h>
 #include "../file_common.h"
@@ -27,7 +21,7 @@
  * The following sample was derived from real-world data
  * of a production Oracle database.
  */
-static uint64_t size_distribution[] = {
+static const uint64_t size_distribution[] = {
 	0,
 	1499018,
 	352084,
@@ -87,11 +81,11 @@ fillbuf(char *buf)
 			break;
 	}
 
-	bcopy(randbuf, buf, BLOCKSZ);
+	memcpy(buf, randbuf, BLOCKSZ);
 	if (i == 0)
-		bzero(buf, BLOCKSZ - 10);
+		memset(buf, 0, BLOCKSZ - 10);
 	else if (i < 16)
-		bzero(buf, BLOCKSZ - i * 512 + 256);
+		memset(buf, 0, BLOCKSZ - i * 512 + 256);
 	/*LINTED: E_BAD_PTR_CAST_ALIGN*/
 	((uint32_t *)buf)[0] = lrand48();
 }
@@ -99,8 +93,7 @@ fillbuf(char *buf)
 static void
 exit_usage(void)
 {
-	(void) printf("usage: ");
-	(void) printf("randwritecomp <file> [-s] [nwrites]\n");
+	(void) puts("usage: randwritecomp [-s] file [nwrites]");
 	exit(EXIT_FAILURE);
 }
 

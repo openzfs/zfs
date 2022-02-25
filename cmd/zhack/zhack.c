@@ -484,14 +484,11 @@ zhack_repair_label_cksum(int argc, char **argv)
 	zio_checksum_info_t *ci = &zio_checksum_table[ZIO_CHECKSUM_LABEL];
 	const char *cfg_keys[] = { ZPOOL_CONFIG_VERSION,
 	    ZPOOL_CONFIG_POOL_STATE, ZPOOL_CONFIG_GUID };
-	boolean_t labels_repaired[VDEV_LABELS];
+	boolean_t labels_repaired[VDEV_LABELS] = {0};
 	boolean_t repaired = B_FALSE;
-	vdev_label_t labels[VDEV_LABELS];
+	vdev_label_t labels[VDEV_LABELS] = {{{0}}};
 	struct stat st;
 	int fd;
-
-	bzero(labels_repaired, sizeof (labels_repaired));
-	bzero(labels, sizeof (labels));
 
 	abd_init();
 

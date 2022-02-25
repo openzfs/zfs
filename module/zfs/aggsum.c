@@ -87,7 +87,7 @@ static uint_t aggsum_borrow_shift = 4;
 void
 aggsum_init(aggsum_t *as, uint64_t value)
 {
-	bzero(as, sizeof (*as));
+	memset(as, 0, sizeof (*as));
 	as->as_lower_bound = as->as_upper_bound = value;
 	mutex_init(&as->as_lock, NULL, MUTEX_DEFAULT, NULL);
 	/*

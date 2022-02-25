@@ -190,7 +190,7 @@ SHA256Transform(SHA2_CTX *ctx, const uint8_t *blk)
 #endif	/* __sparc */
 
 	if ((uintptr_t)blk & 0x3) {		/* not 4-byte aligned? */
-		bcopy(blk, ctx->buf_un.buf32,  sizeof (ctx->buf_un.buf32));
+		memcpy(ctx->buf_un.buf32, blk, sizeof (ctx->buf_un.buf32));
 		blk = (uint8_t *)ctx->buf_un.buf32;
 	}
 
@@ -406,7 +406,7 @@ SHA512Transform(SHA2_CTX *ctx, const uint8_t *blk)
 
 
 	if ((uintptr_t)blk & 0x7) {		/* not 8-byte aligned? */
-		bcopy(blk, ctx->buf_un.buf64,  sizeof (ctx->buf_un.buf64));
+		memcpy(ctx->buf_un.buf64, blk, sizeof (ctx->buf_un.buf64));
 		blk = (uint8_t *)ctx->buf_un.buf64;
 	}
 
@@ -823,14 +823,14 @@ SHA2Update(SHA2_CTX *ctx, const void *inptr, size_t input_len)
 		/*
 		 * general optimization:
 		 *
-		 * only do initial bcopy() and SHA2Transform() if
+		 * only do initial memcpy() and SHA2Transform() if
 		 * buf_index != 0.  if buf_index == 0, we're just
-		 * wasting our time doing the bcopy() since there
+		 * wasting our time doing the memcpy() since there
 		 * wasn't any data left over from a previous call to
 		 * SHA2Update().
 		 */
 		if (buf_index) {
-			bcopy(input, &ctx->buf_un.buf8[buf_index], buf_len);
+			memcpy(&ctx->buf_un.buf8[buf_index], input, buf_len);
 			if (algotype <= SHA256_HMAC_GEN_MECH_INFO_TYPE)
 				SHA256Transform(ctx, ctx->buf_un.buf8);
 			else
@@ -873,7 +873,7 @@ SHA2Update(SHA2_CTX *ctx, const void *inptr, size_t input_len)
 		 * general optimization:
 		 *
 		 * if i and input_len are the same, return now instead
-		 * of calling bcopy(), since the bcopy() in this case
+		 * of calling memcpy(), since the memcpy() in this case
 		 * will be an expensive noop.
 		 */
 
@@ -884,7 +884,7 @@ SHA2Update(SHA2_CTX *ctx, const void *inptr, size_t input_len)
 	}
 
 	/* buffer remaining input */
-	bcopy(&input[i], &ctx->buf_un.buf8[buf_index], input_len - i);
+	memcpy(&ctx->buf_un.buf8[buf_index], &input[i], input_len - i);
 }
 
 
@@ -936,7 +936,7 @@ SHA2Final(void *digest, SHA2_CTX *ctx)
 			 */
 			Encode64(digest, ctx->state.s64, sizeof (uint64_t) * 3);
 			Encode64(last, &ctx->state.s64[3], sizeof (uint64_t));
-			bcopy(last, (uint8_t *)digest + 24, 4);
+			memcpy((uint8_t *)digest + 24, last, 4);
 		} else if (algotype == SHA512_256_MECH_INFO_TYPE) {
 			Encode64(digest, ctx->state.s64, sizeof (uint64_t) * 4);
 		} else {
@@ -946,7 +946,7 @@ SHA2Final(void *digest, SHA2_CTX *ctx)
 	}
 
 	/* zeroize sensitive information */
-	bzero(ctx, sizeof (*ctx));
+	memset(ctx, 0, sizeof (*ctx));
 }
 
 #ifdef _KERNEL

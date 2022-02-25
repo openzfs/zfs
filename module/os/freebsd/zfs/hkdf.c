@@ -63,7 +63,7 @@ hkdf_sha512_expand(uint8_t *extract_key, uint8_t *info, uint_t info_len,
 		crypto_mac_update(&ctx, info, info_len);
 		crypto_mac_update(&ctx, &c, 1);
 		crypto_mac_final(&ctx, T, SHA512_DIGEST_LENGTH);
-		bcopy(T, out_buf + pos,
+		memcpy(out_buf + pos, T,
 		    (i != N) ? SHA512_DIGEST_LENGTH : (out_len - pos));
 		pos += SHA512_DIGEST_LENGTH;
 	}

@@ -97,7 +97,7 @@ dsl_wrapping_key_free(dsl_wrapping_key_t *wkey)
 	ASSERT0(zfs_refcount_count(&wkey->wk_refcnt));
 
 	if (wkey->wk_key.ck_data) {
-		bzero(wkey->wk_key.ck_data,
+		memset(wkey->wk_key.ck_data, 0,
 		    CRYPTO_BITS2BYTES(wkey->wk_key.ck_length));
 		kmem_free(wkey->wk_key.ck_data,
 		    CRYPTO_BITS2BYTES(wkey->wk_key.ck_length));
@@ -120,7 +120,7 @@ dsl_wrapping_key_create(uint8_t *wkeydata, zfs_keyformat_t keyformat,
 	wkey->wk_key.ck_data = kmem_alloc(WRAPPING_KEY_LEN, KM_SLEEP);
 
 	wkey->wk_key.ck_length = CRYPTO_BYTES2BITS(WRAPPING_KEY_LEN);
-	bcopy(wkeydata, wkey->wk_key.ck_data, WRAPPING_KEY_LEN);
+	memcpy(wkey->wk_key.ck_data, wkeydata, WRAPPING_KEY_LEN);
 
 	/* initialize the rest of the struct */
 	zfs_refcount_create(&wkey->wk_refcnt);
@@ -591,7 +591,7 @@ dsl_crypto_key_open(objset_t *mos, dsl_wrapping_key_t *wkey,
 
 error:
 	if (dck != NULL) {
-		bzero(dck, sizeof (dsl_crypto_key_t));
+		memset(dck, 0, sizeof (dsl_crypto_key_t));
 		kmem_free(dck, sizeof (dsl_crypto_key_t));
 	}
 
@@ -2095,8 +2095,8 @@ dsl_crypto_recv_raw_objset_sync(dsl_dataset_t *ds, dmu_objset_type_t ostype,
 	 * written out raw next time.
 	 */
 	arc_release(os->os_phys_buf, &os->os_phys_buf);
-	bcopy(portable_mac, os->os_phys->os_portable_mac, ZIO_OBJSET_MAC_LEN);
-	bzero(os->os_phys->os_local_mac, ZIO_OBJSET_MAC_LEN);
+	memcpy(os->os_phys->os_portable_mac, portable_mac, ZIO_OBJSET_MAC_LEN);
+	memset(os->os_phys->os_local_mac, 0, ZIO_OBJSET_MAC_LEN);
 	os->os_flags &= ~OBJSET_FLAG_USERACCOUNTING_COMPLETE;
 	os->os_next_write_raw[tx->tx_txg & TXG_MASK] = B_TRUE;
 
@@ -2547,7 +2547,7 @@ dsl_crypto_key_create_sync(uint64_t crypt, dsl_wrapping_key_t *wkey,
 	    DSL_CRYPTO_KEY_VERSION, sizeof (uint64_t), 1, &version, tx));
 
 	zio_crypt_key_destroy(&dck.dck_key);
-	bzero(&dck.dck_key, sizeof (zio_crypt_key_t));
+	memset(&dck.dck_key, 0, sizeof (zio_crypt_key_t));
 
 	return (dck.dck_obj);
 }
@@ -2687,14 +2687,15 @@ spa_do_crypt_objset_mac_abd(boolean_t generate, spa_t *spa, uint64_t dsobj,
 
 	/* if we are generating encode the HMACs in the objset_phys_t */
 	if (generate) {
-		bcopy(portable_mac, osp->os_portable_mac, ZIO_OBJSET_MAC_LEN);
-		bcopy(local_mac, osp->os_local_mac, ZIO_OBJSET_MAC_LEN);
+		memcpy(osp->os_portable_mac, portable_mac, ZIO_OBJSET_MAC_LEN);
+		memcpy(osp->os_local_mac, local_mac, ZIO_OBJSET_MAC_LEN);
 		abd_return_buf_copy(abd, buf, datalen);
 		return (0);
 	}
 
-	if (bcmp(portable_mac, osp->os_portable_mac, ZIO_OBJSET_MAC_LEN) != 0 ||
-	    bcmp(local_mac, osp->os_local_mac, ZIO_OBJSET_MAC_LEN) != 0) {
+	if (memcmp(portable_mac, osp->os_portable_mac,
+	    ZIO_OBJSET_MAC_LEN) != 0 ||
+	    memcmp(local_mac, osp->os_local_mac, ZIO_OBJSET_MAC_LEN) != 0) {
 		abd_return_buf(abd, buf, datalen);
 		return (SET_ERROR(ECKSUM));
 	}
@@ -2738,11 +2739,11 @@ spa_do_crypt_mac_abd(boolean_t generate, spa_t *spa, uint64_t dsobj, abd_t *abd,
 	 * Otherwise verify that the MAC matched what we expected.
 	 */
 	if (generate) {
-		bcopy(digestbuf, mac, ZIO_DATA_MAC_LEN);
+		memcpy(mac, digestbuf, ZIO_DATA_MAC_LEN);
 		return (0);
 	}
 
-	if (bcmp(digestbuf, mac, ZIO_DATA_MAC_LEN) != 0)
+	if (memcmp(digestbuf, mac, ZIO_DATA_MAC_LEN) != 0)
 		return (SET_ERROR(ECKSUM));
 
 	return (0);
@@ -2841,9 +2842,9 @@ spa_do_crypt_abd(boolean_t encrypt, spa_t *spa, const zbookmark_phys_t *zb,
 error:
 	if (encrypt) {
 		/* zero out any state we might have changed while encrypting */
-		bzero(salt, ZIO_DATA_SALT_LEN);
-		bzero(iv, ZIO_DATA_IV_LEN);
-		bzero(mac, ZIO_DATA_MAC_LEN);
+		memset(salt, 0, ZIO_DATA_SALT_LEN);
+		memset(iv, 0, ZIO_DATA_IV_LEN);
+		memset(mac, 0, ZIO_DATA_MAC_LEN);
 		abd_return_buf(pabd, plainbuf, datalen);
 		abd_return_buf_copy(cabd, cipherbuf, datalen);
 	} else {
