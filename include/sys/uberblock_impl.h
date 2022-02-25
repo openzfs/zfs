@@ -81,14 +81,14 @@ typedef enum raidz_reflow_scratch_state {
 } raidz_reflow_scratch_state_t;
 
 #define	RRSS_GET_OFFSET(ub)	\
-	BF64_GET_SB((ub)->ub_raidz_reflow_info, 0, 32, SPA_MINBLOCKSHIFT, 0)
+	BF64_GET_SB((ub)->ub_raidz_reflow_info, 0, 55, SPA_MINBLOCKSHIFT, 0)
 #define	RRSS_SET_OFFSET(ub, x)	\
-	BF64_SET_SB((ub)->ub_raidz_reflow_info, 0, 32, SPA_MINBLOCKSHIFT, 0, x)
+	BF64_SET_SB((ub)->ub_raidz_reflow_info, 0, 55, SPA_MINBLOCKSHIFT, 0, x)
 
 #define	RRSS_GET_STATE(ub)	\
-	BF64_GET_SB((ub)->ub_raidz_reflow_info, 32, 8, 0, 0)
+	BF64_GET_SB((ub)->ub_raidz_reflow_info, 55, 9, 0, 0)
 #define	RRSS_SET_STATE(ub, x)	\
-	BF64_SET_SB((ub)->ub_raidz_reflow_info, 32, 8, 0, 0, x)
+	BF64_SET_SB((ub)->ub_raidz_reflow_info, 55, 9, 0, 0, x)
 
 #define	RAIDZ_REFLOW_SET(ub, state, offset)	do {	\
 	(ub)->ub_raidz_reflow_info = 0; \
