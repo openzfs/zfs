@@ -482,7 +482,7 @@ vdev_indirect_mapping_add_entries(vdev_indirect_mapping_t *vim,
 	    entries_written * sizeof (vdev_indirect_mapping_entry_phys_t));
 	vim->vim_entries = vmem_alloc(new_size, KM_SLEEP);
 	if (old_size > 0) {
-		bcopy(old_entries, vim->vim_entries, old_size);
+		memcpy(vim->vim_entries, old_entries, old_size);
 		vmem_free(old_entries, old_size);
 	}
 	VERIFY0(dmu_read(vim->vim_objset, vim->vim_object, old_size,
@@ -584,7 +584,7 @@ vdev_indirect_mapping_load_obsolete_counts(vdev_indirect_mapping_t *vim)
 		    0, counts_size,
 		    counts, DMU_READ_PREFETCH));
 	} else {
-		bzero(counts, counts_size);
+		memset(counts, 0, counts_size);
 	}
 	return (counts);
 }

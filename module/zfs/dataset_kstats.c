@@ -123,7 +123,7 @@ dataset_kstats_create(dataset_kstats_t *dk, objset_t *objset)
 
 	dataset_kstat_values_t *dk_kstats =
 	    kmem_alloc(sizeof (empty_dataset_kstats), KM_SLEEP);
-	bcopy(&empty_dataset_kstats, dk_kstats,
+	memcpy(dk_kstats, &empty_dataset_kstats,
 	    sizeof (empty_dataset_kstats));
 
 	char *ds_name = kmem_zalloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);

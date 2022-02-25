@@ -485,7 +485,7 @@ fmd_buf_read(fmd_hdl_t *hdl, fmd_case_t *cp,
 	assert(cp->ci_bufptr != NULL);
 	assert(size <= cp->ci_bufsiz);
 
-	bcopy(cp->ci_bufptr, buf, size);
+	memcpy(buf, cp->ci_bufptr, size);
 }
 
 void
@@ -497,7 +497,7 @@ fmd_buf_write(fmd_hdl_t *hdl, fmd_case_t *cp,
 	assert(cp->ci_bufptr != NULL);
 	assert(cp->ci_bufsiz >= size);
 
-	bcopy(buf, cp->ci_bufptr, size);
+	memcpy(cp->ci_bufptr, buf, size);
 }
 
 /* SERD Engines */
@@ -581,7 +581,7 @@ _timer_notify(union sigval sv)
 	fmd_hdl_debug(hdl, "timer fired (%p)", ftp->ft_tid);
 
 	/* disarm the timer */
-	bzero(&its, sizeof (struct itimerspec));
+	memset(&its, 0, sizeof (struct itimerspec));
 	timer_settime(ftp->ft_tid, 0, &its, NULL);
 
 	/* Note that the fmdo_timeout can remove this timer */

@@ -152,7 +152,7 @@ alloc_pw_string(const char *source)
 static void
 pw_free(pw_password_t *pw)
 {
-	bzero(pw->value, pw->len);
+	memset(pw->value, 0, pw->len);
 	if (try_lock(munlock, pw->value, pw->len) == 0) {
 		(void) munmap(pw->value, pw->len);
 	}

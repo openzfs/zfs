@@ -63,7 +63,7 @@ bench_fini_raidz_maps(void)
 {
 	/* tear down golden zio */
 	raidz_free(zio_bench.io_abd, max_data_size);
-	bzero(&zio_bench, sizeof (zio_t));
+	memset(&zio_bench, 0, sizeof (zio_t));
 }
 
 static inline void

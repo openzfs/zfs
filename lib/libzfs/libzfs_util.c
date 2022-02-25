@@ -807,7 +807,7 @@ zfs_realloc(libzfs_handle_t *hdl, void *ptr, size_t oldsize, size_t newsize)
 		return (NULL);
 	}
 
-	bzero((char *)ret + oldsize, (newsize - oldsize));
+	memset((char *)ret + oldsize, 0, newsize - oldsize);
 	return (ret);
 }
 

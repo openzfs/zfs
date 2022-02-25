@@ -166,7 +166,7 @@ spa_checkpoint_get_stats(spa_t *spa, pool_checkpoint_stat_t *pcs)
 	if (!spa_feature_is_active(spa, SPA_FEATURE_POOL_CHECKPOINT))
 		return (SET_ERROR(ZFS_ERR_NO_CHECKPOINT));
 
-	bzero(pcs, sizeof (pool_checkpoint_stat_t));
+	memset(pcs, 0, sizeof (pool_checkpoint_stat_t));
 
 	int error = zap_contains(spa_meta_objset(spa),
 	    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_ZPOOL_CHECKPOINT);

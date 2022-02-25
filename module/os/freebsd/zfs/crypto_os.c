@@ -69,11 +69,11 @@ crypto_mac_init(struct hmac_ctx *ctx, const crypto_key_t *c_key)
 	/*
 	 * This code is based on the similar code in geom/eli/g_eli_hmac.c
 	 */
-	explicit_bzero(key, sizeof (key));
+	memset(key, 0, sizeof (key));
 	if (c_key->ck_length  == 0)
 		/* do nothing */;
 	else if (cl_bytes <= SHA512_HMAC_BLOCK_SIZE)
-		bcopy(c_key->ck_data, key, cl_bytes);
+		memcpy(key, c_key->ck_data, cl_bytes);
 	else {
 		/*
 		 * If key is longer than 128 bytes reset it to
@@ -89,16 +89,16 @@ crypto_mac_init(struct hmac_ctx *ctx, const crypto_key_t *c_key)
 		k_ipad[i] = key[i] ^ 0x36;
 		k_opad[i] = key[i] ^ 0x5c;
 	}
-	explicit_bzero(key, sizeof (key));
+	memset(key, 0, sizeof (key));
 
 	/* Start inner SHA512. */
 	SHA512_Init(&ctx->innerctx);
 	SHA512_Update(&ctx->innerctx, k_ipad, sizeof (k_ipad));
-	explicit_bzero(k_ipad, sizeof (k_ipad));
+	memset(k_ipad, 0, sizeof (k_ipad));
 	/* Start outer SHA512. */
 	SHA512_Init(&ctx->outerctx);
 	SHA512_Update(&ctx->outerctx, k_opad, sizeof (k_opad));
-	explicit_bzero(k_opad, sizeof (k_opad));
+	memset(k_opad, 0, sizeof (k_opad));
 }
 
 void
@@ -119,12 +119,12 @@ crypto_mac_final(struct hmac_ctx *ctx, void *md, size_t mdsize)
 	SHA512_Update(&ctx->outerctx, digest, sizeof (digest));
 	SHA512_Final(digest, &ctx->outerctx);
 
-	explicit_bzero(ctx, sizeof (*ctx));
+	memset(ctx, 0, sizeof (*ctx));
 	/* mdsize == 0 means "Give me the whole hash!" */
 	if (mdsize == 0)
 		mdsize = SHA512_DIGEST_LENGTH;
-	bcopy(digest, md, mdsize);
-	explicit_bzero(digest, sizeof (digest));
+	memcpy(md, digest, mdsize);
+	memset(digest, 0, sizeof (digest));
 }
 
 void
@@ -156,7 +156,7 @@ freebsd_crypt_freesession(freebsd_crypt_session_t *sess)
 {
 	mtx_destroy(&sess->fs_lock);
 	crypto_freesession(sess->fs_sid);
-	explicit_bzero(sess, sizeof (*sess));
+	memset(sess, 0, sizeof (*sess));
 }
 
 static int
@@ -243,7 +243,7 @@ int
 freebsd_crypt_newsession(freebsd_crypt_session_t *sessp,
     const struct zio_crypt_info *c_info, crypto_key_t *key)
 {
-	struct crypto_session_params csp;
+	struct crypto_session_params csp = {0};
 	int error = 0;
 
 #ifdef FCRYPTO_DEBUG
@@ -259,7 +259,6 @@ freebsd_crypt_newsession(freebsd_crypt_session_t *sessp,
 	}
 	printf("}\n");
 #endif
-	bzero(&csp, sizeof (csp));
 	csp.csp_mode = CSP_MODE_AEAD;
 	csp.csp_cipher_key = key->ck_data;
 	csp.csp_cipher_klen = key->ck_length / 8;
@@ -364,7 +363,7 @@ freebsd_crypt_uio(boolean_t encrypt,
 	crp->crp_payload_length = datalen;
 	crp->crp_digest_start = auth_len + datalen;
 
-	bcopy(ivbuf, crp->crp_iv, ZIO_DATA_IV_LEN);
+	memcpy(crp->crp_iv, ivbuf, ZIO_DATA_IV_LEN);
 	error = zfs_crypto_dispatch(session, crp);
 	crypto_freereq(crp);
 out:
@@ -384,7 +383,7 @@ int
 freebsd_crypt_newsession(freebsd_crypt_session_t *sessp,
     const struct zio_crypt_info *c_info, crypto_key_t *key)
 {
-	struct cryptoini cria, crie, *crip;
+	struct cryptoini cria = {0}, crie = {0}, *crip;
 	struct enc_xform *xform;
 	struct auth_hash *xauth;
 	int error = 0;
@@ -452,9 +451,6 @@ freebsd_crypt_newsession(freebsd_crypt_session_t *sessp,
 	    xauth->name, xauth->keysize);
 #endif
 
-	bzero(&crie, sizeof (crie));
-	bzero(&cria, sizeof (cria));
-
 	crie.cri_alg = xform->type;
 	crie.cri_key = key->ck_data;
 	crie.cri_klen = key->ck_length;
@@ -466,7 +462,7 @@ freebsd_crypt_newsession(freebsd_crypt_session_t *sessp,
 	cria.cri_next = &crie;
 	crie.cri_next = NULL;
 	crip = &cria;
-	// Everything else is bzero'd
+	// Everything else is zero-initialised
 
 	error = crypto_newsession(&sid, crip,
 	    CRYPTOCAP_F_HARDWARE | CRYPTOCAP_F_SOFTWARE);
@@ -595,7 +591,7 @@ freebsd_crypt_uio(boolean_t encrypt,
 	enc_desc->crd_inject = auth_len;
 	enc_desc->crd_alg = xform->type;
 	enc_desc->crd_flags = CRD_F_IV_EXPLICIT | CRD_F_IV_PRESENT;
-	bcopy(ivbuf, enc_desc->crd_iv, ZIO_DATA_IV_LEN);
+	memcpy(enc_desc->crd_iv, ivbuf, ZIO_DATA_IV_LEN);
 	enc_desc->crd_next = NULL;
 
 #ifdef FCRYPTO_DEBUG

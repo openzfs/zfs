@@ -85,7 +85,7 @@ vfs_setmntopt(vfs_t *vfsp, const char *name, const char *arg,
 	} else {
 		opt->len = strlen(arg) + 1;
 		opt->value = malloc(opt->len, M_MOUNT, M_WAITOK);
-		bcopy(arg, opt->value, opt->len);
+		memcpy(opt->value, arg, opt->len);
 	}
 
 	MNT_ILOCK(vfsp);

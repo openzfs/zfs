@@ -74,7 +74,7 @@ fmd_serd_eng_alloc(const char *name, uint64_t n, hrtime_t t)
 	fmd_serd_eng_t *sgp;
 
 	sgp = malloc(sizeof (fmd_serd_eng_t));
-	bzero(sgp, sizeof (fmd_serd_eng_t));
+	memset(sgp, 0, sizeof (fmd_serd_eng_t));
 
 	sgp->sg_name = strdup(name);
 	sgp->sg_flags = FMD_SERD_DIRTY;
@@ -139,7 +139,7 @@ fmd_serd_hash_destroy(fmd_serd_hash_t *shp)
 	}
 
 	free(shp->sh_hash);
-	bzero(shp, sizeof (fmd_serd_hash_t));
+	memset(shp, 0, sizeof (fmd_serd_hash_t));
 }
 
 void

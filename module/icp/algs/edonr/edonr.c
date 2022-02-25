@@ -470,32 +470,32 @@ EdonRInit(EdonRState *state, size_t hashbitlen)
 		state->hashbitlen = 224;
 		state->bits_processed = 0;
 		state->unprocessed_bits = 0;
-		bcopy(i224p2, hashState224(state)->DoublePipe,
-		    16 * sizeof (uint32_t));
+		memcpy(hashState224(state)->DoublePipe, i224p2,
+		    sizeof (i224p2));
 		break;
 
 	case 256:
 		state->hashbitlen = 256;
 		state->bits_processed = 0;
 		state->unprocessed_bits = 0;
-		bcopy(i256p2, hashState256(state)->DoublePipe,
-		    16 * sizeof (uint32_t));
+		memcpy(hashState256(state)->DoublePipe, i256p2,
+		    sizeof (i256p2));
 		break;
 
 	case 384:
 		state->hashbitlen = 384;
 		state->bits_processed = 0;
 		state->unprocessed_bits = 0;
-		bcopy(i384p2, hashState384(state)->DoublePipe,
-		    16 * sizeof (uint64_t));
+		memcpy(hashState384(state)->DoublePipe, i384p2,
+		    sizeof (i384p2));
 		break;
 
 	case 512:
 		state->hashbitlen = 512;
 		state->bits_processed = 0;
 		state->unprocessed_bits = 0;
-		bcopy(i512p2, hashState224(state)->DoublePipe,
-		    16 * sizeof (uint64_t));
+		memcpy(hashState224(state)->DoublePipe, i512p2,
+		    sizeof (i512p2));
 		break;
 	}
 }
@@ -520,8 +520,9 @@ EdonRUpdate(EdonRState *state, const uint8_t *data, size_t databitlen)
 			ASSERT(state->unprocessed_bits + databitlen <=
 			    EdonR256_BLOCK_SIZE * 8);
 
-			bcopy(data, hashState256(state)->LastPart
-			    + (state->unprocessed_bits >> 3), LastBytes);
+			memcpy(hashState256(state)->LastPart
+			    + (state->unprocessed_bits >> 3),
+			    data, LastBytes);
 			state->unprocessed_bits += (int)databitlen;
 			databitlen = state->unprocessed_bits;
 			/* LINTED E_BAD_PTR_CAST_ALIGN */
@@ -542,7 +543,8 @@ EdonRUpdate(EdonRState *state, const uint8_t *data, size_t databitlen)
 			    1) & 0x01ff;
 
 			data32 += bits_processed >> 5;	/* byte size update */
-			bcopy(data32, hashState256(state)->LastPart, LastBytes);
+			memmove(hashState256(state)->LastPart,
+			    data32, LastBytes);
 		}
 		break;
 
@@ -555,8 +557,9 @@ EdonRUpdate(EdonRState *state, const uint8_t *data, size_t databitlen)
 			ASSERT(state->unprocessed_bits + databitlen <=
 			    EdonR512_BLOCK_SIZE * 8);
 
-			bcopy(data, hashState512(state)->LastPart
-			    + (state->unprocessed_bits >> 3), LastBytes);
+			memcpy(hashState512(state)->LastPart
+			    + (state->unprocessed_bits >> 3),
+			    data, LastBytes);
 			state->unprocessed_bits += (int)databitlen;
 			databitlen = state->unprocessed_bits;
 			/* LINTED E_BAD_PTR_CAST_ALIGN */
@@ -577,7 +580,8 @@ EdonRUpdate(EdonRState *state, const uint8_t *data, size_t databitlen)
 			    1) & 0x03ff;
 
 			data64 += bits_processed >> 6;	/* byte size update */
-			bcopy(data64, hashState512(state)->LastPart, LastBytes);
+			memmove(hashState512(state)->LastPart,
+			    data64, LastBytes);
 		}
 		break;
 	}
@@ -682,7 +686,7 @@ EdonRFinal(EdonRState *state, uint8_t *hashval)
 		for (j = 0; j < EdonR224_DIGEST_SIZE >> 2; j++)
 			st_swap32(s32[j], d32 + j);
 #else
-		bcopy(hashState256(state)->DoublePipe + 9, hashval,
+		memcpy(hashval, hashState256(state)->DoublePipe + 9,
 		    EdonR224_DIGEST_SIZE);
 #endif
 		break;
@@ -696,7 +700,7 @@ EdonRFinal(EdonRState *state, uint8_t *hashval)
 		for (j = 0; j < EdonR256_DIGEST_SIZE >> 2; j++)
 			st_swap32(s32[j], d32 + j);
 #else
-		bcopy(hashState256(state)->DoublePipe + 8, hashval,
+		memcpy(hashval, hashState256(state)->DoublePipe + 8,
 		    EdonR256_DIGEST_SIZE);
 #endif
 		break;
@@ -710,7 +714,7 @@ EdonRFinal(EdonRState *state, uint8_t *hashval)
 		for (j = 0; j < EdonR384_DIGEST_SIZE >> 3; j++)
 			st_swap64(s64[j], d64 + j);
 #else
-		bcopy(hashState384(state)->DoublePipe + 10, hashval,
+		memcpy(hashval, hashState384(state)->DoublePipe + 10,
 		    EdonR384_DIGEST_SIZE);
 #endif
 		break;
@@ -724,7 +728,7 @@ EdonRFinal(EdonRState *state, uint8_t *hashval)
 		for (j = 0; j < EdonR512_DIGEST_SIZE >> 3; j++)
 			st_swap64(s64[j], d64 + j);
 #else
-		bcopy(hashState512(state)->DoublePipe + 8, hashval,
+		memcpy(hashval, hashState512(state)->DoublePipe + 8,
 		    EdonR512_DIGEST_SIZE);
 #endif
 		break;

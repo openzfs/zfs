@@ -788,7 +788,7 @@ derive_key(libzfs_handle_t *hdl, zfs_keyformat_t format, uint64_t iters,
 
 	switch (format) {
 	case ZFS_KEYFORMAT_RAW:
-		bcopy(key_material, key, WRAPPING_KEY_LEN);
+		memcpy(key, key_material, WRAPPING_KEY_LEN);
 		break;
 	case ZFS_KEYFORMAT_HEX:
 		ret = hex_key_to_raw((char *)key_material,

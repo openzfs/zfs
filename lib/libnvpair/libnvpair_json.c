@@ -46,11 +46,9 @@
 static int
 nvlist_print_json_string(FILE *fp, const char *input)
 {
-	mbstate_t mbr;
+	mbstate_t mbr = {0};
 	wchar_t c;
 	size_t sz;
-
-	bzero(&mbr, sizeof (mbr));
 
 	FPRINTF(fp, "\"");
 	while ((sz = mbrtowc(&c, input, MB_CUR_MAX, &mbr)) > 0) {

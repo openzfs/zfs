@@ -250,7 +250,7 @@
  * since the physical block is about to be rewritten. The new data contents
  * will be contained in the arc_buf_t. As the I/O pipeline performs the write,
  * it may compress the data before writing it to disk. The ARC will be called
- * with the transformed data and will bcopy the transformed on-disk block into
+ * with the transformed data and will memcpy the transformed on-disk block into
  * a newly allocated b_pabd. Writes are always done into buffers which have
  * either been loaned (and hence are new and don't have other readers) or
  * buffers which have been released (and hence have their own hdr, if there
@@ -1132,7 +1132,7 @@ hdr_full_cons(void *vbuf, void *unused, int kmflag)
 	(void) unused, (void) kmflag;
 	arc_buf_hdr_t *hdr = vbuf;
 
-	bzero(hdr, HDR_FULL_SIZE);
+	memset(hdr, 0, HDR_FULL_SIZE);
 	hdr->b_l1hdr.b_byteswap = DMU_BSWAP_NUMFUNCS;
 	cv_init(&hdr->b_l1hdr.b_cv, NULL, CV_DEFAULT, NULL);
 	zfs_refcount_create(&hdr->b_l1hdr.b_refcnt);
@@ -1152,7 +1152,7 @@ hdr_full_crypt_cons(void *vbuf, void *unused, int kmflag)
 	arc_buf_hdr_t *hdr = vbuf;
 
 	hdr_full_cons(vbuf, unused, kmflag);
-	bzero(&hdr->b_crypt_hdr, sizeof (hdr->b_crypt_hdr));
+	memset(&hdr->b_crypt_hdr, 0, sizeof (hdr->b_crypt_hdr));
 	arc_space_consume(sizeof (hdr->b_crypt_hdr), ARC_SPACE_HDRS);
 
 	return (0);
@@ -1164,7 +1164,7 @@ hdr_l2only_cons(void *vbuf, void *unused, int kmflag)
 	(void) unused, (void) kmflag;
 	arc_buf_hdr_t *hdr = vbuf;
 
-	bzero(hdr, HDR_L2ONLY_SIZE);
+	memset(hdr, 0, HDR_L2ONLY_SIZE);
 	arc_space_consume(HDR_L2ONLY_SIZE, ARC_SPACE_L2HDRS);
 
 	return (0);
@@ -1176,7 +1176,7 @@ buf_cons(void *vbuf, void *unused, int kmflag)
 	(void) unused, (void) kmflag;
 	arc_buf_t *buf = vbuf;
 
-	bzero(buf, sizeof (arc_buf_t));
+	memset(buf, 0, sizeof (arc_buf_t));
 	mutex_init(&buf->b_evict_lock, NULL, MUTEX_DEFAULT, NULL);
 	arc_space_consume(sizeof (arc_buf_t), ARC_SPACE_HDRS);
 
@@ -1332,9 +1332,9 @@ arc_get_raw_params(arc_buf_t *buf, boolean_t *byteorder, uint8_t *salt,
 
 	ASSERT(HDR_PROTECTED(hdr));
 
-	bcopy(hdr->b_crypt_hdr.b_salt, salt, ZIO_DATA_SALT_LEN);
-	bcopy(hdr->b_crypt_hdr.b_iv, iv, ZIO_DATA_IV_LEN);
-	bcopy(hdr->b_crypt_hdr.b_mac, mac, ZIO_DATA_MAC_LEN);
+	memcpy(salt, hdr->b_crypt_hdr.b_salt, ZIO_DATA_SALT_LEN);
+	memcpy(iv, hdr->b_crypt_hdr.b_iv, ZIO_DATA_IV_LEN);
+	memcpy(mac, hdr->b_crypt_hdr.b_mac, ZIO_DATA_MAC_LEN);
 	*byteorder = (hdr->b_l1hdr.b_byteswap == DMU_BSWAP_NUMFUNCS) ?
 	    ZFS_HOST_BYTEORDER : !ZFS_HOST_BYTEORDER;
 }
@@ -1692,7 +1692,7 @@ arc_buf_try_copy_decompressed_data(arc_buf_t *buf)
 		}
 
 		if (!ARC_BUF_COMPRESSED(from)) {
-			bcopy(from->b_data, buf->b_data, arc_buf_size(buf));
+			memcpy(buf->b_data, from->b_data, arc_buf_size(buf));
 			copied = B_TRUE;
 			break;
 		}
@@ -3349,7 +3349,7 @@ arc_hdr_realloc(arc_buf_hdr_t *hdr, kmem_cache_t *old, kmem_cache_t *new)
 	ASSERT(MUTEX_HELD(HDR_LOCK(hdr)));
 	buf_hash_remove(hdr);
 
-	bcopy(hdr, nhdr, HDR_L2ONLY_SIZE);
+	memcpy(nhdr, hdr, HDR_L2ONLY_SIZE);
 
 	if (new == hdr_full_cache || new == hdr_full_crypt_cache) {
 		arc_hdr_set_flags(nhdr, ARC_FLAG_HAS_L1HDR);
@@ -3512,7 +3512,7 @@ arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t need_crypt)
 	}
 
 	/* unset all members of the original hdr */
-	bzero(&hdr->b_dva, sizeof (dva_t));
+	memset(&hdr->b_dva, 0, sizeof (dva_t));
 	hdr->b_birth = 0;
 	hdr->b_type = ARC_BUFC_INVALID;
 	hdr->b_flags = 0;
@@ -3537,9 +3537,9 @@ arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t need_crypt)
 		hdr->b_crypt_hdr.b_ot = DMU_OT_NONE;
 		hdr->b_crypt_hdr.b_ebufcnt = 0;
 		hdr->b_crypt_hdr.b_dsobj = 0;
-		bzero(hdr->b_crypt_hdr.b_salt, ZIO_DATA_SALT_LEN);
-		bzero(hdr->b_crypt_hdr.b_iv, ZIO_DATA_IV_LEN);
-		bzero(hdr->b_crypt_hdr.b_mac, ZIO_DATA_MAC_LEN);
+		memset(hdr->b_crypt_hdr.b_salt, 0, ZIO_DATA_SALT_LEN);
+		memset(hdr->b_crypt_hdr.b_iv, 0, ZIO_DATA_IV_LEN);
+		memset(hdr->b_crypt_hdr.b_mac, 0, ZIO_DATA_MAC_LEN);
 	}
 
 	buf_discard_identity(hdr);
@@ -3577,11 +3577,11 @@ arc_convert_to_raw(arc_buf_t *buf, uint64_t dsobj, boolean_t byteorder,
 		arc_cksum_free(hdr);
 
 	if (salt != NULL)
-		bcopy(salt, hdr->b_crypt_hdr.b_salt, ZIO_DATA_SALT_LEN);
+		memcpy(hdr->b_crypt_hdr.b_salt, salt, ZIO_DATA_SALT_LEN);
 	if (iv != NULL)
-		bcopy(iv, hdr->b_crypt_hdr.b_iv, ZIO_DATA_IV_LEN);
+		memcpy(hdr->b_crypt_hdr.b_iv, iv, ZIO_DATA_IV_LEN);
 	if (mac != NULL)
-		bcopy(mac, hdr->b_crypt_hdr.b_mac, ZIO_DATA_MAC_LEN);
+		memcpy(hdr->b_crypt_hdr.b_mac, mac, ZIO_DATA_MAC_LEN);
 }
 
 /*
@@ -3657,9 +3657,9 @@ arc_alloc_raw_buf(spa_t *spa, void *tag, uint64_t dsobj, boolean_t byteorder,
 	hdr->b_crypt_hdr.b_ot = ot;
 	hdr->b_l1hdr.b_byteswap = (byteorder == ZFS_HOST_BYTEORDER) ?
 	    DMU_BSWAP_NUMFUNCS : DMU_OT_BYTESWAP(ot);
-	bcopy(salt, hdr->b_crypt_hdr.b_salt, ZIO_DATA_SALT_LEN);
-	bcopy(iv, hdr->b_crypt_hdr.b_iv, ZIO_DATA_IV_LEN);
-	bcopy(mac, hdr->b_crypt_hdr.b_mac, ZIO_DATA_MAC_LEN);
+	memcpy(hdr->b_crypt_hdr.b_salt, salt, ZIO_DATA_SALT_LEN);
+	memcpy(hdr->b_crypt_hdr.b_iv, iv, ZIO_DATA_IV_LEN);
+	memcpy(hdr->b_crypt_hdr.b_mac, mac, ZIO_DATA_MAC_LEN);
 
 	/*
 	 * This buffer will be considered encrypted even if the ot is not an
@@ -5643,7 +5643,7 @@ arc_bcopy_func(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,
 	if (buf == NULL)
 		return;
 
-	bcopy(buf->b_data, arg, arc_buf_size(buf));
+	memcpy(arg, buf->b_data, arc_buf_size(buf));
 	arc_buf_destroy(buf, arg);
 }
 
@@ -7106,11 +7106,11 @@ arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
 		localprop.zp_byteorder =
 		    (hdr->b_l1hdr.b_byteswap == DMU_BSWAP_NUMFUNCS) ?
 		    ZFS_HOST_BYTEORDER : !ZFS_HOST_BYTEORDER;
-		bcopy(hdr->b_crypt_hdr.b_salt, localprop.zp_salt,
+		memcpy(localprop.zp_salt, hdr->b_crypt_hdr.b_salt,
 		    ZIO_DATA_SALT_LEN);
-		bcopy(hdr->b_crypt_hdr.b_iv, localprop.zp_iv,
+		memcpy(localprop.zp_iv, hdr->b_crypt_hdr.b_iv,
 		    ZIO_DATA_IV_LEN);
-		bcopy(hdr->b_crypt_hdr.b_mac, localprop.zp_mac,
+		memcpy(localprop.zp_mac, hdr->b_crypt_hdr.b_mac,
 		    ZIO_DATA_MAC_LEN);
 		if (DMU_OT_IS_ENCRYPTED(localprop.zp_type)) {
 			localprop.zp_nopwrite = B_FALSE;
@@ -8722,14 +8722,15 @@ top:
 				 * block pointer in the header.
 				 */
 				if (i == 0) {
-					bzero(l2dhdr, dev->l2ad_dev_hdr_asize);
+					memset(l2dhdr, 0,
+					    dev->l2ad_dev_hdr_asize);
 				} else {
-					bzero(&l2dhdr->dh_start_lbps[i],
+					memset(&l2dhdr->dh_start_lbps[i], 0,
 					    sizeof (l2arc_log_blkptr_t));
 				}
 				break;
 			}
-			bcopy(lb_ptr_buf->lb_ptr, &l2dhdr->dh_start_lbps[i],
+			memcpy(&l2dhdr->dh_start_lbps[i], lb_ptr_buf->lb_ptr,
 			    sizeof (l2arc_log_blkptr_t));
 			lb_ptr_buf = list_next(&dev->l2ad_lbptr_list,
 			    lb_ptr_buf);
@@ -9353,7 +9354,7 @@ l2arc_apply_transforms(spa_t *spa, arc_buf_hdr_t *hdr, uint64_t asize,
 		}
 		ASSERT3U(psize, <=, HDR_GET_PSIZE(hdr));
 		if (psize < asize)
-			bzero((char *)tmp + psize, asize - psize);
+			memset((char *)tmp + psize, 0, asize - psize);
 		psize = HDR_GET_PSIZE(hdr);
 		abd_return_buf_copy(cabd, tmp, asize);
 		to_write = cabd;
@@ -9388,7 +9389,7 @@ encrypt:
 			abd_zero_off(eabd, psize, asize - psize);
 
 		/* assert that the MAC we got here matches the one we saved */
-		ASSERT0(bcmp(mac, hdr->b_crypt_hdr.b_mac, ZIO_DATA_MAC_LEN));
+		ASSERT0(memcmp(mac, hdr->b_crypt_hdr.b_mac, ZIO_DATA_MAC_LEN));
 		spa_keystore_dsl_key_rele(spa, dck, FTAG);
 
 		if (to_write == cabd)
@@ -9897,7 +9898,7 @@ l2arc_rebuild_dev(l2arc_dev_t *dev, boolean_t reopen)
 		if (l2arc_trim_ahead > 0) {
 			dev->l2ad_trim_all = B_TRUE;
 		} else {
-			bzero(l2dhdr, l2dhdr_asize);
+			memset(l2dhdr, 0, l2dhdr_asize);
 			l2arc_dev_hdr_update(dev);
 		}
 	}
@@ -10218,7 +10219,7 @@ l2arc_rebuild(l2arc_dev_t *dev)
 		goto out;
 
 	/* Prepare the rebuild process */
-	bcopy(l2dhdr->dh_start_lbps, lbps, sizeof (lbps));
+	memcpy(lbps, l2dhdr->dh_start_lbps, sizeof (lbps));
 
 	/* Start the rebuild process */
 	for (;;) {
@@ -10264,7 +10265,7 @@ l2arc_rebuild(l2arc_dev_t *dev)
 		lb_ptr_buf = kmem_zalloc(sizeof (l2arc_lb_ptr_buf_t), KM_SLEEP);
 		lb_ptr_buf->lb_ptr = kmem_zalloc(sizeof (l2arc_log_blkptr_t),
 		    KM_SLEEP);
-		bcopy(&lbps[0], lb_ptr_buf->lb_ptr,
+		memcpy(lb_ptr_buf->lb_ptr, &lbps[0],
 		    sizeof (l2arc_log_blkptr_t));
 		mutex_enter(&dev->l2ad_mtx);
 		list_insert_tail(&dev->l2ad_lbptr_list, lb_ptr_buf);
@@ -10362,7 +10363,7 @@ out:
 		 */
 		spa_history_log_internal(spa, "L2ARC rebuild", NULL,
 		    "no valid log blocks");
-		bzero(l2dhdr, dev->l2ad_dev_hdr_asize);
+		memset(l2dhdr, 0, dev->l2ad_dev_hdr_asize);
 		l2arc_dev_hdr_update(dev);
 	} else if (err == ECANCELED) {
 		/*
@@ -10853,13 +10854,13 @@ l2arc_log_blk_commit(l2arc_dev_t *dev, zio_t *pio, l2arc_write_callback_t *cb)
 	    ZIO_CHECKSUM_FLETCHER_4);
 	if (asize < sizeof (*lb)) {
 		/* compression succeeded */
-		bzero(tmpbuf + psize, asize - psize);
+		memset(tmpbuf + psize, 0, asize - psize);
 		L2BLK_SET_COMPRESS(
 		    (&l2dhdr->dh_start_lbps[0])->lbp_prop,
 		    ZIO_COMPRESS_LZ4);
 	} else {
 		/* compression failed */
-		bcopy(lb, tmpbuf, sizeof (*lb));
+		memcpy(tmpbuf, lb, sizeof (*lb));
 		L2BLK_SET_COMPRESS(
 		    (&l2dhdr->dh_start_lbps[0])->lbp_prop,
 		    ZIO_COMPRESS_OFF);
@@ -10885,7 +10886,7 @@ l2arc_log_blk_commit(l2arc_dev_t *dev, zio_t *pio, l2arc_write_callback_t *cb)
 	 * Include the committed log block's pointer  in the list of pointers
 	 * to log blocks present in the L2ARC device.
 	 */
-	bcopy(&l2dhdr->dh_start_lbps[0], lb_ptr_buf->lb_ptr,
+	memcpy(lb_ptr_buf->lb_ptr, &l2dhdr->dh_start_lbps[0],
 	    sizeof (l2arc_log_blkptr_t));
 	mutex_enter(&dev->l2ad_mtx);
 	list_insert_head(&dev->l2ad_lbptr_list, lb_ptr_buf);
@@ -10974,7 +10975,7 @@ l2arc_log_blk_insert(l2arc_dev_t *dev, const arc_buf_hdr_t *hdr)
 	ASSERT(HDR_HAS_L2HDR(hdr));
 
 	le = &lb->lb_entries[index];
-	bzero(le, sizeof (*le));
+	memset(le, 0, sizeof (*le));
 	le->le_dva = hdr->b_dva;
 	le->le_birth = hdr->b_birth;
 	le->le_daddr = hdr->b_l2hdr.b_daddr;

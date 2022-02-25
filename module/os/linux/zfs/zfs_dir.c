@@ -297,7 +297,7 @@ zfs_dirent_lock(zfs_dirlock_t **dlpp, znode_t *dzp, char *name,
 		 */
 		dl->dl_namesize = strlen(dl->dl_name) + 1;
 		name = kmem_alloc(dl->dl_namesize, KM_SLEEP);
-		bcopy(dl->dl_name, name, dl->dl_namesize);
+		memcpy(name, dl->dl_name, dl->dl_namesize);
 		dl->dl_name = name;
 	}
 
@@ -625,7 +625,7 @@ zfs_purgedir(znode_t *dzp)
 			skipped += 1;
 			continue;
 		}
-		bzero(&dl, sizeof (dl));
+		memset(&dl, 0, sizeof (dl));
 		dl.dl_dzp = dzp;
 		dl.dl_name = zap.za_name;
 

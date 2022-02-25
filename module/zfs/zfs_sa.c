@@ -107,8 +107,8 @@ zfs_sa_symlink(znode_t *zp, char *link, int len, dmu_tx_t *tx)
 	if (ZFS_OLD_ZNODE_PHYS_SIZE + len <= dmu_bonus_max()) {
 		VERIFY0(dmu_set_bonus(db, len + ZFS_OLD_ZNODE_PHYS_SIZE, tx));
 		if (len) {
-			bcopy(link, (caddr_t)db->db_data +
-			    ZFS_OLD_ZNODE_PHYS_SIZE, len);
+			memcpy((caddr_t)db->db_data +
+			    ZFS_OLD_ZNODE_PHYS_SIZE, link, len);
 		}
 	} else {
 		dmu_buf_t *dbp;
@@ -120,7 +120,7 @@ zfs_sa_symlink(znode_t *zp, char *link, int len, dmu_tx_t *tx)
 		dmu_buf_will_dirty(dbp, tx);
 
 		ASSERT3U(len, <=, dbp->db_size);
-		bcopy(link, dbp->db_data, len);
+		memcpy(dbp->db_data, link, len);
 		dmu_buf_rele(dbp, FTAG);
 	}
 }
@@ -418,8 +418,9 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 	/* if scanstamp then add scanstamp */
 
 	if (zp->z_pflags & ZFS_BONUS_SCANSTAMP) {
-		bcopy((caddr_t)db->db_data + ZFS_OLD_ZNODE_PHYS_SIZE,
-		    scanstamp, AV_SCANSTAMP_SZ);
+		memcpy(scanstamp,
+		    (caddr_t)db->db_data + ZFS_OLD_ZNODE_PHYS_SIZE,
+		    AV_SCANSTAMP_SZ);
 		SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_SCANSTAMP(zfsvfs),
 		    NULL, scanstamp, AV_SCANSTAMP_SZ);
 		zp->z_pflags &= ~ZFS_BONUS_SCANSTAMP;

@@ -3931,14 +3931,13 @@ zpool_vdev_remove(zpool_handle_t *zhp, const char *path)
 int
 zpool_vdev_remove_cancel(zpool_handle_t *zhp)
 {
-	zfs_cmd_t zc;
+	zfs_cmd_t zc = {{0}};
 	char msg[1024];
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 
 	(void) snprintf(msg, sizeof (msg),
 	    dgettext(TEXT_DOMAIN, "cannot cancel removal"));
 
-	bzero(&zc, sizeof (zc));
 	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
 	zc.zc_cookie = 1;
 

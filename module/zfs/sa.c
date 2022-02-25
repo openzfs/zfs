@@ -160,7 +160,7 @@ do {								\
 			*(uint64_t *)((uintptr_t)t + 8) =	\
 			    *(uint64_t *)((uintptr_t)s + 8);	\
 		} else {					\
-			bcopy(s, t, l);				\
+			memcpy(t, s, l);				\
 		}						\
 	} else {						\
 		sa_copy_data(f, s, t, l);			\
@@ -414,7 +414,7 @@ sa_add_layout_entry(objset_t *os, const sa_attr_type_t *attrs, int attr_count,
 	tb->lot_attr_count = attr_count;
 	tb->lot_attrs = kmem_alloc(sizeof (sa_attr_type_t) * attr_count,
 	    KM_SLEEP);
-	bcopy(attrs, tb->lot_attrs, sizeof (sa_attr_type_t) * attr_count);
+	memcpy(tb->lot_attrs, attrs, sizeof (sa_attr_type_t) * attr_count);
 	tb->lot_num = lot_num;
 	tb->lot_hash = hash;
 	tb->lot_instance = 0;
@@ -511,7 +511,7 @@ static void
 sa_copy_data(sa_data_locator_t *func, void *datastart, void *target, int buflen)
 {
 	if (func == NULL) {
-		bcopy(datastart, target, buflen);
+		memcpy(target, datastart, buflen);
 	} else {
 		boolean_t start;
 		int bytes;
@@ -523,7 +523,7 @@ sa_copy_data(sa_data_locator_t *func, void *datastart, void *target, int buflen)
 		bytes = 0;
 		while (bytes < buflen) {
 			func(&dataptr, &length, buflen, start, datastart);
-			bcopy(dataptr, saptr, length);
+			memcpy(saptr, dataptr, length);
 			saptr = (void *)((caddr_t)saptr + length);
 			bytes += length;
 			start = B_FALSE;
@@ -1664,8 +1664,9 @@ sa_add_projid(sa_handle_t *hdl, dmu_tx_t *tx, uint64_t projid)
 		    &xattr, 8);
 
 	if (zp->z_pflags & ZFS_BONUS_SCANSTAMP) {
-		bcopy((caddr_t)db->db_data + ZFS_OLD_ZNODE_PHYS_SIZE,
-		    scanstamp, AV_SCANSTAMP_SZ);
+		memcpy(scanstamp,
+		    (caddr_t)db->db_data + ZFS_OLD_ZNODE_PHYS_SIZE,
+		    AV_SCANSTAMP_SZ);
 		SA_ADD_BULK_ATTR(attrs, count, SA_ZPL_SCANSTAMP(zfsvfs), NULL,
 		    scanstamp, AV_SCANSTAMP_SZ);
 		zp->z_pflags &= ~ZFS_BONUS_SCANSTAMP;
@@ -1873,7 +1874,7 @@ sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
 	if (dn->dn_bonuslen != 0) {
 		bonus_data_size = hdl->sa_bonus->db_size;
 		old_data[0] = kmem_alloc(bonus_data_size, KM_SLEEP);
-		bcopy(hdl->sa_bonus->db_data, old_data[0],
+		memcpy(old_data[0], hdl->sa_bonus->db_data,
 		    hdl->sa_bonus->db_size);
 		bonus_attr_count = hdl->sa_bonus_tab->sa_layout->lot_attr_count;
 	} else {
@@ -1886,7 +1887,7 @@ sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
 	if ((error = sa_get_spill(hdl)) == 0) {
 		spill_data_size = hdl->sa_spill->db_size;
 		old_data[1] = vmem_alloc(spill_data_size, KM_SLEEP);
-		bcopy(hdl->sa_spill->db_data, old_data[1],
+		memcpy(old_data[1], hdl->sa_spill->db_data,
 		    hdl->sa_spill->db_size);
 		spill_attr_count =
 		    hdl->sa_spill_tab->sa_layout->lot_attr_count;

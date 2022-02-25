@@ -1725,7 +1725,7 @@ vdev_draid_spare_create(nvlist_t *nvroot, vdev_t *vd, uint64_t *ndraidp,
 		uint64_t nparity = vdc->vdc_nparity;
 
 		for (uint64_t spare_id = 0; spare_id < nspares; spare_id++) {
-			bzero(path, sizeof (path));
+			memset(path, 0, sizeof (path));
 			(void) snprintf(path, sizeof (path) - 1,
 			    "%s%llu-%llu-%llu", VDEV_TYPE_DRAID,
 			    (u_longlong_t)nparity,

@@ -301,7 +301,7 @@ SHA256_Final(unsigned char digest[static SHA256_DIGEST_LENGTH], SHA256_CTX *ctx)
 	be32enc_vect(digest, ctx->state, SHA256_DIGEST_LENGTH);
 
 	/* Clear the context state */
-	explicit_bzero(ctx, sizeof (*ctx));
+	memset(ctx, 0, sizeof (*ctx));
 }
 
 /* SHA-224: ******************************************************* */
@@ -351,7 +351,7 @@ SHA224_Final(unsigned char digest[static SHA224_DIGEST_LENGTH], SHA224_CTX *ctx)
 	be32enc_vect(digest, ctx->state, SHA224_DIGEST_LENGTH);
 
 	/* Clear the context state */
-	explicit_bzero(ctx, sizeof (*ctx));
+	memset(ctx, 0, sizeof (*ctx));
 }
 
 #ifdef WEAK_REFS

@@ -160,7 +160,7 @@ main(int argc, char *argv[])
 		EdonRFinal(&ctx, digest);				\
 		(void) printf("Edon-R-%-6sMessage: " #_m		\
 		    "\tResult: ", #mode);				\
-		if (bcmp(digest, testdigest, mode / 8) == 0) {		\
+		if (memcmp(digest, testdigest, mode / 8) == 0) {	\
 			(void) printf("OK\n");				\
 		} else {						\
 			(void) printf("FAILED!\n");			\
@@ -177,7 +177,7 @@ main(int argc, char *argv[])
 		double		cpb = 0;				\
 		int		i;					\
 		struct timeval	start, end;				\
-		bzero(block, sizeof (block));				\
+		memset(block, 0, sizeof (block));			\
 		(void) gettimeofday(&start, NULL);			\
 		EdonRInit(&ctx, mode);					\
 		for (i = 0; i < 8192; i++)				\

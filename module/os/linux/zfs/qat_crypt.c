@@ -367,7 +367,7 @@ qat_crypt(qat_encrypt_dir_t dir, uint8_t *src_buf, uint8_t *dst_buf,
 		    aad_len);
 		if (status != CPA_STATUS_SUCCESS)
 			goto fail;
-		bcopy(aad_buf, op_data.pAdditionalAuthData, aad_len);
+		memcpy(op_data.pAdditionalAuthData, aad_buf, aad_len);
 	}
 
 	bytes_left = enc_len;
@@ -413,10 +413,10 @@ qat_crypt(qat_encrypt_dir_t dir, uint8_t *src_buf, uint8_t *dst_buf,
 	op_data.messageLenToHashInBytes = 0;
 	op_data.messageLenToCipherInBytes = enc_len;
 	op_data.ivLenInBytes = ZIO_DATA_IV_LEN;
-	bcopy(iv_buf, op_data.pIv, ZIO_DATA_IV_LEN);
+	memcpy(op_data.pIv, iv_buf, ZIO_DATA_IV_LEN);
 	/* if dir is QAT_DECRYPT, copy digest_buf to pDigestResult */
 	if (dir == QAT_DECRYPT)
-		bcopy(digest_buf, op_data.pDigestResult, ZIO_DATA_MAC_LEN);
+		memcpy(op_data.pDigestResult, digest_buf, ZIO_DATA_MAC_LEN);
 
 	cb.verify_result = CPA_FALSE;
 	init_completion(&cb.complete);
@@ -435,7 +435,7 @@ qat_crypt(qat_encrypt_dir_t dir, uint8_t *src_buf, uint8_t *dst_buf,
 
 	if (dir == QAT_ENCRYPT) {
 		/* if dir is QAT_ENCRYPT, save pDigestResult to digest_buf */
-		bcopy(op_data.pDigestResult, digest_buf, ZIO_DATA_MAC_LEN);
+		memcpy(digest_buf, op_data.pDigestResult, ZIO_DATA_MAC_LEN);
 		QAT_STAT_INCR(encrypt_total_out_bytes, enc_len);
 	} else {
 		QAT_STAT_INCR(decrypt_total_out_bytes, enc_len);
@@ -557,7 +557,7 @@ qat_checksum(uint64_t cksum, uint8_t *buf, uint64_t size, zio_cksum_t *zcp)
 		goto fail;
 	}
 
-	bcopy(digest_buffer, zcp, sizeof (zio_cksum_t));
+	memcpy(zcp, digest_buffer, sizeof (zio_cksum_t));
 
 fail:
 	if (status != CPA_STATUS_SUCCESS)

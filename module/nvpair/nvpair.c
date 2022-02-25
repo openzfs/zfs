@@ -203,7 +203,7 @@ nv_mem_zalloc(nvpriv_t *nvp, size_t size)
 	void *buf;
 
 	if ((buf = nva->nva_ops->nv_ao_alloc(nva, size)) != NULL)
-		bzero(buf, size);
+		memset(buf, 0, size);
 
 	return (buf);
 }
@@ -219,7 +219,7 @@ nv_mem_free(nvpriv_t *nvp, void *buf, size_t size)
 static void
 nv_priv_init(nvpriv_t *priv, nv_alloc_t *nva, uint32_t stat)
 {
-	bzero(priv, sizeof (nvpriv_t));
+	memset(priv, 0, sizeof (nvpriv_t));
 
 	priv->nvp_nva = nva;
 	priv->nvp_stat = stat;
@@ -1203,7 +1203,7 @@ nvlist_add_common(nvlist_t *nvl, const char *name,
 	nvp->nvp_name_sz = name_sz;
 	nvp->nvp_value_elem = nelem;
 	nvp->nvp_type = type;
-	bcopy(name, NVP_NAME(nvp), name_sz);
+	memcpy(NVP_NAME(nvp), name, name_sz);
 
 	switch (type) {
 	case DATA_TYPE_BOOLEAN:
@@ -1217,7 +1217,7 @@ nvlist_add_common(nvlist_t *nvl, const char *name,
 		buf += nelem * sizeof (uint64_t);
 		for (i = 0; i < nelem; i++) {
 			int slen = strlen(strs[i]) + 1;
-			bcopy(strs[i], buf, slen);
+			memcpy(buf, strs[i], slen);
 			cstrs[i] = buf;
 			buf += slen;
 		}
@@ -1255,7 +1255,7 @@ nvlist_add_common(nvlist_t *nvl, const char *name,
 		break;
 	}
 	default:
-		bcopy(data, NVP_VALUE(nvp), value_sz);
+		memcpy(NVP_VALUE(nvp), data, value_sz);
 	}
 
 	/* if unique name, remove before add */
@@ -1588,7 +1588,7 @@ nvpair_value_common(const nvpair_t *nvp, data_type_t type, uint_t *nelem,
 			return (EINVAL);
 		if ((value_sz = i_get_value_size(type, NULL, 1)) < 0)
 			return (EINVAL);
-		bcopy(NVP_VALUE(nvp), data, (size_t)value_sz);
+		memcpy(data, NVP_VALUE(nvp), (size_t)value_sz);
 		if (nelem != NULL)
 			*nelem = 1;
 		break;
@@ -2540,7 +2540,7 @@ nvs_embedded_nvl_array(nvstream_t *nvs, nvpair_t *nvp, size_t *size)
 		size_t len = nelem * sizeof (uint64_t);
 		nvlist_t *embedded = (nvlist_t *)((uintptr_t)nvlp + len);
 
-		bzero(nvlp, len);	/* don't trust packed data */
+		memset(nvlp, 0, len);	/* don't trust packed data */
 		for (i = 0; i < nelem; i++) {
 			if (nvs_embedded(nvs, embedded) != 0) {
 				nvpair_free(nvp);
@@ -2820,15 +2820,15 @@ native_cp(nvstream_t *nvs, void *buf, size_t size)
 		return (EFAULT);
 
 	/*
-	 * The bcopy() below eliminates alignment requirement
+	 * The memcpy() below eliminates alignment requirement
 	 * on the buffer (stream) and is preferred over direct access.
 	 */
 	switch (nvs->nvs_op) {
 	case NVS_OP_ENCODE:
-		bcopy(buf, native->n_curr, size);
+		memcpy(native->n_curr, buf, size);
 		break;
 	case NVS_OP_DECODE:
-		bcopy(native->n_curr, buf, size);
+		memcpy(buf, native->n_curr, size);
 		break;
 	default:
 		return (EINVAL);
@@ -2895,7 +2895,7 @@ nvs_native_nvl_fini(nvstream_t *nvs)
 		if (native->n_curr + sizeof (int) > native->n_end)
 			return (EFAULT);
 
-		bzero(native->n_curr, sizeof (int));
+		memset(native->n_curr, 0, sizeof (int));
 		native->n_curr += sizeof (int);
 	}
 
@@ -2912,10 +2912,10 @@ nvpair_native_embedded(nvstream_t *nvs, nvpair_t *nvp)
 		/*
 		 * Null out the pointer that is meaningless in the packed
 		 * structure. The address may not be aligned, so we have
-		 * to use bzero.
+		 * to use memset.
 		 */
-		bzero((char *)packed + offsetof(nvlist_t, nvl_priv),
-		    sizeof (uint64_t));
+		memset((char *)packed + offsetof(nvlist_t, nvl_priv),
+		    0, sizeof (uint64_t));
 	}
 
 	return (nvs_embedded(nvs, EMBEDDED_NVL(nvp)));
@@ -2933,18 +2933,18 @@ nvpair_native_embedded_array(nvstream_t *nvs, nvpair_t *nvp)
 		/*
 		 * Null out pointers that are meaningless in the packed
 		 * structure. The addresses may not be aligned, so we have
-		 * to use bzero.
+		 * to use memset.
 		 */
-		bzero(value, len);
+		memset(value, 0, len);
 
 		for (i = 0; i < NVP_NELEM(nvp); i++, packed++)
 			/*
 			 * Null out the pointer that is meaningless in the
 			 * packed structure. The address may not be aligned,
-			 * so we have to use bzero.
+			 * so we have to use memset.
 			 */
-			bzero((char *)packed + offsetof(nvlist_t, nvl_priv),
-			    sizeof (uint64_t));
+			memset((char *)packed + offsetof(nvlist_t, nvl_priv),
+			    0, sizeof (uint64_t));
 	}
 
 	return (nvs_embedded_nvl_array(nvs, nvp, NULL));
@@ -2961,9 +2961,9 @@ nvpair_native_string_array(nvstream_t *nvs, nvpair_t *nvp)
 		/*
 		 * Null out pointers that are meaningless in the packed
 		 * structure. The addresses may not be aligned, so we have
-		 * to use bzero.
+		 * to use memset.
 		 */
-		bzero(strp, NVP_NELEM(nvp) * sizeof (uint64_t));
+		memset(strp, 0, NVP_NELEM(nvp) * sizeof (uint64_t));
 		break;
 	}
 	case NVS_OP_DECODE: {
@@ -2988,9 +2988,9 @@ nvs_native_nvp_op(nvstream_t *nvs, nvpair_t *nvp)
 	int ret = 0;
 
 	/*
-	 * We do the initial bcopy of the data before we look at
+	 * We do the initial memcpy of the data before we look at
 	 * the nvpair type, because when we're decoding, we won't
-	 * have the correct values for the pair until we do the bcopy.
+	 * have the correct values for the pair until we do the memcpy.
 	 */
 	switch (nvs->nvs_op) {
 	case NVS_OP_ENCODE:
@@ -3086,7 +3086,7 @@ nvs_native_nvpair(nvstream_t *nvs, nvpair_t *nvp, size_t *size)
 		/* try to read the size value from the stream */
 		if (native->n_curr + sizeof (int32_t) > native->n_end)
 			return (EFAULT);
-		bcopy(native->n_curr, &decode_len, sizeof (int32_t));
+		memcpy(&decode_len, native->n_curr, sizeof (int32_t));
 
 		/* sanity check the size value */
 		if (decode_len < 0 ||
@@ -3451,7 +3451,7 @@ nvs_xdr_nvp_op(nvstream_t *nvs, nvpair_t *nvp)
 		int i;
 
 		if (nvs->nvs_op == NVS_OP_DECODE)
-			bzero(buf, len);	/* don't trust packed data */
+			memset(buf, 0, len);	/* don't trust packed data */
 
 		for (i = 0; i < nelem; i++) {
 			if (buflen <= len)

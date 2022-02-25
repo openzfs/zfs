@@ -70,7 +70,7 @@ crypto_uio_copy_to_data(crypto_data_t *data, uchar_t *buf, int len)
 		    offset, length);
 
 		datap = (uchar_t *)(zfs_uio_iovbase(uiop, vec_idx) + offset);
-		bcopy(buf, datap, cur_len);
+		memcpy(datap, buf, cur_len);
 		buf += cur_len;
 
 		length -= cur_len;
@@ -99,8 +99,8 @@ crypto_put_output_data(uchar_t *buf, crypto_data_t *output, int len)
 			output->cd_length = len;
 			return (CRYPTO_BUFFER_TOO_SMALL);
 		}
-		bcopy(buf, (uchar_t *)(output->cd_raw.iov_base +
-		    output->cd_offset), len);
+		memcpy((uchar_t *)(output->cd_raw.iov_base +
+		    output->cd_offset), buf, len);
 		break;
 
 	case CRYPTO_DATA_UIO:

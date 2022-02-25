@@ -66,7 +66,7 @@ gzip_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 			if (d_len != s_len)
 				return (s_len);
 
-			bcopy(s_start, d_start, s_len);
+			memcpy(d_start, s_start, s_len);
 			return (s_len);
 		}
 		/* if hardware compression fails, do it again with software */
@@ -76,7 +76,7 @@ gzip_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 		if (d_len != s_len)
 			return (s_len);
 
-		bcopy(s_start, d_start, s_len);
+		memcpy(d_start, s_start, s_len);
 		return (s_len);
 	}
 

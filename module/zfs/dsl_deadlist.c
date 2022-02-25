@@ -855,7 +855,7 @@ dsl_deadlist_merge(dsl_deadlist_t *dl, uint64_t obj, dmu_tx_t *tx)
 	VERIFY0(dmu_bonus_hold(dl->dl_os, obj, FTAG, &bonus));
 	dlp = bonus->db_data;
 	dmu_buf_will_dirty(bonus, tx);
-	bzero(dlp, sizeof (*dlp));
+	memset(dlp, 0, sizeof (*dlp));
 	dmu_buf_rele(bonus, FTAG);
 	mutex_exit(&dl->dl_lock);
 }

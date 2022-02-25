@@ -58,7 +58,7 @@ encode_embedded_bp_compressed(blkptr_t *bp, void *data,
 	ASSERT3U(comp, >=, ZIO_COMPRESS_OFF);
 	ASSERT3U(comp, <, ZIO_COMPRESS_FUNCTIONS);
 
-	bzero(bp, sizeof (*bp));
+	memset(bp, 0, sizeof (*bp));
 	BP_SET_EMBEDDED(bp, B_TRUE);
 	BP_SET_COMPRESS(bp, comp);
 	BP_SET_BYTEORDER(bp, ZFS_HOST_BYTEORDER);
