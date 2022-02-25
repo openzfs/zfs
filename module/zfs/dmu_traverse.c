@@ -168,8 +168,8 @@ resume_skip_check(traverse_data_t *td, const dnode_phys_t *dnp,
 		 * If we found the block we're trying to resume from, zero
 		 * the bookmark out to indicate that we have resumed.
 		 */
-		if (bcmp(zb, td->td_resume, sizeof (*zb)) == 0) {
-			bzero(td->td_resume, sizeof (*zb));
+		if (memcmp(zb, td->td_resume, sizeof (*zb)) == 0) {
+			memset(td->td_resume, 0, sizeof (*zb));
 			if (td->td_flags & TRAVERSE_POST)
 				return (RESUME_SKIP_CHILDREN);
 		}

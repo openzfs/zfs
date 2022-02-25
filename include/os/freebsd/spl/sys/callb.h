@@ -132,7 +132,7 @@ typedef struct callb_cpr {
 #define	CALLB_CPR_INIT(cp, lockp, func, name)	{			\
 		strlcpy(curthread->td_name, (name),			\
 		    sizeof (curthread->td_name));			\
-		bzero((caddr_t)(cp), sizeof (callb_cpr_t));		\
+		memset(cp, 0, sizeof (callb_cpr_t));		\
 		(cp)->cc_lockp = lockp;					\
 		(cp)->cc_id = callb_add(func, (void *)(cp),		\
 			CB_CL_CPR_DAEMON, name);			\

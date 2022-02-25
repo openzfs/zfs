@@ -78,7 +78,7 @@
 static inline void
 rs_copy(range_seg_t *src, range_seg_t *dest, range_tree_t *rt)
 {
-	ASSERT3U(rt->rt_type, <=, RANGE_SEG_NUM_TYPES);
+	ASSERT3U(rt->rt_type, <, RANGE_SEG_NUM_TYPES);
 	size_t size = 0;
 	switch (rt->rt_type) {
 	case RANGE_SEG32:
@@ -91,9 +91,9 @@ rs_copy(range_seg_t *src, range_seg_t *dest, range_tree_t *rt)
 		size = sizeof (range_seg_gap_t);
 		break;
 	default:
-		VERIFY(0);
+		__builtin_unreachable();
 	}
-	bcopy(src, dest, size);
+	memcpy(dest, src, size);
 }
 
 void
@@ -701,7 +701,7 @@ range_tree_vacate(range_tree_t *rt, range_tree_func_t *func, void *arg)
 		zfs_btree_clear(&rt->rt_root);
 	}
 
-	bzero(rt->rt_histogram, sizeof (rt->rt_histogram));
+	memset(rt->rt_histogram, 0, sizeof (rt->rt_histogram));
 	rt->rt_space = 0;
 }
 

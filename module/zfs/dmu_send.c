@@ -379,7 +379,7 @@ dump_free(dmu_send_cookie_t *dscp, uint64_t object, uint64_t offset,
 		}
 	}
 	/* create a FREE record and make it pending */
-	bzero(dscp->dsc_drr, sizeof (dmu_replay_record_t));
+	memset(dscp->dsc_drr, 0, sizeof (dmu_replay_record_t));
 	dscp->dsc_drr->drr_type = DRR_FREE;
 	drrf->drr_object = object;
 	drrf->drr_offset = offset;
@@ -438,7 +438,7 @@ dump_redact(dmu_send_cookie_t *dscp, uint64_t object, uint64_t offset,
 		}
 	}
 	/* create a REDACT record and make it pending */
-	bzero(dscp->dsc_drr, sizeof (dmu_replay_record_t));
+	memset(dscp->dsc_drr, 0, sizeof (dmu_replay_record_t));
 	dscp->dsc_drr->drr_type = DRR_REDACT;
 	drrr->drr_object = object;
 	drrr->drr_offset = offset;
@@ -480,7 +480,7 @@ dmu_dump_write(dmu_send_cookie_t *dscp, dmu_object_type_t type, uint64_t object,
 		dscp->dsc_pending_op = PENDING_NONE;
 	}
 	/* write a WRITE record */
-	bzero(dscp->dsc_drr, sizeof (dmu_replay_record_t));
+	memset(dscp->dsc_drr, 0, sizeof (dmu_replay_record_t));
 	dscp->dsc_drr->drr_type = DRR_WRITE;
 	drrw->drr_object = object;
 	drrw->drr_type = type;
@@ -571,7 +571,7 @@ dump_write_embedded(dmu_send_cookie_t *dscp, uint64_t object, uint64_t offset,
 
 	ASSERT(BP_IS_EMBEDDED(bp));
 
-	bzero(dscp->dsc_drr, sizeof (dmu_replay_record_t));
+	memset(dscp->dsc_drr, 0, sizeof (dmu_replay_record_t));
 	dscp->dsc_drr->drr_type = DRR_WRITE_EMBEDDED;
 	drrw->drr_object = object;
 	drrw->drr_offset = offset;
@@ -604,7 +604,7 @@ dump_spill(dmu_send_cookie_t *dscp, const blkptr_t *bp, uint64_t object,
 	}
 
 	/* write a SPILL record */
-	bzero(dscp->dsc_drr, sizeof (dmu_replay_record_t));
+	memset(dscp->dsc_drr, 0, sizeof (dmu_replay_record_t));
 	dscp->dsc_drr->drr_type = DRR_SPILL;
 	drrs->drr_object = object;
 	drrs->drr_length = blksz;
@@ -686,7 +686,7 @@ dump_freeobjects(dmu_send_cookie_t *dscp, uint64_t firstobj, uint64_t numobjs)
 	}
 
 	/* write a FREEOBJECTS record */
-	bzero(dscp->dsc_drr, sizeof (dmu_replay_record_t));
+	memset(dscp->dsc_drr, 0, sizeof (dmu_replay_record_t));
 	dscp->dsc_drr->drr_type = DRR_FREEOBJECTS;
 	drrfo->drr_firstobj = firstobj;
 	drrfo->drr_numobjs = numobjs;
@@ -727,7 +727,7 @@ dump_dnode(dmu_send_cookie_t *dscp, const blkptr_t *bp, uint64_t object,
 	}
 
 	/* write an OBJECT record */
-	bzero(dscp->dsc_drr, sizeof (dmu_replay_record_t));
+	memset(dscp->dsc_drr, 0, sizeof (dmu_replay_record_t));
 	dscp->dsc_drr->drr_type = DRR_OBJECT;
 	drro->drr_object = object;
 	drro->drr_type = dnp->dn_type;
@@ -801,7 +801,7 @@ dump_dnode(dmu_send_cookie_t *dscp, const blkptr_t *bp, uint64_t object,
 		struct send_range record;
 		blkptr_t *bp = DN_SPILL_BLKPTR(dnp);
 
-		bzero(&record, sizeof (struct send_range));
+		memset(&record, 0, sizeof (struct send_range));
 		record.type = DATA;
 		record.object = object;
 		record.eos_marker = B_FALSE;
@@ -841,7 +841,7 @@ dump_object_range(dmu_send_cookie_t *dscp, const blkptr_t *bp,
 		dscp->dsc_pending_op = PENDING_NONE;
 	}
 
-	bzero(dscp->dsc_drr, sizeof (dmu_replay_record_t));
+	memset(dscp->dsc_drr, 0, sizeof (dmu_replay_record_t));
 	dscp->dsc_drr->drr_type = DRR_OBJECT_RANGE;
 	drror->drr_firstobj = firstobj;
 	drror->drr_numslots = numslots;
@@ -1136,7 +1136,7 @@ send_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		record->sru.object.bp = *bp;
 		size_t size  = sizeof (*dnp) * (dnp->dn_extra_slots + 1);
 		record->sru.object.dnp = kmem_alloc(size, KM_SLEEP);
-		bcopy(dnp, record->sru.object.dnp, size);
+		memcpy(record->sru.object.dnp, dnp, size);
 		bqueue_enqueue(&sta->q, record, sizeof (*record));
 		return (0);
 	}
@@ -2597,7 +2597,7 @@ dmu_send_impl(struct dmu_send_params *dspp)
 	 * the receive side that the stream is incomplete.
 	 */
 	if (!dspp->savedok) {
-		bzero(drr, sizeof (dmu_replay_record_t));
+		memset(drr, 0, sizeof (dmu_replay_record_t));
 		drr->drr_type = DRR_END;
 		drr->drr_u.drr_end.drr_checksum = dsc.dsc_zc;
 		drr->drr_u.drr_end.drr_toguid = dsc.dsc_toguid;
@@ -2698,7 +2698,7 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 			uint64_t size = dspp.numfromredactsnaps *
 			    sizeof (uint64_t);
 			dspp.fromredactsnaps = kmem_zalloc(size, KM_SLEEP);
-			bcopy(fromredact, dspp.fromredactsnaps, size);
+			memcpy(dspp.fromredactsnaps, fromredact, size);
 		}
 
 		boolean_t is_before =
@@ -2883,7 +2883,7 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
 					    sizeof (uint64_t);
 					dspp.fromredactsnaps = kmem_zalloc(size,
 					    KM_SLEEP);
-					bcopy(fromredact, dspp.fromredactsnaps,
+					memcpy(dspp.fromredactsnaps, fromredact,
 					    size);
 				}
 				if (!dsl_dataset_is_before(dspp.to_ds, fromds,

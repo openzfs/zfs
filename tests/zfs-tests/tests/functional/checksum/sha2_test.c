@@ -189,7 +189,7 @@ main(int argc, char *argv[])
 		SHA2Final(digest, &ctx);				\
 		(void) printf("SHA%-9sMessage: " #_m			\
 		    "\tResult: ", #mode);				\
-		if (bcmp(digest, testdigest, diglen / 8) == 0) {	\
+		if (memcmp(digest, testdigest, diglen / 8) == 0) {	\
 			(void) printf("OK\n");				\
 		} else {						\
 			(void) printf("FAILED!\n");			\
@@ -206,7 +206,7 @@ main(int argc, char *argv[])
 		double		cpb = 0;				\
 		int		i;					\
 		struct timeval	start, end;				\
-		bzero(block, sizeof (block));				\
+		memset(block, 0, sizeof (block));			\
 		(void) gettimeofday(&start, NULL);			\
 		SHA2Init(SHA ## mode ## _MECH_INFO_TYPE, &ctx);		\
 		for (i = 0; i < 8192; i++)				\

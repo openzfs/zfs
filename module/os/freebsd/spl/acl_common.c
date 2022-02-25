@@ -738,7 +738,7 @@ out:
 static void
 acevals_init(acevals_t *vals, uid_t key)
 {
-	bzero(vals, sizeof (*vals));
+	memset(vals, 0, sizeof (*vals));
 	vals->allowed = ACE_MASK_UNDEFINED;
 	vals->denied = ACE_MASK_UNDEFINED;
 	vals->mask = ACE_MASK_UNDEFINED;

@@ -46,7 +46,7 @@
 		(len) = (uint32_t)*((ulong_t *)(m)->cm_param);	\
 	else {								\
 		ulong_t tmp_ulong;					\
-		bcopy((m)->cm_param, &tmp_ulong, sizeof (ulong_t));	\
+		memcpy(&tmp_ulong, (m)->cm_param, sizeof (ulong_t));	\
 		(len) = (uint32_t)tmp_ulong;				\
 	}								\
 }
@@ -309,9 +309,9 @@ sha2_digest_final_uio(SHA2_CTX *sha2_ctx, crypto_data_t *digest,
 			 */
 			SHA2Final(digest_scratch, sha2_ctx);
 
-			bcopy(digest_scratch, (uchar_t *)
+			memcpy((uchar_t *)
 			    zfs_uio_iovbase(digest->cd_uio, vec_idx) + offset,
-			    digest_len);
+			    digest_scratch, digest_len);
 		} else {
 			SHA2Final((uchar_t *)zfs_uio_iovbase(digest->
 			    cd_uio, vec_idx) + offset,
@@ -336,8 +336,9 @@ sha2_digest_final_uio(SHA2_CTX *sha2_ctx, crypto_data_t *digest,
 			cur_len =
 			    MIN(zfs_uio_iovlen(digest->cd_uio, vec_idx) -
 			    offset, length);
-			bcopy(digest_tmp + scratch_offset,
+			memcpy(
 			    zfs_uio_iovbase(digest->cd_uio, vec_idx) + offset,
+			    digest_tmp + scratch_offset,
 			    cur_len);
 
 			length -= cur_len;
@@ -630,8 +631,8 @@ sha2_digest_atomic(crypto_mechanism_t *mechanism, crypto_data_t *data,
 static void
 sha2_mac_init_ctx(sha2_hmac_ctx_t *ctx, void *keyval, uint_t length_in_bytes)
 {
-	uint64_t ipad[SHA512_HMAC_BLOCK_SIZE / sizeof (uint64_t)];
-	uint64_t opad[SHA512_HMAC_BLOCK_SIZE / sizeof (uint64_t)];
+	uint64_t ipad[SHA512_HMAC_BLOCK_SIZE / sizeof (uint64_t)] = {0};
+	uint64_t opad[SHA512_HMAC_BLOCK_SIZE / sizeof (uint64_t)] = {0};
 	int i, block_size, blocks_per_int64;
 
 	/* Determine the block size */
@@ -643,12 +644,12 @@ sha2_mac_init_ctx(sha2_hmac_ctx_t *ctx, void *keyval, uint_t length_in_bytes)
 		blocks_per_int64 = SHA512_HMAC_BLOCK_SIZE / sizeof (uint64_t);
 	}
 
-	(void) bzero(ipad, block_size);
-	(void) bzero(opad, block_size);
+	(void) memset(ipad, 0, block_size);
+	(void) memset(opad, 0, block_size);
 
 	if (keyval != NULL) {
-		(void) bcopy(keyval, ipad, length_in_bytes);
-		(void) bcopy(keyval, opad, length_in_bytes);
+		(void) memcpy(ipad, keyval, length_in_bytes);
+		(void) memcpy(opad, keyval, length_in_bytes);
 	} else {
 		ASSERT0(length_in_bytes);
 	}
@@ -666,7 +667,6 @@ sha2_mac_init_ctx(sha2_hmac_ctx_t *ctx, void *keyval, uint_t length_in_bytes)
 	/* perform SHA2 on opad */
 	SHA2Init(ctx->hc_mech_type, &ctx->hc_ocontext);
 	SHA2Update(&ctx->hc_ocontext, (uint8_t *)opad, block_size);
-
 }
 
 /*
@@ -708,7 +708,7 @@ sha2_mac_init(crypto_ctx_t *ctx, crypto_mechanism_t *mechanism,
 	PROV_SHA2_HMAC_CTX(ctx)->hc_mech_type = mechanism->cm_type;
 	if (ctx_template != NULL) {
 		/* reuse context template */
-		bcopy(ctx_template, PROV_SHA2_HMAC_CTX(ctx),
+		memcpy(PROV_SHA2_HMAC_CTX(ctx), ctx_template,
 		    sizeof (sha2_hmac_ctx_t));
 	} else {
 		/* no context template, compute context */
@@ -746,7 +746,7 @@ sha2_mac_init(crypto_ctx_t *ctx, crypto_mechanism_t *mechanism,
 	}
 
 	if (ret != CRYPTO_SUCCESS) {
-		bzero(ctx->cc_provider_private, sizeof (sha2_hmac_ctx_t));
+		memset(ctx->cc_provider_private, 0, sizeof (sha2_hmac_ctx_t));
 		kmem_free(ctx->cc_provider_private, sizeof (sha2_hmac_ctx_t));
 		ctx->cc_provider_private = NULL;
 	}
@@ -850,8 +850,8 @@ sha2_mac_final(crypto_ctx_t *ctx, crypto_data_t *mac)
 			 */
 			SHA2Final(digest,
 			    &PROV_SHA2_HMAC_CTX(ctx)->hc_ocontext);
-			bcopy(digest, (unsigned char *)mac->cd_raw.iov_base +
-			    mac->cd_offset, digest_len);
+			memcpy((unsigned char *)mac->cd_raw.iov_base +
+			    mac->cd_offset, digest, digest_len);
 		} else {
 			SHA2Final((unsigned char *)mac->cd_raw.iov_base +
 			    mac->cd_offset,
@@ -872,7 +872,7 @@ sha2_mac_final(crypto_ctx_t *ctx, crypto_data_t *mac)
 	else
 		mac->cd_length = 0;
 
-	bzero(ctx->cc_provider_private, sizeof (sha2_hmac_ctx_t));
+	memset(ctx->cc_provider_private, 0, sizeof (sha2_hmac_ctx_t));
 	kmem_free(ctx->cc_provider_private, sizeof (sha2_hmac_ctx_t));
 	ctx->cc_provider_private = NULL;
 
@@ -928,7 +928,7 @@ sha2_mac_atomic(crypto_mechanism_t *mechanism,
 
 	if (ctx_template != NULL) {
 		/* reuse context template */
-		bcopy(ctx_template, &sha2_hmac_ctx, sizeof (sha2_hmac_ctx_t));
+		memcpy(&sha2_hmac_ctx, ctx_template, sizeof (sha2_hmac_ctx_t));
 	} else {
 		sha2_hmac_ctx.hc_mech_type = mechanism->cm_type;
 		/* no context template, initialize context */
@@ -1001,8 +1001,8 @@ sha2_mac_atomic(crypto_mechanism_t *mechanism,
 			 * the user only what was requested.
 			 */
 			SHA2Final(digest, &sha2_hmac_ctx.hc_ocontext);
-			bcopy(digest, (unsigned char *)mac->cd_raw.iov_base +
-			    mac->cd_offset, digest_len);
+			memcpy((unsigned char *)mac->cd_raw.iov_base +
+			    mac->cd_offset, digest, digest_len);
 		} else {
 			SHA2Final((unsigned char *)mac->cd_raw.iov_base +
 			    mac->cd_offset, &sha2_hmac_ctx.hc_ocontext);
@@ -1021,7 +1021,7 @@ sha2_mac_atomic(crypto_mechanism_t *mechanism,
 		return (CRYPTO_SUCCESS);
 	}
 bail:
-	bzero(&sha2_hmac_ctx, sizeof (sha2_hmac_ctx_t));
+	memset(&sha2_hmac_ctx, 0, sizeof (sha2_hmac_ctx_t));
 	mac->cd_length = 0;
 	return (ret);
 }
@@ -1060,7 +1060,7 @@ sha2_mac_verify_atomic(crypto_mechanism_t *mechanism,
 
 	if (ctx_template != NULL) {
 		/* reuse context template */
-		bcopy(ctx_template, &sha2_hmac_ctx, sizeof (sha2_hmac_ctx_t));
+		memcpy(&sha2_hmac_ctx, ctx_template, sizeof (sha2_hmac_ctx_t));
 	} else {
 		sha2_hmac_ctx.hc_mech_type = mechanism->cm_type;
 		/* no context template, initialize context */
@@ -1137,7 +1137,7 @@ sha2_mac_verify_atomic(crypto_mechanism_t *mechanism,
 	switch (mac->cd_format) {
 
 	case CRYPTO_DATA_RAW:
-		if (bcmp(digest, (unsigned char *)mac->cd_raw.iov_base +
+		if (memcmp(digest, (unsigned char *)mac->cd_raw.iov_base +
 		    mac->cd_offset, digest_len) != 0)
 			ret = CRYPTO_INVALID_MAC;
 		break;
@@ -1170,7 +1170,7 @@ sha2_mac_verify_atomic(crypto_mechanism_t *mechanism,
 			cur_len = MIN(zfs_uio_iovlen(mac->cd_uio, vec_idx) -
 			    offset, length);
 
-			if (bcmp(digest + scratch_offset,
+			if (memcmp(digest + scratch_offset,
 			    zfs_uio_iovbase(mac->cd_uio, vec_idx) + offset,
 			    cur_len) != 0) {
 				ret = CRYPTO_INVALID_MAC;
@@ -1191,7 +1191,7 @@ sha2_mac_verify_atomic(crypto_mechanism_t *mechanism,
 
 	return (ret);
 bail:
-	bzero(&sha2_hmac_ctx, sizeof (sha2_hmac_ctx_t));
+	memset(&sha2_hmac_ctx, 0, sizeof (sha2_hmac_ctx_t));
 	mac->cd_length = 0;
 	return (ret);
 }
@@ -1282,7 +1282,7 @@ sha2_free_context(crypto_ctx_t *ctx)
 	else
 		ctx_len = sizeof (sha2_hmac_ctx_t);
 
-	bzero(ctx->cc_provider_private, ctx_len);
+	memset(ctx->cc_provider_private, 0, ctx_len);
 	kmem_free(ctx->cc_provider_private, ctx_len);
 	ctx->cc_provider_private = NULL;
 

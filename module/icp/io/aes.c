@@ -832,7 +832,7 @@ aes_encrypt_atomic(crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_data_t *plaintext, crypto_data_t *ciphertext,
     crypto_spi_ctx_template_t template)
 {
-	aes_ctx_t aes_ctx;	/* on the stack */
+	aes_ctx_t aes_ctx = {{{{0}}}};
 	off_t saved_offset;
 	size_t saved_length;
 	size_t length_needed;
@@ -857,8 +857,6 @@ aes_encrypt_atomic(crypto_mechanism_t *mechanism,
 
 	if ((ret = aes_check_mech_param(mechanism, NULL)) != CRYPTO_SUCCESS)
 		return (ret);
-
-	bzero(&aes_ctx, sizeof (aes_ctx_t));
 
 	ret = aes_common_init_ctx(&aes_ctx, template, mechanism, key,
 	    KM_SLEEP, B_TRUE);
@@ -944,7 +942,7 @@ aes_encrypt_atomic(crypto_mechanism_t *mechanism,
 
 out:
 	if (aes_ctx.ac_flags & PROVIDER_OWNS_KEY_SCHEDULE) {
-		bzero(aes_ctx.ac_keysched, aes_ctx.ac_keysched_len);
+		memset(aes_ctx.ac_keysched, 0, aes_ctx.ac_keysched_len);
 		kmem_free(aes_ctx.ac_keysched, aes_ctx.ac_keysched_len);
 	}
 #ifdef CAN_USE_GCM_ASM
@@ -953,7 +951,7 @@ out:
 
 		gcm_ctx_t *ctx = (gcm_ctx_t *)&aes_ctx;
 
-		bzero(ctx->gcm_Htable, ctx->gcm_htab_len);
+		memset(ctx->gcm_Htable, 0, ctx->gcm_htab_len);
 		kmem_free(ctx->gcm_Htable, ctx->gcm_htab_len);
 	}
 #endif
@@ -966,7 +964,7 @@ aes_decrypt_atomic(crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_data_t *ciphertext, crypto_data_t *plaintext,
     crypto_spi_ctx_template_t template)
 {
-	aes_ctx_t aes_ctx;	/* on the stack */
+	aes_ctx_t aes_ctx = {{{{0}}}};
 	off_t saved_offset;
 	size_t saved_length;
 	size_t length_needed;
@@ -991,8 +989,6 @@ aes_decrypt_atomic(crypto_mechanism_t *mechanism,
 
 	if ((ret = aes_check_mech_param(mechanism, NULL)) != CRYPTO_SUCCESS)
 		return (ret);
-
-	bzero(&aes_ctx, sizeof (aes_ctx_t));
 
 	ret = aes_common_init_ctx(&aes_ctx, template, mechanism, key,
 	    KM_SLEEP, B_FALSE);
@@ -1096,7 +1092,7 @@ aes_decrypt_atomic(crypto_mechanism_t *mechanism,
 
 out:
 	if (aes_ctx.ac_flags & PROVIDER_OWNS_KEY_SCHEDULE) {
-		bzero(aes_ctx.ac_keysched, aes_ctx.ac_keysched_len);
+		memset(aes_ctx.ac_keysched, 0, aes_ctx.ac_keysched_len);
 		kmem_free(aes_ctx.ac_keysched, aes_ctx.ac_keysched_len);
 	}
 
@@ -1113,7 +1109,7 @@ out:
 		if (((gcm_ctx_t *)&aes_ctx)->gcm_Htable != NULL) {
 			gcm_ctx_t *ctx = (gcm_ctx_t *)&aes_ctx;
 
-			bzero(ctx->gcm_Htable, ctx->gcm_htab_len);
+			memset(ctx->gcm_Htable, 0, ctx->gcm_htab_len);
 			kmem_free(ctx->gcm_Htable, ctx->gcm_htab_len);
 		}
 #endif
@@ -1150,7 +1146,7 @@ aes_create_ctx_template(crypto_mechanism_t *mechanism, crypto_key_t *key,
 	 * in the key.
 	 */
 	if ((rv = init_keysched(key, keysched)) != CRYPTO_SUCCESS) {
-		bzero(keysched, size);
+		memset(keysched, 0, size);
 		kmem_free(keysched, size);
 		return (rv);
 	}
@@ -1170,7 +1166,8 @@ aes_free_context(crypto_ctx_t *ctx)
 	if (aes_ctx != NULL) {
 		if (aes_ctx->ac_flags & PROVIDER_OWNS_KEY_SCHEDULE) {
 			ASSERT(aes_ctx->ac_keysched_len != 0);
-			bzero(aes_ctx->ac_keysched, aes_ctx->ac_keysched_len);
+			memset(aes_ctx->ac_keysched, 0,
+			    aes_ctx->ac_keysched_len);
 			kmem_free(aes_ctx->ac_keysched,
 			    aes_ctx->ac_keysched_len);
 		}
@@ -1260,7 +1257,7 @@ aes_common_init_ctx(aes_ctx_t *aes_ctx, crypto_spi_ctx_template_t *template,
 
 	if (rv != CRYPTO_SUCCESS) {
 		if (aes_ctx->ac_flags & PROVIDER_OWNS_KEY_SCHEDULE) {
-			bzero(keysched, size);
+			memset(keysched, 0, size);
 			kmem_free(keysched, size);
 		}
 	}

@@ -516,8 +516,8 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 		if (arc_buf_size(os->os_phys_buf) < size) {
 			arc_buf_t *buf = arc_alloc_buf(spa, &os->os_phys_buf,
 			    ARC_BUFC_METADATA, size);
-			bzero(buf->b_data, size);
-			bcopy(os->os_phys_buf->b_data, buf->b_data,
+			memset(buf->b_data, 0, size);
+			memcpy(buf->b_data, os->os_phys_buf->b_data,
 			    arc_buf_size(os->os_phys_buf));
 			arc_buf_destroy(os->os_phys_buf, &os->os_phys_buf);
 			os->os_phys_buf = buf;
@@ -531,7 +531,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 		os->os_phys_buf = arc_alloc_buf(spa, &os->os_phys_buf,
 		    ARC_BUFC_METADATA, size);
 		os->os_phys = os->os_phys_buf->b_data;
-		bzero(os->os_phys, size);
+		memset(os->os_phys, 0, size);
 	}
 	/*
 	 * These properties will be filled in by the logic in zfs_get_zplprop()

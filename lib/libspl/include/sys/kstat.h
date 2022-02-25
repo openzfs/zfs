@@ -383,9 +383,9 @@ typedef struct kstat32 {
  *
  *	ksp->ks_snaptime = gethrtime();
  *	if (rw == KSTAT_WRITE)
- *		bcopy(buf, ksp->ks_data, ksp->ks_data_size);
+ *		memcpy(ksp->ks_data, buf, ksp->ks_data_size);
  *	else
- *		bcopy(ksp->ks_data, buf, ksp->ks_data_size);
+ *		memcpy(buf, ksp->ks_data, ksp->ks_data_size);
  *	return (0);
  *
  * A more illuminating example is taking a snapshot of a linked list:
@@ -394,7 +394,7 @@ typedef struct kstat32 {
  *	if (rw == KSTAT_WRITE)
  *		return (EACCES);		... See below ...
  *	for (foo = first_foo; foo; foo = foo->next) {
- *		bcopy((char *) foo, (char *) buf, sizeof (struct foo));
+ *		memcpy(buf, foo, sizeof (struct foo));
  *		buf = ((struct foo *) buf) + 1;
  *	}
  *	return (0);
@@ -423,12 +423,12 @@ typedef struct kstat32 {
  * 	uint_t i;
  *
  * 	... Do the regular copy ...
- * 	bcopy(ksp->ks_data, buf, sizeof (kstat_named_t) * ksp->ks_ndata);
+ * 	memcpy(buf, ksp->ks_data, sizeof (kstat_named_t) * ksp->ks_ndata);
  *
  * 	for (i = 0; i < ksp->ks_ndata; i++, knp++) {
  *		if (knp[i].data_type == KSTAT_DATA_STRING &&
  *		    KSTAT_NAMED_STR_PTR(knp) != NULL) {
- *			bcopy(KSTAT_NAMED_STR_PTR(knp), end,
+ *			memcpy(end, KSTAT_NAMED_STR_PTR(knp),
  *			    KSTAT_NAMED_STR_BUFLEN(knp));
  *			KSTAT_NAMED_STR_PTR(knp) = end;
  *			end += KSTAT_NAMED_STR_BUFLEN(knp);

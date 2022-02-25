@@ -282,7 +282,7 @@ typedef struct xvattr {
 static inline void
 xva_init(xvattr_t *xvap)
 {
-	bzero(xvap, sizeof (xvattr_t));
+	memset(xvap, 0, sizeof (xvattr_t));
 	xvap->xva_mapsize = XVA_MAPSIZE;
 	xvap->xva_magic = XVA_MAGIC;
 	xvap->xva_vattr.va_mask = ATTR_XVATTR;

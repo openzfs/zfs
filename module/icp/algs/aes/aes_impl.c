@@ -47,7 +47,7 @@ aes_init_keysched(const uint8_t *cipherKey, uint_t keyBits, void *keysched)
 	union {
 		uint64_t	ka64[4];
 		uint32_t	ka32[8];
-		} keyarr;
+	} keyarr;
 
 	switch (keyBits) {
 	case 128:
@@ -81,7 +81,7 @@ aes_init_keysched(const uint8_t *cipherKey, uint_t keyBits, void *keysched)
 				keyarr.ka64[i] = *((uint64_t *)&cipherKey[j]);
 			}
 		} else {
-			bcopy(cipherKey, keyarr.ka32, keysize);
+			memcpy(keyarr.ka32, cipherKey, keysize);
 		}
 	} else {
 		/* byte swap */
@@ -132,7 +132,7 @@ aes_encrypt_block(const void *ks, const uint8_t *pt, uint8_t *ct)
 			buffer[2] = htonl(*(uint32_t *)(void *)&pt[8]);
 			buffer[3] = htonl(*(uint32_t *)(void *)&pt[12]);
 		} else
-			bcopy(pt, &buffer, AES_BLOCK_LEN);
+			memcpy(&buffer, pt, AES_BLOCK_LEN);
 
 		ops->encrypt(&ksch->encr_ks.ks32[0], ksch->nr, buffer, buffer);
 
@@ -143,7 +143,7 @@ aes_encrypt_block(const void *ks, const uint8_t *pt, uint8_t *ct)
 			*(uint32_t *)(void *)&ct[8] = htonl(buffer[2]);
 			*(uint32_t *)(void *)&ct[12] = htonl(buffer[3]);
 		} else
-			bcopy(&buffer, ct, AES_BLOCK_LEN);
+			memcpy(ct, &buffer, AES_BLOCK_LEN);
 	}
 	return (CRYPTO_SUCCESS);
 }
@@ -179,7 +179,7 @@ aes_decrypt_block(const void *ks, const uint8_t *ct, uint8_t *pt)
 			buffer[2] = htonl(*(uint32_t *)(void *)&ct[8]);
 			buffer[3] = htonl(*(uint32_t *)(void *)&ct[12]);
 		} else
-			bcopy(ct, &buffer, AES_BLOCK_LEN);
+			memcpy(&buffer, ct, AES_BLOCK_LEN);
 
 		ops->decrypt(&ksch->decr_ks.ks32[0], ksch->nr, buffer, buffer);
 
@@ -190,7 +190,7 @@ aes_decrypt_block(const void *ks, const uint8_t *ct, uint8_t *pt)
 			*(uint32_t *)(void *)&pt[8] = htonl(buffer[2]);
 			*(uint32_t *)(void *)&pt[12] = htonl(buffer[3]);
 		} else
-			bcopy(&buffer, pt, AES_BLOCK_LEN);
+			memcpy(pt, &buffer, AES_BLOCK_LEN);
 	}
 	return (CRYPTO_SUCCESS);
 }

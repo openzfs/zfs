@@ -48,8 +48,8 @@
  * "vdev_remap" operation that executes a callback on each contiguous
  * segment of the new location.  This function is used in multiple ways:
  *
- *  - i/os to this vdev use the callback to determine where the
- *    data is now located, and issue child i/os for each segment's new
+ *  - I/Os to this vdev use the callback to determine where the
+ *    data is now located, and issue child I/Os for each segment's new
  *    location.
  *
  *  - frees and claims to this vdev use the callback to free or claim
@@ -1021,7 +1021,7 @@ vdev_indirect_mapping_duplicate_adjacent_entries(vdev_t *vd, uint64_t offset,
 
 	size_t copy_length = entries * sizeof (*first_mapping);
 	duplicate_mappings = kmem_alloc(copy_length, KM_SLEEP);
-	bcopy(first_mapping, duplicate_mappings, copy_length);
+	memcpy(duplicate_mappings, first_mapping, copy_length);
 	*copied_entries = entries;
 
 	return (duplicate_mappings);

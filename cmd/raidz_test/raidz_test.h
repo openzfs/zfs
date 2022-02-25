@@ -92,19 +92,19 @@ static inline size_t ilog2(size_t a)
 }
 
 
-#define	LOG(lvl, a...)				\
+#define	LOG(lvl, ...)				\
 {						\
 	if (rto_opts.rto_v >= lvl)		\
-		(void) fprintf(stdout, a);	\
+		(void) fprintf(stdout, __VA_ARGS__);	\
 }						\
 
-#define	LOG_OPT(lvl, opt, a...)			\
+#define	LOG_OPT(lvl, opt, ...)			\
 {						\
 	if (opt->rto_v >= lvl)			\
-		(void) fprintf(stdout, a);	\
+		(void) fprintf(stdout, __VA_ARGS__);	\
 }						\
 
-#define	ERR(a...)	(void) fprintf(stderr, a)
+#define	ERR(...)	(void) fprintf(stderr, __VA_ARGS__)
 
 
 #define	DBLSEP "================\n"

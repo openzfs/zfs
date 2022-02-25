@@ -947,8 +947,8 @@ spa_get_errlists(spa_t *spa, avl_tree_t *last, avl_tree_t *scrub)
 {
 	ASSERT(MUTEX_HELD(&spa->spa_errlist_lock));
 
-	bcopy(&spa->spa_errlist_last, last, sizeof (avl_tree_t));
-	bcopy(&spa->spa_errlist_scrub, scrub, sizeof (avl_tree_t));
+	memcpy(last, &spa->spa_errlist_last, sizeof (avl_tree_t));
+	memcpy(scrub, &spa->spa_errlist_scrub, sizeof (avl_tree_t));
 
 	avl_create(&spa->spa_errlist_scrub,
 	    spa_error_entry_compare, sizeof (spa_error_entry_t),
@@ -8495,7 +8495,7 @@ spa_sync_nvlist(spa_t *spa, uint64_t obj, nvlist_t *nv, dmu_tx_t *tx)
 
 	VERIFY(nvlist_pack(nv, &packed, &nvsize, NV_ENCODE_XDR,
 	    KM_SLEEP) == 0);
-	bzero(packed + nvsize, bufsize - nvsize);
+	memset(packed + nvsize, 0, bufsize - nvsize);
 
 	dmu_write(spa->spa_meta_objset, obj, 0, bufsize, packed, tx);
 

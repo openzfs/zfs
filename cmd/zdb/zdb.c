@@ -2035,11 +2035,8 @@ dump_ddt(ddt_t *ddt, enum ddt_type type, enum ddt_class class)
 static void
 dump_all_ddts(spa_t *spa)
 {
-	ddt_histogram_t ddh_total;
-	ddt_stat_t dds_total;
-
-	bzero(&ddh_total, sizeof (ddh_total));
-	bzero(&dds_total, sizeof (dds_total));
+	ddt_histogram_t ddh_total = {{{0}}};
+	ddt_stat_t dds_total = {0};
 
 	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
 		ddt_t *ddt = spa->spa_ddt[c];
@@ -4360,7 +4357,7 @@ dump_l2arc_log_blocks(int fd, l2arc_dev_hdr_phys_t l2dhdr,
 
 	if (!dump_opt['q'])
 		print_l2arc_log_blocks();
-	bcopy((&l2dhdr)->dh_start_lbps, lbps, sizeof (lbps));
+	memcpy(lbps, l2dhdr.dh_start_lbps, sizeof (lbps));
 
 	dev.l2ad_evict = l2dhdr.dh_evict;
 	dev.l2ad_start = l2dhdr.dh_start;
@@ -4460,11 +4457,8 @@ dump_l2arc_log_blocks(int fd, l2arc_dev_hdr_phys_t l2dhdr,
 static int
 dump_l2arc_header(int fd)
 {
-	l2arc_dev_hdr_phys_t l2dhdr, rebuild;
+	l2arc_dev_hdr_phys_t l2dhdr = {0}, rebuild = {0};
 	int error = B_FALSE;
-
-	bzero(&l2dhdr, sizeof (l2dhdr));
-	bzero(&rebuild, sizeof (rebuild));
 
 	if (pread64(fd, &l2dhdr, sizeof (l2dhdr),
 	    VDEV_LABEL_START_SIZE) != sizeof (l2dhdr)) {
@@ -4820,7 +4814,7 @@ static int
 dump_label(const char *dev)
 {
 	char path[MAXPATHLEN];
-	zdb_label_t labels[VDEV_LABELS];
+	zdb_label_t labels[VDEV_LABELS] = {{{{0}}}};
 	uint64_t psize, ashift, l2cache;
 	struct stat64 statbuf;
 	boolean_t config_found = B_FALSE;
@@ -4830,8 +4824,6 @@ dump_label(const char *dev)
 	avl_tree_t uberblock_tree;
 	void *node, *cookie;
 	int fd;
-
-	bzero(labels, sizeof (labels));
 
 	/*
 	 * Check if we were given absolute path and use it as is.
@@ -5746,14 +5738,13 @@ zdb_load_obsolete_counts(vdev_t *vd)
 static void
 zdb_ddt_leak_init(spa_t *spa, zdb_cb_t *zcb)
 {
-	ddt_bookmark_t ddb;
+	ddt_bookmark_t ddb = {0};
 	ddt_entry_t dde;
 	int error;
 	int p;
 
 	ASSERT(!dump_opt['L']);
 
-	bzero(&ddb, sizeof (ddb));
 	while ((error = ddt_walk(spa, &ddb, &dde)) == 0) {
 		blkptr_t blk;
 		ddt_phys_t *ddp = dde.dde_phys;
@@ -6413,7 +6404,7 @@ deleted_livelists_dump_mos(spa_t *spa)
 static int
 dump_block_stats(spa_t *spa)
 {
-	zdb_cb_t zcb;
+	zdb_cb_t zcb = {{{{0}}}};
 	zdb_blkstats_t *zb, *tzb;
 	uint64_t norm_alloc, norm_space, total_alloc, total_found;
 	int flags = TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA |
@@ -6422,7 +6413,6 @@ dump_block_stats(spa_t *spa)
 	int e, c, err;
 	bp_embedded_type_t i;
 
-	bzero(&zcb, sizeof (zcb));
 	(void) printf("\nTraversing all blocks %s%s%s%s%s...\n\n",
 	    (dump_opt['c'] || !dump_opt['L']) ? "to verify " : "",
 	    (dump_opt['c'] == 1) ? "metadata " : "",
@@ -6442,7 +6432,6 @@ dump_block_stats(spa_t *spa)
 	 * pool claiming each block we discover, but we skip opening any space
 	 * maps.
 	 */
-	bzero(&zcb, sizeof (zdb_cb_t));
 	zdb_leak_init(spa, &zcb);
 
 	/*
@@ -6815,11 +6804,9 @@ dump_simulated_ddt(spa_t *spa)
 	avl_tree_t t;
 	void *cookie = NULL;
 	zdb_ddt_entry_t *zdde;
-	ddt_histogram_t ddh_total;
-	ddt_stat_t dds_total;
+	ddt_histogram_t ddh_total = {{{0}}};
+	ddt_stat_t dds_total = {0};
 
-	bzero(&ddh_total, sizeof (ddh_total));
-	bzero(&dds_total, sizeof (dds_total));
 	avl_create(&t, ddt_entry_compare,
 	    sizeof (zdb_ddt_entry_t), offsetof(zdb_ddt_entry_t, zdde_node));
 
@@ -7654,8 +7641,7 @@ dump_log_spacemap_obsolete_stats(spa_t *spa)
 	if (!spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP))
 		return;
 
-	log_sm_obsolete_stats_arg_t lsos;
-	bzero(&lsos, sizeof (lsos));
+	log_sm_obsolete_stats_arg_t lsos = {0};
 
 	(void) printf("Log Space Map Obsolete Entry Statistics:\n");
 
@@ -8050,7 +8036,7 @@ zdb_decompress_block(abd_t *pabd, void *buf, void *lbuf, uint64_t lsize,
 			    lbuf, psize, lsize, NULL) == 0 &&
 			    zio_decompress_data(*cfuncp, pabd,
 			    lbuf2, psize, lsize, NULL) == 0 &&
-			    bcmp(lbuf, lbuf2, lsize) == 0)
+			    memcmp(lbuf, lbuf2, lsize) == 0)
 				break;
 		}
 		if (*cfuncp != 0)
@@ -8368,12 +8354,11 @@ done:
 static void
 zdb_embedded_block(char *thing)
 {
-	blkptr_t bp;
+	blkptr_t bp = {{{{0}}}};
 	unsigned long long *words = (void *)&bp;
 	char *buf;
 	int err;
 
-	bzero(&bp, sizeof (bp));
 	err = sscanf(thing, "%llx:%llx:%llx:%llx:%llx:%llx:%llx:%llx:"
 	    "%llx:%llx:%llx:%llx:%llx:%llx:%llx:%llx",
 	    words + 0, words + 1, words + 2, words + 3,
@@ -8566,7 +8551,7 @@ main(int argc, char **argv)
 			} else {
 				char **tmp = umem_alloc((nsearch + 1) *
 				    sizeof (char *), UMEM_NOFAIL);
-				bcopy(searchdirs, tmp, nsearch *
+				memcpy(tmp, searchdirs, nsearch *
 				    sizeof (char *));
 				umem_free(searchdirs,
 				    nsearch * sizeof (char *));

@@ -49,8 +49,8 @@ ecb_cipher_contiguous_blocks(ecb_ctx_t *ctx, char *data, size_t length,
 
 	if (length + ctx->ecb_remainder_len < block_size) {
 		/* accumulate bytes here and return */
-		bcopy(datap,
-		    (uint8_t *)ctx->ecb_remainder + ctx->ecb_remainder_len,
+		memcpy((uint8_t *)ctx->ecb_remainder + ctx->ecb_remainder_len,
+		    datap,
 		    length);
 		ctx->ecb_remainder_len += length;
 		ctx->ecb_copy_to = datap;
@@ -68,8 +68,8 @@ ecb_cipher_contiguous_blocks(ecb_ctx_t *ctx, char *data, size_t length,
 			if (need > remainder)
 				return (CRYPTO_DATA_LEN_RANGE);
 
-			bcopy(datap, &((uint8_t *)ctx->ecb_remainder)
-			    [ctx->ecb_remainder_len], need);
+			memcpy(&((uint8_t *)ctx->ecb_remainder)
+			    [ctx->ecb_remainder_len], datap, need);
 
 			blockp = (uint8_t *)ctx->ecb_remainder;
 		} else {
@@ -81,9 +81,9 @@ ecb_cipher_contiguous_blocks(ecb_ctx_t *ctx, char *data, size_t length,
 		    &out_data_1_len, &out_data_2, block_size);
 
 		/* copy block to where it belongs */
-		bcopy(lastp, out_data_1, out_data_1_len);
+		memcpy(out_data_1, lastp, out_data_1_len);
 		if (out_data_2 != NULL) {
-			bcopy(lastp + out_data_1_len, out_data_2,
+			memcpy(out_data_2, lastp + out_data_1_len,
 			    block_size - out_data_1_len);
 		}
 		/* update offset */
@@ -101,7 +101,7 @@ ecb_cipher_contiguous_blocks(ecb_ctx_t *ctx, char *data, size_t length,
 
 		/* Incomplete last block. */
 		if (remainder > 0 && remainder < block_size) {
-			bcopy(datap, ctx->ecb_remainder, remainder);
+			memcpy(ctx->ecb_remainder, datap, remainder);
 			ctx->ecb_remainder_len = remainder;
 			ctx->ecb_copy_to = datap;
 			goto out;

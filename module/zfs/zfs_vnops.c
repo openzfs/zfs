@@ -355,9 +355,8 @@ zfs_clear_setid_bits_if_necessary(zfsvfs_t *zfsvfs, znode_t *zp, cred_t *cr,
 		 * than one TX_SETATTR per transaction group.
 		 */
 		if (*clear_setid_bits_txgp != dmu_tx_get_txg(tx)) {
-			vattr_t va;
+			vattr_t va = {0};
 
-			bzero(&va, sizeof (va));
 			va.va_mask = AT_MODE;
 			va.va_nodeid = zp->z_id;
 			va.va_mode = newmode;

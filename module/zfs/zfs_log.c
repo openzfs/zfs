@@ -127,9 +127,9 @@ zfs_log_xvattr(lr_attr_t *lrattr, xvattr_t *xvap)
 	attrs = (uint64_t *)bitmap;
 	*attrs = 0;
 	crtime = attrs + 1;
-	bzero(crtime, 2 * sizeof (uint64_t));
+	memset(crtime, 0, 2 * sizeof (uint64_t));
 	scanstamp = (caddr_t)(crtime + 2);
-	bzero(scanstamp, AV_SCANSTAMP_SZ);
+	memset(scanstamp, 0, AV_SCANSTAMP_SZ);
 	if (XVA_ISSET_REQ(xvap, XAT_READONLY))
 		*attrs |= (xoap->xoa_readonly == 0) ? 0 :
 		    XAT0_READONLY;
@@ -168,13 +168,13 @@ zfs_log_xvattr(lr_attr_t *lrattr, xvattr_t *xvap)
 	if (XVA_ISSET_REQ(xvap, XAT_AV_SCANSTAMP)) {
 		ASSERT(!XVA_ISSET_REQ(xvap, XAT_PROJID));
 
-		bcopy(xoap->xoa_av_scanstamp, scanstamp, AV_SCANSTAMP_SZ);
+		memcpy(scanstamp, xoap->xoa_av_scanstamp, AV_SCANSTAMP_SZ);
 	} else if (XVA_ISSET_REQ(xvap, XAT_PROJID)) {
 		/*
 		 * XAT_PROJID and XAT_AV_SCANSTAMP will never be valid
 		 * at the same time, so we can share the same space.
 		 */
-		bcopy(&xoap->xoa_projid, scanstamp, sizeof (uint64_t));
+		memcpy(scanstamp, &xoap->xoa_projid, sizeof (uint64_t));
 	}
 	if (XVA_ISSET_REQ(xvap, XAT_REPARSE))
 		*attrs |= (xoap->xoa_reparse == 0) ? 0 :
@@ -214,7 +214,7 @@ zfs_log_fuid_domains(zfs_fuid_info_t *fuidp, void *start)
 	if (fuidp->z_domain_str_sz != 0) {
 		for (zdomain = list_head(&fuidp->z_domains); zdomain;
 		    zdomain = list_next(&fuidp->z_domains, zdomain)) {
-			bcopy((void *)zdomain->z_domain, start,
+			memcpy(start, zdomain->z_domain,
 			    strlen(zdomain->z_domain) + 1);
 			start = (caddr_t)start +
 			    strlen(zdomain->z_domain) + 1;
@@ -392,7 +392,7 @@ zfs_log_create(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 		else
 			lracl->lr_acl_flags = 0;
 
-		bcopy(vsecp->vsa_aclentp, end, aclsize);
+		memcpy(end, vsecp->vsa_aclentp, aclsize);
 		end = (caddr_t)end + ZIL_ACE_LENGTH(aclsize);
 	}
 
@@ -404,7 +404,7 @@ zfs_log_create(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 	/*
 	 * Now place file name in log record
 	 */
-	bcopy(name, end, namesize);
+	memcpy(end, name, namesize);
 
 	zil_itx_assign(zilog, itx, tx);
 }
@@ -426,7 +426,7 @@ zfs_log_remove(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 	itx = zil_itx_create(txtype, sizeof (*lr) + namesize);
 	lr = (lr_remove_t *)&itx->itx_lr;
 	lr->lr_doid = dzp->z_id;
-	bcopy(name, (char *)(lr + 1), namesize);
+	memcpy(lr + 1, name, namesize);
 
 	itx->itx_oid = foid;
 
@@ -462,7 +462,7 @@ zfs_log_link(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 	lr = (lr_link_t *)&itx->itx_lr;
 	lr->lr_doid = dzp->z_id;
 	lr->lr_link_obj = zp->z_id;
-	bcopy(name, (char *)(lr + 1), namesize);
+	memcpy(lr + 1, name, namesize);
 
 	zil_itx_assign(zilog, itx, tx);
 }
@@ -493,8 +493,8 @@ zfs_log_symlink(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 	    sizeof (uint64_t));
 	(void) sa_lookup(zp->z_sa_hdl, SA_ZPL_CRTIME(ZTOZSB(zp)),
 	    lr->lr_crtime, sizeof (uint64_t) * 2);
-	bcopy(name, (char *)(lr + 1), namesize);
-	bcopy(link, (char *)(lr + 1) + namesize, linksize);
+	memcpy((char *)(lr + 1), name, namesize);
+	memcpy((char *)(lr + 1) + namesize, link, linksize);
 
 	zil_itx_assign(zilog, itx, tx);
 }
@@ -518,8 +518,8 @@ zfs_log_rename(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype, znode_t *sdzp,
 	lr = (lr_rename_t *)&itx->itx_lr;
 	lr->lr_sdoid = sdzp->z_id;
 	lr->lr_tdoid = tdzp->z_id;
-	bcopy(sname, (char *)(lr + 1), snamesize);
-	bcopy(dname, (char *)(lr + 1) + snamesize, dnamesize);
+	memcpy((char *)(lr + 1), sname, snamesize);
+	memcpy((char *)(lr + 1) + snamesize, dname, dnamesize);
 	itx->itx_oid = szp->z_id;
 
 	zil_itx_assign(zilog, itx, tx);
@@ -742,9 +742,9 @@ zfs_log_setsaxattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 	lr = (lr_setsaxattr_t *)&itx->itx_lr;
 	lr->lr_foid = zp->z_id;
 	xattrstart = (char *)(lr + 1);
-	bcopy(name, xattrstart, namelen);
+	memcpy(xattrstart, name, namelen);
 	if (value != NULL) {
-		bcopy(value, (char *)xattrstart + namelen, size);
+		memcpy((char *)xattrstart + namelen, value, size);
 		lr->lr_size = size;
 	} else {
 		lr->lr_size = 0;
@@ -802,11 +802,11 @@ zfs_log_acl(zilog_t *zilog, dmu_tx_t *tx, znode_t *zp,
 
 	if (txtype == TX_ACL_V0) {
 		lrv0 = (lr_acl_v0_t *)lr;
-		bcopy(vsecp->vsa_aclentp, (ace_t *)(lrv0 + 1), aclbytes);
+		memcpy(lrv0 + 1, vsecp->vsa_aclentp, aclbytes);
 	} else {
 		void *start = (ace_t *)(lr + 1);
 
-		bcopy(vsecp->vsa_aclentp, start, aclbytes);
+		memcpy(start, vsecp->vsa_aclentp, aclbytes);
 
 		start = (caddr_t)start + ZIL_ACE_LENGTH(aclbytes);
 
