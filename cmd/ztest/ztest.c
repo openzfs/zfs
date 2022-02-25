@@ -4273,7 +4273,15 @@ ztest_objset_destroy_cb(const char *name, void *arg)
 	 * Destroy the dataset.
 	 */
 	if (strchr(name, '@') != NULL) {
-		VERIFY0(dsl_destroy_snapshot(name, B_TRUE));
+		error = dsl_destroy_snapshot(name, B_TRUE);
+		if (error != ECHRNG) {
+			/*
+			 * The program was executed, but encountered a runtime
+			 * error, such as insufficient slop, or a hold on the
+			 * dataset.
+			 */
+			ASSERT0(error);
+		}
 	} else {
 		error = dsl_destroy_head(name);
 		if (error == ENOSPC) {
