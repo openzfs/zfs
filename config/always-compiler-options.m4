@@ -1,5 +1,5 @@
 dnl #
-dnl # Enabled -fsanitize=address if supported by gcc.
+dnl # Enabled -fsanitize=address if supported by $CC.
 dnl #
 dnl # LDFLAGS needs -fsanitize=address at all times so libraries compiled with
 dnl # it will be linked successfully. CFLAGS will vary by binary being built.
@@ -46,7 +46,7 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_ASAN], [
 ])
 
 dnl #
-dnl # Enabled -fsanitize=undefined if supported by gcc.
+dnl # Enabled -fsanitize=undefined if supported by cc.
 dnl #
 dnl # LDFLAGS needs -fsanitize=undefined at all times so libraries compiled with
 dnl # it will be linked successfully. CFLAGS will vary by binary being built.
@@ -93,7 +93,7 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_UBSAN], [
 ])
 
 dnl #
-dnl # Check if gcc supports -Wframe-larger-than=<size> option.
+dnl # Check if cc supports -Wframe-larger-than=<size> option.
 dnl #
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_FRAME_LARGER_THAN], [
 	AC_MSG_CHECKING([whether $CC supports -Wframe-larger-than=<size>])
@@ -114,7 +114,7 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_FRAME_LARGER_THAN], [
 ])
 
 dnl #
-dnl # Check if gcc supports -Wno-format-truncation option.
+dnl # Check if cc supports -Wno-format-truncation option.
 dnl #
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_FORMAT_TRUNCATION], [
 	AC_MSG_CHECKING([whether $CC supports -Wno-format-truncation])
@@ -135,7 +135,7 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_FORMAT_TRUNCATION], [
 ])
 
 dnl #
-dnl # Check if gcc supports -Wno-format-zero-length option.
+dnl # Check if cc supports -Wno-format-zero-length option.
 dnl #
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_FORMAT_ZERO_LENGTH], [
 	AC_MSG_CHECKING([whether $CC supports -Wno-format-zero-length])
@@ -156,9 +156,9 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_FORMAT_ZERO_LENGTH], [
 ])
 
 dnl #
-dnl # Check if gcc supports -Wno-clobbered option.
+dnl # Check if cc supports -Wno-clobbered option.
 dnl #
-dnl # We actually invoke gcc with the -Wclobbered option
+dnl # We actually invoke it with the -Wclobbered option
 dnl # and infer the 'no-' version does or doesn't exist based upon
 dnl # the results.  This is required because when checking any of
 dnl # no- prefixed options gcc always returns success.
@@ -182,9 +182,9 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_CLOBBERED], [
 ])
 
 dnl #
-dnl # Check if gcc supports -Wno-cast-function-type option.
+dnl # Check if cc supports -Wno-cast-function-type option.
 dnl #
-dnl # We actually invoke gcc with the --cast-function-type option
+dnl # We actually invoke it with the --cast-function-type option
 dnl # and infer the 'no-' version does or doesn't exist based upon
 dnl # the results.  This is required because when checking any of
 dnl # no- prefixed options gcc always returns success.
@@ -208,7 +208,7 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_CAST_FUNCTION_TYPE], [
 ])
 
 dnl #
-dnl # Check if gcc supports -Wimplicit-fallthrough option.
+dnl # Check if cc supports -Wimplicit-fallthrough option.
 dnl #
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_IMPLICIT_FALLTHROUGH], [
 	AC_MSG_CHECKING([whether $CC supports -Wimplicit-fallthrough])
@@ -231,7 +231,7 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_IMPLICIT_FALLTHROUGH], [
 ])
 
 dnl #
-dnl # Check if gcc supports -fno-omit-frame-pointer option.
+dnl # Check if cc supports -fno-omit-frame-pointer option.
 dnl #
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_OMIT_FRAME_POINTER], [
 	AC_MSG_CHECKING([whether $CC supports -fno-omit-frame-pointer])
