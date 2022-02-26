@@ -688,14 +688,16 @@ export __ZFS_POOL_EXCLUDE
 export TESTFAIL_CALLBACKS
 export PATH=$STF_PATH
 
-if [ "$UNAME" = "FreeBSD" ] ; then
-	mkdir -p "$FILEDIR" || true
-	RESULTS_FILE=$(mktemp -u "${FILEDIR}/zts-results.XXXXXX")
-	REPORT_FILE=$(mktemp -u "${FILEDIR}/zts-report.XXXXXX")
-else
-	RESULTS_FILE=$(mktemp -u -t zts-results.XXXXXX -p "$FILEDIR")
-	REPORT_FILE=$(mktemp -u -t zts-report.XXXXXX -p "$FILEDIR")
-fi
+mktemp_file() {
+	if [ "$UNAME" = "FreeBSD" ]; then
+		mktemp -u "${FILEDIR}/$1.XXXXXX"
+	else
+		mktemp -ut "$1.XXXXXX" -p "$FILEDIR"
+	fi
+}
+mkdir -p "$FILEDIR" || :
+RESULTS_FILE=$(mktemp_file zts-results)
+REPORT_FILE=$(mktemp_file zts-report)
 
 #
 # Run all the tests as specified.
@@ -725,8 +727,8 @@ RESULT=$?
 
 if [ "$RESULT" -eq "2" ] && [ -n "$RERUN" ]; then
 	MAYBES="$($ZTS_REPORT --list-maybes)"
-	TEMP_RESULTS_FILE=$(mktemp -u -t zts-results-tmp.XXXXX -p "$FILEDIR")
-	TEST_LIST=$(mktemp -u -t test-list.XXXXX -p "$FILEDIR")
+	TEMP_RESULTS_FILE=$(mktemp_file zts-results-tmp)
+	TEST_LIST=$(mktemp_file test-list)
 	grep "^Test:.*\[FAIL\]" "$RESULTS_FILE" >"$TEMP_RESULTS_FILE"
 	for test_name in $MAYBES; do
 		grep "$test_name " "$TEMP_RESULTS_FILE" >>"$TEST_LIST"
