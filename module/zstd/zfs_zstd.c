@@ -54,7 +54,6 @@ kstat_t *zstd_ksp = NULL;
 
 typedef struct zstd_stats {
 	kstat_named_t	zstd_stat_alloc_fail;
-	kstat_named_t	zstd_stat_alloc_fallback;
 	kstat_named_t	zstd_stat_com_alloc_fail;
 	kstat_named_t	zstd_stat_dec_alloc_fail;
 	kstat_named_t	zstd_stat_com_inval;
@@ -68,7 +67,6 @@ typedef struct zstd_stats {
 
 static zstd_stats_t zstd_stats = {
 	{ "alloc_fail",			KSTAT_DATA_UINT64 },
-	{ "alloc_fallback",		KSTAT_DATA_UINT64 },
 	{ "compress_alloc_fail",	KSTAT_DATA_UINT64 },
 	{ "decompress_alloc_fail",	KSTAT_DATA_UINT64 },
 	{ "compress_level_invalid",	KSTAT_DATA_UINT64 },
@@ -80,38 +78,13 @@ static zstd_stats_t zstd_stats = {
 	{ "size",			KSTAT_DATA_UINT64 },
 };
 
-/* Enums describing the allocator type specified by kmem_type in zstd_kmem */
-enum zstd_kmem_type {
-	ZSTD_KMEM_UNKNOWN = 0,
-	/* Allocation type using kmem_vmalloc */
-	ZSTD_KMEM_DEFAULT,
-	/* Pool based allocation using mempool_alloc */
-	ZSTD_KMEM_POOL,
-	/* Reserved fallback memory for decompression only */
-	ZSTD_KMEM_DCTX,
-	ZSTD_KMEM_COUNT,
-};
-
-/* Structure for pooled memory objects */
-struct zstd_pool {
-	void *mem;
-	size_t size;
-	kmutex_t barrier;
-	hrtime_t timeout;
-};
-
-/* Global structure for handling memory allocations */
-struct zstd_kmem {
-	enum zstd_kmem_type kmem_type;
+/*
+ * structure for allocation metadata, since zstd memory interface
+ * expects malloc/free-like semantics instead of vmem-like
+ */
+struct zstd_kmem_hdr {
 	size_t kmem_size;
-	struct zstd_pool *pool;
-};
-
-/* Fallback memory structure used for decompression only if memory runs out */
-struct zstd_fallback_mem {
-	size_t mem_size;
-	void *mem;
-	kmutex_t barrier;
+	char data[];
 };
 
 struct zstd_levelmap {
@@ -121,28 +94,23 @@ struct zstd_levelmap {
 
 /*
  * ZSTD memory handlers
- *
- * For decompression we use a different handler which also provides fallback
- * memory allocation in case memory runs out.
- *
- * The ZSTD handlers were split up for the most simplified implementation.
  */
-static void *zstd_alloc(void *opaque, size_t size);
-static void *zstd_dctx_alloc(void *opaque, size_t size);
-static void zstd_free(void *opaque, void *ptr);
+static void *zstd_alloc_cb(void *opaque, size_t size);
+static void zstd_free_cb(void *opaque, void *ptr);
 
 /* Compression memory handler */
-static const ZSTD_customMem zstd_malloc = {
-	zstd_alloc,
-	zstd_free,
-	NULL,
+static const ZSTD_customMem zstd_cctx_custommem = {
+	.customAlloc = zstd_alloc_cb,
+	.customFree = zstd_free_cb,
+	.opaque = (void*)0,
 };
 
 /* Decompression memory handler */
-static const ZSTD_customMem zstd_dctx_malloc = {
-	zstd_dctx_alloc,
-	zstd_free,
-	NULL,
+static const ZSTD_customMem zstd_dctx_custommem = {
+	.customAlloc = zstd_alloc_cb,
+	.customFree = zstd_free_cb,
+	/* "try hard" since a failure on decompression path cascades to user: */
+	.opaque = (void*)1,
 };
 
 /* Level map for converting ZFS internal levels to ZSTD levels and vice versa */
@@ -189,19 +157,31 @@ static struct zstd_levelmap zstd_levels[] = {
 	{-1000, ZIO_ZSTD_LEVEL_FAST_1000},
 };
 
-/*
- * This variable represents the maximum count of the pool based on the number
- * of CPUs plus some buffer. We default to cpu count * 4, see init_zstd.
- */
-static int pool_count = 16;
+/* Object-pool implementation */
 
-#define	ZSTD_POOL_MAX		pool_count
-#define	ZSTD_POOL_TIMEOUT	60 * 2
+#define	OBJPOOL_TIMEOUT_SEC 15
 
-static struct zstd_fallback_mem zstd_dctx_fallback;
-static struct zstd_pool *zstd_mempool_cctx;
-static struct zstd_pool *zstd_mempool_dctx;
+typedef struct {
+	/* Access to 'count' and 'list' must hold 'listlock' */
+	kmutex_t listlock;
+	int count;
+	void **list;
 
+	int64_t last_accessed_jiffy; /* for idle-reap */
+
+	/* Must be set by user */
+	void*(*obj_alloc)(void);
+	void(*obj_free)(void*);
+	void(*obj_reset)(void*);
+	const char * const pool_name;
+} objpool_t;
+
+static void objpool_init(objpool_t *const objpool);
+static void objpool_reap(objpool_t *const objpool);
+static void objpool_destroy(objpool_t *const objpool);
+
+static void* obj_grab(objpool_t *const objpool);
+static void obj_ungrab(objpool_t *const objpool, void* const obj);
 /*
  * The library zstd code expects these if ADDRESS_SANITIZER gets defined,
  * and while ASAN does this, KASAN defines that and does not. So to avoid
@@ -219,143 +199,212 @@ void __asan_poison_memory_region(void const volatile *addr, size_t size) {};
 
 
 static void
-zstd_mempool_reap(struct zstd_pool *zstd_mempool)
+objpool_reset_idle_timer(objpool_t *const objpool)
 {
-	struct zstd_pool *pool;
+	int64_t const now_jiffy = ddi_get_lbolt64();
+	objpool->last_accessed_jiffy = now_jiffy;
+}
 
-	if (!zstd_mempool || !ZSTDSTAT(zstd_stat_buffers)) {
-		return;
-	}
+static void
+objpool_init(objpool_t *const objpool)
+{
+	mutex_init(&objpool->listlock, NULL, MUTEX_DEFAULT, NULL);
 
-	/* free obsolete slots */
-	for (int i = 0; i < ZSTD_POOL_MAX; i++) {
-		pool = &zstd_mempool[i];
-		if (pool->mem && mutex_tryenter(&pool->barrier)) {
-			/* Free memory if unused object older than 2 minutes */
-			if (pool->mem && gethrestime_sec() > pool->timeout) {
-				vmem_free(pool->mem, pool->size);
-				ZSTDSTAT_SUB(zstd_stat_buffers, 1);
-				ZSTDSTAT_SUB(zstd_stat_size, pool->size);
-				pool->mem = NULL;
-				pool->size = 0;
-				pool->timeout = 0;
-			}
-			mutex_exit(&pool->barrier);
+	objpool->count = 0;
+	objpool->list = NULL;
+	objpool_reset_idle_timer(objpool);
+}
+
+static void
+objpool_clearunused(objpool_t *const objpool)
+{
+	mutex_enter(&objpool->listlock);
+	for (int i = 0; i < objpool->count; ++i) {
+		/* if ANY object is still in use then don't do anything */
+		if (unlikely(NULL == objpool->list[i])) {
+			mutex_exit(&objpool->listlock);
+			return;
 		}
+	}
+	for (int i = 0; i < objpool->count; ++i) {
+		objpool->obj_free(objpool->list[i]);
+	}
+	if (objpool->count > 0) {
+		ASSERT3P(objpool->list, !=, NULL);
+		kmem_free(objpool->list, sizeof (void *) * objpool->count);
+		objpool->list = NULL;
+	} else {
+		ASSERT3P(objpool->list, ==, NULL);
+	}
+	objpool->count = 0;
+	mutex_exit(&objpool->listlock);
+}
+
+static void
+objpool_reap(objpool_t *const objpool)
+{
+	int64_t now_jiffy = ddi_get_lbolt64();
+	if (objpool->last_accessed_jiffy > now_jiffy ||
+	    now_jiffy - objpool->last_accessed_jiffy
+	    > SEC_TO_TICK(OBJPOOL_TIMEOUT_SEC)) {
+		objpool_clearunused(objpool);
+		objpool_reset_idle_timer(objpool);
 	}
 }
 
-/*
- * Try to get a cached allocated buffer from memory pool or allocate a new one
- * if necessary. If a object is older than 2 minutes and does not fit the
- * requested size, it will be released and a new cached entry will be allocated.
- * If other pooled objects are detected without being used for 2 minutes, they
- * will be released, too.
- *
- * The concept is that high frequency memory allocations of bigger objects are
- * expensive. So if a lot of work is going on, allocations will be kept for a
- * while and can be reused in that time frame.
- *
- * The scheduled release will be updated every time a object is reused.
- */
+static void __exit
+objpool_destroy(objpool_t *const objpool)
+{
+	objpool_clearunused(objpool);
+	VERIFY3U(objpool->count, ==, 0);
+
+	if (objpool->count == 0) {
+		mutex_destroy(&objpool->listlock);
+	}
+}
+
+static void*
+obj_grab(objpool_t *const objpool)
+{
+	void* grabbed_obj = NULL;
+	mutex_enter(&objpool->listlock);
+	const int objcount = objpool->count;
+	for (int i = 0; i < objcount; ++i) {
+		if ((grabbed_obj = objpool->list[i]) != NULL) {
+			objpool->list[i] = NULL;
+			break;
+		}
+	}
+	if (likely(grabbed_obj != NULL)) {
+		/* grabbed pooled object; reset it to a reusable state */
+		objpool->obj_reset(grabbed_obj);
+	} else {
+		grabbed_obj = objpool->obj_alloc();
+		if (grabbed_obj != NULL) {
+			int newlistbytes = sizeof (void *)
+			    * (objpool->count + 1);
+			void **newlist = kmem_alloc(newlistbytes, KM_NOSLEEP);
+			if (newlist != NULL) {
+				newlist[0] = NULL;
+				if (objpool->count > 0) {
+					ASSERT3P(objpool->list, !=, NULL);
+					memcpy(&newlist[1], &objpool->list[0],
+					    sizeof (void *) * (objpool->count));
+					kmem_free(objpool->list, sizeof (void *)
+					    * (objpool->count));
+				} else {
+					ASSERT3P(objpool->list, ==, NULL);
+				}
+				objpool->list = newlist;
+				++objpool->count;
+			} else {
+				/*
+				 * Failed to grow the pool.
+				 * This is okay; we can still return the new
+				 * object, but the next ungrab()'d object might
+				 * not find a spare pool slot (in which case the
+				 * object will just be destroyed cleanly when
+				 * ungrab()'d).
+				 */
+			}
+		} else {
+			/* failed to alloc new object, will return NULL */
+		}
+	}
+	mutex_exit(&objpool->listlock);
+	return (grabbed_obj);
+}
+
+static void
+obj_ungrab(objpool_t *const objpool, void* const obj)
+{
+	ASSERT3P(obj, !=, NULL);
+	mutex_enter(&objpool->listlock);
+	int const objcount = objpool->count;
+#ifdef DEBUG
+	for (int i = 0; i < objcount; ++i) {
+		/*
+		 * if the ungrab'd object is already in the pool
+		 * then something's gone very wrong.
+		 */
+		ASSERT3P(objpool->list[i], !=, obj);
+	}
+#endif /* DEBUG */
+	boolean_t got_slot = B_FALSE;
+	for (int i = 0; i < objcount; ++i) {
+		if (objpool->list[i] == NULL) {
+			objpool->list[i] = obj;
+			got_slot = B_TRUE;
+			break;
+		}
+	}
+	mutex_exit(&objpool->listlock);
+	objpool_reset_idle_timer(objpool);
+	if (unlikely(!got_slot)) {
+		/*
+		 * If there's no space in the pool to keep it,
+		 * just destroy the object now.
+		 */
+		objpool->obj_free(obj);
+	}
+}
+
+/* Callbacks for our compression/decompression object pools */
 
 static void *
-zstd_mempool_alloc(struct zstd_pool *zstd_mempool, size_t size)
+cctx_alloc(void)
 {
-	struct zstd_pool *pool;
-	struct zstd_kmem *mem = NULL;
-
-	if (!zstd_mempool) {
-		return (NULL);
-	}
-
-	/* Seek for preallocated memory slot and free obsolete slots */
-	for (int i = 0; i < ZSTD_POOL_MAX; i++) {
-		pool = &zstd_mempool[i];
-		/*
-		 * This lock is simply a marker for a pool object being in use.
-		 * If it's already hold, it will be skipped.
-		 *
-		 * We need to create it before checking it to avoid race
-		 * conditions caused by running in a threaded context.
-		 *
-		 * The lock is later released by zstd_mempool_free.
-		 */
-		if (mutex_tryenter(&pool->barrier)) {
-			/*
-			 * Check if objects fits the size, if so we take it and
-			 * update the timestamp.
-			 */
-			if (pool->mem && size <= pool->size) {
-				pool->timeout = gethrestime_sec() +
-				    ZSTD_POOL_TIMEOUT;
-				mem = pool->mem;
-				return (mem);
-			}
-			mutex_exit(&pool->barrier);
-		}
-	}
-
-	/*
-	 * If no preallocated slot was found, try to fill in a new one.
-	 *
-	 * We run a similar algorithm twice here to avoid pool fragmentation.
-	 * The first one may generate holes in the list if objects get released.
-	 * We always make sure that these holes get filled instead of adding new
-	 * allocations constantly at the end.
-	 */
-	for (int i = 0; i < ZSTD_POOL_MAX; i++) {
-		pool = &zstd_mempool[i];
-		if (mutex_tryenter(&pool->barrier)) {
-			/* Object is free, try to allocate new one */
-			if (!pool->mem) {
-				mem = vmem_alloc(size, KM_SLEEP);
-				if (mem) {
-					ZSTDSTAT_ADD(zstd_stat_buffers, 1);
-					ZSTDSTAT_ADD(zstd_stat_size, size);
-					pool->mem = mem;
-					pool->size = size;
-					/* Keep track for later release */
-					mem->pool = pool;
-					mem->kmem_type = ZSTD_KMEM_POOL;
-					mem->kmem_size = size;
-				}
-			}
-
-			if (size <= pool->size) {
-				/* Update timestamp */
-				pool->timeout = gethrestime_sec() +
-				    ZSTD_POOL_TIMEOUT;
-
-				return (pool->mem);
-			}
-
-			mutex_exit(&pool->barrier);
-		}
-	}
-
-	/*
-	 * If the pool is full or the allocation failed, try lazy allocation
-	 * instead.
-	 */
-	if (!mem) {
-		mem = vmem_alloc(size, KM_NOSLEEP);
-		if (mem) {
-			mem->pool = NULL;
-			mem->kmem_type = ZSTD_KMEM_DEFAULT;
-			mem->kmem_size = size;
-		}
-	}
-
-	return (mem);
+	return (ZSTD_createCCtx_advanced(zstd_cctx_custommem));
 }
-
-/* Mark object as released by releasing the barrier mutex */
 static void
-zstd_mempool_free(struct zstd_kmem *z)
+cctx_free(void *ptr)
 {
-	mutex_exit(&z->pool->barrier);
+	(void) ZSTD_freeCCtx(ptr);
 }
+static void
+cctx_reset(void *ptr)
+{
+	/*
+	 * note: compressor needs to reset *stream* only on error,
+	 * we reset *parameters* always
+	 */
+	(void) ZSTD_CCtx_reset(ptr, ZSTD_reset_parameters);
+}
+
+static void *
+dctx_alloc(void)
+{
+	return (ZSTD_createDCtx_advanced(zstd_dctx_custommem));
+}
+static void
+dctx_free(void *ptr)
+{
+	(void) ZSTD_freeDCtx(ptr);
+}
+static void
+dctx_reset(void *ptr)
+{
+	/*
+	 * note: decompressor needs to reset *stream* only on error,
+	 * we reset *parameters* always
+	 */
+	(void) ZSTD_DCtx_reset(ptr, ZSTD_reset_parameters);
+}
+
+static objpool_t cctx_pool = {
+	.obj_alloc = cctx_alloc,
+	.obj_free  = cctx_free,
+	.obj_reset = cctx_reset,
+	.pool_name = "zstdCctx"
+	};
+
+static objpool_t dctx_pool = {
+	.obj_alloc = dctx_alloc,
+	.obj_free  = dctx_free,
+	.obj_reset = dctx_reset,
+	.pool_name = "zstdDctx"
+	};
+
 
 /* Convert ZFS internal enum to ZSTD level */
 static int
@@ -390,7 +439,7 @@ zfs_zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	hdr = (zfs_zstdhdr_t *)d_start;
 
 	/* Skip compression if the specified level is invalid */
-	if (zstd_enum_to_level(level, &zstd_level)) {
+	if (unlikely(zstd_enum_to_level(level, &zstd_level))) {
 		ZSTDSTAT_BUMP(zstd_stat_com_inval);
 		return (s_len);
 	}
@@ -399,13 +448,13 @@ zfs_zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	ASSERT3U(d_len, <=, s_len);
 	ASSERT3U(zstd_level, !=, 0);
 
-	cctx = ZSTD_createCCtx_advanced(zstd_malloc);
+	cctx = obj_grab(&cctx_pool);
 
 	/*
 	 * Out of kernel memory, gently fall through - this will disable
 	 * compression in zio_compress_data
 	 */
-	if (!cctx) {
+	if (unlikely(!cctx)) {
 		ZSTDSTAT_BUMP(zstd_stat_com_alloc_fail);
 		return (s_len);
 	}
@@ -428,7 +477,11 @@ zfs_zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	    d_len - sizeof (*hdr),
 	    s_start, s_len);
 
-	ZSTD_freeCCtx(cctx);
+	if (ZSTD_isError(c_len)) {
+		(void) ZSTD_CCtx_reset(cctx, ZSTD_reset_session_only);
+	}
+
+	obj_ungrab(&cctx_pool, cctx);
 
 	/* Error in the compression routine, disable compression. */
 	if (ZSTD_isError(c_len)) {
@@ -437,7 +490,8 @@ zfs_zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len,
 		 * too small, that is not a failure. Everything else is a
 		 * failure, so increment the compression failure counter.
 		 */
-		if (ZSTD_getErrorCode(c_len) != ZSTD_error_dstSize_tooSmall) {
+		if (unlikely(ZSTD_getErrorCode(c_len) !=
+		    ZSTD_error_dstSize_tooSmall)) {
 			ZSTDSTAT_BUMP(zstd_stat_com_fail);
 		}
 		return (s_len);
@@ -514,7 +568,7 @@ zfs_zstd_decompress_level(void *s_start, void *d_start, size_t s_len,
 	 * An invalid level is a strong indicator for data corruption! In such
 	 * case return an error so the upper layers can try to fix it.
 	 */
-	if (zstd_enum_to_level(curlevel, &zstd_level)) {
+	if (unlikely(zstd_enum_to_level(curlevel, &zstd_level))) {
 		ZSTDSTAT_BUMP(zstd_stat_dec_inval);
 		return (1);
 	}
@@ -523,13 +577,18 @@ zfs_zstd_decompress_level(void *s_start, void *d_start, size_t s_len,
 	ASSERT3U(curlevel, !=, ZIO_COMPLEVEL_INHERIT);
 
 	/* Invalid compressed buffer size encoded at start */
-	if (c_len + sizeof (*hdr) > s_len) {
+	if (unlikely(c_len + sizeof (*hdr) > s_len)) {
 		ZSTDSTAT_BUMP(zstd_stat_dec_header_inval);
 		return (1);
 	}
 
-	dctx = ZSTD_createDCtx_advanced(zstd_dctx_malloc);
-	if (!dctx) {
+	dctx = obj_grab(&dctx_pool);
+	ASSERT3P(dctx, !=, NULL);
+	if (unlikely(!dctx)) {
+		/*
+		 * really shouldn't happen - dctx allocations can't fail
+		 * - but we'll defend against it anyway.
+		 */
 		ZSTDSTAT_BUMP(zstd_stat_dec_alloc_fail);
 		return (1);
 	}
@@ -539,16 +598,21 @@ zfs_zstd_decompress_level(void *s_start, void *d_start, size_t s_len,
 
 	/* Decompress the data and release the context */
 	result = ZSTD_decompressDCtx(dctx, d_start, d_len, hdr->data, c_len);
-	ZSTD_freeDCtx(dctx);
 
 	/*
 	 * Returns 0 on success (decompression function returned non-negative)
 	 * and non-zero on failure (decompression function returned negative.
 	 */
-	if (ZSTD_isError(result)) {
+	if (unlikely(ZSTD_isError(result))) {
 		ZSTDSTAT_BUMP(zstd_stat_dec_fail);
+
+		(void) ZSTD_DCtx_reset(dctx, ZSTD_reset_session_only);
+
+		obj_ungrab(&dctx_pool, dctx);
 		return (1);
 	}
+
+	obj_ungrab(&dctx_pool, dctx);
 
 	if (level) {
 		*level = curlevel;
@@ -562,189 +626,71 @@ int
 zfs_zstd_decompress(void *s_start, void *d_start, size_t s_len, size_t d_len,
     int level __maybe_unused)
 {
-
 	return (zfs_zstd_decompress_level(s_start, d_start, s_len, d_len,
 	    NULL));
 }
 
-/* Allocator for zstd compression context using mempool_allocator */
+/* supplied as custom allocator() to zstd code */
 static void *
-zstd_alloc(void *opaque __maybe_unused, size_t size)
+zstd_alloc_cb(void *opaque __maybe_unused, size_t size)
 {
-	size_t nbytes = sizeof (struct zstd_kmem) + size;
-	struct zstd_kmem *z = NULL;
+	int const try_harder = (opaque != NULL);
+	struct zstd_kmem_hdr *z;
+	size_t nbytes = sizeof (*z) + size;
 
-	z = (struct zstd_kmem *)zstd_mempool_alloc(zstd_mempool_cctx, nbytes);
-
+	z = vmem_alloc(nbytes, KM_NOSLEEP);
 	if (!z) {
 		ZSTDSTAT_BUMP(zstd_stat_alloc_fail);
-		return (NULL);
-	}
-
-	return ((void*)z + (sizeof (struct zstd_kmem)));
-}
-
-/*
- * Allocator for zstd decompression context using mempool_allocator with
- * fallback to reserved memory if allocation fails
- */
-static void *
-zstd_dctx_alloc(void *opaque __maybe_unused, size_t size)
-{
-	size_t nbytes = sizeof (struct zstd_kmem) + size;
-	struct zstd_kmem *z = NULL;
-	enum zstd_kmem_type type = ZSTD_KMEM_DEFAULT;
-
-	z = (struct zstd_kmem *)zstd_mempool_alloc(zstd_mempool_dctx, nbytes);
-	if (!z) {
-		/* Try harder, decompression shall not fail */
-		z = vmem_alloc(nbytes, KM_SLEEP);
-		if (z) {
-			z->pool = NULL;
+		if (try_harder) {
+			/* Try harder, KM_SLEEP implies that it can't fail */
+			z = vmem_alloc(nbytes, KM_SLEEP);
+		} else {
+			return (NULL);
 		}
-		ZSTDSTAT_BUMP(zstd_stat_alloc_fail);
-	} else {
-		return ((void*)z + (sizeof (struct zstd_kmem)));
 	}
 
-	/* Fallback if everything fails */
-	if (!z) {
-		/*
-		 * Barrier since we only can handle it in a single thread. All
-		 * other following threads need to wait here until decompression
-		 * is completed. zstd_free will release this barrier later.
-		 */
-		mutex_enter(&zstd_dctx_fallback.barrier);
-
-		z = zstd_dctx_fallback.mem;
-		type = ZSTD_KMEM_DCTX;
-		ZSTDSTAT_BUMP(zstd_stat_alloc_fallback);
-	}
-
-	/* Allocation should always be successful */
-	if (!z) {
-		return (NULL);
-	}
-
-	z->kmem_type = type;
 	z->kmem_size = nbytes;
-
-	return ((void*)z + (sizeof (struct zstd_kmem)));
+	return ((void*)z->data);
 }
 
-/* Free allocated memory by its specific type */
+/* supplied as custom free() to zstd code */
 static void
-zstd_free(void *opaque __maybe_unused, void *ptr)
+zstd_free_cb(void *opaque __maybe_unused, void *ptr)
 {
-	struct zstd_kmem *z = (ptr - sizeof (struct zstd_kmem));
-	enum zstd_kmem_type type;
-
-	ASSERT3U(z->kmem_type, <, ZSTD_KMEM_COUNT);
-	ASSERT3U(z->kmem_type, >, ZSTD_KMEM_UNKNOWN);
-
-	type = z->kmem_type;
-	switch (type) {
-	case ZSTD_KMEM_DEFAULT:
-		vmem_free(z, z->kmem_size);
-		break;
-	case ZSTD_KMEM_POOL:
-		zstd_mempool_free(z);
-		break;
-	case ZSTD_KMEM_DCTX:
-		mutex_exit(&zstd_dctx_fallback.barrier);
-		break;
-	default:
-		break;
-	}
-}
-
-/* Allocate fallback memory to ensure safe decompression */
-static void __init
-create_fallback_mem(struct zstd_fallback_mem *mem, size_t size)
-{
-	mem->mem_size = size;
-	mem->mem = vmem_zalloc(mem->mem_size, KM_SLEEP);
-	mutex_init(&mem->barrier, NULL, MUTEX_DEFAULT, NULL);
-}
-
-/* Initialize memory pool barrier mutexes */
-static void __init
-zstd_mempool_init(void)
-{
-	zstd_mempool_cctx = (struct zstd_pool *)
-	    kmem_zalloc(ZSTD_POOL_MAX * sizeof (struct zstd_pool), KM_SLEEP);
-	zstd_mempool_dctx = (struct zstd_pool *)
-	    kmem_zalloc(ZSTD_POOL_MAX * sizeof (struct zstd_pool), KM_SLEEP);
-
-	for (int i = 0; i < ZSTD_POOL_MAX; i++) {
-		mutex_init(&zstd_mempool_cctx[i].barrier, NULL,
-		    MUTEX_DEFAULT, NULL);
-		mutex_init(&zstd_mempool_dctx[i].barrier, NULL,
-		    MUTEX_DEFAULT, NULL);
-	}
+	ASSERT3P(ptr, !=, NULL);
+	struct zstd_kmem_hdr *z = (ptr - sizeof (struct zstd_kmem_hdr));
+	vmem_free(z, z->kmem_size);
 }
 
 /* Initialize zstd-related memory handling */
 static int __init
-zstd_meminit(void)
+zstd_mem_init(void)
 {
-	zstd_mempool_init();
-
-	/*
-	 * Estimate the size of the fallback decompression context.
-	 * The expected size on x64 with current ZSTD should be about 160 KB.
-	 */
-	create_fallback_mem(&zstd_dctx_fallback,
-	    P2ROUNDUP(ZSTD_estimateDCtxSize() + sizeof (struct zstd_kmem),
-	    PAGESIZE));
-
+	objpool_init(&cctx_pool);
+	objpool_init(&dctx_pool);
 	return (0);
 }
 
-/* Release object from pool and free memory */
+/* Release zstd-related memory handling */
 static void __exit
-release_pool(struct zstd_pool *pool)
+zstd_mem_deinit(void)
 {
-	mutex_destroy(&pool->barrier);
-	vmem_free(pool->mem, pool->size);
-	pool->mem = NULL;
-	pool->size = 0;
+	objpool_destroy(&cctx_pool);
+	objpool_destroy(&dctx_pool);
 }
 
-/* Release memory pool objects */
-static void __exit
-zstd_mempool_deinit(void)
-{
-	for (int i = 0; i < ZSTD_POOL_MAX; i++) {
-		release_pool(&zstd_mempool_cctx[i]);
-		release_pool(&zstd_mempool_dctx[i]);
-	}
-
-	kmem_free(zstd_mempool_dctx, ZSTD_POOL_MAX * sizeof (struct zstd_pool));
-	kmem_free(zstd_mempool_cctx, ZSTD_POOL_MAX * sizeof (struct zstd_pool));
-	zstd_mempool_dctx = NULL;
-	zstd_mempool_cctx = NULL;
-}
-
-/* release unused memory from pool */
-
+/* release unused memory from pools */
 void
 zfs_zstd_cache_reap_now(void)
 {
-	/*
-	 * calling alloc with zero size seeks
-	 * and releases old unused objects
-	 */
-	zstd_mempool_reap(zstd_mempool_cctx);
-	zstd_mempool_reap(zstd_mempool_dctx);
+	objpool_reap(&cctx_pool);
+	objpool_reap(&dctx_pool);
 }
 
 extern int __init
 zstd_init(void)
 {
-	/* Set pool size by using maximum sane thread count * 4 */
-	pool_count = (boot_ncpus * 4);
-	zstd_meminit();
+	zstd_mem_init();
 
 	/* Initialize kstat */
 	zstd_ksp = kstat_create("zfs", 0, "zstd", "misc",
@@ -767,12 +713,8 @@ zstd_fini(void)
 		zstd_ksp = NULL;
 	}
 
-	/* Release fallback memory */
-	vmem_free(zstd_dctx_fallback.mem, zstd_dctx_fallback.mem_size);
-	mutex_destroy(&zstd_dctx_fallback.barrier);
-
-	/* Deinit memory pool */
-	zstd_mempool_deinit();
+	/* Deinit memory pools */
+	zstd_mem_deinit();
 }
 
 #if defined(_KERNEL)
