@@ -73,16 +73,16 @@
 #define	SA_SHARE_EXISTS		33	/* path or file is already shared */
 
 /* initialization */
-_LIBSPL_LIBSHARE_H char *sa_errorstr(int);
+_LIBSPL_LIBSHARE_H const char *sa_errorstr(int);
 
 /* share control */
 _LIBSPL_LIBSHARE_H int sa_enable_share(const char *, const char *, const char *,
-    char *);
-_LIBSPL_LIBSHARE_H int sa_disable_share(const char *, char *);
-_LIBSPL_LIBSHARE_H boolean_t sa_is_shared(const char *, char *);
+    const char *);
+_LIBSPL_LIBSHARE_H int sa_disable_share(const char *, const char *);
+_LIBSPL_LIBSHARE_H boolean_t sa_is_shared(const char *, const char *);
 _LIBSPL_LIBSHARE_H void sa_commit_shares(const char *);
 
 /* protocol specific interfaces */
-_LIBSPL_LIBSHARE_H int sa_validate_shareopts(char *, char *);
+_LIBSPL_LIBSHARE_H int sa_validate_shareopts(const char *, const char *);
 
 #endif /* _LIBSPL_LIBSHARE_H */
