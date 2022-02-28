@@ -1974,8 +1974,15 @@ vdev_raidz_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 		    *physical_ashift, cvd->vdev_physical_ashift);
 	}
 
-	*asize *= vd->vdev_children;
-	*max_asize *= vd->vdev_children;
+	if (vd->vdev_rz_expanding) {
+		*asize *= vd->vdev_children - 1;
+		*max_asize *= vd->vdev_children - 1;
+
+		vd->vdev_min_asize = *asize;
+	} else {
+		*asize *= vd->vdev_children;
+		*max_asize *= vd->vdev_children;
+	}
 
 	if (numerrors > nparity) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_NO_REPLICAS;
@@ -2150,6 +2157,9 @@ vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr)
 		if (rc->rc_size == 0)
 			continue;
 
+		ASSERT(rc->rc_offset + rc->rc_size <
+		    cvd->vdev_psize - VDEV_LABEL_END_SIZE);
+
 		ASSERT3P(rc->rc_abd, !=, NULL);
 		zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
 		    rc->rc_offset, rc->rc_abd,
@@ -2158,6 +2168,10 @@ vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr)
 
 		if (rc->rc_shadow_devidx != INT_MAX) {
 			vdev_t *cvd2 = vd->vdev_child[rc->rc_shadow_devidx];
+
+			ASSERT(rc->rc_shadow_offset + abd_get_size(rc->rc_abd) <
+			    cvd2->vdev_psize - VDEV_LABEL_END_SIZE);
+
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd2,
 			    rc->rc_shadow_offset, rc->rc_abd,
 			    abd_get_size(rc->rc_abd),
@@ -2185,6 +2199,9 @@ raidz_start_skip_writes(zio_t *zio)
 		if (rc->rc_size != 0)
 			continue;
 		ASSERT3P(rc->rc_abd, ==, NULL);
+
+		ASSERT(rc->rc_offset + rc->rc_size <
+		    cvd->vdev_psize - VDEV_LABEL_END_SIZE);
 
 		zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
 		    rc->rc_offset + rc->rc_size, NULL, 1ULL << ashift,
