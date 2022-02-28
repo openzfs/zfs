@@ -27,8 +27,6 @@
 #include <libshare.h>
 #include "libshare_impl.h"
 
-static sa_fstype_t *smb_fstype;
-
 /*
  * Enables SMB sharing for the specified share.
  */
@@ -71,51 +69,20 @@ smb_is_share_active(sa_share_impl_t impl_share)
 	return (B_FALSE);
 }
 
-/*
- * Called to update a share's options. A share's options might be out of
- * date if the share was loaded from disk and the "sharesmb" dataset
- * property has changed in the meantime. This function also takes care
- * of re-enabling the share if necessary.
- */
-static int
-smb_update_shareopts(sa_share_impl_t impl_share, const char *shareopts)
-{
-	(void) impl_share, (void) shareopts;
-	return (SA_OK);
-}
-
 static int
 smb_update_shares(void)
 {
 	/* Not implemented */
 	return (0);
 }
-/*
- * Clears a share's SMB options. Used by libshare to
- * clean up shares that are about to be free()'d.
- */
-static void
-smb_clear_shareopts(sa_share_impl_t impl_share)
-{
-	FSINFO(impl_share, smb_fstype)->shareopts = NULL;
-}
 
-static const sa_share_ops_t smb_shareops = {
+sa_fstype_t libshare_smb_type = {
+	.protocol = "smb",
+
 	.enable_share = smb_enable_share,
 	.disable_share = smb_disable_share,
 	.is_shared = smb_is_share_active,
 
 	.validate_shareopts = smb_validate_shareopts,
-	.update_shareopts = smb_update_shareopts,
-	.clear_shareopts = smb_clear_shareopts,
 	.commit_shares = smb_update_shares,
 };
-
-/*
- * Initializes the SMB functionality of libshare.
- */
-void
-libshare_smb_init(void)
-{
-	smb_fstype = register_fstype("smb", &smb_shareops);
-}

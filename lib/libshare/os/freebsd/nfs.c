@@ -52,8 +52,6 @@ __FBSDID("$FreeBSD$");
 #define	ZFS_EXPORTS_FILE	"/etc/zfs/exports"
 #define	ZFS_EXPORTS_LOCK	ZFS_EXPORTS_FILE".lock"
 
-static sa_fstype_t *nfs_fstype;
-
 /*
  * This function translates options to a format acceptable by exports(5), eg.
  *
@@ -107,7 +105,7 @@ translate_opts(const char *shareopts, FILE *out)
 static int
 nfs_enable_share_impl(sa_share_impl_t impl_share, FILE *tmpfile)
 {
-	char *shareopts = FSINFO(impl_share, nfs_fstype)->shareopts;
+	const char *shareopts = impl_share->sa_shareopts;
 	if (strcmp(shareopts, "on") == 0)
 		shareopts = "";
 
@@ -158,19 +156,6 @@ nfs_validate_shareopts(const char *shareopts)
 	return (SA_OK);
 }
 
-static int
-nfs_update_shareopts(sa_share_impl_t impl_share, const char *shareopts)
-{
-	FSINFO(impl_share, nfs_fstype)->shareopts = (char *)shareopts;
-	return (SA_OK);
-}
-
-static void
-nfs_clear_shareopts(sa_share_impl_t impl_share)
-{
-	FSINFO(impl_share, nfs_fstype)->shareopts = NULL;
-}
-
 /*
  * Commit the shares by restarting mountd.
  */
@@ -201,22 +186,13 @@ start:
 	return (SA_OK);
 }
 
-static const sa_share_ops_t nfs_shareops = {
+sa_fstype_t libshare_nfs_type = {
+	.protocol = "nfs",
+
 	.enable_share = nfs_enable_share,
 	.disable_share = nfs_disable_share,
 	.is_shared = nfs_is_shared,
 
 	.validate_shareopts = nfs_validate_shareopts,
-	.update_shareopts = nfs_update_shareopts,
-	.clear_shareopts = nfs_clear_shareopts,
 	.commit_shares = nfs_commit_shares,
 };
-
-/*
- * Initializes the NFS functionality of libshare.
- */
-void
-libshare_nfs_init(void)
-{
-	nfs_fstype = register_fstype("nfs", &nfs_shareops);
-}
