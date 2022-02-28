@@ -45,8 +45,6 @@
 #define	ZFS_EXPORTS_FILE	ZFS_EXPORTS_DIR"/zfs.exports"
 #define	ZFS_EXPORTS_LOCK	ZFS_EXPORTS_FILE".lock"
 
-static sa_fstype_t *nfs_fstype;
-
 typedef int (*nfs_shareopt_callback_t)(const char *opt, const char *value,
     void *cookie);
 
@@ -229,7 +227,6 @@ foreach_nfs_host(sa_share_impl_t impl_share, FILE *tmpfile,
     nfs_host_callback_t callback, void *cookie)
 {
 	nfs_host_cookie_t udata;
-	char *shareopts;
 
 	udata.callback = callback;
 	udata.sharepath = impl_share->sa_mountpoint;
@@ -237,10 +234,8 @@ foreach_nfs_host(sa_share_impl_t impl_share, FILE *tmpfile,
 	udata.tmpfile = tmpfile;
 	udata.security = "sys";
 
-	shareopts = FSINFO(impl_share, nfs_fstype)->shareopts;
-
-	return (foreach_nfs_shareopt(shareopts, foreach_nfs_host_cb,
-	    &udata));
+	return (foreach_nfs_shareopt(impl_share->sa_shareopts,
+	    foreach_nfs_host_cb, &udata));
 }
 
 /*
@@ -411,11 +406,10 @@ nfs_add_entry(FILE *tmpfile, const char *sharepath,
 static int
 nfs_enable_share_impl(sa_share_impl_t impl_share, FILE *tmpfile)
 {
-	char *shareopts, *linux_opts;
+	char *linux_opts;
 	int error;
 
-	shareopts = FSINFO(impl_share, nfs_fstype)->shareopts;
-	error = get_linux_shareopts(shareopts, &linux_opts);
+	error = get_linux_shareopts(impl_share->sa_shareopts, &linux_opts);
 	if (error != SA_OK)
 		return (error);
 
@@ -476,23 +470,6 @@ nfs_validate_shareopts(const char *shareopts)
 }
 
 static int
-nfs_update_shareopts(sa_share_impl_t impl_share, const char *shareopts)
-{
-	FSINFO(impl_share, nfs_fstype)->shareopts = (char *)shareopts;
-	return (SA_OK);
-}
-
-/*
- * Clears a share's NFS options. Used by libshare to
- * clean up shares that are about to be free()'d.
- */
-static void
-nfs_clear_shareopts(sa_share_impl_t impl_share)
-{
-	FSINFO(impl_share, nfs_fstype)->shareopts = NULL;
-}
-
-static int
 nfs_commit_shares(void)
 {
 	char *argv[] = {
@@ -504,22 +481,13 @@ nfs_commit_shares(void)
 	return (libzfs_run_process(argv[0], argv, 0));
 }
 
-static const sa_share_ops_t nfs_shareops = {
+sa_fstype_t libshare_nfs_type = {
+	.protocol = "nfs",
+
 	.enable_share = nfs_enable_share,
 	.disable_share = nfs_disable_share,
 	.is_shared = nfs_is_shared,
 
 	.validate_shareopts = nfs_validate_shareopts,
-	.update_shareopts = nfs_update_shareopts,
-	.clear_shareopts = nfs_clear_shareopts,
 	.commit_shares = nfs_commit_shares,
 };
-
-/*
- * Initializes the NFS functionality of libshare.
- */
-void
-libshare_nfs_init(void)
-{
-	nfs_fstype = register_fstype("nfs", &nfs_shareops);
-}
