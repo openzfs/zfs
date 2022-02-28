@@ -76,9 +76,7 @@ smb_update_shares(void)
 	return (0);
 }
 
-sa_fstype_t libshare_smb_type = {
-	.protocol = "smb",
-
+const sa_fstype_t libshare_smb_type = {
 	.enable_share = smb_enable_share,
 	.disable_share = smb_disable_share,
 	.is_shared = smb_is_share_active,

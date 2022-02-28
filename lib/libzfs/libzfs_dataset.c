@@ -1418,14 +1418,15 @@ badlabel:
 			    prop == ZFS_PROP_SHARESMB) &&
 			    strcmp(strval, "on") != 0 &&
 			    strcmp(strval, "off") != 0) {
-				zfs_share_proto_t proto;
+				enum sa_protocol proto;
 
 				if (prop == ZFS_PROP_SHARESMB)
-					proto = PROTO_SMB;
+					proto = SA_PROTOCOL_SMB;
 				else
-					proto = PROTO_NFS;
+					proto = SA_PROTOCOL_NFS;
 
-				if (zfs_parse_options(strval, proto) != SA_OK) {
+				if (sa_validate_shareopts(strval, proto) !=
+				    SA_OK) {
 					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 					    "'%s' cannot be set to invalid "
 					    "options"), propname);

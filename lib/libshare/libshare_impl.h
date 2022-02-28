@@ -27,8 +27,6 @@
 #ifndef _LIBSPL_LIBSHARE_IMPL_H
 #define	_LIBSPL_LIBSHARE_IMPL_H
 
-#include <sys/avl.h>
-
 typedef const struct sa_share_impl {
 	const char *sa_zfsname;
 	const char *sa_mountpoint;
@@ -36,17 +34,13 @@ typedef const struct sa_share_impl {
 } *sa_share_impl_t;
 
 typedef struct {
-	const char *protocol;
-
 	int (*const enable_share)(sa_share_impl_t share);
 	int (*const disable_share)(sa_share_impl_t share);
 	boolean_t (*const is_shared)(sa_share_impl_t share);
 	int (*const validate_shareopts)(const char *shareopts);
 	int (*const commit_shares)(void);
-
-	avl_node_t node;
 } sa_fstype_t;
 
-extern sa_fstype_t libshare_nfs_type, libshare_smb_type;
+extern const sa_fstype_t libshare_nfs_type, libshare_smb_type;
 
 #endif /* _LIBSPL_LIBSHARE_IMPL_H */

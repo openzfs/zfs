@@ -72,14 +72,24 @@
 /* initialization */
 _LIBSPL_LIBSHARE_H const char *sa_errorstr(int);
 
+/* available protocols */
+enum sa_protocol {
+	SA_PROTOCOL_NFS,
+	SA_PROTOCOL_SMB, /* ABI: add before _COUNT */
+	SA_PROTOCOL_COUNT,
+};
+
+/* lower-case */
+_LIBSPL_LIBSHARE_H const char *const sa_protocol_names[SA_PROTOCOL_COUNT];
+
 /* share control */
 _LIBSPL_LIBSHARE_H int sa_enable_share(const char *, const char *, const char *,
-    const char *);
-_LIBSPL_LIBSHARE_H int sa_disable_share(const char *, const char *);
-_LIBSPL_LIBSHARE_H boolean_t sa_is_shared(const char *, const char *);
-_LIBSPL_LIBSHARE_H void sa_commit_shares(const char *);
+    enum sa_protocol);
+_LIBSPL_LIBSHARE_H int sa_disable_share(const char *, enum sa_protocol);
+_LIBSPL_LIBSHARE_H boolean_t sa_is_shared(const char *, enum sa_protocol);
+_LIBSPL_LIBSHARE_H void sa_commit_shares(enum sa_protocol);
 
 /* protocol specific interfaces */
-_LIBSPL_LIBSHARE_H int sa_validate_shareopts(const char *, const char *);
+_LIBSPL_LIBSHARE_H int sa_validate_shareopts(const char *, enum sa_protocol);
 
 #endif /* _LIBSPL_LIBSHARE_H */
