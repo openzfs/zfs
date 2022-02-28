@@ -345,7 +345,7 @@ changelist_rename(prop_changelist_t *clp, const char *src, const char *dst)
  * unshare all the datasets in the list.
  */
 int
-changelist_unshare(prop_changelist_t *clp, const zfs_share_proto_t *proto)
+changelist_unshare(prop_changelist_t *clp, const enum sa_protocol *proto)
 {
 	prop_changenode_t *cn;
 	uu_avl_walk_t *walk;
@@ -363,7 +363,8 @@ changelist_unshare(prop_changelist_t *clp, const zfs_share_proto_t *proto)
 			ret = -1;
 	}
 
-	zfs_commit_proto(proto);
+	for (const enum sa_protocol *p = proto; *p != SA_NO_PROTOCOL; ++p)
+		sa_commit_shares(*p);
 	uu_avl_walk_end(walk);
 
 	return (ret);

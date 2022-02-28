@@ -481,9 +481,7 @@ nfs_commit_shares(void)
 	return (libzfs_run_process(argv[0], argv, 0));
 }
 
-sa_fstype_t libshare_nfs_type = {
-	.protocol = "nfs",
-
+const sa_fstype_t libshare_nfs_type = {
 	.enable_share = nfs_enable_share,
 	.disable_share = nfs_disable_share,
 	.is_shared = nfs_is_shared,
