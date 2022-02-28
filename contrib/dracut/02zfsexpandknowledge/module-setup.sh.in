@@ -57,6 +57,12 @@ array_contains () {
 }
 
 check() {
+    # https://github.com/dracutdevs/dracut/pull/1711 provides a zfs_devs
+    # function to detect the physical devices backing zfs pools. If this
+    # function exists in the version of dracut this module is being called
+    # from, then it does not need to run.
+    type zfs_devs >/dev/null 2>&1 && return 1
+
     local mp
     local dev
     local blockdevs
