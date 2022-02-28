@@ -622,7 +622,7 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 			 * when the pool is imported readonly.
 			 */
 			if (use_scratch &&
-			    (b + c) << ashift < reflow_offset_synced) {
+			    (b + cols) << ashift <= reflow_offset_synced) {
 				rc->rc_offset -= VDEV_BOOT_SIZE;
 			}
 
