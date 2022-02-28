@@ -294,6 +294,11 @@ add_linux_shareopt(char **plinux_opts, const char *key, const char *value)
 	return (SA_OK);
 }
 
+static int string_cmp(const void *lhs, const void *rhs) {
+	const char *const *l = lhs, *const *r = rhs;
+	return (strcmp(*l, *r));
+}
+
 /*
  * Validates and converts a single Solaris share option to its Linux
  * equivalent.
@@ -301,6 +306,15 @@ add_linux_shareopt(char **plinux_opts, const char *key, const char *value)
 static int
 get_linux_shareopts_cb(const char *key, const char *value, void *cookie)
 {
+	/* This list must remain sorted, since we bsearch() it */
+	static const char *const valid_keys[] = { "all_squash", "anongid",
+	    "anonuid", "async", "auth_nlm", "crossmnt", "fsid", "fsuid", "hide",
+	    "insecure", "insecure_locks", "mountpoint", "mp", "no_acl",
+	    "no_all_squash", "no_auth_nlm", "no_root_squash",
+	    "no_subtree_check", "no_wdelay", "nohide", "refer", "replicas",
+	    "root_squash", "secure", "secure_locks", "subtree_check", "sync",
+	    "wdelay" };
+
 	char **plinux_opts = (char **)cookie;
 
 	/* host-specific options, these are taken care of elsewhere */
@@ -319,26 +333,9 @@ get_linux_shareopts_cb(const char *key, const char *value, void *cookie)
 	if (strcmp(key, "nosub") == 0)
 		key = "subtree_check";
 
-	if (strcmp(key, "insecure") != 0 && strcmp(key, "secure") != 0 &&
-	    strcmp(key, "async") != 0 && strcmp(key, "sync") != 0 &&
-	    strcmp(key, "no_wdelay") != 0 && strcmp(key, "wdelay") != 0 &&
-	    strcmp(key, "nohide") != 0 && strcmp(key, "hide") != 0 &&
-	    strcmp(key, "crossmnt") != 0 &&
-	    strcmp(key, "no_subtree_check") != 0 &&
-	    strcmp(key, "subtree_check") != 0 &&
-	    strcmp(key, "insecure_locks") != 0 &&
-	    strcmp(key, "secure_locks") != 0 &&
-	    strcmp(key, "no_auth_nlm") != 0 && strcmp(key, "auth_nlm") != 0 &&
-	    strcmp(key, "no_acl") != 0 && strcmp(key, "mountpoint") != 0 &&
-	    strcmp(key, "mp") != 0 && strcmp(key, "fsuid") != 0 &&
-	    strcmp(key, "refer") != 0 && strcmp(key, "replicas") != 0 &&
-	    strcmp(key, "root_squash") != 0 &&
-	    strcmp(key, "no_root_squash") != 0 &&
-	    strcmp(key, "all_squash") != 0 &&
-	    strcmp(key, "no_all_squash") != 0 && strcmp(key, "fsid") != 0 &&
-	    strcmp(key, "anonuid") != 0 && strcmp(key, "anongid") != 0) {
+	if (bsearch(&key, valid_keys, ARRAY_SIZE(valid_keys),
+	    sizeof (*valid_keys), string_cmp) == NULL)
 		return (SA_SYNTAX_ERR);
-	}
 
 	(void) add_linux_shareopt(plinux_opts, key, value);
 
@@ -406,10 +403,8 @@ nfs_add_entry(FILE *tmpfile, const char *sharepath,
 static int
 nfs_enable_share_impl(sa_share_impl_t impl_share, FILE *tmpfile)
 {
-	char *linux_opts;
-	int error;
-
-	error = get_linux_shareopts(impl_share->sa_shareopts, &linux_opts);
+	char *linux_opts = NULL;
+	int error = get_linux_shareopts(impl_share->sa_shareopts, &linux_opts);
 	if (error != SA_OK)
 		return (error);
 
@@ -457,11 +452,8 @@ nfs_is_shared(sa_share_impl_t impl_share)
 static int
 nfs_validate_shareopts(const char *shareopts)
 {
-	char *linux_opts;
-	int error;
-
-	error = get_linux_shareopts(shareopts, &linux_opts);
-
+	char *linux_opts = NULL;
+	int error = get_linux_shareopts(shareopts, &linux_opts);
 	if (error != SA_OK)
 		return (error);
 
