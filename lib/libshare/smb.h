@@ -44,6 +44,4 @@ typedef struct smb_share_s {
 	struct smb_share_s *next;
 } smb_share_t;
 
-extern smb_share_t *smb_shares;
-
 void libshare_smb_init(void);
