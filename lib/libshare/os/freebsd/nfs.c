@@ -78,9 +78,9 @@ static sa_fstype_t *nfs_fstype;
 static char *
 translate_opts(const char *shareopts)
 {
-	static const char *known_opts[] = { "ro", "maproot", "mapall", "mask",
-	    "network", "sec", "alldirs", "public", "webnfs", "index", "quiet",
-	    NULL };
+	static const char *const known_opts[] = { "ro", "maproot", "mapall",
+	    "mask", "network", "sec", "alldirs", "public", "webnfs", "index",
+	    "quiet" };
 	static char newopts[OPTSSIZE];
 	char oldopts[OPTSSIZE];
 	char *o, *s = NULL;
@@ -93,7 +93,7 @@ translate_opts(const char *shareopts)
 	while ((o = strsep(&s, "-, ")) != NULL) {
 		if (o[0] == '\0')
 			continue;
-		for (i = 0; known_opts[i] != NULL; i++) {
+		for (i = 0; i < ARRAY_SIZE(known_opts); ++i) {
 			len = strlen(known_opts[i]);
 			if (strncmp(known_opts[i], o, len) == 0 &&
 			    (o[len] == '\0' || o[len] == '=')) {
