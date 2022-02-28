@@ -63,8 +63,6 @@
 
 static boolean_t smb_available(void);
 
-static sa_fstype_t *smb_fstype;
-
 static smb_share_t *smb_shares;
 static int smb_disable_share(sa_share_impl_t impl_share);
 static boolean_t smb_is_share_active(sa_share_impl_t impl_share);
@@ -265,19 +263,16 @@ smb_enable_share_one(const char *sharename, const char *sharepath)
 static int
 smb_enable_share(sa_share_impl_t impl_share)
 {
-	char *shareopts;
-
 	if (!smb_available())
 		return (SA_SYSTEM_ERR);
 
 	if (smb_is_share_active(impl_share))
 		smb_disable_share(impl_share);
 
-	shareopts = FSINFO(impl_share, smb_fstype)->shareopts;
-	if (shareopts == NULL) /* on/off */
+	if (impl_share->sa_shareopts == NULL) /* on/off */
 		return (SA_SYSTEM_ERR);
 
-	if (strcmp(shareopts, "off") == 0)
+	if (strcmp(impl_share->sa_shareopts, "off") == 0)
 		return (SA_OK);
 
 	/* Magic: Enable (i.e., 'create new') share */
@@ -361,22 +356,6 @@ smb_is_share_active(sa_share_impl_t impl_share)
 	return (B_FALSE);
 }
 
-/*
- * Called to update a share's options. A share's options might be out of
- * date if the share was loaded from disk and the "sharesmb" dataset
- * property has changed in the meantime. This function also takes care
- * of re-enabling the share if necessary.
- */
-static int
-smb_update_shareopts(sa_share_impl_t impl_share, const char *shareopts)
-{
-	if (!impl_share)
-		return (SA_SYSTEM_ERR);
-
-	FSINFO(impl_share, smb_fstype)->shareopts = (char *)shareopts;
-	return (SA_OK);
-}
-
 static int
 smb_update_shares(void)
 {
@@ -384,24 +363,14 @@ smb_update_shares(void)
 	return (0);
 }
 
-/*
- * Clears a share's SMB options. Used by libshare to
- * clean up shares that are about to be free()'d.
- */
-static void
-smb_clear_shareopts(sa_share_impl_t impl_share)
-{
-	FSINFO(impl_share, smb_fstype)->shareopts = NULL;
-}
+sa_fstype_t libshare_smb_type = {
+	.protocol = "smb",
 
-static const sa_share_ops_t smb_shareops = {
 	.enable_share = smb_enable_share,
 	.disable_share = smb_disable_share,
 	.is_shared = smb_is_share_active,
 
 	.validate_shareopts = smb_validate_shareopts,
-	.update_shareopts = smb_update_shareopts,
-	.clear_shareopts = smb_clear_shareopts,
 	.commit_shares = smb_update_shares,
 };
 
@@ -421,13 +390,4 @@ smb_available(void)
 		return (B_FALSE);
 
 	return (B_TRUE);
-}
-
-/*
- * Initializes the SMB functionality of libshare.
- */
-void
-libshare_smb_init(void)
-{
-	smb_fstype = register_fstype("smb", &smb_shareops);
 }
