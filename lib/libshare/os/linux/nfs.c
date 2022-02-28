@@ -496,8 +496,8 @@ static int
 nfs_commit_shares(void)
 {
 	char *argv[] = {
-	    "/usr/sbin/exportfs",
-	    "-ra",
+	    (char *)"/usr/sbin/exportfs",
+	    (char *)"-ra",
 	    NULL
 	};
 

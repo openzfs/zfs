@@ -65,7 +65,7 @@ static boolean_t smb_available(void);
 
 static sa_fstype_t *smb_fstype;
 
-smb_share_t *smb_shares;
+static smb_share_t *smb_shares;
 static int smb_disable_share(sa_share_impl_t impl_share);
 static boolean_t smb_is_share_active(sa_share_impl_t impl_share);
 
@@ -218,26 +218,18 @@ out:
 static int
 smb_enable_share_one(const char *sharename, const char *sharepath)
 {
-	char *argv[10], *pos;
 	char name[SMB_NAME_MAX], comment[SMB_COMMENT_MAX];
-	int rc;
 
 	/* Support ZFS share name regexp '[[:alnum:]_-.: ]' */
 	strlcpy(name, sharename, sizeof (name));
-	name [sizeof (name)-1] = '\0';
-
-	pos = name;
-	while (*pos != '\0') {
-		switch (*pos) {
+	for (char *itr = name; *itr != '\0'; ++itr)
+		switch (*itr) {
 		case '/':
 		case '-':
 		case ':':
 		case ' ':
-			*pos = '_';
+			*itr = '_';
 		}
-
-		++pos;
-	}
 
 	/*
 	 * CMD: net -S NET_CMD_ARG_HOST usershare add Test1 /share/Test1 \
@@ -245,19 +237,20 @@ smb_enable_share_one(const char *sharename, const char *sharepath)
 	 */
 	snprintf(comment, sizeof (comment), "Comment: %s", sharepath);
 
-	argv[0] = NET_CMD_PATH;
-	argv[1] = (char *)"-S";
-	argv[2] = NET_CMD_ARG_HOST;
-	argv[3] = (char *)"usershare";
-	argv[4] = (char *)"add";
-	argv[5] = (char *)name;
-	argv[6] = (char *)sharepath;
-	argv[7] = (char *)comment;
-	argv[8] = (char *)"Everyone:F";
-	argv[9] = NULL;
+	char *argv[] = {
+		(char *)NET_CMD_PATH,
+		(char *)"-S",
+		(char *)NET_CMD_ARG_HOST,
+		(char *)"usershare",
+		(char *)"add",
+		name,
+		(char *)sharepath,
+		comment,
+		(char *)"Everyone:F",
+		NULL,
+	};
 
-	rc = libzfs_run_process(argv[0], argv, 0);
-	if (rc < 0)
+	if (libzfs_run_process(argv[0], argv, 0) < 0)
 		return (SA_SYSTEM_ERR);
 
 	/* Reload the share file */
@@ -298,20 +291,18 @@ smb_enable_share(sa_share_impl_t impl_share)
 static int
 smb_disable_share_one(const char *sharename)
 {
-	int rc;
-	char *argv[7];
-
 	/* CMD: net -S NET_CMD_ARG_HOST usershare delete Test1 */
-	argv[0] = NET_CMD_PATH;
-	argv[1] = (char *)"-S";
-	argv[2] = NET_CMD_ARG_HOST;
-	argv[3] = (char *)"usershare";
-	argv[4] = (char *)"delete";
-	argv[5] = (char *)sharename;
-	argv[6] = NULL;
+	char *argv[] = {
+		(char *)NET_CMD_PATH,
+		(char *)"-S",
+		(char *)NET_CMD_ARG_HOST,
+		(char *)"usershare",
+		(char *)"delete",
+		(char *)sharename,
+		NULL,
+	};
 
-	rc = libzfs_run_process(argv[0], argv, 0);
-	if (rc < 0)
+	if (libzfs_run_process(argv[0], argv, 0) < 0)
 		return (SA_SYSTEM_ERR);
 	else
 		return (SA_OK);
