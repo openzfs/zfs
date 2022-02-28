@@ -508,6 +508,9 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 			fnvlist_add_uint64(nv, ZPOOL_CONFIG_REMOVING,
 			    vd->vdev_removing);
 		}
+		if (vd->vdev_rz_expanding) {
+			fnvlist_add_boolean(nv, ZPOOL_CONFIG_RAIDZ_EXPANDING);
+		}
 
 		/* zpool command expects alloc class data */
 		if (getstats && vd->vdev_alloc_bias != VDEV_BIAS_NONE) {
