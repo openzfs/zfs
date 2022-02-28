@@ -27,6 +27,8 @@
 #ifndef _LIBSPL_LIBSHARE_H
 #define	_LIBSPL_LIBSHARE_H extern __attribute__((visibility("default")))
 
+#include <sys/types.h>
+
 /* API Initialization */
 #define	SA_INIT_SHARE_API	0x0001	/* init share specific interface */
 #define	SA_INIT_CONTROL_API	0x0002	/* init control specific interface */
