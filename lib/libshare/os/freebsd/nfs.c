@@ -55,7 +55,7 @@ __FBSDID("$FreeBSD$");
 static sa_fstype_t *nfs_fstype;
 
 /*
- * This function translate options to a format acceptable by exports(5), eg.
+ * This function translates options to a format acceptable by exports(5), eg.
  *
  *	-ro -network=192.168.0.0 -mask=255.255.255.0 -maproot=0 \
  *	zfs.freebsd.org 69.147.83.54
@@ -72,17 +72,14 @@ static sa_fstype_t *nfs_fstype;
  *
  *	ro, maproot, mapall, mask, network, sec, alldirs, public, webnfs,
  *	index, quiet
- *
- * NOTE: This function returns a static buffer and thus is not thread-safe.
  */
-static char *
-translate_opts(const char *shareopts)
+static int
+translate_opts(const char *shareopts, FILE *out)
 {
 	static const char *const known_opts[] = { "ro", "maproot", "mapall",
 	    "mask", "network", "sec", "alldirs", "public", "webnfs", "index",
 	    "quiet" };
-	static char newopts[OPTSSIZE];
-	char oldopts[OPTSSIZE];
+	char oldopts[OPTSSIZE], newopts[OPTSSIZE];
 	char *o, *s = NULL;
 	unsigned int i;
 	size_t len;
@@ -104,7 +101,7 @@ translate_opts(const char *shareopts)
 		strlcat(newopts, o, sizeof (newopts));
 		strlcat(newopts, " ", sizeof (newopts));
 	}
-	return (newopts);
+	return (fputs(newopts, out));
 }
 
 static int
@@ -114,8 +111,10 @@ nfs_enable_share_impl(sa_share_impl_t impl_share, FILE *tmpfile)
 	if (strcmp(shareopts, "on") == 0)
 		shareopts = "";
 
-	if (fprintf(tmpfile, "%s\t%s\n", impl_share->sa_mountpoint,
-	    translate_opts(shareopts)) < 0) {
+	if (fputs(impl_share->sa_mountpoint, tmpfile) == EOF ||
+	    fputc('\t', tmpfile) == EOF ||
+	    translate_opts(shareopts, tmpfile) == EOF ||
+	    fputc('\n', tmpfile) == EOF) {
 		fprintf(stderr, "failed to write to temporary file\n");
 		return (SA_SYSTEM_ERR);
 	}
