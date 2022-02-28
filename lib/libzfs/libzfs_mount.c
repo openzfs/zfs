@@ -41,23 +41,13 @@
  *	zfs_unmount()
  *	zfs_unmountall()
  *
- * This file also contains the functions used to manage sharing filesystems via
- * NFS and iSCSI:
+ * This file also contains the functions used to manage sharing filesystems:
  *
  *	zfs_is_shared()
  *	zfs_share()
  *	zfs_unshare()
- *
- *	zfs_is_shared_nfs()
- *	zfs_is_shared_smb()
- *	zfs_share_proto()
- *	zfs_shareall();
- *	zfs_unshare_nfs()
- *	zfs_unshare_smb()
- *	zfs_unshareall_nfs()
- *	zfs_unshareall_smb()
  *	zfs_unshareall()
- *	zfs_unshareall_bypath()
+ *	zfs_commit_shares()
  *
  * The following functions are available for pool consumers, and will
  * mount/unmount and share/unshare all datasets within pool:
@@ -95,8 +85,6 @@
 static int mount_tp_nthr = 512;	/* tpool threads for multi-threaded mounting */
 
 static void zfs_mount_task(void *);
-static zfs_share_type_t zfs_is_shared_proto(zfs_handle_t *, char **,
-    enum sa_protocol);
 
 static const proto_table_t proto_table[SA_PROTOCOL_COUNT] = {
 	[SA_PROTOCOL_NFS] =
@@ -249,7 +237,7 @@ zfs_is_mountable_internal(zfs_handle_t *zhp)
  * Returns true if the given dataset is mountable, false otherwise.  Returns the
  * mountpoint in 'buf'.
  */
-boolean_t
+static boolean_t
 zfs_is_mountable(zfs_handle_t *zhp, char *buf, size_t buflen,
     zprop_source_t *source, int flags)
 {
@@ -623,16 +611,16 @@ zfs_unmount(zfs_handle_t *zhp, const char *mountpoint, int flags)
 		/*
 		 * Unshare and unmount the filesystem
 		 */
-		if (zfs_unshare_proto(zhp, mntpt, share_all_proto) != 0) {
+		if (zfs_unshare(zhp, mntpt, share_all_proto) != 0) {
 			free(mntpt);
 			return (-1);
 		}
-		zfs_commit_all_shares();
+		zfs_commit_shares(NULL);
 
 		if (unmount_one(zhp, mntpt, flags) != 0) {
 			free(mntpt);
-			(void) zfs_shareall(zhp);
-			zfs_commit_all_shares();
+			(void) zfs_share(zhp, NULL);
+			zfs_commit_shares(NULL);
 			return (-1);
 		}
 
@@ -691,23 +679,10 @@ zfs_unmountall(zfs_handle_t *zhp, int flags)
 	return (ret);
 }
 
-boolean_t
-zfs_is_shared(zfs_handle_t *zhp)
-{
-	if (ZFS_IS_VOLUME(zhp))
-		return (B_FALSE);
-
-	for (enum sa_protocol i = 0; i < SA_PROTOCOL_COUNT; ++i)
-		if (zfs_is_shared_proto(zhp, NULL, i))
-			return (B_TRUE);
-
-	return (B_FALSE);
-}
-
 /*
  * Unshare a filesystem by mountpoint.
  */
-int
+static int
 unshare_one(libzfs_handle_t *hdl, const char *name, const char *mountpoint,
     enum sa_protocol proto)
 {
@@ -721,25 +696,12 @@ unshare_one(libzfs_handle_t *hdl, const char *name, const char *mountpoint,
 }
 
 /*
- * Query libshare for the given mountpoint and protocol, returning
- * a zfs_share_type_t value.
- */
-zfs_share_type_t
-is_shared(const char *mountpoint, enum sa_protocol proto)
-{
-	if (sa_is_shared(mountpoint, proto))
-		return (1 << (proto + 1));
-	else
-		return (SHARED_NOT_SHARED);
-}
-
-/*
  * Share the given filesystem according to the options in the specified
  * protocol specific properties (sharenfs, sharesmb).  We rely
  * on "libshare" to do the dirty work for us.
  */
 int
-zfs_share_proto(zfs_handle_t *zhp, const enum sa_protocol *proto)
+zfs_share(zfs_handle_t *zhp, const enum sa_protocol *proto)
 {
 	char mountpoint[ZFS_MAXPROPLEN];
 	char shareopts[ZFS_MAXPROPLEN];
@@ -747,6 +709,9 @@ zfs_share_proto(zfs_handle_t *zhp, const enum sa_protocol *proto)
 	const enum sa_protocol *curr_proto;
 	zprop_source_t sourcetype;
 	int err = 0;
+
+	if (proto == NULL)
+		proto = share_all_proto;
 
 	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint), NULL, 0))
 		return (0);
@@ -783,122 +748,59 @@ zfs_share_proto(zfs_handle_t *zhp, const enum sa_protocol *proto)
 	return (0);
 }
 
-int
-zfs_share(zfs_handle_t *zhp)
-{
-	assert(!ZFS_IS_VOLUME(zhp));
-	return (zfs_share_proto(zhp, share_all_proto));
-}
-
-int
-zfs_unshare(zfs_handle_t *zhp)
-{
-	assert(!ZFS_IS_VOLUME(zhp));
-	return (zfs_unshareall(zhp));
-}
-
 /*
  * Check to see if the filesystem is currently shared.
  */
-static zfs_share_type_t
-zfs_is_shared_proto(zfs_handle_t *zhp, char **where, enum sa_protocol proto)
+boolean_t
+zfs_is_shared(zfs_handle_t *zhp, char **where,
+    const enum sa_protocol *proto)
 {
 	char *mountpoint;
-	zfs_share_type_t rc;
+	if (proto == NULL)
+		proto = share_all_proto;
+
+	if (ZFS_IS_VOLUME(zhp))
+		return (B_FALSE);
 
 	if (!zfs_is_mounted(zhp, &mountpoint))
-		return (SHARED_NOT_SHARED);
+		return (B_FALSE);
 
-	if ((rc = is_shared(mountpoint, proto))
-	    != SHARED_NOT_SHARED) {
-		if (where != NULL)
-			*where = mountpoint;
-		else
-			free(mountpoint);
-		return (rc);
-	} else {
-		free(mountpoint);
-		return (SHARED_NOT_SHARED);
-	}
-}
+	for (const enum sa_protocol *p = proto; *p != SA_NO_PROTOCOL; ++p)
+		if (sa_is_shared(mountpoint, *p)) {
+			if (where != NULL)
+				*where = mountpoint;
+			else
+				free(mountpoint);
+			return (B_TRUE);
+		}
 
-boolean_t
-zfs_is_shared_nfs(zfs_handle_t *zhp, char **where)
-{
-	return (zfs_is_shared_proto(zhp, where,
-	    SA_PROTOCOL_NFS) != SHARED_NOT_SHARED);
-}
-
-boolean_t
-zfs_is_shared_smb(zfs_handle_t *zhp, char **where)
-{
-	return (zfs_is_shared_proto(zhp, where,
-	    SA_PROTOCOL_SMB) != SHARED_NOT_SHARED);
+	free(mountpoint);
+	return (B_FALSE);
 }
 
 void
-zfs_commit_nfs_shares(void)
-{
-	sa_commit_shares(SA_PROTOCOL_NFS);
-}
-
-void
-zfs_commit_smb_shares(void)
-{
-	sa_commit_shares(SA_PROTOCOL_SMB);
-}
-
-void
-zfs_commit_all_shares(void)
-{
-	for (enum sa_protocol i = 0; i < SA_PROTOCOL_COUNT; ++i)
-		sa_commit_shares(i);
-}
-
-void
-zfs_commit_shares(const char *proto)
+zfs_commit_shares(const enum sa_protocol *proto)
 {
 	if (proto == NULL)
-		zfs_commit_all_shares();
-	else
-		for (enum sa_protocol i = 0; i < ARRAY_SIZE(sa_protocol_names);
-		    ++i)
-			if (strcmp(proto, sa_protocol_names[i]) == 0) {
-				sa_commit_shares(i);
-				return;
-			}
-}
+		proto = share_all_proto;
 
-int
-zfs_share_nfs(zfs_handle_t *zhp)
-{
-	const enum sa_protocol nfs_only[] = {SA_PROTOCOL_NFS, SA_NO_PROTOCOL};
-	return (zfs_share_proto(zhp, nfs_only));
-}
-
-int
-zfs_share_smb(zfs_handle_t *zhp)
-{
-	const enum sa_protocol smb_only[] = {SA_PROTOCOL_SMB, SA_NO_PROTOCOL};
-	return (zfs_share_proto(zhp, smb_only));
-}
-
-int
-zfs_shareall(zfs_handle_t *zhp)
-{
-	return (zfs_share_proto(zhp, share_all_proto));
+	for (const enum sa_protocol *p = proto; *p != SA_NO_PROTOCOL; ++p)
+		sa_commit_shares(*p);
 }
 
 /*
  * Unshare the given filesystem.
  */
 int
-zfs_unshare_proto(zfs_handle_t *zhp, const char *mountpoint,
+zfs_unshare(zfs_handle_t *zhp, const char *mountpoint,
     const enum sa_protocol *proto)
 {
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	struct mnttab entry;
 	char *mntpt = NULL;
+
+	if (proto == NULL)
+		proto = share_all_proto;
 
 	/* check to see if need to unmount the filesystem */
 	if (mountpoint != NULL)
@@ -906,15 +808,14 @@ zfs_unshare_proto(zfs_handle_t *zhp, const char *mountpoint,
 
 	if (mountpoint != NULL || ((zfs_get_type(zhp) == ZFS_TYPE_FILESYSTEM) &&
 	    libzfs_mnttab_find(hdl, zfs_get_name(zhp), &entry) == 0)) {
-		const enum sa_protocol *curr_proto;
 
 		if (mountpoint == NULL)
 			mntpt = zfs_strdup(zhp->zfs_hdl, entry.mnt_mountp);
 
-		for (curr_proto = proto; *curr_proto != SA_NO_PROTOCOL;
-		    curr_proto++) {
+		for (const enum sa_protocol *curr_proto = proto;
+		    *curr_proto != SA_NO_PROTOCOL; curr_proto++) {
 
-			if (is_shared(mntpt, *curr_proto)) {
+			if (sa_is_shared(mntpt, *curr_proto)) {
 				if (unshare_one(hdl, zhp->zfs_name,
 				    mntpt, *curr_proto) != 0) {
 					if (mntpt != NULL)
@@ -930,28 +831,17 @@ zfs_unshare_proto(zfs_handle_t *zhp, const char *mountpoint,
 	return (0);
 }
 
-int
-zfs_unshare_nfs(zfs_handle_t *zhp, const char *mountpoint)
-{
-	const enum sa_protocol nfs_only[] = {SA_PROTOCOL_NFS, SA_NO_PROTOCOL};
-	return (zfs_unshare_proto(zhp, mountpoint, nfs_only));
-}
-
-int
-zfs_unshare_smb(zfs_handle_t *zhp, const char *mountpoint)
-{
-	const enum sa_protocol smb_only[] = {SA_PROTOCOL_SMB, SA_NO_PROTOCOL};
-	return (zfs_unshare_proto(zhp, mountpoint, smb_only));
-}
-
 /*
  * Same as zfs_unmountall(), but for NFS and SMB unshares.
  */
-static int
-zfs_unshareall_proto(zfs_handle_t *zhp, const enum sa_protocol *proto)
+int
+zfs_unshareall(zfs_handle_t *zhp, const enum sa_protocol *proto)
 {
 	prop_changelist_t *clp;
 	int ret;
+
+	if (proto == NULL)
+		proto = share_all_proto;
 
 	clp = changelist_gather(zhp, ZFS_PROP_SHARENFS, 0, 0);
 	if (clp == NULL)
@@ -961,48 +851,6 @@ zfs_unshareall_proto(zfs_handle_t *zhp, const enum sa_protocol *proto)
 	changelist_free(clp);
 
 	return (ret);
-}
-
-int
-zfs_unshareall_nfs(zfs_handle_t *zhp)
-{
-	const enum sa_protocol nfs_only[] = {SA_PROTOCOL_NFS, SA_NO_PROTOCOL};
-	return (zfs_unshareall_proto(zhp, nfs_only));
-}
-
-int
-zfs_unshareall_smb(zfs_handle_t *zhp)
-{
-	const enum sa_protocol smb_only[] = {SA_PROTOCOL_SMB, SA_NO_PROTOCOL};
-	return (zfs_unshareall_proto(zhp, smb_only));
-}
-
-int
-zfs_unshareall(zfs_handle_t *zhp)
-{
-	return (zfs_unshareall_proto(zhp, share_all_proto));
-}
-
-int
-zfs_unshareall_bypath(zfs_handle_t *zhp, const char *mountpoint)
-{
-	return (zfs_unshare_proto(zhp, mountpoint, share_all_proto));
-}
-
-int
-zfs_unshareall_bytype(zfs_handle_t *zhp, const char *mountpoint,
-    const char *proto)
-{
-	if (proto == NULL)
-		return (zfs_unshare_proto(zhp, mountpoint, share_all_proto));
-
-	for (enum sa_protocol i = 0; i < ARRAY_SIZE(sa_protocol_names); ++i)
-		if (strcmp(proto, sa_protocol_names[i]) == 0) {
-			enum sa_protocol protocols[] = {i, SA_NO_PROTOCOL};
-			return (zfs_unshare_proto(zhp, mountpoint, protocols));
-		}
-
-	return (1);
 }
 
 /*
@@ -1295,7 +1143,7 @@ zfs_share_one(zfs_handle_t *zhp, void *arg)
 	mount_state_t *ms = arg;
 	int ret = 0;
 
-	if (zfs_share(zhp) != 0)
+	if (zfs_share(zhp, NULL) != 0)
 		ret = ms->ms_mntstatus = -1;
 	return (ret);
 }
@@ -1468,7 +1316,7 @@ zpool_enable_datasets(zpool_handle_t *zhp, const char *mntopts, int flags)
 	if (ms.ms_mntstatus != 0)
 		ret = ms.ms_mntstatus;
 	else
-		zfs_commit_all_shares();
+		zfs_commit_shares(NULL);
 
 out:
 	for (int i = 0; i < cb.cb_used; i++)
@@ -1578,13 +1426,13 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 	 */
 	for (i = 0; i < used; i++) {
 		for (enum sa_protocol i = 0; i < SA_PROTOCOL_COUNT; ++i) {
-			if (is_shared(sets[i].mountpoint, i) &&
+			if (sa_is_shared(sets[i].mountpoint, i) &&
 			    unshare_one(hdl, sets[i].mountpoint,
 			    sets[i].mountpoint, i) != 0)
 				goto out;
 		}
 	}
-	zfs_commit_all_shares();
+	zfs_commit_shares(NULL);
 
 	/*
 	 * Now unmount everything, removing the underlying directories as

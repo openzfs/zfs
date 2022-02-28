@@ -35,6 +35,7 @@
 #define	_LIBZFS_H extern __attribute__((visibility("default")))
 
 #include <assert.h>
+#include <libshare.h>
 #include <libnvpair.h>
 #include <sys/mnttab.h>
 #include <sys/param.h>
@@ -878,37 +879,25 @@ _LIBZFS_H void zfs_adjust_mount_options(zfs_handle_t *zhp, const char *mntpoint,
 
 /*
  * Share support functions.
+ *
+ * enum sa_protocol * lists are terminated with SA_NO_PROTOCOL,
+ * NULL means "all/any known to this libzfs".
  */
-_LIBZFS_H boolean_t zfs_is_shared(zfs_handle_t *);
-_LIBZFS_H int zfs_share(zfs_handle_t *);
-_LIBZFS_H int zfs_unshare(zfs_handle_t *);
+#define	SA_NO_PROTOCOL -1
 
-/*
- * Protocol-specific share support functions.
- */
-_LIBZFS_H boolean_t zfs_is_shared_nfs(zfs_handle_t *, char **);
-_LIBZFS_H boolean_t zfs_is_shared_smb(zfs_handle_t *, char **);
-_LIBZFS_H int zfs_share_nfs(zfs_handle_t *);
-_LIBZFS_H int zfs_share_smb(zfs_handle_t *);
-_LIBZFS_H int zfs_shareall(zfs_handle_t *);
-_LIBZFS_H int zfs_unshare_nfs(zfs_handle_t *, const char *);
-_LIBZFS_H int zfs_unshare_smb(zfs_handle_t *, const char *);
-_LIBZFS_H int zfs_unshareall_nfs(zfs_handle_t *);
-_LIBZFS_H int zfs_unshareall_smb(zfs_handle_t *);
-_LIBZFS_H int zfs_unshareall_bypath(zfs_handle_t *, const char *);
-_LIBZFS_H int zfs_unshareall_bytype(zfs_handle_t *, const char *, const char *);
-_LIBZFS_H int zfs_unshareall(zfs_handle_t *);
-_LIBZFS_H int zfs_deleg_share_nfs(libzfs_handle_t *, char *, char *, char *,
-    void *, void *, int, zfs_share_op_t);
-_LIBZFS_H void zfs_commit_nfs_shares(void);
-_LIBZFS_H void zfs_commit_smb_shares(void);
-_LIBZFS_H void zfs_commit_all_shares(void);
-_LIBZFS_H void zfs_commit_shares(const char *);
+_LIBZFS_H boolean_t zfs_is_shared(zfs_handle_t *zhp, char **where,
+    const enum sa_protocol *proto);
+_LIBZFS_H int zfs_share(zfs_handle_t *zhp, const enum sa_protocol *proto);
+_LIBZFS_H int zfs_unshare(zfs_handle_t *zhp, const char *mountpoint,
+    const enum sa_protocol *proto);
+_LIBZFS_H int zfs_unshareall(zfs_handle_t *zhp,
+    const enum sa_protocol *proto);
+_LIBZFS_H void zfs_commit_shares(const enum sa_protocol *proto);
 
 _LIBZFS_H int zfs_nicestrtonum(libzfs_handle_t *, const char *, uint64_t *);
 
 /*
- * Utility functions to run an _LIBZFS_Hal process.
+ * Utility functions to run an external process.
  */
 #define	STDOUT_VERBOSE	0x01
 #define	STDERR_VERBOSE	0x02
