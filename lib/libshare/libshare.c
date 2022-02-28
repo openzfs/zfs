@@ -45,77 +45,63 @@
 		.sa_mountpoint = path, \
 		.sa_shareopts = shareopts, \
 	}
-#define	find_proto(pcol) \
-	/* CSTYLED */ \
-	({ \
-		sa_fstype_t prot = { \
-			.protocol = pcol, \
-		}; \
-		avl_find(&fstypes, &prot, NULL); \
-	})
 
-static avl_tree_t fstypes;
+#define	VALIDATE_PROTOCOL(proto, ...) \
+	if ((proto) < 0 || (proto) >= SA_PROTOCOL_COUNT) \
+		return __VA_ARGS__
 
-static int
-fstypes_compar(const void *lhs, const void *rhs)
-{
-	const sa_fstype_t *l = lhs, *r = rhs;
-	int cmp = strcmp(l->protocol, r->protocol);
-	return ((0 < cmp) - (cmp < 0));
-}
+const char *const sa_protocol_names[SA_PROTOCOL_COUNT] = {
+	[SA_PROTOCOL_NFS] = "nfs",
+	[SA_PROTOCOL_SMB] = "smb",
+};
 
-__attribute__((constructor)) static void
-libshare_init(void)
-{
-	avl_create(&fstypes, fstypes_compar,
-	    sizeof (sa_fstype_t), offsetof(sa_fstype_t, node));
-	avl_add(&fstypes, &libshare_nfs_type);
-	avl_add(&fstypes, &libshare_smb_type);
-}
+static const sa_fstype_t *fstypes[SA_PROTOCOL_COUNT] =
+	{&libshare_nfs_type, &libshare_smb_type};
 
 int
 sa_enable_share(const char *zfsname, const char *mountpoint,
-    const char *shareopts, const char *protocol)
+    const char *shareopts, enum sa_protocol protocol)
 {
-	sa_fstype_t *fstype = find_proto(protocol);
-	if (!fstype)
-		return (SA_INVALID_PROTOCOL);
+	VALIDATE_PROTOCOL(protocol, SA_INVALID_PROTOCOL);
 
 	const struct sa_share_impl args =
 	    init_share(zfsname, mountpoint, shareopts);
-	return (fstype->enable_share(&args));
+	return (fstypes[protocol]->enable_share(&args));
 }
 
 int
-sa_disable_share(const char *mountpoint, const char *protocol)
+sa_disable_share(const char *mountpoint, enum sa_protocol protocol)
 {
-	sa_fstype_t *fstype = find_proto(protocol);
-	if (!fstype)
-		return (SA_INVALID_PROTOCOL);
+	VALIDATE_PROTOCOL(protocol, SA_INVALID_PROTOCOL);
 
 	const struct sa_share_impl args = init_share(NULL, mountpoint, NULL);
-	return (fstype->disable_share(&args));
+	return (fstypes[protocol]->disable_share(&args));
 }
 
 boolean_t
-sa_is_shared(const char *mountpoint, const char *protocol)
+sa_is_shared(const char *mountpoint, enum sa_protocol protocol)
 {
-	sa_fstype_t *fstype = find_proto(protocol);
-	if (!fstype)
-		return (B_FALSE);
+	VALIDATE_PROTOCOL(protocol, B_FALSE);
 
 	const struct sa_share_impl args = init_share(NULL, mountpoint, NULL);
-	return (fstype->is_shared(&args));
+	return (fstypes[protocol]->is_shared(&args));
 }
 
 void
-sa_commit_shares(const char *protocol)
+sa_commit_shares(enum sa_protocol protocol)
 {
-	sa_fstype_t *fstype = find_proto(protocol);
-	if (!fstype)
-		return;
+	/* CSTYLED */
+	VALIDATE_PROTOCOL(protocol, );
 
-	fstype->commit_shares();
+	fstypes[protocol]->commit_shares();
+}
+
+int
+sa_validate_shareopts(const char *options, enum sa_protocol protocol)
+{
+	VALIDATE_PROTOCOL(protocol, SA_INVALID_PROTOCOL);
+
+	return (fstypes[protocol]->validate_shareopts(options));
 }
 
 /*
@@ -204,14 +190,4 @@ sa_errorstr(int err)
 		    dgettext(TEXT_DOMAIN, "unknown %d"), err);
 		return (errstr);
 	}
-}
-
-int
-sa_validate_shareopts(const char *options, const char *protocol)
-{
-	sa_fstype_t *fstype = find_proto(protocol);
-	if (!fstype)
-		return (SA_INVALID_PROTOCOL);
-
-	return (fstype->validate_shareopts(options));
 }
