@@ -387,14 +387,21 @@ nfs_add_entry(FILE *tmpfile, const char *sharepath,
 	if (linux_opts == NULL)
 		linux_opts = "";
 
-	if (fprintf(tmpfile, "%s %s(sec=%s,%s,%s)\n", sharepath,
+	boolean_t need_free;
+	char *mp;
+	int rc = nfs_escape_mountpoint(sharepath, &mp, &need_free);
+	if (rc != SA_OK)
+		return (rc);
+	if (fprintf(tmpfile, "%s %s(sec=%s,%s,%s)\n", mp,
 	    get_linux_hostspec(host), security, access_opts,
 	    linux_opts) < 0) {
 		fprintf(stderr, "failed to write to temporary file\n");
-		return (SA_SYSTEM_ERR);
+		rc = SA_SYSTEM_ERR;
 	}
 
-	return (SA_OK);
+	if (need_free)
+		free(mp);
+	return (rc);
 }
 
 /*

@@ -24,6 +24,7 @@
 #include <sys/stat.h>
 #include <sys/file.h>
 #include <fcntl.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <errno.h>
 #include <libshare.h>
@@ -143,6 +144,34 @@ nfs_fini_tmpfile(const char *exports, struct tmpfile *tmpf)
 	return (SA_OK);
 }
 
+int
+nfs_escape_mountpoint(const char *mp, char **out, boolean_t *need_free)
+{
+	if (strpbrk(mp, "\t\n\v\f\r \\") == NULL) {
+		*out = (char *)mp;
+		*need_free = B_FALSE;
+		return (SA_OK);
+	} else {
+		size_t len = strlen(mp);
+		*out = malloc(len * 4 + 1);
+		if (!*out)
+			return (SA_NO_MEMORY);
+		*need_free = B_TRUE;
+
+		char *oc = *out;
+		for (const char *c = mp; c < mp + len; ++c)
+			if (memchr("\t\n\v\f\r \\", *c,
+			    strlen("\t\n\v\f\r \\"))) {
+				sprintf(oc, "\\%03hho", *c);
+				oc += 4;
+			} else
+				*oc++ = *c;
+		*oc = '\0';
+	}
+
+	return (SA_OK);
+}
+
 static int
 nfs_process_exports(const char *exports, const char *mountpoint,
     boolean_t (*cbk)(void *userdata, char *line, boolean_t found_mountpoint),
@@ -153,8 +182,16 @@ nfs_process_exports(const char *exports, const char *mountpoint,
 
 	FILE *oldfp = fopen(exports, "re");
 	if (oldfp != NULL) {
+		boolean_t need_mp_free;
+		char *mp;
+		if ((error = nfs_escape_mountpoint(mountpoint,
+		    &mp, &need_mp_free)) != SA_OK) {
+			(void) fclose(oldfp);
+			return (error);
+		}
+
 		char *buf = NULL, *sep;
-		size_t buflen = 0, mplen = strlen(mountpoint);
+		size_t buflen = 0, mplen = strlen(mp);
 
 		while (cont && getline(&buf, &buflen, oldfp) != -1) {
 			if (buf[0] == '\n' || buf[0] == '#')
@@ -163,9 +200,11 @@ nfs_process_exports(const char *exports, const char *mountpoint,
 			cont = cbk(userdata, buf,
 			    (sep = strpbrk(buf, "\t \n")) != NULL &&
 			    sep - buf == mplen &&
-			    strncmp(buf, mountpoint, mplen) == 0);
+			    strncmp(buf, mp, mplen) == 0);
 		}
 		free(buf);
+		if (need_mp_free)
+			free(mp);
 
 		if (ferror(oldfp) != 0)
 			error = ferror(oldfp);
