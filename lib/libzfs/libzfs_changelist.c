@@ -98,6 +98,7 @@ changelist_prefix(prop_changelist_t *clp)
 	prop_changenode_t *cn;
 	uu_avl_walk_t *walk;
 	int ret = 0;
+	const enum sa_protocol smb[] = {SA_PROTOCOL_SMB, SA_NO_PROTOCOL};
 	boolean_t commit_smb_shares = B_FALSE;
 
 	if (clp->cl_prop != ZFS_PROP_MOUNTPOINT &&
@@ -137,7 +138,8 @@ changelist_prefix(prop_changelist_t *clp)
 				}
 				break;
 			case ZFS_PROP_SHARESMB:
-				(void) zfs_unshare_smb(cn->cn_handle, NULL);
+				(void) zfs_unshare(cn->cn_handle, NULL,
+				    smb);
 				commit_smb_shares = B_TRUE;
 				break;
 
@@ -148,7 +150,7 @@ changelist_prefix(prop_changelist_t *clp)
 	}
 
 	if (commit_smb_shares)
-		zfs_commit_smb_shares();
+		zfs_commit_shares(smb);
 	uu_avl_walk_end(walk);
 
 	if (ret == -1)
@@ -257,25 +259,33 @@ changelist_postfix(prop_changelist_t *clp)
 		 * if the filesystem is currently shared, so that we can
 		 * adopt any new options.
 		 */
+		const enum sa_protocol nfs[] =
+		    {SA_PROTOCOL_NFS, SA_NO_PROTOCOL};
 		if (sharenfs && mounted) {
-			errors += zfs_share_nfs(cn->cn_handle);
+			errors += zfs_share(cn->cn_handle, nfs);
 			commit_nfs_shares = B_TRUE;
 		} else if (cn->cn_shared || clp->cl_waslegacy) {
-			errors += zfs_unshare_nfs(cn->cn_handle, NULL);
+			errors += zfs_unshare(cn->cn_handle, NULL, nfs);
 			commit_nfs_shares = B_TRUE;
 		}
+		const enum sa_protocol smb[] =
+		    {SA_PROTOCOL_SMB, SA_NO_PROTOCOL};
 		if (sharesmb && mounted) {
-			errors += zfs_share_smb(cn->cn_handle);
+			errors += zfs_share(cn->cn_handle, smb);
 			commit_smb_shares = B_TRUE;
 		} else if (cn->cn_shared || clp->cl_waslegacy) {
-			errors += zfs_unshare_smb(cn->cn_handle, NULL);
+			errors += zfs_unshare(cn->cn_handle, NULL, smb);
 			commit_smb_shares = B_TRUE;
 		}
 	}
+
+	enum sa_protocol proto[SA_PROTOCOL_COUNT + 1], *p = proto;
 	if (commit_nfs_shares)
-		zfs_commit_nfs_shares();
+		*p++ = SA_PROTOCOL_NFS;
 	if (commit_smb_shares)
-		zfs_commit_smb_shares();
+		*p++ = SA_PROTOCOL_SMB;
+	*p++ = SA_NO_PROTOCOL;
+	zfs_commit_shares(proto);
 	uu_avl_walk_end(walk);
 
 	return (errors ? -1 : 0);
@@ -359,7 +369,7 @@ changelist_unshare(prop_changelist_t *clp, const enum sa_protocol *proto)
 		return (-1);
 
 	while ((cn = uu_avl_walk_next(walk)) != NULL) {
-		if (zfs_unshare_proto(cn->cn_handle, NULL, proto) != 0)
+		if (zfs_unshare(cn->cn_handle, NULL, proto) != 0)
 			ret = -1;
 	}
 
@@ -452,7 +462,7 @@ changelist_add_mounted(zfs_handle_t *zhp, void *data)
 	cn->cn_handle = zhp;
 	cn->cn_mounted = zfs_is_mounted(zhp, NULL);
 	ASSERT3U(cn->cn_mounted, ==, B_TRUE);
-	cn->cn_shared = zfs_is_shared(zhp);
+	cn->cn_shared = zfs_is_shared(zhp, NULL, NULL);
 	cn->cn_zoned = zfs_prop_get_int(zhp, ZFS_PROP_ZONED);
 	cn->cn_needpost = B_TRUE;
 
@@ -522,7 +532,7 @@ change_one(zfs_handle_t *zhp, void *data)
 		cn->cn_handle = zhp;
 		cn->cn_mounted = (clp->cl_gflags & CL_GATHER_MOUNT_ALWAYS) ||
 		    zfs_is_mounted(zhp, NULL);
-		cn->cn_shared = zfs_is_shared(zhp);
+		cn->cn_shared = zfs_is_shared(zhp, NULL, NULL);
 		cn->cn_zoned = zfs_prop_get_int(zhp, ZFS_PROP_ZONED);
 		cn->cn_needpost = B_TRUE;
 
@@ -738,7 +748,7 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 	cn->cn_handle = temp;
 	cn->cn_mounted = (clp->cl_gflags & CL_GATHER_MOUNT_ALWAYS) ||
 	    zfs_is_mounted(temp, NULL);
-	cn->cn_shared = zfs_is_shared(temp);
+	cn->cn_shared = zfs_is_shared(temp, NULL, NULL);
 	cn->cn_zoned = zfs_prop_get_int(zhp, ZFS_PROP_ZONED);
 	cn->cn_needpost = B_TRUE;
 
