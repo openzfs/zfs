@@ -683,7 +683,7 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 			 * rangelock, which is held exclusively while the
 			 * copy is in progress.
 			 */
-			if (rc->rc_size != 0 &&
+			if (!use_scratch && rc->rc_size != 0 &&
 			    row_phys_cols != physical_cols &&
 			    b + c < reflow_offset_next >> ashift) {
 				ASSERT3U(row_phys_cols, ==, physical_cols - 1);
