@@ -23,20 +23,9 @@
  * Copyright (c) 2020 by Delphix. All rights reserved.
  */
 
-#include <time.h>
-#include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
-#include <fcntl.h>
-#include <sys/wait.h>
-#include <unistd.h>
-#include <dirent.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <libzfs.h>
 #include <libshare.h>
 #include "libshare_impl.h"
-#include "smb.h"
 
 static sa_fstype_t *smb_fstype;
 
@@ -47,7 +36,7 @@ static int
 smb_enable_share(sa_share_impl_t impl_share)
 {
 	(void) impl_share;
-	fprintf(stderr, "No SMB support in FreeBSD yet.\n");
+	fputs("No SMB support in FreeBSD yet.\n", stderr);
 	return (SA_NOT_SUPPORTED);
 }
 /*
@@ -57,7 +46,7 @@ static int
 smb_disable_share(sa_share_impl_t impl_share)
 {
 	(void) impl_share;
-	fprintf(stderr, "No SMB support in FreeBSD yet.\n");
+	fputs("No SMB support in FreeBSD yet.\n", stderr);
 	return (SA_NOT_SUPPORTED);
 }
 
@@ -68,7 +57,7 @@ static int
 smb_validate_shareopts(const char *shareopts)
 {
 	(void) shareopts;
-	fprintf(stderr, "No SMB support in FreeBSD yet.\n");
+	fputs("No SMB support in FreeBSD yet.\n", stderr);
 	return (SA_NOT_SUPPORTED);
 }
 
