@@ -109,15 +109,24 @@ nfs_enable_share_impl(sa_share_impl_t impl_share, FILE *tmpfile)
 	if (strcmp(shareopts, "on") == 0)
 		shareopts = "";
 
-	if (fputs(impl_share->sa_mountpoint, tmpfile) == EOF ||
+	boolean_t need_free;
+	char *mp;
+	int rc  = nfs_escape_mountpoint(impl_share->sa_mountpoint, &mp,
+	    &need_free);
+	if (rc != SA_OK)
+		return (rc);
+
+	if (fputs(mp, tmpfile) == EOF ||
 	    fputc('\t', tmpfile) == EOF ||
 	    translate_opts(shareopts, tmpfile) == EOF ||
 	    fputc('\n', tmpfile) == EOF) {
 		fprintf(stderr, "failed to write to temporary file\n");
-		return (SA_SYSTEM_ERR);
+		rc = SA_SYSTEM_ERR;
 	}
 
-	return (SA_OK);
+	if (need_free)
+		free(mp);
+	return (rc);
 }
 
 static int
