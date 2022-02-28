@@ -105,15 +105,6 @@ struct zpool_handle {
 	diskaddr_t zpool_start_block;
 };
 
-/*
- * Bitmask of shared types:
- * 0 means none, otherwise | (1 << (enum sa_protocol + 1)).
- */
-typedef unsigned zfs_share_type_t;
-#define	SHARED_NOT_SHARED 0
-
-#define	SA_NO_PROTOCOL -1
-
 typedef int (*zfs_uri_handler_fn_t)(struct libzfs_handle *, const char *,
     const char *, zfs_keyformat_t, boolean_t, uint8_t **, size_t *);
 
@@ -233,16 +224,6 @@ typedef struct differ_info {
 extern int do_mount(zfs_handle_t *zhp, const char *mntpt, char *opts,
     int flags);
 extern int do_unmount(zfs_handle_t *zhp, const char *mntpt, int flags);
-extern int zfs_mount_delegation_check(void);
-extern int zfs_share_proto(zfs_handle_t *zhp, const enum sa_protocol *proto);
-extern int zfs_unshare_proto(zfs_handle_t *, const char *,
-    const enum sa_protocol *);
-extern int unshare_one(libzfs_handle_t *hdl, const char *name,
-    const char *mountpoint, enum sa_protocol proto);
-extern boolean_t zfs_is_mountable(zfs_handle_t *zhp, char *buf, size_t buflen,
-    zprop_source_t *source, int flags);
-extern zfs_share_type_t is_shared(const char *mountpoint,
-    enum sa_protocol proto);
 extern int libzfs_load_module(void);
 extern int zpool_relabel_disk(libzfs_handle_t *hdl, const char *path,
     const char *msg);
