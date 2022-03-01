@@ -30,7 +30,7 @@ const char* ZSTD_versionString(void) { return ZSTD_VERSION_STRING; }
 /*-****************************************
 *  ZSTD Error Management
 ******************************************/
-#undef ZSTD_isError   /* defined within zstd_internal.h */
+
 /*! ZSTD_isError() :
  *  tells if a return value is an error code
  *  symbol is required for external callers */
