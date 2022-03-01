@@ -44,6 +44,7 @@ extern "C" {
 #ifdef _KERNEL
 
 #if defined(__FreeBSD__)
+#include <sys/types.h>    /* u_int, u_char */
 #include <sys/systm.h>    /* memcpy, memset */
 #elif defined(__linux__)
 #include <linux/string.h> /* memcpy, memset */
