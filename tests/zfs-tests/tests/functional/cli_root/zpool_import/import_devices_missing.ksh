@@ -68,7 +68,7 @@ function test_devices_missing
 
 	log_must generate_data $TESTPOOL1 $MD5FILE2 "second"
 
-	log_must zpool export $TESTPOOL1
+	log_must_busy zpool export $TESTPOOL1
 
 	log_must mv $missingvdevs $BACKUP_DEVICE_DIR
 
@@ -85,7 +85,7 @@ function test_devices_missing
 	    "get suspended."
 	verify_data_md5sums $MD5FILE >/dev/null 2>&1
 
-	log_must zpool export $TESTPOOL1
+	log_must_busy zpool export $TESTPOOL1
 
 	typeset newpaths=$(echo "$missingvdevs" | \
 		sed "s:$DEVICE_DIR:$BACKUP_DEVICE_DIR:g")
