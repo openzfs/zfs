@@ -128,7 +128,7 @@ cppcheck-Linux:
 		--include=@LINUX_OBJ@/include/generated/autoconf.h \
 		--include=@top_srcdir@/zfs_config.h \
 		--config-exclude=@LINUX_OBJ@/include \
-		--config-exclude=zstd/lib \
+		-i zstd/lib \
 		-I @LINUX_OBJ@/include \
 		-I @top_srcdir@/include/os/linux/kernel \
 		-I @top_srcdir@/include/os/linux/spl \
