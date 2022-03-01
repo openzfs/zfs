@@ -58,6 +58,6 @@ unmount_redacted $recvfs
 log_must eval "zfs send -L -i $sendfs@snap $clone@snap1 >$stream"
 log_must stream_has_features $stream large_blocks
 log_must eval "zfs recv $recvfs/new <$stream"
-log_must diff -r $clone_mnt $recv_mnt/new
+log_must directory_diff $clone_mnt $recv_mnt/new
 
 log_pass "Large blocks and redacted send work correctly together."

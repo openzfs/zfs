@@ -55,24 +55,28 @@ function cleanup
 		cd $CWD || log_fail "Could not cd $CWD"
 	fi
 
-        snapexists $SNAPFS
-        if [[ $? -eq 0 ]]; then
-                log_must zfs destroy $SNAPFS
-        fi
+	snapexists $SNAPFS
+	if [[ $? -eq 0 ]]; then
+		log_must zfs destroy $SNAPFS
+	fi
 
-        if [[ -e $SNAPDIR ]]; then
-                log_must rm -rf $SNAPDIR > /dev/null 2>&1
-        fi
+	if [[ -e $SNAPDIR ]]; then
+		log_must rm -rf $SNAPDIR > /dev/null 2>&1
+	fi
 
-        if [[ -e $TESTDIR ]]; then
-                log_must rm -rf $TESTDIR/* > /dev/null 2>&1
-        fi
+	if [[ -e $TESTDIR ]]; then
+		log_must rm -rf $TESTDIR/* > /dev/null 2>&1
+	fi
 
+	if [[ -d "$SNAPSHOT_TARDIR" ]]; then
+		log_must rm -rf $SNAPSHOT_TARDIR > /dev/null 2>&1
+	fi
 }
 
 log_assert "Verify an archive of a file system is identical to " \
     "an archive of its snapshot."
 
+SNAPSHOT_TARDIR="$(mktemp -d /tmp/zfstests_snapshot_002.XXXXXX)"
 log_onexit cleanup
 
 typeset -i COUNT=21
@@ -87,14 +91,13 @@ typeset i=1
 while [ $i -lt $COUNT ]; do
 	log_must file_write -o $OP -f $TESTDIR/file$i \
 	    -b $BLOCKSZ -c $NUM_WRITES -d $DATA
-
 	(( i = i + 1 ))
 done
 
 log_note "Create a tarball from $TESTDIR contents..."
 CWD=$PWD
 cd $TESTDIR || log_fail "Could not cd $TESTDIR"
-log_must tar cf $TESTDIR/tarball.original.tar file*
+log_must tar cf $SNAPSHOT_TARDIR/original.tar .
 cd $CWD || log_fail "Could not cd $CWD"
 
 log_note "Create a snapshot and mount it..."
@@ -106,7 +109,7 @@ log_must rm -f $TESTDIR/file* > /dev/null 2>&1
 log_note "Create tarball of snapshot..."
 CWD=$PWD
 cd $SNAPDIR || log_fail "Could not cd $SNAPDIR"
-log_must tar cf $TESTDIR/tarball.snapshot.tar file*
+log_must tar cf $SNAPSHOT_TARDIR/snapshot.tar .
 cd $CWD || log_fail "Could not cd $CWD"
 
 log_must mkdir $TESTDIR/original
@@ -114,16 +117,12 @@ log_must mkdir $TESTDIR/snapshot
 
 CWD=$PWD
 cd $TESTDIR/original || log_fail "Could not cd $TESTDIR/original"
-log_must tar xf $TESTDIR/tarball.original.tar
+log_must tar xf $SNAPSHOT_TARDIR/original.tar
 
 cd $TESTDIR/snapshot || log_fail "Could not cd $TESTDIR/snapshot"
-log_must tar xf $TESTDIR/tarball.snapshot.tar
+log_must tar xf $SNAPSHOT_TARDIR/snapshot.tar
 
 cd $CWD || log_fail "Could not cd $CWD"
 
-diff -q -r $TESTDIR/original $TESTDIR/snapshot > /dev/null 2>&1
-if [[ $? -eq 1 ]]; then
-	log_fail "Directory structures differ."
-fi
-
+log_must directory_diff $TESTDIR/original $TESTDIR/snapshot
 log_pass "Directory structures match."
