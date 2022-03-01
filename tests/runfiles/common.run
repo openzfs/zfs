@@ -660,12 +660,6 @@ tags = ['functional', 'inuse']
 tests = ['large_files_001_pos', 'large_files_002_pos']
 tags = ['functional', 'large_files']
 
-[tests/functional/largest_pool]
-tests = ['largest_pool_001_pos']
-pre =
-post =
-tags = ['functional', 'largest_pool']
-
 [tests/functional/limits]
 tests = ['filesystem_count', 'filesystem_limit', 'snapshot_count',
     'snapshot_limit']

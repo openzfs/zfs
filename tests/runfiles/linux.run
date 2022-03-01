@@ -109,6 +109,12 @@ tags = ['functional', 'features', 'large_dnode']
 tests = ['libaio', 'io_uring']
 tags = ['functional', 'io']
 
+[tests/functional/largest_pool:Linux]
+tests = ['largest_pool_001_pos']
+pre =
+post =
+tags = ['functional', 'largest_pool']
+
 [tests/functional/mmap:Linux]
 tests = ['mmap_libaio_001_pos']
 tags = ['functional', 'mmap']
