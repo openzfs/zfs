@@ -212,7 +212,7 @@ function cmp_ds_cont
 	srcdir=$(get_prop mountpoint $src_fs)
 	dstdir=$(get_prop mountpoint $dst_fs)
 
-	diff -r $srcdir $dstdir > /dev/null 2>&1
+	replay_directory_diff $srcdir $dstdir
 	return $?
 }
 
@@ -627,12 +627,12 @@ function file_check
 
 	if [[ -d /$recvfs/.zfs/snapshot/a && -d \
 	    /$sendfs/.zfs/snapshot/a ]]; then
-		diff -r /$recvfs/.zfs/snapshot/a /$sendfs/.zfs/snapshot/a
+		directory_diff /$recvfs/.zfs/snapshot/a /$sendfs/.zfs/snapshot/a
 		[[ $? -eq 0 ]] || log_fail "Differences found in snap a"
 	fi
 	if [[ -d /$recvfs/.zfs/snapshot/b && -d \
 	    /$sendfs/.zfs/snapshot/b ]]; then
-		diff -r /$recvfs/.zfs/snapshot/b /$sendfs/.zfs/snapshot/b
+		directory_diff /$recvfs/.zfs/snapshot/b /$sendfs/.zfs/snapshot/b
 		[[ $? -eq 0 ]] || log_fail "Differences found in snap b"
 	fi
 }

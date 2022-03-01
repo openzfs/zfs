@@ -51,10 +51,10 @@ log_must eval "zfs receive $POOL2/rfs <$stream"
 # Verify receipt of normal incrementals to redaction list members.
 log_must eval "zfs send -i $sendfs@snap0 $POOL/stride3@snap >$stream"
 log_must eval "zfs recv $POOL2/rstride3 <$stream"
-log_must diff -r /$POOL/stride3 /$POOL2/rstride3
+log_must directory_diff /$POOL/stride3 /$POOL2/rstride3
 log_must eval "zfs send -i $sendfs@snap0 $POOL/stride5@snap >$stream"
 log_must eval "zfs recv $POOL2/rstride5 <$stream"
-log_must diff -r /$POOL/stride5 /$POOL2/rstride5
+log_must directory_diff /$POOL/stride5 /$POOL2/rstride5
 
 # But not a normal child that we weren't redacted with respect to.
 log_must eval "zfs send -i $sendfs@snap0 $POOL/hole@snap >$stream"
@@ -73,7 +73,7 @@ log_must mount_redacted -f $POOL2/rint
 # Verify we can receive grandchildren on the child.
 log_must eval "zfs send -i $POOL/int@snap $POOL/rm@snap >$stream"
 log_must eval "zfs receive $POOL2/rrm <$stream"
-log_must diff -r /$POOL/rm /$POOL2/rrm
+log_must directory_diff /$POOL/rm /$POOL2/rrm
 
 # But not a grandchild that the received child wasn't redacted with respect to.
 log_must eval "zfs send -i $POOL/int@snap $POOL/write@snap >$stream"
@@ -92,13 +92,13 @@ log_mustnot zfs redact $POOL/int@snap book6 $POOL/hole@snap
 # Verify we can receive a full clone of the grandchild on the child.
 log_must eval "zfs send $POOL/write@snap >$stream"
 log_must eval "zfs recv -o origin=$POOL2/rint@snap $POOL2/rwrite <$stream"
-log_must diff -r /$POOL/write /$POOL2/rwrite
+log_must directory_diff /$POOL/write /$POOL2/rwrite
 
 # Along with other origins.
 log_must eval "zfs recv -o origin=$POOL2/rfs@snap0 $POOL2/rwrite1 <$stream"
-log_must diff -r /$POOL/write /$POOL2/rwrite1
+log_must directory_diff /$POOL/write /$POOL2/rwrite1
 log_must eval "zfs recv -o origin=$POOL2@init $POOL2/rwrite2 <$stream"
-log_must diff -r /$POOL/write /$POOL2/rwrite2
+log_must directory_diff /$POOL/write /$POOL2/rwrite2
 log_must zfs destroy -R $POOL2/rwrite2
 
 log_must zfs destroy -R $POOL2/rfs
@@ -140,7 +140,7 @@ unmount_redacted $POOL2/rfs
 # sending from the bookmark.
 log_must eval "zfs send -i $sendfs#book7 $POOL/hole1@snap >$stream"
 log_must eval "zfs recv $POOL2/rhole1 <$stream"
-log_must diff -r /$POOL/hole1 /$POOL2/rhole1
+log_must directory_diff /$POOL/hole1 /$POOL2/rhole1
 
 # Verify we can receive an intermediate clone redacted with respect to a
 # non-subset if we send from the bookmark.

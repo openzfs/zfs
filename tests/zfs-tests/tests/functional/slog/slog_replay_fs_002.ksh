@@ -98,8 +98,8 @@ log_must eval 'for i in $(seq $NFILES); do zfs set dnodesize=${dnsize[$RANDOM % 
 #
 # 4. Copy TESTFS to temporary location (TESTDIR/copy)
 #
-log_must mkdir -p $TESTDIR/copy
-log_must cp -a /$TESTPOOL/$TESTFS/* $TESTDIR/copy/
+log_must mkdir -p $TESTDIR
+log_must rsync -aHAX /$TESTPOOL/$TESTFS/ $TESTDIR/copy
 
 #
 # 5. Unmount filesystem and export the pool
@@ -132,6 +132,6 @@ log_note "Verify number of files"
 log_must test "$(ls /$TESTPOOL/$TESTFS/dir0 | wc -l)" -eq $NFILES
 
 log_note "Verify working set diff:"
-log_must diff -r /$TESTPOOL/$TESTFS $TESTDIR/copy
+log_must replay_directory_diff $TESTDIR/copy /$TESTPOOL/$TESTFS
 
 log_pass "Replay of intent log succeeds."

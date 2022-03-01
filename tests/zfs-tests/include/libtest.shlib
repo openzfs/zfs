@@ -4303,3 +4303,86 @@ function wait_for_children #children
 	done
 	return $rv
 }
+
+#
+# Compare two directory trees recursively in a manner similar to diff(1), but
+# using rsync. If there are any discrepancies, a summary of the differences are
+# output and a non-zero error is returned.
+#
+# If you're comparing a directory after a ZIL replay, you should set
+# LIBTEST_DIFF_ZIL_REPLAY=1 or use replay_directory_diff which will cause
+# directory_diff to ignore mtime changes (the ZIL replay won't fix up mtime
+# information).
+#
+function directory_diff # dir_a dir_b
+{
+	dir_a="$1"
+	dir_b="$2"
+	zil_replay="${LIBTEST_DIFF_ZIL_REPLAY:-0}"
+
+	# If one of the directories doesn't exist, return 2. This is to match the
+	# semantics of diff.
+	if ! [ -d "$dir_a" -a -d "$dir_b" ]; then
+		return 2
+	fi
+
+	# Run rsync with --dry-run --itemize-changes to get something akin to diff
+	# output, but rsync is far more thorough in detecting differences (diff
+	# doesn't compare file metadata, and cannot handle special files).
+	#
+	# Also make sure to filter out non-user.* xattrs when comparing. On
+	# SELinux-enabled systems the copied tree will probably have different
+	# SELinux labels.
+	args=("-nicaAHX" '--filter=-x! user.*' "--delete")
+
+	# NOTE: Quite a few rsync builds do not support --crtimes which would be
+	# necessary to verify that creation times are being maintained properly.
+	# Unfortunately because of this we cannot use it unconditionally but we can
+	# check if this rsync build supports it and use it then. This check is
+	# based on the same check in the rsync test suite (testsuite/crtimes.test).
+	#
+	# We check ctimes even with zil_replay=1 because the ZIL does store
+	# creation times and we should make sure they match (if the creation times
+	# do not match there is a "c" entry in one of the columns).
+	if ( rsync --version | grep -q "[, ] crtimes" >/dev/null ); then
+		args+=("--crtimes")
+	else
+		echo "NOTE: This rsync package does not support --crtimes (-N)."
+	fi
+
+	# If we are testing a ZIL replay, we need to ignore timestamp changes.
+	# Unfortunately --no-times doesn't do what we want -- it will still tell
+	# you if the timestamps don't match but rsync will set the timestamps to
+	# the current time (leading to an itemised change entry). It's simpler to
+	# just filter out those lines.
+	if [ "$zil_replay" -eq 0 ]; then
+		filter=("cat")
+	else
+		# Different rsync versions have different numbers of columns. So just
+		# require that aside from the first two, all other columns must be
+		# blank (literal ".") or a timestamp field ("[tT]").
+		filter=("grep" "-v" '^\..[.Tt]\+ ')
+	fi
+
+	diff="$(rsync "${args[@]}" "$dir_a/" "$dir_b/" | "${filter[@]}")"
+	rv=0
+	if [ -n "$diff" ]; then
+		echo "$diff"
+		rv=1
+	fi
+	return $rv
+}
+
+#
+# Compare two directory trees recursively, without checking whether the mtimes
+# match (creation times will be checked if the available rsync binary supports
+# it). This is necessary for ZIL replay checks (because the ZIL does not
+# contain mtimes and thus after a ZIL replay, mtimes won't match).
+#
+# This is shorthand for LIBTEST_DIFF_ZIL_REPLAY=1 directory_diff <...>.
+#
+function replay_directory_diff # dir_a dir_b
+{
+	LIBTEST_DIFF_ZIL_REPLAY=1 directory_diff "$@"
+	return $?
+}

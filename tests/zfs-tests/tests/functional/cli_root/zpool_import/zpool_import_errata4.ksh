@@ -122,7 +122,7 @@ block_device_wait
 
 old_mntpnt=$(get_prop mountpoint $POOL_NAME/testfs)
 new_mntpnt=$(get_prop mountpoint $POOL_NAME/fixed/testfs)
-log_must diff -r "$old_mntpnt" "$new_mntpnt"
+log_must directory_diff "$old_mntpnt" "$new_mntpnt"
 log_must diff /dev/zvol/$POOL_NAME/testvol /dev/zvol/$POOL_NAME/fixed/testvol
 
 log_must has_ivset_guid $POOL_NAME/fixed/testfs@snap1

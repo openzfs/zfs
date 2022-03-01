@@ -68,7 +68,7 @@ if [[ "$dnsize" != "1K" ]]; then
 fi
 
 log_must eval "zfs recv -F $TEST_RECV_FS < $TEST_STREAMINCR"
-log_must diff -r /$TEST_SEND_FS /$TEST_RECV_FS
+log_must directory_diff /$TEST_SEND_FS /$TEST_RECV_FS
 log_must zfs umount $TEST_SEND_FS
 log_must zfs umount $TEST_RECV_FS
 

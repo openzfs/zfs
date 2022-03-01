@@ -166,12 +166,12 @@ log_must zfs destroy -fr $rfs
 cat $TESTDIR/zr010p | log_must zfs receive -o origin=$fs2@s1 $rfs
 mntpnt_old=$(get_prop mountpoint $fs)
 mntpnt_new=$(get_prop mountpoint $rfs)
-log_must diff -r $mntpnt_old $mntpnt_new
+log_must directory_diff $mntpnt_old $mntpnt_new
 log_must zfs destroy -r $rfs
 
 cat $TESTDIR/zr010p2 | log_must zfs receive -o origin=$fs@s1 $rfs
 mntpnt_old=$(get_prop mountpoint $fs2)
 mntpnt_new=$(get_prop mountpoint $rfs)
-log_must diff -r $mntpnt_old $mntpnt_new
+log_must directory_diff $mntpnt_old $mntpnt_new
 
 log_pass "zfs receive of full send as clone works"
