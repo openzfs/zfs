@@ -162,6 +162,7 @@ int dsl_pool_sync_context(dsl_pool_t *dp);
 uint64_t dsl_pool_adjustedsize(dsl_pool_t *dp, zfs_space_check_t slop_policy);
 uint64_t dsl_pool_unreserved_space(dsl_pool_t *dp,
     zfs_space_check_t slop_policy);
+uint64_t dsl_pool_deferred_space(dsl_pool_t *dp);
 void dsl_pool_wrlog_count(dsl_pool_t *dp, int64_t size, uint64_t txg);
 boolean_t dsl_pool_wrlog_over_max(dsl_pool_t *dp);
 void dsl_pool_dirty_space(dsl_pool_t *dp, int64_t space, dmu_tx_t *tx);
