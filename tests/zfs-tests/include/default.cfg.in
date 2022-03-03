@@ -170,8 +170,8 @@ if [ "@UBSAN_ENABLED@" = "yes" ]; then
 fi
 
 
-case $(uname -o) in
-GNU/Linux)
+case $(uname) in
+Linux)
 	unpack_opts="--sparse -xf"
 	pack_opts="--sparse -cf"
 	verbose=" -v"
@@ -209,7 +209,7 @@ FreeBSD)
 	NEWFS_DEFAULT_FS="ufs"
 	SLICE_PREFIX="p"
 	;;
-illumos)
+*)
 	export AUTO_SNAP=$(svcs -a | \
 	    awk '/auto-snapshot/ && /online/ { print $3 }')
 	# finally, if we're running in a local zone
