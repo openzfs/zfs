@@ -78,6 +78,7 @@ function wait_for_removing_cancel
 
 default_setup_noexit "mirror $DISK0 $DISK1 mirror $DISK2 $DISK3"
 log_onexit cleanup
+log_must zfs set compression=off $TESTPOOL
 
 FILE_CONTENTS="Leeloo Dallas mul-ti-pass."
 

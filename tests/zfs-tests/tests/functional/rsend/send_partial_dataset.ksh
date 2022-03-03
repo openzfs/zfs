@@ -46,7 +46,7 @@ function cleanup
 }
 log_onexit cleanup
 
-log_must zfs create $POOL/testfs2
+log_must zfs create -o compression=off $POOL/testfs2
 log_must zfs create $POOL/stream
 mntpnt=$(get_prop mountpoint $POOL/testfs2)
 

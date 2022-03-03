@@ -129,7 +129,7 @@ log_must eval "check_prop_inherit $destsub copies $dest"
 log_must eval "check_prop_inherit $destsub atime $dest"
 log_must eval "check_prop_inherit $destsub checksum $dest"
 log_must eval "check_prop_source $destsub quota 0 default"
-log_must eval "check_prop_source $destsub compression off default"
+log_must eval "check_prop_source $destsub compression on default"
 # Cleanup
 log_must zfs destroy -r -f $orig
 log_must zfs destroy -r -f $dest

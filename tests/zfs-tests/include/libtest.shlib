@@ -448,7 +448,7 @@ function create_recv_clone
 	datasetexists $recvfs && log_fail "Recv filesystem must not exist."
 	datasetexists $sendfs && log_fail "Send filesystem must not exist."
 
-	log_must zfs create -o mountpoint="$mountpoint" $sendfs
+	log_must zfs create -o compression=off -o mountpoint="$mountpoint" $sendfs
 	log_must zfs snapshot $snap
 	log_must eval "zfs send $snap | zfs recv -u $recvfs"
 	log_must mkfile 1m "$mountpoint/data"
@@ -3567,17 +3567,19 @@ function wait_replacing #pool
 	done
 }
 
-#
 # Wait for a pool to be scrubbed
 #
 # $1 pool name
+# $2 timeout
 #
-function wait_scrubbed
+function wait_scrubbed #pool timeout
 {
-	typeset pool=${1:-$TESTPOOL}
-	while ! is_pool_scrubbed $pool ; do
-		sleep 1
-	done
+       typeset timeout=${2:-300}
+       typeset pool=${1:-$TESTPOOL}
+       for (( timer = 0; timer < $timeout; timer++ )); do
+               is_pool_scrubbed $pool && break;
+               sleep 1;
+       done
 }
 
 # Backup the zed.rc in our test directory so that we can edit it for our test.
@@ -3672,6 +3674,21 @@ function zed_cleanup
 }
 
 #
+# Check if ZED is currently running; if so, returns PIDs
+#
+function zed_check
+{
+	if ! is_linux; then
+		return
+	fi
+	zedpids="$(pgrep -x zed)"
+#	ret1=$?
+	zedpids2="$(pgrep -x lt-zed)"
+#	ret2=$?
+	echo ${zedpids} ${zedpids2}
+}
+
+#
 # Check if ZED is currently running, if not start ZED.
 #
 function zed_start
@@ -3686,9 +3703,14 @@ function zed_start
 	fi
 
 	# Verify the ZED is not already running.
-	pgrep -x zed > /dev/null
-	if (($? == 0)); then
-		log_note "ZED already running"
+	zedpids=$(zed_check)
+	if [ -n "$zedpids" ]; then
+		# We never, ever, really want it to just keep going if zed
+		# is already running - usually this implies our test cases
+		# will break very strangely because whatever we wanted to
+		# configure zed for won't be listening to our changes in the
+		# tmpdir
+		log_fail "ZED already running - ${zedpids}"
 	else
 		log_note "Starting ZED"
 		# run ZED in the background and redirect foreground logging
@@ -3707,13 +3729,13 @@ function zed_start
 function zed_stop
 {
 	if ! is_linux; then
-		return
+		return ""
 	fi
 
 	log_note "Stopping ZED"
 	while true; do
-		zedpids="$(pgrep -x zed)"
-		[ "$?" -ne 0 ] && break
+		zedpids=$(zed_check)
+		[ ! -n "$zedpids" ] && break
 
 		log_must kill $zedpids
 		sleep 1

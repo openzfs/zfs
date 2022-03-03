@@ -62,7 +62,7 @@ log_must truncate -s $MINVDEVSIZE $VDEV1 $VDEV2
 # 1. Create a pool and generate some events.
 log_must truncate -s 0 $ZED_DEBUG_LOG
 log_must zpool events -c
-log_must zpool create $MPOOL mirror $VDEV1 $VDEV2
+log_must zpool create -O compression=off $MPOOL mirror $VDEV1 $VDEV2
 
 # 2. Start the ZED and verify it handles missed events.
 log_must zed_start

@@ -52,4 +52,6 @@ echo $ZFS_USER > $TEST_BASE_DIR/zfs-xattr-test-user.txt
 echo $USES_NIS > $TEST_BASE_DIR/zfs-xattr-test-nis.txt
 
 DISK=${DISKS%% *}
-default_setup $DISK
+default_setup_noexit $DISK
+log_must zfs set compression=off $TESTPOOL
+log_pass "Setup complete"

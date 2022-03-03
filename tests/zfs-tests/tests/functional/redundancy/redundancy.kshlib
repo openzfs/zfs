@@ -139,7 +139,7 @@ function setup_test_env
 
 	log_must truncate -s $MINVDEVSIZE $vdevs
 
-	log_must zpool create -f -m $TESTDIR $pool $keyword $vdevs
+	log_must zpool create -O compression=off -f -m $TESTDIR $pool $keyword $vdevs
 
 	log_note "Filling up the filesystem ..."
 	typeset -i ret=0

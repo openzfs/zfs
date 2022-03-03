@@ -39,6 +39,7 @@ function cleanup
 	set_tunable64 LIVELIST_MAX_ENTRIES $ORIGINAL_MAX
 	# reset the minimum percent shared to 75
 	set_tunable32 LIVELIST_MIN_PERCENT_SHARED $ORIGINAL_MIN
+	log_must zfs inherit compression $TESTPOOL
 }
 
 function check_ll_len
@@ -116,6 +117,11 @@ ORIGINAL_MAX=$(get_tunable LIVELIST_MAX_ENTRIES)
 ORIGINAL_MIN=$(get_tunable LIVELIST_MIN_PERCENT_SHARED)
 
 log_onexit cleanup
+# You might think that setting compression=off for $TESTFS1 would be
+# sufficient. You would be mistaken.
+# You need compression=off for whatever the parent of $TESTFS1 is,
+# and $TESTFS1.
+log_must zfs set compression=off $TESTPOOL
 log_must zfs create $TESTPOOL/$TESTFS1
 log_must mkfile 5m /$TESTPOOL/$TESTFS1/atestfile
 log_must zfs snapshot $TESTPOOL/$TESTFS1@snap

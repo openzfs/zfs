@@ -22,6 +22,7 @@
 . $STF_SUITE/tests/functional/removal/removal.kshlib
 
 default_setup_noexit "$DISKS"
+log_must zfs set compression=off $TESTPOOL
 log_onexit default_cleanup_noexit
 
 function callback

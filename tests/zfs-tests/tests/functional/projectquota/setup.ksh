@@ -53,4 +53,6 @@ fi
 DISK=${DISKS%% *}
 default_setup_noexit $DISK
 
+zfs set compression=off $TESTPOOL
+
 log_pass

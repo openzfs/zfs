@@ -219,7 +219,7 @@ for nparity in 1 2 3; do
 	raid=raidz$nparity
 	dir=$TEST_BASE_DIR
 
-	log_must zpool create -f -o cachefile=none $TESTPOOL $raid ${disks[@]}
+	log_must zpool create -O compression=off -f -o cachefile=none $TESTPOOL $raid ${disks[@]}
 	log_must zfs set primarycache=metadata $TESTPOOL
 
 	log_must zfs create $TESTPOOL/fs

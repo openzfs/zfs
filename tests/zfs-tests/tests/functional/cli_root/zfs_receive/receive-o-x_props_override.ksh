@@ -135,7 +135,7 @@ log_must eval "check_prop_inherit $destsub atime $dest"
 log_must eval "check_prop_inherit $destsub checksum $dest"
 log_must eval "check_prop_inherit $destsub '$userprop:dest2' $dest"
 log_must eval "check_prop_source $destsub quota 0 default"
-log_must eval "check_prop_source $destsub compression off default"
+log_must eval "check_prop_source $destsub compression on default"
 log_must eval "check_prop_missing $dest '$userprop:orig'"
 log_must eval "check_prop_missing $destsub '$userprop:orig'"
 log_must eval "check_prop_source " \

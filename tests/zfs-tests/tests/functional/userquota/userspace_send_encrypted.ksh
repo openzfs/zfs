@@ -52,7 +52,7 @@ log_assert "Sending raw encrypted datasets back to the source dataset succeeds."
 
 # Setup pool and create source
 truncate -s 200m $FILEDEV
-log_must zpool create -o feature@encryption=enabled $POOLNAME \
+log_must zpool create -O compression=off -o feature@encryption=enabled $POOLNAME \
 	$FILEDEV
 log_must eval "echo 'password' | zfs create -o encryption=on" \
 	"-o keyformat=passphrase -o keylocation=prompt " \

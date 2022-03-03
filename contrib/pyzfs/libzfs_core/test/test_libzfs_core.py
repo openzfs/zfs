@@ -4132,7 +4132,8 @@ class _TempPool(object):
             cachefile = 'none'
         self._zpool_create = [
             'zpool', 'create', '-o', 'cachefile=' + cachefile,
-            '-O', 'mountpoint=legacy', self._pool_name, self._pool_file_path]
+            '-O', 'mountpoint=legacy', '-O', 'compression=off',
+            self._pool_name, self._pool_file_path]
         try:
             os.ftruncate(fd, size)
             os.close(fd)
