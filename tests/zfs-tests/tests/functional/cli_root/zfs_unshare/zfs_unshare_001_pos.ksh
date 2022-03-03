@@ -149,7 +149,7 @@ while (( i < ${#mntp_fs[*]} )); do
 	else
 		log_must zfs set sharenfs=on ${mntp_fs[((i+1))]}
 		is_shared ${mntp_fs[i]} || \
-			log_fail "'zfs set sharenfs=on' fails to share filesystem."
+			log_fail "'zfs set sharenfs=on' fails to share filesystem: ${mntp_fs[i]} not shared."
 	fi
 
         ((i = i + 2))
@@ -166,7 +166,7 @@ log_must zfs unshare -a
 i=0
 while (( i < ${#mntp_fs[*]} )); do
         not_shared ${mntp_fs[i]} || \
-                log_fail "'zfs unshare -a' fails to unshare all shared zfs filesystems."
+                log_fail "'zfs unshare -a' fails to unshare all shared zfs filesystems: ${mntp_fs[i]} still shared."
 
         ((i = i + 2))
 done
