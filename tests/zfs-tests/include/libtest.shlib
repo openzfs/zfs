@@ -88,11 +88,7 @@ function linux_version
 
 function is_linux
 {
-	if [[ $(uname -o) == "GNU/Linux" ]]; then
-		return 0
-	else
-		return 1
-	fi
+	[ $(uname) = "Linux" ]
 }
 
 # Determine if this is an illumos test system
@@ -100,11 +96,7 @@ function is_linux
 # Return 0 if platform illumos, 1 if otherwise
 function is_illumos
 {
-	if [[ $(uname -o) == "illumos" ]]; then
-		return 0
-	else
-		return 1
-	fi
+	[ $(uname) = "illumos" ]
 }
 
 # Determine if this is a FreeBSD test system
@@ -113,11 +105,7 @@ function is_illumos
 
 function is_freebsd
 {
-	if [[ $(uname -o) == "FreeBSD" ]]; then
-		return 0
-	else
-		return 1
-	fi
+	[ $(uname) = "FreeBSD" ]
 }
 
 # Determine if this is a DilOS test system
@@ -128,11 +116,7 @@ function is_dilos
 {
 	typeset ID=""
 	[[ -f /etc/os-release ]] && . /etc/os-release
-	if [[ $ID == "dilos" ]]; then
-		return 0
-	else
-		return 1
-	fi
+	[ "$ID" = "dilos" ]
 }
 
 # Determine if this is a 32-bit system
@@ -141,11 +125,7 @@ function is_dilos
 
 function is_32bit
 {
-	if [[ $(getconf LONG_BIT) == "32" ]]; then
-		return 0
-	else
-		return 1
-	fi
+	[ $(getconf LONG_BIT) = "32" ]
 }
 
 # Determine if kmemleak is enabled
@@ -154,11 +134,7 @@ function is_32bit
 
 function is_kmemleak
 {
-	if is_linux && [[ -e /sys/kernel/debug/kmemleak ]]; then
-		return 0
-	else
-		return 1
-	fi
+	is_linux && [ -e /sys/kernel/debug/kmemleak ]
 }
 
 # Determine whether a dataset is mounted
@@ -1487,14 +1463,7 @@ function is_shared_smb
 #
 function not_shared
 {
-	typeset fs=$1
-
-	is_shared $fs
-	if (($? == 0)); then
-		return 1
-	fi
-
-	return 0
+	! is_shared $1
 }
 
 #
@@ -1504,14 +1473,7 @@ function not_shared
 #
 function not_shared_smb
 {
-	typeset fs=$1
-
-	is_shared_smb $fs
-	if (($? == 0)); then
-		return 1
-	fi
-
-	return 0
+	! is_shared_smb $1
 }
 
 #
@@ -1521,12 +1483,9 @@ function unshare_fs #fs
 {
 	typeset fs=$1
 
-	is_shared $fs || is_shared_smb $fs
-	if (($? == 0)); then
+	if is_shared $fs || is_shared_smb $fs; then
 		zfs unshare $fs || log_fail "zfs unshare $fs failed"
 	fi
-
-	return 0
 }
 
 #
@@ -1536,14 +1495,10 @@ function share_nfs #fs
 {
 	typeset fs=$1
 
-	if is_linux; then
-		is_shared $fs
-		if (($? != 0)); then
+	if ! is_shared $fs; then
+		if is_linux; then
 			log_must share "*:$fs"
-		fi
-	else
-		is_shared $fs
-		if (($? != 0)); then
+		else
 			log_must share -F nfs $fs
 		fi
 	fi
@@ -1558,14 +1513,10 @@ function unshare_nfs #fs
 {
 	typeset fs=$1
 
-	if is_linux; then
-		is_shared $fs
-		if (($? == 0)); then
+	if is_shared $fs; then
+		if is_linux; then
 			log_must unshare -u "*:$fs"
-		fi
-	else
-		is_shared $fs
-		if (($? == 0)); then
+		else
 			log_must unshare -F nfs $fs
 		fi
 	fi
@@ -1693,10 +1644,7 @@ function is_global_zone
 		return 0
 	else
 		typeset cur_zone=$(zonename 2>/dev/null)
-		if [[ $cur_zone != "global" ]]; then
-			return 1
-		fi
-		return 0
+		[ $cur_zone = "global" ]
 	fi
 }
 
