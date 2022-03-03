@@ -98,7 +98,7 @@ for parity in 1 2 3; do
 			continue
 		fi
 
-		log_must zpool create "$TESTPOOL" "$raid" "${disks[@]}"
+		log_must zpool create -O compression=off "$TESTPOOL" "$raid" "${disks[@]}"
 
 		for bits in "${allshifts[@]}"; do
 			vbs=$((1 << bits))

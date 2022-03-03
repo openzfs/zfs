@@ -28,4 +28,6 @@
 
 zed_cleanup all-debug.sh all-syslog.sh all-dumpfds
 
+zed_stop
+
 default_cleanup

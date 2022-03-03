@@ -388,12 +388,12 @@ set -A prop "checksum" "" \
 # above must have a corresponding entry in the two arrays below.
 #
 
-set -A def_val "on" "off" "on" \
+set -A def_val "on" "on" "on" \
 	"off" "" \
 	"hidden" \
 	"off"
 
-set -A local_val "off" "on" "off" \
+set -A local_val "off" "off" "off" \
 	"on" "" \
 	"visible" \
 	"off"
