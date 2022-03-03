@@ -62,7 +62,7 @@ thread_generic_wrapper(void *arg)
 	return (0);
 }
 
-_Noreturn void
+void
 __thread_exit(void)
 {
 	tsd_exit();
