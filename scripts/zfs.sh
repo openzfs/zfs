@@ -260,7 +260,7 @@ if [ "$(id -u)" != 0 ]; then
 	exit 1
 fi
 
-UNAME=$(uname -s)
+UNAME=$(uname)
 
 if [ "$UNLOAD" = "yes" ]; then
 	kill_zed

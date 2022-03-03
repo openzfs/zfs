@@ -53,7 +53,7 @@ TAGS=""
 ITERATIONS=1
 ZFS_DBGMSG="$STF_SUITE/callbacks/zfs_dbgmsg.ksh"
 ZFS_DMESG="$STF_SUITE/callbacks/zfs_dmesg.ksh"
-UNAME=$(uname -s)
+UNAME=$(uname)
 RERUN=""
 KMEMLEAK=""
 
