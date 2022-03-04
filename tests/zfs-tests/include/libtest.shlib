@@ -545,11 +545,18 @@ function destroy_mirrors
 	log_pass
 }
 
+function default_raidz_setup
+{
+	default_raidz_setup_noexit "$*"
+
+	log_pass
+}
+
 #
 # Given a minimum of two disks, set up a storage pool and dataset for the raid-z
 # $1 the list of disks
 #
-function default_raidz_setup
+function default_raidz_setup_noexit
 {
 	typeset disklist="$*"
 	disks=(${disklist[*]})
@@ -562,8 +569,6 @@ function default_raidz_setup
 	log_must zpool create -f $TESTPOOL raidz $disklist
 	log_must zfs create $TESTPOOL/$TESTFS
 	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
-
-	log_pass
 }
 
 #
