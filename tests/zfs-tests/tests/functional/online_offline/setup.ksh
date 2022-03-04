@@ -43,5 +43,3 @@ case $index in
 	default_raidz_setup $DISKS
 	;;
 esac
-
-log_pass
