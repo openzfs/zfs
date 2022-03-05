@@ -834,7 +834,7 @@ vdev_trim_range_add(void *arg, uint64_t start, uint64_t size)
  * by its ms_allocatable.  While a metaslab is undergoing trimming it is
  * not eligible for new allocations.
  */
-static void
+static _Noreturn void
 vdev_trim_thread(void *arg)
 {
 	vdev_t *vd = arg;
@@ -1175,7 +1175,7 @@ vdev_trim_range_verify(void *arg, uint64_t start, uint64_t size)
  * N.B. This behavior is different from a manual TRIM where a thread
  * is created for each leaf vdev, instead of each top-level vdev.
  */
-static void
+static _Noreturn void
 vdev_autotrim_thread(void *arg)
 {
 	vdev_t *vd = arg;
@@ -1514,7 +1514,7 @@ vdev_autotrim_restart(spa_t *spa)
 		vdev_autotrim(spa);
 }
 
-static void
+static _Noreturn void
 vdev_trim_l2arc_thread(void *arg)
 {
 	vdev_t		*vd = arg;

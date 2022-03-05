@@ -31,14 +31,14 @@
 #include <string.h>
 
 
-static __attribute__((noreturn)) void
+static _Noreturn void
 usage(char *progname)
 {
 	(void) fprintf(stderr, "Usage: %s <dirname|filename>\n", progname);
 	exit(1);
 }
 
-static __attribute__((noreturn)) void
+static _Noreturn void
 fail(char *err)
 {
 	perror(err);

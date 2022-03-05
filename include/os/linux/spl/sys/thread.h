@@ -62,7 +62,7 @@ typedef void (*thread_func_t)(void *);
 extern kthread_t *__thread_create(caddr_t stk, size_t  stksize,
     thread_func_t func, const char *name, void *args, size_t len, proc_t *pp,
     int state, pri_t pri);
-extern void __thread_exit(void);
+extern __attribute__((noreturn)) void __thread_exit(void);
 extern struct task_struct *spl_kthread_create(int (*func)(void *),
     void *data, const char namefmt[], ...);
 
