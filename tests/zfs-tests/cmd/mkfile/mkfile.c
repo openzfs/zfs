@@ -44,7 +44,7 @@
 
 #define	FILE_MODE	(S_ISVTX + S_IRUSR + S_IWUSR)
 
-static void usage(void) __attribute__((noreturn));
+static _Noreturn void usage(void);
 
 int
 main(int argc, char **argv)

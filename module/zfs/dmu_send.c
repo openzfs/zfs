@@ -1234,7 +1234,7 @@ redact_list_cb(redact_block_phys_t *rb, void *arg)
  * error code of the thread in case something goes wrong, and pushes the End of
  * Stream record when the traverse_dataset call has finished.
  */
-static void
+static _Noreturn void
 send_traverse_thread(void *arg)
 {
 	struct send_thread_arg *st_arg = arg;
@@ -1324,7 +1324,7 @@ get_next_range(bqueue_t *bq, struct send_range *prev)
 	return (next);
 }
 
-static void
+static _Noreturn void
 redact_list_thread(void *arg)
 {
 	struct redact_list_thread_arg *rlt_arg = arg;
@@ -1519,7 +1519,7 @@ find_next_range(struct send_range **ranges, bqueue_t **qs, uint64_t *out_mask)
  * data from the redact_list_thread and use that to determine which blocks
  * should be redacted.
  */
-static void
+static _Noreturn void
 send_merge_thread(void *arg)
 {
 	struct send_merge_thread_arg *smt_arg = arg;
@@ -1744,7 +1744,7 @@ enqueue_range(struct send_reader_thread_arg *srta, bqueue_t *q, dnode_t *dn,
  * some indirect blocks can be discarded because they're not holes. Second,
  * it issues prefetches for the data we need to send.
  */
-static void
+static _Noreturn void
 send_reader_thread(void *arg)
 {
 	struct send_reader_thread_arg *srta = arg;

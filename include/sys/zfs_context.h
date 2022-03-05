@@ -153,8 +153,8 @@ extern void dprintf_setup(int *argc, char **argv);
 
 extern void cmn_err(int, const char *, ...);
 extern void vcmn_err(int, const char *, va_list);
-extern void panic(const char *, ...)  __NORETURN;
-extern void vpanic(const char *, va_list)  __NORETURN;
+extern _Noreturn void panic(const char *, ...);
+extern _Noreturn void vpanic(const char *, va_list);
 
 #define	fm_panic	panic
 

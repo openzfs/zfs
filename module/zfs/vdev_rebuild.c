@@ -133,7 +133,7 @@ static int zfs_rebuild_scrub_enabled = 1;
 /*
  * For vdev_rebuild_initiate_sync() and vdev_rebuild_reset_sync().
  */
-static void vdev_rebuild_thread(void *arg);
+static _Noreturn void vdev_rebuild_thread(void *arg);
 
 /*
  * Clear the per-vdev rebuild bytes value for a vdev tree.
@@ -736,7 +736,7 @@ vdev_rebuild_load(vdev_t *vd)
  * Each scan thread is responsible for rebuilding a top-level vdev.  The
  * rebuild progress in tracked on-disk in VDEV_TOP_ZAP_VDEV_REBUILD_PHYS.
  */
-static void
+static _Noreturn void
 vdev_rebuild_thread(void *arg)
 {
 	vdev_t *vd = arg;

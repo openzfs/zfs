@@ -57,7 +57,7 @@ static importargs_t g_importargs;
 static char *g_pool;
 static boolean_t g_readonly;
 
-static __attribute__((noreturn)) void
+static _Noreturn void
 usage(void)
 {
 	(void) fprintf(stderr,
@@ -87,7 +87,7 @@ usage(void)
 }
 
 
-static __attribute__((noreturn)) __attribute__((format(printf, 3, 4))) void
+static __attribute__((format(printf, 3, 4))) _Noreturn void
 fatal(spa_t *spa, void *tag, const char *fmt, ...)
 {
 	va_list ap;

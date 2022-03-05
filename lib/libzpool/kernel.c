@@ -75,12 +75,28 @@ struct proc p0;
 #define	TS_STACK_MIN	MAX(PTHREAD_STACK_MIN, 32768)
 #define	TS_STACK_MAX	(256 * 1024)
 
+struct zk_thread_wrapper {
+	void (*func)(void *);
+	void *arg;
+};
+
+static void *
+zk_thread_wrapper(void *arg)
+{
+	struct zk_thread_wrapper ztw;
+	memcpy(&ztw, arg, sizeof (ztw));
+	free(arg);
+	ztw.func(ztw.arg);
+	return (NULL);
+}
+
 kthread_t *
 zk_thread_create(void (*func)(void *), void *arg, size_t stksize, int state)
 {
 	pthread_attr_t attr;
 	pthread_t tid;
 	char *stkstr;
+	struct zk_thread_wrapper *ztw;
 	int detachstate = PTHREAD_CREATE_DETACHED;
 
 	VERIFY0(pthread_attr_init(&attr));
@@ -117,7 +133,10 @@ zk_thread_create(void (*func)(void *), void *arg, size_t stksize, int state)
 	VERIFY0(pthread_attr_setstacksize(&attr, stksize));
 	VERIFY0(pthread_attr_setguardsize(&attr, PAGESIZE));
 
-	VERIFY0(pthread_create(&tid, &attr, (void *(*)(void *))func, arg));
+	VERIFY(ztw = malloc(sizeof (*ztw)));
+	ztw->func = func;
+	ztw->arg = arg;
+	VERIFY0(pthread_create(&tid, &attr, zk_thread_wrapper, ztw));
 	VERIFY0(pthread_attr_destroy(&attr));
 
 	return ((void *)(uintptr_t)tid);

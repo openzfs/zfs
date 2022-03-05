@@ -351,7 +351,7 @@ redact_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	return (0);
 }
 
-static void
+static _Noreturn void
 redact_traverse_thread(void *arg)
 {
 	struct redact_thread_arg *rt_arg = arg;
@@ -837,7 +837,7 @@ struct redact_merge_thread_arg {
 	int error_code;
 };
 
-static void
+static _Noreturn void
 redact_merge_thread(void *arg)
 {
 	struct redact_merge_thread_arg *rmta = arg;
