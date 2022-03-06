@@ -57,8 +57,7 @@ log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 rm -rf $NONZFS_TESTDIR  || log_unresolved Could not remove $NONZFS_TESTDIR
 mkdir -p $NONZFS_TESTDIR || log_unresolved Could not create $NONZFS_TESTDIR
 
-new_fs ${DEV_DSKDIR}/$NONZFS_DISK
-(( $? != 0 )) &&
+new_fs ${DEV_DSKDIR}/$NONZFS_DISK ||
 	log_untested "Unable to setup a $NEWFS_DEFAULT_FS file system"
 
 log_must mount ${DEV_DSKDIR}/$NONZFS_DISK $NONZFS_TESTDIR
