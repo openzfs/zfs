@@ -878,6 +878,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_unshare/zfs_unshare_005_neg.ksh \
 	functional/cli_root/zfs_unshare/zfs_unshare_006_pos.ksh \
 	functional/cli_root/zfs_unshare/zfs_unshare_007_pos.ksh \
+	functional/cli_root/zfs_unshare/zfs_unshare_008_pos.ksh \
 	functional/cli_root/zfs_upgrade/cleanup.ksh \
 	functional/cli_root/zfs_upgrade/setup.ksh \
 	functional/cli_root/zfs_upgrade/zfs_upgrade_001_pos.ksh \

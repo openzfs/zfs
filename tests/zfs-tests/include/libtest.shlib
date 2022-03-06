@@ -1110,6 +1110,18 @@ function datasetnonexists
 	return 0
 }
 
+# FreeBSD breaks exports(5) at whitespace and doesn't process escapes
+# Solaris just breaks
+#
+# cf. https://github.com/openzfs/zfs/pull/13165#issuecomment-1059845807
+#
+# Linux can have spaces (which are \OOO-escaped),
+# but can't have backslashes because they're parsed recursively
+function shares_can_have_whitespace
+{
+	is_linux
+}
+
 function is_shared_freebsd
 {
 	typeset fs=$1
