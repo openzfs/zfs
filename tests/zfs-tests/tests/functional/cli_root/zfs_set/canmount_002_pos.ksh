@@ -125,7 +125,7 @@ while (( i < ${#dataset_pos[*]} )) ; do
 	set_n_check_prop "noauto" "canmount" "$dataset"
 	log_must zfs set mountpoint=$tmpmnt $dataset
 	log_must zfs set sharenfs=on $dataset
-	if  ismounted $dataset; then
+	if ismounted $dataset; then
 		zfs unmount -a > /dev/null 2>&1
 		log_must mounted $dataset
 		log_must zfs unmount $dataset

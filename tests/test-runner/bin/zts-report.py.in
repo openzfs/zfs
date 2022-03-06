@@ -83,11 +83,6 @@ tmpfile_reason = 'Kernel O_TMPFILE support required'
 statx_reason = 'Kernel statx(2) system call required on Linux'
 
 #
-# Some tests require that the NFS client and server utilities be installed.
-#
-share_reason = 'NFS client and server utilities required'
-
-#
 # Some tests require that the lsattr utility support the project id feature.
 #
 project_id_reason = 'lsattr with set/show project ID required'
@@ -219,9 +214,7 @@ maybe = {
     'cli_root/zfs_get/zfs_get_009_pos': ['SKIP', '5479'],
     'cli_root/zfs_rollback/zfs_rollback_001_pos': ['FAIL', known_reason],
     'cli_root/zfs_rollback/zfs_rollback_002_pos': ['FAIL', known_reason],
-    'cli_root/zfs_share/setup': ['SKIP', share_reason],
     'cli_root/zfs_snapshot/zfs_snapshot_002_neg': ['FAIL', known_reason],
-    'cli_root/zfs_unshare/setup': ['SKIP', share_reason],
     'cli_root/zpool_add/zpool_add_004_pos': ['FAIL', known_reason],
     'cli_root/zpool_destroy/zpool_destroy_001_pos': ['SKIP', '6145'],
     'cli_root/zpool_import/zpool_import_missing_003_pos': ['SKIP', '6839'],
@@ -267,7 +260,6 @@ if sys.platform.startswith('freebsd'):
     maybe.update({
         'cli_root/zfs_copies/zfs_copies_002_pos': ['FAIL', known_reason],
         'cli_root/zfs_inherit/zfs_inherit_001_neg': ['FAIL', known_reason],
-        'cli_root/zfs_share/zfs_share_011_pos': ['FAIL', known_reason],
         'cli_root/zfs_share/zfs_share_concurrent_shares':
             ['FAIL', known_reason],
         'cli_root/zpool_import/zpool_import_012_pos': ['FAIL', known_reason],
