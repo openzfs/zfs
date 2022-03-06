@@ -179,4 +179,3 @@ while (( i < ${#mntp_fs[*]} )); do
 done
 
 log_pass "'zfs unshare [-a]' succeeds to be aware of legacy share."
-
