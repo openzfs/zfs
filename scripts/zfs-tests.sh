@@ -303,8 +303,6 @@ constrain_path() {
 		ln -fs /sbin/mkfs.ext4 "$STF_PATH/newfs"
 		ln -fs "$STF_PATH/gzip" "$STF_PATH/compress"
 		ln -fs "$STF_PATH/gunzip" "$STF_PATH/uncompress"
-		ln -fs "$STF_PATH/exportfs" "$STF_PATH/share"
-		ln -fs "$STF_PATH/exportfs" "$STF_PATH/unshare"
 	elif [ "$UNAME" = "FreeBSD" ] ; then
 		ln -fs /usr/local/bin/ksh93 "$STF_PATH/ksh"
 	fi

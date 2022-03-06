@@ -52,11 +52,7 @@ fi
 #
 function compare_version_gte
 {
-	if [[ "$(printf "$1\n$2" | sort -V | tail -n1)" == "$1" ]]; then
-		return 0
-	else
-		return 1
-	fi
+	[ "$(printf "$1\n$2" | sort -V | tail -n1)" = "$1" ]
 }
 
 # Linux kernel version comparison function
@@ -220,15 +216,6 @@ function unmounted
 	ismounted $1 $2
 	(($? == 1)) && return 0
 	return 1
-}
-
-# split line on ","
-#
-# $1 - line to split
-
-function splitline
-{
-	echo $1 | tr ',' ' '
 }
 
 function default_setup
@@ -1287,7 +1274,7 @@ function is_shared_freebsd
 {
 	typeset fs=$1
 
-	pgrep -q mountd && showmount -E | grep -qx $fs
+	pgrep -q mountd && showmount -E | grep -qx "$fs"
 }
 
 function is_shared_illumos
@@ -1312,14 +1299,7 @@ function is_shared_illumos
 function is_shared_linux
 {
 	typeset fs=$1
-	typeset mtpt
-
-	for mtpt in `share | awk '{print $1}'` ; do
-		if [[ $mtpt == $fs ]] ; then
-			return 0
-		fi
-	done
-	return 1
+	! exportfs -s | awk -v fs="${fs//\\/\\\\}" '/^\// && $1 == fs {exit 1}'
 }
 
 #
@@ -1337,7 +1317,7 @@ function is_shared
 			return 1
 		else
 			mtpt=$(get_prop mountpoint "$fs")
-			case $mtpt in
+			case "$mtpt" in
 				none|legacy|-) return 1
 					;;
 				*)	fs=$mtpt
@@ -1356,13 +1336,11 @@ function is_shared
 function is_exported_illumos
 {
 	typeset fs=$1
-	typeset mtpt
+	typeset mtpt _
 
-	for mtpt in `awk '{print $1}' /etc/dfs/sharetab` ; do
-		if [[ $mtpt == $fs ]] ; then
-			return 0
-		fi
-	done
+	while read -r mtpt _; do
+		[ "$mtpt" = "$fs" ] && return
+	done < /etc/dfs/sharetab
 
 	return 1
 }
@@ -1370,13 +1348,11 @@ function is_exported_illumos
 function is_exported_freebsd
 {
 	typeset fs=$1
-	typeset mtpt
+	typeset mtpt _
 
-	for mtpt in `awk '{print $1}' /etc/zfs/exports` ; do
-		if [[ $mtpt == $fs ]] ; then
-			return 0
-		fi
-	done
+	while read -r mtpt _; do
+		[ "$mtpt" = "$fs" ] && return
+	done < /etc/zfs/exports
 
 	return 1
 }
@@ -1384,13 +1360,11 @@ function is_exported_freebsd
 function is_exported_linux
 {
 	typeset fs=$1
-	typeset mtpt
+	typeset mtpt _
 
-	for mtpt in `awk '{print $1}' /etc/exports.d/zfs.exports` ; do
-		if [[ $mtpt == $fs ]] ; then
-			return 0
-		fi
-	done
+	while read -r mtpt _; do
+		[ "$(printf "$mtpt")" = "$fs" ] && return
+	done < /etc/exports.d/zfs.exports
 
 	return 1
 }
@@ -1435,23 +1409,13 @@ function is_exported
 function is_shared_smb
 {
 	typeset fs=$1
-	typeset mtpt
 
-	if datasetnonexists "$fs" ; then
-		return 1
-	else
-		fs=$(echo $fs | tr / _)
-	fi
+	datasetexists "$fs" || return
 
 	if is_linux; then
-		for mtpt in `net usershare list | awk '{print $1}'` ; do
-			if [[ $mtpt == $fs ]] ; then
-				return 0
-			fi
-		done
-		return 1
+		net usershare list | grep -xFq "${fs//\//_}"
 	else
-		log_note "Currently unsupported by the test framework"
+		log_note "SMB on $(uname) currently unsupported by the test framework"
 		return 1
 	fi
 }
@@ -1495,13 +1459,22 @@ function share_nfs #fs
 {
 	typeset fs=$1
 
-	if ! is_shared $fs; then
-		if is_linux; then
-			log_must share "*:$fs"
-		else
-			log_must share -F nfs $fs
-		fi
-	fi
+	is_shared "$fs" && return
+
+	case $(uname) in
+	Linux)
+		log_must exportfs "*:$fs"
+		;;
+	FreeBSD)
+		typeset mountd
+		read -r mountd < /var/run/mountd.pid
+		log_must eval "printf '%s\t\n' \"$fs\" >> /etc/zfs/exports"
+		log_must kill -s HUP "$mountd"
+		;;
+	*)
+		log_must share -F nfs "$fs"
+		;;
+	esac
 
 	return 0
 }
@@ -1513,13 +1486,23 @@ function unshare_nfs #fs
 {
 	typeset fs=$1
 
-	if is_shared $fs; then
-		if is_linux; then
-			log_must unshare -u "*:$fs"
-		else
-			log_must unshare -F nfs $fs
-		fi
-	fi
+	! is_shared "$fs" && return
+
+	case $(uname) in
+	Linux)
+		log_must exportfs -u "*:$fs"
+		;;
+	FreeBSD)
+		typeset mountd
+		read -r mountd < /var/run/mountd.pid
+		awk -v fs="${fs//\\/\\\\}" '$1 != fs' /etc/zfs/exports > /etc/zfs/exports.$$
+		log_must mv /etc/zfs/exports.$$ /etc/zfs/exports
+		log_must kill -s HUP "$mountd"
+		;;
+	*)
+		log_must unshare -F nfs $fs
+		;;
+	esac
 
 	return 0
 }
@@ -1529,13 +1512,17 @@ function unshare_nfs #fs
 #
 function showshares_nfs
 {
-	if is_linux; then
-		share -v
-	else
+	case $(uname) in
+	Linux)
+		exportfs -v
+		;;
+	FreeBSD)
+		showmount
+		;;
+	*)
 		share -F nfs
-	fi
-
-	return 0
+		;;
+	esac
 }
 
 #
@@ -1554,17 +1541,17 @@ function showshares_smb
 
 function check_nfs
 {
-	if is_linux; then
-		share -s
-	elif is_freebsd; then
+	case $(uname) in
+	Linux)
+		exportfs -s
+		;;
+	FreeBSD)
 		showmount -e
-	else
+		;;
+	*)
 		log_unsupported "Unknown platform"
-	fi
-
-	if [[ $? -ne 0 ]]; then
-		log_unsupported "The NFS utilities are not installed"
-	fi
+		;;
+	esac || log_unsupported "The NFS utilities are not installed"
 }
 
 #
@@ -1584,12 +1571,12 @@ function setup_nfs_server
 		# Re-synchronize /var/lib/nfs/etab with /etc/exports and
 		# /etc/exports.d./* to provide a clean test environment.
 		#
-		log_must share -r
+		log_must exportfs -r
 
 		log_note "NFS server must be started prior to running ZTS."
 		return
 	elif is_freebsd; then
-		kill -s HUP $(cat /var/run/mountd.pid)
+		log_must kill -s HUP $(</var/run/mountd.pid)
 
 		log_note "NFS server must be started prior to running ZTS."
 		return
