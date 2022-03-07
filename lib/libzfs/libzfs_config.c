@@ -193,7 +193,7 @@ namespace_reload(libzfs_handle_t *hdl)
 			return (-1);
 		}
 
-		verify(nvpair_value_nvlist(elem, &child) == 0);
+		child = fnvpair_value_nvlist(elem);
 		if (nvlist_dup(child, &cn->cn_config, 0) != 0) {
 			free(cn->cn_name);
 			free(cn);
