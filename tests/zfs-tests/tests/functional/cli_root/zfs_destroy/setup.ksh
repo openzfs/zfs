@@ -29,5 +29,6 @@
 
 DISK=${DISKS%% *}
 
-default_setup $DISK
-zfs set compression=off $TESTPOOL/$TESTFS
+default_setup_noexit $DISK
+log_must zfs set compression=off $TESTPOOL/$TESTFS
+log_pass
