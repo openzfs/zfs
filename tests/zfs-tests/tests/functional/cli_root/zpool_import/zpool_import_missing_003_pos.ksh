@@ -97,9 +97,8 @@ function verify
 	[[ ! -e $mtpt/$file ]] && \
 		log_fail "$mtpt/$file missing after import."
 
-	checksum2=$(sum $mymtpt/$file | awk '{print $1}')
-	[[ "$checksum1" != "$checksum2" ]] && \
-		log_fail "Checksums differ ($checksum1 != $checksum2)"
+	read -r checksum2 _ < <(cksum $mymtpt/$file)
+	log_must [ "$checksum1" = "$checksum2" ]
 
 	return 0
 
@@ -149,7 +148,7 @@ CWD=$PWD
 log_must cd $DEVICE_DIR
 log_must tar cf $DEVICE_DIR/$DEVICE_ARCHIVE ${DEVICE_FILE}*
 
-checksum1=$(sum $MYTESTFILE | awk '{print $1}')
+read -r checksum1 < <(cksum $MYTESTFILE)
 
 typeset -i i=0
 typeset -i j=0

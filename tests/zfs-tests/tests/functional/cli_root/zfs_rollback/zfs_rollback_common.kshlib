@@ -36,9 +36,9 @@
 # $1 full file name
 function getsum #fname
 {
-	(( ${#1} == 0 )) && \
-		log_fail "Need give file name."
-	return $(sum $1 | awk '{print $1}')
+	typeset sum
+	read -r sum _ < <(cksum "$1")
+	echo $sum
 }
 
 # Define global variable checksum, get the original file sum.

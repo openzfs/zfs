@@ -91,7 +91,7 @@ log_assert "Verify that an exported pool can be imported."
 
 setup_filesystem "$DEVICE_FILES" $TESTPOOL1 $TESTFS $TESTDIR1
 
-checksum1=$(sum $MYTESTFILE | awk '{print $1}')
+read -r checksum1 _ < <(cksum $MYTESTFILE)
 
 typeset -i i=0
 typeset -i j=0
@@ -125,9 +125,8 @@ while (( i < ${#pools[*]} )); do
 		[[ ! -e $basedir/$TESTFILE0 ]] && \
 			log_fail "$basedir/$TESTFILE0 missing after import."
 
-		checksum2=$(sum $basedir/$TESTFILE0 | awk '{print $1}')
-		[[ "$checksum1" != "$checksum2" ]] && \
-			log_fail "Checksums differ ($checksum1 != $checksum2)"
+		read -r checksum2 _ < <(cksum $basedir/$TESTFILE0)
+		log_must [ "$checksum1" = "$checksum2" ]
 
 		((j = j + 1))
 	done
