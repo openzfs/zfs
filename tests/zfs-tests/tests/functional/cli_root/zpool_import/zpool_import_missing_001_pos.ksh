@@ -111,7 +111,7 @@ log_assert "Verify that import could handle damaged or missing device."
 CWD=$PWD
 cd $DEVICE_DIR || log_fail "Unable change directory to $DEVICE_DIR"
 
-checksum1=$(sum $MYTESTFILE | awk '{print $1}')
+read -r checksum1 _ < <(cksum $MYTESTFILE)
 
 typeset -i i=0
 typeset -i j=0
@@ -199,10 +199,8 @@ while (( i < ${#vdevs[*]} )); do
 			[[ ! -e $basedir/$TESTFILE0 ]] && \
 				log_fail "$basedir/$TESTFILE0 missing after import."
 
-			checksum2=$(sum $basedir/$TESTFILE0 | awk '{print $1}')
-			[[ "$checksum1" != "$checksum2" ]] && \
-				log_fail "Checksums differ ($checksum1 != $checksum2)"
-
+			read -r checksum2 _ < <(cksum $basedir/$TESTFILE0)
+			log_must [ "$checksum1" = "$checksum2" ]
 		done
 
 		((j = j + 1))

@@ -108,9 +108,8 @@ function checksum_all #alter_root
 		[[ ! -e $file ]] && \
 			log_fail "$file missing after import."
 
-		checksum2=$(sum $file | awk '{print $1}')
-		[[ "$checksum1" != "$checksum2" ]] && \
-			log_fail "Checksums differ ($checksum1 != $checksum2)"
+		read -r checksum2 _ < <(cksum $file)
+		log_must [ "$checksum1" = "$checksum2" ]
 
 		(( id = id + 1 ))
 	done
@@ -122,7 +121,7 @@ function checksum_all #alter_root
 log_assert "Verify that 'zpool import -a' succeeds as root."
 log_onexit cleanup_all
 
-checksum1=$(sum $MYTESTFILE | awk '{print $1}')
+read -r checksum1 _ < <(cksum $MYTESTFILE)
 number=1
 
 #
