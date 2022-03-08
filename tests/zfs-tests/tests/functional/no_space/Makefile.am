@@ -5,7 +5,8 @@ dist_pkgdata_SCRIPTS = \
 	enospc_001_pos.ksh \
 	enospc_002_pos.ksh \
 	enospc_003_pos.ksh \
-	enospc_df.ksh
+	enospc_df.ksh \
+	enospc_rm.ksh
 
 dist_pkgdata_DATA = \
 	enospc.cfg
