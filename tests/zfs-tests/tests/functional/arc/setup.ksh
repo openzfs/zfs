@@ -26,5 +26,7 @@
 
 . $STF_SUITE/include/libtest.shlib
 
+is_freebsd && ! python3 -c 'import sysctl' 2>/dev/null && log_unsupported "python3 sysctl module missing"
+
 DISK=${DISKS%% *}
 default_setup $DISK

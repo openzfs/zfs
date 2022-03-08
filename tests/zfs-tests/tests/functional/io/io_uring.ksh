@@ -44,7 +44,7 @@ if [[ $(linux_version) -lt $(linux_version "5.1") ]]; then
 	log_unsupported "Requires io_uring support"
 fi
 
-fio --ioengine=io_uring --parse-only || log_unsupported "io_uring support required"
+fio --ioengine=io_uring --parse-only || log_unsupported "fio io_uring support required"
 
 function cleanup
 {

@@ -52,6 +52,8 @@ export DIRECT=1
 
 verify_runnable "global"
 
+command -v fio > /dev/null || log_unsupported "fio missing"
+
 log_assert "L2ARC with compressed_arc enabled succeeds."
 
 origin_carc_setting=$(get_tunable COMPRESSED_ARC_ENABLED)

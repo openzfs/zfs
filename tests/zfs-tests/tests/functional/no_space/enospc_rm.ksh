@@ -30,6 +30,8 @@
 
 verify_runnable "both"
 
+command -v fio > /dev/null || log_unsupported "fio missing"
+
 function cleanup
 {
 	destroy_pool $TESTPOOL

@@ -18,6 +18,8 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/perf/perf.shlib
 
+command -v fio > /dev/null || log_unsupported "fio missing"
+
 function cleanup
 {
 	# kill fio and iostat

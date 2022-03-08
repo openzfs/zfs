@@ -37,7 +37,7 @@
 #	2. Repeat the test with additional fio(1) options.
 #
 
-if ! compare_version_gte $(fio --version) "fio-2.3"; then
+if ! compare_version_gte "$(fio --version)" "fio-2.3"; then
 	log_unsupported "Requires fio-2.3 or newer"
 fi
 

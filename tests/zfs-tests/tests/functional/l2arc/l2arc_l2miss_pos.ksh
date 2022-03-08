@@ -38,6 +38,8 @@
 
 verify_runnable "global"
 
+command -v fio > /dev/null || log_unsupported "fio missing"
+
 log_assert "l2arc_misses does not increment upon reads from a pool without l2arc."
 
 function cleanup
