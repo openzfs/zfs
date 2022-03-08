@@ -411,7 +411,7 @@ function get_xattr #<obj>
 
 	for xattr in `runat $obj ls | \
 		grep -E -v -e SUNWattr_ro -e SUNWattr_rw` ; do
-		runat $obj sum $xattr
+		runat $obj cksum $xattr
 	done
 }
 
@@ -424,16 +424,14 @@ function get_owner #node
 	typeset value
 
 	if [[ -z $node ]]; then
-		log_fail "node are not defined."
+		log_fail "node is not defined."
 	fi
 
 	if [[ -d $node ]]; then
-		value=$(ls -dl $node | awk '{print $3}')
+		ls -dl $node
 	elif [[ -e $node ]]; then
-		value=$(ls -l $node | awk '{print $3}')
-	fi
-
-	echo $value
+		ls -l $node
+	fi | awk '{print $3}'
 }
 
 #

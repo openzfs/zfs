@@ -99,9 +99,7 @@ function migrate #destdir oldsuma oldsumb cmd
 	$cmd
 	(( $? != 0 )) && return 1
 
-	sumy=`sum ./$BNAME`
-	suma=`echo $sumy | awk '{print $1}'`
-	sumb=`echo $sumy | awk '{print $2}'`
+	read -r suma sumb _ < <(cksum ./$BNAME)
 
 	if (( $oldsuma != $suma )); then
 		log_note "sum values are not the same"
@@ -133,9 +131,7 @@ function migrate_cpio
 	cpio -iv < $archive
 	(( $? != 0 )) && return 1
 
-	sumy=`sum ./$BNAME`
-	suma=`echo $sumy | awk '{print $1}'`
-	sumb=`echo $sumy | awk '{print $2}'`
+	read -r suma sumb _ < <(cksum ./$BNAME)
 
 	if (( $oldsuma != $suma )); then
 		log_note "sum values are not the same"

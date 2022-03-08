@@ -39,7 +39,7 @@ function get_cksum # <file path>
 }
 
 #
-# Compare the check sum of target files with the original file
+# Compare the checksum of target files with the original file
 #
 
 function compare_cksum #<orig_data> <target_data1>...<target_datan>
