@@ -100,7 +100,7 @@ function test_ops
 				save_name="$test_path/$name"
 				break;
 			else
-				log_err "$cmd failed with unexpected error : $out"
+				log_fail "$cmd failed: $out"
 			fi
 		fi
 	done
@@ -111,7 +111,7 @@ function test_ops
 	out=$($cmd 2>&1)
 	ret=$?
 	if (($ret != 0)); then
-		log_err "cmd:$cmd failed out:$out"
+		log_fail "$cmd failed: $out"
 	fi
 
 	# Now, try to rename the tmp_obj to the name which we failed to add earlier.
@@ -120,9 +120,9 @@ function test_ops
 	ret=$?
 	if (($ret != 0)); then
 		if [[ $out = *@(No space left on device)* ]]; then
-			log_note "$cmd failed as expected : $out"
+			log_note "$cmd failed as expected: $out"
 		else
-			log_err "$cmd failed with : $out"
+			log_fail "$cmd failed: $out"
 		fi
 	fi
 }
