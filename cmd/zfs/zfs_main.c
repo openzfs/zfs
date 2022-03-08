@@ -486,10 +486,7 @@ usage_prop_cb(int prop, void *cb)
 	else
 		(void) fprintf(fp, "   NO   ");
 
-	if (zfs_prop_values(prop) == NULL)
-		(void) fprintf(fp, "-\n");
-	else
-		(void) fprintf(fp, "%s\n", zfs_prop_values(prop));
+	(void) fprintf(fp, "%s\n", zfs_prop_values(prop) ?: "-");
 
 	return (ZPROP_CONT);
 }
