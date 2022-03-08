@@ -49,6 +49,8 @@
 
 verify_runnable "global"
 
+command -v fio > /dev/null || log_unsupported "fio missing"
+
 log_assert "Persistent L2ARC with an unencrypted ZFS file system succeeds."
 
 function cleanup
