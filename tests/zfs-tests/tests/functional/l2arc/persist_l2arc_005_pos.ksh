@@ -39,6 +39,8 @@
 
 verify_runnable "global"
 
+command -v fio > /dev/null || log_unsupported "fio missing"
+
 log_assert "Off/onlining an L2ARC device results in rebuilding L2ARC, vdev present."
 
 function cleanup

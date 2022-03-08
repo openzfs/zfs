@@ -39,6 +39,8 @@
 
 verify_runnable "global"
 
+command -v fio > /dev/null || log_unsupported "fio missing"
+
 function cleanup
 {
 	log_must rm -f "$mntpnt/rw*"

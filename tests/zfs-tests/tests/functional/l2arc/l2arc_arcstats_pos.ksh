@@ -40,6 +40,8 @@
 
 verify_runnable "global"
 
+command -v fio > /dev/null || log_unsupported "fio missing"
+
 log_assert "L2ARC MFU/MRU arcstats do not leak."
 
 function cleanup

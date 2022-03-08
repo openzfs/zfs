@@ -27,34 +27,15 @@
 
 . $STF_SUITE/include/libtest.shlib
 
-log_assert "arc_summary generates output and doesn't return an error code"
+is_freebsd && ! python3 -c 'import sysctl' 2>/dev/null && log_unsupported "python3 sysctl module missing"
 
-# Depending on which version of arc_summary is installed some command
-# line options may not be available.  The python3 version includes
-# several additional flags.
-python3 -V 2>&1 > /dev/null
-if (( $? )); then
-	# Some systems have Python 3 installed, but only older versions
-	# that don't have the subprocess.run() functionality. We catch
-	# these with a separate test. Remove this when all systems have
-	# reached 3.5 or greater
-	VERSIONPYTEST=$(python3 -V)
-	if [[ ${VERSIONPYTEST:9:1} -lt 5 ]]; then
-		set -A args  "" "-a" "-d" "-p 1"
-	else
-		set -A args  "" "-a" "-d" "-p 1" "-g" "-s arc" "-r"
-	fi
-else
-	set -A args  "" "-a" "-d" "-p 1"
-fi
+log_assert "arc_summary generates output and doesn't return an error code"
 
 # Without this, the below checks aren't going to work the way we hope...
 set -o pipefail
 
-typeset -i i=0
-while [[ $i -lt ${#args[*]} ]]; do
-	log_must eval "arc_summary ${args[i]} > /dev/null"
-	((i = i + 1))
+for arg in "" "-a" "-d" "-p 1" "-g" "-s arc" "-r"; do
+	log_must eval "arc_summary $arg > /dev/null"
 done
 
 log_must eval "arc_summary | head > /dev/null"
