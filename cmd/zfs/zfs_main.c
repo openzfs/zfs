@@ -8697,7 +8697,7 @@ main(int argc, char **argv)
 	 * Many commands modify input strings for string parsing reasons.
 	 * We create a copy to protect the original argv.
 	 */
-	newargv = malloc((argc + 1) * sizeof (newargv[0]));
+	newargv = safe_malloc((argc + 1) * sizeof (newargv[0]));
 	for (i = 0; i < argc; i++)
 		newargv[i] = strdup(argv[i]);
 	newargv[argc] = NULL;
