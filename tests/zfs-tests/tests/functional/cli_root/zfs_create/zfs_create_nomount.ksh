@@ -30,7 +30,7 @@ verify_runnable "both"
 
 function cleanup
 {
-	local ds
+	typeset ds
 
 	for ds in "$fs" "$vol"; do
 		datasetexists "$ds" && destroy_dataset "$ds"
