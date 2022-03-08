@@ -27,11 +27,11 @@
 
 . $STF_SUITE/include/libtest.shlib
 
-typeset args=("-x" "-5" "-p 7" "--err" "-@")
+is_freebsd && ! python3 -c 'import sysctl' 2>/dev/null && log_unsupported "python3 sysctl module missing"
 
 log_assert "arc_summary generates an error code with invalid options"
 
-for arg in "${args[@]}"; do
+for arg in "-x" "-5" "-p 7" "--err" "-@"; do
         log_mustnot eval "arc_summary $arg > /dev/null"
 done
 

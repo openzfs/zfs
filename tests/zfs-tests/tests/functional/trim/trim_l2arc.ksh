@@ -36,6 +36,8 @@
 
 verify_runnable "global"
 
+command -v fio > /dev/null || log_unsupported "fio missing"
+
 log_assert "Trim of L2ARC succeeds."
 
 function cleanup

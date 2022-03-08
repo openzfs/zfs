@@ -38,6 +38,8 @@
 
 verify_runnable "global"
 
+command -v fio > /dev/null || log_unsupported "fio missing"
+
 log_assert "Persistent L2ARC fails as expected when L2ARC_REBUILD_ENABLED = 0."
 
 function cleanup

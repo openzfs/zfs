@@ -44,6 +44,8 @@
 
 verify_runnable "global"
 
+command -v fio > /dev/null || log_unsupported "fio missing"
+
 log_assert "Looping around a cache device succeeds."
 
 function cleanup
