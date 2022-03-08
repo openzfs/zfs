@@ -29,6 +29,10 @@
 . $STF_SUITE/tests/functional/rsend/rsend.kshlib
 . $STF_SUITE/tests/functional/redacted_send/redacted.cfg
 
+if ! is_linux; then
+	alias udevadm=:
+fi
+
 function setup_dataset
 {
 	typeset ds_name=$1
