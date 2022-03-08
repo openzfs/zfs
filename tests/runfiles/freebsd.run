@@ -22,10 +22,6 @@ failsafe = callbacks/zfs_failsafe
 outputdir = /var/tmp/test_results
 tags = ['functional']
 
-[tests/functional/acl/off:FreeBSD]
-tests = ['dosmode']
-tags = ['functional', 'acl']
-
 [tests/functional/cli_root/zfs_jail:FreeBSD]
 tests = ['zfs_jail_001_pos']
 tags = ['functional', 'cli_root', 'zfs_jail']

@@ -36,6 +36,11 @@
 #include <string.h>
 #include <unistd.h>
 
+#ifdef __linux__
+#include <stdint.h>
+#include <sys/fs/zfs.h>
+#endif
+
 int
 main(int argc, const char *argv[])
 {
@@ -51,8 +56,14 @@ main(int argc, const char *argv[])
 	fd = open(path, O_CREAT|O_RDWR, 0777);
 	if (fd == -1)
 		err(EXIT_FAILURE, "%s: open failed", path);
+#ifdef __linux__
+	uint64_t dosflags = ZFS_READONLY;
+	if (ioctl(fd, ZFS_IOC_SETDOSFLAGS, &dosflags) == -1)
+		err(EXIT_FAILURE, "%s: ZFS_IOC_SETDOSFLAGS failed", path);
+#else
 	if (chflags(path, UF_READONLY) == -1)
 		err(EXIT_FAILURE, "%s: chflags failed", path);
+#endif
 	if (write(fd, buf, strlen(buf)) == -1)
 		err(EXIT_FAILURE, "%s: write failed", path);
 	if (close(fd) == -1)

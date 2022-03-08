@@ -29,7 +29,7 @@ outputdir = /var/tmp/test_results
 tags = ['functional']
 
 [tests/functional/acl/off]
-tests = ['posixmode']
+tests = ['dosmode', 'posixmode']
 tags = ['functional', 'acl']
 
 [tests/functional/alloc_class]
