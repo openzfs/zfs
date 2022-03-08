@@ -1459,6 +1459,41 @@ typedef enum zfs_ioc {
  */
 #define	BLKZNAME		_IOR(0x12, 125, char[ZFS_MAX_DATASET_NAME_LEN])
 
+#ifdef __linux__
+
+/*
+ * IOCTLs to update and retrieve additional file level attributes on
+ * Linux.
+ */
+#define	ZFS_IOC_GETDOSFLAGS	_IOR(0x83, 1, uint64_t)
+#define	ZFS_IOC_SETDOSFLAGS	_IOW(0x83, 2, uint64_t)
+
+/*
+ * Additional file level attributes, that are stored
+ * in the upper half of z_pflags
+ */
+#define	ZFS_READONLY		0x0000000100000000ull
+#define	ZFS_HIDDEN		0x0000000200000000ull
+#define	ZFS_SYSTEM		0x0000000400000000ull
+#define	ZFS_ARCHIVE		0x0000000800000000ull
+#define	ZFS_IMMUTABLE		0x0000001000000000ull
+#define	ZFS_NOUNLINK		0x0000002000000000ull
+#define	ZFS_APPENDONLY		0x0000004000000000ull
+#define	ZFS_NODUMP		0x0000008000000000ull
+#define	ZFS_OPAQUE		0x0000010000000000ull
+#define	ZFS_AV_QUARANTINED	0x0000020000000000ull
+#define	ZFS_AV_MODIFIED		0x0000040000000000ull
+#define	ZFS_REPARSE		0x0000080000000000ull
+#define	ZFS_OFFLINE		0x0000100000000000ull
+#define	ZFS_SPARSE		0x0000200000000000ull
+
+#define	ZFS_DOS_FL_USER_VISIBLE	(ZFS_IMMUTABLE | ZFS_APPENDONLY | \
+	    ZFS_NOUNLINK | ZFS_ARCHIVE | ZFS_NODUMP | ZFS_SYSTEM | \
+	    ZFS_HIDDEN | ZFS_READONLY | ZFS_REPARSE | ZFS_OFFLINE | \
+	    ZFS_SPARSE)
+
+#endif
+
 /*
  * ZFS-specific error codes used for returning descriptive errors
  * to the userland through zfs ioctls.

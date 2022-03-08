@@ -10,7 +10,5 @@ dist_pkgdata_SCRIPTS = \
 
 pkgexecdir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/acl/off
 
-if BUILD_FREEBSD
 pkgexec_PROGRAMS = dosmode_readonly_write
 dosmode_readonly_write_SOURCES = dosmode_readonly_write.c
-endif

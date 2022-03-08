@@ -905,21 +905,24 @@ __zpl_ioctl_setflags(struct inode *ip, uint32_t ioctl_flags, xvattr_t *xva)
 	xva_init(xva);
 	xoap = xva_getxoptattr(xva);
 
-	XVA_SET_REQ(xva, XAT_IMMUTABLE);
-	if (ioctl_flags & FS_IMMUTABLE_FL)
-		xoap->xoa_immutable = B_TRUE;
+#define	FLAG_CHANGE(iflag, zflag, xflag, xfield)	do {	\
+	if (((ioctl_flags & (iflag)) && !(zfs_flags & (zflag))) ||	\
+	    ((zfs_flags & (zflag)) && !(ioctl_flags & (iflag)))) {	\
+		XVA_SET_REQ(xva, (xflag));	\
+		(xfield) = ((ioctl_flags & (iflag)) != 0);	\
+	}	\
+} while (0)
 
-	XVA_SET_REQ(xva, XAT_APPENDONLY);
-	if (ioctl_flags & FS_APPEND_FL)
-		xoap->xoa_appendonly = B_TRUE;
+	FLAG_CHANGE(FS_IMMUTABLE_FL, ZFS_IMMUTABLE, XAT_IMMUTABLE,
+	    xoap->xoa_immutable);
+	FLAG_CHANGE(FS_APPEND_FL, ZFS_APPENDONLY, XAT_APPENDONLY,
+	    xoap->xoa_appendonly);
+	FLAG_CHANGE(FS_NODUMP_FL, ZFS_NODUMP, XAT_NODUMP,
+	    xoap->xoa_nodump);
+	FLAG_CHANGE(ZFS_PROJINHERIT_FL, ZFS_PROJINHERIT, XAT_PROJINHERIT,
+	    xoap->xoa_projinherit);
 
-	XVA_SET_REQ(xva, XAT_NODUMP);
-	if (ioctl_flags & FS_NODUMP_FL)
-		xoap->xoa_nodump = B_TRUE;
-
-	XVA_SET_REQ(xva, XAT_PROJINHERIT);
-	if (ioctl_flags & ZFS_PROJINHERIT_FL)
-		xoap->xoa_projinherit = B_TRUE;
+#undef	FLAG_CHANGE
 
 	return (0);
 }
@@ -998,6 +1001,94 @@ zpl_ioctl_setxattr(struct file *filp, void __user *arg)
 	return (err);
 }
 
+/*
+ * Expose Additional File Level Attributes of ZFS.
+ */
+static int
+zpl_ioctl_getdosflags(struct file *filp, void __user *arg)
+{
+	struct inode *ip = file_inode(filp);
+	uint64_t dosflags = ITOZ(ip)->z_pflags;
+	dosflags &= ZFS_DOS_FL_USER_VISIBLE;
+	int err = copy_to_user(arg, &dosflags, sizeof (dosflags));
+
+	return (err);
+}
+
+static int
+__zpl_ioctl_setdosflags(struct inode *ip, uint64_t ioctl_flags, xvattr_t *xva)
+{
+	uint64_t zfs_flags = ITOZ(ip)->z_pflags;
+	xoptattr_t *xoap;
+
+	if (ioctl_flags & (~ZFS_DOS_FL_USER_VISIBLE))
+		return (-EOPNOTSUPP);
+
+	if ((fchange(ioctl_flags, zfs_flags, ZFS_IMMUTABLE, ZFS_IMMUTABLE) ||
+	    fchange(ioctl_flags, zfs_flags, ZFS_APPENDONLY, ZFS_APPENDONLY)) &&
+	    !capable(CAP_LINUX_IMMUTABLE))
+		return (-EPERM);
+
+	if (!zpl_inode_owner_or_capable(kcred->user_ns, ip))
+		return (-EACCES);
+
+	xva_init(xva);
+	xoap = xva_getxoptattr(xva);
+
+#define	FLAG_CHANGE(iflag, xflag, xfield)	do {	\
+	if (((ioctl_flags & (iflag)) && !(zfs_flags & (iflag))) ||	\
+	    ((zfs_flags & (iflag)) && !(ioctl_flags & (iflag)))) {	\
+		XVA_SET_REQ(xva, (xflag));	\
+		(xfield) = ((ioctl_flags & (iflag)) != 0);	\
+	}	\
+} while (0)
+
+	FLAG_CHANGE(ZFS_IMMUTABLE, XAT_IMMUTABLE, xoap->xoa_immutable);
+	FLAG_CHANGE(ZFS_APPENDONLY, XAT_APPENDONLY, xoap->xoa_appendonly);
+	FLAG_CHANGE(ZFS_NODUMP, XAT_NODUMP, xoap->xoa_nodump);
+	FLAG_CHANGE(ZFS_READONLY, XAT_READONLY, xoap->xoa_readonly);
+	FLAG_CHANGE(ZFS_HIDDEN, XAT_HIDDEN, xoap->xoa_hidden);
+	FLAG_CHANGE(ZFS_SYSTEM, XAT_SYSTEM, xoap->xoa_system);
+	FLAG_CHANGE(ZFS_ARCHIVE, XAT_ARCHIVE, xoap->xoa_archive);
+	FLAG_CHANGE(ZFS_NOUNLINK, XAT_NOUNLINK, xoap->xoa_nounlink);
+	FLAG_CHANGE(ZFS_REPARSE, XAT_REPARSE, xoap->xoa_reparse);
+	FLAG_CHANGE(ZFS_OFFLINE, XAT_OFFLINE, xoap->xoa_offline);
+	FLAG_CHANGE(ZFS_SPARSE, XAT_SPARSE, xoap->xoa_sparse);
+
+#undef	FLAG_CHANGE
+
+	return (0);
+}
+
+/*
+ * Set Additional File Level Attributes of ZFS.
+ */
+static int
+zpl_ioctl_setdosflags(struct file *filp, void __user *arg)
+{
+	struct inode *ip = file_inode(filp);
+	uint64_t dosflags;
+	cred_t *cr = CRED();
+	xvattr_t xva;
+	int err;
+	fstrans_cookie_t cookie;
+
+	if (copy_from_user(&dosflags, arg, sizeof (dosflags)))
+		return (-EFAULT);
+
+	err = __zpl_ioctl_setdosflags(ip, dosflags, &xva);
+	if (err)
+		return (err);
+
+	crhold(cr);
+	cookie = spl_fstrans_mark();
+	err = -zfs_setattr(ITOZ(ip), (vattr_t *)&xva, 0, cr);
+	spl_fstrans_unmark(cookie);
+	crfree(cr);
+
+	return (err);
+}
+
 static long
 zpl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
@@ -1012,6 +1103,10 @@ zpl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		return (zpl_ioctl_getxattr(filp, (void *)arg));
 	case ZFS_IOC_FSSETXATTR:
 		return (zpl_ioctl_setxattr(filp, (void *)arg));
+	case ZFS_IOC_GETDOSFLAGS:
+		return (zpl_ioctl_getdosflags(filp, (void *)arg));
+	case ZFS_IOC_SETDOSFLAGS:
+		return (zpl_ioctl_setdosflags(filp, (void *)arg));
 	default:
 		return (-ENOTTY);
 	}

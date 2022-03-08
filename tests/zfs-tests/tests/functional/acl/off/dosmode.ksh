@@ -31,8 +31,6 @@
 # DESCRIPTION:
 #	Verify that DOS mode flags function correctly.
 #
-#	These flags are not currently exposed on Linux, so the test is
-#	only useful on FreeBSD.
 #
 # STRATEGY:
 #	1. ARCHIVE
@@ -56,7 +54,13 @@ function hasflag
 	typeset flag=$1
 	typeset path=$2
 
-	ls -lo $path | awk '{ gsub(",", "\n", $5); print $5 }' | grep -qxF $flag
+	if is_linux; then
+		read_dos_attributes $path | awk \
+		'{ gsub(",", "\n", $1); print $1 }' | grep -qxF $flag
+	else
+		ls -lo $path | awk '{ gsub(",", "\n", $5); print $5 }' | \
+		grep -qxF $flag
+	fi
 }
 
 log_assert "Verify DOS mode flags function correctly"
@@ -67,6 +71,12 @@ testfile=$TESTDIR/testfile
 owner=$ZFS_ACL_STAFF1
 other=$ZFS_ACL_STAFF2
 
+if is_linux; then
+	changeflags=write_dos_attributes
+else
+	changeflags=chflags
+fi
+
 #
 # ARCHIVE
 #
@@ -75,36 +85,40 @@ other=$ZFS_ACL_STAFF2
 #
 log_must touch $testfile
 log_must hasflag uarch $testfile
-log_must chflags nouarch $testfile
+log_must $changeflags nouarch $testfile
 log_must hasflag - $testfile
 log_must touch $testfile
-log_must hasflag uarch $testfile
+if ! is_linux; then
+	log_must hasflag uarch $testfile
+fi
 log_must rm $testfile
 log_must user_run $owner touch $testfile
 log_must hasflag uarch $testfile
-log_must user_run $owner chflags nouarch $testfile
-log_mustnot user_run $other chflags uarch $testfile
+log_must user_run $owner $changeflags nouarch $testfile
+log_mustnot user_run $other $changeflags uarch $testfile
 log_must hasflag - $testfile
 log_must user_run $owner touch $testfile
-log_mustnot user_run $other chflags nouarch $testfile
-log_must hasflag uarch $testfile
+log_mustnot user_run $other $changeflags nouarch $testfile
+if ! is_linux; then
+	log_must hasflag uarch $testfile
+fi
 log_must user_run $owner rm $testfile
 
 #
 # HIDDEN
 #
 log_must touch $testfile
-log_must chflags hidden $testfile
+log_must $changeflags hidden $testfile
 log_must hasflag hidden $testfile
-log_must chflags 0 $testfile
+log_must $changeflags 0 $testfile
 log_must hasflag - $testfile
 log_must rm $testfile
 log_must user_run $owner touch $testfile
-log_must user_run $owner chflags hidden $testfile
-log_mustnot user_run $other chflags nohidden $testfile
+log_must user_run $owner $changeflags hidden $testfile
+log_mustnot user_run $other $changeflags nohidden $testfile
 log_must hasflag hidden $testfile
-log_must user_run $owner chflags 0 $testfile
-log_mustnot user_run $other chflags hidden $testfile
+log_must user_run $owner $changeflags 0 $testfile
+log_mustnot user_run $other $changeflags hidden $testfile
 log_must hasflag - $testfile
 log_must user_run $owner rm $testfile
 
@@ -113,17 +127,17 @@ log_must user_run $owner rm $testfile
 # OFFLINE
 #
 log_must touch $testfile
-log_must chflags offline $testfile
+log_must $changeflags offline $testfile
 log_must hasflag offline $testfile
-log_must chflags 0 $testfile
+log_must $changeflags 0 $testfile
 log_must hasflag - $testfile
 log_must rm $testfile
 log_must user_run $owner touch $testfile
-log_must user_run $owner chflags offline $testfile
-log_mustnot user_run $other chflags nooffline $testfile
+log_must user_run $owner $changeflags offline $testfile
+log_mustnot user_run $other $changeflags nooffline $testfile
 log_must hasflag offline $testfile
-log_must user_run $owner chflags 0 $testfile
-log_mustnot user_run $other chflags offline $testfile
+log_must user_run $owner $changeflags 0 $testfile
+log_mustnot user_run $other $changeflags offline $testfile
 log_must hasflag - $testfile
 log_must user_run $owner rm $testfile
 
@@ -134,21 +148,23 @@ log_must user_run $owner rm $testfile
 # but root is always allowed the operation.
 #
 log_must touch $testfile
-log_must chflags rdonly $testfile
+log_must $changeflags rdonly $testfile
 log_must hasflag rdonly $testfile
 log_must eval "echo 'root write allowed' >> $testfile"
 log_must cat $testfile
-log_must chflags 0 $testfile
-log_must hasflag - $tesfile
+log_must $changeflags 0 $testfile
+log_must hasflag - $testfile
 log_must rm $testfile
 # It is required to still be able to write to an fd that was opened RW before
 # READONLY is set.  We have a special test program for that.
 log_must user_run $owner touch $testfile
-log_mustnot user_run $other chflags rdonly $testfile
+log_mustnot user_run $other $changeflags rdonly $testfile
 log_must user_run $owner $tests_base/dosmode_readonly_write $testfile
-log_mustnot user_run $other chflags nordonly $testfile
+log_mustnot user_run $other $changeflags nordonly $testfile
 log_must hasflag rdonly $testfile
-log_mustnot user_run $owner "echo 'user write forbidden' >> $testfile"
+if ! is_linux; then
+	log_mustnot user_run $owner "echo 'user write forbidden' >> $testfile"
+fi
 log_must eval "echo 'root write allowed' >> $testfile"
 # We are still allowed to read and remove the file when READONLY is set.
 log_must user_run $owner cat $testfile
@@ -157,24 +173,23 @@ log_must user_run $owner rm $testfile
 #
 # REPARSE
 #
-# FIXME: does not work, not sure if broken or testing wrong
-#
+# not allowed to be changed
 
 #
 # SPARSE
 #
 log_must truncate -s 1m $testfile
-log_must chflags sparse $testfile
+log_must $changeflags sparse $testfile
 log_must hasflag sparse $testfile
-log_must chflags 0 $testfile
+log_must $changeflags 0 $testfile
 log_must hasflag - $testfile
 log_must rm $testfile
 log_must user_run $owner truncate -s 1m $testfile
-log_must user_run $owner chflags sparse $testfile
-log_mustnot user_run $other chflags nosparse $testfile
+log_must user_run $owner $changeflags sparse $testfile
+log_mustnot user_run $other $changeflags nosparse $testfile
 log_must hasflag sparse $testfile
-log_must user_run $owner chflags 0 $testfile
-log_mustnot user_run $other chflags sparse $testfile
+log_must user_run $owner $changeflags 0 $testfile
+log_mustnot user_run $other $changeflags sparse $testfile
 log_must hasflag - $testfile
 log_must user_run $owner rm $testfile
 
@@ -182,17 +197,17 @@ log_must user_run $owner rm $testfile
 # SYSTEM
 #
 log_must touch $testfile
-log_must chflags system $testfile
+log_must $changeflags system $testfile
 log_must hasflag system $testfile
-log_must chflags 0 $testfile
+log_must $changeflags 0 $testfile
 log_must hasflag - $testfile
 log_must rm $testfile
 log_must user_run $owner touch $testfile
-log_must user_run $owner chflags system $testfile
-log_mustnot user_run $other chflags nosystem $testfile
+log_must user_run $owner $changeflags system $testfile
+log_mustnot user_run $other $changeflags nosystem $testfile
 log_must hasflag system $testfile
-log_must user_run $owner chflags 0 $testfile
-log_mustnot user_run $other chflags system $testfile
+log_must user_run $owner $changeflags 0 $testfile
+log_mustnot user_run $other $changeflags system $testfile
 log_must hasflag - $testfile
 log_must user_run $owner rm $testfile
 

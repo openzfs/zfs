@@ -21,6 +21,7 @@ SUBDIRS = \
 	deadman \
 	delegate \
 	devices \
+	dos_attributes \
 	events \
 	exec \
 	fallocate \
