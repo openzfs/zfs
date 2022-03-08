@@ -1334,13 +1334,21 @@ top_of_function:
 	/*
 	 * If they are requesting more space, and our current estimate
 	 * is over quota, they get to try again unless the actual
-	 * on-disk is over quota and there are no pending changes (which
-	 * may free up space for us).
+	 * on-disk is over quota and there are no pending changes
+	 * or deferred frees (which may free up space for us).
 	 */
 	if (used_on_disk + est_inflight >= quota) {
-		if (est_inflight > 0 || used_on_disk < quota ||
-		    (retval == ENOSPC && used_on_disk < quota))
-			retval = ERESTART;
+		if (est_inflight > 0 || used_on_disk < quota) {
+			retval = SET_ERROR(ERESTART);
+		} else {
+			ASSERT3U(used_on_disk, >=, quota);
+
+			if (retval == ENOSPC && (used_on_disk - quota) <
+			    dsl_pool_deferred_space(dd->dd_pool)) {
+				retval = SET_ERROR(ERESTART);
+			}
+		}
+
 		dprintf_dd(dd, "failing: used=%lluK inflight = %lluK "
 		    "quota=%lluK tr=%lluK err=%d\n",
 		    (u_longlong_t)used_on_disk>>10,
@@ -1348,7 +1356,7 @@ top_of_function:
 		    (u_longlong_t)quota>>10, (u_longlong_t)asize>>10, retval);
 		mutex_exit(&dd->dd_lock);
 		DMU_TX_STAT_BUMP(dmu_tx_quota);
-		return (SET_ERROR(retval));
+		return (retval);
 	}
 
 	/* We need to up our estimated delta before dropping dd_lock */
