@@ -126,7 +126,7 @@ extern "C" {
 #endif
 
 /* arm arch specific defines */
-#elif defined(__arm) || defined(__arm__) || defined(__aarch64__)
+#elif defined(__arm) || defined(__arm__)
 
 #if !defined(__arm)
 #define	__arm
@@ -136,17 +136,11 @@ extern "C" {
 #define	__arm__
 #endif
 
-#if defined(__aarch64__)
-#if !defined(_LP64)
-#define	_LP64
-#endif
-#else
 #if !defined(_ILP32)
 #define	_ILP32
 #endif
-#endif
 
-#if defined(__ARMEL__) || defined(__AARCH64EL__)
+#if defined(__ARMEL__)
 #define	_ZFS_LITTLE_ENDIAN
 #else
 #define	_ZFS_BIG_ENDIAN
@@ -157,6 +151,21 @@ extern "C" {
 #if defined(__ARM_FEATURE_UNALIGNED)
 #define	HAVE_EFFICIENT_UNALIGNED_ACCESS
 #endif
+
+/* aarch64 arch specific defines */
+#elif defined(__aarch64__)
+
+#if !defined(_LP64)
+#define	_LP64
+#endif
+
+#if defined(__AARCH64EL__)
+#define	_ZFS_LITTLE_ENDIAN
+#else
+#define	_ZFS_BIG_ENDIAN
+#endif
+
+#define	_SUNOS_VTOC_16
 
 /* sparc arch specific defines */
 #elif defined(__sparc) || defined(__sparc__)

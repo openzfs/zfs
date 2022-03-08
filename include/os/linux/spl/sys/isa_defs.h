@@ -95,7 +95,7 @@
 #define	_ALIGNMENT_REQUIRED	1
 
 /* arm arch specific defines */
-#elif defined(__arm) || defined(__arm__) || defined(__aarch64__)
+#elif defined(__arm) || defined(__arm__)
 
 #if !defined(__arm)
 #define	__arm
@@ -105,17 +105,11 @@
 #define	__arm__
 #endif
 
-#if defined(__aarch64__)
-#if !defined(_LP64)
-#define	_LP64
-#endif
-#else
 #if !defined(_ILP32)
 #define	_ILP32
 #endif
-#endif
 
-#if defined(__ARMEL__) || defined(__AARCH64EL__)
+#if defined(__ARMEL__)
 #define	_ZFS_LITTLE_ENDIAN
 #else
 #define	_ZFS_BIG_ENDIAN
@@ -126,6 +120,19 @@
  * out of paranoia.
  */
 #define	_ALIGNMENT_REQUIRED	1
+
+/* aarch64 arch specific defines */
+#elif defined(__aarch64__)
+
+#if !defined(_LP64)
+#define	_LP64
+#endif
+
+#if defined(__AARCH64EL__)
+#define	_ZFS_LITTLE_ENDIAN
+#else
+#define	_ZFS_BIG_ENDIAN
+#endif
 
 /* sparc arch specific defines */
 #elif defined(__sparc) || defined(__sparc__)
