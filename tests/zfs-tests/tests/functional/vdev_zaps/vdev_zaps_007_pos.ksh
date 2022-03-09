@@ -62,7 +62,7 @@ log_assert "Per-vdev ZAPs persist on the new pool after import."
 
 # Import the split pool.
 log_must zpool import $POOL2
-log_must eval "zdb -PC $TESTPOOL > $conf"
+log_must eval "zdb -PC $POOL2 > $conf"
 
 new_leaf1=$(get_leaf_vd_zap ${DISK_ARR[1]} $conf)
 new_top_s1=$(get_top_vd_zap ${DISK_ARR[1]} $conf)
