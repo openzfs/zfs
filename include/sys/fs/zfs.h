@@ -1102,6 +1102,7 @@ typedef struct vdev_stat {
 	uint64_t	vs_configured_ashift;   /* TLV vdev_ashift */
 	uint64_t	vs_logical_ashift;	/* vdev_logical_ashift  */
 	uint64_t	vs_physical_ashift;	/* vdev_physical_ashift */
+	uint64_t	vs_pspace;		/* physical capacity */
 } vdev_stat_t;
 
 /* BEGIN CSTYLED */
