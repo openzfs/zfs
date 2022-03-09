@@ -180,13 +180,11 @@ function seconds_mmp_waits_for_activity
 	typeset mmp_write
 	typeset mmp_delay
 
-	log_must zdb -e -p $devpath $pool >$tmpfile 2>/dev/null
+	log_must eval "zdb -e -p $devpath $pool >$tmpfile 2>/dev/null"
 	mmp_fail=$(awk '/mmp_fail/ {print $NF}' $tmpfile)
 	mmp_write=$(awk '/mmp_write/ {print $NF}' $tmpfile)
 	mmp_delay=$(awk '/mmp_delay/ {print $NF}' $tmpfile)
-	if [ -f $tmpfile ]; then
-		rm $tmpfile
-	fi
+	rm $tmpfile
 
 	# In order of preference:
 	if [ -n $mmp_fail -a -n $mmp_write ]; then

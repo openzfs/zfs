@@ -60,9 +60,9 @@ log_must mmp_set_hostid $HOSTID1
 default_setup_noexit $DISK
 log_must zpool set multihost=off $TESTPOOL
 
-log_must zdb -u $TESTPOOL > $PREV_UBER
+log_must eval "zdb -u $TESTPOOL > $PREV_UBER"
 log_must sleep 5
-log_must zdb -u $TESTPOOL > $CURR_UBER
+log_must eval "zdb -u $TESTPOOL > $CURR_UBER"
 
 if ! diff "$CURR_UBER" "$PREV_UBER"; then
 	log_fail "mmp thread has updated an uberblock"
@@ -70,7 +70,7 @@ fi
 
 log_must zpool set multihost=on $TESTPOOL
 log_must sleep 5
-log_must zdb -u $TESTPOOL > $CURR_UBER
+log_must eval "zdb -u $TESTPOOL > $CURR_UBER"
 
 if diff "$CURR_UBER" "$PREV_UBER"; then
 	log_fail "mmp failed to update uberblocks"

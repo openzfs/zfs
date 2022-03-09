@@ -134,8 +134,7 @@ dd if=/dev/urandom of=$mntpnt/f18 bs=128k count=64
 touch $mntpnt2/f18
 
 # Remove objects that are intended to be missing.
-rm $mntpnt/h17
-rm $mntpnt2/h*
+rm $mntpnt/h17 $mntpnt2/h*
 
 # Add empty objects to $fs to exercise dmu_traverse code
 for i in {1..100}; do
@@ -145,15 +144,15 @@ done
 log_must zfs snapshot $fs@s1
 log_must zfs snapshot $fs2@s1
 
-log_must zfs send $fs@s1 > $TESTDIR/zr010p
-log_must zfs send $fs2@s1 > $TESTDIR/zr010p2
+log_must eval "zfs send $fs@s1 > $TESTDIR/zr010p"
+log_must eval "zfs send $fs2@s1 > $TESTDIR/zr010p2"
 
 
 #
 # Test that, when we receive a full send as a clone of itself,
 # nop-write saves us all the space used by data blocks.
 #
-cat $TESTDIR/zr010p | log_must zfs receive -o origin=$fs@s1 $rfs
+log_must eval "zfs receive -o origin=$fs@s1 $rfs < $TESTDIR/zr010p"
 size=$(get_prop used $rfs)
 size2=$(get_prop used $fs)
 if [[ $size -ge $(($size2 / 10)) ]] then
@@ -163,13 +162,13 @@ fi
 log_must zfs destroy -fr $rfs
 
 # Correctness testing: receive each full send as a clone of the other fiesystem.
-cat $TESTDIR/zr010p | log_must zfs receive -o origin=$fs2@s1 $rfs
+log_must eval "zfs receive -o origin=$fs2@s1 $rfs < $TESTDIR/zr010p"
 mntpnt_old=$(get_prop mountpoint $fs)
 mntpnt_new=$(get_prop mountpoint $rfs)
 log_must directory_diff $mntpnt_old $mntpnt_new
 log_must zfs destroy -r $rfs
 
-cat $TESTDIR/zr010p2 | log_must zfs receive -o origin=$fs@s1 $rfs
+log_must eval "zfs receive -o origin=$fs@s1 $rfs < $TESTDIR/zr010p2"
 mntpnt_old=$(get_prop mountpoint $fs2)
 mntpnt_new=$(get_prop mountpoint $rfs)
 log_must directory_diff $mntpnt_old $mntpnt_new

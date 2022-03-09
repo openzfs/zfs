@@ -38,7 +38,7 @@ log_must zpool create -f $TESTPOOL $DISK
 
 # Make the pool.
 conf="$TESTDIR/vz004"
-log_must zdb -PC $TESTPOOL > $conf
+log_must eval "zdb -PC $TESTPOOL > $conf"
 assert_has_sentinel "$conf"
 orig_top=$(get_top_vd_zap $DISK $conf)
 orig_leaf=$(get_leaf_vd_zap $DISK $conf)
@@ -51,7 +51,7 @@ assert_zap_common $TESTPOOL $DISK "top" $orig_top
 disk2=$(echo $DISKS | awk '{print $2}')
 log_must zpool attach $TESTPOOL $DISK $disk2
 log_must zpool wait -t resilver $TESTPOOL
-log_must zdb -PC $TESTPOOL > $conf
+log_must eval "zdb -PC $TESTPOOL > $conf"
 
 # Ensure top-level ZAP was transferred successfully.
 new_top=$(get_top_vd_zap "type: 'mirror'" $conf)
@@ -80,7 +80,7 @@ dsk2_leaf=$(get_leaf_vd_zap $disk2 $conf)
 #
 
 log_must zpool detach $TESTPOOL $DISK
-log_must zdb -PC $TESTPOOL > $conf
+log_must eval "zdb -PC $TESTPOOL > $conf"
 
 final_top=$(get_top_vd_zap $disk2 $conf)
 final_leaf=$(get_leaf_vd_zap $disk2 $conf)

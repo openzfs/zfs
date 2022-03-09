@@ -51,24 +51,21 @@ verify_runnable "both"
 function cleanup
 {
 	if [[ -d $CWD ]]; then
-		cd $CWD || log_fail "Could not cd $CWD"
+		log_must cd $CWD
 	fi
 
-	snapexists $SNAPCTR
-	if [[ $? -eq 0 ]]; then
-		log_must zfs destroy $SNAPCTR
+	snapexists $SNAPCTR && log_must zfs destroy $SNAPCTR
+
+	if [ -e $SNAPDIR1 ]; then
+		log_must rm -rf $SNAPDIR1
 	fi
 
-	if [[ -e $SNAPDIR1 ]]; then
-		log_must rm -rf $SNAPDIR1 > /dev/null 2>&1
+	if [ -e $TESTDIR1 ]; then
+		log_must rm -rf $TESTDIR1/*
 	fi
 
-	if [[ -e $TESTDIR1 ]]; then
-		log_must rm -rf $TESTDIR1/* > /dev/null 2>&1
-	fi
-
-	if [[ -d "$SNAPSHOT_TARDIR" ]]; then
-		log_must rm -rf $SNAPSHOT_TARDIR > /dev/null 2>&1
+	if [ -d "$SNAPSHOT_TARDIR" ]; then
+		log_must rm -rf $SNAPSHOT_TARDIR
 	fi
 }
 
@@ -81,7 +78,7 @@ log_onexit cleanup
 typeset -i COUNT=21
 typeset OP=create
 
-[[ -n $TESTDIR1 ]] && rm -rf $TESTDIR1/* > /dev/null 2>&1
+[ -n $TESTDIR1 ] && rm -rf $TESTDIR1/*
 
 log_note "Create files in the zfs dataset ..."
 
@@ -94,33 +91,32 @@ done
 
 log_note "Create a tarball from $TESTDIR1 contents..."
 CWD=$PWD
-cd $TESTDIR1 || log_fail "Could not cd $TESTDIR1"
+log_must cd $TESTDIR1
 log_must tar cf $SNAPSHOT_TARDIR/original.tar .
-cd $CWD || log_fail "Could not cd $CWD"
+log_must cd $CWD
 
 log_note "Create a snapshot and mount it..."
 log_must zfs snapshot $SNAPCTR
 
 log_note "Remove all of the original files..."
-log_must rm -f $TESTDIR1/file* > /dev/null 2>&1
+log_must rm -f $TESTDIR1/file*
 
 log_note "Create tarball of snapshot..."
 CWD=$PWD
-cd $SNAPDIR1 || log_fail "Could not cd $SNAPDIR1"
+log_must cd $SNAPDIR1
 log_must tar cf $SNAPSHOT_TARDIR/snapshot.tar .
-cd $CWD || log_fail "Could not cd $CWD"
+log_must cd $CWD
 
-log_must mkdir $TESTDIR1/original
-log_must mkdir $TESTDIR1/snapshot
+log_must mkdir $TESTDIR1/original mkdir $TESTDIR1/snapshot
 
 CWD=$PWD
-cd $TESTDIR1/original || log_fail "Could not cd $TESTDIR1/original"
+log_must cd $TESTDIR1/original
 log_must tar xf $SNAPSHOT_TARDIR/original.tar
 
-cd $TESTDIR1/snapshot || log_fail "Could not cd $TESTDIR1/snapshot"
+log_must cd $TESTDIR1/snapshot
 log_must tar xf $SNAPSHOT_TARDIR/snapshot.tar
 
-cd $CWD || log_fail "Could not cd $CWD"
+log_must cd $CWD
 
 log_must directory_diff $TESTDIR1/original $TESTDIR1/snapshot
 log_pass "Directory structures match."
