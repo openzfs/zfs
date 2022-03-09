@@ -48,20 +48,16 @@ verify_runnable "both"
 
 function cleanup
 {
-	snapexists $SNAPFS
-	[[ $? -eq 0 ]] && \
-		log_must zfs destroy $SNAPFS
+	snapexists $SNAPFS && log_must zfs destroy $SNAPFS
 
-	[[ -e $TESTDIR ]] && \
-		log_must rm -rf $TESTDIR/* > /dev/null 2>&1
+	[ -e $TESTDIR ] && log_must rm -rf $TESTDIR/*
 }
 
 log_assert "Verify that a snapshot of an empty file system remains empty."
 
 log_onexit cleanup
 
-[[ -n $TESTDIR ]] && \
-    log_must rm -rf $TESTDIR/* > /dev/null 2>&1
+[ -n $TESTDIR ] && log_must rm -rf $TESTDIR/*
 
 log_must zfs snapshot $SNAPFS
 FILE_COUNT=`ls -Al $SNAPDIR | grep -v "total 0" | wc -l`

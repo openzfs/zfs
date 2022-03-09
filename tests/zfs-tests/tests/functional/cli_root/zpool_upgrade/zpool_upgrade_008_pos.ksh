@@ -71,7 +71,7 @@ for ver_old in $VERSIONS; do
 	typeset -i ver_new=$(random_int_between $ver_old $MAX_VER)
 
 	create_old_pool $ver_old
-	log_must zpool upgrade -V $ver_new $pool_name > /dev/null
+	log_must eval 'zpool upgrade -V $ver_new $pool_name > /dev/null'
 	check_poolversion $pool_name $ver_new
 	destroy_upgraded_pool $ver_old
 done

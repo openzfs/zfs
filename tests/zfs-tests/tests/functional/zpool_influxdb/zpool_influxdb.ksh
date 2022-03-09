@@ -43,14 +43,11 @@ fi
 
 function check_for
 {
-    grep "^${1}," $tmpfile >/dev/null 2>/dev/null
-    if [ $? -ne 0 ]; then
-        log_fail "cannot find stats for $1"
-    fi
+    log_must grep -q "^${1}," $tmpfile
 }
 
 # by default, all stats and histograms for all pools
-log_must zpool_influxdb > $tmpfile
+log_must eval "zpool_influxdb > $tmpfile"
 
 STATS="
 zpool_io_size
@@ -64,8 +61,8 @@ for stat in $STATS; do
 done
 
 # scan stats aren't expected to be there until after a scan has started
-zpool scrub $TESTPOOL
-zpool_influxdb > $tmpfile
+log_must zpool scrub $TESTPOOL
+log_must eval "zpool_influxdb > $tmpfile"
 check_for zpool_scan_stats
 
 log_pass "zpool_influxdb gathers statistics"

@@ -58,25 +58,21 @@ function cleanup
 
 	log_note "Kill off ufsdump process if still running"
 	kill -0 $PIDUFSDUMP > /dev/null 2>&1 && \
-	    log_must kill -9 $PIDUFSDUMP  > /dev/null 2>&1
+	    log_must eval "kill -9 $PIDUFSDUMP"
 	#
 	# Note: It would appear that ufsdump spawns a number of processes
 	# which are not killed when the $PIDUFSDUMP is whacked.  So best bet
 	# is to find the rest of the them and deal with them individually.
 	#
-	for all in `pgrep ufsdump`
-	do
-		kill -9 $all > /dev/null 2>&1
-	done
+	kill -9 `pgrep ufsdump` > /dev/null 2>&1
 
 	log_note "Kill off ufsrestore process if still running"
 	kill -0 $PIDUFSRESTORE > /dev/null 2>&1 && \
-	    log_must kill -9 $PIDUFSRESTORE  > /dev/null 2>&1
+	    log_must eval "kill -9 $PIDUFSRESTORE"
 
 	ismounted $UFSMP ufs && log_must umount $UFSMP
 
-	rm -rf $UFSMP
-	rm -rf $TESTDIR
+	rm -rf $UFSMP $TESTDIR
 
 	#
 	# Tidy up the disks we used.

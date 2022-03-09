@@ -57,7 +57,7 @@ test_pool ()
 	POOL=$1
 	log_must zfs create -o recordsize=512 $POOL/fs
 	mntpnt=$(get_prop mountpoint "$POOL/fs")
-	log_must dd if=/dev/urandom of=${mntpnt}/file bs=512 count=1 2>/dev/null
+	log_must eval "dd if=/dev/urandom of=${mntpnt}/file bs=512 count=1 2>/dev/null"
 	object=$(ls -i $mntpnt | awk '{print $1}')
 	log_must zfs snapshot $POOL/fs@a
 	while true; do

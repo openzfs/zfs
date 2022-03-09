@@ -100,7 +100,7 @@ log_must zfs snapshot $SNAPPOOL.1
 #
 # https://github.com/openzfs/zfs/issues/6143
 #
-log_must df >/dev/null
+log_must eval "df >/dev/null"
 
 export __ZFS_POOL_RESTRICT="$TESTPOOL"
 log_must zfs unmount -a
@@ -110,6 +110,6 @@ unset __ZFS_POOL_RESTRICT
 log_must touch /$TESTPOOL/$TESTFILE/$TESTFILE.1
 
 log_must zfs rollback $SNAPPOOL.1
-log_must df >/dev/null
+log_must eval "df >/dev/null"
 
 log_pass "Rollbacks succeed when nested file systems are present."
