@@ -56,7 +56,7 @@ log_must zfs create $TESTDS
 MNTPFS="$(get_prop mountpoint $TESTDS)"
 FILENAME="$MNTPFS/file"
 log_must mkfile 128k $FILENAME
-log_must exec 9<> $FILENAME # open file
+log_must eval "exec 9<> $FILENAME" # open file
 
 # 3. Lazy umount
 if is_freebsd; then
@@ -74,7 +74,7 @@ log_must zfs mount $TESTDS
 if [ ! -f $FILENAME ]; then
 	log_fail "Lazy remount failed"
 fi
-log_must exec 9>&- # close fd
+log_must eval "exec 9>&-" # close fd
 
 # 5. Verify multiple mounts of the same dataset are possible
 MNTPFS2="$MNTPFS-second"

@@ -22,7 +22,7 @@
 function cleanup
 {
 	# clear any remaining zinjections
-	log_must zinject -c all > /dev/null
+	log_must eval "zinject -c all > /dev/null"
 
 	destroy_pool $TESTPOOL1
 

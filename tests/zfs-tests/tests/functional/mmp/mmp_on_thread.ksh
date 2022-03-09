@@ -53,9 +53,9 @@ log_must mmp_set_hostid $HOSTID1
 default_setup_noexit $DISK
 log_must zpool set multihost=on $TESTPOOL
 
-log_must zdb -u $TESTPOOL > $PREV_UBER
+log_must eval "zdb -u $TESTPOOL > $PREV_UBER"
 log_must sleep 5
-log_must zdb -u $TESTPOOL > $CURR_UBER
+log_must eval "zdb -u $TESTPOOL > $CURR_UBER"
 
 if diff -u "$CURR_UBER" "$PREV_UBER"; then
 	log_fail "mmp failed to update uberblocks"

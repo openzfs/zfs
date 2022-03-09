@@ -55,16 +55,14 @@ function cleanup
 	[[ $? -eq 0 ]] && \
 		log_must zfs destroy $SNAPFS
 
-	[[ -e $TESTDIR ]] && \
-		log_must rm -rf $TESTDIR/* > /dev/null 2>&1
+	[ -e $TESTDIR ] && log_must rm -rf $TESTDIR/*
 }
 
 log_assert "Verify that a rollback to a previous snapshot succeeds."
 
 log_onexit cleanup
 
-[[ -n $TESTDIR ]] && \
-    log_must rm -rf $TESTDIR/* > /dev/null 2>&1
+[ -n $TESTDIR ] && log_must rm -rf $TESTDIR/*
 
 typeset -i COUNT=10
 

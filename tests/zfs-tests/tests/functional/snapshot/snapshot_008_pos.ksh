@@ -55,16 +55,14 @@ function cleanup
 		(( i = i + 1 ))
 	done
 
-	[[ -e $TESTDIR ]] && \
-		log_must rm -rf $TESTDIR/* > /dev/null 2>&1
+	[ -e $TESTDIR ] && log_must rm -rf $TESTDIR/*
 }
 
 log_assert "Verify that destroying snapshots returns space to the pool."
 
 log_onexit cleanup
 
-[[ -n $TESTDIR ]] && \
-    log_must rm -rf $TESTDIR/* > /dev/null 2>&1
+[ -n $TESTDIR ] && log_must rm -rf $TESTDIR/*
 
 typeset -i COUNT=10
 
@@ -82,7 +80,7 @@ done
 
 typeset -i i=1
 while [[ $i -lt $COUNT ]]; do
-	log_must rm -rf $TESTDIR/file$i > /dev/null 2>&1
+	log_must rm -f $TESTDIR/file$i
 	log_must zfs destroy $SNAPFS.$i
 
 	(( i = i + 1 ))

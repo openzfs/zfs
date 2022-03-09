@@ -113,8 +113,7 @@ log_onexit cleanup_all
 
 setup_all
 
-[[ -n $TESTDIR ]] && \
-    log_must rm -rf $TESTDIR/* > /dev/null 2>&1
+[ -n $TESTDIR ] && log_must rm -rf $TESTDIR/*
 
 typeset -i COUNT=10
 typeset -i i=0

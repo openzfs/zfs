@@ -36,7 +36,7 @@ log_assert "Per-vdev ZAPs are created for added vdevs."
 
 log_must zpool add -f $TESTPOOL ${DISK_ARR[1]}
 conf="$TESTDIR/vz006"
-log_must zdb -PC $TESTPOOL > $conf
+log_must eval "zdb -PC $TESTPOOL > $conf"
 
 assert_has_sentinel "$conf"
 orig_top=$(get_top_vd_zap ${DISK_ARR[1]} $conf)

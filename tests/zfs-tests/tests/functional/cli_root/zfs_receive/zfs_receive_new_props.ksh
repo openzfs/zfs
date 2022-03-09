@@ -70,8 +70,8 @@ log_must zpool set feature@filesystem_limits=enabled "$rpoolname"
 log_must zfs create -o filesystem_limit=100 "$sendfs"
 log_must zfs snapshot "$sendfs@a"
 
-log_must zfs send -R "$sendfs@a" >"$streamfile"
-log_must eval "zfs recv -svuF $recvfs <$streamfile"
+log_must eval "zfs send -R \"$sendfs@a\" >\"$streamfile\""
+log_must eval "zfs recv -svuF \"$recvfs\" <\"$streamfile\""
 
 log_pass "ZFS can handle receiving streams with filesystem limits on \
 	pools where the feature was recently enabled"

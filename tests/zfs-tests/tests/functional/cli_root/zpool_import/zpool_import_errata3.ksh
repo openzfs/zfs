@@ -44,17 +44,15 @@ POOL_FILE=cryptv0.dat
 function uncompress_pool
 {
 	log_note "Creating pool from $POOL_FILE"
-	log_must bzcat \
+	log_must eval bzcat \
 	    $STF_SUITE/tests/functional/cli_root/zpool_import/blockfiles/$POOL_FILE.bz2 \
-	    > /$TESTPOOL/$POOL_FILE
-	return 0
+	    "> /$TESTPOOL/$POOL_FILE"
 }
 
 function cleanup
 {
 	poolexists $POOL_NAME && log_must zpool destroy $POOL_NAME
-	[[ -e /$TESTPOOL/$POOL_FILE ]] && rm /$TESTPOOL/$POOL_FILE
-	return 0
+	log_must rm -f /$TESTPOOL/$POOL_FILE
 }
 log_onexit cleanup
 
