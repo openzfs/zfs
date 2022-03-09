@@ -19,45 +19,25 @@
 
 function get_conf_section # regex conf
 {
-        typeset dsk_line next_vd_line conf section
         typeset regex="$1"
         typeset conf="$2"
 
-        dsk_line=$(grep -n "$regex" "$conf" | awk -F: '{print $1}')
-        if [[ -z "$dsk_line" ]]; then
-                return
-        fi
-        next_vd_line=$(tail -n +$dsk_line "$conf" | \
-                grep -n "children\[" | awk -F: '{print $1}' | head -n 1)
-
-        if [[ -n "$next_vd_line" ]]; then
-                section=$(cat "$conf" | sed "1,${dsk_line}d" | head -n \
-                        $(($next_vd_line - 2)))
-
-        else
-                section=$(tail -n +$dsk_line "$conf")
-        fi
-        echo "$section"
+        awk -v r="$1" '$0 ~ r, 0 {if($0 ~ r) next; if(/children\[/) exit; print}' "$conf"
 }
 
 function get_leaf_vd_zap # dsk conf
 {
-        typeset section=$(get_conf_section "$1" "$2")
-        echo "$section" | egrep \
-                "com.delphix:vdev_zap_leaf: [0-9]+" | awk '{print $2}'
+        get_conf_section "$1" "$2" | awk '/com.delphix:vdev_zap_leaf: [0-9]+/ {print $2}'
 }
 
 function get_top_vd_zap # dsk conf
 {
-        typeset section=$(get_conf_section "$1" "$2")
-        echo "$section" | egrep \
-                "com.delphix:vdev_zap_top: [0-9]+" | awk '{print $2}'
+        get_conf_section "$1" "$2" | awk '/com.delphix:vdev_zap_top: [0-9]+/ {print $2}'
 }
 
 function assert_has_sentinel # conf
 {
-        res=$(grep "com.delphix:has_per_vdev_zaps" "$1")
-        [[ -z "$res" ]] && log_fail "Pool missing ZAP feature sentinel value"
+        log_must grep -q "com.delphix:has_per_vdev_zaps" "$1"
 }
 
 function assert_zap_common # pool vd lvl zapobj
@@ -67,9 +47,9 @@ function assert_zap_common # pool vd lvl zapobj
         typeset lvl=$3
         typeset zapobj=$4
 
-        if [[ -z "$zapobj" ]]; then
+        if [ -z "$zapobj" ]; then
                 log_fail "$vd on $pool has no $lvl ZAP in config"
-        elif [[ -z "$(zdb -d $pool $zapobj | grep 'zap')" ]]; then
+        elif ! zdb -d $pool $zapobj | grep -q 'zap'; then
                 log_fail "$vd on $pool has no $lvl ZAP in MOS"
         fi
 }
@@ -100,15 +80,9 @@ function assert_leaf_zap # pool vd conf
 
 function cleanup
 {
-        if datasetexists $TESTPOOL ; then
-                log_must zpool destroy -f $TESTPOOL
-        fi
-        if [[ -e $conf ]]; then
-                log_must rm -f "$conf"
-        fi
-        if [[ -e $POOL2 ]]; then
-                log_must zpool destroy -f $POOL2
-        fi
+        datasetexists $TESTPOOL && log_must zpool destroy -f $TESTPOOL
+        [ -e $conf ] && log_must rm -f "$conf"
+        poolexists $POOL2 && log_must zpool destroy -f $POOL2
 }
 
 log_onexit cleanup
