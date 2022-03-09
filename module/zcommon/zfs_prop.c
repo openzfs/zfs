@@ -1001,10 +1001,10 @@ zfs_prop_align_right(zfs_prop_t prop)
 
 #include <sys/simd.h>
 
-#if defined(HAVE_KERNEL_FPU_INTERNAL) || defined(HAVE_KERNEL_FPU_XSAVE_INTERNAL)
-union fpregs_state **zfs_kfpu_fpregs;
+#if defined(HAVE_KERNEL_FPU_INTERNAL)
+uint8_t **zfs_kfpu_fpregs;
 EXPORT_SYMBOL(zfs_kfpu_fpregs);
-#endif /* HAVE_KERNEL_FPU_INTERNAL || HAVE_KERNEL_FPU_XSAVE_INTERNAL */
+#endif /* defined(HAVE_KERNEL_FPU_INTERNAL) */
 
 static int __init
 zcommon_init(void)
