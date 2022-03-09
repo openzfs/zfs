@@ -51,8 +51,8 @@ log_onexit cleanup
 
 log_assert "Check root in user namespaces"
 
-TOUCH=$(readlink -e $(which touch))
-CHMOD=$(readlink -e $(which chmod))
+TOUCH=$(readlink -f $(command -v touch))
+CHMOD=$(readlink -f $(command -v chmod))
 
 for i in ${files[*]}; do
 	log_must $TOUCH $TESTDIR/$i
