@@ -142,8 +142,7 @@ static inline uint64_t
 xgetbv(uint32_t index)
 {
 	uint32_t eax, edx;
-	/* xgetbv - instruction byte code */
-	__asm__ __volatile__(".byte 0x0f; .byte 0x01; .byte 0xd0"
+	__asm__ __volatile__("xgetbv"
 	    : "=a" (eax), "=d" (edx)
 	    : "c" (index));
 
