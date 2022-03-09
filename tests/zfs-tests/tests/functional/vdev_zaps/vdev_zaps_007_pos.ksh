@@ -49,7 +49,7 @@ assert_zap_common $TESTPOOL ${DISK_ARR[1]} "leaf" $orig_leaf1
 log_must zpool split $TESTPOOL $POOL2 ${DISK_ARR[1]}
 
 # Make sure old pool's ZAPs are consistent.
-log_must zdb -PC $TESTPOOL > $conf
+log_must eval "zdb -PC $TESTPOOL > $conf"
 new_leaf0=$(get_leaf_vd_zap ${DISK_ARR[0]} $conf)
 new_top_s0=$(get_top_vd_zap ${DISK_ARR[0]} $conf)
 
@@ -62,7 +62,7 @@ log_assert "Per-vdev ZAPs persist on the new pool after import."
 
 # Import the split pool.
 log_must zpool import $POOL2
-log_must zdb -PC $TESTPOOL > $conf
+log_must eval "zdb -PC $TESTPOOL > $conf"
 
 new_leaf1=$(get_leaf_vd_zap ${DISK_ARR[1]} $conf)
 new_top_s1=$(get_top_vd_zap ${DISK_ARR[1]} $conf)
