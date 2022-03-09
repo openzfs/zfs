@@ -333,7 +333,7 @@ OPTIONS:
 	-m          Enable kmemleak reporting (Linux only)
 	-n NFSFILE  Use the nfsfile to determine the NFS configuration
 	-I NUM      Number of iterations
-	-d DIR      Use DIR for files and loopback devices
+	-d DIR      Use world-writable DIR for files and loopback devices
 	-s SIZE     Use vdevs of SIZE (default: 4G)
 	-r RUNFILES Run tests in RUNFILES (default: ${DEFAULT_RUNFILES})
 	-t PATH     Run single test at PATH relative to test suite

@@ -88,6 +88,7 @@ The following zfs-tests.sh options are supported:
 
     -d DIR      Create sparse files for vdevs in the DIR directory.  By
                 default these files are created under /var/tmp/.
+                This directory must be world-writable.
 
     -s SIZE     Use vdevs of SIZE (default: 4G)
 
