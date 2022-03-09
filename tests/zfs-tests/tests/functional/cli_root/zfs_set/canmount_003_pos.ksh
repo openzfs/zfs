@@ -97,9 +97,9 @@ while (( i < ${#dataset_pos[*]} )); do
 done
 
 i=0
-while (( i < ${#dataset_pos[*]} )) ; do
+while (( i < ${#dataset_pos[*]} )); do
 	dataset=${dataset_pos[i]}
-	if  ismounted $dataset; then
+	if ismounted $dataset; then
 		log_must cd ${old_mnt[i]}
 		set_n_check_prop "noauto" "canmount" "$dataset"
 		log_must mounted $dataset

@@ -1229,7 +1229,6 @@ function poolexists
 	fi
 
 	zpool get name "$pool" > /dev/null 2>&1
-	return $?
 }
 
 # Return 0 if all the specified datasets exist; $? otherwise
@@ -1242,13 +1241,7 @@ function datasetexists
 		return 1
 	fi
 
-	while (($# > 0)); do
-		zfs get name $1 > /dev/null 2>&1 || \
-			return $?
-		shift
-	done
-
-	return 0
+	zfs get name "$@" > /dev/null 2>&1
 }
 
 # return 0 if none of the specified datasets exists, otherwise return 1.
@@ -1776,7 +1769,7 @@ function create_dataset #dataset dataset_options
 # $2 - custom arguments for zfs destroy
 # Destroy dataset with the given parameters.
 
-function destroy_dataset #dataset #args
+function destroy_dataset # dataset [args]
 {
 	typeset dataset=$1
 	typeset mtpt
@@ -1792,8 +1785,7 @@ function destroy_dataset #dataset #args
 			mtpt=$(get_prop mountpoint "$dataset")
 			log_must_busy zfs destroy $args $dataset
 
-			[[ -d $mtpt ]] && \
-				log_must rm -rf $mtpt
+			[ -d $mtpt ] && log_must rm -rf $mtpt
 		else
 			log_note "Dataset does not exist. ($dataset)"
 			return 1

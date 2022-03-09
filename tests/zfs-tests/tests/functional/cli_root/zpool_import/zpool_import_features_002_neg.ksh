@@ -69,18 +69,18 @@ done
 log_mustnot zpool import -d $DEVICE_DIR $TESTPOOL1
 
 # error message should not mention "readonly"
-log_mustnot eval "zpool import -d $DEVICE_DIR $TESTPOOL1 | grep readonly"
+log_mustnot eval "zpool import -d $DEVICE_DIR $TESTPOOL1 | grep -q readonly"
 log_mustnot poolexists $TESTPOOL1
 
 for feature in $active_features; do
 	log_must eval "zpool import -d $DEVICE_DIR $TESTPOOL1 \
-	    | grep $feature"
+	    | grep -q $feature"
 	log_mustnot poolexists $TESTPOOL1
 done
 
 for feature in $enabled_features; do
 	log_mustnot eval "zpool import -d $DEVICE_DIR $TESTPOOL1 \
-	    | grep $feature"
+	    | grep -q $feature"
 	log_mustnot poolexists $TESTPOOL1
 done
 
