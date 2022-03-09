@@ -48,8 +48,7 @@ verify_runnable "both"
 
 function cleanup
 {
-	[[ -e $TESTDIR1 ]] && \
-		log_must rm -rf $TESTDIR1/* > /dev/null 2>&1
+	[ -e $TESTDIR1 ] && log_must rm -rf $TESTDIR1/*
 
 	snapexists $SNAPCTR && destroy_dataset $SNAPCTR
 

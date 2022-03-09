@@ -54,7 +54,7 @@ function cleanup
 		log_must zfs destroy $SNAPFS
 	fi
 
-	log_must rm -rf $SNAPDIR $TESTDIR/* > /dev/null 2>&1
+	log_must rm -rf $SNAPDIR $TESTDIR/*
 }
 
 log_assert "Verify a file system snapshot is identical to original."

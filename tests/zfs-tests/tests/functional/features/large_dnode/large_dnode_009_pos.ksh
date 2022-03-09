@@ -66,6 +66,6 @@ log_must wait
 
 log_must_busy zpool export $TESTPOOL
 log_must zpool import $TESTPOOL
-log_must ls -lR "/$TEST_FS/" >/dev/null 2>&1
+log_must eval "ls -lR /$TEST_FS/ >/dev/null 2>&1"
 log_must zdb -d $TESTPOOL
 log_pass

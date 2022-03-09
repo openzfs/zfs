@@ -128,7 +128,7 @@ function cleanup_pool
 		#
 		# https://github.com/openzfs/zfs/issues/6143
 		#
-		log_must df >/dev/null
+		log_must eval "df >/dev/null"
 		log_must_busy zfs destroy -Rf $pool
 	else
 		typeset list=$(zfs list -H -r -t all -o name $pool)
@@ -153,8 +153,6 @@ function cleanup_pool
 	if [[ -d $mntpnt ]]; then
 		rm -rf $mntpnt/*
 	fi
-
-	return 0
 }
 
 function cleanup_pools
@@ -655,7 +653,7 @@ function resume_test
 
 	for ((i=0; i<2; i=i+1)); do
 		mess_send_file /$streamfs/$stream_num
-		log_mustnot zfs recv -suv $recvfs </$streamfs/$stream_num
+		log_mustnot eval "zfs recv -suv $recvfs </$streamfs/$stream_num"
 		stream_num=$((stream_num+1))
 
 		token=$(zfs get -Hp -o value receive_resume_token $recvfs)
@@ -665,10 +663,8 @@ function resume_test
 			log_must eval "zfs send -nvt $token > /dev/null"
 
 		log_must eval "zfs send -t $token  >/$streamfs/$stream_num"
-		[[ -f /$streamfs/$stream_num ]] || \
-		    log_fail "NO FILE /$streamfs/$stream_num"
 	done
-	log_must zfs recv -suv $recvfs </$streamfs/$stream_num
+	log_must eval "zfs recv -suv $recvfs </$streamfs/$stream_num"
 }
 
 function get_resume_token
@@ -679,11 +675,8 @@ function get_resume_token
 
 	log_must eval "$sendcmd > /$streamfs/1"
 	mess_send_file /$streamfs/1
-	log_mustnot zfs recv -suv $recvfs < /$streamfs/1 2>&1
-	token=$(zfs get -Hp -o value receive_resume_token $recvfs)
-	echo "$token" > /$streamfs/resume_token
-
-	return 0
+	log_mustnot eval "zfs recv -suv $recvfs < /$streamfs/1 2>&1"
+	get_prop receive_resume_token $recvfs > /$streamfs/resume_token
 }
 
 #

@@ -46,35 +46,35 @@ cleanup
 
 log_must zfs set sharenfs="rw=[::1]" $TESTPOOL/$TESTFS
 output=$(showshares_nfs 2>&1)
-log_must grep "::1(" <<< "$output" > /dev/null
+log_must grep -q "::1(" <<< "$output"
 
 log_must zfs set sharenfs="rw=[2::3]" $TESTPOOL/$TESTFS
 output=$(showshares_nfs 2>&1)
-log_must grep "2::3(" <<< "$output" > /dev/null
+log_must grep -q "2::3(" <<< "$output"
 
 log_must zfs set sharenfs="rw=[::1]:[2::3]" $TESTPOOL/$TESTFS
 output=$(showshares_nfs 2>&1)
-log_must grep "::1(" <<< "$output" > /dev/null
-log_must grep "2::3(" <<< "$output" > /dev/null
+log_must grep -q "::1(" <<< "$output"
+log_must grep -q "2::3(" <<< "$output"
 
 log_must zfs set sharenfs="rw=[::1]/64" $TESTPOOL/$TESTFS
 output=$(showshares_nfs 2>&1)
-log_must grep "::1/64(" <<< "$output" > /dev/null
+log_must grep -q "::1/64(" <<< "$output"
 
 log_must zfs set sharenfs="rw=[2::3]/128" $TESTPOOL/$TESTFS
 output=$(showshares_nfs 2>&1)
-log_must grep "2::3/128(" <<< "$output" > /dev/null
+log_must grep -q "2::3/128(" <<< "$output"
 
 log_must zfs set sharenfs="rw=[::1]/32:[2::3]/128" $TESTPOOL/$TESTFS
 output=$(showshares_nfs 2>&1)
-log_must grep "::1/32(" <<< "$output" > /dev/null
-log_must grep "2::3/128(" <<< "$output" > /dev/null
+log_must grep -q "::1/32(" <<< "$output"
+log_must grep -q "2::3/128(" <<< "$output"
 
 log_must zfs set sharenfs="rw=[::1]:[2::3]/64:[2a01:1234:1234:1234:aa34:234:1234:1234]:1.2.3.4/24" $TESTPOOL/$TESTFS
 output=$(showshares_nfs 2>&1)
-log_must grep "::1(" <<< "$output" > /dev/null
-log_must grep "2::3/64(" <<< "$output" > /dev/null
-log_must grep "2a01:1234:1234:1234:aa34:234:1234:1234(" <<< "$output" > /dev/null
-log_must grep "1\\.2\\.3\\.4/24(" <<< "$output" > /dev/null
+log_must grep -q "::1(" <<< "$output"
+log_must grep -q "2::3/64(" <<< "$output"
+log_must grep -q "2a01:1234:1234:1234:aa34:234:1234:1234(" <<< "$output"
+log_must grep -q "1\\.2\\.3\\.4/24(" <<< "$output"
 
 log_pass "NFS share ip address propagated correctly."

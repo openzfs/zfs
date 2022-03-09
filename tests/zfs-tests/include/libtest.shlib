@@ -657,7 +657,7 @@ function default_container_cleanup
 	destroy_dataset "$TESTPOOL/$TESTCTR" "-Rf"
 
 	[[ -e $TESTDIR1 ]] && \
-	    log_must rm -rf $TESTDIR1 > /dev/null 2>&1
+	    log_must rm -rf $TESTDIR1
 
 	default_cleanup
 }
@@ -3680,15 +3680,17 @@ function is_swap_inuse
 		return 1
 	fi
 
-	if is_linux; then
-		swapon -s | grep -w $(readlink -f $device) > /dev/null 2>&1
-	elif is_freebsd; then
-		swapctl -l | grep -w $device
-	else
-		swap -l | grep -w $device > /dev/null 2>&1
-	fi
-
-	return $?
+	case "$(uname)" in
+	Linux)
+		swapon -s | grep -wq $(readlink -f $device)
+		;;
+	FreeBSD)
+		swapctl -l | grep -wq $device
+		;;
+	*)
+		swap -l | grep -wq $device
+		;;
+	esac
 }
 
 #
@@ -3698,14 +3700,18 @@ function swap_setup
 {
 	typeset swapdev=$1
 
-	if is_linux; then
+	case "$(uname)" in
+	Linux)
 		log_must eval "mkswap $swapdev > /dev/null 2>&1"
 		log_must swapon $swapdev
-	elif is_freebsd; then
+		;;
+	FreeBSD)
 		log_must swapctl -a $swapdev
-	else
-	        log_must swap -a $swapdev
-	fi
+		;;
+	*)
+    log_must swap -a $swapdev
+		;;
+	esac
 
 	return 0
 }

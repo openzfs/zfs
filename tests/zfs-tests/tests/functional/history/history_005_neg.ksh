@@ -54,10 +54,10 @@ log_assert "Verify 'zpool get|history|list|status|iostat' will not be logged."
 # Save initial TESTPOOL history
 log_must eval "zpool history $TESTPOOL >$OLD_HISTORY"
 
-log_must zpool get all $TESTPOOL >/dev/null
-log_must zpool list $TESTPOOL >/dev/null
-log_must zpool status $TESTPOOL >/dev/null
-log_must zpool iostat $TESTPOOL >/dev/null
+log_must eval "zpool get all $TESTPOOL >/dev/null"
+log_must eval "zpool list $TESTPOOL >/dev/null"
+log_must eval "zpool status $TESTPOOL >/dev/null"
+log_must eval "zpool iostat $TESTPOOL >/dev/null"
 
 log_must eval "zpool history $TESTPOOL >$NEW_HISTORY"
 log_must diff $OLD_HISTORY $NEW_HISTORY

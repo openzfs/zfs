@@ -57,7 +57,7 @@ log_must set_tunable32 SCAN_LEGACY 1
  # create the pool and a 32M file (32k blocks)
 log_must truncate -s $VDEV_FILE_SIZE ${VDEV_FILES[0]} $SPARE_VDEV_FILE
 log_must zpool create -f -O recordsize=1k $TESTPOOL1 ${VDEV_FILES[0]}
-log_must dd if=/dev/urandom of=/$TESTPOOL1/file bs=1M count=32 > /dev/null 2>&1
+log_must eval "dd if=/dev/urandom of=/$TESTPOOL1/file bs=1M count=32 2>/dev/null"
 
 # determine objset/object
 objset=$(zdb -d $TESTPOOL1/ | sed -ne 's/.*ID \([0-9]*\).*/\1/p')

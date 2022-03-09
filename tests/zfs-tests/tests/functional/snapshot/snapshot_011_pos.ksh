@@ -53,15 +53,13 @@ function cleanup
 {
 	snapexists $SNAPPOOL && destroy_dataset $SNAPPOOL -r
 
-	[[ -e $TESTDIR ]] && \
-		log_must rm -rf $TESTDIR/* > /dev/null 2>&1
+	[ -e $TESTDIR ] && log_must rm -rf $TESTDIR/*
 }
 
 log_assert "Verify that rollback to a snapshot created by snapshot -r succeeds."
 log_onexit cleanup
 
-[[ -n $TESTDIR ]] && \
-    log_must rm -rf $TESTDIR/* > /dev/null 2>&1
+[ -n $TESTDIR ] && log_must rm -rf $TESTDIR/*
 
 typeset -i COUNT=10
 

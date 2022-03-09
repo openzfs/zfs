@@ -33,7 +33,7 @@ DISK=${DISKS%% *}
 
 log_must zpool create -f $TESTPOOL $DISK
 conf="$TESTDIR/vz001"
-log_must zdb -PC $TESTPOOL > $conf
+log_must eval "zdb -PC $TESTPOOL > $conf"
 
 assert_top_zap $TESTPOOL $DISK "$conf"
 assert_leaf_zap $TESTPOOL $DISK "$conf"

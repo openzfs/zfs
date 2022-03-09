@@ -59,16 +59,14 @@ function cleanup
 	[[ $? -eq 0 ]] && \
 		log_must zfs destroy $SNAPFS
 
-	[[ -e $TESTDIR ]] && \
-		log_must rm -rf $TESTDIR/* > /dev/null 2>&1
+	[ -e $TESTDIR ] && log_must rm -rf $TESTDIR/*
 }
 
 log_assert "Verify rollback is with respect to latest snapshot."
 
 log_onexit cleanup
 
-[[ -n $TESTDIR ]] && \
-    log_must rm -rf $TESTDIR/* > /dev/null 2>&1
+[ -n $TESTDIR ] && log_must rm -rf $TESTDIR/*
 
 typeset -i COUNT=10
 
@@ -109,8 +107,7 @@ while [[ $i -le $COUNT ]]; do
         (( i = i + 1 ))
 done
 
-[[ -n $TESTDIR ]] && \
-    log_must rm -rf $TESTDIR/original_file* > /dev/null 2>&1
+[ -n $TESTDIR ] && log_must rm -f $TESTDIR/original_file*
 
 #
 # Now rollback to latest snapshot

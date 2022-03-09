@@ -36,7 +36,7 @@ log_must zpool create -f $TESTPOOL mirror ${DISK_ARR[0]} ${DISK_ARR[1]}
 
 log_assert "Per-vdev ZAPs persist correctly on the original pool after split."
 conf="$TESTDIR/vz007"
-log_must zdb -PC $TESTPOOL > $conf
+log_must eval "zdb -PC $TESTPOOL > $conf"
 
 assert_has_sentinel "$conf"
 orig_top=$(get_top_vd_zap "type: 'mirror'" $conf)

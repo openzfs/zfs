@@ -46,13 +46,13 @@ fi
 for swapdev in $SAVESWAPDEVS
 do
 	if ! is_swap_inuse $swapdev ; then
-		log_must swap_setup $swapdev >/dev/null 2>&1
+		swap_setup $swapdev
 	fi
 done
 
 voldev=${ZVOL_DEVDIR}/$TESTPOOL/$TESTVOL
 if is_swap_inuse $voldev ; then
-	log_must swap_cleanup $voldev
+	swap_cleanup $voldev
 fi
 
 default_zvol_cleanup
