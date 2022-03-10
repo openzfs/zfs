@@ -51,7 +51,8 @@ set -A arguments "$TESTPOOL $TESTPOOL" "$TESTPOOL rubbish" "-v $TESTPOOL" \
 		"nosuchproperty $TESTPOOL" "--$TESTPOOL" "all all" \
 		"type $TESTPOOL" "usage: $TESTPOOL" "bootfs $TESTPOOL@" \
 		"bootfs,bootfs $TESTPOOL" "name $TESTPOOL" "t%d%s" \
-		"bootfs,delegation $TESTPOOL" "delegation $TESTPOOL@"
+		"bootfs,delegation $TESTPOOL" "delegation $TESTPOOL@" \
+		"-o name=getsubopt allocated $TESTPOOL"
 
 for arg in $arguments
 do
