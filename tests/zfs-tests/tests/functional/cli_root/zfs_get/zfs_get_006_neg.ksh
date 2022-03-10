@@ -47,7 +47,8 @@ log_assert "Verify 'zfs get all' fails with invalid combination scenarios."
 
 set -f	# Force ksh ignore '?' and '*'
 set -A  bad_combine "ALL" "\-R all" "-P all" "-h all" "-rph all" "-RpH all" "-PrH all" \
-		"-o all" "-s all" "-? all" "-* all" "-?* all" "all -r" "all -p" \
+		"-o all" "-s all" "-s none=getsubopt" "-t filesystem=getsubopt" \
+		"-? all" "-* all" "-?* all" "all -r" "all -p" \
 		"all -H" "all -rp" "all -rH" "all -ph" "all -rpH" "all -r $TESTPOOL" \
 		"all -H $TESTPOOL" "all -p $TESTPOOL" "all -r -p -H $TESTPOOL" \
 		"all -rph $TESTPOOL" "all,available,reservation $TESTPOOL" \
