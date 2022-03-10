@@ -27,6 +27,7 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_TOOLCHAIN_SIMD], [
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVE
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVEOPT
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVES
+			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XGETBV
 			;;
 	esac
 ])
@@ -484,6 +485,26 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVES], [
 	]])], [
 		AC_MSG_RESULT([yes])
 		AC_DEFINE([HAVE_XSAVES], 1, [Define if host toolchain supports XSAVES])
+	], [
+		AC_MSG_RESULT([no])
+	])
+])
+
+dnl #
+dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XGETBV
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XGETBV], [
+	AC_MSG_CHECKING([whether host toolchain supports XGETBV])
+
+	AC_LINK_IFELSE([AC_LANG_SOURCE([
+	[
+		void main()
+		{
+		  __asm__ __volatile__("xgetbv");
+		}
+	]])], [
+		AC_MSG_RESULT([yes])
+		AC_DEFINE([HAVE_XGETBV], 1, [Define if host toolchain supports XGETBV])
 	], [
 		AC_MSG_RESULT([no])
 	])

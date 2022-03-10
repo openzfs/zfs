@@ -410,6 +410,9 @@ out:
  * Only call this function if CPUID indicates that AVX feature is
  * supported by the CPU, otherwise it might be an illegal instruction.
  */
+#ifndef HAVE_XGETBV
+#error "xgetbv assembler support required"
+#endif
 static inline uint64_t
 zfs_xgetbv(uint32_t index)
 {

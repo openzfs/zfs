@@ -138,6 +138,9 @@ static const cpuid_feature_desc_t cpuid_features[] = {
  * Only call this function if CPUID indicates that AVX feature is
  * supported by the CPU, otherwise it might be an illegal instruction.
  */
+#ifndef HAVE_XGETBV
+#error "xgetbv assembler support required"
+#endif
 static inline uint64_t
 xgetbv(uint32_t index)
 {
