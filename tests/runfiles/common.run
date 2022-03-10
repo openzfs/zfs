@@ -315,7 +315,7 @@ tests = ['zfs_upgrade_001_pos', 'zfs_upgrade_002_pos', 'zfs_upgrade_003_pos',
 tags = ['functional', 'cli_root', 'zfs_upgrade']
 
 [tests/functional/cli_root/zfs_wait]
-tests = ['zfs_wait_deleteq']
+tests = ['zfs_wait_deleteq', 'zfs_wait_getsubopt']
 tags = ['functional', 'cli_root', 'zfs_wait']
 
 [tests/functional/cli_root/zhack]
@@ -551,7 +551,8 @@ tags = ['functional', 'cli_user', 'misc']
 
 [tests/functional/cli_user/zfs_list]
 tests = ['zfs_list_001_pos', 'zfs_list_002_pos', 'zfs_list_003_pos',
-    'zfs_list_004_neg', 'zfs_list_007_pos', 'zfs_list_008_neg']
+    'zfs_list_004_neg', 'zfs_list_005_neg', 'zfs_list_007_pos',
+    'zfs_list_008_neg']
 user =
 tags = ['functional', 'cli_user', 'zfs_list']
 

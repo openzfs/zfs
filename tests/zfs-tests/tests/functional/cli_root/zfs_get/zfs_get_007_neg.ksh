@@ -51,7 +51,7 @@ set -A  badargs "o name,property,value,resource" "o name" \
 	"-o" "-o ,,,,," "-o -o -o -o" "-o NAME,PROPERTY,VALUE,SOURCE" \
 	"-o name,properTy,value,source" "-o name, property, value,source" \
 	"-o name:property:value:source" "-o name,property:value,source" \
-	"-o name;property;value;source"
+	"-o name;property;value;source" "-o name=getsubopt"
 
 typeset -i i=0
 while (( i < ${#badargs[*]} ))
