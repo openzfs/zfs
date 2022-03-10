@@ -908,6 +908,12 @@ wosix_open(const char *inpath, int oflag, ...)
 	if (!oflag&O_EXLOCK) share |= FILE_SHARE_WRITE;
 #endif
 
+	// Win users might not supply \\?\ paths, make them so
+	if (path[1] == ':' && strncmp("\\\\.\\", path, 4) != 0) {
+	    snprintf(otherpath, MAXPATHLEN, "\\\\.\\%s", &path[0]);
+	    path = otherpath;
+	}
+
 	// Support expansion of "SystemRoot"
 	if (strncmp(path, "\\SystemRoot\\", 12) == 0) {
 		snprintf(otherpath, MAXPATHLEN, "%s\\%s",
@@ -922,6 +928,12 @@ wosix_open(const char *inpath, int oflag, ...)
 	h = CreateFile(path, mode, share, NULL, how,
 	    oflag & O_DIRECTORY ? FILE_FLAG_BACKUP_SEMANTICS : FILE_ATTRIBUTE_NORMAL,
 	    NULL);
+
+	// Could be a directory (but we come from stat so no O_DIRECTORY)
+	if (h == INVALID_HANDLE_VALUE && GetLastError() == ERROR_ACCESS_DENIED)
+	    h = CreateFile(path, mode, share, NULL, how,
+		FILE_FLAG_BACKUP_SEMANTICS,
+		NULL);
 
 	if (h == INVALID_HANDLE_VALUE && path[0] == '#') {
 		char *end = NULL;

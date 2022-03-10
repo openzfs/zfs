@@ -78,6 +78,9 @@ vdev_file_open_mode(spa_mode_t spa_mode)
 	return (mode);
 }
 
+static void
+vdev_file_close(vdev_t *vd);
+
 static int
 vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
     uint64_t *ashift, uint64_t *physical_ashift)
@@ -167,6 +170,13 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	if (strncmp("\\\\?\\", FileName, 4) == 0) {
 	    FileName[1] = '?';
 	}
+	if (strncmp("//./", FileName, 4) == 0) {
+	    FileName[1] = '?';
+	    FileName[2] = '?';
+	    for (int i = 0; FileName[i] != 0; i++)
+		if (FileName[i] == '/')
+		    FileName[i] = '\\';
+	}
 #endif
 
 	error = zfs_file_open(FileName,
@@ -184,6 +194,9 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	 * Make sure it's a regular file.
 	 */
 	if (zfs_file_getattr(fp, &zfa)) {
+		/* It is possible users copied file to virtual disk, try that. */
+		// zfs_file_close(fp);
+		vdev_file_close(vd);
 		spa_strfree(vdev_path);
 		return (SET_ERROR(ENODEV));
 	}
