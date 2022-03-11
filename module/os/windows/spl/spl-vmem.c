@@ -449,6 +449,8 @@ extern void spl_free_set_emergency_pressure(int64_t p);
 extern uint64_t segkmem_total_mem_allocated;
 extern uint64_t total_memory;
 
+_Atomic uint64_t spl_lowest_alloc_stack_remaining = 0;
+
 /*
  * Get a vmem_seg_t from the global segfree list.
  */
@@ -1750,6 +1752,14 @@ vmem_alloc(vmem_t *vmp, size_t size, int vmflag)
 	int hb;
 	int flist = 0;
 	uint32_t mtbf;
+
+	const ULONG_PTR r = IoGetRemainingStackSize();
+	
+	if (spl_lowest_alloc_stack_remaining == 0) {
+		spl_lowest_alloc_stack_remaining = r;
+	} else if (spl_lowest_alloc_stack_remaining > r) {
+		spl_lowest_alloc_stack_remaining = r;
+	}
 
 	if (size - 1 < vmp->vm_qcache_max)
 		return (kmem_cache_alloc(vmp->vm_qcache[(size - 1) >>

@@ -54,6 +54,8 @@ extern void wzvol_announce_buschange(void);
 extern int wzvol_assign_targetid(zvol_state_t *zv);
 extern list_t zvol_state_list;
 
+_Atomic uint64_t spl_lowest_zvol_stack_remaining = 0;
+
 typedef struct zv_request {
 	zvol_state_t *zv;
 
@@ -236,6 +238,14 @@ zvol_os_read_zv(zvol_state_t *zv, zfs_uio_t *uio, int flags)
 	int error = 0;
 	uint64_t offset = 0;
 
+	const ULONG_PTR r = IoGetRemainingStackSize();
+
+	if (spl_lowest_zvol_stack_remaining == 0) {
+	    spl_lowest_zvol_stack_remaining = r;
+	} else if (spl_lowest_zvol_stack_remaining > r) {
+	    spl_lowest_zvol_stack_remaining = r;
+	}
+
 	if (zv == NULL || zv->zv_dn == NULL)
 		return (ENXIO);
 
@@ -287,6 +297,15 @@ zvol_os_write_zv(zvol_state_t *zv, zfs_uio_t *uio, int flags)
 	uint64_t offset = 0;
 	uint64_t bytes = 0;
 	uint64_t off;
+
+	const ULONG_PTR r = IoGetRemainingStackSize();
+
+	if (spl_lowest_zvol_stack_remaining == 0) {
+		spl_lowest_zvol_stack_remaining = r;
+	} else if (spl_lowest_zvol_stack_remaining > r) {
+		spl_lowest_zvol_stack_remaining = r;
+	}
+
 
 	if (zv == NULL)
 		return (ENXIO);

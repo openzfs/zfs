@@ -502,6 +502,11 @@ uint64_t spl_arc_reclaim_avoided = 0;
 
 uint64_t kmem_free_to_slab_when_fragmented = 0;
 
+// Keep an eye on stack size in known places (macOS)
+extern _Atomic uint64_t spl_lowest_vdev_disk_stack_remaining;
+extern _Atomic uint64_t spl_lowest_zvol_stack_remaining;
+extern _Atomic uint64_t spl_lowest_alloc_stack_remaining;
+
 typedef struct spl_stats {
 	kstat_named_t spl_os_alloc;
 	kstat_named_t spl_active_threads;
@@ -567,6 +572,10 @@ typedef struct spl_stats {
 	kstat_named_t spl_vm_pages_reclaimed;
 	kstat_named_t spl_vm_pages_wanted;
 	kstat_named_t spl_vm_pressure_level;
+
+	kstat_named_t spl_lowest_alloc_stack_remaining;
+	kstat_named_t spl_lowest_vdev_disk_stack_remaining;
+	kstat_named_t spl_lowest_zvol_stack_remaining;
 } spl_stats_t;
 
 static spl_stats_t spl_stats = {
@@ -634,6 +643,11 @@ static spl_stats_t spl_stats = {
 	{"spl_vm_pages_reclaimed", KSTAT_DATA_UINT64},
 	{"spl_vm_pages_wanted", KSTAT_DATA_UINT64},
 	{"spl_vm_pressure_level", KSTAT_DATA_UINT64},
+
+	{"lowest_alloc_stack_remaining", KSTAT_DATA_UINT64},
+	{"lowest_vdev_disk_stack_remaining", KSTAT_DATA_UINT64},
+	{"lowest_zvol_stack_remaining", KSTAT_DATA_UINT64},
+
 };
 
 static kstat_t *spl_ksp = 0;
@@ -5048,6 +5062,12 @@ spl_kstat_update(kstat_t *ksp, int rw)
 		ks->spl_vm_pressure_level.value.ui64 =
 		    spl_vm_pressure_level;
 
+		ks->spl_lowest_alloc_stack_remaining.value.ui64 =
+		    spl_lowest_alloc_stack_remaining;
+		ks->spl_lowest_vdev_disk_stack_remaining.value.ui64 =
+		    spl_lowest_vdev_disk_stack_remaining;
+		ks->spl_lowest_zvol_stack_remaining.value.ui64 =
+		    spl_lowest_zvol_stack_remaining;
 	}
 
 	return (0);

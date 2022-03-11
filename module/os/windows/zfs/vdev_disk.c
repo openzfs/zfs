@@ -48,6 +48,8 @@ static void vdev_disk_close(vdev_t *);
 
 extern void UnlockAndFreeMdl(PMDL);
 
+_Atomic uint64_t spl_lowest_vdev_disk_stack_remaining = 0;
+
 static void
 vdev_disk_alloc(vdev_t *vd)
 {
@@ -733,6 +735,14 @@ vdev_disk_io_start(zio_t *zio)
 	ASSERT(zio->io_type == ZIO_TYPE_READ || zio->io_type == ZIO_TYPE_WRITE);
 
 	zio->io_target_timestamp = zio_handle_io_delay(zio);
+
+	const ULONG_PTR r = IoGetRemainingStackSize();
+
+	if (spl_lowest_vdev_disk_stack_remaining == 0) {
+	    spl_lowest_vdev_disk_stack_remaining = r;
+	} else if (spl_lowest_vdev_disk_stack_remaining > r) {
+	    spl_lowest_vdev_disk_stack_remaining = r;
+	}
 
 	ASSERT(zio->io_size != 0);
 
