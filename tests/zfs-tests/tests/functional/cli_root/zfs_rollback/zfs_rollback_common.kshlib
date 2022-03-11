@@ -270,11 +270,7 @@ function check_files
 			typeset sum0=$(getsum $file0)
 			typeset sum1=$(getsum $file1)
 			typeset sum2=$(getsum $file2)
-			if [[ $sum0 != $origsum || \
-				$sum1 != $origsum || sum2 != $origsum ]]
-			then
-				log_fail "After rollback, file sum is changed."
-			fi
+			log_must [ $sum0 = $origsum \&\& $sum1 = $origsum \&\& sum2 = $origsum ]
 			;;
 		$TESTSNAP1)
 			log_must files_exist $file0 $file1
@@ -282,19 +278,14 @@ function check_files
 
 			typeset sum0=$(getsum $file0)
 			typeset sum1=$(getsum $file1)
-			if [[ $sum0 != $origsum || $sum1 != $origsum ]]
-			then
-				log_fail "After rollback, file sum is changed."
-			fi
+			log_must [ $sum0 = $origsum \&\& $sum1 = $origsum ]
 			;;
 		$TESTSNAP)
 			log_must files_exist $file0
 			log_must files_nonexist $file1 $file2
 
 			typeset sum0=$(getsum $file0)
-			if [[ $sum0 != $origsum ]]; then
-				log_fail "After rollback, file sum is changed."
-			fi
+			log_must [ $sum0 = $origsum ]
 			;;
 	esac
 }
