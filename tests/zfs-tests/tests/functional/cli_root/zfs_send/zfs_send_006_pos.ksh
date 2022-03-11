@@ -76,10 +76,10 @@ function verify_size_estimates
 	typeset file_size=$2
 	typeset refer_diff=$(echo "$refer_size - $estimate_size" | bc)
 	refer_diff=$(echo "$refer_diff / 1" | bc)
-	refer_diff=$(echo "$refer_diff" | nawk '{print ($1 < 0) ? ($1 * -1): $1'})
+	refer_diff=$(echo "$refer_diff" | awk '{print ($1 < 0) ? ($1 * -1): $1'})
 	typeset file_diff=$(echo "$file_size - $estimate_size" | bc)
 	file_diff=$(echo "$file_diff / 1" | bc)
-	file_diff=$(echo "$file_diff" | nawk '{print ($1 < 0) ? ($1 * -1):$1'})
+	file_diff=$(echo "$file_diff" | awk '{print ($1 < 0) ? ($1 * -1):$1'})
 	typeset expected_diff=$(cal_percentage $refer_size)
 
 	[[ -z $refer_diff && -z $file_diff && -z $expected_diff ]] && \

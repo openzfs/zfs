@@ -58,7 +58,7 @@ function get_acl #<obj>
 		return 1
 	fi
 
-	ls -vd $obj | nawk '(NR != 1) {print $0}'
+	ls -vd $obj | awk '(NR != 1) {print $0}'
 }
 
 #
@@ -73,7 +73,7 @@ function get_compact_acl #<obj>
 		return 1
 	fi
 
-	ls -Vd $obj | nawk '(NR != 1) {print $0}'
+	ls -Vd $obj | awk '(NR != 1) {print $0}'
 }
 
 #
@@ -246,7 +246,7 @@ function count_ACE #<file or dir name>
 		return 1
 	fi
 
-	ls -vd $1 | nawk 'BEGIN {count=0}
+	ls -vd $1 | awk 'BEGIN {count=0}
 			(NR != 1)&&(/[0-9]:/) {count++}
 			END {print count}'
 
