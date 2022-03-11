@@ -84,7 +84,7 @@ while (( i < ${#invalid_args[*]} )); do
 	((i = i + 1))
 done
 log_note "verify multiple snapshot transaction group"
-txg_group=$(zdb -Pd $TESTPOOL | grep snap | awk '{print $7}')
+txg_group=$(zdb -Pd $TESTPOOL | awk '/snap/ {print $7}')
 for i in 1 2 3; do
 	txg_tag=$(echo "$txg_group" | nawk -v j=$i 'FNR == j {print}')
 	[[ $txg_tag != $(echo "$txg_group" | \

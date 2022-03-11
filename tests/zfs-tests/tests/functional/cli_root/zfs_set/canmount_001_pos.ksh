@@ -81,14 +81,8 @@ function cleanup
 log_assert "Setting a valid property of canmount to file system, it must be successful."
 log_onexit cleanup
 
-typeset old_fs_canmount="" old_ctr_canmount=""
-
-old_fs_canmount=$(get_prop canmount $TESTPOOL/$TESTFS)
-[[ $? != 0 ]] && \
-	log_fail "Get the $TESTPOOL/$TESTFS canmount error."
-old_ctr_canmount=$(get_prop canmount $TESTPOOL/$TESTCTR)
-[[ $? != 0 ]] && \
-	log_fail "Get the $TESTPOOL/$TESTCTR canmount error."
+typeset old_fs_canmount=$(get_prop canmount $TESTPOOL/$TESTFS)
+typeset old_ctr_canmount=$(get_prop canmount $TESTPOOL/$TESTCTR)
 
 log_must zfs snapshot $TESTPOOL/$TESTFS@$TESTSNAP
 log_must zfs snapshot $TESTPOOL/$TESTVOL@$TESTSNAP

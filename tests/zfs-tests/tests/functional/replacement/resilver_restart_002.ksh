@@ -74,7 +74,7 @@ log_note "waiting for read errors to start showing up"
 for iter in {0..59}
 do
 	sync_pool $TESTPOOL1
-	err=$(zpool status $TESTPOOL1 | grep ${VDEV_FILES[0]} | awk '{print $3}')
+	err=$(zpool status $TESTPOOL1 | awk -v dev=${VDEV_FILES[0]} '$0 ~ dev {print $3}')
 	(( $err > 0 )) && break
 	sleep 1
 done

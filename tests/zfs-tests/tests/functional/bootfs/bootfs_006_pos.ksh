@@ -60,7 +60,7 @@ function verify_bootfs { # $POOL
 	log_must zfs create $POOL/$TESTFS
 
 	log_must zpool set bootfs=$POOL/$TESTFS $POOL
-	VAL=$(zpool get bootfs $POOL | tail -1 | awk '{print $3}' )
+	VAL=$(zpool get bootfs $POOL | awk 'END {print $3}' )
 	if [ $VAL != "$POOL/$TESTFS" ]
 	then
 		log_must zpool status -v $POOL
@@ -74,7 +74,7 @@ function verify_no_bootfs { # $POOL
 	POOL=$1
 	log_must zfs create $POOL/$TESTFS
 	log_mustnot zpool set bootfs=$POOL/$TESTFS $POOL
-	VAL=$(zpool get bootfs $POOL | tail -1 | awk '{print $3}' )
+	VAL=$(zpool get bootfs $POOL | awk 'END {print $3}' )
 	if [ $VAL == "$POOL/$TESTFS" ]
 	then
 		log_must zpool status -v $POOL

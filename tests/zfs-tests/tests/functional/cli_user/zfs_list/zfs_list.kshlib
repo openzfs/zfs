@@ -120,7 +120,7 @@ function verify_reverse_sort { # command list name
 function is_fs_type_zfs {
 
     typeset dirname=$1
-    typeset fs="$(df $dirname | tail -1 | awk '{print $NF}')"
+    typeset fs="$(df $dirname | awk 'END {print $NF}')"
 
     if is_freebsd; then
         fs_type=$(mount | awk -v fs=$fs '{if ($3 == fs) print $4}' \

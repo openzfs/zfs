@@ -112,7 +112,7 @@ function get_reverse_option
 
 	typeset val
 	typeset -i ind=0
-	val=$(get_prop $prop $fs) || log_fail "get_prop $prop $fs"
+	val=$(get_prop $prop $fs)
 	if [[ $val == "on" ]]; then
 		(( ind = i * 2 ))
 	else
@@ -127,7 +127,6 @@ cleanup
 
 for property in ${properties[@]}; do
 	orig_val=$(get_prop $property $fs)
-	(($? != 0)) && log_fail "get_prop $property $fs"
 
 	# Set filesystem property temporarily
 	reverse_opt=$(get_reverse_option $fs $property)
@@ -135,7 +134,6 @@ for property in ${properties[@]}; do
 	log_must zfs mount -o $reverse_opt $fs
 
 	cur_val=$(get_prop $property $fs)
-	(($? != 0)) && log_fail "get_prop $property $fs"
 
 	# In LZ, a user with all zone privileges can never with "devices"
 	if ! is_global_zone && [[ $property == devices ]] ; then
@@ -153,7 +151,6 @@ for property in ${properties[@]}; do
 	log_must zfs mount $fs
 
 	cur_val=$(get_prop $property $fs)
-	(($? != 0)) && log_fail "get_prop $property $fs"
 	if [[ $orig_val != $cur_val ]]; then
 		log_fail "zfs mount -o $reverse_opt " \
 			"change the property that is stored on disks"

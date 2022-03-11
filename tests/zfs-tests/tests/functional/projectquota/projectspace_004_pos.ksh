@@ -65,10 +65,10 @@ log_must chattr +P -p $PRJID1 $PRJDIR
 log_must user_run $PUSER mkfile 50m $PRJDIR/qf
 sync_pool
 
-total=$(df $PRJDIR | tail -n 1 | awk '{ print $2 }')
+total=$(df $PRJDIR | awk 'END { print $2 }')
 [[ $total -eq 102400 ]] || log_fail "expect '102400' resource, but got '$total'"
 
-used=$(df -i $PRJDIR | tail -n 1 | awk '{ print $5 }')
+used=$(df -i $PRJDIR | awk 'END { print $5 }')
 [[ "$used" == "2%" ]] || log_fail "expect '2%' used, but got '$used'"
 
 log_pass "'df' on the directory with inherit project ID flag pass as expect"

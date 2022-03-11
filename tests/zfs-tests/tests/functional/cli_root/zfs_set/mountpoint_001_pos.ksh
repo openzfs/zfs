@@ -69,11 +69,7 @@ log_assert "Setting a valid mountpoint to file system, it must be successful."
 log_onexit cleanup
 
 old_fs_mpt=$(get_prop mountpoint $TESTPOOL/$TESTFS)
-[[ $? != 0 ]] && \
-	log_fail "Get the $TESTPOOL/$TESTFS mountpoint error."
 old_ctr_mpt=$(get_prop mountpoint $TESTPOOL/$TESTCTR)
-[[ $? != 0 ]] && \
-	log_fail "Get the $TESTPOOL/$TESTCTR mountpoint error."
 
 if [[ ! -d $TESTDIR2 ]]; then
 	log_must mkdir $TESTDIR2

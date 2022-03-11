@@ -163,15 +163,12 @@ while (( i < ${#opts[*]} )); do
 	log_must eval "zfs get ${opts[i]} all >$propfile"
 
 	for ds in $allds; do
-		grep $ds $propfile >/dev/null 2>&1
-		(( $? != 0 )) && \
+		grep -q $ds $propfile || \
 			log_fail "There is no property for" \
 				"dataset $ds in 'get all' output."
 
-		propnum=`cat $propfile | awk '{print $1}' | \
-			grep "${ds}$" | wc -l`
-		ds_type=`zfs get -H -o value type $ds`
-		case $ds_type in
+		propnum=$(awk -v ds="${ds}$" '$1 ~ ds {print $1}' $propfile | wc -l)
+		case $(zfs get -H -o value type $ds) in
 			filesystem )
 				(( propnum < fspropnum )) && \
 				(( failflag += 1 ))

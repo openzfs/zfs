@@ -38,25 +38,15 @@
 #
 function zero_reservation
 {
-	typeset resv_val
 	dataset=$1
 
 	log_must zfs set reservation=none $dataset
 
-	resv_val=`zfs get -H reservation $dataset | awk '{print $3}'`
-	if [[ $? -ne 0 ]]; then
-		log_fail "Unable to get reservation prop on $dataset"
-	elif [[ $resv_val != "none" ]]; then
-		log_fail "Reservation not 'none' ($resv_val) as expected"
-	fi
+	log_must eval 'resv_val="$(zfs get -Ho value reservation $dataset)"'
+	log_must [ $resv_val = "none" ]
 
-
-	resv_val=`zfs get -pH reservation $dataset | awk '{print $3}'`
-	if [[ $? -ne 0 ]]; then
-		log_fail "Unable to get reservation prop on $dataset"
-	elif [[ $resv_val -ne 0 ]]; then
-		log_fail "Reservation not 0 ($resv_val) as expected"
-	fi
+	log_must eval 'resv_val="$(zfs get -pHo value reservation $dataset)"'
+	log_must [ $resv_val -eq 0 ]
 
 	return 0
 }

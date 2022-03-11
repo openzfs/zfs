@@ -65,10 +65,7 @@ log_must zpool export $TESTPOOL
 metaslabs=0
 bs=512
 zdb -p $TESTDIR -Pme $TESTPOOL | awk '/metaslab[ ]+[0-9]+/ { print $4, $8 }' |
-while read -r offset_size; do
-	typeset offset=$(echo $offset_size | cut -d ' ' -f1)
-	typeset size=$(echo $offset_size | cut -d ' ' -f2)
-
+while read -r offset size; do
 	log_note "offset: '$offset'"
 	log_note "size: '$size'"
 

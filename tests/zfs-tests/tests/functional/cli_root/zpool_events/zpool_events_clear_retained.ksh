@@ -80,7 +80,7 @@ function damage_and_repair
 	log_must zpool wait -t scrub $POOL
 	log_note "pass $1 observed $($EREPORTS | grep -c checksum) checksum ereports"
 
-	repaired=$(zpool status $POOL | grep "scan: scrub repaired" | awk '{print $4}')
+	repaired=$(zpool status $POOL | awk '/scan: scrub repaired/ {print $4}')
 	if [ "$repaired" == "0B" ]; then
 		log_fail "INVALID TEST -- expected scrub to repair some blocks"
 	else
@@ -90,7 +90,7 @@ function damage_and_repair
 
 function checksum_error_count
 {
-	zpool status -p $POOL | grep $VDEV1 | awk '{print $5}'
+	zpool status -p $POOL | awk -v dev=$VDEV1 '$0 ~ dev {print $5}'
 }
 
 assertion="Damage to recently repaired blocks should be reported/counted"

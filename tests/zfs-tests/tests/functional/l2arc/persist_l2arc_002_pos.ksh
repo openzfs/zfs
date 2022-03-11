@@ -92,8 +92,7 @@ arcstat_quiescence_noecho l2_size
 log_must zpool export $TESTPOOL
 arcstat_quiescence_noecho l2_feeds
 
-typeset l2_dh_log_blk=$(zdb -l $VDEV_CACHE | grep log_blk_count | \
-	awk '{print $2}')
+typeset l2_dh_log_blk=$(zdb -l $VDEV_CACHE | awk '/log_blk_count/ {print $2}')
 
 typeset l2_rebuild_log_blk_start=$(get_arcstat l2_rebuild_log_blks)
 

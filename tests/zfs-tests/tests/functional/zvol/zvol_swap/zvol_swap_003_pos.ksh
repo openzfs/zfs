@@ -74,7 +74,7 @@ PREV_VFSTAB_FILE=$TEST_BASE_DIR/zvol_vfstab.PREV.$$
 
 [[ -f $NEW_VFSTAB_FILE ]] && cp /dev/null $NEW_VFSTAB_FILE
 
-awk '{if ($4 != "swap") print $1}' /etc/vfstab > $NEW_VFSTAB_FILE
+awk '$4 != "swap" {print $1}' /etc/vfstab > $NEW_VFSTAB_FILE
 echo "$voldev\t-\t-\tswap\t-\tno\t-"  >> $NEW_VFSTAB_FILE
 
 # Copy off the original vfstab, and run swapadd on the newly constructed one.

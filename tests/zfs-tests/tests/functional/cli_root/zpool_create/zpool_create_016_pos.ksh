@@ -67,8 +67,8 @@ function cleanup
 	fi
 }
 
-typeset swap_disks=$(swap -l | grep -v "swapfile" | awk '{print $1}')
-typeset dump_device=$(dumpadm | grep "Dump device" | awk '{print $3}')
+typeset swap_disks=$(swap -l | awk '!/swapfile/ {print $1}')
+typeset dump_device=$(dumpadm | awk '/Dump device/ {print $3}')
 
 log_assert "'zpool create' should success with no device in swap."
 log_onexit cleanup

@@ -156,12 +156,11 @@ main(int argc, const char * const argv[])
 
 	(void) close(fd);
 
-	char buffer[BUFFER_SIZE];
-	memset(buffer, 0, BUFFER_SIZE);
+	char buffer[BUFFER_SIZE] = "";
 
 	(void) attribute_to_str(dosflags, buffer);
 
-	(void) printf("%s\n", buffer);
+	(void) puts(buffer);
 
 	return (EXIT_SUCCESS);
 }

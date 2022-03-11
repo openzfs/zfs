@@ -143,13 +143,12 @@ function verify_data_md5sums
 		return 1
 	fi
 
-	cat $md5file | \
-	while read digest file; do
+	while read -r digest file; do
 		typeset digest1=$(md5digest $file)
 		if [[ "$digest1" != "$digest" ]]; then
 			return 1
 		fi
-	done
+	done < $md5file
 
 	return 0
 }
@@ -227,8 +226,7 @@ function check_pool_config
 
 	typeset actual=""
 	typeset began=false
-	printf "$status\n" | while read line; do
-		typeset vdev=$(echo "$line" | awk '{printf $1}')
+	while read -r vdev _; do
 		if ( ! $began ) && [[ $vdev == NAME ]]; then
 			began=true
 			continue
@@ -240,7 +238,7 @@ function check_pool_config
 			vdev=$(_translate_vdev $vdev)
 			actual="$actual $vdev"
 		fi
-	done
+	done <<<"$status"
 
 	expected="$poolname $expected"
 
@@ -295,8 +293,7 @@ function check_pool_healthy
 		return 1
 	fi
 
-	status=$(echo "$status" | grep "$pool" | grep -v "pool:" | \
-	    awk '{print $2}')
+	status=$(echo "$status" | awk -v p="$pool" '!/pool:/ && $0 ~ p {print $2}')
 
 	if [[ $status != "ONLINE" ]]; then
 		log_note "Invalid zpool status for '$pool': '$status'" \
@@ -314,9 +311,7 @@ function pool_is_replacing
 {
 	typeset pool=$1
 
-	zpool status $pool | grep "replacing" | grep "ONLINE" > /dev/null
-
-	return $?
+	zpool status $pool | grep "replacing" | grep -q "ONLINE"
 }
 
 function set_vdev_validate_skip
