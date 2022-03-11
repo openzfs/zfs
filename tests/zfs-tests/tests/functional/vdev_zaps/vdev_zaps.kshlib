@@ -43,14 +43,14 @@ function get_conf_section # regex conf
 function get_leaf_vd_zap # dsk conf
 {
         typeset section=$(get_conf_section "$1" "$2")
-        echo "$section" | egrep \
+        echo "$section" | grep -E \
                 "com.delphix:vdev_zap_leaf: [0-9]+" | awk '{print $2}'
 }
 
 function get_top_vd_zap # dsk conf
 {
         typeset section=$(get_conf_section "$1" "$2")
-        echo "$section" | egrep \
+        echo "$section" | grep -E \
                 "com.delphix:vdev_zap_top: [0-9]+" | awk '{print $2}'
 }
 

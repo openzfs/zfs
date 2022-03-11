@@ -46,7 +46,7 @@ function check_feature_flag
 	expected_value=$3
 
 	value="$(zpool get -H -o property,value all $pool | \
-	    egrep "$feature" | awk '{print $2}')"
+	    grep -E "$feature" | awk '{print $2}')"
 	if [ "$value" = "$expected_value" ]; then
 		log_note "$feature verified to be $value"
 	else

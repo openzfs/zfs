@@ -90,7 +90,7 @@ do
 			$file.1 $file.2 $file.3 $file.4
 		! poolexists $TESTPOOL && \
 			log_fail "Creating pool with $opt fails."
-		mpt=`zfs mount | egrep "^$TESTPOOL[^/]" | awk '{print $2}'`
+		mpt=`zfs mount | grep -E "^$TESTPOOL[^/]" | awk '{print $2}'`
 		(( ${#mpt} == 0 )) && \
 			log_fail "$TESTPOOL created with $opt is not mounted."
 		mpt_val=$(get_prop "mountpoint" $TESTPOOL)

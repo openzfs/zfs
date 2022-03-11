@@ -2143,7 +2143,7 @@ function get_disklist # pool
 
 	disklist=$(zpool iostat -v $1 | nawk '(NR >4) {print $1}' | \
 	    grep -v "\-\-\-\-\-" | \
-	    egrep -v -e "^(mirror|raidz[1-3]|draid[1-3]|spare|log|cache|special|dedup)|\-[0-9]$")
+	    grep -vEe "^(mirror|raidz[1-3]|draid[1-3]|spare|log|cache|special|dedup)|\-[0-9]$")
 
 	echo $disklist
 }
@@ -2315,8 +2315,7 @@ function check_pool_status # pool token keyword <verbose>
 	if [[ $verbose == true ]]; then
 		log_note $scan
 	fi
-	echo $scan | egrep -i "$keyword" > /dev/null 2>&1
-
+	echo $scan | grep -qi "$keyword"
 	return $?
 }
 

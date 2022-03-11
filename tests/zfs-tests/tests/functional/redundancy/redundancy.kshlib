@@ -221,7 +221,7 @@ function is_data_valid
 	log_must zpool scrub -w $pool
 
 	record_data $pool $PST_RECORD_FILE
-	if ! diff $PRE_RECORD_FILE $PST_RECORD_FILE > /dev/null 2>&1; then
+	if ! cmp $PRE_RECORD_FILE $PST_RECORD_FILE > /dev/null; then
 		log_must cat $PRE_RECORD_FILE
 		log_must cat $PST_RECORD_FILE
 		diff -u $PRE_RECORD_FILE $PST_RECORD_FILE
@@ -243,8 +243,8 @@ function get_vdevs #pool cnt
 	typeset -i cnt=$2
 
 	typeset all_devs=$(zpool iostat -v $pool | awk '{print $1}'| \
-		egrep -v "^pool$|^capacity$|^mirror\-[0-9]$|^raidz[1-3]\-[0-9]$|^draid[1-3].*\-[0-9]$|---" | \
-		egrep -v "/old$|^$pool$")
+		grep -vEe "^pool$|^capacity$|^mirror\-[0-9]$|^raidz[1-3]\-[0-9]$|^draid[1-3].*\-[0-9]$|---" | \
+		grep -vEe "/old$|^$pool$")
 	typeset -i i=0
 	typeset vdevs
 	while ((i < cnt)); do

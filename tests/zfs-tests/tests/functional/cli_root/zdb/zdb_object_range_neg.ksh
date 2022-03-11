@@ -65,7 +65,7 @@ done
 
 # Specifying a non-existent object identifier returns an error
 obj_id_highest=$(zdb -P -dd $TESTPOOL/$TESTFS 2>/dev/null |
-    egrep "^ +-?([0-9]+ +){7}" | sort -n | tail -n 1 | awk '{print $1}')
+    grep -E "^ +-?([0-9]+ +){7}" | sort -n | tail -n 1 | awk '{print $1}')
 obj_id_invalid=$(( $obj_id_highest + 1 ))
 log_mustnot zdb -dd $TESTPOOL/$TESTFS $obj_id_invalid
 

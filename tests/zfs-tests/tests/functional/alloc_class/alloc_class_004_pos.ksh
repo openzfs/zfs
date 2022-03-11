@@ -53,7 +53,7 @@ do
 	    special $stype $sdisks
 
 	ac_value="$(zpool get -H -o property,value all | \
-	    egrep allocation_classes | nawk '{print $2}')"
+	    grep allocation_classes | nawk '{print $2}')"
 	if [ "$ac_value" = "active" ]; then
 		log_note "feature@allocation_classes is active"
 	else

@@ -57,7 +57,7 @@ log_onexit cleanup
 log_note "Testing access to FILE"
 log_must touch $TESTDIR/file.0
 log_must setfacl -m g:$ZFS_ACL_STAFF_GROUP:rw $TESTDIR/file.0
-getfacl $TESTDIR/file.0 2> /dev/null | egrep -q \
+getfacl $TESTDIR/file.0 2> /dev/null | grep -q \
     "^group:$ZFS_ACL_STAFF_GROUP:rw-$"
 if [ "$?" -eq "0" ]; then
 	# Should be able to write to file
@@ -76,7 +76,7 @@ if [ "$?" -eq "0" ]; then
 		log_note "expected mask drwxrw----+ but found $msk"
 		log_fail "Expected permissions were not set."
 	fi
-	getfacl $TESTDIR/dir.0 2> /dev/null | egrep -q \
+	getfacl $TESTDIR/dir.0 2> /dev/null | grep -q \
 	    "^group:$ZFS_ACL_STAFF_GROUP:rw-$"
 	if [ "$?" -ne "0" ]; then
 		acl=$(getfacl $TESTDIR/dir.0 2> /dev/null)

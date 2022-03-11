@@ -181,7 +181,7 @@ function _translate_vdev
 	#
 	typeset keywords="mirror replacing raidz1 raidz2 raidz3 indirect draid1 draid2 draid3"
 	for word in $keywords; do
-		echo $vdev | egrep -qE \
+		echo $vdev | grep -qE \
 		    "^${word}-[0-9]+\$|^${word}:[0-9]+d:[0-9]c:[0-9]+s-[0-9]+\$"
 		if [[ $? -eq 0 ]]; then
 			vdev=$word

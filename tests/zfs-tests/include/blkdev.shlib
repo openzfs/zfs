@@ -115,21 +115,18 @@ function is_physical_device #device
 
 	if is_linux; then
 		is_disk_device "$DEV_DSKDIR/$device" && \
-		[[ -f /sys/module/loop/parameters/max_part ]]
-		return $?
+		[ -f /sys/module/loop/parameters/max_part ]
 	elif is_freebsd; then
 		is_disk_device "$DEV_DSKDIR/$device" && \
-		echo $device | egrep -q \
+		echo $device | grep -qE \
 		    -e '^a?da[0-9]+$' \
 		    -e '^md[0-9]+$' \
 		    -e '^mfid[0-9]+$' \
 		    -e '^nda[0-9]+$' \
 		    -e '^nvd[0-9]+$' \
 		    -e '^vtbd[0-9]+$'
-		return $?
 	else
-		echo $device | egrep "^c[0-F]+([td][0-F]+)+$" > /dev/null 2>&1
-		return $?
+		echo $device | grep -qE "^c[0-F]+([td][0-F]+)+$"
 	fi
 }
 
@@ -143,8 +140,7 @@ function is_real_device #disk
 
 	if is_linux; then
 		lsblk $DEV_RDSKDIR/$disk -o TYPE 2>/dev/null | \
-		    egrep disk >/dev/null
-		return $?
+		    grep -q disk
 	fi
 }
 
@@ -158,8 +154,7 @@ function is_loop_device #disk
 
 	if is_linux; then
 		lsblk $DEV_RDSKDIR/$disk -o TYPE 2>/dev/null | \
-		    egrep loop >/dev/null
-		return $?
+		    grep -q loop
 	fi
 }
 
@@ -182,7 +177,7 @@ function is_mpath_device #disk
 
 	if is_linux; then
 		lsblk $DEV_MPATHDIR/$disk -o TYPE 2>/dev/null | \
-		   egrep mpath >/dev/null
+		   grep -q mpath
 		if (($? == 0)); then
 			readlink $DEV_MPATHDIR/$disk > /dev/null 2>&1
 			return $?
@@ -301,12 +296,12 @@ function get_persistent_disk_name #device
 	if is_linux; then
 		if is_real_device $device; then
 			dev_id="$(udevadm info -q all -n $DEV_DSKDIR/$device \
-			    | egrep disk/by-id | nawk '{print $2; exit}' \
+			    | grep -E "disk/by-id" | nawk '{print $2; exit}' \
 			    | nawk -F / '{print $3}')"
 			echo $dev_id
 		elif is_mpath_device $device; then
 			dev_id="$(udevadm info -q all -n $DEV_DSKDIR/$device \
-			    | egrep disk/by-id/dm-uuid \
+			    | grep -E "disk/by-id/dm-uuid" \
 			    | nawk '{print $2; exit}' \
 			    | nawk -F / '{print $3}')"
 			echo $dev_id
@@ -342,7 +337,7 @@ function on_off_disk # disk state{online,offline} host
 			    | nawk '{print $1}')"
 			while [[ -n $dep ]]; do
 				#check if disk is online
-				lsscsi | egrep $dep > /dev/null
+				lsscsi | grep -qF $dep
 				if (($? == 0)); then
 					dep_dir="/sys/block/${dm_name}"
 					dep_dir+="/slaves/${dep}/device"
@@ -350,7 +345,7 @@ function on_off_disk # disk state{online,offline} host
 					sd="${dep_dir}/delete"
 					log_must eval "echo 'offline' > ${ss}"
 					log_must eval "echo '1' > ${sd}"
-					lsscsi | egrep $dep > /dev/null
+					lsscsi | grep -qF $dep
 						if (($? == 0)); then
 							log_fail "Offlining" \
 							    "$disk failed"
@@ -361,17 +356,14 @@ function on_off_disk # disk state{online,offline} host
 			done
 		elif [[ $state == "offline" ]] && ( is_real_device $disk ); then
 			#check if disk is online
-			lsscsi | egrep $disk > /dev/null
-			if (($? == 0)); then
+			if lsscsi | grep -qF $disk; then
 				dev_state="/sys/block/$disk/device/state"
 				dev_delete="/sys/block/$disk/device/delete"
 				log_must eval "echo 'offline' > ${dev_state}"
 				log_must eval "echo '1' > ${dev_delete}"
-				lsscsi | egrep $disk > /dev/null
-					if (($? == 0)); then
-						log_fail "Offlining $disk" \
-						    "failed"
-					fi
+				if lsscsi | grep -qF $disk; then
+					log_fail "Offlining $disk failed"
+				fi
 			else
 				log_note "$disk is already offline"
 			fi
@@ -384,14 +376,14 @@ function on_off_disk # disk state{online,offline} host
 				    | nawk -F / '{print $2}')"
 				dep="$(ls /sys/block/$dm_name/slaves \
 				    | nawk '{print $1}')"
-				lsscsi | egrep $dep > /dev/null
+				lsscsi | grep -qF $dep
 				if (($? != 0)); then
 					log_fail "Onlining $disk failed"
 				fi
 			elif is_real_device $disk; then
 				block_device_wait
 				typeset -i retries=0
-				while ! lsscsi | egrep -q $disk; do
+				while ! lsscsi | grep -qF $disk; do
 					if (( $retries > 2 )); then
 						log_fail "Onlining $disk failed"
 						break
@@ -467,16 +459,14 @@ function load_scsi_debug # dev_size_mb add_host num_tgts max_luns blksz
 			log_unsupported "Platform does not have scsi_debug"
 			    "module"
 		fi
-		lsmod | egrep scsi_debug > /dev/null
-		if (($? == 0)); then
+		if lsmod | grep -q scsi_debug; then
 			log_fail "scsi_debug module already installed"
 		else
 			log_must modprobe scsi_debug dev_size_mb=$devsize \
 			    add_host=$hosts num_tgts=$tgts max_luns=$luns \
 			    sector_size=$sector physblk_exp=$blkexp
 			block_device_wait
-			lsscsi | egrep scsi_debug > /dev/null
-			if (($? == 1)); then
+			if ! lsscsi | grep -q scsi_debug; then
 				log_fail "scsi_debug module install failed"
 			fi
 		fi

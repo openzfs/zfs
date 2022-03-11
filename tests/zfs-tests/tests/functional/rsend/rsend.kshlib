@@ -367,7 +367,7 @@ function fs_inherit_prop
 	else
 		fs_prop=$(zfs inherit 2>&1 | \
 		    awk '$2=="YES" && $3=="YES" {print $1}'|
-		    egrep -v "devices|mlslabel|sharenfs|sharesmb|zoned")
+		    grep -E -v "devices|mlslabel|sharenfs|sharesmb|zoned")
 	fi
 
 	echo $fs_prop

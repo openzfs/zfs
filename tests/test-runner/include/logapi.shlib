@@ -96,10 +96,7 @@ function log_must_retry
 		out="cat $logfile"
 
 		if (( $status == 0 )); then
-			$out | egrep -i "internal error|assertion failed" \
-				> /dev/null 2>&1
-			# internal error or assertion failed
-			if [[ $? -eq 0 ]]; then
+			if $out | grep -qEi "internal error|assertion failed"; then
 				print -u2 $($out)
 				_printerror "$@" "internal error or" \
 					" assertion failure exited $status"
@@ -224,10 +221,7 @@ function log_neg_expect
 		print -u2 $($out)
 		_printerror "$@" "unexpectedly exited $status (SEGV)"
 	else
-		$out | egrep -i "internal error|assertion failed" \
-			> /dev/null 2>&1
-		# internal error or assertion failed
-		if (( $? == 0 )); then
+		if $out | grep -qEi "internal error|assertion failed"; then
 			print -u2 $($out)
 			_printerror "$@" "internal error or assertion failure" \
 				" exited $status"
@@ -275,10 +269,7 @@ function log_pos
 		print -u2 $($out)
 		_printerror "$@" "exited $status"
 	else
-		$out | egrep -i "internal error|assertion failed" \
-			> /dev/null 2>&1
-		# internal error or assertion failed
-		if [[ $? -eq 0 ]]; then
+		if $out | grep -qEi "internal error|assertion failed"; then
 			print -u2 $($out)
 			_printerror "$@" "internal error or assertion failure" \
 				" exited $status"

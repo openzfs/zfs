@@ -60,8 +60,7 @@ function get_object_list_range
 function get_object_list
 {
 	zdb -P -dd $@ 2>/dev/null |
-	egrep "^ +-?([0-9]+ +){7}" |
-	sed 's/^[[:space:]]*//' |
+	sed -E '/^ +-?([0-9]+ +){7}/!d;s/^[[:space:]]*//' |
 	sort -n
 }
 
