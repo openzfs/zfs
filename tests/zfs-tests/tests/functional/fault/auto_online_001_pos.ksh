@@ -134,9 +134,8 @@ do
 		((timeout++))
 
 		sleep 1
-		zpool events $TESTPOOL \
-		    | egrep sysevent.fs.zfs.resilver_finish > /dev/null
-		if (($? == 0)); then
+		if zpool events $TESTPOOL \
+		    | grep -qF sysevent.fs.zfs.resilver_finish; then
 			log_note "Auto-online of $offline_disk is complete"
 			sleep 1
 			break

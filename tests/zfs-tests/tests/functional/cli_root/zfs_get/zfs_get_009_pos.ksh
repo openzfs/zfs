@@ -39,7 +39,7 @@
 # STRATEGY:
 #	1. Create a multiple depth filesystem.
 #	2. 'zfs get -d <n>' to get the output.
-#	3. 'zfs get -r|egrep' to get the expected output.
+#	3. 'zfs get -r|grep' to get the expected output.
 #	4. Compare the two outputs, they should be same.
 #
 
@@ -86,7 +86,7 @@ for dp in ${depth_array[@]}; do
 	done
 	for prop in $(gen_option_str "${all_props[*]}" "" "," $prop_numb); do
 		log_must eval "zfs get -H -d $dp -o name $prop $DEPTH_FS > $DEPTH_OUTPUT"
-		log_must eval "zfs get -rH -o name $prop $DEPTH_FS | egrep -e '$eg_opt' > $EXPECT_OUTPUT"
+		log_must eval "zfs get -rH -o name $prop $DEPTH_FS | grep -E '$eg_opt' > $EXPECT_OUTPUT"
 		log_must diff $DEPTH_OUTPUT $EXPECT_OUTPUT
 	done
 	(( old_val=dp ))
