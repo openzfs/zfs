@@ -1193,10 +1193,10 @@ dsl_crypto_key_sync(dsl_crypto_key_t *dck, dmu_tx_t *tx)
 {
 	zio_crypt_key_t *key = &dck->dck_key;
 	dsl_wrapping_key_t *wkey = dck->dck_wkey;
-	uint8_t keydata[MASTER_KEY_MAX_LEN];
-	uint8_t hmac_keydata[SHA512_HMAC_KEYLEN];
-	uint8_t iv[WRAPPING_IV_LEN];
-	uint8_t mac[WRAPPING_MAC_LEN];
+	uint8_t keydata[MASTER_KEY_MAX_LEN] = {0};
+	uint8_t hmac_keydata[SHA512_HMAC_KEYLEN] = {0};
+	uint8_t iv[WRAPPING_IV_LEN] = {0};
+	uint8_t mac[WRAPPING_MAC_LEN] = {0};
 
 	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT3U(key->zk_crypt, <, ZIO_CRYPT_FUNCTIONS);

@@ -1706,6 +1706,15 @@ zio_write_compress(zio_t *zio)
 	if (compress != ZIO_COMPRESS_OFF &&
 	    !(zio->io_flags & ZIO_FLAG_RAW_COMPRESS)) {
 		void *cbuf = zio_buf_alloc(lsize);
+		/*
+		 * Both the crypto code and LZ4 code have bad habits of reading
+		 * uninited bytes sometimes.
+		 *
+		 * So to stop valgrind screaming to the point of uselessness,
+		 * zero them all.
+		 */
+		memset(cbuf, 0, lsize);
+
 		psize = zio_compress_data(compress, zio->io_abd, cbuf, lsize,
 		    zp->zp_complevel);
 		if (psize == 0 || psize >= lsize) {
