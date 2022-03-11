@@ -36,10 +36,8 @@ function check_pool_import # pool opts token keyword
 	typeset keyword=$4
 
 	zpool import $opts 2>&1 | \
-	    nawk -v token="$token:" '($1==token) {print $0}' | \
-	    grep -i "$keyword" > /dev/null 2>&1
-
-	return $?
+	    awk -v token="$token:" '($1==token) {print}' | \
+	    grep -iq "$keyword"
 }
 
 function is_pool_imported # pool opts

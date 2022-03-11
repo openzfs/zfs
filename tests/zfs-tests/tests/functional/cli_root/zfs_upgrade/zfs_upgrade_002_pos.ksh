@@ -60,8 +60,8 @@ typeset expect_str2="Enhanced directory entries"
 
 log_must eval 'zfs upgrade -v > /dev/null 2>&1'
 
-zfs upgrade -v | nawk '$1 ~ "^[0-9]+$" {print $0}'> $output
-log_must eval 'grep "${expect_str1}" $output > /dev/null 2>&1'
-log_must eval 'grep "${expect_str2}" $output > /dev/null 2>&1'
+zfs upgrade -v | awk '$1 ~ "^[0-9]+$" {print $0}'> $output
+log_must grep -q "${expect_str1}" $output
+log_must grep -q "${expect_str2}" $output
 
 log_pass "Executing 'zfs upgrade -v' command succeeds."
