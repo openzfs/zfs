@@ -73,7 +73,7 @@ obj=${array[0]}
 log_note "file $init_data has object number $obj"
 
 output=$(zdb -ddddddbbbbbb $TESTPOOL/$TESTFS $obj 2> /dev/null \
-    |grep -m 1 "L0 DVA" |head -n1)
+    |grep -m 1 "L0 DVA")
 dva=$(sed -Ene 's/^.+DVA\[0\]=<([^>]+)>.*$/\1/p' <<< "$output")
 log_note "block 0 of $init_data has a DVA of $dva"
 
@@ -81,15 +81,13 @@ log_note "block 0 of $init_data has a DVA of $dva"
 size_str=$(sed -Ene 's/^.+ size=([^ ]+) .*$/\1/p' <<< "$output")
 log_note "block size $size_str"
 
-vdev=$(echo "$dva" |awk '{split($0,array,":")} END{print array[1]}')
-offset=$(echo "$dva" |awk '{split($0,array,":")} END{print array[2]}')
+vdev=$(echo "$dva" | cut -d: -f1)
+offset=$(echo "$dva" | cut -d: -f2)
 output=$(zdb -R $TESTPOOL $vdev:$offset:$size_str:d 2> /dev/null)
-echo $output |grep $pattern > /dev/null
-(( $? != 0 )) && log_fail "zdb -R :d failed to decompress the data properly"
+echo $output | grep -q $pattern || log_fail "zdb -R :d failed to decompress the data properly"
 
 output=$(zdb -R $TESTPOOL $vdev:$offset:$size_str:dr 2> /dev/null)
-echo $output |grep $four_k > /dev/null
-(( $? != 0 )) && log_fail "zdb -R :dr failed to decompress the data properly"
+echo $output | grep -q $four_k || log_fail "zdb -R :dr failed to decompress the data properly"
 
 output=$(zdb -R $TESTPOOL $vdev:$offset:$size_str:dr 2> /dev/null)
 result=${#output}
@@ -97,8 +95,8 @@ result=${#output}
 "zdb -R failed to decompress the data to the length (${#output} != $size_str)"
 
 # decompress using lsize
-lsize=$(echo $size_str |awk '{split($0,array,"/")} END{print array[1]}')
-psize=$(echo $size_str |awk '{split($0,array,"/")} END{print array[2]}')
+lsize=$(echo $size_str | cut -d/ -f1)
+psize=$(echo $size_str | cut -d/ -f2)
 output=$(zdb -R $TESTPOOL $vdev:$offset:$lsize:dr 2> /dev/null)
 result=${#output}
 (( $result != $blksize)) && log_fail \

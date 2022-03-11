@@ -47,8 +47,7 @@ log_assert "zpool set version can upgrade a pool"
 for version in 1 2 3 4 5 6 7 8
 do
 	log_must zpool set version=$version $TESTPOOL
-	ACTUAL=$(zpool get version $TESTPOOL | grep version \
-		| awk '{print $3}')
+	ACTUAL=$(get_pool_prop version $TESTPOOL)
 	if [ "$ACTUAL" != "$version" ]
 	then
 		log_fail "v. $ACTUAL set for $TESTPOOL, expected v. $version!"

@@ -42,7 +42,7 @@ do
 		log_must zpool create $TESTPOOL $type $ZPOOL_DISKS
 	fi
 	ac_value="$(zpool get -H -o property,value all | \
-	    egrep allocation_classes  | awk '{print $2}')"
+	    awk '/allocation_classes/ {print $2}')"
 	if [ "$ac_value" = "enabled" ]; then
 		log_note "feature@allocation_classes is enabled"
 	else
@@ -57,7 +57,7 @@ do
 		    $CLASS_DISK0 $CLASS_DISK1
 	fi
 	ac_value="$(zpool get -H -o property,value all | \
-	    egrep allocation_classes | awk '{print $2}')"
+	    awk '/allocation_classes/ {print $2}')"
 	if [ "$ac_value" = "active" ]; then
 		log_note "feature@allocation_classes is active"
 	else

@@ -391,12 +391,11 @@ function verify_send
 	user_run $user eval "zfs send $snap > $bak_user"
 	log_must eval "zfs send $snap > $bak_root"
 
-	if [[ $(checksum $bak_user) == $(checksum $bak_root) ]]; then
+	if [ "$(cksum < $bak_user)" = "$(cksum < $bak_root)" ]; then
 		ret=0
 	fi
 
-	rm -rf $bak_user > /dev/null
-	rm -rf $bak_root > /dev/null
+	rm -rf $bak_user $bak_root
 
 	return $ret
 }
@@ -462,12 +461,11 @@ function verify_fs_receive
 		log_must eval "zfs receive $dtst < $bak_root"
 		log_must eval "zfs send $dtstsnap > $bak_root"
 		log_must_busy zfs destroy -rf $dtst
-		if [[ $(checksum $bak_user) != $(checksum $bak_root) ]]; then
+		if [ "$(cksum < $bak_user)" != "$(cksum < $bak_root)" ]; then
 			return 1
 		fi
 
-		rm -rf $bak_user > /dev/null
-		rm -rf $bak_root > /dev/null
+		rm -rf $bak_user $bak_root
 
 	done
 

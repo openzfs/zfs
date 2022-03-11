@@ -293,7 +293,6 @@ function snapshot_tree
 	typeset -i ret=0
 	if [[ $type == "filesystem" ]]; then
 		typeset mntpnt=$(get_prop mountpoint $ds)
-		((ret |= $?))
 
 		if ((ret == 0)) ; then
 			eval random_tree $mntpnt/${snap##$ds}
@@ -364,8 +363,7 @@ function fs_inherit_prop
 		fi
 	else
 		fs_prop=$(zfs inherit 2>&1 | \
-		    awk '$2=="YES" && $3=="YES" {print $1}'|
-		    egrep -v "devices|mlslabel|sharenfs|sharesmb|zoned")
+		    awk '$2=="YES" && $3=="YES" && !/devices|mlslabel|sharenfs|sharesmb|zoned/ {print $1}')
 	fi
 
 	echo $fs_prop
@@ -595,8 +593,8 @@ function mess_send_file
 	# We use zstream dump to verify there is an intact DRR_BEGIN record.
 	offset=$(((($RANDOM * $RANDOM) % ($filesize - $minsize)) + $minsize))
 	nr_begins=$(head -c $offset $file | zstream dump | \
-	    grep DRR_BEGIN | awk '{ print $5 }')
-	log_must test "$nr_begins" -eq 1
+	    awk '/DRR_BEGIN/ { print $5 }')
+	log_must [ "$nr_begins" -eq 1 ]
 
 	if (($RANDOM % 7 <= 1)); then
 		#

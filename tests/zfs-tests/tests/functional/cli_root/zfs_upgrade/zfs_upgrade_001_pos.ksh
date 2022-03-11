@@ -72,7 +72,7 @@ typeset expect_str3="The following filesystems are out of date, and can be upgra
 typeset -i COUNT OLDCOUNT
 
 zfs upgrade | nawk '$1 ~ "^[0-9]+$" {print $2}'> $oldoutput
-OLDCOUNT=$( wc -l $oldoutput | awk '{print $1}' )
+OLDCOUNT=$(wc -l < $oldoutput)
 
 old_datasets=""
 for version in $ZFS_ALL_VERSIONS ; do
@@ -100,7 +100,7 @@ log_must eval 'zfs upgrade > $output 2>&1'
 # of the current ZFS version.
 log_must eval 'grep "${expect_str1} $ZFS_VERSION" $output > /dev/null 2>&1'
 zfs upgrade | nawk '$1 ~ "^[0-9]+$" {print $2}'> $output
-COUNT=$( wc -l $output | awk '{print $1}' )
+COUNT=$(wc -l < $output)
 
 typeset -i i=0
 for fs in ${old_datasets}; do
@@ -125,7 +125,7 @@ else
 	log_must eval 'grep "${expect_str3}" $output > /dev/null 2>&1'
 fi
 zfs upgrade | nawk '$1 ~ "^[0-9]+$" {print $2}'> $output
-COUNT=$( wc -l $output | awk '{print $1}' )
+COUNT=$(wc -l < $output)
 
 if (( COUNT != OLDCOUNT )); then
 	cat $output

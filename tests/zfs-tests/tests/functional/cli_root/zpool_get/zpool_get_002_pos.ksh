@@ -88,7 +88,7 @@ done
 # increment the counter to include the header line
 i=$(( $i + 1 ))
 
-COUNT=$(wc $values | awk '{print $1}')
+COUNT=$(wc -l < $values)
 if [ $i -ne $COUNT ]
 then
 	log_fail "Found zpool features not in the zpool_get test config $i/$COUNT."

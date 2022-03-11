@@ -59,7 +59,6 @@ log_assert "Verify zpool sub-commands which modify state are logged."
 log_onexit cleanup
 
 mntpnt=$(get_prop mountpoint $TESTPOOL)
-(( $? != 0)) && log_fail "get_prop($TESTPOOL mountpoint)"
 VDEV1=$mntpnt/vdev1; VDEV2=$mntpnt/vdev2;
 VDEV3=$mntpnt/vdev3; VDEV4=$mntpnt/vdev4;
 

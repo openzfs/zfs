@@ -109,10 +109,8 @@ while ((i < ${#args[@]})); do
 		
 		msg=$(mount | grep "$tmpmnt ")
 
-		echo $msg | grep "${args[((i))]}" > /dev/null 2>&1
-		if (($? != 0)) ; then
-			echo $msg | grep "${args[((i-1))]}" > /dev/null 2>&1
-			if (($? == 0)) ; then
+		if ! echo $msg | grep -q "${args[((i))]}"; then
+			if echo $msg | grep -q "${args[((i-1))]}"; then
 				log_fail "Expected option: ${args[((i))]} \n" \
 					 "Real option: $msg"
 			fi
@@ -130,8 +128,7 @@ while ((i < ${#args[@]})); do
 			args[((i+1))]="/nodevices/"
 		fi
 
-		echo $msg | grep "${args[((i+1))]}" > /dev/null 2>&1
-		if (($? != 0)) ; then
+		if ! echo $msg | grep -q "${args[((i+1))]}"; then
 			log_fail "Expected option: ${args[((i+1))]} \n" \
 				 "Real option: $msg"
 		fi

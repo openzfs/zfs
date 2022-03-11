@@ -149,14 +149,11 @@ function ismounted
 	case $fstype in
 		zfs)
 			if [[ "$1" == "/"* ]] ; then
-				for out in $(zfs mount | awk '{print $2}'); do
-					[[ $1 == $out ]] && return 0
-				done
+				! zfs mount | awk -v fs="$1" '$2 == fs {exit 1}'
 			else
-				for out in $(zfs mount | awk '{print $1}'); do
-					[[ $1 == $out ]] && return 0
-				done
+				! zfs mount | awk -v ds="$1" '$1 == ds {exit 1}'
 			fi
+			return $?
 		;;
 		ufs|nfs)
 			if is_freebsd; then
@@ -178,7 +175,7 @@ function ismounted
 			fi
 		;;
 		ext*)
-			out=$(df -t $fstype $1 2>/dev/null)
+			df -t $fstype $1 > /dev/null 2>&1
 			return $?
 		;;
 		zvol)
@@ -608,10 +605,8 @@ function default_cleanup_noexit
 				log_must zfs set reservation=none $fs
 				log_must zfs set recordsize=128K $fs
 				log_must zfs set mountpoint=/$fs $fs
-				typeset enc=""
-				enc=$(get_prop encryption $fs)
-				if [[ $? -ne 0 ]] || [[ -z "$enc" ]] || \
-					[[ "$enc" == "off" ]]; then
+				typeset enc=$(get_prop encryption $fs)
+				if [ -z "$enc" ] || [ "$enc" = "off" ]; then
 					log_must zfs set checksum=on $fs
 				fi
 				log_must zfs set compression=off $fs
@@ -684,8 +679,6 @@ function destroy_snapshot
 	typeset mtpt=""
 	if ismounted $snap; then
 		mtpt=$(get_prop mountpoint $snap)
-		(($? != 0)) && \
-			log_fail "get_prop mountpoint $snap failed."
 	fi
 
 	destroy_dataset "$snap"
@@ -710,8 +703,6 @@ function destroy_clone
 	typeset mtpt=""
 	if ismounted $clone; then
 		mtpt=$(get_prop mountpoint $clone)
-		(($? != 0)) && \
-			log_fail "get_prop mountpoint $clone failed."
 	fi
 
 	destroy_dataset "$clone"
@@ -743,7 +734,6 @@ function destroy_bookmark
 function snapexists
 {
 	zfs list -H -t snapshot "$1" > /dev/null 2>&1
-	return $?
 }
 
 #
@@ -754,7 +744,6 @@ function snapexists
 function bkmarkexists
 {
 	zfs list -H -t bookmark "$1" > /dev/null 2>&1
-	return $?
 }
 
 #
@@ -765,8 +754,7 @@ function bkmarkexists
 #
 function holdexists
 {
-	zfs holds "$2" | awk '{ print $2 }' | grep "$1" > /dev/null 2>&1
-	return $?
+	! zfs holds "$2" | awk -v t="$1" '$2 ~ t { exit 1 }'
 }
 
 #
@@ -934,9 +922,8 @@ function set_partition
 		# Determine the cylinder size for the device and using
 		# that calculate the end offset in cylinders.
 		typeset -i cly_size_kb=0
-		cly_size_kb=$(parted -m $disk -s -- \
-			unit cyl print | head -3 | tail -1 | \
-			awk -F '[:k.]' '{print $4}')
+		cly_size_kb=$(parted -m $disk -s -- unit cyl print |
+			awk -F '[:k.]' 'NR == 3 {print $4}')
 		((end = (size_mb * 1024 / cly_size_kb) + start))
 
 		parted $disk -s -- \
@@ -1077,15 +1064,14 @@ function get_endslice #<disk> <slice>
 
 		typeset -i ratio=0
 		ratio=$(prtvtoc /dev/rdsk/${disk}s2 | \
-		    grep "sectors\/cylinder" | \
-		    awk '{print $2}')
+		    awk '/sectors\/cylinder/ {print $2}')
 
 		if ((ratio == 0)); then
 			return
 		fi
 
 		typeset -i endcyl=$(prtvtoc -h /dev/rdsk/${disk}s2 |
-		    nawk -v token="$slice" '{if ($1==token) print $6}')
+		    awk -v token="$slice" '$1 == token {print $6}')
 
 		((endcyl = (endcyl + 1) / ratio))
 		;;
@@ -1163,56 +1149,22 @@ function fill_fs # destdir dirnum filenum bytes num_writes data
 	return 0
 }
 
-#
-# Simple function to get the specified property. If unable to
-# get the property then exits.
-#
-# Note property is in 'parsable' format (-p)
-#
+# Get the specified dataset property in parsable format or fail
 function get_prop # property dataset
 {
-	typeset prop_val
 	typeset prop=$1
 	typeset dataset=$2
 
-	prop_val=$(zfs get -pH -o value $prop $dataset 2>/dev/null)
-	if [[ $? -ne 0 ]]; then
-		log_note "Unable to get $prop property for dataset " \
-		"$dataset"
-		return 1
-	fi
-
-	echo "$prop_val"
-	return 0
+	zfs get -Hpo value "$prop" "$dataset" || log_fail "zfs get $prop $dataset"
 }
 
-#
-# Simple function to get the specified property of pool. If unable to
-# get the property then exits.
-#
-# Note property is in 'parsable' format (-p)
-#
+# Get the specified pool property in parsable format or fail
 function get_pool_prop # property pool
 {
-	typeset prop_val
 	typeset prop=$1
 	typeset pool=$2
 
-	if poolexists $pool ; then
-		prop_val=$(zpool get -pH $prop $pool 2>/dev/null | tail -1 | \
-			awk '{print $3}')
-		if [[ $? -ne 0 ]]; then
-			log_note "Unable to get $prop property for pool " \
-			"$pool"
-			return 1
-		fi
-	else
-		log_note "Pool $pool not exists."
-		return 1
-	fi
-
-	echo "$prop_val"
-	return 0
+	zpool get -Hpo value "$prop" "$pool" || log_fail "zpool get $prop $pool"
 }
 
 # Return 0 if a pool exists; $? otherwise
@@ -1988,19 +1940,16 @@ function verify_ashift # device ashift
 	typeset device="$1"
 	typeset ashift="$2"
 
-	zdb -e -lll $device | awk -v ashift=$ashift '/ashift: / {
-	    if (ashift != $2)
-	        exit 1;
-	    else
-	        count++;
-	    } END {
-	    if (count != 4)
-	        exit 1;
-	    else
-	        exit 0;
+	zdb -e -lll $device | awk -v ashift=$ashift '
+	    /ashift: / {
+	        if (ashift != $2)
+	            exit 1;
+	        else
+	            count++;
+	    }
+	    END {
+	        exit (count != 4);
 	    }'
-
-	return $?
 }
 
 #
@@ -2375,35 +2324,24 @@ function find_disks
 	swap -l > $sfi
 	dumpadm > $dmpi 2>/dev/null
 
-# write an awk script that can process the output of format
-# to produce a list of disks we know about. Note that we have
-# to escape "$2" so that the shell doesn't interpret it while
-# we're creating the awk script.
-# -------------------
-	cat > /tmp/find_disks.awk <<EOF
-#!/bin/nawk -f
-	BEGIN { FS="."; }
+	disks=${@:-$(echo "" | format -e 2>/dev/null | awk '
+BEGIN { FS="."; }
 
-	/^Specify disk/{
-		searchdisks=0;
+/^Specify disk/{
+	searchdisks=0;
+}
+
+{
+	if (searchdisks && $2 !~ "^$"){
+		split($2,arr," ");
+		print arr[1];
 	}
+}
 
-	{
-		if (searchdisks && \$2 !~ "^$"){
-			split(\$2,arr," ");
-			print arr[1];
-		}
-	}
-
-	/^AVAILABLE DISK SELECTIONS:/{
-		searchdisks=1;
-	}
-EOF
-#---------------------
-
-	chmod 755 /tmp/find_disks.awk
-	disks=${@:-$(echo "" | format -e 2>/dev/null | /tmp/find_disks.awk)}
-	rm /tmp/find_disks.awk
+/^AVAILABLE DISK SELECTIONS:/{
+	searchdisks=1;
+}
+')}
 
 	unused=""
 	for disk in $disks; do
@@ -2801,23 +2739,21 @@ function safe_to_destroy_pool { # $1 the pool name
 
 		# this is a list of the top-level directories in each of the
 		# files that make up the path to the files the pool is based on
-		FILEPOOL=$(zpool status -v $pool | grep /$1/ | \
-			awk '{print $1}')
+		FILEPOOL=$(zpool status -v $pool | awk -v pool="/$1/" '$0 ~ pool {print $1}')
 
 		# this is a list of the zvols that make up the pool
-		ZVOLPOOL=$(zpool status -v $pool | grep "$ZVOL_DEVDIR/$1$" \
-		    | awk '{print $1}')
+		ZVOLPOOL=$(zpool status -v $pool | awk -v zvols="$ZVOL_DEVDIR/$1$" '$0 ~ zvols {print $1}')
 
 		# also want to determine if it's a file-based pool using an
 		# alternate mountpoint...
 		POOL_FILE_DIRS=$(zpool status -v $pool | \
-					grep / | awk '{print $1}' | \
-					awk -F/ '{print $2}' | grep -v "dev")
+					awk '/\// {print $1}' | \
+					awk -F/ '!/dev/ {print $2}')
 
 		for pooldir in $POOL_FILE_DIRS
 		do
 			OUTPUT=$(zfs list -H -r -o mountpoint $1 | \
-					grep "${pooldir}$" | awk '{print $1}')
+					awk -v pd="${pooldir}$" '$0 ~ pd {print $1}')
 
 			ALTMOUNTPOOL="${ALTMOUNTPOOL}${OUTPUT}"
 		done
@@ -2935,21 +2871,11 @@ function get_config
 	if ! poolexists "$pool" ; then
 		return 1
 	fi
-	alt_root=$(zpool list -H $pool | awk '{print $NF}')
-	if [[ $alt_root == "-" ]]; then
-		value=$(zdb -C $pool | grep "$config:" | awk -F: \
-		    '{print $2}')
+	if [ "$(get_pool_prop cachefile "$pool")" = "none" ]; then
+		zdb -e $pool
 	else
-		value=$(zdb -e $pool | grep "$config:" | awk -F: \
-		    '{print $2}')
-	fi
-	if [[ -n $value ]] ; then
-		value=${value#'}
-		value=${value%'}
-	fi
-	echo $value
-
-	return 0
+		zdb -C $pool
+	fi | awk -F: -v cfg="$config:" '$0 ~ cfg {sub(/^'\''/, $2); sub(/'\''$/, $2); print $2}'
 }
 
 #
@@ -2967,8 +2893,7 @@ function _random_get
 	typeset -i ind
 	((ind = RANDOM % cnt + 1))
 
-	typeset ret=$(echo "$str" | cut -f $ind -d ' ')
-	echo $ret
+	echo "$str" | cut -f $ind -d ' '
 }
 
 #
@@ -3031,20 +2956,7 @@ function datasetcksum
 	typeset cksum
 	sync
 	sync_all_pools
-	cksum=$(zdb -vvv $1 | grep "^Dataset $1 \[" | grep "cksum" \
-		| awk -F= '{print $7}')
-	echo $cksum
-}
-
-#
-# Get cksum of file
-# #1 file path
-#
-function checksum
-{
-	typeset cksum
-	cksum=$(cksum $1 | awk '{print $1}')
-	echo $cksum
+	zdb -vvv $1 | awk -F= -v ds="^Dataset $1 "'\\[' '$0 ~ ds && /cksum/ {print $7}'
 }
 
 #
@@ -3065,27 +2977,6 @@ function get_device_state #pool disk field("", "spares","logs")
 		(startfield==1) &&
 		($1==field || $1 ~ "^spares$" || $1 ~ "^logs$") {startfield=0}')
 	echo $state
-}
-
-
-#
-# print the given directory filesystem type
-#
-# $1 directory name
-#
-function get_fstype
-{
-	typeset dir=$1
-
-	if [[ -z $dir ]]; then
-		log_fail "Usage: get_fstype <directory>"
-	fi
-
-	#
-	#  $ df -n /
-	#  /		  : ufs
-	#
-	df -n $dir | awk '{print $3}'
 }
 
 #
@@ -3142,16 +3033,6 @@ function labelvtoc
 }
 
 #
-# check if the system was installed as zfsroot or not
-# return: 0 if zfsroot, non-zero if not
-#
-function is_zfsroot
-{
-	df -n / | grep zfs > /dev/null 2>&1
-	return $?
-}
-
-#
 # get the root filesystem name if it's zfsroot system.
 #
 # return: root filesystem name
@@ -3162,7 +3043,7 @@ function get_rootfs
 	if is_freebsd; then
 		rootfs=$(mount -p | awk '$2 == "/" && $3 == "zfs" {print $1}')
 	elif ! is_linux; then
-		rootfs=$(awk '{if ($2 == "/" && $3 == "zfs") print $1}' \
+		rootfs=$(awk '$2 == "/" && $3 == "zfs" {print $1}' \
 			/etc/mnttab)
 	fi
 	if [[ -z "$rootfs" ]]; then
@@ -3460,9 +3341,7 @@ function wait_freeing #pool
 function wait_replacing #pool
 {
 	typeset pool=${1:-$TESTPOOL}
-	while true; do
-		[[ "" == "$(zpool status $pool |
-		    awk '/replacing-[0-9]+/ {print $1}')" ]] && break
+	while zpool status $pool | grep -qE 'replacing-[0-9]+'; do
 		log_must sleep 1
 	done
 }
@@ -3910,7 +3789,9 @@ function md5digest
 		md5 -q $file
 		;;
 	*)
-		md5sum -b $file | awk '{ print $1 }'
+		typeset sum _
+		read -r sum _ < <(md5sum -b $file)
+		echo $sum
 		;;
 	esac
 }
@@ -3928,7 +3809,9 @@ function sha256digest
 		sha256 -q $file
 		;;
 	*)
-		sha256sum -b $file | awk '{ print $1 }'
+		typeset sum _
+		read -r sum _ < <(sha256sum -b $file)
+		echo $sum
 		;;
 	esac
 }
@@ -4116,9 +3999,7 @@ function kstat # stat flags?
 		sysctl $flags kstat.zfs.misc.$stat
 		;;
 	Linux)
-		typeset zfs_kstat="/proc/spl/kstat/zfs/$stat"
-		[[ -f "$zfs_kstat" ]] || return 1
-		cat $zfs_kstat
+		cat "/proc/spl/kstat/zfs/$stat" 2>/dev/null
 		;;
 	*)
 		false
@@ -4135,7 +4016,7 @@ function get_arcstat # stat
 		kstat arcstats.$stat
 		;;
 	Linux)
-		kstat arcstats | awk "/$stat/ { print \$3 }"
+		kstat arcstats | awk "/$stat/"' { print $3 }'
 		;;
 	*)
 		false

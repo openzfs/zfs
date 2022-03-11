@@ -41,8 +41,7 @@
 # 2. Verify only the leaf filesystem to be version=1, others use the current version
 #
 
-ZFS_VERSION=$(zfs upgrade | head -1 | awk '{print $NF}' \
-	| sed -e 's/\.//g')
+ZFS_VERSION=$(zfs upgrade | grep -wom1 '[[:digit:]]*')
 
 verify_runnable "both"
 

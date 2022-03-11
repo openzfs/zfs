@@ -58,27 +58,22 @@ log_note "Randomly selected ZSTD level: $random_level"
 
 log_must zfs create -o compress=zstd-$random_level $TESTPOOL/$TESTFS1
 # Make a 5kb compressible file
-log_must cat $src_data $src_data $src_data $src_data $src_data \
-    > /$TESTPOOL/$TESTFS1/$TESTFILE0
+log_must eval cat $src_data $src_data $src_data $src_data $src_data \
+    "> /$TESTPOOL/$TESTFS1/$TESTFILE0"
 typeset checksum=$(md5digest /$TESTPOOL/$TESTFS1/$TESTFILE0)
 
 log_must zfs snapshot $snap
 
 # get object number of file
-listing=$(ls -i /$TESTPOOL/$TESTFS1/$TESTFILE0)
-set -A array $listing
-obj=${array[0]}
+read -r obj _ < <(ls -i /$TESTPOOL/$TESTFS1/$TESTFILE0)
 log_note "file /$TESTPOOL/$TESTFS1/$TESTFILE0 has object number $obj"
 
 output=$(zdb -Zddddddbbbbbb $TESTPOOL/$TESTFS1 $obj 2> /dev/null \
-    |grep -m 1 "L0 DVA" |head -n1)
+    | grep -m 1 "L0 DVA")
 dva=$(sed -Ene 's/^.+DVA\[0\]=<([^>]+)>.*$/\1/p' <<< "$output")
 log_note "block 0 of /$TESTPOOL/$TESTFS1/$TESTFILE0 has a DVA of $dva"
 
-zstd_str=$(sed -Ene 's/^.+ ZSTD:size=([^:]+):version=([^:]+):level=([^:]+):.*$/\1:\2:\3/p' <<< "$output")
-zstd_size1=$(echo "$zstd_str" |awk '{split($0,array,":")} END{print array[1]}')
-zstd_version1=$(echo "$zstd_str" |awk '{split($0,array,":")} END{print array[2]}')
-zstd_level1=$(echo "$zstd_str" |awk '{split($0,array,":")} END{print array[3]}')
+read -r zstd_size1 zstd_version1 zstd_level1 < <(sed -Ene 's/^.+ ZSTD:size=([^:]+):version=([^:]+):level=([^:]+):.*$/\1 \2 \3/p' <<< "$output")
 log_note "ZSTD src: size=$zstd_size1 version=$zstd_version1 level=$zstd_level1"
 
 log_note "Verify ZFS can receive the ZSTD compressed stream"
@@ -89,23 +84,18 @@ typeset cksum1=$(md5digest /$TESTPOOL/$TESTFS2/$TESTFILE0)
 	log_fail "Checksums differ ($cksum1 != $checksum)"
 
 # get object number of file
-listing=$(ls -i /$TESTPOOL/$TESTFS2/$TESTFILE0)
-set -A array $listing
-obj=${array[0]}
+read -r obj _ < <(ls -i /$TESTPOOL/$TESTFS2/$TESTFILE0)
 log_note "file /$TESTPOOL/$TESTFS2/$TESTFILE0 has object number $obj"
 
 output=$(zdb -Zddddddbbbbbb $TESTPOOL/$TESTFS2 $obj 2> /dev/null \
-    |grep -m 1 "L0 DVA" |head -n1)
+    | grep -m 1 "L0 DVA")
 dva=$(sed -Ene 's/^.+DVA\[0\]=<([^>]+)>.*$/\1/p' <<< "$output")
 log_note "block 0 of /$TESTPOOL/$TESTFS2/$TESTFILE0 has a DVA of $dva"
 
-zstd_str=$(sed -Ene 's/^.+ ZSTD:size=([^:]+):version=([^:]+):level=([^:]+):.*$/\1:\2:\3/p' <<< "$output")
-zstd_size2=$(echo "$zstd_str" |awk '{split($0,array,":")} END{print array[1]}')
+read -r zstd_size2 zstd_version2 zstd_level2 < <(sed -Ene 's/^.+ ZSTD:size=([^:]+):version=([^:]+):level=([^:]+):.*$/\1 \2 \3/p' <<< "$output")
+log_note "ZSTD dest: size=$zstd_size2 version=$zstd_version2 level=$zstd_level2"
 (( $zstd_size2 != $zstd_size1 )) && log_fail \
 "ZFS recv failed: compressed size differs ($zstd_size2 != $zstd_size1)"
-zstd_version2=$(echo "$zstd_str" |awk '{split($0,array,":")} END{print array[2]}')
-zstd_level2=$(echo "$zstd_str" |awk '{split($0,array,":")} END{print array[3]}')
-log_note "ZSTD dest: size=$zstd_size2 version=$zstd_version2 level=$zstd_level2"
 (( $zstd_level2 != $zstd_level1 )) && log_fail \
 "ZFS recv failed: compression level did not match header level ($zstd_level2 != $zstd_level1)"
 

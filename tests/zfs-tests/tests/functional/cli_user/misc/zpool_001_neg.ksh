@@ -59,6 +59,6 @@ log_assert "zpool shows a usage message when run as a user"
 eval "zpool > $TEMPFILE 2>&1"
 log_must grep "usage: zpool command args" "$TEMPFILE"
 
-log_must eval "awk '{if (length(\$0) > 80) exit 1}' < $TEMPFILE"
+log_must awk '{if (length($0) > 80) exit 1}' $TEMPFILE
 
 log_pass "zpool shows a usage message when run as a user"

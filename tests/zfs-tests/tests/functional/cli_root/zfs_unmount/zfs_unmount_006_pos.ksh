@@ -56,7 +56,6 @@ log_onexit cleanup
 # Call cleanup to make sure the file system are mounted.
 cleanup
 mntpnt=$(get_prop mountpoint $TESTPOOL/$TESTFS)
-(($? != 0)) && log_fail "get_prop mountpoint $TESTPOOL/$TESTFS"
 
 typeset -i i=0
 while (( i < 10000 )); do

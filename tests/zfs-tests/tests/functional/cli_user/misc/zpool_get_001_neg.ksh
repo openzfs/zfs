@@ -54,12 +54,12 @@ while [[ $i -lt ${#args[*]} ]]
 do
 	PROP=${props[$i]}
 	EXPECTED=${prop_vals[$i]}
-	ACTUAL=$( zpool get $PROP $TESTPOOL | grep $PROP | awk '{print $1}' )
+	ACTUAL=$( zpool get $PROP $TESTPOOL | awk -v p=$PROP '$0 ~ p {print $1}' )
 	if [ "$ACTUAL" != "$EXPECTED" ]
 	then
 		log_fail "Property $PROP value was $ACTUAL, expected $EXPECTED"
 	fi
-        i=$(( $i + 1 ))
+	i=$(( $i + 1 ))
 done
 
 log_must zpool get all $TESTPOOL

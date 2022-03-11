@@ -62,8 +62,7 @@ function cleanup
 	# check to see if there is any new fs created during the test
 	# if so destroy it.
 	#
-	for dset in $(zfs list -H | \
-		awk '{print $1}' | grep / ); do
+	for dset in $(zfs list -H | awk '$1 ~ /\/ {print $1}'); do
 		found=false
 		i=0
 		while (( $i < ${#existed_fs[*]} )); do
@@ -99,7 +98,7 @@ log_assert "Verify 'zfs create <filesystem>' fails with bad <filesystem> argumen
 datasetexists $TESTPOOL/$TESTFS || \
 	log_must zfs create $TESTPOOL/$TESTFS
 
-set -A existed_fs $(zfs list -H | awk '{print $1}' | grep / )
+set -A existed_fs $(zfs list -H | awk '$1 ~ /\// {print $1}')
 
 log_mustnot zfs create $TESTPOOL
 log_mustnot zfs create $TESTPOOL/$TESTFS

@@ -66,8 +66,8 @@ get_guid_list $tmpdir/prop_list $sendfs#book1
 get_guid_list $tmpdir/zdb_list $sendfs#book1 true
 get_guid_list $tmpdir/recvd_prop_list $recvfs@snap
 
-count=$(wc -l $tmpdir/prop_list | awk '{print $1}')
-[[ $count -eq 16 ]] || log_fail "Found incorrect number of redaction snapshots."
+count=$(wc -l < $tmpdir/prop_list)
+[ $count -eq 16 ] || log_fail "Found incorrect number of redaction snapshots."
 
 diff $tmpdir/prop_list $tmpdir/zdb_list || \
     log_fail "Property list differed from zdb output"

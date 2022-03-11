@@ -48,7 +48,7 @@ assert_zap_common $TESTPOOL $DISK "top" $orig_top
 # Attach a disk.
 #
 
-disk2=$(echo $DISKS | awk '{print $2}')
+read -r _ disk2 _ <<<"$DISKS"
 log_must zpool attach $TESTPOOL $DISK $disk2
 log_must zpool wait -t resilver $TESTPOOL
 log_must eval "zdb -PC $TESTPOOL > $conf"

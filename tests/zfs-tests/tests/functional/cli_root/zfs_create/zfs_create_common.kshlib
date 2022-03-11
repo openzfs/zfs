@@ -40,15 +40,12 @@ function propertycheck
 {
 	typeset dtst=$1
 	typeset propstr=$2
+	typeset prop expect_value
 
-	typeset prop=$(echo $propstr | awk -F= '{print $1}')
-	typeset expect_value=$(echo $propstr | awk -F= '{print $2}')
-	typeset value=$(zfs get -H -p -o value $prop $dtst)
+	IFS='=' read -r prop expect_value <<<"$propstr"
+
+	typeset value=$(get_prop $prop $dtst)
 
 
-	if [[ "$expect_value" == "$value" ]]; then
-		return 0
-	else
-		return 1
-	fi
+	[ "$expect_value" = "$value" ]
 }

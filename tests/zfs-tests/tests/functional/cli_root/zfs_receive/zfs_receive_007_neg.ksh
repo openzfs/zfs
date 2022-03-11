@@ -64,7 +64,7 @@ ibackup=$TEST_BASE_DIR/ibackup.$$
 
 datasetexists $fs || log_must zfs create $fs
 
-mntpnt=$(get_prop mountpoint $fs) || log_fail "get_prop mountpoint $fs"
+mntpnt=$(get_prop mountpoint $fs)
 log_must mkfile 10m $mntpnt/file1
 log_must zfs snapshot $snap1
 log_must mkfile 10m $mntpnt/file2

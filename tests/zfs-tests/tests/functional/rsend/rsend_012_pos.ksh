@@ -51,8 +51,7 @@ function edited_prop
 	case $behaviour in
 		"get")
 			typeset props=$(zfs inherit 2>&1 | \
-				awk '$2=="YES" {print $1}' | \
-				grep -Ev "^vol|\.\.\.$")
+				awk '$2=="YES" && $1 !~ /^vol|\.\.\.$/ {print $1}')
 			for item in $props ; do
 				if [[ $item == "mlslabel" ]] && \
 					! is_te_enabled ; then

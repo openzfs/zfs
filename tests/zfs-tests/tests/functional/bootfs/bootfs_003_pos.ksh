@@ -74,7 +74,7 @@ do
 	log_must zfs create $POOL/$TESTFS
 
 	log_must zpool set bootfs=$POOL/$TESTFS $POOL
-	RES=$(zpool get bootfs $POOL | tail -1 | awk '{print $3}' )
+	RES=$(zpool get bootfs $POOL | awk 'END {print $3}' )
 	if [ $RES != "$POOL/$TESTFS" ]
 	then
 		log_fail "Expected $RES == $POOL/$TESTFS"

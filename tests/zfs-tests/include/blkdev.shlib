@@ -223,13 +223,11 @@ function set_slice_prefix
 
 	if is_linux; then
 		while (( i < $DISK_ARRAY_NUM )); do
-			disk="$(echo $DISKS | nawk '{print $(i + 1)}')"
-			if ( is_mpath_device $disk ) && [[ -z $(echo $disk | awk 'substr($1,18,1)\
-			     ~ /^[[:digit:]]+$/') ]] || ( is_real_device $disk ); then
+			disk="$(echo $DISKS | awk '{print $(i + 1)}')"
+			if is_mpath_device $disk && ! echo $disk | awk 'substr($1,18,1) ~ /^[[:digit:]]+$/ {exit 1}' || is_real_device $disk; then
 				export SLICE_PREFIX=""
 				return 0
-			elif ( is_mpath_device $disk || is_loop_device \
-			    $disk ); then
+			elif is_mpath_device $disk || is_loop_device $disk; then
 				export SLICE_PREFIX="p"
 				return 0
 			else
@@ -518,11 +516,11 @@ function get_pool_devices #testpool #devdir
 	typeset devdir=$2
 	typeset out=""
 
-	if is_linux || is_freebsd; then
-		out=$(zpool status -P $testpool |grep ${devdir} | awk '{print $1}')
-		out=$(echo $out | sed -e "s|${devdir}/||g" | tr '\n' ' ')
-	fi
-	echo $out
+	case $(uname) in
+	Linux|FreeBSD)
+		zpool status -P $testpool | awk -v d="$devdir" '$1 ~ d {sub(d "/", ""); printf("%s ", $1)}'
+		;;
+	esac
 }
 
 #

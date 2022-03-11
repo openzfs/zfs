@@ -15,7 +15,7 @@ function test_zpool_script {
 	out="$($wholecmd)"
 
 	# Default number of columns that get printed without -c
-	if echo "$cmd" | grep -q iostat ; then
+	if [ "$cmd" != "${cmd/iostat/_/}" ]; then
 		# iostat
 		dcols=7
 	else
@@ -39,9 +39,9 @@ function test_zpool_script {
 	# zpool iostat -v output is 7 columns, so if the script ran correctly
 	# we should see more than that.
 	if ! newcols=$(echo "$out" | \
-	    awk '/\/dev/{print NF-'$dcols'; if (NF <= '$dcols') {exit 1}}' | \
-	    head -n 1) ; \
-	    then
+		awk '/\/dev/ {print NF-'$dcols'; if (NF <= '$dcols') {exit 1}}' | \
+		head -n 1)
+  then
 		log_fail "'$wholecmd' didn't create a new column value"
 	else
 		log_note "'$wholecmd' passed ($newcols new columns)"
