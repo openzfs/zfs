@@ -58,7 +58,7 @@ if ! ls -l $TESTDIR | grep "dir.0" | grep -q "drwx-wx---+"; then
 	log_note "expected mask drwx-wx---+ but found $msk"
 	log_fail "Expected permissions were not set."
 fi
-getfacl $TESTDIR/dir.0 2> /dev/null | egrep -q \
+getfacl $TESTDIR/dir.0 2> /dev/null | grep -q \
     "^group:$ZFS_ACL_STAFF_GROUP:-wx$"
 if [ "$?" -eq "0" ]; then
 	# Should be able to create file in directory

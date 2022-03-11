@@ -115,8 +115,7 @@ function histo_populate_test_pool
 			    of=/${pool}/B_${this_rs}/file_${filenum} \
 			    bs=${this_rs} count=${thiscount} \
 			    iflag=fullblock 2>&1 | \
-			    egrep -v -e "records in" -e "records out" \
-				-e "bytes.*copied"
+			    grep -ve "records in" -e "records out" -e "bytes.*copied"
 			((filenum+=1))
 		done
 	done
