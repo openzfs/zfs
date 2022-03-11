@@ -55,7 +55,7 @@ dnl #
 AC_DEFUN([ZFS_AC_KERNEL_ENUM_MEMBER], [
 	AC_MSG_CHECKING([whether enum $2 contains $1])
 	AS_IF([AC_TRY_COMMAND(
-	    "${srcdir}/scripts/enum-extract.pl" "$2" "$3" | egrep -qx $1)],[
+	    "${srcdir}/scripts/enum-extract.pl" "$2" "$3" | grep -Eqx $1)],[
 		AC_MSG_RESULT([yes])
 		AC_DEFINE(m4_join([_], [ZFS_ENUM], m4_toupper($2), $1), 1,
 		    [enum $2 contains $1])
