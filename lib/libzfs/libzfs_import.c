@@ -296,9 +296,9 @@ zpool_in_use(libzfs_handle_t *hdl, int fd, pool_state_t *state, char **namestr,
     boolean_t *inuse)
 {
 	nvlist_t *config;
-	char *name;
+	char *name = NULL;
 	boolean_t ret;
-	uint64_t guid, vdev_guid;
+	uint64_t guid = 0, vdev_guid;
 	zpool_handle_t *zhp;
 	nvlist_t *pool_config;
 	uint64_t stateval, isspare;
