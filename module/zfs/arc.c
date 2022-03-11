@@ -1204,11 +1204,11 @@ hdr_full_dest(void *vbuf, void *unused)
 static void
 hdr_full_crypt_dest(void *vbuf, void *unused)
 {
-	(void) unused;
-	arc_buf_hdr_t *hdr = vbuf;
+	(void) vbuf, (void) unused;
 
 	hdr_full_dest(vbuf, unused);
-	arc_space_return(sizeof (hdr->b_crypt_hdr), ARC_SPACE_HDRS);
+	arc_space_return(sizeof (((arc_buf_hdr_t *)NULL)->b_crypt_hdr),
+	    ARC_SPACE_HDRS);
 }
 
 static void
