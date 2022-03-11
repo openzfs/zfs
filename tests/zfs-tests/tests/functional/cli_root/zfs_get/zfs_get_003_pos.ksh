@@ -55,9 +55,8 @@ log_onexit cleanup
 log_must zfs set atime=on $TESTPOOL/$TESTFS
 log_must zfs mount -o remount,noatime $TESTPOOL/$TESTFS
 
-value1=$(zfs get -H atime $TESTPOOL/$TESTFS | awk '{print $3}')
-value2=$(zfs get -H all $TESTPOOL/$TESTFS | awk '{print $2 " " $3}' | \
-	grep ^atime | awk '{print $2}')
+read -r _ _ value1 _ < <(zfs get -H atime $TESTPOOL/$TESTFS)
+read -r _ value2 < <(zfs get -H all $TESTPOOL/$TESTFS | cut -f2,3 | grep ^atime)
 if [[ $value1 != $value2 ]]; then
 	log_fail "value1($value1) != value2($value2)"
 fi

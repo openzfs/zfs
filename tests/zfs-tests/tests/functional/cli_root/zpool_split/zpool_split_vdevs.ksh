@@ -122,7 +122,7 @@ typeset altroot="$TESTDIR/altroot-$TESTPOOL2"
 for config in "${goodconfs[@]}"
 do
 	create_config="${config%% *}"
-	add_config="$(awk '{$1= "";print $0}' <<< $config)"
+	add_config="$(awk '{$1=""; print $0}' <<< $config)"
 	log_must zpool create $TESTPOOL $(pool_config $create_config)
 	for vdev in $add_config; do
 		log_must zpool add -f $TESTPOOL $(pool_config $vdev)
@@ -137,7 +137,7 @@ done
 for config in "${badconfs[@]}"
 do
 	create_config="${config%% *}"
-	add_config="$(awk '{$1= "";print $0}' <<< $config)"
+	add_config="$(awk '{$1=""; print $0}' <<< $config)"
 	log_must zpool create $TESTPOOL $(pool_config $create_config)
 	for vdev in $add_config; do
 		log_must zpool add -f $TESTPOOL $(pool_config $vdev)

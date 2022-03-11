@@ -35,10 +35,7 @@ function force_unmount #dev
 {
 	typeset dev=$1
 
-	ismounted $dev
-	if (( $? == 0 )); then
-		log_must zfs $unmountforce $dev
-	fi
+	ismounted $dev && log_must zfs $unmountforce $dev
 	return 0
 }
 

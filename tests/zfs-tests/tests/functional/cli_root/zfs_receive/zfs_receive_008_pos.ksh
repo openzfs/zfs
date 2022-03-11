@@ -86,9 +86,6 @@ for orig_fs in $datasets ; do
 
 	typeset mntpnt
 	mntpnt=$(get_prop mountpoint $orig_fs)
-	if [[ $? -ne 0 ]] ; then
-		log_fail "get_prop mountpoint $orig_fs failed"
-	fi
 
 	typeset mnt_file=$mntpnt/file1
 

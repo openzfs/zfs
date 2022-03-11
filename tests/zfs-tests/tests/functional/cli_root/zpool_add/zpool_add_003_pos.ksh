@@ -90,8 +90,8 @@ done
 log_must zpool add -f $TESTPOOL $config
 zpool status $TESTPOOL | awk 'NR == 1, /NAME/ { next } /^$/ {exit}
 	{print $1}' > "$TMPFILE_PREFIX-vdevtree"
-cat "$TMPFILE_PREFIX-dryrun" | awk 'NR == 1, /would/ {next}
-	/^$/ {next} {print $1}' > "$TMPFILE_PREFIX-vdevtree-n"
-log_must eval "diff $TMPFILE_PREFIX-vdevtree-n $TMPFILE_PREFIX-vdevtree"
+awk 'NR == 1, /would/ {next}
+	/^$/ {next} {print $1}' "$TMPFILE_PREFIX-dryrun" > "$TMPFILE_PREFIX-vdevtree-n"
+log_must diff $TMPFILE_PREFIX-vdevtree-n $TMPFILE_PREFIX-vdevtree
 
 log_pass "'zpool add -n <pool> <vdev> ...' executes successfully."

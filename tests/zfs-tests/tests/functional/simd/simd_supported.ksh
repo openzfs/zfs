@@ -38,14 +38,14 @@
 
 log_note "Testing if we support SIMD instructions (Linux x86 only)"
 
-if !is_linux; then
+if ! is_linux; then
     log_unsupported "Not a Linux System"
 fi
 
 case "$(uname -m)" in
-i386|i686|x86_64)
+i?86|x86_64)
 	typeset -R modparam="/sys/module/zcommon/parameters/zfs_fletcher_4_impl"
-	if cat /proc/cpuinfo | awk '/^flags/ {print; exit;}' | grep -q sse; then
+	if awk '/^flags/ {exit !/sse/}' /proc/cpuinfo; then
 		log_must grep -q sse "$modparam"
 		log_pass "SIMD instructions supported"
 	else

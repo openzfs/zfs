@@ -59,7 +59,7 @@ do
 	log_mustnot $POOL set $PROP=$NEW $TESTPOOL
 
 	# Now verify that the above command did nothing
-	ACTUAL=$( zpool get $PROP $TESTPOOL | grep $PROP | awk '{print $1}' )
+	ACTUAL=$( zpool get $PROP $TESTPOOL | awk -v p=$PROP '$0 ~ p {print $1}' )
 	if [ "$ACTUAL" != "$EXPECTED" ]
 	then
 		log_fail "Property $PROP was set to $ACTUAL, expected $EXPECTED"

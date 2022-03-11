@@ -72,8 +72,8 @@ echo "alias scsidebug /dev/disk/by-id/$SD_DEVICE_ID" >>$VDEVID_CONF
 block_device_wait
 
 SD_DEVICE=$(udevadm info -q all -n $DEV_DSKDIR/$SD | \
-    awk -F'=' '/ID_VDEV=/{print $2; exit}')
-[[ -z $SD_DEVICE ]] && log_fail "vdev rule was not registered properly"
+    awk -F'=' '/ID_VDEV=/ {print $2; exit}')
+[ -z $SD_DEVICE ] && log_fail "vdev rule was not registered properly"
 
 log_must zpool events -c
 log_must zpool create -f $TESTPOOL raidz1 $SD_DEVICE $DISK1 $DISK2 $DISK3

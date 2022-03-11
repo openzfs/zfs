@@ -77,7 +77,7 @@ set -A vdevs "" "mirror" "raidz" "raidz1" "raidz2"
 
 typeset -i i=0
 
-PREVDUMPDEV=`dumpadm | grep "Dump device" | awk '{print $3}'`
+PREVDUMPDEV=`dumpadm | awk '/Dump device/ {print $3}'`
 
 unset NOINUSE_CHECK
 while (( i < ${#vdevs[*]} )); do

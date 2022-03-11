@@ -52,7 +52,7 @@ function verify_object_class # <path> <symbol>
 	symbol="$2"
 
 	log_must eval "zfs diff -F $TESTSNAP1 $TESTSNAP2 > $FILEDIFF"
-	diffsym="$(awk -v path="$path" '$NF == path { print $2 }' < $FILEDIFF)"
+	diffsym="$(awk -v path="$path" '$NF == path { print $2 }' $FILEDIFF)"
 	if [[ "$diffsym" != "$symbol" ]]; then
 		log_fail "Unexpected type for $path ('$diffsym' != '$symbol')"
 	else

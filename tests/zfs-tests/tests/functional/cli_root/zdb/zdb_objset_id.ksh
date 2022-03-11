@@ -68,63 +68,41 @@ log_note "file $init_data has object number $obj"
 sync_pool $TESTPOOL
 
 output=$(zdb -d $TESTPOOL/$TESTFS)
-objset_id=$(echo $output | awk '{split($0,array,",")} END{print array[2]}' |
-    awk '{split($0,array," ")} END{print array[2]}')
+objset_id=$(echo $output | cut -d, -f2 | cut -d' ' -f2)
 objset_hex=$(printf "0x%X" $objset_id)
 log_note "objset $TESTPOOL/$TESTFS has objset ID $objset_id ($objset_hex)"
 
 for id in "$objset_id" "$objset_hex"
 do
 	log_note "zdb -dddddd $TESTPOOL/$id $obj"
-	output=$(zdb -dddddd $TESTPOOL/$id $obj)
-	reason="($TESTPOOL/$TESTFS not in zdb output)"
-	echo $output |grep "$TESTPOOL/$TESTFS" > /dev/null
-	(( $? != 0 )) && log_fail \
-	    "zdb -dddddd $TESTPOOL/$id $obj failed $reason"
-	reason="(file1 not in zdb output)"
-	echo $output |grep "file1" > /dev/null
-	(( $? != 0 )) && log_fail \
-	    "zdb -dddddd $TESTPOOL/$id $obj failed $reason"
-	obj=$(printf "0x%X" $obj)
+		output=$(zdb -dddddd $TESTPOOL/$id $obj)
+		echo $output | grep -q "$TESTPOOL/$TESTFS" ||
+			log_fail "zdb -dddddd $TESTPOOL/$id $obj failed ($TESTPOOL/$TESTFS not in zdb output)"
+		echo $output | grep -q "file1" ||
+			log_fail "zdb -dddddd $TESTPOOL/$id $obj failed (file1 not in zdb output)"
 
+	obj=$(printf "0x%X" $obj)
 	log_note "zdb -NNNNNN $TESTPOOL/$id $obj"
         output=$(zdb -NNNNNN $TESTPOOL/$id $obj)
-        reason="($TESTPOOL/$TESTFS not in zdb output)"
-        echo $output |grep "$TESTPOOL/$TESTFS" > /dev/null
-        (( $? != 0 )) && log_fail \
-            "zdb -NNNNNN $TESTPOOL/$id $obj failed $reason"
-        reason="(file1 not in zdb output)"
-        echo $output |grep "file1" > /dev/null
-        (( $? != 0 )) && log_fail \
-            "zdb -NNNNNN $TESTPOOL/$id $obj failed $reason"
+        echo $output | grep -q "$TESTPOOL/$TESTFS" ||
+        	log_fail "zdb -NNNNNN $TESTPOOL/$id $obj failed ($TESTPOOL/$TESTFS not in zdb output)"
+        echo $output | grep -q "file1" ||
+        	log_fail "zdb -NNNNNN $TESTPOOL/$id $obj failed (file1 not in zdb output)"
 done
 
 if is_linux; then
 	output=$(ls -1 /proc/spl/kstat/zfs/$TESTPOOL |grep objset- |tail -1)
 	objset_hex=${output#*-}
 	name_from_proc=$(cat /proc/spl/kstat/zfs/$TESTPOOL/$output |
-	    grep dataset_name | awk '{split($0,array," ")} END{print array[3]}')
+	    grep dataset_name | cut -d' ' -f3)
 	log_note "checking zdb output for $name_from_proc"
-	reason="(name $name_from_proc from proc not in zdb output)"
-	log_note "zdb -dddddd $TESTPOOL/$objset_hex"
-	output=$(zdb -dddddd $TESTPOOL/$objset_hex)
-	echo $output |grep "$name_from_proc" > /dev/null
-	(( $? != 0 )) && log_fail \
-	    "zdb -dddddd $TESTPOOL/$objset_hex failed $reason"
+	log_must eval "zdb -dddddd $TESTPOOL/$objset_hex | grep -q \"$name_from_proc\""
 fi
 
 log_must zfs create $hex_ds
 log_must zfs create $num_ds
-output=$(zdb -d $hex_ds)
-reason="($TESTPOOL/0x400 not in zdb output)"
-echo $output |grep "$hex_ds" > /dev/null
-(( $? != 0 )) && log_fail \
-    "zdb -d $hex_ds failed $reason"
-output=$(zdb -d $num_ds)
-reason="($num_ds not in zdb output)"
-echo $output |grep "$num_ds" > /dev/null
-(( $? != 0 )) && log_fail \
-    "zdb -d $num_ds failed $reason"
+log_must eval "zdb -d $hex_ds | grep -q \"$hex_ds\""
+log_must eval "zdb -d $num_ds | grep -q \"$num_ds\""
 
 # force numeric interpretation, expect fail
 log_mustnot zdb -N $hex_ds

@@ -70,7 +70,8 @@ log_must key_available $TESTPOOL/$TESTFS1
 
 log_mustnot eval "echo $PASSPHRASE | zfs load-key $TESTPOOL/$TESTFS1"
 
-typeset DISK2="$(echo $DISKS | awk '{ print $2 }')"
+typeset DISK2 _
+read -r _ DISK2 _ <<<"$DISKS"
 log_must eval "echo $PASSPHRASE | zpool create -O encryption=on" \
 	"-O keyformat=passphrase -O keylocation=prompt $TESTPOOL1 $DISK2"
 

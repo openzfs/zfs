@@ -106,8 +106,8 @@ if [ "$output" != "$blk_out1" ]; then
 	log_fail "zdb -R :b80d (block 1 display/decompress) failed"
 fi
 
-vdev=$(echo "$dva" |awk '{split($0,array,":")} END{print array[1]}')
-offset=$(echo "$dva" |awk '{split($0,array,":")} END{print array[2]}')
+vdev=$(echo "$dva" | cut -d: -f1)
+offset=$(echo "$dva" | cut -d: -f2)
 output=$(export ZDB_NO_ZLE=\"true\";\
     zdb -R $TESTPOOL $vdev:$offset:$l1_read_size:id 2> /dev/null)
 block_cnt=$(echo "$output" | grep 'L0' | wc -l)

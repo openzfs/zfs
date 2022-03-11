@@ -70,12 +70,14 @@ log_must dd if=$DEV_RDSKDIR/${DISK[0]} of=$DEV_RDSKDIR/${DISK[1]} bs=1K count=25
 ubs=$(zdb -lu ${DISK[1]} | grep -e LABEL -e Uberblock -e 'labels = ')
 log_note "vdev 1: ubs $ubs"
 
+set -o pipefail
 ub_dump_counts=$(zdb -lu ${DISK[1]} | \
 	awk '	/LABEL/	{label=$NF; blocks[label]=0};
 		/Uberblock/ {blocks[label]++};
-		END {print blocks[0],blocks[1],blocks[2],blocks[3]}')
-(( $? != 0)) && log_fail "failed to get ub_dump_counts from DISK[1]"
+		END {print blocks[0],blocks[1],blocks[2],blocks[3]}') ||
+	log_fail "failed to get ub_dump_counts from DISK[1]"
 log_note "vdev 1: ub_dump_counts $ub_dump_counts"
+set +o pipefail
 
 set -A dump_count $ub_dump_counts
 for label in 0 1 2 3; do

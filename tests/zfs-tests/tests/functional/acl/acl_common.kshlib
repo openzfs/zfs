@@ -185,9 +185,7 @@ function plus_sign_check_l #<obj>
 		return 1
 	fi
 
-	ls -ld $obj | awk '{print $1}' | grep "+$" > /dev/null
-
-        return $?
+	! ls -ld $obj | awk '$1 ~ /\+$/ {exit 1}'
 }
 
 #
@@ -202,9 +200,7 @@ function plus_sign_check_v #<obj>
 		return 1
 	fi
 
-	ls -vd $obj | awk '(NR == 1) {print $1}' | grep "+$" > /dev/null
-
-        return $?
+	! ls -vd $obj | awk 'NR == 1 && $1 ~ /\+$ {exit 1}'
 }
 
 #
@@ -216,7 +212,6 @@ function plus_sign_check_v #<obj>
 function chgusr_exec #<login_name> <commands> [...]
 {
 	chg_usr_exec $@
-	return $?
 }
 
 #
@@ -237,7 +232,6 @@ function set_cur_usr #<login_name>
 function usr_exec #<commands> [...]
 {
 	chg_usr_exec "$ZFS_ACL_CUR_USER" $@
-	return $?
 }
 
 #
@@ -447,12 +441,10 @@ function get_group #node
 	fi
 
 	if [[ -d $node ]]; then
-		value=$(ls -dl $node | awk '{print $4}')
+		ls -dl $node
 	elif [[ -e $node ]]; then
-		value=$(ls -l $node | awk '{print $4}')
-	fi
-
-	echo $value
+		ls -l $node
+	fi | awk '{print $4}'
 }
 
 

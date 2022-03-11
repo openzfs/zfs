@@ -55,7 +55,6 @@ log_assert "zpool history limitation test."
 log_onexit cleanup
 
 mntpnt=$(get_prop mountpoint $TESTPOOL)
-(( $? != 0 )) && log_fail "get_prop mountpoint $TESTPOOL"
 
 VDEV0=$mntpnt/vdev0
 log_must mkfile $MINVDEVSIZE $VDEV0
@@ -79,16 +78,16 @@ done
 
 TMPFILE=$TEST_BASE_DIR/spool.$$
 zpool history $spool >$TMPFILE
-typeset -i entry_count=$(wc -l $TMPFILE | awk '{print $1}')
+typeset -i entry_count=$(wc -l < $TMPFILE)
 typeset final_md5=$(head -2 $TMPFILE | md5digest)
 
-grep 'zpool create' $TMPFILE >/dev/null 2>&1 ||
+grep -q 'zpool create' $TMPFILE ||
     log_fail "'zpool create' was not found in pool history"
 
-grep 'zfs create' $TMPFILE >/dev/null 2>&1 &&
+grep -q 'zfs create' $TMPFILE &&
     log_fail "'zfs create' was found in pool history"
 
-grep 'zfs set compress' $TMPFILE >/dev/null 2>&1 ||
+grep -q 'zfs set compress' $TMPFILE ||
     log_fail "'zfs set compress' was found in pool history"
 
 # Verify that the creation of the pool was preserved in the history.

@@ -47,8 +47,8 @@ function unlinked_size_is
 	last_usize=0
 	while [[ $iters -le $MAX_ITERS ]]; do
 		kstat_file=$(grep -nrwl /proc/spl/kstat/zfs/$2/objset-0x* -e $3)
-		nunlinks=`cat $kstat_file | grep nunlinks | awk '{print $3}'`
-		nunlinked=`cat $kstat_file | grep nunlinked | awk '{print $3}'`
+		nunlinks=$(awk '/nunlinks/ {print $3}' $kstat_file)
+		nunlinked=$(awk '/nunlinked/ {print $3}' $kstat_file)
 		usize=$(($nunlinks - $nunlinked))
 		if [[ $iters == $MAX_ITERS && $usize == $1 ]]; then
 			return 0

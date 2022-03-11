@@ -71,12 +71,11 @@ fi
 # Verify we can set a combination of valid property values on the new pool
 for prop in "${good_props[@]}"
 do
-	propname="$(awk -F= '{print $1}' <<< $prop)"
-	propval="$(awk -F= '{print $2}' <<< $prop)"
+	IFS='=' read -r propname propval <<<"$prop"
 	setup_mirror
 	log_must zpool split -o $prop $TESTPOOL $TESTPOOL2
 	log_must zpool import -N -d $TEST_BASE_DIR $TESTPOOL2
-	log_must test "$(get_pool_prop $propname $TESTPOOL2)" == "$propval"
+	log_must test "$(get_pool_prop $propname $TESTPOOL2)" = "$propval"
 
 	destroy_pool $TESTPOOL
 	destroy_pool $TESTPOOL2

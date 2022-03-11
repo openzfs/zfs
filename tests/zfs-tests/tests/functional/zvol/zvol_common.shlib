@@ -71,8 +71,7 @@ function default_zvol_cleanup
 
 function get_dumpdevice
 {
-	typeset ret=$(dumpadm | grep "Dump device:" | awk '{print $3}')
-	echo $ret
+	dumpadm | awk '/Dump device:/ {print $3}'
 }
 
 function set_dumpsize
@@ -86,8 +85,7 @@ function set_dumpsize
 
 	log_must zfs set volsize=64m $volume
 
-	output=$(dumpadm -d /dev/zvol/dsk/$volume 2>&1 | \
-			tail -1 | awk '{print $3}')
+	output=$(dumpadm -d /dev/zvol/dsk/$volume 2>&1 | awk 'END {print $3}')
 
 	if [[ -n $output ]]; then
 		(( output = output / 1024 / 1024 ))

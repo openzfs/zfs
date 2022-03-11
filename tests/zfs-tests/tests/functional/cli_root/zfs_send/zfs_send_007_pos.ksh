@@ -52,7 +52,7 @@ streamfile=$(mktemp $TESTDIR/file.XXXXXX)
 vdev=$(mktemp $TEST_BASE_DIR/file.XXXXXX)
 
 
-test_pool ()
+function test_pool
 {
 	POOL=$1
 	log_must zfs create -o recordsize=512 $POOL/fs
@@ -67,10 +67,7 @@ test_pool ()
 		sync_all_pools
 		# check if we started reusing objects
 		object=$(ls -i $mntpnt | sort -n | awk -v object=$object \
-		    '{if ($1 <= object) {exit 1}} END {print $1}')
-		if [[ $? -ne 0 ]]; then
-			break
-		fi
+		    '{if ($1 <= object) {exit 1}} END {print $1}') || break
 	done
 	dd if=/dev/urandom of=${mntpnt}/$FILE bs=512 count=1 seek=1 2>/dev/null
 

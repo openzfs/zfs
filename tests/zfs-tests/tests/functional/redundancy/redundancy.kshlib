@@ -200,10 +200,10 @@ function is_healthy
 		ret=$?
 		(( $ret == 0 )) && return 1
 		typeset l_scan
-		typeset errnum
+		typeset errnum _
 		l_scan=$(zpool status -x $pool | grep "scan:")
 		l_scan=${l_scan##*"with"}
-		errnum=$(echo $l_scan | awk '{print $1}')
+		read -r errnum _ <<<"$l_scan"
 
 		return $errnum
 	fi
@@ -243,12 +243,13 @@ function get_vdevs #pool cnt
 	typeset -i cnt=$2
 
 	typeset all_devs=$(zpool iostat -v $pool | awk '{print $1}'| \
-		egrep -v "^pool$|^capacity$|^mirror\-[0-9]$|^raidz[1-3]\-[0-9]$|^draid[1-3].*\-[0-9]$|---" | \
-		egrep -v "/old$|^$pool$")
+		egrep -ve "^pool$|^capacity$|^mirror\-[0-9]$|^raidz[1-3]\-[0-9]$|^draid[1-3].*\-[0-9]$|---" | \
+		-e "/old$|^$pool$")
 	typeset -i i=0
 	typeset vdevs
 	while ((i < cnt)); do
-		typeset dev=$(echo $all_devs | awk '{print $1}')
+		typeset dev _
+		read -r dev _ <<<"$all_devs"
 		eval all_devs=\${all_devs##*$dev}
 
 		vdevs="$dev $vdevs"

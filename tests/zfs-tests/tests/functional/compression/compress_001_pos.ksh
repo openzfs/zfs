@@ -60,8 +60,8 @@ log_must file_write -o $OP -f $TESTDIR/$TESTFILE1 -b $BLOCKSZ \
 
 sleep 60
 
-FILE0_BLKS=`du -k $TESTDIR/$TESTFILE0 | awk '{ print $1}'`
-FILE1_BLKS=`du -k $TESTDIR/$TESTFILE1 | awk '{ print $1}'`
+FILE0_BLKS=`du -k $TESTDIR/$TESTFILE0 | awk '{print $1}'`
+FILE1_BLKS=`du -k $TESTDIR/$TESTFILE1 | awk '{print $1}'`
 
 if [[ $FILE0_BLKS -le $FILE1_BLKS ]]; then
 	log_fail "$TESTFILE0 is smaller than $TESTFILE1" \

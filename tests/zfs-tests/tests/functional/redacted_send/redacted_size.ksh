@@ -43,22 +43,19 @@ typeset clone_mnt="$(get_prop mountpoint $clone)"
 log_must rm -rf $clone_mnt/*
 log_must zfs snapshot $clone@snap
 log_must zfs redact $sendfs@snap book $clone@snap
-log_must eval "zfs send -nvP --redact book $sendfs@snap | \
-    grep '^size' | awk '{print \$2}' >$size"
-log_must eval "zfs send --redact book $sendfs@snap | wc -c \
-    >$size2"
-bytes1=$(cat $size | tr -d '[[:space:]]')
-bytes2=$(cat $size2 | tr -d '[[:space:]]')
-[[ "$bytes1" -eq "$bytes2" ]] || \
+log_must eval "zfs send -nvP --redact book $sendfs@snap | awk '/^size/ {print \$2}' >$size"
+log_must eval "zfs send --redact book $sendfs@snap | wc -c >$size2"
+read -r bytes1 < $size
+read -r bytes2 < $size2
+[ "$bytes1" -eq "$bytes2" ] || \
     log_fail "Full sizes differ: estimate $bytes1 and actual $bytes2"
 
 log_must zfs snapshot $sendfs@snap2
-log_must eval "zfs send -nvP -i $sendfs#book $sendfs@snap2 | \
-    grep '^size' | awk '{print \$2}' >$size"
+log_must eval "zfs send -nvP -i $sendfs#book $sendfs@snap2 | awk '/^size/ {print \$2}' >$size"
 log_must eval "zfs send -i $sendfs#book $sendfs@snap2 | wc -c >$size2"
-bytes1=$(cat $size | tr -d '[[:space:]]')
-bytes2=$(cat $size2 | tr -d '[[:space:]]')
-[[ "$bytes1" -eq "$bytes2" ]] || \
+read -r bytes1 < $size
+read -r bytes2 < $size2
+[ "$bytes1" -eq "$bytes2" ] || \
     log_fail "Incremental sizes differ: estimate $bytes1 and actual $bytes2"
 
 log_pass "Size estimates of redacted sends estimate accurately."

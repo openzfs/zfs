@@ -217,12 +217,11 @@ for ds in $datasets; do
 	sync_pool
 done
 recursive_output=$(zfs get -p -r written@current $TESTPOOL | \
-    grep -v $TESTFS1@ | grep -v $TESTFS2@ | grep -v $TESTFS3@ | \
-    grep -v "VALUE" | grep -v "-")
+    grep -ve $TESTFS1@ -e $TESTFS2@ -e $TESTFS3@ -e "VALUE" | grep -v "-")
 expected="$((20 * mb_block))"
 for ds in $datasets; do
 	writtenat=$(echo "$recursive_output" | grep -v $ds/)
-	writtenat=$(echo "$writtenat" | grep $ds | awk '{print $3}')
+	writtenat=$(echo "$writtenat" | awk -v ds="$ds" '$0 ~ ds {print $3}')
 	within_percent $writtenat $expected 99.5 || \
 	    log_fail "Unexpected written@ value on $ds"
 done

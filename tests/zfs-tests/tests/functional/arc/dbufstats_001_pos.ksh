@@ -56,8 +56,7 @@ function testdbufstat # stat_name dbufstat_filter
         [[ -n "$2" ]] && filter="-F $2"
 
 	if is_linux; then
-		from_dbufstat=$(grep -w "$name" "$DBUFSTATS_FILE" |
-		    awk '{ print $3 }')
+		read -r _ _ from_dbufstat _ < <(grep -w "$name" "$DBUFSTATS_FILE")
 	else
 		from_dbufstat=$(awk "/dbufstats\.$name:/ { print \$2 }" \
 		    "$DBUFSTATS_FILE")

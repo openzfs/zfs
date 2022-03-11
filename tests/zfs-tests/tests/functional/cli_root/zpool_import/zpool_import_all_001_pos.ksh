@@ -76,11 +76,11 @@ function cleanup_all
 	#
 	# Try import individually if 'import -a' failed.
 	#
-	for pool in `zpool import | grep "pool:" | awk '{print $2}'`; do
+	for pool in $(zpool import | awk '/pool:/ {print $2}'); do
 		zpool import -f $pool
 	done
 
-	for pool in `zpool import -d $DEVICE_DIR | grep "pool:" | awk '{print $2}'`; do
+	for pool in $(zpool import -d $DEVICE_DIR | awk '/pool:/ {print $2}'); do
 		log_must zpool import -d $DEVICE_DIR -f $pool
 	done
 

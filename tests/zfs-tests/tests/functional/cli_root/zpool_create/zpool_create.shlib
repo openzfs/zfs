@@ -83,14 +83,9 @@ function find_vfstab_dev
 #
 function save_dump_dev
 {
-	typeset dumpdev=""
-
 	if is_illumos; then
-		typeset fnd="Dump device"
-		dumpdev=`dumpadm | grep "$fnd" | cut -f2 -d : | \
-			awk '{print $1}'`
+		dumpadm | grep "Dump device" | cut -f2 -d : | awk '{print $1}'
 	fi
-	echo $dumpdev
 }
 
 #

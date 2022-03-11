@@ -106,7 +106,7 @@ log_assert "Testing /proc/spl/kstat/zfs/<pool>/state kstat"
 check_all $TESTPOOL "ONLINE"
 
 # Fault one of the disks, and check that pool is degraded
-DISK1=$(echo "$DISKS" | awk '{print $2}')
+read -r DISK1 _ <<<"$DISKS"
 log_must zpool offline -tf $TESTPOOL $DISK1
 check_all $TESTPOOL "DEGRADED"
 log_must zpool online $TESTPOOL $DISK1
