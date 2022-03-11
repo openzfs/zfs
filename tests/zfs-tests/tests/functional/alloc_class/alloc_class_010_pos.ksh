@@ -39,7 +39,7 @@ for value in 0 512 1024 2048 4096 8192 16384 32768 65536 131072
 do
 	log_must zfs set special_small_blocks=$value $TESTPOOL
 	ACTUAL=$(zfs get -p special_small_blocks $TESTPOOL | \
-		grep special_small_blocks | awk '{print $3}')
+		awk '/special_small_blocks/ {print $3}')
 	if [ "$ACTUAL" != "$value" ]
 	then
 		log_fail "v. $ACTUAL set for $TESTPOOL, expected v. $value!"

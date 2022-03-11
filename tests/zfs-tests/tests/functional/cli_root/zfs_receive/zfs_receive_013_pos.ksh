@@ -52,7 +52,7 @@ log_onexit cleanup
 truncate -s 100M $tpoolfile
 log_must zpool create $temppool $tpoolfile
 log_must zfs create $src_fs
-src_mnt=$(get_prop mountpoint $src_fs) || log_fail "get_prop mountpoint $src_fs"
+src_mnt=$(get_prop mountpoint $src_fs)
 
 echo blah > $src_mnt/blah
 zfs snapshot $src_fs@base

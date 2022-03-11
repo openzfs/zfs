@@ -55,12 +55,10 @@ function hasflag
 	typeset path=$2
 
 	if is_linux; then
-		read_dos_attributes $path | awk \
-		'{ gsub(",", "\n", $1); print $1 }' | grep -qxF $flag
+		read_dos_attributes $path
 	else
-		ls -lo $path | awk '{ gsub(",", "\n", $5); print $5 }' | \
-		grep -qxF $flag
-	fi
+		ls -lo $path | awk '{ print $5 }'
+	fi | grep -qwF $flag
 }
 
 log_assert "Verify DOS mode flags function correctly"

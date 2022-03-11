@@ -66,11 +66,7 @@ log_assert "Setting a valid mountpoint for an unmounted file system, \
 log_onexit cleanup
 
 old_fs_mpt=$(get_prop mountpoint $TESTPOOL/$TESTFS)
-[[ $? != 0 ]] && \
-	log_fail "Unable to get the mountpoint property for $TESTPOOL/$TESTFS"
 old_ctr_mpt=$(get_prop mountpoint $TESTPOOL/$TESTCTR)
-[[ $? != 0 ]] && \
-	log_fail "Unable to get the mountpoint property for $TESTPOOL/$TESTCTR"
 
 if [[ ! -d $TESTDIR2 ]]; then
 	log_must mkdir $TESTDIR2

@@ -47,7 +47,7 @@ function verify_object_change # <path> <change>
 	change="$2"
 
 	log_must eval "zfs diff -F $TESTSNAP1 $TESTSNAP2 > $FILEDIFF"
-	diffchg="$(awk -v path="$path" '$NF == path { print $1 }' < $FILEDIFF)"
+	diffchg="$(awk -v path="$path" '$NF == path { print $1 }' $FILEDIFF)"
 	if [[ "$diffchg" != "$change" ]]; then
 		log_fail "Unexpected change for $path ('$diffchg' != '$change')"
 	else

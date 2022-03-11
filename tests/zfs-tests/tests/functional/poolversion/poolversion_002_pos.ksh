@@ -50,7 +50,7 @@ log_must zpool set version=6 $TESTPOOL2
 # verify it's actually that version - by checking the version property
 # and also by trying to set bootfs (which should fail if it is not version 6)
 
-VERSION=$(zpool get version $TESTPOOL2| grep version | awk '{print $3}')
+VERSION=$(get_pool_prop version $TESTPOOL2)
 if [ "$VERSION" != "6" ]
 then
 	log_fail "Version $VERSION set for $TESTPOOL2 expected version 6!"
@@ -62,7 +62,7 @@ log_mustnot zpool set version=5 $TESTPOOL2
 log_mustnot zpool set version=-1 $TESTPOOL2
 
 # verify the version is still 6
-VERSION=$(zpool get version $TESTPOOL2 | grep version | awk '{print $3}')
+VERSION=$(get_pool_prop version $TESTPOOL2)
 if [ "$VERSION" != "6" ]
 then
 	log_fail "Version $VERSION set for $TESTPOOL2, expected version 6!"

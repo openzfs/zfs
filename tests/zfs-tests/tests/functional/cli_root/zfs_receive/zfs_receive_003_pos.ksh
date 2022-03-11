@@ -62,7 +62,7 @@ log_onexit cleanup
 ibackup=$TEST_BASE_DIR/ibackup.$$
 fs=$TESTPOOL/$TESTFS; snap1=$fs@snap1; snap2=$fs@snap2
 
-mntpnt=$(get_prop mountpoint $fs) || log_fail "get_prop mountpoint $fs"
+mntpnt=$(get_prop mountpoint $fs)
 log_must mkfile 10m $mntpnt/file1
 log_must zfs snapshot $snap1
 log_must mkfile 10m $mntpnt/file2

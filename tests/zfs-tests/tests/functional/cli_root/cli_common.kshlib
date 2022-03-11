@@ -31,21 +31,13 @@
 . $STF_SUITE/include/libtest.shlib
 
 #
-# Get the checksum and size of the file.
-#
-function get_cksum # <file path>
-{
-	return $(cksum $1 | awk '{print $1 $2}')
-}
-
-#
 # Compare the checksum of target files with the original file
 #
 
 function compare_cksum #<orig_data> <target_data1>...<target_datan>
 {
 	typeset orig_data=$1
-	typeset orig_sum=$(get_cksum $orig_data)
+	typeset orig_sum=$(cksum < $orig_data)
 	typeset target_sum=""
 	typeset bad_data_list=""
 	typeset -i bad_count=0
@@ -58,7 +50,7 @@ function compare_cksum #<orig_data> <target_data1>...<target_datan>
 			continue
 		fi
 
-		target_sum=$(get_cksum $data)
+		target_sum=$(cksum < $data)
 		if [[ $target_sum != $orig_sum ]]; then
 			bad_data_list="$bad_data_list $data"
 			(( bad_count +=1 ))

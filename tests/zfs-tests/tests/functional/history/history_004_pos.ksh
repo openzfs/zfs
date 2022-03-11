@@ -46,7 +46,7 @@ verify_runnable "global"
 
 log_assert "'zpool history' can cope with simultaneous commands."
 
-typeset -i orig_count=$(zpool history $spool | wc -l | awk '{print $1}')
+typeset -i orig_count=$(zpool history $spool | wc -l)
 
 typeset -i i=0
 while ((i < 10)); do
@@ -90,7 +90,7 @@ while ((i < 10)); do
 	((i += 1))
 done
 
-typeset -i entry_count=$(zpool history $spool | wc -l | awk '{print $1}')
+typeset -i entry_count=$(zpool history $spool | wc -l)
 
 if ((entry_count - orig_count != 200)); then
 	log_fail "The entries count error: entry_count=$entry_count " \

@@ -55,11 +55,9 @@ for poolprop in "${poolprops[@]}"; do
 		# 2. Verify the pool is created with the specified temporary name
 		log_must poolexists $TEMPPOOL
 		log_mustnot poolexists $TESTPOOL
-		propname="$(awk -F= '{print $1}' <<< $fsprop)"
-		propval="$(awk -F= '{print $2}' <<< $fsprop)"
+		IFS='=' read -r propname propval <<<"$fsprop"
 		log_must test "$(get_prop $propname $TEMPPOOL)" == "$propval"
-		propname="$(awk -F= '{print $1}' <<< $poolprop)"
-		propval="$(awk -F= '{print $2}' <<< $poolprop)"
+		IFS='=' read -r propname propval <<<"$poolprop"
 		log_must test "$(get_pool_prop $propname $TEMPPOOL)" == "$propval"
 		# Cleanup
 		destroy_pool $TEMPPOOL

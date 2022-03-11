@@ -102,16 +102,15 @@ function check_return_value
 		found=0
 
 		while read line; do
-			typeset item
-			typeset value
+			typeset item value _
 
-			item=$(echo $line | awk '{print $2}' 2>&1)
+			read -r _ item _ <<<"$line"
 			if [[ $item == $p ]]; then
 				((found += 1))
 				cols=$(echo $line | awk '{print NF}')
 			fi
 
-			value=$(echo $line | awk '{print $3}' 2>&1)
+			read -r _ _ value _ <<<"$line"
 			if [[ $value == $uint64_max ]]; then
 				log_fail "'zfs get $opt $props $dst' return " \
 				    "UINT64_MAX constant."

@@ -64,8 +64,8 @@ log_must zfs umount $TESTPOOL/$TESTFS
 log_must eval "df -h | grep $TESTPOOL"
 
 # Confirm df size and used are non-zero.
-size=$(df -h /$TESTPOOL | grep $TESTPOOL | awk '{print $2}')
-used=$(df -h /$TESTPOOL | grep $TESTPOOL | awk '{print $3}')
+size=$(df -h /$TESTPOOL | awk -v p=$TESTPOOL '$0 ~ p {print $2}')
+used=$(df -h /$TESTPOOL | awk -v p=$TESTPOOL '$0 ~ p {print $3}')
 if [[ "$size" = "0" ]] || [[ "$used" = "0" ]]
 then
 	log_fail "df failed with size $size and used $used."

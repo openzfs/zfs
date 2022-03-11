@@ -96,8 +96,7 @@ do
 	log_must zpool create -f $TESTPOOL $conf
 	block_device_wait ${DEV_DSKDIR}/${removedev}
 
-	mntpnt=$(get_prop mountpoint /$TESTPOOL) ||
-	    log_fail "get_prop mountpoint /$TESTPOOL"
+	mntpnt=$(get_prop mountpoint /$TESTPOOL)
 
 	# 2. Simulate physical removal of one device
 	remove_disk $removedev
@@ -128,8 +127,7 @@ do
 	block_device_wait ${DEV_DSKDIR}/${removedev}
 	log_must zpool add $TESTPOOL spare $sparedev
 
-	mntpnt=$(get_prop mountpoint /$TESTPOOL) ||
-	    log_fail "get_prop mountpoint /$TESTPOOL"
+	mntpnt=$(get_prop mountpoint /$TESTPOOL)
 
 	# 2. Simulate physical removal of one device
 	remove_disk $removedev
@@ -161,8 +159,7 @@ do
 	block_device_wait ${DEV_DSKDIR}/${removedev}
 	log_must zpool add $TESTPOOL spare $sparedev
 
-	mntpnt=$(get_prop mountpoint /$TESTPOOL) ||
-	    log_fail "get_prop mountpoint /$TESTPOOL"
+	mntpnt=$(get_prop mountpoint /$TESTPOOL)
 
 	# 2. Fault the spare device making it unavailable
 	log_must zpool offline -f $TESTPOOL $sparedev

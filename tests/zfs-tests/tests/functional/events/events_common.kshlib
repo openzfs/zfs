@@ -94,7 +94,7 @@ function run_and_verify
 
 	pool=${pool:-$TESTPOOL}
 	fullcmd="$1"
-	cmd=$(echo $fullcmd | awk '{print $1}')
+	read -r cmd _ <<<"$fullcmd"
 
 	# If we aren't running zpool or zfs, something is wrong
 	[[ $cmd == "zpool" || $cmd == "zfs" ]] || \
@@ -147,23 +147,20 @@ function run_and_verify
 		log_must grep -q "$event" $TMP_EVENTS
 
 		# Verify the event is in the verbose output with pool name.
-		awk -v event="$event" \
-		    'BEGIN{FS="\n"; RS=""} $0 ~ event { print $0 }' \
-		    $TMP_EVENTS_FULL >$TMP_EVENT_FULL
-		log_must grep -q "pool = \"$pool\"" $TMP_EVENT_FULL
+		log_mustnot awk -v event="$event" -v crit="pool = \"$pool\"" \
+		    'BEGIN{FS="\n"; RS=""} $0 ~ event && $0 ~ crit { exit 1 }' \
+		    $TMP_EVENTS_FULL
 
 		# all-debug.sh filters history events (seen in ZED_DEBUG_LOG)
-		if [[ "$event" == "sysevent.fs.zfs.history_event" ]]; then
+		if [ "$event" = "sysevent.fs.zfs.history_event" ]; then
 			continue
 		fi
 
 		# Verify the event was received by the ZED and logged.
-		awk -v event="$event" \
-		    'BEGIN{FS="\n"; RS=""} $0 ~ event { print $0 }' \
-		    $TMP_EVENTS_ZED >$TMP_EVENT_ZED
-		log_must grep -q "^ZEVENT_POOL=$pool" $TMP_EVENT_ZED
+		log_mustnot awk -v event="$event" -v crit="\\nZEVENT_POOL=$pool" \
+		    'BEGIN{FS="\n"; RS=""} $0 ~ event && $0 ~ crit { exit 1 }' \
+		    $TMP_EVENTS_ZED
 	done
 
-	rm -f $TMP_EVENTS $TMP_EVENTS_FULL $TMP_EVENT_FULL \
-	    $TMP_EVENTS_ZED $TMP_EVENT_ZED
+	rm -f $TMP_EVENTS $TMP_EVENTS_FULL $TMP_EVENTS_ZED
 }

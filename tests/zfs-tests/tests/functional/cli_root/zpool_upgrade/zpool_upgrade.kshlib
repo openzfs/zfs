@@ -132,8 +132,7 @@ function check_poolversion
 	fi
 
 	# check version using zpool upgrade
-	actual=$(zpool upgrade | grep $pool$ | \
-	    awk '{print $1}' | sed -e 's/ //g')
+	actual=$(zpool upgrade | awk -v p="$pool$" '$0 ~ p {gsub(/ /, "", $1); print $1}')
 	if [[ $actual != $vers ]] ; then
 		log_fail "$pool: zpool reported version $actual, expected $vers"
 	fi

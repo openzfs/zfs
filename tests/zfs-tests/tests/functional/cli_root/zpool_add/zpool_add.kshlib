@@ -50,9 +50,8 @@ function find_vfstab_dev
 #
 function find_mnttab_dev
 {
-	typeset mnttabdev
+	typeset mnttabdev _
 	typeset mnttabdevs=""
-	typeset line
 
 	if is_freebsd; then
 		# FreeBSD doesn't have a mnttab file.
@@ -61,21 +60,16 @@ function find_mnttab_dev
 		return 0
 	elif is_linux; then
 		typeset mnttab="/etc/mtab"
-		typeset tmpfile="$TEST_BASE_DIR/mtab.tmp"
 	else
 		typeset mnttab="/etc/mnttab"
-		typeset tmpfile="$TEST_BASE_DIR/mnttab.tmp"
 	fi
 
-	cat $mnttab | grep "^${DEV_DSKDIR}" >$tmpfile
-	while read -r line
+	while read -r mnttabdev _
 	do
-		mnttabdev=`echo "$line" | awk '{print $1}'`
 		mnttabdev=${mnttabdev%%:}
 		mnttabdevs="$mnttabdev $mnttabdevs"
-	done <$tmpfile
+	done < <(grep "^${DEV_DSKDIR}" $mnttab)
 
-	rm -f $tmpfile
 	echo $mnttabdevs
 }
 

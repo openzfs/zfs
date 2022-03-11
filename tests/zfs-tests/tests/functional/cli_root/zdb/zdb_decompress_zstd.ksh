@@ -76,11 +76,11 @@ log_note "block 0 of $init_data has a DVA of $dva"
 # use the length reported by zdb -ddddddbbbbbb
 size_str=$(sed -Ene 's/^.+ size=([^ ]+) .*$/\1/p' <<< "$output")
 # convert sizes to decimal
-lsize=$(echo $size_str |awk '{split($0,array,"/")} END{print array[1]}')
+lsize=$(echo $size_str | cut -d/ -f 1)
 lsize_orig=$lsize
 lsize=${lsize%?}
 lsize_bytes=$((16#$lsize))
-psize=$(echo $size_str |awk '{split($0,array,"/")} END{print array[2]}')
+psize=$(echo $size_str | cut -d/ -f 2)
 psize_orig=$psize
 psize=${psize%?}
 psize_bytes=$((16#$psize))
@@ -88,21 +88,21 @@ log_note "block size $size_str"
 
 # Get the ZSTD header reported by zdb -Z
 zstd_str=$(sed -Ene 's/^.+ ZSTD:size=([^:]+):version=([^:]+):level=([^:]+):.*$/\1:\2:\3/p' <<< "$output")
-zstd_size=$(echo "$zstd_str" |awk '{split($0,array,":")} END{print array[1]}')
+zstd_size=$(echo "$zstd_str" | cut -d: -f 1)
 log_note "ZSTD compressed size $zstd_size"
 (( $psize_bytes < $zstd_size )) && log_fail \
 "zdb -Z failed: physical block size was less than header content length ($psize_bytes < $zstd_size)"
 
-zstd_version=$(echo "$zstd_str" |awk '{split($0,array,":")} END{print array[2]}')
+zstd_version=$(echo "$zstd_str" | cut -d: -f 2)
 log_note "ZSTD version $zstd_version"
 
-zstd_level=$(echo "$zstd_str" |awk '{split($0,array,":")} END{print array[3]}')
+zstd_level=$(echo "$zstd_str" | cut -d: -f 3)
 log_note "ZSTD level $zstd_level"
 (( $zstd_level != $random_level )) && log_fail \
 "zdb -Z failed: compression level did not match header level ($zstd_level < $random_level)"
 
-vdev=$(echo "$dva" |awk '{split($0,array,":")} END{print array[1]}')
-offset=$(echo "$dva" |awk '{split($0,array,":")} END{print array[2]}')
+vdev=$(echo "$dva" | cut -d: -f 1)
+offset=$(echo "$dva" | cut -d: -f 2)
 # Check the first 1024 bytes
 output=$(ZDB_NO_ZLE="true" zdb -R $TESTPOOL $vdev:$offset:$size_str:dr 2> /dev/null)
 outsize=$(wc -c <<< "$output")
