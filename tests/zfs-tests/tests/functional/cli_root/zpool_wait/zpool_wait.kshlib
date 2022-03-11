@@ -120,5 +120,5 @@ function check_while_waiting
 # Whether any vdev in the given pool is initializing
 function is_vdev_initializing # pool
 {
-	zpool status -i "$1" | grep 'initialized, started' >/dev/null
+	zpool status -i "$1" | grep -q 'initialized, started'
 }
