@@ -403,8 +403,7 @@ function get_xattr #<obj>
 		return 1
 	fi
 
-	for xattr in `runat $obj ls | \
-		grep -E -v -e SUNWattr_ro -e SUNWattr_rw` ; do
+	for xattr in $(runat $obj ls | grep -v 'SUNWattr_r[ow]'); do
 		runat $obj cksum $xattr
 	done
 }
