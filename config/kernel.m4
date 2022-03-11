@@ -394,11 +394,11 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 	utsrelease1=$kernelbuild/include/linux/version.h
 	utsrelease2=$kernelbuild/include/linux/utsrelease.h
 	utsrelease3=$kernelbuild/include/generated/utsrelease.h
-	AS_IF([test -r $utsrelease1 && fgrep -q UTS_RELEASE $utsrelease1], [
+	AS_IF([test -r $utsrelease1 && grep -qF UTS_RELEASE $utsrelease1], [
 		utsrelease=$utsrelease1
-	], [test -r $utsrelease2 && fgrep -q UTS_RELEASE $utsrelease2], [
+	], [test -r $utsrelease2 && grep -qF UTS_RELEASE $utsrelease2], [
 		utsrelease=$utsrelease2
-	], [test -r $utsrelease3 && fgrep -q UTS_RELEASE $utsrelease3], [
+	], [test -r $utsrelease3 && grep -qF UTS_RELEASE $utsrelease3], [
 		utsrelease=$utsrelease3
 	])
 
