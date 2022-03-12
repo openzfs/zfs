@@ -54,7 +54,7 @@ function log_note
 
 function log_neg
 {
-	log_neg_expect ""  "$@"
+	log_neg_expect "" "$@"
 }
 
 # Execute a positive test and exit $STF_FAIL is test fails
@@ -85,7 +85,6 @@ function log_must_nostderr
 #
 function log_must_retry
 {
-	typeset out=""
 	typeset logfile="/tmp/log.$$"
 	typeset status=1
 	typeset expect=$1
@@ -100,11 +99,10 @@ function log_must_retry
 	while (( $retry > 0 )); do
 		"$@" 2>$logfile
 		status=$?
-		out="cat $logfile"
 
 		if (( $status == 0 )); then
-			if $out | grep -qEi "internal error|assertion failed"; then
-				print -u2 $($out)
+			if grep -qEi "internal error|assertion failed" $logfile; then
+				cat $logfile >&2
 				_printerror "$@" "internal error or" \
 					" assertion failure exited $status"
 				status=1
@@ -114,9 +112,8 @@ function log_must_retry
 			fi
 			break
 		else
-			$out | grep -i "$expect" > /dev/null 2>&1
-			if (( $? == 0 )); then
-				print -u2 $($out)
+			if grep -qi "$expect" $logfile; then
+				cat $logfile >&2
 				_printerror "$@" "Retry in $delay seconds"
 				sleep $delay
 
@@ -129,7 +126,7 @@ function log_must_retry
 	done
 
 	if (( $status != 0 )) ; then
-		print -u2 $($out)
+		cat $logfile >&2
 		_printerror "$@" "exited $status"
 	fi
 
@@ -194,7 +191,6 @@ EXIT_SIGSEGV=$((EXIT_SIGNAL + SIGSEGV))
 
 function log_neg_expect
 {
-	typeset out=""
 	typeset logfile="/tmp/log.$$"
 	typeset ret=1
 	typeset expect=$1
@@ -206,35 +202,33 @@ function log_neg_expect
 
 	"$@" 2>$logfile
 	typeset status=$?
-	out="cat $logfile"
 
 	# unexpected status
 	if (( $status == EXIT_SUCCESS )); then
-		 print -u2 $($out)
+		 cat $logfile >&2
 		_printerror "$@" "unexpectedly exited $status"
 	# missing binary
 	elif (( $status == EXIT_NOTFOUND )); then
-		print -u2 $($out)
+		cat $logfile >&2
 		_printerror "$@" "unexpectedly exited $status (File not found)"
 	# bus error - core dump
 	elif (( $status == EXIT_SIGBUS )); then
-		print -u2 $($out)
+		cat $logfile >&2
 		_printerror "$@" "unexpectedly exited $status (Bus Error)"
 	# segmentation violation - core dump
 	elif (( $status == EXIT_SIGSEGV )); then
-		print -u2 $($out)
+		cat $logfile >&2
 		_printerror "$@" "unexpectedly exited $status (SEGV)"
 	else
-		if $out | grep -qEi "internal error|assertion failed"; then
-			print -u2 $($out)
+		if grep -qEi "internal error|assertion failed" $logfile; then
+			cat $logfile >&2
 			_printerror "$@" "internal error or assertion failure" \
 				" exited $status"
 		elif [[ -n $expect ]] ; then
-			$out | grep -i "$expect" > /dev/null 2>&1
-			if (( $? == 0 )); then
+			if grep -qi "$expect" $logfile; then
 				ret=0
 			else
-				print -u2 $($out)
+				cat $logfile >&2
 				_printerror "$@" "unexpectedly exited $status"
 			fi
 		else
@@ -258,7 +252,6 @@ function log_neg_expect
 
 function log_pos
 {
-	typeset out=""
 	typeset logfile="/tmp/log.$$"
 
 	while [[ -e $logfile ]]; do
@@ -267,14 +260,13 @@ function log_pos
 
 	"$@" 2>$logfile
 	typeset status=$?
-	out="cat $logfile"
 
 	if (( $status != 0 )) ; then
-		print -u2 $($out)
+		cat $logfile >&2
 		_printerror "$@" "exited $status"
 	else
-		if $out | grep -qEi "internal error|assertion failed"; then
-			print -u2 $($out)
+		if grep -qEi "internal error|assertion failed" $logfile; then
+			cat $logfile >&2
 			_printerror "$@" "internal error or assertion failure" \
 				" exited $status"
 			status=1
@@ -297,7 +289,6 @@ function log_pos
 
 function log_pos_nostderr
 {
-	typeset out=""
 	typeset logfile="/tmp/log.$$"
 
 	while [[ -e $logfile ]]; do
@@ -306,15 +297,13 @@ function log_pos_nostderr
 
 	"$@" 2>$logfile
 	typeset status=$?
-	out="cat $logfile"
-	typeset out_msg=$($out)
 
 	if (( $status != 0 )) ; then
-		print -u2 $out_msg
+		cat $logfile >&2
 		_printerror "$@" "exited $status"
 	else
-		if [[ ! -z "$out_msg" ]]; then
-			print -u2 $out_msg
+		if [ -s "$logfile" ]; then
+			cat $logfile >&2
 			_printerror "$@" "message in stderr" \
 				" exited $status"
 			status=1
@@ -472,12 +461,12 @@ function _execute_testfail_callbacks
 {
 	typeset callback
 
-	print "$TESTFAIL_CALLBACKS:" | while read -d ":" callback; do
+	while read -d ":" callback; do
 		if [[ -n "$callback" ]] ; then
 			log_note "Performing test-fail callback ($callback)"
 			$callback
 		fi
-	done
+	done <<<"$TESTFAIL_CALLBACKS:"
 }
 
 # Perform cleanup and exit
@@ -525,7 +514,7 @@ function _endlog
 
 function _printline
 {
-	print "$@"
+	echo "$@"
 }
 
 # Output an error message
