@@ -18,7 +18,6 @@ $(MODULE)-objs += ../os/linux/zfs/vdev_disk.o
 $(MODULE)-objs += ../os/linux/zfs/vdev_file.o
 $(MODULE)-objs += ../os/linux/zfs/zfs_acl.o
 $(MODULE)-objs += ../os/linux/zfs/zfs_ctldir.o
-$(MODULE)-objs += ../os/linux/zfs/zfs_debug.o
 $(MODULE)-objs += ../os/linux/zfs/zfs_dir.o
 $(MODULE)-objs += ../os/linux/zfs/zfs_file_os.o
 $(MODULE)-objs += ../os/linux/zfs/zfs_ioctl_os.o

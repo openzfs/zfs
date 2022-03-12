@@ -1,0 +1,9 @@
+#
+# Linux specific sources included from module/zcommon/Makefile.in
+#
+
+# Suppress unused-value warnings in sparc64 architecture headers
+ccflags-$(CONFIG_SPARC64) += -Wno-unused-value
+
+$(MODULE)-objs += ../os/linux/zcommon/zfs_debug.o
+$(MODULE)-objs += ../os/linux/zcommon/trace.o

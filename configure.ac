@@ -176,6 +176,7 @@ AC_CONFIG_FILES([
 	module/lua/Makefile
 	module/nvpair/Makefile
 	module/os/linux/spl/Makefile
+	module/os/linux/zcommon/Makefile
 	module/os/linux/zfs/Makefile
 	module/spl/Makefile
 	module/unicode/Makefile

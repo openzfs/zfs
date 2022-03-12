@@ -4,6 +4,7 @@ VPATH = \
 	$(top_srcdir)/module/zfs \
 	$(top_srcdir)/module/zcommon \
 	$(top_srcdir)/module/lua \
+	$(top_srcdir)/module/os/linux/zcommon \
 	$(top_srcdir)/module/os/linux/zfs \
 	$(top_srcdir)/lib/libzpool
 

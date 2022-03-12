@@ -826,6 +826,7 @@ kernel_init(int mode)
 	(void) snprintf(hw_serial, sizeof (hw_serial), "%ld",
 	    (mode & SPA_MODE_WRITE) ? get_system_hostid() : 0);
 
+	zfs_dbgmsg_init();
 	random_init();
 
 	VERIFY0(uname(&hw_utsname));
@@ -854,6 +855,7 @@ kernel_fini(void)
 	system_taskq_fini();
 
 	random_fini();
+	zfs_dbgmsg_fini();
 }
 
 uid_t

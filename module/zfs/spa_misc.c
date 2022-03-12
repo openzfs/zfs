@@ -244,16 +244,10 @@ static avl_tree_t spa_l2cache_avl;
 
 spa_mode_t spa_mode_global = SPA_MODE_UNINIT;
 
-#ifdef ZFS_DEBUG
 /*
- * Everything except dprintf, set_error, spa, and indirect_remap is on
- * by default in debug builds.
+ * dprintf and zfs_flags and friends have been moved to zcommon/zfs_prop.c.
  */
-int zfs_flags = ~(ZFS_DEBUG_DPRINTF | ZFS_DEBUG_SET_ERROR |
-    ZFS_DEBUG_INDIRECT_REMAP);
-#else
-int zfs_flags = 0;
-#endif
+extern int zfs_flags;
 
 /*
  * zfs_recover can be set to nonzero to attempt to recover from

@@ -1,6 +1,9 @@
 ifneq ($(KBUILD_EXTMOD),)
 src = @abs_srcdir@
 obj = @abs_builddir@
+mfdir = $(obj)
+else
+mfdir = $(srctree)/$(src)
 endif
 
 MODULE := zcommon
@@ -26,3 +29,5 @@ $(MODULE)-$(CONFIG_X86) += zfs_fletcher_intel.o
 $(MODULE)-$(CONFIG_X86) += zfs_fletcher_sse.o
 $(MODULE)-$(CONFIG_X86) += zfs_fletcher_avx512.o
 $(MODULE)-$(CONFIG_ARM64) += zfs_fletcher_aarch64_neon.o
+
+include $(mfdir)/../os/linux/zcommon/Makefile

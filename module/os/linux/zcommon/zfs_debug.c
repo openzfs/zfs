@@ -37,6 +37,18 @@ static procfs_list_t zfs_dbgmsgs;
 static int zfs_dbgmsg_size = 0;
 int zfs_dbgmsg_maxsize = 4<<20; /* 4MB */
 
+#ifdef ZFS_DEBUG
+/*
+ * Everything except dprintf, set_error, spa, and indirect_remap is on
+ * by default in debug builds.
+ */
+int zfs_flags = ~(ZFS_DEBUG_DPRINTF | ZFS_DEBUG_SET_ERROR |
+    ZFS_DEBUG_INDIRECT_REMAP);
+#else
+int zfs_flags = 0;
+#endif
+
+
 /*
  * Internal ZFS debug messages are enabled by default.
  *
@@ -110,7 +122,6 @@ zfs_dbgmsg_fini(void)
 {
 	procfs_list_uninstall(&zfs_dbgmsgs);
 	zfs_dbgmsg_purge(0);
-
 	/*
 	 * TODO - decide how to make this permanent
 	 */
@@ -255,3 +266,10 @@ MODULE_PARM_DESC(zfs_dbgmsg_enable, "Enable ZFS debug message log");
 module_param(zfs_dbgmsg_maxsize, int, 0644);
 MODULE_PARM_DESC(zfs_dbgmsg_maxsize, "Maximum ZFS debug log size");
 #endif
+
+EXPORT_SYMBOL(zfs_dbgmsg_enable);
+EXPORT_SYMBOL(__dprintf);
+EXPORT_SYMBOL(__set_error);
+EXPORT_SYMBOL(zfs_dbgmsg_init);
+EXPORT_SYMBOL(zfs_dbgmsg_fini);
+EXPORT_SYMBOL(zfs_flags);
