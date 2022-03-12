@@ -614,7 +614,6 @@ get_key_material_https(libzfs_handle_t *hdl, const char *uri,
 kfdok:
 	if ((key = fdopen(kfd, "r+")) == NULL) {
 		ret = errno;
-		free(path);
 		(void) close(kfd);
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 		    "Couldn't reopen temporary file: %s"), strerror(ret));
