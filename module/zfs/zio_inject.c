@@ -148,7 +148,8 @@ zio_match_handler(const zbookmark_phys_t *zb, uint64_t type, int dva,
 	    zb->zb_level == record->zi_level &&
 	    zb->zb_blkid >= record->zi_start &&
 	    zb->zb_blkid <= record->zi_end &&
-	    (record->zi_dvas == 0 || (record->zi_dvas & (1ULL << dva))) &&
+	    (record->zi_dvas == 0 ||
+	    (dva != ZI_NO_DVA && (record->zi_dvas & (1ULL << dva)))) &&
 	    error == record->zi_error) {
 		return (freq_triggered(record->zi_freq));
 	}
