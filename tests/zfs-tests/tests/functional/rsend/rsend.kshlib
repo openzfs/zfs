@@ -583,24 +583,22 @@ function churn_files
 #
 function mess_send_file
 {
+	typeset -i minsize=2072
 	file=$1
 
 	filesize=$(stat_size $file)
+	if [ $filesize -lt $minsize ]; then
+		log_fail "Send file too small: $filesize < $minsize"
+	fi
 
-	offset=$(($RANDOM * $RANDOM % $filesize))
-
-	# The random offset might truncate the send stream to be
-	# smaller than the DRR_BEGIN record. If this happens, then
-	# the receiving system won't have enough info to create the
-	# partial dataset at all. We use zstream dump to check for
-	# this and retry in this case.
+	# Truncate the send stream at a random offset after the DRR_BEGIN
+	# record (beyond 2072 bytes), any smaller than this and the receiving
+	# system won't have enough info to create the partial dataset at all.
+	# We use zstream dump to verify there is an intact DRR_BEGIN record.
+	offset=$(((($RANDOM * $RANDOM) % ($filesize - $minsize)) + $minsize))
 	nr_begins=$(head -c $offset $file | zstream dump | \
 	    grep DRR_BEGIN | awk '{ print $5 }')
-	while [ "$nr_begins" -eq 0 ]; do
-		offset=$(($RANDOM * $RANDOM % $filesize))
-		nr_begins=$(head -c $offset $file | zstream dump | \
-		    grep DRR_BEGIN | awk '{ print $5 }')
-	done
+	log_must test "$nr_begins" -eq 1
 
 	if (($RANDOM % 7 <= 1)); then
 		#
