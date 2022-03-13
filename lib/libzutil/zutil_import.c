@@ -47,7 +47,18 @@
  * using our derived config, and record the results.
  */
 
+/*
+ * Without `aio.h`, `zpool_read_label` will fallback to `zpool_read_label_slow`.
+ * As example, uClibc has not aio.h support.
+ */
+#if defined(__has_include)
+/*CSTYLED*/
+#if __has_include(<aio.h>)
+#define	HAVE_AIO_H	1
 #include <aio.h>
+#endif
+#endif
+
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
@@ -982,6 +993,9 @@ zpool_read_label_slow(int fd, nvlist_t **config, int *num_labels)
 int
 zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 {
+#if !defined(HAVE_AIO_H)
+	return (zpool_read_label_slow(fd, config, num_labels));
+#else
 	struct stat64 statbuf;
 	struct aiocb aiocbs[VDEV_LABELS];
 	struct aiocb *aiocbps[VDEV_LABELS];
@@ -1104,6 +1118,7 @@ zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 	*config = expected_config;
 
 	return (0);
+#endif
 }
 
 /*
