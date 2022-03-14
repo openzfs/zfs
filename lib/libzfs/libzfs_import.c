@@ -48,7 +48,6 @@ pool_active(libzfs_handle_t *hdl, const char *name, uint64_t guid,
     boolean_t *isactive)
 {
 	zpool_handle_t *zhp;
-	uint64_t theguid;
 
 	if (zpool_open_silent(hdl, name, &zhp) != 0)
 		return (-1);
@@ -58,8 +57,8 @@ pool_active(libzfs_handle_t *hdl, const char *name, uint64_t guid,
 		return (0);
 	}
 
-	verify(nvlist_lookup_uint64(zhp->zpool_config, ZPOOL_CONFIG_POOL_GUID,
-	    &theguid) == 0);
+	uint64_t theguid = fnvlist_lookup_uint64(zhp->zpool_config,
+	    ZPOOL_CONFIG_POOL_GUID);
 
 	zpool_close(zhp);
 
@@ -239,12 +238,10 @@ zpool_clear_label(int fd)
 static boolean_t
 find_guid(nvlist_t *nv, uint64_t guid)
 {
-	uint64_t tmp;
 	nvlist_t **child;
 	uint_t c, children;
 
-	verify(nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID, &tmp) == 0);
-	if (tmp == guid)
+	if (fnvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID) == guid)
 		return (B_TRUE);
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
@@ -268,18 +265,16 @@ find_aux(zpool_handle_t *zhp, void *data)
 {
 	aux_cbdata_t *cbp = data;
 	nvlist_t **list;
-	uint_t i, count;
-	uint64_t guid;
-	nvlist_t *nvroot;
+	uint_t count;
 
-	verify(nvlist_lookup_nvlist(zhp->zpool_config, ZPOOL_CONFIG_VDEV_TREE,
-	    &nvroot) == 0);
+	nvlist_t *nvroot = fnvlist_lookup_nvlist(zhp->zpool_config,
+	    ZPOOL_CONFIG_VDEV_TREE);
 
 	if (nvlist_lookup_nvlist_array(nvroot, cbp->cb_type,
 	    &list, &count) == 0) {
-		for (i = 0; i < count; i++) {
-			verify(nvlist_lookup_uint64(list[i],
-			    ZPOOL_CONFIG_GUID, &guid) == 0);
+		for (uint_t i = 0; i < count; i++) {
+			uint64_t guid = fnvlist_lookup_uint64(list[i],
+			    ZPOOL_CONFIG_GUID);
 			if (guid == cbp->cb_guid) {
 				cbp->cb_zhp = zhp;
 				return (1);
@@ -301,9 +296,9 @@ zpool_in_use(libzfs_handle_t *hdl, int fd, pool_state_t *state, char **namestr,
     boolean_t *inuse)
 {
 	nvlist_t *config;
-	char *name;
+	char *name = NULL;
 	boolean_t ret;
-	uint64_t guid, vdev_guid;
+	uint64_t guid = 0, vdev_guid;
 	zpool_handle_t *zhp;
 	nvlist_t *pool_config;
 	uint64_t stateval, isspare;
@@ -320,16 +315,12 @@ zpool_in_use(libzfs_handle_t *hdl, int fd, pool_state_t *state, char **namestr,
 	if (config == NULL)
 		return (0);
 
-	verify(nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_STATE,
-	    &stateval) == 0);
-	verify(nvlist_lookup_uint64(config, ZPOOL_CONFIG_GUID,
-	    &vdev_guid) == 0);
+	stateval = fnvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_STATE);
+	vdev_guid = fnvlist_lookup_uint64(config, ZPOOL_CONFIG_GUID);
 
 	if (stateval != POOL_STATE_SPARE && stateval != POOL_STATE_L2CACHE) {
-		verify(nvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME,
-		    &name) == 0);
-		verify(nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_GUID,
-		    &guid) == 0);
+		name = fnvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME);
+		guid = fnvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_GUID);
 	}
 
 	switch (stateval) {
@@ -378,10 +369,8 @@ zpool_in_use(libzfs_handle_t *hdl, int fd, pool_state_t *state, char **namestr,
 			if ((zhp = zpool_open_canfail(hdl, name)) != NULL &&
 			    (pool_config = zpool_get_config(zhp, NULL))
 			    != NULL) {
-				nvlist_t *nvroot;
-
-				verify(nvlist_lookup_nvlist(pool_config,
-				    ZPOOL_CONFIG_VDEV_TREE, &nvroot) == 0);
+				nvlist_t *nvroot = fnvlist_lookup_nvlist(
+				    pool_config, ZPOOL_CONFIG_VDEV_TREE);
 				ret = find_guid(nvroot, vdev_guid);
 			} else {
 				ret = B_FALSE;

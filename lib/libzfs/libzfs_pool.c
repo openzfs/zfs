@@ -123,15 +123,13 @@ zpool_get_prop_string(zpool_handle_t *zhp, zpool_prop_t prop,
     zprop_source_t *src)
 {
 	nvlist_t *nv, *nvl;
-	uint64_t ival;
 	char *value;
 	zprop_source_t source;
 
 	nvl = zhp->zpool_props;
 	if (nvlist_lookup_nvlist(nvl, zpool_prop_to_name(prop), &nv) == 0) {
-		verify(nvlist_lookup_uint64(nv, ZPROP_SOURCE, &ival) == 0);
-		source = ival;
-		verify(nvlist_lookup_string(nv, ZPROP_VALUE, &value) == 0);
+		source = fnvlist_lookup_uint64(nv, ZPROP_SOURCE);
+		value = fnvlist_lookup_string(nv, ZPROP_VALUE);
 	} else {
 		source = ZPROP_SRC_DEFAULT;
 		if ((value = (char *)zpool_prop_default_string(prop)) == NULL)
@@ -169,9 +167,8 @@ zpool_get_prop_int(zpool_handle_t *zhp, zpool_prop_t prop, zprop_source_t *src)
 
 	nvl = zhp->zpool_props;
 	if (nvlist_lookup_nvlist(nvl, zpool_prop_to_name(prop), &nv) == 0) {
-		verify(nvlist_lookup_uint64(nv, ZPROP_SOURCE, &value) == 0);
-		source = value;
-		verify(nvlist_lookup_uint64(nv, ZPROP_VALUE, &value) == 0);
+		source = fnvlist_lookup_uint64(nv, ZPROP_SOURCE);
+		value = fnvlist_lookup_uint64(nv, ZPROP_VALUE);
 	} else {
 		source = ZPROP_SRC_DEFAULT;
 		value = zpool_prop_default_numeric(prop);
@@ -255,9 +252,6 @@ zpool_get_state_str(zpool_handle_t *zhp)
 {
 	zpool_errata_t errata;
 	zpool_status_t status;
-	nvlist_t *nvroot;
-	vdev_stat_t *vs;
-	uint_t vsc;
 	const char *str;
 
 	status = zpool_get_status(zhp, NULL, &errata);
@@ -268,11 +262,11 @@ zpool_get_state_str(zpool_handle_t *zhp)
 	    status == ZPOOL_STATUS_IO_FAILURE_MMP) {
 		str = gettext("SUSPENDED");
 	} else {
-		verify(nvlist_lookup_nvlist(zpool_get_config(zhp, NULL),
-		    ZPOOL_CONFIG_VDEV_TREE, &nvroot) == 0);
-		verify(nvlist_lookup_uint64_array(nvroot,
-		    ZPOOL_CONFIG_VDEV_STATS, (uint64_t **)&vs, &vsc)
-		    == 0);
+		nvlist_t *nvroot = fnvlist_lookup_nvlist(
+		    zpool_get_config(zhp, NULL), ZPOOL_CONFIG_VDEV_TREE);
+		uint_t vsc;
+		vdev_stat_t *vs = (vdev_stat_t *)fnvlist_lookup_uint64_array(
+		    nvroot, ZPOOL_CONFIG_VDEV_STATS, &vsc);
 		str = zpool_state_to_name(vs->vs_state, vs->vs_aux);
 	}
 	return (str);
@@ -986,8 +980,7 @@ vdev_expand_proplist(zpool_handle_t *zhp, const char *vdevname,
 			if (nvpair_value_nvlist(elem, &propval) != 0)
 				continue;
 
-			verify(nvlist_lookup_string(propval, ZPROP_VALUE,
-			    &strval) == 0);
+			strval = fnvlist_lookup_string(propval, ZPROP_VALUE);
 
 			if ((entry = zfs_alloc(zhp->zpool_hdl,
 			    sizeof (zprop_list_t))) == NULL)
@@ -1996,20 +1989,13 @@ void
 zpool_print_unsup_feat(nvlist_t *config)
 {
 	nvlist_t *nvinfo, *unsup_feat;
-	nvpair_t *nvp;
 
-	verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_LOAD_INFO, &nvinfo) ==
-	    0);
-	verify(nvlist_lookup_nvlist(nvinfo, ZPOOL_CONFIG_UNSUP_FEAT,
-	    &unsup_feat) == 0);
+	nvinfo = fnvlist_lookup_nvlist(config, ZPOOL_CONFIG_LOAD_INFO);
+	unsup_feat = fnvlist_lookup_nvlist(nvinfo, ZPOOL_CONFIG_UNSUP_FEAT);
 
-	for (nvp = nvlist_next_nvpair(unsup_feat, NULL); nvp != NULL;
-	    nvp = nvlist_next_nvpair(unsup_feat, nvp)) {
-		char *desc;
-
-		verify(nvpair_type(nvp) == DATA_TYPE_STRING);
-		verify(nvpair_value_string(nvp, &desc) == 0);
-
+	for (nvpair_t *nvp = nvlist_next_nvpair(unsup_feat, NULL);
+	    nvp != NULL; nvp = nvlist_next_nvpair(unsup_feat, nvp)) {
+		char *desc = fnvpair_value_string(nvp);
 		if (strlen(desc) > 0)
 			(void) printf("\t%s (%s)\n", nvpair_name(nvp), desc);
 		else
@@ -2038,8 +2024,7 @@ zpool_import_props(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
 	int error = 0;
 	char errbuf[1024];
 
-	verify(nvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME,
-	    &origname) == 0);
+	origname = fnvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME);
 
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 	    "cannot import pool '%s'"), origname);
@@ -2058,8 +2043,7 @@ zpool_import_props(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
 		uint64_t version;
 		prop_flags_t flags = { .create = B_FALSE, .import = B_TRUE };
 
-		verify(nvlist_lookup_uint64(config, ZPOOL_CONFIG_VERSION,
-		    &version) == 0);
+		version = fnvlist_lookup_uint64(config, ZPOOL_CONFIG_VERSION);
 
 		if ((props = zpool_valid_proplist(hdl, origname,
 		    props, version, flags, errbuf)) == NULL)
@@ -2073,8 +2057,7 @@ zpool_import_props(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
 
 	(void) strlcpy(zc.zc_name, thename, sizeof (zc.zc_name));
 
-	verify(nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_GUID,
-	    &zc.zc_guid) == 0);
+	zc.zc_guid = fnvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_GUID);
 
 	if (zcmd_write_conf_nvlist(hdl, &zc, config) != 0) {
 		zcmd_free_nvlists(&zc);
@@ -2635,8 +2618,8 @@ zpool_scan(zpool_handle_t *zhp, pool_scan_func_t func, pool_scrub_cmd_t cmd)
 		pool_scan_stat_t *ps = NULL;
 		uint_t psc;
 
-		verify(nvlist_lookup_nvlist(zhp->zpool_config,
-		    ZPOOL_CONFIG_VDEV_TREE, &nvroot) == 0);
+		nvroot = fnvlist_lookup_nvlist(zhp->zpool_config,
+		    ZPOOL_CONFIG_VDEV_TREE);
 		(void) nvlist_lookup_uint64_array(nvroot,
 		    ZPOOL_CONFIG_SCAN_STATS, (uint64_t **)&ps, &psc);
 		if (ps && ps->pss_func == POOL_SCAN_SCRUB &&
@@ -2684,11 +2667,9 @@ vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
 	switch (nvpair_type(pair)) {
 	case DATA_TYPE_UINT64:
 		if (strcmp(srchkey, ZPOOL_CONFIG_GUID) == 0) {
-			uint64_t srchval, theguid;
-
-			verify(nvpair_value_uint64(pair, &srchval) == 0);
-			verify(nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID,
-			    &theguid) == 0);
+			uint64_t srchval = fnvpair_value_uint64(pair);
+			uint64_t theguid = fnvlist_lookup_uint64(nv,
+			    ZPOOL_CONFIG_GUID);
 			if (theguid == srchval)
 				return (nv);
 		}
@@ -2697,7 +2678,7 @@ vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
 	case DATA_TYPE_STRING: {
 		char *srchval, *val;
 
-		verify(nvpair_value_string(pair, &srchval) == 0);
+		srchval = fnvpair_value_string(pair);
 		if (nvlist_lookup_string(nv, srchkey, &val) != 0)
 			break;
 
@@ -2749,9 +2730,8 @@ vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
 			}
 
 			verify(zpool_vdev_is_interior(type));
-			verify(nvlist_lookup_uint64(nv, ZPOOL_CONFIG_ID,
-			    &id) == 0);
 
+			id = fnvlist_lookup_uint64(nv, ZPOOL_CONFIG_ID);
 			errno = 0;
 			vdev_id = strtoull(idx, &end, 10);
 
@@ -2777,8 +2757,8 @@ vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
 					free(type);
 					return (NULL);
 				}
-				verify(nvlist_lookup_uint64(nv,
-				    ZPOOL_CONFIG_NPARITY, &vdev_parity) == 0);
+				vdev_parity = fnvlist_lookup_uint64(nv,
+				    ZPOOL_CONFIG_NPARITY);
 				if ((int)vdev_parity != parity) {
 					free(type);
 					break;
@@ -2867,25 +2847,24 @@ zpool_find_vdev_by_physpath(zpool_handle_t *zhp, const char *ppath,
 	uint64_t guid;
 	char *end;
 
-	verify(nvlist_alloc(&search, NV_UNIQUE_NAME, KM_SLEEP) == 0);
+	search = fnvlist_alloc();
 
 	guid = strtoull(ppath, &end, 0);
 	if (guid != 0 && *end == '\0') {
-		verify(nvlist_add_uint64(search, ZPOOL_CONFIG_GUID, guid) == 0);
+		fnvlist_add_uint64(search, ZPOOL_CONFIG_GUID, guid);
 	} else {
-		verify(nvlist_add_string(search, ZPOOL_CONFIG_PHYS_PATH,
-		    ppath) == 0);
+		fnvlist_add_string(search, ZPOOL_CONFIG_PHYS_PATH, ppath);
 	}
 
-	verify(nvlist_lookup_nvlist(zhp->zpool_config, ZPOOL_CONFIG_VDEV_TREE,
-	    &nvroot) == 0);
+	nvroot = fnvlist_lookup_nvlist(zhp->zpool_config,
+	    ZPOOL_CONFIG_VDEV_TREE);
 
 	*avail_spare = B_FALSE;
 	*l2cache = B_FALSE;
 	if (log != NULL)
 		*log = B_FALSE;
 	ret = vdev_to_nvlist_iter(nvroot, search, avail_spare, l2cache, log);
-	nvlist_free(search);
+	fnvlist_free(search);
 
 	return (ret);
 }
@@ -2918,26 +2897,26 @@ zpool_find_vdev(zpool_handle_t *zhp, const char *path, boolean_t *avail_spare,
 	nvlist_t *nvroot, *search, *ret;
 	uint64_t guid;
 
-	verify(nvlist_alloc(&search, NV_UNIQUE_NAME, KM_SLEEP) == 0);
+	search = fnvlist_alloc();
 
 	guid = strtoull(path, &end, 0);
 	if (guid != 0 && *end == '\0') {
-		verify(nvlist_add_uint64(search, ZPOOL_CONFIG_GUID, guid) == 0);
+		fnvlist_add_uint64(search, ZPOOL_CONFIG_GUID, guid);
 	} else if (zpool_vdev_is_interior(path)) {
-		verify(nvlist_add_string(search, ZPOOL_CONFIG_TYPE, path) == 0);
+		fnvlist_add_string(search, ZPOOL_CONFIG_TYPE, path);
 	} else {
-		verify(nvlist_add_string(search, ZPOOL_CONFIG_PATH, path) == 0);
+		fnvlist_add_string(search, ZPOOL_CONFIG_PATH, path);
 	}
 
-	verify(nvlist_lookup_nvlist(zhp->zpool_config, ZPOOL_CONFIG_VDEV_TREE,
-	    &nvroot) == 0);
+	nvroot = fnvlist_lookup_nvlist(zhp->zpool_config,
+	    ZPOOL_CONFIG_VDEV_TREE);
 
 	*avail_spare = B_FALSE;
 	*l2cache = B_FALSE;
 	if (log != NULL)
 		*log = B_FALSE;
 	ret = vdev_to_nvlist_iter(nvroot, search, avail_spare, l2cache, log);
-	nvlist_free(search);
+	fnvlist_free(search);
 
 	return (ret);
 }
@@ -3101,7 +3080,6 @@ static uint64_t
 zpool_vdev_path_to_guid_impl(zpool_handle_t *zhp, const char *path,
     boolean_t *is_spare, boolean_t *is_l2cache, boolean_t *is_log)
 {
-	uint64_t guid;
 	boolean_t spare = B_FALSE, l2cache = B_FALSE, log = B_FALSE;
 	nvlist_t *tgt;
 
@@ -3109,7 +3087,6 @@ zpool_vdev_path_to_guid_impl(zpool_handle_t *zhp, const char *path,
 	    &log)) == NULL)
 		return (0);
 
-	verify(nvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID, &guid) == 0);
 	if (is_spare != NULL)
 		*is_spare = spare;
 	if (is_l2cache != NULL)
@@ -3117,7 +3094,7 @@ zpool_vdev_path_to_guid_impl(zpool_handle_t *zhp, const char *path,
 	if (is_log != NULL)
 		*is_log = log;
 
-	return (guid);
+	return (fnvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID));
 }
 
 /* Convert a vdev path to a GUID.  Returns GUID or 0 on error. */
@@ -3154,7 +3131,7 @@ zpool_vdev_online(zpool_handle_t *zhp, const char *path, int flags,
 	    &islog)) == NULL)
 		return (zfs_error(hdl, EZFS_NODEVICE, msg));
 
-	verify(nvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID, &zc.zc_guid) == 0);
+	zc.zc_guid = fnvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID);
 
 	if (avail_spare)
 		return (zfs_error(hdl, EZFS_ISSPARE, msg));
@@ -3237,7 +3214,7 @@ zpool_vdev_offline(zpool_handle_t *zhp, const char *path, boolean_t istmp)
 	    NULL)) == NULL)
 		return (zfs_error(hdl, EZFS_NODEVICE, msg));
 
-	verify(nvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID, &zc.zc_guid) == 0);
+	zc.zc_guid = fnvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID);
 
 	if (avail_spare)
 		return (zfs_error(hdl, EZFS_ISSPARE, msg));
@@ -3335,13 +3312,10 @@ is_replacing_spare(nvlist_t *search, nvlist_t *tgt, int which)
 {
 	nvlist_t **child;
 	uint_t c, children;
-	char *type;
 
 	if (nvlist_lookup_nvlist_array(search, ZPOOL_CONFIG_CHILDREN, &child,
 	    &children) == 0) {
-		verify(nvlist_lookup_string(search, ZPOOL_CONFIG_TYPE,
-		    &type) == 0);
-
+		char *type = fnvlist_lookup_string(search, ZPOOL_CONFIG_TYPE);
 		if ((strcmp(type, VDEV_TYPE_SPARE) == 0 ||
 		    strcmp(type, VDEV_TYPE_DRAID_SPARE) == 0) &&
 		    children == 2 && child[which] == tgt)
@@ -3393,7 +3367,7 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 	if (l2cache)
 		return (zfs_error(hdl, EZFS_ISL2CACHE, msg));
 
-	verify(nvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID, &zc.zc_guid) == 0);
+	zc.zc_guid = fnvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID);
 	zc.zc_cookie = replacing;
 	zc.zc_simple = rebuild;
 
@@ -3411,8 +3385,8 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 		return (zfs_error(hdl, EZFS_INVALCONFIG, msg));
 	}
 
-	verify(nvlist_lookup_nvlist(zpool_get_config(zhp, NULL),
-	    ZPOOL_CONFIG_VDEV_TREE, &config_root) == 0);
+	config_root = fnvlist_lookup_nvlist(zpool_get_config(zhp, NULL),
+	    ZPOOL_CONFIG_VDEV_TREE);
 
 	if ((newname = zpool_vdev_name(NULL, NULL, child[0], 0)) == NULL)
 		return (-1);
@@ -3566,7 +3540,7 @@ zpool_vdev_detach(zpool_handle_t *zhp, const char *path)
 	if (l2cache)
 		return (zfs_error(hdl, EZFS_ISL2CACHE, msg));
 
-	verify(nvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID, &zc.zc_guid) == 0);
+	zc.zc_guid = fnvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID);
 
 	if (zfs_ioctl(hdl, ZFS_IOC_VDEV_DETACH, &zc) == 0)
 		return (0);
@@ -3666,9 +3640,8 @@ zpool_vdev_split(zpool_handle_t *zhp, char *newname, nvlist_t **newroot,
 		return (-1);
 	}
 
-	verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, &tree)
-	    == 0);
-	verify(nvlist_lookup_uint64(config, ZPOOL_CONFIG_VERSION, &vers) == 0);
+	tree = fnvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE);
+	vers = fnvlist_lookup_uint64(config, ZPOOL_CONFIG_VERSION);
 
 	if (props) {
 		prop_flags_t flags = { .create = B_FALSE, .import = B_TRUE };
@@ -3735,8 +3708,7 @@ zpool_vdev_split(zpool_handle_t *zhp, char *newname, nvlist_t **newroot,
 			continue;
 		}
 		lastlog = 0;
-		verify(nvlist_lookup_string(child[c], ZPOOL_CONFIG_TYPE, &type)
-		    == 0);
+		type = fnvlist_lookup_string(child[c], ZPOOL_CONFIG_TYPE);
 
 		if (strcmp(type, VDEV_TYPE_INDIRECT) == 0) {
 			vdev = child[c];
@@ -4043,8 +4015,7 @@ zpool_clear(zpool_handle_t *zhp, const char *path, nvlist_t *rewindnvl)
 		if (avail_spare)
 			return (zfs_error(hdl, EZFS_ISSPARE, msg));
 
-		verify(nvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID,
-		    &zc.zc_guid) == 0);
+		zc.zc_guid = fnvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID);
 	}
 
 	zpool_get_load_policy(rewindnvl, &policy);
@@ -4197,7 +4168,7 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 	 * vdev_name will be "root"/"root-0" for the root vdev, but it is the
 	 * zpool name that will be displayed to the user.
 	 */
-	verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type) == 0);
+	type = fnvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE);
 	if (zhp != NULL && strcmp(type, "root") == 0)
 		return (zfs_strdup(hdl, zpool_get_name(zhp)));
 
@@ -4254,8 +4225,7 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 		 * If it's a raidz device, we need to stick in the parity level.
 		 */
 		if (strcmp(path, VDEV_TYPE_RAIDZ) == 0) {
-			verify(nvlist_lookup_uint64(nv, ZPOOL_CONFIG_NPARITY,
-			    &value) == 0);
+			value = fnvlist_lookup_uint64(nv, ZPOOL_CONFIG_NPARITY);
 			(void) snprintf(buf, sizeof (buf), "%s%llu", path,
 			    (u_longlong_t)value);
 			path = buf;
@@ -4271,12 +4241,12 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 
 			verify(nvlist_lookup_nvlist_array(nv,
 			    ZPOOL_CONFIG_CHILDREN, &child, &children) == 0);
-			verify(nvlist_lookup_uint64(nv,
-			    ZPOOL_CONFIG_NPARITY, &nparity) == 0);
-			verify(nvlist_lookup_uint64(nv,
-			    ZPOOL_CONFIG_DRAID_NDATA, &ndata) == 0);
-			verify(nvlist_lookup_uint64(nv,
-			    ZPOOL_CONFIG_DRAID_NSPARES, &nspares) == 0);
+			nparity = fnvlist_lookup_uint64(nv,
+			    ZPOOL_CONFIG_NPARITY);
+			ndata = fnvlist_lookup_uint64(nv,
+			    ZPOOL_CONFIG_DRAID_NDATA);
+			nspares = fnvlist_lookup_uint64(nv,
+			    ZPOOL_CONFIG_DRAID_NSPARES);
 
 			path = zpool_draid_name(buf, sizeof (buf), ndata,
 			    nparity, nspares, children);
@@ -4287,9 +4257,8 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 		 * naming convention.
 		 */
 		if (name_flags & VDEV_NAME_TYPE_ID) {
-			uint64_t id;
-			verify(nvlist_lookup_uint64(nv, ZPOOL_CONFIG_ID,
-			    &id) == 0);
+			uint64_t id = fnvlist_lookup_uint64(nv,
+			    ZPOOL_CONFIG_ID);
 			(void) snprintf(tmpbuf, sizeof (tmpbuf), "%s-%llu",
 			    path, (u_longlong_t)id);
 			path = tmpbuf;
@@ -4323,8 +4292,7 @@ zpool_get_errlog(zpool_handle_t *zhp, nvlist_t **nverrlistp)
 	 * has increased, allocate more space and continue until we get the
 	 * entire list.
 	 */
-	verify(nvlist_lookup_uint64(zhp->zpool_config, ZPOOL_CONFIG_ERRCOUNT,
-	    &count) == 0);
+	count = fnvlist_lookup_uint64(zhp->zpool_config, ZPOOL_CONFIG_ERRCOUNT);
 	if (count == 0)
 		return (0);
 	zc.zc_nvlist_dst = (uintptr_t)zfs_alloc(zhp->zpool_hdl,
@@ -4553,9 +4521,9 @@ zpool_get_history(zpool_handle_t *zhp, nvlist_t **nvhisp, uint64_t *off,
 	free(buf);
 
 	if (!err) {
-		verify(nvlist_alloc(nvhisp, NV_UNIQUE_NAME, 0) == 0);
-		verify(nvlist_add_nvlist_array(*nvhisp, ZPOOL_HIST_RECORD,
-		    (const nvlist_t **)records, numrecords) == 0);
+		*nvhisp = fnvlist_alloc();
+		fnvlist_add_nvlist_array(*nvhisp, ZPOOL_HIST_RECORD,
+		    (const nvlist_t **)records, numrecords);
 	}
 	for (i = 0; i < numrecords; i++)
 		nvlist_free(records[i]);
@@ -5092,7 +5060,7 @@ zpool_vdev_guid(zpool_handle_t *zhp, const char *vdevname, uint64_t *vdev_guid)
 		return (zfs_error(zhp->zpool_hdl, EZFS_NODEVICE, errbuf));
 	}
 
-	verify(nvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID, vdev_guid) == 0);
+	*vdev_guid = fnvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID);
 	return (0);
 }
 
@@ -5105,19 +5073,16 @@ zpool_get_vdev_prop_value(nvlist_t *nvprop, vdev_prop_t prop, char *prop_name,
     char *buf, size_t len, zprop_source_t *srctype, boolean_t literal)
 {
 	nvlist_t *nv;
-	uint64_t intval;
 	char *strval;
+	uint64_t intval;
 	zprop_source_t src = ZPROP_SRC_NONE;
 
 	if (prop == VDEV_PROP_USER) {
 		/* user property, prop_name must contain the property name */
 		assert(prop_name != NULL);
 		if (nvlist_lookup_nvlist(nvprop, prop_name, &nv) == 0) {
-			verify(nvlist_lookup_uint64(nv, ZPROP_SOURCE,
-			    &intval) == 0);
-			src = intval;
-			verify(nvlist_lookup_string(nv, ZPROP_VALUE,
-			    &strval) == 0);
+			src = fnvlist_lookup_uint64(nv, ZPROP_SOURCE);
+			strval = fnvlist_lookup_string(nv, ZPROP_VALUE);
 		} else {
 			/* user prop not found */
 			return (-1);
@@ -5134,11 +5099,8 @@ zpool_get_vdev_prop_value(nvlist_t *nvprop, vdev_prop_t prop, char *prop_name,
 	switch (vdev_prop_get_type(prop)) {
 	case PROP_TYPE_STRING:
 		if (nvlist_lookup_nvlist(nvprop, prop_name, &nv) == 0) {
-			verify(nvlist_lookup_uint64(nv, ZPROP_SOURCE,
-			    &intval) == 0);
-			src = intval;
-			verify(nvlist_lookup_string(nv, ZPROP_VALUE,
-			    &strval) == 0);
+			src = fnvlist_lookup_uint64(nv, ZPROP_SOURCE);
+			strval = fnvlist_lookup_string(nv, ZPROP_VALUE);
 		} else {
 			src = ZPROP_SRC_DEFAULT;
 			if ((strval = (char *)vdev_prop_default_string(prop))
@@ -5150,11 +5112,8 @@ zpool_get_vdev_prop_value(nvlist_t *nvprop, vdev_prop_t prop, char *prop_name,
 
 	case PROP_TYPE_NUMBER:
 		if (nvlist_lookup_nvlist(nvprop, prop_name, &nv) == 0) {
-			verify(nvlist_lookup_uint64(nv, ZPROP_SOURCE,
-			    &intval) == 0);
-			src = intval;
-			verify(nvlist_lookup_uint64(nv, ZPROP_VALUE,
-			    &intval) == 0);
+			src = fnvlist_lookup_uint64(nv, ZPROP_SOURCE);
+			intval = fnvlist_lookup_uint64(nv, ZPROP_VALUE);
 		} else {
 			src = ZPROP_SRC_DEFAULT;
 			intval = vdev_prop_default_numeric(prop);
@@ -5234,11 +5193,8 @@ zpool_get_vdev_prop_value(nvlist_t *nvprop, vdev_prop_t prop, char *prop_name,
 
 	case PROP_TYPE_INDEX:
 		if (nvlist_lookup_nvlist(nvprop, prop_name, &nv) == 0) {
-			verify(nvlist_lookup_uint64(nv, ZPROP_SOURCE,
-			    &intval) == 0);
-			src = intval;
-			verify(nvlist_lookup_uint64(nv, ZPROP_VALUE,
-			    &intval) == 0);
+			src = fnvlist_lookup_uint64(nv, ZPROP_SOURCE);
+			intval = fnvlist_lookup_uint64(nv, ZPROP_VALUE);
 		} else {
 			src = ZPROP_SRC_DEFAULT;
 			intval = vdev_prop_default_numeric(prop);
