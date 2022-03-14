@@ -224,10 +224,8 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, const char *name)
 	    dgettext(TEXT_DOMAIN, "cannot label '%s'"), name);
 
 	if (zhp) {
-		nvlist_t *nvroot;
-
-		verify(nvlist_lookup_nvlist(zhp->zpool_config,
-		    ZPOOL_CONFIG_VDEV_TREE, &nvroot) == 0);
+		nvlist_t *nvroot = fnvlist_lookup_nvlist(zhp->zpool_config,
+		    ZPOOL_CONFIG_VDEV_TREE);
 
 		if (zhp->zpool_start_block == 0)
 			start_block = find_start_block(nvroot);

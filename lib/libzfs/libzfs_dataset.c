@@ -234,7 +234,6 @@ process_user_props(zfs_handle_t *zhp, nvlist_t *props)
 {
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	nvpair_t *elem;
-	nvlist_t *propval;
 	nvlist_t *nvl;
 
 	if (nvlist_alloc(&nvl, NV_UNIQUE_NAME, 0) != 0) {
@@ -247,7 +246,7 @@ process_user_props(zfs_handle_t *zhp, nvlist_t *props)
 		if (!zfs_prop_user(nvpair_name(elem)))
 			continue;
 
-		verify(nvpair_value_nvlist(elem, &propval) == 0);
+		nvlist_t *propval = fnvpair_value_nvlist(elem);
 		if (nvlist_add_nvlist(nvl, nvpair_name(elem), propval) != 0) {
 			nvlist_free(nvl);
 			(void) no_memory(hdl);
@@ -1315,8 +1314,7 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 			/* Replace the label string with the internal form. */
 			(void) nvlist_remove(ret, zfs_prop_to_name(prop),
 			    DATA_TYPE_STRING);
-			verify(nvlist_add_string(ret, zfs_prop_to_name(prop),
-			    hex) == 0);
+			fnvlist_add_string(ret, zfs_prop_to_name(prop), hex);
 			free(hex);
 
 			break;
@@ -2056,7 +2054,7 @@ getprop_uint64(zfs_handle_t *zhp, zfs_prop_t prop, char **source)
 	*source = NULL;
 	if (nvlist_lookup_nvlist(zhp->zfs_props,
 	    zfs_prop_to_name(prop), &nv) == 0) {
-		verify(nvlist_lookup_uint64(nv, ZPROP_VALUE, &value) == 0);
+		value = fnvlist_lookup_uint64(nv, ZPROP_VALUE);
 		(void) nvlist_lookup_string(nv, ZPROP_SOURCE, source);
 	} else {
 		verify(!zhp->zfs_props_table ||
@@ -2385,8 +2383,7 @@ zfs_prop_get_recvd(zfs_handle_t *zhp, const char *propname, char *propbuf,
 		if (nvlist_lookup_nvlist(zhp->zfs_recvd_props,
 		    propname, &propval) != 0)
 			return (-1);
-		verify(nvlist_lookup_string(propval, ZPROP_VALUE,
-		    &recvdval) == 0);
+		recvdval = fnvlist_lookup_string(propval, ZPROP_VALUE);
 		(void) strlcpy(propbuf, recvdval, proplen);
 	}
 
@@ -2500,13 +2497,11 @@ zfs_get_clones_nvl(zfs_handle_t *zhp)
 		}
 		nvlist_free(nv);
 		nvlist_free(value);
-		verify(0 == nvlist_lookup_nvlist(zhp->zfs_props,
-		    zfs_prop_to_name(ZFS_PROP_CLONES), &nv));
+		nv = fnvlist_lookup_nvlist(zhp->zfs_props,
+		    zfs_prop_to_name(ZFS_PROP_CLONES));
 	}
 
-	verify(nvlist_lookup_nvlist(nv, ZPROP_VALUE, &value) == 0);
-
-	return (value);
+	return (fnvlist_lookup_nvlist(nv, ZPROP_VALUE));
 }
 
 static int
@@ -3863,7 +3858,7 @@ zfs_check_snap_cb(zfs_handle_t *zhp, void *arg)
 		return (EINVAL);
 
 	if (lzc_exists(name))
-		verify(nvlist_add_boolean(dd->nvl, name) == 0);
+		fnvlist_add_boolean(dd->nvl, name);
 
 	rv = zfs_iter_filesystems(zhp, zfs_check_snap_cb, dd);
 	zfs_close(zhp);
@@ -3880,7 +3875,7 @@ zfs_destroy_snaps(zfs_handle_t *zhp, char *snapname, boolean_t defer)
 	struct destroydata dd = { 0 };
 
 	dd.snapname = snapname;
-	verify(nvlist_alloc(&dd.nvl, NV_UNIQUE_NAME, 0) == 0);
+	dd.nvl = fnvlist_alloc();
 	(void) zfs_check_snap_cb(zfs_handle_dup(zhp), &dd);
 
 	if (nvlist_empty(dd.nvl)) {
@@ -3890,7 +3885,7 @@ zfs_destroy_snaps(zfs_handle_t *zhp, char *snapname, boolean_t defer)
 	} else {
 		ret = zfs_destroy_snaps_nvl(zhp->zfs_hdl, dd.nvl, defer);
 	}
-	nvlist_free(dd.nvl);
+	fnvlist_free(dd.nvl);
 	return (ret);
 }
 
@@ -4221,7 +4216,7 @@ zfs_snapshot(libzfs_handle_t *hdl, const char *path, boolean_t recursive,
 		return (-1);
 	}
 
-	verify(nvlist_alloc(&sd.sd_nvl, NV_UNIQUE_NAME, 0) == 0);
+	sd.sd_nvl = fnvlist_alloc();
 	if (recursive) {
 		(void) zfs_snapshot_cb(zfs_handle_dup(zhp), &sd);
 	} else {
@@ -4229,7 +4224,7 @@ zfs_snapshot(libzfs_handle_t *hdl, const char *path, boolean_t recursive,
 	}
 
 	ret = zfs_snapshot_nvl(hdl, sd.sd_nvl, props);
-	nvlist_free(sd.sd_nvl);
+	fnvlist_free(sd.sd_nvl);
 	zfs_close(zhp);
 	return (ret);
 }
@@ -4712,8 +4707,8 @@ zfs_expand_proplist(zfs_handle_t *zhp, zprop_list_t **plp, boolean_t received,
 		} else {
 			if (nvlist_lookup_nvlist(userprops, entry->pl_user_prop,
 			    &propval) == 0) {
-				verify(nvlist_lookup_string(propval,
-				    ZPROP_VALUE, &strval) == 0);
+				strval = fnvlist_lookup_string(propval,
+				    ZPROP_VALUE);
 				if (strlen(strval) > entry->pl_width)
 					entry->pl_width = strlen(strval);
 			}
