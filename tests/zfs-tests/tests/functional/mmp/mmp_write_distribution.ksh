@@ -37,7 +37,7 @@ verify_runnable "both"
 function cleanup
 {
 	log_must zpool destroy $MMP_POOL
-	log_must rm $MMP_DIR/file.{0,1,2,3,4,5,6,7}
+	log_must rm $MMP_DIR/file.{0..7}
 	log_must rm $MMP_HISTORY_TMP
 	log_must rmdir $MMP_DIR
 	log_must mmp_clear_hostid
@@ -51,8 +51,8 @@ MMP_HISTORY=/proc/spl/kstat/zfs/$MMP_POOL/multihost
 
 # Step 1
 log_must mkdir -p $MMP_DIR
-log_must truncate -s 128M $MMP_DIR/file.{0,1,2,3,4,5,6,7}
-log_must zpool create -f $MMP_POOL mirror $MMP_DIR/file.{0,1} mirror $MMP_DIR/file.{2,3,4,5,6,7}
+log_must truncate -s 128M $MMP_DIR/file.{0..7}
+log_must zpool create -f $MMP_POOL mirror $MMP_DIR/file.{0..1} mirror $MMP_DIR/file.{2..7}
 
 # Step 2
 log_must mmp_set_hostid $HOSTID1
@@ -69,8 +69,8 @@ typeset -i min_writes=999
 typeset -i max_writes=0
 typeset -i write_count
 # copy to get as close to a consistent view as possible
-cat $MMP_HISTORY > $MMP_HISTORY_TMP
-for x in $(seq 0 7); do
+cp $MMP_HISTORY $MMP_HISTORY_TMP
+for x in {0..7}; do
 	write_count=$(grep -c file.${x} $MMP_HISTORY_TMP)
 	if [ $write_count -lt $min_writes ]; then
 		min_writes=$write_count

@@ -60,13 +60,10 @@ for recsize in 512 1024 2048 4096 8192 16384; do
 	log_must eval "zdb -ddddd $sendfs $send_obj >$tmpdir/send.zdb"
 	log_must eval "zdb -ddddd $recvfs $recv_obj >$tmpdir/recv.zdb"
 
-	grep -q "EMBEDDED" $tmpdir/send.zdb || \
-	    log_fail "Obj $send_obj not embedded in $sendfs"
-	grep -q "EMBEDDED" $tmpdir/recv.zdb || \
-	    log_fail "Obj $recv_obj not embedded in $recvfs"
+	log_must grep -q "EMBEDDED" $tmpdir/send.zdb
+	log_must grep -q "EMBEDDED" $tmpdir/recv.zdb
 
-	cat $stream | zstream dump -v | log_must grep -q \
-	    "WRITE_EMBEDDED object = $send_obj offset = 0"
+	log_must eval "zstream dump -v $stream | grep -q \"WRITE_EMBEDDED object = $send_obj offset = 0\""
 done
 
 log_must zfs destroy -R $recvfs
@@ -91,13 +88,10 @@ for recsize in 1024 4096 16384; do
 	log_must eval "zdb -ddddd $sendfs $send_obj >$tmpdir/send.zdb"
 	log_must eval "zdb -ddddd $recvfs $recv_obj >$tmpdir/recv.zdb"
 
-	grep -q "EMBEDDED" $tmpdir/send.zdb || \
-	    log_fail "Obj $send_obj not embedded in $sendfs"
-	grep -q "EMBEDDED" $tmpdir/recv.zdb || \
-	    log_fail "Obj $recv_obj not embedded in $recvfs"
+	log_must grep -q "EMBEDDED" $tmpdir/send.zdb
+	log_must grep -q "EMBEDDED" $tmpdir/recv.zdb
 
-	cat $stream | zstream dump -v | log_must grep -q \
-	    "WRITE_EMBEDDED object = $send_obj offset = 0"
+	log_must eval "zstream dump -v $stream | log_must grep -q \"WRITE_EMBEDDED object = $send_obj offset = 0\""
 done
 
 log_pass "Embedded blocks and redacted send work correctly together."

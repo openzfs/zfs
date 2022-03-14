@@ -231,7 +231,7 @@ function compare_files
 	[[ -f $file2 ]] || log_fail "File $file2 does not exist."
 
 	log_must eval "get_diff $file1 $file2 >$tmpfile"
-	typeset range="$(cat $tmpfile)"
+	typeset range="$(<$tmpfile)"
 	log_must unmount_redacted $recvfs
 	[[ "$expected" = "$range" ]] || log_fail "Unexpected range: $range"
 }
