@@ -159,8 +159,7 @@ find_vdev_problem(nvlist_t *vdev, int (*func)(vdev_stat_t *, uint_t),
     boolean_t ignore_replacing)
 {
 	nvlist_t **child;
-	vdev_stat_t *vs;
-	uint_t c, vsc, children;
+	uint_t c, children;
 
 	/*
 	 * Ignore problems within a 'replacing' vdev, since we're presumably in
@@ -169,10 +168,7 @@ find_vdev_problem(nvlist_t *vdev, int (*func)(vdev_stat_t *, uint_t),
 	 * later.
 	 */
 	if (ignore_replacing == B_TRUE) {
-		char *type;
-
-		verify(nvlist_lookup_string(vdev, ZPOOL_CONFIG_TYPE,
-		    &type) == 0);
+		char *type = fnvlist_lookup_string(vdev, ZPOOL_CONFIG_TYPE);
 		if (strcmp(type, VDEV_TYPE_REPLACING) == 0)
 			return (B_FALSE);
 	}
@@ -183,9 +179,9 @@ find_vdev_problem(nvlist_t *vdev, int (*func)(vdev_stat_t *, uint_t),
 			if (find_vdev_problem(child[c], func, ignore_replacing))
 				return (B_TRUE);
 	} else {
-		verify(nvlist_lookup_uint64_array(vdev, ZPOOL_CONFIG_VDEV_STATS,
-		    (uint64_t **)&vs, &vsc) == 0);
-
+		uint_t vsc;
+		vdev_stat_t *vs = (vdev_stat_t *)fnvlist_lookup_uint64_array(
+		    vdev, ZPOOL_CONFIG_VDEV_STATS, &vsc);
 		if (func(vs, vsc) != 0)
 			return (B_TRUE);
 	}
@@ -224,26 +220,21 @@ static zpool_status_t
 check_status(nvlist_t *config, boolean_t isimport,
     zpool_errata_t *erratap, const char *compat)
 {
-	nvlist_t *nvroot;
-	vdev_stat_t *vs;
 	pool_scan_stat_t *ps = NULL;
 	uint_t vsc, psc;
 	uint64_t nerr;
-	uint64_t version;
-	uint64_t stateval;
 	uint64_t suspended;
 	uint64_t hostid = 0;
 	uint64_t errata = 0;
 	unsigned long system_hostid = get_system_hostid();
 
-	verify(nvlist_lookup_uint64(config, ZPOOL_CONFIG_VERSION,
-	    &version) == 0);
-	verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
-	    &nvroot) == 0);
-	verify(nvlist_lookup_uint64_array(nvroot, ZPOOL_CONFIG_VDEV_STATS,
-	    (uint64_t **)&vs, &vsc) == 0);
-	verify(nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_STATE,
-	    &stateval) == 0);
+	uint64_t version = fnvlist_lookup_uint64(config, ZPOOL_CONFIG_VERSION);
+	nvlist_t *nvroot = fnvlist_lookup_nvlist(config,
+	    ZPOOL_CONFIG_VDEV_TREE);
+	vdev_stat_t *vs = (vdev_stat_t *)fnvlist_lookup_uint64_array(nvroot,
+	    ZPOOL_CONFIG_VDEV_STATS, &vsc);
+	uint64_t stateval = fnvlist_lookup_uint64(config,
+	    ZPOOL_CONFIG_POOL_STATE);
 
 	/*
 	 * Currently resilvering a vdev
@@ -337,10 +328,8 @@ check_status(nvlist_t *config, boolean_t isimport,
 	 */
 	if (vs->vs_state == VDEV_STATE_CANT_OPEN &&
 	    vs->vs_aux == VDEV_AUX_UNSUP_FEAT) {
-		nvlist_t *nvinfo;
-
-		verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_LOAD_INFO,
-		    &nvinfo) == 0);
+		nvlist_t *nvinfo = fnvlist_lookup_nvlist(config,
+		    ZPOOL_CONFIG_LOAD_INFO);
 		if (nvlist_exists(nvinfo, ZPOOL_CONFIG_CAN_RDONLY))
 			return (ZPOOL_STATUS_UNSUP_FEAT_WRITE);
 		return (ZPOOL_STATUS_UNSUP_FEAT_READ);
