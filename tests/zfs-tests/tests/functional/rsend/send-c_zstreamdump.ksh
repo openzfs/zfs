@@ -49,7 +49,7 @@ log_must zfs snapshot $sendfs@full
 
 log_must eval "zfs send -c $sendfs@full >$BACKDIR/full"
 log_must stream_has_features $BACKDIR/full lz4 compressed
-cat $BACKDIR/full | zstream dump -v > $BACKDIR/dump.out
+zstream dump -v $BACKDIR/full > $BACKDIR/dump.out
 
 lsize=$(awk '/^WRITE [^0]/ {lsize += $24} END {printf("%d", lsize)}' \
     $BACKDIR/dump.out)
@@ -63,8 +63,8 @@ csize_prop=$(get_prop used $sendfs)
 within_percent $csize $csize_prop 90 || log_fail \
     "$csize and $csize_prop differed by too much"
 
-x=$(get_resume_token "zfs send -c $sendfs@full" $streamfs $recvfs)
-resume_token=$(cat /$streamfs/resume_token)
+get_resume_token "zfs send -c $sendfs@full" $streamfs $recvfs
+resume_token=$(</$streamfs/resume_token)
 to_name_fs=$sendfs
 log_must eval "zstream token $resume_token | grep $to_name_fs"
 

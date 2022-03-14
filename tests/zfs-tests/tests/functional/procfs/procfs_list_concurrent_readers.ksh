@@ -41,8 +41,7 @@
 
 function cleanup
 {
-	[[ -z $msgs1 ]] || log_must rm $msgs1
-	[[ -z $msgs2 ]] || log_must rm $msgs2
+	log_must rm -f $msgs1 $msgs2
 	datasetexists $FS && destroy_dataset $FS -r
 }
 
@@ -69,7 +68,7 @@ msgs2=$(mktemp) || log_fail
 # Start reading file, pause and read it from another process, and then finish
 # reading.
 #
-{ dd bs=512 count=4; cat $ZFS_DBGMSG >$msgs1; cat; } <$ZFS_DBGMSG >$msgs2
+{ dd bs=512 count=4; cp $ZFS_DBGMSG $msgs1; cat; } <$ZFS_DBGMSG >$msgs2
 
 #
 # Truncate the result of the read that completed second in case it picked up an

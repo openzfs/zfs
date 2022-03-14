@@ -67,34 +67,32 @@ obj=${array[0]}
 log_note "file $init_data has object number $obj"
 sync_pool $TESTPOOL
 
-output=$(zdb -d $TESTPOOL/$TESTFS)
-objset_id=$(echo $output | cut -d, -f2 | cut -d' ' -f2)
+IFS=", " read -r _ _ _ _ objset_id _ < <(zdb -d $TESTPOOL/$TESTFS)
 objset_hex=$(printf "0x%X" $objset_id)
 log_note "objset $TESTPOOL/$TESTFS has objset ID $objset_id ($objset_hex)"
 
 for id in "$objset_id" "$objset_hex"
 do
 	log_note "zdb -dddddd $TESTPOOL/$id $obj"
-		output=$(zdb -dddddd $TESTPOOL/$id $obj)
-		echo $output | grep -q "$TESTPOOL/$TESTFS" ||
-			log_fail "zdb -dddddd $TESTPOOL/$id $obj failed ($TESTPOOL/$TESTFS not in zdb output)"
-		echo $output | grep -q "file1" ||
-			log_fail "zdb -dddddd $TESTPOOL/$id $obj failed (file1 not in zdb output)"
+	output=$(zdb -dddddd $TESTPOOL/$id $obj)
+	echo $output | grep -q "$TESTPOOL/$TESTFS" ||
+		log_fail "zdb -dddddd $TESTPOOL/$id $obj failed ($TESTPOOL/$TESTFS not in zdb output)"
+	echo $output | grep -q "file1" ||
+		log_fail "zdb -dddddd $TESTPOOL/$id $obj failed (file1 not in zdb output)"
 
 	obj=$(printf "0x%X" $obj)
 	log_note "zdb -NNNNNN $TESTPOOL/$id $obj"
-        output=$(zdb -NNNNNN $TESTPOOL/$id $obj)
-        echo $output | grep -q "$TESTPOOL/$TESTFS" ||
-        	log_fail "zdb -NNNNNN $TESTPOOL/$id $obj failed ($TESTPOOL/$TESTFS not in zdb output)"
-        echo $output | grep -q "file1" ||
-        	log_fail "zdb -NNNNNN $TESTPOOL/$id $obj failed (file1 not in zdb output)"
+	output=$(zdb -NNNNNN $TESTPOOL/$id $obj)
+	echo $output | grep -q "$TESTPOOL/$TESTFS" ||
+		log_fail "zdb -NNNNNN $TESTPOOL/$id $obj failed ($TESTPOOL/$TESTFS not in zdb output)"
+	echo $output | grep -q "file1" ||
+		log_fail "zdb -NNNNNN $TESTPOOL/$id $obj failed (file1 not in zdb output)"
 done
 
 if is_linux; then
-	output=$(ls -1 /proc/spl/kstat/zfs/$TESTPOOL |grep objset- |tail -1)
+	output=$(ls -1 /proc/spl/kstat/zfs/$TESTPOOL | grep objset- | tail -1)
 	objset_hex=${output#*-}
-	name_from_proc=$(cat /proc/spl/kstat/zfs/$TESTPOOL/$output |
-	    grep dataset_name | cut -d' ' -f3)
+	name_from_proc=$(grep dataset_name /proc/spl/kstat/zfs/$TESTPOOL/$output | cut -d' ' -f3)
 	log_note "checking zdb output for $name_from_proc"
 	log_must eval "zdb -dddddd $TESTPOOL/$objset_hex | grep -q \"$name_from_proc\""
 fi

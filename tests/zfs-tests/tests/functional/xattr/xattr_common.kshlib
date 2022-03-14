@@ -97,10 +97,10 @@ function delete_xattr { # filename xattr_name
         if is_illumos; then
 	        log_must runat $FILE rm $XATTR_NAME
 	        log_mustnot eval "runat $FILE ls $XATTR_NAME > /dev/null 2>&1"
-	else
-		log_must rm_xattr $XATTR_NAME $FILE
-		log_mustnot get_xattr $XATTR_NAME $FILE
-	fi
+        else
+            log_must rm_xattr $XATTR_NAME $FILE
+            log_mustnot get_xattr $XATTR_NAME $FILE
+        fi
 }
 
 # not sure about this : really this should be testing write/append
@@ -126,12 +126,6 @@ function verify_write_xattr { # filename xattr_name
 function create_expected_output { # expected_output_file  contents_of_the_output
 	typeset FILE=$1
 	shift
-	if [[ -f $FILE ]]; then
-		log_must rm $FILE
-	fi
-
-	for line in $@
-	do
-		log_must eval "echo $line >> $FILE"
-	done
+	log_must rm -f $FILE
+	log_must eval "printf '%s\n' $* >> $FILE"
 }
