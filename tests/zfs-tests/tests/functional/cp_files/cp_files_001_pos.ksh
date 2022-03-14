@@ -58,7 +58,7 @@ BATCH=1000
 log_must mkdir $TESTDIR/src
 log_must mkdir $TESTDIR/dst
 
-WD=$(pwd)
+WD=$PWD
 cd $TESTDIR/src
 # create NR_FILES in BATCH at a time to prevent overflowing argument buffer
 for i in $(seq $(($NR_FILES/$BATCH))); do touch $(seq $((($i-1)*$BATCH+1)) $(($i*$BATCH))); done

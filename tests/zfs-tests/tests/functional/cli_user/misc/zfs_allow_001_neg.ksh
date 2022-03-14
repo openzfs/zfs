@@ -44,22 +44,15 @@
 #
 #
 
-# check to see if we have zfs allow
-zfs 2>&1 | grep "allow" > /dev/null
-if (($? != 0)) then
-	log_unsupported "ZFS allow not supported on this machine."
-fi
-
 log_assert "zfs allow returns an error when run as a user"
 
 log_must zfs allow $TESTPOOL/$TESTFS
-log_mustnot zfs allow $(logname) create $TESTPOOL/$TESTFS
+log_mustnot zfs allow $(id -un) create $TESTPOOL/$TESTFS
 
 # now verify that the above command actually did nothing by
 # checking for any allow output. ( if no allows are granted,
 # nothing should be output )
-OUTPUT=$(zfs allow $TESTPOOL/$TESTFS | grep "Local+Descendent" )
-if [ -n "$OUTPUT" ]
+if zfs allow $TESTPOOL/$TESTFS | grep -q "Local+Descendent"
 then
 	log_fail "zfs allow permissions were granted on $TESTPOOL/$TESTFS"
 fi
