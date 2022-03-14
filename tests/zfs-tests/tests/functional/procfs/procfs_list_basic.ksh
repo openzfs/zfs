@@ -85,7 +85,7 @@ done
 
 # Clear out old messages and check that they really are gone
 echo 0 >$ZFS_DBGMSG || log_fail "failed to write to $ZFS_DBGMSG"
-cat $ZFS_DBGMSG | count_snap_cmds 0
+count_snap_cmds 0 < $ZFS_DBGMSG
 #
 # Even though we don't expect any messages in the file, reading should still
 # succeed.

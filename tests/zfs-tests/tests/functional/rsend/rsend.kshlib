@@ -625,7 +625,7 @@ function resume_test
 		log_mustnot eval "zfs recv -suv $recvfs </$streamfs/$stream_num"
 		stream_num=$((stream_num+1))
 
-		token=$(zfs get -Hp -o value receive_resume_token $recvfs)
+		token=$(get_prop receive_resume_token $recvfs)
 
 		# Do a dry-run
 		[ $dryrun -ne 0 ] && \
@@ -709,7 +709,7 @@ function stream_has_features
 	shift
 
 	[[ -f $file ]] || log_fail "Couldn't find file: $file"
-	typeset flags=$(cat $file | zstream dump | \
+	typeset flags=$(zstream dump $file | \
 	    awk '/features =/ {features = $3} END {print features}')
 	typeset -A feature
 	feature[dedup]="1"
@@ -759,7 +759,7 @@ function verify_stream_size
 	[[ -f $stream ]] || log_fail "No such file: $stream"
 	datasetexists $ds || log_fail "No such dataset: $ds"
 
-	typeset stream_size=$(cat $stream | zstream dump | sed -n \
+	typeset stream_size=$(zstream dump $stream | sed -n \
 	    's/	Total payload size = \(.*\) (0x.*)/\1/p')
 
 	typeset inc_size=0
@@ -777,8 +777,7 @@ function verify_stream_size
 	fi
 	ds_size=$((ds_size - inc_size))
 
-	within_percent $stream_size $ds_size $percent || log_fail \
-	    "$stream_size $ds_size differed by too much"
+	log_must within_percent $stream_size $ds_size $percent
 }
 
 # Cleanup function for tests involving resumable send

@@ -162,7 +162,7 @@ do
 
 	# inject read io errors on vdev and verify resilver does not restart
 	log_must zinject -a -d ${VDEV_FILES[2]} -e io -T read -f 0.25 $TESTPOOL1
-	log_must eval "cat ${DATAPATHS[1]} > /dev/null"
+	log_must cp ${DATAPATHS[1]} /dev/null
 	log_must zinject -c all
 
 	# there should still be 2 resilver starts w/o defer, 1 with defer

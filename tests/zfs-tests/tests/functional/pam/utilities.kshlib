@@ -28,7 +28,7 @@ pamservice="pam_zfs_key_test"
 pamconfig="/etc/pam.d/${pamservice}"
 
 function keystatus {
-    log_must [ "$(zfs list -Ho keystatus "$TESTPOOL/pam/${username}")" == "$1" ]
+    log_must [ "$(zfs list -Ho keystatus "$TESTPOOL/pam/${username}")" = "$1" ]
 }
 
 function genconfig {
@@ -42,6 +42,6 @@ function rmconfig {
 }
 
 function references {
-    log_must [ "$(cat "${runstatedir}/$(id -u ${username})")" == "$1" ]
+    log_must [ "$(<"${runstatedir}/$(id -u ${username})")" = "$1" ]
 }
 
