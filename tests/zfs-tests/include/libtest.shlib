@@ -2971,59 +2971,6 @@ function get_device_state #pool disk field("", "spares","logs")
 }
 
 #
-# Given a disk, label it to VTOC regardless what label was on the disk
-# $1 disk
-#
-function labelvtoc
-{
-	typeset disk=$1
-	if [[ -z $disk ]]; then
-		log_fail "The disk name is unspecified."
-	fi
-	typeset label_file=/var/tmp/labelvtoc.$$
-	typeset arch=$(uname -p)
-
-	if is_linux || is_freebsd; then
-		log_note "Currently unsupported by the test framework"
-		return 1
-	fi
-
-	if [[ $arch == "i386" ]]; then
-		echo "label" > $label_file
-		echo "0" >> $label_file
-		echo "" >> $label_file
-		echo "q" >> $label_file
-		echo "q" >> $label_file
-
-		fdisk -B $disk >/dev/null 2>&1
-		# wait a while for fdisk finishes
-		sleep 60
-	elif [[ $arch == "sparc" ]]; then
-		echo "label" > $label_file
-		echo "0" >> $label_file
-		echo "" >> $label_file
-		echo "" >> $label_file
-		echo "" >> $label_file
-		echo "q" >> $label_file
-	else
-		log_fail "unknown arch type"
-	fi
-
-	format -e -s -d $disk -f $label_file
-	typeset -i ret_val=$?
-	rm -f $label_file
-	#
-	# wait the format to finish
-	#
-	sleep 60
-	if ((ret_val != 0)); then
-		log_fail "unable to label $disk as VTOC."
-	fi
-
-	return 0
-}
-
-#
 # get the root filesystem name if it's zfsroot system.
 #
 # return: root filesystem name
@@ -3077,22 +3024,19 @@ function verify_disk_count
 function ds_is_volume
 {
 	typeset type=$(get_prop type $1)
-	[[ $type = "volume" ]] && return 0
-	return 1
+	[ $type = "volume" ]
 }
 
 function ds_is_filesystem
 {
 	typeset type=$(get_prop type $1)
-	[[ $type = "filesystem" ]] && return 0
-	return 1
+	[ $type = "filesystem" ]
 }
 
 function ds_is_snapshot
 {
 	typeset type=$(get_prop type $1)
-	[[ $type = "snapshot" ]] && return 0
-	return 1
+	[ $type = "snapshot" ]
 }
 
 #
@@ -3108,7 +3052,7 @@ function is_mp
 {
 	case $(uname) in
 		Linux)
-			(($(nproc) > 1))
+			(($(grep -c '^processor' /proc/cpuinfo) > 1))
 			;;
 		FreeBSD)
 			sysctl -n kern.smp.cpus

@@ -59,8 +59,8 @@ create_xattr $testfile passwd /etc/passwd
 
 log_must chmod 000 $testfile
 if is_illumos; then
-	log_mustnot su $ZFS_USER -c "runat $testfile cat passwd"
-	log_mustnot su $ZFS_USER -c "runat $testfile cp /etc/passwd ."
+	log_mustnot user_run $ZFS_USER runat $testfile cat passwd
+	log_mustnot user_run $ZFS_USER runat $testfile cp /etc/passwd .
 else
 	log_mustnot user_run $ZFS_USER "
 . $STF_SUITE/include/libtest.shlib

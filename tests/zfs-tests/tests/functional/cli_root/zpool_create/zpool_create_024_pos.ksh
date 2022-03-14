@@ -74,7 +74,7 @@ child_pools=""
 
 function zpool_stress
 {
-	typeset pool=$1
+	typeset pool="$1-$$"
 	typeset vdev0="$TEST_BASE_DIR/$pool-vdev0.img"
 	typeset vdev1="$TEST_BASE_DIR/$pool-vdev1.img"
 	typeset -i iters=$2
@@ -118,13 +118,11 @@ function zpool_stress
 # 1. Create 128 process each of which create/destroy a pool 5 times.
 typeset i=0
 while [[ $i -lt 128 ]]; do
-	typeset uuid=$(uuidgen | cut -c1-13)
-
-	zpool_stress $TESTPOOL-$uuid 5 &
+	zpool_stress $TESTPOOL-$i 5 &
 	typeset pid=$!
 
 	child_pids="$child_pids $pid"
-	child_pools="$child_pools $TESTPOOL-$uuid"
+	child_pools="$child_pools $TESTPOOL-$i-$pid"
 	((i = i + 1))
 done
 

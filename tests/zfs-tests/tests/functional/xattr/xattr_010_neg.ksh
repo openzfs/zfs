@@ -61,6 +61,6 @@ log_mustnot runat $TESTDIR/myfile.$$ mknod block b 888 888
 
 log_mustnot runat $TESTDIR/myfile.$$ mknod char c
 
-log_mustnot runat $TESTDIR/myfile.$$ mknod fifo p
+log_mustnot runat $TESTDIR/myfile.$$ mkfifo fifo
 
 log_pass "mkdir, mknod fail"
