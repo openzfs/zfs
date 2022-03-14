@@ -254,7 +254,7 @@ function do_collect_scripts
 # Find a place to deposit performance data collected while under load.
 function get_perf_output_dir
 {
-	typeset dir="$(pwd)/perf_data"
+	typeset dir="$PWD/perf_data"
 	[[ -d $dir ]] || mkdir -p $dir
 
 	echo $dir
@@ -467,7 +467,7 @@ function get_system_config
 
 	echo "{" >>$config
 	if is_linux; then
-		echo "  \"ncpus\": \"$(nproc --all)\"," >>$config
+		echo "  \"ncpus\": \"$(lscpu | awk '/^CPU\(s\)/ {print $2; exit}')\"," >>$config
 		echo "  \"physmem\": \"$(free -b | \
 		    awk '$1 == "Mem:" { print $2 }')\"," >>$config
 		echo "  \"c_max\": \"$(get_max_arc_size)\"," >>$config

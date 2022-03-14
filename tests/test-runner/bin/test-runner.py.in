@@ -291,7 +291,7 @@ User: %s
         self.result.starttime = monotonic_time()
 
         if kmemleak:
-            cmd = f'echo clear | {SUDO} tee {KMEMLEAK_FILE}'
+            cmd = f'{SUDO} sh -c "echo clear > {KMEMLEAK_FILE}"'
             check_output(cmd, shell=True)
 
         proc = Popen(privcmd, stdout=PIPE, stderr=PIPE)
@@ -305,7 +305,7 @@ User: %s
             self.result.stdout, self.result.stderr = self.collect_output(proc)
 
             if kmemleak:
-                cmd = f'echo scan | {SUDO} tee {KMEMLEAK_FILE}'
+                cmd = f'{SUDO} sh -c "echo scan > {KMEMLEAK_FILE}"'
                 check_output(cmd, shell=True)
                 cmd = f'{SUDO} cat {KMEMLEAK_FILE}'
                 self.result.kmemleak = check_output(cmd, shell=True)
@@ -880,7 +880,7 @@ class TestRun(object):
                       self.outputdir, LOG_ERR)
 
         if options.kmemleak:
-            cmd = f'echo scan=0 | {SUDO} tee {KMEMLEAK_FILE}'
+            cmd = f'{SUDO} -c "echo scan=0 > {KMEMLEAK_FILE}"'
             check_output(cmd, shell=True)
 
         iteration = 0

@@ -145,7 +145,6 @@ function histo_check_test_pool
 	typeset -i this_rs
 	typeset -i this_ri
 	typeset -i sum_filesizes=0
-	typeset dumped
 	typeset stripped
 
 	let histo_check_pool_size=$(get_pool_prop size ${pool})
@@ -157,11 +156,9 @@ function histo_check_test_pool
 		log_fail "hctp: max_pool_record_size is not numeric ${max_pool_record_size}"
 	fi
 
-	dumped="${TEST_BASE_DIR}/${pool}_dump.txt"
 	stripped="${TEST_BASE_DIR}/${pool}_stripped.txt"
 
 	zdb -Pbbb ${pool} | \
-	    tee ${dumped} | \
 	    sed -e '1,/^block[ 	][ 	]*psize[ 	][ 	]*lsize.*$/d' \
 	    -e '/^size[ 	]*Count/d' -e '/^$/,$d' \
 	    > ${stripped}
