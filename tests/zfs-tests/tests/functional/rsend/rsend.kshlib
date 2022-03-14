@@ -212,6 +212,8 @@ function cmp_ds_prop
 {
 	typeset dtst1=$1
 	typeset dtst2=$2
+	typeset source=",source"
+	[ -n "$3" ] && source=
 	typeset props="type,origin,volblocksize,acltype,dnodesize"
 	props+=",atime,canmount,checksum,compression,copies,devices"
 	props+=",exec,quota,readonly,recordsize,reservation,setuid"
@@ -223,8 +225,8 @@ function cmp_ds_prop
 	fi
 
 	diff \
-		<(zfs get -Ho property,value,source $props $dtst1 | sed -e "s:$dtst1:PREFIX:g" -e 's/^origin	[^@]*/origin	POOL/') \
-		<(zfs get -Ho property,value,source $props $dtst2 | sed -e "s:$dtst2:PREFIX:g" -e 's/^origin	[^@]*/origin	POOL/')
+		<(zfs get -Ho property,value$source $props $dtst1 | sed -e "s:$dtst1:PREFIX:g" -e 's/^origin	[^@]*/origin	POOL/') \
+		<(zfs get -Ho property,value$source $props $dtst2 | sed -e "s:$dtst2:PREFIX:g" -e 's/^origin	[^@]*/origin	POOL/')
 }
 
 #

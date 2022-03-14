@@ -158,7 +158,7 @@ set -A pair 	"$POOL" 		"$POOL2" 		\
 
 typeset -i i=0
 while ((i < ${#pair[@]})); do
-	log_must cmp_ds_prop ${pair[$i]} ${pair[((i+1))]}
+	log_must cmp_ds_prop ${pair[$i]} ${pair[((i+1))]} nosource
 	((i += 2))
 done
 
