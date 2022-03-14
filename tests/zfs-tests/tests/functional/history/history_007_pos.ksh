@@ -70,7 +70,7 @@ for arch in "i386" "sparc"; do
 	orig_cmds_f=$import_dir/${arch}.orig_history.txt
 	# remove blank line
 	orig_cmds_f1=$import_dir/${arch}.orig_history_1.txt
-	cat $orig_cmds_f | grep -v "^$" > $orig_cmds_f1
+	grep -v "^$" $orig_cmds_f > $orig_cmds_f1
 
 	log_must cp $tst_dir/${arch}.migratedpool.DAT.Z $import_dir
 	log_must uncompress -f $import_dir/${arch}.migratedpool.DAT.Z
