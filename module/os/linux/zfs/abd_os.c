@@ -182,8 +182,11 @@ abd_t *abd_zero_scatter = NULL;
 
 struct page;
 /*
- * abd_zero_page we will be an allocated zero'd PAGESIZE buffer, which is
- * assigned to set each of the pages of abd_zero_scatter.
+ * _KERNEL   - Will point to ZERO_PAGE if it is available or it will be
+ *             an allocated zero'd PAGESIZE buffer.
+ * Userspace - Will be an allocated zero'ed PAGESIZE buffer.
+ *
+ * abd_zero_page is assigned to each of the pages of abd_zero_scatter.
  */
 static struct page *abd_zero_page = NULL;
 
@@ -466,15 +469,19 @@ abd_alloc_zero_scatter(void)
 	struct scatterlist *sg = NULL;
 	struct sg_table table;
 	gfp_t gfp = __GFP_NOWARN | GFP_NOIO;
-	gfp_t gfp_zero_page = gfp | __GFP_ZERO;
 	int nr_pages = abd_chunkcnt_for_bytes(SPA_MAXBLOCKSIZE);
 	int i = 0;
 
+#if defined(HAVE_ZERO_PAGE_GPL_ONLY)
+	gfp_t gfp_zero_page = gfp | __GFP_ZERO;
 	while ((abd_zero_page = __page_cache_alloc(gfp_zero_page)) == NULL) {
 		ABDSTAT_BUMP(abdstat_scatter_page_alloc_retry);
 		schedule_timeout_interruptible(1);
 	}
 	abd_mark_zfs_page(abd_zero_page);
+#else
+	abd_zero_page = ZERO_PAGE(0);
+#endif /* HAVE_ZERO_PAGE_GPL_ONLY */
 
 	while (sg_alloc_table(&table, nr_pages, gfp)) {
 		ABDSTAT_BUMP(abdstat_scatter_sg_table_retry);
@@ -695,8 +702,10 @@ abd_free_zero_scatter(void)
 	abd_zero_scatter = NULL;
 	ASSERT3P(abd_zero_page, !=, NULL);
 #if defined(_KERNEL)
+#if defined(HAVE_ZERO_PAGE_GPL_ONLY)
 	abd_unmark_zfs_page(abd_zero_page);
 	__free_page(abd_zero_page);
+#endif /* HAVE_ZERO_PAGE_GPL_ONLY */
 #else
 	umem_free(abd_zero_page, PAGESIZE);
 #endif /* _KERNEL */
