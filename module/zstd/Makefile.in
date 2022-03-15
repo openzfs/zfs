@@ -37,3 +37,9 @@ $(MODULE)-objs += zstd_sparc.o
 
 all:
 	mkdir -p lib
+
+gensymbols:
+	@OBJDUMP@ -t lib/zstd.o | awk '$$2 == "g" && !/ zfs_/ {print "#define\t" $$6 " zfs_" $$6}' | sort >> include/zstd_compat_wrapper.h
+
+checksymbols:
+	@OBJDUMP@ -t lib/zstd.o | awk '/file format/ {print}  $$2 == "g" && !/ zfs_/ {++ret; print}  END {exit ret}'
