@@ -103,7 +103,7 @@ endif
 endif
 
 PHONY += codecheck
-codecheck: cstyle shellcheck checkbashisms flake8 mancheck testscheck vcscheck
+codecheck: cstyle shellcheck checkbashisms flake8 mancheck testscheck vcscheck zstdcheck
 
 PHONY += checkstyle
 checkstyle: codecheck commitcheck
@@ -120,6 +120,7 @@ cstyle:
 		-o -type f -name '*.[hc]' \
 		! -name 'zfs_config.*' ! -name '*.mod.c' \
 		! -name 'opt_global.h' ! -name '*_if*.h' \
+		! -name 'zstd_compat_wrapper.h' \
 		! -path './module/zstd/lib/*' \
 		-exec ${top_srcdir}/scripts/cstyle.pl -cpP {} \+
 
@@ -172,6 +173,10 @@ vcscheck:
 		git ls-files . --exclude-standard --others | \
 		awk '{c++; print} END {if(c>0) exit 1}' ; \
 	fi
+
+PHONY += zstdcheck
+zstdcheck:
+	@$(MAKE) -C module/zstd checksymbols
 
 PHONY += lint
 lint: cppcheck paxcheck
