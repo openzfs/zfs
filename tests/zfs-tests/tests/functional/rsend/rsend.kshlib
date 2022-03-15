@@ -225,8 +225,8 @@ function cmp_ds_prop
 	fi
 
 	diff \
-		<(zfs get -Ho property,value$source $props $dtst1 | sed -e "s:$dtst1:PREFIX:g" -e 's/^origin	[^@]*/origin	POOL/') \
-		<(zfs get -Ho property,value$source $props $dtst2 | sed -e "s:$dtst2:PREFIX:g" -e 's/^origin	[^@]*/origin	POOL/')
+		<(zfs get -Ho property,value$source $props $dtst1 | sed -e "s:$dtst1:PREFIX:g" -e 's/^origin	[^@]*/origin	POOL/' -e 's/	inherited from [^/]*/	inherited from POOL/') \
+		<(zfs get -Ho property,value$source $props $dtst2 | sed -e "s:$dtst2:PREFIX:g" -e 's/^origin	[^@]*/origin	POOL/' -e 's/	inherited from [^/]*/	inherited from POOL/')
 }
 
 #
