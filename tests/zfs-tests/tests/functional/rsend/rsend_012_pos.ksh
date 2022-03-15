@@ -162,5 +162,5 @@ while ((i < ${#pair[@]})); do
 	((i += 2))
 done
 
-log_pass "Verify zfs send -R will backup all the filesystem properties " \
+log_pass "Verify zfs send -R will backup all the filesystem properties" \
 	"correctly."
