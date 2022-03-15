@@ -56,35 +56,36 @@ zfs_dirnamelen(const char *path)
 int
 zfs_resolve_shortname(const char *name, char *path, size_t len)
 {
-	int i, error = -1;
-	char *dir, *env, *envdup, *tmp = NULL;
-
-	env = getenv("ZPOOL_IMPORT_PATH");
-	errno = ENOENT;
+	const char *env = getenv("ZPOOL_IMPORT_PATH");
 
 	if (env) {
-		envdup = strdup(env);
-		for (dir = strtok_r(envdup, ":", &tmp);
-		    dir != NULL && error != 0;
-		    dir = strtok_r(NULL, ":", &tmp)) {
-			(void) snprintf(path, len, "%s/%s", dir, name);
-			error = access(path, F_OK);
+		for (;;) {
+			env += strspn(env, ":");
+			size_t dirlen = strcspn(env, ":");
+			if (dirlen) {
+				(void) snprintf(path, len, "%.*s/%s",
+				    (int)dirlen, env, name);
+				if (access(path, F_OK) == 0)
+					return (0);
+
+				env += dirlen;
+			} else
+				break;
 		}
-		free(envdup);
 	} else {
-		const char * const *zpool_default_import_path;
 		size_t count;
+		const char *const *zpool_default_import_path =
+		    zpool_default_search_paths(&count);
 
-		zpool_default_import_path = zpool_default_search_paths(&count);
-
-		for (i = 0; i < count && error < 0; i++) {
+		for (size_t i = 0; i < count; ++i) {
 			(void) snprintf(path, len, "%s/%s",
 			    zpool_default_import_path[i], name);
-			error = access(path, F_OK);
+			if (access(path, F_OK) == 0)
+				return (0);
 		}
 	}
 
-	return (error ? ENOENT : 0);
+	return (errno = ENOENT);
 }
 
 /*
@@ -100,7 +101,7 @@ zfs_strcmp_shortname(const char *name, const char *cmp_name, int wholedisk)
 	int path_len, cmp_len, i = 0, error = ENOENT;
 	char *dir, *env, *envdup = NULL, *tmp = NULL;
 	char path_name[MAXPATHLEN];
-	const char * const *zpool_default_import_path = NULL;
+	const char *const *zpool_default_import_path = NULL;
 	size_t count;
 
 	cmp_len = strlen(cmp_name);
