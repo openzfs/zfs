@@ -22,7 +22,7 @@
 #
 function get_size_mb
 {
-	du --block-size 1048576 -s "$1" | awk '{printf("%s", $1)}'
+	du --block-size 1048576 -s "$1" | cut -f1
 }
 
 #
@@ -38,14 +38,12 @@ function get_trim_io
 	# Sum the ind or agg columns of the trim request size histogram.
 	case "$type" in
 	"ind")
-		rval=$(zpool iostat -pr $pool $vdev | awk \
-		    '$1 ~ /[0-9].*/ { sum += $12 } END { print sum }')
-		echo -n "$rval"
+		zpool iostat -pr $pool $vdev |
+		    awk '$1 ~ /[0-9].*/ { sum += $12 } END { print sum }'
 		;;
 	"agg")
-		rval=$(zpool iostat -pr $pool $vdev | awk \
-		    '$1 ~ /[0-9].*/ { sum += $13 } END { print sum }')
-		echo -n "$rval"
+		zpool iostat -pr $pool $vdev |
+		    awk '$1 ~ /[0-9].*/ { sum += $13 } END { print sum }'
 		;;
 	*)
 		log_fail "Type must be 'ind' or 'agg'"
