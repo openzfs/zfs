@@ -26,7 +26,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd August 9, 2019
+.Dd March 16, 2022
 .Dt ZPOOL-IMPORT 8
 .Os
 .
@@ -403,6 +403,30 @@ Will also set
 when not explicitly specified.
 .El
 .El
+.
+.Sh EXAMPLES
+.\" These are, respectively, examples 9 from zpool.8
+.\" Make sure to update them bidirectionally
+.Ss Example 9 : No Importing a ZFS Storage Pool
+The following command displays available pools, and then imports the pool
+.Ar tank
+for use on the system.
+The results from this command are similar to the following:
+.Bd -literal -compact -offset Ds
+.No # Nm zpool Cm import
+  pool: tank
+    id: 15451357997522795478
+ state: ONLINE
+action: The pool can be imported using its name or numeric identifier.
+config:
+
+        tank        ONLINE
+          mirror    ONLINE
+            sda     ONLINE
+            sdb     ONLINE
+
+.No # Nm zpool Cm import Ar tank
+.Ed
 .
 .Sh SEE ALSO
 .Xr zpool-export 8 ,
