@@ -264,36 +264,36 @@ zpool_default_search_paths(size_t *count)
  * index in the passed 'order' variable, otherwise return an error.
  */
 static int
-zfs_path_order(char *name, int *order)
+zfs_path_order(const char *name, int *order)
 {
-	int i, error = ENOENT;
-	char *dir, *env, *envdup, *tmp = NULL;
+	const char *env = getenv("ZPOOL_IMPORT_PATH");
 
-	env = getenv("ZPOOL_IMPORT_PATH");
 	if (env) {
-		envdup = strdup(env);
-		for (dir = strtok_r(envdup, ":", &tmp), i = 0;
-		    dir != NULL;
-		    dir = strtok_r(NULL, ":", &tmp), i++) {
-			if (strncmp(name, dir, strlen(dir)) == 0) {
-				*order = i;
-				error = 0;
+		for (int i = 0; ; ++i) {
+			env += strspn(env, ":");
+			size_t dirlen = strcspn(env, ":");
+			if (dirlen) {
+				if (strncmp(name, env, dirlen) == 0) {
+					*order = i;
+					return (0);
+				}
+
+				env += dirlen;
+			} else
 				break;
-			}
 		}
-		free(envdup);
 	} else {
-		for (i = 0; i < ARRAY_SIZE(zpool_default_import_path); i++) {
+		for (int i = 0; i < ARRAY_SIZE(zpool_default_import_path);
+		    ++i) {
 			if (strncmp(name, zpool_default_import_path[i],
 			    strlen(zpool_default_import_path[i])) == 0) {
 				*order = i;
-				error = 0;
-				break;
+				return (0);
 			}
 		}
 	}
 
-	return (error);
+	return (ENOENT);
 }
 
 /*
