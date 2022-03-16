@@ -217,8 +217,7 @@ SRCS+=	abd_os.c \
 	zvol_os.c
 
 #unicode
-SRCS+= 	u8_textprep.c \
-	uconv.c
+SRCS+= 	u8_textprep.c
 
 #zcommon
 SRCS+=	cityhash.c \

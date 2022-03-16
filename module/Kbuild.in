@@ -224,8 +224,7 @@ zfs-objs += $(addprefix nvpair/,$(NVPAIR_OBJS))
 
 
 UNICODE_OBJS := \
-	u8_textprep.o \
-	uconv.o
+	u8_textprep.o
 
 zfs-objs += $(addprefix unicode/,$(UNICODE_OBJS))
 
