@@ -51,12 +51,6 @@
 /* The maximum possible number of bytes in a UTF-8 character. */
 #define	U8_MB_CUR_MAX			(4)
 
-/*
- * The maximum number of bytes needed for a UTF-8 character to cover
- * U+0000 - U+FFFF, i.e., the coding space of now deprecated UCS-2.
- */
-#define	U8_MAX_BYTES_UCS2		(3)
-
 /* The maximum possible number of bytes in a Stream-Safe Text. */
 #define	U8_STREAM_SAFE_TEXT_MAX		(128)
 
@@ -344,7 +338,6 @@ u8_validate(const char *u8str, size_t n, char **list, int flag, int *errnum)
 	boolean_t second;
 	boolean_t no_need_to_validate_entire;
 	boolean_t check_additional;
-	boolean_t validate_ucs2_range_only;
 
 	if (! u8str)
 		return (0);
@@ -356,7 +349,6 @@ u8_validate(const char *u8str, size_t n, char **list, int flag, int *errnum)
 
 	no_need_to_validate_entire = ! (flag & U8_VALIDATE_ENTIRE);
 	check_additional = flag & U8_VALIDATE_CHECK_ADDITIONAL;
-	validate_ucs2_range_only = flag & U8_VALIDATE_UCS2_RANGE;
 
 	while (ib < ibtail) {
 		/*
@@ -371,8 +363,7 @@ u8_validate(const char *u8str, size_t n, char **list, int flag, int *errnum)
 			return (-1);
 		}
 
-		if (sz == U8_OUT_OF_RANGE_CHAR ||
-		    (validate_ucs2_range_only && sz > U8_MAX_BYTES_UCS2)) {
+		if (sz == U8_OUT_OF_RANGE_CHAR) {
 			*errnum = ERANGE;
 			return (-1);
 		}
