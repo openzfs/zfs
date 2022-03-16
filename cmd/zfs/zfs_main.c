@@ -5473,8 +5473,6 @@ parse_fs_perm_set(fs_perm_set_t *fspset, nvlist_t *nvl)
 		data_type_t type = nvpair_type(nvp);
 		fs_perm_t *fsperm = NULL;
 		fs_perm_node_t *node = safe_malloc(sizeof (fs_perm_node_t));
-		if (node == NULL)
-			nomem();
 
 		fsperm = &node->fspn_fsperm;
 
