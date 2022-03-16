@@ -26,7 +26,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd May 31, 2021
+.Dd March 16, 2022
 .Dt ZPOOL-DESTROY 8
 .Os
 .
@@ -46,3 +46,12 @@ This command tries to unmount any active datasets before destroying the pool.
 .It Fl f
 Forcefully unmount all active datasets.
 .El
+.
+.Sh EXAMPLES
+.\" These are, respectively, examples 7 from zpool.8
+.\" Make sure to update them bidirectionally
+.Ss Example 1 : No Destroying a ZFS Storage Pool
+The following command destroys the pool
+.Ar tank
+and any datasets contained within:
+.Dl # Nm zpool Cm destroy Fl f Ar tank
