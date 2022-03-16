@@ -26,7 +26,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd August 9, 2019
+.Dd March 16, 2022
 .Dt ZPOOL-LIST 8
 .Os
 .
@@ -106,6 +106,40 @@ Verbose statistics.
 Reports usage statistics for individual vdevs within the pool, in addition to
 the pool-wide statistics.
 .El
+.
+.Sh EXAMPLES
+.\" These are, respectively, examples 6, 15 from zpool.8
+.\" Make sure to update them bidirectionally
+.Ss Example 1 : No Listing Available ZFS Storage Pools
+The following command lists all available pools on the system.
+In this case, the pool
+.Ar zion
+is faulted due to a missing device.
+The results from this command are similar to the following:
+.Bd -literal -compact -offset Ds
+.No # Nm zpool Cm list
+NAME    SIZE  ALLOC   FREE  EXPANDSZ   FRAG    CAP  DEDUP  HEALTH  ALTROOT
+rpool  19.9G  8.43G  11.4G         -    33%    42%  1.00x  ONLINE  -
+tank   61.5G  20.0G  41.5G         -    48%    32%  1.00x  ONLINE  -
+zion       -      -      -         -      -      -      -  FAULTED -
+.Ed
+.
+.Ss Example 2 : No Displaying expanded space on a device
+The following command displays the detailed information for the pool
+.Ar data .
+This pool is comprised of a single raidz vdev where one of its devices
+increased its capacity by 10GB.
+In this example, the pool will not be able to utilize this extra capacity until
+all the devices under the raidz vdev have been expanded.
+.Bd -literal -compact -offset Ds
+.No # Nm zpool Cm list Fl v Ar data
+NAME         SIZE  ALLOC   FREE  EXPANDSZ   FRAG    CAP  DEDUP  HEALTH  ALTROOT
+data        23.9G  14.6G  9.30G         -    48%    61%  1.00x  ONLINE  -
+  raidz1    23.9G  14.6G  9.30G         -    48%
+    sda         -      -      -         -      -
+    sdb         -      -      -       10G      -
+    sdc         -      -      -         -      -
+.Ed
 .
 .Sh SEE ALSO
 .Xr zpool-import 8 ,
