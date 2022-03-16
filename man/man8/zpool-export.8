@@ -26,7 +26,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd February 16, 2020
+.Dd March 16, 2022
 .Dt ZPOOL-EXPORT 8
 .Os
 .
@@ -67,6 +67,15 @@ This command will forcefully export the pool even if it has a shared spare that
 is currently being used.
 This may lead to potential data corruption.
 .El
+.
+.Sh EXAMPLES
+.\" These are, respectively, examples 8 from zpool.8
+.\" Make sure to update them bidirectionally
+.Ss Example 1 : No Exporting a ZFS Storage Pool
+The following command exports the devices in pool
+.Ar tank
+so that they can be relocated or later imported:
+.Dl # Nm zpool Cm export Ar tank
 .
 .Sh SEE ALSO
 .Xr zpool-import 8
