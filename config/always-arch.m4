@@ -2,10 +2,6 @@ dnl #
 dnl # Set the target cpu architecture.  This allows the
 dnl # following syntax to be used in a Makefile.am.
 dnl #
-dnl # ifeq ($(TARGET_CPU),x86_64)
-dnl # ...
-dnl # endif
-dnl #
 dnl # if TARGET_CPU_POWERPC
 dnl # ...
 dnl # else
@@ -33,8 +29,6 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_ARCH], [
 		TARGET_CPU=$target_cpu
 		;;
 	esac
-
-	AC_SUBST(TARGET_CPU)
 
 	AM_CONDITIONAL([TARGET_CPU_X86_64], test $TARGET_CPU = x86_64)
 	AM_CONDITIONAL([TARGET_CPU_POWERPC], test $TARGET_CPU = powerpc)
