@@ -30,7 +30,7 @@
 .\" Copyright 2019 Joyent, Inc.
 .\" Copyright (c) 2019, 2020 by Christian Schwarz. All Rights Reserved.
 .\"
-.Dd May 27, 2021
+.Dd March 16, 2022
 .Dt ZFS-BOOKMARK 8
 .Os
 .
@@ -60,6 +60,14 @@ See
 for details on ZFS feature flags and the
 .Sy bookmarks
 feature.
+.
+.Sh EXAMPLES
+.\" These are, respectively, examples 23 from zfs.8
+.\" Make sure to update them bidirectionally
+.Ss Example 1 : No Creating a bookmark
+The following example create a bookmark to a snapshot.
+This bookmark can then be used instead of snapshot in send streams.
+.Dl # Nm zfs Cm bookmark Ar rpool Ns @ Ns Ar snapshot rpool Ns # Ns Ar bookmark
 .
 .Sh SEE ALSO
 .Xr zfs-destroy 8 ,
