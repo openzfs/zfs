@@ -464,12 +464,7 @@ If no options are specified, all information about the named pool will be
 displayed at default verbosity.
 .
 .Sh EXAMPLES
-.Bl -tag -width Ds
-.It Xo
-.Sy Example 1 :
-Display the configuration of imported pool
-.Ar rpool
-.Xc
+.Ss Example 1 : No Display the configuration of imported pool Ar rpool
 .Bd -literal
 .No # Nm zdb Fl C Ar rpool
 MOS Configuration:
@@ -477,22 +472,16 @@ MOS Configuration:
         name: 'rpool'
  …
 .Ed
-.It Xo
-.Sy Example 2 :
-Display basic dataset information about
-.Ar rpool
-.Xc
+.
+.Ss Example 2 : No Display basic dataset information about Ar rpool
 .Bd -literal
 .No # Nm zdb Fl d Ar rpool
 Dataset mos [META], ID 0, cr_txg 4, 26.9M, 1051 objects
 Dataset rpool/swap [ZVOL], ID 59, cr_txg 356, 486M, 2 objects
  …
 .Ed
-.It Xo
-.Sy Example 3 :
-Display basic information about object 0 in
-.Ar rpool/export/home
-.Xc
+.
+.Ss Example 3 : No Display basic information about object 0 in Ar rpool/export/home
 .Bd -literal
 .No # Nm zdb Fl d Ar rpool/export/home 0
 Dataset rpool/export/home [ZPL], ID 137, cr_txg 1546, 32K, 8 objects
@@ -500,11 +489,8 @@ Dataset rpool/export/home [ZPL], ID 137, cr_txg 1546, 32K, 8 objects
     Object  lvl   iblk   dblk  dsize  lsize   %full  type
          0    7    16K    16K  15.0K    16K   25.00  DMU dnode
 .Ed
-.It Xo
-.Sy Example 4 :
-Display the predicted effect of enabling deduplication on
-.Ar rpool
-.Xc
+.
+.Ss Example 4 : No Display the predicted effect of enabling deduplication on Ar rpool
 .Bd -literal
 .No # Nm zdb Fl S Ar rpool
 Simulated DDT histogram:
@@ -518,7 +504,6 @@ refcnt   blocks   LSIZE   PSIZE   DSIZE   blocks   LSIZE   PSIZE   DSIZE
  …
 dedup = 1.11, compress = 1.80, copies = 1.00, dedup * compress / copies = 2.00
 .Ed
-.El
 .
 .Sh SEE ALSO
 .Xr zfs 8 ,
