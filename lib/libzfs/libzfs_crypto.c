@@ -783,8 +783,6 @@ derive_key(libzfs_handle_t *hdl, zfs_keyformat_t format, uint64_t iters,
 	*key_out = NULL;
 
 	key = zfs_alloc(hdl, WRAPPING_KEY_LEN);
-	if (!key)
-		return (ENOMEM);
 
 	switch (format) {
 	case ZFS_KEYFORMAT_RAW:

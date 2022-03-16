@@ -447,12 +447,7 @@ changelist_add_mounted(zfs_handle_t *zhp, void *data)
 
 	ASSERT3U(clp->cl_prop, ==, ZFS_PROP_MOUNTPOINT);
 
-	if ((cn = zfs_alloc(zfs_get_handle(zhp),
-	    sizeof (prop_changenode_t))) == NULL) {
-		zfs_close(zhp);
-		return (ENOMEM);
-	}
-
+	cn = zfs_alloc(zfs_get_handle(zhp), sizeof (prop_changenode_t));
 	cn->cn_handle = zhp;
 	cn->cn_mounted = zfs_is_mounted(zhp, NULL);
 	ASSERT3U(cn->cn_mounted, ==, B_TRUE);
@@ -522,12 +517,7 @@ change_one(zfs_handle_t *zhp, void *data)
 	    (clp->cl_shareprop != ZPROP_INVAL &&
 	    (share_sourcetype == ZPROP_SRC_DEFAULT ||
 	    share_sourcetype == ZPROP_SRC_INHERITED))) {
-		if ((cn = zfs_alloc(zfs_get_handle(zhp),
-		    sizeof (prop_changenode_t))) == NULL) {
-			ret = -1;
-			goto out;
-		}
-
+		cn = zfs_alloc(zfs_get_handle(zhp), sizeof (prop_changenode_t));
 		cn->cn_handle = zhp;
 		cn->cn_mounted = (clp->cl_gflags & CL_GATHER_MOUNT_ALWAYS) ||
 		    zfs_is_mounted(zhp, NULL);
@@ -630,8 +620,7 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 	char property[ZFS_MAXPROPLEN];
 	boolean_t legacy = B_FALSE;
 
-	if ((clp = zfs_alloc(zhp->zfs_hdl, sizeof (prop_changelist_t))) == NULL)
-		return (NULL);
+	clp = zfs_alloc(zhp->zfs_hdl, sizeof (prop_changelist_t));
 
 	/*
 	 * For mountpoint-related tasks, we want to sort everything by
@@ -744,13 +733,7 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 	 * Always add ourself to the list.  We add ourselves to the end so that
 	 * we're the last to be unmounted.
 	 */
-	if ((cn = zfs_alloc(zhp->zfs_hdl,
-	    sizeof (prop_changenode_t))) == NULL) {
-		zfs_close(temp);
-		changelist_free(clp);
-		return (NULL);
-	}
-
+	cn = zfs_alloc(zhp->zfs_hdl, sizeof (prop_changenode_t));
 	cn->cn_handle = temp;
 	cn->cn_mounted = (clp->cl_gflags & CL_GATHER_MOUNT_ALWAYS) ||
 	    zfs_is_mounted(temp, NULL);

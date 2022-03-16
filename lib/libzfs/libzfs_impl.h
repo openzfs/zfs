@@ -175,10 +175,10 @@ extern int zprop_expand_list(libzfs_handle_t *hdl, zprop_list_t **plp,
 
 typedef struct prop_changelist prop_changelist_t;
 
-extern int zcmd_alloc_dst_nvlist(libzfs_handle_t *, zfs_cmd_t *, size_t);
-extern int zcmd_write_src_nvlist(libzfs_handle_t *, zfs_cmd_t *, nvlist_t *);
-extern int zcmd_write_conf_nvlist(libzfs_handle_t *, zfs_cmd_t *, nvlist_t *);
-extern int zcmd_expand_dst_nvlist(libzfs_handle_t *, zfs_cmd_t *);
+extern void zcmd_alloc_dst_nvlist(libzfs_handle_t *, zfs_cmd_t *, size_t);
+extern void zcmd_write_src_nvlist(libzfs_handle_t *, zfs_cmd_t *, nvlist_t *);
+extern void zcmd_write_conf_nvlist(libzfs_handle_t *, zfs_cmd_t *, nvlist_t *);
+extern void zcmd_expand_dst_nvlist(libzfs_handle_t *, zfs_cmd_t *);
 extern int zcmd_read_dst_nvlist(libzfs_handle_t *, zfs_cmd_t *, nvlist_t **);
 extern void zcmd_free_nvlists(zfs_cmd_t *);
 
