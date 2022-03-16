@@ -1572,29 +1572,19 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 		 */
 		if (used == alloc) {
 			if (alloc == 0) {
-
-				if ((sets = zfs_alloc(hdl,
-				    8 * sizeof (struct sets_s))) == NULL)
-					goto out;
-
+				sets = zfs_alloc(hdl,
+				    8 * sizeof (struct sets_s));
 				alloc = 8;
 			} else {
-				void *ptr;
-
-				if ((ptr = zfs_realloc(hdl, sets,
+				sets = zfs_realloc(hdl, sets,
 				    alloc * sizeof (struct sets_s),
-				    alloc * 2 * sizeof (struct sets_s)))
-				    == NULL)
-					goto out;
-				sets = ptr;
+				    alloc * 2 * sizeof (struct sets_s));
 
 				alloc *= 2;
 			}
 		}
 
-		if ((sets[used].mountpoint = zfs_strdup(hdl,
-		    entry.mnt_mountp)) == NULL)
-			goto out;
+		sets[used].mountpoint = zfs_strdup(hdl, entry.mnt_mountp);
 
 		/*
 		 * This is allowed to fail, in case there is some I/O error.  It
