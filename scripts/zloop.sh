@@ -79,7 +79,7 @@ FreeBSD)
 	;;
 Linux)
 	# core file helpers
-	origcorepattern="$(cat /proc/sys/kernel/core_pattern)"
+	read -r origcorepattern </proc/sys/kernel/core_pattern
 	coreglob="$(grep -E -o '^([^|%[:space:]]*)' /proc/sys/kernel/core_pattern)*"
 
 	if [[ $coreglob = "*" ]]; then

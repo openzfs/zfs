@@ -46,15 +46,12 @@ function cleanup
 {
 	unset ZFS_ABORT
 
-	if is_freebsd && [ -n "$old_corefile" ]; then
-		sysctl kern.corefile=$old_corefile
-	fi
-
-	rm -rf $corepath
+	log_must pop_coredump_pattern "$coresavepath"
+	log_must rm -rf $corepath
 
 	# Don't leave the pool frozen.
-	destroy_pool $TESTPOOL
-	default_mirror_setup $DISKS
+	log_must destroy_pool $TESTPOOL
+	log_must default_mirror_setup $DISKS
 }
 
 verify_runnable "both"
@@ -63,15 +60,14 @@ log_assert "Debugging features of zpool should succeed."
 log_onexit cleanup
 
 corepath=$TESTDIR/core
-corefile=$corepath/zpool.core
-if [[ -d $corepath ]]; then
-	log_must rm -rf $corepath
-fi
+corefile=$corepath/core.zpool
+coresavepath=$corepath/save
+log_must rm -rf $corepath
 log_must mkdir $corepath
 
 log_must eval "zpool -? >/dev/null 2>&1"
 
-if is_global_zone ; then
+if is_global_zone; then
 	log_must zpool freeze $TESTPOOL
 else
 	log_mustnot zpool freeze $TESTPOOL
@@ -80,21 +76,10 @@ fi
 
 log_mustnot zpool freeze fakepool
 
-if is_linux; then
-	echo $corefile >/proc/sys/kernel/core_pattern
-	echo 0 >/proc/sys/kernel/core_uses_pid
-elif is_freebsd; then
-	old_corefile=$(sysctl -n kern.corefile)
-	log_must sysctl kern.corefile=$corefile
-fi
-ulimit -c unlimited
+log_must eval "push_coredump_pattern \"$corepath\" > \"$coresavepath\""
+log_must export ZFS_ABORT=yes
 
-export ZFS_ABORT=yes
-
-zpool >/dev/null 2>&1
-
-unset ZFS_ABORT
-
-[[ -f $corefile ]] || log_fail "zpool did not dump core by request."
+log_mustnot eval "zpool >/dev/null 2>&1"
+log_must [ -f "$corefile" ]
 
 log_pass "Debugging features of zpool succeed."

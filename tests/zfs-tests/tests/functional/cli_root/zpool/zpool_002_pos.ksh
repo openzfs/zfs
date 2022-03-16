@@ -47,33 +47,27 @@ function cleanup
 {
 	unset ZFS_ABORT
 
-	if is_freebsd && [ -n "$old_corefile" ]; then
-		sysctl kern.corefile=$old_corefile
-	fi
+	log_must pop_coredump_pattern "$coresavepath"
+	log_must rm -rf $corepath $vdev1 $vdev2 $vdev3
 
 	# Clean up the pool created if we failed to abort.
 	poolexists $pool && destroy_pool $pool
-
-	rm -rf $corepath $vdev1 $vdev2 $vdev3
 }
 
 log_assert "With ZFS_ABORT set, all zpool commands can abort and generate a core file."
 log_onexit cleanup
 
 corepath=$TESTDIR/core
-corefile=$corepath/zpool.core
-if [[ -d $corepath ]]; then
-	log_must rm -rf $corepath
-fi
+corefile=$corepath/core.zpool
+coresavepath=$corepath/save
+log_must rm -rf $corepath
 log_must mkdir $corepath
 
 pool=pool.$$
 vdev1=$TESTDIR/file1
 vdev2=$TESTDIR/file2
 vdev3=$TESTDIR/file3
-for vdev in $vdev1 $vdev2 $vdev3; do
-	log_must mkfile $MINVDEVSIZE $vdev
-done
+log_must mkfile $MINVDEVSIZE $vdev1 $vdev2 $vdev3
 
 set -A cmds "create $pool mirror $vdev1 $vdev2" "list $pool" "iostat $pool" \
 	"status $pool" "upgrade $pool" "get delegation $pool" "set delegation=off $pool" \
@@ -86,25 +80,12 @@ set -A badparams "" "create" "destroy" "add" "remove" "list *" "iostat" "status"
 		"online" "offline" "clear" "attach" "detach" "replace" "scrub" \
 		"import" "export" "upgrade" "history -?" "get" "set"
 
-if is_linux; then
-	echo $corefile >/proc/sys/kernel/core_pattern
-	echo 0 >/proc/sys/kernel/core_uses_pid
-elif is_freebsd; then
-	old_corefile=$(sysctl -n kern.corefile)
-	log_must sysctl kern.corefile=$corefile
-fi
-ulimit -c unlimited
-
-export ZFS_ABORT=yes
+log_must eval "push_coredump_pattern \"$corepath\" > \"$coresavepath\""
+log_must export ZFS_ABORT=yes
 
 for subcmd in "${cmds[@]}" "${badparams[@]}"; do
-	zpool $subcmd >/dev/null 2>&1
-	if [[ ! -e $corefile ]]; then
-		log_fail "zpool $subcmd cannot generate core file with ZFS_ABORT set."
-	fi
-	rm -f $corefile
+	log_mustnot eval "zpool $subcmd"
+	log_must rm "$corefile"
 done
-
-unset ZFS_ABORT
 
 log_pass "With ZFS_ABORT set, zpool command can abort and generate core file as expected."

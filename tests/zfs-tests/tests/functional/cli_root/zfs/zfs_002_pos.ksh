@@ -48,33 +48,23 @@ function cleanup
 {
 	unset ZFS_ABORT
 
-	if is_freebsd && [[ -n $savedcorefile ]]; then
-		sysctl kern.corefile=$savedcorefile
-	fi
+	log_must pop_coredump_pattern "$coresavepath"
 
-	if [[ -d $corepath ]]; then
-		rm -rf $corepath
-	fi
 	for ds in $fs1 $fs $ctr; do
 		datasetexists $ds && destroy_dataset $ds -rRf
 	done
 }
 
-log_assert "With ZFS_ABORT set, all zfs commands can abort and generate a " \
-    "core file."
+log_assert "With ZFS_ABORT set, all zfs commands can abort and generate a core file."
 log_onexit cleanup
 
-# Preparation work for testing
-savedcorefile=""
-corepath=$TESTDIR/core
-corefile=$corepath/core.zfs
-if [[ -d $corepath ]]; then
-	rm -rf $corepath
-fi
-log_must mkdir $corepath
-
 ctr=$TESTPOOL/$TESTCTR
-log_must zfs create $ctr
+log_must zfs create -p $ctr
+
+# Preparation work for testing
+corepath=/$ctr
+corefile=$corepath/core.zfs
+coresavepath=$corepath/save
 
 fs=$ctr/$TESTFS
 fs1=$ctr/$TESTFS1
@@ -93,24 +83,12 @@ typeset badparams=("" "create" "destroy" "snapshot" "rollback" "clone" \
     "promote" "rename" "list -*" "set" "get -*" "inherit" "mount -A" \
     "unmount" "share" "unshare" "send" "receive")
 
-if is_linux; then
-	ulimit -c unlimited
-	echo "$corefile" >/proc/sys/kernel/core_pattern
-	echo 0 >/proc/sys/kernel/core_uses_pid
-elif is_freebsd; then
-	ulimit -c unlimited
-	savedcorefile=$(sysctl -n kern.corefile)
-	log_must sysctl kern.corefile=$corepath/core.%N
-else
-	log_must coreadm -p ${corepath}/core.%f
-fi
-
+log_must eval "push_coredump_pattern \"$corepath\" > \"$coresavepath\""
 log_must export ZFS_ABORT=yes
 
 for subcmd in "${cmds[@]}" "${badparams[@]}"; do
-	log_mustnot eval "zfs $subcmd >/dev/null 2>&1"
-	log_must rm $corefile
+	log_mustnot eval "zfs $subcmd"
+	log_must rm "$corefile"
 done
 
-log_pass "With ZFS_ABORT set, zfs command can abort and generate core file " \
-    "as expected."
+log_pass "With ZFS_ABORT set, zfs command can abort and generate core file as expected."
