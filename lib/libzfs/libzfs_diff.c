@@ -602,11 +602,10 @@ get_snapshot_names(differ_info_t *di, const char *fromsnap,
 
 		di->isclone = B_TRUE;
 		di->fromsnap = zfs_strdup(hdl, fromsnap);
-		if (tsnlen) {
+		if (tsnlen)
 			di->tosnap = zfs_strdup(hdl, tosnap);
-		} else {
+		else
 			return (make_temp_snapshot(di));
-		}
 	} else {
 		int dslen = fdslen ? fdslen : tdslen;
 

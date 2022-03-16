@@ -75,10 +75,7 @@ top:
 		switch (errno) {
 		case ENOMEM:
 			/* expand nvlist memory and try again */
-			if (zcmd_expand_dst_nvlist(zhp->zfs_hdl, zc) != 0) {
-				zcmd_free_nvlists(zc);
-				return (-1);
-			}
+			zcmd_expand_dst_nvlist(zhp->zfs_hdl, zc);
 			zc->zc_cookie = orig_cookie;
 			goto top;
 		/*
@@ -113,8 +110,7 @@ zfs_iter_filesystems(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 	if (zhp->zfs_type != ZFS_TYPE_FILESYSTEM)
 		return (0);
 
-	if (zcmd_alloc_dst_nvlist(zhp->zfs_hdl, &zc, 0) != 0)
-		return (-1);
+	zcmd_alloc_dst_nvlist(zhp->zfs_hdl, &zc, 0);
 
 	while ((ret = zfs_do_list_ioctl(zhp, ZFS_IOC_DATASET_LIST_NEXT,
 	    &zc)) == 0) {
@@ -154,8 +150,7 @@ zfs_iter_snapshots(zfs_handle_t *zhp, boolean_t simple, zfs_iter_f func,
 
 	zc.zc_simple = simple;
 
-	if (zcmd_alloc_dst_nvlist(zhp->zfs_hdl, &zc, 0) != 0)
-		return (-1);
+	zcmd_alloc_dst_nvlist(zhp->zfs_hdl, &zc, 0);
 
 	if (min_txg != 0) {
 		range_nvl = fnvlist_alloc();
@@ -167,12 +162,8 @@ zfs_iter_snapshots(zfs_handle_t *zhp, boolean_t simple, zfs_iter_f func,
 		fnvlist_add_uint64(range_nvl, SNAP_ITER_MAX_TXG, max_txg);
 	}
 
-	if (range_nvl != NULL &&
-	    zcmd_write_src_nvlist(zhp->zfs_hdl, &zc, range_nvl) != 0) {
-		zcmd_free_nvlists(&zc);
-		fnvlist_free(range_nvl);
-		return (-1);
-	}
+	if (range_nvl != NULL)
+		zcmd_write_src_nvlist(zhp->zfs_hdl, &zc, range_nvl);
 
 	while ((ret = zfs_do_list_ioctl(zhp, ZFS_IOC_SNAPSHOT_LIST_NEXT,
 	    &zc)) == 0) {

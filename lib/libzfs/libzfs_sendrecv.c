@@ -2778,8 +2778,6 @@ recv_read_nvlist(libzfs_handle_t *hdl, int fd, int len, nvlist_t **nvp,
 	int err;
 
 	buf = zfs_alloc(hdl, len);
-	if (buf == NULL)
-		return (ENOMEM);
 
 	if (len > hdl->libzfs_max_nvlist) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "nvlist too large"));
@@ -3521,12 +3519,10 @@ again:
 				zc.zc_cookie = B_TRUE; /* received */
 				(void) snprintf(zc.zc_name, sizeof (zc.zc_name),
 				    "%s@%s", fsname, nvpair_name(snapelem));
-				if (zcmd_write_src_nvlist(hdl, &zc,
-				    props) == 0) {
-					(void) zfs_ioctl(hdl,
-					    ZFS_IOC_SET_PROP, &zc);
-					zcmd_free_nvlists(&zc);
-				}
+				zcmd_write_src_nvlist(hdl, &zc, props);
+				(void) zfs_ioctl(hdl,
+				    ZFS_IOC_SET_PROP, &zc);
+				zcmd_free_nvlists(&zc);
 			}
 
 			/* check for different snapname */
@@ -4879,10 +4875,9 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 
 		(void) strcpy(zc.zc_name, destsnap);
 		zc.zc_cookie = B_TRUE; /* received */
-		if (zcmd_write_src_nvlist(hdl, &zc, snapprops_nvlist) == 0) {
-			(void) zfs_ioctl(hdl, ZFS_IOC_SET_PROP, &zc);
-			zcmd_free_nvlists(&zc);
-		}
+		zcmd_write_src_nvlist(hdl, &zc, snapprops_nvlist);
+		(void) zfs_ioctl(hdl, ZFS_IOC_SET_PROP, &zc);
+		zcmd_free_nvlists(&zc);
 	}
 	if (err == 0 && snapholds_nvlist) {
 		nvpair_t *pair;
