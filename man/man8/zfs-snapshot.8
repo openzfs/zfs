@@ -29,7 +29,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd May 27, 2021
+.Dd March 16, 2022
 .Dt ZFS-SNAPSHOT 8
 .Os
 .
@@ -64,6 +64,64 @@ for details.
 .It Fl r
 Recursively create snapshots of all descendent datasets
 .El
+.
+.Sh EXAMPLES
+.\" These are, respectively, examples 2, 3, 10, 15 from zfs.8
+.\" Make sure to update them bidirectionally
+.Ss Example 1 : No Creating a ZFS Snapshot
+The following command creates a snapshot named
+.Ar yesterday .
+This snapshot is mounted on demand in the
+.Pa .zfs/snapshot
+directory at the root of the
+.Ar pool/home/bob
+file system.
+.Dl # Nm zfs Cm snapshot Ar pool/home/bob Ns @ Ns Ar yesterday
+.
+.Ss Example 2 : No Creating and Destroying Multiple Snapshots
+The following command creates snapshots named
+.Ar yesterday No of Ar pool/home
+and all of its descendent file systems.
+Each snapshot is mounted on demand in the
+.Pa .zfs/snapshot
+directory at the root of its file system.
+The second command destroys the newly created snapshots.
+.Dl # Nm zfs Cm snapshot Fl r Ar pool/home Ns @ Ns Ar yesterday
+.Dl # Nm zfs Cm destroy Fl r Ar pool/home Ns @ Ns Ar yesterday
+.
+.Ss Example 3 : No Promoting a ZFS Clone
+The following commands illustrate how to test out changes to a file system, and
+then replace the original file system with the changed one, using clones, clone
+promotion, and renaming:
+.Bd -literal -compact -offset Ds
+.No # Nm zfs Cm create Ar pool/project/production
+  populate /pool/project/production with data
+.No # Nm zfs Cm snapshot Ar pool/project/production Ns @ Ns Ar today
+.No # Nm zfs Cm clone Ar pool/project/production@today pool/project/beta
+  make changes to /pool/project/beta and test them
+.No # Nm zfs Cm promote Ar pool/project/beta
+.No # Nm zfs Cm rename Ar pool/project/production pool/project/legacy
+.No # Nm zfs Cm rename Ar pool/project/beta pool/project/production
+  once the legacy version is no longer needed, it can be destroyed
+.No # Nm zfs Cm destroy Ar pool/project/legacy
+.Ed
+.
+.Ss Example 4 : No Performing a Rolling Snapshot
+The following example shows how to maintain a history of snapshots with a
+consistent naming scheme.
+To keep a week's worth of snapshots, the user destroys the oldest snapshot,
+renames the remaining snapshots, and then creates a new snapshot, as follows:
+.Bd -literal -compact -offset Ds
+.No # Nm zfs Cm destroy Fl r Ar pool/users@7daysago
+.No # Nm zfs Cm rename Fl r Ar pool/users@6daysago No @ Ns Ar 7daysago
+.No # Nm zfs Cm rename Fl r Ar pool/users@5daysago No @ Ns Ar 6daysago
+.No # Nm zfs Cm rename Fl r Ar pool/users@4daysago No @ Ns Ar 5daysago
+.No # Nm zfs Cm rename Fl r Ar pool/users@3daysago No @ Ns Ar 4daysago
+.No # Nm zfs Cm rename Fl r Ar pool/users@2daysago No @ Ns Ar 3daysago
+.No # Nm zfs Cm rename Fl r Ar pool/users@yesterday No @ Ns Ar 2daysago
+.No # Nm zfs Cm rename Fl r Ar pool/users@today No @ Ns Ar yesterday
+.No # Nm zfs Cm snapshot Fl r Ar pool/users Ns @ Ns Ar today
+.Ed
 .
 .Sh SEE ALSO
 .Xr zfs-bookmark 8 ,
