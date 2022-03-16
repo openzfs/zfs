@@ -27,7 +27,6 @@
 #define	_SYS_U8_TEXTPREP_H
 
 
-
 #include <sys/isa_defs.h>
 #include <sys/types.h>
 #include <sys/errno.h>

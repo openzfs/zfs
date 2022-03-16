@@ -113,9 +113,6 @@
 #define	U8_HANGUL_JAMO_T(u) \
 	((u) > U8_HANGUL_JAMO_T_FIRST && (u) <= U8_HANGUL_JAMO_T_LAST)
 
-#define	U8_HANGUL_JAMO(u) \
-	((u) >= U8_HANGUL_JAMO_L_FIRST && (u) <= U8_HANGUL_JAMO_T_LAST)
-
 #define	U8_HANGUL_SYLLABLE(u) \
 	((u) >= U8_HANGUL_SYL_FIRST && (u) <= U8_HANGUL_SYL_LAST)
 
