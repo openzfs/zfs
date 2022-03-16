@@ -97,24 +97,23 @@ extern "C" {
  * that will be mapped by the mapping procedure would be the ones between
  * the start_index and the end_index computed as like the following:
  *
- *	b2_tbl_id = u8_common_b1_tbl[0][0xF0];
- *	b3_tbl_id = u8_decomp_b2_tbl[0][b2_tbl_id][0x9D];
- *	b4_tbl_id = u8_decomp_b3_tbl[0][b3_tbl_id][0x85].tbl_id;
- *	b4_base = u8_decomp_b3_tbl[0][b3_tbl_id][0x85].base;
+ *	b2_tbl_id = u8_common_b1_tbl[0xF0];
+ *	b3_tbl_id = u8_decomp_b2_tbl[b2_tbl_id][0x9D];
+ *	b4_tbl_id = u8_decomp_b3_tbl[b3_tbl_id][0x85].tbl_id;
+ *	b4_base = u8_decomp_b3_tbl[b3_tbl_id][0x85].base;
  *	if (b4_tbl_id >= 0x8000) {
  *		b4_tbl_id -= 0x8000;
- *      	start_index = u8_decomp_b4_16bit_tbl[0][b4_tbl_id][0x9E];
- *      	end_index = u8_decomp_b4_16bit_tbl[0][b4_tbl_id][0x9E + 1];
+ *      	start_index = u8_decomp_b4_16bit_tbl[b4_tbl_id][0x9E];
+ *      	end_index = u8_decomp_b4_16bit_tbl[b4_tbl_id][0x9E + 1];
  *	} else {
- *      	start_index = u8_decomp_b4_tbl[0][b4_tbl_id][0x9E];
- *      	end_index = u8_decomp_b4_tbl[0][b4_tbl_id][0x9E + 1];
+ *      	start_index = u8_decomp_b4_tbl[b4_tbl_id][0x9E];
+ *      	end_index = u8_decomp_b4_tbl[b4_tbl_id][0x9E + 1];
  *	}
  *
  * The start_index and the end_index can be used to retrieve the bytes
  * possibly of multiple UTF-8 characters from the final tables.
  *
- * The "[0]" at the above indicates this is for Unicode Version 5.0.0 data
- * as of today.
+ * These tables are or Unicode Version 5.0.0 data as of today.
  *
  * The mapping procedures and the data structures are more or less similar or
  * alike among different mappings. You might want to read the u8_textprep.c
@@ -145,7 +144,7 @@ typedef struct {
  * The common b1_tbl for combining class, decompositions, tolower, and
  * toupper case conversion mappings.
  */
-static const uchar_t u8_common_b1_tbl[1][256] = {
+static const uchar_t u8_common_b1_tbl[256] =
 	{
 		0,  N_, N_, N_, N_, N_, N_, N_,
 		N_, N_, N_, N_, N_, N_, N_, N_,
@@ -179,10 +178,9 @@ static const uchar_t u8_common_b1_tbl[1][256] = {
 		N_, N_, N_, N_, N_, N_, N_, N_,
 		1,  N_, N_, N_, N_, N_, N_, N_,
 		N_, N_, N_, N_, N_, N_, N_, N_,
-	},
-};
+	};
 
-static const uchar_t u8_combining_class_b2_tbl[1][2][256] = {
+static const uchar_t u8_combining_class_b2_tbl[2][256] =
 	{
 		{
 			0,  N_, N_, N_, N_, N_, N_, N_,
@@ -253,11 +251,9 @@ static const uchar_t u8_combining_class_b2_tbl[1][2][256] = {
 			N_, N_, N_, N_, N_, N_, N_, N_,
 		},
 
-	},
+	};
 
-};
-
-static const uchar_t u8_combining_class_b3_tbl[1][9][256] = {
+static const uchar_t u8_combining_class_b3_tbl[9][256] =
 	{
 		{	/* Third byte table 0. */
 			N_, N_, N_, N_, N_, N_, N_, N_,
@@ -565,14 +561,13 @@ static const uchar_t u8_combining_class_b3_tbl[1][9][256] = {
 			N_, N_, N_, N_, N_, N_, N_, N_,
 			N_, N_, N_, N_, N_, N_, N_, N_,
 		},
-	},
-};
+	};
 
 /*
  * Unlike other b4_tbl, the b4_tbl for combining class data has
  * the combining class values not indices to the final tables.
  */
-static const uchar_t u8_combining_class_b4_tbl[1][55][256] = {
+static const uchar_t u8_combining_class_b4_tbl[55][256] =
 	{
 		{	/* Fourth byte table 0. */
 			0,   0,   0,   0,   0,   0,   0,   0,
@@ -2444,10 +2439,9 @@ static const uchar_t u8_combining_class_b4_tbl[1][55][256] = {
 			0,   0,   0,   0,   0,   0,   0,   0,
 			0,   0,   0,   0,   0,   0,   0,   0,
 		},
-	},
-};
+	};
 
-static const uchar_t u8_composition_b1_tbl[1][256] = {
+static const uchar_t u8_composition_b1_tbl[256] =
 	{
 		0,  N_, N_, N_, N_, N_, N_, N_,
 		N_, N_, N_, N_, N_, N_, N_, N_,
@@ -2481,10 +2475,9 @@ static const uchar_t u8_composition_b1_tbl[1][256] = {
 		N_, N_, N_, N_, N_, N_, N_, N_,
 		N_, N_, N_, N_, N_, N_, N_, N_,
 		N_, N_, N_, N_, N_, N_, N_, N_,
-	},
-};
+	};
 
-static const uchar_t u8_composition_b2_tbl[1][1][256] = {
+static const uchar_t u8_composition_b2_tbl[1][256] =
 	{
 		{
 			0,  N_, N_, N_, N_, N_, N_, N_,
@@ -2521,11 +2514,9 @@ static const uchar_t u8_composition_b2_tbl[1][1][256] = {
 			N_, N_, N_, N_, N_, N_, N_, N_,
 		},
 
-	},
+	};
 
-};
-
-static const u8_displacement_t u8_composition_b3_tbl[1][5][256] = {
+static const u8_displacement_t u8_composition_b3_tbl[5][256] =
 	{
 		{	/* Third byte table 0. */
 			{ 0x8000, 0 }, { N_, 0 }, { N_, 0 },
@@ -2967,10 +2958,9 @@ static const u8_displacement_t u8_composition_b3_tbl[1][5][256] = {
 			{ N_, 0 }, { N_, 0 }, { N_, 0 },
 			{ N_, 0 },
 		},
-	},
-};
+	};
 
-static const uchar_t u8_composition_b4_tbl[1][41][257] = {
+static const uchar_t u8_composition_b4_tbl[41][257] =
 	{
 		{	/* Fourth byte table 0. */
 			0,   0,   0,   0,   0,   0,   0,   0,
@@ -4407,10 +4397,9 @@ static const uchar_t u8_composition_b4_tbl[1][41][257] = {
 			166, 166, 166, 166, 166, 166, 166, 166,
 			166,
 		},
-	},
-};
+	};
 
-static const uint16_t u8_composition_b4_16bit_tbl[1][5][257] = {
+static const uint16_t u8_composition_b4_16bit_tbl[5][257] =
 	{
 		{	/* Fourth byte 16-bit table 0. */
 			0,    0,    0,    0,    0,    0,    0,    0,
@@ -4587,10 +4576,9 @@ static const uint16_t u8_composition_b4_16bit_tbl[1][5][257] = {
 			362,  362,  362,  362,  362,  362,  362,  362,
 			362,
 		},
-	},
-};
+	};
 
-static const uchar_t u8_composition_final_tbl[1][6623] = {
+static const uchar_t u8_composition_final_tbl[6623] =
 	{
 		0x01, 0xCC, 0xB8, FIL_, 0xE2, 0x89, 0xAE, FIL_,
 		0x01, 0xCC, 0xB8, FIL_, 0xE2, 0x89, 0xA0, FIL_,
@@ -5420,10 +5408,9 @@ static const uchar_t u8_composition_final_tbl[1][6623] = {
 		FIL_, 0xE3, 0x83, 0xB9, FIL_, 0x01, 0xE3, 0x82,
 		0x99, FIL_, 0xE3, 0x83, 0xBA, FIL_, 0x01, 0xE3,
 		0x82, 0x99, FIL_, 0xE3, 0x83, 0xBE, FIL_,
-	},
-};
+	};
 
-static const uchar_t u8_decomp_b2_tbl[1][2][256] = {
+static const uchar_t u8_decomp_b2_tbl[2][256] =
 	{
 		{
 			0,  N_, N_, N_, N_, N_, N_, N_,
@@ -5494,11 +5481,9 @@ static const uchar_t u8_decomp_b2_tbl[1][2][256] = {
 			N_, N_, N_, N_, N_, N_, N_, N_,
 		},
 
-	},
+	};
 
-};
-
-static const u8_displacement_t u8_decomp_b3_tbl[1][8][256] = {
+static const u8_displacement_t u8_decomp_b3_tbl[8][256] =
 	{
 		{	/* Third byte table 0. */
 			{ N_, 0 }, { N_, 0 }, { N_, 0 },
@@ -6204,10 +6189,9 @@ static const u8_displacement_t u8_decomp_b3_tbl[1][8][256] = {
 			{ N_, 0 }, { N_, 0 }, { N_, 0 },
 			{ N_, 0 },
 		},
-	},
-};
+	};
 
-static const uchar_t u8_decomp_b4_tbl[1][118][257] = {
+static const uchar_t u8_decomp_b4_tbl[118][257] =
 	{
 		{	/* Fourth byte table 0. */
 			0,   0,   0,   0,   0,   0,   0,   0,
@@ -10339,10 +10323,9 @@ static const uchar_t u8_decomp_b4_tbl[1][118][257] = {
 			127, 127, 127, 127, 127, 127, 127, 127,
 			127,
 		},
-	},
-};
+	};
 
-static const uint16_t u8_decomp_b4_16bit_tbl[1][30][257] = {
+static const uint16_t u8_decomp_b4_16bit_tbl[30][257] =
 	{
 		{	/* Fourth byte 16-bit table 0. */
 			0,    0,    0,    0,    0,    0,    0,    0,
@@ -11394,10 +11377,9 @@ static const uint16_t u8_decomp_b4_16bit_tbl[1][30][257] = {
 			272,  272,  272,  272,  272,  272,  272,  272,
 			272,
 		},
-	},
-};
+	};
 
-static const uchar_t u8_decomp_final_tbl[1][19370] = {
+static const uchar_t u8_decomp_final_tbl[19370] =
 	{
 		0x20, 0x20, 0xCC, 0x88, 0x61, 0x20, 0xCC, 0x84,
 		0x32, 0x33, 0x20, 0xCC, 0x81, 0xCE, 0xBC, 0x20,
@@ -13821,10 +13803,9 @@ static const uchar_t u8_decomp_final_tbl[1][19370] = {
 		0x85, 0xF6, 0xE9, 0xBC, 0x8F, 0xF6, 0xE9, 0xBC,
 		0x96, 0xF6, 0xE9, 0xBC, 0xBB, 0xF6, 0xF0, 0xAA,
 		0x98, 0x80,
-	},
-};
+	};
 
-static const uchar_t u8_case_common_b2_tbl[1][2][256] = {
+static const uchar_t u8_case_common_b2_tbl[2][256] =
 	{
 		{
 			0,  N_, N_, N_, N_, N_, N_, N_,
@@ -13895,11 +13876,9 @@ static const uchar_t u8_case_common_b2_tbl[1][2][256] = {
 			N_, N_, N_, N_, N_, N_, N_, N_,
 		},
 
-	},
+	};
 
-};
-
-static const u8_displacement_t u8_tolower_b3_tbl[1][5][256] = {
+static const u8_displacement_t u8_tolower_b3_tbl[5][256] =
 	{
 		{	/* Third byte table 0. */
 			{ N_, 0 }, { N_, 0 }, { N_, 0 }, { N_, 0 },
@@ -14231,10 +14210,9 @@ static const u8_displacement_t u8_tolower_b3_tbl[1][5][256] = {
 			{ N_, 0 }, { N_, 0 }, { N_, 0 }, { N_, 0 },
 			{ N_, 0 }, { N_, 0 }, { N_, 0 }, { N_, 0 },
 		},
-	},
-};
+	};
 
-static const uchar_t u8_tolower_b4_tbl[1][36][257] = {
+static const uchar_t u8_tolower_b4_tbl[36][257] =
 	{
 		{	/* Fourth byte table 0. */
 			0,   0,   0,   0,   0,   0,   0,   0,
@@ -15496,10 +15474,9 @@ static const uchar_t u8_tolower_b4_tbl[1][36][257] = {
 			160, 160, 160, 160, 160, 160, 160, 160,
 			160,
 		},
-	},
-};
+	};
 
-static const uchar_t u8_tolower_final_tbl[1][2299] = {
+static const uchar_t u8_tolower_final_tbl[2299] =
 	{
 		0xC3, 0xA0, 0xC3, 0xA1, 0xC3, 0xA2, 0xC3, 0xA3,
 		0xC3, 0xA4, 0xC3, 0xA5, 0xC3, 0xA6, 0xC3, 0xA7,
@@ -15789,10 +15766,9 @@ static const uchar_t u8_tolower_final_tbl[1][2299] = {
 		0x90, 0x91, 0x8B, 0xF0, 0x90, 0x91, 0x8C, 0xF0,
 		0x90, 0x91, 0x8D, 0xF0, 0x90, 0x91, 0x8E, 0xF0,
 		0x90, 0x91, 0x8F,
-	},
-};
+	};
 
-static const u8_displacement_t u8_toupper_b3_tbl[1][5][256] = {
+static const u8_displacement_t u8_toupper_b3_tbl[5][256] =
 	{
 		{	/* Third byte table 0. */
 			{ N_, 0 }, { N_, 0 }, { N_, 0 }, { N_, 0 },
@@ -16124,10 +16100,9 @@ static const u8_displacement_t u8_toupper_b3_tbl[1][5][256] = {
 			{ N_, 0 }, { N_, 0 }, { N_, 0 }, { N_, 0 },
 			{ N_, 0 }, { N_, 0 }, { N_, 0 }, { N_, 0 },
 		},
-	},
-};
+	};
 
-static const uchar_t u8_toupper_b4_tbl[1][39][257] = {
+static const uchar_t u8_toupper_b4_tbl[39][257] =
 	{
 		{	/* Fourth byte table 0. */
 			0,   0,   0,   0,   0,   0,   0,   0,
@@ -17494,10 +17469,9 @@ static const uchar_t u8_toupper_b4_tbl[1][39][257] = {
 			64,  64,  64,  64,  64,  64,  64,  64,
 			64,
 		},
-	},
-};
+	};
 
-static const uchar_t u8_toupper_final_tbl[1][2318] = {
+static const uchar_t u8_toupper_final_tbl[2318] =
 	{
 		0xCE, 0x9C, 0xC3, 0x80, 0xC3, 0x81, 0xC3, 0x82,
 		0xC3, 0x83, 0xC3, 0x84, 0xC3, 0x85, 0xC3, 0x86,
@@ -17789,8 +17763,7 @@ static const uchar_t u8_toupper_final_tbl[1][2318] = {
 		0x90, 0xA2, 0xF0, 0x90, 0x90, 0xA3, 0xF0, 0x90,
 		0x90, 0xA4, 0xF0, 0x90, 0x90, 0xA5, 0xF0, 0x90,
 		0x90, 0xA6, 0xF0, 0x90, 0x90, 0xA7,
-	},
-};
+	};
 
 #undef	N_
 #undef	FIL_

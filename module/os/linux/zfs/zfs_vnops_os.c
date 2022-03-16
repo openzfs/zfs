@@ -2766,7 +2766,7 @@ top:
 		 */
 		int nofold = (zfsvfs->z_norm & ~U8_TEXTPREP_TOUPPER);
 
-		cmp = u8_strcmp(snm, tnm, 0, nofold, U8_UNICODE_LATEST, &error);
+		cmp = u8_strcmp(snm, tnm, 0, nofold, &error);
 		ASSERT(error == 0 || !zfsvfs->z_utf8);
 		if (cmp == 0) {
 			/*
@@ -2799,8 +2799,7 @@ top:
 		if ((zfsvfs->z_case == ZFS_CASE_INSENSITIVE ||
 		    (zfsvfs->z_case == ZFS_CASE_MIXED &&
 		    flags & FIGNORECASE)) &&
-		    u8_strcmp(snm, tnm, 0, zfsvfs->z_norm, U8_UNICODE_LATEST,
-		    &error) == 0) {
+		    u8_strcmp(snm, tnm, 0, zfsvfs->z_norm, &error) == 0) {
 			/*
 			 * case preserving rename request, require exact
 			 * name matches
