@@ -27,7 +27,7 @@
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\"
-.Dd June 2, 2021
+.Dd March 16, 2022
 .Dt ZPOOL-CREATE 8
 .Os
 .
@@ -204,6 +204,38 @@ to handle name space collisions when creating pools for other systems,
 such as virtual machines or physical machines whose pools live on network
 block devices.
 .El
+.
+.Sh EXAMPLES
+.\" These are, respectively, examples 1, 2, 3, 4, 11, 12 from zpool.8
+.\" Make sure to update them bidirectionally
+.Ss Example 1 : No Creating a RAID-Z Storage Pool
+The following command creates a pool with a single raidz root vdev that
+consists of six disks:
+.Dl # Nm zpool Cm create Ar tank Sy raidz Pa sda sdb sdc sdd sde sdf
+.
+.Ss Example 2 : No Creating a Mirrored Storage Pool
+The following command creates a pool with two mirrors, where each mirror
+contains two disks:
+.Dl # Nm zpool Cm create Ar tank Sy mirror Pa sda sdb Sy mirror Pa sdc sdd
+.
+.Ss Example 3 : No Creating a ZFS Storage Pool by Using Partitions
+The following command creates a non-redundant pool using two disk partitions:
+.Dl # Nm zpool Cm create Ar tank Pa sda1 sdb2
+.
+.Ss Example 4 : No Creating a ZFS Storage Pool by Using Files
+The following command creates a non-redundant pool using files.
+While not recommended, a pool based on files can be useful for experimental
+purposes.
+.Dl # Nm zpool Cm create Ar tank Pa /path/to/file/a /path/to/file/b
+.
+.Ss Example 5 : No Managing Hot Spares
+The following command creates a new pool with an available hot spare:
+.Dl # Nm zpool Cm create Ar tank Sy mirror Pa sda sdb Sy spare Pa sdc
+.
+.Ss Example 6 : No Creating a ZFS Pool with Mirrored Separate Intent Logs
+The following command creates a ZFS storage pool consisting of two, two-way
+mirrors and mirrored log devices:
+.Dl # Nm zpool Cm create Ar pool Sy mirror Pa sda sdb Sy mirror Pa sdc sdd Sy log mirror Pa sde sdf
 .
 .Sh SEE ALSO
 .Xr zpool-destroy 8 ,
