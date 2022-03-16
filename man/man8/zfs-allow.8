@@ -29,7 +29,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd May 27, 2021
+.Dd March 16, 2022
 .Dt ZFS-ALLOW 8
 .Os
 .
@@ -384,3 +384,109 @@ Removes permissions from a permission set.
 If no permissions are specified, then all permissions are removed, thus removing
 the set entirely.
 .El
+.
+.Sh EXAMPLES
+.\" These are, respectively, examples 17, 18, 19, 20 from zfs.8
+.\" Make sure to update them bidirectionally
+.Ss Example 1 : No Delegating ZFS Administration Permissions on a ZFS Dataset
+The following example shows how to set permissions so that user
+.Ar cindys
+can create, destroy, mount, and take snapshots on
+.Ar tank/cindys .
+The permissions on
+.Ar tank/cindys
+are also displayed.
+.Bd -literal -compact -offset Ds
+.No # Nm zfs Cm allow Sy cindys create , Ns Sy destroy , Ns Sy mount , Ns Sy snapshot Ar tank/cindys
+.No # Nm zfs Cm allow Ar tank/cindys
+---- Permissions on tank/cindys --------------------------------------
+Local+Descendent permissions:
+        user cindys create,destroy,mount,snapshot
+.Ed
+.Pp
+Because the
+.Ar tank/cindys
+mount point permission is set to 755 by default, user
+.Ar cindys
+will be unable to mount file systems under
+.Ar tank/cindys .
+Add an ACE similar to the following syntax to provide mount point access:
+.Dl # Cm chmod No A+user: Ns Ar cindys Ns :add_subdirectory:allow Ar /tank/cindys
+.
+.Ss Example 2 : No Delegating Create Time Permissions on a ZFS Dataset
+The following example shows how to grant anyone in the group
+.Ar staff
+to create file systems in
+.Ar tank/users .
+This syntax also allows staff members to destroy their own file systems, but not
+destroy anyone else's file system.
+The permissions on
+.Ar tank/users
+are also displayed.
+.Bd -literal -compact -offset Ds
+.No # Nm zfs Cm allow Ar staff Sy create , Ns Sy mount Ar tank/users
+.No # Nm zfs Cm allow Fl c Sy destroy Ar tank/users
+.No # Nm zfs Cm allow Ar tank/users
+---- Permissions on tank/users ---------------------------------------
+Permission sets:
+        destroy
+Local+Descendent permissions:
+        group staff create,mount
+.Ed
+.
+.Ss Example 3 : No Defining and Granting a Permission Set on a ZFS Dataset
+The following example shows how to define and grant a permission set on the
+.Ar tank/users
+file system.
+The permissions on
+.Ar tank/users
+are also displayed.
+.Bd -literal -compact -offset Ds
+.No # Nm zfs Cm allow Fl s No @ Ns Ar pset Sy create , Ns Sy destroy , Ns Sy snapshot , Ns Sy mount Ar tank/users
+.No # Nm zfs Cm allow staff No @ Ns Ar pset tank/users
+.No # Nm zfs Cm allow Ar tank/users
+---- Permissions on tank/users ---------------------------------------
+Permission sets:
+        @pset create,destroy,mount,snapshot
+Local+Descendent permissions:
+        group staff @pset
+.Ed
+.
+.Ss Example 4 : No Delegating Property Permissions on a ZFS Dataset
+The following example shows to grant the ability to set quotas and reservations
+on the
+.Ar users/home
+file system.
+The permissions on
+.Ar users/home
+are also displayed.
+.Bd -literal -compact -offset Ds
+.No # Nm zfs Cm allow Ar cindys Sy quota , Ns Sy reservation Ar users/home
+.No # Nm zfs Cm allow Ar users/home
+---- Permissions on users/home ---------------------------------------
+Local+Descendent permissions:
+        user cindys quota,reservation
+cindys% zfs set quota=10G users/home/marks
+cindys% zfs get quota users/home/marks
+NAME              PROPERTY  VALUE  SOURCE
+users/home/marks  quota     10G    local
+.Ed
+.
+.Ss Example 5 : No Removing ZFS Delegated Permissions on a ZFS Dataset
+The following example shows how to remove the snapshot permission from the
+.Ar staff
+group on the
+.Sy tank/users
+file system.
+The permissions on
+.Sy tank/users
+are also displayed.
+.Bd -literal -compact -offset Ds
+.No # Nm zfs Cm unallow Ar staff Sy snapshot Ar tank/users
+.No # Nm zfs Cm allow Ar tank/users
+---- Permissions on tank/users ---------------------------------------
+Permission sets:
+        @pset create,destroy,mount,snapshot
+Local+Descendent permissions:
+        group staff @pset
+.Ed
