@@ -3999,3 +3999,47 @@ function replay_directory_diff # dir_a dir_b
 {
 	LIBTEST_DIFF_ZIL_REPLAY=1 directory_diff "$@"
 }
+
+#
+# Put coredumps into $1/core.{basename}
+#
+# Output must be saved and passed to pop_coredump_pattern on cleanup
+#
+function push_coredump_pattern # dir
+{
+	ulimit -c unlimited
+	case $(uname) in
+	Linux)
+		cat /proc/sys/kernel/core_pattern /proc/sys/kernel/core_uses_pid
+		echo "$1/core.%e" >/proc/sys/kernel/core_pattern &&
+		    echo 0 >/proc/sys/kernel/core_uses_pid
+		;;
+	FreeBSD)
+		sysctl -n kern.corefile
+		sysctl kern.corefile="$1/core.%N" >/dev/null
+		;;
+	*)
+		# Nothing to output – set only for this shell
+		coreadm -p "$1/core.%f"
+		;;
+	esac
+}
+
+#
+# Put coredumps back into the default location
+#
+function pop_coredump_pattern
+{
+	[ -s "$1" ] || return 0
+	case $(uname) in
+	Linux)
+		typeset pat pid
+		{ read -r pat; read -r pid; } < "$1"
+		echo "$pat" >/proc/sys/kernel/core_pattern &&
+		    echo "$pid" >/proc/sys/kernel/core_uses_pid
+		;;
+	FreeBSD)
+		sysctl kern.corefile="$(<"$1")" >/dev/null
+		;;
+	esac
+}
