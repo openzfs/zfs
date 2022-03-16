@@ -27,7 +27,7 @@
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\"
-.Dd August 9, 2019
+.Dd March 16, 2022
 .Dt ZPOOL-UPGRADE 8
 .Os
 .
@@ -101,6 +101,17 @@ This option can only be used to increase the version number up to the last
 supported legacy version number.
 .El
 .El
+.
+.Sh EXAMPLES
+.\" These are, respectively, examples 10 from zpool.8
+.\" Make sure to update them bidirectionally
+.Ss Example 1 : No Upgrading All ZFS Storage Pools to the Current Version
+The following command upgrades all ZFS Storage pools to the current version of
+the software:
+.Bd -literal -compact -offset Ds
+.No # Nm zpool Cm upgrade Fl a
+This system is currently running ZFS version 2.
+.Ed
 .
 .Sh SEE ALSO
 .Xr zpool-features 7 ,
