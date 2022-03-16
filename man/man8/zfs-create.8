@@ -29,7 +29,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd December 1, 2020
+.Dd March 16, 2022
 .Dt ZFS-CREATE 8
 .Os
 .
@@ -242,6 +242,39 @@ enable the swap area using the
 .Xr swapon 8
 command.
 Swapping to files on ZFS filesystems is not supported.
+.
+.Sh EXAMPLES
+.\" These are, respectively, examples 1, 10 from zfs.8
+.\" Make sure to update them bidirectionally
+.Ss Example 1 : No Creating a ZFS File System Hierarchy
+The following commands create a file system named
+.Ar pool/home
+and a file system named
+.Ar pool/home/bob .
+The mount point
+.Pa /export/home
+is set for the parent file system, and is automatically inherited by the child
+file system.
+.Dl # Nm zfs Cm create Ar pool/home
+.Dl # Nm zfs Cm set Sy mountpoint Ns = Ns Ar /export/home pool/home
+.Dl # Nm zfs Cm create Ar pool/home/bob
+.
+.Ss Example 2 : No Promoting a ZFS Clone
+The following commands illustrate how to test out changes to a file system, and
+then replace the original file system with the changed one, using clones, clone
+promotion, and renaming:
+.Bd -literal -compact -offset Ds
+.No # Nm zfs Cm create Ar pool/project/production
+  populate /pool/project/production with data
+.No # Nm zfs Cm snapshot Ar pool/project/production Ns @ Ns Ar today
+.No # Nm zfs Cm clone Ar pool/project/production@today pool/project/beta
+  make changes to /pool/project/beta and test them
+.No # Nm zfs Cm promote Ar pool/project/beta
+.No # Nm zfs Cm rename Ar pool/project/production pool/project/legacy
+.No # Nm zfs Cm rename Ar pool/project/beta pool/project/production
+  once the legacy version is no longer needed, it can be destroyed
+.No # Nm zfs Cm destroy Ar pool/project/legacy
+.Ed
 .
 .Sh SEE ALSO
 .Xr zfs-destroy 8 ,
