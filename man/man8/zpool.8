@@ -242,11 +242,11 @@ contains two disks:
 .Dl # Nm zpool Cm create Ar tank Sy mirror Pa sda sdb Sy mirror Pa sdc sdd
 .
 .It Sy Example 3 : No Creating a ZFS Storage Pool by Using Partitions
-The following command creates an unmirrored pool using two disk partitions:
+The following command creates a non-redundant pool using two disk partitions:
 .Dl # Nm zpool Cm create Ar tank Pa sda1 sdb2
 .
 .It Sy Example 4 : No Creating a ZFS Storage Pool by Using Files
-The following command creates an unmirrored pool using files.
+The following command creates a non-redundant pool using files.
 While not recommended, a pool based on files can be useful for experimental
 purposes.
 .Dl # Nm zpool Cm create Ar tank Pa /path/to/file/a /path/to/file/b
