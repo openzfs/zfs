@@ -29,7 +29,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd May 29, 2021
+.Dd March 16, 2022
 .Dt ZFS-DIFF 8
 .Os
 .
@@ -97,6 +97,25 @@ Do not
 .Sy \e0 Ns Ar ooo Ns -escape
 non-ASCII paths.
 .El
+.
+.Sh EXAMPLES
+.\" These are, respectively, examples 22 from zfs.8
+.\" Make sure to update them bidirectionally
+.Ss Example 1 : No Showing the differences between a snapshot and a ZFS Dataset
+The following example shows how to see what has changed between a prior
+snapshot of a ZFS dataset and its current state.
+The
+.Fl F
+option is used to indicate type information for the files affected.
+.Bd -literal -compact -offset Ds
+.No # Nm zfs Cm diff Fl F Ar tank/test@before tank/test
+M       /       /tank/test/
+M       F       /tank/test/linked      (+1)
+R       F       /tank/test/oldname -> /tank/test/newname
+-       F       /tank/test/deleted
++       F       /tank/test/created
+M       F       /tank/test/modified
+.Ed
 .
 .Sh SEE ALSO
 .Xr zfs-snapshot 8
