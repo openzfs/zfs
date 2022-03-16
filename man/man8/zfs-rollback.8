@@ -29,7 +29,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd May 27, 2021
+.Dd March 16, 2022
 .Dt ZFS-ROLLBACK 8
 .Os
 .
@@ -70,6 +70,17 @@ option to force an unmount of any clone file systems that are to be destroyed.
 .It Fl r
 Destroy any snapshots and bookmarks more recent than the one specified.
 .El
+.
+.Sh EXAMPLES
+.\" These are, respectively, examples 8 from zfs.8
+.\" Make sure to update them bidirectionally
+.Ss Example 8 : No Rolling Back a ZFS File System
+The following command reverts the contents of
+.Ar pool/home/anne
+to the snapshot named
+.Ar yesterday ,
+deleting all intermediate snapshots:
+.Dl # Nm zfs Cm rollback Fl r Ar pool/home/anne Ns @ Ns Ar yesterday
 .
 .Sh SEE ALSO
 .Xr zfs-snapshot 8
