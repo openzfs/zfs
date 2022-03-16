@@ -25,7 +25,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd May 27, 2021
+.Dd March 16, 2022
 .Dt ZPOOL-ADD 8
 .Os
 .
@@ -92,6 +92,29 @@ manual page for a list of valid properties that can be set.
 The only property supported at the moment is
 .Sy ashift .
 .El
+.
+.Sh EXAMPLES
+.\" These are, respectively, examples 5, 13 from zpool.8
+.\" Make sure to update them bidirectionally
+.Ss Example 1 : No Adding a Mirror to a ZFS Storage Pool
+The following command adds two mirrored disks to the pool
+.Ar tank ,
+assuming the pool is already made up of two-way mirrors.
+The additional space is immediately available to any datasets within the pool.
+.Dl # Nm zpool Cm add Ar tank Sy mirror Pa sda sdb
+.
+.Ss Example 2 : No Adding Cache Devices to a ZFS Pool
+The following command adds two disks for use as cache devices to a ZFS storage
+pool:
+.Dl # Nm zpool Cm add Ar pool Sy cache Pa sdc sdd
+.Pp
+Once added, the cache devices gradually fill with content from main memory.
+Depending on the size of your cache devices, it could take over an hour for
+them to fill.
+Capacity and reads can be monitored using the
+.Cm iostat
+subcommand as follows:
+.Dl # Nm zpool Cm iostat Fl v Ar pool 5
 .
 .Sh SEE ALSO
 .Xr zpool-attach 8 ,
