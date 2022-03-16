@@ -73,23 +73,15 @@ refresh_config(libzfs_handle_t *hdl, nvlist_t *config)
 	zfs_cmd_t zc = {"\0"};
 	int err, dstbuf_size;
 
-	if (zcmd_write_conf_nvlist(hdl, &zc, config) != 0)
-		return (NULL);
+	zcmd_write_conf_nvlist(hdl, &zc, config);
 
 	dstbuf_size = MAX(CONFIG_BUF_MINSIZE, zc.zc_nvlist_conf_size * 32);
 
-	if (zcmd_alloc_dst_nvlist(hdl, &zc, dstbuf_size) != 0) {
-		zcmd_free_nvlists(&zc);
-		return (NULL);
-	}
+	zcmd_alloc_dst_nvlist(hdl, &zc, dstbuf_size);
 
 	while ((err = zfs_ioctl(hdl, ZFS_IOC_POOL_TRYIMPORT,
-	    &zc)) != 0 && errno == ENOMEM) {
-		if (zcmd_expand_dst_nvlist(hdl, &zc) != 0) {
-			zcmd_free_nvlists(&zc);
-			return (NULL);
-		}
-	}
+	    &zc)) != 0 && errno == ENOMEM)
+		zcmd_expand_dst_nvlist(hdl, &zc);
 
 	if (err) {
 		zcmd_free_nvlists(&zc);
@@ -442,12 +434,7 @@ zpool_in_use(libzfs_handle_t *hdl, int fd, pool_state_t *state, char **namestr,
 
 
 	if (ret) {
-		if ((*namestr = zfs_strdup(hdl, name)) == NULL) {
-			if (cb.cb_zhp)
-				zpool_close(cb.cb_zhp);
-			nvlist_free(config);
-			return (-1);
-		}
+		*namestr = zfs_strdup(hdl, name);
 		*state = (pool_state_t)stateval;
 	}
 

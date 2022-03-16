@@ -1149,7 +1149,7 @@ zfs_path_to_zhandle(libzfs_handle_t *hdl, const char *path, zfs_type_t argtype)
  * Initialize the zc_nvlist_dst member to prepare for receiving an nvlist from
  * an ioctl().
  */
-int
+void
 zcmd_alloc_dst_nvlist(libzfs_handle_t *hdl, zfs_cmd_t *zc, size_t len)
 {
 	if (len == 0)
@@ -1157,10 +1157,6 @@ zcmd_alloc_dst_nvlist(libzfs_handle_t *hdl, zfs_cmd_t *zc, size_t len)
 	zc->zc_nvlist_dst_size = len;
 	zc->zc_nvlist_dst =
 	    (uint64_t)(uintptr_t)zfs_alloc(hdl, zc->zc_nvlist_dst_size);
-	if (zc->zc_nvlist_dst == 0)
-		return (-1);
-
-	return (0);
 }
 
 /*
@@ -1168,16 +1164,12 @@ zcmd_alloc_dst_nvlist(libzfs_handle_t *hdl, zfs_cmd_t *zc, size_t len)
  * expand the nvlist to the size specified in 'zc_nvlist_dst_size', which was
  * filled in by the kernel to indicate the actual required size.
  */
-int
+void
 zcmd_expand_dst_nvlist(libzfs_handle_t *hdl, zfs_cmd_t *zc)
 {
 	free((void *)(uintptr_t)zc->zc_nvlist_dst);
 	zc->zc_nvlist_dst =
 	    (uint64_t)(uintptr_t)zfs_alloc(hdl, zc->zc_nvlist_dst_size);
-	if (zc->zc_nvlist_dst == 0)
-		return (-1);
-
-	return (0);
 }
 
 /*
@@ -1194,36 +1186,33 @@ zcmd_free_nvlists(zfs_cmd_t *zc)
 	zc->zc_nvlist_dst = 0;
 }
 
-static int
+static void
 zcmd_write_nvlist_com(libzfs_handle_t *hdl, uint64_t *outnv, uint64_t *outlen,
     nvlist_t *nvl)
 {
 	char *packed;
 
 	size_t len = fnvlist_size(nvl);
-	if ((packed = zfs_alloc(hdl, len)) == NULL)
-		return (-1);
+	packed = zfs_alloc(hdl, len);
 
 	verify(nvlist_pack(nvl, &packed, &len, NV_ENCODE_NATIVE, 0) == 0);
 
 	*outnv = (uint64_t)(uintptr_t)packed;
 	*outlen = len;
-
-	return (0);
 }
 
-int
+void
 zcmd_write_conf_nvlist(libzfs_handle_t *hdl, zfs_cmd_t *zc, nvlist_t *nvl)
 {
-	return (zcmd_write_nvlist_com(hdl, &zc->zc_nvlist_conf,
-	    &zc->zc_nvlist_conf_size, nvl));
+	zcmd_write_nvlist_com(hdl, &zc->zc_nvlist_conf,
+	    &zc->zc_nvlist_conf_size, nvl);
 }
 
-int
+void
 zcmd_write_src_nvlist(libzfs_handle_t *hdl, zfs_cmd_t *zc, nvlist_t *nvl)
 {
-	return (zcmd_write_nvlist_com(hdl, &zc->zc_nvlist_src,
-	    &zc->zc_nvlist_src_size, nvl));
+	zcmd_write_nvlist_com(hdl, &zc->zc_nvlist_src,
+	    &zc->zc_nvlist_src_size, nvl);
 }
 
 /*
@@ -1863,8 +1852,7 @@ zprop_expand_list_cb(int prop, void *cb)
 	zprop_list_t *entry;
 	expand_data_t *edp = cb;
 
-	if ((entry = zfs_alloc(edp->hdl, sizeof (zprop_list_t))) == NULL)
-		return (ZPROP_INVAL);
+	entry = zfs_alloc(edp->hdl, sizeof (zprop_list_t));
 
 	entry->pl_prop = prop;
 	entry->pl_width = zprop_width(prop, &entry->pl_fixed, edp->type);
