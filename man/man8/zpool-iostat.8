@@ -26,7 +26,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd May 27, 2021
+.Dd March 16, 2022
 .Dt ZPOOL-IOSTAT 8
 .Os
 .
@@ -257,6 +257,46 @@ entries in the queues.
 If you specify an interval,
 the measurements will be sampled from the end of the interval.
 .El
+.
+.Sh EXAMPLES
+.\" These are, respectively, examples 13, 16 from zpool.8
+.\" Make sure to update them bidirectionally
+.Ss Example 13 : No Adding Cache Devices to a ZFS Pool
+The following command adds two disks for use as cache devices to a ZFS storage
+pool:
+.Dl # Nm zpool Cm add Ar pool Sy cache Pa sdc sdd
+.Pp
+Once added, the cache devices gradually fill with content from main memory.
+Depending on the size of your cache devices, it could take over an hour for
+them to fill.
+Capacity and reads can be monitored using the
+.Cm iostat
+subcommand as follows:
+.Dl # Nm zpool Cm iostat Fl v Ar pool 5
+.
+.Ss Example 16 : No Adding output columns
+Additional columns can be added to the
+.Nm zpool Cm status No and Nm zpool Cm iostat No output with Fl c .
+.Bd -literal -compact -offset Ds
+.No # Nm zpool Cm status Fl c Pa vendor , Ns Pa model , Ns Pa size
+   NAME     STATE  READ WRITE CKSUM vendor  model        size
+   tank     ONLINE 0    0     0
+   mirror-0 ONLINE 0    0     0
+   U1       ONLINE 0    0     0     SEAGATE ST8000NM0075 7.3T
+   U10      ONLINE 0    0     0     SEAGATE ST8000NM0075 7.3T
+   U11      ONLINE 0    0     0     SEAGATE ST8000NM0075 7.3T
+   U12      ONLINE 0    0     0     SEAGATE ST8000NM0075 7.3T
+   U13      ONLINE 0    0     0     SEAGATE ST8000NM0075 7.3T
+   U14      ONLINE 0    0     0     SEAGATE ST8000NM0075 7.3T
+
+.No # Nm zpool Cm iostat Fl vc Pa size
+              capacity     operations     bandwidth
+pool        alloc   free   read  write   read  write  size
+----------  -----  -----  -----  -----  -----  -----  ----
+rpool       14.6G  54.9G      4     55   250K  2.69M
+  sda1      14.6G  54.9G      4     55   250K  2.69M   70G
+----------  -----  -----  -----  -----  -----  -----  ----
+.Ed
 .
 .Sh SEE ALSO
 .Xr iostat 1 ,
