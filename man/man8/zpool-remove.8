@@ -26,12 +26,14 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd August 9, 2019
+.Dd March 16, 2022
 .Dt ZPOOL-REMOVE 8
 .Os
+.
 .Sh NAME
 .Nm zpool-remove
 .Nd remove devices from ZFS storage pool
+.
 .Sh SYNOPSIS
 .Nm zpool
 .Cm remove
@@ -41,6 +43,7 @@
 .Cm remove
 .Fl s
 .Ar pool
+.
 .Sh DESCRIPTION
 .Bl -tag -width Ds
 .It Xo
@@ -102,6 +105,45 @@ Waits until the removal has completed before returning.
 .Xc
 Stops and cancels an in-progress removal of a top-level vdev.
 .El
+.
+.Sh EXAMPLES
+.\" These are, respectively, examples 14 from zpool.8
+.\" Make sure to update them bidirectionally
+.Ss Example 1 : No Removing a Mirrored top-level (Log or Data) Device
+The following commands remove the mirrored log device
+.Sy mirror-2
+and mirrored top-level data device
+.Sy mirror-1 .
+.Pp
+Given this configuration:
+.Bd -literal -compact -offset Ds
+  pool: tank
+ state: ONLINE
+ scrub: none requested
+config:
+
+         NAME        STATE     READ WRITE CKSUM
+         tank        ONLINE       0     0     0
+           mirror-0  ONLINE       0     0     0
+             sda     ONLINE       0     0     0
+             sdb     ONLINE       0     0     0
+           mirror-1  ONLINE       0     0     0
+             sdc     ONLINE       0     0     0
+             sdd     ONLINE       0     0     0
+         logs
+           mirror-2  ONLINE       0     0     0
+             sde     ONLINE       0     0     0
+             sdf     ONLINE       0     0     0
+.Ed
+.Pp
+The command to remove the mirrored log
+.Ar mirror-2 No is:
+.Dl # Nm zpool Cm remove Ar tank mirror-2
+.Pp
+The command to remove the mirrored data
+.Ar mirror-1 No is:
+.Dl # Nm zpool Cm remove Ar tank mirror-1
+.
 .Sh SEE ALSO
 .Xr zpool-add 8 ,
 .Xr zpool-detach 8 ,
