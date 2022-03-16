@@ -29,7 +29,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd June 2, 2021
+.Dd March 16, 2022
 .Dt ZFS-SET 8
 .Os
 .
@@ -176,6 +176,132 @@ if the
 option was not specified.
 .El
 .El
+.
+.Sh EXAMPLES
+.\" These are, respectively, examples 1, 4, 6, 7, 11, 14, 16 from zfs.8
+.\" Make sure to update them bidirectionally
+.Ss Example 1 : No Creating a ZFS File System Hierarchy
+The following commands create a file system named
+.Ar pool/home
+and a file system named
+.Ar pool/home/bob .
+The mount point
+.Pa /export/home
+is set for the parent file system, and is automatically inherited by the child
+file system.
+.Dl # Nm zfs Cm create Ar pool/home
+.Dl # Nm zfs Cm set Sy mountpoint Ns = Ns Ar /export/home pool/home
+.Dl # Nm zfs Cm create Ar pool/home/bob
+.
+.Ss Example 2 : No Disabling and Enabling File System Compression
+The following command disables the
+.Sy compression
+property for all file systems under
+.Ar pool/home .
+The next command explicitly enables
+.Sy compression
+for
+.Ar pool/home/anne .
+.Dl # Nm zfs Cm set Sy compression Ns = Ns Sy off Ar pool/home
+.Dl # Nm zfs Cm set Sy compression Ns = Ns Sy on Ar pool/home/anne
+.
+.Ss Example 3 : No Setting a Quota on a ZFS File System
+The following command sets a quota of 50 Gbytes for
+.Ar pool/home/bob :
+.Dl # Nm zfs Cm set Sy quota Ns = Ns Ar 50G pool/home/bob
+.
+.Ss Example 4 : No Listing ZFS Properties
+The following command lists all properties for
+.Ar pool/home/bob :
+.Bd -literal -compact -offset Ds
+.No # Nm zfs Cm get Sy all Ar pool/home/bob
+NAME           PROPERTY              VALUE                  SOURCE
+pool/home/bob  type                  filesystem             -
+pool/home/bob  creation              Tue Jul 21 15:53 2009  -
+pool/home/bob  used                  21K                    -
+pool/home/bob  available             20.0G                  -
+pool/home/bob  referenced            21K                    -
+pool/home/bob  compressratio         1.00x                  -
+pool/home/bob  mounted               yes                    -
+pool/home/bob  quota                 20G                    local
+pool/home/bob  reservation           none                   default
+pool/home/bob  recordsize            128K                   default
+pool/home/bob  mountpoint            /pool/home/bob         default
+pool/home/bob  sharenfs              off                    default
+pool/home/bob  checksum              on                     default
+pool/home/bob  compression           on                     local
+pool/home/bob  atime                 on                     default
+pool/home/bob  devices               on                     default
+pool/home/bob  exec                  on                     default
+pool/home/bob  setuid                on                     default
+pool/home/bob  readonly              off                    default
+pool/home/bob  zoned                 off                    default
+pool/home/bob  snapdir               hidden                 default
+pool/home/bob  acltype               off                    default
+pool/home/bob  aclmode               discard                default
+pool/home/bob  aclinherit            restricted             default
+pool/home/bob  canmount              on                     default
+pool/home/bob  xattr                 on                     default
+pool/home/bob  copies                1                      default
+pool/home/bob  version               4                      -
+pool/home/bob  utf8only              off                    -
+pool/home/bob  normalization         none                   -
+pool/home/bob  casesensitivity       sensitive              -
+pool/home/bob  vscan                 off                    default
+pool/home/bob  nbmand                off                    default
+pool/home/bob  sharesmb              off                    default
+pool/home/bob  refquota              none                   default
+pool/home/bob  refreservation        none                   default
+pool/home/bob  primarycache          all                    default
+pool/home/bob  secondarycache        all                    default
+pool/home/bob  usedbysnapshots       0                      -
+pool/home/bob  usedbydataset         21K                    -
+pool/home/bob  usedbychildren        0                      -
+pool/home/bob  usedbyrefreservation  0                      -
+.Ed
+.Pp
+The following command gets a single property value:
+.Bd -literal -compact -offset Ds
+.No # Nm zfs Cm get Fl H o Sy value compression Ar pool/home/bob
+on
+.Ed
+.Pp
+The following command lists all properties with local settings for
+.Ar pool/home/bob :
+.Bd -literal -compact -offset Ds
+.No # Nm zfs Cm get Fl r s Sy local Fl o Sy name , Ns Sy property , Ns Sy value all Ar pool/home/bob
+NAME           PROPERTY              VALUE
+pool/home/bob  quota                 20G
+pool/home/bob  compression           on
+.Ed
+.
+.Ss Example 5 : No Inheriting ZFS Properties
+The following command causes
+.Ar pool/home/bob No and Ar pool/home/anne
+to inherit the
+.Sy checksum
+property from their parent.
+.Dl # Nm zfs Cm inherit Sy checksum Ar pool/home/bob pool/home/anne
+.
+.Ss Example 6 : No Setting User Properties
+The following example sets the user-defined
+.Ar com.example : Ns Ar department
+property for a dataset:
+.Dl # Nm zfs Cm set Ar com.example : Ns Ar department Ns = Ns Ar 12345 tank/accounting
+.
+.Ss Example 7 : No Setting sharenfs Property Options on a ZFS File System
+The following commands show how to set
+.Sy sharenfs
+property options to enable read-write
+access for a set of IP addresses and to enable root access for system
+.Qq neo
+on the
+.Ar tank/home
+file system:
+.Dl # Nm zfs Cm set Sy sharenfs Ns = Ns ' Ns Ar rw Ns =@123.123.0.0/16:[::1],root= Ns Ar neo Ns ' tank/home
+.Pp
+If you are using DNS for host name resolution,
+specify the fully-qualified hostname.
 .
 .Sh SEE ALSO
 .Xr zfsprops 7 ,
