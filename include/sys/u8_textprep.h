@@ -37,28 +37,6 @@ extern "C" {
 #endif
 
 /*
- * Unicode encoding conversion functions and their macros.
- */
-#define	UCONV_IN_BIG_ENDIAN		0x0001
-#define	UCONV_OUT_BIG_ENDIAN		0x0002
-#define	UCONV_IN_SYSTEM_ENDIAN		0x0004
-#define	UCONV_OUT_SYSTEM_ENDIAN		0x0008
-#define	UCONV_IN_LITTLE_ENDIAN		0x0010
-#define	UCONV_OUT_LITTLE_ENDIAN		0x0020
-#define	UCONV_IGNORE_NULL		0x0040
-#define	UCONV_IN_ACCEPT_BOM		0x0080
-#define	UCONV_OUT_EMIT_BOM		0x0100
-
-extern int uconv_u16tou32(const uint16_t *, size_t *, uint32_t *, size_t *,
-	int);
-extern int uconv_u16tou8(const uint16_t *, size_t *, uchar_t *, size_t *, int);
-extern int uconv_u32tou16(const uint32_t *, size_t *, uint16_t *, size_t *,
-	int);
-extern int uconv_u32tou8(const uint32_t *, size_t *, uchar_t *, size_t *, int);
-extern int uconv_u8tou16(const uchar_t *, size_t *, uint16_t *, size_t *, int);
-extern int uconv_u8tou32(const uchar_t *, size_t *, uint32_t *, size_t *, int);
-
-/*
  * UTF-8 text preparation functions and their macros.
  *
  * Among the macros defined, U8_CANON_DECOMP, U8_COMPAT_DECOMP, and
