@@ -45,7 +45,15 @@
 
 verify_runnable "global"
 
+function cleanup
+{
+	for file in $ZFS_DEV $MNTTAB; do
+		log_must eval "[ -e ${file} ] || mv ${file}.bak $file"
+	done
+}
+
 log_assert "zfs fails with unexpected scenario."
+log_onexit cleanup
 
 #verify zfs failed if ZFS_DEV cannot be opened
 ZFS_DEV=/dev/zfs
@@ -56,13 +64,11 @@ if is_linux; then
 fi
 
 for file in $ZFS_DEV $MNTTAB; do
-	if [[ -e $file ]]; then
-		mv $file ${file}.bak
-	fi
+	log_must mv $file ${file}.bak
 	for cmd in "" "list" "get all" "mount"; do
 		log_mustnot eval "zfs $cmd >/dev/null 2>&1"
 	done
-	mv ${file}.bak $file
+	log_must mv ${file}.bak $file
 done
 
 log_pass "zfs fails with unexpected scenario as expected."
