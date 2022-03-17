@@ -22,7 +22,6 @@ KERNEL_H = \
 	inttypes.h \
 	isa_defs.h \
 	kmem_cache.h \
-	kidmap.h \
 	kmem.h \
 	kstat.h \
 	list_impl.h \
