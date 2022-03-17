@@ -1043,8 +1043,7 @@ zfs_create(znode_t *dzp, const char *name, vattr_t *vap, int excl, int mode,
 	objset_t	*os;
 	dmu_tx_t	*tx;
 	int		error;
-	ksid_t		*ksid;
-	uid_t		uid;
+	uid_t		uid = crgetuid(cr);
 	gid_t		gid = crgetgid(cr);
 	uint64_t	projid = ZFS_DEFAULT_PROJID;
 	zfs_acl_ids_t   acl_ids;
@@ -1058,13 +1057,6 @@ zfs_create(znode_t *dzp, const char *name, vattr_t *vap, int excl, int mode,
 	 * If we have an ephemeral id, ACL, or XVATTR then
 	 * make sure file system is at proper version
 	 */
-
-	ksid = crgetsid(cr, KSID_OWNER);
-	if (ksid)
-		uid = ksid_getid(ksid);
-	else
-		uid = crgetuid(cr);
-
 	if (zfsvfs->z_use_fuids == B_FALSE &&
 	    (vsecp || (vap->va_mask & AT_XVATTR) ||
 	    IS_EPHEMERAL(uid) || IS_EPHEMERAL(gid)))
@@ -1396,8 +1388,7 @@ zfs_mkdir(znode_t *dzp, const char *dirname, vattr_t *vap, znode_t **zpp,
 	uint64_t	txtype;
 	dmu_tx_t	*tx;
 	int		error;
-	ksid_t		*ksid;
-	uid_t		uid;
+	uid_t		uid = crgetuid(cr);
 	gid_t		gid = crgetgid(cr);
 	zfs_acl_ids_t   acl_ids;
 	boolean_t	fuid_dirtied;
@@ -1408,12 +1399,6 @@ zfs_mkdir(znode_t *dzp, const char *dirname, vattr_t *vap, znode_t **zpp,
 	 * If we have an ephemeral id, ACL, or XVATTR then
 	 * make sure file system is at proper version
 	 */
-
-	ksid = crgetsid(cr, KSID_OWNER);
-	if (ksid)
-		uid = ksid_getid(ksid);
-	else
-		uid = crgetuid(cr);
 	if (zfsvfs->z_use_fuids == B_FALSE &&
 	    ((vap->va_mask & AT_XVATTR) ||
 	    IS_EPHEMERAL(uid) || IS_EPHEMERAL(gid)))

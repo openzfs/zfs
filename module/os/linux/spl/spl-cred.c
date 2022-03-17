@@ -138,13 +138,6 @@ crgetruid(const cred_t *cr)
 	return (KUID_TO_SUID(cr->uid));
 }
 
-/* Return the saved user id */
-uid_t
-crgetsuid(const cred_t *cr)
-{
-	return (KUID_TO_SUID(cr->suid));
-}
-
 /* Return the effective group id */
 gid_t
 crgetgid(const cred_t *cr)
@@ -152,28 +145,11 @@ crgetgid(const cred_t *cr)
 	return (KGID_TO_SGID(cr->fsgid));
 }
 
-/* Return the real group id */
-gid_t
-crgetrgid(const cred_t *cr)
-{
-	return (KGID_TO_SGID(cr->gid));
-}
-
-/* Return the saved group id */
-gid_t
-crgetsgid(const cred_t *cr)
-{
-	return (KGID_TO_SGID(cr->sgid));
-}
-
 EXPORT_SYMBOL(crhold);
 EXPORT_SYMBOL(crfree);
 EXPORT_SYMBOL(crgetuid);
 EXPORT_SYMBOL(crgetruid);
-EXPORT_SYMBOL(crgetsuid);
 EXPORT_SYMBOL(crgetgid);
-EXPORT_SYMBOL(crgetrgid);
-EXPORT_SYMBOL(crgetsgid);
 EXPORT_SYMBOL(crgetngroups);
 EXPORT_SYMBOL(crgetgroups);
 EXPORT_SYMBOL(groupmember);
