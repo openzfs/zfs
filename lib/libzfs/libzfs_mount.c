@@ -797,20 +797,15 @@ zfs_unshare(zfs_handle_t *zhp, const char *mountpoint,
 {
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	struct mnttab entry;
-	const char *mntpt = NULL;
 
 	if (proto == NULL)
 		proto = share_all_proto;
 
-	/* check to see if need to unmount the filesystem */
-	if (mountpoint != NULL)
-		mntpt = mountpoint;
-
 	if (mountpoint != NULL || ((zfs_get_type(zhp) == ZFS_TYPE_FILESYSTEM) &&
 	    libzfs_mnttab_find(hdl, zfs_get_name(zhp), &entry) == 0)) {
 
-		if (mountpoint == NULL)
-			mntpt = entry.mnt_mountp;
+		/* check to see if need to unmount the filesystem */
+		const char *mntpt = mountpoint ?: entry.mnt_mountp;
 
 		for (const enum sa_protocol *curr_proto = proto;
 		    *curr_proto != SA_NO_PROTOCOL; curr_proto++)
