@@ -1653,8 +1653,10 @@ zfs_acl_ids_create(znode_t *dzp, int flag, vattr_t *vap, cred_t *cr,
 		    ZFS_GROUP, &acl_ids->z_fuidp);
 		gid = vap->va_gid;
 	} else {
-		acl_ids->z_fuid = zfs_fuid_create_cred(zfsvfs, ZFS_OWNER,
-		    cr, &acl_ids->z_fuidp);
+		uid_t id = crgetuid(cr);
+		if (IS_EPHEMERAL(id))
+			id = UID_NOBODY;
+		acl_ids->z_fuid = (uint64_t)id;
 		acl_ids->z_fgid = 0;
 		if (vap->va_mask & AT_GID)  {
 			acl_ids->z_fgid = zfs_fuid_create(zfsvfs,
