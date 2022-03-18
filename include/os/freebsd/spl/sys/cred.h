@@ -48,138 +48,20 @@ extern "C" {
 typedef struct ucred cred_t;
 
 #define	CRED()		curthread->td_ucred
+
+/*
+ * kcred is used when you need all privileges.
+ */
 #define	kcred	(thread0.td_ucred)
 
 #define	KUID_TO_SUID(x)		(x)
 #define	KGID_TO_SGID(x)		(x)
-#define	crgetuid(cred)		((cred)->cr_uid)
-#define	crgetruid(cred)		((cred)->cr_ruid)
-#define	crgetgid(cred)		((cred)->cr_gid)
-#define	crgetgroups(cred)	((cred)->cr_groups)
-#define	crgetngroups(cred)	((cred)->cr_ngroups)
-#define	crgetsid(cred, i)	(NULL)
-
-struct proc;				/* cred.h is included in proc.h */
-struct prcred;
-struct ksid;
-struct ksidlist;
-struct credklpd;
-struct credgrp;
-
-struct auditinfo_addr;			/* cred.h is included in audit.h */
-
-extern int ngroups_max;
-/*
- * kcred is used when you need all privileges.
- */
-
-extern void cred_init(void);
-extern void crfree(cred_t *);
-extern cred_t *cralloc(void);		/* all but ref uninitialized */
-extern cred_t *cralloc_ksid(void);	/* cralloc() + ksid alloc'ed */
-extern cred_t *crget(void);		/* initialized */
-extern void crcopy_to(cred_t *, cred_t *);
-extern cred_t *crdup(cred_t *);
-extern void crdup_to(cred_t *, cred_t *);
-extern cred_t *crgetcred(void);
-extern void crset(struct proc *, cred_t *);
-extern void crset_zone_privall(cred_t *);
-extern int supgroupmember(gid_t, const cred_t *);
-extern int hasprocperm(const cred_t *, const cred_t *);
-extern int prochasprocperm(struct proc *, struct proc *, const cred_t *);
-extern int crcmp(const cred_t *, const cred_t *);
-extern cred_t *zone_kcred(void);
-
-extern gid_t crgetrgid(const cred_t *);
-extern gid_t crgetsgid(const cred_t *);
-
-#define	crgetzoneid(cr) ((cr)->cr_prison->pr_id)
-extern projid_t crgetprojid(const cred_t *);
-
-extern cred_t *crgetmapped(const cred_t *);
-
-
-extern const struct auditinfo_addr *crgetauinfo(const cred_t *);
-extern struct auditinfo_addr *crgetauinfo_modifiable(cred_t *);
-
-extern uint_t crgetref(const cred_t *);
-
-extern const gid_t *crgetggroups(const struct credgrp *);
-
-
-/*
- * Sets real, effective and/or saved uid/gid;
- * -1 argument accepted as "no change".
- */
-extern int crsetresuid(cred_t *, uid_t, uid_t, uid_t);
-extern int crsetresgid(cred_t *, gid_t, gid_t, gid_t);
-
-/*
- * Sets real, effective and saved uids/gids all to the same
- * values.  Both values must be non-negative and <= MAXUID
- */
-extern int crsetugid(cred_t *, uid_t, gid_t);
-
-/*
- * Functions to handle the supplemental group list.
- */
-extern struct credgrp *crgrpcopyin(int, gid_t *);
-extern void crgrprele(struct credgrp *);
-extern void crsetcredgrp(cred_t *, struct credgrp *);
-
-/*
- * Private interface for setting zone association of credential.
- */
-struct zone;
-extern void crsetzone(cred_t *, struct zone *);
-extern struct zone *crgetzone(const cred_t *);
-
-/*
- * Private interface for setting project id in credential.
- */
-extern void crsetprojid(cred_t *, projid_t);
-
-/*
- * Private interface for nfs.
- */
-extern cred_t *crnetadjust(cred_t *);
-
-/*
- * Private interface for procfs.
- */
-extern void cred2prcred(const cred_t *, struct prcred *);
-
-/*
- * Private interfaces for Rampart Trusted Solaris.
- */
-struct ts_label_s;
-extern struct ts_label_s *crgetlabel(const cred_t *);
-extern boolean_t crisremote(const cred_t *);
-
-/*
- * Private interfaces for ephemeral uids.
- */
-#define	VALID_UID(id, zn)					\
-	((id) <= MAXUID || valid_ephemeral_uid((zn), (id)))
-
-#define	VALID_GID(id, zn)					\
-	((id) <= MAXUID || valid_ephemeral_gid((zn), (id)))
-
-extern boolean_t valid_ephemeral_uid(struct zone *, uid_t);
-extern boolean_t valid_ephemeral_gid(struct zone *, gid_t);
-
-extern int eph_uid_alloc(struct zone *, int, uid_t *, int);
-extern int eph_gid_alloc(struct zone *, int, gid_t *, int);
-
-extern void crsetsid(cred_t *, struct ksid *, int);
-extern void crsetsidlist(cred_t *, struct ksidlist *);
-
-extern struct ksidlist *crgetsidlist(const cred_t *);
-
-extern int crsetpriv(cred_t *, ...);
-
-extern struct credklpd *crgetcrklpd(const cred_t *);
-extern void crsetcrklpd(cred_t *, struct credklpd *);
+#define	crgetuid(cr)		((cr)->cr_uid)
+#define	crgetruid(cr)		((cr)->cr_ruid)
+#define	crgetgid(cr)		((cr)->cr_gid)
+#define	crgetgroups(cr)		((cr)->cr_groups)
+#define	crgetngroups(cr)	((cr)->cr_ngroups)
+#define	crgetzoneid(cr) 	((cr)->cr_prison->pr_id)
 
 #ifdef	__cplusplus
 }
