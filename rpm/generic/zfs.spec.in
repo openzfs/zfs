@@ -118,10 +118,6 @@ BuildRequires:  ncompress
 BuildRequires:  libtirpc-devel
 %endif
 
-%if %{with pam}
-BuildRequires:  pam-devel
-%endif
-
 Requires:       openssl
 %if 0%{?_systemd}
 BuildRequires: systemd
@@ -326,6 +322,19 @@ This package contains a initramfs module used to construct an initramfs
 image which is ZFS aware.
 %endif
 
+%if %{with pam}
+%package -n pam_zfs_key
+Summary:        PAM module for encrypted ZFS datasets
+
+%if 0%{?rhel}%{?centos}%{?fedora}%{?suse_version}
+BuildRequires:  pam-devel
+%endif
+
+%description -n pam_zfs_key
+This package contains the pam_zfs_key PAM module, which provides
+support for unlocking datasets on user login.
+%endif
+
 %prep
 %if %{with debug}
     %define debug --enable-debug
@@ -508,10 +517,6 @@ systemctl --system daemon-reload >/dev/null || true
 %config(noreplace) %{_sysconfdir}/%{name}/zpool.d/*
 %config(noreplace) %{_sysconfdir}/%{name}/vdev_id.conf.*.example
 %attr(440, root, root) %config(noreplace) %{_sysconfdir}/sudoers.d/*
-%if %{with pam}
-%{_libdir}/security/*
-%{_datadir}/pam-configs/*
-%endif
 
 %files -n libzpool5
 %{_libdir}/libzpool.so.*
@@ -560,4 +565,10 @@ systemctl --system daemon-reload >/dev/null || true
 # Since we're not building the initramfs package,
 # ignore those files.
 %exclude /usr/share/initramfs-tools
+%endif
+
+%if %{with pam}
+%files -n pam_zfs_key
+%{_libdir}/security/*
+%{_datadir}/pam-configs/*
 %endif

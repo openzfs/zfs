@@ -62,6 +62,7 @@ deb-utils: deb-local rpm-utils-initramfs
 	pkg8=$${name}-dracut-$${version}.noarch.rpm; \
 	pkg9=$${name}-initramfs-$${version}.$${arch}.rpm; \
 	pkg10=`ls python*-pyzfs-$${version}* | tail -1`; \
+	pkg11=pam_zfs_key-$${version}.$${arch}.rpm; \
 ## Arguments need to be passed to dh_shlibdeps. Alien provides no mechanism
 ## to do this, so we install a shim onto the path which calls the real
 ## dh_shlibdeps with the required arguments.
@@ -77,10 +78,10 @@ deb-utils: deb-local rpm-utils-initramfs
 	env PATH=$${path_prepend}:$${PATH} \
 	fakeroot $(ALIEN) --bump=0 --scripts --to-deb --target=$$debarch \
 	    $$pkg1 $$pkg2 $$pkg3 $$pkg4 $$pkg5 $$pkg6 $$pkg7 \
-	    $$pkg8 $$pkg9 $$pkg10 || exit 1; \
+	    $$pkg8 $$pkg9 $$pkg10 $$pkg11 || exit 1; \
 	$(RM) $${path_prepend}/dh_shlibdeps; \
 	rmdir $${path_prepend}; \
 	$(RM) $$pkg1 $$pkg2 $$pkg3 $$pkg4 $$pkg5 $$pkg6 $$pkg7 \
-	    $$pkg8 $$pkg9 $$pkg10;
+	    $$pkg8 $$pkg9 $$pkg10 $$pkg11;
 
 deb: deb-kmod deb-dkms deb-utils
