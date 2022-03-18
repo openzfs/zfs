@@ -91,7 +91,7 @@ static intptr_t stack_remaining(void) {
 typedef	struct _label_t { long long unsigned val[JMP_BUF_CNT]; } label_t;
 
 int setjmp(label_t *) __attribute__ ((__nothrow__));
-extern _Noreturn void longjmp(label_t *);
+extern __attribute__((noreturn)) void longjmp(label_t *);
 
 #define LUAI_THROW(L,c)		longjmp(&(c)->b)
 #define LUAI_TRY(L,c,a)		if (setjmp(&(c)->b) == 0) { a }

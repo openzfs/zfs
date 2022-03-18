@@ -211,7 +211,7 @@ taskq_wait_outstanding(taskq_t *tq, taskqid_t id)
 	taskq_wait(tq);
 }
 
-static _Noreturn void
+static __attribute__((noreturn)) void
 taskq_thread(void *arg)
 {
 	taskq_t *tq = arg;

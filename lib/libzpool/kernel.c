@@ -633,7 +633,7 @@ __dprintf(boolean_t dprint, const char *file, const char *func,
 static char ce_prefix[CE_IGNORE][10] = { "", "NOTICE: ", "WARNING: ", "" };
 static char ce_suffix[CE_IGNORE][2] = { "", "\n", "\n", "" };
 
-void
+__attribute__((noreturn)) void
 vpanic(const char *fmt, va_list adx)
 {
 	(void) fprintf(stderr, "error: ");
@@ -643,7 +643,7 @@ vpanic(const char *fmt, va_list adx)
 	abort();	/* think of it as a "user-level crash dump" */
 }
 
-void
+__attribute__((noreturn)) void
 panic(const char *fmt, ...)
 {
 	va_list adx;

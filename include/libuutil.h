@@ -85,13 +85,13 @@ extern void uu_warn(const char *, ...)
     __attribute__((format(printf, 1, 2)));
 extern void uu_vwarn(const char *, va_list)
     __attribute__((format(printf, 1, 0)));
-extern _Noreturn void uu_die(const char *, ...)
+extern __attribute__((noreturn)) void uu_die(const char *, ...)
     __attribute__((format(printf, 1, 2)));
-extern _Noreturn void uu_vdie(const char *, va_list)
+extern __attribute__((noreturn)) void uu_vdie(const char *, va_list)
     __attribute__((format(printf, 1, 0)));
-extern _Noreturn void uu_xdie(int, const char *, ...)
+extern __attribute__((noreturn)) void uu_xdie(int, const char *, ...)
     __attribute__((format(printf, 2, 3)));
-extern _Noreturn void uu_vxdie(int, const char *, va_list)
+extern __attribute__((noreturn)) void uu_vxdie(int, const char *, va_list)
     __attribute__((format(printf, 2, 0)));
 
 /*

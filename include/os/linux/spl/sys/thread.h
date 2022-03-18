@@ -53,7 +53,7 @@ typedef void (*thread_func_t)(void *);
 	__thread_create(stk, stksize, (thread_func_t)func, #func,	\
 	arg, len, pp, state, pri)
 
-#define	thread_exit()			__thread_exit()
+#define	thread_exit()			spl_thread_exit()
 #define	thread_join(t)			VERIFY(0)
 #define	curthread			current
 #define	getcomm()			current->comm
@@ -62,9 +62,15 @@ typedef void (*thread_func_t)(void *);
 extern kthread_t *__thread_create(caddr_t stk, size_t  stksize,
     thread_func_t func, const char *name, void *args, size_t len, proc_t *pp,
     int state, pri_t pri);
-extern __attribute__((noreturn)) void __thread_exit(void);
 extern struct task_struct *spl_kthread_create(int (*func)(void *),
     void *data, const char namefmt[], ...);
+
+static inline __attribute__((noreturn)) void
+spl_thread_exit(void)
+{
+	tsd_exit();
+	SPL_KTHREAD_COMPLETE_AND_EXIT(NULL, 0);
+}
 
 extern proc_t p0;
 

@@ -40,7 +40,7 @@
 
 static const char *pname;
 
-static _Noreturn void
+static __attribute__((noreturn)) void
 uu_die_internal(int status, const char *format, va_list alist);
 
 int uu_exit_ok_value = EXIT_SUCCESS;
@@ -110,7 +110,7 @@ uu_warn(const char *format, ...)
 	va_end(alist);
 }
 
-static __attribute__((format(printf, 2, 0))) _Noreturn void
+static __attribute__((format(printf, 2, 0))) __attribute__((noreturn)) void
 uu_die_internal(int status, const char *format, va_list alist)
 {
 	uu_warn_internal(errno, format, alist);

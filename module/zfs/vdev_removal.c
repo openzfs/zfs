@@ -140,7 +140,7 @@ int zfs_removal_suspend_progress = 0;
 
 #define	VDEV_REMOVAL_ZAP_OBJS	"lzap"
 
-static _Noreturn void spa_vdev_remove_thread(void *arg);
+static __attribute__((noreturn)) void spa_vdev_remove_thread(void *arg);
 static int spa_vdev_remove_cancel_impl(spa_t *spa);
 
 static void
@@ -1589,7 +1589,7 @@ spa_remove_max_segment(spa_t *spa)
  * TXG have completed (see spa_txg_zio) and writes the new mappings to disk
  * (see vdev_mapping_sync()).
  */
-static _Noreturn void
+static __attribute__((noreturn)) void
 spa_vdev_remove_thread(void *arg)
 {
 	spa_t *spa = arg;

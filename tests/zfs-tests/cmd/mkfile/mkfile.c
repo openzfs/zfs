@@ -44,7 +44,13 @@
 
 #define	FILE_MODE	(S_ISVTX + S_IRUSR + S_IWUSR)
 
-static _Noreturn void usage(void);
+static __attribute__((noreturn)) void
+usage(void)
+{
+	(void) fprintf(stderr, gettext(
+	    "Usage: mkfile [-nv] <size>[g|k|b|m] <name1> [<name2>] ...\n"));
+	exit(1);
+}
 
 int
 main(int argc, char **argv)
@@ -271,11 +277,4 @@ main(int argc, char **argv)
 		argc--;
 	}
 	return (errors);
-}
-
-static void usage()
-{
-	(void) fprintf(stderr, gettext(
-	    "Usage: mkfile [-nv] <size>[g|k|b|m] <name1> [<name2>] ...\n"));
-	exit(1);
 }
