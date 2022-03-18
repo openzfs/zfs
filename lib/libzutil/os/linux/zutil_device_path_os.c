@@ -613,27 +613,24 @@ zfs_get_underlying_path(const char *dev_name)
 /*
  * A disk is considered a multipath whole disk when:
  *	DEVNAME key value has "dm-"
- *	MPATH_DEVICE_READY is present
- *	DM_UUID key exists
+ *	DM_UUID key exists and starts with 'mpath-'
  *	ID_PART_TABLE_TYPE key does not exist or is not gpt
  *	ID_FS_LABEL key does not exist (disk isn't labeled)
  */
 static boolean_t
 is_mpath_udev_sane(struct udev_device *dev)
 {
-	const char *devname, *type, *uuid, *label, *mpath_ready;
+	const char *devname, *type, *uuid, *label;
 
 	devname = udev_device_get_property_value(dev, "DEVNAME");
 	type = udev_device_get_property_value(dev, "ID_PART_TABLE_TYPE");
 	uuid = udev_device_get_property_value(dev, "DM_UUID");
 	label = udev_device_get_property_value(dev, "ID_FS_LABEL");
-	mpath_ready = udev_device_get_property_value(dev, "MPATH_DEVICE_READY");
 
 	if ((devname != NULL && strncmp(devname, "/dev/dm-", 8) == 0) &&
 	    ((type == NULL) || (strcmp(type, "gpt") != 0)) &&
-	    (uuid != NULL) &&
-	    (label == NULL) &&
-	    (mpath_ready != NULL && strncmp(mpath_ready, "1", 1) == 0)) {
+	    ((uuid != NULL) && (strncmp(uuid, "mpath-", 6) == 0)) &&
+	    (label == NULL)) {
 		return (B_TRUE);
 	}
 
