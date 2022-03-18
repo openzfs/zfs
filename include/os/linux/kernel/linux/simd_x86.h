@@ -420,9 +420,9 @@ kfpu_end(void)
 	if (static_cpu_has(X86_FEATURE_XSAVE)) {
 		kfpu_do_xrstor("xrstor", &state->xsave, ~0);
 	} else if (static_cpu_has(X86_FEATURE_FXSR)) {
-		kfpu_save_fxsr(&state->fxsave);
+		kfpu_restore_fxsr(&state->fxsave);
 	} else {
-		kfpu_save_fsave(&state->fsave);
+		kfpu_restore_fsave(&state->fsave);
 	}
 out:
 	local_irq_enable();
