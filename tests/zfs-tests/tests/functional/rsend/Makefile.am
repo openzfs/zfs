@@ -24,6 +24,11 @@ dist_pkgdata_SCRIPTS = \
 	rsend_021_pos.ksh \
 	rsend_022_pos.ksh \
 	rsend_024_pos.ksh \
+	rsend_025_pos.ksh \
+	rsend_026_neg.ksh \
+	rsend_027_pos.ksh \
+	rsend_028_neg.ksh \
+	rsend_029_neg.ksh \
 	send_encrypted_files.ksh \
 	send_encrypted_hierarchy.ksh \
 	send_encrypted_props.ksh \
