@@ -76,8 +76,7 @@ zed_log_msg()
 #
 zed_log_err()
 {
-    logger -p "${ZED_SYSLOG_PRIORITY}" -t "${ZED_SYSLOG_TAG}" -- "error:" \
-        "${0##*/}:""${ZEVENT_EID:+" eid=${ZEVENT_EID}:"}" "$@"
+    zed_log_msg "error: ${0##*/}:""${ZEVENT_EID:+" eid=${ZEVENT_EID}:"}" "$@"
 }
 
 
