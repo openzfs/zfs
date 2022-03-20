@@ -132,11 +132,6 @@ na_reason = "Not applicable"
 #
 ci_reason = 'CI runner doesn\'t have all requirements'
 
-summary = {
-    'total': float(0),
-    'passed': float(0),
-    'logfile': "Could not determine logfile location."
-}
 
 #
 # These tests are known to fail, thus we use this list to prevent these
@@ -306,40 +301,33 @@ if os.environ.get('CI') == 'true':
     })
 
 
-def usage(s):
-    print(s)
-    sys.exit(1)
-
-
 def process_results(pathname):
     try:
         f = open(pathname)
     except IOError as e:
-        print('Error opening file: %s' % e)
+        print('Error opening file:', e)
         sys.exit(1)
 
     prefix = '/zfs-tests/tests/functional/'
     pattern = \
         r'^Test(?:\s+\(\S+\))?:' + \
-        r'\s*\S*%s(\S+)\s*\(run as (\S+)\)\s*\[(\S+)\]\s*\[(\S+)\]' \
-        % prefix
+        rf'\s*\S*{prefix}(\S+)' + \
+        r'\s*\(run as (\S+)\)\s*\[(\S+)\]\s*\[(\S+)\]'
     pattern_log = r'^\s*Log directory:\s*(\S*)'
 
     d = {}
+    logdir = 'Could not determine log directory.'
     for line in f.readlines():
         m = re.match(pattern, line)
         if m and len(m.groups()) == 4:
-            summary['total'] += 1
-            if m.group(4) == "PASS":
-                summary['passed'] += 1
             d[m.group(1)] = m.group(4)
             continue
 
         m = re.match(pattern_log, line)
         if m:
-            summary['logfile'] = m.group(1)
+            logdir = m.group(1)
 
-    return d
+    return d, logdir
 
 
 class ListMaybesAction(argparse.Action):
@@ -368,11 +356,11 @@ if __name__ == "__main__":
     parser.add_argument('--no-maybes', action='store_false', dest='maybes')
     args = parser.parse_args()
 
-    results = process_results(args.logfile)
+    results, logdir = process_results(args.logfile)
 
-    if summary['total'] == 0:
+    if not results:
         print("\n\nNo test results were found.")
-        print("Log directory:  %s" % summary['logfile'])
+        print("Log directory:", logdir)
         sys.exit(0)
 
     expected = []
@@ -427,7 +415,7 @@ if __name__ == "__main__":
             continue
         else:
             expect = "UNKNOWN REASON"
-        print("    %s %s (%s)" % (results[test], test, expect))
+        print(f"    {results[test]} {test} ({expect})")
 
     print("\nTests with result of PASS that are unexpected:")
     for test in sorted(known.keys()):
@@ -435,13 +423,12 @@ if __name__ == "__main__":
         # where "test" is not in "results".
         if test not in results or results[test] != "PASS":
             continue
-        print("    %s %s (expected %s)" % (results[test], test,
-                                           known[test][0]))
+        print(f"    {results[test]} {test} (expected {known[test][0]})")
 
     print("\nTests with results other than PASS that are unexpected:")
     for test in sorted(unexpected):
         expect = "PASS" if test not in known else known[test][0]
-        print("    %s %s (expected %s)" % (results[test], test, expect))
+        print(f"    {results[test]} {test} (expected {expect})")
 
     if len(unexpected) == 0:
         sys.exit(0)
