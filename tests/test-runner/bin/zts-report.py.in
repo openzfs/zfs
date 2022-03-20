@@ -67,7 +67,6 @@ exec_reason = 'Test user execute permissions required for utilities'
 # additional python modules be installed, for example python3-cffi is required
 # by the pyzfs tests.
 #
-python_reason = 'Python v3.6 or newer required'
 python_deps_reason = 'Python modules missing: python3-cffi'
 
 #
@@ -100,14 +99,6 @@ user_ns_reason = 'Kernel user namespace support required'
 # never a sure thing.
 #
 rewind_reason = 'Arbitrary pool rewind is not guaranteed'
-
-#
-# Some tests may by structured in a way that relies on exact knowledge
-# of how much free space in available in a pool.  These tests cannot be
-# made completely reliable because the internal details of how free space
-# is managed are not exposed to user space.
-#
-enospc_reason = 'Exact free space reporting is not guaranteed'
 
 #
 # Some tests require a minimum version of the fio benchmark utility.
