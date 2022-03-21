@@ -607,6 +607,18 @@ max_pipe_buffer(int infd)
 	}
 
 	unsigned int cur = fcntl(infd, F_GETPIPE_SZ);
+	/*
+	 * Sadly, Linux has an unfixed deadlock if you do SETPIPE_SZ on a pipe
+	 * with data in it.
+	 * cf. #13232, https://bugzilla.kernel.org/show_bug.cgi?id=212295
+	 *
+	 * And since the problem is in waking up the writer, there's nothing
+	 * we can do about it from here.
+	 *
+	 * So we add this workaround for people who get bitten.
+	 */
+	if (getenv("ZFS_NO_PIPE_MAX") != NULL)
+		return (cur);
 	if (cur < max && fcntl(infd, F_SETPIPE_SZ, max) != -1)
 		cur = max;
 	return (cur);
