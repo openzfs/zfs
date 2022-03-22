@@ -25,6 +25,6 @@
 log_assert "Run the tests for the SHA-2 hash algorithm."
 
 freq=$(get_cpu_freq)
-log_must $STF_SUITE/tests/functional/checksum/sha2_test $freq
+log_must sha2_test $freq
 
 log_pass "SHA-2 tests passed."

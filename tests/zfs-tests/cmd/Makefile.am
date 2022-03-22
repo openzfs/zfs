@@ -124,6 +124,45 @@ pkgexec_PROGRAMS += threadsappend
 threadsappend_SOURCES = threadsappend.c
 threadsappend_LDADD = -lpthread
 
+pkgexec_PROGRAMS += suid_write_to_file
+suid_write_to_file_SOURCES = suid_write_to_file.c
+
+pkgexec_PROGRAMS += cp_files
+cp_files_SOURCES = cp_files.c
+
+pkgexec_PROGRAMS += ctime
+ctime_SOURCES = ctime.c
+
+pkgexec_PROGRAMS += truncate_test
+truncate_test_SOURCES = truncate_test.c
+
+pkgexec_PROGRAMS += ereports
+ereports_SOURCES = ereports.c
+ereports_LDADD = \
+	$(abs_top_builddir)/lib/libnvpair/libnvpair.la \
+	$(abs_top_builddir)/lib/libzfs/libzfs.la
+
+pkgexec_PROGRAMS += zfs_diff-socket
+zfs_diff_socket_SOURCES = zfs_diff-socket.c
+
+pkgexec_PROGRAMS += dosmode_readonly_write
+dosmode_readonly_write_SOURCES = dosmode_readonly_write.c
+
+
+pkgexec_PROGRAMS += edonr_test skein_test sha2_test
+skein_test_SOURCES = checksum/skein_test.c
+sha2_test_SOURCES = checksum/sha2_test.c
+edonr_test_SOURCES = checksum/edonr_test.c
+skein_test_LDADD = \
+	$(abs_top_builddir)/lib/libicp/libicp.la \
+	$(abs_top_builddir)/lib/libspl/libspl_assert.la
+sha2_test_LDADD = \
+	$(abs_top_builddir)/lib/libicp/libicp.la \
+	$(abs_top_builddir)/lib/libspl/libspl_assert.la
+edonr_test_LDADD = \
+	$(abs_top_builddir)/lib/libicp/libicp.la \
+	$(abs_top_builddir)/lib/libspl/libspl_assert.la
+
 
 if BUILD_LINUX
 pkgexec_PROGRAMS += getversion
@@ -142,4 +181,7 @@ user_ns_exec_SOURCES = user_ns_exec.c
 
 pkgexec_PROGRAMS += xattrtest
 xattrtest_SOURCES = xattrtest.c
+
+pkgexec_PROGRAMS += zed_fd_spill-zedlet
+zed_fd_spill_zedlet_SOURCES = zed_fd_spill-zedlet.c
 endif

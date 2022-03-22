@@ -1,9 +1,3 @@
-include $(top_srcdir)/config/Rules.am
-
-LDADD = \
-	$(abs_top_builddir)/lib/libicp/libicp.la \
-	$(abs_top_builddir)/lib/libspl/libspl_assert.la
-
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/checksum
 
 dist_pkgdata_SCRIPTS = \
@@ -17,15 +11,3 @@ dist_pkgdata_SCRIPTS = \
 
 dist_pkgdata_DATA = \
 	default.cfg
-
-pkgexecdir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/checksum
-
-pkgexec_PROGRAMS = \
-	edonr_test \
-	skein_test \
-	sha2_test
-
-skein_test_SOURCES = skein_test.c
-sha2_test_SOURCES = sha2_test.c
-
-edonr_test_SOURCES = edonr_test.c
