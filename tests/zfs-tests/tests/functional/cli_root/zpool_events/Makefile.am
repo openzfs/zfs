@@ -1,7 +1,4 @@
-include $(top_srcdir)/config/Rules.am
-
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/cli_root/zpool_events
-pkgexecdir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/cli_root/zpool_events
 
 dist_pkgdata_SCRIPTS = \
 	setup.ksh \
@@ -17,10 +14,3 @@ dist_pkgdata_SCRIPTS = \
 dist_pkgdata_DATA = \
 	zpool_events.cfg \
 	zpool_events.kshlib
-
-ereports_LDADD = \
-	$(abs_top_builddir)/lib/libnvpair/libnvpair.la \
-	$(abs_top_builddir)/lib/libzfs/libzfs.la
-
-pkgexec_PROGRAMS = ereports
-ereports_SOURCES = ereports.c
