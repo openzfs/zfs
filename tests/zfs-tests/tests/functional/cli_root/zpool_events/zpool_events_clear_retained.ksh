@@ -55,8 +55,6 @@ OLD_LEN_MAX=$(get_tunable ZEVENT_LEN_MAX)
 RETAIN_MAX=$(get_tunable ZEVENT_RETAIN_MAX)
 OLD_CHECKSUMS=$(get_tunable CHECKSUM_EVENTS_PER_SECOND)
 
-EREPORTS="$STF_SUITE/tests/functional/cli_root/zpool_events/ereports"
-
 function cleanup
 {
 	log_must set_tunable64 CHECKSUM_EVENTS_PER_SECOND $OLD_CHECKSUMS
@@ -78,7 +76,7 @@ function damage_and_repair
 	log_must dd conv=notrunc if=$SUPPLY of=$VDEV1 bs=1M seek=4 count=$DAMAGEBLKS
 	log_must zpool scrub $POOL
 	log_must zpool wait -t scrub $POOL
-	log_note "pass $1 observed $($EREPORTS | grep -c checksum) checksum ereports"
+	log_note "pass $1 observed $(ereports | grep -c checksum) checksum ereports"
 
 	repaired=$(zpool status $POOL | awk '/scan: scrub repaired/ {print $4}')
 	if [ "$repaired" == "0B" ]; then

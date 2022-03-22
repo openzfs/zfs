@@ -38,7 +38,7 @@ log_note "Verify [acm]time is modified appropriately."
 for arg in ${args[*]}; do
 	log_note "Testing with xattr set to $arg"
 	log_must zfs set xattr=$arg $TESTPOOL
-	log_must $STF_SUITE/tests/functional/ctime/ctime
+	log_must ctime
 done
 
 log_pass "PASS"

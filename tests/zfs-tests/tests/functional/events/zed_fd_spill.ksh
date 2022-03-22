@@ -48,13 +48,12 @@ logdir="$(mktemp -d)"
 log_must ln -s "$logdir" /tmp/zts-zed_fd_spill-logdir
 
 
-self="$(readlink -f "$0")"
-zedlet="${self%/*}/zed_fd_spill-zedlet"
-log_must ln -s $zedlet "${ZEDLET_DIR}/all-dumpfds"
+zedlet="$(command -v zed_fd_spill-zedlet)"
+log_must ln -s "$zedlet" "${ZEDLET_DIR}/all-dumpfds"
 
 # zed will cry foul and refuse to run it if this isn't true
-sudo chown root $zedlet
-sudo chmod 700 $zedlet
+sudo chown root "$zedlet"
+sudo chmod 700 "$zedlet"
 
 log_must zpool events -c
 log_must zed_stop

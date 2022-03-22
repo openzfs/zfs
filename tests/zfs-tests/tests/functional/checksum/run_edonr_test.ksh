@@ -25,6 +25,6 @@
 log_assert "Run the tests for the EdonR hash algorithm."
 
 freq=$(get_cpu_freq)
-log_must $STF_SUITE/tests/functional/checksum/edonr_test $freq
+log_must edonr_test $freq
 
 log_pass "EdonR tests passed."
