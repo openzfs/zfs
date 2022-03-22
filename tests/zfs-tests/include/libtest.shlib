@@ -31,11 +31,11 @@
 # Use is subject to license terms.
 #
 
+. ${STF_SUITE}/include/tunables.cfg
+
 . ${STF_TOOLS}/include/logapi.shlib
 . ${STF_SUITE}/include/math.shlib
 . ${STF_SUITE}/include/blkdev.shlib
-
-. ${STF_SUITE}/include/tunables.cfg
 
 #
 # Apply constrained path when available.  This is required since the
@@ -83,7 +83,7 @@ function linux_version
 
 function is_linux
 {
-	[ $(uname) = "Linux" ]
+	[ "$UNAME" = "Linux" ]
 }
 
 # Determine if this is an illumos test system
@@ -91,7 +91,7 @@ function is_linux
 # Return 0 if platform illumos, 1 if otherwise
 function is_illumos
 {
-	[ $(uname) = "illumos" ]
+	[ "$UNAME" = "illumos" ]
 }
 
 # Determine if this is a FreeBSD test system
@@ -100,7 +100,7 @@ function is_illumos
 
 function is_freebsd
 {
-	[ $(uname) = "FreeBSD" ]
+	[ "$UNAME" = "FreeBSD" ]
 }
 
 # Determine if this is a DilOS test system
@@ -880,7 +880,7 @@ function set_partition
 	typeset disk=${4#$DEV_DSKDIR/}
 	disk=${disk#$DEV_RDSKDIR/}
 
-	case "$(uname)" in
+	case "$UNAME" in
 	Linux)
 		if [[ -z $size || -z $disk ]]; then
 			log_fail "The size or disk name is unspecified."
@@ -1033,7 +1033,7 @@ function get_endslice #<disk> <slice>
 		log_fail "The disk name or slice number is unspecified."
 	fi
 
-	case "$(uname)" in
+	case "$UNAME" in
 	Linux)
 		endcyl=$(parted -s $DEV_DSKDIR/$disk -- unit cyl print | \
 			awk "/part${slice}/"' {sub(/cyl/, "", $3); print $3}')
@@ -1259,7 +1259,7 @@ function is_shared
 		fi
 	fi
 
-	case $(uname) in
+	case "$UNAME" in
 	FreeBSD)	is_shared_freebsd "$fs"	;;
 	Linux)		is_shared_linux "$fs"	;;
 	*)		is_shared_illumos "$fs"	;;
@@ -1327,7 +1327,7 @@ function is_exported
 		fi
 	fi
 
-	case $(uname) in
+	case "$UNAME" in
 	FreeBSD)	is_exported_freebsd "$fs"	;;
 	Linux)		is_exported_linux "$fs"	;;
 	*)		is_exported_illumos "$fs"	;;
@@ -1348,7 +1348,7 @@ function is_shared_smb
 	if is_linux; then
 		net usershare list | grep -xFq "${fs//\//_}"
 	else
-		log_note "SMB on $(uname) currently unsupported by the test framework"
+		log_note "SMB on $UNAME currently unsupported by the test framework"
 		return 1
 	fi
 }
@@ -1394,7 +1394,7 @@ function share_nfs #fs
 
 	is_shared "$fs" && return
 
-	case $(uname) in
+	case "$UNAME" in
 	Linux)
 		log_must exportfs "*:$fs"
 		;;
@@ -1421,7 +1421,7 @@ function unshare_nfs #fs
 
 	! is_shared "$fs" && return
 
-	case $(uname) in
+	case "$UNAME" in
 	Linux)
 		log_must exportfs -u "*:$fs"
 		;;
@@ -1445,7 +1445,7 @@ function unshare_nfs #fs
 #
 function showshares_nfs
 {
-	case $(uname) in
+	case "$UNAME" in
 	Linux)
 		exportfs -v
 		;;
@@ -1474,7 +1474,7 @@ function showshares_smb
 
 function check_nfs
 {
-	case $(uname) in
+	case "$UNAME" in
 	Linux)
 		exportfs -s
 		;;
@@ -2563,7 +2563,7 @@ function add_user #<group_name> <user_name> <basedir>
 		log_fail "group name or user name are not defined."
 	fi
 
-	case $(uname) in
+	case "$UNAME" in
 	FreeBSD)
 		add_user_freebsd "$group" "$user" "$basedir"
 		;;
@@ -2593,7 +2593,7 @@ function del_user #<logname> <basedir>
 		log_fail "login name is necessary."
 	fi
 
-	case $(uname) in
+	case "$UNAME" in
 	FreeBSD)
 		del_user_freebsd "$user"
 		;;
@@ -2623,7 +2623,7 @@ function add_group #<group_name>
 		log_fail "group name is necessary."
 	fi
 
-	case $(uname) in
+	case "$UNAME" in
 	FreeBSD)
 		add_group_freebsd "$group"
 		;;
@@ -2651,7 +2651,7 @@ function del_group #<group_name>
 		log_fail "group name is necessary."
 	fi
 
-	case $(uname) in
+	case "$UNAME" in
 	FreeBSD)
 		del_group_freebsd "$group"
 		;;
@@ -3004,7 +3004,7 @@ function is_te_enabled
 # Utility function to determine if a system has multiple cpus.
 function is_mp
 {
-	case $(uname) in
+	case "$UNAME" in
 		Linux)
 			(($(grep -c '^processor' /proc/cpuinfo) > 1))
 			;;
@@ -3270,7 +3270,7 @@ function zed_rc_restore
 function zed_setup
 {
 	if ! is_linux; then
-		log_unsupported "No zed on $(uname)"
+		log_unsupported "No zed on $UNAME"
 	fi
 
 	if [[ ! -d $ZEDLET_DIR ]]; then
@@ -3436,7 +3436,7 @@ function is_swap_inuse
 		return 1
 	fi
 
-	case "$(uname)" in
+	case "$UNAME" in
 	Linux)
 		swapon -s | grep -wq $(readlink -f $device)
 		;;
@@ -3456,7 +3456,7 @@ function swap_setup
 {
 	typeset swapdev=$1
 
-	case "$(uname)" in
+	case "$UNAME" in
 	Linux)
 		log_must eval "mkswap $swapdev > /dev/null 2>&1"
 		log_must swapon $swapdev
@@ -3524,7 +3524,7 @@ function set_tunable_impl
 	eval "typeset tunable=\$$name"
 	case "$tunable" in
 	UNSUPPORTED)
-		log_unsupported "Tunable '$name' is unsupported on $(uname)"
+		log_unsupported "Tunable '$name' is unsupported on $UNAME"
 		;;
 	"")
 		log_fail "Tunable '$name' must be added to tunables.cfg"
@@ -3536,7 +3536,7 @@ function set_tunable_impl
 	[[ -z "$value" ]] && return 1
 	[[ -z "$mdb_cmd" ]] && return 1
 
-	case "$(uname)" in
+	case "$UNAME" in
 	Linux)
 		typeset zfs_tunables="/sys/module/$module/parameters"
 		echo "$value" >"$zfs_tunables/$tunable"
@@ -3569,7 +3569,7 @@ function get_tunable_impl
 	eval "typeset tunable=\$$name"
 	case "$tunable" in
 	UNSUPPORTED)
-		log_unsupported "Tunable '$name' is unsupported on $(uname)"
+		log_unsupported "Tunable '$name' is unsupported on $UNAME"
 		;;
 	"")
 		log_fail "Tunable '$name' must be added to tunables.cfg"
@@ -3578,7 +3578,7 @@ function get_tunable_impl
 		;;
 	esac
 
-	case "$(uname)" in
+	case "$UNAME" in
 	Linux)
 		typeset zfs_tunables="/sys/module/$module/parameters"
 		cat $zfs_tunables/$tunable
@@ -3600,7 +3600,7 @@ function md5digest
 {
 	typeset file=$1
 
-	case $(uname) in
+	case "$UNAME" in
 	FreeBSD)
 		md5 -q $file
 		;;
@@ -3620,7 +3620,7 @@ function sha256digest
 {
 	typeset file=$1
 
-	case $(uname) in
+	case "$UNAME" in
 	FreeBSD)
 		sha256 -q $file
 		;;
@@ -3634,7 +3634,7 @@ function sha256digest
 
 function new_fs #<args>
 {
-	case $(uname) in
+	case "$UNAME" in
 	FreeBSD)
 		newfs "$@"
 		;;
@@ -3648,7 +3648,7 @@ function stat_size #<path>
 {
 	typeset path=$1
 
-	case $(uname) in
+	case "$UNAME" in
 	FreeBSD)
 		stat -f %z "$path"
 		;;
@@ -3662,7 +3662,7 @@ function stat_ctime #<path>
 {
 	typeset path=$1
 
-	case $(uname) in
+	case "$UNAME" in
 	FreeBSD)
 		stat -f %c "$path"
 		;;
@@ -3676,7 +3676,7 @@ function stat_crtime #<path>
 {
 	typeset path=$1
 
-	case $(uname) in
+	case "$UNAME" in
 	FreeBSD)
 		stat -f %B "$path"
 		;;
@@ -3690,7 +3690,7 @@ function stat_generation #<path>
 {
 	typeset path=$1
 
-	case $(uname) in
+	case "$UNAME" in
 	Linux)
 		getversion "${path}"
 		;;
@@ -3735,7 +3735,7 @@ function get_xattr # name path
 	typeset name=$1
 	typeset path=$2
 
-	case $(uname) in
+	case "$UNAME" in
 	FreeBSD)
 		getextattr -qq user "${name}" "${path}"
 		;;
@@ -3751,7 +3751,7 @@ function set_xattr # name value path
 	typeset value=$2
 	typeset path=$3
 
-	case $(uname) in
+	case "$UNAME" in
 	FreeBSD)
 		setextattr user "${name}" "${value}" "${path}"
 		;;
@@ -3766,7 +3766,7 @@ function set_xattr_stdin # name value
 	typeset name=$1
 	typeset path=$2
 
-	case $(uname) in
+	case "$UNAME" in
 	FreeBSD)
 		setextattr -i user "${name}" "${path}"
 		;;
@@ -3781,7 +3781,7 @@ function rm_xattr # name path
 	typeset name=$1
 	typeset path=$2
 
-	case $(uname) in
+	case "$UNAME" in
 	FreeBSD)
 		rmextattr -q user "${name}" "${path}"
 		;;
@@ -3795,7 +3795,7 @@ function ls_xattr # path
 {
 	typeset path=$1
 
-	case $(uname) in
+	case "$UNAME" in
 	FreeBSD)
 		lsextattr -qq user "${path}"
 		;;
@@ -3810,7 +3810,7 @@ function kstat # stat flags?
 	typeset stat=$1
 	typeset flags=${2-"-n"}
 
-	case $(uname) in
+	case "$UNAME" in
 	FreeBSD)
 		sysctl $flags kstat.zfs.misc.$stat
 		;;
@@ -3827,7 +3827,7 @@ function get_arcstat # stat
 {
 	typeset stat=$1
 
-	case $(uname) in
+	case "$UNAME" in
 	FreeBSD)
 		kstat arcstats.$stat
 		;;
@@ -3846,7 +3846,7 @@ function punch_hole # offset length file
 	typeset length=$2
 	typeset file=$3
 
-	case $(uname) in
+	case "$UNAME" in
 	FreeBSD)
 		truncate -d -o $offset -l $length "$file"
 		;;
@@ -4008,7 +4008,7 @@ function replay_directory_diff # dir_a dir_b
 function push_coredump_pattern # dir
 {
 	ulimit -c unlimited
-	case $(uname) in
+	case "$UNAME" in
 	Linux)
 		cat /proc/sys/kernel/core_pattern /proc/sys/kernel/core_uses_pid
 		echo "$1/core.%e" >/proc/sys/kernel/core_pattern &&
@@ -4031,7 +4031,7 @@ function push_coredump_pattern # dir
 function pop_coredump_pattern
 {
 	[ -s "$1" ] || return 0
-	case $(uname) in
+	case "$UNAME" in
 	Linux)
 		typeset pat pid
 		{ read -r pat; read -r pid; } < "$1"
