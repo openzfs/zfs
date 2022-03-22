@@ -123,7 +123,7 @@ verify_object_class "$MNTPOINT/dir" "/"
 
 # 2. = (Socket)
 log_must zfs snapshot "$TESTSNAP1"
-log_must $STF_SUITE/tests/functional/cli_root/zfs_diff/socket "$MNTPOINT/sock"
+log_must zfs_diff-socket "$MNTPOINT/sock"
 log_must zfs snapshot "$TESTSNAP2"
 verify_object_class "$MNTPOINT/sock" "="
 

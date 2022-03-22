@@ -64,7 +64,6 @@ function hasflag
 log_assert "Verify DOS mode flags function correctly"
 log_onexit cleanup
 
-tests_base=$STF_SUITE/tests/functional/acl/off
 testfile=$TESTDIR/testfile
 owner=$ZFS_ACL_STAFF1
 other=$ZFS_ACL_STAFF2
@@ -157,7 +156,7 @@ log_must rm $testfile
 # READONLY is set.  We have a special test program for that.
 log_must user_run $owner touch $testfile
 log_mustnot user_run $other $changeflags rdonly $testfile
-log_must user_run $owner $tests_base/dosmode_readonly_write $testfile
+log_must user_run $owner dosmode_readonly_write $testfile
 log_mustnot user_run $other $changeflags nordonly $testfile
 log_must hasflag rdonly $testfile
 if ! is_linux; then

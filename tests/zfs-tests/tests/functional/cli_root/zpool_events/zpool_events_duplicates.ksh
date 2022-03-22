@@ -46,8 +46,6 @@ FILESIZE="10M"
 OLD_LEN_MAX=$(get_tunable ZEVENT_LEN_MAX)
 RETAIN_MAX=$(get_tunable ZEVENT_RETAIN_MAX)
 
-EREPORTS="$STF_SUITE/tests/functional/cli_root/zpool_events/ereports"
-
 duplicates=false
 
 function cleanup
@@ -117,7 +115,7 @@ function do_dup_test
 
 	log_must zinject -c all
 
-	ereports="$($EREPORTS | sort)"
+	ereports="$(ereports | sort)"
 	actual=$(echo "$ereports" | wc -l)
 	unique=$(echo "$ereports" | uniq | wc -l)
 	log_note "$actual total $ERR $RW ereports where $unique were unique"

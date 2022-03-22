@@ -47,6 +47,6 @@ function cleanup
 log_onexit cleanup
 log_note "Verify write(2) to SUID file by non-owner"
 
-log_must $STF_SUITE/tests/functional/suid/suid_write_to_file "SUID" "PRECRASH"
+log_must suid_write_to_file "SUID" "PRECRASH"
 
 log_pass "Verify write(2) to SUID file by non-owner passed"

@@ -65,10 +65,10 @@ log_must zpool freeze $TESTPOOL
 #
 # 3. Unprivileged write to a setuid file
 #
-log_must $STF_SUITE/tests/functional/suid/suid_write_to_file "NONE"      "PRECRASH"
-log_must $STF_SUITE/tests/functional/suid/suid_write_to_file "SUID"      "PRECRASH"
-log_must $STF_SUITE/tests/functional/suid/suid_write_to_file "SGID"      "PRECRASH"
-log_must $STF_SUITE/tests/functional/suid/suid_write_to_file "SUID_SGID" "PRECRASH"
+log_must suid_write_to_file "NONE"      "PRECRASH"
+log_must suid_write_to_file "SUID"      "PRECRASH"
+log_must suid_write_to_file "SGID"      "PRECRASH"
+log_must suid_write_to_file "SUID_SGID" "PRECRASH"
 
 #
 # 4. Unmount filesystem and export the pool
@@ -91,9 +91,9 @@ log_must zpool export $TESTPOOL
 #
 log_must zpool import -f -d $VDIR $TESTPOOL
 
-log_must $STF_SUITE/tests/functional/suid/suid_write_to_file "NONE"      "REPLAY"
-log_must $STF_SUITE/tests/functional/suid/suid_write_to_file "SUID"      "REPLAY"
-log_must $STF_SUITE/tests/functional/suid/suid_write_to_file "SGID"      "REPLAY"
-log_must $STF_SUITE/tests/functional/suid/suid_write_to_file "SUID_SGID" "REPLAY"
+log_must suid_write_to_file "NONE"      "REPLAY"
+log_must suid_write_to_file "SUID"      "REPLAY"
+log_must suid_write_to_file "SGID"      "REPLAY"
+log_must suid_write_to_file "SUID_SGID" "REPLAY"
 
 log_pass

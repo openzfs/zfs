@@ -42,7 +42,7 @@
  * When the class and all of these values match, then an ereport is
  * considered to be a duplicate.
  */
-static const char *criteria_name[] = {
+static const char *const criteria_name[] = {
 	FM_EREPORT_PAYLOAD_ZFS_POOL,
 	FM_EREPORT_PAYLOAD_ZFS_VDEV_GUID,
 	FM_EREPORT_PAYLOAD_ZFS_ZIO_ERR,

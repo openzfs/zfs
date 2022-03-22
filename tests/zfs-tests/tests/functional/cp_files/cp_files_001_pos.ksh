@@ -55,8 +55,7 @@ log_onexit cleanup
 NR_FILES=60000
 BATCH=1000
 
-log_must mkdir $TESTDIR/src
-log_must mkdir $TESTDIR/dst
+log_must mkdir $TESTDIR/src $TESTDIR/dst
 
 WD=$PWD
 cd $TESTDIR/src
@@ -67,7 +66,7 @@ cd $WD
 log_must test $NR_FILES -eq $(ls -U $TESTDIR/src | wc -l)
 
 # copy files from src to dst, use cp_files to make sure we copy in readdir order
-log_must $STF_SUITE/tests/functional/cp_files/cp_files $TESTDIR/src $TESTDIR/dst
+log_must cp_files $TESTDIR/src $TESTDIR/dst
 
 log_must test $NR_FILES -eq $(ls -U $TESTDIR/dst | wc -l)
 

@@ -32,3 +32,14 @@
 /user_ns_exec
 /write_dos_attributes
 /xattrtest
+/zed_fd_spill-zedlet
+/suid_write_to_file
+/cp_files
+/ctime
+/truncate_test
+/ereports
+/zfs_diff-socket
+/dosmode_readonly_write
+/edonr_test
+/skein_test
+/sha2_test

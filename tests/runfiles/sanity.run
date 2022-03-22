@@ -438,7 +438,9 @@ tests = ['history_004_pos', 'history_005_neg', 'history_007_pos',
 tags = ['functional', 'history']
 
 [tests/functional/hkdf]
-tests = ['run_hkdf_test']
+pre =
+post =
+tests = ['hkdf_test']
 tags = ['functional', 'hkdf']
 
 [tests/functional/inuse]
