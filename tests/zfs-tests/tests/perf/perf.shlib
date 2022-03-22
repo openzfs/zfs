@@ -380,44 +380,56 @@ function get_directory
 
 function get_min_arc_size
 {
-	if is_freebsd; then
+	case "$UNAME" in
+	Linux)
+		awk '$1 == "c_min" { print $3 }' /proc/spl/kstat/zfs/arcstats
+		;;
+	FreeBSD)
 		sysctl -n kstat.zfs.misc.arcstats.c_min
-	elif is_illumos; then
+		;;
+	*)
 		dtrace -qn 'BEGIN {
 		    printf("%u\n", `arc_stats.arcstat_c_min.value.ui64);
 		    exit(0);
 		}'
-	elif is_linux; then
-		awk '$1 == "c_min" { print $3 }' /proc/spl/kstat/zfs/arcstats
-	fi || log_fail "get_min_arc_size failed"
+		;;
+	esac || log_fail "get_min_arc_size failed"
 }
 
 function get_max_arc_size
 {
-	if is_freebsd; then
+	case "$UNAME" in
+	Linux)
+		awk '$1 == "c_max" { print $3 }' /proc/spl/kstat/zfs/arcstats
+		;;
+	FreeBSD)
 		sysctl -n kstat.zfs.misc.arcstats.c_max
-	elif is_illumos; then
+		;;
+	*)
 		dtrace -qn 'BEGIN {
 		    printf("%u\n", `arc_stats.arcstat_c_max.value.ui64);
 		    exit(0);
 		}'
-	elif is_linux; then
-		awk '$1 == "c_max" { print $3 }' /proc/spl/kstat/zfs/arcstats
-	fi || log_fail "get_max_arc_size failed"
+		;;
+	esac || log_fail "get_max_arc_size failed"
 }
 
 function get_arc_target
 {
-	if is_freebsd; then
+	case "$UNAME" in
+	Linux)
+		awk '$1 == "c" { print $3 }' /proc/spl/kstat/zfs/arcstats
+		;;
+	FreeBSD)
 		sysctl -n kstat.zfs.misc.arcstats.c
-	elif is_illumos; then
+		;;
+	*)
 		dtrace -qn 'BEGIN {
 		    printf("%u\n", `arc_stats.arcstat_c.value.ui64);
 		    exit(0);
 		}'
-	elif is_linux; then
-		awk '$1 == "c" { print $3 }' /proc/spl/kstat/zfs/arcstats
-	fi || log_fail "get_arc_target failed"
+		;;
+	esac || log_fail "get_arc_target failed"
 }
 
 function get_dbuf_cache_size
@@ -535,32 +547,34 @@ function pool_to_lun_list
 	typeset ctd ctds devname lun
 	typeset lun_list=':'
 
-	if is_illumos; then
-		ctds=$(zpool list -v $pool |
-		    awk '/c[0-9]*t[0-9a-fA-F]*d[0-9]*/ {print $1}')
-
-		for ctd in $ctds; do
-		# Get the device name as it appears in /etc/path_to_inst
-		devname=$(readlink -f /dev/dsk/${ctd}s0 | sed -n \
-		    's/\/devices\([^:]*\):.*/\1/p')
-		# Add a string composed of the driver name and instance
-		# number to the list for comparison with dev_statname.
-		lun=$(sed 's/"//g' /etc/path_to_inst | grep \
-		    $devname | awk '{print $3$2}')
-		lun_list="$lun_list$lun:"
-		done
-	elif is_freebsd; then
-		lun_list+=$(zpool list -HLv $pool | \
-		    awk '/a?da[0-9]+|md[0-9]+|mfid[0-9]+|nda[0-9]+|nvd[0-9]+|vtbd[0-9]+/
-		         { printf "%s:", $1 }')
-	elif is_linux; then
+	case "$UNAME" in
+	Linux)
 		ctds=$(zpool list -HLv $pool | \
 		    awk '/sd[a-z]*|loop[0-9]*|dm-[0-9]*/ {print $1}')
 
 		for ctd in $ctds; do
 			lun_list="$lun_list$ctd:"
 		done
-	fi
+		;;
+	FreeBSD)
+		lun_list+=$(zpool list -HLv $pool | \
+		    awk '/a?da[0-9]+|md[0-9]+|mfid[0-9]+|nda[0-9]+|nvd[0-9]+|vtbd[0-9]+/
+		         { printf "%s:", $1 }')
+		;;
+	*)
+		ctds=$(zpool list -v $pool |
+		    awk '/c[0-9]*t[0-9a-fA-F]*d[0-9]*/ {print $1}')
+
+		for ctd in $ctds; do
+			# Get the device name as it appears in /etc/path_to_inst
+			devname=$(readlink -f /dev/dsk/${ctd}s0 | sed -n 's/\/devices\([^:]*\):.*/\1/p')
+			# Add a string composed of the driver name and instance
+			# number to the list for comparison with dev_statname.
+			lun=$(sed 's/"//g' /etc/path_to_inst | awk -v dn="$devname" '$0 ~ dn {print $3$2}')
+			lun_list="$lun_list$lun:"
+		done
+		;;
+	esac
 	echo $lun_list
 }
 

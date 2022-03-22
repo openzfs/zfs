@@ -485,7 +485,7 @@ function get_pool_devices #testpool #devdir
 	typeset devdir=$2
 	typeset out=""
 
-	case $(uname) in
+	case "$UNAME" in
 	Linux|FreeBSD)
 		zpool status -P $testpool | awk -v d="$devdir" '$1 ~ d {sub(d "/", ""); printf("%s ", $1)}'
 		;;
