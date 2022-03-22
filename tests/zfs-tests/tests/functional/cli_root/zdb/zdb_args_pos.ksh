@@ -59,7 +59,7 @@ function test_imported_pool
 {
 	typeset -a args=("-A" "-b" "-C" "-c" "-d" "-D" "-G" "-h" "-i" "-L" \
             "-M" "-P" "-s" "-v" "-Y" "-y")
-        for i in ${args[@]}; do
+	for i in ${args[@]}; do
 		log_must eval "zdb $i $TESTPOOL >/dev/null"
 	done
 }
@@ -69,7 +69,7 @@ function test_exported_pool
 	log_must zpool export $TESTPOOL
 	typeset -a args=("-A" "-b" "-C" "-c" "-d" "-D" "-F" "-G" "-h" "-i" "-L" "-M" \
             "-P" "-s" "-v" "-X" "-Y" "-y")
-        for i in ${args[@]}; do
+	for i in ${args[@]}; do
 		log_must eval "zdb -e $i $TESTPOOL >/dev/null"
 	done
 	log_must zpool import $TESTPOOL
@@ -81,7 +81,7 @@ function test_vdev
 	VDEVS=$(get_pool_devices ${TESTPOOL} ${DEV_RDSKDIR})
 	log_note $VDEVS
 	set -A VDEV_ARRAY $VDEVS
-        for i in ${args[@]}; do
+	for i in ${args[@]}; do
 		log_must eval "zdb -l $i ${VDEV_ARRAY[0]} >/dev/null"
 	done
 }
@@ -89,7 +89,7 @@ function test_vdev
 function test_metaslab
 {
 	typeset -a args=("-A" "-L" "-P" "-Y")
-        for i in ${args[@]}; do
+	for i in ${args[@]}; do
 		log_must eval "zdb -m $i $TESTPOOL >/dev/null"
 	done
 }
