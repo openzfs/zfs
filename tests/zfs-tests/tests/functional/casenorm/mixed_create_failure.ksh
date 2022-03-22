@@ -70,6 +70,7 @@ function test_ops
 {
 	typeset obj_type=$1
 	typeset testdir=$2
+	typeset save_name=
 
 	target_obj='target-file'
 
@@ -83,7 +84,7 @@ function test_ops
 	log_note "Created test dir $test_path"
 
 	if [[ $obj_type = "symlink" || $obj_type = "hardlink" ]]; then
-		touch $test_path/$target_obj
+		> $test_path/$target_obj
 		log_note "Created target: $test_path/$target_obj"
 		op="$op $test_path/$target_obj"
 	fi
@@ -104,21 +105,16 @@ function test_ops
 			fi
 		fi
 	done
+	[ -n "$save_name" ] || log_fail "Didn't ENOSPC!"
 
-	log_note 'Test rename \"sample_name\" rename'
+	log_note 'Test rename "sample_name" rename'
 	TMP_OBJ="$test_path/tmp_obj"
 	cmd="$op $TMP_OBJ"
-	out=$($cmd 2>&1)
-	ret=$?
-	if (($ret != 0)); then
-		log_fail "$cmd failed: $out"
-	fi
+	log_must $cmd
 
 	# Now, try to rename the tmp_obj to the name which we failed to add earlier.
 	# This should fail as well.
-	out=$(mv $TMP_OBJ $save_name 2>&1)
-	ret=$?
-	if (($ret != 0)); then
+	if ! out=$(mv $TMP_OBJ $save_name 2>&1); then
 		if [[ $out = *@(No space left on device)* ]]; then
 			log_note "$cmd failed as expected: $out"
 		else
