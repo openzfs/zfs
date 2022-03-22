@@ -201,39 +201,6 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/Makefile
 	tests/zfs-tests/callbacks/Makefile
 	tests/zfs-tests/cmd/Makefile
-	tests/zfs-tests/cmd/badsend/Makefile
-	tests/zfs-tests/cmd/btree_test/Makefile
-	tests/zfs-tests/cmd/chg_usr_exec/Makefile
-	tests/zfs-tests/cmd/devname2devid/Makefile
-	tests/zfs-tests/cmd/draid/Makefile
-	tests/zfs-tests/cmd/dir_rd_update/Makefile
-	tests/zfs-tests/cmd/file_check/Makefile
-	tests/zfs-tests/cmd/file_trunc/Makefile
-	tests/zfs-tests/cmd/file_write/Makefile
-	tests/zfs-tests/cmd/get_diff/Makefile
-	tests/zfs-tests/cmd/getversion/Makefile
-	tests/zfs-tests/cmd/largest_file/Makefile
-	tests/zfs-tests/cmd/libzfs_input_check/Makefile
-	tests/zfs-tests/cmd/mkbusy/Makefile
-	tests/zfs-tests/cmd/mkfile/Makefile
-	tests/zfs-tests/cmd/mkfiles/Makefile
-	tests/zfs-tests/cmd/mktree/Makefile
-	tests/zfs-tests/cmd/mmap_exec/Makefile
-	tests/zfs-tests/cmd/mmap_libaio/Makefile
-	tests/zfs-tests/cmd/mmap_seek/Makefile
-	tests/zfs-tests/cmd/mmapwrite/Makefile
-	tests/zfs-tests/cmd/nvlist_to_lua/Makefile
-	tests/zfs-tests/cmd/randfree_file/Makefile
-	tests/zfs-tests/cmd/randwritecomp/Makefile
-	tests/zfs-tests/cmd/readmmap/Makefile
-	tests/zfs-tests/cmd/linux_dos_attributes/Makefile
-	tests/zfs-tests/cmd/rename_dir/Makefile
-	tests/zfs-tests/cmd/rm_lnkcnt_zero_file/Makefile
-	tests/zfs-tests/cmd/send_doall/Makefile
-	tests/zfs-tests/cmd/stride_dd/Makefile
-	tests/zfs-tests/cmd/threadsappend/Makefile
-	tests/zfs-tests/cmd/user_ns_exec/Makefile
-	tests/zfs-tests/cmd/xattrtest/Makefile
 	tests/zfs-tests/include/Makefile
 	tests/zfs-tests/tests/Makefile
 	tests/zfs-tests/tests/functional/Makefile

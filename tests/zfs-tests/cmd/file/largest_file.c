@@ -28,7 +28,7 @@
  * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
-#include "../file_common.h"
+#include "file_common.h"
 #include <sys/param.h>
 #include <signal.h>
 #include <stdio.h>

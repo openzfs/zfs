@@ -15,7 +15,7 @@
 
 #include <stdint.h>
 #include <string.h>
-#include "../file_common.h"
+#include "file_common.h"
 
 /*
  * The following sample was derived from real-world data
