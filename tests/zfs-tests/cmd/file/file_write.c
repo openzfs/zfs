@@ -24,7 +24,7 @@
  * Use is subject to license terms.
  */
 
-#include "../file_common.h"
+#include "file_common.h"
 #include <libgen.h>
 #include <string.h>
 #include <inttypes.h>
