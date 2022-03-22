@@ -323,8 +323,6 @@ smb_disable_share_one(const char *sharename)
 static int
 smb_disable_share(sa_share_impl_t impl_share)
 {
-	smb_share_t *shares = smb_shares;
-
 	if (!smb_available()) {
 		/*
 		 * The share can't possibly be active, so nothing
@@ -333,12 +331,9 @@ smb_disable_share(sa_share_impl_t impl_share)
 		return (SA_OK);
 	}
 
-	while (shares != NULL) {
-		if (strcmp(impl_share->sa_mountpoint, shares->path) == 0)
-			return (smb_disable_share_one(shares->name));
-
-		shares = shares->next;
-	}
+	for (const smb_share_t *i = smb_shares; i != NULL; i = i->next)
+		if (strcmp(impl_share->sa_mountpoint, i->path) == 0)
+			return (smb_disable_share_one(i->name));
 
 	return (SA_OK);
 }
@@ -362,20 +357,15 @@ smb_validate_shareopts(const char *shareopts)
 static boolean_t
 smb_is_share_active(sa_share_impl_t impl_share)
 {
-	smb_share_t *iter = smb_shares;
-
 	if (!smb_available())
 		return (B_FALSE);
 
 	/* Retrieve the list of (possible) active shares */
 	smb_retrieve_shares();
 
-	while (iter != NULL) {
-		if (strcmp(impl_share->sa_mountpoint, iter->path) == 0)
+	for (const smb_share_t *i = smb_shares; i != NULL; i = i->next)
+		if (strcmp(impl_share->sa_mountpoint, i->path) == 0)
 			return (B_TRUE);
-
-		iter = iter->next;
-	}
 
 	return (B_FALSE);
 }
