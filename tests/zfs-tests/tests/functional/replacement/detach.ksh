@@ -134,10 +134,7 @@ log_must zfs set mountpoint=$TESTDIR1 $TESTPOOL1/$TESTFS1
 
 detach_test $TESTDIR/$TESTFILE1.1
 
-zpool iostat -v $TESTPOOL1 | grep "$TESTFILE1.1"
-if [[ $? -eq 0 ]]; then
-	log_fail "$TESTFILE1.1 should no longer be present."
-fi
+log_mustnot eval "zpool iostat -v $TESTPOOL1 | grep \"$TESTFILE1.1\""
 
 destroy_pool $TESTPOOL1
 
@@ -150,10 +147,7 @@ for type in "" "raidz" "raidz1" "draid"; do
 
 	log_mustnot zpool detach $TESTDIR/$TESTFILE1.1
 
-	zpool iostat -v $TESTPOOL1 | grep "$TESTFILE1.1"
-	if [[ $? -ne 0 ]]; then
-	        log_fail "$TESTFILE1.1 is not present."
-	fi
+	log_must eval "zpool iostat -v $TESTPOOL1 | grep \"$TESTFILE1.1\""
 
 	destroy_pool $TESTPOOL1
 done

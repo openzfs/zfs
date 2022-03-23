@@ -60,18 +60,12 @@ function cleanup
 function exec_n_check
 {
 	typeset expect_value=$1
-
 	shift
-	$@
-	ret=$?
-	if [[ $ret != $expect_value ]]; then
-		log_fail "Unexpected return code: '$ret'"
-	fi
-
-	return 0
+	"$@"
+	log_must [ $? = $expect_value ]
 }
 
-log_assert "Setting exec=off on a filesystem, processes can not be executed " \
+log_assert "Setting exec=off on a filesystem, processes can not be executed" \
 	"from this file system."
 log_onexit cleanup
 
@@ -79,11 +73,11 @@ log_must cp  $STF_PATH/ls $TESTDIR/myls
 log_must zfs set exec=off $TESTPOOL/$TESTFS
 
 if is_linux; then
-	log_must exec_n_check 126 $TESTDIR/myls
-	log_must exec_n_check 1 mmap_exec $TESTDIR/myls	# EPERM
+	exp=1 # EPERM
 else
-	log_must exec_n_check 126 $TESTDIR/myls
-	log_must exec_n_check 13 mmap_exec $TESTDIR/myls # EACCES
+	exp=13 # EACCES
 fi
+log_must exec_n_check 126  $TESTDIR/myls
+log_must exec_n_check $exp mmap_exec $TESTDIR/myls
 
 log_pass "Setting exec=off on filesystem testing passed."

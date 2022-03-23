@@ -69,23 +69,13 @@ do
 	for cmdval in ${ashifts[@]}
 	do
 		log_must zpool create -o ashift=$ashift $TESTPOOL1 $disk1
-		verify_ashift $disk1 $ashift
-		if [[ $? -ne 0 ]]
-		then
-			log_fail "Pool was created without setting ashift " \
-			    "value to $ashift"
-		fi
+		log_must verify_ashift $disk1 $ashift
 		# ashift_of(replacing_disk) <= ashift_of(existing_vdev)
 		if [[ $cmdval -le $ashift ]]
 		then
 			log_must zpool replace -o ashift=$cmdval $TESTPOOL1 \
 			    $disk1 $disk2
-			verify_ashift $disk2 $ashift
-			if [[ $? -ne 0 ]]
-			then
-				log_fail "Device was replaced without " \
-				    "setting ashift value to $ashift"
-			fi
+			log_must verify_ashift $disk2 $ashift
 			wait_replacing $TESTPOOL1
 		else
 			log_mustnot zpool replace -o ashift=$cmdval $TESTPOOL1 \

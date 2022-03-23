@@ -44,19 +44,13 @@
 
 function check_zdb
 {
-	$@ > $TEST_BASE_DIR/zdb.$$
-	grep "Dataset mos" $TEST_BASE_DIR/zdb.$$
-	if [ $? -eq 0 ]
-	then
-		log_fail "$@ exited 0 when run as a non root user!"
-	fi
-	rm $TEST_BASE_DIR/zdb.$$
+	log_mustnot eval "$* | grep -q 'Dataset mos'"
 }
 
 
 function cleanup
 {
-	rm -f $TEST_BASE_DIR/zdb_001_neg.$$.txt $TEST_BASE_DIR/zdb.$$
+	rm -f $TEST_BASE_DIR/zdb_001_neg.$$.txt
 }
 
 verify_runnable "global"
@@ -66,7 +60,7 @@ log_onexit cleanup
 
 log_must eval "zdb > $TEST_BASE_DIR/zdb_001_neg.$$.txt"
 # verify the output looks okay
-log_must grep pool_guid $TEST_BASE_DIR/zdb_001_neg.$$.txt
+log_must grep -q pool_guid $TEST_BASE_DIR/zdb_001_neg.$$.txt
 log_must rm $TEST_BASE_DIR/zdb_001_neg.$$.txt
 
 # we shouldn't able to run it on any dataset

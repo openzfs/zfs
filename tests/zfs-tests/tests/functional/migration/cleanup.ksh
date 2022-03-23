@@ -34,11 +34,9 @@
 
 verify_runnable "global"
 
-ismounted $NONZFS_TESTDIR $NEWFS_DEFAULT_FS
-(( $? == 0 )) && log_must umount -f $NONZFS_TESTDIR
+ismounted $NONZFS_TESTDIR $NEWFS_DEFAULT_FS && log_must umount -f $NONZFS_TESTDIR
 
-ismounted $TESTPOOL/$TESTFS
-[[ $? == 0 ]] && log_must zfs umount -f $TESTDIR
+ismounted $TESTPOOL/$TESTFS && log_must zfs umount -f $TESTDIR
 destroy_pool $TESTPOOL
 
 DISK=${DISKS%% *}

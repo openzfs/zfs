@@ -66,10 +66,7 @@ cd /tmp
 for path in $TESTPOOL/$TESTFS $TESTDIR ./../$TESTDIR ; do
 	zfs list -rH -o name $path > $tmpfile
 	for fs in $children ; do
-		grep "^${fs}$" $tmpfile > /dev/null 2>&1
-		if (( $? != 0 )); then
-			log_fail "$fs not shown in the output list."
-		fi
+		log_must grep -qxF "$fs" $tmpfile
 	done
 done
 

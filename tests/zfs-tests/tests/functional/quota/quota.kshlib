@@ -59,8 +59,8 @@ function fill_quota
 	file_write -o create -f $MNTPT/$TESTFILE1 -b $BLOCK_SIZE \
 		 -c $write_size -d 0
 	zret=$?
-        [[ $zret -ne $EDQUOT ]] && \
-            log_fail "Returned error code: $zret. Expected: $EDQUOT."
+    [[ $zret -ne $EDQUOT ]] && \
+        log_fail "Returned error code: $zret. Expected: $EDQUOT."
 
 	typeset -i file_size=`ls -lsk $MNTPT/$TESTFILE1 | awk '{ print $1 }'`
 	typeset -i limit=0

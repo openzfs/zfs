@@ -43,19 +43,12 @@
 #
 #
 
-# check to see if we have zfs unallow
-zfs 2>&1 | grep "unallow" > /dev/null
-if (($? != 0)) then
-        log_unsupported "ZFS unallow not supported on this machine."
-fi
-
 log_assert "zfs unallow returns an error when run as a user"
 
 log_mustnot zfs unallow everyone $TESTPOOL/$TESTFS/allowed
 
 # now check with zfs allow to see if the permissions are still there
-OUTPUT=$(zfs allow $TESTPOOL/$TESTFS/allowed | grep "Local+Descendent" )
-if [ -z "$OUTPUT" ]
+if ! zfs allow $TESTPOOL/$TESTFS/allowed | grep -q "Local+Descendent"
 then
 	log_fail "Error - create permissions were unallowed on \
 	$TESTPOOL/$TESTFS/allowed"

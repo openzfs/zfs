@@ -81,17 +81,13 @@ function zpool_stress
 	typeset retry=10
 	typeset j=0
 
-	truncate -s $FILESIZE $vdev0
-	truncate -s $FILESIZE $vdev1
+	truncate -s $FILESIZE $vdev0 $vdev1
 
 	while [[ $j -lt $iters ]]; do
 		((j = j + 1))
 		sleep 1
 
-		zpool create $pool $vdev0 $vdev1
-		if [ $? -ne 0 ]; then
-			return 1;
-		fi
+		zpool create $pool $vdev0 $vdev1 || return 1
 
 		# The 'zfs destroy' command is retried because it can
 		# transiently return EBUSY when blkid is concurrently
@@ -100,13 +96,8 @@ function zpool_stress
 		while [[ $k -lt $retry ]]; do
 			((k = k + 1))
 
-			zpool destroy $pool
-			if [ $? -eq 0 ]; then
-				break;
-			elif [ $k -eq $retry ]; then
-				return 1;
-			fi
-
+			zpool destroy $pool && break
+			[ $k -eq $retry ] && return 1
 			sleep 3
 		done
 	done

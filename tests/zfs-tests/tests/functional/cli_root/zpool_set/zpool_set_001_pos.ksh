@@ -51,7 +51,7 @@ then
 	log_fail "\"zpool set\" exit status $RET should be equal to 2."
 fi
 
-OUTPUT=$(zpool set 2>&1 | grep -i usage)
+zpool set 2>&1 | grep -qi usage
 if [ $? != 0 ]
 then
 	log_fail "Usage message for zpool set did not contain the word 'usage'."

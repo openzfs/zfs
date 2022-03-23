@@ -80,7 +80,7 @@ for arch in "i386" "sparc"; do
 	    log_must zpool destroy -f $migratedpoolname
 
 	log_must zpool import -d $import_dir $migratedpoolname
-	log_must eval "TZ=$TIMEZONE zpool history $migratedpoolname | grep -v "^\$" >$migrated_cmds_f"
+	log_must eval "TZ=$TIMEZONE zpool history $migratedpoolname | grep -v \"^\$\" >$migrated_cmds_f"
 
 	# The migrated history file should differ with original history file on
 	# two commands -- 'export' and 'import', which are included in migrated
@@ -89,20 +89,20 @@ for arch in "i386" "sparc"; do
 	# then compare this filtered file with the original history file. They
 	# should be identical at this time.
 	for subcmd in "export" "import"; do
-		grep -q "$subcmd" $migrated_cmds_f || \
-		    log_fail "zpool $subcmd is not logged for" \
-		        "the imported pool $migratedpoolname."
+		grep -q "$subcmd" $migrated_cmds_f ||
+			log_fail "zpool $subcmd is not logged for" \
+			    "the imported pool $migratedpoolname."
 	done
 
 	tmpfile=$import_dir/cmds_tmp.$$
-	linenum=`wc -l < $migrated_cmds_f`
+	linenum=$(wc -l < $migrated_cmds_f)
 	(( linenum = linenum - 2 ))
 	head -n $linenum $migrated_cmds_f > $tmpfile
 	log_must diff $tmpfile $orig_cmds_f1
 
 	# cleanup for next loop testing
 	log_must zpool destroy -f $migratedpoolname
-	log_must rm -f `ls $import_dir`
+	log_must rm -f $(ls $import_dir)
 done
 
 log_pass "Verify command history moves with migrated pool."

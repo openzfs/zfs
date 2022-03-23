@@ -55,18 +55,13 @@ log_onexit depth_fs_cleanup
 set -A all_props type used available creation volsize referenced \
 	compressratio mounted origin recordsize quota reservation mountpoint \
 	sharenfs checksum compression atime devices exec readonly setuid \
-	snapdir aclinherit canmount primarycache secondarycache \
+	snapdir aclinherit canmount primarycache secondarycache version \
 	usedbychildren usedbydataset usedbyrefreservation usedbysnapshots \
 	userquota@root groupquota@root userused@root groupused@root
 if is_freebsd; then
 	set -A all_props ${all_props[*]} jailed aclmode
 else
 	set -A all_props ${all_props[*]} zoned acltype
-fi
-
-zfs upgrade -v > /dev/null 2>&1
-if [[ $? -eq 0 ]]; then
-	set -A all_props ${all_props[*]} version
 fi
 
 depth_fs_setup

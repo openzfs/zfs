@@ -114,10 +114,7 @@ do
 
 	# Reimport pool with drive missing
 	log_must zpool import $TESTPOOL
-	check_state $TESTPOOL "" "degraded"
-	if (($? != 0)); then
-		log_fail "$TESTPOOL is not degraded"
-	fi
+	log_must check_state $TESTPOOL "" "degraded"
 
 	# Clear zpool events
 	log_must zpool events -c
@@ -143,10 +140,7 @@ do
 	done
 
 	# Validate auto-online was successful
-	check_state $TESTPOOL "" "online"
-	if (($? != 0)); then
-		log_fail "$TESTPOOL is not back online"
-	fi
+	log_must check_state $TESTPOOL "" "online"
 	sleep 2
 done
 log_must zpool destroy $TESTPOOL

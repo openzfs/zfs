@@ -64,17 +64,13 @@ function write_some_data
 	typeset files10mb=${2:-10}
 
 	typeset ds="$pool/fillerds"
-	zfs create $ds
-	[[ $? -ne 0 ]] && return 1
+	zfs create $ds || return 1
 
 	# Create 100 MB of data
 	typeset file="/$ds/fillerfile"
 	for i in {1..$files10mb}; do
-		dd if=/dev/urandom of=$file.$i bs=128k count=80
-		[[ $? -ne 0 ]] && return 1
+		dd if=/dev/urandom of=$file.$i bs=128k count=80 || return 1
 	done
-
-	return 0
 }
 
 #
@@ -180,20 +176,20 @@ function _translate_vdev
 	#
 	typeset keywords="mirror replacing raidz1 raidz2 raidz3 indirect draid1 draid2 draid3"
 	for word in $keywords; do
-		echo $vdev | grep -qE \
-		    "^${word}-[0-9]+\$|^${word}:[0-9]+d:[0-9]c:[0-9]+s-[0-9]+\$"
-		if [[ $? -eq 0 ]]; then
+		if echo $vdev |
+		    grep -qE  "^${word}-[0-9]+\$|^${word}:[0-9]+d:[0-9]c:[0-9]+s-[0-9]+\$"
+		then
 			vdev=$word
 			break
 		fi
 	done
 
-	[[ $vdev == "logs" ]] && echo "log" && return 0
-	[[ $vdev == "raidz1" ]] && echo "raidz" && return 0
-	[[ $vdev == "draid1" ]] && echo "draid" && return 0
-
-	echo $vdev
-	return 0
+	case "$vdev" in
+		logs) echo "log" ;;
+		raidz1) echo "raidz" ;;
+		draid1) echo "draid" ;;
+		*) echo $vdev ;;
+	esac
 }
 
 #
@@ -216,9 +212,8 @@ function check_pool_config
 	typeset expected=$2
 
 	typeset status
-	status=$(zpool status $poolname 2>&1)
-	if [[ $? -ne 0 ]]; then
-		if ( $logfailure ); then
+	if ! status=$(zpool status $poolname 2>&1); then
+		if $logfailure; then
 			log_note "zpool status $poolname failed: $status"
 		fi
 		return 1
@@ -243,7 +238,7 @@ function check_pool_config
 	expected="$poolname $expected"
 
 	if [[ "$actual" != "$expected" ]]; then
-		if ( $logfailure ); then
+		if $logfailure; then
 			log_note "expected pool vdevs:"
 			log_note "> '$expected'"
 			log_note "actual pool vdevs:"
@@ -270,13 +265,11 @@ function wait_for_pool_config
 	timeout=$(( $timeout + $(date +%s) ))
 
 	while  (( $(date +%s) < $timeout )); do
-		check_pool_config -q $poolname "$expectedconfig"
-		[[ $? -eq 0 ]] && return 0
+		check_pool_config -q $poolname "$expectedconfig" && return 0
 		sleep 3
 	done
 
 	check_pool_config $poolname "$expectedconfig"
-	return $?
 }
 
 #
@@ -285,10 +278,9 @@ function wait_for_pool_config
 function check_pool_healthy
 {
 	typeset pool=$1
-
 	typeset status
-	status=$(zpool status $pool 2>&1)
-	if [[ $? -ne 0 ]]; then
+
+	if ! status=$(zpool status $pool 2>&1); then
 		log_note "zpool status $pool failed: $status"
 		return 1
 	fi

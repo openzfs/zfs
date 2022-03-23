@@ -105,10 +105,7 @@ for orig_fs in $datasets ; do
 
 	typeset -i i=0
 	while (( i < ${#orig_snap[*]} )); do
-		file_write -o create -f ${orig_data[$i]} -b 512 \
-		    -c 8 >/dev/null 2>&1
-		(( $? != 0 )) && \
-			log_fail "Writing data into zfs filesystem fails."
+		log_must eval "file_write -o create -f ${orig_data[$i]} -b 512 -c 8 >/dev/null 2>&1"
 		log_must zfs snapshot ${orig_snap[$i]}
 		if (( i < 1 )); then
 			log_must eval "zfs send ${orig_snap[$i]} > ${bkup[$i]}"

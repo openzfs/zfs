@@ -98,7 +98,7 @@ function compare_acls #<src> <tgt>
 	get_acl $src > $tmpsrc
 	get_acl $tgt > $tmptgt
 	typeset -i ret=0
-	diff $tmpsrc $tmptgt > /dev/null 2>&1
+	cmp $tmpsrc $tmptgt > /dev/null
 	ret=$?
 	rm -f $tmpsrc $tmptgt
 
@@ -108,7 +108,7 @@ function compare_acls #<src> <tgt>
 
 	get_compact_acl $src > $tmpsrc
 	get_compact_acl $tgt > $tmptgt
-	diff $tmpsrc $tmptgt > /dev/null 2>&1
+	cmp $tmpsrc $tmptgt > /dev/null
 	ret=$?
 	rm -f $tmpsrc $tmptgt
 
@@ -166,7 +166,7 @@ function compare_xattrs #<src> <tgt>
 	get_xattr $src > $tmpsrc
 	get_xattr $tgt > $tmptgt
 	typeset -i ret=0
-	diff $tmpsrc $tmptgt > /dev/null 2>&1
+	cmp $tmpsrc $tmptgt > /dev/null
 	ret=$?
 	rm -f $tmpsrc $tmptgt
 
@@ -284,8 +284,7 @@ function get_ACE #<file or dir name> <specified number> <verbose|compact>
 			;;
 	esac
 
-	ls $args $file > $tmpfile
-	(( $? != 0 )) && log_fail "FAIL: ls $args $file > $tmpfile"
+	log_must eval "ls $args $file > $tmpfile"
 	while read line; do
 		[[ -z $line ]] && continue
 		if [[ $args == -vd ]]; then
@@ -306,8 +305,7 @@ function get_ACE #<file or dir name> <specified number> <verbose|compact>
 		fi
 	done < $tmpfile
 
-	rm -f $tmpfile
-	(( $? != 0 )) && log_fail "FAIL: rm -f $tmpfile"
+	log_must rm -f $tmpfile
 }
 
 #
@@ -362,30 +360,30 @@ function rwx_node #user node acl_spec|access
 		case $acl_spec in
 		*:read_data:*|read_data)
 			chgusr_exec $user ls -l $node > /dev/null 2>&1
-			return $? ;;
+			;;
 		*:write_data:*|write_data)
 			if [[ -f ${node}/tmpfile ]]; then
 				log_must rm -f ${node}/tmpfile
 			fi
 			chgusr_exec $user touch ${node}/tmpfile > \
 				/dev/null 2>&1
-			return $? ;;
+			;;
 		*"execute:"*|execute)
 			chgusr_exec $user find $node > /dev/null 2>&1
-			return $? ;;
+			;;
 		esac
 	else
 		case $acl_spec in
 		*:read_data:*|read_data)
 			chgusr_exec $user cat $node > /dev/null 2>&1
-			return $? ;;
+			;;
 		*:write_data:*|write_data)
 			chgusr_exec $user dd if=/usr/bin/ls of=$node > \
 				/dev/null 2>&1
-			return $? ;;
+			;;
 		*"execute:"*|execute)
 			ZFS_ACL_ERR_STR=$(chgusr_exec $user $node 2>&1)
-			return $? ;;
+			;;
 		esac
 	fi
 }
@@ -459,9 +457,7 @@ function get_user_group #uid
 		log_fail "UID not defined."
 	fi
 
-	value=$(id $uid)
-
-	if [[ $? -eq 0 ]]; then
+	if value=$(id $uid); then
 		value=${value##*\(}
 		value=${value%%\)*}
 		echo $value

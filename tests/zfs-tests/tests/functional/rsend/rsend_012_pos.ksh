@@ -159,19 +159,15 @@ set -A pair 	"$POOL" 		"$POOL2" 		\
 typeset -i i=0
 while ((i < ${#pair[@]})); do
 	log_must cmp_ds_prop ${pair[$i]} ${pair[((i+1))]}
-
 	((i += 2))
 done
 
 
-zpool upgrade -v | grep "Snapshot properties" > /dev/null 2>&1
-if (( $? == 0 )) ; then
-	i=0
-	while ((i < ${#pair[@]})); do
-		log_must cmp_ds_prop ${pair[$i]}@final ${pair[((i+1))]}@final
-		((i += 2))
-	done
-fi
+i=0
+while ((i < ${#pair[@]})); do
+	log_must cmp_ds_prop ${pair[$i]}@final ${pair[((i+1))]}@final
+	((i += 2))
+done
 
 log_pass "Verify zfs send -R will backup all the filesystem properties " \
 	"correctly."

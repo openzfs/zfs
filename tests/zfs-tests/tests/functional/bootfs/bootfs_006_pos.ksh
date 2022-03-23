@@ -44,12 +44,6 @@
 verify_runnable "global"
 
 
-zpool set 2>&1 | grep bootfs > /dev/null
-if [ $? -ne 0 ]
-then
-	log_unsupported "bootfs pool property not supported on this release."
-fi
-
 VDEV1=$TESTDIR/bootfs_006_pos_a.$$.dat
 VDEV2=$TESTDIR/bootfs_006_pos_b.$$.dat
 VDEV3=$TESTDIR/bootfs_006_pos_c.$$.dat

@@ -165,10 +165,9 @@ for option in "" "-Df"; do
 					fi
 					log_note "Import with $nfs_flag and " \
 					    "$guid_flag"
-					zpool import $option ${devs[i]} \
-					    ${options[j]} $target
-					#import by GUID if import by pool name fails
-					if [[ $? != 0 ]]; then
+					if ! zpool import $option ${devs[i]} \
+					    ${options[j]} $target; then
+						# import by GUID if import by pool name fails
 						log_note "Possible pool name" \
 						    "duplicates. Try GUID import"
 						target=$guid

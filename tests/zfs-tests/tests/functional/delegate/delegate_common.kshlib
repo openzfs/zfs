@@ -161,38 +161,29 @@ function common_perm
 	typeset perm=$2
 	typeset dtst=$3
 
-	typeset -i ret=1
 	case $perm in
 		send)
 			verify_send $user $perm $dtst
-			ret=$?
 			;;
 		allow)
 			verify_allow $user $perm $dtst
-			ret=$?
 			;;
 		userprop)
 			verify_userprop $user $perm $dtst
-			ret=$?
 			;;
 		compression|checksum|readonly)
 			verify_ccr $user $perm $dtst
-			ret=$?
 			;;
 		copies)
 			verify_copies $user $perm $dtst
-			ret=$?
 			;;
 		reservation)
 			verify_reservation $user $perm $dtst
-			ret=$?
 			;;
 		*)
-			ret=1
+			return 1
 			;;
 	esac
-
-	return $ret
 }
 
 function check_fs_perm
@@ -201,99 +192,74 @@ function check_fs_perm
 	typeset perm=$2
 	typeset fs=$3
 
-	typeset -i ret=1
 	case $perm in
 		create)
 			verify_fs_create $user $perm $fs
-			ret=$?
 			;;
 		destroy)
 			verify_fs_destroy $user $perm $fs
-			ret=$?
 			;;
 		snapshot)
 			verify_fs_snapshot $user $perm $fs
-			ret=$?
 			;;
 		rollback)
 			verify_fs_rollback $user $perm $fs
-			ret=$?
 			;;
 		clone)
 			verify_fs_clone $user $perm $fs
-			ret=$?
 			;;
 		rename)
 			verify_fs_rename $user $perm $fs
-			ret=$?
 			;;
 		mount)
 			verify_fs_mount $user $perm $fs
-			ret=$?
 			;;
 		share)
 			verify_fs_share $user $perm $fs
-			ret=$?
 			;;
 		mountpoint)
 			verify_fs_mountpoint $user $perm $fs
-			ret=$?
 			;;
 		promote)
 			verify_fs_promote $user $perm $fs
-			ret=$?
 			;;
 		canmount)
 			verify_fs_canmount $user $perm $fs
-			ret=$?
 			;;
 		dnodesize)
 			verify_fs_dnodesize $user $perm $fs
-			ret=$?
 			;;
 		recordsize)
 			verify_fs_recordsize $user $perm $fs
-			ret=$?
 			;;
 		quota)
 			verify_fs_quota $user $perm $fs
-			ret=$?
 			;;
 		aclmode)
 			verify_fs_aclmode $user $perm $fs
-			ret=$?
 			;;
 		aclinherit)
 			verify_fs_aclinherit $user $perm $fs
-			ret=$?
 			;;
 		snapdir)
 			verify_fs_snapdir $user $perm $fs
-			ret=$?
 			;;
 		atime|exec|devices|setuid|xattr)
 			verify_fs_aedsx $user $perm $fs
-			ret=$?
 			;;
 		zoned)
 			verify_fs_zoned $user $perm $fs
-			ret=$?
 			;;
 		sharenfs)
 			verify_fs_sharenfs $user $perm $fs
-			ret=$?
 			;;
 		receive)
 			verify_fs_receive $user $perm $fs
-			ret=$?
 			;;
 		*)
 			common_perm $user $perm $fs
-			ret=$?
 			;;
 	esac
-
-	return $ret
 }
 
 function check_vol_perm
@@ -302,43 +268,32 @@ function check_vol_perm
 	typeset perm=$2
 	typeset vol=$3
 
-	typeset -i ret=1
 	case $perm in
 		destroy)
 			verify_vol_destroy $user $perm $vol
-			ret=$?
 			;;
 		snapshot)
 			verify_vol_snapshot $user $perm $vol
-			ret=$?
 			;;
 		rollback)
 			verify_vol_rollback $user $perm $vol
-			ret=$?
 			;;
 		clone)
 			verify_vol_clone $user $perm $vol
-			ret=$?
 			;;
 		rename)
 			verify_vol_rename $user $perm $vol
-			ret=$?
 			;;
 		promote)
 			verify_vol_promote $user $perm $vol
-			ret=$?
 			;;
 		volsize)
 			verify_vol_volsize $user $perm $vol
-			ret=$?
 			;;
 		*)
 			common_perm $user $perm $vol
-			ret=$?
 			;;
 	esac
-
-	return $ret
 }
 
 function setup_unallow_testenv
@@ -362,8 +317,6 @@ function setup_unallow_testenv
 			log_must verify_perm $SUBFS $LOCAL_DESC_SET $OTHER2
 		fi
 	done
-
-	return 0
 }
 
 #
@@ -1692,20 +1645,12 @@ function verify_allow
 
 	typeset -i ret
 
-	user_run $user zfs allow $user allow $dtst
-	ret=$?
-	if [[ $ret -eq 0 ]]; then
-		return 1
-	fi
+	user_run $user zfs allow $user allow $dtst && return 1
 
 	log_must zfs allow $user copies $dtst
 	user_run $user zfs allow $user copies $dtst
 	ret=$?
 	log_must zfs unallow $user copies $dtst
-	if [[ $ret -eq 1 ]]; then
-		return 1
-	fi
-
-	return 0
+	[ $ret -ne 1 ]
 
 }

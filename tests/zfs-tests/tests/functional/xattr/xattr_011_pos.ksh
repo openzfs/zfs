@@ -126,12 +126,8 @@ if is_illumos; then
 	log_must mkdir $TESTDIR/noxattrs
 	log_must touch $TESTDIR/noxattrs/no-xattr
 
-	find $TESTDIR -xattr | grep myfile.$$
-	[[ $? -ne 0 ]] && \
-		log_fail "find -xattr didn't find our file that had an xattr."
-	find $TESTDIR -xattr | grep no-xattr
-	[[ $? -eq 0 ]] && \
-		log_fail "find -xattr found a file that didn't have an xattr."
+	log_must eval "find $TESTDIR -xattr | grep -q myfile.$$"
+	log_mustnot eval "find $TESTDIR -xattr | grep -q no-xattr"
 	log_must rm -rf $TESTDIR/noxattrs
 else
 	log_note "Checking find - unsupported"

@@ -45,9 +45,7 @@ verify_runnable "global"
 
 function cleanup
 {
-	cd $olddir || \
-	    log_fail "Couldn't cd back to $olddir"
-
+	log_must cd $olddir
 	zpool_export_cleanup
 }
 
@@ -57,16 +55,9 @@ log_onexit cleanup
 
 log_assert "Verify a busy ZPOOL cannot be exported."
 
-ismounted "$TESTPOOL/$TESTFS"
-(( $? != 0 )) && \
-    log_fail "$TESTDIR not mounted. Unable to continue."
-
-cd $TESTDIR || \
-    log_fail "Couldn't cd to $TESTDIR"
-
+log_must ismounted "$TESTPOOL/$TESTFS"
+log_must cd $TESTDIR
 log_mustnot zpool export $TESTPOOL
-
-poolexists $TESTPOOL || \
-	log_fail "$TESTPOOL not found in 'zpool list' output."
+log_must poolexists $TESTPOOL
 
 log_pass "Unable to export a busy ZPOOL as expected."

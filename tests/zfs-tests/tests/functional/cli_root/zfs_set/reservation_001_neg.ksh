@@ -70,15 +70,7 @@ function set_n_check # data-set
 		j=0
 		while (( $j < ${#suffix[*]} )); do
 
-			zfs set \
-				reservation=${values[$i]}${suffix[$j]} $obj \
-				> /dev/null 2>&1
-			if [ $? -eq 0 ]
-			then
-				log_note "zfs set \
-				reservation=${values[$i]}${suffix[$j]} $obj"
-				log_fail "The above reservation set returned 0!"
-			fi
+			log_mustnot zfs set reservation=${values[$i]}${suffix[$j]} $obj
 
 			new_resv_val=$(get_prop reservation $obj)
 

@@ -47,14 +47,7 @@ verify_runnable "both"
 # Define uninherited properties and their short name.
 typeset props_str="type used available avail creation referenced refer \
 		compressratio ratio mounted origin quota reservation \
-		reserv volsize volblocksize volblock"
-
-zfs upgrade -v > /dev/null 2>&1
-if [[ $? -eq 0 ]]; then
-	props_str="$props_str version"
-fi
-
-set -A prop $props_str canmount
+		reserv volsize volblocksize volblock version canmount"
 
 
 log_assert "'zfs inherit' should return an error when attempting to inherit" \

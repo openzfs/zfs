@@ -50,14 +50,8 @@ function dev_checksum
 
 	log_note "Compute checksum of '$dev'"
 
-	checksum=$(md5digest $dev)
-	if [[ $? -ne 0 ]]; then
+	md5digest $dev ||
 		log_fail "Failed to compute checksum of '$dev'"
-		return 1
-	fi
-
-	echo "$checksum"
-	return 0
 }
 
 function test_shared_device

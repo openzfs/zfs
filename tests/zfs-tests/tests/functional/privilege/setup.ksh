@@ -36,8 +36,7 @@ USES_NIS=false
 
 # if we're running NIS, turn it off until we clean up
 # (it can cause useradd to take a long time, hitting our TIMEOUT)
-svcs svc:/network/nis/client:default | grep online > /dev/null
-if [ $? -eq 0 ]
+if svcs svc:/network/nis/client:default | grep -q online
 then
   svcadm disable svc:/network/nis/client:default
   USES_NIS=true

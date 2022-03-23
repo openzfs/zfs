@@ -93,7 +93,7 @@ function test_options
 	for dst in ${dataset[@]}; do
 		for opt in $opts; do
 			for prop in $props; do
-				log_mustnot eval "zfs get $opt -- $prop $dst > /dev/null"
+				log_mustnot eval "zfs get $opt -- $prop $dst > /dev/null 2>&1"
 			done
 		done
 	done
@@ -113,7 +113,7 @@ function test_options_bookmarks
 	for dst in ${bookmark[@]}; do
 		for opt in $opts; do
 			for prop in $props; do
-				log_mustnot eval "zfs get $opt -- $prop $dst > /dev/null"
+				log_mustnot eval "zfs get $opt -- $prop $dst > /dev/null 2>&1"
 			done
 		done
 	done

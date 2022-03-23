@@ -126,6 +126,5 @@ function is_zvol_dumpified
 		return 1
 	fi
 
-	zdb -dddd $volume 2 | grep "dumpsize" > /dev/null 2>&1
-	return $?
+	zdb -dddd $volume 2 | grep -q "dumpsize"
 }
