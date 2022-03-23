@@ -69,16 +69,16 @@ obj=${array[0]}
 log_note "file $init_data has object number $obj"
 
 output=$(zdb -ddddddbbbbbb $TESTPOOL/$TESTFS $obj 2> /dev/null \
-    |grep -m 1 "L1  DVA" |head -n1)
+    |grep -m 1 "L1  DVA" )
 dva=$(sed -Ene 's/^.+DVA\[0\]=<([^>]+)>.*/\1/p' <<< "$output")
 log_note "first L1 block $init_data has a DVA of $dva"
 output=$(zdb -ddddddbbbbbb $TESTPOOL/$TESTFS $obj 2> /dev/null \
-    |grep -m 1 "L0 DVA" |head -n1)
+    |grep -m 1 "L0 DVA" )
 blk_out0=${output##*>}
 blk_out0=${blk_out0##+([[:space:]])}
 
 output=$(zdb -ddddddbbbbbb $TESTPOOL/$TESTFS $obj 2> /dev/null \
-    |grep -m 1 "1000  L0 DVA" |head -n1)
+    |grep -m 1 "1000  L0 DVA" )
 blk_out1=${output##*>}
 blk_out1=${blk_out1##+([[:space:]])}
 
@@ -110,7 +110,7 @@ vdev=$(echo "$dva" | cut -d: -f1)
 offset=$(echo "$dva" | cut -d: -f2)
 output=$(export ZDB_NO_ZLE=\"true\";\
     zdb -R $TESTPOOL $vdev:$offset:$l1_read_size:id 2> /dev/null)
-block_cnt=$(echo "$output" | grep 'L0' | wc -l)
+block_cnt=$(echo "$output" | grep -c 'L0')
 if [ $block_cnt -ne $write_count ]; then
 	log_fail "zdb -R :id (indirect block display) failed"
 fi
@@ -120,7 +120,7 @@ vdev="$vdev.0"
 log_note "Reading from DVA $vdev:$offset:$l1_read_size"
 output=$(export ZDB_NO_ZLE=\"true\";\
     zdb -R $TESTPOOL $vdev:$offset:$l1_read_size:id 2> /dev/null)
-block_cnt=$(echo "$output" | grep 'L0' | wc -l)
+block_cnt=$(echo "$output" | grep -c 'L0')
 if [ $block_cnt -ne $write_count ]; then
         log_fail "zdb -R 0.0:offset:length:id (indirect block display) failed"
 fi
