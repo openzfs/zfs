@@ -39,6 +39,7 @@ from subprocess import Popen
 from subprocess import check_output
 from threading import Timer
 from time import time
+from os.path import exists
 
 BASEDIR = '/var/tmp/test_results'
 TESTDIR = '/usr/share/zfs/'
@@ -264,7 +265,7 @@ User: %s
 
         return out.lines, err.lines
 
-    def run(self, dryrun, kmemleak):
+    def run(self, dryrun, kmemleak, kmsg):
         """
         This is the main function that runs each individual test.
         Determine whether or not the command requires sudo, and modify it
@@ -282,6 +283,18 @@ User: %s
             os.umask(old)
         except OSError as e:
             fail('%s' % e)
+
+        """
+        Log each test we run to /dev/kmsg (on Linux), so if there's a kernel
+        warning we'll be able to match it up to a particular test.
+        """
+        if kmsg is True and exists("/dev/kmsg"):
+            try:
+                kp = Popen([SUDO, "sh", "-c",
+                            f"echo ZTS run {self.pathname} > /dev/kmsg"])
+                kp.wait()
+            except Exception:
+                pass
 
         self.result.starttime = monotonic_time()
 
@@ -467,14 +480,14 @@ Tags: %s
 
         cont = True
         if len(pretest.pathname):
-            pretest.run(options.dryrun, False)
+            pretest.run(options.dryrun, False, options.kmsg)
             cont = pretest.result.result == 'PASS'
             pretest.log(options)
 
         if cont:
-            test.run(options.dryrun, options.kmemleak)
+            test.run(options.dryrun, options.kmemleak, options.kmsg)
             if test.result.result == 'KILLED' and len(failsafe.pathname):
-                failsafe.run(options.dryrun, False)
+                failsafe.run(options.dryrun, False, options.kmsg)
                 failsafe.log(options, suppress_console=True)
         else:
             test.skip()
@@ -482,7 +495,7 @@ Tags: %s
         test.log(options)
 
         if len(posttest.pathname):
-            posttest.run(options.dryrun, False)
+            posttest.run(options.dryrun, False, options.kmsg)
             posttest.log(options)
 
 
@@ -585,7 +598,7 @@ Tags: %s
 
         cont = True
         if len(pretest.pathname):
-            pretest.run(options.dryrun, False)
+            pretest.run(options.dryrun, False, options.kmsg)
             cont = pretest.result.result == 'PASS'
             pretest.log(options)
 
@@ -598,9 +611,9 @@ Tags: %s
             failsafe = Cmd(self.failsafe, outputdir=odir, timeout=self.timeout,
                            user=self.failsafe_user, identifier=self.identifier)
             if cont:
-                test.run(options.dryrun, options.kmemleak)
+                test.run(options.dryrun, options.kmemleak, options.kmsg)
                 if test.result.result == 'KILLED' and len(failsafe.pathname):
-                    failsafe.run(options.dryrun, False)
+                    failsafe.run(options.dryrun, False, options.kmsg)
                     failsafe.log(options, suppress_console=True)
             else:
                 test.skip()
@@ -608,7 +621,7 @@ Tags: %s
             test.log(options)
 
         if len(posttest.pathname):
-            posttest.run(options.dryrun, False)
+            posttest.run(options.dryrun, False, options.kmsg)
             posttest.log(options)
 
 
@@ -1068,6 +1081,8 @@ def parse_args():
     parser.add_option('-i', action='callback', callback=options_cb,
                       default=TESTDIR, dest='testdir', type='string',
                       metavar='testdir', help='Specify a test directory.')
+    parser.add_option('-K', action='store_true', default=False, dest='kmsg',
+                      help='Log tests names to /dev/kmsg')
     parser.add_option('-m', action='callback', callback=kmemleak_cb,
                       default=False, dest='kmemleak',
                       help='Enable kmemleak reporting (Linux only)')
