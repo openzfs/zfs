@@ -207,14 +207,18 @@ function cmp_ds_cont
 #
 # $1 dataset 1
 # $2 dataset 2
+# $3 -n == don't track property source
+# $4 -n == don't track the origin property
 #
 function cmp_ds_prop
 {
 	typeset dtst1=$1
 	typeset dtst2=$2
-	typeset source=",source"
-	[ -n "$3" ] && source=
-	typeset props="type,origin,volblocksize,acltype,dnodesize"
+	typeset nosource=$3
+	typeset noorigin=$4
+	typeset source=",source"; [ -n "$nosource" ] && source=
+	typeset origin=",origin"; [ -n "$noorigin" ] && origin=
+	typeset props="type$origin,volblocksize,acltype,dnodesize"
 	props+=",atime,canmount,checksum,compression,copies,devices"
 	props+=",exec,quota,readonly,recordsize,reservation,setuid"
 	props+=",snapdir,version,volsize,xattr,mountpoint"
