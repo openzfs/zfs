@@ -499,7 +499,7 @@ usage_prop_cb(int prop, void *cb)
  * that command.  Otherwise, iterate over the entire command table and display
  * a complete usage message.
  */
-static _Noreturn void
+static __attribute__((noreturn)) void
 usage(boolean_t requested)
 {
 	int i;

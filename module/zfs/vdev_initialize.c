@@ -488,7 +488,7 @@ vdev_initialize_range_add(void *arg, uint64_t start, uint64_t size)
 	vdev_xlate_walk(vd, &logical_rs, vdev_initialize_xlate_range_add, arg);
 }
 
-static _Noreturn void
+static __attribute__((noreturn)) void
 vdev_initialize_thread(void *arg)
 {
 	vdev_t *vd = arg;
