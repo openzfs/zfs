@@ -47,8 +47,8 @@ verify_runnable "global"
 # with the current state. The name of this temporary pool is the
 # name of the actual pool with the suffix below appended to it.
 #
-CHECKPOINT_SUFFIX="_CHECKPOINTED_UNIVERSE"
-CHECKPOINTED_FS1=$TESTPOOL$CHECKPOINT_SUFFIX/$TESTFS1
+BOGUS_SUFFIX="_CHECKPOINTED_UNIVERSE"
+CHECKPOINTED_FS1=$TESTPOOL$BOGUS_SUFFIX/$TESTFS1
 
 setup_test_pool
 log_onexit cleanup_test_pool
@@ -58,41 +58,23 @@ log_must zpool checkpoint $TESTPOOL
 
 test_change_state_after_checkpoint
 
-zdb $TESTPOOL | grep "Checkpointed uberblock found" || \
-	log_fail "zdb could not find checkpointed uberblock"
-
-zdb -k $TESTPOOL | grep "Checkpointed uberblock found" && \
-	log_fail "zdb found checkpointed uberblock in checkpointed state"
-
-zdb $TESTPOOL | grep "Dataset $FS1" && \
-	log_fail "zdb found destroyed dataset in current state"
-
-zdb -k $TESTPOOL | grep "Dataset $CHECKPOINTED_FS1" || \
-	log_fail "zdb could not find destroyed dataset in checkpoint"
+log_must eval "zdb $TESTPOOL | grep -q \"Checkpointed uberblock found\""
+log_mustnot eval "zdb -k $TESTPOOL | grep -q \"Checkpointed uberblock found\""
+log_mustnot eval "zdb $TESTPOOL | grep \"Dataset $FS1\""
+log_must eval "zdb -k $TESTPOOL | grep \"Dataset $CHECKPOINTED_FS1\""
 
 log_must zpool export $TESTPOOL
 
-zdb -e $TESTPOOL | grep "Checkpointed uberblock found" || \
-	log_fail "zdb could not find checkpointed uberblock"
-
-zdb -k -e $TESTPOOL | grep "Checkpointed uberblock found" && \
-	log_fail "zdb found checkpointed uberblock in checkpointed state"
-
-zdb -e $TESTPOOL | grep "Dataset $FS1" && \
-	log_fail "zdb found destroyed dataset in current state"
-
-zdb -k -e $TESTPOOL | grep "Dataset $CHECKPOINTED_FS1" || \
-	log_fail "zdb could not find destroyed dataset in checkpoint"
+log_must eval "zdb -e $TESTPOOL | grep \"Checkpointed uberblock found\""
+log_mustnot eval "zdb -k -e $TESTPOOL | grep \"Checkpointed uberblock found\""
+log_mustnot eval "zdb -e $TESTPOOL | grep \"Dataset $FS1\""
+log_must eval "zdb -k -e $TESTPOOL | grep \"Dataset $CHECKPOINTED_FS1\""
 
 log_must zpool import $TESTPOOL
 
 log_must zpool checkpoint -d $TESTPOOL
 
-zdb $TESTPOOL | grep "Checkpointed uberblock found" && \
-	log_fail "zdb found checkpointed uberblock after discarding " \
-	"the checkpoint"
-
-zdb -k $TESTPOOL && \
-	log_fail "zdb opened checkpointed state that was discarded"
+log_mustnot eval "zdb $TESTPOOL | grep \"Checkpointed uberblock found\""
+log_mustnot eval "zdb -k $TESTPOOL"
 
 log_pass "zdb can analyze checkpointed pools."

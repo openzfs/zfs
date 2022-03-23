@@ -51,8 +51,8 @@ log_onexit cleanup
 log_assert "Check the basic function of {user|group} used"
 
 sync_pool
-typeset user_used=$(get_value "userused@$QUSER1" $QFS)
-typeset group_used=$(get_value "groupused@$QGROUP" $QFS)
+typeset user_used=$(get_prop "userused@$QUSER1" $QFS)
+typeset group_used=$(get_prop "groupused@$QGROUP" $QFS)
 typeset file_size='100m'
 
 if [[ $user_used != 0 ]]; then
@@ -66,10 +66,10 @@ mkmount_writable $QFS
 log_must user_run $QUSER1 mkfile $file_size $QFILE
 sync_pool
 
-user_used=$(get_value "userused@$QUSER1" $QFS)
-group_used=$(get_value "groupused@$QGROUP" $QFS)
+user_used=$(get_prop "userused@$QUSER1" $QFS)
+group_used=$(get_prop "groupused@$QGROUP" $QFS)
 
-# get_value() reads the exact byte value which is slightly more than 100m
+# get_prop() reads the exact byte value which is slightly more than 100m
 if [[ "$(($user_used/1024/1024))m" != "$file_size" ]]; then
 	log_note "user $QUSER1 used is $user_used"
 	log_fail "userused for user $QUSER1 expected to be $file_size, " \

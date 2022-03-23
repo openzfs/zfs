@@ -97,8 +97,8 @@ function set_n_check_prop
 
 		if [[ "$expect_value" != "" && "$cur_value" != "$old_value" ]];
 		then
-			log_fail "The '$dataset' '$prop' value '$cur_value' \
-				should equal with '$old_value'."
+			log_fail "The '$dataset' '$prop' value '$cur_value'" \
+				"should equal '$old_value'."
 		fi
 	fi
 }
@@ -119,8 +119,8 @@ function cleanup_user_prop
 
 		typeset prop
 		for prop in $user_prop; do
-			zfs inherit $prop $dt
-			(($? != 0)) && log_must zfs inherit $prop $dt
+			zfs inherit $prop $dt ||
+				log_must zfs inherit $prop $dt
 		done
 	done
 }
@@ -225,9 +225,7 @@ function user_property_value
 {
 	typeset -i len=${1:-100}
 
-	typeset value=$(random_string ALL_CHAR $len)
-
-	echo "$value"
+	random_string ALL_CHAR $len
 }
 
 #
@@ -254,14 +252,9 @@ function get_source
 {
 	typeset prop=$1
 	typeset dataset=$2
-	typeset source
 
-	source=$(zfs get -H -o source $prop $dataset)
-        if (($? != 0)); then
+	zfs get -H -o source $prop $dataset ||
                 log_fail "Unable to get $prop source for dataset $dataset"
-        fi
-
-	echo "$source"
 }
 
 #
@@ -330,12 +323,9 @@ function check_prop_received
         typeset prop="$2"
         typeset value="$3"
 
-        received=$(zfs get -H -o received "$prop" "$dataset")
-        if (($? != 0)); then
-                log_fail "Unable to get $prop received value for dataset" \
-                    "$dataset"
-        fi
-        if [ "$received" = "$value" ]
+        received=$(zfs get -H -o received "$prop" "$dataset") ||
+                log_fail "Unable to get $prop received value for dataset $dataset"
+        [ "$received" = "$value" ]
 }
 
 #
@@ -351,9 +341,7 @@ function check_prop_missing
         typeset dataset="$1"
         typeset prop="$2"
 
-        value=$(zfs get -H -o value "$prop" "$dataset")
-        if (($? != 0)); then
+        value=$(zfs get -H -o value "$prop" "$dataset") ||
                 log_fail "Unable to get $prop value for dataset $dataset"
-        fi
         [ "$value" = "-" ]
 }

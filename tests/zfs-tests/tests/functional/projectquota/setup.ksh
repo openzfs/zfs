@@ -45,10 +45,8 @@ log_must add_user $PGROUP $PUSER
 #
 # chmod 0750 $HOME
 #
-user_run $PUSER zfs list
-if [ $? -ne 0 ]; then
+user_run $PUSER zfs list ||
 	log_unsupported "Test user $PUSER cannot execute zfs utilities"
-fi
 
 DISK=${DISKS%% *}
 default_setup_noexit $DISK

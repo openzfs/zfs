@@ -58,10 +58,7 @@ function cleanup
 		safe_dumpadm $savedumpdev
 	fi
 
-	swap -l | grep -w $voldev > /dev/null 2>&1
-        if (( $? == 0 ));  then
-		log_must swap -d $voldev
-	fi
+	swap -l | grep -qw $voldev && log_must swap -d $voldev
 
 	typeset snap
 	for snap in snap0 snap1 ; do

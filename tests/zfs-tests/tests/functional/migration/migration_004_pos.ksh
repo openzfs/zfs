@@ -48,8 +48,7 @@ verify_runnable "both"
 
 function cleanup
 {
-	rm -rf $TESTDIR/cpio$$.cpio
-	rm -rf $TESTDIR/$BNAME
+	rm -rf $TESTDIR/cpio$$.cpio $TESTDIR/$BNAME
 }
 
 log_assert "Migrating test file from ZFS fs to ZFS fs using cpio"
@@ -57,17 +56,9 @@ log_assert "Migrating test file from ZFS fs to ZFS fs using cpio"
 log_onexit cleanup
 
 cwd=$PWD
-cd $DNAME
-(( $? != 0 )) && log_untested "Could not change directory to $DNAME"
-
-ls $BNAME | cpio -oc > $TESTDIR/cpio$$.cpio
-(( $? != 0 )) && log_fail "Unable to create cpio archive"
-
-cd $cwd
-(( $? != 0 )) && log_untested "Could not change directory to $cwd"
-
-migrate_cpio $TESTDIR "$TESTDIR/cpio$$.cpio" $SUMA $SUMB
-(( $? != 0 )) && log_fail "Unable to successfully migrate test file from" \
-    "ZFS fs to ZFS fs"
+log_must cd $DNAME
+log_must eval "find $BNAME | cpio -oc > $TESTDIR/cpio$$.cpio"
+log_must cd $cwd
+log_must migrate_cpio $TESTDIR "$TESTDIR/cpio$$.cpio" $SUMA $SUMB
 
 log_pass "Successfully migrated test file from ZFS fs to ZFS fs".

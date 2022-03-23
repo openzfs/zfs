@@ -54,7 +54,7 @@ log_onexit cleanup
 log_assert "Check the basic function of project{obj}used"
 
 sync_pool
-typeset project_used=$(get_value "projectused@$PRJID1" $QFS)
+typeset project_used=$(get_prop "projectused@$PRJID1" $QFS)
 typeset file_size='10m'
 
 if [[ $project_used != 0 ]]; then
@@ -66,8 +66,8 @@ log_must user_run $PUSER mkdir $PRJDIR
 log_must chattr +P -p $PRJID1 $PRJDIR
 log_must user_run $PUSER mkfile $file_size $PRJDIR/qf
 sync_pool
-project_used=$(get_value "projectused@$PRJID1" $QFS)
-# get_value() reads the exact byte value which is slightly more than 10m
+project_used=$(get_prop "projectused@$PRJID1" $QFS)
+# get_prop() reads the exact byte value which is slightly more than 10m
 if [[ "$(($project_used/1024/1024))m" != "$file_size" ]]; then
 	log_note "project $PRJID1 used is $project_used"
 	log_fail "projectused for project $PRJID1 expected to be $file_size, " \
@@ -75,7 +75,7 @@ if [[ "$(($project_used/1024/1024))m" != "$file_size" ]]; then
 fi
 
 log_must rm -rf $PRJDIR
-typeset project_obj_used=$(get_value "projectobjused@$PRJID2" $QFS)
+typeset project_obj_used=$(get_prop "projectobjused@$PRJID2" $QFS)
 typeset file_count=100
 
 if [[ $project_obj_used != 0 ]]; then
@@ -88,7 +88,7 @@ log_must chattr +P -p $PRJID2 $PRJDIR
 # $PRJDIR has already used one object with the $PRJID2
 log_must user_run $PUSER mkfiles $PRJDIR/qf_ $((file_count - 1))
 sync_pool
-project_obj_used=$(get_value "projectobjused@$PRJID2" $QFS)
+project_obj_used=$(get_prop "projectobjused@$PRJID2" $QFS)
 if [[ $project_obj_used != $file_count ]]; then
 	log_note "project $PRJID2 used is $project_obj_used"
 	log_fail "projectobjused for project $PRJID2 expected to be " \

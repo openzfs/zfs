@@ -131,7 +131,7 @@ for type in " " mirror raidz draid:1s; do
 			typeset	size_addition=$(zpool history -il $TESTPOOL1 \
 			    | grep "pool '$TESTPOOL1' size:" | \
 			    grep "vdev online" | \
-			    grep "(+${expansion_size}" | wc -l)
+			    grep -c "(+${expansion_size}")
 
 			if [[ $size_addition -ne $i ]]; then
 				log_fail "pool $TESTPOOL1 has not expanded " \
@@ -143,34 +143,25 @@ for type in " " mirror raidz draid:1s; do
 			zpool history -il $TESTPOOL1 | \
 			    grep "pool '$TESTPOOL1' size:" | \
 			    grep "vdev online" | \
-			    grep "(+${expansion_size})" >/dev/null 2>&1
-
-			if [[ $? -ne 0 ]]; then
-				log_fail "pool $TESTPOOL1 has not expanded " \
-				    "after zpool online -e"
-			fi
+			    grep -q "(+${expansion_size})"  ||
+					log_fail "pool $TESTPOOL1 has not expanded " \
+					    "after zpool online -e"
 		elif [[ $type == "draid:1s" ]]; then
 			typeset expansion_size=$((2*($exp_size-$org_size)))
 			zpool history -il $TESTPOOL1 | \
 			    grep "pool '$TESTPOOL1' size:" | \
 			    grep "vdev online" | \
-			    grep "(+${expansion_size})" >/dev/null 2>&1
-
-			if [[ $? -ne 0 ]] ; then
-				log_fail "pool $TESTPOOL1 has not expanded " \
-				    "after zpool online -e"
-			fi
+			    grep -q "(+${expansion_size})"  ||
+					log_fail "pool $TESTPOOL1 has not expanded " \
+					    "after zpool online -e"
 		else
 			typeset expansion_size=$((3*($exp_size-$org_size)))
 			zpool history -il $TESTPOOL1 | \
 			    grep "pool '$TESTPOOL1' size:" | \
 			    grep "vdev online" | \
-			    grep "(+${expansion_size})" >/dev/null 2>&1
-
-			if [[ $? -ne 0 ]] ; then
-				log_fail "pool $TESTPOOL1 has not expanded " \
-				    "after zpool online -e"
-			fi
+			    grep -q "(+${expansion_size})"  ||
+					log_fail "pool $TESTPOOL1 has not expanded " \
+					    "after zpool online -e"
 		fi
 	else
 		log_fail "pool $TESTPOOL1 did not expand after vdev " \

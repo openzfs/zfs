@@ -380,65 +380,44 @@ function get_directory
 
 function get_min_arc_size
 {
-	typeset -l min_arc_size
-
 	if is_freebsd; then
-		min_arc_size=$(sysctl -n kstat.zfs.misc.arcstats.c_min)
+		sysctl -n kstat.zfs.misc.arcstats.c_min
 	elif is_illumos; then
-		min_arc_size=$(dtrace -qn 'BEGIN {
+		dtrace -qn 'BEGIN {
 		    printf("%u\n", `arc_stats.arcstat_c_min.value.ui64);
 		    exit(0);
-		}')
+		}'
 	elif is_linux; then
-		min_arc_size=`awk '$1 == "c_min" { print $3 }' \
-		    /proc/spl/kstat/zfs/arcstats`
-	fi
-
-	[[ $? -eq 0 ]] || log_fail "get_min_arc_size failed"
-
-	echo $min_arc_size
+		awk '$1 == "c_min" { print $3 }' /proc/spl/kstat/zfs/arcstats
+	fi || log_fail "get_min_arc_size failed"
 }
 
 function get_max_arc_size
 {
-	typeset -l max_arc_size
-
 	if is_freebsd; then
-		max_arc_size=$(sysctl -n kstat.zfs.misc.arcstats.c_max)
+		sysctl -n kstat.zfs.misc.arcstats.c_max
 	elif is_illumos; then
-		max_arc_size=$(dtrace -qn 'BEGIN {
+		dtrace -qn 'BEGIN {
 		    printf("%u\n", `arc_stats.arcstat_c_max.value.ui64);
 		    exit(0);
-		}')
+		}'
 	elif is_linux; then
-		max_arc_size=`awk '$1 == "c_max" { print $3 }' \
-		    /proc/spl/kstat/zfs/arcstats`
-	fi
-
-	[[ $? -eq 0 ]] || log_fail "get_max_arc_size failed"
-
-	echo $max_arc_size
+		awk '$1 == "c_max" { print $3 }' /proc/spl/kstat/zfs/arcstats
+	fi || log_fail "get_max_arc_size failed"
 }
 
 function get_arc_target
 {
-	typeset -l arc_c
-
 	if is_freebsd; then
-		arc_c=$(sysctl -n kstat.zfs.misc.arcstats.c)
+		sysctl -n kstat.zfs.misc.arcstats.c
 	elif is_illumos; then
-		arc_c=$(dtrace -qn 'BEGIN {
+		dtrace -qn 'BEGIN {
 		    printf("%u\n", `arc_stats.arcstat_c.value.ui64);
 		    exit(0);
-		}')
+		}'
 	elif is_linux; then
-		arc_c=`awk '$1 == "c" { print $3 }' \
-		    /proc/spl/kstat/zfs/arcstats`
-	fi
-
-	[[ $? -eq 0 ]] || log_fail "get_arc_target failed"
-
-	echo $arc_c
+		awk '$1 == "c" { print $3 }' /proc/spl/kstat/zfs/arcstats
+	fi || log_fail "get_arc_target failed"
 }
 
 function get_dbuf_cache_size
@@ -453,9 +432,7 @@ function get_dbuf_cache_size
 	else
 		dbuf_cache_shift=$(get_tunable DBUF_CACHE_SHIFT)
 		dbuf_cache_size=$(($(get_arc_target) / 2**dbuf_cache_shift))
-	fi
-
-	[[ $? -eq 0 ]] || log_fail "get_dbuf_cache_size failed"
+	fi || log_fail "get_dbuf_cache_size failed"
 
 	echo $dbuf_cache_size
 }

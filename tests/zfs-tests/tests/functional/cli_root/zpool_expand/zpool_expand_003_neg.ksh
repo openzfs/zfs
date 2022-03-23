@@ -113,7 +113,7 @@ for type in "" mirror raidz draid; do
 	sleep 5
 
 	# check for zpool history for the pool size expansion
-	zpool history -il $TESTPOOL1 | grep "pool '$TESTPOOL1' size:" | \
+	zpool history -il $TESTPOOL1 | grep "pool '$TESTPOOL1' size:" |
 	    grep "vdev online" &&
 	    log_fail "pool $TESTPOOL1 is not autoexpand after vdev expansion"
 

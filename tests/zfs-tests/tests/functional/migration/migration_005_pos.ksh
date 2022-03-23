@@ -34,12 +34,12 @@
 
 #
 # DESCRIPTION:
-# Migrating test file from ZFS fs to UFS fs using cpio
+# Migrating test file from ZFS fs to platform native fs using cpio
 #
 # STRATEGY:
 # 1. Calculate chksum of testfile
 # 2. Cpio up test file and place on a ZFS filesystem
-# 3. Extract cpio contents to a UFS file system
+# 3. Extract cpio contents to a platform native file system
 # 4. Calculate chksum of extracted file
 # 5. Compare old and new chksums.
 #
@@ -48,26 +48,17 @@ verify_runnable "both"
 
 function cleanup
 {
-	rm -rf $TESTDIR/cpio$$.cpio
-	rm -rf $NONZFS_TESTDIR/$BNAME
+	rm -rf $TESTDIR/cpio$$.cpio $NONZFS_TESTDIR/$BNAME
 }
 
-log_assert "Migrating test file from ZFS fs to uFS fs using cpio"
+log_assert "Migrating test file from ZFS fs to $NEWFS_DEFAULT_FS fs using cpio"
 
 log_onexit cleanup
 
 cwd=$PWD
-cd $DNAME
-(( $? != 0 )) && log_untested "Could not change directory to $DNAME"
+log_must cd $DNAME
+log_must eval "find $BNAME | cpio -oc > $TESTDIR/cpio$$.cpio"
+log_must cd $cwd
+log_must migrate_cpio $NONZFS_TESTDIR "$TESTDIR/cpio$$.cpio" $SUMA $SUMB
 
-ls $BNAME | cpio -oc > $TESTDIR/cpio$$.cpio
-(( $? != 0 )) && log_fail "Unable to create cpio archive"
-
-cd $cwd
-(( $? != 0 )) && log_untested "Could not change directory to $cwd"
-
-migrate_cpio $NONZFS_TESTDIR "$TESTDIR/cpio$$.cpio" $SUMA $SUMB
-(( $? != 0 )) && log_fail "Unable to successfully migrate test file from" \
-    "ZFS fs to UFS fs"
-
-log_pass "Successfully migrated test file from ZFS fs to UFS fs".
+log_pass "Successfully migrated test file from ZFS fs to $NEWFS_DEFAULT_FS fs".

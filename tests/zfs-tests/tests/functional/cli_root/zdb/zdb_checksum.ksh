@@ -53,13 +53,13 @@ log_note "file $init_data has object number $obj"
 sync_pool $TESTPOOL
 
 output=$(zdb -ddddddbbbbbb $TESTPOOL/$TESTFS $obj 2> /dev/null \
-    |grep -m 1 "L0 DVA" |head -n1)
+    | grep -m 1 "L0 DVA")
 dva=$(sed -Ene 's/^.+DVA\[0\]=<([^>]+)>.*$/\1/p' <<< "$output")
 log_note "block 0 of $init_data has a DVA of $dva"
 cksum_expected=$(sed -Ene 's/^.+ cksum=([a-z0-9:]+)$/\1/p' <<< "$output")
 log_note "expecting cksum $cksum_expected"
 output=$(zdb -R $TESTPOOL $dva:c 2> /dev/null)
-result=$(grep $cksum_expected <<< "$output")
-(( $? != 0 )) && log_fail "zdb -R failed to print the correct checksum"
+grep -q $cksum_expected <<<"$output" ||
+	log_fail "zdb -R failed to print the correct checksum"
 
 log_pass "zdb -R generates the correct checksum"

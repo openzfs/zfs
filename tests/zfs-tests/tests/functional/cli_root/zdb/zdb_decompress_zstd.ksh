@@ -63,52 +63,44 @@ done
 sync_pool $TESTPOOL true
 
 # get object number of file
-listing=$(ls -i $init_data)
-set -A array $listing
-obj=${array[0]}
+read -r obj _ < <(ls -i $init_data)
 log_note "file $init_data has object number $obj"
 
 output=$(zdb -Zddddddbbbbbb $TESTPOOL/$TESTFS $obj 2> /dev/null \
-    |grep -m 1 "L0 DVA" |head -n1)
+    | grep -m 1 "L0 DVA")
 dva=$(sed -Ene 's/^.+DVA\[0\]=<([^>]+)>.*$/\1/p' <<< "$output")
 log_note "block 0 of $init_data has a DVA of $dva"
 
 # use the length reported by zdb -ddddddbbbbbb
 size_str=$(sed -Ene 's/^.+ size=([^ ]+) .*$/\1/p' <<< "$output")
 # convert sizes to decimal
-lsize=$(echo $size_str | cut -d/ -f 1)
+IFS='/' read -r lsize psize _ <<<"$size_str"
 lsize_orig=$lsize
-lsize=${lsize%?}
-lsize_bytes=$((16#$lsize))
-psize=$(echo $size_str | cut -d/ -f 2)
 psize_orig=$psize
+lsize=${lsize%?}
 psize=${psize%?}
+lsize_bytes=$((16#$lsize))
 psize_bytes=$((16#$psize))
 log_note "block size $size_str"
 
 # Get the ZSTD header reported by zdb -Z
-zstd_str=$(sed -Ene 's/^.+ ZSTD:size=([^:]+):version=([^:]+):level=([^:]+):.*$/\1:\2:\3/p' <<< "$output")
-zstd_size=$(echo "$zstd_str" | cut -d: -f 1)
+read -r zstd_size zstd_version zstd_level < <(sed -Ene 's/^.+ ZSTD:size=([^:]+):version=([^:]+):level=([^:]+):.*$/\1 \2 \3/p' <<<"$output")
 log_note "ZSTD compressed size $zstd_size"
 (( $psize_bytes < $zstd_size )) && log_fail \
 "zdb -Z failed: physical block size was less than header content length ($psize_bytes < $zstd_size)"
 
-zstd_version=$(echo "$zstd_str" | cut -d: -f 2)
 log_note "ZSTD version $zstd_version"
 
-zstd_level=$(echo "$zstd_str" | cut -d: -f 3)
 log_note "ZSTD level $zstd_level"
 (( $zstd_level != $random_level )) && log_fail \
 "zdb -Z failed: compression level did not match header level ($zstd_level < $random_level)"
 
-vdev=$(echo "$dva" | cut -d: -f 1)
-offset=$(echo "$dva" | cut -d: -f 2)
+IFS=':' read -r vdev offset _ <<<"$dva"
 # Check the first 1024 bytes
 output=$(ZDB_NO_ZLE="true" zdb -R $TESTPOOL $vdev:$offset:$size_str:dr 2> /dev/null)
-outsize=$(wc -c <<< "$output")
-(( $outsize != $blksize )) && log_fail \
-"zdb -Z failed to decompress the data to the expected length ($outsize != $lsize_bytes)"
-cmp $init_data - <<< "$output"
-(( $? != 0 )) && log_fail "zdb -R :dr failed to decompress the data properly"
+(( ${#output} + 1 != $blksize )) && log_fail \
+"zdb -Z failed to decompress the data to the expected length (${#output} != $lsize_bytes)"
+cmp $init_data - <<< "$output" ||
+	log_fail "zdb -R :dr failed to decompress the data properly"
 
 log_pass "zdb -Z flag (ZSTD compression header) works as expected"
