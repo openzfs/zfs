@@ -24,24 +24,25 @@
 
 username="pamtestuser"
 runstatedir="${TESTDIR}_run"
+pammodule="@pammoduledir@/pam_zfs_key.so"
 pamservice="pam_zfs_key_test"
 pamconfig="/etc/pam.d/${pamservice}"
 
 function keystatus {
-    log_must [ "$(zfs list -Ho keystatus "$TESTPOOL/pam/${username}")" = "$1" ]
+    log_must [ "$(get_prop keystatus "$TESTPOOL/pam/${username}")" = "$1" ]
 }
 
 function genconfig {
-    for i in password auth session; do
-	printf "%s\trequired\tpam_permit.so\n%s\toptional\tpam_zfs_key.so\t%s\n" "$i" "$i" "$1"
-    done > "${pamconfig}"
+    printf '%s\trequired\tpam_permit.so\n%s\toptional\t%s\t%s\n' \
+        password password "$pammodule" "$1" \
+        auth     auth     "$pammodule" "$1" \
+        session  session  "$pammodule" "$1" > "${pamconfig}"
 }
 
 function rmconfig {
-    log_must rm "${pamconfig}"
+    log_must rm -f "${pamconfig}"
 }
 
 function references {
     log_must [ "$(<"${runstatedir}/$(id -u ${username})")" = "$1" ]
 }
-
