@@ -91,7 +91,7 @@ function test_legacy_unshare # <mntp> <filesystem>
 	    log_fail "'zfs set sharenfs=off' fails to make ZFS " \
 	    "filesystem $filesystem unshared."
 
-	log_must eval "share_nfs $mntp"
+	log_must share_nfs $mntp
 	is_shared $mntp || \
 	    log_fail "'share' command fails to share ZFS file system."
 	#

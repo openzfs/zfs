@@ -107,7 +107,7 @@ function verify
 
 function cleanup
 {
-	cd $DEVICE_DIR || log_fail "Unable change directory to $DEVICE_DIR"
+	log_must cd $DEVICE_DIR
 
 	for pool in $TESTPOOL1 $TESTPOOL2; do
 		if poolexists "$pool" ; then
@@ -136,7 +136,7 @@ function cleanup_all
 	done
 
 	log_must rm -f $DEVICE_DIR/$DEVICE_ARCHIVE
-	cd $CWD || log_fail "Unable change directory to $CWD"
+	log_must cd $CWD
 
 }
 
@@ -146,7 +146,7 @@ log_assert "Verify that import could handle device overlapped."
 
 CWD=$PWD
 
-cd $DEVICE_DIR || log_fail "Unable change directory to $DEVICE_DIR"
+log_must cd $DEVICE_DIR
 log_must tar cf $DEVICE_DIR/$DEVICE_ARCHIVE ${DEVICE_FILE}*
 
 checksum1=$(sum $MYTESTFILE | awk '{print $1}')

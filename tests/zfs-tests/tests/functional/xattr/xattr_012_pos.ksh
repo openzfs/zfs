@@ -52,19 +52,6 @@ function cleanup {
 	fi
 }
 
-function get_pool_size {
-	poolname=$1
-	psize=$(zpool list -H -o allocated $poolname)
-	if [[ $psize == *[mM] ]]
-	then
-		returnvalue=$(echo $psize | sed -e 's/m//g' -e 's/M//g')
-		returnvalue=$((returnvalue * 1024))
-	else
-		returnvalue=$(echo $psize | sed -e 's/k//g' -e 's/K//g')
-	fi
-	echo $returnvalue
-}
-
 log_assert "xattr file sizes count towards normal disk usage"
 log_onexit cleanup
 
@@ -77,10 +64,10 @@ if is_global_zone
 then
 	# get pool and filesystem sizes. Since we're starting with an empty
 	# pool, the usage should be small - a few k.
-	POOL_SIZE=$(get_pool_size $TESTPOOL)
+	POOL_SIZE=$(get_pool_prop allocated $TESTPOOL)
 fi
 
-FS_SIZE=$(zfs get -p -H -o value used $TESTPOOL/$TESTFS)
+FS_SIZE=$(get_prop used $TESTPOOL/$TESTFS)
 
 if is_freebsd; then
 	# FreeBSD setextattr has awful scaling with respect to input size.
@@ -106,7 +93,7 @@ sync_pool
 # now check to see if our pool disk usage has increased
 if is_global_zone
 then
-	NEW_POOL_SIZE=$(get_pool_size $TESTPOOL)
+	NEW_POOL_SIZE=$(get_pool_prop allocated $TESTPOOL)
 	(($NEW_POOL_SIZE <= $POOL_SIZE)) && \
 	    log_fail "The new pool size $NEW_POOL_SIZE was less \
             than or equal to the old pool size $POOL_SIZE."
@@ -114,7 +101,7 @@ then
 fi
 
 # also make sure our filesystem usage has increased
-NEW_FS_SIZE=$(zfs get -p -H -o value used $TESTPOOL/$TESTFS)
+NEW_FS_SIZE=$(get_prop used $TESTPOOL/$TESTFS)
 (($NEW_FS_SIZE <= $FS_SIZE)) && \
     log_fail "The new filesystem size $NEW_FS_SIZE was less \
     than or equal to the old filesystem size $FS_SIZE."

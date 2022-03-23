@@ -265,7 +265,7 @@ function apply_zinject_delays
 	typeset idx=0
 	while [[ $idx -lt "${#ZINJECT_DELAYS[@]}" ]]; do
 		[[ -n ${ZINJECT_DELAYS[$idx]} ]] || \
-		    log_must "No zinject delay found at index: $idx"
+		    log_fail "No zinject delay found at index: $idx"
 
 		for disk in $DISKS; do
 			log_must zinject \

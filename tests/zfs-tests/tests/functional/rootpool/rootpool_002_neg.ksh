@@ -54,7 +54,7 @@ typeset tmpfile="$TEST_BASE_DIR/mounted-datasets.$$"
 # damage done by the attempted pool destroy. The destroy itself should fail,
 # but some filesystems can become unmounted in the process, and aren't
 # automatically remounted.
-mount -p | awk '{if ($4 == "zfs") print $1}' > $tmpfile
+mount -p | awk '$4 == "zfs" {print $1}' > $tmpfile
 
 log_mustnot zpool destroy $rootpool
 
