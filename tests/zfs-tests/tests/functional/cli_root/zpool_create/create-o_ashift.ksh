@@ -59,8 +59,7 @@ function write_device_uberblocks # <device> <pool>
 	typeset device=$1
 	typeset pool=$2
 
-	while [ "$(zdb -quuul $device | grep -c 'invalid')" -ne 0 ]
-	do
+	while zdb -quuul $device | grep -q 'invalid'; do
 		sync_pool $pool true
 	done
 }
@@ -89,8 +88,6 @@ function verify_device_uberblocks # <device> <count>
 	            exit 1
 	        }
 	    }'
-
-	return $?
 }
 
 log_assert "zpool create -o ashift=<n>' works with different ashift values"
@@ -114,11 +111,8 @@ do
 		    "$ashift (current = $pprop)"
 	fi
 	write_device_uberblocks $disk $TESTPOOL
-	verify_device_uberblocks $disk ${ubcount[$i]}
-	if [[ $? -ne 0 ]]
-	then
-		log_fail "Pool was created with unexpected number of uberblocks"
-	fi
+	log_must verify_device_uberblocks $disk ${ubcount[$i]}
+
 	# clean things for the next run
 	log_must zpool destroy $TESTPOOL
 	log_must zpool labelclear $disk

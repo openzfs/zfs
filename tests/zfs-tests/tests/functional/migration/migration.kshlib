@@ -49,19 +49,11 @@ function prepare #srcdir cmd
 {
 	typeset srcdir=$1
 	typeset cmd=$2
-	typeset -i retval=0
 
 	cwd=$PWD
-	cd $srcdir
-	(( $? != 0 )) && return 1
-
-	$cmd
-	(( $? != 0 )) && return 1
-
-	cd $cwd
-	(( $? != 0 )) && return 1
-
-	return 0
+	cd $srcdir || return 1
+	$cmd || return 1
+	cd $cwd || return 1
 }
 
 #
@@ -90,30 +82,22 @@ function migrate #destdir oldsuma oldsumb cmd
 	typeset oldsuma=$2
 	typeset oldsumb=$3
 	typeset cmd=$4
-	typeset -i retval=0
 
 	cwd=$PWD
-	cd $destdir
-	(( $? != 0 )) && return 1
-
-	$cmd
-	(( $? != 0 )) && return 1
-
+	cd $destdir || return 1
+	$cmd || return 1
 	read -r suma sumb _ < <(cksum ./$BNAME)
+	cd $cwd || return 1
 
 	if (( $oldsuma != $suma )); then
 		log_note "sum values are not the same"
-		retval=1
+		return 1
 	fi
 
 	if (( $oldsumb != $sumb )); then
 		log_note "sum values are not the same"
-		retval=1
+		return 1
 	fi
-
-	cd $cwd
-	(( $? != 0 )) && return 1
-	return $retval
 }
 
 function migrate_cpio
@@ -122,28 +106,20 @@ function migrate_cpio
 	typeset archive=$2
 	typeset oldsuma=$3
 	typeset oldsumb=$4
-	typeset -i retval=0
 
 	cwd=$PWD
-	cd $destdir
-	(( $? != 0 )) && return 1
-
-	cpio -iv < $archive
-	(( $? != 0 )) && return 1
-
+	cd $destdir || return 1
+	cpio -iv < $archive || return 1
 	read -r suma sumb _ < <(cksum ./$BNAME)
+	cd $cwd
 
 	if (( $oldsuma != $suma )); then
 		log_note "sum values are not the same"
-		retval=1
+		return 1
 	fi
 
 	if (( $oldsumb != $sumb )); then
 		log_note "sum values are not the same"
-		retval=1
+		return 1
 	fi
-
-	cd $cwd
-	(( $? != 0 )) && return 1
-	return $retval
 }

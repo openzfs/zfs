@@ -36,8 +36,7 @@ function cleanup
 
 function log_must_unsupported
 {
-	log_must_retry "unsupported" 3 "$@"
-	(( $? != 0 )) && log_fail
+	log_must_retry "unsupported" 3 "$@" || log_fail
 }
 
 log_onexit cleanup

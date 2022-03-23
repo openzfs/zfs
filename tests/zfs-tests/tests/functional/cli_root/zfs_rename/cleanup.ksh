@@ -33,11 +33,7 @@
 
 default_cleanup_noexit
 
-if [[ -d $TESTDIR2 ]]; then
-        rm -rf $TESTDIR2
-        if (( $? != 0 )); then
-                log_unresolved Could not remove $TESTDIR2
-        fi
-fi
+rm -rf $TESTDIR2 ||
+        log_unresolved Could not remove $TESTDIR2
 
 log_pass

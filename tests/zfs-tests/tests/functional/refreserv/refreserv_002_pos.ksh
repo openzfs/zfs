@@ -68,8 +68,7 @@ function max_refreserv
 
 	log_must zfs set refreserv=$rr $ds
 	while :; do
-		zfs set refreserv=$((rr + incsize)) $ds >/dev/null 2>&1
-		if [[ $? == 0 ]]; then
+		if zfs set refreserv=$((rr + incsize)) $ds >/dev/null 2>&1; then
 			((rr += incsize))
 			continue
 		else

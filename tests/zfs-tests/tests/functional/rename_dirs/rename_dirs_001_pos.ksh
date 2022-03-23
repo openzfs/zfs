@@ -61,10 +61,7 @@ mkdir -p 1/2/3/4/5 a/b/c/d/e
 rename_dir &
 
 sleep 10
-typeset -i retval=1
-pgrep -x rename_dir >/dev/null 2>&1
-retval=$?
-if (( $retval == 0 )); then
+if pgrep -x rename_dir >/dev/null 2>&1; then
 	pkill -9 -x rename_dir >/dev/null 2>&1
 fi
 

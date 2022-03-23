@@ -20,7 +20,7 @@
 function clear_labels #disks
 {
 	for disk in $@; do
-		if ( is_loop_device $disk ) || ( is_mpath_device $disk ); then
+		if is_loop_device $disk || is_mpath_device $disk; then
 			zpool labelclear -f /dev/$disk
 		else
 			zpool labelclear -f /dev/${disk}1
@@ -90,19 +90,16 @@ function wait_for_action #pool timeout function
 function wait_for_resilver_start #pool timeout
 {
 	wait_for_action $1 $2 is_pool_resilvering
-	return $?
 }
 
 function wait_for_resilver_end #pool timeout
 {
 	wait_for_action $1 $2 is_pool_resilvered
-	return $?
 }
 
 function wait_for_scrub_end #pool timeout
 {
 	wait_for_action $1 $2 is_pool_scrubbed
-	return $?
 }
 
 #
@@ -111,14 +108,10 @@ function wait_for_scrub_end #pool timeout
 
 function is_scan_restarted #pool
 {
-	typeset pool=$1
-	zpool history -i $pool | grep -q "scan aborted, restarting"
-	return $?
+	zpool history -i $1 | grep -q "scan aborted, restarting"
 }
 
 function is_deferred_scan_started #pool
 {
-	typeset pool=$1
-	zpool history -i $pool | grep -q "starting deferred resilver"
-	return $?
+	zpool history -i $1 | grep -q "starting deferred resilver"
 }

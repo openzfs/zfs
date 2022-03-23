@@ -52,12 +52,6 @@ function cleanup {
 log_assert "The noxattr mount option functions as expected"
 log_onexit cleanup
 
-zfs set 2>&1 | grep xattr > /dev/null
-if [ $? -ne 0 ]
-then
-	log_unsupported "noxattr mount option not supported on this release."
-fi
-
 log_must touch $TESTDIR/myfile.$$
 create_xattr $TESTDIR/myfile.$$ passwd /etc/passwd
 

@@ -337,9 +337,7 @@ function scan_state { #state-file
 
 					for p in ${prop[i]} ${prop[((i+1))]}; do
 						zfs $op $p $target
-						ret=$?
-						check_failure $ret "zfs $op $p \
-						    $target"
+						check_failure $? "zfs $op $p $target"
 					done
 				fi
 				for check_obj in $list; do
@@ -349,16 +347,14 @@ function scan_state { #state-file
 					# check_failure to keep journal small
 						verify_prop_src $check_obj $p \
 						    $final_src
-						ret=$?
-						check_failure $ret "verify" \
+						check_failure $? "verify" \
 						    "_prop_src $check_obj $p" \
 						    "$final_src"
 
 					# Again, to keep journal size down.
 						verify_prop_val $p $check_obj \
 						    $final_src $j
-						ret=$?
-						check_failure $ret "verify" \
+						check_failure $? "verify" \
 						    "_prop_val $check_obj $p" \
 						    "$final_src"
 					done

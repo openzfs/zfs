@@ -91,9 +91,7 @@ typeset -i i=0
 
 for ds in $pool $fs $vol; do
 	for propname in ${ro_prop[*]}; do
-		zfs get -pH -o value $propname $ds >/dev/null 2>&1
-		(( $? != 0 )) && \
-			log_fail "Get the property $proname of $ds failed."
+		log_must eval "zfs get -pH -o value $propname $ds >/dev/null 2>&1"
 	done
 	i=0
 	while (( i < ${#rw_prop[*]} )); do
@@ -120,9 +118,7 @@ for ds in $pool $fs $vol; do
 	done
 	if [[ $ds == $vol ]]; then
 		for propname in "volblocksize" "volblock" ; do
-			zfs get -pH -o value $propname $ds >/dev/null 2>&1
-			(( $? != 0 )) && \
-				log_fail "Get the property $propname of $ds failed."
+			log_must eval "zfs get -pH -o value $propname $ds >/dev/null 2>&1"
 		done
 	fi
 done

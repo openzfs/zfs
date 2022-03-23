@@ -63,8 +63,7 @@ if [[ $sharenfs_val == off ]]; then
 	log_must zfs set sharenfs=on $fs
 fi
 
-showshares_nfs | grep $mpt >/dev/null 2>&1
-if (( $? != 0 )); then
+if ! showshares_nfs | grep -q $mpt; then
 	log_must zfs share $fs
 fi
 

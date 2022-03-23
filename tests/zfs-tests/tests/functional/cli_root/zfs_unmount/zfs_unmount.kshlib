@@ -53,7 +53,7 @@ function do_unmount #cmd #opt #mnt #expect
 
 		zfs $cmd $opt $mnt
 		ret=$?
-		if (( ret != expect)); then
+		if (( ret != expect )); then
 			log_fail "'zfs $cmd $opt $mnt' " \
 				"unexpected return code of $ret."
 		fi

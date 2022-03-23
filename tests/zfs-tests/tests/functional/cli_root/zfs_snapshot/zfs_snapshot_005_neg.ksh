@@ -60,7 +60,7 @@ while ((ret == 0)); do
 	ret=$?
 
 	if ((ret != 0)); then
-		len=$(echo $basefs | wc -c)
+		len=$(( ${#basefs} + 1 )) # +1 for NUL
 		log_note "The deeply-nested filesystem len: $len"
 
 		#
@@ -71,7 +71,7 @@ while ((ret == 0)); do
 		if ((len >= 255)); then
 			datasetexists $basefs && destroy_dataset $basefs -r
 			basefs=${basefs%/*}
-			len=$(echo $basefs| wc -c)
+			len=$(( ${#basefs} + 1 ))
 		fi
 		break
 	fi

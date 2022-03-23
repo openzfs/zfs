@@ -47,7 +47,6 @@ function is_pool_imported # pool opts
 
 	check_pool_import "$pool" "$opts" "status" \
 	    "The pool is currently imported"
-	return $?
 }
 
 function wait_pool_imported # pool opts
@@ -58,8 +57,6 @@ function wait_pool_imported # pool opts
 	while is_pool_imported "$pool" "$opts"; do
 		log_must sleep 5
 	done
-
-	return 0
 }
 
 function try_pool_import # pool opts message

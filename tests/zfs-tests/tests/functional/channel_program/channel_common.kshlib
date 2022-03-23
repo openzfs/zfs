@@ -47,9 +47,10 @@ function log_program
 	zfs program $cmdargs >$tmpout 2>$tmperr
 	typeset ret=$?
 
-	log_note "input:\n$(cat $tmpin)"
-	log_note "output:\n$(cat $tmpout)"
-	log_note "error:\n$(cat $tmperr)"
+	log_note $'input:\n'"$(<$tmpin)"
+	log_note $'output:\n'"$(<$tmpout)"
+	log_note $'error:\n'"$(<$tmperr)"
+	log_note "ret: $ret"
 
 	#
 	# Verify correct return value
@@ -64,35 +65,29 @@ function log_program
 	# respectively.
 	#
 	if [[ -f "$basename.out" ]] && [[ $expectexit -eq 0 ]]; then
-
-		outdiff=$(diff "$basename.out" "$tmpout")
-		if [[ $? -ne 0 ]]; then
+		if ! outdiff=$(diff "$basename.out" "$tmpout"); then
 			output=$(<$tmpout)
 			rm $tmpout $tmperr $tmpin
-			log_fail "Output mismatch. Expected:\n" \
-				"$(<$basename.out)\nBut got:\n$output\n" \
-				"Diff:\n$outdiff"
+			log_fail $'Output mismatch. Expected:\n' \
+				"$(<$basename.out)"$'\nBut got:\n'"$output"$'\n' \
+				$'Diff:\n'"$outdiff"
 		fi
 
 	elif [[ -f "$basename.err" ]] && [[ $expectexit -ne 0 ]]; then
-
-		outdiff=$(diff "$basename.err" "$tmperr")
-		if [[ $? -ne 0 ]]; then
+		if ! outdiff=$(diff "$basename.err" "$tmperr"); then
 			outputerror=$(<$tmperr)
 			rm $tmpout $tmperr $tmpin
-			log_fail "Error mismatch. Expected:\n" \
-				"$(<$basename.err)\nBut got:\n$outputerror\n" \
-				"Diff:\n$outdiff"
+			log_fail $'Error mismatch. Expected:\n' \
+				"$(<$basename.err)"$'\nBut got:\n'"$outputerror"$'\n' \
+				$'Diff:\n'"$outdiff"
 		fi
 
 	elif [[ -n $expecterror ]] && [[ $expectexit -ne 0 ]]; then
-
-		grep -q "$expecterror" $tmperr
-		if [[ $? -ne 0 ]]; then
+		if ! grep -q "$expecterror" $tmperr; then
 			outputerror=$(<$tmperr)
 			rm $tmpout $tmperr $tmpin
-			log_fail "Error mismatch. Expected to contain:\n" \
-				"$expecterror\nBut got:\n$outputerror\n"
+			log_fail $'Error mismatch. Expected to contain:\n' \
+				"$expecterror"$'\nBut got:\n'"$outputerror"$'\n'
 		fi
 
 	elif [[ $expectexit -ne 0 ]]; then

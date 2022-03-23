@@ -45,9 +45,7 @@ function scan_scsi_hosts
 				log_must eval "echo '- - -' > $host/scan"
 			done
 		else
-			log_must eval \
-			    "echo /sys/class/scsi_host/host$hostnum/scan" \
-			    > /dev/null
+			log_note "/sys/class/scsi_host/host$hostnum/scan"
 			log_must eval \
 			    "echo '- - -' > /sys/class/scsi_host/host$hostnum/scan"
 		fi
@@ -176,13 +174,11 @@ function is_mpath_device #disk
 	[[ -z $disk ]] && log_fail "No argument for disk given."
 
 	if is_linux; then
-		lsblk $DEV_MPATHDIR/$disk -o TYPE 2>/dev/null | \
-		   grep -q mpath
-		if (($? == 0)); then
+		if lsblk $DEV_MPATHDIR/$disk -o TYPE 2>/dev/null | \
+		   grep -q mpath; then
 			readlink $DEV_MPATHDIR/$disk > /dev/null 2>&1
-			return $?
 		else
-			return $?
+			false
 		fi
 	elif is_freebsd; then
 		is_disk_device $DEV_MPATHDIR/$disk
@@ -438,11 +434,8 @@ function load_scsi_debug # dev_size_mb add_host num_tgts max_luns blksz
 	esac
 
 	if is_linux; then
-		modprobe -n scsi_debug
-		if (($? != 0)); then
-			log_unsupported "Platform does not have scsi_debug"
-			    "module"
-		fi
+		modprobe -n scsi_debug ||
+			log_unsupported "Platform does not have scsi_debug module"
 		if lsmod | grep -q scsi_debug; then
 			log_fail "scsi_debug module already installed"
 		else

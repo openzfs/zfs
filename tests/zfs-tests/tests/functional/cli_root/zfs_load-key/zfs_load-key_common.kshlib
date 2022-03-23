@@ -42,8 +42,7 @@ function key_available
 
 function key_unavailable
 {
-	key_available $1 && return 1
-	return 0
+	! key_available $1
 }
 
 function verify_keyformat

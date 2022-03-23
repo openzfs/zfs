@@ -63,8 +63,7 @@ while (( $j < ${#size[*]} )); do
 	typeset cmdline="zfs create -s -V ${size[j]} \
 			 $TESTPOOL/${LONGFSNAME}${size[j]}"
 
-	str=$(eval $cmdline 2>&1)
-	if (( $? == 0 )); then
+	if str=$(eval $cmdline 2>&1); then
 		log_note "SUCCESS: $cmdline"
 		log_must datasetexists $TESTPOOL/${LONGFSNAME}${size[j]}
 	elif [[ $str == *${VOL_LIMIT_KEYWORD1}* || \

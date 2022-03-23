@@ -37,7 +37,7 @@ function log_must_follow # <command>
 	sleep 3
 	kill $pid
 	if [[ $? -ne 0 ]]; then
-		log_fail "'$command' does not work as expected."
+		log_fail "'$command' exited early."
 	else
 		log_note "'$command' works successfully."
 	fi

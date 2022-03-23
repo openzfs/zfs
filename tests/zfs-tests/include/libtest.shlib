@@ -65,17 +65,16 @@ function linux_version
 {
 	typeset ver="$1"
 
-	[[ -z "$ver" ]] && ver=$(uname -r | grep -Eo "^[0-9]+\.[0-9]+\.[0-9]+")
+	[ -z "$ver" ] && ver=$(uname -r | grep -Eo "^[0-9]+\.[0-9]+\.[0-9]+")
 
-	typeset version=$(echo $ver | cut -d '.' -f 1)
-	typeset major=$(echo $ver | cut -d '.' -f 2)
-	typeset minor=$(echo $ver | cut -d '.' -f 3)
+	typeset version major minor _
+	IFS='.' read -r version major minor _ <<<"$ver"
 
-	[[ -z "$version" ]] && version=0
-	[[ -z "$major" ]] && major=0
-	[[ -z "$minor" ]] && minor=0
+	[ -z "$version" ] && version=0
+	[ -z "$major" ] && major=0
+	[ -z "$minor" ] && minor=0
 
-	echo $((version * 10000 + major * 100 + minor))
+	echo $((version * 100000 + major * 1000 + minor))
 }
 
 # Determine if this is a Linux test system
@@ -144,7 +143,7 @@ function ismounted
 {
 	typeset fstype=$2
 	[[ -z $fstype ]] && fstype=zfs
-	typeset out dir name ret
+	typeset out dir name
 
 	case $fstype in
 		zfs)
@@ -153,7 +152,6 @@ function ismounted
 			else
 				! zfs mount | awk -v ds="$1" '$1 == ds {exit 1}'
 			fi
-			return $?
 		;;
 		ufs|nfs)
 			if is_freebsd; then
@@ -161,9 +159,7 @@ function ismounted
 					[[ "$1" == "$dev" || "$1" == "$dir" ]] && return 0
 				done
 			else
-				out=$(df -F $fstype $1 2>/dev/null)
-				ret=$?
-				(($ret != 0)) && return $ret
+				out=$(df -F $fstype $1 2>/dev/null) || return
 
 				dir=${out%%\(*}
 				dir=${dir%% *}
@@ -176,7 +172,6 @@ function ismounted
 		;;
 		ext*)
 			df -t $fstype $1 > /dev/null 2>&1
-			return $?
 		;;
 		zvol)
 			if [[ -L "$ZVOL_DEVDIR/$1" ]]; then
@@ -186,9 +181,10 @@ function ismounted
 						return 0
 			fi
 		;;
+		*)
+			false
+		;;
 	esac
-
-	return 1
 }
 
 # Return 0 if a dataset is mounted; 1 otherwise
@@ -199,8 +195,6 @@ function ismounted
 function mounted
 {
 	ismounted $1 $2
-	(($? == 0)) && return 0
-	return 1
 }
 
 # Return 0 if a dataset is unmounted; 1 otherwise
@@ -210,9 +204,7 @@ function mounted
 
 function unmounted
 {
-	ismounted $1 $2
-	(($? == 1)) && return 0
-	return 1
+	! ismounted $1 $2
 }
 
 function default_setup
@@ -644,8 +636,7 @@ function default_container_cleanup
 		reexport_pool
 	fi
 
-	ismounted $TESTPOOL/$TESTCTR/$TESTFS1
-	[[ $? -eq 0 ]] && \
+	ismounted $TESTPOOL/$TESTCTR/$TESTFS1 &&
 	    log_must zfs unmount $TESTPOOL/$TESTCTR/$TESTFS1
 
 	destroy_dataset "$TESTPOOL/$TESTCTR/$TESTFS1" "-R"
@@ -907,8 +898,7 @@ function set_partition
 		parted $disk -s -- print 1 >/dev/null
 		typeset ret_val=$?
 		if [[ $slicenum -eq 0 || $ret_val -ne 0 ]]; then
-			parted $disk -s -- mklabel gpt
-			if [[ $? -ne 0 ]]; then
+			if ! parted $disk -s -- mklabel gpt; then
 				log_note "Failed to create GPT partition table on $disk"
 				return 1
 			fi
@@ -945,8 +935,7 @@ function set_partition
 
 		if [[ $slicenum -eq 0 ]] || ! gpart show $disk >/dev/null 2>&1; then
 			gpart destroy -F $disk >/dev/null 2>&1
-			gpart create -s GPT $disk
-			if [[ $? -ne 0 ]]; then
+			if ! gpart create -s GPT $disk; then
 				log_note "Failed to create GPT partition table on $disk"
 				return 1
 			fi
@@ -1144,9 +1133,8 @@ function fill_fs # destdir dirnum filenum bytes num_writes data
 	mkdir -p $destdir/{1..$dirnum}
 	for f in $destdir/{1..$dirnum}/$TESTFILE{1..$filenum}; do
 		file_write -o create -f $f -b $bytes -c $num_writes -d $data \
-		|| return $?
+		|| return
 	done
-	return 0
 }
 
 # Get the specified dataset property in parsable format or fail
@@ -1835,8 +1823,7 @@ function zfs_zones_setup #zone_name zone_root zone_ip
 	log_must rm -f $zone_conf
 
 	# Install the zone
-	zoneadm -z $zone_name install
-	if (($? == 0)); then
+	if zoneadm -z $zone_name install; then
 		log_note "SUCCESS: zoneadm -z $zone_name install"
 	else
 		log_fail "FAIL: zoneadm -z $zone_name install"
@@ -1899,14 +1886,10 @@ function check_state # pool disk state{online,offline,degraded}
 
 	if [[ -z $disk ]]; then
 		#check pool state only
-		zpool get -H -o value health $pool \
-		    | grep -i "$state" > /dev/null 2>&1
+		zpool get -H -o value health $pool | grep -qi "$state"
 	else
-		zpool status -v $pool | grep "$disk"  \
-		    | grep -i "$state" > /dev/null 2>&1
+		zpool status -v $pool | grep "$disk" | grep -qi "$state"
 	fi
-
-	return $?
 }
 
 #
@@ -1980,10 +1963,10 @@ function verify_filesys # pool filesystem dir
 
 	log_must zpool import $search_path $pool
 
-	zdb -cudi $filesys > $zdbout 2>&1
-	if [[ $? != 0 ]]; then
+	if ! zdb -cudi $filesys > $zdbout 2>&1; then
 		log_note "Output: zdb -cudi $filesys"
 		cat $zdbout
+		rm -f $zdbout
 		log_fail "zdb detected errors with: '$filesys'"
 	fi
 
@@ -2056,10 +2039,8 @@ function stress_timeout
 	log_note "Killing child processes after ${TIMEOUT} stress timeout."
 	typeset pid
 	for pid in $cpids; do
-		ps -p $pid > /dev/null 2>&1
-		if (($? == 0)); then
+		ps -p $pid > /dev/null 2>&1 &&
 			log_must kill -USR1 $pid
-		fi
 	done
 }
 
@@ -2201,55 +2182,46 @@ function is_pool_resilvering #pool <verbose>
 {
 	check_pool_status "$1" "scan" \
 	    "resilver[ ()0-9A-Za-z:_-]* in progress since" $2
-	return $?
 }
 
 function is_pool_resilvered #pool <verbose>
 {
 	check_pool_status "$1" "scan" "resilvered " $2
-	return $?
 }
 
 function is_pool_scrubbing #pool <verbose>
 {
 	check_pool_status "$1" "scan" "scrub in progress since " $2
-	return $?
 }
 
 function is_pool_scrubbed #pool <verbose>
 {
 	check_pool_status "$1" "scan" "scrub repaired" $2
-	return $?
 }
 
 function is_pool_scrub_stopped #pool <verbose>
 {
 	check_pool_status "$1" "scan" "scrub canceled" $2
-	return $?
 }
 
 function is_pool_scrub_paused #pool <verbose>
 {
 	check_pool_status "$1" "scan" "scrub paused since " $2
-	return $?
 }
 
 function is_pool_removing #pool
 {
 	check_pool_status "$1" "remove" "in progress since "
-	return $?
 }
 
 function is_pool_removed #pool
 {
 	check_pool_status "$1" "remove" "completed on"
-	return $?
 }
 
 function is_pool_discarding #pool
 {
 	check_pool_status "$1" "checkpoint" "discarding"
-	return $?
 }
 
 function wait_for_degraded
@@ -2338,22 +2310,17 @@ BEGIN { FS="."; }
 	unused=""
 	for disk in $disks; do
 	# Check for mounted
-		grep "${disk}[sp]" /etc/mnttab >/dev/null
-		(($? == 0)) && continue
+		grep -q "${disk}[sp]" /etc/mnttab && continue
 	# Check for swap
-		grep "${disk}[sp]" $sfi >/dev/null
-		(($? == 0)) && continue
+		grep -q "${disk}[sp]" $sfi && continue
 	# check for dump device
-		grep "${disk}[sp]" $dmpi >/dev/null
-		(($? == 0)) && continue
+		grep -q "${disk}[sp]" $dmpi && continue
 	# check to see if this disk hasn't been explicitly excluded
 	# by a user-set environment variable
-		echo "${ZFS_HOST_DEVICES_IGNORE}" | grep "${disk}" > /dev/null
-		(($? == 0)) && continue
+		echo "${ZFS_HOST_DEVICES_IGNORE}" | grep -q "${disk}" && continue
 		unused_candidates="$unused_candidates $disk"
 	done
-	rm $sfi
-	rm $dmpi
+	rm $sfi $dmpi
 
 # now just check to see if those disks do actually exist
 # by looking for a device pointing to the first slice in
@@ -2386,10 +2353,8 @@ function add_user_freebsd #<group_name> <user_name> <basedir>
 	# Assign 1000 as the base uid
 	typeset -i uid=1000
 	while true; do
-		typeset -i ret
 		pw useradd -u $uid -g $group -d $basedir/$user -m -n $user
-		ret=$?
-		case $ret in
+		case $? in
 			0) break ;;
 			# The uid is not unique
 			65) ((uid += 1)) ;;
@@ -2440,8 +2405,7 @@ function add_group_freebsd #<group_name>
 	typeset -i gid=1000
 	while true; do
 		pw groupadd -g $gid -n $group > /dev/null 2>&1
-		typeset -i ret=$?
-		case $ret in
+		case $? in
 			0) return 0 ;;
 			# The gid is not  unique
 			65) ((gid += 1)) ;;
@@ -2463,8 +2427,7 @@ function del_group_freebsd #<group_name>
 	typeset group=$1
 
 	pw groupdel -n $group > /dev/null 2>&1
-	typeset -i ret=$?
-	case $ret in
+	case $? in
 		# Group does not exist, or was deleted successfully.
 		0|6|65) return 0 ;;
 		# Name already exists as a group name
@@ -2504,8 +2467,7 @@ function add_group_illumos #<group_name>
 	typeset -i gid=100
 	while true; do
 		groupadd -g $gid $group > /dev/null 2>&1
-		typeset -i ret=$?
-		case $ret in
+		case $? in
 			0) return 0 ;;
 			# The gid is not  unique
 			4) ((gid += 1)) ;;
@@ -2519,8 +2481,7 @@ function del_group_illumos #<group_name>
 	typeset group=$1
 
 	groupmod -n $grp $grp > /dev/null 2>&1
-	typeset -i ret=$?
-	case $ret in
+	case $? in
 		# Group does not exist.
 		6) return 0 ;;
 		# Name already exists as a group name
@@ -2553,8 +2514,6 @@ function del_user_linux #<user_name>
 	if id $user > /dev/null 2>&1; then
 		log_must_retry "currently used" 6 userdel $user
 	fi
-
-	return 0
 }
 
 function add_group_linux #<group_name>
@@ -2565,8 +2524,7 @@ function add_group_linux #<group_name>
 	# Linux because for many distributions 1000 and under are reserved.
 	while true; do
 		groupadd $group > /dev/null 2>&1
-		typeset -i ret=$?
-		case $ret in
+		case $? in
 			0) return 0 ;;
 			*) return 1 ;;
 		esac
@@ -2578,8 +2536,7 @@ function del_group_linux #<group_name>
 	typeset group=$1
 
 	getent group $group > /dev/null 2>&1
-	typeset -i ret=$?
-	case $ret in
+	case $? in
 		# Group does not exist.
 		2) return 0 ;;
 		# Name already exists as a group name
@@ -2858,7 +2815,6 @@ function get_config
 {
 	typeset pool=$1
 	typeset config=$2
-	typeset alt_root
 
 	if ! poolexists "$pool" ; then
 		return 1
@@ -2987,8 +2943,7 @@ function get_rootfs
 	if [[ -z "$rootfs" ]]; then
 		log_fail "Can not get rootfs"
 	fi
-	zfs list $rootfs > /dev/null 2>&1
-	if (($? == 0)); then
+	if datasetexists $rootfs; then
 		echo $rootfs
 	else
 		log_fail "This is not a zfsroot system."
@@ -3119,14 +3074,12 @@ function vdevs_in_pool
 	# therefore we use the 'zpool status' output.
 	typeset tmpfile=$(mktemp)
 	zpool status -v "$pool" | grep -A 1000 "config:" >$tmpfile
-	for vdev in $@; do
-		grep -w ${vdev##*/} $tmpfile >/dev/null 2>&1
-		[[ $? -ne 0 ]] && return 1
+	for vdev in "$@"; do
+		grep -wq ${vdev##*/} $tmpfile || && return 1
 	done
 
 	rm -f $tmpfile
-
-	return 0;
+	return 0
 }
 
 function get_max
@@ -3385,9 +3338,7 @@ function zed_check
 		return
 	fi
 	zedpids="$(pgrep -x zed)"
-#	ret1=$?
 	zedpids2="$(pgrep -x lt-zed)"
-#	ret2=$?
 	echo ${zedpids} ${zedpids2}
 }
 
@@ -3589,18 +3540,14 @@ function set_tunable_impl
 	case "$(uname)" in
 	Linux)
 		typeset zfs_tunables="/sys/module/$module/parameters"
-		[[ -w "$zfs_tunables/$tunable" ]] || return 1
-		cat >"$zfs_tunables/$tunable" <<<"$value"
-		return $?
+		echo "$value" >"$zfs_tunables/$tunable"
 		;;
 	FreeBSD)
 		sysctl vfs.zfs.$tunable=$value
-		return "$?"
 		;;
 	SunOS)
 		[[ "$module" -eq "zfs" ]] || return 1
 		echo "${tunable}/${mdb_cmd}0t${value}" | mdb -kw
-		return $?
 		;;
 	esac
 }
@@ -3635,9 +3582,7 @@ function get_tunable_impl
 	case "$(uname)" in
 	Linux)
 		typeset zfs_tunables="/sys/module/$module/parameters"
-		[[ -f "$zfs_tunables/$tunable" ]] || return 1
 		cat $zfs_tunables/$tunable
-		return $?
 		;;
 	FreeBSD)
 		sysctl -n vfs.zfs.$tunable
@@ -3646,69 +3591,6 @@ function get_tunable_impl
 		[[ "$module" -eq "zfs" ]] || return 1
 		;;
 	esac
-
-	return 1
-}
-
-#
-# Prints the current time in seconds since UNIX Epoch.
-#
-function current_epoch
-{
-	printf '%(%s)T'
-}
-
-#
-# Get decimal value of global uint32_t variable using mdb.
-#
-function mdb_get_uint32
-{
-	typeset variable=$1
-	typeset value
-
-	value=$(mdb -k -e "$variable/X | ::eval .=U")
-	if [[ $? -ne 0 ]]; then
-		log_fail "Failed to get value of '$variable' from mdb."
-		return 1
-	fi
-
-	echo $value
-	return 0
-}
-
-#
-# Set global uint32_t variable to a decimal value using mdb.
-#
-function mdb_set_uint32
-{
-	typeset variable=$1
-	typeset value=$2
-
-	mdb -kw -e "$variable/W 0t$value" > /dev/null
-	if [[ $? -ne 0 ]]; then
-		echo "Failed to set '$variable' to '$value' in mdb."
-		return 1
-	fi
-
-	return 0
-}
-
-#
-# Set global scalar integer variable to a hex value using mdb.
-# Note: Target should have CTF data loaded.
-#
-function mdb_ctf_set_int
-{
-	typeset variable=$1
-	typeset value=$2
-
-	mdb -kw -e "$variable/z $value" > /dev/null
-	if [[ $? -ne 0 ]]; then
-		echo "Failed to set '$variable' to '$value' in mdb."
-		return 1
-	fi
-
-	return 0
 }
 
 #
@@ -4117,5 +3999,4 @@ function directory_diff # dir_a dir_b
 function replay_directory_diff # dir_a dir_b
 {
 	LIBTEST_DIFF_ZIL_REPLAY=1 directory_diff "$@"
-	return $?
 }

@@ -34,13 +34,12 @@
 
 verify_runnable "global"
 
-[[ -f $TEST_BASE_DIR/exitsZero.ksh ]] && \
+[[ -f $TEST_BASE_DIR/exitsZero.ksh ]] &&
 	log_must rm -f $TEST_BASE_DIR/exitsZero.ksh
-[[ -f $TEST_BASE_DIR/testbackgprocs.ksh ]] && \
+[[ -f $TEST_BASE_DIR/testbackgprocs.ksh ]] &&
 	log_must rm -f $TEST_BASE_DIR/testbackgprocs.ksh
 
-ismounted $TESTPOOL/$TESTFS_TGT
-(( $? == 0 )) && log_must zfs umount $TESTPOOL/$TESTFS_TGT
+ismounted $TESTPOOL/$TESTFS_TGT ||log_must zfs umount $TESTPOOL/$TESTFS_TGT
 log_must zfs destroy $TESTPOOL/$TESTFS_TGT
 
 [[ -d $TESTDIR_TGT ]] && log_must rm -rf $TESTDIR_TGT

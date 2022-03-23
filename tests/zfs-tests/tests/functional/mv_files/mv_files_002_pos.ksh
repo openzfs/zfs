@@ -54,8 +54,7 @@ verify_runnable "global"
 
 function cleanup
 {
-	rm -f $OLDDIR/* >/dev/null 2>&1
-	rm -f $NEWDIR_ACROSS_FS/* >/dev/null 2>&1
+	rm -f $OLDDIR/* $NEWDIR_ACROSS_FS/*  >/dev/null 2>&1
 }
 
 log_assert "Doing a 'mv' of a large amount of files across two zfs filesystems" \
@@ -63,8 +62,6 @@ log_assert "Doing a 'mv' of a large amount of files across two zfs filesystems" 
 
 log_onexit cleanup
 
-mv_test $OLDDIR $NEWDIR_ACROSS_FS
-(($? != 0 )) && \
-        log_fail "'mv' test failed to complete."
+log_must mv_test $OLDDIR $NEWDIR_ACROSS_FS
 
 log_pass

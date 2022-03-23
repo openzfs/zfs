@@ -53,10 +53,7 @@ volsize=$(zfs get -H -o value volsize $TESTPOOL/$TESTVOL)
 
 function cleanup
 {
-	swap -l | grep $voldev > /dev/null 2>&1
-	if (( $? == 0 )) ; then
-		log_must swap -d $voldev
-	fi
+	swap -l | grep -qF $voldev && log_must swap -d $voldev
 
 	typeset dumpdev=$(get_dumpdevice)
 	if [[ $dumpdev != $savedumpdev ]] ; then

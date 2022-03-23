@@ -165,9 +165,7 @@ function cmp_md5s {
 	typeset file1=$1
 	typeset file2=$2
 
-	typeset sum1=$(md5digest $file1)
-	typeset sum2=$(md5digest $file2)
-	test "$sum1" = "$sum2"
+	[ "$(md5digest $file1)" = "$(md5digest $file2)" ]
 }
 
 #
@@ -181,18 +179,9 @@ function cmp_ds_subs
 	typeset src_fs=$1
 	typeset dst_fs=$2
 
-	zfs list -r -H -t all -o name $src_fs > $BACKDIR/src1
-	zfs list -r -H -t all -o name $dst_fs > $BACKDIR/dst1
-
-	eval sed -e 's:^$src_fs:PREFIX:g' < $BACKDIR/src1 > $BACKDIR/src
-	eval sed -e 's:^$dst_fs:PREFIX:g' < $BACKDIR/dst1 > $BACKDIR/dst
-
-	diff $BACKDIR/src $BACKDIR/dst
-	typeset -i ret=$?
-
-	rm -f $BACKDIR/src $BACKDIR/dst $BACKDIR/src1 $BACKDIR/dst1
-
-	return $ret
+	diff \
+		<(zfs list -rHt all -o name $src_fs | sed "s:^$src_fs:PREFIX:g") \
+		<(zfs list -rHt all -o name $dst_fs | sed "s:^$dst_fs:PREFIX:g")
 }
 
 #
@@ -211,7 +200,6 @@ function cmp_ds_cont
 	dstdir=$(get_prop mountpoint $dst_fs)
 
 	replay_directory_diff $srcdir $dstdir
-	return $?
 }
 
 #
@@ -224,34 +212,19 @@ function cmp_ds_prop
 {
 	typeset dtst1=$1
 	typeset dtst2=$2
-	typeset -a props=("type" "origin" "volblocksize" "acltype" "dnodesize" \
-	    "atime" "canmount" "checksum" "compression" "copies" "devices" \
-	    "exec" "quota" "readonly" "recordsize" "reservation" "setuid" \
-	    "snapdir" "version" "volsize" "xattr" "mountpoint");
+	typeset props="type,origin,volblocksize,acltype,dnodesize"
+	props+=",atime,canmount,checksum,compression,copies,devices"
+	props+=",exec,quota,readonly,recordsize,reservation,setuid"
+	props+=",snapdir,version,volsize,xattr,mountpoint"
 	if is_freebsd; then
-		props+=("jailed")
+		props+=",jailed"
 	else
-		props+=("zoned")
+		props+=",zoned"
 	fi
 
-	for prop in $props;
-	do
-		zfs get -H -o property,value,source $prop $dtst1 >> \
-		    $BACKDIR/dtst1
-		zfs get -H -o property,value,source $prop $dtst2 >> \
-		    $BACKDIR/dtst2
-	done
-
-	eval sed -e 's:$dtst1:PREFIX:g' < $BACKDIR/dtst1 > $BACKDIR/dtst1
-	eval sed -e 's:$dtst2:PREFIX:g' < $BACKDIR/dtst2 > $BACKDIR/dtst2
-
-	diff $BACKDIR/dtst1 $BACKDIR/dtst2
-	typeset -i ret=$?
-
-	rm -f $BACKDIR/dtst1 $BACKDIR/dtst2
-
-	return $ret
-
+	diff \
+		<(zfs get -Ho property,value,source $props $dtst1 | sed "s:$dtst1:PREFIX:g") \
+		<(zfs get -Ho property,value,source $props $dtst2 | sed "s:$dtst2:PREFIX:g")
 }
 
 #
@@ -344,9 +317,7 @@ function getds_with_suffix
 	typeset ds=$1
 	typeset suffix=$2
 
-	typeset list=$(zfs list -r -H -t all -o name $ds | grep "$suffix$")
-
-	echo $list
+	zfs list -rHt all -o name $ds | grep "$suffix$"
 }
 
 #
@@ -374,7 +345,7 @@ function fs_inherit_prop
 #
 function vol_inherit_prop
 {
-	echo "checksum readonly"
+	echo checksum readonly
 }
 
 #
@@ -621,13 +592,11 @@ function file_check
 
 	if [[ -d /$recvfs/.zfs/snapshot/a && -d \
 	    /$sendfs/.zfs/snapshot/a ]]; then
-		directory_diff /$recvfs/.zfs/snapshot/a /$sendfs/.zfs/snapshot/a
-		[[ $? -eq 0 ]] || log_fail "Differences found in snap a"
+		log_must directory_diff /$recvfs/.zfs/snapshot/a /$sendfs/.zfs/snapshot/a
 	fi
 	if [[ -d /$recvfs/.zfs/snapshot/b && -d \
 	    /$sendfs/.zfs/snapshot/b ]]; then
-		directory_diff /$recvfs/.zfs/snapshot/b /$sendfs/.zfs/snapshot/b
-		[[ $? -eq 0 ]] || log_fail "Differences found in snap b"
+		log_must directory_diff /$recvfs/.zfs/snapshot/b /$sendfs/.zfs/snapshot/b
 	fi
 }
 

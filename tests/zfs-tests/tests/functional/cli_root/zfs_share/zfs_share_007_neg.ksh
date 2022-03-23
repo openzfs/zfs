@@ -63,10 +63,7 @@ do
 	log_note "Setting sharenfs=${badopts[i]} $i "
 	log_mustnot zfs set sharenfs="${badopts[i]}" $TESTPOOL/$TESTFS
 
-	showshares_nfs | grep $option > /dev/null 2>&1
-	if (( $? == 0 )); then
-		log_fail "An invalid setting '$option' was propagated."
-	fi
+	log_mustnot eval "showshares_nfs | grep -q ${badopts[i]}"
 
 	#
 	# To global zone, sharenfs must be set 'off' before malformed testing.

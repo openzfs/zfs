@@ -34,11 +34,11 @@
 
 #
 # DESCRIPTION:
-# Migrating test file from UFS fs to ZFS fs using cp
+# Migrating test file from platform native fs to ZFS fs using cp
 #
 # STRATEGY:
 # 1. Calculate chksum of testfile
-# 2. CP up test file and place on a UFS filesystem
+# 2. CP up test file and place on a platform native filesystem
 # 3. Extract cp contents to a ZFS file system
 # 4. Calculate chksum of extracted file
 # 5. Compare old and new chksums.
@@ -48,19 +48,14 @@ verify_runnable "both"
 
 function cleanup
 {
-	rm -rf $TESTDIR/cp$$.cp
-	rm -rf $NONZFS_TESTDIR/$BNAME
+	rm -rf $TESTDIR/cp$$.cp $NONZFS_TESTDIR/$BNAME
 }
 
-log_assert "Migrating test file from UFS fs to ZFS fs using cp"
+log_assert "Migrating test file from $NEWFS_DEFAULT_FS fs to ZFS fs using cp"
 
 log_onexit cleanup
 
-prepare $DNAME "cp $BNAME $NONZFS_TESTDIR/cp$$.cp"
-(( $? != 0 )) && log_fail "Unable to create src archive"
+log_mustprepare $DNAME "cp $BNAME $NONZFS_TESTDIR/cp$$.cp"
+log_mustmigrate $TESTDIR $SUMA $SUMB "cp $NONZFS_TESTDIR/cp$$.cp $BNAME"
 
-migrate $TESTDIR $SUMA $SUMB "cp $NONZFS_TESTDIR/cp$$.cp $BNAME"
-(( $? != 0 )) && log_fail "Unable to successfully migrate test file from" \
-    "UFS fs to ZFS fs"
-
-log_pass "Successfully migrated test file from UFS fs to ZFS fs".
+log_pass "Successfully migrated test file from $NEWFS_DEFAULT_FS fs to ZFS fs".

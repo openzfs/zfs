@@ -75,25 +75,16 @@ log_must zpool get all $TESTPOOL
 zpool get all $TESTPOOL > $values
 
 # check for the cachefile property, verifying that it's set to 'none'
-grep "$TESTPOOL[ ]*cachefile[ ]*none" $values > /dev/null 2>&1
-if [ $? -ne 0 ]
-then
-	log_fail "zpool property \'cachefile\' was not set to \'none\'."
-fi
+log_must grep -q "$TESTPOOL[ ]*cachefile[ ]*none" $values
 
 # check that the root = /mountpoint property is set correctly
-grep "$TESTPOOL[ ]*altroot[ ]*/${TESTPOOL}.root" $values > /dev/null 2>&1
-if [ $? -ne 0 ]
-then
-	log_fail "zpool property root was not found in pool output."
-fi
+log_must grep -q "$TESTPOOL[ ]*altroot[ ]*/${TESTPOOL}.root" $values
 
 rm $values
 
 # finally, check that the pool has no reference in /etc/zfs/zpool.cache
 if [[ -f /etc/zfs/zpool.cache ]] ; then
-	REF=$(strings /etc/zfs/zpool.cache | grep ${TESTPOOL})
-	if [ ! -z "$REF" ]
+	if strings /etc/zfs/zpool.cache | grep -q ${TESTPOOL}
 	then
 		strings /etc/zfs/zpool.cache
 		log_fail "/etc/zfs/zpool.cache appears to have a reference to $TESTPOOL"
