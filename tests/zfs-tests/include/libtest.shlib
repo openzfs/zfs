@@ -1448,7 +1448,7 @@ function unshare_fs #fs
 	typeset fs=$1
 
 	if is_shared $fs || is_shared_smb $fs; then
-		zfs unshare $fs || log_fail "zfs unshare $fs failed"
+		log_must zfs unshare $fs
 	fi
 }
 
@@ -2141,10 +2141,7 @@ function check_hotspare_state # pool disk state{inuse,avail}
 
 	cur_state=$(get_device_state $pool $disk "spares")
 
-	if [[ $state != ${cur_state} ]]; then
-		return 1
-	fi
-	return 0
+	[ $state = $cur_state ]
 }
 
 #
@@ -2204,10 +2201,7 @@ function check_vdev_state # pool disk state{online,offline,unavail}
 
 	cur_state=$(get_device_state $pool $disk)
 
-	if [[ $state != ${cur_state} ]]; then
-		return 1
-	fi
-	return 0
+	[ $state = $cur_state ]
 }
 
 #
@@ -3197,32 +3191,8 @@ function get_rootfs
 #
 function get_rootpool
 {
-	typeset rootfs=""
-	typeset rootpool=""
-
-	if is_freebsd; then
-		rootfs=$(mount -p | awk '$2 == "/" && $3 == "zfs" {print $1}')
-	elif ! is_linux; then
-		rootfs=$(awk '{if ($2 == "/" && $3 =="zfs") print $1}' \
-			 /etc/mnttab)
-	fi
-	if [[ -z "$rootfs" ]]; then
-		log_fail "Can not get rootpool"
-	fi
-	zfs list $rootfs > /dev/null 2>&1
-	if (($? == 0)); then
-		echo ${rootfs%%/*}
-	else
-		log_fail "This is not a zfsroot system."
-	fi
-}
-
-#
-# Get the word numbers from a string separated by white space
-#
-function get_word_count
-{
-	echo $1 | wc -w
+	typeset rootfs=$(get_rootfs)
+	echo ${rootfs%%/*}
 }
 
 #
@@ -3232,7 +3202,7 @@ function verify_disk_count
 {
 	typeset -i min=${2:-1}
 
-	typeset -i count=$(get_word_count "$1")
+	typeset -i count=$(echo "$1" | wc -w)
 
 	if ((count < min)); then
 		log_untested "A minimum of $min disks is required to run." \
@@ -3266,26 +3236,23 @@ function ds_is_snapshot
 #
 function is_te_enabled
 {
-	svcs -H -o state labeld 2>/dev/null | grep "enabled"
-	if (($? != 0)); then
-		return 1
-	else
-		return 0
-	fi
+	svcs -H -o state labeld 2>/dev/null | grep -q "enabled"
 }
 
 # Utility function to determine if a system has multiple cpus.
 function is_mp
 {
-	if is_linux; then
-		(($(nproc) > 1))
-	elif is_freebsd; then
-		sysctl -n kern.smp.cpus
-	else
-		(($(psrinfo | wc -l) > 1))
-	fi
-
-	return $?
+	case $(uname) in
+		Linux)
+			(($(nproc) > 1))
+			;;
+		FreeBSD)
+			sysctl -n kern.smp.cpus
+			;;
+		*)
+			(($(psrinfo | wc -l) > 1))
+			;;
+	esac
 }
 
 function get_cpu_freq
@@ -3409,20 +3376,20 @@ function write_compressible
 			done
 		done
 	else
-		log_must eval "fio \
+		log_must eval fio \
 		    --name=job \
 		    --fallocate=0 \
 		    --minimal \
 		    --randrepeat=0 \
 		    --buffer_compress_percentage=66 \
 		    --buffer_compress_chunk=4096 \
-		    --directory=$dir \
-		    --numjobs=$nfiles \
-		    --nrfiles=$nfiles \
+		    --directory="$dir" \
+		    --numjobs="$nfiles" \
+		    --nrfiles="$nfiles" \
 		    --rw=write \
-		    --bs=$bs \
-		    --filesize=$megs \
-		    --filename_format='$fname.\$jobnum' >/dev/null"
+		    --bs="$bs" \
+		    --filesize="$megs" \
+		    "--filename_format='$fname.\$jobnum' >/dev/null"
 	fi
 }
 
@@ -3593,24 +3560,13 @@ function zed_cleanup
 	if ! is_linux; then
 		return
 	fi
-	EXTRA_ZEDLETS=$@
 
-	log_must rm -f ${ZEDLET_DIR}/zed.rc
-	log_must rm -f ${ZEDLET_DIR}/zed-functions.sh
-	log_must rm -f ${ZEDLET_DIR}/all-syslog.sh
-	log_must rm -f ${ZEDLET_DIR}/all-debug.sh
-	log_must rm -f ${ZEDLET_DIR}/state
-
-	if [[ -n "$EXTRA_ZEDLETS" ]] ; then
-		for i in $EXTRA_ZEDLETS ; do
-			log_must rm -f ${ZEDLET_DIR}/$i
-		done
-	fi
-	log_must rm -f $ZED_LOG
-	log_must rm -f $ZED_DEBUG_LOG
-	log_must rm -f $VDEVID_CONF_ETC
-	log_must rm -f $VDEVID_CONF
-	rmdir $ZEDLET_DIR
+	for extra_zedlet; do
+		log_must rm -f ${ZEDLET_DIR}/$extra_zedlet
+	done
+	log_must rm -fd ${ZEDLET_DIR}/zed.rc ${ZEDLET_DIR}/zed-functions.sh ${ZEDLET_DIR}/all-syslog.sh ${ZEDLET_DIR}/all-debug.sh ${ZEDLET_DIR}/state \
+	                $ZED_LOG $ZED_DEBUG_LOG $VDEVID_CONF_ETC $VDEVID_CONF \
+	                $ZEDLET_DIR
 }
 
 #

@@ -57,7 +57,7 @@ function cleanup
 	restore_root_datasets
 }
 
-log_assert "everyone' is interpreted as a keyword even if a user " \
+log_assert "'everyone' is interpreted as a keyword even if a user " \
 	"or group named 'everyone' exists."
 log_onexit cleanup
 
@@ -79,9 +79,7 @@ if [[ $user_added == "TRUE" ]]; then
 fi
 
 log_note "Created a group called 'everyone'."
-if ! cat /etc/group | awk -F: '{print $1}' | \
-	grep -w 'everyone' > /dev/null 2>&1
-then
+if ! grep -q '^everyone:' /etc/group; then
 	group_added="TRUE"
 	log_must add_group everyone
 fi

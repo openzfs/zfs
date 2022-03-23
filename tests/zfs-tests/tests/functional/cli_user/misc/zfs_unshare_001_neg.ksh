@@ -52,17 +52,13 @@ fi
 log_assert "zfs unshare returns an error when run as a user"
 
 #  verify that the filesystem was shared initially
-if not_shared $TESTDIR/shared
-then
-	log_fail "$TESTPOOL/$TESTFS/shared was not shared initially at all!"
-fi
+log_mustnot not_shared $TESTDIR/shared
+log_fail "$TESTPOOL/$TESTFS/shared was not shared initially at all!"
 
 log_mustnot zfs unshare $TESTPOOL/$TESTFS/shared
 
 # now verify that the above command didn't do anything
-if not_shared $TESTDIR/shared
-then
-	log_fail "$TESTPOOL/$TESTFS/shared was actually unshared!"
-fi
+log_mustnot not_shared $TESTDIR/shared
+log_fail "$TESTPOOL/$TESTFS/shared was actually unshared!"
 
 log_pass "zfs unshare returns an error when run as a user"

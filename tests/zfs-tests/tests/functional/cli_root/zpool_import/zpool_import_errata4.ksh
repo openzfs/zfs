@@ -43,18 +43,16 @@ POOL_FILE=missing_ivset.dat
 function uncompress_pool
 {
 	log_note "Creating pool from $POOL_FILE"
-	log_must bzcat \
+	log_must eval bzcat \
 	    $STF_SUITE/tests/functional/cli_root/zpool_import/blockfiles/$POOL_FILE.bz2 \
-	    > /$TESTPOOL/$POOL_FILE
-	return 0
+	    "> /$TESTPOOL/$POOL_FILE"
 }
 
 function cleanup
 {
 	log_must set_tunable32 DISABLE_IVSET_GUID_CHECK 0
 	poolexists $POOL_NAME && log_must zpool destroy $POOL_NAME
-	[[ -e /$TESTPOOL/$POOL_FILE ]] && rm /$TESTPOOL/$POOL_FILE
-	return 0
+	log_must rm -rf /$TESTPOOL/$POOL_FILE
 }
 log_onexit cleanup
 
@@ -65,11 +63,7 @@ function has_ivset_guid # dataset
 	ds="$1"
 	ivset_guid=$(get_prop ivsetguid $ds)
 
-	if [ "$ivset_guid" == "-" ]; then
-		return 1
-	else
-		return 0
-	fi
+	[ "$ivset_guid" != "-" ]
 }
 
 # 1. Import a pre-packaged pool with Errata #4 and verify its state
@@ -78,9 +72,7 @@ log_must zpool import -d /$TESTPOOL/ $POOL_NAME
 log_must eval "zpool status $POOL_NAME | grep -q 'Errata #4'"
 log_must eval "zpool status $POOL_NAME | grep -q ZFS-8000-ER"
 bm2_value=$(zpool get -H -o value feature@bookmark_v2 $POOL_NAME)
-if [ "$bm2_value" != "disabled" ]; then
-	log_fail "initial pool's bookmark_v2 feature is not disabled"
-fi
+log_must [ "$bm2_value" = "disabled" ]
 
 log_mustnot has_ivset_guid $POOL_NAME/testfs@snap1
 log_mustnot has_ivset_guid $POOL_NAME/testfs@snap2
