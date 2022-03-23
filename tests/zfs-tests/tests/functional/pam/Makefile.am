@@ -6,3 +6,6 @@ dist_pkgdata_SCRIPTS = \
 	pam_nounmount.ksh \
 	pam_short_password.ksh \
 	utilities.kshlib
+
+% : %.in
+	sed 's|@pammoduledir[@]|@pammoduledir@|g' $< > $@
