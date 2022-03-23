@@ -43,9 +43,7 @@ log_assert "Runtime errors in lua scripts fail as expected."
 
 typeset -i i=0
 while (( i < ${#args[*]} )); do
-	log_mustnot_checkerror_program "execution failed" $TESTPOOL - <<-EOF
-		${args[i]}
-	EOF
+	log_mustnot_checkerror_program "execution failed" $TESTPOOL - <<<"${args[i]}"
 	((i = i + 1))
 done
 
