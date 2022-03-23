@@ -603,7 +603,7 @@ enum ztest_object {
 	ZTEST_OBJECTS
 };
 
-static _Noreturn void usage(boolean_t);
+static __attribute__((noreturn)) void usage(boolean_t requested);
 static int ztest_scrub_impl(spa_t *spa);
 
 /*
@@ -667,7 +667,7 @@ static void sig_handler(int signo)
 
 char *fatal_msg;
 
-static __attribute__((format(printf, 2, 3))) _Noreturn void
+static __attribute__((format(printf, 2, 3))) __attribute__((noreturn)) void
 fatal(int do_perror, char *message, ...)
 {
 	va_list args;
@@ -879,7 +879,7 @@ fini_options(void)
 	short_opts = NULL;
 }
 
-static void
+static __attribute__((noreturn)) void
 usage(boolean_t requested)
 {
 	char option[80];
@@ -7224,7 +7224,7 @@ ztest_resume(spa_t *spa)
 	(void) zio_resume(spa);
 }
 
-static _Noreturn void
+static __attribute__((noreturn)) void
 ztest_resume_thread(void *arg)
 {
 	spa_t *spa = arg;
@@ -7250,7 +7250,7 @@ ztest_resume_thread(void *arg)
 	thread_exit();
 }
 
-static _Noreturn void
+static __attribute__((noreturn)) void
 ztest_deadman_thread(void *arg)
 {
 	ztest_shared_t *zs = arg;
@@ -7364,7 +7364,7 @@ ztest_rzx_thread(void *arg)
 	thread_exit();
 }
 
-static _Noreturn void
+static __attribute__((noreturn)) void
 ztest_thread(void *arg)
 {
 	int rand;

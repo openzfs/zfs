@@ -36,7 +36,7 @@
 #include <time.h>
 #include <unistd.h>
 
-static _Noreturn void
+static __attribute__((noreturn)) void
 usage(void)
 {
 	(void) fprintf(stderr,

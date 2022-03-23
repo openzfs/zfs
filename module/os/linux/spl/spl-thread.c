@@ -62,15 +62,6 @@ thread_generic_wrapper(void *arg)
 	return (0);
 }
 
-void
-__thread_exit(void)
-{
-	tsd_exit();
-	SPL_KTHREAD_COMPLETE_AND_EXIT(NULL, 0);
-	/* Unreachable */
-}
-EXPORT_SYMBOL(__thread_exit);
-
 /*
  * thread_create() may block forever if it cannot create a thread or
  * allocate memory.  This is preferable to returning a NULL which Solaris
