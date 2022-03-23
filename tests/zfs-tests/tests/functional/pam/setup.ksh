@@ -23,6 +23,7 @@
 . $STF_SUITE/tests/functional/pam/utilities.kshlib
 
 command -v pamtester > /dev/null || log_unsupported "pam tests require the pamtester utility to be installed"
+[ -f "$pammodule" ] || log_unsupported "$pammodule missing"
 
 DISK=${DISKS%% *}
 create_pool $TESTPOOL "$DISK"
