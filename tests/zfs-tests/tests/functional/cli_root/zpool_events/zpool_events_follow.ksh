@@ -49,14 +49,14 @@ log_must eval "zpool events -H -f > $EVENTS_FILE &"
 pid=$!
 
 # 3. Generate some ZFS events
-for i in `seq 1 $EVENTS_NUM`; do
+for i in {1..$EVENTS_NUM}; do
 	log_must zpool clear $TESTPOOL
 done
 # wait a bit to allow the kernel module to process new events
 zpool_events_settle
 
 # 4. Verify 'zpool events -f' successfully recorded these new events
-EVENTS_LOG=$(cat $EVENTS_FILE | wc -l)
+EVENTS_LOG=$(wc -l < $EVENTS_FILE)
 if [[ $EVENTS_LOG -ne $EVENTS_NUM ]]; then
 	log_fail "Unexpected number of events: $EVENTS_LOG != $EVENTS_NUM"
 fi

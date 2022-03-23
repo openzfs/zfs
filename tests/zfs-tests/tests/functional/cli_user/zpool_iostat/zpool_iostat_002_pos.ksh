@@ -62,7 +62,7 @@ fi
 
 zpool iostat $TESTPOOL 1 4 > $tmpfile 2>&1 &
 sleep 4
-stat_count=$(grep $TESTPOOL $tmpfile | wc -l)
+stat_count=$(grep -c $TESTPOOL $tmpfile)
 
 if [[ $stat_count -ne 4 ]]; then
 	log_fail "zpool iostat [pool_name] [interval] [count] failed"

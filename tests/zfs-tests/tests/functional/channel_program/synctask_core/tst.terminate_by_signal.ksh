@@ -86,13 +86,10 @@ log_pos kill $CHILD
 # Make sure the channel program did not fully complete by enforcing
 # that not all of the snapshots were created.
 #
-snap_count=$(zfs list -t snapshot | grep $TESTPOOL | wc -l)
+snap_count=$(zfs list -t snapshot | grep -c $TESTPOOL)
 log_note "$snap_count snapshots created by ZCP"
 
-if [ "$snap_count" -eq 0 ]; then
-	log_fail "Channel program failed to run."
-elif [ "$snap_count" -gt 90 ]; then
-	log_fail "Too many snapshots after a cancel ($snap_count)."
-else
-	log_pass "Canceling a long-running channel program works."
-fi
+log_mustnot [ "$snap_count" -eq 0 ]
+log_mustnot [ "$snap_count" -gt 90 ]
+
+log_pass "Cancelling a long-running channel program works."

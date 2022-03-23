@@ -60,7 +60,7 @@ log_onexit cleanup
 [ -n $TESTDIR ] && log_must rm -rf $TESTDIR/*
 
 log_must zfs snapshot $SNAPFS
-FILE_COUNT=`ls -Al $SNAPDIR | grep -v "total 0" | wc -l`
+FILE_COUNT=$(ls -A $SNAPDIR | wc -l)
 if [[ $FILE_COUNT -ne 0 ]]; then
 	ls $SNAPDIR
 	log_fail "BEFORE: $SNAPDIR contains $FILE_COUNT files(s)."
@@ -77,7 +77,7 @@ while [[ $i -lt $COUNT ]]; do
 	(( i = i + 1 ))
 done
 
-FILE_COUNT=`ls -Al $SNAPDIR | grep -v "total 0" | wc -l`
+FILE_COUNT=$(ls -A $SNAPDIR | wc -l)
 if [[ $FILE_COUNT -ne 0 ]]; then
         ls $SNAPDIR
         log_fail "AFTER: $SNAPDIR contains $FILE_COUNT files(s)."
