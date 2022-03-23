@@ -73,16 +73,8 @@ log_must zfs set reservation=none $TESTPOOL/$RESERVATION2
 
 for FS in $TESTPOOL/$RESERVATION $TESTPOOL/$RESERVATION2
 do
-
-	reserve=`zfs get -pH reservation $FS | awk '{print $3}'`
-	if [[ $reserve -ne 0 ]]; then
-		log_fail "ZFS get -p reservation did not return 0"
-	fi
-
-	reserve=`zfs get -H reservation $FS | awk '{print $3}'`
-	if [[ $reserve != "none" ]]; then
-		log_fail "ZFS get reservation did not return 'none'"
-	fi
+	log_must [ $(zfs get -pHo value reservation $FS) -eq 0    ]
+	log_must [ $(zfs get  -Ho value reservation $FS) =   none ]
 done
 
 log_pass "Successfully set reservation to 0 and 'none'"

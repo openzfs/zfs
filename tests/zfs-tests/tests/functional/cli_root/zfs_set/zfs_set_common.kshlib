@@ -73,17 +73,17 @@ function set_n_check_prop
 			reservation|reserv|quota )
 				if [[ $expect_value == "none" ]]; then
 					[[ $cur_value != "0" ]] && \
-						log_fail "The '$dataset' '$prop' value \
-						'$cur_value' is not expected."
+						log_fail "The '$dataset' '$prop' value" \
+						"'$cur_value' is not expected."
 				elif [[ $cur_value != $expect_value ]]; then
-					log_fail "The '$dataset' '$prop' value '$cur_value' \
-					does not equal the expected value '$expect_value'."
+					log_fail "The '$dataset' '$prop' value '$cur_value'" \
+					"does not equal the expected value '$expect_value'."
 				fi
 				;;
 			* )
 				if [[ $cur_value != $expect_value ]]; then
-					log_fail "The '$dataset' '$prop' value '$cur_value' \
-					does not equal the expected value '$expect_value'."
+					log_fail "The '$dataset' '$prop' value '$cur_value'" \
+					"does not equal the expected value '$expect_value'."
 				fi
 				;;
 		esac
@@ -244,11 +244,7 @@ function check_user_prop
 	typeset expect_value="$3"
 	typeset value=$(zfs get -p -H -o value "$user_prop" $dtst 2>&1)
 
-	if [[ "$expect_value" == "$value" ]]; then
-		return 0
-	else
-		return 1
-	fi
+	[ "$expect_value" = "$value" ]
 }
 
 #
@@ -315,15 +311,8 @@ function check_prop_inherit
         typeset value=$(get_prop "$prop" "$checked_dtst")
         typeset source=$(get_source "$prop" "$checked_dtst")
 
-        if [[ "$value" != "$inherited_value" || \
-            "$source" != "inherited from $inherited_dtst" ]]
-        then
-                log_note "expected (value '$inherited_value', source 'inherited from $inherited_dtst')," \
-                        "got (value '$value', source '$source')"
-                return 1
-        else
-                return 0
-        fi
+        [ "$value" = "$inherited_value" ] &&
+            [ "$source" = "inherited from $inherited_dtst" ]
 }
 
 #
@@ -346,12 +335,7 @@ function check_prop_received
                 log_fail "Unable to get $prop received value for dataset" \
                     "$dataset"
         fi
-        if [[ "$received" == "$value" ]]
-        then
-                return 0
-        else
-                return 1
-        fi
+        if [ "$received" = "$value" ]
 }
 
 #
@@ -371,10 +355,5 @@ function check_prop_missing
         if (($? != 0)); then
                 log_fail "Unable to get $prop value for dataset $dataset"
         fi
-        if [[ "-" == "$value" ]]
-        then
-                return 0
-        else
-                return 1
-        fi
+        [ "$value" = "-" ]
 }

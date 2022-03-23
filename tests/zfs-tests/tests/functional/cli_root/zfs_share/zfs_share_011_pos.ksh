@@ -67,20 +67,14 @@ typeset origdir=$PWD
 # unmount fails will not unshare the shared filesystem
 log_must zfs set sharenfs=on $TESTPOOL/$TESTFS
 log_must is_shared $TESTDIR
-if cd $TESTDIR ; then
-	log_mustnot zfs umount $TESTPOOL/$TESTFS
-else
-	log_fail "cd $TESTDIR fails"
-fi
+log_must cd $TESTDIR
+log_mustnot zfs umount $TESTPOOL/$TESTFS
 log_must is_shared $TESTDIR
 
 # destroy fails will not unshare the shared filesystem
 log_must zfs create $TESTPOOL/$TESTFS/fs2
-if cd $TESTDIR/fs2 ; then
-	log_mustnot zfs destroy $TESTPOOL/$TESTFS/fs2
-else
-	log_fail "cd $TESTDIR/fs2 fails"
-fi
+log_must cd $TESTDIR/fs2
+log_mustnot zfs destroy $TESTPOOL/$TESTFS/fs2
 log_must is_shared $TESTDIR/fs2
 
 log_pass "Verify that umount and destroy fail, and do not unshare the shared" \

@@ -35,7 +35,7 @@ verify_runnable "global"
 
 #
 # This functionality is supported under Linux, but these test cases
-# are disabled by default since they manipulate the systems root pool.
+# are disabled by default since they manipulate the system's root pool.
 #
 if is_linux || is_freebsd; then
         log_unsupported "Supported but disabled by default"

@@ -41,7 +41,6 @@
 # 1. Attempt to share a dataset
 # 2. Verify the dataset was not shared.
 #
-#
 
 verify_runnable "global"
 
@@ -51,17 +50,11 @@ fi
 
 log_assert "zfs share returns an error when run as a user"
 
-if is_shared $TESTDIR/unshared
-then
-	log_fail "$TESTPOOL/$TESTFS/unshared was incorrectly shared initially!"
-fi
+log_mustnot is_shared $TESTDIR/unshared
 
 log_mustnot zfs share $TESTPOOL/$TESTFS/unshared
 
 # Now verify that the above command didn't actually do anything
-if is_shared $TESTDIR/unshared
-then
-	log_fail "$TESTPOOL/$TESTFS/unshared was actually shared!"
-fi
+log_mustnot is_shared $TESTDIR/unshared
 
 log_pass "zfs share returns an error when run as a user"
