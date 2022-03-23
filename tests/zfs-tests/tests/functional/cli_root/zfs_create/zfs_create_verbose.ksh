@@ -58,12 +58,11 @@ function dry_create_parseable
 	done
 
 	log_note "$0: ${cmd[@]}"
-	out=$("${cmd[@]}")
-	(( $? == 0 )) ||
+	out=$("${cmd[@]}") ||
 	    log_fail "unexpected failure getting stdout from '${cmd[@]}'"
 	datasetexists "$TESTPOOL/$TESTFS1" ||
 	    log_fail "$TESTPOOL/$TESTFS1 unexpectedly created by '${cmd[@]}'"
-	echo "$out" | while IFS=$'\t' read -A toks; do
+	while IFS=$'\t' read -A toks; do
 		log_note "verifying ${toks[@]}"
 		case ${toks[0]} in
 		create_ancestors)
@@ -107,7 +106,7 @@ function dry_create_parseable
 			log_fail "Unexpected line ${toks[@]}"
 			;;
 		esac
-	done
+	done <<<"$out"
 
 	log_must test "$found_create" == "yes, I found create"
 	log_must test "extra props: ${!exp[@]}" == "extra props: "

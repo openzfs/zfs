@@ -133,12 +133,8 @@ function test_common
 
 	log_must zpool export $TESTPOOL1
 
-	zpool import -d $DEVICE_DIR -T $txg $TESTPOOL1
-	if (( $? == 0 )); then
-		verify_data_md5sums $MD5FILE
-		if (( $? == 0 )); then
-			retval=0
-		fi
+	if zpool import -d $DEVICE_DIR -T $txg $TESTPOOL1; then
+		verify_data_md5sums $MD5FILE && retval=0
 
 		log_must check_pool_config $TESTPOOL1 "$poolcheck"
 		log_must zpool destroy $TESTPOOL1

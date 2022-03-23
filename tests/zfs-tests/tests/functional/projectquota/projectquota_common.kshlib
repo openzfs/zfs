@@ -75,21 +75,6 @@ function check_quota
 	fi
 }
 
-function get_value
-{
-	typeset prop_val
-	typeset prop=$1
-	typeset dataset=$2
-
-	prop_val=$(zfs get -H -p -o value $prop $dataset 2>/dev/null)
-	if [[ $? -ne 0 ]]; then
-		log_note "Unable to get $prop property for dataset $dataset"
-		return 1
-	fi
-
-	echo $prop_val
-}
-
 function project_obj_count
 {
 	typeset fs=$1

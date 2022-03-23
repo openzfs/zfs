@@ -55,12 +55,6 @@ function cleanup {
 }
 
 
-zpool set 2>&1 | grep bootfs > /dev/null
-if [ $? -ne 0 ]
-then
-        log_unsupported "bootfs pool property not supported on this release."
-fi
-
 log_assert "Invalid pool names are rejected by zpool set bootfs"
 log_onexit cleanup
 

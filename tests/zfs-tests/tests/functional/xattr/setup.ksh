@@ -34,8 +34,7 @@
 # (it can cause useradd to take a long time, hitting our TIMEOUT)
 if is_illumos; then
 	USES_NIS=false
-	svcs svc:/network/nis/client:default | grep online > /dev/null
-	if [ $? -eq 0 ]
+	if svcs svc:/network/nis/client:default | grep -q online
 	then
 		svcadm disable -t svc:/network/nis/client:default
 		USES_NIS=true

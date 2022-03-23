@@ -77,12 +77,7 @@ do
 		then
 			log_must zpool replace $TESTPOOL1 $disk1 $disk2
 			wait_replacing $TESTPOOL1
-			verify_ashift $disk2 $ashift
-			if [[ $? -ne 0 ]]
-			then
-				log_fail "Device was replaced without " \
-				    "setting ashift value to $ashift"
-			fi
+			log_must verify_ashift $disk2 $ashift
 		else
 			# cannot replace if pool prop ashift > vdev ashift
 			log_mustnot zpool replace $TESTPOOL1 $disk1 $disk2
@@ -90,12 +85,7 @@ do
 			log_must zpool replace -o ashift=$ashift $TESTPOOL1 \
 			    $disk1 $disk2
 			wait_replacing $TESTPOOL1
-			verify_ashift $disk2 $ashift
-			if [[ $? -ne 0 ]]
-			then
-				log_fail "Device was replaced without " \
-				    "setting ashift value to $ashift"
-			fi
+			log_must verify_ashift $disk2 $ashift
 		fi
 		# clean things for the next run
 		log_must zpool destroy $TESTPOOL1

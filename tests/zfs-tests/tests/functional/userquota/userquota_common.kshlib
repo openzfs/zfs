@@ -101,23 +101,3 @@ function check_quota
 		return 1
 	fi
 }
-
-#
-# zfs get prop, which return raw value not -p value.
-#
-function get_value # property dataset
-{
-        typeset prop_val
-        typeset prop=$1
-        typeset dataset=$2
-
-        prop_val=$(zfs get -H -p -o value $prop $dataset 2>/dev/null)
-        if [[ $? -ne 0 ]]; then
-                log_note "Unable to get $prop property for dataset " \
-                "$dataset"
-                return 1
-        fi
-
-        echo $prop_val
-        return 0
-}

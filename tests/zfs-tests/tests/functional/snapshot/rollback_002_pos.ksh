@@ -51,12 +51,10 @@ verify_runnable "both"
 
 function cleanup
 {
-	snapexists $SNAPFS.1
-	[[ $? -eq 0 ]] && \
+	snapexists $SNAPFS.1 &&
 		log_must zfs destroy $SNAPFS.1
 
-	snapexists $SNAPFS
-	[[ $? -eq 0 ]] && \
+	snapexists $SNAPFS &&
 		log_must zfs destroy $SNAPFS
 
 	[ -e $TESTDIR ] && log_must rm -rf $TESTDIR/*

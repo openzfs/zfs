@@ -68,10 +68,8 @@ log_must add_user $OTHER_GROUP $OTHER2
 #
 # chmod 0750 $HOME
 #
-user_run $STAFF1 zfs list
-if [ $? -ne 0 ]; then
+user_run $STAFF1 zfs list ||
 	log_unsupported "Test user $STAFF1 cannot execute zfs utilities"
-fi
 
 DISK=${DISKS%% *}
 

@@ -92,8 +92,8 @@ typeset -i filenum=0
 typeset cwd=""
 
 log_note "Make a ufs filesystem on source $rawdisk1"
-new_fs $rawdisk1 > /dev/null 2>&1
-(($? != 0)) && log_untested "Unable to create ufs filesystem on $rawdisk1"
+new_fs $rawdisk1 > /dev/null 2>&1 ||
+	log_untested "Unable to create ufs filesystem on $rawdisk1"
 
 log_must mkdir -p $UFSMP
 
@@ -104,9 +104,9 @@ log_note "Now create some directories and files to be ufsdump'ed"
 while (($dirnum <= 2)); do
 	log_must mkdir $bigdir${dirnum}
 	while (( $filenum <= 2 )); do
-		file_write -o create -f $bigdir${dirnum}/file${filenum} \
+		if ! file_write -o create -f $bigdir${dirnum}/file${filenum} \
 		    -b $BLOCK_SIZE -c $BLOCK_COUNT
-		if [[ $? -ne 0 ]]; then
+		then
 			if [[ $dirnum -lt 3 ]]; then
 				log_fail "file_write only wrote" \
 				    "<(( $dirnum * 3 + $filenum ))>" \
@@ -135,9 +135,7 @@ log_note "Attempt to take the source device in use by ufsdump as spare device"
 log_mustnot zpool create $TESTPOOL1 "$FS_DISK2" spare "$disk1"
 log_mustnot poolexists $TESTPOOL1
 
-wait $PIDUFSDUMP
-typeset -i retval=$?
-(($retval != 0)) && log_fail "ufsdump failed with error code $ret_val"
+wait $PIDUFSDUMP || log_fail "ufsdump failed with error code $?"
 
 log_must mount $disk1 $UFSMP
 

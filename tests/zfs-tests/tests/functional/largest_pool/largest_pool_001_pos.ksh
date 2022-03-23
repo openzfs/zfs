@@ -117,15 +117,12 @@ log_onexit cleanup
 # units for 'df'.  It must be greater than one.
 # -----------------------------------------------------------------------
 typeset str
-typeset -i ret
 for volsize in $VOLSIZES; do
 	log_note "Create a pool which will contain a volume device"
 	log_must create_pool $TESTPOOL2 "$DISKS"
 
 	log_note "Create a volume device of desired sizes: $volsize"
-	str=$(zfs create -sV $volsize $TESTPOOL2/$TESTVOL 2>&1)
-	ret=$?
-	if (( ret != 0 )); then
+	if ! str=$(zfs create -sV $volsize $TESTPOOL2/$TESTVOL 2>&1); then
 		if [[ is_32bit && \
 			$str == *${VOL_LIMIT_KEYWORD1}* || \
 			$str == *${VOL_LIMIT_KEYWORD2}* || \

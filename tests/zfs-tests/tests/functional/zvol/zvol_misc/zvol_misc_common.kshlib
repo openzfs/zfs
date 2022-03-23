@@ -134,9 +134,8 @@ function verify_partition # device
 	# verify we can access the partition on the device
 	devname="$(readlink -f "$device")"
 	if is_linux || is_freebsd; then
-		is_disk_device "$devname""p1"
+		is_disk_device "${devname}p1"
 	else
-		is_disk_device "$devname""s0"
+		is_disk_device "${devname}s0"
 	fi
-	return $?
 }

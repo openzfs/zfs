@@ -146,9 +146,3 @@ function verify_cache_device
 	log_note "Can not find device: $device"
 	return 1
 }
-
-function verify_cache_support
-{
-	zpool upgrade -v | grep "Cache devices" > /dev/null 2>&1
-	return $?
-}

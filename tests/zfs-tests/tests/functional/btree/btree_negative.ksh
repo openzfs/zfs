@@ -29,10 +29,7 @@
 # looks for return values that correspond to a core dump and cause a test
 # failure.
 
-btree_test -n insert_duplicate
-[[ $? -eq 0 ]] && log_fail "Failure from insert_duplicate"
-
-btree_test -n remove_missing
-[[ $? -eq 0 ]] && log_fail "Failure from remove_missing"
+btree_test -n insert_duplicate && log_fail "Failure from insert_duplicate"
+btree_test -n remove_missing   && log_fail "Failure from remove_missing"
 
 log_pass "Btree negative tests passed"

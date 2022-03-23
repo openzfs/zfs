@@ -59,18 +59,18 @@ while ((ret == 0)); do
 	ret=$?
 
 	if ((ret != 0)); then
-		len=$(echo $basefs| wc -c)
+		len=${#basefs}
 		log_note "The deeply-nested filesystem len: $len"
 
 		#
-		# Make sure there are at lease 2 characters left
+		# Make sure there are at least 2 characters left
 		# for snapshot name space, otherwise snapshot name
 		# is incorrect
 		#
 		if ((len >= 255)); then
 			datasetexists $basefs && destroy_dataset $basefs -r
 			basefs=${basefs%/*}
-			len=$(echo $basefs| wc -c)
+			len=${#basefs}
 		fi
 		break
 	fi
