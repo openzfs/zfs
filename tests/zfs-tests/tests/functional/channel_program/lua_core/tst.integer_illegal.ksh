@@ -32,9 +32,7 @@ set -A args "1.0" \
 
 typeset -i i=0
 while (( i < ${#args[*]} )); do
-	log_mustnot_checkerror_program "malformed number" $TESTPOOL - <<-EOF
-		return ${args[i]}
-	EOF
+	log_mustnot_checkerror_program "malformed number" $TESTPOOL - <<<"return ${args[i]}"
 	((i = i + 1))
 done
 
