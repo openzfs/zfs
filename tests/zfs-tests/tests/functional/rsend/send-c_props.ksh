@@ -52,16 +52,27 @@ for opt in "-p" "-R"; do
 		randomize_ds_props $POOL$ds
 	done
 
-	log_must eval "zfs send -c $opt $POOL@final > $BACKDIR/pool-final$opt"
-	log_must eval "zfs receive -d -F $POOL2 < $BACKDIR/pool-final$opt"
+	if [ $opt = "-p" ]; then
+		for ds in ${datasets[@]}; do
+			log_must eval "zfs send -c $opt $POOL$ds@final > $BACKDIR/pool-final$opt"
+			log_must eval "zfs receive -dF $POOL2 < $BACKDIR/pool-final$opt"
+		done
+	else
+		log_must eval "zfs send -c $opt $POOL@final > $BACKDIR/pool-final$opt"
+		log_must eval "zfs receive -dF $POOL2 < $BACKDIR/pool-final$opt"
+	fi
 
 	for ds in ${datasets[@]}; do
-		log_must cmp_ds_prop $POOL$ds $POOL2$ds
+		typeset origin=
+		if [ $opt = "-p" ] && [ ${ds/clone//} != $ds ]; then
+			origin=noorigin
+		fi
+		log_must cmp_ds_prop $POOL$ds $POOL2$ds nosource $origin
 		log_must cmp_ds_prop $POOL$ds@final $POOL2$ds@final
 	done
 
 	# Don't cleanup the second time, since we do that on exit anyway.
-	[[ $opt = "-p" ]] && cleanup
+	[ $opt = "-p" ] && cleanup
 done
 
 log_pass "Compressed send doesn't interfere with preservation of properties"
