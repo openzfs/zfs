@@ -77,9 +77,7 @@ function cleanup
 	if datasetexists $ds; then
 		mntp=$(get_prop mountpoint $ds)
 		destroy_dataset $ds
-		if [[ -d $mntp ]]; then
-			rm -fr $mntp
-		fi
+		[ -d $mntp ] && rm -fr $mntp
 	fi
 
 	snapexists $TESTPOOL/$TESTFS@$TESTSNAP && \
@@ -91,9 +89,7 @@ function cleanup
 	zfs unmount -a > /dev/null 2>&1
 	log_must zfs mount -a
 
-	if [[ -d $tmpmnt ]]; then
-		rm -fr $tmpmnt
-	fi
+	[ -d $tmpmnt ] && rm -fr $tmpmnt
 }
 
 log_assert "Setting canmount=noauto to file system, it must be successful."

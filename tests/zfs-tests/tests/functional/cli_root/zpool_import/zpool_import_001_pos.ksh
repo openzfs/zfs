@@ -79,7 +79,7 @@ function cleanup
 
 	cleanup_filesystem $TESTPOOL1 $TESTFS
 
-        destroy_pool $TESTPOOL1
+	destroy_pool $TESTPOOL1
 
 	[[ -d $ALTER_ROOT ]] && \
 		log_must rm -rf $ALTER_ROOT

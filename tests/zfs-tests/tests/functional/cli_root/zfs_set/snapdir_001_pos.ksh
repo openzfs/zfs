@@ -57,22 +57,12 @@ function verify_snapdir_visible # $1 dataset, $2 hidden|visible
 	typeset dataset=$1
 	typeset value=$2
 	typeset mtpt=$(get_prop mountpoint $dataset)
-	typeset name
 
-	for name in `ls -a $mtpt`; do
-		if [[ $name == ".zfs" ]]; then
-			if [[ $value == "visible" ]]; then
-				return 0
-			else
-				return 1
-			fi
-		fi
-	done
-
-	if [[ $value == "visible" ]]; then
-		return 1
+	# $mtpt/.zfs always actually exists so [ -d $mtpt/.zfs ] is always true
+	if ls -a $mtpt | grep -xFq .zfs; then
+		[ $value = "visible" ]
 	else
-		return 0
+		[ $value != "visible" ]
 	fi
 }
 
@@ -95,15 +85,14 @@ log_assert "Setting a valid snapdir property on a dataset succeeds."
 
 for dataset in $all_datasets; do
 	for value in hidden visible; do
-		if [[ $dataset == "$TESTPOOL/$TESTVOL" ]] ; then
+		if [ "$dataset" = "$TESTPOOL/$TESTVOL" ]; then
 			set_n_check_prop "$value" "snapdir" \
 				"$dataset" "false"
 		else
 			set_n_check_prop "$value" "snapdir" \
 				"$dataset"
-			verify_snapdir_visible $dataset $value
-			[[ $? -eq 0 ]] || \
-				log_fail "$dataset/.zfs is not $value as expect."
+			verify_snapdir_visible $dataset $value ||
+				log_fail "$dataset/.zfs is not $value as expected."
 		fi
 	done
 done
