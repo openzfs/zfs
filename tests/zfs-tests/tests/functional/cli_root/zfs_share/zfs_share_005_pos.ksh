@@ -82,7 +82,7 @@ do
 		IFS=',' read -r _ option _ <<<"$option"
 	fi
 
-	log_must eval "showshares_nfs | grep -q $option"
+	log_must eval "showshares_nfs | grep -q \"$option\""
 
 	((i = i + 1))
 done
