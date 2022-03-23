@@ -39,6 +39,7 @@ VERBOSE="no"
 QUIET=""
 CLEANUP="yes"
 CLEANUPALL="no"
+KMSG=""
 LOOPBACK="yes"
 STACK_TRACER="no"
 FILESIZE="4G"
@@ -326,6 +327,7 @@ OPTIONS:
 	-q          Quiet test-runner output
 	-x          Remove all testpools, dm, lo, and files (unsafe)
 	-k          Disable cleanup after test failure
+	-K          Log test names to /dev/kmsg
 	-f          Use files only, disables block device tests
 	-S          Enable stack tracer (negative performance impact)
 	-c          Only create and populate constrained path
@@ -357,7 +359,7 @@ $0 -x
 EOF
 }
 
-while getopts 'hvqxkfScRmn:d:s:r:?t:T:u:I:' OPTION; do
+while getopts 'hvqxkKfScRmn:d:s:r:?t:T:u:I:' OPTION; do
 	case $OPTION in
 	h)
 		usage
@@ -374,6 +376,9 @@ while getopts 'hvqxkfScRmn:d:s:r:?t:T:u:I:' OPTION; do
 		;;
 	k)
 		CLEANUP="no"
+		;;
+	K)
+		KMSG="yes"
 		;;
 	f)
 		LOOPBACK="no"
@@ -705,6 +710,7 @@ REPORT_FILE=$(mktemp_file zts-report)
 msg "${TEST_RUNNER}" \
     "${QUIET:+-q}" \
     "${KMEMLEAK:+-m}" \
+    "${KMSG:+-K}" \
     "-c \"${RUNFILES}\"" \
     "-T \"${TAGS}\"" \
     "-i \"${STF_SUITE}\"" \
@@ -712,6 +718,7 @@ msg "${TEST_RUNNER}" \
 { ${TEST_RUNNER} \
     ${QUIET:+-q} \
     ${KMEMLEAK:+-m} \
+    ${KMSG:+-K} \
     -c "${RUNFILES}" \
     -T "${TAGS}" \
     -i "${STF_SUITE}" \
