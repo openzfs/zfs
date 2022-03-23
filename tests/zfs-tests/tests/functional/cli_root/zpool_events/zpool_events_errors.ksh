@@ -115,7 +115,7 @@ function do_test
 	out="$(zpool status -p | grep $VDEV1)"
 
 	if [ "$ERR" == "corrupt" ] ; then
-		events=$(zpool events | grep checksum | wc -l)
+		events=$(zpool events | grep -c checksum)
 		val=$(echo "$out" | awk '{print $5}')
 		str="checksum"
 	elif [ "$ERR" == "io" ] ; then

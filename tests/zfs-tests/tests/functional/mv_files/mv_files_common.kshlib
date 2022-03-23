@@ -114,9 +114,7 @@ function mv_files
 #
 function count_files
 {
-        typeset -i file_num
-        file_num=$(find $1 -type f -print | wc -l | tr -d ' ')
-        (( file_num != $2 )) && \
+        (( $(find $1 -type f -print | wc -l) != $2 )) && \
                 log_fail "The file number of target directory"\
                         "$2 is not equal to that of the source "\
                         "directory $1"

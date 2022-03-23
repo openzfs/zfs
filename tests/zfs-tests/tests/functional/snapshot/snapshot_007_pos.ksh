@@ -90,7 +90,7 @@ log_note "Remove all of the original files"
 
 i=1
 while [[ $i -lt $COUNT ]]; do
-	FILECOUNT=`echo $SNAPDIR1.$i/file* | wc -w`
+	FILECOUNT=$(ls $SNAPDIR1.$i/file* 2>/dev/null | wc -l)
 	typeset j=1
 	while [ $j -lt $FILECOUNT ]; do
 		log_must file_check $SNAPDIR1.$i/file$j $j

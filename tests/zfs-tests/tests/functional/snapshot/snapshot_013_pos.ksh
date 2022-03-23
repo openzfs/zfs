@@ -87,7 +87,7 @@ if ! datasetexists $ctrfs || ! snapexists $snapctrfs; then
 fi
 
 for dir in $fsdir $snapdir; do
-	FILE_COUNT=`ls -Al $dir | grep -v "total" | wc -l`
+	FILE_COUNT=$(ls -A $dir | wc -l)
 	(( FILE_COUNT != COUNT )) && log_fail "Got $FILE_COUNT expected $COUNT"
 done
 

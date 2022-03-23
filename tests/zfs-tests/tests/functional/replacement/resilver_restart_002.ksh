@@ -64,7 +64,7 @@ objset=$(zdb -d $TESTPOOL1/ | sed -ne 's/.*ID \([0-9]*\).*/\1/p')
 object=$(ls -i /$TESTPOOL1/file | awk '{print $1}')
 
 # inject event to cause error during resilver
-log_must zinject -b `printf "%x:%x:0:3fff" $objset $object` $TESTPOOL1
+log_must zinject -b $(printf "%x:%x:0:3fff" $objset $object) $TESTPOOL1
 
 # clear events and start resilver
 log_must zpool events -c
@@ -84,7 +84,7 @@ done
 log_note "waiting for resilver to finish"
 for iter in {0..59}
 do
-	finish=$(zpool events | grep "sysevent.fs.zfs.resilver_finish" | wc -l)
+	finish=$(zpool events | grep -cF "sysevent.fs.zfs.resilver_finish")
 	(( $finish > 0 )) && break
 	sleep 1
 done
@@ -96,7 +96,7 @@ sync_pool $TESTPOOL1
 sync_pool $TESTPOOL1
 
 # check if resilver was restarted
-start=$(zpool events | grep "sysevent.fs.zfs.resilver_start" | wc -l)
+start=$(zpool events | grep -cF "sysevent.fs.zfs.resilver_start")
 (( $start != 1 )) && log_fail "resilver restarted unnecessarily"
 
 log_pass "Resilver did not restart unnecessarily from scan errors"
