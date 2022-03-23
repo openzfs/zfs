@@ -2801,7 +2801,7 @@ receive_process_record(struct receive_writer_arg *rwa,
  * dmu_recv_stream's worker thread; pull records off the queue, and then call
  * receive_process_record  When we're done, signal the main thread and exit.
  */
-static _Noreturn void
+static __attribute__((noreturn)) void
 receive_writer_thread(void *arg)
 {
 	struct receive_writer_arg *rwa = arg;

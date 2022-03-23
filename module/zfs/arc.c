@@ -928,7 +928,7 @@ static unsigned long l2arc_rebuild_blocks_min_l2size = 1024 * 1024 * 1024;
 
 /* L2ARC persistence rebuild control routines. */
 void l2arc_rebuild_vdev(vdev_t *vd, boolean_t reopen);
-static _Noreturn void l2arc_dev_rebuild_thread(void *arg);
+static __attribute__((noreturn)) void l2arc_dev_rebuild_thread(void *arg);
 static int l2arc_rebuild(l2arc_dev_t *dev);
 
 /* L2ARC persistence read I/O routines. */
@@ -9707,7 +9707,7 @@ l2arc_hdr_limit_reached(void)
  * This thread feeds the L2ARC at regular intervals.  This is the beating
  * heart of the L2ARC.
  */
-static _Noreturn void
+static  __attribute__((noreturn)) void
 l2arc_feed_thread(void *unused)
 {
 	(void) unused;
@@ -10146,7 +10146,7 @@ l2arc_spa_rebuild_start(spa_t *spa)
 /*
  * Main entry point for L2ARC rebuilding.
  */
-static _Noreturn void
+static __attribute__((noreturn)) void
 l2arc_dev_rebuild_thread(void *arg)
 {
 	l2arc_dev_t *dev = arg;
