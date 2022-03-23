@@ -57,7 +57,7 @@ function cleanup
 log_onexit cleanup
 
 LOGSM_POOL="logsm_import"
-TESTDISK="$(echo $DISKS | cut -d' ' -f1)"
+read -r TESTDISK _ <<<"$DISKS"
 
 log_must zpool create -o cachefile=none -f $LOGSM_POOL $TESTDISK
 log_must zfs create $LOGSM_POOL/fs
@@ -70,10 +70,7 @@ sync_all_pools
 log_must set_tunable64 KEEP_LOG_SPACEMAPS_AT_EXPORT 1
 log_must zpool export $LOGSM_POOL
 
-LOGSM_COUNT=$(zdb -m -e $LOGSM_POOL | grep "Log Spacemap object" | wc -l)
-if (( LOGSM_COUNT == 0 )); then
-	log_fail "Pool does not have any log spacemaps after being exported"
-fi
+log_must eval "zdb -m -e $LOGSM_POOL | grep -q \"Log Spacemap object\""
 
 log_must set_tunable64 METASLAB_DEBUG_LOAD 1
 log_must zpool import $LOGSM_POOL

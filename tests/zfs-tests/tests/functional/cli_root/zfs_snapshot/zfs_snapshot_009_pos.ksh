@@ -120,7 +120,7 @@ for x in {1..$ITERATIONS}; do
 	for y in {1..$NUM_SNAPS}; do
 		log_must zfs snapshot $TESTPOOL/$MYTEST@$y
 	done;
-	n=$(ls -1 /$TESTPOOL/$MYTEST/.zfs/snapshot | wc -l)
+	n=$(ls /$TESTPOOL/$MYTEST/.zfs/snapshot | wc -l)
 	verify_eq $n $NUM_SNAPS "count"
 	zfs destroy -r $TESTPOOL/$MYTEST;
 done;

@@ -2158,8 +2158,7 @@ function check_pool_status # pool token keyword <verbose>
 	typeset keyword=$3
 	typeset verbose=${4:-false}
 
-	scan=$(zpool status -v "$pool" 2>/dev/null | awk -v token="$token:" '
-		($1==token) {print $0}')
+	scan=$(zpool status -v "$pool" 2>/dev/null | awk -v token="$token:" '$1==token')
 	if [[ $verbose == true ]]; then
 		log_note $scan
 	fi
@@ -3075,7 +3074,7 @@ function vdevs_in_pool
 	typeset tmpfile=$(mktemp)
 	zpool status -v "$pool" | grep -A 1000 "config:" >$tmpfile
 	for vdev in "$@"; do
-		grep -wq ${vdev##*/} $tmpfile || && return 1
+		grep -wq ${vdev##*/} $tmpfile || return 1
 	done
 
 	rm -f $tmpfile
@@ -3959,10 +3958,10 @@ function directory_diff # dir_a dir_b
 	# We check ctimes even with zil_replay=1 because the ZIL does store
 	# creation times and we should make sure they match (if the creation times
 	# do not match there is a "c" entry in one of the columns).
-	if ( rsync --version | grep -q "[, ] crtimes" >/dev/null ); then
+	if rsync --version | grep -q "[, ] crtimes"; then
 		args+=("--crtimes")
 	else
-		echo "NOTE: This rsync package does not support --crtimes (-N)."
+		log_note "This rsync package does not support --crtimes (-N)."
 	fi
 
 	# If we are testing a ZIL replay, we need to ignore timestamp changes.

@@ -167,7 +167,7 @@ while (( i < ${#opts[*]} )); do
 			log_fail "There is no property for" \
 				"dataset $ds in 'get all' output."
 
-		propnum=$(awk -v ds="${ds}$" '$1 ~ ds {print $1}' $propfile | wc -l)
+		propnum=$(awk -v ds="${ds}$" '$1 ~ ds {++cnt}  END {print cnt}' $propfile)
 		case $(zfs get -H -o value type $ds) in
 			filesystem )
 				(( propnum < fspropnum )) && \

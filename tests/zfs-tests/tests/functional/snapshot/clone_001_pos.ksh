@@ -142,8 +142,7 @@ while (( i < ${#args[*]} )); do
 	if [[ -n ${args[i+3]} ]] ; then
 		log_must zfs set mountpoint=${args[i+3]} ${args[i+2]}
 
-		FILE_COUNT=`ls -Al ${args[i+3]} | grep -v "total" \
-		    | grep -v "\.zfs" | wc -l`
+		FILE_COUNT=$(ls -A ${args[i+3]} | grep -cvF ".zfs")
 		if [[ $FILE_COUNT -ne $COUNT ]]; then
 			ls -Al ${args[i+3]}
 			log_fail "AFTER: ${args[i+3]} contains $FILE_COUNT files(s)."
@@ -157,7 +156,7 @@ while (( i < ${#args[*]} )); do
 			(( j = j + 1 ))
 		done
 
-		FILE_COUNT=`ls -Al ${args[i+3]}/after* | grep -v "total" | wc -l`
+		FILE_COUNT=$(ls -A ${args[i+3]}/after* | wc -l)
 		if [[ $FILE_COUNT -ne $COUNT ]]; then
 			ls -Al ${args[i+3]}
 			log_fail "${args[i+3]} contains $FILE_COUNT after* files(s)."
