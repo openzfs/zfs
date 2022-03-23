@@ -39,18 +39,14 @@ log_assert "Returning valid lua constructs works."
 typeset -i i=0
 while (( i < ${#args[*]} )); do
 	log_note "running program: return ${args[i]}"
-	log_must_program $TESTPOOL - <<-EOF
-		return ${args[i]}
-	EOF
+	log_must_program $TESTPOOL - <<<"return ${args[i]}"
 	((i = i + 1))
 done
 
 typeset -i i=0
 while (( i < ${#args[*]} )); do
 	log_note "running program: error(${args[i]})"
-	log_mustnot_checkerror_program "in function 'error'" $TESTPOOL - <<-EOF
-		error(${args[i]})
-	EOF
+	log_mustnot_checkerror_program "in function 'error'" $TESTPOOL - <<<"error(${args[i]})"
 	((i = i + 1))
 done
 
