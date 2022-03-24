@@ -906,7 +906,7 @@ zvol_alloc(dev_t dev, const char *name)
 	if (volmode == ZFS_VOLMODE_DEV) {
 		/*
 		 * ZFS_VOLMODE_DEV disable partitioning on ZVOL devices: set
-		 * gendisk->minors = 1 as noted in include/linux/genhd.h.
+		 * gendisk->minors = 1 as noted in include/linux/blkdev.h.
 		 * Also disable extended partition numbers (GENHD_FL_EXT_DEVT)
 		 * and suppresses partition scanning (GENHD_FL_NO_PART_SCAN)
 		 * setting gendisk->flags accordingly.
