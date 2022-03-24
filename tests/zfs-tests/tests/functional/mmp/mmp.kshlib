@@ -151,43 +151,6 @@ function mmp_pool_set_hostid # pool hostid
 
 	return 0
 }
-# Return the number of seconds the activity check portion of the import process
-# will take.  Does not include the time to find devices and assemble a config.
-# Note that the activity check may be skipped, e.g. if the pool and host
-# hostid's match, but this will return non-zero because mmp_* are populated.
-function seconds_mmp_waits_for_activity
-{
-	typeset pool=$1
-	typeset devpath=$2
-
-	typeset seconds=0
-	typeset devices=${#DISK[@]}
-	typeset import_intervals=$(get_tunable MULTIHOST_IMPORT_INTERVALS)
-	typeset import_interval=$(get_tunable MULTIHOST_INTERVAL)
-	typeset tmpfile=$(mktemp)
-	typeset mmp_fail
-	typeset mmp_write
-	typeset mmp_delay
-
-	log_must eval "zdb -e -p $devpath $pool >$tmpfile 2>/dev/null"
-	mmp_fail=$(awk '/mmp_fail/ {print $NF}' $tmpfile)
-	mmp_write=$(awk '/mmp_write/ {print $NF}' $tmpfile)
-	mmp_delay=$(awk '/mmp_delay/ {print $NF}' $tmpfile)
-	rm $tmpfile
-
-	# In order of preference:
-	if [ -n $mmp_fail -a -n $mmp_write ]; then
-		seconds=$((2*mmp_fail*mmp_write/1000))
-	elif [ -n $mmp_delay ]; then
-		# MMP V0: Based on mmp_delay from the best Uberblock
-		seconds=$((import_intervals*devices*mmp_delay/1000000000))
-	else
-		# Non-MMP aware: Based on zfs_multihost_interval and import_intervals
-		seconds=$((import_intervals*import_interval/1000))
-	fi
-
-	echo $seconds
-}
 
 function import_no_activity_check # pool opts
 {

@@ -103,17 +103,6 @@ function is_freebsd
 	[ "$UNAME" = "FreeBSD" ]
 }
 
-# Determine if this is a DilOS test system
-#
-# Return 0 if platform DilOS, 1 if otherwise
-
-function is_dilos
-{
-	typeset ID=""
-	[[ -f /etc/os-release ]] && . /etc/os-release
-	[ "$ID" = "dilos" ]
-}
-
 # Determine if this is a 32-bit system
 #
 # Return 0 if platform is 32-bit, 1 if otherwise
@@ -445,48 +434,6 @@ function default_mirror_setup_noexit
 }
 
 #
-# create a number of mirrors.
-# We create a number($1) of 2 way mirrors using the pairs of disks named
-# on the command line. These mirrors are *not* mounted
-# @parameters: $1 the number of mirrors to create
-#  $... the devices to use to create the mirrors on
-# @uses: ZPOOL ZFS TESTPOOL
-function setup_mirrors
-{
-	typeset -i nmirrors=$1
-
-	shift
-	while ((nmirrors > 0)); do
-		log_must test -n "$1" -a -n "$2"
-		[[ -d /$TESTPOOL$nmirrors ]] && rm -rf /$TESTPOOL$nmirrors
-		log_must zpool create -f $TESTPOOL$nmirrors mirror $1 $2
-		shift 2
-		((nmirrors = nmirrors - 1))
-	done
-}
-
-#
-# create a number of raidz pools.
-# We create a number($1) of 2 raidz pools  using the pairs of disks named
-# on the command line. These pools are *not* mounted
-# @parameters: $1 the number of pools to create
-#  $... the devices to use to create the pools on
-# @uses: ZPOOL ZFS TESTPOOL
-function setup_raidzs
-{
-	typeset -i nraidzs=$1
-
-	shift
-	while ((nraidzs > 0)); do
-		log_must test -n "$1" -a -n "$2"
-		[[ -d /$TESTPOOL$nraidzs ]] && rm -rf /$TESTPOOL$nraidzs
-		log_must zpool create -f $TESTPOOL$nraidzs raidz $1 $2
-		shift 2
-		((nraidzs = nraidzs - 1))
-	done
-}
-
-#
 # Destroy the configured testpool mirrors.
 # the mirrors are of the form ${TESTPOOL}{number}
 # @uses: ZPOOL ZFS TESTPOOL
@@ -777,46 +724,6 @@ function dataset_setprop
 		log_note "Return Code: $rv"
 		log_note "Output: $output"
 		return $rv
-	fi
-	return 0
-}
-
-#
-# Assign suite defined dataset properties.
-# This function is used to apply the suite's defined default set of
-# properties to a dataset.
-# @parameters: $1 dataset to use
-# @uses: ZFS COMPRESSION_PROP CHECKSUM_PROP
-# @returns:
-#   0 if the dataset has been altered.
-#   1 if no pool name was passed in.
-#   2 if the dataset could not be found.
-#   3 if the dataset could not have it's properties set.
-#
-function dataset_set_defaultproperties
-{
-	typeset dataset="$1"
-
-	[[ -z $dataset ]] && return 1
-
-	typeset confset=
-	typeset -i found=0
-	for confset in $(zfs list); do
-		if [[ $dataset = $confset ]]; then
-			found=1
-			break
-		fi
-	done
-	[[ $found -eq 0 ]] && return 2
-	if [[ -n $COMPRESSION_PROP ]]; then
-		dataset_setprop $dataset compression $COMPRESSION_PROP || \
-			return 3
-		log_note "Compression set to '$COMPRESSION_PROP' on $dataset"
-	fi
-	if [[ -n $CHECKSUM_PROP ]]; then
-		dataset_setprop $dataset checksum $CHECKSUM_PROP || \
-			return 3
-		log_note "Checksum set to '$CHECKSUM_PROP' on $dataset"
 	fi
 	return 0
 }
@@ -1458,20 +1365,6 @@ function showshares_nfs
 	esac
 }
 
-#
-# Helper function to show SMB shares.
-#
-function showshares_smb
-{
-	if is_linux; then
-		net usershare list
-	else
-		share -F smb
-	fi
-
-	return 0
-}
-
 function check_nfs
 {
 	case "$UNAME" in
@@ -1736,117 +1629,6 @@ function destroy_dataset # dataset [args]
 }
 
 #
-# Firstly, create a pool with 5 datasets. Then, create a single zone and
-# export the 5 datasets to it. In addition, we also add a ZFS filesystem
-# and a zvol device to the zone.
-#
-# $1 zone name
-# $2 zone root directory prefix
-# $3 zone ip
-#
-function zfs_zones_setup #zone_name zone_root zone_ip
-{
-	typeset zone_name=${1:-$(hostname)-z}
-	typeset zone_root=${2:-"/zone_root"}
-	typeset zone_ip=${3:-"10.1.1.10"}
-	typeset prefix_ctr=$ZONE_CTR
-	typeset pool_name=$ZONE_POOL
-	typeset -i cntctr=5
-	typeset -i i=0
-
-	# Create pool and 5 container within it
-	#
-	[[ -d /$pool_name ]] && rm -rf /$pool_name
-	log_must zpool create -f $pool_name $DISKS
-	while ((i < cntctr)); do
-		log_must zfs create $pool_name/$prefix_ctr$i
-		((i += 1))
-	done
-
-	# create a zvol
-	log_must zfs create -V 1g $pool_name/zone_zvol
-	block_device_wait
-
-	#
-	# Add slog device for pool
-	#
-	typeset sdevs="$TEST_BASE_DIR/sdev1 $TEST_BASE_DIR/sdev2"
-	log_must mkfile $MINVDEVSIZE $sdevs
-	log_must zpool add $pool_name log mirror $sdevs
-
-	# this isn't supported just yet.
-	# Create a filesystem. In order to add this to
-	# the zone, it must have it's mountpoint set to 'legacy'
-	# log_must zfs create $pool_name/zfs_filesystem
-	# log_must zfs set mountpoint=legacy $pool_name/zfs_filesystem
-
-	[[ -d $zone_root ]] && \
-		log_must rm -rf $zone_root/$zone_name
-	[[ ! -d $zone_root ]] && \
-		log_must mkdir -p -m 0700 $zone_root/$zone_name
-
-	# Create zone configure file and configure the zone
-	#
-	typeset zone_conf=/tmp/zone_conf.$$
-	echo "create" > $zone_conf
-	echo "set zonepath=$zone_root/$zone_name" >> $zone_conf
-	echo "set autoboot=true" >> $zone_conf
-	i=0
-	while ((i < cntctr)); do
-		echo "add dataset" >> $zone_conf
-		echo "set name=$pool_name/$prefix_ctr$i" >> \
-			$zone_conf
-		echo "end" >> $zone_conf
-		((i += 1))
-	done
-
-	# add our zvol to the zone
-	echo "add device" >> $zone_conf
-	echo "set match=/dev/zvol/dsk/$pool_name/zone_zvol" >> $zone_conf
-	echo "end" >> $zone_conf
-
-	# add a corresponding zvol rdsk to the zone
-	echo "add device" >> $zone_conf
-	echo "set match=$ZVOL_RDEVDIR/$pool_name/zone_zvol" >> $zone_conf
-	echo "end" >> $zone_conf
-
-	# once it's supported, we'll add our filesystem to the zone
-	# echo "add fs" >> $zone_conf
-	# echo "set type=zfs" >> $zone_conf
-	# echo "set special=$pool_name/zfs_filesystem" >> $zone_conf
-	# echo "set dir=/export/zfs_filesystem" >> $zone_conf
-	# echo "end" >> $zone_conf
-
-	echo "verify" >> $zone_conf
-	echo "commit" >> $zone_conf
-	log_must zonecfg -z $zone_name -f $zone_conf
-	log_must rm -f $zone_conf
-
-	# Install the zone
-	if zoneadm -z $zone_name install; then
-		log_note "SUCCESS: zoneadm -z $zone_name install"
-	else
-		log_fail "FAIL: zoneadm -z $zone_name install"
-	fi
-
-	# Install sysidcfg file
-	#
-	typeset sysidcfg=$zone_root/$zone_name/root/etc/sysidcfg
-	echo "system_locale=C" > $sysidcfg
-	echo  "terminal=dtterm" >> $sysidcfg
-	echo  "network_interface=primary {" >> $sysidcfg
-	echo  "hostname=$zone_name" >> $sysidcfg
-	echo  "}" >> $sysidcfg
-	echo  "name_service=NONE" >> $sysidcfg
-	echo  "root_password=mo791xfZ/SFiw" >> $sysidcfg
-	echo  "security_policy=NONE" >> $sysidcfg
-	echo  "timezone=US/Eastern" >> $sysidcfg
-
-	# Boot this zone
-	log_must zoneadm -z $zone_name boot
-}
-
-#
 # Reexport TESTPOOL & TESTPOOL(1-4)
 #
 function reexport_pool
@@ -2083,25 +1865,6 @@ function wait_hotspare_state # pool disk state timeout
 	done
 
 	return 1
-}
-
-#
-# Verify a given slog disk is inuse or avail
-#
-# Return 0 is pool/disk matches expected state, 1 otherwise
-#
-function check_slog_state # pool disk state{online,offline,unavail}
-{
-	typeset pool=$1
-	typeset disk=${2#$DEV_DSKDIR/}
-	typeset state=$3
-
-	cur_state=$(get_device_state $pool $disk "logs")
-
-	if [[ $state != ${cur_state} ]]; then
-		return 1
-	fi
-	return 0
 }
 
 #
@@ -2987,12 +2750,6 @@ function ds_is_filesystem
 	[ $type = "filesystem" ]
 }
 
-function ds_is_snapshot
-{
-	typeset type=$(get_prop type $1)
-	[ $type = "snapshot" ]
-}
-
 #
 # Check if Trusted Extensions are installed and enabled
 #
@@ -3091,18 +2848,6 @@ function get_max
 	done
 
 	echo $max
-}
-
-function get_min
-{
-	typeset -l i min=$1
-	shift
-
-	for i in "$@"; do
-		min=$((min < i ? min : i))
-	done
-
-	echo $min
 }
 
 # Write data that can be compressed into a directory

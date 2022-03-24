@@ -69,26 +69,6 @@ function get_rand_prop_vals
 	echo $retstr
 }
 
-function get_rand_checksum
-{
-	get_rand_prop_vals checksum $1 2
-}
-
-function get_rand_checksum_any
-{
-	get_rand_prop_vals checksum $1 0
-}
-
-function get_rand_recsize
-{
-	get_rand_prop_vals recsize $1 0
-}
-
-function get_rand_large_recsize
-{
-	get_rand_prop_vals recsize $1 9
-}
-
 #
 # Functions to toggle on/off properties
 #
