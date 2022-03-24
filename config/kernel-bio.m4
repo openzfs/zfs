@@ -474,6 +474,41 @@ AC_DEFUN([ZFS_AC_KERNEL_BLK_CGROUP_HEADER], [
 	])
 ])
 
+dnl #
+dnl # Linux 5.18 API
+dnl #
+dnl # In 07888c665b405b1cd3577ddebfeb74f4717a84c4 ("block: pass a block_device and opf to bio_alloc")
+dnl #   bio_alloc(gfp_t gfp_mask, unsigned short nr_iovecs)
+dnl # became
+dnl #   bio_alloc(struct block_device *bdev, unsigned short nr_vecs, unsigned int opf, gfp_t gfp_mask)
+dnl # however
+dnl # > NULL/0 can be passed, both for the
+dnl # > passthrough case on a raw request_queue and to temporarily avoid
+dnl # > refactoring some nasty code.
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO_ALLOC_4ARG], [
+	ZFS_LINUX_TEST_SRC([bio_alloc_4arg], [
+		#include <linux/bio.h>
+	],[
+		gfp_t gfp_mask = 0;
+		unsigned short nr_iovecs = 0;
+		struct block_device *bdev = NULL;
+		unsigned int opf = 0;
+
+		struct bio *__attribute__((unused)) allocated = bio_alloc(bdev, nr_iovecs, opf, gfp_mask);
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_BIO_ALLOC_4ARG], [
+	AC_MSG_CHECKING([for 4-argument bio_alloc()])
+	ZFS_LINUX_TEST_RESULT([bio_alloc_4arg],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE([HAVE_BIO_ALLOC_4ARG], 1, [bio_alloc() takes 4 arguments])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO], [
 	ZFS_AC_KERNEL_SRC_REQ
 	ZFS_AC_KERNEL_SRC_BIO_OPS
@@ -488,6 +523,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO], [
 	ZFS_AC_KERNEL_SRC_BDEV_SUBMIT_BIO_RETURNS_VOID
 	ZFS_AC_KERNEL_SRC_BIO_SET_DEV_MACRO
 	ZFS_AC_KERNEL_SRC_BLK_CGROUP_HEADER
+	ZFS_AC_KERNEL_SRC_BIO_ALLOC_4ARG
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BIO], [
@@ -512,4 +548,5 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO], [
 	ZFS_AC_KERNEL_BIO_BDEV_DISK
 	ZFS_AC_KERNEL_BDEV_SUBMIT_BIO_RETURNS_VOID
 	ZFS_AC_KERNEL_BLK_CGROUP_HEADER
+	ZFS_AC_KERNEL_BIO_ALLOC_4ARG
 ])

@@ -563,6 +563,10 @@ vdev_submit_bio(struct bio *bio)
 	current->bio_list = bio_list;
 }
 
+#ifdef HAVE_BIO_ALLOC_4ARG
+#define	bio_alloc(gfp_mask, nr_iovecs) bio_alloc(NULL, nr_iovecs, 0, gfp_mask)
+#endif
+
 static int
 __vdev_disk_physio(struct block_device *bdev, zio_t *zio,
     size_t io_size, uint64_t io_offset, int rw, int flags)
