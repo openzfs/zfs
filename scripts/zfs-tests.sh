@@ -32,7 +32,7 @@ SCRIPT_COMMON=${SCRIPT_COMMON:-${0%/*}/common.sh}
 PROG=zfs-tests.sh
 VERBOSE="no"
 QUIET=""
-DO_ASSERT_INVARIANT_MODULE_PARAMS=
+DO_ASSERT_INVARIANT_MODULE_PARAMS=""
 CLEANUP="yes"
 CLEANUPALL="no"
 KMSG=""
@@ -421,7 +421,7 @@ while getopts 'hvqxkKfScRmn:d:s:r:?t:T:u:I:P' OPTION; do
 		SINGLETESTUSER="$OPTARG"
 		;;
 	P)
-		DO_ASSERT_INVARIANT_MODULE_PARAMS="--assert-invariant-module-params"
+		DO_ASSERT_INVARIANT_MODULE_PARAMS="yes"
 		;;
 	?)
 		usage
@@ -688,7 +688,7 @@ msg "${TEST_RUNNER}" \
     "${QUIET:+-q}" \
     "${KMEMLEAK:+-m}" \
     "${KMSG:+-K}" \
-    "${DO_ASSERT_INVARIANT_MODULE_PARAMS}" \
+    "${DO_ASSERT_INVARIANT_MODULE_PARAMS:+--assert-invariant-module-params}" \
     "-c \"${RUNFILES}\"" \
     "-T \"${TAGS}\"" \
     "-i \"${STF_SUITE}\"" \
@@ -698,7 +698,7 @@ msg "${TEST_RUNNER}" \
     ${QUIET:+-q} \
     ${KMEMLEAK:+-m} \
     ${KMSG:+-K} \
-    ${DO_ASSERT_INVARIANT_MODULE_PARAMS} \
+    ${DO_ASSERT_INVARIANT_MODULE_PARAMS:+--assert-invariant-module-params} \
     -c "${RUNFILES}" \
     -T "${TAGS}" \
     -i "${STF_SUITE}" \
@@ -724,6 +724,8 @@ if [ "$RESULT" -eq "2" ] && [ -n "$RERUN" ]; then
 	    ${TEST_RUNNER} \
 	        ${QUIET:+-q} \
 	        ${KMEMLEAK:+-m} \
+	        ${DO_ASSERT_INVARIANT_MODULE_PARAMS:+\
+	            --assert-invariant-module-params} \
 	    -c "${RUNFILES}" \
 	    -T "${TAGS}" \
 	    -i "${STF_SUITE}" \
