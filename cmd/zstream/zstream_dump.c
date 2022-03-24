@@ -59,7 +59,7 @@ FILE *send_stream = 0;
 boolean_t do_byteswap = B_FALSE;
 boolean_t do_cksum = B_TRUE;
 
-static void *
+void *
 safe_malloc(size_t size)
 {
 	void *rv = malloc(size);
