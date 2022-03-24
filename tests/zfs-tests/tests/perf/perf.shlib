@@ -524,20 +524,6 @@ function get_system_config
 	echo "}" >>$config
 }
 
-function num_jobs_by_cpu
-{
-	if is_linux; then
-		typeset ncpu=$($NPROC --all)
-	else
-		typeset ncpu=$(psrinfo | $WC -l)
-	fi
-	typeset num_jobs=$ncpu
-
-	[[ $ncpu -gt 8 ]] && num_jobs=$(echo "$ncpu * 3 / 4" | bc)
-
-	echo $num_jobs
-}
-
 #
 # On illumos this looks like: ":sd3:sd4:sd1:sd2:"
 #
