@@ -39,8 +39,8 @@
 .Sh SYNOPSIS
 .Nm zfs
 .Cm send
-.Op Fl DLPRbcehnpsvw
-.Op Fl X Ar dataset Ns Oo , Ns Ar dataset Oc Ns …
+.Op Fl DLPbcehnpsvw
+.Op Fl R Op Fl X Ar dataset Ns Oo , Ns Ar dataset Oc Ns …
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
 .Nm zfs
@@ -73,8 +73,8 @@
 .It Xo
 .Nm zfs
 .Cm send
-.Op Fl DLPRbcehnpvw
-.Op Fl X Ar dataset Ns Oo , Ns Ar dataset Oc Ns …
+.Op Fl DLPbcehnpsvw
+.Op Fl R Op Fl X Ar dataset Ns Oo , Ns Ar dataset Oc Ns …
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
 .Xc
@@ -143,22 +143,15 @@ flag is used to send encrypted datasets, then
 .Fl w
 must also be specified.
 .It Fl X , -exclude Ar dataset Ns Oo , Ns Ar dataset Oc Ns …
-When the
-.Fl R
-flag is given,
+With
+.Fl R ,
 .Fl X
-can be used to specify a list of datasets to be excluded from the
-data stream.
-The
-.Fl X
-option can be used multiple times, or the list of datasets can be
-specified as a comma-separated list, or both.
-.Ar dataset
-must not be the pool's root dataset, and all descendant datasets of
-.Ar dataset
-will be excluded from the send stream.
-Requires
-.Fl R .
+specifies a set of datasets (and, hence, their descendants),
+to be excluded from the send stream.
+The root dataset may not be excluded.
+.Fl X Ar a Fl X Ar b
+is equivalent to
+.Fl X Ar a , Ns Ar b .
 .It Fl e , -embed
 Generate a more compact stream by using
 .Sy WRITE_EMBEDDED
