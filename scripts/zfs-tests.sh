@@ -446,11 +446,7 @@ if [ -n "$SINGLETEST" ]; then
 	fi
 	RUNFILE_DIR="/var/tmp"
 	RUNFILES="zfs-tests.$$.run"
-	SINGLEQUIET="False"
-
-	if [ -n "$QUIET" ]; then
-		SINGLEQUIET="True"
-	fi
+	[ -n "$QUIET" ] && SINGLEQUIET="True" || SINGLEQUIET="False"
 
 	cat >"${RUNFILE_DIR}/${RUNFILES}" << EOF
 [DEFAULT]
@@ -464,18 +460,13 @@ post =
 outputdir = /var/tmp/test_results
 EOF
 	SINGLETESTDIR="${SINGLETEST%/*}"
+
+	SETUPDIR="$SINGLETESTDIR"
+	[ "${SETUPDIR#/}" = "$SETUPDIR" ] && SETUPDIR="$STF_SUITE/$SINGLETESTDIR"
+	[ -x "$SETUPDIR/setup.ksh"   ] && SETUPSCRIPT="setup"     || SETUPSCRIPT=
+	[ -x "$SETUPDIR/cleanup.ksh" ] && CLEANUPSCRIPT="cleanup" || CLEANUPSCRIPT=
+
 	SINGLETESTFILE="${SINGLETEST##*/}"
-	SETUPSCRIPT=
-	CLEANUPSCRIPT=
-
-	if [ -f "$STF_SUITE/$SINGLETESTDIR/setup.ksh" ]; then
-		SETUPSCRIPT="setup"
-	fi
-
-	if [ -f "$STF_SUITE/$SINGLETESTDIR/cleanup.ksh" ]; then
-		CLEANUPSCRIPT="cleanup"
-	fi
-
 	cat >>"${RUNFILE_DIR}/${RUNFILES}" << EOF
 
 [$SINGLETESTDIR]
