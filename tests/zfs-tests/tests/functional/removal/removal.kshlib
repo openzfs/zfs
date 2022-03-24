@@ -88,13 +88,6 @@ function attempt_during_removal # pool disk callback [args]
 	return 0
 }
 
-function indirect_vdev_mapping_size # pool
-{
-	typeset pool=$1
-	zdb -P $pool | grep 'indirect vdev' | \
-	    sed -E 's/.*\(([0-9]+) in memory\).*/\1/g'
-}
-
 function random_write # file write_size
 {
 	typeset file=$1
