@@ -96,16 +96,17 @@ argv = args["argv"]
 -- argv == {1="arg1", 2="arg2", ...}
 .Ed
 .Pp
-If invoked from the libZFS interface, an arbitrary argument list can be
+If invoked from the libzfs interface, an arbitrary argument list can be
 passed to the channel program, which is accessible via the same
-"..." syntax in Lua:
+.Qq Li ...
+syntax in Lua:
 .Bd -literal -compact -offset indent
 args = ...
 -- args == {"foo"="bar", "baz"={...}, ...}
 .Ed
 .Pp
 Note that because Lua arrays are 1-indexed, arrays passed to Lua from the
-libZFS interface will have their indices incremented by 1.
+libzfs interface will have their indices incremented by 1.
 That is, the element
 in
 .Va arr[0]
@@ -166,7 +167,7 @@ See the
 section below for function-specific details on error return codes.
 .
 .Ss Lua to C Value Conversion
-When invoking a channel program via the libZFS interface, it is necessary to
+When invoking a channel program via the libzfs interface, it is necessary to
 translate arguments and return values from Lua values to their C equivalents,
 and vice-versa.
 .Pp

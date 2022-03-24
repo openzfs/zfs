@@ -75,7 +75,7 @@ Custom
 .Ev $PATH
 for zedlets to use.
 Normally zedlets run in a locked-down environment, with hardcoded paths to the ZFS commands
-.Pq Ev $ZFS , $ZPOOL , $ZED , ... ,
+.Pq Ev $ZFS , $ZPOOL , $ZED , … ,
 and a hard-coded
 .Ev $PATH .
 This is done for security reasons.
