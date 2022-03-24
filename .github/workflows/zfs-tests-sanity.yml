@@ -56,7 +56,7 @@ jobs:
     - name: Tests
       run: |
         set -o pipefail
-        /usr/share/zfs/zfs-tests.sh -vR -s 3G -r sanity | scripts/zfs-tests-color.sh
+        /usr/share/zfs/zfs-tests.sh -vKR -s 3G -r sanity | scripts/zfs-tests-color.sh
       shell: bash
       timeout-minutes: 330
     - name: Prepare artifacts
