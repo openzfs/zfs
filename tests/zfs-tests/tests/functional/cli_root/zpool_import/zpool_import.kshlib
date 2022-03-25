@@ -34,7 +34,6 @@ function cleanup
 		log_must truncate -s $FILE_SIZE ${DEVICE_DIR}/${DEVICE_FILE}$i
 		((i += 1))
 	done
-	is_linux && set_tunable32 TXG_HISTORY 0
 }
 
 #

@@ -34,8 +34,6 @@
 function cleanup
 {
 	log_must zfs destroy -Rf $TESTPOOL/$TESTFS1
-	# Reset the minimum percent shared to 75
-	set_tunable32 LIVELIST_MIN_PERCENT_SHARED $ORIGINAL_MIN_SHARED
 }
 
 function test_dedup
@@ -77,9 +75,10 @@ function test_dedup
 	check_livelist_gone
 }
 
-ORIGINAL_MIN_SHARED=$(get_tunable LIVELIST_MIN_PERCENT_SHARED)
+save_tunable32 LIVELIST_MIN_PERCENT_SHARED
+log_onexit_push restore_tunable32 LIVELIST_MIN_PERCENT_SHARED
 
-log_onexit cleanup
+log_onexit_push cleanup
 # You might think that setting compression=off for $TESTFS1 would be
 # sufficient. You would be mistaken.
 # You need compression=off for whatever the parent of $TESTFS1 is,

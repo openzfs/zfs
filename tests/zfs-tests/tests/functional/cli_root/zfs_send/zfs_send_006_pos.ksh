@@ -36,7 +36,6 @@ verify_runnable "both"
 
 function cleanup
 {
-	log_must set_tunable32 OVERRIDE_ESTIMATE_RECORDSIZE 8192
 	for ds in $datasets; do
                 destroy_dataset $ds "-rf"
 	done
@@ -91,7 +90,10 @@ function verify_size_estimates
 
 log_assert "Verify 'zfs send -nvP' generates valid stream estimates"
 log_onexit cleanup
-log_must set_tunable32 OVERRIDE_ESTIMATE_RECORDSIZE 0
+
+save_tunable32 OVERRIDE_ESTIMATE_RECORDSIZE
+log_onexit_push restore_tunable32 OVERRIDE_ESTIMATE_RECORDSIZE
+
 typeset -l block_count=0
 typeset -l block_size
 typeset -i PERCENT=1

@@ -3366,6 +3366,75 @@ function tunable_exists
 	get_tunable_impl $1 "zfs" 1
 }
 
+function save_tunable64
+{
+	save_tunable_impl "$1" Z
+}
+
+function save_tunable32
+{
+	save_tunable_impl "$1" W
+}
+
+typeset -A libtest_saved_tunables
+function save_tunable_impl
+{
+	typeset tunable="$1"
+	typeset mdb_cmd="$2"
+	typeset module="${3:-zfs}"
+
+	# We key with $mdb_cmd to detect an incorrect pair of
+	# save_tunable and restore_tunable.
+	# For example, `save_tunable64 X` followed by `restore_tunable32 X`
+	# should fail with error "Tunable has not been saved"
+	if [ -n "${libtest_saved_tunables[$module/$mdb_cmd/$tunable]}" ]; then
+		log_fail "Tunable already saved: $tunable [module=$module, mdb_cmd=$mdb_cmd]"
+	fi
+
+	typeset current_value
+	current_value="$(get_tunable_impl "$tunable" "$module")"
+	if [ "$?" != 0 ]; then
+		log_fail "Failed to get tunable: $tunable [module=$module, mdb_cmd=$mdb_cmd]"
+	fi
+	if [ ! -n "$current_value" ]; then
+		log_fail "Tunable value empty: $tunable [module=$module, mdb_cmd=$mdb_cmd]"
+	fi
+	libtest_saved_tunables[$module/$mdb_cmd/$tunable]="$current_value"
+	log_note "Saved tunable value $current_value for $tunable [module=$module, mdb_cmd=$mdb_cmd]"
+}
+
+function restore_tunable64
+{
+	restore_tunable_impl "$1" Z
+}
+
+function restore_tunable32
+{
+	restore_tunable_impl "$1" W
+}
+
+function restore_tunable_impl
+{
+	typeset tunable="$1"
+	typeset mdb_cmd="$2"
+	typeset module="${3:-zfs}"
+
+	typeset saved_value
+	saved_value=${libtest_saved_tunables[$module/$mdb_cmd/$tunable]}
+
+	if [ -z "$saved_value" ]; then
+		log_fail "Tunable has not been saved: $tunable [module=$module, mdb_cmd=$mdb_cmd]"
+	fi
+
+	set_tunable_impl "$tunable" "$saved_value" "$mdb_cmd" "$module"
+	if [ "$?" != 0 ]; then
+		log_fail "Failed to restore tunable to value $saved_value: $tunable [module=$module, mdb_cmd=$mdb_cmd]"
+	fi
+
+	libtest_saved_tunables[$module/$mdb_cmd/$tunable]=""
+	log_note "Restored tunable value $saved_value for $tunable [module=$module, mdb_cmd=$mdb_cmd]"
+}
+
 #
 # Compute MD5 digest for given file or stdin if no file given.
 # Note: file path must not contain spaces

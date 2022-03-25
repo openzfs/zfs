@@ -40,13 +40,14 @@ verify_runnable "global"
 
 function test_cleanup
 {
-	# reset memory limit to 16M
-	set_tunable64 SPA_DISCARD_MEMORY_LIMIT 1000000
 	cleanup_nested_pools
 }
 
 setup_nested_pool_state
 log_onexit test_cleanup
+
+save_tunable64 SPA_DISCARD_MEMORY_LIMIT
+log_onexit_push restore_tunable64 SPA_DISCARD_MEMORY_LIMIT
 
 #
 # Force discard to happen slower so it spans over
@@ -67,6 +68,7 @@ log_onexit test_cleanup
 #	map, we should have even more time to
 #	verify this.
 #
+
 set_tunable64 SPA_DISCARD_MEMORY_LIMIT 128
 
 log_must zpool checkpoint $NESTEDPOOL

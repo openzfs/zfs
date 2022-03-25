@@ -426,6 +426,9 @@ def assert_invariant_module_params(runfunc):
                         with open(f, "r") as fd:
                             params[f] = fd.read()
             assert len(params) > 0
+            # XXX: ZED changes this param dynamically
+            # https://github.com/openzfs/zfs/pull/13287#issuecomment-1224887857
+            params.pop("/sys/module/zfs/parameters/zfs_zevent_len_max", None)
             return params
 
         def pretty_diffable_json(d):

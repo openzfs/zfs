@@ -40,8 +40,6 @@
 function cleanup
 {
 	datasetexists $TESTPOOL/$TESTFS1 && destroy_dataset $TESTPOOL/$TESTFS1 -R
-	# reset the livelist sublist size to its original value
-	set_tunable64 LIVELIST_MAX_ENTRIES $ORIGINAL_MAX
 	log_must zfs inherit compression $TESTPOOL
 }
 
@@ -144,9 +142,10 @@ function test_clone_clone_promote
 	log_must zdb -bcc $TESTPOOL
 }
 
-ORIGINAL_MAX=$(get_tunable LIVELIST_MAX_ENTRIES)
+save_tunable64 LIVELIST_MAX_ENTRIES
+log_onexit_push restore_tunable64 LIVELIST_MAX_ENTRIES
 
-log_onexit cleanup
+log_onexit_push cleanup
 # You might think that setting compression=off for $TESTFS1 would be
 # sufficient. You would be mistaken.
 # You need compression=off for whatever the parent of $TESTFS1 is,

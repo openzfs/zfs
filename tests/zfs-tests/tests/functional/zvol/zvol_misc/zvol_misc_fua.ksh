@@ -83,6 +83,9 @@ log_must zfs set compression=off $TESTPOOL/$TESTVOL
 
 log_note "Testing without blk-mq"
 
+save_blk_mq
+log_onexit_push restore_blk_mq
+
 set_blk_mq 0
 log_must zpool export $TESTPOOL
 log_must zpool import $TESTPOOL

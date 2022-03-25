@@ -49,11 +49,13 @@ verify_runnable "both"
 function cleanup
 {
 	datasetexists $TEST_FS && destroy_dataset $TEST_FS
-	log_must set_tunable64 ASYNC_BLOCK_MAX_BLOCKS 100000
 }
 
 log_onexit cleanup
 log_assert "async_destroy can suspend and resume traversal"
+
+save_tunable64 ASYNC_BLOCK_MAX_BLOCKS
+log_onexit_push restore_tunable64 ASYNC_BLOCK_MAX_BLOCKS
 
 log_must zfs create -o recordsize=1k -o compression=off $TEST_FS
 
