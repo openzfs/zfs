@@ -166,6 +166,7 @@ if sys.platform.startswith('freebsd'):
         'cli_root/zpool_wait/zpool_wait_trim_cancel': ['SKIP', trim_reason],
         'cli_root/zpool_wait/zpool_wait_trim_flag': ['SKIP', trim_reason],
         'link_count/link_count_001': ['SKIP', na_reason],
+        'casenorm/mixed_create_failure': ['FAIL', 13215],
     })
 elif sys.platform.startswith('linux'):
     known.update({
