@@ -145,8 +145,8 @@ ci_reason = 'CI runner doesn\'t have all requirements'
 # reasons listed above can be used.
 #
 known = {
-    'casenorm/mixed_none_lookup_ci': ['FAIL', '7633'],
-    'casenorm/mixed_formd_lookup_ci': ['FAIL', '7633'],
+    'casenorm/mixed_none_lookup_ci': ['FAIL', 7633],
+    'casenorm/mixed_formd_lookup_ci': ['FAIL', 7633],
     'cli_root/zpool_import/import_rewind_device_replaced':
         ['FAIL', rewind_reason],
     'cli_user/misc/zfs_share_001_neg': ['SKIP', na_reason],
@@ -154,7 +154,7 @@ known = {
     'privilege/setup': ['SKIP', na_reason],
     'refreserv/refreserv_004_pos': ['FAIL', known_reason],
     'rootpool/setup': ['SKIP', na_reason],
-    'rsend/rsend_008_pos': ['SKIP', '6066'],
+    'rsend/rsend_008_pos': ['SKIP', 6066],
     'vdev_zaps/vdev_zaps_007_pos': ['FAIL', known_reason],
 }
 
@@ -169,10 +169,10 @@ if sys.platform.startswith('freebsd'):
     })
 elif sys.platform.startswith('linux'):
     known.update({
-        'casenorm/mixed_formd_lookup': ['FAIL', '7633'],
-        'casenorm/mixed_formd_delete': ['FAIL', '7633'],
-        'casenorm/sensitive_formd_lookup': ['FAIL', '7633'],
-        'casenorm/sensitive_formd_delete': ['FAIL', '7633'],
+        'casenorm/mixed_formd_lookup': ['FAIL', 7633],
+        'casenorm/mixed_formd_delete': ['FAIL', 7633],
+        'casenorm/sensitive_formd_lookup': ['FAIL', 7633],
+        'casenorm/sensitive_formd_delete': ['FAIL', 7633],
         'removal/removal_with_zdb': ['SKIP', known_reason],
         'cli_root/zfs_unshare/zfs_unshare_002_pos': ['SKIP', na_reason],
     })
@@ -196,49 +196,49 @@ maybe = {
     'cli_root/zfs_destroy/zfs_destroy_dev_removal_condense':
         ['FAIL', known_reason],
     'cli_root/zfs_get/zfs_get_004_pos': ['FAIL', known_reason],
-    'cli_root/zfs_get/zfs_get_009_pos': ['SKIP', '5479'],
+    'cli_root/zfs_get/zfs_get_009_pos': ['SKIP', 5479],
     'cli_root/zfs_rollback/zfs_rollback_001_pos': ['FAIL', known_reason],
     'cli_root/zfs_rollback/zfs_rollback_002_pos': ['FAIL', known_reason],
     'cli_root/zfs_snapshot/zfs_snapshot_002_neg': ['FAIL', known_reason],
     'cli_root/zfs_unshare/zfs_unshare_006_pos': ['SKIP', na_reason],
     'cli_root/zpool_add/zpool_add_004_pos': ['FAIL', known_reason],
-    'cli_root/zpool_destroy/zpool_destroy_001_pos': ['SKIP', '6145'],
-    'cli_root/zpool_import/zpool_import_missing_003_pos': ['SKIP', '6839'],
+    'cli_root/zpool_destroy/zpool_destroy_001_pos': ['SKIP', 6145],
+    'cli_root/zpool_import/zpool_import_missing_003_pos': ['SKIP', 6839],
     'cli_root/zpool_initialize/zpool_initialize_import_export':
-        ['FAIL', '11948'],
+        ['FAIL', 11948],
     'cli_root/zpool_labelclear/zpool_labelclear_removed':
         ['FAIL', known_reason],
     'cli_root/zpool_trim/setup': ['SKIP', trim_reason],
-    'cli_root/zpool_upgrade/zpool_upgrade_004_pos': ['FAIL', '6141'],
+    'cli_root/zpool_upgrade/zpool_upgrade_004_pos': ['FAIL', 6141],
     'delegate/setup': ['SKIP', exec_reason],
     'fallocate/fallocate_punch-hole': ['SKIP', fspacectl_reason],
-    'history/history_004_pos': ['FAIL', '7026'],
-    'history/history_005_neg': ['FAIL', '6680'],
-    'history/history_006_neg': ['FAIL', '5657'],
+    'history/history_004_pos': ['FAIL', 7026],
+    'history/history_005_neg': ['FAIL', 6680],
+    'history/history_006_neg': ['FAIL', 5657],
     'history/history_008_pos': ['FAIL', known_reason],
     'history/history_010_pos': ['SKIP', exec_reason],
     'io/mmap': ['SKIP', fio_reason],
     'largest_pool/largest_pool_001_pos': ['FAIL', known_reason],
     'mmp/mmp_on_uberblocks': ['FAIL', known_reason],
     'pyzfs/pyzfs_unittest': ['SKIP', python_deps_reason],
-    'pool_checkpoint/checkpoint_discard_busy': ['FAIL', '11946'],
+    'pool_checkpoint/checkpoint_discard_busy': ['FAIL', 11946],
     'projectquota/setup': ['SKIP', exec_reason],
-    'redundancy/redundancy_004_neg': ['FAIL', '7290'],
+    'redundancy/redundancy_004_neg': ['FAIL', 7290],
     'redundancy/redundancy_draid_spare3': ['SKIP', known_reason],
     'removal/removal_condense_export': ['FAIL', known_reason],
-    'reservation/reservation_008_pos': ['FAIL', '7741'],
-    'reservation/reservation_018_pos': ['FAIL', '5642'],
+    'reservation/reservation_008_pos': ['FAIL', 7741],
+    'reservation/reservation_018_pos': ['FAIL', 5642],
     'snapshot/clone_001_pos': ['FAIL', known_reason],
-    'snapshot/snapshot_009_pos': ['FAIL', '7961'],
-    'snapshot/snapshot_010_pos': ['FAIL', '7961'],
-    'snapused/snapused_004_pos': ['FAIL', '5513'],
+    'snapshot/snapshot_009_pos': ['FAIL', 7961],
+    'snapshot/snapshot_010_pos': ['FAIL', 7961],
+    'snapused/snapused_004_pos': ['FAIL', 5513],
     'tmpfile/setup': ['SKIP', tmpfile_reason],
-    'threadsappend/threadsappend_001_pos': ['FAIL', '6136'],
+    'threadsappend/threadsappend_001_pos': ['FAIL', 6136],
     'trim/setup': ['SKIP', trim_reason],
     'upgrade/upgrade_projectquota_001_pos': ['SKIP', project_id_reason],
     'user_namespace/setup': ['SKIP', user_ns_reason],
     'userquota/setup': ['SKIP', exec_reason],
-    'zvol/zvol_ENOSPC/zvol_ENOSPC_001_pos': ['FAIL', '5848'],
+    'zvol/zvol_ENOSPC/zvol_ENOSPC_001_pos': ['FAIL', 5848],
     'pam/setup': ['SKIP', "pamtester might be not available"],
 }
 
@@ -250,23 +250,23 @@ if sys.platform.startswith('freebsd'):
             ['FAIL', known_reason],
         'cli_root/zpool_import/zpool_import_012_pos': ['FAIL', known_reason],
         'delegate/zfs_allow_003_pos': ['FAIL', known_reason],
-        'inheritance/inherit_001_pos': ['FAIL', '11829'],
+        'inheritance/inherit_001_pos': ['FAIL', 11829],
         'resilver/resilver_restart_001': ['FAIL', known_reason],
-        'pool_checkpoint/checkpoint_big_rewind': ['FAIL', '12622'],
-        'pool_checkpoint/checkpoint_indirect': ['FAIL', '12623'],
+        'pool_checkpoint/checkpoint_big_rewind': ['FAIL', 12622],
+        'pool_checkpoint/checkpoint_indirect': ['FAIL', 12623],
     })
 elif sys.platform.startswith('linux'):
     maybe.update({
         'cli_root/zfs_rename/zfs_rename_002_pos': ['FAIL', known_reason],
         'cli_root/zpool_reopen/zpool_reopen_003_pos': ['FAIL', known_reason],
-        'fault/auto_spare_shared': ['FAIL', '11889'],
+        'fault/auto_spare_shared': ['FAIL', 11889],
         'io/io_uring': ['SKIP', 'io_uring support required'],
         'limits/filesystem_limit': ['SKIP', known_reason],
         'limits/snapshot_limit': ['SKIP', known_reason],
         'mmp/mmp_active_import': ['FAIL', known_reason],
         'mmp/mmp_exported_import': ['FAIL', known_reason],
         'mmp/mmp_inactive_import': ['FAIL', known_reason],
-        'zvol/zvol_misc/zvol_misc_snapdev': ['FAIL', '12621'],
+        'zvol/zvol_misc/zvol_misc_snapdev': ['FAIL', 12621],
         'zvol/zvol_misc/zvol_misc_volmode': ['FAIL', known_reason],
     })
 
@@ -297,7 +297,7 @@ if os.environ.get('CI') == 'true':
     })
 
     maybe.update({
-        'events/events_002_pos': ['FAIL', '11546'],
+        'events/events_002_pos': ['FAIL', 11546],
     })
 
 
@@ -400,13 +400,13 @@ if __name__ == "__main__":
         if test in known:
             if known[test][1] == na_reason:
                 continue
-            elif known[test][1].isdigit():
-                expect = issue_url + known[test][1]
+            elif isinstance(known[test][1], int):
+                expect = f"{issue_url}{known[test][1]}"
             else:
                 expect = known[test][1]
         elif test in maybe:
-            if maybe[test][1].isdigit():
-                expect = issue_url + maybe[test][1]
+            if isinstance(maybe[test][1], int):
+                expect = f"{issue_url}{maybe[test][1]}"
             else:
                 expect = maybe[test][1]
         elif setup in known and known[setup][0] == "SKIP" and setup != test:
