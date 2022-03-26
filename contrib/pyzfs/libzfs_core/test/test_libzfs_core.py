@@ -1903,6 +1903,8 @@ class ZFSTest(unittest.TestCase):
             with self.assertRaises(lzc_exc.StreamIOError) as ctx:
                 lzc.lzc_send(snap, None, fd)
             os.close(fd)
+            os.unlink(output.name)
+
         self.assertEqual(ctx.exception.errno, errno.EBADF)
 
     def test_recv_full(self):

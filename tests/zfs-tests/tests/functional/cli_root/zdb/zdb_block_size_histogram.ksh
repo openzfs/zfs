@@ -145,7 +145,6 @@ function histo_check_test_pool
 	typeset -i this_rs
 	typeset -i this_ri
 	typeset -i sum_filesizes=0
-	typeset stripped
 
 	let histo_check_pool_size=$(get_pool_prop size ${pool})
 	if [[ ! ${histo_check_pool_size} =~ ${re_number} ]]; then
@@ -243,6 +242,8 @@ function histo_check_test_pool
 			fi
 		fi
 	done < ${stripped}
+	rm "${stripped}"
+
 	if [ ${fail_value} -gt 0 ]; then
 		if [ ${error_count} -eq 1 ]; then
 			log_note "hctp: There was ${error_count} error"
