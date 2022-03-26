@@ -49,24 +49,23 @@ verify_runnable "both"
 function cleanup
 {
 	datasetexists $TESTPOOL/$TESTFS1 && destroy_dataset $TESTPOOL/$TESTFS1 -f
+	log_must rm -df "/tmp/mnt$$"
 }
 
 log_onexit cleanup
 
 
-log_assert "'zfs create -o property=value filesystem' can successfully create \
-	   a ZFS filesystem with correct property set."
+log_assert "'zfs create -o property=value filesystem' can successfully create" \
+	   "a ZFS filesystem with correct property set."
 
 typeset -i i=0
 while (( $i < ${#RW_FS_PROP[*]} )); do
 	log_must zfs create -o ${RW_FS_PROP[$i]} $TESTPOOL/$TESTFS1
-	datasetexists $TESTPOOL/$TESTFS1 || \
-		log_fail "zfs create $TESTPOOL/$TESTFS1 fail."
-	propertycheck $TESTPOOL/$TESTFS1 ${RW_FS_PROP[i]} || \
-		log_fail "${RW_FS_PROP[i]} is failed to set."
+	log_must datasetexists $TESTPOOL/$TESTFS1
+	log_must propertycheck $TESTPOOL/$TESTFS1 ${RW_FS_PROP[i]}
 	log_must_busy zfs destroy -f $TESTPOOL/$TESTFS1
 	(( i = i + 1 ))
 done
 
-log_pass "'zfs create -o property=value filesystem' can successfully create \
-         a ZFS filesystem with correct property set."
+log_pass "'zfs create -o property=value filesystem' can successfully create" \
+         "a ZFS filesystem with correct property set."

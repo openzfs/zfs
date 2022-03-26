@@ -59,7 +59,7 @@ function cleanup
 	if poolexists $POOL ; then
 		log_must destroy_pool $POOL
 	fi
-	log_must rm -f $VDEV1 $VDEV2 $VDEV3
+	log_must rm -fd $VDEV1 $VDEV2 $VDEV3 $MOUNTDIR
 }
 
 log_assert "Check that the number of zpool errors match the number of events"
