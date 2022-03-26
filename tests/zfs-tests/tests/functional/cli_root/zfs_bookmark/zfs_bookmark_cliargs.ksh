@@ -62,6 +62,8 @@ function cleanup
 
 	bkmarkexists "$DATASET#$TESTBMCOPY" && \
 		destroy_dataset "$DATASET#$TESTBMCOPY"
+
+	log_must rm -f "$TEST_BASE_DIR/zfstest_datastream.$$"
 }
 
 log_assert "'zfs bookmark' should work only when passed valid arguments."

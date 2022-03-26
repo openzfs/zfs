@@ -33,7 +33,7 @@ function cleanup
 {
 	destroy_pool $TESTPOOL
 	destroy_pool $TESTPOOL2
-	rm -f $FILEDEV_PREFIX*
+	rm -fd $FILEDEV_PREFIX* $altroot
 }
 
 function setup_mirror # <conf>

@@ -64,7 +64,7 @@ function cleanup
 	if poolexists $POOL ; then
 		zpool export $POOL
 	fi
-	log_must rm -f $VDEV1 $VDEV2 $VDEV3
+	log_must rm -fd $VDEV1 $VDEV2 $VDEV3 $SUPPLY $MOUNTDIR
 }
 
 function damage_and_repair
@@ -130,4 +130,3 @@ else
 	log_note observed $errcnt new checksum errors after a scrub
 	log_pass "$assertion"
 fi
-

@@ -56,7 +56,7 @@ function cleanup
 	if poolexists $POOL ; then
 		destroy_pool $POOL
 	fi
-	log_must rm -f $VDEV1 $VDEV2
+	log_must rm -fd $VDEV1 $VDEV2 $MOUNTDIR
 }
 
 log_assert "Duplicate I/O ereport errors are not posted"
