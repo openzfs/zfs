@@ -747,7 +747,7 @@ if [ -d "$RESULTS_DIR" ]; then
 	cat "$RESULTS_FILE" "$REPORT_FILE" >"$RESULTS_DIR/results"
 fi
 
-rm -f "$RESULTS_FILE" "$REPORT_FILE"
+rm -f "$RESULTS_FILE" "$REPORT_FILE" "$TEST_LIST" "$TEMP_RESULTS_FILE"
 
 if [ -n "$SINGLETEST" ]; then
 	rm -f "$RUNFILES" >/dev/null 2>&1

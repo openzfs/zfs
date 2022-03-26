@@ -43,7 +43,7 @@ function cleanup
 	if poolexists $TESTPOOL2 ; then
 		destroy_pool $TESTPOOL2
 	fi
-	rm -f $VDEV_TEMP $VDEV_M1 $VDEV_M2
+	rm -fd $VDEV_TEMP $VDEV_M1 $VDEV_M2 $altroot
 }
 log_onexit cleanup
 
@@ -64,6 +64,6 @@ log_must zpool remove $TESTPOOL $VDEV_TEMP
 log_must wait_for_removal $TESTPOOL
 log_must zpool split -R $altroot $TESTPOOL $TESTPOOL2
 log_must poolexists $TESTPOOL2
-log_must test "$(get_pool_prop 'altroot' $TESTPOOL2)" == "$altroot"
+log_must test "$(get_pool_prop 'altroot' $TESTPOOL2)" = "$altroot"
 
 log_pass "'zpool split' works on pools with indirect VDEVs."
