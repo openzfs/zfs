@@ -275,6 +275,14 @@ zpl_xattr_list(struct dentry *dentry, char *buffer, size_t buffer_size)
 		goto out1;
 	rw_enter(&zp->z_xattr_lock, RW_READER);
 
+	if ((zfsvfs->z_acl_type == ZFS_ACLTYPE_NFSV4) &&
+	    ((zp->z_pflags & ZFS_ACL_TRIVIAL) == 0)) {
+		error = zpl_xattr_filldir(&xf, NFS41ACL_XATTR,
+		    sizeof (NFS41ACL_XATTR) - 1);
+		if (error)
+			goto out;
+	}
+
 	if (zfsvfs->z_use_sa && zp->z_is_sa) {
 		error = zpl_xattr_list_sa(&xf);
 		if (error)
@@ -1737,7 +1745,7 @@ nfsacl41i_to_zfsacl(const nfsacl41i *nacl, vsecattr_t *_vsecp)
 	vsecattr_t vsecp;
 
 	vsecp.vsa_aclcnt = nacl->na41_aces.na41_aces_len;
-	vsecp.vsa_aclflags = nacl->na41_flag;
+	vsecp.vsa_aclflags = nacl->na41_flag & ACL_FLAGS_ALL;
 	vsecp.vsa_aclentsz = vsecp.vsa_aclcnt * sizeof (ace_t);
 	vsecp.vsa_mask = (VSA_ACE | VSA_ACE_ACLFLAGS);
 	vsecp.vsa_aclentp = kmem_alloc(vsecp.vsa_aclentsz, KM_SLEEP);

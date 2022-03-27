@@ -2054,6 +2054,10 @@ zfs_getacl(znode_t *zp, vsecattr_t *vsecp, boolean_t skipaclchk, cred_t *cr)
 			vsecp->vsa_aclflags |= ACL_PROTECTED;
 		if (zp->z_pflags & ZFS_ACL_AUTO_INHERIT)
 			vsecp->vsa_aclflags |= ACL_AUTO_INHERIT;
+		if (zp->z_pflags & ZFS_ACL_TRIVIAL)
+			vsecp->vsa_aclflags |= ACL_IS_TRIVIAL;
+		if (S_ISDIR(ZTOI(zp)->i_mode))
+			vsecp->vsa_aclflags |= ACL_IS_DIR;
 	}
 
 	mutex_exit(&zp->z_acl_lock);
