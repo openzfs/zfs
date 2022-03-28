@@ -68,46 +68,9 @@ fi
 %defattr(-,root,root)
 /usr/src/%{module}-%{version}
 
-%post
-for POSTINST in /usr/lib/dkms/common.postinst; do
-    if [ -f $POSTINST ]; then
-        $POSTINST %{module} %{version}
-        exit $?
-    fi
-    echo "WARNING: $POSTINST does not exist."
-done
-echo -e "ERROR: DKMS version is too old and %{module} was not"
-echo -e "built with legacy DKMS support."
-echo -e "You must either rebuild %{module} with legacy postinst"
-echo -e "support or upgrade DKMS to a more current version."
-exit 1
-
 %preun
-# Are we doing an upgrade?
-if [ "$1" = "1" -o "$1" = "upgrade" ] ; then
-	# Yes we are.  Are we upgrading to a new ZFS version?
-	NEWEST_VER=$(dkms status zfs | tr -d , | sort -r -V | awk '/installed/{print $2; exit}')
-	if [ "$NEWEST_VER" != "%{version}" ] ; then
-		# Yes, it's a new ZFS version.  We'll uninstall the old module
-		# later on in this script.
-		true
-	else
-		# No, it's probably an upgrade of the same ZFS version
-		# to a new distro (zfs-dkms-0.7.12.fc28->zfs-dkms-0.7.12.fc29).
-		# Don't remove our modules, since the rebuild for the new
-		# distro will automatically delete the old modules.
-		exit 0
-	fi
-fi
+dkms remove -m %{module} -v %{version} --all
 
-# If we're here then we're doing an uninstall (not upgrade).
-CONFIG_H="/var/lib/dkms/%{module}/%{version}/*/*/%{module}_config.h"
-SPEC_META_ALIAS="@PACKAGE@-@VERSION@-@RELEASE@"
-DKMS_META_ALIAS=`cat $CONFIG_H 2>/dev/null |
-    awk -F'"' '/META_ALIAS\s+"/ { print $2; exit 0 }'`
-if [ "$SPEC_META_ALIAS" = "$DKMS_META_ALIAS" ]; then
-    echo -e
-    echo -e "Uninstall of %{module} module ($SPEC_META_ALIAS) beginning:"
-    dkms remove -m %{module} -v %{version} --all %{!?not_rpm:--rpm_safe_upgrade}
-fi
-exit 0
+%posttrans
+/usr/lib/dkms/common.postinst %{module} %{version}
+
