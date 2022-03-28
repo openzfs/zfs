@@ -160,10 +160,9 @@ dsl_bookmark_create_nvl_validate_pair(const char *bmark, const char *source)
 int
 dsl_bookmark_create_nvl_validate(nvlist_t *bmarks)
 {
-	char *first;
-	size_t first_len;
+	char *first = NULL;
+	size_t first_len = 0;
 
-	first = NULL;
 	for (nvpair_t *pair = nvlist_next_nvpair(bmarks, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(bmarks, pair)) {
 
