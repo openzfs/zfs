@@ -46,7 +46,10 @@ static unsigned int zvol_request_sync = 0;
 static unsigned int zvol_prefetch_bytes = (128 * 1024);
 static unsigned long zvol_max_discard_blocks = 16384;
 static unsigned int zvol_threads = 32;
+
+#ifndef HAVE_BLKDEV_GET_ERESTARTSYS
 static const unsigned int zvol_open_timeout_ms = 1000;
+#endif
 
 struct zvol_state_os {
 	struct gendisk		*zvo_disk;	/* generic disk */
