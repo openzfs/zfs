@@ -30,7 +30,6 @@
 .Sh SYNOPSIS
 .Nm
 .Op Fl chpvCP
-.Op Fl o Ar construct Ns Op , Ns Ar construct Ns …
 .Oo Ar file Oc Ns …
 .Sh DESCRIPTION
 .Nm
@@ -91,16 +90,6 @@ types
 etc.
 This detects any use of the deprecated types.
 Used as part of the putback checks.
-.It Fl o Ar construct Ns Op , Ns Ar construct Ns …
-Available constructs include:
-.Bl -tag -compact -width "doxygen"
-.It Sy doxygen
-Allow doxygen-style block comments
-.Pq Sy /** No and Sy /*!\& .
-.It Sy splint
-Allow splint-style lint comments
-.Pq Sy /*@ Ns ... Ns Sy @*/ .
-.El
 .El
 .
 .Sh CONTINUATION CHECKING
