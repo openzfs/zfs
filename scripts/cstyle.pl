@@ -58,7 +58,7 @@ use Getopt::Std;
 use strict;
 
 my $usage =
-"usage: cstyle [-cghpvCP] [-o constructs] file ...
+"usage: cstyle [-cghpvCP] file...
 	-c	check continuation indentation inside functions
 	-g	print github actions' workflow commands
 	-h	perform heuristic checks that are sometimes wrong
@@ -66,15 +66,11 @@ my $usage =
 	-v	verbose
 	-C	don't check anything in header block comments
 	-P	check for use of non-POSIX types
-	-o constructs
-		allow a comma-separated list of optional constructs:
-		    doxygen	allow doxygen-style block comments (/** /*!)
-		    splint	allow splint-style lint comments (/*@ ... @*/)
 ";
 
 my %opts;
 
-if (!getopts("cgho:pvCP", \%opts)) {
+if (!getopts("cghpvCP", \%opts)) {
 	print $usage;
 	exit 2;
 }
@@ -87,23 +83,6 @@ my $verbose = $opts{'v'};
 my $ignore_hdr_comment = $opts{'C'};
 my $check_posix_types = $opts{'P'};
 
-my $doxygen_comments = 0;
-my $splint_comments = 0;
-
-if (defined($opts{'o'})) {
-	for my $x (split /,/, $opts{'o'}) {
-		if ($x eq "doxygen") {
-			$doxygen_comments = 1;
-		} elsif ($x eq "splint") {
-			$splint_comments = 1;
-		} else {
-			print "cstyle: unrecognized construct \"$x\"\n";
-			print $usage;
-			exit 2;
-		}
-	}
-}
-
 my ($filename, $line, $prev);		# shared globals
 
 my $fmt;
@@ -115,12 +94,7 @@ if ($verbose) {
 	$fmt = "%s: %d: %s\n";
 }
 
-if ($doxygen_comments) {
-	# doxygen comments look like "/*!" or "/**"; allow them.
-	$hdr_comment_start = qr/^\s*\/\*[\!\*]?$/;
-} else {
-	$hdr_comment_start = qr/^\s*\/\*$/;
-}
+$hdr_comment_start = qr/^\s*\/\*$/;
 
 # Note, following must be in single quotes so that \s and \w work right.
 my $typename = '(int|char|short|long|unsigned|float|double' .
@@ -145,8 +119,6 @@ my $lint_re = qr/\/\*(?:
 	FALLTHRU|FALLTHROUGH|LINTED.*?|PRINTFLIKE[0-9]*|
 	PROTOLIB[0-9]*|SCANFLIKE[0-9]*|CSTYLED.*?
     )\*\//x;
-
-my $splint_re = qr/\/\*@.*?@\*\//x;
 
 my $warlock_re = qr/\/\*\s*(?:
 	VARIABLES\ PROTECTED\ BY|
@@ -536,12 +508,10 @@ line: while (<$filehandle>) {
 		next line;
 	}
 
-	if ((/[^(]\/\*\S/ || /^\/\*\S/) &&
-	    !(/$lint_re/ || ($splint_comments && /$splint_re/))) {
+	if ((/[^(]\/\*\S/ || /^\/\*\S/) && !/$lint_re/) {
 		err("missing blank after open comment");
 	}
-	if (/\S\*\/[^)]|\S\*\/$/ &&
-	    !(/$lint_re/ || ($splint_comments && /$splint_re/))) {
+	if (/\S\*\/[^)]|\S\*\/$/ && !/$lint_re/) {
 		err("missing blank before close comment");
 	}
 	if (/\/\/\S/) {		# C++ comments
