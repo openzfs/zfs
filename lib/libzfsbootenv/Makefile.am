@@ -2,6 +2,9 @@ include $(top_srcdir)/config/Rules.am
 
 pkgconfig_DATA = libzfsbootenv.pc
 
+# See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=54020
+AM_CFLAGS += -no-suppress
+
 lib_LTLIBRARIES = libzfsbootenv.la
 
 include $(top_srcdir)/config/Abigail.am

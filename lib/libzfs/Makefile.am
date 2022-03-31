@@ -8,6 +8,9 @@ VPATH = \
 # Suppress unused but set variable warnings often due to ASSERTs
 AM_CFLAGS += $(LIBCRYPTO_CFLAGS) $(ZLIB_CFLAGS)
 
+# See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=54020
+AM_CFLAGS += -no-suppress
+
 pkgconfig_DATA = libzfs.pc
 
 lib_LTLIBRARIES = libzfs.la

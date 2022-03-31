@@ -6,6 +6,8 @@ VPATH = \
 
 # Includes kernel code, generate warnings for large stack frames
 AM_CFLAGS += $(FRAME_LARGER_THAN)
+# See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=54020
+AM_CFLAGS += -no-suppress
 
 noinst_LTLIBRARIES = libicp.la
 

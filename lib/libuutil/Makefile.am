@@ -1,5 +1,8 @@
 include $(top_srcdir)/config/Rules.am
 
+# See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=54020
+AM_CFLAGS += -no-suppress
+
 lib_LTLIBRARIES = libuutil.la
 
 include $(top_srcdir)/config/Abigail.am

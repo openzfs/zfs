@@ -2,6 +2,9 @@ include $(top_srcdir)/config/Rules.am
 
 DEFAULT_INCLUDES += -I$(srcdir)
 
+# See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=54020
+AM_CFLAGS += -no-suppress
+
 noinst_LTLIBRARIES = libshare.la
 
 USER_C = \

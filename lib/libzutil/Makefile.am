@@ -2,6 +2,9 @@ include $(top_srcdir)/config/Rules.am
 
 AM_CFLAGS += $(LIBBLKID_CFLAGS) $(LIBUDEV_CFLAGS)
 
+# See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=54020
+AM_CFLAGS += -no-suppress
+
 DEFAULT_INCLUDES += -I$(srcdir)
 
 noinst_LTLIBRARIES = libzutil.la
