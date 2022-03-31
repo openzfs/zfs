@@ -3,8 +3,6 @@ include Kbuild
 INSTALL_MOD_DIR ?= extra
 INSTALL_MOD_PATH ?= $(DESTDIR)
 
-SUBDIR_TARGETS = icp lua zstd
-
 all: modules
 distclean maintainer-clean: clean
 install: modules_install
@@ -51,7 +49,8 @@ endif
 FMAKE = env -u MAKEFLAGS make $(FMAKEFLAGS)
 
 modules-Linux:
-	list='$(SUBDIR_TARGETS)'; for td in $$list; do $(MAKE) -C $$td; done
+	mkdir -p $(sort $(dir $(spl-objs) $(spl-)))
+	mkdir -p $(sort $(dir $(zfs-objs) $(zfs-)))
 	$(MAKE) -C @LINUX_OBJ@ $(if @KERNEL_CC@,CC=@KERNEL_CC@) \
 		$(if @KERNEL_LD@,LD=@KERNEL_LD@) $(if @KERNEL_LLVM@,LLVM=@KERNEL_LLVM@) \
 		M="$$PWD" @KERNEL_MAKE@ CONFIG_ZFS=m modules
@@ -77,6 +76,7 @@ clean-FreeBSD:
 
 clean: clean-@ac_system@
 
+KMODDIR := $(INSTALL_MOD_PATH)/lib/modules/@LINUX_VERSION@
 modules_install-Linux:
 	@# Install the kernel modules
 	$(MAKE) -C @LINUX_OBJ@ M="$$PWD" modules_install \
@@ -84,9 +84,8 @@ modules_install-Linux:
 		INSTALL_MOD_DIR=$(INSTALL_MOD_DIR) \
 		KERNELRELEASE=@LINUX_VERSION@
 	@# Remove extraneous build products when packaging
-	kmoddir=$(INSTALL_MOD_PATH)/lib/modules/@LINUX_VERSION@; \
 	if [ -n "$(DESTDIR)" ]; then \
-		find $$kmoddir -name 'modules.*' -delete; \
+		find $(KMODDIR) -name 'modules.*' -delete; \
 	fi
 	@# Debian ships tiny fake System.map files that are
 	@# syntactically valid but just say
@@ -109,10 +108,7 @@ modules_install: modules_install-@ac_system@
 
 modules_uninstall-Linux:
 	@# Uninstall the kernel modules
-	kmoddir=$(INSTALL_MOD_PATH)/lib/modules/@LINUX_VERSION@; \
-	for objdir in $(ZFS_MODULES); do \
-		$(RM) -R $$kmoddir/$(INSTALL_MOD_DIR)/$$objdir; \
-	done
+	$(RM) $(addprefix $(KMODDIR)/$(INSTALL_MOD_DIR)/,zfs.ko spl.ko)
 
 modules_uninstall-FreeBSD:
 	@false
@@ -134,7 +130,7 @@ cppcheck-Linux:
 		-I @top_srcdir@/include/os/linux/spl \
 		-I @top_srcdir@/include/os/linux/zfs \
 		-I @top_srcdir@/include \
-		avl icp lua nvpair spl unicode zcommon zfs zstd os/linux
+		avl icp lua nvpair unicode zcommon zfs zstd os/linux
 
 cppcheck-FreeBSD:
 	@true
@@ -142,9 +138,11 @@ cppcheck-FreeBSD:
 cppcheck: cppcheck-@ac_system@
 
 distdir:
-	(cd @srcdir@ && find $(ZFS_MODULES) os -name '*.[chS]') | \
-	while read path; do \
-		mkdir -p $$distdir/$${path%/*}; \
-		cp @srcdir@/$$path $$distdir/$$path; \
-	done; \
+	cd @srcdir@ && find . -name '*.[chS]' -exec sh -c 'for f; do mkdir -p $$distdir/$${f%/*}; cp @srcdir@/$$f $$distdir/$$f; done' _ {} +
 	cp @srcdir@/Makefile.bsd $$distdir/Makefile.bsd
+
+gen-zstd-symbols:
+	for obj in $(addprefix zstd/,$(ZSTD_UPSTREAM_OBJS)); do echo; echo "/* $${obj#zstd/}: */"; @OBJDUMP@ -t $$obj | awk '$$2 == "g" && !/ zfs_/ {print "#define\t" $$6 " zfs_" $$6}' | sort; done >> zstd/include/zstd_compat_wrapper.h
+
+check-zstd-symbols:
+	@OBJDUMP@ -t $(addprefix zstd/,$(ZSTD_UPSTREAM_OBJS)) | awk '/file format/ {print}  $$2 == "g" && !/ zfs_/ {++ret; print}  END {exit ret}'

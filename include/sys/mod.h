@@ -30,11 +30,6 @@
  * Exported symbols
  */
 #define	EXPORT_SYMBOL(x)
-
-#define	ZFS_MODULE_DESCRIPTION(s)
-#define	ZFS_MODULE_AUTHOR(s)
-#define	ZFS_MODULE_LICENSE(s)
-#define	ZFS_MODULE_VERSION(s)
 #endif
 
 #endif /* SYS_MOD_H */

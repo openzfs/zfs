@@ -1,20 +1,6 @@
 # When integrated in to a monolithic kernel the spl module must appear
 # first.  This ensures its module initialization function is run before
 # any of the other module initialization functions which depend on it.
-ZFS_MODULES += spl/
-ZFS_MODULES += avl/
-ZFS_MODULES += icp/
-ZFS_MODULES += lua/
-ZFS_MODULES += nvpair/
-ZFS_MODULES += unicode/
-ZFS_MODULES += zcommon/
-ZFS_MODULES += zfs/
-ZFS_MODULES += zstd/
-
-# The rest is only relevant when run by kbuild
-ifneq ($(KERNELRELEASE),)
-
-obj-$(CONFIG_ZFS) := $(ZFS_MODULES)
 
 ZFS_MODULE_CFLAGS += -std=gnu99 -Wno-declaration-after-statement
 ZFS_MODULE_CFLAGS += -Wmissing-prototypes
@@ -22,10 +8,16 @@ ZFS_MODULE_CFLAGS += @KERNEL_DEBUG_CFLAGS@  @NO_FORMAT_ZERO_LENGTH@
 
 ifneq ($(KBUILD_EXTMOD),)
 zfs_include = @abs_top_srcdir@/include
+icp_include = @abs_srcdir@/icp/include
+zstd_include = @abs_srcdir@/zstd/include
 ZFS_MODULE_CFLAGS += -include @abs_top_builddir@/zfs_config.h
 ZFS_MODULE_CFLAGS += -I@abs_top_builddir@/include
+src = @abs_srcdir@
+obj = @abs_builddir@
 else
 zfs_include = $(srctree)/include/zfs
+icp_include = $(srctree)/$(src)/icp/include
+zstd_include = $(srctree)/$(src)/zstd/include
 ZFS_MODULE_CFLAGS += -include $(zfs_include)/zfs_config.h
 endif
 
@@ -41,7 +33,404 @@ ifneq ($(KBUILD_EXTMOD),)
 @CONFIG_QAT_TRUE@KBUILD_EXTRA_SYMBOLS += @QAT_SYMBOLS@
 endif
 
-subdir-asflags-y := $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
-subdir-ccflags-y := $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
+asflags-y := $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
+ccflags-y := $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
 
+# Suppress unused-value warnings in sparc64 architecture headers
+ccflags-$(CONFIG_SPARC64) += -Wno-unused-value
+
+
+obj-$(CONFIG_ZFS) := spl.o zfs.o
+
+SPL_OBJS := \
+	spl-atomic.o \
+	spl-condvar.o \
+	spl-cred.o \
+	spl-err.o \
+	spl-generic.o \
+	spl-kmem-cache.o \
+	spl-kmem.o \
+	spl-kstat.o \
+	spl-proc.o \
+	spl-procfs-list.o \
+	spl-taskq.o \
+	spl-thread.o \
+	spl-trace.o \
+	spl-tsd.o \
+	spl-vmem.o \
+	spl-xdr.o \
+	spl-zlib.o
+
+spl-objs += $(addprefix os/linux/spl/,$(SPL_OBJS))
+
+zfs-objs += avl/avl.o
+
+ICP_OBJS := \
+	algs/aes/aes_impl.o \
+	algs/aes/aes_impl_generic.o \
+	algs/aes/aes_modes.o \
+	algs/edonr/edonr.o \
+	algs/modes/cbc.o \
+	algs/modes/ccm.o \
+	algs/modes/ctr.o \
+	algs/modes/ecb.o \
+	algs/modes/gcm.o \
+	algs/modes/gcm_generic.o \
+	algs/modes/modes.o \
+	algs/sha2/sha2.o \
+	algs/skein/skein.o \
+	algs/skein/skein_block.o \
+	algs/skein/skein_iv.o \
+	api/kcf_cipher.o \
+	api/kcf_ctxops.o \
+	api/kcf_mac.o \
+	core/kcf_callprov.o \
+	core/kcf_mech_tabs.o \
+	core/kcf_prov_lib.o \
+	core/kcf_prov_tabs.o \
+	core/kcf_sched.o \
+	illumos-crypto.o \
+	io/aes.o \
+	io/sha2_mod.o \
+	io/skein_mod.o \
+	spi/kcf_spi.o
+
+ICP_OBJS_X86_64 := \
+	asm-x86_64/aes/aes_aesni.o \
+	asm-x86_64/aes/aes_amd64.o \
+	asm-x86_64/aes/aeskey.o \
+	asm-x86_64/modes/aesni-gcm-x86_64.o \
+	asm-x86_64/modes/gcm_pclmulqdq.o \
+	asm-x86_64/modes/ghash-x86_64.o \
+	asm-x86_64/sha2/sha256_impl.o \
+	asm-x86_64/sha2/sha512_impl.o
+
+ICP_OBJS_X86 := \
+	algs/aes/aes_impl_aesni.o \
+	algs/aes/aes_impl_x86-64.o \
+	algs/modes/gcm_pclmulqdq.o
+
+zfs-objs             += $(addprefix icp/,$(ICP_OBJS))
+zfs-$(CONFIG_X86)    += $(addprefix icp/,$(ICP_OBJS_X86))
+zfs-$(CONFIG_X86_64) += $(addprefix icp/,$(ICP_OBJS_X86_64))
+
+$(addprefix $(obj)/icp/,$(ICP_OBJS) $(ICP_OBJS_X86) $(ICP_OBJS_X86_64)) : asflags-y += -I$(icp_include)
+$(addprefix $(obj)/icp/,$(ICP_OBJS) $(ICP_OBJS_X86) $(ICP_OBJS_X86_64)) : ccflags-y += -I$(icp_include)
+
+# Suppress objtool "can't find jump dest instruction at" warnings.  They
+# are caused by the constants which are defined in the text section of the
+# assembly file using .byte instructions (e.g. bswap_mask).  The objtool
+# utility tries to interpret them as opcodes and obviously fails doing so.
+OBJECT_FILES_NON_STANDARD_aesni-gcm-x86_64.o := y
+OBJECT_FILES_NON_STANDARD_ghash-x86_64.o := y
+# Suppress objtool "unsupported stack pointer realignment" warnings. We are
+# not using a DRAP register while aligning the stack to a 64 byte boundary.
+# See #6950 for the reasoning.
+OBJECT_FILES_NON_STANDARD_sha256_impl.o := y
+OBJECT_FILES_NON_STANDARD_sha512_impl.o := y
+
+
+LUA_OBJS := \
+	lapi.o \
+	lauxlib.o \
+	lbaselib.o \
+	lcode.o \
+	lcompat.o \
+	lcorolib.o \
+	lctype.o \
+	ldebug.o \
+	ldo.o \
+	lfunc.o \
+	lgc.o \
+	llex.o \
+	lmem.o \
+	lobject.o \
+	lopcodes.o \
+	lparser.o \
+	lstate.o \
+	lstring.o \
+	lstrlib.o \
+	ltable.o \
+	ltablib.o \
+	ltm.o \
+	lvm.o \
+	lzio.o \
+	setjmp/setjmp.o
+
+zfs-objs += $(addprefix lua/,$(LUA_OBJS))
+
+
+NVPAIR_OBJS := \
+	fnvpair.o \
+	nvpair.o \
+	nvpair_alloc_fixed.o \
+	nvpair_alloc_spl.o
+
+zfs-objs += $(addprefix nvpair/,$(NVPAIR_OBJS))
+
+
+UNICODE_OBJS := \
+	u8_textprep.o \
+	uconv.o
+
+zfs-objs += $(addprefix unicode/,$(UNICODE_OBJS))
+
+
+ZCOMMON_OBJS := \
+	cityhash.o \
+	zfeature_common.o \
+	zfs_comutil.o \
+	zfs_deleg.o \
+	zfs_fletcher.o \
+	zfs_fletcher_superscalar.o \
+	zfs_fletcher_superscalar4.o \
+	zfs_namecheck.o \
+	zfs_prop.o \
+	zpool_prop.o \
+	zprop_common.o
+
+ZCOMMON_OBJS_X86 := \
+	zfs_fletcher_avx512.o \
+	zfs_fletcher_intel.o \
+	zfs_fletcher_sse.o
+
+ZCOMMON_OBJS_ARM64 := \
+	zfs_fletcher_aarch64_neon.o
+
+zfs-objs            += $(addprefix zcommon/,$(ZCOMMON_OBJS))
+zfs-$(CONFIG_X86)   += $(addprefix zcommon/,$(ZCOMMON_OBJS_X86))
+zfs-$(CONFIG_ARM64) += $(addprefix zcommon/,$(ZCOMMON_OBJS_ARM64))
+
+
+# Zstd uses -O3 by default, so we should follow
+ZFS_ZSTD_FLAGS := -O3
+
+# -fno-tree-vectorize gets set for gcc in zstd/common/compiler.h
+# Set it for other compilers, too.
+ZFS_ZSTD_FLAGS += -fno-tree-vectorize
+
+# SSE register return with SSE disabled if -march=znverX is passed
+ZFS_ZSTD_FLAGS += -U__BMI__
+
+# Quiet warnings about frame size due to unused code in unmodified zstd lib
+ZFS_ZSTD_FLAGS += -Wframe-larger-than=20480
+
+ZSTD_OBJS := \
+	zfs_zstd.o \
+	zstd_sparc.o
+
+ZSTD_UPSTREAM_OBJS := \
+	lib/common/entropy_common.o \
+	lib/common/error_private.o \
+	lib/common/fse_decompress.o \
+	lib/common/pool.o \
+	lib/common/zstd_common.o \
+	lib/compress/fse_compress.o \
+	lib/compress/hist.o \
+	lib/compress/huf_compress.o \
+	lib/compress/zstd_compress.o \
+	lib/compress/zstd_compress_literals.o \
+	lib/compress/zstd_compress_sequences.o \
+	lib/compress/zstd_compress_superblock.o \
+	lib/compress/zstd_double_fast.o \
+	lib/compress/zstd_fast.o \
+	lib/compress/zstd_lazy.o \
+	lib/compress/zstd_ldm.o \
+	lib/compress/zstd_opt.o \
+	lib/decompress/huf_decompress.o \
+	lib/decompress/zstd_ddict.o \
+	lib/decompress/zstd_decompress.o \
+	lib/decompress/zstd_decompress_block.o
+
+zfs-objs += $(addprefix zstd/,$(ZSTD_OBJS) $(ZSTD_UPSTREAM_OBJS))
+
+# Disable aarch64 neon SIMD instructions for kernel mode
+$(addprefix $(obj)/zstd/,$(ZSTD_OBJS) $(ZSTD_UPSTREAM_OBJS)) : ccflags-y += -I$(zstd_include) $(ZFS_ZSTD_FLAGS)
+$(addprefix $(obj)/zstd/,$(ZSTD_OBJS) $(ZSTD_UPSTREAM_OBJS)) : asflags-y += -I$(zstd_include)
+$(addprefix $(obj)/zstd/,$(ZSTD_UPSTREAM_OBJS)) : ccflags-y += -include $(zstd_include)/aarch64_compat.h -include $(zstd_include)/zstd_compat_wrapper.h -Wp,-w
+$(obj)/zstd/zfs_zstd.o : ccflags-y += -include $(zstd_include)/zstd_compat_wrapper.h
+
+
+ZFS_OBJS := \
+	abd.o \
+	aggsum.o \
+	arc.o \
+	blkptr.o \
+	bplist.o \
+	bpobj.o \
+	bptree.o \
+	bqueue.o \
+	btree.o \
+	dataset_kstats.o \
+	dbuf.o \
+	dbuf_stats.o \
+	ddt.o \
+	ddt_zap.o \
+	dmu.o \
+	dmu_diff.o \
+	dmu_object.o \
+	dmu_objset.o \
+	dmu_recv.o \
+	dmu_redact.o \
+	dmu_send.o \
+	dmu_traverse.o \
+	dmu_tx.o \
+	dmu_zfetch.o \
+	dnode.o \
+	dnode_sync.o \
+	dsl_bookmark.o \
+	dsl_crypt.o \
+	dsl_dataset.o \
+	dsl_deadlist.o \
+	dsl_deleg.o \
+	dsl_destroy.o \
+	dsl_dir.o \
+	dsl_pool.o \
+	dsl_prop.o \
+	dsl_scan.o \
+	dsl_synctask.o \
+	dsl_userhold.o \
+	edonr_zfs.o \
+	fm.o \
+	gzip.o \
+	hkdf.o \
+	lz4.o \
+	lz4_zfs.o \
+	lzjb.o \
+	metaslab.o \
+	mmp.o \
+	multilist.o \
+	objlist.o \
+	pathname.o \
+	range_tree.o \
+	refcount.o \
+	rrwlock.o \
+	sa.o \
+	sha256.o \
+	skein_zfs.o \
+	spa.o \
+	spa_boot.o \
+	spa_checkpoint.o \
+	spa_config.o \
+	spa_errlog.o \
+	spa_history.o \
+	spa_log_spacemap.o \
+	spa_misc.o \
+	spa_stats.o \
+	space_map.o \
+	space_reftree.o \
+	txg.o \
+	uberblock.o \
+	unique.o \
+	vdev.o \
+	vdev_cache.o \
+	vdev_draid.o \
+	vdev_draid_rand.o \
+	vdev_indirect.o \
+	vdev_indirect_births.o \
+	vdev_indirect_mapping.o \
+	vdev_initialize.o \
+	vdev_label.o \
+	vdev_mirror.o \
+	vdev_missing.o \
+	vdev_queue.o \
+	vdev_raidz.o \
+	vdev_raidz_math.o \
+	vdev_raidz_math_scalar.o \
+	vdev_rebuild.o \
+	vdev_removal.o \
+	vdev_root.o \
+	vdev_trim.o \
+	zap.o \
+	zap_leaf.o \
+	zap_micro.o \
+	zcp.o \
+	zcp_get.o \
+	zcp_global.o \
+	zcp_iter.o \
+	zcp_set.o \
+	zcp_synctask.o \
+	zfeature.o \
+	zfs_byteswap.o \
+	zfs_fm.o \
+	zfs_fuid.o \
+	zfs_ioctl.o \
+	zfs_log.o \
+	zfs_onexit.o \
+	zfs_quota.o \
+	zfs_ratelimit.o \
+	zfs_replay.o \
+	zfs_rlock.o \
+	zfs_sa.o \
+	zfs_vnops.o \
+	zil.o \
+	zio.o \
+	zio_checksum.o \
+	zio_compress.o \
+	zio_inject.o \
+	zle.o \
+	zrlock.o \
+	zthr.o \
+	zvol.o
+
+ZFS_OBJS_OS := \
+	abd_os.o \
+	arc_os.o \
+	mmp_os.o \
+	policy.o \
+	qat.o \
+	qat_compress.o \
+	qat_crypt.o \
+	spa_misc_os.o \
+	trace.o \
+	vdev_disk.o \
+	vdev_file.o \
+	zfs_acl.o \
+	zfs_ctldir.o \
+	zfs_debug.o \
+	zfs_dir.o \
+	zfs_file_os.o \
+	zfs_ioctl_os.o \
+	zfs_racct.o \
+	zfs_sysfs.o \
+	zfs_uio.o \
+	zfs_vfsops.o \
+	zfs_vnops_os.o \
+	zfs_znode.o \
+	zio_crypt.o \
+	zpl_ctldir.o \
+	zpl_export.o \
+	zpl_file.o \
+	zpl_inode.o \
+	zpl_super.o \
+	zpl_xattr.o \
+	zvol_os.o
+
+ZFS_OBJS_X86 := \
+	vdev_raidz_math_avx2.o \
+	vdev_raidz_math_avx512bw.o \
+	vdev_raidz_math_avx512f.o \
+	vdev_raidz_math_sse2.o \
+	vdev_raidz_math_ssse3.o
+
+ZFS_OBJS_ARM64 := \
+	vdev_raidz_math_aarch64_neon.o \
+	vdev_raidz_math_aarch64_neonx2.o
+
+ZFS_OBJS_PPC_PPC64 := \
+	vdev_raidz_math_powerpc_altivec.o
+
+zfs-objs            += $(addprefix zfs/,$(ZFS_OBJS)) $(addprefix os/linux/zfs/,$(ZFS_OBJS_OS))
+zfs-$(CONFIG_X86)   += $(addprefix zfs/,$(ZFS_OBJS_X86))
+zfs-$(CONFIG_ARM64) += $(addprefix zfs/,$(ZFS_OBJS_ARM64))
+zfs-$(CONFIG_PPC)   += $(addprefix zfs/,$(ZFS_OBJS_PPC_PPC64))
+zfs-$(CONFIG_PPC64) += $(addprefix zfs/,$(ZFS_OBJS_PPC_PPC64))
+
+# Suppress incorrect warnings from versions of objtool which are not
+# aware of x86 EVEX prefix instructions used for AVX512.
+OBJECT_FILES_NON_STANDARD_vdev_raidz_math_avx512bw.o := y
+OBJECT_FILES_NON_STANDARD_vdev_raidz_math_avx512f.o := y
+
+ifeq ($(CONFIG_ALTIVEC),y)
+$(obj)/zfs/vdev_raidz_math_powerpc_altivec.o : c_flags += -maltivec
 endif

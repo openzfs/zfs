@@ -162,7 +162,7 @@ for kernel_version in %{?kernel_versions}; do
     cd ..
 done
 # find-debuginfo.sh only considers executables
-chmod u+x ${RPM_BUILD_ROOT}%{kmodinstdir_prefix}/*/extra/*/*/*
+chmod u+x ${RPM_BUILD_ROOT}%{kmodinstdir_prefix}/*/extra/*/*
 %{?akmod_install}
 
 
