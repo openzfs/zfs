@@ -1278,29 +1278,6 @@ LUA_API void lua_upvaluejoin (lua_State *L, int fidx1, int n1,
   luaC_objbarrier(L, f1, *up2);
 }
 
-#if defined(_KERNEL)
-
-static int __init
-lua_init(void)
-{
-        return (0);
-}
-
-static void __exit
-lua_fini(void)
-{
-}
-
-module_init(lua_init);
-module_exit(lua_fini);
-
-#endif
-
-ZFS_MODULE_DESCRIPTION("Lua Interpreter for ZFS");
-ZFS_MODULE_AUTHOR("Lua.org");
-ZFS_MODULE_LICENSE("Dual MIT/GPL");
-ZFS_MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
-
 EXPORT_SYMBOL(lua_absindex);
 EXPORT_SYMBOL(lua_atpanic);
 EXPORT_SYMBOL(lua_checkstack);

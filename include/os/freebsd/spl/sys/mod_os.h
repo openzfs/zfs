@@ -31,11 +31,6 @@
 
 #include <sys/sysctl.h>
 
-#define	ZFS_MODULE_DESCRIPTION(s)
-#define	ZFS_MODULE_AUTHOR(s)
-#define	ZFS_MODULE_LICENSE(s)
-#define	ZFS_MODULE_VERSION(s)
-
 #define	EXPORT_SYMBOL(x)
 #define	module_param(a, b, c)
 #define	MODULE_PARM_DESC(a, b)

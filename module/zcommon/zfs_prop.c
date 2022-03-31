@@ -1006,7 +1006,10 @@ uint8_t **zfs_kfpu_fpregs;
 EXPORT_SYMBOL(zfs_kfpu_fpregs);
 #endif /* defined(HAVE_KERNEL_FPU_INTERNAL) */
 
-static int __init
+extern int __init zcommon_init(void);
+extern void zcommon_fini(void);
+
+int __init
 zcommon_init(void)
 {
 	int error = kfpu_init();
@@ -1018,22 +1021,19 @@ zcommon_init(void)
 	return (0);
 }
 
-static void __exit
+void
 zcommon_fini(void)
 {
 	fletcher_4_fini();
 	kfpu_fini();
 }
 
+#ifdef __FreeBSD__
 module_init_early(zcommon_init);
 module_exit(zcommon_fini);
-
 #endif
 
-ZFS_MODULE_DESCRIPTION("Generic ZFS support");
-ZFS_MODULE_AUTHOR(ZFS_META_AUTHOR);
-ZFS_MODULE_LICENSE(ZFS_META_LICENSE);
-ZFS_MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
+#endif
 
 /* zfs dataset property functions */
 EXPORT_SYMBOL(zfs_userquota_prop_prefixes);

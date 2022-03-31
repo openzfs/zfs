@@ -38,7 +38,7 @@
  * This will cause a symbol collision with the older in-kernel zstd library.
  *
  * On update, truncate this file at the scissor line, rebuild the module,
- * and make gensymbols.
+ * and make gen-zstd-symbols.
  */
 
 #define	MEM_MODULE
