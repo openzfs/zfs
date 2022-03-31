@@ -3678,27 +3678,6 @@ nvs_xdr(nvstream_t *nvs, nvlist_t *nvl, char *buf, size_t *buflen)
 	return (err);
 }
 
-#if defined(_KERNEL)
-static int __init
-nvpair_init(void)
-{
-	return (0);
-}
-
-static void __exit
-nvpair_fini(void)
-{
-}
-
-module_init(nvpair_init);
-module_exit(nvpair_fini);
-#endif
-
-ZFS_MODULE_DESCRIPTION("Generic name/value pair implementation");
-ZFS_MODULE_AUTHOR(ZFS_META_AUTHOR);
-ZFS_MODULE_LICENSE(ZFS_META_LICENSE);
-ZFS_MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
-
 EXPORT_SYMBOL(nv_alloc_init);
 EXPORT_SYMBOL(nv_alloc_reset);
 EXPORT_SYMBOL(nv_alloc_fini);

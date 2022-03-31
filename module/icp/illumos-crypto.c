@@ -104,7 +104,7 @@
  * ZFS Makefiles.
  */
 
-void __exit
+void
 icp_fini(void)
 {
 	skein_mod_fini();
@@ -139,10 +139,7 @@ icp_init(void)
 	return (0);
 }
 
-#if defined(_KERNEL)
+#if defined(_KERNEL) && defined(__FreeBSD__)
 module_exit(icp_fini);
 module_init(icp_init);
-MODULE_AUTHOR(ZFS_META_AUTHOR);
-MODULE_LICENSE(ZFS_META_LICENSE);
-MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
 #endif

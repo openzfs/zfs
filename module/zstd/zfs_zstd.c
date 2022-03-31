@@ -702,7 +702,7 @@ zstd_meminit(void)
 }
 
 /* Release object from pool and free memory */
-static void __exit
+static void
 release_pool(struct zstd_pool *pool)
 {
 	mutex_destroy(&pool->barrier);
@@ -712,7 +712,7 @@ release_pool(struct zstd_pool *pool)
 }
 
 /* Release memory pool objects */
-static void __exit
+static void
 zstd_mempool_deinit(void)
 {
 	for (int i = 0; i < ZSTD_POOL_MAX; i++) {
@@ -758,7 +758,7 @@ zstd_init(void)
 	return (0);
 }
 
-extern void __exit
+extern void
 zstd_fini(void)
 {
 	/* Deinitialize kstat */
@@ -776,12 +776,10 @@ zstd_fini(void)
 }
 
 #if defined(_KERNEL)
+#ifdef __FreeBSD__
 module_init(zstd_init);
 module_exit(zstd_fini);
-
-ZFS_MODULE_DESCRIPTION("ZSTD Compression for ZFS");
-ZFS_MODULE_LICENSE("Dual BSD/GPL");
-ZFS_MODULE_VERSION(ZSTD_VERSION_STRING "a");
+#endif
 
 EXPORT_SYMBOL(zfs_zstd_compress);
 EXPORT_SYMBOL(zfs_zstd_decompress_level);

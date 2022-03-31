@@ -19,7 +19,7 @@ s:usr/src/test/zfs-tests/runfiles:tests/runfiles:g
 s:usr/src/test/zfs-tests/tests/functional:tests/zfs-tests/tests/functional:g
 s:usr/src/test/zfs-tests/tests/perf:tests/zfs-tests/tests/perf:g
 s:usr/src/test/test-runner/cmd/run.py:tests/test-runner/cmd/test-runner.py:g
-s/usr\/src\/common\/zfs\/\(.*\)\.c/module\/zcommon\/\1.c/g
+s:usr/src/common/zfs/\(.*\)\.c:module/zcommon/\1.c:g
 
 # crypto framework
 s:usr/src/common/crypto:module/icp/algs:g
