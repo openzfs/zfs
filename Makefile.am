@@ -167,7 +167,7 @@ vcscheck:
 
 PHONY += zstdcheck
 zstdcheck:
-	@$(MAKE) -C module/zstd checksymbols
+	@$(MAKE) -C module check-zstd-symbols
 
 PHONY += lint
 lint: cppcheck paxcheck

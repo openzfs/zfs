@@ -2129,27 +2129,6 @@ u8_textprep_str(char *inarray, size_t *inlen, char *outarray, size_t *outlen,
 	return (ret_val);
 }
 
-#if defined(_KERNEL)
-static int __init
-unicode_init(void)
-{
-	return (0);
-}
-
-static void __exit
-unicode_fini(void)
-{
-}
-
-module_init(unicode_init);
-module_exit(unicode_fini);
-#endif
-
-ZFS_MODULE_DESCRIPTION("Unicode implementation");
-ZFS_MODULE_AUTHOR(ZFS_META_AUTHOR);
-ZFS_MODULE_LICENSE(ZFS_META_LICENSE);
-ZFS_MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
-
 EXPORT_SYMBOL(u8_validate);
 EXPORT_SYMBOL(u8_strcmp);
 EXPORT_SYMBOL(u8_textprep_str);

@@ -69,8 +69,7 @@ do_stop()
 	then
 		# No pools imported, it is/should be safe/possible to
 		# unload modules.
-		zfs_action "Unloading modules" rmmod zfs zunicode \
-		    zavl zcommon znvpair zlua spl
+		zfs_action "Unloading modules" rmmod zfs spl
 		return "$?"
 	fi
 }

@@ -1044,28 +1044,6 @@ done:
 	return (AVL_NODE2DATA(node, off));
 }
 
-#if defined(_KERNEL)
-
-static int __init
-avl_init(void)
-{
-	return (0);
-}
-
-static void __exit
-avl_fini(void)
-{
-}
-
-module_init(avl_init);
-module_exit(avl_fini);
-#endif
-
-ZFS_MODULE_DESCRIPTION("Generic AVL tree implementation");
-ZFS_MODULE_AUTHOR(ZFS_META_AUTHOR);
-ZFS_MODULE_LICENSE(ZFS_META_LICENSE);
-ZFS_MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
-
 EXPORT_SYMBOL(avl_create);
 EXPORT_SYMBOL(avl_find);
 EXPORT_SYMBOL(avl_insert);

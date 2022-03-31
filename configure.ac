@@ -171,17 +171,6 @@ AC_CONFIG_FILES([
 	man/Makefile
 	module/Kbuild
 	module/Makefile
-	module/avl/Makefile
-	module/icp/Makefile
-	module/lua/Makefile
-	module/nvpair/Makefile
-	module/os/linux/spl/Makefile
-	module/os/linux/zfs/Makefile
-	module/spl/Makefile
-	module/unicode/Makefile
-	module/zcommon/Makefile
-	module/zfs/Makefile
-	module/zstd/Makefile
 	rpm/Makefile
 	rpm/generic/Makefile
 	rpm/generic/zfs-dkms.spec

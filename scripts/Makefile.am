@@ -54,16 +54,9 @@ export INSTALL_MOUNT_HELPER_DIR=@mounthelperdir@
 export INSTALL_SYSCONF_DIR=@sysconfdir@
 export INSTALL_PYTHON_DIR=@pythonsitedir@
 
-export KMOD_SPL=@abs_top_builddir@/module/spl/spl.ko
-export KMOD_ZAVL=@abs_top_builddir@/module/avl/zavl.ko
-export KMOD_ZNVPAIR=@abs_top_builddir@/module/nvpair/znvpair.ko
-export KMOD_ZUNICODE=@abs_top_builddir@/module/unicode/zunicode.ko
-export KMOD_ZCOMMON=@abs_top_builddir@/module/zcommon/zcommon.ko
-export KMOD_ZLUA=@abs_top_builddir@/module/lua/zlua.ko
-export KMOD_ICP=@abs_top_builddir@/module/icp/icp.ko
-export KMOD_ZFS=@abs_top_builddir@/module/zfs/zfs.ko
+export KMOD_SPL=@abs_top_builddir@/module/spl.ko
+export KMOD_ZFS=@abs_top_builddir@/module/zfs.ko
 export KMOD_FREEBSD=@abs_top_builddir@/module/openzfs.ko
-export KMOD_ZZSTD=@abs_top_builddir@/module/zstd/zzstd.ko
 endef
 
 export EXTRA_ENVIRONMENT

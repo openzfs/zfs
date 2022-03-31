@@ -23,15 +23,8 @@ LDMOD=${LDMOD:-/sbin/modprobe}
 KMOD_ZLIB_DEFLATE=${KMOD_ZLIB_DEFLATE:-zlib_deflate}
 KMOD_ZLIB_INFLATE=${KMOD_ZLIB_INFLATE:-zlib_inflate}
 KMOD_SPL=${KMOD_SPL:-spl}
-KMOD_ZAVL=${KMOD_ZAVL:-zavl}
-KMOD_ZNVPAIR=${KMOD_ZNVPAIR:-znvpair}
-KMOD_ZUNICODE=${KMOD_ZUNICODE:-zunicode}
-KMOD_ZCOMMON=${KMOD_ZCOMMON:-zcommon}
-KMOD_ZLUA=${KMOD_ZLUA:-zlua}
-KMOD_ICP=${KMOD_ICP:-icp}
 KMOD_ZFS=${KMOD_ZFS:-zfs}
 KMOD_FREEBSD=${KMOD_FREEBSD:-openzfs}
-KMOD_ZZSTD=${KMOD_ZZSTD:-zzstd}
 
 
 usage() {
@@ -91,8 +84,7 @@ check_modules_linux() {
 	LOADED_MODULES=""
 	MISSING_MODULES=""
 
-	for KMOD in $KMOD_SPL $KMOD_ZAVL $KMOD_ZNVPAIR $KMOD_ZUNICODE $KMOD_ZCOMMON \
-	    $KMOD_ZLUA $KMOD_ZZSTD $KMOD_ICP $KMOD_ZFS; do
+	for KMOD in $KMOD_SPL $KMOD_ZFS; do
 		NAME="${KMOD##*/}"
 		NAME="${NAME%.ko}"
 
@@ -159,9 +151,7 @@ load_modules_linux() {
 		modprobe "$KMOD_ZLIB_INFLATE" >/dev/null 2>&1
 	fi
 
-	for KMOD in $KMOD_SPL $KMOD_ZAVL $KMOD_ZNVPAIR \
-	    $KMOD_ZUNICODE $KMOD_ZCOMMON $KMOD_ZLUA $KMOD_ZZSTD \
-	    $KMOD_ICP $KMOD_ZFS; do
+	for KMOD in $KMOD_SPL $KMOD_ZFS; do
 		load_module_linux "$KMOD" || return 1
 	done
 
@@ -200,8 +190,7 @@ unload_modules_freebsd() {
 }
 
 unload_modules_linux() {
-	for KMOD in $KMOD_ZFS $KMOD_ICP $KMOD_ZZSTD $KMOD_ZLUA $KMOD_ZCOMMON \
-	    $KMOD_ZUNICODE $KMOD_ZNVPAIR  $KMOD_ZAVL $KMOD_SPL; do
+	for KMOD in $KMOD_ZFS $KMOD_SPL; do
 		NAME="${KMOD##*/}"
 		NAME="${NAME%.ko}"
 		USE_COUNT=$(lsmod | awk '/^'"${NAME}"'/ {print $3}')

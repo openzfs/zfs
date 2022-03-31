@@ -160,11 +160,4 @@ enum scope_prefix_types {
 
 #define	ZFS_MODULE_PARAM_ARGS	const char *buf, zfs_kernel_param_t *kp
 
-#define	ZFS_MODULE_DESCRIPTION(s) MODULE_DESCRIPTION(s)
-#define	ZFS_MODULE_AUTHOR(s) MODULE_AUTHOR(s)
-#define	ZFS_MODULE_LICENSE(s) MODULE_LICENSE(s)
-#define	ZFS_MODULE_VERSION(s) MODULE_VERSION(s)
-
-#define	module_init_early(fn) module_init(fn)
-
 #endif	/* _MOD_COMPAT_H */

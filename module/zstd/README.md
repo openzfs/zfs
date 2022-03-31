@@ -9,7 +9,7 @@ library, besides upgrading to a newer ZSTD release.
 
 Tree structure:
 
-* `zfs_zstd.c` is the actual `zzstd` kernel module.
+* `zfs_zstd.c` are the actual `zfs` kernel module hooks.
 * `lib/` contains the unmodified version of the `Zstandard` library
 * `zstd-in.c` is our template file for generating the single-file library
 * `include/`: This directory contains supplemental includes for platform
@@ -25,16 +25,7 @@ To update ZSTD the following steps need to be taken:
 `grep include [path to zstd]/contrib/single_file_libs/zstd-in.c  | awk '{ print $2 }'`
 3. Remove debug.c, threading.c, and zstdmt_compress.c.
 4. Update Makefiles with resulting file lists.
-
-~~~
-
-Note: if the zstd library for zfs is updated to a newer version,
-the macro list in include/zstd_compat_wrapper.h usually needs to be updated.
-this can be done with some hand crafting of the output of the following
-script (on the object file generated from the "single-file library" script in zstd's
-contrib/single_file_libs):
-`nm zstd.o | awk '{print "#define "$3 " zfs_" $3}' > macrotable`
-
+5. Follow symbol renaming notes in `include/zstd_compat_wrapper.h`
 
 ## Altering ZSTD and breaking changes
 
