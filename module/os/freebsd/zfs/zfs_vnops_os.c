@@ -97,6 +97,10 @@
 
 VFS_SMR_DECLARE;
 
+#if __FreeBSD_version < 1300103
+#define	NDFREE_PNBUF(ndp)	NDFREE((ndp), NDF_ONLY_PNBUF)
+#endif
+
 #if __FreeBSD_version >= 1300047
 #define	vm_page_wire_lock(pp)
 #define	vm_page_wire_unlock(pp)
@@ -5353,7 +5357,7 @@ zfs_getextattr_dir(struct vop_getextattr_args *ap, const char *attrname)
 #endif
 	error = vn_open_cred(&nd, &flags, 0, VN_OPEN_INVFS, ap->a_cred, NULL);
 	vp = nd.ni_vp;
-	NDFREE(&nd, NDF_ONLY_PNBUF);
+	NDFREE_PNBUF(&nd);
 	if (error != 0)
 		return (SET_ERROR(error));
 
@@ -5499,12 +5503,12 @@ zfs_deleteextattr_dir(struct vop_deleteextattr_args *ap, const char *attrname)
 	error = namei(&nd);
 	vp = nd.ni_vp;
 	if (error != 0) {
-		NDFREE(&nd, NDF_ONLY_PNBUF);
+		NDFREE_PNBUF(&nd);
 		return (SET_ERROR(error));
 	}
 
 	error = VOP_REMOVE(nd.ni_dvp, vp, &nd.ni_cnd);
-	NDFREE(&nd, NDF_ONLY_PNBUF);
+	NDFREE_PNBUF(&nd);
 
 	vput(nd.ni_dvp);
 	if (vp == nd.ni_dvp)
@@ -5643,7 +5647,7 @@ zfs_setextattr_dir(struct vop_setextattr_args *ap, const char *attrname)
 	error = vn_open_cred(&nd, &flags, 0600, VN_OPEN_INVFS, ap->a_cred,
 	    NULL);
 	vp = nd.ni_vp;
-	NDFREE(&nd, NDF_ONLY_PNBUF);
+	NDFREE_PNBUF(&nd);
 	if (error != 0)
 		return (SET_ERROR(error));
 
@@ -5830,7 +5834,7 @@ zfs_listextattr_dir(struct vop_listextattr_args *ap, const char *attrprefix)
 #endif
 	error = namei(&nd);
 	vp = nd.ni_vp;
-	NDFREE(&nd, NDF_ONLY_PNBUF);
+	NDFREE_PNBUF(&nd);
 	if (error != 0)
 		return (SET_ERROR(error));
 
