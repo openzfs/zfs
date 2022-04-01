@@ -863,6 +863,26 @@ zfs_unix_to_v4(uint32_t access_mask)
 	return (new_mask);
 }
 
+
+static int
+zfs_v4_to_unix(uint32_t access_mask, int *unmapped)
+{
+	int new_mask = 0;
+
+	*unmapped = access_mask &
+	    (ACE_WRITE_OWNER | ACE_WRITE_ACL | ACE_DELETE);
+
+	if (access_mask & WRITE_MASK)
+		new_mask |= S_IWOTH;
+	if (access_mask & ACE_READ_DATA)
+		new_mask |= S_IROTH;
+	if (access_mask & ACE_EXECUTE)
+		new_mask |= S_IXOTH;
+
+	return (new_mask);
+}
+
+
 static void
 zfs_set_ace(zfs_acl_t *aclp, void *acep, uint32_t access_mask,
     uint16_t access_type, uint64_t fuid, uint16_t entry_type)
@@ -2399,6 +2419,53 @@ zfs_has_access(znode_t *zp, cred_t *cr)
 	return (B_TRUE);
 }
 
+/*
+ * Simplified access check for case where ACL is known to not contain
+ * information beyond what is defined in the mode. In this case, we
+ * can pass along to the kernel / vfs generic_permission() check, which
+ * evaluates the mode and POSIX ACL.
+ *
+ * NFSv4 ACLs allow granting permissions that are usually relegated only
+ * to the file owner or superuser. Examples are ACE_WRITE_OWNER (chown),
+ * ACE_WRITE_ACL(chmod), and ACE_DELETE. ACE_DELETE requests must fail
+ * because with conventional posix permissions, right to delete file
+ * is determined by write bit on the parent dir.
+ *
+ * If unmappable perms are requested, then we must return EPERM
+ * and include those bits in the working_mode so that the caller of
+ * zfs_zaccess_common() can decide whether to perform additional
+ * policy / capability checks. EACCES is used in zfs_zaccess_aces_check()
+ * to indicate access check failed due to explicit DENY entry, and so
+ * we want to avoid that here.
+ */
+static int
+zfs_zaccess_trivial(znode_t *zp, uint32_t *working_mode, cred_t *cr)
+{
+	int err, mask;
+	int unmapped = 0;
+
+	ASSERT(zp->z_pflags & ZFS_ACL_TRIVIAL);
+
+	mask = zfs_v4_to_unix(*working_mode, &unmapped);
+	if (mask == 0 || unmapped) {
+		*working_mode = unmapped;
+		return (unmapped ? SET_ERROR(EPERM) : 0);
+	}
+
+#if defined(HAVE_IOPS_PERMISSION_USERNS)
+	err = generic_permission(cr->user_ns, ZTOI(zp), mask);
+#else
+	err = generic_permission(ZTOI(zp), mask);
+#endif
+	if (err != 0) {
+		return (SET_ERROR(EPERM));
+	}
+
+	*working_mode = unmapped;
+
+	return (0);
+}
+
 static int
 zfs_zaccess_common(znode_t *zp, uint32_t v4_mode, uint32_t *working_mode,
     boolean_t *check_privs, boolean_t skipaclchk, cred_t *cr)
@@ -2449,6 +2516,9 @@ zfs_zaccess_common(znode_t *zp, uint32_t v4_mode, uint32_t *working_mode,
 	    (zp->z_pflags & ZFS_READONLY)) {
 		return (SET_ERROR(EPERM));
 	}
+
+	if (zp->z_pflags & ZFS_ACL_TRIVIAL)
+		return (zfs_zaccess_trivial(zp, working_mode, cr));
 
 	return (zfs_zaccess_aces_check(zp, working_mode, B_FALSE, cr));
 }

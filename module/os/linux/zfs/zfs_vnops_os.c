@@ -474,7 +474,7 @@ zfs_lookup(znode_t *zdp, char *nm, znode_t **zpp, int flags, cred_t *cr,
 		 */
 
 		if ((error = zfs_zaccess(*zpp, ACE_EXECUTE, 0,
-		    B_FALSE, cr))) {
+		    B_TRUE, cr))) {
 			zrele(*zpp);
 			*zpp = NULL;
 		}
