@@ -467,8 +467,11 @@ vdev_submit_bio_impl(struct bio *bio)
  * blkg_tryget() to use rcu_read_lock() instead of rcu_read_lock_sched().
  * As a side effect the function was converted to GPL-only.  Define our
  * own version when needed which uses rcu_read_lock_sched().
+ *
+ * The Linux 5.17 kernel split linux/blk-cgroup.h into a private and a public
+ * part, moving blkg_tryget into the private one. Define our own version.
  */
-#if defined(HAVE_BLKG_TRYGET_GPL_ONLY)
+#if defined(HAVE_BLKG_TRYGET_GPL_ONLY) || !defined(HAVE_BLKG_TRYGET)
 static inline bool
 vdev_blkg_tryget(struct blkcg_gq *blkg)
 {
@@ -493,7 +496,7 @@ vdev_blkg_tryget(struct blkcg_gq *blkg)
 
 	return (rc);
 }
-#elif defined(HAVE_BLKG_TRYGET)
+#else
 #define	vdev_blkg_tryget(bg)	blkg_tryget(bg)
 #endif
 #ifdef HAVE_BIO_SET_DEV_MACRO
