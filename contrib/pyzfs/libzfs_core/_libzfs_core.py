@@ -1421,8 +1421,9 @@ def lzc_receive_with_cmdprops(
     with nvlist_out(properrs) as c_errors:
         ret = _lib.lzc_receive_with_cmdprops(
             snapname, nvlist, cmdnvlist, key, len(key), c_origin,
-            allow_clone_as_incremental, force, resumable, raw, fd, begin_record,
-            cleanup_fd, c_read_bytes, c_errflags, c_action_handle, c_errors)
+            allow_clone_as_incremental, force, resumable, raw, fd,
+            begin_record, cleanup_fd, c_read_bytes, c_errflags,
+            c_action_handle, c_errors)
     errors.lzc_receive_translate_errors(
         ret, snapname, fd, force, raw, False, False, origin, properrs)
     return (int(c_read_bytes[0]), action_handle)
