@@ -961,6 +961,20 @@ send_progress_thread(void *arg)
 	}
 }
 
+static boolean_t
+send_progress_thread_exit(libzfs_handle_t *hdl, pthread_t ptid)
+{
+	void *status = NULL;
+	(void) pthread_cancel(ptid);
+	(void) pthread_join(ptid, &status);
+	int error = (int)(uintptr_t)status;
+	if (error != 0 && status != PTHREAD_CANCELED)
+		return (zfs_standard_error(hdl, error,
+		    dgettext(TEXT_DOMAIN, "progress thread exited nonzero")));
+	else
+		return (B_FALSE);
+}
+
 static void
 send_print_verbose(FILE *fout, const char *tosnap, const char *fromsnap,
     uint64_t size, boolean_t parsable)
@@ -1133,17 +1147,9 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 		err = dump_ioctl(zhp, sdd->prevsnap, sdd->prevsnap_obj,
 		    fromorigin, sdd->outfd, flags, sdd->debugnv);
 
-		if (sdd->progress) {
-			void *status = NULL;
-			(void) pthread_cancel(tid);
-			(void) pthread_join(tid, &status);
-			int error = (int)(uintptr_t)status;
-			if (error != 0 && status != PTHREAD_CANCELED) {
-				return (zfs_standard_error(zhp->zfs_hdl, error,
-				    dgettext(TEXT_DOMAIN,
-				    "progress thread exited nonzero")));
-			}
-		}
+		if (sdd->progress &&
+		    send_progress_thread_exit(zhp->zfs_hdl, tid))
+			return (-1);
 	}
 
 	(void) strcpy(sdd->prevsnap, thissnap);
@@ -1505,20 +1511,8 @@ estimate_size(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 	    lzc_flags_from_sendflags(flags), resumeobj, resumeoff, bytes,
 	    redactbook, fd, &size);
 
-	if (flags->progress) {
-		void *status = NULL;
-		(void) pthread_cancel(ptid);
-		(void) pthread_join(ptid, &status);
-		int error = (int)(uintptr_t)status;
-		if (error != 0 && status != PTHREAD_CANCELED) {
-			char errbuf[1024];
-			(void) snprintf(errbuf, sizeof (errbuf),
-			    dgettext(TEXT_DOMAIN, "progress thread exited "
-			    "nonzero"));
-			return (zfs_standard_error(zhp->zfs_hdl, error,
-			    errbuf));
-		}
-	}
+	if (flags->progress && send_progress_thread_exit(zhp->zfs_hdl, ptid))
+		return (-1);
 
 	if (err != 0) {
 		zfs_error_aux(zhp->zfs_hdl, "%s", strerror(err));
@@ -1830,19 +1824,8 @@ zfs_send_resume_impl_cb_impl(libzfs_handle_t *hdl, sendflags_t *flags,
 		if (redact_book != NULL)
 			free(redact_book);
 
-		if (flags->progress) {
-			void *status = NULL;
-			(void) pthread_cancel(tid);
-			(void) pthread_join(tid, &status);
-			int error = (int)(uintptr_t)status;
-			if (error != 0 && status != PTHREAD_CANCELED) {
-				char errbuf[1024];
-				(void) snprintf(errbuf, sizeof (errbuf),
-				    dgettext(TEXT_DOMAIN,
-				    "progress thread exited nonzero"));
-				return (zfs_standard_error(hdl, error, errbuf));
-			}
-		}
+		if (flags->progress && send_progress_thread_exit(hdl, tid))
+			return (-1);
 
 		char errbuf[1024];
 		(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
@@ -2641,16 +2624,8 @@ zfs_send_one_cb_impl(zfs_handle_t *zhp, const char *from, int fd,
 	err = lzc_send_redacted(name, from, fd,
 	    lzc_flags_from_sendflags(flags), redactbook);
 
-	if (flags->progress) {
-		void *status = NULL;
-		(void) pthread_cancel(ptid);
-		(void) pthread_join(ptid, &status);
-		int error = (int)(uintptr_t)status;
-		if (error != 0 && status != PTHREAD_CANCELED)
-			return (zfs_standard_error_fmt(hdl, error,
-			    dgettext(TEXT_DOMAIN,
-			    "progress thread exited nonzero")));
-	}
+	if (flags->progress && send_progress_thread_exit(hdl, ptid))
+			return (-1);
 
 	if (err == 0 && (flags->props || flags->holds || flags->backup)) {
 		/* Write the final end record. */
