@@ -3,7 +3,7 @@
 # A simple script to load/unload the ZFS module stack.
 #
 
-BASE_DIR=$(dirname "$0")
+BASE_DIR=${0%/*}
 SCRIPT_COMMON=common.sh
 if [ -f "${BASE_DIR}/${SCRIPT_COMMON}" ]; then
 	. "${BASE_DIR}/${SCRIPT_COMMON}"
@@ -11,7 +11,6 @@ else
 	echo "Missing helper script ${SCRIPT_COMMON}" && exit 1
 fi
 
-PROG=zfs.sh
 VERBOSE="no"
 UNLOAD="no"
 LOAD="yes"
@@ -28,28 +27,25 @@ KMOD_FREEBSD=${KMOD_FREEBSD:-openzfs}
 
 
 usage() {
-cat << EOF
+	cat << EOF
 USAGE:
-$0 [hvudS] [module-options]
+$0 [hvudS]
 
 DESCRIPTION:
 	Load/unload the ZFS module stack.
 
 OPTIONS:
-	-h      Show this message
-	-v      Verbose
+	-h	Show this message
+	-v	Verbose
 	-r	Reload modules
-	-u      Unload modules
-	-S      Enable kernel stack tracer
+	-u	Unload modules
+	-S	Enable kernel stack tracer
 EOF
+	exit 1
 }
 
 while getopts 'hvruS' OPTION; do
 	case $OPTION in
-	h)
-		usage
-		exit 1
-		;;
 	v)
 		VERBOSE="yes"
 		;;
@@ -64,14 +60,13 @@ while getopts 'hvruS' OPTION; do
 	S)
 		STACK_TRACER="yes"
 		;;
-	?)
-		usage
-		exit
-		;;
 	*)
+		usage
 		;;
 	esac
 done
+shift $(( OPTIND - 1 ))
+[ $# -eq 0 ] || usage
 
 kill_zed() {
 	if [ -f "$ZED_PIDFILE" ]; then
@@ -98,7 +93,7 @@ check_modules_linux() {
 	done
 
 	if [ -n "$LOADED_MODULES" ]; then
-		printf "Unload the kernel modules by running '%s -u':\n" "$PROG"
+		printf "Unload the kernel modules by running '%s -u':\n" "$0"
 		printf "%b" "$LOADED_MODULES"
 		exit 1
 	fi
@@ -115,10 +110,10 @@ check_modules_linux() {
 load_module_linux() {
 	KMOD=$1
 
-	FILE=$(modinfo "$KMOD" | awk '/^filename:/ {print $2}')
-	VERSION=$(modinfo "$KMOD" | awk '/^version:/ {print $2}')
-
 	if [ "$VERBOSE" = "yes" ]; then
+		FILE=$(modinfo "$KMOD" | awk '/^filename:/ {print $2}')
+		VERSION=$(modinfo "$KMOD" | awk '/^version:/ {print $2}')
+
 		echo "Loading: $FILE ($VERSION)"
 	fi
 
@@ -167,11 +162,12 @@ unload_module_linux() {
 
 	NAME="${KMOD##*/}"
 	NAME="${NAME%.ko}"
-	FILE=$(modinfo "$KMOD" | awk '/^filename:/ {print $2}')
-	VERSION=$(modinfo "$KMOD" | awk '/^version:/ {print $2}')
 
 	if [ "$VERBOSE" = "yes" ]; then
-		echo "Unloading: $KMOD ($VERSION)"
+		FILE=$(modinfo "$KMOD" | awk '/^filename:/ {print $2}')
+		VERSION=$(modinfo "$KMOD" | awk '/^version:/ {print $2}')
+
+		echo "Unloading: $FILE ($VERSION)"
 	fi
 
 	rmmod "$NAME" || echo "Failed to unload $NAME"
@@ -255,15 +251,15 @@ if [ "$UNLOAD" = "yes" ]; then
 	umount -t zfs -a
 	case $UNAME in
 		FreeBSD)
-	           unload_modules_freebsd
+		   unload_modules_freebsd
 		   ;;
 		Linux)
-	           stack_check_linux
-	           unload_modules_linux
+		   stack_check_linux
+		   unload_modules_linux
 		   ;;
 		*)
-	           echo "unknown system: $UNAME" >&2
-	           exit 1
+		   echo "unknown system: $UNAME" >&2
+		   exit 1
 		   ;;
 	esac
 fi
@@ -275,13 +271,13 @@ if [ "$LOAD" = "yes" ]; then
 		Linux)
 		   stack_clear_linux
 		   check_modules_linux
-		   load_modules_linux "$@"
+		   load_modules_linux
 		   udevadm trigger
 		   udevadm settle
 		   ;;
 		*)
-	           echo "unknown system: $UNAME" >&2
-	           exit 1
+		   echo "unknown system: $UNAME" >&2
+		   exit 1
 		   ;;
 	esac
 fi
