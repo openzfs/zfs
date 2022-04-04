@@ -58,10 +58,9 @@ use Getopt::Std;
 use strict;
 
 my $usage =
-"usage: cstyle [-cghpvP] file...
+"usage: cstyle [-cgpvP] file...
 	-c	check continuation indentation inside functions
 	-g	print github actions' workflow commands
-	-h	perform heuristic checks that are sometimes wrong
 	-p	perform some of the more picky checks
 	-v	verbose
 	-P	check for use of non-POSIX types
@@ -76,7 +75,6 @@ if (!getopts("cghpvCP", \%opts)) {
 
 my $check_continuation = $opts{'c'};
 my $github_workflow = $opts{'g'} || $ENV{'CI'};
-my $heuristic = $opts{'h'};
 my $picky = $opts{'p'};
 my $verbose = $opts{'v'};
 my $check_posix_types = $opts{'P'};
@@ -689,19 +687,6 @@ line: while (<$filehandle>) {
 		# but historically these have been used.
 		if (/\b(unchar|ushort|uint|ulong|u_int|u_short|u_long|u_char|quad)\b/) {
 			err("non-POSIX typedef $1 used: use $old2posix{$1} instead");
-		}
-	}
-	if ($heuristic) {
-		# cannot check this everywhere due to "struct {\n...\n} foo;"
-		if ($in_function && !$in_declaration &&
-		    /\}./ && !/\}\s+=/ && !/\{.*\}[;,]$/ && !/\}(\s|)*$/ &&
-		    !/\} (else|while)/ && !/\}\}/) {
-			err("possible bad text following right brace");
-		}
-		# cannot check this because sub-blocks in
-		# the middle of code are ok
-		if ($in_function && /^\s+\{/) {
-			err("possible left brace starting a line");
 		}
 	}
 	if (/^\s*else\W/) {
