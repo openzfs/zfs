@@ -44,7 +44,6 @@ does not mean that you've followed Sun's C style.
 .Em Caveat emptor .
 .
 .Sh OPTIONS
-The following options are supported:
 .Bl -tag -width "-c"
 .It Fl c
 Check continuation line indentation inside of functions.
@@ -86,6 +85,17 @@ types
 etc.
 This detects any use of the deprecated types.
 Used as part of the putback checks.
+.It Fl g
+Also print GitHub-Actions-style
+.Li ::error
+output.
+.El
+.
+.Sh ENVIRONMENT
+.Bl -tag -compact -width ".Ev CI"
+.It Ev CI
+If set and nonempty, equivalent to
+.Fl g .
 .El
 .
 .Sh CONTINUATION CHECKING
