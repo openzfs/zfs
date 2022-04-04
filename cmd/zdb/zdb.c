@@ -3926,7 +3926,7 @@ dump_uberblock(uberblock_t *ub, const char *header, const char *footer)
 	(void) printf("\ttxg = %llu\n", (u_longlong_t)ub->ub_txg);
 	(void) printf("\tguid_sum = %llu\n", (u_longlong_t)ub->ub_guid_sum);
 	(void) printf("\ttimestamp = %llu UTC = %s",
-	    (u_longlong_t)ub->ub_timestamp, asctime(localtime(&timestamp)));
+	    (u_longlong_t)ub->ub_timestamp, ctime(&timestamp));
 
 	(void) printf("\tmmp_magic = %016llx\n",
 	    (u_longlong_t)ub->ub_mmp_magic);
