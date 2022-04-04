@@ -1,7 +1,8 @@
 #!/bin/sh
 # shellcheck disable=SC2034,SC2154
 
-. /lib/dracut-lib.sh
+# shellcheck source=zfs-lib.sh.in
+. /lib/dracut-zfs-lib.sh
 
 # Let the command line override our host id.
 spl_hostid=$(getarg spl_hostid=)
@@ -15,46 +16,20 @@ else
 	warn "ZFS: Pools may not import correctly."
 fi
 
-wait_for_zfs=0
-case "${root}" in
-	""|zfs|zfs:)
-		# We'll take root unset, root=zfs, or root=zfs:
-		# No root set, so we want to read the bootfs attribute.  We
-		# can't do that until udev settles so we'll set dummy values
-		# and hope for the best later on.
-		root="zfs:AUTO"
-		rootok=1
-		wait_for_zfs=1
+if decode_root_args; then
+	if [ "$root" = "zfs:AUTO" ]; then
+		info "ZFS: Boot dataset autodetected from bootfs=."
+	else
+		info "ZFS: Boot dataset is ${root}."
+	fi
 
-		info "ZFS: Enabling autodetection of bootfs after udev settles."
-		;;
-
-	ZFS=*|zfs:*)
-		# root is explicit ZFS root.  Parse it now.  We can handle
-		# a root=... param in any of the following formats:
-		# root=ZFS=rpool/ROOT
-		# root=zfs:rpool/ROOT
-		# root=ZFS=pool+with+space/ROOT+WITH+SPACE (translates to root=ZFS=pool with space/ROOT WITH SPACE)
-
-		# Strip down to just the pool/fs
-		root="${root#zfs:}"
-		root="zfs:${root#ZFS=}"
-		# switch + with spaces because kernel cmdline does not allow us to quote parameters
-		root=$(echo "$root" | tr '+' ' ')
-		rootok=1
-		wait_for_zfs=1
-
-		info "ZFS: Set ${root} as bootfs."
-		;;
-
-	*)
-		info "ZFS: no ZFS-on-root"
-esac
-
-# Make sure Dracut is happy that we have a root and will wait for ZFS
-# modules to settle before mounting.
-if [ "${wait_for_zfs}" -eq 1 ]; then
-	ln -s /dev/null /dev/root 2>/dev/null
-	initqueuedir="${hookdir}/initqueue/finished"
-	echo '[ -e /dev/zfs ]' > "${initqueuedir}/zfs.sh"
+	rootok=1
+	# Make sure Dracut is happy that we have a root and will wait for ZFS
+	# modules to settle before mounting.
+	if [ -n "${wait_for_zfs}" ]; then
+		ln -s null /dev/root
+		echo '[ -e /dev/zfs ]' > "${hookdir}/initqueue/finished/zfs.sh"
+	fi
+else
+	info "ZFS: no ZFS-on-root."
 fi

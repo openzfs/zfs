@@ -1,6 +1,6 @@
 #!/bin/sh
 
-command -v getarg >/dev/null || . /lib/dracut-lib.sh
+command -v getarg >/dev/null || . /lib/dracut-lib.sh || . /usr/lib/dracut/modules.d/99base/dracut-lib.sh
 command -v getargbool >/dev/null || {
     # Compatibility with older Dracut versions.
     # With apologies to the Dracut developers.
@@ -161,7 +161,9 @@ ask_for_password() {
         shift
     done
 
-    { flock -s 9;
+    {
+        flock -s 9
+
         # Prompt for password with plymouth, if installed and running.
         if plymouth --ping 2>/dev/null; then
             plymouth ask-for-password \
@@ -190,4 +192,59 @@ ask_for_password() {
 
     [ "$ret" -ne 0 ] && echo "Wrong password" >&2
     return "$ret"
+}
+
+# Parse root=, rootfstype=, return them decoded and normalised to zfs:AUTO for auto, plain dset for explicit
+#
+# True if ZFS-on-root, false if we shouldn't
+#
+# Supported values:
+#   root=
+#   root=zfs
+#   root=zfs:
+#   root=zfs:AUTO
+#
+#   root=ZFS=data/set
+#   root=zfs:data/set
+#   root=zfs:ZFS=data/set (as a side-effect; allowed but undocumented)
+#
+#   rootfstype=zfs AND root=data/set <=> root=data/set
+#   rootfstype=zfs AND root=         <=> root=zfs:AUTO
+#
+# '+'es in explicit dataset decoded to ' 's.
+decode_root_args() {
+    if [ -n "$rootfstype" ]; then
+        [ "$rootfstype" = zfs ]
+        return
+    fi
+
+    root=$(getarg root=)
+    rootfstype=$(getarg rootfstype=)
+
+    # shellcheck disable=SC2249
+    case "$root" in
+        ""|zfs|zfs:|zfs:AUTO)
+            root=zfs:AUTO
+            rootfstype=zfs
+            return 0
+            ;;
+
+        ZFS=*|zfs:*)
+            root="${root#zfs:}"
+            root="${root#ZFS=}"
+            root=$(echo "$root" | tr '+' ' ')
+            rootfstype=zfs
+            return 0
+            ;;
+    esac
+
+    if [ "$rootfstype" = "zfs" ]; then
+        case "$root" in
+            "") root=zfs:AUTO ;;
+            *)  root=$(echo "$root" | tr '+' ' ') ;;
+        esac
+        return 0
+    fi
+
+    return 1
 }

@@ -1,5 +1,5 @@
 #!/bin/sh
-# shellcheck disable=SC2016,SC1004
+# shellcheck disable=SC2016,SC1004,SC2154
 
 grep -wq debug /proc/cmdline && debug=1
 [ -n "$debug" ] && echo "zfs-generator: starting" >> /dev/kmsg
@@ -10,36 +10,16 @@ GENERATOR_DIR="$1"
     exit 1
 }
 
-[ -f /lib/dracut-lib.sh ] && dracutlib=/lib/dracut-lib.sh
-[ -f /usr/lib/dracut/modules.d/99base/dracut-lib.sh ] && dracutlib=/usr/lib/dracut/modules.d/99base/dracut-lib.sh
-command -v getarg >/dev/null 2>&1 || {
-    [ -n "$debug" ] && echo "zfs-generator: loading Dracut library from $dracutlib" >> /dev/kmsg
-    . "$dracutlib"
-}
-
+# shellcheck source=zfs-lib.sh.in
 . /lib/dracut-zfs-lib.sh
+decode_root_args || exit 0
 
-[ -z "$root" ]       && root=$(getarg root=)
-[ -z "$rootfstype" ] && rootfstype=$(getarg rootfstype=)
-[ -z "$rootflags" ]  && rootflags=$(getarg rootflags=)
-
-# If root is not ZFS= or zfs: or rootfstype is not zfs
-# then we are not supposed to handle it.
-[ "${root##zfs:}" = "${root}" ] &&
-	[ "${root##ZFS=}" = "${root}" ] &&
-	[ "$rootfstype" != "zfs" ] &&
-	exit 0
-
+[ -z "${rootflags}" ] && rootflags=$(getarg rootflags=)
 case ",${rootflags}," in
 	*,zfsutil,*) ;;
 	,,)	rootflags=zfsutil ;;
 	*)	rootflags="zfsutil,${rootflags}" ;;
 esac
-
-if [ "${root}" != "zfs:AUTO" ]; then
-  root="${root##zfs:}"
-  root="${root##ZFS=}"
-fi
 
 [ -n "$debug" ] && echo "zfs-generator: writing extension for sysroot.mount to $GENERATOR_DIR/sysroot.mount.d/zfs-enhancement.conf" >> /dev/kmsg
 
@@ -89,7 +69,7 @@ else
   _zfs_generator_cb() {
       dset="${1}"
       mpnt="${2}"
-      unit="sysroot$(echo "$mpnt" | tr '/' '-').mount"
+      unit="$(systemd-escape --suffix=mount -p "/sysroot${mpnt}")"
 
       {
           echo "[Unit]"
