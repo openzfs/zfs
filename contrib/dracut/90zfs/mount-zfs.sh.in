@@ -56,9 +56,9 @@ if import_pool "${ZFS_POOL}" ; then
 			if [ "$KEYSTATUS" = "unavailable" ]; then
 				# decrypt them
 				ask_for_password \
-					--tries 5 \
-					--prompt "Encrypted ZFS password for ${ENCRYPTIONROOT}: " \
-					--cmd "zfs load-key '${ENCRYPTIONROOT}'"
+					5 \
+					"Encrypted ZFS password for ${ENCRYPTIONROOT}: " \
+					"zfs load-key '${ENCRYPTIONROOT}'"
 			fi
 		fi
 	fi
