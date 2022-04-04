@@ -18,6 +18,7 @@ STACK_TRACER="no"
 
 ZED_PIDFILE=${ZED_PIDFILE:-/var/run/zed.pid}
 LDMOD=${LDMOD:-/sbin/modprobe}
+DELMOD=${DELMOD:-/sbin/modprobe -r}
 
 KMOD_ZLIB_DEFLATE=${KMOD_ZLIB_DEFLATE:-zlib_deflate}
 KMOD_ZLIB_INFLATE=${KMOD_ZLIB_INFLATE:-zlib_inflate}
@@ -110,10 +111,11 @@ check_modules_linux() {
 load_module_linux() {
 	KMOD=$1
 
-	if [ "$VERBOSE" = "yes" ]; then
-		FILE=$(modinfo "$KMOD" | awk '/^filename:/ {print $2}')
-		VERSION=$(modinfo "$KMOD" | awk '/^version:/ {print $2}')
+	FILE=$(modinfo "$KMOD" 2>&1 | awk 'NR == 1 && /zlib/ && /not found/ {print "(builtin)"; exit}  /^filename:/ {print $2}')
+	[ "$FILE" = "(builtin)" ] && return
 
+	if [ "$VERBOSE" = "yes" ]; then
+		VERSION=$(modinfo "$KMOD" | awk '/^version:/ {print $2}')
 		echo "Loading: $FILE ($VERSION)"
 	fi
 
@@ -138,39 +140,13 @@ load_modules_freebsd() {
 load_modules_linux() {
 	mkdir -p /etc/zfs
 
-	if modinfo "$KMOD_ZLIB_DEFLATE" >/dev/null 2>&1; then
-		modprobe "$KMOD_ZLIB_DEFLATE" >/dev/null 2>&1
-	fi
-
-	if modinfo "$KMOD_ZLIB_INFLATE">/dev/null 2>&1; then
-		modprobe "$KMOD_ZLIB_INFLATE" >/dev/null 2>&1
-	fi
-
-	for KMOD in $KMOD_SPL $KMOD_ZFS; do
+	for KMOD in "$KMOD_ZLIB_DEFLATE" "$KMOD_ZLIB_INFLATE" $KMOD_SPL $KMOD_ZFS; do
 		load_module_linux "$KMOD" || return 1
 	done
 
 	if [ "$VERBOSE" = "yes" ]; then
 		echo "Successfully loaded ZFS module stack"
 	fi
-
-	return 0
-}
-
-unload_module_linux() {
-	KMOD=$1
-
-	NAME="${KMOD##*/}"
-	NAME="${NAME%.ko}"
-
-	if [ "$VERBOSE" = "yes" ]; then
-		FILE=$(modinfo "$KMOD" | awk '/^filename:/ {print $2}')
-		VERSION=$(modinfo "$KMOD" | awk '/^version:/ {print $2}')
-
-		echo "Unloading: $FILE ($VERSION)"
-	fi
-
-	rmmod "$NAME" || echo "Failed to unload $NAME"
 
 	return 0
 }
@@ -186,32 +162,13 @@ unload_modules_freebsd() {
 }
 
 unload_modules_linux() {
-	for KMOD in $KMOD_ZFS $KMOD_SPL; do
-		NAME="${KMOD##*/}"
-		NAME="${NAME%.ko}"
-		USE_COUNT=$(lsmod | awk '/^'"${NAME}"'/ {print $3}')
-
-		if [ "$USE_COUNT" = "0" ] ; then
-			unload_module_linux "$KMOD" || return 1
-		elif [ "$USE_COUNT" != "" ] ; then
-			echo "Module ${NAME} is still in use!"
-			return 1
-		fi
-	done
-
-	if modinfo "$KMOD_ZLIB_DEFLATE" >/dev/null 2>&1; then
-		modprobe -r "$KMOD_ZLIB_DEFLATE" >/dev/null 2>&1
-	fi
-
-	if modinfo "$KMOD_ZLIB_INFLATE">/dev/null 2>&1; then
-		modprobe -r "$KMOD_ZLIB_INFLATE" >/dev/null 2>&1
-	fi
+	NAME="${KMOD_ZFS##*/}"
+	NAME="${NAME%.ko}"
+	$DELMOD "$NAME" || return
 
 	if [ "$VERBOSE" = "yes" ]; then
 		echo "Successfully unloaded ZFS module stack"
 	fi
-
-	return 0
 }
 
 stack_clear_linux() {
