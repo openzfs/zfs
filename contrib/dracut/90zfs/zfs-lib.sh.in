@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2034
 
 command -v getarg >/dev/null || . /lib/dracut-lib.sh || . /usr/lib/dracut/modules.d/99base/dracut-lib.sh
 command -v getargbool >/dev/null || {
@@ -16,33 +17,13 @@ command -v getargbool >/dev/null || {
     }
 }
 
-OLDIFS="${IFS}"
-NEWLINE="
-"
 TAB="	"
 
-ZPOOL_IMPORT_OPTS=""
-if getargbool 0 zfs_force -y zfs.force -y zfsforce ; then
+ZPOOL_IMPORT_OPTS=
+if getargbool 0 zfs_force -y zfs.force -y zfsforce; then
     warn "ZFS: Will force-import pools if necessary."
-    ZPOOL_IMPORT_OPTS="${ZPOOL_IMPORT_OPTS} -f"
+    ZPOOL_IMPORT_OPTS=-f
 fi
-
-# import_pool POOL
-#   imports the given zfs pool if it isn't imported already.
-import_pool() {
-    pool="${1}"
-
-    if ! zpool list -H "${pool}" > /dev/null 2>&1; then
-        info "ZFS: Importing pool ${pool}..."
-        # shellcheck disable=SC2086
-        if ! zpool import -N ${ZPOOL_IMPORT_OPTS} "${pool}" ; then
-            warn "ZFS: Unable to import pool ${pool}"
-            return 1
-        fi
-    fi
-
-    return 0
-}
 
 _mount_dataset_cb() {
     # shellcheck disable=SC2154
@@ -95,41 +76,6 @@ for_relevant_root_children() {
             done
             exit "${_ret}"
         )
-}
-
-# ask_for_password tries prompt cmd
-#
-# Wraps around plymouth ask-for-password and adds fallback to tty password ask
-# if plymouth is not present.
-ask_for_password() {
-    tries="$1"
-    prompt="$2"
-    cmd="$3"
-
-    {
-        flock -s 9
-
-        # Prompt for password with plymouth, if installed and running.
-        if plymouth --ping 2>/dev/null; then
-            plymouth ask-for-password \
-                --prompt "$prompt" --number-of-tries="$tries" | \
-                eval "$cmd"
-            ret=$?
-        else
-            i=1
-            while [ "$i" -le "$tries" ]; do
-                printf "%s [%i/%i]:" "$prompt" "$i" "$tries" >&2
-                eval "$cmd" && ret=0 && break
-                ret=$?
-                i=$((i+1))
-                printf '\n' >&2
-            done
-            unset i
-        fi
-    } 9>/.console_lock
-
-    [ "$ret" -ne 0 ] && echo "Wrong password" >&2
-    return "$ret"
 }
 
 # Parse root=, rootfstype=, return them decoded and normalised to zfs:AUTO for auto, plain dset for explicit
