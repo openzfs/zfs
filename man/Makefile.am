@@ -15,6 +15,7 @@ dist_man_MANS = \
 	man4/spl.4 \
 	man4/zfs.4 \
 	\
+	man7/dracut.zfs.7 \
 	man7/zpool-features.7 \
 	man7/zfsconcepts.7 \
 	man7/zfsprops.7 \
