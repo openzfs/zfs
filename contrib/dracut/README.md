@@ -16,18 +16,18 @@ Encrypted datasets have keys loaded automatically or prompted for.
 If the root dataset contains children with `mountpoint=`s of `/etc`, `/bin`, `/lib*`, or `/usr`, they're mounted too.
 
 ## cmdline
-1. `root=`            | Root dataset is…                                         | Pools imported |
-   -------------------|----------------------------------------------------------|----------------|
-   *(empty)*          | the first `bootfs=` after `zpool import -aN`             | all            |
-   `zfs:AUTO`         | *(as above, but overriding other autoselection methods)* | all            |
-   `ZFS=pool/dataset` | `pool/dataset`                                           | `pool`         |
-   `zfs:pool/dataset` | *(as above)*                                             | `pool`         |
+1. `root=`                    | Root dataset is…                                         |
+   ---------------------------|----------------------------------------------------------|
+   *(empty)*                  | the first `bootfs=` after `zpool import -aN`             |
+   `zfs:AUTO`, `zfs:`, `zfs`  | *(as above, but overriding other autoselection methods)* |
+   `ZFS=pool/dataset`         | `pool/dataset`                                           |
+   `zfs:pool/dataset`         | *(as above)*                                             |
 
    All `+`es are replaced with spaces (i.e. to boot from `root pool/data set`, pass `root=zfs:root+pool/data+set`).
 
    The dataset can be at any depth, including being the pool's root dataset (i.e. `root=zfs:pool`).
 
-   `rootfstype=zfs` is mostly equivalent to `root=zfs:AUTO`.
+   `rootfstype=zfs` is equivalent to `root=zfs:AUTO`, `rootfstype=zfs root=pool/dataset` is equivalent to `root=zfs:pool/dataset`.
 
 2. `spl_hostid`: passed to `zgenhostid -f`, useful to override the `/etc/hostid` file baked into the initrd.
 
