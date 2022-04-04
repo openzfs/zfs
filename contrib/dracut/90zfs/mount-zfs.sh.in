@@ -3,40 +3,29 @@
 
 . /lib/dracut-zfs-lib.sh
 
-ZFS_DATASET=""
-ZFS_POOL=""
-
-case "${root}" in
-	zfs:*) ;;
-	*) return ;;
-esac
+decode_root_args || return 0
 
 GENERATOR_FILE=/run/systemd/generator/sysroot.mount
 GENERATOR_EXTENSION=/run/systemd/generator/sysroot.mount.d/zfs-enhancement.conf
 
-if [ -e "$GENERATOR_FILE" ] && [ -e "$GENERATOR_EXTENSION" ] ; then
-	# If the ZFS sysroot.mount flag exists, the initial RAM disk configured
-	# it to mount ZFS on root.  In that case, we bail early.  This flag
-	# file gets created by the zfs-generator program upon successful run.
-	info "ZFS: There is a sysroot.mount and zfs-generator has extended it."
-	info "ZFS: Delegating root mount to sysroot.mount."
-	# Let us tell the initrd to run on shutdown.
-	# We have a shutdown hook to run
-	# because we imported the pool.
+if [ -e "$GENERATOR_FILE" ] && [ -e "$GENERATOR_EXTENSION" ]; then
+	# We're under systemd and dracut-zfs-generator ran to completion.
+	info "ZFS: Delegating root mount to sysroot.mount at al."
+
 	# We now prevent Dracut from running this thing again.
-	for zfsmounthook in "$hookdir"/mount/*zfs* ; do
-		if [ -f "$zfsmounthook" ] ; then
-			rm -f "$zfsmounthook"
-		fi
-	done
+	rm -f "$hookdir"/mount/*zfs*
 	return
 fi
+
 info "ZFS: No sysroot.mount exists or zfs-generator did not extend it."
 info "ZFS: Mounting root with the traditional mount-zfs.sh instead."
 
 # Delay until all required block devices are present.
 modprobe zfs 2>/dev/null
 udevadm settle
+
+ZFS_DATASET=
+ZFS_POOL=
 
 if [ "${root}" = "zfs:AUTO" ] ; then
 	if ! ZFS_DATASET="$(find_bootfs)" ; then
@@ -53,7 +42,7 @@ if [ "${root}" = "zfs:AUTO" ] ; then
 	info "ZFS: Using ${ZFS_DATASET} as root."
 fi
 
-ZFS_DATASET="${ZFS_DATASET:-${root#zfs:}}"
+ZFS_DATASET="${ZFS_DATASET:-${root}}"
 ZFS_POOL="${ZFS_DATASET%%/*}"
 
 if import_pool "${ZFS_POOL}" ; then
