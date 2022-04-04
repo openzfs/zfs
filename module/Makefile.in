@@ -76,8 +76,12 @@ clean-FreeBSD:
 
 clean: clean-@ac_system@
 
+.PHONY: modules_uninstall-Linux-legacy
+modules_uninstall-Linux-legacy:
+	$(RM) -r $(addprefix $(KMODDIR)/$(INSTALL_MOD_DIR)/,spl/ avl/ icp/ lua/ nvpair/ unicode/ zcommon/ zfs/ zstd/)
+
 KMODDIR := $(INSTALL_MOD_PATH)/lib/modules/@LINUX_VERSION@
-modules_install-Linux:
+modules_install-Linux: modules_uninstall-Linux-legacy
 	@# Install the kernel modules
 	$(MAKE) -C @LINUX_OBJ@ M="$$PWD" modules_install \
 		INSTALL_MOD_PATH=$(INSTALL_MOD_PATH) \
@@ -106,7 +110,7 @@ modules_install-FreeBSD:
 
 modules_install: modules_install-@ac_system@
 
-modules_uninstall-Linux:
+modules_uninstall-Linux: modules_uninstall-Linux-legacy
 	@# Uninstall the kernel modules
 	$(RM) $(addprefix $(KMODDIR)/$(INSTALL_MOD_DIR)/,zfs.ko spl.ko)
 
