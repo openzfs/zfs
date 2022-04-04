@@ -29,18 +29,15 @@ case "${root}" in
 		info "ZFS: Enabling autodetection of bootfs after udev settles."
 		;;
 
-	ZFS=*|zfs:*|FILESYSTEM=*)
+	ZFS=*|zfs:*)
 		# root is explicit ZFS root.  Parse it now.  We can handle
 		# a root=... param in any of the following formats:
 		# root=ZFS=rpool/ROOT
 		# root=zfs:rpool/ROOT
-		# root=zfs:FILESYSTEM=rpool/ROOT
-		# root=FILESYSTEM=rpool/ROOT
 		# root=ZFS=pool+with+space/ROOT+WITH+SPACE (translates to root=ZFS=pool with space/ROOT WITH SPACE)
 
 		# Strip down to just the pool/fs
 		root="${root#zfs:}"
-		root="${root#FILESYSTEM=}"
 		root="zfs:${root#ZFS=}"
 		# switch + with spaces because kernel cmdline does not allow us to quote parameters
 		root=$(echo "$root" | tr '+' ' ')
