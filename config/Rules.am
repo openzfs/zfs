@@ -61,6 +61,10 @@ AM_CPPFLAGS += -D"dirname(...)=dirname(__VA_ARGS__) __attribute__((deprecated(\"
 AM_CPPFLAGS += -D"bcopy(...)=__attribute__((deprecated(\"bcopy(3) is deprecated. Use memcpy(3)/memmove(3) instead!\"))) bcopy(__VA_ARGS__)"
 AM_CPPFLAGS += -D"bcmp(...)=__attribute__((deprecated(\"bcmp(3) is deprecated. Use memcmp(3) instead!\"))) bcmp(__VA_ARGS__)"
 AM_CPPFLAGS += -D"bzero(...)=__attribute__((deprecated(\"bzero(3) is deprecated. Use memset(3) instead!\"))) bzero(__VA_ARGS__)"
+AM_CPPFLAGS += -D"asctime(...)=__attribute__((deprecated(\"Use strftime(3) instead!\"))) asctime(__VA_ARGS__)"
+AM_CPPFLAGS += -D"asctime_r(...)=__attribute__((deprecated(\"Use strftime(3) instead!\"))) asctime_r(__VA_ARGS__)"
+AM_CPPFLAGS += -D"gmtime(...)=__attribute__((deprecated(\"gmtime(3) isn't thread-safe. Use gmtime_r(3) instead!\"))) gmtime(__VA_ARGS__)"
+AM_CPPFLAGS += -D"localtime(...)=__attribute__((deprecated(\"localtime(3) isn't thread-safe. Use localtime_r(3) instead!\"))) localtime(__VA_ARGS__)"
 
 if ASAN_ENABLED
 AM_CPPFLAGS += -DZFS_ASAN_ENABLED
