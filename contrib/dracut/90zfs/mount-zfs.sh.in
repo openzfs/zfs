@@ -93,6 +93,7 @@ if ! zpool get -Ho name "${ZFS_POOL}" > /dev/null 2>&1; then
 fi
 
 # Load keys if we can or if we need to
+# TODO: for_relevant_root_children like in zfs-load-key.sh.in
 if [ "$(zpool get -Ho value feature@encryption "${ZFS_POOL}")" = 'active' ]; then
 	# if the root dataset has encryption enabled
 	ENCRYPTIONROOT="$(zfs get -Ho value encryptionroot "${ZFS_DATASET}")"
