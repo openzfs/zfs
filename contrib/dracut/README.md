@@ -15,6 +15,8 @@ Encrypted datasets have keys loaded automatically or prompted for.
 
 If the root dataset contains children with `mountpoint=`s of `/etc`, `/bin`, `/lib*`, or `/usr`, they're mounted too.
 
+For complete documentation, see `dracut.zfs(7)`.
+
 ## cmdline
 1. `root=`                    | Root dataset is…                                         |
    ---------------------------|----------------------------------------------------------|
