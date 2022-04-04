@@ -28,10 +28,10 @@ ZFS_DATASET=
 ZFS_POOL=
 
 if [ "${root}" = "zfs:AUTO" ] ; then
-	if ! ZFS_DATASET="$(find_bootfs)" ; then
+	if ! ZFS_DATASET="$(zpool get -Ho value bootfs | grep -m1 -vFx -)"; then
 		# shellcheck disable=SC2086
 		zpool import -N -a ${ZPOOL_IMPORT_OPTS}
-		if ! ZFS_DATASET="$(find_bootfs)" ; then
+		if ! ZFS_DATASET="$(zpool get -Ho value bootfs | grep -m1 -vFx -)"; then
 			warn "ZFS: No bootfs attribute found in importable pools."
 			zpool export -aF
 
