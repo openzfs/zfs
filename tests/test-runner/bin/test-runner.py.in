@@ -454,7 +454,7 @@ def assert_invariant_module_params(runfunc):
         and simply re-raise it.
         """
 
-        assert args > 0 # the decorator is only meant for the .run() method, which takes `self`
+        assert len(args) > 0 # the decorator is only meant for the .run() method, which takes `self`
         testtype = str(args[0].__class__)
         testname = getattr(args[0], "pathname", "<no pathname member>")
 
