@@ -75,7 +75,7 @@ done
 
 kill_zed() {
 	if [ -f "$ZED_PIDFILE" ]; then
-		PID=$(cat "$ZED_PIDFILE")
+		read -r PID <"$ZED_PIDFILE"
 		kill "$PID"
 	fi
 }
@@ -234,8 +234,7 @@ stack_check_linux() {
 	STACK_LIMIT=15362
 
 	if [ -e "$STACK_MAX_SIZE" ]; then
-		STACK_SIZE=$(cat "$STACK_MAX_SIZE")
-
+		read -r STACK_SIZE <"$STACK_MAX_SIZE"
 		if [ "$STACK_SIZE" -ge "$STACK_LIMIT" ]; then
 			echo
 			echo "Warning: max stack size $STACK_SIZE bytes"
