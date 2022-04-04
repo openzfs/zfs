@@ -2643,8 +2643,7 @@ zfs_send_one_cb_impl(zfs_handle_t *zhp, const char *from, int fd,
 
 	if (flags->progress) {
 		void *status = NULL;
-		if (err != 0)
-			(void) pthread_cancel(ptid);
+		(void) pthread_cancel(ptid);
 		(void) pthread_join(ptid, &status);
 		int error = (int)(uintptr_t)status;
 		if (error != 0 && status != PTHREAD_CANCELED)
