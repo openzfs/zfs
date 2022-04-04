@@ -9,13 +9,10 @@ check() {
 	for tool in "zgenhostid" "zpool" "zfs" "mount.zfs"; do
 		command -v "${tool}" >/dev/null || return 1
 	done
-
-	return 0
 }
 
 depends() {
 	echo udev-rules
-	return 0
 }
 
 installkernel() {
@@ -39,7 +36,6 @@ install() {
 		{ dfatal "Failed to install essential binaries"; exit 1; }
 
 	# Adapted from https://github.com/zbm-dev/zfsbootmenu
-
 	if ! ldd "$(command -v zpool)" | grep -qF 'libgcc_s.so'; then
 		# On systems with gcc-config (Gentoo, Funtoo, etc.), use it to find libgcc_s
 		if command -v gcc-config >/dev/null; then
@@ -79,7 +75,6 @@ install() {
 	fi
 
 	if dracut_module_included "systemd"; then
-
 		inst_simple "${systemdsystemunitdir}/zfs-import.target"
 		systemctl -q --root "${initdir}" add-wants initrd.target zfs-import.target
 
