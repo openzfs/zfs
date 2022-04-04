@@ -884,21 +884,21 @@ _zed_event_get_subclass(const char *class)
 static void
 _zed_event_add_time_strings(uint64_t eid, zed_strings_t *zsp, int64_t etime[])
 {
-	struct tm *stp;
+	struct tm stp;
 	char buf[32];
 
 	assert(zsp != NULL);
 	assert(etime != NULL);
 
 	_zed_event_add_var(eid, zsp, ZEVENT_VAR_PREFIX, "TIME_SECS",
-	    "%lld", (long long int) etime[0]);
+	    "%" PRId64, etime[0]);
 	_zed_event_add_var(eid, zsp, ZEVENT_VAR_PREFIX, "TIME_NSECS",
-	    "%lld", (long long int) etime[1]);
+	    "%" PRId64, etime[1]);
 
-	if (!(stp = localtime((const time_t *) &etime[0]))) {
+	if (!localtime_r((const time_t *) &etime[0], &stp)) {
 		zed_log_msg(LOG_WARNING, "Failed to add %s%s for eid=%llu: %s",
 		    ZEVENT_VAR_PREFIX, "TIME_STRING", eid, "localtime error");
-	} else if (!strftime(buf, sizeof (buf), "%Y-%m-%d %H:%M:%S%z", stp)) {
+	} else if (!strftime(buf, sizeof (buf), "%Y-%m-%d %H:%M:%S%z", &stp)) {
 		zed_log_msg(LOG_WARNING, "Failed to add %s%s for eid=%llu: %s",
 		    ZEVENT_VAR_PREFIX, "TIME_STRING", eid, "strftime error");
 	} else {
