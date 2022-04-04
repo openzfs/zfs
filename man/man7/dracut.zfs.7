@@ -1,0 +1,278 @@
+.\" SPDX-License-Identifier: 0BSD
+.\"
+.Dd April 4, 2022
+.Dt DRACUT.ZFS 7
+.Os
+.
+.Sh NAME
+.Nm dracut.zfs
+.Nd overview of ZFS dracut hooks
+.
+.Sh SYNOPSIS
+.Bd -literal -compact
+                      parse-zfs.sh \(-> dracut-cmdline.service
+                          |                     \(da
+                          |                     …
+                          |                     \(da
+                          \e\(em\(em\(em\(em\(em\(em\(em\(em\(-> dracut-initqueue.service
+                                                |                      zfs-import-opts.sh
+   zfs-load-module.service                      \(da                          |       |
+     |                  |                sysinit.target                    \(da       |
+     \(da                  |                       |        zfs-import-scan.service   \(da
+zfs-import-scan.service \(da                       \(da           | zfs-import-cache.service
+     |   zfs-import-cache.service         basic.target      |     |
+     \e__________________|                       |           \(da     \(da
+                        \(da                       |     zfs-load-key.sh
+     zfs-env-bootfs.service                     |         |
+                        \(da                       \(da         \(da
+                 zfs-import.target \(-> dracut-pre-mount.service
+                        |          \(ua            |
+                        | dracut-zfs-generator  |
+                        |  ____________________/|
+                        |/                      \(da
+                        |                   sysroot.mount \(<-\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em dracut-zfs-generator
+                        |                       |                                        \(da   |
+                        |                       \(da            sysroot-{usr,etc,lib,&c.}.mount |
+                        |             initrd-root-fs.target \(<-\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em or                 \(da
+                        |                       |              zfs-nonroot-necessities.service
+                        |                       \(da                                 |
+                        \(da             dracut-mount.service                        |
+       zfs-snapshot-bootfs.service              |                                 |
+                        |                       \(da                                 |
+                        \(da                       …                                 |
+       zfs-rollback-bootfs.service              |                                 |
+                        |                       \(da                                 |
+                        |               sysroot-usr.mount \(<-\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em/
+                        |                       |
+                        |                       \(da
+                        |                initrd-fs.target
+                        \e______________________ |
+                                               \e|
+                                                \(da
+        export-zfs.sh                      initrd.target
+              |                                 |
+              \(da                                 \(da
+   dracut-shutdown.service                      …
+                                                |
+                                                \(da
+                 zfs-needshutdown.sh \(-> initrd-cleanup.service
+.Ed
+.Pp
+Compare
+.Xr dracut.bootup 7
+for the full flowchart.
+.
+.Sh DESCRIPTION
+Under dracut, booting with
+.No ZFS-on- Ns Pa /
+is facilitated by a number of hooks in the
+.Nm 90zfs
+module.
+.Pp
+Booting into a ZFS dataset requires
+.Sy mountpoint Ns = Ns Pa /
+to be set on the dataset containing the root filesystem (henceforth "the boot dataset") and at the very least either the
+.Sy bootfs
+property to be set to that dataset, or the
+.Sy root=
+kernel cmdline (or dracut drop-in) argument to specify it.
+.Pp
+All children of the boot dataset with
+.Sy canmount Ns = Ns Sy on
+with
+.Sy mountpoint Ns s
+matching
+.Pa /etc , /bin , /lib , /lib?? , /libx32 , No and Pa /usr
+globs are deemed essential and will be mounted as well.
+.Pp
+.Xr zfs-mount-generator 8
+is recommended for proper functioning of the system afterward (correct mount properties, remounting, &c.).
+.
+.Sh CMDLINE
+.Ss Standard
+.Bl -tag -compact -width ".Sy root=zfs:AUTO , root=zfs: , root=zfs , Op Sy root="
+.It Sy root=zfs:\& Ns Ar dataset , Sy root=ZFS= Ns Ar dataset
+Use
+.Ar dataset
+as the boot dataset.
+All pluses
+.Pq Sq +
+are replaced with spaces
+.Pq Sq \  .
+.
+.It Sy root=zfs:AUTO , root=zfs:\& , root=zfs , Op Sy root=
+After import, search for the first pool with the
+.Sy bootfs
+property set, use its value as-if specified as the
+.Ar dataset
+above.
+.
+.It Sy rootfstype=zfs root= Ns Ar dataset
+Equivalent to
+.Sy root=zfs:\& Ns Ar dataset .
+.
+.It Sy rootfstype=zfs Op Sy root=
+Equivalent to
+.Sy root=zfs:AUTO .
+.
+.It Sy rootflags= Ns Ar flags
+Mount the boot dataset with
+.Fl o Ar flags ;
+cf.\&
+.Sx Temporary Mount Point Properties
+in
+.Xr zfsprops 7 .
+These properties will not last, since all filesystems will be re-mounted from the real root.
+.
+.It Sy debug
+If specified,
+.Nm dracut-zfs-generator
+logs to the journal.
+.El
+.Pp
+Be careful about setting neither
+.Sy rootfstype=zfs
+nor
+.Sy root=zfs:\& Ns Ar dataset
+\(em other automatic boot selection methods, like
+.Nm systemd-gpt-auto-generator
+and
+.Nm systemd-fstab-generator
+might take precedent.
+.
+.Ss ZFS-specific
+.Bl -tag -compact -width ".Sy bootfs.snapshot Ns Op Sy = Ns Ar snapshot-name"
+.It Sy bootfs.snapshot Ns Op Sy = Ns Ar snapshot-name
+Execute
+.Nm zfs Cm snapshot Ar boot-dataset Ns Sy @ Ns Ar snapshot-name
+before pivoting to the real root.
+.Ar snapshot-name
+defaults to the current kernel release.
+.
+.It Sy bootfs.rollback Ns Op Sy = Ns Ar snapshot-name
+Execute
+.Nm zfs Cm snapshot Fl Rf Ar boot-dataset Ns Sy @ Ns Ar snapshot-name
+before pivoting to the real root.
+.Ar snapshot-name
+defaults to the current kernel release.
+.
+.It Sy spl_hostid= Ns Ar host-id
+Use
+.Xr zgenhostid 8
+to set the host ID to
+.Ar host-id ;
+otherwise,
+.Pa /etc/hostid
+inherited from the real root is used.
+.
+.It Sy zfs_force , zfs.force , zfsforce
+Appends
+.Fl f
+to all
+.Nm zpool Cm import
+invocations; primarily useful in conjunction with
+.Sy spl_hostid= ,
+or if no host ID was inherited.
+.El
+.
+.Sh FILES
+.Bl -tag -width 0
+.It Pa parse-zfs.sh Pq Sy cmdline
+Processes
+.Sy spl_hostid= .
+If
+.Sy root=
+matches a known pattern, above, provides
+.Pa /dev/root
+and delays the initqueue until
+.Xr zfs 4
+is loaded,
+.
+.It Pa zfs-import-opts.sh Pq Nm systemd No environment generator
+Turns
+.Sy zfs_force , zfs.force , No or Sy zfsforce
+into
+.Ev ZPOOL_IMPORT_OPTS Ns = Ns Fl f
+for
+.Pa zfs-import-scan.service
+or
+.Pa zfs-import-cache.service .
+.
+.It Pa zfs-load-key.sh Pq Sy pre-mount
+Loads encryption keys for the boot dataset and its essential descendants.
+.Bl -tag -compact -offset 4n -width ".Sy keylocation Ns = Ns Sy https:// Ns Ar URL , Sy keylocation Ns = Ns Sy http:// Ns Ar URL"
+.It Sy keylocation Ns = Ns Sy prompt
+Is prompted for via
+.Nm systemd-ask-password
+thrice.
+.
+.It Sy keylocation Ns = Ns Sy https:// Ns Ar URL , Sy keylocation Ns = Ns Sy http:// Ns Ar URL
+.Pa network-online.target
+is started before loading.
+.
+.It Sy keylocation Ns = Ns Sy file:// Ns Ar path
+If
+.Ar path
+doesn't exist,
+.Nm udevadm No is Cm settle Ns d .
+If it still doesn't, it's waited for for up to
+.Sy 10 Ns s .
+.El
+.
+.It Pa zfs-env-bootfs.service Pq Nm systemd No service
+After pool import, sets
+.Ev BOOTFS Ns =
+in the systemd environment to the first non-null
+.Sy bootfs
+value in iteration order.
+.
+.It Pa dracut-zfs-generator Pq Nm systemd No generator
+Generates
+.Pa sysroot.mount Pq using Sy rootflags= , No if any .
+If an explicit boot dataset was specified, also generates essential mountpoints
+.Pq Pa sysroot-etc.mount , sysroot-bin.mount , No &c.\& ,
+otherwise generates
+.Pa zfs-nonroot-necessities.service
+which mounts them explicitly after
+.Pa /sysroot
+using
+.Ev BOOTFS Ns = .
+.
+.It Pa zfs-snapshot-bootfs.service , zfs-rollback-bootfs.service Pq Nm systemd No services
+Consume
+.Sy bootfs.snapshot
+and
+.Sy bootfs.rollback
+as described in
+.Sx CMDLINE  .
+Use
+.Ev BOOTFS Ns =
+if no explicit boot dataset was specified.
+.
+.It Pa zfs-needshutdown.sh Pq Sy cleanup
+If any pools were imported, signals that shutdown hooks are required.
+.
+.It Pa export-zfs.sh Pq Sy shutdown
+Forcibly exports all pools.
+.
+.It Pa /etc/hostid , /etc/zfs/zpool.cache , /etc/zfs/vdev_id.conf Pq regular files
+Included verbatim, hostonly.
+.
+.It Pa mount-zfs.sh Pq Sy mount
+Does nothing on
+.Nm systemd
+systems
+.Pq if Pa dracut-zfs-generator No succeeded .
+Otherwise, loads encryption key for the boot dataset from the console or via plymouth.
+It may not work at all!
+.El
+.
+.Sh SEE ALSO
+.Xr dracut.bootup 7 ,
+.Xr zfsprops 7 ,
+.Xr zpoolprops 7 ,
+.Xr dracut-shutdown.service 8 ,
+.Xr systemd-fstab-generator 8 ,
+.Xr systemd-gpt-auto-generator 8 ,
+.Xr zfs-mount-generator 8 ,
+.Xr zgenhostid 8
