@@ -910,7 +910,7 @@ send_progress_thread(void *arg)
 	uint64_t blocks;
 	char buf[16];
 	time_t t;
-	struct tm *tm;
+	struct tm tm;
 	int err;
 
 	if (!pa->pa_parsable) {
@@ -934,28 +934,28 @@ send_progress_thread(void *arg)
 		}
 
 		(void) time(&t);
-		tm = localtime(&t);
+		localtime_r(&t, &tm);
 
 		if (pa->pa_verbosity >= 2 && pa->pa_parsable) {
 			(void) fprintf(stderr,
 			    "%02d:%02d:%02d\t%llu\t%llu\t%s\n",
-			    tm->tm_hour, tm->tm_min, tm->tm_sec,
+			    tm.tm_hour, tm.tm_min, tm.tm_sec,
 			    (u_longlong_t)bytes, (u_longlong_t)blocks,
 			    zhp->zfs_name);
 		} else if (pa->pa_verbosity >= 2) {
 			zfs_nicenum(bytes, buf, sizeof (buf));
 			(void) fprintf(stderr,
 			    "%02d:%02d:%02d   %5s    %8llu    %s\n",
-			    tm->tm_hour, tm->tm_min, tm->tm_sec,
+			    tm.tm_hour, tm.tm_min, tm.tm_sec,
 			    buf, (u_longlong_t)blocks, zhp->zfs_name);
 		} else if (pa->pa_parsable) {
 			(void) fprintf(stderr, "%02d:%02d:%02d\t%llu\t%s\n",
-			    tm->tm_hour, tm->tm_min, tm->tm_sec,
+			    tm.tm_hour, tm.tm_min, tm.tm_sec,
 			    (u_longlong_t)bytes, zhp->zfs_name);
 		} else {
 			zfs_nicebytes(bytes, buf, sizeof (buf));
 			(void) fprintf(stderr, "%02d:%02d:%02d   %5s   %s\n",
-			    tm->tm_hour, tm->tm_min, tm->tm_sec,
+			    tm.tm_hour, tm.tm_min, tm.tm_sec,
 			    buf, zhp->zfs_name);
 		}
 	}
