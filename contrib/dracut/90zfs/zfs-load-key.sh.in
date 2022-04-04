@@ -4,32 +4,20 @@
 # only run this on systemd systems, we handle the decrypt in mount-zfs.sh in the mount hook otherwise
 [ -e /bin/systemctl ] || [ -e /usr/bin/systemctl ] || return 0
 
-# This script only gets executed on systemd systems, see mount-zfs.sh for non-systemd systems
+# shellcheck source=zfs-lib.sh.in
+. /lib/dracut-zfs-lib.sh
 
-# import the libs now that we know the pool imported
-[ -f /lib/dracut-lib.sh ] && dracutlib=/lib/dracut-lib.sh
-[ -f /usr/lib/dracut/modules.d/99base/dracut-lib.sh ] && dracutlib=/usr/lib/dracut/modules.d/99base/dracut-lib.sh
-# shellcheck source=./lib-zfs.sh.in
-. "$dracutlib"
-
-# load the kernel command line vars
-[ -z "$root" ] && root="$(getarg root=)"
-# If root is not ZFS= or zfs: or rootfstype is not zfs then we are not supposed to handle it.
-[ "${root##zfs:}" = "${root}" ] && [ "${root##ZFS=}" = "${root}" ] && [ "$rootfstype" != "zfs" ] && exit 0
+decode_root_args || return 0
 
 # There is a race between the zpool import and the pre-mount hooks, so we wait for a pool to be imported
-while [ "$(zpool list -H)" = "" ]; do
-    systemctl is-failed --quiet zfs-import-cache.service zfs-import-scan.service && exit 1
+while ! systemctl is-active --quiet zfs-import.target; do
+    systemctl is-failed --quiet zfs-import-cache.service zfs-import-scan.service && return 1
     sleep 0.1s
 done
 
-# run this after import as zfs-import-cache/scan service is confirmed good
-# we do not overwrite the ${root} variable, but create a new one, BOOTFS, to hold the dataset
-if [ "${root}" = "zfs:AUTO" ] ; then
-    BOOTFS="$(zpool list -H -o bootfs | awk '$1 != "-" {print; exit}')"
-else
-    BOOTFS="${root##zfs:}"
-    BOOTFS="${BOOTFS##ZFS=}"
+BOOTFS="$root"
+if [ "$BOOTFS" = "zfs:AUTO" ]; then
+    BOOTFS="$(zpool get -Ho value bootfs | grep -m1 -vFx -)"
 fi
 
 # if pool encryption is active and the zfs command understands '-o encryption'
