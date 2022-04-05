@@ -26,13 +26,8 @@
 # Copyright 2020 OmniOS Community Edition (OmniOSce) Association.
 #
 
-BASE_DIR=$(dirname "$0")
-SCRIPT_COMMON=common.sh
-if [ -f "${BASE_DIR}/${SCRIPT_COMMON}" ]; then
-	. "${BASE_DIR}/${SCRIPT_COMMON}"
-else
-	echo "Missing helper script ${SCRIPT_COMMON}" && exit 1
-fi
+SCRIPT_COMMON=${SCRIPT_COMMON:-${0%/*}/common.sh}
+. "${SCRIPT_COMMON}" || exit
 
 PROG=zfs-tests.sh
 VERBOSE="no"
