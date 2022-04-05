@@ -54,7 +54,6 @@ install-data-hook:
 	       -L "$(DESTDIR)$(zedconfdir)/$${f}" || \
 	    ln -s "$(zedexecdir)/$${f}" "$(DESTDIR)$(zedconfdir)"; \
 	done
-	chmod 0600 "$(DESTDIR)$(zedconfdir)/zed.rc"
 
 # False positive: 1>&"${ZED_FLOCK_FD}" looks suspiciously similar to a >&filename bash extension
 CHECKBASHISMS_IGNORE = -e 'should be >word 2>&1' -e '&"$${ZED_FLOCK_FD}"'
