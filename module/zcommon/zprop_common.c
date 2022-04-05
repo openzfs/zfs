@@ -136,7 +136,7 @@ zprop_register_string(int prop, const char *name, const char *def,
     const char *colname, const struct zfs_mod_supported_features *sfeatures)
 {
 	zprop_register_impl(prop, name, PROP_TYPE_STRING, 0, def, attr,
-	    objset_types, values, colname, B_FALSE, B_TRUE, B_FALSE, NULL,
+	    objset_types, values, colname, B_FALSE, B_TRUE, B_TRUE, NULL,
 	    sfeatures);
 
 }
@@ -159,7 +159,7 @@ zprop_register_index(int prop, const char *name, uint64_t def,
     const struct zfs_mod_supported_features *sfeatures)
 {
 	zprop_register_impl(prop, name, PROP_TYPE_INDEX, def, NULL, attr,
-	    objset_types, values, colname, B_FALSE, B_TRUE, B_FALSE, idx_tbl,
+	    objset_types, values, colname, B_FALSE, B_TRUE, B_TRUE, idx_tbl,
 	    sfeatures);
 }
 
