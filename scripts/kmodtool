@@ -263,16 +263,10 @@ the ${kmodname}-devel-<kernel> objects for the newest kernel.
 %defattr(644,root,root,755)
 %{_usrsrc}/${kmodname}-%{version}
 EOF
-	if [ -n "${obsolete_name}" ]; then
-		echo "%{_usrsrc}/${obsolete_name}-%{version}"
-	fi
 
 	for kernel in ${1}; do
 		local kernel_uname_r=${kernel}
 		echo "%exclude %{_usrsrc}/${kmodname}-%{version}/${kernel_uname_r}"
-		if [ -n "${obsolete_name}" ]; then
-			echo "%exclude %{_usrsrc}/${obsolete_name}-%{version}/${kernel_uname_r}"
-		fi
 	done
 
 	echo
@@ -328,9 +322,6 @@ kernel ${kernel_uname_r} for the %{_target_cpu} family of processors.
 %defattr(644,root,root,755)
 %{_usrsrc}/${kmodname}-%{version}/${kernel_uname_r}
 EOF
-	if [ -n "${obsolete_name}" ]; then
-		echo "%{_usrsrc}/${obsolete_name}-%{version}/${kernel_uname_r}"
-	fi
 }
 
 print_rpmtemplate_kmodmetapkg ()

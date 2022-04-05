@@ -82,25 +82,6 @@ dist-hook:
 	$(SED) ${ac_inplace} -e 's/Release:[[:print:]]*/Release:      $(RELEASE)/' \
 		$(distdir)/META
 
-if BUILD_LINUX
-# For compatibility, create a matching spl-x.y.z directly which contains
-# symlinks to the updated header and object file locations.  These
-# compatibility links will be removed in the next major release.
-if CONFIG_KERNEL
-install-data-hook:
-	rm -rf $(DESTDIR)$(prefix)/src/spl-$(VERSION) && \
-	mkdir $(DESTDIR)$(prefix)/src/spl-$(VERSION) && \
-	cd $(DESTDIR)$(prefix)/src/spl-$(VERSION) && \
-	ln -s ../zfs-$(VERSION)/include/spl include && \
-	ln -s ../zfs-$(VERSION)/$(LINUX_VERSION) $(LINUX_VERSION) && \
-	ln -s ../zfs-$(VERSION)/zfs_config.h.in spl_config.h.in && \
-	ln -s ../zfs-$(VERSION)/zfs.release.in spl.release.in && \
-	cd $(DESTDIR)$(prefix)/src/zfs-$(VERSION)/$(LINUX_VERSION) && \
-	ln -fs zfs_config.h spl_config.h && \
-	ln -fs zfs.release spl.release
-endif
-endif
-
 PHONY += codecheck
 codecheck: cstyle shellcheck checkbashisms flake8 mancheck testscheck vcscheck zstdcheck
 
