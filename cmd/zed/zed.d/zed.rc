@@ -1,7 +1,5 @@
 ##
-# zed.rc
-#
-# This file should be owned by root and permissioned 0600.
+# zed.rc – ZEDLET configuration.
 ##
 # shellcheck disable=SC2034
 
