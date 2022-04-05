@@ -89,4 +89,3 @@ rm -rf $RPM_BUILD_ROOT
 
 %files -n kmod-%{kmod_name}-devel
 %{_usrsrc}/%{kmod_name}-%{version}
-%{_usrsrc}/spl-%{version}
