@@ -2,20 +2,6 @@
 # shellcheck disable=SC2034
 
 command -v getarg >/dev/null || . /lib/dracut-lib.sh || . /usr/lib/dracut/modules.d/99base/dracut-lib.sh
-command -v getargbool >/dev/null || {
-    # Compatibility with older Dracut versions.
-    # With apologies to the Dracut developers.
-    getargbool() {
-        _default="$1"; shift
-        ! _b=$(getarg "$@") && [ -z "$_b" ] && _b="$_default"
-        if [ -n "$_b" ]; then
-            [ "$_b" = "0" ] && return 1
-            [ "$_b" = "no" ] && return 1
-            [ "$_b" = "off" ] && return 1
-        fi
-        return 0
-    }
-}
 
 TAB="	"
 
