@@ -43,32 +43,8 @@ config ZFS
 	  If unsure, say N.
 EOF
 
-add_after()
-{
-	FILE="$1"
-	MARKER="$2"
-	NEW="$3"
-
-	while IFS='' read -r LINE
-	do
-		printf "%s\n" "$LINE"
-
-		if [ -n "$MARKER" ] && [ "$LINE" = "$MARKER" ]
-		then
-			printf "%s\n" "$NEW"
-			MARKER=''
-			if IFS='' read -r LINE
-			then
-				[ "$LINE" != "$NEW" ] && printf "%s\n" "$LINE"
-			fi
-		fi
-	done < "$FILE" > "$FILE.new"
-
-	mv "$FILE.new" "$FILE"
-}
-
-add_after "$KERNEL_DIR/fs/Kconfig" 'if BLOCK' 'source "fs/zfs/Kconfig"'
-add_after "$KERNEL_DIR/fs/Makefile" 'endif' 'obj-$(CONFIG_ZFS) += zfs/'
+sed -i '/source "fs\/ext2\/Kconfig\"/i\source "fs/zfs/Kconfig"' "$KERNEL_DIR/fs/Kconfig"
+echo 'obj-$(CONFIG_ZFS) += zfs/' >> "$KERNEL_DIR/fs/Makefile"
 
 echo "$0: done. now you can build the kernel with ZFS support." >&2
 echo "$0: make sure you enable ZFS support (CONFIG_ZFS) before building." >&2
