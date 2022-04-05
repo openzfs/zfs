@@ -75,8 +75,7 @@ distclean-local::
 		-type f -delete
 
 all-local:
-	-[ -x ${top_builddir}/scripts/zfs-tests.sh ] && \
-	    ${top_builddir}/scripts/zfs-tests.sh -c
+	-SCRIPT_COMMON=$(top_builddir)/scripts/common.sh $(top_srcdir)/scripts/zfs-tests.sh -c
 
 dist-hook:
 	$(AM_V_GEN)$(top_srcdir)/scripts/make_gitrev.sh -D $(distdir) $(GITREV)
