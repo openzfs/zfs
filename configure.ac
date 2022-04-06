@@ -155,7 +155,6 @@ AC_CONFIG_FILES([
 	lib/libspl/include/rpc/Makefile
 	lib/libspl/include/sys/Makefile
 	lib/libspl/include/sys/dktp/Makefile
-	lib/libspl/include/util/Makefile
 	lib/libtpool/Makefile
 	lib/libunicode/Makefile
 	lib/libuutil/Makefile

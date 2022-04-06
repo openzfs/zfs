@@ -1,4 +1,4 @@
-SUBDIRS = rpc sys util os
+SUBDIRS = rpc sys os
 
 libspldir = $(includedir)/libspl
 libspl_HEADERS = \
