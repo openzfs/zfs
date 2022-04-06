@@ -73,12 +73,12 @@
  * The SPA supports block sizes up to 16MB.  However, very large blocks
  * can have an impact on i/o latency (e.g. tying up a spinning disk for
  * ~300ms), and also potentially on the memory allocator.  Therefore,
- * we do not allow the recordsize to be set larger than zfs_max_recordsize
- * (default 1MB).  Larger blocks can be created by changing this tunable,
- * and pools with larger blocks can always be imported and used, regardless
- * of this setting.
+ * we did not allow the recordsize to be set larger than zfs_max_recordsize
+ * (former default: 1MB).  Larger blocks could be created by changing this
+ * tunable, and pools with larger blocks could always be imported and used,
+ * regardless of this setting.
  */
-int zfs_max_recordsize = 1 * 1024 * 1024;
+int zfs_max_recordsize = 16 * 1024 * 1024;
 static int zfs_allow_redacted_dataset_mount = 0;
 
 #define	SWITCH64(x, y) \
