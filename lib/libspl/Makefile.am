@@ -1,50 +1,45 @@
-include $(top_srcdir)/config/Rules.am
+include $(srcdir)/%D%/include/Makefile.am
 
-SUBDIRS = include
+libspl_assert_la_CFLAGS = $(AM_CFLAGS) $(LIBRARY_CFLAGS)
+libspl_la_CFLAGS        = $(libspl_assert_la_CFLAGS)
 
-# See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=54020
-AM_CFLAGS += -no-suppress
-
-noinst_LTLIBRARIES = libspl_assert.la libspl.la
+noinst_LTLIBRARIES += libspl_assert.la libspl.la
+CPPCHECKTARGETS    += libspl_assert.la libspl.la
 
 libspl_assert_la_SOURCES = \
-	assert.c
+	%D%/assert.c
 
-USER_C = \
-	libspl_impl.h \
-	atomic.c \
-	getexecname.c \
-	list.c \
-	mkdirp.c \
-	page.c \
-	strlcat.c \
-	strlcpy.c \
-	timestamp.c \
-	include/sys/list.h \
-	include/sys/list_impl.h
+libspl_la_SOURCES = \
+	%D%/libspl_impl.h \
+	%D%/atomic.c \
+	%D%/getexecname.c \
+	%D%/list.c \
+	%D%/mkdirp.c \
+	%D%/page.c \
+	%D%/strlcat.c \
+	%D%/strlcpy.c \
+	%D%/timestamp.c \
+	%D%/include/sys/list.h \
+	%D%/include/sys/list_impl.h
 
 if BUILD_LINUX
-USER_C += \
-	os/linux/getexecname.c \
-	os/linux/gethostid.c \
-	os/linux/getmntany.c \
-	os/linux/zone.c
+libspl_la_SOURCES += \
+	%D%/os/linux/getexecname.c \
+	%D%/os/linux/gethostid.c \
+	%D%/os/linux/getmntany.c \
+	%D%/os/linux/zone.c
 endif
 
 if BUILD_FREEBSD
-USER_C += \
-	os/freebsd/getexecname.c \
-	os/freebsd/gethostid.c \
-	os/freebsd/getmntany.c \
-	os/freebsd/mnttab.c \
-	os/freebsd/zone.c
+libspl_la_SOURCES += \
+	%D%/os/freebsd/getexecname.c \
+	%D%/os/freebsd/gethostid.c \
+	%D%/os/freebsd/getmntany.c \
+	%D%/os/freebsd/mnttab.c \
+	%D%/os/freebsd/zone.c
 endif
-
-libspl_la_SOURCES = $(USER_C)
 
 libspl_la_LIBADD = \
 	libspl_assert.la
 
 libspl_la_LIBADD += $(LIBATOMIC_LIBS) $(LIBCLOCK_GETTIME)
-
-include $(top_srcdir)/config/CppCheck.am

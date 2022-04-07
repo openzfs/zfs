@@ -1,19 +1,8 @@
-include $(top_srcdir)/config/Rules.am
+libavl_la_CFLAGS  = $(AM_CFLAGS) $(KERNEL_CFLAGS) $(LIBRARY_CFLAGS)
+libavl_la_CFLAGS += -fvisibility=hidden
 
-VPATH = $(top_srcdir)/module/avl/
-
-# Includes kernel code, generate warnings for large stack frames
-AM_CFLAGS += $(FRAME_LARGER_THAN)
-AM_CFLAGS += -fvisibility=hidden
-# See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=54020
-AM_CFLAGS += -no-suppress
-
-noinst_LTLIBRARIES = libavl.la
-
-KERNEL_C = \
-	avl.c
+noinst_LTLIBRARIES += libavl.la
+CPPCHECKTARGETS    += libavl.la
 
 nodist_libavl_la_SOURCES = \
-	$(KERNEL_C)
-
-include $(top_srcdir)/config/CppCheck.am
+	module/avl/avl.c

@@ -3,7 +3,7 @@ include $(top_srcdir)/config/Shellcheck.am
 
 AM_CFLAGS += $(LIBBLKID_CFLAGS) $(LIBUUID_CFLAGS)
 
-DEFAULT_INCLUDES += -I$(srcdir)
+AM_CPPFLAGS += -I$(srcdir)
 
 
 sbin_PROGRAMS = zpool
@@ -24,11 +24,11 @@ zpool_SOURCES += os/linux/zpool_vdev_os.c
 endif
 
 zpool_LDADD = \
-	$(abs_top_builddir)/lib/libzfs/libzfs.la \
-	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
-	$(abs_top_builddir)/lib/libnvpair/libnvpair.la \
-	$(abs_top_builddir)/lib/libuutil/libuutil.la \
-	$(abs_top_builddir)/lib/libzutil/libzutil.la
+	$(abs_top_builddir)/libzfs.la \
+	$(abs_top_builddir)/libzfs_core.la \
+	$(abs_top_builddir)/libnvpair.la \
+	$(abs_top_builddir)/libuutil.la \
+	$(abs_top_builddir)/libzutil.la
 
 zpool_LDADD += $(LTLIBINTL)
 
@@ -38,6 +38,7 @@ endif
 zpool_LDADD += -lm $(LIBBLKID_LIBS) $(LIBUUID_LIBS)
 
 include $(top_srcdir)/config/CppCheck.am
+CPPCHECKTARGETS += zpool
 
 zpoolconfdir = $(sysconfdir)/zfs/zpool.d
 zpoolexecdir = $(zfsexecdir)/zpool.d

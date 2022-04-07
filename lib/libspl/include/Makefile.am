@@ -1,22 +1,108 @@
-SUBDIRS = rpc sys os
-
 libspldir = $(includedir)/libspl
 libspl_HEADERS = \
-	assert.h \
-	atomic.h \
-	libdevinfo.h \
-	libgen.h \
-	libshare.h \
-	limits.h \
-	locale.h \
-	statcommon.h \
-	stdio.h \
-	stdlib.h \
-	string.h \
-	stropts.h \
-	thread.h \
-	tzfile.h \
-	ucred.h \
-	umem.h \
-	unistd.h \
-	zone.h
+	%D%/assert.h \
+	%D%/atomic.h \
+	%D%/libdevinfo.h \
+	%D%/libgen.h \
+	%D%/libshare.h \
+	%D%/limits.h \
+	%D%/locale.h \
+	%D%/statcommon.h \
+	%D%/stdio.h \
+	%D%/stdlib.h \
+	%D%/string.h \
+	%D%/stropts.h \
+	%D%/thread.h \
+	%D%/tzfile.h \
+	%D%/ucred.h \
+	%D%/umem.h \
+	%D%/unistd.h \
+	%D%/zone.h
+
+if BUILD_FREEBSD
+libspl_HEADERS += \
+	%D%/os/freebsd/fcntl.h
+endif
+
+
+libspl_rpcdir = $(libspldir)/rpc
+libspl_rpc_HEADERS = \
+	%D%/rpc/xdr.h
+
+
+libspl_sysdir = $(libspldir)/sys
+libspl_sys_HEADERS = \
+	%D%/sys/acl.h \
+	%D%/sys/acl_impl.h \
+	%D%/sys/callb.h \
+	%D%/sys/cmn_err.h \
+	%D%/sys/cred.h \
+	%D%/sys/debug.h \
+	%D%/sys/dkio.h \
+	%D%/sys/dklabel.h \
+	%D%/sys/feature_tests.h \
+	%D%/sys/int_limits.h \
+	%D%/sys/int_types.h \
+	%D%/sys/inttypes.h \
+	%D%/sys/isa_defs.h \
+	%D%/sys/kmem.h \
+	%D%/sys/kstat.h \
+	%D%/sys/list.h \
+	%D%/sys/list_impl.h \
+	%D%/sys/mhd.h \
+	%D%/sys/mkdev.h \
+	%D%/sys/policy.h \
+	%D%/sys/poll.h \
+	%D%/sys/priv.h \
+	%D%/sys/processor.h \
+	%D%/sys/sha2.h \
+	%D%/sys/simd.h \
+	%D%/sys/stack.h \
+	%D%/sys/stdtypes.h \
+	%D%/sys/string.h \
+	%D%/sys/stropts.h \
+	%D%/sys/sunddi.h \
+	%D%/sys/systeminfo.h \
+	%D%/sys/time.h \
+	%D%/sys/trace_spl.h \
+	%D%/sys/trace_zfs.h \
+	%D%/sys/types.h \
+	%D%/sys/types32.h \
+	%D%/sys/tzfile.h \
+	%D%/sys/uio.h \
+	%D%/sys/va_list.h \
+	%D%/sys/varargs.h \
+	%D%/sys/vnode.h \
+	%D%/sys/wmsum.h \
+	%D%/sys/zone.h
+
+if BUILD_LINUX
+libspl_sys_HEADERS += \
+	%D%/os/linux/sys/byteorder.h \
+	%D%/os/linux/sys/errno.h \
+	%D%/os/linux/sys/mnttab.h \
+	%D%/os/linux/sys/mount.h \
+	%D%/os/linux/sys/param.h \
+	%D%/os/linux/sys/stat.h \
+	%D%/os/linux/sys/sysmacros.h \
+	%D%/os/linux/sys/zfs_context_os.h
+endif
+
+if BUILD_FREEBSD
+libspl_sys_HEADERS += \
+	%D%/os/freebsd/sys/byteorder.h \
+	%D%/os/freebsd/sys/fcntl.h \
+	%D%/os/freebsd/sys/file.h \
+	%D%/os/freebsd/sys/mnttab.h \
+	%D%/os/freebsd/sys/mount.h \
+	%D%/os/freebsd/sys/param.h \
+	%D%/os/freebsd/sys/stat.h \
+	%D%/os/freebsd/sys/sysmacros.h \
+	%D%/os/freebsd/sys/vfs.h \
+	%D%/os/freebsd/sys/zfs_context_os.h
+endif
+
+
+libspl_sys_dktpdir = $(libspl_sysdir)/dktp
+libspl_sys_dktp_HEADERS = \
+	%D%/sys/dktp/fdisk.h

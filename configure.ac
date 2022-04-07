@@ -30,8 +30,8 @@
  * CDDL HEADER END
  */
 
-AC_INIT(m4_esyscmd(grep ^Name: META | cut -d ':' -f 2 | tr -d ' \n'),
-	m4_esyscmd(grep ^Version: META | cut -d ':' -f 2 | tr -d ' \n'))
+AC_INIT(m4_esyscmd(awk '/^Name:/ {printf $2}' META),
+	m4_esyscmd(awk '/^Version:/ {printf $2}' META))
 AC_LANG(C)
 ZFS_AC_META
 AC_CONFIG_AUX_DIR([config])
@@ -39,7 +39,7 @@ AC_CONFIG_MACRO_DIR([config])
 AC_CANONICAL_TARGET
 AM_MAINTAINER_MODE
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
-AM_INIT_AUTOMAKE([subdir-objects])
+AM_INIT_AUTOMAKE([subdir-objects foreign])
 AC_CONFIG_HEADERS([zfs_config.h], [
 	(mv zfs_config.h zfs_config.h.tmp &&
 	awk -f ${ac_srcdir}/config/config.awk zfs_config.h.tmp >zfs_config.h &&
@@ -139,34 +139,9 @@ AC_CONFIG_FILES([
 	include/sys/lua/Makefile
 	include/sys/sysevent/Makefile
 	include/sys/zstd/Makefile
-	lib/Makefile
-	lib/libavl/Makefile
-	lib/libefi/Makefile
-	lib/libicp/Makefile
-	lib/libnvpair/Makefile
-	lib/libshare/Makefile
-	lib/libspl/Makefile
-	lib/libspl/include/Makefile
-	lib/libspl/include/os/Makefile
-	lib/libspl/include/os/freebsd/Makefile
-	lib/libspl/include/os/freebsd/sys/Makefile
-	lib/libspl/include/os/linux/Makefile
-	lib/libspl/include/os/linux/sys/Makefile
-	lib/libspl/include/rpc/Makefile
-	lib/libspl/include/sys/Makefile
-	lib/libspl/include/sys/dktp/Makefile
-	lib/libtpool/Makefile
-	lib/libunicode/Makefile
-	lib/libuutil/Makefile
-	lib/libzfs/Makefile
 	lib/libzfs/libzfs.pc
-	lib/libzfsbootenv/Makefile
 	lib/libzfsbootenv/libzfsbootenv.pc
-	lib/libzfs_core/Makefile
 	lib/libzfs_core/libzfs_core.pc
-	lib/libzpool/Makefile
-	lib/libzstd/Makefile
-	lib/libzutil/Makefile
 	man/Makefile
 	module/Kbuild
 	module/Makefile

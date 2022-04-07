@@ -1,32 +1,27 @@
-include $(top_srcdir)/config/Rules.am
+libshare_la_CFLAGS  = $(AM_CFLAGS) $(LIBRARY_CFLAGS)
+libshare_la_CFLAGS += -fvisibility=hidden
 
-DEFAULT_INCLUDES += -I$(srcdir)
+libshare_la_CPPFLAGS  = $(AM_CPPFLAGS)
+libshare_la_CPPFLAGS += -I$(srcdir)/%D%
 
-AM_CFLAGS += -fvisibility=hidden
-# See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=54020
-AM_CFLAGS += -no-suppress
+noinst_LTLIBRARIES += libshare.la
+CPPCHECKTARGETS    += libshare.la
 
-noinst_LTLIBRARIES = libshare.la
-
-USER_C = \
-	libshare_impl.h \
-	libshare.c \
-	nfs.c \
-	nfs.h \
-	smb.h
+libshare_la_SOURCES = \
+	%D%/libshare_impl.h \
+	%D%/libshare.c \
+	%D%/nfs.c \
+	%D%/nfs.h \
+	%D%/smb.h
 
 if BUILD_LINUX
-USER_C += \
-	os/linux/nfs.c \
-	os/linux/smb.c
+libshare_la_SOURCES += \
+	%D%/os/linux/nfs.c \
+	%D%/os/linux/smb.c
 endif
 
 if BUILD_FREEBSD
-USER_C += \
-	os/freebsd/nfs.c \
-	os/freebsd/smb.c
+libshare_la_SOURCES += \
+	%D%/os/freebsd/nfs.c \
+	%D%/os/freebsd/smb.c
 endif
-
-libshare_la_SOURCES = $(USER_C)
-
-include $(top_srcdir)/config/CppCheck.am
