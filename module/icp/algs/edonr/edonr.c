@@ -47,10 +47,7 @@
 #define	hashState384(x)	((x)->pipe->p512)
 #define	hashState512(x)	((x)->pipe->p512)
 
-/* shift and rotate shortcuts */
-#define	shl(x, n)	((x) << n)
-#define	shr(x, n)	((x) >> n)
-
+/* rotate shortcuts */
 #define	rotl32(x, n)	(((x) << (n)) | ((x) >> (32 - (n))))
 #define	rotr32(x, n)	(((x) >> (n)) | ((x) << (32 - (n))))
 
