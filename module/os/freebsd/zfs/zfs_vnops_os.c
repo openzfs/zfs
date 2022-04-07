@@ -5434,7 +5434,7 @@ zfs_getextattr(struct vop_getextattr_args *ap)
 
 	error = ENOENT;
 	ZFS_ENTER(zfsvfs);
-	ZFS_VERIFY_ZP(zp)
+	ZFS_VERIFY_ZP(zp);
 	rw_enter(&zp->z_xattr_lock, RW_READER);
 	if (zfsvfs->z_use_sa && zp->z_is_sa)
 		error = zfs_getextattr_sa(ap, attrname);
