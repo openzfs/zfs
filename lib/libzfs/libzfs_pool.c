@@ -5183,7 +5183,7 @@ zpool_get_vdev_prop(zpool_handle_t *zhp, const char *vdevname, vdev_prop_t prop,
 {
 	nvlist_t *reqnvl, *reqprops;
 	nvlist_t *retprops = NULL;
-	uint64_t vdev_guid;
+	uint64_t vdev_guid = 0;
 	int ret;
 
 	if ((ret = zpool_vdev_guid(zhp, vdevname, &vdev_guid)) != 0)
@@ -5242,7 +5242,7 @@ zpool_get_all_vdev_props(zpool_handle_t *zhp, const char *vdevname,
     nvlist_t **outnvl)
 {
 	nvlist_t *nvl = NULL;
-	uint64_t vdev_guid;
+	uint64_t vdev_guid = 0;
 	int ret;
 
 	if ((ret = zpool_vdev_guid(zhp, vdevname, &vdev_guid)) != 0)
