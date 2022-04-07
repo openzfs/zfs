@@ -7,5 +7,15 @@ PHONY += cppcheck
 CPPCHECKFLAGS  = --std=c99 --quiet --max-configs=1 --error-exitcode=2
 CPPCHECKFLAGS += --inline-suppr -U_KERNEL
 
-cppcheck:
-	$(CPPCHECK) -j$(CPU_COUNT) $(CPPCHECKFLAGS) $(DEFAULT_INCLUDES) $(SOURCES)
+CPPCHECKDIRS    =
+CPPCHECKTARGETS =
+
+cppcheck-recursive-%:
+	$(MAKE) -C $(subst ^,/,$(subst cppcheck-recursive-,,$@)) cppcheck
+
+_CTGT = $(subst -,_,$(subst .,_,$(subst cppcheck-for-,,$@)))
+cppcheck-for-%:
+	@[ -n "$($(_CTGT)_SOURCES)$(dist_$(_CTGT)_SOURCES)$(nodist_$(_CTGT)_SOURCES)" ]
+	$(CPPCHECK) -j$(CPU_COUNT) $(CPPCHECKFLAGS) $(patsubst -U%,,$(patsubst -D%,,$(filter-out $(AM_CPPFLAGS_NOCHECK),$(or $($(_CTGT)_CPPFLAGS),$(AM_CPPFLAGS))))) $($(_CTGT)_SOURCES) $(dist_$(_CTGT)_SOURCES) $(nodist_$(_CTGT)_SOURCES)
+
+cppcheck: $(addprefix cppcheck-for-,$(CPPCHECKTARGETS)) $(addprefix cppcheck-recursive-,$(subst /,^,$(CPPCHECKDIRS)))

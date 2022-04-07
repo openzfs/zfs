@@ -11,4 +11,4 @@ dist_pkgdata_SCRIPTS = \
 pkgexec_PROGRAMS = many_fds
 many_fds_SOURCES = many_fds.c
 many_fds_LDADD = \
-	$(abs_top_builddir)/lib/libzfs/libzfs.la
+	$(abs_top_builddir)/libzfs.la

@@ -6,18 +6,17 @@ pkgexecdir = $(datadir)/@PACKAGE@/zfs-tests/bin
 pkgexec_PROGRAMS = badsend
 badsend_SOURCES = badsend.c
 badsend_LDADD = \
-	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
-	$(abs_top_builddir)/lib/libzfs/libzfs.la \
-	$(abs_top_builddir)/lib/libnvpair/libnvpair.la
+	$(abs_top_builddir)/libzfs_core.la \
+	$(abs_top_builddir)/libzfs.la \
+	$(abs_top_builddir)/libnvpair.la
 
 
 pkgexec_PROGRAMS += btree_test
 btree_test_SOURCES = btree_test.c
-# Unconditionally enable ASSERTs
-btree_test_CPPFLAGS = $(AM_CPPFLAGS) -DDEBUG -UNDEBUG -DZFS_DEBUG
+btree_test_CPPFLAGS = $(AM_CPPFLAGS) $(FORCEDEBUG_CPPFLAGS)
 btree_test_LDADD = \
-	$(abs_top_builddir)/lib/libzpool/libzpool.la \
-	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la
+	$(abs_top_builddir)/libzpool.la \
+	$(abs_top_builddir)/libzfs_core.la
 
 
 pkgexec_PROGRAMS += chg_usr_exec
@@ -40,8 +39,8 @@ pkgexec_PROGRAMS += draid
 draid_CFLAGS = $(AM_CFLAGS) $(ZLIB_CFLAGS)
 draid_SOURCES = draid.c
 draid_LDADD = \
-	$(abs_top_builddir)/lib/libzpool/libzpool.la \
-	$(abs_top_builddir)/lib/libnvpair/libnvpair.la
+	$(abs_top_builddir)/libzpool.la \
+	$(abs_top_builddir)/libnvpair.la
 draid_LDADD += $(ZLIB_LIBS)
 
 
@@ -67,8 +66,8 @@ if BUILD_LINUX
 libzfs_input_check_CPPFLAGS = $(AM_CPPFLAGS) -I$(top_srcdir)/include/os/linux/zfs
 endif
 libzfs_input_check_LDADD = \
-	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
-	$(abs_top_builddir)/lib/libnvpair/libnvpair.la
+	$(abs_top_builddir)/libzfs_core.la \
+	$(abs_top_builddir)/libnvpair.la
 
 
 
@@ -99,8 +98,8 @@ endif
 pkgexec_PROGRAMS += nvlist_to_lua
 nvlist_to_lua_SOURCES = nvlist_to_lua.c
 nvlist_to_lua_LDADD = \
-	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
-	$(abs_top_builddir)/lib/libnvpair/libnvpair.la
+	$(abs_top_builddir)/libzfs_core.la \
+	$(abs_top_builddir)/libnvpair.la
 
 
 pkgexec_PROGRAMS += rename_dir
@@ -113,9 +112,9 @@ rm_lnkcnt_zero_file_LDADD = -lpthread
 pkgexec_PROGRAMS += send_doall
 send_doall_SOURCES = send_doall.c
 send_doall_LDADD = \
-	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
-	$(abs_top_builddir)/lib/libzfs/libzfs.la \
-	$(abs_top_builddir)/lib/libnvpair/libnvpair.la
+	$(abs_top_builddir)/libzfs_core.la \
+	$(abs_top_builddir)/libzfs.la \
+	$(abs_top_builddir)/libnvpair.la
 
 pkgexec_PROGRAMS += stride_dd
 stride_dd_SOURCES = stride_dd.c
@@ -140,8 +139,8 @@ truncate_test_SOURCES = truncate_test.c
 pkgexec_PROGRAMS += ereports
 ereports_SOURCES = ereports.c
 ereports_LDADD = \
-	$(abs_top_builddir)/lib/libnvpair/libnvpair.la \
-	$(abs_top_builddir)/lib/libzfs/libzfs.la
+	$(abs_top_builddir)/libnvpair.la \
+	$(abs_top_builddir)/libzfs.la
 
 pkgexec_PROGRAMS += zfs_diff-socket
 zfs_diff_socket_SOURCES = zfs_diff-socket.c
@@ -155,14 +154,14 @@ skein_test_SOURCES = checksum/skein_test.c
 sha2_test_SOURCES = checksum/sha2_test.c
 edonr_test_SOURCES = checksum/edonr_test.c
 skein_test_LDADD = \
-	$(abs_top_builddir)/lib/libicp/libicp.la \
-	$(abs_top_builddir)/lib/libspl/libspl_assert.la
+	$(abs_top_builddir)/libicp.la \
+	$(abs_top_builddir)/libspl_assert.la
 sha2_test_LDADD = \
-	$(abs_top_builddir)/lib/libicp/libicp.la \
-	$(abs_top_builddir)/lib/libspl/libspl_assert.la
+	$(abs_top_builddir)/libicp.la \
+	$(abs_top_builddir)/libspl_assert.la
 edonr_test_LDADD = \
-	$(abs_top_builddir)/lib/libicp/libicp.la \
-	$(abs_top_builddir)/lib/libspl/libspl_assert.la
+	$(abs_top_builddir)/libicp.la \
+	$(abs_top_builddir)/libspl_assert.la
 
 
 if BUILD_LINUX

@@ -1,44 +1,33 @@
-include $(top_srcdir)/config/Rules.am
-
-VPATH = $(top_srcdir)/module/zstd
-
+libzstd_la_CFLAGS  = $(AM_CFLAGS) $(LIBRARY_CFLAGS)
 # -fno-tree-vectorize is set for gcc in zstd/common/compiler.h
 # Set it for other compilers, too.
-AM_CFLAGS += -fno-tree-vectorize
-# See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=54020
-AM_CFLAGS += -no-suppress
+libzstd_la_CFLAGS += -fno-tree-vectorize
 
-noinst_LTLIBRARIES = libzstd.la
+noinst_LTLIBRARIES += libzstd.la
+CPPCHECKTARGETS    += libzstd.la
 
-KERNEL_C = lib/common/entropy_common.c \
-	lib/common/error_private.c \
-	lib/common/fse_decompress.c \
-	lib/common/pool.c \
-	lib/common/zstd_common.c \
-	lib/compress/fse_compress.c \
-	lib/compress/hist.c \
-	lib/compress/huf_compress.c \
-	lib/compress/zstd_compress_literals.c \
-	lib/compress/zstd_compress_sequences.c \
-	lib/compress/zstd_compress_superblock.c \
-	lib/compress/zstd_compress.c \
-	lib/compress/zstd_double_fast.c \
-	lib/compress/zstd_fast.c \
-	lib/compress/zstd_lazy.c \
-	lib/compress/zstd_ldm.c \
-	lib/compress/zstd_opt.c \
-	lib/decompress/huf_decompress.c \
-	lib/decompress/zstd_ddict.c \
-	lib/decompress/zstd_decompress.c \
-	lib/decompress/zstd_decompress_block.c \
-	zfs_zstd.c
+nodist_libzstd_la_SOURCES = \
+	module/zstd/lib/common/entropy_common.c \
+	module/zstd/lib/common/error_private.c \
+	module/zstd/lib/common/fse_decompress.c \
+	module/zstd/lib/common/pool.c \
+	module/zstd/lib/common/zstd_common.c \
+	module/zstd/lib/compress/fse_compress.c \
+	module/zstd/lib/compress/hist.c \
+	module/zstd/lib/compress/huf_compress.c \
+	module/zstd/lib/compress/zstd_compress_literals.c \
+	module/zstd/lib/compress/zstd_compress_sequences.c \
+	module/zstd/lib/compress/zstd_compress_superblock.c \
+	module/zstd/lib/compress/zstd_compress.c \
+	module/zstd/lib/compress/zstd_double_fast.c \
+	module/zstd/lib/compress/zstd_fast.c \
+	module/zstd/lib/compress/zstd_lazy.c \
+	module/zstd/lib/compress/zstd_ldm.c \
+	module/zstd/lib/compress/zstd_opt.c \
+	module/zstd/lib/decompress/huf_decompress.c \
+	module/zstd/lib/decompress/zstd_ddict.c \
+	module/zstd/lib/decompress/zstd_decompress.c \
+	module/zstd/lib/decompress/zstd_decompress_block.c \
+	module/zstd/zfs_zstd.c
 
-nodist_libzstd_la_SOURCES = $(KERNEL_C)
-
-%.$(OBJEXT):  CFLAGS += -fno-tree-vectorize -include $(top_srcdir)/module/zstd/include/zstd_compat_wrapper.h -Wp,-w
-%.l$(OBJEXT): CFLAGS += -fno-tree-vectorize -include $(top_srcdir)/module/zstd/include/zstd_compat_wrapper.h -Wp,-w
-
-zfs_zstd.$(OBJEXT):  CFLAGS += -include $(top_srcdir)/module/zstd/include/zstd_compat_wrapper.h
-zfs_zstd.l$(OBJEXT): CFLAGS += -include $(top_srcdir)/module/zstd/include/zstd_compat_wrapper.h
-
-include $(top_srcdir)/config/CppCheck.am
+libzstd_la_CFLAGS += -include $(top_srcdir)/module/zstd/include/zstd_compat_wrapper.h -fno-tree-vectorize -Wp,-w $(AM_CFLAGS)

@@ -174,10 +174,8 @@ if [ "${INSTALL}" = "yes" ]; then
 	# Ideally we would install these in the configured ${libdir}, which is
 	# by default "/usr/local/lib and unfortunately not included in the
 	# dynamic linker search path.
-	install "$(find "$LIB_DIR/libzfs_core" -type f -name 'libzfs_core.so*')" \
-	    "/lib/libzfs_core.so"
-	install "$(find "$LIB_DIR/libnvpair" -type f -name 'libnvpair.so*')" \
-	    "/lib/libnvpair.so"
+	install "$(find "$LIB_DIR" -type f -name 'libzfs_core.so*')" "/lib/libzfs_core.so"
+	install "$(find "$LIB_DIR" -type f -name 'libnvpair.so*')"   "/lib/libnvpair.so"
 	ldconfig
 else
 	remove "$INSTALL_MOUNT_HELPER_DIR/mount.zfs"
