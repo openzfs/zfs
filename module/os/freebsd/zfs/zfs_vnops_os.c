@@ -5451,7 +5451,7 @@ zfs_getextattr(struct vop_getextattr_args *ap)
 
 	error = ENOENT;
 	ZFS_ENTER(zfsvfs);
-	ZFS_VERIFY_ZP(zp)
+	ZFS_VERIFY_ZP(zp);
 	rw_enter(&zp->z_xattr_lock, RW_READER);
 
 	error = zfs_getextattr_impl(ap, zfs_xattr_compat);
