@@ -4,22 +4,13 @@
 #
 
 PHONY =
-DEFAULT_INCLUDES = \
+AM_CPPFLAGS = \
 	-include $(top_builddir)/zfs_config.h \
 	-I$(top_builddir)/include \
 	-I$(top_srcdir)/include \
 	-I$(top_srcdir)/module/icp/include \
-	-I$(top_srcdir)/lib/libspl/include
-
-if BUILD_LINUX
-DEFAULT_INCLUDES += \
-	-I$(top_srcdir)/lib/libspl/include/os/linux
-endif
-
-if BUILD_FREEBSD
-DEFAULT_INCLUDES += \
-	-I$(top_srcdir)/lib/libspl/include/os/freebsd
-endif
+	-I$(top_srcdir)/lib/libspl/include \
+	-I$(top_srcdir)/lib/libspl/include/os/@ac_system_l@
 
 AM_LIBTOOLFLAGS = --silent
 
@@ -37,7 +28,7 @@ AM_CFLAGS += -include $(top_srcdir)/include/os/freebsd/spl/sys/ccompile.h
 AM_CFLAGS += -I/usr/include -I/usr/local/include
 endif
 
-AM_CPPFLAGS  = -D_GNU_SOURCE
+AM_CPPFLAGS += -D_GNU_SOURCE
 AM_CPPFLAGS += -D_REENTRANT
 AM_CPPFLAGS += -D_FILE_OFFSET_BITS=64
 AM_CPPFLAGS += -D_LARGEFILE64_SOURCE
@@ -48,23 +39,20 @@ AM_CPPFLAGS += -DSYSCONFDIR=\"$(sysconfdir)\"
 AM_CPPFLAGS += -DPKGDATADIR=\"$(pkgdatadir)\"
 AM_CPPFLAGS += $(DEBUG_CPPFLAGS)
 AM_CPPFLAGS += $(CODE_COVERAGE_CPPFLAGS)
-if BUILD_LINUX
-AM_CPPFLAGS += -DTEXT_DOMAIN=\"zfs-linux-user\"
-endif
-if BUILD_FREEBSD
-AM_CPPFLAGS += -DTEXT_DOMAIN=\"zfs-freebsd-user\"
-endif
-AM_CPPFLAGS += -D"strtok(...)=strtok(__VA_ARGS__) __attribute__((deprecated(\"Use strtok_r(3) instead!\")))"
-AM_CPPFLAGS += -D"__xpg_basename(...)=__xpg_basename(__VA_ARGS__) __attribute__((deprecated(\"basename(3) is underspecified. Use zfs_basename() instead!\")))"
-AM_CPPFLAGS += -D"basename(...)=basename(__VA_ARGS__) __attribute__((deprecated(\"basename(3) is underspecified. Use zfs_basename() instead!\")))"
-AM_CPPFLAGS += -D"dirname(...)=dirname(__VA_ARGS__) __attribute__((deprecated(\"dirname(3) is underspecified. Use zfs_dirnamelen() instead!\")))"
-AM_CPPFLAGS += -D"bcopy(...)=__attribute__((deprecated(\"bcopy(3) is deprecated. Use memcpy(3)/memmove(3) instead!\"))) bcopy(__VA_ARGS__)"
-AM_CPPFLAGS += -D"bcmp(...)=__attribute__((deprecated(\"bcmp(3) is deprecated. Use memcmp(3) instead!\"))) bcmp(__VA_ARGS__)"
-AM_CPPFLAGS += -D"bzero(...)=__attribute__((deprecated(\"bzero(3) is deprecated. Use memset(3) instead!\"))) bzero(__VA_ARGS__)"
-AM_CPPFLAGS += -D"asctime(...)=__attribute__((deprecated(\"Use strftime(3) instead!\"))) asctime(__VA_ARGS__)"
-AM_CPPFLAGS += -D"asctime_r(...)=__attribute__((deprecated(\"Use strftime(3) instead!\"))) asctime_r(__VA_ARGS__)"
-AM_CPPFLAGS += -D"gmtime(...)=__attribute__((deprecated(\"gmtime(3) isn't thread-safe. Use gmtime_r(3) instead!\"))) gmtime(__VA_ARGS__)"
-AM_CPPFLAGS += -D"localtime(...)=__attribute__((deprecated(\"localtime(3) isn't thread-safe. Use localtime_r(3) instead!\"))) localtime(__VA_ARGS__)"
+AM_CPPFLAGS += -DTEXT_DOMAIN=\"zfs-@ac_system_l@-user\"
+
+AM_CPPFLAGS_NOCHECK  = -D"strtok(...)=strtok(__VA_ARGS__) __attribute__((deprecated(\"Use strtok_r(3) instead!\")))"
+AM_CPPFLAGS_NOCHECK += -D"__xpg_basename(...)=__xpg_basename(__VA_ARGS__) __attribute__((deprecated(\"basename(3) is underspecified. Use zfs_basename() instead!\")))"
+AM_CPPFLAGS_NOCHECK += -D"basename(...)=basename(__VA_ARGS__) __attribute__((deprecated(\"basename(3) is underspecified. Use zfs_basename() instead!\")))"
+AM_CPPFLAGS_NOCHECK += -D"dirname(...)=dirname(__VA_ARGS__) __attribute__((deprecated(\"dirname(3) is underspecified. Use zfs_dirnamelen() instead!\")))"
+AM_CPPFLAGS_NOCHECK += -D"bcopy(...)=__attribute__((deprecated(\"bcopy(3) is deprecated. Use memcpy(3)/memmove(3) instead!\"))) bcopy(__VA_ARGS__)"
+AM_CPPFLAGS_NOCHECK += -D"bcmp(...)=__attribute__((deprecated(\"bcmp(3) is deprecated. Use memcmp(3) instead!\"))) bcmp(__VA_ARGS__)"
+AM_CPPFLAGS_NOCHECK += -D"bzero(...)=__attribute__((deprecated(\"bzero(3) is deprecated. Use memset(3) instead!\"))) bzero(__VA_ARGS__)"
+AM_CPPFLAGS_NOCHECK += -D"asctime(...)=__attribute__((deprecated(\"Use strftime(3) instead!\"))) asctime(__VA_ARGS__)"
+AM_CPPFLAGS_NOCHECK += -D"asctime_r(...)=__attribute__((deprecated(\"Use strftime(3) instead!\"))) asctime_r(__VA_ARGS__)"
+AM_CPPFLAGS_NOCHECK += -D"gmtime(...)=__attribute__((deprecated(\"gmtime(3) isn't thread-safe. Use gmtime_r(3) instead!\"))) gmtime(__VA_ARGS__)"
+AM_CPPFLAGS_NOCHECK += -D"localtime(...)=__attribute__((deprecated(\"localtime(3) isn't thread-safe. Use localtime_r(3) instead!\"))) localtime(__VA_ARGS__)"
+AM_CPPFLAGS += $(AM_CPPFLAGS_NOCHECK)
 
 if ASAN_ENABLED
 AM_CPPFLAGS += -DZFS_ASAN_ENABLED
@@ -83,3 +71,13 @@ AM_LDFLAGS += -fstack-protector-strong -shared
 AM_LDFLAGS += -Wl,-x -Wl,--fatal-warnings -Wl,--warn-shared-textrel
 AM_LDFLAGS += -lm
 endif
+
+
+# If a target includes kernel code, generate warnings for large stack frames
+KERNEL_CFLAGS       = $(FRAME_LARGER_THAN)
+
+# See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=54020
+LIBRARY_CFLAGS      = -no-suppress
+
+# Forcibly enable asserts/debugging for libzpool &al.
+FORCEDEBUG_CPPFLAGS = -DDEBUG -UNDEBUG -DZFS_DEBUG

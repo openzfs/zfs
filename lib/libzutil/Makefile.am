@@ -1,47 +1,42 @@
-include $(top_srcdir)/config/Rules.am
+libzutil_la_CFLAGS  = $(AM_CFLAGS) $(LIBRARY_CFLAGS)
+libzutil_la_CFLAGS += $(LIBBLKID_CFLAGS) $(LIBUDEV_CFLAGS)
+libzutil_la_CFLAGS += -fvisibility=hidden
 
-AM_CFLAGS += $(LIBBLKID_CFLAGS) $(LIBUDEV_CFLAGS)
-AM_CFLAGS += -fvisibility=hidden
-# See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=54020
-AM_CFLAGS += -no-suppress
+libzutil_la_CPPFLAGS  = $(AM_CPPFLAGS)
+libzutil_la_CPPFLAGS += -I$(srcdir)/%D%
 
-DEFAULT_INCLUDES += -I$(srcdir)
+noinst_LTLIBRARIES += libzutil.la
+CPPCHECKTARGETS    += libzutil.la
 
-noinst_LTLIBRARIES = libzutil.la
-
-USER_C = \
-	zutil_device_path.c \
-	zutil_import.c \
-	zutil_import.h \
-	zutil_nicenum.c \
-	zutil_pool.c
+libzutil_la_SOURCES = \
+	%D%/zutil_device_path.c \
+	%D%/zutil_import.c \
+	%D%/zutil_import.h \
+	%D%/zutil_nicenum.c \
+	%D%/zutil_pool.c
 
 if BUILD_LINUX
-USER_C += \
-	os/linux/zutil_device_path_os.c \
-	os/linux/zutil_import_os.c
+libzutil_la_SOURCES += \
+	%D%/os/linux/zutil_device_path_os.c \
+	%D%/os/linux/zutil_import_os.c
 endif
 
 if BUILD_FREEBSD
-USER_C += \
-	os/freebsd/zutil_device_path_os.c \
-	os/freebsd/zutil_import_os.c
+libzutil_la_SOURCES += \
+	%D%/os/freebsd/zutil_device_path_os.c \
+	%D%/os/freebsd/zutil_import_os.c
 endif
 
-libzutil_la_SOURCES = $(USER_C)
-
 libzutil_la_LIBADD = \
-	$(abs_top_builddir)/lib/libavl/libavl.la \
-	$(abs_top_builddir)/lib/libtpool/libtpool.la \
-	$(abs_top_builddir)/lib/libnvpair/libnvpair.la \
-	$(abs_top_builddir)/lib/libspl/libspl.la
+	libavl.la \
+	libtpool.la \
+	libnvpair.la \
+	libspl.la
 
 if BUILD_LINUX
 libzutil_la_LIBADD += \
-	$(abs_top_builddir)/lib/libefi/libefi.la \
+	libefi.la \
 	-lrt
 endif
 
 libzutil_la_LIBADD += -lm $(LIBBLKID_LIBS) $(LIBUDEV_LIBS)
-
-include $(top_srcdir)/config/CppCheck.am

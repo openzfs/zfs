@@ -1,4 +1,6 @@
 include $(top_srcdir)/config/Shellcheck.am
+include $(top_srcdir)/config/Rules.am
+include $(top_srcdir)/config/CppCheck.am
 
 ACLOCAL_AMFLAGS = -I config
 
@@ -7,26 +9,24 @@ if BUILD_LINUX
 SUBDIRS += rpm
 endif
 
+EXTRA_DIST =
+CPPCHECKDIRS += cmd etc/systemd/system-generators
 if CONFIG_USER
-SUBDIRS += man scripts lib tests cmd etc contrib
+SUBDIRS += scripts . man tests cmd etc contrib
+include $(srcdir)/%D%/lib/Makefile.am
 if BUILD_LINUX
 SUBDIRS += udev
 endif
 endif
+CPPCHECKDIRS += module
 if CONFIG_KERNEL
 SUBDIRS += module
 
 extradir = $(prefix)/src/zfs-$(VERSION)
 extra_HEADERS = zfs.release.in zfs_config.h.in
-
-if BUILD_LINUX
-kerneldir = $(prefix)/src/zfs-$(VERSION)/$(LINUX_VERSION)
-nodist_kernel_HEADERS = zfs.release zfs_config.h module/$(LINUX_SYMBOLS)
-endif
 endif
 
-AUTOMAKE_OPTIONS = foreign
-EXTRA_DIST  = autogen.sh copy-builtin
+EXTRA_DIST += autogen.sh copy-builtin
 EXTRA_DIST += config/config.awk config/rpm.am config/deb.am config/tgz.am
 EXTRA_DIST += AUTHORS CODE_OF_CONDUCT.md COPYRIGHT LICENSE META NEWS NOTICE
 EXTRA_DIST += README.md RELEASES.md
@@ -52,7 +52,7 @@ EXTRA_DIST += module/zfs/THIRDPARTYLICENSE.cityhash.descrip
 
 GITREV = include/zfs_gitrev.h
 
-PHONY = gitrev
+PHONY += gitrev
 gitrev:
 	$(AM_V_GEN)$(top_srcdir)/scripts/make_gitrev.sh $(GITREV)
 
@@ -117,14 +117,6 @@ filter_executable = -exec test -x '{}' \; -print
 SHELLCHECKDIRS = cmd contrib etc scripts tests
 SHELLCHECKSCRIPTS = autogen.sh
 
-PHONY += checkabi storeabi
-
-checkabi: lib
-	$(MAKE) -C lib checkabi
-
-storeabi: lib
-	$(MAKE) -C lib storeabi
-
 PHONY += mancheck
 mancheck:
 	${top_srcdir}/scripts/mancheck.sh ${top_srcdir}/man ${top_srcdir}/tests/test-runner/man
@@ -151,17 +143,6 @@ zstdcheck:
 
 PHONY += lint
 lint: cppcheck paxcheck
-
-CPPCHECKDIRS = cmd lib module
-PHONY += cppcheck
-cppcheck: $(CPPCHECKDIRS)
-	@if test -n "$(CPPCHECK)"; then \
-		set -e ; for dir in $(CPPCHECKDIRS) ; do \
-			$(MAKE) -C $$dir cppcheck ; \
-		done \
-	else \
-		echo "skipping cppcheck because cppcheck is not installed"; \
-	fi
 
 PHONY += paxcheck
 paxcheck:

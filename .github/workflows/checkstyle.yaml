@@ -40,11 +40,11 @@ jobs:
     - name: CheckABI
       id: CheckABI
       run: |
-        docker run -v $(pwd):/source ghcr.io/openzfs/libabigail make -j$(nproc) --no-print-directory --silent checkabi
+        docker run -v $PWD:/source ghcr.io/openzfs/libabigail make -j$(nproc) --no-print-directory --silent checkabi
     - name: StoreABI
       if: failure() && steps.CheckABI.outcome == 'failure'
       run: |
-        docker run -v $(pwd):/source ghcr.io/openzfs/libabigail make -j$(nproc) --no-print-directory --silent storeabi
+        docker run -v $PWD:/source ghcr.io/openzfs/libabigail make -j$(nproc) --no-print-directory --silent storeabi
     - name: Prepare artifacts
       if: failure() && steps.CheckABI.outcome == 'failure'
       run: |
