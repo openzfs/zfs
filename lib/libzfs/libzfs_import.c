@@ -137,7 +137,6 @@ zpool_clear_label(int fd)
 	struct stat64 statbuf;
 	int l;
 	vdev_label_t *label;
-	l2arc_dev_hdr_phys_t *l2dhdr = NULL;
 	uint64_t size;
 	int labels_cleared = 0;
 	boolean_t clear_l2arc_header = B_FALSE, header_cleared = B_FALSE;
@@ -149,11 +148,6 @@ zpool_clear_label(int fd)
 
 	if ((label = calloc(1, sizeof (vdev_label_t))) == NULL)
 		return (-1);
-
-	if ((l2dhdr = calloc(1, sizeof (l2arc_dev_hdr_phys_t))) == NULL) {
-		free(label);
-		return (-1);
-	}
 
 	for (l = 0; l < VDEV_LABELS; l++) {
 		uint64_t state, guid, l2cache;
@@ -209,14 +203,16 @@ zpool_clear_label(int fd)
 		}
 	}
 
-	/* Clear the L2ARC header. */
-	if (clear_l2arc_header &&
-	    pwrite64(fd, l2dhdr, sizeof (l2arc_dev_hdr_phys_t),
-		VDEV_LABEL_START_SIZE) == sizeof (l2arc_dev_hdr_phys_t))
+	if (clear_l2arc_header) {
+		_Static_assert(sizeof (*label) >= sizeof (l2arc_dev_hdr_phys_t),
+		    "label < l2arc_dev_hdr_phys_t");
+		memset(label, 0, sizeof (l2arc_dev_hdr_phys_t));
+		if (pwrite64(fd, label, sizeof (l2arc_dev_hdr_phys_t),
+		    VDEV_LABEL_START_SIZE) == sizeof (l2arc_dev_hdr_phys_t))
 			header_cleared = B_TRUE;
+	}
 
 	free(label);
-	free(l2dhdr);
 
 	if (labels_cleared == 0)
 		return (-1);
