@@ -1318,14 +1318,11 @@ static int
 draid_merge(int argc, char *argv[])
 {
 	char filename[MAXPATHLEN];
-	int c, error, total_merged = 0, verbose = 0;
+	int c, error, total_merged = 0;
 	nvlist_t *allcfgs;
 
-	while ((c = getopt(argc, argv, ":v")) != -1) {
+	while ((c = getopt(argc, argv, ":")) != -1) {
 		switch (c) {
-		case 'v':
-			verbose++;
-			break;
 		case ':':
 			(void) fprintf(stderr,
 			    "missing argument for '%c' option\n", optopt);
