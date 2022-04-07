@@ -1,81 +1,64 @@
-include $(top_srcdir)/config/Rules.am
+libzfs_la_CFLAGS  = $(AM_CFLAGS) $(LIBRARY_CFLAGS)
+libzfs_la_CFLAGS += $(LIBCRYPTO_CFLAGS) $(ZLIB_CFLAGS)
+libzfs_la_CFLAGS += -fvisibility=hidden
 
-VPATH = \
-	$(top_srcdir)/module/icp \
-	$(top_srcdir)/module/zcommon \
-	$(top_srcdir)/lib/libzfs
+lib_LTLIBRARIES += libzfs.la
+CPPCHECKTARGETS += libzfs.la
 
-# Suppress unused but set variable warnings often due to ASSERTs
-AM_CFLAGS += $(LIBCRYPTO_CFLAGS) $(ZLIB_CFLAGS)
-AM_CFLAGS += -fvisibility=hidden
-# See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=54020
-AM_CFLAGS += -no-suppress
-
-pkgconfig_DATA = libzfs.pc
-
-lib_LTLIBRARIES = libzfs.la
-
-include $(top_srcdir)/config/Abigail.am
-
-USER_C = \
-	libzfs_impl.h \
-	libzfs_changelist.c \
-	libzfs_config.c \
-	libzfs_crypto.c \
-	libzfs_dataset.c \
-	libzfs_diff.c \
-	libzfs_import.c \
-	libzfs_iter.c \
-	libzfs_mount.c \
-	libzfs_pool.c \
-	libzfs_sendrecv.c \
-	libzfs_status.c \
-	libzfs_util.c
-
+dist_libzfs_la_SOURCES = \
+	%D%/libzfs_impl.h \
+	%D%/libzfs_changelist.c \
+	%D%/libzfs_config.c \
+	%D%/libzfs_crypto.c \
+	%D%/libzfs_dataset.c \
+	%D%/libzfs_diff.c \
+	%D%/libzfs_import.c \
+	%D%/libzfs_iter.c \
+	%D%/libzfs_mount.c \
+	%D%/libzfs_pool.c \
+	%D%/libzfs_sendrecv.c \
+	%D%/libzfs_status.c \
+	%D%/libzfs_util.c
 
 if BUILD_FREEBSD
-USER_C += \
-	os/freebsd/libzfs_compat.c \
-	os/freebsd/libzfs_zmount.c
+dist_libzfs_la_SOURCES += \
+	%D%/os/freebsd/libzfs_compat.c \
+	%D%/os/freebsd/libzfs_zmount.c
 endif
 
 if BUILD_LINUX
-USER_C += \
-	os/linux/libzfs_mount_os.c \
-	os/linux/libzfs_pool_os.c \
-	os/linux/libzfs_util_os.c
+dist_libzfs_la_SOURCES += \
+	%D%/os/linux/libzfs_mount_os.c \
+	%D%/os/linux/libzfs_pool_os.c \
+	%D%/os/linux/libzfs_util_os.c
 endif
 
-KERNEL_C = \
-	algs/sha2/sha2.c \
-	cityhash.c \
-	zfeature_common.c \
-	zfs_comutil.c \
-	zfs_deleg.c \
-	zfs_fletcher.c \
-	zfs_fletcher_aarch64_neon.c \
-	zfs_fletcher_avx512.c \
-	zfs_fletcher_intel.c \
-	zfs_fletcher_sse.c \
-	zfs_fletcher_superscalar.c \
-	zfs_fletcher_superscalar4.c \
-	zfs_namecheck.c \
-	zfs_prop.c \
-	zpool_prop.c \
-	zprop_common.c
-
-dist_libzfs_la_SOURCES = \
-	$(USER_C)
-
 nodist_libzfs_la_SOURCES = \
-	$(KERNEL_C)
+	module/icp/algs/sha2/sha2.c \
+	\
+	module/zcommon/cityhash.c \
+	module/zcommon/zfeature_common.c \
+	module/zcommon/zfs_comutil.c \
+	module/zcommon/zfs_deleg.c \
+	module/zcommon/zfs_fletcher.c \
+	module/zcommon/zfs_fletcher_aarch64_neon.c \
+	module/zcommon/zfs_fletcher_avx512.c \
+	module/zcommon/zfs_fletcher_intel.c \
+	module/zcommon/zfs_fletcher_sse.c \
+	module/zcommon/zfs_fletcher_superscalar.c \
+	module/zcommon/zfs_fletcher_superscalar4.c \
+	module/zcommon/zfs_namecheck.c \
+	module/zcommon/zfs_prop.c \
+	module/zcommon/zpool_prop.c \
+	module/zcommon/zprop_common.c
+
 
 libzfs_la_LIBADD = \
-	$(abs_top_builddir)/lib/libshare/libshare.la \
-	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
-	$(abs_top_builddir)/lib/libnvpair/libnvpair.la \
-	$(abs_top_builddir)/lib/libzutil/libzutil.la \
-	$(abs_top_builddir)/lib/libuutil/libuutil.la
+	libshare.la \
+	libzfs_core.la \
+	libnvpair.la \
+	libzutil.la \
+	libuutil.la
 
 libzfs_la_LIBADD += -lm $(LIBCRYPTO_LIBS) $(ZLIB_LIBS) $(LIBFETCH_LIBS) $(LTLIBINTL)
 
@@ -91,10 +74,7 @@ endif
 
 libzfs_la_LDFLAGS += -version-info 5:0:1
 
-include $(top_srcdir)/config/CppCheck.am
+pkgconfig_DATA += %D%/libzfs.pc
 
-# Library ABI
-EXTRA_DIST = libzfs.abi libzfs.suppr
-
-# Licensing data
-EXTRA_DIST += THIRDPARTYLICENSE.openssl THIRDPARTYLICENSE.openssl.descrip
+EXTRA_DIST += $(addprefix %D%/,libzfs.abi libzfs.suppr)
+EXTRA_DIST += $(addprefix %D%/,THIRDPARTYLICENSE.openssl THIRDPARTYLICENSE.openssl.descrip)

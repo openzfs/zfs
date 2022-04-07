@@ -40,10 +40,10 @@ FMA_SRC = \
 zed_SOURCES = $(ZED_SRC) $(FMA_SRC)
 
 zed_LDADD = \
-	$(abs_top_builddir)/lib/libzfs/libzfs.la \
-	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
-	$(abs_top_builddir)/lib/libnvpair/libnvpair.la \
-	$(abs_top_builddir)/lib/libuutil/libuutil.la
+	$(abs_top_builddir)/libzfs.la \
+	$(abs_top_builddir)/libzfs_core.la \
+	$(abs_top_builddir)/libnvpair.la \
+	$(abs_top_builddir)/libuutil.la
 
 zed_LDADD += -lrt $(LIBATOMIC_LIBS) $(LIBUDEV_LIBS) $(LIBUUID_LIBS)
 zed_LDFLAGS = -pthread
@@ -51,3 +51,4 @@ zed_LDFLAGS = -pthread
 EXTRA_DIST = agents/README.md
 
 include $(top_srcdir)/config/CppCheck.am
+CPPCHECKTARGETS += zed

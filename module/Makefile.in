@@ -5,15 +5,17 @@ INSTALL_MOD_PATH ?= $(DESTDIR)
 
 all: modules
 distclean maintainer-clean: clean
-install: modules_install
-uninstall: modules_uninstall
+install: modules_install data_install
+uninstall: modules_uninstall data_uninstall
 check:
 
 .PHONY: all distclean maintainer-clean install uninstall check distdir \
 	modules modules-Linux modules-FreeBSD modules-unknown \
 	clean clean-Linux clean-FreeBSD \
 	modules_install modules_install-Linux modules_install-FreeBSD \
+	data_install data_install-Linux data_install-FreeBSD \
 	modules_uninstall modules_uninstall-Linux modules_uninstall-FreeBSD \
+	data_uninstall data_uninstall-Linux data_uninstall-FreeBSD \
 	cppcheck cppcheck-Linux cppcheck-FreeBSD
 
 # For FreeBSD, use debug options from ./configure if not overridden.
@@ -110,6 +112,15 @@ modules_install-FreeBSD:
 
 modules_install: modules_install-@ac_system@
 
+data_install-Linux:
+	@mkdir -p $(DESTDIR)/@prefix@/src/zfs-@VERSION@/@LINUX_VERSION@
+	cp ../zfs.release ../zfs_config.h @LINUX_SYMBOLS@ $(DESTDIR)/@prefix@/src/zfs-@VERSION@/@LINUX_VERSION@
+
+data_install-FreeBSD:
+	@
+
+data_install: data_install-@ac_system@
+
 modules_uninstall-Linux: modules_uninstall-Linux-legacy
 	@# Uninstall the kernel modules
 	$(RM) $(addprefix $(KMODDIR)/$(INSTALL_MOD_DIR)/,zfs.ko spl.ko)
@@ -118,6 +129,14 @@ modules_uninstall-FreeBSD:
 	@false
 
 modules_uninstall: modules_uninstall-@ac_system@
+
+data_uninstall-Linux:
+	$(RM) $(addprefix $(DESTDIR)/@prefix@/src/zfs-@VERSION@/@LINUX_VERSION@/,zfs.release zfs_config.h @LINUX_SYMBOLS@)
+
+data_uninstall-FreeBSD:
+	@
+
+data_uninstall: data_uninstall-@ac_system@
 
 cppcheck-Linux:
 	@CPPCHECK@ -j@CPU_COUNT@ --std=c99 --quiet --force --error-exitcode=2 \

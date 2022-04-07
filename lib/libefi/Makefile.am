@@ -1,17 +1,11 @@
-include $(top_srcdir)/config/Rules.am
+libefi_la_CFLAGS  = $(AM_CFLAGS) $(LIBRARY_CFLAGS)
+libefi_la_CFLAGS += $(LIBUUID_CFLAGS) $(ZLIB_CFLAGS)
+libefi_la_CFLAGS += -fvisibility=hidden
 
-AM_CFLAGS += $(LIBUUID_CFLAGS) $(ZLIB_CFLAGS)
-AM_CFLAGS += -fvisibility=hidden
-# See https://debbugs.gnu.org/cgi/bugreport.cgi?bug=54020
-AM_CFLAGS += -no-suppress
+noinst_LTLIBRARIES += libefi.la
+CPPCHECKTARGETS    += libefi.la
 
-noinst_LTLIBRARIES = libefi.la
-
-USER_C = \
-	rdwr_efi.c
-
-libefi_la_SOURCES = $(USER_C)
+libefi_la_SOURCES = \
+	%D%/rdwr_efi.c
 
 libefi_la_LIBADD = $(LIBUUID_LIBS) $(ZLIB_LIBS)
-
-include $(top_srcdir)/config/CppCheck.am

@@ -11,10 +11,10 @@ zfs_SOURCES = \
 	zfs_projectutil.h
 
 zfs_LDADD = \
-	$(abs_top_builddir)/lib/libzfs/libzfs.la \
-	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
-	$(abs_top_builddir)/lib/libnvpair/libnvpair.la \
-	$(abs_top_builddir)/lib/libuutil/libuutil.la
+	$(abs_top_builddir)/libzfs.la \
+	$(abs_top_builddir)/libzfs_core.la \
+	$(abs_top_builddir)/libnvpair.la \
+	$(abs_top_builddir)/libuutil.la
 
 zfs_LDADD += $(LTLIBINTL)
 
@@ -23,3 +23,4 @@ zfs_LDADD += -lgeom -ljail
 endif
 
 include $(top_srcdir)/config/CppCheck.am
+CPPCHECKTARGETS += zfs
