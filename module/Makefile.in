@@ -126,7 +126,7 @@ cppcheck-Linux:
 		--suppress=noValidConfiguration \
 		--enable=warning,information -D_KERNEL \
 		--include=@LINUX_OBJ@/include/generated/autoconf.h \
-		--include=@top_srcdir@/zfs_config.h \
+		--include=@top_builddir@/zfs_config.h \
 		--config-exclude=@LINUX_OBJ@/include \
 		-i zstd/lib \
 		-I @LINUX_OBJ@/include \
