@@ -107,7 +107,6 @@ AC_CONFIG_FILES([
 	rpm/redhat/zfs-dkms.spec
 	rpm/redhat/zfs-kmod.spec
 	rpm/redhat/zfs.spec
-	scripts/Makefile
 	tests/Makefile
 	tests/runfiles/Makefile
 	tests/test-runner/Makefile
