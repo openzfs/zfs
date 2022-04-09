@@ -1,1 +1,0 @@
-SUBDIRS = acl rpc sys
