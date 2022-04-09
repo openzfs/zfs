@@ -1,1 +1,1 @@
-SUBDIRS = bin include man
+SUBDIRS = bin include
