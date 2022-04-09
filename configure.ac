@@ -1,5 +1,5 @@
 /*
- * This file is part of the ZFS Linux port.
+ * This file is part of OpenZFS.
  *
  * Copyright (c) 2009 Lawrence Livermore National Security, LLC.
  * Produced at Lawrence Livermore National Laboratory
@@ -92,31 +92,6 @@ AC_CONFIG_FILES([
 	etc/systemd/system/Makefile
 	etc/zfs/Makefile
 	include/Makefile
-	include/os/Makefile
-	include/os/freebsd/Makefile
-	include/os/freebsd/linux/Makefile
-	include/os/freebsd/spl/Makefile
-	include/os/freebsd/spl/acl/Makefile
-	include/os/freebsd/spl/rpc/Makefile
-	include/os/freebsd/spl/sys/Makefile
-	include/os/freebsd/zfs/Makefile
-	include/os/freebsd/zfs/sys/Makefile
-	include/os/linux/Makefile
-	include/os/linux/kernel/Makefile
-	include/os/linux/kernel/linux/Makefile
-	include/os/linux/spl/Makefile
-	include/os/linux/spl/rpc/Makefile
-	include/os/linux/spl/sys/Makefile
-	include/os/linux/zfs/Makefile
-	include/os/linux/zfs/sys/Makefile
-	include/sys/Makefile
-	include/sys/crypto/Makefile
-	include/sys/fm/Makefile
-	include/sys/fm/fs/Makefile
-	include/sys/fs/Makefile
-	include/sys/lua/Makefile
-	include/sys/sysevent/Makefile
-	include/sys/zstd/Makefile
 	lib/libzfs/libzfs.pc
 	lib/libzfsbootenv/libzfsbootenv.pc
 	lib/libzfs_core/libzfs_core.pc
