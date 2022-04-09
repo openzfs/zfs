@@ -1,3 +1,5 @@
+CLEANFILES =
+EXTRA_DIST =
 include $(top_srcdir)/config/Substfiles.am
 
 systemdpreset_DATA = \

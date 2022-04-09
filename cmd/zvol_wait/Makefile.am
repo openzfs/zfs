@@ -1,3 +1,2 @@
-include $(top_srcdir)/config/Shellcheck.am
-
-dist_bin_SCRIPTS = zvol_wait
+dist_bin_SCRIPTS  += %D%/zvol_wait
+SHELLCHECKSCRIPTS += %D%/zvol_wait

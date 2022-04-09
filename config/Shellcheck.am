@@ -1,30 +1,46 @@
-.PHONY: shellcheck
-shellcheck: $(SCRIPTS) $(SHELLCHECKSCRIPTS)
-
-# ShellCheck exclusions
+# Global ShellCheck exclusions:
 #
 # ShellCheck can't follow non-constant source. Use a directive to specify location. [SC1090]
 # Not following: a was not specified as input (see shellcheck -x). [SC1091]
 # Prefer putting braces around variable references even when not strictly required. [SC2250]
 # In POSIX sh, 'local' is undefined. [SC2039] # older ShellCheck versions
 # In POSIX sh, 'local' is undefined. [SC3043] # newer ShellCheck versions
-if HAVE_SHELLCHECK
-	[ -z "$(SCRIPTS)$(SHELLCHECKSCRIPTS)" ] && exit; shellcheck --format=gcc --enable=all --exclude=SC1090,SC1091,SC2039,SC2250,SC3043 $$([ -n "$(SHELLCHECK_SHELL)" ] && echo "--shell=$(SHELLCHECK_SHELL)") $(SHELLCHECK_OPTS) $(SCRIPTS) $(SHELLCHECKSCRIPTS)
-else
-	@[ -z "$(SCRIPTS)$(SHELLCHECKSCRIPTS)" ] && exit; echo "skipping shellcheck of" $(SCRIPTS) $(SHELLCHECKSCRIPTS) "because shellcheck is not installed"
-endif
+
+SHELLCHECKSCRIPTS =
+
+JUST_SHELLCHECK_OPTS    = $(addprefix shellcheck-here-,$(subst /,^,$(1)))
+JUST_CHECKBASHISMS_OPTS = $(addprefix checkbashisms-here-,$(subst /,^,$(1)))
+SHELLCHECK_OPTS         = $(call JUST_SHELLCHECK_OPTS,$(1)) $(call JUST_CHECKBASHISMS_OPTS,$(1))
+
+.PHONY: shellcheck shellcheck-recursive
+
+shellcheck-recursive:
 	@set -e; for dir in $(SHELLCHECKDIRS); do $(MAKE) -C $$dir shellcheck; done
 
+_STGT = $(subst ^,/,$(subst shellcheck-here-,,$@))
+shellcheck-here-%:
+if HAVE_SHELLCHECK
+	shellcheck --format=gcc --enable=all --exclude=SC1090,SC1091,SC2039,SC2250,SC3043 $$([ -n "$(SHELLCHECK_SHELL)" ] && echo "--shell=$(SHELLCHECK_SHELL)") "$$([ -e "$(_STGT)" ] || echo "$(srcdir)/")$(_STGT)"
+else
+	@echo "skipping shellcheck of" $(_STGT) "because shellcheck is not installed"
+endif
+
+shellcheck: $(SHELLCHECKSCRIPTS) $(call JUST_SHELLCHECK_OPTS,$(SHELLCHECKSCRIPTS)) shellcheck-recursive
+
+
+.PHONY: checkbashisms checkbashisms-recursive
+
+checkbashisms-recursive:
+	@set -e; for dir in $(SHELLCHECKDIRS); do $(MAKE) -C $$dir checkbashisms; done
 
 # command -v *is* specified by POSIX and every shell in existence supports it
-.PHONY: checkbashisms
-checkbashisms: $(SCRIPTS) $(SHELLCHECKSCRIPTS)
+_BTGT = $(subst ^,/,$(subst checkbashisms-here-,,$@))
+checkbashisms-here-%:
 if HAVE_CHECKBASHISMS
-	[ -z "$(SCRIPTS)$(SHELLCHECKSCRIPTS)" ] && exit; ! if [ -z "$(SHELLCHECK_SHELL)" ]; then \
-	    checkbashisms -npx $(SCRIPTS) $(SHELLCHECKSCRIPTS); else \
-	    for f in $(SCRIPTS) $(SHELLCHECKSCRIPTS); do echo $$f >&3; { echo '#!/bin/$(SHELLCHECK_SHELL)'; cat $$f; } | checkbashisms -npx; done; \
-	fi 3>&2 2>&1 | grep -vFe "'command' with option other than -p" -e 'command -v' $(CHECKBASHISMS_IGNORE) >&2
+	! { [ -n "$(SHELLCHECK_SHELL)" ] && echo '#!/bin/$(SHELLCHECK_SHELL)'; cat "$$([ -e "$(_BTGT)" ] || echo "$(srcdir)/")$(_BTGT)"; } | \
+	checkbashisms -npx 2>&1 | grep -vFe "'command' with option other than -p" -e 'command -v' -e 'any possible bashisms' $(CHECKBASHISMS_IGNORE) >&2
 else
-	@[ -z "$(SCRIPTS)$(SHELLCHECKSCRIPTS)" ] && exit; echo "skipping checkbashisms of" $(SCRIPTS) $(SHELLCHECKSCRIPTS) "because checkbashisms is not installed"
+	@echo "skipping checkbashisms of" $(_BTGT) "because checkbashisms is not installed"
 endif
-	@set -e; for dir in $(SHELLCHECKDIRS); do $(MAKE) -C $$dir checkbashisms; done
+
+checkbashisms: $(SHELLCHECKSCRIPTS) $(call JUST_CHECKBASHISMS_OPTS,$(SHELLCHECKSCRIPTS)) checkbashisms-recursive

@@ -1,9 +1,5 @@
-include $(top_srcdir)/config/Rules.am
-
-udev_PROGRAMS = zvol_id
+udev_PROGRAMS   += zvol_id
+CPPCHECKTARGETS += zvol_id
 
 zvol_id_SOURCES = \
-	zvol_id_main.c
-
-include $(top_srcdir)/config/CppCheck.am
-CPPCHECKTARGETS += zvol_id
+	%D%/zvol_id_main.c

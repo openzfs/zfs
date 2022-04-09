@@ -1,3 +1,5 @@
+CLEANFILES =
+EXTRA_DIST =
 include $(top_srcdir)/config/Substfiles.am
 
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/include
