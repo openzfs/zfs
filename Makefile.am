@@ -1,6 +1,11 @@
+CLEANFILES =
+EXTRA_DIST =
+INSTALL_DATA_HOOKS =
+
 include $(top_srcdir)/config/Shellcheck.am
 include $(top_srcdir)/config/Rules.am
 include $(top_srcdir)/config/CppCheck.am
+include $(top_srcdir)/config/Substfiles.am
 
 ACLOCAL_AMFLAGS = -I config
 
@@ -9,11 +14,11 @@ if BUILD_LINUX
 SUBDIRS += rpm
 endif
 
-EXTRA_DIST =
-CPPCHECKDIRS += cmd etc/systemd/system-generators
+CPPCHECKDIRS += etc/systemd/system-generators
 if CONFIG_USER
-SUBDIRS += scripts . man tests cmd etc contrib
+SUBDIRS += scripts . man tests etc contrib
 include $(srcdir)/%D%/lib/Makefile.am
+include $(srcdir)/%D%/cmd/Makefile.am
 if BUILD_LINUX
 SUBDIRS += udev
 endif
@@ -51,18 +56,22 @@ EXTRA_DIST += module/zfs/THIRDPARTYLICENSE.cityhash.descrip
 @CODE_COVERAGE_RULES@
 
 GITREV = include/zfs_gitrev.h
-
+CLEANFILES += $(GITREV)
 PHONY += gitrev
 gitrev:
 	$(AM_V_GEN)$(top_srcdir)/scripts/make_gitrev.sh $(GITREV)
 
 all: gitrev
 
-# Double-colon rules are allowed; there are multiple independent definitions.
-maintainer-clean-local::
+PHONY += install-data-hook $(INSTALL_DATA_HOOKS)
+install-data-hook: $(INSTALL_DATA_HOOKS)
+
+PHONY += maintainer-clean-local
+maintainer-clean-local:
 	-$(RM) $(GITREV)
 
-distclean-local::
+PHONY += distclean-local
+distclean-local:
 	-$(RM) -R autom4te*.cache build
 	-find . \( -name SCCS -o -name BitKeeper -o -name .svn -o -name CVS \
 		-o -name .pc -o -name .hg -o -name .git \) -prune -o \
@@ -78,9 +87,8 @@ all-local:
 	-SCRIPT_COMMON=$(top_builddir)/scripts/common.sh $(top_srcdir)/scripts/zfs-tests.sh -c
 
 dist-hook:
-	$(AM_V_GEN)$(top_srcdir)/scripts/make_gitrev.sh -D $(distdir) $(GITREV)
-	$(SED) ${ac_inplace} -e 's/Release:[[:print:]]*/Release:      $(RELEASE)/' \
-		$(distdir)/META
+	$(top_srcdir)/scripts/make_gitrev.sh -D $(distdir) $(GITREV)
+	$(SED) $(ac_inplace) 's/\(Release:[[:space:]]*\).*/\1$(RELEASE)/' $(distdir)/META
 
 PHONY += codecheck
 codecheck: cstyle shellcheck checkbashisms flake8 mancheck testscheck vcscheck zstdcheck
@@ -114,8 +122,8 @@ cstyle:
 
 filter_executable = -exec test -x '{}' \; -print
 
-SHELLCHECKDIRS = cmd contrib etc scripts tests
-SHELLCHECKSCRIPTS = autogen.sh
+SHELLCHECKDIRS = contrib etc scripts tests
+SHELLCHECKSCRIPTS += autogen.sh
 
 PHONY += mancheck
 mancheck:

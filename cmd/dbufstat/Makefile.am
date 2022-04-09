@@ -1,5 +1,4 @@
-include $(top_srcdir)/config/Substfiles.am
-
-bin_SCRIPTS = dbufstat
-
-SUBSTFILES += $(bin_SCRIPTS)
+bin_SCRIPTS += dbufstat
+CLEANFILES  += dbufstat
+EXTRA_DIST  += %D%/dbufstat.in
+$(call SUBST,dbufstat,%D%/)

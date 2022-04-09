@@ -21,18 +21,22 @@ subst_sed_cmd = \
 	-e 's|@ASAN_ENABLED[@]|$(ASAN_ENABLED)|g' \
 	-e 's|@UBSAN_ENABLED[@]|$(UBSAN_ENABLED)|g'
 
-SUBSTFILES =
-CLEANFILES = $(SUBSTFILES)
-EXTRA_DIST = $(SUBSTFILES:=.in)
-
-$(SUBSTFILES):%:%.in Makefile
-	$(AM_V_GEN)set -e; \
-	$(MKDIR_P) $$(dirname $@); \
-	$(RM) $@~; \
-	$(SED) $(subst_sed_cmd) $< >$@~; \
-	if grep -E '@[a-zA-Z0-9_]+@' $@~ >&2; then \
+define SUBST
+$(1) : $(2)$(1).in Makefile;
+	$$(AM_V_GEN)set -e; \
+	$$(MKDIR_P) $$(@D); \
+	$$(RM) $$@~; \
+	$$(SED) $$(subst_sed_cmd) $$< >$$@~; \
+	if grep -E '@[a-zA-Z0-9_]+@' $$@~ >&2; then \
 		echo "Undefined substitution" >&2; \
 		exit 1; \
-	else test $$? -eq 1; fi; \
-	test -x $< && chmod +x $@~; \
-	mv -f $@~ $@
+	fi; \
+	[ -x $$< ] && chmod +x $$@~; \
+	mv -f $$@~ $$@
+endef
+
+SUBSTFILES =
+CLEANFILES += $(SUBSTFILES)
+EXTRA_DIST += $(SUBSTFILES:=.in)
+
+$(call SUBST,%,)

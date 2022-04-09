@@ -1,6 +1,7 @@
 #
-# N.B.
-# This is the toplevel .gitignore file.
+# This is the top-level .gitignore file:
+# ignore everything except a list of allowed files.
+#
 # This is not the place for entries that are specific to
 # a subdirectory.  Instead add those files to the
 # .gitignore file in that subdirectory.
@@ -9,6 +10,56 @@
 # Please use 'git ls-files -i --exclude-standard'
 # command after changing this file, to see if there are
 # any tracked files which get ignored after the change.
+
+*
+
+!.github
+!cmd
+!config
+!contrib
+!etc
+!include
+!lib
+!man
+!module
+!rpm
+!scripts
+!tests
+!udev
+
+!.github/**
+!cmd/**
+!config/**
+!contrib/**
+!etc/**
+!include/**
+!lib/**
+!man/**
+!module/**
+!rpm/**
+!scripts/**
+!tests/**
+!udev/**
+
+!.editorconfig
+!.gitignore
+!.gitmodules
+!AUTHORS
+!autogen.sh
+!CODE_OF_CONDUCT.md
+!configure.ac
+!copy-builtin
+!COPYRIGHT
+!LICENSE
+!Makefile.am
+!META
+!NEWS
+!NOTICE
+!README.md
+!RELEASES.md
+!TEST
+!zfs.release.in
+
 
 #
 # Normal rules
@@ -31,40 +82,7 @@
 modules.order
 Makefile
 Makefile.in
-
-#
-# Top level generated files specific to this top level dir
-#
-/bin
-/build
-/configure
-/config.log
-/config.status
-/libtool
-/zfs_config.h
-/zfs_config.h.in
-/zfs.release
-/stamp-h1
-/aclocal.m4
-/autom4te.cache
-
-#
-# Top level generic files
-#
-!.gitignore
-tags
-TAGS
-current
-cscope.*
-*.rpm
-*.deb
-*.tar.gz
 *.patch
 *.orig
-*.log
 *.tmp
-venv
-
-*.so
-*.so.debug
-*.so.full
+*.log

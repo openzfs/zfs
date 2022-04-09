@@ -1,3 +1,5 @@
+CLEANFILES =
+EXTRA_DIST =
 include $(top_srcdir)/config/Substfiles.am
 include $(top_srcdir)/config/Shellcheck.am
 
@@ -16,3 +18,4 @@ pkgsysconf_SCRIPTS = \
 SUBSTFILES += $(pkgsysconf_SCRIPTS)
 
 SHELLCHECK_SHELL = sh
+SHELLCHECKSCRIPTS += $(pkgsysconf_SCRIPTS)

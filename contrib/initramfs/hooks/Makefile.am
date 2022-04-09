@@ -1,3 +1,5 @@
+CLEANFILES =
+EXTRA_DIST =
 include $(top_srcdir)/config/Substfiles.am
 include $(top_srcdir)/config/Shellcheck.am
 
@@ -8,3 +10,4 @@ hooks_SCRIPTS = \
 	zfsunlock
 
 SUBSTFILES += $(hooks_SCRIPTS)
+SHELLCHECKSCRIPTS += $(hooks_SCRIPTS)

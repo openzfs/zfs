@@ -18,7 +18,7 @@
 #   --sysconfdir=DIR           install zfs configuration files [PREFIX/etc]
 #
 
-BASE_DIR=$(dirname "$0")
+BASE_DIR=${0%/*}
 SCRIPT_COMMON=common.sh
 if [ -f "${BASE_DIR}/${SCRIPT_COMMON}" ]; then
 	. "${BASE_DIR}/${SCRIPT_COMMON}"
@@ -46,7 +46,7 @@ msg() {
 usage() {
 cat << EOF
 USAGE:
-$0 [dhirv]
+$0 [-dhirv]
 
 DESCRIPTION:
 	Install/remove the ZFS helper utilities.
@@ -99,7 +99,7 @@ if [ "$INSTALL" = "no" ] && [ "$REMOVE" = "no" ]; then
 	fail "Either -i or -r must be specified"
 fi
 
-if [ "$(id -u)" != "0" ]; then
+if [ "$(id -u)" != "0" ] && [ "$DRYRUN" = "no" ]; then
 	fail "Must run as root"
 fi
 
@@ -126,13 +126,13 @@ install() {
 		echo "Symlink exists: $dst"
 	elif [ -e "$dst" ]; then
 		echo "File exists: $dst"
-	elif [ ! -e "$src" ]; then
+	elif ! [ -e "$src" ]; then
 		echo "Source missing: $src"
 	else
 		msg "ln -s $src $dst"
 
 		if [ "$DRYRUN" = "no" ]; then
-			DIR=$(dirname "$dst")
+			DIR=${dst%/*}
 			mkdir -p "$DIR" >/dev/null 2>&1
 			ln -s "$src" "$dst"
 		fi
@@ -145,7 +145,7 @@ remove() {
 	if [ -h "$dst" ]; then
 		msg "rm $dst"
 		rm "$dst"
-		DIR=$(dirname "$dst")
+		DIR=${dst%/*}
 		rmdir "$DIR" >/dev/null 2>&1
 	elif [ -e "$dst" ]; then
 		echo "Expected symlink: $dst"
@@ -153,30 +153,23 @@ remove() {
 }
 
 if [ "${INSTALL}" = "yes" ]; then
-	install "$CMD_DIR/mount_zfs/mount.zfs" \
-	    "$INSTALL_MOUNT_HELPER_DIR/mount.zfs"
-	install "$CMD_DIR/fsck_zfs/fsck.zfs" \
-	    "$INSTALL_MOUNT_HELPER_DIR/fsck.zfs"
-	install "$CMD_DIR/zvol_id/zvol_id" \
-	    "$INSTALL_UDEV_DIR/zvol_id"
-	install "$CMD_DIR/vdev_id/vdev_id" \
-	    "$INSTALL_UDEV_DIR/vdev_id"
-	install "$UDEV_RULE_DIR/60-zvol.rules" \
-	    "$INSTALL_UDEV_RULE_DIR/60-zvol.rules"
-	install "$UDEV_RULE_DIR/69-vdev.rules" \
-	    "$INSTALL_UDEV_RULE_DIR/69-vdev.rules"
-	install "$UDEV_RULE_DIR/90-zfs.rules" \
-	    "$INSTALL_UDEV_RULE_DIR/90-zfs.rules"
-	install "$CMD_DIR/zpool/zpool.d" \
-	    "$INSTALL_SYSCONF_DIR/zfs/zpool.d"
-	install "$CONTRIB_DIR/pyzfs/libzfs_core" \
-	    "$INSTALL_PYTHON_DIR/libzfs_core"
+	for cmd in "mount.zfs" "fsck.zfs"; do
+		install "$CMD_DIR/$cmd" "$INSTALL_MOUNT_HELPER_DIR/$cmd"
+	done
+	for udev in "$CMD_DIR/zvol_id" "$UDEV_SCRIPT_DIR/vdev_id"; do
+		install "$udev" "$INSTALL_UDEV_DIR/${udev##*/}"
+	done
+	for rule in "60-zvol.rules" "69-vdev.rules" "90-zfs.rules"; do
+		install "$UDEV_RULE_DIR/$rule" "$INSTALL_UDEV_RULE_DIR/$rule"
+	done
+	install "$ZPOOL_SCRIPT_DIR"              "$INSTALL_SYSCONF_DIR/zfs/zpool.d"
+	install "$CONTRIB_DIR/pyzfs/libzfs_core" "$INSTALL_PYTHON_DIR/libzfs_core"
 	# Ideally we would install these in the configured ${libdir}, which is
 	# by default "/usr/local/lib and unfortunately not included in the
 	# dynamic linker search path.
-	install "$(find "$LIB_DIR" -type f -name 'libzfs_core.so*')" "/lib/libzfs_core.so"
-	install "$(find "$LIB_DIR" -type f -name 'libnvpair.so*')"   "/lib/libnvpair.so"
-	ldconfig
+	install "$LIB_DIR"/libzfs_core.so.?.?.? "/lib/libzfs_core.so"
+	install "$LIB_DIR"/libnvpair.so.?.?.?   "/lib/libnvpair.so"
+	[ "$DRYRUN" = "no" ] && ldconfig
 else
 	remove "$INSTALL_MOUNT_HELPER_DIR/mount.zfs"
 	remove "$INSTALL_MOUNT_HELPER_DIR/fsck.zfs"

@@ -1,7 +1,5 @@
-include $(top_srcdir)/config/Substfiles.am
-include $(top_srcdir)/config/Shellcheck.am
-
-dist_sbin_SCRIPTS = fsck.zfs
-
-SUBSTFILES += $(dist_sbin_SCRIPTS)
-
+sbin_SCRIPTS      += fsck.zfs
+SHELLCHECKSCRIPTS += fsck.zfs
+CLEANFILES        += fsck.zfs
+EXTRA_DIST        += %D%/fsck.zfs.in
+$(call SUBST,fsck.zfs,%D%/)

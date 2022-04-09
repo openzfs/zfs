@@ -1,54 +1,46 @@
-include $(top_srcdir)/config/Rules.am
-include $(top_srcdir)/config/Shellcheck.am
+include $(srcdir)/%D%/zed.d/Makefile.am
 
-AM_CFLAGS += $(LIBUDEV_CFLAGS) $(LIBUUID_CFLAGS)
+zed_CFLAGS  = $(AM_CFLAGS)
+zed_CFLAGS += $(LIBUDEV_CFLAGS) $(LIBUUID_CFLAGS)
 
-SUBDIRS = zed.d
-SHELLCHECKDIRS = $(SUBDIRS)
+sbin_PROGRAMS   += zed
+CPPCHECKTARGETS += zed
 
-sbin_PROGRAMS = zed
-
-ZED_SRC = \
-	zed.c \
-	zed.h \
-	zed_conf.c \
-	zed_conf.h \
-	zed_disk_event.c \
-	zed_disk_event.h \
-	zed_event.c \
-	zed_event.h \
-	zed_exec.c \
-	zed_exec.h \
-	zed_file.c \
-	zed_file.h \
-	zed_log.c \
-	zed_log.h \
-	zed_strings.c \
-	zed_strings.h
-
-FMA_SRC = \
-	agents/zfs_agents.c \
-	agents/zfs_agents.h \
-	agents/zfs_diagnosis.c \
-	agents/zfs_mod.c \
-	agents/zfs_retire.c \
-	agents/fmd_api.c \
-	agents/fmd_api.h \
-	agents/fmd_serd.c \
-	agents/fmd_serd.h
-
-zed_SOURCES = $(ZED_SRC) $(FMA_SRC)
+zed_SOURCES = \
+	%D%/zed.c \
+	%D%/zed.h \
+	%D%/zed_conf.c \
+	%D%/zed_conf.h \
+	%D%/zed_disk_event.c \
+	%D%/zed_disk_event.h \
+	%D%/zed_event.c \
+	%D%/zed_event.h \
+	%D%/zed_exec.c \
+	%D%/zed_exec.h \
+	%D%/zed_file.c \
+	%D%/zed_file.h \
+	%D%/zed_log.c \
+	%D%/zed_log.h \
+	%D%/zed_strings.c \
+	%D%/zed_strings.h \
+	\
+	%D%/agents/fmd_api.c \
+	%D%/agents/fmd_api.h \
+	%D%/agents/fmd_serd.c \
+	%D%/agents/fmd_serd.h \
+	%D%/agents/zfs_agents.c \
+	%D%/agents/zfs_agents.h \
+	%D%/agents/zfs_diagnosis.c \
+	%D%/agents/zfs_mod.c \
+	%D%/agents/zfs_retire.c
 
 zed_LDADD = \
-	$(abs_top_builddir)/libzfs.la \
-	$(abs_top_builddir)/libzfs_core.la \
-	$(abs_top_builddir)/libnvpair.la \
-	$(abs_top_builddir)/libuutil.la
+	libzfs.la \
+	libzfs_core.la \
+	libnvpair.la \
+	libuutil.la
 
 zed_LDADD += -lrt $(LIBATOMIC_LIBS) $(LIBUDEV_LIBS) $(LIBUUID_LIBS)
 zed_LDFLAGS = -pthread
 
-EXTRA_DIST = agents/README.md
-
-include $(top_srcdir)/config/CppCheck.am
-CPPCHECKTARGETS += zed
+EXTRA_DIST += $(addprefix %D%/,agents/README.md)

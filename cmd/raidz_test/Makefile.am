@@ -1,20 +1,16 @@
-include $(top_srcdir)/config/Rules.am
+raidz_test_CFLAGS   = $(AM_CFLAGS)   $(KERNEL_CFLAGS)
+raidz_test_CPPFLAGS = $(AM_CPPFLAGS) $(FORCEDEBUG_CPPFLAGS)
 
-AM_CFLAGS += $(KERNEL_CFLAGS)
-AM_CPPFLAGS += $(FORCEDEBUG_CPPFLAGS)
-
-bin_PROGRAMS = raidz_test
+bin_PROGRAMS    += raidz_test
+CPPCHECKTARGETS += raidz_test
 
 raidz_test_SOURCES = \
-	raidz_test.h \
-	raidz_test.c \
-	raidz_bench.c
+	%D%/raidz_bench.c \
+	%D%/raidz_test.c \
+	%D%/raidz_test.h
 
 raidz_test_LDADD = \
-	$(abs_top_builddir)/libzpool.la \
-	$(abs_top_builddir)/libzfs_core.la
+	libzpool.la \
+	libzfs_core.la
 
 raidz_test_LDADD += -lm
-
-include $(top_srcdir)/config/CppCheck.am
-CPPCHECKTARGETS += raidz_test

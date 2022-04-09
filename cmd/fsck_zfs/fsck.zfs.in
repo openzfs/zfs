@@ -7,13 +7,13 @@
 # see fsck.zfs(8)
 #
 
-if [ "$#" = "0" ]; then
+if [ $# -eq 0 ]; then
 	echo "Usage: $0 [options] dataset…" >&2
 	exit 16
 fi
 
 ret=0
-for dataset in "$@"; do
+for dataset; do
 	case "$dataset" in
 		-*)
 			continue

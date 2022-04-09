@@ -4,5 +4,4 @@ SUBDIRS = runfiles test-runner zfs-tests
 
 EXTRA_DIST = README.md
 
-SHELLCHECKSCRIPTS = $$(find . -name '*.sh')
-.PHONY: $(SHELLCHECKSCRIPTS)
+SHELLCHECKSCRIPTS += $(shell find $(srcdir) -name '*.sh')

@@ -66,28 +66,6 @@ ZFS_AC_DEBUG_INVARIANTS
 
 AC_CONFIG_FILES([
 	Makefile
-	cmd/Makefile
-	cmd/arc_summary/Makefile
-	cmd/arcstat/Makefile
-	cmd/dbufstat/Makefile
-	cmd/fsck_zfs/Makefile
-	cmd/mount_zfs/Makefile
-	cmd/raidz_test/Makefile
-	cmd/vdev_id/Makefile
-	cmd/zdb/Makefile
-	cmd/zed/Makefile
-	cmd/zed/zed.d/Makefile
-	cmd/zfs/Makefile
-	cmd/zfs_ids_to_path/Makefile
-	cmd/zgenhostid/Makefile
-	cmd/zhack/Makefile
-	cmd/zinject/Makefile
-	cmd/zpool/Makefile
-	cmd/zstream/Makefile
-	cmd/ztest/Makefile
-	cmd/zvol_id/Makefile
-	cmd/zvol_wait/Makefile
-	cmd/zpool_influxdb/Makefile
 	contrib/Makefile
 	contrib/bash_completion.d/Makefile
 	contrib/bpftrace/Makefile
