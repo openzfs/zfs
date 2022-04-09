@@ -66,15 +66,6 @@ ZFS_AC_DEBUG_INVARIANTS
 
 AC_CONFIG_FILES([
 	Makefile
-	etc/Makefile
-	etc/default/Makefile
-	etc/init.d/Makefile
-	etc/modules-load.d/Makefile
-	etc/sudoers.d/Makefile
-	etc/systemd/Makefile
-	etc/systemd/system-generators/Makefile
-	etc/systemd/system/Makefile
-	etc/zfs/Makefile
 	include/Makefile
 	lib/libzfs/libzfs.pc
 	lib/libzfsbootenv/libzfsbootenv.pc
