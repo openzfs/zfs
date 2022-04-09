@@ -1,1 +1,0 @@
-SUBDIRS = system system-generators

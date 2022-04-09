@@ -4,9 +4,9 @@ INSTALL_DATA_HOOKS =
 ALL_LOCAL =
 CHECKS = shellcheck checkbashisms
 
-include $(top_srcdir)/config/Shellcheck.am
 include $(top_srcdir)/config/Rules.am
 include $(top_srcdir)/config/CppCheck.am
+include $(top_srcdir)/config/Shellcheck.am
 include $(top_srcdir)/config/Substfiles.am
 
 ACLOCAL_AMFLAGS = -I config
@@ -16,11 +16,11 @@ if BUILD_LINUX
 include $(srcdir)/%D%/rpm/Makefile.am
 endif
 
-CPPCHECKDIRS += etc/systemd/system-generators
 if CONFIG_USER
-SUBDIRS += . tests etc
+SUBDIRS += . tests
 include $(srcdir)/%D%/cmd/Makefile.am
 include $(srcdir)/%D%/contrib/Makefile.am
+include $(srcdir)/%D%/etc/Makefile.am
 include $(srcdir)/%D%/lib/Makefile.am
 include $(srcdir)/%D%/man/Makefile.am
 include $(srcdir)/%D%/scripts/Makefile.am
@@ -98,7 +98,7 @@ dist-hook:
 PHONY += codecheck $(CHECKS)
 codecheck: $(CHECKS)
 
-SHELLCHECKDIRS = etc tests
+SHELLCHECKDIRS = tests
 SHELLCHECKSCRIPTS += autogen.sh
 
 PHONY += checkstyle
