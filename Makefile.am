@@ -1,6 +1,7 @@
 CLEANFILES =
 EXTRA_DIST =
 INSTALL_DATA_HOOKS =
+ALL_LOCAL =
 
 include $(top_srcdir)/config/Shellcheck.am
 include $(top_srcdir)/config/Rules.am
@@ -16,7 +17,8 @@ endif
 
 CPPCHECKDIRS += etc/systemd/system-generators
 if CONFIG_USER
-SUBDIRS += scripts . man tests etc contrib
+SUBDIRS += . man tests etc contrib
+include $(srcdir)/%D%/scripts/Makefile.am
 include $(srcdir)/%D%/lib/Makefile.am
 include $(srcdir)/%D%/cmd/Makefile.am
 if BUILD_LINUX
@@ -83,8 +85,8 @@ distclean-local:
 		-o -name '*.gcno' \) \
 		-type f -delete
 
-all-local:
-	-SCRIPT_COMMON=$(top_builddir)/scripts/common.sh $(top_srcdir)/scripts/zfs-tests.sh -c
+PHONY += $(ALL_LOCAL)
+all-local: $(ALL_LOCAL)
 
 dist-hook:
 	$(top_srcdir)/scripts/make_gitrev.sh -D $(distdir) $(GITREV)
@@ -122,7 +124,7 @@ cstyle:
 
 filter_executable = -exec test -x '{}' \; -print
 
-SHELLCHECKDIRS = contrib etc scripts tests
+SHELLCHECKDIRS = contrib etc tests
 SHELLCHECKSCRIPTS += autogen.sh
 
 PHONY += mancheck
