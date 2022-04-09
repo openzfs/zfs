@@ -35,16 +35,15 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_SYSTEMD], [
 	AC_MSG_RESULT([$enable_systemd])
 
 	AS_IF([test "x$enable_systemd" = xyes], [
-		ZFS_INIT_SYSTEMD=systemd
-		ZFS_MODULE_LOAD=modules-load.d
 		DEFINE_SYSTEMD='--with systemd --define "_unitdir $(systemdunitdir)" --define "_presetdir $(systemdpresetdir)" --define "_generatordir $(systemdgeneratordir)"'
 		modulesloaddir=$systemdmodulesloaddir
 	],[
 		DEFINE_SYSTEMD='--without systemd'
 	])
 
-	AC_SUBST(ZFS_INIT_SYSTEMD)
-	AC_SUBST(ZFS_MODULE_LOAD)
+	ZFS_INIT_SYSTEMD=$enable_systemd
+	ZFS_WANT_MODULES_LOAD_D=$enable_systemd
+
 	AC_SUBST(DEFINE_SYSTEMD)
 	AC_SUBST(systemdunitdir)
 	AC_SUBST(systemdpresetdir)
