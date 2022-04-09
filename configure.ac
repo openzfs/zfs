@@ -95,7 +95,6 @@ AC_CONFIG_FILES([
 	lib/libzfs/libzfs.pc
 	lib/libzfsbootenv/libzfsbootenv.pc
 	lib/libzfs_core/libzfs_core.pc
-	man/Makefile
 	module/Kbuild
 	module/Makefile
 	rpm/Makefile

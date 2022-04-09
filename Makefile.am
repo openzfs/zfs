@@ -17,10 +17,11 @@ endif
 
 CPPCHECKDIRS += etc/systemd/system-generators
 if CONFIG_USER
-SUBDIRS += . man tests etc contrib
-include $(srcdir)/%D%/scripts/Makefile.am
-include $(srcdir)/%D%/lib/Makefile.am
+SUBDIRS += . tests etc contrib
 include $(srcdir)/%D%/cmd/Makefile.am
+include $(srcdir)/%D%/lib/Makefile.am
+include $(srcdir)/%D%/man/Makefile.am
+include $(srcdir)/%D%/scripts/Makefile.am
 if BUILD_LINUX
 SUBDIRS += udev
 endif
@@ -129,7 +130,7 @@ SHELLCHECKSCRIPTS += autogen.sh
 
 PHONY += mancheck
 mancheck:
-	${top_srcdir}/scripts/mancheck.sh ${top_srcdir}/man ${top_srcdir}/tests/test-runner/man
+	$(top_srcdir)/scripts/mancheck.sh $(top_srcdir)/man $(top_srcdir)/tests/test-runner/man
 
 PHONY += testscheck
 testscheck:
