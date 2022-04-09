@@ -12,7 +12,7 @@ JUST_SHELLCHECK_OPTS    = $(addprefix shellcheck-here-,$(subst /,^,$(1)))
 JUST_CHECKBASHISMS_OPTS = $(addprefix checkbashisms-here-,$(subst /,^,$(1)))
 SHELLCHECK_OPTS         = $(call JUST_SHELLCHECK_OPTS,$(1)) $(call JUST_CHECKBASHISMS_OPTS,$(1))
 
-.PHONY: shellcheck shellcheck-recursive
+PHONY += shellcheck shellcheck-recursive
 
 shellcheck-recursive:
 	@set -e; for dir in $(SHELLCHECKDIRS); do $(MAKE) -C $$dir shellcheck; done
@@ -28,7 +28,7 @@ endif
 shellcheck: $(SHELLCHECKSCRIPTS) $(call JUST_SHELLCHECK_OPTS,$(SHELLCHECKSCRIPTS)) shellcheck-recursive
 
 
-.PHONY: checkbashisms checkbashisms-recursive
+PHONY += checkbashisms checkbashisms-recursive
 
 checkbashisms-recursive:
 	@set -e; for dir in $(SHELLCHECKDIRS); do $(MAKE) -C $$dir checkbashisms; done

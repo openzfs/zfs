@@ -13,9 +13,9 @@ CPPCHECKTARGETS =
 cppcheck-recursive-%:
 	$(MAKE) -C $(subst ^,/,$(subst cppcheck-recursive-,,$@)) cppcheck
 
-_CTGT = $(subst -,_,$(subst .,_,$(subst cppcheck-for-,,$@)))
+_CTGT = $(subst cppcheck-for-,,$@)
 cppcheck-for-%:
 	@[ -n "$($(_CTGT)_SOURCES)$(dist_$(_CTGT)_SOURCES)$(nodist_$(_CTGT)_SOURCES)" ]
 	$(CPPCHECK) -j$(CPU_COUNT) $(CPPCHECKFLAGS) $(patsubst -U%,,$(patsubst -D%,,$(filter-out $(AM_CPPFLAGS_NOCHECK),$(or $($(_CTGT)_CPPFLAGS),$(AM_CPPFLAGS))))) $($(_CTGT)_SOURCES) $(dist_$(_CTGT)_SOURCES) $(nodist_$(_CTGT)_SOURCES)
 
-cppcheck: $(addprefix cppcheck-for-,$(CPPCHECKTARGETS)) $(addprefix cppcheck-recursive-,$(subst /,^,$(CPPCHECKDIRS)))
+cppcheck: $(addprefix cppcheck-for-,$(subst -,_,$(subst .,_,$(subst /,_,$(CPPCHECKTARGETS))))) $(addprefix cppcheck-recursive-,$(CPPCHECKDIRS))
