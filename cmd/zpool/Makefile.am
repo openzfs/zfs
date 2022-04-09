@@ -1,34 +1,35 @@
-include $(top_srcdir)/config/Rules.am
-include $(top_srcdir)/config/Shellcheck.am
+zpool_CFLAGS  = $(AM_CFLAGS)
+zpool_CFLAGS += $(LIBBLKID_CFLAGS) $(LIBUUID_CFLAGS)
 
-AM_CFLAGS += $(LIBBLKID_CFLAGS) $(LIBUUID_CFLAGS)
+zpool_CPPFLAGS  = $(AM_CPPFLAGS)
+zpool_CPPFLAGS += -I$(srcdir)/%D%
 
-AM_CPPFLAGS += -I$(srcdir)
-
-
-sbin_PROGRAMS = zpool
+sbin_PROGRAMS   += zpool
+CPPCHECKTARGETS += zpool
 
 zpool_SOURCES = \
-	zpool_iter.c \
-	zpool_main.c \
-	zpool_util.c \
-	zpool_util.h \
-	zpool_vdev.c
+	%D%/zpool_iter.c \
+	%D%/zpool_main.c \
+	%D%/zpool_util.c \
+	%D%/zpool_util.h \
+	%D%/zpool_vdev.c
 
 if BUILD_FREEBSD
-zpool_SOURCES += os/freebsd/zpool_vdev_os.c
+zpool_SOURCES += \
+	%D%/os/freebsd/zpool_vdev_os.c
 endif
 
 if BUILD_LINUX
-zpool_SOURCES += os/linux/zpool_vdev_os.c
+zpool_SOURCES += \
+	%D%/os/linux/zpool_vdev_os.c
 endif
 
 zpool_LDADD = \
-	$(abs_top_builddir)/libzfs.la \
-	$(abs_top_builddir)/libzfs_core.la \
-	$(abs_top_builddir)/libnvpair.la \
-	$(abs_top_builddir)/libuutil.la \
-	$(abs_top_builddir)/libzutil.la
+	libzfs.la \
+	libzfs_core.la \
+	libnvpair.la \
+	libuutil.la \
+	libzutil.la
 
 zpool_LDADD += $(LTLIBINTL)
 
@@ -37,57 +38,53 @@ zpool_LDADD += -lgeom
 endif
 zpool_LDADD += -lm $(LIBBLKID_LIBS) $(LIBUUID_LIBS)
 
-include $(top_srcdir)/config/CppCheck.am
-CPPCHECKTARGETS += zpool
+EXTRA_DIST += $(addprefix %D%/,zpool.d/README compatibility.d)
 
-zpoolconfdir = $(sysconfdir)/zfs/zpool.d
+SHELLCHECKSCRIPTS += $(dist_zpoolexec_SCRIPTS)
 zpoolexecdir = $(zfsexecdir)/zpool.d
-
-EXTRA_DIST = zpool.d/README compatibility.d
-
 dist_zpoolexec_SCRIPTS = \
-	zpool.d/dm-deps \
-	zpool.d/enc \
-	zpool.d/encdev \
-	zpool.d/fault_led \
-	zpool.d/iostat \
-	zpool.d/iostat-1s \
-	zpool.d/iostat-10s \
-	zpool.d/label \
-	zpool.d/locate_led \
-	zpool.d/lsblk \
-	zpool.d/media \
-	zpool.d/model \
-	zpool.d/serial \
-	zpool.d/ses \
-	zpool.d/size \
-	zpool.d/slot \
-	zpool.d/smart \
-	zpool.d/smartx \
-	zpool.d/temp \
-	zpool.d/health \
-	zpool.d/r_proc \
-	zpool.d/w_proc \
-	zpool.d/r_ucor \
-	zpool.d/w_ucor \
-	zpool.d/nonmed \
-	zpool.d/defect \
-	zpool.d/hours_on \
-	zpool.d/realloc \
-	zpool.d/rep_ucor \
-	zpool.d/cmd_to \
-	zpool.d/pend_sec \
-	zpool.d/off_ucor \
-	zpool.d/ata_err \
-	zpool.d/nvme_err \
-	zpool.d/pwr_cyc \
-	zpool.d/upath \
-	zpool.d/vendor \
-	zpool.d/smart_test \
-	zpool.d/test_type \
-	zpool.d/test_status \
-	zpool.d/test_progress \
-	zpool.d/test_ended
+	%D%/zpool.d/ata_err \
+	%D%/zpool.d/cmd_to \
+	%D%/zpool.d/defect \
+	%D%/zpool.d/dm-deps \
+	%D%/zpool.d/enc \
+	%D%/zpool.d/encdev \
+	%D%/zpool.d/fault_led \
+	%D%/zpool.d/health \
+	%D%/zpool.d/hours_on \
+	%D%/zpool.d/iostat \
+	%D%/zpool.d/iostat-10s \
+	%D%/zpool.d/iostat-1s \
+	%D%/zpool.d/label \
+	%D%/zpool.d/locate_led \
+	%D%/zpool.d/lsblk \
+	%D%/zpool.d/media \
+	%D%/zpool.d/model \
+	%D%/zpool.d/nonmed \
+	%D%/zpool.d/nvme_err \
+	%D%/zpool.d/off_ucor \
+	%D%/zpool.d/pend_sec \
+	%D%/zpool.d/pwr_cyc \
+	%D%/zpool.d/r_proc \
+	%D%/zpool.d/r_ucor \
+	%D%/zpool.d/realloc \
+	%D%/zpool.d/rep_ucor \
+	%D%/zpool.d/serial \
+	%D%/zpool.d/ses \
+	%D%/zpool.d/size \
+	%D%/zpool.d/slot \
+	%D%/zpool.d/smart \
+	%D%/zpool.d/smart_test \
+	%D%/zpool.d/smartx \
+	%D%/zpool.d/temp \
+	%D%/zpool.d/test_ended \
+	%D%/zpool.d/test_progress \
+	%D%/zpool.d/test_status \
+	%D%/zpool.d/test_type \
+	%D%/zpool.d/upath \
+	%D%/zpool.d/vendor \
+	%D%/zpool.d/w_proc \
+	%D%/zpool.d/w_ucor
 
 zpoolconfdefaults = \
 	dm-deps \
@@ -134,29 +131,28 @@ zpoolconfdefaults = \
 	test_ended
 
 zpoolcompatdir = $(pkgdatadir)/compatibility.d
-
 dist_zpoolcompat_DATA = \
-	compatibility.d/compat-2018 \
-	compatibility.d/compat-2019 \
-	compatibility.d/compat-2020 \
-	compatibility.d/compat-2021 \
-	compatibility.d/freebsd-11.0 \
-	compatibility.d/freebsd-11.2 \
-	compatibility.d/freebsd-11.3 \
-	compatibility.d/freenas-9.10.2 \
-	compatibility.d/grub2 \
-	compatibility.d/openzfsonosx-1.7.0 \
-	compatibility.d/openzfsonosx-1.8.1 \
-	compatibility.d/openzfsonosx-1.9.3 \
-	compatibility.d/openzfs-2.0-freebsd \
-	compatibility.d/openzfs-2.0-linux \
-	compatibility.d/openzfs-2.1-freebsd \
-	compatibility.d/openzfs-2.1-linux \
-	compatibility.d/zol-0.6.1 \
-	compatibility.d/zol-0.6.4 \
-	compatibility.d/zol-0.6.5 \
-	compatibility.d/zol-0.7 \
-	compatibility.d/zol-0.8
+	%D%/compatibility.d/compat-2018 \
+	%D%/compatibility.d/compat-2019 \
+	%D%/compatibility.d/compat-2020 \
+	%D%/compatibility.d/compat-2021 \
+	%D%/compatibility.d/freebsd-11.0 \
+	%D%/compatibility.d/freebsd-11.2 \
+	%D%/compatibility.d/freebsd-11.3 \
+	%D%/compatibility.d/freenas-9.10.2 \
+	%D%/compatibility.d/grub2 \
+	%D%/compatibility.d/openzfs-2.0-freebsd \
+	%D%/compatibility.d/openzfs-2.0-linux \
+	%D%/compatibility.d/openzfs-2.1-freebsd \
+	%D%/compatibility.d/openzfs-2.1-linux \
+	%D%/compatibility.d/openzfsonosx-1.7.0 \
+	%D%/compatibility.d/openzfsonosx-1.8.1 \
+	%D%/compatibility.d/openzfsonosx-1.9.3 \
+	%D%/compatibility.d/zol-0.6.1 \
+	%D%/compatibility.d/zol-0.6.4 \
+	%D%/compatibility.d/zol-0.6.5 \
+	%D%/compatibility.d/zol-0.7 \
+	%D%/compatibility.d/zol-0.8
 
 # canonical <- alias symbolic link pairs
 # eg: "2018" is a link to "compat-2018"
@@ -179,13 +175,16 @@ zpoolcompatlinks = \
 	"zol-0.7		ubuntu-18.04" \
 	"zol-0.8		ubuntu-20.04"
 
-install-data-hook:
+zpoolconfdir = $(sysconfdir)/zfs/zpool.d
+INSTALL_DATA_HOOKS += zpool-install-data-hook
+zpool-install-data-hook:
 	$(MKDIR_P) "$(DESTDIR)$(zpoolconfdir)"
-	for f in $(zpoolconfdefaults); do \
-	  test -f "$(DESTDIR)$(zpoolconfdir)/$${f}" -o \
-	       -L "$(DESTDIR)$(zpoolconfdir)/$${f}" || \
-	    ln -s "$(zpoolexecdir)/$${f}" "$(DESTDIR)$(zpoolconfdir)"; \
+	set -x; for f in $(zpoolconfdefaults); do \
+	  [ -f "$(DESTDIR)$(zpoolconfdir)/$${f}" ] || \
+	  [ -L "$(DESTDIR)$(zpoolconfdir)/$${f}" ] || \
+	    $(LN_S) "$(zpoolexecdir)/$${f}" "$(DESTDIR)$(zpoolconfdir)"; \
 	done
-	for l in $(zpoolcompatlinks); do \
-		(cd "$(DESTDIR)$(zpoolcompatdir)"; ln -sf $${l} ); \
+	set -x; printf '%s\n' $(zpoolcompatlinks) | \
+	while read -r canon alias; do \
+		$(LN_S) -f "$${canon}" "$(DESTDIR)$(zpoolcompatdir)/$${alias}"; \
 	done

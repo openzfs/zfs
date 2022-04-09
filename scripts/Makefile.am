@@ -28,7 +28,7 @@ EXTRA_DIST = \
 	zol2zfs-patch.sed \
 	$(EXTRA_SCRIPTS)
 
-SHELLCHECKSCRIPTS = $(EXTRA_SCRIPTS)
+SHELLCHECKSCRIPTS += $(dist_pkgdata_SCRIPTS) $(EXTRA_SCRIPTS)
 
 define EXTRA_ENVIRONMENT
 
@@ -37,13 +37,13 @@ export INTREE="yes"
 export GDB="libtool --mode=execute gdb"
 export LDMOD=/sbin/insmod
 
-export CMD_DIR=@abs_top_builddir@/cmd
+export CMD_DIR=@abs_top_builddir@
 export UDEV_RULE_DIR=@abs_top_builddir@/udev/rules.d
-export ZEDLET_ETC_DIR=$$CMD_DIR/zed/zed.d
-export ZEDLET_LIBEXEC_DIR=$$CMD_DIR/zed/zed.d
-export ZPOOL_SCRIPT_DIR=$$CMD_DIR/zpool/zpool.d
-export ZPOOL_SCRIPTS_PATH=$$CMD_DIR/zpool/zpool.d
-export ZPOOL_COMPAT_DIR=$$CMD_DIR/zpool/compatibility.d
+export ZEDLET_ETC_DIR=$$CMD_DIR/cmd/zed/zed.d
+export ZEDLET_LIBEXEC_DIR=$$CMD_DIR/cmd/zed/zed.d
+export ZPOOL_SCRIPT_DIR=$$CMD_DIR/cmd/zpool/zpool.d
+export ZPOOL_SCRIPTS_PATH=$$CMD_DIR/cmd/zpool/zpool.d
+export ZPOOL_COMPAT_DIR=$$CMD_DIR/cmd/zpool/compatibility.d
 export CONTRIB_DIR=@abs_top_builddir@/contrib
 export LIB_DIR=@abs_top_builddir@/.libs
 export SYSCONF_DIR=@abs_top_builddir@/etc
@@ -62,9 +62,9 @@ endef
 export EXTRA_ENVIRONMENT
 
 all-local:
-	-$(SED) -e '\|^export BIN_DIR=|s|$$|@abs_top_builddir@/bin|' \
-		-e '\|^export SBIN_DIR=|s|$$|@abs_top_builddir@/bin|' \
-		-e '\|^export LIBEXEC_DIR=|s|$$|@abs_top_builddir@/bin|' \
+	-$(SED) -e '\|^export BIN_DIR=|s|$$|@abs_top_builddir@/tests/zfs-tests/bin|' \
+		-e '\|^export SBIN_DIR=|s|$$|@abs_top_builddir@|' \
+		-e '\|^export LIBEXEC_DIR=|s|$$|@abs_top_builddir@|' \
 		-e '\|^export ZTS_DIR=|s|$$|@abs_top_srcdir@/tests|' \
 		-e '\|^export SCRIPT_DIR=|s|$$|@abs_top_srcdir@/scripts|' \
 		$(abs_top_srcdir)/scripts/common.sh.in >common.sh

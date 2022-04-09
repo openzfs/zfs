@@ -1,3 +1,5 @@
+CLEANFILES =
+EXTRA_DIST =
 include $(top_srcdir)/config/Substfiles.am
 include $(top_srcdir)/config/Shellcheck.am
 
@@ -22,3 +24,4 @@ SUBSTFILES += $(pkgdracut_SCRIPTS) $(pkgdracut_DATA)
 
 # Provided by /bin/sleep, and, again, every implementation of that supports this
 CHECKBASHISMS_IGNORE = -e 'sleep only takes one integer' -e 'sleep 0.'
+SHELLCHECKSCRIPTS += $(pkgdracut_SCRIPTS)

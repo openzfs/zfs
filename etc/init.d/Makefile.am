@@ -1,3 +1,5 @@
+CLEANFILES =
+EXTRA_DIST =
 include $(top_srcdir)/config/Substfiles.am
 include $(top_srcdir)/config/Shellcheck.am
 
@@ -8,3 +10,4 @@ init_SCRIPTS = zfs-import zfs-load-key zfs-mount zfs-share zfs-zed
 SUBSTFILES += $(init_SCRIPTS)
 
 SHELLCHECK_SHELL = sh
+SHELLCHECKSCRIPTS += $(init_SCRIPTS)

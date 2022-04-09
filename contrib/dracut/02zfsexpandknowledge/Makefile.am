@@ -1,3 +1,5 @@
+CLEANFILES =
+EXTRA_DIST =
 include $(top_srcdir)/config/Substfiles.am
 include $(top_srcdir)/config/Shellcheck.am
 
@@ -6,3 +8,4 @@ pkgdracut_SCRIPTS = \
 	module-setup.sh
 
 SUBSTFILES += $(pkgdracut_SCRIPTS)
+SHELLCHECKSCRIPTS += $(pkgdracut_SCRIPTS)
