@@ -97,12 +97,9 @@ AC_CONFIG_FILES([
 	lib/libzfs_core/libzfs_core.pc
 	module/Kbuild
 	module/Makefile
-	rpm/Makefile
-	rpm/generic/Makefile
 	rpm/generic/zfs-dkms.spec
 	rpm/generic/zfs-kmod.spec
 	rpm/generic/zfs.spec
-	rpm/redhat/Makefile
 	rpm/redhat/zfs-dkms.spec
 	rpm/redhat/zfs-kmod.spec
 	rpm/redhat/zfs.spec
