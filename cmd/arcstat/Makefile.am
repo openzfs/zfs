@@ -1,5 +1,4 @@
-include $(top_srcdir)/config/Substfiles.am
-
-bin_SCRIPTS = arcstat
-
-SUBSTFILES += $(bin_SCRIPTS)
+bin_SCRIPTS += arcstat
+CLEANFILES  += arcstat
+EXTRA_DIST  += %D%/arcstat.in
+$(call SUBST,arcstat,%D%/)

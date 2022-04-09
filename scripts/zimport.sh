@@ -235,8 +235,8 @@ src_set_vars() {
 		ZFS_CMD=$(command -v zfs)
 		ZFS_SH="/usr/share/zfs/zfs.sh"
 	else
-		ZPOOL_CMD="./cmd/zpool/zpool"
-		ZFS_CMD="./cmd/zfs/zfs"
+		ZPOOL_CMD="./zpool"
+		ZFS_CMD="./zfs"
 		ZFS_SH="./scripts/zfs.sh"
 	fi
 }

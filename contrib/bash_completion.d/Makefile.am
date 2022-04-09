@@ -1,3 +1,5 @@
+CLEANFILES =
+EXTRA_DIST =
 include $(top_srcdir)/config/Substfiles.am
 include $(top_srcdir)/config/Shellcheck.am
 
@@ -8,5 +10,5 @@ noinst_DATA = zfs
 EXTRA_DIST += $(noinst_DATA)
 SUBSTFILES += $(noinst_DATA)
 
-SHELLCHECKSCRIPTS = $(noinst_DATA)
+SHELLCHECKSCRIPTS += $(noinst_DATA)
 SHELLCHECK_SHELL = bash
