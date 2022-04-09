@@ -2,6 +2,7 @@ CLEANFILES =
 EXTRA_DIST =
 INSTALL_DATA_HOOKS =
 ALL_LOCAL =
+CHECKS = shellcheck checkbashisms
 
 include $(top_srcdir)/config/Shellcheck.am
 include $(top_srcdir)/config/Rules.am
@@ -93,8 +94,11 @@ dist-hook:
 	$(top_srcdir)/scripts/make_gitrev.sh -D $(distdir) $(GITREV)
 	$(SED) $(ac_inplace) 's/\(Release:[[:space:]]*\).*/\1$(RELEASE)/' $(distdir)/META
 
-PHONY += codecheck
-codecheck: cstyle shellcheck checkbashisms flake8 mancheck testscheck vcscheck zstdcheck
+PHONY += codecheck $(CHECKS)
+codecheck: $(CHECKS)
+
+SHELLCHECKDIRS = contrib etc tests
+SHELLCHECKSCRIPTS += autogen.sh
 
 PHONY += checkstyle
 checkstyle: codecheck commitcheck
@@ -110,7 +114,7 @@ cstyle_line = -print0 | parallel -X0 ${top_srcdir}/scripts/cstyle.pl -cpP {}
 else
 cstyle_line = -exec ${top_srcdir}/scripts/cstyle.pl -cpP {} +
 endif
-PHONY += cstyle
+CHECKS += cstyle
 cstyle:
 	@find ${top_srcdir} -name build -prune \
 		-o -type f -name '*.[hc]' \
@@ -124,31 +128,23 @@ cstyle:
 		$(cstyle_line)
 
 filter_executable = -exec test -x '{}' \; -print
-
-SHELLCHECKDIRS = contrib etc tests
-SHELLCHECKSCRIPTS += autogen.sh
-
-PHONY += mancheck
-mancheck:
-	$(top_srcdir)/scripts/mancheck.sh $(top_srcdir)/man $(top_srcdir)/tests/test-runner/man
-
-PHONY += testscheck
+CHECKS += testscheck
 testscheck:
-	@[ $$(find ${top_srcdir}/tests/zfs-tests -type f \
-		\( -name '*.ksh' -not ${filter_executable} \) -o \
-		\( -name '*.kshlib' ${filter_executable} \) -o \
-		\( -name '*.shlib' ${filter_executable} \) -o \
-		\( -name '*.cfg' ${filter_executable} \) | \
+	@[ $$(find $(top_srcdir)/tests/zfs-tests -type f \
+		\( -name '*.ksh' -not $(filter_executable) \) -o \
+		\( -name '*.kshlib' $(filter_executable) \) -o \
+		\( -name '*.shlib' $(filter_executable) \) -o \
+		\( -name '*.cfg' $(filter_executable) \) | \
 		tee /dev/stderr | wc -l) -eq 0 ]
 
-PHONY += vcscheck
+CHECKS += vcscheck
 vcscheck:
 	@if git rev-parse --git-dir > /dev/null 2>&1; then \
 		git ls-files . --exclude-standard --others | \
 		awk '{c++; print} END {if(c>0) exit 1}' ; \
 	fi
 
-PHONY += zstdcheck
+CHECKS += zstdcheck
 zstdcheck:
 	@$(MAKE) -C module check-zstd-symbols
 
@@ -163,7 +159,7 @@ paxcheck:
 		echo "skipping paxcheck because scanelf is not installed"; \
 	fi
 
-PHONY += flake8
+CHECKS += flake8
 flake8:
 	@if type flake8 > /dev/null 2>&1; then \
 		flake8 ${top_srcdir}; \
