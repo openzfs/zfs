@@ -1,10 +1,11 @@
-EXTRA_DIST = libzfs_core setup.py.in README LICENSE docs
+EXTRA_DIST += $(addprefix %D%/,libzfs_core README LICENSE docs)
+SUBSTFILES += %D%/setup.py
 
 if PYZFS_ENABLED
-all:
-
-all-local:
-	$(PYTHON) setup.py build
+ALL_LOCAL += pyzfs-all-local
+pyzfs_V_1 = -v
+pyzfs-all-local: %D%/setup.py
+	cd %D% && $(PYTHON) setup.py -q $(pyzfs_V_$(V)) egg_info -e . build
 
 #
 # On Debian (Ubuntu, and other downstream distros) the install location of
@@ -24,17 +25,13 @@ all-local:
 # files are later created by manually loading the Python modules.
 #
 install-exec-local:
-	$(PYTHON) $(builddir)/setup.py install \
-	--prefix $(prefix) \
-	--root $(DESTDIR)/ \
-	--install-lib $(pythonsitedir) \
-	--single-version-externally-managed \
-	--verbose
-
-clean:	clean-local
-	rm -rf build/ pyzfs.egg-info/
+	cd %D% && $(PYTHON) setup.py egg_info -e . install \
+	  --prefix $(prefix) \
+	  --root $(DESTDIR)/ \
+	  --install-lib $(pythonsitedir) \
+	  --single-version-externally-managed \
+	  --verbose
 
 clean-local:
-
-check-local: all
+	-$(RM) -r %D%/build/ %D%/pyzfs.egg-info/
 endif

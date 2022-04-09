@@ -13,9 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from __future__ import absolute_import, division, print_function
-
 from setuptools import setup, find_packages
+import os.path
+
+srcdir = "@abs_top_srcdir@/contrib/pyzfs"
 
 setup(
     name="pyzfs",
@@ -44,7 +45,8 @@ setup(
         "libzfs_core",
     ],
 
-    packages=find_packages(),
+    packages=find_packages(where=srcdir),
+    package_dir={"": os.path.relpath(srcdir)},
     include_package_data=True,
     install_requires=[
         "cffi",

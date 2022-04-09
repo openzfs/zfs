@@ -1,19 +1,18 @@
-include $(top_srcdir)/config/Rules.am
+%C%_pam_zfs_key_la_CFLAGS  = $(AM_CFLAGS)
+%C%_pam_zfs_key_la_CFLAGS += $(LIBCRYPTO_CFLAGS)
 
-AM_CFLAGS += $(LIBCRYPTO_CFLAGS)
+pammodule_LTLIBRARIES = %D%/pam_zfs_key.la
 
-pammodule_LTLIBRARIES = pam_zfs_key.la
+%C%_pam_zfs_key_la_SOURCES = %D%/pam_zfs_key.c
 
-pam_zfs_key_la_SOURCES = pam_zfs_key.c
+%C%_pam_zfs_key_la_LIBADD = \
+	libnvpair.la \
+	libuutil.la \
+	libzfs.la \
+	libzfs_core.la
 
-pam_zfs_key_la_LIBADD = \
-	$(abs_top_builddir)/libnvpair.la \
-	$(abs_top_builddir)/libuutil.la \
-	$(abs_top_builddir)/libzfs.la \
-	$(abs_top_builddir)/libzfs_core.la
+%C%_pam_zfs_key_la_LIBADD += -lpam $(LIBCRYPTO_LIBS)
 
-pam_zfs_key_la_LDFLAGS = -version-info 1:0:0 -avoid-version -module -shared
+%C%_pam_zfs_key_la_LDFLAGS = -version-info 1:0:0 -avoid-version -module -shared
 
-pam_zfs_key_la_LIBADD += -lpam $(LIBCRYPTO_LIBS)
-
-dist_pamconfigs_DATA = zfs_key
+dist_pamconfigs_DATA = %D%/zfs_key

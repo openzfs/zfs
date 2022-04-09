@@ -1,4 +1,5 @@
 subst_sed_cmd = \
+	-e 's|@abs_top_srcdir[@]|$(abs_top_srcdir)|g' \
 	-e 's|@bindir[@]|$(bindir)|g' \
 	-e 's|@sbindir[@]|$(sbindir)|g' \
 	-e 's|@datadir[@]|$(datadir)|g' \
@@ -12,6 +13,7 @@ subst_sed_cmd = \
 	-e 's|@udevdir[@]|$(udevdir)|g' \
 	-e 's|@udevruledir[@]|$(udevruledir)|g' \
 	-e 's|@zfsexecdir[@]|$(zfsexecdir)|g' \
+	-e 's|@VERSION[@]|$(VERSION)|g' \
 	-e 's|@PYTHON[@]|$(PYTHON)|g' \
 	-e 's|@PYTHON_SHEBANG[@]|$(PYTHON_SHEBANG)|g' \
 	-e 's|@DEFAULT_INIT_NFS_SERVER[@]|$(DEFAULT_INIT_NFS_SERVER)|g' \
