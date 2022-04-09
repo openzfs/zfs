@@ -24,7 +24,7 @@ include $(srcdir)/%D%/lib/Makefile.am
 include $(srcdir)/%D%/man/Makefile.am
 include $(srcdir)/%D%/scripts/Makefile.am
 if BUILD_LINUX
-SUBDIRS += udev
+include $(srcdir)/%D%/udev/Makefile.am
 endif
 endif
 CPPCHECKDIRS += module

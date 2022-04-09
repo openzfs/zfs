@@ -290,8 +290,6 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/perf/regression/Makefile
 	tests/zfs-tests/tests/perf/scripts/Makefile
 	tests/zfs-tests/tests/stress/Makefile
-	udev/Makefile
-	udev/rules.d/Makefile
 	zfs.release
 ])
 
