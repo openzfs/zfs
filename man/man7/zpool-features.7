@@ -719,6 +719,12 @@ once a resilver has been deferred, and returns to being
 .Sy enabled
 when the deferred resilver begins.
 .
+.feature org.illumos sha256 no extensible_dataset
+This feature enables the use of the SHA-256 hash algorithm for checksum and
+dedup.
+.Pp
+.checksum-spiel sha256
+.
 .feature org.illumos sha512 no extensible_dataset
 This feature enables the use of the SHA-512/256 truncated hash algorithm
 (FIPS 180-4) for checksum and dedup.
