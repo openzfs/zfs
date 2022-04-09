@@ -111,7 +111,6 @@ AC_CONFIG_FILES([
 	tests/test-runner/Makefile
 	tests/test-runner/bin/Makefile
 	tests/test-runner/include/Makefile
-	tests/test-runner/man/Makefile
 	tests/zfs-tests/Makefile
 	tests/zfs-tests/callbacks/Makefile
 	tests/zfs-tests/cmd/Makefile

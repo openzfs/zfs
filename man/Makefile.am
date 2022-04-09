@@ -4,6 +4,7 @@ EXTRA_DIST += \
 dist_man_MANS = \
 	%D%/man1/arcstat.1 \
 	%D%/man1/raidz_test.1 \
+	%D%/man1/test-runner.1 \
 	%D%/man1/zhack.1 \
 	%D%/man1/ztest.1 \
 	%D%/man1/zvol_wait.1 \
@@ -105,6 +106,11 @@ nodist_man_MANS = \
 	%D%/man8/zfs-mount-generator.8
 
 SUBSTFILES += $(nodist_man_MANS)
+
+
+CHECKS += mancheck
+mancheck:
+	$(top_srcdir)/scripts/mancheck.sh $(srcdir)/%D%
 
 
 if BUILD_LINUX
