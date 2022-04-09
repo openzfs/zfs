@@ -1,83 +1,83 @@
-include $(top_srcdir)/config/Shellcheck.am
-
-pkgdatadir = $(datadir)/@PACKAGE@
-
-dist_pkgdata_SCRIPTS = \
-	zimport.sh \
-	zfs.sh \
-	zfs-tests.sh \
-	zloop.sh \
-	zfs-helpers.sh
+scriptsdir = $(datadir)/$(PACKAGE)
+dist_scripts_SCRIPTS = \
+	%D%/zfs-helpers.sh \
+	%D%/zfs-tests.sh \
+	%D%/zfs.sh \
+	%D%/zimport.sh \
+	%D%/zloop.sh
 
 EXTRA_SCRIPTS = \
-	commitcheck.sh \
-	common.sh.in \
-	dkms.mkconf \
-	dkms.postbuild \
-	kmodtool \
-	make_gitrev.sh \
-	man-dates.sh \
-	paxcheck.sh \
-	mancheck.sh \
-	zfs-tests-color.sh
+	%D%/commitcheck.sh \
+	%D%/common.sh.in \
+	%D%/dkms.mkconf \
+	%D%/dkms.postbuild \
+	%D%/kmodtool \
+	%D%/make_gitrev.sh \
+	%D%/man-dates.sh \
+	%D%/mancheck.sh \
+	%D%/paxcheck.sh \
+	%D%/zfs-tests-color.sh
 
-EXTRA_DIST = \
-	cstyle.pl \
-	enum-extract.pl \
-	zfs2zol-patch.sed \
-	zol2zfs-patch.sed \
+EXTRA_DIST += \
+	%D%/cstyle.pl \
+	%D%/enum-extract.pl \
+	%D%/zfs2zol-patch.sed \
+	%D%/zol2zfs-patch.sed \
 	$(EXTRA_SCRIPTS)
 
-SHELLCHECKSCRIPTS += $(dist_pkgdata_SCRIPTS) $(EXTRA_SCRIPTS)
+SHELLCHECKSCRIPTS += $(dist_scripts_SCRIPTS) $(EXTRA_SCRIPTS)
 
-define EXTRA_ENVIRONMENT
+define SCRIPTS_EXTRA_ENVIRONMENT
 
 # Only required for in-tree use
 export INTREE="yes"
 export GDB="libtool --mode=execute gdb"
 export LDMOD=/sbin/insmod
 
-export CMD_DIR=@abs_top_builddir@
-export UDEV_RULE_DIR=@abs_top_builddir@/udev/rules.d
+export CMD_DIR=$(abs_top_builddir)
+export UDEV_RULE_DIR=$(abs_top_builddir)/udev/rules.d
 export ZEDLET_ETC_DIR=$$CMD_DIR/cmd/zed/zed.d
 export ZEDLET_LIBEXEC_DIR=$$CMD_DIR/cmd/zed/zed.d
 export ZPOOL_SCRIPT_DIR=$$CMD_DIR/cmd/zpool/zpool.d
 export ZPOOL_SCRIPTS_PATH=$$CMD_DIR/cmd/zpool/zpool.d
 export ZPOOL_COMPAT_DIR=$$CMD_DIR/cmd/zpool/compatibility.d
-export CONTRIB_DIR=@abs_top_builddir@/contrib
-export LIB_DIR=@abs_top_builddir@/.libs
-export SYSCONF_DIR=@abs_top_builddir@/etc
+export CONTRIB_DIR=$(abs_top_builddir)/contrib
+export LIB_DIR=$(abs_top_builddir)/.libs
+export SYSCONF_DIR=$(abs_top_builddir)/etc
 
-export INSTALL_UDEV_DIR=@udevdir@
-export INSTALL_UDEV_RULE_DIR=@udevruledir@
-export INSTALL_MOUNT_HELPER_DIR=@mounthelperdir@
-export INSTALL_SYSCONF_DIR=@sysconfdir@
-export INSTALL_PYTHON_DIR=@pythonsitedir@
+export INSTALL_UDEV_DIR=$(udevdir)
+export INSTALL_UDEV_RULE_DIR=$(udevruledir)
+export INSTALL_MOUNT_HELPER_DIR=$(mounthelperdir)
+export INSTALL_SYSCONF_DIR=$(sysconfdir)
+export INSTALL_PYTHON_DIR=$(pythonsitedir)
 
-export KMOD_SPL=@abs_top_builddir@/module/spl.ko
-export KMOD_ZFS=@abs_top_builddir@/module/zfs.ko
-export KMOD_FREEBSD=@abs_top_builddir@/module/openzfs.ko
+export KMOD_SPL=$(abs_top_builddir)/module/spl.ko
+export KMOD_ZFS=$(abs_top_builddir)/module/zfs.ko
+export KMOD_FREEBSD=$(abs_top_builddir)/module/openzfs.ko
 endef
 
-export EXTRA_ENVIRONMENT
+export SCRIPTS_EXTRA_ENVIRONMENT
 
-all-local:
-	-$(SED) -e '\|^export BIN_DIR=|s|$$|@abs_top_builddir@/tests/zfs-tests/bin|' \
-		-e '\|^export SBIN_DIR=|s|$$|@abs_top_builddir@|' \
-		-e '\|^export LIBEXEC_DIR=|s|$$|@abs_top_builddir@|' \
-		-e '\|^export ZTS_DIR=|s|$$|@abs_top_srcdir@/tests|' \
-		-e '\|^export SCRIPT_DIR=|s|$$|@abs_top_srcdir@/scripts|' \
-		$(abs_top_srcdir)/scripts/common.sh.in >common.sh
-	-echo "$$EXTRA_ENVIRONMENT" >>common.sh
+CLEANFILES += %D%/common.sh
+%D%/common.sh: %D%/common.sh.in Makefile
+	-$(AM_V_at)$(MKDIR_P) $(@D)
+	-$(AM_V_GEN)$(SED) -e '/^export BIN_DIR=/s|$$|$(abs_top_builddir)/tests/zfs-tests/bin|' \
+		-e '/^export SBIN_DIR=/s|$$|$(abs_top_builddir)|' \
+		-e '/^export LIBEXEC_DIR=/s|$$|$(abs_top_builddir)|' \
+		-e '/^export ZTS_DIR=/s|$$|$(abs_top_srcdir)/tests|' \
+		-e '/^export SCRIPT_DIR=/s|$$|$(abs_top_srcdir)/scripts|' \
+		$< >$@
+	-$(AM_V_at)echo "$$SCRIPTS_EXTRA_ENVIRONMENT" >>$@
 
-clean-local:
-	-$(RM) common.sh
+ALL_LOCAL += scripts-all-local
+scripts-all-local: %D%/common.sh
+	-SCRIPT_COMMON=$< $(srcdir)/%D%/zfs-tests.sh -c
 
-install-data-hook:
-	-$(SED) -e '\|^export BIN_DIR=|s|$$|@bindir@|' \
-		-e '\|^export SBIN_DIR=|s|$$|@sbindir@|' \
-		-e '\|^export LIBEXEC_DIR=|s|$$|@zfsexecdir@|' \
-		-e '\|^export ZTS_DIR=|s|$$|@datadir@/@PACKAGE@|' \
-		-e '\|^export SCRIPT_DIR=|s|$$|@datadir@/@PACKAGE@|' \
-		$(abs_top_srcdir)/scripts/common.sh.in \
-		>$(DESTDIR)$(datadir)/@PACKAGE@/common.sh
+INSTALL_DATA_HOOKS += scripts-install-data-hook
+scripts-install-data-hook: %D%/common.sh.in Makefile
+	-$(SED) -e '/^export BIN_DIR=/s|$$|$(bindir)|' \
+		-e '/^export SBIN_DIR=/s|$$|$(sbindir)|' \
+		-e '/^export LIBEXEC_DIR=/s|$$|$(zfsexecdir)|' \
+		-e '/^export ZTS_DIR=/s|$$|$(datadir)/$(PACKAGE)|' \
+		-e '/^export SCRIPT_DIR=/s|$$|$(datadir)/$(PACKAGE)|' \
+		$< >$(DESTDIR)$(datadir)/$(PACKAGE)/common.sh
