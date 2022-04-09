@@ -66,22 +66,6 @@ ZFS_AC_DEBUG_INVARIANTS
 
 AC_CONFIG_FILES([
 	Makefile
-	contrib/Makefile
-	contrib/bash_completion.d/Makefile
-	contrib/bpftrace/Makefile
-	contrib/dracut/02zfsexpandknowledge/Makefile
-	contrib/dracut/90zfs/Makefile
-	contrib/dracut/Makefile
-	contrib/initramfs/Makefile
-	contrib/initramfs/conf.d/Makefile
-	contrib/initramfs/conf-hooks.d/Makefile
-	contrib/initramfs/hooks/Makefile
-	contrib/initramfs/scripts/Makefile
-	contrib/initramfs/scripts/local-top/Makefile
-	contrib/pam_zfs_key/Makefile
-	contrib/pyzfs/Makefile
-	contrib/pyzfs/setup.py
-	contrib/zcp/Makefile
 	etc/Makefile
 	etc/default/Makefile
 	etc/init.d/Makefile
