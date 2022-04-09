@@ -13,7 +13,7 @@ ACLOCAL_AMFLAGS = -I config
 
 SUBDIRS = include
 if BUILD_LINUX
-SUBDIRS += rpm
+include $(srcdir)/%D%/rpm/Makefile.am
 endif
 
 CPPCHECKDIRS += etc/systemd/system-generators
