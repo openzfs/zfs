@@ -18,8 +18,9 @@ endif
 
 CPPCHECKDIRS += etc/systemd/system-generators
 if CONFIG_USER
-SUBDIRS += . tests etc contrib
+SUBDIRS += . tests etc
 include $(srcdir)/%D%/cmd/Makefile.am
+include $(srcdir)/%D%/contrib/Makefile.am
 include $(srcdir)/%D%/lib/Makefile.am
 include $(srcdir)/%D%/man/Makefile.am
 include $(srcdir)/%D%/scripts/Makefile.am
@@ -97,7 +98,7 @@ dist-hook:
 PHONY += codecheck $(CHECKS)
 codecheck: $(CHECKS)
 
-SHELLCHECKDIRS = contrib etc tests
+SHELLCHECKDIRS = etc tests
 SHELLCHECKSCRIPTS += autogen.sh
 
 PHONY += checkstyle
