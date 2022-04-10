@@ -37,7 +37,6 @@ extra_HEADERS = zfs.release.in zfs_config.h.in
 endif
 
 EXTRA_DIST += autogen.sh copy-builtin
-EXTRA_DIST += config/config.awk config/rpm.am config/deb.am config/tgz.am
 EXTRA_DIST += AUTHORS CODE_OF_CONDUCT.md COPYRIGHT LICENSE META NEWS NOTICE
 EXTRA_DIST += README.md RELEASES.md
 EXTRA_DIST += module/lua/README.zfs module/os/linux/spl/README.md
