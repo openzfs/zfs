@@ -156,7 +156,7 @@ if [ "${INSTALL}" = "yes" ]; then
 	for cmd in "mount.zfs" "fsck.zfs"; do
 		install "$CMD_DIR/$cmd" "$INSTALL_MOUNT_HELPER_DIR/$cmd"
 	done
-	for udev in "$CMD_DIR/zvol_id" "$UDEV_SCRIPT_DIR/vdev_id"; do
+	for udev in "$UDEV_CMD_DIR/zvol_id" "$UDEV_SCRIPT_DIR/vdev_id"; do
 		install "$udev" "$INSTALL_UDEV_DIR/${udev##*/}"
 	done
 	for rule in "60-zvol.rules" "69-vdev.rules" "90-zfs.rules"; do

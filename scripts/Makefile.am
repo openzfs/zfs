@@ -35,6 +35,8 @@ export GDB="libtool --mode=execute gdb"
 export LDMOD=/sbin/insmod
 
 export CMD_DIR=$(abs_top_builddir)
+export UDEV_SCRIPT_DIR=$(abs_top_srcdir)/udev
+export UDEV_CMD_DIR=$(abs_top_builddir)/udev
 export UDEV_RULE_DIR=$(abs_top_builddir)/udev/rules.d
 export ZEDLET_ETC_DIR=$$CMD_DIR/cmd/zed/zed.d
 export ZEDLET_LIBEXEC_DIR=$$CMD_DIR/cmd/zed/zed.d
