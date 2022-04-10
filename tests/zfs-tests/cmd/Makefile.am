@@ -1,187 +1,127 @@
-include $(top_srcdir)/config/Rules.am
-
-pkgexecdir = $(datadir)/@PACKAGE@/zfs-tests/bin
+scripts_zfs_tests_bindir = $(datadir)/$(PACKAGE)/zfs-tests/bin
 
 
-pkgexec_PROGRAMS = badsend
-badsend_SOURCES = badsend.c
-badsend_LDADD = \
-	$(abs_top_builddir)/libzfs_core.la \
-	$(abs_top_builddir)/libzfs.la \
-	$(abs_top_builddir)/libnvpair.la
+scripts_zfs_tests_bin_PROGRAMS  = %D%/chg_usr_exec
+scripts_zfs_tests_bin_PROGRAMS += %D%/cp_files
+scripts_zfs_tests_bin_PROGRAMS += %D%/ctime
+scripts_zfs_tests_bin_PROGRAMS += %D%/dir_rd_update
+scripts_zfs_tests_bin_PROGRAMS += %D%/dosmode_readonly_write
+scripts_zfs_tests_bin_PROGRAMS += %D%/get_diff
+scripts_zfs_tests_bin_PROGRAMS += %D%/rename_dir
+scripts_zfs_tests_bin_PROGRAMS += %D%/suid_write_to_file
+scripts_zfs_tests_bin_PROGRAMS += %D%/truncate_test
+scripts_zfs_tests_bin_PROGRAMS += %D%/zfs_diff-socket
 
 
-pkgexec_PROGRAMS += btree_test
-btree_test_SOURCES = btree_test.c
-btree_test_CPPFLAGS = $(AM_CPPFLAGS) $(FORCEDEBUG_CPPFLAGS)
-btree_test_LDADD = \
-	$(abs_top_builddir)/libzpool.la \
-	$(abs_top_builddir)/libzfs_core.la
+scripts_zfs_tests_bin_PROGRAMS += %D%/badsend
+%C%_badsend_LDADD = \
+	libzfs_core.la \
+	libzfs.la \
+	libnvpair.la
 
 
-pkgexec_PROGRAMS += chg_usr_exec
-chg_usr_exec_SOURCES = chg_usr_exec.c
+scripts_zfs_tests_bin_PROGRAMS += %D%/btree_test
+%C%_btree_test_CPPFLAGS = $(AM_CPPFLAGS) $(FORCEDEBUG_CPPFLAGS)
+%C%_btree_test_LDADD = \
+	libzpool.la \
+	libzfs_core.la
 
 
 if WANT_DEVNAME2DEVID
-pkgexec_PROGRAMS += devname2devid
-devname2devid_SOURCES = devname2devid.c
-devname2devid_CFLAGS = $(AM_CFLAGS) $(LIBUDEV_CFLAGS)
-devname2devid_LDADD = $(LIBUDEV_LIBS)
+scripts_zfs_tests_bin_PROGRAMS += %D%/devname2devid
+%C%_devname2devid_CFLAGS = $(AM_CFLAGS) $(LIBUDEV_CFLAGS)
+%C%_devname2devid_LDADD = $(LIBUDEV_LIBS)
 endif
 
 
-pkgexec_PROGRAMS += dir_rd_update
-dir_rd_update_SOURCES = dir_rd_update.c
+scripts_zfs_tests_bin_PROGRAMS += %D%/draid
+%C%_draid_CFLAGS = $(AM_CFLAGS) $(ZLIB_CFLAGS)
+%C%_draid_LDADD = \
+	libzpool.la \
+	libnvpair.la
+%C%_draid_LDADD += $(ZLIB_LIBS)
 
 
-pkgexec_PROGRAMS += draid
-draid_CFLAGS = $(AM_CFLAGS) $(ZLIB_CFLAGS)
-draid_SOURCES = draid.c
-draid_LDADD = \
-	$(abs_top_builddir)/libzpool.la \
-	$(abs_top_builddir)/libnvpair.la
-draid_LDADD += $(ZLIB_LIBS)
+EXTRA_DIST += $(addprefix %D%/,file/file_common.h)
+scripts_zfs_tests_bin_PROGRAMS += %D%/file_check %D%/file_trunc %D%/file_write %D%/largest_file %D%/randwritecomp
+%C%_file_check_SOURCES    = %D%/file/file_check.c
+%C%_file_trunc_SOURCES    = %D%/file/file_trunc.c
+%C%_file_write_SOURCES    = %D%/file/file_write.c
+%C%_largest_file_SOURCES  = %D%/file/largest_file.c
+%C%_randwritecomp_SOURCES = %D%/file/randwritecomp.c
 
 
-EXTRA_DIST = file/file_common.h
-pkgexec_PROGRAMS += file_check file_trunc file_write largest_file randwritecomp
-file_check_SOURCES = file/file_check.c
-file_trunc_SOURCES = file/file_trunc.c
-file_write_SOURCES = file/file_write.c
-largest_file_SOURCES = file/largest_file.c
-randwritecomp_SOURCES = file/randwritecomp.c
+scripts_zfs_tests_bin_PROGRAMS += %D%/libzfs_input_check
+%C%_libzfs_input_check_CPPFLAGS = $(AM_CPPFLAGS) -I$(top_srcdir)/include/os/@ac_system_l@/zfs
+%C%_libzfs_input_check_LDADD = \
+	libzfs_core.la \
+	libnvpair.la
 
 
-pkgexec_PROGRAMS += get_diff
-get_diff_SOURCES = get_diff.c
+scripts_zfs_tests_bin_PROGRAMS += %D%/mkbusy %D%/mkfile %D%/mkfiles %D%/mktree
+%C%_mkfile_LDADD = $(LTLIBINTL)
 
 
-pkgexec_PROGRAMS += libzfs_input_check
-libzfs_input_check_SOURCES = libzfs_input_check.c
-if BUILD_FREEBSD
-libzfs_input_check_CPPFLAGS = $(AM_CPPFLAGS) -I$(top_srcdir)/include/os/freebsd/zfs
-endif
-if BUILD_LINUX
-libzfs_input_check_CPPFLAGS = $(AM_CPPFLAGS) -I$(top_srcdir)/include/os/linux/zfs
-endif
-libzfs_input_check_LDADD = \
-	$(abs_top_builddir)/libzfs_core.la \
-	$(abs_top_builddir)/libnvpair.la
-
-
-
-pkgexec_PROGRAMS += mkbusy mkfile mkfiles mktree
-mkbusy_SOURCES = mkbusy.c
-mkfile_SOURCES = mkfile.c
-mkfile_LDADD = $(LTLIBINTL)
-mkfiles_SOURCES = mkfiles.c
-mktree_SOURCES = mktree.c
-
-
-pkgexec_PROGRAMS += mmap_exec mmap_seek mmap_sync mmapwrite readmmap
-mmap_exec_SOURCES = mmap_exec.c
-mmap_seek_SOURCES = mmap_seek.c
-mmap_sync_SOURCES = mmap_sync.c
-mmapwrite_SOURCES = mmapwrite.c
-mmapwrite_LDADD = -lpthread
-readmmap_SOURCES = readmmap.c
+scripts_zfs_tests_bin_PROGRAMS += %D%/mmap_exec %D%/mmap_seek %D%/mmap_sync %D%/mmapwrite %D%/readmmap
+%C%_mmapwrite_LDADD = -lpthread
 
 if WANT_MMAP_LIBAIO
-pkgexec_PROGRAMS += mmap_libaio
-mmap_libaio_SOURCES = mmap_libaio.c
-mmap_libaio_CFLAGS = $(AM_CFLAGS) $(LIBAIO_CFLAGS)
-mmap_libaio_LDADD = $(LIBAIO_LIBS)
+scripts_zfs_tests_bin_PROGRAMS += %D%/mmap_libaio
+%C%_mmap_libaio_CFLAGS = $(AM_CFLAGS) $(LIBAIO_CFLAGS)
+%C%_mmap_libaio_LDADD  = $(LIBAIO_LIBS)
 endif
 
 
-pkgexec_PROGRAMS += nvlist_to_lua
-nvlist_to_lua_SOURCES = nvlist_to_lua.c
-nvlist_to_lua_LDADD = \
-	$(abs_top_builddir)/libzfs_core.la \
-	$(abs_top_builddir)/libnvpair.la
+scripts_zfs_tests_bin_PROGRAMS += %D%/nvlist_to_lua
+%C%_nvlist_to_lua_LDADD = \
+	libzfs_core.la \
+	libnvpair.la
+
+scripts_zfs_tests_bin_PROGRAMS += %D%/rm_lnkcnt_zero_file
+%C%_rm_lnkcnt_zero_file_LDADD = -lpthread
+
+scripts_zfs_tests_bin_PROGRAMS += %D%/send_doall
+%C%_send_doall_LDADD = \
+	libzfs_core.la \
+	libzfs.la \
+	libnvpair.la
+
+scripts_zfs_tests_bin_PROGRAMS += %D%/stride_dd
+%C%_stride_dd_LDADD = -lrt
+
+scripts_zfs_tests_bin_PROGRAMS += %D%/threadsappend
+%C%_threadsappend_LDADD = -lpthread
+
+scripts_zfs_tests_bin_PROGRAMS += %D%/ereports
+%C%_ereports_LDADD = \
+	libnvpair.la \
+	libzfs.la
 
 
-pkgexec_PROGRAMS += rename_dir
-rename_dir_SOURCES = rename_dir.c
-
-pkgexec_PROGRAMS += rm_lnkcnt_zero_file
-rm_lnkcnt_zero_file_SOURCES = rm_lnkcnt_zero_file.c
-rm_lnkcnt_zero_file_LDADD = -lpthread
-
-pkgexec_PROGRAMS += send_doall
-send_doall_SOURCES = send_doall.c
-send_doall_LDADD = \
-	$(abs_top_builddir)/libzfs_core.la \
-	$(abs_top_builddir)/libzfs.la \
-	$(abs_top_builddir)/libnvpair.la
-
-pkgexec_PROGRAMS += stride_dd
-stride_dd_SOURCES = stride_dd.c
-stride_dd_LDADD = -lrt
-
-pkgexec_PROGRAMS += threadsappend
-threadsappend_SOURCES = threadsappend.c
-threadsappend_LDADD = -lpthread
-
-pkgexec_PROGRAMS += suid_write_to_file
-suid_write_to_file_SOURCES = suid_write_to_file.c
-
-pkgexec_PROGRAMS += cp_files
-cp_files_SOURCES = cp_files.c
-
-pkgexec_PROGRAMS += ctime
-ctime_SOURCES = ctime.c
-
-pkgexec_PROGRAMS += truncate_test
-truncate_test_SOURCES = truncate_test.c
-
-pkgexec_PROGRAMS += ereports
-ereports_SOURCES = ereports.c
-ereports_LDADD = \
-	$(abs_top_builddir)/libnvpair.la \
-	$(abs_top_builddir)/libzfs.la
-
-pkgexec_PROGRAMS += zfs_diff-socket
-zfs_diff_socket_SOURCES = zfs_diff-socket.c
-
-pkgexec_PROGRAMS += dosmode_readonly_write
-dosmode_readonly_write_SOURCES = dosmode_readonly_write.c
-
-
-pkgexec_PROGRAMS += edonr_test skein_test sha2_test
-skein_test_SOURCES = checksum/skein_test.c
-sha2_test_SOURCES = checksum/sha2_test.c
-edonr_test_SOURCES = checksum/edonr_test.c
-skein_test_LDADD = \
-	$(abs_top_builddir)/libicp.la \
-	$(abs_top_builddir)/libspl_assert.la
-sha2_test_LDADD = \
-	$(abs_top_builddir)/libicp.la \
-	$(abs_top_builddir)/libspl_assert.la
-edonr_test_LDADD = \
-	$(abs_top_builddir)/libicp.la \
-	$(abs_top_builddir)/libspl_assert.la
+scripts_zfs_tests_bin_PROGRAMS += %D%/edonr_test %D%/skein_test %D%/sha2_test
+%C%_skein_test_SOURCES = %D%/checksum/skein_test.c
+%C%_sha2_test_SOURCES  = %D%/checksum/sha2_test.c
+%C%_edonr_test_SOURCES = %D%/checksum/edonr_test.c
+%C%_skein_test_LDADD = \
+	libicp.la \
+	libspl_assert.la
+%C%_sha2_test_LDADD  = $(%C%_skein_test_LDADD)
+%C%_edonr_test_LDADD = $(%C%_skein_test_LDADD)
 
 
 if BUILD_LINUX
-pkgexec_PROGRAMS += getversion
-getversion_SOURCES = getversion.c
+scripts_zfs_tests_bin_PROGRAMS += %D%/getversion
+scripts_zfs_tests_bin_PROGRAMS += %D%/user_ns_exec
+scripts_zfs_tests_bin_PROGRAMS += %D%/xattrtest
+scripts_zfs_tests_bin_PROGRAMS += %D%/zed_fd_spill-zedlet
 
-EXTRA_DIST += linux_dos_attributes/dos_attributes.h
-pkgexec_PROGRAMS += read_dos_attributes write_dos_attributes
-read_dos_attributes_SOURCES = linux_dos_attributes/read_dos_attributes.c
-write_dos_attributes_SOURCES = linux_dos_attributes/write_dos_attributes.c
 
-pkgexec_PROGRAMS += randfree_file
-randfree_file_SOURCES = file/randfree_file.c
+EXTRA_DIST += $(addprefix %D%/,linux_dos_attributes/dos_attributes.h)
+scripts_zfs_tests_bin_PROGRAMS  += %D%/read_dos_attributes %D%/write_dos_attributes
+%C%_read_dos_attributes_SOURCES  = %D%/linux_dos_attributes/read_dos_attributes.c
+%C%_write_dos_attributes_SOURCES = %D%/linux_dos_attributes/write_dos_attributes.c
 
-pkgexec_PROGRAMS += user_ns_exec
-user_ns_exec_SOURCES = user_ns_exec.c
 
-pkgexec_PROGRAMS += xattrtest
-xattrtest_SOURCES = xattrtest.c
-
-pkgexec_PROGRAMS += zed_fd_spill-zedlet
-zed_fd_spill_zedlet_SOURCES = zed_fd_spill-zedlet.c
+scripts_zfs_tests_bin_PROGRAMS += %D%/randfree_file
+%C%_randfree_file_SOURCES       = %D%/file/randfree_file.c
 endif
