@@ -11,7 +11,7 @@ CPPCHECKDIRS    =
 CPPCHECKTARGETS =
 
 cppcheck-recursive-%:
-	$(MAKE) -C $(subst ^,/,$(subst cppcheck-recursive-,,$@)) cppcheck
+	$(MAKE) -C $(subst cppcheck-recursive-,,$@) cppcheck
 
 _CTGT = $(subst cppcheck-for-,,$@)
 cppcheck-for-%:

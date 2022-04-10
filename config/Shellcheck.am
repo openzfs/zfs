@@ -12,10 +12,7 @@ JUST_SHELLCHECK_OPTS    = $(addprefix shellcheck-here-,$(subst /,^,$(1)))
 JUST_CHECKBASHISMS_OPTS = $(addprefix checkbashisms-here-,$(subst /,^,$(1)))
 SHELLCHECK_OPTS         = $(call JUST_SHELLCHECK_OPTS,$(1)) $(call JUST_CHECKBASHISMS_OPTS,$(1))
 
-PHONY += shellcheck shellcheck-recursive
-
-shellcheck-recursive:
-	@set -e; for dir in $(SHELLCHECKDIRS); do $(MAKE) -C $$dir shellcheck; done
+PHONY += shellcheck
 
 _STGT = $(subst ^,/,$(subst shellcheck-here-,,$@))
 shellcheck-here-%:
@@ -25,13 +22,10 @@ else
 	@echo "skipping shellcheck of" $(_STGT) "because shellcheck is not installed"
 endif
 
-shellcheck: $(SHELLCHECKSCRIPTS) $(call JUST_SHELLCHECK_OPTS,$(SHELLCHECKSCRIPTS)) shellcheck-recursive
+shellcheck: $(SHELLCHECKSCRIPTS) $(call JUST_SHELLCHECK_OPTS,$(SHELLCHECKSCRIPTS))
 
 
-PHONY += checkbashisms checkbashisms-recursive
-
-checkbashisms-recursive:
-	@set -e; for dir in $(SHELLCHECKDIRS); do $(MAKE) -C $$dir checkbashisms; done
+PHONY += checkbashisms
 
 # command -v *is* specified by POSIX and every shell in existence supports it
 _BTGT = $(subst ^,/,$(subst checkbashisms-here-,,$@))
@@ -43,4 +37,4 @@ else
 	@echo "skipping checkbashisms of" $(_BTGT) "because checkbashisms is not installed"
 endif
 
-checkbashisms: $(SHELLCHECKSCRIPTS) $(call JUST_CHECKBASHISMS_OPTS,$(SHELLCHECKSCRIPTS)) checkbashisms-recursive
+checkbashisms: $(SHELLCHECKSCRIPTS) $(call JUST_CHECKBASHISMS_OPTS,$(SHELLCHECKSCRIPTS))

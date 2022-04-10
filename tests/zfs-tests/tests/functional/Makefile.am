@@ -29,7 +29,6 @@ SUBDIRS = \
 	features \
 	grow \
 	history \
-	hkdf \
 	inheritance \
 	inuse \
 	io \
