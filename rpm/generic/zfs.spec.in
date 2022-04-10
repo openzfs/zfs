@@ -518,6 +518,8 @@ systemctl --system daemon-reload >/dev/null || true
 %config(noreplace) %{_sysconfdir}/%{name}/vdev_id.conf.*.example
 %attr(440, root, root) %config(noreplace) %{_sysconfdir}/sudoers.d/*
 
+%config(noreplace) %{_sysconfdir}/bash_completion.d/zfs
+
 %files -n libzpool5
 %{_libdir}/libzpool.so.*
 
