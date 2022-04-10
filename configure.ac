@@ -78,15 +78,6 @@ AC_CONFIG_FILES([
 	rpm/redhat/zfs-dkms.spec
 	rpm/redhat/zfs-kmod.spec
 	rpm/redhat/zfs.spec
-	tests/Makefile
-	tests/runfiles/Makefile
-	tests/test-runner/Makefile
-	tests/test-runner/bin/Makefile
-	tests/test-runner/include/Makefile
-	tests/zfs-tests/Makefile
-	tests/zfs-tests/callbacks/Makefile
-	tests/zfs-tests/cmd/Makefile
-	tests/zfs-tests/include/Makefile
 	tests/zfs-tests/tests/Makefile
 	tests/zfs-tests/tests/functional/Makefile
 	tests/zfs-tests/tests/functional/acl/Makefile
@@ -196,7 +187,6 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/features/large_dnode/Makefile
 	tests/zfs-tests/tests/functional/grow/Makefile
 	tests/zfs-tests/tests/functional/history/Makefile
-	tests/zfs-tests/tests/functional/hkdf/Makefile
 	tests/zfs-tests/tests/functional/inheritance/Makefile
 	tests/zfs-tests/tests/functional/inuse/Makefile
 	tests/zfs-tests/tests/functional/io/Makefile
@@ -264,7 +254,6 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/perf/fio/Makefile
 	tests/zfs-tests/tests/perf/regression/Makefile
 	tests/zfs-tests/tests/perf/scripts/Makefile
-	tests/zfs-tests/tests/stress/Makefile
 	zfs.release
 ])
 

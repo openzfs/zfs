@@ -17,13 +17,13 @@ include $(srcdir)/%D%/rpm/Makefile.am
 endif
 
 if CONFIG_USER
-SUBDIRS += . tests
 include $(srcdir)/%D%/cmd/Makefile.am
 include $(srcdir)/%D%/contrib/Makefile.am
 include $(srcdir)/%D%/etc/Makefile.am
 include $(srcdir)/%D%/lib/Makefile.am
 include $(srcdir)/%D%/man/Makefile.am
 include $(srcdir)/%D%/scripts/Makefile.am
+include $(srcdir)/%D%/tests/Makefile.am
 if BUILD_LINUX
 include $(srcdir)/%D%/udev/Makefile.am
 endif
@@ -98,7 +98,6 @@ dist-hook:
 PHONY += codecheck $(CHECKS)
 codecheck: $(CHECKS)
 
-SHELLCHECKDIRS = tests
 SHELLCHECKSCRIPTS += autogen.sh
 
 PHONY += checkstyle
