@@ -245,7 +245,7 @@ option reverted to the received value if one exists.
 Displays space consumed by, and quotas on, each user, group, or project
 in the specified filesystem or snapshot.
 .It Xr zfs-project 8
-List, set, or clear project ID and/or inherit flag on the file(s) or directories.
+List, set, or clear project ID and/or inherit flag on the files or directories.
 .El
 .
 .Ss Mountpoints
@@ -282,7 +282,8 @@ Add or change an encryption key on the specified dataset.
 .It Xr zfs-load-key 8
 Load the key for the specified encrypted dataset, enabling access.
 .It Xr zfs-unload-key 8
-Unload a key for the specified dataset, removing the ability to access the dataset.
+Unload a key for the specified dataset,
+removing the ability to access the dataset.
 .El
 .
 .Ss Channel Programs
@@ -605,7 +606,7 @@ mount point permission is set to 755 by default, user
 will be unable to mount file systems under
 .Ar tank/cindys .
 Add an ACE similar to the following syntax to provide mount point access:
-.Dl # Cm chmod No A+user: Ns Ar cindys Ns :add_subdirectory:allow Ar /tank/cindys
+.Dl # Cm chmod No A+user : Ns Ar cindys Ns :add_subdirectory:allow Ar /tank/cindys
 .
 .Ss Example 18 : No Delegating Create Time Permissions on a ZFS Dataset
 The following example shows how to grant anyone in the group
