@@ -326,7 +326,7 @@ mount_fs()
 
 	# Need the _original_ datasets mountpoint!
 	mountpoint=$(get_fs_value "$fs" mountpoint)
-	ZFS_CMD="mount -o zfsutil -t zfs"
+	ZFS_CMD="mount.zfs -o zfsutil"
 	if [ "$mountpoint" = "legacy" ] || [ "$mountpoint" = "none" ]; then
 		# Can't use the mountpoint property. Might be one of our
 		# clones. Check the 'org.zol:mountpoint' property set in
@@ -349,7 +349,7 @@ mount_fs()
 		# If it's not a legacy filesystem, it can only be a
 		# native one...
 		if [ "$mountpoint" = "legacy" ]; then
-			ZFS_CMD="mount -t zfs"
+			ZFS_CMD="mount.zfs"
 		fi
 	fi
 
@@ -915,7 +915,7 @@ mountroot()
 		echo "       not specified on the kernel command line."
 		echo ""
 		echo "Manually mount the root filesystem on $rootmnt and then exit."
-		echo "Hint: Try:  mount -o zfsutil -t zfs ${ZFS_RPOOL-rpool}/ROOT/system $rootmnt"
+		echo "Hint: Try:  mount.zfs -o zfsutil ${ZFS_RPOOL-rpool}/ROOT/system $rootmnt"
 		shell
 	fi
 
