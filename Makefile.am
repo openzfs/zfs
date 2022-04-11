@@ -104,7 +104,7 @@ checkstyle: codecheck commitcheck
 
 PHONY += commitcheck
 commitcheck:
-	@if git rev-parse --git-dir > /dev/null 2>&1; then \
+	$(AM_V_at)if git rev-parse --git-dir > /dev/null 2>&1; then \
 		${top_srcdir}/scripts/commitcheck.sh; \
 	fi
 
@@ -115,7 +115,7 @@ cstyle_line = -exec ${top_srcdir}/scripts/cstyle.pl -cpP {} +
 endif
 CHECKS += cstyle
 cstyle:
-	@find ${top_srcdir} -name build -prune \
+	$(AM_V_at)find $(top_srcdir) -name build -prune \
 		-o -type f -name '*.[hc]' \
 		! -name 'zfs_config.*' ! -name '*.mod.c' \
 		! -name 'opt_global.h' ! -name '*_if*.h' \
@@ -129,7 +129,7 @@ cstyle:
 filter_executable = -exec test -x '{}' \; -print
 CHECKS += testscheck
 testscheck:
-	@[ $$(find $(top_srcdir)/tests/zfs-tests -type f \
+	$(AM_V_at)[ $$(find $(top_srcdir)/tests/zfs-tests -type f \
 		\( -name '*.ksh' -not $(filter_executable) \) -o \
 		\( -name '*.kshlib' $(filter_executable) \) -o \
 		\( -name '*.shlib' $(filter_executable) \) -o \
@@ -138,7 +138,7 @@ testscheck:
 
 CHECKS += vcscheck
 vcscheck:
-	@if git rev-parse --git-dir > /dev/null 2>&1; then \
+	$(AM_V_at)if git rev-parse --git-dir > /dev/null 2>&1; then \
 		git ls-files . --exclude-standard --others | \
 		awk '{c++; print} END {if(c>0) exit 1}' ; \
 	fi
@@ -152,16 +152,16 @@ lint: cppcheck paxcheck
 
 PHONY += paxcheck
 paxcheck:
-	@if type scanelf > /dev/null 2>&1; then \
-		${top_srcdir}/scripts/paxcheck.sh ${top_builddir}; \
+	$(AM_V_at)if type scanelf > /dev/null 2>&1; then \
+		$(top_srcdir)/scripts/paxcheck.sh $(top_builddir); \
 	else \
 		echo "skipping paxcheck because scanelf is not installed"; \
 	fi
 
 CHECKS += flake8
 flake8:
-	@if type flake8 > /dev/null 2>&1; then \
-		flake8 ${top_srcdir}; \
+	$(AM_V_at)if type flake8 > /dev/null 2>&1; then \
+		flake8 $(top_srcdir); \
 	else \
 		echo "skipping flake8 because flake8 is not installed"; \
 	fi
