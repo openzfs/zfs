@@ -398,7 +398,40 @@ function insert_disk #disk scsi_host
 	typeset disk=$1
 	typeset scsi_host=$2
 	on_off_disk $disk "online" $scsi_host
-	block_device_wait
+	block_device_wait $disk
+}
+
+#
+# Wait for the scsi_debug kmod to be ready.
+#
+function scsi_debug_wait
+{
+	for i in {1..30}; do
+		if lsscsi | grep -q scsi_debug; then
+			return
+		fi
+
+		sleep 1
+	done
+	log_fail "scsi_debug module install failed"
+}
+
+#
+# Get scsi_debug device name.
+# Returns basename of scsi_debug device (for example "sdb").
+#
+function get_debug_device
+{
+	for i in {1..30}; do
+		val=$(lsscsi | awk '/scsi_debug/ {print $6; exit}' | cut -d/ -f3)
+
+		# lsscsi can take time to settle
+		if [ "$val" != "-" ]; then
+			break
+		fi
+		sleep 1
+	done
+	echo "$val"
 }
 
 #
@@ -442,10 +475,8 @@ function load_scsi_debug # dev_size_mb add_host num_tgts max_luns blksz
 			log_must modprobe scsi_debug dev_size_mb=$devsize \
 			    add_host=$hosts num_tgts=$tgts max_luns=$luns \
 			    sector_size=$sector physblk_exp=$blkexp
-			block_device_wait
-			if ! lsscsi | grep -q scsi_debug; then
-				log_fail "scsi_debug module install failed"
-			fi
+			scsi_debug_wait
+			block_device_wait  /dev/$(get_debug_device)
 		fi
 	fi
 }
@@ -456,24 +487,6 @@ function load_scsi_debug # dev_size_mb add_host num_tgts max_luns blksz
 function unload_scsi_debug
 {
 	log_must_retry "in use" 5 modprobe -r scsi_debug
-}
-
-#
-# Get scsi_debug device name.
-# Returns basename of scsi_debug device (for example "sdb").
-#
-function get_debug_device
-{
-	for i in {1..10} ; do
-		val=$(lsscsi | awk '/scsi_debug/ {print $6; exit}' | cut -d/ -f3)
-
-		# lsscsi can take time to settle
-		if [ "$val" != "-" ] ; then
-			break
-		fi
-		sleep 1
-	done
-	echo "$val"
 }
 
 #
