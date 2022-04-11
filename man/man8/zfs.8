@@ -57,13 +57,32 @@ The
 .Nm
 command configures ZFS datasets within a ZFS storage pool, as described in
 .Xr zpool 8 .
-A dataset is identified by a unique path within the ZFS namespace.
-For example:
-.Dl pool/{filesystem,volume,snapshot}
+A dataset is identified by a unique path within the ZFS namespace:
 .Pp
-where the maximum length of a dataset name is
-.Sy MAXNAMELEN Pq 256B
-and the maximum amount of nesting allowed in a path is 50 levels deep.
+.D1 Ar pool Ns Oo Sy / Ns Ar component Oc Ns Sy / Ns Ar component
+.Pp
+for example:
+.Pp
+.Dl rpool/var/log
+.Pp
+The maximum length of a dataset name is
+.Sy ZFS_MAX_DATASET_NAME_LEN No - 1
+ASCII characters (currently 255) satisfying
+.Sy [A-Za-z_.:/ -] .
+Additionally snapshots are allowed to contain a single
+.Sy @
+character, while bookmarks are allowed to contain a single
+.Sy #
+character.
+.Sy /
+is used as separator between components.
+The maximum amount of nesting allowed in a path is
+.Sy zfs_max_dataset_nesting
+levels deep.
+ZFS tunables
+.Pq Sy zfs_*
+are explained in
+.Xr zfs 4 .
 .Pp
 A dataset can be one of the following:
 .Bl -tag -offset Ds -width "file system"
