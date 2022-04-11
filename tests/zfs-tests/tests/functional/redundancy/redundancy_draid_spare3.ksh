@@ -48,10 +48,6 @@ function cleanup_tunable
 
 log_onexit cleanup_tunable
 
-if is_kmemleak; then
-	log_unsupported "Test case runs slowly when kmemleak is enabled"
-fi
-
 #
 # Disable scrubbing after a sequential resilver to verify the resilver
 # alone is able to reconstruct the data without the help of a scrub.
