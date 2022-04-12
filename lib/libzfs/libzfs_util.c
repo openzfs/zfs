@@ -891,6 +891,8 @@ libzfs_run_process_impl(const char *path, char *argv[], char *env[], int flags,
 	 */
 	if (lines != NULL && pipe2(link, O_NONBLOCK | O_CLOEXEC) == -1)
 		return (-EPIPE);
+	if (access(path, X_OK))
+		return (-EACCES);
 
 	pid = fork();
 	if (pid == 0) {
