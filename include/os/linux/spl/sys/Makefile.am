@@ -21,6 +21,7 @@ KERNEL_H = \
 	kstat.h \
 	list.h \
 	mod_os.h \
+	mount.h \
 	mutex.h \
 	param.h \
 	processor.h \

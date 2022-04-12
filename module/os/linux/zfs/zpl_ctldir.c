@@ -173,8 +173,8 @@ static struct vfsmount *
 zpl_snapdir_automount(struct path *path)
 {
 	int error;
-
-	error = -zfsctl_snapshot_mount(path, 0);
+	struct vfsmount *ret = NULL;
+	error = zfsctl_snapshot_mount(path, 0, &ret);
 	if (error)
 		return (ERR_PTR(error));
 
@@ -185,7 +185,7 @@ zpl_snapdir_automount(struct path *path)
 	 * to the name space.  If we returned the new mount here it would be
 	 * added again to the vfsmount list resulting in list corruption.
 	 */
-	return (NULL);
+	return (ret);
 }
 
 /*

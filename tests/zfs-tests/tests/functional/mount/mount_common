@@ -1,0 +1,21 @@
+function snaps_outside {
+    mount | grep -F "$fs@" | wc -l
+}
+
+function snapshots_mounted {
+	 assert $(snaps_outside) == "$1"
+}
+
+unmount_type=manual
+function unmount_automounted {
+    if [[ $unmount_type == auto ]]; then
+	for i in {0..10}; do
+	    if ! mount | grep -q " on $1 type zfs"; then
+		break;
+	    fi
+	    log_must sleep 1
+	done
+    else
+	log_must umount "$1"
+    fi
+}

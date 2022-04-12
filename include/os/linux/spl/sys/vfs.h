@@ -31,6 +31,7 @@
 #include <linux/xattr.h>
 #include <linux/security.h>
 #include <linux/seq_file.h>
+#include <sys/types.h>
 
 #define	MAXFIDSZ	64
 
@@ -46,5 +47,7 @@ typedef struct spl_fid {
 
 #define	fid_len		un._fid.len
 #define	fid_data	un._fid.data
+
+typedef struct vfsmount spl_mount;
 
 #endif /* SPL_ZFS_H */
