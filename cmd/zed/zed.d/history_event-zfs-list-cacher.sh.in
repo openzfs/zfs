@@ -74,6 +74,13 @@ PROPS="name,mountpoint,canmount,atime,relatime,devices,exec\
 ,org.openzfs.systemd:nofail,org.openzfs.systemd:ignore"
 
 "${ZFS}" list -H -t filesystem -o "${PROPS}" -r "${ZEVENT_POOL}" > "${FSLIST_TMP}"
+"${ZFS}" list -H -t volume -o "name,org.openzfs.systemd:ignore" -r "${ZEVENT_POOL}" |
+    while IFS="	" read -r name ignore ; do
+        [ "${ignore}" = "on" ] && continue
+
+        # fake "zvol" mountpoint
+        printf '%s\tzvol\n' "${name}" >> "${FSLIST_TMP}"
+done
 
 # Sort the output so that it is stable
 sort "${FSLIST_TMP}" -o "${FSLIST_TMP}"

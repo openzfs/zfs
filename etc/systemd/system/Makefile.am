@@ -10,6 +10,7 @@ systemdunit_DATA = \
 	zfs-mount.service \
 	zfs-share.service \
 	zfs-volume-wait.service \
+	zfs-volume@.service \
 	zfs-import.target \
 	zfs-volumes.target \
 	zfs.target \

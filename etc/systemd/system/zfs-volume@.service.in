@@ -1,0 +1,10 @@
+[Unit]
+Description=Wait for ZFS volume %I
+Documentation=man:zfs-mount-generator(8)
+After=zfs-import.target
+ConditionPathIsDirectory=/sys/module/zfs
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=@bindir@/zvol_wait %I
