@@ -524,6 +524,20 @@ If
 .Sy ZPOOL_SCRIPTS_ENABLED
 is not set, it is assumed that the user is allowed to run
 .Nm zpool Cm status Ns / Ns Cm iostat Fl c .
+.\" Shared with zfs.8
+.It Sy ZFS_MODULE_TIMEOUT
+Time, in seconds, to wait for
+.Pa /dev/zfs
+to appear.
+Defaults to
+.Sy 10 ,
+max
+.Sy 600 Pq 10 minutes .
+If
+.Pf < Sy 0 ,
+wait forever; if
+.Sy 0 ,
+don't wait.
 .El
 .
 .Sh INTERFACE STABILITY
