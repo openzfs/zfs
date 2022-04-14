@@ -736,7 +736,7 @@ Do note that any changes done with the
 command will be undone if the share is ever unshared (like via a reboot).
 .
 .Sh ENVIRONMENT VARIABLES
-.Bl -tag -width "ZFS_MOUNT_HELPER"
+.Bl -tag -width "ZFS_MODULE_TIMEOUT"
 .It Sy ZFS_MOUNT_HELPER
 Cause
 .Nm zfs Cm mount
@@ -744,14 +744,28 @@ to use
 .Xr mount 8
 to mount ZFS datasets.
 This option is provided for backwards compatibility with older ZFS versions.
-.El
-.Bl -tag -width "ZFS_SET_PIPE_MAX"
+.
 .It Sy ZFS_SET_PIPE_MAX
 Tells
 .Nm zfs
 to set the maximum pipe size for sends/recieves.
 Disabled by default on Linux
 due to an unfixed deadlock in Linux's pipe size handling code.
+.
+.\" Shared with zpool.8
+.It Sy ZFS_MODULE_TIMEOUT
+Time, in seconds, to wait for
+.Pa /dev/zfs
+to appear.
+Defaults to
+.Sy 10 ,
+max
+.Sy 600 Pq 10 minutes .
+If
+.Pf < Sy 0 ,
+wait forever; if
+.Sy 0 ,
+don't wait.
 .El
 .
 .Sh INTERFACE STABILITY

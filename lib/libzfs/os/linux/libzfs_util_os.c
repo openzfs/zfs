@@ -20,20 +20,24 @@
  */
 
 
+#include <alloca.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <libintl.h>
+#include <math.h>
+#include <poll.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <strings.h>
-#include <unistd.h>
-#include <math.h>
-#include <sys/stat.h>
-#include <sys/mnttab.h>
+#include <sys/inotify.h>
 #include <sys/mntent.h>
+#include <sys/mnttab.h>
+#include <sys/stat.h>
+#include <sys/timerfd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <unistd.h>
 
 #include <libzfs.h>
 #include <libzfs_core.h>
@@ -57,7 +61,7 @@ libzfs_error_init(int error)
 	switch (error) {
 	case ENXIO:
 		return (dgettext(TEXT_DOMAIN, "The ZFS modules are not "
-		    "loaded.\nTry running '/sbin/modprobe zfs' as root "
+		    "loaded.\nTry running 'modprobe zfs' as root "
 		    "to load them."));
 	case ENOENT:
 		return (dgettext(TEXT_DOMAIN, "/dev/zfs and /proc/self/mounts "
@@ -65,7 +69,7 @@ libzfs_error_init(int error)
 		    "-t proc proc /proc' as root."));
 	case ENOEXEC:
 		return (dgettext(TEXT_DOMAIN, "The ZFS modules cannot be "
-		    "auto-loaded.\nTry running '/sbin/modprobe zfs' as "
+		    "auto-loaded.\nTry running 'modprobe zfs' as "
 		    "root to manually load them."));
 	case EACCES:
 		return (dgettext(TEXT_DOMAIN, "Permission denied the "
@@ -76,93 +80,80 @@ libzfs_error_init(int error)
 	}
 }
 
-static int
-libzfs_module_loaded(const char *module)
-{
-	const char path_prefix[] = "/sys/module/";
-	char path[256];
-
-	memcpy(path, path_prefix, sizeof (path_prefix) - 1);
-	strcpy(path + sizeof (path_prefix) - 1, module);
-
-	return (access(path, F_OK) == 0);
-}
-
 /*
- * Verify the required ZFS_DEV device is available and optionally attempt
- * to load the ZFS modules.  Under normal circumstances the modules
- * should already have been loaded by some external mechanism.
+ * zfs(4) is loaded by udev if there's a fstype=zfs device present,
+ * but if there isn't, load them automatically;
+ * always wait for ZFS_DEV to appear via udev.
  *
  * Environment variables:
- * - ZFS_MODULE_LOADING="YES|yes|ON|on" - Attempt to load modules.
- * - ZFS_MODULE_TIMEOUT="<seconds>"     - Seconds to wait for ZFS_DEV
+ * - ZFS_MODULE_TIMEOUT="<seconds>" - Seconds to wait for ZFS_DEV,
+ *                                    defaults to 10, max. 10 min.
  */
-static int
-libzfs_load_module_impl(const char *module)
-{
-	char *argv[4] = {"/sbin/modprobe", "-q", (char *)module, (char *)0};
-	char *load_str, *timeout_str;
-	long timeout = 10; /* seconds */
-	long busy_timeout = 10; /* milliseconds */
-	int load = 0, fd;
-	hrtime_t start;
-
-	/* Optionally request module loading */
-	if (!libzfs_module_loaded(module)) {
-		load_str = getenv("ZFS_MODULE_LOADING");
-		if (load_str) {
-			if (!strncasecmp(load_str, "YES", strlen("YES")) ||
-			    !strncasecmp(load_str, "ON", strlen("ON")))
-				load = 1;
-			else
-				load = 0;
-		}
-
-		if (load) {
-			if (libzfs_run_process("/sbin/modprobe", argv, 0))
-				return (ENOEXEC);
-		}
-
-		if (!libzfs_module_loaded(module))
-			return (ENXIO);
-	}
-
-	/*
-	 * Device creation by udev is asynchronous and waiting may be
-	 * required.  Busy wait for 10ms and then fall back to polling every
-	 * 10ms for the allowed timeout (default 10s, max 10m).  This is
-	 * done to optimize for the common case where the device is
-	 * immediately available and to avoid penalizing the possible
-	 * case where udev is slow or unable to create the device.
-	 */
-	timeout_str = getenv("ZFS_MODULE_TIMEOUT");
-	if (timeout_str) {
-		timeout = strtol(timeout_str, NULL, 0);
-		timeout = MAX(MIN(timeout, (10 * 60)), 0); /* 0 <= N <= 600 */
-	}
-
-	start = gethrtime();
-	do {
-		fd = open(ZFS_DEV, O_RDWR | O_CLOEXEC);
-		if (fd >= 0) {
-			(void) close(fd);
-			return (0);
-		} else if (errno != ENOENT) {
-			return (errno);
-		} else if (NSEC2MSEC(gethrtime() - start) < busy_timeout) {
-			sched_yield();
-		} else {
-			usleep(10 * MILLISEC);
-		}
-	} while (NSEC2MSEC(gethrtime() - start) < (timeout * MILLISEC));
-
-	return (ENOENT);
-}
-
 int
 libzfs_load_module(void)
 {
-	return (libzfs_load_module_impl(ZFS_DRIVER));
+	if (access(ZFS_DEV, F_OK) == 0)
+		return (0);
+
+	if (access(ZFS_SYSFS_DIR, F_OK) != 0) {
+		char *argv[] = {"modprobe", "zfs", NULL};
+		if (libzfs_run_process("modprobe", argv, 0))
+			return (ENOEXEC);
+
+		if (access(ZFS_SYSFS_DIR, F_OK) != 0)
+			return (ENXIO);
+	}
+
+	const char *timeout_str = getenv("ZFS_MODULE_TIMEOUT");
+	int seconds = 10;
+	if (timeout_str)
+		seconds = MIN(strtol(timeout_str, NULL, 0), 600);
+	struct itimerspec timeout = {.it_value.tv_sec = MAX(seconds, 0)};
+
+	int ino = inotify_init1(IN_CLOEXEC);
+	if (ino == -1)
+		return (ENOENT);
+	inotify_add_watch(ino, ZFS_DEVDIR, IN_CREATE);
+
+	if (access(ZFS_DEV, F_OK) == 0) {
+		close(ino);
+		return (0);
+	} else if (seconds == 0) {
+		close(ino);
+		return (ENOENT);
+	}
+
+	size_t evsz = sizeof (struct inotify_event) + NAME_MAX + 1;
+	struct inotify_event *ev = alloca(evsz);
+
+	int tout = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
+	if (tout == -1) {
+		close(ino);
+		return (ENOENT);
+	}
+	timerfd_settime(tout, 0, &timeout, NULL);
+
+	int ret = ENOENT;
+	struct pollfd pfds[] = {
+		{.fd = ino, .events = POLLIN},
+		{.fd = tout, .events = POLLIN},
+	};
+	while (poll(pfds, ARRAY_SIZE(pfds), -1) != -1) {
+		if (pfds[0].revents & POLLIN) {
+			verify(read(ino, ev, evsz) >
+			    sizeof (struct inotify_event));
+			if (strcmp(ev->name, &ZFS_DEV[sizeof (ZFS_DEVDIR)])
+			    == 0) {
+				ret = 0;
+				break;
+			}
+		}
+		if (pfds[1].revents & POLLIN)
+			break;
+	}
+	close(tout);
+	close(ino);
+	return (ret);
 }
 
 int
