@@ -10818,11 +10818,7 @@ static int
 zpool_do_version(int argc, char **argv)
 {
 	(void) argc, (void) argv;
-
-	if (zfs_version_print() == -1)
-		return (1);
-
-	return (0);
+	return (zfs_version_print() != 0);
 }
 
 /*

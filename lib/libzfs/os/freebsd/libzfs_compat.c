@@ -351,14 +351,22 @@ zpool_nextboot(libzfs_handle_t *hdl, uint64_t pool_guid, uint64_t dev_guid,
 }
 
 /*
- * Fill given version buffer with zfs kernel version.
- * Returns 0 on success, and -1 on error (with errno set)
+ * Return allocated loaded module version, or NULL on error (with errno set)
  */
-int
-zfs_version_kernel(char *version, int len)
+char *
+zfs_version_kernel(void)
 {
-	size_t l = len;
-
-	return (sysctlbyname("vfs.zfs.version.module",
-	    version, &l, NULL, 0));
+	size_t l;
+	if (sysctlbyname("vfs.zfs.version.module",
+	    NULL, &l, NULL, 0) == -1)
+		return (NULL);
+	char *version = malloc(l);
+	if (version == NULL)
+		return (NULL);
+	if (sysctlbyname("vfs.zfs.version.module",
+	    version, &l, NULL, 0) == -1) {
+		free(version);
+		return (NULL);
+	}
+	return (version);
 }

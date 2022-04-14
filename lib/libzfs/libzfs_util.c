@@ -1910,37 +1910,30 @@ zprop_iter(zprop_func func, void *cb, boolean_t show_all, boolean_t ordered,
 	return (zprop_iter_common(func, cb, show_all, ordered, type));
 }
 
-/*
- * Fill given version buffer with zfs userland version
- */
-void
-zfs_version_userland(char *version, int len)
+const char *
+zfs_version_userland(void)
 {
-	(void) strlcpy(version, ZFS_META_ALIAS, len);
+	return (ZFS_META_ALIAS);
 }
 
 /*
  * Prints both zfs userland and kernel versions
- * Returns 0 on success, and -1 on error (with errno set)
+ * Returns 0 on success, and -1 on error
  */
 int
 zfs_version_print(void)
 {
-	char zver_userland[128];
-	char zver_kernel[128];
+	(void) puts(ZFS_META_ALIAS);
 
-	zfs_version_userland(zver_userland, sizeof (zver_userland));
-
-	(void) printf("%s\n", zver_userland);
-
-	if (zfs_version_kernel(zver_kernel, sizeof (zver_kernel)) == -1) {
+	char *kver = zfs_version_kernel();
+	if (kver == NULL) {
 		fprintf(stderr, "zfs_version_kernel() failed: %s\n",
 		    strerror(errno));
 		return (-1);
 	}
 
-	(void) printf("zfs-kmod-%s\n", zver_kernel);
-
+	(void) printf("zfs-kmod-%s\n", kver);
+	free(kver);
 	return (0);
 }
 
