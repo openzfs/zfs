@@ -183,31 +183,27 @@ zfs_destroy_snaps_nvl_os(libzfs_handle_t *hdl, nvlist_t *snaps)
 }
 
 /*
- * Fill given version buffer with zfs kernel version read from ZFS_SYSFS_DIR
- * Returns 0 on success, and -1 on error (with errno set)
+ * Return allocated loaded module version, or NULL on error (with errno set)
  */
-int
-zfs_version_kernel(char *version, int len)
+char *
+zfs_version_kernel(void)
 {
-	int _errno;
-	int fd;
-	int rlen;
+	FILE *f = fopen(ZFS_SYSFS_DIR "/version", "re");
+	if (f == NULL)
+		return (NULL);
 
-	if ((fd = open(ZFS_SYSFS_DIR "/version", O_RDONLY | O_CLOEXEC)) == -1)
-		return (-1);
-
-	if ((rlen = read(fd, version, len)) == -1) {
-		version[0] = '\0';
-		_errno = errno;
-		(void) close(fd);
-		errno = _errno;
-		return (-1);
+	char *ret = NULL;
+	size_t l;
+	ssize_t read;
+	if ((read = getline(&ret, &l, f)) == -1) {
+		int err = errno;
+		fclose(f);
+		errno = err;
+		return (NULL);
 	}
 
-	version[rlen-1] = '\0';  /* discard '\n' */
-
-	if (close(fd) == -1)
-		return (-1);
-
-	return (0);
+	fclose(f);
+	if (ret[read - 1] == '\n')
+		ret[read - 1] = '\0';
+	return (ret);
 }
