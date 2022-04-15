@@ -4438,17 +4438,17 @@ int
 zpool_get_history(zpool_handle_t *zhp, nvlist_t **nvhisp, uint64_t *off,
     boolean_t *eof)
 {
+	libzfs_handle_t *hdl = zhp->zpool_hdl;
 	char *buf;
 	int buflen = 128 * 1024;
 	nvlist_t **records = NULL;
 	uint_t numrecords = 0;
-	int err, i;
+	int err = 0, i;
 	uint64_t start = *off;
 
-	buf = malloc(buflen);
-	if (buf == NULL)
-		return (ENOMEM);
-	/* process about 1MB a time */
+	buf = zfs_alloc(hdl, buflen);
+
+	/* process about 1MiB a time */
 	while (*off - start < 1024 * 1024) {
 		uint64_t bytes_read = buflen;
 		uint64_t leftover;
@@ -4463,8 +4463,12 @@ zpool_get_history(zpool_handle_t *zhp, nvlist_t **nvhisp, uint64_t *off,
 		}
 
 		if ((err = zpool_history_unpack(buf, bytes_read,
-		    &leftover, &records, &numrecords)) != 0)
+		    &leftover, &records, &numrecords)) != 0) {
+			zpool_standard_error_fmt(hdl, err,
+			    dgettext(TEXT_DOMAIN,
+			    "cannot get history for '%s'"), zhp->zpool_name);
 			break;
+		}
 		*off -= leftover;
 		if (leftover == bytes_read) {
 			/*
@@ -4473,9 +4477,7 @@ zpool_get_history(zpool_handle_t *zhp, nvlist_t **nvhisp, uint64_t *off,
 			 */
 			buflen *= 2;
 			free(buf);
-			buf = malloc(buflen);
-			if (buf == NULL)
-				return (ENOMEM);
+			buf = zfs_alloc(hdl, buflen);
 		}
 	}
 
