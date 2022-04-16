@@ -68,7 +68,9 @@ zfs_fsync(znode_t *zp, int syncflag, cred_t *cr)
 	if (zfsvfs->z_os->os_sync != ZFS_SYNC_DISABLED) {
 		ZFS_ENTER(zfsvfs);
 		ZFS_VERIFY_ZP(zp);
+		atomic_inc_32(&zp->z_sync_writes_cnt);
 		zil_commit(zfsvfs->z_log, zp->z_id);
+		atomic_dec_32(&zp->z_sync_writes_cnt);
 		ZFS_EXIT(zfsvfs);
 	}
 	tsd_set(zfs_fsyncer_key, NULL);
