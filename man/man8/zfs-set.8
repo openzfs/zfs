@@ -170,8 +170,9 @@ inherited.
 .It Fl r
 Recursively inherit the given property for all children.
 .It Fl S
-Revert the property to the received value if one exists; otherwise operate as
-if the
+Revert the property to the received value, if one exists;
+otherwise, for non-inheritable properties, to the default;
+otherwise, operate as if the
 .Fl S
 option was not specified.
 .El
