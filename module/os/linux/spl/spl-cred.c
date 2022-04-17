@@ -74,7 +74,7 @@ crgetngroups(const cred_t *cr)
 
 	gi = cr->group_info;
 	rc = gi->ngroups;
-#ifndef HAVE_GROUP_INFO_GID
+#if defined(HAVE_GROUP_INFO_NBLOCKS)
 	/*
 	 * For Linux <= 4.8,
 	 * crgetgroups will only returns gi->blocks[0], which contains only
@@ -102,7 +102,7 @@ crgetgroups(const cred_t *cr)
 	gid_t *gids = NULL;
 
 	gi = cr->group_info;
-#ifdef HAVE_GROUP_INFO_GID
+#if !defined(HAVE_GROUP_INFO_NBLOCKS)
 	gids = KGIDP_TO_SGIDP(gi->gid);
 #else
 	if (gi->nblocks > 0)

@@ -56,6 +56,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_CRED_USER_NS], [
 	],[
 		struct cred cr;
 		cr.user_ns = (struct user_namespace *)NULL;
+		(void)cr;
 	])
 ])
 
