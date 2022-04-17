@@ -45,6 +45,9 @@
 #define	ZFS_EXPORTS_FILE	ZFS_EXPORTS_DIR"/zfs.exports"
 #define	ZFS_EXPORTS_LOCK	ZFS_EXPORTS_FILE".lock"
 
+
+static boolean_t nfs_available(void);
+
 typedef int (*nfs_shareopt_callback_t)(const char *opt, const char *value,
     void *cookie);
 
@@ -424,6 +427,9 @@ nfs_enable_share_impl(sa_share_impl_t impl_share, FILE *tmpfile)
 static int
 nfs_enable_share(sa_share_impl_t impl_share)
 {
+	if (!nfs_available())
+		return (SA_SYSTEM_ERR);
+
 	return (nfs_toggle_share(
 	    ZFS_EXPORTS_LOCK, ZFS_EXPORTS_FILE, ZFS_EXPORTS_DIR, impl_share,
 	    nfs_enable_share_impl));
@@ -442,6 +448,9 @@ nfs_disable_share_impl(sa_share_impl_t impl_share, FILE *tmpfile)
 static int
 nfs_disable_share(sa_share_impl_t impl_share)
 {
+	if (!nfs_available())
+		return (SA_SYSTEM_ERR);
+
 	return (nfs_toggle_share(
 	    ZFS_EXPORTS_LOCK, ZFS_EXPORTS_FILE, ZFS_EXPORTS_DIR, impl_share,
 	    nfs_disable_share_impl));
@@ -450,6 +459,9 @@ nfs_disable_share(sa_share_impl_t impl_share)
 static boolean_t
 nfs_is_shared(sa_share_impl_t impl_share)
 {
+	if (!nfs_available())
+		return (SA_SYSTEM_ERR);
+
 	return (nfs_is_shared_impl(ZFS_EXPORTS_FILE, impl_share));
 }
 
@@ -471,6 +483,9 @@ nfs_validate_shareopts(const char *shareopts)
 static int
 nfs_commit_shares(void)
 {
+	if (!nfs_available())
+		return (SA_SYSTEM_ERR);
+
 	char *argv[] = {
 	    (char *)"/usr/sbin/exportfs",
 	    (char *)"-ra",
@@ -488,3 +503,18 @@ const sa_fstype_t libshare_nfs_type = {
 	.validate_shareopts = nfs_validate_shareopts,
 	.commit_shares = nfs_commit_shares,
 };
+
+static boolean_t
+nfs_available(void)
+{
+	static int avail;
+
+	if (!avail) {
+		if (access("/usr/sbin/exportfs", F_OK) != 0)
+			avail = -1;
+		else
+			avail = 1;
+	}
+
+	return (avail == 1);
+}
