@@ -378,14 +378,18 @@ const sa_fstype_t libshare_smb_type = {
 static boolean_t
 smb_available(void)
 {
-	struct stat statbuf;
+	static int avail;
 
-	if (lstat(SHARE_DIR, &statbuf) != 0 ||
-	    !S_ISDIR(statbuf.st_mode))
-		return (B_FALSE);
+	if (!avail) {
+		struct stat statbuf;
 
-	if (access(NET_CMD_PATH, F_OK) != 0)
-		return (B_FALSE);
+		if (access(NET_CMD_PATH, F_OK) != 0 ||
+		    lstat(SHARE_DIR, &statbuf) != 0 ||
+		    !S_ISDIR(statbuf.st_mode))
+			avail = -1;
+		else
+			avail = 1;
+	}
 
-	return (B_TRUE);
+	return (avail == 1);
 }
