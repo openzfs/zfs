@@ -120,7 +120,7 @@ modules_uninstall-FreeBSD:
 modules_uninstall: modules_uninstall-@ac_system@
 
 cppcheck-Linux:
-	@CPPCHECK@ -j@CPU_COUNT@ --std=c99 --quiet --force --error-exitcode=2 \
+	@CPPCHECK@ -j@CPU_COUNT@ --std=c11 --quiet --force --error-exitcode=2 \
 		--inline-suppr \
 		--suppress=unmatchedSuppression \
 		--suppress=noValidConfiguration \

@@ -4,7 +4,7 @@
 
 PHONY += cppcheck
 
-CPPCHECKFLAGS  = --std=c99 --quiet --max-configs=1 --error-exitcode=2
+CPPCHECKFLAGS  = --std=c11 --quiet --max-configs=1 --error-exitcode=2
 CPPCHECKFLAGS += --inline-suppr -U_KERNEL
 
 cppcheck:
