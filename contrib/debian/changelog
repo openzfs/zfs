@@ -1,0 +1,7 @@
+openzfs-linux (2.1.99-1) unstable; urgency=low
+
+  * Integrate minimally modified Debian packaging from ZFS on Linux
+    (source: https://salsa.debian.org/zfsonlinux-team/zfs)
+  * This packaging is a fork of Debian zfs-linux 2.1.6-2 release.
+
+ -- Umer Saleem <usaleem@ixsystems.com>  Fri, 11 Oct 2022 15:00:00 -0400

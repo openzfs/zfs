@@ -1,0 +1,2 @@
+module/spl.ko           lib/modules/_KVERS_/extra/zcommon/
+module/zfs.ko           lib/modules/_KVERS_/extra/zcommon/

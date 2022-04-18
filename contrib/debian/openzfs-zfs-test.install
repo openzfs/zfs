@@ -1,0 +1,15 @@
+sbin/zinject
+sbin/ztest
+usr/bin/raidz_test
+usr/share/man/man1/raidz_test.1
+usr/share/man/man1/test-runner.1
+usr/share/man/man1/ztest.1
+usr/share/man/man8/zinject.8
+usr/share/zfs/common.sh
+usr/share/zfs/runfiles/
+usr/share/zfs/test-runner
+usr/share/zfs/zfs-tests.sh
+usr/share/zfs/zfs-tests/
+usr/share/zfs/zfs.sh
+usr/share/zfs/zimport.sh
+usr/share/zfs/zloop.sh

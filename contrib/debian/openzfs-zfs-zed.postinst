@@ -1,0 +1,20 @@
+#!/bin/sh
+set -e
+
+zedd="/usr/lib/zfs-linux/zed.d"
+etcd="/etc/zfs/zed.d"
+
+# enable all default zedlets that are not overridden
+while read -r file ; do
+    etcfile="${etcd}/${file}"
+    [ -e "${etcfile}" ] && continue
+    ln -sfT "${zedd}/${file}" "${etcfile}"
+done < "${zedd}/DEFAULT-ENABLED"
+
+# remove the overrides created in prerm
+find "${etcd}" -maxdepth 1 -lname '/dev/null' -delete
+# remove any dangling symlinks to old zedlets
+find "${etcd}" -maxdepth 1 -lname "${zedd}/*" -xtype l  -delete
+
+#DEBHELPER#
+

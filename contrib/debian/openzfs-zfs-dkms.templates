@@ -1,0 +1,40 @@
+Template: zfs-dkms/stop-build-for-32bit-kernel
+Type: boolean
+Default: true
+_Description: Abort building OpenZFS on a 32-bit kernel?
+ You are attempting to build OpenZFS against a 32-bit running kernel.
+ .
+ Although possible, building in a 32-bit environment is unsupported and
+ likely to cause instability leading to possible data corruption. You
+ are strongly advised to use a 64-bit kernel; if you do decide to
+ proceed with using OpenZFS on this kernel then keep in mind that it is at
+ your own risk.
+
+Template: zfs-dkms/stop-build-for-unknown-kernel
+Type: boolean
+Default: true
+_Description: Abort building OpenZFS on an unknown kernel?
+ You are attempting to build OpenZFS against a running kernel that could not
+ be identified as 32-bit or 64-bit. If you are not completely sure that
+ the running kernel is a 64-bit one, you should probably stop the build.
+ .
+ Although possible, building in a 32-bit environment is unsupported and
+ likely to cause instability leading to possible data corruption. You
+ are strongly advised to use a 64-bit kernel; if you do decide to
+ proceed with using OpenZFS on this kernel then keep in mind that it is at
+ your own risk.
+
+Template: zfs-dkms/note-incompatible-licenses
+Type: note
+_Description: Licenses of OpenZFS and Linux are incompatible
+ OpenZFS is licensed under the Common Development and Distribution License (CDDL),
+ and the Linux kernel is licensed under the GNU General Public License Version 2
+ (GPL-2). While both are free open source licenses they are restrictive
+ licenses. The combination of them causes problems because it prevents using
+ pieces of code exclusively available under one license with pieces of code
+ exclusively available under the other in the same binary. 
+ .
+ You are going to build OpenZFS using DKMS in such a way that they are not going to
+ be built into one monolithic binary. Please be aware that distributing both of
+ the binaries in the same media (disk images, virtual appliances, etc) may
+ lead to infringing.

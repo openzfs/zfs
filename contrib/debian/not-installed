@@ -1,0 +1,13 @@
+usr/bin/arc_summary.py
+usr/share/zfs/enum-extract.pl
+usr/share/zfs/zfs-helpers.sh
+etc/default/zfs
+etc/init.d
+etc/sudoers.d
+etc/zfs/vdev_id.conf.alias.example
+etc/zfs/vdev_id.conf.multipath.example
+etc/zfs/vdev_id.conf.sas_direct.example
+etc/zfs/vdev_id.conf.sas_switch.example
+etc/zfs/vdev_id.conf.scsi.example
+etc/zfs/zfs-functions
+lib/systemd/system/zfs-import.service
