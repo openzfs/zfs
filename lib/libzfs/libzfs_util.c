@@ -999,16 +999,13 @@ libzfs_free_str_array(char **strs, int count)
  *
  * Returns 0 otherwise.
  */
-int
-libzfs_envvar_is_set(char *envvar)
+boolean_t
+libzfs_envvar_is_set(const char *envvar)
 {
 	char *env = getenv(envvar);
-	if (env && (strtoul(env, NULL, 0) > 0 ||
+	return (env && (strtoul(env, NULL, 0) > 0 ||
 	    (!strncasecmp(env, "YES", 3) && strnlen(env, 4) == 3) ||
-	    (!strncasecmp(env, "ON", 2) && strnlen(env, 3) == 2)))
-		return (1);
-
-	return (0);
+	    (!strncasecmp(env, "ON", 2) && strnlen(env, 3) == 2)));
 }
 
 libzfs_handle_t *
@@ -2002,22 +1999,22 @@ use_color(void)
  * color_end();
  */
 void
-color_start(char *color)
+color_start(const char *color)
 {
 	if (use_color())
-		printf("%s", color);
+		fputs(color, stdout);
 }
 
 void
 color_end(void)
 {
 	if (use_color())
-		printf(ANSI_RESET);
+		fputs(ANSI_RESET, stdout);
 }
 
 /* printf() with a color.  If color is NULL, then do a normal printf. */
 int
-printf_color(char *color, char *format, ...)
+printf_color(const char *color, const char *format, ...)
 {
 	va_list aptr;
 	int rc;

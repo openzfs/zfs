@@ -2280,7 +2280,7 @@ arc_evictable_space_decrement(arc_buf_hdr_t *hdr, arc_state_t *state)
  * it is not evictable.
  */
 static void
-add_reference(arc_buf_hdr_t *hdr, void *tag)
+add_reference(arc_buf_hdr_t *hdr, const void *tag)
 {
 	arc_state_t *state;
 
@@ -2740,8 +2740,8 @@ arc_can_share(arc_buf_hdr_t *hdr, arc_buf_t *buf)
  */
 static int
 arc_buf_alloc_impl(arc_buf_hdr_t *hdr, spa_t *spa, const zbookmark_phys_t *zb,
-    void *tag, boolean_t encrypted, boolean_t compressed, boolean_t noauth,
-    boolean_t fill, arc_buf_t **ret)
+    const void *tag, boolean_t encrypted, boolean_t compressed,
+    boolean_t noauth, boolean_t fill, arc_buf_t **ret)
 {
 	arc_buf_t *buf;
 	arc_fill_flags_t flags = ARC_FILL_LOCKED;
@@ -2841,7 +2841,7 @@ arc_buf_alloc_impl(arc_buf_hdr_t *hdr, spa_t *spa, const zbookmark_phys_t *zb,
 	return (0);
 }
 
-static char *arc_onloan_tag = "onloan";
+static const char *arc_onloan_tag = "onloan";
 
 static inline void
 arc_loaned_bytes_update(int64_t delta)
@@ -3589,7 +3589,8 @@ arc_convert_to_raw(arc_buf_t *buf, uint64_t dsobj, boolean_t byteorder,
  * The buf is returned thawed since we expect the consumer to modify it.
  */
 arc_buf_t *
-arc_alloc_buf(spa_t *spa, void *tag, arc_buf_contents_t type, int32_t size)
+arc_alloc_buf(spa_t *spa, const void *tag, arc_buf_contents_t type,
+    int32_t size)
 {
 	arc_buf_hdr_t *hdr = arc_hdr_alloc(spa_load_guid(spa), size, size,
 	    B_FALSE, ZIO_COMPRESS_OFF, 0, type);
@@ -3607,8 +3608,8 @@ arc_alloc_buf(spa_t *spa, void *tag, arc_buf_contents_t type, int32_t size)
  * for bufs containing metadata.
  */
 arc_buf_t *
-arc_alloc_compressed_buf(spa_t *spa, void *tag, uint64_t psize, uint64_t lsize,
-    enum zio_compress compression_type, uint8_t complevel)
+arc_alloc_compressed_buf(spa_t *spa, const void *tag, uint64_t psize,
+    uint64_t lsize, enum zio_compress compression_type, uint8_t complevel)
 {
 	ASSERT3U(lsize, >, 0);
 	ASSERT3U(lsize, >=, psize);
@@ -3635,9 +3636,9 @@ arc_alloc_compressed_buf(spa_t *spa, void *tag, uint64_t psize, uint64_t lsize,
 }
 
 arc_buf_t *
-arc_alloc_raw_buf(spa_t *spa, void *tag, uint64_t dsobj, boolean_t byteorder,
-    const uint8_t *salt, const uint8_t *iv, const uint8_t *mac,
-    dmu_object_type_t ot, uint64_t psize, uint64_t lsize,
+arc_alloc_raw_buf(spa_t *spa, const void *tag, uint64_t dsobj,
+    boolean_t byteorder, const uint8_t *salt, const uint8_t *iv,
+    const uint8_t *mac, dmu_object_type_t ot, uint64_t psize, uint64_t lsize,
     enum zio_compress compression_type, uint8_t complevel)
 {
 	arc_buf_hdr_t *hdr;

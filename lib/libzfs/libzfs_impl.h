@@ -223,7 +223,7 @@ typedef struct differ_info {
 	int datafd;
 } differ_info_t;
 
-extern int do_mount(zfs_handle_t *zhp, const char *mntpt, char *opts,
+extern int do_mount(zfs_handle_t *zhp, const char *mntpt, const char *opts,
     int flags);
 extern int do_unmount(zfs_handle_t *zhp, const char *mntpt, int flags);
 extern int libzfs_load_module(void);

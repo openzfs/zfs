@@ -389,7 +389,8 @@ zed_log_fault(nvlist_t *nvl, const char *uuid, const char *code)
 static const char *
 fmd_fault_mkcode(nvlist_t *fault)
 {
-	char *class, *code = "-";
+	char *class;
+	const char *code = "-";
 
 	/*
 	 * Note: message codes come from: openzfs/usr/src/cmd/fm/dicts/ZFS.po

@@ -81,7 +81,7 @@ typedef enum {
 } zfs_deleg_note_t;
 
 typedef struct zfs_deleg_perm_tab {
-	char *z_perm;
+	const char *z_perm;
 	zfs_deleg_note_t z_note;
 } zfs_deleg_perm_tab_t;
 

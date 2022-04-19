@@ -25,10 +25,9 @@
 #include <errno.h>
 
 static void
-usage(char *msg, int exit_value)
+usage(const char *msg, int exit_value)
 {
-	(void) fprintf(stderr, "get_diff file redacted_file\n");
-	(void) fprintf(stderr, "%s\n", msg);
+	(void) fprintf(stderr, "usage: get_diff file redacted_file\n%s\n", msg);
 	exit(exit_value);
 }
 

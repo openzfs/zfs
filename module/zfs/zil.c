@@ -3470,7 +3470,7 @@ zil_close(zilog_t *zilog)
 	mutex_exit(&zilog->zl_lock);
 }
 
-static char *suspend_tag = "zil suspending";
+static const char *suspend_tag = "zil suspending";
 
 /*
  * Suspend an intent log.  While in suspended mode, we still honor

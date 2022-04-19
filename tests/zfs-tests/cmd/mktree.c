@@ -153,7 +153,7 @@ crtfile(char *pname)
 {
 	int fd = -1;
 	int i, size;
-	char *context = "0123456789ABCDF";
+	const char *context = "0123456789ABCDF";
 	char *pbuf;
 
 	if (pname == NULL) {

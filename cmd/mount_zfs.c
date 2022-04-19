@@ -108,20 +108,21 @@ mtab_is_writeable(void)
 }
 
 static int
-mtab_update(char *dataset, char *mntpoint, char *type, char *mntopts)
+mtab_update(const char *dataset, const char *mntpoint, const char *type,
+    const char *mntopts)
 {
 	struct mntent mnt;
 	FILE *fp;
 	int error;
 
-	mnt.mnt_fsname = dataset;
-	mnt.mnt_dir = mntpoint;
-	mnt.mnt_type = type;
-	mnt.mnt_opts = mntopts ? mntopts : "";
+	mnt.mnt_fsname = (char *)dataset;
+	mnt.mnt_dir = (char *)mntpoint;
+	mnt.mnt_type = (char *)type;
+	mnt.mnt_opts = (char *)(mntopts ?: "");
 	mnt.mnt_freq = 0;
 	mnt.mnt_passno = 0;
 
-	fp = setmntent("/etc/mtab", "a+");
+	fp = setmntent("/etc/mtab", "a+e");
 	if (!fp) {
 		(void) fprintf(stderr, gettext(
 		    "filesystem '%s' was mounted, but /etc/mtab "

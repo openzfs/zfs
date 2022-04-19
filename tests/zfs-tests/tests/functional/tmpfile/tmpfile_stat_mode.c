@@ -28,6 +28,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <err.h>
 
 /* backward compat in case it's not defined */
 #ifndef O_TMPFILE
@@ -50,63 +51,46 @@ test_stat_mode(mode_t mask)
 	struct stat st, fst;
 	int i, fd;
 	char spath[1024], dpath[1024];
-	char *penv[] = {"TESTDIR", "TESTFILE0"};
+	const char *penv[] = {"TESTDIR", "TESTFILE0"};
 	mode_t masked = 0777 & ~mask;
 	mode_t mode;
 
 	/*
 	 * Get the environment variable values.
 	 */
-	for (i = 0; i < sizeof (penv) / sizeof (char *); i++) {
-		if ((penv[i] = getenv(penv[i])) == NULL) {
-			fprintf(stderr, "getenv(penv[%d])\n", i);
-			exit(1);
-		}
-	}
+	for (i = 0; i < ARRAY_SIZE(penv); i++)
+		if ((penv[i] = getenv(penv[i])) == NULL)
+			errx(1, "getenv(penv[%d])", i);
 
 	umask(mask);
 	fd = open(penv[0], O_RDWR|O_TMPFILE, 0777);
-	if (fd == -1) {
-		perror("open");
-		exit(2);
-	}
+	if (fd == -1)
+		err(2, "open(%s)", penv[0]);
 
-	if (fstat(fd, &fst) == -1) {
-		perror("fstat");
-		close(fd);
-		exit(3);
-	}
+	if (fstat(fd, &fst) == -1)
+		err(3, "open");
 
 	snprintf(spath, sizeof (spath), "/proc/self/fd/%d", fd);
 	snprintf(dpath, sizeof (dpath), "%s/%s", penv[0], penv[1]);
 
 	unlink(dpath);
-	if (linkat(AT_FDCWD, spath, AT_FDCWD, dpath, AT_SYMLINK_FOLLOW) == -1) {
-		perror("linkat");
-		close(fd);
-		exit(4);
-	}
+	if (linkat(AT_FDCWD, spath, AT_FDCWD, dpath, AT_SYMLINK_FOLLOW) == -1)
+		err(4, "linkat");
 	close(fd);
 
-	if (stat(dpath, &st) == -1) {
-		perror("stat");
-		exit(5);
-	}
+	if (stat(dpath, &st) == -1)
+		err(5, "stat");
 	unlink(dpath);
 
 	/* Verify fstat(2) result */
 	mode = fst.st_mode & 0777;
-	if (mode != masked) {
-		fprintf(stderr, "fstat(2) %o != %o\n", mode, masked);
-		exit(6);
-	}
+	if (mode != masked)
+		errx(6, "fstat(2) %o != %o\n", mode, masked);
 
 	/* Verify stat(2) result */
 	mode = st.st_mode & 0777;
-	if (mode != masked) {
-		fprintf(stderr, "stat(2) %o != %o\n", mode, masked);
-		exit(7);
-	}
+	if (mode != masked)
+		errx(7, "stat(2) %o != %o\n", mode, masked);
 }
 
 int

@@ -183,7 +183,7 @@ typedef struct spl_kmem_cache {
 } spl_kmem_cache_t;
 #define	kmem_cache_t		spl_kmem_cache_t
 
-extern spl_kmem_cache_t *spl_kmem_cache_create(char *name, size_t size,
+extern spl_kmem_cache_t *spl_kmem_cache_create(const char *name, size_t size,
     size_t align, spl_kmem_ctor_t ctor, spl_kmem_dtor_t dtor,
     void *reclaim, void *priv, void *vmp, int flags);
 extern void spl_kmem_cache_set_move(spl_kmem_cache_t *,

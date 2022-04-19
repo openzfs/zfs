@@ -2065,7 +2065,7 @@ send_prelim_records(zfs_handle_t *zhp, const char *from, int fd,
 	/* name of filesystem/volume that contains snapshot we are sending */
 	char tofs[ZFS_MAX_DATASET_NAME_LEN];
 	/* short name of snap we are sending */
-	char *tosnap = "";
+	const char *tosnap = "";
 
 	char errbuf[ERRBUFLEN];
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,

@@ -112,15 +112,13 @@ extern zfs_fuid_info_t *zfs_fuid_info_alloc(void);
 extern void zfs_fuid_info_free(zfs_fuid_info_t *);
 extern boolean_t zfs_groupmember(zfsvfs_t *, uint64_t, cred_t *);
 void zfs_fuid_sync(zfsvfs_t *, dmu_tx_t *);
-extern int zfs_fuid_find_by_domain(zfsvfs_t *, const char *domain,
-    char **retdomain, boolean_t addok);
 extern const char *zfs_fuid_find_by_idx(zfsvfs_t *zfsvfs, uint32_t idx);
 extern void zfs_fuid_txhold(zfsvfs_t *zfsvfs, dmu_tx_t *tx);
 extern int zfs_id_to_fuidstr(zfsvfs_t *zfsvfs, const char *domain, uid_t rid,
     char *buf, size_t len, boolean_t addok);
 #endif
 
-char *zfs_fuid_idx_domain(avl_tree_t *, uint32_t);
+const char *zfs_fuid_idx_domain(avl_tree_t *, uint32_t);
 void zfs_fuid_avl_tree_create(avl_tree_t *, avl_tree_t *);
 uint64_t zfs_fuid_table_load(objset_t *, uint64_t, avl_tree_t *, avl_tree_t *);
 void zfs_fuid_table_destroy(avl_tree_t *, avl_tree_t *);

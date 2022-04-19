@@ -679,7 +679,7 @@ spl_magazine_destroy(spl_kmem_cache_t *skc)
  *	KMC_NODEBUG	Disable debugging (unsupported)
  */
 spl_kmem_cache_t *
-spl_kmem_cache_create(char *name, size_t size, size_t align,
+spl_kmem_cache_create(const char *name, size_t size, size_t align,
     spl_kmem_ctor_t ctor, spl_kmem_dtor_t dtor, void *reclaim,
     void *priv, void *vmp, int flags)
 {

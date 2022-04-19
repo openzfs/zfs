@@ -34,7 +34,7 @@ extern "C" {
 #endif
 
 _ZFS_COMUTIL_H boolean_t zfs_allocatable_devs(nvlist_t *);
-_ZFS_COMUTIL_H boolean_t zfs_special_devs(nvlist_t *, char *);
+_ZFS_COMUTIL_H boolean_t zfs_special_devs(nvlist_t *, const char *);
 _ZFS_COMUTIL_H void zpool_get_load_policy(nvlist_t *, zpool_load_policy_t *);
 
 _ZFS_COMUTIL_H int zfs_zpl_version_map(int spa_version);

@@ -90,7 +90,7 @@ typedef const struct zio_checksum_info {
 	zio_checksum_tmpl_init_t	*ci_tmpl_init;
 	zio_checksum_tmpl_free_t	*ci_tmpl_free;
 	zio_checksum_flags_t		ci_flags;
-	char				*ci_name;	/* descriptive name */
+	const char			*ci_name;	/* descriptive name */
 } zio_checksum_info_t;
 
 typedef struct zio_bad_cksum {
@@ -102,7 +102,7 @@ typedef struct zio_bad_cksum {
 	uint8_t			zbc_has_cksum;	/* expected/actual valid */
 } zio_bad_cksum_t;
 
-_SYS_ZIO_CHECKSUM_H zio_checksum_info_t
+_SYS_ZIO_CHECKSUM_H const zio_checksum_info_t
     zio_checksum_table[ZIO_CHECKSUM_FUNCTIONS];
 
 /*

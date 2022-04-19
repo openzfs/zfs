@@ -99,7 +99,7 @@ libzfs_load_module(void)
 		return (0);
 
 	if (access(ZFS_SYSFS_DIR, F_OK) != 0) {
-		char *argv[] = {"modprobe", "zfs", NULL};
+		char *argv[] = {(char *)"modprobe", (char *)"zfs", NULL};
 		if (libzfs_run_process("modprobe", argv, 0))
 			return (ENOEXEC);
 
