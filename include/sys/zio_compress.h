@@ -145,14 +145,14 @@ typedef int zio_decompress_abd_func_t(abd_t *src, void *dst,
  * Information about each compression function.
  */
 typedef const struct zio_compress_info {
-	char				*ci_name;
+	const char			*ci_name;
 	int				ci_level;
 	zio_compress_func_t		*ci_compress;
 	zio_decompress_func_t		*ci_decompress;
 	zio_decompresslevel_func_t	*ci_decompress_level;
 } zio_compress_info_t;
 
-extern zio_compress_info_t zio_compress_table[ZIO_COMPRESS_FUNCTIONS];
+extern const zio_compress_info_t zio_compress_table[ZIO_COMPRESS_FUNCTIONS];
 
 /*
  * lz4 compression init & free

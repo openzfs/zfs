@@ -69,7 +69,7 @@ static void sig_handler(int signo)
 
 static void print_opts(raidz_test_opts_t *opts, boolean_t force)
 {
-	char *verbose;
+	const char *verbose;
 	switch (opts->rto_v) {
 		case D_ALL:
 			verbose = "no";

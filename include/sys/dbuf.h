@@ -339,12 +339,12 @@ int dbuf_spill_set_blksz(dmu_buf_t *db, uint64_t blksz, dmu_tx_t *tx);
 
 void dbuf_rm_spill(struct dnode *dn, dmu_tx_t *tx);
 
-dmu_buf_impl_t *dbuf_hold(struct dnode *dn, uint64_t blkid, void *tag);
+dmu_buf_impl_t *dbuf_hold(struct dnode *dn, uint64_t blkid, const void *tag);
 dmu_buf_impl_t *dbuf_hold_level(struct dnode *dn, int level, uint64_t blkid,
-    void *tag);
+    const void *tag);
 int dbuf_hold_impl(struct dnode *dn, uint8_t level, uint64_t blkid,
     boolean_t fail_sparse, boolean_t fail_uncached,
-    void *tag, dmu_buf_impl_t **dbp);
+    const void *tag, dmu_buf_impl_t **dbp);
 
 int dbuf_prefetch_impl(struct dnode *dn, int64_t level, uint64_t blkid,
     zio_priority_t prio, arc_flags_t aflags, dbuf_prefetch_fn cb,
@@ -352,13 +352,14 @@ int dbuf_prefetch_impl(struct dnode *dn, int64_t level, uint64_t blkid,
 int dbuf_prefetch(struct dnode *dn, int64_t level, uint64_t blkid,
     zio_priority_t prio, arc_flags_t aflags);
 
-void dbuf_add_ref(dmu_buf_impl_t *db, void *tag);
+void dbuf_add_ref(dmu_buf_impl_t *db, const void *tag);
 boolean_t dbuf_try_add_ref(dmu_buf_t *db, objset_t *os, uint64_t obj,
-    uint64_t blkid, void *tag);
+    uint64_t blkid, const void *tag);
 uint64_t dbuf_refcount(dmu_buf_impl_t *db);
 
-void dbuf_rele(dmu_buf_impl_t *db, void *tag);
-void dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag, boolean_t evicting);
+void dbuf_rele(dmu_buf_impl_t *db, const void *tag);
+void dbuf_rele_and_unlock(dmu_buf_impl_t *db, const void *tag,
+    boolean_t evicting);
 
 dmu_buf_impl_t *dbuf_find(struct objset *os, uint64_t object, uint8_t level,
     uint64_t blkid);
@@ -385,8 +386,10 @@ void dbuf_destroy(dmu_buf_impl_t *db);
 void dbuf_unoverride(dbuf_dirty_record_t *dr);
 void dbuf_sync_list(list_t *list, int level, dmu_tx_t *tx);
 void dbuf_release_bp(dmu_buf_impl_t *db);
-db_lock_type_t dmu_buf_lock_parent(dmu_buf_impl_t *db, krw_t rw, void *tag);
-void dmu_buf_unlock_parent(dmu_buf_impl_t *db, db_lock_type_t type, void *tag);
+db_lock_type_t dmu_buf_lock_parent(dmu_buf_impl_t *db, krw_t rw,
+    const void *tag);
+void dmu_buf_unlock_parent(dmu_buf_impl_t *db, db_lock_type_t type,
+    const void *tag);
 
 void dbuf_free_range(struct dnode *dn, uint64_t start, uint64_t end,
     struct dmu_tx *);

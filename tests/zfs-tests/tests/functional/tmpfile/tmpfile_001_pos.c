@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <string.h>
 #include <time.h>
+#include <err.h>
 
 /* backward compat in case it's not defined */
 #ifndef O_TMPFILE
@@ -33,75 +34,45 @@ fill_random(char *buf, int len)
 {
 	srand(time(NULL));
 	for (int i = 0; i < len; i++)
-		buf[i] = (char)rand();
+		buf[i] = (char)(rand() % 0xFF);
 }
 
 int
 main(void)
 {
-	int i, fd;
-	char buf1[BSZ], buf2[BSZ] = {};
-	char *penv[] = {"TESTDIR"};
+	char buf1[BSZ], buf2[BSZ] = {0};
 
 	(void) fprintf(stdout, "Verify O_TMPFILE is working properly.\n");
 
-	/*
-	 * Get the environment variable values.
-	 */
-	for (i = 0; i < sizeof (penv) / sizeof (char *); i++) {
-		if ((penv[i] = getenv(penv[i])) == NULL) {
-			(void) fprintf(stderr, "getenv(penv[%d])\n", i);
-			exit(1);
-		}
-	}
+	const char *testdir = getenv("TESTDIR");
+	if (testdir == NULL)
+		errx(1, "getenv(\"TESTDIR\")");
 
 	fill_random(buf1, BSZ);
 
-	fd = open(penv[0], O_RDWR|O_TMPFILE, 0666);
-	if (fd < 0) {
-		perror("open");
-		exit(2);
-	}
+	int fd = open(testdir, O_RDWR|O_TMPFILE, 0666);
+	if (fd < 0)
+		err(2, "open(%s)", testdir);
 
-	if (write(fd, buf1, BSZ) < 0) {
-		perror("write");
-		close(fd);
-		exit(3);
-	}
+	if (write(fd, buf1, BSZ) < 0)
+		err(3, "write");
 
-	if (pread(fd, buf2, BSZ, 0) < 0) {
-		perror("pread");
-		close(fd);
-		exit(4);
-	}
+	if (pread(fd, buf2, BSZ, 0) < 0)
+		err(4, "pread");
 
-	if (memcmp(buf1, buf2, BSZ) != 0) {
-		fprintf(stderr, "data corrupted\n");
-		close(fd);
-		exit(5);
-	}
+	if (memcmp(buf1, buf2, BSZ) != 0)
+		errx(5, "data corrupted");
 
 	memset(buf2, 0, BSZ);
 
-	if (fsetxattr(fd, "user.test", buf1, BSZ, 0) < 0) {
-		perror("fsetxattr");
-		close(fd);
-		exit(6);
-	}
+	if (fsetxattr(fd, "user.test", buf1, BSZ, 0) < 0)
+		err(6, "pread");
 
-	if (fgetxattr(fd, "user.test", buf2, BSZ) < 0) {
-		perror("fgetxattr");
-		close(fd);
-		exit(7);
-	}
+	if (fgetxattr(fd, "user.test", buf2, BSZ) < 0)
+		err(7, "fgetxattr");
 
-	if (memcmp(buf1, buf2, BSZ) != 0) {
-		fprintf(stderr, "xattr corrupted\n");
-		close(fd);
-		exit(8);
-	}
-
-	close(fd);
+	if (memcmp(buf1, buf2, BSZ) != 0)
+		errx(8, "xattr corrupted\n");
 
 	return (0);
 }

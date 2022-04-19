@@ -67,7 +67,7 @@ typedef struct zio_crypt_info {
 	size_t ci_keylen;
 
 	/* human-readable name of the encryption algorithm */
-	char *ci_name;
+	const char *ci_name;
 } zio_crypt_info_t;
 
 extern const zio_crypt_info_t zio_crypt_table[ZIO_CRYPT_FUNCTIONS];

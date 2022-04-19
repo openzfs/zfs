@@ -49,7 +49,7 @@
 int
 main(int argc, char **argv)
 {
-	char *filename = "badfile";
+	const char *filename = "badfile";
 	size_t size = 4395;
 	size_t idx = 0;
 	char *buf = NULL;

@@ -5825,7 +5825,7 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 					    KM_SLEEP);
 				for (uint64_t i = 0; i < vd->vdev_children;
 				    i++) {
-					char *vname;
+					const char *vname;
 
 					vname = vdev_name(vd->vdev_child[i],
 					    namebuf, sizeof (namebuf));

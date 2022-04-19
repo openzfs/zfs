@@ -714,7 +714,7 @@ dmu_objset_from_ds(dsl_dataset_t *ds, objset_t **osp)
  * can be held at a time.
  */
 int
-dmu_objset_hold_flags(const char *name, boolean_t decrypt, void *tag,
+dmu_objset_hold_flags(const char *name, boolean_t decrypt, const void *tag,
     objset_t **osp)
 {
 	dsl_pool_t *dp;
@@ -742,14 +742,14 @@ dmu_objset_hold_flags(const char *name, boolean_t decrypt, void *tag,
 }
 
 int
-dmu_objset_hold(const char *name, void *tag, objset_t **osp)
+dmu_objset_hold(const char *name, const void *tag, objset_t **osp)
 {
 	return (dmu_objset_hold_flags(name, B_FALSE, tag, osp));
 }
 
 static int
 dmu_objset_own_impl(dsl_dataset_t *ds, dmu_objset_type_t type,
-    boolean_t readonly, boolean_t decrypt, void *tag, objset_t **osp)
+    boolean_t readonly, boolean_t decrypt, const void *tag, objset_t **osp)
 {
 	(void) tag;
 
@@ -789,7 +789,7 @@ dmu_objset_own_impl(dsl_dataset_t *ds, dmu_objset_type_t type,
  */
 int
 dmu_objset_own(const char *name, dmu_objset_type_t type,
-    boolean_t readonly, boolean_t decrypt, void *tag, objset_t **osp)
+    boolean_t readonly, boolean_t decrypt, const void *tag, objset_t **osp)
 {
 	dsl_pool_t *dp;
 	dsl_dataset_t *ds;
@@ -834,7 +834,7 @@ dmu_objset_own(const char *name, dmu_objset_type_t type,
 
 int
 dmu_objset_own_obj(dsl_pool_t *dp, uint64_t obj, dmu_objset_type_t type,
-    boolean_t readonly, boolean_t decrypt, void *tag, objset_t **osp)
+    boolean_t readonly, boolean_t decrypt, const void *tag, objset_t **osp)
 {
 	dsl_dataset_t *ds;
 	int err;
@@ -855,7 +855,7 @@ dmu_objset_own_obj(dsl_pool_t *dp, uint64_t obj, dmu_objset_type_t type,
 }
 
 void
-dmu_objset_rele_flags(objset_t *os, boolean_t decrypt, void *tag)
+dmu_objset_rele_flags(objset_t *os, boolean_t decrypt, const void *tag)
 {
 	ds_hold_flags_t flags;
 	dsl_pool_t *dp = dmu_objset_pool(os);
@@ -866,7 +866,7 @@ dmu_objset_rele_flags(objset_t *os, boolean_t decrypt, void *tag)
 }
 
 void
-dmu_objset_rele(objset_t *os, void *tag)
+dmu_objset_rele(objset_t *os, const void *tag)
 {
 	dmu_objset_rele_flags(os, B_FALSE, tag);
 }
@@ -884,7 +884,7 @@ dmu_objset_rele(objset_t *os, void *tag)
  */
 void
 dmu_objset_refresh_ownership(dsl_dataset_t *ds, dsl_dataset_t **newds,
-    boolean_t decrypt, void *tag)
+    boolean_t decrypt, const void *tag)
 {
 	dsl_pool_t *dp;
 	char name[ZFS_MAX_DATASET_NAME_LEN];
@@ -904,7 +904,7 @@ dmu_objset_refresh_ownership(dsl_dataset_t *ds, dsl_dataset_t **newds,
 }
 
 void
-dmu_objset_disown(objset_t *os, boolean_t decrypt, void *tag)
+dmu_objset_disown(objset_t *os, boolean_t decrypt, const void *tag)
 {
 	ds_hold_flags_t flags;
 

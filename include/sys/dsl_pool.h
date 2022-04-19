@@ -177,9 +177,9 @@ void dsl_pool_mos_diduse_space(dsl_pool_t *dp,
 void dsl_pool_ckpoint_diduse_space(dsl_pool_t *dp,
     int64_t used, int64_t comp, int64_t uncomp);
 boolean_t dsl_pool_need_dirty_delay(dsl_pool_t *dp);
-void dsl_pool_config_enter(dsl_pool_t *dp, void *tag);
-void dsl_pool_config_enter_prio(dsl_pool_t *dp, void *tag);
-void dsl_pool_config_exit(dsl_pool_t *dp, void *tag);
+void dsl_pool_config_enter(dsl_pool_t *dp, const void *tag);
+void dsl_pool_config_enter_prio(dsl_pool_t *dp, const void *tag);
+void dsl_pool_config_exit(dsl_pool_t *dp, const void *tag);
 boolean_t dsl_pool_config_held(dsl_pool_t *dp);
 boolean_t dsl_pool_config_held_writer(dsl_pool_t *dp);
 
@@ -192,8 +192,8 @@ int dsl_pool_user_release(dsl_pool_t *dp, uint64_t dsobj,
     const char *tag, dmu_tx_t *tx);
 void dsl_pool_clean_tmp_userrefs(dsl_pool_t *dp);
 int dsl_pool_open_special_dir(dsl_pool_t *dp, const char *name, dsl_dir_t **);
-int dsl_pool_hold(const char *name, void *tag, dsl_pool_t **dp);
-void dsl_pool_rele(dsl_pool_t *dp, void *tag);
+int dsl_pool_hold(const char *name, const void *tag, dsl_pool_t **dp);
+void dsl_pool_rele(dsl_pool_t *dp, const void *tag);
 
 void dsl_pool_create_obsolete_bpobj(dsl_pool_t *dp, dmu_tx_t *tx);
 void dsl_pool_destroy_obsolete_bpobj(dsl_pool_t *dp, dmu_tx_t *tx);

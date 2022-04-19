@@ -72,11 +72,11 @@ typedef struct rrwlock {
  */
 void rrw_init(rrwlock_t *rrl, boolean_t track_all);
 void rrw_destroy(rrwlock_t *rrl);
-void rrw_enter(rrwlock_t *rrl, krw_t rw, void *tag);
-void rrw_enter_read(rrwlock_t *rrl, void *tag);
-void rrw_enter_read_prio(rrwlock_t *rrl, void *tag);
+void rrw_enter(rrwlock_t *rrl, krw_t rw, const void *tag);
+void rrw_enter_read(rrwlock_t *rrl, const void *tag);
+void rrw_enter_read_prio(rrwlock_t *rrl, const void *tag);
 void rrw_enter_write(rrwlock_t *rrl);
-void rrw_exit(rrwlock_t *rrl, void *tag);
+void rrw_exit(rrwlock_t *rrl, const void *tag);
 boolean_t rrw_held(rrwlock_t *rrl, krw_t rw);
 void rrw_tsd_destroy(void *arg);
 
@@ -99,10 +99,10 @@ typedef struct rrmlock {
 
 void rrm_init(rrmlock_t *rrl, boolean_t track_all);
 void rrm_destroy(rrmlock_t *rrl);
-void rrm_enter(rrmlock_t *rrl, krw_t rw, void *tag);
-void rrm_enter_read(rrmlock_t *rrl, void *tag);
+void rrm_enter(rrmlock_t *rrl, krw_t rw, const void *tag);
+void rrm_enter_read(rrmlock_t *rrl, const void *tag);
 void rrm_enter_write(rrmlock_t *rrl);
-void rrm_exit(rrmlock_t *rrl, void *tag);
+void rrm_exit(rrmlock_t *rrl, const void *tag);
 boolean_t rrm_held(rrmlock_t *rrl, krw_t rw);
 
 #define	RRM_READ_HELD(x)	rrm_held(x, RW_READER)

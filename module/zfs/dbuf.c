@@ -1297,7 +1297,7 @@ dbuf_whichblock(const dnode_t *dn, const int64_t level, const uint64_t offset)
  * used when modifying or reading db_blkptr.
  */
 db_lock_type_t
-dmu_buf_lock_parent(dmu_buf_impl_t *db, krw_t rw, void *tag)
+dmu_buf_lock_parent(dmu_buf_impl_t *db, krw_t rw, const void *tag)
 {
 	enum db_lock_type ret = DLT_NONE;
 	if (db->db_parent != NULL) {
@@ -1322,7 +1322,7 @@ dmu_buf_lock_parent(dmu_buf_impl_t *db, krw_t rw, void *tag)
  * panic if we didn't pass the lock type in.
  */
 void
-dmu_buf_unlock_parent(dmu_buf_impl_t *db, db_lock_type_t type, void *tag)
+dmu_buf_unlock_parent(dmu_buf_impl_t *db, db_lock_type_t type, const void *tag)
 {
 	if (type == DLT_PARENT)
 		rw_exit(&db->db_parent->db_rwlock);
@@ -1522,7 +1522,7 @@ dbuf_read_verify_dnode_crypt(dmu_buf_impl_t *db, uint32_t flags)
  */
 static int
 dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags,
-    db_lock_type_t dblt, void *tag)
+    db_lock_type_t dblt, const void *tag)
 {
 	dnode_t *dn;
 	zbookmark_phys_t zb;
@@ -3532,7 +3532,7 @@ dbuf_hold_copy(dnode_t *dn, dmu_buf_impl_t *db)
 int
 dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
     boolean_t fail_sparse, boolean_t fail_uncached,
-    void *tag, dmu_buf_impl_t **dbp)
+    const void *tag, dmu_buf_impl_t **dbp)
 {
 	dmu_buf_impl_t *db, *parent = NULL;
 
@@ -3637,13 +3637,13 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
 }
 
 dmu_buf_impl_t *
-dbuf_hold(dnode_t *dn, uint64_t blkid, void *tag)
+dbuf_hold(dnode_t *dn, uint64_t blkid, const void *tag)
 {
 	return (dbuf_hold_level(dn, 0, blkid, tag));
 }
 
 dmu_buf_impl_t *
-dbuf_hold_level(dnode_t *dn, int level, uint64_t blkid, void *tag)
+dbuf_hold_level(dnode_t *dn, int level, uint64_t blkid, const void *tag)
 {
 	dmu_buf_impl_t *db;
 	int err = dbuf_hold_impl(dn, level, blkid, FALSE, FALSE, tag, &db);
@@ -3684,7 +3684,7 @@ dbuf_rm_spill(dnode_t *dn, dmu_tx_t *tx)
 
 #pragma weak dmu_buf_add_ref = dbuf_add_ref
 void
-dbuf_add_ref(dmu_buf_impl_t *db, void *tag)
+dbuf_add_ref(dmu_buf_impl_t *db, const void *tag)
 {
 	int64_t holds = zfs_refcount_add(&db->db_holds, tag);
 	VERIFY3S(holds, >, 1);
@@ -3693,7 +3693,7 @@ dbuf_add_ref(dmu_buf_impl_t *db, void *tag)
 #pragma weak dmu_buf_try_add_ref = dbuf_try_add_ref
 boolean_t
 dbuf_try_add_ref(dmu_buf_t *db_fake, objset_t *os, uint64_t obj, uint64_t blkid,
-    void *tag)
+    const void *tag)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
 	dmu_buf_impl_t *found_db;
@@ -3722,14 +3722,14 @@ dbuf_try_add_ref(dmu_buf_t *db_fake, objset_t *os, uint64_t obj, uint64_t blkid,
  * dnode's parent dbuf evicting its dnode handles.
  */
 void
-dbuf_rele(dmu_buf_impl_t *db, void *tag)
+dbuf_rele(dmu_buf_impl_t *db, const void *tag)
 {
 	mutex_enter(&db->db_mtx);
 	dbuf_rele_and_unlock(db, tag, B_FALSE);
 }
 
 void
-dmu_buf_rele(dmu_buf_t *db, void *tag)
+dmu_buf_rele(dmu_buf_t *db, const void *tag)
 {
 	dbuf_rele((dmu_buf_impl_t *)db, tag);
 }
@@ -3748,7 +3748,7 @@ dmu_buf_rele(dmu_buf_t *db, void *tag)
  *
  */
 void
-dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag, boolean_t evicting)
+dbuf_rele_and_unlock(dmu_buf_impl_t *db, const void *tag, boolean_t evicting)
 {
 	int64_t holds;
 	uint64_t size;

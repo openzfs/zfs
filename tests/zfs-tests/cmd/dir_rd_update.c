@@ -47,7 +47,7 @@ static char dirpath[256];
 int
 main(int argc, char **argv)
 {
-	char *cp1 = "";
+	const char *cp1 = "";
 	int i = 0;
 	int ret = 0;
 	int testdd = 0;

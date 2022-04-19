@@ -882,7 +882,7 @@ libzfs_mnttab_find(libzfs_handle_t *hdl, const char *fsname,
 			return (ENOENT);
 
 		srch.mnt_special = (char *)fsname;
-		srch.mnt_fstype = MNTTYPE_ZFS;
+		srch.mnt_fstype = (char *)MNTTYPE_ZFS;
 		ret = getmntany(mnttab, entry, &srch) ? ENOENT : 0;
 		(void) fclose(mnttab);
 		return (ret);
@@ -2051,7 +2051,7 @@ getprop_uint64(zfs_handle_t *zhp, zfs_prop_t prop, char **source)
 		verify(!zhp->zfs_props_table ||
 		    zhp->zfs_props_table[prop] == B_TRUE);
 		value = zfs_prop_default_numeric(prop);
-		*source = "";
+		*source = (char *)"";
 	}
 
 	return (value);
@@ -2072,7 +2072,7 @@ getprop_string(zfs_handle_t *zhp, zfs_prop_t prop, char **source)
 		verify(!zhp->zfs_props_table ||
 		    zhp->zfs_props_table[prop] == B_TRUE);
 		value = zfs_prop_default_string(prop);
-		*source = "";
+		*source = (char *)"";
 	}
 
 	return (value);
@@ -2114,8 +2114,8 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 	zfs_cmd_t zc = {"\0"};
 	nvlist_t *zplprops = NULL;
 	struct mnttab mnt;
-	char *mntopt_on = NULL;
-	char *mntopt_off = NULL;
+	const char *mntopt_on = NULL;
+	const char *mntopt_off = NULL;
 	boolean_t received = zfs_is_recvd_props_mode(zhp);
 
 	*source = NULL;
@@ -2194,7 +2194,7 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 	}
 
 	if (zhp->zfs_mntopts == NULL)
-		mnt.mnt_mntopts = "";
+		mnt.mnt_mntopts = (char *)"";
 	else
 		mnt.mnt_mntopts = zhp->zfs_mntopts;
 

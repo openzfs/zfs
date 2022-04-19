@@ -46,7 +46,7 @@ int dmu_object_alloc_chunk_shift = 7;
 static uint64_t
 dmu_object_alloc_impl(objset_t *os, dmu_object_type_t ot, int blocksize,
     int indirect_blockshift, dmu_object_type_t bonustype, int bonuslen,
-    int dnodesize, dnode_t **allocated_dnode, void *tag, dmu_tx_t *tx)
+    int dnodesize, dnode_t **allocated_dnode, const void *tag, dmu_tx_t *tx)
 {
 	uint64_t object;
 	uint64_t L1_dnode_count = DNODES_PER_BLOCK <<
@@ -255,7 +255,7 @@ dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
 uint64_t
 dmu_object_alloc_hold(objset_t *os, dmu_object_type_t ot, int blocksize,
     int indirect_blockshift, dmu_object_type_t bonustype, int bonuslen,
-    int dnodesize, dnode_t **allocated_dnode, void *tag, dmu_tx_t *tx)
+    int dnodesize, dnode_t **allocated_dnode, const void *tag, dmu_tx_t *tx)
 {
 	return (dmu_object_alloc_impl(os, ot, blocksize, indirect_blockshift,
 	    bonustype, bonuslen, dnodesize, allocated_dnode, tag, tx));

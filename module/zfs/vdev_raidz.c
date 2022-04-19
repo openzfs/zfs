@@ -3053,7 +3053,7 @@ vdev_raidz_io_done_write_impl(zio_t *zio, raidz_row_t *rr)
 }
 
 static void
-vdev_raidz_io_done_reconstruct_known_missing(raidz_map_t *rm, raidz_row_t *rr)
+vdev_raidz_io_done_reconstruct_known_missing(zio_t *zio, raidz_map_t *rm, raidz_row_t *rr)
 {
 	int parity_errors = 0;
 	int parity_untried = 0;
@@ -3248,7 +3248,7 @@ vdev_raidz_io_done(zio_t *zio)
 
 		for (int i = 0; i < rm->rm_nrows; i++) {
 			raidz_row_t *rr = rm->rm_row[i];
-			vdev_raidz_io_done_reconstruct_known_missing(rm, rr);
+			vdev_raidz_io_done_reconstruct_known_missing(zio, rm, rr);
 		}
 
 		if (raidz_checksum_verify(zio) == 0) {

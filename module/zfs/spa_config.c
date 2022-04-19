@@ -67,7 +67,7 @@ static uint64_t spa_config_generation = 1;
  * This can be overridden in userland to preserve an alternate namespace for
  * userland pools when doing testing.
  */
-char *spa_config_path = ZPOOL_CACHE;
+char *spa_config_path = (char *)ZPOOL_CACHE;
 #ifdef _KERNEL
 static int zfs_autoimport_disable = B_TRUE;
 #endif

@@ -563,7 +563,7 @@ vdev_raidz_math_fini(void)
 }
 
 static const struct {
-	char *name;
+	const char *name;
 	uint32_t sel;
 } math_impl_opts[] = {
 		{ "cycle",	IMPL_CYCLE },
