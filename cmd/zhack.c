@@ -88,7 +88,7 @@ usage(void)
 
 
 static __attribute__((format(printf, 3, 4))) __attribute__((noreturn)) void
-fatal(spa_t *spa, void *tag, const char *fmt, ...)
+fatal(spa_t *spa, const void *tag, const char *fmt, ...)
 {
 	va_list ap;
 
@@ -166,7 +166,7 @@ zhack_import(char *target, boolean_t readonly)
 }
 
 static void
-zhack_spa_open(char *target, boolean_t readonly, void *tag, spa_t **spa)
+zhack_spa_open(char *target, boolean_t readonly, const void *tag, spa_t **spa)
 {
 	int err;
 

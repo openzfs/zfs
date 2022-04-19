@@ -200,7 +200,7 @@ rck_alloc(dsl_dataset_t *clone)
 
 static void
 dsl_dir_remove_clones_key_impl(dsl_dir_t *dd, uint64_t mintxg, dmu_tx_t *tx,
-    list_t *stack, void *tag)
+    list_t *stack, const void *tag)
 {
 	objset_t *mos = dd->dd_pool->dp_meta_objset;
 

@@ -1215,7 +1215,8 @@ spa_vdev_config_enter(spa_t *spa)
  * of multiple transactions without releasing the spa_namespace_lock.
  */
 void
-spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error, char *tag)
+spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error,
+    const char *tag)
 {
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 

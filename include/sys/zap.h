@@ -139,7 +139,7 @@ uint64_t zap_create_flags_dnsize(objset_t *os, int normflags,
 uint64_t zap_create_hold(objset_t *os, int normflags, zap_flags_t flags,
     dmu_object_type_t ot, int leaf_blockshift, int indirect_blockshift,
     dmu_object_type_t bonustype, int bonuslen, int dnodesize,
-    dnode_t **allocated_dnode, void *tag, dmu_tx_t *tx);
+    dnode_t **allocated_dnode, const void *tag, dmu_tx_t *tx);
 
 uint64_t zap_create_link(objset_t *os, dmu_object_type_t ot,
     uint64_t parent_obj, const char *name, dmu_tx_t *tx);

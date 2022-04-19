@@ -1397,7 +1397,8 @@ getzfsvfs(const char *dsname, zfsvfs_t **zfvp)
  * which prevents all inode ops from running.
  */
 static int
-zfsvfs_hold(const char *name, void *tag, zfsvfs_t **zfvp, boolean_t writer)
+zfsvfs_hold(const char *name, const void *tag, zfsvfs_t **zfvp,
+    boolean_t writer)
 {
 	int error = 0;
 
@@ -1422,7 +1423,7 @@ zfsvfs_hold(const char *name, void *tag, zfsvfs_t **zfvp, boolean_t writer)
 }
 
 static void
-zfsvfs_rele(zfsvfs_t *zfsvfs, void *tag)
+zfsvfs_rele(zfsvfs_t *zfsvfs, const void *tag)
 {
 	ZFS_TEARDOWN_EXIT(zfsvfs, tag);
 

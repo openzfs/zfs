@@ -3024,7 +3024,7 @@ static objset_t *sa_os = NULL;
 static sa_attr_type_t *sa_attr_table = NULL;
 
 static int
-open_objset(const char *path, void *tag, objset_t **osp)
+open_objset(const char *path, const void *tag, objset_t **osp)
 {
 	int err;
 	uint64_t sa_attrs = 0;
@@ -3068,7 +3068,7 @@ open_objset(const char *path, void *tag, objset_t **osp)
 }
 
 static void
-close_objset(objset_t *os, void *tag)
+close_objset(objset_t *os, const void *tag)
 {
 	VERIFY3P(os, ==, sa_os);
 	if (os->os_sa != NULL)

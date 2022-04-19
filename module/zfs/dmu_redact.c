@@ -855,7 +855,7 @@ redact_merge_thread(void *arg)
  * object number.
  */
 static int
-hold_next_object(objset_t *os, struct redact_record *rec, void *tag,
+hold_next_object(objset_t *os, struct redact_record *rec, const void *tag,
     uint64_t *object, dnode_t **dn)
 {
 	int err = 0;

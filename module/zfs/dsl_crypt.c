@@ -80,13 +80,13 @@
 int zfs_disable_ivset_guid_check = 0;
 
 static void
-dsl_wrapping_key_hold(dsl_wrapping_key_t *wkey, void *tag)
+dsl_wrapping_key_hold(dsl_wrapping_key_t *wkey, const void *tag)
 {
 	(void) zfs_refcount_add(&wkey->wk_refcnt, tag);
 }
 
 static void
-dsl_wrapping_key_rele(dsl_wrapping_key_t *wkey, void *tag)
+dsl_wrapping_key_rele(dsl_wrapping_key_t *wkey, const void *tag)
 {
 	(void) zfs_refcount_remove(&wkey->wk_refcnt, tag);
 }
@@ -368,7 +368,7 @@ dsl_dir_incompatible_encryption_version(dsl_dir_t *dd)
 
 static int
 spa_keystore_wkey_hold_ddobj_impl(spa_t *spa, uint64_t ddobj,
-    void *tag, dsl_wrapping_key_t **wkey_out)
+    const void *tag, dsl_wrapping_key_t **wkey_out)
 {
 	int ret;
 	dsl_wrapping_key_t search_wkey;
@@ -398,7 +398,7 @@ error:
 }
 
 static int
-spa_keystore_wkey_hold_dd(spa_t *spa, dsl_dir_t *dd, void *tag,
+spa_keystore_wkey_hold_dd(spa_t *spa, dsl_dir_t *dd, const void *tag,
     dsl_wrapping_key_t **wkey_out)
 {
 	int ret;
@@ -514,7 +514,7 @@ dsl_crypto_key_free(dsl_crypto_key_t *dck)
 }
 
 static void
-dsl_crypto_key_rele(dsl_crypto_key_t *dck, void *tag)
+dsl_crypto_key_rele(dsl_crypto_key_t *dck, const void *tag)
 {
 	if (zfs_refcount_remove(&dck->dck_holds, tag) == 0)
 		dsl_crypto_key_free(dck);
@@ -522,7 +522,7 @@ dsl_crypto_key_rele(dsl_crypto_key_t *dck, void *tag)
 
 static int
 dsl_crypto_key_open(objset_t *mos, dsl_wrapping_key_t *wkey,
-    uint64_t dckobj, void *tag, dsl_crypto_key_t **dck_out)
+    uint64_t dckobj, const void *tag, dsl_crypto_key_t **dck_out)
 {
 	int ret;
 	uint64_t crypt = 0, guid = 0, version = 0;
@@ -600,7 +600,7 @@ error:
 }
 
 static int
-spa_keystore_dsl_key_hold_impl(spa_t *spa, uint64_t dckobj, void *tag,
+spa_keystore_dsl_key_hold_impl(spa_t *spa, uint64_t dckobj, const void *tag,
     dsl_crypto_key_t **dck_out)
 {
 	int ret;
@@ -631,7 +631,7 @@ error:
 }
 
 static int
-spa_keystore_dsl_key_hold_dd(spa_t *spa, dsl_dir_t *dd, void *tag,
+spa_keystore_dsl_key_hold_dd(spa_t *spa, dsl_dir_t *dd, const void *tag,
     dsl_crypto_key_t **dck_out)
 {
 	int ret;
@@ -689,7 +689,7 @@ spa_keystore_dsl_key_hold_dd(spa_t *spa, dsl_dir_t *dd, void *tag,
 }
 
 void
-spa_keystore_dsl_key_rele(spa_t *spa, dsl_crypto_key_t *dck, void *tag)
+spa_keystore_dsl_key_rele(spa_t *spa, dsl_crypto_key_t *dck, const void *tag)
 {
 	rw_enter(&spa->spa_keystore.sk_dk_lock, RW_WRITER);
 
@@ -936,7 +936,7 @@ error:
 }
 
 void
-key_mapping_add_ref(dsl_key_mapping_t *km, void *tag)
+key_mapping_add_ref(dsl_key_mapping_t *km, const void *tag)
 {
 	ASSERT3U(zfs_refcount_count(&km->km_refcnt), >=, 1);
 	zfs_refcount_add(&km->km_refcnt, tag);
@@ -953,7 +953,7 @@ key_mapping_add_ref(dsl_key_mapping_t *km, void *tag)
  * mapping after unmounting a dataset.
  */
 void
-key_mapping_rele(spa_t *spa, dsl_key_mapping_t *km, void *tag)
+key_mapping_rele(spa_t *spa, dsl_key_mapping_t *km, const void *tag)
 {
 	ASSERT3U(zfs_refcount_count(&km->km_refcnt), >=, 1);
 
@@ -984,7 +984,7 @@ key_mapping_rele(spa_t *spa, dsl_key_mapping_t *km, void *tag)
 }
 
 int
-spa_keystore_create_mapping(spa_t *spa, dsl_dataset_t *ds, void *tag,
+spa_keystore_create_mapping(spa_t *spa, dsl_dataset_t *ds, const void *tag,
     dsl_key_mapping_t **km_out)
 {
 	int ret;
@@ -1043,7 +1043,7 @@ spa_keystore_create_mapping(spa_t *spa, dsl_dataset_t *ds, void *tag,
 }
 
 int
-spa_keystore_remove_mapping(spa_t *spa, uint64_t dsobj, void *tag)
+spa_keystore_remove_mapping(spa_t *spa, uint64_t dsobj, const void *tag)
 {
 	int ret;
 	dsl_key_mapping_t search_km;
@@ -1081,7 +1081,7 @@ error_unlock:
  * without getting a reference to it.
  */
 int
-spa_keystore_lookup_key(spa_t *spa, uint64_t dsobj, void *tag,
+spa_keystore_lookup_key(spa_t *spa, uint64_t dsobj, const void *tag,
     dsl_crypto_key_t **dck_out)
 {
 	int ret;

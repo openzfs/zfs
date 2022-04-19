@@ -174,19 +174,20 @@ boolean_t dsl_dir_incompatible_encryption_version(dsl_dir_t *dd);
 void spa_keystore_init(spa_keystore_t *sk);
 void spa_keystore_fini(spa_keystore_t *sk);
 
-void spa_keystore_dsl_key_rele(spa_t *spa, dsl_crypto_key_t *dck, void *tag);
+void spa_keystore_dsl_key_rele(spa_t *spa, dsl_crypto_key_t *dck,
+    const void *tag);
 int spa_keystore_load_wkey_impl(spa_t *spa, dsl_wrapping_key_t *wkey);
 int spa_keystore_load_wkey(const char *dsname, dsl_crypto_params_t *dcp,
     boolean_t noop);
 int spa_keystore_unload_wkey_impl(spa_t *spa, uint64_t ddobj);
 int spa_keystore_unload_wkey(const char *dsname);
 
-int spa_keystore_create_mapping(spa_t *spa, struct dsl_dataset *ds, void *tag,
-    dsl_key_mapping_t **km_out);
-int spa_keystore_remove_mapping(spa_t *spa, uint64_t dsobj, void *tag);
-void key_mapping_add_ref(dsl_key_mapping_t *km, void *tag);
-void key_mapping_rele(spa_t *spa, dsl_key_mapping_t *km, void *tag);
-int spa_keystore_lookup_key(spa_t *spa, uint64_t dsobj, void *tag,
+int spa_keystore_create_mapping(spa_t *spa, struct dsl_dataset *ds,
+    const void *tag, dsl_key_mapping_t **km_out);
+int spa_keystore_remove_mapping(spa_t *spa, uint64_t dsobj, const void *tag);
+void key_mapping_add_ref(dsl_key_mapping_t *km, const void *tag);
+void key_mapping_rele(spa_t *spa, dsl_key_mapping_t *km, const void *tag);
+int spa_keystore_lookup_key(spa_t *spa, uint64_t dsobj, const void *tag,
     dsl_crypto_key_t **dck_out);
 
 int dsl_crypto_populate_key_nvlist(struct objset *os,
