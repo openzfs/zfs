@@ -711,7 +711,7 @@ print_vdev_tree(zpool_handle_t *zhp, const char *name, nvlist_t *nv, int indent,
 
 	for (c = 0; c < children; c++) {
 		uint64_t is_log = B_FALSE, is_hole = B_FALSE;
-		char *class = "";
+		char *class = (char *)"";
 
 		(void) nvlist_lookup_uint64(child[c], ZPOOL_CONFIG_IS_HOLE,
 		    &is_hole);
@@ -723,7 +723,7 @@ print_vdev_tree(zpool_handle_t *zhp, const char *name, nvlist_t *nv, int indent,
 		(void) nvlist_lookup_uint64(child[c], ZPOOL_CONFIG_IS_LOG,
 		    &is_log);
 		if (is_log)
-			class = VDEV_ALLOC_BIAS_LOG;
+			class = (char *)VDEV_ALLOC_BIAS_LOG;
 		(void) nvlist_lookup_string(child[c],
 		    ZPOOL_CONFIG_ALLOCATION_BIAS, &class);
 		if (strcmp(match, class) != 0)
@@ -804,7 +804,7 @@ prop_list_contains_feature(nvlist_t *proplist)
  * Add a property pair (name, string-value) into a property nvlist.
  */
 static int
-add_prop_list(const char *propname, char *propval, nvlist_t **props,
+add_prop_list(const char *propname, const char *propval, nvlist_t **props,
     boolean_t poolprop)
 {
 	zpool_prop_t prop = ZPOOL_PROP_INVAL;
@@ -905,7 +905,8 @@ add_prop_list(const char *propname, char *propval, nvlist_t **props,
  * Set a default property pair (name, string-value) in a property nvlist
  */
 static int
-add_prop_list_default(const char *propname, char *propval, nvlist_t **props)
+add_prop_list_default(const char *propname, const char *propval,
+    nvlist_t **props)
 {
 	char *pval;
 
@@ -2069,15 +2070,13 @@ typedef struct status_cbdata {
 } status_cbdata_t;
 
 /* Return 1 if string is NULL, empty, or whitespace; return 0 otherwise. */
-static int
-is_blank_str(char *str)
+static boolean_t
+is_blank_str(const char *str)
 {
-	while (str != NULL && *str != '\0') {
+	for (; str != NULL && *str != '\0'; ++str)
 		if (!isblank(*str))
-			return (0);
-		str++;
-	}
-	return (1);
+			return (B_FALSE);
+	return (B_TRUE);
 }
 
 /* Print command output lines for specific vdev in a specific pool */
@@ -2086,7 +2085,7 @@ zpool_print_cmd(vdev_cmd_data_list_t *vcdl, const char *pool, char *path)
 {
 	vdev_cmd_data_t *data;
 	int i, j;
-	char *val;
+	const char *val;
 
 	for (i = 0; i < vcdl->count; i++) {
 		if ((strcmp(vcdl->data[i].path, path) != 0) ||
@@ -2117,17 +2116,17 @@ zpool_print_cmd(vdev_cmd_data_list_t *vcdl, const char *pool, char *path)
 
 			printf("%*s", vcdl->uniq_cols_width[j], val);
 			if (j < vcdl->uniq_cols_cnt - 1)
-				printf("  ");
+				fputs("  ", stdout);
 		}
 
 		/* Print out any values that aren't in a column at the end */
 		for (j = data->cols_cnt; j < data->lines_cnt; j++) {
 			/* Did we have any columns?  If so print a spacer. */
 			if (vcdl->uniq_cols_cnt > 0)
-				printf("  ");
+				fputs("  ", stdout);
 
 			val = data->lines[j];
-			printf("%s", val ? val : "");
+			fputs(val ?: "", stdout);
 		}
 		break;
 	}
@@ -2240,7 +2239,7 @@ print_status_trim(vdev_stat_t *vs, boolean_t verbose)
  * Return the color associated with a health string.  This includes returning
  * NULL for no color change.
  */
-static char *
+static const char *
 health_str_to_color(const char *health)
 {
 	if (strcmp(health, gettext("FAULTED")) == 0 ||
@@ -2276,7 +2275,7 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 	const char *state;
 	char *type;
 	char *path = NULL;
-	char *rcolor = NULL, *wcolor = NULL, *ccolor = NULL;
+	const char *rcolor = NULL, *wcolor = NULL, *ccolor = NULL;
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
 	    &child, &children) != 0)
@@ -2318,13 +2317,13 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 			ccolor = ANSI_RED;
 
 		if (cb->cb_literal) {
-			printf(" ");
+			fputc(' ', stdout);
 			printf_color(rcolor, "%5llu",
 			    (u_longlong_t)vs->vs_read_errors);
-			printf(" ");
+			fputc(' ', stdout);
 			printf_color(wcolor, "%5llu",
 			    (u_longlong_t)vs->vs_write_errors);
-			printf(" ");
+			fputc(' ', stdout);
 			printf_color(ccolor, "%5llu",
 			    (u_longlong_t)vs->vs_checksum_errors);
 		} else {
@@ -2332,11 +2331,11 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 			zfs_nicenum(vs->vs_write_errors, wbuf, sizeof (wbuf));
 			zfs_nicenum(vs->vs_checksum_errors, cbuf,
 			    sizeof (cbuf));
-			printf(" ");
+			fputc(' ', stdout);
 			printf_color(rcolor, "%5s", rbuf);
-			printf(" ");
+			fputc(' ', stdout);
 			printf_color(wcolor, "%5s", wbuf);
-			printf(" ");
+			fputc(' ', stdout);
 			printf_color(ccolor, "%5s", cbuf);
 		}
 		if (cb->cb_print_slow_ios) {
@@ -2671,7 +2670,7 @@ print_class_vdevs(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t *nv,
 		    &is_log);
 
 		if (is_log) {
-			bias = VDEV_ALLOC_CLASS_LOGS;
+			bias = (char *)VDEV_ALLOC_CLASS_LOGS;
 		} else {
 			(void) nvlist_lookup_string(child[c],
 			    ZPOOL_CONFIG_ALLOCATION_BIAS, &bias);
@@ -2711,8 +2710,8 @@ show_import(nvlist_t *config, boolean_t report_error)
 	char *name;
 	uint64_t guid;
 	uint64_t hostid = 0;
-	char *msgid;
-	char *hostname = "unknown";
+	const char *msgid;
+	const char *hostname = "unknown";
 	nvlist_t *nvroot, *nvinfo;
 	zpool_status_t reason;
 	zpool_errata_t errata;
@@ -3252,7 +3251,7 @@ import_pools(nvlist_t *pools, nvlist_t *props, char *mntopts, int flags,
 			if (first)
 				first = B_FALSE;
 			else if (!do_all)
-				(void) putchar('\n');
+				(void) fputc('\n', stdout);
 
 			if (do_all) {
 				err |= do_import(config, NULL, mntopts,
@@ -4848,7 +4847,7 @@ children:
 			(void) nvlist_lookup_uint64(newchild[c],
 			    ZPOOL_CONFIG_IS_LOG, &islog);
 			if (islog) {
-				bias = VDEV_ALLOC_CLASS_LOGS;
+				bias = (char *)VDEV_ALLOC_CLASS_LOGS;
 			} else {
 				(void) nvlist_lookup_string(newchild[c],
 				    ZPOOL_CONFIG_ALLOCATION_BIAS, &bias);
@@ -5382,7 +5381,7 @@ terminal_height(void)
 static void
 print_zpool_script_help(char *name, char *path)
 {
-	char *argv[] = {path, "-h", NULL};
+	char *argv[] = {path, (char *)"-h", NULL};
 	char **lines = NULL;
 	int lines_cnt = 0;
 	int rc;
@@ -5434,7 +5433,7 @@ print_zpool_dir_scripts(char *dirpath)
  * Print out help text for all zpool status/iostat -c scripts.
  */
 static void
-print_zpool_script_list(char *subcommand)
+print_zpool_script_list(const char *subcommand)
 {
 	char *dir, *sp, *tmp;
 
@@ -5979,7 +5978,7 @@ print_pool(zpool_handle_t *zhp, list_cbdata_t *cb)
 	zprop_list_t *pl = cb->cb_proplist;
 	boolean_t first = B_TRUE;
 	char property[ZPOOL_MAXPROPLEN];
-	char *propstr;
+	const char *propstr;
 	boolean_t right_justify;
 	size_t width;
 
@@ -6214,7 +6213,7 @@ print_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 
 			if (nvlist_lookup_uint64(child[c], ZPOOL_CONFIG_IS_LOG,
 			    &islog) == 0 && islog) {
-				bias = VDEV_ALLOC_CLASS_LOGS;
+				bias = (char *)VDEV_ALLOC_CLASS_LOGS;
 			} else {
 				(void) nvlist_lookup_string(child[c],
 				    ZPOOL_CONFIG_ALLOCATION_BIAS, &bias);
@@ -8118,7 +8117,7 @@ status_callback(zpool_handle_t *zhp, void *data)
 {
 	status_cbdata_t *cbp = data;
 	nvlist_t *config, *nvroot;
-	char *msgid;
+	const char *msgid;
 	zpool_status_t reason;
 	zpool_errata_t errata;
 	const char *health;
@@ -8163,12 +8162,12 @@ status_callback(zpool_handle_t *zhp, void *data)
 	printf("  ");
 	printf_color(ANSI_BOLD, gettext("pool:"));
 	printf(" %s\n", zpool_get_name(zhp));
-	printf(" ");
+	fputc(' ', stdout);
 	printf_color(ANSI_BOLD, gettext("state: "));
 
 	printf_color(health_str_to_color(health), "%s", health);
 
-	printf("\n");
+	fputc('\n', stdout);
 
 	switch (reason) {
 	case ZPOOL_STATUS_MISSING_DEV_R:
@@ -10485,8 +10484,8 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp, int row)
 	pool_checkpoint_stat_t *pcs = NULL;
 	pool_scan_stat_t *pss = NULL;
 	pool_removal_stat_t *prs = NULL;
-	char *headers[] = {"DISCARD", "FREE", "INITIALIZE", "REPLACE",
-	    "REMOVE", "RESILVER", "SCRUB", "TRIM"};
+	const char *const headers[] = {"DISCARD", "FREE", "INITIALIZE",
+	    "REPLACE", "REMOVE", "RESILVER", "SCRUB", "TRIM"};
 	int col_widths[ZPOOL_WAIT_NUM_ACTIVITIES];
 
 	/* Calculate the width of each column */
@@ -10508,7 +10507,7 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp, int row)
 			if (wd->wd_enabled[i])
 				(void) printf("%*s", col_widths[i], headers[i]);
 		}
-		(void) printf("\n");
+		(void) fputc('\n', stdout);
 	}
 
 	/* Bytes of work remaining in each activity */
@@ -10795,11 +10794,9 @@ found:;
 }
 
 static int
-find_command_idx(char *command, int *idx)
+find_command_idx(const char *command, int *idx)
 {
-	int i;
-
-	for (i = 0; i < NCOMMAND; i++) {
+	for (int i = 0; i < NCOMMAND; ++i) {
 		if (command_table[i].name == NULL)
 			continue;
 

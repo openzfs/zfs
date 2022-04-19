@@ -659,9 +659,9 @@ sync_upgrade_errlog(spa_t *spa, uint64_t spa_err_obj, uint64_t *newobj,
 		}
 
 		char buf[64];
-		char *name = "";
 		errphys_to_name(&zep, buf, sizeof (buf));
 
+		const char *name = "";
 		(void) zap_update(spa->spa_meta_objset, err_obj,
 		    buf, 1, strlen(name) + 1, name, tx);
 	}
@@ -901,17 +901,14 @@ sync_error_list(spa_t *spa, avl_tree_t *t, uint64_t *obj, dmu_tx_t *tx)
 	/* add errors to the current log */
 	if (!spa_feature_is_enabled(spa, SPA_FEATURE_HEAD_ERRLOG)) {
 		for (se = avl_first(t); se != NULL; se = AVL_NEXT(t, se)) {
-			char *name = se->se_name ? se->se_name : "";
-
 			bookmark_to_name(&se->se_bookmark, buf, sizeof (buf));
 
+			const char *name = se->se_name ? se->se_name : "";
 			(void) zap_update(spa->spa_meta_objset, *obj, buf, 1,
 			    strlen(name) + 1, name, tx);
 		}
 	} else {
 		for (se = avl_first(t); se != NULL; se = AVL_NEXT(t, se)) {
-			char *name = se->se_name ? se->se_name : "";
-
 			zbookmark_err_phys_t zep;
 			zep.zb_object = se->se_bookmark.zb_object;
 			zep.zb_level = se->se_bookmark.zb_level;
@@ -943,6 +940,7 @@ sync_error_list(spa_t *spa, avl_tree_t *t, uint64_t *obj, dmu_tx_t *tx)
 			}
 			errphys_to_name(&zep, buf, sizeof (buf));
 
+			const char *name = se->se_name ? se->se_name : "";
 			(void) zap_update(spa->spa_meta_objset,
 			    err_obj, buf, 1, strlen(name) + 1, name, tx);
 		}
@@ -1153,7 +1151,7 @@ swap_errlog(spa_t *spa, uint64_t spa_err_obj, uint64_t new_head, uint64_t
 	for (zap_cursor_init(&zc, spa->spa_meta_objset, old_head_errlog);
 	    zap_cursor_retrieve(&zc, &za) == 0; zap_cursor_advance(&zc)) {
 
-		char *name = "";
+		const char *name = "";
 		name_to_errphys(za.za_name, &err_block);
 		if (err_block.zb_birth < txg) {
 			(void) zap_update(spa->spa_meta_objset, new_head_errlog,

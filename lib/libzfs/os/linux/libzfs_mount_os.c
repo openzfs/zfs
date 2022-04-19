@@ -180,7 +180,7 @@ out:
  * otherwise they are considered fatal are copied in to badopt.
  */
 int
-zfs_parse_mount_options(char *mntopts, unsigned long *mntflags,
+zfs_parse_mount_options(const char *mntopts, unsigned long *mntflags,
     unsigned long *zfsflags, int sloppy, char *badopt, char *mtabopt)
 {
 	int error = 0, quote = 0, flag = 0, count = 0;
@@ -320,7 +320,7 @@ zfs_adjust_mount_options(zfs_handle_t *zhp, const char *mntpoint,
  * make due with return value from the mount process.
  */
 int
-do_mount(zfs_handle_t *zhp, const char *mntpt, char *opts, int flags)
+do_mount(zfs_handle_t *zhp, const char *mntpt, const char *opts, int flags)
 {
 	const char *src = zfs_get_name(zhp);
 	int error = 0;
@@ -341,10 +341,10 @@ do_mount(zfs_handle_t *zhp, const char *mntpt, char *opts, int flags)
 		}
 	} else {
 		char *argv[9] = {
-		    "/bin/mount",
-		    "--no-canonicalize",
-		    "-t", MNTTYPE_ZFS,
-		    "-o", opts,
+		    (char *)"/bin/mount",
+		    (char *)"--no-canonicalize",
+		    (char *)"-t", (char *)MNTTYPE_ZFS,
+		    (char *)"-o", (char *)opts,
 		    (char *)src,
 		    (char *)mntpt,
 		    (char *)NULL };
@@ -384,23 +384,17 @@ do_unmount(zfs_handle_t *zhp, const char *mntpt, int flags)
 		return (rv < 0 ? errno : 0);
 	}
 
-	char force_opt[] = "-f";
-	char lazy_opt[] = "-l";
 	char *argv[7] = {
-	    "/bin/umount",
-	    "-t", MNTTYPE_ZFS,
+	    (char *)"/bin/umount",
+	    (char *)"-t", (char *)MNTTYPE_ZFS,
 	    NULL, NULL, NULL, NULL };
 	int rc, count = 3;
 
-	if (flags & MS_FORCE) {
-		argv[count] = force_opt;
-		count++;
-	}
+	if (flags & MS_FORCE)
+		argv[count++] = (char *)"-f";
 
-	if (flags & MS_DETACH) {
-		argv[count] = lazy_opt;
-		count++;
-	}
+	if (flags & MS_DETACH)
+		argv[count++] = (char *)"-l";
 
 	argv[count] = (char *)mntpt;
 	rc = libzfs_run_process(argv[0], argv, STDOUT_VERBOSE|STDERR_VERBOSE);

@@ -56,7 +56,7 @@
  * in include/libzfs.h.  Note that there are some status results which go past
  * the end of this table, and hence have no associated message ID.
  */
-static char *zfs_msgid_table[] = {
+static const char *const zfs_msgid_table[] = {
 	"ZFS-8000-14", /* ZPOOL_STATUS_CORRUPT_CACHE */
 	"ZFS-8000-2Q", /* ZPOOL_STATUS_MISSING_DEV_R */
 	"ZFS-8000-3C", /* ZPOOL_STATUS_MISSING_DEV_NR */
@@ -495,7 +495,8 @@ check_status(nvlist_t *config, boolean_t isimport,
 }
 
 zpool_status_t
-zpool_get_status(zpool_handle_t *zhp, char **msgid, zpool_errata_t *errata)
+zpool_get_status(zpool_handle_t *zhp, const char **msgid,
+    zpool_errata_t *errata)
 {
 	/*
 	 * pass in the desired feature set, as
@@ -519,7 +520,8 @@ zpool_get_status(zpool_handle_t *zhp, char **msgid, zpool_errata_t *errata)
 }
 
 zpool_status_t
-zpool_import_status(nvlist_t *config, char **msgid, zpool_errata_t *errata)
+zpool_import_status(nvlist_t *config, const char **msgid,
+    zpool_errata_t *errata)
 {
 	zpool_status_t ret = check_status(config, B_TRUE, errata, NULL);
 

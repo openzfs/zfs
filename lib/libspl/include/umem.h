@@ -140,7 +140,7 @@ umem_nofail_callback(umem_nofail_callback_t *cb __maybe_unused)
 
 static inline umem_cache_t *
 umem_cache_create(
-    char *name, size_t bufsize, size_t align,
+    const char *name, size_t bufsize, size_t align,
     umem_constructor_t *constructor,
     umem_destructor_t *destructor,
     umem_reclaim_t *reclaim,

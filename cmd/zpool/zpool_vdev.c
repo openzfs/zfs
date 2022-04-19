@@ -274,7 +274,7 @@ make_leaf_vdev(nvlist_t *props, const char *arg, boolean_t is_primary)
 	char path[MAXPATHLEN];
 	struct stat64 statbuf;
 	nvlist_t *vdev = NULL;
-	char *type = NULL;
+	const char *type = NULL;
 	boolean_t wholedisk = B_FALSE;
 	uint64_t ashift = 0;
 	int err;

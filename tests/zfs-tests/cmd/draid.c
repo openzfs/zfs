@@ -130,7 +130,7 @@ read_map(const char *filename, nvlist_t **allcfgs)
  * for freeing the configuration returned.
  */
 static int
-read_map_key(const char *filename, char *key, nvlist_t **cfg)
+read_map_key(const char *filename, const char *key, nvlist_t **cfg)
 {
 	nvlist_t *allcfgs, *foundcfg = NULL;
 	int error;
@@ -320,8 +320,8 @@ write_map_key(const char *filename, char *key, draid_map_t *map,
 }
 
 static void
-dump_map(draid_map_t *map, char *key, double worst_ratio, double avg_ratio,
-    int verbose)
+dump_map(draid_map_t *map, const char *key, double worst_ratio,
+    double avg_ratio, int verbose)
 {
 	if (verbose == 0) {
 		return;
@@ -363,7 +363,7 @@ dump_map(draid_map_t *map, char *key, double worst_ratio, double avg_ratio,
 }
 
 static void
-dump_map_nv(char *key, nvlist_t *cfg, int verbose)
+dump_map_nv(const char *key, nvlist_t *cfg, int verbose)
 {
 	draid_map_t map;
 	uint_t c;
@@ -385,7 +385,7 @@ dump_map_nv(char *key, nvlist_t *cfg, int verbose)
  * Print a summary of the mapping.
  */
 static int
-dump_map_key(const char *filename, char *key, int verbose)
+dump_map_key(const char *filename, const char *key, int verbose)
 {
 	nvlist_t *cfg;
 	int error;

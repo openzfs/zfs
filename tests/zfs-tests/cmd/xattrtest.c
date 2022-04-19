@@ -91,8 +91,8 @@ static int size_is_random = 0;
 static int value_is_random = 0;
 static int keep_files = 0;
 static int phase = PHASE_ALL;
-static char path[PATH_MAX] = "/tmp/xattrtest";
-static char script[PATH_MAX] = "/bin/true";
+static const char *path = "/tmp/xattrtest";
+static const char *script = "/bin/true";
 static char xattrbytes[XATTR_SIZE_MAX];
 
 static int
@@ -161,8 +161,7 @@ parse_args(int argc, char **argv)
 			}
 			break;
 		case 'p':
-			strncpy(path, optarg, PATH_MAX);
-			path[PATH_MAX - 1] = '\0';
+			path = optarg;
 			break;
 		case 'c':
 			synccaches = 1;
@@ -171,8 +170,7 @@ parse_args(int argc, char **argv)
 			dropcaches = 1;
 			break;
 		case 't':
-			strncpy(script, optarg, PATH_MAX);
-			script[PATH_MAX - 1] = '\0';
+			script = optarg;
 			break;
 		case 'e':
 			seed = strtol(optarg, NULL, 0);
@@ -291,9 +289,9 @@ run_process(const char *path, char *argv[])
 }
 
 static int
-post_hook(char *phase)
+post_hook(const char *phase)
 {
-	char *argv[3] = { script, phase, (char *)0 };
+	char *argv[3] = { (char *)script, (char *)phase, NULL };
 	int rc;
 
 	if (synccaches)
@@ -517,9 +515,9 @@ getxattrs(void)
 	int i, j, rnd_size, shift, rc = 0;
 	char name[XATTR_NAME_MAX];
 	char *verify_value = NULL;
-	char *verify_string;
+	const char *verify_string;
 	char *value = NULL;
-	char *value_string;
+	const char *value_string;
 	char *file = NULL;
 	struct timeval start, stop;
 	double seconds;

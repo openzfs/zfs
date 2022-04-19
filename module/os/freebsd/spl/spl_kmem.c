@@ -156,7 +156,7 @@ kmem_std_destructor(void *mem, int size __unused, void *private)
 }
 
 kmem_cache_t *
-kmem_cache_create(char *name, size_t bufsize, size_t align,
+kmem_cache_create(const char *name, size_t bufsize, size_t align,
     int (*constructor)(void *, void *, int), void (*destructor)(void *, void *),
     void (*reclaim)(void *) __unused, void *private, vmem_t *vmp, int cflags)
 {

@@ -681,25 +681,28 @@ line_worker(char *line, const char *cachefile)
 	}
 	*(tofree++) = linktgt;
 
-	char *dependencies[][2] = {
+	struct dep {
+		const char *type;
+		char *list;
+	} deps[] = {
 		{"wants", wantedby},
 		{"requires", requiredby},
 		{}
 	};
-	for (__typeof__(&*dependencies) dep = &*dependencies; **dep; ++dep) {
-		if (!(*dep)[1])
+	for (struct dep *dep = deps; dep->type; ++dep) {
+		if (!dep->list)
 			continue;
 
-		for (char *reqby = strtok_r((*dep)[1], " ", &toktmp);
+		for (char *reqby = strtok_r(dep->list, " ", &toktmp);
 		    reqby;
 		    reqby = strtok_r(NULL, " ", &toktmp)) {
 			char *depdir;
 			if (asprintf(
-			    &depdir, "%s.%s", reqby, (*dep)[0]) == -1) {
+			    &depdir, "%s.%s", reqby, dep->type) == -1) {
 				fprintf(stderr, PROGNAME "[%d]: %s: "
 				    "out of memory for dependent dir name "
 				    "\"%s.%s\"!\n",
-				    getpid(), dataset, reqby, (*dep)[0]);
+				    getpid(), dataset, reqby, dep->type);
 				continue;
 			}
 

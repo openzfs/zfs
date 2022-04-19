@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <string.h>
+#include <err.h>
 
 /* backward compat in case it's not defined */
 #ifndef O_TMPFILE
@@ -28,7 +29,7 @@ main(void)
 {
 	int i, fd;
 	char spath[1024], dpath[1024];
-	char *penv[] = {"TESTDIR", "TESTFILE0"};
+	const char *penv[] = {"TESTDIR", "TESTFILE0"};
 	struct stat sbuf;
 
 	(void) fprintf(stdout, "Verify O_EXCL tmpfile cannot be linked.\n");
@@ -36,33 +37,21 @@ main(void)
 	/*
 	 * Get the environment variable values.
 	 */
-	for (i = 0; i < sizeof (penv) / sizeof (char *); i++) {
-		if ((penv[i] = getenv(penv[i])) == NULL) {
-			(void) fprintf(stderr, "getenv(penv[%d])\n", i);
-			exit(1);
-		}
-	}
+	for (i = 0; i < ARRAY_SIZE(penv); i++)
+		if ((penv[i] = getenv(penv[i])) == NULL)
+			errx(1, "getenv(penv[%d])", i);
 
 	fd = open(penv[0], O_RDWR|O_TMPFILE|O_EXCL, 0666);
-	if (fd < 0) {
-		perror("open");
-		exit(2);
-	}
+	if (fd < 0)
+		err(2, "open(%s)", penv[0]);
 
 	snprintf(spath, 1024, "/proc/self/fd/%d", fd);
 	snprintf(dpath, 1024, "%s/%s", penv[0], penv[1]);
-	if (linkat(AT_FDCWD, spath, AT_FDCWD, dpath, AT_SYMLINK_FOLLOW) == 0) {
-		fprintf(stderr, "linkat returns successfully\n");
-		close(fd);
-		exit(3);
-	}
+	if (linkat(AT_FDCWD, spath, AT_FDCWD, dpath, AT_SYMLINK_FOLLOW) == 0)
+		errx(3, "linkat returned successfully\n");
 
-	if (stat(dpath, &sbuf) == 0) {
-		fprintf(stderr, "stat returns successfully\n");
-		close(fd);
-		exit(4);
-	}
-	close(fd);
+	if (stat(dpath, &sbuf) == 0)
+		errx(4, "stat returned successfully\n");
 
 	return (0);
 }

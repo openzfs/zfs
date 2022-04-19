@@ -14,7 +14,7 @@ AM_CPPFLAGS = \
 
 AM_LIBTOOLFLAGS = --silent
 
-AM_CFLAGS  = -std=gnu99 -Wall -Wextra -Wstrict-prototypes -Wmissing-prototypes -Wno-sign-compare -Wno-missing-field-initializers
+AM_CFLAGS  = -std=gnu99 -Wall -Wextra -Wstrict-prototypes -Wmissing-prototypes -Wwrite-strings -Wno-sign-compare -Wno-missing-field-initializers
 AM_CFLAGS += -fno-strict-aliasing
 AM_CFLAGS += $(NO_OMIT_FRAME_POINTER)
 AM_CFLAGS += $(IMPLICIT_FALLTHROUGH)

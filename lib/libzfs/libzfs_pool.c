@@ -119,7 +119,7 @@ zpool_get_prop_string(zpool_handle_t *zhp, zpool_prop_t prop,
     zprop_source_t *src)
 {
 	nvlist_t *nv, *nvl;
-	char *value;
+	const char *value;
 	zprop_source_t source;
 
 	nvl = zhp->zpool_props;
@@ -128,7 +128,7 @@ zpool_get_prop_string(zpool_handle_t *zhp, zpool_prop_t prop,
 		value = fnvlist_lookup_string(nv, ZPROP_VALUE);
 	} else {
 		source = ZPROP_SRC_DEFAULT;
-		if ((value = (char *)zpool_prop_default_string(prop)) == NULL)
+		if ((value = zpool_prop_default_string(prop)) == NULL)
 			value = "-";
 	}
 
@@ -2111,7 +2111,7 @@ zpool_import_props(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
 		case EREMOTEIO:
 			if (nv != NULL && nvlist_lookup_nvlist(nv,
 			    ZPOOL_CONFIG_LOAD_INFO, &nvinfo) == 0) {
-				char *hostname = "<unknown>";
+				const char *hostname = "<unknown>";
 				uint64_t hostid = 0;
 				mmp_state_t mmp_state;
 
@@ -5029,7 +5029,7 @@ zpool_get_vdev_prop_value(nvlist_t *nvprop, vdev_prop_t prop, char *prop_name,
     char *buf, size_t len, zprop_source_t *srctype, boolean_t literal)
 {
 	nvlist_t *nv;
-	char *strval;
+	const char *strval;
 	uint64_t intval;
 	zprop_source_t src = ZPROP_SRC_NONE;
 
@@ -5059,8 +5059,7 @@ zpool_get_vdev_prop_value(nvlist_t *nvprop, vdev_prop_t prop, char *prop_name,
 			strval = fnvlist_lookup_string(nv, ZPROP_VALUE);
 		} else {
 			src = ZPROP_SRC_DEFAULT;
-			if ((strval = (char *)vdev_prop_default_string(prop))
-			    == NULL)
+			if ((strval = vdev_prop_default_string(prop)) == NULL)
 				strval = "-";
 		}
 		(void) strlcpy(buf, strval, len);

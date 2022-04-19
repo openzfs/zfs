@@ -51,7 +51,7 @@
 
 typedef struct timetest {
 	int	type;
-	char	*name;
+	const char	*name;
 	int	(*func)(const char *pfile);
 } timetest_t;
 
@@ -260,7 +260,7 @@ static int
 do_xattr(const char *pfile)
 {
 	int ret = 0;
-	char *value = "user.value";
+	const char *value = "user.value";
 
 	if (pfile == NULL) {
 		return (-1);
@@ -306,7 +306,7 @@ int
 main(void)
 {
 	int i, ret, fd;
-	char *penv[] = {"TESTDIR", "TESTFILE0"};
+	const char *penv[] = {"TESTDIR", "TESTFILE0"};
 
 	(void) atexit(cleanup);
 
