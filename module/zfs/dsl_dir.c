@@ -160,7 +160,7 @@ dsl_dir_evict_async(void *dbu)
 
 int
 dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
-    const char *tail, void *tag, dsl_dir_t **ddp)
+    const char *tail, const void *tag, dsl_dir_t **ddp)
 {
 	dmu_buf_t *dbuf;
 	dsl_dir_t *dd;
@@ -320,7 +320,7 @@ errout:
 }
 
 void
-dsl_dir_rele(dsl_dir_t *dd, void *tag)
+dsl_dir_rele(dsl_dir_t *dd, const void *tag)
 {
 	dprintf_dd(dd, "%s\n", "");
 	spa_close(dd->dd_pool->dp_spa, tag);
@@ -335,7 +335,7 @@ dsl_dir_rele(dsl_dir_t *dd, void *tag)
  * the spa.
  */
 void
-dsl_dir_async_rele(dsl_dir_t *dd, void *tag)
+dsl_dir_async_rele(dsl_dir_t *dd, const void *tag)
 {
 	dprintf_dd(dd, "%s\n", "");
 	spa_async_close(dd->dd_pool->dp_spa, tag);
@@ -449,7 +449,7 @@ getcomponent(const char *path, char *component, const char **nextp)
  * (*tail)[0] == '@' means that the last component is a snapshot.
  */
 int
-dsl_dir_hold(dsl_pool_t *dp, const char *name, void *tag,
+dsl_dir_hold(dsl_pool_t *dp, const char *name, const void *tag,
     dsl_dir_t **ddp, const char **tailp)
 {
 	char *buf;

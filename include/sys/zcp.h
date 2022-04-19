@@ -177,7 +177,7 @@ void zcp_parse_args(lua_State *, const char *, const zcp_arg_t *,
 int zcp_nvlist_to_lua(lua_State *, nvlist_t *, char *, int);
 int zcp_dataset_hold_error(lua_State *, dsl_pool_t *, const char *, int);
 struct dsl_dataset *zcp_dataset_hold(lua_State *, dsl_pool_t *,
-    const char *, void *);
+    const char *, const void *);
 
 typedef int (zcp_lib_func_t)(lua_State *);
 typedef struct zcp_lib_info {

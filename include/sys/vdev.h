@@ -104,7 +104,7 @@ extern void vdev_metaslab_fini(vdev_t *vd);
 extern void vdev_metaslab_set_size(vdev_t *);
 extern void vdev_expand(vdev_t *vd, uint64_t txg);
 extern void vdev_split(vdev_t *vd);
-extern void vdev_deadman(vdev_t *vd, char *tag);
+extern void vdev_deadman(vdev_t *vd, const char *tag);
 
 typedef void vdev_xlate_func_t(void *arg, range_seg64_t *physical_rs);
 

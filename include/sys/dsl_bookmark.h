@@ -114,7 +114,7 @@ typedef struct dsl_bookmark_create_redacted_arg {
 	redaction_list_t **dbcra_rl;
 	uint64_t	dbcra_numsnaps;
 	uint64_t	*dbcra_snaps;
-	void		*dbcra_tag;
+	const void	*dbcra_tag;
 } dsl_bookmark_create_redacted_arg_t;
 
 int dsl_bookmark_create(nvlist_t *, nvlist_t *);
@@ -122,7 +122,7 @@ int dsl_bookmark_create_nvl_validate(nvlist_t *);
 int dsl_bookmark_create_check(void *arg, dmu_tx_t *tx);
 void dsl_bookmark_create_sync(void *arg, dmu_tx_t *tx);
 int dsl_bookmark_create_redacted(const char *, const char *, uint64_t,
-    uint64_t *, void *, redaction_list_t **);
+    uint64_t *, const void *, redaction_list_t **);
 int dsl_get_bookmarks(const char *, nvlist_t *, nvlist_t *);
 int dsl_get_bookmarks_impl(dsl_dataset_t *, nvlist_t *, nvlist_t *);
 int dsl_get_bookmark_props(const char *, const char *, nvlist_t *);
@@ -131,12 +131,12 @@ int dsl_bookmark_lookup(struct dsl_pool *, const char *,
     struct dsl_dataset *, zfs_bookmark_phys_t *);
 int dsl_bookmark_lookup_impl(dsl_dataset_t *, const char *,
     zfs_bookmark_phys_t *);
-int dsl_redaction_list_hold_obj(struct dsl_pool *, uint64_t, void *,
+int dsl_redaction_list_hold_obj(struct dsl_pool *, uint64_t, const void *,
     redaction_list_t **);
-void dsl_redaction_list_rele(redaction_list_t *, void *);
+void dsl_redaction_list_rele(redaction_list_t *, const void *);
 void dsl_redaction_list_long_hold(struct dsl_pool *, redaction_list_t *,
-    void *);
-void dsl_redaction_list_long_rele(redaction_list_t *, void *);
+    const void *);
+void dsl_redaction_list_long_rele(redaction_list_t *, const void *);
 boolean_t dsl_redaction_list_long_held(redaction_list_t *);
 int dsl_bookmark_init_ds(dsl_dataset_t *);
 void dsl_bookmark_fini_ds(dsl_dataset_t *);

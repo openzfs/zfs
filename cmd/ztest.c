@@ -1537,7 +1537,7 @@ ztest_spa_prop_set_uint64(zpool_prop_t prop, uint64_t value)
 
 static int
 ztest_dmu_objset_own(const char *name, dmu_objset_type_t type,
-    boolean_t readonly, boolean_t decrypt, void *tag, objset_t **osp)
+    boolean_t readonly, boolean_t decrypt, const void *tag, objset_t **osp)
 {
 	int err;
 	char *cp = NULL;
@@ -2810,7 +2810,7 @@ ztest_io(ztest_ds_t *zd, uint64_t object, uint64_t offset)
  * Initialize an object description template.
  */
 static void
-ztest_od_init(ztest_od_t *od, uint64_t id, char *tag, uint64_t index,
+ztest_od_init(ztest_od_t *od, uint64_t id, const char *tag, uint64_t index,
     dmu_object_type_t type, uint64_t blocksize, uint64_t dnodesize,
     uint64_t gen)
 {
