@@ -626,7 +626,7 @@ zap_deref_leaf(zap_t *zap, uint64_t h, dmu_tx_t *tx, krw_t lt, zap_leaf_t **lp)
 
 static int
 zap_expand_leaf(zap_name_t *zn, zap_leaf_t *l,
-    void *tag, dmu_tx_t *tx, zap_leaf_t **lp)
+    const void *tag, dmu_tx_t *tx, zap_leaf_t **lp)
 {
 	zap_t *zap = zn->zn_zap;
 	uint64_t hash = zn->zn_hash;
@@ -715,7 +715,7 @@ zap_expand_leaf(zap_name_t *zn, zap_leaf_t *l,
 
 static void
 zap_put_leaf_maybe_grow_ptrtbl(zap_name_t *zn, zap_leaf_t *l,
-    void *tag, dmu_tx_t *tx)
+    const void *tag, dmu_tx_t *tx)
 {
 	zap_t *zap = zn->zn_zap;
 	int shift = zap_f_phys(zap)->zap_ptrtbl.zt_shift;
@@ -824,7 +824,7 @@ fzap_lookup(zap_name_t *zn,
 int
 fzap_add_cd(zap_name_t *zn,
     uint64_t integer_size, uint64_t num_integers,
-    const void *val, uint32_t cd, void *tag, dmu_tx_t *tx)
+    const void *val, uint32_t cd, const void *tag, dmu_tx_t *tx)
 {
 	zap_leaf_t *l;
 	int err;
@@ -876,7 +876,7 @@ out:
 int
 fzap_add(zap_name_t *zn,
     uint64_t integer_size, uint64_t num_integers,
-    const void *val, void *tag, dmu_tx_t *tx)
+    const void *val, const void *tag, dmu_tx_t *tx)
 {
 	int err = fzap_check(zn, integer_size, num_integers);
 	if (err != 0)
@@ -889,7 +889,7 @@ fzap_add(zap_name_t *zn,
 int
 fzap_update(zap_name_t *zn,
     int integer_size, uint64_t num_integers, const void *val,
-    void *tag, dmu_tx_t *tx)
+    const void *tag, dmu_tx_t *tx)
 {
 	zap_leaf_t *l;
 	int err;

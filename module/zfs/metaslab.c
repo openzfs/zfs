@@ -4508,8 +4508,8 @@ metaslab_trace_fini(zio_alloc_list_t *zal)
  */
 
 static void
-metaslab_group_alloc_increment(spa_t *spa, uint64_t vdev, void *tag, int flags,
-    int allocator)
+metaslab_group_alloc_increment(spa_t *spa, uint64_t vdev, const void *tag,
+    int flags, int allocator)
 {
 	if (!(flags & METASLAB_ASYNC_ALLOC) ||
 	    (flags & METASLAB_DONT_THROTTLE))
@@ -4542,8 +4542,8 @@ metaslab_group_increment_qdepth(metaslab_group_t *mg, int allocator)
 }
 
 void
-metaslab_group_alloc_decrement(spa_t *spa, uint64_t vdev, void *tag, int flags,
-    int allocator, boolean_t io_complete)
+metaslab_group_alloc_decrement(spa_t *spa, uint64_t vdev, const void *tag,
+    int flags, int allocator, boolean_t io_complete)
 {
 	if (!(flags & METASLAB_ASYNC_ALLOC) ||
 	    (flags & METASLAB_DONT_THROTTLE))
@@ -4560,7 +4560,7 @@ metaslab_group_alloc_decrement(spa_t *spa, uint64_t vdev, void *tag, int flags,
 }
 
 void
-metaslab_group_alloc_verify(spa_t *spa, const blkptr_t *bp, void *tag,
+metaslab_group_alloc_verify(spa_t *spa, const blkptr_t *bp, const void *tag,
     int allocator)
 {
 #ifdef ZFS_DEBUG

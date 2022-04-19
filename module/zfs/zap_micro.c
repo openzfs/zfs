@@ -42,7 +42,7 @@
 #endif
 
 static int mzap_upgrade(zap_t **zapp,
-    void *tag, dmu_tx_t *tx, zap_flags_t flags);
+    const void *tag, dmu_tx_t *tx, zap_flags_t flags);
 
 uint64_t
 zap_getflags(zap_t *zap)
@@ -503,7 +503,7 @@ handle_winner:
  * have the specified tag.
  */
 static int
-zap_lockdir_impl(dmu_buf_t *db, void *tag, dmu_tx_t *tx,
+zap_lockdir_impl(dmu_buf_t *db, const void *tag, dmu_tx_t *tx,
     krw_t lti, boolean_t fatreader, boolean_t adding, zap_t **zapp)
 {
 	ASSERT0(db->db_offset);
@@ -579,7 +579,8 @@ zap_lockdir_impl(dmu_buf_t *db, void *tag, dmu_tx_t *tx,
 
 static int
 zap_lockdir_by_dnode(dnode_t *dn, dmu_tx_t *tx,
-    krw_t lti, boolean_t fatreader, boolean_t adding, void *tag, zap_t **zapp)
+    krw_t lti, boolean_t fatreader, boolean_t adding, const void *tag,
+    zap_t **zapp)
 {
 	dmu_buf_t *db;
 
@@ -604,7 +605,8 @@ zap_lockdir_by_dnode(dnode_t *dn, dmu_tx_t *tx,
 
 int
 zap_lockdir(objset_t *os, uint64_t obj, dmu_tx_t *tx,
-    krw_t lti, boolean_t fatreader, boolean_t adding, void *tag, zap_t **zapp)
+    krw_t lti, boolean_t fatreader, boolean_t adding, const void *tag,
+    zap_t **zapp)
 {
 	dmu_buf_t *db;
 
@@ -625,14 +627,14 @@ zap_lockdir(objset_t *os, uint64_t obj, dmu_tx_t *tx,
 }
 
 void
-zap_unlockdir(zap_t *zap, void *tag)
+zap_unlockdir(zap_t *zap, const void *tag)
 {
 	rw_exit(&zap->zap_rwlock);
 	dmu_buf_rele(zap->zap_dbuf, tag);
 }
 
 static int
-mzap_upgrade(zap_t **zapp, void *tag, dmu_tx_t *tx, zap_flags_t flags)
+mzap_upgrade(zap_t **zapp, const void *tag, dmu_tx_t *tx, zap_flags_t flags)
 {
 	int err = 0;
 	zap_t *zap = *zapp;
@@ -725,7 +727,7 @@ static uint64_t
 zap_create_impl(objset_t *os, int normflags, zap_flags_t flags,
     dmu_object_type_t ot, int leaf_blockshift, int indirect_blockshift,
     dmu_object_type_t bonustype, int bonuslen, int dnodesize,
-    dnode_t **allocated_dnode, void *tag, dmu_tx_t *tx)
+    dnode_t **allocated_dnode, const void *tag, dmu_tx_t *tx)
 {
 	uint64_t obj;
 
@@ -857,7 +859,7 @@ uint64_t
 zap_create_hold(objset_t *os, int normflags, zap_flags_t flags,
     dmu_object_type_t ot, int leaf_blockshift, int indirect_blockshift,
     dmu_object_type_t bonustype, int bonuslen, int dnodesize,
-    dnode_t **allocated_dnode, void *tag, dmu_tx_t *tx)
+    dnode_t **allocated_dnode, const void *tag, dmu_tx_t *tx)
 {
 	return (zap_create_impl(os, normflags, flags, ot, leaf_blockshift,
 	    indirect_blockshift, bonustype, bonuslen, dnodesize,
@@ -1222,7 +1224,7 @@ again:
 static int
 zap_add_impl(zap_t *zap, const char *key,
     int integer_size, uint64_t num_integers,
-    const void *val, dmu_tx_t *tx, void *tag)
+    const void *val, dmu_tx_t *tx, const void *tag)
 {
 	const uint64_t *intval = val;
 	int err = 0;

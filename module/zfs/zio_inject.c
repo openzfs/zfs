@@ -162,7 +162,7 @@ zio_match_handler(const zbookmark_phys_t *zb, uint64_t type, int dva,
  * specified by tag.
  */
 void
-zio_handle_panic_injection(spa_t *spa, char *tag, uint64_t type)
+zio_handle_panic_injection(spa_t *spa, const char *tag, uint64_t type)
 {
 	inject_handler_t *handler;
 

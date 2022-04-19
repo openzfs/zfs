@@ -37,7 +37,7 @@
 
 static int
 dsl_bookmark_hold_ds(dsl_pool_t *dp, const char *fullname,
-    dsl_dataset_t **dsp, void *tag, char **shortnamep)
+    dsl_dataset_t **dsp, const void *tag, char **shortnamep)
 {
 	char buf[ZFS_MAX_DATASET_NAME_LEN];
 	char *hashp;
@@ -438,8 +438,8 @@ dsl_bookmark_node_add(dsl_dataset_t *hds, dsl_bookmark_node_t *dbn,
  */
 static void
 dsl_bookmark_create_sync_impl_snap(const char *bookmark, const char *snapshot,
-    dmu_tx_t *tx, uint64_t num_redact_snaps, uint64_t *redact_snaps, void *tag,
-    redaction_list_t **redaction_list)
+    dmu_tx_t *tx, uint64_t num_redact_snaps, uint64_t *redact_snaps,
+    const void *tag, redaction_list_t **redaction_list)
 {
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	objset_t *mos = dp->dp_meta_objset;
@@ -664,7 +664,8 @@ dsl_bookmark_create_redacted_sync(void *arg, dmu_tx_t *tx)
 
 int
 dsl_bookmark_create_redacted(const char *bookmark, const char *snapshot,
-    uint64_t numsnaps, uint64_t *snapguids, void *tag, redaction_list_t **rl)
+    uint64_t numsnaps, uint64_t *snapguids, const void *tag,
+    redaction_list_t **rl)
 {
 	dsl_bookmark_create_redacted_arg_t dbcra;
 
@@ -1188,14 +1189,15 @@ dsl_redaction_list_long_held(redaction_list_t *rl)
 }
 
 void
-dsl_redaction_list_long_hold(dsl_pool_t *dp, redaction_list_t *rl, void *tag)
+dsl_redaction_list_long_hold(dsl_pool_t *dp, redaction_list_t *rl,
+    const void *tag)
 {
 	ASSERT(dsl_pool_config_held(dp));
 	(void) zfs_refcount_add(&rl->rl_longholds, tag);
 }
 
 void
-dsl_redaction_list_long_rele(redaction_list_t *rl, void *tag)
+dsl_redaction_list_long_rele(redaction_list_t *rl, const void *tag)
 {
 	(void) zfs_refcount_remove(&rl->rl_longholds, tag);
 }
@@ -1210,13 +1212,13 @@ redaction_list_evict_sync(void *rlu)
 }
 
 void
-dsl_redaction_list_rele(redaction_list_t *rl, void *tag)
+dsl_redaction_list_rele(redaction_list_t *rl, const void *tag)
 {
 	dmu_buf_rele(rl->rl_dbuf, tag);
 }
 
 int
-dsl_redaction_list_hold_obj(dsl_pool_t *dp, uint64_t rlobj, void *tag,
+dsl_redaction_list_hold_obj(dsl_pool_t *dp, uint64_t rlobj, const void *tag,
     redaction_list_t **rlp)
 {
 	objset_t *mos = dp->dp_meta_objset;

@@ -2001,7 +2001,7 @@ zfs_sa_setup(objset_t *osp, sa_attr_type_t **sa_table)
 
 static int
 zfs_grab_sa_handle(objset_t *osp, uint64_t obj, sa_handle_t **hdlp,
-    dmu_buf_t **db, void *tag)
+    dmu_buf_t **db, const void *tag)
 {
 	dmu_object_info_t doi;
 	int error;
@@ -2028,7 +2028,7 @@ zfs_grab_sa_handle(objset_t *osp, uint64_t obj, sa_handle_t **hdlp,
 }
 
 static void
-zfs_release_sa_handle(sa_handle_t *hdl, dmu_buf_t *db, void *tag)
+zfs_release_sa_handle(sa_handle_t *hdl, dmu_buf_t *db, const void *tag)
 {
 	sa_handle_destroy(hdl);
 	sa_buf_rele(db, tag);

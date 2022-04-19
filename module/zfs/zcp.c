@@ -622,7 +622,7 @@ zcp_dataset_hold_error(lua_State *state, dsl_pool_t *dp, const char *dsname,
  */
 dsl_dataset_t *
 zcp_dataset_hold(lua_State *state, dsl_pool_t *dp, const char *dsname,
-    void *tag)
+    const void *tag)
 {
 	dsl_dataset_t *ds;
 	int error = dsl_dataset_hold(dp, dsname, tag, &ds);

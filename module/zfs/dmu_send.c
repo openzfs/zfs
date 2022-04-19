@@ -1917,7 +1917,7 @@ send_reader_thread(void *arg)
 
 struct dmu_send_params {
 	/* Pool args */
-	void *tag; // Tag that dp was held with, will be used to release dp.
+	const void *tag; // Tag dp was held with, will be used to release dp.
 	dsl_pool_t *dp;
 	/* To snapshot args */
 	const char *tosnap;
@@ -2366,7 +2366,7 @@ dmu_send_impl(struct dmu_send_params *dspp)
 	dsl_dataset_t *to_ds = dspp->to_ds;
 	zfs_bookmark_phys_t *ancestor_zb = &dspp->ancestor_zb;
 	dsl_pool_t *dp = dspp->dp;
-	void *tag = dspp->tag;
+	const void *tag = dspp->tag;
 
 	err = dmu_objset_from_ds(to_ds, &os);
 	if (err != 0) {

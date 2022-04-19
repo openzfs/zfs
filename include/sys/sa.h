@@ -124,8 +124,8 @@ int sa_handle_get(objset_t *, uint64_t, void *userp,
 int sa_handle_get_from_db(objset_t *, dmu_buf_t *, void *userp,
     sa_handle_type_t, sa_handle_t **);
 void sa_handle_destroy(sa_handle_t *);
-int sa_buf_hold(objset_t *, uint64_t, void *, dmu_buf_t **);
-void sa_buf_rele(dmu_buf_t *, void *);
+int sa_buf_hold(objset_t *, uint64_t, const void *, dmu_buf_t **);
+void sa_buf_rele(dmu_buf_t *, const void *);
 int sa_lookup(sa_handle_t *, sa_attr_type_t, void *buf, uint32_t buflen);
 int sa_update(sa_handle_t *, sa_attr_type_t, void *buf,
     uint32_t buflen, dmu_tx_t *);

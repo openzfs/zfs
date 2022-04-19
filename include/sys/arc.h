@@ -281,14 +281,14 @@ arc_buf_t *arc_loan_raw_buf(spa_t *spa, uint64_t dsobj, boolean_t byteorder,
     const uint8_t *salt, const uint8_t *iv, const uint8_t *mac,
     dmu_object_type_t ot, uint64_t psize, uint64_t lsize,
     enum zio_compress compression_type, uint8_t complevel);
-void arc_return_buf(arc_buf_t *buf, void *tag);
-void arc_loan_inuse_buf(arc_buf_t *buf, void *tag);
-void arc_buf_destroy(arc_buf_t *buf, void *tag);
+void arc_return_buf(arc_buf_t *buf, const void *tag);
+void arc_loan_inuse_buf(arc_buf_t *buf, const void *tag);
+void arc_buf_destroy(arc_buf_t *buf, const void *tag);
 void arc_buf_info(arc_buf_t *buf, arc_buf_info_t *abi, int state_index);
 uint64_t arc_buf_size(arc_buf_t *buf);
 uint64_t arc_buf_lsize(arc_buf_t *buf);
 void arc_buf_access(arc_buf_t *buf);
-void arc_release(arc_buf_t *buf, void *tag);
+void arc_release(arc_buf_t *buf, const void *tag);
 int arc_released(arc_buf_t *buf);
 void arc_buf_sigsegv(int sig, siginfo_t *si, void *unused);
 void arc_buf_freeze(arc_buf_t *buf);

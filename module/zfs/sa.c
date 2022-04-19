@@ -1449,13 +1449,13 @@ sa_handle_get(objset_t *objset, uint64_t objid, void *userp,
 }
 
 int
-sa_buf_hold(objset_t *objset, uint64_t obj_num, void *tag, dmu_buf_t **db)
+sa_buf_hold(objset_t *objset, uint64_t obj_num, const void *tag, dmu_buf_t **db)
 {
 	return (dmu_bonus_hold(objset, obj_num, tag, db));
 }
 
 void
-sa_buf_rele(dmu_buf_t *db, void *tag)
+sa_buf_rele(dmu_buf_t *db, const void *tag)
 {
 	dmu_buf_rele(db, tag);
 }
