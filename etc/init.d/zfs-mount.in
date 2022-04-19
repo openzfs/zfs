@@ -63,7 +63,7 @@ do_depend()
 # Mount all datasets/filesystems
 do_mount()
 {
-	local verbose overlay i mntpt
+	local verbose overlay
 
 	check_boolean "$VERBOSE_MOUNT" && verbose=v
 	check_boolean "$DO_OVERLAY_MOUNTS" && overlay=O
@@ -77,8 +77,6 @@ do_mount()
 # Unmount all filesystems
 do_unmount()
 {
-	local i var mntpt
-
 	# This shouldn't really be necessary, as long as one can get
 	# zfs-import to run sufficiently late in the shutdown/reboot process
 	# - after unmounting local filesystems. This is just here in case/if
