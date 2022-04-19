@@ -1131,8 +1131,12 @@ vdev_geom_fill_unmap_cb(void *buf, size_t len, void *priv)
 	vm_offset_t addr = (vm_offset_t)buf;
 	vm_offset_t end = addr + len;
 
-	if (bp->bio_ma_n == 0)
+	if (bp->bio_ma_n == 0) {
 		bp->bio_ma_offset = addr & PAGE_MASK;
+		addr &= ~PAGE_MASK;
+	} else {
+		ASSERT0(P2PHASE(addr, PAGE_SIZE));
+	}
 	do {
 		bp->bio_ma[bp->bio_ma_n++] =
 		    PHYS_TO_VM_PAGE(pmap_kextract(addr));
