@@ -220,7 +220,7 @@ typedef struct dsl_dataset {
 	kmutex_t ds_lock;
 	objset_t *ds_objset;
 	uint64_t ds_userrefs;
-	void *ds_owner;
+	const void *ds_owner;
 
 	/*
 	 * Long holds prevent the ds from being destroyed; they allow the
@@ -319,32 +319,34 @@ typedef enum ds_hold_flags {
 	DS_HOLD_FLAG_DECRYPT	= 1 << 0 /* needs access to encrypted data */
 } ds_hold_flags_t;
 
-int dsl_dataset_hold(struct dsl_pool *dp, const char *name, void *tag,
+int dsl_dataset_hold(struct dsl_pool *dp, const char *name, const void *tag,
     dsl_dataset_t **dsp);
 int dsl_dataset_hold_flags(struct dsl_pool *dp, const char *name,
-    ds_hold_flags_t flags, void *tag, dsl_dataset_t **dsp);
+    ds_hold_flags_t flags, const void *tag, dsl_dataset_t **dsp);
 boolean_t dsl_dataset_try_add_ref(struct dsl_pool *dp, dsl_dataset_t *ds,
-    void *tag);
+    const void *tag);
 int dsl_dataset_create_key_mapping(dsl_dataset_t *ds);
 int dsl_dataset_hold_obj_flags(struct dsl_pool *dp, uint64_t dsobj,
-    ds_hold_flags_t flags, void *tag, dsl_dataset_t **);
+    ds_hold_flags_t flags, const void *tag, dsl_dataset_t **);
 void dsl_dataset_remove_key_mapping(dsl_dataset_t *ds);
 int dsl_dataset_hold_obj(struct dsl_pool *dp, uint64_t dsobj,
-    void *tag, dsl_dataset_t **);
+    const void *tag, dsl_dataset_t **);
 void dsl_dataset_rele_flags(dsl_dataset_t *ds, ds_hold_flags_t flags,
-    void *tag);
-void dsl_dataset_rele(dsl_dataset_t *ds, void *tag);
+    const void *tag);
+void dsl_dataset_rele(dsl_dataset_t *ds, const void *tag);
 int dsl_dataset_own(struct dsl_pool *dp, const char *name,
-    ds_hold_flags_t flags, void *tag, dsl_dataset_t **dsp);
+    ds_hold_flags_t flags, const void *tag, dsl_dataset_t **dsp);
 int dsl_dataset_own_force(struct dsl_pool *dp, const char *name,
-    ds_hold_flags_t flags, void *tag, dsl_dataset_t **dsp);
+    ds_hold_flags_t flags, const void *tag, dsl_dataset_t **dsp);
 int dsl_dataset_own_obj(struct dsl_pool *dp, uint64_t dsobj,
-    ds_hold_flags_t flags, void *tag, dsl_dataset_t **dsp);
+    ds_hold_flags_t flags, const void *tag, dsl_dataset_t **dsp);
 int dsl_dataset_own_obj_force(struct dsl_pool *dp, uint64_t dsobj,
-    ds_hold_flags_t flags, void *tag, dsl_dataset_t **dsp);
-void dsl_dataset_disown(dsl_dataset_t *ds, ds_hold_flags_t flags, void *tag);
+    ds_hold_flags_t flags, const void *tag, dsl_dataset_t **dsp);
+void dsl_dataset_disown(dsl_dataset_t *ds, ds_hold_flags_t flags,
+    const void *tag);
 void dsl_dataset_name(dsl_dataset_t *ds, char *name);
-boolean_t dsl_dataset_tryown(dsl_dataset_t *ds, void *tag, boolean_t override);
+boolean_t dsl_dataset_tryown(dsl_dataset_t *ds, const void *tag,
+    boolean_t override);
 int dsl_dataset_namelen(dsl_dataset_t *ds);
 boolean_t dsl_dataset_has_owner(dsl_dataset_t *ds);
 uint64_t dsl_dataset_create_sync(dsl_dir_t *pds, const char *lastname,

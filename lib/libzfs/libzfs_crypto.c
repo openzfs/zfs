@@ -849,7 +849,8 @@ encryption_feature_is_enabled(zpool_handle_t *zph)
 static int
 populate_create_encryption_params_nvlists(libzfs_handle_t *hdl,
     zfs_handle_t *zhp, boolean_t newkey, zfs_keyformat_t keyformat,
-    char *keylocation, nvlist_t *props, uint8_t **wkeydata, uint_t *wkeylen)
+    const char *keylocation, nvlist_t *props, uint8_t **wkeydata,
+    uint_t *wkeylen)
 {
 	int ret;
 	uint64_t iters = 0, salt = 0;
@@ -1121,7 +1122,7 @@ zfs_crypto_create(libzfs_handle_t *hdl, char *parent_name, nvlist_t *props,
 
 	/* default to prompt if no keylocation is specified */
 	if (keyformat != ZFS_KEYFORMAT_NONE && keylocation == NULL) {
-		keylocation = "prompt";
+		keylocation = (char *)"prompt";
 		ret = nvlist_add_string(props,
 		    zfs_prop_to_name(ZFS_PROP_KEYLOCATION), keylocation);
 		if (ret != 0)
@@ -1699,7 +1700,7 @@ zfs_crypto_rewrap(zfs_handle_t *zhp, nvlist_t *raw_props, boolean_t inheritkey)
 
 			/* default to prompt if no keylocation is specified */
 			if (keylocation == NULL) {
-				keylocation = "prompt";
+				keylocation = (char *)"prompt";
 				ret = nvlist_add_string(props,
 				    zfs_prop_to_name(ZFS_PROP_KEYLOCATION),
 				    keylocation);

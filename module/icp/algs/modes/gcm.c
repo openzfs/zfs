@@ -907,7 +907,7 @@ gcm_impl_init(void)
 }
 
 static const struct {
-	char *name;
+	const char *name;
 	uint32_t sel;
 } gcm_impl_opts[] = {
 		{ "cycle",	IMPL_CYCLE },

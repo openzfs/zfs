@@ -1387,7 +1387,7 @@ dsl_pool_user_release(dsl_pool_t *dp, uint64_t dsobj, const char *tag,
  */
 
 int
-dsl_pool_hold(const char *name, void *tag, dsl_pool_t **dp)
+dsl_pool_hold(const char *name, const void *tag, dsl_pool_t **dp)
 {
 	spa_t *spa;
 	int error;
@@ -1401,14 +1401,14 @@ dsl_pool_hold(const char *name, void *tag, dsl_pool_t **dp)
 }
 
 void
-dsl_pool_rele(dsl_pool_t *dp, void *tag)
+dsl_pool_rele(dsl_pool_t *dp, const void *tag)
 {
 	dsl_pool_config_exit(dp, tag);
 	spa_close(dp->dp_spa, tag);
 }
 
 void
-dsl_pool_config_enter(dsl_pool_t *dp, void *tag)
+dsl_pool_config_enter(dsl_pool_t *dp, const void *tag)
 {
 	/*
 	 * We use a "reentrant" reader-writer lock, but not reentrantly.
@@ -1427,14 +1427,14 @@ dsl_pool_config_enter(dsl_pool_t *dp, void *tag)
 }
 
 void
-dsl_pool_config_enter_prio(dsl_pool_t *dp, void *tag)
+dsl_pool_config_enter_prio(dsl_pool_t *dp, const void *tag)
 {
 	ASSERT(!rrw_held(&dp->dp_config_rwlock, RW_READER));
 	rrw_enter_read_prio(&dp->dp_config_rwlock, tag);
 }
 
 void
-dsl_pool_config_exit(dsl_pool_t *dp, void *tag)
+dsl_pool_config_exit(dsl_pool_t *dp, const void *tag)
 {
 	rrw_exit(&dp->dp_config_rwlock, tag);
 }

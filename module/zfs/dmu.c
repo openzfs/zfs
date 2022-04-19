@@ -160,7 +160,7 @@ const dmu_object_byteswap_info_t dmu_ot_byteswap[DMU_BSWAP_NUMFUNCS] = {
 
 static int
 dmu_buf_hold_noread_by_dnode(dnode_t *dn, uint64_t offset,
-    void *tag, dmu_buf_t **dbp)
+    const void *tag, dmu_buf_t **dbp)
 {
 	uint64_t blkid;
 	dmu_buf_impl_t *db;
@@ -180,7 +180,7 @@ dmu_buf_hold_noread_by_dnode(dnode_t *dn, uint64_t offset,
 }
 int
 dmu_buf_hold_noread(objset_t *os, uint64_t object, uint64_t offset,
-    void *tag, dmu_buf_t **dbp)
+    const void *tag, dmu_buf_t **dbp)
 {
 	dnode_t *dn;
 	uint64_t blkid;
@@ -207,7 +207,7 @@ dmu_buf_hold_noread(objset_t *os, uint64_t object, uint64_t offset,
 
 int
 dmu_buf_hold_by_dnode(dnode_t *dn, uint64_t offset,
-    void *tag, dmu_buf_t **dbp, int flags)
+    const void *tag, dmu_buf_t **dbp, int flags)
 {
 	int err;
 	int db_flags = DB_RF_CANFAIL;
@@ -232,7 +232,7 @@ dmu_buf_hold_by_dnode(dnode_t *dn, uint64_t offset,
 
 int
 dmu_buf_hold(objset_t *os, uint64_t object, uint64_t offset,
-    void *tag, dmu_buf_t **dbp, int flags)
+    const void *tag, dmu_buf_t **dbp, int flags)
 {
 	int err;
 	int db_flags = DB_RF_CANFAIL;
@@ -342,7 +342,7 @@ dmu_rm_spill(objset_t *os, uint64_t object, dmu_tx_t *tx)
  * has not yet been allocated a new bonus dbuf a will be allocated.
  * Returns ENOENT, EIO, or 0.
  */
-int dmu_bonus_hold_by_dnode(dnode_t *dn, void *tag, dmu_buf_t **dbp,
+int dmu_bonus_hold_by_dnode(dnode_t *dn, const void *tag, dmu_buf_t **dbp,
     uint32_t flags)
 {
 	dmu_buf_impl_t *db;
@@ -389,7 +389,7 @@ int dmu_bonus_hold_by_dnode(dnode_t *dn, void *tag, dmu_buf_t **dbp,
 }
 
 int
-dmu_bonus_hold(objset_t *os, uint64_t object, void *tag, dmu_buf_t **dbp)
+dmu_bonus_hold(objset_t *os, uint64_t object, const void *tag, dmu_buf_t **dbp)
 {
 	dnode_t *dn;
 	int error;
@@ -414,7 +414,8 @@ dmu_bonus_hold(objset_t *os, uint64_t object, void *tag, dmu_buf_t **dbp)
  * dmu_spill_hold_existing() should be used.
  */
 int
-dmu_spill_hold_by_dnode(dnode_t *dn, uint32_t flags, void *tag, dmu_buf_t **dbp)
+dmu_spill_hold_by_dnode(dnode_t *dn, uint32_t flags, const void *tag,
+    dmu_buf_t **dbp)
 {
 	dmu_buf_impl_t *db = NULL;
 	int err;
@@ -442,7 +443,7 @@ dmu_spill_hold_by_dnode(dnode_t *dn, uint32_t flags, void *tag, dmu_buf_t **dbp)
 }
 
 int
-dmu_spill_hold_existing(dmu_buf_t *bonus, void *tag, dmu_buf_t **dbp)
+dmu_spill_hold_existing(dmu_buf_t *bonus, const void *tag, dmu_buf_t **dbp)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)bonus;
 	dnode_t *dn;
@@ -471,7 +472,7 @@ dmu_spill_hold_existing(dmu_buf_t *bonus, void *tag, dmu_buf_t **dbp)
 }
 
 int
-dmu_spill_hold_by_bonus(dmu_buf_t *bonus, uint32_t flags, void *tag,
+dmu_spill_hold_by_bonus(dmu_buf_t *bonus, uint32_t flags, const void *tag,
     dmu_buf_t **dbp)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)bonus;
@@ -498,7 +499,8 @@ dmu_spill_hold_by_bonus(dmu_buf_t *bonus, uint32_t flags, void *tag,
  */
 int
 dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
-    boolean_t read, void *tag, int *numbufsp, dmu_buf_t ***dbpp, uint32_t flags)
+    boolean_t read, const void *tag, int *numbufsp, dmu_buf_t ***dbpp,
+    uint32_t flags)
 {
 	dmu_buf_t **dbp;
 	zstream_t *zs = NULL;
@@ -619,7 +621,8 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 
 int
 dmu_buf_hold_array(objset_t *os, uint64_t object, uint64_t offset,
-    uint64_t length, int read, void *tag, int *numbufsp, dmu_buf_t ***dbpp)
+    uint64_t length, int read, const void *tag, int *numbufsp,
+    dmu_buf_t ***dbpp)
 {
 	dnode_t *dn;
 	int err;
@@ -638,7 +641,7 @@ dmu_buf_hold_array(objset_t *os, uint64_t object, uint64_t offset,
 
 int
 dmu_buf_hold_array_by_bonus(dmu_buf_t *db_fake, uint64_t offset,
-    uint64_t length, boolean_t read, void *tag, int *numbufsp,
+    uint64_t length, boolean_t read, const void *tag, int *numbufsp,
     dmu_buf_t ***dbpp)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
@@ -655,7 +658,7 @@ dmu_buf_hold_array_by_bonus(dmu_buf_t *db_fake, uint64_t offset,
 }
 
 void
-dmu_buf_rele_array(dmu_buf_t **dbp_fake, int numbufs, void *tag)
+dmu_buf_rele_array(dmu_buf_t **dbp_fake, int numbufs, const void *tag)
 {
 	int i;
 	dmu_buf_impl_t **dbp = (dmu_buf_impl_t **)dbp_fake;

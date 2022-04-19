@@ -289,7 +289,7 @@ zfs_is_mountable(zfs_handle_t *zhp, char *buf, size_t buflen,
 
 static int
 zfs_add_option(zfs_handle_t *zhp, char *options, int len,
-    zfs_prop_t prop, char *on, char *off)
+    zfs_prop_t prop, const char *on, const char *off)
 {
 	char *source;
 	uint64_t value;

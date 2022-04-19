@@ -596,13 +596,13 @@ test_channel_program(const char *pool)
 	    "arg = ...\n"
 	    "argv = arg[\"argv\"]\n"
 	    "return argv[1]";
-	char *const argv[1] = { "Hello World!" };
+	const char *const argv[1] = { "Hello World!" };
 	nvlist_t *required = fnvlist_alloc();
 	nvlist_t *optional = fnvlist_alloc();
 	nvlist_t *args = fnvlist_alloc();
 
 	fnvlist_add_string(required, "program", program);
-	fnvlist_add_string_array(args, "argv", (const char * const *)argv, 1);
+	fnvlist_add_string_array(args, "argv", argv, 1);
 	fnvlist_add_nvlist(required, "arg", args);
 
 	fnvlist_add_boolean_value(optional, "sync", B_TRUE);

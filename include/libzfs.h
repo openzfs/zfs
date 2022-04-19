@@ -423,9 +423,9 @@ typedef enum {
 	ZPOOL_STATUS_OK
 } zpool_status_t;
 
-_LIBZFS_H zpool_status_t zpool_get_status(zpool_handle_t *, char **,
+_LIBZFS_H zpool_status_t zpool_get_status(zpool_handle_t *, const char **,
     zpool_errata_t *);
-_LIBZFS_H zpool_status_t zpool_import_status(nvlist_t *, char **,
+_LIBZFS_H zpool_status_t zpool_import_status(nvlist_t *, const char **,
     zpool_errata_t *);
 
 /*
@@ -870,8 +870,9 @@ _LIBZFS_H int zfs_unmountall(zfs_handle_t *, int);
 _LIBZFS_H int zfs_mount_delegation_check(void);
 
 #if defined(__linux__) || defined(__APPLE__)
-_LIBZFS_H int zfs_parse_mount_options(char *mntopts, unsigned long *mntflags,
-    unsigned long *zfsflags, int sloppy, char *badopt, char *mtabopt);
+_LIBZFS_H int zfs_parse_mount_options(const char *mntopts,
+    unsigned long *mntflags, unsigned long *zfsflags, int sloppy, char *badopt,
+    char *mtabopt);
 _LIBZFS_H void zfs_adjust_mount_options(zfs_handle_t *zhp, const char *mntpoint,
     char *mntopts, char *mtabopt);
 #endif
@@ -910,7 +911,7 @@ _LIBZFS_H int libzfs_run_process_get_stdout_nopath(const char *, char *[],
 
 _LIBZFS_H void libzfs_free_str_array(char **, int);
 
-_LIBZFS_H int libzfs_envvar_is_set(char *);
+_LIBZFS_H boolean_t libzfs_envvar_is_set(const char *);
 
 /*
  * Utility functions for zfs version

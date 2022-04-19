@@ -264,7 +264,7 @@ extern unsigned long zfs_reconstruct_indirect_damage_fraction;
 
 static ztest_shared_opts_t *ztest_shared_opts;
 static ztest_shared_opts_t ztest_opts;
-static char *ztest_wkeydata = "abcdefghijklmnopqrstuvwxyz012345";
+static const char *const ztest_wkeydata = "abcdefghijklmnopqrstuvwxyz012345";
 
 typedef struct ztest_shared_ds {
 	uint64_t	zd_seq;
@@ -623,10 +623,10 @@ static void sig_handler(int signo)
 
 #define	FATAL_MSG_SZ	1024
 
-char *fatal_msg;
+static const char *fatal_msg;
 
 static __attribute__((format(printf, 2, 3))) __attribute__((noreturn)) void
-fatal(int do_perror, char *message, ...)
+fatal(int do_perror, const char *message, ...)
 {
 	va_list args;
 	int save_errno = errno;
@@ -724,7 +724,7 @@ typedef struct ztest_option {
 	const char	*long_opt_param;
 	const char	*comment;
 	unsigned int	default_int;
-	char		*default_str;
+	const char	*default_str;
 } ztest_option_t;
 
 /*
@@ -1200,30 +1200,31 @@ ztest_is_draid_spare(const char *name)
 }
 
 static nvlist_t *
-make_vdev_file(char *path, char *aux, char *pool, size_t size, uint64_t ashift)
+make_vdev_file(const char *path, const char *aux, const char *pool,
+    size_t size, uint64_t ashift)
 {
-	char *pathbuf;
+	char *pathbuf = NULL;
 	uint64_t vdev;
 	nvlist_t *file;
 	boolean_t draid_spare = B_FALSE;
 
-	pathbuf = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
 
 	if (ashift == 0)
 		ashift = ztest_get_ashift();
 
 	if (path == NULL) {
+		pathbuf = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
 		path = pathbuf;
 
 		if (aux != NULL) {
 			vdev = ztest_shared->zs_vdev_aux;
-			(void) snprintf(path, MAXPATHLEN,
+			(void) snprintf(pathbuf, MAXPATHLEN,
 			    ztest_aux_template, ztest_opts.zo_dir,
 			    pool == NULL ? ztest_opts.zo_pool : pool,
 			    aux, vdev);
 		} else {
 			vdev = ztest_shared->zs_vdev_next_leaf++;
-			(void) snprintf(path, MAXPATHLEN,
+			(void) snprintf(pathbuf, MAXPATHLEN,
 			    ztest_dev_template, ztest_opts.zo_dir,
 			    pool == NULL ? ztest_opts.zo_pool : pool, vdev);
 		}
@@ -1251,7 +1252,7 @@ make_vdev_file(char *path, char *aux, char *pool, size_t size, uint64_t ashift)
 }
 
 static nvlist_t *
-make_vdev_raid(char *path, char *aux, char *pool, size_t size,
+make_vdev_raid(const char *path, const char *aux, const char *pool, size_t size,
     uint64_t ashift, int r)
 {
 	nvlist_t *raid, **child;
@@ -1302,8 +1303,8 @@ make_vdev_raid(char *path, char *aux, char *pool, size_t size,
 }
 
 static nvlist_t *
-make_vdev_mirror(char *path, char *aux, char *pool, size_t size,
-    uint64_t ashift, int r, int m)
+make_vdev_mirror(const char *path, const char *aux, const char *pool,
+    size_t size, uint64_t ashift, int r, int m)
 {
 	nvlist_t *mirror, **child;
 	int c;
@@ -1330,8 +1331,8 @@ make_vdev_mirror(char *path, char *aux, char *pool, size_t size,
 }
 
 static nvlist_t *
-make_vdev_root(char *path, char *aux, char *pool, size_t size, uint64_t ashift,
-    const char *class, int r, int m, int t)
+make_vdev_root(const char *path, const char *aux, const char *pool, size_t size,
+    uint64_t ashift, const char *class, int r, int m, int t)
 {
 	nvlist_t *root, **child;
 	int c;
@@ -3371,7 +3372,7 @@ ztest_vdev_aux_add_remove(ztest_ds_t *zd, uint64_t id)
 	spa_t *spa = ztest_spa;
 	vdev_t *rvd = spa->spa_root_vdev;
 	spa_aux_vdev_t *sav;
-	char *aux;
+	const char *aux;
 	char *path;
 	uint64_t guid = 0;
 	int error, ignore_err = 0;
@@ -5271,7 +5272,7 @@ ztest_zap(ztest_ds_t *zd, uint64_t id)
 	dmu_tx_t *tx;
 	char propname[100], txgname[100];
 	int error;
-	char *hc[2] = { "s.acl.h", ".s.open.h.hyLZlg" };
+	const char *const hc[2] = { "s.acl.h", ".s.open.h.hyLZlg" };
 
 	od = umem_alloc(sizeof (ztest_od_t), UMEM_NOFAIL);
 	ztest_od_init(od, id, FTAG, 0, DMU_OT_ZAP_OTHER, 0, 0, 0);
@@ -6636,11 +6637,8 @@ ztest_global_vars_to_zdb_args(void)
 	char **args = calloc(2*ztest_opts.zo_gvars_count + 1, sizeof (char *));
 	char **cur = args;
 	for (size_t i = 0; i < ztest_opts.zo_gvars_count; i++) {
-		char *kv = ztest_opts.zo_gvars[i];
-		*cur = "-o";
-		cur++;
-		*cur = strdup(kv);
-		cur++;
+		*cur++ = (char *)"-o";
+		*cur++ = ztest_opts.zo_gvars[i];
 	}
 	ASSERT3P(cur, ==, &args[2*ztest_opts.zo_gvars_count]);
 	*cur = NULL;
@@ -6891,7 +6889,7 @@ ztest_trim(ztest_ds_t *zd, uint64_t id)
  * Verify pool integrity by running zdb.
  */
 static void
-ztest_run_zdb(char *pool)
+ztest_run_zdb(const char *pool)
 {
 	int status;
 	char *bin;
@@ -6949,12 +6947,12 @@ out:
 }
 
 static void
-ztest_walk_pool_directory(char *header)
+ztest_walk_pool_directory(const char *header)
 {
 	spa_t *spa = NULL;
 
 	if (ztest_opts.zo_verbose >= 6)
-		(void) printf("%s\n", header);
+		(void) puts(header);
 
 	mutex_enter(&spa_namespace_lock);
 	while ((spa = spa_next(spa)) != NULL)
@@ -7206,7 +7204,7 @@ ztest_thread(void *arg)
 }
 
 static void
-ztest_dataset_name(char *dsname, char *pool, int d)
+ztest_dataset_name(char *dsname, const char *pool, int d)
 {
 	(void) snprintf(dsname, ZFS_MAX_DATASET_NAME_LEN, "%s/ds_%d", pool, d);
 }

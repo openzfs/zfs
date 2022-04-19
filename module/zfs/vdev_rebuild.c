@@ -260,7 +260,7 @@ vdev_rebuild_initiate_sync(void *arg, dmu_tx_t *tx)
 }
 
 static void
-vdev_rebuild_log_notify(spa_t *spa, vdev_t *vd, char *name)
+vdev_rebuild_log_notify(spa_t *spa, vdev_t *vd, const char *name)
 {
 	nvlist_t *aux = fnvlist_alloc();
 

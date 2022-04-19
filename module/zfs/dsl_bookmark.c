@@ -1291,7 +1291,7 @@ dsl_bookmark_ds_destroyed(dsl_dataset_t *ds, dmu_tx_t *tx)
 	 * The empty-string name can't be in the AVL, and it compares
 	 * before any entries with this TXG.
 	 */
-	search.dbn_name = "";
+	search.dbn_name = (char *)"";
 	VERIFY3P(avl_find(&head->ds_bookmarks, &search, &idx), ==, NULL);
 	dsl_bookmark_node_t *dbn =
 	    avl_nearest(&head->ds_bookmarks, idx, AVL_AFTER);
@@ -1418,7 +1418,7 @@ dsl_bookmark_next_changed(dsl_dataset_t *head, dsl_dataset_t *origin,
 	 * The empty-string name can't be in the AVL, and it compares
 	 * before any entries with this TXG.
 	 */
-	search.dbn_name = "";
+	search.dbn_name = (char *)"";
 	VERIFY3P(avl_find(&head->ds_bookmarks, &search, &idx), ==, NULL);
 	dsl_bookmark_node_t *dbn =
 	    avl_nearest(&head->ds_bookmarks, idx, AVL_AFTER);

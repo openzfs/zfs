@@ -801,7 +801,7 @@ dsl_fs_ss_limit_check(dsl_dir_t *dd, uint64_t delta, zfs_prop_t prop,
 {
 	objset_t *os = dd->dd_pool->dp_meta_objset;
 	uint64_t limit, count;
-	char *count_prop;
+	const char *count_prop;
 	enforce_res_t enforce;
 	int err = 0;
 

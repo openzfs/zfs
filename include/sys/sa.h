@@ -49,7 +49,7 @@ typedef uint16_t	sa_attr_type_t;
  * Attribute to register support for.
  */
 typedef struct sa_attr_reg {
-	char 			*sa_name;	/* attribute name */
+	const char 		*sa_name;	/* attribute name */
 	uint16_t 		sa_length;
 	sa_bswap_type_t		sa_byteswap;	/* bswap function enum */
 	sa_attr_type_t 		sa_attr; /* filled in during registration */

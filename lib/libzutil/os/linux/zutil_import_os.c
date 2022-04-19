@@ -328,7 +328,9 @@ zpool_find_import_blkid(libpc_handle_t *hdl, pthread_mutex_t *lock,
 		return (EINVAL);
 	}
 
-	error = blkid_dev_set_search(iter, "TYPE", "zfs_member");
+	/* Only const char *s since 2.32 */
+	error = blkid_dev_set_search(iter,
+	    (char *)"TYPE", (char *)"zfs_member");
 	if (error != 0) {
 		blkid_dev_iterate_end(iter);
 		blkid_put_cache(cache);

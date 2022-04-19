@@ -346,7 +346,7 @@ dsl_dataset_user_hold(nvlist_t *holds, minor_t cleanup_minor, nvlist_t *errlist)
 	return (ret);
 }
 
-typedef int (dsl_holdfunc_t)(dsl_pool_t *dp, const char *name, void *tag,
+typedef int (dsl_holdfunc_t)(dsl_pool_t *dp, const char *name, const void *tag,
     dsl_dataset_t **dsp);
 
 typedef struct dsl_dataset_user_release_arg {
@@ -359,7 +359,7 @@ typedef struct dsl_dataset_user_release_arg {
 
 /* Place a dataset hold on the snapshot identified by passed dsobj string */
 static int
-dsl_dataset_hold_obj_string(dsl_pool_t *dp, const char *dsobj, void *tag,
+dsl_dataset_hold_obj_string(dsl_pool_t *dp, const char *dsobj, const void *tag,
     dsl_dataset_t **dsp)
 {
 	return (dsl_dataset_hold_obj(dp, zfs_strtonum(dsobj, NULL), tag, dsp));

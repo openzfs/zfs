@@ -27,7 +27,7 @@ static char *ifile = NULL;
 static char *ofile = NULL;
 static int stride = 0;
 static int seek = 0;
-static char *execname = "stride_dd";
+static const char *execname = "stride_dd";
 
 static void usage(void);
 static void parse_options(int argc, char *argv[]);

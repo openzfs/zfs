@@ -61,7 +61,7 @@ typedef struct fuid_domain {
 	uint64_t	f_idx;
 } fuid_domain_t;
 
-static char *nulldomain = "";
+static const char *const nulldomain = "";
 
 /*
  * Compare two indexes.
@@ -171,7 +171,7 @@ zfs_fuid_table_destroy(avl_tree_t *idx_tree, avl_tree_t *domain_tree)
 	avl_destroy(idx_tree);
 }
 
-char *
+const char *
 zfs_fuid_idx_domain(avl_tree_t *idx_tree, uint32_t idx)
 {
 	fuid_domain_t searchnode, *findnode;
@@ -290,9 +290,9 @@ zfs_fuid_sync(zfsvfs_t *zfsvfs, dmu_tx_t *tx)
  * necessary for the caller or another thread to detect the dirty table
  * and sync out the changes.
  */
-int
+static int
 zfs_fuid_find_by_domain(zfsvfs_t *zfsvfs, const char *domain,
-    char **retdomain, boolean_t addok)
+    const char **retdomain, boolean_t addok)
 {
 	fuid_domain_t searchnode, *findnode;
 	avl_index_t loc;
@@ -358,7 +358,7 @@ retry:
 const char *
 zfs_fuid_find_by_idx(zfsvfs_t *zfsvfs, uint32_t idx)
 {
-	char *domain;
+	const char *domain;
 
 	if (idx == 0 || !zfsvfs->z_use_fuids)
 		return (NULL);
@@ -518,8 +518,7 @@ zfs_fuid_create_cred(zfsvfs_t *zfsvfs, zfs_fuid_type_t type,
 	uint64_t	idx;
 	ksid_t		*ksid;
 	uint32_t	rid;
-	char		*kdomain;
-	const char	*domain;
+	const char	*kdomain, *domain;
 	uid_t		id;
 
 	VERIFY(type == ZFS_OWNER || type == ZFS_GROUP);
@@ -574,8 +573,7 @@ zfs_fuid_create(zfsvfs_t *zfsvfs, uint64_t id, cred_t *cr,
     zfs_fuid_type_t type, zfs_fuid_info_t **fuidpp)
 {
 #ifdef HAVE_KSID
-	const char *domain;
-	char *kdomain;
+	const char *domain, *kdomain;
 	uint32_t fuid_idx = FUID_INDEX(id);
 	uint32_t rid = 0;
 	idmap_stat status;

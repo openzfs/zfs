@@ -1506,7 +1506,7 @@ spa_keystore_change_key_sync(void *arg, dmu_tx_t *tx)
 	dsl_crypto_params_t *dcp = skcka->skcka_cp;
 	dsl_wrapping_key_t *wkey = NULL, *found_wkey;
 	dsl_wrapping_key_t wkey_search;
-	char *keylocation = dcp->cp_keylocation;
+	const char *keylocation = dcp->cp_keylocation;
 	uint64_t rddobj, new_rddobj;
 
 	/* create and initialize the wrapping key */
@@ -2229,7 +2229,7 @@ dsl_crypto_recv_raw_key_sync(dsl_dataset_t *ds, nvlist_t *nvl, dmu_tx_t *tx)
 	uint8_t *keydata, *hmac_keydata, *iv, *mac;
 	uint64_t crypt, key_guid, keyformat, iters, salt;
 	uint64_t version = ZIO_CRYPT_KEY_CURRENT_VERSION;
-	char *keylocation = "prompt";
+	const char *keylocation = "prompt";
 
 	/* lookup the values we need to create the DSL Crypto Key */
 	crypt = fnvlist_lookup_uint64(nvl, DSL_CRYPTO_KEY_CRYPTO_SUITE);

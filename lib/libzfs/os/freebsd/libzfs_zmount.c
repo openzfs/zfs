@@ -74,7 +74,7 @@ build_iovec(struct iovec **iov, int *iovlen, const char *name, void *val,
 }
 
 static int
-do_mount_(const char *spec, const char *dir, int mflag, char *fstype,
+do_mount_(const char *spec, const char *dir, int mflag,
     char *dataptr, int datalen, char *optptr, int optlen)
 {
 	struct iovec *iov;
@@ -83,8 +83,6 @@ do_mount_(const char *spec, const char *dir, int mflag, char *fstype,
 
 	assert(spec != NULL);
 	assert(dir != NULL);
-	assert(fstype != NULL);
-	assert(strcmp(fstype, MNTTYPE_ZFS) == 0);
 	assert(dataptr == NULL), (void) dataptr;
 	assert(datalen == 0), (void) datalen;
 	assert(optptr != NULL);
@@ -99,7 +97,8 @@ do_mount_(const char *spec, const char *dir, int mflag, char *fstype,
 		build_iovec(&iov, &iovlen, "update", NULL, 0);
 	if (mflag & MS_RDONLY)
 		build_iovec(&iov, &iovlen, "ro", NULL, 0);
-	build_iovec(&iov, &iovlen, "fstype", fstype, (size_t)-1);
+	build_iovec(&iov, &iovlen, "fstype", __DECONST(char *, MNTTYPE_ZFS),
+	    (size_t)-1);
 	build_iovec(&iov, &iovlen, "fspath", __DECONST(char *, dir),
 	    (size_t)-1);
 	build_iovec(&iov, &iovlen, "from", __DECONST(char *, spec), (size_t)-1);
@@ -113,10 +112,10 @@ do_mount_(const char *spec, const char *dir, int mflag, char *fstype,
 }
 
 int
-do_mount(zfs_handle_t *zhp, const char *mntpt, char *opts, int flags)
+do_mount(zfs_handle_t *zhp, const char *mntpt, const char *opts, int flags)
 {
 
-	return (do_mount_(zfs_get_name(zhp), mntpt, flags, MNTTYPE_ZFS, NULL, 0,
+	return (do_mount_(zfs_get_name(zhp), mntpt, flags, NULL, 0,
 	    opts, sizeof (mntpt)));
 }
 

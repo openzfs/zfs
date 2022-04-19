@@ -29,16 +29,16 @@
  */
 typedef struct hkdf_tv {
 	/* test vector input values */
-	char		*ikm;
+	const char		*ikm;
 	uint_t		ikm_len;
-	char		*salt;
+	const char		*salt;
 	uint_t		salt_len;
-	char		*info;
+	const char		*info;
 	uint_t		info_len;
 	uint_t		okm_len;
 
 	/* expected output */
-	char		*okm;
+	const char		*okm;
 } hkdf_tv_t;
 
 /*
@@ -48,7 +48,7 @@ typedef struct hkdf_tv {
  * The current vectors were taken from:
  * https://www.kullo.net/blog/hkdf-sha-512-test-vectors/
  */
-static hkdf_tv_t test_vectors[] = {
+static const hkdf_tv_t test_vectors[] = {
 	{
 		.ikm =	"\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b"
 			"\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b"
@@ -170,7 +170,7 @@ static hkdf_tv_t test_vectors[] = {
 };
 
 static void
-hexdump(char *str, uint8_t *src, uint_t len)
+hexdump(const char *str, uint8_t *src, uint_t len)
 {
 	printf("\t%s\t", str);
 	for (int i = 0; i < len; i++)
@@ -179,7 +179,7 @@ hexdump(char *str, uint8_t *src, uint_t len)
 }
 
 static int
-run_test(int i, hkdf_tv_t *tv)
+run_test(int i, const hkdf_tv_t *tv)
 {
 	int ret;
 	uint8_t good[SHA512_DIGEST_LENGTH];
