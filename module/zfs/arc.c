@@ -848,12 +848,13 @@ enum arc_hdr_alloc_flags {
 };
 
 
-static abd_t *arc_get_data_abd(arc_buf_hdr_t *, uint64_t, void *, int);
-static void *arc_get_data_buf(arc_buf_hdr_t *, uint64_t, void *);
-static void arc_get_data_impl(arc_buf_hdr_t *, uint64_t, void *, int);
-static void arc_free_data_abd(arc_buf_hdr_t *, abd_t *, uint64_t, void *);
-static void arc_free_data_buf(arc_buf_hdr_t *, void *, uint64_t, void *);
-static void arc_free_data_impl(arc_buf_hdr_t *hdr, uint64_t size, void *tag);
+static abd_t *arc_get_data_abd(arc_buf_hdr_t *, uint64_t, const void *, int);
+static void *arc_get_data_buf(arc_buf_hdr_t *, uint64_t, const void *);
+static void arc_get_data_impl(arc_buf_hdr_t *, uint64_t, const void *, int);
+static void arc_free_data_abd(arc_buf_hdr_t *, abd_t *, uint64_t, const void *);
+static void arc_free_data_buf(arc_buf_hdr_t *, void *, uint64_t, const void *);
+static void arc_free_data_impl(arc_buf_hdr_t *hdr, uint64_t size,
+    const void *tag);
 static void arc_hdr_free_abd(arc_buf_hdr_t *, boolean_t);
 static void arc_hdr_alloc_abd(arc_buf_hdr_t *, int);
 static void arc_access(arc_buf_hdr_t *, kmutex_t *);
@@ -2316,7 +2317,7 @@ add_reference(arc_buf_hdr_t *hdr, const void *tag)
  * list making it eligible for eviction.
  */
 static int
-remove_reference(arc_buf_hdr_t *hdr, kmutex_t *hash_lock, void *tag)
+remove_reference(arc_buf_hdr_t *hdr, kmutex_t *hash_lock, const void *tag)
 {
 	int cnt;
 	arc_state_t *state = hdr->b_l1hdr.b_state;
@@ -2900,7 +2901,7 @@ arc_loan_raw_buf(spa_t *spa, uint64_t dsobj, boolean_t byteorder,
  * Return a loaned arc buffer to the arc.
  */
 void
-arc_return_buf(arc_buf_t *buf, void *tag)
+arc_return_buf(arc_buf_t *buf, const void *tag)
 {
 	arc_buf_hdr_t *hdr = buf->b_hdr;
 
@@ -2914,7 +2915,7 @@ arc_return_buf(arc_buf_t *buf, void *tag)
 
 /* Detach an arc_buf from a dbuf (tag) */
 void
-arc_loan_inuse_buf(arc_buf_t *buf, void *tag)
+arc_loan_inuse_buf(arc_buf_t *buf, const void *tag)
 {
 	arc_buf_hdr_t *hdr = buf->b_hdr;
 
@@ -3845,7 +3846,7 @@ arc_hdr_destroy(arc_buf_hdr_t *hdr)
 }
 
 void
-arc_buf_destroy(arc_buf_t *buf, void* tag)
+arc_buf_destroy(arc_buf_t *buf, const void *tag)
 {
 	arc_buf_hdr_t *hdr = buf->b_hdr;
 
@@ -5208,7 +5209,7 @@ arc_is_overflowing(boolean_t use_reserve)
 }
 
 static abd_t *
-arc_get_data_abd(arc_buf_hdr_t *hdr, uint64_t size, void *tag,
+arc_get_data_abd(arc_buf_hdr_t *hdr, uint64_t size, const void *tag,
     int alloc_flags)
 {
 	arc_buf_contents_t type = arc_buf_type(hdr);
@@ -5223,7 +5224,7 @@ arc_get_data_abd(arc_buf_hdr_t *hdr, uint64_t size, void *tag,
 }
 
 static void *
-arc_get_data_buf(arc_buf_hdr_t *hdr, uint64_t size, void *tag)
+arc_get_data_buf(arc_buf_hdr_t *hdr, uint64_t size, const void *tag)
 {
 	arc_buf_contents_t type = arc_buf_type(hdr);
 
@@ -5322,7 +5323,7 @@ arc_wait_for_eviction(uint64_t amount, boolean_t use_reserve)
  * limit, we'll only signal the reclaim thread and continue on.
  */
 static void
-arc_get_data_impl(arc_buf_hdr_t *hdr, uint64_t size, void *tag,
+arc_get_data_impl(arc_buf_hdr_t *hdr, uint64_t size, const void *tag,
     int alloc_flags)
 {
 	arc_state_t *state = hdr->b_l1hdr.b_state;
@@ -5390,14 +5391,15 @@ arc_get_data_impl(arc_buf_hdr_t *hdr, uint64_t size, void *tag,
 }
 
 static void
-arc_free_data_abd(arc_buf_hdr_t *hdr, abd_t *abd, uint64_t size, void *tag)
+arc_free_data_abd(arc_buf_hdr_t *hdr, abd_t *abd, uint64_t size,
+    const void *tag)
 {
 	arc_free_data_impl(hdr, size, tag);
 	abd_free(abd);
 }
 
 static void
-arc_free_data_buf(arc_buf_hdr_t *hdr, void *buf, uint64_t size, void *tag)
+arc_free_data_buf(arc_buf_hdr_t *hdr, void *buf, uint64_t size, const void *tag)
 {
 	arc_buf_contents_t type = arc_buf_type(hdr);
 
@@ -5414,7 +5416,7 @@ arc_free_data_buf(arc_buf_hdr_t *hdr, void *buf, uint64_t size, void *tag)
  * Free the arc data buffer.
  */
 static void
-arc_free_data_impl(arc_buf_hdr_t *hdr, uint64_t size, void *tag)
+arc_free_data_impl(arc_buf_hdr_t *hdr, uint64_t size, const void *tag)
 {
 	arc_state_t *state = hdr->b_l1hdr.b_state;
 	arc_buf_contents_t type = arc_buf_type(hdr);
@@ -6576,7 +6578,7 @@ arc_freed(spa_t *spa, const blkptr_t *bp)
  * a new hdr for the buffer.
  */
 void
-arc_release(arc_buf_t *buf, void *tag)
+arc_release(arc_buf_t *buf, const void *tag)
 {
 	arc_buf_hdr_t *hdr = buf->b_hdr;
 

@@ -1505,7 +1505,7 @@ scan_prefetch_queue_compare(const void *a, const void *b)
 }
 
 static void
-scan_prefetch_ctx_rele(scan_prefetch_ctx_t *spc, void *tag)
+scan_prefetch_ctx_rele(scan_prefetch_ctx_t *spc, const void *tag)
 {
 	if (zfs_refcount_remove(&spc->spc_refcnt, tag) == 0) {
 		zfs_refcount_destroy(&spc->spc_refcnt);
@@ -1514,7 +1514,7 @@ scan_prefetch_ctx_rele(scan_prefetch_ctx_t *spc, void *tag)
 }
 
 static scan_prefetch_ctx_t *
-scan_prefetch_ctx_create(dsl_scan_t *scn, dnode_phys_t *dnp, void *tag)
+scan_prefetch_ctx_create(dsl_scan_t *scn, dnode_phys_t *dnp, const void *tag)
 {
 	scan_prefetch_ctx_t *spc;
 
@@ -1536,7 +1536,7 @@ scan_prefetch_ctx_create(dsl_scan_t *scn, dnode_phys_t *dnp, void *tag)
 }
 
 static void
-scan_prefetch_ctx_add_ref(scan_prefetch_ctx_t *spc, void *tag)
+scan_prefetch_ctx_add_ref(scan_prefetch_ctx_t *spc, const void *tag)
 {
 	zfs_refcount_add(&spc->spc_refcnt, tag);
 }

@@ -589,7 +589,7 @@ extern void zio_execute(void *zio);
 extern void zio_interrupt(void *zio);
 extern void zio_delay_init(zio_t *zio);
 extern void zio_delay_interrupt(zio_t *zio);
-extern void zio_deadman(zio_t *zio, char *tag);
+extern void zio_deadman(zio_t *zio, const char *tag);
 
 extern zio_t *zio_walk_parents(zio_t *cio, zio_link_t **);
 extern zio_t *zio_walk_children(zio_t *pio, zio_link_t **);
@@ -657,7 +657,8 @@ extern int zio_inject_fault(char *name, int flags, int *id,
 extern int zio_inject_list_next(int *id, char *name, size_t buflen,
     struct zinject_record *record);
 extern int zio_clear_fault(int id);
-extern void zio_handle_panic_injection(spa_t *spa, char *tag, uint64_t type);
+extern void zio_handle_panic_injection(spa_t *spa, const char *tag,
+    uint64_t type);
 extern int zio_handle_decrypt_injection(spa_t *spa, const zbookmark_phys_t *zb,
     uint64_t type, int error);
 extern int zio_handle_fault_injection(zio_t *zio, int error);

@@ -136,12 +136,12 @@ dsl_dir_phys(dsl_dir_t *dd)
 	return (dd->dd_dbuf->db_data);
 }
 
-void dsl_dir_rele(dsl_dir_t *dd, void *tag);
-void dsl_dir_async_rele(dsl_dir_t *dd, void *tag);
-int dsl_dir_hold(dsl_pool_t *dp, const char *name, void *tag,
+void dsl_dir_rele(dsl_dir_t *dd, const void *tag);
+void dsl_dir_async_rele(dsl_dir_t *dd, const void *tag);
+int dsl_dir_hold(dsl_pool_t *dp, const char *name, const void *tag,
     dsl_dir_t **, const char **tail);
 int dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
-    const char *tail, void *tag, dsl_dir_t **);
+    const char *tail, const void *tag, dsl_dir_t **);
 void dsl_dir_name(dsl_dir_t *dd, char *buf);
 int dsl_dir_namelen(dsl_dir_t *dd);
 uint64_t dsl_dir_create_sync(dsl_pool_t *dp, dsl_dir_t *pds,

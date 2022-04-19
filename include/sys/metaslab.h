@@ -131,9 +131,9 @@ uint64_t metaslab_group_get_space(metaslab_group_t *);
 void metaslab_group_histogram_verify(metaslab_group_t *);
 uint64_t metaslab_group_fragmentation(metaslab_group_t *);
 void metaslab_group_histogram_remove(metaslab_group_t *, metaslab_t *);
-void metaslab_group_alloc_decrement(spa_t *, uint64_t, void *, int, int,
+void metaslab_group_alloc_decrement(spa_t *, uint64_t, const void *, int, int,
     boolean_t);
-void metaslab_group_alloc_verify(spa_t *, const blkptr_t *, void *, int);
+void metaslab_group_alloc_verify(spa_t *, const blkptr_t *, const void *, int);
 void metaslab_recalculate_weight_and_sort(metaslab_t *);
 void metaslab_disable(metaslab_t *);
 void metaslab_enable(metaslab_t *, boolean_t, boolean_t);

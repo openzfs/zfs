@@ -6438,7 +6438,7 @@ print_holds(boolean_t scripted, int nwidth, int tagwidth, nvlist_t *nvl)
 		(void) nvpair_value_nvlist(nvp, &nvl2);
 		while ((nvp2 = nvlist_next_nvpair(nvl2, nvp2)) != NULL) {
 			char tsbuf[DATETIME_BUF_LEN];
-			char *tagname = nvpair_name(nvp2);
+			const char *tagname = nvpair_name(nvp2);
 			uint64_t val = 0;
 			time_t time;
 			struct tm t;

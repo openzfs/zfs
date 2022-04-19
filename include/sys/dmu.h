@@ -573,7 +573,7 @@ int dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset,
  * Add a reference to a dmu buffer that has already been held via
  * dmu_buf_hold() in the current context.
  */
-void dmu_buf_add_ref(dmu_buf_t *db, void* tag);
+void dmu_buf_add_ref(dmu_buf_t *db, const void *tag);
 
 /*
  * Attempt to add a reference to a dmu buffer that is in an unknown state,
