@@ -438,6 +438,7 @@ static void
 mmp_write_uberblock(spa_t *spa)
 {
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL;
+	vdev_raidz_expand_t *vre = spa->spa_raidz_expand;
 	mmp_thread_t *mmp = &spa->spa_mmp;
 	uberblock_t *ub;
 	vdev_t *vd = NULL;
@@ -451,6 +452,19 @@ mmp_write_uberblock(spa_t *spa)
 		zfs_dbgmsg("MMP SCL_STATE acquisition pool '%s' took %llu ns "
 		    "gethrtime %llu", spa_name(spa), lock_acquire_time,
 		    gethrtime());
+
+	/*
+	 * Skip mmp uberblock writing if raidz expansion is in progress and
+	 * scratch object is active.
+	 */
+	if (vre) {
+		vdev_t *vd = vdev_lookup_top(spa, vre->vre_vdev_id);
+		if (vre->vre_offset <
+		    vd->vdev_children * VDEV_LABEL_START_SIZE) {
+			spa_config_exit(spa, SCL_STATE, mmp_tag);
+			return;
+		}
+	}
 
 	mutex_enter(&mmp->mmp_io_lock);
 
