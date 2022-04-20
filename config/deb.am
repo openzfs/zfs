@@ -61,8 +61,8 @@ deb-utils: deb-local rpm-utils-initramfs
 	pkg7=$${name}-test-$${version}.$${arch}.rpm; \
 	pkg8=$${name}-dracut-$${version}.noarch.rpm; \
 	pkg9=$${name}-initramfs-$${version}.$${arch}.rpm; \
-	pkg10=`ls python*-pyzfs-$${version}* | tail -1`; \
-	pkg11=pam_zfs_key-$${version}.$${arch}.rpm; \
+	pkg10=`ls python3-pyzfs-$${version}.noarch.rpm 2>/dev/null`; \
+	pkg11=`ls pam_zfs_key-$${version}.$${arch}.rpm 2>/dev/null`; \
 ## Arguments need to be passed to dh_shlibdeps. Alien provides no mechanism
 ## to do this, so we install a shim onto the path which calls the real
 ## dh_shlibdeps with the required arguments.
