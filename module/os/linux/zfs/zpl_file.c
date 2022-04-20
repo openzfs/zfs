@@ -781,11 +781,13 @@ zpl_fallocate_common(struct inode *ip, int mode, loff_t offset, loff_t len)
 	if (mode & (test_mode)) {
 		flock64_t bf;
 
-		if (offset > olen)
-			goto out_unmark;
+		if (mode & FALLOC_FL_KEEP_SIZE) {
+			if (offset > olen)
+				goto out_unmark;
 
-		if (offset + len > olen)
-			len = olen - offset;
+			if (offset + len > olen)
+				len = olen - offset;
+		}
 		bf.l_type = F_WRLCK;
 		bf.l_whence = SEEK_SET;
 		bf.l_start = offset;

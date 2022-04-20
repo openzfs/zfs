@@ -29,27 +29,17 @@
 
 #
 # DESCRIPTION:
-# Test hole-punching functionality
+# Test FALLOC_FL_ZERO_RANGE functionality
 #
 # STRATEGY:
 # 1. Create a dense file
-# 2. Punch an assortment of holes in the file and verify the result.
+# 2. Zero various ranges in the file and verify the result.
 #
 
 verify_runnable "global"
 
-#
-# Prior to __FreeBSD_version 1400032 there are no mechanism to punch hole in a
-# file on FreeBSD.  truncate -d support is required to call fspacectl(2) on
-# behalf of the script.
-#
 if is_freebsd; then
-	if [[ $(uname -K) -lt 1400032 ]]; then
-		log_unsupported "Requires fspacectl(2) support on FreeBSD"
-	fi
-	if truncate -d 2>&1 | grep "illegal option" > /dev/null; then
-		log_unsupported "Requires truncate(1) -d support on FreeBSD"
-	fi
+	log_unsupported "FreeBSD does not implement an analogue to ZERO_RANGE."
 fi
 
 FILE=$TESTDIR/$TESTFILE0
@@ -60,6 +50,7 @@ function cleanup
 	[[ -e $TESTDIR ]] && log_must rm -f $FILE
 }
 
+# Helpfully, this function expects kilobytes, and check_apparent_size expects bytes.
 function check_reported_size
 {
 	typeset expected_size=$1
@@ -84,7 +75,7 @@ function check_apparent_size
 	fi
 }
 
-log_assert "Ensure holes can be punched in files making them sparse"
+log_assert "Ensure ranges can be zeroed in files"
 
 log_onexit cleanup
 
@@ -93,27 +84,36 @@ log_must file_write -o create -f $FILE -b $BLKSZ -c 8
 sync_pool $TESTPOOL
 log_must check_reported_size 1027
 
-# Punch a hole for the first full block.
-log_must punch_hole 0 $BLKSZ $FILE
+# Zero a range covering the first full block.
+log_must zero_range 0 $BLKSZ $FILE
 sync_pool $TESTPOOL
 log_must check_reported_size 899
 
-# Partially punch a hole in the second block.
-log_must punch_hole $BLKSZ $((BLKSZ / 2)) $FILE
+# Partially zero a range in the second block.
+log_must zero_range $BLKSZ $((BLKSZ / 2)) $FILE
 sync_pool $TESTPOOL
 log_must check_reported_size 899
 
-# Punch a hole which overlaps the third and fourth block.
-log_must punch_hole $(((BLKSZ * 2) + (BLKSZ / 2))) $((BLKSZ)) $FILE
+# Zero range which overlaps the third and fourth block.
+log_must zero_range $(((BLKSZ * 2) + (BLKSZ / 2))) $((BLKSZ)) $FILE
 sync_pool $TESTPOOL
 log_must check_reported_size 899
 
-# Punch a hole from the fifth block past the end of file.  The apparent
-# file size should not change since --keep-size is implied.
+# Zero range from the fifth block past the end of file, with --keep-size.
+# The apparent file size must not change, since we did specify --keep-size.
 apparent_size=$(stat_size $FILE)
-log_must punch_hole $((BLKSZ * 4)) $((BLKSZ * 10)) $FILE
+log_must fallocate --keep-size --zero-range --offset $((BLKSZ * 4)) --length $((BLKSZ * 10)) "$FILE"
 sync_pool $TESTPOOL
 log_must check_reported_size 387
 log_must check_apparent_size $apparent_size
 
-log_pass "Ensure holes can be punched in files making them sparse"
+# Zero range from the fifth block past the end of file.  The apparent
+# file size should change since --keep-size is not implied, unlike
+# with PUNCH_HOLE.
+apparent_size=$(stat_size $FILE)
+log_must zero_range $((BLKSZ * 4)) $((BLKSZ * 10)) $FILE
+sync_pool $TESTPOOL
+log_must check_reported_size 387
+log_must check_apparent_size $((BLKSZ * 14))
+
+log_pass "Ensure ranges can be zeroed in files"
