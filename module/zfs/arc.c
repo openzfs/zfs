@@ -11045,20 +11045,20 @@ EXPORT_SYMBOL(arc_add_prune_callback);
 EXPORT_SYMBOL(arc_remove_prune_callback);
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, min, param_set_arc_min,
-	param_get_long, ZMOD_RW, "Min arc size");
+	param_get_long, ZMOD_RW, "Minimum ARC size in bytes");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, max, param_set_arc_max,
-	param_get_long, ZMOD_RW, "Max arc size");
+	param_get_long, ZMOD_RW, "Maximum ARC size in bytes");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, meta_limit, param_set_arc_long,
-	param_get_long, ZMOD_RW, "Metadata limit for arc size");
+	param_get_long, ZMOD_RW, "Metadata limit for ARC size in bytes");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, meta_limit_percent,
     param_set_arc_long, param_get_long, ZMOD_RW,
-	"Percent of arc size for arc meta limit");
+	"Percent of ARC size for ARC meta limit");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, meta_min, param_set_arc_long,
-	param_get_long, ZMOD_RW, "Min arc metadata");
+	param_get_long, ZMOD_RW, "Minimum ARC metadata size in bytes");
 
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, meta_prune, INT, ZMOD_RW,
 	"Meta objects to scan for prune");
@@ -11070,16 +11070,16 @@ ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, meta_strategy, INT, ZMOD_RW,
 	"Meta reclaim strategy");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, grow_retry, param_set_arc_int,
-	param_get_int, ZMOD_RW, "Seconds before growing arc size");
+	param_get_int, ZMOD_RW, "Seconds before growing ARC size");
 
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, p_dampener_disable, INT, ZMOD_RW,
 	"Disable arc_p adapt dampener");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, shrink_shift, param_set_arc_int,
-	param_get_int, ZMOD_RW, "log2(fraction of arc to reclaim)");
+	param_get_int, ZMOD_RW, "log2(fraction of ARC to reclaim)");
 
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, pc_percent, UINT, ZMOD_RW,
-	"Percent of pagecache to reclaim arc to");
+	"Percent of pagecache to reclaim ARC to");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, p_min_shift, param_set_arc_int,
 	param_get_int, ZMOD_RW, "arc_c shift to calc min/max arc_p");
@@ -11088,7 +11088,7 @@ ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, average_blocksize, INT, ZMOD_RD,
 	"Target average block size");
 
 ZFS_MODULE_PARAM(zfs, zfs_, compressed_arc_enabled, INT, ZMOD_RW,
-	"Disable compressed arc buffers");
+	"Disable compressed ARC buffers");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, min_prefetch_ms, param_set_arc_int,
 	param_get_int, ZMOD_RW, "Min life of prefetch block in ms");
@@ -11149,7 +11149,7 @@ ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, sys_free, param_set_arc_long,
 	param_get_long, ZMOD_RW, "System free memory target size in bytes");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, dnode_limit, param_set_arc_long,
-	param_get_long, ZMOD_RW, "Minimum bytes of dnodes in arc");
+	param_get_long, ZMOD_RW, "Minimum bytes of dnodes in ARC");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, dnode_limit_percent,
     param_set_arc_long, param_get_long, ZMOD_RW,
