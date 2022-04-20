@@ -120,8 +120,9 @@ zpool_history_unpack(char *buf, uint64_t bytes_read, uint64_t *leftover,
 			break;
 
 		/* unpack record */
-		if (nvlist_unpack(buf + sizeof (reclen), reclen, &nv, 0) != 0)
-			return (ENOMEM);
+		int err = nvlist_unpack(buf + sizeof (reclen), reclen, &nv, 0);
+		if (err != 0)
+			return (err);
 		bytes_read -= sizeof (reclen) + reclen;
 		buf += sizeof (reclen) + reclen;
 
