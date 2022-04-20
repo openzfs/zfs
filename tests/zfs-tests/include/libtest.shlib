@@ -4236,6 +4236,22 @@ function punch_hole # offset length file
 	esac
 }
 
+function zero_range # offset length file
+{
+	typeset offset=$1
+	typeset length=$2
+	typeset file=$3
+
+	case "$UNAME" in
+	Linux)
+		fallocate --zero-range --offset $offset --length $length "$file"
+		;;
+	*)
+		false
+		;;
+	esac
+}
+
 #
 # Wait for the specified arcstat to reach non-zero quiescence.
 # If echo is 1 echo the value after reaching quiescence, otherwise
