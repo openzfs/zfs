@@ -251,7 +251,7 @@ usage(char *prog)
 	    "\t[-s offset] [-c write_count] [-d data]\n\n"
 	    "Where [data] equal to zero causes chars "
 	    "0->%d to be repeated throughout, or [data]\n"
-	    "equal to 'R' for psudorandom data.\n",
+	    "equal to 'R' for pseudorandom data.\n",
 	    prog, DATA_RANGE);
 
 	exit(1);
