@@ -164,7 +164,7 @@ unload_modules_freebsd() {
 unload_modules_linux() {
 	NAME="${KMOD_ZFS##*/}"
 	NAME="${NAME%.ko}"
-	$DELMOD "$NAME" || return
+	! [ -d "/sys/module/$NAME" ] || $DELMOD "$NAME" || return
 
 	if [ "$VERBOSE" = "yes" ]; then
 		echo "Successfully unloaded ZFS module stack"
