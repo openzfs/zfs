@@ -226,7 +226,7 @@ zfs_kobj_add(zfs_mod_kobj_t *zkobj, struct kobject *parent, const char *name)
 /*
  * Each zfs property has these common attributes
  */
-static const char *zprop_attrs[]  = {
+static const char *const zprop_attrs[]  = {
 	"type",
 	"readonly",
 	"setonce",
@@ -239,7 +239,7 @@ static const char *zprop_attrs[]  = {
 #define	ZFS_PROP_ATTR_COUNT	ARRAY_SIZE(zprop_attrs)
 #define	ZPOOL_PROP_ATTR_COUNT	(ZFS_PROP_ATTR_COUNT - 1)
 
-static const char *zprop_types[]  = {
+static const char *const zprop_types[]  = {
 	"number",
 	"string",
 	"index",
@@ -250,7 +250,7 @@ typedef struct zfs_type_map {
 	const char	*ztm_name;
 } zfs_type_map_t;
 
-static zfs_type_map_t type_map[] = {
+static const zfs_type_map_t type_map[] = {
 	{ZFS_TYPE_FILESYSTEM,	"filesystem"},
 	{ZFS_TYPE_SNAPSHOT,	"snapshot"},
 	{ZFS_TYPE_VOLUME,	"volume"},
@@ -371,7 +371,7 @@ pool_property_show(struct kobject *kobj, struct attribute *attr, char *buf)
  * A user process can easily check if the running zfs kernel module
  * supports the new feature.
  */
-static const char *zfs_kernel_features[] = {
+static const char *const zfs_kernel_features[] = {
 	/* --> Add new kernel features here */
 	"com.delphix:vdev_initialize",
 	"org.zfsonlinux:vdev_trim",
@@ -439,7 +439,7 @@ zfs_kernel_features_init(zfs_mod_kobj_t *zfs_kobj, struct kobject *parent)
 /*
  * Each pool feature has these common attributes
  */
-static const char *pool_feature_attrs[]  = {
+static const char *const pool_feature_attrs[]  = {
 	"description",
 	"guid",
 	"uname",
