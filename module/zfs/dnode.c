@@ -1764,20 +1764,29 @@ dnode_try_claim(objset_t *os, uint64_t object, int slots)
 }
 
 /*
- * Checks if the dnode contains any uncommitted dirty records.
+ * Checks if the dnode might contain any uncommitted changes to data blocks.
+ * Dirty metadata (e.g. bonus buffer) does not count.
  */
 boolean_t
 dnode_is_dirty(dnode_t *dn)
 {
 	mutex_enter(&dn->dn_mtx);
-
 	for (int i = 0; i < TXG_SIZE; i++) {
-		if (multilist_link_active(&dn->dn_dirty_link[i])) {
+		list_t *list = &dn->dn_dirty_records[i];
+		for (dbuf_dirty_record_t *dr = list_head(list);
+		    dr != NULL; dr = list_next(list, dr)) {
+			if (dr->dr_dbuf == NULL ||
+			    (dr->dr_dbuf->db_blkid != DMU_BONUS_BLKID &&
+			    dr->dr_dbuf->db_blkid != DMU_SPILL_BLKID)) {
+				mutex_exit(&dn->dn_mtx);
+				return (B_TRUE);
+			}
+		}
+		if (dn->dn_free_ranges[i] != NULL) {
 			mutex_exit(&dn->dn_mtx);
 			return (B_TRUE);
 		}
 	}
-
 	mutex_exit(&dn->dn_mtx);
 
 	return (B_FALSE);
