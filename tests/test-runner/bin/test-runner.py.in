@@ -406,9 +406,16 @@ Affected parameters:
 %s
 """ % (self.testtype, self.testname, self.params_diff)
 
+do_assert_invariant_module_params = False
+
 def assert_invariant_module_params(runfunc):
 
     def _assert_invariant_module_params(*args, **kwargs):
+
+        if not do_assert_invariant_module_params:
+            runfunc(*args, **kwargs)
+            return
+
         def get_current_params():
             modules = [ "zfs", "spl" ]
             params = {}
@@ -1226,6 +1233,10 @@ def parse_args():
     parser.add_option('-I', action='callback', callback=options_cb, default=1,
                       dest='iterations', metavar='iterations', type='int',
                       help='Number of times to run the test run.')
+    parser.add_option('--assert-invariant-module-params', action='store_true',
+                      default=False, dest='do_assert_invariant_module_params',
+                      help="Assert that tests / test groups properly "
+                      "restore module parameters.")
     (options, pathnames) = parser.parse_args()
 
     if options.runfiles and len(pathnames):
@@ -1252,6 +1263,9 @@ def main():
     if options.template:
         testrun.write(options)
         exit(0)
+
+    global do_assert_invariant_module_params
+    do_assert_invariant_module_params = options.do_assert_invariant_module_params
 
     testrun.complete_outputdirs()
     testrun.run(options)
