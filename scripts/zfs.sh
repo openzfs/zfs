@@ -18,7 +18,7 @@ STACK_TRACER="no"
 
 ZED_PIDFILE=${ZED_PIDFILE:-/var/run/zed.pid}
 LDMOD=${LDMOD:-/sbin/modprobe}
-DELMOD=${DELMOD:-/sbin/modprobe -r}
+DELMOD=${DELMOD:-/sbin/rmmod}
 
 KMOD_ZLIB_DEFLATE=${KMOD_ZLIB_DEFLATE:-zlib_deflate}
 KMOD_ZLIB_INFLATE=${KMOD_ZLIB_INFLATE:-zlib_inflate}
@@ -162,9 +162,12 @@ unload_modules_freebsd() {
 }
 
 unload_modules_linux() {
-	NAME="${KMOD_ZFS##*/}"
-	NAME="${NAME%.ko}"
-	! [ -d "/sys/module/$NAME" ] || $DELMOD "$NAME" || return
+	legacy_kmods="icp zzstd zlua zcommon zunicode znvpair zavl"
+	for KMOD in "$KMOD_ZFS" $legacy_kmods "$KMOD_SPL"; do
+		NAME="${KMOD##*/}"
+		NAME="${NAME%.ko}"
+		! [ -d "/sys/module/$NAME" ] || $DELMOD "$NAME" || return
+	done
 
 	if [ "$VERBOSE" = "yes" ]; then
 		echo "Successfully unloaded ZFS module stack"
