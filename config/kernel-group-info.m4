@@ -6,8 +6,8 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_GROUP_INFO_GID], [
 	ZFS_LINUX_TEST_SRC([group_info_gid], [
 		#include <linux/cred.h>
 	],[
-		struct group_info *gi = groups_alloc(1);
-		gi->gid[0] = KGIDT_INIT(0);
+		struct group_info gi __attribute__ ((unused)) = {};
+		gi.gid[0] = KGIDT_INIT(0);
 	])
 ])
 
