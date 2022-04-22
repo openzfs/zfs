@@ -55,6 +55,6 @@ TEMPFILE="$TEST_BASE_DIR/zfs_001_neg.$$.txt"
 zfs > $TEMPFILE 2>&1
 log_must grep "usage: zfs command args" "$TEMPFILE"
 
-log_must awk '{if (length($0) > 80) exit 1}' $TEMPFILE
+log_must awk 'length($0) > 80 {print; ++err} END {exit err}' $TEMPFILE
 
 log_pass "zfs shows a usage message when run as a user"
