@@ -28,15 +28,17 @@ filter_out_deleted_zvols() {
 list_zvols() {
 	read -r default_volmode < /sys/module/zfs/parameters/zvol_volmode
 	zfs list -t volume -H -o \
-	    name,volmode,receive_resume_token,redact_snaps |
-	    while IFS="	" read -r name volmode token redacted; do # IFS=\t here!
+	    name,volmode,receive_resume_token,redact_snaps,keystatus |
+	    while IFS="	" read -r name volmode token redacted keystatus; do # IFS=\t here!
 
-		# /dev links are not created for zvols with volmode = "none"
-		# or for redacted zvols.
+		# /dev links are not created for zvols with volmode = "none",
+		# redacted zvols, or encrypted zvols for which the key has not
+		# been loaded.
 		[ "$volmode" = "none" ] && continue
 		[ "$volmode" = "default" ] && [ "$default_volmode" = "3" ] &&
 		    continue
 		[ "$redacted" = "-" ] || continue
+		[ "$keystatus" = "unavailable" ] && continue
 
 		# We also ignore partially received zvols if it is
 		# not an incremental receive, as those won't even have a block
