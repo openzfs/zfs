@@ -6495,13 +6495,10 @@ holds_callback(zfs_handle_t *zhp, void *data)
 static int
 zfs_do_holds(int argc, char **argv)
 {
-	int errors = 0;
 	int c;
-	int i;
+	boolean_t errors = B_FALSE;
 	boolean_t scripted = B_FALSE;
 	boolean_t recursive = B_FALSE;
-	const char *opts = "rH";
-	nvlist_t *nvl;
 
 	int types = ZFS_TYPE_SNAPSHOT;
 	holds_cbdata_t cb = { 0 };
@@ -6511,7 +6508,7 @@ zfs_do_holds(int argc, char **argv)
 	int flags = 0;
 
 	/* check options */
-	while ((c = getopt(argc, argv, opts)) != -1) {
+	while ((c = getopt(argc, argv, "rH")) != -1) {
 		switch (c) {
 		case 'r':
 			recursive = B_TRUE;
@@ -6538,10 +6535,9 @@ zfs_do_holds(int argc, char **argv)
 	if (argc < 1)
 		usage(B_FALSE);
 
-	if (nvlist_alloc(&nvl, NV_UNIQUE_NAME, 0) != 0)
-		nomem();
+	nvlist_t *nvl = fnvlist_alloc();
 
-	for (i = 0; i < argc; ++i) {
+	for (int i = 0; i < argc; ++i) {
 		char *snapshot = argv[i];
 		const char *delim;
 		const char *snapname;
@@ -6550,7 +6546,7 @@ zfs_do_holds(int argc, char **argv)
 		if (delim == NULL) {
 			(void) fprintf(stderr,
 			    gettext("'%s' is not a snapshot\n"), snapshot);
-			++errors;
+			errors = B_TRUE;
 			continue;
 		}
 		snapname = delim + 1;
@@ -6567,7 +6563,7 @@ zfs_do_holds(int argc, char **argv)
 		ret = zfs_for_each(argc, argv, flags, types, NULL, NULL, limit,
 		    holds_callback, &cb);
 		if (ret != 0)
-			++errors;
+			errors = B_TRUE;
 	}
 
 	/*
@@ -6580,7 +6576,7 @@ zfs_do_holds(int argc, char **argv)
 
 	nvlist_free(nvl);
 
-	return (0 != errors);
+	return (errors);
 }
 
 #define	CHECK_SPINNER 30
