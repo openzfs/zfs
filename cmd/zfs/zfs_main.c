@@ -6560,7 +6560,7 @@ zfs_do_holds(int argc, char **argv)
 		/*
 		 *  1. collect holds data, set format options
 		 */
-		ret = zfs_for_each(argc, argv, flags, types, NULL, NULL, limit,
+		ret = zfs_for_each(1, argv + i, flags, types, NULL, NULL, limit,
 		    holds_callback, &cb);
 		if (ret != 0)
 			errors = B_TRUE;
