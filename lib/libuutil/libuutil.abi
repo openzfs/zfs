@@ -1,5 +1,6 @@
 <abi-corpus version='2.0' architecture='elf-amd-x86_64' soname='libuutil.so.3'>
   <elf-needed>
+    <dependency name='libbsd.so.0'/>
     <dependency name='libpthread.so.0'/>
     <dependency name='libc.so.6'/>
     <dependency name='ld-linux-x86-64.so.2'/>
@@ -175,8 +176,6 @@
     <elf-symbol name='mkdirp' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='print_timestamp' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='spl_pagesize' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='strlcat' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='strlcpy' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='uu_alt_exit' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='uu_avl_create' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='uu_avl_destroy' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -985,26 +984,10 @@
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='page.c' language='LANG_C99'>
-    <var-decl name='pagesize' type-id='b59d7dce' mangled-name='pagesize' visibility='default' elf-symbol-id='pagesize'/>
     <function-decl name='spl_pagesize' mangled-name='spl_pagesize' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='spl_pagesize'>
       <return type-id='b59d7dce'/>
     </function-decl>
-  </abi-instr>
-  <abi-instr address-size='64' path='strlcat.c' language='LANG_C99'>
-    <function-decl name='strlcat' mangled-name='strlcat' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='strlcat'>
-      <parameter type-id='26a90f95' name='dst'/>
-      <parameter type-id='80f4b756' name='src'/>
-      <parameter type-id='b59d7dce' name='dstsize'/>
-      <return type-id='b59d7dce'/>
-    </function-decl>
-  </abi-instr>
-  <abi-instr address-size='64' path='strlcpy.c' language='LANG_C99'>
-    <function-decl name='strlcpy' mangled-name='strlcpy' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='strlcpy'>
-      <parameter type-id='26a90f95' name='dst'/>
-      <parameter type-id='80f4b756' name='src'/>
-      <parameter type-id='b59d7dce' name='len'/>
-      <return type-id='b59d7dce'/>
-    </function-decl>
+    <var-decl name='pagesize' type-id='b59d7dce' mangled-name='pagesize' visibility='default' elf-symbol-id='pagesize'/>
   </abi-instr>
   <abi-instr address-size='64' path='timestamp.c' language='LANG_C99'>
     <function-decl name='print_timestamp' mangled-name='print_timestamp' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='print_timestamp'>

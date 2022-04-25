@@ -8695,6 +8695,13 @@ main(int argc, char **argv)
 
 	libzfs_print_on_error(g_zfs, B_TRUE);
 
+#ifdef __linux__
+#ifdef HAVE_PROCTITLE
+	extern char **environ;
+	setproctitle_init(argc, argv, environ);
+#endif
+#endif
+
 	/*
 	 * Many commands modify input strings for string parsing reasons.
 	 * We create a copy to protect the original argv.

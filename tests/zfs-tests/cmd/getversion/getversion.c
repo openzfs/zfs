@@ -18,6 +18,7 @@
  * Linux exposes it instead through an ioctl.
  */
 
+#include <sys/mount.h>
 #include <sys/ioctl.h>
 #include <sys/fcntl.h>
 #include <linux/fs.h>

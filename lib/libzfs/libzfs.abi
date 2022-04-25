@@ -6,6 +6,7 @@
     <dependency name='libcrypto.so.1.1'/>
     <dependency name='libz.so.1'/>
     <dependency name='libm.so.6'/>
+    <dependency name='libbsd.so.0'/>
     <dependency name='libpthread.so.0'/>
     <dependency name='libc.so.6'/>
   </elf-needed>
