@@ -1,5 +1,5 @@
 #
-# Default rules for running cppcheck against the user space components.
+# cppcheck for userspace – nodist_*_SOURCES are kernel code and cppcheck goes crazy on them.
 #
 
 PHONY += cppcheck
@@ -15,7 +15,7 @@ cppcheck-recursive-%:
 
 _CTGT = $(subst cppcheck-for-,,$@)
 cppcheck-for-%:
-	@[ -n "$($(_CTGT)_SOURCES)$(dist_$(_CTGT)_SOURCES)$(nodist_$(_CTGT)_SOURCES)" ]
-	$(CPPCHECK) -j$(CPU_COUNT) $(CPPCHECKFLAGS) $(patsubst -U%,,$(patsubst -D%,,$(filter-out $(AM_CPPFLAGS_NOCHECK),$(or $($(_CTGT)_CPPFLAGS),$(AM_CPPFLAGS))))) $($(_CTGT)_SOURCES) $(dist_$(_CTGT)_SOURCES) $(nodist_$(_CTGT)_SOURCES)
+	@[ -n "$($(_CTGT)_SOURCES)$(dist_$(_CTGT)_SOURCES)" ]
+	$(CPPCHECK) -j$(CPU_COUNT) $(CPPCHECKFLAGS) $(patsubst -U%,,$(patsubst -D%,,$(filter-out $(AM_CPPFLAGS_NOCHECK),$(or $($(_CTGT)_CPPFLAGS),$(AM_CPPFLAGS))))) $($(_CTGT)_SOURCES) $(dist_$(_CTGT)_SOURCES)
 
 cppcheck: $(addprefix cppcheck-for-,$(subst -,_,$(subst .,_,$(subst /,_,$(CPPCHECKTARGETS))))) $(addprefix cppcheck-recursive-,$(CPPCHECKDIRS))

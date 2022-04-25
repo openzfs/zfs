@@ -2,7 +2,6 @@ libicp_la_CCASFLAGS = $(AM_CCASFLAGS)
 libicp_la_CFLAGS    = $(AM_CFLAGS) $(KERNEL_CFLAGS) $(LIBRARY_CFLAGS)
 
 noinst_LTLIBRARIES += libicp.la
-CPPCHECKTARGETS    += libicp.la
 
 nodist_libicp_la_SOURCES = \
 	module/icp/spi/kcf_spi.c \
