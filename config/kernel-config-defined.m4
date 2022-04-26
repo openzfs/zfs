@@ -19,6 +19,7 @@ AC_DEFUN([ZFS_AC_KERNEL_CONFIG_DEFINED], [
 		])
 	])
 
+	ZFS_AC_KERNEL_SRC_CONFIG_MODULES
 	ZFS_AC_KERNEL_SRC_CONFIG_BLOCK
 	ZFS_AC_KERNEL_SRC_CONFIG_DEBUG_LOCK_ALLOC
 	ZFS_AC_KERNEL_SRC_CONFIG_TRIM_UNUSED_KSYMS
@@ -29,6 +30,7 @@ AC_DEFUN([ZFS_AC_KERNEL_CONFIG_DEFINED], [
 	ZFS_LINUX_TEST_COMPILE_ALL([config])
 	AC_MSG_RESULT([done])
 
+	ZFS_AC_KERNEL_CONFIG_MODULES
 	ZFS_AC_KERNEL_CONFIG_BLOCK
 	ZFS_AC_KERNEL_CONFIG_DEBUG_LOCK_ALLOC
 	ZFS_AC_KERNEL_CONFIG_TRIM_UNUSED_KSYMS
@@ -96,6 +98,61 @@ AC_DEFUN([ZFS_AC_KERNEL_CONFIG_DEBUG_LOCK_ALLOC], [
 	*** with the CDDL license and will prevent the module linking stage
 	*** from succeeding.  You must rebuild your kernel without this
 	*** option enabled.])
+	])
+])
+
+dnl #
+dnl # Check CONFIG_MODULES
+dnl #
+dnl # Verify the kernel has CONFIG_MODULES support enabled.
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_CONFIG_MODULES], [
+	ZFS_LINUX_TEST_SRC([config_modules], [
+		#if !defined(CONFIG_MODULES)
+		#error CONFIG_MODULES not defined
+		#endif
+	],[])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_CONFIG_MODULES], [
+	AC_MSG_CHECKING([whether CONFIG_MODULES is defined])
+	AS_IF([test "x$enable_linux_builtin" != xyes], [
+		ZFS_LINUX_TEST_RESULT([config_modules], [
+			AC_MSG_RESULT([yes])
+		],[
+			AC_MSG_RESULT([no])
+			AC_MSG_ERROR([
+		*** This kernel does not include the required loadable module
+		*** support!
+		***
+		*** To build OpenZFS as a loadable Linux kernel module
+		*** enable loadable module support by setting
+		*** `CONFIG_MODULES=y` in the kernel configuration and run
+		*** `make modules_prepare` in the Linux source tree.
+		***
+		*** If you don't intend to enable loadable kernel module
+		*** support, please compile OpenZFS as a Linux kernel built-in.
+		***
+		*** Prepare the Linux source tree by running `make prepare`,
+		*** use the OpenZFS `--enable-linux-builtin` configure option,
+		*** copy the OpenZFS sources into the Linux source tree using
+		*** `./copy-builtin <linux source directory>`,
+		*** set `CONFIG_ZFS=y` in the kernel configuration and compile
+		*** kernel as usual.
+			])
+		])
+	], [
+		ZFS_LINUX_TRY_COMPILE([], [], [
+			AC_MSG_RESULT([not needed])
+		],[
+			AC_MSG_RESULT([error])
+			AC_MSG_ERROR([
+		*** This kernel is unable to compile object files.
+		***
+		*** Please make sure you prepared the Linux source tree
+		*** by running `make prepare` there.
+			])
+		])
 	])
 ])
 
