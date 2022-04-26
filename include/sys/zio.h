@@ -283,6 +283,13 @@ extern const char *const zio_type_name[ZIO_TYPES];
  * Note: this structure is passed between userland and the kernel, and is
  * stored on disk (by virtue of being incorporated into other on-disk
  * structures, e.g. dsl_scan_phys_t).
+ *
+ * If the head_errlog feature is enabled a different on-disk format for error
+ * logs is used. This introduces the use of an error bookmark, a four-tuple
+ * <object, level, blkid, birth> that uniquely identifies any error block
+ * in the pool. The birth transaction group is used to track whether the block
+ * has been overwritten by newer data or added to a snapshot since its marking
+ * as an error.
  */
 struct zbookmark_phys {
 	uint64_t	zb_objset;
@@ -290,6 +297,13 @@ struct zbookmark_phys {
 	int64_t		zb_level;
 	uint64_t	zb_blkid;
 };
+
+typedef struct zbookmark_err_phys {
+	uint64_t	zb_object;
+	int64_t		zb_level;
+	uint64_t	zb_blkid;
+	uint64_t	zb_birth;
+} zbookmark_err_phys_t;
 
 #define	SET_BOOKMARK(zb, objset, object, level, blkid)  \
 {                                                       \

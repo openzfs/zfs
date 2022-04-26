@@ -1153,6 +1153,9 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 		dsl_destroy_snapshot_sync_impl(prev, B_FALSE, tx);
 		dsl_dataset_rele(prev, FTAG);
 	}
+	/* Delete errlog. */
+	if (spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_HEAD_ERRLOG))
+		spa_delete_dataset_errlog(dp->dp_spa, ds->ds_object, tx);
 }
 
 void

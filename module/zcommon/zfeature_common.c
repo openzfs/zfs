@@ -696,6 +696,7 @@ zpool_feature_init(void)
 	    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN, NULL, sfeatures);
 
 	{
+
 	static const spa_feature_t zilsaxattr_deps[] = {
 		SPA_FEATURE_EXTENSIBLE_DATASET,
 		SPA_FEATURE_NONE
@@ -706,6 +707,12 @@ zpool_feature_init(void)
 	    ZFEATURE_FLAG_PER_DATASET | ZFEATURE_FLAG_READONLY_COMPAT,
 	    ZFEATURE_TYPE_BOOLEAN, zilsaxattr_deps, sfeatures);
 	}
+
+	zfeature_register(SPA_FEATURE_HEAD_ERRLOG,
+	    "com.delphix:head_errlog", "head_errlog",
+	    "Support for per-dataset on-disk error logs.",
+	    ZFEATURE_FLAG_ACTIVATE_ON_ENABLE, ZFEATURE_TYPE_BOOLEAN, NULL,
+	    sfeatures);
 
 	zfs_mod_list_supported_free(sfeatures);
 }
