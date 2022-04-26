@@ -982,13 +982,13 @@ log spacemap in memory, in bytes.
 Part of overall system memory that ZFS allows to be used
 for unflushed metadata changes by the log spacemap, in millionths.
 .
-.It Sy zfs_unflushed_log_block_max Ns = Ns Sy 262144 Po 256k Pc Pq ulong
+.It Sy zfs_unflushed_log_block_max Ns = Ns Sy 131072 Po 128k Pc Pq ulong
 Describes the maximum number of log spacemap blocks allowed for each pool.
 The default value means that the space in all the log spacemaps
 can add up to no more than
-.Sy 262144
+.Sy 131072
 blocks (which means
-.Em 32GB
+.Em 16GB
 of logical space before compression and ditto blocks,
 assuming that blocksize is
 .Em 128kB ) .
@@ -1018,7 +1018,12 @@ Thus we always allow at least this many log blocks.
 .It Sy zfs_unflushed_log_block_pct Ns = Ns Sy 400 Ns % Pq ulong
 Tunable used to determine the number of blocks that can be used for
 the spacemap log, expressed as a percentage of the total number of
-metaslabs in the pool.
+unflushed metaslabs in the pool.
+.
+.It Sy zfs_unflushed_log_txg_max Ns = Ns Sy 1000 Pq ulong
+Tunable limiting maximum time in TXGs any metaslab may remain unflushed.
+It effectively limits maximum number of unflushed per-TXG spacemap logs
+that need to be read after unclean pool export.
 .
 .It Sy zfs_unlink_suspend_progress Ns = Ns Sy 0 Ns | Ns 1 Pq uint
 When enabled, files will not be asynchronously removed from the list of pending
