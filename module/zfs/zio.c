@@ -166,15 +166,6 @@ zio_init(void)
 		cflags = (zio_exclude_metadata || size > zio_buf_debug_limit) ?
 		    KMC_NODEBUG : 0;
 
-#if defined(_ILP32) && defined(_KERNEL)
-		/*
-		 * Cache size limited to 1M on 32-bit platforms until ARC
-		 * buffers no longer require virtual address space.
-		 */
-		if (size > zfs_max_recordsize)
-			break;
-#endif
-
 		while (!ISP2(p2))
 			p2 &= p2 - 1;
 
