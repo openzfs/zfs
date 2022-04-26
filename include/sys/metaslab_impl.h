@@ -553,6 +553,7 @@ struct metaslab {
 	 * log space maps.
 	 */
 	uint64_t	ms_unflushed_txg;
+	boolean_t	ms_unflushed_dirty;
 
 	/* updated every time we are done syncing the metaslab's space map */
 	uint64_t	ms_synced_length;
