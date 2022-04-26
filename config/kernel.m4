@@ -8,8 +8,8 @@ AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 		ZFS_AC_QAT
 
 		dnl # Sanity checks for module building and CONFIG_* defines
-		ZFS_AC_KERNEL_TEST_MODULE
 		ZFS_AC_KERNEL_CONFIG_DEFINED
+		ZFS_AC_MODULE_SYMVERS
 
 		dnl # Sequential ZFS_LINUX_TRY_COMPILE tests
 		ZFS_AC_KERNEL_FPU_HEADER
@@ -445,8 +445,6 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 	AC_SUBST(LINUX)
 	AC_SUBST(LINUX_OBJ)
 	AC_SUBST(LINUX_VERSION)
-
-	ZFS_AC_MODULE_SYMVERS
 ])
 
 dnl #
@@ -538,27 +536,6 @@ AC_DEFUN([ZFS_AC_QAT], [
 	$QAT_SYMBOLS
 			])
 		])
-	])
-])
-
-dnl #
-dnl # Basic toolchain sanity check.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_TEST_MODULE], [
-	AC_MSG_CHECKING([whether modules can be built])
-	ZFS_LINUX_TRY_COMPILE([], [], [
-		AC_MSG_RESULT([yes])
-	],[
-		AC_MSG_RESULT([no])
-		if test "x$enable_linux_builtin" != xyes; then
-			AC_MSG_ERROR([
-	*** Unable to build an empty module.
-			])
-		else
-			AC_MSG_ERROR([
-	*** Unable to build an empty module.
-	*** Please run 'make scripts' inside the kernel source tree.])
-		fi
 	])
 ])
 
@@ -664,8 +641,10 @@ AC_DEFUN([ZFS_LINUX_COMPILE], [
 		build kernel modules with LLVM/CLANG toolchain])
 	AC_TRY_COMMAND([
 	    KBUILD_MODPOST_NOFINAL="$5" KBUILD_MODPOST_WARN="$6"
-	    make modules -k -j$TEST_JOBS ${KERNEL_CC:+CC=$KERNEL_CC} ${KERNEL_LD:+LD=$KERNEL_LD} ${KERNEL_LLVM:+LLVM=$KERNEL_LLVM} -C $LINUX_OBJ $ARCH_UM
-	    M=$PWD/$1 >$1/build.log 2>&1])
+	    make modules -k -j$TEST_JOBS ${KERNEL_CC:+CC=$KERNEL_CC}
+	    ${KERNEL_LD:+LD=$KERNEL_LD} ${KERNEL_LLVM:+LLVM=$KERNEL_LLVM}
+	    CONFIG_MODULES=y CFLAGS_MODULE=-DCONFIG_MODULES
+	    -C $LINUX_OBJ $ARCH_UM M=$PWD/$1 >$1/build.log 2>&1])
 	AS_IF([AC_TRY_COMMAND([$2])], [$3], [$4])
 ])
 
