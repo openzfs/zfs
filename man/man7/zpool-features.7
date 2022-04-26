@@ -507,6 +507,17 @@ once either of the limit properties has been set on a dataset
 and will never return to being
 .Sy enabled .
 .
+.feature com.delphix head_errlog no
+This feature enables the upgraded version of errlog, which required an on-disk
+error log format change.
+Now the error log of each head dataset is stored separately in the zap object
+and keyed by the head id.
+With this feature enabled, every dataset affected by an error block is listed
+in the output of
+.Nm zpool Cm status .
+.Pp
+\*[instant-never]
+.
 .feature com.delphix hole_birth no enabled_txg
 This feature has/had bugs, the result of which is that, if you do a
 .Nm zfs Cm send Fl i
