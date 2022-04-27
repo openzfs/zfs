@@ -3594,7 +3594,11 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 			dmu_tx_wait(tx);
 
 		dmu_tx_abort(tx);
+#ifdef HAVE_VFS_FILEMAP_DIRTY_FOLIO
+		filemap_dirty_folio(page_mapping(pp), page_folio(pp));
+#else
 		__set_page_dirty_nobuffers(pp);
+#endif
 		ClearPageError(pp);
 		end_page_writeback(pp);
 		zfs_rangelock_exit(lr);
