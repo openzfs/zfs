@@ -1469,15 +1469,15 @@ feature uses to estimate incoming log blocks.
 .It Sy zfs_max_logsm_summary_length Ns = Ns Sy 10 Pq ulong
 Maximum number of rows allowed in the summary of the spacemap log.
 .
-.It Sy zfs_max_recordsize Ns = Ns Sy 1048576 Po 1MB Pc Pq int
+.It Sy zfs_max_recordsize Ns = Ns Sy 16777216 Po 16MB Pc Pq int
 We currently support block sizes from
 .Em 512B No to Em 16MB .
 The benefits of larger blocks, and thus larger I/O,
 need to be weighed against the cost of COWing a giant block to modify one byte.
 Additionally, very large blocks can have an impact on I/O latency,
 and also potentially on the memory allocator.
-Therefore, we do not allow the recordsize to be set larger than this tunable.
-Larger blocks can be created by changing it,
+Therefore, we formerly forbade creating blocks larger than 1M.
+Larger blocks could be created by changing it,
 and pools with larger blocks can always be imported and used,
 regardless of this setting.
 .
