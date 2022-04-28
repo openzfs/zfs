@@ -35,7 +35,7 @@ log_must disk_setup
 log_must zpool create $TESTPOOL raidz $ZPOOL_DISKS special mirror \
 	$CLASS_DISK0 $CLASS_DISK1
 
-for value in 256 1025 2097152
+for value in 256 1025 33554432
 do
 	log_mustnot zfs set special_small_blocks=$value $TESTPOOL
 done

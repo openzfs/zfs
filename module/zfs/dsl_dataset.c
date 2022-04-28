@@ -73,12 +73,19 @@
  * The SPA supports block sizes up to 16MB.  However, very large blocks
  * can have an impact on i/o latency (e.g. tying up a spinning disk for
  * ~300ms), and also potentially on the memory allocator.  Therefore,
- * we do not allow the recordsize to be set larger than zfs_max_recordsize
- * (default 1MB).  Larger blocks can be created by changing this tunable,
- * and pools with larger blocks can always be imported and used, regardless
- * of this setting.
+ * we did not allow the recordsize to be set larger than zfs_max_recordsize
+ * (former default: 1MB).  Larger blocks could be created by changing this
+ * tunable, and pools with larger blocks could always be imported and used,
+ * regardless of this setting.
+ *
+ * We do, however, still limit it by default to 1M on x86_32, because Linux's
+ * 3/1 memory split doesn't leave much room for 16M chunks.
  */
-int zfs_max_recordsize = 1 * 1024 * 1024;
+#ifdef _ILP32
+int zfs_max_recordsize =  1 * 1024 * 1024;
+#else
+int zfs_max_recordsize = 16 * 1024 * 1024;
+#endif
 static int zfs_allow_redacted_dataset_mount = 0;
 
 #define	SWITCH64(x, y) \
@@ -4964,13 +4971,7 @@ dsl_dataset_oldest_snapshot(spa_t *spa, uint64_t head_ds, uint64_t min_txg,
 	return (0);
 }
 
-#if defined(_LP64)
-#define	RECORDSIZE_PERM ZMOD_RW
-#else
-/* Limited to 1M on 32-bit platforms due to lack of virtual address space */
-#define	RECORDSIZE_PERM ZMOD_RD
-#endif
-ZFS_MODULE_PARAM(zfs, zfs_, max_recordsize, INT, RECORDSIZE_PERM,
+ZFS_MODULE_PARAM(zfs, zfs_, max_recordsize, INT, ZMOD_RW,
 	"Max allowed record size");
 
 ZFS_MODULE_PARAM(zfs, zfs_, allow_redacted_dataset_mount, INT, ZMOD_RW,
