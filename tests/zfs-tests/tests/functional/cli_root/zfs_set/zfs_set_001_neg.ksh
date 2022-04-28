@@ -78,7 +78,7 @@ while (( i < ${#dataset[@]} )); do
 		(( j += 1 ))
 	done
 	# Additional recordsize
-	set_n_check_prop "2048K" "recordsize" "${dataset[i]}" false
+	set_n_check_prop "32768K" "recordsize" "${dataset[i]}" false
 	set_n_check_prop "128B" "recordsize" "${dataset[i]}" false
 	(( i += 1 ))
 done
