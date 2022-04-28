@@ -231,6 +231,7 @@ This library provides a variety of compatibility functions for OpenZFS:
 %package -n libzfs5
 Summary:        Native ZFS filesystem library for Linux
 Group:          System Environment/Kernel
+Requires:       libbsd0
 Obsoletes:      libzfs2
 Obsoletes:      libzfs4
 
