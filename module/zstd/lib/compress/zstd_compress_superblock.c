@@ -409,7 +409,7 @@ static size_t ZSTD_seqDecompressedSize(seqStore_t const* seqStore, const seqDef*
     const seqDef* const send = sequences + nbSeq;
     const seqDef* sp = sstart;
     size_t matchLengthSum = 0;
-    size_t litLengthSum = 0;
+    size_t litLengthSum __attribute__ ((unused)) = 0;
     while (send-sp > 0) {
         ZSTD_sequenceLength const seqLen = ZSTD_getSequenceLength(seqStore, sp);
         litLengthSum += seqLen.litLength;
