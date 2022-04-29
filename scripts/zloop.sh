@@ -21,7 +21,7 @@
 # Copyright (c) 2017, Intel Corporation.
 #
 
-BASE_DIR=$(dirname "$0")
+BASE_DIR=${0%/*}
 SCRIPT_COMMON=common.sh
 if [ -f "${BASE_DIR}/${SCRIPT_COMMON}" ]; then
 	. "${BASE_DIR}/${SCRIPT_COMMON}"
@@ -66,8 +66,7 @@ EOF
 
 function or_die
 {
-	# shellcheck disable=SC2068
-	if ! $@; then
+	if ! "$@"; then
 		echo "Command failed: $*"
 		exit 1
 	fi
@@ -128,7 +127,6 @@ function store_core
 		echo "$zdbdebug" >>ztest.zdb
 
 		dest=$coredir/$coreid
-		or_die mkdir -p "$dest"
 		or_die mkdir -p "$dest/vdev"
 
 		if [[ $symlink -ne 0 ]]; then
@@ -137,10 +135,8 @@ function store_core
 
 		echo "*** ztest crash found - moving logs to $dest"
 
-		or_die mv ztest.history "$dest/"
-		or_die mv ztest.zdb "$dest/"
-		or_die mv ztest.out "$dest/"
-		or_die mv "$workdir/ztest*" "$dest/vdev/"
+		or_die mv ztest.history ztest.zdb ztest.out "$dest/"
+		or_die mv "$workdir/"ztest* "$dest/vdev/"
 
 		if [[ -e "$workdir/zpool.cache" ]]; then
 			or_die mv "$workdir/zpool.cache" "$dest/vdev/"
@@ -235,9 +231,7 @@ if [[ ! -w $coredir ]]; then
 	exit 1
 fi
 
-or_die rm -f ztest.history
-or_die rm -f ztest.zdb
-or_die rm -f ztest.cores
+or_die rm -f ztest.history ztest.zdb ztest.cores
 
 ztrc=0		# ztest return value
 foundcrashes=0	# number of crashes found so far
@@ -312,9 +306,7 @@ while (( timeout == 0 )) || (( curtime <= (starttime + timeout) )); do
 	zopt="$zopt -f $workdir"
 
 	cmd="$ZTEST $zopt $*"
-	desc="$(date '+%m/%d %T') $cmd"
-	echo "$desc" | tee -a ztest.history
-	echo "$desc" >>ztest.out
+	echo "$(date '+%m/%d %T') $cmd" | tee -a ztest.history ztest.out
 	$cmd >>ztest.out 2>&1
 	ztrc=$?
 	grep -E '===|WARNING' ztest.out >>ztest.history
