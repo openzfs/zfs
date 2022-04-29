@@ -1637,6 +1637,7 @@ sa_add_projid(sa_handle_t *hdl, dmu_tx_t *tx, uint64_t projid)
 	SA_ADD_BULK_ATTR(attrs, count, SA_ZPL_FLAGS(zfsvfs), NULL,
 	    &zp->z_pflags, 8);
 	SA_ADD_BULK_ATTR(attrs, count, SA_ZPL_ATIME(zfsvfs), NULL, &atime, 16);
+	// printk("zfs_add_projid(): save atime\n");
 	SA_ADD_BULK_ATTR(attrs, count, SA_ZPL_MTIME(zfsvfs), NULL, &mtime, 16);
 	SA_ADD_BULK_ATTR(attrs, count, SA_ZPL_CTIME(zfsvfs), NULL, &ctime, 16);
 	SA_ADD_BULK_ATTR(attrs, count, SA_ZPL_CRTIME(zfsvfs), NULL,

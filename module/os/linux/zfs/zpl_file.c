@@ -76,8 +76,9 @@ zpl_release(struct inode *ip, struct file *filp)
 	fstrans_cookie_t cookie;
 
 	cookie = spl_fstrans_mark();
-	if (ITOZ(ip)->z_atime_dirty)
-		zfs_mark_inode_dirty(ip);
+	if (ITOZ(ip)->z_atime_dirty) {
+		PANIC("zpl_release(): ITOZ(ip)->z_atime_dirty == B_TRUE\n");
+	}
 
 	crhold(cr);
 	error = -zfs_close(ip, filp->f_flags, cr);
@@ -293,6 +294,8 @@ zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
 	ssize_t read = count - uio.uio_resid;
 	kiocb->ki_pos += read;
 
+	// consider NOT calling this after every read
+	// but on file open/close
 	zpl_file_accessed(filp);
 
 	return (read);
@@ -393,6 +396,8 @@ zpl_aio_read(struct kiocb *kiocb, const struct iovec *iov,
 	ssize_t read = count - uio.uio_resid;
 	kiocb->ki_pos += read;
 
+	// consider NOT calling this after every read
+	// but on file open/close
 	zpl_file_accessed(filp);
 
 	return (read);

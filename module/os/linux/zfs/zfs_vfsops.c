@@ -1373,7 +1373,11 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 		}
 	}
 
-	ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, FTAG);
+	// I don't know what I'm doing moment
+	// a workaround for an attempt to acquire a reader lock
+	// while having a writer lock
+	// shrink_dcache_sb() calls mark_inode_dirty()
+	// ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, FTAG);
 
 	if (!unmounting) {
 		/*
@@ -1385,6 +1389,8 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 		 */
 		shrink_dcache_sb(zfsvfs->z_parent->z_sb);
 	}
+
+	ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, FTAG);
 
 	/*
 	 * Close the zil. NB: Can't close the zil while zfs_inactive
