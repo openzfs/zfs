@@ -7781,7 +7781,7 @@ size_t FSE_writeNCount (void* buffer, size_t bufferSize,
 
 FSE_CTable* FSE_createCTable (unsigned maxSymbolValue, unsigned tableLog)
 {
-    size_t size;
+    size_t size __attribute__ ((unused));
     if (tableLog > FSE_TABLELOG_ABSOLUTE_MAX) tableLog = FSE_TABLELOG_ABSOLUTE_MAX;
     size = FSE_CTABLE_SIZE_U32 (tableLog, maxSymbolValue) * sizeof(U32);
     return (FSE_CTable*)malloc(size);
@@ -12115,7 +12115,7 @@ static size_t ZSTD_seqDecompressedSize(seqStore_t const* seqStore, const seqDef*
     const seqDef* const send = sequences + nbSeq;
     const seqDef* sp = sstart;
     size_t matchLengthSum = 0;
-    size_t litLengthSum = 0;
+    size_t litLengthSum __attribute__ ((unused)) = 0;
     while (send-sp > 0) {
         ZSTD_sequenceLength const seqLen = ZSTD_getSequenceLength(seqStore, sp);
         litLengthSum += seqLen.litLength;
