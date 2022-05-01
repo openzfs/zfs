@@ -241,7 +241,7 @@ zfs_open(vnode_t **vpp, int flag, cred_t *cr)
 	}
 
 	/* Keep a count of the synchronous opens in the znode */
-	if (flag & (FSYNC | FDSYNC))
+	if (flag & O_SYNC)
 		atomic_inc_32(&zp->z_sync_cnt);
 
 	ZFS_EXIT(zfsvfs);
@@ -259,7 +259,7 @@ zfs_close(vnode_t *vp, int flag, int count, offset_t offset, cred_t *cr)
 	ZFS_VERIFY_ZP(zp);
 
 	/* Decrement the synchronous opens in the znode */
-	if ((flag & (FSYNC | FDSYNC)) && (count == 1))
+	if ((flag & O_SYNC) && (count == 1))
 		atomic_dec_32(&zp->z_sync_cnt);
 
 	ZFS_EXIT(zfsvfs);
@@ -4402,11 +4402,11 @@ ioflags(int ioflags)
 	int flags = 0;
 
 	if (ioflags & IO_APPEND)
-		flags |= FAPPEND;
+		flags |= O_APPEND;
 	if (ioflags & IO_NDELAY)
-		flags |= FNONBLOCK;
+		flags |= O_NONBLOCK;
 	if (ioflags & IO_SYNC)
-		flags |= (FSYNC | FDSYNC | FRSYNC);
+		flags |= O_SYNC;
 
 	return (flags);
 }
@@ -4627,7 +4627,7 @@ zfs_freebsd_create(struct vop_create_args *ap)
 	zfsvfs = ap->a_dvp->v_mount->mnt_data;
 	*ap->a_vpp = NULL;
 
-	rc = zfs_create(VTOZ(ap->a_dvp), cnp->cn_nameptr, vap, !EXCL, mode,
+	rc = zfs_create(VTOZ(ap->a_dvp), cnp->cn_nameptr, vap, 0, mode,
 	    &zp, cnp->cn_cred, 0 /* flag */, NULL /* vsecattr */);
 	if (rc == 0)
 		*ap->a_vpp = ZTOV(zp);

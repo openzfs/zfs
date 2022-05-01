@@ -311,15 +311,13 @@ retry:
 		err = SET_ERROR(EBUSY);
 		goto out_opened;
 	}
-#ifdef FEXCL
-	if (flag & FEXCL) {
+	if (flag & O_EXCL) {
 		if (zv->zv_open_count != 0) {
 			err = SET_ERROR(EBUSY);
 			goto out_opened;
 		}
 		zv->zv_flags |= ZVOL_EXCL;
 	}
-#endif
 
 	zv->zv_open_count += count;
 out_opened:
@@ -952,18 +950,16 @@ retry:
 		err = SET_ERROR(EBUSY);
 		goto out_opened;
 	}
-#ifdef FEXCL
-	if (flags & FEXCL) {
+	if (flags & O_EXCL) {
 		if (zv->zv_open_count != 0) {
 			err = SET_ERROR(EBUSY);
 			goto out_opened;
 		}
 		zv->zv_flags |= ZVOL_EXCL;
 	}
-#endif
 
 	zv->zv_open_count++;
-	if (flags & (FSYNC | FDSYNC)) {
+	if (flags & O_SYNC) {
 		zsd = &zv->zv_zso->zso_dev;
 		zsd->zsd_sync_cnt++;
 		if (zsd->zsd_sync_cnt == 1 &&
@@ -1037,7 +1033,7 @@ zvol_cdev_close(struct cdev *dev, int flags, int fmt, struct thread *td)
 	 * You may get multiple opens, but only one close.
 	 */
 	zv->zv_open_count--;
-	if (flags & (FSYNC | FDSYNC)) {
+	if (flags & O_SYNC) {
 		zsd = &zv->zv_zso->zso_dev;
 		zsd->zsd_sync_cnt--;
 	}
