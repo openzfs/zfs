@@ -136,17 +136,7 @@ vn_flush_cached_data(vnode_t *vp, boolean_t sync)
 #define	va_blksize	va_blocksize
 
 #define	MAXOFFSET_T	OFF_MAX
-#define	EXCL		0
 
-#define	FCREAT		O_CREAT
-#define	FTRUNC		O_TRUNC
-#define	FEXCL		O_EXCL
-#ifndef FDSYNC
-#define	FDSYNC		FFSYNC
-#endif
-#define	FRSYNC		FFSYNC
-#define	FSYNC		FFSYNC
-#define	FOFFMAX		0x00
 #define	FIGNORECASE	0x00
 
 /*
