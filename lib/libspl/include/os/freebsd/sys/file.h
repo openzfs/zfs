@@ -29,14 +29,6 @@
 
 #include_next <sys/file.h>
 
-#define	FCREAT	O_CREAT
-#define	FTRUNC	O_TRUNC
-#define	FSYNC	O_SYNC
-#define	FDSYNC	O_DSYNC
-#define	FEXCL	O_EXCL
-
-#define	FNODSYNC	0x10000	/* fsync pseudo flag */
-#define	FNOFOLLOW	0x20000	/* don't follow symlinks */
 #define	FIGNORECASE	0x80000	/* request case-insensitive lookups */
 
 #endif
