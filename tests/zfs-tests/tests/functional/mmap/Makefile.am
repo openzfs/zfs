@@ -5,7 +5,8 @@ dist_pkgdata_SCRIPTS = \
 	mmap_read_001_pos.ksh \
 	mmap_write_001_pos.ksh \
 	mmap_libaio_001_pos.ksh \
-	mmap_seek_001_pos.ksh
+	mmap_seek_001_pos.ksh \
+	mmap_sync_001_pos.ksh
 
 dist_pkgdata_DATA = \
 	mmap.cfg
