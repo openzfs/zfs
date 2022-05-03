@@ -81,7 +81,7 @@ zfs_append_partition(char *path, size_t max_len)
  * caller must free the returned string
  */
 char *
-zfs_strip_partition(char *path)
+zfs_strip_partition(const char *path)
 {
 	char *tmp = strdup(path);
 	char *part = NULL, *d = NULL;
@@ -117,7 +117,7 @@ zfs_strip_partition(char *path)
  * Returned string must be freed.
  */
 static char *
-zfs_strip_partition_path(char *path)
+zfs_strip_partition_path(const char *path)
 {
 	char *newpath = strdup(path);
 	char *sd_offset;
@@ -148,8 +148,8 @@ zfs_strip_partition_path(char *path)
 /*
  * Strip the unwanted portion of a device path.
  */
-char *
-zfs_strip_path(char *path)
+const char *
+zfs_strip_path(const char *path)
 {
 	return (strrchr(path, '/') + 1);
 }

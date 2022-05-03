@@ -97,8 +97,8 @@ _LIBZUTIL_H int zfs_append_partition(char *path, size_t max_len);
 _LIBZUTIL_H int zfs_resolve_shortname(const char *name, char *path,
     size_t pathlen);
 
-_LIBZUTIL_H char *zfs_strip_partition(char *);
-_LIBZUTIL_H char *zfs_strip_path(char *);
+_LIBZUTIL_H char *zfs_strip_partition(const char *);
+_LIBZUTIL_H const char *zfs_strip_path(const char *);
 
 _LIBZUTIL_H int zfs_strcmp_pathname(const char *, const char *, int);
 
