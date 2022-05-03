@@ -5588,12 +5588,12 @@
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zfs_strip_partition' mangled-name='zfs_strip_partition' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_strip_partition'>
-      <parameter type-id='26a90f95' name='path'/>
+      <parameter type-id='80f4b756' name='path'/>
       <return type-id='26a90f95'/>
     </function-decl>
     <function-decl name='zfs_strip_path' mangled-name='zfs_strip_path' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_strip_path'>
-      <parameter type-id='26a90f95' name='path'/>
-      <return type-id='26a90f95'/>
+      <parameter type-id='80f4b756' name='path'/>
+      <return type-id='80f4b756'/>
     </function-decl>
     <function-decl name='zfs_get_enclosure_sysfs_path' mangled-name='zfs_get_enclosure_sysfs_path' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_get_enclosure_sysfs_path'>
       <parameter type-id='80f4b756' name='dev_name'/>
