@@ -80,9 +80,10 @@ mkfiles_SOURCES = mkfiles.c
 mktree_SOURCES = mktree.c
 
 
-pkgexec_PROGRAMS += mmap_exec mmap_seek mmapwrite readmmap
+pkgexec_PROGRAMS += mmap_exec mmap_seek mmap_sync mmapwrite readmmap
 mmap_exec_SOURCES = mmap_exec.c
 mmap_seek_SOURCES = mmap_seek.c
+mmap_sync_SOURCES = mmap_sync.c
 mmapwrite_SOURCES = mmapwrite.c
 mmapwrite_LDADD = -lpthread
 readmmap_SOURCES = readmmap.c
