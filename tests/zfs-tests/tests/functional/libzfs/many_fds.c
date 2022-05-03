@@ -22,15 +22,13 @@
 /*
  * Copyright (C) 2015 STRATO AG.
  */
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
+#include <err.h>
 #include <fcntl.h>
 #include <libzfs.h>
 #include <sys/resource.h>
-#include <errno.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 /*
  * Check if libzfs works with more than 255 held file handles.
@@ -38,35 +36,23 @@
 int
 main(void)
 {
-	int i;
-	struct rlimit limit;
-	libzfs_handle_t *h;
+	struct rlimit limit = {
+		.rlim_cur = 64 * 1024,
+		.rlim_max = 64 * 1024,
+	};
+	if (setrlimit(RLIMIT_NOFILE, &limit) != 0)
+		err(1, "setrlimit()");
 
-	limit.rlim_cur = 65535;
-	limit.rlim_max = 65535;
+	int fd = open("/dev/null", O_RDONLY);
+	if (fd == -1)
+			err(1, "open()");
+	for (int i = 0; i < limit.rlim_cur / 2; ++i)
+		if (dup(fd) == -1)
+			err(1, "dup()");
 
-	if (setrlimit(RLIMIT_NOFILE, &limit) != 0) {
-		(void) printf("many_fds: setrlimit() failed with errno=%d\n",
-		    errno);
-		exit(1);
-	}
+	libzfs_handle_t *h = libzfs_init();
+	if (h == NULL)
+		err(1, "libzfs_init()");
 
-	for (i = 0; i < 255; ++i) {
-		int fd = open("/dev/null", O_RDONLY);
-		if (fd == -1) {
-			(void) printf("open failed with errno=%d\n", errno);
-			return (1);
-		}
-	}
-
-	h = libzfs_init();
-
-	if (h != NULL) {
-		libzfs_fini(h);
-		return (0);
-	} else {
-		(void) printf("many_fds: libzfs_init() failed with errno=%d\n",
-		    errno);
-		return (1);
-	}
+	libzfs_fini(h);
 }
