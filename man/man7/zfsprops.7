@@ -904,7 +904,7 @@ after compression, otherwise the compression will not be considered worthwhile
 and the block saved uncompressed.
 Note that when the logical block is less than
 8 times the disk sector size this effectively reduces the necessary compression
-ratio; for example, 8kB blocks on disks with 4kB disk sectors must compress to 1/2
+ratio; for example, 8 KiB blocks on disks with 4 KiB disk sectors must compress to 1/2
 or less of their original size.
 .It Xo
 .Sy context Ns = Ns Sy none Ns | Ns
@@ -1199,7 +1199,7 @@ blocks into the special allocation class.
 Blocks smaller than or equal to this
 value will be assigned to the special allocation class while greater blocks
 will be assigned to the regular class.
-Valid values are zero or a power of two from 512B up to 1M.
+Valid values are zero or a power of two from 512 up to 1048576 (1 MiB).
 The default size is 0 which means no small file blocks
 will be allocated in the special class.
 .Pp
@@ -1426,13 +1426,13 @@ Use of this property for general purpose file systems is strongly discouraged,
 and may adversely affect performance.
 .Pp
 The size specified must be a power of two greater than or equal to
-.Ar 512B
+.Ar 512 B
 and less than or equal to
-.Ar 128kB .
+.Ar 128 KiB .
 If the
 .Sy large_blocks
 feature is enabled on the pool, the size may be up to
-.Ar 1MB .
+.Ar 1 MiB .
 See
 .Xr zpool-features 7
 for details on ZFS feature flags.

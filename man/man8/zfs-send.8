@@ -102,12 +102,12 @@ The incremental source may be specified as with the
 .Fl i
 option.
 .It Fl L , -large-block
-Generate a stream which may contain blocks larger than 128KB.
+Generate a stream which may contain blocks larger than 128 KiB.
 This flag has no effect if the
 .Sy large_blocks
 pool feature is disabled, or if the
 .Sy recordsize
-property of this filesystem has never been set above 128KB.
+property of this filesystem has never been set above 128 KiB.
 The receiving system must have the
 .Sy large_blocks
 pool feature enabled as well.
@@ -317,12 +317,12 @@ Deduplicated send is no longer supported.
 This flag is accepted for backwards compatibility, but a regular,
 non-deduplicated stream will be generated.
 .It Fl L , -large-block
-Generate a stream which may contain blocks larger than 128KB.
+Generate a stream which may contain blocks larger than 128 KiB.
 This flag has no effect if the
 .Sy large_blocks
 pool feature is disabled, or if the
 .Sy recordsize
-property of this filesystem has never been set above 128KB.
+property of this filesystem has never been set above 128 KiB.
 The receiving system must have the
 .Sy large_blocks
 pool feature enabled as well.

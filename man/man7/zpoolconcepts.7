@@ -107,7 +107,7 @@ Unlike raidz, dRAID uses a fixed stripe width (padding as necessary with
 zeros) to allow fully sequential resilvering.
 This fixed stripe width significantly effects both usable capacity and IOPS.
 For example, with the default
-.Em D=8 No and Em 4kB No disk sectors the minimum allocation size is Em 32kB .
+.Em D=8 No and Em 4 KiB No disk sectors the minimum allocation size is Em 32 KiB .
 If using compression, this relatively large allocation size can reduce the
 effective compression ratio.
 When using ZFS volumes and dRAID, the default of the
@@ -422,13 +422,13 @@ asynchronously when importing the pool in L2ARC (persistent L2ARC).
 This can be disabled by setting
 .Sy l2arc_rebuild_enabled Ns = Ns Sy 0 .
 For cache devices smaller than
-.Em 1GB ,
+.Em 1 GiB ,
 we do not write the metadata structures
 required for rebuilding the L2ARC in order not to waste space.
 This can be changed with
 .Sy l2arc_rebuild_blocks_min_l2size .
 The cache device header
-.Pq Em 512B
+.Pq Em 512 B
 is updated even if no metadata structures are written.
 Setting
 .Sy l2arc_headroom Ns = Ns Sy 0
