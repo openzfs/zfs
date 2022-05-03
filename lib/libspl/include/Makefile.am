@@ -8,7 +8,6 @@ libspl_HEADERS = \
 	%D%/limits.h \
 	%D%/locale.h \
 	%D%/statcommon.h \
-	%D%/stdio.h \
 	%D%/stdlib.h \
 	%D%/string.h \
 	%D%/stropts.h \
