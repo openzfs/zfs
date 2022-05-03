@@ -151,7 +151,15 @@ zfs_strip_partition_path(const char *path)
 const char *
 zfs_strip_path(const char *path)
 {
-	return (strrchr(path, '/') + 1);
+	size_t spath_count;
+	const char *const *spaths = zpool_default_search_paths(&spath_count);
+
+	for (size_t i = 0; i < spath_count; ++i)
+		if (strncmp(path, spaths[i], strlen(spaths[i])) == 0 &&
+		    path[strlen(spaths[i])] == '/')
+			return (path + strlen(spaths[i]) + 1);
+
+	return (path);
 }
 
 /*
