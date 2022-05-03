@@ -8410,7 +8410,6 @@ int
 main(int argc, char **argv)
 {
 	int c;
-	struct rlimit rl = { 1024, 1024 };
 	spa_t *spa = NULL;
 	objset_t *os = NULL;
 	int dump_all = 1;
@@ -8428,9 +8427,6 @@ main(int argc, char **argv)
 	char *spa_config_path_env, *objset_str;
 	boolean_t target_is_spa = B_TRUE, dataset_lookup = B_FALSE;
 	nvlist_t *cfg = NULL;
-
-	(void) setrlimit(RLIMIT_NOFILE, &rl);
-	(void) enable_extended_FILE_stdio(-1, -1);
 
 	dprintf_setup(&argc, argv);
 
