@@ -222,6 +222,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/cmd/mmap_exec/Makefile
 	tests/zfs-tests/cmd/mmap_libaio/Makefile
 	tests/zfs-tests/cmd/mmap_seek/Makefile
+	tests/zfs-tests/cmd/mmap_sync/Makefile
 	tests/zfs-tests/cmd/mmapwrite/Makefile
 	tests/zfs-tests/cmd/nvlist_to_lua/Makefile
 	tests/zfs-tests/cmd/randfree_file/Makefile

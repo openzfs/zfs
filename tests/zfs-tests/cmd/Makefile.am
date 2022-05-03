@@ -20,6 +20,7 @@ SUBDIRS = \
 	mmap_exec \
 	mmap_libaio \
 	mmap_seek \
+	mmap_sync \
 	mmapwrite \
 	nvlist_to_lua \
 	randwritecomp \
