@@ -32,6 +32,7 @@ install-exec-local:
 	  --single-version-externally-managed \
 	  --verbose
 
-clean-local:
+CLEAN_LOCAL += pyzfs-clean-local
+pyzfs-clean-local:
 	-$(RM) -r %D%/build/ %D%/pyzfs.egg-info/
 endif

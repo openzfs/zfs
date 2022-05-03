@@ -75,6 +75,10 @@ ALL_LOCAL += scripts-all-local
 scripts-all-local: %D%/common.sh
 	-SCRIPT_COMMON=$< $(srcdir)/%D%/zfs-tests.sh -c
 
+CLEAN_LOCAL += scripts-clean-local
+scripts-clean-local:
+	-$(RM) -r tests/zfs-tests/bin/
+
 INSTALL_DATA_HOOKS += scripts-install-data-hook
 scripts-install-data-hook: %D%/common.sh.in Makefile
 	-$(SED) -e '/^export BIN_DIR=/s|$$|$(bindir)|' \
