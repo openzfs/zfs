@@ -8501,7 +8501,6 @@ exec_child(char *cmd, char *libpath, boolean_t ignorekill, int *statusp)
 	if (pid == 0) {	/* child */
 		char fd_data_str[12];
 
-		(void) close(ztest_fd_rand);
 		VERIFY3S(11, >=,
 		    snprintf(fd_data_str, 12, "%d", ztest_fd_data));
 		VERIFY0(setenv("ZTEST_FD_DATA", fd_data_str, 1));
@@ -8648,7 +8647,7 @@ main(int argc, char **argv)
 	 * ztest from needlessly depleting the system entropy pool.
 	 */
 	random_path = "/dev/urandom";
-	ztest_fd_rand = open(random_path, O_RDONLY);
+	ztest_fd_rand = open(random_path, O_RDONLY | O_CLOEXEC);
 	ASSERT3S(ztest_fd_rand, >=, 0);
 
 	if (!fd_data_str) {
