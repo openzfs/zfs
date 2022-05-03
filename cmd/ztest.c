@@ -6639,9 +6639,9 @@ ztest_get_zdb_bin(char *bin, int len)
 	}
 
 	VERIFY3P(realpath(getexecname(), bin), !=, NULL);
-	if (strstr(bin, "/ztest/")) {
-		strstr(bin, "/ztest/")[0] = '\0'; /* In-tree */
-		strcat(bin, "/zdb/zdb");
+	if (strstr(bin, ".libs/ztest")) {
+		strstr(bin, ".libs/ztest")[0] = '\0'; /* In-tree */
+		strcat(bin, "zdb");
 		if (ztest_check_path(bin))
 			return;
 	}
