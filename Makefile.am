@@ -2,6 +2,7 @@ CLEANFILES =
 EXTRA_DIST =
 INSTALL_DATA_HOOKS =
 ALL_LOCAL =
+CLEAN_LOCAL =
 CHECKS = shellcheck checkbashisms
 
 include $(top_srcdir)/config/Rules.am
@@ -86,6 +87,9 @@ distclean-local:
 		-o -name '*.order' -o -name '*.markers' -o -name '*.gcda' \
 		-o -name '*.gcno' \) \
 		-type f -delete
+
+PHONY += $(CLEAN_LOCAL)
+clean-local: $(CLEAN_LOCAL)
 
 PHONY += $(ALL_LOCAL)
 all-local: $(ALL_LOCAL)
