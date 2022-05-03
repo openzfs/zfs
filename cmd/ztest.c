@@ -929,8 +929,7 @@ process_options(int argc, char **argv)
 
 	int opt;
 	uint64_t value;
-	char altdir[MAXNAMELEN] = { 0 };
-	char raid_kind[8] = "random";
+	const char *raid_kind = "random";
 
 	memcpy(zo, &ztest_opts_defaults, sizeof (*zo));
 
@@ -978,7 +977,7 @@ process_options(int argc, char **argv)
 			zo->zo_raid_parity = MIN(MAX(value, 1), 3);
 			break;
 		case 'K':
-			(void) strlcpy(raid_kind, optarg, sizeof (raid_kind));
+			raid_kind = optarg;
 			break;
 		case 'D':
 			zo->zo_draid_data = MAX(1, value);
@@ -1037,7 +1036,8 @@ process_options(int argc, char **argv)
 			zo->zo_maxloops = MAX(1, value);
 			break;
 		case 'B':
-			(void) strlcpy(altdir, optarg, sizeof (altdir));
+			(void) strlcpy(zo->zo_alt_ztest, optarg,
+			    sizeof (zo->zo_alt_ztest));
 			break;
 		case 'C':
 			ztest_parse_name_value(optarg, zo);
@@ -1076,8 +1076,7 @@ process_options(int argc, char **argv)
 
 	/* When raid choice is 'random' add a draid pool 50% of the time */
 	if (strcmp(raid_kind, "random") == 0) {
-		(void) strlcpy(raid_kind, (ztest_random(2) == 0) ?
-		    "draid" : "raidz", sizeof (raid_kind));
+		raid_kind = (ztest_random(2) == 0) ? "draid" : "raidz";
 
 		if (ztest_opts.zo_verbose >= 3)
 			(void) printf("choosing RAID type '%s'\n", raid_kind);
@@ -1127,51 +1126,28 @@ process_options(int argc, char **argv)
 	    (zo->zo_vdevs > 0 ? zo->zo_time * NANOSEC / zo->zo_vdevs :
 	    UINT64_MAX >> 2);
 
-	if (strlen(altdir) > 0) {
-		char *cmd;
-		char *realaltdir;
-		char *bin;
-		char *ztest;
-		char *isa;
-		int isalen;
+	if (*zo->zo_alt_ztest) {
+		const char *invalid_what = "ztest";
+		char *val = zo->zo_alt_ztest;
+		if (0 != access(val, X_OK) ||
+		    (strrchr(val, '/') == NULL && (errno = EINVAL)))
+			goto invalid;
 
-		cmd = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
-		realaltdir = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
+		int dirlen = strrchr(val, '/') - val;
+		strncpy(zo->zo_alt_libpath, val, dirlen);
+		invalid_what = "library path", val = zo->zo_alt_libpath;
+		if (strrchr(val, '/') == NULL && (errno = EINVAL))
+			goto invalid;
+		*strrchr(val, '/') = '\0';
+		strlcat(val, "/lib", sizeof (zo->zo_alt_libpath));
 
-		VERIFY3P(NULL, !=, realpath(getexecname(), cmd));
-		if (0 != access(altdir, F_OK)) {
-			ztest_dump_core = B_FALSE;
-			fatal(B_TRUE, "invalid alternate ztest path: %s",
-			    altdir);
-		}
-		VERIFY3P(NULL, !=, realpath(altdir, realaltdir));
+		if (0 != access(zo->zo_alt_libpath, X_OK))
+			goto invalid;
+		return;
 
-		/*
-		 * 'cmd' should be of the form "<anything>/usr/bin/<isa>/ztest".
-		 * We want to extract <isa> to determine if we should use
-		 * 32 or 64 bit binaries.
-		 */
-		bin = strstr(cmd, "/usr/bin/");
-		ztest = strstr(bin, "/ztest");
-		isa = bin + 9;
-		isalen = ztest - isa;
-		(void) snprintf(zo->zo_alt_ztest, sizeof (zo->zo_alt_ztest),
-		    "%s/usr/bin/%.*s/ztest", realaltdir, isalen, isa);
-		(void) snprintf(zo->zo_alt_libpath, sizeof (zo->zo_alt_libpath),
-		    "%s/usr/lib/%.*s", realaltdir, isalen, isa);
-
-		if (0 != access(zo->zo_alt_ztest, X_OK)) {
-			ztest_dump_core = B_FALSE;
-			fatal(B_TRUE, "invalid alternate ztest: %s",
-			    zo->zo_alt_ztest);
-		} else if (0 != access(zo->zo_alt_libpath, X_OK)) {
-			ztest_dump_core = B_FALSE;
-			fatal(B_TRUE, "invalid alternate lib directory %s",
-			    zo->zo_alt_libpath);
-		}
-
-		umem_free(cmd, MAXPATHLEN);
-		umem_free(realaltdir, MAXPATHLEN);
+invalid:
+		ztest_dump_core = B_FALSE;
+		fatal(B_TRUE, "invalid alternate %s %s", invalid_what, val);
 	}
 }
 
@@ -1182,14 +1158,14 @@ ztest_kill(ztest_shared_t *zs)
 	zs->zs_space = metaslab_class_get_space(spa_normal_class(ztest_spa));
 
 	/*
-	 * Before we kill off ztest, make sure that the config is updated.
+	 * Before we kill ourselves, make sure that the config is updated.
 	 * See comment above spa_write_cachefile().
 	 */
 	mutex_enter(&spa_namespace_lock);
 	spa_write_cachefile(ztest_spa, B_FALSE, B_FALSE);
 	mutex_exit(&spa_namespace_lock);
 
-	(void) kill(getpid(), SIGKILL);
+	(void) raise(SIGKILL);
 }
 
 static void
@@ -7895,8 +7871,17 @@ exec_child(char *cmd, char *libpath, boolean_t ignorekill, int *statusp)
 		    snprintf(fd_data_str, 12, "%d", ztest_fd_data));
 		VERIFY0(setenv("ZTEST_FD_DATA", fd_data_str, 1));
 
-		if (libpath != NULL)
-			VERIFY0(setenv("LD_LIBRARY_PATH", libpath, 1));
+		if (libpath != NULL) {
+			const char *curlp = getenv("LD_LIBRARY_PATH");
+			if (curlp == NULL)
+				VERIFY0(setenv("LD_LIBRARY_PATH", libpath, 1));
+			else {
+				char *newlp = NULL;
+				VERIFY3S(-1, !=,
+				    asprintf(&newlp, "%s:%s", libpath, curlp));
+				VERIFY0(setenv("LD_LIBRARY_PATH", newlp, 1));
+			}
+		}
 		(void) execl(cmd, cmd, (char *)NULL);
 		ztest_dump_core = B_FALSE;
 		fatal(B_TRUE, "exec failed: %s", cmd);
