@@ -157,7 +157,17 @@ Time per pass.
 Max loops in
 .Fn spa_freeze .
 .It Fl B , -alt-ztest Ns =
-Alternate ztest path.
+Path to alternate ("older")
+.Nm ztest
+to drive, which will be used to initialise the pool, and, a stochastic half the time, to run the tests.
+The parallel
+.Pa lib
+directory is prepended to
+.Ev LD_LIBRARY_PATH ;
+i.e. given
+.Fl B Pa ./chroots/lenny/usr/bin/ Ns Nm ,
+.Pa ./chroots/lenny/usr/lib
+will be loaded.
 .It Fl C , -vdev-class-state Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy random No (default: Sy random )
 The vdev allocation class state.
 .It Fl o , -option Ns = Ns Ar variable Ns = Ns Ar value
