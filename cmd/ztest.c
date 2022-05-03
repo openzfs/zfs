@@ -7888,21 +7888,16 @@ exec_child(char *cmd, char *libpath, boolean_t ignorekill, int *statusp)
 		fatal(B_TRUE, "fork failed");
 
 	if (pid == 0) {	/* child */
-		char *emptyargv[2] = { cmd, NULL };
 		char fd_data_str[12];
-
-		struct rlimit rl = { 1024, 1024 };
-		(void) setrlimit(RLIMIT_NOFILE, &rl);
 
 		(void) close(ztest_fd_rand);
 		VERIFY3S(11, >=,
 		    snprintf(fd_data_str, 12, "%d", ztest_fd_data));
 		VERIFY0(setenv("ZTEST_FD_DATA", fd_data_str, 1));
 
-		(void) enable_extended_FILE_stdio(-1, -1);
 		if (libpath != NULL)
 			VERIFY0(setenv("LD_LIBRARY_PATH", libpath, 1));
-		(void) execv(cmd, emptyargv);
+		(void) execl(cmd, cmd, (char *)NULL);
 		ztest_dump_core = B_FALSE;
 		fatal(B_TRUE, "exec failed: %s", cmd);
 	}
