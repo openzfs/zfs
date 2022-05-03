@@ -6626,14 +6626,14 @@ ztest_get_zdb_bin(char *bin, int len)
 {
 	char *zdb_path;
 	/*
-	 * Try to use ZDB_PATH and in-tree zdb path. If not successful, just
+	 * Try to use $ZDB and in-tree zdb path. If not successful, just
 	 * let popen to search through PATH.
 	 */
-	if ((zdb_path = getenv("ZDB_PATH"))) {
+	if ((zdb_path = getenv("ZDB"))) {
 		strlcpy(bin, zdb_path, len); /* In env */
 		if (!ztest_check_path(bin)) {
 			ztest_dump_core = 0;
-			fatal(B_TRUE, "invalid ZDB_PATH '%s'", bin);
+			fatal(B_TRUE, "invalid ZDB '%s'", bin);
 		}
 		return;
 	}
@@ -6858,7 +6858,7 @@ ztest_run_zdb(char *pool)
 	free(set_gvars_args_joined);
 
 	if (ztest_opts.zo_verbose >= 5)
-		(void) printf("Executing %s\n", strstr(zdb, "zdb "));
+		(void) printf("Executing %s\n", zdb);
 
 	fp = popen(zdb, "r");
 
