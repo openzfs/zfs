@@ -321,13 +321,12 @@ typedef struct dmu_buf_impl {
 	uint8_t db_dirtycnt;
 } dmu_buf_impl_t;
 
-/* Note: the dbuf hash table is exposed only for the mdb module */
-#define	DBUF_MUTEXES 2048
-#define	DBUF_HASH_MUTEX(h, idx) (&(h)->hash_mutexes[(idx) & (DBUF_MUTEXES-1)])
+#define	DBUF_RWLOCKS 8192
+#define	DBUF_HASH_RWLOCK(h, idx) (&(h)->hash_rwlocks[(idx) & (DBUF_RWLOCKS-1)])
 typedef struct dbuf_hash_table {
 	uint64_t hash_table_mask;
 	dmu_buf_impl_t **hash_table;
-	kmutex_t hash_mutexes[DBUF_MUTEXES] ____cacheline_aligned;
+	krwlock_t hash_rwlocks[DBUF_RWLOCKS] ____cacheline_aligned;
 } dbuf_hash_table_t;
 
 typedef void (*dbuf_prefetch_fn)(void *, boolean_t);
