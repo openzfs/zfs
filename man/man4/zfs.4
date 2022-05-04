@@ -218,12 +218,12 @@ For L2ARC devices less than 1GB, the amount of data
 evicts is significant compared to the amount of restored L2ARC data.
 In this case, do not write log blocks in L2ARC in order not to waste space.
 .
-.It Sy metaslab_aliquot Ns = Ns Sy 524288 Ns B Po 512kB Pc Pq ulong
+.It Sy metaslab_aliquot Ns = Ns Sy 1048576 Ns B Po 1MB Pc Pq ulong
 Metaslab granularity, in bytes.
 This is roughly similar to what would be referred to as the "stripe size"
 in traditional RAID arrays.
-In normal operation, ZFS will try to write this amount of data
-to a top-level vdev before moving on to the next one.
+In normal operation, ZFS will try to write this amount of data to each disk
+before moving on to the next top-level vdev.
 .
 .It Sy metaslab_bias_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Enable metaslab group biasing based on their vdevs' over- or under-utilization
