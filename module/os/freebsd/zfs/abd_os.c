@@ -113,7 +113,6 @@ static kstat_t *abd_ksp;
  * memory by only using a single zero buffer for the scatter chunks.
  */
 abd_t *abd_zero_scatter = NULL;
-static char *abd_zero_buf = NULL;
 
 static uint_t
 abd_chunkcnt_for_bytes(size_t size)
@@ -241,18 +240,16 @@ abd_free_struct_impl(abd_t *abd)
 
 /*
  * Allocate scatter ABD of size SPA_MAXBLOCKSIZE, where
- * each chunk in the scatterlist will be set to abd_zero_buf.
+ * each chunk in the scatterlist will be set to the same area.
  */
+_Static_assert(ZERO_REGION_SIZE >= PAGE_SIZE, "zero_region too small");
 static void
 abd_alloc_zero_scatter(void)
 {
 	uint_t i, n;
 
 	n = abd_chunkcnt_for_bytes(SPA_MAXBLOCKSIZE);
-	abd_zero_buf = kmem_cache_alloc(abd_chunk_cache, KM_PUSHPAGE);
-	bzero(abd_zero_buf, PAGE_SIZE);
 	abd_zero_scatter = abd_alloc_struct(SPA_MAXBLOCKSIZE);
-
 	abd_zero_scatter->abd_flags |= ABD_FLAG_OWNER | ABD_FLAG_ZEROS;
 	abd_zero_scatter->abd_size = SPA_MAXBLOCKSIZE;
 
@@ -260,7 +257,7 @@ abd_alloc_zero_scatter(void)
 
 	for (i = 0; i < n; i++) {
 		ABD_SCATTER(abd_zero_scatter).abd_chunks[i] =
-		    abd_zero_buf;
+		    __DECONST(void *, zero_region);
 	}
 
 	ABDSTAT_BUMP(abdstat_scatter_cnt);
@@ -275,7 +272,6 @@ abd_free_zero_scatter(void)
 
 	abd_free_struct(abd_zero_scatter);
 	abd_zero_scatter = NULL;
-	kmem_cache_free(abd_chunk_cache, abd_zero_buf);
 }
 
 static int
