@@ -48,10 +48,10 @@
 /*
  * Metaslab granularity, in bytes. This is roughly similar to what would be
  * referred to as the "stripe size" in traditional RAID arrays. In normal
- * operation, we will try to write this amount of data to a top-level vdev
- * before moving on to the next one.
+ * operation, we will try to write this amount of data to each disk before
+ * moving on to the next top-level vdev.
  */
-unsigned long metaslab_aliquot = 512 << 10;
+static unsigned long metaslab_aliquot = 1024 * 1024;
 
 /*
  * For testing, make some blocks above a certain size be gang blocks.
@@ -899,7 +899,8 @@ metaslab_group_activate(metaslab_group_t *mg)
 	if (++mg->mg_activation_count <= 0)
 		return;
 
-	mg->mg_aliquot = metaslab_aliquot * MAX(1, mg->mg_vd->vdev_children);
+	mg->mg_aliquot = metaslab_aliquot * MAX(1,
+	    vdev_get_ndisks(mg->mg_vd) - vdev_get_nparity(mg->mg_vd));
 	metaslab_group_alloc_update(mg);
 
 	if ((mgprev = mc->mc_allocator[0].mca_rotor) == NULL) {
