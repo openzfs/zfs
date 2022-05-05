@@ -21,12 +21,7 @@
 #
 
 #
-# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
-# Use is subject to license terms.
-#
-
-#
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2022 by Triad National Security, LCC
 #
 
 . $STF_SUITE/include/libtest.shlib

@@ -40,6 +40,10 @@ tests = ['alloc_class_001_pos', 'alloc_class_002_neg', 'alloc_class_003_pos',
     'alloc_class_013_pos']
 tags = ['functional', 'alloc_class']
 
+[tests/functional/append]
+tests = ['file_append', 'threadsappend_001_pos']
+tags = ['functional', 'append']
+
 [tests/functional/arc]
 tests = ['dbufstats_001_pos', 'dbufstats_002_pos', 'dbufstats_003_pos',
     'arcstats_runtime_tuning']
@@ -883,10 +887,6 @@ tags = ['functional', 'stat']
 tests = ['suid_write_to_suid', 'suid_write_to_sgid', 'suid_write_to_suid_sgid',
     'suid_write_to_none', 'suid_write_zil_replay']
 tags = ['functional', 'suid']
-
-[tests/functional/threadsappend]
-tests = ['threadsappend_001_pos']
-tags = ['functional', 'threadsappend']
 
 [tests/functional/trim]
 tests = ['autotrim_integrity', 'autotrim_config', 'autotrim_trim_integrity',
