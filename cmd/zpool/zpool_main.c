@@ -2472,7 +2472,7 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 
 	if (vs->vs_scan_removing != 0) {
 		(void) printf(gettext("  (removing)"));
-	} else if (vs->vs_noalloc != 0) {
+	} else if (VDEV_STAT_VALID(vs_noalloc, vsc) && vs->vs_noalloc != 0) {
 		(void) printf(gettext("  (non-allocating)"));
 	}
 
@@ -6162,7 +6162,7 @@ print_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 		 * 'toplevel' boolean value is passed to the print_one_column()
 		 * to indicate that the value is valid.
 		 */
-		if (vs->vs_pspace)
+		if (VDEV_STAT_VALID(vs_pspace, c) && vs->vs_pspace)
 			print_one_column(ZPOOL_PROP_SIZE, vs->vs_pspace, NULL,
 			    scripted, B_TRUE, format);
 		else
