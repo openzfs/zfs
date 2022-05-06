@@ -1420,7 +1420,7 @@ EXPORT_SYMBOL(spl_kmem_cache_reap_now);
  * it should do no harm.
  */
 int
-spl_kmem_cache_reap_active()
+spl_kmem_cache_reap_active(void)
 {
 	return (0);
 }
