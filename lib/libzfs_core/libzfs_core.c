@@ -615,9 +615,10 @@ max_pipe_buffer(int infd)
 	 * And since the problem is in waking up the writer, there's nothing
 	 * we can do about it from here.
 	 *
-	 * So we add this workaround for people who get bitten.
+	 * So if people want to, they can set this, but they
+	 * may regret it...
 	 */
-	if (getenv("ZFS_NO_PIPE_MAX") != NULL)
+	if (getenv("ZFS_SET_PIPE_MAX") == NULL)
 		return (cur);
 	if (cur < max && fcntl(infd, F_SETPIPE_SZ, max) != -1)
 		cur = max;
