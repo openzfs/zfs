@@ -436,7 +436,7 @@ __VA_ARGS__ int ddi_strtou##type(const char *str, char **endptr,	\
 {									\
 	valtype last_value, value = 0;					\
 	char *ptr = (char *)str;					\
-	int flag = 1, digit;						\
+	int digit;							\
 									\
 	if (strlen(ptr) == 0)						\
 		return (EINVAL);					\
@@ -474,15 +474,13 @@ __VA_ARGS__ int ddi_strtou##type(const char *str, char **endptr,	\
 		if (last_value > value) /* Overflow */			\
 			return (ERANGE);				\
 									\
-		flag = 1;						\
 		ptr++;							\
 	}								\
 									\
-	if (flag)							\
-		*result = value;					\
+	*result = value;						\
 									\
 	if (endptr)							\
-		*endptr = (char *)(flag ? ptr : str);			\
+		*endptr = ptr;						\
 									\
 	return (0);							\
 }									\
