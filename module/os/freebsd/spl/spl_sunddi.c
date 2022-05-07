@@ -46,19 +46,6 @@ ddi_strtol(const char *str, char **nptr, int base, long *result)
 }
 
 int
-ddi_strtoul(const char *str, char **nptr, int base, unsigned long *result)
-{
-
-	if (str == hw_serial) {
-		*result = prison0.pr_hostid;
-		return (0);
-	}
-
-	*result = strtoul(str, nptr, base);
-	return (0);
-}
-
-int
 ddi_strtoull(const char *str, char **nptr, int base, unsigned long long *result)
 {
 

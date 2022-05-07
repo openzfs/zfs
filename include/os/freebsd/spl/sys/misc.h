@@ -52,8 +52,6 @@ struct opensolaris_utsname {
 	char	*machine;
 };
 
-extern char hw_serial[11];
-
 #define	task_io_account_read(n)
 #define	task_io_account_write(n)
 

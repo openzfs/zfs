@@ -425,13 +425,13 @@ EXPORT_SYMBOL(__aeabi_ldivmod);
  * functions against their Solaris counterparts.  It is possible that I
  * may have misinterpreted the man page or the man page is incorrect.
  */
-int ddi_strtoul(const char *, char **, int, unsigned long *);
+static int ddi_strtoul(const char *, char **, int, unsigned long *);
 int ddi_strtol(const char *, char **, int, long *);
 int ddi_strtoull(const char *, char **, int, unsigned long long *);
 int ddi_strtoll(const char *, char **, int, long long *);
 
-#define	define_ddi_strtoux(type, valtype)				\
-int ddi_strtou##type(const char *str, char **endptr,			\
+#define	define_ddi_strtoux(type, valtype, ...)				\
+__VA_ARGS__ int ddi_strtou##type(const char *str, char **endptr,	\
     int base, valtype *result)						\
 {									\
 	valtype last_value, value = 0;					\
@@ -508,12 +508,12 @@ int ddi_strto##type(const char *str, char **endptr,			\
 	return (rc);							\
 }
 
-define_ddi_strtoux(l, unsigned long)
+#define	blank
+define_ddi_strtoux(l, unsigned long, static)
 define_ddi_strtox(l, long)
-define_ddi_strtoux(ll, unsigned long long)
+define_ddi_strtoux(ll, unsigned long long, blank)
 define_ddi_strtox(ll, long long)
 
-EXPORT_SYMBOL(ddi_strtoul);
 EXPORT_SYMBOL(ddi_strtol);
 EXPORT_SYMBOL(ddi_strtoll);
 EXPORT_SYMBOL(ddi_strtoull);
