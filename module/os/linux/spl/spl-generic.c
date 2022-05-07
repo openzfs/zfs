@@ -425,21 +425,32 @@ EXPORT_SYMBOL(__aeabi_ldivmod);
  * functions against their Solaris counterparts.  It is possible that I
  * may have misinterpreted the man page or the man page is incorrect.
  */
-static int ddi_strtoul(const char *, char **, int, unsigned long *);
 int ddi_strtol(const char *, char **, int, long *);
 int ddi_strtoull(const char *, char **, int, unsigned long long *);
 int ddi_strtoll(const char *, char **, int, long long *);
 
-#define	define_ddi_strtoux(type, valtype, ...)				\
-__VA_ARGS__ int ddi_strtou##type(const char *str, char **endptr,	\
+#define	define_ddi_strtox(type, valtype)				\
+int ddi_strto##type(const char *str, char **endptr,			\
     int base, valtype *result)						\
 {									\
 	valtype last_value, value = 0;					\
 	char *ptr = (char *)str;					\
-	int digit;							\
+	int digit, minus = 0;						\
+									\
+	while (strchr(" \t\n\r\f", *ptr))				\
+		++ptr;							\
 									\
 	if (strlen(ptr) == 0)						\
 		return (EINVAL);					\
+									\
+	switch (*ptr) {							\
+	case '-':							\
+		minus = 1;						\
+		zfs_fallthrough;					\
+	case '+':							\
+		++ptr;							\
+		break;							\
+	}								\
 									\
 	/* Auto-detect base based on prefix */				\
 	if (!base) {							\
@@ -477,7 +488,7 @@ __VA_ARGS__ int ddi_strtou##type(const char *str, char **endptr,	\
 		ptr++;							\
 	}								\
 									\
-	*result = value;						\
+	*result = minus ? -value : value;				\
 									\
 	if (endptr)							\
 		*endptr = ptr;						\
@@ -485,31 +496,8 @@ __VA_ARGS__ int ddi_strtou##type(const char *str, char **endptr,	\
 	return (0);							\
 }									\
 
-#define	define_ddi_strtox(type, valtype)				\
-int ddi_strto##type(const char *str, char **endptr,			\
-    int base, valtype *result)						\
-{									\
-	int rc;								\
-									\
-	if (*str == '-') {						\
-		rc = ddi_strtou##type(str + 1, endptr, base, result);	\
-		if (!rc) {						\
-			if (*endptr == str + 1)				\
-				*endptr = (char *)str;			\
-			else						\
-				*result = -*result;			\
-		}							\
-	} else {							\
-		rc = ddi_strtou##type(str, endptr, base, result);	\
-	}								\
-									\
-	return (rc);							\
-}
-
-#define	blank
-define_ddi_strtoux(l, unsigned long, static)
 define_ddi_strtox(l, long)
-define_ddi_strtoux(ll, unsigned long long, blank)
+define_ddi_strtox(ull, unsigned long long)
 define_ddi_strtox(ll, long long)
 
 EXPORT_SYMBOL(ddi_strtol);
