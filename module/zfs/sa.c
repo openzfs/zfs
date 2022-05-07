@@ -1068,8 +1068,8 @@ sa_setup(objset_t *os, uint64_t sa_obj, const sa_attr_reg_t *reg_attrs,
 				    za.za_num_integers);
 				break;
 			}
-			VERIFY(ddi_strtoull(za.za_name, NULL, 10,
-			    (unsigned long long *)&lot_num) == 0);
+			VERIFY0(ddi_strtoull(za.za_name, NULL, 10,
+			    (unsigned long long *)&lot_num));
 
 			(void) sa_add_layout_entry(os, lot_attrs,
 			    za.za_num_integers, lot_num,
