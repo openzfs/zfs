@@ -75,7 +75,6 @@ zfs_uiomove_iov(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
 			} else {
 				unsigned long b_left = 0;
 				if (uio->uio_fault_disable) {
-#if defined(HAVE___COPY_FROM_USER_INATOMIC)
 					if (!zfs_access_ok(VERIFY_READ,
 					    (iov->iov_base + skip), cnt)) {
 						return (EFAULT);
@@ -85,9 +84,6 @@ zfs_uiomove_iov(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
 					    __copy_from_user_inatomic(p,
 					    (iov->iov_base + skip), cnt);
 					pagefault_enable();
-#else
-					return (EFAULT);
-#endif
 				} else {
 					b_left =
 					    copy_from_user(p,
