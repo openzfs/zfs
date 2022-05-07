@@ -18,9 +18,13 @@ AC_DEFUN([ZFS_AC_KERNEL___COPY_FROM_USER_INATOMIC], [
 	AC_MSG_CHECKING([whether __copy_from_user_inatomic is available])
 	ZFS_LINUX_TEST_RESULT([__copy_from_user_inatomic_license], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE___COPY_FROM_USER_INATOMIC, 1,
-		    [__copy_from_user_inatomic is available])
 	], [
 		AC_MSG_RESULT(no)
+		AC_MSG_ERROR([
+	*** The `__copy_from_user_inatomic()` Linux kernel function license
+	*** (GPL only) is incompatible with the OpenZFS license
+	*** ($ZFS_META_LICENSE). OpenZFS cannot be compiled due to
+	*** legal and compliance reasons.
+		])
 	])
 ])
