@@ -53,7 +53,7 @@
  */
 
 uint64_t physmem;
-char hw_serial[HW_HOSTID_LEN];
+uint32_t hostid;
 struct utsname hw_utsname;
 
 /* If set, all blocks read will be copied to the specified directory. */
@@ -299,7 +299,7 @@ zone_get_hostid(void *zonep)
 	 * We're emulating the system's hostid in userland.
 	 */
 	(void) zonep;
-	return (strtoul(hw_serial, NULL, 10));
+	return (hostid);
 }
 
 int
@@ -767,18 +767,6 @@ random_get_pseudo_bytes(uint8_t *ptr, size_t len)
 }
 
 int
-ddi_strtoul(const char *hw_serial, char **nptr, int base, unsigned long *result)
-{
-	(void) nptr;
-	char *end;
-
-	*result = strtoul(hw_serial, &end, base);
-	if (*result == 0)
-		return (errno);
-	return (0);
-}
-
-int
 ddi_strtoull(const char *str, char **nptr, int base, u_longlong_t *result)
 {
 	(void) nptr;
@@ -823,8 +811,7 @@ kernel_init(int mode)
 	dprintf("physmem = %llu pages (%.2f GB)\n", (u_longlong_t)physmem,
 	    (double)physmem * sysconf(_SC_PAGE_SIZE) / (1ULL << 30));
 
-	(void) snprintf(hw_serial, sizeof (hw_serial), "%ld",
-	    (mode & SPA_MODE_WRITE) ? get_system_hostid() : 0);
+	hostid = (mode & SPA_MODE_WRITE) ? get_system_hostid() : 0;
 
 	random_init();
 

@@ -43,15 +43,11 @@ static struct opensolaris_utsname hw_utsname = {
 	.machine = MACHINE
 };
 
-#ifndef KERNEL_STATIC
-char hw_serial[11] = "0";
-
 utsname_t *
 utsname(void)
 {
 	return (&hw_utsname);
 }
-#endif
 
 static void
 opensolaris_utsname_init(void *arg)
