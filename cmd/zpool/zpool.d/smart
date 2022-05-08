@@ -69,8 +69,16 @@ if [ "$1" = "-h" ] ; then
         exit
 fi
 
+# Sometimes, UPATH ends up /dev/(null).
+# That should be corrected, but for now...
 # shellcheck disable=SC2154
-if [ -b "$VDEV_UPATH" ] && PATH="/usr/sbin:$PATH" command -v smartctl > /dev/null || [ -n "$samples" ] ; then
+if [ ! -b "$VDEV_UPATH" ]; then
+	somepath="${VDEV_PATH}"
+else
+	somepath="${VDEV_UPATH}"
+fi
+
+if [ -b "$somepath" ] && PATH="/usr/sbin:$PATH" command -v smartctl > /dev/null || [ -n "$samples" ] ; then
 	if [ -n "$samples" ] ; then
 		# cat a smartctl output text file instead of running smartctl
 		# on a vdev (only used for developer testing).
@@ -78,7 +86,7 @@ if [ -b "$VDEV_UPATH" ] && PATH="/usr/sbin:$PATH" command -v smartctl > /dev/nul
 		echo "file=$file"
 		raw_out=$(cat "$samples/$file")
 	else
-		raw_out=$(sudo smartctl -a "$VDEV_UPATH")
+		raw_out=$(sudo smartctl -a "$somepath")
 	fi
 
 	# What kind of drive are we?  Look for the right line in smartctl:
