@@ -745,6 +745,14 @@ to use
 to mount ZFS datasets.
 This option is provided for backwards compatibility with older ZFS versions.
 .El
+.Bl -tag -width "ZFS_SET_PIPE_MAX"
+.It Sy ZFS_SET_PIPE_MAX
+Tells
+.Nm zfs
+to set the maximum pipe size for sends/recieves.
+Disabled by default on Linux
+due to an unfixed deadlock in Linux's pipe size handling code.
+.El
 .
 .Sh INTERFACE STABILITY
 .Sy Committed .
