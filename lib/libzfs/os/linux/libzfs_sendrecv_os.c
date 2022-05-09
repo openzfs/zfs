@@ -35,6 +35,22 @@
 void
 libzfs_set_pipe_max(int infd)
 {
+#if __linux__
+	/*
+	 * Sadly, Linux has an unfixed deadlock if you do SETPIPE_SZ on a pipe
+	 * with data in it.
+	 * cf. #13232, https://bugzilla.kernel.org/show_bug.cgi?id=212295
+	 *
+	 * And since the problem is in waking up the writer, there's nothing
+	 * we can do about it from here.
+	 *
+	 * So if people want to, they can set this, but they
+	 * may regret it...
+	 */
+	if (getenv("ZFS_SET_PIPE_MAX") == NULL)
+		return;
+#endif
+
 	FILE *procf = fopen("/proc/sys/fs/pipe-max-size", "re");
 
 	if (procf != NULL) {
