@@ -620,7 +620,6 @@ abd_alloc_zero_scatter(void)
 	ABD_SCATTER(abd_zero_scatter).abd_offset = 0;
 	ABD_SCATTER(abd_zero_scatter).abd_nents = nr_pages;
 	abd_zero_scatter->abd_size = SPA_MAXBLOCKSIZE;
-	zfs_refcount_create(&abd_zero_scatter->abd_children);
 	ABD_SCATTER(abd_zero_scatter).abd_sgl = vmem_alloc(nr_pages *
 	    sizeof (struct scatterlist), KM_SLEEP);
 
