@@ -223,6 +223,8 @@ zed_notify()
 # ZED_EMAIL_OPTS.  This undergoes the following keyword substitutions:
 # - @ADDRESS@ is replaced with the space-delimited recipient email address(es)
 # - @SUBJECT@ is replaced with the notification subject
+#   If @SUBJECT@ was omited here, a "Subject: ..." header will be added to notification
+#
 #
 # Arguments
 #   subject: notification subject
@@ -240,7 +242,7 @@ zed_notify()
 #
 zed_notify_email()
 {
-    local subject="$1"
+    local subject="${1:-"ZED notification"}"
     local pathname="${2:-"/dev/null"}"
 
     : "${ZED_EMAIL_PROG:="mail"}"
@@ -261,12 +263,23 @@ zed_notify_email()
         return 1
     fi
 
-    ZED_EMAIL_OPTS="$(echo "${ZED_EMAIL_OPTS}" \
+    # construct cmdline options
+    ZED_EMAIL_OPTS_PARSED="$(echo "${ZED_EMAIL_OPTS}" \
         | sed   -e "s/@ADDRESS@/${ZED_EMAIL_ADDR}/g" \
                 -e "s/@SUBJECT@/${subject}/g")"
 
+    # pipe message to email prog
     # shellcheck disable=SC2086,SC2248
-    eval ${ZED_EMAIL_PROG} ${ZED_EMAIL_OPTS} < "${pathname}" >/dev/null 2>&1
+    {
+        # no subject passed as option?
+        if [ "${ZED_EMAIL_OPTS%@SUBJECT@*}" = "${ZED_EMAIL_OPTS}" ] ; then
+            # inject subject header
+            printf "Subject: %s\n" "${subject}"
+        fi
+        # output message
+        cat "${pathname}"
+    } |
+    eval ${ZED_EMAIL_PROG} ${ZED_EMAIL_OPTS_PARSED} >/dev/null 2>&1
     rv=$?
     if [ "${rv}" -ne 0 ]; then
         zed_log_err "${ZED_EMAIL_PROG##*/} exit=${rv}"
