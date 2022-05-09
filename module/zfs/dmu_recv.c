@@ -129,6 +129,7 @@ typedef struct dmu_recv_begin_arg {
 	cred_t *drba_cred;
 	proc_t *drba_proc;
 	dsl_crypto_params_t *drba_dcp;
+	boolean_t drba_allow_clone_as_incremental;
 } dmu_recv_begin_arg_t;
 
 static void
@@ -569,10 +570,34 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 	ASSERT3U(drrb->drr_magic, ==, DMU_BACKUP_MAGIC);
 	ASSERT(!(featureflags & DMU_BACKUP_FEATURE_RESUMING));
 
+	/*
+	 * If an incremental send is from parent to clone snapshot, we set
+	 * DRR_FLAG_CLONE. Example: zfs send -i tank/parentfs@a tank/clone@b
+	 * will have the flag set, given the following hierarchy:
+	 *
+	 *   tank/parentfs@a
+	 *   tank/clone           origin=tank/parentfs@a
+	 *   tank/clone@b
+	 *
+	 * There is no difference to an incremental send/recv within the same
+	 * dataset. But since the user pereceives the clone as another dataset,
+	 * we want it to behave more like an initial replication.
+	 * Hence, we forbid receiving into an existing dataset.
+	 * Users who do wish to receive @b into an existing dataset can
+	 * do so by receiving into a clone, promoting the clone, destroying
+	 * the existing dataset, and renaming the clone to the original name.
+	 * However, this has several UX & operational disadvantages, so we
+	 * provide drba->drba_allow_clone_as_incremental (= recv -C) to allow
+	 * receiving clone streams into existing datasets.
+	 */
+	const boolean_t stream_wants_clone = flags & DRR_FLAG_CLONE &&
+	    !drba->drba_allow_clone_as_incremental;
+	const boolean_t caller_wants_clone = drba->drba_origin != NULL;
+
 	if (DMU_GET_STREAM_HDRTYPE(drrb->drr_versioninfo) ==
 	    DMU_COMPOUNDSTREAM ||
 	    drrb->drr_type >= DMU_OST_NUMTYPES ||
-	    ((flags & DRR_FLAG_CLONE) && drba->drba_origin == NULL))
+	    (stream_wants_clone && !caller_wants_clone))
 		return (SET_ERROR(EINVAL));
 
 	error = recv_begin_check_feature_flags_impl(featureflags, dp->dp_spa);
@@ -612,8 +637,11 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 	if (error == 0) {
 		/* target fs already exists; recv into temp clone */
 
-		/* Can't recv a clone into an existing fs */
-		if (flags & DRR_FLAG_CLONE || drba->drba_origin) {
+		/*
+		 * The stream or caller asked to recv into a new dataset.
+		 * But the new dataset already exists.
+		 */
+		if (stream_wants_clone || caller_wants_clone) {
 			dsl_dataset_rele_flags(ds, dsflags, FTAG);
 			return (SET_ERROR(EINVAL));
 		}
@@ -1142,7 +1170,8 @@ dmu_recv_resume_begin_sync(void *arg, dmu_tx_t *tx)
 int
 dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
     boolean_t force, boolean_t resumable, nvlist_t *localprops,
-    nvlist_t *hidden_args, char *origin, dmu_recv_cookie_t *drc,
+    nvlist_t *hidden_args, char *origin, boolean_t allow_clone_as_incremental,
+    dmu_recv_cookie_t *drc,
     zfs_file_t *fp, offset_t *voffp)
 {
 	dmu_recv_begin_arg_t drba = { 0 };
@@ -1158,6 +1187,10 @@ dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
 	drc->drc_cred = CRED();
 	drc->drc_proc = curproc;
 	drc->drc_clone = (origin != NULL);
+	/*
+	 * No need to preserve allow_clone_as_incremental in cookie since
+	 * it's not used after the dmu_recv_resume_begin synctask.
+	 */
 
 	if (drc->drc_drrb->drr_magic == BSWAP_64(DMU_BACKUP_MAGIC)) {
 		drc->drc_byteswap = B_TRUE;
@@ -1202,6 +1235,7 @@ dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
 		drc->drc_spill = B_TRUE;
 
 	drba.drba_origin = origin;
+	drba.drba_allow_clone_as_incremental = allow_clone_as_incremental;
 	drba.drba_cookie = drc;
 	drba.drba_cred = CRED();
 	drba.drba_proc = curproc;

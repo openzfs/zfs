@@ -78,7 +78,7 @@ typedef struct dmu_recv_cookie {
 } dmu_recv_cookie_t;
 
 int dmu_recv_begin(char *, char *, dmu_replay_record_t *,
-    boolean_t, boolean_t, nvlist_t *, nvlist_t *, char *,
+    boolean_t, boolean_t, nvlist_t *, nvlist_t *, char *, boolean_t,
     dmu_recv_cookie_t *, zfs_file_t *, offset_t *);
 int dmu_recv_stream(dmu_recv_cookie_t *, offset_t *);
 int dmu_recv_end(dmu_recv_cookie_t *, void *);

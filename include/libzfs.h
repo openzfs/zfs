@@ -829,6 +829,8 @@ typedef struct recvflags {
 
 	/* force unmount while recv snapshot (private) */
 	boolean_t forceunmount;
+
+	boolean_t allow_clone_as_incremental;
 } recvflags_t;
 
 _LIBZFS_H int zfs_receive(libzfs_handle_t *, const char *, nvlist_t *,

@@ -2,6 +2,7 @@ pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/rsend
 dist_pkgdata_SCRIPTS = \
 	setup.ksh \
 	cleanup.ksh \
+	recv_clone_as_incremental.ksh \
 	recv_dedup.ksh \
 	recv_dedup_encrypted_zvol.ksh \
 	rsend_001_pos.ksh \

@@ -972,7 +972,8 @@ recv_read(int fd, void *buf, int ilen)
  */
 static int
 recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
-    uint8_t *wkeydata, uint_t wkeylen, const char *origin, boolean_t force,
+    uint8_t *wkeydata, uint_t wkeylen, const char *origin,
+    boolean_t allow_clone_as_incremental, boolean_t force,
     boolean_t resumable, boolean_t raw, int input_fd,
     const dmu_replay_record_t *begin_record, uint64_t *read_bytes,
     uint64_t *errflags, nvlist_t **errors)
@@ -1028,7 +1029,8 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 	/*
 	 * All receives with a payload should use the new interface.
 	 */
-	if (resumable || raw || wkeydata != NULL || payload) {
+	if (resumable || raw || wkeydata != NULL || payload ||
+	    allow_clone_as_incremental) {
 		nvlist_t *outnvl = NULL;
 		nvlist_t *innvl = fnvlist_alloc();
 
@@ -1068,6 +1070,9 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 		if (resumable)
 			fnvlist_add_boolean(innvl, "resumable");
 
+		if (allow_clone_as_incremental)
+			fnvlist_add_boolean(innvl,
+			    "allow_clone_as_incremental");
 
 		error = lzc_ioctl(ZFS_IOC_RECV_NEW, fsname, innvl, &outnvl);
 
@@ -1166,8 +1171,8 @@ int
 lzc_receive(const char *snapname, nvlist_t *props, const char *origin,
     boolean_t force, boolean_t raw, int fd)
 {
-	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
-	    B_FALSE, raw, fd, NULL, NULL, NULL, NULL));
+	return (recv_impl(snapname, props, NULL, NULL, 0, origin, B_FALSE,
+	    force, B_FALSE, raw, fd, NULL, NULL, NULL, NULL));
 }
 
 /*
@@ -1180,8 +1185,8 @@ int
 lzc_receive_resumable(const char *snapname, nvlist_t *props, const char *origin,
     boolean_t force, boolean_t raw, int fd)
 {
-	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
-	    B_TRUE, raw, fd, NULL, NULL, NULL, NULL));
+	return (recv_impl(snapname, props, NULL, NULL, 0, origin, B_FALSE,
+	    force, B_TRUE, raw, fd, NULL, NULL, NULL, NULL));
 }
 
 /*
@@ -1203,8 +1208,8 @@ lzc_receive_with_header(const char *snapname, nvlist_t *props,
 	if (begin_record == NULL)
 		return (EINVAL);
 
-	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
-	    resumable, raw, fd, begin_record, NULL, NULL, NULL));
+	return (recv_impl(snapname, props, NULL, NULL, 0, origin, B_FALSE,
+	    force, resumable, raw, fd, begin_record, NULL, NULL, NULL));
 }
 
 /*
@@ -1233,8 +1238,8 @@ lzc_receive_one(const char *snapname, nvlist_t *props,
     nvlist_t **errors)
 {
 	(void) action_handle, (void) cleanup_fd;
-	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
-	    resumable, raw, input_fd, begin_record,
+	return (recv_impl(snapname, props, NULL, NULL, 0, origin, B_FALSE,
+	    force, resumable, raw, input_fd, begin_record,
 	    read_bytes, errflags, errors));
 }
 
@@ -1249,15 +1254,15 @@ lzc_receive_one(const char *snapname, nvlist_t *props,
 int
 lzc_receive_with_cmdprops(const char *snapname, nvlist_t *props,
     nvlist_t *cmdprops, uint8_t *wkeydata, uint_t wkeylen, const char *origin,
-    boolean_t force, boolean_t resumable, boolean_t raw, int input_fd,
-    const dmu_replay_record_t *begin_record, int cleanup_fd,
-    uint64_t *read_bytes, uint64_t *errflags, uint64_t *action_handle,
-    nvlist_t **errors)
+    boolean_t allow_clone_as_incremental, boolean_t force, boolean_t resumable,
+    boolean_t raw, int input_fd, const dmu_replay_record_t *begin_record,
+    int cleanup_fd, uint64_t *read_bytes, uint64_t *errflags,
+    uint64_t *action_handle, nvlist_t **errors)
 {
 	(void) action_handle, (void) cleanup_fd;
 	return (recv_impl(snapname, props, cmdprops, wkeydata, wkeylen, origin,
-	    force, resumable, raw, input_fd, begin_record,
-	    read_bytes, errflags, errors));
+	    allow_clone_as_incremental, force, resumable, raw, input_fd,
+	    begin_record, read_bytes, errflags, errors));
 }
 
 /*
