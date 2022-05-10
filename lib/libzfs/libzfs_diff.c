@@ -41,7 +41,6 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stropts.h>
 #include <pthread.h>
 #include <sys/zfs_ioctl.h>
 #include <libzfs.h>

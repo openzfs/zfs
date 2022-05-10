@@ -46,7 +46,7 @@
 #endif
 
 #include <sys/isa_defs.h>
-#include <sys/int_types.h>
+#include <inttypes.h>
 
 #ifdef	__cplusplus
 extern "C" {
