@@ -15,6 +15,15 @@ if [ "$1" = "-h" ] ; then
 	exit
 fi
 
+# Sometimes, UPATH ends up /dev/(null).
+# That should be corrected, but for now...
+# shellcheck disable=SC2154
+if [ ! -b "$VDEV_UPATH" ]; then
+	somepath="${VDEV_PATH}"
+else
+	somepath="${VDEV_UPATH}"
+fi
+
 if [ "$script" = "iostat-1s" ] ; then
 	# Do a single one-second sample
 	interval=1
@@ -27,8 +36,7 @@ elif [ "$script" = "iostat-10s" ] ; then
 	brief="yes"
 fi
 
-# shellcheck disable=SC2154
-if [ -f "$VDEV_UPATH" ] ; then
+if [ -f "$somepath" ] ; then
 	# We're a file-based vdev, iostat doesn't work on us.  Do nothing.
 	exit
 fi
@@ -37,13 +45,13 @@ if [ "$(uname)" = "FreeBSD" ]; then
 	out=$(iostat -dKx \
 		${interval:+"-w $interval"} \
 		${interval:+"-c 1"} \
-		"$VDEV_UPATH" | tail -n 2)
+		"$somepath" | tail -n 2)
 else
 	out=$(iostat -kx \
 		${brief:+"-y"} \
 		${interval:+"$interval"} \
 		${interval:+"1"} \
-		"$VDEV_UPATH" | grep -v '^$' | tail -n 2)
+		"$somepath" | grep -v '^$' | tail -n 2)
 fi
 
 
