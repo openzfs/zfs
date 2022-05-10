@@ -170,6 +170,10 @@ flake8:
 		echo "skipping flake8 because flake8 is not installed"; \
 	fi
 
+PHONY += regen-tests
+regen-tests:
+	@$(MAKE) -C tests/zfs-tests/tests regen
+
 PHONY += ctags
 ctags:
 	$(RM) tags
