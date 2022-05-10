@@ -61,21 +61,29 @@ else
 	list=$(echo "$script" | tr '[:upper:]' '[:lower:]')
 fi
 
+# Sometimes, UPATH ends up /dev/(null).
+# That should be corrected, but for now...
+# shellcheck disable=SC2154
+if [ ! -b "$VDEV_UPATH" ]; then
+	somepath="${VDEV_PATH}"
+else
+	somepath="${VDEV_UPATH}"
+fi
+
 # Older versions of lsblk don't support all these values (like SERIAL).
 for i in $list ; do
 
 	# Special case: Looking up the size of a file-based vdev can't
 	# be done with lsblk.
-	# shellcheck disable=SC2154
-	if [ "$i" = "size" ] && [ -f "$VDEV_UPATH" ] ; then
-		size=$(du -h --apparent-size "$VDEV_UPATH" | cut -f 1)
+	if [ "$i" = "size" ] && [ -f "$somepath" ] ; then
+		size=$(du -h --apparent-size "$somepath" | cut -f 1)
 		echo "size=$size"
 		continue
 	fi
 
 
 	val=""
-	if val=$(eval "lsblk -dl -n -o $i $VDEV_UPATH 2>/dev/null") ; then
+	if val=$(eval "lsblk -dl -n -o $i $somepath 2>/dev/null") ; then
 		# Remove leading/trailing whitespace from value
 		val=$(echo "$val" | sed -e 's/^[[:space:]]*//' \
 		     -e 's/[[:space:]]*$//')
