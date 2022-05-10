@@ -43,7 +43,7 @@
 #include <sys/endian.h>
 #include <netinet/in.h>
 #include <sys/isa_defs.h>
-#include <sys/int_types.h>
+#include <inttypes.h>
 
 #if defined(__GNUC__) && defined(_ASM_INLINES) && \
 	(defined(__i386) || defined(__amd64))

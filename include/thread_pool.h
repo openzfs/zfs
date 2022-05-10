@@ -28,7 +28,6 @@
 #define	_THREAD_POOL_H_ extern __attribute__((visibility("default")))
 
 #include <sys/types.h>
-#include <thread.h>
 #include <pthread.h>
 
 #ifdef	__cplusplus
