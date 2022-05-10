@@ -2,18 +2,11 @@ libspldir = $(includedir)/libspl
 libspl_HEADERS = \
 	%D%/assert.h \
 	%D%/atomic.h \
-	%D%/libdevinfo.h \
 	%D%/libgen.h \
 	%D%/libshare.h \
-	%D%/limits.h \
-	%D%/locale.h \
 	%D%/statcommon.h \
 	%D%/stdlib.h \
 	%D%/string.h \
-	%D%/stropts.h \
-	%D%/thread.h \
-	%D%/tzfile.h \
-	%D%/ucred.h \
 	%D%/umem.h \
 	%D%/unistd.h \
 	%D%/zone.h
@@ -40,8 +33,6 @@ libspl_sys_HEADERS = \
 	%D%/sys/dkio.h \
 	%D%/sys/dklabel.h \
 	%D%/sys/feature_tests.h \
-	%D%/sys/int_limits.h \
-	%D%/sys/int_types.h \
 	%D%/sys/inttypes.h \
 	%D%/sys/isa_defs.h \
 	%D%/sys/kmem.h \
@@ -59,7 +50,6 @@ libspl_sys_HEADERS = \
 	%D%/sys/stack.h \
 	%D%/sys/stdtypes.h \
 	%D%/sys/string.h \
-	%D%/sys/stropts.h \
 	%D%/sys/sunddi.h \
 	%D%/sys/systeminfo.h \
 	%D%/sys/time.h \
@@ -67,10 +57,7 @@ libspl_sys_HEADERS = \
 	%D%/sys/trace_zfs.h \
 	%D%/sys/types.h \
 	%D%/sys/types32.h \
-	%D%/sys/tzfile.h \
 	%D%/sys/uio.h \
-	%D%/sys/va_list.h \
-	%D%/sys/varargs.h \
 	%D%/sys/vnode.h \
 	%D%/sys/wmsum.h \
 	%D%/sys/zone.h
