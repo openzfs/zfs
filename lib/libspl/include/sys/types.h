@@ -37,7 +37,7 @@
 #include <sys/feature_tests.h>
 #include_next <sys/types.h>
 #include <sys/types32.h>
-#include <sys/va_list.h>
+#include <stdarg.h>
 #include <sys/stdtypes.h>
 
 #ifndef HAVE_INTTYPES
