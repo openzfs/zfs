@@ -1212,7 +1212,7 @@ zfs_enum_pools(void *arg)
  * For now, each agent has its own libzfs instance
  */
 int
-zfs_slm_init()
+zfs_slm_init(void)
 {
 	if ((g_zfshdl = libzfs_init()) == NULL)
 		return (-1);
@@ -1238,7 +1238,7 @@ zfs_slm_init()
 }
 
 void
-zfs_slm_fini()
+zfs_slm_fini(void)
 {
 	unavailpool_t *pool;
 	pendingdev_t *device;
