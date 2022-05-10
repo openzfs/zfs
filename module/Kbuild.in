@@ -75,6 +75,10 @@ ICP_OBJS := \
 	algs/aes/aes_impl.o \
 	algs/aes/aes_impl_generic.o \
 	algs/aes/aes_modes.o \
+	algs/blake3/blake3.o \
+	algs/blake3/blake3_generic.o \
+	algs/blake3/blake3_impl.o \
+	algs/blake3/blake3_x86-64.o \
 	algs/edonr/edonr.o \
 	algs/modes/cbc.o \
 	algs/modes/ccm.o \
@@ -105,23 +109,44 @@ ICP_OBJS_X86_64 := \
 	asm-x86_64/aes/aes_aesni.o \
 	asm-x86_64/aes/aes_amd64.o \
 	asm-x86_64/aes/aeskey.o \
+	asm-x86_64/blake3/blake3_avx2.o \
+	asm-x86_64/blake3/blake3_avx512.o \
+	asm-x86_64/blake3/blake3_sse2.o \
+	asm-x86_64/blake3/blake3_sse41.o \
 	asm-x86_64/modes/aesni-gcm-x86_64.o \
 	asm-x86_64/modes/gcm_pclmulqdq.o \
 	asm-x86_64/modes/ghash-x86_64.o \
 	asm-x86_64/sha2/sha256_impl.o \
 	asm-x86_64/sha2/sha512_impl.o
 
+
 ICP_OBJS_X86 := \
 	algs/aes/aes_impl_aesni.o \
 	algs/aes/aes_impl_x86-64.o \
 	algs/modes/gcm_pclmulqdq.o
 
+
+ICP_OBJS_ARM64 := \
+	asm-aarch64/blake3/b3_aarch64_sse2.o \
+	asm-aarch64/blake3/b3_aarch64_sse41.o
+
+
+ICP_OBJS_PPC_PPC64 := \
+	asm-ppc64/blake3/b3_ppc64le_sse2.o \
+	asm-ppc64/blake3/b3_ppc64le_sse41.o
+
 zfs-objs             += $(addprefix icp/,$(ICP_OBJS))
 zfs-$(CONFIG_X86)    += $(addprefix icp/,$(ICP_OBJS_X86))
 zfs-$(CONFIG_X86_64) += $(addprefix icp/,$(ICP_OBJS_X86_64))
+zfs-$(CONFIG_ARM64)  += $(addprefix icp/,$(ICP_OBJS_ARM64))
+zfs-$(CONFIG_PPC)    += $(addprefix icp/,$(ICP_OBJS_PPC_PPC64))
+zfs-$(CONFIG_PPC64)  += $(addprefix icp/,$(ICP_OBJS_PPC_PPC64))
 
-$(addprefix $(obj)/icp/,$(ICP_OBJS) $(ICP_OBJS_X86) $(ICP_OBJS_X86_64)) : asflags-y += -I$(icp_include)
-$(addprefix $(obj)/icp/,$(ICP_OBJS) $(ICP_OBJS_X86) $(ICP_OBJS_X86_64)) : ccflags-y += -I$(icp_include)
+$(addprefix $(obj)/icp/,$(ICP_OBJS) $(ICP_OBJS_X86) $(ICP_OBJS_X86_64) \
+	$(ICP_OBJS_ARM64) $(ICP_OBJS_PPC_PPC64)) : asflags-y += -I$(icp_include)
+
+$(addprefix $(obj)/icp/,$(ICP_OBJS) $(ICP_OBJS_X86) $(ICP_OBJS_X86_64) \
+	$(ICP_OBJS_ARM64) $(ICP_OBJS_PPC_PPC64)) : ccflags-y += -I$(icp_include)
 
 # Suppress objtool "can't find jump dest instruction at" warnings.  They
 # are caused by the constants which are defined in the text section of the
@@ -129,6 +154,7 @@ $(addprefix $(obj)/icp/,$(ICP_OBJS) $(ICP_OBJS_X86) $(ICP_OBJS_X86_64)) : ccflag
 # utility tries to interpret them as opcodes and obviously fails doing so.
 OBJECT_FILES_NON_STANDARD_aesni-gcm-x86_64.o := y
 OBJECT_FILES_NON_STANDARD_ghash-x86_64.o := y
+
 # Suppress objtool "unsupported stack pointer realignment" warnings. We are
 # not using a DRAP register while aligning the stack to a 64 byte boundary.
 # See #6950 for the reasoning.
@@ -261,6 +287,7 @@ ZFS_OBJS := \
 	abd.o \
 	aggsum.o \
 	arc.o \
+	blake3_zfs.o \
 	blkptr.o \
 	bplist.o \
 	bpobj.o \
@@ -358,6 +385,7 @@ ZFS_OBJS := \
 	zcp_synctask.o \
 	zfeature.o \
 	zfs_byteswap.o \
+	zfs_chksum.o \
 	zfs_fm.o \
 	zfs_fuid.o \
 	zfs_ioctl.o \
