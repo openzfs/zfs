@@ -557,12 +557,8 @@ else
 		 cmdoptions="${cmdoptions} --filterfile ${filterfile}"
 	fi
 
-	kernel_versions_to_build_for=$(buildsys-build-${repo}-kerneldevpkgs "--${build_kernels}" ${cmdoptions})
-	returncode=$?
-	if [ "$returncode" -ne 0 ]; then
-
+	kernel_versions_to_build_for=$(buildsys-build-${repo}-kerneldevpkgs "--${build_kernels}" ${cmdoptions}) ||
 		error_out 2 "buildsys-build-${repo}-kerneldevpkgs failed: ${kernel_versions_to_build_for}"
-	fi
 
 	if [ "${build_kernels}" = "current" ] && [ -z "${noakmod}" ]; then
 		print_akmodtemplate
