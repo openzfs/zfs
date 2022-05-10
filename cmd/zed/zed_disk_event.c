@@ -362,7 +362,7 @@ zed_udev_monitor(void *arg)
 }
 
 int
-zed_disk_event_init()
+zed_disk_event_init(void)
 {
 	int fd, fflags;
 
@@ -398,7 +398,7 @@ zed_disk_event_init()
 }
 
 void
-zed_disk_event_fini()
+zed_disk_event_fini(void)
 {
 	/* cancel monitor thread at recvmsg() */
 	(void) pthread_cancel(g_mon_tid);
@@ -416,13 +416,13 @@ zed_disk_event_fini()
 #include "zed_disk_event.h"
 
 int
-zed_disk_event_init()
+zed_disk_event_init(void)
 {
 	return (0);
 }
 
 void
-zed_disk_event_fini()
+zed_disk_event_fini(void)
 {
 }
 
