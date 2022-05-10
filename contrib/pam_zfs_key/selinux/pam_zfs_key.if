@@ -1,0 +1,101 @@
+
+## <summary>policy for pam_zfs_key</summary>
+
+########################################
+## <summary>
+##	Allow domain to query datasets on ZFS.
+## </summary>
+## <param name="domain">
+##	<summary>
+##      Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`pam_zfs_key_query',`
+	gen_require(`
+		type device_t;
+	')
+
+	dnl Using ifdef() keeps `sepolgen-ifgen' from complaining
+	define(`ZFS_IOC')
+	ifdef(`ZFS_IOC', `
+		define(`ZFS_IOC_POOL_STATS',     `0x5a05')
+		define(`ZFS_IOC_OBJSET_STATS',   `0x5a12')
+		define(`ZFS_IOC_POOL_GET_PROPS', `0x5a27')
+		define(`ZFS_IOC_LOAD_KEY',       `0x5a49')
+		define(`ZFS_IOC_UNLOAD_KEY',     `0x5a4a')
+		define(`ZFS_IOC_CHANGE_KEY',     `0x5a4b')
+	')
+
+	allow $1 device_t:chr_file { open ioctl };
+	allowxperm $1 device_t:chr_file ioctl ZFS_IOC_OBJSET_STATS;
+
+	# While /dev/zfs does not support read() or write(), libzfs opens it with
+	# O_RDWR, meaning we need these permissions.  Remove these if ZFS changes
+	# to using the Linux specialization O_PATH (or O_EXEC).
+	allow $1 device_t:chr_file { read write };
+')
+
+########################################
+## <summary>
+##	Allow domain to open and close a session on the pam_zfs_key PAM module.
+## </summary>
+## <param name="domain">
+##	<summary>
+##      Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`pam_zfs_key_session',`
+	gen_require(`
+		type device_t;
+		type fs_t;
+		type pam_var_run_t;
+		type user_home_dir_t;
+	')
+
+	files_pid_filetrans($1, pam_var_run_t, dir, "pam_zfs_key")
+
+	pam_zfs_key_query($1)
+	allowxperm $1 device_t:chr_file ioctl { ZFS_IOC_LOAD_KEY ZFS_IOC_UNLOAD_KEY };
+
+	# The zfs_open() function returns both a zfs handle and a zpool handle for
+	# its containing pool; as part of the zpool fetching, the function grabs
+	# the pool stats.  Despite marking the pool as unavailable, the library
+	# will still query the pool properties to check for read-only status.
+	dontauditxperm $1 device_t:chr_file ioctl ZFS_IOC_POOL_STATS;
+
+	# Needed to determine if the zpool is read-only (if so, the dataset must be
+	# mounted read-only too).
+	allowxperm $1 device_t:chr_file ioctl ZFS_IOC_POOL_GET_PROPS;
+
+	allow $1 fs_t:filesystem { mount unmount };
+	allow $1 user_home_dir_t:dir mounton;
+')
+
+########################################
+## <summary>
+##	Allow domain to change password on the pam_zfs_key PAM module.
+## </summary>
+## <param name="domain">
+##	<summary>
+##      Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`pam_zfs_key_password',`
+	gen_require(`
+		type device_t;
+	')
+
+	pam_zfs_key_query($1)
+
+	# The zfs_open() function returns both a zfs handle and a zpool handle for
+	# its containing pool; as part of the zpool fetching, the function grabs
+	# the pool stats.  The zpool information does not appear to be used when
+	# changing the key, but cannot be skipped easily, so silence the denial.
+	dontauditxperm $1 device_t:chr_file ioctl ZFS_IOC_POOL_STATS;
+
+	auditallowxperm $1 device_t:chr_file ioctl ZFS_IOC_CHANGE_KEY;
+	allowxperm $1 device_t:chr_file ioctl ZFS_IOC_CHANGE_KEY;
+')
