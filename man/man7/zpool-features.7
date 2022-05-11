@@ -765,6 +765,34 @@ and so cannot be safely mounted, and their contents cannot be safely read.
 For more information about redacted receives, see
 .Xr zfs-send 8 .
 .
+.feature com.openzfs rename_exchange yes extensible_dataset
+This feature enables the usage of the
+.Nm renameat2(RENAME_EXCHANGE)
+system call on this pool.
+The feature will only become
+.Sy active
+once the feature is actually used in a given filesystem, and will go back to
+being
+.Sy enabled
+after the pool has been exported cleanly.
+This feature is currently only available on Linux.
+For more information about renameat2, see
+.Xr renameat2 2 .
+.
+.feature com.openzfs rename_whiteout yes extensible_dataset
+This feature enables the usage of the
+.Nm renameat2(RENAME_WHITEOUT)
+system call on this pool.
+The feature will only become
+.Sy active
+once the feature is actually used in a given filesystem, and will go back to
+being
+.Sy enabled
+after the pool has been exported cleanly.
+This feature is currently only available on Linux.
+For more information about renameat2, see
+.Xr renameat2 2 .
+.
 .feature com.datto resilver_defer yes
 This feature allows ZFS to postpone new resilvers if an existing one is already
 in progress.
