@@ -24,16 +24,14 @@
  */
 
 #include <ctype.h>
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <errno.h>
 #include <fcntl.h>
+#include <stdio.h>
+#include <string.h>
 #include <unistd.h>
-#include <linux/ioctl.h>
-#include <sys/stat.h>
-#include <sys/ioctl.h>
-#include <sys/zfs_znode.h>
 #include <sys/fs/zfs.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
 
 #if defined(ZFS_ASAN_ENABLED)
 /*
@@ -50,80 +48,39 @@ const char *__asan_default_options(void) {
 }
 #endif
 
-static int
-ioctl_get_msg(char *var, int fd)
-{
-	int ret;
-	char msg[ZFS_MAX_DATASET_NAME_LEN];
-
-	ret = ioctl(fd, BLKZNAME, msg);
-	if (ret < 0) {
-		return (ret);
-	}
-
-	snprintf(var, ZFS_MAX_DATASET_NAME_LEN, "%s", msg);
-	return (ret);
-}
-
 int
-main(int argc, char **argv)
+main(int argc, const char *const *argv)
 {
-	int fd = -1, ret = 0, status = EXIT_FAILURE;
-	char zvol_name[ZFS_MAX_DATASET_NAME_LEN];
-	char *zvol_name_part = NULL;
-	char *dev_name;
-	struct stat64 statbuf;
-	int dev_minor, dev_part;
-	int i;
+	if (argc != 2) {
+		fprintf(stderr, "usage: %s /dev/zdX\n", argv[0]);
+		return (1);
+	}
+	const char *dev_name = argv[1];
 
-	if (argc < 2) {
-		fprintf(stderr, "Usage: %s /dev/zvol_device_node\n", argv[0]);
-		goto fail;
+	int fd;
+	struct stat sb;
+	if ((fd = open(dev_name, O_RDONLY|O_CLOEXEC)) == -1 ||
+	    fstat(fd, &sb) != 0) {
+		fprintf(stderr, "%s: %s\n", dev_name, strerror(errno));
+		return (1);
 	}
 
-	dev_name = argv[1];
-	ret = stat64(dev_name, &statbuf);
-	if (ret != 0) {
-		fprintf(stderr, "Unable to access device file: %s\n", dev_name);
-		goto fail;
+	char zvol_name[MAXNAMELEN + strlen("-part") + 10];
+	if (ioctl(fd, BLKZNAME, zvol_name) == -1) {
+		fprintf(stderr, "%s: BLKZNAME: %s\n",
+		    dev_name, strerror(errno));
+		return (1);
 	}
 
-	dev_minor = minor(statbuf.st_rdev);
-	dev_part = dev_minor % ZVOL_MINORS;
+	unsigned int dev_part = minor(sb.st_rdev) % ZVOL_MINORS;
+	if (dev_part != 0)
+		sprintf(zvol_name + strlen(zvol_name), "-part%u", dev_part);
 
-	fd = open(dev_name, O_RDONLY);
-	if (fd < 0) {
-		fprintf(stderr, "Unable to open device file: %s\n", dev_name);
-		goto fail;
-	}
+	for (size_t i = 0; i < strlen(zvol_name); ++i)
+		if (isblank(zvol_name[i]))
+			zvol_name[i] = '+';
 
-	ret = ioctl_get_msg(zvol_name, fd);
-	if (ret < 0) {
-		fprintf(stderr, "ioctl_get_msg failed: %s\n", strerror(errno));
-		goto fail;
-	}
-	if (dev_part > 0)
-		ret = asprintf(&zvol_name_part, "%s-part%d", zvol_name,
-		    dev_part);
-	else
-		ret = asprintf(&zvol_name_part, "%s", zvol_name);
+	puts(zvol_name);
 
-	if (ret == -1 || zvol_name_part == NULL)
-		goto fail;
-
-	for (i = 0; i < strlen(zvol_name_part); i++) {
-		if (isblank(zvol_name_part[i]))
-			zvol_name_part[i] = '+';
-	}
-
-	printf("%s\n", zvol_name_part);
-	status = EXIT_SUCCESS;
-
-fail:
-	if (zvol_name_part)
-		free(zvol_name_part);
-	if (fd >= 0)
-		close(fd);
-
-	return (status);
+	return (0);
 }
