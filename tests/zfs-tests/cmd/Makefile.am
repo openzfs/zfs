@@ -41,9 +41,9 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/draid
 	libnvpair.la
 %C%_draid_LDADD += $(ZLIB_LIBS)
 
-
 EXTRA_DIST += $(addprefix %D%/,file/file_common.h)
-scripts_zfs_tests_bin_PROGRAMS += %D%/file_check %D%/file_trunc %D%/file_write %D%/largest_file %D%/randwritecomp
+scripts_zfs_tests_bin_PROGRAMS += %D%/file_append %D%/file_check %D%/file_trunc %D%/file_write %D%/largest_file %D%/randwritecomp
+%C%_file_append_SOURCES   = %D%/file/file_append.c
 %C%_file_check_SOURCES    = %D%/file/file_check.c
 %C%_file_trunc_SOURCES    = %D%/file/file_trunc.c
 %C%_file_write_SOURCES    = %D%/file/file_write.c
