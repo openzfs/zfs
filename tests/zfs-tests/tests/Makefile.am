@@ -385,6 +385,10 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/alloc_class/alloc_class_013_pos.ksh \
 	functional/alloc_class/cleanup.ksh \
 	functional/alloc_class/setup.ksh \
+	functional/append/file_append.ksh \
+	functional/append/threadsappend_001_pos.ksh \
+	functional/append/cleanup.ksh \
+	functional/append/setup.ksh \
 	functional/arc/arcstats_runtime_tuning.ksh \
 	functional/arc/cleanup.ksh \
 	functional/arc/dbufstats_001_pos.ksh \
@@ -1842,9 +1846,6 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/suid/suid_write_to_suid.ksh \
 	functional/suid/suid_write_to_suid_sgid.ksh \
 	functional/suid/suid_write_zil_replay.ksh \
-	functional/threadsappend/cleanup.ksh \
-	functional/threadsappend/setup.ksh \
-	functional/threadsappend/threadsappend_001_pos.ksh \
 	functional/trim/autotrim_config.ksh \
 	functional/trim/autotrim_integrity.ksh \
 	functional/trim/autotrim_trim_integrity.ksh \
