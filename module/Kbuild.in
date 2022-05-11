@@ -28,6 +28,12 @@ ZFS_MODULE_CFLAGS += -I$(zfs_include)
 ZFS_MODULE_CPPFLAGS += -D_KERNEL
 ZFS_MODULE_CPPFLAGS += @KERNEL_DEBUG_CPPFLAGS@
 
+# KASAN enables -Werror=frame-larger-than=1024, which
+# breaks oh so many parts of our build.
+ifeq ($(CONFIG_KASAN),y)
+ZFS_MODULE_CFLAGS += -Wno-error=frame-larger-than=
+endif
+
 ifneq ($(KBUILD_EXTMOD),)
 @CONFIG_QAT_TRUE@ZFS_MODULE_CFLAGS += -I@QAT_SRC@/include
 @CONFIG_QAT_TRUE@KBUILD_EXTRA_SYMBOLS += @QAT_SYMBOLS@
