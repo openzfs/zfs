@@ -38,8 +38,9 @@ jobs:
     - name: Tests
       run: |
         sudo mkdir -p $TEST_DIR
-        # run for 20 minutes to have a total runner time of 30 minutes
-        sudo /usr/share/zfs/zloop.sh -t 1200 -l -m1 -- -T 120 -P 60
+        # run for 10 minutes or at most 2 iterations for a maximum runner
+        #   time of 20 minutes.
+        sudo /usr/share/zfs/zloop.sh -t 600 -I 2 -l -m1 -- -T 120 -P 60
     - name: Prepare artifacts
       if: failure()
       run: |
