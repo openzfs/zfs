@@ -53,6 +53,8 @@ AC_DEFUN([ZFS_AC_KERNEL_MKDIR], [
 		AC_DEFINE(HAVE_IOPS_MKDIR_USERNS, 1,
 		    [iops->mkdir() takes struct user_namespace*])
 	],[
+		AC_MSG_RESULT(no)
+
 		AC_MSG_CHECKING([whether iops->mkdir() takes umode_t])
 		ZFS_LINUX_TEST_RESULT([inode_operations_mkdir], [
 			AC_MSG_RESULT(yes)
