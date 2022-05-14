@@ -121,6 +121,7 @@
 #include <sys/zfeature.h>
 #include <sys/dsl_userhold.h>
 #include <sys/abd.h>
+#include <sys/blake3.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -417,6 +418,7 @@ ztest_func_t ztest_device_removal;
 ztest_func_t ztest_spa_checkpoint_create_discard;
 ztest_func_t ztest_initialize;
 ztest_func_t ztest_trim;
+ztest_func_t ztest_blake3;
 ztest_func_t ztest_fletcher;
 ztest_func_t ztest_fletcher_incr;
 ztest_func_t ztest_verify_dnode_bt;
@@ -470,6 +472,7 @@ ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_spa_checkpoint_create_discard, 1, &zopt_rarely),
 	ZTI_INIT(ztest_initialize, 1, &zopt_sometimes),
 	ZTI_INIT(ztest_trim, 1, &zopt_sometimes),
+	ZTI_INIT(ztest_blake3, 1, &zopt_rarely),
 	ZTI_INIT(ztest_fletcher, 1, &zopt_rarely),
 	ZTI_INIT(ztest_fletcher_incr, 1, &zopt_rarely),
 	ZTI_INIT(ztest_verify_dnode_bt, 1, &zopt_sometimes),
@@ -6371,6 +6374,92 @@ ztest_reguid(ztest_ds_t *zd, uint64_t id)
 
 	VERIFY3U(orig, !=, spa_guid(spa));
 	VERIFY3U(load, ==, spa_load_guid(spa));
+}
+
+void
+ztest_blake3(ztest_ds_t *zd, uint64_t id)
+{
+	(void) zd, (void) id;
+	hrtime_t end = gethrtime() + NANOSEC;
+	zio_cksum_salt_t salt;
+	void *salt_ptr = &salt.zcs_bytes;
+	struct abd *abd_data, *abd_meta;
+	void *buf, *templ;
+	int i, *ptr;
+	uint32_t size;
+	BLAKE3_CTX ctx;
+
+	size = ztest_random_blocksize();
+	buf = umem_alloc(size, UMEM_NOFAIL);
+	abd_data = abd_alloc(size, B_FALSE);
+	abd_meta = abd_alloc(size, B_TRUE);
+
+	for (i = 0, ptr = buf; i < size / sizeof (*ptr); i++, ptr++)
+		*ptr = ztest_random(UINT_MAX);
+	memset(salt_ptr, 'A', 32);
+
+	abd_copy_from_buf_off(abd_data, buf, 0, size);
+	abd_copy_from_buf_off(abd_meta, buf, 0, size);
+
+	while (gethrtime() <= end) {
+		int run_count = 100;
+		zio_cksum_t zc_ref1, zc_ref2;
+		zio_cksum_t zc_res1, zc_res2;
+
+		void *ref1 = &zc_ref1;
+		void *ref2 = &zc_ref2;
+		void *res1 = &zc_res1;
+		void *res2 = &zc_res2;
+
+		/* BLAKE3_KEY_LEN = 32 */
+		VERIFY0(blake3_set_impl_name("generic"));
+		templ = abd_checksum_blake3_tmpl_init(&salt);
+		Blake3_InitKeyed(&ctx, salt_ptr);
+		Blake3_Update(&ctx, buf, size);
+		Blake3_Final(&ctx, ref1);
+		zc_ref2 = zc_ref1;
+		ZIO_CHECKSUM_BSWAP(&zc_ref2);
+		abd_checksum_blake3_tmpl_free(templ);
+
+		VERIFY0(blake3_set_impl_name("cycle"));
+		while (run_count-- > 0) {
+
+			/* Test current implementation */
+			Blake3_InitKeyed(&ctx, salt_ptr);
+			Blake3_Update(&ctx, buf, size);
+			Blake3_Final(&ctx, res1);
+			zc_res2 = zc_res1;
+			ZIO_CHECKSUM_BSWAP(&zc_res2);
+
+			VERIFY0(memcmp(ref1, res1, 32));
+			VERIFY0(memcmp(ref2, res2, 32));
+
+			/* Test ABD - data */
+			templ = abd_checksum_blake3_tmpl_init(&salt);
+			abd_checksum_blake3_native(abd_data, size,
+			    templ, &zc_res1);
+			abd_checksum_blake3_byteswap(abd_data, size,
+			    templ, &zc_res2);
+
+			VERIFY0(memcmp(ref1, res1, 32));
+			VERIFY0(memcmp(ref2, res2, 32));
+
+			/* Test ABD - metadata */
+			abd_checksum_blake3_native(abd_meta, size,
+			    templ, &zc_res1);
+			abd_checksum_blake3_byteswap(abd_meta, size,
+			    templ, &zc_res2);
+			abd_checksum_blake3_tmpl_free(templ);
+
+			VERIFY0(memcmp(ref1, res1, 32));
+			VERIFY0(memcmp(ref2, res2, 32));
+
+		}
+	}
+
+	abd_free(abd_data);
+	abd_free(abd_meta);
+	umem_free(buf, size);
 }
 
 void
