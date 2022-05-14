@@ -98,15 +98,19 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/ereports
 	libzfs.la
 
 
-scripts_zfs_tests_bin_PROGRAMS += %D%/edonr_test %D%/skein_test %D%/sha2_test
+scripts_zfs_tests_bin_PROGRAMS += %D%/edonr_test %D%/skein_test \
+	%D%/sha2_test %D%/blake3_test
 %C%_skein_test_SOURCES = %D%/checksum/skein_test.c
 %C%_sha2_test_SOURCES  = %D%/checksum/sha2_test.c
 %C%_edonr_test_SOURCES = %D%/checksum/edonr_test.c
+%C%_blake3_test_SOURCES = %D%/checksum/blake3_test.c
 %C%_skein_test_LDADD = \
 	libicp.la \
+	libspl.la \
 	libspl_assert.la
 %C%_sha2_test_LDADD  = $(%C%_skein_test_LDADD)
 %C%_edonr_test_LDADD = $(%C%_skein_test_LDADD)
+%C%_blake3_test_LDADD = $(%C%_skein_test_LDADD)
 
 
 if BUILD_LINUX
