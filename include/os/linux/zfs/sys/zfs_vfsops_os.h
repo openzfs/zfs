@@ -67,6 +67,8 @@ typedef struct vfs {
 	boolean_t	vfs_do_atime;
 	boolean_t	vfs_relatime;
 	boolean_t	vfs_do_relatime;
+	boolean_t	vfs_lazytime;
+	boolean_t	vfs_do_lazytime;
 	boolean_t	vfs_nbmand;
 	boolean_t	vfs_do_nbmand;
 } vfs_t;

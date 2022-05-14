@@ -68,11 +68,12 @@
 #define	MNTOPT_NONBMAND	"nomand"	/* deny non-blocking mandatory locks */
 #define	MNTOPT_NETDEV	"_netdev"	/* network device */
 #define	MNTOPT_NOFAIL	"nofail"	/* no failure */
-#define	MNTOPT_RELATIME	"relatime"	/* allow relative time updates */
-#define	MNTOPT_NORELATIME "norelatime"	/* do not allow relative time updates */
 #define	MNTOPT_STRICTATIME "strictatime" /* strict access time updates */
 #define	MNTOPT_NOSTRICTATIME "nostrictatime" /* No strict access time updates */
+#define	MNTOPT_RELATIME	"relatime"	/* allow relative time updates */
+#define	MNTOPT_NORELATIME "norelatime"	/* do not allow relative time updates */
 #define	MNTOPT_LAZYTIME "lazytime"	/* Defer access time writing */
+#define	MNTOPT_NOLAZYTIME "nolazytime"	/* No defer access time writing */
 #ifdef __linux__
 #define	MNTOPT_SETUID	"suid"		/* Both setuid and devices allowed */
 #define	MNTOPT_NOSETUID	"nosuid"	/* Neither setuid nor devices allowed */

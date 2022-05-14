@@ -79,6 +79,8 @@ enum {
 	TOKEN_NOATIME,
 	TOKEN_RELATIME,
 	TOKEN_NORELATIME,
+	TOKEN_LAZYTIME,
+	TOKEN_NOLAZYTIME,
 	TOKEN_NBMAND,
 	TOKEN_NONBMAND,
 	TOKEN_MNTPOINT,
@@ -102,6 +104,8 @@ static const match_table_t zpl_tokens = {
 	{ TOKEN_NOATIME,	MNTOPT_NOATIME },
 	{ TOKEN_RELATIME,	MNTOPT_RELATIME },
 	{ TOKEN_NORELATIME,	MNTOPT_NORELATIME },
+	{ TOKEN_LAZYTIME,	MNTOPT_LAZYTIME },
+	{ TOKEN_NOLAZYTIME,	MNTOPT_NOLAZYTIME },
 	{ TOKEN_NBMAND,		MNTOPT_NBMAND },
 	{ TOKEN_NONBMAND,	MNTOPT_NONBMAND },
 	{ TOKEN_MNTPOINT,	MNTOPT_MNTPOINT "=%s" },
@@ -186,6 +190,14 @@ zfsvfs_parse_option(char *option, int token, substring_t *args, vfs_t *vfsp)
 	case TOKEN_NORELATIME:
 		vfsp->vfs_relatime = B_FALSE;
 		vfsp->vfs_do_relatime = B_TRUE;
+		break;
+	case TOKEN_LAZYTIME:
+		vfsp->vfs_lazytime = B_TRUE;
+		vfsp->vfs_do_lazytime = B_TRUE;
+		break;
+	case TOKEN_NOLAZYTIME:
+		vfsp->vfs_lazytime = B_FALSE;
+		vfsp->vfs_do_lazytime = B_TRUE;
 		break;
 	case TOKEN_NBMAND:
 		vfsp->vfs_nbmand = B_TRUE;
@@ -327,6 +339,26 @@ static void
 relatime_changed_cb(void *arg, uint64_t newval)
 {
 	((zfsvfs_t *)arg)->z_relatime = newval;
+}
+
+static void
+lazytime_changed_cb(void *arg, uint64_t newval)
+{
+#if defined(SB_LAZYTIME)
+	zfsvfs_t *zfsvfs = arg;
+	struct super_block *sb = zfsvfs->z_sb;
+
+	if (sb == NULL)
+		return;
+
+	if (newval)
+		sb->s_flags |= SB_LAZYTIME;
+	else
+		sb->s_flags &= ~SB_LAZYTIME;
+#else
+	(void) arg;
+	(void) newval;
+#endif
 }
 
 static void
@@ -485,6 +517,8 @@ zfs_register_callbacks(vfs_t *vfsp)
 	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_RELATIME), relatime_changed_cb, zfsvfs);
 	error = error ? error : dsl_prop_register(ds,
+	    zfs_prop_to_name(ZFS_PROP_LAZYTIME), lazytime_changed_cb, zfsvfs);
+	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_XATTR), xattr_changed_cb, zfsvfs);
 	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_RECORDSIZE), blksz_changed_cb, zfsvfs);
@@ -528,6 +562,8 @@ zfs_register_callbacks(vfs_t *vfsp)
 		atime_changed_cb(zfsvfs, vfsp->vfs_atime);
 	if (vfsp->vfs_do_relatime)
 		relatime_changed_cb(zfsvfs, vfsp->vfs_relatime);
+	if (vfsp->vfs_do_lazytime)
+		lazytime_changed_cb(zfsvfs, vfsp->vfs_lazytime);
 	if (vfsp->vfs_do_nbmand)
 		nbmand_changed_cb(zfsvfs, vfsp->vfs_nbmand);
 
@@ -577,6 +613,10 @@ zfs_get_temporary_prop(dsl_dataset_t *ds, zfs_prop_t zfs_prop, uint64_t *val,
 	case ZFS_PROP_RELATIME:
 		if (vfsp->vfs_do_relatime)
 			tmp = vfsp->vfs_relatime;
+		break;
+	case ZFS_PROP_LAZYTIME:
+		if (vfsp->vfs_do_lazytime)
+			tmp = vfsp->vfs_lazytime;
 		break;
 	case ZFS_PROP_DEVICES:
 		if (vfsp->vfs_do_devices)
@@ -1333,7 +1373,11 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 		}
 	}
 
-	ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, FTAG);
+	// I don't know what I'm doing moment
+	// a workaround for an attempt to acquire a reader lock
+	// while having a writer lock
+	// shrink_dcache_sb() calls mark_inode_dirty()
+	// ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, FTAG);
 
 	if (!unmounting) {
 		/*
@@ -1345,6 +1389,8 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 		 */
 		shrink_dcache_sb(zfsvfs->z_parent->z_sb);
 	}
+
+	ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, FTAG);
 
 	/*
 	 * Close the zil. NB: Can't close the zil while zfs_inactive

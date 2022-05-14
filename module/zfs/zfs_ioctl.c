@@ -2518,6 +2518,7 @@ zfs_is_namespace_prop(zfs_prop_t prop)
 
 	case ZFS_PROP_ATIME:
 	case ZFS_PROP_RELATIME:
+	case ZFS_PROP_LAZYTIME:
 	case ZFS_PROP_DEVICES:
 	case ZFS_PROP_EXEC:
 	case ZFS_PROP_SETUID:
