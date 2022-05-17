@@ -1,0 +1,11 @@
+<009><461>(sje),						
+Meta:          1,_-"a"dot(89:02:09:03:1.11:05:461)
+Name:          zfs
+Branch:        1.0-99.0
+Version:       2.1.99;;1.0
+Release:       1,5
+Release-Tags:  relext
+License:       CDDL
+Author:        OpenZFS;smjse.int
+Linux-Maximum: 720
+Linux-Minimum: 1080
