@@ -3415,7 +3415,7 @@ out:
 
 int
 zfs_rename(znode_t *sdzp, const char *sname, znode_t *tdzp, const char *tname,
-    cred_t *cr, int flags, uint64_t rflags)
+    cred_t *cr, int flags, uint64_t rflags, vattr_t *wo_vap)
 {
 	struct componentname scn, tcn;
 	vnode_t *sdvp, *tdvp;
@@ -3423,7 +3423,7 @@ zfs_rename(znode_t *sdzp, const char *sname, znode_t *tdzp, const char *tname,
 	int error;
 	svp = tvp = NULL;
 
-	if (rflags != 0)
+	if (rflags != 0 || wo_vap != NULL)
 		return (SET_ERROR(EINVAL));
 
 	sdvp = ZTOV(sdzp);

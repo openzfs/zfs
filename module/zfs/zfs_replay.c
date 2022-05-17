@@ -643,29 +643,25 @@ zfs_replay_link(void *arg1, void *arg2, boolean_t byteswap)
 }
 
 static int
-do_zfs_replay_rename(void *arg1, void *arg2, boolean_t byteswap,
-    uint64_t rflags)
+do_zfs_replay_rename(zfsvfs_t *zfsvfs, lr_rename_t *lr, char *sname,
+    char *tname, uint64_t rflags, vattr_t *wo_vap)
 {
-	zfsvfs_t *zfsvfs = arg1;
-	lr_rename_t *lr = arg2;
-	char *sname = (char *)(lr + 1);	/* sname and tname follow lr_rename_t */
-	char *tname = sname + strlen(sname) + 1;
 	znode_t *sdzp, *tdzp;
 	int error, vflg = 0;
-
-	if (byteswap)
-		byteswap_uint64_array(lr, sizeof (*lr));
 
 	/* Only Linux currently supports RENAME_* flags. */
 #ifdef __linux__
 	VERIFY0(rflags & ~(RENAME_EXCHANGE | RENAME_WHITEOUT));
 
-	IMPLY(rflags & RENAME_EXCHANGE,
+	VERIFY_IMPLY(rflags & RENAME_EXCHANGE,
 	    spa_feature_is_active(zfsvfs->z_os->os_spa,
 	    SPA_FEATURE_RENAME_EXCHANGE));
-	IMPLY(rflags & RENAME_WHITEOUT,
+	VERIFY_IMPLY(rflags & RENAME_WHITEOUT,
 	    spa_feature_is_active(zfsvfs->z_os->os_spa,
 	    SPA_FEATURE_RENAME_WHITEOUT));
+
+	/* wo_vap must be non-NULL iff. we're doing RENAME_WHITEOUT */
+	VERIFY_EQUIV(rflags & RENAME_WHITEOUT, wo_vap != NULL);
 #else
 	VERIFY0(rflags);
 #endif
@@ -681,7 +677,8 @@ do_zfs_replay_rename(void *arg1, void *arg2, boolean_t byteswap,
 	if (lr->lr_common.lrc_txtype & TX_CI)
 		vflg |= FIGNORECASE;
 
-	error = zfs_rename(sdzp, sname, tdzp, tname, kcred, vflg, rflags);
+	error = zfs_rename(sdzp, sname, tdzp, tname, kcred, vflg, rflags,
+	    wo_vap);
 
 	zrele(tdzp);
 	zrele(sdzp);
@@ -691,15 +688,37 @@ do_zfs_replay_rename(void *arg1, void *arg2, boolean_t byteswap,
 static int
 zfs_replay_rename(void *arg1, void *arg2, boolean_t byteswap)
 {
-	return (do_zfs_replay_rename(arg1, arg2, byteswap, 0));
+	zfsvfs_t *zfsvfs = arg1;
+	lr_rename_t *lr = arg2;
+	char *sname = (char *)(lr + 1);	/* sname and tname follow lr_rename_t */
+	char *tname = sname + strlen(sname) + 1;
+
+	if (byteswap)
+		byteswap_uint64_array(lr, sizeof (*lr));
+
+	return (do_zfs_replay_rename(zfsvfs, lr, sname, tname, 0, NULL));
 }
 
 static int
 zfs_replay_rename_exchange(void *arg1, void *arg2, boolean_t byteswap)
 {
 #ifdef __linux__
-	return (do_zfs_replay_rename(arg1, arg2, byteswap, RENAME_EXCHANGE));
+	zfsvfs_t *zfsvfs = arg1;
+	lr_rename_t *lr = arg2;
+	char *sname = (char *)(lr + 1);	/* sname and tname follow lr_rename_t */
+	char *tname = sname + strlen(sname) + 1;
+
+	if (byteswap)
+		byteswap_uint64_array(lr, sizeof (*lr));
+
+	return (do_zfs_replay_rename(zfsvfs, lr, sname, tname, RENAME_EXCHANGE,
+	    NULL));
 #else
+	/*
+	 * We should never reach this point because the feature is not
+	 * supported by non-Linux versions of OpenZFS.
+	 */
+	PANIC("TX_RENAME_EXCHANGE cannot be replayed on non-Linux systems.");
 	return (SET_ERROR(ENOTSUP));
 #endif
 }
@@ -708,8 +727,50 @@ static int
 zfs_replay_rename_whiteout(void *arg1, void *arg2, boolean_t byteswap)
 {
 #ifdef __linux__
-	return (do_zfs_replay_rename(arg1, arg2, byteswap, RENAME_WHITEOUT));
+	zfsvfs_t *zfsvfs = arg1;
+	lr_rename_whiteout_t *lr = arg2;
+	int error;
+	/* sname and tname follow lr_rename_whiteout_t */
+	char *sname = (char *)(lr + 1);
+	char *tname = sname + strlen(sname) + 1;
+	/* For the whiteout file. */
+	xvattr_t xva;
+	uint64_t objid;
+	uint64_t dnodesize;
+
+	if (byteswap)
+		byteswap_uint64_array(lr, sizeof (*lr));
+
+	objid = LR_FOID_GET_OBJ(lr->lr_wfoid);
+	dnodesize = LR_FOID_GET_SLOTS(lr->lr_wfoid) << DNODE_SHIFT;
+
+	xva_init(&xva);
+	zfs_init_vattr(&xva.xva_vattr, ATTR_MODE | ATTR_UID | ATTR_GID,
+	    lr->lr_wmode, lr->lr_wuid, lr->lr_wgid, lr->lr_wrdev, objid);
+
+	/*
+	 * As with TX_CREATE, RENAME_WHITEOUT ends up in zfs_mknode(), which
+	 * assigns the object's creation time, generation number, and dnode
+	 * slot count. The generic zfs_rename() has no concept of these
+	 * attributes, so we smuggle the values inside the vattr's otherwise
+	 * unused va_ctime, va_nblocks, and va_fsid fields.
+	 */
+	ZFS_TIME_DECODE(&xva.xva_vattr.va_ctime, lr->lr_wcrtime);
+	xva.xva_vattr.va_nblocks = lr->lr_wgen;
+	xva.xva_vattr.va_fsid = dnodesize;
+
+	error = dnode_try_claim(zfsvfs->z_os, objid, dnodesize >> DNODE_SHIFT);
+	if (error)
+		return (error);
+
+	return (do_zfs_replay_rename(zfsvfs, &lr->lr_rename, sname, tname,
+	    RENAME_WHITEOUT, &xva.xva_vattr));
 #else
+	/*
+	 * We should never reach this point because the feature is not
+	 * supported by non-Linux versions of OpenZFS.
+	 */
+	PANIC("TX_RENAME_WHITEOUT cannot be replayed on non-Linux systems.");
 	return (SET_ERROR(ENOTSUP));
 #endif
 }

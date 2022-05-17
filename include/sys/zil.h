@@ -320,6 +320,19 @@ typedef struct {
 } lr_rename_t;
 
 typedef struct {
+	lr_rename_t	lr_rename;	/* common rename portion */
+	/* members related to the whiteout file (based on lr_create_t) */
+	uint64_t	lr_wfoid;	/* obj id of the new whiteout file */
+	uint64_t	lr_wmode;	/* mode of object */
+	uint64_t	lr_wuid;	/* uid of whiteout */
+	uint64_t	lr_wgid;	/* gid of whiteout */
+	uint64_t	lr_wgen;	/* generation (txg of creation) */
+	uint64_t	lr_wcrtime[2];	/* creation time */
+	uint64_t	lr_wrdev;	/* always makedev(0, 0) */
+	/* 2 strings: names of source and destination follow this */
+} lr_rename_whiteout_t;
+
+typedef struct {
 	lr_t		lr_common;	/* common portion of log record */
 	uint64_t	lr_foid;	/* file object to write */
 	uint64_t	lr_offset;	/* offset to write to */

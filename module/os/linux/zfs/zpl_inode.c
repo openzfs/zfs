@@ -24,6 +24,7 @@
  */
 
 
+#include <sys/sysmacros.h>
 #include <sys/zfs_ctldir.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_vnops.h>
@@ -481,14 +482,23 @@ zpl_rename2(struct inode *sdip, struct dentry *sdentry,
 #endif
 {
 	cred_t *cr = CRED();
+	vattr_t *wo_vap = NULL;
 	int error;
 	fstrans_cookie_t cookie;
 
 	crhold(cr);
+	if (rflags & RENAME_WHITEOUT) {
+		wo_vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
+		zpl_vap_init(wo_vap, sdip, S_IFCHR, cr);
+		wo_vap->va_rdev = makedevice(0, 0);
+	}
+
 	cookie = spl_fstrans_mark();
 	error = -zfs_rename(ITOZ(sdip), dname(sdentry), ITOZ(tdip),
-			    dname(tdentry), cr, 0, rflags);
+			    dname(tdentry), cr, 0, rflags, wo_vap);
 	spl_fstrans_unmark(cookie);
+	if (wo_vap)
+		kmem_free(wo_vap, sizeof (vattr_t));
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
 

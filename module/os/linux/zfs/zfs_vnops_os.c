@@ -2706,6 +2706,7 @@ zfs_rename_lock(znode_t *szp, znode_t *tdzp, znode_t *sdzp, zfs_zlock_t **zlpp)
  *		cr	- credentials of caller.
  *		flags	- case flags
  *		rflags  - RENAME_* flags
+ *		wa_vap  - attributes for RENAME_WHITEOUT (must be a char 0:0).
  *
  *	RETURN:	0 on success, error code on failure.
  *
@@ -2714,7 +2715,7 @@ zfs_rename_lock(znode_t *szp, znode_t *tdzp, znode_t *sdzp, zfs_zlock_t **zlpp)
  */
 int
 zfs_rename(znode_t *sdzp, char *snm, znode_t *tdzp, char *tnm,
-    cred_t *cr, int flags, uint64_t rflags)
+    cred_t *cr, int flags, uint64_t rflags, vattr_t *wo_vap)
 {
 	znode_t		*szp, *tzp;
 	zfsvfs_t	*zfsvfs = ZTOZSB(sdzp);
@@ -2728,7 +2729,6 @@ zfs_rename(znode_t *sdzp, char *snm, znode_t *tdzp, char *tnm,
 	int		zflg = 0;
 	boolean_t	waited = B_FALSE;
 	/* Needed for whiteout inode creation. */
-	vattr_t		wo_vap;
 	boolean_t	fuid_dirtied;
 	zfs_acl_ids_t	acl_ids;
 	boolean_t	have_acl = B_FALSE;
@@ -2745,6 +2745,15 @@ zfs_rename(znode_t *sdzp, char *snm, znode_t *tdzp, char *tnm,
 	if (rflags & RENAME_EXCHANGE &&
 	    (rflags & (RENAME_NOREPLACE | RENAME_WHITEOUT)))
 		return (SET_ERROR(EINVAL));
+
+	/*
+	 * Make sure we only get wo_vap iff. RENAME_WHITEOUT and that it's the
+	 * right kind of vattr_t for the whiteout file. These are set
+	 * internally by ZFS so should never be incorrect.
+	 */
+	VERIFY_EQUIV(rflags & RENAME_WHITEOUT, wo_vap != NULL);
+	VERIFY_IMPLY(wo_vap, wo_vap->va_mode == S_IFCHR);
+	VERIFY_IMPLY(wo_vap, wo_vap->va_rdev == makedevice(0, 0));
 
 	if ((error = zfs_enter_verify_zp(zfsvfs, sdzp, FTAG)) != 0)
 		return (error);
@@ -2996,12 +3005,8 @@ top:
 		if (error)
 			goto out;
 
-		zpl_vap_init(&wo_vap, ZTOI(sdzp), S_IFCHR, cr);
-		/* Can't use of makedevice() here, so hard-code it. */
-		wo_vap.va_rdev = 0;
-
 		if (!have_acl) {
-			error = zfs_acl_ids_create(sdzp, 0, &wo_vap, cr, NULL,
+			error = zfs_acl_ids_create(sdzp, 0, wo_vap, cr, NULL,
 			    &acl_ids);
 			if (error)
 				goto out;
@@ -3153,7 +3158,7 @@ top:
 			goto commit_unlink_td_szp;
 		break;
 	case RENAME_WHITEOUT:
-		zfs_mknode(sdzp, &wo_vap, tx, cr, 0, &wzp, &acl_ids);
+		zfs_mknode(sdzp, wo_vap, tx, cr, 0, &wzp, &acl_ids);
 		error = zfs_link_create(sdl, wzp, tx, ZNEW);
 		if (error) {
 			zfs_znode_delete(wzp, tx);
@@ -3175,7 +3180,7 @@ top:
 	case RENAME_WHITEOUT:
 		zfs_log_rename_whiteout(zilog, tx,
 		    (flags & FIGNORECASE ? TX_CI : 0), sdzp, sdl->dl_name,
-		    tdzp, tdl->dl_name, szp);
+		    tdzp, tdl->dl_name, szp, wzp);
 		break;
 	default:
 		ASSERT0(rflags & ~RENAME_NOREPLACE);
