@@ -696,16 +696,15 @@ zpool_feature_init(void)
 	    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN, NULL, sfeatures);
 
 	{
-
-	static const spa_feature_t zilsaxattr_deps[] = {
-		SPA_FEATURE_EXTENSIBLE_DATASET,
-		SPA_FEATURE_NONE
-	};
-	zfeature_register(SPA_FEATURE_ZILSAXATTR,
-	    "org.openzfs:zilsaxattr", "zilsaxattr",
-	    "Support for xattr=sa extended attribute logging in ZIL.",
-	    ZFEATURE_FLAG_PER_DATASET | ZFEATURE_FLAG_READONLY_COMPAT,
-	    ZFEATURE_TYPE_BOOLEAN, zilsaxattr_deps, sfeatures);
+		static const spa_feature_t zilsaxattr_deps[] = {
+			SPA_FEATURE_EXTENSIBLE_DATASET,
+			SPA_FEATURE_NONE
+		};
+		zfeature_register(SPA_FEATURE_ZILSAXATTR,
+		    "org.openzfs:zilsaxattr", "zilsaxattr",
+		    "Support for xattr=sa extended attribute logging in ZIL.",
+		    ZFEATURE_FLAG_PER_DATASET | ZFEATURE_FLAG_READONLY_COMPAT,
+		    ZFEATURE_TYPE_BOOLEAN, zilsaxattr_deps, sfeatures);
 	}
 
 	zfeature_register(SPA_FEATURE_HEAD_ERRLOG,
@@ -713,6 +712,18 @@ zpool_feature_init(void)
 	    "Support for per-dataset on-disk error logs.",
 	    ZFEATURE_FLAG_ACTIVATE_ON_ENABLE, ZFEATURE_TYPE_BOOLEAN, NULL,
 	    sfeatures);
+
+	{
+		static const spa_feature_t blake3_deps[] = {
+			SPA_FEATURE_EXTENSIBLE_DATASET,
+			SPA_FEATURE_NONE
+		};
+		zfeature_register(SPA_FEATURE_BLAKE3,
+		    "org.openzfs:blake3", "blake3",
+		    "BLAKE3 hash algorithm.",
+		    ZFEATURE_FLAG_PER_DATASET, ZFEATURE_TYPE_BOOLEAN,
+		    blake3_deps, sfeatures);
+	}
 
 	zfs_mod_list_supported_free(sfeatures);
 }

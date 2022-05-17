@@ -77,6 +77,7 @@ typedef enum spa_feature {
 	SPA_FEATURE_DRAID,
 	SPA_FEATURE_ZILSAXATTR,
 	SPA_FEATURE_HEAD_ERRLOG,
+	SPA_FEATURE_BLAKE3,
 	SPA_FEATURES
 } spa_feature_t;
 
