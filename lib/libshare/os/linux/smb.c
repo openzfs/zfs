@@ -248,7 +248,7 @@ smb_enable_share_one(const char *sharename, const char *sharepath)
 		NULL,
 	};
 
-	if (libzfs_run_process(argv[0], argv, 0) < 0)
+	if (libzfs_run_process(argv[0], argv, 0) != 0)
 		return (SA_SYSTEM_ERR);
 
 	/* Reload the share file */
@@ -297,7 +297,7 @@ smb_disable_share_one(const char *sharename)
 		NULL,
 	};
 
-	if (libzfs_run_process(argv[0], argv, 0) < 0)
+	if (libzfs_run_process(argv[0], argv, 0) != 0)
 		return (SA_SYSTEM_ERR);
 	else
 		return (SA_OK);
