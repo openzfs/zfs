@@ -28,9 +28,6 @@
  * gettimeofday due to -D_KERNEL (we can do this since we're actually
  * running in userspace, but we need -D_KERNEL for the remaining Skein code).
  */
-#ifdef	_KERNEL
-#undef	_KERNEL
-#endif
 
 #include <sys/skein.h>
 #include <stdlib.h>
