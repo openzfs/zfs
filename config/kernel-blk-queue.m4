@@ -93,8 +93,10 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE_DISCARD], [
 	ZFS_LINUX_TEST_SRC([blk_queue_discard], [
 		#include <linux/blkdev.h>
 	],[
-		struct request_queue *q __attribute__ ((unused)) = NULL;
+		struct request_queue r;
+		struct request_queue *q = &r;
 		int value __attribute__ ((unused));
+		memset(q, 0, sizeof(r));
 		value = blk_queue_discard(q);
 	])
 ])
@@ -119,16 +121,20 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE_SECURE_ERASE], [
 	ZFS_LINUX_TEST_SRC([blk_queue_secure_erase], [
 		#include <linux/blkdev.h>
 	],[
-		struct request_queue *q __attribute__ ((unused)) = NULL;
+		struct request_queue r;
+		struct request_queue *q = &r;
 		int value __attribute__ ((unused));
+		memset(q, 0, sizeof(r));
 		value = blk_queue_secure_erase(q);
 	])
 
 	ZFS_LINUX_TEST_SRC([blk_queue_secdiscard], [
 		#include <linux/blkdev.h>
 	],[
-		struct request_queue *q __attribute__ ((unused)) = NULL;
+		struct request_queue r;
+		struct request_queue *q = &r;
 		int value __attribute__ ((unused));
+		memset(q, 0, sizeof(r));
 		value = blk_queue_secdiscard(q);
 	])
 ])
