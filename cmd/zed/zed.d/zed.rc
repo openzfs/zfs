@@ -29,6 +29,7 @@ ZED_EMAIL_ADDR="root"
 # The string @SUBJECT@ will be replaced with the notification subject;
 #   this should be protected with quotes to prevent word-splitting.
 # Email will only be sent if ZED_EMAIL_ADDR is defined.
+# If @SUBJECT@ was omited here, a "Subject: ..." header will be added to notification
 #
 #ZED_EMAIL_OPTS="-s '@SUBJECT@' @ADDRESS@"
 
