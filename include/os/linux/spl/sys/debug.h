@@ -140,6 +140,16 @@ spl_assert(const char *buf, const char *file, const char *func, int line)
 		    (long long) (_verify3_right));			\
 	} while (0)
 
+#define	VERIFY_IMPLY(A, B) \
+	((void)(likely((!(A)) || (B)) ||				\
+	    spl_assert("(" #A ") implies (" #B ")",			\
+	    __FILE__, __FUNCTION__, __LINE__)))
+
+#define	VERIFY_EQUIV(A, B) \
+	((void)(likely(!!(A) == !!(B)) || 				\
+	    spl_assert("(" #A ") is equivalent to (" #B ")",		\
+	    __FILE__, __FUNCTION__, __LINE__)))
+
 /*
  * Debugging disabled (--disable-debug)
  */
@@ -171,14 +181,8 @@ spl_assert(const char *buf, const char *file, const char *func, int line)
 #define	ASSERT3P	VERIFY3P
 #define	ASSERT0		VERIFY0
 #define	ASSERT		VERIFY
-#define	IMPLY(A, B) \
-	((void)(likely((!(A)) || (B)) ||				\
-	    spl_assert("(" #A ") implies (" #B ")",			\
-	    __FILE__, __FUNCTION__, __LINE__)))
-#define	EQUIV(A, B) \
-	((void)(likely(!!(A) == !!(B)) || 				\
-	    spl_assert("(" #A ") is equivalent to (" #B ")",		\
-	    __FILE__, __FUNCTION__, __LINE__)))
+#define	IMPLY		VERIFY_IMPLY
+#define	EQUIV		VERIFY_EQUIV
 
 #endif /* NDEBUG */
 
