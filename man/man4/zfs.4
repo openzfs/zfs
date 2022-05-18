@@ -1098,10 +1098,9 @@ This should be less than
 .
 .It Sy zfs_wrlog_data_max Ns = Pq int
 The upper limit of write-transaction zil log data size in bytes.
-Once it is reached, write operation is blocked, until log data is cleared out
-after transaction group sync.
-Because of some overhead, it should be set
-at least 2 times the size of
+Write operations are throttled when approaching the limit until log data is
+cleared out after transaction group sync.
+Because of some overhead, it should be set at least 2 times the size of
 .Sy zfs_dirty_data_max
 .No to prevent harming normal write throughput.
 It also should be smaller than the size of the slog device if slog is present.
