@@ -898,6 +898,7 @@ typedef struct spa_stats {
 	spa_history_kstat_t	tx_assign_histogram;
 	spa_history_list_t	mmp_history;
 	spa_history_kstat_t	state;		/* pool state */
+	spa_history_kstat_t	guid;		/* pool guid */
 	spa_history_kstat_t	iostats;
 } spa_stats_t;
 
