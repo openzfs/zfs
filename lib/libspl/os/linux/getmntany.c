@@ -102,13 +102,49 @@ getextmntent_impl(FILE *fp, struct extmnttab *mp)
 	return (ret);
 }
 
-int
-getextmntent(const char *path, struct extmnttab *entry, struct stat64 *statbuf)
+static int
+sbuf_getextmntent(struct stat64 *statbuf, struct extmnttab *entry)
 {
 	struct stat64 st;
 	FILE *fp;
-	int match;
+	int match = 0;
 
+	if ((fp = fopen(MNTTAB, "re")) == NULL) {
+		(void) fprintf(stderr, "cannot open %s\n", MNTTAB);
+		return (-1);
+	}
+
+	/*
+	 * Search for the given (major,minor) pair in the mount table.
+	 */
+
+	while (getextmntent_impl(fp, entry) == 0) {
+		if (makedev(entry->mnt_major, entry->mnt_minor) ==
+		    statbuf->st_dev) {
+			match = 1;
+			break;
+		}
+	}
+	(void) fclose(fp);
+
+	if (!match) {
+		(void) fprintf(stderr, "cannot find mountpoint\n");
+		errno = ENOENT;
+		return (-1);
+	}
+
+	if (stat64(entry->mnt_mountp, &st) != 0) {
+		entry->mnt_major = 0;
+		entry->mnt_minor = 0;
+		return (-1);
+	}
+
+	return (0);
+}
+
+int
+getextmntent(const char *path, struct extmnttab *entry, struct stat64 *statbuf)
+{
 	if (strlen(path) >= MAXPATHLEN) {
 		(void) fprintf(stderr, "invalid object; pathname too long\n");
 		return (-1);
@@ -126,37 +162,24 @@ getextmntent(const char *path, struct extmnttab *entry, struct stat64 *statbuf)
 		return (-1);
 	}
 
+	return (sbuf_getextmntent(statbuf, entry));
+}
 
-	if ((fp = fopen(MNTTAB, "re")) == NULL) {
-		(void) fprintf(stderr, "cannot open %s\n", MNTTAB);
+int
+fgetextmntent(int fd, struct extmnttab *entry, struct stat64 *statbuf)
+{
+	if (fstat64(fd, statbuf) != 0) {
+		(void) fprintf(stderr, "fstat() failed: %s\n",
+		    strerror(errno));
 		return (-1);
 	}
 
-	/*
-	 * Search for the given (major,minor) pair in the mount table.
-	 */
-
-	match = 0;
-	while (getextmntent_impl(fp, entry) == 0) {
-		if (makedev(entry->mnt_major, entry->mnt_minor) ==
-		    statbuf->st_dev) {
-			match = 1;
-			break;
-		}
-	}
-	(void) fclose(fp);
-
-	if (!match) {
-		(void) fprintf(stderr, "cannot find mountpoint for '%s'\n",
-		    path);
+	if ((statbuf->st_mode & (S_IFDIR | S_IFREG | S_IFLNK)) == 0) {
+		(void) fprintf(stderr, "invalid file type: 0x%08x\n",
+		    statbuf->st_mode & S_IFMT);
+		errno = EINVAL;
 		return (-1);
 	}
 
-	if (stat64(entry->mnt_mountp, &st) != 0) {
-		entry->mnt_major = 0;
-		entry->mnt_minor = 0;
-		return (-1);
-	}
-
-	return (0);
+	return (sbuf_getextmntent(statbuf, entry));
 }

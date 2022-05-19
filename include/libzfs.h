@@ -851,6 +851,7 @@ _LIBZFS_H void zfs_refresh_properties(zfs_handle_t *);
 _LIBZFS_H int zfs_name_valid(const char *, zfs_type_t);
 _LIBZFS_H zfs_handle_t *zfs_path_to_zhandle(libzfs_handle_t *, const char *,
     zfs_type_t);
+_LIBZFS_H zfs_handle_t *zfs_fd_to_zhandle(libzfs_handle_t *, int);
 _LIBZFS_H int zfs_parent_name(zfs_handle_t *, char *, size_t);
 _LIBZFS_H boolean_t zfs_dataset_exists(libzfs_handle_t *, const char *,
     zfs_type_t);

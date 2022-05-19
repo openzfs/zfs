@@ -61,3 +61,16 @@ getextmntent(const char *path, struct extmnttab *entry, struct stat64 *statbuf)
 	statfs2mnttab(&sfs, (struct mnttab *)entry);
 	return (0);
 }
+
+int
+fgetextmntent(int fd, struct extmnttab *entry, struct stat64 *statbuf)
+{
+	struct statfs sfs;
+
+	if (fstatfs(fd, &sfs) != 0) {
+		(void) fprintf(stderr, "%s: %s\n", path,
+		    strerror(errno));
+		return (-1);
+	}
+	statfs2mnttab(&sfs, (struct mnttab *)entry);
+}

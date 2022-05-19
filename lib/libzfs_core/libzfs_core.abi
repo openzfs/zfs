@@ -937,6 +937,12 @@
       <parameter type-id='62f7a03d' name='statbuf'/>
       <return type-id='95e97e5e'/>
     </function-decl>
+    <function-decl name='fgetextmntent' mangled-name='fgetextmntent' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='fgetextmntent'>
+      <parameter type-id='95e97e5e' name='fd'/>
+      <parameter type-id='394fc496' name='entry'/>
+      <parameter type-id='62f7a03d' name='statbuf'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='os/linux/zone.c' language='LANG_C99'>
     <typedef-decl name='zoneid_t' type-id='95e97e5e' id='4da03624'/>

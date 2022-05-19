@@ -1145,6 +1145,23 @@ zfs_path_to_zhandle(libzfs_handle_t *hdl, const char *path, zfs_type_t argtype)
 	return (zfs_open(hdl, entry.mnt_special, ZFS_TYPE_FILESYSTEM));
 }
 
+zfs_handle_t *
+zfs_fd_to_zhandle(libzfs_handle_t *hdl, int fd)
+{
+	struct stat64 statbuf;
+	struct extmnttab entry;
+
+	if (fgetextmntent(fd, &entry, &statbuf) != 0)
+		return (NULL);
+
+	if (strcmp(entry.mnt_fstype, MNTTYPE_ZFS) != 0) {
+		(void) fprintf(stderr, gettext("not a ZFS filesystem\n"));
+		return (NULL);
+	}
+
+	return (zfs_open(hdl, entry.mnt_special, ZFS_TYPE_FILESYSTEM));
+}
+
 /*
  * Initialize the zc_nvlist_dst member to prepare for receiving an nvlist from
  * an ioctl().
