@@ -1824,6 +1824,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
     const zbookmark_phys_t *zb, dmu_tx_t *tx)
 {
 	dsl_pool_t *dp = scn->scn_dp;
+	spa_t *spa = dp->dp_spa;
 	int zio_flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_SCAN_THREAD;
 	int err;
 
@@ -1838,7 +1839,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 	if (dnp != NULL &&
 	    dnp->dn_bonuslen > DN_MAX_BONUS_LEN(dnp)) {
 		scn->scn_phys.scn_errors++;
-		spa_log_error(dp->dp_spa, zb);
+		spa_log_error(spa, zb);
 		return (SET_ERROR(EINVAL));
 	}
 
@@ -1849,7 +1850,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 		int epb = BP_GET_LSIZE(bp) >> SPA_BLKPTRSHIFT;
 		arc_buf_t *buf;
 
-		err = arc_read(NULL, dp->dp_spa, bp, arc_getbuf_func, &buf,
+		err = arc_read(NULL, spa, bp, arc_getbuf_func, &buf,
 		    ZIO_PRIORITY_SCRUB, zio_flags, &flags, zb);
 		if (err) {
 			scn->scn_phys.scn_errors++;
@@ -1877,7 +1878,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 			zio_flags |= ZIO_FLAG_RAW;
 		}
 
-		err = arc_read(NULL, dp->dp_spa, bp, arc_getbuf_func, &buf,
+		err = arc_read(NULL, spa, bp, arc_getbuf_func, &buf,
 		    ZIO_PRIORITY_SCRUB, zio_flags, &flags, zb);
 		if (err) {
 			scn->scn_phys.scn_errors++;
@@ -1896,7 +1897,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 		objset_phys_t *osp;
 		arc_buf_t *buf;
 
-		err = arc_read(NULL, dp->dp_spa, bp, arc_getbuf_func, &buf,
+		err = arc_read(NULL, spa, bp, arc_getbuf_func, &buf,
 		    ZIO_PRIORITY_SCRUB, zio_flags, &flags, zb);
 		if (err) {
 			scn->scn_phys.scn_errors++;
@@ -1927,6 +1928,14 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 			    DMU_USERUSED_OBJECT, tx);
 		}
 		arc_buf_destroy(buf, &buf);
+	} else if (!zfs_blkptr_verify(spa, bp, B_FALSE, BLK_VERIFY_LOG)) {
+		/*
+		 * Sanity check the block pointer contents, this is handled
+		 * by arc_read() for the cases above.
+		 */
+		scn->scn_phys.scn_errors++;
+		spa_log_error(spa, zb);
+		return (SET_ERROR(EINVAL));
 	}
 
 	return (0);
@@ -1976,19 +1985,6 @@ dsl_scan_visitbp(blkptr_t *bp, const zbookmark_phys_t *zb,
 		return;
 
 	scn->scn_visited_this_txg++;
-
-	/*
-	 * This debugging is commented out to conserve stack space.  This
-	 * function is called recursively and the debugging adds several
-	 * bytes to the stack for each call.  It can be commented back in
-	 * if required to debug an issue in dsl_scan_visitbp().
-	 *
-	 * dprintf_bp(bp,
-	 *     "visiting ds=%p/%llu zb=%llx/%llx/%llx/%llx bp=%p",
-	 *     ds, ds ? ds->ds_object : 0,
-	 *     zb->zb_objset, zb->zb_object, zb->zb_level, zb->zb_blkid,
-	 *     bp);
-	 */
 
 	if (BP_IS_HOLE(bp)) {
 		scn->scn_holes_this_txg++;
