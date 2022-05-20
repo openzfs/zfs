@@ -2310,9 +2310,6 @@ spa_load_verify_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 
 	(void) zilog, (void) dnp;
 
-	if (zb->zb_level == ZB_DNODE_LEVEL || BP_IS_HOLE(bp) ||
-	    BP_IS_EMBEDDED(bp) || BP_IS_REDACTED(bp))
-		return (0);
 	/*
 	 * Note: normally this routine will not be called if
 	 * spa_load_verify_metadata is not set.  However, it may be useful
@@ -2320,6 +2317,22 @@ spa_load_verify_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	 */
 	if (!spa_load_verify_metadata)
 		return (0);
+
+	/*
+	 * Sanity check the block pointer in order to detect obvious damage
+	 * before using the contents in subsequent checks or in zio_read().
+	 * When damaged consider it to be a metadata error since we cannot
+	 * trust the BP_GET_TYPE and BP_GET_LEVEL values.
+	 */
+	if (!zfs_blkptr_verify(spa, bp, B_FALSE, BLK_VERIFY_LOG)) {
+		atomic_inc_64(&sle->sle_meta_count);
+		return (0);
+	}
+
+	if (zb->zb_level == ZB_DNODE_LEVEL || BP_IS_HOLE(bp) ||
+	    BP_IS_EMBEDDED(bp) || BP_IS_REDACTED(bp))
+		return (0);
+
 	if (!BP_IS_METADATA(bp) &&
 	    (!spa_load_verify_data || !sle->sle_verify_data))
 		return (0);
