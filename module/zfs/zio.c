@@ -962,14 +962,12 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp, boolean_t config_held,
 		    "blkptr at %p has invalid TYPE %llu",
 		    bp, (longlong_t)BP_GET_TYPE(bp));
 	}
-	if (BP_GET_CHECKSUM(bp) >= ZIO_CHECKSUM_FUNCTIONS ||
-	    BP_GET_CHECKSUM(bp) <= ZIO_CHECKSUM_ON) {
+	if (BP_GET_CHECKSUM(bp) >= ZIO_CHECKSUM_FUNCTIONS) {
 		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
 		    "blkptr at %p has invalid CHECKSUM %llu",
 		    bp, (longlong_t)BP_GET_CHECKSUM(bp));
 	}
-	if (BP_GET_COMPRESS(bp) >= ZIO_COMPRESS_FUNCTIONS ||
-	    BP_GET_COMPRESS(bp) <= ZIO_COMPRESS_ON) {
+	if (BP_GET_COMPRESS(bp) >= ZIO_COMPRESS_FUNCTIONS) {
 		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
 		    "blkptr at %p has invalid COMPRESS %llu",
 		    bp, (longlong_t)BP_GET_COMPRESS(bp));
