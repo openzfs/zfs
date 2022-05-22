@@ -1185,7 +1185,7 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 	zilog_t *zilog = lwb->lwb_zilog;
 	zil_commit_waiter_t *zcw;
 	itx_t *itx;
-	uint64_t txg = lwb->lwb_issued_txg;
+	uint64_t txg;
 
 	spa_config_exit(zilog->zl_spa, SCL_STATE, lwb);
 
@@ -1260,6 +1260,7 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 	mutex_exit(&zilog->zl_lock);
 
 	mutex_enter(&zilog->zl_lwb_io_lock);
+	txg = lwb->lwb_issued_txg;
 	ASSERT(zilog->zl_lwb_inflight[txg & TXG_MASK] > 0);
 	zilog->zl_lwb_inflight[txg & TXG_MASK]--;
 	if (zilog->zl_lwb_inflight[txg & TXG_MASK] == 0)
@@ -1283,6 +1284,7 @@ zil_lwb_flush_wait_all(zilog_t *zilog, uint64_t txg)
 
 #ifdef ZFS_DEBUG
 	mutex_enter(&zilog->zl_lock);
+	mutex_enter(&zilog->zl_lwb_io_lock);
 	lwb_t *lwb = list_head(&zilog->zl_lwb_list);
 	while (lwb != NULL && lwb->lwb_max_txg <= txg) {
 		if (lwb->lwb_issued_txg <= txg) {
@@ -1295,6 +1297,7 @@ zil_lwb_flush_wait_all(zilog_t *zilog, uint64_t txg)
 		    lwb->lwb_buf == NULL);
 		lwb = list_next(&zilog->zl_lwb_list, lwb);
 	}
+	mutex_exit(&zilog->zl_lwb_io_lock);
 	mutex_exit(&zilog->zl_lock);
 #endif
 }
@@ -1592,11 +1595,6 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 	/*
 	 * Allocate the next block and save its address in this block
 	 * before writing it in order to establish the log chain.
-	 * Note that if the allocation of nlwb synced before we wrote
-	 * the block that points at it (lwb), we'd leak it if we crashed.
-	 * Therefore, we don't do dmu_tx_commit() until zil_lwb_write_done().
-	 * We dirty the dataset to ensure that zil_sync() will be called
-	 * to clean up in the event of allocation failure or I/O failure.
 	 */
 
 	tx = dmu_tx_create(zilog->zl_os);
@@ -1611,9 +1609,9 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 
 	dsl_dataset_dirty(dmu_objset_ds(zilog->zl_os), tx);
 	txg = dmu_tx_get_txg(tx);
-	lwb->lwb_issued_txg = txg;
 
 	mutex_enter(&zilog->zl_lwb_io_lock);
+	lwb->lwb_issued_txg = txg;
 	zilog->zl_lwb_inflight[txg & TXG_MASK]++;
 	zilog->zl_lwb_max_issued_txg = MAX(txg, zilog->zl_lwb_max_issued_txg);
 	mutex_exit(&zilog->zl_lwb_io_lock);
