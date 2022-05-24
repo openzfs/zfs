@@ -110,12 +110,15 @@ BuildRequires:  libblkid-devel
 BuildRequires:  libudev-devel
 BuildRequires:  libattr-devel
 BuildRequires:  openssl-devel
+%if 0%{?fedora} || 0%{?rhel} >= 8 || 0%{?centos} >= 8
+BuildRequires:  libtirpc-devel
+%endif
+
+%if (0%{?fedora}%{?suse_version}) || (0 < 0%{?rhel} && 0%{?rhel} < 9)
 # We don't directly use it, but if this isn't installed, rpmbuild as root can
 # crash+corrupt rpmdb
 # See issue #12071
 BuildRequires:  ncompress
-%if 0%{?fedora} || 0%{?rhel} >= 8 || 0%{?centos} >= 8
-BuildRequires:  libtirpc-devel
 %endif
 
 Requires:       openssl
