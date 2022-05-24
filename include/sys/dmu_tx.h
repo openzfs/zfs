@@ -124,8 +124,8 @@ typedef struct dmu_tx_stats {
 	kstat_named_t dmu_tx_dirty_throttle;
 	kstat_named_t dmu_tx_dirty_delay;
 	kstat_named_t dmu_tx_dirty_over_max;
-	kstat_named_t dmu_tx_wrlog_over_max;
 	kstat_named_t dmu_tx_dirty_frees_delay;
+	kstat_named_t dmu_tx_wrlog_delay;
 	kstat_named_t dmu_tx_quota;
 } dmu_tx_stats_t;
 
