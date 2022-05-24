@@ -57,7 +57,7 @@ BuildRequires:  gcc, make
 BuildRequires:  elfutils-libelf-devel
 %endif
 
-%if 0%{?rhel}%{?fedora}%{?suse_version}
+%if (0%{?fedora}%{?suse_version}) || (0 < 0%{?rhel} && 0%{?rhel} < 9)
 # We don't directly use it, but if this isn't installed, rpmbuild as root can
 # crash+corrupt rpmdb
 # See issue #12071
