@@ -10,9 +10,10 @@ dist_pkgsysconf_DATA = \
 	vdev_id.conf.multipath.example \
 	vdev_id.conf.scsi.example
 
-pkgsysconf_SCRIPTS = \
+pkgsysconf_DATA = \
 	zfs-functions
 
-SUBSTFILES += $(pkgsysconf_SCRIPTS)
+SUBSTFILES += $(pkgsysconf_DATA)
 
+SHELLCHECKSCRIPTS = $(pkgsysconf_DATA)
 SHELLCHECK_SHELL = dash # local variables
