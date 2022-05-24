@@ -39,6 +39,7 @@ __FBSDID("$FreeBSD$");
 
 #include <ctype.h>
 #include <errno.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -136,6 +137,7 @@ statfs2mnttab(struct statfs *sfs, struct mnttab *mp)
 	mp->mnt_mntopts = gmntopts;
 }
 
+static pthread_rwlock_t gsfs_lock = PTHREAD_RWLOCK_INITIALIZER;
 static struct statfs *gsfs = NULL;
 static int allfs = 0;
 
@@ -144,6 +146,8 @@ statfs_init(void)
 {
 	struct statfs *sfs;
 	int error;
+
+	(void) pthread_rwlock_wrlock(&gsfs_lock);
 
 	if (gsfs != NULL) {
 		free(gsfs);
@@ -162,6 +166,7 @@ statfs_init(void)
 	sfs = realloc(gsfs, allfs * sizeof (gsfs[0]));
 	if (sfs != NULL)
 		gsfs = sfs;
+	(void) pthread_rwlock_unlock(&gsfs_lock);
 	return (0);
 fail:
 	error = errno;
@@ -169,6 +174,7 @@ fail:
 		free(gsfs);
 	gsfs = NULL;
 	allfs = 0;
+	(void) pthread_rwlock_unlock(&gsfs_lock);
 	return (error);
 }
 
@@ -180,6 +186,8 @@ getmntany(FILE *fd __unused, struct mnttab *mgetp, struct mnttab *mrefp)
 	error = statfs_init();
 	if (error != 0)
 		return (error);
+
+	(void) pthread_rwlock_rdlock(&gsfs_lock);
 
 	for (i = 0; i < allfs; i++) {
 		if (mrefp->mnt_special != NULL &&
@@ -195,8 +203,10 @@ getmntany(FILE *fd __unused, struct mnttab *mgetp, struct mnttab *mrefp)
 			continue;
 		}
 		statfs2mnttab(&gsfs[i], mgetp);
+		(void) pthread_rwlock_unlock(&gsfs_lock);
 		return (0);
 	}
+	(void) pthread_rwlock_unlock(&gsfs_lock);
 	return (-1);
 }
 
@@ -214,9 +224,13 @@ getmntent(FILE *fp, struct mnttab *mp)
 		if (error != 0)
 			return (error);
 	}
-	if (nfs >= allfs)
+	(void) pthread_rwlock_rdlock(&gsfs_lock);
+	if (nfs >= allfs) {
+		(void) pthread_rwlock_unlock(&gsfs_lock);
 		return (-1);
+	}
 	statfs2mnttab(&gsfs[nfs], mp);
+	(void) pthread_rwlock_unlock(&gsfs_lock);
 	if (lseek(fileno(fp), 1, SEEK_CUR) == -1)
 		return (errno);
 	return (0);
