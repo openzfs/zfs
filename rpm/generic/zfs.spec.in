@@ -90,12 +90,12 @@ License:        @ZFS_META_LICENSE@
 URL:            https://github.com/openzfs/zfs
 Source0:        %{name}-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
-Requires:       libzpool5 = %{version}
-Requires:       libnvpair3 = %{version}
-Requires:       libuutil3 = %{version}
-Requires:       libzfs5 = %{version}
+Requires:       libzpool5%{?_isa} = %{version}-%{release}
+Requires:       libnvpair3%{?_isa} = %{version}-%{release}
+Requires:       libuutil3%{?_isa} = %{version}-%{release}
+Requires:       libzfs5%{?_isa} = %{version}-%{release}
 Requires:       %{name}-kmod = %{version}
-Provides:       %{name}-kmod-common = %{version}
+Provides:       %{name}-kmod-common = %{version}-%{release}
 Obsoletes:      spl
 
 # zfs-fuse provides the same commands and man pages that OpenZFS does.
@@ -221,13 +221,13 @@ This package provides support for managing ZFS filesystems
 %package -n libzfs5-devel
 Summary:        Development headers
 Group:          System Environment/Kernel
-Requires:       libzfs5 = %{version}
-Requires:       libzpool5 = %{version}
-Requires:       libnvpair3 = %{version}
-Requires:       libuutil3 = %{version}
-Provides:       libzpool5-devel
-Provides:       libnvpair3-devel
-Provides:       libuutil3-devel
+Requires:       libzfs5%{?_isa} = %{version}-%{release}
+Requires:       libzpool5%{?_isa} = %{version}-%{release}
+Requires:       libnvpair3%{?_isa} = %{version}-%{release}
+Requires:       libuutil3%{?_isa} = %{version}-%{release}
+Provides:       libzpool5-devel = %{version}-%{release}
+Provides:       libnvpair3-devel = %{version}-%{release}
+Provides:       libuutil3-devel = %{version}-%{release}
 Obsoletes:      zfs-devel
 Obsoletes:      libzfs2-devel
 Obsoletes:      libzfs4-devel
@@ -281,8 +281,8 @@ Summary:        Python %{python_version} wrapper for libzfs_core
 Group:          Development/Languages/Python
 License:        Apache-2.0
 BuildArch:      noarch
-Requires:       libzfs5 = %{version}
-Requires:       libnvpair3 = %{version}
+Requires:       libzfs5 = %{version}-%{release}
+Requires:       libnvpair3 = %{version}-%{release}
 Requires:       libffi
 Requires:       python%{__python_pkg_version}
 
@@ -317,7 +317,6 @@ This package provides a python wrapper for the libzfs_core C library.
 Summary:        Initramfs module
 Group:          System Environment/Kernel
 Requires:       %{name}%{?_isa} = %{version}-%{release}
-Requires:       %{name} = %{version}-%{release}
 Requires:       initramfs-tools
 
 %description initramfs
