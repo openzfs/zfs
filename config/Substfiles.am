@@ -41,6 +41,6 @@ endef
 
 SUBSTFILES =
 CLEANFILES += $(SUBSTFILES)
-EXTRA_DIST += $(SUBSTFILES:=.in)
+dist_noinst_DATA += $(SUBSTFILES:=.in)
 
 $(call SUBST,%,)

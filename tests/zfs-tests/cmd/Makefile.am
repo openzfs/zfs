@@ -41,7 +41,7 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/draid
 	libnvpair.la
 %C%_draid_LDADD += $(ZLIB_LIBS)
 
-EXTRA_DIST += $(addprefix %D%/,file/file_common.h)
+dist_noinst_DATA += %D%/file/file_common.h
 scripts_zfs_tests_bin_PROGRAMS += %D%/file_append %D%/file_check %D%/file_trunc %D%/file_write %D%/largest_file %D%/randwritecomp
 %C%_file_append_SOURCES   = %D%/file/file_append.c
 %C%_file_check_SOURCES    = %D%/file/file_check.c
@@ -116,7 +116,7 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/xattrtest
 scripts_zfs_tests_bin_PROGRAMS += %D%/zed_fd_spill-zedlet
 
 
-EXTRA_DIST += $(addprefix %D%/,linux_dos_attributes/dos_attributes.h)
+dist_noinst_DATA += %D%/linux_dos_attributes/dos_attributes.h
 scripts_zfs_tests_bin_PROGRAMS  += %D%/read_dos_attributes %D%/write_dos_attributes
 %C%_read_dos_attributes_SOURCES  = %D%/linux_dos_attributes/read_dos_attributes.c
 %C%_write_dos_attributes_SOURCES = %D%/linux_dos_attributes/write_dos_attributes.c

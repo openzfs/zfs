@@ -1,5 +1,3 @@
-EXTRA_DIST += $(addprefix %D%/, \
-	taskqlatency.bt \
-	zfs-trace.sh)
+dist_noinst_DATA += %D%/taskqlatency.bt %D%/zfs-trace.sh
 
 SHELLCHECKSCRIPTS += %D%/zfs-trace.sh

@@ -268,6 +268,7 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 		user)	ZFS_AC_CONFIG_USER   ;;
 		all)    ZFS_AC_CONFIG_USER
 			ZFS_AC_CONFIG_KERNEL ;;
+		dist)                        ;;
 		srpm)                        ;;
 		*)
 		AC_MSG_RESULT([Error!])

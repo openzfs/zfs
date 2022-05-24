@@ -26,4 +26,4 @@ endif
 
 libuutil_la_LDFLAGS += -version-info 3:0:0
 
-EXTRA_DIST += $(addprefix %D%/,libuutil.abi libuutil.suppr)
+dist_noinst_DATA += %D%/libuutil.abi %D%/libuutil.suppr

@@ -24,4 +24,4 @@ SHELLCHECKSCRIPTS += $(pkgdracut_02_SCRIPTS) $(pkgdracut_90_SCRIPTS)
 # Provided by /bin/sleep, and, again, every implementation of that supports this
 $(call SHELLCHECK_OPTS,$(pkgdracut_90_SCRIPTS)): CHECKBASHISMS_IGNORE = -e 'sleep only takes one integer' -e 'sleep 0.'
 
-EXTRA_DIST += $(addprefix %D%/,README.md)
+dist_noinst_DATA += %D%/README.md

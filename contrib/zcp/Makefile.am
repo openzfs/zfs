@@ -1,1 +1,1 @@
-EXTRA_DIST += $(addprefix %D%/,autosnap.lua)
+dist_noinst_DATA += %D%/autosnap.lua
