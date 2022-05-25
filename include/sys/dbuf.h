@@ -329,7 +329,7 @@ typedef struct dbuf_hash_table {
 	krwlock_t hash_rwlocks[DBUF_RWLOCKS] ____cacheline_aligned;
 } dbuf_hash_table_t;
 
-typedef void (*dbuf_prefetch_fn)(void *, boolean_t);
+typedef void (*dbuf_prefetch_fn)(void *, uint64_t, uint64_t, boolean_t);
 
 uint64_t dbuf_whichblock(const struct dnode *di, const int64_t level,
     const uint64_t offset);
