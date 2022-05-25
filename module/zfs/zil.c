@@ -1261,7 +1261,7 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 
 	mutex_enter(&zilog->zl_lwb_io_lock);
 	txg = lwb->lwb_issued_txg;
-	ASSERT(zilog->zl_lwb_inflight[txg & TXG_MASK] > 0);
+	ASSERT3U(zilog->zl_lwb_inflight[txg & TXG_MASK], >, 0);
 	zilog->zl_lwb_inflight[txg & TXG_MASK]--;
 	if (zilog->zl_lwb_inflight[txg & TXG_MASK] == 0)
 		cv_broadcast(&zilog->zl_lwb_io_cv);
@@ -1275,7 +1275,7 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 static void
 zil_lwb_flush_wait_all(zilog_t *zilog, uint64_t txg)
 {
-	ASSERT(txg == spa_syncing_txg(zilog->zl_spa));
+	ASSERT3U(txg, ==, spa_syncing_txg(zilog->zl_spa));
 
 	mutex_enter(&zilog->zl_lwb_io_lock);
 	while (zilog->zl_lwb_inflight[txg & TXG_MASK] > 0)
