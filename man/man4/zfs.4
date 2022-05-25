@@ -487,7 +487,15 @@ However, this is limited by
 .It Sy zfetch_array_rd_sz Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq ulong
 If prefetching is enabled, disable prefetching for reads larger than this size.
 .
-.It Sy zfetch_max_distance Ns = Ns Sy 8388608 Ns B Po 8 MiB Pc Pq uint
+.It Sy zfetch_min_distance Ns = Ns Sy 4194304 Ns B Po 4 MiB Pc Pq uint
+Min bytes to prefetch per stream.
+Prefetch distance starts from the demand access size and quickly grows to
+this value, doubling on each hit.
+After that it may grow further by 1/8 per hit, but only if some prefetch
+since last time haven't completed in time to satisfy demand request, i.e.
+prefetch depth didn't cover the read latency or the pool got saturated.
+.
+.It Sy zfetch_max_distance Ns = Ns Sy 67108864 Ns B Po 64 MiB Pc Pq uint
 Max bytes to prefetch per stream.
 .
 .It Sy zfetch_max_idistance Ns = Ns Sy 67108864 Ns B Po 64 MiB Pc Pq uint
@@ -496,8 +504,11 @@ Max bytes to prefetch indirects for per stream.
 .It Sy zfetch_max_streams Ns = Ns Sy 8 Pq uint
 Max number of streams per zfetch (prefetch streams per file).
 .
-.It Sy zfetch_min_sec_reap Ns = Ns Sy 2 Pq uint
-Min time before an active prefetch stream can be reclaimed
+.It Sy zfetch_min_sec_reap Ns = Ns Sy 1 Pq uint
+Min time before inactive prefetch stream can be reclaimed
+.
+.It Sy zfetch_max_sec_reap Ns = Ns Sy 2 Pq uint
+Max time before inactive prefetch stream can be deleted
 .
 .It Sy zfs_abd_scatter_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Enables ARC from using scatter/gather lists and forces all allocations to be
