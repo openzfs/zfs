@@ -79,7 +79,7 @@ typedef struct zfs_zstd_meta {
  */
 #define	ZSTDSTAT(stat)		(zstd_stats.stat.value.ui64)
 #define	ZSTDSTAT_ZERO(stat)	\
-	(atomic_store_64(&zstd_stats.stat.value.ui64, 0))
+	atomic_store_64(&zstd_stats.stat.value.ui64, 0)
 #define	ZSTDSTAT_ADD(stat, val) \
 	atomic_add_64(&zstd_stats.stat.value.ui64, (val))
 #define	ZSTDSTAT_SUB(stat, val) \
