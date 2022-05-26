@@ -559,8 +559,8 @@ zil_alloc_lwb(zilog_t *zilog, blkptr_t *bp, boolean_t slog, uint64_t txg,
 	lwb->lwb_max_txg = txg;
 	lwb->lwb_write_zio = NULL;
 	lwb->lwb_root_zio = NULL;
-	lwb->lwb_tx = NULL;
 	lwb->lwb_issued_timestamp = 0;
+	lwb->lwb_issued_txg = 0;
 	if (BP_GET_CHECKSUM(bp) == ZIO_CHECKSUM_ZILOG2) {
 		lwb->lwb_nused = sizeof (zil_chain_t);
 		lwb->lwb_sz = BP_GET_LSIZE(bp);
@@ -1183,9 +1183,9 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 {
 	lwb_t *lwb = zio->io_private;
 	zilog_t *zilog = lwb->lwb_zilog;
-	dmu_tx_t *tx = lwb->lwb_tx;
 	zil_commit_waiter_t *zcw;
 	itx_t *itx;
+	uint64_t txg;
 
 	spa_config_exit(zilog->zl_spa, SCL_STATE, lwb);
 
@@ -1194,15 +1194,13 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 	mutex_enter(&zilog->zl_lock);
 
 	/*
-	 * Ensure the lwb buffer pointer is cleared before releasing the
-	 * txg. If we have had an allocation failure and the txg is
+	 * If we have had an allocation failure and the txg is
 	 * waiting to sync then we want zil_sync() to remove the lwb so
 	 * that it's not picked up as the next new one in
 	 * zil_process_commit_list(). zil_sync() will only remove the
 	 * lwb if lwb_buf is null.
 	 */
 	lwb->lwb_buf = NULL;
-	lwb->lwb_tx = NULL;
 
 	ASSERT3U(lwb->lwb_issued_timestamp, >, 0);
 	zilog->zl_last_lwb_latency = gethrtime() - lwb->lwb_issued_timestamp;
@@ -1261,12 +1259,47 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 
 	mutex_exit(&zilog->zl_lock);
 
-	/*
-	 * Now that we've written this log block, we have a stable pointer
-	 * to the next block in the chain, so it's OK to let the txg in
-	 * which we allocated the next block sync.
-	 */
-	dmu_tx_commit(tx);
+	mutex_enter(&zilog->zl_lwb_io_lock);
+	txg = lwb->lwb_issued_txg;
+	ASSERT3U(zilog->zl_lwb_inflight[txg & TXG_MASK], >, 0);
+	zilog->zl_lwb_inflight[txg & TXG_MASK]--;
+	if (zilog->zl_lwb_inflight[txg & TXG_MASK] == 0)
+		cv_broadcast(&zilog->zl_lwb_io_cv);
+	mutex_exit(&zilog->zl_lwb_io_lock);
+}
+
+/*
+ * Wait for the completion of all issued write/flush of that txg provided.
+ * It guarantees zil_lwb_flush_vdevs_done() is called and returned.
+ */
+static void
+zil_lwb_flush_wait_all(zilog_t *zilog, uint64_t txg)
+{
+	ASSERT3U(txg, ==, spa_syncing_txg(zilog->zl_spa));
+
+	mutex_enter(&zilog->zl_lwb_io_lock);
+	while (zilog->zl_lwb_inflight[txg & TXG_MASK] > 0)
+		cv_wait(&zilog->zl_lwb_io_cv, &zilog->zl_lwb_io_lock);
+	mutex_exit(&zilog->zl_lwb_io_lock);
+
+#ifdef ZFS_DEBUG
+	mutex_enter(&zilog->zl_lock);
+	mutex_enter(&zilog->zl_lwb_io_lock);
+	lwb_t *lwb = list_head(&zilog->zl_lwb_list);
+	while (lwb != NULL && lwb->lwb_max_txg <= txg) {
+		if (lwb->lwb_issued_txg <= txg) {
+			ASSERT(lwb->lwb_state != LWB_STATE_ISSUED);
+			ASSERT(lwb->lwb_state != LWB_STATE_WRITE_DONE);
+			IMPLY(lwb->lwb_issued_txg > 0,
+			    lwb->lwb_state == LWB_STATE_FLUSH_DONE);
+		}
+		IMPLY(lwb->lwb_state == LWB_STATE_FLUSH_DONE,
+		    lwb->lwb_buf == NULL);
+		lwb = list_next(&zilog->zl_lwb_list, lwb);
+	}
+	mutex_exit(&zilog->zl_lwb_io_lock);
+	mutex_exit(&zilog->zl_lock);
+#endif
 }
 
 /*
@@ -1562,11 +1595,6 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 	/*
 	 * Allocate the next block and save its address in this block
 	 * before writing it in order to establish the log chain.
-	 * Note that if the allocation of nlwb synced before we wrote
-	 * the block that points at it (lwb), we'd leak it if we crashed.
-	 * Therefore, we don't do dmu_tx_commit() until zil_lwb_write_done().
-	 * We dirty the dataset to ensure that zil_sync() will be called
-	 * to clean up in the event of allocation failure or I/O failure.
 	 */
 
 	tx = dmu_tx_create(zilog->zl_os);
@@ -1582,7 +1610,11 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 	dsl_dataset_dirty(dmu_objset_ds(zilog->zl_os), tx);
 	txg = dmu_tx_get_txg(tx);
 
-	lwb->lwb_tx = tx;
+	mutex_enter(&zilog->zl_lwb_io_lock);
+	lwb->lwb_issued_txg = txg;
+	zilog->zl_lwb_inflight[txg & TXG_MASK]++;
+	zilog->zl_lwb_max_issued_txg = MAX(txg, zilog->zl_lwb_max_issued_txg);
+	mutex_exit(&zilog->zl_lwb_io_lock);
 
 	/*
 	 * Log blocks are pre-allocated. Here we select the size of the next
@@ -1656,6 +1688,8 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 
 	zio_nowait(lwb->lwb_root_zio);
 	zio_nowait(lwb->lwb_write_zio);
+
+	dmu_tx_commit(tx);
 
 	/*
 	 * If there was an allocation failure then nlwb will be null which
@@ -3124,6 +3158,8 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 	if (spa_sync_pass(spa) != 1)
 		return;
 
+	zil_lwb_flush_wait_all(zilog, txg);
+
 	mutex_enter(&zilog->zl_lock);
 
 	ASSERT(zilog->zl_stop_sync == 0);
@@ -3290,6 +3326,7 @@ zil_alloc(objset_t *os, zil_header_t *zh_phys)
 
 	mutex_init(&zilog->zl_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&zilog->zl_issuer_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&zilog->zl_lwb_io_lock, NULL, MUTEX_DEFAULT, NULL);
 
 	for (int i = 0; i < TXG_SIZE; i++) {
 		mutex_init(&zilog->zl_itxg[i].itxg_lock, NULL,
@@ -3303,6 +3340,7 @@ zil_alloc(objset_t *os, zil_header_t *zh_phys)
 	    offsetof(itx_t, itx_node));
 
 	cv_init(&zilog->zl_cv_suspend, NULL, CV_DEFAULT, NULL);
+	cv_init(&zilog->zl_lwb_io_cv, NULL, CV_DEFAULT, NULL);
 
 	return (zilog);
 }
@@ -3338,8 +3376,10 @@ zil_free(zilog_t *zilog)
 
 	mutex_destroy(&zilog->zl_issuer_lock);
 	mutex_destroy(&zilog->zl_lock);
+	mutex_destroy(&zilog->zl_lwb_io_lock);
 
 	cv_destroy(&zilog->zl_cv_suspend);
+	cv_destroy(&zilog->zl_lwb_io_cv);
 
 	kmem_free(zilog, sizeof (zilog_t));
 }
@@ -3387,9 +3427,18 @@ zil_close(zilog_t *zilog)
 	mutex_exit(&zilog->zl_lock);
 
 	/*
-	 * We need to use txg_wait_synced() to wait long enough for the
-	 * ZIL to be clean, and to wait for all pending lwbs to be
-	 * written out.
+	 * zl_lwb_max_issued_txg may be larger than lwb_max_txg. It depends
+	 * on the time when the dmu_tx transaction is assigned in
+	 * zil_lwb_write_issue().
+	 */
+	mutex_enter(&zilog->zl_lwb_io_lock);
+	txg = MAX(zilog->zl_lwb_max_issued_txg, txg);
+	mutex_exit(&zilog->zl_lwb_io_lock);
+
+	/*
+	 * We need to use txg_wait_synced() to wait until that txg is synced.
+	 * zil_sync() will guarantee all lwbs up to that txg have been
+	 * written out, flushed, and cleaned.
 	 */
 	if (txg != 0)
 		txg_wait_synced(zilog->zl_dmu_pool, txg);
