@@ -616,7 +616,7 @@ extern dnode_stats_t dnode_stats;
 #else
 
 #define	dprintf_dnode(db, fmt, ...)
-#define	DNODE_VERIFY(dn)
+#define	DNODE_VERIFY(dn)		((void) sizeof ((uintptr_t)(dn)))
 #define	FREE_VERIFY(db, start, end, tx)
 
 #endif
