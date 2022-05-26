@@ -26,4 +26,4 @@ libzfsbootenv_la_LDFLAGS += -version-info 1:0:0
 
 pkgconfig_DATA += %D%/libzfsbootenv.pc
 
-EXTRA_DIST += $(addprefix %D%/,libzfsbootenv.abi libzfsbootenv.suppr)
+dist_noinst_DATA += %D%/libzfsbootenv.abi %D%/libzfsbootenv.suppr

@@ -38,7 +38,7 @@ zpool_LDADD += -lgeom
 endif
 zpool_LDADD += -lm $(LIBBLKID_LIBS) $(LIBUUID_LIBS)
 
-EXTRA_DIST += $(addprefix %D%/,zpool.d/README compatibility.d)
+dist_noinst_DATA += %D%/zpool.d/README
 
 SHELLCHECKSCRIPTS += $(dist_zpoolexec_SCRIPTS)
 zpoolexecdir = $(zfsexecdir)/zpool.d

@@ -1,5 +1,5 @@
 CLEANFILES =
-EXTRA_DIST =
+dist_noinst_DATA =
 INSTALL_DATA_HOOKS =
 ALL_LOCAL =
 CLEAN_LOCAL =
@@ -37,26 +37,26 @@ extradir = $(prefix)/src/zfs-$(VERSION)
 extra_HEADERS = zfs.release.in zfs_config.h.in
 endif
 
-EXTRA_DIST += autogen.sh copy-builtin
-EXTRA_DIST += AUTHORS CODE_OF_CONDUCT.md COPYRIGHT LICENSE META NEWS NOTICE
-EXTRA_DIST += README.md RELEASES.md
-EXTRA_DIST += module/lua/README.zfs module/os/linux/spl/README.md
+dist_noinst_DATA += autogen.sh copy-builtin
+dist_noinst_DATA += AUTHORS CODE_OF_CONDUCT.md COPYRIGHT LICENSE META NEWS NOTICE
+dist_noinst_DATA += README.md RELEASES.md
+dist_noinst_DATA += module/lua/README.zfs module/os/linux/spl/README.md
 
 # Include all the extra licensing information for modules
-EXTRA_DIST += module/icp/algs/skein/THIRDPARTYLICENSE
-EXTRA_DIST += module/icp/algs/skein/THIRDPARTYLICENSE.descrip
-EXTRA_DIST += module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.gladman
-EXTRA_DIST += module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.gladman.descrip
-EXTRA_DIST += module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.openssl
-EXTRA_DIST += module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.openssl.descrip
-EXTRA_DIST += module/icp/asm-x86_64/modes/THIRDPARTYLICENSE.cryptogams
-EXTRA_DIST += module/icp/asm-x86_64/modes/THIRDPARTYLICENSE.cryptogams.descrip
-EXTRA_DIST += module/icp/asm-x86_64/modes/THIRDPARTYLICENSE.openssl
-EXTRA_DIST += module/icp/asm-x86_64/modes/THIRDPARTYLICENSE.openssl.descrip
-EXTRA_DIST += module/os/linux/spl/THIRDPARTYLICENSE.gplv2
-EXTRA_DIST += module/os/linux/spl/THIRDPARTYLICENSE.gplv2.descrip
-EXTRA_DIST += module/zfs/THIRDPARTYLICENSE.cityhash
-EXTRA_DIST += module/zfs/THIRDPARTYLICENSE.cityhash.descrip
+dist_noinst_DATA += module/icp/algs/skein/THIRDPARTYLICENSE
+dist_noinst_DATA += module/icp/algs/skein/THIRDPARTYLICENSE.descrip
+dist_noinst_DATA += module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.gladman
+dist_noinst_DATA += module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.gladman.descrip
+dist_noinst_DATA += module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.openssl
+dist_noinst_DATA += module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.openssl.descrip
+dist_noinst_DATA += module/icp/asm-x86_64/modes/THIRDPARTYLICENSE.cryptogams
+dist_noinst_DATA += module/icp/asm-x86_64/modes/THIRDPARTYLICENSE.cryptogams.descrip
+dist_noinst_DATA += module/icp/asm-x86_64/modes/THIRDPARTYLICENSE.openssl
+dist_noinst_DATA += module/icp/asm-x86_64/modes/THIRDPARTYLICENSE.openssl.descrip
+dist_noinst_DATA += module/os/linux/spl/THIRDPARTYLICENSE.gplv2
+dist_noinst_DATA += module/os/linux/spl/THIRDPARTYLICENSE.gplv2.descrip
+dist_noinst_DATA += module/zfs/THIRDPARTYLICENSE.cityhash
+dist_noinst_DATA += module/zfs/THIRDPARTYLICENSE.cityhash.descrip
 
 @CODE_COVERAGE_RULES@
 

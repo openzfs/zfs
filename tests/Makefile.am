@@ -25,6 +25,6 @@ dist_scripts_runfiles_DATA = \
 	%D%/runfiles/sunos.run
 
 
-EXTRA_DIST += $(addprefix %D%/,README.md)
+dist_noinst_DATA += %D%/README.md
 
 SHELLCHECKSCRIPTS += $(shell find $(srcdir)/%D% -name '*.sh')

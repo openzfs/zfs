@@ -1,4 +1,4 @@
-EXTRA_DIST += \
+dist_noinst_DATA += \
 	%D%/generic/zfs-dkms.spec.in \
 	%D%/generic/zfs-kmod.spec.in \
 	%D%/generic/zfs.spec.in \

@@ -10,7 +10,7 @@ mounthelper_PROGRAMS =
 sbin_SCRIPTS      += fsck.zfs
 SHELLCHECKSCRIPTS += fsck.zfs
 CLEANFILES        += fsck.zfs
-EXTRA_DIST        += %D%/fsck.zfs.in
+dist_noinst_DATA  += %D%/fsck.zfs.in
 $(call SUBST,fsck.zfs,%D%/)
 
 
@@ -100,9 +100,9 @@ endif
 
 
 if USING_PYTHON
-bin_SCRIPTS += arc_summary     arcstat        dbufstat
-CLEANFILES  += arc_summary     arcstat        dbufstat
-EXTRA_DIST  += %D%/arc_summary %D%/arcstat.in %D%/dbufstat.in
+bin_SCRIPTS      += arc_summary     arcstat        dbufstat
+CLEANFILES       += arc_summary     arcstat        dbufstat
+dist_noinst_DATA += %D%/arc_summary %D%/arcstat.in %D%/dbufstat.in
 
 $(call SUBST,arcstat,%D%/)
 $(call SUBST,dbufstat,%D%/)
