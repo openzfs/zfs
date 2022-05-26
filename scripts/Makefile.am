@@ -6,7 +6,7 @@ dist_scripts_SCRIPTS = \
 	%D%/zimport.sh \
 	%D%/zloop.sh
 
-EXTRA_SCRIPTS = \
+dist_noinst_SCRIPTS = \
 	%D%/commitcheck.sh \
 	%D%/common.sh.in \
 	%D%/dkms.mkconf \
@@ -18,14 +18,13 @@ EXTRA_SCRIPTS = \
 	%D%/paxcheck.sh \
 	%D%/zfs-tests-color.sh
 
-EXTRA_DIST += \
+dist_noinst_DATA += \
 	%D%/cstyle.pl \
 	%D%/enum-extract.pl \
 	%D%/zfs2zol-patch.sed \
-	%D%/zol2zfs-patch.sed \
-	$(EXTRA_SCRIPTS)
+	%D%/zol2zfs-patch.sed
 
-SHELLCHECKSCRIPTS += $(dist_scripts_SCRIPTS) $(EXTRA_SCRIPTS)
+SHELLCHECKSCRIPTS += $(dist_scripts_SCRIPTS) $(dist_noinst_SCRIPTS)
 
 define SCRIPTS_EXTRA_ENVIRONMENT
 

@@ -36,4 +36,4 @@ SHELLCHECKSCRIPTS   += $(i_t_check_scripts)
 $(call SHELLCHECK_OPTS,$(i_t_check_scripts)): SHELLCHECK_SHELL = sh
 
 
-EXTRA_DIST += $(addprefix %D%/,README.md)
+dist_noinst_DATA += %D%/README.md

@@ -1,4 +1,4 @@
-EXTRA_DIST += \
+dist_noinst_man_MANS = \
 	%D%/man1/cstyle.1
 
 dist_man_MANS = \
@@ -105,8 +105,9 @@ nodist_man_MANS = \
 	%D%/man8/zed.8 \
 	%D%/man8/zfs-mount-generator.8
 
-SUBSTFILES += $(nodist_man_MANS)
+dist_noinst_DATA += $(dist_noinst_man_MANS) $(dist_man_MANS)
 
+SUBSTFILES += $(nodist_man_MANS)
 
 CHECKS += mancheck
 mancheck:

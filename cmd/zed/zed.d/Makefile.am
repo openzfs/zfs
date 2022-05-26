@@ -38,7 +38,7 @@ zedconfdefaults = \
 	vdev_attach-led.sh \
 	vdev_clear-led.sh
 
-EXTRA_DIST += $(addprefix %D%/,README)
+dist_noinst_DATA += %D%/README
 
 INSTALL_DATA_HOOKS += zed-install-data-hook
 zed-install-data-hook:

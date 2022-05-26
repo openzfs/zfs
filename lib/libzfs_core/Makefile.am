@@ -43,4 +43,4 @@ libzfs_core_la_LDFLAGS += -version-info 3:0:0
 
 pkgconfig_DATA += %D%/libzfs_core.pc
 
-EXTRA_DIST += $(addprefix %D%/,libzfs_core.abi libzfs_core.suppr)
+dist_noinst_DATA += %D%/libzfs_core.abi %D%/libzfs_core.suppr
