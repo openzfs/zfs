@@ -2,7 +2,7 @@ sudoersddir = $(sysconfdir)/sudoers.d
 sudoersd_DATA = \
 	%D%/sudoers.d/zfs
 
-EXTRA_DIST += $(sudoersd_DATA)
+dist_noinst_DATA += $(sudoersd_DATA)
 
 
 sysconf_zfsdir = $(sysconfdir)/zfs
@@ -32,7 +32,7 @@ $(call SHELLCHECK_OPTS,$(initconf_DATA)): SHELLCHECK_SHELL = sh
 
 
 if INIT_SYSV
-EXTRA_DIST += $(addprefix %D%/,init.d/README.md)
+dist_noinst_DATA += %D%/init.d/README.md
 
 init_SCRIPTS = \
 	%D%/init.d/zfs-import \

@@ -76,5 +76,5 @@ libzfs_la_LDFLAGS += -version-info 5:0:1
 
 pkgconfig_DATA += %D%/libzfs.pc
 
-EXTRA_DIST += $(addprefix %D%/,libzfs.abi libzfs.suppr)
-EXTRA_DIST += $(addprefix %D%/,THIRDPARTYLICENSE.openssl THIRDPARTYLICENSE.openssl.descrip)
+dist_noinst_DATA += %D%/libzfs.abi %D%/libzfs.suppr
+dist_noinst_DATA += %D%/THIRDPARTYLICENSE.openssl %D%/THIRDPARTYLICENSE.openssl.descrip

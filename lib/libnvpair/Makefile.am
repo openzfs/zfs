@@ -32,4 +32,4 @@ endif
 
 libnvpair_la_LDFLAGS += -version-info 3:0:0
 
-EXTRA_DIST += $(addprefix %D%/,libnvpair.abi libnvpair.suppr)
+dist_noinst_DATA += %D%/libnvpair.abi %D%/libnvpair.suppr

@@ -1,4 +1,4 @@
-EXTRA_DIST += $(addprefix %D%/,libzfs_core README LICENSE docs)
+dist_noinst_DATA += %D%/libzfs_core %D%/README %D%/LICENSE %D%/docs
 SUBSTFILES += %D%/setup.py
 
 if PYZFS_ENABLED

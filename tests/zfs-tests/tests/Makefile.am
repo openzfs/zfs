@@ -1,5 +1,5 @@
 CLEANFILES =
-EXTRA_DIST =
+dist_noinst_DATA =
 include $(top_srcdir)/config/Substfiles.am
 
 
