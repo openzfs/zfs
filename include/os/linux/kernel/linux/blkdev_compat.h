@@ -495,6 +495,25 @@ blk_queue_discard_granularity(struct request_queue *q, unsigned int dg)
 }
 
 /*
+ * 5.19 API,
+ *   bdev_max_discard_sectors()
+ *
+ * 2.6.32 API,
+ *   blk_queue_discard()
+ */
+static inline boolean_t
+bdev_discard_supported(struct block_device *bdev)
+{
+#if defined(HAVE_BDEV_MAX_DISCARD_SECTORS)
+	return (!!bdev_max_discard_sectors(bdev));
+#elif defined(HAVE_BLK_QUEUE_DISCARD)
+	return (!!blk_queue_discard(bdev_get_queue(bdev)));
+#else
+#error "Unsupported kernel"
+#endif
+}
+
+/*
  * 4.8 API,
  *   blk_queue_secure_erase()
  *
