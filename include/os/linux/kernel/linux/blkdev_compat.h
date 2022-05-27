@@ -551,7 +551,10 @@ blk_generic_start_io_acct(struct request_queue *q __attribute__((unused)),
     struct gendisk *disk __attribute__((unused)),
     int rw __attribute__((unused)), struct bio *bio)
 {
-#if defined(HAVE_DISK_IO_ACCT)
+#if defined(HAVE_BDEV_IO_ACCT)
+	return (bdev_start_io_acct(bio->bi_bdev, bio_sectors(bio),
+	    bio_op(bio), jiffies));
+#elif defined(HAVE_DISK_IO_ACCT)
 	return (disk_start_io_acct(disk, bio_sectors(bio), bio_op(bio)));
 #elif defined(HAVE_BIO_IO_ACCT)
 	return (bio_start_io_acct(bio));
@@ -574,7 +577,9 @@ blk_generic_end_io_acct(struct request_queue *q __attribute__((unused)),
     struct gendisk *disk __attribute__((unused)),
     int rw __attribute__((unused)), struct bio *bio, unsigned long start_time)
 {
-#if defined(HAVE_DISK_IO_ACCT)
+#if defined(HAVE_BDEV_IO_ACCT)
+	bdev_end_io_acct(bio->bi_bdev, bio_op(bio), start_time);
+#elif defined(HAVE_DISK_IO_ACCT)
 	disk_end_io_acct(disk, bio_op(bio), start_time);
 #elif defined(HAVE_BIO_IO_ACCT)
 	bio_end_io_acct(bio, start_time);
