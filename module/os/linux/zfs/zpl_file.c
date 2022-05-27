@@ -674,11 +674,19 @@ zpl_readpage_common(struct page *pp)
 	return (error);
 }
 
+#ifdef HAVE_VFS_READ_FOLIO
+static int
+zpl_read_folio(struct file *filp, struct folio *folio)
+{
+	return (zpl_readpage_common(&folio->page));
+}
+#else
 static int
 zpl_readpage(struct file *filp, struct page *pp)
 {
 	return (zpl_readpage_common(pp));
 }
+#endif
 
 static int
 zpl_readpage_filler(void *data, struct page *pp)
@@ -1208,7 +1216,11 @@ const struct address_space_operations zpl_address_space_operations = {
 #else
 	.readahead	= zpl_readahead,
 #endif
+#ifdef HAVE_VFS_READ_FOLIO
+	.read_folio	= zpl_read_folio,
+#else
 	.readpage	= zpl_readpage,
+#endif
 	.writepage	= zpl_writepage,
 	.writepages	= zpl_writepages,
 	.direct_IO	= zpl_direct_IO,
