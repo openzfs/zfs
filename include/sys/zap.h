@@ -110,7 +110,12 @@ typedef enum zap_flags {
 	 * already randomly distributed.
 	 */
 	ZAP_FLAG_PRE_HASHED_KEY = 1 << 2,
+#if defined(__linux__) && defined(_KERNEL)
+} zfs_zap_flags_t;
+#define	zap_flags_t	zfs_zap_flags_t
+#else
 } zap_flags_t;
+#endif
 
 /*
  * Create a new zapobj with no attributes and return its object number.
