@@ -749,12 +749,38 @@ vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 	return (0);
 }
 
+static int
+vdev_disk_io_trim(zio_t *zio)
+{
+	vdev_t *v = zio->io_vd;
+	vdev_disk_t *vd = v->vdev_tsd;
+
+#if defined(HAVE_BLKDEV_ISSUE_SECURE_ERASE)
+	if (zio->io_trim_flags & ZIO_TRIM_SECURE) {
+		return (-blkdev_issue_secure_erase(vd->vd_bdev,
+		    zio->io_offset >> 9, zio->io_size >> 9, GFP_NOFS));
+	} else {
+		return (-blkdev_issue_discard(vd->vd_bdev,
+		    zio->io_offset >> 9, zio->io_size >> 9, GFP_NOFS));
+	}
+#elif defined(HAVE_BLKDEV_ISSUE_DISCARD)
+	unsigned long trim_flags = 0;
+#if defined(BLKDEV_DISCARD_SECURE)
+	if (zio->io_trim_flags & ZIO_TRIM_SECURE)
+		trim_flags |= BLKDEV_DISCARD_SECURE;
+#endif
+	return (-blkdev_issue_discard(vd->vd_bdev,
+	    zio->io_offset >> 9, zio->io_size >> 9, GFP_NOFS, trim_flags));
+#else
+#error "Unsupported kernel"
+#endif
+}
+
 static void
 vdev_disk_io_start(zio_t *zio)
 {
 	vdev_t *v = zio->io_vd;
 	vdev_disk_t *vd = v->vdev_tsd;
-	unsigned long trim_flags = 0;
 	int rw, error;
 
 	/*
@@ -827,14 +853,7 @@ vdev_disk_io_start(zio_t *zio)
 		break;
 
 	case ZIO_TYPE_TRIM:
-#if defined(BLKDEV_DISCARD_SECURE)
-		if (zio->io_trim_flags & ZIO_TRIM_SECURE)
-			trim_flags |= BLKDEV_DISCARD_SECURE;
-#endif
-		zio->io_error = -blkdev_issue_discard(vd->vd_bdev,
-		    zio->io_offset >> 9, zio->io_size >> 9, GFP_NOFS,
-		    trim_flags);
-
+		zio->io_error = vdev_disk_io_trim(zio);
 		rw_exit(&vd->vd_lock);
 		zio_interrupt(zio);
 		return;
