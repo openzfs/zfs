@@ -514,21 +514,26 @@ bdev_discard_supported(struct block_device *bdev)
 }
 
 /*
+ * 5.19 API,
+ *   bdev_max_secure_erase_sectors()
+ *
  * 4.8 API,
  *   blk_queue_secure_erase()
  *
  * 2.6.36 - 4.7 API,
  *   blk_queue_secdiscard()
  */
-static inline int
-blk_queue_discard_secure(struct request_queue *q)
+static inline boolean_t
+bdev_secure_discard_supported(struct block_device *bdev)
 {
-#if defined(HAVE_BLK_QUEUE_SECURE_ERASE)
-	return (blk_queue_secure_erase(q));
+#if defined(HAVE_BDEV_MAX_SECURE_ERASE_SECTORS)
+	return (!!bdev_max_secure_erase_sectors(bdev));
+#elif defined(HAVE_BLK_QUEUE_SECURE_ERASE)
+	return (!!blk_queue_secure_erase(bdev_get_queue(bdev)));
 #elif defined(HAVE_BLK_QUEUE_SECDISCARD)
-	return (blk_queue_secdiscard(q));
+	return (!!blk_queue_secdiscard(bdev_get_queue(bdev)));
 #else
-	return (0);
+#error "Unsupported kernel"
 #endif
 }
 
