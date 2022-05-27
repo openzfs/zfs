@@ -1053,7 +1053,9 @@ zvol_os_create_minor(const char *name)
 	    (zvol_max_discard_blocks * zv->zv_volblocksize) >> 9);
 	blk_queue_discard_granularity(zv->zv_zso->zvo_queue,
 	    zv->zv_volblocksize);
+#ifdef QUEUE_FLAG_DISCARD
 	blk_queue_flag_set(QUEUE_FLAG_DISCARD, zv->zv_zso->zvo_queue);
+#endif
 #ifdef QUEUE_FLAG_NONROT
 	blk_queue_flag_set(QUEUE_FLAG_NONROT, zv->zv_zso->zvo_queue);
 #endif
