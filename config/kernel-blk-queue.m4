@@ -86,8 +86,17 @@ AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE_UPDATE_READAHEAD], [
 ])
 
 dnl #
-dnl # 2.6.32 API,
+dnl # 2.6.32 - 5.18 API,
 dnl #   blk_queue_discard()
+dnl #
+dnl # 5.19 API,
+dnl #   bdev_max_discard_sectors()
+dnl #
+dnl #   70200574cc22 block: remove QUEUE_FLAG_DISCARD
+dnl #   cf0fbf894bb5 block: add a bdev_max_discard_sectors helper
+dnl #
+dnl # The latter can be used as a boolean for the same purpose as the former
+dnl # — to check of the vdev supports discards.
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE_DISCARD], [
 	ZFS_LINUX_TEST_SRC([blk_queue_discard], [
@@ -99,14 +108,29 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE_DISCARD], [
 		memset(q, 0, sizeof(r));
 		value = blk_queue_discard(q);
 	])
+
+	ZFS_LINUX_TEST_SRC([bdev_max_discard_sectors], [
+		#include <linux/blkdev.h>
+	],[
+		struct block_device *bdev = bdev_alloc(NULL, 0);
+		unsigned int result __attribute__ ((unused)) =
+		    bdev_max_discard_sectors(bdev);
+	])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE_DISCARD], [
-	AC_MSG_CHECKING([whether blk_queue_discard() is available])
-	ZFS_LINUX_TEST_RESULT([blk_queue_discard], [
+	AC_MSG_CHECKING([whether bdev_max_discard_sectors() is available])
+	ZFS_LINUX_TEST_RESULT([bdev_max_discard_sectors], [
 		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_BDEV_MAX_DISCARD_SECTORS, 1,
+		    [bdev_max_discard_sectors() exists])
 	],[
-		ZFS_LINUX_TEST_ERROR([blk_queue_discard])
+		AC_MSG_CHECKING([whether blk_queue_discard() is available])
+		ZFS_LINUX_TEST_RESULT([blk_queue_discard], [
+			AC_MSG_RESULT(yes)
+		],[
+			ZFS_LINUX_TEST_ERROR([blk_queue_discard/bdev_max_discard_sectors])
+		])
 	])
 ])
 
