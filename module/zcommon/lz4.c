@@ -1027,3 +1027,8 @@ lz4_fini(void)
 		lz4_cache = NULL;
 	}
 }
+
+EXPORT_SYMBOL(lz4_compress_zfs);
+EXPORT_SYMBOL(lz4_init);
+EXPORT_SYMBOL(lz4_fini);
+EXPORT_SYMBOL(lz4_decompress_zfs);

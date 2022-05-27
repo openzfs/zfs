@@ -11,6 +11,7 @@ obj-$(CONFIG_ZFS) := $(MODULE).o
 ccflags-$(CONFIG_SPARC64) += -Wno-unused-value
 
 $(MODULE)-objs += cityhash.o
+$(MODULE)-objs += lz4.o
 $(MODULE)-objs += zfeature_common.o
 $(MODULE)-objs += zfs_comutil.o
 $(MODULE)-objs += zfs_deleg.o
