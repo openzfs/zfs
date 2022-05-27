@@ -134,6 +134,8 @@ AC_DEFUN([ZFS_AC_KERNEL_VFS_IOV_ITER], [
 		AC_DEFINE(HAVE_IOV_ITER_FAULT_IN_READABLE, 1,
 		    [iov_iter_fault_in_readable() is available])
 	],[
+		AC_MSG_RESULT(no)
+
 		AC_MSG_CHECKING([whether fault_in_iov_iter_readable() is available])
 		ZFS_LINUX_TEST_RESULT([fault_in_iov_iter_readable], [
 			AC_MSG_RESULT(yes)
