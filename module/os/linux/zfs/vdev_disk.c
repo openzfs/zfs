@@ -316,7 +316,7 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	v->vdev_nowritecache = B_FALSE;
 
 	/* Set when device reports it supports TRIM. */
-	v->vdev_has_trim = !!blk_queue_discard(q);
+	v->vdev_has_trim = bdev_discard_supported(vd->vd_bdev);
 
 	/* Set when device reports it supports secure TRIM. */
 	v->vdev_has_securetrim = !!blk_queue_discard_secure(q);
