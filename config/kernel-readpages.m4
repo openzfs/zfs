@@ -14,7 +14,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_READPAGES], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_VFS_READPAGES], [
-	AC_MSG_CHECKING([address_space_operations->readpages exists])
+	AC_MSG_CHECKING([whether aops->readpages exists])
 	ZFS_LINUX_TEST_RESULT([vfs_has_readpages], [
 		AC_MSG_RESULT([yes])
 		AC_DEFINE(HAVE_VFS_READPAGES, 1,

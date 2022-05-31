@@ -464,7 +464,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_CGROUP_HEADER], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BLK_CGROUP_HEADER], [
-	AC_MSG_CHECKING([for existence of linux/blk-cgroup.h])
+	AC_MSG_CHECKING([whether linux/blk-cgroup.h exists])
 	ZFS_LINUX_TEST_RESULT([blk_cgroup_header],[
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_LINUX_BLK_CGROUP_HEADER, 1,
@@ -500,7 +500,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO_ALLOC_4ARG], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BIO_ALLOC_4ARG], [
-	AC_MSG_CHECKING([for 4-argument bio_alloc()])
+	AC_MSG_CHECKING([whether bio_alloc() wants 4 args])
 	ZFS_LINUX_TEST_RESULT([bio_alloc_4arg],[
 		AC_MSG_RESULT(yes)
 		AC_DEFINE([HAVE_BIO_ALLOC_4ARG], 1, [bio_alloc() takes 4 arguments])

@@ -84,7 +84,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_SHRINKER_CALLBACK], [
 AC_DEFUN([ZFS_AC_KERNEL_SHRINKER_CALLBACK],[
 	dnl #
 	dnl # 3.0 - 3.11 API change
-	dnl # ->shrink(struct shrinker *, struct shrink_control *sc)
+	dnl # cs->shrink(struct shrinker *, struct shrink_control *sc)
 	dnl #
 	AC_MSG_CHECKING([whether new 2-argument shrinker exists])
 	ZFS_LINUX_TEST_RESULT([shrinker_cb_shrink_control], [
@@ -96,14 +96,14 @@ AC_DEFUN([ZFS_AC_KERNEL_SHRINKER_CALLBACK],[
 
 		dnl #
 		dnl # 3.12 API change,
-		dnl # ->shrink() is logically split in to
-		dnl # ->count_objects() and ->scan_objects()
+		dnl # cs->shrink() is logically split in to
+		dnl # cs->count_objects() and cs->scan_objects()
 		dnl #
-		AC_MSG_CHECKING([whether ->count_objects callback exists])
+		AC_MSG_CHECKING([whether cs->count_objects callback exists])
 		ZFS_LINUX_TEST_RESULT([shrinker_cb_shrink_control_split], [
 			AC_MSG_RESULT(yes)
 			AC_DEFINE(HAVE_SPLIT_SHRINKER_CALLBACK, 1,
-			    [->count_objects exists])
+			    [cs->count_objects exists])
 		],[
 			ZFS_LINUX_TEST_ERROR([shrinker])
 		])
