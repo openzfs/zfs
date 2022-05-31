@@ -19,7 +19,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_SYSFS_DEFAULT_GROUPS], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_SYSFS_DEFAULT_GROUPS], [
-	AC_MSG_CHECKING([for struct kobj_type.default_groups])
+	AC_MSG_CHECKING([whether struct kobj_type.default_groups exists])
 	ZFS_LINUX_TEST_RESULT([sysfs_default_groups],[
 		AC_MSG_RESULT(yes)
 		AC_DEFINE([HAVE_SYSFS_DEFAULT_GROUPS], 1, [struct kobj_type has default_groups])

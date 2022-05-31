@@ -22,7 +22,7 @@ AC_DEFUN([ZFS_AC_KERNEL_VFS_READ_FOLIO], [
 	dnl #
 	dnl # Linux 5.19 uses read_folio in lieu of readpage
 	dnl #
-	AC_MSG_CHECKING([read_folio exists])
+	AC_MSG_CHECKING([whether read_folio exists])
 	ZFS_LINUX_TEST_RESULT([vfs_has_read_folio], [
 		AC_MSG_RESULT([yes])
 		AC_DEFINE(HAVE_VFS_READ_FOLIO, 1, [read_folio exists])
