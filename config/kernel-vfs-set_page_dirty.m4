@@ -23,7 +23,7 @@ AC_DEFUN([ZFS_AC_KERNEL_VFS_SET_PAGE_DIRTY_NOBUFFERS], [
 	dnl # Linux 5.14 change requires set_page_dirty() to be assigned
 	dnl # in address_space_operations()
 	dnl #
-	AC_MSG_CHECKING([__set_page_dirty_nobuffers exists])
+	AC_MSG_CHECKING([whether __set_page_dirty_nobuffers exists])
 	ZFS_LINUX_TEST_RESULT([vfs_has_set_page_dirty_nobuffers], [
 		AC_MSG_RESULT([yes])
 		AC_DEFINE(HAVE_VFS_SET_PAGE_DIRTY_NOBUFFERS, 1,
