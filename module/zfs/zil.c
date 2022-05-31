@@ -2965,7 +2965,7 @@ zil_commit_itx_assign(zilog_t *zilog, zil_commit_waiter_t *zcw)
  * queue prior to zil_commit() having been called, and which itxs were
  * added after zil_commit() was called.
  *
- * The commit it is special; it doesn't have any on-disk representation.
+ * The commit itx is special; it doesn't have any on-disk representation.
  * When a commit itx is "committed" to an lwb, the waiter associated
  * with it is linked onto the lwb's list of waiters. Then, when that lwb
  * completes, each waiter on the lwb's list is marked done and signaled
