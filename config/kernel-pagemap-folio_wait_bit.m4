@@ -15,7 +15,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_PAGEMAP_FOLIO_WAIT_BIT], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_PAGEMAP_FOLIO_WAIT_BIT], [
-	AC_MSG_CHECKING([folio_wait_bit() exists])
+	AC_MSG_CHECKING([whether folio_wait_bit() exists])
 	ZFS_LINUX_TEST_RESULT([pagemap_has_folio_wait_bit], [
 		AC_MSG_RESULT([yes])
 		AC_DEFINE(HAVE_PAGEMAP_FOLIO_WAIT_BIT, 1,
