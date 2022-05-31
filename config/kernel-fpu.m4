@@ -2,6 +2,9 @@ dnl #
 dnl # Handle differences in kernel FPU code.
 dnl #
 dnl # Kernel
+dnl # 5.19:	The asm/fpu/internal.h header was removed, it has been
+dnl #		effectively empty since the 5.16 kernel.
+dnl #
 dnl # 5.11:	kernel_fpu_begin() is an inlined function now, so don't check
 dnl #		for it inside the kernel symbols.
 dnl #
@@ -27,10 +30,22 @@ AC_DEFUN([ZFS_AC_KERNEL_FPU_HEADER], [
 	],[
 		AC_DEFINE(HAVE_KERNEL_FPU_API_HEADER, 1,
 		    [kernel has asm/fpu/api.h])
-		AC_MSG_RESULT(asm/fpu/api.h)
+
+		ZFS_LINUX_TRY_COMPILE([
+			#include <linux/module.h>
+			#include <asm/fpu/internal.h>
+		],[
+		],[
+			AC_DEFINE(HAVE_KERNEL_FPU_INTERNAL_HEADER, 1,
+			    [kernel has asm/fpu/internal.h])
+			AC_MSG_RESULT([asm/fpu/api.h asm/fpu/internal.h])
+		],[
+			AC_MSG_RESULT([asm/fpu/api.h])
+		])
 	],[
-		AC_MSG_RESULT(i387.h)
+		AC_MSG_RESULT([i387.h])
 	])
+
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_SRC_FPU], [
@@ -38,7 +53,9 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_FPU], [
 		#include <linux/types.h>
 		#ifdef HAVE_KERNEL_FPU_API_HEADER
 		#include <asm/fpu/api.h>
+		#ifdef HAVE_KERNEL_FPU_INTERNAL_HEADER
 		#include <asm/fpu/internal.h>
+		#endif
 		#else
 		#include <asm/i387.h>
 		#endif
@@ -51,7 +68,9 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_FPU], [
 		#include <linux/types.h>
 		#ifdef HAVE_KERNEL_FPU_API_HEADER
 		#include <asm/fpu/api.h>
+		#ifdef HAVE_KERNEL_FPU_INTERNAL_HEADER
 		#include <asm/fpu/internal.h>
+		#endif
 		#else
 		#include <asm/i387.h>
 		#endif
