@@ -2139,11 +2139,11 @@ However, if there are fewer than
 metaslabs in the vdev, this functionality is disabled.
 This ensures that we don't set aside an unreasonable amount of space for the ZIL.
 .
-.It Sy zfs_zstd_earlyabort_pass Ns = Ns Sy 1 Pq int
+.It Sy zstd_earlyabort_pass Ns = Ns Sy 1 Pq int
 Whether heuristic for detection of incompressible data with zstd levels >= 3
 using LZ4 and zstd-1 passes is enabled.
 .
-.It Sy zfs_zstd_abort_size Ns = Ns Sy 131072 Pq int
+.It Sy zstd_abort_size Ns = Ns Sy 131072 Pq int
 Minimal uncompressed size (inclusive) of a record before the early abort
 heuristic will be attempted.
 .
