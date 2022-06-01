@@ -2,6 +2,9 @@ dnl #
 dnl # Handle differences in kernel FPU code.
 dnl #
 dnl # Kernel
+dnl # 5.19:	The asm/fpu/internal.h header was removed, it has been
+dnl #		effectively empty since the 5.16 kernel.
+dnl #
 dnl # 5.16:	XCR code put into asm/fpu/xcr.h
 dnl #		HAVE_KERNEL_FPU_XCR_HEADER
 dnl #
@@ -33,21 +36,31 @@ AC_DEFUN([ZFS_AC_KERNEL_FPU_HEADER], [
 	],[
 		AC_DEFINE(HAVE_KERNEL_FPU_API_HEADER, 1,
 		    [kernel has asm/fpu/api.h])
-		AC_MSG_RESULT(asm/fpu/api.h)
-		AC_MSG_CHECKING([whether fpu/xcr header is available])
+		fpu_headers="asm/fpu/api.h"
+
 		ZFS_LINUX_TRY_COMPILE([
 			#include <linux/module.h>
 			#include <asm/fpu/xcr.h>
 		],[
 		],[
 			AC_DEFINE(HAVE_KERNEL_FPU_XCR_HEADER, 1,
-				[kernel has asm/fpu/xcr.h])
-			AC_MSG_RESULT(asm/fpu/xcr.h)
-		],[
-			AC_MSG_RESULT(no asm/fpu/xcr.h)
+			    [kernel has asm/fpu/xcr.h])
+			fpu_headers="$fpu_headers asm/fpu/xcr.h"
 		])
+
+		ZFS_LINUX_TRY_COMPILE([
+			#include <linux/module.h>
+			#include <asm/fpu/internal.h>
+		],[
+		],[
+			AC_DEFINE(HAVE_KERNEL_FPU_INTERNAL_HEADER, 1,
+			    [kernel has asm/fpu/internal.h])
+			fpu_headers="$fpu_headers asm/fpu/internal.h"
+		])
+
+		AC_MSG_RESULT([$fpu_headers])
 	],[
-		AC_MSG_RESULT(i387.h & xcr.h)
+		AC_MSG_RESULT([i387.h & xcr.h])
 	])
 ])
 
@@ -93,7 +106,9 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_FPU], [
 		#include <linux/types.h>
 		#ifdef HAVE_KERNEL_FPU_API_HEADER
 		#include <asm/fpu/api.h>
+		#ifdef HAVE_KERNEL_FPU_INTERNAL_HEADER
 		#include <asm/fpu/internal.h>
+		#endif
 		#else
 		#include <asm/i387.h>
 		#include <asm/xcr.h>
@@ -130,7 +145,9 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_FPU], [
 		#include <linux/types.h>
 		#ifdef HAVE_KERNEL_FPU_API_HEADER
 		#include <asm/fpu/api.h>
+		#ifdef HAVE_KERNEL_FPU_INTERNAL_HEADER
 		#include <asm/fpu/internal.h>
+		#endif
 		#else
 		#include <asm/i387.h>
 		#include <asm/xcr.h>
