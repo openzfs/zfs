@@ -493,12 +493,6 @@ spa_log_summary_decrement_blkcount(spa_t *spa, uint64_t blocks_gone)
 	for (log_summary_entry_t *e = list_head(&spa->spa_log_summary);
 	    e != NULL; e = list_head(&spa->spa_log_summary)) {
 		if (e->lse_blkcount > blocks_gone) {
-			/*
-			 * Assert that we stopped at an entry that is not
-			 * obsolete.
-			 */
-			ASSERT(e->lse_mscount != 0);
-
 			e->lse_blkcount -= blocks_gone;
 			blocks_gone = 0;
 			break;
