@@ -1003,7 +1003,7 @@ zfs_crypto_create(libzfs_handle_t *hdl, char *parent_name, nvlist_t *props,
     uint_t *wkeylen_out)
 {
 	int ret;
-	char errbuf[1024];
+	char errbuf[ERRBUFLEN];
 	uint64_t crypt = ZIO_CRYPT_INHERIT, pcrypt = ZIO_CRYPT_INHERIT;
 	uint64_t keyformat = ZFS_KEYFORMAT_NONE;
 	char *keylocation = NULL;
@@ -1174,7 +1174,7 @@ zfs_crypto_clone_check(libzfs_handle_t *hdl, zfs_handle_t *origin_zhp,
     char *parent_name, nvlist_t *props)
 {
 	(void) origin_zhp, (void) parent_name;
-	char errbuf[1024];
+	char errbuf[ERRBUFLEN];
 
 	(void) snprintf(errbuf, sizeof (errbuf),
 	    dgettext(TEXT_DOMAIN, "Encryption clone error"));
@@ -1276,7 +1276,7 @@ zfs_crypto_load_key(zfs_handle_t *zhp, boolean_t noop,
     const char *alt_keylocation)
 {
 	int ret, attempts = 0;
-	char errbuf[1024];
+	char errbuf[ERRBUFLEN];
 	uint64_t keystatus, iters = 0, salt = 0;
 	uint64_t keyformat = ZFS_KEYFORMAT_NONE;
 	char prop_keylocation[MAXNAMELEN];
@@ -1444,7 +1444,7 @@ int
 zfs_crypto_unload_key(zfs_handle_t *zhp)
 {
 	int ret;
-	char errbuf[1024];
+	char errbuf[ERRBUFLEN];
 	char prop_encroot[MAXNAMELEN];
 	uint64_t keystatus, keyformat;
 	boolean_t is_encroot;
@@ -1580,7 +1580,7 @@ int
 zfs_crypto_rewrap(zfs_handle_t *zhp, nvlist_t *raw_props, boolean_t inheritkey)
 {
 	int ret;
-	char errbuf[1024];
+	char errbuf[ERRBUFLEN];
 	boolean_t is_encroot;
 	nvlist_t *props = NULL;
 	uint8_t *wkeydata = NULL;

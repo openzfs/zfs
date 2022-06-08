@@ -734,7 +734,7 @@ zfs_send_space(zfs_handle_t *zhp, const char *snapname, const char *from,
 	if (error == 0)
 		return (0);
 
-	char errbuf[1024];
+	char errbuf[ERRBUFLEN];
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 	    "warning: cannot estimate space for '%s'"), snapname);
 
@@ -804,7 +804,7 @@ dump_ioctl(zfs_handle_t *zhp, const char *fromsnap, uint64_t fromsnap_obj,
 	}
 
 	if (zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_SEND, &zc) != 0) {
-		char errbuf[1024];
+		char errbuf[ERRBUFLEN];
 		int error = errno;
 
 		(void) snprintf(errbuf, sizeof (errbuf), "%s '%s'",
@@ -1615,7 +1615,7 @@ find_redact_book(libzfs_handle_t *hdl, const char *path,
     const uint64_t *redact_snap_guids, int num_redact_snaps,
     char **bookname)
 {
-	char errbuf[1024];
+	char errbuf[ERRBUFLEN];
 	nvlist_t *bmarks;
 
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
@@ -1679,7 +1679,7 @@ static int
 zfs_send_resume_impl_cb_impl(libzfs_handle_t *hdl, sendflags_t *flags,
     int outfd, nvlist_t *resume_nvl)
 {
-	char errbuf[1024];
+	char errbuf[ERRBUFLEN];
 	char *toname;
 	char *fromname = NULL;
 	uint64_t resumeobj, resumeoff, toguid, fromguid, bytes;
@@ -1827,7 +1827,7 @@ zfs_send_resume_impl_cb_impl(libzfs_handle_t *hdl, sendflags_t *flags,
 		if (flags->progress && send_progress_thread_exit(hdl, tid))
 			return (-1);
 
-		char errbuf[1024];
+		char errbuf[ERRBUFLEN];
 		(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 		    "warning: cannot send '%s'"), zhp->zfs_name);
 
@@ -1907,7 +1907,7 @@ zfs_send_resume(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
     const char *resume_token)
 {
 	int ret;
-	char errbuf[1024];
+	char errbuf[ERRBUFLEN];
 	nvlist_t *resume_nvl;
 
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
@@ -1938,7 +1938,7 @@ zfs_send_saved(zfs_handle_t *zhp, sendflags_t *flags, int outfd,
 	uint64_t saved_guid = 0, resume_guid = 0;
 	uint64_t obj = 0, off = 0, bytes = 0;
 	char token_buf[ZFS_MAXPROPLEN];
-	char errbuf[1024];
+	char errbuf[ERRBUFLEN];
 
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 	    "saved send failed"));
@@ -2062,7 +2062,7 @@ send_prelim_records(zfs_handle_t *zhp, const char *from, int fd,
 	/* short name of snap we are sending */
 	char *tosnap = "";
 
-	char errbuf[1024];
+	char errbuf[ERRBUFLEN];
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 	    "warning: cannot send '%s'"), zhp->zfs_name);
 	if (zhp->zfs_type == ZFS_TYPE_FILESYSTEM && zfs_prop_get_int(zhp,
@@ -2187,7 +2187,7 @@ zfs_send_cb_impl(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
     sendflags_t *flags, int outfd, snapfilter_cb_t filter_func,
     void *cb_arg, nvlist_t **debugnvp)
 {
-	char errbuf[1024];
+	char errbuf[ERRBUFLEN];
 	send_dump_data_t sdd = { 0 };
 	int err = 0;
 	nvlist_t *fss = NULL;
@@ -2510,7 +2510,7 @@ zfs_send_one_cb_impl(zfs_handle_t *zhp, const char *from, int fd,
 	pthread_t ptid;
 	progress_arg_t pa = { 0 };
 
-	char errbuf[1024];
+	char errbuf[ERRBUFLEN];
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 	    "warning: cannot send '%s'"), name);
 
@@ -3654,7 +3654,7 @@ zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
 	char *cp;
 	char tofs[ZFS_MAX_DATASET_NAME_LEN];
 	char sendfs[ZFS_MAX_DATASET_NAME_LEN];
-	char errbuf[1024];
+	char errbuf[ERRBUFLEN];
 	dmu_replay_record_t drre;
 	int error;
 	boolean_t anyerr = B_FALSE;
@@ -3871,7 +3871,7 @@ recv_skip(libzfs_handle_t *hdl, int fd, boolean_t byteswap)
 	dmu_replay_record_t *drr;
 	void *buf = zfs_alloc(hdl, SPA_MAXBLOCKSIZE);
 	uint64_t payload_size;
-	char errbuf[1024];
+	char errbuf[ERRBUFLEN];
 
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 	    "cannot receive"));
@@ -4239,7 +4239,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	int ioctl_err, ioctl_errno, err;
 	char *cp;
 	struct drr_begin *drrb = &drr->drr_u.drr_begin;
-	char errbuf[1024];
+	char errbuf[ERRBUFLEN];
 	const char *chopprefix;
 	boolean_t newfs = B_FALSE;
 	boolean_t stream_wantsnewfs, stream_resumingnewfs;
@@ -5151,7 +5151,7 @@ zfs_receive_impl(libzfs_handle_t *hdl, const char *tosnap,
 	int err;
 	dmu_replay_record_t drr, drr_noswap;
 	struct drr_begin *drrb = &drr.drr_u.drr_begin;
-	char errbuf[1024];
+	char errbuf[ERRBUFLEN];
 	zio_cksum_t zcksum = { { 0 } };
 	uint64_t featureflags;
 	int hdrtype;

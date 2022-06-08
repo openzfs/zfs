@@ -216,7 +216,7 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, const char *name)
 	size_t resv = EFI_MIN_RESV_SIZE;
 	uint64_t slice_size;
 	diskaddr_t start_block;
-	char errbuf[1024];
+	char errbuf[ERRBUFLEN];
 
 	/* prepare an error message just in case */
 	(void) snprintf(errbuf, sizeof (errbuf),
