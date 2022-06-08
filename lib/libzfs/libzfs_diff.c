@@ -709,7 +709,7 @@ zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
     const char *tosnap, int flags)
 {
 	zfs_cmd_t zc = {"\0"};
-	char errbuf[1024];
+	char errbuf[ERRBUFLEN];
 	differ_info_t di = { 0 };
 	pthread_t tid;
 	int pipefd[2];

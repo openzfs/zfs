@@ -44,6 +44,8 @@
 extern "C" {
 #endif
 
+#define	ERRBUFLEN 1024
+
 struct libzfs_handle {
 	int libzfs_error;
 	int libzfs_fd;
@@ -208,7 +210,7 @@ typedef struct differ_info {
 	char *ds;
 	char *dsmnt;
 	char *tmpsnap;
-	char errbuf[1024];
+	char errbuf[ERRBUFLEN];
 	boolean_t isclone;
 	boolean_t scripted;
 	boolean_t classify;
