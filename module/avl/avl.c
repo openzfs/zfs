@@ -109,21 +109,6 @@
 #include <sys/mod.h>
 
 /*
- * Small arrays to translate between balance (or diff) values and child indices.
- *
- * Code that deals with binary tree data structures will randomly use
- * left and right children when examining a tree.  C "if()" statements
- * which evaluate randomly suffer from very poor hardware branch prediction.
- * In this code we avoid some of the branch mispredictions by using the
- * following translation arrays. They replace random branches with an
- * additional memory reference. Since the translation arrays are both very
- * small the data should remain efficiently in cache.
- */
-static const int  avl_child2balance[]	= {-1, 1};
-static const int  avl_balance2child[]	= {0, 0, 1};
-
-
-/*
  * Walk from one node to the previous valued node (ie. an infix walk
  * towards the left). At any given node we do one of 2 things:
  *
@@ -278,8 +263,7 @@ avl_find(avl_tree_t *tree, const void *value, avl_index_t *where)
 #endif
 			return (AVL_NODE2DATA(node, off));
 		}
-		child = avl_balance2child[1 + diff];
-
+		child = (diff > 0);
 	}
 
 	if (where != NULL)
@@ -527,7 +511,7 @@ avl_insert(avl_tree_t *tree, void *new_data, avl_index_t where)
 		 * Compute the new balance
 		 */
 		old_balance = AVL_XBALANCE(node);
-		new_balance = old_balance + avl_child2balance[which_child];
+		new_balance = old_balance + (which_child ? 1 : -1);
 
 		/*
 		 * If we introduced equal balance, then we are done immediately
@@ -693,7 +677,7 @@ avl_remove(avl_tree_t *tree, void *data)
 		 * choose node to swap from whichever side is taller
 		 */
 		old_balance = AVL_XBALANCE(delete);
-		left = avl_balance2child[old_balance + 1];
+		left = (old_balance > 0);
 		right = 1 - left;
 
 		/*
@@ -777,7 +761,7 @@ avl_remove(avl_tree_t *tree, void *data)
 		 */
 		node = parent;
 		old_balance = AVL_XBALANCE(node);
-		new_balance = old_balance - avl_child2balance[which_child];
+		new_balance = old_balance - (which_child ? 1 : -1);
 		parent = AVL_XPARENT(node);
 		which_child = AVL_XCHILD(node);
 
