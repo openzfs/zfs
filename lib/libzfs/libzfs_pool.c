@@ -776,7 +776,7 @@ zpool_set_prop(zpool_handle_t *zhp, const char *propname, const char *propval)
 {
 	zfs_cmd_t zc = {"\0"};
 	int ret = -1;
-	char errbuf[1024];
+	char errbuf[ERRBUFLEN];
 	nvlist_t *nvl = NULL;
 	nvlist_t *realprops;
 	uint64_t version;
@@ -2009,7 +2009,7 @@ zpool_import_props(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
 	char *origname;
 	int ret;
 	int error = 0;
-	char errbuf[1024];
+	char errbuf[ERRBUFLEN];
 
 	origname = fnvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME);
 
@@ -4998,7 +4998,7 @@ zpool_vdev_guid(zpool_handle_t *zhp, const char *vdevname, uint64_t *vdev_guid)
 
 	verify(zhp != NULL);
 	if (zpool_get_state(zhp) == POOL_STATE_UNAVAIL) {
-		char errbuf[1024];
+		char errbuf[ERRBUFLEN];
 		(void) snprintf(errbuf, sizeof (errbuf),
 		    dgettext(TEXT_DOMAIN, "pool is in an unavailable state"));
 		return (zfs_error(zhp->zpool_hdl, EZFS_POOLUNAVAIL, errbuf));
@@ -5006,7 +5006,7 @@ zpool_vdev_guid(zpool_handle_t *zhp, const char *vdevname, uint64_t *vdev_guid)
 
 	if ((tgt = zpool_find_vdev(zhp, vdevname, &avail_spare, &l2cache,
 	    NULL)) == NULL) {
-		char errbuf[1024];
+		char errbuf[ERRBUFLEN];
 		(void) snprintf(errbuf, sizeof (errbuf),
 		    dgettext(TEXT_DOMAIN, "can not find %s in %s"),
 		    vdevname, zhp->zpool_name);
@@ -5216,7 +5216,7 @@ zpool_get_vdev_prop(zpool_handle_t *zhp, const char *vdevname, vdev_prop_t prop,
 		ret = zpool_get_vdev_prop_value(retprops, prop, prop_name, buf,
 		    len, srctype, literal);
 	} else {
-		char errbuf[1024];
+		char errbuf[ERRBUFLEN];
 		(void) snprintf(errbuf, sizeof (errbuf),
 		    dgettext(TEXT_DOMAIN, "cannot get vdev property %s from"
 		    " %s in %s"), prop_name, vdevname, zhp->zpool_name);
@@ -5254,7 +5254,7 @@ zpool_get_all_vdev_props(zpool_handle_t *zhp, const char *vdevname,
 	nvlist_free(nvl);
 
 	if (ret) {
-		char errbuf[1024];
+		char errbuf[ERRBUFLEN];
 		(void) snprintf(errbuf, sizeof (errbuf),
 		    dgettext(TEXT_DOMAIN, "cannot get vdev properties for"
 		    " %s in %s"), vdevname, zhp->zpool_name);
@@ -5295,7 +5295,7 @@ zpool_set_vdev_prop(zpool_handle_t *zhp, const char *vdevname,
 		return (no_memory(zhp->zpool_hdl));
 	}
 
-	char errbuf[1024];
+	char errbuf[ERRBUFLEN];
 	(void) snprintf(errbuf, sizeof (errbuf),
 	    dgettext(TEXT_DOMAIN, "cannot set property %s for %s on %s"),
 	    propname, vdevname, zhp->zpool_name);
