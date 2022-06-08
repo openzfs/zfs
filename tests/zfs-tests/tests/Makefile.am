@@ -545,6 +545,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/checksum/cleanup.ksh \
 	functional/checksum/filetest_001_pos.ksh \
 	functional/checksum/filetest_002_pos.ksh \
+	functional/checksum/run_blake3_test.ksh \
 	functional/checksum/run_edonr_test.ksh \
 	functional/checksum/run_sha2_test.ksh \
 	functional/checksum/run_skein_test.ksh \

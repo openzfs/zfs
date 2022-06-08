@@ -67,6 +67,7 @@ nodist_libzpool_la_SOURCES = \
 	module/zfs/abd.c \
 	module/zfs/aggsum.c \
 	module/zfs/arc.c \
+	module/zfs/blake3_zfs.c \
 	module/zfs/blkptr.c \
 	module/zfs/bplist.c \
 	module/zfs/bpobj.c \
@@ -171,6 +172,7 @@ nodist_libzpool_la_SOURCES = \
 	module/zfs/zcp_synctask.c \
 	module/zfs/zfeature.c \
 	module/zfs/zfs_byteswap.c \
+	module/zfs/zfs_chksum.c \
 	module/zfs/zfs_fm.c \
 	module/zfs/zfs_fuid.c \
 	module/zfs/zfs_ratelimit.c \
