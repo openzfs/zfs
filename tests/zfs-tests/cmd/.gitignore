@@ -42,6 +42,7 @@
 /ereports
 /zfs_diff-socket
 /dosmode_readonly_write
+/blake3_test
 /edonr_test
 /skein_test
 /sha2_test

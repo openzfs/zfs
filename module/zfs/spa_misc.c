@@ -30,6 +30,7 @@
  */
 
 #include <sys/zfs_context.h>
+#include <sys/zfs_chksum.h>
 #include <sys/spa_impl.h>
 #include <sys/zio.h>
 #include <sys/zio_checksum.h>
@@ -2417,6 +2418,7 @@ spa_init(spa_mode_t mode)
 	vdev_raidz_math_init();
 	vdev_file_init();
 	zfs_prop_init();
+	chksum_init();
 	zpool_prop_init();
 	zpool_feature_init();
 	spa_config_load();
@@ -2438,6 +2440,7 @@ spa_fini(void)
 	vdev_cache_stat_fini();
 	vdev_mirror_stat_fini();
 	vdev_raidz_math_fini();
+	chksum_fini();
 	zil_fini();
 	dmu_fini();
 	zio_fini();
