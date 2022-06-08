@@ -193,8 +193,6 @@ execvpe(const char *name, char * const argv[], char * const envp[])
 	return (execvPe(name, path, argv, envp));
 }
 
-#define	ERRBUFLEN 1024
-
 static __thread char errbuf[ERRBUFLEN];
 
 const char *
