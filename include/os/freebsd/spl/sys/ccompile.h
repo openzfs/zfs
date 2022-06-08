@@ -74,8 +74,10 @@ extern "C" {
 
 #ifndef LOCORE
 #ifndef HAVE_RPC_TYPES
+#ifndef _KERNEL
 typedef int bool_t;
 typedef int enum_t;
+#endif
 #endif
 #endif
 

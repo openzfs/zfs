@@ -326,6 +326,12 @@ while
 .Sy freeing
 is non-zero.
 .
+.feature org.openzfs blake3 no extensible_dataset
+This feature enables the use of the BLAKE3 hash algorithm for checksum and dedup.
+BLAKE3 is a secure hash algorithm focused on high performance.
+.Pp
+.checksum-spiel blake3
+.
 .feature com.delphix bookmarks yes extensible_dataset
 This feature enables use of the
 .Nm zfs Cm bookmark
@@ -436,6 +442,8 @@ in ZFS, which means that the checksum is pre-seeded with a secret
 to be checksummed.
 Thus the produced checksums are unique to a given pool,
 preventing hash collision attacks on systems with dedup.
+.Pp
+.checksum-spiel edonr
 .
 .feature com.delphix embedded_data no
 This feature improves the performance and compression ratio of
