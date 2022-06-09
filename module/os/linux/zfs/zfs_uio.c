@@ -126,7 +126,7 @@ zfs_uiomove_iov(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
 }
 
 static int
-zfs_uiomove_bvec(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
+zfs_uiomove_bvec_impl(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
 {
 	const struct bio_vec *bv = uio->uio_bvec;
 	size_t skip = uio->uio_skip;
@@ -137,10 +137,13 @@ zfs_uiomove_bvec(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
 		cnt = MIN(bv->bv_len - skip, n);
 
 		paddr = zfs_kmap_atomic(bv->bv_page);
-		if (rw == UIO_READ)
+		if (rw == UIO_READ) {
+			/* Copy from buffer 'p' to the bvec data */
 			memcpy(paddr + bv->bv_offset + skip, p, cnt);
-		else
+		} else {
+			/* Copy from bvec data to buffer 'p' */
 			memcpy(p, paddr + bv->bv_offset + skip, cnt);
+		}
 		zfs_kunmap_atomic(paddr);
 
 		skip += cnt;
@@ -156,6 +159,141 @@ zfs_uiomove_bvec(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
 		n -= cnt;
 	}
 	return (0);
+}
+
+#ifdef HAVE_BLK_MQ
+static void
+zfs_copy_bvec(void *p, size_t skip, size_t cnt, zfs_uio_rw_t rw,
+    struct bio_vec *bv)
+{
+	void *paddr;
+
+	paddr = zfs_kmap_atomic(bv->bv_page);
+	if (rw == UIO_READ) {
+		/* Copy from buffer 'p' to the bvec data */
+		memcpy(paddr + bv->bv_offset + skip, p, cnt);
+	} else {
+		/* Copy from bvec data to buffer 'p' */
+		memcpy(p, paddr + bv->bv_offset + skip, cnt);
+	}
+	zfs_kunmap_atomic(paddr);
+}
+
+/*
+ * Copy 'n' bytes of data between the buffer p[] and the data represented
+ * by the request in the uio.
+ */
+static int
+zfs_uiomove_bvec_rq(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
+{
+	struct request *rq = uio->rq;
+	struct bio_vec bv;
+	struct req_iterator iter;
+	size_t this_seg_start;	/* logical offset */
+	size_t this_seg_end;		/* logical offset */
+	size_t skip_in_seg;
+	size_t copy_from_seg;
+	size_t orig_loffset;
+	int copied = 0;
+
+	/*
+	 * Get the original logical offset of this entire request (because
+	 * uio->uio_loffset will be modified over time).
+	 */
+	orig_loffset = io_offset(NULL, rq);
+	this_seg_start = orig_loffset;
+
+	rq_for_each_segment(bv, rq, iter) {
+		if (uio->iter.bio) {
+			/*
+			 * If uio->iter.bio is present, then we know we've saved
+			 * uio->iter from a previous call to this function, and
+			 * we can skip ahead in this rq_for_each_segment() loop
+			 * to where we last left off.  That way, we don't need
+			 * to iterate over tons of segments we've already
+			 * processed - we can just restore the "saved state".
+			 */
+			iter = uio->iter;
+			bv = uio->bv;
+			this_seg_start = uio->uio_loffset;
+			memset(&uio->iter, 0, sizeof (uio->iter));
+			continue;
+		}
+
+		/*
+		 * Lookup what the logical offset of the last byte of this
+		 * segment is.
+		 */
+		this_seg_end = this_seg_start + bv.bv_len - 1;
+
+		/*
+		 * We only need to operate on segments that have data we're
+		 * copying.
+		 */
+		if (uio->uio_loffset >= this_seg_start &&
+		    uio->uio_loffset <= this_seg_end) {
+			/*
+			 * Some, or all, of the data in this segment needs to be
+			 * copied.
+			 */
+
+			/*
+			 * We may be not be copying from the first byte in the
+			 * segment.  Figure out how many bytes to skip copying
+			 * from the beginning of this segment.
+			 */
+			skip_in_seg = uio->uio_loffset - this_seg_start;
+
+			/*
+			 * Calculate the total number of bytes from this
+			 * segment that we will be copying.
+			 */
+			copy_from_seg = MIN(bv.bv_len - skip_in_seg, n);
+
+			/* Copy the bytes */
+			zfs_copy_bvec(p, skip_in_seg, copy_from_seg, rw, &bv);
+			p = ((char *)p) + copy_from_seg;
+
+			n -= copy_from_seg;
+			uio->uio_resid -= copy_from_seg;
+			uio->uio_loffset += copy_from_seg;
+			copied = 1;	/* We copied some data */
+		}
+
+		if (n == 0) {
+			/*
+			 * All done copying.  Save our 'iter' value to the uio.
+			 * This allows us to "save our state" and skip ahead in
+			 * the rq_for_each_segment() loop the next time we call
+			 * call zfs_uiomove_bvec_rq() on this uio (which we
+			 * will be doing for any remaining data in the uio).
+			 */
+			uio->iter = iter; /* make a copy of the struct data */
+			uio->bv = bv;
+			return (0);
+		}
+
+		this_seg_start = this_seg_end + 1;
+	}
+
+	if (!copied) {
+		/* Didn't copy anything */
+		uio->uio_resid = 0;
+	}
+	return (0);
+}
+#endif
+
+static int
+zfs_uiomove_bvec(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
+{
+#ifdef HAVE_BLK_MQ
+	if (uio->rq != NULL)
+		return (zfs_uiomove_bvec_rq(p, n, rw, uio));
+#else
+	ASSERT3P(uio->rq, ==, NULL);
+#endif
+	return (zfs_uiomove_bvec_impl(p, n, rw, uio));
 }
 
 #if defined(HAVE_VFS_IOV_ITER)
@@ -300,8 +438,14 @@ zfs_uioskip(zfs_uio_t *uio, size_t n)
 {
 	if (n > uio->uio_resid)
 		return;
-
-	if (uio->uio_segflg == UIO_BVEC) {
+	/*
+	 * When using a uio with a struct request, we simply
+	 * use uio_loffset as a pointer to the next logical byte to
+	 * copy in the request.  We don't have to do any fancy
+	 * accounting with uio_bvec/uio_iovcnt since we don't use
+	 * them.
+	 */
+	if (uio->uio_segflg == UIO_BVEC && uio->rq == NULL) {
 		uio->uio_skip += n;
 		while (uio->uio_iovcnt &&
 		    uio->uio_skip >= uio->uio_bvec->bv_len) {
