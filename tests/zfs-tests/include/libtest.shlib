@@ -2770,20 +2770,22 @@ function is_te_enabled
 	svcs -H -o state labeld 2>/dev/null | grep -q "enabled"
 }
 
+# Return the number of CPUs (cross-platform)
+function get_num_cpus
+{
+	if is_linux ; then
+		grep -c '^processor' /proc/cpuinfo
+	elif is_freebsd; then
+		sysctl -n kern.smp.cpus
+	else
+		psrinfo | wc -l
+	fi
+}
+
 # Utility function to determine if a system has multiple cpus.
 function is_mp
 {
-	case "$UNAME" in
-		Linux)
-			(($(grep -c '^processor' /proc/cpuinfo) > 1))
-			;;
-		FreeBSD)
-			sysctl -n kern.smp.cpus
-			;;
-		*)
-			(($(psrinfo | wc -l) > 1))
-			;;
-	esac
+	[[ $(get_num_cpus) -gt 1 ]]
 }
 
 function get_cpu_freq
@@ -3320,14 +3322,23 @@ function get_tunable_impl
 {
 	typeset name="$1"
 	typeset module="${2:-zfs}"
+	typeset check_only="$3"
 
 	eval "typeset tunable=\$$name"
 	case "$tunable" in
 	UNSUPPORTED)
-		log_unsupported "Tunable '$name' is unsupported on $UNAME"
+		if [ -z "$check_only" ] ; then
+			log_unsupported "Tunable '$name' is unsupported on $UNAME"
+		else
+			return 1
+		fi
 		;;
 	"")
-		log_fail "Tunable '$name' must be added to tunables.cfg"
+		if [ -z "$check_only" ] ; then
+			log_fail "Tunable '$name' must be added to tunables.cfg"
+		else
+			return 1
+		fi
 		;;
 	*)
 		;;
@@ -3345,6 +3356,14 @@ function get_tunable_impl
 		[[ "$module" -eq "zfs" ]] || return 1
 		;;
 	esac
+}
+
+# Does a tunable exist?
+#
+# $1: Tunable name
+function tunable_exists
+{
+	get_tunable_impl $1 "zfs" 1
 }
 
 #
