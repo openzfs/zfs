@@ -34,6 +34,11 @@
 #include <linux/hdreg.h>
 #include <linux/major.h>
 #include <linux/msdos_fs.h>	/* for SECTOR_* */
+#include <linux/bio.h>
+
+#ifdef HAVE_BLK_MQ
+#include <linux/blk-mq.h>
+#endif
 
 #ifndef HAVE_BLK_QUEUE_FLAG_SET
 static inline void
@@ -608,4 +613,110 @@ blk_generic_alloc_queue(make_request_fn make_request, int node_id)
 }
 #endif /* !HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS */
 
+/*
+ * All the io_*() helper functions below can operate on a bio, or a rq, but
+ * not both.  The older submit_bio() codepath will pass a bio, and the
+ * newer blk-mq codepath will pass a rq.
+ */
+static inline int
+io_data_dir(struct bio *bio, struct request *rq)
+{
+#ifdef HAVE_BLK_MQ
+	if (rq != NULL) {
+		if (op_is_write(req_op(rq))) {
+			return (WRITE);
+		} else {
+			return (READ);
+		}
+	}
+#else
+	ASSERT3P(rq, ==, NULL);
+#endif
+	return (bio_data_dir(bio));
+}
+
+static inline int
+io_is_flush(struct bio *bio, struct request *rq)
+{
+#ifdef HAVE_BLK_MQ
+	if (rq != NULL)
+		return (req_op(rq) == REQ_OP_FLUSH);
+#else
+	ASSERT3P(rq, ==, NULL);
+#endif
+	return (bio_is_flush(bio));
+}
+
+static inline int
+io_is_discard(struct bio *bio, struct request *rq)
+{
+#ifdef HAVE_BLK_MQ
+	if (rq != NULL)
+		return (req_op(rq) == REQ_OP_DISCARD);
+#else
+	ASSERT3P(rq, ==, NULL);
+#endif
+	return (bio_is_discard(bio));
+}
+
+static inline int
+io_is_secure_erase(struct bio *bio, struct request *rq)
+{
+#ifdef HAVE_BLK_MQ
+	if (rq != NULL)
+		return (req_op(rq) == REQ_OP_SECURE_ERASE);
+#else
+	ASSERT3P(rq, ==, NULL);
+#endif
+	return (bio_is_secure_erase(bio));
+}
+
+static inline int
+io_is_fua(struct bio *bio, struct request *rq)
+{
+#ifdef HAVE_BLK_MQ
+	if (rq != NULL)
+		return (rq->cmd_flags & REQ_FUA);
+#else
+	ASSERT3P(rq, ==, NULL);
+#endif
+	return (bio_is_fua(bio));
+}
+
+
+static inline uint64_t
+io_offset(struct bio *bio, struct request *rq)
+{
+#ifdef HAVE_BLK_MQ
+	if (rq != NULL)
+		return (blk_rq_pos(rq) << 9);
+#else
+	ASSERT3P(rq, ==, NULL);
+#endif
+	return (BIO_BI_SECTOR(bio) << 9);
+}
+
+static inline uint64_t
+io_size(struct bio *bio, struct request *rq)
+{
+#ifdef HAVE_BLK_MQ
+	if (rq != NULL)
+		return (blk_rq_bytes(rq));
+#else
+	ASSERT3P(rq, ==, NULL);
+#endif
+	return (BIO_BI_SIZE(bio));
+}
+
+static inline int
+io_has_data(struct bio *bio, struct request *rq)
+{
+#ifdef HAVE_BLK_MQ
+	if (rq != NULL)
+		return (bio_has_data(rq->bio));
+#else
+	ASSERT3P(rq, ==, NULL);
+#endif
+	return (bio_has_data(bio));
+}
 #endif /* _ZFS_BLKDEV_H */

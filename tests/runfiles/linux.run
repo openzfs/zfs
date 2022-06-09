@@ -184,3 +184,8 @@ tags = ['functional', 'user_namespace']
 tests = ['groupspace_001_pos', 'groupspace_002_pos', 'groupspace_003_pos',
     'userquota_013_pos', 'userspace_003_pos']
 tags = ['functional', 'userquota']
+
+[tests/functional/zvol/zvol_misc:Linux]
+tests = ['zvol_misc_fua']
+tags = ['functional', 'zvol', 'zvol_misc']
+

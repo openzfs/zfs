@@ -2248,9 +2248,74 @@ for each I/O submitter.
 When unset, requests are handled asynchronously by a thread pool.
 The number of requests which can be handled concurrently is controlled by
 .Sy zvol_threads .
+.Sy zvol_request_sync
+is ignored when running on a kernel that supports block multiqueue
+.Pq Li blk-mq .
 .
-.It Sy zvol_threads Ns = Ns Sy 32 Pq uint
-Max number of threads which can handle zvol I/O requests concurrently.
+.It Sy zvol_threads Ns = Ns Sy 0 Pq uint
+The number of system wide threads to use for processing zvol block IOs.
+If
+.Sy 0
+(the default) then internally set
+.Sy zvol_threads
+to the number of CPUs present or 32 (whichever is greater).
+.
+.It Sy zvol_blk_mq_threads Ns = Ns Sy 0 Pq uint
+The number of threads per zvol to use for queuing IO requests.
+This parameter will only appear if your kernel supports
+.Li blk-mq
+and is only read and assigned to a zvol at zvol load time.
+If
+.Sy 0
+(the default) then internally set
+.Sy zvol_blk_mq_threads
+to the number of CPUs present.
+.
+.It Sy zvol_use_blk_mq Ns = Ns Sy 0 Ns | Ns 1 Pq uint
+Set to
+.Sy 1
+to use the
+.Li blk-mq
+API for zvols.
+Set to
+.Sy 0
+(the default) to use the legacy zvol APIs.
+This setting can give better or worse zvol performance depending on
+the workload.
+This parameter will only appear if your kernel supports
+.Li blk-mq
+and is only read and assigned to a zvol at zvol load time.
+.
+.It Sy zvol_blk_mq_blocks_per_thread Ns = Ns Sy 8 Pq uint
+If
+.Sy zvol_use_blk_mq
+is enabled, then process this number of
+.Sy volblocksize Ns -sized blocks per zvol thread.
+This tunable can be use to favor better performance for zvol reads (lower
+values) or writes (higher values).
+If set to
+.Sy 0 ,
+then the zvol layer will process the maximum number of blocks
+per thread that it can.
+This parameter will only appear if your kernel supports
+.Li blk-mq
+and is only applied at each zvol's load time.
+.
+.It Sy zvol_blk_mq_queue_depth Ns = Ns Sy 0 Pq uint
+The queue_depth value for the zvol
+.Li blk-mq
+interface.
+This parameter will only appear if your kernel supports
+.Li blk-mq
+and is only applied at each zvol's load time.
+If
+.Sy 0
+(the default) then use the kernel's default queue depth.
+Values are clamped to the kernel's
+.Dv BLKDEV_MIN_RQ
+and
+.Dv BLKDEV_MAX_RQ Ns / Ns Dv BLKDEV_DEFAULT_RQ
+limits.
 .
 .It Sy zvol_volmode Ns = Ns Sy 1 Pq uint
 Defines zvol block devices behaviour when
