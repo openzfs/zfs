@@ -897,6 +897,15 @@ mountroot()
 		ZFS_RPOOL="${pool}"
 	fi
 
+        # We need to import additional zpools which aren't under root zpool, before mount_fs()
+        for add_zpool in $ZFS_INITRD_ADDITIONAL_DATASETS; do
+                add_zpool_base="${add_zpool%%/*}"
+
+                if [ "$add_zpool_base" != "$ZFS_RPOOL" ]
+                then
+                        import_pool "${add_zpool_base}"
+                fi
+        done
 
 	# ----------------------------------------------------------------
 	# P R E P A R E   R O O T   F I L E S Y S T E M
