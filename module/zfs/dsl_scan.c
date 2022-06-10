@@ -1268,9 +1268,12 @@ dsl_scan_should_clear(dsl_scan_t *scn)
 		mutex_enter(&tvd->vdev_scan_io_queue_lock);
 		queue = tvd->vdev_scan_io_queue;
 		if (queue != NULL) {
-			/* # extents in exts_by_size = # in exts_by_addr */
+			/*
+			 * # of extents in exts_by_size = # in exts_by_addr.
+			 * B-tree efficiency is ~75%, but can be as low as 50%.
+			 */
 			mused += zfs_btree_numnodes(&queue->q_exts_by_size) *
-			    sizeof (range_seg_gap_t) + queue->q_sio_memused;
+			    3 * sizeof (range_seg_gap_t) + queue->q_sio_memused;
 		}
 		mutex_exit(&tvd->vdev_scan_io_queue_lock);
 	}
