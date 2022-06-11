@@ -93,8 +93,8 @@ check() {
 # shellcheck disable=SC2154
 if [ -n "$hostonly" ]; then
 
-    if [ -f /etc/default/zfs ]; then
-        . /etc/default/zfs
+    if [ -f @sysconfdir@/default/zfs ]; then
+        . @sysconfdir@/default/zfs
         if [ -n "$ZFS_INITRD_ADDITIONAL_DATASETS" ]; then
            for add_zpool in $ZFS_INITRD_ADDITIONAL_DATASETS; do
                add_mps+=$(find_add_zpool_mps "$add_zpool")

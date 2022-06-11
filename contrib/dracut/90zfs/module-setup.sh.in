@@ -64,7 +64,8 @@ install() {
 	# -o ensures there is no error upon absence of these files
 	inst_multiple -o -H \
 		"@sysconfdir@/zfs/zpool.cache" \
-		"@sysconfdir@/zfs/vdev_id.conf"
+		"@sysconfdir@/zfs/vdev_id.conf" \
+		"@sysconfdir@/default/zfs"
 
 	# Synchronize initramfs and system hostid
 	if ! inst_simple -H @sysconfdir@/hostid; then
