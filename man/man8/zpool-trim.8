@@ -84,8 +84,29 @@ with no flags on the relevant target devices.
 .It Fl w , -wait
 Wait until the devices are done being trimmed before returning.
 .El
+.Sh PERIODIC TRIM
+On machines using systemd, trim timers can be enabled on a per-pool basis.
+.Nm weekly
+and
+.Nm monthly
+timer units are provided.
+.Bl -tag -width Ds
+.It Xo
+.Xc
+.Nm systemctl
+.Cm enable
+.Cm zfs-trim-\fIweekly\fB@\fIrpool\fB.timer
+.Cm --now
+.It Xo
+.Xc
+.Nm systemctl
+.Cm enable
+.Cm zfs-trim-\fImonthly\fB@\fIotherpool\fB.timer
+.Cm --now
+.El
 .
 .Sh SEE ALSO
+.Xr systemd.timer 5 ,
 .Xr zpoolprops 7 ,
 .Xr zpool-initialize 8 ,
 .Xr zpool-wait 8

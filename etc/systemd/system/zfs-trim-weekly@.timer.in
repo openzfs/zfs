@@ -1,0 +1,12 @@
+[Unit]
+Description=Weekly zpool trim timer for %i
+Documentation=man:zpool-trim(8)
+
+[Timer]
+OnCalendar=weekly
+Persistent=true
+RandomizedDelaySec=1h
+Unit=zfs-trim@%i.service
+
+[Install]
+WantedBy=timers.target

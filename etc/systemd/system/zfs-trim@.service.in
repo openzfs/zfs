@@ -1,0 +1,15 @@
+[Unit]
+Description=zpool trim on %i
+Documentation=man:zpool-trim(8)
+Requires=zfs.target
+After=zfs.target
+ConditionACPower=true
+ConditionPathIsDirectory=/sys/module/zfs
+
+[Service]
+EnvironmentFile=-@initconfdir@/zfs
+ExecStart=/bin/sh -c '\
+if @sbindir@/zpool status %i | grep -q "(trimming)"; then\
+exec @sbindir@/zpool wait -t trim %i;\
+else exec @sbindir@/zpool trim -w %i; fi'
+ExecStop=-/bin/sh -c '@sbindir@/zpool trim -s %i 2>/dev/null || true'
