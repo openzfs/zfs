@@ -59,6 +59,9 @@ systemdunit_DATA = \
 	%D%/systemd/system/zfs-scrub-monthly@.timer \
 	%D%/systemd/system/zfs-scrub-weekly@.timer \
 	%D%/systemd/system/zfs-scrub@.service \
+	%D%/systemd/system/zfs-trim-monthly@.timer \
+	%D%/systemd/system/zfs-trim-weekly@.timer \
+	%D%/systemd/system/zfs-trim@.service \
 	%D%/systemd/system/zfs-share.service \
 	%D%/systemd/system/zfs-volume-wait.service \
 	%D%/systemd/system/zfs-volumes.target \
