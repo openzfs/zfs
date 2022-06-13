@@ -164,7 +164,7 @@ zone_dataset_name_check(const char *dataset, size_t *dsnamelen)
 }
 
 int
-zone_dataset_attach(cred_t *cred, const char *dataset, int cleanup_fd)
+zone_dataset_attach(cred_t *cred, const char *dataset, int userns_fd)
 {
 #if defined(CONFIG_USER_NS) && defined(HAVE_USER_NS_COMMON_INUM)
 	struct user_namespace *userns;
@@ -177,7 +177,7 @@ zone_dataset_attach(cred_t *cred, const char *dataset, int cleanup_fd)
 		return (error);
 	if ((error = zone_dataset_name_check(dataset, &dsnamelen)) != 0)
 		return (error);
-	if ((error = user_ns_get(cleanup_fd, &userns)) != 0)
+	if ((error = user_ns_get(userns_fd, &userns)) != 0)
 		return (error);
 
 	mutex_enter(&zone_datasets_lock);
@@ -217,7 +217,7 @@ zone_dataset_attach(cred_t *cred, const char *dataset, int cleanup_fd)
 EXPORT_SYMBOL(zone_dataset_attach);
 
 int
-zone_dataset_detach(cred_t *cred, const char *dataset, int cleanup_fd)
+zone_dataset_detach(cred_t *cred, const char *dataset, int userns_fd)
 {
 #if defined(CONFIG_USER_NS) && defined(HAVE_USER_NS_COMMON_INUM)
 	struct user_namespace *userns;
@@ -230,7 +230,7 @@ zone_dataset_detach(cred_t *cred, const char *dataset, int cleanup_fd)
 		return (error);
 	if ((error = zone_dataset_name_check(dataset, &dsnamelen)) != 0)
 		return (error);
-	if ((error = user_ns_get(cleanup_fd, &userns)) != 0)
+	if ((error = user_ns_get(userns_fd, &userns)) != 0)
 		return (error);
 
 	mutex_enter(&zone_datasets_lock);
