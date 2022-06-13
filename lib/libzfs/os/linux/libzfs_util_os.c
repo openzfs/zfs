@@ -274,5 +274,7 @@ zfs_userns(zfs_handle_t *zhp, const char *nspath, int attach)
 	if ((ret = zfs_ioctl(hdl, cmd, &zc)) != 0)
 		zfs_standard_error(hdl, errno, errbuf);
 
+	(void) close(zc.zc_cleanup_fd);
+
 	return (ret);
 }
