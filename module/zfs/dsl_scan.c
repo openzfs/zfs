@@ -280,6 +280,7 @@ typedef struct scan_io {
 struct dsl_scan_io_queue {
 	dsl_scan_t	*q_scn; /* associated dsl_scan_t */
 	vdev_t		*q_vd; /* top-level vdev that this queue represents */
+	zio_t		*q_zio; /* scn_zio_root child for waiting on IO */
 
 	/* trees used for sorting I/Os and extents of I/Os */
 	range_tree_t	*q_exts_by_addr;
@@ -3036,15 +3037,19 @@ scan_io_queues_run_one(void *arg)
 	dsl_scan_io_queue_t *queue = arg;
 	kmutex_t *q_lock = &queue->q_vd->vdev_scan_io_queue_lock;
 	boolean_t suspended = B_FALSE;
-	range_seg_t *rs = NULL;
-	scan_io_t *sio = NULL;
+	range_seg_t *rs;
+	scan_io_t *sio;
+	zio_t *zio;
 	list_t sio_list;
 
 	ASSERT(queue->q_scn->scn_is_sorted);
 
 	list_create(&sio_list, sizeof (scan_io_t),
 	    offsetof(scan_io_t, sio_nodes.sio_list_node));
+	zio = zio_null(queue->q_scn->scn_zio_root, queue->q_scn->scn_dp->dp_spa,
+	    NULL, NULL, NULL, ZIO_FLAG_CANFAIL);
 	mutex_enter(q_lock);
+	queue->q_zio = zio;
 
 	/* Calculate maximum in-flight bytes for this vdev. */
 	queue->q_maxinflight_bytes = MAX(1, zfs_scan_vdev_limit *
@@ -3111,7 +3116,9 @@ scan_io_queues_run_one(void *arg)
 		scan_io_queue_insert_impl(queue, sio);
 	}
 
+	queue->q_zio = NULL;
 	mutex_exit(q_lock);
+	zio_nowait(zio);
 	list_destroy(&sio_list);
 }
 
@@ -4076,6 +4083,7 @@ scan_exec_io(dsl_pool_t *dp, const blkptr_t *bp, int zio_flags,
 	dsl_scan_t *scn = dp->dp_scan;
 	size_t size = BP_GET_PSIZE(bp);
 	abd_t *data = abd_alloc_for_io(size, B_FALSE);
+	zio_t *pio;
 
 	if (queue == NULL) {
 		ASSERT3U(scn->scn_maxinflight_bytes, >, 0);
@@ -4084,6 +4092,7 @@ scan_exec_io(dsl_pool_t *dp, const blkptr_t *bp, int zio_flags,
 			cv_wait(&spa->spa_scrub_io_cv, &spa->spa_scrub_lock);
 		spa->spa_scrub_inflight += BP_GET_PSIZE(bp);
 		mutex_exit(&spa->spa_scrub_lock);
+		pio = scn->scn_zio_root;
 	} else {
 		kmutex_t *q_lock = &queue->q_vd->vdev_scan_io_queue_lock;
 
@@ -4092,12 +4101,14 @@ scan_exec_io(dsl_pool_t *dp, const blkptr_t *bp, int zio_flags,
 		while (queue->q_inflight_bytes >= queue->q_maxinflight_bytes)
 			cv_wait(&queue->q_zio_cv, q_lock);
 		queue->q_inflight_bytes += BP_GET_PSIZE(bp);
+		pio = queue->q_zio;
 		mutex_exit(q_lock);
 	}
 
+	ASSERT(pio != NULL);
 	count_block(scn, dp->dp_blkstats, bp);
-	zio_nowait(zio_read(scn->scn_zio_root, spa, bp, data, size,
-	    dsl_scan_scrub_done, queue, ZIO_PRIORITY_SCRUB, zio_flags, zb));
+	zio_nowait(zio_read(pio, spa, bp, data, size, dsl_scan_scrub_done,
+	    queue, ZIO_PRIORITY_SCRUB, zio_flags, zb));
 }
 
 /*
