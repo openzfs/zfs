@@ -325,7 +325,7 @@ zcp_synctask_inherit_prop_check(void *arg, dmu_tx_t *tx)
 	zcp_inherit_prop_arg_t *args = arg;
 	zfs_prop_t prop = zfs_name_to_prop(args->zipa_prop);
 
-	if (prop == ZPROP_INVAL) {
+	if (prop == ZPROP_USERPROP) {
 		if (zfs_prop_user(args->zipa_prop))
 			return (0);
 
