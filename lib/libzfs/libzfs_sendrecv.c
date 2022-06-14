@@ -5107,7 +5107,7 @@ zfs_receive_checkprops(libzfs_handle_t *hdl, nvlist_t *props,
 		name = nvpair_name(nvp);
 		prop = zfs_name_to_prop(name);
 
-		if (prop == ZPROP_INVAL) {
+		if (prop == ZPROP_USERPROP) {
 			if (!zfs_prop_user(name)) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "%s: invalid property '%s'"), errbuf, name);

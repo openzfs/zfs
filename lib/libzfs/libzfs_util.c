@@ -1287,7 +1287,7 @@ zprop_print_headers(zprop_get_cbdata_t *cbp, zfs_type_t type)
 		/*
 		 * 'PROPERTY' column
 		 */
-		if (pl->pl_prop != ZPROP_INVAL) {
+		if (pl->pl_prop != ZPROP_USERPROP) {
 			const char *propname = (type == ZFS_TYPE_POOL) ?
 			    zpool_prop_to_name(pl->pl_prop) :
 			    ((type == ZFS_TYPE_VDEV) ?
@@ -1760,7 +1760,7 @@ addlist(libzfs_handle_t *hdl, const char *propname, zprop_list_t **listp,
 	 * Return failure if no property table entry was found and this isn't
 	 * a user-defined property.
 	 */
-	if (prop == ZPROP_INVAL && ((type == ZFS_TYPE_POOL &&
+	if (prop == ZPROP_USERPROP && ((type == ZFS_TYPE_POOL &&
 	    !zpool_prop_feature(propname) &&
 	    !zpool_prop_unsupported(propname)) ||
 	    ((type == ZFS_TYPE_DATASET) && !zfs_prop_user(propname) &&
@@ -1775,7 +1775,7 @@ addlist(libzfs_handle_t *hdl, const char *propname, zprop_list_t **listp,
 	zprop_list_t *entry = zfs_alloc(hdl, sizeof (*entry));
 
 	entry->pl_prop = prop;
-	if (prop == ZPROP_INVAL) {
+	if (prop == ZPROP_USERPROP) {
 		entry->pl_user_prop = zfs_strdup(hdl, propname);
 		entry->pl_width = strlen(propname);
 	} else {
