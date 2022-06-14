@@ -854,7 +854,7 @@ zpool_expand_proplist(zpool_handle_t *zhp, zprop_list_t **plp,
 		for (i = 0; i < SPA_FEATURES; i++) {
 			zprop_list_t *entry = zfs_alloc(hdl,
 			    sizeof (zprop_list_t));
-			entry->pl_prop = ZPROP_INVAL;
+			entry->pl_prop = ZPROP_USERPROP;
 			entry->pl_user_prop = zfs_asprintf(hdl, "feature@%s",
 			    spa_feature_table[i].fi_uname);
 			entry->pl_width = strlen(entry->pl_user_prop);
@@ -898,7 +898,7 @@ zpool_expand_proplist(zpool_handle_t *zhp, zprop_list_t **plp,
 		}
 
 		entry = zfs_alloc(hdl, sizeof (zprop_list_t));
-		entry->pl_prop = ZPROP_INVAL;
+		entry->pl_prop = ZPROP_USERPROP;
 		entry->pl_user_prop = propname;
 		entry->pl_width = strlen(entry->pl_user_prop);
 		entry->pl_all = B_TRUE;
@@ -911,7 +911,7 @@ zpool_expand_proplist(zpool_handle_t *zhp, zprop_list_t **plp,
 		if (entry->pl_fixed && !literal)
 			continue;
 
-		if (entry->pl_prop != ZPROP_INVAL &&
+		if (entry->pl_prop != ZPROP_USERPROP &&
 		    zpool_get_prop(zhp, entry->pl_prop, buf, sizeof (buf),
 		    NULL, literal) == 0) {
 			if (strlen(buf) > entry->pl_width)
@@ -967,7 +967,7 @@ vdev_expand_proplist(zpool_handle_t *zhp, const char *vdevname,
 
 			/* Skip properties that are not user defined */
 			if ((prop = vdev_name_to_prop(propname)) !=
-			    VDEV_PROP_USER)
+			    VDEV_PROP_USERPROP)
 				continue;
 
 			if (nvpair_value_nvlist(elem, &propval) != 0)
@@ -5033,7 +5033,7 @@ zpool_get_vdev_prop_value(nvlist_t *nvprop, vdev_prop_t prop, char *prop_name,
 	uint64_t intval;
 	zprop_source_t src = ZPROP_SRC_NONE;
 
-	if (prop == VDEV_PROP_USER) {
+	if (prop == VDEV_PROP_USERPROP) {
 		/* user property, prop_name must contain the property name */
 		assert(prop_name != NULL);
 		if (nvlist_lookup_nvlist(nvprop, prop_name, &nv) == 0) {
@@ -5195,7 +5195,7 @@ zpool_get_vdev_prop(zpool_handle_t *zhp, const char *vdevname, vdev_prop_t prop,
 
 	fnvlist_add_uint64(reqnvl, ZPOOL_VDEV_PROPS_GET_VDEV, vdev_guid);
 
-	if (prop != VDEV_PROP_USER) {
+	if (prop != VDEV_PROP_USERPROP) {
 		/* prop_name overrides prop value */
 		if (prop_name != NULL)
 			prop = vdev_name_to_prop(prop_name);

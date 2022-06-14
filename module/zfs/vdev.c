@@ -5496,7 +5496,7 @@ vdev_props_set_sync(void *arg, dmu_tx_t *tx)
 		}
 
 		switch (prop = vdev_name_to_prop(propname)) {
-		case VDEV_PROP_USER:
+		case VDEV_PROP_USERPROP:
 			if (vdev_prop_user(propname)) {
 				strval = fnvpair_value_string(elem);
 				if (strlen(strval) == 0) {
@@ -5580,7 +5580,7 @@ vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 		uint64_t intval = 0;
 		char *strval = NULL;
 
-		if (prop == VDEV_PROP_USER && !vdev_prop_user(propname)) {
+		if (prop == VDEV_PROP_USERPROP && !vdev_prop_user(propname)) {
 			error = EINVAL;
 			goto end;
 		}
@@ -5937,7 +5937,7 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 			case VDEV_PROP_COMMENT:
 				/* Exists in the ZAP below */
 				/* FALLTHRU */
-			case VDEV_PROP_USER:
+			case VDEV_PROP_USERPROP:
 				/* User Properites */
 				src = ZPROP_SRC_LOCAL;
 

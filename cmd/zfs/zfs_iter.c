@@ -174,7 +174,7 @@ zfs_add_sort_column(zfs_sort_column_t **sc, const char *name,
 	zfs_sort_column_t *col;
 	zfs_prop_t prop;
 
-	if ((prop = zfs_name_to_prop(name)) == ZPROP_INVAL &&
+	if ((prop = zfs_name_to_prop(name)) == ZPROP_USERPROP &&
 	    !zfs_prop_user(name))
 		return (-1);
 
@@ -182,7 +182,7 @@ zfs_add_sort_column(zfs_sort_column_t **sc, const char *name,
 
 	col->sc_prop = prop;
 	col->sc_reverse = reverse;
-	if (prop == ZPROP_INVAL) {
+	if (prop == ZPROP_USERPROP) {
 		col->sc_user_prop = safe_malloc(strlen(name) + 1);
 		(void) strcpy(col->sc_user_prop, name);
 	}
@@ -311,7 +311,7 @@ zfs_sort(const void *larg, const void *rarg, void *data)
 		 * Otherwise, we compare 'lnum' and 'rnum'.
 		 */
 		lstr = rstr = NULL;
-		if (psc->sc_prop == ZPROP_INVAL) {
+		if (psc->sc_prop == ZPROP_USERPROP) {
 			nvlist_t *luser, *ruser;
 			nvlist_t *lval, *rval;
 
