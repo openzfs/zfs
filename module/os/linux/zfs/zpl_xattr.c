@@ -83,6 +83,7 @@
 #include <sys/zap.h>
 #include <sys/vfs.h>
 #include <sys/zpl.h>
+#include <linux/vfs_compat.h>
 
 enum xattr_permission {
 	XAPERM_DENY,
@@ -1495,7 +1496,9 @@ zpl_xattr_permission(xattr_filldir_t *xf, const char *name, int name_len)
 	return (perm);
 }
 
-#if !defined(HAVE_POSIX_ACL_RELEASE) || defined(HAVE_POSIX_ACL_RELEASE_GPL_ONLY)
+#if defined(CONFIG_FS_POSIX_ACL) && \
+	(!defined(HAVE_POSIX_ACL_RELEASE) || \
+		defined(HAVE_POSIX_ACL_RELEASE_GPL_ONLY))
 struct acl_rel_struct {
 	struct acl_rel_struct *next;
 	struct posix_acl *acl;
