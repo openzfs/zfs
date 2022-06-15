@@ -1414,7 +1414,9 @@ zpl_xattr_handler(const char *name)
 	return (NULL);
 }
 
-#if !defined(HAVE_POSIX_ACL_RELEASE) || defined(HAVE_POSIX_ACL_RELEASE_GPL_ONLY)
+#if defined(CONFIG_FS_POSIX_ACL) && \
+	(!defined(HAVE_POSIX_ACL_RELEASE) || \
+		defined(HAVE_POSIX_ACL_RELEASE_GPL_ONLY))
 struct acl_rel_struct {
 	struct acl_rel_struct *next;
 	struct posix_acl *acl;
