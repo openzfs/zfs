@@ -138,6 +138,7 @@ ICP_OBJS_PPC_PPC64 := \
 
 zfs-objs             += $(addprefix icp/,$(ICP_OBJS))
 zfs-$(CONFIG_X86)    += $(addprefix icp/,$(ICP_OBJS_X86))
+zfs-$(CONFIG_UML_X86)+= $(addprefix icp/,$(ICP_OBJS_X86))
 zfs-$(CONFIG_X86_64) += $(addprefix icp/,$(ICP_OBJS_X86_64))
 zfs-$(CONFIG_ARM64)  += $(addprefix icp/,$(ICP_OBJS_ARM64))
 zfs-$(CONFIG_PPC)    += $(addprefix icp/,$(ICP_OBJS_PPC_PPC64))
@@ -232,6 +233,7 @@ ZCOMMON_OBJS_ARM64 := \
 
 zfs-objs            += $(addprefix zcommon/,$(ZCOMMON_OBJS))
 zfs-$(CONFIG_X86)   += $(addprefix zcommon/,$(ZCOMMON_OBJS_X86))
+zfs-$(CONFIG_UML_X86)+= $(addprefix zcommon/,$(ZCOMMON_OBJS_X86))
 zfs-$(CONFIG_ARM64) += $(addprefix zcommon/,$(ZCOMMON_OBJS_ARM64))
 
 
@@ -457,6 +459,7 @@ ZFS_OBJS_PPC_PPC64 := \
 
 zfs-objs            += $(addprefix zfs/,$(ZFS_OBJS)) $(addprefix os/linux/zfs/,$(ZFS_OBJS_OS))
 zfs-$(CONFIG_X86)   += $(addprefix zfs/,$(ZFS_OBJS_X86))
+zfs-$(CONFIG_UML_X86)+= $(addprefix zfs/,$(ZFS_OBJS_X86))
 zfs-$(CONFIG_ARM64) += $(addprefix zfs/,$(ZFS_OBJS_ARM64))
 zfs-$(CONFIG_PPC)   += $(addprefix zfs/,$(ZFS_OBJS_PPC_PPC64))
 zfs-$(CONFIG_PPC64) += $(addprefix zfs/,$(ZFS_OBJS_PPC_PPC64))

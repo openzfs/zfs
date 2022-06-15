@@ -32,4 +32,9 @@
 #define	HAVE_LARGE_STACKS	1
 #endif
 
+#if defined(CONFIG_UML)
+#undef setjmp
+#undef longjmp
+#endif
+
 #endif
