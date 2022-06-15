@@ -320,6 +320,7 @@ beforeinstall:
 
 
 CFLAGS.gcc+= -Wno-pointer-to-int-cast
+CFLAGS.clang+= ${NO_WUNUSED_BUT_SET_VARIABLE}
 
 CFLAGS.lapi.c= -Wno-cast-qual
 CFLAGS.lcompat.c= -Wno-cast-qual
