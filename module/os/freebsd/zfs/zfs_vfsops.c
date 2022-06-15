@@ -63,6 +63,7 @@
 #include <sys/dmu_objset.h>
 #include <sys/dsl_dir.h>
 #include <sys/jail.h>
+#include <sys/osd.h>
 #include <ufs/ufs/quota.h>
 #include <sys/zfs_quota.h>
 
@@ -87,6 +88,20 @@ SYSCTL_INT(_vfs_zfs, OID_AUTO, super_owner, CTLFLAG_RW, &zfs_super_owner, 0,
 int zfs_debug_level;
 SYSCTL_INT(_vfs_zfs, OID_AUTO, debug, CTLFLAG_RWTUN, &zfs_debug_level, 0,
 	"Debug level");
+
+struct zfs_jailparam {
+	int mount_snapshot;
+};
+
+static struct zfs_jailparam zfs_jailparam0 = {
+	.mount_snapshot = 0,
+};
+
+static int zfs_jailparam_slot;
+
+SYSCTL_JAIL_PARAM_SYS_NODE(zfs, CTLFLAG_RW, "Jail ZFS parameters");
+SYSCTL_JAIL_PARAM(_zfs, mount_snapshot, CTLTYPE_INT | CTLFLAG_RW, "I",
+	"Allow mounting snapshots in the .zfs directory for unjailed datasets");
 
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, version, CTLFLAG_RD, 0, "ZFS versions");
 static int zfs_version_acl = ZFS_ACL_VERSION;
@@ -1298,7 +1313,7 @@ zfs_mount(vfs_t *vfsp)
 	char		*osname;
 	int		error = 0;
 	int		canwrite;
-	bool		checkpointrewind;
+	bool		checkpointrewind, isctlsnap = false;
 
 	if (vfs_getopt(vfsp->mnt_optnew, "from", (void **)&osname, NULL))
 		return (SET_ERROR(EINVAL));
@@ -1313,6 +1328,7 @@ zfs_mount(vfs_t *vfsp)
 	}
 
 	fetch_osname_options(osname, &checkpointrewind);
+	isctlsnap = (zfsctl_is_node(mvp) && strchr(osname, '@') != NULL);
 
 	/*
 	 * Check for mount privilege?
@@ -1321,7 +1337,9 @@ zfs_mount(vfs_t *vfsp)
 	 * we have local permission to allow it
 	 */
 	error = secpolicy_fs_mount(cr, mvp, vfsp);
-	if (error) {
+	if (error && isctlsnap) {
+		secpolicy_fs_mount_clearopts(cr, vfsp);
+	} else if (error) {
 		if (dsl_deleg_access(osname, ZFS_DELEG_PERM_MOUNT, cr) != 0)
 			goto out;
 
@@ -1358,8 +1376,27 @@ zfs_mount(vfs_t *vfsp)
 	 */
 	if (!INGLOBALZONE(curproc) &&
 	    (!zone_dataset_visible(osname, &canwrite) || !canwrite)) {
-		error = SET_ERROR(EPERM);
-		goto out;
+		boolean_t mount_snapshot = B_FALSE;
+
+		/*
+		 * Snapshots may be mounted in .zfs for unjailed datasets
+		 * if allowed by the jail param zfs.mount_snapshot.
+		 */
+		if (isctlsnap) {
+			struct prison *pr;
+			struct zfs_jailparam *zjp;
+
+			pr = curthread->td_ucred->cr_prison;
+			mtx_lock(&pr->pr_mtx);
+			zjp = osd_jail_get(pr, zfs_jailparam_slot);
+			mtx_unlock(&pr->pr_mtx);
+			if (zjp && zjp->mount_snapshot)
+				mount_snapshot = B_TRUE;
+		}
+		if (!mount_snapshot) {
+			error = SET_ERROR(EPERM);
+			goto out;
+		}
 	}
 
 	vfsp->vfs_flag |= MNT_NFS4ACLS;
@@ -2316,3 +2353,236 @@ zfsvfs_update_fromname(const char *oldname, const char *newname)
 	mtx_unlock(&mountlist_mtx);
 }
 #endif
+
+/*
+ * Find a prison with ZFS info.
+ * Return the ZFS info and the (locked) prison.
+ */
+static struct zfs_jailparam *
+zfs_jailparam_find(struct prison *spr, struct prison **prp)
+{
+	struct prison *pr;
+	struct zfs_jailparam *zjp;
+
+	for (pr = spr; ; pr = pr->pr_parent) {
+		mtx_lock(&pr->pr_mtx);
+		if (pr == &prison0) {
+			zjp = &zfs_jailparam0;
+			break;
+		}
+		zjp = osd_jail_get(pr, zfs_jailparam_slot);
+		if (zjp != NULL)
+			break;
+		mtx_unlock(&pr->pr_mtx);
+	}
+	*prp = pr;
+
+	return (zjp);
+}
+
+/*
+ * Ensure a prison has its own ZFS info.  If zjpp is non-null, point it to the
+ * ZFS info and lock the prison.
+ */
+static void
+zfs_jailparam_alloc(struct prison *pr, struct zfs_jailparam **zjpp)
+{
+	struct prison *ppr;
+	struct zfs_jailparam *zjp, *nzjp;
+	void **rsv;
+
+	/* If this prison already has ZFS info, return that. */
+	zjp = zfs_jailparam_find(pr, &ppr);
+	if (ppr == pr)
+		goto done;
+
+	/*
+	 * Allocate a new info record.  Then check again, in case something
+	 * changed during the allocation.
+	 */
+	mtx_unlock(&ppr->pr_mtx);
+	nzjp = malloc(sizeof (struct zfs_jailparam), M_PRISON, M_WAITOK);
+	rsv = osd_reserve(zfs_jailparam_slot);
+	zjp = zfs_jailparam_find(pr, &ppr);
+	if (ppr == pr) {
+		free(nzjp, M_PRISON);
+		osd_free_reserved(rsv);
+		goto done;
+	}
+	/* Inherit the initial values from the ancestor. */
+	mtx_lock(&pr->pr_mtx);
+	(void) osd_jail_set_reserved(pr, zfs_jailparam_slot, rsv, nzjp);
+	(void) memcpy(nzjp, zjp, sizeof (*zjp));
+	zjp = nzjp;
+	mtx_unlock(&ppr->pr_mtx);
+done:
+	if (zjpp != NULL)
+		*zjpp = zjp;
+	else
+		mtx_unlock(&pr->pr_mtx);
+}
+
+/*
+ * Jail OSD methods for ZFS VFS info.
+ */
+static int
+zfs_jailparam_create(void *obj, void *data)
+{
+	struct prison *pr = obj;
+	struct vfsoptlist *opts = data;
+	int jsys;
+
+	if (vfs_copyopt(opts, "zfs", &jsys, sizeof (jsys)) == 0 &&
+	    jsys == JAIL_SYS_INHERIT)
+		return (0);
+	/*
+	 * Inherit a prison's initial values from its parent
+	 * (different from JAIL_SYS_INHERIT which also inherits changes).
+	 */
+	zfs_jailparam_alloc(pr, NULL);
+	return (0);
+}
+
+static int
+zfs_jailparam_get(void *obj, void *data)
+{
+	struct prison *ppr, *pr = obj;
+	struct vfsoptlist *opts = data;
+	struct zfs_jailparam *zjp;
+	int jsys, error;
+
+	zjp = zfs_jailparam_find(pr, &ppr);
+	jsys = (ppr == pr) ? JAIL_SYS_NEW : JAIL_SYS_INHERIT;
+	error = vfs_setopt(opts, "zfs", &jsys, sizeof (jsys));
+	if (error != 0 && error != ENOENT)
+		goto done;
+	if (jsys == JAIL_SYS_NEW) {
+		error = vfs_setopt(opts, "zfs.mount_snapshot",
+		    &zjp->mount_snapshot, sizeof (zjp->mount_snapshot));
+		if (error != 0 && error != ENOENT)
+			goto done;
+	} else {
+		/*
+		 * If this prison is inheriting its ZFS info, report
+		 * empty/zero parameters.
+		 */
+		static int mount_snapshot = 0;
+
+		error = vfs_setopt(opts, "zfs.mount_snapshot",
+		    &mount_snapshot, sizeof (mount_snapshot));
+		if (error != 0 && error != ENOENT)
+			goto done;
+	}
+	error = 0;
+done:
+	mtx_unlock(&ppr->pr_mtx);
+	return (error);
+}
+
+static int
+zfs_jailparam_set(void *obj, void *data)
+{
+	struct prison *pr = obj;
+	struct prison *ppr;
+	struct vfsoptlist *opts = data;
+	int error, jsys, mount_snapshot;
+
+	/* Set the parameters, which should be correct. */
+	error = vfs_copyopt(opts, "zfs", &jsys, sizeof (jsys));
+	if (error == ENOENT)
+		jsys = -1;
+	error = vfs_copyopt(opts, "zfs.mount_snapshot", &mount_snapshot,
+	    sizeof (mount_snapshot));
+	if (error == ENOENT)
+		mount_snapshot = -1;
+	else
+		jsys = JAIL_SYS_NEW;
+	if (jsys == JAIL_SYS_NEW) {
+		/* "zfs=new" or "zfs.*": the prison gets its own ZFS info. */
+		struct zfs_jailparam *zjp;
+
+		/*
+		 * A child jail cannot have more permissions than its parent
+		 */
+		if (pr->pr_parent != &prison0) {
+			zjp = zfs_jailparam_find(pr->pr_parent, &ppr);
+			mtx_unlock(&ppr->pr_mtx);
+			if (zjp->mount_snapshot < mount_snapshot) {
+				return (EPERM);
+			}
+		}
+		zfs_jailparam_alloc(pr, &zjp);
+		if (mount_snapshot != -1)
+			zjp->mount_snapshot = mount_snapshot;
+		mtx_unlock(&pr->pr_mtx);
+	} else {
+		/* "zfs=inherit": inherit the parent's ZFS info. */
+		mtx_lock(&pr->pr_mtx);
+		osd_jail_del(pr, zfs_jailparam_slot);
+		mtx_unlock(&pr->pr_mtx);
+	}
+	return (0);
+}
+
+static int
+zfs_jailparam_check(void *obj __unused, void *data)
+{
+	struct vfsoptlist *opts = data;
+	int error, jsys, mount_snapshot;
+
+	/* Check that the parameters are correct. */
+	error = vfs_copyopt(opts, "zfs", &jsys, sizeof (jsys));
+	if (error != ENOENT) {
+		if (error != 0)
+			return (error);
+		if (jsys != JAIL_SYS_NEW && jsys != JAIL_SYS_INHERIT)
+			return (EINVAL);
+	}
+	error = vfs_copyopt(opts, "zfs.mount_snapshot", &mount_snapshot,
+	    sizeof (mount_snapshot));
+	if (error != ENOENT) {
+		if (error != 0)
+			return (error);
+		if (mount_snapshot != 0 && mount_snapshot != 1)
+			return (EINVAL);
+	}
+	return (0);
+}
+
+static void
+zfs_jailparam_destroy(void *data)
+{
+
+	free(data, M_PRISON);
+}
+
+static void
+zfs_jailparam_sysinit(void *arg __unused)
+{
+	struct prison *pr;
+	osd_method_t  methods[PR_MAXMETHOD] = {
+		[PR_METHOD_CREATE] = zfs_jailparam_create,
+		[PR_METHOD_GET] = zfs_jailparam_get,
+		[PR_METHOD_SET] = zfs_jailparam_set,
+		[PR_METHOD_CHECK] = zfs_jailparam_check,
+	};
+
+	zfs_jailparam_slot = osd_jail_register(zfs_jailparam_destroy, methods);
+	/* Copy the defaults to any existing prisons. */
+	sx_slock(&allprison_lock);
+	TAILQ_FOREACH(pr, &allprison, pr_list)
+		zfs_jailparam_alloc(pr, NULL);
+	sx_sunlock(&allprison_lock);
+}
+
+static void
+zfs_jailparam_sysuninit(void *arg __unused)
+{
+
+	osd_jail_deregister(zfs_jailparam_slot);
+}
+
+SYSINIT(zfs_jailparam_sysinit, SI_SUB_DRIVERS, SI_ORDER_ANY,
+	zfs_jailparam_sysinit, NULL);
+SYSUNINIT(zfs_jailparam_sysuninit, SI_SUB_DRIVERS, SI_ORDER_ANY,
+	zfs_jailparam_sysuninit, NULL);
