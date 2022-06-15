@@ -7,8 +7,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_ADD_DISK], [
 		#include <linux/blkdev.h>
 	], [
 		struct gendisk *disk = NULL;
-		int err = add_disk(disk);
-		err = err;
+		int error __attribute__ ((unused)) = add_disk(disk);
 	])
 ])
 
