@@ -3432,6 +3432,20 @@ function stat_size #<path>
 	esac
 }
 
+function stat_mtime #<path>
+{
+	typeset path=$1
+
+	case "$UNAME" in
+	FreeBSD)
+		stat -f %m "$path"
+		;;
+	*)
+		stat -c %Y "$path"
+		;;
+	esac
+}
+
 function stat_ctime #<path>
 {
 	typeset path=$1

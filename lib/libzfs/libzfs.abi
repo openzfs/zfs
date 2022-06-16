@@ -2398,7 +2398,8 @@
       <enumerator name='ZFS_PROP_IVSET_GUID' value='92'/>
       <enumerator name='ZFS_PROP_REDACTED' value='93'/>
       <enumerator name='ZFS_PROP_REDACT_SNAPS' value='94'/>
-      <enumerator name='ZFS_NUM_PROPS' value='95'/>
+      <enumerator name='ZFS_PROP_SNAPSHOTS_CHANGED' value='95'/>
+      <enumerator name='ZFS_NUM_PROPS' value='96'/>
     </enum-decl>
     <typedef-decl name='zfs_prop_t' type-id='4b000d60' id='58603c44'/>
     <enum-decl name='zfs_userquota_prop_t' naming-typedef-id='279fde6a' id='5258d2f6'>
