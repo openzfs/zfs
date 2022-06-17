@@ -32,6 +32,9 @@
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_ctldir.h>
 #include <sys/zpl.h>
+#include <sys/dmu.h>
+#include <sys/dsl_dataset.h>
+#include <sys/zap.h>
 
 /*
  * Common open routine.  Disallow any write access.
@@ -411,6 +414,20 @@ zpl_snapdir_getattr_impl(const struct path *path, struct kstat *stat,
 #endif
 
 	stat->nlink = stat->size = 2;
+
+	dsl_dataset_t *ds = dmu_objset_ds(zfsvfs->z_os);
+	if (dsl_dataset_phys(ds)->ds_snapnames_zapobj != 0) {
+		uint64_t snap_count;
+		int err = zap_count(
+		    dmu_objset_pool(ds->ds_objset)->dp_meta_objset,
+		    dsl_dataset_phys(ds)->ds_snapnames_zapobj, &snap_count);
+		if (err != 0) {
+			ZPL_EXIT(zfsvfs);
+			return (-err);
+		}
+		stat->nlink += snap_count;
+	}
+
 	stat->ctime = stat->mtime = dmu_objset_snap_cmtime(zfsvfs->z_os);
 	stat->atime = current_time(ip);
 	ZPL_EXIT(zfsvfs);
