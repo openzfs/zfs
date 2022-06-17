@@ -201,6 +201,34 @@ blake3_impl_get_ops(void)
 	return (blake3_selected_impl);
 }
 
+#if defined(_KERNEL)
+void **blake3_per_cpu_ctx;
+
+void
+blake3_per_cpu_ctx_init(void)
+{
+	/*
+	 * Create "The Godfather" ptr to hold all blake3 ctx
+	 */
+	blake3_per_cpu_ctx = kmem_alloc(max_ncpus * sizeof (void *), KM_SLEEP);
+	for (int i = 0; i < max_ncpus; i++) {
+		blake3_per_cpu_ctx[i] = kmem_alloc(sizeof (BLAKE3_CTX),
+		    KM_SLEEP);
+	}
+}
+
+void
+blake3_per_cpu_ctx_fini(void)
+{
+	for (int i = 0; i < max_ncpus; i++) {
+		memset(blake3_per_cpu_ctx[i], 0, sizeof (BLAKE3_CTX));
+		kmem_free(blake3_per_cpu_ctx[i], sizeof (BLAKE3_CTX));
+	}
+	memset(blake3_per_cpu_ctx, 0, max_ncpus * sizeof (void *));
+	kmem_free(blake3_per_cpu_ctx, max_ncpus * sizeof (void *));
+}
+#endif
+
 #if defined(_KERNEL) && defined(__linux__)
 static int
 icp_blake3_impl_set(const char *name, zfs_kernel_param_t *kp)
