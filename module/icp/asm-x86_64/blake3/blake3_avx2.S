@@ -1334,7 +1334,7 @@ zfs_blake3_hash_many_avx2:
         pop     r13
         pop     r14
         pop     r15
-        ret
+        RET
 .p2align  5
 3:
         mov     rbx, qword ptr [rbp+0x50]
