@@ -2941,9 +2941,6 @@ dbuf_destroy(dmu_buf_impl_t *db)
 	ASSERT3U(db->db_caching_status, ==, DB_NO_CACHE);
 	ASSERT(!multilist_link_active(&db->db_cache_link));
 
-	kmem_cache_free(dbuf_kmem_cache, db);
-	arc_space_return(sizeof (dmu_buf_impl_t), ARC_SPACE_DBUF);
-
 	/*
 	 * If this dbuf is referenced from an indirect dbuf,
 	 * decrement the ref count on the indirect dbuf.
@@ -2952,6 +2949,9 @@ dbuf_destroy(dmu_buf_impl_t *db)
 		mutex_enter(&parent->db_mtx);
 		dbuf_rele_and_unlock(parent, db, B_TRUE);
 	}
+
+	kmem_cache_free(dbuf_kmem_cache, db);
+	arc_space_return(sizeof (dmu_buf_impl_t), ARC_SPACE_DBUF);
 }
 
 /*
