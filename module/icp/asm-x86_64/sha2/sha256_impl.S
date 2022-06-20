@@ -2058,7 +2058,7 @@ ENTRY_NP(SHA256TransformBlocks)
 .cfi_adjust_cfa_offset -8
 .cfi_restore	%rbx
 
-	ret
+	RET
 .cfi_endproc
 SET_SIZE(SHA256TransformBlocks)
 
