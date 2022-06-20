@@ -2480,7 +2480,7 @@ upgrade_set_callback(zfs_handle_t *zhp, void *data)
 
 	/* upgrade */
 	if (version < cb->cb_version) {
-		char verstr[16];
+		char verstr[24];
 		(void) snprintf(verstr, sizeof (verstr),
 		    "%llu", (u_longlong_t)cb->cb_version);
 		if (cb->cb_lastfs[0] && !same_pool(zhp, cb->cb_lastfs)) {
