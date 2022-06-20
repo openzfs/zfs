@@ -244,7 +244,7 @@ ENTRY_NP(gcm_mul_pclmulqdq)
 	//
 	// Return
 	//
-	ret
+	RET
 	SET_SIZE(gcm_mul_pclmulqdq)
 
 #endif	/* lint || __lint */

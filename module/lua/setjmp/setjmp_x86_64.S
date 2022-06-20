@@ -35,6 +35,12 @@ x:
 	.size	x, [.-x]
 
 
+#if defined(__linux__) && defined(CONFIG_SLS)
+#define	RET	ret; int3
+#else
+#define	RET	ret
+#endif
+
 /*
  * Setjmp and longjmp implement non-local gotos using state vectors
  * type label_t.
@@ -52,7 +58,7 @@ x:
 	movq	0(%rsp), %rdx		/* return address */
 	movq	%rdx, 56(%rdi)		/* rip */
 	xorl	%eax, %eax		/* return 0 */
-	ret
+	RET
 	SET_SIZE(setjmp)
 
 	ENTRY(longjmp)
@@ -67,7 +73,7 @@ x:
 	movq	%rdx, 0(%rsp)
 	xorl	%eax, %eax
 	incl	%eax			/* return 1 */
-	ret
+	RET
 	SET_SIZE(longjmp)
 
 #ifdef __ELF__
