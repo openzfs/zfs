@@ -167,6 +167,13 @@ static void seterrorobj (lua_State *L, int errcode, StkId oldtop) {
   L->top = oldtop + 1;
 }
 
+/*
+ * Silence infinite recursion warning which was added to -Wall in gcc 12.1
+ */
+#if defined(HAVE_INFINITE_RECURSION)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winfinite-recursion"a
+#endif
 
 l_noret luaD_throw (lua_State *L, int errcode) {
   if (L->errorJmp) {  /* thread has an error handler? */
@@ -188,6 +195,10 @@ l_noret luaD_throw (lua_State *L, int errcode) {
     }
   }
 }
+
+#if defined(HAVE_INFINITE_RECURSION)
+#pragma GCC diagnostic pop
+#endif
 
 
 int luaD_rawrunprotected (lua_State *L, Pfunc f, void *ud) {

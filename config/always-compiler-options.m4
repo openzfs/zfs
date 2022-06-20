@@ -205,6 +205,29 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_IMPLICIT_FALLTHROUGH], [
 ])
 
 dnl #
+dnl # Check if cc supports -Winfinite-recursion option.
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_INFINITE_RECURSION], [
+	AC_MSG_CHECKING([whether $CC supports -Winfinite-recursion])
+
+	saved_flags="$CFLAGS"
+	CFLAGS="$CFLAGS -Werror -Winfinite-recursion"
+
+	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
+		INFINITE_RECURSION=-Winfinite-recursion
+		AC_DEFINE([HAVE_INFINITE_RECURSION], 1,
+			[Define if compiler supports -Winfinite-recursion])
+		AC_MSG_RESULT([yes])
+	], [
+		INFINITE_RECURSION=
+		AC_MSG_RESULT([no])
+	])
+
+	CFLAGS="$saved_flags"
+	AC_SUBST([INFINITE_RECURSION])
+])
+
+dnl #
 dnl # Check if cc supports -fno-omit-frame-pointer option.
 dnl #
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_OMIT_FRAME_POINTER], [
