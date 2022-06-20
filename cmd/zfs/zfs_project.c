@@ -207,7 +207,6 @@ static int
 zfs_project_handle_dir(const char *name, zfs_project_control_t *zpc,
     list_t *head)
 {
-	char fullname[PATH_MAX];
 	struct dirent *ent;
 	DIR *dir;
 	int ret = 0;
@@ -227,21 +226,28 @@ zfs_project_handle_dir(const char *name, zfs_project_control_t *zpc,
 	zpc->zpc_ignore_noent = B_TRUE;
 	errno = 0;
 	while (!ret && (ent = readdir(dir)) != NULL) {
+		char *fullname;
+
 		/* skip "." and ".." */
 		if (strcmp(ent->d_name, ".") == 0 ||
 		    strcmp(ent->d_name, "..") == 0)
 			continue;
 
-		if (strlen(ent->d_name) + strlen(name) >=
-		    sizeof (fullname) + 1) {
+		if (strlen(ent->d_name) + strlen(name) + 1 >= PATH_MAX) {
 			errno = ENAMETOOLONG;
 			break;
 		}
 
-		sprintf(fullname, "%s/%s", name, ent->d_name);
+		if (asprintf(&fullname, "%s/%s", name, ent->d_name) == -1) {
+			errno = ENOMEM;
+			break;
+		}
+
 		ret = zfs_project_handle_one(fullname, zpc);
 		if (!ret && zpc->zpc_recursive && ent->d_type == DT_DIR)
 			zfs_project_item_alloc(head, fullname);
+
+		free(fullname);
 	}
 
 	if (errno && !ret) {
