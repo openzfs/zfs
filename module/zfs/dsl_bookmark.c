@@ -347,6 +347,8 @@ dsl_bookmark_set_phys(zfs_bookmark_phys_t *zbm, dsl_dataset_t *snap)
 	spa_t *spa = dsl_dataset_get_spa(snap);
 	objset_t *mos = spa_get_dsl(spa)->dp_meta_objset;
 	dsl_dataset_phys_t *dsp = dsl_dataset_phys(snap);
+
+	memset(zbm, 0, sizeof (zfs_bookmark_phys_t));
 	zbm->zbm_guid = dsp->ds_guid;
 	zbm->zbm_creation_txg = dsp->ds_creation_txg;
 	zbm->zbm_creation_time = dsp->ds_creation_time;
@@ -380,10 +382,6 @@ dsl_bookmark_set_phys(zfs_bookmark_phys_t *zbm, dsl_dataset_t *snap)
 		    &zbm->zbm_compressed_freed_before_next_snap,
 		    &zbm->zbm_uncompressed_freed_before_next_snap);
 		dsl_dataset_rele(nextds, FTAG);
-	} else {
-		bzero(&zbm->zbm_flags,
-		    sizeof (zfs_bookmark_phys_t) -
-		    offsetof(zfs_bookmark_phys_t, zbm_flags));
 	}
 }
 
