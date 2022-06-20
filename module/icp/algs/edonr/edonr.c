@@ -488,7 +488,7 @@ EdonRInit(EdonRState *state, size_t hashbitlen)
 		state->hashbitlen = 512;
 		state->bits_processed = 0;
 		state->unprocessed_bits = 0;
-		bcopy(i512p2, hashState224(state)->DoublePipe,
+		bcopy(i512p2, hashState512(state)->DoublePipe,
 		    16 * sizeof (uint64_t));
 		break;
 	}
