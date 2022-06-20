@@ -527,6 +527,7 @@ make_dataset_simple_handle_zc(zfs_handle_t *pzhp, zfs_cmd_t *zc)
 	zhp->zfs_head_type = pzhp->zfs_type;
 	zhp->zfs_type = ZFS_TYPE_SNAPSHOT;
 	zhp->zpool_hdl = zpool_handle(zhp);
+	zhp->zfs_dmustats = zc->zc_objset_stats;
 
 	return (zhp);
 }
@@ -2282,6 +2283,19 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 	case ZFS_PROP_REDACTED:
 		*val = zhp->zfs_dmustats.dds_redacted;
 		break;
+
+	case ZFS_PROP_CREATETXG:
+		/*
+		 * We can directly read createtxg property from zfs
+		 * handle for Filesystem, Snapshot and ZVOL types.
+		 */
+		if ((zhp->zfs_type == ZFS_TYPE_FILESYSTEM) ||
+		    (zhp->zfs_type == ZFS_TYPE_SNAPSHOT) ||
+		    (zhp->zfs_type == ZFS_TYPE_VOLUME)) {
+			*val = zhp->zfs_dmustats.dds_creation_txg;
+			break;
+		}
+		zfs_fallthrough;
 
 	default:
 		switch (zfs_prop_get_type(prop)) {

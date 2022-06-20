@@ -53,6 +53,7 @@ int zfs_for_each(int, char **, int options, zfs_type_t,
 int zfs_add_sort_column(zfs_sort_column_t **, const char *, boolean_t);
 void zfs_free_sort_columns(zfs_sort_column_t *);
 int zfs_sort_only_by_name(const zfs_sort_column_t *);
+int zfs_sort_only_by_createtxg(const zfs_sort_column_t *);
 
 #ifdef	__cplusplus
 }
