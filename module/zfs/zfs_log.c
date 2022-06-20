@@ -107,86 +107,81 @@ zfs_log_create_txtype(zil_create_t type, vsecattr_t *vsecp, vattr_t *vap)
 static void
 zfs_log_xvattr(lr_attr_t *lrattr, xvattr_t *xvap)
 {
-	uint32_t	*bitmap;
-	uint64_t	*attrs;
-	uint64_t	*crtime;
-	xoptattr_t	*xoap;
-	void		*scanstamp;
-	int		i;
+	xoptattr_t *xoap;
 
 	xoap = xva_getxoptattr(xvap);
 	ASSERT(xoap);
 
 	lrattr->lr_attr_masksize = xvap->xva_mapsize;
-	bitmap = &lrattr->lr_attr_bitmap;
-	for (i = 0; i != xvap->xva_mapsize; i++, bitmap++) {
+	uint32_t *bitmap = &lrattr->lr_attr_bitmap;
+	for (int i = 0; i != xvap->xva_mapsize; i++, bitmap++)
 		*bitmap = xvap->xva_reqattrmap[i];
-	}
 
-	/* Now pack the attributes up in a single uint64_t */
-	attrs = (uint64_t *)bitmap;
-	*attrs = 0;
-	crtime = attrs + 1;
-	memset(crtime, 0, 2 * sizeof (uint64_t));
-	scanstamp = (caddr_t)(crtime + 2);
-	memset(scanstamp, 0, AV_SCANSTAMP_SZ);
+	lr_attr_end_t *end = (lr_attr_end_t *)bitmap;
+	end->lr_attr_attrs = 0;
+	end->lr_attr_crtime[0] = 0;
+	end->lr_attr_crtime[1] = 0;
+	memset(end->lr_attr_scanstamp, 0, AV_SCANSTAMP_SZ);
+
 	if (XVA_ISSET_REQ(xvap, XAT_READONLY))
-		*attrs |= (xoap->xoa_readonly == 0) ? 0 :
+		end->lr_attr_attrs |= (xoap->xoa_readonly == 0) ? 0 :
 		    XAT0_READONLY;
 	if (XVA_ISSET_REQ(xvap, XAT_HIDDEN))
-		*attrs |= (xoap->xoa_hidden == 0) ? 0 :
+		end->lr_attr_attrs |= (xoap->xoa_hidden == 0) ? 0 :
 		    XAT0_HIDDEN;
 	if (XVA_ISSET_REQ(xvap, XAT_SYSTEM))
-		*attrs |= (xoap->xoa_system == 0) ? 0 :
+		end->lr_attr_attrs |= (xoap->xoa_system == 0) ? 0 :
 		    XAT0_SYSTEM;
 	if (XVA_ISSET_REQ(xvap, XAT_ARCHIVE))
-		*attrs |= (xoap->xoa_archive == 0) ? 0 :
+		end->lr_attr_attrs |= (xoap->xoa_archive == 0) ? 0 :
 		    XAT0_ARCHIVE;
 	if (XVA_ISSET_REQ(xvap, XAT_IMMUTABLE))
-		*attrs |= (xoap->xoa_immutable == 0) ? 0 :
+		end->lr_attr_attrs |= (xoap->xoa_immutable == 0) ? 0 :
 		    XAT0_IMMUTABLE;
 	if (XVA_ISSET_REQ(xvap, XAT_NOUNLINK))
-		*attrs |= (xoap->xoa_nounlink == 0) ? 0 :
+		end->lr_attr_attrs |= (xoap->xoa_nounlink == 0) ? 0 :
 		    XAT0_NOUNLINK;
 	if (XVA_ISSET_REQ(xvap, XAT_APPENDONLY))
-		*attrs |= (xoap->xoa_appendonly == 0) ? 0 :
+		end->lr_attr_attrs |= (xoap->xoa_appendonly == 0) ? 0 :
 		    XAT0_APPENDONLY;
 	if (XVA_ISSET_REQ(xvap, XAT_OPAQUE))
-		*attrs |= (xoap->xoa_opaque == 0) ? 0 :
+		end->lr_attr_attrs |= (xoap->xoa_opaque == 0) ? 0 :
 		    XAT0_APPENDONLY;
 	if (XVA_ISSET_REQ(xvap, XAT_NODUMP))
-		*attrs |= (xoap->xoa_nodump == 0) ? 0 :
+		end->lr_attr_attrs |= (xoap->xoa_nodump == 0) ? 0 :
 		    XAT0_NODUMP;
 	if (XVA_ISSET_REQ(xvap, XAT_AV_QUARANTINED))
-		*attrs |= (xoap->xoa_av_quarantined == 0) ? 0 :
+		end->lr_attr_attrs |= (xoap->xoa_av_quarantined == 0) ? 0 :
 		    XAT0_AV_QUARANTINED;
 	if (XVA_ISSET_REQ(xvap, XAT_AV_MODIFIED))
-		*attrs |= (xoap->xoa_av_modified == 0) ? 0 :
+		end->lr_attr_attrs |= (xoap->xoa_av_modified == 0) ? 0 :
 		    XAT0_AV_MODIFIED;
 	if (XVA_ISSET_REQ(xvap, XAT_CREATETIME))
-		ZFS_TIME_ENCODE(&xoap->xoa_createtime, crtime);
+		ZFS_TIME_ENCODE(&xoap->xoa_createtime, end->lr_attr_crtime);
 	if (XVA_ISSET_REQ(xvap, XAT_AV_SCANSTAMP)) {
 		ASSERT(!XVA_ISSET_REQ(xvap, XAT_PROJID));
 
-		memcpy(scanstamp, xoap->xoa_av_scanstamp, AV_SCANSTAMP_SZ);
+		memcpy(end->lr_attr_scanstamp, xoap->xoa_av_scanstamp,
+		    AV_SCANSTAMP_SZ);
 	} else if (XVA_ISSET_REQ(xvap, XAT_PROJID)) {
 		/*
 		 * XAT_PROJID and XAT_AV_SCANSTAMP will never be valid
 		 * at the same time, so we can share the same space.
 		 */
-		memcpy(scanstamp, &xoap->xoa_projid, sizeof (uint64_t));
+		memcpy(end->lr_attr_scanstamp, &xoap->xoa_projid,
+		    sizeof (uint64_t));
 	}
 	if (XVA_ISSET_REQ(xvap, XAT_REPARSE))
-		*attrs |= (xoap->xoa_reparse == 0) ? 0 :
+		end->lr_attr_attrs |= (xoap->xoa_reparse == 0) ? 0 :
 		    XAT0_REPARSE;
 	if (XVA_ISSET_REQ(xvap, XAT_OFFLINE))
-		*attrs |= (xoap->xoa_offline == 0) ? 0 :
+		end->lr_attr_attrs |= (xoap->xoa_offline == 0) ? 0 :
 		    XAT0_OFFLINE;
 	if (XVA_ISSET_REQ(xvap, XAT_SPARSE))
-		*attrs |= (xoap->xoa_sparse == 0) ? 0 :
+		end->lr_attr_attrs |= (xoap->xoa_sparse == 0) ? 0 :
 		    XAT0_SPARSE;
 	if (XVA_ISSET_REQ(xvap, XAT_PROJINHERIT))
-		*attrs |= (xoap->xoa_projinherit == 0) ? 0 :
+		end->lr_attr_attrs |= (xoap->xoa_projinherit == 0) ? 0 :
 		    XAT0_PROJINHERIT;
 }
 
