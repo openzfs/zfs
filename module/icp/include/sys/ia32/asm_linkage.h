@@ -30,6 +30,12 @@
 #include <sys/stack.h>
 #include <sys/trap.h>
 
+#if defined(__linux__) && defined(CONFIG_SLS)
+#define	RET	ret; int3
+#else
+#define	RET	ret
+#endif
+
 #ifdef	__cplusplus
 extern "C" {
 #endif
