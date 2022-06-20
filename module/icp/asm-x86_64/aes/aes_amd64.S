@@ -785,7 +785,7 @@ ENTRY_NP(aes_encrypt_amd64)
 	mov	2*8(%rsp), %rbp
 	mov	3*8(%rsp), %r12
 	add	$[4*8], %rsp
-	ret
+	RET
 
 	SET_SIZE(aes_encrypt_amd64)
 
@@ -896,7 +896,7 @@ ENTRY_NP(aes_decrypt_amd64)
 	mov	2*8(%rsp), %rbp
 	mov	3*8(%rsp), %r12
 	add	$[4*8], %rsp
-	ret
+	RET
 
 	SET_SIZE(aes_decrypt_amd64)
 #endif	/* lint || __lint */
