@@ -1201,7 +1201,7 @@ aesni_gcm_encrypt:
 .align	32
 clear_fpu_regs_avx:
 	vzeroall
-	ret
+	RET
 .size	clear_fpu_regs_avx,.-clear_fpu_regs_avx
 
 /*
@@ -1219,7 +1219,7 @@ gcm_xor_avx:
 	movdqu  (%rsi), %xmm1
 	pxor    %xmm1, %xmm0
 	movdqu  %xmm0, (%rsi)
-	ret
+	RET
 .size	gcm_xor_avx,.-gcm_xor_avx
 
 /*
@@ -1236,7 +1236,7 @@ atomic_toggle_boolean_nv:
 	jz	1f
 	movl	$1, %eax
 1:
-	ret
+	RET
 .size	atomic_toggle_boolean_nv,.-atomic_toggle_boolean_nv
 
 .align	64

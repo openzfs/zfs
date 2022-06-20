@@ -1475,7 +1475,7 @@ zfs_blake3_hash_many_sse41:
         pop     r13
         pop     r14
         pop     r15
-        ret
+        RET
 .p2align 5
 3:
         test    esi, 0x2
@@ -1908,7 +1908,7 @@ zfs_blake3_compress_in_place_sse41:
         pxor    xmm1, xmm3
         movups  xmmword ptr [rdi], xmm0
         movups  xmmword ptr [rdi+0x10], xmm1
-        ret
+        RET
 .p2align 6
 zfs_blake3_compress_xof_sse41:
         _CET_ENDBR
@@ -2015,7 +2015,7 @@ zfs_blake3_compress_xof_sse41:
         movups  xmmword ptr [r9+0x10], xmm1
         movups  xmmword ptr [r9+0x20], xmm2
         movups  xmmword ptr [r9+0x30], xmm3
-        ret
+        RET
 
 .size zfs_blake3_hash_many_sse41, . - zfs_blake3_hash_many_sse41
 .size zfs_blake3_compress_in_place_sse41, . - zfs_blake3_compress_in_place_sse41
