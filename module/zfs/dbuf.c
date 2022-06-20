@@ -3199,9 +3199,10 @@ dbuf_issue_final_prefetch_done(zio_t *zio, const zbookmark_phys_t *zb,
 	(void) zio, (void) zb, (void) iobp;
 	dbuf_prefetch_arg_t *dpa = private;
 
-	dbuf_prefetch_fini(dpa, B_TRUE);
 	if (abuf != NULL)
 		arc_buf_destroy(abuf, private);
+
+	dbuf_prefetch_fini(dpa, B_TRUE);
 }
 
 /*
