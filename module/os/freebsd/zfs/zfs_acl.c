@@ -2030,6 +2030,12 @@ top:
 	return (error);
 }
 
+int
+zfs_stripacl(znode_t *zp, cred_t *cr)
+{
+	return (SET_ERROR(EOPNOTSUPP));
+}
+
 /*
  * Check accesses of interest (AoI) against attributes of the dataset
  * such as read-only.  Returns zero if no AoI conflict with dataset
