@@ -47,18 +47,22 @@ void
 abd_checksum_blake3_native(abd_t *abd, uint64_t size, const void *ctx_template,
     zio_cksum_t *zcp)
 {
-	BLAKE3_CTX *ctx;
-
-	ctx = kmem_alloc(sizeof (*ctx), KM_NOSLEEP);
-	ASSERT(ctx != 0);
 	ASSERT(ctx_template != 0);
+
+#if defined(_KERNEL)
+	BLAKE3_CTX *ctx = blake3_per_cpu_ctx[CPU_SEQID_UNSTABLE];
+#else
+	BLAKE3_CTX *ctx = kmem_alloc(sizeof (*ctx), KM_SLEEP);
+#endif
 
 	memcpy(ctx, ctx_template, sizeof (*ctx));
 	(void) abd_iterate_func(abd, 0, size, blake3_incremental, ctx);
 	Blake3_Final(ctx, (uint8_t *)zcp);
 
+#if !defined(_KERNEL)
 	memset(ctx, 0, sizeof (*ctx));
 	kmem_free(ctx, sizeof (*ctx));
+#endif
 }
 
 /*
