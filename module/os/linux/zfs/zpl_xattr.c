@@ -1866,12 +1866,12 @@ __zpl_xattr_nfs41acl_set(struct inode *ip, const char *name,
 	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_NFSV4)
 		return (-EOPNOTSUPP);
 
-	/*
-	 * TODO: we may receive NULL value and size 0
-	 * when rmxattr() on our special xattr is called.
-	 * A function to "strip" the ACL needs to be added
-	 * to avoid POLA violation.
-	 */
+	if (value == NULL && size == 0) {
+		crhold(cr);
+		error = zfs_stripacl(ITOZ(ip), cr);
+		crfree(cr);
+		return (error);
+	}
 
 	/* xdr data is 4-byte aligned */
 	if (((ulong_t)value % 4) != 0) {
