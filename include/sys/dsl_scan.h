@@ -155,7 +155,7 @@ typedef struct dsl_scan {
 	dsl_scan_phys_t scn_phys;	/* on disk representation of scan */
 	dsl_scan_phys_t scn_phys_cached;
 	avl_tree_t scn_queue;		/* queue of datasets to scan */
-	uint64_t scn_bytes_pending;	/* outstanding data to issue */
+	uint64_t scn_queues_pending;	/* outstanding data to issue */
 } dsl_scan_t;
 
 typedef struct dsl_scan_io_queue dsl_scan_io_queue_t;
