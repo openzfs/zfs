@@ -277,6 +277,9 @@ chksum_benchmark(void)
 void
 chksum_init(void)
 {
+#ifdef _KERNEL
+	blake3_per_cpu_ctx_init();
+#endif
 
 	/* Benchmark supported implementations */
 	chksum_benchmark();
@@ -313,4 +316,8 @@ chksum_fini(void)
 		chksum_stat_cnt = 0;
 		chksum_stat_data = 0;
 	}
+
+#ifdef _KERNEL
+	blake3_per_cpu_ctx_fini();
+#endif
 }
