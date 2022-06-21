@@ -276,6 +276,14 @@ zpl_xattr_list(struct dentry *dentry, char *buffer, size_t buffer_size)
 		goto out1;
 	rw_enter(&zp->z_xattr_lock, RW_READER);
 
+	if ((zfsvfs->z_acl_type == ZFS_ACLTYPE_NFSV4) &&
+	    ((zp->z_pflags & ZFS_ACL_TRIVIAL) == 0)) {
+		error = zpl_xattr_filldir(&xf, NFS41ACL_XATTR,
+		    sizeof (NFS41ACL_XATTR) - 1);
+		if (error)
+			goto out;
+	}
+
 	if (zfsvfs->z_use_sa && zp->z_is_sa) {
 		error = zpl_xattr_list_sa(&xf);
 		if (error)
@@ -1408,6 +1416,14 @@ static xattr_handler_t zpl_xattr_acl_default_handler = {
 
 #endif /* CONFIG_FS_POSIX_ACL */
 
+/*
+ * zpl_permission() gets called by linux kernel whenever it checks
+ * inode_permission via inode->i_op->permission. The general preference
+ * is to defer to the standard in-kernel permission check (generic_permission)
+ * wherever possible.
+ *
+ * https://www.kernel.org/doc/Documentation/filesystems/vfs.txt
+ */
 int
 #if defined(HAVE_IOPS_PERMISSION_USERNS)
 zpl_permission(struct user_namespace *userns, struct inode *ip, int mask)
@@ -1419,6 +1435,12 @@ zpl_permission(struct inode *ip, int mask)
 {
 	int to_check = 0, i, ret;
 	cred_t *cr = NULL;
+	zfsvfs_t *zfsvfs = NULL;
+
+	for (i = 0; i < ARRAY_SIZE(mask2zfs); i++) {
+		if (mask & mask2zfs[i].kmask)
+			to_check |= mask2zfs[i].zfsperm;
+	}
 
 	/*
 	 * If NFSv4 ACLs are not being used, go back to
@@ -1427,19 +1449,15 @@ zpl_permission(struct inode *ip, int mask)
 	 * also go back to generic_permission().
 	 */
 	if ((ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_NFSV4) ||
-	    ((ITOZ(ip)->z_pflags & ZFS_ACL_TRIVIAL && GENERIC_MASK(mask)))) {
-#if (defined(HAVE_IOPS_PERMISSION_USERNS) || \
-	defined(HAVE_IOPS_PERMISSION_IDMAP))
-		return (generic_permission(zfs_init_idmap, ip, mask));
+	    ((ITOZ(ip)->z_pflags & ZFS_ACL_TRIVIAL &&
+	    GENERIC_MASK(mask))) || to_check == 0) {
+#if defined(HAVE_IOPS_PERMISSION_USERNS)
+		return (generic_permission(userns, ip, mask));
+#elif defined(HAVE_IOPS_PERMISSION_IDMAP)
+		return (generic_permission(idmap, ip, mask));
 #else
 		return (generic_permission(ip, mask));
 #endif
-	}
-
-	for (i = 0; i < ARRAY_SIZE(mask2zfs); i++) {
-		if (mask & mask2zfs[i].kmask) {
-			to_check |= mask2zfs[i].zfsperm;
-		}
 	}
 
 	/*
@@ -1447,32 +1465,50 @@ zpl_permission(struct inode *ip, int mask)
 	 * NFSv4 ACE. Pass back to default kernel permissions check.
 	 */
 	if (to_check == 0) {
-#if (defined(HAVE_IOPS_PERMISSION_USERNS) || \
-	defined(HAVE_IOPS_PERMISSION_IDMAP))
-		return (generic_permission(zfs_init_idmap, ip, mask));
+#if defined(HAVE_IOPS_PERMISSION_USERNS)
+		return (generic_permission(userns, ip, mask));
+#elif defined(HAVE_IOPS_PERMISSION_IDMAP)
+		return (generic_permission(idmap, ip, mask));
 #else
 		return (generic_permission(ip, mask));
 #endif
 	}
 
 	/*
-	 *  Avoid potentially blocking in RCU walk.
+	 * Fast path for execute checks. Do not use zfs_fastaccesschk_execute
+	 * since it may end up granting execute access in presence of explicit
+	 * deny entry for user / group, and it also read the ZFS ACL
+	 * (non-cached) which we wish to avoid in RCU.
 	 */
-	if (mask & MAY_NOT_BLOCK) {
-		return (-ECHILD);
-	}
-
-	cr = CRED();
-	crhold(cr);
-	ret = -zfs_access(ITOZ(ip), to_check, V_ACE_MASK, cr);
-	if (ret != -EPERM && ret != -EACCES) {
-		crfree(cr);
-		return (ret);
-	}
+	if ((to_check == ACE_EXECUTE) &&
+	    (ITOZ(ip)->z_pflags & ZFS_NO_EXECS_DENIED))
+			return (0);
 
 	/*
-	 * There are some situations in which capabilities
-	 * may allow overriding the DACL.
+	 * inode permission operation may be called in rcu-walk mode
+	 * (mask & MAY_NOT_BLOCK). If in rcu-walk mode, the filesystem must
+	 * check the permission without blocking or storing to the inode.
+	 *
+	 * If a situation is encountered that rcu-walk cannot handle,
+	 * return -ECHILD and it will be called again in ref-walk mode.
+	 */
+	cr = CRED();
+	crhold(cr);
+
+	/*
+	 * There are some situations in which capabilities may allow overriding
+	 * the DACL. Skip reading ACL if requested permissions are fully
+	 * satisfied by capabilities.
+	 */
+
+	/*
+	 * CAP_DAC_OVERRIDE may override RWX on directories, and RW on other
+	 * files. Execute may also be overriden if at least one execute bit is
+	 * set. This behavior is not formally documented, but is covered in
+	 * commit messages and code comments in namei.c.
+	 *
+	 * CAP_DAC_READ_SEARCH may bypass file read permission checks and
+	 * directory read and execute permission checks.
 	 */
 	if (S_ISDIR(ip->i_mode)) {
 #ifdef SB_NFSV4ACL
@@ -1489,24 +1525,43 @@ zpl_permission(struct inode *ip, int mask)
 			crfree(cr);
 			return (0);
 		}
-		crfree(cr);
-		return (ret);
 	}
 
-	if (to_check == ACE_READ_DATA) {
-		if (capable(CAP_DAC_READ_SEARCH)) {
-			crfree(cr);
-			return (0);
-		}
-	}
-
-	if (!(mask & MAY_EXEC) ||
-	    (zfs_fastaccesschk_execute(ITOZ(ip), cr) == 0)) {
+	if (!(mask & MAY_EXEC) || (ip->i_mode & S_IXUGO)) {
 		if (capable(CAP_DAC_OVERRIDE)) {
 			crfree(cr);
 			return (0);
 		}
 	}
+
+	if ((to_check == ACE_READ_DATA) &&
+	    capable(CAP_DAC_READ_SEARCH)) {
+		crfree(cr);
+		return (0);
+	}
+
+	if (mask & MAY_NOT_BLOCK) {
+		crfree(cr);
+		return (-ECHILD);
+	}
+
+	zfsvfs = ZTOZSB(ITOZ(ip));
+
+	if ((ret = -zfs_enter_verify_zp(zfsvfs, ITOZ(ip), FTAG)) != 0)
+		return (ret);
+
+#if defined(HAVE_IOPS_PERMISSION_USERNS)
+	ret = -zfs_zaccess(ITOZ(ip), to_check, V_ACE_MASK, B_FALSE, cr,
+	    userns);
+#elif defined(HAVE_IOPS_PERMISSION_IDMAP)
+	ret = -zfs_zaccess(ITOZ(ip), to_check, V_ACE_MASK, B_FALSE, cr,
+	    idmap);
+#else
+	ret = -zfs_zaccess(ITOZ(ip), to_check, V_ACE_MASK, B_FALSE, cr,
+	    zfs_init_idmap);
+#endif
+
+	zfs_exit(zfsvfs, FTAG);
 
 	crfree(cr);
 	return (ret);
@@ -1516,7 +1571,7 @@ zpl_permission(struct inode *ip, int mask)
 #define	ACE4_SPECIAL_OWNER	1
 #define	ACE4_SPECIAL_GROUP	2
 #define	ACE4_SPECIAL_EVERYONE	3
-#define	NFS41ACL_MAX_ACES	128
+#define	NFS41ACL_MAX_ACES	MAX_ACL_ENTRIES
 #define	NFS41_FLAGS		(ACE_DIRECTORY_INHERIT_ACE| \
 				ACE_FILE_INHERIT_ACE| \
 				ACE_NO_PROPAGATE_INHERIT_ACE| \
@@ -1722,9 +1777,8 @@ __zpl_xattr_nfs41acl_get(struct inode *ip, const char *name,
 	ret = -zfs_getsecattr(ITOZ(ip), &vsecp, fl, cr);
 	crfree(cr);
 
-	if (ret) {
+	if (ret)
 		return (ret);
-	}
 
 	if (vsecp.vsa_aclcnt == 0) {
 		ret = -ENODATA;
@@ -1749,9 +1803,11 @@ nfs4acl_get_out:
 ZPL_XATTR_GET_WRAPPER(zpl_xattr_nfs41acl_get);
 
 static int
-__zpl_xattr_nfs41acl_set(struct inode *ip, const char *name,
+__zpl_xattr_nfs41acl_set(zidmap_t *mnt_ns,
+    struct inode *ip, const char *name,
     const void *value, size_t size, int flags)
 {
+	(void) mnt_ns;
 	cred_t *cr = CRED();
 	int error, fl, naces;
 	vsecattr_t vsecp = { .vsa_mask = (VSA_ACE | VSA_ACE_ACLFLAGS) };
@@ -1759,12 +1815,12 @@ __zpl_xattr_nfs41acl_set(struct inode *ip, const char *name,
 	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_NFSV4)
 		return (-EOPNOTSUPP);
 
-	/*
-	 * TODO: we may receive NULL value and size 0
-	 * when rmxattr() on our special xattr is called.
-	 * A function to "strip" the ACL needs to be added
-	 * to avoid POLA violation.
-	 */
+	if (value == NULL && size == 0) {
+		crhold(cr);
+		error = zfs_stripacl(ITOZ(ip), cr);
+		crfree(cr);
+		return (error);
+	}
 
 	/* xdr data is 4-byte aligned */
 	if (((ulong_t)value % 4) != 0) {
