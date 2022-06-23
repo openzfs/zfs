@@ -18,7 +18,7 @@
 .\" Copyright (c) 2019, Allan Jude
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\"
-.Dd May 31, 2021
+.Dd June 23, 2022
 .Dt ZPOOL-FEATURES 7
 .Os
 .
@@ -27,8 +27,10 @@
 .Nd description of ZFS pool features
 .
 .Sh DESCRIPTION
-ZFS pool on-disk format versions are specified via "features" which replace
-the old on-disk format numbers (the last supported on-disk format number is 28).
+ZFS pool on-disk format versions are specified via
+.Dq features
+which replace the old on-disk format numbers
+.Pq the last supported on-disk format number is 28 .
 To enable a feature on a pool use the
 .Nm zpool Cm upgrade ,
 or set the
@@ -62,10 +64,12 @@ implementation that created the pool for information about those features.
 Each supported feature also has a short name.
 By convention a feature's short name is the portion of its GUID which follows the
 .Sq \&:
-(i.e.
+.Po
+i.e.
 .Ar com.example : Ns Ar feature-name
 would have the short name
-.Ar feature-name ) ,
+.Ar feature-name
+.Pc ,
 however a feature's short name may differ across ZFS implementations if
 following the convention would result in name conflicts.
 .
@@ -110,9 +114,11 @@ These features are referred to as
 If all unsupported features on a pool are read-only compatible,
 the pool can be imported in read-only mode by setting the
 .Sy readonly
-property during import (see
+property during import
+.Po see
 .Xr zpool-import 8
-for details on importing pools).
+for details on importing pools
+.Pc .
 .
 .Ss Unsupported features
 For each unsupported feature enabled on an imported pool, a pool property
@@ -143,15 +149,19 @@ The
 feature facilitates this by allowing feature sets to be read from text files.
 When set to
 .Sy off
-(the default), compatibility feature sets are disabled
-(i.e. all features are enabled); when set to
+.Pq the default ,
+compatibility feature sets are disabled
+.Pq i.e. all features are enabled ;
+when set to
 .Sy legacy ,
 no features are enabled.
 When set to a comma-separated list of filenames
-(each filename may either be an absolute path, or relative to
+.Po
+each filename may either be an absolute path, or relative to
 .Pa /etc/zfs/compatibility.d
 or
-.Pa /usr/share/zfs/compatibility.d ) ,
+.Pa /usr/share/zfs/compatibility.d
+.Pc ,
 the lists of requested features are read from those files,
 separated by whitespace and/or commas.
 Only features present in all files are enabled.
@@ -291,7 +301,9 @@ This feature enables support for separate allocation classes.
 .Pp
 This feature becomes
 .Sy active
-when a dedicated allocation class vdev (dedup or special) is created with the
+when a dedicated allocation class vdev
+.Pq dedup or special
+is created with the
 .Nm zpool Cm create No or Nm zpool Cm add No commands .
 With device removal, it can be returned to the
 .Sy enabled
@@ -356,8 +368,9 @@ state when all v2 bookmarks are destroyed.
 .feature com.delphix bookmark_written no bookmark extensible_dataset bookmark_v2
 This feature enables additional bookmark accounting fields, enabling the
 .Sy written Ns # Ns Ar bookmark
-property (space written since a bookmark) and estimates of
-send stream sizes for incrementals from bookmarks.
+property
+.Pq space written since a bookmark
+and estimates of send stream sizes for incrementals from bookmarks.
 .Pp
 This feature becomes
 .Sy active
@@ -372,7 +385,8 @@ This feature enables the ability for the
 and
 .Nm zpool Cm replace
 commands to perform sequential reconstruction
-(instead of healing reconstruction) when resilvering.
+.Pq instead of healing reconstruction
+when resilvering.
 .Pp
 Sequential reconstruction resilvers a device in LBA order without immediately
 verifying the checksums.
@@ -424,8 +438,10 @@ vdev to an existing pool.
 .
 .feature org.illumos edonr no extensible_dataset
 This feature enables the use of the Edon-R hash algorithm for checksum,
-including for nopwrite (if compression is also enabled, an overwrite of
-a block whose checksum matches the data being written will be ignored).
+including for nopwrite
+.Po if compression is also enabled, an overwrite of
+a block whose checksum matches the data being written will be ignored
+.Pc .
 In an abundance of caution, Edon-R requires verification when used with
 dedup:
 .Nm zfs Cm set Sy dedup Ns = Ns Sy edonr , Ns Sy verify
@@ -433,13 +449,15 @@ dedup:
 .Pp
 Edon-R is a very high-performance hash algorithm that was part
 of the NIST SHA-3 competition.
-It provides extremely high hash performance (over 350% faster than SHA-256),
+It provides extremely high hash performance
+.Pq over 350% faster than SHA-256 ,
 but was not selected because of its unsuitability
 as a general purpose secure hash algorithm.
 This implementation utilizes the new salted checksumming functionality
 in ZFS, which means that the checksum is pre-seeded with a secret
-256-bit random key (stored on the pool) before being fed the data block
-to be checksummed.
+256-bit random key
+.Pq stored on the pool
+before being fed the data block to be checksummed.
 Thus the produced checksums are unique to a given pool,
 preventing hash collision attacks on systems with dedup.
 .Pp
@@ -452,10 +470,15 @@ Blocks whose contents can compress to 112 bytes
 or smaller can take advantage of this feature.
 .Pp
 When this feature is enabled, the contents of highly-compressible blocks are
-stored in the block "pointer" itself (a misnomer in this case, as it contains
-the compressed data, rather than a pointer to its location on disk).
-Thus the space of the block (one sector, typically 512 B or 4 KiB) is saved,
-and no additional I/O is needed to read and write the data block.
+stored in the block
+.Dq pointer
+itself
+.Po a misnomer in this case, as it contains
+the compressed data, rather than a pointer to its location on disk
+.Pc .
+Thus the space of the block
+.Pq one sector, typically 512 B or 4 KiB
+is saved, and no additional I/O is needed to read and write the data block.
 .
 \*[instant-never]
 .
@@ -465,7 +488,9 @@ number of snapshots of a single filesystem or volume, and also reduces
 the disk space required.
 .Pp
 When there are many snapshots, each snapshot uses many Block Pointer
-Objects (bpobjs) to track blocks associated with that snapshot.
+Objects
+.Pq bpobjs
+to track blocks associated with that snapshot.
 However, in common use cases, most of these bpobjs are empty.
 This feature allows us to create each bpobj on-demand,
 thus eliminating the empty bpobjs.
@@ -536,7 +561,12 @@ will not match the source.
 Its use by
 .Nm zfs Cm send Fl i
 has been disabled by default
-.Pq see Sy send_holes_without_birth_time No in Xr zfs 4 .
+.Po
+see
+.Sy send_holes_without_birth_time
+in
+.Xr zfs 4
+.Pc .
 .Pp
 This feature improves performance of incremental sends
 .Pq Nm zfs Cm send Fl i
@@ -549,8 +579,10 @@ contains information about every block that changed between
 .Sy A No and Sy B .
 Blocks which did not change between those snapshots can be
 identified and omitted from the stream using a piece of metadata called
-the "block birth time", but birth times are not recorded for holes
-(blocks filled only with zeroes).
+the
+.Dq block birth time ,
+but birth times are not recorded for holes
+.Pq blocks filled only with zeroes .
 Since holes created after
 .Sy A No cannot be distinguished from holes created before Sy A ,
 information about every hole in the entire filesystem or zvol
@@ -558,9 +590,9 @@ is included in the send stream.
 .Pp
 For workloads where holes are rare this is not a problem.
 However, when incrementally replicating filesystems or zvols with many holes
-(for example a zvol formatted with another filesystem) a lot of time will
-be spent sending and receiving unnecessary information about holes that
-already exist on the receiving side.
+.Pq for example a zvol formatted with another filesystem
+a lot of time will be spent sending and receiving unnecessary information
+about holes that already exist on the receiving side.
 .Pp
 Once the
 .Sy hole_birth
@@ -657,7 +689,7 @@ When the
 feature is set to
 .Sy enabled ,
 the administrator can use
-.Xr dumpadm 1M
+.Xr dumpadm 8
 to configure a dump device on a pool comprised of multiple vdevs.
 .Pp
 Under
@@ -677,7 +709,9 @@ This feature is an enhancement of
 .Sy device_removal ,
 which will over time reduce the memory used to track removed devices.
 When indirect blocks are freed or remapped,
-we note that their part of the indirect mapping is "obsolete" – no longer needed.
+we note that their part of the indirect mapping is
+.Dq obsolete
+– no longer needed.
 .Pp
 This feature becomes
 .Sy active
@@ -688,7 +722,8 @@ command is used on a top-level vdev, and will never return to being
 .
 .feature org.zfsonlinux project_quota yes extensible_dataset
 This feature allows administrators to account the spaces and objects usage
-information against the project identifier (ID).
+information against the project identifier
+.Pq ID .
 .Pp
 The project ID is an object-based attribute.
 When upgrading an existing filesystem,
@@ -698,7 +733,8 @@ their parent directories' project ID if the parent's inherit flag is set
 .Pq via Nm chattr Sy [+-]P No or Nm zfs Cm project Fl s Ns | Ns Fl C .
 Otherwise, the new object's project ID will be zero.
 An object's project ID can be changed at any time by the owner
-(or privileged user) via
+.Pq or privileged user
+via
 .Nm chattr Fl p Ar prjid
 or
 .Nm zfs Cm project Fl p Ar prjid .
@@ -740,7 +776,8 @@ when the deferred resilver begins.
 .
 .feature org.illumos sha512 no extensible_dataset
 This feature enables the use of the SHA-512/256 truncated hash algorithm
-(FIPS 180-4) for checksum and dedup.
+.Pq FIPS 180-4
+for checksum and dedup.
 The native 64-bit arithmetic of SHA-512 provides an approximate 50%
 performance boost over SHA-256 on 64-bit hardware
 and is thus a good minimum-change replacement candidate
@@ -756,11 +793,12 @@ This feature enables the use of the Skein hash algorithm for checksum and dedup.
 Skein is a high-performance secure hash algorithm that was a
 finalist in the NIST SHA-3 competition.
 It provides a very high security margin and high performance on 64-bit hardware
-(80% faster than SHA-256).
+.Pq 80% faster than SHA-256 .
 This implementation also utilizes the new salted checksumming
 functionality in ZFS, which means that the checksum is pre-seeded with a
-secret 256-bit random key (stored on the pool) before being fed the data
-block to be checksummed.
+secret 256-bit random key
+.Pq stored on the pool
+before being fed the data block to be checksummed.
 Thus the produced checksums are unique to a given pool,
 preventing hash collision attacks on systems with dedup.
 .Pp
@@ -778,7 +816,9 @@ and never returns back to being
 .
 .feature com.delphix spacemap_v2 yes
 This feature enables the use of the new space map encoding which
-consists of two words (instead of one) whenever it is advantageous.
+consists of two words
+.Pq instead of one
+whenever it is advantageous.
 The new encoding allows space maps to represent large regions of
 space more efficiently on-disk while also increasing their maximum
 addressable offset.
@@ -872,4 +912,5 @@ are destroyed.
 .El
 .
 .Sh SEE ALSO
+.Xr zfs 8 ,
 .Xr zpool 8
