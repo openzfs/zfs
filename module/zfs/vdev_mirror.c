@@ -654,24 +654,31 @@ vdev_mirror_io_start(zio_t *zio)
 			 * all of the read buffers and return a checksum
 			 * error if they aren't all identical.
 			 */
-			for (c = 0; c < mm->mm_children; c++) {
+			for (children = c = 0; c < mm->mm_children; c++) {
 				mc = &mm->mm_child[c];
-
-				/* Don't issue ZIOs to offline children */
 				if (!vdev_mirror_child_readable(mc)) {
 					mc->mc_error = SET_ERROR(ENXIO);
 					mc->mc_tried = 1;
 					mc->mc_skipped = 1;
 					continue;
 				}
-
+				children++;
+			}
+			struct abd *abd = zio->io_abd;
+			zio_done_func_t *done = (zio->io_bp && children > 1) ?
+			    vdev_mirror_scrub_done : vdev_mirror_child_done;
+			for (c = 0; c < mm->mm_children; c++) {
+				mc = &mm->mm_child[c];
+				if (mc->mc_skipped)
+					continue;
+				if (zio->io_bp == NULL || children > 1) {
+					abd = abd_alloc_sametype(zio->io_abd,
+					    zio->io_size);
+				}
 				zio_nowait(zio_vdev_child_io(zio, zio->io_bp,
-				    mc->mc_vd, mc->mc_offset,
-				    abd_alloc_sametype(zio->io_abd,
-				    zio->io_size), zio->io_size,
-				    zio->io_type, zio->io_priority, 0,
-				    zio->io_bp ? vdev_mirror_scrub_done :
-				    vdev_mirror_child_done, mc));
+				    mc->mc_vd, mc->mc_offset, abd, zio->io_size,
+				    zio->io_type, zio->io_priority, 0, done,
+				    mc));
 			}
 			zio_execute(zio);
 			return;
