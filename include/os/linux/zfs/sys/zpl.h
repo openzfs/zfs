@@ -39,7 +39,7 @@
 
 /* zpl_inode.c */
 extern void zpl_vap_init(vattr_t *vap, struct inode *dir,
-    umode_t mode, cred_t *cr);
+    umode_t mode, cred_t *cr, zuserns_t *mnt_ns);
 
 extern const struct inode_operations zpl_inode_operations;
 extern const struct inode_operations zpl_dir_inode_operations;

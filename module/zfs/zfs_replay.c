@@ -387,7 +387,7 @@ zfs_replay_create_acl(void *arg1, void *arg2, boolean_t byteswap)
 		}
 
 		error = zfs_create(dzp, name, &xva.xva_vattr,
-		    0, 0, &zp, kcred, vflg, &vsec);
+		    0, 0, &zp, kcred, vflg, &vsec, NULL);
 		break;
 	case TX_MKDIR_ACL:
 		aclstart = (caddr_t)(lracl + 1);
@@ -417,7 +417,7 @@ zfs_replay_create_acl(void *arg1, void *arg2, boolean_t byteswap)
 			    lr->lr_uid, lr->lr_gid);
 		}
 		error = zfs_mkdir(dzp, name, &xva.xva_vattr,
-		    &zp, kcred, vflg, &vsec);
+		    &zp, kcred, vflg, &vsec, NULL);
 		break;
 	default:
 		error = SET_ERROR(ENOTSUP);
@@ -528,7 +528,7 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 			name = (char *)start;
 
 		error = zfs_create(dzp, name, &xva.xva_vattr,
-		    0, 0, &zp, kcred, vflg, NULL);
+		    0, 0, &zp, kcred, vflg, NULL, NULL);
 		break;
 	case TX_MKDIR_ATTR:
 		lrattr = (lr_attr_t *)(caddr_t)(lr + 1);
@@ -546,7 +546,7 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 			name = (char *)(lr + 1);
 
 		error = zfs_mkdir(dzp, name, &xva.xva_vattr,
-		    &zp, kcred, vflg, NULL);
+		    &zp, kcred, vflg, NULL, NULL);
 		break;
 	case TX_MKXATTR:
 		error = zfs_make_xattrdir(dzp, &xva.xva_vattr, &zp, kcred);
@@ -555,7 +555,7 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 		name = (char *)(lr + 1);
 		link = name + strlen(name) + 1;
 		error = zfs_symlink(dzp, name, &xva.xva_vattr,
-		    link, &zp, kcred, vflg);
+		    link, &zp, kcred, vflg, NULL);
 		break;
 	default:
 		error = SET_ERROR(ENOTSUP);
@@ -667,7 +667,7 @@ zfs_replay_rename(void *arg1, void *arg2, boolean_t byteswap)
 	if (lr->lr_common.lrc_txtype & TX_CI)
 		vflg |= FIGNORECASE;
 
-	error = zfs_rename(sdzp, sname, tdzp, tname, kcred, vflg);
+	error = zfs_rename(sdzp, sname, tdzp, tname, kcred, vflg, NULL);
 
 	zrele(tdzp);
 	zrele(sdzp);
@@ -860,7 +860,7 @@ zfs_replay_setattr(void *arg1, void *arg2, boolean_t byteswap)
 	zfsvfs->z_fuid_replay = zfs_replay_fuid_domain(start, &start,
 	    lr->lr_uid, lr->lr_gid);
 
-	error = zfs_setattr(zp, vap, 0, kcred);
+	error = zfs_setattr(zp, vap, 0, kcred, NULL);
 
 	zfs_fuid_info_free(zfsvfs->z_fuid_replay);
 	zfsvfs->z_fuid_replay = NULL;

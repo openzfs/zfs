@@ -476,7 +476,7 @@ zfs_lookup(znode_t *zdp, char *nm, znode_t **zpp, int flags, cred_t *cr,
 		 */
 
 		if ((error = zfs_zaccess(*zpp, ACE_EXECUTE, 0,
-		    B_TRUE, cr))) {
+		    B_TRUE, cr, NULL))) {
 			zrele(*zpp);
 			*zpp = NULL;
 		}
@@ -494,7 +494,7 @@ zfs_lookup(znode_t *zdp, char *nm, znode_t **zpp, int flags, cred_t *cr,
 	 * Check accessibility of directory.
 	 */
 
-	if ((error = zfs_zaccess(zdp, ACE_EXECUTE, 0, B_FALSE, cr))) {
+	if ((error = zfs_zaccess(zdp, ACE_EXECUTE, 0, B_FALSE, cr, NULL))) {
 		zfs_exit(zfsvfs, FTAG);
 		return (error);
 	}
@@ -526,6 +526,7 @@ zfs_lookup(znode_t *zdp, char *nm, znode_t **zpp, int flags, cred_t *cr,
  *		cr	- credentials of caller.
  *		flag	- file flag.
  *		vsecp	- ACL to be set
+ *		mnt_ns	- user namespace of the mount
  *
  *	OUT:	zpp	- znode of created or trunc'd entry.
  *
@@ -537,7 +538,8 @@ zfs_lookup(znode_t *zdp, char *nm, znode_t **zpp, int flags, cred_t *cr,
  */
 int
 zfs_create(znode_t *dzp, char *name, vattr_t *vap, int excl,
-    int mode, znode_t **zpp, cred_t *cr, int flag, vsecattr_t *vsecp)
+    int mode, znode_t **zpp, cred_t *cr, int flag, vsecattr_t *vsecp,
+    zuserns_t *mnt_ns)
 {
 	znode_t		*zp;
 	zfsvfs_t	*zfsvfs = ZTOZSB(dzp);
@@ -624,7 +626,8 @@ top:
 		 * Create a new file object and update the directory
 		 * to reference it.
 		 */
-		if ((error = zfs_zaccess(dzp, ACE_ADD_FILE, 0, B_FALSE, cr))) {
+		if ((error = zfs_zaccess(dzp, ACE_ADD_FILE, 0, B_FALSE, cr,
+		    mnt_ns))) {
 			if (have_acl)
 				zfs_acl_ids_free(&acl_ids);
 			goto out;
@@ -643,7 +646,7 @@ top:
 		}
 
 		if (!have_acl && (error = zfs_acl_ids_create(dzp, 0, vap,
-		    cr, vsecp, &acl_ids)) != 0)
+		    cr, vsecp, &acl_ids, mnt_ns)) != 0)
 			goto out;
 		have_acl = B_TRUE;
 
@@ -738,7 +741,8 @@ top:
 		/*
 		 * Verify requested access to file.
 		 */
-		if (mode && (error = zfs_zaccess_rwx(zp, mode, aflags, cr))) {
+		if (mode && (error = zfs_zaccess_rwx(zp, mode, aflags, cr,
+		    mnt_ns))) {
 			goto out;
 		}
 
@@ -782,7 +786,8 @@ out:
 
 int
 zfs_tmpfile(struct inode *dip, vattr_t *vap, int excl,
-    int mode, struct inode **ipp, cred_t *cr, int flag, vsecattr_t *vsecp)
+    int mode, struct inode **ipp, cred_t *cr, int flag, vsecattr_t *vsecp,
+    zuserns_t *mnt_ns)
 {
 	(void) excl, (void) mode, (void) flag;
 	znode_t		*zp = NULL, *dzp = ITOZ(dip);
@@ -829,14 +834,14 @@ top:
 	 * Create a new file object and update the directory
 	 * to reference it.
 	 */
-	if ((error = zfs_zaccess(dzp, ACE_ADD_FILE, 0, B_FALSE, cr))) {
+	if ((error = zfs_zaccess(dzp, ACE_ADD_FILE, 0, B_FALSE, cr, mnt_ns))) {
 		if (have_acl)
 			zfs_acl_ids_free(&acl_ids);
 		goto out;
 	}
 
 	if (!have_acl && (error = zfs_acl_ids_create(dzp, 0, vap,
-	    cr, vsecp, &acl_ids)) != 0)
+	    cr, vsecp, &acl_ids, mnt_ns)) != 0)
 		goto out;
 	have_acl = B_TRUE;
 
@@ -967,7 +972,7 @@ top:
 		return (error);
 	}
 
-	if ((error = zfs_zaccess_delete(dzp, zp, cr))) {
+	if ((error = zfs_zaccess_delete(dzp, zp, cr, NULL))) {
 		goto out;
 	}
 
@@ -1147,6 +1152,7 @@ out:
  *		cr	- credentials of caller.
  *		flags	- case flags.
  *		vsecp	- ACL to be set
+ *		mnt_ns	- user namespace of the mount
  *
  *	OUT:	zpp	- znode of created directory.
  *
@@ -1159,7 +1165,7 @@ out:
  */
 int
 zfs_mkdir(znode_t *dzp, char *dirname, vattr_t *vap, znode_t **zpp,
-    cred_t *cr, int flags, vsecattr_t *vsecp)
+    cred_t *cr, int flags, vsecattr_t *vsecp, zuserns_t *mnt_ns)
 {
 	znode_t		*zp;
 	zfsvfs_t	*zfsvfs = ZTOZSB(dzp);
@@ -1216,7 +1222,7 @@ zfs_mkdir(znode_t *dzp, char *dirname, vattr_t *vap, znode_t **zpp,
 	}
 
 	if ((error = zfs_acl_ids_create(dzp, 0, vap, cr,
-	    vsecp, &acl_ids)) != 0) {
+	    vsecp, &acl_ids, mnt_ns)) != 0) {
 		zfs_exit(zfsvfs, FTAG);
 		return (error);
 	}
@@ -1237,7 +1243,8 @@ top:
 		return (error);
 	}
 
-	if ((error = zfs_zaccess(dzp, ACE_ADD_SUBDIRECTORY, 0, B_FALSE, cr))) {
+	if ((error = zfs_zaccess(dzp, ACE_ADD_SUBDIRECTORY, 0, B_FALSE, cr,
+	    mnt_ns))) {
 		zfs_acl_ids_free(&acl_ids);
 		zfs_dirent_unlock(dl);
 		zfs_exit(zfsvfs, FTAG);
@@ -1379,7 +1386,7 @@ top:
 		return (error);
 	}
 
-	if ((error = zfs_zaccess_delete(dzp, zp, cr))) {
+	if ((error = zfs_zaccess_delete(dzp, zp, cr, NULL))) {
 		goto out;
 	}
 
@@ -1811,6 +1818,7 @@ next:
  *		flags	- ATTR_UTIME set if non-default time values provided.
  *			- ATTR_NOACLCHECK (CIFS context only).
  *		cr	- credentials of caller.
+ *		mnt_ns	- user namespace of the mount
  *
  *	RETURN:	0 if success
  *		error code if failure
@@ -1819,7 +1827,7 @@ next:
  *	ip - ctime updated, mtime updated if size changed.
  */
 int
-zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr)
+zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr, zuserns_t *mnt_ns)
 {
 	struct inode	*ip;
 	zfsvfs_t	*zfsvfs = ZTOZSB(zp);
@@ -1968,7 +1976,8 @@ top:
 	 */
 
 	if (mask & ATTR_SIZE) {
-		err = zfs_zaccess(zp, ACE_WRITE_DATA, 0, skipaclchk, cr);
+		err = zfs_zaccess(zp, ACE_WRITE_DATA, 0, skipaclchk, cr,
+		    mnt_ns);
 		if (err)
 			goto out3;
 
@@ -1993,13 +2002,15 @@ top:
 	    XVA_ISSET_REQ(xvap, XAT_CREATETIME) ||
 	    XVA_ISSET_REQ(xvap, XAT_SYSTEM)))) {
 		need_policy = zfs_zaccess(zp, ACE_WRITE_ATTRIBUTES, 0,
-		    skipaclchk, cr);
+		    skipaclchk, cr, mnt_ns);
 	}
 
 	if (mask & (ATTR_UID|ATTR_GID)) {
 		int	idmask = (mask & (ATTR_UID|ATTR_GID));
 		int	take_owner;
 		int	take_group;
+		uid_t	uid;
+		gid_t	gid;
 
 		/*
 		 * NOTE: even if a new mode is being set,
@@ -2013,9 +2024,13 @@ top:
 		 * Take ownership or chgrp to group we are a member of
 		 */
 
-		take_owner = (mask & ATTR_UID) && (vap->va_uid == crgetuid(cr));
+		uid = zfs_uid_into_mnt((struct user_namespace *)mnt_ns,
+		    vap->va_uid);
+		gid = zfs_gid_into_mnt((struct user_namespace *)mnt_ns,
+		    vap->va_gid);
+		take_owner = (mask & ATTR_UID) && (uid == crgetuid(cr));
 		take_group = (mask & ATTR_GID) &&
-		    zfs_groupmember(zfsvfs, vap->va_gid, cr);
+		    zfs_groupmember(zfsvfs, gid, cr);
 
 		/*
 		 * If both ATTR_UID and ATTR_GID are set then take_owner and
@@ -2031,7 +2046,7 @@ top:
 		    ((idmask == ATTR_UID) && take_owner) ||
 		    ((idmask == ATTR_GID) && take_group)) {
 			if (zfs_zaccess(zp, ACE_WRITE_OWNER, 0,
-			    skipaclchk, cr) == 0) {
+			    skipaclchk, cr, mnt_ns) == 0) {
 				/*
 				 * Remove setuid/setgid for non-privileged users
 				 */
@@ -2144,12 +2159,12 @@ top:
 	mutex_exit(&zp->z_lock);
 
 	if (mask & ATTR_MODE) {
-		if (zfs_zaccess(zp, ACE_WRITE_ACL, 0, skipaclchk, cr) == 0) {
+		if (zfs_zaccess(zp, ACE_WRITE_ACL, 0, skipaclchk, cr,
+		    mnt_ns) == 0) {
 			err = secpolicy_setid_setsticky_clear(ip, vap,
-			    &oldva, cr);
+			    &oldva, cr, mnt_ns);
 			if (err)
 				goto out3;
-
 			trim_mask |= ATTR_MODE;
 		} else {
 			need_policy = TRUE;
@@ -2640,6 +2655,7 @@ zfs_rename_lock(znode_t *szp, znode_t *tdzp, znode_t *sdzp, zfs_zlock_t **zlpp)
  *		tnm	- New entry name.
  *		cr	- credentials of caller.
  *		flags	- case flags
+ *		mnt_ns	- user namespace of the mount
  *
  *	RETURN:	0 on success, error code on failure.
  *
@@ -2648,7 +2664,7 @@ zfs_rename_lock(znode_t *szp, znode_t *tdzp, znode_t *sdzp, zfs_zlock_t **zlpp)
  */
 int
 zfs_rename(znode_t *sdzp, char *snm, znode_t *tdzp, char *tnm,
-    cred_t *cr, int flags)
+    cred_t *cr, int flags, zuserns_t *mnt_ns)
 {
 	znode_t		*szp, *tzp;
 	zfsvfs_t	*zfsvfs = ZTOZSB(sdzp);
@@ -2841,7 +2857,7 @@ top:
 	 * done in a single check.
 	 */
 
-	if ((error = zfs_zaccess_rename(sdzp, szp, tdzp, tzp, cr)))
+	if ((error = zfs_zaccess_rename(sdzp, szp, tdzp, tzp, cr, mnt_ns)))
 		goto out;
 
 	if (S_ISDIR(ZTOI(szp)->i_mode)) {
@@ -3008,6 +3024,7 @@ out:
  *		link	- Name for new symlink entry.
  *		cr	- credentials of caller.
  *		flags	- case flags
+ *		mnt_ns	- user namespace of the mount
  *
  *	OUT:	zpp	- Znode for new symbolic link.
  *
@@ -3018,7 +3035,7 @@ out:
  */
 int
 zfs_symlink(znode_t *dzp, char *name, vattr_t *vap, char *link,
-    znode_t **zpp, cred_t *cr, int flags)
+    znode_t **zpp, cred_t *cr, int flags, zuserns_t *mnt_ns)
 {
 	znode_t		*zp;
 	zfs_dirlock_t	*dl;
@@ -3056,7 +3073,7 @@ zfs_symlink(znode_t *dzp, char *name, vattr_t *vap, char *link,
 	}
 
 	if ((error = zfs_acl_ids_create(dzp, 0,
-	    vap, cr, NULL, &acl_ids)) != 0) {
+	    vap, cr, NULL, &acl_ids, mnt_ns)) != 0) {
 		zfs_exit(zfsvfs, FTAG);
 		return (error);
 	}
@@ -3073,7 +3090,7 @@ top:
 		return (error);
 	}
 
-	if ((error = zfs_zaccess(dzp, ACE_ADD_FILE, 0, B_FALSE, cr))) {
+	if ((error = zfs_zaccess(dzp, ACE_ADD_FILE, 0, B_FALSE, cr, mnt_ns))) {
 		zfs_acl_ids_free(&acl_ids);
 		zfs_dirent_unlock(dl);
 		zfs_exit(zfsvfs, FTAG);
@@ -3325,7 +3342,7 @@ zfs_link(znode_t *tdzp, znode_t *szp, char *name, cred_t *cr,
 		return (SET_ERROR(EPERM));
 	}
 
-	if ((error = zfs_zaccess(tdzp, ACE_ADD_FILE, 0, B_FALSE, cr))) {
+	if ((error = zfs_zaccess(tdzp, ACE_ADD_FILE, 0, B_FALSE, cr, NULL))) {
 		zfs_exit(zfsvfs, FTAG);
 		return (error);
 	}
@@ -3951,7 +3968,7 @@ zfs_space(znode_t *zp, int cmd, flock64_t *bfp, int flag,
 	 * On Linux we can get here through truncate_range() which
 	 * operates directly on inodes, so we need to check access rights.
 	 */
-	if ((error = zfs_zaccess(zp, ACE_WRITE_DATA, 0, B_FALSE, cr))) {
+	if ((error = zfs_zaccess(zp, ACE_WRITE_DATA, 0, B_FALSE, cr, NULL))) {
 		zfs_exit(zfsvfs, FTAG);
 		return (error);
 	}

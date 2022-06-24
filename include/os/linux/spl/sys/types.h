@@ -54,4 +54,7 @@ typedef ulong_t			pgcnt_t;
 typedef int			major_t;
 typedef int			minor_t;
 
+struct user_namespace;
+typedef struct user_namespace	zuserns_t;
+
 #endif	/* _SPL_TYPES_H */

@@ -33,7 +33,6 @@
 #include <sys/zpl.h>
 #include <sys/file.h>
 
-
 static struct dentry *
 zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 {
@@ -112,18 +111,22 @@ zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 }
 
 void
-zpl_vap_init(vattr_t *vap, struct inode *dir, umode_t mode, cred_t *cr)
+zpl_vap_init(vattr_t *vap, struct inode *dir, umode_t mode, cred_t *cr,
+    zuserns_t *mnt_ns)
 {
 	vap->va_mask = ATTR_MODE;
 	vap->va_mode = mode;
-	vap->va_uid = crgetuid(cr);
+
+	vap->va_uid = zfs_uid_from_mnt((struct user_namespace *)mnt_ns,
+	    crgetuid(cr));
 
 	if (dir && dir->i_mode & S_ISGID) {
 		vap->va_gid = KGID_TO_SGID(dir->i_gid);
 		if (S_ISDIR(mode))
 			vap->va_mode |= S_ISGID;
 	} else {
-		vap->va_gid = crgetgid(cr);
+		vap->va_gid = zfs_gid_from_mnt((struct user_namespace *)mnt_ns,
+		    crgetgid(cr));
 	}
 }
 
@@ -140,14 +143,17 @@ zpl_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool flag)
 	vattr_t *vap;
 	int error;
 	fstrans_cookie_t cookie;
+#ifndef HAVE_IOPS_CREATE_USERNS
+	zuserns_t *user_ns = NULL;
+#endif
 
 	crhold(cr);
 	vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
-	zpl_vap_init(vap, dir, mode, cr);
+	zpl_vap_init(vap, dir, mode, cr, user_ns);
 
 	cookie = spl_fstrans_mark();
 	error = -zfs_create(ITOZ(dir), dname(dentry), vap, 0,
-	    mode, &zp, cr, 0, NULL);
+	    mode, &zp, cr, 0, NULL, user_ns);
 	if (error == 0) {
 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
 		if (error == 0)
@@ -184,6 +190,9 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
 	vattr_t *vap;
 	int error;
 	fstrans_cookie_t cookie;
+#ifndef HAVE_IOPS_MKNOD_USERNS
+	zuserns_t *user_ns = NULL;
+#endif
 
 	/*
 	 * We currently expect Linux to supply rdev=0 for all sockets
@@ -194,12 +203,12 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
 
 	crhold(cr);
 	vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
-	zpl_vap_init(vap, dir, mode, cr);
+	zpl_vap_init(vap, dir, mode, cr, user_ns);
 	vap->va_rdev = rdev;
 
 	cookie = spl_fstrans_mark();
 	error = -zfs_create(ITOZ(dir), dname(dentry), vap, 0,
-	    mode, &zp, cr, 0, NULL);
+	    mode, &zp, cr, 0, NULL, user_ns);
 	if (error == 0) {
 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
 		if (error == 0)
@@ -236,6 +245,9 @@ zpl_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
 	vattr_t *vap;
 	int error;
 	fstrans_cookie_t cookie;
+#ifndef HAVE_TMPFILE_USERNS
+	zuserns_t *userns = NULL;
+#endif
 
 	crhold(cr);
 	vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
@@ -245,10 +257,10 @@ zpl_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
 	 */
 	if (!IS_POSIXACL(dir))
 		mode &= ~current_umask();
-	zpl_vap_init(vap, dir, mode, cr);
+	zpl_vap_init(vap, dir, mode, cr, userns);
 
 	cookie = spl_fstrans_mark();
-	error = -zfs_tmpfile(dir, vap, 0, mode, &ip, cr, 0, NULL);
+	error = -zfs_tmpfile(dir, vap, 0, mode, &ip, cr, 0, NULL, userns);
 	if (error == 0) {
 		/* d_tmpfile will do drop_nlink, so we should set it first */
 		set_nlink(ip, 1);
@@ -311,13 +323,17 @@ zpl_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 	znode_t *zp;
 	int error;
 	fstrans_cookie_t cookie;
+#ifndef HAVE_IOPS_MKDIR_USERNS
+	zuserns_t *user_ns = NULL;
+#endif
 
 	crhold(cr);
 	vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
-	zpl_vap_init(vap, dir, mode | S_IFDIR, cr);
+	zpl_vap_init(vap, dir, mode | S_IFDIR, cr, user_ns);
 
 	cookie = spl_fstrans_mark();
-	error = -zfs_mkdir(ITOZ(dir), dname(dentry), vap, &zp, cr, 0, NULL);
+	error = -zfs_mkdir(ITOZ(dir), dname(dentry), vap, &zp, cr, 0, NULL,
+	    user_ns);
 	if (error == 0) {
 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
 		if (error == 0)
@@ -439,7 +455,11 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 	int error;
 	fstrans_cookie_t cookie;
 
+#ifdef HAVE_SETATTR_PREPARE_USERNS
+	error = zpl_setattr_prepare(user_ns, dentry, ia);
+#else
 	error = zpl_setattr_prepare(kcred->user_ns, dentry, ia);
+#endif
 	if (error)
 		return (error);
 
@@ -458,7 +478,11 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 		ip->i_atime = zpl_inode_timestamp_truncate(ia->ia_atime, ip);
 
 	cookie = spl_fstrans_mark();
-	error = -zfs_setattr(ITOZ(ip), vap, 0, cr);
+#ifdef HAVE_SETATTR_PREPARE_USERNS
+	error = -zfs_setattr(ITOZ(ip), vap, 0, cr, user_ns);
+#else
+	error = -zfs_setattr(ITOZ(ip), vap, 0, cr, NULL);
+#endif
 	if (!error && (ia->ia_valid & ATTR_MODE))
 		error = zpl_chmod_acl(ip);
 
@@ -483,6 +507,9 @@ zpl_rename2(struct inode *sdip, struct dentry *sdentry,
 	cred_t *cr = CRED();
 	int error;
 	fstrans_cookie_t cookie;
+#ifndef HAVE_IOPS_RENAME_USERNS
+	zuserns_t *user_ns = NULL;
+#endif
 
 	/* We don't have renameat2(2) support */
 	if (flags)
@@ -491,7 +518,7 @@ zpl_rename2(struct inode *sdip, struct dentry *sdentry,
 	crhold(cr);
 	cookie = spl_fstrans_mark();
 	error = -zfs_rename(ITOZ(sdip), dname(sdentry), ITOZ(tdip),
-	    dname(tdentry), cr, 0);
+	    dname(tdentry), cr, 0, user_ns);
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
@@ -521,14 +548,17 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 	znode_t *zp;
 	int error;
 	fstrans_cookie_t cookie;
+#ifndef HAVE_IOPS_SYMLINK_USERNS
+	zuserns_t *user_ns = NULL;
+#endif
 
 	crhold(cr);
 	vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
-	zpl_vap_init(vap, dir, S_IFLNK | S_IRWXUGO, cr);
+	zpl_vap_init(vap, dir, S_IFLNK | S_IRWXUGO, cr, user_ns);
 
 	cookie = spl_fstrans_mark();
 	error = -zfs_symlink(ITOZ(dir), dname(dentry), vap,
-	    (char *)name, &zp, cr, 0);
+	    (char *)name, &zp, cr, 0, user_ns);
 	if (error == 0) {
 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
 		if (error) {

@@ -45,6 +45,34 @@ typedef struct cred cred_t;
 #define	SGID_TO_KGID(x)		(KGIDT_INIT(x))
 #define	KGIDP_TO_SGIDP(x)	(&(x)->val)
 
+static inline uid_t zfs_uid_into_mnt(struct user_namespace *mnt_ns, uid_t uid)
+{
+	if (mnt_ns)
+		return (__kuid_val(make_kuid(mnt_ns, uid)));
+	return (uid);
+}
+
+static inline gid_t zfs_gid_into_mnt(struct user_namespace *mnt_ns, gid_t gid)
+{
+	if (mnt_ns)
+		return (__kgid_val(make_kgid(mnt_ns, gid)));
+	return (gid);
+}
+
+static inline uid_t zfs_uid_from_mnt(struct user_namespace *mnt_ns, uid_t uid)
+{
+	if (mnt_ns)
+		return (from_kuid(mnt_ns, KUIDT_INIT(uid)));
+	return (uid);
+}
+
+static inline gid_t zfs_gid_from_mnt(struct user_namespace *mnt_ns, gid_t gid)
+{
+	if (mnt_ns)
+		return (from_kgid(mnt_ns, KGIDT_INIT(gid)));
+	return (gid);
+}
+
 extern void crhold(cred_t *cr);
 extern void crfree(cred_t *cr);
 extern uid_t crgetuid(const cred_t *cr);
