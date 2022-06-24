@@ -88,7 +88,7 @@ decode_root_args() {
         return
     fi
 
-    root=$(getarg root=)
+    [ -n  "$root" ] || root=$(getarg root=)
     rootfstype=$(getarg rootfstype=)
 
     # shellcheck disable=SC2249
