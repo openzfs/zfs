@@ -72,7 +72,11 @@ extern kmem_cache_t *zfs_btree_leaf_cache;
 
 typedef struct zfs_btree_hdr {
 	struct zfs_btree_core	*bth_parent;
-	boolean_t		bth_core;
+	/*
+	 * Set to -1 to indicate core nodes. Other values represent first
+	 * valid element offset for leaf nodes.
+	 */
+	uint32_t		bth_first;
 	/*
 	 * For both leaf and core nodes, represents the number of elements in
 	 * the node. For core nodes, they will have bth_count + 1 children.
@@ -91,9 +95,12 @@ typedef struct zfs_btree_leaf {
 	uint8_t		btl_elems[];
 } zfs_btree_leaf_t;
 
+#define	BTREE_LEAF_ESIZE	(BTREE_LEAF_SIZE - \
+    offsetof(zfs_btree_leaf_t, btl_elems))
+
 typedef struct zfs_btree_index {
 	zfs_btree_hdr_t	*bti_node;
-	uint64_t	bti_offset;
+	uint32_t	bti_offset;
 	/*
 	 * True if the location is before the list offset, false if it's at
 	 * the listed offset.
@@ -105,6 +112,7 @@ typedef struct btree {
 	zfs_btree_hdr_t		*bt_root;
 	int64_t			bt_height;
 	size_t			bt_elem_size;
+	uint32_t		bt_leaf_cap;
 	uint64_t		bt_num_elems;
 	uint64_t		bt_num_nodes;
 	zfs_btree_leaf_t	*bt_bulk; // non-null if bulk loading
