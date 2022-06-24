@@ -188,10 +188,8 @@ range_tree_seg_gap_compare(const void *x1, const void *x2)
 }
 
 range_tree_t *
-range_tree_create_impl(const range_tree_ops_t *ops, range_seg_type_t type,
-    void *arg, uint64_t start, uint64_t shift,
-    int (*zfs_btree_compare) (const void *, const void *),
-    uint64_t gap)
+range_tree_create_gap(const range_tree_ops_t *ops, range_seg_type_t type,
+    void *arg, uint64_t start, uint64_t shift, uint64_t gap)
 {
 	range_tree_t *rt = kmem_zalloc(sizeof (range_tree_t), KM_SLEEP);
 
@@ -223,7 +221,6 @@ range_tree_create_impl(const range_tree_ops_t *ops, range_seg_type_t type,
 	rt->rt_type = type;
 	rt->rt_start = start;
 	rt->rt_shift = shift;
-	rt->rt_btree_compare = zfs_btree_compare;
 
 	if (rt->rt_ops != NULL && rt->rt_ops->rtop_create != NULL)
 		rt->rt_ops->rtop_create(rt, rt->rt_arg);
@@ -235,7 +232,7 @@ range_tree_t *
 range_tree_create(const range_tree_ops_t *ops, range_seg_type_t type,
     void *arg, uint64_t start, uint64_t shift)
 {
-	return (range_tree_create_impl(ops, type, arg, start, shift, NULL, 0));
+	return (range_tree_create_gap(ops, type, arg, start, shift, 0));
 }
 
 void
@@ -740,74 +737,6 @@ range_tree_is_empty(range_tree_t *rt)
 	ASSERT(rt != NULL);
 	return (range_tree_space(rt) == 0);
 }
-
-void
-rt_btree_create(range_tree_t *rt, void *arg)
-{
-	zfs_btree_t *size_tree = arg;
-
-	size_t size;
-	switch (rt->rt_type) {
-	case RANGE_SEG32:
-		size = sizeof (range_seg32_t);
-		break;
-	case RANGE_SEG64:
-		size = sizeof (range_seg64_t);
-		break;
-	case RANGE_SEG_GAP:
-		size = sizeof (range_seg_gap_t);
-		break;
-	default:
-		panic("Invalid range seg type %d", rt->rt_type);
-	}
-	zfs_btree_create(size_tree, rt->rt_btree_compare, size);
-}
-
-void
-rt_btree_destroy(range_tree_t *rt, void *arg)
-{
-	(void) rt;
-	zfs_btree_t *size_tree = arg;
-	ASSERT0(zfs_btree_numnodes(size_tree));
-
-	zfs_btree_destroy(size_tree);
-}
-
-void
-rt_btree_add(range_tree_t *rt, range_seg_t *rs, void *arg)
-{
-	(void) rt;
-	zfs_btree_t *size_tree = arg;
-
-	zfs_btree_add(size_tree, rs);
-}
-
-void
-rt_btree_remove(range_tree_t *rt, range_seg_t *rs, void *arg)
-{
-	(void) rt;
-	zfs_btree_t *size_tree = arg;
-
-	zfs_btree_remove(size_tree, rs);
-}
-
-void
-rt_btree_vacate(range_tree_t *rt, void *arg)
-{
-	zfs_btree_t *size_tree = arg;
-	zfs_btree_clear(size_tree);
-	zfs_btree_destroy(size_tree);
-
-	rt_btree_create(rt, arg);
-}
-
-const range_tree_ops_t rt_btree_ops = {
-	.rtop_create = rt_btree_create,
-	.rtop_destroy = rt_btree_destroy,
-	.rtop_add = rt_btree_add,
-	.rtop_remove = rt_btree_remove,
-	.rtop_vacate = rt_btree_vacate
-};
 
 /*
  * Remove any overlapping ranges between the given segment [start, end)
