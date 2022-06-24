@@ -20,7 +20,7 @@
 .\"
 .\" Copyright (c) 2020 by Delphix. All rights reserved.
 .\"
-.Dd May 8, 2021
+.Dd March 25, 2022
 .Dt ZSTREAM 8
 .Os
 .
@@ -32,6 +32,10 @@
 .Cm dump
 .Op Fl Cvd
 .Op Ar file
+.Nm
+.Cm decompress
+.Op Fl v
+.Op Ar object Ns Sy \&, Ns Ar offset Ns Op Sy \&, Ns Ar type Ns ...
 .Nm
 .Cm redup
 .Op Fl v
@@ -82,6 +86,36 @@ alias is provided for compatibility and is equivalent to running
 Dumps zfs resume token information
 .It Xo
 .Nm
+.Cm decompress
+.Op Fl v
+.Op Ar object Ns Sy \&, Ns Ar offset Ns Op Sy \&, Ns Ar type Ns ...
+.Xc
+Decompress selected records in a ZFS send stream provided on standard input,
+when the compression type recorded in ZFS metadata may be incorrect.
+Specify the object number and byte offset of each record that you wish to
+decompress.
+Optionally specify the compression type.
+Valid compression types include
+.Sy gzip ,
+.Sy lz4 ,
+.Sy lzjb ,
+.Sy zstd ,
+and
+.Sy zle .
+The default is
+.Sy lz4 .
+Every record for that object beginning at that offset will be decompressed, if
+possible.
+It may not be possible, because the record may be corrupted in some but not
+all of the stream's snapshots.
+The repaired stream will be written to standard output.
+.Bl -tag -width "-v"
+.It Fl v
+Verbose.
+Print summary of decompressed records.
+.El
+.It Xo
+.Nm
 .Cm redup
 .Op Fl v
 .Ar file
@@ -111,7 +145,24 @@ Print summary of converted records.
 .El
 .El
 .
+.Sh EXAMPLES
+Heal a dataset that was corrupted due to OpenZFS bug #12762.
+First, determine which records are corrupt.
+That cannot be done automatically; it requires information beyond ZFS's
+metadata.
+If object
+.Sy 128
+is corrupted at offset
+.Sy 0
+and is compressed using
+.Sy lz4 ,
+then run this command:
+.Bd -literal
+.No # Nm zfs Ar send Fl c Ar … | Nm zstream decompress Ar 128,0,lz4 | \
+Nm zfs recv Ar …
+.Ed
 .Sh SEE ALSO
 .Xr zfs 8 ,
 .Xr zfs-receive 8 ,
-.Xr zfs-send 8
+.Xr zfs-send 8 ,
+.Lk https://github.com/openzfs/zfs/issues/12762
