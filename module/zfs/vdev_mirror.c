@@ -120,6 +120,7 @@ typedef struct mirror_map {
 	boolean_t	mm_resilvering;
 	boolean_t	mm_rebuilding;
 	boolean_t	mm_root;
+	boolean_t	mm_got_data;
 	mirror_child_t	mm_child[];
 } mirror_map_t;
 
@@ -451,17 +452,17 @@ vdev_mirror_scrub_done(zio_t *zio)
 	mirror_child_t *mc = zio->io_private;
 
 	if (zio->io_error == 0) {
-		zio_t *pio;
-		zio_link_t *zl = NULL;
-
-		mutex_enter(&zio->io_lock);
-		while ((pio = zio_walk_parents(zio, &zl)) != NULL) {
-			mutex_enter(&pio->io_lock);
-			ASSERT3U(zio->io_size, >=, pio->io_size);
+		zio_t *pio = zio_unique_parent(zio);
+		mirror_map_t *mm = pio->io_vsd;
+		mutex_enter(&pio->io_lock);
+		if (!mm->mm_got_data) {
+			mm->mm_got_data = B_TRUE;
+			mutex_exit(&pio->io_lock);
+			ASSERT3U(zio->io_size, ==, pio->io_size);
 			abd_copy(pio->io_abd, zio->io_abd, pio->io_size);
+		} else {
 			mutex_exit(&pio->io_lock);
 		}
-		mutex_exit(&zio->io_lock);
 	}
 
 	abd_free(zio->io_abd);
