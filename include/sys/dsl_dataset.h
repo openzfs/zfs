@@ -373,6 +373,7 @@ boolean_t dsl_dataset_modified_since_snap(dsl_dataset_t *ds,
 void dsl_dataset_sync(dsl_dataset_t *ds, zio_t *zio, dmu_tx_t *tx);
 void dsl_dataset_sync_done(dsl_dataset_t *ds, dmu_tx_t *tx);
 
+void dsl_dataset_feature_set_activation(const blkptr_t *bp, dsl_dataset_t *ds);
 void dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp,
     dmu_tx_t *tx);
 int dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp,

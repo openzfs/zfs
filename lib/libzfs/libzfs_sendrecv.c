@@ -851,6 +851,11 @@ dump_ioctl(zfs_handle_t *zhp, const char *fromsnap, uint64_t fromsnap_obj,
 		case EINVAL:
 			zfs_error_aux(hdl, "%s", strerror(errno));
 			return (zfs_error(hdl, EZFS_BADBACKUP, errbuf));
+		case ENOTSUP:
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "large blocks detected but large_blocks feature "
+			    "is inactive; raw send unsupported"));
+			return (zfs_error(hdl, EZFS_NOTSUP, errbuf));
 
 		default:
 			return (zfs_standard_error(hdl, errno, errbuf));
@@ -2674,6 +2679,11 @@ zfs_send_one_cb_impl(zfs_handle_t *zhp, const char *from, int fd,
 		case EROFS:
 			zfs_error_aux(hdl, "%s", strerror(errno));
 			return (zfs_error(hdl, EZFS_BADBACKUP, errbuf));
+		case ENOTSUP:
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "large blocks detected but large_blocks feature "
+			    "is inactive; raw send unsupported"));
+			return (zfs_error(hdl, EZFS_NOTSUP, errbuf));
 
 		default:
 			return (zfs_standard_error(hdl, errno, errbuf));
