@@ -259,7 +259,7 @@ zfs_userns(zfs_handle_t *zhp, const char *nspath, int attach)
 		    "pools can not be namespaced"));
 		return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
 	case ZFS_TYPE_FILESYSTEM:
-		zfs_fallthrough;
+		break;
 	}
 	assert(zhp->zfs_type == ZFS_TYPE_FILESYSTEM);
 
