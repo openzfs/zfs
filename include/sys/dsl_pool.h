@@ -82,7 +82,6 @@ typedef struct zfs_blkstat {
 
 typedef struct zfs_all_blkstats {
 	zfs_blkstat_t	zab_type[DN_MAX_LEVELS + 1][DMU_OT_TOTAL + 1];
-	kmutex_t	zab_lock;
 } zfs_all_blkstats_t;
 
 
