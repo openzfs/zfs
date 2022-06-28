@@ -108,5 +108,8 @@
 #define	MNTOPT_NOACL	"noacl"		/* likewise */
 #define	MNTOPT_POSIXACL	"posixacl"	/* likewise */
 #define	MNTOPT_MNTPOINT	"mntpoint"	/* mount point hint */
+#define	MNTOPT_CASESENSITIVE	"casesensitive"		/* case sensitivity */
+#define	MNTOPT_CASEINSENSITIVE	"caseinsensitive"	/* case insensitivity */
+#define	MNTOPT_CASEMIXED	"casemixed"		/* case mixed */
 
 #endif	/* _SYS_MNTENT_H */
