@@ -172,7 +172,7 @@ static void seterrorobj (lua_State *L, int errcode, StkId oldtop) {
  */
 #if defined(HAVE_INFINITE_RECURSION)
 #pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Winfinite-recursion"a
+#pragma GCC diagnostic ignored "-Winfinite-recursion"
 #endif
 
 l_noret luaD_throw (lua_State *L, int errcode) {
