@@ -315,6 +315,7 @@
     <elf-symbol name='zfs_device_get_physical' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_dirnamelen' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_expand_proplist' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_fd_to_zhandle' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_foreach_mountpoint' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_get_all_props' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_get_clones_nvl' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -4063,6 +4064,12 @@
     <function-decl name='zfs_path_to_zhandle' mangled-name='zfs_path_to_zhandle' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_path_to_zhandle'>
       <parameter type-id='b0382bb3' name='hdl'/>
       <parameter type-id='80f4b756' name='path'/>
+      <parameter type-id='2e45de5d' name='argtype'/>
+      <return type-id='9200a744'/>
+    </function-decl>
+    <function-decl name='zfs_fd_to_zhandle' mangled-name='zfs_fd_to_zhandle' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_fd_to_zhandle'>
+      <parameter type-id='b0382bb3' name='hdl'/>
+      <parameter type-id='95e97e5e' name='fd'/>
       <parameter type-id='2e45de5d' name='argtype'/>
       <return type-id='9200a744'/>
     </function-decl>
