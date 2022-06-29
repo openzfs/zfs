@@ -82,7 +82,7 @@ ZFS_DATASET="${ZFS_DATASET:-${root}}"
 ZFS_POOL="${ZFS_DATASET%%/*}"
 
 
-if ! zpool get -Ho name "${ZFS_POOL}" > /dev/null 2>&1; then
+if ! zpool get -Ho value name "${ZFS_POOL}" > /dev/null 2>&1; then
     info "ZFS: Importing pool ${ZFS_POOL}..."
     # shellcheck disable=SC2086
     if ! zpool import -N ${ZPOOL_IMPORT_OPTS} "${ZFS_POOL}"; then
