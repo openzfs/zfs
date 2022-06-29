@@ -48,6 +48,8 @@ activate_vg()
 }
 
 udev_settle
-activate_vg
+# TrueNAS SCALE doesn't boot from pools on top of LVM, and the scan can take a
+# significant amount of time on systems with a large number of disks.  Skip it.
+#activate_vg
 
 exit 0
