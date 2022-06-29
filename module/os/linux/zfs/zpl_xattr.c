@@ -1148,7 +1148,7 @@ zpl_init_acl(struct inode *ip, struct inode *dir)
 		if (IS_ERR(acl))
 			return (PTR_ERR(acl));
 		if (!acl) {
-			ITOZ(ip)->z_mode = ip->i_mode &= ~current_umask();
+			ITOZ(ip)->z_mode = (ip->i_mode &= ~current_umask());
 			ip->i_ctime = current_time(ip);
 			zfs_mark_inode_dirty(ip);
 			return (0);
