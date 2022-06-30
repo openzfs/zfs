@@ -67,7 +67,7 @@ mntopt(char **p)
 }
 
 char *
-hasmntopt(struct mnttab *mnt, char *opt)
+hasmntopt(struct mnttab *mnt, const char *opt)
 {
 	char tmpopts[MNT_LINE_MAX];
 	char *f, *opts = tmpopts;

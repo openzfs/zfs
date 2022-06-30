@@ -75,7 +75,7 @@ build_iovec(struct iovec **iov, int *iovlen, const char *name, void *val,
 
 static int
 do_mount_(const char *spec, const char *dir, int mflag,
-    char *dataptr, int datalen, char *optptr, int optlen)
+    char *dataptr, int datalen, const char *optptr, int optlen)
 {
 	struct iovec *iov;
 	char *optstr, *p, *tofree;
