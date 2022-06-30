@@ -88,11 +88,11 @@ decode_root_args() {
         return
     fi
 
-    root=$(getarg root=)
+    xroot=$(getarg root=)
     rootfstype=$(getarg rootfstype=)
 
     # shellcheck disable=SC2249
-    case "$root" in
+    case "$xroot" in
         ""|zfs|zfs:|zfs:AUTO)
             root=zfs:AUTO
             rootfstype=zfs
@@ -100,7 +100,7 @@ decode_root_args() {
             ;;
 
         ZFS=*|zfs:*)
-            root="${root#zfs:}"
+            root="${xroot#zfs:}"
             root="${root#ZFS=}"
             root=$(echo "$root" | tr '+' ' ')
             rootfstype=zfs
@@ -109,9 +109,9 @@ decode_root_args() {
     esac
 
     if [ "$rootfstype" = "zfs" ]; then
-        case "$root" in
+        case "$xroot" in
             "") root=zfs:AUTO ;;
-            *)  root=$(echo "$root" | tr '+' ' ') ;;
+            *)  root=$(echo "$xroot" | tr '+' ' ') ;;
         esac
         return 0
     fi
