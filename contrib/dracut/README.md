@@ -38,7 +38,7 @@ For complete documentation, see `dracut.zfs(7)`.
    after pool import but before the rootfs is mounted.
    Failure to create the snapshot is noted, but booting continues.
 
-4. `bootfs.rollback`, `bootfs.rollback=snapshot-name`: enables `zfs-snapshot-bootfs.service`,
+4. `bootfs.rollback`, `bootfs.rollback=snapshot-name`: enables `zfs-rollback-bootfs.service`,
    which `-Rf` rolls back to `$root_dataset@$(uname -r)` (or, in the second form, `$root_dataset@snapshot-name`)
    after pool import but before the rootfs is mounted.
    Failure to roll back will fall down to the rescue shell.
