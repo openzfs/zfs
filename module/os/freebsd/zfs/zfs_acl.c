@@ -1669,7 +1669,7 @@ zfs_acl_ids_create(znode_t *dzp, int flag, vattr_t *vap, cred_t *cr,
 				acl_ids->z_fgid = 0;
 		}
 		if (acl_ids->z_fgid == 0) {
-			char		*domain;
+			const char	*domain;
 			uint32_t	rid;
 
 			acl_ids->z_fgid = dzp->z_gid;
