@@ -79,7 +79,7 @@ extern int _sol_getmntent(FILE *fp, struct mnttab *mp);
 extern int getextmntent(const char *path, struct extmnttab *entry,
     struct stat64 *statbuf);
 extern void statfs2mnttab(struct statfs *sfs, struct mnttab *mp);
-extern char *hasmntopt(struct mnttab *mnt, char *opt);
+extern char *hasmntopt(struct mnttab *mnt, const char *opt);
 extern int getmntent(FILE *fp, struct mnttab *mp);
 
 #endif
