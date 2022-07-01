@@ -1815,8 +1815,9 @@ raidz_parity_verify(zio_t *zio, raidz_row_t *rr)
 		if (!rc->rc_tried || rc->rc_error != 0)
 			continue;
 
-		orig[c] = abd_alloc_sametype(rc->rc_abd, rc->rc_size);
-		abd_copy(orig[c], rc->rc_abd, rc->rc_size);
+		orig[c] = rc->rc_abd;
+		ASSERT3U(abd_get_size(rc->rc_abd), ==, rc->rc_size);
+		rc->rc_abd = abd_alloc_linear(rc->rc_size, B_FALSE);
 	}
 
 	/*
