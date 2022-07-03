@@ -8,5 +8,5 @@ ConditionKernelCommandLine=bootfs.snapkeep
 
 [Service]
 Type=oneshot
-ExecStart=-/bin/sh -c '. /lib/dracut-zfs-lib.sh; decode_root_args || exit; [ "$root" = "zfs:AUTO" ] && root="$BOOTFS"; SNAPKEEP="$(getarg bootfs.snapkeep)"; [ "$SNAPKEEP" -ge 0 ] || exit 1; for SNAPNAME in $(/sbin/zfs list -H -o name -t snapshot "$root" | head -n -$SNAPKEEP); do /sbin/zfs destroy -Rf "$SNAPNAME"; done'
+ExecStart=-/bin/sh -c '. /lib/dracut-zfs-lib.sh; decode_root_args || exit; [ "$root" = "zfs:AUTO" ] && root="$BOOTFS"; SNAPKEEP="$(getarg bootfs.snapkeep)"; [ "$SNAPKEEP" -ge 0 ] || exit 1; printf -v IFS "\n"; for SNAPNAME in $(/sbin/zfs list -H -o name -t snapshot "$root" | head -n -$SNAPKEEP); do echo "$SNAPNAME" | grep -q "@" || continue; /sbin/zfs destroy -Rf "$SNAPNAME"; done'
 RemainAfterExit=yes
