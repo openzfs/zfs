@@ -90,6 +90,7 @@ install() {
 
 		for _service in \
 			"zfs-snapshot-bootfs.service" \
+			"zfs-snapkeep-bootfs.service" \
 			"zfs-rollback-bootfs.service"; do
 			inst_simple "${moddir}/${_service}" "${systemdsystemunitdir}/${_service}"
 			systemctl -q --root "${initdir}" add-wants initrd.target "${_service}"

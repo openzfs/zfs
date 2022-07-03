@@ -38,13 +38,19 @@ For complete documentation, see `dracut.zfs(7)`.
    after pool import but before the rootfs is mounted.
    Failure to create the snapshot is noted, but booting continues.
 
-4. `bootfs.rollback`, `bootfs.rollback=snapshot-name`: enables `zfs-rollback-bootfs.service`,
+4. `bootfs.snapkeep=n`: enables `zfs-snapkeep-bootfs.service`,
+   which `-Rf` destroys *all* snapshots of `$root_dataset`
+   except the last `n` where `n` is a positive integer.
+   `bootfs.snapkeep=n` is ordered after `bootfs.snapshot`.
+   Failure to destroy the snapshot(s) is noted, but booting continues.
+
+5. `bootfs.rollback`, `bootfs.rollback=snapshot-name`: enables `zfs-rollback-bootfs.service`,
    which `-Rf` rolls back to `$root_dataset@$(uname -r)` (or, in the second form, `$root_dataset@snapshot-name`)
    after pool import but before the rootfs is mounted.
    Failure to roll back will fall down to the rescue shell.
    This has obvious potential for data loss: make sure your persistent data is not below the rootfs and you don't care about any intermediate snapshots.
 
-5. If both `bootfs.snapshot` and `bootfs.rollback` are set, `bootfs.rollback` is ordered *after* `bootfs.snapshot`.
+6. If both `bootfs.snapshot` and `bootfs.rollback` are set, `bootfs.rollback` is ordered *after* `bootfs.snapshot`.
 
-6. `zfs_force`, `zfs.force`, `zfsforce`: add `-f` to all `zpool import` invocations.
+7. `zfs_force`, `zfs.force`, `zfsforce`: add `-f` to all `zpool import` invocations.
    May be useful. Use with caution.
