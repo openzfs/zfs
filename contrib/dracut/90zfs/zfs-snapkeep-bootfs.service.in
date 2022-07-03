@@ -1,7 +1,7 @@
 [Unit]
 Description=Purge old snapshots of the bootfs
 Requisite=zfs-import.target
-After=zfs-import.target dracut-pre-mount.service zfs-snapshot-bootfs.service
+After=zfs-import.target dracut-pre-mount.service zfs-snapshot-bootfs.service zfs-rollback-bootfs.service
 Before=dracut-mount.service
 DefaultDependencies=no
 ConditionKernelCommandLine=bootfs.snapkeep

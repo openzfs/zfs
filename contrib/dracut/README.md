@@ -42,6 +42,7 @@ For complete documentation, see `dracut.zfs(7)`.
    which `-Rf` destroys *all* snapshots of `$root_dataset`
    except the last `n` where `n` is a positive integer.
    `bootfs.snapkeep=n` is ordered after `bootfs.snapshot`.
+   `bootfs.snapkeep=n` is ordered after `bootfs.rollback`.
    Failure to destroy the snapshot(s) is noted, but booting continues.
 
 5. `bootfs.rollback`, `bootfs.rollback=snapshot-name`: enables `zfs-rollback-bootfs.service`,
