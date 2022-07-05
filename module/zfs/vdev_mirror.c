@@ -436,36 +436,6 @@ vdev_mirror_child_done(zio_t *zio)
 {
 	mirror_child_t *mc = zio->io_private;
 
-	/* See scrubbing read comment in vdev_mirror_io_start() */
-	if (zio->io_flags & ZIO_FLAG_SCRUB && zio->io_bp == NULL)
-		mc->mc_abd = zio->io_abd;
-
-	mc->mc_error = zio->io_error;
-	mc->mc_tried = 1;
-	mc->mc_skipped = 0;
-}
-
-static void
-vdev_mirror_scrub_done(zio_t *zio)
-{
-	mirror_child_t *mc = zio->io_private;
-
-	if (zio->io_error == 0) {
-		zio_t *pio;
-		zio_link_t *zl = NULL;
-
-		mutex_enter(&zio->io_lock);
-		while ((pio = zio_walk_parents(zio, &zl)) != NULL) {
-			mutex_enter(&pio->io_lock);
-			ASSERT3U(zio->io_size, >=, pio->io_size);
-			abd_copy(pio->io_abd, zio->io_abd, pio->io_size);
-			mutex_exit(&pio->io_lock);
-		}
-		mutex_exit(&zio->io_lock);
-	}
-
-	abd_free(zio->io_abd);
-
 	mc->mc_error = zio->io_error;
 	mc->mc_tried = 1;
 	mc->mc_skipped = 0;
@@ -645,15 +615,13 @@ vdev_mirror_io_start(zio_t *zio)
 	if (zio->io_type == ZIO_TYPE_READ) {
 		if ((zio->io_flags & ZIO_FLAG_SCRUB) && !mm->mm_resilvering) {
 			/*
-			 * For scrubbing reads we need to allocate a buffer
-			 * for each child and issue reads to all children.
-			 * If we can verify the checksum here, as indicated
-			 * by io_bp being non-NULL, the data will be copied
-			 * into zio->io_data in vdev_mirror_scrub_done().
-			 * If not, then vdev_mirror_io_done() will compare
-			 * all of the read buffers and return a checksum
-			 * error if they aren't all identical.
+			 * For scrubbing reads we need to issue reads to all
+			 * children.  One child can reuse parent buffer, but
+			 * for others we have to allocate separate ones to
+			 * verify checksums if io_bp is non-NULL, or compare
+			 * them in vdev_mirror_io_done() otherwise.
 			 */
+			boolean_t first = B_TRUE;
 			for (c = 0; c < mm->mm_children; c++) {
 				mc = &mm->mm_child[c];
 
@@ -665,13 +633,15 @@ vdev_mirror_io_start(zio_t *zio)
 					continue;
 				}
 
-				zio_nowait(zio_vdev_child_io(zio, zio->io_bp,
-				    mc->mc_vd, mc->mc_offset,
+				mc->mc_abd = first ? zio->io_abd :
 				    abd_alloc_sametype(zio->io_abd,
-				    zio->io_size), zio->io_size,
-				    zio->io_type, zio->io_priority, 0,
-				    zio->io_bp ? vdev_mirror_scrub_done :
+				    zio->io_size);
+				zio_nowait(zio_vdev_child_io(zio, zio->io_bp,
+				    mc->mc_vd, mc->mc_offset, mc->mc_abd,
+				    zio->io_size, zio->io_type,
+				    zio->io_priority, 0,
 				    vdev_mirror_child_done, mc));
+				first = B_FALSE;
 			}
 			zio_execute(zio);
 			return;
@@ -802,30 +772,30 @@ vdev_mirror_io_done(zio_t *zio)
 		return;
 	}
 
-	/*
-	 * If we're scrubbing but don't have a BP available (because this
-	 * vdev is under a raidz or draid vdev) then the best we can do is
-	 * compare all of the copies read.  If they're not identical then
-	 * return a checksum error and the most likely correct data.  The
-	 * raidz code will issue a repair I/O if possible.
-	 */
-	if (zio->io_flags & ZIO_FLAG_SCRUB && zio->io_bp == NULL) {
-		abd_t *last_good_abd;
+	if (zio->io_flags & ZIO_FLAG_SCRUB && !mm->mm_resilvering) {
+		abd_t *best_abd = NULL;
+		if (last_good_copy >= 0)
+			best_abd = mm->mm_child[last_good_copy].mc_abd;
 
-		ASSERT(zio->io_vd->vdev_ops == &vdev_replacing_ops ||
-		    zio->io_vd->vdev_ops == &vdev_spare_ops);
+		/*
+		 * If we're scrubbing but don't have a BP available (because
+		 * this vdev is under a raidz or draid vdev) then the best we
+		 * can do is compare all of the copies read.  If they're not
+		 * identical then return a checksum error and the most likely
+		 * correct data.  The raidz code will issue a repair I/O if
+		 * possible.
+		 */
+		if (zio->io_bp == NULL) {
+			ASSERT(zio->io_vd->vdev_ops == &vdev_replacing_ops ||
+			    zio->io_vd->vdev_ops == &vdev_spare_ops);
 
-		if (good_copies > 1) {
-			last_good_abd = mm->mm_child[last_good_copy].mc_abd;
-			abd_t *best_abd = NULL;
-
+			abd_t *pref_abd = NULL;
 			for (c = 0; c < last_good_copy; c++) {
 				mc = &mm->mm_child[c];
-
 				if (mc->mc_error || !mc->mc_tried)
 					continue;
 
-				if (abd_cmp(mc->mc_abd, last_good_abd) != 0)
+				if (abd_cmp(mc->mc_abd, best_abd) != 0)
 					zio->io_error = SET_ERROR(ECKSUM);
 
 				/*
@@ -833,24 +803,45 @@ vdev_mirror_io_done(zio_t *zio)
 				 * by vdev_mirror_child_select() so it's
 				 * considered to be the best candidate.
 				 */
-				if (best_abd == NULL &&
+				if (pref_abd == NULL &&
 				    mc->mc_vd->vdev_ops ==
-				    &vdev_draid_spare_ops) {
+				    &vdev_draid_spare_ops)
+					pref_abd = mc->mc_abd;
+
+				/*
+				 * In the absence of a preferred copy, use
+				 * the parent pointer to avoid a memory copy.
+				 */
+				if (mc->mc_abd == zio->io_abd)
 					best_abd = mc->mc_abd;
+			}
+			if (pref_abd)
+				best_abd = pref_abd;
+		} else {
+
+			/*
+			 * If we have a BP available, then checksums are
+			 * already verified and we just need a buffer
+			 * with valid data, preferring parent one to
+			 * avoid a memory copy.
+			 */
+			for (c = 0; c < last_good_copy; c++) {
+				mc = &mm->mm_child[c];
+				if (mc->mc_error || !mc->mc_tried)
+					continue;
+				if (mc->mc_abd == zio->io_abd) {
+					best_abd = mc->mc_abd;
+					break;
 				}
 			}
-
-			abd_copy(zio->io_abd, best_abd ? best_abd :
-			    last_good_abd, zio->io_size);
-
-		} else if (good_copies == 1) {
-			last_good_abd = mm->mm_child[last_good_copy].mc_abd;
-			abd_copy(zio->io_abd, last_good_abd, zio->io_size);
 		}
 
+		if (best_abd && best_abd != zio->io_abd)
+			abd_copy(zio->io_abd, best_abd, zio->io_size);
 		for (c = 0; c < mm->mm_children; c++) {
 			mc = &mm->mm_child[c];
-			abd_free(mc->mc_abd);
+			if (mc->mc_abd != zio->io_abd)
+				abd_free(mc->mc_abd);
 			mc->mc_abd = NULL;
 		}
 	}
