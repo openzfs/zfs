@@ -169,7 +169,7 @@ zed_udev_monitor(void *arg)
 	while (1) {
 		struct udev_device *dev;
 		const char *action, *type, *part, *sectors;
-		const char *bus, *uuid;
+		const char *model, *uuid;
 		const char *class, *subclass;
 		nvlist_t *nvl;
 		boolean_t is_zfs = B_FALSE;
@@ -249,9 +249,9 @@ zed_udev_monitor(void *arg)
 		 * for matching with vdevs. Preflight here for expected
 		 * udev information.
 		 */
-		bus = udev_device_get_property_value(dev, "ID_BUS");
+		model = udev_device_get_property_value(dev, "ID_MODEL");
 		uuid = udev_device_get_property_value(dev, "DM_UUID");
-		if (!is_zfs && (bus == NULL && uuid == NULL)) {
+		if (!is_zfs && (model == NULL && uuid == NULL)) {
 			zed_log_msg(LOG_INFO, "zed_udev_monitor: %s no devid "
 			    "source", udev_device_get_devnode(dev));
 			udev_device_unref(dev);
