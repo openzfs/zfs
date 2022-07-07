@@ -4223,6 +4223,7 @@ spa_ld_get_props(spa_t *spa)
 		spa->spa_avz_action = AVZ_ACTION_INITIALIZE;
 		ASSERT0(vdev_count_verify_zaps(spa->spa_root_vdev));
 	} else if (error != 0) {
+		nvlist_free(mos_config);
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 	} else if (!nvlist_exists(mos_config, ZPOOL_CONFIG_HAS_PER_VDEV_ZAPS)) {
 		/*
