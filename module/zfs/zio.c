@@ -5008,7 +5008,7 @@ zbookmark_subtree_completed(const dnode_phys_t *dnp,
 {
 	zbookmark_phys_t mod_zb = *subtree_root;
 	mod_zb.zb_blkid++;
-	ASSERT(last_block->zb_level == 0);
+	ASSERT0(last_block->zb_level);
 
 	/* The objset_phys_t isn't before anything. */
 	if (dnp == NULL)
@@ -5032,6 +5032,22 @@ zbookmark_subtree_completed(const dnode_phys_t *dnp,
 	return (zbookmark_compare(dnp->dn_datablkszsec, dnp->dn_indblkshift,
 	    1ULL << (DNODE_BLOCK_SHIFT - SPA_MINBLOCKSHIFT), 0, &mod_zb,
 	    last_block) <= 0);
+}
+
+/*
+ * This function is similar to zbookmark_subtree_completed(), but returns true
+ * if subtree_root is equal or ahead of last_block, i.e. still to be done.
+ */
+boolean_t
+zbookmark_subtree_tbd(const dnode_phys_t *dnp,
+    const zbookmark_phys_t *subtree_root, const zbookmark_phys_t *last_block)
+{
+	ASSERT0(last_block->zb_level);
+	if (dnp == NULL)
+		return (B_FALSE);
+	return (zbookmark_compare(dnp->dn_datablkszsec, dnp->dn_indblkshift,
+	    1ULL << (DNODE_BLOCK_SHIFT - SPA_MINBLOCKSHIFT), 0, subtree_root,
+	    last_block) >= 0);
 }
 
 EXPORT_SYMBOL(zio_type_name);
