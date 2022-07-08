@@ -699,6 +699,8 @@ extern void spa_handle_ignored_writes(spa_t *spa);
 /* zbookmark_phys functions */
 boolean_t zbookmark_subtree_completed(const struct dnode_phys *dnp,
     const zbookmark_phys_t *subtree_root, const zbookmark_phys_t *last_block);
+boolean_t zbookmark_subtree_tbd(const struct dnode_phys *dnp,
+    const zbookmark_phys_t *subtree_root, const zbookmark_phys_t *last_block);
 int zbookmark_compare(uint16_t dbss1, uint8_t ibs1, uint16_t dbss2,
     uint8_t ibs2, const zbookmark_phys_t *zb1, const zbookmark_phys_t *zb2);
 
