@@ -31,7 +31,7 @@ Requires(post): gcc, make, perl, diffutils
 %if 0%{?rhel}%{?fedora}%{?mageia}%{?suse_version}
 Requires:       kernel-devel >= @ZFS_META_KVER_MIN@, kernel-devel <= @ZFS_META_KVER_MAX@.999
 Requires(post): kernel-devel >= @ZFS_META_KVER_MIN@, kernel-devel <= @ZFS_META_KVER_MAX@.999
-Obsoletes:      spl-dkms
+Obsoletes:      spl-dkms <= %{version}
 %endif
 Provides:       %{module}-kmod = %{version}
 AutoReqProv:    no
