@@ -96,7 +96,7 @@ Requires:       libuutil3%{?_isa} = %{version}-%{release}
 Requires:       libzfs5%{?_isa} = %{version}-%{release}
 Requires:       %{name}-kmod = %{version}
 Provides:       %{name}-kmod-common = %{version}-%{release}
-Obsoletes:      spl
+Obsoletes:      spl <= %{version}
 
 # zfs-fuse provides the same commands and man pages that OpenZFS does.
 # Renaming those on either side would conflict with all available documentation.
@@ -144,8 +144,8 @@ This package contains the core ZFS command line utilities.
 %package -n libzpool5
 Summary:        Native ZFS pool library for Linux
 Group:          System Environment/Kernel
-Obsoletes:      libzpool2
-Obsoletes:      libzpool4
+Obsoletes:      libzpool2 <= %{version}
+Obsoletes:      libzpool4 <= %{version}
 
 %description -n libzpool5
 This package contains the zpool library, which provides support
@@ -161,7 +161,7 @@ for managing zpools
 %package -n libnvpair3
 Summary:        Solaris name-value library for Linux
 Group:          System Environment/Kernel
-Obsoletes:      libnvpair1
+Obsoletes:      libnvpair1 <= %{version}
 
 %description -n libnvpair3
 This package contains routines for packing and unpacking name-value
@@ -179,7 +179,7 @@ to write self describing data structures on disk.
 %package -n libuutil3
 Summary:        Solaris userland utility library for Linux
 Group:          System Environment/Kernel
-Obsoletes:      libuutil1
+Obsoletes:      libuutil1 <= %{version}
 
 %description -n libuutil3
 This library provides a variety of compatibility functions for OpenZFS:
@@ -205,8 +205,8 @@ This library provides a variety of compatibility functions for OpenZFS:
 %package -n libzfs5
 Summary:        Native ZFS filesystem library for Linux
 Group:          System Environment/Kernel
-Obsoletes:      libzfs2
-Obsoletes:      libzfs4
+Obsoletes:      libzfs2 <= %{version}
+Obsoletes:      libzfs4 <= %{version}
 
 %description -n libzfs5
 This package provides support for managing ZFS filesystems
@@ -228,9 +228,9 @@ Requires:       libuutil3%{?_isa} = %{version}-%{release}
 Provides:       libzpool5-devel = %{version}-%{release}
 Provides:       libnvpair3-devel = %{version}-%{release}
 Provides:       libuutil3-devel = %{version}-%{release}
-Obsoletes:      zfs-devel
-Obsoletes:      libzfs2-devel
-Obsoletes:      libzfs4-devel
+Obsoletes:      zfs-devel <= %{version}
+Obsoletes:      libzfs2-devel <= %{version}
+Obsoletes:      libzfs4-devel <= %{version}
 
 %description -n libzfs5-devel
 This package contains the header files needed for building additional
