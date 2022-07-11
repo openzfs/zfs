@@ -208,6 +208,12 @@ zed_udev_monitor(void *arg)
 		 * if this is a disk and it is partitioned, then the
 		 * zfs label will reside in a DEVTYPE=partition and
 		 * we can skip passing this event
+		 *
+		 * Special case: Blank disks are sometimes reported with
+		 * an erroneous 'atari' partition, and should not be
+		 * excluded from being used as an autoreplace disk:
+		 *
+		 * https://github.com/openzfs/zfs/issues/13497
 		 */
 		type = udev_device_get_property_value(dev, "DEVTYPE");
 		part = udev_device_get_property_value(dev,
@@ -215,14 +221,23 @@ zed_udev_monitor(void *arg)
 		if (type != NULL && type[0] != '\0' &&
 		    strcmp(type, "disk") == 0 &&
 		    part != NULL && part[0] != '\0') {
-			zed_log_msg(LOG_INFO,
-			    "%s: skip %s since it has a %s partition already",
-			    __func__,
-			    udev_device_get_property_value(dev, "DEVNAME"),
-			    part);
-			/* skip and wait for partition event */
-			udev_device_unref(dev);
-			continue;
+			const char *devname =
+			    udev_device_get_property_value(dev, "DEVNAME");
+
+			if (strcmp(part, "atari") == 0) {
+				zed_log_msg(LOG_INFO,
+				    "%s: %s is reporting an atari partition, "
+				    "but we're going to assume it's a false "
+				    "positive and still use it (issue #13497)",
+				    __func__, devname);
+			} else {
+				zed_log_msg(LOG_INFO,
+				    "%s: skip %s since it has a %s partition "
+				    "already", __func__, devname, part);
+				/* skip and wait for partition event */
+				udev_device_unref(dev);
+				continue;
+			}
 		}
 
 		/*
