@@ -33,6 +33,10 @@
 #include <sys/abd.h>
 #include <sys/qat.h>
 
+#ifdef _KERNEL
+#include <sys/crypto_os.h>
+#endif
+
 static int
 sha_incremental(void *buf, size_t size, void *arg)
 {
@@ -49,6 +53,11 @@ abd_checksum_SHA256(abd_t *abd, uint64_t size,
 	int ret;
 	SHA2_CTX ctx;
 	zio_cksum_t tmp;
+
+#ifdef _KERNEL
+	if (zfs_offload_hash(CRYPTO_SHA2_256, abd, size, &tmp) == 0)
+		goto bswap;
+#endif
 
 	if (qat_checksum_use_accel(size)) {
 		uint8_t *buf = abd_borrow_buf_copy(abd, size);

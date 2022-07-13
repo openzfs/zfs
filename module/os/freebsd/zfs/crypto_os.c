@@ -41,6 +41,7 @@ __FBSDID("$FreeBSD$");
 #include <opencrypto/xform.h>
 #endif
 
+#include <sys/zio_checksum.h>
 #include <sys/zio_crypt.h>
 #include <sys/fs/zfs.h>
 #include <sys/zio.h>
@@ -321,7 +322,8 @@ freebsd_crypt_newsession(freebsd_crypt_session_t *sessp,
 	 * CPU-accelerated drivers such as aesni(4) register themselves as
 	 * hardware drivers.
 	 */
-	error = crypto_newsession(&sessp->fs_sid, &csp, CRYPTOCAP_F_SOFTWARE);
+	error = crypto_newsession(&sessp->fs_sid, &csp, CRYPTOCAP_F_SOFTWARE |
+	    CRYPTOCAP_F_ACCEL_SOFTWARE | CRYPTOCAP_F_HARDWARE);
 	mtx_init(&sessp->fs_lock, "FreeBSD Cryptographic Session Lock",
 	    NULL, MTX_DEF);
 	crypt_sessions++;
@@ -330,6 +332,110 @@ bad:
 	if (error)
 		printf("%s: returning error %d\n", __FUNCTION__, error);
 #endif
+	return (error);
+}
+
+int
+freebsd_hash_newsession(freebsd_crypt_session_t *sessionp, size_t checksum)
+{
+	int error = 0;
+	struct crypto_session_params csp;
+
+	bzero(&csp, sizeof (struct crypto_session_params));
+	csp.csp_mode = CSP_MODE_DIGEST;
+	csp.csp_auth_alg = checksum;
+	csp.csp_flags = CSP_F_SEPARATE_OUTPUT;
+	csp.csp_auth_mlen = 0;
+
+	error = crypto_newsession(&sessionp->fs_sid, &csp,
+	    CRYPTOCAP_F_HARDWARE | CRYPTOCAP_F_ACCEL_SOFTWARE);
+	mtx_init(&sessionp->fs_lock, "FreeBSD Cryptographic Session Lock",
+	    NULL, MTX_DEF);
+	sessionp->fs_done = false;
+
+	return (error);
+}
+
+int
+freebsd_hash(freebsd_crypt_session_t *input_sessionp, size_t checksum,
+    uint8_t *buf, uint64_t size, uint8_t *obuf, uint64_t osize)
+{
+	int error = 0;
+	freebsd_crypt_session_t *session = NULL;
+	struct cryptop *crp;
+
+	if (input_sessionp == NULL) {
+		session = kmem_zalloc(sizeof (freebsd_crypt_session_t),
+		    KM_SLEEP);
+		error = freebsd_hash_newsession(session, checksum);
+		if (error)
+			goto out;
+	} else {
+		session = input_sessionp;
+	}
+
+	crp = crypto_getreq(session->fs_sid, M_WAITOK);
+	crp->crp_op = CRYPTO_OP_COMPUTE_DIGEST;
+	crp->crp_flags = CRYPTO_F_CBIFSYNC | CRYPTO_F_CBIMM;
+	crp->crp_digest_start = 0;
+	crp->crp_payload_start = 0;
+	crp->crp_payload_length = size;
+	crp->crp_payload_output_start = 0;
+	crypto_use_buf(crp, buf, size);
+	crypto_use_output_buf(crp, obuf, osize);
+
+	error = zfs_crypto_dispatch(session, crp);
+
+	if (!session->fs_done || !(crp->crp_flags & CRYPTO_F_DONE) ||
+	    (crp->crp_etype))
+		error = EINVAL;
+
+	crypto_freereq(crp);
+
+out:
+	if (input_sessionp == NULL) {
+		freebsd_crypt_freesession(session);
+		kmem_free(session, sizeof (freebsd_crypt_session_t));
+	}
+
+#ifdef FCRYPTO_DEBUG
+	if (error)
+		printf("\n%s: returning error %d\n", __FUNCTION__, error);
+
+	printf("\nInput buffer size is: %lu\n", size);
+
+	printf("\nOutput buffer is:\n");
+	for (int i = 0; i < osize; ++i)
+		printf("%02X", obuf[i]);
+#endif
+
+	return (error);
+}
+
+int
+freebsd_offload_hash_to_ocf(uint64_t checksum, abd_t *abd, uint64_t size,
+    zio_cksum_t *zcp)
+{
+	int error = 1;
+	freebsd_crypt_session_t *session = NULL;
+
+	session = kmem_zalloc(sizeof (freebsd_crypt_session_t), KM_SLEEP);
+
+	if (session != NULL)
+		error = freebsd_hash_newsession(session, checksum);
+
+	if (error == 0) {
+		uint8_t *buf = abd_borrow_buf_copy(abd, size);
+		error = freebsd_hash(session, checksum, buf, size,
+		    (uint8_t *)zcp, sizeof (zio_cksum_t));
+		abd_return_buf(abd, buf, size);
+	}
+
+	if (session != NULL) {
+		freebsd_crypt_freesession(session);
+		kmem_free(session, sizeof (freebsd_crypt_session_t));
+	}
+
 	return (error);
 }
 
@@ -393,7 +499,7 @@ out:
 	return (error);
 }
 
-#else
+#else /* __FreeBSD_version >= 1300087 */
 int
 freebsd_crypt_newsession(freebsd_crypt_session_t *sessp,
     const struct zio_crypt_info *c_info, crypto_key_t *key)
@@ -632,4 +738,6 @@ bad:
 #endif
 	return (error);
 }
+
+#define	freebsd_offload_hash_to_ocf(checksum, abd, size, zcp)	EOPNOTSUPP
 #endif
