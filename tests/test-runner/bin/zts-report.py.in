@@ -244,8 +244,6 @@ maybe = {
     'pyzfs/pyzfs_unittest': ['SKIP', python_deps_reason],
     'pool_checkpoint/checkpoint_discard_busy': ['FAIL', '11946'],
     'projectquota/setup': ['SKIP', exec_reason],
-    'redundancy/redundancy_004_neg': ['FAIL', '7290'],
-    'redundancy/redundancy_draid_spare3': ['SKIP', known_reason],
     'removal/removal_condense_export': ['FAIL', known_reason],
     'reservation/reservation_008_pos': ['FAIL', '7741'],
     'reservation/reservation_018_pos': ['FAIL', '5642'],

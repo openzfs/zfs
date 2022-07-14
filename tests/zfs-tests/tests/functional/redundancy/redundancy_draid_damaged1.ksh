@@ -89,22 +89,9 @@ function test_sequential_resilver # <pool> <parity> <dir>
 	done
 
 	log_must zpool scrub -w $pool
+	log_must zpool status $pool
 
-	# When only a single child was overwritten the sequential resilver
-	# can fully repair the damange from parity and the scrub will have
-	# nothing to repair. When multiple children are silently damaged
-	# the sequential resilver will calculate the wrong data since only
-	# the parity information is used and it cannot be verified with
-	# the checksum. However, since only the resilvering devices are
-	# written to with the bad data a subsequent scrub will be able to
-	# fully repair the pool.
-	#
-	if [[ $nparity == 1 ]]; then
-		log_must check_pool_status $pool "scan" "repaired 0B"
-	else
-		log_mustnot check_pool_status $pool "scan" "repaired 0B"
-	fi
-
+	log_mustnot check_pool_status $pool "scan" "repaired 0B"
 	log_must check_pool_status $pool "errors" "No known data errors"
 	log_must check_pool_status $pool "scan" "with 0 errors"
 }

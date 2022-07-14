@@ -6,7 +6,8 @@ dist_pkgdata_SCRIPTS = \
 	redundancy_draid1.ksh \
 	redundancy_draid2.ksh \
 	redundancy_draid3.ksh \
-	redundancy_draid_damaged.ksh \
+	redundancy_draid_damaged1.ksh \
+	redundancy_draid_damaged2.ksh \
 	redundancy_draid_spare1.ksh \
 	redundancy_draid_spare2.ksh \
 	redundancy_draid_spare3.ksh \
