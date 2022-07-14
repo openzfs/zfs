@@ -233,6 +233,18 @@ __zpl_show_options(struct seq_file *seq, zfsvfs_t *zfsvfs)
 	}
 #endif /* CONFIG_FS_POSIX_ACL */
 
+	switch (zfsvfs->z_case) {
+	case ZFS_CASE_SENSITIVE:
+		seq_puts(seq, ",casesensitive");
+		break;
+	case ZFS_CASE_INSENSITIVE:
+		seq_puts(seq, ",caseinsensitive");
+		break;
+	default:
+		seq_puts(seq, ",casemixed");
+		break;
+	}
+
 	return (0);
 }
 
