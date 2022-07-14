@@ -169,7 +169,7 @@ zed_udev_monitor(void *arg)
 	while (1) {
 		struct udev_device *dev;
 		const char *action, *type, *part, *sectors;
-		const char *bus, *uuid;
+		const char *bus, *uuid, *devpath;
 		const char *class, *subclass;
 		nvlist_t *nvl;
 		boolean_t is_zfs = B_FALSE;
@@ -263,10 +263,19 @@ zed_udev_monitor(void *arg)
 		 * device id string is required in the message schema
 		 * for matching with vdevs. Preflight here for expected
 		 * udev information.
+		 *
+		 * Special case:
+		 * NVMe devices don't have ID_BUS set (at least on RHEL 7-8),
+		 * but they are valid for autoreplace.  Add a special case for
+		 * them by searching for "/nvme/" in the udev DEVPATH:
+		 *
+		 * DEVPATH=/devices/pci0000:00/0000:00:1e.0/nvme/nvme2/nvme2n1
 		 */
 		bus = udev_device_get_property_value(dev, "ID_BUS");
 		uuid = udev_device_get_property_value(dev, "DM_UUID");
-		if (!is_zfs && (bus == NULL && uuid == NULL)) {
+		devpath = udev_device_get_devpath(dev);
+		if (!is_zfs && (bus == NULL && uuid == NULL &&
+		    strstr(devpath, "/nvme/") == NULL)) {
 			zed_log_msg(LOG_INFO, "zed_udev_monitor: %s no devid "
 			    "source", udev_device_get_devnode(dev));
 			udev_device_unref(dev);
