@@ -46,14 +46,15 @@
 #include <sys/string.h>
 #include <sys/simd.h>
 #include <zfs_fletcher.h>
+#include <sys/zfs_context.h>
 
-static void
+novector static void
 fletcher_4_avx2_init(fletcher_4_ctx_t *ctx)
 {
 	memset(ctx->avx, 0, 4 * sizeof (zfs_fletcher_avx_t));
 }
 
-static void
+novector static void
 fletcher_4_avx2_fini(fletcher_4_ctx_t *ctx, zio_cksum_t *zcp)
 {
 	uint64_t A, B, C, D;

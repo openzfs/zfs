@@ -48,14 +48,15 @@
 #include <sys/string.h>
 #include <sys/byteorder.h>
 #include <zfs_fletcher.h>
+#include <sys/zfs_context.h>
 
-static void
+novector static void
 fletcher_4_sse2_init(fletcher_4_ctx_t *ctx)
 {
 	memset(ctx->sse, 0, 4 * sizeof (zfs_fletcher_sse_t));
 }
 
-static void
+novector static void
 fletcher_4_sse2_fini(fletcher_4_ctx_t *ctx, zio_cksum_t *zcp)
 {
 	uint64_t A, B, C, D;

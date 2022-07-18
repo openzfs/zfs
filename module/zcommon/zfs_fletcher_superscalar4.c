@@ -46,14 +46,21 @@
 #include <sys/spa_checksum.h>
 #include <sys/string.h>
 #include <zfs_fletcher.h>
+#include <sys/zfs_context.h>
 
-static void
+/*
+ * These functions are all annotated to forbid auto-vectorization, because
+ * we would like some implementations that work even if SIMD is on the fritz,
+ * and auto-vectorizing random code can lead to strange side effects...
+ */
+
+novector static void
 fletcher_4_superscalar4_init(fletcher_4_ctx_t *ctx)
 {
 	memset(ctx->superscalar, 0, 4 * sizeof (zfs_fletcher_superscalar_t));
 }
 
-static void
+novector static void
 fletcher_4_superscalar4_fini(fletcher_4_ctx_t *ctx, zio_cksum_t *zcp)
 {
 	uint64_t A, B, C, D;
@@ -82,7 +89,7 @@ fletcher_4_superscalar4_fini(fletcher_4_ctx_t *ctx, zio_cksum_t *zcp)
 	ZIO_SET_CHECKSUM(zcp, A, B, C, D);
 }
 
-static void
+novector static void
 fletcher_4_superscalar4_native(fletcher_4_ctx_t *ctx,
     const void *buf, uint64_t size)
 {
@@ -147,7 +154,7 @@ fletcher_4_superscalar4_native(fletcher_4_ctx_t *ctx,
 	ctx->superscalar[3].v[3] = d4;
 }
 
-static void
+novector static void
 fletcher_4_superscalar4_byteswap(fletcher_4_ctx_t *ctx,
     const void *buf, uint64_t size)
 {

@@ -33,6 +33,23 @@ extern "C" {
 #endif
 
 /*
+ * Sometimes, it's an extremely bad idea to allow the compiler to vectorize
+ * scalar code, either because we want the code to work even if SIMD is
+ * broken, because the compiler is known to produce much worse results,
+ * or because it's very unsafe to do.
+ *
+ * Of course, in kernel mode, all platforms have explicit CFLAGS for
+ * "no, don't auto-vectorize random segments, not ever"...
+ */
+#if defined(__GNUC__)
+#define	novector	__attribute__((optimize("no-tree-vectorize")))
+#elif defined(__clang__)
+#define	novector	__attribute__((optimize("no-vectorize")))
+#else
+#define	novector
+#endif
+
+/*
  * This code compiles in three different contexts. When __KERNEL__ is defined,
  * the code uses "unix-like" kernel interfaces. When _STANDALONE is defined, the
  * code is running in a reduced capacity environment of the boot loader which is
