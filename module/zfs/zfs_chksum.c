@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2021 Tino Reichardt <milky-zfs@mcmilk.de>
+ * Copyright (c) 2021-2022 Tino Reichardt <milky-zfs@mcmilk.de>
  */
 
 #include <sys/types.h>
@@ -42,7 +42,10 @@ typedef struct {
 	uint64_t bs64k;
 	uint64_t bs256k;
 	uint64_t bs1m;
+#ifdef _LP64
 	uint64_t bs4m;
+	uint64_t bs16m;
+#endif
 	zio_cksum_salt_t salt;
 	zio_checksum_t *(func);
 	zio_checksum_tmpl_init_t *(init);
@@ -84,8 +87,13 @@ chksum_stat_kstat_headers(char *buf, size_t size)
 	off += snprintf(buf + off, size - off, "%8s", "16k");
 	off += snprintf(buf + off, size - off, "%8s", "64k");
 	off += snprintf(buf + off, size - off, "%8s", "256k");
+#ifdef _LP64
 	off += snprintf(buf + off, size - off, "%8s", "1m");
-	(void) snprintf(buf + off, size - off, "%8s\n", "4m");
+	off += snprintf(buf + off, size - off, "%8s", "4m");
+	(void) snprintf(buf + off, size - off, "%8s\n", "16m");
+#else
+	(void) snprintf(buf + off, size - off, "%8s\n", "1m");
+#endif
 
 	return (0);
 }
@@ -110,10 +118,17 @@ chksum_stat_kstat_data(char *buf, size_t size, void *data)
 	    (u_longlong_t)cs->bs64k);
 	off += snprintf(buf + off, size - off, "%8llu",
 	    (u_longlong_t)cs->bs256k);
+#ifdef _LP64
 	off += snprintf(buf + off, size - off, "%8llu",
 	    (u_longlong_t)cs->bs1m);
-	(void) snprintf(buf + off, size - off, "%8llu\n",
+	off += snprintf(buf + off, size - off, "%8llu",
 	    (u_longlong_t)cs->bs4m);
+	(void) snprintf(buf + off, size - off, "%8llu\n",
+	    (u_longlong_t)cs->bs16m);
+#else
+	(void) snprintf(buf + off, size - off, "%8llu\n",
+	    (u_longlong_t)cs->bs1m);
+#endif
 
 	return (0);
 }
@@ -151,8 +166,12 @@ chksum_run(chksum_stat_t *cs, abd_t *abd, void *ctx, int round,
 		size = 1<<18; loops = 8; break;
 	case 6: /* 1m */
 		size = 1<<20; loops = 4; break;
+#ifdef _LP64
 	case 7: /* 4m */
 		size = 1<<22; loops = 1; break;
+	case 8: /* 16m */
+		size = 1<<24; loops = 1; break;
+#endif
 	}
 
 	kpreempt_disable();
@@ -178,7 +197,12 @@ chksum_benchit(chksum_stat_t *cs)
 	void *salt = &cs->salt.zcs_bytes;
 
 	/* allocate test memory via default abd interface */
-	abd = abd_alloc_linear(1<<22, B_FALSE);
+#ifdef _LP64
+	abd = abd_alloc_linear(1<<24, B_FALSE);
+#else
+	abd = abd_alloc_linear(1<<20, B_FALSE);
+#endif
+
 	memset(salt, 0, sizeof (cs->salt.zcs_bytes));
 	if (cs->init) {
 		ctx = cs->init(&cs->salt);
@@ -190,7 +214,10 @@ chksum_benchit(chksum_stat_t *cs)
 	chksum_run(cs, abd, ctx, 4, &cs->bs64k);
 	chksum_run(cs, abd, ctx, 5, &cs->bs256k);
 	chksum_run(cs, abd, ctx, 6, &cs->bs1m);
+#ifdef _LP64
 	chksum_run(cs, abd, ctx, 7, &cs->bs4m);
+	chksum_run(cs, abd, ctx, 8, &cs->bs16m);
+#endif
 
 	/* free up temp memory */
 	if (cs->free) {
