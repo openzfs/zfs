@@ -3565,8 +3565,15 @@ dump_object(objset_t *os, uint64_t object, int verbosity,
 		*print_header = B_TRUE;
 	}
 
-	if (verbosity >= 5)
+	if (verbosity >= 5) {
+		if (dn->dn_phys->dn_flags & DNODE_FLAG_SPILL_BLKPTR) {
+			char blkbuf[BP_SPRINTF_LEN];
+			snprintf_blkptr_compact(blkbuf, sizeof (blkbuf),
+			    DN_SPILL_BLKPTR(dn->dn_phys), B_FALSE);
+			(void) printf("\nSpill block: %s\n", blkbuf);
+		}
 		dump_indirect(dn);
+	}
 
 	if (verbosity >= 5) {
 		/*
