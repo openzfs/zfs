@@ -37,18 +37,33 @@ static dataset_kstat_values_t empty_dataset_kstats = {
 	{ "nread",	KSTAT_DATA_UINT64 },
 	{ "nunlinks",	KSTAT_DATA_UINT64 },
 	{ "nunlinked",	KSTAT_DATA_UINT64 },
+	{
+	{ "zil_commit_count",			KSTAT_DATA_UINT64 },
+	{ "zil_commit_writer_count",		KSTAT_DATA_UINT64 },
+	{ "zil_itx_count",			KSTAT_DATA_UINT64 },
+	{ "zil_itx_indirect_count",		KSTAT_DATA_UINT64 },
+	{ "zil_itx_indirect_bytes",		KSTAT_DATA_UINT64 },
+	{ "zil_itx_copied_count",		KSTAT_DATA_UINT64 },
+	{ "zil_itx_copied_bytes",		KSTAT_DATA_UINT64 },
+	{ "zil_itx_needcopy_count",		KSTAT_DATA_UINT64 },
+	{ "zil_itx_needcopy_bytes",		KSTAT_DATA_UINT64 },
+	{ "zil_itx_metaslab_normal_count",	KSTAT_DATA_UINT64 },
+	{ "zil_itx_metaslab_normal_bytes",	KSTAT_DATA_UINT64 },
+	{ "zil_itx_metaslab_slog_count",	KSTAT_DATA_UINT64 },
+	{ "zil_itx_metaslab_slog_bytes",	KSTAT_DATA_UINT64 }
+	}
 };
 
 static int
 dataset_kstats_update(kstat_t *ksp, int rw)
 {
 	dataset_kstats_t *dk = ksp->ks_private;
-	ASSERT3P(dk->dk_kstats->ks_data, ==, ksp->ks_data);
+	dataset_kstat_values_t *dkv = ksp->ks_data;
+	ASSERT3P(dk->dk_kstats->ks_data, ==, dkv);
 
 	if (rw == KSTAT_WRITE)
 		return (EACCES);
 
-	dataset_kstat_values_t *dkv = dk->dk_kstats->ks_data;
 	dkv->dkv_writes.value.ui64 =
 	    wmsum_value(&dk->dk_sums.dss_writes);
 	dkv->dkv_nwritten.value.ui64 =
@@ -62,10 +77,12 @@ dataset_kstats_update(kstat_t *ksp, int rw)
 	dkv->dkv_nunlinked.value.ui64 =
 	    wmsum_value(&dk->dk_sums.dss_nunlinked);
 
+	zil_kstat_values_update(&dkv->dkv_zil_stats, &dk->dk_zil_sums);
+
 	return (0);
 }
 
-void
+int
 dataset_kstats_create(dataset_kstats_t *dk, objset_t *objset)
 {
 	/*
@@ -75,7 +92,7 @@ dataset_kstats_create(dataset_kstats_t *dk, objset_t *objset)
 	 * a filesystem with many snapshots, we skip them for now.
 	 */
 	if (dmu_objset_is_snapshot(objset))
-		return;
+		return (0);
 
 	/*
 	 * At the time of this writing, KSTAT_STRLEN is 255 in Linux,
@@ -94,13 +111,13 @@ dataset_kstats_create(dataset_kstats_t *dk, objset_t *objset)
 		zfs_dbgmsg("failed to create dataset kstat for objset %lld: "
 		    " snprintf() for kstat module name returned %d",
 		    (unsigned long long)dmu_objset_id(objset), n);
-		return;
+		return (SET_ERROR(EINVAL));
 	} else if (n >= KSTAT_STRLEN) {
 		zfs_dbgmsg("failed to create dataset kstat for objset %lld: "
 		    "kstat module name length (%d) exceeds limit (%d)",
 		    (unsigned long long)dmu_objset_id(objset),
 		    n, KSTAT_STRLEN);
-		return;
+		return (SET_ERROR(ENAMETOOLONG));
 	}
 
 	char kstat_name[KSTAT_STRLEN];
@@ -110,7 +127,7 @@ dataset_kstats_create(dataset_kstats_t *dk, objset_t *objset)
 		zfs_dbgmsg("failed to create dataset kstat for objset %lld: "
 		    " snprintf() for kstat name returned %d",
 		    (unsigned long long)dmu_objset_id(objset), n);
-		return;
+		return (SET_ERROR(EINVAL));
 	}
 	ASSERT3U(n, <, KSTAT_STRLEN);
 
@@ -119,7 +136,7 @@ dataset_kstats_create(dataset_kstats_t *dk, objset_t *objset)
 	    sizeof (empty_dataset_kstats) / sizeof (kstat_named_t),
 	    KSTAT_FLAG_VIRTUAL);
 	if (kstat == NULL)
-		return;
+		return (SET_ERROR(ENOMEM));
 
 	dataset_kstat_values_t *dk_kstats =
 	    kmem_alloc(sizeof (empty_dataset_kstats), KM_SLEEP);
@@ -137,15 +154,17 @@ dataset_kstats_create(dataset_kstats_t *dk, objset_t *objset)
 	kstat->ks_private = dk;
 	kstat->ks_data_size += ZFS_MAX_DATASET_NAME_LEN;
 
-	kstat_install(kstat);
-	dk->dk_kstats = kstat;
-
 	wmsum_init(&dk->dk_sums.dss_writes, 0);
 	wmsum_init(&dk->dk_sums.dss_nwritten, 0);
 	wmsum_init(&dk->dk_sums.dss_reads, 0);
 	wmsum_init(&dk->dk_sums.dss_nread, 0);
 	wmsum_init(&dk->dk_sums.dss_nunlinks, 0);
 	wmsum_init(&dk->dk_sums.dss_nunlinked, 0);
+	zil_sums_init(&dk->dk_zil_sums);
+
+	dk->dk_kstats = kstat;
+	kstat_install(kstat);
+	return (0);
 }
 
 void
@@ -155,12 +174,11 @@ dataset_kstats_destroy(dataset_kstats_t *dk)
 		return;
 
 	dataset_kstat_values_t *dkv = dk->dk_kstats->ks_data;
+	kstat_delete(dk->dk_kstats);
+	dk->dk_kstats = NULL;
 	kmem_free(KSTAT_NAMED_STR_PTR(&dkv->dkv_ds_name),
 	    KSTAT_NAMED_STR_BUFLEN(&dkv->dkv_ds_name));
 	kmem_free(dkv, sizeof (empty_dataset_kstats));
-
-	kstat_delete(dk->dk_kstats);
-	dk->dk_kstats = NULL;
 
 	wmsum_fini(&dk->dk_sums.dss_writes);
 	wmsum_fini(&dk->dk_sums.dss_nwritten);
@@ -168,6 +186,7 @@ dataset_kstats_destroy(dataset_kstats_t *dk)
 	wmsum_fini(&dk->dk_sums.dss_nread);
 	wmsum_fini(&dk->dk_sums.dss_nunlinks);
 	wmsum_fini(&dk->dk_sums.dss_nunlinked);
+	zil_sums_fini(&dk->dk_zil_sums);
 }
 
 void

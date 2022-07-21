@@ -33,6 +33,7 @@
 #include <sys/zio.h>
 #include <sys/dmu.h>
 #include <sys/zio_crypt.h>
+#include <sys/wmsum.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -472,12 +473,34 @@ typedef struct zil_stats {
 	 */
 	kstat_named_t zil_itx_metaslab_slog_count;
 	kstat_named_t zil_itx_metaslab_slog_bytes;
-} zil_stats_t;
+} zil_kstat_values_t;
 
-#define	ZIL_STAT_INCR(stat, val) \
-    atomic_add_64(&zil_stats.stat.value.ui64, (val));
-#define	ZIL_STAT_BUMP(stat) \
-    ZIL_STAT_INCR(stat, 1);
+typedef struct zil_sums {
+	wmsum_t zil_commit_count;
+	wmsum_t zil_commit_writer_count;
+	wmsum_t zil_itx_count;
+	wmsum_t zil_itx_indirect_count;
+	wmsum_t zil_itx_indirect_bytes;
+	wmsum_t zil_itx_copied_count;
+	wmsum_t zil_itx_copied_bytes;
+	wmsum_t zil_itx_needcopy_count;
+	wmsum_t zil_itx_needcopy_bytes;
+	wmsum_t zil_itx_metaslab_normal_count;
+	wmsum_t zil_itx_metaslab_normal_bytes;
+	wmsum_t zil_itx_metaslab_slog_count;
+	wmsum_t zil_itx_metaslab_slog_bytes;
+} zil_sums_t;
+
+#define	ZIL_STAT_INCR(zil, stat, val) \
+	do { \
+		int64_t tmpval = (val); \
+		wmsum_add(&(zil_sums_global.stat), tmpval); \
+		if ((zil)->zl_sums) \
+			wmsum_add(&((zil)->zl_sums->stat), tmpval); \
+	} while (0)
+
+#define	ZIL_STAT_BUMP(zil, stat) \
+    ZIL_STAT_INCR(zil, stat, 1);
 
 typedef int zil_parse_blk_func_t(zilog_t *zilog, const blkptr_t *bp, void *arg,
     uint64_t txg);
@@ -497,7 +520,8 @@ extern void	zil_fini(void);
 extern zilog_t	*zil_alloc(objset_t *os, zil_header_t *zh_phys);
 extern void	zil_free(zilog_t *zilog);
 
-extern zilog_t	*zil_open(objset_t *os, zil_get_data_t *get_data);
+extern zilog_t	*zil_open(objset_t *os, zil_get_data_t *get_data,
+    zil_sums_t *zil_sums);
 extern void	zil_close(zilog_t *zilog);
 
 extern void	zil_replay(objset_t *os, void *arg,
@@ -536,6 +560,11 @@ extern void	zil_set_logbias(zilog_t *zilog, uint64_t slogval);
 
 extern uint64_t	zil_max_copied_data(zilog_t *zilog);
 extern uint64_t	zil_max_log_data(zilog_t *zilog);
+
+extern void zil_sums_init(zil_sums_t *zs);
+extern void zil_sums_fini(zil_sums_t *zs);
+extern void zil_kstat_values_update(zil_kstat_values_t *zs,
+    zil_sums_t *zil_sums);
 
 extern int zil_replay_disable;
 
