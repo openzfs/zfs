@@ -2908,7 +2908,7 @@ ztest_zil_remount(ztest_ds_t *zd, uint64_t id)
 	zil_close(zd->zd_zilog);
 
 	/* zfsvfs_setup() */
-	VERIFY3P(zil_open(os, ztest_get_data), ==, zd->zd_zilog);
+	VERIFY3P(zil_open(os, ztest_get_data, NULL), ==, zd->zd_zilog);
 	zil_replay(os, zd, ztest_replay_vector);
 
 	(void) pthread_rwlock_unlock(&zd->zd_zilog_lock);
@@ -4378,7 +4378,7 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 	/*
 	 * Open the intent log for it.
 	 */
-	zilog = zil_open(os, ztest_get_data);
+	zilog = zil_open(os, ztest_get_data, NULL);
 
 	/*
 	 * Put some objects in there, do a little I/O to them,
@@ -7304,7 +7304,7 @@ ztest_dataset_open(int d)
 		    zilog->zl_parse_lr_count,
 		    zilog->zl_replaying_seq);
 
-	zilog = zil_open(os, ztest_get_data);
+	zilog = zil_open(os, ztest_get_data, NULL);
 
 	if (zilog->zl_replaying_seq != 0 &&
 	    zilog->zl_replaying_seq < committed_seq)
