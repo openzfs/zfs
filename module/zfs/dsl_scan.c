@@ -1802,13 +1802,11 @@ dsl_scan_check_resume(dsl_scan_t *scn, const dnode_phys_t *dnp,
 
 		/*
 		 * If we found the block we're trying to resume from, or
-		 * we went past it to a different object, zero it out to
-		 * indicate that it's OK to start checking for suspending
-		 * again.
+		 * we went past it, zero it out to indicate that it's OK
+		 * to start checking for suspending again.
 		 */
-		if (memcmp(zb, &scn->scn_phys.scn_bookmark,
-		    sizeof (*zb)) == 0 ||
-		    zb->zb_object > scn->scn_phys.scn_bookmark.zb_object) {
+		if (zbookmark_subtree_tbd(dnp, zb,
+		    &scn->scn_phys.scn_bookmark)) {
 			dprintf("resuming at %llx/%llx/%llx/%llx\n",
 			    (longlong_t)zb->zb_objset,
 			    (longlong_t)zb->zb_object,
