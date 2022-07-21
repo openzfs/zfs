@@ -222,6 +222,9 @@ struct zilog {
 	 * (see zil_max_copied_data()).
 	 */
 	uint64_t	zl_max_block_size;
+
+	/* Pointer for per dataset zil sums */
+	zil_sums_t *zl_sums;
 };
 
 typedef struct zil_bp_node {
