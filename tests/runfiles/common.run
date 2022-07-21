@@ -551,7 +551,8 @@ tests = ['zdb_001_neg', 'zfs_001_neg', 'zfs_allow_001_neg',
     'zpool_offline_001_neg', 'zpool_online_001_neg', 'zpool_remove_001_neg',
     'zpool_replace_001_neg', 'zpool_scrub_001_neg', 'zpool_set_001_neg',
     'zpool_status_001_neg', 'zpool_upgrade_001_neg', 'arcstat_001_pos',
-    'arc_summary_001_pos', 'arc_summary_002_neg', 'zpool_wait_privilege']
+    'arc_summary_001_pos', 'arc_summary_002_neg', 'zpool_wait_privilege',
+    'zilstat_001_pos']
 user =
 tags = ['functional', 'cli_user', 'misc']
 
