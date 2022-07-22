@@ -54,13 +54,13 @@
  * and auto-vectorizing random code can lead to strange side effects...
  */
 
-novector static void
+static void
 fletcher_4_superscalar_init(fletcher_4_ctx_t *ctx)
 {
 	memset(ctx->superscalar, 0, 4 * sizeof (zfs_fletcher_superscalar_t));
 }
 
-novector static void
+static void
 fletcher_4_superscalar_fini(fletcher_4_ctx_t *ctx, zio_cksum_t *zcp)
 {
 	uint64_t A, B, C, D;
@@ -75,7 +75,7 @@ fletcher_4_superscalar_fini(fletcher_4_ctx_t *ctx, zio_cksum_t *zcp)
 	ZIO_SET_CHECKSUM(zcp, A, B, C, D);
 }
 
-novector static void
+static void
 fletcher_4_superscalar_native(fletcher_4_ctx_t *ctx,
     const void *buf, uint64_t size)
 {
@@ -114,7 +114,7 @@ fletcher_4_superscalar_native(fletcher_4_ctx_t *ctx,
 	ctx->superscalar[3].v[1] = d2;
 }
 
-novector static void
+static void
 fletcher_4_superscalar_byteswap(fletcher_4_ctx_t *ctx,
     const void *buf, uint64_t size)
 {

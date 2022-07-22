@@ -142,13 +142,6 @@
 #include <sys/zfs_context.h>
 #include <zfs_fletcher.h>
 
-/*
- * The fletcher implementation functions are all annotated to forbid
- * auto-vectorization, because we would like things that work even if
- * SIMD is on the fritz, and auto-vectorizing random code can lead to
- * strange side effects...
- */
-
 #define	FLETCHER_MIN_SIMD_SIZE	64
 
 static void fletcher_4_scalar_init(fletcher_4_ctx_t *ctx);
@@ -233,13 +226,13 @@ static struct fletcher_4_kstat {
 /* Indicate that benchmark has been completed */
 static boolean_t fletcher_4_initialized = B_FALSE;
 
-novector void
+void
 fletcher_init(zio_cksum_t *zcp)
 {
 	ZIO_SET_CHECKSUM(zcp, 0, 0, 0, 0);
 }
 
-novector int
+int
 fletcher_2_incremental_native(void *buf, size_t size, void *data)
 {
 	zio_cksum_t *zcp = data;
@@ -264,7 +257,7 @@ fletcher_2_incremental_native(void *buf, size_t size, void *data)
 	return (0);
 }
 
-novector void
+void
 fletcher_2_native(const void *buf, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
@@ -273,7 +266,7 @@ fletcher_2_native(const void *buf, uint64_t size,
 	(void) fletcher_2_incremental_native((void *) buf, size, zcp);
 }
 
-novector int
+int
 fletcher_2_incremental_byteswap(void *buf, size_t size, void *data)
 {
 	zio_cksum_t *zcp = data;
@@ -298,7 +291,7 @@ fletcher_2_incremental_byteswap(void *buf, size_t size, void *data)
 	return (0);
 }
 
-novector void
+void
 fletcher_2_byteswap(const void *buf, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
@@ -307,19 +300,19 @@ fletcher_2_byteswap(const void *buf, uint64_t size,
 	(void) fletcher_2_incremental_byteswap((void *) buf, size, zcp);
 }
 
-novector static void
+static void
 fletcher_4_scalar_init(fletcher_4_ctx_t *ctx)
 {
 	ZIO_SET_CHECKSUM(&ctx->scalar, 0, 0, 0, 0);
 }
 
-novector static void
+static void
 fletcher_4_scalar_fini(fletcher_4_ctx_t *ctx, zio_cksum_t *zcp)
 {
 	memcpy(zcp, &ctx->scalar, sizeof (zio_cksum_t));
 }
 
-novector static void
+static void
 fletcher_4_scalar_native(fletcher_4_ctx_t *ctx, const void *buf,
     uint64_t size)
 {
@@ -342,7 +335,7 @@ fletcher_4_scalar_native(fletcher_4_ctx_t *ctx, const void *buf,
 	ZIO_SET_CHECKSUM(&ctx->scalar, a, b, c, d);
 }
 
-novector static void
+static void
 fletcher_4_scalar_byteswap(fletcher_4_ctx_t *ctx, const void *buf,
     uint64_t size)
 {
@@ -466,7 +459,7 @@ fletcher_4_native_impl(const void *buf, uint64_t size, zio_cksum_t *zcp)
 	ops->fini_native(&ctx, zcp);
 }
 
-novector void
+void
 fletcher_4_native(const void *buf, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
@@ -490,14 +483,14 @@ fletcher_4_native(const void *buf, uint64_t size,
 	}
 }
 
-novector void
+void
 fletcher_4_native_varsize(const void *buf, uint64_t size, zio_cksum_t *zcp)
 {
 	ZIO_SET_CHECKSUM(zcp, 0, 0, 0, 0);
 	fletcher_4_scalar_native((fletcher_4_ctx_t *)zcp, buf, size);
 }
 
-novector static inline void
+static inline void
 fletcher_4_byteswap_impl(const void *buf, uint64_t size, zio_cksum_t *zcp)
 {
 	fletcher_4_ctx_t ctx;
@@ -508,7 +501,7 @@ fletcher_4_byteswap_impl(const void *buf, uint64_t size, zio_cksum_t *zcp)
 	ops->fini_byteswap(&ctx, zcp);
 }
 
-novector void
+void
 fletcher_4_byteswap(const void *buf, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
@@ -536,7 +529,7 @@ fletcher_4_byteswap(const void *buf, uint64_t size,
 
 #define	ZFS_FLETCHER_4_INC_MAX_SIZE	(8ULL << 20)
 
-novector static inline void
+static inline void
 fletcher_4_incremental_combine(zio_cksum_t *zcp, const uint64_t size,
     const zio_cksum_t *nzcp)
 {
@@ -579,7 +572,7 @@ fletcher_4_incremental_impl(boolean_t native, const void *buf, uint64_t size,
 	}
 }
 
-novector int
+int
 fletcher_4_incremental_native(void *buf, size_t size, void *data)
 {
 	zio_cksum_t *zcp = data;
@@ -591,7 +584,7 @@ fletcher_4_incremental_native(void *buf, size_t size, void *data)
 	return (0);
 }
 
-novector int
+int
 fletcher_4_incremental_byteswap(void *buf, size_t size, void *data)
 {
 	zio_cksum_t *zcp = data;

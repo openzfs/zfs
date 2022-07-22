@@ -472,3 +472,12 @@ OBJECT_FILES_NON_STANDARD_vdev_raidz_math_avx512f.o := y
 ifeq ($(CONFIG_ALTIVEC),y)
 $(obj)/zfs/vdev_raidz_math_powerpc_altivec.o : c_flags += -maltivec
 endif
+
+# Woe betide ye who override this, for yours is the kingdom of mysterious segfaults
+# absolutely everywhere.
+#
+# Free warning to anyone considering it - -march=native or the like later in the line
+# will undo -mgeneral-regs-only, and gcc's -O2 starting in 12 does autovectorizing.
+#
+# Good luck.
+ZFS_MODULE_CFLAGS += -mgeneral-regs-only -fno-tree-vectorize

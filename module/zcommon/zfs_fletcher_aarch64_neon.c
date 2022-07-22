@@ -49,13 +49,13 @@
 #include <zfs_fletcher.h>
 #include <sys/zfs_context.h>
 
-novector static void
+static void
 fletcher_4_aarch64_neon_init(fletcher_4_ctx_t *ctx)
 {
 	memset(ctx->aarch64_neon, 0, 4 * sizeof (zfs_fletcher_aarch64_neon_t));
 }
 
-novector static void
+static void
 fletcher_4_aarch64_neon_fini(fletcher_4_ctx_t *ctx, zio_cksum_t *zcp)
 {
 	uint64_t A, B, C, D;
