@@ -332,7 +332,7 @@ function scan_state { #state-file
 					log_note "No operation specified"
 				else
 					export __ZFS_POOL_RESTRICT="TESTPOOL"
-					log_must zfs unmount -a
+					log_must_busy zfs unmount -a
 					unset __ZFS_POOL_RESTRICT
 
 					for p in ${prop[i]} ${prop[((i+1))]}; do
