@@ -2322,6 +2322,8 @@ zfs_ioc_snapshot_list_next(zfs_cmd_t *zc)
 		}
 
 		if (zc->zc_simple) {
+			zc->zc_objset_stats.dds_creation_txg =
+			    dsl_get_creationtxg(ds);
 			dsl_dataset_rele(ds, FTAG);
 			break;
 		}
