@@ -40,7 +40,7 @@
 verify_runnable "global"
 
 
-if [[ $(linux_version) -lt $(linux_version "5.1") ]]; then
+if ! $(grep -q "CONFIG_IO_URING=y" /boot/config-$(uname -r)); then
 	log_unsupported "Requires io_uring support"
 fi
 
