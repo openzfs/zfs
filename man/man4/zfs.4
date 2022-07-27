@@ -1870,6 +1870,17 @@ This setting will not reduce the write size below a single block.
 Capped at a maximum of
 .Sy 32 MiB .
 .
+.It Sy zfs_recv_best_effort_corrective Ns = Ns Sy 0 Pq int
+When this variable is set to non-zero a corrective receive:
+.Bl -enum -compact -offset 4n -width "1."
+.It
+Does not enforce the restriction of source & destination snapshot GUIDs
+matching.
+.It
+If there is an error during healing, the healing receive is not
+terminated instead it moves on to the next record.
+.El
+.
 .It Sy zfs_override_estimate_recordsize Ns = Ns Sy 0 Ns | Ns 1 Pq ulong
 Setting this variable overrides the default logic for estimating block
 sizes when doing a

@@ -545,6 +545,7 @@ test_recv_new(const char *dataset, int fd)
 	fnvlist_add_string(props, "org.openzfs:launch", "September 17th, 2013");
 	fnvlist_add_nvlist(optional, "localprops", props);
 	fnvlist_add_boolean(optional, "force");
+	fnvlist_add_boolean(optional, "heal");
 	fnvlist_add_int32(optional, "cleanup_fd", cleanup_fd);
 
 	/*
