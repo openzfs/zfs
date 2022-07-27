@@ -1992,8 +1992,7 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 		if (os->os_redundant_metadata == ZFS_REDUNDANT_METADATA_ALL ||
 		    (os->os_redundant_metadata ==
 		    ZFS_REDUNDANT_METADATA_MOST &&
-		    (level >= zfs_redundant_metadata_most_ditto_level ||
-		    DMU_OT_IS_METADATA(type) || (wp & WP_SPILL))))
+		    level >= zfs_redundant_metadata_most_ditto_level))
 			copies++;
 	} else if (wp & WP_NOFILL) {
 		ASSERT(level == 0);
