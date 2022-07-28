@@ -22,6 +22,7 @@
  * Copyright (c) 2006, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013, 2014, Delphix. All rights reserved.
  * Copyright (c) 2021, George Amanakis. All rights reserved.
+ * Copyright (c) 2019 Datto Inc.
  */
 
 /*
@@ -68,11 +69,13 @@
 #include <sys/dmu_objset.h>
 #include <sys/dbuf.h>
 
+#define	NAME_MAX_LEN 64
+
 /*
  * spa_upgrade_errlog_limit : A zfs module parameter that controls the number
- * 		of on-disk error log entries that will be converted to the new
- * 		format when enabling head_errlog. Defaults to 0 which converts
- * 		all log entries.
+ *		of on-disk error log entries that will be converted to the new
+ *		format when enabling head_errlog. Defaults to 0 which converts
+ *		all log entries.
  */
 static uint32_t spa_upgrade_errlog_limit = 0;
 
@@ -512,6 +515,103 @@ get_errlist_size(spa_t *spa, avl_tree_t *tree)
 #endif
 
 /*
+ * If a healed bookmark matches an entry in the error log we stash it in a tree
+ * so that we can later remove the related log entries in sync context.
+ */
+static void
+spa_add_healed_error(spa_t *spa, uint64_t obj, zbookmark_phys_t *healed_zb)
+{
+	char name[NAME_MAX_LEN];
+
+	if (obj == 0)
+		return;
+
+	bookmark_to_name(healed_zb, name, sizeof (name));
+	mutex_enter(&spa->spa_errlog_lock);
+	if (zap_contains(spa->spa_meta_objset, obj, name) == 0) {
+		/*
+		 * Found an error matching healed zb, add zb to our
+		 * tree of healed errors
+		 */
+		avl_tree_t *tree = &spa->spa_errlist_healed;
+		spa_error_entry_t search;
+		spa_error_entry_t *new;
+		avl_index_t where;
+		search.se_bookmark = *healed_zb;
+		mutex_enter(&spa->spa_errlist_lock);
+		if (avl_find(tree, &search, &where) != NULL) {
+			mutex_exit(&spa->spa_errlist_lock);
+			mutex_exit(&spa->spa_errlog_lock);
+			return;
+		}
+		new = kmem_zalloc(sizeof (spa_error_entry_t), KM_SLEEP);
+		new->se_bookmark = *healed_zb;
+		avl_insert(tree, new, where);
+		mutex_exit(&spa->spa_errlist_lock);
+	}
+	mutex_exit(&spa->spa_errlog_lock);
+}
+
+/*
+ * If this error exists in the given tree remove it.
+ */
+static void
+remove_error_from_list(spa_t *spa, avl_tree_t *t, const zbookmark_phys_t *zb)
+{
+	spa_error_entry_t search, *found;
+	avl_index_t where;
+
+	mutex_enter(&spa->spa_errlist_lock);
+	search.se_bookmark = *zb;
+	if ((found = avl_find(t, &search, &where)) != NULL) {
+		avl_remove(t, found);
+		kmem_free(found, sizeof (spa_error_entry_t));
+	}
+	mutex_exit(&spa->spa_errlist_lock);
+}
+
+
+/*
+ * Removes all of the recv healed errors from both on-disk error logs
+ */
+static void
+spa_remove_healed_errors(spa_t *spa, avl_tree_t *s, avl_tree_t *l, dmu_tx_t *tx)
+{
+	char name[NAME_MAX_LEN];
+	spa_error_entry_t *se;
+	void *cookie = NULL;
+
+	ASSERT(MUTEX_HELD(&spa->spa_errlog_lock));
+
+	while ((se = avl_destroy_nodes(&spa->spa_errlist_healed,
+	    &cookie)) != NULL) {
+		remove_error_from_list(spa, s, &se->se_bookmark);
+		remove_error_from_list(spa, l, &se->se_bookmark);
+		bookmark_to_name(&se->se_bookmark, name, sizeof (name));
+		kmem_free(se, sizeof (spa_error_entry_t));
+		(void) zap_remove(spa->spa_meta_objset,
+		    spa->spa_errlog_last, name, tx);
+		(void) zap_remove(spa->spa_meta_objset,
+		    spa->spa_errlog_scrub, name, tx);
+	}
+}
+
+/*
+ * Stash away healed bookmarks to remove them from the on-disk error logs
+ * later in spa_remove_healed_errors().
+ */
+void
+spa_remove_error(spa_t *spa, zbookmark_phys_t *zb)
+{
+	char name[NAME_MAX_LEN];
+
+	bookmark_to_name(zb, name, sizeof (name));
+
+	spa_add_healed_error(spa, spa->spa_errlog_last, zb);
+	spa_add_healed_error(spa, spa->spa_errlog_scrub, zb);
+}
+
+/*
  * Return the number of errors currently in the error log.  This is actually the
  * sum of both the last log and the current log, since we don't know the union
  * of these logs until we reach userland.
@@ -887,7 +987,7 @@ void
 sync_error_list(spa_t *spa, avl_tree_t *t, uint64_t *obj, dmu_tx_t *tx)
 {
 	spa_error_entry_t *se;
-	char buf[64];
+	char buf[NAME_MAX_LEN];
 	void *cookie;
 
 	if (avl_numnodes(t) == 0)
@@ -992,6 +1092,7 @@ spa_errlog_sync(spa_t *spa, uint64_t txg)
 	 */
 	if (avl_numnodes(&spa->spa_errlist_scrub) == 0 &&
 	    avl_numnodes(&spa->spa_errlist_last) == 0 &&
+	    avl_numnodes(&spa->spa_errlist_healed) == 0 &&
 	    !spa->spa_scrub_finished) {
 		mutex_exit(&spa->spa_errlist_lock);
 		return;
@@ -1005,6 +1106,11 @@ spa_errlog_sync(spa_t *spa, uint64_t txg)
 	mutex_enter(&spa->spa_errlog_lock);
 
 	tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
+
+	/*
+	 * Remove healed errors from errors.
+	 */
+	spa_remove_healed_errors(spa, &last, &scrub, tx);
 
 	/*
 	 * Sync out the current list of errors.

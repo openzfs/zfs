@@ -241,7 +241,8 @@ tests = ['zfs_receive_001_pos', 'zfs_receive_002_pos', 'zfs_receive_003_pos',
     'zfs_receive_from_encrypted', 'zfs_receive_to_encrypted',
     'zfs_receive_raw', 'zfs_receive_raw_incremental', 'zfs_receive_-e',
     'zfs_receive_raw_-d', 'zfs_receive_from_zstd', 'zfs_receive_new_props',
-    'zfs_receive_-wR-encrypted-mix']
+    'zfs_receive_-wR-encrypted-mix', 'zfs_receive_corrective',
+    'zfs_receive_compressed_corrective']
 tags = ['functional', 'cli_root', 'zfs_receive']
 
 [tests/functional/cli_root/zfs_rename]

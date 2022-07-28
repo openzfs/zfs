@@ -1316,6 +1316,9 @@ spa_activate(spa_t *spa, spa_mode_t mode)
 	avl_create(&spa->spa_errlist_last,
 	    spa_error_entry_compare, sizeof (spa_error_entry_t),
 	    offsetof(spa_error_entry_t, se_avl));
+	avl_create(&spa->spa_errlist_healed,
+	    spa_error_entry_compare, sizeof (spa_error_entry_t),
+	    offsetof(spa_error_entry_t, se_avl));
 
 	spa_activate_os(spa);
 
@@ -1426,6 +1429,7 @@ spa_deactivate(spa_t *spa)
 	spa_errlog_drain(spa);
 	avl_destroy(&spa->spa_errlist_scrub);
 	avl_destroy(&spa->spa_errlist_last);
+	avl_destroy(&spa->spa_errlist_healed);
 
 	spa_keystore_fini(&spa->spa_keystore);
 

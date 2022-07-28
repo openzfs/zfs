@@ -112,6 +112,10 @@ CDEF = """
         uint8_t *, uint_t, const char *, boolean_t, boolean_t,
         boolean_t, int, const dmu_replay_record_t *, int, uint64_t *,
         uint64_t *, uint64_t *, nvlist_t **);
+    int lzc_receive_with_heal(const char *, nvlist_t *, nvlist_t *,
+        uint8_t *, uint_t, const char *, boolean_t, boolean_t, boolean_t,
+        boolean_t, int, const dmu_replay_record_t *, int, uint64_t *,
+        uint64_t *, uint64_t *, nvlist_t **);
     int lzc_receive_with_header(const char *, nvlist_t *, const char *,
         boolean_t, boolean_t, boolean_t, int, const dmu_replay_record_t *);
     int lzc_release(nvlist_t *, nvlist_t **);
