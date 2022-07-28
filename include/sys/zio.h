@@ -534,6 +534,8 @@ extern zio_t *zio_null(zio_t *pio, spa_t *spa, vdev_t *vd,
 extern zio_t *zio_root(spa_t *spa,
     zio_done_func_t *done, void *priv, enum zio_flag flags);
 
+extern void zio_destroy(zio_t *zio);
+
 extern zio_t *zio_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
     struct abd *data, uint64_t lsize, zio_done_func_t *done, void *priv,
     zio_priority_t priority, enum zio_flag flags, const zbookmark_phys_t *zb);

@@ -2911,6 +2911,27 @@ class ZFSTest(unittest.TestCase):
             self.assertEqual(fs.getProperty("compression"), b"on")
             self.assertEqual(fs.getProperty("ns:prop"), b"val")
 
+    def test_recv_with_heal(self):
+        snap = ZFSTest.pool.makeName(b"fs1@snap1")
+        fs = ZFSTest.pool.getFilesystem(b"fs1")
+        props = {}
+        cmdprops = {
+            b"compression": 0x01,
+            b"ns:prop": b"val"
+        }
+
+        lzc.lzc_snapshot([snap])
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
+            lzc.lzc_send(snap, None, stream.fileno())
+            stream.seek(0)
+            (header, c_header) = lzc.receive_header(stream.fileno())
+            lzc.lzc_receive_with_heal(
+                snap, stream.fileno(), c_header, props=props,
+                cmdprops=cmdprops)
+            self.assertExists(snap)
+            self.assertEqual(fs.getProperty("compression"), b"on")
+            self.assertEqual(fs.getProperty("ns:prop"), b"val")
+
     def test_recv_with_cmdprops_and_recvprops(self):
         fromsnap = ZFSTest.pool.makeName(b"fs1@snap1")
         fs = ZFSTest.pool.getFilesystem(b"recv")

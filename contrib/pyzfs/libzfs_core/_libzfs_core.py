@@ -1427,6 +1427,135 @@ def lzc_receive_with_cmdprops(
 
 
 @_uncommitted()
+def lzc_receive_with_heal(
+    snapname, fd, begin_record, force=False, corrective=True, resumable=False,
+    raw=False, origin=None, props=None, cmdprops=None, key=None, cleanup_fd=-1,
+    action_handle=0
+):
+    '''
+    Like :func:`lzc_receive_cmdprops`, but allows the caller to pass an
+    additional 'corrective' argument. The 'corrective' boolean set to true
+    indicates that a corruption healing receive should be performed.
+
+    :param bytes snapname: the name of the snapshot to create.
+    :param int fd: the file descriptor from which to read the stream.
+    :param begin_record: the stream's begin record.
+    :type begin_record: ``cffi`` `CData` representing the dmu_replay_record_t
+        structure.
+    :param bool force: whether to roll back or destroy the target filesystem
+        if that is required to receive the stream.
+    :param bool corrective: whether this stream should be used to heal data.
+    :param bool resumable: whether this stream should be treated as resumable.
+        If the receive fails due to premature stream termination, the
+        intermediate state will be preserved on disk and may subsequently be
+        resumed with :func:`lzc_send_resume`.
+    :param bool raw: whether this is a "raw" stream.
+    :param origin: the optional origin snapshot name if the stream is for a
+        clone.
+    :type origin: bytes or None
+    :param props: the properties to set on the snapshot as *received*
+        properties.
+    :type props: dict of bytes : Any
+    :param cmdprops: the properties to set on the snapshot as local overrides
+        to *received* properties. `bool` values are forcefully inherited while
+        every other value is set locally as if the command "zfs set" was
+        invoked immediately before the receive.
+    :type cmdprops: dict of bytes : Any
+    :param key: raw bytes representing user's wrapping key
+    :type key: bytes
+    :param int cleanup_fd: file descriptor used to set a cleanup-on-exit file
+        descriptor.
+    :param int action_handle: variable used to pass the handle for guid/ds
+        mapping: this should be set to zero on first call and will contain an
+        updated handle on success, it should be passed in subsequent calls.
+
+    :return: a tuple with two elements where the first one is the number of
+        bytes read from the file descriptor and the second one is the
+        action_handle return value.
+
+    :raises IOError: if an input / output error occurs while reading from the
+        ``fd``.
+    :raises DatasetExists: if the snapshot named ``snapname`` already exists.
+    :raises DatasetExists: if the stream is a full stream and the destination
+        filesystem already exists.
+    :raises DatasetExists: if ``force`` is `True` but the destination
+        filesystem could not be rolled back to a matching snapshot because a
+        newer snapshot exists and it is an origin of a cloned filesystem.
+    :raises StreamMismatch: if an incremental stream is received and the latest
+        snapshot of the destination filesystem does not match the source
+        snapshot of the stream.
+    :raises StreamMismatch: if a full stream is received and the destination
+        filesystem already exists and it has at least one snapshot, and
+        ``force`` is `False`.
+    :raises StreamMismatch: if an incremental clone stream is received but the
+        specified ``origin`` is not the actual received origin.
+    :raises DestinationModified: if an incremental stream is received and the
+        destination filesystem has been modified since the last snapshot and
+        ``force`` is `False`.
+    :raises DestinationModified: if a full stream is received and the
+        destination filesystem already exists and it does not have any
+        snapshots, and ``force`` is `False`.
+    :raises DatasetNotFound: if the destination filesystem and its parent do
+        not exist.
+    :raises DatasetNotFound: if the ``origin`` is not `None` and does not
+        exist.
+    :raises DatasetBusy: if ``force`` is `True` but the destination filesystem
+        could not be rolled back to a matching snapshot because a newer
+        snapshot is held and could not be destroyed.
+    :raises DatasetBusy: if another receive operation is being performed on the
+        destination filesystem.
+    :raises EncryptionKeyNotLoaded: if corrective is set to true indicates the
+            key must be loaded to do a non-raw corrective recv on an encrypted
+            dataset.
+    :raises BadStream: if corrective is set to true indicates that
+        corrective recv was not able to reconstruct a corrupted block.
+    :raises BadStream: if the stream is corrupt or it is not recognized or it
+        is a compound stream or it is a clone stream, but ``origin`` is `None`.
+    :raises BadStream: if a clone stream is received and the destination
+        filesystem already exists.
+    :raises StreamFeatureNotSupported: if corrective is set to true indicates
+        stream is not compatible with the data in the pool.
+    :raises StreamFeatureNotSupported: if the stream has a feature that is not
+        supported on this side.
+    :raises ReceivePropertyFailure: if one or more of the specified properties
+        is invalid or has an invalid type or value.
+    :raises NameInvalid: if the name of either snapshot is invalid.
+    :raises NameTooLong: if the name of either snapshot is too long.
+    '''
+
+    if origin is not None:
+        c_origin = origin
+    else:
+        c_origin = _ffi.NULL
+    if action_handle is not None:
+        c_action_handle = _ffi.new("uint64_t *")
+    else:
+        c_action_handle = _ffi.NULL
+    c_read_bytes = _ffi.new("uint64_t *")
+    c_errflags = _ffi.new("uint64_t *")
+    if props is None:
+        props = {}
+    if cmdprops is None:
+        cmdprops = {}
+    if key is None:
+        key = b""
+    else:
+        key = bytes(key)
+
+    nvlist = nvlist_in(props)
+    cmdnvlist = nvlist_in(cmdprops)
+    properrs = {}
+    with nvlist_out(properrs) as c_errors:
+        ret = _lib.lzc_receive_with_heal(
+            snapname, nvlist, cmdnvlist, key, len(key), c_origin,
+            force, corrective, resumable, raw, fd, begin_record, cleanup_fd,
+            c_read_bytes, c_errflags, c_action_handle, c_errors)
+    errors.lzc_receive_translate_errors(
+        ret, snapname, fd, force, raw, False, False, origin, properrs)
+    return (int(c_read_bytes[0]), action_handle)
+
+
+@_uncommitted()
 def lzc_reopen(poolname, restart=True):
     '''
     Reopen a pool

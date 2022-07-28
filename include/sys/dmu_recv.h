@@ -24,6 +24,7 @@
  * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
+ * Copyright (c) 2019 Datto Inc.
  */
 
 #ifndef _DMU_RECV_H
@@ -47,6 +48,7 @@ typedef struct dmu_recv_cookie {
 	boolean_t drc_byteswap;
 	uint64_t drc_featureflags;
 	boolean_t drc_force;
+	boolean_t drc_heal;
 	boolean_t drc_resumable;
 	boolean_t drc_should_save;
 	boolean_t drc_raw;
@@ -78,7 +80,7 @@ typedef struct dmu_recv_cookie {
 } dmu_recv_cookie_t;
 
 int dmu_recv_begin(char *, char *, dmu_replay_record_t *,
-    boolean_t, boolean_t, nvlist_t *, nvlist_t *, char *,
+    boolean_t, boolean_t, boolean_t, nvlist_t *, nvlist_t *, char *,
     dmu_recv_cookie_t *, zfs_file_t *, offset_t *);
 int dmu_recv_stream(dmu_recv_cookie_t *, offset_t *);
 int dmu_recv_end(dmu_recv_cookie_t *, void *);
