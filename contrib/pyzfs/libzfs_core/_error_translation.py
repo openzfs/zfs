@@ -469,6 +469,8 @@ def lzc_receive_translate_errors(
         raise lzc_exc.ReadOnlyPool(_pool_name(snapname))
     if ret == errno.EAGAIN:
         raise lzc_exc.SuspendedPool(_pool_name(snapname))
+    if ret == errno.EACCES:
+        raise lzc_exc.EncryptionKeyNotLoaded()
     if ret == ECKSUM:
         raise lzc_exc.BadStream()
     if ret == ZFS_ERR_WRONG_PARENT:

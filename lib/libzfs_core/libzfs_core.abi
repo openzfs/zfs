@@ -181,6 +181,7 @@
     <elf-symbol name='lzc_receive_resumable' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_receive_with_cmdprops' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_receive_with_header' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='lzc_receive_with_heal' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_redact' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_release' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_rename' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -1739,6 +1740,26 @@
       <parameter type-id='c19b74c3' name='raw'/>
       <parameter type-id='95e97e5e' name='fd'/>
       <parameter type-id='8341348b' name='begin_record'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='lzc_receive_with_heal' mangled-name='lzc_receive_with_heal' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_receive_with_heal'>
+      <parameter type-id='80f4b756' name='snapname'/>
+      <parameter type-id='5ce45b60' name='props'/>
+      <parameter type-id='5ce45b60' name='cmdprops'/>
+      <parameter type-id='ae3e8ca6' name='wkeydata'/>
+      <parameter type-id='3502e3ff' name='wkeylen'/>
+      <parameter type-id='80f4b756' name='origin'/>
+      <parameter type-id='c19b74c3' name='force'/>
+      <parameter type-id='c19b74c3' name='heal'/>
+      <parameter type-id='c19b74c3' name='resumable'/>
+      <parameter type-id='c19b74c3' name='raw'/>
+      <parameter type-id='95e97e5e' name='input_fd'/>
+      <parameter type-id='8341348b' name='begin_record'/>
+      <parameter type-id='95e97e5e' name='cleanup_fd'/>
+      <parameter type-id='5d6479ae' name='read_bytes'/>
+      <parameter type-id='5d6479ae' name='errflags'/>
+      <parameter type-id='5d6479ae' name='action_handle'/>
+      <parameter type-id='857bb57e' name='errors'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='lzc_receive_one' mangled-name='lzc_receive_one' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_receive_one'>

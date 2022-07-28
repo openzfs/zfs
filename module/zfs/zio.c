@@ -882,7 +882,7 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 	return (zio);
 }
 
-static void
+void
 zio_destroy(zio_t *zio)
 {
 	metaslab_trace_fini(&zio->io_alloc_list);
