@@ -125,7 +125,7 @@ enum zfs_ioc_legacy {
 	ZFS_IOC_LEGACY_LAST
 };
 
-unsigned static long zfs_ioctl_legacy_to_ozfs_[] = {
+static unsigned long zfs_ioctl_legacy_to_ozfs_[] = {
 	ZFS_IOC_POOL_CREATE,			/* 0x00 */
 	ZFS_IOC_POOL_DESTROY,			/* 0x01 */
 	ZFS_IOC_POOL_IMPORT,			/* 0x02 */
@@ -208,7 +208,7 @@ unsigned static long zfs_ioctl_legacy_to_ozfs_[] = {
 	ZFS_IOC_POOL_INITIALIZE,		/* 0x4d:0x4f */
 };
 
-unsigned static long zfs_ioctl_ozfs_to_legacy_common_[] = {
+static unsigned long zfs_ioctl_ozfs_to_legacy_common_[] = {
 	ZFS_IOC_POOL_CREATE,			/* 0x00 */
 	ZFS_IOC_POOL_DESTROY,			/* 0x01 */
 	ZFS_IOC_POOL_IMPORT,			/* 0x02 */
@@ -297,7 +297,7 @@ unsigned static long zfs_ioctl_ozfs_to_legacy_common_[] = {
 	ZFS_IOC_LEGACY_NONE, /* ZFS_IOC_WAIT_FS */
 };
 
-unsigned static long zfs_ioctl_ozfs_to_legacy_platform_[] = {
+static unsigned long zfs_ioctl_ozfs_to_legacy_platform_[] = {
 	ZFS_IOC_LEGACY_NONE, /* ZFS_IOC_EVENTS_NEXT */
 	ZFS_IOC_LEGACY_NONE, /* ZFS_IOC_EVENTS_CLEAR */
 	ZFS_IOC_LEGACY_NONE, /* ZFS_IOC_EVENTS_SEEK */
