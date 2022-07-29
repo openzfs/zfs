@@ -26,11 +26,13 @@ TMPDIR=${TMPDIR:-$TEST_BASE_DIR}
 DISK1="$TMPDIR/dsk1"
 DISK2="$TMPDIR/dsk2"
 DISK3="$TMPDIR/dsk3"
-DISKS="$DISK1 $DISK2 $DISK3"
+DISK4="$TMPDIR/dsk4"
+DISKS="$DISK1 $DISK2 $DISK3 $DISK4"
 
 log_must mkfile $(($MINVDEVSIZE * 2)) $DISK1
 log_must mkfile $(($MINVDEVSIZE * 2)) $DISK2
 log_must mkfile $(($MINVDEVSIZE * 2)) $DISK3
+log_must mkfile $(($MINVDEVSIZE * 2)) $DISK4
 
 function cleanup
 {
@@ -38,21 +40,18 @@ function cleanup
 	log_must rm -f $DISKS
 }
 
-log_must default_setup_noexit "$DISK1 mirror $DISK2 $DISK3"
+# Build a zpool with 2 mirror vdevs
+log_must default_setup_noexit "mirror $DISK1 $DISK2 mirror $DISK3 $DISK4"
 log_onexit cleanup
 
-# Attempt to remove the non mirrored disk.
-log_must zpool remove $TESTPOOL $DISK1
-
-# Attempt to remove one of the disks in the mirror.
-log_mustnot zpool remove $TESTPOOL $DISK2
+# Remove one of the mirrors
+log_must zpool remove $TESTPOOL mirror-1
 log_must wait_for_removal $TESTPOOL
 
-# Add back the first disk.
-# We use -f as we're adding a single vdev to zpool with only mirrors.
-log_must zpool add -f $TESTPOOL $DISK1
+# Attempt to add a single-device vdev, shouldn't work
+log_mustnot zpool add $TESTPOOL $DISK3
 
-# Now attempt to remove the mirror.
-log_must zpool remove $TESTPOOL mirror-1
+# Force it, should work
+log_must zpool add -f $TESTPOOL $DISK3
 
-log_pass "Removal will succeed for top level vdev(s)."
+log_pass "Prevented from adding a non-mirror vdev on a mirrored zpool w/ indirect vdevs"
