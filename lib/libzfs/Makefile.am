@@ -2,6 +2,22 @@ libzfs_la_CFLAGS  = $(AM_CFLAGS) $(LIBRARY_CFLAGS)
 libzfs_la_CFLAGS += $(LIBCRYPTO_CFLAGS) $(ZLIB_CFLAGS)
 libzfs_la_CFLAGS += -fvisibility=hidden
 
+# Less dire than if you override this in the kernel, but autovectorizing
+# random portions seems like a great way to encounter crashes in places
+# that look, on the surface, like there's no SIMD involved...
+#
+# We would keep -mgeneral-regs-only, but on e.g. x64, things like atof
+# can't be defined without implying using FPU regs, so it's a compile
+# time error.
+NOVECTOR := -fno-tree-vectorize
+$(addprefix module/zcommon/libzfs_la-,zfs_fletcher.$(OBJEXT) zfs_fletcher.l$(OBJEXT)) : CFLAGS += $(NOVECTOR)
+$(addprefix module/zcommon/libzfs_la-,zfs_fletcher_aarch64_neon.$(OBJEXT) zfs_fletcher_aarch64_neon.l$(OBJEXT)) : CFLAGS += $(NOVECTOR)
+$(addprefix module/zcommon/libzfs_la-,zfs_fletcher_avx512.$(OBJEXT) zfs_fletcher_avx512.l$(OBJEXT)) : CFLAGS += $(NOVECTOR)
+$(addprefix module/zcommon/libzfs_la-,zfs_fletcher_intel.$(OBJEXT) zfs_fletcher_intel.l$(OBJEXT)) : CFLAGS += $(NOVECTOR)
+$(addprefix module/zcommon/libzfs_la-,zfs_fletcher_sse.$(OBJEXT) zfs_fletcher_sse.l$(OBJEXT)) : CFLAGS += $(NOVECTOR)
+$(addprefix module/zcommon/libzfs_la-,zfs_fletcher_superscalar.$(OBJEXT) zfs_fletcher_superscalar.l$(OBJEXT)) : CFLAGS += $(NOVECTOR)
+$(addprefix module/zcommon/libzfs_la-,zfs_fletcher_superscalar4.$(OBJEXT) zfs_fletcher_superscalar4.l$(OBJEXT)) : CFLAGS += $(NOVECTOR)
+
 lib_LTLIBRARIES += libzfs.la
 CPPCHECKTARGETS += libzfs.la
 
