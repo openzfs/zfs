@@ -222,5 +222,6 @@ int spa_do_crypt_abd(boolean_t encrypt, spa_t *spa, const zbookmark_phys_t *zb,
     dmu_object_type_t ot, boolean_t dedup, boolean_t bswap, uint8_t *salt,
     uint8_t *iv, uint8_t *mac, uint_t datalen, abd_t *pabd, abd_t *cabd,
     boolean_t *no_crypt);
+zfs_keystatus_t dsl_dataset_get_keystatus(dsl_dir_t *dd);
 
 #endif

@@ -21,8 +21,8 @@
 /*
  * Copyright (c) 2006, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013, 2014, Delphix. All rights reserved.
- * Copyright (c) 2021, George Amanakis. All rights reserved.
  * Copyright (c) 2019 Datto Inc.
+ * Copyright (c) 2021, 2022, George Amanakis. All rights reserved.
  */
 
 /*
@@ -68,6 +68,7 @@
 #include <sys/dsl_dir.h>
 #include <sys/dmu_objset.h>
 #include <sys/dbuf.h>
+#include <sys/zfs_znode.h>
 
 #define	NAME_MAX_LEN 64
 
@@ -175,6 +176,23 @@ get_head_and_birth_txg(spa_t *spa, zbookmark_err_phys_t *zep, uint64_t ds_obj,
 		return (error);
 	}
 
+	/*
+	 * If the key is not loaded dbuf_dnode_findbp() will error out with
+	 * EACCES. However in that case dnode_hold() will eventually call
+	 * dbuf_read()->zio_wait() which may call spa_log_error(). This will
+	 * lead to a deadlock due to us holding the mutex spa_errlist_lock.
+	 * Avoid this by checking here if the keys are loaded, if not return.
+	 * If the keys are not loaded the head_errlog feature is meaningless
+	 * as we cannot figure out the birth txg of the block pointer.
+	 */
+	if (dsl_dataset_get_keystatus(ds->ds_dir) ==
+	    ZFS_KEYSTATUS_UNAVAILABLE) {
+		zep->zb_birth = 0;
+		dsl_dataset_rele(ds, FTAG);
+		dsl_pool_config_exit(dp, FTAG);
+		return (0);
+	}
+
 	dnode_t *dn;
 	blkptr_t bp;
 
@@ -188,11 +206,22 @@ get_head_and_birth_txg(spa_t *spa, zbookmark_err_phys_t *zep, uint64_t ds_obj,
 	rw_enter(&dn->dn_struct_rwlock, RW_READER);
 	error = dbuf_dnode_findbp(dn, zep->zb_level, zep->zb_blkid, &bp, NULL,
 	    NULL);
-
 	if (error == 0 && BP_IS_HOLE(&bp))
 		error = SET_ERROR(ENOENT);
 
-	zep->zb_birth = bp.blk_birth;
+	/*
+	 * If the key is loaded but the encrypted filesystem is unmounted when
+	 * a scrub is run, then dbuf_dnode_findbp() will still error out with
+	 * EACCES (possibly due to the key mapping being removed upon
+	 * unmounting). In that case the head_errlog feature is also
+	 * meaningless as we cannot figure out the birth txg of the block
+	 * pointer.
+	 */
+	if (error == EACCES)
+		error = 0;
+	else if (!error)
+		zep->zb_birth = bp.blk_birth;
+
 	rw_exit(&dn->dn_struct_rwlock);
 	dnode_rele(dn, FTAG);
 	dsl_dataset_rele(ds, FTAG);
@@ -264,7 +293,6 @@ find_birth_txg(dsl_dataset_t *ds, zbookmark_err_phys_t *zep,
 	rw_enter(&dn->dn_struct_rwlock, RW_READER);
 	error = dbuf_dnode_findbp(dn, zep->zb_level, zep->zb_blkid, &bp, NULL,
 	    NULL);
-
 	if (error == 0 && BP_IS_HOLE(&bp))
 		error = SET_ERROR(ENOENT);
 
@@ -298,27 +326,40 @@ check_filesystem(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 	uint64_t txg_to_consider = spa->spa_syncing_txg;
 	boolean_t check_snapshot = B_TRUE;
 	error = find_birth_txg(ds, zep, &latest_txg);
-	if (error == 0) {
-		if (zep->zb_birth == latest_txg) {
-			/* Block neither free nor rewritten. */
-			if (!only_count) {
-				zbookmark_phys_t zb;
-				zep_to_zb(head_ds, zep, &zb);
-				if (copyout(&zb, (char *)uaddr + (*count - 1)
-				    * sizeof (zbookmark_phys_t),
-				    sizeof (zbookmark_phys_t)) != 0) {
-					dsl_dataset_rele(ds, FTAG);
-					return (SET_ERROR(EFAULT));
-				}
-				(*count)--;
-			} else {
-				(*count)++;
+
+	/*
+	 * If we cannot figure out the current birth txg of the block pointer
+	 * error out. If the filesystem is encrypted and the key is not loaded
+	 * or the encrypted filesystem is not mounted the error will be EACCES.
+	 * In that case do not return an error.
+	 */
+	if (error == EACCES) {
+		dsl_dataset_rele(ds, FTAG);
+		return (0);
+	}
+	if (error) {
+		dsl_dataset_rele(ds, FTAG);
+		return (error);
+	}
+	if (zep->zb_birth == latest_txg) {
+		/* Block neither free nor rewritten. */
+		if (!only_count) {
+			zbookmark_phys_t zb;
+			zep_to_zb(head_ds, zep, &zb);
+			if (copyout(&zb, (char *)uaddr + (*count - 1)
+			    * sizeof (zbookmark_phys_t),
+			    sizeof (zbookmark_phys_t)) != 0) {
+				dsl_dataset_rele(ds, FTAG);
+				return (SET_ERROR(EFAULT));
 			}
-			check_snapshot = B_FALSE;
+			(*count)--;
 		} else {
-			ASSERT3U(zep->zb_birth, <, latest_txg);
-			txg_to_consider = latest_txg;
+			(*count)++;
 		}
+		check_snapshot = B_FALSE;
+	} else {
+		ASSERT3U(zep->zb_birth, <, latest_txg);
+		txg_to_consider = latest_txg;
 	}
 
 	/* How many snapshots reference this block. */
@@ -439,9 +480,31 @@ process_error_block(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
     uint64_t *count, void *uaddr, boolean_t only_count)
 {
 	dsl_pool_t *dp = spa->spa_dsl_pool;
-	dsl_pool_config_enter(dp, FTAG);
 	uint64_t top_affected_fs;
 
+	/*
+	 * If the zb_birth is 0 it means we failed to retrieve the birth txg
+	 * of the block pointer. This happens when an encrypted filesystem is
+	 * not mounted or when the key is not loaded. Do not proceed to
+	 * check_filesystem(), instead do the accounting here.
+	 */
+	if (zep->zb_birth == 0) {
+		if (!only_count) {
+			zbookmark_phys_t zb;
+			zep_to_zb(head_ds, zep, &zb);
+			if (copyout(&zb, (char *)uaddr + (*count - 1)
+			    * sizeof (zbookmark_phys_t),
+			    sizeof (zbookmark_phys_t)) != 0) {
+				return (SET_ERROR(EFAULT));
+			}
+			(*count)--;
+		} else {
+			(*count)++;
+		}
+		return (0);
+	}
+
+	dsl_pool_config_enter(dp, FTAG);
 	int error = find_top_affected_fs(spa, head_ds, zep, &top_affected_fs);
 	if (error == 0)
 		error = check_filesystem(spa, top_affected_fs, zep, count,
@@ -497,6 +560,7 @@ get_errlist_size(spa_t *spa, avl_tree_t *tree)
 		zep.zb_object = se->se_bookmark.zb_object;
 		zep.zb_level = se->se_bookmark.zb_level;
 		zep.zb_blkid = se->se_bookmark.zb_blkid;
+		zep.zb_birth = 0;
 
 		/*
 		 * If we cannot find out the head dataset and birth txg of
@@ -505,8 +569,10 @@ get_errlist_size(spa_t *spa, avl_tree_t *tree)
 		 * sync_error_list() and written to the on-disk error log.
 		 */
 		uint64_t head_ds_obj;
-		if (get_head_and_birth_txg(spa, &zep,
-		    se->se_bookmark.zb_objset, &head_ds_obj) == 0)
+		int error = get_head_and_birth_txg(spa, &zep,
+		    se->se_bookmark.zb_objset, &head_ds_obj);
+
+		if (!error)
 			(void) process_error_block(spa, head_ds_obj, &zep,
 			    &total, NULL, B_TRUE);
 	}
@@ -695,6 +761,7 @@ sync_upgrade_errlog(spa_t *spa, uint64_t spa_err_obj, uint64_t *newobj,
 		zep.zb_object = zb.zb_object;
 		zep.zb_level = zb.zb_level;
 		zep.zb_blkid = zb.zb_blkid;
+		zep.zb_birth = 0;
 
 		/*
 		 * We cannot use get_head_and_birth_txg() because it will
@@ -737,8 +804,11 @@ sync_upgrade_errlog(spa_t *spa, uint64_t spa_err_obj, uint64_t *newobj,
 		rw_enter(&dn->dn_struct_rwlock, RW_READER);
 		error = dbuf_dnode_findbp(dn, zep.zb_level, zep.zb_blkid, &bp,
 		    NULL, NULL);
+		if (error == EACCES)
+			error = 0;
+		else if (!error)
+			zep.zb_birth = bp.blk_birth;
 
-		zep.zb_birth = bp.blk_birth;
 		rw_exit(&dn->dn_struct_rwlock);
 		dnode_rele(dn, FTAG);
 		dsl_dataset_rele(ds, FTAG);
@@ -885,16 +955,16 @@ process_error_list(spa_t *spa, avl_tree_t *list, void *uaddr, uint64_t *count)
 		zep.zb_object = se->se_bookmark.zb_object;
 		zep.zb_level = se->se_bookmark.zb_level;
 		zep.zb_blkid = se->se_bookmark.zb_blkid;
+		zep.zb_birth = 0;
 
 		uint64_t head_ds_obj;
 		int error = get_head_and_birth_txg(spa, &zep,
 		    se->se_bookmark.zb_objset, &head_ds_obj);
-		if (error != 0)
-			return (error);
 
-		error = process_error_block(spa, head_ds_obj, &zep, count,
-		    uaddr, B_FALSE);
-		if (error != 0)
+		if (!error)
+			error = process_error_block(spa, head_ds_obj, &zep,
+			    count, uaddr, B_FALSE);
+		if (error)
 			return (error);
 	}
 	return (0);
@@ -1013,6 +1083,7 @@ sync_error_list(spa_t *spa, avl_tree_t *t, uint64_t *obj, dmu_tx_t *tx)
 			zep.zb_object = se->se_bookmark.zb_object;
 			zep.zb_level = se->se_bookmark.zb_level;
 			zep.zb_blkid = se->se_bookmark.zb_blkid;
+			zep.zb_birth = 0;
 
 			/*
 			 * If we cannot find out the head dataset and birth txg
@@ -1024,7 +1095,7 @@ sync_error_list(spa_t *spa, avl_tree_t *t, uint64_t *obj, dmu_tx_t *tx)
 			uint64_t head_dataset_obj;
 			int error = get_head_and_birth_txg(spa, &zep,
 			    se->se_bookmark.zb_objset, &head_dataset_obj);
-			if (error != 0)
+			if (error)
 				continue;
 
 			uint64_t err_obj;
