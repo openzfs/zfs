@@ -519,6 +519,13 @@ The root user, or a user who has been granted the
 privilege with
 .Nm zfs allow ,
 can access all projects' objects usage.
+.It Sy snapshots_changed
+Provides a mechanism to quickly determine whether snapshot list has
+changed without having to mount a dataset or iterate the snapshot list.
+Specifies the time at which a snapshot for a dataset was last
+created or deleted.
+.Pp
+This allows us to be more efficient how often we query snapshots.
 .It Sy volblocksize
 For volumes, specifies the block size of the volume.
 The

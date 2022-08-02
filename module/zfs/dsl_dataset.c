@@ -534,7 +534,7 @@ dsl_dataset_snap_remove(dsl_dataset_t *ds, const char *name, dmu_tx_t *tx,
 	matchtype_t mt = 0;
 	int err;
 
-	dsl_dir_snap_cmtime_update(ds->ds_dir);
+	dsl_dir_snap_cmtime_update(ds->ds_dir, tx);
 
 	if (dsl_dataset_phys(ds)->ds_flags & DS_FLAG_CI_DATASET)
 		mt = MT_NORMALIZE;
@@ -1865,7 +1865,7 @@ dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
 
 	dsl_scan_ds_snapshotted(ds, tx);
 
-	dsl_dir_snap_cmtime_update(ds->ds_dir);
+	dsl_dir_snap_cmtime_update(ds->ds_dir, tx);
 
 	spa_history_log_internal_ds(ds->ds_prev, "snapshot", tx, " ");
 }
@@ -2809,6 +2809,8 @@ dsl_dataset_stats(dsl_dataset_t *ds, nvlist_t *nv)
 	    dsl_get_userrefs(ds));
 	dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_DEFER_DESTROY,
 	    dsl_get_defer_destroy(ds));
+	dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_SNAPSHOTS_CHANGED,
+	    dsl_dir_snap_cmtime(ds->ds_dir).tv_sec);
 	dsl_dataset_crypt_stats(ds, nv);
 
 	if (dsl_dataset_phys(ds)->ds_prev_snap_obj != 0) {

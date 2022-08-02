@@ -568,7 +568,8 @@ tests = ['clone_001_pos', 'rollback_001_pos', 'rollback_002_pos',
     'snapshot_004_pos', 'snapshot_005_pos', 'snapshot_006_pos',
     'snapshot_007_pos', 'snapshot_008_pos', 'snapshot_009_pos',
     'snapshot_010_pos', 'snapshot_011_pos', 'snapshot_012_pos',
-    'snapshot_013_pos', 'snapshot_014_pos', 'snapshot_017_pos']
+    'snapshot_013_pos', 'snapshot_014_pos', 'snapshot_017_pos',
+    'snapshot_018_pos']
 tags = ['functional', 'snapshot']
 
 [tests/functional/snapused]
