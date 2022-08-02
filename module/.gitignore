@@ -22,5 +22,6 @@
 /export_syms
 /machine
 /x86
+/i386
 
 !Makefile.in
