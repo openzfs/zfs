@@ -191,7 +191,7 @@ int dsl_dir_transfer_possible(dsl_dir_t *sdd, dsl_dir_t *tdd,
 boolean_t dsl_dir_is_clone(dsl_dir_t *dd);
 void dsl_dir_new_refreservation(dsl_dir_t *dd, struct dsl_dataset *ds,
     uint64_t reservation, cred_t *cr, dmu_tx_t *tx);
-void dsl_dir_snap_cmtime_update(dsl_dir_t *dd);
+void dsl_dir_snap_cmtime_update(dsl_dir_t *dd, dmu_tx_t *tx);
 inode_timespec_t dsl_dir_snap_cmtime(dsl_dir_t *dd);
 void dsl_dir_set_reservation_sync_impl(dsl_dir_t *dd, uint64_t value,
     dmu_tx_t *tx);

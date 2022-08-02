@@ -2935,6 +2935,26 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 		zcp_check(zhp, prop, val, NULL);
 		break;
 
+	case ZFS_PROP_SNAPSHOTS_CHANGED:
+		{
+			if ((get_numeric_property(zhp, prop, src, &source,
+			    &val) != 0) || val == 0) {
+				return (-1);
+			}
+
+			time_t time = (time_t)val;
+			struct tm t;
+
+			if (literal ||
+			    localtime_r(&time, &t) == NULL ||
+			    strftime(propbuf, proplen, "%a %b %e %k:%M %Y",
+			    &t) == 0)
+				(void) snprintf(propbuf, proplen, "%llu",
+				    (u_longlong_t)val);
+		}
+		zcp_check(zhp, prop, val, NULL);
+		break;
+
 	default:
 		switch (zfs_prop_get_type(prop)) {
 		case PROP_TYPE_NUMBER:
