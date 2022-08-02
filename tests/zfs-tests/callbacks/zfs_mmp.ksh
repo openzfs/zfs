@@ -18,18 +18,31 @@
 
 # $1: number of lines to output (default: 40)
 typeset lines=${1:-40}
-typeset history=$(</sys/module/zfs/parameters/zfs_multihost_history)
-
+typeset uname=$(uname)
+if [ "$uname" = "FreeBSD" ]; then
+	typeset history=$(sysctl -n vfs.zfs.multihost.history)
+else
+	typeset history=$(</sys/module/zfs/parameters/zfs_multihost_history)
+fi
 if [ $history -eq 0 ]; then
 	exit
 fi
 
-for f in /proc/spl/kstat/zfs/*/multihost; do
+if [ "$uname" = "FreeBSD" ]; then
+	typeset kstats=$(sysctl -N kstat.zfs | grep "kstat.zfs.*.multihost")
+else
+	typeset kstats=$(echo /proc/spl/kstat/zfs/*/multihost)
+fi
+for kstat in $kstats; do
 	echo "================================================================="
-	echo " Last $lines lines of $f"
+	echo " Last $lines lines of $kstat"
 	echo "================================================================="
 
-	sudo tail -n $lines $f
+	if [ "$uname" = "FreeBSD" ]; then
+		sysctl -n $kstat | tail -n $lines
+	else
+		sudo tail -n $lines $kstat
+	fi
 done
 
 echo "================================================================="

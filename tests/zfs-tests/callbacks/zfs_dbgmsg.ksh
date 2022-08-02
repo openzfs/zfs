@@ -22,7 +22,11 @@ echo "================================================================="
 echo " Tailing last $lines lines of zfs_dbgmsg log"
 echo "================================================================="
 
-sudo tail -n $lines /proc/spl/kstat/zfs/dbgmsg
+if [ "$(uname)" = "FreeBSD" ]; then
+	sysctl -n kstat.zfs.misc.dbgmsg | tail -n $lines
+else
+	sudo tail -n $lines /proc/spl/kstat/zfs/dbgmsg
+fi
 
 echo "================================================================="
 echo " End of zfs_dbgmsg log"
