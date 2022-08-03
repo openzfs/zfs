@@ -31,10 +31,6 @@
 
 #include <sys/sysctl.h>
 
-#define	EXPORT_SYMBOL(x)
-#define	module_param(a, b, c)
-#define	MODULE_PARM_DESC(a, b)
-
 #define	ZMOD_RW CTLFLAG_RWTUN
 #define	ZMOD_RD CTLFLAG_RDTUN
 
@@ -97,6 +93,9 @@
 
 #define	fletcher_4_param_set_args(var) \
     CTLTYPE_STRING, NULL, 0, fletcher_4_param, "A"
+
+#define	blake3_param_set_args(var) \
+    CTLTYPE_STRING, NULL, 0, blake3_param, "A"
 
 #include <sys/kernel.h>
 #define	module_init(fn) \

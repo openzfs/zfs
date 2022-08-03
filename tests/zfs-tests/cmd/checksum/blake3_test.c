@@ -497,9 +497,9 @@ main(int argc, char *argv[])
 	}
 
 	(void) printf("Running algorithm correctness tests:\n");
-	for (id = 0; id < blake3_get_impl_count(); id++) {
-		blake3_set_impl_id(id);
-		const char *name = blake3_get_impl_name();
+	for (id = 0; id < blake3_impl_getcnt(); id++) {
+		blake3_impl_setid(id);
+		const char *name = blake3_impl_getname();
 		dprintf("Result for BLAKE3-%s:\n", name);
 		for (i = 0; TestArray[i].hash; i++) {
 			blake3_test_t *cur = &TestArray[i];
@@ -565,9 +565,9 @@ main(int argc, char *argv[])
 	} while (0)
 
 	printf("Running performance tests (hashing 1024 MiB of data):\n");
-	for (id = 0; id < blake3_get_impl_count(); id++) {
-		blake3_set_impl_id(id);
-		const char *name = blake3_get_impl_name();
+	for (id = 0; id < blake3_impl_getcnt(); id++) {
+		blake3_impl_setid(id);
+		const char *name = blake3_impl_getname();
 		BLAKE3_PERF_TEST(name, 256);
 	}
 
