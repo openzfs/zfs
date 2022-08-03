@@ -23,7 +23,7 @@
 .Nd display ZFS storage pool debugging and consistency information
 .Sh SYNOPSIS
 .Nm
-.Op Fl AbcdDFGhikLMPsvXYy
+.Op Fl AbcdDFGhikLMNPsvXYy
 .Op Fl e Oo Fl V Oc Oo Fl p Ar path Oc Ns …
 .Op Fl I Ar inflight I/Os
 .Oo Fl o Ar var Ns = Ns Ar value Oc Ns …
@@ -137,6 +137,14 @@ also display the configuration that would be used were the pool to be imported.
 Display information about datasets.
 Specified once, displays basic dataset information: ID, create transaction,
 size, and object count.
+See
+.Fl N
+for determining if
+.Op Ar poolname Ns Op / Ns Ar dataset | objset ID
+is to use the specified
+.Op Ar dataset | objset ID
+as a string (dataset name) or a number (objset ID) when
+datasets have numeric names.
 .Pp
 If specified multiple times provides greater and greater verbosity.
 .Pp
@@ -272,6 +280,14 @@ Also display information about the maximum contiguous free space and the
 percentage of free space in each space map.
 .It Fl MMM
 Display every spacemap record.
+.It Fl N
+Same as
+.Fl d
+but force zdb to interpret the
+.Op Ar dataset | objset ID
+in
+.Op Ar poolname Ns Op / Ns Ar dataset | objset ID
+as a numeric objset ID.
 .It Fl O Ar dataset path
 Look up the specified
 .Ar path
