@@ -475,7 +475,6 @@ _LIBZFS_H void zpool_obj_to_path_ds(zpool_handle_t *, uint64_t, uint64_t,
 _LIBZFS_H void zpool_obj_to_path(zpool_handle_t *, uint64_t, uint64_t, char *,
     size_t);
 _LIBZFS_H int zfs_ioctl(libzfs_handle_t *, int, struct zfs_cmd *);
-_LIBZFS_H int zpool_get_physpath(zpool_handle_t *, char *, size_t);
 _LIBZFS_H void zpool_explain_recover(libzfs_handle_t *, const char *, int,
     nvlist_t *);
 _LIBZFS_H int zpool_checkpoint(zpool_handle_t *);
