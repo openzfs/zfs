@@ -72,7 +72,7 @@ typedef struct {
 	 */
 	uint8_t cv_stack[(BLAKE3_MAX_DEPTH + 1) * BLAKE3_OUT_LEN];
 
-	/* const blake3_impl_ops_t *ops */
+	/* const blake3_ops_t *ops */
 	const void *ops;
 } BLAKE3_CTX;
 
@@ -97,26 +97,23 @@ extern void **blake3_per_cpu_ctx;
 extern void blake3_per_cpu_ctx_init(void);
 extern void blake3_per_cpu_ctx_fini(void);
 
-/* return number of supported implementations */
-extern int blake3_get_impl_count(void);
+/* get count of supported implementations */
+extern uint32_t blake3_impl_getcnt(void);
 
-/* return id of selected implementation */
-extern int blake3_get_impl_id(void);
+/* get id of selected implementation */
+extern uint32_t blake3_impl_getid(void);
 
-/* return name of selected implementation */
-extern const char *blake3_get_impl_name(void);
+/* get name of selected implementation */
+extern const char *blake3_impl_getname(void);
 
 /* setup id as fastest implementation */
-extern void blake3_set_impl_fastest(uint32_t id);
+extern void blake3_impl_set_fastest(uint32_t id);
 
 /* set implementation by id */
-extern void blake3_set_impl_id(uint32_t id);
+extern void blake3_impl_setid(uint32_t id);
 
 /* set implementation by name */
-extern int blake3_set_impl_name(const char *name);
-
-/* set startup implementation */
-extern void blake3_setup_impl(void);
+extern int blake3_impl_setname(const char *name);
 
 #ifdef __cplusplus
 }

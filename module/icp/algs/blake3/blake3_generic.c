@@ -192,7 +192,7 @@ static inline boolean_t blake3_is_generic_supported(void)
 	return (B_TRUE);
 }
 
-const blake3_impl_ops_t blake3_generic_impl = {
+const blake3_ops_t blake3_generic_impl = {
 	.compress_in_place = blake3_compress_in_place_generic,
 	.compress_xof = blake3_compress_xof_generic,
 	.hash_many = blake3_hash_many_generic,

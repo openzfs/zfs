@@ -81,7 +81,7 @@ static boolean_t blake3_is_sse2_supported(void)
 #endif
 }
 
-const blake3_impl_ops_t blake3_sse2_impl = {
+const blake3_ops_t blake3_sse2_impl = {
 	.compress_in_place = blake3_compress_in_place_sse2,
 	.compress_xof = blake3_compress_xof_sse2,
 	.hash_many = blake3_hash_many_sse2,
@@ -147,7 +147,7 @@ static boolean_t blake3_is_sse41_supported(void)
 #endif
 }
 
-const blake3_impl_ops_t blake3_sse41_impl = {
+const blake3_ops_t blake3_sse41_impl = {
 	.compress_in_place = blake3_compress_in_place_sse41,
 	.compress_xof = blake3_compress_xof_sse41,
 	.hash_many = blake3_hash_many_sse41,
@@ -179,7 +179,7 @@ static boolean_t blake3_is_avx2_supported(void)
 	    zfs_avx2_available());
 }
 
-const blake3_impl_ops_t blake3_avx2_impl = {
+const blake3_ops_t blake3_avx2_impl = {
 	.compress_in_place = blake3_compress_in_place_sse41,
 	.compress_xof = blake3_compress_xof_sse41,
 	.hash_many = blake3_hash_many_avx2,
@@ -237,7 +237,7 @@ static boolean_t blake3_is_avx512_supported(void)
 	    zfs_avx512vl_available());
 }
 
-const blake3_impl_ops_t blake3_avx512_impl = {
+const blake3_ops_t blake3_avx512_impl = {
 	.compress_in_place = blake3_compress_in_place_avx512,
 	.compress_xof = blake3_compress_xof_avx512,
 	.hash_many = blake3_hash_many_avx512,
