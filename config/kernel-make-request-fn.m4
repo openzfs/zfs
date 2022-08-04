@@ -49,6 +49,13 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_MAKE_REQUEST_FN], [
 		struct gendisk *disk  __attribute__ ((unused));
 		disk = blk_alloc_disk(NUMA_NO_NODE);
 	])
+
+	ZFS_LINUX_TEST_SRC([blk_cleanup_disk], [
+		#include <linux/blkdev.h>
+	],[
+		struct gendisk *disk  __attribute__ ((unused));
+		blk_cleanup_disk(disk);
+	])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_MAKE_REQUEST_FN], [
@@ -73,6 +80,19 @@ AC_DEFUN([ZFS_AC_KERNEL_MAKE_REQUEST_FN], [
 		ZFS_LINUX_TEST_RESULT([blk_alloc_disk], [
 			AC_MSG_RESULT(yes)
 			AC_DEFINE([HAVE_BLK_ALLOC_DISK], 1, [blk_alloc_disk() exists])
+
+			dnl #
+			dnl # 5.20 API change,
+			dnl # Removed blk_cleanup_disk(), put_disk() should be used.
+			dnl #
+			AC_MSG_CHECKING([whether blk_cleanup_disk() exists])
+			ZFS_LINUX_TEST_RESULT([blk_cleanup_disk], [
+				AC_MSG_RESULT(yes)
+				AC_DEFINE([HAVE_BLK_CLEANUP_DISK], 1,
+				    [blk_cleanup_disk() exists])
+			], [
+				AC_MSG_RESULT(no)
+			])
 		], [
 			AC_MSG_RESULT(no)
 		])
