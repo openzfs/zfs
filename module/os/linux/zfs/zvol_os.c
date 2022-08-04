@@ -954,7 +954,11 @@ zvol_free(zvol_state_t *zv)
 	del_gendisk(zv->zv_zso->zvo_disk);
 #if defined(HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS) && \
 	defined(HAVE_BLK_ALLOC_DISK)
+#if defined(HAVE_BLK_CLEANUP_DISK)
 	blk_cleanup_disk(zv->zv_zso->zvo_disk);
+#else
+	put_disk(zv->zv_zso->zvo_disk);
+#endif
 #else
 	blk_cleanup_queue(zv->zv_zso->zvo_queue);
 	put_disk(zv->zv_zso->zvo_disk);
