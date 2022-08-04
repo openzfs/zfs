@@ -487,7 +487,7 @@ static void *
 i_fm_alloc(nv_alloc_t *nva, size_t size)
 {
 	(void) nva;
-	return (kmem_zalloc(size, KM_SLEEP));
+	return (kmem_alloc(size, KM_SLEEP));
 }
 
 static void
