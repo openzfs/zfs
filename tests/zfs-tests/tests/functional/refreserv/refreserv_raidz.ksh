@@ -52,6 +52,10 @@ function cleanup
 {
 	default_cleanup_noexit
 	default_setup_noexit "${alldisks[0]}"
+	log_must ls -hl $TEST_BASE_DIR
+	log_must du -hd 1 $TEST_BASE_DIR
+	log_must df -h
+	log_must /usr/bin/top -SHInwz -d 2
 }
 
 log_assert "raidz refreservation=auto accounts for extra parity and skip blocks"

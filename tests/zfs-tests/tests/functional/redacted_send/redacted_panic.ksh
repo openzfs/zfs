@@ -33,7 +33,11 @@ typeset stream=$(mktemp $TEST_BASE_DIR/stream.XXXX)
 function cleanup
 {
 	redacted_cleanup $sendfs $recvfs
-	rm -f $stream
+	log_must rm -f $stream
+	log_must ls -hl $TEST_BASE_DIR
+	log_must du -hd 1 $TEST_BASE_DIR
+	log_must df -h
+	log_must /usr/bin/top -SHInwz -d 2
 }
 
 log_onexit cleanup

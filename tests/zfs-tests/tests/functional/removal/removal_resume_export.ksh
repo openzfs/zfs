@@ -45,6 +45,10 @@ function cleanup
 {
 	zinject -c all
 	default_cleanup_noexit
+	log_must ls -hl $TEST_BASE_DIR
+	log_must du -hd 1 $TEST_BASE_DIR
+	log_must df -h
+	log_must /usr/bin/top -SHInwz -d 2
 }
 
 function callback

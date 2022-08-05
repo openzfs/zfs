@@ -21,9 +21,14 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/removal/removal.kshlib
 
-default_setup_noexit "$DISKS"
-log_must zfs set compression=off $TESTPOOL
-log_onexit default_cleanup_noexit
+function cleanup
+{
+	default_cleanup_noexit
+	log_must ls -hl $TEST_BASE_DIR
+	log_must du -hd 1 $TEST_BASE_DIR
+	log_must df -h
+	log_must /usr/bin/top -SHInwz -d 2
+}
 
 function callback
 {
@@ -42,6 +47,10 @@ function callback
 	log_must zpool import $TESTPOOL
 	return 0
 }
+
+log_onexit cleanup
+default_setup_noexit "$DISKS"
+log_must zfs set compression=off $TESTPOOL
 
 test_removal_with_operation callback
 
