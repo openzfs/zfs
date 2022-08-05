@@ -476,7 +476,6 @@
     <elf-symbol name='zpool_get_history' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_get_load_policy' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_get_name' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='zpool_get_physpath' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_get_prop' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_get_prop_int' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_get_state' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -3467,12 +3466,6 @@
       <parameter type-id='37e3bd22' name='l2cache'/>
       <parameter type-id='37e3bd22' name='log'/>
       <return type-id='5ce45b60'/>
-    </function-decl>
-    <function-decl name='zpool_get_physpath' mangled-name='zpool_get_physpath' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_get_physpath'>
-      <parameter type-id='4c81de99' name='zhp'/>
-      <parameter type-id='26a90f95' name='physpath'/>
-      <parameter type-id='b59d7dce' name='phypath_size'/>
-      <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zpool_vdev_path_to_guid' mangled-name='zpool_vdev_path_to_guid' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_vdev_path_to_guid'>
       <parameter type-id='4c81de99' name='zhp'/>
