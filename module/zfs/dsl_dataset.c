@@ -88,6 +88,8 @@ int zfs_max_recordsize = 16 * 1024 * 1024;
 #endif
 static int zfs_allow_redacted_dataset_mount = 0;
 
+int zfs_snapshot_history_enabled = 1;
+
 #define	SWITCH64(x, y) \
 	{ \
 		uint64_t __tmp = (x); \
@@ -1867,7 +1869,8 @@ dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
 
 	dsl_dir_snap_cmtime_update(ds->ds_dir, tx);
 
-	spa_history_log_internal_ds(ds->ds_prev, "snapshot", tx, " ");
+	if (zfs_snapshot_history_enabled)
+		spa_history_log_internal_ds(ds->ds_prev, "snapshot", tx, " ");
 }
 
 void
@@ -4984,6 +4987,9 @@ ZFS_MODULE_PARAM(zfs, zfs_, max_recordsize, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, allow_redacted_dataset_mount, INT, ZMOD_RW,
 	"Allow mounting of redacted datasets");
+
+ZFS_MODULE_PARAM(zfs, zfs_, snapshot_history_enabled, INT, ZMOD_RW,
+	"Include snapshot events in pool history/events");
 
 EXPORT_SYMBOL(dsl_dataset_hold);
 EXPORT_SYMBOL(dsl_dataset_hold_flags);
