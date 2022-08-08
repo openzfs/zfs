@@ -6043,7 +6043,7 @@ top:
 			 *
 			 * Errors of the physical I/O may need to be propagated
 			 * to the pio. For synchronous reads, we simply restart
-			 * this function and it will re-asses.  Nowait reads
+			 * this function and it will reassess.  Nowait reads
 			 * attach the acb_zio_dummy zio to pio and
 			 * arc_read_done propagates the physical I/O's io_error
 			 * to acb_zio_dummy, and thereby to pio.
