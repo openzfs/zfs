@@ -6032,6 +6032,23 @@ top:
 				    ARC_FLAG_PREDICTIVE_PREFETCH);
 			}
 
+			/*
+			 * If there are multiple threads reading the same block
+			 * and that block is not yet in the ARC, then only one
+			 * thread will do the physical I/O and all other
+			 * threads will wait until that I/O completes.
+			 * Synchronous reads use the b_cv whereas nowait reads
+			 * register a callback. Both are signalled/called in
+			 * arc_read_done.
+			 *
+			 * Errors of the physical I/O may need to be propagated
+			 * to the pio. For synchronous reads, we simply restart
+			 * this function and it will reassess.  Nowait reads
+			 * attach the acb_zio_dummy zio to pio and
+			 * arc_read_done propagates the physical I/O's io_error
+			 * to acb_zio_dummy, and thereby to pio.
+			 */
+
 			if (*arc_flags & ARC_FLAG_WAIT) {
 				cv_wait(&hdr->b_l1hdr.b_cv, hash_lock);
 				mutex_exit(hash_lock);
