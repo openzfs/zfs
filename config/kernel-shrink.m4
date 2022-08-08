@@ -54,6 +54,21 @@ AC_DEFUN([ZFS_AC_KERNEL_SHRINK_CONTROL_HAS_NID], [
 	])
 ])
 
+AC_DEFUN([ZFS_AC_KERNEL_SRC_REGISTER_SHRINKER_VARARG], [
+	ZFS_LINUX_TEST_SRC([register_shrinker_vararg], [
+		#include <linux/mm.h>
+		unsigned long shrinker_cb(struct shrinker *shrink,
+		    struct shrink_control *sc) { return 0; }
+	],[
+		struct shrinker cache_shrinker = {
+			.count_objects = shrinker_cb,
+			.scan_objects = shrinker_cb,
+			.seeks = DEFAULT_SEEKS,
+		};
+		register_shrinker(&cache_shrinker, "vararg-reg-shrink-test");
+	])
+])
+
 AC_DEFUN([ZFS_AC_KERNEL_SRC_SHRINKER_CALLBACK], [
 	ZFS_LINUX_TEST_SRC([shrinker_cb_shrink_control], [
 		#include <linux/mm.h>
@@ -83,29 +98,50 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_SHRINKER_CALLBACK], [
 
 AC_DEFUN([ZFS_AC_KERNEL_SHRINKER_CALLBACK],[
 	dnl #
-	dnl # 3.0 - 3.11 API change
-	dnl # cs->shrink(struct shrinker *, struct shrink_control *sc)
+	dnl # 6.0 API change
+	dnl # register_shrinker() becomes a var-arg function that takes
+	dnl # a printf-style format string as args > 0
 	dnl #
-	AC_MSG_CHECKING([whether new 2-argument shrinker exists])
-	ZFS_LINUX_TEST_RESULT([shrinker_cb_shrink_control], [
+	AC_MSG_CHECKING([whether new var-arg register_shrinker() exists])
+	ZFS_LINUX_TEST_RESULT([register_shrinker_vararg], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_SINGLE_SHRINKER_CALLBACK, 1,
-		    [new shrinker callback wants 2 args])
+		AC_DEFINE(HAVE_REGISTER_SHRINKER_VARARG, 1,
+		    [register_shrinker is vararg])
+
+		dnl # We assume that the split shrinker callback exists if the
+		dnl # vararg register_shrinker() exists, because the latter is
+		dnl # a much more recent addition, and the macro test for the
+		dnl # var-arg version only works if the callback is split
+		AC_DEFINE(HAVE_SPLIT_SHRINKER_CALLBACK, 1,
+			[cs->count_objects exists])
 	],[
 		AC_MSG_RESULT(no)
-
 		dnl #
-		dnl # 3.12 API change,
-		dnl # cs->shrink() is logically split in to
-		dnl # cs->count_objects() and cs->scan_objects()
+		dnl # 3.0 - 3.11 API change
+		dnl # cs->shrink(struct shrinker *, struct shrink_control *sc)
 		dnl #
-		AC_MSG_CHECKING([whether cs->count_objects callback exists])
-		ZFS_LINUX_TEST_RESULT([shrinker_cb_shrink_control_split], [
+		AC_MSG_CHECKING([whether new 2-argument shrinker exists])
+		ZFS_LINUX_TEST_RESULT([shrinker_cb_shrink_control], [
 			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_SPLIT_SHRINKER_CALLBACK, 1,
-			    [cs->count_objects exists])
+			AC_DEFINE(HAVE_SINGLE_SHRINKER_CALLBACK, 1,
+				[new shrinker callback wants 2 args])
 		],[
-			ZFS_LINUX_TEST_ERROR([shrinker])
+			AC_MSG_RESULT(no)
+
+			dnl #
+			dnl # 3.12 API change,
+			dnl # cs->shrink() is logically split in to
+			dnl # cs->count_objects() and cs->scan_objects()
+			dnl #
+			AC_MSG_CHECKING([if cs->count_objects callback exists])
+			ZFS_LINUX_TEST_RESULT(
+				[shrinker_cb_shrink_control_split],[
+					AC_MSG_RESULT(yes)
+					AC_DEFINE(HAVE_SPLIT_SHRINKER_CALLBACK, 1,
+						[cs->count_objects exists])
+			],[
+					ZFS_LINUX_TEST_ERROR([shrinker])
+			])
 		])
 	])
 ])
@@ -141,6 +177,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_SHRINKER], [
 	ZFS_AC_KERNEL_SRC_SHRINK_CONTROL_HAS_NID
 	ZFS_AC_KERNEL_SRC_SHRINKER_CALLBACK
 	ZFS_AC_KERNEL_SRC_SHRINK_CONTROL_STRUCT
+	ZFS_AC_KERNEL_SRC_REGISTER_SHRINKER_VARARG
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_SHRINKER], [

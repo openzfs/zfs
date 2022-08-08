@@ -64,7 +64,11 @@
  * }
  */
 
+#ifdef HAVE_REGISTER_SHRINKER_VARARG
+#define	spl_register_shrinker(x)	register_shrinker(x, "zfs-arc-shrinker")
+#else
 #define	spl_register_shrinker(x)	register_shrinker(x)
+#endif
 #define	spl_unregister_shrinker(x)	unregister_shrinker(x)
 
 /*
