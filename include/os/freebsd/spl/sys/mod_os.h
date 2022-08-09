@@ -47,7 +47,7 @@
 
 #define	ZFS_MODULE_PARAM_CALL_IMPL(parent, name, perm, args, desc) \
     SYSCTL_DECL(parent); \
-    SYSCTL_PROC(parent, OID_AUTO, name, perm | args, desc)
+    SYSCTL_PROC(parent, OID_AUTO, name, CTLFLAG_MPSAFE | perm | args, desc)
 
 #define	ZFS_MODULE_PARAM_CALL( \
     scope_prefix, name_prefix, name, func, _, perm, desc) \
