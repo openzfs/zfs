@@ -59,14 +59,20 @@
 #define	param_set_arc_long_args(var) \
     CTLTYPE_ULONG, &var, 0, param_set_arc_long, "LU"
 
-#define	param_set_arc_min_args(var) \
-    CTLTYPE_ULONG, &var, 0, param_set_arc_min, "LU"
-
-#define	param_set_arc_max_args(var) \
-    CTLTYPE_ULONG, &var, 0, param_set_arc_max, "LU"
-
 #define	param_set_arc_int_args(var) \
     CTLTYPE_INT, &var, 0, param_set_arc_int, "I"
+
+#define	param_set_arc_min_args(var) \
+    CTLTYPE_ULONG, NULL, 0, param_set_arc_min, "LU"
+
+#define	param_set_arc_max_args(var) \
+    CTLTYPE_ULONG, NULL, 0, param_set_arc_max, "LU"
+
+#define	param_set_arc_free_target_args(var) \
+    CTLTYPE_UINT, NULL, 0, param_set_arc_free_target, "IU"
+
+#define	param_set_arc_no_grow_shift_args(var) \
+    CTLTYPE_INT, NULL, 0, param_set_arc_no_grow_shift, "I"
 
 #define	param_set_deadman_failmode_args(var) \
     CTLTYPE_STRING, NULL, 0, param_set_deadman_failmode, "A"
@@ -78,16 +84,16 @@
     CTLTYPE_ULONG, NULL, 0, param_set_deadman_ziotime, "LU"
 
 #define	param_set_multihost_interval_args(var) \
-    CTLTYPE_ULONG, &var, 0, param_set_multihost_interval, "LU"
+    CTLTYPE_ULONG, NULL, 0, param_set_multihost_interval, "LU"
 
 #define	param_set_slop_shift_args(var) \
-    CTLTYPE_INT, &var, 0, param_set_slop_shift, "I"
+    CTLTYPE_INT, NULL, 0, param_set_slop_shift, "I"
 
 #define	param_set_min_auto_ashift_args(var) \
-    CTLTYPE_U64, &var, 0, param_set_min_auto_ashift, "QU"
+    CTLTYPE_U64, NULL, 0, param_set_min_auto_ashift, "QU"
 
 #define	param_set_max_auto_ashift_args(var) \
-    CTLTYPE_U64, &var, 0, param_set_max_auto_ashift, "QU"
+    CTLTYPE_U64, NULL, 0, param_set_max_auto_ashift, "QU"
 
 #define	fletcher_4_param_set_args(var) \
     CTLTYPE_STRING, NULL, 0, fletcher_4_param, "A"

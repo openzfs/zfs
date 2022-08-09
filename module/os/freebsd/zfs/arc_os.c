@@ -72,31 +72,14 @@ SYSINIT(arc_free_target_init, SI_SUB_KTHREAD_PAGE, SI_ORDER_ANY,
  * We don't have a tunable for arc_free_target due to the dependency on
  * pagedaemon initialisation.
  */
-static int
-sysctl_vfs_zfs_arc_free_target(SYSCTL_HANDLER_ARGS)
-{
-	uint_t val;
-	int err;
-
-	val = zfs_arc_free_target;
-	err = sysctl_handle_int(oidp, &val, 0, req);
-	if (err != 0 || req->newptr == NULL)
-		return (err);
-
-	if (val < minfree)
-		return (EINVAL);
-	if (val > vm_cnt.v_page_count)
-		return (EINVAL);
-
-	zfs_arc_free_target = val;
-
-	return (0);
-}
-SYSCTL_DECL(_vfs_zfs);
-SYSCTL_PROC(_vfs_zfs, OID_AUTO, arc_free_target,
-    CTLTYPE_UINT | CTLFLAG_MPSAFE | CTLFLAG_RW, 0, sizeof (uint_t),
-    sysctl_vfs_zfs_arc_free_target, "IU",
+int param_set_arc_free_target(SYSCTL_HANDLER_ARGS);
+ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, free_target,
+    param_set_arc_free_target, 0, CTLFLAG_RW,
 	"Desired number of free pages below which ARC triggers reclaim");
+int param_set_arc_no_grow_shift(SYSCTL_HANDLER_ARGS);
+ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, no_grow_shift,
+    param_set_arc_no_grow_shift, 0, ZMOD_RW,
+	"log2(fraction of ARC which must be free to allow growing)");
 
 int64_t
 arc_available_memory(void)
