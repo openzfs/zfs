@@ -11,6 +11,13 @@
 # Source the common functions
 . /etc/zfs/zfs-functions
 
+# empty function for user to redefine in zfs-user-functions
+decrypt_fs_user() {
+	:
+}
+
+[ -e /etc/zfs/zfs-user-functions ] && . /etc/zfs/zfs-user-functions
+
 # Start interactive shell.
 # Use debian's panic() if defined, because it allows to prevent shell access
 # by setting panic in cmdline (e.g. panic=0 or panic=15).
@@ -396,6 +403,7 @@ decrypt_fs()
 		# Determine dataset that holds key for root dataset
 		ENCRYPTIONROOT="$(get_fs_value "${fs}" encryptionroot)"
 		KEYLOCATION="$(get_fs_value "${ENCRYPTIONROOT}" keylocation)"
+		USE_USER_DECRYPT_FUNCTION="$(get_fs_value "${ENCRYPTIONROOT}" org.openzfs:zfs-initramfs:user-decrypt-function)"
 
 		echo "${ENCRYPTIONROOT}" > /run/zfs_fs_name
 
@@ -403,6 +411,14 @@ decrypt_fs()
 		if ! [ "${ENCRYPTIONROOT}" = "-" ]; then
 			KEYSTATUS="$(get_fs_value "${ENCRYPTIONROOT}" keystatus)"
 			# Continue only if the key needs to be loaded
+			[ "$KEYSTATUS" = "unavailable" ] || return 0
+
+			if [ "$USE_USER_DECRYPT_FUNCTION" = true ]; then
+				decrypt_fs_user $ENCRYPTIONROOT $KEYLOCATION
+			fi
+
+			KEYSTATUS="$(get_fs_value "${ENCRYPTIONROOT}" keystatus)"
+			# Continue only if the key still needs to be loaded, i.e. we didn't call decrypt_fs_user or it failed to unlock the fs
 			[ "$KEYSTATUS" = "unavailable" ] || return 0
 
 			# Do not prompt if key is stored noninteractively,

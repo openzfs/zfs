@@ -82,3 +82,26 @@ To use this feature:
    in that case, use RSA (2048-bit or more) instead.
 3. Rebuild the initramfs with your keys: `update-initramfs -u`
 4. During the system boot, login via SSH and run: `zfsunlock`
+
+### Supplying your own unlock mechanism
+
+There is a way to unlock your zfs filesystem using a mechanism these scripts
+don't have explicit support for, such as:
+
+* get the key from DNS (presumably from a split-horizon domain that will only resolve when queried from the right client);
+* get the key by using a special public key to ssh into a server, where sshd forces execution of a script that outputs the key;
+* wait for some other program, such as an interactive dropbear session, to write the key into a file;
+* derive the key from the TOC of the audio CD inserted into the optical drive, using some key derivation function ("my server boots to Vivaldi");
+* get the key from a program that derives it from voice input to a microphone, or someone performing a specific jig on a dance game controller, or something equally esoteric.
+
+(Note that we endorse neither of these mechanisms and don't mean to imply
+that they're secure.)
+
+To supply your own unlock mechanism:
+
+1. Set the `org.openzfs:zfs-initramfs:user-decrypt-function` property to `true` on the fs you'd like your mechanism to unlock.
+2. Create `/etc/zfs/zfs-user-functions`, and define the `decrypt_fs_user()` shell function in it. It will be called with `$1` set to the value of the `encryptionroot` attribute and `$2` set to the value of the `keylocation` attribute for the fs to be unlocked.
+  * The function is expected to unlock the fs, i.e. call `zfs load-key` in an and supply the key somehow. If the fs is unlocked after the function returns, initramfs prompts for the key will be skipped.
+  * If the `keystatus` attribute is still `unavailable` after your function returns, the normal logic takes over; if `keylocation` is `prompt`, a prompt will appear and so on.
+  * The return value of your function is, for now, ignored.
+3. Rebuild the initramfs.
