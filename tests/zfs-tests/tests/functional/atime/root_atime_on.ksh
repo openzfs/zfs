@@ -65,11 +65,10 @@ do
 		mtpt=$(snapshot_mountpoint $dst)
 		log_mustnot check_atime_updated $mtpt/$TESTFILE
 	else
-		if is_linux; then
-			log_must zfs set relatime=off $(dirname $dst)
-		fi
-
 		log_must zfs set atime=on $(dirname $dst)
+		# inherited relatime won't apply because of mount option, set explicitly
+		log_must zfs set relatime=off $dst
+
 		log_must check_atime_updated $mtpt/$TESTFILE
 		log_must check_atime_updated $mtpt/$TESTFILE
 	fi
