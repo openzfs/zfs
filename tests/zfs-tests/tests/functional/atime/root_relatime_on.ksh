@@ -68,6 +68,7 @@ do
 	else
 		log_must zfs set atime=on $(dirname $dst)
 		log_must zfs set relatime=on $(dirname $dst)
+
 		log_must check_atime_updated $mtpt/$TESTFILE
 		log_mustnot check_atime_updated $mtpt/$TESTFILE
 	fi

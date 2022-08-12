@@ -62,11 +62,9 @@ do
 		mtpt=$(snapshot_mountpoint $dst)
 		log_mustnot check_atime_updated $mtpt/$TESTFILE
 	else
-		if is_linux; then
-			log_must zfs set relatime=off $dst
-		fi
-
 		log_must zfs set atime=on $dst
+		log_must zfs set relatime=off $dst
+
 		log_must check_atime_updated $mtpt/$TESTFILE
 		log_must check_atime_updated $mtpt/$TESTFILE
 	fi
