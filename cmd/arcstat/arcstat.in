@@ -271,7 +271,7 @@ def print_values():
     if pretty_print:
         fmt = lambda col: prettynum(cols[col][0], cols[col][1], v[col])
     else:
-        fmt = lambda col: v[col]
+        fmt = lambda col: str(v[col])
 
     sys.stdout.write(sep.join(fmt(col) for col in hdr))
     sys.stdout.write("\n")
