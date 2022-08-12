@@ -33,7 +33,7 @@
 #		for 10 sec.
 #	4. Verify that l2arc_write_max is set back to the default.
 #	5. Set l2arc_write_max to a value less than the cache device size but
-#		larger than the default (64MB).
+#		larger than the default (256MB).
 #	6. Record the l2_size.
 #	7. Random read for 1 sec.
 #	8. Record the l2_size again.
@@ -87,6 +87,9 @@ log_must truncate -s $VDEV_SZ $VDEV
 
 log_must zpool create -f $TESTPOOL $VDEV cache $VCACHE
 
+# Actually, this test relies on atime writes to force the L2 ARC discards
+log_must zfs set relatime=off $TESTPOOL
+
 log_must fio $FIO_SCRIPTS/mkfiles.fio
 log_must fio $FIO_SCRIPTS/random_reads.fio
 
@@ -94,7 +97,7 @@ typeset write_max2=$(get_tunable L2ARC_WRITE_MAX)
 
 log_must test $write_max2 -eq $write_max
 
-log_must set_tunable32 L2ARC_WRITE_MAX $(( 64 * 1024 * 1024 ))
+log_must set_tunable32 L2ARC_WRITE_MAX $(( 256 * 1024 * 1024 ))
 export RUNTIME=1
 
 typeset do_once=true
