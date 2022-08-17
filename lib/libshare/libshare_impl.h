@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2002, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011 Gunnar Beutner
- * Copyright (c) 2019, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2019, 2022 by Delphix. All rights reserved.
  */
 #ifndef _LIBSPL_LIBSHARE_IMPL_H
 #define	_LIBSPL_LIBSHARE_IMPL_H
@@ -39,6 +39,7 @@ typedef struct {
 	boolean_t (*const is_shared)(sa_share_impl_t share);
 	int (*const validate_shareopts)(const char *shareopts);
 	int (*const commit_shares)(void);
+	void (*const truncate_shares)(void);
 } sa_fstype_t;
 
 extern const sa_fstype_t libshare_nfs_type, libshare_smb_type;

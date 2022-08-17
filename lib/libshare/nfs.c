@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <libshare.h>
+#include <unistd.h>
 #include "nfs.h"
 
 
@@ -279,6 +280,17 @@ fullerr:
 	nfs_abort_tmpfile(&tmpf);
 	nfs_exports_unlock(lockfile, &nfs_lock_fd);
 	return (error);
+}
+
+void
+nfs_reset_shares(const char *lockfile, const char *exports)
+{
+	int nfs_lock_fd = -1;
+
+	if (nfs_exports_lock(lockfile, &nfs_lock_fd) == 0) {
+		(void) ! truncate(exports, 0);
+		nfs_exports_unlock(lockfile, &nfs_lock_fd);
+	}
 }
 
 static boolean_t

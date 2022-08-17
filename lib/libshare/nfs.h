@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2002, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011 Gunnar Beutner
+ * Copyright (c) 2022 by Delphix. All rights reserved.
  */
 
 #include "libshare_impl.h"
@@ -33,3 +34,4 @@ boolean_t nfs_is_shared_impl(const char *exports, sa_share_impl_t impl_share);
 int nfs_toggle_share(const char *lockfile, const char *exports,
     const char *expdir, sa_share_impl_t impl_share,
     int(*cbk)(sa_share_impl_t impl_share, FILE *tmpfile));
+void nfs_reset_shares(const char *lockfile, const char *exports);
