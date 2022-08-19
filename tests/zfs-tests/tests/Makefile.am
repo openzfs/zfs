@@ -540,6 +540,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/channel_program/synctask_core/tst.terminate_by_signal.ksh \
 	functional/chattr/chattr_001_pos.ksh \
 	functional/chattr/chattr_002_neg.ksh \
+	functional/chattr/chattr_003_pos.ksh \
+	functional/chattr/chattr_004_neg.ksh \
 	functional/chattr/cleanup.ksh \
 	functional/chattr/setup.ksh \
 	functional/checksum/cleanup.ksh \

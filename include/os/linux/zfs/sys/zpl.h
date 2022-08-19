@@ -197,4 +197,9 @@ zpl_dir_emit_dots(struct file *file, zpl_dir_context_t *ctx)
 #define	zpl_setattr_prepare(ns, dentry, ia)	setattr_prepare(dentry, ia)
 #endif
 
+#ifdef FS_CASEFOLD_FL
+#define	ZFS_CASEFOLD_FL FS_CASEFOLD_FL
+#else
+#define	ZFS_CASEFOLD_FL 0x40000000
+#endif
 #endif	/* _SYS_ZPL_H */

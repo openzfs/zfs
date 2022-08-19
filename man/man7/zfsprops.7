@@ -1937,6 +1937,20 @@ mixed behavior is limited to the SMB server product.
 For more information about the
 .Sy mixed
 value behavior, see the "ZFS Administration Guide".
+.Pp
+On Linux, the
+.Sy insensitive
+value for the
+.Sy casesensitivity
+property will set the +F file attribute on directories to inform software such
+as Wine that it can avoid slow emulation of case-insensitive directory lookups.
+The semantics of +F mainly differ from other Linux filesystems by not implying
+.Sy normalization=formD ,
+which ZFS offers as a user choice, and only making file names case-insensitive,
+rather than doing the more extensive casefold operation on file names. This is
+believed to be more compatible with software that needs case-insensitive
+directory lookups than the semantics of +F on other linux filesystems. For a
+full discussion of the differences, see OpenZFS Pull Request #13790.
 .It Xo
 .Sy normalization Ns = Ns Sy none Ns | Ns Sy formC Ns | Ns
 .Sy formD Ns | Ns Sy formKC Ns | Ns Sy formKD

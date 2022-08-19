@@ -906,14 +906,32 @@ zpl_ioctl_getversion(struct file *filp, void __user *arg)
 	return (copy_to_user(arg, &generation, sizeof (generation)));
 }
 
-#define	ZFS_FL_USER_VISIBLE	(FS_FL_USER_VISIBLE | ZFS_PROJINHERIT_FL)
-#define	ZFS_FL_USER_MODIFIABLE	(FS_FL_USER_MODIFIABLE | ZFS_PROJINHERIT_FL)
+#define	ZFS_FL_USER_VISIBLE	(FS_FL_USER_VISIBLE | ZFS_PROJINHERIT_FL | \
+	    ZFS_CASEFOLD_FL)
+#define	ZFS_FL_USER_MODIFIABLE	(FS_FL_USER_MODIFIABLE | ZFS_PROJINHERIT_FL | \
+	    ZFS_CASEFOLD_FL)
 
 static uint32_t
 __zpl_ioctl_getflags(struct inode *ip)
 {
 	uint64_t zfs_flags = ITOZ(ip)->z_pflags;
 	uint32_t ioctl_flags = 0;
+
+	/*
+	 * On case insensitive filesystems, we report the ZFS_CASEFOLD_FL
+	 * attribute on directories so that userland software is informed that
+	 * directory lookups are case insensitive. Userland software, such as
+	 * wine, that emulates case insensitive directory lookups on Linux
+	 * systems that typically have case sensitive directory lookups can use
+	 * this as a hint to learn that it can accelerate itself by offloading
+	 * the lookups to the filesystem.
+	 */
+	if (S_ISDIR(ITOZ(ip)->z_mode)) {
+		zfsvfs_t *zfsvfs = ITOZSB(ip);
+
+		if (zfsvfs->z_case == ZFS_CASE_INSENSITIVE)
+			ioctl_flags |= ZFS_CASEFOLD_FL;
+	}
 
 	if (zfs_flags & ZFS_IMMUTABLE)
 		ioctl_flags |= FS_IMMUTABLE_FL;
@@ -962,6 +980,25 @@ __zpl_ioctl_setflags(struct inode *ip, uint32_t ioctl_flags, xvattr_t *xva)
 {
 	uint64_t zfs_flags = ITOZ(ip)->z_pflags;
 	xoptattr_t *xoap;
+
+	zfsvfs_t *zfsvfs = ITOZSB(ip);
+
+	/*
+	 * On case insensitive filesystems, we must accept ZFS_CASEFOLD_FL in
+	 * the bitmask on directories because we report it in
+	 * __zpl_ioctl_getflags(). We silently ignore attempts to unset this
+	 * bit to mimic the behavior of other linux filesystems when told to
+	 * unset bits that may not be unset by userland.
+	 */
+	if (zfsvfs->z_case == ZFS_CASE_INSENSITIVE) {
+		if (ioctl_flags & ZFS_CASEFOLD_FL) {
+			if (S_ISDIR(ITOZ(ip)->z_mode)) {
+				ioctl_flags &= ~ZFS_CASEFOLD_FL;
+			} else {
+				return (-ENOTDIR);
+			}
+		}
+	}
 
 	if (ioctl_flags & ~(FS_IMMUTABLE_FL | FS_APPEND_FL | FS_NODUMP_FL |
 	    ZFS_PROJINHERIT_FL))

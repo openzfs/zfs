@@ -35,7 +35,7 @@ tests = ['atime_003_pos', 'root_relatime_on']
 tags = ['functional', 'atime']
 
 [tests/functional/chattr:Linux]
-tests = ['chattr_001_pos', 'chattr_002_neg']
+tests = ['chattr_001_pos', 'chattr_002_neg', 'chattr_003_pos', 'chattr_004_neg']
 tags = ['functional', 'chattr']
 
 [tests/functional/cli_root/zfs:Linux]
