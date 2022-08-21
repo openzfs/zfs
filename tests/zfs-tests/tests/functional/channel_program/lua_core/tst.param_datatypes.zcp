@@ -20,6 +20,7 @@ arg = ...
 assert(arg.bTrue == true, "boolean is true")
 assert(arg.bFalse == false, "boolean is false")
 assert(arg.string == "string", "string scalar")
+assert(arg.byte == string.byte("0"), "byte scalar")
 assert(arg.uint8 == 8, "uint8 scalar")
 assert(arg.int8 == -8, "int8 scalar")
 assert(arg.uint16 == 16, "uint16 scalar")
@@ -50,6 +51,12 @@ assert(#arg.stringArray == 3, "string array size")
 assert(arg.stringArray[1] == "array", "stringArray[1]")
 assert(arg.stringArray[2] == "of", "stringArray[2]")
 assert(arg.stringArray[3] == "strings", "stringArray[3]")
+
+assert(#arg.byteArray == 4, "byte array size")
+assert(arg.byteArray[1] == string.byte("Z"), "byteArray[1]")
+assert(arg.byteArray[2] == string.byte("F"), "byteArray[2]")
+assert(arg.byteArray[3] == string.byte("S"), "byteArray[3]")
+assert(arg.byteArray[4] == 0, "byteArray[4]")
 
 assert(#arg.uint8Array == 8, "uint8 array size")
 for i=1, 8 do

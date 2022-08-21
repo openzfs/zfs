@@ -86,6 +86,7 @@ run_test(const char * const pool, const char * const script)
 	 * strings.
 	 */
 	fnvlist_add_string(args, "string", "string\0<hidden>");
+	fnvlist_add_byte(args, "byte", '0');
 	fnvlist_add_uint8(args, "uint8", 8);
 	fnvlist_add_int8(args, "int8", -8);
 	fnvlist_add_uint16(args, "uint16", 16);
@@ -117,6 +118,9 @@ run_test(const char * const pool, const char * const script)
 		"array", "of", "strings"
 	};
 	fnvlist_add_string_array(args, "stringArray", stringArray, 3);
+
+	const uchar_t byteArray[] = "ZFS";
+	fnvlist_add_byte_array(args, "byteArray", byteArray, 4);
 
 	const uint8_t uint8Array[] = {
 		7, 14, 21, 28, 35, 42, 49, 56

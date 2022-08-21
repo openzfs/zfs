@@ -548,6 +548,9 @@ zcp_nvpair_value_to_lua(lua_State *state, nvpair_t *pair,
 	case DATA_TYPE_STRING:
 		(void) lua_pushstring(state, fnvpair_value_string(pair));
 		break;
+	case DATA_TYPE_BYTE:
+		(void) lua_pushinteger(state, fnvpair_value_byte(pair));
+		break;
 	case DATA_TYPE_UINT8:
 		(void) lua_pushinteger(state, fnvpair_value_uint8(pair));
 		break;
@@ -587,6 +590,9 @@ zcp_nvpair_value_to_lua(lua_State *state, nvpair_t *pair,
 		break;
 	case DATA_TYPE_STRING_ARRAY:
 		ZCP_NVPAIR_CONVERT_ARRAY_TO_LUA(char *, string, string)
+		break;
+	case DATA_TYPE_BYTE_ARRAY:
+		ZCP_NVPAIR_CONVERT_ARRAY_TO_LUA(uchar_t, byte, integer)
 		break;
 	case DATA_TYPE_UINT8_ARRAY:
 		ZCP_NVPAIR_CONVERT_ARRAY_TO_LUA(uint8_t, uint8, integer)
