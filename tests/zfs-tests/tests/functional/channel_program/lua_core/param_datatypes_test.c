@@ -98,6 +98,12 @@ run_test(const char * const pool, const char * const script)
 	/* */
 	fnvlist_add_nvlist(args, "nvlist", nvlist);
 
+	const boolean_t booleanArray[] = {
+		B_FALSE, B_FALSE, B_TRUE, B_FALSE,
+		B_TRUE,  B_FALSE, B_TRUE, B_FALSE
+	};
+	fnvlist_add_boolean_array(args, "booleanArray", booleanArray, 8);
+
 	const char * const stringArray[] = {
 		"array", "of", "strings"
 	};

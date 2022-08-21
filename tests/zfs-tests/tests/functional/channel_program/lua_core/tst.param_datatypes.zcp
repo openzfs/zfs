@@ -28,6 +28,16 @@ assert(arg.nvlist.string == "answer", "nested string")
 assert(arg.nvlist.table.key == "value", "nested table nvpair")
 
 -- Verify arrays/lists
+assert(#arg.booleanArray == 8, "boolean array size")
+assert(arg.booleanArray[1] == false, "booleanArray[1]")
+assert(arg.booleanArray[2] == false, "booleanArray[2]")
+assert(arg.booleanArray[3] == true, "booleanArray[3]")
+assert(arg.booleanArray[4] == false, "booleanArray[4]")
+assert(arg.booleanArray[5] == true, "booleanArray[5]")
+assert(arg.booleanArray[6] == false, "booleanArray[6]")
+assert(arg.booleanArray[7] == true, "booleanArray[7]")
+assert(arg.booleanArray[8] == false, "booleanArray[8]")
+
 assert(#arg.stringArray == 3, "string array size")
 assert(arg.stringArray[1] == "array", "stringArray[1]")
 assert(arg.stringArray[2] == "of", "stringArray[2]")

@@ -555,6 +555,9 @@ zcp_nvpair_value_to_lua(lua_State *state, nvpair_t *pair,
 		err = zcp_nvlist_to_lua(state,
 		    fnvpair_value_nvlist(pair), errbuf, errbuf_len);
 		break;
+	case DATA_TYPE_BOOLEAN_ARRAY:
+		ZCP_NVPAIR_CONVERT_ARRAY_TO_LUA(boolean_t, boolean, boolean)
+		break;
 	case DATA_TYPE_STRING_ARRAY:
 		ZCP_NVPAIR_CONVERT_ARRAY_TO_LUA(char *, string, string)
 		break;
