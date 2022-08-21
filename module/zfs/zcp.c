@@ -510,6 +510,18 @@ zcp_nvlist_to_lua(lua_State *state, nvlist_t *nvl,
 	return (0);
 }
 
+#define	ZCP_NVPAIR_CONVERT_ARRAY_TO_LUA(DATATYPE, FETCHTYPE, PUSHTYPE) \
+{ \
+	DATATYPE *arr; \
+	uint_t nelem; \
+	(void) nvpair_value_ ## FETCHTYPE ## _array(pair, &arr, &nelem); \
+	lua_newtable(state); \
+	for (int i = 0; i < nelem; i++) { \
+		(void) lua_pushinteger(state, i + 1); \
+		(void) lua_push ## PUSHTYPE(state, arr[i]); \
+		(void) lua_settable(state, -3); \
+	} \
+}
 /*
  * Push a Lua object representing the value of "pair" onto the stack.
  *
@@ -543,42 +555,15 @@ zcp_nvpair_value_to_lua(lua_State *state, nvpair_t *pair,
 		err = zcp_nvlist_to_lua(state,
 		    fnvpair_value_nvlist(pair), errbuf, errbuf_len);
 		break;
-	case DATA_TYPE_STRING_ARRAY: {
-		char **strarr;
-		uint_t nelem;
-		(void) nvpair_value_string_array(pair, &strarr, &nelem);
-		lua_newtable(state);
-		for (int i = 0; i < nelem; i++) {
-			(void) lua_pushinteger(state, i + 1);
-			(void) lua_pushstring(state, strarr[i]);
-			(void) lua_settable(state, -3);
-		}
+	case DATA_TYPE_STRING_ARRAY:
+		ZCP_NVPAIR_CONVERT_ARRAY_TO_LUA(char *, string, string)
 		break;
-	}
-	case DATA_TYPE_UINT64_ARRAY: {
-		uint64_t *intarr;
-		uint_t nelem;
-		(void) nvpair_value_uint64_array(pair, &intarr, &nelem);
-		lua_newtable(state);
-		for (int i = 0; i < nelem; i++) {
-			(void) lua_pushinteger(state, i + 1);
-			(void) lua_pushinteger(state, intarr[i]);
-			(void) lua_settable(state, -3);
-		}
+	case DATA_TYPE_UINT64_ARRAY:
+		ZCP_NVPAIR_CONVERT_ARRAY_TO_LUA(uint64_t, uint64, integer)
 		break;
-	}
-	case DATA_TYPE_INT64_ARRAY: {
-		int64_t *intarr;
-		uint_t nelem;
-		(void) nvpair_value_int64_array(pair, &intarr, &nelem);
-		lua_newtable(state);
-		for (int i = 0; i < nelem; i++) {
-			(void) lua_pushinteger(state, i + 1);
-			(void) lua_pushinteger(state, intarr[i]);
-			(void) lua_settable(state, -3);
-		}
+	case DATA_TYPE_INT64_ARRAY:
+		ZCP_NVPAIR_CONVERT_ARRAY_TO_LUA(int64_t, int64, integer)
 		break;
-	}
 	default: {
 		if (errbuf != NULL) {
 			(void) snprintf(errbuf, errbuf_len,
