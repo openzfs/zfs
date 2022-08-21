@@ -20,6 +20,12 @@ arg = ...
 assert(arg.bTrue == true, "boolean is true")
 assert(arg.bFalse == false, "boolean is false")
 assert(arg.string == "string", "string scalar")
+assert(arg.uint8 == 8, "uint8 scalar")
+assert(arg.int8 == -8, "int8 scalar")
+assert(arg.uint16 == 16, "uint16 scalar")
+assert(arg.int16 == -16, "int16 scalar")
+assert(arg.uint32 == 32, "uint32 scalar")
+assert(arg.int32 == -32, "int32 scalar")
 assert(arg.uint64 == 64, "uint64 scalar")
 assert(arg.int64 == -64, "int64 scalar")
 
@@ -43,6 +49,36 @@ assert(#arg.stringArray == 3, "string array size")
 assert(arg.stringArray[1] == "array", "stringArray[1]")
 assert(arg.stringArray[2] == "of", "stringArray[2]")
 assert(arg.stringArray[3] == "strings", "stringArray[3]")
+
+assert(#arg.uint8Array == 8, "uint8 array size")
+for i=1, 8 do
+	assert(arg.uint8Array[i] == 7*i, "uint8Array["..tostring(i).."]")
+end
+
+assert(#arg.int8Array == 8, "int8 array size")
+for i=1, 8 do
+	assert(arg.int8Array[i] == -7*i, "int8Array["..tostring(i).."]")
+end
+
+assert(#arg.uint16Array == 16, "uint16 array size")
+for i=1, 16 do
+	assert(arg.uint16Array[i] == 5*i, "uint16Array["..tostring(i).."]")
+end
+
+assert(#arg.int16Array == 16, "int16 array size")
+for i=1, 16 do
+	assert(arg.int16Array[i] == -5*i, "int16Array["..tostring(i).."]")
+end
+
+assert(#arg.uint32Array == 32, "uint32 array size")
+for i=1, 32 do
+	assert(arg.uint32Array[i] == 3*i, "uint32Array["..tostring(i).."]")
+end
+
+assert(#arg.int32Array == 32, "int32 array size")
+for i=1, 32 do
+	assert(arg.int32Array[i] == -3*i, "int32Array["..tostring(i).."]")
+end
 
 assert(#arg.uint64Array == 64, "uint64 array size")
 for i=1, 64 do

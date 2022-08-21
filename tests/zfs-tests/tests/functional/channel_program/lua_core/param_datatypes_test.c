@@ -86,6 +86,12 @@ run_test(const char * const pool, const char * const script)
 	 * strings.
 	 */
 	fnvlist_add_string(args, "string", "string\0<hidden>");
+	fnvlist_add_uint8(args, "uint8", 8);
+	fnvlist_add_int8(args, "int8", -8);
+	fnvlist_add_uint16(args, "uint16", 16);
+	fnvlist_add_int16(args, "int16", -16);
+	fnvlist_add_uint32(args, "uint32", 32);
+	fnvlist_add_int32(args, "int32", -32);
 	fnvlist_add_uint64(args, "uint64", 64);
 	fnvlist_add_int64(args, "int64", -64);
 
@@ -109,6 +115,44 @@ run_test(const char * const pool, const char * const script)
 		"array", "of", "strings"
 	};
 	fnvlist_add_string_array(args, "stringArray", stringArray, 3);
+
+	const uint8_t uint8Array[] = {
+		7, 14, 21, 28, 35, 42, 49, 56
+	};
+	fnvlist_add_uint8_array(args, "uint8Array", uint8Array, 8);
+
+	const int8_t int8Array[] = {
+		-7, -14, -21, -28, -35, -42, -49, -56
+	};
+	fnvlist_add_int8_array(args, "int8Array", int8Array, 8);
+
+	const uint16_t uint16Array[] = {
+		5,  10, 15, 20, 25, 30, 35, 40,
+		45, 50, 55, 60, 65, 70, 75, 80
+	};
+	fnvlist_add_uint16_array(args, "uint16Array", uint16Array, 16);
+
+	const int16_t int16Array[] = {
+		-5,  -10, -15, -20, -25, -30, -35, -40,
+		-45, -50, -55, -60, -65, -70, -75, -80
+	};
+	fnvlist_add_int16_array(args, "int16Array", int16Array, 16);
+
+	const uint32_t uint32Array[] = {
+		3,  6,  9,  12, 15, 18, 21, 24,
+		27, 30, 33, 36, 39, 42, 45, 48,
+		51, 54, 57, 60, 63, 66, 69, 72,
+		75, 78, 81, 84, 87, 90, 93, 96
+	};
+	fnvlist_add_uint32_array(args, "uint32Array", uint32Array, 32);
+
+	const int32_t int32Array[] = {
+		-3,  -6,  -9,  -12, -15, -18, -21, -24,
+		-27, -30, -33, -36, -39, -42, -45, -48,
+		-51, -54, -57, -60, -63, -66, -69, -72,
+		-75, -78, -81, -84, -87, -90, -93, -96
+	};
+	fnvlist_add_int32_array(args, "int32Array", int32Array, 32);
 
 	const uint64_t uint64Array[] = {
 		2,   4,   6,   8,   10,  12,  14,  16,
