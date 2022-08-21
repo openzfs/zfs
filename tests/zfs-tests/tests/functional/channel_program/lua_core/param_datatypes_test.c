@@ -184,6 +184,29 @@ run_test(const char * const pool, const char * const script)
 	};
 	fnvlist_add_int64_array(args, "int64Array", int64Array, 64);
 
+	nvlist_t * const nvlistArray[] = {
+		fnvlist_alloc(), fnvlist_alloc(), fnvlist_alloc(),
+		fnvlist_alloc(), fnvlist_alloc(), fnvlist_alloc()
+	};
+	/* Leave nvlistArray[0] empty */
+	fnvlist_add_boolean_value(nvlistArray[1], "bool", B_TRUE);
+	fnvlist_add_int64(nvlistArray[2], "int", 9000);
+	fnvlist_add_string(nvlistArray[3], "str", "question");
+	fnvlist_add_nvlist(nvlistArray[4], "hash", table);
+	/* */
+	nvlist_t * const tableArray[] = {
+		fnvlist_alloc(), fnvlist_alloc()
+	};
+	fnvlist_add_int64(tableArray[0], "max",  9223372036854775807);
+	fnvlist_add_int64(tableArray[0], "min", -9223372036854775807 - 1);
+	fnvlist_add_int64(tableArray[1], "max",  127);
+	fnvlist_add_int64(tableArray[1], "min", -128);
+	fnvlist_add_nvlist_array(nvlistArray[5], "tableArray",
+	    (const nvlist_t *const *)tableArray, 2);
+	/* */
+	fnvlist_add_nvlist_array(args, "nvlistArray",
+	    (const nvlist_t *const *)nvlistArray, 6);
+
 	const uint64_t overflowArray[] = {
 		9223372036854775808u,    /* 2⁶³   wraps to -2⁶³ */
 		18446744073709551615u    /* 2⁶⁴-1 wraps to -1 */
@@ -199,6 +222,10 @@ run_test(const char * const pool, const char * const script)
 	fnvlist_free(args);
 	fnvlist_free(nvlist);
 	fnvlist_free(table);
+	for (int i = 0; i < 6; ++i)
+		fnvlist_free(nvlistArray[i]);
+	for (int i = 0; i < 2; ++i)
+		fnvlist_free(tableArray[i]);
 
 	if (error)
 		dump_nvlist(ret, STDERR_FILENO);

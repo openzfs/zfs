@@ -98,6 +98,19 @@ for i=1, 64 do
 	assert(arg.int64Array[i] == -2*i, "int64Array["..tostring(i).."]")
 end
 
+assert(#arg.nvlistArray == 6, "nvlist array size")
+assert(type(next(arg.nvlistArray[1])) == "nil", "nvlistArray[1]")	-- Is table empty?
+assert(arg.nvlistArray[2].bool == true, "nvlistArray[2]")
+assert(arg.nvlistArray[3].int == 9000, "nvlistArray[3]")
+assert(arg.nvlistArray[4].str == "question", "nvlistArray[4]")
+assert(arg.nvlistArray[5].hash.key == "value", "nvlistArray[5]")
+--
+assert(#arg.nvlistArray[6].tableArray == 2, "nested nvlist array size")
+assert(arg.nvlistArray[6].tableArray[1].max == 9223372036854775807, "nvlistArray[6].tableArray[1].max")
+assert(arg.nvlistArray[6].tableArray[1].min == -9223372036854775808, "nvlistArray[6].tableArray[1].min")
+assert(arg.nvlistArray[6].tableArray[2].max == 127, "nvlistArray[6].tableArray[2].min")
+assert(arg.nvlistArray[6].tableArray[2].min == -128, "nvlistArray[6].tableArray[2].min")
+
 -- Verify correct handling of integer overflow
 assert(#arg.overflowArray == 2, "uint64 overflow array size")
 assert(arg.overflowArray[1] == -9223372036854775808, "2^63 overflow")

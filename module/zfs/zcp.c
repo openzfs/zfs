@@ -618,6 +618,23 @@ zcp_nvpair_value_to_lua(lua_State *state, nvpair_t *pair,
 	case DATA_TYPE_INT64_ARRAY:
 		ZCP_NVPAIR_CONVERT_ARRAY_TO_LUA(int64_t, int64, integer)
 		break;
+	case DATA_TYPE_NVLIST_ARRAY: {
+		nvlist_t **arr;
+		uint_t nelem;
+		(void) nvpair_value_nvlist_array(pair, &arr, &nelem);
+		lua_newtable(state);
+		for (int i = 0; i < nelem; i++) {
+			(void) lua_pushinteger(state, i + 1);
+			err = zcp_nvlist_to_lua(state, arr[i],
+			    errbuf, errbuf_len);
+			if (err != 0) {
+				lua_pop(state, 2);	// index & table
+				return (err);
+			}
+			(void) lua_settable(state, -3);
+		}
+		break;
+	}
 	default: {
 		if (errbuf != NULL) {
 			(void) snprintf(errbuf, errbuf_len,
