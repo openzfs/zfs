@@ -548,6 +548,9 @@ zcp_nvpair_value_to_lua(lua_State *state, nvpair_t *pair,
 	case DATA_TYPE_STRING:
 		(void) lua_pushstring(state, fnvpair_value_string(pair));
 		break;
+	case DATA_TYPE_UINT64:
+		(void) lua_pushinteger(state, fnvpair_value_uint64(pair));
+		break;
 	case DATA_TYPE_INT64:
 		(void) lua_pushinteger(state, fnvpair_value_int64(pair));
 		break;

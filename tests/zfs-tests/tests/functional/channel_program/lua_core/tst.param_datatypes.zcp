@@ -20,6 +20,7 @@ arg = ...
 assert(arg.bTrue == true, "boolean is true")
 assert(arg.bFalse == false, "boolean is false")
 assert(arg.string == "string", "string scalar")
+assert(arg.uint64 == 64, "uint64 scalar")
 assert(arg.int64 == -64, "int64 scalar")
 
 assert(arg.nvlist.boolean == false, "nested boolean")
@@ -57,5 +58,7 @@ end
 assert(#arg.overflowArray == 2, "uint64 overflow array size")
 assert(arg.overflowArray[1] == -9223372036854775808, "2^63 overflow")
 assert(arg.overflowArray[2] == -1, "2^64 - 1 overflow")
+
+assert(arg.overflowScalar == -4611686018427387904, "2^63 + 2^62 overflow")
 
 return

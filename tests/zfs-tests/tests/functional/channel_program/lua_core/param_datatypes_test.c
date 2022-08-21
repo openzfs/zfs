@@ -86,6 +86,7 @@ run_test(const char * const pool, const char * const script)
 	 * strings.
 	 */
 	fnvlist_add_string(args, "string", "string\0<hidden>");
+	fnvlist_add_uint64(args, "uint64", 64);
 	fnvlist_add_int64(args, "int64", -64);
 
 	nvlist_t * const table = fnvlist_alloc();
@@ -138,6 +139,9 @@ run_test(const char * const pool, const char * const script)
 		18446744073709551615u    /* 2⁶⁴-1 wraps to -1 */
 	};
 	fnvlist_add_uint64_array(args, "overflowArray", overflowArray, 2);
+
+	/* 2⁶³ + 2⁶² wraps to -2⁶² */
+	fnvlist_add_uint64(args, "overflowScalar", 13835058055282163712u);
 
 	nvlist_t *ret = NULL;
 	const int error = lzc_channel_program(
