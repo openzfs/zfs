@@ -48,6 +48,7 @@ zed_conf_init(struct zed_conf *zcp)
 	zcp->zevent_fd = -1;		/* opened in zed_event_init() */
 
 	zcp->max_jobs = 16;
+	zcp->max_zevent_buf_len = 1 << 20;
 
 	if (!(zcp->pid_file = strdup(ZED_PID_FILE)) ||
 	    !(zcp->zedlet_dir = strdup(ZED_ZEDLET_DIR)) ||
@@ -141,6 +142,8 @@ _zed_conf_display_help(const char *prog, boolean_t got_err)
 		    .v = ZED_STATE_FILE },
 		{ .o = "-j JOBS", .d = "Start at most JOBS at once.",
 		    .v = "16" },
+		{ .o = "-b LEN", .d = "Cap kernel event buffer at LEN entries.",
+		    .v = "1048576" },
 		{},
 	};
 
@@ -230,7 +233,7 @@ _zed_conf_parse_path(char **resultp, const char *path)
 void
 zed_conf_parse_opts(struct zed_conf *zcp, int argc, char **argv)
 {
-	const char * const opts = ":hLVd:p:P:s:vfFMZIj:";
+	const char * const opts = ":hLVd:p:P:s:vfFMZIj:b:";
 	int opt;
 	unsigned long raw;
 
@@ -289,6 +292,17 @@ zed_conf_parse_opts(struct zed_conf *zcp, int argc, char **argv)
 				zed_log_die("0 jobs makes no sense");
 			} else {
 				zcp->max_jobs = raw;
+			}
+			break;
+		case 'b':
+			errno = 0;
+			raw = strtoul(optarg, NULL, 0);
+			if (errno == ERANGE || raw > INT32_MAX) {
+				zed_log_die("%lu is too large", raw);
+			} if (raw == 0) {
+				zcp->max_zevent_buf_len = INT32_MAX;
+			} else {
+				zcp->max_zevent_buf_len = raw;
 			}
 			break;
 		case '?':

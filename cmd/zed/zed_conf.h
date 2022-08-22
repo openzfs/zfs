@@ -33,6 +33,7 @@ struct zed_conf {
 	int		zevent_fd;		/* fd for access to zevents */
 
 	int16_t max_jobs;		/* max zedlets to run at one time */
+	int32_t max_zevent_buf_len;	/* max size of kernel event list */
 
 	boolean_t	do_force:1;		/* true if force enabled */
 	boolean_t	do_foreground:1;	/* true if run in foreground */

@@ -49,6 +49,8 @@
 #include <sys/zthr.h>
 #include <sys/spa_impl.h>
 
+extern int zfs_snapshot_history_enabled;
+
 int
 dsl_destroy_snapshot_check_impl(dsl_dataset_t *ds, boolean_t defer)
 {
@@ -321,14 +323,19 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 		ASSERT(spa_version(dp->dp_spa) >= SPA_VERSION_USERREFS);
 		dmu_buf_will_dirty(ds->ds_dbuf, tx);
 		dsl_dataset_phys(ds)->ds_flags |= DS_FLAG_DEFER_DESTROY;
-		spa_history_log_internal_ds(ds, "defer_destroy", tx, " ");
+		if (zfs_snapshot_history_enabled) {
+			spa_history_log_internal_ds(ds, "defer_destroy", tx,
+			    " ");
+		}
 		return;
 	}
 
 	ASSERT3U(dsl_dataset_phys(ds)->ds_num_children, <=, 1);
 
-	/* We need to log before removing it from the namespace. */
-	spa_history_log_internal_ds(ds, "destroy", tx, " ");
+	if (zfs_snapshot_history_enabled) {
+		/* We need to log before removing it from the namespace. */
+		spa_history_log_internal_ds(ds, "destroy", tx, " ");
+	}
 
 	dsl_scan_ds_destroyed(ds, tx);
 
