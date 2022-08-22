@@ -428,7 +428,6 @@ ztest_func_t ztest_device_removal;
 ztest_func_t ztest_spa_checkpoint_create_discard;
 ztest_func_t ztest_initialize;
 ztest_func_t ztest_trim;
-ztest_func_t ztest_blake3;
 ztest_func_t ztest_fletcher;
 ztest_func_t ztest_fletcher_incr;
 ztest_func_t ztest_verify_dnode_bt;
@@ -485,7 +484,6 @@ ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_device_removal, 1, &zopt_sometimes, B_FALSE),
 	ZTI_INIT(ztest_spa_checkpoint_create_discard, 1, &zopt_rarely, B_FALSE),
 	ZTI_INIT(ztest_initialize, 1, &zopt_sometimes, B_FALSE),
-	ZTI_INIT(ztest_blake3, 1, &zopt_rarely, B_FALSE),
 	ZTI_INIT(ztest_trim, 1, &zopt_sometimes, B_FALSE),
 	ZTI_INIT(ztest_fletcher, 1, &zopt_rarely, B_FALSE),
 	ZTI_INIT(ztest_fletcher_incr, 1, &zopt_rarely, B_FALSE),
