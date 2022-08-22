@@ -27,6 +27,7 @@
 .Op Fl P Ar path
 .Op Fl s Ar statefile
 .Op Fl j Ar jobs
+.Op Fl b Ar buflen
 .
 .Sh DESCRIPTION
 The
@@ -96,6 +97,17 @@ ZEDLETs to run concurrently,
 delaying execution of new ones until they finish.
 Defaults to
 .Sy 16 .
+.It Fl b Ar buflen
+Cap kernel event buffer growth to
+.Ar buflen
+entries.
+This buffer is grown when the daemon misses an event, but results in
+unreclaimable memory use in the kernel.
+A value of
+.Sy 0
+removes the cap.
+Defaults to
+.Sy 1048576 .
 .El
 .Sh ZEVENTS
 A zevent is comprised of a list of nvpairs (name/value pairs).
