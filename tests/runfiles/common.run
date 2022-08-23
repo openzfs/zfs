@@ -494,7 +494,7 @@ tags = ['functional', 'cli_root', 'zpool_split']
 [tests/functional/cli_root/zpool_status]
 tests = ['zpool_status_001_pos', 'zpool_status_002_pos',
     'zpool_status_003_pos', 'zpool_status_004_pos',
-    'zpool_status_features_001_pos']
+    'zpool_status_005_pos', 'zpool_status_features_001_pos']
 tags = ['functional', 'cli_root', 'zpool_status']
 
 [tests/functional/cli_root/zpool_sync]

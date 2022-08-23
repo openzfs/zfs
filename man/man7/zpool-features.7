@@ -545,6 +545,9 @@ This feature enables the upgraded version of errlog, which required an on-disk
 error log format change.
 Now the error log of each head dataset is stored separately in the zap object
 and keyed by the head id.
+In case of encrypted filesystems with unloaded keys or unmounted encrypted
+filesystems we are unable to check their snapshots or clones for errors and
+these will not be reported.
 With this feature enabled, every dataset affected by an error block is listed
 in the output of
 .Nm zpool Cm status .
