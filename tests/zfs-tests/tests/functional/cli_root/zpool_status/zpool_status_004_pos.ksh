@@ -74,6 +74,7 @@ log_must eval "zpool status -v | grep '$TESTPOOL2/10m_file'"
 
 # Check that enabling the feature reports the error properly.
 log_must zpool set feature@head_errlog=enabled $TESTPOOL2
+log_must zpool status -v $TESTPOOL2
 log_must eval "zpool status -v | grep '$TESTPOOL2@snap:/10m_file'"
 log_must eval "zpool status -v | grep '$TESTPOOL2/clone/10m_file'"
 log_must eval "zpool status -v | grep '$TESTPOOL2/10m_file'"

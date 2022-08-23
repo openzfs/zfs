@@ -1137,7 +1137,7 @@ dmu_objset_check_wkey_loaded(dsl_dir_t *dd)
 	return (0);
 }
 
-static zfs_keystatus_t
+zfs_keystatus_t
 dsl_dataset_get_keystatus(dsl_dir_t *dd)
 {
 	/* check if this dd has a has a dsl key */
