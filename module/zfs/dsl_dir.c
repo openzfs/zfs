@@ -268,13 +268,15 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 			}
 		}
 
-		inode_timespec_t t = {0};
-		zap_lookup(dd->dd_pool->dp_meta_objset,
-		    dsl_dir_phys(dd)->dd_props_zapobj,
-		    zfs_prop_to_name(ZFS_PROP_SNAPSHOTS_CHANGED),
-		    sizeof (uint64_t),
-		    sizeof (inode_timespec_t) / sizeof (uint64_t), &t);
-		dd->dd_snap_cmtime = t;
+		if (dsl_dir_is_zapified(dd)) {
+			inode_timespec_t t = {0};
+			zap_lookup(dp->dp_meta_objset, ddobj,
+			    zfs_prop_to_name(ZFS_PROP_SNAPSHOTS_CHANGED),
+			    sizeof (uint64_t),
+			    sizeof (inode_timespec_t) / sizeof (uint64_t),
+			    &t);
+			dd->dd_snap_cmtime = t;
+		}
 
 		dmu_buf_init_user(&dd->dd_dbu, NULL, dsl_dir_evict_async,
 		    &dd->dd_dbuf);
@@ -2251,16 +2253,23 @@ dsl_dir_snap_cmtime(dsl_dir_t *dd)
 void
 dsl_dir_snap_cmtime_update(dsl_dir_t *dd, dmu_tx_t *tx)
 {
+	dsl_pool_t *dp = dmu_tx_pool(tx);
 	inode_timespec_t t;
-	objset_t *mos = dd->dd_pool->dp_meta_objset;
-	uint64_t zapobj = dsl_dir_phys(dd)->dd_props_zapobj;
-	const char *prop_name = zfs_prop_to_name(ZFS_PROP_SNAPSHOTS_CHANGED);
-
 	gethrestime(&t);
+
 	mutex_enter(&dd->dd_lock);
 	dd->dd_snap_cmtime = t;
-	VERIFY0(zap_update(mos, zapobj, prop_name, sizeof (uint64_t),
-	    sizeof (inode_timespec_t) / sizeof (uint64_t), &t, tx));
+	if (spa_feature_is_enabled(dp->dp_spa,
+	    SPA_FEATURE_EXTENSIBLE_DATASET)) {
+		objset_t *mos = dd->dd_pool->dp_meta_objset;
+		uint64_t ddobj = dd->dd_object;
+		dsl_dir_zapify(dd, tx);
+		VERIFY0(zap_update(mos, ddobj,
+		    zfs_prop_to_name(ZFS_PROP_SNAPSHOTS_CHANGED),
+		    sizeof (uint64_t),
+		    sizeof (inode_timespec_t) / sizeof (uint64_t),
+		    &t, tx));
+	}
 	mutex_exit(&dd->dd_lock);
 }
 
