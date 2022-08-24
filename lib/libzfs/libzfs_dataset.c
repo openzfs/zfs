@@ -2947,7 +2947,7 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 
 			if (literal ||
 			    localtime_r(&time, &t) == NULL ||
-			    strftime(propbuf, proplen, "%a %b %e %k:%M %Y",
+			    strftime(propbuf, proplen, "%a %b %e %k:%M:%S %Y",
 			    &t) == 0)
 				(void) snprintf(propbuf, proplen, "%llu",
 				    (u_longlong_t)val);
