@@ -955,8 +955,7 @@ skip_open:
 	*logical_ashift = highbit(MAX(pp->sectorsize, SPA_MINBLOCKSIZE)) - 1;
 	*physical_ashift = 0;
 	if (pp->stripesize && pp->stripesize > (1 << *logical_ashift) &&
-	    ISP2(pp->stripesize) && pp->stripesize <= (1 << ASHIFT_MAX) &&
-	    pp->stripeoffset == 0)
+	    ISP2(pp->stripesize) && pp->stripeoffset == 0)
 		*physical_ashift = highbit(pp->stripesize) - 1;
 
 	/*
