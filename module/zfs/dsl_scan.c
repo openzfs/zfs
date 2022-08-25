@@ -2008,21 +2008,6 @@ dsl_scan_visitbp(blkptr_t *bp, const zbookmark_phys_t *zb,
 		return;
 	}
 
-	/*
-	 * Check if this block contradicts any filesystem flags.
-	 */
-	spa_feature_t f = SPA_FEATURE_LARGE_BLOCKS;
-	if (BP_GET_LSIZE(bp) > SPA_OLD_MAXBLOCKSIZE)
-		ASSERT3B(dsl_dataset_feature_is_active(ds, f), ==, B_TRUE);
-
-	f = zio_checksum_to_feature(BP_GET_CHECKSUM(bp));
-	if (f != SPA_FEATURE_NONE)
-		ASSERT3B(dsl_dataset_feature_is_active(ds, f), ==, B_TRUE);
-
-	f = zio_compress_to_feature(BP_GET_COMPRESS(bp));
-	if (f != SPA_FEATURE_NONE)
-		ASSERT3B(dsl_dataset_feature_is_active(ds, f), ==, B_TRUE);
-
 	if (bp->blk_birth <= scn->scn_phys.scn_cur_min_txg) {
 		scn->scn_lt_min_this_txg++;
 		return;

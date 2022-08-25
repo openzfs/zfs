@@ -493,7 +493,6 @@ dmu_dump_write(dmu_send_cookie_t *dscp, dmu_object_type_t type, uint64_t object,
 	    (bp != NULL ? BP_GET_COMPRESS(bp) != ZIO_COMPRESS_OFF &&
 	    io_compressed : lsize != psize);
 	if (raw || compressed) {
-		ASSERT(bp != NULL);
 		ASSERT(raw || dscp->dsc_featureflags &
 		    DMU_BACKUP_FEATURE_COMPRESSED);
 		ASSERT(!BP_IS_EMBEDDED(bp));
@@ -1018,9 +1017,6 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 		if (srdp->datablksz > SPA_OLD_MAXBLOCKSIZE &&
 		    !(dscp->dsc_featureflags &
 		    DMU_BACKUP_FEATURE_LARGE_BLOCKS)) {
-			if (dscp->dsc_featureflags & DMU_BACKUP_FEATURE_RAW)
-				return (SET_ERROR(ENOTSUP));
-
 			while (srdp->datablksz > 0 && err == 0) {
 				int n = MIN(srdp->datablksz,
 				    SPA_OLD_MAXBLOCKSIZE);

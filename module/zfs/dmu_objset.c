@@ -1696,16 +1696,6 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 	    os, ZIO_PRIORITY_ASYNC_WRITE, ZIO_FLAG_MUSTSUCCEED, &zb);
 
 	/*
-	 * In the codepath dsl_dataset_sync()->dmu_objset_sync() we cannot
-	 * rely on the zio above completing and calling back
-	 * dmu_objset_write_done()->dsl_dataset_block_born() before
-	 * dsl_dataset_sync() actually activates feature flags near its end.
-	 * Decide here if any features need to be activated, before
-	 * dsl_dataset_sync() completes its run.
-	 */
-	dsl_dataset_feature_set_activation(blkptr_copy, os->os_dsl_dataset);
-
-	/*
 	 * Sync special dnodes - the parent IO for the sync is the root block
 	 */
 	DMU_META_DNODE(os)->dn_zio = zio;
