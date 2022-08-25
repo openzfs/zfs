@@ -88,6 +88,7 @@ AC_CONFIG_FILES([
 	cmd/zvol_id/Makefile
 	cmd/zvol_wait/Makefile
 	cmd/zpool_influxdb/Makefile
+	cmd/uzfs/Makefile
 	contrib/Makefile
 	contrib/bash_completion.d/Makefile
 	contrib/bpftrace/Makefile
@@ -170,6 +171,7 @@ AC_CONFIG_FILES([
 	lib/libzpool/Makefile
 	lib/libzstd/Makefile
 	lib/libzutil/Makefile
+	lib/libuzfs/Makefile
 	man/Makefile
 	module/Kbuild
 	module/Makefile

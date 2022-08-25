@@ -19,7 +19,9 @@ USER_H = \
 	libzfs_core.h \
 	libzfs_impl.h \
 	libzutil.h \
-	thread_pool.h
+	thread_pool.h \
+	libuzfs.h \
+	libuzfs_impl.h
 
 if CONFIG_USER
 libzfsdir = $(includedir)/libzfs

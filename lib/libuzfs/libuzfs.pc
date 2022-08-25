@@ -1,0 +1,10 @@
+prefix=/usr/local
+exec_prefix=${prefix}
+libdir=${prefix}/lib
+
+Name: libuzfs
+Description: LibUZFS library
+Version: 2.1.15
+URL: https://github.com/openzfs/zfs
+Cflags: -I${prefix}/include -I${prefix}/lib/libspl/include -I${prefix}/lib/libspl/include/os/linux
+Libs: -L${libdir}/libuzfs/.libs -luzfs
