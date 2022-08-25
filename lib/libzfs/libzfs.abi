@@ -3223,7 +3223,11 @@
       <enumerator name='VDEV_PROP_REMOVING' value='39'/>
       <enumerator name='VDEV_PROP_ALLOCATING' value='40'/>
       <enumerator name='VDEV_PROP_FAILFAST' value='41'/>
-      <enumerator name='VDEV_NUM_PROPS' value='42'/>
+      <enumerator name='VDEV_PROP_CHECKSUM_N' value='42'/>
+      <enumerator name='VDEV_PROP_CHECKSUM_T' value='43'/>
+      <enumerator name='VDEV_PROP_IO_N' value='44'/>
+      <enumerator name='VDEV_PROP_IO_T' value='45'/>
+      <enumerator name='VDEV_NUM_PROPS' value='46'/>
     </enum-decl>
     <typedef-decl name='vdev_prop_t' type-id='1573bec8' id='5aa5c90c'/>
     <enum-decl name='vdev_state' id='21566197'>

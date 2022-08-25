@@ -1682,6 +1682,18 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 		}
 
 		/*
+		 * Special handling for "checksum_*=none". In this case it's not
+		 * 0 but UINT64_MAX.
+		 */
+		if ((type & ZFS_TYPE_VDEV) && isnone &&
+		    (prop == VDEV_PROP_CHECKSUM_N ||
+		    prop == VDEV_PROP_CHECKSUM_T ||
+		    prop == VDEV_PROP_IO_N ||
+		    prop == VDEV_PROP_IO_T)) {
+			*ivalp = UINT64_MAX;
+		}
+
+		/*
 		 * Special handling for setting 'refreservation' to 'auto'.  Use
 		 * UINT64_MAX to tell the caller to use zfs_fix_auto_resv().
 		 * 'auto' is only allowed on volumes.

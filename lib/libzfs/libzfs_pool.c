@@ -5002,6 +5002,17 @@ zpool_get_vdev_prop_value(nvlist_t *nvprop, vdev_prop_t prop, char *prop_name,
 				    (u_longlong_t)intval);
 			}
 			break;
+		case VDEV_PROP_CHECKSUM_N:
+		case VDEV_PROP_CHECKSUM_T:
+		case VDEV_PROP_IO_N:
+		case VDEV_PROP_IO_T:
+			if (intval == UINT64_MAX) {
+				(void) strlcpy(buf, "-", len);
+			} else {
+				(void) snprintf(buf, len, "%llu",
+				    (u_longlong_t)intval);
+			}
+			break;
 		case VDEV_PROP_FRAGMENTATION:
 			if (intval == UINT64_MAX) {
 				(void) strlcpy(buf, "-", len);
