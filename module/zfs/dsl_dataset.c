@@ -133,30 +133,6 @@ parent_delta(dsl_dataset_t *ds, int64_t delta)
 }
 
 void
-dsl_dataset_feature_set_activation(const blkptr_t *bp, dsl_dataset_t *ds)
-{
-	spa_feature_t f;
-	if (BP_GET_LSIZE(bp) > SPA_OLD_MAXBLOCKSIZE) {
-		ds->ds_feature_activation[SPA_FEATURE_LARGE_BLOCKS] =
-		    (void *)B_TRUE;
-	}
-
-	f = zio_checksum_to_feature(BP_GET_CHECKSUM(bp));
-	if (f != SPA_FEATURE_NONE) {
-		ASSERT3S(spa_feature_table[f].fi_type, ==,
-		    ZFEATURE_TYPE_BOOLEAN);
-		ds->ds_feature_activation[f] = (void *)B_TRUE;
-	}
-
-	f = zio_compress_to_feature(BP_GET_COMPRESS(bp));
-	if (f != SPA_FEATURE_NONE) {
-		ASSERT3S(spa_feature_table[f].fi_type, ==,
-		    ZFEATURE_TYPE_BOOLEAN);
-		ds->ds_feature_activation[f] = (void *)B_TRUE;
-	}
-}
-
-void
 dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 {
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
@@ -164,6 +140,7 @@ dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 	int compressed = BP_GET_PSIZE(bp);
 	int uncompressed = BP_GET_UCSIZE(bp);
 	int64_t delta;
+	spa_feature_t f;
 
 	dprintf_bp(bp, "ds=%p", ds);
 
@@ -188,7 +165,25 @@ dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 	dsl_dataset_phys(ds)->ds_uncompressed_bytes += uncompressed;
 	dsl_dataset_phys(ds)->ds_unique_bytes += used;
 
-	dsl_dataset_feature_set_activation(bp, ds);
+	if (BP_GET_LSIZE(bp) > SPA_OLD_MAXBLOCKSIZE) {
+		ds->ds_feature_activation[SPA_FEATURE_LARGE_BLOCKS] =
+		    (void *)B_TRUE;
+	}
+
+
+	f = zio_checksum_to_feature(BP_GET_CHECKSUM(bp));
+	if (f != SPA_FEATURE_NONE) {
+		ASSERT3S(spa_feature_table[f].fi_type, ==,
+		    ZFEATURE_TYPE_BOOLEAN);
+		ds->ds_feature_activation[f] = (void *)B_TRUE;
+	}
+
+	f = zio_compress_to_feature(BP_GET_COMPRESS(bp));
+	if (f != SPA_FEATURE_NONE) {
+		ASSERT3S(spa_feature_table[f].fi_type, ==,
+		    ZFEATURE_TYPE_BOOLEAN);
+		ds->ds_feature_activation[f] = (void *)B_TRUE;
+	}
 
 	/*
 	 * Track block for livelist, but ignore embedded blocks because
@@ -5027,4 +5022,3 @@ EXPORT_SYMBOL(dsl_dsobj_to_dsname);
 EXPORT_SYMBOL(dsl_dataset_check_quota);
 EXPORT_SYMBOL(dsl_dataset_clone_swap_check_impl);
 EXPORT_SYMBOL(dsl_dataset_clone_swap_sync_impl);
-EXPORT_SYMBOL(dsl_dataset_feature_set_activation);
