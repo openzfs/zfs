@@ -6543,8 +6543,10 @@ dump_block_stats(spa_t *spa)
 		leaks = B_TRUE;
 	}
 
-	if (tzb->zb_count == 0)
+	if (tzb->zb_count == 0) {
+		umem_free(zcb, sizeof (zdb_cb_t));
 		return (2);
+	}
 
 	(void) printf("\n");
 	(void) printf("\t%-16s %14llu\n", "bp count:",
@@ -6750,8 +6752,10 @@ dump_block_stats(spa_t *spa)
 
 	(void) printf("\n");
 
-	if (leaks)
+	if (leaks) {
+		umem_free(zcb, sizeof (zdb_cb_t));
 		return (2);
+	}
 
 	if (zcb->zcb_haderrors) {
 		umem_free(zcb, sizeof (zdb_cb_t));
