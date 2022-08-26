@@ -1694,6 +1694,8 @@ zpool_find_import_cached(libpc_handle_t *hdl, importargs_t *iarg)
 			 * caller.
 			 */
 			nvpair_t *pair = nvlist_next_nvpair(nv, NULL);
+			if (pair == NULL)
+				continue;
 			fnvlist_add_nvlist(pools, nvpair_name(pair),
 			    fnvpair_value_nvlist(pair));
 
