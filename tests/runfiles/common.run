@@ -847,7 +847,7 @@ tests = ['recv_dedup', 'recv_dedup_encrypted_zvol', 'rsend_001_pos',
     'send_realloc_encrypted_files', 'send_spill_block', 'send_holds',
     'send_hole_birth', 'send_mixed_raw', 'send-wR_encrypted_zvol',
     'send_partial_dataset', 'send_invalid', 'send_doall',
-    'send_raw_spill_block', 'send_raw_ashift']
+    'send_raw_spill_block', 'send_raw_ashift', 'send_raw_large_blocks']
 tags = ['functional', 'rsend']
 
 [tests/functional/scrub_mirror]
