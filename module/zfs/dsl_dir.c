@@ -271,7 +271,7 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 		if (dsl_dir_is_zapified(dd)) {
 			inode_timespec_t t = {0};
 			zap_lookup(dp->dp_meta_objset, ddobj,
-			    zfs_prop_to_name(ZFS_PROP_SNAPSHOTS_CHANGED),
+			    DD_FIELD_SNAPSHOTS_CHANGED,
 			    sizeof (uint64_t),
 			    sizeof (inode_timespec_t) / sizeof (uint64_t),
 			    &t);
@@ -2265,7 +2265,7 @@ dsl_dir_snap_cmtime_update(dsl_dir_t *dd, dmu_tx_t *tx)
 		uint64_t ddobj = dd->dd_object;
 		dsl_dir_zapify(dd, tx);
 		VERIFY0(zap_update(mos, ddobj,
-		    zfs_prop_to_name(ZFS_PROP_SNAPSHOTS_CHANGED),
+		    DD_FIELD_SNAPSHOTS_CHANGED,
 		    sizeof (uint64_t),
 		    sizeof (inode_timespec_t) / sizeof (uint64_t),
 		    &t, tx));
