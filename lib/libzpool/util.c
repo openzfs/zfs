@@ -245,39 +245,96 @@ refresh_config(void *unused, nvlist_t *tryconfig)
 	return (spa_tryimport(tryconfig));
 }
 
+#if defined(__FreeBSD__)
+
+#include <sys/param.h>
+#include <sys/sysctl.h>
+#include <os/freebsd/zfs/sys/zfs_ioctl_compat.h>
+
+static int
+pool_active(void *unused, const char *name, uint64_t guid, boolean_t *isactive)
+{
+	zfs_iocparm_t zp;
+	zfs_cmd_t *zc = NULL;
+	zfs_cmd_legacy_t *zcl = NULL;
+	unsigned long request;
+	int ret;
+
+	int fd = open(ZFS_DEV, O_RDWR | O_CLOEXEC);
+	if (fd < 0)
+		return (-1);
+
+	/*
+	 * Use ZFS_IOC_POOL_STATS to check if the pool is active.  We want to
+	 * avoid adding a dependency on libzfs_core solely for this ioctl(),
+	 * therefore we manually craft the stats command.  Note that the command
+	 * ID is identical between the openzfs and legacy ioctl() formats.
+	 */
+	int ver = ZFS_IOCVER_NONE;
+	size_t ver_size = sizeof (ver);
+
+	sysctlbyname("vfs.zfs.version.ioctl", &ver, &ver_size, NULL, 0);
+
+	switch (ver) {
+	case ZFS_IOCVER_OZFS:
+		zc = umem_zalloc(sizeof (zfs_cmd_t), UMEM_NOFAIL);
+
+		(void) strlcpy(zc->zc_name, name, sizeof (zc->zc_name));
+		zp.zfs_cmd = (uint64_t)(uintptr_t)zc;
+		zp.zfs_cmd_size = sizeof (zfs_cmd_t);
+		zp.zfs_ioctl_version = ZFS_IOCVER_OZFS;
+
+		request = _IOWR('Z', ZFS_IOC_POOL_STATS, zfs_iocparm_t);
+		ret = ioctl(fd, request, &zp);
+
+		free((void *)(uintptr_t)zc->zc_nvlist_dst);
+		umem_free(zc, sizeof (zfs_cmd_t));
+
+		break;
+	case ZFS_IOCVER_LEGACY:
+		zcl = umem_zalloc(sizeof (zfs_cmd_legacy_t), UMEM_NOFAIL);
+
+		(void) strlcpy(zcl->zc_name, name, sizeof (zcl->zc_name));
+		zp.zfs_cmd = (uint64_t)(uintptr_t)zcl;
+		zp.zfs_cmd_size = sizeof (zfs_cmd_legacy_t);
+		zp.zfs_ioctl_version = ZFS_IOCVER_LEGACY;
+
+		request = _IOWR('Z', ZFS_IOC_POOL_STATS, zfs_iocparm_t);
+		ret = ioctl(fd, request, &zp);
+
+		free((void *)(uintptr_t)zcl->zc_nvlist_dst);
+		umem_free(zcl, sizeof (zfs_cmd_legacy_t));
+
+		break;
+	default:
+		fprintf(stderr, "unrecognized zfs ioctl version %d", ver);
+		exit(1);
+	}
+
+	(void) close(fd);
+
+	*isactive = (ret == 0);
+
+	return (0);
+}
+#else
 static int
 pool_active(void *unused, const char *name, uint64_t guid,
     boolean_t *isactive)
 {
-	zfs_cmd_t *zcp;
-	nvlist_t *innvl;
-	char *packed = NULL;
-	size_t size = 0;
-	int fd, ret;
-
-	/*
-	 * Use ZFS_IOC_POOL_SYNC to confirm if a pool is active
-	 */
-
-	fd = open(ZFS_DEV, O_RDWR | O_CLOEXEC);
+	int fd = open(ZFS_DEV, O_RDWR | O_CLOEXEC);
 	if (fd < 0)
 		return (-1);
 
-	zcp = umem_zalloc(sizeof (zfs_cmd_t), UMEM_NOFAIL);
-
-	innvl = fnvlist_alloc();
-	fnvlist_add_boolean_value(innvl, "force", B_FALSE);
-
+	/*
+	 * Use ZFS_IOC_POOL_STATS to check if a pool is active.
+	 */
+	zfs_cmd_t *zcp = umem_zalloc(sizeof (zfs_cmd_t), UMEM_NOFAIL);
 	(void) strlcpy(zcp->zc_name, name, sizeof (zcp->zc_name));
-	packed = fnvlist_pack(innvl, &size);
-	zcp->zc_nvlist_src = (uint64_t)(uintptr_t)packed;
-	zcp->zc_nvlist_src_size = size;
 
-	ret = zfs_ioctl_fd(fd, ZFS_IOC_POOL_SYNC, zcp);
+	int ret = ioctl(fd, ZFS_IOC_POOL_STATS, zcp);
 
-	fnvlist_pack_free(packed, size);
 	free((void *)(uintptr_t)zcp->zc_nvlist_dst);
-	nvlist_free(innvl);
 	umem_free(zcp, sizeof (zfs_cmd_t));
 
 	(void) close(fd);
@@ -286,6 +343,7 @@ pool_active(void *unused, const char *name, uint64_t guid,
 
 	return (0);
 }
+#endif
 
 const pool_config_ops_t libzpool_config_ops = {
 	.pco_refresh_config = refresh_config,

@@ -214,9 +214,9 @@ nodist_libzpool_la_SOURCES = \
 libzpool_la_LIBADD = \
 	$(abs_top_builddir)/lib/libicp/libicp.la \
 	$(abs_top_builddir)/lib/libunicode/libunicode.la \
-	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
 	$(abs_top_builddir)/lib/libnvpair/libnvpair.la \
-	$(abs_top_builddir)/lib/libzstd/libzstd.la
+	$(abs_top_builddir)/lib/libzstd/libzstd.la \
+	$(abs_top_builddir)/lib/libzutil/libzutil.la
 
 libzpool_la_LIBADD += $(LIBCLOCK_GETTIME) $(ZLIB_LIBS) -ldl -lm
 

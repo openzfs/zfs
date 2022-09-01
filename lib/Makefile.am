@@ -1,5 +1,44 @@
+#
+# Shown below is a simplified dependency graph of the OpenZFS provided
+# libraries.  Administrative commands (`zfs`, `zpool`, etc) interface with
+# the kernel modules using the `libzfs.so` and `libzfs_core.so` libraries.
+# These libraries provide a stable ABI across OpenZFS point releases.
+#
+# The `libzpool.so` library is a user space build of the DMU and SPA layers
+# used to implement debugging tools (zdb) and code validation tools (ztest).
+# These library interfaces are subject to change at any time.
+#
+#
+# CMDS:   zhack/ztest/zdb/            zfs/zpool/zed/
+#        raidz_{test,bench}          zinject/zstream
+#                |                          |
+# LIBS:          |                          |              libzfsbootenv*
+#                |                          |                    |
+#                |                          |                    |
+#             libzpool                   libzfs* ----------------+
+#             | | |  \                  / | | |
+#    libicp --/ | |   \                /  | | \------- libshare
+#               | |    \              /   | |
+#    libzstd ---/ |     \            /    | \--------- libuutil
+#                 |      \          /     \              | |
+#    libunicode --/       \        /       \             | |
+#                          \      /         \            | |
+#                          libzutil        libzfs_core*  | |
+#                          | | | | \          |     |    | |
+#                          | | | | |          |     |    | |
+#                          | | | | |          |     |    | |
+#    libtpool -------------/ | | | \---- libnvpair* |    | |
+#                            | | |                  |    | |
+#    libefi -----------------/ | \------ libavl* --------/ |
+#                              |                    |      |
+#                              \-------- libspl ----+------/
+#
+# * - A stable ABI is provided for these libraries
+#
+#
 # NB: GNU Automake Manual, Chapter 8.3.5: Libtool Convenience Libraries
 # These nine libraries are intermediary build components.
+#
 SUBDIRS = libavl libicp libshare libspl libtpool libzstd
 CPPCHECKDIRS  = libavl libicp libnvpair libshare libspl libtpool libunicode
 CPPCHECKDIRS += libuutil libzfs libzfs_core libzfsbootenv libzpool libzutil
