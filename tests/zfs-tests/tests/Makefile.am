@@ -1230,6 +1230,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_user/misc/arcstat_001_pos.ksh \
 	functional/cli_user/misc/arc_summary_001_pos.ksh \
 	functional/cli_user/misc/arc_summary_002_neg.ksh \
+	functional/cli_user/misc/zilstat_001_pos.ksh \
 	functional/cli_user/misc/cleanup.ksh \
 	functional/cli_user/misc/setup.ksh \
 	functional/cli_user/misc/zdb_001_neg.ksh \
