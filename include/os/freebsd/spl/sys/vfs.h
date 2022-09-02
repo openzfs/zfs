@@ -117,9 +117,5 @@ typedef	uint64_t	vfs_feature_t;
 #define	VFSFT_ZEROCOPY_SUPPORTED	0x100000200
 				/* Support loaning /returning cache buffer */
 
-#define	vfs_set_feature(vfsp, feature)		do { } while (0)
-#define	vfs_clear_feature(vfsp, feature)	do { } while (0)
-#define	vfs_has_feature(vfsp, feature)		(0)
-
 #include <sys/mount.h>
 #endif	/* _OPENSOLARIS_SYS_VFS_H_ */

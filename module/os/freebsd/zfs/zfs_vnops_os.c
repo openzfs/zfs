@@ -1672,7 +1672,6 @@ zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, int *eofp,
 	int		outcount;
 	int		error;
 	uint8_t		prefetch;
-	boolean_t	check_sysattrs;
 	uint8_t		type;
 	int		ncooks;
 	cookie_t	*cooks = NULL;
@@ -1756,19 +1755,6 @@ zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, int *eofp,
 		*cookies = cooks;
 		*ncookies = ncooks;
 	}
-	/*
-	 * If this VFS supports the system attribute view interface; and
-	 * we're looking at an extended attribute directory; and we care
-	 * about normalization conflicts on this vfs; then we must check
-	 * for normalization conflicts with the sysattr name space.
-	 */
-#ifdef TODO
-	check_sysattrs = vfs_has_feature(vp->v_vfsp, VFSFT_SYSATTR_VIEWS) &&
-	    (vp->v_flag & V_XATTRDIR) && zfsvfs->z_norm &&
-	    (flags & V_RDDIR_ENTFLAGS);
-#else
-	check_sysattrs = 0;
-#endif
 
 	/*
 	 * Transform to file-system independent format
@@ -1824,15 +1810,6 @@ zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, int *eofp,
 			 * uint8_t type = ZFS_DIRENT_TYPE(zap.za_first_integer);
 			 */
 			type = ZFS_DIRENT_TYPE(zap.za_first_integer);
-
-			if (check_sysattrs && !zap.za_normalization_conflict) {
-#ifdef TODO
-				zap.za_normalization_conflict =
-				    xattr_sysattr_casechk(zap.za_name);
-#else
-				panic("%s:%u: TODO", __func__, __LINE__);
-#endif
-			}
 		}
 
 		if (flags & V_RDDIR_ACCFILTER) {
