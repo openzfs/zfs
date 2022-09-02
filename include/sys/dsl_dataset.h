@@ -301,6 +301,14 @@ typedef struct dsl_dataset_snapshot_arg {
 	proc_t *ddsa_proc;
 } dsl_dataset_snapshot_arg_t;
 
+typedef struct dsl_dataset_rename_snapshot_arg {
+	const char *ddrsa_fsname;
+	const char *ddrsa_oldsnapname;
+	const char *ddrsa_newsnapname;
+	boolean_t ddrsa_recursive;
+	dmu_tx_t *ddrsa_tx;
+} dsl_dataset_rename_snapshot_arg_t;
+
 /*
  * The max length of a temporary tag prefix is the number of hex digits
  * required to express UINT64_MAX plus one for the hyphen.
@@ -472,6 +480,9 @@ int dsl_dataset_rollback_check(void *arg, dmu_tx_t *tx);
 void dsl_dataset_rollback_sync(void *arg, dmu_tx_t *tx);
 int dsl_dataset_rollback(const char *fsname, const char *tosnap, void *owner,
     nvlist_t *result);
+
+int dsl_dataset_rename_snapshot_check(void *arg, dmu_tx_t *tx);
+void dsl_dataset_rename_snapshot_sync(void *arg, dmu_tx_t *tx);
 
 uint64_t dsl_dataset_get_remap_deadlist_object(dsl_dataset_t *ds);
 void dsl_dataset_create_remap_deadlist(dsl_dataset_t *ds, dmu_tx_t *tx);
