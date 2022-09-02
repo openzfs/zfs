@@ -52,6 +52,7 @@ struct zthr;
 #define	DD_FIELD_SNAPSHOT_COUNT		"com.joyent:snapshot_count"
 #define	DD_FIELD_CRYPTO_KEY_OBJ		"com.datto:crypto_key_obj"
 #define	DD_FIELD_LIVELIST		"com.delphix:livelist"
+#define	DD_FIELD_SNAPSHOTS_CHANGED	"com.ixsystems:snapshots_changed"
 
 typedef enum dd_used {
 	DD_USED_HEAD,
