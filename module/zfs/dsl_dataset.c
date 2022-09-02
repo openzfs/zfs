@@ -2915,14 +2915,6 @@ dsl_dataset_modified_since_snap(dsl_dataset_t *ds, dsl_dataset_t *snap)
 	return (B_FALSE);
 }
 
-typedef struct dsl_dataset_rename_snapshot_arg {
-	const char *ddrsa_fsname;
-	const char *ddrsa_oldsnapname;
-	const char *ddrsa_newsnapname;
-	boolean_t ddrsa_recursive;
-	dmu_tx_t *ddrsa_tx;
-} dsl_dataset_rename_snapshot_arg_t;
-
 static int
 dsl_dataset_rename_snapshot_check_impl(dsl_pool_t *dp,
     dsl_dataset_t *hds, void *arg)
@@ -2953,7 +2945,7 @@ dsl_dataset_rename_snapshot_check_impl(dsl_pool_t *dp,
 	return (error);
 }
 
-static int
+int
 dsl_dataset_rename_snapshot_check(void *arg, dmu_tx_t *tx)
 {
 	dsl_dataset_rename_snapshot_arg_t *ddrsa = arg;
@@ -3015,7 +3007,7 @@ dsl_dataset_rename_snapshot_sync_impl(dsl_pool_t *dp,
 	return (0);
 }
 
-static void
+void
 dsl_dataset_rename_snapshot_sync(void *arg, dmu_tx_t *tx)
 {
 	dsl_dataset_rename_snapshot_arg_t *ddrsa = arg;

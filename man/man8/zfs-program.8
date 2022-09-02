@@ -424,6 +424,19 @@ To enable taking snapshots from ZCP scripts, the pool must be upgraded.
 .It Ar dataset Pq string
 Name of snapshot to create.
 .El
+.It Fn zfs.sync.rename_snapshot dataset oldsnapname newsnapname
+Rename a snapshot of a filesystem or a volume.
+Returns 0 if the snapshot was successfully renamed,
+and a nonzero error code otherwise.
+.Pp
+.Bl -tag -compact -width "newbookmark (string)"
+.It Ar dataset Pq string
+Name of the snapshot's parent dataset.
+.It Ar oldsnapname Pq string
+Original name of the snapshot.
+.It Ar newsnapname Pq string
+New name of the snapshot.
+.El
 .It Fn zfs.sync.bookmark source newbookmark
 Create a bookmark of an existing source snapshot or bookmark.
 Returns 0 if the new bookmark was successfully created,

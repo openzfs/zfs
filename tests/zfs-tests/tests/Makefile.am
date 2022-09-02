@@ -129,6 +129,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/channel_program/synctask_core/tst.snapshot_destroy.zcp \
 	functional/channel_program/synctask_core/tst.snapshot_neg.zcp \
 	functional/channel_program/synctask_core/tst.snapshot_recursive.zcp \
+	functional/channel_program/synctask_core/tst.snapshot_rename.zcp \
 	functional/channel_program/synctask_core/tst.snapshot_simple.zcp \
 	functional/checksum/default.cfg \
 	functional/clean_mirror/clean_mirror_common.kshlib \
@@ -536,6 +537,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/channel_program/synctask_core/tst.snapshot_destroy.ksh \
 	functional/channel_program/synctask_core/tst.snapshot_neg.ksh \
 	functional/channel_program/synctask_core/tst.snapshot_recursive.ksh \
+	functional/channel_program/synctask_core/tst.snapshot_rename.ksh \
 	functional/channel_program/synctask_core/tst.snapshot_simple.ksh \
 	functional/channel_program/synctask_core/tst.terminate_by_signal.ksh \
 	functional/chattr/chattr_001_pos.ksh \

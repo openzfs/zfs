@@ -302,6 +302,42 @@ zcp_synctask_snapshot(lua_State *state, boolean_t sync, nvlist_t *err_details)
 	return (err);
 }
 
+static int zcp_synctask_rename_snapshot(lua_State *, boolean_t, nvlist_t *);
+static const zcp_synctask_info_t zcp_synctask_rename_snapshot_info = {
+	.name = "rename_snapshot",
+	.func = zcp_synctask_rename_snapshot,
+	.pargs = {
+	    {.za_name = "filesystem | volume", .za_lua_type = LUA_TSTRING },
+	    {.za_name = "oldsnapname", .za_lua_type = LUA_TSTRING },
+	    {.za_name = "newsnapname", .za_lua_type = LUA_TSTRING },
+	    {NULL, 0}
+	},
+	.space_check = ZFS_SPACE_CHECK_RESERVED,
+	.blocks_modified = 1
+};
+
+static int
+zcp_synctask_rename_snapshot(lua_State *state, boolean_t sync,
+    nvlist_t *err_details)
+{
+	(void) err_details;
+	int err;
+	const char *fsname = lua_tostring(state, 1);
+	const char *oldsnapname = lua_tostring(state, 2);
+	const char *newsnapname = lua_tostring(state, 3);
+
+	struct dsl_dataset_rename_snapshot_arg ddrsa = { 0 };
+	ddrsa.ddrsa_fsname = fsname;
+	ddrsa.ddrsa_oldsnapname = oldsnapname;
+	ddrsa.ddrsa_newsnapname = newsnapname;
+	ddrsa.ddrsa_recursive = B_FALSE;
+
+	err = zcp_sync_task(state, dsl_dataset_rename_snapshot_check,
+	    dsl_dataset_rename_snapshot_sync, &ddrsa, sync, NULL);
+
+	return (err);
+}
+
 static int zcp_synctask_inherit_prop(lua_State *, boolean_t,
     nvlist_t *err_details);
 static const zcp_synctask_info_t zcp_synctask_inherit_prop_info = {
@@ -529,6 +565,7 @@ zcp_load_synctask_lib(lua_State *state, boolean_t sync)
 		&zcp_synctask_promote_info,
 		&zcp_synctask_rollback_info,
 		&zcp_synctask_snapshot_info,
+		&zcp_synctask_rename_snapshot_info,
 		&zcp_synctask_inherit_prop_info,
 		&zcp_synctask_bookmark_info,
 		&zcp_synctask_set_prop_info,
