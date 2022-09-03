@@ -145,6 +145,25 @@ typedef struct zfs_soft_state {
 /* Verifies the znode is valid */
 #define	ZFS_VERIFY_ZP(zp)	ZFS_VERIFY_ZP_ERROR(zp, EIO)
 
+/* Called on entry to each ZFS vnode and vfs operation  */
+static inline int
+zfs_enter(zfsvfs_t *zfsvfs, const char *tag)
+{
+	ZFS_TEARDOWN_ENTER_READ(zfsvfs, tag);
+	if (__predict_false((zfsvfs)->z_unmounted)) {
+		ZFS_TEARDOWN_EXIT_READ(zfsvfs, tag);
+		return (SET_ERROR(EIO));
+	}
+	return (0);
+}
+
+/* Must be called before exiting the vop */
+static inline void
+zfs_exit(zfsvfs_t *zfsvfs, const char *tag)
+{
+	ZFS_TEARDOWN_EXIT_READ(zfsvfs, tag);
+}
+
 /*
  * Macros for dealing with dmu_buf_hold
  */

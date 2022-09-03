@@ -84,39 +84,41 @@ extern "C" {
 #define	zrele(zp)	iput(ZTOI((zp)))
 
 /* Called on entry to each ZFS inode and vfs operation. */
-#define	ZFS_ENTER_ERROR(zfsvfs, error)				\
-do {								\
-	ZFS_TEARDOWN_ENTER_READ(zfsvfs, FTAG);			\
-	if (unlikely((zfsvfs)->z_unmounted)) {			\
-		ZFS_TEARDOWN_EXIT_READ(zfsvfs, FTAG);		\
-		return (error);					\
-	}							\
-} while (0)
-#define	ZFS_ENTER(zfsvfs)	ZFS_ENTER_ERROR(zfsvfs, EIO)
-#define	ZPL_ENTER(zfsvfs)	ZFS_ENTER_ERROR(zfsvfs, -EIO)
+static inline int
+zfs_enter(zfsvfs_t *zfsvfs, const char *tag)
+{
+	ZFS_TEARDOWN_ENTER_READ(zfsvfs, tag);
+	if (unlikely(zfsvfs->z_unmounted)) {
+		ZFS_TEARDOWN_EXIT_READ(zfsvfs, tag);
+		return (SET_ERROR(EIO));
+	}
+	return (0);
+}
 
 /* Must be called before exiting the operation. */
-#define	ZFS_EXIT(zfsvfs)					\
-do {								\
-	zfs_exit_fs(zfsvfs);					\
-	ZFS_TEARDOWN_EXIT_READ(zfsvfs, FTAG);			\
-} while (0)
+static inline void
+zfs_exit(zfsvfs_t *zfsvfs, const char *tag)
+{
+	zfs_exit_fs(zfsvfs);
+	ZFS_TEARDOWN_EXIT_READ(zfsvfs, tag);
+}
 
-#define	ZPL_EXIT(zfsvfs)					\
-do {								\
-	rrm_exit(&(zfsvfs)->z_teardown_lock, FTAG);		\
-} while (0)
+static inline int
+zpl_enter(zfsvfs_t *zfsvfs, const char *tag)
+{
+	return (-zfs_enter(zfsvfs, tag));
+}
 
-/* Verifies the znode is valid. */
-#define	ZFS_VERIFY_ZP_ERROR(zp, error)				\
-do {								\
-	if (unlikely((zp)->z_sa_hdl == NULL)) {			\
-		ZFS_EXIT(ZTOZSB(zp));				\
-		return (error);					\
-	}							\
-} while (0)
-#define	ZFS_VERIFY_ZP(zp)	ZFS_VERIFY_ZP_ERROR(zp, EIO)
-#define	ZPL_VERIFY_ZP(zp)	ZFS_VERIFY_ZP_ERROR(zp, -EIO)
+static inline void
+zpl_exit(zfsvfs_t *zfsvfs, const char *tag)
+{
+	ZFS_TEARDOWN_EXIT_READ(zfsvfs, tag);
+}
+
+/* zfs_verify_zp and zfs_enter_verify_zp are defined in zfs_znode.h */
+#define	zpl_verify_zp(zp)	(-zfs_verify_zp(zp))
+#define	zpl_enter_verify_zp(zfsvfs, zp, tag)	\
+	(-zfs_enter_verify_zp(zfsvfs, zp, tag))
 
 /*
  * Macros for dealing with dmu_buf_hold
