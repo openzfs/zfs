@@ -1162,6 +1162,20 @@ Selecting any option other than
 results in vector instructions
 from the respective CPU instruction set being used.
 .
+.It Sy zfs_blake3_impl Ns = Ns Sy fastest Pq string
+Select a BLAKE3 implementation.
+.Pp
+Supported selectors are:
+.Sy cycle , fastest , generic , sse2 , sse41 , avx2 , avx512 .
+All except
+.Sy cycle , fastest No and Sy generic
+require instruction set extensions to be available,
+and will only appear if ZFS detects that they are present at runtime.
+If multiple implementations of BLAKE3 are available, the
+.Sy fastest will be chosen using a micro benchmark. You can see the
+benchmark results by reading this kstat file:
+.Pa /proc/spl/kstat/zfs/chksum_bench .
+.
 .It Sy zfs_free_bpobj_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Enable/disable the processing of the free_bpobj object.
 .
