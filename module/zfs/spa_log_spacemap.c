@@ -1176,7 +1176,7 @@ spa_ld_log_sm_data(spa_t *spa)
 		}
 
 		/* Load TXG log spacemap into ms_unflushed_allocs/frees. */
-		cond_resched();
+		kpreempt(KPREEMPT_SYNC);
 		ASSERT0(sls->sls_nblocks);
 		sls->sls_nblocks = space_map_nblocks(sls->sls_sm);
 		spa->spa_unflushed_stats.sus_nblocks += sls->sls_nblocks;
