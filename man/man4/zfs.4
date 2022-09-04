@@ -15,7 +15,7 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.Dd November 9, 2022
+.Dd December 21, 2022
 .Dt ZFS 4
 .Os
 .
@@ -495,6 +495,10 @@ If set, when we start iterating over a ZAP object,
 prefetch the entire object (all leaf blocks).
 However, this is limited by
 .Sy dmu_prefetch_max .
+.
+.It Sy zap_micro_max_size Ns = Ns Sy 131072 Ns B Po 128 KiB Pc Pq int
+Maximum micro ZAP size.
+A micro ZAP is upgraded to a fat ZAP, once it grows beyond the specified size.
 .
 .It Sy zfetch_array_rd_sz Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq u64
 If prefetching is enabled, disable prefetching for reads larger than this size.

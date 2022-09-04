@@ -41,6 +41,8 @@
 #include <sys/sunddi.h>
 #endif
 
+int zap_micro_max_size = MZAP_MAX_BLKSZ;
+
 static int mzap_upgrade(zap_t **zapp,
     const void *tag, dmu_tx_t *tx, zap_flags_t flags);
 
@@ -568,7 +570,7 @@ zap_lockdir_impl(dmu_buf_t *db, const void *tag, dmu_tx_t *tx,
 	if (zap->zap_ismicro && tx && adding &&
 	    zap->zap_m.zap_num_entries == zap->zap_m.zap_num_chunks) {
 		uint64_t newsz = db->db_size + SPA_MINBLOCKSIZE;
-		if (newsz > MZAP_MAX_BLKSZ) {
+		if (newsz > zap_micro_max_size) {
 			dprintf("upgrading obj %llu: num_entries=%u\n",
 			    (u_longlong_t)obj, zap->zap_m.zap_num_entries);
 			*zapp = zap;
@@ -1724,4 +1726,8 @@ EXPORT_SYMBOL(zap_cursor_advance);
 EXPORT_SYMBOL(zap_cursor_serialize);
 EXPORT_SYMBOL(zap_cursor_init_serialized);
 EXPORT_SYMBOL(zap_get_stats);
+
+/* CSTYLED */
+ZFS_MODULE_PARAM(zfs, , zap_micro_max_size, INT, ZMOD_RW,
+	"Maximum micro ZAP size, before converting to a fat ZAP, in bytes");
 #endif
