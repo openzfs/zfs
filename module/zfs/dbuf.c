@@ -588,7 +588,7 @@ dbuf_is_metadata(dmu_buf_impl_t *db)
 		boolean_t is_metadata;
 
 		DB_DNODE_ENTER(db);
-		is_metadata = DMU_OT_IS_METADATA(DB_DNODE(db)->dn_type);
+		is_metadata = !!DMU_OT_IS_METADATA(DB_DNODE(db)->dn_type);
 		DB_DNODE_EXIT(db);
 
 		return (is_metadata);

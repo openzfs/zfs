@@ -87,7 +87,7 @@ __dbuf_stats_hash_table_data(char *buf, size_t size, dmu_buf_impl_t *db)
 	    (longlong_t)db->db_blkid,
 	    (u_longlong_t)db->db.db_offset,
 	    (u_longlong_t)db->db.db_size,
-	    !!dbuf_is_metadata(db),
+	    dbuf_is_metadata(db),
 	    db->db_state,
 	    (ulong_t)zfs_refcount_count(&db->db_holds),
 	    multilist_link_active(&db->db_cache_link),
