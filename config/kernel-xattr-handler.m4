@@ -100,6 +100,19 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_XATTR_HANDLER_GET], [
 			.get = get,
 		};
 	],[])
+
+	ZFS_LINUX_TEST_SRC([xattr_handler_get_dentry_inode_flags], [
+		#include <linux/xattr.h>
+
+		int get(const struct xattr_handler *handler,
+		    struct dentry *dentry, struct inode *inode,
+		    const char *name, void *buffer,
+		    size_t size, int flags) { return 0; }
+		static const struct xattr_handler
+		    xops __attribute__ ((unused)) = {
+			.get = get,
+		};
+	],[])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_GET], [
@@ -142,7 +155,21 @@ AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_GET], [
 				AC_DEFINE(HAVE_XATTR_GET_DENTRY, 1,
 				    [xattr_handler->get() wants dentry])
 			],[
-				ZFS_LINUX_TEST_ERROR([xattr get()])
+				dnl #
+				dnl # Android API change,
+				dnl # The xattr_handler->get() callback was
+				dnl # changed to take dentry, inode and flags.
+				dnl #
+				AC_MSG_RESULT(no)
+				AC_MSG_CHECKING(
+				    [whether xattr_handler->get() wants dentry and inode and flags])
+				ZFS_LINUX_TEST_RESULT([xattr_handler_get_dentry_inode_flags], [
+					AC_MSG_RESULT(yes)
+					AC_DEFINE(HAVE_XATTR_GET_DENTRY_INODE_FLAGS, 1,
+					    [xattr_handler->get() wants dentry and inode and flags])
+				],[
+					ZFS_LINUX_TEST_ERROR([xattr get()])
+				])
 			])
 		])
 	])
