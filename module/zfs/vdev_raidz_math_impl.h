@@ -460,8 +460,8 @@ static void
 raidz_gen_pqr_add(void **c, const void *dc, const size_t csize,
     const size_t dsize)
 {
-	v_t *p = (v_t *)c[0];
-	v_t *q = (v_t *)c[1];
+	v_t *p = (v_t *)c[CODE_P];
+	v_t *q = (v_t *)c[CODE_Q];
 	v_t *r = (v_t *)c[CODE_R];
 	const v_t *d = (const v_t *)dc;
 	const v_t * const dend = d + (dsize / sizeof (v_t));
@@ -486,7 +486,7 @@ raidz_gen_pqr_add(void **c, const void *dc, const size_t csize,
 
 
 /*
- * Generate PQR parity (RAIDZ2)
+ * Generate PQR parity (RAIDZ3)
  *
  * @rr	RAIDZ row
  */
