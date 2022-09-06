@@ -1452,6 +1452,9 @@ spl_kmem_cache_init(void)
 	    spl_kmem_cache_kmem_threads * 8, INT_MAX,
 	    TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
 
+	if (spl_kmem_cache_taskq == NULL)
+		return (-ENOMEM);
+
 	return (0);
 }
 

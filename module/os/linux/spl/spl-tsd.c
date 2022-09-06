@@ -706,7 +706,7 @@ spl_tsd_init(void)
 {
 	tsd_hash_table = tsd_hash_table_init(TSD_HASH_TABLE_BITS_DEFAULT);
 	if (tsd_hash_table == NULL)
-		return (1);
+		return (-ENOMEM);
 
 	return (0);
 }
