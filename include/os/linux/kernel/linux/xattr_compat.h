@@ -115,6 +115,20 @@ fn(struct dentry *dentry, const char *name, void *buffer, size_t size,	\
 {									\
 	return (__ ## fn(dentry->d_inode, name, buffer, size));		\
 }
+/*
+ * Android API change,
+ * The xattr_handler->get() callback was changed to take a dentry and inode
+ * and flags, because the dentry might not be attached to an inode yet.
+ */
+#elif defined(HAVE_XATTR_GET_DENTRY_INODE_FLAGS)
+#define	ZPL_XATTR_GET_WRAPPER(fn)					\
+static int								\
+fn(const struct xattr_handler *handler, struct dentry *dentry,		\
+    struct inode *inode, const char *name, void *buffer,		\
+    size_t size, int flags)						\
+{									\
+	return (__ ## fn(inode, name, buffer, size));			\
+}
 #else
 #error "Unsupported kernel"
 #endif
