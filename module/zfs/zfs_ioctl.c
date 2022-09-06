@@ -7482,7 +7482,7 @@ zfsdev_get_state(minor_t minor, enum zfsdev_state_type which)
 
 	for (zs = zfsdev_state_list; zs != NULL; zs = zs->zs_next) {
 		if (zs->zs_minor == minor) {
-			smp_rmb();
+			membar_consumer();
 			switch (which) {
 			case ZST_ONEXIT:
 				return (zs->zs_onexit);

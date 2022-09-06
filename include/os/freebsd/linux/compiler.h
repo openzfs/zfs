@@ -83,7 +83,6 @@
 #define	__printf(a, b)			__printflike(a, b)
 
 #define	barrier()			__asm__ __volatile__("": : :"memory")
-#define	smp_rmb()		rmb()
 #define	___PASTE(a, b) a##b
 #define	__PASTE(a, b) ___PASTE(a, b)
 
