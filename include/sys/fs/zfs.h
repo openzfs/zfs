@@ -1758,9 +1758,9 @@ typedef enum {
  * against the cost of COWing a giant block to modify one byte, and the
  * large latency of reading or writing a large block.
  *
- * Note that although blocks up to 16MB are supported, the recordsize
- * property can not be set larger than zfs_max_recordsize (default 1MB).
- * See the comment near zfs_max_recordsize in dsl_dataset.c for details.
+ * The recordsize property can not be set larger than zfs_max_recordsize
+ * (default 16MB on 64-bit and 1MB on 32-bit). See the comment near
+ * zfs_max_recordsize in dsl_dataset.c for details.
  *
  * Note that although the LSIZE field of the blkptr_t can store sizes up
  * to 32MB, the dnode's dn_datablkszsec can only store sizes up to
