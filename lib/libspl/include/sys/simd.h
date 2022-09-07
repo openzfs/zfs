@@ -20,8 +20,8 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2006 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright (c) 2022 Tino Reichardt <milky-zfs@mcmilk.de>
  */
 
 #ifndef _LIBSPL_SYS_SIMD_H
@@ -452,63 +452,60 @@ zfs_avx512vbmi_available(void)
 
 #elif defined(__powerpc__)
 
+/* including <sys/auxv.h> clashes with AT_UID and others */
+extern unsigned long getauxval(unsigned long type);
+#if defined(__FreeBSD__)
+#define	AT_HWCAP	25	/* CPU feature flags. */
+#define	AT_HWCAP2	26	/* CPU feature flags 2. */
+extern int elf_aux_info(int aux, void *buf, int buflen);
+static unsigned long getauxval(unsigned long key)
+{
+	unsigned long val = 0UL;
+
+	if (elf_aux_info((int)key, &val, sizeof (val)) != 0)
+		return (0UL);
+
+	return (val);
+}
+#elif defined(__linux__)
+#define	AT_HWCAP	16	/* CPU feature flags. */
+#define	AT_HWCAP2	26	/* CPU feature flags 2. */
+#endif
+
 #define	kfpu_allowed()		1
 #define	kfpu_initialize(tsk)	do {} while (0)
 #define	kfpu_begin()		do {} while (0)
 #define	kfpu_end()		do {} while (0)
 
-/*
- * Check if AltiVec instruction set is available
- * No easy way beyond 'altivec works' :-(
- */
-#include <signal.h>
-#include <setjmp.h>
-
-#if defined(__ALTIVEC__) && !defined(__FreeBSD__)
-static jmp_buf env;
-static void sigillhandler(int x)
-{
-	(void) x;
-	longjmp(env, 1);
-}
-#endif
-
+#define	PPC_FEATURE_HAS_ALTIVEC	0x10000000
 static inline boolean_t
 zfs_altivec_available(void)
 {
-	boolean_t has_altivec = B_FALSE;
-#if defined(__ALTIVEC__) && !defined(__FreeBSD__)
-	sighandler_t savesig;
-	savesig = signal(SIGILL, sigillhandler);
-	if (setjmp(env)) {
-		signal(SIGILL, savesig);
-		has_altivec = B_FALSE;
-	} else {
-		__asm__ __volatile__("vor 0,0,0\n" : : : "v0");
-		signal(SIGILL, savesig);
-		has_altivec = B_TRUE;
-	}
-#endif
-	return (has_altivec);
+	unsigned long hwcap = getauxval(AT_HWCAP);
+
+	return (hwcap & PPC_FEATURE_HAS_ALTIVEC);
 }
+
+#define	PPC_FEATURE_HAS_VSX	0x00000080
 static inline boolean_t
 zfs_vsx_available(void)
 {
-	boolean_t has_vsx = B_FALSE;
-#if defined(__ALTIVEC__) && !defined(__FreeBSD__)
-	sighandler_t savesig;
-	savesig = signal(SIGILL, sigillhandler);
-	if (setjmp(env)) {
-		signal(SIGILL, savesig);
-		has_vsx = B_FALSE;
-	} else {
-		__asm__ __volatile__("xssubsp 0,0,0\n");
-		signal(SIGILL, savesig);
-		has_vsx = B_TRUE;
-	}
-#endif
-	return (has_vsx);
+	unsigned long hwcap = getauxval(AT_HWCAP);
+
+	return (hwcap & PPC_FEATURE_HAS_VSX);
 }
+
+#define	PPC_FEATURE2_ARCH_2_07	0x80000000
+static inline boolean_t
+zfs_isa207_available(void)
+{
+	unsigned long hwcap = getauxval(AT_HWCAP);
+	unsigned long hwcap2 = getauxval(AT_HWCAP2);
+
+	return ((hwcap & PPC_FEATURE_HAS_VSX) &&
+	    (hwcap2 & PPC_FEATURE2_ARCH_2_07));
+}
+
 #else
 
 #define	kfpu_allowed()		0
