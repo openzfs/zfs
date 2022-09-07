@@ -18,9 +18,8 @@
  *
  * CDDL HEADER END
  */
+
 /*
- * Copyright (C) 2019 Romain Dolbeau
- *           <romain.dolbeau@european-processor-initiative.eu>
  * Copyright (C) 2022 Tino Reichardt <milky-zfs@mcmilk.de>
  */
 
@@ -47,58 +46,29 @@
  *   zfs_isa207_available()
  */
 
-#ifndef _LINUX_SIMD_POWERPC_H
-#define	_LINUX_SIMD_POWERPC_H
+#ifndef _FREEBSD_SIMD_POWERPC_H
+#define	_FREEBSD_SIMD_POWERPC_H
 
-/* only for __powerpc__ */
-#if defined(__powerpc__)
-
-#include <linux/preempt.h>
-#include <linux/export.h>
-#include <linux/sched.h>
-#include <asm/switch_to.h>
 #include <sys/types.h>
-#include <linux/version.h>
+#include <sys/cdefs.h>
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
-#include <asm/cpufeature.h>
-#else
-#include <asm/cputable.h>
-#endif
+#include <machine/pcb.h>
+#include <powerpc/cpu.h>
 
-#define	kfpu_allowed()			1
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
-#define	kfpu_begin()				\
-	{					\
-		preempt_disable();		\
-		enable_kernel_altivec();	\
-		enable_kernel_vsx();		\
-		enable_kernel_spe();		\
-	}
-#define	kfpu_end()				\
-	{					\
-		disable_kernel_spe();		\
-		disable_kernel_vsx();		\
-		disable_kernel_altivec();	\
-		preempt_enable();		\
-	}
-#else
-/* seems that before 4.5 no-one bothered */
-#define	kfpu_begin()
-#define	kfpu_end()		preempt_enable()
-#endif
-
-#define	kfpu_init()		0
-#define	kfpu_fini()		((void) 0)
+#define	kfpu_allowed()		1
+#define	kfpu_initialize(tsk)	do {} while (0)
+#define	kfpu_begin()		do {} while (0)
+#define	kfpu_end()		do {} while (0)
+#define	kfpu_init()		(0)
+#define	kfpu_fini()		do {} while (0)
 
 /*
- * Check if AltiVec instruction set is available
+ * Check if Altivec is available
  */
 static inline boolean_t
 zfs_altivec_available(void)
 {
-	return (cpu_has_feature(CPU_FTR_ALTIVEC));
+	return ((cpu_features & PPC_FEATURE_HAS_ALTIVEC) != 0);
 }
 
 /*
@@ -107,7 +77,7 @@ zfs_altivec_available(void)
 static inline boolean_t
 zfs_vsx_available(void)
 {
-	return (cpu_has_feature(CPU_FTR_VSX));
+	return ((cpu_features & PPC_FEATURE_HAS_VSX) != 0);
 }
 
 /*
@@ -116,9 +86,5 @@ zfs_vsx_available(void)
 static inline boolean_t
 zfs_isa207_available(void)
 {
-	return (cpu_has_feature(CPU_FTR_ARCH_207S));
+	return ((cpu_features2 & PPC_FEATURE2_ARCH_2_07) != 0);
 }
-
-#endif /* defined(__powerpc) */
-
-#endif /* _LINUX_SIMD_POWERPC_H */
