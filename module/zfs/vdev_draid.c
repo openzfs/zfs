@@ -1496,8 +1496,14 @@ vdev_draid_calculate_asize(vdev_t *vd, uint64_t *asizep, uint64_t *max_asizep,
 		asize = MIN(asize - 1, cvd->vdev_asize - 1) + 1;
 		max_asize = MIN(max_asize - 1, cvd->vdev_max_asize - 1) + 1;
 		logical_ashift = MAX(logical_ashift, cvd->vdev_ashift);
-		physical_ashift = MAX(physical_ashift,
-		    cvd->vdev_physical_ashift);
+	}
+	for (int c = 0; c < vd->vdev_children; c++) {
+		vdev_t *cvd = vd->vdev_child[c];
+
+		if (cvd->vdev_ops == &vdev_draid_spare_ops)
+			continue;
+		physical_ashift = vdev_best_ashift(logical_ashift,
+		    physical_ashift, cvd->vdev_physical_ashift);
 	}
 
 	*asizep = asize;
