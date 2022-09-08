@@ -62,7 +62,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_FPU], [
 	], [
 		kernel_fpu_begin();
 		kernel_fpu_end();
-	], [], [ZFS_META_LICENSE])
+	], [], [])
 
 	ZFS_LINUX_TEST_SRC([__kernel_fpu], [
 		#include <linux/types.h>
@@ -77,7 +77,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_FPU], [
 	], [
 		__kernel_fpu_begin();
 		__kernel_fpu_end();
-	], [], [ZFS_META_LICENSE])
+	], [], [])
 
 ])
 
@@ -86,7 +86,7 @@ AC_DEFUN([ZFS_AC_KERNEL_FPU], [
 	dnl # Legacy kernel
 	dnl #
 	AC_MSG_CHECKING([whether kernel fpu is available])
-	ZFS_LINUX_TEST_RESULT([kernel_fpu_license], [
+	ZFS_LINUX_TEST_RESULT([kernel_fpu], [
 		AC_MSG_RESULT(kernel_fpu_*)
 		AC_DEFINE(HAVE_KERNEL_FPU, 1,
 		    [kernel has kernel_fpu_* functions])
@@ -96,7 +96,7 @@ AC_DEFUN([ZFS_AC_KERNEL_FPU], [
 		dnl #
 		dnl # Linux 4.2 kernel
 		dnl #
-		ZFS_LINUX_TEST_RESULT_SYMBOL([__kernel_fpu_license],
+		ZFS_LINUX_TEST_RESULT_SYMBOL([__kernel_fpu],
 		    [__kernel_fpu_begin],
 		    [arch/x86/kernel/fpu/core.c arch/x86/kernel/i387.c], [
 			AC_MSG_RESULT(__kernel_fpu_*)
