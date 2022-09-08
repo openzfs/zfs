@@ -347,9 +347,12 @@ When a vdev is added, target this number of metaslabs per top-level vdev.
 .It Sy zfs_vdev_default_ms_shift Ns = Ns Sy 29 Po 512 MiB Pc Pq int
 Default limit for metaslab size.
 .
-.It Sy zfs_vdev_max_auto_ashift Ns = Ns Sy ASHIFT_MAX Po 16 Pc Pq ulong
+.It Sy zfs_vdev_max_auto_ashift Ns = Ns Sy 14 Pq ulong
 Maximum ashift used when optimizing for logical \[->] physical sector size on new
 top-level vdevs.
+May be increased up to
+.Sy ASHIFT_MAX Po 16 Pc ,
+but this may negatively impact pool space efficiency.
 .
 .It Sy zfs_vdev_min_auto_ashift Ns = Ns Sy ASHIFT_MIN Po 9 Pc Pq ulong
 Minimum ashift used when creating new top-level vdevs.
