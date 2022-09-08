@@ -76,7 +76,7 @@ while [[ $j -lt ${#CHECKSUM_TYPES[*]} ]]; do
 	log_must zpool export $TESTPOOL
 	log_must zpool import $TESTPOOL
 
-	log_mustnot eval "cat $TESTDIR/test_$type >/dev/null"
+	log_mustnot eval "dd if=$TESTDIR/test_$type of=/dev/null bs=$WRITESZ count=$NWRITES"
 
 	cksum=$(zpool status -P -v $TESTPOOL | grep "$firstvdev" | \
 	    awk '{print $5}')

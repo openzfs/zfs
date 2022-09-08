@@ -89,6 +89,10 @@ tags = ['functional', 'devices']
 tests = ['events_001_pos', 'events_002_pos', 'zed_rc_filter', 'zed_fd_spill']
 tags = ['functional', 'events']
 
+[tests/functional/fadvise:Linux]
+tests = ['fadvise_sequential']
+tags = ['functional', 'fadvise']
+
 [tests/functional/fallocate:Linux]
 tests = ['fallocate_prealloc', 'fallocate_zero-range']
 tags = ['functional', 'fallocate']
