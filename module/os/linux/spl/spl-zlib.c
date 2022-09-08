@@ -204,7 +204,7 @@ spl_zlib_init(void)
 	    size, 0, NULL, NULL, NULL, NULL, NULL,
 	    KMC_KVMEM);
 	if (!zlib_workspace_cache)
-		return (1);
+		return (-ENOMEM);
 
 	return (0);
 }

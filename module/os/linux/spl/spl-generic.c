@@ -705,7 +705,7 @@ spl_kvmem_init(void)
  * initialize each of the per-cpu seeds so that the sequences generated on each
  * CPU are guaranteed to never overlap in practice.
  */
-static void __init
+static int __init
 spl_random_init(void)
 {
 	uint64_t s[2];
@@ -713,6 +713,9 @@ spl_random_init(void)
 
 	spl_pseudo_entropy = __alloc_percpu(2 * sizeof (uint64_t),
 	    sizeof (uint64_t));
+
+	if (!spl_pseudo_entropy)
+		return (-ENOMEM);
 
 	get_random_bytes(s, sizeof (s));
 
@@ -737,6 +740,8 @@ spl_random_init(void)
 		wordp[0] = s[0];
 		wordp[1] = s[1];
 	}
+
+	return (0);
 }
 
 static void
@@ -757,7 +762,8 @@ spl_init(void)
 {
 	int rc = 0;
 
-	spl_random_init();
+	if ((rc = spl_random_init()))
+		goto out0;
 
 	if ((rc = spl_kvmem_init()))
 		goto out1;
@@ -800,6 +806,8 @@ out3:
 out2:
 	spl_kvmem_fini();
 out1:
+	spl_random_fini();
+out0:
 	return (rc);
 }
 
