@@ -136,7 +136,7 @@ typedef enum dmu_object_byteswap {
 #endif
 
 #define	DMU_OT_IS_METADATA(ot) (((ot) & DMU_OT_NEWTYPE) ? \
-	((ot) & DMU_OT_METADATA) : \
+	(((ot) & DMU_OT_METADATA) != 0) : \
 	DMU_OT_IS_METADATA_IMPL(ot))
 
 #define	DMU_OT_IS_DDT(ot) \
@@ -147,7 +147,7 @@ typedef enum dmu_object_byteswap {
 	((ot) == DMU_OT_PLAIN_FILE_CONTENTS || (ot) == DMU_OT_UINT64_OTHER)
 
 #define	DMU_OT_IS_ENCRYPTED(ot) (((ot) & DMU_OT_NEWTYPE) ? \
-	((ot) & DMU_OT_ENCRYPTED) : \
+	(((ot) & DMU_OT_ENCRYPTED) != 0) : \
 	DMU_OT_IS_ENCRYPTED_IMPL(ot))
 
 /*
