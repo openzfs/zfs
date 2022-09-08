@@ -894,13 +894,89 @@ zfs_deliver_check(nvlist_t *nvl)
 	return (0);
 }
 
+/*
+ * Given a path to a vdev, lookup the vdev's physical size from its
+ * config nvlist.
+ *
+ * Returns the vdev's physical size in bytes on success, 0 on error.
+ */
+static uint64_t
+vdev_size_from_config(zpool_handle_t *zhp, const char *vdev_path)
+{
+	nvlist_t *nvl = NULL;
+	boolean_t avail_spare, l2cache, log;
+	vdev_stat_t *vs = NULL;
+	uint_t c;
+
+	nvl = zpool_find_vdev(zhp, vdev_path, &avail_spare, &l2cache, &log);
+	if (!nvl)
+		return (0);
+
+	verify(nvlist_lookup_uint64_array(nvl, ZPOOL_CONFIG_VDEV_STATS,
+	    (uint64_t **)&vs, &c) == 0);
+	if (!vs) {
+		zed_log_msg(LOG_INFO, "%s: no nvlist for '%s'", __func__,
+		    vdev_path);
+		return (0);
+	}
+
+	return (vs->vs_pspace);
+}
+
+/*
+ * Given a path to a vdev, lookup if the vdev is a "whole disk" in the
+ * config nvlist.  "whole disk" means that ZFS was passed a whole disk
+ * at pool creation time, which it partitioned up and has full control over.
+ * Thus a partition with wholedisk=1 set tells us that zfs created the
+ * partition at creation time.  A partition without whole disk set would have
+ * been created by externally (like with fdisk) and passed to ZFS.
+ *
+ * Returns the whole disk value (either 0 or 1).
+ */
+static uint64_t
+vdev_whole_disk_from_config(zpool_handle_t *zhp, const char *vdev_path)
+{
+	nvlist_t *nvl = NULL;
+	boolean_t avail_spare, l2cache, log;
+	uint64_t wholedisk;
+
+	nvl = zpool_find_vdev(zhp, vdev_path, &avail_spare, &l2cache, &log);
+	if (!nvl)
+		return (0);
+
+	verify(nvlist_lookup_uint64(nvl, ZPOOL_CONFIG_WHOLE_DISK,
+	    &wholedisk) == 0);
+
+	return (wholedisk);
+}
+
+/*
+ * If the device size grew more than 1% then return true.
+ */
+#define	DEVICE_GREW(oldsize, newsize) \
+		    ((newsize > oldsize) && \
+		    ((newsize / (newsize - oldsize)) <= 100))
+
 static int
 zfsdle_vdev_online(zpool_handle_t *zhp, void *data)
 {
-	char *devname = data;
 	boolean_t avail_spare, l2cache;
+	nvlist_t *udev_nvl = data;
 	nvlist_t *tgt;
 	int error;
+
+	char *tmp_devname, devname[MAXPATHLEN];
+	uint64_t guid;
+
+	if (nvlist_lookup_uint64(udev_nvl, ZFS_EV_VDEV_GUID, &guid) == 0) {
+		sprintf(devname, "%llu", (u_longlong_t)guid);
+	} else if (nvlist_lookup_string(udev_nvl, DEV_PHYS_PATH,
+	    &tmp_devname) == 0) {
+		strlcpy(devname, tmp_devname, MAXPATHLEN);
+		zfs_append_partition(devname, MAXPATHLEN);
+	} else {
+		zed_log_msg(LOG_INFO, "%s: no guid or physpath", __func__);
+	}
 
 	zed_log_msg(LOG_INFO, "zfsdle_vdev_online: searching for '%s' in '%s'",
 	    devname, zpool_get_name(zhp));
@@ -953,12 +1029,75 @@ zfsdle_vdev_online(zpool_handle_t *zhp, void *data)
 			vdev_state_t newstate;
 
 			if (zpool_get_state(zhp) != POOL_STATE_UNAVAIL) {
-				error = zpool_vdev_online(zhp, fullpath, 0,
-				    &newstate);
-				zed_log_msg(LOG_INFO, "zfsdle_vdev_online: "
-				    "setting device '%s' to ONLINE state "
-				    "in pool '%s': %d", fullpath,
-				    zpool_get_name(zhp), error);
+				/*
+				 * If this disk size has not changed, then
+				 * there's no need to do an autoexpand.  To
+				 * check we look at the disk's size in its
+				 * config, and compare it to the disk size
+				 * that udev is reporting.
+				 */
+				uint64_t udev_size = 0, conf_size = 0,
+				    wholedisk = 0, udev_parent_size = 0;
+
+				/*
+				 * Get the size of our disk that udev is
+				 * reporting.
+				 */
+				if (nvlist_lookup_uint64(udev_nvl, DEV_SIZE,
+				    &udev_size) != 0) {
+					udev_size = 0;
+				}
+
+				/*
+				 * Get the size of our disk's parent device
+				 * from udev (where sda1's parent is sda).
+				 */
+				if (nvlist_lookup_uint64(udev_nvl,
+				    DEV_PARENT_SIZE, &udev_parent_size) != 0) {
+					udev_parent_size = 0;
+				}
+
+				conf_size = vdev_size_from_config(zhp,
+				    fullpath);
+
+				wholedisk = vdev_whole_disk_from_config(zhp,
+				    fullpath);
+
+				/*
+				 * Only attempt an autoexpand if the vdev size
+				 * changed.  There are two different cases
+				 * to consider.
+				 *
+				 * 1. wholedisk=1
+				 * If you do a 'zpool create' on a whole disk
+				 * (like /dev/sda), then zfs will create
+				 * partitions on the disk (like /dev/sda1).  In
+				 * that case, wholedisk=1 will be set in the
+				 * partition's nvlist config.  So zed will need
+				 * to see if your parent device (/dev/sda)
+				 * expanded in size, and if so, then attempt
+				 * the autoexpand.
+				 *
+				 * 2. wholedisk=0
+				 * If you do a 'zpool create' on an existing
+				 * partition, or a device that doesn't allow
+				 * partitions, then wholedisk=0, and you will
+				 * simply need to check if the device itself
+				 * expanded in size.
+				 */
+				if (DEVICE_GREW(conf_size, udev_size) ||
+				    (wholedisk && DEVICE_GREW(conf_size,
+				    udev_parent_size))) {
+					error = zpool_vdev_online(zhp, fullpath,
+					    0, &newstate);
+
+					zed_log_msg(LOG_INFO,
+					    "%s: autoexpanding '%s' from %llu"
+					    " to %llu bytes in pool '%s': %d",
+					    __func__, fullpath, conf_size,
+					    MAX(udev_size, udev_parent_size),
+					    zpool_get_name(zhp), error);
+				}
 			}
 		}
 		zpool_close(zhp);
@@ -989,7 +1128,7 @@ zfs_deliver_dle(nvlist_t *nvl)
 		zed_log_msg(LOG_INFO, "zfs_deliver_dle: no guid or physpath");
 	}
 
-	if (zpool_iter(g_zfshdl, zfsdle_vdev_online, name) != 1) {
+	if (zpool_iter(g_zfshdl, zfsdle_vdev_online, nvl) != 1) {
 		zed_log_msg(LOG_INFO, "zfs_deliver_dle: device '%s' not "
 		    "found", name);
 		return (1);
