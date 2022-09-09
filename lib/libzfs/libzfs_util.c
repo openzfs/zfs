@@ -304,6 +304,9 @@ libzfs_error_description(libzfs_handle_t *hdl)
 	case EZFS_NOT_USER_NAMESPACE:
 		return (dgettext(TEXT_DOMAIN, "the provided file "
 		    "was not a user namespace file"));
+	case EZFS_RESUME_EXISTS:
+		return (dgettext(TEXT_DOMAIN, "Resuming recv on existing "
+		    "dataset without force"));
 	case EZFS_UNKNOWN:
 		return (dgettext(TEXT_DOMAIN, "unknown error"));
 	default:
