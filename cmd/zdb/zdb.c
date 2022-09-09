@@ -4737,6 +4737,8 @@ zdb_copy_object(objset_t *os, uint64_t srcobj, char *destfile)
 	}
 
 	int fd = open(destfile, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	if (fd == -1)
+		return (errno);
 	/*
 	 * We cap the size at 1 mebibyte here to prevent
 	 * allocation failures and nigh-infinite printing if the
@@ -4746,6 +4748,7 @@ zdb_copy_object(objset_t *os, uint64_t srcobj, char *destfile)
 	offset = 0;
 	char *buf = kmem_alloc(oursize, KM_NOSLEEP);
 	if (buf == NULL) {
+		(void) close(fd);
 		return (ENOMEM);
 	}
 
@@ -4755,6 +4758,7 @@ zdb_copy_object(objset_t *os, uint64_t srcobj, char *destfile)
 		if (err != 0) {
 			(void) printf("got error %u from dmu_read\n", err);
 			kmem_free(buf, oursize);
+			(void) close(fd);
 			return (err);
 		}
 		if (dump_opt['v'] > 3) {
