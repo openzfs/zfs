@@ -76,7 +76,6 @@ COMMON_H = \
 	sys/sa_impl.h \
 	sys/skein.h \
 	sys/spa.h \
-	sys/spa_boot.h \
 	sys/spa_checkpoint.h \
 	sys/spa_checksum.h \
 	sys/spa_impl.h \
