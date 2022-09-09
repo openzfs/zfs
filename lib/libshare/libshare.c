@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2002, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011 Gunnar Beutner
- * Copyright (c) 2018, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2018, 2022 by Delphix. All rights reserved.
  */
 
 #include <stdio.h>
@@ -94,6 +94,16 @@ sa_commit_shares(enum sa_protocol protocol)
 	VALIDATE_PROTOCOL(protocol, );
 
 	fstypes[protocol]->commit_shares();
+}
+
+void
+sa_truncate_shares(enum sa_protocol protocol)
+{
+	/* CSTYLED */
+	VALIDATE_PROTOCOL(protocol, );
+
+	if (fstypes[protocol]->truncate_shares != NULL)
+		fstypes[protocol]->truncate_shares();
 }
 
 int

@@ -22,7 +22,7 @@
 /*
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
- * Copyright (c) 2019, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2019, 2022 by Delphix. All rights reserved.
  */
 #ifndef _LIBSPL_LIBSHARE_H
 #define	_LIBSPL_LIBSHARE_H extern __attribute__((visibility("default")))
@@ -88,6 +88,7 @@ _LIBSPL_LIBSHARE_H int sa_enable_share(const char *, const char *, const char *,
 _LIBSPL_LIBSHARE_H int sa_disable_share(const char *, enum sa_protocol);
 _LIBSPL_LIBSHARE_H boolean_t sa_is_shared(const char *, enum sa_protocol);
 _LIBSPL_LIBSHARE_H void sa_commit_shares(enum sa_protocol);
+_LIBSPL_LIBSHARE_H void sa_truncate_shares(enum sa_protocol);
 
 /* protocol specific interfaces */
 _LIBSPL_LIBSHARE_H int sa_validate_shareopts(const char *, enum sa_protocol);

@@ -22,7 +22,7 @@
 /*
  * Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2014, 2021 by Delphix. All rights reserved.
+ * Copyright (c) 2014, 2022 by Delphix. All rights reserved.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  * Copyright 2017 RackTop Systems.
  * Copyright (c) 2018 Datto Inc.
@@ -786,6 +786,16 @@ zfs_commit_shares(const enum sa_protocol *proto)
 
 	for (const enum sa_protocol *p = proto; *p != SA_NO_PROTOCOL; ++p)
 		sa_commit_shares(*p);
+}
+
+void
+zfs_truncate_shares(const enum sa_protocol *proto)
+{
+	if (proto == NULL)
+		proto = share_all_proto;
+
+	for (const enum sa_protocol *p = proto; *p != SA_NO_PROTOCOL; ++p)
+		sa_truncate_shares(*p);
 }
 
 /*

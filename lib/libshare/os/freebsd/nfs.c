@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * Copyright (c) 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2020, 2022 by Delphix. All rights reserved.
  */
 
 #include <sys/cdefs.h>
@@ -195,6 +195,12 @@ start:
 	return (SA_OK);
 }
 
+static void
+nfs_truncate_shares(void)
+{
+	nfs_reset_shares(ZFS_EXPORTS_LOCK, ZFS_EXPORTS_FILE);
+}
+
 const sa_fstype_t libshare_nfs_type = {
 	.enable_share = nfs_enable_share,
 	.disable_share = nfs_disable_share,
@@ -202,4 +208,5 @@ const sa_fstype_t libshare_nfs_type = {
 
 	.validate_shareopts = nfs_validate_shareopts,
 	.commit_shares = nfs_commit_shares,
+	.truncate_shares = nfs_truncate_shares,
 };

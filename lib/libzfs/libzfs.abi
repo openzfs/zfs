@@ -245,6 +245,7 @@
     <elf-symbol name='sa_enable_share' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='sa_errorstr' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='sa_is_shared' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='sa_truncate_shares' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='sa_validate_shareopts' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='snapshot_namecheck' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='spl_pagesize' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -428,6 +429,7 @@
     <elf-symbol name='zfs_strcmp_pathname' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_strip_partition' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_strip_path' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_truncate_shares' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_type_to_name' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_unmount' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_unmountall' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -758,6 +760,10 @@
       <parameter type-id='9155d4b5' name='protocol'/>
       <return type-id='48b5725f'/>
     </function-decl>
+    <function-decl name='sa_truncate_shares' mangled-name='sa_truncate_shares' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='sa_truncate_shares'>
+      <parameter type-id='9155d4b5' name='protocol'/>
+      <return type-id='48b5725f'/>
+    </function-decl>
     <function-decl name='sa_validate_shareopts' mangled-name='sa_validate_shareopts' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='sa_validate_shareopts'>
       <parameter type-id='80f4b756' name='options'/>
       <parameter type-id='9155d4b5' name='protocol'/>
@@ -787,7 +793,7 @@
       </data-member>
     </class-decl>
     <typedef-decl name='sa_share_impl_t' type-id='946a2c6b' id='a48b47d0'/>
-    <class-decl name='sa_fstype_t' size-in-bits='320' is-struct='yes' naming-typedef-id='639af739' visibility='default' id='944afa86'>
+    <class-decl name='sa_fstype_t' size-in-bits='384' is-struct='yes' naming-typedef-id='639af739' visibility='default' id='944afa86'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='enable_share' type-id='2f78a9c1' visibility='default'/>
       </data-member>
@@ -803,6 +809,9 @@
       <data-member access='public' layout-offset-in-bits='256'>
         <var-decl name='commit_shares' type-id='797ee7da' visibility='default'/>
       </data-member>
+      <data-member access='public' layout-offset-in-bits='320'>
+        <var-decl name='truncate_shares' type-id='5d51038b' visibility='default'/>
+      </data-member>
     </class-decl>
     <typedef-decl name='sa_fstype_t' type-id='944afa86' id='639af739'/>
     <qualified-type-def type-id='639af739' const='yes' id='d19dbca9'/>
@@ -816,6 +825,8 @@
     <qualified-type-def type-id='fa1f29ce' const='yes' id='2f78a9c1'/>
     <pointer-type-def type-id='86373eb1' size-in-bits='64' id='f337456d'/>
     <qualified-type-def type-id='f337456d' const='yes' id='81020bc2'/>
+    <pointer-type-def type-id='ee076206' size-in-bits='64' id='953b12f8'/>
+    <qualified-type-def type-id='953b12f8' const='yes' id='5d51038b'/>
     <var-decl name='libshare_nfs_type' type-id='d19dbca9' visibility='default'/>
     <function-type size-in-bits='64' id='276427e1'>
       <return type-id='95e97e5e'/>
@@ -831,6 +842,9 @@
     <function-type size-in-bits='64' id='86373eb1'>
       <parameter type-id='a48b47d0'/>
       <return type-id='c19b74c3'/>
+    </function-type>
+    <function-type size-in-bits='64' id='ee076206'>
+      <return type-id='48b5725f'/>
     </function-type>
   </abi-instr>
   <abi-instr address-size='64' path='lib/libshare/os/linux/smb.c' language='LANG_C99'>
@@ -2302,6 +2316,7 @@
       <underlying-type type-id='9cac1fee'/>
       <enumerator name='ZPROP_CONT' value='-2'/>
       <enumerator name='ZPROP_INVAL' value='-1'/>
+      <enumerator name='ZPROP_USERPROP' value='-1'/>
       <enumerator name='ZFS_PROP_TYPE' value='0'/>
       <enumerator name='ZFS_PROP_CREATION' value='1'/>
       <enumerator name='ZFS_PROP_USED' value='2'/>
@@ -3034,6 +3049,10 @@
       <parameter type-id='4567bbc9' name='proto'/>
       <return type-id='48b5725f'/>
     </function-decl>
+    <function-decl name='zfs_truncate_shares' mangled-name='zfs_truncate_shares' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_truncate_shares'>
+      <parameter type-id='4567bbc9' name='proto'/>
+      <return type-id='48b5725f'/>
+    </function-decl>
     <function-decl name='zfs_unshare' mangled-name='zfs_unshare' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_unshare'>
       <parameter type-id='9200a744' name='zhp'/>
       <parameter type-id='80f4b756' name='mountpoint'/>
@@ -3150,6 +3169,7 @@
     <enum-decl name='vdev_prop_t' naming-typedef-id='5aa5c90c' id='1573bec8'>
       <underlying-type type-id='9cac1fee'/>
       <enumerator name='VDEV_PROP_INVAL' value='-1'/>
+      <enumerator name='VDEV_PROP_USERPROP' value='-1'/>
       <enumerator name='VDEV_PROP_NAME' value='0'/>
       <enumerator name='VDEV_PROP_CAPACITY' value='1'/>
       <enumerator name='VDEV_PROP_STATE' value='2'/>
@@ -3750,7 +3770,7 @@
     </class-decl>
     <typedef-decl name='sendflags_t' type-id='f6aa15be' id='945467e6'/>
     <typedef-decl name='snapfilter_cb_t' type-id='d2a5e211' id='3d3ffb69'/>
-    <class-decl name='recvflags' size-in-bits='416' is-struct='yes' visibility='default' id='34a384dc'>
+    <class-decl name='recvflags' size-in-bits='448' is-struct='yes' visibility='default' id='34a384dc'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='verbose' type-id='c19b74c3' visibility='default'/>
       </data-member>
@@ -3789,6 +3809,9 @@
       </data-member>
       <data-member access='public' layout-offset-in-bits='384'>
         <var-decl name='forceunmount' type-id='c19b74c3' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='416'>
+        <var-decl name='heal' type-id='c19b74c3' visibility='default'/>
       </data-member>
     </class-decl>
     <typedef-decl name='recvflags_t' type-id='34a384dc' id='9e59d1d4'/>
@@ -3903,16 +3926,17 @@
       <enumerator name='ZPOOL_ERRATA_ZOL_8308_ENCRYPTION' value='4'/>
     </enum-decl>
     <typedef-decl name='zpool_errata_t' type-id='d9abbf54' id='688c495b'/>
+    <pointer-type-def type-id='80f4b756' size-in-bits='64' id='7d3cd834'/>
     <pointer-type-def type-id='688c495b' size-in-bits='64' id='cec6f2e4'/>
     <function-decl name='zpool_get_status' mangled-name='zpool_get_status' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_get_status'>
       <parameter type-id='4c81de99' name='zhp'/>
-      <parameter type-id='9b23c9ad' name='msgid'/>
+      <parameter type-id='7d3cd834' name='msgid'/>
       <parameter type-id='cec6f2e4' name='errata'/>
       <return type-id='d3dd6294'/>
     </function-decl>
     <function-decl name='zpool_import_status' mangled-name='zpool_import_status' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_import_status'>
       <parameter type-id='5ce45b60' name='config'/>
-      <parameter type-id='9b23c9ad' name='msgid'/>
+      <parameter type-id='7d3cd834' name='msgid'/>
       <parameter type-id='cec6f2e4' name='errata'/>
       <return type-id='d3dd6294'/>
     </function-decl>
@@ -4032,8 +4056,8 @@
       <return type-id='48b5725f'/>
     </function-decl>
     <function-decl name='libzfs_envvar_is_set' mangled-name='libzfs_envvar_is_set' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='libzfs_envvar_is_set'>
-      <parameter type-id='26a90f95' name='envvar'/>
-      <return type-id='95e97e5e'/>
+      <parameter type-id='80f4b756' name='envvar'/>
+      <return type-id='c19b74c3'/>
     </function-decl>
     <function-decl name='libzfs_init' mangled-name='libzfs_init' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='libzfs_init'>
       <return type-id='b0382bb3'/>
@@ -4102,15 +4126,15 @@
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='color_start' mangled-name='color_start' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='color_start'>
-      <parameter type-id='26a90f95' name='color'/>
+      <parameter type-id='80f4b756' name='color'/>
       <return type-id='48b5725f'/>
     </function-decl>
     <function-decl name='color_end' mangled-name='color_end' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='color_end'>
       <return type-id='48b5725f'/>
     </function-decl>
     <function-decl name='printf_color' mangled-name='printf_color' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='printf_color'>
-      <parameter type-id='26a90f95' name='color'/>
-      <parameter type-id='26a90f95' name='format'/>
+      <parameter type-id='80f4b756' name='color'/>
+      <parameter type-id='80f4b756' name='format'/>
       <parameter is-variadic='yes'/>
       <return type-id='95e97e5e'/>
     </function-decl>
@@ -4123,7 +4147,7 @@
   <abi-instr address-size='64' path='lib/libzfs/os/linux/libzfs_mount_os.c' language='LANG_C99'>
     <pointer-type-def type-id='7359adad' size-in-bits='64' id='1d2c2b85'/>
     <function-decl name='zfs_parse_mount_options' mangled-name='zfs_parse_mount_options' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_parse_mount_options'>
-      <parameter type-id='26a90f95' name='mntopts'/>
+      <parameter type-id='80f4b756' name='mntopts'/>
       <parameter type-id='1d2c2b85' name='mntflags'/>
       <parameter type-id='1d2c2b85' name='zfsflags'/>
       <parameter type-id='95e97e5e' name='sloppy'/>
@@ -4771,8 +4795,8 @@
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='module/zcommon/zfeature_common.c' language='LANG_C99'>
-    <array-type-def dimensions='1' type-id='83f29ca2' size-in-bits='16576' id='9d5e9e2e'>
-      <subrange length='37' type-id='7359adad' id='ae666bde'/>
+    <array-type-def dimensions='1' type-id='83f29ca2' size-in-bits='16576' id='d95b2b0b'>
+      <subrange length='37' type-id='7359adad' id='aa6426fb'/>
     </array-type-def>
     <enum-decl name='spa_feature' id='33ecb627'>
       <underlying-type type-id='9cac1fee'/>
@@ -4872,7 +4896,7 @@
     <qualified-type-def type-id='3eee3342' const='yes' id='0c1d5bbb'/>
     <pointer-type-def type-id='0c1d5bbb' size-in-bits='64' id='a3372543'/>
     <pointer-type-def type-id='d6618c78' size-in-bits='64' id='a8425263'/>
-    <var-decl name='spa_feature_table' type-id='9d5e9e2e' mangled-name='spa_feature_table' visibility='default' elf-symbol-id='spa_feature_table'/>
+    <var-decl name='spa_feature_table' type-id='d95b2b0b' mangled-name='spa_feature_table' visibility='default' elf-symbol-id='spa_feature_table'/>
     <var-decl name='zfeature_checks_disable' type-id='c19b74c3' mangled-name='zfeature_checks_disable' visibility='default' elf-symbol-id='zfeature_checks_disable'/>
     <function-decl name='zfeature_is_valid_guid' mangled-name='zfeature_is_valid_guid' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfeature_is_valid_guid'>
       <parameter type-id='80f4b756' name='name'/>
@@ -4935,7 +4959,7 @@
     </function-decl>
     <function-decl name='zfs_special_devs' mangled-name='zfs_special_devs' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_special_devs'>
       <parameter type-id='5ce45b60' name='nv'/>
-      <parameter type-id='26a90f95' name='type'/>
+      <parameter type-id='80f4b756' name='type'/>
       <return type-id='c19b74c3'/>
     </function-decl>
     <function-decl name='zpool_get_load_policy' mangled-name='zpool_get_load_policy' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_get_load_policy'>
@@ -5013,7 +5037,7 @@
     <typedef-decl name='zfs_deleg_note_t' type-id='729d4547' id='4613c173'/>
     <class-decl name='zfs_deleg_perm_tab' size-in-bits='128' is-struct='yes' visibility='default' id='5aa05c1f'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='z_perm' type-id='26a90f95' visibility='default'/>
+        <var-decl name='z_perm' type-id='80f4b756' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
         <var-decl name='z_note' type-id='4613c173' visibility='default'/>
@@ -5455,7 +5479,6 @@
       </data-member>
     </class-decl>
     <typedef-decl name='zprop_desc_t' type-id='bbff5e4b' id='ffa52b96'/>
-    <pointer-type-def type-id='80f4b756' size-in-bits='64' id='7d3cd834'/>
     <qualified-type-def type-id='64636ce3' const='yes' id='072f7953'/>
     <pointer-type-def type-id='072f7953' size-in-bits='64' id='c8bc397b'/>
     <pointer-type-def type-id='ffa52b96' size-in-bits='64' id='76c8174b'/>

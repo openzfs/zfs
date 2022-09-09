@@ -23,7 +23,7 @@
  * Copyright (c) 2002, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011 Gunnar Beutner
  * Copyright (c) 2012 Cyril Plisko. All rights reserved.
- * Copyright (c) 2019, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2019, 2022 by Delphix. All rights reserved.
  */
 
 #include <dirent.h>
@@ -495,6 +495,12 @@ nfs_commit_shares(void)
 	return (libzfs_run_process(argv[0], argv, 0));
 }
 
+static void
+nfs_truncate_shares(void)
+{
+	nfs_reset_shares(ZFS_EXPORTS_LOCK, ZFS_EXPORTS_FILE);
+}
+
 const sa_fstype_t libshare_nfs_type = {
 	.enable_share = nfs_enable_share,
 	.disable_share = nfs_disable_share,
@@ -502,6 +508,7 @@ const sa_fstype_t libshare_nfs_type = {
 
 	.validate_shareopts = nfs_validate_shareopts,
 	.commit_shares = nfs_commit_shares,
+	.truncate_shares = nfs_truncate_shares,
 };
 
 static boolean_t
