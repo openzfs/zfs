@@ -174,12 +174,13 @@ set_global_var_parse_kv(const char *arg, char **k_out, u_longlong_t *v_out)
 		goto err_free;
 	}
 
-	*k_out = k;
+	*k_out = strdup(k);
 	*v_out = val;
+	free(d);
 	return (0);
 
 err_free:
-	free(k);
+	free(d);
 
 	return (err);
 }
