@@ -525,7 +525,7 @@ zfs_acl_valid_ace_type(uint_t type, uint_t flags)
 		    entry_type == ACE_EVERYONE || entry_type == 0 ||
 		    entry_type == ACE_IDENTIFIER_GROUP);
 	default:
-		if (type >= MIN_ACE_TYPE && type <= MAX_ACE_TYPE)
+		if (type <= MAX_ACE_TYPE)
 			return (B_TRUE);
 	}
 	return (B_FALSE);

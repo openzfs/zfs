@@ -1433,7 +1433,7 @@ zvol_os_create_minor(const char *name)
 	 * Prefetching the blocks commonly scanned by blkid(8) will speed
 	 * up this process.
 	 */
-	len = MIN(MAX(zvol_prefetch_bytes, 0), SPA_MAXBLOCKSIZE);
+	len = MIN(zvol_prefetch_bytes, SPA_MAXBLOCKSIZE);
 	if (len > 0) {
 		dmu_prefetch(os, ZVOL_OBJ, 0, 0, len, ZIO_PRIORITY_SYNC_READ);
 		dmu_prefetch(os, ZVOL_OBJ, 0, volsize - len, len,

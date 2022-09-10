@@ -155,7 +155,6 @@ blake3_impl_setid(uint32_t id)
 		atomic_swap_32(&blake3_impl_chosen, IMPL_CYCLE);
 		break;
 	default:
-		ASSERT3U(id, >=, 0);
 		ASSERT3U(id, <, blake3_supp_impls_cnt);
 		atomic_swap_32(&blake3_impl_chosen, id);
 		break;
