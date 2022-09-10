@@ -81,12 +81,12 @@
  */
 
 typedef struct vdev_copy_arg {
-	metaslab_t	*vca_msp;
-	uint64_t	vca_outstanding_bytes;
-	uint64_t	vca_read_error_bytes;
-	uint64_t	vca_write_error_bytes;
-	kcondvar_t	vca_cv;
-	kmutex_t	vca_lock;
+	metaslab_t		*vca_msp;
+	volatile uint64_t	vca_outstanding_bytes;
+	uint64_t		vca_read_error_bytes;
+	uint64_t		vca_write_error_bytes;
+	kcondvar_t		vca_cv;
+	kmutex_t		vca_lock;
 } vdev_copy_arg_t;
 
 /*
