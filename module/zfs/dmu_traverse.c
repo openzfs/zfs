@@ -41,7 +41,7 @@
 
 static int32_t zfs_pd_bytes_max = 50 * 1024 * 1024;	/* 50MB */
 static int32_t send_holes_without_birth_time = 1;
-static int32_t zfs_traverse_indirect_prefetch_limit = 32;
+static uint_t zfs_traverse_indirect_prefetch_limit = 32;
 
 typedef struct prefetch_data {
 	kmutex_t pd_mtx;
@@ -812,7 +812,7 @@ EXPORT_SYMBOL(traverse_pool);
 ZFS_MODULE_PARAM(zfs, zfs_, pd_bytes_max, INT, ZMOD_RW,
 	"Max number of bytes to prefetch");
 
-ZFS_MODULE_PARAM(zfs, zfs_, traverse_indirect_prefetch_limit, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, traverse_indirect_prefetch_limit, UINT, ZMOD_RW,
 	"Traverse prefetch number of blocks pointed by indirect block");
 
 #if defined(_KERNEL)

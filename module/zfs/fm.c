@@ -68,9 +68,9 @@
 #include <sys/condvar.h>
 #include <sys/zfs_ioctl.h>
 
-static int zfs_zevent_len_max = 512;
+static uint_t zfs_zevent_len_max = 512;
 
-static int zevent_len_cur = 0;
+static uint_t zevent_len_cur = 0;
 static int zevent_waiters = 0;
 static int zevent_flags = 0;
 
@@ -158,7 +158,7 @@ zfs_zevent_drain(zevent_t *ev)
 }
 
 void
-zfs_zevent_drain_all(int *count)
+zfs_zevent_drain_all(uint_t *count)
 {
 	zevent_t *ev;
 
@@ -1342,7 +1342,7 @@ fm_init(void)
 void
 fm_fini(void)
 {
-	int count;
+	uint_t count;
 
 	zfs_ereport_fini();
 
@@ -1370,5 +1370,5 @@ fm_fini(void)
 }
 #endif /* _KERNEL */
 
-ZFS_MODULE_PARAM(zfs_zevent, zfs_zevent_, len_max, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_zevent, zfs_zevent_, len_max, UINT, ZMOD_RW,
 	"Max event queue length");

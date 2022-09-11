@@ -215,7 +215,7 @@ struct spa {
 	nvlist_t	*spa_config_splitting;	/* config for splitting */
 	nvlist_t	*spa_load_info;		/* info and errors from load */
 	uint64_t	spa_config_txg;		/* txg of last config change */
-	int		spa_sync_pass;		/* iterate-to-convergence */
+	uint32_t	spa_sync_pass;		/* iterate-to-convergence */
 	pool_state_t	spa_state;		/* pool state */
 	int		spa_inject_ref;		/* injection references */
 	uint8_t		spa_sync_on;		/* sync threads are running */
@@ -446,7 +446,7 @@ struct spa {
 
 extern char *spa_config_path;
 extern const char *zfs_deadman_failmode;
-extern int spa_slop_shift;
+extern uint_t spa_slop_shift;
 extern void spa_taskq_dispatch_ent(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
     task_func_t *func, void *arg, uint_t flags, taskq_ent_t *ent);
 extern void spa_taskq_dispatch_sync(spa_t *, zio_type_t t, zio_taskq_type_t q,

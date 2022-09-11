@@ -128,7 +128,7 @@ static void scan_ds_queue_remove(dsl_scan_t *scn, uint64_t dsobj);
 static void scan_ds_queue_sync(dsl_scan_t *scn, dmu_tx_t *tx);
 static uint64_t dsl_scan_count_data_disks(vdev_t *vd);
 
-extern int zfs_vdev_async_write_active_min_dirty_percent;
+extern uint_t zfs_vdev_async_write_active_min_dirty_percent;
 static int zfs_scan_blkstats = 0;
 
 /*
@@ -149,8 +149,10 @@ static int zfs_scan_strict_mem_lim = B_FALSE;
  */
 static unsigned long zfs_scan_vdev_limit = 4 << 20;
 
-static int zfs_scan_issue_strategy = 0;
-static int zfs_scan_legacy = B_FALSE; /* don't queue & sort zios, go direct */
+static uint_t zfs_scan_issue_strategy = 0;
+
+/* don't queue & sort zios, go direct */
+static int zfs_scan_legacy = B_FALSE;
 static unsigned long zfs_scan_max_ext_gap = 2 << 20; /* in bytes */
 
 /*
@@ -158,20 +160,33 @@ static unsigned long zfs_scan_max_ext_gap = 2 << 20; /* in bytes */
  * zfs_scan_fill_weight. Runtime adjustments to zfs_scan_fill_weight would
  * break queue sorting.
  */
-static int zfs_scan_fill_weight = 3;
+static uint_t zfs_scan_fill_weight = 3;
 static uint64_t fill_weight;
 
 /* See dsl_scan_should_clear() for details on the memory limit tunables */
 static const uint64_t zfs_scan_mem_lim_min = 16 << 20;	/* bytes */
 static const uint64_t zfs_scan_mem_lim_soft_max = 128 << 20;	/* bytes */
-static int zfs_scan_mem_lim_fact = 20;		/* fraction of physmem */
-static int zfs_scan_mem_lim_soft_fact = 20;	/* fraction of mem lim above */
 
-static int zfs_scrub_min_time_ms = 1000; /* min millis to scrub per txg */
-static int zfs_obsolete_min_time_ms = 500; /* min millis to obsolete per txg */
-static int zfs_free_min_time_ms = 1000; /* min millis to free per txg */
-static int zfs_resilver_min_time_ms = 3000; /* min millis to resilver per txg */
-static int zfs_scan_checkpoint_intval = 7200; /* in seconds */
+
+/* fraction of physmem */
+static uint_t zfs_scan_mem_lim_fact = 20;
+
+/* fraction of mem lim above */
+static uint_t zfs_scan_mem_lim_soft_fact = 20;
+
+/* minimum milliseconds to scrub per txg */
+static uint_t zfs_scrub_min_time_ms = 1000;
+
+/* minimum milliseconds to obsolete per txg */
+static uint_t zfs_obsolete_min_time_ms = 500;
+
+/* minimum milliseconds to free per txg */
+static uint_t zfs_free_min_time_ms = 1000;
+
+/* minimum milliseconds to resilver per txg */
+static uint_t zfs_resilver_min_time_ms = 3000;
+
+static uint_t zfs_scan_checkpoint_intval = 7200; /* in seconds */
 int zfs_scan_suspend_progress = 0; /* set to prevent scans from progressing */
 static int zfs_no_scrub_io = B_FALSE; /* set to disable scrub i/o */
 static int zfs_no_scrub_prefetch = B_FALSE; /* set to disable scrub prefetch */
@@ -1350,7 +1365,7 @@ dsl_scan_check_suspend(dsl_scan_t *scn, const zbookmark_phys_t *zb)
 	    scn->scn_dp->dp_spa->spa_sync_starttime;
 	uint64_t dirty_min_bytes = zfs_dirty_data_max *
 	    zfs_vdev_async_write_active_min_dirty_percent / 100;
-	int mintime = (scn->scn_phys.scn_func == POOL_SCAN_RESILVER) ?
+	uint_t mintime = (scn->scn_phys.scn_func == POOL_SCAN_RESILVER) ?
 	    zfs_resilver_min_time_ms : zfs_scrub_min_time_ms;
 
 	if ((NSEC2MSEC(scan_time_ns) > mintime &&
@@ -2840,7 +2855,7 @@ scan_io_queue_check_suspend(dsl_scan_t *scn)
 	    scn->scn_dp->dp_spa->spa_sync_starttime;
 	uint64_t dirty_min_bytes = zfs_dirty_data_max *
 	    zfs_vdev_async_write_active_min_dirty_percent / 100;
-	int mintime = (scn->scn_phys.scn_func == POOL_SCAN_RESILVER) ?
+	uint_t mintime = (scn->scn_phys.scn_func == POOL_SCAN_RESILVER) ?
 	    zfs_resilver_min_time_ms : zfs_scrub_min_time_ms;
 
 	return ((NSEC2MSEC(scan_time_ns) > mintime &&
@@ -3622,8 +3637,9 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	 */
 	if (zfs_scan_suspend_progress) {
 		uint64_t scan_time_ns = gethrtime() - scn->scn_sync_start_time;
-		int mintime = (scn->scn_phys.scn_func == POOL_SCAN_RESILVER) ?
-		    zfs_resilver_min_time_ms : zfs_scrub_min_time_ms;
+		uint_t mintime = (scn->scn_phys.scn_func ==
+		    POOL_SCAN_RESILVER) ? zfs_resilver_min_time_ms :
+		    zfs_scrub_min_time_ms;
 
 		while (zfs_scan_suspend_progress &&
 		    !txg_sync_waiting(scn->scn_dp) &&
@@ -4433,16 +4449,16 @@ dsl_scan_assess_vdev(dsl_pool_t *dp, vdev_t *vd)
 ZFS_MODULE_PARAM(zfs, zfs_, scan_vdev_limit, ULONG, ZMOD_RW,
 	"Max bytes in flight per leaf vdev for scrubs and resilvers");
 
-ZFS_MODULE_PARAM(zfs, zfs_, scrub_min_time_ms, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, scrub_min_time_ms, UINT, ZMOD_RW,
 	"Min millisecs to scrub per txg");
 
-ZFS_MODULE_PARAM(zfs, zfs_, obsolete_min_time_ms, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, obsolete_min_time_ms, UINT, ZMOD_RW,
 	"Min millisecs to obsolete per txg");
 
-ZFS_MODULE_PARAM(zfs, zfs_, free_min_time_ms, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, free_min_time_ms, UINT, ZMOD_RW,
 	"Min millisecs to free per txg");
 
-ZFS_MODULE_PARAM(zfs, zfs_, resilver_min_time_ms, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, resilver_min_time_ms, UINT, ZMOD_RW,
 	"Min millisecs to resilver per txg");
 
 ZFS_MODULE_PARAM(zfs, zfs_, scan_suspend_progress, INT, ZMOD_RW,
@@ -4466,28 +4482,28 @@ ZFS_MODULE_PARAM(zfs, zfs_, free_bpobj_enabled, INT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, scan_blkstats, INT, ZMOD_RW,
 	"Enable block statistics calculation during scrub");
 
-ZFS_MODULE_PARAM(zfs, zfs_, scan_mem_lim_fact, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_mem_lim_fact, UINT, ZMOD_RW,
 	"Fraction of RAM for scan hard limit");
 
-ZFS_MODULE_PARAM(zfs, zfs_, scan_issue_strategy, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_issue_strategy, UINT, ZMOD_RW,
 	"IO issuing strategy during scrubbing. 0 = default, 1 = LBA, 2 = size");
 
 ZFS_MODULE_PARAM(zfs, zfs_, scan_legacy, INT, ZMOD_RW,
 	"Scrub using legacy non-sequential method");
 
-ZFS_MODULE_PARAM(zfs, zfs_, scan_checkpoint_intval, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_checkpoint_intval, UINT, ZMOD_RW,
 	"Scan progress on-disk checkpointing interval");
 
 ZFS_MODULE_PARAM(zfs, zfs_, scan_max_ext_gap, ULONG, ZMOD_RW,
 	"Max gap in bytes between sequential scrub / resilver I/Os");
 
-ZFS_MODULE_PARAM(zfs, zfs_, scan_mem_lim_soft_fact, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_mem_lim_soft_fact, UINT, ZMOD_RW,
 	"Fraction of hard limit used as soft limit");
 
 ZFS_MODULE_PARAM(zfs, zfs_, scan_strict_mem_lim, INT, ZMOD_RW,
 	"Tunable to attempt to reduce lock contention");
 
-ZFS_MODULE_PARAM(zfs, zfs_, scan_fill_weight, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_fill_weight, UINT, ZMOD_RW,
 	"Tunable to adjust bias towards more filled segments during scans");
 
 ZFS_MODULE_PARAM(zfs, zfs_, resilver_disable_defer, INT, ZMOD_RW,

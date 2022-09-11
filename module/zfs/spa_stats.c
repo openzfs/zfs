@@ -28,7 +28,7 @@
 /*
  * Keeps stats on last N reads per spa_t, disabled by default.
  */
-static int zfs_read_history = B_FALSE;
+static uint_t zfs_read_history = B_FALSE;
 
 /*
  * Include cache hits in history, disabled by default.
@@ -38,12 +38,12 @@ static int zfs_read_history_hits = B_FALSE;
 /*
  * Keeps stats on the last 100 txgs by default.
  */
-static int zfs_txg_history = 100;
+static uint_t zfs_txg_history = 100;
 
 /*
  * Keeps stats on the last N MMP updates, disabled by default.
  */
-int zfs_multihost_history = B_FALSE;
+static uint_t zfs_multihost_history = B_FALSE;
 
 /*
  * ==========================================================================
@@ -1012,14 +1012,14 @@ spa_stats_destroy(spa_t *spa)
 	spa_guid_destroy(spa);
 }
 
-ZFS_MODULE_PARAM(zfs, zfs_, read_history, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, read_history, UINT, ZMOD_RW,
 	"Historical statistics for the last N reads");
 
 ZFS_MODULE_PARAM(zfs, zfs_, read_history_hits, INT, ZMOD_RW,
 	"Include cache hits in read history");
 
-ZFS_MODULE_PARAM(zfs_txg, zfs_txg_, history, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_txg, zfs_txg_, history, UINT, ZMOD_RW,
 	"Historical statistics for the last N txgs");
 
-ZFS_MODULE_PARAM(zfs_multihost, zfs_multihost_, history, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_multihost, zfs_multihost_, history, UINT, ZMOD_RW,
 	"Historical statistics for last N multihost writes");

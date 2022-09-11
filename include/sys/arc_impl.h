@@ -976,15 +976,15 @@ extern arc_stats_t arc_stats;
 extern arc_sums_t arc_sums;
 extern hrtime_t arc_growtime;
 extern boolean_t arc_warm;
-extern int arc_grow_retry;
-extern int arc_no_grow_shift;
-extern int arc_shrink_shift;
+extern uint_t arc_grow_retry;
+extern uint_t arc_no_grow_shift;
+extern uint_t arc_shrink_shift;
 extern kmutex_t arc_prune_mtx;
 extern list_t arc_prune_list;
 extern arc_state_t	ARC_mfu;
 extern arc_state_t	ARC_mru;
 extern uint_t zfs_arc_pc_percent;
-extern int arc_lotsfree_percent;
+extern uint_t arc_lotsfree_percent;
 extern unsigned long zfs_arc_min;
 extern unsigned long zfs_arc_max;
 
@@ -995,7 +995,7 @@ extern void arc_wait_for_eviction(uint64_t, boolean_t);
 
 extern void arc_lowmem_init(void);
 extern void arc_lowmem_fini(void);
-extern void arc_prune_async(int64_t);
+extern void arc_prune_async(uint64_t);
 extern int arc_memory_throttle(spa_t *spa, uint64_t reserve, uint64_t txg);
 extern uint64_t arc_free_memory(void);
 extern int64_t arc_available_memory(void);

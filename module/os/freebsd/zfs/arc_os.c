@@ -138,7 +138,7 @@ arc_default_max(uint64_t min, uint64_t allmem)
 static void
 arc_prune_task(void *arg)
 {
-	int64_t nr_scan = (intptr_t)arg;
+	uint64_t nr_scan = (uintptr_t)arg;
 
 	arc_reduce_target_size(ptob(nr_scan));
 
@@ -168,12 +168,12 @@ arc_prune_task(void *arg)
  * for releasing it once the registered arc_prune_func_t has completed.
  */
 void
-arc_prune_async(int64_t adjust)
+arc_prune_async(uint64_t adjust)
 {
 
 #ifndef __LP64__
-	if (adjust > INTPTR_MAX)
-		adjust = INTPTR_MAX;
+	if (adjust > UINTPTR_MAX)
+		adjust = UINTPTR_MAX;
 #endif
 	taskq_dispatch(arc_prune_taskq, arc_prune_task,
 	    (void *)(intptr_t)adjust, TQ_SLEEP);

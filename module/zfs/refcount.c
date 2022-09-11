@@ -33,7 +33,7 @@
  * cpu time.  Until its performance is improved it should be manually enabled.
  */
 int reference_tracking_enable = B_FALSE;
-static int reference_history = 3; /* tunable */
+static uint_t reference_history = 3; /* tunable */
 
 static kmem_cache_t *reference_cache;
 static kmem_cache_t *reference_history_cache;
@@ -329,7 +329,7 @@ EXPORT_SYMBOL(zfs_refcount_held);
 ZFS_MODULE_PARAM(zfs, , reference_tracking_enable, INT, ZMOD_RW,
 	"Track reference holders to refcount_t objects");
 
-ZFS_MODULE_PARAM(zfs, , reference_history, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, , reference_history, UINT, ZMOD_RW,
 	"Maximum reference holders being tracked");
 /* END CSTYLED */
 #endif	/* ZFS_DEBUG */

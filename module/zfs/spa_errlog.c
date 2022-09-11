@@ -78,7 +78,7 @@
  *		format when enabling head_errlog. Defaults to 0 which converts
  *		all log entries.
  */
-static uint32_t spa_upgrade_errlog_limit = 0;
+static uint_t spa_upgrade_errlog_limit = 0;
 
 /*
  * Convert a bookmark to a string.
@@ -1367,7 +1367,7 @@ EXPORT_SYMBOL(spa_upgrade_errlog);
 #endif
 
 /* BEGIN CSTYLED */
-ZFS_MODULE_PARAM(zfs_spa, spa_, upgrade_errlog_limit, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_spa, spa_, upgrade_errlog_limit, UINT, ZMOD_RW,
 	"Limit the number of errors which will be upgraded to the new "
 	"on-disk error log when enabling head_errlog");
 /* END CSTYLED */

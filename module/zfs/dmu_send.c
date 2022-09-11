@@ -75,7 +75,7 @@ static int zfs_send_corrupt_data = B_FALSE;
  * thread is issuing new reads because the prefetches have fallen out of the
  * cache, this may need to be decreased.
  */
-static int zfs_send_queue_length = SPA_MAXBLOCKSIZE;
+static uint_t zfs_send_queue_length = SPA_MAXBLOCKSIZE;
 /*
  * This tunable controls the length of the queues that zfs send worker threads
  * use to communicate.  If the send_main_thread is blocking on these queues,
@@ -83,7 +83,7 @@ static int zfs_send_queue_length = SPA_MAXBLOCKSIZE;
  * at the start of a send as these threads consume all the available IO
  * resources, this variable may need to be decreased.
  */
-static int zfs_send_no_prefetch_queue_length = 1024 * 1024;
+static uint_t zfs_send_no_prefetch_queue_length = 1024 * 1024;
 /*
  * These tunables control the fill fraction of the queues by zfs send.  The fill
  * fraction controls the frequency with which threads have to be cv_signaled.
@@ -91,13 +91,13 @@ static int zfs_send_no_prefetch_queue_length = 1024 * 1024;
  * down.  If the queues empty before the signalled thread can catch up, then
  * these should be tuned up.
  */
-static int zfs_send_queue_ff = 20;
-static int zfs_send_no_prefetch_queue_ff = 20;
+static uint_t zfs_send_queue_ff = 20;
+static uint_t zfs_send_no_prefetch_queue_ff = 20;
 
 /*
  * Use this to override the recordsize calculation for fast zfs send estimates.
  */
-static int zfs_override_estimate_recordsize = 0;
+static uint_t zfs_override_estimate_recordsize = 0;
 
 /* Set this tunable to FALSE to disable setting of DRR_FLAG_FREERECORDS */
 static const boolean_t zfs_send_set_freerecords_bit = B_TRUE;
@@ -3089,20 +3089,20 @@ out:
 ZFS_MODULE_PARAM(zfs_send, zfs_send_, corrupt_data, INT, ZMOD_RW,
 	"Allow sending corrupt data");
 
-ZFS_MODULE_PARAM(zfs_send, zfs_send_, queue_length, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_send, zfs_send_, queue_length, UINT, ZMOD_RW,
 	"Maximum send queue length");
 
 ZFS_MODULE_PARAM(zfs_send, zfs_send_, unmodified_spill_blocks, INT, ZMOD_RW,
 	"Send unmodified spill blocks");
 
-ZFS_MODULE_PARAM(zfs_send, zfs_send_, no_prefetch_queue_length, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_send, zfs_send_, no_prefetch_queue_length, UINT, ZMOD_RW,
 	"Maximum send queue length for non-prefetch queues");
 
-ZFS_MODULE_PARAM(zfs_send, zfs_send_, queue_ff, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_send, zfs_send_, queue_ff, UINT, ZMOD_RW,
 	"Send queue fill fraction");
 
-ZFS_MODULE_PARAM(zfs_send, zfs_send_, no_prefetch_queue_ff, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_send, zfs_send_, no_prefetch_queue_ff, UINT, ZMOD_RW,
 	"Send queue fill fraction for non-prefetch queues");
 
-ZFS_MODULE_PARAM(zfs_send, zfs_, override_estimate_recordsize, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_send, zfs_, override_estimate_recordsize, UINT, ZMOD_RW,
 	"Override block size estimate with fixed size");

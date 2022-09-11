@@ -101,8 +101,8 @@
  */
 unsigned long zfs_dirty_data_max = 0;
 unsigned long zfs_dirty_data_max_max = 0;
-int zfs_dirty_data_max_percent = 10;
-int zfs_dirty_data_max_max_percent = 25;
+uint_t zfs_dirty_data_max_percent = 10;
+uint_t zfs_dirty_data_max_max_percent = 25;
 
 /*
  * The upper limit of TX_WRITE log data.  Write operations are throttled
@@ -116,14 +116,14 @@ unsigned long zfs_wrlog_data_max = 0;
  * zfs_dirty_data_max), push out a txg.  This should be less than
  * zfs_vdev_async_write_active_min_dirty_percent.
  */
-static int zfs_dirty_data_sync_percent = 20;
+static uint_t zfs_dirty_data_sync_percent = 20;
 
 /*
  * Once there is this amount of dirty data, the dmu_tx_delay() will kick in
  * and delay each transaction.
  * This value should be >= zfs_vdev_async_write_active_max_dirty_percent.
  */
-int zfs_delay_min_dirty_percent = 60;
+uint_t zfs_delay_min_dirty_percent = 60;
 
 /*
  * This controls how quickly the delay approaches infinity.
@@ -1455,14 +1455,14 @@ EXPORT_SYMBOL(dsl_pool_config_enter);
 EXPORT_SYMBOL(dsl_pool_config_exit);
 
 /* zfs_dirty_data_max_percent only applied at module load in arc_init(). */
-ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_max_percent, INT, ZMOD_RD,
+ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_max_percent, UINT, ZMOD_RD,
 	"Max percent of RAM allowed to be dirty");
 
 /* zfs_dirty_data_max_max_percent only applied at module load in arc_init(). */
-ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_max_max_percent, INT, ZMOD_RD,
+ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_max_max_percent, UINT, ZMOD_RD,
 	"zfs_dirty_data_max upper bound as % of RAM");
 
-ZFS_MODULE_PARAM(zfs, zfs_, delay_min_dirty_percent, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, delay_min_dirty_percent, UINT, ZMOD_RW,
 	"Transaction delay threshold");
 
 ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_max, ULONG, ZMOD_RW,
@@ -1475,7 +1475,7 @@ ZFS_MODULE_PARAM(zfs, zfs_, wrlog_data_max, ULONG, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_max_max, ULONG, ZMOD_RD,
 	"zfs_dirty_data_max upper bound in bytes");
 
-ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_sync_percent, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_sync_percent, UINT, ZMOD_RW,
 	"Dirty data txg sync threshold as a percentage of zfs_dirty_data_max");
 
 ZFS_MODULE_PARAM(zfs, zfs_, delay_scale, ULONG, ZMOD_RW,

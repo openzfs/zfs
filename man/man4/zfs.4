@@ -56,12 +56,12 @@ The percentage below
 .Sy dbuf_cache_max_bytes
 when the evict thread stops evicting dbufs.
 .
-.It Sy dbuf_cache_shift Ns = Ns Sy 5 Pq int
+.It Sy dbuf_cache_shift Ns = Ns Sy 5 Pq uint
 Set the size of the dbuf cache
 .Pq Sy dbuf_cache_max_bytes
 to a log2 fraction of the target ARC size.
 .
-.It Sy dbuf_metadata_cache_shift Ns = Ns Sy 6 Pq int
+.It Sy dbuf_metadata_cache_shift Ns = Ns Sy 6 Pq uint
 Set the size of the dbuf metadata cache
 .Pq Sy dbuf_metadata_cache_max_bytes
 to a log2 fraction of the target ARC size.
@@ -72,11 +72,11 @@ When set to
 .Sy 0
 the array is dynamically sized based on total system memory.
 .
-.It Sy dmu_object_alloc_chunk_shift Ns = Ns Sy 7 Po 128 Pc Pq int
+.It Sy dmu_object_alloc_chunk_shift Ns = Ns Sy 7 Po 128 Pc Pq uint
 dnode slots allocated in a single operation as a power of 2.
 The default value minimizes lock contention for the bulk operation performed.
 .
-.It Sy dmu_prefetch_max Ns = Ns Sy 134217728 Ns B Po 128 MiB Pc Pq int
+.It Sy dmu_prefetch_max Ns = Ns Sy 134217728 Ns B Po 128 MiB Pc Pq uint
 Limit the amount we can prefetch with one call to this amount in bytes.
 This helps to limit the amount of memory that can be used by prefetching.
 .
@@ -155,7 +155,7 @@ provided by the
 arcstats can be used to decide if toggling this option is appropriate
 for the current workload.
 .
-.It Sy l2arc_meta_percent Ns = Ns Sy 33 Ns % Pq int
+.It Sy l2arc_meta_percent Ns = Ns Sy 33 Ns % Pq uint
 Percent of ARC size allowed for L2ARC-only headers.
 Since L2ARC buffers are not evicted on memory pressure,
 too many headers on a system with an irrationally large L2ARC
@@ -267,7 +267,7 @@ Prevent metaslabs from being unloaded.
 .It Sy metaslab_fragmentation_factor_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Enable use of the fragmentation metric in computing metaslab weights.
 .
-.It Sy metaslab_df_max_search Ns = Ns Sy 16777216 Ns B Po 16 MiB Pc Pq int
+.It Sy metaslab_df_max_search Ns = Ns Sy 16777216 Ns B Po 16 MiB Pc Pq uint
 Maximum distance to search forward from the last offset.
 Without this limit, fragmented pools can see
 .Em >100`000
@@ -309,7 +309,7 @@ After a number of seconds controlled by this tunable,
 we stop considering the cached max size and start
 considering only the histogram instead.
 .
-.It Sy zfs_metaslab_mem_limit Ns = Ns Sy 25 Ns % Pq int
+.It Sy zfs_metaslab_mem_limit Ns = Ns Sy 25 Ns % Pq uint
 When we are loading a new metaslab, we check the amount of memory being used
 to store metaslab range trees.
 If it is over a threshold, we attempt to unload the least recently used metaslab
@@ -341,16 +341,16 @@ If that fails we will do a "try hard" gang allocation.
 If that fails then we will have a multi-layer gang block.
 .El
 .
-.It Sy zfs_metaslab_find_max_tries Ns = Ns Sy 100 Pq int
+.It Sy zfs_metaslab_find_max_tries Ns = Ns Sy 100 Pq uint
 When not trying hard, we only consider this number of the best metaslabs.
 This improves performance, especially when there are many metaslabs per vdev
 and the allocation can't actually be satisfied
 (so we would otherwise iterate all metaslabs).
 .
-.It Sy zfs_vdev_default_ms_count Ns = Ns Sy 200 Pq int
+.It Sy zfs_vdev_default_ms_count Ns = Ns Sy 200 Pq uint
 When a vdev is added, target this number of metaslabs per top-level vdev.
 .
-.It Sy zfs_vdev_default_ms_shift Ns = Ns Sy 29 Po 512 MiB Pc Pq int
+.It Sy zfs_vdev_default_ms_shift Ns = Ns Sy 29 Po 512 MiB Pc Pq uint
 Default limit for metaslab size.
 .
 .It Sy zfs_vdev_max_auto_ashift Ns = Ns Sy 14 Pq ulong
@@ -363,7 +363,7 @@ but this may negatively impact pool space efficiency.
 .It Sy zfs_vdev_min_auto_ashift Ns = Ns Sy ASHIFT_MIN Po 9 Pc Pq ulong
 Minimum ashift used when creating new top-level vdevs.
 .
-.It Sy zfs_vdev_min_ms_count Ns = Ns Sy 16 Pq int
+.It Sy zfs_vdev_min_ms_count Ns = Ns Sy 16 Pq uint
 Minimum number of metaslabs to create in a top-level vdev.
 .
 .It Sy vdev_validate_skip Ns = Ns Sy 0 Ns | Ns 1 Pq int
@@ -371,7 +371,7 @@ Skip label validation steps during pool import.
 Changing is not recommended unless you know what you're doing
 and are recovering a damaged label.
 .
-.It Sy zfs_vdev_ms_count_limit Ns = Ns Sy 131072 Po 128k Pc Pq int
+.It Sy zfs_vdev_ms_count_limit Ns = Ns Sy 131072 Po 128k Pc Pq uint
 Practical upper limit of total metaslabs per top-level vdev.
 .
 .It Sy metaslab_preload_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
@@ -382,21 +382,21 @@ Give more weight to metaslabs with lower LBAs,
 assuming they have greater bandwidth,
 as is typically the case on a modern constant angular velocity disk drive.
 .
-.It Sy metaslab_unload_delay Ns = Ns Sy 32 Pq int
+.It Sy metaslab_unload_delay Ns = Ns Sy 32 Pq uint
 After a metaslab is used, we keep it loaded for this many TXGs, to attempt to
 reduce unnecessary reloading.
 Note that both this many TXGs and
 .Sy metaslab_unload_delay_ms
 milliseconds must pass before unloading will occur.
 .
-.It Sy metaslab_unload_delay_ms Ns = Ns Sy 600000 Ns ms Po 10 min Pc Pq int
+.It Sy metaslab_unload_delay_ms Ns = Ns Sy 600000 Ns ms Po 10 min Pc Pq uint
 After a metaslab is used, we keep it loaded for this many milliseconds,
 to attempt to reduce unnecessary reloading.
 Note, that both this many milliseconds and
 .Sy metaslab_unload_delay
 TXGs must pass before unloading will occur.
 .
-.It Sy reference_history Ns = Ns Sy 3 Pq int
+.It Sy reference_history Ns = Ns Sy 3 Pq uint
 Maximum reference holders being tracked when reference_tracking_enable is active.
 .
 .It Sy reference_tracking_enable Ns = Ns Sy 0 Ns | Ns 1 Pq int
@@ -415,7 +415,7 @@ This is useful if you suspect your datasets are affected by a bug in
 .It Sy spa_config_path Ns = Ns Pa /etc/zfs/zpool.cache Pq charp
 SPA config file.
 .
-.It Sy spa_asize_inflation Ns = Ns Sy 24 Pq int
+.It Sy spa_asize_inflation Ns = Ns Sy 24 Pq uint
 Multiplication factor used to estimate actual disk consumption from the
 size of data being written.
 The default value is a worst case estimate,
@@ -448,7 +448,7 @@ blocks in the pool for verification.
 If this parameter is unset, the traversal is not performed.
 It can be toggled once the import has started to stop or start the traversal.
 .
-.It Sy spa_load_verify_shift Ns = Ns Sy 4 Po 1/16th Pc Pq int
+.It Sy spa_load_verify_shift Ns = Ns Sy 4 Po 1/16th Pc Pq uint
 Sets the maximum number of bytes to consume during pool import to the log2
 fraction of the target ARC size.
 .
@@ -470,7 +470,7 @@ new format when enabling the
 feature.
 The default is to convert all log entries.
 .
-.It Sy vdev_removal_max_span Ns = Ns Sy 32768 Ns B Po 32 KiB Pc Pq int
+.It Sy vdev_removal_max_span Ns = Ns Sy 32768 Ns B Po 32 KiB Pc Pq uint
 During top-level vdev removal, chunks of data are copied from the vdev
 which may include free space in order to trade bandwidth for IOPS.
 This parameter determines the maximum span of free space, in bytes,
@@ -565,7 +565,7 @@ Percentage of ARC dnodes to try to scan in response to demand for non-metadata
 when the number of bytes consumed by dnodes exceeds
 .Sy zfs_arc_dnode_limit .
 .
-.It Sy zfs_arc_average_blocksize Ns = Ns Sy 8192 Ns B Po 8 KiB Pc Pq int
+.It Sy zfs_arc_average_blocksize Ns = Ns Sy 8192 Ns B Po 8 KiB Pc Pq uint
 The ARC's buffer hash table is sized based on the assumption of an average
 block size of this value.
 This works out to roughly 1 MiB of hash table per 1 GiB of physical memory
@@ -573,7 +573,7 @@ with 8-byte pointers.
 For configurations with a known larger average block size,
 this value can be increased to reduce the memory footprint.
 .
-.It Sy zfs_arc_eviction_pct Ns = Ns Sy 200 Ns % Pq int
+.It Sy zfs_arc_eviction_pct Ns = Ns Sy 200 Ns % Pq uint
 When
 .Fn arc_is_overflowing ,
 .Fn arc_get_data_impl
@@ -591,12 +591,12 @@ Since this is finite, it ensures that allocations can still happen,
 even during the potentially long time that
 .Sy arc_size No is more than Sy arc_c .
 .
-.It Sy zfs_arc_evict_batch_limit Ns = Ns Sy 10 Pq int
+.It Sy zfs_arc_evict_batch_limit Ns = Ns Sy 10 Pq uint
 Number ARC headers to evict per sub-list before proceeding to another sub-list.
 This batch-style operation prevents entire sub-lists from being evicted at once
 but comes at a cost of additional unlocking and locking.
 .
-.It Sy zfs_arc_grow_retry Ns = Ns Sy 0 Ns s Pq int
+.It Sy zfs_arc_grow_retry Ns = Ns Sy 0 Ns s Pq uint
 If set to a non zero value, it will replace the
 .Sy arc_grow_retry
 value with this value.
@@ -635,7 +635,7 @@ It cannot be set back to
 while running, and reducing it below the current ARC size will not cause
 the ARC to shrink without memory pressure to induce shrinking.
 .
-.It Sy zfs_arc_meta_adjust_restarts Ns = Ns Sy 4096 Pq ulong
+.It Sy zfs_arc_meta_adjust_restarts Ns = Ns Sy 4096 Pq uint
 The number of restart passes to make while scanning the ARC attempting
 the free buffers in order to stay below the
 .Sy fs_arc_meta_limit .
@@ -681,7 +681,7 @@ Setting this value to
 .Sy 0
 will disable pruning the inode and dentry caches.
 .
-.It Sy zfs_arc_meta_strategy Ns = Ns Sy 1 Ns | Ns 0 Pq int
+.It Sy zfs_arc_meta_strategy Ns = Ns Sy 1 Ns | Ns 0 Pq uint
 Define the strategy for ARC metadata buffer eviction (meta reclaim strategy):
 .Bl -tag -compact -offset 4n -width "0 (META_ONLY)"
 .It Sy 0 Pq META_ONLY
@@ -699,10 +699,10 @@ will default to consuming the larger of
 and
 .Sy all_system_memory No / Sy 32 .
 .
-.It Sy zfs_arc_min_prefetch_ms Ns = Ns Sy 0 Ns ms Ns Po Ns ≡ Ns 1s Pc Pq int
+.It Sy zfs_arc_min_prefetch_ms Ns = Ns Sy 0 Ns ms Ns Po Ns ≡ Ns 1s Pc Pq uint
 Minimum time prefetched blocks are locked in the ARC.
 .
-.It Sy zfs_arc_min_prescient_prefetch_ms Ns = Ns Sy 0 Ns ms Ns Po Ns ≡ Ns 6s Pc Pq int
+.It Sy zfs_arc_min_prescient_prefetch_ms Ns = Ns Sy 0 Ns ms Ns Po Ns ≡ Ns 6s Pc Pq uint
 Minimum time "prescient prefetched" blocks are locked in the ARC.
 These blocks are meant to be prefetched fairly aggressively ahead of
 the code that may use them.
@@ -739,7 +739,7 @@ and to
 .Sy 134217728 Ns B Pq 128 MiB
 under Linux.
 .
-.It Sy zfs_multilist_num_sublists Ns = Ns Sy 0 Pq int
+.It Sy zfs_multilist_num_sublists Ns = Ns Sy 0 Pq uint
 To allow more fine-grained locking, each ARC state contains a series
 of lists for both data and metadata objects.
 Locking is performed at the level of these "sub-lists".
@@ -772,7 +772,7 @@ causes the ARC to start reclamation if it exceeds the target size by
 of the target size, and block allocations by
 .Em 0.6% .
 .
-.It Sy zfs_arc_p_min_shift Ns = Ns Sy 0 Pq int
+.It Sy zfs_arc_p_min_shift Ns = Ns Sy 0 Pq uint
 If nonzero, this will update
 .Sy arc_p_min_shift Pq default Sy 4
 with the new value.
@@ -786,7 +786,7 @@ Disable
 adapt dampener, which reduces the maximum single adjustment to
 .Sy arc_p .
 .
-.It Sy zfs_arc_shrink_shift Ns = Ns Sy 0 Pq int
+.It Sy zfs_arc_shrink_shift Ns = Ns Sy 0 Pq uint
 If nonzero, this will update
 .Sy arc_shrink_shift Pq default Sy 7
 with the new value.
@@ -837,7 +837,7 @@ Note that this should not be set below the ZED thresholds
 (currently 10 checksums over 10 seconds)
 or else the daemon may not trigger any action.
 .
-.It Sy zfs_commit_timeout_pct Ns = Ns Sy 5 Ns % Pq int
+.It Sy zfs_commit_timeout_pct Ns = Ns Sy 5 Ns % Pq uint
 This controls the amount of time that a ZIL block (lwb) will remain "open"
 when it isn't "full", and it has a thread waiting for it to be committed to
 stable storage.
@@ -850,7 +850,7 @@ Vdev indirection layer (used for device removal) sleeps for this many
 milliseconds during mapping generation.
 Intended for use with the test suite to throttle vdev removal speed.
 .
-.It Sy zfs_condense_indirect_obsolete_pct Ns = Ns Sy 25 Ns % Pq int
+.It Sy zfs_condense_indirect_obsolete_pct Ns = Ns Sy 25 Ns % Pq uint
 Minimum percent of obsolete bytes in vdev mapping required to attempt to condense
 .Pq see Sy zfs_condense_indirect_vdevs_enable .
 Intended for use with the test suite
@@ -887,7 +887,7 @@ to the file clears the log.
 This setting does not influence debug prints due to
 .Sy zfs_flags .
 .
-.It Sy zfs_dbgmsg_maxsize Ns = Ns Sy 4194304 Ns B Po 4 MiB Pc Pq int
+.It Sy zfs_dbgmsg_maxsize Ns = Ns Sy 4194304 Ns B Po 4 MiB Pc Pq uint
 Maximum size of the internal ZFS debug log.
 .
 .It Sy zfs_dbuf_state_index Ns = Ns Sy 0 Pq int
@@ -952,7 +952,7 @@ milliseconds until the operation completes.
 .It Sy zfs_dedup_prefetch Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Enable prefetching dedup-ed blocks which are going to be freed.
 .
-.It Sy zfs_delay_min_dirty_percent Ns = Ns Sy 60 Ns % Pq int
+.It Sy zfs_delay_min_dirty_percent Ns = Ns Sy 60 Ns % Pq uint
 Start to delay each transaction once there is this amount of dirty data,
 expressed as a percentage of
 .Sy zfs_dirty_data_max .
@@ -1087,7 +1087,7 @@ This parameter takes precedence over
 Defaults to
 .Sy physical_ram/4 ,
 .
-.It Sy zfs_dirty_data_max_max_percent Ns = Ns Sy 25 Ns % Pq int
+.It Sy zfs_dirty_data_max_max_percent Ns = Ns Sy 25 Ns % Pq uint
 Maximum allowable value of
 .Sy zfs_dirty_data_max ,
 expressed as a percentage of physical RAM.
@@ -1099,7 +1099,7 @@ The parameter
 takes precedence over this one.
 .No See Sx ZFS TRANSACTION DELAY .
 .
-.It Sy zfs_dirty_data_max_percent Ns = Ns Sy 10 Ns % Pq int
+.It Sy zfs_dirty_data_max_percent Ns = Ns Sy 10 Ns % Pq uint
 Determines the dirty space limit, expressed as a percentage of all memory.
 Once this limit is exceeded, new writes are halted until space frees up.
 The parameter
@@ -1110,7 +1110,7 @@ takes precedence over this one.
 Subject to
 .Sy zfs_dirty_data_max_max .
 .
-.It Sy zfs_dirty_data_sync_percent Ns = Ns Sy 20 Ns % Pq int
+.It Sy zfs_dirty_data_sync_percent Ns = Ns Sy 20 Ns % Pq uint
 Start syncing out a transaction group if there's at least this much dirty data
 .Pq as a percentage of Sy zfs_dirty_data_max .
 This should be less than
@@ -1191,15 +1191,15 @@ Maximum number of blocks freed in a single TXG.
 .It Sy zfs_max_async_dedup_frees Ns = Ns Sy 100000 Po 10^5 Pc Pq ulong
 Maximum number of dedup blocks freed in a single TXG.
 .
-.It Sy zfs_vdev_async_read_max_active Ns = Ns Sy 3 Pq int
+.It Sy zfs_vdev_async_read_max_active Ns = Ns Sy 3 Pq uint
 Maximum asynchronous read I/O operations active to each device.
 .No See Sx ZFS I/O SCHEDULER .
 .
-.It Sy zfs_vdev_async_read_min_active Ns = Ns Sy 1 Pq int
+.It Sy zfs_vdev_async_read_min_active Ns = Ns Sy 1 Pq uint
 Minimum asynchronous read I/O operation active to each device.
 .No See Sx ZFS I/O SCHEDULER .
 .
-.It Sy zfs_vdev_async_write_active_max_dirty_percent Ns = Ns Sy 60 Ns % Pq int
+.It Sy zfs_vdev_async_write_active_max_dirty_percent Ns = Ns Sy 60 Ns % Pq uint
 When the pool has more than this much dirty data, use
 .Sy zfs_vdev_async_write_max_active
 to limit active async writes.
@@ -1207,7 +1207,7 @@ If the dirty data is between the minimum and maximum,
 the active I/O limit is linearly interpolated.
 .No See Sx ZFS I/O SCHEDULER .
 .
-.It Sy zfs_vdev_async_write_active_min_dirty_percent Ns = Ns Sy 30 Ns % Pq int
+.It Sy zfs_vdev_async_write_active_min_dirty_percent Ns = Ns Sy 30 Ns % Pq uint
 When the pool has less than this much dirty data, use
 .Sy zfs_vdev_async_write_min_active
 to limit active async writes.
@@ -1216,11 +1216,11 @@ the active I/O limit is linearly
 interpolated.
 .No See Sx ZFS I/O SCHEDULER .
 .
-.It Sy zfs_vdev_async_write_max_active Ns = Ns Sy 30 Pq int
+.It Sy zfs_vdev_async_write_max_active Ns = Ns Sy 30 Pq uint
 Maximum asynchronous write I/O operations active to each device.
 .No See Sx ZFS I/O SCHEDULER .
 .
-.It Sy zfs_vdev_async_write_min_active Ns = Ns Sy 2 Pq int
+.It Sy zfs_vdev_async_write_min_active Ns = Ns Sy 2 Pq uint
 Minimum asynchronous write I/O operations active to each device.
 .No See Sx ZFS I/O SCHEDULER .
 .Pp
@@ -1234,69 +1234,69 @@ A value of
 has been shown to improve resilver performance further at a cost of
 further increasing latency.
 .
-.It Sy zfs_vdev_initializing_max_active Ns = Ns Sy 1 Pq int
+.It Sy zfs_vdev_initializing_max_active Ns = Ns Sy 1 Pq uint
 Maximum initializing I/O operations active to each device.
 .No See Sx ZFS I/O SCHEDULER .
 .
-.It Sy zfs_vdev_initializing_min_active Ns = Ns Sy 1 Pq int
+.It Sy zfs_vdev_initializing_min_active Ns = Ns Sy 1 Pq uint
 Minimum initializing I/O operations active to each device.
 .No See Sx ZFS I/O SCHEDULER .
 .
-.It Sy zfs_vdev_max_active Ns = Ns Sy 1000 Pq int
+.It Sy zfs_vdev_max_active Ns = Ns Sy 1000 Pq uint
 The maximum number of I/O operations active to each device.
 Ideally, this will be at least the sum of each queue's
 .Sy max_active .
 .No See Sx ZFS I/O SCHEDULER .
 .
-.It Sy zfs_vdev_rebuild_max_active Ns = Ns Sy 3 Pq int
+.It Sy zfs_vdev_rebuild_max_active Ns = Ns Sy 3 Pq uint
 Maximum sequential resilver I/O operations active to each device.
 .No See Sx ZFS I/O SCHEDULER .
 .
-.It Sy zfs_vdev_rebuild_min_active Ns = Ns Sy 1 Pq int
+.It Sy zfs_vdev_rebuild_min_active Ns = Ns Sy 1 Pq uint
 Minimum sequential resilver I/O operations active to each device.
 .No See Sx ZFS I/O SCHEDULER .
 .
-.It Sy zfs_vdev_removal_max_active Ns = Ns Sy 2 Pq int
+.It Sy zfs_vdev_removal_max_active Ns = Ns Sy 2 Pq uint
 Maximum removal I/O operations active to each device.
 .No See Sx ZFS I/O SCHEDULER .
 .
-.It Sy zfs_vdev_removal_min_active Ns = Ns Sy 1 Pq int
+.It Sy zfs_vdev_removal_min_active Ns = Ns Sy 1 Pq uint
 Minimum removal I/O operations active to each device.
 .No See Sx ZFS I/O SCHEDULER .
 .
-.It Sy zfs_vdev_scrub_max_active Ns = Ns Sy 2 Pq int
+.It Sy zfs_vdev_scrub_max_active Ns = Ns Sy 2 Pq uint
 Maximum scrub I/O operations active to each device.
 .No See Sx ZFS I/O SCHEDULER .
 .
-.It Sy zfs_vdev_scrub_min_active Ns = Ns Sy 1 Pq int
+.It Sy zfs_vdev_scrub_min_active Ns = Ns Sy 1 Pq uint
 Minimum scrub I/O operations active to each device.
 .No See Sx ZFS I/O SCHEDULER .
 .
-.It Sy zfs_vdev_sync_read_max_active Ns = Ns Sy 10 Pq int
+.It Sy zfs_vdev_sync_read_max_active Ns = Ns Sy 10 Pq uint
 Maximum synchronous read I/O operations active to each device.
 .No See Sx ZFS I/O SCHEDULER .
 .
-.It Sy zfs_vdev_sync_read_min_active Ns = Ns Sy 10 Pq int
+.It Sy zfs_vdev_sync_read_min_active Ns = Ns Sy 10 Pq uint
 Minimum synchronous read I/O operations active to each device.
 .No See Sx ZFS I/O SCHEDULER .
 .
-.It Sy zfs_vdev_sync_write_max_active Ns = Ns Sy 10 Pq int
+.It Sy zfs_vdev_sync_write_max_active Ns = Ns Sy 10 Pq uint
 Maximum synchronous write I/O operations active to each device.
 .No See Sx ZFS I/O SCHEDULER .
 .
-.It Sy zfs_vdev_sync_write_min_active Ns = Ns Sy 10 Pq int
+.It Sy zfs_vdev_sync_write_min_active Ns = Ns Sy 10 Pq uint
 Minimum synchronous write I/O operations active to each device.
 .No See Sx ZFS I/O SCHEDULER .
 .
-.It Sy zfs_vdev_trim_max_active Ns = Ns Sy 2 Pq int
+.It Sy zfs_vdev_trim_max_active Ns = Ns Sy 2 Pq uint
 Maximum trim/discard I/O operations active to each device.
 .No See Sx ZFS I/O SCHEDULER .
 .
-.It Sy zfs_vdev_trim_min_active Ns = Ns Sy 1 Pq int
+.It Sy zfs_vdev_trim_min_active Ns = Ns Sy 1 Pq uint
 Minimum trim/discard I/O operations active to each device.
 .No See Sx ZFS I/O SCHEDULER .
 .
-.It Sy zfs_vdev_nia_delay Ns = Ns Sy 5 Pq int
+.It Sy zfs_vdev_nia_delay Ns = Ns Sy 5 Pq uint
 For non-interactive I/O (scrub, resilver, removal, initialize and rebuild),
 the number of concurrently-active I/O operations is limited to
 .Sy zfs_*_min_active ,
@@ -1310,7 +1310,7 @@ and the number of concurrently-active non-interactive operations is increased to
 .Sy zfs_*_max_active .
 .No See Sx ZFS I/O SCHEDULER .
 .
-.It Sy zfs_vdev_nia_credit Ns = Ns Sy 5 Pq int
+.It Sy zfs_vdev_nia_credit Ns = Ns Sy 5 Pq uint
 Some HDDs tend to prioritize sequential I/O so strongly, that concurrent
 random I/O latency reaches several seconds.
 On some HDDs this happens even if sequential I/O operations
@@ -1325,7 +1325,7 @@ This enforced wait ensures the HDD services the interactive I/O
 within a reasonable amount of time.
 .No See Sx ZFS I/O SCHEDULER .
 .
-.It Sy zfs_vdev_queue_depth_pct Ns = Ns Sy 1000 Ns % Pq int
+.It Sy zfs_vdev_queue_depth_pct Ns = Ns Sy 1000 Ns % Pq uint
 Maximum number of queued allocations per top-level vdev expressed as
 a percentage of
 .Sy zfs_vdev_async_write_max_active ,
@@ -1431,7 +1431,7 @@ but we chose the more conservative approach of not setting it,
 so that there is no possibility of
 leaking space in the "partial temporary" failure case.
 .
-.It Sy zfs_free_min_time_ms Ns = Ns Sy 1000 Ns ms Po 1s Pc Pq int
+.It Sy zfs_free_min_time_ms Ns = Ns Sy 1000 Ns ms Po 1s Pc Pq uint
 During a
 .Nm zfs Cm destroy
 operation using the
@@ -1439,7 +1439,7 @@ operation using the
 feature,
 a minimum of this much time will be spent working on freeing blocks per TXG.
 .
-.It Sy zfs_obsolete_min_time_ms Ns = Ns Sy 500 Ns ms Pq int
+.It Sy zfs_obsolete_min_time_ms Ns = Ns Sy 500 Ns ms Pq uint
 Similar to
 .Sy zfs_free_min_time_ms ,
 but for cleanup of old indirection records for removed vdevs.
@@ -1518,7 +1518,7 @@ feature uses to estimate incoming log blocks.
 .It Sy zfs_max_logsm_summary_length Ns = Ns Sy 10 Pq ulong
 Maximum number of rows allowed in the summary of the spacemap log.
 .
-.It Sy zfs_max_recordsize Ns = Ns Sy 16777216 Po 16 MiB Pc Pq int
+.It Sy zfs_max_recordsize Ns = Ns Sy 16777216 Po 16 MiB Pc Pq uint
 We currently support block sizes from
 .Em 512 Po 512 B Pc No to Em 16777216 Po 16 MiB Pc .
 The benefits of larger blocks, and thus larger I/O,
@@ -1537,13 +1537,13 @@ Normally disabled because these datasets may be missing key data.
 .It Sy zfs_min_metaslabs_to_flush Ns = Ns Sy 1 Pq ulong
 Minimum number of metaslabs to flush per dirty TXG.
 .
-.It Sy zfs_metaslab_fragmentation_threshold Ns = Ns Sy 70 Ns % Pq int
+.It Sy zfs_metaslab_fragmentation_threshold Ns = Ns Sy 70 Ns % Pq uint
 Allow metaslabs to keep their active state as long as their fragmentation
 percentage is no more than this value.
 An active metaslab that exceeds this threshold
 will no longer keep its active status allowing better metaslabs to be selected.
 .
-.It Sy zfs_mg_fragmentation_threshold Ns = Ns Sy 95 Ns % Pq int
+.It Sy zfs_mg_fragmentation_threshold Ns = Ns Sy 95 Ns % Pq uint
 Metaslab groups are considered eligible for allocations if their
 fragmentation metric (measured as a percentage) is less than or equal to
 this value.
@@ -1551,7 +1551,7 @@ If a metaslab group exceeds this threshold then it will be
 skipped unless all metaslab groups within the metaslab class have also
 crossed this threshold.
 .
-.It Sy zfs_mg_noalloc_threshold Ns = Ns Sy 0 Ns % Pq int
+.It Sy zfs_mg_noalloc_threshold Ns = Ns Sy 0 Ns % Pq uint
 Defines a threshold at which metaslab groups should be eligible for allocations.
 The value is expressed as a percentage of free space
 beyond which a metaslab group is always eligible for allocations.
@@ -1580,7 +1580,7 @@ If enabled, ZFS will place DDT data into the special allocation class.
 If enabled, ZFS will place user data indirect blocks
 into the special allocation class.
 .
-.It Sy zfs_multihost_history Ns = Ns Sy 0 Pq int
+.It Sy zfs_multihost_history Ns = Ns Sy 0 Pq uint
 Historical statistics for this many latest multihost updates will be available in
 .Pa /proc/spl/kstat/zfs/ Ns Ao Ar pool Ac Ns Pa /multihost .
 .
@@ -1671,7 +1671,7 @@ The number of bytes which should be prefetched during a pool traversal, like
 .Nm zfs Cm send
 or other data crawling operations.
 .
-.It Sy zfs_traverse_indirect_prefetch_limit Ns = Ns Sy 32 Pq int
+.It Sy zfs_traverse_indirect_prefetch_limit Ns = Ns Sy 32 Pq uint
 The number of blocks pointed by indirect (non-L0) block which should be
 prefetched during a pool traversal, like
 .Nm zfs Cm send
@@ -1708,7 +1708,7 @@ hardware as long as support is compiled in and the QAT driver is present.
 .It Sy zfs_vnops_read_chunk_size Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq long
 Bytes to read per chunk.
 .
-.It Sy zfs_read_history Ns = Ns Sy 0 Pq int
+.It Sy zfs_read_history Ns = Ns Sy 0 Pq uint
 Historical statistics for this many latest reads will be available in
 .Pa /proc/spl/kstat/zfs/ Ns Ao Ar pool Ac Ns Pa /reads .
 .
@@ -1753,11 +1753,11 @@ and is hence not recommended.
 This should only be used as a last resort when the
 pool cannot be returned to a healthy state prior to removing the device.
 .
-.It Sy zfs_removal_suspend_progress Ns = Ns Sy 0 Ns | Ns 1 Pq int
+.It Sy zfs_removal_suspend_progress Ns = Ns Sy 0 Ns | Ns 1 Pq uint
 This is used by the test suite so that it can ensure that certain actions
 happen while in the middle of a removal.
 .
-.It Sy zfs_remove_max_segment Ns = Ns Sy 16777216 Ns B Po 16 MiB Pc Pq int
+.It Sy zfs_remove_max_segment Ns = Ns Sy 16777216 Ns B Po 16 MiB Pc Pq uint
 The largest contiguous segment that we will attempt to allocate when removing
 a device.
 If there is a performance problem with attempting to allocate large blocks,
@@ -1770,7 +1770,7 @@ Ignore the
 feature, causing an operation that would start a resilver to
 immediately restart the one in progress.
 .
-.It Sy zfs_resilver_min_time_ms Ns = Ns Sy 3000 Ns ms Po 3 s Pc Pq int
+.It Sy zfs_resilver_min_time_ms Ns = Ns Sy 3000 Ns ms Po 3 s Pc Pq uint
 Resilvers are processed by the sync thread.
 While resilvering, it will spend at least this much time
 working on a resilver between TXG flushes.
@@ -1781,17 +1781,17 @@ even if there were unrepairable errors.
 Intended to be used during pool repair or recovery to
 stop resilvering when the pool is next imported.
 .
-.It Sy zfs_scrub_min_time_ms Ns = Ns Sy 1000 Ns ms Po 1 s Pc Pq int
+.It Sy zfs_scrub_min_time_ms Ns = Ns Sy 1000 Ns ms Po 1 s Pc Pq uint
 Scrubs are processed by the sync thread.
 While scrubbing, it will spend at least this much time
 working on a scrub between TXG flushes.
 .
-.It Sy zfs_scan_checkpoint_intval Ns = Ns Sy 7200 Ns s Po 2 hour Pc Pq int
+.It Sy zfs_scan_checkpoint_intval Ns = Ns Sy 7200 Ns s Po 2 hour Pc Pq uint
 To preserve progress across reboots, the sequential scan algorithm periodically
 needs to stop metadata scanning and issue all the verification I/O to disk.
 The frequency of this flushing is determined by this tunable.
 .
-.It Sy zfs_scan_fill_weight Ns = Ns Sy 3 Pq int
+.It Sy zfs_scan_fill_weight Ns = Ns Sy 3 Pq uint
 This tunable affects how scrub and resilver I/O segments are ordered.
 A higher number indicates that we care more about how filled in a segment is,
 while a lower number indicates we care more about the size of the extent without
@@ -1799,7 +1799,7 @@ considering the gaps within a segment.
 This value is only tunable upon module insertion.
 Changing the value afterwards will have no effect on scrub or resilver performance.
 .
-.It Sy zfs_scan_issue_strategy Ns = Ns Sy 0 Pq int
+.It Sy zfs_scan_issue_strategy Ns = Ns Sy 0 Pq uint
 Determines the order that data will be verified while scrubbing or resilvering:
 .Bl -tag -compact -offset 4n -width "a"
 .It Sy 1
@@ -1829,14 +1829,14 @@ that will still be considered sequential for sorting purposes.
 Changing this value will not
 affect scrubs or resilvers that are already in progress.
 .
-.It Sy zfs_scan_mem_lim_fact Ns = Ns Sy 20 Ns ^-1 Pq int
+.It Sy zfs_scan_mem_lim_fact Ns = Ns Sy 20 Ns ^-1 Pq uint
 Maximum fraction of RAM used for I/O sorting by sequential scan algorithm.
 This tunable determines the hard limit for I/O sorting memory usage.
 When the hard limit is reached we stop scanning metadata and start issuing
 data verification I/O.
 This is done until we get below the soft limit.
 .
-.It Sy zfs_scan_mem_lim_soft_fact Ns = Ns Sy 20 Ns ^-1 Pq int
+.It Sy zfs_scan_mem_lim_soft_fact Ns = Ns Sy 20 Ns ^-1 Pq uint
 The fraction of the hard limit used to determined the soft limit for I/O sorting
 by the sequential scan algorithm.
 When we cross this limit from below no action is taken.
@@ -1866,41 +1866,41 @@ remove the spill block from an existing object.
 Including unmodified copies of the spill blocks creates a backwards-compatible
 stream which will recreate a spill block if it was incorrectly removed.
 .
-.It Sy zfs_send_no_prefetch_queue_ff Ns = Ns Sy 20 Ns ^\-1 Pq int
+.It Sy zfs_send_no_prefetch_queue_ff Ns = Ns Sy 20 Ns ^\-1 Pq uint
 The fill fraction of the
 .Nm zfs Cm send
 internal queues.
 The fill fraction controls the timing with which internal threads are woken up.
 .
-.It Sy zfs_send_no_prefetch_queue_length Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq int
+.It Sy zfs_send_no_prefetch_queue_length Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq uint
 The maximum number of bytes allowed in
 .Nm zfs Cm send Ns 's
 internal queues.
 .
-.It Sy zfs_send_queue_ff Ns = Ns Sy 20 Ns ^\-1 Pq int
+.It Sy zfs_send_queue_ff Ns = Ns Sy 20 Ns ^\-1 Pq uint
 The fill fraction of the
 .Nm zfs Cm send
 prefetch queue.
 The fill fraction controls the timing with which internal threads are woken up.
 .
-.It Sy zfs_send_queue_length Ns = Ns Sy 16777216 Ns B Po 16 MiB Pc Pq int
+.It Sy zfs_send_queue_length Ns = Ns Sy 16777216 Ns B Po 16 MiB Pc Pq uint
 The maximum number of bytes allowed that will be prefetched by
 .Nm zfs Cm send .
 This value must be at least twice the maximum block size in use.
 .
-.It Sy zfs_recv_queue_ff Ns = Ns Sy 20 Ns ^\-1 Pq int
+.It Sy zfs_recv_queue_ff Ns = Ns Sy 20 Ns ^\-1 Pq uint
 The fill fraction of the
 .Nm zfs Cm receive
 queue.
 The fill fraction controls the timing with which internal threads are woken up.
 .
-.It Sy zfs_recv_queue_length Ns = Ns Sy 16777216 Ns B Po 16 MiB Pc Pq int
+.It Sy zfs_recv_queue_length Ns = Ns Sy 16777216 Ns B Po 16 MiB Pc Pq uint
 The maximum number of bytes allowed in the
 .Nm zfs Cm receive
 queue.
 This value must be at least twice the maximum block size in use.
 .
-.It Sy zfs_recv_write_batch_size Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq int
+.It Sy zfs_recv_write_batch_size Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq uint
 The maximum amount of data, in bytes, that
 .Nm zfs Cm receive
 will write in one DMU transaction.
@@ -1920,7 +1920,7 @@ If there is an error during healing, the healing receive is not
 terminated instead it moves on to the next record.
 .El
 .
-.It Sy zfs_override_estimate_recordsize Ns = Ns Sy 0 Ns | Ns 1 Pq ulong
+.It Sy zfs_override_estimate_recordsize Ns = Ns Sy 0 Ns | Ns 1 Pq uint
 Setting this variable overrides the default logic for estimating block
 sizes when doing a
 .Nm zfs Cm send .
@@ -1929,7 +1929,7 @@ will be the current recordsize.
 Override this value if most data in your dataset is not of that size
 and you require accurate zfs send size estimates.
 .
-.It Sy zfs_sync_pass_deferred_free Ns = Ns Sy 2 Pq int
+.It Sy zfs_sync_pass_deferred_free Ns = Ns Sy 2 Pq uint
 Flushing of data to disk is done in passes.
 Defer frees starting in this pass.
 .
@@ -1937,13 +1937,13 @@ Defer frees starting in this pass.
 Maximum memory used for prefetching a checkpoint's space map on each
 vdev while discarding the checkpoint.
 .
-.It Sy zfs_special_class_metadata_reserve_pct Ns = Ns Sy 25 Ns % Pq int
+.It Sy zfs_special_class_metadata_reserve_pct Ns = Ns Sy 25 Ns % Pq uint
 Only allow small data blocks to be allocated on the special and dedup vdev
 types when the available free space percentage on these vdevs exceeds this value.
 This ensures reserved space is available for pool metadata as the
 special vdevs approach capacity.
 .
-.It Sy zfs_sync_pass_dont_compress Ns = Ns Sy 8 Pq int
+.It Sy zfs_sync_pass_dont_compress Ns = Ns Sy 8 Pq uint
 Starting in this sync pass, disable compression (including of metadata).
 With the default setting, in practice, we don't have this many sync passes,
 so this has no effect.
@@ -1964,7 +1964,7 @@ allocations are especially detrimental to performance
 on highly fragmented systems, which may have very few free segments of this size,
 and may need to load new metaslabs to satisfy these allocations.
 .
-.It Sy zfs_sync_pass_rewrite Ns = Ns Sy 2 Pq int
+.It Sy zfs_sync_pass_rewrite Ns = Ns Sy 2 Pq uint
 Rewrite new block pointers starting in this pass.
 .
 .It Sy zfs_sync_taskq_batch_pct Ns = Ns Sy 75 Ns % Pq int
@@ -2013,35 +2013,35 @@ The default of
 .Sy 32
 was determined to be a reasonable compromise.
 .
-.It Sy zfs_txg_history Ns = Ns Sy 0 Pq int
+.It Sy zfs_txg_history Ns = Ns Sy 0 Pq uint
 Historical statistics for this many latest TXGs will be available in
 .Pa /proc/spl/kstat/zfs/ Ns Ao Ar pool Ac Ns Pa /TXGs .
 .
-.It Sy zfs_txg_timeout Ns = Ns Sy 5 Ns s Pq int
+.It Sy zfs_txg_timeout Ns = Ns Sy 5 Ns s Pq uint
 Flush dirty data to disk at least every this many seconds (maximum TXG duration).
 .
-.It Sy zfs_vdev_aggregate_trim Ns = Ns Sy 0 Ns | Ns 1 Pq int
+.It Sy zfs_vdev_aggregate_trim Ns = Ns Sy 0 Ns | Ns 1 Pq uint
 Allow TRIM I/O operations to be aggregated.
 This is normally not helpful because the extents to be trimmed
 will have been already been aggregated by the metaslab.
 This option is provided for debugging and performance analysis.
 .
-.It Sy zfs_vdev_aggregation_limit Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq int
+.It Sy zfs_vdev_aggregation_limit Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq uint
 Max vdev I/O aggregation size.
 .
-.It Sy zfs_vdev_aggregation_limit_non_rotating Ns = Ns Sy 131072 Ns B Po 128 KiB Pc Pq int
+.It Sy zfs_vdev_aggregation_limit_non_rotating Ns = Ns Sy 131072 Ns B Po 128 KiB Pc Pq uint
 Max vdev I/O aggregation size for non-rotating media.
 .
-.It Sy zfs_vdev_cache_bshift Ns = Ns Sy 16 Po 64 KiB Pc Pq int
+.It Sy zfs_vdev_cache_bshift Ns = Ns Sy 16 Po 64 KiB Pc Pq uint
 Shift size to inflate reads to.
 .
-.It Sy zfs_vdev_cache_max Ns = Ns Sy 16384 Ns B Po 16 KiB Pc Pq int
+.It Sy zfs_vdev_cache_max Ns = Ns Sy 16384 Ns B Po 16 KiB Pc Pq uint
 Inflate reads smaller than this value to meet the
 .Sy zfs_vdev_cache_bshift
 size
 .Pq default Sy 64 KiB .
 .
-.It Sy zfs_vdev_cache_size Ns = Ns Sy 0 Pq int
+.It Sy zfs_vdev_cache_size Ns = Ns Sy 0 Pq uint
 Total size of the per-disk cache in bytes.
 .Pp
 Currently this feature is disabled, as it has been found to not be helpful
@@ -2079,11 +2079,11 @@ locality as defined by the
 Operations within this that are not immediately following the previous operation
 are incremented by half.
 .
-.It Sy zfs_vdev_read_gap_limit Ns = Ns Sy 32768 Ns B Po 32 KiB Pc Pq int
+.It Sy zfs_vdev_read_gap_limit Ns = Ns Sy 32768 Ns B Po 32 KiB Pc Pq uint
 Aggregate read I/O operations if the on-disk gap between them is within this
 threshold.
 .
-.It Sy zfs_vdev_write_gap_limit Ns = Ns Sy 4096 Ns B Po 4 KiB Pc Pq int
+.It Sy zfs_vdev_write_gap_limit Ns = Ns Sy 4096 Ns B Po 4 KiB Pc Pq uint
 Aggregate write I/O operations if the on-disk gap between them is within this
 threshold.
 .
@@ -2120,7 +2120,7 @@ powerpc_altivec	Altivec	PowerPC
 .Sy DEPRECATED .
 Prints warning to kernel log for compatibility.
 .
-.It Sy zfs_zevent_len_max Ns = Ns Sy 512 Pq int
+.It Sy zfs_zevent_len_max Ns = Ns Sy 512 Pq uint
 Max event queue length.
 Events in the queue can be viewed with
 .Xr zpool-events 8 .
@@ -2150,7 +2150,7 @@ The default value of
 .Sy 100%
 will create a maximum of one thread per cpu.
 .
-.It Sy zil_maxblocksize Ns = Ns Sy 131072 Ns B Po 128 KiB Pc Pq int
+.It Sy zil_maxblocksize Ns = Ns Sy 131072 Ns B Po 128 KiB Pc Pq uint
 This sets the maximum block size used by the ZIL.
 On very fragmented pools, lowering this
 .Pq typically to Sy 36 KiB
@@ -2181,7 +2181,7 @@ This would only be necessary to work around bugs in the ZIL logging or replay
 code for this record type.
 The tunable has no effect if the feature is disabled.
 .
-.It Sy zfs_embedded_slog_min_ms Ns = Ns Sy 64 Pq int
+.It Sy zfs_embedded_slog_min_ms Ns = Ns Sy 64 Pq uint
 Usually, one metaslab from each normal-class vdev is dedicated for use by
 the ZIL to log synchronous writes.
 However, if there are fewer than
@@ -2189,11 +2189,11 @@ However, if there are fewer than
 metaslabs in the vdev, this functionality is disabled.
 This ensures that we don't set aside an unreasonable amount of space for the ZIL.
 .
-.It Sy zstd_earlyabort_pass Ns = Ns Sy 1 Pq int
+.It Sy zstd_earlyabort_pass Ns = Ns Sy 1 Pq uint
 Whether heuristic for detection of incompressible data with zstd levels >= 3
 using LZ4 and zstd-1 passes is enabled.
 .
-.It Sy zstd_abort_size Ns = Ns Sy 131072 Pq int
+.It Sy zstd_abort_size Ns = Ns Sy 131072 Pq uint
 Minimal uncompressed size (inclusive) of a record before the early abort
 heuristic will be attempted.
 .

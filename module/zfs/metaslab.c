@@ -81,7 +81,7 @@ int zfs_metaslab_sm_blksz_with_log = (1 << 17);
  * space map representation must be before we compact it on-disk.
  * Values should be greater than or equal to 100.
  */
-int zfs_condense_pct = 200;
+uint_t zfs_condense_pct = 200;
 
 /*
  * Condensing a metaslab is not guaranteed to actually reduce the amount of
@@ -111,7 +111,7 @@ static const int zfs_metaslab_condense_block_threshold = 4;
  * eligible to allocate on any metaslab group. The default value of 0 means
  * no metaslab group will be excluded based on this criterion.
  */
-static int zfs_mg_noalloc_threshold = 0;
+static uint_t zfs_mg_noalloc_threshold = 0;
 
 /*
  * Metaslab groups are considered eligible for allocations if their
@@ -135,7 +135,7 @@ static int zfs_mg_noalloc_threshold = 0;
  * enough to avoid hitting the speed bump on pools that are being pushed
  * to the edge.
  */
-static int zfs_mg_fragmentation_threshold = 95;
+static uint_t zfs_mg_fragmentation_threshold = 95;
 
 /*
  * Allow metaslabs to keep their active state as long as their fragmentation
@@ -143,7 +143,7 @@ static int zfs_mg_fragmentation_threshold = 95;
  * active metaslab that exceeds this threshold will no longer keep its active
  * status allowing better metaslabs to be selected.
  */
-static int zfs_metaslab_fragmentation_threshold = 70;
+static uint_t zfs_metaslab_fragmentation_threshold = 70;
 
 /*
  * When set will load all metaslabs when pool is first opened.
@@ -169,7 +169,7 @@ uint64_t metaslab_df_alloc_threshold = SPA_OLD_MAXBLOCKSIZE;
  * Once the space map's free space drops below this level we dynamically
  * switch to using best-fit allocations.
  */
-int metaslab_df_free_pct = 4;
+uint_t metaslab_df_free_pct = 4;
 
 /*
  * Maximum distance to search forward from the last offset. Without this
@@ -184,7 +184,7 @@ int metaslab_df_free_pct = 4;
  * With the default setting of 16MB this is 16*1024 (with ashift=9) or
  * 2048 (with ashift=12).
  */
-static int metaslab_df_max_search = 16 * 1024 * 1024;
+static uint_t metaslab_df_max_search = 16 * 1024 * 1024;
 
 /*
  * Forces the metaslab_block_picker function to search for at least this many
@@ -215,13 +215,13 @@ int metaslab_load_pct = 50;
  * unloaded sooner.  These settings are intended to be generous -- to keep
  * metaslabs loaded for a long time, reducing the rate of metaslab loading.
  */
-static int metaslab_unload_delay = 32;
-static int metaslab_unload_delay_ms = 10 * 60 * 1000; /* ten minutes */
+static uint_t metaslab_unload_delay = 32;
+static uint_t metaslab_unload_delay_ms = 10 * 60 * 1000; /* ten minutes */
 
 /*
  * Max number of metaslabs per group to preload.
  */
-int metaslab_preload_limit = 10;
+uint_t metaslab_preload_limit = 10;
 
 /*
  * Enable/disable preloading of metaslab.
@@ -293,7 +293,7 @@ static unsigned long zfs_metaslab_max_size_cache_sec = 1 * 60 * 60; /* 1 hour */
  * a metaslab would take it over this percentage, the oldest selected metaslab
  * is automatically unloaded.
  */
-static int zfs_metaslab_mem_limit = 25;
+static uint_t zfs_metaslab_mem_limit = 25;
 
 /*
  * Force the per-metaslab range trees to use 64-bit integers to store
@@ -337,7 +337,7 @@ static int zfs_metaslab_try_hard_before_gang = B_FALSE;
  * subsequent metaslab has ms_max_size >60KB (but fewer segments in this
  * bucket, and therefore a lower weight).
  */
-static int zfs_metaslab_find_max_tries = 100;
+static uint_t zfs_metaslab_find_max_tries = 100;
 
 static uint64_t metaslab_weight(metaslab_t *, boolean_t);
 static void metaslab_set_fragmentation(metaslab_t *, boolean_t);
@@ -1672,7 +1672,7 @@ metaslab_df_alloc(metaslab_t *msp, uint64_t size)
 	uint64_t align = size & -size;
 	uint64_t *cursor = &msp->ms_lbas[highbit64(align) - 1];
 	range_tree_t *rt = msp->ms_allocatable;
-	int free_pct = range_tree_space(rt) * 100 / msp->ms_size;
+	uint_t free_pct = range_tree_space(rt) * 100 / msp->ms_size;
 	uint64_t offset;
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
@@ -2169,7 +2169,7 @@ metaslab_potentially_evict(metaslab_class_t *mc)
 	uint64_t allmem = arc_all_memory();
 	uint64_t inuse = spl_kmem_cache_inuse(zfs_btree_leaf_cache);
 	uint64_t size =	spl_kmem_cache_entry_size(zfs_btree_leaf_cache);
-	int tries = 0;
+	uint_t tries = 0;
 	for (; allmem * zfs_metaslab_mem_limit / 100 < inuse * size &&
 	    tries < multilist_get_num_sublists(&mc->mc_metaslab_txg_list) * 2;
 	    tries++) {
@@ -4640,7 +4640,7 @@ find_valid_metaslab(metaslab_group_t *mg, uint64_t activation_weight,
 	if (msp == NULL)
 		msp = avl_nearest(t, idx, AVL_AFTER);
 
-	int tries = 0;
+	uint_t tries = 0;
 	for (; msp != NULL; msp = AVL_NEXT(t, msp)) {
 		int i;
 
@@ -6215,18 +6215,18 @@ ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, debug_unload, INT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, preload_enabled, INT, ZMOD_RW,
 	"Preload potential metaslabs during reassessment");
 
-ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, unload_delay, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, unload_delay, UINT, ZMOD_RW,
 	"Delay in txgs after metaslab was last used before unloading");
 
-ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, unload_delay_ms, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, unload_delay_ms, UINT, ZMOD_RW,
 	"Delay in milliseconds after metaslab was last used before unloading");
 
 /* BEGIN CSTYLED */
-ZFS_MODULE_PARAM(zfs_mg, zfs_mg_, noalloc_threshold, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_mg, zfs_mg_, noalloc_threshold, UINT, ZMOD_RW,
 	"Percentage of metaslab group size that should be free to make it "
 	"eligible for allocation");
 
-ZFS_MODULE_PARAM(zfs_mg, zfs_mg_, fragmentation_threshold, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_mg, zfs_mg_, fragmentation_threshold, UINT, ZMOD_RW,
 	"Percentage of metaslab group size that should be considered eligible "
 	"for allocations unless all metaslab groups within the metaslab class "
 	"have also crossed this threshold");
@@ -6236,7 +6236,7 @@ ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, fragmentation_factor_enabled, INT,
 	"Use the fragmentation metric to prefer less fragmented metaslabs");
 /* END CSTYLED */
 
-ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, fragmentation_threshold, INT,
+ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, fragmentation_threshold, UINT,
 	ZMOD_RW, "Fragmentation for metaslab to allow allocation");
 
 ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, lba_weighting_enabled, INT, ZMOD_RW,
@@ -6254,7 +6254,7 @@ ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, switch_threshold, INT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, force_ganging, ULONG, ZMOD_RW,
 	"Blocks larger than this size are forced to be gang blocks");
 
-ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, df_max_search, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, df_max_search, UINT, ZMOD_RW,
 	"Max distance (bytes) to search forward before using size tree");
 
 ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, df_use_largest_segment, INT, ZMOD_RW,
@@ -6263,11 +6263,11 @@ ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, df_use_largest_segment, INT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, max_size_cache_sec, ULONG,
 	ZMOD_RW, "How long to trust the cached max chunk size of a metaslab");
 
-ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, mem_limit, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, mem_limit, UINT, ZMOD_RW,
 	"Percentage of memory that can be used to store metaslab range trees");
 
 ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, try_hard_before_gang, INT,
 	ZMOD_RW, "Try hard to allocate before ganging");
 
-ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, find_max_tries, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, find_max_tries, UINT, ZMOD_RW,
 	"Normally only consider this many of the best metaslabs in each vdev");

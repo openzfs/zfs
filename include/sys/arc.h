@@ -84,7 +84,7 @@ typedef void arc_write_done_func_t(zio_t *zio, arc_buf_t *buf, void *priv);
 typedef void arc_prune_func_t(int64_t bytes, void *priv);
 
 /* Shared module parameters */
-extern int zfs_arc_average_blocksize;
+extern uint_t zfs_arc_average_blocksize;
 extern int l2arc_exclude_special;
 
 /* generic arc_done_func_t's which you can use */

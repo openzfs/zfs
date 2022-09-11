@@ -95,7 +95,7 @@ extern void fm_init(void);
 extern void fm_fini(void);
 extern void zfs_zevent_post_cb(nvlist_t *nvl, nvlist_t *detector);
 extern int zfs_zevent_post(nvlist_t *, nvlist_t *, zevent_cb_t *);
-extern void zfs_zevent_drain_all(int *);
+extern void zfs_zevent_drain_all(uint_t *);
 extern zfs_file_t *zfs_zevent_fd_hold(int, minor_t *, zfs_zevent_t **);
 extern void zfs_zevent_fd_rele(zfs_file_t *);
 extern int zfs_zevent_next(zfs_zevent_t *, nvlist_t **, uint64_t *, uint64_t *);

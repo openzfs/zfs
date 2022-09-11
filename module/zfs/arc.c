@@ -354,7 +354,7 @@ static list_t arc_evict_waiters;
  * can still happen, even during the potentially long time that arc_size is
  * more than arc_c.
  */
-static int zfs_arc_eviction_pct = 200;
+static uint_t zfs_arc_eviction_pct = 200;
 
 /*
  * The number of headers to evict in arc_evict_state_impl() before
@@ -363,10 +363,10 @@ static int zfs_arc_eviction_pct = 200;
  * oldest header in the arc state), but comes with higher overhead
  * (i.e. more invocations of arc_evict_state_impl()).
  */
-static int zfs_arc_evict_batch_limit = 10;
+static uint_t zfs_arc_evict_batch_limit = 10;
 
 /* number of seconds before growing cache again */
-int arc_grow_retry = 5;
+uint_t arc_grow_retry = 5;
 
 /*
  * Minimum time between calls to arc_kmem_reap_soon().
@@ -377,10 +377,10 @@ static const int arc_kmem_cache_reap_retry_ms = 1000;
 static int zfs_arc_overflow_shift = 8;
 
 /* shift of arc_c for calculating both min and max arc_p */
-static int arc_p_min_shift = 4;
+static uint_t arc_p_min_shift = 4;
 
 /* log2(fraction of arc to reclaim) */
-int arc_shrink_shift = 7;
+uint_t arc_shrink_shift = 7;
 
 /* percent of pagecache to reclaim arc to */
 #ifdef _KERNEL
@@ -396,20 +396,20 @@ uint_t zfs_arc_pc_percent = 0;
  * This must be less than arc_shrink_shift, so that when we shrink the ARC,
  * we will still not allow it to grow.
  */
-int			arc_no_grow_shift = 5;
+uint_t		arc_no_grow_shift = 5;
 
 
 /*
  * minimum lifespan of a prefetch block in clock ticks
  * (initialized in arc_init())
  */
-static int		arc_min_prefetch_ms;
-static int		arc_min_prescient_prefetch_ms;
+static uint_t		arc_min_prefetch_ms;
+static uint_t		arc_min_prescient_prefetch_ms;
 
 /*
  * If this percent of memory is free, don't throttle.
  */
-int arc_lotsfree_percent = 10;
+uint_t arc_lotsfree_percent = 10;
 
 /*
  * The arc has filled available memory and has now warmed up.
@@ -425,10 +425,10 @@ unsigned long zfs_arc_meta_limit = 0;
 unsigned long zfs_arc_meta_min = 0;
 static unsigned long zfs_arc_dnode_limit = 0;
 static unsigned long zfs_arc_dnode_reduce_percent = 10;
-static int zfs_arc_grow_retry = 0;
-static int zfs_arc_shrink_shift = 0;
-static int zfs_arc_p_min_shift = 0;
-int zfs_arc_average_blocksize = 8 * 1024; /* 8KB */
+static uint_t zfs_arc_grow_retry = 0;
+static uint_t zfs_arc_shrink_shift = 0;
+static uint_t zfs_arc_p_min_shift = 0;
+uint_t zfs_arc_average_blocksize = 8 * 1024; /* 8KB */
 
 /*
  * ARC dirty data constraints for arc_tempreserve_space() throttle:
@@ -460,13 +460,13 @@ static unsigned long zfs_arc_dnode_limit_percent = 10;
  * These tunables are Linux-specific
  */
 static unsigned long zfs_arc_sys_free = 0;
-static int zfs_arc_min_prefetch_ms = 0;
-static int zfs_arc_min_prescient_prefetch_ms = 0;
+static uint_t zfs_arc_min_prefetch_ms = 0;
+static uint_t zfs_arc_min_prescient_prefetch_ms = 0;
 static int zfs_arc_p_dampener_disable = 1;
-static int zfs_arc_meta_prune = 10000;
-static int zfs_arc_meta_strategy = ARC_STRATEGY_META_BALANCED;
-static int zfs_arc_meta_adjust_restarts = 4096;
-static int zfs_arc_lotsfree_percent = 10;
+static uint_t zfs_arc_meta_prune = 10000;
+static uint_t zfs_arc_meta_strategy = ARC_STRATEGY_META_BALANCED;
+static uint_t zfs_arc_meta_adjust_restarts = 4096;
+static uint_t zfs_arc_lotsfree_percent = 10;
 
 /*
  * Number of arc_prune threads
@@ -790,7 +790,7 @@ unsigned long l2arc_feed_min_ms = L2ARC_FEED_MIN_MS;	/* min interval msecs */
 int l2arc_noprefetch = B_TRUE;			/* don't cache prefetch bufs */
 int l2arc_feed_again = B_TRUE;			/* turbo warmup */
 int l2arc_norw = B_FALSE;			/* no reads during writes */
-static int l2arc_meta_percent = 33;		/* limit on headers size */
+static uint_t l2arc_meta_percent = 33;	/* limit on headers size */
 
 /*
  * L2ARC Internals
@@ -3898,7 +3898,7 @@ arc_evict_hdr(arc_buf_hdr_t *hdr, kmutex_t *hash_lock, uint64_t *real_evicted)
 {
 	arc_state_t *evicted_state, *state;
 	int64_t bytes_evicted = 0;
-	int min_lifetime = HDR_PRESCIENT_PREFETCH(hdr) ?
+	uint_t min_lifetime = HDR_PRESCIENT_PREFETCH(hdr) ?
 	    arc_min_prescient_prefetch_ms : arc_min_prefetch_ms;
 
 	ASSERT(MUTEX_HELD(hash_lock));
@@ -4053,7 +4053,7 @@ arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
 	uint64_t bytes_evicted = 0, real_evicted = 0;
 	arc_buf_hdr_t *hdr;
 	kmutex_t *hash_lock;
-	int evict_count = zfs_arc_evict_batch_limit;
+	uint_t evict_count = zfs_arc_evict_batch_limit;
 
 	ASSERT3P(marker, !=, NULL);
 
@@ -4061,7 +4061,7 @@ arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
 
 	for (hdr = multilist_sublist_prev(mls, marker); likely(hdr != NULL);
 	    hdr = multilist_sublist_prev(mls, marker)) {
-		if ((evict_count <= 0) || (bytes_evicted >= bytes))
+		if ((evict_count == 0) || (bytes_evicted >= bytes))
 			break;
 
 		/*
@@ -4404,10 +4404,10 @@ arc_evict_impl(arc_state_t *state, uint64_t spa, int64_t bytes,
 static uint64_t
 arc_evict_meta_balanced(uint64_t meta_used)
 {
-	int64_t delta, prune = 0, adjustmnt;
-	uint64_t total_evicted = 0;
+	int64_t delta, adjustmnt;
+	uint64_t total_evicted = 0, prune = 0;
 	arc_buf_contents_t type = ARC_BUFC_DATA;
-	int restarts = MAX(zfs_arc_meta_adjust_restarts, 0);
+	uint_t restarts = zfs_arc_meta_adjust_restarts;
 
 restart:
 	/*
@@ -7656,8 +7656,7 @@ arc_tuning_update(boolean_t verbose)
 	}
 
 	/* Valid range: 0 - 100 */
-	if ((zfs_arc_lotsfree_percent >= 0) &&
-	    (zfs_arc_lotsfree_percent <= 100))
+	if (zfs_arc_lotsfree_percent <= 100)
 		arc_lotsfree_percent = zfs_arc_lotsfree_percent;
 	WARN_IF_TUNING_IGNORED(zfs_arc_lotsfree_percent, arc_lotsfree_percent,
 	    verbose);
@@ -11077,56 +11076,56 @@ EXPORT_SYMBOL(arc_add_prune_callback);
 EXPORT_SYMBOL(arc_remove_prune_callback);
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, min, param_set_arc_min,
-	param_get_long, ZMOD_RW, "Minimum ARC size in bytes");
+	param_get_ulong, ZMOD_RW, "Minimum ARC size in bytes");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, max, param_set_arc_max,
-	param_get_long, ZMOD_RW, "Maximum ARC size in bytes");
+	param_get_ulong, ZMOD_RW, "Maximum ARC size in bytes");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, meta_limit, param_set_arc_long,
-	param_get_long, ZMOD_RW, "Metadata limit for ARC size in bytes");
+	param_get_ulong, ZMOD_RW, "Metadata limit for ARC size in bytes");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, meta_limit_percent,
-    param_set_arc_long, param_get_long, ZMOD_RW,
+    param_set_arc_long, param_get_ulong, ZMOD_RW,
 	"Percent of ARC size for ARC meta limit");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, meta_min, param_set_arc_long,
-	param_get_long, ZMOD_RW, "Minimum ARC metadata size in bytes");
+	param_get_ulong, ZMOD_RW, "Minimum ARC metadata size in bytes");
 
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, meta_prune, INT, ZMOD_RW,
 	"Meta objects to scan for prune");
 
-ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, meta_adjust_restarts, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, meta_adjust_restarts, UINT, ZMOD_RW,
 	"Limit number of restarts in arc_evict_meta");
 
-ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, meta_strategy, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, meta_strategy, UINT, ZMOD_RW,
 	"Meta reclaim strategy");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, grow_retry, param_set_arc_int,
-	param_get_int, ZMOD_RW, "Seconds before growing ARC size");
+	param_get_uint, ZMOD_RW, "Seconds before growing ARC size");
 
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, p_dampener_disable, INT, ZMOD_RW,
 	"Disable arc_p adapt dampener");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, shrink_shift, param_set_arc_int,
-	param_get_int, ZMOD_RW, "log2(fraction of ARC to reclaim)");
+	param_get_uint, ZMOD_RW, "log2(fraction of ARC to reclaim)");
 
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, pc_percent, UINT, ZMOD_RW,
 	"Percent of pagecache to reclaim ARC to");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, p_min_shift, param_set_arc_int,
-	param_get_int, ZMOD_RW, "arc_c shift to calc min/max arc_p");
+	param_get_uint, ZMOD_RW, "arc_c shift to calc min/max arc_p");
 
-ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, average_blocksize, INT, ZMOD_RD,
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, average_blocksize, UINT, ZMOD_RD,
 	"Target average block size");
 
 ZFS_MODULE_PARAM(zfs, zfs_, compressed_arc_enabled, INT, ZMOD_RW,
 	"Disable compressed ARC buffers");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, min_prefetch_ms, param_set_arc_int,
-	param_get_int, ZMOD_RW, "Min life of prefetch block in ms");
+	param_get_uint, ZMOD_RW, "Min life of prefetch block in ms");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, min_prescient_prefetch_ms,
-    param_set_arc_int, param_get_int, ZMOD_RW,
+    param_set_arc_int, param_get_uint, ZMOD_RW,
 	"Min life of prescient prefetched block in ms");
 
 ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, write_max, ULONG, ZMOD_RW,
@@ -11159,7 +11158,7 @@ ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, feed_again, INT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, norw, INT, ZMOD_RW,
 	"No reads during writes");
 
-ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, meta_percent, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, meta_percent, UINT, ZMOD_RW,
 	"Percent of ARC size allowed for L2ARC-only headers");
 
 ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, rebuild_enabled, INT, ZMOD_RW,
@@ -11175,25 +11174,25 @@ ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, exclude_special, INT, ZMOD_RW,
 	"Exclude dbufs on special vdevs from being cached to L2ARC if set.");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, lotsfree_percent, param_set_arc_int,
-	param_get_int, ZMOD_RW, "System free memory I/O throttle in bytes");
+	param_get_uint, ZMOD_RW, "System free memory I/O throttle in bytes");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, sys_free, param_set_arc_long,
-	param_get_long, ZMOD_RW, "System free memory target size in bytes");
+	param_get_ulong, ZMOD_RW, "System free memory target size in bytes");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, dnode_limit, param_set_arc_long,
-	param_get_long, ZMOD_RW, "Minimum bytes of dnodes in ARC");
+	param_get_ulong, ZMOD_RW, "Minimum bytes of dnodes in ARC");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, dnode_limit_percent,
-    param_set_arc_long, param_get_long, ZMOD_RW,
+    param_set_arc_long, param_get_ulong, ZMOD_RW,
 	"Percent of ARC meta buffers for dnodes");
 
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, dnode_reduce_percent, ULONG, ZMOD_RW,
 	"Percentage of excess dnodes to try to unpin");
 
-ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, eviction_pct, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, eviction_pct, UINT, ZMOD_RW,
 	"When full, ARC allocation waits for eviction of this % of alloc size");
 
-ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, evict_batch_limit, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, evict_batch_limit, UINT, ZMOD_RW,
 	"The number of headers to evict per sublist before moving to the next");
 
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, prune_task_threads, INT, ZMOD_RW,
