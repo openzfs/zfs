@@ -33,6 +33,4 @@
 #define	usleep_range(wakeup, wakeupepsilon)				   \
 	pause_sbt("usleep_range", ustosbt(wakeup), \
 	ustosbt(wakeupepsilon - wakeup), 0)
-
-#define	schedule() pause("schedule", 1)
 #endif
