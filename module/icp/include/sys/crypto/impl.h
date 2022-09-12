@@ -126,28 +126,26 @@ typedef struct kcf_provider_desc {
 	crypto_provider_id_t		pd_prov_id;
 } kcf_provider_desc_t;
 
-/* atomic operations in linux implicitly form a memory barrier */
-#define	membar_exit()
-
 /*
  * If a component has a reference to a kcf_provider_desc_t,
  * it REFHOLD()s. A new provider descriptor which is referenced only
  * by the providers table has a reference counter of one.
  */
-#define	KCF_PROV_REFHOLD(desc) {		\
-	atomic_add_32(&(desc)->pd_refcnt, 1);	\
-	ASSERT((desc)->pd_refcnt != 0);		\
+#define	KCF_PROV_REFHOLD(desc) {				\
+	int newval = atomic_add_32_nv(&(desc)->pd_refcnt, 1);	\
+	ASSERT(newval != 0);					\
 }
 
-#define	KCF_PROV_IREFHOLD(desc) {		\
-	atomic_add_32(&(desc)->pd_irefcnt, 1);	\
-	ASSERT((desc)->pd_irefcnt != 0);	\
+#define	KCF_PROV_IREFHOLD(desc) {				\
+	int newval = atomic_add_32_nv(&(desc)->pd_irefcnt, 1);	\
+	ASSERT(newval != 0);					\
 }
 
 #define	KCF_PROV_IREFRELE(desc) {				\
-	ASSERT((desc)->pd_irefcnt != 0);			\
-	membar_exit();						\
-	if (atomic_add_32_nv(&(desc)->pd_irefcnt, -1) == 0) {	\
+	membar_producer();					\
+	int newval = atomic_add_32_nv(&(desc)->pd_irefcnt, -1);	\
+	ASSERT(newval != -1);					\
+	if (newval == 0) {					\
 		cv_broadcast(&(desc)->pd_remove_cv);		\
 	}							\
 }
@@ -155,9 +153,10 @@ typedef struct kcf_provider_desc {
 #define	KCF_PROV_REFHELD(desc)	((desc)->pd_refcnt >= 1)
 
 #define	KCF_PROV_REFRELE(desc) {				\
-	ASSERT((desc)->pd_refcnt != 0);				\
-	membar_exit();						\
-	if (atomic_add_32_nv(&(desc)->pd_refcnt, -1) == 0) {	\
+	membar_producer();					\
+	int newval = atomic_add_32_nv(&(desc)->pd_refcnt, -1);	\
+	ASSERT(newval != -1);					\
+	if (newval == 0) {					\
 		kcf_provider_zero_refcnt((desc));		\
 	}							\
 }
@@ -193,9 +192,9 @@ typedef	struct kcf_mech_entry {
  * it REFHOLD()s. A new policy descriptor which is referenced only
  * by the policy table has a reference count of one.
  */
-#define	KCF_POLICY_REFHOLD(desc) {		\
-	atomic_add_32(&(desc)->pd_refcnt, 1);	\
-	ASSERT((desc)->pd_refcnt != 0);		\
+#define	KCF_POLICY_REFHOLD(desc) {				\
+	int newval = atomic_add_32_nv(&(desc)->pd_refcnt, 1);	\
+	ASSERT(newval != 0);					\
 }
 
 /*
@@ -203,9 +202,10 @@ typedef	struct kcf_mech_entry {
  * reference is released, the descriptor is freed.
  */
 #define	KCF_POLICY_REFRELE(desc) {				\
-	ASSERT((desc)->pd_refcnt != 0);				\
-	membar_exit();						\
-	if (atomic_add_32_nv(&(desc)->pd_refcnt, -1) == 0)	\
+	membar_producer();					\
+	int newval = atomic_add_32_nv(&(desc)->pd_refcnt, -1);	\
+	ASSERT(newval != -1);					\
+	if (newval == 0)					\
 		kcf_policy_free_desc(desc);			\
 }
 

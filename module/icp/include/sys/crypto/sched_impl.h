@@ -73,9 +73,10 @@ typedef struct kcf_context {
  * context structure is freed along with the global context.
  */
 #define	KCF_CONTEXT_REFRELE(ictx) {				\
-	ASSERT((ictx)->kc_refcnt != 0);				\
-	membar_exit();						\
-	if (atomic_add_32_nv(&(ictx)->kc_refcnt, -1) == 0)	\
+	membar_producer();					\
+	int newval = atomic_add_32_nv(&(ictx)->kc_refcnt, -1);	\
+	ASSERT(newval != -1);					\
+	if (newval == 0)					\
 		kcf_free_context(ictx);				\
 }
 
