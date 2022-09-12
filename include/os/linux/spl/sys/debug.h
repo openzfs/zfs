@@ -120,6 +120,11 @@ void spl_dumpstack(void);
 		    (long long) (_verify3_right));			\
 	} while (0)
 
+/* Workaround possible coverity bug */
+#if defined(DEBUG) && defined(NDEBUG)
+#undef NDEBUG
+#endif
+
 /*
  * Debugging disabled (--disable-debug)
  */
