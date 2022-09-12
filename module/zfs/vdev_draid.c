@@ -541,7 +541,7 @@ vdev_draid_generate_perms(const draid_map_t *map, uint8_t **permsp)
 int
 vdev_draid_lookup_map(uint64_t children, const draid_map_t **mapp)
 {
-	for (int i = 0; i <= VDEV_DRAID_MAX_MAPS; i++) {
+	for (int i = 0; i < VDEV_DRAID_MAX_MAPS; i++) {
 		if (draid_maps[i].dm_children == children) {
 			*mapp = &draid_maps[i];
 			return (0);
