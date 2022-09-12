@@ -4165,7 +4165,7 @@ arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
 	 * this CPU are able to make progress, make a voluntary preemption
 	 * call here.
 	 */
-	cond_resched();
+	kpreempt(KPREEMPT_SYNC);
 
 	return (bytes_evicted);
 }
@@ -10335,7 +10335,7 @@ l2arc_rebuild(l2arc_dev_t *dev)
 		    !dev->l2ad_first)
 			goto out;
 
-		cond_resched();
+		kpreempt(KPREEMPT_SYNC);
 		for (;;) {
 			mutex_enter(&l2arc_rebuild_thr_lock);
 			if (dev->l2ad_rebuild_cancel) {

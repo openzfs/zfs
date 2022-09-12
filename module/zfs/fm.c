@@ -1354,7 +1354,7 @@ fm_fini(void)
 	zevent_flags |= ZEVENT_SHUTDOWN;
 	while (zevent_waiters > 0) {
 		mutex_exit(&zevent_lock);
-		schedule();
+		kpreempt(KPREEMPT_SYNC);
 		mutex_enter(&zevent_lock);
 	}
 	mutex_exit(&zevent_lock);
