@@ -825,7 +825,7 @@ draid_generate(int argc, char *argv[])
 	}
 
 	if (argc > optind)
-		strncpy(filename, argv[optind], MAXPATHLEN - 1);
+		strlcpy(filename, argv[optind], sizeof (filename));
 	else {
 		(void) fprintf(stderr, "A FILE must be specified.\n");
 		return (1);
@@ -956,9 +956,9 @@ draid_verify(int argc, char *argv[])
 			return (ENOMEM);
 
 		if (realpath(argv[optind], abspath) != NULL)
-			strncpy(filename, abspath, MAXPATHLEN - 1);
+			strlcpy(filename, abspath, sizeof (filename));
 		else
-			strncpy(filename, argv[optind], MAXPATHLEN - 1);
+			strlcpy(filename, argv[optind], sizeof (filename));
 
 		free(abspath);
 	} else {
@@ -1165,7 +1165,7 @@ draid_dump(int argc, char *argv[])
 	}
 
 	if (argc > optind)
-		strncpy(filename, argv[optind], MAXPATHLEN - 1);
+		strlcpy(filename, argv[optind], sizeof (filename));
 	else {
 		(void) fprintf(stderr, "A FILE must be specified.\n");
 		return (1);
@@ -1202,7 +1202,7 @@ draid_table(int argc, char *argv[])
 	int error;
 
 	if (argc > optind)
-		strncpy(filename, argv[optind], MAXPATHLEN - 1);
+		strlcpy(filename, argv[optind], sizeof (filename));
 	else {
 		(void) fprintf(stderr, "A FILE must be specified.\n");
 		return (1);
@@ -1336,7 +1336,7 @@ draid_merge(int argc, char *argv[])
 		return (1);
 	}
 
-	strncpy(filename, argv[optind], MAXPATHLEN - 1);
+	strlcpy(filename, argv[optind], sizeof (filename));
 	optind++;
 
 	error = read_map(filename, &allcfgs);
@@ -1351,7 +1351,7 @@ draid_merge(int argc, char *argv[])
 		char srcfilename[MAXPATHLEN] = {0};
 		int merged = 0;
 
-		strncpy(srcfilename, argv[optind], MAXPATHLEN - 1);
+		strlcpy(srcfilename, argv[optind], sizeof (srcfilename));
 
 		error = draid_merge_impl(allcfgs, srcfilename, &merged);
 		if (error) {

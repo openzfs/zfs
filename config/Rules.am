@@ -52,6 +52,8 @@ AM_CPPFLAGS_NOCHECK += -D"asctime(...)=__attribute__((deprecated(\"Use strftime(
 AM_CPPFLAGS_NOCHECK += -D"asctime_r(...)=__attribute__((deprecated(\"Use strftime(3) instead!\"))) asctime_r(__VA_ARGS__)"
 AM_CPPFLAGS_NOCHECK += -D"gmtime(...)=__attribute__((deprecated(\"gmtime(3) isn't thread-safe. Use gmtime_r(3) instead!\"))) gmtime(__VA_ARGS__)"
 AM_CPPFLAGS_NOCHECK += -D"localtime(...)=__attribute__((deprecated(\"localtime(3) isn't thread-safe. Use localtime_r(3) instead!\"))) localtime(__VA_ARGS__)"
+AM_CPPFLAGS_NOCHECK += -D"strncpy(...)=__attribute__((deprecated(\"strncpy(3) is deprecated. Use strlcpy(3) instead!\"))) strncpy(__VA_ARGS__)"
+
 AM_CPPFLAGS += $(AM_CPPFLAGS_NOCHECK)
 
 if ASAN_ENABLED

@@ -37,8 +37,7 @@ main(int argc, char *argv[])
 	}
 	path = argv[1];
 	size =  sizeof (sock.sun_path);
-	strncpy(sock.sun_path, (char *)path, size - 1);
-	sock.sun_path[size - 1] = '\0';
+	(void) snprintf(sock.sun_path, size, "%s", path);
 
 	sock.sun_family = AF_UNIX;
 	if ((fd = socket(AF_UNIX, SOCK_DGRAM, 0)) == -1) {

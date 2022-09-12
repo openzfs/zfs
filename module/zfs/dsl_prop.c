@@ -57,7 +57,7 @@ dodefault(zfs_prop_t prop, int intsz, int numints, void *buf)
 	if (zfs_prop_get_type(prop) == PROP_TYPE_STRING) {
 		if (intsz != 1)
 			return (SET_ERROR(EOVERFLOW));
-		(void) strncpy(buf, zfs_prop_default_string(prop),
+		(void) strlcpy(buf, zfs_prop_default_string(prop),
 		    numints);
 	} else {
 		if (intsz != 8 || numints < 1)
@@ -1019,8 +1019,8 @@ dsl_prop_get_all_impl(objset_t *mos, uint64_t propobj,
 			if (flags & DSL_PROP_GET_LOCAL)
 				continue;
 
-			(void) strncpy(buf, za.za_name, (suffix - za.za_name));
-			buf[suffix - za.za_name] = '\0';
+			(void) strlcpy(buf, za.za_name,
+			    MIN(sizeof (buf), suffix - za.za_name + 1));
 			propname = buf;
 
 			if (!(flags & DSL_PROP_GET_RECEIVED)) {
