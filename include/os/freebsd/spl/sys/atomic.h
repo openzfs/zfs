@@ -57,7 +57,8 @@ extern uint64_t atomic_cas_64(volatile uint64_t *target, uint64_t cmp,
     uint64_t newval);
 #endif
 
-#define	membar_producer	atomic_thread_fence_rel
+#define	membar_consumer()		atomic_thread_fence_acq()
+#define	membar_producer()		atomic_thread_fence_rel()
 
 static __inline uint32_t
 atomic_add_32_nv(volatile uint32_t *target, int32_t delta)
