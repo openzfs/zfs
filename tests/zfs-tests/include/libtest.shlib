@@ -1265,7 +1265,7 @@ function is_shared_smb
 	datasetexists "$fs" || return
 
 	if is_linux; then
-		net usershare list | grep -xFq "${fs//\//_}"
+		net usershare list | grep -xFq "${fs//[-\/]/_}"
 	else
 		log_note "SMB on $UNAME currently unsupported by the test framework"
 		return 1
