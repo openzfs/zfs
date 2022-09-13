@@ -7966,6 +7966,7 @@ exec_child(char *cmd, char *libpath, boolean_t ignorekill, int *statusp)
 				VERIFY3S(-1, !=,
 				    asprintf(&newlp, "%s:%s", libpath, curlp));
 				VERIFY0(setenv("LD_LIBRARY_PATH", newlp, 1));
+				free(newlp);
 			}
 		}
 		(void) execl(cmd, cmd, (char *)NULL);
