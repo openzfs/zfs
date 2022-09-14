@@ -23,7 +23,7 @@ jobs:
         ./autogen.sh
     - name: Configure
       run: |
-        ./configure --enable-debug --enable-debuginfo --enable-asan --enable-ubsan --with-config=dist
+        ./configure --enable-debug --enable-debuginfo --enable-asan --enable-ubsan
     - name: Make
       run: |
         make -j$(nproc) --no-print-directory --silent pkg-utils pkg-kmod
