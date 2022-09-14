@@ -1804,7 +1804,7 @@ raidz_checksum_verify(zio_t *zio)
 static int
 raidz_parity_verify(zio_t *zio, raidz_row_t *rr)
 {
-	abd_t *orig[VDEV_RAIDZ_MAXPARITY];
+	abd_t *orig[VDEV_RAIDZ_MAXPARITY] = {0};
 	int c, ret = 0;
 	raidz_map_t *rm = zio->io_vsd;
 	raidz_col_t *rc;
@@ -1845,7 +1845,12 @@ raidz_parity_verify(zio_t *zio, raidz_row_t *rr)
 
 		if (!rc->rc_tried || rc->rc_error != 0)
 			continue;
-
+		if (orig[c] == NULL) {
+			vdev_raidz_checksum_error(zio, rc, orig[c]);
+			rc->rc_error = SET_ERROR(ECKSUM);
+			ret++;
+			continue;
+		}
 		if (abd_cmp(orig[c], rc->rc_abd) != 0) {
 			vdev_raidz_checksum_error(zio, rc, orig[c]);
 			rc->rc_error = SET_ERROR(ECKSUM);
