@@ -3254,7 +3254,8 @@ dbuf_prefetch_indirect_done(zio_t *zio, const zbookmark_phys_t *zb,
 
 	if (abuf == NULL) {
 		ASSERT(zio == NULL || zio->io_error != 0);
-		return (dbuf_prefetch_fini(dpa, B_TRUE));
+		dbuf_prefetch_fini(dpa, B_TRUE);
+		return;
 	}
 	ASSERT(zio == NULL || zio->io_error == 0);
 
@@ -3287,7 +3288,8 @@ dbuf_prefetch_indirect_done(zio_t *zio, const zbookmark_phys_t *zb,
 		    dpa->dpa_curlevel, curblkid, FTAG);
 		if (db == NULL) {
 			arc_buf_destroy(abuf, private);
-			return (dbuf_prefetch_fini(dpa, B_TRUE));
+			dbuf_prefetch_fini(dpa, B_TRUE);
+			return;
 		}
 		(void) dbuf_read(db, NULL,
 		    DB_RF_MUST_SUCCEED | DB_RF_NOPREFETCH | DB_RF_HAVESTRUCT);
@@ -3305,7 +3307,9 @@ dbuf_prefetch_indirect_done(zio_t *zio, const zbookmark_phys_t *zb,
 	    dpa->dpa_dnode->dn_objset->os_dsl_dataset,
 	    SPA_FEATURE_REDACTED_DATASETS));
 	if (BP_IS_HOLE(bp) || BP_IS_REDACTED(bp)) {
+		arc_buf_destroy(abuf, private);
 		dbuf_prefetch_fini(dpa, B_TRUE);
+		return;
 	} else if (dpa->dpa_curlevel == dpa->dpa_zb.zb_level) {
 		ASSERT3U(nextblkid, ==, dpa->dpa_zb.zb_blkid);
 		dbuf_issue_final_prefetch(dpa, bp);
