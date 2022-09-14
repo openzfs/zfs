@@ -273,7 +273,6 @@ zfs_get_pci_slots_sys_path(const char *dev_name)
 			free(address2);
 			if (asprintf(&path, "/sys/bus/pci/slots/%s",
 			    ep->d_name) == -1) {
-				free(tmp);
 				continue;
 			}
 			break;
