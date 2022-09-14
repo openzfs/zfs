@@ -142,6 +142,12 @@ arc_prune_task(void *arg)
 	int64_t nr_scan = (intptr_t)arg;
 
 	arc_reduce_target_size(ptob(nr_scan));
+
+#ifndef __ILP32__
+	if (nr_scan > INT_MAX)
+		nr_scan = INT_MAX;
+#endif
+
 #if __FreeBSD_version >= 1300139
 	sx_xlock(&arc_vnlru_lock);
 	vnlru_free_vfsops(nr_scan, &zfs_vfsops, arc_vnlru_marker);
