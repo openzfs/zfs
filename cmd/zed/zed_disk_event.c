@@ -49,7 +49,7 @@ struct udev_monitor *g_mon;
 #define	DEV_BYID_PATH	"/dev/disk/by-id/"
 
 /* 64MB is minimum usable disk for ZFS */
-#define	MINIMUM_SECTORS		131072
+#define	MINIMUM_SECTORS		131072ULL
 
 
 /*

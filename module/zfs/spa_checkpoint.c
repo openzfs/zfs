@@ -347,7 +347,7 @@ spa_checkpoint_discard_thread_sync(void *arg, dmu_tx_t *tx)
 		if (error != 0) {
 			zfs_panic_recover("zfs: error %lld was returned "
 			    "while incrementally destroying the checkpoint "
-			    "space map of vdev %u\n",
+			    "space map of vdev %llu\n",
 			    (longlong_t)error, vd->vdev_id);
 		}
 		ASSERT0(words_after);
