@@ -342,8 +342,8 @@ kcf_remove_mech_provider(const char *mech_name, kcf_provider_desc_t *prov_desc)
 	mech_entry->me_sw_prov = NULL;
 
 	/* free entry  */
-	KCF_PROV_REFRELE(prov_mech->pm_prov_desc);
 	KCF_PROV_IREFRELE(prov_mech->pm_prov_desc);
+	KCF_PROV_REFRELE(prov_mech->pm_prov_desc);
 	kmem_free(prov_mech, sizeof (kcf_prov_mech_desc_t));
 }
 
