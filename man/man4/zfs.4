@@ -1354,6 +1354,22 @@ _
 .TE
 .Sy \& * No Requires debug build.
 .
+.It Sy zfs_btree_verify_intensity Ns = Ns Sy 0 Pq uint
+Enables btree verification.
+The following settings are culminative:
+.TS
+box;
+lbz r l l .
+	Value	Description
+
+	1	Verify height.
+	2	Verify pointers from children to parent.
+	3	Verify element counts.
+	4	Verify element order. (expensive)
+*	5	Verify unused memory is poisoned. (expensive)
+.TE
+.Sy \& * No Requires debug build.
+.
 .It Sy zfs_free_leak_on_eio Ns = Ns Sy 0 Ns | Ns 1 Pq int
 If destroy encounters an
 .Sy EIO
