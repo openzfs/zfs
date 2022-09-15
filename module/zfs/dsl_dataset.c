@@ -4519,6 +4519,7 @@ dsl_dataset_set_compression_sync(void *arg, dmu_tx_t *tx)
 
 	uint64_t compval = ZIO_COMPRESS_ALGO(ddsca->ddsca_value);
 	spa_feature_t f = zio_compress_to_feature(compval);
+	ASSERT3S(f, !=, SPA_FEATURE_NONE);
 	ASSERT3S(spa_feature_table[f].fi_type, ==, ZFEATURE_TYPE_BOOLEAN);
 
 	VERIFY0(dsl_dataset_hold(dp, ddsca->ddsca_name, FTAG, &ds));
