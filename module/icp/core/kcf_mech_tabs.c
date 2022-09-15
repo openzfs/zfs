@@ -720,8 +720,8 @@ kcf_remove_mech_provider(char *mech_name, kcf_provider_desc_t *prov_desc)
 	}
 
 	/* free entry  */
-	KCF_PROV_REFRELE(prov_mech->pm_prov_desc);
 	KCF_PROV_IREFRELE(prov_mech->pm_prov_desc);
+	KCF_PROV_REFRELE(prov_mech->pm_prov_desc);
 	kmem_free(prov_mech, sizeof (kcf_prov_mech_desc_t));
 }
 
