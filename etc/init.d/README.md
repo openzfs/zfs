@@ -44,7 +44,7 @@ INSTALLING INIT SCRIPT LINKS
 
     update-rc.d zfs-import   start 07 S .       stop 07 0 1 6 .
     update-rc.d zfs-load-key start 02 2 3 4 5 . stop 06 0 1 6 .
-    update-rc.d zfs-mount    start 02 2 3 4 5 . stop 06 0 1 6 .
+    update-rc.d zfs-mount    start 02 S       . stop 06 0 1 6 .
     update-rc.d zfs-zed      start 07 2 3 4 5 . stop 08 0 1 6 .
     update-rc.d zfs-share    start 27 2 3 4 5 . stop 05 0 1 6 .
 
