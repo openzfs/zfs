@@ -150,6 +150,7 @@ typedef enum zfs_error {
 	EZFS_NO_RESILVER_DEFER,	/* pool doesn't support resilver_defer */
 	EZFS_EXPORT_IN_PROGRESS,	/* currently exporting the pool */
 	EZFS_REBUILDING,	/* resilvering (sequential reconstrution) */
+	EZFS_CKSUM,		/* insufficient replicas */
 	EZFS_UNKNOWN
 } zfs_error_t;
 

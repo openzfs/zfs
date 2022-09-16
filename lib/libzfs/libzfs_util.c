@@ -170,6 +170,8 @@ libzfs_error_description(libzfs_handle_t *hdl)
 		return (dgettext(TEXT_DOMAIN, "I/O error"));
 	case EZFS_INTR:
 		return (dgettext(TEXT_DOMAIN, "signal received"));
+	case EZFS_CKSUM:
+		return (dgettext(TEXT_DOMAIN, "insufficient replicas"));
 	case EZFS_ISSPARE:
 		return (dgettext(TEXT_DOMAIN, "device is reserved as a hot "
 		    "spare"));
@@ -391,6 +393,10 @@ zfs_common_error(libzfs_handle_t *hdl, int error, const char *fmt,
 
 	case EINTR:
 		zfs_verror(hdl, EZFS_INTR, fmt, ap);
+		return (-1);
+
+	case ECKSUM:
+		zfs_verror(hdl, EZFS_CKSUM, fmt, ap);
 		return (-1);
 	}
 
