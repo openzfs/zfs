@@ -930,8 +930,8 @@ zpl_fadvise(struct file *filp, loff_t offset, loff_t len, int advice)
 	if (offset < 0 || len < 0)
 		return (-EINVAL);
 
-	ZFS_ENTER(zfsvfs);
-	ZFS_VERIFY_ZP(zp);
+	if ((error = zpl_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
+		return (error);
 
 	switch (advice) {
 	case POSIX_FADV_SEQUENTIAL:
@@ -963,7 +963,7 @@ zpl_fadvise(struct file *filp, loff_t offset, loff_t len, int advice)
 		break;
 	}
 
-	ZFS_EXIT(zfsvfs);
+	zfs_exit(zfsvfs, FTAG);
 
 	return (error);
 }
