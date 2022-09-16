@@ -449,7 +449,7 @@ static int
 nfs_disable_share(sa_share_impl_t impl_share)
 {
 	if (!nfs_available())
-		return (SA_SYSTEM_ERR);
+		return (SA_OK);
 
 	return (nfs_toggle_share(
 	    ZFS_EXPORTS_LOCK, ZFS_EXPORTS_FILE, ZFS_EXPORTS_DIR, impl_share,
