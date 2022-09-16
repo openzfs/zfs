@@ -121,29 +121,24 @@ typedef struct zfs_soft_state {
 #define	zn_rlimit_fsize(zp, uio) \
     vn_rlimit_fsize(ZTOV(zp), GET_UIO_STRUCT(uio), zfs_uio_td(uio))
 
-#define	ZFS_ENTER_ERROR(zfsvfs, error) do {			\
-	ZFS_TEARDOWN_ENTER_READ((zfsvfs), FTAG);		\
-	if (__predict_false((zfsvfs)->z_unmounted)) {		\
-		ZFS_TEARDOWN_EXIT_READ(zfsvfs, FTAG);		\
-		return (error);					\
-	}							\
-} while (0)
-
 /* Called on entry to each ZFS vnode and vfs operation  */
-#define	ZFS_ENTER(zfsvfs)	ZFS_ENTER_ERROR(zfsvfs, EIO)
+static inline int
+zfs_enter(zfsvfs_t *zfsvfs, const char *tag)
+{
+	ZFS_TEARDOWN_ENTER_READ(zfsvfs, tag);
+	if (__predict_false((zfsvfs)->z_unmounted)) {
+		ZFS_TEARDOWN_EXIT_READ(zfsvfs, tag);
+		return (SET_ERROR(EIO));
+	}
+	return (0);
+}
 
 /* Must be called before exiting the vop */
-#define	ZFS_EXIT(zfsvfs)	ZFS_TEARDOWN_EXIT_READ(zfsvfs, FTAG)
-
-#define	ZFS_VERIFY_ZP_ERROR(zp, error) do {			\
-	if (__predict_false((zp)->z_sa_hdl == NULL)) {		\
-		ZFS_EXIT((zp)->z_zfsvfs);			\
-		return (error);					\
-	}							\
-} while (0)
-
-/* Verifies the znode is valid */
-#define	ZFS_VERIFY_ZP(zp)	ZFS_VERIFY_ZP_ERROR(zp, EIO)
+static inline void
+zfs_exit(zfsvfs_t *zfsvfs, const char *tag)
+{
+	ZFS_TEARDOWN_EXIT_READ(zfsvfs, tag);
+}
 
 /*
  * Macros for dealing with dmu_buf_hold

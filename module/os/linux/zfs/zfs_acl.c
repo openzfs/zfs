@@ -2596,9 +2596,10 @@ zfs_fastaccesschk_execute(znode_t *zdp, cred_t *cr)
 
 slow:
 	DTRACE_PROBE(zfs__fastpath__execute__access__miss);
-	ZFS_ENTER(ZTOZSB(zdp));
+	if ((error = zfs_enter(ZTOZSB(zdp), FTAG)) != 0)
+		return (error);
 	error = zfs_zaccess(zdp, ACE_EXECUTE, 0, B_FALSE, cr);
-	ZFS_EXIT(ZTOZSB(zdp));
+	zfs_exit(ZTOZSB(zdp), FTAG);
 	return (error);
 }
 

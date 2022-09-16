@@ -673,17 +673,19 @@ zfsctl_fid(struct inode *ip, fid_t *fidp)
 	uint64_t	object = zp->z_id;
 	zfid_short_t	*zfid;
 	int		i;
+	int		error;
 
-	ZFS_ENTER(zfsvfs);
+	if ((error = zfs_enter(zfsvfs, FTAG)) != 0)
+		return (error);
 
 	if (zfsctl_is_snapdir(ip)) {
-		ZFS_EXIT(zfsvfs);
+		zfs_exit(zfsvfs, FTAG);
 		return (zfsctl_snapdir_fid(ip, fidp));
 	}
 
 	if (fidp->fid_len < SHORT_FID_LEN) {
 		fidp->fid_len = SHORT_FID_LEN;
-		ZFS_EXIT(zfsvfs);
+		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(ENOSPC));
 	}
 
@@ -698,7 +700,7 @@ zfsctl_fid(struct inode *ip, fid_t *fidp)
 	for (i = 0; i < sizeof (zfid->zf_gen); i++)
 		zfid->zf_gen[i] = 0;
 
-	ZFS_EXIT(zfsvfs);
+	zfs_exit(zfsvfs, FTAG);
 	return (0);
 }
 
@@ -776,7 +778,8 @@ zfsctl_root_lookup(struct inode *dip, const char *name, struct inode **ipp,
 	zfsvfs_t *zfsvfs = ITOZSB(dip);
 	int error = 0;
 
-	ZFS_ENTER(zfsvfs);
+	if ((error = zfs_enter(zfsvfs, FTAG)) != 0)
+		return (error);
 
 	if (strcmp(name, "..") == 0) {
 		*ipp = dip->i_sb->s_root->d_inode;
@@ -793,7 +796,7 @@ zfsctl_root_lookup(struct inode *dip, const char *name, struct inode **ipp,
 	if (*ipp == NULL)
 		error = SET_ERROR(ENOENT);
 
-	ZFS_EXIT(zfsvfs);
+	zfs_exit(zfsvfs, FTAG);
 
 	return (error);
 }
@@ -810,11 +813,12 @@ zfsctl_snapdir_lookup(struct inode *dip, const char *name, struct inode **ipp,
 	uint64_t id;
 	int error;
 
-	ZFS_ENTER(zfsvfs);
+	if ((error = zfs_enter(zfsvfs, FTAG)) != 0)
+		return (error);
 
 	error = dmu_snapshot_lookup(zfsvfs->z_os, name, &id);
 	if (error) {
-		ZFS_EXIT(zfsvfs);
+		zfs_exit(zfsvfs, FTAG);
 		return (error);
 	}
 
@@ -823,7 +827,7 @@ zfsctl_snapdir_lookup(struct inode *dip, const char *name, struct inode **ipp,
 	if (*ipp == NULL)
 		error = SET_ERROR(ENOENT);
 
-	ZFS_EXIT(zfsvfs);
+	zfs_exit(zfsvfs, FTAG);
 
 	return (error);
 }
@@ -844,7 +848,8 @@ zfsctl_snapdir_rename(struct inode *sdip, const char *snm,
 	if (!zfs_admin_snapshot)
 		return (SET_ERROR(EACCES));
 
-	ZFS_ENTER(zfsvfs);
+	if ((error = zfs_enter(zfsvfs, FTAG)) != 0)
+		return (error);
 
 	to = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
 	from = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
@@ -902,7 +907,7 @@ out:
 	kmem_free(real, ZFS_MAX_DATASET_NAME_LEN);
 	kmem_free(fsname, ZFS_MAX_DATASET_NAME_LEN);
 
-	ZFS_EXIT(zfsvfs);
+	zfs_exit(zfsvfs, FTAG);
 
 	return (error);
 }
@@ -922,7 +927,8 @@ zfsctl_snapdir_remove(struct inode *dip, const char *name, cred_t *cr,
 	if (!zfs_admin_snapshot)
 		return (SET_ERROR(EACCES));
 
-	ZFS_ENTER(zfsvfs);
+	if ((error = zfs_enter(zfsvfs, FTAG)) != 0)
+		return (error);
 
 	snapname = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
 	real = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
@@ -951,7 +957,7 @@ out:
 	kmem_free(snapname, ZFS_MAX_DATASET_NAME_LEN);
 	kmem_free(real, ZFS_MAX_DATASET_NAME_LEN);
 
-	ZFS_EXIT(zfsvfs);
+	zfs_exit(zfsvfs, FTAG);
 
 	return (error);
 }
@@ -1076,7 +1082,8 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 		return (SET_ERROR(EISDIR));
 
 	zfsvfs = ITOZSB(ip);
-	ZFS_ENTER(zfsvfs);
+	if ((error = zfs_enter(zfsvfs, FTAG)) != 0)
+		return (error);
 
 	full_name = kmem_zalloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
 	full_path = kmem_zalloc(MAXPATHLEN, KM_SLEEP);
@@ -1164,7 +1171,7 @@ error:
 	kmem_free(full_name, ZFS_MAX_DATASET_NAME_LEN);
 	kmem_free(full_path, MAXPATHLEN);
 
-	ZFS_EXIT(zfsvfs);
+	zfs_exit(zfsvfs, FTAG);
 
 	return (error);
 }
@@ -1228,10 +1235,11 @@ zfsctl_shares_lookup(struct inode *dip, char *name, struct inode **ipp,
 	znode_t *dzp;
 	int error;
 
-	ZFS_ENTER(zfsvfs);
+	if ((error = zfs_enter(zfsvfs, FTAG)) != 0)
+		return (error);
 
 	if (zfsvfs->z_shares_dir == 0) {
-		ZFS_EXIT(zfsvfs);
+		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(ENOTSUP));
 	}
 
@@ -1240,7 +1248,7 @@ zfsctl_shares_lookup(struct inode *dip, char *name, struct inode **ipp,
 		zrele(dzp);
 	}
 
-	ZFS_EXIT(zfsvfs);
+	zfs_exit(zfsvfs, FTAG);
 
 	return (error);
 }
