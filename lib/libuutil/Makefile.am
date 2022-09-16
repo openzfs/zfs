@@ -9,7 +9,6 @@ libuutil_la_SOURCES = \
 	%D%/uu_ident.c \
 	%D%/uu_list.c \
 	%D%/uu_misc.c \
-	%D%/uu_pname.c \
 	%D%/uu_string.c
 
 libuutil_la_LIBADD = \
