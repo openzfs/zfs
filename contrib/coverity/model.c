@@ -70,9 +70,24 @@ panic(const char *fmt, ...)
 void
 vpanic(const char *fmt, va_list adx)
 {
-	(void) fmt;
 	(void) adx;
 
+	__coverity_format_string_sink__(fmt);
+	__coverity_panic__();
+}
+
+void
+uu_panic(const char *format, ...)
+{
+	__coverity_format_string_sink__(format);
+	__coverity_panic__();
+}
+
+int
+libspl_assertf(const char *file, const char *func, int line,
+    const char *format, ...)
+{
+	__coverity_format_string_sink__(format);
 	__coverity_panic__();
 }
 
