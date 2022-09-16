@@ -31,66 +31,6 @@
 
 int condition0, condition1;
 
-void
-abort()
-{
-	__coverity_panic__();
-}
-
-void
-exit(int status)
-{
-	(void) status;
-
-	__coverity_panic__();
-}
-
-void
-_exit(int status)
-{
-	(void) status;
-
-	__coverity_panic__();
-}
-
-void
-zed_log_die(const char *fmt, ...)
-{
-	__coverity_format_string_sink__(fmt);
-	__coverity_panic__();
-}
-
-void
-panic(const char *fmt, ...)
-{
-	__coverity_format_string_sink__(fmt);
-	__coverity_panic__();
-}
-
-void
-vpanic(const char *fmt, va_list adx)
-{
-	(void) adx;
-
-	__coverity_format_string_sink__(fmt);
-	__coverity_panic__();
-}
-
-void
-uu_panic(const char *format, ...)
-{
-	__coverity_format_string_sink__(format);
-	__coverity_panic__();
-}
-
-int
-libspl_assertf(const char *file, const char *func, int line,
-    const char *format, ...)
-{
-	__coverity_format_string_sink__(format);
-	__coverity_panic__();
-}
-
 int
 ddi_copyin(const void *from, void *to, size_t len, int flags)
 {
@@ -125,7 +65,7 @@ umem_alloc_aligned(size_t size, size_t align, int kmflags)
 {
 	(void) align;
 
-	if (UMEM_NOFAIL & kmflags == UMEM_NOFAIL)
+	if ((UMEM_NOFAIL & kmflags) == UMEM_NOFAIL)
 		return (__coverity_alloc__(size));
 	else if (condition0)
 		return (__coverity_alloc__(size));
@@ -136,7 +76,7 @@ umem_alloc_aligned(size_t size, size_t align, int kmflags)
 void *
 umem_alloc(size_t size, int kmflags)
 {
-	if (UMEM_NOFAIL & kmflags == UMEM_NOFAIL)
+	if ((UMEM_NOFAIL & kmflags) == UMEM_NOFAIL)
 		return (__coverity_alloc__(size));
 	else if (condition0)
 		return (__coverity_alloc__(size));
@@ -147,7 +87,7 @@ umem_alloc(size_t size, int kmflags)
 void *
 umem_zalloc(size_t size, int kmflags)
 {
-	if (UMEM_NOFAIL & kmflags == UMEM_NOFAIL)
+	if ((UMEM_NOFAIL & kmflags) == UMEM_NOFAIL)
 		return (__coverity_alloc__(size));
 	else if (condition0)
 		return (__coverity_alloc__(size));
@@ -161,6 +101,32 @@ umem_free(void *buf, size_t size)
 	(void) size;
 
 	__coverity_free__(buf);
+}
+
+typedef struct {} umem_cache_t;
+
+void *
+umem_cache_alloc(umem_cache_t *skc, int flags)
+{
+	(void) skc;
+
+	if (condition1)
+		__coverity_sleep__();
+
+	if ((UMEM_NOFAIL & flags) == UMEM_NOFAIL)
+		return (__coverity_alloc_nosize__());
+	else if (condition0)
+		return (__coverity_alloc_nosize__());
+	else
+		return (NULL);
+}
+
+void
+umem_cache_free(umem_cache_t *skc, void *obj)
+{
+	(void) skc;
+
+	__coverity_free__(obj);
 }
 
 void *
@@ -241,13 +207,6 @@ void
 free(void *buf)
 {
 	__coverity_free__(buf);
-}
-
-int
-spl_panic(const char *file, const char *func, int line, const char *fmt, ...)
-{
-	__coverity_format_string_sink__(fmt);
-	__coverity_panic__();
 }
 
 int
@@ -397,26 +356,4 @@ __cond_resched(void)
 	if (condition0) {
 		__coverity_sleep__();
 	}
-}
-
-/*
- * An endian-independent filesystem must support doing byte swaps on data. We
- * attempt to suppress taint warnings, which are false positives for us.
- */
-void
-byteswap_uint64_array(void *vbuf, size_t size)
-{
-	__coverity_tainted_data_sanitize__(vbuf);
-}
-
-void
-byteswap_uint32_array(void *vbuf, size_t size)
-{
-	__coverity_tainted_data_sanitize__(vbuf);
-}
-
-void
-byteswap_uint16_array(void *vbuf, size_t size)
-{
-	__coverity_tainted_data_sanitize__(vbuf);
 }

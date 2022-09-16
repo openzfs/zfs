@@ -42,7 +42,8 @@ extern "C" {
 void uu_set_error(uint_t);
 
 
-void uu_panic(const char *format, ...) __attribute__((format(printf, 1, 2)));
+__attribute__((format(printf, 1, 2), __noreturn__))
+void uu_panic(const char *format, ...);
 
 
 /*

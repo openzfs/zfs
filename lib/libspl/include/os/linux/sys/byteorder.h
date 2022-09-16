@@ -90,6 +90,18 @@ extern	in_port_t ntohs(in_port_t);
 
 #if !defined(_XPG4_2) || defined(__EXTENSIONS__)
 
+#ifdef __COVERITY__
+/*
+ * Coverity's taint warnings from byteswapping are false positives for us.
+ * Suppress them by hiding byteswapping from Coverity.
+ */
+#define	BSWAP_8(x)	((x) & 0xff)
+#define	BSWAP_16(x)	((x) & 0xffff)
+#define	BSWAP_32(x)	((x) & 0xffffffff)
+#define	BSWAP_64(x)	(x)
+
+#else /* __COVERITY__ */
+
 /*
  * Macros to reverse byte order
  */
@@ -97,6 +109,8 @@ extern	in_port_t ntohs(in_port_t);
 #define	BSWAP_16(x)	((BSWAP_8(x) << 8) | BSWAP_8((x) >> 8))
 #define	BSWAP_32(x)	((BSWAP_16(x) << 16) | BSWAP_16((x) >> 16))
 #define	BSWAP_64(x)	((BSWAP_32(x) << 32) | BSWAP_32((x) >> 32))
+
+#endif /* __COVERITY__ */
 
 #define	BMASK_8(x)	((x) & 0xff)
 #define	BMASK_16(x)	((x) & 0xffff)

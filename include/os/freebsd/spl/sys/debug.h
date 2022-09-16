@@ -54,9 +54,16 @@
 /*
  * Common DEBUG functionality.
  */
-int spl_panic(const char *file, const char *func, int line,
-    const char *fmt, ...);
-void spl_dumpstack(void);
+extern void spl_panic(const char *file, const char *func, int line,
+    const char *fmt, ...) __attribute__((__noreturn__));
+extern void spl_dumpstack(void);
+
+static inline int
+spl_assert(const char *buf, const char *file, const char *func, int line)
+{
+	spl_panic(file, func, line, "%s", buf);
+	return (0);
+}
 
 #ifndef expect
 #define	expect(expr, value) (__builtin_expect((expr), (value)))
@@ -69,8 +76,8 @@ void spl_dumpstack(void);
 
 #define	VERIFY(cond)							\
 	(void) (unlikely(!(cond)) &&					\
-	    spl_panic(__FILE__, __FUNCTION__, __LINE__,			\
-	    "%s", "VERIFY(" #cond ") failed\n"))
+	    spl_assert("VERIFY(" #cond ") failed\n",			\
+	    __FILE__, __FUNCTION__, __LINE__))
 
 #define	VERIFY3B(LEFT, OP, RIGHT)	do {				\
 		const boolean_t _verify3_left = (boolean_t)(LEFT);	\
@@ -158,13 +165,14 @@ void spl_dumpstack(void);
 #define	ASSERT0		VERIFY0
 #define	ASSERT		VERIFY
 #define	IMPLY(A, B) \
-	((void)(likely((!(A)) || (B)) || \
-	    spl_panic(__FILE__, __FUNCTION__, __LINE__, \
-	    "(" #A ") implies (" #B ")")))
+	((void)(likely((!(A)) || (B)) ||				\
+	    spl_assert("(" #A ") implies (" #B ")",			\
+	    __FILE__, __FUNCTION__, __LINE__)))
 #define	EQUIV(A, B) \
-	((void)(likely(!!(A) == !!(B)) || \
-	    spl_panic(__FILE__, __FUNCTION__, __LINE__, \
-	    "(" #A ") is equivalent to (" #B ")")))
+	((void)(likely(!!(A) == !!(B)) || 				\
+	    spl_assert("(" #A ") is equivalent to (" #B ")",		\
+	    __FILE__, __FUNCTION__, __LINE__)))
+
 
 #endif /* NDEBUG */
 

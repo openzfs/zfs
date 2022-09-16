@@ -34,12 +34,24 @@
 #include <stdarg.h>
 #include <sys/types.h>
 
+/* Workaround for non-Clang compilers */
+#ifndef __has_feature
+#define	__has_feature(x) 0
+#endif
+
+/* We need to workaround libspl_set_assert_ok() that we have for zdb */
+#if __has_feature(attribute_analyzer_noreturn) || defined(__COVERITY__)
+#define	NORETURN	__attribute__((__noreturn__))
+#else
+#define	NORETURN
+#endif
+
 /* Set to non-zero to avoid abort()ing on an assertion failure */
 extern void libspl_set_assert_ok(boolean_t val);
 
 /* printf version of libspl_assert */
 extern void libspl_assertf(const char *file, const char *func, int line,
-    const char *format, ...);
+    const char *format, ...) NORETURN __attribute__((format(printf, 4, 5)));
 
 static inline int
 libspl_assert(const char *buf, const char *file, const char *func, int line)

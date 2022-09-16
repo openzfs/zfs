@@ -94,7 +94,7 @@ ddi_copyout(const void *from, void *to, size_t len, int flags)
 	return (copyout(from, to, len));
 }
 
-int
+void
 spl_panic(const char *file, const char *func, int line, const char *fmt, ...)
 {
 	va_list ap;
