@@ -496,7 +496,6 @@ zfs_key_config_get_dataset(zfs_key_config_t *config)
 		if (zhp == NULL) {
 			pam_syslog(NULL, LOG_ERR, "dataset %s not found",
 			    config->homes_prefix);
-			zfs_close(zhp);
 			return (NULL);
 		}
 
@@ -506,6 +505,10 @@ zfs_key_config_get_dataset(zfs_key_config_t *config)
 		char *dsname = config->dsname;
 		config->dsname = NULL;
 		return (dsname);
+	}
+
+	if (config->homes_prefix == NULL) {
+		return (NULL);
 	}
 
 	size_t len = ZFS_MAX_DATASET_NAME_LEN;
