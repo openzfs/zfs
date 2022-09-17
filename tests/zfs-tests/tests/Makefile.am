@@ -110,6 +110,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/channel_program/lua_core/tst.lib_table.lua \
 	functional/channel_program/lua_core/tst.nested_neg.zcp \
 	functional/channel_program/lua_core/tst.nested_pos.zcp \
+	functional/channel_program/lua_core/tst.param_datatypes.zcp \
 	functional/channel_program/lua_core/tst.recursive.zcp \
 	functional/channel_program/lua_core/tst.return_large.zcp \
 	functional/channel_program/lua_core/tst.return_recursive_table.zcp \
@@ -496,6 +497,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/channel_program/lua_core/tst.nested_neg.ksh \
 	functional/channel_program/lua_core/tst.nested_pos.ksh \
 	functional/channel_program/lua_core/tst.nvlist_to_lua.ksh \
+	functional/channel_program/lua_core/tst.param_datatypes.ksh \
 	functional/channel_program/lua_core/tst.recursive_neg.ksh \
 	functional/channel_program/lua_core/tst.recursive_pos.ksh \
 	functional/channel_program/lua_core/tst.return_large.ksh \

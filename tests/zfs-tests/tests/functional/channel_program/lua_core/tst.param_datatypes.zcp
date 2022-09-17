@@ -1,0 +1,51 @@
+--
+-- This file and its contents are supplied under the terms of the
+-- Common Development and Distribution License ("CDDL"), version 1.0.
+-- You may only use this file in accordance with the terms of version
+-- 1.0 of the CDDL.
+--
+-- A full copy of the text of the CDDL should have accompanied this
+-- source.  A copy of the CDDL is also available via the Internet at
+-- http://www.illumos.org/license/CDDL.
+--
+
+--
+-- Copyright (c) 2022 by Chris Lindee. All rights reserved.
+--
+
+-- This program should be invoked as "./param_datatypes_test <pool> tst.param_datatypes.zcp"
+
+arg = ...
+
+assert(arg.bTrue == true, "boolean is true")
+assert(arg.bFalse == false, "boolean is false")
+assert(arg.string == "string", "string scalar")
+assert(arg.int64 == -64, "int64 scalar")
+
+assert(arg.nvlist.boolean == false, "nested boolean")
+assert(arg.nvlist.integer == 42, "nested integer")
+assert(arg.nvlist.string == "answer", "nested string")
+assert(arg.nvlist.table.key == "value", "nested table nvpair")
+
+-- Verify arrays/lists
+assert(#arg.stringArray == 3, "string array size")
+assert(arg.stringArray[1] == "array", "stringArray[1]")
+assert(arg.stringArray[2] == "of", "stringArray[2]")
+assert(arg.stringArray[3] == "strings", "stringArray[3]")
+
+assert(#arg.uint64Array == 64, "uint64 array size")
+for i=1, 64 do
+	assert(arg.uint64Array[i] == 2*i, "uint64Array["..tostring(i).."]")
+end
+
+assert(#arg.int64Array == 64, "int64 array size")
+for i=1, 64 do
+	assert(arg.int64Array[i] == -2*i, "int64Array["..tostring(i).."]")
+end
+
+-- Verify correct handling of integer overflow
+assert(#arg.overflowArray == 2, "uint64 overflow array size")
+assert(arg.overflowArray[1] == -9223372036854775808, "2^63 overflow")
+assert(arg.overflowArray[2] == -1, "2^64 - 1 overflow")
+
+return
