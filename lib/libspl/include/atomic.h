@@ -314,6 +314,13 @@ extern void membar_enter(void);
 extern void membar_exit(void);
 
 /*
+ * Make all stores and loads emitted prior to the the barrier complete before
+ * crossing it, while also making sure stores and loads emitted after the
+ * barrier only start being executed after crossing it.
+ */
+extern void membar_sync(void);
+
+/*
  * Arrange that all stores issued before this point in the code reach
  * global visibility before any stores that follow; useful in producer
  * modules that update a data item, then set a flag that it is available.
