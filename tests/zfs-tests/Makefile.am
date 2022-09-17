@@ -8,6 +8,11 @@ scripts_zfs_tests_functional_libzfs_PROGRAMS = %D%/tests/functional/libzfs/many_
 %C%_tests_functional_libzfs_many_fds_LDADD = \
 	libzfs.la
 
+scripts_zfs_tests_functional_channel_program_lua_coredir = $(datadir)/$(PACKAGE)/zfs-tests/tests/functional/channel_program/lua_core
+scripts_zfs_tests_functional_channel_program_lua_core_PROGRAMS = %D%/tests/functional/channel_program/lua_core/param_datatypes_test
+%C%_tests_functional_channel_program_lua_core_param_datatypes_test_LDADD = \
+	libzfs.la
+
 scripts_zfs_tests_functional_hkdfdir = $(datadir)/$(PACKAGE)/zfs-tests/tests/functional/hkdf
 scripts_zfs_tests_functional_hkdf_PROGRAMS = %D%/tests/functional/hkdf/hkdf_test
 %C%_tests_functional_hkdf_hkdf_test_LDADD = \

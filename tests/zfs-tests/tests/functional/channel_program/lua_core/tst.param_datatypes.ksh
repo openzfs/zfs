@@ -1,0 +1,30 @@
+#!/bin/ksh -p
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright (c) 2022 by .... All rights reserved.
+#
+
+. $STF_SUITE/tests/functional/channel_program/channel_common.kshlib
+
+#
+# DESCRIPTION:
+#       Passing typed parameters to lua programs should work correctly.
+#
+
+verify_runnable "global"
+
+log_assert "Passing typed parameters to lua programs should work correctly."
+
+$ZCP_ROOT/lua_core/param_datatypes_test $TESTPOOL $ZCP_ROOT/lua_core/tst.param_datatypes.zcp || log_fail "Failed assertions"
+
+log_pass "Passing typed parameters to lua programs should work correctly."

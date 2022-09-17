@@ -1,0 +1,53 @@
+--
+-- This file and its contents are supplied under the terms of the
+-- Common Development and Distribution License ("CDDL"), version 1.0.
+-- You may only use this file in accordance with the terms of version
+-- 1.0 of the CDDL.
+--
+-- A full copy of the text of the CDDL should have accompanied this
+-- source.  A copy of the CDDL is also available via the Internet at
+-- http://www.illumos.org/license/CDDL.
+--
+
+--
+-- Copyright (c) 2022 by .... All rights reserved.
+--
+
+-- This program should be invoked as "..."
+
+arg = ...
+
+assert(arg.bTrue == true)
+assert(arg.bFalse == false)
+assert(arg.string == "string")
+assert(arg.int64 == -64)
+
+assert(#arg.nvlist == 4)
+assert(arg.nvlist.boolean == false)
+assert(arg.nvlist.integer == 42)
+assert(arg.nvlist.string == "answer")
+assert(#arg.nvlist.table == 1)
+assert(arg.nvlist.table.key == "value")
+
+-- Verify arrays/lists
+assert(#arg.stringArray == 3)
+assert(arg.stringArray[1] == "array")
+assert(arg.stringArray[2] == "of")
+assert(arg.stringArray[3] == "strings")
+
+assert(#arg.uint64Array == 64)
+for i=1, 64 do
+	assert(arg.uint64Array[i] == 2*i)
+end
+
+assert(#arg.int64Array == 64)
+for i=1, 64 do
+	assert(arg.int64Array[i] == -2*i)
+end
+
+-- Verify correct handling of integer overflow
+assert(#arg.overflowArray == 2)
+assert(arg.overflowArray[1] == -9223372036854775808)  -- 2^63  (smallest value to wrap)
+assert(arg.overflowArray[2] == -1)                    -- 2^64-1 (largest value to wrap)
+
+return
