@@ -95,8 +95,8 @@ nfs_init_tmpfile(const char *prefix, const char *mdir, struct tmpfile *tmpf)
 		return (B_FALSE);
 	}
 
-	strcpy(tmpf->name, prefix);
-	strcat(tmpf->name, ".XXXXXXXX");
+	strlcpy(tmpf->name, prefix, sizeof (tmpf->name));
+	strlcat(tmpf->name, ".XXXXXXXX", sizeof (tmpf->name) - strlen(prefix));
 
 	int fd = mkostemp(tmpf->name, O_CLOEXEC);
 	if (fd == -1) {

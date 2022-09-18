@@ -115,12 +115,12 @@ parse_pathname(const char *inpath, char *dataset, char *relpath,
 		return (-1);
 	}
 
-	(void) strcpy(dataset, mp.mnt_special);
+	(void) strlcpy(dataset, mp.mnt_special, MAXNAMELEN);
 
 	rel = fullpath + strlen(mp.mnt_mountp);
 	if (rel[0] == '/')
 		rel++;
-	(void) strcpy(relpath, rel);
+	(void) strlcpy(relpath, rel, MAXPATHLEN);
 
 	return (0);
 }
@@ -258,7 +258,7 @@ translate_record(err_type_t type, const char *object, const char *range,
 		}
 
 		dataset[0] = '\0';
-		(void) strcpy(poolname, object);
+		(void) strlcpy(poolname, object, MAXNAMELEN);
 		return (0);
 	}
 
@@ -298,7 +298,7 @@ translate_record(err_type_t type, const char *object, const char *range,
 	/*
 	 * Copy the pool name
 	 */
-	(void) strcpy(poolname, dataset);
+	(void) strlcpy(poolname, dataset, MAXNAMELEN);
 	if ((slash = strchr(poolname, '/')) != NULL)
 		*slash = '\0';
 

@@ -74,7 +74,7 @@ hasmntopt(struct mnttab *mnt, const char *opt)
 
 	if (mnt->mnt_mntopts == NULL)
 		return (NULL);
-	(void) strcpy(opts, mnt->mnt_mntopts);
+	(void) strlcpy(opts, mnt->mnt_mntopts, MNT_LINE_MAX);
 	f = mntopt(&opts);
 	for (; *f; f = mntopt(&opts)) {
 		if (strncmp(opt, f, strlen(opt)) == 0)
