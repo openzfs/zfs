@@ -1874,6 +1874,8 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 	if (err == 0) {
 		err = receive_handle_existing_object(rwa, drro, &doi, data,
 		    &object_to_hold, &new_blksz);
+		if (err != 0)
+			return (err);
 	} else if (err == EEXIST) {
 		/*
 		 * The object requested is currently an interior slot of a

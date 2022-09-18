@@ -429,7 +429,7 @@ zvol_replay_truncate(void *arg1, void *arg2, boolean_t byteswap)
 	if (error != 0) {
 		dmu_tx_abort(tx);
 	} else {
-		zil_replaying(zv->zv_zilog, tx);
+		(void) zil_replaying(zv->zv_zilog, tx);
 		dmu_tx_commit(tx);
 		error = dmu_free_long_range(zv->zv_objset, ZVOL_OBJ, offset,
 		    length);
@@ -475,7 +475,7 @@ zvol_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 		dmu_tx_abort(tx);
 	} else {
 		dmu_write(os, ZVOL_OBJ, offset, length, data, tx);
-		zil_replaying(zv->zv_zilog, tx);
+		(void) zil_replaying(zv->zv_zilog, tx);
 		dmu_tx_commit(tx);
 	}
 

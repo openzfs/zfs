@@ -89,7 +89,11 @@ main(int argc, char *argv[])
 		return (1);
 	}
 
-	posix_fadvise(fd, 0, 0, advise);
+	if (posix_fadvise(fd, 0, 0, advise) != 0) {
+		perror("posix_fadvise");
+		close(fd);
+		return (1);
+	}
 
 	close(fd);
 

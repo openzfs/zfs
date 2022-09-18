@@ -326,7 +326,8 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 
 	fmd_hdl_debug(hdl, "zfs_retire_recv: '%s'", class);
 
-	nvlist_lookup_uint64(nvl, FM_EREPORT_PAYLOAD_ZFS_VDEV_STATE, &state);
+	(void) nvlist_lookup_uint64(nvl, FM_EREPORT_PAYLOAD_ZFS_VDEV_STATE,
+	    &state);
 
 	/*
 	 * If this is a resource notifying us of device removal then simply

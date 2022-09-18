@@ -2214,7 +2214,7 @@ ztest_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 		dmu_write(os, lr->lr_foid, offset, length, data, tx);
 	} else {
 		memcpy(abuf->b_data, data, length);
-		dmu_assign_arcbuf_by_dbuf(db, offset, abuf, tx);
+		VERIFY0(dmu_assign_arcbuf_by_dbuf(db, offset, abuf, tx));
 	}
 
 	(void) ztest_log_write(zd, tx, lr);
