@@ -52,8 +52,12 @@ int main(int argc, char **argv)
 	}
 	*ptr = '\0';
 
-	(void) libzfs_init();
-	return run_test(argv[0], script);
+	libzfs_core_init();
+	int rc = run_test(argv[0], script);
+	libzfs_core_fini();
+
+	free(script);
+	return rc;
 }
 
 int run_test(const char * const pool, const char * const script)
