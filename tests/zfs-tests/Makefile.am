@@ -11,6 +11,7 @@ scripts_zfs_tests_functional_libzfs_PROGRAMS = %D%/tests/functional/libzfs/many_
 scripts_zfs_tests_functional_channel_program_lua_coredir = $(datadir)/$(PACKAGE)/zfs-tests/tests/functional/channel_program/lua_core
 scripts_zfs_tests_functional_channel_program_lua_core_PROGRAMS = %D%/tests/functional/channel_program/lua_core/param_datatypes_test
 %C%_tests_functional_channel_program_lua_core_param_datatypes_test_LDADD = \
+	libnvpair.la \
 	libzfs.la \
 	libzfs_core.la
 
