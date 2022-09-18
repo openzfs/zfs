@@ -11,7 +11,8 @@ scripts_zfs_tests_functional_libzfs_PROGRAMS = %D%/tests/functional/libzfs/many_
 scripts_zfs_tests_functional_channel_program_lua_coredir = $(datadir)/$(PACKAGE)/zfs-tests/tests/functional/channel_program/lua_core
 scripts_zfs_tests_functional_channel_program_lua_core_PROGRAMS = %D%/tests/functional/channel_program/lua_core/param_datatypes_test
 %C%_tests_functional_channel_program_lua_core_param_datatypes_test_LDADD = \
-	libzfs.la
+	libzfs.la \
+	libzfs_core.la
 
 scripts_zfs_tests_functional_hkdfdir = $(datadir)/$(PACKAGE)/zfs-tests/tests/functional/hkdf
 scripts_zfs_tests_functional_hkdf_PROGRAMS = %D%/tests/functional/hkdf/hkdf_test
