@@ -53,6 +53,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/spa_impl.h>
 #include <sys/vdev.h>
 #include <sys/vdev_impl.h>
+#include <sys/arc_os.h>
 #include <sys/dmu.h>
 #include <sys/dsl_dir.h>
 #include <sys/dsl_dataset.h>
@@ -228,7 +229,7 @@ SYSCTL_PROC(_vfs_zfs, OID_AUTO, arc_min,
 
 extern uint_t zfs_arc_free_target;
 
-static int
+int
 param_set_arc_free_target(SYSCTL_HANDLER_ARGS)
 {
 	uint_t val;
@@ -261,7 +262,7 @@ SYSCTL_PROC(_vfs_zfs, OID_AUTO, arc_free_target,
 	" (LEGACY)");
 /* END CSTYLED */
 
-static int
+int
 param_set_arc_no_grow_shift(SYSCTL_HANDLER_ARGS)
 {
 	int err, val;
