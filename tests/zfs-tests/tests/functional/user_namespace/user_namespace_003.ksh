@@ -88,7 +88,7 @@ list="$($NSENTER zfs list -r -H -o name | tr '\n' ' ')"
 log_must test -z "$list"
 log_must zfs zone $proc_ns $TESTPOOL/userns
 log_must zfs zone $proc_ns $TESTPOOL/otheruserns
-proc_ns_added="$ns"
+proc_ns_added="$proc_ns"
 
 # 2. 'zfs list'
 list="$($NSENTER zfs list -r -H -o name $TESTPOOL | tr '\n' ' ')"
