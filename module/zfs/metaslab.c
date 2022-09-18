@@ -1449,7 +1449,7 @@ metaslab_rt_add(range_tree_t *rt, range_seg_t *rs, void *arg)
 	zfs_btree_t *size_tree = mrap->mra_bt;
 
 	if (rs_get_end(rs, rt) - rs_get_start(rs, rt) <
-	    (1 << mrap->mra_floor_shift))
+	    (1ULL << mrap->mra_floor_shift))
 		return;
 
 	zfs_btree_add(size_tree, rs);
@@ -1461,7 +1461,7 @@ metaslab_rt_remove(range_tree_t *rt, range_seg_t *rs, void *arg)
 	metaslab_rt_arg_t *mrap = arg;
 	zfs_btree_t *size_tree = mrap->mra_bt;
 
-	if (rs_get_end(rs, rt) - rs_get_start(rs, rt) < (1 <<
+	if (rs_get_end(rs, rt) - rs_get_start(rs, rt) < (1ULL <<
 	    mrap->mra_floor_shift))
 		return;
 
@@ -3552,7 +3552,7 @@ metaslab_should_condense(metaslab_t *msp)
 {
 	space_map_t *sm = msp->ms_sm;
 	vdev_t *vd = msp->ms_group->mg_vd;
-	uint64_t vdev_blocksize = 1 << vd->vdev_ashift;
+	uint64_t vdev_blocksize = 1ULL << vd->vdev_ashift;
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 	ASSERT(msp->ms_loaded);
