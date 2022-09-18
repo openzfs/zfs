@@ -18,6 +18,8 @@
 
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <stdio.h>
+#include <unistd.h>
 
 const int INSTRUCTION_LIMIT = 10 * 1000 * 1000; // 10 million
 const int MEMORY_LIMIT = 10 * (1 << 20);        // 10 MiB
@@ -26,16 +28,22 @@ int run_test(const char * const, const char * const);
 
 int main(int argc, char **argv)
 {
-	if (argc != 2)
-		return 1;
+	if (argc != 2) {
+		fprintf(stderr, "Test requires two arguments: <testpool> <test.lua>\n");
+		return 253;
+	}
 
 	int fd = open(argv[1], O_RDONLY);
-	if (fd == -1)
-		return 2;
+	if (fd == -1) {
+		perror("Unable to open Lua file");
+		return 253;
+	}
 
 	struct stat filestat;
-	if (fstat(fd, &filestat))
-		return 3;
+	if (fstat(fd, &filestat)) {
+		perror("Unable to stat filehandle");
+		return 253;
+	}
 
 	char * const script = (char*)malloc(sizeof(char) * (filestat.st_size + 1));
 	char *ptr = script;
@@ -44,8 +52,10 @@ int main(int argc, char **argv)
 		ssize_t ret = read(fd, ptr, to_read);
 		if (ret == 0)
 			break;
-		if (ret == -1)
-			return 4;
+		if (ret == -1) {
+			perror("Unable to read from file");
+			return 253;
+		}
 
 		ptr += ret;
 		to_read -= ret;
@@ -128,6 +138,9 @@ int run_test(const char * const pool, const char * const script)
 	fnvlist_free(args);
 	fnvlist_free(nvlist);
 	fnvlist_free(table);
+
+	if (error)
+		dump_nvlist(ret, STDERR_FILENO);
 
 	fnvlist_free(ret);
 
