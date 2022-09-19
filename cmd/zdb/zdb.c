@@ -1137,6 +1137,8 @@ dump_uint64(objset_t *os, uint64_t object, void *data, size_t size)
 	}
 
 	if (size == 0) {
+		if (data == NULL)
+			kmem_free(arr, oursize);
 		(void) printf("\t\t[]\n");
 		return;
 	}
@@ -7057,8 +7059,11 @@ import_checkpointed_state(char *target, nvlist_t *cfg, char **new_path)
 		freecfg = B_TRUE;
 	}
 
-	if (asprintf(&bogus_name, "%s%s", poolname, BOGUS_SUFFIX) == -1)
+	if (asprintf(&bogus_name, "%s%s", poolname, BOGUS_SUFFIX) == -1) {
+		if (target != poolname)
+			free(poolname);
 		return (NULL);
+	}
 	fnvlist_add_string(cfg, ZPOOL_CONFIG_POOL_NAME, bogus_name);
 
 	error = spa_import(bogus_name, cfg, NULL,
@@ -7073,6 +7078,7 @@ import_checkpointed_state(char *target, nvlist_t *cfg, char **new_path)
 
 	if (new_path != NULL && path_start != NULL) {
 		if (asprintf(new_path, "%s%s", bogus_name, path_start) == -1) {
+			free(bogus_name);
 			if (path_start != NULL)
 				free(poolname);
 			return (NULL);
@@ -8193,8 +8199,7 @@ zdb_read_block(char *thing, spa_t *spa)
 	vd = zdb_vdev_lookup(spa->spa_root_vdev, vdev);
 	if (vd == NULL) {
 		(void) printf("***Invalid vdev: %s\n", vdev);
-		free(dup);
-		return;
+		goto done;
 	} else {
 		if (vd->vdev_path)
 			(void) fprintf(stderr, "Found vdev: %s\n",

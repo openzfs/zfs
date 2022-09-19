@@ -2007,6 +2007,7 @@ zfs_prop_inherit(zfs_handle_t *zhp, const char *propname, boolean_t received)
 		goto error;
 
 	if ((ret = zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_INHERIT_PROP, &zc)) != 0) {
+		changelist_free(cl);
 		return (zfs_standard_error(hdl, errno, errbuf));
 	} else {
 

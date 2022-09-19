@@ -849,6 +849,7 @@ restart:
 			if (rc < 0) {
 				printf("Unable to read /dev/urandom: %s\n:",
 				    strerror(errno));
+				close(fd);
 				return (1);
 			}
 			bytes_read += rc;
