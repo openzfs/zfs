@@ -137,7 +137,7 @@ dbuf_stats_hash_table_data(char *buf, size_t size, void *data)
 	if (size)
 		buf[0] = 0;
 
-	rw_enter(DBUF_HASH_RWLOCK(h, dsh->idx), RW_READER);
+	mutex_enter(DBUF_HASH_MUTEX(h, dsh->idx));
 	for (db = h->hash_table[dsh->idx]; db != NULL; db = db->db_hash_next) {
 		/*
 		 * Returning ENOMEM will cause the data and header functions
@@ -158,7 +158,7 @@ dbuf_stats_hash_table_data(char *buf, size_t size, void *data)
 
 		mutex_exit(&db->db_mtx);
 	}
-	rw_exit(DBUF_HASH_RWLOCK(h, dsh->idx));
+	mutex_exit(DBUF_HASH_MUTEX(h, dsh->idx));
 
 	return (error);
 }
