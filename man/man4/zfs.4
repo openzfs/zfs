@@ -66,6 +66,12 @@ Set the size of the dbuf metadata cache
 .Pq Sy dbuf_metadata_cache_max_bytes
 to a log2 fraction of the target ARC size.
 .
+.It Sy dbuf_mutex_cache_shift Ns = Ns Sy 0 Pq uint
+Set the size of the mutex array for the dbuf cache.
+When set to
+.Sy 0
+the array is dynamically sized based on total system memory.
+.
 .It Sy dmu_object_alloc_chunk_shift Ns = Ns Sy 7 Po 128 Pc Pq int
 dnode slots allocated in a single operation as a power of 2.
 The default value minimizes lock contention for the bulk operation performed.
