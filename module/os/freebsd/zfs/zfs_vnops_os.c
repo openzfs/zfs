@@ -76,7 +76,6 @@
 #include <sys/zfs_quota.h>
 #include <sys/zfs_sa.h>
 #include <sys/zfs_rlock.h>
-#include <sys/extdirent.h>
 #include <sys/bio.h>
 #include <sys/buf.h>
 #include <sys/sched.h>
@@ -1648,10 +1647,11 @@ zfs_rmdir(znode_t *dzp, const char *name, znode_t *cwd, cred_t *cr, int flags)
  *			  and return buffer.
  *		cr	- credentials of caller.
  *		ct	- caller context
- *		flags	- case flags
  *
  *	OUT:	uio	- updated offset and range, buffer filled.
  *		eofp	- set to true if end-of-file detected.
+ *		ncookies- number of entries in cookies
+ *		cookies	- offsets to directory entries
  *
  *	RETURN:	0 on success, error code on failure.
  *
@@ -1669,7 +1669,6 @@ zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, int *eofp,
 {
 	znode_t		*zp = VTOZ(vp);
 	iovec_t		*iovp;
-	edirent_t	*eodp;
 	dirent64_t	*odp;
 	zfsvfs_t	*zfsvfs = zp->z_zfsvfs;
 	objset_t	*os;
@@ -1687,7 +1686,6 @@ zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, int *eofp,
 	uint8_t		type;
 	int		ncooks;
 	cookie_t	*cooks = NULL;
-	int		flags = 0;
 
 	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (error);
@@ -1755,7 +1753,6 @@ zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, int *eofp,
 		outbuf = NULL;
 		odp = (struct dirent64 *)iovp->iov_base;
 	}
-	eodp = (struct edirent *)odp;
 
 	if (ncookies != NULL) {
 		/*
@@ -1824,25 +1821,7 @@ zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, int *eofp,
 			type = ZFS_DIRENT_TYPE(zap.za_first_integer);
 		}
 
-		if (flags & V_RDDIR_ACCFILTER) {
-			/*
-			 * If we have no access at all, don't include
-			 * this entry in the returned information
-			 */
-			znode_t	*ezp;
-			if (zfs_zget(zp->z_zfsvfs, objnum, &ezp) != 0)
-				goto skip_entry;
-			if (!zfs_has_access(ezp, cr)) {
-				vrele(ZTOV(ezp));
-				goto skip_entry;
-			}
-			vrele(ZTOV(ezp));
-		}
-
-		if (flags & V_RDDIR_ENTFLAGS)
-			reclen = EDIRENT_RECLEN(strlen(zap.za_name));
-		else
-			reclen = DIRENT64_RECLEN(strlen(zap.za_name));
+		reclen = DIRENT64_RECLEN(strlen(zap.za_name));
 
 		/*
 		 * Will this entry fit in the buffer?
@@ -1857,33 +1836,19 @@ zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, int *eofp,
 			}
 			break;
 		}
-		if (flags & V_RDDIR_ENTFLAGS) {
-			/*
-			 * Add extended flag entry:
-			 */
-			eodp->ed_ino = objnum;
-			eodp->ed_reclen = reclen;
-			/* NOTE: ed_off is the offset for the *next* entry */
-			next = &(eodp->ed_off);
-			eodp->ed_eflags = zap.za_normalization_conflict ?
-			    ED_CASE_CONFLICT : 0;
-			(void) strncpy(eodp->ed_name, zap.za_name,
-			    EDIRENT_NAMELEN(reclen));
-			eodp = (edirent_t *)((intptr_t)eodp + reclen);
-		} else {
-			/*
-			 * Add normal entry:
-			 */
-			odp->d_ino = objnum;
-			odp->d_reclen = reclen;
-			odp->d_namlen = strlen(zap.za_name);
-			/* NOTE: d_off is the offset for the *next* entry. */
-			next = &odp->d_off;
-			strlcpy(odp->d_name, zap.za_name, odp->d_namlen + 1);
-			odp->d_type = type;
-			dirent_terminate(odp);
-			odp = (dirent64_t *)((intptr_t)odp + reclen);
-		}
+		/*
+		 * Add normal entry:
+		 */
+		odp->d_ino = objnum;
+		odp->d_reclen = reclen;
+		odp->d_namlen = strlen(zap.za_name);
+		/* NOTE: d_off is the offset for the *next* entry. */
+		next = &odp->d_off;
+		strlcpy(odp->d_name, zap.za_name, odp->d_namlen + 1);
+		odp->d_type = type;
+		dirent_terminate(odp);
+		odp = (dirent64_t *)((intptr_t)odp + reclen);
+
 		outcount += reclen;
 
 		ASSERT3S(outcount, <=, bufsize);
@@ -1893,7 +1858,6 @@ zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, int *eofp,
 			dmu_prefetch(os, objnum, 0, 0, 0,
 			    ZIO_PRIORITY_SYNC_READ);
 
-	skip_entry:
 		/*
 		 * Move to the next entry, fill in the previous offset.
 		 */
