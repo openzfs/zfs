@@ -977,12 +977,13 @@ zfsctl_snapdir_lookup(struct vop_lookup_args *ap)
 		 */
 		VI_LOCK(*vpp);
 		if (((*vpp)->v_iflag & VI_MOUNT) == 0) {
+			VI_UNLOCK(*vpp);
 			/*
 			 * Upgrade to exclusive lock in order to:
 			 * - avoid race conditions
 			 * - satisfy the contract of mount_snapshot()
 			 */
-			err = VOP_LOCK(*vpp, LK_TRYUPGRADE | LK_INTERLOCK);
+			err = VOP_LOCK(*vpp, LK_TRYUPGRADE);
 			if (err == 0)
 				break;
 		} else {
