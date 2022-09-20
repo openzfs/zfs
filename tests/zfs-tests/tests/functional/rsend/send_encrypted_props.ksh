@@ -133,6 +133,14 @@ recv_cksum=$(md5digest /$ds/$TESTFILE0)
 log_must test "$recv_cksum" == "$cksum"
 log_must zfs destroy -r $ds
 
+# Test that we can override sharesmb property for encrypted raw stream.
+log_note "Must be able to override sharesmb property for encrypted raw stream"
+ds=$TESTPOOL/recv
+log_must eval "zfs send -w $esnap > $sendfile"
+log_must eval "zfs recv -o sharesmb=on $ds < $sendfile"
+log_must test "$(get_prop 'sharesmb' $ds)" == "on"
+log_must zfs destroy -r $ds
+
 # Test that we can override encryption properties on a properties stream
 # of an unencrypted dataset, turning it into an encryption root.
 log_note "Must be able to receive stream with props as encryption root"
