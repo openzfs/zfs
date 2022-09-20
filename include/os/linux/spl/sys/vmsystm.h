@@ -46,6 +46,7 @@
 
 #define	membar_consumer()		smp_rmb()
 #define	membar_producer()		smp_wmb()
+#define	membar_sync()			smp_mb()
 
 #define	physmem				zfs_totalram_pages
 
