@@ -657,7 +657,7 @@ zed_conf_read_state(struct zed_conf *zcp, uint64_t *eidp, int64_t etime[])
 	} else if (n != len) {
 		errno = EIO;
 		zed_log_msg(LOG_WARNING,
-		    "Failed to read state file \"%s\": Read %d of %d bytes",
+		    "Failed to read state file \"%s\": Read %zd of %zd bytes",
 		    zcp->state_file, n, len);
 		return (-1);
 	}
@@ -706,7 +706,7 @@ zed_conf_write_state(struct zed_conf *zcp, uint64_t eid, int64_t etime[])
 	if (n != len) {
 		errno = EIO;
 		zed_log_msg(LOG_WARNING,
-		    "Failed to write state file \"%s\": Wrote %d of %d bytes",
+		    "Failed to write state file \"%s\": Wrote %zd of %zd bytes",
 		    zcp->state_file, n, len);
 		return (-1);
 	}

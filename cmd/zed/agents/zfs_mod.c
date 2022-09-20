@@ -364,7 +364,7 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	    (vs->vs_state != VDEV_STATE_FAULTED) &&
 	    (vs->vs_state != VDEV_STATE_CANT_OPEN)) {
 		zed_log_msg(LOG_INFO, "  not autoreplacing since disk isn't in "
-		    "a bad state (currently %d)", vs->vs_state);
+		    "a bad state (currently %llu)", vs->vs_state);
 		return;
 	}
 
