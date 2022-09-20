@@ -415,8 +415,8 @@ spl_zone_fini(void)
 			    zone_dataset_t, zd_list);
 			list_del(&zd->zd_list);
 			kmem_free(zd, sizeof (*zd) + zd->zd_dsnamelen + 1);
-			put_user_ns(zds->zds_userns);
 		}
+		put_user_ns(zds->zds_userns);
 		list_del(&zds->zds_list);
 		kmem_free(zds, sizeof (*zds));
 	}
