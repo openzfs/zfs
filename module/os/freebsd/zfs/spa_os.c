@@ -250,7 +250,7 @@ spa_import_rootpool(const char *name, bool checkpointrewind)
 		mutex_exit(&spa_namespace_lock);
 		fnvlist_free(config);
 		cmn_err(CE_NOTE, "Can not parse the config for pool '%s'",
-		    pname);
+		    name);
 		return (error);
 	}
 
