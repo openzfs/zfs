@@ -28,6 +28,7 @@ assert(arg.uint32 == 32, "uint32 scalar")
 assert(arg.int32 == -32, "int32 scalar")
 assert(arg.uint64 == 64, "uint64 scalar")
 assert(arg.int64 == -64, "int64 scalar")
+assert(arg.hrtime == 1151280000 * 1000000000, "hrtime scalar")
 
 assert(arg.nvlist.boolean == false, "nested boolean")
 assert(arg.nvlist.integer == 42, "nested integer")

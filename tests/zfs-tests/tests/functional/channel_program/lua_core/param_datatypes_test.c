@@ -94,6 +94,8 @@ run_test(const char * const pool, const char * const script)
 	fnvlist_add_int32(args, "int32", -32);
 	fnvlist_add_uint64(args, "uint64", 64);
 	fnvlist_add_int64(args, "int64", -64);
+	if (nvlist_add_hrtime(args, "hrtime", SEC2NSEC(1151280000)))
+		abort();
 
 	nvlist_t * const table = fnvlist_alloc();
 	fnvlist_add_string(table, "key", "value");

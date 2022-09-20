@@ -572,6 +572,12 @@ zcp_nvpair_value_to_lua(lua_State *state, nvpair_t *pair,
 	case DATA_TYPE_INT64:
 		(void) lua_pushinteger(state, fnvpair_value_int64(pair));
 		break;
+	case DATA_TYPE_HRTIME: {
+		hrtime_t hrtime;
+		(void) nvpair_value_hrtime(pair, &hrtime);
+		(void) lua_pushinteger(state, hrtime);
+		break;
+	}
 	case DATA_TYPE_NVLIST:
 		err = zcp_nvlist_to_lua(state,
 		    fnvpair_value_nvlist(pair), errbuf, errbuf_len);
