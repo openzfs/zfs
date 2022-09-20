@@ -965,7 +965,7 @@ zfsdle_vdev_online(zpool_handle_t *zhp, void *data)
 	nvlist_t *tgt;
 	int error;
 
-	char *tmp_devname, devname[MAXPATHLEN];
+	char *tmp_devname, devname[MAXPATHLEN] = "";
 	uint64_t guid;
 
 	if (nvlist_lookup_uint64(udev_nvl, ZFS_EV_VDEV_GUID, &guid) == 0) {
