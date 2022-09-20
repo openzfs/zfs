@@ -2462,7 +2462,14 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 	(void) nvlist_lookup_uint64_array(root, ZPOOL_CONFIG_SCAN_STATS,
 	    (uint64_t **)&ps, &c);
 
-	if (ps != NULL && ps->pss_state == DSS_SCANNING && children == 0) {
+	/*
+	 * If you force fault a drive that's resilvering, its scan stats can
+	 * get frozen in time, giving the false impression that it's
+	 * being resilvered.  That's why we check the state to see if the vdev
+	 * is healthy before reporting "resilvering" or "repairing".
+	 */
+	if (ps != NULL && ps->pss_state == DSS_SCANNING && children == 0 &&
+	    vs->vs_state == VDEV_STATE_HEALTHY) {
 		if (vs->vs_scan_processed != 0) {
 			(void) printf(gettext("  (%s)"),
 			    (ps->pss_func == POOL_SCAN_RESILVER) ?
@@ -2474,7 +2481,7 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 
 	/* The top-level vdevs have the rebuild stats */
 	if (vrs != NULL && vrs->vrs_state == VDEV_REBUILD_ACTIVE &&
-	    children == 0) {
+	    children == 0 && vs->vs_state == VDEV_STATE_HEALTHY) {
 		if (vs->vs_rebuild_processed != 0) {
 			(void) printf(gettext("  (resilvering)"));
 		}
