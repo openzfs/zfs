@@ -44,8 +44,6 @@
 #define	IS_DEVVP(vp)	\
 	((vp)->v_type == VCHR || (vp)->v_type == VBLK || (vp)->v_type == VFIFO)
 
-#define	V_XATTRDIR	0x0000	/* attribute unnamed directory */
-
 #define	AV_SCANSTAMP_SZ	32		/* length of anti-virus scanstamp */
 
 /*
@@ -194,11 +192,6 @@
 #define	PERMMASK	00777		/* permission bits */
 
 /*
- * VOP_ACCESS flags
- */
-#define	V_ACE_MASK	0x1	/* mask represents  NFSv4 ACE permissions */
-
-/*
  * Flags for vnode operations.
  */
 enum rm		{ RMFILE, RMDIRECTORY };	/* rm or rmdir (remove) */
@@ -233,12 +226,6 @@ struct taskq;
 #define	LOOKUP_XATTR		0x02	/* lookup up extended attr dir */
 #define	CREATE_XATTR_DIR	0x04	/* Create extended attr dir */
 #define	LOOKUP_HAVE_SYSATTR_DIR	0x08	/* Already created virtual GFS dir */
-
-/*
- * Flags for VOP_READDIR
- */
-#define	V_RDDIR_ENTFLAGS	0x01	/* request dirent flags */
-#define	V_RDDIR_ACCFILTER	0x02	/* filter out inaccessible dirents */
 
 /*
  * Public vnode manipulation functions.
