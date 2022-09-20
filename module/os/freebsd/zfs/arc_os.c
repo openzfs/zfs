@@ -27,6 +27,7 @@
 #include <sys/zio_checksum.h>
 #include <sys/zfs_context.h>
 #include <sys/arc.h>
+#include <sys/arc_os.h>
 #include <sys/zfs_refcount.h>
 #include <sys/vdev.h>
 #include <sys/vdev_trim.h>
@@ -72,11 +73,9 @@ SYSINIT(arc_free_target_init, SI_SUB_KTHREAD_PAGE, SI_ORDER_ANY,
  * We don't have a tunable for arc_free_target due to the dependency on
  * pagedaemon initialisation.
  */
-int param_set_arc_free_target(SYSCTL_HANDLER_ARGS);
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, free_target,
     param_set_arc_free_target, 0, CTLFLAG_RW,
 	"Desired number of free pages below which ARC triggers reclaim");
-int param_set_arc_no_grow_shift(SYSCTL_HANDLER_ARGS);
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, no_grow_shift,
     param_set_arc_no_grow_shift, 0, ZMOD_RW,
 	"log2(fraction of ARC which must be free to allow growing)");
