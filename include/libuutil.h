@@ -57,13 +57,6 @@ extern "C" {
 #define	UU_ERROR_UNKNOWN	100	/* error status not known */
 
 /*
- * Standard program exit codes.
- */
-#define	UU_EXIT_OK	(*(uu_exit_ok()))
-#define	UU_EXIT_FATAL	(*(uu_exit_fatal()))
-#define	UU_EXIT_USAGE	(*(uu_exit_usage()))
-
-/*
  * Exit status profiles.
  */
 #define	UU_PROFILE_DEFAULT	0
@@ -74,32 +67,6 @@ extern "C" {
  */
 uint32_t uu_error(void);
 const char *uu_strerror(uint32_t);
-
-/*
- * Program notification functions.
- */
-extern void uu_alt_exit(int);
-extern const char *uu_setpname(char *);
-extern const char *uu_getpname(void);
-extern void uu_warn(const char *, ...)
-    __attribute__((format(printf, 1, 2)));
-extern void uu_vwarn(const char *, va_list)
-    __attribute__((format(printf, 1, 0)));
-extern __attribute__((noreturn)) void uu_die(const char *, ...)
-    __attribute__((format(printf, 1, 2)));
-extern __attribute__((noreturn)) void uu_vdie(const char *, va_list)
-    __attribute__((format(printf, 1, 0)));
-extern __attribute__((noreturn)) void uu_xdie(int, const char *, ...)
-    __attribute__((format(printf, 2, 3)));
-extern __attribute__((noreturn)) void uu_vxdie(int, const char *, va_list)
-    __attribute__((format(printf, 2, 0)));
-
-/*
- * Exit status functions (not to be used directly)
- */
-extern int *uu_exit_ok(void);
-extern int *uu_exit_fatal(void);
-extern int *uu_exit_usage(void);
 
 /*
  * Identifier test flags and function.
