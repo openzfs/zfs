@@ -1028,8 +1028,13 @@ dsl_process_sub_livelist(bpobj_t *bpobj, bplist_t *to_free, zthr_t *t,
 	    .t = t
 	};
 	int err = bpobj_iterate_nofree(bpobj, dsl_livelist_iterate, &arg, size);
+	VERIFY(err != 0 || avl_numnodes(&avl) == 0);
 
-	VERIFY0(avl_numnodes(&avl));
+	void *cookie = NULL;
+	livelist_entry_t *le = NULL;
+	while ((le = avl_destroy_nodes(&avl, &cookie)) != NULL) {
+		kmem_free(le, sizeof (livelist_entry_t));
+	}
 	avl_destroy(&avl);
 	return (err);
 }
