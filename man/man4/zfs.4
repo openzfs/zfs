@@ -1671,7 +1671,7 @@ prefetched during a pool traversal, like
 .Nm zfs Cm send
 or other data crawling operations.
 .
-.It Sy zfs_per_txg_dirty_frees_percent Ns = Ns Sy 5 Ns % Pq ulong
+.It Sy zfs_per_txg_dirty_frees_percent Ns = Ns Sy 30 Ns % Pq ulong
 Control percentage of dirtied indirect blocks from frees allowed into one TXG.
 After this threshold is crossed, additional frees will wait until the next TXG.
 .Sy 0 No disables this throttle.
