@@ -53,7 +53,7 @@
 #include <sys/cdefs.h>
 
 #include <machine/pcb.h>
-#include <powerpc/cpu.h>
+#include <machine/cpu.h>
 
 #define	kfpu_allowed()		1
 #define	kfpu_initialize(tsk)	do {} while (0)
@@ -88,3 +88,5 @@ zfs_isa207_available(void)
 {
 	return ((cpu_features2 & PPC_FEATURE2_ARCH_2_07) != 0);
 }
+
+#endif

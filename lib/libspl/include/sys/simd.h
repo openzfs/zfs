@@ -453,12 +453,12 @@ zfs_avx512vbmi_available(void)
 #elif defined(__powerpc__)
 
 /* including <sys/auxv.h> clashes with AT_UID and others */
-extern unsigned long getauxval(unsigned long type);
 #if defined(__FreeBSD__)
 #define	AT_HWCAP	25	/* CPU feature flags. */
 #define	AT_HWCAP2	26	/* CPU feature flags 2. */
 extern int elf_aux_info(int aux, void *buf, int buflen);
-static unsigned long getauxval(unsigned long key)
+static inline unsigned long
+getauxval(unsigned long key)
 {
 	unsigned long val = 0UL;
 
@@ -470,6 +470,7 @@ static unsigned long getauxval(unsigned long key)
 #elif defined(__linux__)
 #define	AT_HWCAP	16	/* CPU feature flags. */
 #define	AT_HWCAP2	26	/* CPU feature flags 2. */
+extern unsigned long getauxval(unsigned long type);
 #endif
 
 #define	kfpu_allowed()		1
