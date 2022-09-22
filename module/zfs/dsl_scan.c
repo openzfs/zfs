@@ -3000,7 +3000,7 @@ scan_io_queue_fetch_ext(dsl_scan_io_queue_t *queue)
 	 * otherwise we leave shorter remnant every txg.
 	 */
 	uint64_t start;
-	uint64_t size = 1 << rt->rt_shift;
+	uint64_t size = 1ULL << rt->rt_shift;
 	range_seg_t *addr_rs;
 	if (queue->q_last_ext_addr != -1) {
 		start = queue->q_last_ext_addr;

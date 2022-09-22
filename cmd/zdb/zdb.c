@@ -6203,10 +6203,10 @@ zdb_check_for_obsolete_leaks(vdev_t *vd, zdb_cb_t *zcb)
 		 */
 		for (uint64_t inner_offset = 0;
 		    inner_offset < DVA_GET_ASIZE(&vimep->vimep_dst);
-		    inner_offset += 1 << vd->vdev_ashift) {
+		    inner_offset += 1ULL << vd->vdev_ashift) {
 			if (range_tree_contains(msp->ms_allocatable,
-			    offset + inner_offset, 1 << vd->vdev_ashift)) {
-				obsolete_bytes += 1 << vd->vdev_ashift;
+			    offset + inner_offset, 1ULL << vd->vdev_ashift)) {
+				obsolete_bytes += 1ULL << vd->vdev_ashift;
 			}
 		}
 
