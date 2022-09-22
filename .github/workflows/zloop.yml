@@ -2,7 +2,10 @@ name: zloop
 
 on:
   push:
+    branches: [ uzfs-main ]
+
   pull_request:
+    branches: [ uzfs-main ]
 
 jobs:
   tests:

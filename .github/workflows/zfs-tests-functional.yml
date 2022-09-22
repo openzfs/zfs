@@ -1,8 +1,9 @@
 name: zfs-tests-functional
 
 on:
-  push:
-  pull_request:
+  schedule:
+    # Every Sunday at 0:00 Beijing time
+    -cron: "0 16 * * 6"
 
 jobs:
   tests-functional-ubuntu:
