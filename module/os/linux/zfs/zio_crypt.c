@@ -1891,6 +1891,9 @@ zio_do_crypt_data(boolean_t encrypt, zio_crypt_key_t *key,
 	crypto_ctx_template_t tmpl;
 	uint8_t *authbuf = NULL;
 
+	memset(&puio, 0, sizeof (puio));
+	memset(&cuio, 0, sizeof (cuio));
+
 	/*
 	 * If the needed key is the current one, just use it. Otherwise we
 	 * need to generate a temporary one from the given salt + master key.
@@ -1949,9 +1952,6 @@ zio_do_crypt_data(boolean_t encrypt, zio_crypt_key_t *key,
 		}
 		/* If the hardware implementation fails fall back to software */
 	}
-
-	memset(&puio, 0, sizeof (puio));
-	memset(&cuio, 0, sizeof (cuio));
 
 	/* create uios for encryption */
 	ret = zio_crypt_init_uios(encrypt, key->zk_version, ot, plainbuf,
