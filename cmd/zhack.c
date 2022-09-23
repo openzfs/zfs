@@ -295,6 +295,8 @@ zhack_do_feature_enable(int argc, char **argv)
 			feature.fi_flags |= ZFEATURE_FLAG_READONLY_COMPAT;
 			break;
 		case 'd':
+			if (desc != NULL)
+				free(desc);
 			desc = strdup(optarg);
 			break;
 		default:

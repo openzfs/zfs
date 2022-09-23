@@ -1196,6 +1196,7 @@ zpool_do_remove(int argc, char **argv)
 		return (1);
 
 	if (stop && noop) {
+		zpool_close(zhp);
 		(void) fprintf(stderr, gettext("stop request ignored\n"));
 		return (0);
 	}

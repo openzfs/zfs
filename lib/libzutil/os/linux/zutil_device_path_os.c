@@ -344,6 +344,8 @@ zfs_get_enclosure_sysfs_path(const char *dev_name)
 		if (strstr(ep->d_name, "enclosure_device") == NULL)
 			continue;
 
+		if (tmp2 != NULL)
+			free(tmp2);
 		if (asprintf(&tmp2, "%s/%s", tmp1, ep->d_name) == -1) {
 			tmp2 = NULL;
 			break;
@@ -372,14 +374,13 @@ zfs_get_enclosure_sysfs_path(const char *dev_name)
 		if (tmp3 == NULL)
 			break;
 
+		if (path != NULL)
+			free(path);
 		if (asprintf(&path, "/sys/class/%s", tmp3) == -1) {
 			/* If asprintf() fails, 'path' is undefined */
 			path = NULL;
 			break;
 		}
-
-		if (path == NULL)
-			break;
 	}
 
 end:
