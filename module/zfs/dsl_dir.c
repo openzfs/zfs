@@ -270,7 +270,7 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 
 		if (dsl_dir_is_zapified(dd)) {
 			inode_timespec_t t = {0};
-			zap_lookup(dp->dp_meta_objset, ddobj,
+			(void) zap_lookup(dp->dp_meta_objset, ddobj,
 			    DD_FIELD_SNAPSHOTS_CHANGED,
 			    sizeof (uint64_t),
 			    sizeof (inode_timespec_t) / sizeof (uint64_t),

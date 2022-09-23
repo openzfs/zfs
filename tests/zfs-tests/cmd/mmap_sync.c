@@ -32,7 +32,7 @@
 static void
 cleanup(char *file)
 {
-	remove(file);
+	(void) remove(file);
 }
 
 int
@@ -125,7 +125,8 @@ main(int argc, char *argv[])
 		elapsed += ((t2.tv_usec - t1.tv_usec) / 1000.0);
 		if (elapsed > max_msync_time_ms) {
 			fprintf(stderr, "slow msync: %f ms\n", elapsed);
-			munmap(ptr, LEN);
+			if (munmap(ptr, LEN) != 0)
+				perror("munmap");
 			cleanup(file);
 			return (1);
 		}

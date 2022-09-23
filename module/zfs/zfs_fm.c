@@ -1389,17 +1389,17 @@ zfs_post_state_change(spa_t *spa, vdev_t *vd, uint64_t laststate)
 	aux = fm_nvlist_create(NULL);
 	if (vd && aux) {
 		if (vd->vdev_physpath) {
-			(void) nvlist_add_string(aux,
+			fnvlist_add_string(aux,
 			    FM_EREPORT_PAYLOAD_ZFS_VDEV_PHYSPATH,
 			    vd->vdev_physpath);
 		}
 		if (vd->vdev_enc_sysfs_path) {
-			(void) nvlist_add_string(aux,
+			fnvlist_add_string(aux,
 			    FM_EREPORT_PAYLOAD_ZFS_VDEV_ENC_SYSFS_PATH,
 			    vd->vdev_enc_sysfs_path);
 		}
 
-		(void) nvlist_add_uint64(aux,
+		fnvlist_add_uint64(aux,
 		    FM_EREPORT_PAYLOAD_ZFS_VDEV_LASTSTATE, laststate);
 	}
 
@@ -1496,12 +1496,12 @@ zfs_ereport_zvol_post(const char *subclass, const char *name,
 		return;
 
 	aux = fm_nvlist_create(NULL);
-	nvlist_add_string(aux, FM_EREPORT_PAYLOAD_ZFS_DEVICE_NAME, dev_name);
-	nvlist_add_string(aux, FM_EREPORT_PAYLOAD_ZFS_RAW_DEVICE_NAME,
+	fnvlist_add_string(aux, FM_EREPORT_PAYLOAD_ZFS_DEVICE_NAME, dev_name);
+	fnvlist_add_string(aux, FM_EREPORT_PAYLOAD_ZFS_RAW_DEVICE_NAME,
 	    raw_name);
 	r = strchr(name, '/');
 	if (r && r[1])
-		nvlist_add_string(aux, FM_EREPORT_PAYLOAD_ZFS_VOLUME, &r[1]);
+		fnvlist_add_string(aux, FM_EREPORT_PAYLOAD_ZFS_VOLUME, &r[1]);
 
 	zfs_post_common(spa, NULL, FM_RSRC_CLASS, subclass, aux);
 	fm_nvlist_destroy(aux, FM_NVA_FREE);
