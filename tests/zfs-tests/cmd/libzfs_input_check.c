@@ -528,7 +528,11 @@ test_recv_new(const char *dataset, int fd)
 	ssize_t count;
 
 	int cleanup_fd = open(ZFS_DEV, O_RDWR);
-
+	if (cleanup_fd == -1) {
+		(void) fprintf(stderr, "open(%s) failed: %s\n", ZFS_DEV,
+		    strerror(errno));
+		exit(EXIT_FAILURE);
+	}
 	(void) snprintf(snapshot, sizeof (snapshot), "%s@replicant", dataset);
 
 	count = pread(fd, &drr, sizeof (drr), 0);

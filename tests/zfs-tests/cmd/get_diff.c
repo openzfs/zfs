@@ -96,7 +96,7 @@ main(int argc, char *argv[])
 		off += bytes;
 	}
 
-	if (diff_len != 0 && diff_len != 0) {
+	if (diff_len != 0) {
 		(void) fprintf(stdout, "%lld,%lld\n", (long long)diff_off,
 		    (long long)diff_len);
 	}
