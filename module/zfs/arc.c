@@ -464,8 +464,6 @@ static uint_t zfs_arc_min_prefetch_ms = 0;
 static uint_t zfs_arc_min_prescient_prefetch_ms = 0;
 static int zfs_arc_p_dampener_disable = 1;
 static uint_t zfs_arc_meta_prune = 10000;
-static uint_t zfs_arc_meta_strategy = ARC_STRATEGY_META_BALANCED;
-static uint_t zfs_arc_meta_adjust_restarts = 4096;
 static uint_t zfs_arc_lotsfree_percent = 10;
 
 /*
@@ -2202,8 +2200,6 @@ arc_untransform(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 static void
 arc_evictable_space_increment(arc_buf_hdr_t *hdr, arc_state_t *state)
 {
-	arc_buf_contents_t type = arc_buf_type(hdr);
-
 	ASSERT(HDR_HAS_L1HDR(hdr));
 
 	if (GHOST_STATE(state)) {
@@ -2211,17 +2207,17 @@ arc_evictable_space_increment(arc_buf_hdr_t *hdr, arc_state_t *state)
 		ASSERT3P(hdr->b_l1hdr.b_buf, ==, NULL);
 		ASSERT3P(hdr->b_l1hdr.b_pabd, ==, NULL);
 		ASSERT(!HDR_HAS_RABD(hdr));
-		(void) zfs_refcount_add_many(&state->arcs_esize[type],
+		(void) zfs_refcount_add_many(&state->arcs_esize,
 		    HDR_GET_LSIZE(hdr), hdr);
 		return;
 	}
 
 	if (hdr->b_l1hdr.b_pabd != NULL) {
-		(void) zfs_refcount_add_many(&state->arcs_esize[type],
+		(void) zfs_refcount_add_many(&state->arcs_esize,
 		    arc_hdr_size(hdr), hdr);
 	}
 	if (HDR_HAS_RABD(hdr)) {
-		(void) zfs_refcount_add_many(&state->arcs_esize[type],
+		(void) zfs_refcount_add_many(&state->arcs_esize,
 		    HDR_GET_PSIZE(hdr), hdr);
 	}
 
@@ -2229,7 +2225,7 @@ arc_evictable_space_increment(arc_buf_hdr_t *hdr, arc_state_t *state)
 	    buf = buf->b_next) {
 		if (arc_buf_is_shared(buf))
 			continue;
-		(void) zfs_refcount_add_many(&state->arcs_esize[type],
+		(void) zfs_refcount_add_many(&state->arcs_esize,
 		    arc_buf_size(buf), buf);
 	}
 }
@@ -2242,8 +2238,6 @@ arc_evictable_space_increment(arc_buf_hdr_t *hdr, arc_state_t *state)
 static void
 arc_evictable_space_decrement(arc_buf_hdr_t *hdr, arc_state_t *state)
 {
-	arc_buf_contents_t type = arc_buf_type(hdr);
-
 	ASSERT(HDR_HAS_L1HDR(hdr));
 
 	if (GHOST_STATE(state)) {
@@ -2251,17 +2245,17 @@ arc_evictable_space_decrement(arc_buf_hdr_t *hdr, arc_state_t *state)
 		ASSERT3P(hdr->b_l1hdr.b_buf, ==, NULL);
 		ASSERT3P(hdr->b_l1hdr.b_pabd, ==, NULL);
 		ASSERT(!HDR_HAS_RABD(hdr));
-		(void) zfs_refcount_remove_many(&state->arcs_esize[type],
+		(void) zfs_refcount_remove_many(&state->arcs_esize,
 		    HDR_GET_LSIZE(hdr), hdr);
 		return;
 	}
 
 	if (hdr->b_l1hdr.b_pabd != NULL) {
-		(void) zfs_refcount_remove_many(&state->arcs_esize[type],
+		(void) zfs_refcount_remove_many(&state->arcs_esize,
 		    arc_hdr_size(hdr), hdr);
 	}
 	if (HDR_HAS_RABD(hdr)) {
-		(void) zfs_refcount_remove_many(&state->arcs_esize[type],
+		(void) zfs_refcount_remove_many(&state->arcs_esize,
 		    HDR_GET_PSIZE(hdr), hdr);
 	}
 
@@ -2269,7 +2263,7 @@ arc_evictable_space_decrement(arc_buf_hdr_t *hdr, arc_state_t *state)
 	    buf = buf->b_next) {
 		if (arc_buf_is_shared(buf))
 			continue;
-		(void) zfs_refcount_remove_many(&state->arcs_esize[type],
+		(void) zfs_refcount_remove_many(&state->arcs_esize,
 		    arc_buf_size(buf), buf);
 	}
 }
@@ -2298,7 +2292,7 @@ add_reference(arc_buf_hdr_t *hdr, const void *tag)
 	    (state != arc_anon)) {
 		/* We don't use the L2-only state list. */
 		if (state != arc_l2c_only) {
-			multilist_remove(&state->arcs_list[arc_buf_type(hdr)],
+			multilist_remove(&state->arcs_list,
 			    hdr);
 			arc_evictable_space_decrement(hdr, state);
 		}
@@ -2332,7 +2326,7 @@ remove_reference(arc_buf_hdr_t *hdr, kmutex_t *hash_lock, const void *tag)
 	 */
 	if (((cnt = zfs_refcount_remove(&hdr->b_l1hdr.b_refcnt, tag)) == 0) &&
 	    (state != arc_anon)) {
-		multilist_insert(&state->arcs_list[arc_buf_type(hdr)], hdr);
+		multilist_insert(&state->arcs_list, hdr);
 		ASSERT3U(hdr->b_l1hdr.b_bufcnt, >, 0);
 		arc_evictable_space_increment(hdr, state);
 	}
@@ -2401,7 +2395,6 @@ arc_change_state(arc_state_t *new_state, arc_buf_hdr_t *hdr,
 	int64_t refcnt;
 	uint32_t bufcnt;
 	boolean_t update_old, update_new;
-	arc_buf_contents_t buftype = arc_buf_type(hdr);
 
 	/*
 	 * We almost always have an L1 hdr here, since we call arc_hdr_realloc()
@@ -2436,7 +2429,7 @@ arc_change_state(arc_state_t *new_state, arc_buf_hdr_t *hdr,
 	if (refcnt == 0) {
 		if (old_state != arc_anon && old_state != arc_l2c_only) {
 			ASSERT(HDR_HAS_L1HDR(hdr));
-			multilist_remove(&old_state->arcs_list[buftype], hdr);
+			multilist_remove(&old_state->arcs_list, hdr);
 
 			if (GHOST_STATE(old_state)) {
 				ASSERT0(bufcnt);
@@ -2453,7 +2446,7 @@ arc_change_state(arc_state_t *new_state, arc_buf_hdr_t *hdr,
 			 * beforehand.
 			 */
 			ASSERT(HDR_HAS_L1HDR(hdr));
-			multilist_insert(&new_state->arcs_list[buftype], hdr);
+			multilist_insert(&new_state->arcs_list, hdr);
 
 			if (GHOST_STATE(new_state)) {
 				ASSERT0(bufcnt);
@@ -2952,7 +2945,7 @@ arc_hdr_free_on_write(arc_buf_hdr_t *hdr, boolean_t free_rdata)
 		ASSERT(zfs_refcount_is_zero(&hdr->b_l1hdr.b_refcnt));
 		ASSERT(state != arc_anon && state != arc_l2c_only);
 
-		(void) zfs_refcount_remove_many(&state->arcs_esize[type],
+		(void) zfs_refcount_remove_many(&state->arcs_esize,
 		    size, hdr);
 	}
 	(void) zfs_refcount_remove_many(&state->arcs_size, size, hdr);
@@ -4216,11 +4209,10 @@ arc_state_free_markers(arc_buf_hdr_t **markers, int count)
  * the given arc state; which is used by arc_flush().
  */
 static uint64_t
-arc_evict_state(arc_state_t *state, uint64_t spa, uint64_t bytes,
-    arc_buf_contents_t type)
+arc_evict_state(arc_state_t *state, uint64_t spa, uint64_t bytes)
 {
 	uint64_t total_evicted = 0;
-	multilist_t *ml = &state->arcs_list[type];
+	multilist_t *ml = &state->arcs_list;
 	int num_sublists;
 	arc_buf_hdr_t **markers;
 
@@ -4260,7 +4252,7 @@ arc_evict_state(arc_state_t *state, uint64_t spa, uint64_t bytes,
 		 * Request that 10% of the LRUs be scanned by the superblock
 		 * shrinker.
 		 */
-		if (type == ARC_BUFC_DATA && aggsum_compare(
+		if (aggsum_compare(
 		    &arc_sums.arcstat_dnode_size, arc_dnode_size_limit) > 0) {
 			arc_prune_async((aggsum_upper_bound(
 			    &arc_sums.arcstat_dnode_size) -
@@ -4346,13 +4338,13 @@ arc_evict_state(arc_state_t *state, uint64_t spa, uint64_t bytes,
  * wind up in an infinite loop, continually trying to evict buffers.
  */
 static uint64_t
-arc_flush_state(arc_state_t *state, uint64_t spa, arc_buf_contents_t type,
+arc_flush_state(arc_state_t *state, uint64_t spa,
     boolean_t retry)
 {
 	uint64_t evicted = 0;
 
-	while (zfs_refcount_count(&state->arcs_esize[type]) != 0) {
-		evicted += arc_evict_state(state, spa, ARC_EVICT_ALL, type);
+	while (zfs_refcount_count(&state->arcs_esize) != 0) {
+		evicted += arc_evict_state(state, spa, ARC_EVICT_ALL);
 
 		if (!retry)
 			break;
@@ -4370,245 +4362,19 @@ arc_flush_state(arc_state_t *state, uint64_t spa, arc_buf_contents_t type,
  * evict everything it can, when passed a negative value for "bytes".
  */
 static uint64_t
-arc_evict_impl(arc_state_t *state, uint64_t spa, int64_t bytes,
-    arc_buf_contents_t type)
+arc_evict_impl(arc_state_t *state, uint64_t spa, int64_t bytes)
 {
 	uint64_t delta;
 
-	if (bytes > 0 && zfs_refcount_count(&state->arcs_esize[type]) > 0) {
-		delta = MIN(zfs_refcount_count(&state->arcs_esize[type]),
+	if (bytes > 0 && zfs_refcount_count(&state->arcs_esize) > 0) {
+		delta = MIN(zfs_refcount_count(&state->arcs_esize),
 		    bytes);
-		return (arc_evict_state(state, spa, delta, type));
+		return (arc_evict_state(state, spa, delta));
 	}
 
 	return (0);
 }
 
-/*
- * The goal of this function is to evict enough meta data buffers from the
- * ARC in order to enforce the arc_meta_limit.  Achieving this is slightly
- * more complicated than it appears because it is common for data buffers
- * to have holds on meta data buffers.  In addition, dnode meta data buffers
- * will be held by the dnodes in the block preventing them from being freed.
- * This means we can't simply traverse the ARC and expect to always find
- * enough unheld meta data buffer to release.
- *
- * Therefore, this function has been updated to make alternating passes
- * over the ARC releasing data buffers and then newly unheld meta data
- * buffers.  This ensures forward progress is maintained and meta_used
- * will decrease.  Normally this is sufficient, but if required the ARC
- * will call the registered prune callbacks causing dentry and inodes to
- * be dropped from the VFS cache.  This will make dnode meta data buffers
- * available for reclaim.
- */
-static uint64_t
-arc_evict_meta_balanced(uint64_t meta_used)
-{
-	int64_t delta, adjustmnt;
-	uint64_t total_evicted = 0, prune = 0;
-	arc_buf_contents_t type = ARC_BUFC_DATA;
-	uint_t restarts = zfs_arc_meta_adjust_restarts;
-
-restart:
-	/*
-	 * This slightly differs than the way we evict from the mru in
-	 * arc_evict because we don't have a "target" value (i.e. no
-	 * "meta" arc_p). As a result, I think we can completely
-	 * cannibalize the metadata in the MRU before we evict the
-	 * metadata from the MFU. I think we probably need to implement a
-	 * "metadata arc_p" value to do this properly.
-	 */
-	adjustmnt = meta_used - arc_meta_limit;
-
-	if (adjustmnt > 0 &&
-	    zfs_refcount_count(&arc_mru->arcs_esize[type]) > 0) {
-		delta = MIN(zfs_refcount_count(&arc_mru->arcs_esize[type]),
-		    adjustmnt);
-		total_evicted += arc_evict_impl(arc_mru, 0, delta, type);
-		adjustmnt -= delta;
-	}
-
-	/*
-	 * We can't afford to recalculate adjustmnt here. If we do,
-	 * new metadata buffers can sneak into the MRU or ANON lists,
-	 * thus penalize the MFU metadata. Although the fudge factor is
-	 * small, it has been empirically shown to be significant for
-	 * certain workloads (e.g. creating many empty directories). As
-	 * such, we use the original calculation for adjustmnt, and
-	 * simply decrement the amount of data evicted from the MRU.
-	 */
-
-	if (adjustmnt > 0 &&
-	    zfs_refcount_count(&arc_mfu->arcs_esize[type]) > 0) {
-		delta = MIN(zfs_refcount_count(&arc_mfu->arcs_esize[type]),
-		    adjustmnt);
-		total_evicted += arc_evict_impl(arc_mfu, 0, delta, type);
-	}
-
-	adjustmnt = meta_used - arc_meta_limit;
-
-	if (adjustmnt > 0 &&
-	    zfs_refcount_count(&arc_mru_ghost->arcs_esize[type]) > 0) {
-		delta = MIN(adjustmnt,
-		    zfs_refcount_count(&arc_mru_ghost->arcs_esize[type]));
-		total_evicted += arc_evict_impl(arc_mru_ghost, 0, delta, type);
-		adjustmnt -= delta;
-	}
-
-	if (adjustmnt > 0 &&
-	    zfs_refcount_count(&arc_mfu_ghost->arcs_esize[type]) > 0) {
-		delta = MIN(adjustmnt,
-		    zfs_refcount_count(&arc_mfu_ghost->arcs_esize[type]));
-		total_evicted += arc_evict_impl(arc_mfu_ghost, 0, delta, type);
-	}
-
-	/*
-	 * If after attempting to make the requested adjustment to the ARC
-	 * the meta limit is still being exceeded then request that the
-	 * higher layers drop some cached objects which have holds on ARC
-	 * meta buffers.  Requests to the upper layers will be made with
-	 * increasingly large scan sizes until the ARC is below the limit.
-	 */
-	if (meta_used > arc_meta_limit) {
-		if (type == ARC_BUFC_DATA) {
-			type = ARC_BUFC_METADATA;
-		} else {
-			type = ARC_BUFC_DATA;
-
-			if (zfs_arc_meta_prune) {
-				prune += zfs_arc_meta_prune;
-				arc_prune_async(prune);
-			}
-		}
-
-		if (restarts > 0) {
-			restarts--;
-			goto restart;
-		}
-	}
-	return (total_evicted);
-}
-
-/*
- * Evict metadata buffers from the cache, such that arcstat_meta_used is
- * capped by the arc_meta_limit tunable.
- */
-static uint64_t
-arc_evict_meta_only(uint64_t meta_used)
-{
-	uint64_t total_evicted = 0;
-	int64_t target;
-
-	/*
-	 * If we're over the meta limit, we want to evict enough
-	 * metadata to get back under the meta limit. We don't want to
-	 * evict so much that we drop the MRU below arc_p, though. If
-	 * we're over the meta limit more than we're over arc_p, we
-	 * evict some from the MRU here, and some from the MFU below.
-	 */
-	target = MIN((int64_t)(meta_used - arc_meta_limit),
-	    (int64_t)(zfs_refcount_count(&arc_anon->arcs_size) +
-	    zfs_refcount_count(&arc_mru->arcs_size) - arc_p));
-
-	total_evicted += arc_evict_impl(arc_mru, 0, target, ARC_BUFC_METADATA);
-
-	/*
-	 * Similar to the above, we want to evict enough bytes to get us
-	 * below the meta limit, but not so much as to drop us below the
-	 * space allotted to the MFU (which is defined as arc_c - arc_p).
-	 */
-	target = MIN((int64_t)(meta_used - arc_meta_limit),
-	    (int64_t)(zfs_refcount_count(&arc_mfu->arcs_size) -
-	    (arc_c - arc_p)));
-
-	total_evicted += arc_evict_impl(arc_mfu, 0, target, ARC_BUFC_METADATA);
-
-	return (total_evicted);
-}
-
-static uint64_t
-arc_evict_meta(uint64_t meta_used)
-{
-	if (zfs_arc_meta_strategy == ARC_STRATEGY_META_ONLY)
-		return (arc_evict_meta_only(meta_used));
-	else
-		return (arc_evict_meta_balanced(meta_used));
-}
-
-/*
- * Return the type of the oldest buffer in the given arc state
- *
- * This function will select a random sublist of type ARC_BUFC_DATA and
- * a random sublist of type ARC_BUFC_METADATA. The tail of each sublist
- * is compared, and the type which contains the "older" buffer will be
- * returned.
- */
-static arc_buf_contents_t
-arc_evict_type(arc_state_t *state)
-{
-	multilist_t *data_ml = &state->arcs_list[ARC_BUFC_DATA];
-	multilist_t *meta_ml = &state->arcs_list[ARC_BUFC_METADATA];
-	int data_idx = multilist_get_random_index(data_ml);
-	int meta_idx = multilist_get_random_index(meta_ml);
-	multilist_sublist_t *data_mls;
-	multilist_sublist_t *meta_mls;
-	arc_buf_contents_t type;
-	arc_buf_hdr_t *data_hdr;
-	arc_buf_hdr_t *meta_hdr;
-
-	/*
-	 * We keep the sublist lock until we're finished, to prevent
-	 * the headers from being destroyed via arc_evict_state().
-	 */
-	data_mls = multilist_sublist_lock(data_ml, data_idx);
-	meta_mls = multilist_sublist_lock(meta_ml, meta_idx);
-
-	/*
-	 * These two loops are to ensure we skip any markers that
-	 * might be at the tail of the lists due to arc_evict_state().
-	 */
-
-	for (data_hdr = multilist_sublist_tail(data_mls); data_hdr != NULL;
-	    data_hdr = multilist_sublist_prev(data_mls, data_hdr)) {
-		if (data_hdr->b_spa != 0)
-			break;
-	}
-
-	for (meta_hdr = multilist_sublist_tail(meta_mls); meta_hdr != NULL;
-	    meta_hdr = multilist_sublist_prev(meta_mls, meta_hdr)) {
-		if (meta_hdr->b_spa != 0)
-			break;
-	}
-
-	if (data_hdr == NULL && meta_hdr == NULL) {
-		type = ARC_BUFC_DATA;
-	} else if (data_hdr == NULL) {
-		ASSERT3P(meta_hdr, !=, NULL);
-		type = ARC_BUFC_METADATA;
-	} else if (meta_hdr == NULL) {
-		ASSERT3P(data_hdr, !=, NULL);
-		type = ARC_BUFC_DATA;
-	} else {
-		ASSERT3P(data_hdr, !=, NULL);
-		ASSERT3P(meta_hdr, !=, NULL);
-
-		/* The headers can't be on the sublist without an L1 header */
-		ASSERT(HDR_HAS_L1HDR(data_hdr));
-		ASSERT(HDR_HAS_L1HDR(meta_hdr));
-
-		if (data_hdr->b_l1hdr.b_arc_access <
-		    meta_hdr->b_l1hdr.b_arc_access) {
-			type = ARC_BUFC_DATA;
-		} else {
-			type = ARC_BUFC_METADATA;
-		}
-	}
-
-	multilist_sublist_unlock(meta_mls);
-	multilist_sublist_unlock(data_mls);
-
-	return (type);
-}
 
 /*
  * Evict buffers from the cache, such that arcstat_size is capped by arc_c.
@@ -4620,13 +4386,6 @@ arc_evict(void)
 	uint64_t bytes;
 	int64_t target;
 	uint64_t asize = aggsum_value(&arc_sums.arcstat_size);
-	uint64_t ameta = aggsum_value(&arc_sums.arcstat_meta_used);
-
-	/*
-	 * If we're over arc_meta_limit, we want to correct that before
-	 * potentially evicting data buffers below.
-	 */
-	total_evicted += arc_evict_meta(ameta);
 
 	/*
 	 * Adjust MRU size
@@ -4640,49 +4399,15 @@ arc_evict(void)
 	 */
 	target = MIN((int64_t)(asize - arc_c),
 	    (int64_t)(zfs_refcount_count(&arc_anon->arcs_size) +
-	    zfs_refcount_count(&arc_mru->arcs_size) + ameta - arc_p));
+	    zfs_refcount_count(&arc_mru->arcs_size) - arc_p));
 
-	/*
-	 * If we're below arc_meta_min, always prefer to evict data.
-	 * Otherwise, try to satisfy the requested number of bytes to
-	 * evict from the type which contains older buffers; in an
-	 * effort to keep newer buffers in the cache regardless of their
-	 * type. If we cannot satisfy the number of bytes from this
-	 * type, spill over into the next type.
-	 */
-	if (arc_evict_type(arc_mru) == ARC_BUFC_METADATA &&
-	    ameta > arc_meta_min) {
-		bytes = arc_evict_impl(arc_mru, 0, target, ARC_BUFC_METADATA);
-		total_evicted += bytes;
-
-		/*
-		 * If we couldn't evict our target number of bytes from
-		 * metadata, we try to get the rest from data.
-		 */
-		target -= bytes;
-
-		total_evicted +=
-		    arc_evict_impl(arc_mru, 0, target, ARC_BUFC_DATA);
-	} else {
-		bytes = arc_evict_impl(arc_mru, 0, target, ARC_BUFC_DATA);
-		total_evicted += bytes;
-
-		/*
-		 * If we couldn't evict our target number of bytes from
-		 * data, we try to get the rest from metadata.
-		 */
-		target -= bytes;
-
-		total_evicted +=
-		    arc_evict_impl(arc_mru, 0, target, ARC_BUFC_METADATA);
-	}
+	bytes = arc_evict_impl(arc_mru, 0, target);
+	total_evicted += bytes;
 
 	/*
 	 * Re-sum ARC stats after the first round of evictions.
 	 */
 	asize = aggsum_value(&arc_sums.arcstat_size);
-	ameta = aggsum_value(&arc_sums.arcstat_meta_used);
-
 
 	/*
 	 * Adjust MFU size
@@ -4693,32 +4418,8 @@ arc_evict(void)
 	 */
 	target = asize - arc_c;
 
-	if (arc_evict_type(arc_mfu) == ARC_BUFC_METADATA &&
-	    ameta > arc_meta_min) {
-		bytes = arc_evict_impl(arc_mfu, 0, target, ARC_BUFC_METADATA);
-		total_evicted += bytes;
-
-		/*
-		 * If we couldn't evict our target number of bytes from
-		 * metadata, we try to get the rest from data.
-		 */
-		target -= bytes;
-
-		total_evicted +=
-		    arc_evict_impl(arc_mfu, 0, target, ARC_BUFC_DATA);
-	} else {
-		bytes = arc_evict_impl(arc_mfu, 0, target, ARC_BUFC_DATA);
-		total_evicted += bytes;
-
-		/*
-		 * If we couldn't evict our target number of bytes from
-		 * data, we try to get the rest from data.
-		 */
-		target -= bytes;
-
-		total_evicted +=
-		    arc_evict_impl(arc_mfu, 0, target, ARC_BUFC_METADATA);
-	}
+	bytes = arc_evict_impl(arc_mfu, 0, target);
+	total_evicted += bytes;
 
 	/*
 	 * Adjust ghost lists
@@ -4734,13 +4435,8 @@ arc_evict(void)
 	target = zfs_refcount_count(&arc_mru->arcs_size) +
 	    zfs_refcount_count(&arc_mru_ghost->arcs_size) - arc_c;
 
-	bytes = arc_evict_impl(arc_mru_ghost, 0, target, ARC_BUFC_DATA);
+	bytes = arc_evict_impl(arc_mru_ghost, 0, target);
 	total_evicted += bytes;
-
-	target -= bytes;
-
-	total_evicted +=
-	    arc_evict_impl(arc_mru_ghost, 0, target, ARC_BUFC_METADATA);
 
 	/*
 	 * We assume the sum of the mru list and mfu list is less than
@@ -4753,13 +4449,8 @@ arc_evict(void)
 	target = zfs_refcount_count(&arc_mru_ghost->arcs_size) +
 	    zfs_refcount_count(&arc_mfu_ghost->arcs_size) - arc_c;
 
-	bytes = arc_evict_impl(arc_mfu_ghost, 0, target, ARC_BUFC_DATA);
+	bytes = arc_evict_impl(arc_mfu_ghost, 0, target);
 	total_evicted += bytes;
-
-	target -= bytes;
-
-	total_evicted +=
-	    arc_evict_impl(arc_mfu_ghost, 0, target, ARC_BUFC_METADATA);
 
 	return (total_evicted);
 }
@@ -4779,17 +4470,13 @@ arc_flush(spa_t *spa, boolean_t retry)
 	if (spa != NULL)
 		guid = spa_load_guid(spa);
 
-	(void) arc_flush_state(arc_mru, guid, ARC_BUFC_DATA, retry);
-	(void) arc_flush_state(arc_mru, guid, ARC_BUFC_METADATA, retry);
+	(void) arc_flush_state(arc_mru, guid, retry);
 
-	(void) arc_flush_state(arc_mfu, guid, ARC_BUFC_DATA, retry);
-	(void) arc_flush_state(arc_mfu, guid, ARC_BUFC_METADATA, retry);
+	(void) arc_flush_state(arc_mfu, guid, retry);
 
-	(void) arc_flush_state(arc_mru_ghost, guid, ARC_BUFC_DATA, retry);
-	(void) arc_flush_state(arc_mru_ghost, guid, ARC_BUFC_METADATA, retry);
+	(void) arc_flush_state(arc_mru_ghost, guid, retry);
 
-	(void) arc_flush_state(arc_mfu_ghost, guid, ARC_BUFC_DATA, retry);
-	(void) arc_flush_state(arc_mfu_ghost, guid, ARC_BUFC_METADATA, retry);
+	(void) arc_flush_state(arc_mfu_ghost, guid, retry);
 }
 
 void
@@ -4861,6 +4548,7 @@ arc_kmem_reap_soon(void)
 	kmem_reap();
 #endif
 #endif
+	(void)zfs_arc_meta_prune;
 
 	for (i = 0; i < SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT; i++) {
 #if defined(_ILP32)
@@ -5375,7 +5063,7 @@ arc_get_data_impl(arc_buf_hdr_t *hdr, uint64_t size, const void *tag,
 		 */
 		if (multilist_link_active(&hdr->b_l1hdr.b_arc_node)) {
 			ASSERT(zfs_refcount_is_zero(&hdr->b_l1hdr.b_refcnt));
-			(void) zfs_refcount_add_many(&state->arcs_esize[type],
+			(void) zfs_refcount_add_many(&state->arcs_esize,
 			    size, tag);
 		}
 
@@ -5427,7 +5115,7 @@ arc_free_data_impl(arc_buf_hdr_t *hdr, uint64_t size, const void *tag)
 		ASSERT(zfs_refcount_is_zero(&hdr->b_l1hdr.b_refcnt));
 		ASSERT(state != arc_anon && state != arc_l2c_only);
 
-		(void) zfs_refcount_remove_many(&state->arcs_esize[type],
+		(void) zfs_refcount_remove_many(&state->arcs_esize,
 		    size, tag);
 	}
 	(void) zfs_refcount_remove_many(&state->arcs_size, size, tag);
@@ -6749,7 +6437,7 @@ arc_release(arc_buf_t *buf, const void *tag)
 		if (zfs_refcount_is_zero(&hdr->b_l1hdr.b_refcnt)) {
 			ASSERT3P(state, !=, arc_l2c_only);
 			(void) zfs_refcount_remove_many(
-			    &state->arcs_esize[type],
+			    &state->arcs_esize,
 			    arc_buf_size(buf), buf);
 		}
 
@@ -7262,10 +6950,11 @@ arc_tempreserve_space(spa_t *spa, uint64_t reserve, uint64_t txg)
 	    anon_size > rarc_c * zfs_arc_anon_limit_percent / 100 &&
 	    spa_dirty_anon > anon_size * zfs_arc_pool_dirty_percent / 100) {
 #ifdef ZFS_DEBUG
+// ADAM: cut this down
 		uint64_t meta_esize = zfs_refcount_count(
-		    &arc_anon->arcs_esize[ARC_BUFC_METADATA]);
+		    &arc_anon->arcs_esize);
 		uint64_t data_esize =
-		    zfs_refcount_count(&arc_anon->arcs_esize[ARC_BUFC_DATA]);
+		    zfs_refcount_count(&arc_anon->arcs_esize);
 		dprintf("failing, arc_tempreserve=%lluK anon_meta=%lluK "
 		    "anon_data=%lluK tempreserve=%lluK rarc_c=%lluK\n",
 		    (u_longlong_t)arc_tempreserve >> 10,
@@ -7286,10 +6975,11 @@ arc_kstat_update_state(arc_state_t *state, kstat_named_t *size,
     kstat_named_t *evict_data, kstat_named_t *evict_metadata)
 {
 	size->value.ui64 = zfs_refcount_count(&state->arcs_size);
+	// ADAM: cut me down
 	evict_data->value.ui64 =
-	    zfs_refcount_count(&state->arcs_esize[ARC_BUFC_DATA]);
+	    zfs_refcount_count(&state->arcs_esize);
 	evict_metadata->value.ui64 =
-	    zfs_refcount_count(&state->arcs_esize[ARC_BUFC_METADATA]);
+	    zfs_refcount_count(&state->arcs_esize);
 }
 
 static int
@@ -7681,30 +7371,20 @@ arc_state_init(void)
 {
 	int num_sublists = 0;
 
-	arc_state_multilist_init(&arc_mru->arcs_list[ARC_BUFC_METADATA],
+	arc_state_multilist_init(&arc_mru->arcs_list,
 	    arc_state_multilist_index_func, &num_sublists);
-	arc_state_multilist_init(&arc_mru->arcs_list[ARC_BUFC_DATA],
+	arc_state_multilist_init(&arc_mru_ghost->arcs_list,
 	    arc_state_multilist_index_func, &num_sublists);
-	arc_state_multilist_init(&arc_mru_ghost->arcs_list[ARC_BUFC_METADATA],
+	arc_state_multilist_init(&arc_mfu->arcs_list,
 	    arc_state_multilist_index_func, &num_sublists);
-	arc_state_multilist_init(&arc_mru_ghost->arcs_list[ARC_BUFC_DATA],
-	    arc_state_multilist_index_func, &num_sublists);
-	arc_state_multilist_init(&arc_mfu->arcs_list[ARC_BUFC_METADATA],
-	    arc_state_multilist_index_func, &num_sublists);
-	arc_state_multilist_init(&arc_mfu->arcs_list[ARC_BUFC_DATA],
-	    arc_state_multilist_index_func, &num_sublists);
-	arc_state_multilist_init(&arc_mfu_ghost->arcs_list[ARC_BUFC_METADATA],
-	    arc_state_multilist_index_func, &num_sublists);
-	arc_state_multilist_init(&arc_mfu_ghost->arcs_list[ARC_BUFC_DATA],
+	arc_state_multilist_init(&arc_mfu_ghost->arcs_list,
 	    arc_state_multilist_index_func, &num_sublists);
 
 	/*
 	 * L2 headers should never be on the L2 state list since they don't
 	 * have L1 headers allocated.  Special index function asserts that.
 	 */
-	arc_state_multilist_init(&arc_l2c_only->arcs_list[ARC_BUFC_METADATA],
-	    arc_state_l2c_multilist_index_func, &num_sublists);
-	arc_state_multilist_init(&arc_l2c_only->arcs_list[ARC_BUFC_DATA],
+	arc_state_multilist_init(&arc_l2c_only->arcs_list,
 	    arc_state_l2c_multilist_index_func, &num_sublists);
 
 	/*
@@ -7714,18 +7394,12 @@ arc_state_init(void)
 	 */
 	arc_state_evict_marker_count = num_sublists;
 
-	zfs_refcount_create(&arc_anon->arcs_esize[ARC_BUFC_METADATA]);
-	zfs_refcount_create(&arc_anon->arcs_esize[ARC_BUFC_DATA]);
-	zfs_refcount_create(&arc_mru->arcs_esize[ARC_BUFC_METADATA]);
-	zfs_refcount_create(&arc_mru->arcs_esize[ARC_BUFC_DATA]);
-	zfs_refcount_create(&arc_mru_ghost->arcs_esize[ARC_BUFC_METADATA]);
-	zfs_refcount_create(&arc_mru_ghost->arcs_esize[ARC_BUFC_DATA]);
-	zfs_refcount_create(&arc_mfu->arcs_esize[ARC_BUFC_METADATA]);
-	zfs_refcount_create(&arc_mfu->arcs_esize[ARC_BUFC_DATA]);
-	zfs_refcount_create(&arc_mfu_ghost->arcs_esize[ARC_BUFC_METADATA]);
-	zfs_refcount_create(&arc_mfu_ghost->arcs_esize[ARC_BUFC_DATA]);
-	zfs_refcount_create(&arc_l2c_only->arcs_esize[ARC_BUFC_METADATA]);
-	zfs_refcount_create(&arc_l2c_only->arcs_esize[ARC_BUFC_DATA]);
+	zfs_refcount_create(&arc_anon->arcs_esize);
+	zfs_refcount_create(&arc_mru->arcs_esize);
+	zfs_refcount_create(&arc_mru_ghost->arcs_esize);
+	zfs_refcount_create(&arc_mfu->arcs_esize);
+	zfs_refcount_create(&arc_mfu_ghost->arcs_esize);
+	zfs_refcount_create(&arc_l2c_only->arcs_esize);
 
 	zfs_refcount_create(&arc_anon->arcs_size);
 	zfs_refcount_create(&arc_mru->arcs_size);
@@ -7833,18 +7507,12 @@ arc_state_init(void)
 static void
 arc_state_fini(void)
 {
-	zfs_refcount_destroy(&arc_anon->arcs_esize[ARC_BUFC_METADATA]);
-	zfs_refcount_destroy(&arc_anon->arcs_esize[ARC_BUFC_DATA]);
-	zfs_refcount_destroy(&arc_mru->arcs_esize[ARC_BUFC_METADATA]);
-	zfs_refcount_destroy(&arc_mru->arcs_esize[ARC_BUFC_DATA]);
-	zfs_refcount_destroy(&arc_mru_ghost->arcs_esize[ARC_BUFC_METADATA]);
-	zfs_refcount_destroy(&arc_mru_ghost->arcs_esize[ARC_BUFC_DATA]);
-	zfs_refcount_destroy(&arc_mfu->arcs_esize[ARC_BUFC_METADATA]);
-	zfs_refcount_destroy(&arc_mfu->arcs_esize[ARC_BUFC_DATA]);
-	zfs_refcount_destroy(&arc_mfu_ghost->arcs_esize[ARC_BUFC_METADATA]);
-	zfs_refcount_destroy(&arc_mfu_ghost->arcs_esize[ARC_BUFC_DATA]);
-	zfs_refcount_destroy(&arc_l2c_only->arcs_esize[ARC_BUFC_METADATA]);
-	zfs_refcount_destroy(&arc_l2c_only->arcs_esize[ARC_BUFC_DATA]);
+	zfs_refcount_destroy(&arc_anon->arcs_esize);
+	zfs_refcount_destroy(&arc_mru->arcs_esize);
+	zfs_refcount_destroy(&arc_mru_ghost->arcs_esize);
+	zfs_refcount_destroy(&arc_mfu->arcs_esize);
+	zfs_refcount_destroy(&arc_mfu_ghost->arcs_esize);
+	zfs_refcount_destroy(&arc_l2c_only->arcs_esize);
 
 	zfs_refcount_destroy(&arc_anon->arcs_size);
 	zfs_refcount_destroy(&arc_mru->arcs_size);
@@ -7853,16 +7521,11 @@ arc_state_fini(void)
 	zfs_refcount_destroy(&arc_mfu_ghost->arcs_size);
 	zfs_refcount_destroy(&arc_l2c_only->arcs_size);
 
-	multilist_destroy(&arc_mru->arcs_list[ARC_BUFC_METADATA]);
-	multilist_destroy(&arc_mru_ghost->arcs_list[ARC_BUFC_METADATA]);
-	multilist_destroy(&arc_mfu->arcs_list[ARC_BUFC_METADATA]);
-	multilist_destroy(&arc_mfu_ghost->arcs_list[ARC_BUFC_METADATA]);
-	multilist_destroy(&arc_mru->arcs_list[ARC_BUFC_DATA]);
-	multilist_destroy(&arc_mru_ghost->arcs_list[ARC_BUFC_DATA]);
-	multilist_destroy(&arc_mfu->arcs_list[ARC_BUFC_DATA]);
-	multilist_destroy(&arc_mfu_ghost->arcs_list[ARC_BUFC_DATA]);
-	multilist_destroy(&arc_l2c_only->arcs_list[ARC_BUFC_METADATA]);
-	multilist_destroy(&arc_l2c_only->arcs_list[ARC_BUFC_DATA]);
+	multilist_destroy(&arc_mru->arcs_list);
+	multilist_destroy(&arc_mru_ghost->arcs_list);
+	multilist_destroy(&arc_mfu->arcs_list);
+	multilist_destroy(&arc_mfu_ghost->arcs_list);
+	multilist_destroy(&arc_l2c_only->arcs_list);
 
 	wmsum_fini(&arc_sums.arcstat_hits);
 	wmsum_fini(&arc_sums.arcstat_misses);
@@ -9026,16 +8689,16 @@ l2arc_sublist_lock(int list_num)
 
 	switch (list_num) {
 	case 0:
-		ml = &arc_mfu->arcs_list[ARC_BUFC_METADATA];
+		ml = &arc_mfu->arcs_list;
 		break;
 	case 1:
-		ml = &arc_mru->arcs_list[ARC_BUFC_METADATA];
+		ml = &arc_mru->arcs_list;
 		break;
-	case 2:
-		ml = &arc_mfu->arcs_list[ARC_BUFC_DATA];
+	case 2: // ADAM: hack, 2+ not needed
+		ml = &arc_mfu->arcs_list;
 		break;
 	case 3:
-		ml = &arc_mru->arcs_list[ARC_BUFC_DATA];
+		ml = &arc_mru->arcs_list;
 		break;
 	default:
 		return (NULL);
@@ -11093,12 +10756,6 @@ ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, meta_min, param_set_arc_long,
 
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, meta_prune, INT, ZMOD_RW,
 	"Meta objects to scan for prune");
-
-ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, meta_adjust_restarts, UINT, ZMOD_RW,
-	"Limit number of restarts in arc_evict_meta");
-
-ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, meta_strategy, UINT, ZMOD_RW,
-	"Meta reclaim strategy");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, grow_retry, param_set_arc_int,
 	param_get_uint, ZMOD_RW, "Seconds before growing ARC size");

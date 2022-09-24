@@ -137,10 +137,8 @@ arc_evictable_memory(void)
 {
 	int64_t asize = aggsum_value(&arc_sums.arcstat_size);
 	uint64_t arc_clean =
-	    zfs_refcount_count(&arc_mru->arcs_esize[ARC_BUFC_DATA]) +
-	    zfs_refcount_count(&arc_mru->arcs_esize[ARC_BUFC_METADATA]) +
-	    zfs_refcount_count(&arc_mfu->arcs_esize[ARC_BUFC_DATA]) +
-	    zfs_refcount_count(&arc_mfu->arcs_esize[ARC_BUFC_METADATA]);
+	    zfs_refcount_count(&arc_mru->arcs_esize) +
+	    zfs_refcount_count(&arc_mfu->arcs_esize);
 	uint64_t arc_dirty = MAX((int64_t)asize - (int64_t)arc_clean, 0);
 
 	/*
