@@ -1461,7 +1461,7 @@ zfs_ereport_snapshot_post(const char *subclass, spa_t *spa, const char *name)
 	nvlist_t *aux;
 
 	aux = fm_nvlist_create(NULL);
-	nvlist_add_string(aux, FM_EREPORT_PAYLOAD_ZFS_SNAPSHOT_NAME, name);
+	fnvlist_add_string(aux, FM_EREPORT_PAYLOAD_ZFS_SNAPSHOT_NAME, name);
 
 	zfs_post_common(spa, NULL, FM_RSRC_CLASS, subclass, aux);
 	fm_nvlist_destroy(aux, FM_NVA_FREE);

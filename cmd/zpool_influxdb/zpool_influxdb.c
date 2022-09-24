@@ -687,8 +687,10 @@ print_recursive_stats(stat_printer_f func, nvlist_t *nvroot,
 		    sizeof (vdev_name));
 
 		for (c = 0; c < children; c++) {
-			print_recursive_stats(func, child[c], pool_name,
+			err = print_recursive_stats(func, child[c], pool_name,
 			    vdev_name, descend);
+			if (err)
+				return (err);
 		}
 	}
 	return (0);
