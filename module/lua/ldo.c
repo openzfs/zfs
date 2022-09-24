@@ -405,7 +405,7 @@ int luaD_precall (lua_State *L, StkId func, int nresults) {
       StkId base;
       Proto *p = clLvalue(func)->p;
       n = cast_int(L->top - func) - 1;  /* number of real arguments */
-      luaD_checkstack(L, p->maxstacksize);
+      luaD_checkstack(L, p->maxstacksize + p->numparams);
       for (; n < p->numparams; n++)
         setnilvalue(L->top++);  /* complete missing arguments */
       if (!p->is_vararg) {
