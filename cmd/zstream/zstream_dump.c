@@ -363,9 +363,6 @@ zstream_do_dump(int argc, char *argv[])
 				    BSWAP_64(drrb->drr_fromguid);
 			}
 
-			featureflags =
-			    DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo);
-
 			(void) printf("BEGIN record\n");
 			(void) printf("\thdrtype = %lld\n",
 			    DMU_GET_STREAM_HDRTYPE(drrb->drr_versioninfo));
@@ -464,6 +461,9 @@ zstream_do_dump(int argc, char *argv[])
 				drro->drr_maxblkid =
 				    BSWAP_64(drro->drr_maxblkid);
 			}
+
+			featureflags =
+			    DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo);
 
 			if (featureflags & DMU_BACKUP_FEATURE_RAW &&
 			    drro->drr_bonuslen > drro->drr_raw_bonuslen) {
