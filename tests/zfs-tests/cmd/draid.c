@@ -720,8 +720,11 @@ eval_maps(uint64_t children, int passes, uint64_t *map_seed,
 		 */
 		error = alloc_new_map(children, MAP_ROWS_DEFAULT,
 		    vdev_draid_rand(map_seed), &map);
-		if (error)
+		if (error) {
+			if (best_map != NULL)
+				free_map(best_map);
 			return (error);
+		}
 
 		/*
 		 * Consider maps with a lower worst_ratio to be of higher
