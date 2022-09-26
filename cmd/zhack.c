@@ -140,8 +140,12 @@ zhack_import(char *target, boolean_t readonly)
 	g_importargs.can_be_active = readonly;
 	g_pool = strdup(target);
 
-	error = zpool_find_config(NULL, target, &config, &g_importargs,
-	    &libzpool_config_ops);
+	libpc_handle_t lpch = {
+		.lpc_lib_handle = NULL,
+		.lpc_ops = &libzpool_config_ops,
+		.lpc_printerr = B_TRUE
+	};
+	error = zpool_find_config(&lpch, target, &config, &g_importargs);
 	if (error)
 		fatal(NULL, FTAG, "cannot import '%s'", target);
 
