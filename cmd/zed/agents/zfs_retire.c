@@ -323,6 +323,9 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 	boolean_t is_disk;
 	vdev_aux_t aux;
 	uint64_t state = 0;
+	int l2arc;
+	vdev_stat_t *vs;
+	unsigned int c;
 
 	fmd_hdl_debug(hdl, "zfs_retire_recv: '%s'", class);
 
@@ -351,13 +354,32 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 
 		devname = zpool_vdev_name(NULL, zhp, vdev, B_FALSE);
 
-		/* Can't replace l2arc with a spare: offline the device */
-		if (nvlist_lookup_string(nvl, FM_EREPORT_PAYLOAD_ZFS_VDEV_TYPE,
-		    &devtype) == 0 && strcmp(devtype, VDEV_TYPE_L2CACHE) == 0) {
-			fmd_hdl_debug(hdl, "zpool_vdev_offline '%s'", devname);
-			zpool_vdev_offline(zhp, devname, B_TRUE);
-		} else if (!fmd_prop_get_int32(hdl, "spare_on_remove") ||
-		    replace_with_spare(hdl, zhp, vdev) == B_FALSE) {
+		nvlist_lookup_uint64_array(vdev, ZPOOL_CONFIG_VDEV_STATS,
+		    (uint64_t **)&vs, &c);
+
+		/*
+		 * If state removed is requested for already removed vdev,
+		 * its a loopback event from spa_async_remove(). Just
+		 * ignore it.
+		 */
+		if (vs->vs_state == VDEV_STATE_REMOVED &&
+		    state == VDEV_STATE_REMOVED)
+			return;
+
+		l2arc = (nvlist_lookup_string(nvl,
+		    FM_EREPORT_PAYLOAD_ZFS_VDEV_TYPE, &devtype) == 0 &&
+		    strcmp(devtype, VDEV_TYPE_L2CACHE) == 0);
+
+		/* Remove the vdev since device is unplugged */
+		if (l2arc || (strcmp(class, "resource.fs.zfs.removed") == 0)) {
+			int status = zpool_vdev_remove_wanted(zhp, devname);
+			fmd_hdl_debug(hdl, "zpool_vdev_remove_wanted '%s'"
+			    ", ret:%d", devname, status);
+		}
+
+		/* Replace the vdev with a spare if its not a l2arc */
+		if (!l2arc && (!fmd_prop_get_int32(hdl, "spare_on_remove") ||
+		    replace_with_spare(hdl, zhp, vdev) == B_FALSE)) {
 			/* Could not handle with spare */
 			fmd_hdl_debug(hdl, "no spare for '%s'", devname);
 		}

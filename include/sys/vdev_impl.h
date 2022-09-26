@@ -69,6 +69,7 @@ extern uint32_t zfs_vdev_async_write_max_active;
  * Virtual device operations
  */
 typedef int	vdev_init_func_t(spa_t *spa, nvlist_t *nv, void **tsd);
+typedef void	vdev_kobj_post_evt_func_t(vdev_t *vd);
 typedef void	vdev_fini_func_t(vdev_t *vd);
 typedef int	vdev_open_func_t(vdev_t *vd, uint64_t *size, uint64_t *max_size,
     uint64_t *ashift, uint64_t *pshift);
@@ -123,6 +124,7 @@ typedef const struct vdev_ops {
 	vdev_config_generate_func_t	*vdev_op_config_generate;
 	vdev_nparity_func_t		*vdev_op_nparity;
 	vdev_ndisks_func_t		*vdev_op_ndisks;
+	vdev_kobj_post_evt_func_t	*vdev_op_kobj_evt_post;
 	char				vdev_op_type[16];
 	boolean_t			vdev_op_leaf;
 } vdev_ops_t;
@@ -435,6 +437,7 @@ struct vdev {
 	boolean_t	vdev_isl2cache;	/* was a l2cache device		*/
 	boolean_t	vdev_copy_uberblocks;  /* post expand copy uberblocks */
 	boolean_t	vdev_resilver_deferred;  /* resilver deferred */
+	boolean_t	vdev_kobj_flag; /* kobj event record */
 	vdev_queue_t	vdev_queue;	/* I/O deadline schedule queue	*/
 	vdev_cache_t	vdev_cache;	/* physical block cache		*/
 	spa_aux_vdev_t	*vdev_aux;	/* for l2cache and spares vdevs	*/

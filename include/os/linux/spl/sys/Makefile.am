@@ -20,6 +20,7 @@ KERNEL_H = \
 	kmem.h \
 	kstat.h \
 	list.h \
+	misc.h \
 	mod_os.h \
 	mutex.h \
 	param.h \

@@ -1921,6 +1921,10 @@ zfs_ioc_vdev_set_state(zfs_cmd_t *zc)
 		error = vdev_degrade(spa, zc->zc_guid, zc->zc_obj);
 		break;
 
+	case VDEV_STATE_REMOVED:
+		error = vdev_remove_wanted(spa, zc->zc_guid);
+		break;
+
 	default:
 		error = SET_ERROR(EINVAL);
 	}
@@ -2928,7 +2932,7 @@ zfs_ioc_pool_set_props(zfs_cmd_t *zc)
 		mutex_enter(&spa_namespace_lock);
 		if ((spa = spa_lookup(zc->zc_name)) != NULL) {
 			spa_configfile_set(spa, props, B_FALSE);
-			spa_write_cachefile(spa, B_FALSE, B_TRUE);
+			spa_write_cachefile(spa, B_FALSE, B_TRUE, B_FALSE);
 		}
 		mutex_exit(&spa_namespace_lock);
 		if (spa != NULL) {

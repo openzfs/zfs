@@ -3928,7 +3928,7 @@ zio_vdev_io_done(zio_t *zio)
 
 	ops->vdev_op_io_done(zio);
 
-	if (unexpected_error)
+	if (unexpected_error && vd->vdev_remove_wanted == B_FALSE)
 		VERIFY(vdev_probe(vd, zio) == NULL);
 
 	return (zio);
