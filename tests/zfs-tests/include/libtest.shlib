@@ -2258,7 +2258,7 @@ function check_slog_state # pool disk state{online,offline,unavail}
 #
 # Return 0 is pool/disk matches expected state, 1 otherwise
 #
-function check_vdev_state # pool disk state{online,offline,unavail}
+function check_vdev_state # pool disk state{online,offline,unavail,removed}
 {
 	typeset pool=$1
 	typeset disk=${2#*$DEV_DSKDIR/}

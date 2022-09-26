@@ -51,6 +51,7 @@ extern "C" {
 #include <sys/kmem.h>
 #include <sys/kmem_cache.h>
 #include <sys/vmem.h>
+#include <sys/misc.h>
 #include <sys/taskq.h>
 #include <sys/param.h>
 #include <sys/disp.h>
