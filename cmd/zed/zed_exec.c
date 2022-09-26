@@ -140,7 +140,7 @@ _zed_exec_fork_child(uint64_t eid, const char *dir, const char *prog,
 	n = snprintf(path, sizeof (path), "%s/%s", dir, prog);
 	if ((n < 0) || (n >= sizeof (path))) {
 		zed_log_msg(LOG_WARNING,
-		    "Failed to fork \"%s\" for eid=%llu: %s",
+		    "Failed to fork \"%s\" for eid=%"PRIu64": %s",
 		    prog, eid, strerror(ENAMETOOLONG));
 		return;
 	}
@@ -149,7 +149,7 @@ _zed_exec_fork_child(uint64_t eid, const char *dir, const char *prog,
 	if (pid < 0) {
 		(void) pthread_mutex_unlock(&_launched_processes_lock);
 		zed_log_msg(LOG_WARNING,
-		    "Failed to fork \"%s\" for eid=%llu: %s",
+		    "Failed to fork \"%s\" for eid=%"PRIu64": %s",
 		    prog, eid, strerror(errno));
 		return;
 	} else if (pid == 0) {
@@ -181,7 +181,7 @@ _zed_exec_fork_child(uint64_t eid, const char *dir, const char *prog,
 	(void) pthread_mutex_unlock(&_launched_processes_lock);
 
 	__atomic_sub_fetch(&_launched_processes_limit, 1, __ATOMIC_SEQ_CST);
-	zed_log_msg(LOG_INFO, "Invoking \"%s\" eid=%llu pid=%d",
+	zed_log_msg(LOG_INFO, "Invoking \"%s\" eid=%"PRIu64" pid=%d",
 	    prog, eid, pid);
 }
 
@@ -244,7 +244,7 @@ _reap_children(void *arg)
 
 			if (WIFEXITED(status)) {
 				zed_log_msg(LOG_INFO,
-				    "Finished \"%s\" eid=%llu pid=%d "
+				    "Finished \"%s\" eid=%"PRIu64" pid=%d "
 				    "time=%llu.%06us exit=%d",
 				    node.name, node.eid, pid,
 				    (unsigned long long) usage.ru_utime.tv_sec,
@@ -252,7 +252,7 @@ _reap_children(void *arg)
 				    WEXITSTATUS(status));
 			} else if (WIFSIGNALED(status)) {
 				zed_log_msg(LOG_INFO,
-				    "Finished \"%s\" eid=%llu pid=%d "
+				    "Finished \"%s\" eid=%"PRIu64" pid=%d "
 				    "time=%llu.%06us sig=%d/%s",
 				    node.name, node.eid, pid,
 				    (unsigned long long) usage.ru_utime.tv_sec,
@@ -261,7 +261,7 @@ _reap_children(void *arg)
 				    strsignal(WTERMSIG(status)));
 			} else {
 				zed_log_msg(LOG_INFO,
-				    "Finished \"%s\" eid=%llu pid=%d "
+				    "Finished \"%s\" eid=%"PRIu64" pid=%d "
 				    "time=%llu.%06us status=0x%X",
 				    node.name, node.eid, pid,
 				    (unsigned long long) usage.ru_utime.tv_sec,

@@ -364,7 +364,7 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	    (vs->vs_state != VDEV_STATE_FAULTED) &&
 	    (vs->vs_state != VDEV_STATE_CANT_OPEN)) {
 		zed_log_msg(LOG_INFO, "  not autoreplacing since disk isn't in "
-		    "a bad state (currently %llu)", vs->vs_state);
+		    "a bad state (currently %"PRIu64")", vs->vs_state);
 		return;
 	}
 
@@ -573,7 +573,8 @@ zfs_iter_vdev(zpool_handle_t *zhp, nvlist_t *nvl, void *data)
 		    &guid) != 0 || guid != dp->dd_vdev_guid) {
 			return;
 		}
-		zed_log_msg(LOG_INFO, "  zfs_iter_vdev: matched on %llu", guid);
+		zed_log_msg(LOG_INFO, "  zfs_iter_vdev: matched on %"PRIu64,
+		    guid);
 		dp->dd_found = B_TRUE;
 
 	} else if (dp->dd_compare != NULL) {
@@ -884,8 +885,8 @@ zfs_deliver_check(nvlist_t *nvl)
 	    data.dd_vdev_guid == 0)
 		return (0);
 
-	zed_log_msg(LOG_INFO, "zfs_deliver_check: pool '%llu', vdev %llu",
-	    data.dd_pool_guid, data.dd_vdev_guid);
+	zed_log_msg(LOG_INFO, "zfs_deliver_check: pool '%"PRIu64"', vdev %"
+	    PRIu64, data.dd_pool_guid, data.dd_vdev_guid);
 
 	data.dd_func = zfs_process_add;
 
@@ -1092,10 +1093,11 @@ zfsdle_vdev_online(zpool_handle_t *zhp, void *data)
 					    0, &newstate);
 
 					zed_log_msg(LOG_INFO,
-					    "%s: autoexpanding '%s' from %llu"
-					    " to %llu bytes in pool '%s': %d",
-					    __func__, fullpath, conf_size,
-					    MAX(udev_size, udev_parent_size),
+					    "%s: autoexpanding '%s' from %"
+					    PRIu64" to %"PRIu64" bytes in pool"
+					    "'%s': %d", __func__, fullpath,
+					    conf_size, MAX(udev_size,
+					    udev_parent_size),
 					    zpool_get_name(zhp), error);
 				}
 			}

@@ -37,6 +37,7 @@ void zed_log_syslog_open(int facility);
 
 void zed_log_syslog_close(void);
 
+__attribute__((format(printf, 2, 3)))
 void zed_log_msg(int priority, const char *fmt, ...);
 
 void zed_log_die(const char *fmt, ...);

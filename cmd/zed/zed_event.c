@@ -195,11 +195,12 @@ zed_event_seek(struct zed_conf *zcp, uint64_t saved_eid, int64_t saved_etime[])
 		} else if (nvlist_lookup_int64_array(nvl, "time",
 		    &etime, &nelem) != 0) {
 			zed_log_msg(LOG_WARNING,
-			    "Failed to lookup zevent time (eid=%llu)", eid);
+			    "Failed to lookup zevent time (eid=%"PRIu64")",
+			    eid);
 		} else if (nelem != 2) {
 			zed_log_msg(LOG_WARNING,
-			    "Failed to lookup zevent time (eid=%llu, nelem=%u)",
-			    eid, nelem);
+			    "Failed to lookup zevent time (eid=%"
+			    PRIu64", nelem=%u)", eid, nelem);
 		} else if ((eid != saved_eid) ||
 		    (etime[0] != saved_etime[0]) ||
 		    (etime[1] != saved_etime[1])) {
@@ -216,7 +217,7 @@ zed_event_seek(struct zed_conf *zcp, uint64_t saved_eid, int64_t saved_etime[])
 		else
 			eid = 0;
 	}
-	zed_log_msg(LOG_NOTICE, "Processing events since eid=%llu", eid);
+	zed_log_msg(LOG_NOTICE, "Processing events since eid=%"PRIu64, eid);
 	return (found ? 0 : -1);
 }
 
@@ -279,12 +280,13 @@ _zed_event_add_var(uint64_t eid, zed_strings_t *zsp,
 	if (!name) {
 		errno = EINVAL;
 		zed_log_msg(LOG_WARNING,
-		    "Failed to add variable for eid=%llu: Name is empty", eid);
+		    "Failed to add variable for eid=%"PRIu64
+		    ": Name is empty", eid);
 		return (-1);
 	} else if (!isalpha(name[0])) {
 		errno = EINVAL;
 		zed_log_msg(LOG_WARNING,
-		    "Failed to add variable for eid=%llu: "
+		    "Failed to add variable for eid=%"PRIu64": "
 		    "Name \"%s\" is invalid", eid, name);
 		return (-1);
 	}
@@ -303,7 +305,8 @@ _zed_event_add_var(uint64_t eid, zed_strings_t *zsp,
 	if (dstp == lastp) {
 		errno = ENAMETOOLONG;
 		zed_log_msg(LOG_WARNING,
-		    "Failed to add variable for eid=%llu: Name too long", eid);
+		    "Failed to add variable for eid=%"PRIu64": Name too long",
+		    eid);
 		return (-1);
 	}
 	*dstp = '\0';
@@ -315,8 +318,8 @@ _zed_event_add_var(uint64_t eid, zed_strings_t *zsp,
 	n = strlcpy(dstp, keybuf, buflen);
 	if (n >= sizeof (valbuf)) {
 		errno = EMSGSIZE;
-		zed_log_msg(LOG_WARNING, "Failed to add %s for eid=%llu: %s",
-		    keybuf, eid, "Exceeded buffer size");
+		zed_log_msg(LOG_WARNING, "Failed to add %s for eid=%"PRIu64
+		    ": %s", keybuf, eid, "Exceeded buffer size");
 		return (-1);
 	}
 	dstp += n;
@@ -327,8 +330,8 @@ _zed_event_add_var(uint64_t eid, zed_strings_t *zsp,
 
 	if (buflen <= 0) {
 		errno = EMSGSIZE;
-		zed_log_msg(LOG_WARNING, "Failed to add %s for eid=%llu: %s",
-		    keybuf, eid, "Exceeded buffer size");
+		zed_log_msg(LOG_WARNING, "Failed to add %s for eid=%"PRIu64
+		    ": %s", keybuf, eid, "Exceeded buffer size");
 		return (-1);
 	}
 
@@ -338,12 +341,12 @@ _zed_event_add_var(uint64_t eid, zed_strings_t *zsp,
 
 	if ((n < 0) || (n >= buflen)) {
 		errno = EMSGSIZE;
-		zed_log_msg(LOG_WARNING, "Failed to add %s for eid=%llu: %s",
-		    keybuf, eid, "Exceeded buffer size");
+		zed_log_msg(LOG_WARNING, "Failed to add %s for eid=%"PRIu64
+		    ": %s", keybuf, eid, "Exceeded buffer size");
 		return (-1);
 	} else if (zed_strings_add(zsp, keybuf, valbuf) < 0) {
-		zed_log_msg(LOG_WARNING, "Failed to add %s for eid=%llu: %s",
-		    keybuf, eid, strerror(errno));
+		zed_log_msg(LOG_WARNING, "Failed to add %s for eid=%"PRIu64
+		    ": %s", keybuf, eid, strerror(errno));
 		return (-1);
 	}
 	return (0);
@@ -354,7 +357,7 @@ _zed_event_add_array_err(uint64_t eid, const char *name)
 {
 	errno = EMSGSIZE;
 	zed_log_msg(LOG_WARNING,
-	    "Failed to convert nvpair \"%s\" for eid=%llu: "
+	    "Failed to convert nvpair \"%s\" for eid=%"PRIu64": "
 	    "Exceeded buffer size", name, eid);
 	return (-1);
 }
@@ -586,7 +589,7 @@ _zed_event_add_uint64_array(uint64_t eid, zed_strings_t *zsp,
 	assert((nvp != NULL) && (nvpair_type(nvp) == DATA_TYPE_UINT64_ARRAY));
 
 	name = nvpair_name(nvp);
-	fmt = _zed_event_value_is_hex(name) ? "0x%.16llX " : "%llu ";
+	fmt = _zed_event_value_is_hex(name) ? "0x%.16llX " : "%"PRIu64" ";
 	(void) nvpair_value_uint64_array(nvp, &u64p, &nelem);
 	for (i = 0, p = buf; (i < nelem) && (buflen > 0); i++) {
 		n = snprintf(p, buflen, fmt, (u_longlong_t)u64p[i]);
@@ -700,8 +703,8 @@ _zed_event_add_nvpair(uint64_t eid, zed_strings_t *zsp, nvpair_t *nvp)
 	case DATA_TYPE_UINT64:
 		(void) nvpair_value_uint64(nvp, &i64);
 		_zed_event_add_var(eid, zsp, prefix, name,
-		    (_zed_event_value_is_hex(name) ? "0x%.16llX" : "%llu"),
-		    (u_longlong_t)i64);
+		    (_zed_event_value_is_hex(name) ? "0x%.16"PRIX64 :
+		    "%"PRIu64), i64);
 		/*
 		 * shadow readable strings for vdev state pairs
 		 */
@@ -731,7 +734,7 @@ _zed_event_add_nvpair(uint64_t eid, zed_strings_t *zsp, nvpair_t *nvp)
 	case DATA_TYPE_HRTIME:
 		(void) nvpair_value_hrtime(nvp, (hrtime_t *)&i64);
 		_zed_event_add_var(eid, zsp, prefix, name,
-		    "%llu", (u_longlong_t)i64);
+		    "%"PRIu64, i64);
 		break;
 	case DATA_TYPE_STRING:
 		(void) nvpair_value_string(nvp, &str);
@@ -774,7 +777,7 @@ _zed_event_add_nvpair(uint64_t eid, zed_strings_t *zsp, nvpair_t *nvp)
 	default:
 		errno = EINVAL;
 		zed_log_msg(LOG_WARNING,
-		    "Failed to convert nvpair \"%s\" for eid=%llu: "
+		    "Failed to convert nvpair \"%s\" for eid=%"PRIu64": "
 		    "Unrecognized type=%u", name, eid, (unsigned int) type);
 		break;
 	}
@@ -907,11 +910,13 @@ _zed_event_add_time_strings(uint64_t eid, zed_strings_t *zsp, int64_t etime[])
 	    "%" PRId64, etime[1]);
 
 	if (!localtime_r((const time_t *) &etime[0], &stp)) {
-		zed_log_msg(LOG_WARNING, "Failed to add %s%s for eid=%llu: %s",
-		    ZEVENT_VAR_PREFIX, "TIME_STRING", eid, "localtime error");
+		zed_log_msg(LOG_WARNING, "Failed to add %s%s for eid=%"PRIu64
+		    ": %s", ZEVENT_VAR_PREFIX, "TIME_STRING", eid,
+		    "localtime error");
 	} else if (!strftime(buf, sizeof (buf), "%Y-%m-%d %H:%M:%S%z", &stp)) {
-		zed_log_msg(LOG_WARNING, "Failed to add %s%s for eid=%llu: %s",
-		    ZEVENT_VAR_PREFIX, "TIME_STRING", eid, "strftime error");
+		zed_log_msg(LOG_WARNING, "Failed to add %s%s for eid=%"PRIu64
+		    ": %s", ZEVENT_VAR_PREFIX, "TIME_STRING", eid,
+		    "strftime error");
 	} else {
 		_zed_event_add_var(eid, zsp, ZEVENT_VAR_PREFIX, "TIME_STRING",
 		    "%s", buf);
@@ -956,14 +961,14 @@ zed_event_service(struct zed_conf *zcp)
 	} else if (nvlist_lookup_int64_array(
 	    nvl, "time", &etime, &nelem) != 0) {
 		zed_log_msg(LOG_WARNING,
-		    "Failed to lookup zevent time (eid=%llu)", eid);
+		    "Failed to lookup zevent time (eid=%"PRIu64")", eid);
 	} else if (nelem != 2) {
 		zed_log_msg(LOG_WARNING,
-		    "Failed to lookup zevent time (eid=%llu, nelem=%u)",
+		    "Failed to lookup zevent time (eid=%"PRIu64", nelem=%u)",
 		    eid, nelem);
 	} else if (nvlist_lookup_string(nvl, "class", &class) != 0) {
 		zed_log_msg(LOG_WARNING,
-		    "Failed to lookup zevent class (eid=%llu)", eid);
+		    "Failed to lookup zevent class (eid=%"PRIu64")", eid);
 	} else {
 		/* let internal modules see this event first */
 		zfs_agent_post_event(class, NULL, nvl);

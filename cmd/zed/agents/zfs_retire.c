@@ -107,7 +107,7 @@ find_vdev(libzfs_handle_t *zhdl, nvlist_t *nv, uint64_t search_guid)
 	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID, &guid) == 0 &&
 	    guid == search_guid) {
 		fmd_hdl_debug(fmd_module_hdl("zfs-retire"),
-		    "matched vdev %llu", guid);
+		    "matched vdev %"PRIu64, guid);
 		return (nv);
 	}
 
@@ -297,7 +297,7 @@ zfs_vdev_repair(fmd_hdl_t *hdl, nvlist_t *nvl)
 	zrp->zrr_vdev = vdev_guid;
 	zdp->zrd_repaired = zrp;
 
-	fmd_hdl_debug(hdl, "marking repaired vdev %llu on pool %llu",
+	fmd_hdl_debug(hdl, "marking repaired vdev %"PRIu64" on pool %"PRIu64,
 	    vdev_guid, pool_guid);
 }
 
@@ -483,8 +483,8 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 		 */
 		if (is_repair) {
 			repair_done = 1;
-			fmd_hdl_debug(hdl, "zpool_clear of pool '%s' vdev %llu",
-			    zpool_get_name(zhp), vdev_guid);
+			fmd_hdl_debug(hdl, "zpool_clear of pool '%s' vdev %"
+			    PRIu64, zpool_get_name(zhp), vdev_guid);
 			(void) zpool_vdev_clear(zhp, vdev_guid);
 			zpool_close(zhp);
 			continue;
@@ -499,9 +499,9 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 			(void) zpool_vdev_degrade(zhp, vdev_guid, aux);
 
 		if (fault_device || degrade_device)
-			fmd_hdl_debug(hdl, "zpool_vdev_%s: vdev %llu on '%s'",
-			    fault_device ? "fault" : "degrade", vdev_guid,
-			    zpool_get_name(zhp));
+			fmd_hdl_debug(hdl, "zpool_vdev_%s: vdev %"PRIu64
+			    " on '%s'", fault_device ? "fault" : "degrade",
+			    vdev_guid, zpool_get_name(zhp));
 
 		/*
 		 * Attempt to substitute a hot spare.

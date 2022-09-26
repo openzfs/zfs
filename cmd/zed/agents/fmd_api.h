@@ -147,8 +147,10 @@ extern void fmd_hdl_free(fmd_hdl_t *, void *, size_t);
 extern char *fmd_hdl_strdup(fmd_hdl_t *, const char *, int);
 extern void fmd_hdl_strfree(fmd_hdl_t *, char *);
 
-extern void fmd_hdl_vdebug(fmd_hdl_t *, const char *, va_list);
-extern void fmd_hdl_debug(fmd_hdl_t *, const char *, ...);
+extern void fmd_hdl_vdebug(fmd_hdl_t *, const char *, va_list)
+    __attribute__((format(printf, 2, 0)));
+extern void fmd_hdl_debug(fmd_hdl_t *, const char *, ...)
+    __attribute__((format(printf, 2, 3)));
 
 extern int32_t fmd_prop_get_int32(fmd_hdl_t *, const char *);
 extern int64_t fmd_prop_get_int64(fmd_hdl_t *, const char *);
