@@ -71,6 +71,7 @@ kernel_spl_sys_HEADERS = \
 	%D%/spl/sys/kmem_cache.h \
 	%D%/spl/sys/kstat.h \
 	%D%/spl/sys/list.h \
+	%D%/spl/sys/misc.h \
 	%D%/spl/sys/mod_os.h \
 	%D%/spl/sys/mutex.h \
 	%D%/spl/sys/param.h \

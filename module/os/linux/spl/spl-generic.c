@@ -47,6 +47,7 @@
 #include <linux/mod_compat.h>
 #include <sys/cred.h>
 #include <sys/vnode.h>
+#include <sys/misc.h>
 
 unsigned long spl_hostid = 0;
 EXPORT_SYMBOL(spl_hostid);
@@ -516,6 +517,38 @@ ddi_copyin(const void *from, void *to, size_t len, int flags)
 	return (copyin(from, to, len));
 }
 EXPORT_SYMBOL(ddi_copyin);
+
+/*
+ * Post a uevent to userspace whenever a new vdev adds to the pool. It is
+ * necessary to sync blkid information with udev, which zed daemon uses
+ * during device hotplug to identify the vdev.
+ */
+void
+spl_signal_kobj_evt(struct block_device *bdev)
+{
+#if defined(HAVE_BDEV_KOBJ) || defined(HAVE_PART_TO_DEV)
+#ifdef HAVE_BDEV_KOBJ
+	struct kobject *disk_kobj = bdev_kobj(bdev);
+#else
+	struct kobject *disk_kobj = &part_to_dev(bdev->bd_part)->kobj;
+#endif
+	if (disk_kobj) {
+		int ret = kobject_uevent(disk_kobj, KOBJ_CHANGE);
+		if (ret) {
+			pr_warn("ZFS: Sending event '%d' to kobject: '%s'"
+			    " (%p): failed(ret:%d)\n", KOBJ_CHANGE,
+			    kobject_name(disk_kobj), disk_kobj, ret);
+		}
+	}
+#else
+/*
+ * This is encountered if neither bdev_kobj() nor part_to_dev() is available
+ * in the kernel - likely due to an API change that needs to be chased down.
+ */
+#error "Unsupported kernel: unable to get struct kobj from bdev"
+#endif
+}
+EXPORT_SYMBOL(spl_signal_kobj_evt);
 
 int
 ddi_copyout(const void *from, void *to, size_t len, int flags)

@@ -240,7 +240,8 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
  * would be required.
  */
 void
-spa_write_cachefile(spa_t *target, boolean_t removing, boolean_t postsysevent)
+spa_write_cachefile(spa_t *target, boolean_t removing, boolean_t postsysevent,
+    boolean_t postblkidevent)
 {
 	spa_config_dirent_t *dp, *tdp;
 	nvlist_t *nvl;
@@ -346,6 +347,16 @@ spa_write_cachefile(spa_t *target, boolean_t removing, boolean_t postsysevent)
 
 	if (postsysevent)
 		spa_event_notify(target, NULL, NULL, ESC_ZFS_CONFIG_SYNC);
+
+	/*
+	 * Post udev event to sync blkid information if the pool is created
+	 * or a new vdev is added to the pool.
+	 */
+	if ((target->spa_root_vdev) && postblkidevent) {
+		vdev_post_kobj_evt(target->spa_root_vdev);
+		for (int i = 0; i < target->spa_l2cache.sav_count; i++)
+			vdev_post_kobj_evt(target->spa_l2cache.sav_vdevs[i]);
+	}
 }
 
 /*
@@ -600,6 +611,7 @@ spa_config_update(spa_t *spa, int what)
 	 */
 	if (!spa->spa_is_root) {
 		spa_write_cachefile(spa, B_FALSE,
+		    what != SPA_CONFIG_UPDATE_POOL,
 		    what != SPA_CONFIG_UPDATE_POOL);
 	}
 
