@@ -3773,7 +3773,12 @@ zpool_do_import(int argc, char **argv)
 	idata.scan = do_scan;
 	idata.policy = policy;
 
-	pools = zpool_search_import(g_zfs, &idata, &libzfs_config_ops);
+	libpc_handle_t lpch = {
+		.lpc_lib_handle = g_zfs,
+		.lpc_ops = &libzfs_config_ops,
+		.lpc_printerr = B_TRUE
+	};
+	pools = zpool_search_import(&lpch, &idata);
 
 	if (pools != NULL && pool_exists &&
 	    (argc == 1 || strcmp(argv[0], argv[1]) == 0)) {
@@ -3829,7 +3834,7 @@ zpool_do_import(int argc, char **argv)
 		 */
 		idata.scan = B_TRUE;
 		nvlist_free(pools);
-		pools = zpool_search_import(g_zfs, &idata, &libzfs_config_ops);
+		pools = zpool_search_import(&lpch, &idata);
 
 		err = import_pools(pools, props, mntopts, flags,
 		    argc >= 1 ? argv[0] : NULL,

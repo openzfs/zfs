@@ -191,6 +191,7 @@
     <elf-symbol name='getzoneid' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='is_mounted' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='is_mpath_whole_disk' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='libpc_error_description' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='libspl_assertf' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='libspl_set_assert_ok' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='libzfs_add_handle' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -4569,7 +4570,32 @@
       </data-member>
     </class-decl>
     <typedef-decl name='importargs_t' type-id='7ac83801' id='7a842a6b'/>
+    <class-decl name='libpc_handle' size-in-bits='8448' is-struct='yes' visibility='default' id='7c8737f0'>
+      <data-member access='public' layout-offset-in-bits='0'>
+        <var-decl name='lpc_error' type-id='95e97e5e' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='32'>
+        <var-decl name='lpc_printerr' type-id='c19b74c3' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='64'>
+        <var-decl name='lpc_open_access_error' type-id='c19b74c3' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='96'>
+        <var-decl name='lpc_desc_active' type-id='c19b74c3' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='128'>
+        <var-decl name='lpc_desc' type-id='b54ce520' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='8320'>
+        <var-decl name='lpc_ops' type-id='f095e320' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='8384'>
+        <var-decl name='lpc_lib_handle' type-id='eaa32e2f' visibility='default'/>
+      </data-member>
+    </class-decl>
+    <typedef-decl name='libpc_handle_t' type-id='7c8737f0' id='8a70a786'/>
     <pointer-type-def type-id='7a842a6b' size-in-bits='64' id='07ee4a58'/>
+    <pointer-type-def type-id='8a70a786' size-in-bits='64' id='5507783b'/>
     <pointer-type-def type-id='b1e62775' size-in-bits='64' id='f095e320'/>
     <function-decl name='zpool_read_label' mangled-name='zpool_read_label' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_read_label'>
       <parameter type-id='95e97e5e' name='fd'/>
@@ -4578,17 +4604,15 @@
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zpool_search_import' mangled-name='zpool_search_import' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_search_import'>
-      <parameter type-id='eaa32e2f' name='hdl'/>
+      <parameter type-id='5507783b' name='hdl'/>
       <parameter type-id='07ee4a58' name='import'/>
-      <parameter type-id='f095e320' name='pco'/>
       <return type-id='5ce45b60'/>
     </function-decl>
     <function-decl name='zpool_find_config' mangled-name='zpool_find_config' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_find_config'>
-      <parameter type-id='eaa32e2f' name='hdl'/>
+      <parameter type-id='5507783b' name='hdl'/>
       <parameter type-id='80f4b756' name='target'/>
       <parameter type-id='857bb57e' name='configp'/>
       <parameter type-id='07ee4a58' name='args'/>
-      <parameter type-id='f095e320' name='pco'/>
       <return type-id='95e97e5e'/>
     </function-decl>
   </abi-instr>

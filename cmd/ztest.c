@@ -7471,8 +7471,12 @@ ztest_import_impl(void)
 	args.path = searchdirs;
 	args.can_be_active = B_FALSE;
 
-	VERIFY0(zpool_find_config(NULL, ztest_opts.zo_pool, &cfg, &args,
-	    &libzpool_config_ops));
+	libpc_handle_t lpch = {
+		.lpc_lib_handle = NULL,
+		.lpc_ops = &libzpool_config_ops,
+		.lpc_printerr = B_TRUE
+	};
+	VERIFY0(zpool_find_config(&lpch, ztest_opts.zo_pool, &cfg, &args));
 	VERIFY0(spa_import(ztest_opts.zo_pool, cfg, NULL, flags));
 	fnvlist_free(cfg);
 }
