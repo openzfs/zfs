@@ -421,7 +421,7 @@ skein_update(crypto_ctx_t *ctx, crypto_data_t *data)
  * Supported output digest formats are raw, uio and mblk.
  */
 static int
-skein_final(crypto_ctx_t *ctx, crypto_data_t *digest)
+skein_final_nofree(crypto_ctx_t *ctx, crypto_data_t *digest)
 {
 	int error = CRYPTO_SUCCESS;
 
@@ -451,6 +451,17 @@ skein_final(crypto_ctx_t *ctx, crypto_data_t *digest)
 		    CRYPTO_BITS2BYTES(SKEIN_CTX(ctx)->sc_digest_bitlen);
 	else
 		digest->cd_length = 0;
+
+	return (error);
+}
+
+static int
+skein_final(crypto_ctx_t *ctx, crypto_data_t *digest)
+{
+	int error = skein_final_nofree(ctx, digest);
+
+	if (error == CRYPTO_BUFFER_TOO_SMALL)
+		return (error);
 
 	memset(SKEIN_CTX(ctx), 0, sizeof (*SKEIN_CTX(ctx)));
 	kmem_free(SKEIN_CTX(ctx), sizeof (*(SKEIN_CTX(ctx))));
@@ -485,7 +496,7 @@ skein_digest_atomic(crypto_mechanism_t *mechanism, crypto_data_t *data,
 
 	if ((error = skein_update(&ctx, data)) != CRYPTO_SUCCESS)
 		goto out;
-	if ((error = skein_final(&ctx, data)) != CRYPTO_SUCCESS)
+	if ((error = skein_final_nofree(&ctx, data)) != CRYPTO_SUCCESS)
 		goto out;
 
 out:
@@ -588,7 +599,7 @@ skein_mac_atomic(crypto_mechanism_t *mechanism,
 
 	if ((error = skein_update(&ctx, data)) != CRYPTO_SUCCESS)
 		goto errout;
-	if ((error = skein_final(&ctx, mac)) != CRYPTO_SUCCESS)
+	if ((error = skein_final_nofree(&ctx, mac)) != CRYPTO_SUCCESS)
 		goto errout;
 
 	return (CRYPTO_SUCCESS);
