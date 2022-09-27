@@ -35,7 +35,7 @@ typedef struct zfs_dbgmsg {
 
 static procfs_list_t zfs_dbgmsgs;
 static uint_t zfs_dbgmsg_size = 0;
-uint_t zfs_dbgmsg_maxsize = 4<<20; /* 4MB */
+static uint_t zfs_dbgmsg_maxsize = 4<<20; /* 4MB */
 
 /*
  * Internal ZFS debug messages are enabled by default.

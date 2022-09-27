@@ -37,7 +37,7 @@
 #endif
 
 #define	MAX_HRTIMEOUT_SLACK_US	1000
-unsigned int spl_schedule_hrtimeout_slack_us = 0;
+static unsigned int spl_schedule_hrtimeout_slack_us = 0;
 
 static int
 param_set_hrtimeout_slack(const char *buf, zfs_kernel_param_t *kp)

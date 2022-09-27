@@ -44,17 +44,17 @@
  * http://csrc.nist.gov/groups/ST/toolkit/documents/Examples/SHA_All.pdf
  */
 
-const char	*test_msg0 = "abc";
-const char	*test_msg1 = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmn"
-	"lmnomnopnopq";
-const char	*test_msg2 = "abcdefghbcdefghicdefghijdefghijkefghijklfghi"
-	"jklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu";
+static const char *test_msg0 = "abc";
+static const char *test_msg1 = "abcdbcdecdefdefgefghfghighijhijkijkljklmklm"
+	"nlmnomnopnopq";
+static const char *test_msg2 = "abcdefghbcdefghicdefghijdefghijkefghijklfgh"
+	"ijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu";
 
 /*
  * Test digests from:
  * http://csrc.nist.gov/groups/ST/toolkit/documents/Examples/SHA_All.pdf
  */
-const uint8_t	sha256_test_digests[][32] = {
+static const uint8_t	sha256_test_digests[][32] = {
 	{
 		/* for test_msg0 */
 		0xBA, 0x78, 0x16, 0xBF, 0x8F, 0x01, 0xCF, 0xEA,
@@ -72,7 +72,7 @@ const uint8_t	sha256_test_digests[][32] = {
 	/* no test vector for test_msg2 */
 };
 
-const uint8_t	sha384_test_digests[][48] = {
+static const uint8_t	sha384_test_digests[][48] = {
 	{
 		/* for test_msg0 */
 		0xCB, 0x00, 0x75, 0x3F, 0x45, 0xA3, 0x5E, 0x8B,
@@ -97,7 +97,7 @@ const uint8_t	sha384_test_digests[][48] = {
 	}
 };
 
-const uint8_t	sha512_test_digests[][64] = {
+static const uint8_t	sha512_test_digests[][64] = {
 	{
 		/* for test_msg0 */
 		0xDD, 0xAF, 0x35, 0xA1, 0x93, 0x61, 0x7A, 0xBA,
@@ -126,7 +126,7 @@ const uint8_t	sha512_test_digests[][64] = {
 	}
 };
 
-const uint8_t	sha512_224_test_digests[][28] = {
+static const uint8_t	sha512_224_test_digests[][28] = {
 	{
 		/* for test_msg0 */
 		0x46, 0x34, 0x27, 0x0F, 0x70, 0x7B, 0x6A, 0x54,
@@ -147,7 +147,7 @@ const uint8_t	sha512_224_test_digests[][28] = {
 	}
 };
 
-const uint8_t	sha512_256_test_digests[][32] = {
+static const uint8_t	sha512_256_test_digests[][32] = {
 	{
 		/* for test_msg0 */
 		0x53, 0x04, 0x8E, 0x26, 0x81, 0x94, 0x1E, 0xF9,

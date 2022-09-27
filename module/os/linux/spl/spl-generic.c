@@ -90,7 +90,7 @@ EXPORT_SYMBOL(p0);
  * and use them when in_interrupt() from linux/preempt_mask.h evaluates to
  * true.
  */
-void __percpu *spl_pseudo_entropy;
+static void __percpu *spl_pseudo_entropy;
 
 /*
  * spl_rand_next()/spl_rand_jump() are copied from the following CC-0 licensed

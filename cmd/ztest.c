@@ -423,11 +423,11 @@ ztest_func_t ztest_fletcher;
 ztest_func_t ztest_fletcher_incr;
 ztest_func_t ztest_verify_dnode_bt;
 
-uint64_t zopt_always = 0ULL * NANOSEC;		/* all the time */
-uint64_t zopt_incessant = 1ULL * NANOSEC / 10;	/* every 1/10 second */
-uint64_t zopt_often = 1ULL * NANOSEC;		/* every second */
-uint64_t zopt_sometimes = 10ULL * NANOSEC;	/* every 10 seconds */
-uint64_t zopt_rarely = 60ULL * NANOSEC;		/* every 60 seconds */
+static uint64_t zopt_always = 0ULL * NANOSEC;		/* all the time */
+static uint64_t zopt_incessant = 1ULL * NANOSEC / 10;	/* every 1/10 second */
+static uint64_t zopt_often = 1ULL * NANOSEC;		/* every second */
+static uint64_t zopt_sometimes = 10ULL * NANOSEC;	/* every 10 seconds */
+static uint64_t zopt_rarely = 60ULL * NANOSEC;		/* every 60 seconds */
 
 #define	ZTI_INIT(func, iters, interval) \
 	{   .zi_func = (func), \
@@ -435,7 +435,7 @@ uint64_t zopt_rarely = 60ULL * NANOSEC;		/* every 60 seconds */
 	    .zi_interval = (interval), \
 	    .zi_funcname = # func }
 
-ztest_info_t ztest_info[] = {
+static ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_dmu_read_write, 1, &zopt_always),
 	ZTI_INIT(ztest_dmu_write_parallel, 10, &zopt_always),
 	ZTI_INIT(ztest_dmu_object_alloc_free, 1, &zopt_always),
@@ -515,7 +515,7 @@ typedef struct ztest_shared {
 
 static char ztest_dev_template[] = "%s/%s.%llua";
 static char ztest_aux_template[] = "%s/%s.%s.%llu";
-ztest_shared_t *ztest_shared;
+static ztest_shared_t *ztest_shared;
 
 static spa_t *ztest_spa = NULL;
 static ztest_ds_t *ztest_ds;
@@ -2346,7 +2346,7 @@ ztest_replay_setattr(void *arg1, void *arg2, boolean_t byteswap)
 	return (0);
 }
 
-zil_replay_func_t *ztest_replay_vector[TX_MAX_TYPE] = {
+static zil_replay_func_t *ztest_replay_vector[TX_MAX_TYPE] = {
 	NULL,			/* 0 no such transaction type */
 	ztest_replay_create,	/* TX_CREATE */
 	NULL,			/* TX_MKDIR */

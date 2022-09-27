@@ -23,11 +23,11 @@
 
 #define	BUFSIZE 256
 
-int seed = 0;
-int stress_timeout = 180;
-int contents_frequency = 100;
-int tree_limit = 64 * 1024;
-boolean_t stress_only = B_FALSE;
+static int seed = 0;
+static int stress_timeout = 180;
+static int contents_frequency = 100;
+static int tree_limit = 64 * 1024;
+static boolean_t stress_only = B_FALSE;
 
 static void
 usage(int exit_value)

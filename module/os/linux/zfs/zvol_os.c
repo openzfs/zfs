@@ -114,7 +114,7 @@ struct zvol_state_os {
 	boolean_t use_blk_mq;
 };
 
-taskq_t *zvol_taskq;
+static taskq_t *zvol_taskq;
 static struct ida zvol_ida;
 
 typedef struct zv_request_stack {

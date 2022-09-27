@@ -128,7 +128,7 @@ uint8_t dump_opt[256];
 
 typedef void object_viewer_t(objset_t *, uint64_t, void *data, size_t size);
 
-uint64_t *zopt_metaslab = NULL;
+static uint64_t *zopt_metaslab = NULL;
 static unsigned zopt_metaslab_args = 0;
 
 typedef struct zopt_object_range {
@@ -136,7 +136,8 @@ typedef struct zopt_object_range {
 	uint64_t zor_obj_end;
 	uint64_t zor_flags;
 } zopt_object_range_t;
-zopt_object_range_t *zopt_object_ranges = NULL;
+
+static zopt_object_range_t *zopt_object_ranges = NULL;
 static unsigned zopt_object_args = 0;
 
 static int flagbits[256];
@@ -160,7 +161,7 @@ static int flagbits[256];
 #define	ZDB_FLAG_PRINT_BLKPTR	0x0040
 #define	ZDB_FLAG_VERBOSE	0x0080
 
-uint64_t max_inflight_bytes = 256 * 1024 * 1024; /* 256MB */
+static uint64_t max_inflight_bytes = 256 * 1024 * 1024; /* 256MB */
 static int leaked_objects = 0;
 static range_tree_t *mos_refd_objs;
 

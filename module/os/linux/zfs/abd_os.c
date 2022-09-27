@@ -132,7 +132,7 @@ static abd_stats_t abd_stats = {
 	{ "scatter_sg_table_retry",		KSTAT_DATA_UINT64 },
 };
 
-struct {
+static struct {
 	wmsum_t abdstat_struct_size;
 	wmsum_t abdstat_linear_cnt;
 	wmsum_t abdstat_linear_data_size;
