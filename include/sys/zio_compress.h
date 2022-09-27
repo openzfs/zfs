@@ -152,7 +152,7 @@ typedef const struct zio_compress_info {
 	zio_decompresslevel_func_t	*ci_decompress_level;
 } zio_compress_info_t;
 
-extern const zio_compress_info_t zio_compress_table[ZIO_COMPRESS_FUNCTIONS];
+extern zio_compress_info_t zio_compress_table[ZIO_COMPRESS_FUNCTIONS];
 
 /*
  * lz4 compression init & free

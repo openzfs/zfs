@@ -56,8 +56,8 @@ typedef const struct pool_config_ops {
 /*
  * An instance of pool_config_ops_t is expected in the caller's binary.
  */
-_LIBZUTIL_H const pool_config_ops_t libzfs_config_ops;
-_LIBZUTIL_H const pool_config_ops_t libzpool_config_ops;
+_LIBZUTIL_H pool_config_ops_t libzfs_config_ops;
+_LIBZUTIL_H pool_config_ops_t libzpool_config_ops;
 
 typedef struct importargs {
 	char **path;		/* a list of paths to search		*/
@@ -71,9 +71,9 @@ typedef struct importargs {
 } importargs_t;
 
 _LIBZUTIL_H nvlist_t *zpool_search_import(void *, importargs_t *,
-    const pool_config_ops_t *);
+    pool_config_ops_t *);
 _LIBZUTIL_H int zpool_find_config(void *, const char *, nvlist_t **,
-    importargs_t *, const pool_config_ops_t *);
+    importargs_t *, pool_config_ops_t *);
 
 _LIBZUTIL_H const char * const * zpool_default_search_paths(size_t *count);
 _LIBZUTIL_H int zpool_read_label(int, nvlist_t **, int *);

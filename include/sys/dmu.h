@@ -907,7 +907,7 @@ typedef const struct dmu_object_byteswap_info {
 } dmu_object_byteswap_info_t;
 
 extern const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES];
-extern const dmu_object_byteswap_info_t dmu_ot_byteswap[DMU_BSWAP_NUMFUNCS];
+extern dmu_object_byteswap_info_t dmu_ot_byteswap[DMU_BSWAP_NUMFUNCS];
 
 /*
  * Get information on a DMU object.

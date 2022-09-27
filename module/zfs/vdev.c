@@ -224,7 +224,7 @@ vdev_dbgmsg_print_tree(vdev_t *vd, int indent)
  * Virtual device management.
  */
 
-static const vdev_ops_t *const vdev_ops_table[] = {
+static vdev_ops_t *const vdev_ops_table[] = {
 	&vdev_root_ops,
 	&vdev_raidz_ops,
 	&vdev_draid_ops,
@@ -246,7 +246,7 @@ static const vdev_ops_t *const vdev_ops_table[] = {
 static vdev_ops_t *
 vdev_getops(const char *type)
 {
-	const vdev_ops_t *ops, *const *opspp;
+	vdev_ops_t *ops, *const *opspp;
 
 	for (opspp = vdev_ops_table; (ops = *opspp) != NULL; opspp++)
 		if (strcmp(ops->vdev_op_type, type) == 0)
