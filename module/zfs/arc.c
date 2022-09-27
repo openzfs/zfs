@@ -7664,7 +7664,7 @@ arc_tuning_update(boolean_t verbose)
 
 	/* Valid range: 0 - <all physical memory> */
 	if ((zfs_arc_sys_free) && (zfs_arc_sys_free != arc_sys_free))
-		arc_sys_free = MIN(MAX(zfs_arc_sys_free, 0), allmem);
+		arc_sys_free = MIN(zfs_arc_sys_free, allmem);
 	WARN_IF_TUNING_IGNORED(zfs_arc_sys_free, arc_sys_free, verbose);
 }
 

@@ -137,7 +137,6 @@ zfs_refcount_add_many(zfs_refcount_t *rc, uint64_t number, const void *holder)
 	ref->ref_holder = holder;
 	ref->ref_number = number;
 	mutex_enter(&rc->rc_mtx);
-	ASSERT3U(rc->rc_count, >=, 0);
 	list_insert_head(&rc->rc_list, ref);
 	rc->rc_count += number;
 	count = rc->rc_count;
