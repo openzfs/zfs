@@ -494,7 +494,8 @@ skein_update(crypto_ctx_t *ctx, crypto_data_t *data, crypto_req_handle_t req)
  */
 /*ARGSUSED*/
 static int
-skein_final(crypto_ctx_t *ctx, crypto_data_t *digest, crypto_req_handle_t req)
+skein_final_nofree(crypto_ctx_t *ctx, crypto_data_t *digest,
+    crypto_req_handle_t req)
 {
 	int error = CRYPTO_SUCCESS;
 
@@ -524,6 +525,17 @@ skein_final(crypto_ctx_t *ctx, crypto_data_t *digest, crypto_req_handle_t req)
 		    CRYPTO_BITS2BYTES(SKEIN_CTX(ctx)->sc_digest_bitlen);
 	else
 		digest->cd_length = 0;
+
+	return (error);
+}
+
+static int
+skein_final(crypto_ctx_t *ctx, crypto_data_t *digest, crypto_req_handle_t req)
+{
+	int error = skein_final_nofree(ctx, digest, req);
+
+	if (error == CRYPTO_BUFFER_TOO_SMALL)
+		return (error);
 
 	bzero(SKEIN_CTX(ctx), sizeof (*SKEIN_CTX(ctx)));
 	kmem_free(SKEIN_CTX(ctx), sizeof (*(SKEIN_CTX(ctx))));
@@ -560,7 +572,7 @@ skein_digest_atomic(crypto_provider_handle_t provider,
 
 	if ((error = skein_update(&ctx, data, digest)) != CRYPTO_SUCCESS)
 		goto out;
-	if ((error = skein_final(&ctx, data, digest)) != CRYPTO_SUCCESS)
+	if ((error = skein_final_nofree(&ctx, data, digest)) != CRYPTO_SUCCESS)
 		goto out;
 
 out:
@@ -669,7 +681,7 @@ skein_mac_atomic(crypto_provider_handle_t provider,
 
 	if ((error = skein_update(&ctx, data, req)) != CRYPTO_SUCCESS)
 		goto errout;
-	if ((error = skein_final(&ctx, mac, req)) != CRYPTO_SUCCESS)
+	if ((error = skein_final_nofree(&ctx, mac, req)) != CRYPTO_SUCCESS)
 		goto errout;
 
 	return (CRYPTO_SUCCESS);
