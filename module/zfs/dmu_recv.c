@@ -1045,11 +1045,22 @@ dmu_recv_resume_begin_check(void *arg, dmu_tx_t *tx)
 		dsflags |= DS_HOLD_FLAG_DECRYPT;
 	}
 
+	boolean_t recvexist = B_TRUE;
 	if (dsl_dataset_hold_flags(dp, recvname, dsflags, FTAG, &ds) != 0) {
 		/* %recv does not exist; continue in tofs */
+		recvexist = B_FALSE;
 		error = dsl_dataset_hold_flags(dp, tofs, dsflags, FTAG, &ds);
 		if (error != 0)
 			return (error);
+	}
+
+	/*
+	 * Resume of full/newfs recv on existing dataset should be done with
+	 * force flag
+	 */
+	if (recvexist && drrb->drr_fromguid == 0 && !drc->drc_force) {
+		dsl_dataset_rele_flags(ds, dsflags, FTAG);
+		return (SET_ERROR(ZFS_ERR_RESUME_EXISTS));
 	}
 
 	/* check that ds is marked inconsistent */

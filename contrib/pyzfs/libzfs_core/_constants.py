@@ -101,6 +101,7 @@ zfs_errno = enum_with_offset(1024, [
         'ZFS_ERR_BADPROP',
         'ZFS_ERR_VDEV_NOTSUP',
         'ZFS_ERR_NOT_USER_NAMESPACE',
+        'ZFS_ERR_RESUME_EXISTS',
     ],
     {}
 )

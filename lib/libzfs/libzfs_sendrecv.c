@@ -4638,6 +4638,33 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			goto out;
 		}
 
+		/*
+		 * When receiving full/newfs on existing dataset, then it
+		 * should be done with "-F" flag. Its enforced for initial
+		 * receive in previous checks in this function.
+		 * Similarly, on resuming full/newfs recv on existing dataset,
+		 * it should be done with "-F" flag.
+		 *
+		 * When dataset doesn't exist, then full/newfs recv is done on
+		 * newly created dataset and it's marked INCONSISTENT. But
+		 * When receiving on existing dataset, recv is first done on
+		 * %recv and its marked INCONSISTENT. Existing dataset is not
+		 * marked INCONSISTENT.
+		 * Resume of full/newfs receive with dataset not INCONSISTENT
+		 * indicates that its resuming newfs on existing dataset. So,
+		 * enforce "-F" flag in this case.
+		 */
+		if (stream_resumingnewfs &&
+		    !zfs_prop_get_int(zhp, ZFS_PROP_INCONSISTENT) &&
+		    !flags->force) {
+			zfs_close(zhp);
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "Resuming recv on existing destination '%s'\n"
+			    "must specify -F to overwrite it"), name);
+			err = zfs_error(hdl, EZFS_RESUME_EXISTS, errbuf);
+			goto out;
+		}
+
 		if (stream_wantsnewfs &&
 		    zhp->zfs_dmustats.dds_origin[0]) {
 			zfs_close(zhp);
@@ -5077,6 +5104,19 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			    "The zfs software on the sending system must "
 			    "be updated."));
 			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
+			break;
+		case ZFS_ERR_RESUME_EXISTS:
+			cp = strchr(destsnap, '@');
+			if (newfs) {
+				/* it's the containing fs that exists */
+				*cp = '\0';
+			}
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "Resuming recv on existing dataset without force"));
+			(void) zfs_error_fmt(hdl, EZFS_RESUME_EXISTS,
+			    dgettext(TEXT_DOMAIN, "cannot resume recv %s"),
+			    destsnap);
+			*cp = '@';
 			break;
 		case EBUSY:
 			if (hastoken) {

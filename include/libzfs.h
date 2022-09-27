@@ -152,6 +152,7 @@ typedef enum zfs_error {
 	EZFS_VDEV_NOTSUP,	/* ops not supported for this type of vdev */
 	EZFS_NOT_USER_NAMESPACE,	/* a file is not a user namespace */
 	EZFS_CKSUM,		/* insufficient replicas */
+	EZFS_RESUME_EXISTS,	/* Resume on existing dataset without force */
 	EZFS_UNKNOWN
 } zfs_error_t;
 

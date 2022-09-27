@@ -1780,6 +1780,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/rsend/rsend_027_pos.ksh \
 	functional/rsend/rsend_028_neg.ksh \
 	functional/rsend/rsend_029_neg.ksh \
+	functional/rsend/rsend_030_pos.ksh \
 	functional/rsend/send-c_embedded_blocks.ksh \
 	functional/rsend/send-c_incremental.ksh \
 	functional/rsend/send-c_lz4_disabled.ksh \
