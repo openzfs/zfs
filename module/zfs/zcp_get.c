@@ -472,6 +472,7 @@ get_zap_prop(lua_State *state, dsl_dataset_t *ds, zfs_prop_t zfs_prop)
 		/* Fill in temporary value for prop, if applicable */
 		(void) zfs_get_temporary_prop(ds, zfs_prop, &numval, setpoint);
 #else
+		kmem_free(strval, ZAP_MAXVALUELEN);
 		return (luaL_error(state,
 		    "temporary properties only supported in kernel mode",
 		    prop_name));

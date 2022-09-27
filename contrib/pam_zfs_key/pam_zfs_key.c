@@ -480,7 +480,8 @@ zfs_key_config_load(pam_handle_t *pamh, zfs_key_config_t *config,
 		} else if (strcmp(argv[c], "nounmount") == 0) {
 			config->unmount_and_unload = 0;
 		} else if (strcmp(argv[c], "prop_mountpoint") == 0) {
-			config->homedir = strdup(entry->pw_dir);
+			if (config->homedir == NULL)
+				config->homedir = strdup(entry->pw_dir);
 		}
 	}
 	return (0);

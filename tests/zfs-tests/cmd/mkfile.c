@@ -276,5 +276,9 @@ main(int argc, char **argv)
 		argv++;
 		argc--;
 	}
+
+	if (buf)
+		free(buf);
+
 	return (errors);
 }
