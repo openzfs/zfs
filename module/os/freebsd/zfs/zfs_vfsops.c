@@ -1272,8 +1272,7 @@ getpoolname(const char *osname, char *poolname)
 	} else {
 		if (p - osname >= MAXNAMELEN)
 			return (ENAMETOOLONG);
-		(void) strncpy(poolname, osname, p - osname);
-		poolname[p - osname] = '\0';
+		(void) strlcpy(poolname, osname, p - osname + 1);
 	}
 	return (0);
 }

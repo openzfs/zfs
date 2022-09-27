@@ -94,7 +94,7 @@ void seq_printf(struct seq_file *m, const char *fmt, ...);
 
 
 typedef struct kstat_module {
-	char ksm_name[KSTAT_STRLEN+1];		/* module name */
+	char ksm_name[KSTAT_STRLEN];		/* module name */
 	struct list_head ksm_module_list;	/* module linkage */
 	struct list_head ksm_kstat_list;	/* list of kstat entries */
 	struct proc_dir_entry *ksm_proc;	/* proc entry */
@@ -112,10 +112,10 @@ struct kstat_s {
 	kid_t		ks_kid;			/* unique kstat ID */
 	hrtime_t	ks_crtime;		/* creation time */
 	hrtime_t	ks_snaptime;		/* last access time */
-	char		ks_module[KSTAT_STRLEN+1]; /* provider module name */
+	char		ks_module[KSTAT_STRLEN]; /* provider module name */
 	int		ks_instance;		/* provider module instance */
-	char		ks_name[KSTAT_STRLEN+1]; /* kstat name */
-	char		ks_class[KSTAT_STRLEN+1]; /* kstat class */
+	char		ks_name[KSTAT_STRLEN]; /* kstat name */
+	char		ks_class[KSTAT_STRLEN]; /* kstat class */
 	uchar_t		ks_type;		/* kstat data type */
 	uchar_t		ks_flags;		/* kstat flags */
 	void		*ks_data;		/* kstat type-specific data */
@@ -181,7 +181,7 @@ typedef struct kstat_io {
 } kstat_io_t;
 
 typedef struct kstat_timer {
-	char		name[KSTAT_STRLEN+1]; /* event name */
+	char		name[KSTAT_STRLEN]; /* event name */
 	u_longlong_t	num_events;	 /* number of events */
 	hrtime_t	elapsed_time;	 /* cumulative elapsed time */
 	hrtime_t	min_time;	 /* shortest event duration */

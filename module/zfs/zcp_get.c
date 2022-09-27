@@ -608,8 +608,7 @@ parse_userquota_prop(const char *prop_name, zfs_userquota_prop_t *type,
 		 */
 		int domain_len = strrchr(cp, '-') - cp;
 		domain_val = kmem_alloc(domain_len + 1, KM_SLEEP);
-		(void) strncpy(domain_val, cp, domain_len);
-		domain_val[domain_len] = '\0';
+		(void) strlcpy(domain_val, cp, domain_len + 1);
 		cp += domain_len + 1;
 
 		(void) ddi_strtoll(cp, &end, 10, (longlong_t *)rid);

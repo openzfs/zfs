@@ -1137,7 +1137,8 @@ process_options(int argc, char **argv)
 			goto invalid;
 
 		int dirlen = strrchr(val, '/') - val;
-		strncpy(zo->zo_alt_libpath, val, dirlen);
+		strlcpy(zo->zo_alt_libpath, val,
+		    MIN(sizeof (zo->zo_alt_libpath), dirlen + 1));
 		invalid_what = "library path", val = zo->zo_alt_libpath;
 		if (strrchr(val, '/') == NULL && (errno = EINVAL))
 			goto invalid;

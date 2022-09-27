@@ -203,8 +203,7 @@ zone_dataset_attach(cred_t *cred, const char *dataset, int userns_fd)
 
 	zd = kmem_alloc(sizeof (zone_dataset_t) + dsnamelen + 1, KM_SLEEP);
 	zd->zd_dsnamelen = dsnamelen;
-	strncpy(zd->zd_dsname, dataset, dsnamelen);
-	zd->zd_dsname[dsnamelen] = '\0';
+	strlcpy(zd->zd_dsname, dataset, dsnamelen + 1);
 	INIT_LIST_HEAD(&zd->zd_list);
 	list_add_tail(&zd->zd_list, &zds->zds_datasets);
 

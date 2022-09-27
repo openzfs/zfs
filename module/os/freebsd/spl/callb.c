@@ -160,8 +160,7 @@ callb_add_common(boolean_t (*func)(void *arg, int code),
 		    "too long -- truncated to %d chars",
 		    name, CB_MAXNAME);
 #endif
-	(void) strncpy(cp->c_name, name, CB_MAXNAME);
-	cp->c_name[CB_MAXNAME] = '\0';
+	(void) strlcpy(cp->c_name, name, sizeof (cp->c_name));
 
 	/*
 	 * Insert the new callb at the head of its class list.

@@ -92,7 +92,7 @@ __thread_create(caddr_t stk, size_t  stksize, thread_func_t func,
 		return (NULL);
 	}
 
-	strncpy(tp->tp_name, name, tp->tp_name_size);
+	strlcpy(tp->tp_name, name, tp->tp_name_size);
 
 	/*
 	 * Strip trailing "_thread" from passed name which will be the func
