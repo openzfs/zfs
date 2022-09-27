@@ -558,9 +558,8 @@ zfs_key_config_get_dataset(zfs_key_config_t *config)
 		return (NULL);
 	}
 	ret[0] = 0;
-	strcat(ret, config->homes_prefix);
-	strcat(ret, "/");
-	strcat(ret, config->username);
+	(void) snprintf(ret, len + 1, "%s/%s", config->homes_prefix,
+	    config->username);
 	return (ret);
 }
 

@@ -145,8 +145,8 @@ libzfs_load_module(void)
 		if (pfds[0].revents & POLLIN) {
 			verify(read(ino, ev, evsz) >
 			    sizeof (struct inotify_event));
-			if (strcmp(ev->name, &ZFS_DEV[sizeof (ZFS_DEVDIR)])
-			    == 0) {
+			if (strncmp(ev->name, &ZFS_DEV[sizeof (ZFS_DEVDIR)],
+			    ev->len) == 0) {
 				ret = 0;
 				break;
 			}

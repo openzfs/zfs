@@ -73,8 +73,7 @@ main(int argc, char *argv[])
 	filepath[0] = '\0';
 	char *file = &filepath[0];
 
-	strcat(file, testdir);
-	strcat(file, "/msync_file");
+	(void) snprintf(file, 512, "%s/msync_file", testdir);
 
 	const int LEN = 8;
 	cleanup(file);
