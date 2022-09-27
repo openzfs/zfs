@@ -90,7 +90,7 @@
  * committed to stable storage. Please refer to the zil_commit_waiter()
  * function (and the comments within it) for more details.
  */
-static int zfs_commit_timeout_pct = 5;
+static uint_t zfs_commit_timeout_pct = 5;
 
 /*
  * See zil.h for more information about these fields.
@@ -1642,7 +1642,7 @@ static const struct {
  * initialized.  Otherwise this should not be used directly; see
  * zl_max_block_size instead.
  */
-static int zil_maxblocksize = SPA_OLD_MAXBLOCKSIZE;
+static uint_t zil_maxblocksize = SPA_OLD_MAXBLOCKSIZE;
 
 /*
  * Start a log block write and advance to the next log block.
@@ -3936,7 +3936,7 @@ EXPORT_SYMBOL(zil_sums_init);
 EXPORT_SYMBOL(zil_sums_fini);
 EXPORT_SYMBOL(zil_kstat_values_update);
 
-ZFS_MODULE_PARAM(zfs, zfs_, commit_timeout_pct, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, commit_timeout_pct, UINT, ZMOD_RW,
 	"ZIL block open timeout percentage");
 
 ZFS_MODULE_PARAM(zfs_zil, zil_, replay_disable, INT, ZMOD_RW,
@@ -3948,5 +3948,5 @@ ZFS_MODULE_PARAM(zfs_zil, zil_, nocacheflush, INT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_zil, zil_, slog_bulk, ULONG, ZMOD_RW,
 	"Limit in bytes slog sync writes per commit");
 
-ZFS_MODULE_PARAM(zfs_zil, zil_, maxblocksize, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_zil, zil_, maxblocksize, UINT, ZMOD_RW,
 	"Limit in bytes of ZIL log block size");

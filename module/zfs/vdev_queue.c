@@ -121,7 +121,7 @@
  * The maximum number of i/os active to each device.  Ideally, this will be >=
  * the sum of each queue's max_active.
  */
-uint32_t zfs_vdev_max_active = 1000;
+uint_t zfs_vdev_max_active = 1000;
 
 /*
  * Per-queue limits on the number of i/os active to each device.  If the
@@ -141,24 +141,24 @@ uint32_t zfs_vdev_max_active = 1000;
  * more quickly, but reads and writes to have higher latency and lower
  * throughput.
  */
-static uint32_t zfs_vdev_sync_read_min_active = 10;
-static uint32_t zfs_vdev_sync_read_max_active = 10;
-static uint32_t zfs_vdev_sync_write_min_active = 10;
-static uint32_t zfs_vdev_sync_write_max_active = 10;
-static uint32_t zfs_vdev_async_read_min_active = 1;
-/*  */ uint32_t zfs_vdev_async_read_max_active = 3;
-static uint32_t zfs_vdev_async_write_min_active = 2;
-/*  */ uint32_t zfs_vdev_async_write_max_active = 10;
-static uint32_t zfs_vdev_scrub_min_active = 1;
-static uint32_t zfs_vdev_scrub_max_active = 3;
-static uint32_t zfs_vdev_removal_min_active = 1;
-static uint32_t zfs_vdev_removal_max_active = 2;
-static uint32_t zfs_vdev_initializing_min_active = 1;
-static uint32_t zfs_vdev_initializing_max_active = 1;
-static uint32_t zfs_vdev_trim_min_active = 1;
-static uint32_t zfs_vdev_trim_max_active = 2;
-static uint32_t zfs_vdev_rebuild_min_active = 1;
-static uint32_t zfs_vdev_rebuild_max_active = 3;
+static uint_t zfs_vdev_sync_read_min_active = 10;
+static uint_t zfs_vdev_sync_read_max_active = 10;
+static uint_t zfs_vdev_sync_write_min_active = 10;
+static uint_t zfs_vdev_sync_write_max_active = 10;
+static uint_t zfs_vdev_async_read_min_active = 1;
+/*  */ uint_t zfs_vdev_async_read_max_active = 3;
+static uint_t zfs_vdev_async_write_min_active = 2;
+/*  */ uint_t zfs_vdev_async_write_max_active = 10;
+static uint_t zfs_vdev_scrub_min_active = 1;
+static uint_t zfs_vdev_scrub_max_active = 3;
+static uint_t zfs_vdev_removal_min_active = 1;
+static uint_t zfs_vdev_removal_max_active = 2;
+static uint_t zfs_vdev_initializing_min_active = 1;
+static uint_t zfs_vdev_initializing_max_active = 1;
+static uint_t zfs_vdev_trim_min_active = 1;
+static uint_t zfs_vdev_trim_max_active = 2;
+static uint_t zfs_vdev_rebuild_min_active = 1;
+static uint_t zfs_vdev_rebuild_max_active = 3;
 
 /*
  * When the pool has less than zfs_vdev_async_write_active_min_dirty_percent
@@ -167,8 +167,8 @@ static uint32_t zfs_vdev_rebuild_max_active = 3;
  * zfs_vdev_async_write_max_active. The value is linearly interpolated
  * between min and max.
  */
-int zfs_vdev_async_write_active_min_dirty_percent = 30;
-int zfs_vdev_async_write_active_max_dirty_percent = 60;
+uint_t zfs_vdev_async_write_active_min_dirty_percent = 30;
+uint_t zfs_vdev_async_write_active_max_dirty_percent = 60;
 
 /*
  * For non-interactive I/O (scrub, resilver, removal, initialize and rebuild),
@@ -198,10 +198,10 @@ static uint_t zfs_vdev_nia_credit = 5;
  * we include spans of optional I/Os to aid aggregation at the disk even when
  * they aren't able to help us aggregate at this level.
  */
-static int zfs_vdev_aggregation_limit = 1 << 20;
-static int zfs_vdev_aggregation_limit_non_rotating = SPA_OLD_MAXBLOCKSIZE;
-static int zfs_vdev_read_gap_limit = 32 << 10;
-static int zfs_vdev_write_gap_limit = 4 << 10;
+static uint_t zfs_vdev_aggregation_limit = 1 << 20;
+static uint_t zfs_vdev_aggregation_limit_non_rotating = SPA_OLD_MAXBLOCKSIZE;
+static uint_t zfs_vdev_read_gap_limit = 32 << 10;
+static uint_t zfs_vdev_write_gap_limit = 4 << 10;
 
 /*
  * Define the queue depth percentage for each top-level. This percentage is
@@ -214,9 +214,9 @@ static int zfs_vdev_write_gap_limit = 4 << 10;
  * to 30 allocations per device.
  */
 #ifdef _KERNEL
-int zfs_vdev_queue_depth_pct = 1000;
+uint_t zfs_vdev_queue_depth_pct = 1000;
 #else
-int zfs_vdev_queue_depth_pct = 300;
+uint_t zfs_vdev_queue_depth_pct = 300;
 #endif
 
 /*
@@ -226,14 +226,14 @@ int zfs_vdev_queue_depth_pct = 300;
  * we assume that the average allocation size is 4k, so we need the queue depth
  * to be 32 per allocator to get good aggregation of sequential writes.
  */
-int zfs_vdev_def_queue_depth = 32;
+uint_t zfs_vdev_def_queue_depth = 32;
 
 /*
  * Allow TRIM I/Os to be aggregated.  This should normally not be needed since
  * TRIM I/O for extents up to zfs_trim_extent_bytes_max (128M) can be submitted
  * by the TRIM code in zfs_trim.c.
  */
-static int zfs_vdev_aggregate_trim = 0;
+static uint_t zfs_vdev_aggregate_trim = 0;
 
 static int
 vdev_queue_offset_compare(const void *x1, const void *x2)
@@ -281,7 +281,7 @@ vdev_queue_timestamp_compare(const void *x1, const void *x2)
 	return (TREE_PCMP(z1, z2));
 }
 
-static int
+static uint_t
 vdev_queue_class_min_active(vdev_queue_t *vq, zio_priority_t p)
 {
 	switch (p) {
@@ -313,10 +313,10 @@ vdev_queue_class_min_active(vdev_queue_t *vq, zio_priority_t p)
 	}
 }
 
-static int
+static uint_t
 vdev_queue_max_async_writes(spa_t *spa)
 {
-	int writes;
+	uint_t writes;
 	uint64_t dirty = 0;
 	dsl_pool_t *dp = spa_get_dsl(spa);
 	uint64_t min_bytes = zfs_dirty_data_max *
@@ -359,7 +359,7 @@ vdev_queue_max_async_writes(spa_t *spa)
 	return (writes);
 }
 
-static int
+static uint_t
 vdev_queue_class_max_active(spa_t *spa, vdev_queue_t *vq, zio_priority_t p)
 {
 	switch (p) {
@@ -1031,89 +1031,89 @@ vdev_queue_last_offset(vdev_t *vd)
 	return (vd->vdev_queue.vq_last_offset);
 }
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, aggregation_limit, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, aggregation_limit, UINT, ZMOD_RW,
 	"Max vdev I/O aggregation size");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, aggregation_limit_non_rotating, INT,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, aggregation_limit_non_rotating, UINT,
 	ZMOD_RW, "Max vdev I/O aggregation size for non-rotating media");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, aggregate_trim, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, aggregate_trim, UINT, ZMOD_RW,
 	"Allow TRIM I/O to be aggregated");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, read_gap_limit, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, read_gap_limit, UINT, ZMOD_RW,
 	"Aggregate read I/O over gap");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, write_gap_limit, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, write_gap_limit, UINT, ZMOD_RW,
 	"Aggregate write I/O over gap");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, max_active, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, max_active, UINT, ZMOD_RW,
 	"Maximum number of active I/Os per vdev");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, async_write_active_max_dirty_percent, INT,
-	ZMOD_RW, "Async write concurrency max threshold");
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, async_write_active_max_dirty_percent,
+	UINT, ZMOD_RW, "Async write concurrency max threshold");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, async_write_active_min_dirty_percent, INT,
-	ZMOD_RW, "Async write concurrency min threshold");
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, async_write_active_min_dirty_percent,
+	UINT, ZMOD_RW, "Async write concurrency min threshold");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, async_read_max_active, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, async_read_max_active, UINT, ZMOD_RW,
 	"Max active async read I/Os per vdev");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, async_read_min_active, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, async_read_min_active, UINT, ZMOD_RW,
 	"Min active async read I/Os per vdev");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, async_write_max_active, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, async_write_max_active, UINT, ZMOD_RW,
 	"Max active async write I/Os per vdev");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, async_write_min_active, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, async_write_min_active, UINT, ZMOD_RW,
 	"Min active async write I/Os per vdev");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, initializing_max_active, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, initializing_max_active, UINT, ZMOD_RW,
 	"Max active initializing I/Os per vdev");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, initializing_min_active, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, initializing_min_active, UINT, ZMOD_RW,
 	"Min active initializing I/Os per vdev");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, removal_max_active, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, removal_max_active, UINT, ZMOD_RW,
 	"Max active removal I/Os per vdev");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, removal_min_active, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, removal_min_active, UINT, ZMOD_RW,
 	"Min active removal I/Os per vdev");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, scrub_max_active, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, scrub_max_active, UINT, ZMOD_RW,
 	"Max active scrub I/Os per vdev");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, scrub_min_active, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, scrub_min_active, UINT, ZMOD_RW,
 	"Min active scrub I/Os per vdev");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, sync_read_max_active, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, sync_read_max_active, UINT, ZMOD_RW,
 	"Max active sync read I/Os per vdev");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, sync_read_min_active, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, sync_read_min_active, UINT, ZMOD_RW,
 	"Min active sync read I/Os per vdev");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, sync_write_max_active, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, sync_write_max_active, UINT, ZMOD_RW,
 	"Max active sync write I/Os per vdev");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, sync_write_min_active, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, sync_write_min_active, UINT, ZMOD_RW,
 	"Min active sync write I/Os per vdev");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, trim_max_active, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, trim_max_active, UINT, ZMOD_RW,
 	"Max active trim/discard I/Os per vdev");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, trim_min_active, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, trim_min_active, UINT, ZMOD_RW,
 	"Min active trim/discard I/Os per vdev");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, rebuild_max_active, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, rebuild_max_active, UINT, ZMOD_RW,
 	"Max active rebuild I/Os per vdev");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, rebuild_min_active, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, rebuild_min_active, UINT, ZMOD_RW,
 	"Min active rebuild I/Os per vdev");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, nia_credit, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, nia_credit, UINT, ZMOD_RW,
 	"Number of non-interactive I/Os to allow in sequence");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, nia_delay, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, nia_delay, UINT, ZMOD_RW,
 	"Number of non-interactive I/Os before _max_active");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, queue_depth_pct, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, queue_depth_pct, UINT, ZMOD_RW,
 	"Queue depth percentage for each top-level vdev");

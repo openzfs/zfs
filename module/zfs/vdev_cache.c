@@ -83,9 +83,9 @@
  * it by setting the zfs_vdev_cache_size to zero.  Note that Solaris 11
  * has made these same changes.
  */
-static int zfs_vdev_cache_max = 1 << 14;			/* 16KB */
-static int zfs_vdev_cache_size = 0;
-static int zfs_vdev_cache_bshift = 16;
+static uint_t zfs_vdev_cache_max = 1 << 14;			/* 16KB */
+static uint_t zfs_vdev_cache_size = 0;
+static uint_t zfs_vdev_cache_bshift = 16;
 
 #define	VCBS (1 << zfs_vdev_cache_bshift)	/* 64KB */
 
@@ -426,11 +426,11 @@ vdev_cache_stat_fini(void)
 	}
 }
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, cache_max, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, cache_max, UINT, ZMOD_RW,
 	"Inflate reads small than max");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, cache_size, INT, ZMOD_RD,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, cache_size, UINT, ZMOD_RD,
 	"Total size of the per-disk cache");
 
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, cache_bshift, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, cache_bshift, UINT, ZMOD_RW,
 	"Shift size to inflate reads too");

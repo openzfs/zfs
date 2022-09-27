@@ -29,13 +29,13 @@
 typedef struct zfs_dbgmsg {
 	procfs_list_node_t	zdm_node;
 	uint64_t		zdm_timestamp;
-	int			zdm_size;
+	uint_t		zdm_size;
 	char			zdm_msg[1]; /* variable length allocation */
 } zfs_dbgmsg_t;
 
 static procfs_list_t zfs_dbgmsgs;
-static int zfs_dbgmsg_size = 0;
-int zfs_dbgmsg_maxsize = 4<<20; /* 4MB */
+static uint_t zfs_dbgmsg_size = 0;
+uint_t zfs_dbgmsg_maxsize = 4<<20; /* 4MB */
 
 /*
  * Internal ZFS debug messages are enabled by default.
@@ -68,14 +68,14 @@ zfs_dbgmsg_show(struct seq_file *f, void *p)
 }
 
 static void
-zfs_dbgmsg_purge(int max_size)
+zfs_dbgmsg_purge(uint_t max_size)
 {
 	while (zfs_dbgmsg_size > max_size) {
 		zfs_dbgmsg_t *zdm = list_remove_head(&zfs_dbgmsgs.pl_list);
 		if (zdm == NULL)
 			return;
 
-		int size = zdm->zdm_size;
+		uint_t size = zdm->zdm_size;
 		kmem_free(zdm, size);
 		zfs_dbgmsg_size -= size;
 	}
@@ -135,7 +135,7 @@ __set_error(const char *file, const char *func, int line, int err)
 void
 __zfs_dbgmsg(char *buf)
 {
-	int size = sizeof (zfs_dbgmsg_t) + strlen(buf);
+	uint_t size = sizeof (zfs_dbgmsg_t) + strlen(buf);
 	zfs_dbgmsg_t *zdm = kmem_zalloc(size, KM_SLEEP);
 	zdm->zdm_size = size;
 	zdm->zdm_timestamp = gethrestime_sec();
@@ -144,7 +144,7 @@ __zfs_dbgmsg(char *buf)
 	mutex_enter(&zfs_dbgmsgs.pl_lock);
 	procfs_list_add(&zfs_dbgmsgs, zdm);
 	zfs_dbgmsg_size += size;
-	zfs_dbgmsg_purge(MAX(zfs_dbgmsg_maxsize, 0));
+	zfs_dbgmsg_purge(zfs_dbgmsg_maxsize);
 	mutex_exit(&zfs_dbgmsgs.pl_lock);
 }
 
@@ -252,6 +252,8 @@ zfs_dbgmsg_print(const char *tag)
 module_param(zfs_dbgmsg_enable, int, 0644);
 MODULE_PARM_DESC(zfs_dbgmsg_enable, "Enable ZFS debug message log");
 
-module_param(zfs_dbgmsg_maxsize, int, 0644);
+/* BEGIN CSTYLED */
+module_param(zfs_dbgmsg_maxsize, uint, 0644);
+/* END CSTYLED */
 MODULE_PARM_DESC(zfs_dbgmsg_maxsize, "Maximum ZFS debug log size");
 #endif

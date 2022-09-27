@@ -61,9 +61,9 @@ typedef struct vdev_cache vdev_cache_t;
 typedef struct vdev_cache_entry vdev_cache_entry_t;
 struct abd;
 
-extern int zfs_vdev_queue_depth_pct;
-extern int zfs_vdev_def_queue_depth;
-extern uint32_t zfs_vdev_async_write_max_active;
+extern uint_t zfs_vdev_queue_depth_pct;
+extern uint_t zfs_vdev_def_queue_depth;
+extern uint_t zfs_vdev_async_write_max_active;
 
 /*
  * Virtual device operations

@@ -181,7 +181,7 @@ static int zfs_condense_indirect_vdevs_enable = B_TRUE;
  * condenses.  Higher values will condense less often (causing less
  * i/o); lower values will reduce the mapping size more quickly.
  */
-static int zfs_condense_indirect_obsolete_pct = 25;
+static uint_t zfs_condense_indirect_obsolete_pct = 25;
 
 /*
  * Condense if the obsolete space map takes up more than this amount of
@@ -204,7 +204,7 @@ static unsigned long zfs_condense_min_mapping_bytes = 128 * 1024;
  * complete too quickly).  If used to reduce the performance impact of
  * condensing in production, a maximum value of 1 should be sufficient.
  */
-static int zfs_condense_indirect_commit_entry_delay_ms = 0;
+static uint_t zfs_condense_indirect_commit_entry_delay_ms = 0;
 
 /*
  * If an indirect split block contains more than this many possible unique
@@ -214,7 +214,7 @@ static int zfs_condense_indirect_commit_entry_delay_ms = 0;
  * copies to participate fairly in the reconstruction when all combinations
  * cannot be checked and prevents repeated use of one bad copy.
  */
-int zfs_reconstruct_indirect_combinations_max = 4096;
+uint_t zfs_reconstruct_indirect_combinations_max = 4096;
 
 /*
  * Enable to simulate damaged segments and validate reconstruction.  This
@@ -1886,7 +1886,7 @@ EXPORT_SYMBOL(vdev_obsolete_sm_object);
 ZFS_MODULE_PARAM(zfs_condense, zfs_condense_, indirect_vdevs_enable, INT,
 	ZMOD_RW, "Whether to attempt condensing indirect vdev mappings");
 
-ZFS_MODULE_PARAM(zfs_condense, zfs_condense_, indirect_obsolete_pct, INT,
+ZFS_MODULE_PARAM(zfs_condense, zfs_condense_, indirect_obsolete_pct, UINT,
 	ZMOD_RW,
 	"Minimum obsolete percent of bytes in the mapping "
 	"to attempt condensing");
@@ -1900,11 +1900,11 @@ ZFS_MODULE_PARAM(zfs_condense, zfs_condense_, max_obsolete_bytes, ULONG,
 	"Minimum size obsolete spacemap to attempt condensing");
 
 ZFS_MODULE_PARAM(zfs_condense, zfs_condense_, indirect_commit_entry_delay_ms,
-	INT, ZMOD_RW,
+	UINT, ZMOD_RW,
 	"Used by tests to ensure certain actions happen in the middle of a "
 	"condense. A maximum value of 1 should be sufficient.");
 
 ZFS_MODULE_PARAM(zfs_reconstruct, zfs_reconstruct_, indirect_combinations_max,
-	INT, ZMOD_RW,
+	UINT, ZMOD_RW,
 	"Maximum number of combinations when reconstructing split segments");
 /* END CSTYLED */

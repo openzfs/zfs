@@ -514,19 +514,19 @@ SYSCTL_INT(_vfs_zfs_metaslab, OID_AUTO, sm_blksz_with_log,
  * space map representation must be before we compact it on-disk.
  * Values should be greater than or equal to 100.
  */
-extern int zfs_condense_pct;
+extern uint_t zfs_condense_pct;
 
 /* BEGIN CSTYLED */
-SYSCTL_INT(_vfs_zfs, OID_AUTO, condense_pct,
+SYSCTL_UINT(_vfs_zfs, OID_AUTO, condense_pct,
 	CTLFLAG_RWTUN, &zfs_condense_pct, 0,
 	"Condense on-disk spacemap when it is more than this many percents"
 	" of in-memory counterpart");
 /* END CSTYLED */
 
-extern int zfs_remove_max_segment;
+extern uint_t zfs_remove_max_segment;
 
 /* BEGIN CSTYLED */
-SYSCTL_INT(_vfs_zfs, OID_AUTO, remove_max_segment,
+SYSCTL_UINT(_vfs_zfs, OID_AUTO, remove_max_segment,
 	CTLFLAG_RWTUN, &zfs_remove_max_segment, 0,
 	"Largest contiguous segment ZFS will attempt to allocate when removing"
 	" a device");
@@ -561,10 +561,10 @@ SYSCTL_QUAD(_vfs_zfs_metaslab, OID_AUTO, df_alloc_threshold,
  * Once the space map's free space drops below this level we dynamically
  * switch to using best-fit allocations.
  */
-extern int metaslab_df_free_pct;
+extern uint_t metaslab_df_free_pct;
 
 /* BEGIN CSTYLED */
-SYSCTL_INT(_vfs_zfs_metaslab, OID_AUTO, df_free_pct,
+SYSCTL_UINT(_vfs_zfs_metaslab, OID_AUTO, df_free_pct,
 	CTLFLAG_RWTUN, &metaslab_df_free_pct, 0,
 	"The minimum free space, in percent, which must be available in a"
 	" space map to continue allocations in a first-fit fashion");
@@ -584,10 +584,10 @@ SYSCTL_INT(_vfs_zfs_metaslab, OID_AUTO, load_pct,
 /*
  * Max number of metaslabs per group to preload.
  */
-extern int metaslab_preload_limit;
+extern uint_t metaslab_preload_limit;
 
 /* BEGIN CSTYLED */
-SYSCTL_INT(_vfs_zfs_metaslab, OID_AUTO, preload_limit,
+SYSCTL_UINT(_vfs_zfs_metaslab, OID_AUTO, preload_limit,
 	CTLFLAG_RWTUN, &metaslab_preload_limit, 0,
 	"Max number of metaslabs per group to preload");
 /* END CSTYLED */
@@ -852,7 +852,7 @@ SYSCTL_INT(_vfs_zfs, OID_AUTO, validate_skip,
 
 /* vdev_queue.c */
 
-extern uint32_t zfs_vdev_max_active;
+extern uint_t zfs_vdev_max_active;
 
 /* BEGIN CSTYLED */
 SYSCTL_UINT(_vfs_zfs, OID_AUTO, top_maxinflight,
@@ -861,10 +861,10 @@ SYSCTL_UINT(_vfs_zfs, OID_AUTO, top_maxinflight,
 	" (LEGACY)");
 /* END CSTYLED */
 
-extern int zfs_vdev_def_queue_depth;
+extern uint_t zfs_vdev_def_queue_depth;
 
 /* BEGIN CSTYLED */
-SYSCTL_INT(_vfs_zfs_vdev, OID_AUTO, def_queue_depth,
+SYSCTL_UINT(_vfs_zfs_vdev, OID_AUTO, def_queue_depth,
 	CTLFLAG_RWTUN, &zfs_vdev_def_queue_depth, 0,
 	"Default queue depth for each allocator");
 /* END CSTYLED */

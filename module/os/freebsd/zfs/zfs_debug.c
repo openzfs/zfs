@@ -29,14 +29,14 @@
 typedef struct zfs_dbgmsg {
 	list_node_t zdm_node;
 	time_t zdm_timestamp;
-	int zdm_size;
+	uint_t zdm_size;
 	char zdm_msg[1]; /* variable length allocation */
 } zfs_dbgmsg_t;
 
 static list_t zfs_dbgmsgs;
-static int zfs_dbgmsg_size = 0;
+static uint_t zfs_dbgmsg_size = 0;
 static kmutex_t zfs_dbgmsgs_lock;
-int zfs_dbgmsg_maxsize = 4<<20; /* 4MB */
+uint_t zfs_dbgmsg_maxsize = 4<<20; /* 4MB */
 static kstat_t *zfs_dbgmsg_kstat;
 
 /*
@@ -88,10 +88,10 @@ zfs_dbgmsg_addr(kstat_t *ksp, loff_t n)
 }
 
 static void
-zfs_dbgmsg_purge(int max_size)
+zfs_dbgmsg_purge(uint_t max_size)
 {
 	zfs_dbgmsg_t *zdm;
-	int size;
+	uint_t size;
 
 	ASSERT(MUTEX_HELD(&zfs_dbgmsgs_lock));
 
@@ -155,7 +155,7 @@ void
 __zfs_dbgmsg(char *buf)
 {
 	zfs_dbgmsg_t *zdm;
-	int size;
+	uint_t size;
 
 	DTRACE_PROBE1(zfs__dbgmsg, char *, buf);
 
@@ -168,7 +168,7 @@ __zfs_dbgmsg(char *buf)
 	mutex_enter(&zfs_dbgmsgs_lock);
 	list_insert_tail(&zfs_dbgmsgs, zdm);
 	zfs_dbgmsg_size += size;
-	zfs_dbgmsg_purge(MAX(zfs_dbgmsg_maxsize, 0));
+	zfs_dbgmsg_purge(zfs_dbgmsg_maxsize);
 	mutex_exit(&zfs_dbgmsgs_lock);
 }
 
@@ -248,5 +248,5 @@ zfs_dbgmsg_print(const char *tag)
 ZFS_MODULE_PARAM(zfs, zfs_, dbgmsg_enable, INT, ZMOD_RW,
 	"Enable ZFS debug message log");
 
-ZFS_MODULE_PARAM(zfs, zfs_, dbgmsg_maxsize, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, dbgmsg_maxsize, UINT, ZMOD_RW,
 	"Maximum ZFS debug log size");
