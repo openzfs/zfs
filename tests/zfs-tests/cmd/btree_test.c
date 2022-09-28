@@ -15,6 +15,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/avl.h>
 #include <sys/btree.h>
 #include <sys/time.h>
@@ -164,7 +165,7 @@ find_without_index(zfs_btree_t *bt, char *why)
 	zfs_btree_add(bt, &i);
 	if ((p = (u_longlong_t *)zfs_btree_find(bt, &i, NULL)) == NULL ||
 	    *p != i) {
-		snprintf(why, BUFSIZE, "Unexpectedly found %llu\n",
+		(void) snprintf(why, BUFSIZE, "Unexpectedly found %llu\n",
 		    p == NULL ? 0 : *p);
 		return (1);
 	}
@@ -172,7 +173,7 @@ find_without_index(zfs_btree_t *bt, char *why)
 	i++;
 
 	if ((p = (u_longlong_t *)zfs_btree_find(bt, &i, NULL)) != NULL) {
-		snprintf(why, BUFSIZE, "Found bad value: %llu\n", *p);
+		(void) snprintf(why, BUFSIZE, "Found bad value: %llu\n", *p);
 		return (1);
 	}
 
@@ -189,10 +190,10 @@ insert_find_remove(zfs_btree_t *bt, char *why)
 	/* Insert 'i' into the tree, and attempt to find it again. */
 	zfs_btree_add(bt, &i);
 	if ((p = (u_longlong_t *)zfs_btree_find(bt, &i, &bt_idx)) == NULL) {
-		snprintf(why, BUFSIZE, "Didn't find value in tree\n");
+		(void) snprintf(why, BUFSIZE, "Didn't find value in tree\n");
 		return (1);
 	} else if (*p != i) {
-		snprintf(why, BUFSIZE, "Found (%llu) in tree\n", *p);
+		(void) snprintf(why, BUFSIZE, "Found (%llu) in tree\n", *p);
 		return (1);
 	}
 	ASSERT3S(zfs_btree_numnodes(bt), ==, 1);
@@ -201,7 +202,8 @@ insert_find_remove(zfs_btree_t *bt, char *why)
 	/* Remove 'i' from the tree, and verify it is not found. */
 	zfs_btree_remove(bt, &i);
 	if ((p = (u_longlong_t *)zfs_btree_find(bt, &i, &bt_idx)) != NULL) {
-		snprintf(why, BUFSIZE, "Found removed value (%llu)\n", *p);
+		(void) snprintf(why, BUFSIZE,
+		    "Found removed value (%llu)\n", *p);
 		return (1);
 	}
 	ASSERT3S(zfs_btree_numnodes(bt), ==, 0);
@@ -240,9 +242,12 @@ drain_tree(zfs_btree_t *bt, char *why)
 		zfs_btree_add_idx(bt, &randval, &bt_idx);
 
 		node = malloc(sizeof (int_node_t));
+		ASSERT3P(node, !=, NULL);
+
 		node->data = randval;
 		if ((ret = avl_find(&avl, node, &avl_idx)) != NULL) {
-			snprintf(why, BUFSIZE, "Found in avl: %llu\n", randval);
+			(void) snprintf(why, BUFSIZE,
+			    "Found in avl: %llu\n", randval);
 			return (1);
 		}
 		avl_insert(&avl, node, avl_idx);
@@ -422,7 +427,8 @@ do_negative_test(zfs_btree_t *bt, char *test_name)
 {
 	int rval = 0;
 	struct rlimit rlim = {0};
-	setrlimit(RLIMIT_CORE, &rlim);
+
+	(void) setrlimit(RLIMIT_CORE, &rlim);
 
 	if (strcmp(test_name, "insert_duplicate") == 0) {
 		rval = insert_duplicate(bt);
