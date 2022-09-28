@@ -59,6 +59,7 @@ unsigned long
 get_system_hostid(void)
 {
 	unsigned long hostid = get_spl_hostid();
+	uint32_t system_hostid;
 
 	/*
 	 * We do not use gethostid(3) because it can return a bogus ID,
@@ -69,8 +70,11 @@ get_system_hostid(void)
 	if (hostid == 0) {
 		int fd = open("/etc/hostid", O_RDONLY | O_CLOEXEC);
 		if (fd >= 0) {
-			if (read(fd, &hostid, 4) < 0)
+			if (read(fd, &system_hostid, sizeof (system_hostid))
+			    != sizeof (system_hostid))
 				hostid = 0;
+			else
+				hostid = system_hostid;
 			(void) close(fd);
 		}
 	}
