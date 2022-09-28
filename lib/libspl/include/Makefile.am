@@ -46,7 +46,6 @@ libspl_sys_HEADERS = \
 	%D%/sys/poll.h \
 	%D%/sys/priv.h \
 	%D%/sys/processor.h \
-	%D%/sys/sha2.h \
 	%D%/sys/simd.h \
 	%D%/sys/stack.h \
 	%D%/sys/stdtypes.h \
