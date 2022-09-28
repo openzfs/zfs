@@ -10,6 +10,7 @@ kernel_linux_HEADERS = \
 	%D%/kernel/linux/percpu_compat.h \
 	%D%/kernel/linux/simd.h \
 	%D%/kernel/linux/simd_aarch64.h \
+	%D%/kernel/linux/simd_arm.h \
 	%D%/kernel/linux/simd_powerpc.h \
 	%D%/kernel/linux/simd_x86.h \
 	%D%/kernel/linux/utsname_compat.h \

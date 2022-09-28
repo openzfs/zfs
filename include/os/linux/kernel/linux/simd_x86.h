@@ -53,6 +53,8 @@
  *	zfs_bmi1_available()
  *	zfs_bmi2_available()
  *
+ *	zfs_shani_available()
+ *
  *	zfs_avx512f_available()
  *	zfs_avx512cd_available()
  *	zfs_avx512er_available()
@@ -581,6 +583,19 @@ zfs_movbe_available(void)
 {
 #if defined(X86_FEATURE_MOVBE)
 	return (!!boot_cpu_has(X86_FEATURE_MOVBE));
+#else
+	return (B_FALSE);
+#endif
+}
+
+/*
+ * Check if SHA_NI instruction set is available
+ */
+static inline boolean_t
+zfs_shani_available(void)
+{
+#if defined(X86_FEATURE_SHA_NI)
+	return (!!boot_cpu_has(X86_FEATURE_SHA_NI));
 #else
 	return (B_FALSE);
 #endif
