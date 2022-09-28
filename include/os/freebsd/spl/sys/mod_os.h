@@ -97,6 +97,12 @@
 #define	blake3_param_set_args(var) \
     CTLTYPE_STRING, NULL, 0, blake3_param, "A"
 
+#define	sha256_param_set_args(var) \
+    CTLTYPE_STRING, NULL, 0, sha256_param, "A"
+
+#define	sha512_param_set_args(var) \
+    CTLTYPE_STRING, NULL, 0, sha512_param, "A"
+
 #include <sys/kernel.h>
 #define	module_init(fn) \
 static void \

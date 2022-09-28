@@ -51,6 +51,8 @@ noinst_HEADERS = \
 	%D%/spl/sys/sid.h \
 	%D%/spl/sys/sig.h \
 	%D%/spl/sys/simd.h \
+	%D%/spl/sys/simd_aarch64.h \
+	%D%/spl/sys/simd_arm.h \
 	%D%/spl/sys/simd_powerpc.h \
 	%D%/spl/sys/simd_x86.h \
 	%D%/spl/sys/spl_condvar.h \
