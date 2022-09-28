@@ -50,9 +50,6 @@
 #ifndef _LINUX_SIMD_POWERPC_H
 #define	_LINUX_SIMD_POWERPC_H
 
-/* only for __powerpc__ */
-#if defined(__powerpc__)
-
 #include <linux/preempt.h>
 #include <linux/export.h>
 #include <linux/sched.h>
@@ -133,7 +130,5 @@ zfs_isa207_available(void)
 {
 	return (cpu_has_feature(CPU_FTR_ARCH_207S));
 }
-
-#endif /* defined(__powerpc) */
 
 #endif /* _LINUX_SIMD_POWERPC_H */
