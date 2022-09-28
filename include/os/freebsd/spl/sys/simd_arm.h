@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 iXsystems, Inc.
+ * Copyright (C) 2022 Tino Reichardt <milky-zfs@mcmilk.de>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,28 +26,48 @@
  * $FreeBSD$
  */
 
-#ifndef _FREEBSD_SIMD_H
-#define	_FREEBSD_SIMD_H
+/*
+ * SIMD support:
+ *
+ * Following functions should be called to determine whether CPU feature
+ * is supported. All functions are usable in kernel and user space.
+ * If a SIMD algorithm is using more than one instruction set
+ * all relevant feature test functions should be called.
+ *
+ * Supported features:
+ *   zfs_neon_available()
+ *   zfs_sha256_available()
+ */
 
-#if defined(__amd64__) || defined(__i386__)
-#include <sys/simd_x86.h>
+#ifndef _FREEBSD_SIMD_ARM_H
+#define	_FREEBSD_SIMD_ARM_H
 
-#elif defined(__arm__)
-#include <sys/simd_arm.h>
+#include <sys/types.h>
+#include <machine/elf.h>
 
-#elif defined(__aarch64__)
-#include <sys/simd_aarch64.h>
-
-#elif defined(__powerpc__)
-#include <sys/simd_powerpc.h>
-
-#else
-#define	kfpu_allowed()		0
+#define	kfpu_allowed()		1
 #define	kfpu_initialize(tsk)	do {} while (0)
 #define	kfpu_begin()		do {} while (0)
 #define	kfpu_end()		do {} while (0)
 #define	kfpu_init()		(0)
 #define	kfpu_fini()		do {} while (0)
-#endif
 
-#endif
+/*
+ * Check if NEON is available
+ */
+static inline boolean_t
+zfs_neon_available(void)
+{
+	return (elf_hwcap & HWCAP_NEON);
+}
+
+/*
+ * Check if SHA256 is available
+ */
+static inline boolean_t
+zfs_sha256_available(void)
+{
+	return (elf_hwcap2 & HWCAP2_SHA2);
+}
+
+#endif /* _FREEBSD_SIMD_ARM_H */

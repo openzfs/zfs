@@ -174,6 +174,19 @@ zfs_avx2_available(void)
 }
 
 /*
+ * Check if SHA_NI instruction set is available
+ */
+static inline boolean_t
+zfs_shani_available(void)
+{
+	boolean_t has_shani;
+
+	has_shani = (cpu_stdext_feature & CPUID_STDEXT_SHA) != 0;
+
+	return (has_shani && __ymm_enabled());
+}
+
+/*
  * AVX-512 family of instruction sets:
  *
  * AVX512F	Foundation
