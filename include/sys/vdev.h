@@ -148,6 +148,7 @@ extern int vdev_degrade(spa_t *spa, uint64_t guid, vdev_aux_t aux);
 extern int vdev_online(spa_t *spa, uint64_t guid, uint64_t flags,
     vdev_state_t *);
 extern int vdev_offline(spa_t *spa, uint64_t guid, uint64_t flags);
+extern int vdev_remove_wanted(spa_t *spa, uint64_t guid);
 extern void vdev_clear(spa_t *spa, vdev_t *vd);
 
 extern boolean_t vdev_is_dead(vdev_t *vd);
@@ -190,6 +191,8 @@ typedef enum vdev_config_flag {
 	VDEV_CONFIG_MISSING = 1 << 4
 } vdev_config_flag_t;
 
+extern void vdev_post_kobj_evt(vdev_t *vd);
+extern void vdev_clear_kobj_evt(vdev_t *vd);
 extern void vdev_top_config_generate(spa_t *spa, nvlist_t *config);
 extern nvlist_t *vdev_config_generate(spa_t *spa, vdev_t *vd,
     boolean_t getstats, vdev_config_flag_t flags);

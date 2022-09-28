@@ -24,29 +24,28 @@
 
 #
 # DESCRIPTION:
-# Testing Fault Management Agent ZED Logic - Physically removed device is
-# made unavail and onlined when reattached
+# Testing Fault Management Agent ZED Logic - Physically detached device is
+# made removed and onlined when reattached
 #
 # STRATEGY:
 # 1. Create a pool
 # 2. Simulate physical removal of one device
-# 3. Verify the device is unavailable
+# 3. Verify the device is removed when detached
 # 4. Reattach the device
 # 5. Verify the device is onlined
 # 6. Repeat the same tests with a spare device:
 #    zed will use the spare to handle the removed data device
 # 7. Repeat the same tests again with a faulted spare device:
-#    the removed data device should be unavailable
+#    the removed data device should be removed
 #
 # NOTE: the use of 'block_device_wait' throughout the test helps avoid race
 # conditions caused by mixing creation/removal events from partitioning the
 # disk (zpool create) and events from physically removing it (remove_disk).
 #
-# NOTE: the test relies on 'zpool sync' to prompt the kmods to transition a
-# vdev to the unavailable state.  The ZED does receive a removal notification
-# but only relies on it to activate a hot spare.  Additional work is planned
-# to extend an existing ioctl interface to allow the ZED to transition the
-# vdev in to a removed state.
+# NOTE: the test relies on ZED to transit state to removed on device removed
+# event.  The ZED does receive a removal notification but only relies on it to
+# activate a hot spare.  Additional work is planned to extend an existing ioctl
+# interface to allow the ZED to transition the vdev in to a removed state.
 #
 verify_runnable "both"
 
@@ -103,8 +102,8 @@ do
 	log_must mkfile 1m $mntpnt/file
 	sync_pool $TESTPOOL
 
-	# 3. Verify the device is unavailable.
-	log_must wait_vdev_state $TESTPOOL $removedev "UNAVAIL"
+	# 3. Verify the device is removed.
+	log_must wait_vdev_state $TESTPOOL $removedev "REMOVED"
 
 	# 4. Reattach the device
 	insert_disk $removedev
@@ -136,7 +135,7 @@ do
 
 	# 3. Verify the device is handled by the spare.
 	log_must wait_hotspare_state $TESTPOOL $sparedev "INUSE"
-	log_must wait_vdev_state $TESTPOOL $removedev "UNAVAIL"
+	log_must wait_vdev_state $TESTPOOL $removedev "REMOVED"
 
 	# 4. Reattach the device
 	insert_disk $removedev
@@ -170,8 +169,8 @@ do
 	log_must mkfile 1m $mntpnt/file
 	sync_pool $TESTPOOL
 
-	# 4. Verify the device is unavailable
-	log_must wait_vdev_state $TESTPOOL $removedev "UNAVAIL"
+	# 4. Verify the device is removed
+	log_must wait_vdev_state $TESTPOOL $removedev "REMOVED"
 
 	# 5. Reattach the device
 	insert_disk $removedev

@@ -550,6 +550,7 @@
     <elf-symbol name='zpool_vdev_path_to_guid' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_vdev_remove' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_vdev_remove_cancel' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zpool_vdev_remove_wanted' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_vdev_split' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_wait' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_wait_status' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -3503,6 +3504,11 @@
       <parameter type-id='4c81de99' name='zhp'/>
       <parameter type-id='80f4b756' name='path'/>
       <parameter type-id='c19b74c3' name='istmp'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='zpool_vdev_remove_wanted' mangled-name='zpool_vdev_remove_wanted' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_vdev_remove_wanted'>
+      <parameter type-id='4c81de99' name='zhp'/>
+      <parameter type-id='80f4b756' name='path'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zpool_vdev_fault' mangled-name='zpool_vdev_fault' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_vdev_fault'>
