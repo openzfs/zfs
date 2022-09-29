@@ -1319,6 +1319,7 @@ vdev_indirect_io_start(zio_t *zio)
 	    vdev_indirect_gather_splits, zio);
 
 	indirect_split_t *first = list_head(&iv->iv_splits);
+	ASSERT3P(first, !=, NULL);
 	if (first->is_size == zio->io_size) {
 		/*
 		 * This is not a split block; we are pointing to the entire

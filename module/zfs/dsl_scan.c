@@ -1470,6 +1470,7 @@ dsl_scan_zil_record(zilog_t *zilog, const lr_t *lrc, void *arg,
 		if (claim_txg == 0 || bp->blk_birth < claim_txg)
 			return (0);
 
+		ASSERT3U(BP_GET_LSIZE(bp), !=, 0);
 		SET_BOOKMARK(&zb, zh->zh_log.blk_cksum.zc_word[ZIL_ZC_OBJSET],
 		    lr->lr_foid, ZB_ZIL_LEVEL,
 		    lr->lr_offset / BP_GET_LSIZE(bp));

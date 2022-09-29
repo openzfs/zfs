@@ -339,6 +339,7 @@ zil_read_log_data(zilog_t *zilog, const lr_write_t *lr, void *wbuf)
 	if (wbuf == NULL)
 		zio_flags |= ZIO_FLAG_RAW;
 
+	ASSERT3U(BP_GET_LSIZE(bp), !=, 0);
 	SET_BOOKMARK(&zb, dmu_objset_id(zilog->zl_os), lr->lr_foid,
 	    ZB_ZIL_LEVEL, lr->lr_offset / BP_GET_LSIZE(bp));
 

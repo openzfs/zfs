@@ -8539,6 +8539,7 @@ l2arc_dev_get_next(void)
 		else if (next == first)
 			break;
 
+		ASSERT3P(next, !=, NULL);
 	} while (vdev_is_dead(next->l2ad_vdev) || next->l2ad_rebuild ||
 	    next->l2ad_trim_all);
 

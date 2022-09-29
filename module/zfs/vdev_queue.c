@@ -756,6 +756,7 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 	do {
 		dio = nio;
 		nio = AVL_NEXT(t, dio);
+		ASSERT3P(dio, !=, NULL);
 		zio_add_child(dio, aio);
 		vdev_queue_io_remove(vq, dio);
 

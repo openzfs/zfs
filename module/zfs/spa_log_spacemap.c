@@ -507,6 +507,7 @@ void
 spa_log_summary_decrement_blkcount(spa_t *spa, uint64_t blocks_gone)
 {
 	log_summary_entry_t *e = list_head(&spa->spa_log_summary);
+	ASSERT3P(e, !=, NULL);
 	if (e->lse_txgcount > 0)
 		e->lse_txgcount--;
 	for (; e != NULL; e = list_head(&spa->spa_log_summary)) {

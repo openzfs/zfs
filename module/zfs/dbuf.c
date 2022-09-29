@@ -2687,6 +2687,7 @@ dbuf_override_impl(dmu_buf_impl_t *db, const blkptr_t *bp, dmu_tx_t *tx)
 	dbuf_dirty_record_t *dr;
 
 	dr = list_head(&db->db_dirty_records);
+	ASSERT3P(dr, !=, NULL);
 	ASSERT3U(dr->dr_txg, ==, tx->tx_txg);
 	dl = &dr->dt.dl;
 	dl->dr_overridden_by = *bp;
@@ -2748,6 +2749,7 @@ dmu_buf_write_embedded(dmu_buf_t *dbuf, void *data,
 	dmu_buf_will_not_fill(dbuf, tx);
 
 	dr = list_head(&db->db_dirty_records);
+	ASSERT3P(dr, !=, NULL);
 	ASSERT3U(dr->dr_txg, ==, tx->tx_txg);
 	dl = &dr->dt.dl;
 	encode_embedded_bp_compressed(&dl->dr_overridden_by,
