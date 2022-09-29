@@ -6637,6 +6637,8 @@ ztest_global_vars_to_zdb_args(void)
 {
 	char **args = calloc(2*ztest_opts.zo_gvars_count + 1, sizeof (char *));
 	char **cur = args;
+	if (args == NULL)
+		return (NULL);
 	for (size_t i = 0; i < ztest_opts.zo_gvars_count; i++) {
 		*cur++ = (char *)"-o";
 		*cur++ = ztest_opts.zo_gvars[i];
@@ -6906,6 +6908,10 @@ ztest_run_zdb(const char *pool)
 	ztest_get_zdb_bin(bin, len);
 
 	char **set_gvars_args = ztest_global_vars_to_zdb_args();
+	if (set_gvars_args == NULL) {
+		fatal(B_FALSE, "Failed to allocate memory in "
+		    "ztest_global_vars_to_zdb_args(). Cannot run zdb.\n");
+	}
 	char *set_gvars_args_joined = join_strings(set_gvars_args, " ");
 	free(set_gvars_args);
 
