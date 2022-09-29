@@ -55,7 +55,7 @@ main(int argc, char **argv)
 	char *buf = NULL;
 	char *map = NULL;
 	int fd = -1, bytes, retval = 0;
-	unsigned seed;
+	uint_t seed;
 
 	if (argc < 2 || optind == argc) {
 		(void) fprintf(stderr,
@@ -92,7 +92,7 @@ main(int argc, char **argv)
 		retval = 1;
 		goto end;
 	}
-	seed = time(NULL);
+	seed = (uint_t)time(NULL);
 	srandom(seed);
 
 	idx = random() % size;

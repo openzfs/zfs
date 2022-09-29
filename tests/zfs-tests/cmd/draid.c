@@ -93,8 +93,8 @@ read_map(const char *filename, nvlist_t **allcfgs)
 		rc = gzread(fp, buf + bytes, block_size);
 		if ((rc < 0) || (rc == 0 && !gzeof(fp))) {
 			free(buf);
-			(void) gzclose(fp);
 			(void) gzerror(fp, &error);
+			(void) gzclose(fp);
 			return (error);
 		} else {
 			bytes += rc;
@@ -505,6 +505,8 @@ eval_resilver(draid_map_t *map, uint64_t groupwidth, uint64_t nspares,
 
 	int *ios = calloc(map->dm_children, sizeof (uint64_t));
 
+	ASSERT3P(ios, !=, NULL);
+
 	/* Resilver all rows */
 	for (int i = 0; i < map->dm_nperms; i++) {
 		uint8_t *row = &map->dm_perms[i * map->dm_children];
@@ -770,7 +772,7 @@ static int
 draid_generate(int argc, char *argv[])
 {
 	char filename[MAXPATHLEN] = {0};
-	uint64_t map_seed;
+	uint64_t map_seed[2];
 	int c, fd, error, verbose = 0, passes = 1, continuous = 0;
 	int min_children = VDEV_DRAID_MIN_CHILDREN;
 	int max_children = VDEV_DRAID_MAX_CHILDREN;
@@ -847,7 +849,7 @@ restart:
 		ssize_t bytes_read = 0;
 
 		while (bytes_read < bytes) {
-			ssize_t rc = read(fd, ((char *)&map_seed) + bytes_read,
+			ssize_t rc = read(fd, ((char *)map_seed) + bytes_read,
 			    bytes - bytes_read);
 			if (rc < 0) {
 				printf("Unable to read /dev/urandom: %s\n:",
@@ -876,7 +878,7 @@ restart:
 		double worst_ratio = 1000.0;
 		double avg_ratio = 1000.0;
 
-		error = eval_maps(children, passes, &map_seed, &map,
+		error = eval_maps(children, passes, map_seed, &map,
 		    &worst_ratio, &avg_ratio);
 		if (error) {
 			printf("Error eval_maps(): %s\n", strerror(error));

@@ -53,7 +53,7 @@ static long	fsize = FSIZE;
 static size_t	bsize = BSIZE;
 static int	count = 0;
 static int	rflag = 0;
-static int	seed = 0;
+static uint_t	seed = 0;
 static int	vflag = 0;
 static int	errflag = 0;
 static off_t	offset = 0;
@@ -105,7 +105,7 @@ parse_options(int argc, char *argv[])
 	extern int optind, optopt;
 
 	count = fsize / bsize;
-	seed = time(NULL);
+	seed = (uint_t)time(NULL);
 	while ((c = getopt(argc, argv, "b:c:f:o:rs:v")) != -1) {
 		switch (c) {
 			case 'b':

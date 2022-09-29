@@ -13,6 +13,7 @@
 
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -28,7 +29,19 @@ int main(void) {
 
 	char buf[64];
 	sprintf(buf, "/tmp/zts-zed_fd_spill-logdir/%d", getppid());
-	dup2(creat(buf, 0644), STDOUT_FILENO);
+	int fd = creat(buf, 0644);
+	if (fd == -1) {
+		(void) fprintf(stderr, "creat(%s) failed: %s\n", buf,
+		    strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+
+	if (dup2(fd, STDOUT_FILENO) == -1) {
+		close(fd);
+		(void) fprintf(stderr, "dup2(%s, STDOUT_FILENO) failed: %s\n",
+		    buf, strerror(errno));
+		exit(EXIT_FAILURE);
+	}
 
 	snprintf(buf, sizeof (buf), "/proc/%d/fd", getppid());
 	execlp("ls", "ls", buf, NULL);
