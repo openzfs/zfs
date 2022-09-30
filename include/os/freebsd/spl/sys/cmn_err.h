@@ -71,7 +71,7 @@ extern void vuprintf(const char *, __va_list)
     __attribute__((format(printf, 1, 0)));
 
 extern void panic(const char *, ...)
-    __attribute__((format(printf, 1, 2)));
+    __attribute__((format(printf, 1, 2), __noreturn__));
 
 #endif /* !_ASM */
 

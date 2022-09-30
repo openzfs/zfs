@@ -45,8 +45,11 @@ libspl_assertf(const char *file, const char *func, int line,
 	fprintf(stderr, "\n");
 	fprintf(stderr, "ASSERT at %s:%d:%s()", file, line, func);
 	va_end(args);
+
+#if !__has_feature(attribute_analyzer_noreturn) && !defined(__COVERITY__)
 	if (libspl_assert_ok) {
 		return;
 	}
+#endif
 	abort();
 }

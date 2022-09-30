@@ -31,8 +31,10 @@
 #include <linux/vmalloc.h>
 
 extern int kmem_debugging(void);
-extern char *kmem_vasprintf(const char *fmt, va_list ap);
-extern char *kmem_asprintf(const char *fmt, ...);
+extern char *kmem_vasprintf(const char *fmt, va_list ap)
+    __attribute__((format(printf, 1, 0)));
+extern char *kmem_asprintf(const char *fmt, ...)
+    __attribute__((format(printf, 1, 2)));
 extern char *kmem_strdup(const char *str);
 extern void kmem_strfree(char *str);
 
@@ -179,8 +181,10 @@ extern unsigned int spl_kmem_alloc_max;
 #define	kmem_free(ptr, sz)	spl_kmem_free((ptr), (sz))
 #define	kmem_cache_reap_active	spl_kmem_cache_reap_active
 
-extern void *spl_kmem_alloc(size_t sz, int fl, const char *func, int line);
-extern void *spl_kmem_zalloc(size_t sz, int fl, const char *func, int line);
+extern void *spl_kmem_alloc(size_t sz, int fl, const char *func, int line)
+    __attribute__((alloc_size(1)));
+extern void *spl_kmem_zalloc(size_t sz, int fl, const char *func, int line)
+    __attribute__((alloc_size(1)));
 extern void spl_kmem_free(const void *ptr, size_t sz);
 
 /*

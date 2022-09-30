@@ -41,7 +41,7 @@ extern void cmn_err(int, const char *, ...)
 extern void vcmn_err(int, const char *, va_list)
     __attribute__((format(printf, 2, 0)));
 extern void vpanic(const char *, va_list)
-    __attribute__((format(printf, 1, 0)));
+    __attribute__((format(printf, 1, 0), __noreturn__));
 
 #define	fm_panic	panic
 
