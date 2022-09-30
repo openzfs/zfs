@@ -102,7 +102,7 @@ typedef struct zio_bad_cksum {
 	uint8_t			zbc_has_cksum;	/* expected/actual valid */
 } zio_bad_cksum_t;
 
-_SYS_ZIO_CHECKSUM_H const zio_checksum_info_t
+_SYS_ZIO_CHECKSUM_H zio_checksum_info_t
     zio_checksum_table[ZIO_CHECKSUM_FUNCTIONS];
 
 /*

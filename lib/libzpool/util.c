@@ -350,7 +350,7 @@ pool_active(void *unused, const char *name, uint64_t guid,
 }
 #endif
 
-const pool_config_ops_t libzpool_config_ops = {
+pool_config_ops_t libzpool_config_ops = {
 	.pco_refresh_config = refresh_config,
 	.pco_pool_active = pool_active,
 };

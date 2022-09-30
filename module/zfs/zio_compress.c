@@ -49,7 +49,7 @@ unsigned long zio_decompress_fail_fraction = 0;
 /*
  * Compression vectors.
  */
-const zio_compress_info_t zio_compress_table[ZIO_COMPRESS_FUNCTIONS] = {
+zio_compress_info_t zio_compress_table[ZIO_COMPRESS_FUNCTIONS] = {
 	{"inherit",	0,	NULL,		NULL, NULL},
 	{"on",		0,	NULL,		NULL, NULL},
 	{"uncompressed", 0,	NULL,		NULL, NULL},

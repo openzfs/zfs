@@ -43,7 +43,7 @@ typedef struct libpc_handle {
 	boolean_t lpc_open_access_error;
 	boolean_t lpc_desc_active;
 	char lpc_desc[1024];
-	const pool_config_ops_t *lpc_ops;
+	pool_config_ops_t *lpc_ops;
 	void *lpc_lib_handle;
 } libpc_handle_t;
 
