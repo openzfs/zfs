@@ -242,7 +242,10 @@ drain_tree(zfs_btree_t *bt, char *why)
 		zfs_btree_add_idx(bt, &randval, &bt_idx);
 
 		node = malloc(sizeof (int_node_t));
-		ASSERT3P(node, !=, NULL);
+		if (node == NULL) {
+			perror("malloc");
+			exit(EXIT_FAILURE);
+		}
 
 		node->data = randval;
 		if ((ret = avl_find(&avl, node, &avl_idx)) != NULL) {
@@ -319,6 +322,10 @@ stress_tree(zfs_btree_t *bt, char *why)
 
 		uint64_t randval = random() % tree_limit;
 		node = malloc(sizeof (*node));
+		if (node == NULL) {
+			perror("malloc");
+			exit(EXIT_FAILURE);
+		}
 		node->data = randval;
 
 		max = randval > max ? randval : max;

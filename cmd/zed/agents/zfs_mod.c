@@ -133,6 +133,11 @@ zfs_unavail_pool(zpool_handle_t *zhp, void *data)
 	if (zfs_toplevel_state(zhp) < VDEV_STATE_DEGRADED) {
 		unavailpool_t *uap;
 		uap = malloc(sizeof (unavailpool_t));
+		if (uap == NULL) {
+			perror("malloc");
+			exit(EXIT_FAILURE);
+		}
+
 		uap->uap_zhp = zhp;
 		list_insert_tail((list_t *)data, uap);
 	} else {
@@ -411,6 +416,11 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 		 * completed.
 		 */
 		device = malloc(sizeof (pendingdev_t));
+		if (device == NULL) {
+			perror("malloc");
+			exit(EXIT_FAILURE);
+		}
+
 		(void) strlcpy(device->pd_physpath, physpath,
 		    sizeof (device->pd_physpath));
 		list_insert_tail(&g_device_list, device);

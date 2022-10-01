@@ -175,6 +175,10 @@ _zed_exec_fork_child(uint64_t eid, const char *dir, const char *prog,
 		node->pid = pid;
 		node->eid = eid;
 		node->name = strdup(prog);
+		if (node->name == NULL) {
+			perror("strdup");
+			exit(EXIT_FAILURE);
+		}
 
 		avl_add(&_launched_processes, node);
 	}

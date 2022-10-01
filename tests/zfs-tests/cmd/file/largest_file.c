@@ -78,6 +78,8 @@ main(int argc, char **argv)
 		return (errno);
 
 	testfile = strdup(argv[1]);
+	if (testfile == NULL)
+		return (errno);
 
 	fd = open(testfile, O_CREAT | O_RDWR, mode);
 	if (fd < 0) {

@@ -1845,6 +1845,9 @@ zpool_find_config(libpc_handle_t *hdl, const char *target, nvlist_t **configp,
 	int count = 0;
 	char *targetdup = strdup(target);
 
+	if (targetdup == NULL)
+		return (ENOMEM);
+
 	*configp = NULL;
 
 	if ((sepp = strpbrk(targetdup, "/@")) != NULL)
