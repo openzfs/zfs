@@ -1203,7 +1203,6 @@ zio_free(spa_t *spa, uint64_t txg, const blkptr_t *bp)
 	 */
 	if (BP_IS_EMBEDDED(bp))
 		return;
-	metaslab_check_free(spa, bp);
 
 	/*
 	 * Frees that are for the currently-syncing txg, are not going to be
@@ -1220,6 +1219,7 @@ zio_free(spa_t *spa, uint64_t txg, const blkptr_t *bp)
 	    txg != spa->spa_syncing_txg ||
 	    (spa_sync_pass(spa) >= zfs_sync_pass_deferred_free &&
 	    !spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP))) {
+		metaslab_check_free(spa, bp);
 		bplist_append(&spa->spa_free_bplist[txg & TXG_MASK], bp);
 	} else {
 		VERIFY3P(zio_free_sync(NULL, spa, txg, bp, 0), ==, NULL);
