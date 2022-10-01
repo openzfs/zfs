@@ -4164,6 +4164,8 @@ zfs_snapshot_nvl(libzfs_handle_t *hdl, nvlist_t *snaps, nvlist_t *props)
 	 * same pool, as does lzc_snapshot (below).
 	 */
 	elem = nvlist_next_nvpair(snaps, NULL);
+	if (elem == NULL)
+		return (-1);
 	(void) strlcpy(pool, nvpair_name(elem), sizeof (pool));
 	pool[strcspn(pool, "/@")] = '\0';
 	zpool_hdl = zpool_open(hdl, pool);

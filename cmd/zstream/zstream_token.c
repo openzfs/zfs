@@ -49,6 +49,7 @@ int
 zstream_do_token(int argc, char *argv[])
 {
 	char *resume_token = NULL;
+	libzfs_handle_t *hdl;
 
 	if (argc < 2) {
 		(void) fprintf(stderr, "Need to pass the resume token\n");
@@ -57,7 +58,10 @@ zstream_do_token(int argc, char *argv[])
 
 	resume_token = argv[1];
 
-	libzfs_handle_t *hdl = libzfs_init();
+	if ((hdl = libzfs_init()) == NULL) {
+		(void) fprintf(stderr, "%s\n", libzfs_error_init(errno));
+		return (1);
+	}
 
 	nvlist_t *resume_nvl =
 	    zfs_send_resume_token_to_nvlist(hdl, resume_token);
