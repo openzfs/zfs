@@ -109,8 +109,8 @@
 #define	ZCP_NVLIST_MAX_DEPTH 20
 
 static const uint64_t zfs_lua_check_instrlimit_interval = 100;
-unsigned long zfs_lua_max_instrlimit = ZCP_MAX_INSTRLIMIT;
-unsigned long zfs_lua_max_memlimit = ZCP_MAX_MEMLIMIT;
+ZFS_MODULE_ULONG zfs_lua_max_instrlimit = ZCP_MAX_INSTRLIMIT;
+ZFS_MODULE_ULONG zfs_lua_max_memlimit = ZCP_MAX_MEMLIMIT;
 
 /*
  * Forward declarations for mutually recursive functions

@@ -36,7 +36,7 @@
 extern "C" {
 #endif
 
-extern unsigned long	zfetch_array_rd_sz;
+extern ZFS_MODULE_ULONG	zfetch_array_rd_sz;
 
 struct dnode;				/* so we can reference dnode */
 

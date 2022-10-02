@@ -227,8 +227,8 @@ typedef struct dbuf_cache {
 dbuf_cache_t dbuf_caches[DB_CACHE_MAX];
 
 /* Size limits for the caches */
-static unsigned long dbuf_cache_max_bytes = ULONG_MAX;
-static unsigned long dbuf_metadata_cache_max_bytes = ULONG_MAX;
+static ZFS_MODULE_ULONG dbuf_cache_max_bytes = ULONG_MAX;
+static ZFS_MODULE_ULONG dbuf_metadata_cache_max_bytes = ULONG_MAX;
 
 /* Set the default sizes of the caches to log2 fraction of arc size */
 static uint_t dbuf_cache_shift = 5;

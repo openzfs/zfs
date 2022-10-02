@@ -1218,9 +1218,9 @@ int param_set_deadman_failmode(ZFS_MODULE_PARAM_ARGS);
 
 extern spa_mode_t spa_mode_global;
 extern int zfs_deadman_enabled;
-extern unsigned long zfs_deadman_synctime_ms;
-extern unsigned long zfs_deadman_ziotime_ms;
-extern unsigned long zfs_deadman_checktime_ms;
+extern ZFS_MODULE_ULONG zfs_deadman_synctime_ms;
+extern ZFS_MODULE_ULONG zfs_deadman_ziotime_ms;
+extern ZFS_MODULE_ULONG zfs_deadman_checktime_ms;
 
 extern kmem_cache_t *zio_buf_cache[];
 extern kmem_cache_t *zio_data_buf_cache[];

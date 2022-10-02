@@ -48,6 +48,10 @@ typedef struct kernel_param zfs_kernel_param_t;
 /* END CSTYLED */
 #define	STRING charp
 
+/* Other platforms have long as 32-bit */
+#define	ZFS_MODULE_LONG long
+#define	ZFS_MODULE_ULONG unsigned long
+
 enum scope_prefix_types {
 	zfs,
 	zfs_arc,
