@@ -441,7 +441,7 @@ zio_crypt_key_wrap(crypto_key_t *cwkey, zio_crypt_key_t *key, uint8_t *iv,
 	keydata_len = zio_crypt_table[crypt].ci_keylen;
 
 	/* generate iv for wrapping the master and hmac key */
-	ret = random_get_pseudo_bytes(iv, WRAPPING_IV_LEN);
+	ret = random_get_bytes(iv, WRAPPING_IV_LEN);
 	if (ret != 0)
 		goto error;
 
@@ -609,7 +609,7 @@ zio_crypt_generate_iv(uint8_t *ivbuf)
 	int ret;
 
 	/* randomly generate the IV */
-	ret = random_get_pseudo_bytes(ivbuf, ZIO_DATA_IV_LEN);
+	ret = random_get_bytes(ivbuf, ZIO_DATA_IV_LEN);
 	if (ret != 0)
 		goto error;
 
