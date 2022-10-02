@@ -156,7 +156,7 @@
  * vary with the I/O load and this observed value is the ub_mmp_delay which is
  * stored in the uberblock.  The minimum allowed value is 100 ms.
  */
-ulong_t zfs_multihost_interval = MMP_DEFAULT_INTERVAL;
+ZFS_MODULE_ULONG zfs_multihost_interval = MMP_DEFAULT_INTERVAL;
 
 /*
  * Used to control the duration of the activity test on import.  Smaller values

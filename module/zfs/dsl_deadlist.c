@@ -92,7 +92,7 @@
  * will be loaded into memory and shouldn't take up an inordinate amount of
  * space. We settled on ~500000 entries, corresponding to roughly 128M.
  */
-unsigned long zfs_livelist_max_entries = 500000;
+ZFS_MODULE_ULONG zfs_livelist_max_entries = 500000;
 
 /*
  * We can approximate how much of a performance gain a livelist will give us

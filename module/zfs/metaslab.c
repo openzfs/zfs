@@ -51,12 +51,12 @@
  * operation, we will try to write this amount of data to each disk before
  * moving on to the next top-level vdev.
  */
-static unsigned long metaslab_aliquot = 1024 * 1024;
+static ZFS_MODULE_ULONG metaslab_aliquot = 1024 * 1024;
 
 /*
  * For testing, make some blocks above a certain size be gang blocks.
  */
-unsigned long metaslab_force_ganging = SPA_MAXBLOCKSIZE + 1;
+ZFS_MODULE_ULONG metaslab_force_ganging = SPA_MAXBLOCKSIZE + 1;
 
 /*
  * In pools where the log space map feature is not enabled we touch
@@ -286,7 +286,8 @@ static const int max_disabled_ms = 3;
  * Time (in seconds) to respect ms_max_size when the metaslab is not loaded.
  * To avoid 64-bit overflow, don't set above UINT32_MAX.
  */
-static unsigned long zfs_metaslab_max_size_cache_sec = 1 * 60 * 60; /* 1 hour */
+static ZFS_MODULE_ULONG zfs_metaslab_max_size_cache_sec = 1 * 60 * 60;
+/* 1 hour */
 
 /*
  * Maximum percentage of memory to use on storing loaded metaslabs. If loading

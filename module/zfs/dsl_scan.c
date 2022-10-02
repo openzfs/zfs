@@ -147,13 +147,13 @@ static int zfs_scan_strict_mem_lim = B_FALSE;
  * overload the drives with I/O, since that is protected by
  * zfs_vdev_scrub_max_active.
  */
-static unsigned long zfs_scan_vdev_limit = 4 << 20;
+static ZFS_MODULE_ULONG zfs_scan_vdev_limit = 4 << 20;
 
 static uint_t zfs_scan_issue_strategy = 0;
 
 /* don't queue & sort zios, go direct */
 static int zfs_scan_legacy = B_FALSE;
-static unsigned long zfs_scan_max_ext_gap = 2 << 20; /* in bytes */
+static ZFS_MODULE_ULONG zfs_scan_max_ext_gap = 2 << 20; /* in bytes */
 
 /*
  * fill_weight is non-tunable at runtime, so we copy it at module init from
@@ -192,9 +192,9 @@ static int zfs_no_scrub_io = B_FALSE; /* set to disable scrub i/o */
 static int zfs_no_scrub_prefetch = B_FALSE; /* set to disable scrub prefetch */
 static const enum ddt_class zfs_scrub_ddt_class_max = DDT_CLASS_DUPLICATE;
 /* max number of blocks to free in a single TXG */
-static unsigned long zfs_async_block_max_blocks = ULONG_MAX;
+static ZFS_MODULE_ULONG zfs_async_block_max_blocks = ULONG_MAX;
 /* max number of dedup blocks to free in a single TXG */
-static unsigned long zfs_max_async_dedup_frees = 100000;
+static ZFS_MODULE_ULONG zfs_max_async_dedup_frees = 100000;
 
 /* set to disable resilver deferring */
 static int zfs_resilver_disable_defer = B_FALSE;

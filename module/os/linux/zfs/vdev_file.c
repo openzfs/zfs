@@ -53,8 +53,8 @@ static taskq_t *vdev_file_taskq;
  * impact the vdev_ashift setting which can only be set at vdev creation
  * time.
  */
-static unsigned long vdev_file_logical_ashift = SPA_MINBLOCKSHIFT;
-static unsigned long vdev_file_physical_ashift = SPA_MINBLOCKSHIFT;
+static ZFS_MODULE_ULONG vdev_file_logical_ashift = SPA_MINBLOCKSHIFT;
+static ZFS_MODULE_ULONG vdev_file_physical_ashift = SPA_MINBLOCKSHIFT;
 
 static void
 vdev_file_hold(vdev_t *vd)

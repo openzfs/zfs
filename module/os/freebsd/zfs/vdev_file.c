@@ -40,8 +40,8 @@
 
 static taskq_t *vdev_file_taskq;
 
-static unsigned long vdev_file_logical_ashift = SPA_MINBLOCKSHIFT;
-static unsigned long vdev_file_physical_ashift = SPA_MINBLOCKSHIFT;
+static ZFS_MODULE_ULONG vdev_file_logical_ashift = SPA_MINBLOCKSHIFT;
+static ZFS_MODULE_ULONG vdev_file_physical_ashift = SPA_MINBLOCKSHIFT;
 
 void
 vdev_file_init(void)

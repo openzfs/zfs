@@ -176,7 +176,7 @@ zfs_access(znode_t *zp, int mode, int flag, cred_t *cr)
 	return (error);
 }
 
-static unsigned long zfs_vnops_read_chunk_size = 1024 * 1024; /* Tunable */
+static ZFS_MODULE_ULONG zfs_vnops_read_chunk_size = 1024 * 1024; /* Tunable */
 
 /*
  * Read bytes from specified file into supplied buffer.

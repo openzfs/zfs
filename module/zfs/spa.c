@@ -218,7 +218,7 @@ static int		spa_load_print_vdev_tree = B_FALSE;
  * there are also risks of performing an inadvertent rewind as we might be
  * missing all the vdevs with the latest uberblocks.
  */
-unsigned long	zfs_max_missing_tvds = 0;
+ZFS_MODULE_ULONG	zfs_max_missing_tvds = 0;
 
 /*
  * The parameters below are similar to zfs_max_missing_tvds but are only
