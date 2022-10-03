@@ -99,8 +99,8 @@
  * capped at zfs_dirty_data_max_max.  It can also be overridden with a module
  * parameter.
  */
-unsigned long zfs_dirty_data_max = 0;
-unsigned long zfs_dirty_data_max_max = 0;
+uint64_t zfs_dirty_data_max = 0;
+uint64_t zfs_dirty_data_max_max = 0;
 uint_t zfs_dirty_data_max_percent = 10;
 uint_t zfs_dirty_data_max_max_percent = 25;
 
@@ -109,7 +109,7 @@ uint_t zfs_dirty_data_max_max_percent = 25;
  * when approaching the limit until log data is cleared out after txg sync.
  * It only counts TX_WRITE log with WR_COPIED or WR_NEED_COPY.
  */
-unsigned long zfs_wrlog_data_max = 0;
+uint64_t zfs_wrlog_data_max = 0;
 
 /*
  * If there's at least this much dirty data (as a percentage of
@@ -138,7 +138,7 @@ uint_t zfs_delay_min_dirty_percent = 60;
  * Note: zfs_delay_scale * zfs_dirty_data_max must be < 2^64, due to the
  * multiply in dmu_tx_delay().
  */
-unsigned long zfs_delay_scale = 1000 * 1000 * 1000 / 2000;
+uint64_t zfs_delay_scale = 1000 * 1000 * 1000 / 2000;
 
 /*
  * This determines the number of threads used by the dp_sync_taskq.
@@ -1465,20 +1465,20 @@ ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_max_max_percent, UINT, ZMOD_RD,
 ZFS_MODULE_PARAM(zfs, zfs_, delay_min_dirty_percent, UINT, ZMOD_RW,
 	"Transaction delay threshold");
 
-ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_max, ULONG, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_max, U64, ZMOD_RW,
 	"Determines the dirty space limit");
 
-ZFS_MODULE_PARAM(zfs, zfs_, wrlog_data_max, ULONG, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, wrlog_data_max, U64, ZMOD_RW,
 	"The size limit of write-transaction zil log data");
 
 /* zfs_dirty_data_max_max only applied at module load in arc_init(). */
-ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_max_max, ULONG, ZMOD_RD,
+ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_max_max, U64, ZMOD_RD,
 	"zfs_dirty_data_max upper bound in bytes");
 
 ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_sync_percent, UINT, ZMOD_RW,
 	"Dirty data txg sync threshold as a percentage of zfs_dirty_data_max");
 
-ZFS_MODULE_PARAM(zfs, zfs_, delay_scale, ULONG, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, delay_scale, U64, ZMOD_RW,
 	"How quickly delay approaches infinity");
 
 ZFS_MODULE_PARAM(zfs, zfs_, sync_taskq_batch_pct, INT, ZMOD_RW,

@@ -189,14 +189,14 @@ static uint_t zfs_condense_indirect_obsolete_pct = 25;
  * consumed by the obsolete space map; the default of 1GB is small enough
  * that we typically don't mind "wasting" it.
  */
-static unsigned long zfs_condense_max_obsolete_bytes = 1024 * 1024 * 1024;
+static uint64_t zfs_condense_max_obsolete_bytes = 1024 * 1024 * 1024;
 
 /*
  * Don't bother condensing if the mapping uses less than this amount of
  * memory.  The default of 128KB is considered a "trivial" amount of
  * memory and not worth reducing.
  */
-static unsigned long zfs_condense_min_mapping_bytes = 128 * 1024;
+static uint64_t zfs_condense_min_mapping_bytes = 128 * 1024;
 
 /*
  * This is used by the test suite so that it can ensure that certain
@@ -1891,11 +1891,11 @@ ZFS_MODULE_PARAM(zfs_condense, zfs_condense_, indirect_obsolete_pct, UINT,
 	"Minimum obsolete percent of bytes in the mapping "
 	"to attempt condensing");
 
-ZFS_MODULE_PARAM(zfs_condense, zfs_condense_, min_mapping_bytes, ULONG, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_condense, zfs_condense_, min_mapping_bytes, U64, ZMOD_RW,
 	"Don't bother condensing if the mapping uses less than this amount of "
 	"memory");
 
-ZFS_MODULE_PARAM(zfs_condense, zfs_condense_, max_obsolete_bytes, ULONG,
+ZFS_MODULE_PARAM(zfs_condense, zfs_condense_, max_obsolete_bytes, U64,
 	ZMOD_RW,
 	"Minimum size obsolete spacemap to attempt condensing");
 

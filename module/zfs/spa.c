@@ -218,7 +218,7 @@ static int		spa_load_print_vdev_tree = B_FALSE;
  * there are also risks of performing an inadvertent rewind as we might be
  * missing all the vdevs with the latest uberblocks.
  */
-unsigned long	zfs_max_missing_tvds = 0;
+uint64_t	zfs_max_missing_tvds = 0;
 
 /*
  * The parameters below are similar to zfs_max_missing_tvds but are only
@@ -10016,7 +10016,7 @@ ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_batch_tpq, UINT, ZMOD_RD,
 	"Number of threads per IO worker taskqueue");
 
 /* BEGIN CSTYLED */
-ZFS_MODULE_PARAM(zfs, zfs_, max_missing_tvds, ULONG, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, max_missing_tvds, U64, ZMOD_RW,
 	"Allow importing pool with up to this number of missing top-level "
 	"vdevs (in read-only mode)");
 /* END CSTYLED */

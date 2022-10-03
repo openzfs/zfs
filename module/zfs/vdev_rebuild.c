@@ -103,7 +103,7 @@
  * Size of rebuild reads; defaults to 1MiB per data disk and is capped at
  * SPA_MAXBLOCKSIZE.
  */
-static unsigned long zfs_rebuild_max_segment = 1024 * 1024;
+static uint64_t zfs_rebuild_max_segment = 1024 * 1024;
 
 /*
  * Maximum number of parallelly executed bytes per leaf vdev caused by a
@@ -121,7 +121,7 @@ static unsigned long zfs_rebuild_max_segment = 1024 * 1024;
  * With a value of 32MB the sequential resilver write rate was measured at
  * 800MB/s sustained while rebuilding to a distributed spare.
  */
-static unsigned long zfs_rebuild_vdev_limit = 32 << 20;
+static uint64_t zfs_rebuild_vdev_limit = 32 << 20;
 
 /*
  * Automatically start a pool scrub when the last active sequential resilver
@@ -1138,10 +1138,10 @@ vdev_rebuild_get_stats(vdev_t *tvd, vdev_rebuild_stat_t *vrs)
 	return (error);
 }
 
-ZFS_MODULE_PARAM(zfs, zfs_, rebuild_max_segment, ULONG, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, rebuild_max_segment, U64, ZMOD_RW,
 	"Max segment size in bytes of rebuild reads");
 
-ZFS_MODULE_PARAM(zfs, zfs_, rebuild_vdev_limit, ULONG, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, rebuild_vdev_limit, U64, ZMOD_RW,
 	"Max bytes in flight per leaf vdev for sequential resilvers");
 
 ZFS_MODULE_PARAM(zfs, zfs_, rebuild_scrub_enabled, INT, ZMOD_RW,

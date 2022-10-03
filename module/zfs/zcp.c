@@ -109,8 +109,8 @@
 #define	ZCP_NVLIST_MAX_DEPTH 20
 
 static const uint64_t zfs_lua_check_instrlimit_interval = 100;
-unsigned long zfs_lua_max_instrlimit = ZCP_MAX_INSTRLIMIT;
-unsigned long zfs_lua_max_memlimit = ZCP_MAX_MEMLIMIT;
+uint64_t zfs_lua_max_instrlimit = ZCP_MAX_INSTRLIMIT;
+uint64_t zfs_lua_max_memlimit = ZCP_MAX_MEMLIMIT;
 
 /*
  * Forward declarations for mutually recursive functions
@@ -1443,8 +1443,8 @@ zcp_parse_args(lua_State *state, const char *fname, const zcp_arg_t *pargs,
 	}
 }
 
-ZFS_MODULE_PARAM(zfs_lua, zfs_lua_, max_instrlimit, ULONG, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_lua, zfs_lua_, max_instrlimit, U64, ZMOD_RW,
 	"Max instruction limit that can be specified for a channel program");
 
-ZFS_MODULE_PARAM(zfs_lua, zfs_lua_, max_memlimit, ULONG, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_lua, zfs_lua_, max_memlimit, U64, ZMOD_RW,
 	"Max memory limit that can be specified for a channel program");

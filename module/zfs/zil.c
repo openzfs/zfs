@@ -132,7 +132,7 @@ static int zil_nocacheflush = 0;
  * Any writes above that will be executed with lower (asynchronous) priority
  * to limit potential SLOG device abuse by single active ZIL writer.
  */
-static unsigned long zil_slog_bulk = 768 * 1024;
+static uint64_t zil_slog_bulk = 768 * 1024;
 
 static kmem_cache_t *zil_lwb_cache;
 static kmem_cache_t *zil_zcw_cache;
@@ -3945,7 +3945,7 @@ ZFS_MODULE_PARAM(zfs_zil, zil_, replay_disable, INT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_zil, zil_, nocacheflush, INT, ZMOD_RW,
 	"Disable ZIL cache flushes");
 
-ZFS_MODULE_PARAM(zfs_zil, zil_, slog_bulk, ULONG, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_zil, zil_, slog_bulk, U64, ZMOD_RW,
 	"Limit in bytes slog sync writes per commit");
 
 ZFS_MODULE_PARAM(zfs_zil, zil_, maxblocksize, UINT, ZMOD_RW,

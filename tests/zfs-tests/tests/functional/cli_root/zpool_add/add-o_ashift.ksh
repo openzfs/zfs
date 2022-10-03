@@ -44,7 +44,7 @@ verify_runnable "global"
 
 function cleanup
 {
-	log_must set_tunable64 VDEV_FILE_PHYSICAL_ASHIFT $orig_ashift
+	log_must set_tunable32 VDEV_FILE_PHYSICAL_ASHIFT $orig_ashift
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 	rm -f $disk1 $disk2
 }
@@ -77,13 +77,13 @@ do
 	# Make sure we can also set the ashift using the tunable.
 	#
 	log_must zpool create $TESTPOOL $disk1
-	log_must set_tunable64 VDEV_FILE_PHYSICAL_ASHIFT $ashift
+	log_must set_tunable32 VDEV_FILE_PHYSICAL_ASHIFT $ashift
 	log_must zpool add $TESTPOOL $disk2
 	exp=$(( (ashift <= max_auto_ashift) ? ashift : logical_ashift ))
 	log_must verify_ashift $disk2 $exp
 
 	# clean things for the next run
-	log_must set_tunable64 VDEV_FILE_PHYSICAL_ASHIFT $orig_ashift
+	log_must set_tunable32 VDEV_FILE_PHYSICAL_ASHIFT $orig_ashift
 	log_must zpool destroy $TESTPOOL
 	log_must zpool labelclear $disk1
 	log_must zpool labelclear $disk2

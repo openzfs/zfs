@@ -304,20 +304,20 @@ int zfs_free_leak_on_eio = B_FALSE;
  * has not completed in zfs_deadman_synctime_ms is considered "hung" resulting
  * in one of three behaviors controlled by zfs_deadman_failmode.
  */
-unsigned long zfs_deadman_synctime_ms = 600000UL;  /* 10 min. */
+uint64_t zfs_deadman_synctime_ms = 600000UL;  /* 10 min. */
 
 /*
  * This value controls the maximum amount of time zio_wait() will block for an
  * outstanding IO.  By default this is 300 seconds at which point the "hung"
  * behavior will be applied as described for zfs_deadman_synctime_ms.
  */
-unsigned long zfs_deadman_ziotime_ms = 300000UL;  /* 5 min. */
+uint64_t zfs_deadman_ziotime_ms = 300000UL;  /* 5 min. */
 
 /*
  * Check time in milliseconds. This defines the frequency at which we check
  * for hung I/O.
  */
-unsigned long zfs_deadman_checktime_ms = 60000UL;  /* 1 min. */
+uint64_t zfs_deadman_checktime_ms = 60000UL;  /* 1 min. */
 
 /*
  * By default the deadman is enabled.
@@ -2922,7 +2922,7 @@ ZFS_MODULE_PARAM(zfs, zfs_, recover, INT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, free_leak_on_eio, INT, ZMOD_RW,
 	"Set to ignore IO errors during free and permanently leak the space");
 
-ZFS_MODULE_PARAM(zfs_deadman, zfs_deadman_, checktime_ms, ULONG, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_deadman, zfs_deadman_, checktime_ms, U64, ZMOD_RW,
 	"Dead I/O check interval in milliseconds");
 
 ZFS_MODULE_PARAM(zfs_deadman, zfs_deadman_, enabled, INT, ZMOD_RW,
@@ -2943,11 +2943,11 @@ ZFS_MODULE_PARAM_CALL(zfs_deadman, zfs_deadman_, failmode,
 	"Failmode for deadman timer");
 
 ZFS_MODULE_PARAM_CALL(zfs_deadman, zfs_deadman_, synctime_ms,
-	param_set_deadman_synctime, param_get_ulong, ZMOD_RW,
+	param_set_deadman_synctime, spl_param_get_u64, ZMOD_RW,
 	"Pool sync expiration time in milliseconds");
 
 ZFS_MODULE_PARAM_CALL(zfs_deadman, zfs_deadman_, ziotime_ms,
-	param_set_deadman_ziotime, param_get_ulong, ZMOD_RW,
+	param_set_deadman_ziotime, spl_param_get_u64, ZMOD_RW,
 	"IO expiration time in milliseconds");
 
 ZFS_MODULE_PARAM(zfs, zfs_, special_class_metadata_reserve_pct, UINT, ZMOD_RW,

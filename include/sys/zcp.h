@@ -33,8 +33,8 @@ extern "C" {
 
 #define	ZCP_RUN_INFO_KEY "runinfo"
 
-extern unsigned long zfs_lua_max_instrlimit;
-extern unsigned long zfs_lua_max_memlimit;
+extern uint64_t zfs_lua_max_instrlimit;
+extern uint64_t zfs_lua_max_memlimit;
 
 int zcp_argerror(lua_State *, int, const char *, ...);
 

@@ -147,13 +147,13 @@ static int zfs_scan_strict_mem_lim = B_FALSE;
  * overload the drives with I/O, since that is protected by
  * zfs_vdev_scrub_max_active.
  */
-static unsigned long zfs_scan_vdev_limit = 4 << 20;
+static uint64_t zfs_scan_vdev_limit = 4 << 20;
 
 static uint_t zfs_scan_issue_strategy = 0;
 
 /* don't queue & sort zios, go direct */
 static int zfs_scan_legacy = B_FALSE;
-static unsigned long zfs_scan_max_ext_gap = 2 << 20; /* in bytes */
+static uint64_t zfs_scan_max_ext_gap = 2 << 20; /* in bytes */
 
 /*
  * fill_weight is non-tunable at runtime, so we copy it at module init from
@@ -192,9 +192,9 @@ static int zfs_no_scrub_io = B_FALSE; /* set to disable scrub i/o */
 static int zfs_no_scrub_prefetch = B_FALSE; /* set to disable scrub prefetch */
 static const enum ddt_class zfs_scrub_ddt_class_max = DDT_CLASS_DUPLICATE;
 /* max number of blocks to free in a single TXG */
-static unsigned long zfs_async_block_max_blocks = ULONG_MAX;
+static uint64_t zfs_async_block_max_blocks = UINT64_MAX;
 /* max number of dedup blocks to free in a single TXG */
-static unsigned long zfs_max_async_dedup_frees = 100000;
+static uint64_t zfs_max_async_dedup_frees = 100000;
 
 /* set to disable resilver deferring */
 static int zfs_resilver_disable_defer = B_FALSE;
@@ -4446,7 +4446,7 @@ dsl_scan_assess_vdev(dsl_pool_t *dp, vdev_t *vd)
 		spa_async_request(dp->dp_spa, SPA_ASYNC_RESILVER);
 }
 
-ZFS_MODULE_PARAM(zfs, zfs_, scan_vdev_limit, ULONG, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_vdev_limit, U64, ZMOD_RW,
 	"Max bytes in flight per leaf vdev for scrubs and resilvers");
 
 ZFS_MODULE_PARAM(zfs, zfs_, scrub_min_time_ms, UINT, ZMOD_RW,
@@ -4470,10 +4470,10 @@ ZFS_MODULE_PARAM(zfs, zfs_, no_scrub_io, INT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, no_scrub_prefetch, INT, ZMOD_RW,
 	"Set to disable scrub prefetching");
 
-ZFS_MODULE_PARAM(zfs, zfs_, async_block_max_blocks, ULONG, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, async_block_max_blocks, U64, ZMOD_RW,
 	"Max number of blocks freed in one txg");
 
-ZFS_MODULE_PARAM(zfs, zfs_, max_async_dedup_frees, ULONG, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, max_async_dedup_frees, U64, ZMOD_RW,
 	"Max number of dedup blocks freed in one txg");
 
 ZFS_MODULE_PARAM(zfs, zfs_, free_bpobj_enabled, INT, ZMOD_RW,
@@ -4494,7 +4494,7 @@ ZFS_MODULE_PARAM(zfs, zfs_, scan_legacy, INT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, scan_checkpoint_intval, UINT, ZMOD_RW,
 	"Scan progress on-disk checkpointing interval");
 
-ZFS_MODULE_PARAM(zfs, zfs_, scan_max_ext_gap, ULONG, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_max_ext_gap, U64, ZMOD_RW,
 	"Max gap in bytes between sequential scrub / resilver I/Os");
 
 ZFS_MODULE_PARAM(zfs, zfs_, scan_mem_lim_soft_fact, UINT, ZMOD_RW,

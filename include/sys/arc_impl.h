@@ -985,8 +985,8 @@ extern arc_state_t	ARC_mfu;
 extern arc_state_t	ARC_mru;
 extern uint_t zfs_arc_pc_percent;
 extern uint_t arc_lotsfree_percent;
-extern unsigned long zfs_arc_min;
-extern unsigned long zfs_arc_max;
+extern uint64_t zfs_arc_min;
+extern uint64_t zfs_arc_max;
 
 extern void arc_reduce_target_size(int64_t to_free);
 extern boolean_t arc_reclaim_needed(void);
@@ -1003,7 +1003,7 @@ extern void arc_tuning_update(boolean_t);
 extern void arc_register_hotplug(void);
 extern void arc_unregister_hotplug(void);
 
-extern int param_set_arc_long(ZFS_MODULE_PARAM_ARGS);
+extern int param_set_arc_u64(ZFS_MODULE_PARAM_ARGS);
 extern int param_set_arc_int(ZFS_MODULE_PARAM_ARGS);
 extern int param_set_arc_min(ZFS_MODULE_PARAM_ARGS);
 extern int param_set_arc_max(ZFS_MODULE_PARAM_ARGS);

@@ -26,7 +26,7 @@
 .Sh DESCRIPTION
 The ZFS module supports these parameters:
 .Bl -tag -width Ds
-.It Sy dbuf_cache_max_bytes Ns = Ns Sy ULONG_MAX Ns B Pq ulong
+.It Sy dbuf_cache_max_bytes Ns = Ns Sy UINT64_MAX Ns B Pq u64
 Maximum size in bytes of the dbuf cache.
 The target size is determined by the MIN versus
 .No 1/2^ Ns Sy dbuf_cache_shift Pq 1/32nd
@@ -36,7 +36,7 @@ can be observed via the
 .Pa /proc/spl/kstat/zfs/dbufstats
 kstat.
 .
-.It Sy dbuf_metadata_cache_max_bytes Ns = Ns Sy ULONG_MAX Ns B Pq ulong
+.It Sy dbuf_metadata_cache_max_bytes Ns = Ns Sy UINT64_MAX Ns B Pq u64
 Maximum size in bytes of the metadata dbuf cache.
 The target size is determined by the MIN versus
 .No 1/2^ Ns Sy dbuf_metadata_cache_shift Pq 1/64th
@@ -88,16 +88,16 @@ Alias for
 Turbo L2ARC warm-up.
 When the L2ARC is cold the fill interval will be set as fast as possible.
 .
-.It Sy l2arc_feed_min_ms Ns = Ns Sy 200 Pq ulong
+.It Sy l2arc_feed_min_ms Ns = Ns Sy 200 Pq u64
 Min feed interval in milliseconds.
 Requires
 .Sy l2arc_feed_again Ns = Ns Ar 1
 and only applicable in related situations.
 .
-.It Sy l2arc_feed_secs Ns = Ns Sy 1 Pq ulong
+.It Sy l2arc_feed_secs Ns = Ns Sy 1 Pq u64
 Seconds between L2ARC writing.
 .
-.It Sy l2arc_headroom Ns = Ns Sy 2 Pq ulong
+.It Sy l2arc_headroom Ns = Ns Sy 2 Pq u64
 How far through the ARC lists to search for L2ARC cacheable content,
 expressed as a multiplier of
 .Sy l2arc_write_max .
@@ -106,7 +106,7 @@ by setting this parameter to
 .Sy 0 ,
 allowing the full length of ARC lists to be searched for cacheable content.
 .
-.It Sy l2arc_headroom_boost Ns = Ns Sy 200 Ns % Pq ulong
+.It Sy l2arc_headroom_boost Ns = Ns Sy 200 Ns % Pq u64
 Scales
 .Sy l2arc_headroom
 by this percentage when L2ARC contents are being successfully compressed
@@ -162,7 +162,7 @@ too many headers on a system with an irrationally large L2ARC
 can render it slow or unusable.
 This parameter limits L2ARC writes and rebuilds to achieve the target.
 .
-.It Sy l2arc_trim_ahead Ns = Ns Sy 0 Ns % Pq ulong
+.It Sy l2arc_trim_ahead Ns = Ns Sy 0 Ns % Pq u64
 Trims ahead of the current write size
 .Pq Sy l2arc_write_max
 on L2ARC devices by this percentage of write size if we have filled the device.
@@ -200,12 +200,12 @@ to enable caching/reading prefetches to/from L2ARC.
 .It Sy l2arc_norw Ns = Ns Sy 0 Ns | Ns 1 Pq int
 No reads during writes.
 .
-.It Sy l2arc_write_boost Ns = Ns Sy 8388608 Ns B Po 8 MiB Pc Pq ulong
+.It Sy l2arc_write_boost Ns = Ns Sy 8388608 Ns B Po 8 MiB Pc Pq u64
 Cold L2ARC devices will have
 .Sy l2arc_write_max
 increased by this amount while they remain cold.
 .
-.It Sy l2arc_write_max Ns = Ns Sy 8388608 Ns B Po 8 MiB Pc Pq ulong
+.It Sy l2arc_write_max Ns = Ns Sy 8388608 Ns B Po 8 MiB Pc Pq u64
 Max write bytes per interval.
 .
 .It Sy l2arc_rebuild_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
@@ -215,7 +215,7 @@ or attaching an L2ARC device (e.g. the L2ARC device is slow
 in reading stored log metadata, or the metadata
 has become somehow fragmented/unusable).
 .
-.It Sy l2arc_rebuild_blocks_min_l2size Ns = Ns Sy 1073741824 Ns B Po 1 GiB Pc Pq ulong
+.It Sy l2arc_rebuild_blocks_min_l2size Ns = Ns Sy 1073741824 Ns B Po 1 GiB Pc Pq u64
 Mininum size of an L2ARC device required in order to write log blocks in it.
 The log blocks are used upon importing the pool to rebuild the persistent L2ARC.
 .Pp
@@ -224,7 +224,7 @@ For L2ARC devices less than 1 GiB, the amount of data
 evicts is significant compared to the amount of restored L2ARC data.
 In this case, do not write log blocks in L2ARC in order not to waste space.
 .
-.It Sy metaslab_aliquot Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq ulong
+.It Sy metaslab_aliquot Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq u64
 Metaslab granularity, in bytes.
 This is roughly similar to what would be referred to as the "stripe size"
 in traditional RAID arrays.
@@ -235,11 +235,11 @@ before moving on to the next top-level vdev.
 Enable metaslab group biasing based on their vdevs' over- or under-utilization
 relative to the pool.
 .
-.It Sy metaslab_force_ganging Ns = Ns Sy 16777217 Ns B Po 16 MiB + 1 B Pc Pq ulong
+.It Sy metaslab_force_ganging Ns = Ns Sy 16777217 Ns B Po 16 MiB + 1 B Pc Pq u64
 Make some blocks above a certain size be gang blocks.
 This option is used by the test suite to facilitate testing.
 .
-.It Sy zfs_history_output_max Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq int
+.It Sy zfs_history_output_max Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq u64
 When attempting to log an output nvlist of an ioctl in the on-disk history,
 the output will not be stored if it is larger than this size (in bytes).
 This must be less than
@@ -299,7 +299,7 @@ this tunable controls which segment is used.
 If set, we will use the largest free segment.
 If unset, we will use a segment of at least the requested size.
 .
-.It Sy zfs_metaslab_max_size_cache_sec Ns = Ns Sy 3600 Ns s Po 1 hour Pc Pq ulong
+.It Sy zfs_metaslab_max_size_cache_sec Ns = Ns Sy 3600 Ns s Po 1 hour Pc Pq u64
 When we unload a metaslab, we cache the size of the largest free chunk.
 We use that cached size to determine whether or not to load a metaslab
 for a given allocation.
@@ -353,14 +353,14 @@ When a vdev is added, target this number of metaslabs per top-level vdev.
 .It Sy zfs_vdev_default_ms_shift Ns = Ns Sy 29 Po 512 MiB Pc Pq uint
 Default limit for metaslab size.
 .
-.It Sy zfs_vdev_max_auto_ashift Ns = Ns Sy 14 Pq ulong
+.It Sy zfs_vdev_max_auto_ashift Ns = Ns Sy 14 Pq uint
 Maximum ashift used when optimizing for logical \[->] physical sector size on new
 top-level vdevs.
 May be increased up to
 .Sy ASHIFT_MAX Po 16 Pc ,
 but this may negatively impact pool space efficiency.
 .
-.It Sy zfs_vdev_min_auto_ashift Ns = Ns Sy ASHIFT_MIN Po 9 Pc Pq ulong
+.It Sy zfs_vdev_min_auto_ashift Ns = Ns Sy ASHIFT_MIN Po 9 Pc Pq uint
 Minimum ashift used when creating new top-level vdevs.
 .
 .It Sy zfs_vdev_min_ms_count Ns = Ns Sy 16 Pq uint
@@ -481,10 +481,10 @@ The default value here was chosen to align with
 which is a similar concept when doing
 regular reads (but there's no reason it has to be the same).
 .
-.It Sy vdev_file_logical_ashift Ns = Ns Sy 9 Po 512 B Pc Pq ulong
+.It Sy vdev_file_logical_ashift Ns = Ns Sy 9 Po 512 B Pc Pq u64
 Logical ashift for file-based devices.
 .
-.It Sy vdev_file_physical_ashift Ns = Ns Sy 9 Po 512 B Pc Pq ulong
+.It Sy vdev_file_physical_ashift Ns = Ns Sy 9 Po 512 B Pc Pq u64
 Physical ashift for file-based devices.
 .
 .It Sy zap_iterate_prefetch Ns = Ns Sy 1 Ns | Ns 0 Pq int
@@ -493,7 +493,7 @@ prefetch the entire object (all leaf blocks).
 However, this is limited by
 .Sy dmu_prefetch_max .
 .
-.It Sy zfetch_array_rd_sz Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq ulong
+.It Sy zfetch_array_rd_sz Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq u64
 If prefetching is enabled, disable prefetching for reads larger than this size.
 .
 .It Sy zfetch_min_distance Ns = Ns Sy 4194304 Ns B Po 4 MiB Pc Pq uint
@@ -537,7 +537,7 @@ depends on kernel configuration.
 This is the minimum allocation size that will use scatter (page-based) ABDs.
 Smaller allocations will use linear ABDs.
 .
-.It Sy zfs_arc_dnode_limit Ns = Ns Sy 0 Ns B Pq ulong
+.It Sy zfs_arc_dnode_limit Ns = Ns Sy 0 Ns B Pq u64
 When the number of bytes consumed by dnodes in the ARC exceeds this number of
 bytes, try to unpin some of it in response to demand for non-metadata.
 This value acts as a ceiling to the amount of dnode metadata, and defaults to
@@ -553,14 +553,14 @@ when the amount of metadata in the ARC exceeds
 .Sy zfs_arc_meta_limit
 rather than in response to overall demand for non-metadata.
 .
-.It Sy zfs_arc_dnode_limit_percent Ns = Ns Sy 10 Ns % Pq ulong
+.It Sy zfs_arc_dnode_limit_percent Ns = Ns Sy 10 Ns % Pq u64
 Percentage that can be consumed by dnodes of ARC meta buffers.
 .Pp
 See also
 .Sy zfs_arc_dnode_limit ,
 which serves a similar purpose but has a higher priority if nonzero.
 .
-.It Sy zfs_arc_dnode_reduce_percent Ns = Ns Sy 10 Ns % Pq ulong
+.It Sy zfs_arc_dnode_reduce_percent Ns = Ns Sy 10 Ns % Pq u64
 Percentage of ARC dnodes to try to scan in response to demand for non-metadata
 when the number of bytes consumed by dnodes exceeds
 .Sy zfs_arc_dnode_limit .
@@ -613,7 +613,7 @@ Setting this value to
 .Sy 0
 will disable the throttle.
 .
-.It Sy zfs_arc_max Ns = Ns Sy 0 Ns B Pq ulong
+.It Sy zfs_arc_max Ns = Ns Sy 0 Ns B Pq u64
 Max size of ARC in bytes.
 If
 .Sy 0 ,
@@ -642,7 +642,7 @@ the free buffers in order to stay below the
 This value should not need to be tuned but is available to facilitate
 performance analysis.
 .
-.It Sy zfs_arc_meta_limit Ns = Ns Sy 0 Ns B Pq ulong
+.It Sy zfs_arc_meta_limit Ns = Ns Sy 0 Ns B Pq u64
 The maximum allowed size in bytes that metadata buffers are allowed to
 consume in the ARC.
 When this limit is reached, metadata buffers will be reclaimed,
@@ -658,14 +658,14 @@ of the ARC may be used for metadata.
 This value my be changed dynamically, except that must be set to an explicit value
 .Pq cannot be set back to Sy 0 .
 .
-.It Sy zfs_arc_meta_limit_percent Ns = Ns Sy 75 Ns % Pq ulong
+.It Sy zfs_arc_meta_limit_percent Ns = Ns Sy 75 Ns % Pq u64
 Percentage of ARC buffers that can be used for metadata.
 .Pp
 See also
 .Sy zfs_arc_meta_limit ,
 which serves a similar purpose but has a higher priority if nonzero.
 .
-.It Sy zfs_arc_meta_min Ns = Ns Sy 0 Ns B Pq ulong
+.It Sy zfs_arc_meta_min Ns = Ns Sy 0 Ns B Pq u64
 The minimum allowed size in bytes that metadata buffers may consume in
 the ARC.
 .
@@ -691,7 +691,7 @@ additional data buffers may be evicted if required
 to evict the required number of metadata buffers.
 .El
 .
-.It Sy zfs_arc_min Ns = Ns Sy 0 Ns B Pq ulong
+.It Sy zfs_arc_min Ns = Ns Sy 0 Ns B Pq u64
 Min size of ARC in bytes.
 .No If set to Sy 0 , arc_c_min
 will default to consuming the larger of
@@ -718,7 +718,7 @@ but that was not proven to be useful.
 Number of missing top-level vdevs which will be allowed during
 pool import (only in read-only mode).
 .
-.It Sy zfs_max_nvlist_src_size Ns = Sy 0 Pq ulong
+.It Sy zfs_max_nvlist_src_size Ns = Sy 0 Pq u64
 Maximum size in bytes allowed to be passed as
 .Sy zc_nvlist_src_size
 for ioctls on
@@ -822,7 +822,7 @@ even with a small average compressed block size of ~8 KiB.
 The parameter can be set to 0 (zero) to disable the limit,
 and only applies on Linux.
 .
-.It Sy zfs_arc_sys_free Ns = Ns Sy 0 Ns B Pq ulong
+.It Sy zfs_arc_sys_free Ns = Ns Sy 0 Ns B Pq u64
 The target number of bytes the ARC should leave as free memory on the system.
 If zero, equivalent to the bigger of
 .Sy 512 KiB No and Sy all_system_memory/64 .
@@ -866,12 +866,12 @@ bytes of memory and if the obsolete space map object uses more than
 bytes on-disk.
 The condensing process is an attempt to save memory by removing obsolete mappings.
 .
-.It Sy zfs_condense_max_obsolete_bytes Ns = Ns Sy 1073741824 Ns B Po 1 GiB Pc Pq ulong
+.It Sy zfs_condense_max_obsolete_bytes Ns = Ns Sy 1073741824 Ns B Po 1 GiB Pc Pq u64
 Only attempt to condense indirect vdev mappings if the on-disk size
 of the obsolete space map object is greater than this number of bytes
 .Pq see Sy zfs_condense_indirect_vdevs_enable .
 .
-.It Sy zfs_condense_min_mapping_bytes Ns = Ns Sy 131072 Ns B Po 128 KiB Pc Pq ulong
+.It Sy zfs_condense_min_mapping_bytes Ns = Ns Sy 131072 Ns B Po 128 KiB Pc Pq u64
 Minimum size vdev mapping to attempt to condense
 .Pq see Sy zfs_condense_indirect_vdevs_enable .
 .
@@ -927,21 +927,21 @@ This can be used to facilitate automatic fail-over
 to a properly configured fail-over partner.
 .El
 .
-.It Sy zfs_deadman_checktime_ms Ns = Ns Sy 60000 Ns ms Po 1 min Pc Pq int
+.It Sy zfs_deadman_checktime_ms Ns = Ns Sy 60000 Ns ms Po 1 min Pc Pq u64
 Check time in milliseconds.
 This defines the frequency at which we check for hung I/O requests
 and potentially invoke the
 .Sy zfs_deadman_failmode
 behavior.
 .
-.It Sy zfs_deadman_synctime_ms Ns = Ns Sy 600000 Ns ms Po 10 min Pc Pq ulong
+.It Sy zfs_deadman_synctime_ms Ns = Ns Sy 600000 Ns ms Po 10 min Pc Pq u64
 Interval in milliseconds after which the deadman is triggered and also
 the interval after which a pool sync operation is considered to be "hung".
 Once this limit is exceeded the deadman will be invoked every
 .Sy zfs_deadman_checktime_ms
 milliseconds until the pool sync completes.
 .
-.It Sy zfs_deadman_ziotime_ms Ns = Ns Sy 300000 Ns ms Po 5 min Pc Pq ulong
+.It Sy zfs_deadman_ziotime_ms Ns = Ns Sy 300000 Ns ms Po 5 min Pc Pq u64
 Interval in milliseconds after which the deadman is triggered and an
 individual I/O operation is considered to be "hung".
 As long as the operation remains "hung",
@@ -994,15 +994,15 @@ same object.
 Rate limit delay and deadman zevents (which report slow I/O operations) to this many per
 second.
 .
-.It Sy zfs_unflushed_max_mem_amt Ns = Ns Sy 1073741824 Ns B Po 1 GiB Pc Pq ulong
+.It Sy zfs_unflushed_max_mem_amt Ns = Ns Sy 1073741824 Ns B Po 1 GiB Pc Pq u64
 Upper-bound limit for unflushed metadata changes to be held by the
 log spacemap in memory, in bytes.
 .
-.It Sy zfs_unflushed_max_mem_ppm Ns = Ns Sy 1000 Ns ppm Po 0.1% Pc Pq ulong
+.It Sy zfs_unflushed_max_mem_ppm Ns = Ns Sy 1000 Ns ppm Po 0.1% Pc Pq u64
 Part of overall system memory that ZFS allows to be used
 for unflushed metadata changes by the log spacemap, in millionths.
 .
-.It Sy zfs_unflushed_log_block_max Ns = Ns Sy 131072 Po 128k Pc Pq ulong
+.It Sy zfs_unflushed_log_block_max Ns = Ns Sy 131072 Po 128k Pc Pq u64
 Describes the maximum number of log spacemap blocks allowed for each pool.
 The default value means that the space in all the log spacemaps
 can add up to no more than
@@ -1030,17 +1030,17 @@ one extra logical I/O issued.
 This is the reason why this tunable is exposed in terms of blocks rather
 than space used.
 .
-.It Sy zfs_unflushed_log_block_min Ns = Ns Sy 1000 Pq ulong
+.It Sy zfs_unflushed_log_block_min Ns = Ns Sy 1000 Pq u64
 If the number of metaslabs is small and our incoming rate is high,
 we could get into a situation that we are flushing all our metaslabs every TXG.
 Thus we always allow at least this many log blocks.
 .
-.It Sy zfs_unflushed_log_block_pct Ns = Ns Sy 400 Ns % Pq ulong
+.It Sy zfs_unflushed_log_block_pct Ns = Ns Sy 400 Ns % Pq u64
 Tunable used to determine the number of blocks that can be used for
 the spacemap log, expressed as a percentage of the total number of
 unflushed metaslabs in the pool.
 .
-.It Sy zfs_unflushed_log_txg_max Ns = Ns Sy 1000 Pq ulong
+.It Sy zfs_unflushed_log_txg_max Ns = Ns Sy 1000 Pq u64
 Tunable limiting maximum time in TXGs any metaslab may remain unflushed.
 It effectively limits maximum number of unflushed per-TXG spacemap logs
 that need to be read after unclean pool export.
@@ -1060,6 +1060,7 @@ will be deleted asynchronously, while smaller files are deleted synchronously.
 Decreasing this value will reduce the time spent in an
 .Xr unlink 2
 system call, at the expense of a longer delay before the freed space is available.
+This only applies on Linux.
 .
 .It Sy zfs_dirty_data_max Ns = Pq int
 Determines the dirty space limit in bytes.
@@ -1185,10 +1186,10 @@ benchmark results by reading this kstat file:
 .It Sy zfs_free_bpobj_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Enable/disable the processing of the free_bpobj object.
 .
-.It Sy zfs_async_block_max_blocks Ns = Ns Sy ULONG_MAX Po unlimited Pc Pq ulong
+.It Sy zfs_async_block_max_blocks Ns = Ns Sy UINT64_MAX Po unlimited Pc Pq u64
 Maximum number of blocks freed in a single TXG.
 .
-.It Sy zfs_max_async_dedup_frees Ns = Ns Sy 100000 Po 10^5 Pc Pq ulong
+.It Sy zfs_max_async_dedup_frees Ns = Ns Sy 100000 Po 10^5 Pc Pq u64
 Maximum number of dedup blocks freed in a single TXG.
 .
 .It Sy zfs_vdev_async_read_max_active Ns = Ns Sy 3 Pq uint
@@ -1444,22 +1445,22 @@ Similar to
 .Sy zfs_free_min_time_ms ,
 but for cleanup of old indirection records for removed vdevs.
 .
-.It Sy zfs_immediate_write_sz Ns = Ns Sy 32768 Ns B Po 32 KiB Pc Pq long
+.It Sy zfs_immediate_write_sz Ns = Ns Sy 32768 Ns B Po 32 KiB Pc Pq s64
 Largest data block to write to the ZIL.
 Larger blocks will be treated as if the dataset being written to had the
 .Sy logbias Ns = Ns Sy throughput
 property set.
 .
-.It Sy zfs_initialize_value Ns = Ns Sy 16045690984833335022 Po 0xDEADBEEFDEADBEEE Pc Pq ulong
+.It Sy zfs_initialize_value Ns = Ns Sy 16045690984833335022 Po 0xDEADBEEFDEADBEEE Pc Pq u64
 Pattern written to vdev free space by
 .Xr zpool-initialize 8 .
 .
-.It Sy zfs_initialize_chunk_size Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq ulong
+.It Sy zfs_initialize_chunk_size Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq u64
 Size of writes used by
 .Xr zpool-initialize 8 .
 This option is used by the test suite.
 .
-.It Sy zfs_livelist_max_entries Ns = Ns Sy 500000 Po 5*10^5 Pc Pq ulong
+.It Sy zfs_livelist_max_entries Ns = Ns Sy 500000 Po 5*10^5 Pc Pq u64
 The threshold size (in block pointers) at which we create a new sub-livelist.
 Larger sublists are more costly from a memory perspective but the fewer
 sublists there are, the lower the cost of insertion.
@@ -1498,11 +1499,11 @@ executing the open context condensing work in
 .Fn spa_livelist_condense_cb .
 This option is used by the test suite to trigger race conditions.
 .
-.It Sy zfs_lua_max_instrlimit Ns = Ns Sy 100000000 Po 10^8 Pc Pq ulong
+.It Sy zfs_lua_max_instrlimit Ns = Ns Sy 100000000 Po 10^8 Pc Pq u64
 The maximum execution time limit that can be set for a ZFS channel program,
 specified as a number of Lua instructions.
 .
-.It Sy zfs_lua_max_memlimit Ns = Ns Sy 104857600 Po 100 MiB Pc Pq ulong
+.It Sy zfs_lua_max_memlimit Ns = Ns Sy 104857600 Po 100 MiB Pc Pq u64
 The maximum memory limit that can be set for a ZFS channel program, specified
 in bytes.
 .
@@ -1511,11 +1512,11 @@ The maximum depth of nested datasets.
 This value can be tuned temporarily to
 fix existing datasets that exceed the predefined limit.
 .
-.It Sy zfs_max_log_walking Ns = Ns Sy 5 Pq ulong
+.It Sy zfs_max_log_walking Ns = Ns Sy 5 Pq u64
 The number of past TXGs that the flushing algorithm of the log spacemap
 feature uses to estimate incoming log blocks.
 .
-.It Sy zfs_max_logsm_summary_length Ns = Ns Sy 10 Pq ulong
+.It Sy zfs_max_logsm_summary_length Ns = Ns Sy 10 Pq u64
 Maximum number of rows allowed in the summary of the spacemap log.
 .
 .It Sy zfs_max_recordsize Ns = Ns Sy 16777216 Po 16 MiB Pc Pq uint
@@ -1534,7 +1535,7 @@ regardless of this setting.
 Allow datasets received with redacted send/receive to be mounted.
 Normally disabled because these datasets may be missing key data.
 .
-.It Sy zfs_min_metaslabs_to_flush Ns = Ns Sy 1 Pq ulong
+.It Sy zfs_min_metaslabs_to_flush Ns = Ns Sy 1 Pq u64
 Minimum number of metaslabs to flush per dirty TXG.
 .
 .It Sy zfs_metaslab_fragmentation_threshold Ns = Ns Sy 70 Ns % Pq uint
@@ -1584,7 +1585,7 @@ into the special allocation class.
 Historical statistics for this many latest multihost updates will be available in
 .Pa /proc/spl/kstat/zfs/ Ns Ao Ar pool Ac Ns Pa /multihost .
 .
-.It Sy zfs_multihost_interval Ns = Ns Sy 1000 Ns ms Po 1 s Pc Pq ulong
+.It Sy zfs_multihost_interval Ns = Ns Sy 1000 Ns ms Po 1 s Pc Pq u64
 Used to control the frequency of multihost writes which are performed when the
 .Sy multihost
 pool property is on.
@@ -1677,7 +1678,7 @@ prefetched during a pool traversal, like
 .Nm zfs Cm send
 or other data crawling operations.
 .
-.It Sy zfs_per_txg_dirty_frees_percent Ns = Ns Sy 30 Ns % Pq ulong
+.It Sy zfs_per_txg_dirty_frees_percent Ns = Ns Sy 30 Ns % Pq u64
 Control percentage of dirtied indirect blocks from frees allowed into one TXG.
 After this threshold is crossed, additional frees will wait until the next TXG.
 .Sy 0 No disables this throttle.
@@ -1705,7 +1706,7 @@ Disable QAT hardware acceleration for AES-GCM encryption.
 May be unset after the ZFS modules have been loaded to initialize the QAT
 hardware as long as support is compiled in and the QAT driver is present.
 .
-.It Sy zfs_vnops_read_chunk_size Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq long
+.It Sy zfs_vnops_read_chunk_size Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq u64
 Bytes to read per chunk.
 .
 .It Sy zfs_read_history Ns = Ns Sy 0 Pq uint
@@ -1715,7 +1716,7 @@ Historical statistics for this many latest reads will be available in
 .It Sy zfs_read_history_hits Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Include cache hits in read history
 .
-.It Sy zfs_rebuild_max_segment Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq ulong
+.It Sy zfs_rebuild_max_segment Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq u64
 Maximum read segment size to issue when sequentially resilvering a
 top-level vdev.
 .
@@ -1725,7 +1726,7 @@ completes in order to verify the checksums of all blocks which have been
 resilvered.
 This is enabled by default and strongly recommended.
 .
-.It Sy zfs_rebuild_vdev_limit Ns = Ns Sy 33554432 Ns B Po 32 MiB Pc Pq ulong
+.It Sy zfs_rebuild_vdev_limit Ns = Ns Sy 33554432 Ns B Po 32 MiB Pc Pq u64
 Maximum amount of I/O that can be concurrently issued for a sequential
 resilver per leaf device, given in bytes.
 .
@@ -2166,7 +2167,7 @@ if a volatile out-of-order write cache is enabled.
 Disable intent logging replay.
 Can be disabled for recovery from corrupted ZIL.
 .
-.It Sy zil_slog_bulk Ns = Ns Sy 786432 Ns B Po 768 KiB Pc Pq ulong
+.It Sy zil_slog_bulk Ns = Ns Sy 786432 Ns B Po 768 KiB Pc Pq u64
 Limit SLOG write size per commit executed with synchronous priority.
 Any writes above that will be executed with lower (asynchronous) priority
 to limit potential SLOG device abuse by single active ZIL writer.
@@ -2276,7 +2277,7 @@ systems with a very large number of zvols.
 .It Sy zvol_major Ns = Ns Sy 230 Pq uint
 Major number for zvol block devices.
 .
-.It Sy zvol_max_discard_blocks Ns = Ns Sy 16384 Pq ulong
+.It Sy zvol_max_discard_blocks Ns = Ns Sy 16384 Pq long
 Discard (TRIM) operations done on zvols will be done in batches of this
 many blocks, where block size is determined by the
 .Sy volblocksize

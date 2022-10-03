@@ -48,6 +48,7 @@
 #include <sys/cred.h>
 #include <sys/vnode.h>
 #include <sys/misc.h>
+#include <linux/mod_compat.h>
 
 unsigned long spl_hostid = 0;
 EXPORT_SYMBOL(spl_hostid);
@@ -517,6 +518,29 @@ ddi_copyin(const void *from, void *to, size_t len, int flags)
 	return (copyin(from, to, len));
 }
 EXPORT_SYMBOL(ddi_copyin);
+
+#define	define_spl_param(type, fmt)					\
+int									\
+spl_param_get_##type(char *buf, zfs_kernel_param_t *kp)			\
+{									\
+	return (scnprintf(buf, PAGE_SIZE, fmt "\n",			\
+	    *(type *)kp->arg));						\
+}									\
+int									\
+spl_param_set_##type(const char *buf, zfs_kernel_param_t *kp)		\
+{									\
+	return (kstrto##type(buf, 0, (type *)kp->arg));			\
+}									\
+const struct kernel_param_ops spl_param_ops_##type = {			\
+	.set = spl_param_set_##type,					\
+	.get = spl_param_get_##type,					\
+};									\
+EXPORT_SYMBOL(spl_param_get_##type);					\
+EXPORT_SYMBOL(spl_param_set_##type);					\
+EXPORT_SYMBOL(spl_param_ops_##type);
+
+define_spl_param(s64, "%lld")
+define_spl_param(u64, "%llu")
 
 /*
  * Post a uevent to userspace whenever a new vdev adds to the pool. It is

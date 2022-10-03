@@ -64,7 +64,7 @@ extern void mmp_signal_all_threads(void);
 
 /* Global tuning */
 extern int param_set_multihost_interval(ZFS_MODULE_PARAM_ARGS);
-extern ulong_t zfs_multihost_interval;
+extern uint64_t zfs_multihost_interval;
 extern uint_t zfs_multihost_fail_intervals;
 extern uint_t zfs_multihost_import_intervals;
 

@@ -51,12 +51,12 @@
  * operation, we will try to write this amount of data to each disk before
  * moving on to the next top-level vdev.
  */
-static unsigned long metaslab_aliquot = 1024 * 1024;
+static uint64_t metaslab_aliquot = 1024 * 1024;
 
 /*
  * For testing, make some blocks above a certain size be gang blocks.
  */
-unsigned long metaslab_force_ganging = SPA_MAXBLOCKSIZE + 1;
+uint64_t metaslab_force_ganging = SPA_MAXBLOCKSIZE + 1;
 
 /*
  * In pools where the log space map feature is not enabled we touch
@@ -286,7 +286,7 @@ static const int max_disabled_ms = 3;
  * Time (in seconds) to respect ms_max_size when the metaslab is not loaded.
  * To avoid 64-bit overflow, don't set above UINT32_MAX.
  */
-static unsigned long zfs_metaslab_max_size_cache_sec = 1 * 60 * 60; /* 1 hour */
+static uint64_t zfs_metaslab_max_size_cache_sec = 1 * 60 * 60; /* 1 hour */
 
 /*
  * Maximum percentage of memory to use on storing loaded metaslabs. If loading
@@ -6203,7 +6203,7 @@ metaslab_unflushed_txg(metaslab_t *ms)
 	return (ms->ms_unflushed_txg);
 }
 
-ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, aliquot, ULONG, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, aliquot, U64, ZMOD_RW,
 	"Allocation granularity (a.k.a. stripe size)");
 
 ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, debug_load, INT, ZMOD_RW,
@@ -6251,7 +6251,7 @@ ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, segment_weight_enabled, INT,
 ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, switch_threshold, INT, ZMOD_RW,
 	"Segment-based metaslab selection maximum buckets before switching");
 
-ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, force_ganging, ULONG, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, force_ganging, U64, ZMOD_RW,
 	"Blocks larger than this size are forced to be gang blocks");
 
 ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, df_max_search, UINT, ZMOD_RW,
@@ -6260,7 +6260,7 @@ ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, df_max_search, UINT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, df_use_largest_segment, INT, ZMOD_RW,
 	"When looking in size tree, use largest segment instead of exact fit");
 
-ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, max_size_cache_sec, ULONG,
+ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, max_size_cache_sec, U64,
 	ZMOD_RW, "How long to trust the cached max chunk size of a metaslab");
 
 ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, mem_limit, UINT, ZMOD_RW,
