@@ -1006,17 +1006,17 @@ MODULE_PARM_DESC(zfs_vdev_scheduler, "I/O scheduler");
 int
 param_set_min_auto_ashift(const char *buf, zfs_kernel_param_t *kp)
 {
-	uint64_t val;
+	uint_t val;
 	int error;
 
-	error = kstrtoull(buf, 0, &val);
+	error = kstrtouint(buf, 0, &val);
 	if (error < 0)
 		return (SET_ERROR(error));
 
 	if (val < ASHIFT_MIN || val > zfs_vdev_max_auto_ashift)
 		return (SET_ERROR(-EINVAL));
 
-	error = param_set_ulong(buf, kp);
+	error = param_set_uint(buf, kp);
 	if (error < 0)
 		return (SET_ERROR(error));
 
@@ -1026,17 +1026,17 @@ param_set_min_auto_ashift(const char *buf, zfs_kernel_param_t *kp)
 int
 param_set_max_auto_ashift(const char *buf, zfs_kernel_param_t *kp)
 {
-	uint64_t val;
+	uint_t val;
 	int error;
 
-	error = kstrtoull(buf, 0, &val);
+	error = kstrtouint(buf, 0, &val);
 	if (error < 0)
 		return (SET_ERROR(error));
 
 	if (val > ASHIFT_MAX || val < zfs_vdev_min_auto_ashift)
 		return (SET_ERROR(-EINVAL));
 
-	error = param_set_ulong(buf, kp);
+	error = param_set_uint(buf, kp);
 	if (error < 0)
 		return (SET_ERROR(error));
 

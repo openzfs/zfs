@@ -40,8 +40,8 @@
 
 static taskq_t *vdev_file_taskq;
 
-static unsigned long vdev_file_logical_ashift = SPA_MINBLOCKSHIFT;
-static unsigned long vdev_file_physical_ashift = SPA_MINBLOCKSHIFT;
+static uint_t vdev_file_logical_ashift = SPA_MINBLOCKSHIFT;
+static uint_t vdev_file_physical_ashift = SPA_MINBLOCKSHIFT;
 
 void
 vdev_file_init(void)
@@ -350,7 +350,7 @@ vdev_ops_t vdev_disk_ops = {
 
 #endif
 
-ZFS_MODULE_PARAM(zfs_vdev_file, vdev_file_, logical_ashift, ULONG, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev_file, vdev_file_, logical_ashift, UINT, ZMOD_RW,
 	"Logical ashift for file-based devices");
-ZFS_MODULE_PARAM(zfs_vdev_file, vdev_file_, physical_ashift, ULONG, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev_file, vdev_file_, physical_ashift, UINT, ZMOD_RW,
 	"Physical ashift for file-based devices");

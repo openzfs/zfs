@@ -30,7 +30,7 @@ param_set_multihost_interval(const char *val, zfs_kernel_param_t *kp)
 {
 	int ret;
 
-	ret = param_set_ulong(val, kp);
+	ret = spl_param_set_u64(val, kp);
 	if (ret < 0)
 		return (ret);
 

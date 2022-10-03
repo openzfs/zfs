@@ -649,8 +649,8 @@ uint64_t vdev_best_ashift(uint64_t logical, uint64_t a, uint64_t b);
 /*
  * Vdev ashift optimization tunables
  */
-extern uint64_t zfs_vdev_min_auto_ashift;
-extern uint64_t zfs_vdev_max_auto_ashift;
+extern uint_t zfs_vdev_min_auto_ashift;
+extern uint_t zfs_vdev_max_auto_ashift;
 int param_set_min_auto_ashift(ZFS_MODULE_PARAM_ARGS);
 int param_set_max_auto_ashift(ZFS_MODULE_PARAM_ARGS);
 

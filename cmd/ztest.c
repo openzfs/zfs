@@ -252,7 +252,7 @@ static const ztest_shared_opts_t ztest_opts_defaults = {
 
 extern uint64_t metaslab_force_ganging;
 extern uint64_t metaslab_df_alloc_threshold;
-extern unsigned long zfs_deadman_synctime_ms;
+extern uint64_t zfs_deadman_synctime_ms;
 extern uint_t metaslab_preload_limit;
 extern int zfs_compressed_arc_enabled;
 extern int zfs_abd_scatter_enabled;
@@ -7119,9 +7119,9 @@ ztest_deadman_thread(void *arg)
 		 */
 		if (spa_suspended(spa) || spa->spa_root_vdev == NULL) {
 			fatal(B_FALSE,
-			    "aborting test after %lu seconds because "
+			    "aborting test after %llu seconds because "
 			    "pool has transitioned to a suspended state.",
-			    zfs_deadman_synctime_ms / 1000);
+			    (u_longlong_t)zfs_deadman_synctime_ms / 1000);
 		}
 		vdev_deadman(spa->spa_root_vdev, FTAG);
 

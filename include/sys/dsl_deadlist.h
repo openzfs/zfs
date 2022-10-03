@@ -84,7 +84,7 @@ typedef struct livelist_condense_entry {
 	boolean_t cancelled;
 } livelist_condense_entry_t;
 
-extern unsigned long zfs_livelist_max_entries;
+extern uint64_t zfs_livelist_max_entries;
 extern int zfs_livelist_min_percent_shared;
 
 typedef int deadlist_iter_t(void *args, dsl_deadlist_entry_t *dle);

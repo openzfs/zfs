@@ -52,17 +52,17 @@
 
 #define	ZFS_MODULE_VIRTUAL_PARAM_CALL ZFS_MODULE_PARAM_CALL
 
-#define	param_set_arc_long_args(var) \
-    CTLTYPE_ULONG, &var, 0, param_set_arc_long, "LU"
+#define	param_set_arc_u64_args(var) \
+    CTLTYPE_U64, &var, 0, param_set_arc_u64, "QU"
 
 #define	param_set_arc_int_args(var) \
     CTLTYPE_INT, &var, 0, param_set_arc_int, "I"
 
 #define	param_set_arc_min_args(var) \
-    CTLTYPE_ULONG, NULL, 0, param_set_arc_min, "LU"
+    CTLTYPE_U64, NULL, 0, param_set_arc_min, "QU"
 
 #define	param_set_arc_max_args(var) \
-    CTLTYPE_ULONG, NULL, 0, param_set_arc_max, "LU"
+    CTLTYPE_U64, NULL, 0, param_set_arc_max, "QU"
 
 #define	param_set_arc_free_target_args(var) \
     CTLTYPE_UINT, NULL, 0, param_set_arc_free_target, "IU"
@@ -74,22 +74,22 @@
     CTLTYPE_STRING, NULL, 0, param_set_deadman_failmode, "A"
 
 #define	param_set_deadman_synctime_args(var) \
-    CTLTYPE_ULONG, NULL, 0, param_set_deadman_synctime, "LU"
+    CTLTYPE_U64, NULL, 0, param_set_deadman_synctime, "QU"
 
 #define	param_set_deadman_ziotime_args(var) \
-    CTLTYPE_ULONG, NULL, 0, param_set_deadman_ziotime, "LU"
+    CTLTYPE_U64, NULL, 0, param_set_deadman_ziotime, "QU"
 
 #define	param_set_multihost_interval_args(var) \
-    CTLTYPE_ULONG, NULL, 0, param_set_multihost_interval, "LU"
+    CTLTYPE_U64, NULL, 0, param_set_multihost_interval, "QU"
 
 #define	param_set_slop_shift_args(var) \
     CTLTYPE_INT, NULL, 0, param_set_slop_shift, "I"
 
 #define	param_set_min_auto_ashift_args(var) \
-    CTLTYPE_U64, NULL, 0, param_set_min_auto_ashift, "QU"
+    CTLTYPE_UINT, NULL, 0, param_set_min_auto_ashift, "IU"
 
 #define	param_set_max_auto_ashift_args(var) \
-    CTLTYPE_U64, NULL, 0, param_set_max_auto_ashift, "QU"
+    CTLTYPE_UINT, NULL, 0, param_set_max_auto_ashift, "IU"
 
 #define	fletcher_4_param_set_args(var) \
     CTLTYPE_STRING, NULL, 0, fletcher_4_param, "A"

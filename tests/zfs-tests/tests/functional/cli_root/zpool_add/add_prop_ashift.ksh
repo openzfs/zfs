@@ -44,7 +44,7 @@ verify_runnable "global"
 
 function cleanup
 {
-	log_must set_tunable64 VDEV_FILE_PHYSICAL_ASHIFT $orig_ashift
+	log_must set_tunable32 VDEV_FILE_PHYSICAL_ASHIFT $orig_ashift
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 	log_must rm -f $disk1 $disk2
 }
@@ -63,7 +63,7 @@ orig_ashift=$(get_tunable VDEV_FILE_PHYSICAL_ASHIFT)
 # the ashift using the -o ashift property should still
 # be honored.
 #
-log_must set_tunable64 VDEV_FILE_PHYSICAL_ASHIFT 16
+log_must set_tunable32 VDEV_FILE_PHYSICAL_ASHIFT 16
 
 typeset ashifts=("9" "10" "11" "12" "13" "14" "15" "16")
 for ashift in ${ashifts[@]}

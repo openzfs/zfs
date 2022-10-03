@@ -60,7 +60,7 @@ param_set_deadman_ziotime(const char *val, zfs_kernel_param_t *kp)
 {
 	int error;
 
-	error = param_set_ulong(val, kp);
+	error = spl_param_set_u64(val, kp);
 	if (error < 0)
 		return (SET_ERROR(error));
 
@@ -74,7 +74,7 @@ param_set_deadman_synctime(const char *val, zfs_kernel_param_t *kp)
 {
 	int error;
 
-	error = param_set_ulong(val, kp);
+	error = spl_param_set_u64(val, kp);
 	if (error < 0)
 		return (SET_ERROR(error));
 

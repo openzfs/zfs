@@ -58,7 +58,7 @@ unsigned int	zfetch_max_distance = 64 * 1024 * 1024;
 /* max bytes to prefetch indirects for per stream (default 64MB) */
 unsigned int	zfetch_max_idistance = 64 * 1024 * 1024;
 /* max number of bytes in an array_read in which we allow prefetching (1MB) */
-unsigned long	zfetch_array_rd_sz = 1024 * 1024;
+uint64_t	zfetch_array_rd_sz = 1024 * 1024;
 
 typedef struct zfetch_stats {
 	kstat_named_t zfetchstat_hits;
@@ -565,5 +565,5 @@ ZFS_MODULE_PARAM(zfs_prefetch, zfetch_, max_distance, UINT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_prefetch, zfetch_, max_idistance, UINT, ZMOD_RW,
 	"Max bytes to prefetch indirects for per stream");
 
-ZFS_MODULE_PARAM(zfs_prefetch, zfetch_, array_rd_sz, ULONG, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_prefetch, zfetch_, array_rd_sz, U64, ZMOD_RW,
 	"Number of bytes in a array_read");
