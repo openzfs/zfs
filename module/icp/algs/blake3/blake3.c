@@ -189,9 +189,7 @@ static void chunk_state_update(const blake3_ops_t *ops,
 		input_len -= BLAKE3_BLOCK_LEN;
 	}
 
-	size_t take = chunk_state_fill_buf(ctx, input, input_len);
-	input += take;
-	input_len -= take;
+	chunk_state_fill_buf(ctx, input, input_len);
 }
 
 static output_t chunk_state_output(const blake3_chunk_state_t *ctx)

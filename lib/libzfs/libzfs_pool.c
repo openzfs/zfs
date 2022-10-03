@@ -2214,7 +2214,6 @@ zpool_import_props(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
 			    ((policy.zlp_rewind & ZPOOL_TRY_REWIND) != 0), nv);
 		}
 		nvlist_free(nv);
-		return (0);
 	}
 
 	return (ret);

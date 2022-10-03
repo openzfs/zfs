@@ -118,7 +118,6 @@ gcm_mode_encrypt_contiguous_blocks(gcm_ctx_t *ctx, char *data, size_t length,
 		return (CRYPTO_SUCCESS);
 	}
 
-	lastp = (uint8_t *)ctx->gcm_cb;
 	crypto_init_ptrs(out, &iov_or_mp, &offset);
 
 	gops = gcm_impl_get_ops();

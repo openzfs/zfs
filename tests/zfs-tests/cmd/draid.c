@@ -1285,12 +1285,11 @@ draid_merge_impl(nvlist_t *allcfgs, const char *srcfilename, int *mergedp)
 
 				if (nv_worst_ratio < allcfg_worst_ratio) {
 					fnvlist_remove(allcfgs, key);
-					error = nvlist_add_nvlist(allcfgs,
-					    key, cfg);
+					fnvlist_add_nvlist(allcfgs, key, cfg);
 					merged++;
 				}
 			} else if (error == ENOENT) {
-				error = nvlist_add_nvlist(allcfgs, key, cfg);
+				fnvlist_add_nvlist(allcfgs, key, cfg);
 				merged++;
 			} else {
 				return (error);

@@ -229,7 +229,6 @@ dsl_bookmark_create_check_impl(dsl_pool_t *dp,
 	switch (error) {
 	case ESRCH:
 		/* happy path: new bmark doesn't exist, proceed after switch */
-		error = 0;
 		break;
 	case 0:
 		error = SET_ERROR(EEXIST);

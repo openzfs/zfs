@@ -2117,9 +2117,9 @@ send_prelim_records(zfs_handle_t *zhp, const char *from, int fd,
 			fnvlist_add_boolean(hdrnv, "raw");
 		}
 
-		if ((err = gather_nvlist(zhp->zfs_hdl, tofs,
+		if (gather_nvlist(zhp->zfs_hdl, tofs,
 		    from, tosnap, recursive, raw, doall, replicate, skipmissing,
-		    verbose, backup, holds, props, &fss, fsavlp)) != 0) {
+		    verbose, backup, holds, props, &fss, fsavlp) != 0) {
 			return (zfs_error(zhp->zfs_hdl, EZFS_BADBACKUP,
 			    errbuf));
 		}

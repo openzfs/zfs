@@ -3421,7 +3421,8 @@ dsl_dataset_promote_check(void *arg, dmu_tx_t *tx)
 			conflicting_snaps = B_TRUE;
 		} else if (err == ESRCH) {
 			err = 0;
-		} else if (err != 0) {
+		}
+		if (err != 0) {
 			goto out;
 		}
 	}

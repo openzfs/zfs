@@ -452,7 +452,7 @@ int luaD_poscall (lua_State *L, StkId firstResult) {
   }
   res = ci->func;  /* res == final position of 1st result */
   wanted = ci->nresults;
-  L->ci = ci = ci->previous;  /* back to caller */
+  L->ci = ci->previous;  /* back to caller */
   /* move results to correct place */
   for (i = wanted; i != 0 && firstResult < L->top; i--)
     setobjs2s(L, res++, firstResult++);
