@@ -678,9 +678,9 @@ def section_archits(kstats_dict):
     print()
     print('Cache hits by data type:')
     dt_todo = (('Demand data:', arc_stats['demand_data_hits']),
-               ('Demand prefetch data:', arc_stats['prefetch_data_hits']),
+               ('Prefetch data:', arc_stats['prefetch_data_hits']),
                ('Demand metadata:', arc_stats['demand_metadata_hits']),
-               ('Demand prefetch metadata:',
+               ('Prefetch metadata:',
                 arc_stats['prefetch_metadata_hits']))
 
     for title, value in dt_todo:
@@ -689,10 +689,10 @@ def section_archits(kstats_dict):
     print()
     print('Cache misses by data type:')
     dm_todo = (('Demand data:', arc_stats['demand_data_misses']),
-               ('Demand prefetch data:',
+               ('Prefetch data:',
                 arc_stats['prefetch_data_misses']),
                ('Demand metadata:', arc_stats['demand_metadata_misses']),
-               ('Demand prefetch metadata:',
+               ('Prefetch metadata:',
                 arc_stats['prefetch_metadata_misses']))
 
     for title, value in dm_todo:
