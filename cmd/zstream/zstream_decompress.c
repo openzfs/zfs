@@ -279,8 +279,10 @@ zstream_do_decompress(int argc, char *argv[])
 						    "compression type to off "
 						    "for ino %llu offset "
 						    "%llu\n",
-						    (u_longlong_t)drrw->drr_object,
-						    (u_longlong_t)drrw->drr_offset);
+						    (u_longlong_t)
+						    drrw->drr_object,
+						    (u_longlong_t)
+						    drrw->drr_offset);
 				} else if (0 != xfunc(lzbuf, buf,
 				    payload_size, payload_size, 0)) {
 					/*
