@@ -190,7 +190,7 @@ typedef struct dbuf_dirty_record {
 			uint64_t dr_blkid;
 			abd_t *dr_abd;
 			zio_prop_t dr_props;
-			enum zio_flag dr_flags;
+			zio_flag_t dr_flags;
 		} dll;
 	} dt;
 } dbuf_dirty_record_t;
@@ -380,7 +380,7 @@ void dmu_buf_write_embedded(dmu_buf_t *dbuf, void *data,
     int uncompressed_size, int compressed_size, int byteorder, dmu_tx_t *tx);
 
 int dmu_lightweight_write_by_dnode(dnode_t *dn, uint64_t offset, abd_t *abd,
-    const struct zio_prop *zp, enum zio_flag flags, dmu_tx_t *tx);
+    const struct zio_prop *zp, zio_flag_t flags, dmu_tx_t *tx);
 
 void dmu_buf_redact(dmu_buf_t *dbuf, dmu_tx_t *tx);
 void dbuf_destroy(dmu_buf_impl_t *db);

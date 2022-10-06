@@ -173,7 +173,7 @@ vdev_disk_error(zio_t *zio)
 	 * which is safe from any context.
 	 */
 	printk(KERN_WARNING "zio pool=%s vdev=%s error=%d type=%d "
-	    "offset=%llu size=%llu flags=%x\n", spa_name(zio->io_spa),
+	    "offset=%llu size=%llu flags=%llu\n", spa_name(zio->io_spa),
 	    zio->io_vd->vdev_path, zio->io_error, zio->io_type,
 	    (u_longlong_t)zio->io_offset, (u_longlong_t)zio->io_size,
 	    zio->io_flags);

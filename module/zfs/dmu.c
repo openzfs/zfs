@@ -1436,7 +1436,7 @@ dmu_return_arcbuf(arc_buf_t *buf)
  */
 int
 dmu_lightweight_write_by_dnode(dnode_t *dn, uint64_t offset, abd_t *abd,
-    const zio_prop_t *zp, enum zio_flag flags, dmu_tx_t *tx)
+    const zio_prop_t *zp, zio_flag_t flags, dmu_tx_t *tx)
 {
 	dbuf_dirty_record_t *dr =
 	    dbuf_dirty_lightweight(dn, dbuf_whichblock(dn, 0, offset), tx);
