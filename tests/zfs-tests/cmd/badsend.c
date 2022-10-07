@@ -76,6 +76,10 @@ main(int argc, char const * const argv[])
 	tosnap = p + 1;
 
 	fsname = strndup(tofull, p - tofull);
+	if (fsname == NULL) {
+		perror("strndup");
+		exit(EXIT_FAILURE);
+	}
 	if (strncmp(fsname, fromfull, p - tofull) != 0)
 		usage(argv[0]);
 

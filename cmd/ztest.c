@@ -3512,7 +3512,8 @@ ztest_split_pool(ztest_ds_t *zd, uint64_t id)
 	VERIFY0(nvlist_lookup_nvlist_array(tree, ZPOOL_CONFIG_CHILDREN,
 	    &child, &children));
 
-	schild = malloc(rvd->vdev_children * sizeof (nvlist_t *));
+	schild = umem_alloc(rvd->vdev_children * sizeof (nvlist_t *),
+	    UMEM_NOFAIL);
 	for (c = 0; c < children; c++) {
 		vdev_t *tvd = rvd->vdev_child[c];
 		nvlist_t **mchild;
@@ -3546,7 +3547,7 @@ ztest_split_pool(ztest_ds_t *zd, uint64_t id)
 
 	for (c = 0; c < schildren; c++)
 		fnvlist_free(schild[c]);
-	free(schild);
+	umem_free(schild, rvd->vdev_children * sizeof (nvlist_t *));
 	fnvlist_free(split);
 
 	spa_config_exit(spa, SCL_VDEV, FTAG);
@@ -6663,7 +6664,7 @@ join_strings(char **strings, const char *sep)
 	}
 
 	size_t buflen = totallen + 1;
-	char *o = malloc(buflen); /* trailing 0 byte */
+	char *o = umem_alloc(buflen, UMEM_NOFAIL); /* trailing 0 byte */
 	o[0] = '\0';
 	for (char **sp = strings; *sp != NULL; sp++) {
 		size_t would;
@@ -6925,7 +6926,7 @@ ztest_run_zdb(const char *pool)
 	    pool);
 	ASSERT3U(would, <, len);
 
-	free(set_gvars_args_joined);
+	umem_free(set_gvars_args_joined, strlen(set_gvars_args_joined) + 1);
 
 	if (ztest_opts.zo_verbose >= 5)
 		(void) printf("Executing %s\n", zdb);

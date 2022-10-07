@@ -129,6 +129,11 @@ run_tests(void)
 	/* Note: maximum nvlist key length is 32KB */
 	int len = 1024 * 31;
 	char *bigstring = malloc(len);
+	if (bigstring == NULL) {
+		perror("malloc");
+		exit(EXIT_FAILURE);
+	}
+
 	for (int i = 0; i < len; i++)
 		bigstring[i] = 'a' + i % 26;
 	bigstring[len - 1] = '\0';
