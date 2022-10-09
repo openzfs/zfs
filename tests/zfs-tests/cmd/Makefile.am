@@ -118,7 +118,9 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/getversion
 scripts_zfs_tests_bin_PROGRAMS += %D%/user_ns_exec
 scripts_zfs_tests_bin_PROGRAMS += %D%/xattrtest
 scripts_zfs_tests_bin_PROGRAMS += %D%/zed_fd_spill-zedlet
+scripts_zfs_tests_bin_PROGRAMS += %D%/idmap_util
 
+%C%_idmap_util_LDADD = libspl.la
 
 dist_noinst_DATA += %D%/linux_dos_attributes/dos_attributes.h
 scripts_zfs_tests_bin_PROGRAMS  += %D%/read_dos_attributes %D%/write_dos_attributes
