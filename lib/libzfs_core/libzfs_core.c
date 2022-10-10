@@ -235,7 +235,7 @@ lzc_ioctl(zfs_ioc_t ioc, const char *name,
 			break;
 		}
 	}
-	if (zc.zc_nvlist_dst_filled) {
+	if (zc.zc_nvlist_dst_filled && resultp != NULL) {
 		*resultp = fnvlist_unpack((void *)(uintptr_t)zc.zc_nvlist_dst,
 		    zc.zc_nvlist_dst_size);
 	}
