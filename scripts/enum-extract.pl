@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 
 my $usage = <<EOT;
 usage: config-enum enum [file ...]
