@@ -5648,7 +5648,7 @@ vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 	nvpair_t *elem = NULL;
 	uint64_t vdev_guid;
 	nvlist_t *nvprops;
-	int error;
+	int error = 0;
 
 	ASSERT(vd != NULL);
 
