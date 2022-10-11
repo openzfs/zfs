@@ -109,6 +109,13 @@ while [ "$outer_loop" -lt 20 ]; do
 			exit 0
 		fi
 	fi
+
+	#
+	# zvol_count made some progress - let's stay in this loop.
+	#
+	if [ "$old_zvols_count" -gt "$zvols_count" ]; then
+		outer_loop=$((outer_loop - 1))
+	fi
 done
 
 echo "Timed out waiting on zvol links"
