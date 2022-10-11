@@ -1,0 +1,20 @@
+# Based on systemd-sysv-generator output of /etc/init.d/zfs-load-key
+[Unit]
+SourcePath=/etc/init.d/zfs-load-key
+Description=Load ZFS keys for filesystems and volumes
+Documentation=man:zfs-load-key(8)
+Before=zfs-mount.service
+After=zfs-import.service
+DefaultDependencies=no
+
+[Service]
+Type=forking
+Restart=no
+TimeoutSec=5min
+IgnoreSIGPIPE=no
+KillMode=process
+GuessMainPID=no
+RemainAfterExit=yes
+SuccessExitStatus=5 6
+ExecStart=/etc/init.d/zfs-load-key start
+ExecStop=/etc/init.d/zfs-load-key stop

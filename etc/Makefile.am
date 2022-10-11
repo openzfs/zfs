@@ -55,6 +55,7 @@ systemdunit_DATA = \
 	%D%/systemd/system/zfs-import-cache.service \
 	%D%/systemd/system/zfs-import-scan.service \
 	%D%/systemd/system/zfs-import.target \
+	%D%/systemd/system/zfs-load-key.service \
 	%D%/systemd/system/zfs-mount.service \
 	%D%/systemd/system/zfs-scrub-monthly@.timer \
 	%D%/systemd/system/zfs-scrub-weekly@.timer \
