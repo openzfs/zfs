@@ -5207,12 +5207,11 @@ top:
 		ASSERT(mg->mg_initialized);
 
 		/*
-		 * Avoid writing single-copy data to a failing,
+		 * Avoid writing single-copy data to an unhealthy,
 		 * non-redundant vdev, unless we've already tried all
 		 * other vdevs.
 		 */
-		if ((vd->vdev_stat.vs_write_errors > 0 ||
-		    vd->vdev_state < VDEV_STATE_HEALTHY) &&
+		if (vd->vdev_state < VDEV_STATE_HEALTHY &&
 		    d == 0 && !try_hard && vd->vdev_children == 0) {
 			metaslab_trace_add(zal, mg, NULL, psize, d,
 			    TRACE_VDEV_ERROR, allocator);
