@@ -20,6 +20,7 @@
 #include <sys/vdev_impl.h>
 #include <sys/spa.h>
 #include <zfs_comutil.h>
+#include <sys/metaslab_impl.h>
 
 /*
  * Keeps stats on last N reads per spa_t, disabled by default.
@@ -296,6 +297,120 @@ spa_txg_history_init(spa_t *spa)
 	    spa_txg_history_show_header,
 	    spa_txg_history_clear,
 	    offsetof(spa_txg_history_t, sth_node));
+}
+
+typedef struct {
+    spa_t *spa;
+    int metaclass;
+} freespace_histogram_stat_t;
+
+static void *
+spa_frag_addr(kstat_t *ksp, loff_t n)
+{
+	if (n == 0) {
+		freespace_histogram_stat_t *stat = ksp->ks_private;
+		switch (stat->metaclass) {
+		case 0:
+			return (spa_normal_class(stat->spa));
+		case 1:
+			return (spa_log_class(stat->spa));
+		case 2:
+			return (spa_embedded_log_class(stat->spa));
+		case 3:
+			return (spa_special_class(stat->spa));
+		case 4:
+			return (spa_dedup_class(stat->spa));
+		case 5:
+			return (spa_special_embedded_log_class(stat->spa));
+		}
+	}
+	return (NULL);
+}
+
+static int spa_frag_header(char *buf, size_t size) {
+	ssize_t off = 0;
+
+	off += kmem_scnprintf(buf + off, size, "%7s", "bucket");
+	(void) kmem_scnprintf(buf + off, size - off, "%8s", "count\n");
+
+	return (0);
+}
+
+static int
+spa_frag_data(char *buf, size_t size, void *data)
+{
+	// truncate the string, so if no writes occur,
+	// it doesnt reuse an old string
+	if (size > 0) buf[0] = 0;
+
+	if (data == NULL)
+		return (0);
+
+	metaslab_class_t *mc = data;
+	size_t off = 0;
+
+	mutex_enter(&mc->mc_lock);
+	for (int i = 0; i < ZFS_RANGE_TREE_HISTOGRAM_SIZE; i++) {
+		if (mc->mc_histogram[i] > 0) {
+			off += kmem_scnprintf(buf + off, size - off, "%7d", i);
+			off += kmem_scnprintf(buf + off, size - off, "%8llu\n",
+			    (u_longlong_t)mc->mc_histogram[i]);
+		}
+	}
+	mutex_exit(&mc->mc_lock);
+
+	return (0);
+}
+
+static void
+spa_fragmentation_init(spa_t *spa)
+{
+	char *dirname;
+	const char *statnames[] = {
+	    "class_normal_free_histogram",
+	    "class_log_free_histogram",
+	    "class_elog_free_histogram",
+	    "class_special_free_histogram",
+	    "class_dedup_free_histogram",
+	    "class_special_elog_free_histogram"
+	};
+	for (int i = 0; i < 6; i++) {
+		spa_history_kstat_t *shk = &spa->spa_stats.fragmentation[i];
+		kstat_t *ksp;
+
+		dirname = kmem_asprintf("zfs/%s", spa_name(spa));
+		ksp = kstat_create(dirname, 0, statnames[i], "misc",
+		    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
+		kmem_strfree(dirname);
+
+		shk->kstat = ksp;
+		if (ksp) {
+			freespace_histogram_stat_t *stat = kmem_zalloc(
+			    sizeof (freespace_histogram_stat_t), KM_SLEEP);
+			stat->spa = spa;
+			stat->metaclass = i;
+			ksp->ks_private = stat;
+			kstat_set_raw_ops(ksp, spa_frag_header, spa_frag_data,
+			    spa_frag_addr);
+			kstat_install(ksp);
+		}
+	}
+}
+
+static void
+spa_fragmentation_destroy(spa_t *spa)
+{
+	for (int i = 0; i < 6; i++) {
+		spa_history_kstat_t *shk = &spa->spa_stats.fragmentation[i];
+		kstat_t *ksp = shk->kstat;
+		if (ksp) {
+			kstat_delete(ksp);
+			if (ksp->ks_private) {
+				kmem_free(ksp->ks_private,
+				    sizeof (freespace_histogram_stat_t));
+			}
+		}
+	}
 }
 
 static void
@@ -1206,11 +1321,13 @@ spa_stats_init(spa_t *spa)
 	spa_iostats_init(spa);
 	spa_log_sm_stats_init(spa);
 	spa_misc_stats_init(spa);
+	spa_fragmentation_init(spa);
 }
 
 void
 spa_stats_destroy(spa_t *spa)
 {
+	spa_fragmentation_destroy(spa);
 	spa_misc_stats_destroy(spa);
 	spa_log_sm_stats_destroy(spa);
 	spa_iostats_destroy(spa);
