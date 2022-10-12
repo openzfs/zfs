@@ -49,7 +49,7 @@ jobs:
       if: failure() && steps.CheckABI.outcome == 'failure'
       run: |
         find -name *.abi | tar -cf abi_files.tar -T -
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       if: failure() && steps.CheckABI.outcome == 'failure'
       with:
         name: New ABI files (use only if you're sure about interface changes)
