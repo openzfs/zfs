@@ -1163,6 +1163,7 @@ zfs_acl_data_locator(void **dataptr, uint32_t *length, uint32_t buflen,
 		cb->cb_acl_node = list_next(&cb->cb_aclp->z_acl,
 		    cb->cb_acl_node);
 	}
+	ASSERT3P(cb->cb_acl_node, !=, NULL);
 	*dataptr = cb->cb_acl_node->z_acldata;
 	*length = cb->cb_acl_node->z_size;
 }

@@ -542,6 +542,7 @@ dsl_deadlist_remove_key(dsl_deadlist_t *dl, uint64_t mintxg, dmu_tx_t *tx)
 	dle = avl_find(&dl->dl_tree, &dle_tofind, NULL);
 	ASSERT3P(dle, !=, NULL);
 	dle_prev = AVL_PREV(&dl->dl_tree, dle);
+	ASSERT3P(dle_prev, !=, NULL);
 
 	dle_enqueue_subobj(dl, dle_prev, dle->dle_bpobj.bpo_object, tx);
 

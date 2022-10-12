@@ -182,6 +182,7 @@ zil_prt_rec_write(zilog_t *zilog, int txtype, const void *arg)
 			return;
 		}
 
+		ASSERT3U(BP_GET_LSIZE(bp), !=, 0);
 		SET_BOOKMARK(&zb, dmu_objset_id(zilog->zl_os),
 		    lr->lr_foid, ZB_ZIL_LEVEL,
 		    lr->lr_offset / BP_GET_LSIZE(bp));

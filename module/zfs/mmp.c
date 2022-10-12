@@ -303,8 +303,10 @@ mmp_next_leaf(spa_t *spa)
 
 	do {
 		leaf = list_next(&spa->spa_leaf_list, leaf);
-		if (leaf == NULL)
+		if (leaf == NULL) {
 			leaf = list_head(&spa->spa_leaf_list);
+			ASSERT3P(leaf, !=, NULL);
+		}
 
 		/*
 		 * We skip unwritable, offline, detached, and dRAID spare
