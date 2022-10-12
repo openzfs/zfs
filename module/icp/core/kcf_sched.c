@@ -1274,7 +1274,7 @@ kcf_aop_done(kcf_areq_node_t *areq, int error)
  * Allocate the thread pool and initialize all the fields.
  */
 static void
-kcfpool_alloc()
+kcfpool_alloc(void)
 {
 	kcfpool = kmem_alloc(sizeof (kcf_pool_t), KM_SLEEP);
 
