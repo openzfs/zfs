@@ -74,6 +74,7 @@ INSTALL_DATA_HOOKS += systemd-install-data-hook
 systemd-install-data-hook:
 	$(MKDIR_P) "$(DESTDIR)$(systemdunitdir)"
 	ln -sf /dev/null "$(DESTDIR)$(systemdunitdir)/zfs-import.service"
+	ln -sf /dev/null "$(DESTDIR)$(systemdunitdir)/zfs-load-key.service"
 
 
 systemdgenerator_PROGRAMS = \
