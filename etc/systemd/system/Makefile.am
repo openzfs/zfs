@@ -22,3 +22,4 @@ SUBSTFILES += $(systemdpreset_DATA) $(systemdunit_DATA)
 install-data-hook:
 	$(MKDIR_P) "$(DESTDIR)$(systemdunitdir)"
 	ln -sf /dev/null "$(DESTDIR)$(systemdunitdir)/zfs-import.service"
+	ln -sf /dev/null "$(DESTDIR)$(systemdunitdir)/zfs-load-key.service"
