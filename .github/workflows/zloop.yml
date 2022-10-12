@@ -45,7 +45,7 @@ jobs:
       if: failure()
       run: |
         sudo chmod +r -R $TEST_DIR/
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       if: failure()
       with:
         name: Logs
@@ -53,7 +53,7 @@ jobs:
           /var/tmp/zloop/*/
           !/var/tmp/zloop/*/vdev/
         if-no-files-found: ignore
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       if: failure()
       with:
         name: Pool files
