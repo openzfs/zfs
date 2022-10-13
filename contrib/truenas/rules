@@ -26,6 +26,7 @@ endif
 
 override_dh_auto_configure:
 	dh_auto_configure -- \
+		--enable-debuginfo \
 		--with-linux=/usr/src/${src} \
 		--with-linux-obj=/usr/src/${obj}
 
