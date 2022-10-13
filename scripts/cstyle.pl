@@ -498,9 +498,6 @@ line: while (<$filehandle>) {
 	if (/\S\*\/[^)]|\S\*\/$/ && !/$lint_re/) {
 		err("missing blank before close comment");
 	}
-	if (/\/\/\S/) {		# C++ comments
-		err("missing blank after start comment");
-	}
 	# check for unterminated single line comments, but allow them when
 	# they are used to comment out the argument list of a function
 	# declaration.
@@ -534,7 +531,15 @@ line: while (<$filehandle>) {
 	# multiple comments on the same line.
 	#
 	s/\/\*.*?\*\///g;
-	s/\/\/.*$//;		# C++ comments
+	s/\/\/(?:\s.*)?$//;	# Valid C++ comments
+
+	# After stripping correctly spaced comments, check for (and strip) comments
+	# without a blank.  By checking this after clearing out C++ comments that
+	# correctly have a blank, we guarantee URIs in a C++ comment will not cause
+	# an error.
+	if (s!//.*$!!) {		# C++ comments
+		err("missing blank after start comment");
+	}
 
 	# delete any trailing whitespace; we have already checked for that.
 	s/\s*$//;
