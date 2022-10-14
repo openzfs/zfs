@@ -251,6 +251,8 @@ LUA_API int lua_type (lua_State *L, int idx) {
 
 LUA_API const char *lua_typename (lua_State *L, int t) {
   UNUSED(L);
+  if (t > 8 || t < 0)
+    return "internal_type_error";
   return ttypename(t);
 }
 
