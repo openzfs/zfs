@@ -132,6 +132,10 @@ na_reason = "Not applicable"
 #
 ci_reason = 'CI runner doesn\'t have all requirements'
 
+#
+# Idmapped mount is only supported in kernel version >= 5.12
+#
+idmap_reason = 'Idmapped mount needs kernel 5.12+'
 
 #
 # These tests are known to fail, thus we use this list to prevent these
@@ -270,6 +274,10 @@ elif sys.platform.startswith('linux'):
         'mmp/mmp_inactive_import': ['FAIL', known_reason],
         'zvol/zvol_misc/zvol_misc_snapdev': ['FAIL', 12621],
         'zvol/zvol_misc/zvol_misc_volmode': ['FAIL', known_reason],
+        'idmap_mount/idmap_mount_001': ['SKIP', idmap_reason],
+        'idmap_mount/idmap_mount_002': ['SKIP', idmap_reason],
+        'idmap_mount/idmap_mount_003': ['SKIP', idmap_reason],
+        'idmap_mount/idmap_mount_004': ['SKIP', idmap_reason],
     })
 
 
