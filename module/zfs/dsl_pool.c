@@ -331,7 +331,6 @@ dsl_pool_open(dsl_pool_t *dp)
 			/*
 			 * We might not have created the remap bpobj yet.
 			 */
-			err = 0;
 		} else {
 			goto out;
 		}

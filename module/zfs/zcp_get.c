@@ -467,7 +467,8 @@ get_zap_prop(lua_State *state, dsl_dataset_t *ds, zfs_prop_t zfs_prop)
 	} else {
 		error = dsl_prop_get_ds(ds, prop_name, sizeof (numval),
 		    1, &numval, setpoint);
-
+		if (error != 0)
+			goto out;
 #ifdef _KERNEL
 		/* Fill in temporary value for prop, if applicable */
 		(void) zfs_get_temporary_prop(ds, zfs_prop, &numval, setpoint);
@@ -489,6 +490,7 @@ get_zap_prop(lua_State *state, dsl_dataset_t *ds, zfs_prop_t zfs_prop)
 				(void) lua_pushnumber(state, numval);
 		}
 	}
+out:
 	kmem_free(strval, ZAP_MAXVALUELEN);
 	if (error == 0)
 		get_prop_src(state, setpoint, zfs_prop);

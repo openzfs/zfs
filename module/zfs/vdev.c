@@ -6078,7 +6078,6 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 			strval = NULL;
 			zprop_source_t src = ZPROP_SRC_DEFAULT;
 			propname = za.za_name;
-			prop = vdev_name_to_prop(propname);
 
 			switch (za.za_integer_length) {
 			case 8:

@@ -6803,8 +6803,8 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 
 	pvd = oldvd->vdev_parent;
 
-	if ((error = spa_config_parse(spa, &newrootvd, nvroot, NULL, 0,
-	    VDEV_ALLOC_ATTACH)) != 0)
+	if (spa_config_parse(spa, &newrootvd, nvroot, NULL, 0,
+	    VDEV_ALLOC_ATTACH) != 0)
 		return (spa_vdev_exit(spa, NULL, txg, EINVAL));
 
 	if (newrootvd->vdev_children != 1)
@@ -7160,7 +7160,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	 * it may be that the unwritability of the disk is the reason
 	 * it's being detached!
 	 */
-	error = vdev_label_init(vd, 0, VDEV_LABEL_REMOVE);
+	(void) vdev_label_init(vd, 0, VDEV_LABEL_REMOVE);
 
 	/*
 	 * Remove vd from its parent and compact the parent's children.

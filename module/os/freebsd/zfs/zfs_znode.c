@@ -1949,7 +1949,6 @@ zfs_obj_to_path_impl(objset_t *osp, uint64_t obj, sa_handle_t *hdl,
 	} else if (error != ENOENT) {
 		return (error);
 	}
-	error = 0;
 
 	for (;;) {
 		uint64_t pobj;

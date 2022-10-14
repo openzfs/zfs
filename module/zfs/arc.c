@@ -3939,7 +3939,7 @@ arc_evict_hdr(arc_buf_hdr_t *hdr, kmutex_t *hash_lock, uint64_t *real_evicted)
 			 * dropping from L1+L2 cached to L2-only,
 			 * realloc to remove the L1 header.
 			 */
-			hdr = arc_hdr_realloc(hdr, hdr_full_cache,
+			(void) arc_hdr_realloc(hdr, hdr_full_cache,
 			    hdr_l2only_cache);
 			*real_evicted += HDR_FULL_SIZE - HDR_L2ONLY_SIZE;
 		} else {

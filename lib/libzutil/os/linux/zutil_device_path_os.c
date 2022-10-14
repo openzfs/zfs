@@ -428,7 +428,6 @@ dm_get_underlying_path(const char *dm_name)
 	char *tmp = NULL;
 	char *path = NULL;
 	char *dev_str;
-	int size;
 	char *first_path = NULL;
 	char *enclosure_path;
 
@@ -450,7 +449,7 @@ dm_get_underlying_path(const char *dm_name)
 	else
 		dev_str = tmp;
 
-	if ((size = asprintf(&tmp, "/sys/block/%s/slaves/", dev_str)) == -1) {
+	if (asprintf(&tmp, "/sys/block/%s/slaves/", dev_str) == -1) {
 		tmp = NULL;
 		goto end;
 	}
@@ -479,8 +478,7 @@ dm_get_underlying_path(const char *dm_name)
 			if (!enclosure_path)
 				continue;
 
-			if ((size = asprintf(
-			    &path, "/dev/%s", ep->d_name)) == -1)
+			if (asprintf(&path, "/dev/%s", ep->d_name) == -1)
 				path = NULL;
 			free(enclosure_path);
 			break;
@@ -499,7 +497,7 @@ end:
 		 * enclosure devices.  Throw up out hands and return the first
 		 * underlying path.
 		 */
-		if ((size = asprintf(&path, "/dev/%s", first_path)) == -1)
+		if (asprintf(&path, "/dev/%s", first_path) == -1)
 			path = NULL;
 	}
 

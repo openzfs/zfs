@@ -67,7 +67,6 @@ ccm_mode_encrypt_contiguous_blocks(ccm_ctx_t *ctx, char *data, size_t length,
 		return (CRYPTO_SUCCESS);
 	}
 
-	lastp = (uint8_t *)ctx->ccm_cb;
 	crypto_init_ptrs(out, &iov_or_mp, &offset);
 
 	mac_buf = (uint8_t *)ctx->ccm_mac_buf;

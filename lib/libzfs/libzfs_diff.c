@@ -377,7 +377,7 @@ write_free_diffs(FILE *fp, differ_info_t *di, dmu_diff_record_t *dr)
 			if (zc.zc_obj > dr->ddr_last) {
 				break;
 			}
-			err = describe_free(fp, di, zc.zc_obj, fobjname,
+			(void) describe_free(fp, di, zc.zc_obj, fobjname,
 			    MAXPATHLEN);
 		} else if (errno == ESRCH) {
 			break;

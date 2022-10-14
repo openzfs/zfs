@@ -1549,7 +1549,6 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags,
 	uint32_t aflags = ARC_FLAG_NOWAIT;
 	int err, zio_flags;
 
-	err = zio_flags = 0;
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
 	ASSERT(!zfs_refcount_is_zero(&db->db_holds));

@@ -148,14 +148,10 @@ main(int argc, char *argv[])
 		}
 
 	if (!isdir) {
-		int	fd;
-
-		if ((fd = open(fpath, O_CREAT | O_RDWR, 0600)) < 0)
+		if (open(fpath, O_CREAT | O_RDWR, 0600) < 0)
 			fail("open");
 	} else {
-		DIR	*dp;
-
-		if ((dp = opendir(fpath)) == NULL)
+		if (opendir(fpath) == NULL)
 			fail("opendir");
 	}
 	free(fpath);

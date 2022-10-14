@@ -60,7 +60,6 @@ ctr_mode_contiguous_blocks(ctr_ctx_t *ctx, char *data, size_t length,
 		return (CRYPTO_SUCCESS);
 	}
 
-	lastp = (uint8_t *)ctx->ctr_cb;
 	crypto_init_ptrs(out, &iov_or_mp, &offset);
 
 	do {

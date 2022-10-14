@@ -1735,7 +1735,6 @@ zio_do_crypt_data(boolean_t encrypt, zio_crypt_key_t *key,
 		goto error;
 	if (locked) {
 		rw_exit(&key->zk_salt_lock);
-		locked = B_FALSE;
 	}
 
 	if (authbuf != NULL)

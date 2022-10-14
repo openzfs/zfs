@@ -550,11 +550,11 @@ mmp_thread(void *arg)
 	uint32_t mmp_fail_intervals = MMP_FAIL_INTVS_OK(
 	    zfs_multihost_fail_intervals);
 	hrtime_t mmp_fail_ns = mmp_fail_intervals * mmp_interval;
-	boolean_t last_spa_suspended = suspended;
-	boolean_t last_spa_multihost = multihost;
-	uint64_t last_mmp_interval = mmp_interval;
-	uint32_t last_mmp_fail_intervals = mmp_fail_intervals;
-	hrtime_t last_mmp_fail_ns = mmp_fail_ns;
+	boolean_t last_spa_suspended;
+	boolean_t last_spa_multihost;
+	uint64_t last_mmp_interval;
+	uint32_t last_mmp_fail_intervals;
+	hrtime_t last_mmp_fail_ns;
 	callb_cpr_t cpr;
 	int skip_wait = 0;
 

@@ -1249,7 +1249,7 @@ zcmd_read_dst_nvlist(libzfs_handle_t *hdl, zfs_cmd_t *zc, nvlist_t **nvlp)
 static void
 zprop_print_headers(zprop_get_cbdata_t *cbp, zfs_type_t type)
 {
-	zprop_list_t *pl = cbp->cb_proplist;
+	zprop_list_t *pl;
 	int i;
 	char *title;
 	size_t len;

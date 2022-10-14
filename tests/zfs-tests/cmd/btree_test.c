@@ -220,7 +220,6 @@ insert_find_remove(zfs_btree_t *bt, char *why)
 static int
 drain_tree(zfs_btree_t *bt, char *why)
 {
-	uint64_t *p;
 	avl_tree_t avl;
 	int i = 0;
 	int_node_t *node;
@@ -232,11 +231,8 @@ drain_tree(zfs_btree_t *bt, char *why)
 
 	/* Fill both trees with the same data */
 	for (i = 0; i < 64 * 1024; i++) {
-		void *ret;
-
 		u_longlong_t randval = random();
-		if ((p = (uint64_t *)zfs_btree_find(bt, &randval, &bt_idx)) !=
-		    NULL) {
+		if (zfs_btree_find(bt, &randval, &bt_idx) != NULL) {
 			continue;
 		}
 		zfs_btree_add_idx(bt, &randval, &bt_idx);
@@ -248,7 +244,7 @@ drain_tree(zfs_btree_t *bt, char *why)
 		}
 
 		node->data = randval;
-		if ((ret = avl_find(&avl, node, &avl_idx)) != NULL) {
+		if (avl_find(&avl, node, &avl_idx) != NULL) {
 			(void) snprintf(why, BUFSIZE,
 			    "Found in avl: %llu\n", randval);
 			return (1);
@@ -372,9 +368,7 @@ stress_tree(zfs_btree_t *bt, char *why)
 
 	if (stress_only) {
 		zfs_btree_index_t *idx = NULL;
-		uint64_t *rv;
-
-		while ((rv = zfs_btree_destroy_nodes(bt, &idx)) != NULL)
+		while (zfs_btree_destroy_nodes(bt, &idx) != NULL)
 			;
 		zfs_btree_verify(bt);
 	}
@@ -389,15 +383,15 @@ stress_tree(zfs_btree_t *bt, char *why)
 static int
 insert_duplicate(zfs_btree_t *bt)
 {
-	uint64_t *p, i = 23456;
+	uint64_t i = 23456;
 	zfs_btree_index_t bt_idx = {0};
 
-	if ((p = (uint64_t *)zfs_btree_find(bt, &i, &bt_idx)) != NULL) {
+	if (zfs_btree_find(bt, &i, &bt_idx) != NULL) {
 		fprintf(stderr, "Found value in empty tree.\n");
 		return (0);
 	}
 	zfs_btree_add_idx(bt, &i, &bt_idx);
-	if ((p = (uint64_t *)zfs_btree_find(bt, &i, &bt_idx)) == NULL) {
+	if (zfs_btree_find(bt, &i, &bt_idx) == NULL) {
 		fprintf(stderr, "Did not find expected value.\n");
 		return (0);
 	}
@@ -415,10 +409,10 @@ insert_duplicate(zfs_btree_t *bt)
 static int
 remove_missing(zfs_btree_t *bt)
 {
-	uint64_t *p, i = 23456;
+	uint64_t i = 23456;
 	zfs_btree_index_t bt_idx = {0};
 
-	if ((p = (uint64_t *)zfs_btree_find(bt, &i, &bt_idx)) != NULL) {
+	if (zfs_btree_find(bt, &i, &bt_idx) != NULL) {
 		fprintf(stderr, "Found value in empty tree.\n");
 		return (0);
 	}
@@ -499,10 +493,6 @@ main(int argc, char *argv[])
 			break;
 		}
 	}
-	argc -= optind;
-	argv += optind;
-	optind = 1;
-
 
 	if (seed == 0) {
 		(void) gettimeofday(&tp, NULL);
@@ -536,7 +526,6 @@ main(int argc, char *argv[])
 	btree_test_t *test = &test_table[0];
 	while (test->name) {
 		int retval;
-		uint64_t *rv;
 		char why[BUFSIZE] = {0};
 		zfs_btree_index_t *idx = NULL;
 
@@ -554,7 +543,7 @@ main(int argc, char *argv[])
 		}
 
 		/* Remove all the elements and re-verify the tree */
-		while ((rv = zfs_btree_destroy_nodes(&bt, &idx)) != NULL)
+		while (zfs_btree_destroy_nodes(&bt, &idx) != NULL)
 			;
 		zfs_btree_verify(&bt);
 

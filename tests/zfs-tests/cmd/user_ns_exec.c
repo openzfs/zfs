@@ -97,7 +97,6 @@ set_idmap(pid_t pid, const char *file)
 
 	mapfd = open(path, O_WRONLY);
 	if (mapfd < 0) {
-		result = errno;
 		perror("open");
 		return (errno);
 	}

@@ -327,7 +327,6 @@ main(void)
 	if (access(tfile, F_OK) == 0) {
 		(void) unlink(tfile);
 	}
-	ret = 0;
 	if ((fd = open(tfile, O_WRONLY | O_CREAT | O_TRUNC, ALL_MODE)) == -1) {
 		(void) fprintf(stderr, "open(%s) failed: %d\n", tfile, errno);
 		return (1);
