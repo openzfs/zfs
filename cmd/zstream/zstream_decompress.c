@@ -115,7 +115,9 @@ zstream_do_decompress(int argc, char *argv[])
 		if (errno || *end != '\0')
 			errx(1, "invalid value for offset");
 		if (argv[i]) {
-			if (0 == strcmp("lz4", argv[i]))
+			if (0 == strcmp("off", argv[i]))
+				type = ZIO_COMPRESS_OFF;
+			else if (0 == strcmp("lz4", argv[i]))
 				type = ZIO_COMPRESS_LZ4;
 			else if (0 == strcmp("lzjb", argv[i]))
 				type = ZIO_COMPRESS_LZJB;
@@ -127,8 +129,8 @@ zstream_do_decompress(int argc, char *argv[])
 				type = ZIO_COMPRESS_ZSTD;
 			else {
 				fprintf(stderr, "Invalid compression type %s.\n"
-				    "Supported types are lz4, lzjb, gzip, zle, "
-				    "and zstd\n",
+				    "Supported types are off, lz4, lzjb, gzip, "
+				    "zle, and zstd\n",
 				    argv[i]);
 				exit(2);
 			}
@@ -240,6 +242,9 @@ zstream_do_decompress(int argc, char *argv[])
 			if (p != NULL) {
 				zio_decompress_func_t *xfunc = NULL;
 				switch ((enum zio_compress)(intptr_t)p->data) {
+				case ZIO_COMPRESS_OFF:
+					xfunc = NULL;
+					break;
 				case ZIO_COMPRESS_LZJB:
 					xfunc = lzjb_decompress;
 					break;
@@ -258,7 +263,6 @@ zstream_do_decompress(int argc, char *argv[])
 				default:
 					assert(B_FALSE);
 				}
-				assert(xfunc != NULL);
 
 
 				/*
@@ -266,12 +270,27 @@ zstream_do_decompress(int argc, char *argv[])
 				 */
 				char *lzbuf = safe_calloc(payload_size);
 				(void) sfread(lzbuf, payload_size, stdin);
-				if (0 != xfunc(lzbuf, buf,
+				if (xfunc == NULL) {
+					memcpy(buf, lzbuf, payload_size);
+					drrw->drr_compressiontype =
+					    ZIO_COMPRESS_OFF;
+					if (verbose)
+						fprintf(stderr, "Resetting "
+						    "compression type to off "
+						    "for ino %llu offset "
+						    "%llu\n",
+						    (u_longlong_t)
+						    drrw->drr_object,
+						    (u_longlong_t)
+						    drrw->drr_offset);
+				} else if (0 != xfunc(lzbuf, buf,
 				    payload_size, payload_size, 0)) {
 					/*
 					 * The block must not be compressed,
-					 * possibly because it gets written
-					 * multiple times in this stream.
+					 * at least not with this compression
+					 * type, possibly because it gets
+					 * written multiple times in this
+					 * stream.
 					 */
 					warnx("decompression failed for "
 					    "ino %llu offset %llu",
@@ -279,11 +298,16 @@ zstream_do_decompress(int argc, char *argv[])
 					    (u_longlong_t)drrw->drr_offset);
 					memcpy(buf, lzbuf, payload_size);
 				} else if (verbose) {
+					drrw->drr_compressiontype =
+					    ZIO_COMPRESS_OFF;
 					fprintf(stderr, "successfully "
 					    "decompressed ino %llu "
 					    "offset %llu\n",
 					    (u_longlong_t)drrw->drr_object,
 					    (u_longlong_t)drrw->drr_offset);
+				} else {
+					drrw->drr_compressiontype =
+					    ZIO_COMPRESS_OFF;
 				}
 				free(lzbuf);
 			} else {

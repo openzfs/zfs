@@ -20,7 +20,7 @@
 .\"
 .\" Copyright (c) 2020 by Delphix. All rights reserved.
 .\"
-.Dd March 25, 2022
+.Dd October 4, 2022
 .Dt ZSTREAM 8
 .Os
 .
@@ -96,6 +96,7 @@ Specify the object number and byte offset of each record that you wish to
 decompress.
 Optionally specify the compression type.
 Valid compression types include
+.Sy off ,
 .Sy gzip ,
 .Sy lz4 ,
 .Sy lzjb ,
@@ -108,6 +109,11 @@ Every record for that object beginning at that offset will be decompressed, if
 possible.
 It may not be possible, because the record may be corrupted in some but not
 all of the stream's snapshots.
+Specifying a compression type of
+.Sy off
+will change the stream's metadata accordingly, without attempting decompression.
+This can be useful if the record is already uncompressed but the metadata
+insists otherwise.
 The repaired stream will be written to standard output.
 .Bl -tag -width "-v"
 .It Fl v
