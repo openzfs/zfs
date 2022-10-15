@@ -467,11 +467,9 @@ get_configs(libpc_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 	uint64_t guid;
 	uint_t children = 0;
 	nvlist_t **child = NULL;
-	uint_t holes;
 	uint64_t *hole_array, max_id;
 	uint_t c;
 	boolean_t isactive;
-	uint64_t hostid;
 	nvlist_t *nvl;
 	boolean_t valid_top_config = B_FALSE;
 
@@ -479,7 +477,8 @@ get_configs(libpc_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 		goto nomem;
 
 	for (pe = pl->pools; pe != NULL; pe = pe->pe_next) {
-		uint64_t id, max_txg = 0;
+		uint64_t id, max_txg = 0, hostid = 0;
+		uint_t holes = 0;
 
 		if (nvlist_alloc(&config, NV_UNIQUE_NAME, 0) != 0)
 			goto nomem;
