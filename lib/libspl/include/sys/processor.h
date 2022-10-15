@@ -27,8 +27,33 @@
 #ifndef _LIBSPL_SYS_PROCESSOR_H
 #define	_LIBSPL_SYS_PROCESSOR_H
 
-#define	getcpuid() (-1)
-
 typedef int	processorid_t;
+
+#ifdef __linux__
+#include <sched.h>
+static inline processorid_t
+getcpuid(void) {
+	processorid_t pid = sched_getcpu();
+	if (pid == -1)
+		return (0);
+	return (pid);
+}
+#elif defined(__FreeBSD__)
+#include <libutil.h>
+#include <sys/types.h>
+#include <sys/user.h>
+#include <unistd.h>
+static inline processorid_t
+getcpuid(void) {
+	struct kinfo_proc * kp = kinfo_getproc(getpid());
+	if (kp == NULL)
+		return (0);
+	processorid_t pid = kp->ki_oncpu;
+	free(kp);
+	return (pid);
+}
+#else
+#define	getcpuid() (0)
+#endif
 
 #endif
