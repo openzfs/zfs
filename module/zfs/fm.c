@@ -953,6 +953,7 @@ fm_fmri_hc_create(nvlist_t *fmri, int version, const nvlist_t *auth,
 			}
 			atomic_inc_64(
 			    &erpt_kstat_data.fmri_set_failed.value.ui64);
+			va_end(ap);
 			return;
 		}
 	}
