@@ -4504,6 +4504,7 @@ zfs_do_send(int argc, char **argv)
 				    gettext("missing argument for '%s' "
 				    "option\n"), argv[optind - 1]);
 			}
+			free(excludes.list);
 			usage(B_FALSE);
 			break;
 		case '?':
@@ -4522,6 +4523,7 @@ zfs_do_send(int argc, char **argv)
 				    argv[optind - 1]);
 
 			}
+			free(excludes.list);
 			usage(B_FALSE);
 		}
 	}
@@ -4530,6 +4532,7 @@ zfs_do_send(int argc, char **argv)
 		flags.verbosity = 1;
 
 	if (excludes.count > 0 && !flags.replicate) {
+		free(excludes.list);
 		(void) fprintf(stderr, gettext("Cannot specify "
 		    "dataset exclusion (-X) on a non-recursive "
 		    "send.\n"));
@@ -4543,21 +4546,25 @@ zfs_do_send(int argc, char **argv)
 		if (fromname != NULL || flags.replicate || flags.props ||
 		    flags.backup || flags.holds ||
 		    flags.saved || redactbook != NULL) {
+			free(excludes.list);
 			(void) fprintf(stderr,
 			    gettext("invalid flags combined with -t\n"));
 			usage(B_FALSE);
 		}
 		if (argc > 0) {
+			free(excludes.list);
 			(void) fprintf(stderr, gettext("too many arguments\n"));
 			usage(B_FALSE);
 		}
 	} else {
 		if (argc < 1) {
+			free(excludes.list);
 			(void) fprintf(stderr,
 			    gettext("missing snapshot argument\n"));
 			usage(B_FALSE);
 		}
 		if (argc > 1) {
+			free(excludes.list);
 			(void) fprintf(stderr, gettext("too many arguments\n"));
 			usage(B_FALSE);
 		}
@@ -4568,11 +4575,15 @@ zfs_do_send(int argc, char **argv)
 		    flags.doall || flags.backup ||
 		    flags.holds || flags.largeblock || flags.embed_data ||
 		    flags.compress || flags.raw || redactbook != NULL) {
+			free(excludes.list);
+
 			(void) fprintf(stderr, gettext("incompatible flags "
 			    "combined with saved send flag\n"));
 			usage(B_FALSE);
 		}
 		if (strchr(argv[0], '@') != NULL) {
+			free(excludes.list);
+
 			(void) fprintf(stderr, gettext("saved send must "
 			    "specify the dataset with partially-received "
 			    "state\n"));
@@ -4581,12 +4592,14 @@ zfs_do_send(int argc, char **argv)
 	}
 
 	if (flags.raw && redactbook != NULL) {
+		free(excludes.list);
 		(void) fprintf(stderr,
 		    gettext("Error: raw sends may not be redacted.\n"));
 		return (1);
 	}
 
 	if (!flags.dryrun && isatty(STDOUT_FILENO)) {
+		free(excludes.list);
 		(void) fprintf(stderr,
 		    gettext("Error: Stream can not be written to a terminal.\n"
 		    "You must redirect standard output.\n"));
@@ -4595,19 +4608,24 @@ zfs_do_send(int argc, char **argv)
 
 	if (flags.saved) {
 		zhp = zfs_open(g_zfs, argv[0], ZFS_TYPE_DATASET);
-		if (zhp == NULL)
+		if (zhp == NULL) {
+			free(excludes.list);
 			return (1);
+		}
 
 		err = zfs_send_saved(zhp, &flags, STDOUT_FILENO,
 		    resume_token);
+		free(excludes.list);
 		zfs_close(zhp);
 		return (err != 0);
 	} else if (resume_token != NULL) {
+		free(excludes.list);
 		return (zfs_send_resume(g_zfs, &flags, STDOUT_FILENO,
 		    resume_token));
 	}
 
 	if (flags.skipmissing && !flags.replicate) {
+		free(excludes.list);
 		(void) fprintf(stderr,
 		    gettext("skip-missing flag can only be used in "
 		    "conjunction with replicate\n"));
@@ -4650,10 +4668,14 @@ zfs_do_send(int argc, char **argv)
 		}
 
 		zhp = zfs_open(g_zfs, argv[0], ZFS_TYPE_DATASET);
-		if (zhp == NULL)
+		if (zhp == NULL) {
+			free(excludes.list);
 			return (1);
+		}
 		err = zfs_send_one(zhp, fromname, STDOUT_FILENO, &flags,
 		    redactbook);
+
+		free(excludes.list);
 		zfs_close(zhp);
 		return (err != 0);
 	}
@@ -4662,25 +4684,30 @@ zfs_do_send(int argc, char **argv)
 		(void) fprintf(stderr,
 		    gettext("Error: multiple snapshots cannot be "
 		    "sent from a bookmark.\n"));
+		free(excludes.list);
 		return (1);
 	}
 
 	if (redactbook != NULL) {
 		(void) fprintf(stderr, gettext("Error: multiple snapshots "
 		    "cannot be sent redacted.\n"));
+		free(excludes.list);
 		return (1);
 	}
 
 	if ((cp = strchr(argv[0], '@')) == NULL) {
 		(void) fprintf(stderr, gettext("Error: "
 		    "Unsupported flag with filesystem or bookmark.\n"));
+		free(excludes.list);
 		return (1);
 	}
 	*cp = '\0';
 	toname = cp + 1;
 	zhp = zfs_open(g_zfs, argv[0], ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME);
-	if (zhp == NULL)
+	if (zhp == NULL) {
+		free(excludes.list);
 		return (1);
+	}
 
 	/*
 	 * If they specified the full path to the snapshot, chop off
@@ -4700,6 +4727,8 @@ zfs_do_send(int argc, char **argv)
 		} else {
 			*cp = '\0';
 			if (cp != fromname && strcmp(argv[0], fromname)) {
+				zfs_close(zhp);
+				free(excludes.list);
 				(void) fprintf(stderr,
 				    gettext("incremental source must be "
 				    "in same filesystem\n"));
@@ -4707,6 +4736,8 @@ zfs_do_send(int argc, char **argv)
 			}
 			fromname = cp + 1;
 			if (strchr(fromname, '@') || strchr(fromname, '/')) {
+				zfs_close(zhp);
+				free(excludes.list);
 				(void) fprintf(stderr,
 				    gettext("invalid incremental source\n"));
 				usage(B_FALSE);
