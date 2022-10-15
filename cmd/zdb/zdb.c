@@ -3067,7 +3067,7 @@ open_objset(const char *path, const void *tag, objset_t **osp)
 	}
 	sa_os = *osp;
 
-	return (0);
+	return (err);
 }
 
 static void
