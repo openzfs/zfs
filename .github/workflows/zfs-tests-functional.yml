@@ -9,7 +9,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [18.04, 20.04]
+        os: [18.04, 20.04, 22.04]
     runs-on: ubuntu-${{ matrix.os }}
     steps:
     - uses: actions/checkout@v3
@@ -54,6 +54,10 @@ jobs:
     - name: Clear the kernel ring buffer
       run: |
         sudo dmesg -c >/var/tmp/dmesg-prerun
+    - name: Report CPU information
+      run: |
+        lscpu
+        cat /proc/spl/kstat/zfs/chksum_bench
     - name: Report disk space
       run: |
         df -h /
@@ -62,7 +66,7 @@ jobs:
         set -o pipefail
         /usr/share/zfs/zfs-tests.sh -vKR -s 3G | scripts/zfs-tests-color.sh
       shell: bash
-      timeout-minutes: 330
+      timeout-minutes: 340
     - name: Prepare artifacts
       if: failure()
       run: |

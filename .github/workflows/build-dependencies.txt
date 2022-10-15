@@ -41,6 +41,7 @@ rng-tools
 rsync
 samba
 sysstat
+util-linux
 uuid-dev
 watchdog
 wget
