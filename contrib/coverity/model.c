@@ -29,11 +29,20 @@
 
 #define	NULL	(0)
 
+typedef enum {
+	B_FALSE = 0,
+	B_TRUE = 1
+} boolean_t;
+
+typedef unsigned int uint_t;
+
 int condition0, condition1;
 
 int
 ddi_copyin(const void *from, void *to, size_t len, int flags)
 {
+	(void) flags;
+	__coverity_negative_sink__(len);
 	__coverity_tainted_data_argument__(from);
 	__coverity_tainted_data_argument__(to);
 	__coverity_writeall__(to);
@@ -42,13 +51,21 @@ ddi_copyin(const void *from, void *to, size_t len, int flags)
 void *
 memset(void *dst, int c, size_t len)
 {
-	__coverity_writeall__(dst);
+	__coverity_negative_sink__(len);
+	if (c == 0)
+		__coverity_writeall0__(dst);
+	else
+		__coverity_writeall__(dst);
 	return (dst);
 }
 
 void *
 memmove(void *dst, void *src, size_t len)
 {
+	int first = ((char *)src)[0];
+	int last = ((char *)src)[len-1];
+
+	__coverity_negative_sink__(len);
 	__coverity_writeall__(dst);
 	return (dst);
 }
@@ -56,6 +73,10 @@ memmove(void *dst, void *src, size_t len)
 void *
 memcpy(void *dst, void *src, size_t len)
 {
+	int first = ((char *)src)[0];
+	int last = ((char *)src)[len-1];
+
+	__coverity_negative_sink__(len);
 	__coverity_writeall__(dst);
 	return (dst);
 }
@@ -63,43 +84,53 @@ memcpy(void *dst, void *src, size_t len)
 void *
 umem_alloc_aligned(size_t size, size_t align, int kmflags)
 {
-	(void) align;
+	__coverity_negative_sink__(size);
+	__coverity_negative_sink__(align);
 
-	if ((UMEM_NOFAIL & kmflags) == UMEM_NOFAIL)
-		return (__coverity_alloc__(size));
-	else if (condition0)
-		return (__coverity_alloc__(size));
-	else
-		return (NULL);
+	if (((UMEM_NOFAIL & kmflags) == UMEM_NOFAIL) || condition0) {
+		void *buf = __coverity_alloc__(size);
+		__coverity_mark_as_uninitialized_buffer__(buf);
+		__coverity_mark_as_afm_allocated__(buf, "umem_free");
+		return (buf);
+	}
+
+	return (NULL);
 }
 
 void *
 umem_alloc(size_t size, int kmflags)
 {
-	if ((UMEM_NOFAIL & kmflags) == UMEM_NOFAIL)
-		return (__coverity_alloc__(size));
-	else if (condition0)
-		return (__coverity_alloc__(size));
-	else
-		return (NULL);
+	__coverity_negative_sink__(size);
+
+	if (((UMEM_NOFAIL & kmflags) == UMEM_NOFAIL) || condition0) {
+		void *buf = __coverity_alloc__(size);
+		__coverity_mark_as_uninitialized_buffer__(buf);
+		__coverity_mark_as_afm_allocated__(buf, "umem_free");
+		return (buf);
+	}
+
+	return (NULL);
 }
 
 void *
 umem_zalloc(size_t size, int kmflags)
 {
-	if ((UMEM_NOFAIL & kmflags) == UMEM_NOFAIL)
-		return (__coverity_alloc__(size));
-	else if (condition0)
-		return (__coverity_alloc__(size));
-	else
-		return (NULL);
+	__coverity_negative_sink__(size);
+
+	if (((UMEM_NOFAIL & kmflags) == UMEM_NOFAIL) || condition0) {
+		void *buf = __coverity_alloc__(size);
+		__coverity_writeall0__(buf);
+		__coverity_mark_as_afm_allocated__(buf, "umem_free");
+		return (buf);
+	}
+
+	return (NULL);
 }
 
 void
 umem_free(void *buf, size_t size)
 {
-	(void) size;
-
+	__coverity_negative_sink__(size);
 	__coverity_free__(buf);
 }
 
@@ -113,12 +144,14 @@ umem_cache_alloc(umem_cache_t *skc, int flags)
 	if (condition1)
 		__coverity_sleep__();
 
-	if ((UMEM_NOFAIL & flags) == UMEM_NOFAIL)
-		return (__coverity_alloc_nosize__());
-	else if (condition0)
-		return (__coverity_alloc_nosize__());
-	else
-		return (NULL);
+	if (((UMEM_NOFAIL & flags) == UMEM_NOFAIL) || condition0) {
+		void *buf = __coverity_alloc_nosize__();
+		__coverity_mark_as_uninitialized_buffer__(buf);
+		__coverity_mark_as_afm_allocated__(buf, "umem_cache_free");
+		return (buf);
+	}
+
+	return (NULL);
 }
 
 void
@@ -135,15 +168,19 @@ spl_kmem_alloc(size_t sz, int fl, const char *func, int line)
 	(void) func;
 	(void) line;
 
+	__coverity_negative_sink__(sz);
+
 	if (condition1)
 		__coverity_sleep__();
 
-	if (fl == 0) {
-		return (__coverity_alloc__(sz));
-	} else if (condition0)
-		return (__coverity_alloc__(sz));
-	else
-		return (NULL);
+	if ((fl == 0) || condition0) {
+		void *buf = __coverity_alloc__(sz);
+		__coverity_mark_as_uninitialized_buffer__(buf);
+		__coverity_mark_as_afm_allocated__(buf, "spl_kmem_free");
+		return (buf);
+	}
+
+	return (NULL);
 }
 
 void *
@@ -152,22 +189,126 @@ spl_kmem_zalloc(size_t sz, int fl, const char *func, int line)
 	(void) func;
 	(void) line;
 
+	__coverity_negative_sink__(sz);
+
 	if (condition1)
 		__coverity_sleep__();
 
-	if (fl == 0) {
-		return (__coverity_alloc__(sz));
-	} else if (condition0)
-		return (__coverity_alloc__(sz));
-	else
-		return (NULL);
+	if ((fl == 0) || condition0) {
+		void *buf = __coverity_alloc__(sz);
+		__coverity_writeall0__(buf);
+		__coverity_mark_as_afm_allocated__(buf, "spl_kmem_free");
+		return (buf);
+	}
+
+	return (NULL);
 }
 
 void
 spl_kmem_free(const void *ptr, size_t sz)
 {
-	(void) sz;
+	__coverity_negative_sink__(sz);
+	__coverity_free__(ptr);
+}
 
+char *
+kmem_vasprintf(const char *fmt, va_list ap)
+{
+	char *buf = __coverity_alloc_nosize__();
+	(void) ap;
+
+	__coverity_string_null_sink__(fmt);
+	__coverity_string_size_sink__(fmt);
+
+	__coverity_writeall__(buf);
+
+	__coverity_mark_as_afm_allocated__(buf, "kmem_strfree");
+
+	return (buf);
+}
+
+char *
+kmem_asprintf(const char *fmt, ...)
+{
+	char *buf = __coverity_alloc_nosize__();
+
+	__coverity_string_null_sink__(fmt);
+	__coverity_string_size_sink__(fmt);
+
+	__coverity_writeall__(buf);
+
+	__coverity_mark_as_afm_allocated__(buf, "kmem_strfree");
+
+	return (buf);
+}
+
+char *
+kmem_strdup(const char *str)
+{
+	char *buf = __coverity_alloc_nosize__();
+
+	__coverity_string_null_sink__(str);
+	__coverity_string_size_sink__(str);
+
+	__coverity_writeall__(buf);
+
+	__coverity_mark_as_afm_allocated__(buf, "kmem_strfree");
+
+	return (buf);
+
+
+}
+
+void
+kmem_strfree(char *str)
+{
+	__coverity_free__(str);
+}
+
+void *
+spl_vmem_alloc(size_t sz, int fl, const char *func, int line)
+{
+	(void) func;
+	(void) line;
+
+	__coverity_negative_sink__(sz);
+
+	if (condition1)
+		__coverity_sleep__();
+
+	if ((fl == 0) || condition0) {
+		void *buf = __coverity_alloc__(sz);
+		__coverity_mark_as_uninitialized_buffer__(buf);
+		__coverity_mark_as_afm_allocated__(buf, "spl_vmem_free");
+		return (buf);
+	}
+
+	return (NULL);
+}
+
+void *
+spl_vmem_zalloc(size_t sz, int fl, const char *func, int line)
+{
+	(void) func;
+	(void) line;
+
+	if (condition1)
+		__coverity_sleep__();
+
+	if ((fl == 0) || condition0) {
+		void *buf = __coverity_alloc__(sz);
+		__coverity_writeall0__(buf);
+		__coverity_mark_as_afm_allocated__(buf, "spl_vmem_free");
+		return (buf);
+	}
+
+	return (NULL);
+}
+
+void
+spl_vmem_free(const void *ptr, size_t sz)
+{
+	__coverity_negative_sink__(sz);
 	__coverity_free__(ptr);
 }
 
@@ -181,12 +322,12 @@ spl_kmem_cache_alloc(spl_kmem_cache_t *skc, int flags)
 	if (condition1)
 		__coverity_sleep__();
 
-	if (flags == 0) {
-		return (__coverity_alloc_nosize__());
-	} else if (condition0)
-		return (__coverity_alloc_nosize__());
-	else
-		return (NULL);
+	if ((flags == 0) || condition0) {
+		void *buf = __coverity_alloc_nosize__();
+		__coverity_mark_as_uninitialized_buffer__(buf);
+		__coverity_mark_as_afm_allocated__(buf, "spl_kmem_cache_free");
+		return (buf);
+	}
 }
 
 void
@@ -197,12 +338,164 @@ spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj)
 	__coverity_free__(obj);
 }
 
-void
-malloc(size_t size)
+typedef struct {} zfsvfs_t;
+
+int
+zfsvfs_create(const char *osname, boolean_t readonly, zfsvfs_t **zfvp)
 {
-	__coverity_alloc__(size);
+	(void) osname;
+	(void) readonly;
+
+	if (condition1)
+		__coverity_sleep__();
+
+	if (condition0) {
+		*zfvp = __coverity_alloc_nosize__();
+		__coverity_writeall__(*zfvp);
+		return (0);
+	}
+
+	return (1);
 }
 
+void
+zfsvfs_free(zfsvfs_t *zfsvfs)
+{
+	__coverity_free__(zfsvfs);
+}
+
+typedef struct {} nvlist_t;
+
+int
+nvlist_alloc(nvlist_t **nvlp, uint_t nvflag, int kmflag)
+{
+	(void) nvflag;
+
+	if (condition1)
+		__coverity_sleep__();
+
+	if ((kmflag == 0) || condition0) {
+		*nvlp = __coverity_alloc_nosize__();
+		__coverity_mark_as_afm_allocated__(*nvlp, "nvlist_free");
+		__coverity_writeall__(*nvlp);
+		return (0);
+	}
+
+	return (-1);
+
+}
+
+int
+nvlist_dup(const nvlist_t *nvl, nvlist_t **nvlp, int kmflag)
+{
+	nvlist_t read = *nvl;
+
+	if (condition1)
+		__coverity_sleep__();
+
+	if ((kmflag == 0) || condition0) {
+		nvlist_t *nvl = __coverity_alloc_nosize__();
+		__coverity_mark_as_afm_allocated__(nvl, "nvlist_free");
+		__coverity_writeall__(nvl);
+		*nvlp = nvl;
+		return (0);
+	}
+
+	return (-1);
+}
+
+void
+nvlist_free(nvlist_t *nvl)
+{
+	__coverity_free__(nvl);
+}
+
+int
+nvlist_pack(nvlist_t *nvl, char **bufp, size_t *buflen, int encoding,
+    int kmflag)
+{
+	(void) nvl;
+	(void) encoding;
+
+	if (*bufp == NULL) {
+		if (condition1)
+			__coverity_sleep__();
+
+		if ((kmflag == 0) || condition0) {
+			char *buf = __coverity_alloc_nosize__();
+			__coverity_writeall__(buf);
+			/*
+			 * We cannot use __coverity_mark_as_afm_allocated__()
+			 * because the free function varies between the kernel
+			 * and userspace.
+			 */
+			*bufp = buf;
+			return (0);
+		}
+
+		return (-1);
+	}
+
+	/*
+	 * Unfortunately, errors from the buffer being too small are not
+	 * possible to model, so we assume success.
+	 */
+	__coverity_negative_sink__(*buflen);
+	__coverity_writeall__(*bufp);
+	return (0);
+}
+
+
+int
+nvlist_unpack(char *buf, size_t buflen, nvlist_t **nvlp, int kmflag)
+{
+	__coverity_negative_sink__(buflen);
+
+	if (condition1)
+		__coverity_sleep__();
+
+	if ((kmflag == 0) || condition0) {
+		nvlist_t *nvl = __coverity_alloc_nosize__();
+		__coverity_mark_as_afm_allocated__(nvl, "nvlist_free");
+		__coverity_writeall__(nvl);
+		*nvlp = nvl;
+		int first = buf[0];
+		int last = buf[buflen-1];
+		return (0);
+	}
+
+	return (-1);
+
+}
+
+void *
+malloc(size_t size)
+{
+	void *buf = __coverity_alloc__(size);
+
+	if (condition1)
+		__coverity_sleep__();
+
+	__coverity_negative_sink__(size);
+	__coverity_mark_as_uninitialized_buffer__(buf);
+	__coverity_mark_as_afm_allocated__(buf, "free");
+
+	return (buf);
+}
+
+void *
+calloc(size_t nmemb, size_t size)
+{
+	void *buf = __coverity_alloc__(size * nmemb);
+
+	if (condition1)
+		__coverity_sleep__();
+
+	__coverity_negative_sink__(size);
+	__coverity_writeall0__(buf);
+	__coverity_mark_as_afm_allocated__(buf, "free");
+	return (buf);
+}
 void
 free(void *buf)
 {
