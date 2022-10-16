@@ -667,15 +667,15 @@ abd_return_buf(abd_t *abd, void *buf, size_t n)
 {
 	abd_verify(abd);
 	ASSERT3U(abd->abd_size, >=, n);
+#ifdef ZFS_DEBUG
+	(void) zfs_refcount_remove_many(&abd->abd_children, n, buf);
+#endif
 	if (abd_is_linear(abd)) {
 		ASSERT3P(buf, ==, abd_to_buf(abd));
 	} else {
 		ASSERT0(abd_cmp_buf(abd, buf, n));
 		zio_buf_free(buf, n);
 	}
-#ifdef ZFS_DEBUG
-	(void) zfs_refcount_remove_many(&abd->abd_children, n, buf);
-#endif
 }
 
 void
