@@ -34,9 +34,8 @@ zhack_SOURCES = \
 
 zhack_LDADD = \
 	libzpool.la \
-	libzfs_core.la \
+	libzfs.la \
 	libnvpair.la
-
 
 ztest_CFLAGS    = $(AM_CFLAGS) $(KERNEL_CFLAGS)
 # Get rid of compiler warning for unchecked truncating snprintfs on gcc 7.1.1
