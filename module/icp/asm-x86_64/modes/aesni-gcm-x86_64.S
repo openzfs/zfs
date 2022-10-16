@@ -59,6 +59,7 @@
 .align	32
 _aesni_ctr32_ghash_6x:
 .cfi_startproc
+	ENDBR
 	vmovdqu	32(%r11),%xmm2
 	subq	$6,%rdx
 	vpxor	%xmm4,%xmm4,%xmm4
@@ -375,6 +376,7 @@ _aesni_ctr32_ghash_6x:
 .align	32
 _aesni_ctr32_ghash_no_movbe_6x:
 .cfi_startproc
+	ENDBR
 	vmovdqu	32(%r11),%xmm2
 	subq	$6,%rdx
 	vpxor	%xmm4,%xmm4,%xmm4
@@ -703,6 +705,7 @@ _aesni_ctr32_ghash_no_movbe_6x:
 .align	32
 aesni_gcm_decrypt:
 .cfi_startproc
+	ENDBR
 	xorq	%r10,%r10
 	cmpq	$0x60,%rdx
 	jb	.Lgcm_dec_abort
@@ -820,6 +823,7 @@ aesni_gcm_decrypt:
 .align	32
 _aesni_ctr32_6x:
 .cfi_startproc
+	ENDBR
 	vmovdqu	0-128(%rcx),%xmm4
 	vmovdqu	32(%r11),%xmm2
 	leaq	-2(%rbp),%r13	// ICP uses 10,12,14 not 9,11,13 for rounds.
@@ -914,6 +918,7 @@ _aesni_ctr32_6x:
 .align	32
 aesni_gcm_encrypt:
 .cfi_startproc
+	ENDBR
 	xorq	%r10,%r10
 	cmpq	$288,%rdx
 	jb	.Lgcm_enc_abort

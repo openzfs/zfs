@@ -107,6 +107,7 @@
 .align	16
 gcm_gmult_clmul:
 .cfi_startproc
+	ENDBR
 .L_gmult_clmul:
 	movdqu	(%rdi),%xmm0
 	movdqa	.Lbswap_mask(%rip),%xmm5
@@ -161,6 +162,7 @@ gcm_gmult_clmul:
 .align	32
 gcm_init_htab_avx:
 .cfi_startproc
+	ENDBR
 	vzeroupper
 
 	vmovdqu	(%rsi),%xmm2
@@ -274,6 +276,7 @@ gcm_init_htab_avx:
 .align	32
 gcm_gmult_avx:
 .cfi_startproc
+	ENDBR
 	jmp	.L_gmult_clmul
 .cfi_endproc
 .size	gcm_gmult_avx,.-gcm_gmult_avx
@@ -282,6 +285,7 @@ gcm_gmult_avx:
 .align	32
 gcm_ghash_avx:
 .cfi_startproc
+	ENDBR
 	vzeroupper
 
 	vmovdqu	(%rdi),%xmm10

@@ -30,16 +30,6 @@
 #define _ASM
 #include <sys/asm_linkage.h>
 
-#if defined(__ELF__) && defined(__CET__) && defined(__has_include)
-#if __has_include(<cet.h>)
-#include <cet.h>
-#endif
-#endif
-
-#if !defined(_CET_ENDBR)
-#define _CET_ENDBR
-#endif
-
 .intel_syntax noprefix
 .global zfs_blake3_hash_many_avx2
 .text
@@ -47,7 +37,7 @@
 .type zfs_blake3_hash_many_avx2,@function
 .p2align  6
 zfs_blake3_hash_many_avx2:
-        _CET_ENDBR
+        ENDBR
         push    r15
         push    r14
         push    r13

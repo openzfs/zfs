@@ -30,16 +30,6 @@
 #define _ASM
 #include <sys/asm_linkage.h>
 
-#if defined(__ELF__) && defined(__CET__) && defined(__has_include)
-#if __has_include(<cet.h>)
-#include <cet.h>
-#endif
-#endif
-
-#if !defined(_CET_ENDBR)
-#define _CET_ENDBR
-#endif
-
 .intel_syntax noprefix
 .global zfs_blake3_compress_in_place_sse41
 .global zfs_blake3_compress_xof_sse41
@@ -52,7 +42,7 @@
 
 .p2align  6
 zfs_blake3_hash_many_sse41:
-        _CET_ENDBR
+        ENDBR
         push    r15
         push    r14
         push    r13
@@ -1812,7 +1802,7 @@ zfs_blake3_hash_many_sse41:
         jmp     4b
 .p2align 6
 zfs_blake3_compress_in_place_sse41:
-        _CET_ENDBR
+        ENDBR
         movups  xmm0, xmmword ptr [rdi]
         movups  xmm1, xmmword ptr [rdi+0x10]
         movaps  xmm2, xmmword ptr [BLAKE3_IV+rip]
@@ -1911,7 +1901,7 @@ zfs_blake3_compress_in_place_sse41:
         RET
 .p2align 6
 zfs_blake3_compress_xof_sse41:
-        _CET_ENDBR
+        ENDBR
         movups  xmm0, xmmword ptr [rdi]
         movups  xmm1, xmmword ptr [rdi+0x10]
         movaps  xmm2, xmmword ptr [BLAKE3_IV+rip]
