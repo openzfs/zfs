@@ -85,6 +85,7 @@ SHA512TransformBlocks(SHA2_CTX *ctx, const void *in, size_t num)
 
 ENTRY_NP(SHA512TransformBlocks)
 .cfi_startproc
+	ENDBR
 	movq	%rsp, %rax
 .cfi_def_cfa_register %rax
 	push	%rbx
