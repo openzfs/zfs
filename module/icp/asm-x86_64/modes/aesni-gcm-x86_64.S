@@ -47,6 +47,9 @@
 #if defined(__x86_64__) && defined(HAVE_AVX) && \
     defined(HAVE_AES) && defined(HAVE_PCLMULQDQ)
 
+#define _ASM
+#include <sys/asm_linkage.h>
+
 .extern gcm_avx_can_use_movbe
 
 .text
@@ -363,7 +366,7 @@ _aesni_ctr32_ghash_6x:
 	vpxor	16+8(%rsp),%xmm8,%xmm8
 	vpxor	%xmm4,%xmm8,%xmm8
 
-	.byte	0xf3,0xc3
+	RET
 .cfi_endproc
 .size	_aesni_ctr32_ghash_6x,.-_aesni_ctr32_ghash_6x
 #endif /* ifdef HAVE_MOVBE */
@@ -691,7 +694,7 @@ _aesni_ctr32_ghash_no_movbe_6x:
 	vpxor	16+8(%rsp),%xmm8,%xmm8
 	vpxor	%xmm4,%xmm8,%xmm8
 
-	.byte	0xf3,0xc3
+	RET
 .cfi_endproc
 .size	_aesni_ctr32_ghash_no_movbe_6x,.-_aesni_ctr32_ghash_no_movbe_6x
 
@@ -810,7 +813,7 @@ aesni_gcm_decrypt:
 .cfi_def_cfa_register	%rsp
 .Lgcm_dec_abort:
 	movq	%r10,%rax
-	.byte	0xf3,0xc3
+	RET
 .cfi_endproc
 .size	aesni_gcm_decrypt,.-aesni_gcm_decrypt
 .type	_aesni_ctr32_6x,@function
@@ -880,7 +883,7 @@ _aesni_ctr32_6x:
 	vmovups	%xmm14,80(%rsi)
 	leaq	96(%rsi),%rsi
 
-	.byte	0xf3,0xc3
+	RET
 .align	32
 .Lhandle_ctr32_2:
 	vpshufb	%xmm0,%xmm1,%xmm6
@@ -1186,7 +1189,7 @@ aesni_gcm_encrypt:
 .cfi_def_cfa_register	%rsp
 .Lgcm_enc_abort:
 	movq	%r10,%rax
-	.byte	0xf3,0xc3
+	RET
 .cfi_endproc
 .size	aesni_gcm_encrypt,.-aesni_gcm_encrypt
 

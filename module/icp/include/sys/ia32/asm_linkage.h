@@ -30,9 +30,11 @@
 #include <sys/stack.h>
 #include <sys/trap.h>
 
-#if defined(__linux__) && defined(CONFIG_SLS)
-#define	RET	ret; int3
-#else
+#if defined(_KERNEL) && defined(__linux__)
+#include <linux/linkage.h>
+#endif
+
+#ifndef RET
 #define	RET	ret
 #endif
 
@@ -204,6 +206,7 @@ sym1	= sym2
  * insert the calls to mcount for profiling. ENTRY_NP is identical, but
  * never calls mcount.
  */
+#undef ENTRY
 #define	ENTRY(x) \
 	.text; \
 	.align	ASM_ENTRY_ALIGN; \
