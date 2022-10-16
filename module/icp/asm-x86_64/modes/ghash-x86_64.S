@@ -97,6 +97,9 @@
 #if defined(__x86_64__) && defined(HAVE_AVX) && \
     defined(HAVE_AES) && defined(HAVE_PCLMULQDQ)
 
+#define _ASM
+#include <sys/asm_linkage.h>
+
 .text
 
 .globl	gcm_gmult_clmul
@@ -149,7 +152,7 @@ gcm_gmult_clmul:
 	pxor	%xmm1,%xmm0
 .byte	102,15,56,0,197
 	movdqu	%xmm0,(%rdi)
-	.byte	0xf3,0xc3
+	RET
 .cfi_endproc
 .size	gcm_gmult_clmul,.-gcm_gmult_clmul
 
@@ -262,7 +265,7 @@ gcm_init_htab_avx:
 	vmovdqu	%xmm5,-16(%rdi)
 
 	vzeroupper
-	.byte	0xf3,0xc3
+	RET
 .cfi_endproc
 .size	gcm_init_htab_avx,.-gcm_init_htab_avx
 
@@ -649,7 +652,7 @@ gcm_ghash_avx:
 	vpshufb	%xmm13,%xmm10,%xmm10
 	vmovdqu	%xmm10,(%rdi)
 	vzeroupper
-	.byte	0xf3,0xc3
+	RET
 .cfi_endproc
 .size	gcm_ghash_avx,.-gcm_ghash_avx
 .align	64
