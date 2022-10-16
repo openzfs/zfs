@@ -597,10 +597,8 @@ abd_free_chunks(abd_t *abd)
 	struct scatterlist *sg;
 
 	abd_for_each_sg(abd, sg, n, i) {
-		for (int j = 0; j < sg->length; j += PAGESIZE) {
-			struct page *p = nth_page(sg_page(sg), j >> PAGE_SHIFT);
-			umem_free(p, PAGESIZE);
-		}
+		struct page *p = nth_page(sg_page(sg), 0);
+		umem_free(p, PAGESIZE);
 	}
 	abd_free_sg_table(abd);
 }
