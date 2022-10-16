@@ -60,12 +60,9 @@ $(MODULE)-$(CONFIG_X86) += algs/modes/gcm_pclmulqdq.o
 $(MODULE)-$(CONFIG_X86) += algs/aes/aes_impl_aesni.o
 $(MODULE)-$(CONFIG_X86) += algs/aes/aes_impl_x86-64.o
 
-# Suppress objtool "can't find jump dest instruction at" warnings.  They
-# are caused by the constants which are defined in the text section of the
-# assembly file using .byte instructions (e.g. bswap_mask).  The objtool
-# utility tries to interpret them as opcodes and obviously fails doing so.
+# Suppress objtool "return with modified stack frame" warnings.
 OBJECT_FILES_NON_STANDARD_aesni-gcm-x86_64.o := y
-OBJECT_FILES_NON_STANDARD_ghash-x86_64.o := y
+
 # Suppress objtool "unsupported stack pointer realignment" warnings. We are
 # not using a DRAP register while aligning the stack to a 64 byte boundary.
 # See #6950 for the reasoning.
