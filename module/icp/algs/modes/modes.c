@@ -106,8 +106,10 @@ crypto_get_ptrs(crypto_data_t *out, void **iov_or_mp, offset_t *current_offset,
 		} else {
 			/* one block spans two iovecs */
 			*out_data_1_len = iov_len - offset;
-			if (vec_idx == zfs_uio_iovcnt(uio))
+			if (vec_idx == zfs_uio_iovcnt(uio)) {
+				*out_data_2 = NULL;
 				return;
+			}
 			vec_idx++;
 			zfs_uio_iov_at_index(uio, vec_idx, &iov_base, &iov_len);
 			*out_data_2 = (uint8_t *)iov_base;
