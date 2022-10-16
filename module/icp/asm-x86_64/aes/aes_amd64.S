@@ -704,6 +704,7 @@ enc_tab:
 
 
 ENTRY_NP(aes_encrypt_amd64)
+	ENDBR
 #ifdef	GLADMAN_INTERFACE
 	// Original interface
 	sub	$[4*8], %rsp	// gnu/linux/opensolaris binary interface
@@ -809,6 +810,7 @@ dec_tab:
 
 
 ENTRY_NP(aes_decrypt_amd64)
+	ENDBR
 #ifdef	GLADMAN_INTERFACE
 	// Original interface
 	sub	$[4*8], %rsp	// gnu/linux/opensolaris binary interface

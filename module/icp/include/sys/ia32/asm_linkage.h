@@ -34,6 +34,24 @@
 #include <linux/linkage.h>
 #endif
 
+#ifndef ENDBR
+#if defined(__ELF__) && defined(__CET__) && defined(__has_include)
+/* CSTYLED */
+#if __has_include(<cet.h>)
+
+#include <cet.h>
+
+#ifdef _CET_ENDBR
+#define	ENDBR	_CET_ENDBR
+#endif /* _CET_ENDBR */
+
+#endif /* <cet.h> */
+#endif /* __ELF__ && __CET__ && __has_include */
+#endif /* !ENDBR */
+
+#ifndef ENDBR
+#define	ENDBR
+#endif
 #ifndef RET
 #define	RET	ret
 #endif
