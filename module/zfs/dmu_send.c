@@ -1586,9 +1586,8 @@ send_merge_thread(void *arg)
 		}
 		range_free(front_ranges[i]);
 	}
-	if (range == NULL)
-		range = kmem_zalloc(sizeof (*range), KM_SLEEP);
-	range->eos_marker = B_TRUE;
+	ASSERT3P(range, !=, NULL);
+	ASSERT3S(range->eos_marker, ==, B_TRUE);
 	bqueue_enqueue_flush(&smt_arg->q, range, 1);
 	spl_fstrans_unmark(cookie);
 	thread_exit();
