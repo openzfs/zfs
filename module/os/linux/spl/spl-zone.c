@@ -25,7 +25,6 @@
  */
 
 #include <sys/types.h>
-#include <sys/mutex.h>
 #include <sys/sysmacros.h>
 #include <sys/kmem.h>
 #include <linux/file.h>
@@ -36,6 +35,8 @@
 #include <linux/statfs.h>
 #include <linux/proc_ns.h>
 #endif
+
+#include <sys/mutex.h>
 
 static kmutex_t zone_datasets_lock;
 static struct list_head zone_datasets;
