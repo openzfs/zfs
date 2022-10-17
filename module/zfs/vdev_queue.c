@@ -725,6 +725,7 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 		 * after our span is mandatory.
 		 */
 		dio = AVL_NEXT(t, last);
+		ASSERT3P(dio, !=, NULL);
 		dio->io_flags &= ~ZIO_FLAG_OPTIONAL;
 	} else {
 		/* do not include the optional i/o */
