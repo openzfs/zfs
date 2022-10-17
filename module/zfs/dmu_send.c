@@ -2510,8 +2510,7 @@ dmu_send_impl(struct dmu_send_params *dspp)
 	}
 
 	if (featureflags & DMU_BACKUP_FEATURE_RAW) {
-		uint64_t ivset_guid = (ancestor_zb != NULL) ?
-		    ancestor_zb->zbm_ivset_guid : 0;
+		uint64_t ivset_guid = ancestor_zb->zbm_ivset_guid;
 		nvlist_t *keynvl = NULL;
 		ASSERT(os->os_encrypted);
 
