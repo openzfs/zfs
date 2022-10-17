@@ -5131,8 +5131,7 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 		if (vd != NULL && vd->vdev_mg != NULL) {
 			mg = vdev_get_mg(vd, mc);
 
-			if (flags & METASLAB_HINTBP_AVOID &&
-			    mg->mg_next != NULL)
+			if (flags & METASLAB_HINTBP_AVOID)
 				mg = mg->mg_next;
 		} else {
 			mg = mca->mca_rotor;
