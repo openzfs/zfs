@@ -1026,8 +1026,7 @@ zvol_add_clones(const char *dsname, list_t *minors_list)
 out:
 	if (dd != NULL)
 		dsl_dir_rele(dd, FTAG);
-	if (dp != NULL)
-		dsl_pool_rele(dp, FTAG);
+	dsl_pool_rele(dp, FTAG);
 }
 
 /*
