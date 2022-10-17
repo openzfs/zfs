@@ -940,8 +940,15 @@ dnl # like ZFS_LINUX_TRY_COMPILE, except the contents conftest.h are
 dnl # provided via the fifth parameter
 dnl #
 AC_DEFUN([ZFS_LINUX_TRY_COMPILE_HEADER], [
-	ZFS_LINUX_COMPILE_IFELSE(
-	    [ZFS_LINUX_TEST_PROGRAM([[$1]], [[$2]], [[ZFS_META_LICENSE]])],
-	    [test -f build/conftest/conftest.ko],
-	    [$3], [$4], [$5])
+	AS_IF([test "x$enable_linux_builtin" = "xyes"], [
+		ZFS_LINUX_COMPILE_IFELSE(
+		    [ZFS_LINUX_TEST_PROGRAM([[$1]], [[$2]],
+		    [[ZFS_META_LICENSE]])],
+		    [test -f build/conftest/conftest.o], [$3], [$4], [$5])
+	], [
+		ZFS_LINUX_COMPILE_IFELSE(
+		    [ZFS_LINUX_TEST_PROGRAM([[$1]], [[$2]],
+		    [[ZFS_META_LICENSE]])],
+		    [test -f build/conftest/conftest.ko], [$3], [$4], [$5])
+	])
 ])
