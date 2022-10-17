@@ -823,12 +823,15 @@ sha2_mac_init(crypto_ctx_t *ctx, crypto_mechanism_t *mechanism,
 	 */
 	if (mechanism->cm_type % 3 == 2) {
 		if (mechanism->cm_param == NULL ||
-		    mechanism->cm_param_len != sizeof (ulong_t))
+		    mechanism->cm_param_len != sizeof (ulong_t)) {
 			ret = CRYPTO_MECHANISM_PARAM_INVALID;
-		PROV_SHA2_GET_DIGEST_LEN(mechanism,
-		    PROV_SHA2_HMAC_CTX(ctx)->hc_digest_len);
-		if (PROV_SHA2_HMAC_CTX(ctx)->hc_digest_len > sha_digest_len)
-			ret = CRYPTO_MECHANISM_PARAM_INVALID;
+		} else {
+			PROV_SHA2_GET_DIGEST_LEN(mechanism,
+			    PROV_SHA2_HMAC_CTX(ctx)->hc_digest_len);
+			if (PROV_SHA2_HMAC_CTX(ctx)->hc_digest_len >
+			    sha_digest_len)
+				ret = CRYPTO_MECHANISM_PARAM_INVALID;
+		}
 	}
 
 	if (ret != CRYPTO_SUCCESS) {
