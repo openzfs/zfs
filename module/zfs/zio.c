@@ -3360,7 +3360,7 @@ zio_ddt_write(zio_t *zio)
 	return (zio);
 }
 
-ddt_entry_t *freedde; /* for debugging */
+static ddt_entry_t *freedde; /* for debugging */
 
 static zio_t *
 zio_ddt_free(zio_t *zio)

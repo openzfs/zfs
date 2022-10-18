@@ -151,7 +151,7 @@ MODULE_PARM_DESC(spl_kmem_cache_kmem_threads,
 
 struct list_head spl_kmem_cache_list;   /* List of caches */
 struct rw_semaphore spl_kmem_cache_sem; /* Cache list lock */
-taskq_t *spl_kmem_cache_taskq;		/* Task queue for aging / reclaim */
+static taskq_t *spl_kmem_cache_taskq;   /* Task queue for aging / reclaim */
 
 static void spl_cache_shrink(spl_kmem_cache_t *skc, void *obj);
 

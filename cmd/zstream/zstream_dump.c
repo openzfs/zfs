@@ -54,10 +54,10 @@
  */
 #define	DUMP_GROUPING	4
 
-uint64_t total_stream_len = 0;
-FILE *send_stream = 0;
-boolean_t do_byteswap = B_FALSE;
-boolean_t do_cksum = B_TRUE;
+static uint64_t total_stream_len = 0;
+static FILE *send_stream = 0;
+static boolean_t do_byteswap = B_FALSE;
+static boolean_t do_cksum = B_TRUE;
 
 void *
 safe_malloc(size_t size)

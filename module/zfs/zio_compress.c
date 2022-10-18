@@ -44,7 +44,7 @@
  * If nonzero, every 1/X decompression attempts will fail, simulating
  * an undetected memory error.
  */
-unsigned long zio_decompress_fail_fraction = 0;
+static unsigned long zio_decompress_fail_fraction = 0;
 
 /*
  * Compression vectors.

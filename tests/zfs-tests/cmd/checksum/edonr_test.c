@@ -40,16 +40,16 @@
  * Test messages from:
  * http://csrc.nist.gov/groups/ST/toolkit/documents/Examples/SHA_All.pdf
  */
-const char	*test_msg0 = "abc";
-const char	*test_msg1 = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmn"
-	"lmnomnopnopq";
-const char	*test_msg2 = "abcdefghbcdefghicdefghijdefghijkefghijklfghi"
-	"jklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu";
+static const char *test_msg0 = "abc";
+static const char *test_msg1 = "abcdbcdecdefdefgefghfghighijhijkijkljklmklm"
+	"nlmnomnopnopq";
+static const char *test_msg2 = "abcdefghbcdefghicdefghijdefghijkefghijklfgh"
+	"ijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu";
 
 /*
  * Test digests computed by hand. There's no formal standard or spec for edonr.
  */
-const uint8_t	edonr_224_test_digests[][28] = {
+static const uint8_t	edonr_224_test_digests[][28] = {
 	{
 		/* for test_msg0 */
 		0x56, 0x63, 0xc4, 0x93, 0x95, 0x20, 0xfa, 0xf6,
@@ -67,7 +67,7 @@ const uint8_t	edonr_224_test_digests[][28] = {
 	/* no test vector for test_msg2 */
 };
 
-const uint8_t	edonr_256_test_digests[][32] = {
+static const uint8_t	edonr_256_test_digests[][32] = {
 	{
 		/* for test_msg0 */
 		0x54, 0xd7, 0x8b, 0x13, 0xc7, 0x4e, 0xda, 0x5a,
@@ -85,7 +85,7 @@ const uint8_t	edonr_256_test_digests[][32] = {
 	/* no test vectorfor test_msg2 */
 };
 
-const uint8_t	edonr_384_test_digests[][48] = {
+static const uint8_t	edonr_384_test_digests[][48] = {
 	{
 		/* for test_msg0 */
 		0x0e, 0x7c, 0xd7, 0x85, 0x78, 0x77, 0xe0, 0x89,
@@ -110,7 +110,7 @@ const uint8_t	edonr_384_test_digests[][48] = {
 	}
 };
 
-const uint8_t	edonr_512_test_digests[][64] = {
+static const uint8_t	edonr_512_test_digests[][64] = {
 	{
 		/* for test_msg0 */
 		0x1b, 0x14, 0xdb, 0x15, 0x5f, 0x1d, 0x40, 0x65,
