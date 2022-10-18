@@ -23,9 +23,9 @@
  */
 
 #include <sys/list.h>
-#include <sys/mutex.h>
 #include <sys/procfs_list.h>
 #include <linux/proc_fs.h>
+#include <sys/mutex.h>
 
 /*
  * A procfs_list is a wrapper around a linked list which implements the seq_file
