@@ -74,4 +74,8 @@ log_must zpool add $TESTPOOL $ZVOL_DEVDIR/$TESTPOOL1/$TESTVOL
 
 log_must vdevs_in_pool "$TESTPOOL" "$ZVOL_DEVDIR/$TESTPOOL1/$TESTVOL"
 
+# Give zed a chance to finish processing the event, otherwise
+# a race condition can lead to stuck "zpool destroy $TESTPOOL"
+sleep 1
+
 log_pass "'zpool add <pool> <vdev> ...' adds zfs volume to the pool successfully"
