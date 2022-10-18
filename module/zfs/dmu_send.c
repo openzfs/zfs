@@ -2716,6 +2716,10 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 		dspp.numfromredactsnaps = NUM_SNAPS_NOT_REDACTED;
 		err = dmu_send_impl(&dspp);
 	}
+	if (dspp.fromredactsnaps)
+		kmem_free(dspp.fromredactsnaps,
+		    dspp.numfromredactsnaps * sizeof (uint64_t));
+
 	dsl_dataset_rele(dspp.to_ds, FTAG);
 	return (err);
 }
@@ -2924,6 +2928,10 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
 			/* dmu_send_impl will call dsl_pool_rele for us. */
 			err = dmu_send_impl(&dspp);
 		} else {
+			if (dspp.fromredactsnaps)
+				kmem_free(dspp.fromredactsnaps,
+				    dspp.numfromredactsnaps *
+				    sizeof (uint64_t));
 			dsl_pool_rele(dspp.dp, FTAG);
 		}
 	} else {
