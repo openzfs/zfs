@@ -599,6 +599,7 @@ fmd_timer_install(fmd_hdl_t *hdl, void *arg, fmd_event_t *ep, hrtime_t delta)
 	sev.sigev_notify_function = _timer_notify;
 	sev.sigev_notify_attributes = NULL;
 	sev.sigev_value.sival_ptr = ftp;
+	sev.sigev_signo = 0;
 
 	timer_create(CLOCK_REALTIME, &sev, &ftp->ft_tid);
 	timer_settime(ftp->ft_tid, 0, &its, NULL);

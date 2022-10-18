@@ -1122,6 +1122,7 @@ zfs_deliver_dle(nvlist_t *nvl)
 		strlcpy(name, devname, MAXPATHLEN);
 		zfs_append_partition(name, MAXPATHLEN);
 	} else {
+		sprintf(name, "unknown");
 		zed_log_msg(LOG_INFO, "zfs_deliver_dle: no guid or physpath");
 	}
 
