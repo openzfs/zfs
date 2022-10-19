@@ -378,7 +378,9 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/zvol/zvol_common.shlib \
 	functional/zvol/zvol_ENOSPC/zvol_ENOSPC.cfg \
 	functional/zvol/zvol_misc/zvol_misc_common.kshlib \
-	functional/zvol/zvol_swap/zvol_swap.cfg
+	functional/zvol/zvol_swap/zvol_swap.cfg \
+	functional/idmap_mount/idmap_mount.cfg \
+	functional/idmap_mount/idmap_mount_common.kshlib
 
 nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/acl/off/cleanup.ksh \
@@ -1998,4 +2000,10 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/zvol/zvol_swap/zvol_swap_003_pos.ksh \
 	functional/zvol/zvol_swap/zvol_swap_004_pos.ksh \
 	functional/zvol/zvol_swap/zvol_swap_005_pos.ksh \
-	functional/zvol/zvol_swap/zvol_swap_006_pos.ksh
+	functional/zvol/zvol_swap/zvol_swap_006_pos.ksh \
+	functional/idmap_mount/cleanup.ksh \
+	functional/idmap_mount/setup.ksh \
+	functional/idmap_mount/idmap_mount_001.ksh \
+	functional/idmap_mount/idmap_mount_002.ksh \
+	functional/idmap_mount/idmap_mount_003.ksh \
+	functional/idmap_mount/idmap_mount_004.ksh
