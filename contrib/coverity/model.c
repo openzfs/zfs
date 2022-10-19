@@ -24,6 +24,8 @@
 
 #include <stdarg.h>
 
+#define	KM_NOSLEEP		0x0001  /* cannot block for memory; may fail */
+
 #define	UMEM_DEFAULT		0x0000  /* normal -- may fail */
 #define	UMEM_NOFAIL		0x0100  /* Never fails */
 
@@ -173,7 +175,7 @@ spl_kmem_alloc(size_t sz, int fl, const char *func, int line)
 	if (condition1)
 		__coverity_sleep__();
 
-	if ((fl == 0) || condition0) {
+	if (((fl & KM_NOSLEEP) != KM_NOSLEEP) || condition0) {
 		void *buf = __coverity_alloc__(sz);
 		__coverity_mark_as_uninitialized_buffer__(buf);
 		__coverity_mark_as_afm_allocated__(buf, "spl_kmem_free");
@@ -194,7 +196,7 @@ spl_kmem_zalloc(size_t sz, int fl, const char *func, int line)
 	if (condition1)
 		__coverity_sleep__();
 
-	if ((fl == 0) || condition0) {
+	if (((fl & KM_NOSLEEP) != KM_NOSLEEP) || condition0) {
 		void *buf = __coverity_alloc__(sz);
 		__coverity_writeall0__(buf);
 		__coverity_mark_as_afm_allocated__(buf, "spl_kmem_free");
@@ -276,7 +278,7 @@ spl_vmem_alloc(size_t sz, int fl, const char *func, int line)
 	if (condition1)
 		__coverity_sleep__();
 
-	if ((fl == 0) || condition0) {
+	if (((fl & KM_NOSLEEP) != KM_NOSLEEP) || condition0) {
 		void *buf = __coverity_alloc__(sz);
 		__coverity_mark_as_uninitialized_buffer__(buf);
 		__coverity_mark_as_afm_allocated__(buf, "spl_vmem_free");
@@ -295,7 +297,7 @@ spl_vmem_zalloc(size_t sz, int fl, const char *func, int line)
 	if (condition1)
 		__coverity_sleep__();
 
-	if ((fl == 0) || condition0) {
+	if (((fl & KM_NOSLEEP) != KM_NOSLEEP) || condition0) {
 		void *buf = __coverity_alloc__(sz);
 		__coverity_writeall0__(buf);
 		__coverity_mark_as_afm_allocated__(buf, "spl_vmem_free");
