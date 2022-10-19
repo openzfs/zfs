@@ -22,6 +22,7 @@
  *
  * Copyright (c) 2018, Intel Corporation.
  * Copyright (c) 2020 by Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
  */
 
 #include <sys/vdev_impl.h>
@@ -134,6 +135,7 @@ int zfs_rebuild_scrub_enabled = 1;
  * For vdev_rebuild_initiate_sync() and vdev_rebuild_reset_sync().
  */
 static void vdev_rebuild_thread(void *arg);
+static void vdev_rebuild_reset_sync(void *arg, dmu_tx_t *tx);
 
 /*
  * Clear the per-vdev rebuild bytes value for a vdev tree.
@@ -307,6 +309,17 @@ vdev_rebuild_complete_sync(void *arg, dmu_tx_t *tx)
 	vdev_rebuild_phys_t *vrp = &vr->vr_rebuild_phys;
 
 	mutex_enter(&vd->vdev_rebuild_lock);
+
+	/*
+	 * Handle a second device failure if it occurs after all rebuild I/O
+	 * has completed but before this sync task has been executed.
+	 */
+	if (vd->vdev_rebuild_reset_wanted) {
+		mutex_exit(&vd->vdev_rebuild_lock);
+		vdev_rebuild_reset_sync(arg, tx);
+		return;
+	}
+
 	vrp->vrp_rebuild_state = VDEV_REBUILD_COMPLETE;
 	vrp->vrp_end_time = gethrestime_sec();
 
@@ -760,7 +773,6 @@ vdev_rebuild_thread(void *arg)
 	ASSERT(vd->vdev_rebuilding);
 	ASSERT(spa_feature_is_active(spa, SPA_FEATURE_DEVICE_REBUILD));
 	ASSERT3B(vd->vdev_rebuild_cancel_wanted, ==, B_FALSE);
-	ASSERT3B(vd->vdev_rebuild_reset_wanted, ==, B_FALSE);
 
 	vdev_rebuild_t *vr = &vd->vdev_rebuild_config;
 	vdev_rebuild_phys_t *vrp = &vr->vr_rebuild_phys;
