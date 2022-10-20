@@ -99,18 +99,16 @@
 #define	AT_RECURSIVE 0x8000
 #endif
 
-#ifndef mount_attr
-struct mount_attr {
+typedef struct {
 	__u64 attr_set;
 	__u64 attr_clr;
 	__u64 propagation;
 	__u64 userns_fd;
-};
-#endif
+} mount_attr_t;
 
 static inline int
 sys_mount_setattr(int dfd, const char *path, unsigned int flags,
-    struct mount_attr *attr, size_t size)
+    mount_attr_t *attr, size_t size)
 {
 	return (syscall(__NR_mount_setattr, dfd, path, flags, attr, size));
 }
@@ -528,7 +526,7 @@ is_idmap_supported(char *path)
 	list_t head;
 	int ret;
 	int tree_fd = -EBADF, path_fd = -EBADF;
-	struct mount_attr attr = {
+	mount_attr_t attr = {
 	    .attr_set	= MOUNT_ATTR_IDMAP,
 	    .userns_fd  = -EBADF,
 	};
@@ -634,7 +632,7 @@ do_idmap_mount(list_t *idmap, char *source, char *target, int flags)
 {
 	int ret;
 	int tree_fd = -EBADF, source_fd = -EBADF;
-	struct mount_attr attr = {
+	mount_attr_t attr = {
 	    .attr_set   = MOUNT_ATTR_IDMAP,
 	    .userns_fd  = -EBADF,
 	};
