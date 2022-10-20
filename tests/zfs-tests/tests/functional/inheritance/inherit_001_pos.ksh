@@ -26,6 +26,7 @@
 
 #
 # Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -376,7 +377,8 @@ set -A prop "checksum" "" \
 	"sharenfs" "" \
 	"recordsize" "recsize" \
 	"snapdir" "" \
-	"readonly" ""
+	"readonly" "" \
+	"redundant_metadata" ""
 
 #
 # Note except for the mountpoint default value (which is handled in
@@ -387,12 +389,14 @@ set -A prop "checksum" "" \
 set -A def_val "on" "on" "on" \
 	"off" "" \
 	"hidden" \
-	"off"
+	"off" \
+	"all"
 
 set -A local_val "off" "off" "off" \
 	"on" "" \
 	"visible" \
-	"off"
+	"off" \
+	"none"
 
 #
 # Add system specific values

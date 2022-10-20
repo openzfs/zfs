@@ -28,6 +28,7 @@
  * Copyright (c) 2019 Datto Inc.
  * Copyright (c) 2019, Klara Inc.
  * Copyright (c) 2019, Allan Jude
+ * Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
  */
 
 #include <sys/dmu.h>
@@ -1992,12 +1993,22 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 		    ZCHECKSUM_FLAG_EMBEDDED))
 			checksum = ZIO_CHECKSUM_FLETCHER_4;
 
-		if (os->os_redundant_metadata == ZFS_REDUNDANT_METADATA_ALL ||
-		    (os->os_redundant_metadata ==
-		    ZFS_REDUNDANT_METADATA_MOST &&
-		    (level >= zfs_redundant_metadata_most_ditto_level ||
-		    DMU_OT_IS_METADATA(type) || (wp & WP_SPILL))))
+		switch (os->os_redundant_metadata) {
+		case ZFS_REDUNDANT_METADATA_ALL:
 			copies++;
+			break;
+		case ZFS_REDUNDANT_METADATA_MOST:
+			if (level >= zfs_redundant_metadata_most_ditto_level ||
+			    DMU_OT_IS_METADATA(type) || (wp & WP_SPILL))
+				copies++;
+			break;
+		case ZFS_REDUNDANT_METADATA_SOME:
+			if (DMU_OT_IS_CRITICAL(type))
+				copies++;
+			break;
+		case ZFS_REDUNDANT_METADATA_NONE:
+			break;
+		}
 	} else if (wp & WP_NOFILL) {
 		ASSERT(level == 0);
 

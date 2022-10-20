@@ -25,6 +25,7 @@
  * Copyright 2016, Joyent, Inc.
  * Copyright (c) 2019, Klara Inc.
  * Copyright (c) 2019, Allan Jude
+ * Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -369,6 +370,8 @@ zfs_prop_init(void)
 	static const zprop_index_t redundant_metadata_table[] = {
 		{ "all",	ZFS_REDUNDANT_METADATA_ALL },
 		{ "most",	ZFS_REDUNDANT_METADATA_MOST },
+		{ "some",	ZFS_REDUNDANT_METADATA_SOME },
+		{ "none",	ZFS_REDUNDANT_METADATA_NONE },
 		{ NULL }
 	};
 
@@ -388,7 +391,7 @@ zfs_prop_init(void)
 	zprop_register_index(ZFS_PROP_REDUNDANT_METADATA, "redundant_metadata",
 	    ZFS_REDUNDANT_METADATA_ALL,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
-	    "all | most", "REDUND_MD",
+	    "all | most | some | none", "REDUND_MD",
 	    redundant_metadata_table, sfeatures);
 	zprop_register_index(ZFS_PROP_SYNC, "sync", ZFS_SYNC_STANDARD,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
