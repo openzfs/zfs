@@ -316,7 +316,7 @@ write_idmap(pid_t pid, char *buf, size_t buf_size, idmap_type_t type)
 	else
 		ret = 0;
 out:
-	if (fd > 0)
+	if (fd >= 0)
 		close(fd);
 	return (ret);
 }
@@ -339,7 +339,7 @@ write_pid_idmaps(pid_t pid, list_t *head)
 	int size_buf_uids = 4096, size_buf_gids = 4096;
 	struct idmap_entry *entry;
 	int uid_filled, gid_filled;
-	int ret;
+	int ret = 0;
 	int has_uids = 0, has_gids = 0;
 	size_t buf_size;
 
@@ -546,11 +546,11 @@ is_idmap_supported(char *path)
 	if (ret) {
 		errno = ret;
 		log_errno("parse_idmap_entry(%s)", input);
-		goto out;
+		goto out1;
 	}
 	ret = userns_fd_from_idmap(&head);
 	if (ret < 0)
-		goto out;
+		goto out1;
 	attr.userns_fd = ret;
 	ret = openat(-EBADF, path, O_DIRECTORY | O_CLOEXEC);
 	if (ret < 0) {
@@ -571,14 +571,14 @@ is_idmap_supported(char *path)
 		log_errno("sys_mount_setattr");
 	}
 out:
+	close(attr.userns_fd);
+out1:
 	free_idmap(&head);
 	list_destroy(&head);
-	if (tree_fd > 0)
+	if (tree_fd >= 0)
 		close(tree_fd);
-	if (path_fd > 0)
+	if (path_fd >= 0)
 		close(path_fd);
-	if (attr.userns_fd > 0)
-		close(attr.userns_fd);
 	free(input);
 	return (ret == 0);
 }
@@ -639,7 +639,7 @@ do_idmap_mount(list_t *idmap, char *source, char *target, int flags)
 
 	ret = userns_fd_from_idmap(idmap);
 	if (ret < 0)
-		goto out;
+		goto out1;
 	attr.userns_fd = ret;
 	ret = openat(-EBADF, source, O_DIRECTORY | O_CLOEXEC);
 	if (ret < 0) {
@@ -663,7 +663,7 @@ do_idmap_mount(list_t *idmap, char *source, char *target, int flags)
 		log_errno("sys_mount_setattr");
 		goto out;
 	}
-	if (source != NULL && target == NULL && is_mountpoint(source)) {
+	if (target == NULL && is_mountpoint(source)) {
 		ret = umount2(source, MNT_DETACH);
 		if (ret < 0) {
 			ret = -errno;
@@ -679,12 +679,12 @@ do_idmap_mount(list_t *idmap, char *source, char *target, int flags)
 		    source : target);
 	}
 out:
-	if (tree_fd > 0)
+	close(attr.userns_fd);
+out1:
+	if (tree_fd >= 0)
 		close(tree_fd);
-	if (source_fd > 0)
+	if (source_fd >= 0)
 		close(source_fd);
-	if (attr.userns_fd > 0)
-		close(attr.userns_fd);
 	return (ret);
 }
 
