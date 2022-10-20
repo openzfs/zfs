@@ -646,7 +646,7 @@ zap_entry_create(zap_leaf_t *l, zap_name_t *zn, uint32_t cd,
  * form of the name.  But all callers have one of these on hand anyway,
  * so might as well take advantage.  A cleaner but slower interface
  * would accept neither argument, and compute the normalized name as
- * needed (using zap_name_alloc(zap_entry_read_name(zeh))).
+ * needed (using zap_name_alloc_str(zap_entry_read_name(zeh))).
  */
 boolean_t
 zap_entry_normalization_conflict(zap_entry_handle_t *zeh, zap_name_t *zn,
@@ -667,7 +667,7 @@ zap_entry_normalization_conflict(zap_entry_handle_t *zeh, zap_name_t *zn,
 			continue;
 
 		if (zn == NULL) {
-			zn = zap_name_alloc(zap, name, MT_NORMALIZE);
+			zn = zap_name_alloc_str(zap, name, MT_NORMALIZE);
 			allocdzn = B_TRUE;
 		}
 		if (zap_leaf_array_match(zeh->zeh_leaf, zn,

@@ -65,7 +65,7 @@ extern "C" {
  * them, and increased memory overhead. Increasing these values results in
  * higher variance in operation time, and reduces memory overhead.
  */
-#define	BTREE_CORE_ELEMS	128
+#define	BTREE_CORE_ELEMS	126
 #define	BTREE_LEAF_SIZE		4096
 
 extern kmem_cache_t *zfs_btree_leaf_cache;
@@ -95,9 +95,6 @@ typedef struct zfs_btree_leaf {
 	uint8_t		btl_elems[];
 } zfs_btree_leaf_t;
 
-#define	BTREE_LEAF_ESIZE	(BTREE_LEAF_SIZE - \
-    offsetof(zfs_btree_leaf_t, btl_elems))
-
 typedef struct zfs_btree_index {
 	zfs_btree_hdr_t	*bti_node;
 	uint32_t	bti_offset;
@@ -109,14 +106,15 @@ typedef struct zfs_btree_index {
 } zfs_btree_index_t;
 
 typedef struct btree {
-	zfs_btree_hdr_t		*bt_root;
-	int64_t			bt_height;
+	int (*bt_compar) (const void *, const void *);
 	size_t			bt_elem_size;
+	size_t			bt_leaf_size;
 	uint32_t		bt_leaf_cap;
+	int32_t			bt_height;
 	uint64_t		bt_num_elems;
 	uint64_t		bt_num_nodes;
+	zfs_btree_hdr_t		*bt_root;
 	zfs_btree_leaf_t	*bt_bulk; // non-null if bulk loading
-	int (*bt_compar) (const void *, const void *);
 } zfs_btree_t;
 
 /*
@@ -132,9 +130,12 @@ void zfs_btree_fini(void);
  * compar - function to compare two nodes, it must return exactly: -1, 0, or +1
  *          -1 for <, 0 for ==, and +1 for >
  * size   - the value of sizeof(struct my_type)
+ * lsize  - custom leaf size
  */
 void zfs_btree_create(zfs_btree_t *, int (*) (const void *, const void *),
     size_t);
+void zfs_btree_create_custom(zfs_btree_t *, int (*)(const void *, const void *),
+    size_t, size_t);
 
 /*
  * Find a node with a matching value in the tree. Returns the matching node
