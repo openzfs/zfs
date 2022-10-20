@@ -32,6 +32,7 @@
  * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
  * Copyright (c) 2019, Klara Inc.
  * Copyright (c) 2019, Allan Jude
+ * Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -287,7 +288,9 @@ redundant_metadata_changed_cb(void *arg, uint64_t newval)
 	 * Inheritance and range checking should have been done by now.
 	 */
 	ASSERT(newval == ZFS_REDUNDANT_METADATA_ALL ||
-	    newval == ZFS_REDUNDANT_METADATA_MOST);
+	    newval == ZFS_REDUNDANT_METADATA_MOST ||
+	    newval == ZFS_REDUNDANT_METADATA_SOME ||
+	    newval == ZFS_REDUNDANT_METADATA_NONE);
 
 	os->os_redundant_metadata = newval;
 }

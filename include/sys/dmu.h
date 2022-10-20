@@ -27,6 +27,7 @@
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2013 Saso Kiselkov. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
+ * Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -141,6 +142,12 @@ typedef enum dmu_object_byteswap {
 
 #define	DMU_OT_IS_DDT(ot) \
 	((ot) == DMU_OT_DDT_ZAP)
+
+#define	DMU_OT_IS_CRITICAL(ot) \
+	(DMU_OT_IS_METADATA(ot) && \
+	(ot) != DMU_OT_DNODE && \
+	(ot) != DMU_OT_DIRECTORY_CONTENTS && \
+	(ot) != DMU_OT_SA)
 
 /* Note: ztest uses DMU_OT_UINT64_OTHER as a proxy for file blocks */
 #define	DMU_OT_IS_FILE(ot) \

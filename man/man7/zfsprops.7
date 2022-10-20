@@ -36,8 +36,9 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\" Copyright (c) 2019, Kjeld Schouten-Lebbing
+.\" Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
 .\"
-.Dd May 24, 2021
+.Dd July 21, 2022
 .Dt ZFSPROPS 7
 .Os
 .
@@ -1445,7 +1446,7 @@ affects only files created afterward; existing files are unaffected.
 .Pp
 This property can also be referred to by its shortened column name,
 .Sy recsize .
-.It Sy redundant_metadata Ns = Ns Sy all Ns | Ns Sy most
+.It Sy redundant_metadata Ns = Ns Sy all Ns | Ns Sy most Ns | Ns Sy some Ns | Ns Sy none
 Controls what types of metadata are stored redundantly.
 ZFS stores an extra copy of metadata, so that if a single block is corrupted,
 the amount of user data lost is limited.
@@ -1477,7 +1478,7 @@ When set to
 ZFS stores an extra copy of most types of metadata.
 This can improve performance of random writes, because less metadata must be
 written.
-In practice, at worst about 100 blocks
+In practice, at worst about 1000 blocks
 .Po of
 .Sy recordsize
 bytes each
@@ -1485,6 +1486,17 @@ bytes each
 of user data can be lost if a single on-disk block is corrupt.
 The exact behavior of which metadata blocks are stored redundantly may change in
 future releases.
+.Pp
+When set to
+.Sy some ,
+ZFS stores an extra copy of only critical metadata.
+This can improve file create performance since less metadata needs to be written.
+If a single on-disk block is corrupt, at worst a single user file can be lost.
+.Pp
+When set to
+.Sy none ,
+ZFS does not store any copies of metadata redundantly.
+If a single on-disk block is corrupt, an entire dataset can be lost.
 .Pp
 The default value is
 .Sy all .
