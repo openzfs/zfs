@@ -66,10 +66,9 @@ typedef struct mzap_phys {
 } mzap_phys_t;
 
 typedef struct mzap_ent {
-	avl_node_t mze_node;
-	int mze_chunkid;
-	uint64_t mze_hash;
-	uint32_t mze_cd; /* copy from mze_phys->mze_cd */
+	uint32_t mze_hash;
+	uint16_t mze_cd; /* copy from mze_phys->mze_cd */
+	uint16_t mze_chunkid;
 } mzap_ent_t;
 
 #define	MZE_PHYS(zap, mze) \
@@ -164,7 +163,7 @@ typedef struct zap {
 			int16_t zap_num_entries;
 			int16_t zap_num_chunks;
 			int16_t zap_alloc_next;
-			avl_tree_t zap_avl;
+			zfs_btree_t zap_tree;
 		} zap_micro;
 	} zap_u;
 } zap_t;
@@ -202,7 +201,7 @@ int zap_lockdir(objset_t *os, uint64_t obj, dmu_tx_t *tx,
     krw_t lti, boolean_t fatreader, boolean_t adding, void *tag, zap_t **zapp);
 void zap_unlockdir(zap_t *zap, void *tag);
 void zap_evict_sync(void *dbu);
-zap_name_t *zap_name_alloc(zap_t *zap, const char *key, matchtype_t mt);
+zap_name_t *zap_name_alloc_str(zap_t *zap, const char *key, matchtype_t mt);
 void zap_name_free(zap_name_t *zn);
 int zap_hashbits(zap_t *zap);
 uint32_t zap_maxcd(zap_t *zap);
