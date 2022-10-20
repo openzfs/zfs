@@ -11,6 +11,7 @@
 
 #
 # Copyright (c) 2012, 2016, Delphix. All rights reserved.
+# Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -27,7 +28,7 @@ typeset -a canmount_prop_vals=('on' 'off' 'noauto')
 typeset -a copies_prop_vals=('1' '2' '3')
 typeset -a logbias_prop_vals=('latency' 'throughput')
 typeset -a primarycache_prop_vals=('all' 'none' 'metadata')
-typeset -a redundant_metadata_prop_vals=('all' 'most')
+typeset -a redundant_metadata_prop_vals=('all' 'most' 'some' 'none')
 typeset -a secondarycache_prop_vals=('all' 'none' 'metadata')
 typeset -a snapdir_prop_vals=('hidden' 'visible')
 typeset -a sync_prop_vals=('standard' 'always' 'disabled')
