@@ -151,14 +151,10 @@ extern "C" {
 
 extern void dprintf_setup(int *argc, char **argv);
 
-extern void cmn_err(int, const char *, ...)
-    __attribute__((format(printf, 2, 3)));
-extern void vcmn_err(int, const char *, va_list)
-    __attribute__((format(printf, 2, 0)));
-extern void panic(const char *, ...)
-    __attribute__((format(printf, 1, 2), noreturn));
-extern void vpanic(const char *, va_list)
-    __attribute__((format(printf, 1, 0), noreturn));
+extern void cmn_err(int, const char *, ...);
+extern void vcmn_err(int, const char *, va_list);
+extern __attribute__((noreturn)) void panic(const char *, ...);
+extern __attribute__((noreturn)) void vpanic(const char *, va_list);
 
 #define	fm_panic	panic
 

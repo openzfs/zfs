@@ -45,7 +45,7 @@ spl_dumpstack(void)
 }
 EXPORT_SYMBOL(spl_dumpstack);
 
-void
+int
 spl_panic(const char *file, const char *func, int line, const char *fmt, ...)
 {
 	const char *newfile;
@@ -75,6 +75,7 @@ spl_panic(const char *file, const char *func, int line, const char *fmt, ...)
 		schedule();
 
 	/* Unreachable */
+	return (1);
 }
 EXPORT_SYMBOL(spl_panic);
 
