@@ -54,6 +54,9 @@
 /*
  * Common DEBUG functionality.
  */
+#if defined(__COVERITY__) || defined(__clang_analyzer__)
+__attribute__((__noreturn__))
+#endif
 extern void spl_panic(const char *file, const char *func, int line,
     const char *fmt, ...) __attribute__((__noreturn__));
 extern void spl_dumpstack(void);

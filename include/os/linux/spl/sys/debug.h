@@ -54,8 +54,21 @@
 #define	__maybe_unused __attribute__((unused))
 #endif
 
+/*
+ * Without this, we see warnings from objtool during normal Linux builds when
+ * the kernel is built with CONFIG_STACK_VALIDATION=y:
+ *
+ * warning: objtool: tsd_create() falls through to next function __list_add()
+ * warning: objtool: .text: unexpected end of section
+ *
+ * Until the toolchain stops doing this, we must only define this attribute on
+ * spl_panic() when doing static analysis.
+ */
+#if defined(__COVERITY__) || defined(__clang_analyzer__)
+__attribute__((__noreturn__))
+#endif
 extern void spl_panic(const char *file, const char *func, int line,
-    const char *fmt, ...) __attribute__((__noreturn__));
+    const char *fmt, ...);
 extern void spl_dumpstack(void);
 
 static inline int
