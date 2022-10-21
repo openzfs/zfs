@@ -938,14 +938,13 @@ vdev_whole_disk_from_config(zpool_handle_t *zhp, const char *vdev_path)
 {
 	nvlist_t *nvl = NULL;
 	boolean_t avail_spare, l2cache, log;
-	uint64_t wholedisk;
+	uint64_t wholedisk = 0;
 
 	nvl = zpool_find_vdev(zhp, vdev_path, &avail_spare, &l2cache, &log);
 	if (!nvl)
 		return (0);
 
-	verify(nvlist_lookup_uint64(nvl, ZPOOL_CONFIG_WHOLE_DISK,
-	    &wholedisk) == 0);
+	(void) nvlist_lookup_uint64(nvl, ZPOOL_CONFIG_WHOLE_DISK, &wholedisk);
 
 	return (wholedisk);
 }
@@ -984,7 +983,7 @@ zfsdle_vdev_online(zpool_handle_t *zhp, void *data)
 	if ((tgt = zpool_find_vdev_by_physpath(zhp, devname,
 	    &avail_spare, &l2cache, NULL)) != NULL) {
 		char *path, fullpath[MAXPATHLEN];
-		uint64_t wholedisk;
+		uint64_t wholedisk = 0;
 
 		error = nvlist_lookup_string(tgt, ZPOOL_CONFIG_PATH, &path);
 		if (error) {
@@ -992,10 +991,8 @@ zfsdle_vdev_online(zpool_handle_t *zhp, void *data)
 			return (0);
 		}
 
-		error = nvlist_lookup_uint64(tgt, ZPOOL_CONFIG_WHOLE_DISK,
+		(void) nvlist_lookup_uint64(tgt, ZPOOL_CONFIG_WHOLE_DISK,
 		    &wholedisk);
-		if (error)
-			wholedisk = 0;
 
 		if (wholedisk) {
 			path = strrchr(path, '/');
