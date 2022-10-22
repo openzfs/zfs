@@ -22,6 +22,7 @@
 #define	_SPL_RPC_XDR_H
 
 #include <sys/types.h>
+#include <sys/sysmacros.h>
 
 typedef int bool_t;
 
