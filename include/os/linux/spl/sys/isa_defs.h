@@ -195,10 +195,26 @@
 
 #define	_SUNOS_VTOC_16
 
+/*
+ * LoongArch arch specific defines
+ * only LoongArch64 is supported yet
+ */
+#elif defined(__loongarch__) && defined(__loongarch_lp64)
+
+#if !defined(_LP64)
+#define	_LP64
+#endif
+
+#define	_ZFS_LITTLE_ENDIAN
+#define	_SUNOS_VTOC_16
+
+/* not all LoongArch cores support unaligned accesses in hardware */
+#define	_ALIGNMENT_REQUIRED	1
+
 #else
 /*
  * Currently supported:
- * x86_64, x32, i386, arm, powerpc, s390, sparc, mips, and RV64G
+ * x86_64, x32, i386, arm, powerpc, s390, sparc, mips, RV64G, and LoongArch64
  */
 #error "Unsupported ISA type"
 #endif
