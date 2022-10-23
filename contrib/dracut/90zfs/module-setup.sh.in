@@ -89,6 +89,16 @@ install() {
 			"zfs-import-cache.service"; do
 			inst_simple "${systemdsystemunitdir}/${_service}"
 			systemctl -q --root "${initdir}" add-wants zfs-import.target "${_service}"
+
+			# Add user-provided unit overrides
+			# - /etc/systemd/system/zfs-import-{scan,cache}.service
+			# - /etc/systemd/system/zfs-import-{scan,cache}.service.d/overrides.conf
+			# -H ensures they are marked host-only
+			# -o ensures there is no error upon absence of these files
+			inst_multiple -o -H \
+				"${systemdsystemconfdir}/${_service}" \
+				"${systemdsystemconfdir}/${_service}.d/"*.conf
+
 		done
 
 		for _service in \
