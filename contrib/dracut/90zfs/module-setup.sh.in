@@ -112,6 +112,15 @@ install() {
 			"zfs-rollback-bootfs.service"; do
 			inst_simple "${moddir}/${_service}" "${systemdsystemunitdir}/${_service}"
 			systemctl -q --root "${initdir}" add-wants initrd.target "${_service}"
+
+			# Add user-provided unit overrides:
+			# - /etc/systemd/system/${_service}
+			# - /etc/systemd/system/${_service}.d/overrides.conf
+			# -H ensures they are marked host-only
+			# -o ensures there is no error upon absence of these files
+			inst_multiple -o -H \
+				"${systemdsystemconfdir}/${_service}" \
+				"${systemdsystemconfdir}/${_service}.d/"*.conf
 		done
 
 		inst_simple "${moddir}/import-opts-generator.sh" "${systemdutildir}/system-environment-generators/zfs-import-opts.sh"
