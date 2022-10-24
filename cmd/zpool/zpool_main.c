@@ -2904,11 +2904,6 @@ show_import(nvlist_t *config, boolean_t report_error)
 		    "\tExpect reduced performance.\n"));
 		break;
 
-	case ZPOOL_STATUS_USES_NTNX_SHARED_L2ARC:
-		(void) printf_color(ANSI_BOLD,
-		    gettext(" status: The pool has L2ARC devices that will be ignored in favor of the shared L2ARC devices in pool " NTNX_L2ARC_POOL_NAME ".\n"));
-		break;
-
 	default:
 		/*
 		 * No other status can be seen when importing pools.
@@ -3047,9 +3042,6 @@ show_import(nvlist_t *config, boolean_t report_error)
 		case ZPOOL_STATUS_HOSTID_REQUIRED:
 			(void) printf(gettext(" action: Set a unique system "
 			    "hostid with the zgenhostid(8) command.\n"));
-			break;
-		case ZPOOL_STATUS_USES_NTNX_SHARED_L2ARC:
-			(void) printf(gettext(" action: The pool's L2ARC devices will be ignored in favor of the shared L2ARC devices in pool " NTNX_L2ARC_POOL_NAME ".\n"));
 			break;
 		default:
 			(void) printf(gettext(" action: The pool cannot be "
@@ -8537,10 +8529,6 @@ status_callback(zpool_handle_t *zhp, void *data)
 			 */
 			assert(0);
 		}
-		break;
-
-	case ZPOOL_STATUS_USES_NTNX_SHARED_L2ARC:
-		(void) printf(gettext("status: The pool has L2ARC devices that will be ignored in favor of the shared L2ARC devices in pool " NTNX_L2ARC_POOL_NAME ".\n"));
 		break;
 
 	default:
