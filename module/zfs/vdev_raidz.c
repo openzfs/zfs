@@ -4683,6 +4683,10 @@ vdev_raidz_config_generate(vdev_t *vd, nvlist_t *nv)
 	 */
 	fnvlist_add_uint64(nv, ZPOOL_CONFIG_NPARITY, vdrz->vd_nparity);
 
+	if (vdrz->vn_vre.vre_state == DSS_SCANNING) {
+		fnvlist_add_boolean(nv, ZPOOL_CONFIG_RAIDZ_EXPANDING);
+	}
+
 	mutex_enter(&vdrz->vd_expand_lock);
 	if (!avl_is_empty(&vdrz->vd_expand_txgs)) {
 		uint64_t count = avl_numnodes(&vdrz->vd_expand_txgs);
