@@ -3299,7 +3299,7 @@ dbuf_prefetch_indirect_done(zio_t *zio, const zbookmark_phys_t *zb,
 		} else {
 			ASSERT3U(BP_GET_LSIZE(zio->io_bp), ==, zio->io_size);
 		}
-		/* XXX: with system-wide l2arc, this ASSERT is incorrect.
+		/* XXX: with shared l2arc, this ASSERT is incorrect.
 		 * After conversation with Paul Dagnelie, who added it,
 		 * we concluded that it's not necessary.
 		 * The stack trace was :

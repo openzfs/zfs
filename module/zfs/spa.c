@@ -1986,7 +1986,7 @@ spa_load_l2cache(spa_t *spa)
 				/*
 				 * Ensure that vdev_is_dead() returns true, so
 				 * we don't l2arc_add_vdev below. The whole
-				 * system-wide L2ARC code relies on this.
+				 * Shared L2ARC code relies on this.
 				 */
 				VERIFY(vdev_is_dead(vd));
 			}
