@@ -5928,7 +5928,7 @@ arc_read_l2arc_scl_l2arc_tryenter(vdev_t *l2arc_vdev)
 
 	/* we only use l2arc vdevs from the dedicated L2ARC pool */
 	ASSERT(l2arc_vdev->vdev_spa);
-	ASSERT(strcmp(spa_name(l2arc_vdev->vdev_spa), NTNX_L2ARC_POOL_NAME) == 0);
+	ASSERT(strcmp(spa_name(l2arc_vdev->vdev_spa), ZFS_SHARED_L2ARC_POOL_NAME) == 0);
 
 	return spa_config_tryenter(l2arc_vdev->vdev_spa, SCL_L2ARC, l2arc_vdev, RW_READER);
 }
@@ -8967,7 +8967,7 @@ l2arc_read_done(zio_t *zio)
 	ASSERT3P(zio->io_vd, !=, NULL);
 	ASSERT(zio->io_flags & ZIO_FLAG_DONT_PROPAGATE);
 
-	ASSERT(strcmp(spa_name(zio->io_spa), NTNX_L2ARC_POOL_NAME) == 0);
+	ASSERT(strcmp(spa_name(zio->io_spa), ZFS_SHARED_L2ARC_POOL_NAME) == 0);
 
 	ASSERT3P(cb, !=, NULL);
 	hdr = cb->l2rcb_hdr;
@@ -9981,7 +9981,7 @@ l2arc_feed_thread(void *unused)
 		 * We only allow add l2arc devices in pool NTNX_L2ARC_POOL_NAME
 		 * to l2arc_dev_list.
 		 */
-		ASSERT0(strcmp(spa_name(spa), NTNX_L2ARC_POOL_NAME));
+		ASSERT0(strcmp(spa_name(spa), ZFS_SHARED_L2ARC_POOL_NAME));
 
 		/*
 		 * If the pool is read-only then force the feed thread to
@@ -10142,7 +10142,7 @@ l2arc_add_vdev(spa_t *spa, vdev_t *vd)
 
 	ASSERT(!l2arc_vdev_present(vd));
 
-	VERIFY(strcmp(spa_name(spa), NTNX_L2ARC_POOL_NAME) == 0);
+	VERIFY(strcmp(spa_name(spa), ZFS_SHARED_L2ARC_POOL_NAME) == 0);
 
 	/*
 	 * Create a new l2arc device entry.

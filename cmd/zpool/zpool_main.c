@@ -2437,8 +2437,8 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 			(void) printf(gettext("invalid label"));
 			break;
 
-		case VDEV_AUX_POOL_USES_NTNX_SHARED_L2ARC:
-			(void) printf(gettext("ignored in favor of cache devices in pool " NTNX_L2ARC_POOL_NAME));
+		case VDEV_AUX_POOL_USES_SHARED_L2ARC:
+			(void) printf(gettext("ignored in favor of cache devices in pool " ZFS_SHARED_L2ARC_POOL_NAME));
 			break;
 
 		default:
@@ -2600,8 +2600,8 @@ print_import_config(status_cbdata_t *cb, const char *name, nvlist_t *nv,
 			(void) printf(gettext("invalid label"));
 			break;
 
-		case VDEV_AUX_POOL_USES_NTNX_SHARED_L2ARC:
-			(void) printf(gettext("ignored in favor of cache devices in pool " NTNX_L2ARC_POOL_NAME));
+		case VDEV_AUX_POOL_USES_SHARED_L2ARC:
+			(void) printf(gettext("ignored in favor of cache devices in pool " ZFS_SHARED_L2ARC_POOL_NAME));
 			break;
 
 		default:

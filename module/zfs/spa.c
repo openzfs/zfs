@@ -1978,11 +1978,11 @@ spa_load_l2cache(spa_t *spa)
 			(void) vdev_validate_aux(vd);
 
 			if (!vdev_is_dead(vd) &&
-			    strcmp(spa_name(spa), NTNX_L2ARC_POOL_NAME) != 0) {
-				cmn_err(CE_WARN, "pool '%s': l2arc devices outside of pool " NTNX_L2ARC_POOL_NAME " will not be used and marked offline.", spa_name(spa));
+			    strcmp(spa_name(spa), ZFS_SHARED_L2ARC_POOL_NAME) != 0) {
+				cmn_err(CE_WARN, "pool '%s': l2arc devices outside of pool " ZFS_SHARED_L2ARC_POOL_NAME " will not be used and marked offline.", spa_name(spa));
 				/* mark device as dead */
 				vdev_set_state(vd, B_TRUE, VDEV_STATE_UNUSED,
-				    VDEV_AUX_POOL_USES_NTNX_SHARED_L2ARC);
+				    VDEV_AUX_POOL_USES_SHARED_L2ARC);
 				/*
 				 * Ensure that vdev_is_dead() returns true, so
 				 * we don't l2arc_add_vdev below. The whole
