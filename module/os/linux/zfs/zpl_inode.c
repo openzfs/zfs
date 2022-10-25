@@ -511,8 +511,18 @@ zpl_rename2(struct inode *sdip, struct dentry *sdentry,
 	zuserns_t *user_ns = NULL;
 #endif
 
-	/* We don't have renameat2(2) support */
+	/*
+	 * (1) RENAME_NOREPLACE: this flag indicates that if the target of
+	 * the rename exists the rename should fail with -EEXIST instead of
+	 * replacing the target.  The VFS already checks for existence, so
+	 * for local filesystems the RENAME_NOREPLACE implementation is
+	 * equivalent to plain rename.
+	 */
+#ifdef RENAME_NOREPLACE  /* Appeared in 3.15 */
+	if (flags != 0 && flags != RENAME_NOREPLACE)
+#else
 	if (flags)
+#endif
 		return (-EINVAL);
 
 	crhold(cr);

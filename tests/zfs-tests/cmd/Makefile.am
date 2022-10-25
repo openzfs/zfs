@@ -108,8 +108,8 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/edonr_test %D%/skein_test \
 	libicp.la \
 	libspl.la \
 	libspl_assert.la
-%C%_sha2_test_LDADD  = $(%C%_skein_test_LDADD)
-%C%_edonr_test_LDADD = $(%C%_skein_test_LDADD)
+%C%_sha2_test_LDADD   = $(%C%_skein_test_LDADD)
+%C%_edonr_test_LDADD  = $(%C%_skein_test_LDADD)
 %C%_blake3_test_LDADD = $(%C%_skein_test_LDADD)
 
 
@@ -119,6 +119,7 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/user_ns_exec
 scripts_zfs_tests_bin_PROGRAMS += %D%/xattrtest
 scripts_zfs_tests_bin_PROGRAMS += %D%/zed_fd_spill-zedlet
 scripts_zfs_tests_bin_PROGRAMS += %D%/idmap_util
+scripts_zfs_tests_bin_PROGRAMS += %D%/rename_no_replace
 
 %C%_idmap_util_LDADD = libspl.la
 

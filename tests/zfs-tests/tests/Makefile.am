@@ -270,6 +270,8 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/history/sparc.migratedpool.DAT.Z \
 	functional/history/sparc.orig_history.txt \
 	functional/history/zfs-pool-v4.dat.Z \
+	functional/idmap_mount/idmap_mount.cfg \
+	functional/idmap_mount/idmap_mount_common.kshlib \
 	functional/inheritance/config001.cfg \
 	functional/inheritance/config002.cfg \
 	functional/inheritance/config003.cfg \
@@ -378,9 +380,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/zvol/zvol_common.shlib \
 	functional/zvol/zvol_ENOSPC/zvol_ENOSPC.cfg \
 	functional/zvol/zvol_misc/zvol_misc_common.kshlib \
-	functional/zvol/zvol_swap/zvol_swap.cfg \
-	functional/idmap_mount/idmap_mount.cfg \
-	functional/idmap_mount/idmap_mount_common.kshlib
+	functional/zvol/zvol_swap/zvol_swap.cfg
 
 nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/acl/off/cleanup.ksh \
@@ -414,10 +414,10 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/alloc_class/alloc_class_013_pos.ksh \
 	functional/alloc_class/cleanup.ksh \
 	functional/alloc_class/setup.ksh \
-	functional/append/file_append.ksh \
-	functional/append/threadsappend_001_pos.ksh \
 	functional/append/cleanup.ksh \
+	functional/append/file_append.ksh \
 	functional/append/setup.ksh \
+	functional/append/threadsappend_001_pos.ksh \
 	functional/arc/arcstats_runtime_tuning.ksh \
 	functional/arc/cleanup.ksh \
 	functional/arc/dbufstats_001_pos.ksh \
@@ -761,6 +761,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_receive/zfs_receive_014_pos.ksh \
 	functional/cli_root/zfs_receive/zfs_receive_015_pos.ksh \
 	functional/cli_root/zfs_receive/zfs_receive_016_pos.ksh \
+	functional/cli_root/zfs_receive/zfs_receive_compressed_corrective.ksh \
+	functional/cli_root/zfs_receive/zfs_receive_corrective.ksh \
 	functional/cli_root/zfs_receive/zfs_receive_-e.ksh \
 	functional/cli_root/zfs_receive/zfs_receive_from_encrypted.ksh \
 	functional/cli_root/zfs_receive/zfs_receive_from_zstd.ksh \
@@ -770,8 +772,6 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_receive/zfs_receive_raw.ksh \
 	functional/cli_root/zfs_receive/zfs_receive_to_encrypted.ksh \
 	functional/cli_root/zfs_receive/zfs_receive_-wR-encrypted-mix.ksh \
-	functional/cli_root/zfs_receive/zfs_receive_corrective.ksh \
-	functional/cli_root/zfs_receive/zfs_receive_compressed_corrective.ksh \
 	functional/cli_root/zfs_rename/cleanup.ksh \
 	functional/cli_root/zfs_rename/setup.ksh \
 	functional/cli_root/zfs_rename/zfs_rename_001_pos.ksh \
@@ -1234,7 +1234,6 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_user/misc/arcstat_001_pos.ksh \
 	functional/cli_user/misc/arc_summary_001_pos.ksh \
 	functional/cli_user/misc/arc_summary_002_neg.ksh \
-	functional/cli_user/misc/zilstat_001_pos.ksh \
 	functional/cli_user/misc/cleanup.ksh \
 	functional/cli_user/misc/setup.ksh \
 	functional/cli_user/misc/zdb_001_neg.ksh \
@@ -1258,6 +1257,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_user/misc/zfs_unmount_001_neg.ksh \
 	functional/cli_user/misc/zfs_unshare_001_neg.ksh \
 	functional/cli_user/misc/zfs_upgrade_001_neg.ksh \
+	functional/cli_user/misc/zilstat_001_pos.ksh \
 	functional/cli_user/misc/zpool_001_neg.ksh \
 	functional/cli_user/misc/zpool_add_001_neg.ksh \
 	functional/cli_user/misc/zpool_attach_001_neg.ksh \
@@ -1423,6 +1423,12 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/history/history_009_pos.ksh \
 	functional/history/history_010_pos.ksh \
 	functional/history/setup.ksh \
+	functional/idmap_mount/cleanup.ksh \
+	functional/idmap_mount/idmap_mount_001.ksh \
+	functional/idmap_mount/idmap_mount_002.ksh \
+	functional/idmap_mount/idmap_mount_003.ksh \
+	functional/idmap_mount/idmap_mount_004.ksh \
+	functional/idmap_mount/setup.ksh \
 	functional/inheritance/cleanup.ksh \
 	functional/inheritance/inherit_001_pos.ksh \
 	functional/inuse/inuse_001_pos.ksh \
@@ -1693,6 +1699,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/removal/removal_with_export.ksh \
 	functional/removal/removal_with_faulted.ksh \
 	functional/removal/removal_with_ganging.ksh \
+	functional/removal/removal_with_indirect.ksh \
 	functional/removal/removal_with_remove.ksh \
 	functional/removal/removal_with_scrub.ksh \
 	functional/removal/removal_with_send.ksh \
@@ -1708,6 +1715,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/removal/remove_raidz.ksh \
 	functional/rename_dirs/cleanup.ksh \
 	functional/rename_dirs/rename_dirs_001_pos.ksh \
+	functional/rename_dirs/rename_no_replace_001_pos.ksh \
 	functional/rename_dirs/setup.ksh \
 	functional/replacement/attach_import.ksh \
 	functional/replacement/attach_multiple.ksh \
@@ -2000,10 +2008,4 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/zvol/zvol_swap/zvol_swap_003_pos.ksh \
 	functional/zvol/zvol_swap/zvol_swap_004_pos.ksh \
 	functional/zvol/zvol_swap/zvol_swap_005_pos.ksh \
-	functional/zvol/zvol_swap/zvol_swap_006_pos.ksh \
-	functional/idmap_mount/cleanup.ksh \
-	functional/idmap_mount/setup.ksh \
-	functional/idmap_mount/idmap_mount_001.ksh \
-	functional/idmap_mount/idmap_mount_002.ksh \
-	functional/idmap_mount/idmap_mount_003.ksh \
-	functional/idmap_mount/idmap_mount_004.ksh
+	functional/zvol/zvol_swap/zvol_swap_006_pos.ksh

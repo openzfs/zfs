@@ -802,8 +802,8 @@ tests = ['removal_all_vdev', 'removal_cancel', 'removal_check_space',
 tags = ['functional', 'removal']
 
 [tests/functional/rename_dirs]
-tests = ['rename_dirs_001_pos']
-tags = ['functional', 'rename_dirs']
+tests = ['rename_dirs_001_pos', 'rename_no_replace_002_pos']
+tags = ['functional', 'rename_dirs', 'rename_no_replace']
 
 [tests/functional/replacement]
 tests = ['attach_import', 'attach_multiple', 'attach_rebuild',

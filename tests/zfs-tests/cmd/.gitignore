@@ -36,6 +36,7 @@
 /write_dos_attributes
 /xattrtest
 /zed_fd_spill-zedlet
+/rename_no_replace
 /suid_write_to_file
 /cp_files
 /ctime
