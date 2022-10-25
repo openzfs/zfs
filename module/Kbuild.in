@@ -305,6 +305,7 @@ ZFS_OBJS := \
 	bpobj.o \
 	bptree.o \
 	bqueue.o \
+	brt.o \
 	btree.o \
 	dataset_kstats.o \
 	dbuf.o \

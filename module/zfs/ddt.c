@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2009, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2022 by Pawel Jakub Dawidek
  */
 
 #include <sys/zfs_context.h>
@@ -1178,6 +1179,60 @@ ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_entry_t *dde)
 	} while (++ddb->ddb_class < DDT_CLASSES);
 
 	return (SET_ERROR(ENOENT));
+}
+
+/*
+ * This function is used by Block Cloning (brt.c) to increase reference
+ * counter for the DDT entry if the block is already in DDT.
+ *
+ * Return false if the block, despite having the D bit set, is not present
+ * in the DDT. Currently this is not possible but might be in the future.
+ * See the comment below.
+ */
+boolean_t
+ddt_addref(spa_t *spa, const blkptr_t *bp)
+{
+	ddt_t *ddt;
+	ddt_entry_t *dde;
+	boolean_t result;
+
+	spa_config_enter(spa, SCL_ZIO, FTAG, RW_READER);
+	ddt = ddt_select(spa, bp);
+	ddt_enter(ddt);
+
+	dde = ddt_lookup(ddt, bp, B_TRUE);
+	ASSERT(dde != NULL);
+
+	if (dde->dde_type < DDT_TYPES) {
+		ddt_phys_t *ddp;
+
+		ASSERT3S(dde->dde_class, <, DDT_CLASSES);
+
+		ddp = &dde->dde_phys[BP_GET_NDVAS(bp)];
+		if (ddp->ddp_refcnt == 0) {
+			/* This should never happen? */
+			ddt_phys_fill(ddp, bp);
+		}
+		ddt_phys_addref(ddp);
+		result = B_TRUE;
+	} else {
+		/*
+		 * At the time of implementating this if the block has the
+		 * DEDUP flag set it must exist in the DEDUP table, but
+		 * there are many advocates that want ability to remove
+		 * entries from DDT with refcnt=1. If this will happen,
+		 * we may have a block with the DEDUP set, but which doesn't
+		 * have a corresponding entry in the DDT. Be ready.
+		 */
+		ASSERT3S(dde->dde_class, ==, DDT_CLASSES);
+		ddt_remove(ddt, dde);
+		result = B_FALSE;
+	}
+
+	ddt_exit(ddt);
+	spa_config_exit(spa, SCL_ZIO, FTAG);
+
+	return (result);
 }
 
 ZFS_MODULE_PARAM(zfs_dedup, zfs_dedup_, prefetch, INT, ZMOD_RW,

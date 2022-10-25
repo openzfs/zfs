@@ -1902,7 +1902,7 @@ ztest_log_write(ztest_ds_t *zd, dmu_tx_t *tx, lr_write_t *lr)
 	if (zil_replaying(zd->zd_zilog, tx))
 		return;
 
-	if (lr->lr_length > zil_max_log_data(zd->zd_zilog))
+	if (lr->lr_length > zil_max_log_data(zd->zd_zilog, sizeof (lr_write_t)))
 		write_state = WR_INDIRECT;
 
 	itx = zil_itx_create(TX_WRITE,

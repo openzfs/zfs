@@ -347,6 +347,20 @@ BLAKE3 is a secure hash algorithm focused on high performance.
 .Pp
 .checksum-spiel blake3
 .
+.feature com.fudosecurity block_cloning yes
+When this feature is enabled ZFS will use block cloning for operations like
+.Fn copy_file_range 2 .
+Block cloning allows to create multiple references to a single block.
+It is much faster than copying the data (as the actual data is neither read nor
+written) and takes no additional space.
+Blocks can be cloned across datasets under some conditions (like disabled
+encryption and equal
+.Nm recordsize ) .
+.Pp
+This feature becomes
+.Sy active
+when first block is cloned.
+When the last cloned block is freed, it goes back to the enabled state.
 .feature com.delphix bookmarks yes extensible_dataset
 This feature enables use of the
 .Nm zfs Cm bookmark
