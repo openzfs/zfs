@@ -2006,4 +2006,5 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/idmap_mount/idmap_mount_001.ksh \
 	functional/idmap_mount/idmap_mount_002.ksh \
 	functional/idmap_mount/idmap_mount_003.ksh \
-	functional/idmap_mount/idmap_mount_004.ksh
+	functional/idmap_mount/idmap_mount_004.ksh \
+	functional/idmap_mount/idmap_mount_005.ksh

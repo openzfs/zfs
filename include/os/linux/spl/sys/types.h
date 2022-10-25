@@ -56,5 +56,6 @@ typedef int			minor_t;
 
 struct user_namespace;
 typedef struct user_namespace	zuserns_t;
+extern zuserns_t *zfs_init_user_ns;
 
 #endif	/* _SPL_TYPES_H */

@@ -284,6 +284,7 @@ elif sys.platform.startswith('linux'):
         'idmap_mount/idmap_mount_002': ['SKIP', idmap_reason],
         'idmap_mount/idmap_mount_003': ['SKIP', idmap_reason],
         'idmap_mount/idmap_mount_004': ['SKIP', idmap_reason],
+        'idmap_mount/idmap_mount_005': ['SKIP', idmap_reason],
     })
 
 

@@ -214,9 +214,10 @@ secpolicy_vnode_setid_retain(struct znode *zp __maybe_unused, const cred_t *cr,
  * Determine that subject can set the file setgid flag.
  */
 int
-secpolicy_vnode_setids_setgids(const cred_t *cr, gid_t gid, zuserns_t *mnt_ns)
+secpolicy_vnode_setids_setgids(const cred_t *cr, gid_t gid, zuserns_t *mnt_ns,
+    zuserns_t *fs_ns)
 {
-	gid = zfs_gid_into_mnt(mnt_ns, gid);
+	gid = zfs_gid_to_vfsgid(mnt_ns, fs_ns, gid);
 #if defined(CONFIG_USER_NS)
 	if (!kgid_has_mapping(cr->user_ns, SGID_TO_KGID(gid)))
 		return (EPERM);
@@ -285,9 +286,10 @@ secpolicy_setid_clear(vattr_t *vap, cred_t *cr)
  * Determine that subject can set the file setid flags.
  */
 static int
-secpolicy_vnode_setid_modify(const cred_t *cr, uid_t owner, zuserns_t *mnt_ns)
+secpolicy_vnode_setid_modify(const cred_t *cr, uid_t owner, zuserns_t *mnt_ns,
+    zuserns_t *fs_ns)
 {
-	owner = zfs_uid_into_mnt(mnt_ns, owner);
+	owner = zfs_uid_to_vfsuid(mnt_ns, fs_ns, owner);
 
 	if (crgetuid(cr) == owner)
 		return (0);
@@ -313,13 +315,13 @@ secpolicy_vnode_stky_modify(const cred_t *cr)
 
 int
 secpolicy_setid_setsticky_clear(struct inode *ip, vattr_t *vap,
-    const vattr_t *ovap, cred_t *cr, zuserns_t *mnt_ns)
+    const vattr_t *ovap, cred_t *cr, zuserns_t *mnt_ns, zuserns_t *fs_ns)
 {
 	int error;
 
 	if ((vap->va_mode & S_ISUID) != 0 &&
 	    (error = secpolicy_vnode_setid_modify(cr,
-	    ovap->va_uid, mnt_ns)) != 0) {
+	    ovap->va_uid, mnt_ns, fs_ns)) != 0) {
 		return (error);
 	}
 
@@ -337,7 +339,8 @@ secpolicy_setid_setsticky_clear(struct inode *ip, vattr_t *vap,
 	 * group-id bit.
 	 */
 	if ((vap->va_mode & S_ISGID) != 0 &&
-	    secpolicy_vnode_setids_setgids(cr, ovap->va_gid, mnt_ns) != 0) {
+	    secpolicy_vnode_setids_setgids(cr, ovap->va_gid,
+	    mnt_ns, fs_ns) != 0) {
 		vap->va_mode &= ~S_ISGID;
 	}
 
