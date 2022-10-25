@@ -23,6 +23,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
+ * Copyright 2021 Alexander Stetsenko <alex.stetsenko@gmail.com>
  */
 
 #ifndef	_SYS_ZAP_H
@@ -110,6 +111,8 @@ typedef enum zap_flags {
 	 * already randomly distributed.
 	 */
 	ZAP_FLAG_PRE_HASHED_KEY = 1 << 2,
+	/* XXX */
+	ZAP_FLAG_NO_SHRINK = 1 << 3,
 #if defined(__linux__) && defined(_KERNEL)
 } zfs_zap_flags_t;
 #define	zap_flags_t	zfs_zap_flags_t
