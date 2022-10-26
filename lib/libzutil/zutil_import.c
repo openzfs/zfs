@@ -934,7 +934,6 @@ zpool_read_label_slow(int fd, nvlist_t **config, int *num_labels)
 	vdev_phys_t *label;
 	nvlist_t *expected_config = NULL;
 	uint64_t expected_guid = 0, size;
-	int error;
 
 	*config = NULL;
 
@@ -942,8 +941,9 @@ zpool_read_label_slow(int fd, nvlist_t **config, int *num_labels)
 		return (0);
 	size = P2ALIGN_TYPED(statbuf.st_size, sizeof (vdev_label_t), uint64_t);
 
-	error = posix_memalign((void **)&label, PAGESIZE, sizeof (*label));
-	if (error)
+	label = (vdev_phys_t *)umem_alloc_aligned(sizeof (*label), PAGESIZE,
+	    UMEM_DEFAULT);
+	if (label == NULL)
 		return (-1);
 
 	for (l = 0; l < VDEV_LABELS; l++) {
@@ -992,7 +992,7 @@ zpool_read_label_slow(int fd, nvlist_t **config, int *num_labels)
 	if (num_labels != NULL)
 		*num_labels = count;
 
-	free(label);
+	umem_free_aligned(label, sizeof (*label));
 	*config = expected_config;
 
 	return (0);
@@ -1023,9 +1023,9 @@ zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 		return (0);
 	size = P2ALIGN_TYPED(statbuf.st_size, sizeof (vdev_label_t), uint64_t);
 
-	error = posix_memalign((void **)&labels, PAGESIZE,
-	    VDEV_LABELS * sizeof (*labels));
-	if (error)
+	labels = (vdev_phys_t *)umem_alloc_aligned(
+	    VDEV_LABELS * sizeof (*labels), PAGESIZE, UMEM_DEFAULT);
+	if (labels == NULL)
 		return (-1);
 
 	memset(aiocbs, 0, sizeof (aiocbs));
@@ -1078,7 +1078,7 @@ zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 			error = zpool_read_label_slow(fd, config, num_labels);
 			saved_errno = errno;
 		}
-		free(labels);
+		umem_free_aligned(labels, VDEV_LABELS * sizeof (*labels));
 		errno = saved_errno;
 		return (error);
 	}
@@ -1127,7 +1127,7 @@ zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 	if (num_labels != NULL)
 		*num_labels = count;
 
-	free(labels);
+	umem_free_aligned(labels, VDEV_LABELS * sizeof (*labels));
 	*config = expected_config;
 
 	return (0);

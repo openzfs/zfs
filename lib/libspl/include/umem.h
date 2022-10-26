@@ -137,6 +137,21 @@ umem_free(const void *ptr, size_t size __maybe_unused)
 	free((void *)ptr);
 }
 
+/*
+ * umem_free_aligned was added for supporting portability
+ * with non-POSIX platforms that require a different free
+ * to be used with aligned allocations.
+ */
+static inline void
+umem_free_aligned(void *ptr, size_t size __maybe_unused)
+{
+#ifndef _WIN32
+	free((void *)ptr);
+#else
+	_aligned_free(ptr);
+#endif
+}
+
 static inline void
 umem_nofail_callback(umem_nofail_callback_t *cb __maybe_unused)
 {}
@@ -196,7 +211,10 @@ umem_cache_free(umem_cache_t *cp, void *ptr)
 	if (cp->cache_destructor)
 		cp->cache_destructor(ptr, cp->cache_private);
 
-	umem_free(ptr, cp->cache_bufsize);
+	if (cp->cache_align != 0)
+		umem_free_aligned(ptr, cp->cache_bufsize);
+	else
+		umem_free(ptr, cp->cache_bufsize);
 }
 
 static inline void
