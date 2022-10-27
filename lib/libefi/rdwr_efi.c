@@ -1362,7 +1362,7 @@ efi_write(int fd, struct dk_gpt *vtoc)
 	if (NBLOCKS(vtoc->efi_nparts, vtoc->efi_lbasize) < 34) {
 		dk_ioc.dki_length = EFI_MIN_ARRAY_SIZE + vtoc->efi_lbasize;
 	} else {
-		dk_ioc.dki_length = NBLOCKS(vtoc->efi_nparts,
+		dk_ioc.dki_length = (len_t)NBLOCKS(vtoc->efi_nparts,
 		    vtoc->efi_lbasize) *
 		    vtoc->efi_lbasize;
 	}
