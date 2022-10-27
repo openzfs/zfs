@@ -139,8 +139,12 @@ _bump_event_queue_length(void)
 	if (qlen == orig_qlen)
 		goto done;
 	wr = snprintf(qlen_buf, sizeof (qlen_buf), "%ld", qlen);
+	if (wr >= sizeof (qlen_buf)) {
+		wr = sizeof (qlen_buf) - 1;
+		zed_log_msg(LOG_WARNING, "Truncation in %s()", __func__);
+	}
 
-	if (pwrite(zzlm, qlen_buf, wr, 0) < 0)
+	if (pwrite(zzlm, qlen_buf, wr + 1, 0) < 0)
 		goto done;
 
 	zed_log_msg(LOG_WARNING, "Bumping queue length to %ld", qlen);

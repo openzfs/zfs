@@ -202,7 +202,7 @@ libzfs_error_init(int error)
 	size_t msglen = sizeof (errbuf);
 
 	if (modfind("zfs") < 0) {
-		size_t len = snprintf(msg, msglen, dgettext(TEXT_DOMAIN,
+		size_t len = kmem_scnprintf(msg, msglen, dgettext(TEXT_DOMAIN,
 		    "Failed to load %s module: "), ZFS_KMOD);
 		msg += len;
 		msglen -= len;

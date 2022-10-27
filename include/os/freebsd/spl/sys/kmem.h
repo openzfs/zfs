@@ -57,6 +57,9 @@ extern char	*kmem_asprintf(const char *, ...)
 extern char *kmem_vasprintf(const char *fmt, va_list ap)
     __attribute__((format(printf, 1, 0)));
 
+extern int kmem_scnprintf(char *restrict str, size_t size,
+    const char *restrict fmt, ...);
+
 typedef struct kmem_cache {
 	char		kc_name[32];
 #if !defined(KMEM_DEBUG)

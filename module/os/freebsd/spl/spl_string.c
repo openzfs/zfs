@@ -105,3 +105,33 @@ kmem_strfree(char *str)
 	ASSERT3P(str, !=, NULL);
 	kmem_free(str, strlen(str) + 1);
 }
+
+/*
+ * kmem_scnprintf() will return the number of characters that it would have
+ * printed whenever it is limited by value of the size variable, rather than
+ * the number of characters that it did print. This can cause misbehavior on
+ * subsequent uses of the return value, so we define a safe version that will
+ * return the number of characters actually printed, minus the NULL format
+ * character.  Subsequent use of this by the safe string functions is safe
+ * whether it is snprintf(), strlcat() or strlcpy().
+ */
+
+int
+kmem_scnprintf(char *restrict str, size_t size, const char *restrict fmt, ...)
+{
+	int n;
+	va_list ap;
+
+	/* Make the 0 case a no-op so that we do not return -1 */
+	if (size == 0)
+		return (0);
+
+	va_start(ap, fmt);
+	n = vsnprintf(str, size, fmt, ap);
+	va_end(ap);
+
+	if (n >= size)
+		n = size - 1;
+
+	return (n);
+}

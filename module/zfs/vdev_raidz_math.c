@@ -285,17 +285,17 @@ raidz_math_kstat_headers(char *buf, size_t size)
 {
 	ASSERT3U(size, >=, RAIDZ_KSTAT_LINE_LEN);
 
-	ssize_t off = snprintf(buf, size, "%-17s", "implementation");
+	ssize_t off = kmem_scnprintf(buf, size, "%-17s", "implementation");
 
 	for (int i = 0; i < ARRAY_SIZE(raidz_gen_name); i++)
-		off += snprintf(buf + off, size - off, "%-16s",
+		off += kmem_scnprintf(buf + off, size - off, "%-16s",
 		    raidz_gen_name[i]);
 
 	for (int i = 0; i < ARRAY_SIZE(raidz_rec_name); i++)
-		off += snprintf(buf + off, size - off, "%-16s",
+		off += kmem_scnprintf(buf + off, size - off, "%-16s",
 		    raidz_rec_name[i]);
 
-	(void) snprintf(buf + off, size - off, "\n");
+	(void) kmem_scnprintf(buf + off, size - off, "\n");
 
 	return (0);
 }
@@ -311,34 +311,35 @@ raidz_math_kstat_data(char *buf, size_t size, void *data)
 	ASSERT3U(size, >=, RAIDZ_KSTAT_LINE_LEN);
 
 	if (cstat == fstat) {
-		off += snprintf(buf + off, size - off, "%-17s", "fastest");
+		off += kmem_scnprintf(buf + off, size - off, "%-17s",
+		    "fastest");
 
 		for (i = 0; i < ARRAY_SIZE(raidz_gen_name); i++) {
 			int id = fstat->gen[i];
-			off += snprintf(buf + off, size - off, "%-16s",
+			off += kmem_scnprintf(buf + off, size - off, "%-16s",
 			    raidz_supp_impl[id]->name);
 		}
 		for (i = 0; i < ARRAY_SIZE(raidz_rec_name); i++) {
 			int id = fstat->rec[i];
-			off += snprintf(buf + off, size - off, "%-16s",
+			off += kmem_scnprintf(buf + off, size - off, "%-16s",
 			    raidz_supp_impl[id]->name);
 		}
 	} else {
 		ptrdiff_t id = cstat - raidz_impl_kstats;
 
-		off += snprintf(buf + off, size - off, "%-17s",
+		off += kmem_scnprintf(buf + off, size - off, "%-17s",
 		    raidz_supp_impl[id]->name);
 
 		for (i = 0; i < ARRAY_SIZE(raidz_gen_name); i++)
-			off += snprintf(buf + off, size - off, "%-16llu",
+			off += kmem_scnprintf(buf + off, size - off, "%-16llu",
 			    (u_longlong_t)cstat->gen[i]);
 
 		for (i = 0; i < ARRAY_SIZE(raidz_rec_name); i++)
-			off += snprintf(buf + off, size - off, "%-16llu",
+			off += kmem_scnprintf(buf + off, size - off, "%-16llu",
 			    (u_longlong_t)cstat->rec[i]);
 	}
 
-	(void) snprintf(buf + off, size - off, "\n");
+	(void) kmem_scnprintf(buf + off, size - off, "\n");
 
 	return (0);
 }
