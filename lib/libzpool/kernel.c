@@ -1001,7 +1001,7 @@ zfs_onexit_fd_rele(zfs_file_t *fp)
 
 int
 zfs_onexit_add_cb(minor_t minor, void (*func)(void *), void *data,
-    uint64_t *action_handle)
+    uintptr_t *action_handle)
 {
 	(void) minor, (void) func, (void) data, (void) action_handle;
 	return (0);
