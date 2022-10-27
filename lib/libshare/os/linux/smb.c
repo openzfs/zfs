@@ -90,21 +90,32 @@ smb_retrieve_shares(void)
 
 	/* Go through the directory, looking for shares */
 	while ((directory = readdir(shares_dir))) {
+		int fd;
+
 		if (directory->d_name[0] == '.')
 			continue;
 
 		snprintf(file_path, sizeof (file_path),
 		    "%s/%s", SHARE_DIR, directory->d_name);
 
-		if (stat(file_path, &eStat) == -1) {
+		if ((fd = open(file_path, O_RDONLY | O_CLOEXEC)) == -1) {
 			rc = SA_SYSTEM_ERR;
 			goto out;
 		}
 
-		if (!S_ISREG(eStat.st_mode))
-			continue;
+		if (stat(file_path, &eStat) == -1) {
+			close(fd);
+			rc = SA_SYSTEM_ERR;
+			goto out;
+		}
 
-		if ((share_file_fp = fopen(file_path, "re")) == NULL) {
+		if (!S_ISREG(eStat.st_mode)) {
+			close(fd);
+			continue;
+		}
+
+		if ((share_file_fp = fdopen(fd, "r")) == NULL) {
+			close(fd);
 			rc = SA_SYSTEM_ERR;
 			goto out;
 		}

@@ -48,7 +48,7 @@
 static void
 test_stat_mode(mode_t mask)
 {
-	struct stat st, fst;
+	struct stat fst;
 	int i, fd;
 	char spath[1024], dpath[1024];
 	const char *penv[] = {"TESTDIR", "TESTFILE0"};
@@ -68,7 +68,7 @@ test_stat_mode(mode_t mask)
 		err(2, "open(%s)", penv[0]);
 
 	if (fstat(fd, &fst) == -1)
-		err(3, "open");
+		err(3, "fstat(%s)", penv[0]);
 
 	snprintf(spath, sizeof (spath), "/proc/self/fd/%d", fd);
 	snprintf(dpath, sizeof (dpath), "%s/%s", penv[0], penv[1]);
@@ -78,19 +78,22 @@ test_stat_mode(mode_t mask)
 		err(4, "linkat");
 	close(fd);
 
-	if (stat(dpath, &st) == -1)
-		err(5, "stat");
-	unlink(dpath);
-
-	/* Verify fstat(2) result */
+	/* Verify fstat(2) result at old path */
 	mode = fst.st_mode & 0777;
 	if (mode != masked)
-		errx(6, "fstat(2) %o != %o\n", mode, masked);
+		errx(5, "fstat(2) %o != %o\n", mode, masked);
 
-	/* Verify stat(2) result */
-	mode = st.st_mode & 0777;
+	fd = open(dpath, O_RDWR);
+	if (fd == -1)
+		err(6, "open(%s)", dpath);
+
+	if (fstat(fd, &fst) == -1)
+		err(7, "fstat(%s)", dpath);
+
+	/* Verify fstat(2) result at new path */
+	mode = fst.st_mode & 0777;
 	if (mode != masked)
-		errx(7, "stat(2) %o != %o\n", mode, masked);
+		errx(8, "fstat(2) %o != %o\n", mode, masked);
 }
 
 int
