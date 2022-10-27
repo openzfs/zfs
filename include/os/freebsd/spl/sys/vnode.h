@@ -107,7 +107,6 @@ vn_flush_cached_data(vnode_t *vp, boolean_t sync)
 
 #define	vn_exists(vp)		do { } while (0)
 #define	vn_invalid(vp)		do { } while (0)
-#define	vn_renamepath(tdvp, svp, tnm, lentnm)	do { } while (0)
 #define	vn_free(vp)		do { } while (0)
 #define	vn_matchops(vp, vops)	((vp)->v_op == &(vops))
 
