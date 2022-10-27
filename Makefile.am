@@ -9,6 +9,7 @@ include $(top_srcdir)/config/Rules.am
 include $(top_srcdir)/config/CppCheck.am
 include $(top_srcdir)/config/Shellcheck.am
 include $(top_srcdir)/config/Substfiles.am
+include $(top_srcdir)/scripts/Makefile.am
 
 ACLOCAL_AMFLAGS = -I config
 
@@ -23,7 +24,6 @@ include $(srcdir)/%D%/contrib/Makefile.am
 include $(srcdir)/%D%/etc/Makefile.am
 include $(srcdir)/%D%/lib/Makefile.am
 include $(srcdir)/%D%/man/Makefile.am
-include $(srcdir)/%D%/scripts/Makefile.am
 include $(srcdir)/%D%/tests/Makefile.am
 if BUILD_LINUX
 include $(srcdir)/%D%/udev/Makefile.am
