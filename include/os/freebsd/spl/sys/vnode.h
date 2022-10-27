@@ -205,15 +205,6 @@ vattr_init_mask(vattr_t *vap)
 
 #define		RLIM64_INFINITY 0
 
-static __inline int
-vn_rename(char *from, char *to, enum uio_seg seg)
-{
-
-	ASSERT(seg == UIO_SYSSPACE);
-
-	return (kern_renameat(curthread, AT_FDCWD, from, AT_FDCWD, to, seg));
-}
-
 #include <sys/vfs.h>
 
 #endif	/* _OPENSOLARIS_SYS_VNODE_H_ */
