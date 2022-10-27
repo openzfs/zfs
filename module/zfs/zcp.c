@@ -277,9 +277,9 @@ zcp_table_to_nvlist(lua_State *state, int index, int depth)
 			}
 			break;
 		case LUA_TNUMBER:
-			VERIFY3U(sizeof (buf), >,
-			    snprintf(buf, sizeof (buf), "%lld",
-			    (longlong_t)lua_tonumber(state, -2)));
+			(void) snprintf(buf, sizeof (buf), "%lld",
+			    (longlong_t)lua_tonumber(state, -2));
+
 			key = buf;
 			if (saw_str_could_collide) {
 				key_could_collide = B_TRUE;
