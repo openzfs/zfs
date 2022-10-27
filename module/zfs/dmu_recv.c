@@ -1979,7 +1979,7 @@ flush_write_batch_impl(struct receive_writer_arg *rwa)
 			zio_prop_t zp;
 			dmu_write_policy(rwa->os, dn, 0, 0, &zp);
 
-			enum zio_flag zio_flags = 0;
+			zio_flag_t zio_flags = 0;
 
 			if (rwa->raw) {
 				zp.zp_encrypt = B_TRUE;

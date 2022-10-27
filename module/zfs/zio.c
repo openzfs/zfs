@@ -515,8 +515,9 @@ zio_decrypt(zio_t *zio, abd_t *data, uint64_t size)
 
 	/*
 	 * If this is an authenticated block, just check the MAC. It would be
-	 * nice to separate this out into its own flag, but for the moment
-	 * enum zio_flag is out of bits.
+	 * nice to separate this out into its own flag, but when this was done,
+	 * we had run out of bits in what is now zio_flag_t. Future cleanup
+	 * could make this a flag bit.
 	 */
 	if (BP_IS_AUTHENTICATED(bp)) {
 		if (ot == DMU_OT_OBJSET) {
@@ -805,7 +806,7 @@ static zio_t *
 zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
     abd_t *data, uint64_t lsize, uint64_t psize, zio_done_func_t *done,
     void *private, zio_type_t type, zio_priority_t priority,
-    enum zio_flag flags, vdev_t *vd, uint64_t offset,
+    zio_flag_t flags, vdev_t *vd, uint64_t offset,
     const zbookmark_phys_t *zb, enum zio_stage stage,
     enum zio_stage pipeline)
 {
@@ -904,7 +905,7 @@ zio_destroy(zio_t *zio)
 
 zio_t *
 zio_null(zio_t *pio, spa_t *spa, vdev_t *vd, zio_done_func_t *done,
-    void *private, enum zio_flag flags)
+    void *private, zio_flag_t flags)
 {
 	zio_t *zio;
 
@@ -916,7 +917,7 @@ zio_null(zio_t *pio, spa_t *spa, vdev_t *vd, zio_done_func_t *done,
 }
 
 zio_t *
-zio_root(spa_t *spa, zio_done_func_t *done, void *private, enum zio_flag flags)
+zio_root(spa_t *spa, zio_done_func_t *done, void *private, zio_flag_t flags)
 {
 	return (zio_null(NULL, spa, NULL, done, private, flags));
 }
@@ -1104,7 +1105,7 @@ zfs_dva_valid(spa_t *spa, const dva_t *dva, const blkptr_t *bp)
 zio_t *
 zio_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
     abd_t *data, uint64_t size, zio_done_func_t *done, void *private,
-    zio_priority_t priority, enum zio_flag flags, const zbookmark_phys_t *zb)
+    zio_priority_t priority, zio_flag_t flags, const zbookmark_phys_t *zb)
 {
 	zio_t *zio;
 
@@ -1122,7 +1123,7 @@ zio_write(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
     abd_t *data, uint64_t lsize, uint64_t psize, const zio_prop_t *zp,
     zio_done_func_t *ready, zio_done_func_t *children_ready,
     zio_done_func_t *physdone, zio_done_func_t *done,
-    void *private, zio_priority_t priority, enum zio_flag flags,
+    void *private, zio_priority_t priority, zio_flag_t flags,
     const zbookmark_phys_t *zb)
 {
 	zio_t *zio;
@@ -1165,7 +1166,7 @@ zio_write(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
 zio_t *
 zio_rewrite(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp, abd_t *data,
     uint64_t size, zio_done_func_t *done, void *private,
-    zio_priority_t priority, enum zio_flag flags, zbookmark_phys_t *zb)
+    zio_priority_t priority, zio_flag_t flags, zbookmark_phys_t *zb)
 {
 	zio_t *zio;
 
@@ -1238,7 +1239,7 @@ zio_free(spa_t *spa, uint64_t txg, const blkptr_t *bp)
  */
 zio_t *
 zio_free_sync(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
-    enum zio_flag flags)
+    zio_flag_t flags)
 {
 	ASSERT(!BP_IS_HOLE(bp));
 	ASSERT(spa_syncing_txg(spa) == txg);
@@ -1271,7 +1272,7 @@ zio_free_sync(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 
 zio_t *
 zio_claim(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
-    zio_done_func_t *done, void *private, enum zio_flag flags)
+    zio_done_func_t *done, void *private, zio_flag_t flags)
 {
 	zio_t *zio;
 
@@ -1309,7 +1310,7 @@ zio_claim(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 zio_t *
 zio_trim(zio_t *pio, vdev_t *vd, uint64_t offset, uint64_t size,
     zio_done_func_t *done, void *private, zio_priority_t priority,
-    enum zio_flag flags, enum trim_flag trim_flags)
+    zio_flag_t flags, enum trim_flag trim_flags)
 {
 	zio_t *zio;
 
@@ -1329,7 +1330,7 @@ zio_trim(zio_t *pio, vdev_t *vd, uint64_t offset, uint64_t size,
 zio_t *
 zio_read_phys(zio_t *pio, vdev_t *vd, uint64_t offset, uint64_t size,
     abd_t *data, int checksum, zio_done_func_t *done, void *private,
-    zio_priority_t priority, enum zio_flag flags, boolean_t labels)
+    zio_priority_t priority, zio_flag_t flags, boolean_t labels)
 {
 	zio_t *zio;
 
@@ -1350,7 +1351,7 @@ zio_read_phys(zio_t *pio, vdev_t *vd, uint64_t offset, uint64_t size,
 zio_t *
 zio_write_phys(zio_t *pio, vdev_t *vd, uint64_t offset, uint64_t size,
     abd_t *data, int checksum, zio_done_func_t *done, void *private,
-    zio_priority_t priority, enum zio_flag flags, boolean_t labels)
+    zio_priority_t priority, zio_flag_t flags, boolean_t labels)
 {
 	zio_t *zio;
 
@@ -1387,7 +1388,7 @@ zio_write_phys(zio_t *pio, vdev_t *vd, uint64_t offset, uint64_t size,
 zio_t *
 zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
     abd_t *data, uint64_t size, int type, zio_priority_t priority,
-    enum zio_flag flags, zio_done_func_t *done, void *private)
+    zio_flag_t flags, zio_done_func_t *done, void *private)
 {
 	enum zio_stage pipeline = ZIO_VDEV_CHILD_PIPELINE;
 	zio_t *zio;
@@ -1461,7 +1462,7 @@ zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
 
 zio_t *
 zio_vdev_delegated_io(vdev_t *vd, uint64_t offset, abd_t *data, uint64_t size,
-    zio_type_t type, zio_priority_t priority, enum zio_flag flags,
+    zio_type_t type, zio_priority_t priority, zio_flag_t flags,
     zio_done_func_t *done, void *private)
 {
 	zio_t *zio;
@@ -1489,7 +1490,7 @@ void
 zio_flush(zio_t *pio, vdev_t *vd, boolean_t propagate)
 {
 	const int cmd = DKIOCFLUSHWRITECACHE;
-	const enum zio_flag flags =
+	const zio_flag_t flags =
 	    ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_RETRY |
 	    (propagate ? 0 : ZIO_FLAG_DONT_PROPAGATE);
 	spa_t *spa = pio->io_spa;
@@ -2035,7 +2036,7 @@ zio_deadman_impl(zio_t *pio, int ziodepth)
 		    "delta=%llu queued=%llu io=%llu "
 		    "path=%s "
 		    "last=%llu type=%d "
-		    "priority=%d flags=0x%x stage=0x%x "
+		    "priority=%d flags=0x%llx stage=0x%x "
 		    "pipeline=0x%x pipeline-trace=0x%x "
 		    "objset=%llu object=%llu "
 		    "level=%llu blkid=%llu "
@@ -2045,8 +2046,8 @@ zio_deadman_impl(zio_t *pio, int ziodepth)
 		    (u_longlong_t)delta, pio->io_delta, pio->io_delay,
 		    vd ? vd->vdev_path : "NULL",
 		    vq ? vq->vq_io_complete_ts : 0, pio->io_type,
-		    pio->io_priority, pio->io_flags, pio->io_stage,
-		    pio->io_pipeline, pio->io_pipeline_trace,
+		    pio->io_priority, (u_longlong_t)pio->io_flags,
+		    pio->io_stage, pio->io_pipeline, pio->io_pipeline_trace,
 		    (u_longlong_t)zb->zb_objset, (u_longlong_t)zb->zb_object,
 		    (u_longlong_t)zb->zb_level, (u_longlong_t)zb->zb_blkid,
 		    (u_longlong_t)pio->io_offset, (u_longlong_t)pio->io_size,
