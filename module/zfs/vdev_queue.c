@@ -605,7 +605,7 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 	int maxblocksize;
 	boolean_t stretch = B_FALSE;
 	avl_tree_t *t = vdev_queue_type_tree(vq, zio->io_type);
-	enum zio_flag flags = zio->io_flags & ZIO_FLAG_AGG_INHERIT;
+	zio_flag_t flags = zio->io_flags & ZIO_FLAG_AGG_INHERIT;
 	uint64_t next_offset;
 	abd_t *abd;
 

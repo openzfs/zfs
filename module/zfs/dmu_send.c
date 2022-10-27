@@ -934,7 +934,7 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 		ASSERT3U(range->start_blkid + 1, ==, range->end_blkid);
 		if (BP_GET_TYPE(bp) == DMU_OT_SA) {
 			arc_flags_t aflags = ARC_FLAG_WAIT;
-			enum zio_flag zioflags = ZIO_FLAG_CANFAIL;
+			zio_flag_t zioflags = ZIO_FLAG_CANFAIL;
 
 			if (dscp->dsc_featureflags & DMU_BACKUP_FEATURE_RAW) {
 				ASSERT(BP_IS_PROTECTED(bp));
@@ -1653,7 +1653,7 @@ issue_data_read(struct send_reader_thread_arg *srta, struct send_range *range)
 	    !split_large_blocks && !BP_SHOULD_BYTESWAP(bp) &&
 	    !BP_IS_EMBEDDED(bp) && !DMU_OT_IS_METADATA(BP_GET_TYPE(bp));
 
-	enum zio_flag zioflags = ZIO_FLAG_CANFAIL;
+	zio_flag_t zioflags = ZIO_FLAG_CANFAIL;
 
 	if (srta->featureflags & DMU_BACKUP_FEATURE_RAW) {
 		zioflags |= ZIO_FLAG_RAW;
