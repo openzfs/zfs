@@ -1536,7 +1536,7 @@ snprintf_blkptr(char *buf, size_t buflen, const blkptr_t *bp)
 		compress = zio_compress_table[BP_GET_COMPRESS(bp)].ci_name;
 	}
 
-	SNPRINTF_BLKPTR(snprintf, ' ', buf, buflen, bp, type, checksum,
+	SNPRINTF_BLKPTR(kmem_scnprintf, ' ', buf, buflen, bp, type, checksum,
 	    compress);
 }
 

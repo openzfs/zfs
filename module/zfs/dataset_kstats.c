@@ -128,8 +128,13 @@ dataset_kstats_create(dataset_kstats_t *dk, objset_t *objset)
 		    " snprintf() for kstat name returned %d",
 		    (unsigned long long)dmu_objset_id(objset), n);
 		return (SET_ERROR(EINVAL));
+	} else if (n >= KSTAT_STRLEN) {
+		zfs_dbgmsg("failed to create dataset kstat for objset %lld: "
+		    "kstat name length (%d) exceeds limit (%d)",
+		    (unsigned long long)dmu_objset_id(objset),
+		    n, KSTAT_STRLEN);
+		return (SET_ERROR(ENAMETOOLONG));
 	}
-	ASSERT3U(n, <, KSTAT_STRLEN);
 
 	kstat_t *kstat = kstat_create(kstat_module_name, 0, kstat_name,
 	    "dataset", KSTAT_TYPE_NAMED,

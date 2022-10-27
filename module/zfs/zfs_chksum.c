@@ -81,15 +81,15 @@ chksum_kstat_headers(char *buf, size_t size)
 {
 	ssize_t off = 0;
 
-	off += snprintf(buf + off, size, "%-23s", "implementation");
-	off += snprintf(buf + off, size - off, "%8s", "1k");
-	off += snprintf(buf + off, size - off, "%8s", "4k");
-	off += snprintf(buf + off, size - off, "%8s", "16k");
-	off += snprintf(buf + off, size - off, "%8s", "64k");
-	off += snprintf(buf + off, size - off, "%8s", "256k");
-	off += snprintf(buf + off, size - off, "%8s", "1m");
-	off += snprintf(buf + off, size - off, "%8s", "4m");
-	(void) snprintf(buf + off, size - off, "%8s\n", "16m");
+	off += kmem_scnprintf(buf + off, size, "%-23s", "implementation");
+	off += kmem_scnprintf(buf + off, size - off, "%8s", "1k");
+	off += kmem_scnprintf(buf + off, size - off, "%8s", "4k");
+	off += kmem_scnprintf(buf + off, size - off, "%8s", "16k");
+	off += kmem_scnprintf(buf + off, size - off, "%8s", "64k");
+	off += kmem_scnprintf(buf + off, size - off, "%8s", "256k");
+	off += kmem_scnprintf(buf + off, size - off, "%8s", "1m");
+	off += kmem_scnprintf(buf + off, size - off, "%8s", "4m");
+	(void) kmem_scnprintf(buf + off, size - off, "%8s\n", "16m");
 
 	return (0);
 }
@@ -102,23 +102,23 @@ chksum_kstat_data(char *buf, size_t size, void *data)
 	char b[24];
 
 	cs = (chksum_stat_t *)data;
-	snprintf(b, 23, "%s-%s", cs->name, cs->impl);
-	off += snprintf(buf + off, size - off, "%-23s", b);
-	off += snprintf(buf + off, size - off, "%8llu",
+	kmem_scnprintf(b, 23, "%s-%s", cs->name, cs->impl);
+	off += kmem_scnprintf(buf + off, size - off, "%-23s", b);
+	off += kmem_scnprintf(buf + off, size - off, "%8llu",
 	    (u_longlong_t)cs->bs1k);
-	off += snprintf(buf + off, size - off, "%8llu",
+	off += kmem_scnprintf(buf + off, size - off, "%8llu",
 	    (u_longlong_t)cs->bs4k);
-	off += snprintf(buf + off, size - off, "%8llu",
+	off += kmem_scnprintf(buf + off, size - off, "%8llu",
 	    (u_longlong_t)cs->bs16k);
-	off += snprintf(buf + off, size - off, "%8llu",
+	off += kmem_scnprintf(buf + off, size - off, "%8llu",
 	    (u_longlong_t)cs->bs64k);
-	off += snprintf(buf + off, size - off, "%8llu",
+	off += kmem_scnprintf(buf + off, size - off, "%8llu",
 	    (u_longlong_t)cs->bs256k);
-	off += snprintf(buf + off, size - off, "%8llu",
+	off += kmem_scnprintf(buf + off, size - off, "%8llu",
 	    (u_longlong_t)cs->bs1m);
-	off += snprintf(buf + off, size - off, "%8llu",
+	off += kmem_scnprintf(buf + off, size - off, "%8llu",
 	    (u_longlong_t)cs->bs4m);
-	(void) snprintf(buf + off, size - off, "%8llu\n",
+	(void) kmem_scnprintf(buf + off, size - off, "%8llu\n",
 	    (u_longlong_t)cs->bs16m);
 
 	return (0);

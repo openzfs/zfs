@@ -600,7 +600,7 @@ typedef struct blkptr {
 
 /*
  * This macro allows code sharing between zfs, libzpool, and mdb.
- * 'func' is either snprintf() or mdb_snprintf().
+ * 'func' is either kmem_scnprintf() or mdb_snprintf().
  * 'ws' (whitespace) can be ' ' for single-line format, '\n' for multi-line.
  */
 

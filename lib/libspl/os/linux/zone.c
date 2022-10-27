@@ -41,7 +41,7 @@ getzoneid(void)
 
 	int c = snprintf(path, sizeof (path), "/proc/self/ns/user");
 	/* This API doesn't have any error checking... */
-	if (c < 0)
+	if (c < 0 || c >= sizeof (path))
 		return (0);
 
 	ssize_t r = readlink(path, buf, sizeof (buf) - 1);

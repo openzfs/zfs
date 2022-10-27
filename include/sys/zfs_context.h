@@ -695,6 +695,9 @@ extern char *kmem_asprintf(const char *fmt, ...);
 #define	kmem_strfree(str) kmem_free((str), strlen(str) + 1)
 #define	kmem_strdup(s)  strdup(s)
 
+extern int kmem_scnprintf(char *restrict str, size_t size,
+    const char *restrict fmt, ...);
+
 /*
  * Hostname information
  */

@@ -38,6 +38,8 @@ extern char *kmem_asprintf(const char *fmt, ...)
 extern char *kmem_strdup(const char *str);
 extern void kmem_strfree(char *str);
 
+#define	kmem_scnprintf	scnprintf
+
 /*
  * Memory allocation interfaces
  */
