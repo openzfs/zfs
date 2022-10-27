@@ -227,8 +227,12 @@ extern "C" {
  * RISC-V arch specific defines
  * only RV64G (including atomic) LP64 is supported yet
  */
-#elif defined(__riscv) && defined(_LP64) && _LP64 && \
+#elif defined(__riscv) && defined(__riscv_xlen) && __riscv_xlen == 64 && \
 	defined(__riscv_atomic) && __riscv_atomic
+
+#if !defined(_LP64)
+#define	_LP64 1
+#endif
 
 #ifndef	__riscv__
 #define	__riscv__
