@@ -1,0 +1,223 @@
+#!/usr/bin/make -f
+
+include /usr/share/dpkg/default.mk
+
+LSB_DISTRIBUTOR := $(shell lsb_release -is)
+NAME := $(shell awk '$$1 == "Name:" { print $$2; }' META)
+LINUX_MIN  := $(shell awk '/Linux-Minimum:/{print $$2}' META)
+LINUX_NEXT := $(shell awk -F'[ .]' '/Linux-Maximum:/{print $$2 "." $$3+1}' META)
+
+DKMSFILES := module include config zfs.release.in autogen.sh META AUTHORS \
+		COPYRIGHT LICENSE README.md
+
+ifndef KVERS
+KVERS=$(shell uname -r)
+endif
+
+non_epoch_version=$(shell echo $(KVERS) | perl -pe 's/^\d+://')
+PACKAGE=openzfs-zfs
+pmodules = $(PACKAGE)-modules-$(non_epoch_version)
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+NUM_CPUS = $(shell nproc 2>/dev/null)
+PARALLEL = $(subst parallel=,,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+NJOBS    = -j$(or $(PARALLEL),$(NUM_CPUS),1)
+
+%:
+	dh $@ --with autoreconf,dkms,python3,sphinxdoc
+
+override_dh_autoreconf:
+	@# Embed the downstream version in the module.
+	@sed -e 's/^Version:.*/Version:       $(DEB_VERSION_UPSTREAM)/' -i.orig META
+
+	dh_autoreconf
+
+override_dh_auto_configure:
+	@# Build the userland, but don't build the kernel modules.
+	dh_auto_configure -- \
+	  --bindir=/usr/bin \
+	  --sbindir=/sbin \
+	  --libdir=/lib/"$(DEB_HOST_MULTIARCH)" \
+	  --with-udevdir=/lib/udev \
+	  --with-zfsexecdir=/usr/lib/zfs-linux \
+	  --enable-systemd \
+	  --enable-pyzfs \
+	  --with-python=python3 \
+	  --with-pammoduledir='/lib/$(DEB_HOST_MULTIARCH)/security' \
+	  --with-pkgconfigdir='/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig' \
+	  --with-systemdunitdir=/lib/systemd/system \
+	  --with-systemdpresetdir=/lib/systemd/system-preset \
+	  --with-systemdgeneratordir=/lib/systemd/system-generators \
+	  --with-config=user
+
+	for i in $(wildcard $(CURDIR)/debian/*.install.in) ; do \
+		basename "$$i" | grep _KVERS_ && continue ; \
+		sed 's/@DEB_HOST_MULTIARCH@/$(DEB_HOST_MULTIARCH)/g' "$$i" > "$${i%%.in}" ; \
+	done
+
+override_dh_gencontrol:
+	dh_gencontrol -- -Vlinux:Recommends="linux-libc-dev (<< $(LINUX_NEXT)~), linux-libc-dev (>= $(LINUX_MIN)~),"
+
+override_dh_auto_build:
+	@# Get a bare copy of the source code for DKMS.
+	@# This creates the $(CURDIR)/$(NAME)-$(DEB_VERSION_UPSTREAM)/ tree, which does not
+	@# contain the userland sources. NB: Remove-userland-dist-rules.patch
+	$(MAKE) distdir
+
+	dh_auto_build
+
+override_dh_auto_install:
+	@# Install the utilities.
+	$(MAKE) install DESTDIR='$(CURDIR)/debian/tmp'
+
+	# Use upstream's bash completion
+	install -D -t '$(CURDIR)/debian/tmp/usr/share/bash-completion/completions/' \
+		'$(CURDIR)/contrib/bash_completion.d/zfs'
+
+	# Move from bin_dir to /usr/sbin
+	# Remove suffix (.py) as per policy 10.4 - Scripts
+	# https://www.debian.org/doc/debian-policy/ch-files.html#s-scripts
+	mkdir -p '$(CURDIR)/debian/tmp/usr/sbin/'
+	mv '$(CURDIR)/debian/tmp/usr/bin/arc_summary' '$(CURDIR)/debian/tmp/usr/sbin/arc_summary'
+	mv '$(CURDIR)/debian/tmp/usr/bin/arcstat' '$(CURDIR)/debian/tmp/usr/sbin/arcstat'
+	mv '$(CURDIR)/debian/tmp/usr/bin/dbufstat' '$(CURDIR)/debian/tmp/usr/sbin/dbufstat'
+	mv '$(CURDIR)/debian/tmp/usr/bin/zilstat' '$(CURDIR)/debian/tmp/usr/sbin/zilstat'
+
+	@# Zed has dependencies outside of the system root.
+	mv '$(CURDIR)/debian/tmp/sbin/zed' '$(CURDIR)/debian/tmp/usr/sbin/zed'
+
+	@# Install the DKMS source.
+	@# We only want the files needed to build the modules
+	install -D -t '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/scripts' \
+		'$(CURDIR)/scripts/enum-extract.pl' \
+		'$(CURDIR)/scripts/dkms.postbuild'
+	$(foreach file,$(DKMSFILES),mv '$(CURDIR)/$(NAME)-$(DEB_VERSION_UPSTREAM)/$(file)' '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)' || exit 1;)
+
+	@# Only ever build Linux modules
+	echo 'SUBDIRS = linux' > '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/include/os/Makefile.am'
+
+	@# Hellish awk line:
+	@#  * Deletes from configure.ac the parts not needed for building the kernel module
+	@#     * It deletes from inside AC_CONFIG_FILES([]) everything except:
+	@#        - Makefile$
+	@#        - include/(Makefile|sys|os/(Makefile|linux))
+	@#        - module/
+	@#        - zfs.release$
+	@#  * Takes care of spaces and tabs
+	@#  * Remove reference to ZFS_AC_PACKAGE
+	awk '/^AC_CONFIG_FILES\(\[/,/^\]\)/ {\
+		if ($$0 !~ /^(AC_CONFIG_FILES\(\[([ \t]+)?$$|\]\)([ \t]+)?$$|([ \t]+)?(include\/(Makefile|sys|os\/(Makefile|linux))|module\/|Makefile([ \t]+)?$$|zfs\.release([ \t]+)?$$))/) \
+		{next} } {print}' \
+		'$(CURDIR)/$(NAME)-$(DEB_VERSION_UPSTREAM)/configure.ac' | sed '/ZFS_AC_PACKAGE/d' > '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/configure.ac'
+	@# Set "SUBDIRS = module include" for CONFIG_KERNEL and remove SUBDIRS for all other configs.
+	@# Do not regenerate zfs_gitrev.h during dkms build
+	sed '1,/CONFIG_KERNEL/s/SUBDIRS.*=.*//g;s/SUBDIRS.*=.*/SUBDIRS = module include/g;/make_gitrev.sh/d' \
+		'$(CURDIR)/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am' > '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am'
+	@# Sanity test
+	grep -q 'SUBDIRS = module include' '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am'
+	sed -i '/rpm.Makefile/d' $(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am
+	sed -i '/cmd.Makefile/d' $(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am
+	sed -i '/contrib.Makefile/d' $(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am
+	sed -i '/etc.Makefile/d' $(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am
+	sed -i '/lib.Makefile/d' $(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am
+	sed -i '/man.Makefile/d' $(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am
+	sed -i '/scripts.Makefile/d' $(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am
+	sed -i '/tests.Makefile/d' $(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am
+	sed -i '/udev.Makefile/d' $(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am
+	@# Run autogen on the stripped source tree
+	cd '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)'; ./autogen.sh
+	rm -fr '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/autom4te.cache'
+
+	for i in `ls $(CURDIR)/debian/tmp/lib/$(DEB_HOST_MULTIARCH)/*.so`; do \
+		ln -s '/lib/$(DEB_HOST_MULTIARCH)/'`readlink $${i}` '$(CURDIR)/debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/'`basename $${i}`; \
+		rm $${i}; \
+	done
+
+	chmod a-x '$(CURDIR)/debian/tmp/etc/zfs/zfs-functions'
+	chmod a-x '$(CURDIR)/debian/tmp/etc/default/zfs'
+	chmod a-x '$(CURDIR)/debian/tmp/usr/share/bash-completion/completions/zfs'
+
+override_dh_python3:
+	dh_python3 -p openzfs-python3-pyzfs
+
+override_dh_dkms:
+	'$(CURDIR)/scripts/dkms.mkconf' -n $(NAME) -v $(DEB_VERSION_UPSTREAM) -f '$(CURDIR)/scripts/zfs-dkms.dkms'
+	dh_dkms
+	rm -f '$(CURDIR)/scripts/zfs-dkms.dkms'
+
+override_dh_makeshlibs:
+	dh_makeshlibs -a -V
+
+override_dh_strip:
+	dh_strip
+
+override_dh_auto_clean:
+	rm -rf zfs-$(DEB_VERSION_UPSTREAM)
+	dh_auto_clean
+	@if test -e META.orig; then mv META.orig META; fi
+
+override_dh_install:
+	find debian/tmp/lib -name '*.la' -delete
+	dh_install
+
+override_dh_missing:
+	dh_missing --fail-missing
+
+override_dh_installinit:
+	dh_installinit -r --no-restart-after-upgrade --name zfs-import
+	dh_installinit -r --no-restart-after-upgrade --name zfs-mount
+	dh_installinit -r --no-restart-after-upgrade --name zfs-load-key
+	dh_installinit -R --name zfs-share
+	dh_installinit -R --name zfs-zed
+
+override_dh_installsystemd:
+	mkdir -p debian/openzfs-zfsutils/lib/systemd/system
+	ln -sr /dev/null debian/openzfs-zfsutils/lib/systemd/system/zfs-import.service
+	dh_installsystemd --no-stop-on-upgrade -X zfs-zed.service
+	dh_installsystemd --name zfs-zed
+
+override_dh_installdocs:
+	dh_installdocs -A
+ifeq (,$(findstring nodoc, $(DEB_BUILD_OPTIONS)))
+	http_proxy='127.0.0.1:9' sphinx-build -N -bhtml "$(CURDIR)/contrib/pyzfs/docs/source/" debian/openzfs-pyzfs-doc/usr/share/doc/openzfs-pyzfs-doc/html/
+endif
+
+# ------------
+
+override_dh_prep-deb-files:
+	for templ in $(wildcard $(CURDIR)/debian/*_KVERS_*.in); do \
+		sed -e 's/##KVERS##/$(KVERS)/g ; s/#KVERS#/$(KVERS)/g ; s/_KVERS_/$(KVERS)/g ; s/##KDREV##/$(KDREV)/g ; s/#KDREV#/$(KDREV)/g ; s/_KDREV_/$(KDREV)/g ; s/_ARCH_/$(DEB_HOST_ARCH)/' \
+		< $$templ > `echo $$templ | sed -e 's/_KVERS_/$(KVERS)/g ; s/_ARCH_/$(DEB_HOST_ARCH)/g ; s/\.in$$//'` ; \
+	done
+	sed -e 's/##KVERS##/$(KVERS)/g ; s/#KVERS#/$(KVERS)/g ; s/_KVERS_/$(KVERS)/g ; s/##KDREV##/$(KDREV)/g ; s/#KDREV#/$(KDREV)/g ; s/_KDREV_/$(KDREV)/g ; s/_ARCH_/$(DEB_HOST_ARCH)/g' \
+	< debian/control.modules.in > debian/control
+
+override_dh_configure_modules: override_dh_configure_modules_stamp
+override_dh_configure_modules_stamp:
+	./configure \
+		--with-config=kernel \
+		--with-linux=$(KSRC) \
+		--with-linux-obj=$(KOBJ)
+	touch override_dh_configure_modules_stamp
+
+override_dh_binary-modules: override_dh_prep-deb-files override_dh_configure_modules
+	dh_testdir
+	dh_testroot
+	dh_prep
+
+	$(MAKE) $(NJOBS) -C $(CURDIR)/module modules
+
+	dh_install -p${pmodules}
+	dh_installdocs -p${pmodules}
+	dh_installchangelogs -p${pmodules}
+	dh_compress -p${pmodules}
+	dh_strip -p${pmodules}
+	dh_fixperms -p${pmodules}
+	dh_installdeb -p${pmodules}
+	dh_gencontrol -p${pmodules}
+	dh_md5sums -p${pmodules}
+	dh_builddeb -p${pmodules}
+
+debian-copyright:
+	cme update dpkg-copyright -file debian/copyright.cme

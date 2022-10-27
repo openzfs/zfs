@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e
+
+zedd="/usr/lib/zfs-linux/zed.d"
+etcd="/etc/zfs/zed.d"
+
+if [ "$1" != "failed-upgrade" ] && [ -d "${etcd}" ] && [ -d "${zedd}" ] ; then
+    while read -r file ; do
+        etcfile="${etcd}/${file}"
+        ( [ -L "${etcfile}" ] || [ -e "${etcfile}" ] ) && continue
+        ln -sT /dev/null "${etcfile}"
+    done < "${zedd}/DEFAULT-ENABLED"
+fi
+
+#DEBHELPER#
+

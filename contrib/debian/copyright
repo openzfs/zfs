@@ -1,0 +1,19 @@
+This Debian packaging is a derived work of Debian's zfs-linux package [1].
+The original copy of the Debian-styled copyright file can be found at [2].
+The detailed contributor information can be found in [2][3].
+
+Files: contrib/debian/*
+Copyright:
+ 2013-2016, Aron Xu <aron@debian.org>
+ 2016, Petter Reinholdtsen <pere@hungry.com>
+ 2013, Carlos Alberto Lopez Perez <clopez@igalia.com>
+ 2013, Turbo Fredriksson <turbo@bayour.com>
+ 2012-2013, Richard Laager <rlaager@wiktel.com>
+ 2011-2013, Darik Horn <dajhorn@vanadac.com>
+ 2018-2019, Mo Zhou <cdluminate@gmail.com>
+ 2018-2020, Mo Zhou <lumin@debian.org>
+License: GPL-2+
+
+[1] https://tracker.debian.org/pkg/zfs-linux
+[2] https://salsa.debian.org/zfsonlinux-team/zfs/-/blob/master/debian/copyright
+[3] https://salsa.debian.org/zfsonlinux-team/zfs/-/blob/master/debian/changelog

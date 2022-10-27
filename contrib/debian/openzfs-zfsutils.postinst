@@ -1,0 +1,28 @@
+#!/bin/sh
+set -e
+
+# The hostname and hostid of the last system to access a ZFS pool are stored in
+# the ZFS pool itself. A pool is foreign if, during `zpool import`, the
+# current hostname and hostid are different than the stored values thereof.
+#
+# The only way of having a stable hostid is to define it in /etc/hostid.
+# This postinst helper will check if we already have the hostid stabilized by
+# checking the existence of the file /etc/hostid to be 4 bytes at least.
+# If this file don't already exists on our system or has less than 4 bytes, then
+# a new (random) value is generated with zgenhostid (8) and stored in
+# /etc/hostid
+
+if [ ! -f /etc/hostid ] || [ "$(stat -c %s /etc/hostid)" -lt 4 ] ; then
+	zgenhostid
+fi
+
+# When processed to here but zfs kernel module is not loaded, the subsequent
+# services would fail to start. In this case the installation process just
+# fails at the postinst stage. The user could do
+#   $ sudo modprobe zfs; sudo dpkg --configure -a
+# to complete the installation.
+#
+modprobe -v zfs || true # modprobe zfs does nothing if zfs.ko was already loaded.
+
+#DEBHELPER#
+
