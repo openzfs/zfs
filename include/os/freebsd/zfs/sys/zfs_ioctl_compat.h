@@ -37,6 +37,15 @@
 #include <sys/nvpair.h>
 #endif  /* _KERNEL */
 
+/*
+ * Legacy ioctl support allows compatibility with pre-OpenZFS tools on
+ * FreeBSD.  The need for it will eventually pass (perhaps after FreeBSD
+ * 12 is well out of support), at which point this code can be removed.
+ * For now, downstream consumers may choose to disable this code by
+ * removing the following define.
+ */
+#define	ZFS_LEGACY_SUPPORT
+
 #ifdef	__cplusplus
 extern "C" {
 #endif
@@ -82,6 +91,7 @@ typedef struct zfs_iocparm {
 } zfs_iocparm_t;
 
 
+#ifdef ZFS_LEGACY_SUPPORT
 #define	LEGACY_MAXPATHLEN 1024
 #define	LEGACY_MAXNAMELEN 256
 
@@ -135,6 +145,7 @@ typedef struct zfs_cmd_legacy {
 	uint64_t	zc_createtxg;
 	zfs_stat_t	zc_stat;
 } zfs_cmd_legacy_t;
+#endif
 
 
 #ifdef _KERNEL
@@ -145,10 +156,12 @@ nvlist_t *zfs_ioctl_compat_innvl(zfs_cmd_t *, nvlist_t *, const int,
 nvlist_t *zfs_ioctl_compat_outnvl(zfs_cmd_t *, nvlist_t *, const int,
     const int);
 #endif	/* _KERNEL */
+#ifdef ZFS_LEGACY_SUPPORT
 int zfs_ioctl_legacy_to_ozfs(int request);
 int zfs_ioctl_ozfs_to_legacy(int request);
 void zfs_cmd_legacy_to_ozfs(zfs_cmd_legacy_t *src, zfs_cmd_t *dst);
 void zfs_cmd_ozfs_to_legacy(zfs_cmd_t *src, zfs_cmd_legacy_t *dst);
+#endif
 
 void zfs_cmd_compat_put(zfs_cmd_t *, caddr_t, const int, const int);
 

@@ -39,6 +39,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/cmn_err.h>
 #include <sys/zfs_ioctl_compat.h>
 
+#ifdef ZFS_LEGACY_SUPPORT
 enum zfs_ioc_legacy {
 	ZFS_IOC_LEGACY_NONE =	-1,
 	ZFS_IOC_LEGACY_FIRST =	0,
@@ -361,3 +362,4 @@ zfs_cmd_ozfs_to_legacy(zfs_cmd_t *src, zfs_cmd_legacy_t *dst)
 	    sizeof (zfs_cmd_t) - 8 - offsetof(zfs_cmd_t, zc_sendobj));
 	dst->zc_jailid = src->zc_zoneid;
 }
+#endif /* ZFS_LEGACY_SUPPORT */

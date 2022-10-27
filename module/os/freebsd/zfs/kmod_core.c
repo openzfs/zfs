@@ -124,7 +124,9 @@ zfsdev_ioctl(struct cdev *dev, ulong_t zcmd, caddr_t arg, int flag,
 	int vecnum;
 	zfs_iocparm_t *zp;
 	zfs_cmd_t *zc;
+#ifdef ZFS_LEGACY_SUPPORT
 	zfs_cmd_legacy_t *zcl;
+#endif
 	int rc, error;
 	void *uaddr;
 
@@ -133,7 +135,9 @@ zfsdev_ioctl(struct cdev *dev, ulong_t zcmd, caddr_t arg, int flag,
 	zp = (void *)arg;
 	uaddr = (void *)zp->zfs_cmd;
 	error = 0;
+#ifdef ZFS_LEGACY_SUPPORT
 	zcl = NULL;
+#endif
 
 	if (len != sizeof (zfs_iocparm_t)) {
 		printf("len %d vecnum: %d sizeof (zfs_cmd_t) %ju\n",
@@ -142,6 +146,7 @@ zfsdev_ioctl(struct cdev *dev, ulong_t zcmd, caddr_t arg, int flag,
 	}
 
 	zc = kmem_zalloc(sizeof (zfs_cmd_t), KM_SLEEP);
+#ifdef ZFS_LEGACY_SUPPORT
 	/*
 	 * Remap ioctl code for legacy user binaries
 	 */
@@ -157,22 +162,29 @@ zfsdev_ioctl(struct cdev *dev, ulong_t zcmd, caddr_t arg, int flag,
 			goto out;
 		}
 		zfs_cmd_legacy_to_ozfs(zcl, zc);
-	} else if (copyin(uaddr, zc, sizeof (zfs_cmd_t))) {
+	} else
+#endif
+	if (copyin(uaddr, zc, sizeof (zfs_cmd_t))) {
 		error = SET_ERROR(EFAULT);
 		goto out;
 	}
 	error = zfsdev_ioctl_common(vecnum, zc, 0);
+#ifdef ZFS_LEGACY_SUPPORT
 	if (zcl) {
 		zfs_cmd_ozfs_to_legacy(zc, zcl);
 		rc = copyout(zcl, uaddr, sizeof (*zcl));
-	} else {
+	} else
+#endif
+	{
 		rc = copyout(zc, uaddr, sizeof (*zc));
 	}
 	if (error == 0 && rc != 0)
 		error = SET_ERROR(EFAULT);
 out:
+#ifdef ZFS_LEGACY_SUPPORT
 	if (zcl)
 		kmem_free(zcl, sizeof (zfs_cmd_legacy_t));
+#endif
 	kmem_free(zc, sizeof (zfs_cmd_t));
 	MPASS(tsd_get(rrw_tsd_key) == NULL);
 	return (error);

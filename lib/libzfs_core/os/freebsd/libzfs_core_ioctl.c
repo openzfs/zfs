@@ -46,8 +46,11 @@ get_zfs_ioctl_version(void)
 static int
 zcmd_ioctl_compat(int fd, int request, zfs_cmd_t *zc, const int cflag)
 {
-	int newrequest, ret;
+	int ret;
+#ifdef ZFS_LEGACY_SUPPORT
+	int newrequest;
 	void *zc_c = NULL;
+#endif
 	unsigned long ncmd;
 	zfs_iocparm_t zp;
 
@@ -58,6 +61,7 @@ zcmd_ioctl_compat(int fd, int request, zfs_cmd_t *zc, const int cflag)
 		zp.zfs_cmd_size = sizeof (zfs_cmd_t);
 		zp.zfs_ioctl_version = ZFS_IOCVER_OZFS;
 		break;
+#ifdef ZFS_LEGACY_SUPPORT
 	case ZFS_CMD_COMPAT_LEGACY:
 		newrequest = zfs_ioctl_ozfs_to_legacy(request);
 		ncmd = _IOWR('Z', newrequest, zfs_iocparm_t);
@@ -67,6 +71,7 @@ zcmd_ioctl_compat(int fd, int request, zfs_cmd_t *zc, const int cflag)
 		zp.zfs_cmd_size = sizeof (zfs_cmd_legacy_t);
 		zp.zfs_ioctl_version = ZFS_IOCVER_LEGACY;
 		break;
+#endif
 	default:
 		abort();
 		return (EINVAL);
@@ -74,14 +79,18 @@ zcmd_ioctl_compat(int fd, int request, zfs_cmd_t *zc, const int cflag)
 
 	ret = ioctl(fd, ncmd, &zp);
 	if (ret) {
+#ifdef ZFS_LEGACY_SUPPORT
 		if (zc_c)
 			free(zc_c);
+#endif
 		return (ret);
 	}
+#ifdef ZFS_LEGACY_SUPPORT
 	if (zc_c) {
 		zfs_cmd_legacy_to_ozfs(zc_c, zc);
 		free(zc_c);
 	}
+#endif
 	return (ret);
 }
 
@@ -100,9 +109,11 @@ lzc_ioctl_fd(int fd, unsigned long request, zfs_cmd_t *zc)
 		zfs_ioctl_version = get_zfs_ioctl_version();
 
 	switch (zfs_ioctl_version) {
+#ifdef ZFS_LEGACY_SUPPORT
 		case ZFS_IOCVER_LEGACY:
 			cflag = ZFS_CMD_COMPAT_LEGACY;
 			break;
+#endif
 		case ZFS_IOCVER_OZFS:
 			cflag = ZFS_CMD_COMPAT_NONE;
 			break;
