@@ -3373,11 +3373,6 @@ zfs_do_rename_impl(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
 			if (error == 0) {
 				zfs_log_rename(zilog, tx, TX_RENAME, sdzp,
 				    snm, tdzp, tnm, szp);
-
-				/*
-				 * Update path information for the target vnode
-				 */
-				vn_renamepath(tdvp, *svpp, tnm, strlen(tnm));
 			} else {
 				/*
 				 * At this point, we have successfully created
