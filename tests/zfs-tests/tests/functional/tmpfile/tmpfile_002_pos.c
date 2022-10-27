@@ -46,7 +46,6 @@ main(void)
 	int i, fd;
 	char spath[1024], dpath[1024];
 	const char *penv[] = {"TESTDIR", "TESTFILE0"};
-	struct stat sbuf;
 
 	(void) fprintf(stdout, "Verify O_TMPFILE file can be linked.\n");
 
@@ -73,12 +72,10 @@ main(void)
 	run("export");
 	run("import");
 
-	if (stat(dpath, &sbuf) < 0) {
-		perror("stat");
-		unlink(dpath);
+	if (unlink(dpath) == -1) {
+		perror("unlink");
 		exit(5);
 	}
-	unlink(dpath);
 
 	return (0);
 }
