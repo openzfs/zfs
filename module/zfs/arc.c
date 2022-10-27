@@ -4469,7 +4469,7 @@ restart:
 	 * meta buffers.  Requests to the upper layers will be made with
 	 * increasingly large scan sizes until the ARC is below the limit.
 	 */
-	if (meta_used > arc_meta_limit) {
+	if (meta_used > arc_meta_limit || arc_available_memory() < 0) {
 		if (type == ARC_BUFC_DATA) {
 			type = ARC_BUFC_METADATA;
 		} else {
