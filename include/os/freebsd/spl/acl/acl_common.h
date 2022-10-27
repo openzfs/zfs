@@ -47,7 +47,7 @@ extern int acltrivial(const char *);
 extern void adjust_ace_pair(ace_t *pair, mode_t mode);
 extern void adjust_ace_pair_common(void *, size_t, size_t, mode_t);
 extern int ace_trivial_common(void *, int,
-    uint64_t (*walk)(void *, uint64_t, int aclcnt, uint16_t *, uint16_t *,
+    uintptr_t (*walk)(void *, uintptr_t, int aclcnt, uint16_t *, uint16_t *,
     uint32_t *mask));
 #if !defined(_KERNEL)
 extern acl_t *acl_alloc(acl_type_t);

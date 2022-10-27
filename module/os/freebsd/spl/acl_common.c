@@ -1654,13 +1654,13 @@ acl_trivial_create(mode_t mode, boolean_t isdir, ace_t **acl, int *count)
  */
 int
 ace_trivial_common(void *acep, int aclcnt,
-    uint64_t (*walk)(void *, uint64_t, int aclcnt,
+    uintptr_t (*walk)(void *, uintptr_t, int aclcnt,
     uint16_t *, uint16_t *, uint32_t *))
 {
 	uint16_t flags;
 	uint32_t mask;
 	uint16_t type;
-	uint64_t cookie = 0;
+	uintptr_t cookie = 0;
 
 	while ((cookie = walk(acep, cookie, aclcnt, &flags, &type, &mask))) {
 		switch (flags & ACE_TYPE_FLAGS) {
