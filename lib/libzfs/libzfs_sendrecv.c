@@ -1534,8 +1534,15 @@ estimate_size(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 	    lzc_flags_from_sendflags(flags), resumeobj, resumeoff, bytes,
 	    redactbook, fd, &size);
 
-	if (flags->progress && send_progress_thread_exit(zhp->zfs_hdl, ptid))
+	if (err == EINVAL) {
+		(void) fprintf(fout,
+		    "couldn't estimate size, continuing...\n");
+		return (0);
+	}
+
+	if (flags->progress && send_progress_thread_exit(zhp->zfs_hdl, ptid)) {
 		return (-1);
+	}
 
 	if (err != 0) {
 		zfs_error_aux(zhp->zfs_hdl, "%s", strerror(err));
