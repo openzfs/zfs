@@ -25,8 +25,8 @@ static int bsize = 0;
 static int count = 0;
 static char *ifile = NULL;
 static char *ofile = NULL;
-static int stride = 0;
-static int seek = 0;
+static off_t stride = 0;
+static off_t seek = 0;
 static const char *execname = "stride_dd";
 
 static void usage(void);
