@@ -92,7 +92,7 @@
 #define	ZIO_TP_PRINTK_FMT						\
 	"zio { type %u cmd %i prio %u size %llu orig_size %llu "	\
 	"offset %llu timestamp %llu delta %llu delay %llu "		\
-	"flags 0x%x stage 0x%x pipeline 0x%x orig_flags 0x%x "		\
+	"flags 0x%llx stage 0x%x pipeline 0x%x orig_flags 0x%llx "	\
 	"orig_stage 0x%x orig_pipeline 0x%x reexecute %u "		\
 	"txg %llu error %d ena %llu prop { checksum %u compress %u "	\
 	"type %u level %u copies %u dedup %u dedup_verify %u nopwrite %u } }"
