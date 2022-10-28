@@ -3001,7 +3001,7 @@ dmu_adjust_send_estimate_for_indirects(dsl_dataset_t *ds, uint64_t uncompressed,
 
 int
 dmu_send_estimate_fast(dsl_dataset_t *origds, dsl_dataset_t *fromds,
-    zfs_bookmark_phys_t *frombook,  boolean_t compressok, boolean_t rawok,
+    zfs_bookmark_phys_t *frombook, boolean_t compressok, boolean_t rawok,
     boolean_t saved, uint64_t *sizep)
 {
 	int err;
@@ -3109,7 +3109,7 @@ out:
 		dsl_dataset_rele(ds, FTAG);
 
 	if (owned == B_TRUE)
-		dsl_dataset_disown(ds->ds_dir->dd_pool, dsflags, FTAG);
+		dsl_dataset_disown(ds, dsflags, FTAG);
 
 	return (err);
 }
