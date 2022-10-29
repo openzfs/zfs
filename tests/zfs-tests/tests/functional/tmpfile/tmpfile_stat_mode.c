@@ -37,12 +37,12 @@
 
 /*
  * DESCRIPTION:
- *	Verify stat(2) for O_TMPFILE file considers umask.
+ *	Verify fstat(2) for O_TMPFILE file considers umask.
  *
  * STRATEGY:
  *	1. open(2) with O_TMPFILE.
  *	2. linkat(2).
- *	3. fstat(2)/stat(2) and verify .st_mode value.
+ *	3. fstat(2) and verify .st_mode value.
  */
 
 static void
@@ -94,6 +94,7 @@ test_stat_mode(mode_t mask)
 	mode = fst.st_mode & 0777;
 	if (mode != masked)
 		errx(8, "fstat(2) %o != %o\n", mode, masked);
+	close(fd);
 }
 
 int
