@@ -815,6 +815,18 @@ dsl_fs_ss_limit_check(dsl_dir_t *dd, uint64_t delta, zfs_prop_t prop,
 	ASSERT(prop == ZFS_PROP_FILESYSTEM_LIMIT ||
 	    prop == ZFS_PROP_SNAPSHOT_LIMIT);
 
+	if (prop == ZFS_PROP_SNAPSHOT_LIMIT) {
+		/*
+		 * We don't enforce the limit for temporary snapshots. This is
+		 * indicated by a NULL cred_t argument.
+		 */
+		if (cr == NULL)
+			return (0);
+
+		count_prop = DD_FIELD_SNAPSHOT_COUNT;
+	} else {
+		count_prop = DD_FIELD_FILESYSTEM_COUNT;
+	}
 	/*
 	 * If we're allowed to change the limit, don't enforce the limit
 	 * e.g. this can happen if a snapshot is taken by an administrative
@@ -833,19 +845,6 @@ dsl_fs_ss_limit_check(dsl_dir_t *dd, uint64_t delta, zfs_prop_t prop,
 	 */
 	if (delta == 0)
 		return (0);
-
-	if (prop == ZFS_PROP_SNAPSHOT_LIMIT) {
-		/*
-		 * We don't enforce the limit for temporary snapshots. This is
-		 * indicated by a NULL cred_t argument.
-		 */
-		if (cr == NULL)
-			return (0);
-
-		count_prop = DD_FIELD_SNAPSHOT_COUNT;
-	} else {
-		count_prop = DD_FIELD_FILESYSTEM_COUNT;
-	}
 
 	/*
 	 * If an ancestor has been provided, stop checking the limit once we
