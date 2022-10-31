@@ -103,7 +103,7 @@ smb_retrieve_shares(void)
 			goto out;
 		}
 
-		if (stat(file_path, &eStat) == -1) {
+		if (fstat(fd, &eStat) == -1) {
 			close(fd);
 			rc = SA_SYSTEM_ERR;
 			goto out;
