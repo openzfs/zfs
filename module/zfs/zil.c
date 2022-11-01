@@ -397,8 +397,18 @@ zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
 
 		error = zil_read_log_block(zilog, decrypt, &blk, &next_blk,
 		    lrbuf, &end);
-		if (error != 0)
+		if (error != 0) {
+			if (claimed) {
+				char name[ZFS_MAX_DATASET_NAME_LEN];
+
+				dmu_objset_name(zilog->zl_os, name);
+
+				cmn_err(CE_WARN, "ZFS read log block error %d, "
+				    "dataset %s, seq 0x%llx\n", error, name,
+				    (u_longlong_t)blk_seq);
+			}
 			break;
+		}
 
 		for (lrp = lrbuf; lrp < end; lrp += reclen) {
 			lr_t *lr = (lr_t *)lrp;
@@ -421,10 +431,6 @@ done:
 	zilog->zl_parse_lr_seq = max_lr_seq;
 	zilog->zl_parse_blk_count = blk_count;
 	zilog->zl_parse_lr_count = lr_count;
-
-	ASSERT(!claimed || !(zh->zh_flags & ZIL_CLAIM_LR_SEQ_VALID) ||
-	    (max_blk_seq == claim_blk_seq && max_lr_seq == claim_lr_seq) ||
-	    (decrypt && error == EIO));
 
 	zil_bp_tree_fini(zilog);
 	zio_buf_free(lrbuf, SPA_OLD_MAXBLOCKSIZE);
