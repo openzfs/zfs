@@ -253,7 +253,6 @@ void
 zfs_ereport_clear(spa_t *spa, vdev_t *vd)
 {
 	uint64_t vdev_guid, pool_guid;
-	int cnt = 0;
 
 	ASSERT(vd != NULL || spa != NULL);
 	if (vd == NULL) {
@@ -277,7 +276,6 @@ zfs_ereport_clear(spa_t *spa, vdev_t *vd)
 			avl_remove(&recent_events_tree, entry);
 			list_remove(&recent_events_list, entry);
 			kmem_free(entry, sizeof (*entry));
-			cnt++;
 		}
 	}
 
