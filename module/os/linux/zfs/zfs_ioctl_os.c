@@ -61,7 +61,6 @@
 #include <sys/dsl_crypt.h>
 #include <sys/crypto/icp.h>
 #include <sys/zstd/zstd.h>
-#include <sys/cred.h>
 
 #include <sys/zfs_ioctl_impl.h>
 
