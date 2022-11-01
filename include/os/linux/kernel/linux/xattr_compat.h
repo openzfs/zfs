@@ -160,7 +160,7 @@ fn(const struct xattr_handler *handler, struct dentry *dentry,		\
     struct inode *inode, const char *name, const void *buffer,		\
     size_t size, int flags)						\
 {									\
-	return (__ ## fn(zfs_init_user_ns, inode, name, buffer, size, flags));\
+	return (__ ## fn(kcred->user_ns, inode, name, buffer, size, flags));\
 }
 /*
  * 4.4 API change,
@@ -174,7 +174,7 @@ static int								\
 fn(const struct xattr_handler *handler, struct dentry *dentry,		\
     const char *name, const void *buffer, size_t size, int flags)	\
 {									\
-	return (__ ## fn(zfs_init_user_ns, dentry->d_inode, name,	\
+	return (__ ## fn(kcred->user_ns, dentry->d_inode, name,	\
 	    buffer, size, flags));					\
 }
 /*
@@ -188,7 +188,7 @@ static int								\
 fn(struct dentry *dentry, const char *name, const void *buffer,		\
     size_t size, int flags, int unused_handler_flags)			\
 {									\
-	return (__ ## fn(zfs_init_user_ns, dentry->d_inode, name,	\
+	return (__ ## fn(kcred->user_ns, dentry->d_inode, name,	\
 	    buffer, size, flags));					\
 }
 #else

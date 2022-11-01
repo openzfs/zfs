@@ -45,14 +45,12 @@ typedef struct cred cred_t;
 #define	SGID_TO_KGID(x)		(KGIDT_INIT(x))
 #define	KGIDP_TO_SGIDP(x)	(&(x)->val)
 
-extern struct user_namespace *zfs_get_init_userns(void);
-
 /* Check if the user ns is the initial one */
 static inline boolean_t
 zfs_is_init_userns(struct user_namespace *user_ns)
 {
 #if defined(CONFIG_USER_NS)
-	return (user_ns == zfs_init_user_ns);
+	return (user_ns == kcred->user_ns);
 #else
 	return (B_FALSE);
 #endif
@@ -63,7 +61,7 @@ static inline struct user_namespace *zfs_i_user_ns(struct inode *inode)
 #ifdef HAVE_SUPER_USER_NS
 	return (inode->i_sb->s_user_ns);
 #else
-	return (zfs_init_user_ns);
+	return (kcred->user_ns);
 #endif
 }
 

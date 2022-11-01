@@ -145,7 +145,7 @@ zpl_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool flag)
 	int error;
 	fstrans_cookie_t cookie;
 #ifndef HAVE_IOPS_CREATE_USERNS
-	zuserns_t *user_ns = zfs_init_user_ns;
+	zuserns_t *user_ns = kcred->user_ns;
 #endif
 
 	crhold(cr);
@@ -192,7 +192,7 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
 	int error;
 	fstrans_cookie_t cookie;
 #ifndef HAVE_IOPS_MKNOD_USERNS
-	zuserns_t *user_ns = zfs_init_user_ns;
+	zuserns_t *user_ns = kcred->user_ns;
 #endif
 
 	/*
@@ -247,7 +247,7 @@ zpl_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
 	int error;
 	fstrans_cookie_t cookie;
 #ifndef HAVE_TMPFILE_USERNS
-	zuserns_t *userns = zfs_init_user_ns;
+	zuserns_t *userns = kcred->user_ns;
 #endif
 
 	crhold(cr);
@@ -325,7 +325,7 @@ zpl_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 	int error;
 	fstrans_cookie_t cookie;
 #ifndef HAVE_IOPS_MKDIR_USERNS
-	zuserns_t *user_ns = zfs_init_user_ns;
+	zuserns_t *user_ns = kcred->user_ns;
 #endif
 
 	crhold(cr);
@@ -482,7 +482,7 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 #ifdef HAVE_SETATTR_PREPARE_USERNS
 	error = -zfs_setattr(ITOZ(ip), vap, 0, cr, user_ns);
 #else
-	error = -zfs_setattr(ITOZ(ip), vap, 0, cr, zfs_init_user_ns);
+	error = -zfs_setattr(ITOZ(ip), vap, 0, cr, kcred->user_ns);
 #endif
 	if (!error && (ia->ia_valid & ATTR_MODE))
 		error = zpl_chmod_acl(ip);
@@ -510,7 +510,7 @@ zpl_rename2(struct inode *sdip, struct dentry *sdentry,
 	int error;
 	fstrans_cookie_t cookie;
 #ifndef HAVE_IOPS_RENAME_USERNS
-	zuserns_t *user_ns = zfs_init_user_ns;
+	zuserns_t *user_ns = kcred->user_ns;
 #endif
 
 	crhold(cr);
@@ -557,7 +557,7 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 	int error;
 	fstrans_cookie_t cookie;
 #ifndef HAVE_IOPS_SYMLINK_USERNS
-	zuserns_t *user_ns = zfs_init_user_ns;
+	zuserns_t *user_ns = kcred->user_ns;
 #endif
 
 	crhold(cr);

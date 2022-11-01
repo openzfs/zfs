@@ -145,14 +145,6 @@ crgetgid(const cred_t *cr)
 	return (KGID_TO_SGID(cr->fsgid));
 }
 
-/* Return the initial user ns */
-struct user_namespace *
-zfs_get_init_userns(void)
-{
-	return (&init_user_ns);
-}
-
-EXPORT_SYMBOL(zfs_get_init_userns);
 EXPORT_SYMBOL(crhold);
 EXPORT_SYMBOL(crfree);
 EXPORT_SYMBOL(crgetuid);
