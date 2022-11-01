@@ -59,8 +59,8 @@
 static boolean_t zpool_vdev_is_interior(const char *name);
 
 typedef struct prop_flags {
-	int create:1;	/* Validate property on creation */
-	int import:1;	/* Validate property on import */
+	unsigned int create:1;	/* Validate property on creation */
+	unsigned int import:1;	/* Validate property on import */
 } prop_flags_t;
 
 /*
