@@ -1048,7 +1048,6 @@ taskq_create(const char *name, int threads_arg, pri_t pri,
 
 	ASSERT(name != NULL);
 	ASSERT(minalloc >= 0);
-	ASSERT(maxalloc <= INT_MAX);
 	ASSERT(!(flags & (TASKQ_CPR_SAFE))); /* Unsupported */
 
 	/* Scale the number of threads using nthreads as a percentage */
