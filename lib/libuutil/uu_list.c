@@ -93,8 +93,8 @@ uu_list_pool_create(const char *name, size_t objsize,
 
 	(void) pthread_mutex_init(&pp->ulp_lock, NULL);
 
-	pp->ulp_null_list.ul_next_enc = UU_PTR_ENCODE(&pp->ulp_null_list);
-	pp->ulp_null_list.ul_prev_enc = UU_PTR_ENCODE(&pp->ulp_null_list);
+	pp->ulp_null_list.ul_next = &pp->ulp_null_list;
+	pp->ulp_null_list.ul_prev = &pp->ulp_null_list;
 
 	(void) pthread_mutex_lock(&uu_lpool_list_lock);
 	pp->ulp_next = next = &uu_null_lpool;
@@ -110,10 +110,8 @@ void
 uu_list_pool_destroy(uu_list_pool_t *pp)
 {
 	if (pp->ulp_debug) {
-		if (pp->ulp_null_list.ul_next_enc !=
-		    UU_PTR_ENCODE(&pp->ulp_null_list) ||
-		    pp->ulp_null_list.ul_prev_enc !=
-		    UU_PTR_ENCODE(&pp->ulp_null_list)) {
+		if (pp->ulp_null_list.ul_next != &pp->ulp_null_list ||
+		    pp->ulp_null_list.ul_prev != &pp->ulp_null_list) {
 			uu_panic("uu_list_pool_destroy: Pool \"%.*s\" (%p) has "
 			    "outstanding lists, or is corrupt.\n",
 			    (int)sizeof (pp->ulp_name), pp->ulp_name,
@@ -202,7 +200,7 @@ uu_list_create(uu_list_pool_t *pp, void *parent, uint32_t flags)
 	}
 
 	lp->ul_pool = pp;
-	lp->ul_parent_enc = UU_PTR_ENCODE(parent);
+	lp->ul_parent = parent;
 	lp->ul_offset = pp->ulp_nodeoffset;
 	lp->ul_debug = pp->ulp_debug || (flags & UU_LIST_DEBUG);
 	lp->ul_sorted = (flags & UU_LIST_SORTED);
@@ -217,11 +215,11 @@ uu_list_create(uu_list_pool_t *pp, void *parent, uint32_t flags)
 
 	(void) pthread_mutex_lock(&pp->ulp_lock);
 	next = &pp->ulp_null_list;
-	prev = UU_PTR_DECODE(next->ul_prev_enc);
-	lp->ul_next_enc = UU_PTR_ENCODE(next);
-	lp->ul_prev_enc = UU_PTR_ENCODE(prev);
-	next->ul_prev_enc = UU_PTR_ENCODE(lp);
-	prev->ul_next_enc = UU_PTR_ENCODE(lp);
+	prev = next->ul_prev;
+	lp->ul_next = next;
+	lp->ul_prev = prev;
+	next->ul_prev = lp;
+	prev->ul_next = lp;
 	(void) pthread_mutex_unlock(&pp->ulp_lock);
 
 	return (lp);
@@ -250,11 +248,11 @@ uu_list_destroy(uu_list_t *lp)
 	}
 
 	(void) pthread_mutex_lock(&pp->ulp_lock);
-	UU_LIST_PTR(lp->ul_next_enc)->ul_prev_enc = lp->ul_prev_enc;
-	UU_LIST_PTR(lp->ul_prev_enc)->ul_next_enc = lp->ul_next_enc;
+	lp->ul_next->ul_prev = lp->ul_prev;
+	lp->ul_prev->ul_next = lp->ul_next;
 	(void) pthread_mutex_unlock(&pp->ulp_lock);
-	lp->ul_prev_enc = UU_PTR_ENCODE(NULL);
-	lp->ul_next_enc = UU_PTR_ENCODE(NULL);
+	lp->ul_prev = NULL;
+	lp->ul_next = NULL;
 	lp->ul_pool = NULL;
 	uu_free(lp);
 }

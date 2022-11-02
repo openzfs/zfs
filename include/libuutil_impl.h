@@ -47,21 +47,6 @@ void uu_panic(const char *format, ...);
 
 
 /*
- * For debugging purposes, libuutil keeps around linked lists of all uu_lists
- * and uu_avls, along with pointers to their parents.  These can cause false
- * negatives when looking for memory leaks, so we encode the pointers by
- * storing them with swapped endianness;  this is not perfect, but it's about
- * the best we can do without wasting a lot of space.
- */
-#ifdef _LP64
-#define	UU_PTR_ENCODE(ptr)		BSWAP_64((uintptr_t)(void *)(ptr))
-#else
-#define	UU_PTR_ENCODE(ptr)		BSWAP_32((uintptr_t)(void *)(ptr))
-#endif
-
-#define	UU_PTR_DECODE(ptr)		((void *)UU_PTR_ENCODE(ptr))
-
-/*
  * uu_list structures
  */
 typedef struct uu_list_node_impl {
@@ -80,11 +65,11 @@ struct uu_list_walk {
 };
 
 struct uu_list {
-	uintptr_t	ul_next_enc;
-	uintptr_t	ul_prev_enc;
+	uu_list_t	*ul_next;
+	uu_list_t	*ul_prev;
 
 	uu_list_pool_t	*ul_pool;
-	uintptr_t	ul_parent_enc;	/* encoded parent pointer */
+	void		*ul_parent;
 	size_t		ul_offset;
 	size_t		ul_numnodes;
 	uint8_t		ul_debug;
@@ -94,8 +79,6 @@ struct uu_list {
 	uu_list_node_impl_t ul_null_node;
 	uu_list_walk_t	ul_null_walk;	/* for robust walkers */
 };
-
-#define	UU_LIST_PTR(ptr)		((uu_list_t *)UU_PTR_DECODE(ptr))
 
 #define	UU_LIST_POOL_MAXNAME	64
 
@@ -129,19 +112,17 @@ struct uu_avl_walk {
 };
 
 struct uu_avl {
-	uintptr_t	ua_next_enc;
-	uintptr_t	ua_prev_enc;
+	uu_avl_t	*ua_next;
+	uu_avl_t	*ua_prev;
 
 	uu_avl_pool_t	*ua_pool;
-	uintptr_t	ua_parent_enc;
+	void		*ua_parent;
 	uint8_t		ua_debug;
 	uint8_t		ua_index;	/* mark for uu_avl_index_ts */
 
 	struct avl_tree	ua_tree;
 	uu_avl_walk_t	ua_null_walk;
 };
-
-#define	UU_AVL_PTR(x)		((uu_avl_t *)UU_PTR_DECODE(x))
 
 #define	UU_AVL_POOL_MAXNAME	64
 
