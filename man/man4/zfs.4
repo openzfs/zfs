@@ -1249,6 +1249,13 @@ Ideally, this will be at least the sum of each queue's
 .Sy max_active .
 .No See Sx ZFS I/O SCHEDULER .
 .
+.It Sy zfs_vdev_open_timeout_ms Ns = Ns Sy 1000 Pq uint
+Timeout value to wait before determining a device is missing
+during import.
+This is helpful for transient missing paths due
+to links being briefly removed and recreated in response to
+udev events.
+.
 .It Sy zfs_vdev_rebuild_max_active Ns = Ns Sy 3 Pq uint
 Maximum sequential resilver I/O operations active to each device.
 .No See Sx ZFS I/O SCHEDULER .
