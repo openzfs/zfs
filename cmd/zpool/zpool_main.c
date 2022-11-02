@@ -6903,6 +6903,17 @@ zpool_do_online(int argc, char **argv)
 		return (1);
 
 	for (i = 1; i < argc; i++) {
+		vdev_state_t oldstate;
+		boolean_t avail_spare, l2cache;
+		nvlist_t *tgt = zpool_find_vdev(zhp, argv[i], &avail_spare,
+		    &l2cache, NULL);
+		if (tgt == NULL) {
+			ret = 1;
+			continue;
+		}
+		uint_t vsc;
+		oldstate = ((vdev_stat_t *)fnvlist_lookup_uint64_array(tgt,
+		    ZPOOL_CONFIG_VDEV_STATS, &vsc))->vs_state;
 		if (zpool_vdev_online(zhp, argv[i], flags, &newstate) == 0) {
 			if (newstate != VDEV_STATE_HEALTHY) {
 				(void) printf(gettext("warning: device '%s' "
@@ -6916,6 +6927,15 @@ zpool_do_online(int argc, char **argv)
 					(void) printf(gettext("use 'zpool "
 					    "replace' to replace devices "
 					    "that are no longer present\n"));
+				if ((flags & ZFS_ONLINE_EXPAND) &&
+				    oldstate >= VDEV_STATE_DEGRADED) {
+					(void) printf(gettext("error: failed "
+					    "to expand usable space on "
+					    "unhealthy device '%s'\n"),
+					    argv[i]);
+					ret = 1;
+					break;
+				}
 			}
 		} else {
 			ret = 1;
