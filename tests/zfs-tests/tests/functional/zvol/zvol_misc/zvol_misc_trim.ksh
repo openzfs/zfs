@@ -83,6 +83,7 @@ function do_test {
 	
 	# Write to zvol
 	log_must dd if=$datafile1 of=$zvolpath conv=fsync
+	sync_pool
 
 	# Record how much space we've used (should be 5MB, with 128k
 	# of tolerance).

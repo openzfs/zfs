@@ -115,7 +115,6 @@ typedef enum arc_flags
 	ARC_FLAG_PREFETCH		= 1 << 2,	/* I/O is a prefetch */
 	ARC_FLAG_CACHED			= 1 << 3,	/* I/O was in cache */
 	ARC_FLAG_L2CACHE		= 1 << 4,	/* cache in L2ARC */
-	ARC_FLAG_PREDICTIVE_PREFETCH	= 1 << 5,	/* I/O from zfetch */
 	ARC_FLAG_PRESCIENT_PREFETCH	= 1 << 6,	/* long min lifespan */
 
 	/*

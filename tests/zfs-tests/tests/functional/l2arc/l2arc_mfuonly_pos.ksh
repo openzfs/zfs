@@ -80,7 +80,7 @@ log_must fio $FIO_SCRIPTS/mkfiles.fio
 log_must fio $FIO_SCRIPTS/random_reads.fio
 
 log_must zpool export $TESTPOOL
-log_must zpool import -d $VDIR $TESTPOOL
+log_must zpool import -N -d $VDIR $TESTPOOL
 
 # Regardless of l2arc_noprefetch, some MFU buffers might be evicted
 # from ARC, accessed later on as prefetches and transition to MRU as

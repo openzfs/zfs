@@ -103,12 +103,12 @@ DEFINE_EVENT(zfs_arc_buf_hdr_class, name, \
     TP_PROTO(arc_buf_hdr_t *ab), \
     TP_ARGS(ab))
 DEFINE_ARC_BUF_HDR_EVENT(zfs_arc__hit);
+DEFINE_ARC_BUF_HDR_EVENT(zfs_arc__iohit);
 DEFINE_ARC_BUF_HDR_EVENT(zfs_arc__evict);
 DEFINE_ARC_BUF_HDR_EVENT(zfs_arc__delete);
 DEFINE_ARC_BUF_HDR_EVENT(zfs_new_state__mru);
 DEFINE_ARC_BUF_HDR_EVENT(zfs_new_state__mfu);
 DEFINE_ARC_BUF_HDR_EVENT(zfs_arc__async__upgrade__sync);
-DEFINE_ARC_BUF_HDR_EVENT(zfs_arc__demand__hit__predictive__prefetch);
 DEFINE_ARC_BUF_HDR_EVENT(zfs_l2arc__hit);
 DEFINE_ARC_BUF_HDR_EVENT(zfs_l2arc__miss);
 
@@ -387,12 +387,12 @@ DEFINE_ARC_WAIT_FOR_EVICTION_EVENT(zfs_arc__wait__for__eviction);
 #else
 
 DEFINE_DTRACE_PROBE1(arc__hit);
+DEFINE_DTRACE_PROBE1(arc__iohit);
 DEFINE_DTRACE_PROBE1(arc__evict);
 DEFINE_DTRACE_PROBE1(arc__delete);
 DEFINE_DTRACE_PROBE1(new_state__mru);
 DEFINE_DTRACE_PROBE1(new_state__mfu);
 DEFINE_DTRACE_PROBE1(arc__async__upgrade__sync);
-DEFINE_DTRACE_PROBE1(arc__demand__hit__predictive__prefetch);
 DEFINE_DTRACE_PROBE1(l2arc__hit);
 DEFINE_DTRACE_PROBE1(l2arc__miss);
 DEFINE_DTRACE_PROBE2(l2arc__read);
