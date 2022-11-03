@@ -216,7 +216,9 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	(void) nvlist_lookup_string(vdev, ZPOOL_CONFIG_PHYS_PATH, &physpath);
 	(void) nvlist_lookup_string(vdev, ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH,
 	    &enc_sysfs_path);
+#ifndef TRUENAS_SCALE_NEVER_WHOLEDISK
 	(void) nvlist_lookup_uint64(vdev, ZPOOL_CONFIG_WHOLE_DISK, &wholedisk);
+#endif
 	(void) nvlist_lookup_uint64(vdev, ZPOOL_CONFIG_OFFLINE, &offline);
 	(void) nvlist_lookup_uint64(vdev, ZPOOL_CONFIG_FAULTED, &faulted);
 
@@ -979,7 +981,9 @@ vdev_whole_disk_from_config(zpool_handle_t *zhp, const char *vdev_path)
 	if (!nvl)
 		return (0);
 
+#ifndef TRUENAS_SCALE_NEVER_WHOLEDISK
 	(void) nvlist_lookup_uint64(nvl, ZPOOL_CONFIG_WHOLE_DISK, &wholedisk);
+#endif
 
 	return (wholedisk);
 }
@@ -1027,10 +1031,10 @@ zfsdle_vdev_online(zpool_handle_t *zhp, void *data)
 			zpool_close(zhp);
 			return (0);
 		}
-
+#ifndef TRUENAS_SCALE_NEVER_WHOLEDISK
 		(void) nvlist_lookup_uint64(tgt, ZPOOL_CONFIG_WHOLE_DISK,
 		    &wholedisk);
-
+#endif
 		if (wholedisk) {
 			char *tmp;
 			path = strrchr(path, '/');
