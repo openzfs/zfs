@@ -26,6 +26,7 @@
 
 #include <linux/module.h>
 #include <linux/cred.h>
+#include <linux/sched.h>
 #include <sys/types.h>
 #include <sys/vfs.h>
 
