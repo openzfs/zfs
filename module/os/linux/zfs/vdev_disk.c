@@ -56,7 +56,7 @@ static void *zfs_vdev_holder = VDEV_HOLDER;
  * device is missing. The missing path may be transient since the links
  * can be briefly removed and recreated in response to udev events.
  */
-static unsigned zfs_vdev_open_timeout_ms = 1000;
+static uint_t zfs_vdev_open_timeout_ms = 1000;
 
 /*
  * Size of the "reserved" partition, in blocks.
@@ -1020,3 +1020,6 @@ param_set_max_auto_ashift(const char *buf, zfs_kernel_param_t *kp)
 
 	return (0);
 }
+
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, open_timeout_ms, UINT, ZMOD_RW,
+	"Timeout before determining that a device is missing");
