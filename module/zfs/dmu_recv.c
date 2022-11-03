@@ -602,7 +602,7 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 		 * so add the DS_HOLD_FLAG_DECRYPT flag only if we are dealing
 		 * with a dataset we may encrypt.
 		 */
-		if (drba->drba_dcp != NULL &&
+		if (drba->drba_dcp == NULL ||
 		    drba->drba_dcp->cp_crypt != ZIO_CRYPT_OFF) {
 			dsflags |= DS_HOLD_FLAG_DECRYPT;
 		}
