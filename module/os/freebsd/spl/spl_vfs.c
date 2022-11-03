@@ -125,7 +125,6 @@ mount_snapshot(kthread_t *td, vnode_t **vpp, const char *fstype, char *fspath,
 	struct vfsconf *vfsp;
 	struct mount *mp;
 	vnode_t *vp, *mvp;
-	struct ucred *pcr, *tcr;
 	int error;
 
 	ASSERT_VOP_ELOCKED(*vpp, "mount_snapshot");
@@ -195,18 +194,7 @@ mount_snapshot(kthread_t *td, vnode_t **vpp, const char *fstype, char *fspath,
 	 */
 	mp->mnt_flag |= MNT_IGNORE;
 
-	/*
-	 * XXX: This is evil, but we can't mount a snapshot as a regular user.
-	 * XXX: Is is safe when snapshot is mounted from within a jail?
-	 */
-	tcr = td->td_ucred;
-	pcr = td->td_proc->p_ucred;
-	td->td_ucred = kcred;
-	td->td_proc->p_ucred = kcred;
 	error = VFS_MOUNT(mp);
-	td->td_ucred = tcr;
-	td->td_proc->p_ucred = pcr;
-
 	if (error != 0) {
 		/*
 		 * Clear VI_MOUNT and decrement the use count "atomically",
