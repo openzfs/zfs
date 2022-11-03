@@ -690,7 +690,8 @@ spa_estimate_metaslabs_to_flush(spa_t *spa)
 		 * based on the incoming rate until we exceed it.
 		 */
 		if (available_blocks >= 0 && available_txgs >= 0) {
-			uint64_t skip_txgs = MIN(available_txgs + 1,
+			uint64_t skip_txgs = (incoming == 0) ?
+			    available_txgs + 1 : MIN(available_txgs + 1,
 			    (available_blocks / incoming) + 1);
 			available_blocks -= (skip_txgs * incoming);
 			available_txgs -= skip_txgs;
