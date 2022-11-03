@@ -31,6 +31,8 @@
 
 typedef struct cred cred_t;
 
+extern struct task_struct init_task;
+
 #define	kcred		((cred_t *)(init_task.cred))
 #define	CRED()		((cred_t *)current_cred())
 
