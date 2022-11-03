@@ -49,6 +49,8 @@
 
 verify_runnable "both"
 
+log_unsupported "SKIP because auto partitioning removed for SCALE"
+
 if ! is_physical_device $DISKS; then
 	log_unsupported "Unsupported disks for this test."
 fi
