@@ -168,10 +168,11 @@ zfs_access(znode_t *zp, int mode, int flag, cred_t *cr)
 		return (error);
 
 	if (flag & V_ACE_MASK)
-		error = zfs_zaccess(zp, mode, flag, B_FALSE, cr,
 #if defined(__linux__)
+		error = zfs_zaccess(zp, mode, flag, B_FALSE, cr,
 		    kcred->user_ns);
 #else
+		error = zfs_zaccess(zp, mode, flag, B_FALSE, cr,
 		    NULL);
 #endif
 	else
