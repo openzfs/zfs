@@ -38,7 +38,7 @@ get_zfs_ioctl_version(void)
 	int ver = ZFS_IOCVER_NONE;
 
 	ver_size = sizeof (ver);
-	sysctlbyname("vfs.zfs.version.ioctl", &ver, &ver_size, NULL, 0);
+	(void) sysctlbyname("vfs.zfs.version.ioctl", &ver, &ver_size, NULL, 0);
 
 	return (ver);
 }
