@@ -319,7 +319,7 @@ zfs_ioctl_legacy_to_ozfs(int request)
 int
 zfs_ioctl_ozfs_to_legacy(int request)
 {
-	if (request > ZFS_IOC_LAST)
+	if (request >= ZFS_IOC_LAST)
 		return (-1);
 
 	if (request > ZFS_IOC_PLATFORM) {
