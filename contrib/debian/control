@@ -2,8 +2,7 @@ Source: openzfs-linux
 Section: contrib/kernel
 Priority: optional
 Maintainer: ZFS on Linux specific mailing list <zfs-discuss@list.zfsonlinux.org>
-Build-Depends: abigail-tools,
-               debhelper-compat (= 12),
+Build-Depends: debhelper-compat (= 12),
                dh-python,
                dkms (>> 2.1.1.2-5),
                libaio-dev,

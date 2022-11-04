@@ -131,5 +131,4 @@ usr/share/man/man8/zstreamdump.8
 usr/share/man/man4/spl.4
 usr/share/man/man4/zfs.4
 usr/share/man/man7/zpool-features.7
-usr/share/man/man7/dracut.zfs.7
 usr/share/man/man8/zpool_influxdb.8

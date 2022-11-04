@@ -1,14 +1,17 @@
-PHONY += deb-kmod deb-dkms deb-utils deb deb-local
+PHONY += deb-kmod deb-dkms deb-utils deb deb-local native-deb-local \
+	native-deb-utils native-deb-kmod native-deb
 
-deb-local:
+native-deb-local:
 	@(if test "${HAVE_DPKGBUILD}" = "no"; then \
 		echo -e "\n" \
 	"*** Required util ${DPKGBUILD} missing.  Please install the\n" \
 	"*** package for your distribution which provides ${DPKGBUILD},\n" \
 	"*** re-run configure, and try again.\n"; \
 		exit 1; \
-	fi; \
-	if test "${HAVE_ALIEN}" = "no"; then \
+	fi)
+
+deb-local: native-deb-local
+	@(if test "${HAVE_ALIEN}" = "no"; then \
 		echo -e "\n" \
 	"*** Required util ${ALIEN} missing.  Please install the\n" \
 	"*** package for your distribution which provides ${ALIEN},\n" \
@@ -85,3 +88,16 @@ deb-utils: deb-local rpm-utils-initramfs
 	    $$pkg8 $$pkg9 $$pkg10 $$pkg11;
 
 deb: deb-kmod deb-dkms deb-utils
+
+debian:
+	cp -r contrib/debian debian; chmod +x debian/rules;
+
+native-deb-utils: native-deb-local debian
+	cp contrib/debian/control debian/control; \
+	$(DPKGBUILD) -b -rfakeroot -us -uc;
+
+native-deb-kmod: native-deb-local debian
+	sh scripts/make_gitrev.sh; \
+	fakeroot debian/rules override_dh_binary-modules;
+
+native-deb: native-deb-utils native-deb-kmod
