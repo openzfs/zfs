@@ -123,6 +123,11 @@ done
 #    the removed data device
 for conf in "${poolconfs[@]}"
 do
+	# special vdev can not be replaced by a hot spare
+	if [[ $conf = *"special mirror"* ]]; then
+		continue
+	fi
+
 	# 1. Create a pool with a spare
 	log_must zpool create -f $TESTPOOL $conf
 	block_device_wait ${DEV_DSKDIR}/${removedev}
