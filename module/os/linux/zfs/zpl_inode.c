@@ -468,8 +468,20 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 	vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
 	vap->va_mask = ia->ia_valid & ATTR_IATTR_MASK;
 	vap->va_mode = ia->ia_mode;
-	vap->va_uid = KUID_TO_SUID(ia->ia_uid);
-	vap->va_gid = KGID_TO_SGID(ia->ia_gid);
+	if (ia->ia_valid & ATTR_UID)
+#ifdef HAVE_IATTR_VFSID
+		vap->va_uid = zfs_vfsuid_to_uid(user_ns, zfs_i_user_ns(ip),
+		    __vfsuid_val(ia->ia_vfsuid));
+#else
+		vap->va_uid = KUID_TO_SUID(ia->ia_uid);
+#endif
+	if (ia->ia_valid & ATTR_GID)
+#ifdef HAVE_IATTR_VFSID
+		vap->va_gid = zfs_vfsgid_to_gid(user_ns, zfs_i_user_ns(ip),
+		    __vfsgid_val(ia->ia_vfsgid));
+#else
+		vap->va_gid = KGID_TO_SGID(ia->ia_gid);
+#endif
 	vap->va_size = ia->ia_size;
 	vap->va_atime = ia->ia_atime;
 	vap->va_mtime = ia->ia_mtime;
