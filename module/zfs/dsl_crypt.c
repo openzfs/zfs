@@ -2671,6 +2671,7 @@ spa_do_crypt_objset_mac_abd(boolean_t generate, spa_t *spa, uint64_t dsobj,
 	objset_phys_t *osp = buf;
 	uint8_t portable_mac[ZIO_OBJSET_MAC_LEN];
 	uint8_t local_mac[ZIO_OBJSET_MAC_LEN];
+	const uint8_t zeroed_mac[ZIO_OBJSET_MAC_LEN] = {0};
 
 	/* look up the key from the spa's keystore */
 	ret = spa_keystore_lookup_key(spa, dsobj, FTAG, &dck);
@@ -2696,8 +2697,21 @@ spa_do_crypt_objset_mac_abd(boolean_t generate, spa_t *spa, uint64_t dsobj,
 	if (memcmp(portable_mac, osp->os_portable_mac,
 	    ZIO_OBJSET_MAC_LEN) != 0 ||
 	    memcmp(local_mac, osp->os_local_mac, ZIO_OBJSET_MAC_LEN) != 0) {
-		abd_return_buf(abd, buf, datalen);
-		return (SET_ERROR(ECKSUM));
+		/*
+		 * If the MAC is zeroed out, we failed to decrypt it.
+		 * This should only arise, at least on Linux,
+		 * if we hit edge case handling for useraccounting, since we
+		 * shouldn't get here without bailing out on error earlier
+		 * otherwise.
+		 *
+		 * So if we're in that case, we can just fall through and
+		 * special-casing noticing that it's zero will handle it
+		 * elsewhere, since we can just regenerate it.
+		 */
+		if (memcmp(local_mac, zeroed_mac, ZIO_OBJSET_MAC_LEN) != 0) {
+			abd_return_buf(abd, buf, datalen);
+			return (SET_ERROR(ECKSUM));
+		}
 	}
 
 	abd_return_buf(abd, buf, datalen);
