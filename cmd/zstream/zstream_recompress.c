@@ -218,7 +218,14 @@ zstream_do_recompress(int argc, char *argv[])
 			 * with decryption or re-encryption), but for now we
 			 * skip encrypted blocks.
 			 */
-			if (drrw->drr_salt != 0) {
+			boolean_t encrypted = B_FALSE;
+			for (int i = 0; i < ZIO_DATA_SALT_LEN; i++) {
+				if (drrw->drr_salt[i] != 0) {
+					encrypted = B_TRUE;
+					break;
+				}
+			}
+			if (encrypted) {
 				(void) sfread(buf, payload_size, stdin);
 				break;
 			}
@@ -263,13 +270,12 @@ zstream_do_recompress(int argc, char *argv[])
 			/* Recompress the payload */
 			if (cinfo->ci_compress != NULL) {
 				payload_size = P2ROUNDUP(cinfo->ci_compress(
-				    dbuf, buf, payload_size, MIN(payload_size,
-				    bufsz), (level == -1 ?
-				    cinfo->ci_level : level)), 8);
+				    dbuf, buf, drrw->drr_logical_size,
+				    MIN(payload_size, bufsz), (level == -1 ?
+				    cinfo->ci_level : level)), SPA_MINBLOCKSIZE);
 				if (payload_size != drrw->drr_logical_size) {
 					drrw->drr_compressiontype = type;
-					drrw->drr_compressed_size =
-					    payload_size;
+					drrw->drr_compressed_size =payload_size;
 				} else {
 					memcpy(buf, dbuf, payload_size);
 					drrw->drr_compressiontype = 0;
@@ -297,14 +303,14 @@ zstream_do_recompress(int argc, char *argv[])
 		case DRR_FREE:
 		case DRR_OBJECT_RANGE:
 			break;
-			
+
 		default:
 			(void) fprintf(stderr, "INVALID record type 0x%x\n",
 			    drr->drr_type);
 			/* should never happen, so assert */
 			assert(B_FALSE);
 		}
-		
+
 		if (feof(stdout)) {
 			fprintf(stderr, "Error: unexpected end-of-file\n");
 			exit(1);
@@ -314,7 +320,7 @@ zstream_do_recompress(int argc, char *argv[])
 			    strerror(errno));
 			exit(1);
 		}
-		
+
 		/*
 		 * We need to recalculate the checksum, and it needs to be
 		 * initially zero to do that.  BEGIN records don't have
