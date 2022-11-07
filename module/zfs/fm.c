@@ -226,7 +226,7 @@ zfs_zevent_post(nvlist_t *nvl, nvlist_t *detector, zevent_cb_t *cb)
 		goto out;
 	}
 
-	error = nvlist_size(nvl, &nvl_size, NV_ENCODE_NATIVE);
+	error = nvlist_size(nvl, &nvl_size, NV_ENCODE_XDR);
 	if (error) {
 		atomic_inc_64(&erpt_kstat_data.erpt_dropped.value.ui64);
 		goto out;
@@ -337,7 +337,7 @@ zfs_zevent_next(zfs_zevent_t *ze, nvlist_t **event, uint64_t *event_size,
 		}
 	}
 
-	VERIFY(nvlist_size(ev->ev_nvl, &size, NV_ENCODE_NATIVE) == 0);
+	VERIFY(nvlist_size(ev->ev_nvl, &size, NV_ENCODE_XDR) == 0);
 	if (size > *event_size) {
 		*event_size = size;
 		error = ENOMEM;

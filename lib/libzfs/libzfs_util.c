@@ -1207,7 +1207,7 @@ zcmd_write_nvlist_com(libzfs_handle_t *hdl, uint64_t *outnv, uint64_t *outlen,
 	size_t len = fnvlist_size(nvl);
 	packed = zfs_alloc(hdl, len);
 
-	verify(nvlist_pack(nvl, &packed, &len, NV_ENCODE_NATIVE, 0) == 0);
+	verify(nvlist_pack(nvl, &packed, &len, NV_ENCODE_XDR, 0) == 0);
 
 	*outnv = (uint64_t)(uintptr_t)packed;
 	*outlen = len;

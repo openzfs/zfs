@@ -40,7 +40,7 @@
  * functions, which can return the requested value (rather than filling in
  * a pointer).
  *
- * These functions use NV_UNIQUE_NAME, encoding NV_ENCODE_NATIVE, and allocate
+ * These functions use NV_UNIQUE_NAME, encoding NV_ENCODE_XDR, and allocate
  * with KM_SLEEP.
  *
  * More wrappers should be added as needed -- for example
@@ -65,7 +65,7 @@ size_t
 fnvlist_size(nvlist_t *nvl)
 {
 	size_t size;
-	VERIFY0(nvlist_size(nvl, &size, NV_ENCODE_NATIVE));
+	VERIFY0(nvlist_size(nvl, &size, NV_ENCODE_XDR));
 	return (size);
 }
 
@@ -77,7 +77,7 @@ char *
 fnvlist_pack(nvlist_t *nvl, size_t *sizep)
 {
 	char *packed = 0;
-	VERIFY3U(nvlist_pack(nvl, &packed, sizep, NV_ENCODE_NATIVE,
+	VERIFY3U(nvlist_pack(nvl, &packed, sizep, NV_ENCODE_XDR,
 	    KM_SLEEP), ==, 0);
 	return (packed);
 }

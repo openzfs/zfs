@@ -330,7 +330,7 @@ spa_history_log_sync(void *arg, dmu_tx_t *tx)
 		    fnvlist_lookup_string(nvl, ZPOOL_HIST_IOCTL));
 	}
 
-	VERIFY3U(nvlist_pack(nvl, &record_packed, &reclen, NV_ENCODE_NATIVE,
+	VERIFY3U(nvlist_pack(nvl, &record_packed, &reclen, NV_ENCODE_XDR,
 	    KM_SLEEP), ==, 0);
 
 	mutex_enter(&spa->spa_history_lock);
