@@ -490,6 +490,10 @@ tags = ['functional', 'nestedfs']
 tests = ['nopwrite_sync', 'nopwrite_volume']
 tags = ['functional', 'nopwrite']
 
+[tests/functional/libnvpair]
+tests = ['packed']
+tags = ['functional', 'libnvpair']
+
 [tests/functional/pool_checkpoint]
 tests = ['checkpoint_conf_change', 'checkpoint_discard_many',
     'checkpoint_removal', 'checkpoint_sm_scale', 'checkpoint_twice']
