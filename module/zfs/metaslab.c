@@ -1223,7 +1223,7 @@ metaslab_group_fragmentation(metaslab_group_t *mg)
  */
 static boolean_t
 metaslab_group_allocatable(metaslab_group_t *mg, metaslab_group_t *rotor,
-    uint64_t psize, int allocator, int d)
+    int flags, uint64_t psize, int allocator, int d)
 {
 	spa_t *spa = mg->mg_vd->vdev_spa;
 	metaslab_class_t *mc = mg->mg_class;
@@ -1266,6 +1266,15 @@ metaslab_group_allocatable(metaslab_group_t *mg, metaslab_group_t *rotor,
 		 */
 		if (mg->mg_no_free_space)
 			return (B_FALSE);
+
+		/*
+		 * Some allocations (e.g., those coming from device removal
+		 * where the * allocations are not even counted in the
+		 * metaslab * allocation queues) are allowed to bypass
+		 * the throttle.
+		 */
+		if (flags & METASLAB_DONT_THROTTLE)
+			return (B_TRUE);
 
 		/*
 		 * Relax allocation throttling for ditto blocks.  Due to
@@ -5188,7 +5197,7 @@ top:
 		 */
 		if (allocatable && !GANG_ALLOCATION(flags) && !try_hard) {
 			allocatable = metaslab_group_allocatable(mg, rotor,
-			    psize, allocator, d);
+			    flags, psize, allocator, d);
 		}
 
 		if (!allocatable) {
