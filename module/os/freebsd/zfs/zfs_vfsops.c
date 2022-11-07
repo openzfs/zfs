@@ -438,10 +438,6 @@ zfs_sync(vfs_t *vfsp, int waitfor)
 		dsl_pool_t *dp;
 		int error;
 
-		error = vfs_stdsync(vfsp, waitfor);
-		if (error != 0)
-			return (error);
-
 		if ((error = zfs_enter(zfsvfs, FTAG)) != 0)
 			return (error);
 		dp = dmu_objset_pool(zfsvfs->z_os);
