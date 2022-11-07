@@ -166,6 +166,12 @@ The provided algorithm can be any valid value to the
 .Nm compress
 property.
 Note that encrypted send streams cannot be recompressed.
+.Bl -tag -width "-l"
+.It Fl l Ar level
+Level.
+Specifies compression level. Only needed for algorithms where the level is not
+implied as part of the name of the algorithm (e.g. gzip-3 does not require it,
+while zstd does, if a non-default level is desired).
 .El
 .
 .Sh EXAMPLES
