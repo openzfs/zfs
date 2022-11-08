@@ -392,7 +392,7 @@ get_usage(zfs_help_t idx)
 	case HELP_HOLD:
 		return (gettext("\thold [-r] <tag> <snapshot> ...\n"));
 	case HELP_HOLDS:
-		return (gettext("\tholds [-rH] <snapshot> ...\n"));
+		return (gettext("\tholds [-rHp] <snapshot> ...\n"));
 	case HELP_RELEASE:
 		return (gettext("\trelease [-r] <tag> <snapshot> ...\n"));
 	case HELP_DIFF:
@@ -6456,7 +6456,8 @@ typedef struct holds_cbdata {
  *
  */
 static void
-print_holds(boolean_t scripted, int nwidth, int tagwidth, nvlist_t *nvl)
+print_holds(boolean_t scripted, int nwidth, int tagwidth, nvlist_t *nvl,
+    boolean_t parsable)
 {
 	int i;
 	nvpair_t *nvp = NULL;
@@ -6493,11 +6494,23 @@ print_holds(boolean_t scripted, int nwidth, int tagwidth, nvlist_t *nvl)
 			    gettext(STRFTIME_FMT_STR), &t);
 
 			if (scripted) {
-				(void) printf("%s\t%s\t%s\n", zname,
-				    tagname, tsbuf);
+				if (parsable) {
+					(void) printf("%s\t%s\t%ld\n", zname,
+					    tagname, time);
+				} else {
+					(void) printf("%s\t%s\t%s\n", zname,
+					    tagname, tsbuf);
+				}
 			} else {
-				(void) printf("%-*s  %-*s  %s\n", nwidth,
-				    zname, tagwidth, tagname, tsbuf);
+				if (parsable) {
+					(void) printf("%-*s  %-*s  %ld\n",
+					    nwidth, zname, tagwidth,
+					    tagname, time);
+				} else {
+					(void) printf("%-*s  %-*s  %s\n",
+					    nwidth, zname, tagwidth,
+					    tagname, tsbuf);
+				}
 			}
 		}
 	}
@@ -6544,10 +6557,11 @@ holds_callback(zfs_handle_t *zhp, void *data)
 }
 
 /*
- * zfs holds [-rH] <snap> ...
+ * zfs holds [-rHp] <snap> ...
  *
  *	-r	Lists holds that are set on the named snapshots recursively.
  *	-H	Scripted mode; elide headers and separate columns by tabs.
+ *	-p	Display values in parsable (literal) format.
  */
 static int
 zfs_do_holds(int argc, char **argv)
@@ -6556,6 +6570,7 @@ zfs_do_holds(int argc, char **argv)
 	boolean_t errors = B_FALSE;
 	boolean_t scripted = B_FALSE;
 	boolean_t recursive = B_FALSE;
+	boolean_t parsable = B_FALSE;
 
 	int types = ZFS_TYPE_SNAPSHOT;
 	holds_cbdata_t cb = { 0 };
@@ -6565,13 +6580,16 @@ zfs_do_holds(int argc, char **argv)
 	int flags = 0;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "rH")) != -1) {
+	while ((c = getopt(argc, argv, "rHp")) != -1) {
 		switch (c) {
 		case 'r':
 			recursive = B_TRUE;
 			break;
 		case 'H':
 			scripted = B_TRUE;
+			break;
+		case 'p':
+			parsable = B_TRUE;
 			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
@@ -6626,7 +6644,8 @@ zfs_do_holds(int argc, char **argv)
 	/*
 	 *  2. print holds data
 	 */
-	print_holds(scripted, cb.cb_max_namelen, cb.cb_max_taglen, nvl);
+	print_holds(scripted, cb.cb_max_namelen, cb.cb_max_taglen, nvl,
+	    parsable);
 
 	if (nvlist_empty(nvl))
 		(void) fprintf(stderr, gettext("no datasets available\n"));

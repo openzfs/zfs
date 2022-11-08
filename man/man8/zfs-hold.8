@@ -43,7 +43,7 @@
 .Ar tag Ar snapshot Ns …
 .Nm zfs
 .Cm holds
-.Op Fl rH
+.Op Fl rHp
 .Ar snapshot Ns …
 .Nm zfs
 .Cm release
@@ -76,7 +76,7 @@ of all descendent file systems.
 .It Xo
 .Nm zfs
 .Cm holds
-.Op Fl rH
+.Op Fl rHp
 .Ar snapshot Ns …
 .Xc
 Lists all existing user references for the given snapshot or snapshots.
@@ -86,6 +86,8 @@ Lists the holds that are set on the named descendent snapshots, in addition to
 listing the holds on the named snapshot.
 .It Fl H
 Do not print headers, use tab-delimited output.
+.It Fl p
+Prints holds timestamps as unix epoch timestamps.
 .El
 .It Xo
 .Nm zfs
