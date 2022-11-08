@@ -75,7 +75,8 @@ static int
 dsl_prop_known_index(zfs_prop_t prop, uint64_t value)
 {
 	const char *str = NULL;
-	if (zfs_prop_get_type(prop) == PROP_TYPE_INDEX)
+	if (prop != ZPROP_CONT && prop != ZPROP_INVAL &&
+	    zfs_prop_get_type(prop) == PROP_TYPE_INDEX)
 		return (!zfs_prop_index_to_string(prop, value, &str));
 
 	return (-1);
