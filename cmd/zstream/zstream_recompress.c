@@ -272,10 +272,12 @@ zstream_do_recompress(int argc, char *argv[])
 				payload_size = P2ROUNDUP(cinfo->ci_compress(
 				    dbuf, buf, drrw->drr_logical_size,
 				    MIN(payload_size, bufsz), (level == -1 ?
-				    cinfo->ci_level : level)), SPA_MINBLOCKSIZE);
+				    cinfo->ci_level : level)),
+				    SPA_MINBLOCKSIZE);
 				if (payload_size != drrw->drr_logical_size) {
 					drrw->drr_compressiontype = type;
-					drrw->drr_compressed_size =payload_size;
+					drrw->drr_compressed_size =
+					    payload_size;
 				} else {
 					memcpy(buf, dbuf, payload_size);
 					drrw->drr_compressiontype = 0;
