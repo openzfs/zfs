@@ -15,7 +15,7 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.Dd June 1, 2021
+.Dd November 7, 2022
 .Dt ZFS 4
 .Os
 .
@@ -2386,6 +2386,10 @@ Defines zvol block devices behaviour when
 .It Sy 3
 .No equivalent to Sy none
 .El
+.
+.It Sy zvol_enforce_quotas Ns = Ns Sy 0 Ns | Ns 1 Pq uint
+Enable strict ZVOL quota enforcement.
+The strict quota enforcement may have a performance impact.
 .El
 .
 .Sh ZFS I/O SCHEDULER
