@@ -539,10 +539,10 @@ extern zilog_t	*zil_open(objset_t *os, zil_get_data_t *get_data,
     zil_sums_t *zil_sums);
 extern void	zil_close(zilog_t *zilog);
 
-extern void	zil_replay(objset_t *os, void *arg,
+extern boolean_t zil_replay(objset_t *os, void *arg,
     zil_replay_func_t *const replay_func[TX_MAX_TYPE]);
 extern boolean_t zil_replaying(zilog_t *zilog, dmu_tx_t *tx);
-extern void	zil_destroy(zilog_t *zilog, boolean_t keep_first);
+extern boolean_t zil_destroy(zilog_t *zilog, boolean_t keep_first);
 extern void	zil_destroy_sync(zilog_t *zilog, dmu_tx_t *tx);
 
 extern itx_t	*zil_itx_create(uint64_t txtype, size_t lrsize);
