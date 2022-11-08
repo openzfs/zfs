@@ -499,7 +499,7 @@ zpl_xattr_set_dir(struct inode *ip, const char *name, const void *value,
 		vap->va_gid = crgetgid(cr);
 
 		error = -zfs_create(dxzp, (char *)name, vap, 0, 0644, &xzp,
-		    cr, 0, NULL, NULL);
+		    cr, 0, NULL, kcred->user_ns);
 		if (error)
 			goto out;
 	}
@@ -738,9 +738,11 @@ __zpl_xattr_user_get(struct inode *ip, const char *name,
 ZPL_XATTR_GET_WRAPPER(zpl_xattr_user_get);
 
 static int
-__zpl_xattr_user_set(struct inode *ip, const char *name,
+__zpl_xattr_user_set(struct user_namespace *user_ns,
+    struct inode *ip, const char *name,
     const void *value, size_t size, int flags)
 {
+	(void) user_ns;
 	int error = 0;
 	/* xattr_resolve_name will do this for us if this is defined */
 #ifndef HAVE_XATTR_HANDLER_NAME
@@ -846,9 +848,11 @@ __zpl_xattr_trusted_get(struct inode *ip, const char *name,
 ZPL_XATTR_GET_WRAPPER(zpl_xattr_trusted_get);
 
 static int
-__zpl_xattr_trusted_set(struct inode *ip, const char *name,
+__zpl_xattr_trusted_set(struct user_namespace *user_ns,
+    struct inode *ip, const char *name,
     const void *value, size_t size, int flags)
 {
+	(void) user_ns;
 	char *xattr_name;
 	int error;
 
@@ -914,9 +918,11 @@ __zpl_xattr_security_get(struct inode *ip, const char *name,
 ZPL_XATTR_GET_WRAPPER(zpl_xattr_security_get);
 
 static int
-__zpl_xattr_security_set(struct inode *ip, const char *name,
+__zpl_xattr_security_set(struct user_namespace *user_ns,
+    struct inode *ip, const char *name,
     const void *value, size_t size, int flags)
 {
+	(void) user_ns;
 	char *xattr_name;
 	int error;
 	/* xattr_resolve_name will do this for us if this is defined */
@@ -940,7 +946,7 @@ zpl_xattr_security_init_impl(struct inode *ip, const struct xattr *xattrs,
 	int error = 0;
 
 	for (xattr = xattrs; xattr->name != NULL; xattr++) {
-		error = __zpl_xattr_security_set(ip,
+		error = __zpl_xattr_security_set(NULL, ip,
 		    xattr->name, xattr->value, xattr->value_len, 0);
 
 		if (error < 0)
@@ -1300,7 +1306,8 @@ __zpl_xattr_acl_get_default(struct inode *ip, const char *name,
 ZPL_XATTR_GET_WRAPPER(zpl_xattr_acl_get_default);
 
 static int
-__zpl_xattr_acl_set_access(struct inode *ip, const char *name,
+__zpl_xattr_acl_set_access(struct user_namespace *mnt_ns,
+    struct inode *ip, const char *name,
     const void *value, size_t size, int flags)
 {
 	struct posix_acl *acl;
@@ -1314,8 +1321,14 @@ __zpl_xattr_acl_set_access(struct inode *ip, const char *name,
 	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIX)
 		return (-EOPNOTSUPP);
 
+#if defined(HAVE_XATTR_SET_USERNS)
+	if (!zpl_inode_owner_or_capable(mnt_ns, ip))
+		return (-EPERM);
+#else
+	(void) mnt_ns;
 	if (!zpl_inode_owner_or_capable(kcred->user_ns, ip))
 		return (-EPERM);
+#endif
 
 	if (value) {
 		acl = zpl_acl_from_xattr(value, size);
@@ -1339,7 +1352,8 @@ __zpl_xattr_acl_set_access(struct inode *ip, const char *name,
 ZPL_XATTR_SET_WRAPPER(zpl_xattr_acl_set_access);
 
 static int
-__zpl_xattr_acl_set_default(struct inode *ip, const char *name,
+__zpl_xattr_acl_set_default(struct user_namespace *mnt_ns,
+    struct inode *ip, const char *name,
     const void *value, size_t size, int flags)
 {
 	struct posix_acl *acl;
@@ -1353,8 +1367,14 @@ __zpl_xattr_acl_set_default(struct inode *ip, const char *name,
 	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIX)
 		return (-EOPNOTSUPP);
 
+#if defined(HAVE_XATTR_SET_USERNS)
+	if (!zpl_inode_owner_or_capable(mnt_ns, ip))
+		return (-EPERM);
+#else
+	(void) mnt_ns;
 	if (!zpl_inode_owner_or_capable(kcred->user_ns, ip))
 		return (-EPERM);
+#endif
 
 	if (value) {
 		acl = zpl_acl_from_xattr(value, size);

@@ -374,7 +374,7 @@ zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, umode_t mode)
 #ifdef HAVE_IOPS_MKDIR_USERNS
 	zpl_vap_init(vap, dip, mode | S_IFDIR, cr, user_ns);
 #else
-	zpl_vap_init(vap, dip, mode | S_IFDIR, cr, NULL);
+	zpl_vap_init(vap, dip, mode | S_IFDIR, cr, kcred->user_ns);
 #endif
 
 	error = -zfsctl_snapdir_mkdir(dip, dname(dentry), vap, &ip, cr, 0);

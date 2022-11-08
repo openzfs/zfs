@@ -386,8 +386,13 @@ zfs_replay_create_acl(void *arg1, void *arg2, boolean_t byteswap)
 			    lr->lr_uid, lr->lr_gid);
 		}
 
+#if defined(__linux__)
+		error = zfs_create(dzp, name, &xva.xva_vattr,
+		    0, 0, &zp, kcred, vflg, &vsec, kcred->user_ns);
+#else
 		error = zfs_create(dzp, name, &xva.xva_vattr,
 		    0, 0, &zp, kcred, vflg, &vsec, NULL);
+#endif
 		break;
 	case TX_MKDIR_ACL:
 		aclstart = (caddr_t)(lracl + 1);
@@ -416,8 +421,13 @@ zfs_replay_create_acl(void *arg1, void *arg2, boolean_t byteswap)
 			    (void *)&name, lracl->lr_fuidcnt, lracl->lr_domcnt,
 			    lr->lr_uid, lr->lr_gid);
 		}
+#if defined(__linux__)
+		error = zfs_mkdir(dzp, name, &xva.xva_vattr,
+		    &zp, kcred, vflg, &vsec, kcred->user_ns);
+#else
 		error = zfs_mkdir(dzp, name, &xva.xva_vattr,
 		    &zp, kcred, vflg, &vsec, NULL);
+#endif
 		break;
 	default:
 		error = SET_ERROR(ENOTSUP);
@@ -527,8 +537,13 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 		if (name == NULL)
 			name = (char *)start;
 
+#if defined(__linux__)
+		error = zfs_create(dzp, name, &xva.xva_vattr,
+		    0, 0, &zp, kcred, vflg, NULL, kcred->user_ns);
+#else
 		error = zfs_create(dzp, name, &xva.xva_vattr,
 		    0, 0, &zp, kcred, vflg, NULL, NULL);
+#endif
 		break;
 	case TX_MKDIR_ATTR:
 		lrattr = (lr_attr_t *)(caddr_t)(lr + 1);
@@ -545,8 +560,14 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 		if (name == NULL)
 			name = (char *)(lr + 1);
 
+#if defined(__linux__)
+		error = zfs_mkdir(dzp, name, &xva.xva_vattr,
+		    &zp, kcred, vflg, NULL, kcred->user_ns);
+#else
 		error = zfs_mkdir(dzp, name, &xva.xva_vattr,
 		    &zp, kcred, vflg, NULL, NULL);
+#endif
+
 		break;
 	case TX_MKXATTR:
 		error = zfs_make_xattrdir(dzp, &xva.xva_vattr, &zp, kcred);
@@ -554,8 +575,13 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 	case TX_SYMLINK:
 		name = (char *)(lr + 1);
 		link = name + strlen(name) + 1;
+#if defined(__linux__)
+		error = zfs_symlink(dzp, name, &xva.xva_vattr,
+		    link, &zp, kcred, vflg, kcred->user_ns);
+#else
 		error = zfs_symlink(dzp, name, &xva.xva_vattr,
 		    link, &zp, kcred, vflg, NULL);
+#endif
 		break;
 	default:
 		error = SET_ERROR(ENOTSUP);
@@ -670,8 +696,13 @@ do_zfs_replay_rename(zfsvfs_t *zfsvfs, lr_rename_t *lr, char *sname,
 	if (lr->lr_common.lrc_txtype & TX_CI)
 		vflg |= FIGNORECASE;
 
+#if defined(__linux__)
+	error = zfs_rename(sdzp, sname, tdzp, tname, kcred, vflg, rflags,
+	    wo_vap, kcred->user_ns);
+#else
 	error = zfs_rename(sdzp, sname, tdzp, tname, kcred, vflg, rflags,
 	    wo_vap, NULL);
+#endif
 
 	zrele(tdzp);
 	zrele(sdzp);
@@ -944,7 +975,11 @@ zfs_replay_setattr(void *arg1, void *arg2, boolean_t byteswap)
 	zfsvfs->z_fuid_replay = zfs_replay_fuid_domain(start, &start,
 	    lr->lr_uid, lr->lr_gid);
 
+#if defined(__linux__)
+	error = zfs_setattr(zp, vap, 0, kcred, kcred->user_ns);
+#else
 	error = zfs_setattr(zp, vap, 0, kcred, NULL);
+#endif
 
 	zfs_fuid_info_free(zfsvfs->z_fuid_replay);
 	zfsvfs->z_fuid_replay = NULL;

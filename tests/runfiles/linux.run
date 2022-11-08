@@ -200,5 +200,5 @@ tags = ['functional', 'zvol', 'zvol_misc']
 
 [tests/functional/idmap_mount:Linux]
 tests = ['idmap_mount_001', 'idmap_mount_002', 'idmap_mount_003',
-    'idmap_mount_004']
+    'idmap_mount_004', 'idmap_mount_005']
 tags = ['functional', 'idmap_mount']

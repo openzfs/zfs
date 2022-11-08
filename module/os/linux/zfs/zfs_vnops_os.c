@@ -476,7 +476,7 @@ zfs_lookup(znode_t *zdp, char *nm, znode_t **zpp, int flags, cred_t *cr,
 		 */
 
 		if ((error = zfs_zaccess(*zpp, ACE_EXECUTE, 0,
-		    B_TRUE, cr, NULL))) {
+		    B_TRUE, cr, kcred->user_ns))) {
 			zrele(*zpp);
 			*zpp = NULL;
 		}
@@ -494,7 +494,8 @@ zfs_lookup(znode_t *zdp, char *nm, znode_t **zpp, int flags, cred_t *cr,
 	 * Check accessibility of directory.
 	 */
 
-	if ((error = zfs_zaccess(zdp, ACE_EXECUTE, 0, B_FALSE, cr, NULL))) {
+	if ((error = zfs_zaccess(zdp, ACE_EXECUTE, 0, B_FALSE, cr,
+	    kcred->user_ns))) {
 		zfs_exit(zfsvfs, FTAG);
 		return (error);
 	}
@@ -972,7 +973,7 @@ top:
 		return (error);
 	}
 
-	if ((error = zfs_zaccess_delete(dzp, zp, cr, NULL))) {
+	if ((error = zfs_zaccess_delete(dzp, zp, cr, kcred->user_ns))) {
 		goto out;
 	}
 
@@ -1386,7 +1387,7 @@ top:
 		return (error);
 	}
 
-	if ((error = zfs_zaccess_delete(dzp, zp, cr, NULL))) {
+	if ((error = zfs_zaccess_delete(dzp, zp, cr, kcred->user_ns))) {
 		goto out;
 	}
 
@@ -2024,10 +2025,10 @@ top:
 		 * Take ownership or chgrp to group we are a member of
 		 */
 
-		uid = zfs_uid_into_mnt((struct user_namespace *)mnt_ns,
-		    vap->va_uid);
-		gid = zfs_gid_into_mnt((struct user_namespace *)mnt_ns,
-		    vap->va_gid);
+		uid = zfs_uid_to_vfsuid((struct user_namespace *)mnt_ns,
+		    zfs_i_user_ns(ip), vap->va_uid);
+		gid = zfs_gid_to_vfsgid((struct user_namespace *)mnt_ns,
+		    zfs_i_user_ns(ip), vap->va_gid);
 		take_owner = (mask & ATTR_UID) && (uid == crgetuid(cr));
 		take_group = (mask & ATTR_GID) &&
 		    zfs_groupmember(zfsvfs, gid, cr);
@@ -2162,7 +2163,7 @@ top:
 		if (zfs_zaccess(zp, ACE_WRITE_ACL, 0, skipaclchk, cr,
 		    mnt_ns) == 0) {
 			err = secpolicy_setid_setsticky_clear(ip, vap,
-			    &oldva, cr, mnt_ns);
+			    &oldva, cr, mnt_ns, zfs_i_user_ns(ip));
 			if (err)
 				goto out3;
 			trim_mask |= ATTR_MODE;
@@ -3506,7 +3507,8 @@ zfs_link(znode_t *tdzp, znode_t *szp, char *name, cred_t *cr,
 		return (SET_ERROR(EPERM));
 	}
 
-	if ((error = zfs_zaccess(tdzp, ACE_ADD_FILE, 0, B_FALSE, cr, NULL))) {
+	if ((error = zfs_zaccess(tdzp, ACE_ADD_FILE, 0, B_FALSE, cr,
+	    kcred->user_ns))) {
 		zfs_exit(zfsvfs, FTAG);
 		return (error);
 	}
@@ -4132,7 +4134,8 @@ zfs_space(znode_t *zp, int cmd, flock64_t *bfp, int flag,
 	 * On Linux we can get here through truncate_range() which
 	 * operates directly on inodes, so we need to check access rights.
 	 */
-	if ((error = zfs_zaccess(zp, ACE_WRITE_DATA, 0, B_FALSE, cr, NULL))) {
+	if ((error = zfs_zaccess(zp, ACE_WRITE_DATA, 0, B_FALSE, cr,
+	    kcred->user_ns))) {
 		zfs_exit(zfsvfs, FTAG);
 		return (error);
 	}

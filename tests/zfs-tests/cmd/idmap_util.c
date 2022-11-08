@@ -36,6 +36,7 @@
 #include <errno.h>
 #include <sched.h>
 #include <syscall.h>
+#include <sys/socket.h>
 
 #include <sys/list.h>
 
@@ -458,43 +459,56 @@ userns_fd_from_idmap(list_t *head)
 {
 	pid_t pid;
 	int ret, fd;
-	int pipe_fd[2];
+	int fds[2];
 	char c;
 	int saved_errno = 0;
 
-	/* pipe for bidirectional communication */
-	ret = pipe(pipe_fd);
+	/* socketpair for bidirectional communication */
+	ret = socketpair(AF_LOCAL, SOCK_STREAM | SOCK_CLOEXEC, 0, fds);
 	if (ret) {
-		log_errno("pipe");
+		log_errno("socketpair");
 		return (-errno);
 	}
 
 	pid = fork();
 	if (pid < 0) {
 		log_errno("fork");
-		return (-errno);
+		fd = -errno;
+		goto out;
 	}
 
 	if (pid == 0) {
 		/* child process */
-		close(pipe_fd[0]);
 		ret = unshare(CLONE_NEWUSER);
 		if (ret == 0) {
 			/* notify the parent of success */
-			ret = write_buf(pipe_fd[1], "1", 1);
+			ret = write_buf(fds[1], "1", 1);
+			if (ret < 0)
+				saved_errno = errno;
+			else {
+				/*
+				 * Until the parent has written to idmap,
+				 * we cannot exit, otherwise the defunct
+				 * process is owned by the real root, writing
+				 * to its idmap ends up with EPERM in the
+				 * context of a user ns
+				 */
+				ret = read_buf(fds[1], &c, 1);
+				if (ret < 0)
+					saved_errno = errno;
+			}
 		} else {
 			saved_errno = errno;
 			log_errno("unshare");
-			ret = write_buf(pipe_fd[1], "0", 1);
+			ret = write_buf(fds[1], "0", 1);
+			if (ret < 0)
+				saved_errno = errno;
 		}
-		if (ret < 0)
-			saved_errno = errno;
-		close(pipe_fd[1]);
 		exit(saved_errno);
 	}
+
 	/* parent process */
-	close(pipe_fd[1]);
-	ret = read_buf(pipe_fd[0], &c, 1);
+	ret = read_buf(fds[0], &c, 1);
 	if (ret == 1 && c == '1') {
 		ret = write_pid_idmaps(pid, head);
 		if (!ret) {
@@ -504,11 +518,15 @@ userns_fd_from_idmap(list_t *head)
 		} else {
 			fd = -ret;
 		}
+		/* Let child know it can exit */
+		(void) write_buf(fds[0], "1", 1);
 	} else {
 		fd = -EBADF;
 	}
-	close(pipe_fd[0]);
 	(void) wait_for_pid(pid);
+out:
+	close(fds[0]);
+	close(fds[1]);
 	return (fd);
 }
 
@@ -532,7 +550,8 @@ is_idmap_supported(char *path)
 	};
 
 	/* strtok_r() won't be happy with a const string */
-	char *input = strdup("b:0:1000000:1000000");
+	/* To check if idmapped mount can be done in a user ns, map 0 to 0 */
+	char *input = strdup("b:0:0:1");
 
 	if (!input) {
 		errno = ENOMEM;

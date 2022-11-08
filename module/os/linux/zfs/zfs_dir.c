@@ -1113,11 +1113,11 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, znode_t **xzpp, cred_t *cr)
 	*xzpp = NULL;
 
 	if ((error = zfs_zaccess(zp, ACE_WRITE_NAMED_ATTRS, 0, B_FALSE, cr,
-	    NULL)))
+	    kcred->user_ns)))
 		return (error);
 
 	if ((error = zfs_acl_ids_create(zp, IS_XATTR, vap, cr, NULL,
-	    &acl_ids, NULL)) != 0)
+	    &acl_ids, kcred->user_ns)) != 0)
 		return (error);
 	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids, zp->z_projid)) {
 		zfs_acl_ids_free(&acl_ids);
@@ -1265,7 +1265,8 @@ zfs_sticky_remove_access(znode_t *zdp, znode_t *zp, cred_t *cr)
 	    cr, ZFS_OWNER);
 
 	if ((uid = crgetuid(cr)) == downer || uid == fowner ||
-	    zfs_zaccess(zp, ACE_WRITE_DATA, 0, B_FALSE, cr, NULL) == 0)
+	    zfs_zaccess(zp, ACE_WRITE_DATA, 0, B_FALSE, cr,
+	    kcred->user_ns) == 0)
 		return (0);
 	else
 		return (secpolicy_vnode_remove(cr));

@@ -146,7 +146,7 @@ fn(const struct xattr_handler *handler, struct user_namespace *user_ns, \
     struct dentry *dentry, struct inode *inode, const char *name,	\
     const void *buffer, size_t size, int flags)	\
 {									\
-	return (__ ## fn(inode, name, buffer, size, flags));		\
+	return (__ ## fn(user_ns, inode, name, buffer, size, flags));	\
 }
 /*
  * 4.7 API change,
@@ -160,7 +160,7 @@ fn(const struct xattr_handler *handler, struct dentry *dentry,		\
     struct inode *inode, const char *name, const void *buffer,		\
     size_t size, int flags)						\
 {									\
-	return (__ ## fn(inode, name, buffer, size, flags));		\
+	return (__ ## fn(kcred->user_ns, inode, name, buffer, size, flags));\
 }
 /*
  * 4.4 API change,
@@ -174,7 +174,8 @@ static int								\
 fn(const struct xattr_handler *handler, struct dentry *dentry,		\
     const char *name, const void *buffer, size_t size, int flags)	\
 {									\
-	return (__ ## fn(dentry->d_inode, name, buffer, size, flags));	\
+	return (__ ## fn(kcred->user_ns, dentry->d_inode, name,	\
+	    buffer, size, flags));					\
 }
 /*
  * 2.6.33 API change,
@@ -187,7 +188,8 @@ static int								\
 fn(struct dentry *dentry, const char *name, const void *buffer,		\
     size_t size, int flags, int unused_handler_flags)			\
 {									\
-	return (__ ## fn(dentry->d_inode, name, buffer, size, flags));	\
+	return (__ ## fn(kcred->user_ns, dentry->d_inode, name,	\
+	    buffer, size, flags));					\
 }
 #else
 #error "Unsupported kernel"
