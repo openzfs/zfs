@@ -3563,6 +3563,26 @@ vdev_load(vdev_t *vd)
 		}
 	}
 
+	if (vd == vd->vdev_top && vd->vdev_top_zap != 0) {
+		spa_t *spa = vd->vdev_spa;
+		uint64_t failfast;
+
+		error = zap_lookup(spa->spa_meta_objset, vd->vdev_top_zap,
+		    vdev_prop_to_name(VDEV_PROP_FAILFAST), sizeof (failfast),
+		    1, &failfast);
+		if (error == 0) {
+			vd->vdev_failfast = failfast & 1;
+		} else if (error == ENOENT) {
+			vd->vdev_failfast = vdev_prop_default_numeric(
+			    VDEV_PROP_FAILFAST);
+		} else {
+			vdev_dbgmsg(vd,
+			    "vdev_load: zap_lookup(top_zap=%llu) "
+			    "failed [error=%d]",
+			    (u_longlong_t)vd->vdev_top_zap, error);
+		}
+	}
+
 	/*
 	 * Load any rebuild state from the top-level vdev zap.
 	 */
@@ -5709,6 +5729,13 @@ vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 			else
 				error = spa_vdev_alloc(spa, vdev_guid);
 			break;
+		case VDEV_PROP_FAILFAST:
+			if (nvpair_value_uint64(elem, &intval) != 0) {
+				error = EINVAL;
+				break;
+			}
+			vd->vdev_failfast = intval & 1;
+			break;
 		default:
 			/* Most processing is done in vdev_props_set_sync */
 			break;
@@ -6018,6 +6045,25 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 					src = ZPROP_SRC_NONE;
 					intval = ZPROP_BOOLEAN_NA;
 				}
+
+				vdev_prop_add_list(outnvl, propname, strval,
+				    intval, src);
+				break;
+			case VDEV_PROP_FAILFAST:
+				src = ZPROP_SRC_LOCAL;
+				strval = NULL;
+
+				err = zap_lookup(mos, objid, nvpair_name(elem),
+				    sizeof (uint64_t), 1, &intval);
+				if (err == ENOENT) {
+					intval = vdev_prop_default_numeric(
+					    prop);
+					err = 0;
+				} else if (err) {
+					break;
+				}
+				if (intval == vdev_prop_default_numeric(prop))
+					src = ZPROP_SRC_DEFAULT;
 
 				vdev_prop_add_list(outnvl, propname, strval,
 				    intval, src);

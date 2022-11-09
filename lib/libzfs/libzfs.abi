@@ -3214,7 +3214,8 @@
       <enumerator name='VDEV_PROP_BYTES_TRIM' value='38'/>
       <enumerator name='VDEV_PROP_REMOVING' value='39'/>
       <enumerator name='VDEV_PROP_ALLOCATING' value='40'/>
-      <enumerator name='VDEV_NUM_PROPS' value='41'/>
+      <enumerator name='VDEV_PROP_FAILFAST' value='41'/>
+      <enumerator name='VDEV_NUM_PROPS' value='42'/>
     </enum-decl>
     <typedef-decl name='vdev_prop_t' type-id='1573bec8' id='5aa5c90c'/>
     <enum-decl name='vdev_state' id='21566197'>

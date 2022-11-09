@@ -420,6 +420,9 @@ vdev_prop_init(void)
 	    boolean_na_table, sfeatures);
 
 	/* default index properties */
+	zprop_register_index(VDEV_PROP_FAILFAST, "failfast", B_TRUE,
+	    PROP_DEFAULT, ZFS_TYPE_VDEV, "on | off", "FAILFAST", boolean_table,
+	    sfeatures);
 
 	/* hidden properties */
 	zprop_register_hidden(VDEV_PROP_NAME, "name", PROP_TYPE_STRING,

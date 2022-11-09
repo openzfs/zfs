@@ -15,7 +15,7 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.Dd November 7, 2022
+.Dd November 9, 2022
 .Dt ZFS 4
 .Os
 .
@@ -1345,6 +1345,19 @@ as fuller devices will tend to be slower than empty devices.
 Also see
 .Sy zio_dva_throttle_enabled .
 .
+.It Sy zfs_vdev_failfast_mask Ns = Ns Sy 1 Pq uint
+Defines if the driver should retire on a given error type.
+The following options may be bitwise-ored together:
+.TS
+box;
+lbz r l l .
+	Value	Name	Description
+_
+	1	Device	No driver retries on device errors
+	2	Transport	No driver retries on transport errors.
+	4	Driver	No driver retries on driver errors.
+.TE
+.
 .It Sy zfs_expire_snapshot Ns = Ns Sy 300 Ns s Pq int
 Time before expiring
 .Pa .zfs/snapshot .
@@ -1364,7 +1377,7 @@ The following flags may be bitwise-ored together:
 .TS
 box;
 lbz r l l .
-	Value	Symbolic Name	Description
+	Value	Name	Description
 _
 	1	ZFS_DEBUG_DPRINTF	Enable dprintf entries in the debug log.
 *	2	ZFS_DEBUG_DBUF_VERIFY	Enable extra dbuf verifications.
