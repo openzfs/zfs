@@ -4013,8 +4013,8 @@ zfs_setup_cmdline_props(libzfs_handle_t *hdl, zfs_type_t type,
 			 * properties: if we're asked to exclude this kind of
 			 * values we remove them from "recvprops" input nvlist.
 			 */
-			if (!zfs_prop_inheritable(prop) &&
-			    !zfs_prop_user(name) && /* can be inherited too */
+			if (!zfs_prop_user(name) && /* can be inherited too */
+			    !zfs_prop_inheritable(prop) &&
 			    nvlist_exists(recvprops, name))
 				fnvlist_remove(recvprops, name);
 			else
