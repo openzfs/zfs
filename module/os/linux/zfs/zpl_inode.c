@@ -121,7 +121,7 @@ zpl_vap_init(vattr_t *vap, struct inode *dir, umode_t mode, cred_t *cr,
 	vap->va_uid = zfs_vfsuid_to_uid((struct user_namespace *)mnt_ns,
 	    zfs_i_user_ns(dir), crgetuid(cr));
 
-	if (dir && dir->i_mode & S_ISGID) {
+	if (dir->i_mode & S_ISGID) {
 		vap->va_gid = KGID_TO_SGID(dir->i_gid);
 		if (S_ISDIR(mode))
 			vap->va_mode |= S_ISGID;
