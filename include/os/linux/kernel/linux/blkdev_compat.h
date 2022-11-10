@@ -126,7 +126,8 @@ typedef int bvec_iterator_t;
 #endif
 
 static inline void
-bio_set_flags_failfast(struct block_device *bdev, int *flags)
+bio_set_flags_failfast(struct block_device *bdev, int *flags, bool dev,
+    bool transport, bool driver)
 {
 #ifdef CONFIG_BUG
 	/*
@@ -148,7 +149,12 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 #endif /* BLOCK_EXT_MAJOR */
 #endif /* CONFIG_BUG */
 
-	*flags |= REQ_FAILFAST_MASK;
+	if (dev)
+		*flags |= REQ_FAILFAST_DEV;
+	if (transport)
+		*flags |= REQ_FAILFAST_TRANSPORT;
+	if (driver)
+		*flags |= REQ_FAILFAST_DRIVER;
 }
 
 /*

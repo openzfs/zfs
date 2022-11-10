@@ -299,6 +299,7 @@ struct vdev {
 	uint64_t	vdev_islog;	/* is an intent log device	*/
 	uint64_t	vdev_noalloc;	/* device is passivated?	*/
 	uint64_t	vdev_removing;	/* device is being removed?	*/
+	uint64_t	vdev_failfast;	/* device failfast setting	*/
 	boolean_t	vdev_ishole;	/* is a hole in the namespace	*/
 	uint64_t	vdev_top_zap;
 	vdev_alloc_bias_t vdev_alloc_bias; /* metaslab allocation bias	*/

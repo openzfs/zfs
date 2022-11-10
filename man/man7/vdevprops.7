@@ -20,7 +20,7 @@
 .\"
 .\" Copyright (c) 2021 Klara, Inc.
 .\"
-.Dd November 27, 2021
+.Dd October 30, 2022
 .Dt VDEVPROPS 7
 .Os
 .
@@ -121,6 +121,9 @@ dataset.
 A text comment up to 8192 characters long
 .It Sy bootsize
 The amount of space to reserve for the EFI system partition
+.It Sy failfast
+If this device should propage BIO errors back to ZFS, used to disable
+failfast.
 .It Sy path
 The path to the device for this vdev
 .It Sy allocating
