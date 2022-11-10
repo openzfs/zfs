@@ -23,12 +23,24 @@
  * Copyright (c) 1992, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
-#if defined(_KERNEL) && defined(__linux__)
-#include <linux/linkage.h>
-#endif
+#ifdef _WIN32
 
-#ifndef RET
-#define	RET	ret
+#define	ENTRY(x) \
+	.text; \
+	.align	8; \
+	.globl	x; \
+x:
+#define	SET_SIZE(x)
+
+#elif defined(__APPLE__)
+
+#define _ASM
+#include <osx/asm_linkage.h>
+
+#else
+
+#if defined(__linux__) && defined(_KERNEL)
+#include <linux/linkage.h>
 #endif
 
 #undef ENTRY
@@ -41,6 +53,13 @@ x:
 
 #define	SET_SIZE(x) \
 	.size	x, [.-x]
+
+#endif
+
+
+#ifndef RET
+#define	RET	ret
+#endif
 
 /*
  * Setjmp and longjmp implement non-local gotos using state vectors
