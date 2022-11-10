@@ -1321,7 +1321,7 @@ top_of_function:
 	 * we want to let it through.
 	 */
 	if (ignorequota || netfree || dsl_dir_phys(dd)->dd_quota == 0 ||
-	    (dmu_objset_type(tx->tx_objset) == DMU_OST_ZVOL &&
+	    (tx->tx_objset && dmu_objset_type(tx->tx_objset) == DMU_OST_ZVOL &&
 	    zvol_enforce_quotas == B_FALSE))
 		quota = UINT64_MAX;
 	else
