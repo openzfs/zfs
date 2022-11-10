@@ -43,6 +43,10 @@
 .Nm
 .Cm token
 .Ar resume_token
+.Nm
+.Cm recompress
+.Op Fl l Ar level
+.Ar algorithm
 .
 .Sh DESCRIPTION
 The
@@ -148,6 +152,27 @@ Therefore, a deduplicated send stream can be received by running:
 .It Fl v
 Verbose.
 Print summary of converted records.
+.El
+.It Xo
+.Nm
+.Cm recompress
+.Op Fl l Ar level
+.Ar algorithm
+.Xc
+Recompresses a send stream, provided on standard input, using the provided
+algorithm and optional level, and writes the modified stream to standard output.
+All WRITE records in the send stream will be recompressed, unless they fail
+to result in size reduction compared to being left uncompressed.
+The provided algorithm can be any valid value to the
+.Nm compress
+property.
+Note that encrypted send streams cannot be recompressed.
+.Bl -tag -width "-l"
+.It Fl l Ar level
+Specifies compression level.
+Only needed for algorithms where the level is not implied as part of the name
+of the algorithm (e.g. gzip-3 does not require it, while zstd does, if a
+non-default level is desired).
 .El
 .El
 .
