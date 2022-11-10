@@ -60,7 +60,7 @@ export TOTAL_SIZE=$(($(get_prop avail $PERFPOOL) * 3 / 2))
 # Variables specific to this test for use by fio.
 export PERF_NTHREADS=${PERF_NTHREADS:-'32 64'}
 export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
-export PERF_IOSIZES=''		# bssplit used instead
+export PERF_IOSIZES='bssplit'		# bssplit used instead of fixed sizes
 export PERF_SYNC_TYPES=${PERF_SYNC_TYPES:-'1'}
 
 # Layout the files to be used by the readwrite tests. Create as many files
