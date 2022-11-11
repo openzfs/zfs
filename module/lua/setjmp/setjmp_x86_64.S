@@ -23,16 +23,7 @@
  * Copyright (c) 1992, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
-#ifdef _WIN32
-
-#define	ENTRY(x) \
-	.text; \
-	.align	8; \
-	.globl	x; \
-x:
-#define	SET_SIZE(x)
-
-#elif defined(__APPLE__)
+if defined(__APPLE__)
 
 #define _ASM
 #include <osx/asm_linkage.h>
