@@ -640,8 +640,8 @@ setup_snapshot_booting()
 			#       rpool/ROOT/debian/boot@snap2	=> rpool/ROOT/debian_snap2/boot
 			#       rpool/ROOT/debian/usr@snap2	=> rpool/ROOT/debian_snap2/usr
 			#       rpool/ROOT/debian/var@snap2	=> rpool/ROOT/debian_snap2/var
-			subfs="${s##$rootfs}"
-			subfs="${subfs%%@$snapname}"
+			subfs="${s##"$rootfs"}"
+			subfs="${subfs%%@"$snapname"}"
 
 			destfs="${rootfs}_${snapname}" # base fs.
 			[ -n "$subfs" ] && destfs="${destfs}$subfs" # + sub fs.

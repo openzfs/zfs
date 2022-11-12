@@ -3,7 +3,7 @@
 
 check() {
 	# We depend on udev-rules being loaded
-	[ "${1}" = "-d" ] && return 0
+	[[ "${1}" = "-d" ]] && return 0
 
 	# Verify the zfs tool chain
 	for tool in "zgenhostid" "zpool" "zfs" "mount.zfs"; do
@@ -50,7 +50,7 @@ install() {
 	fi
 
 	inst_hook cmdline 95 "${moddir}/parse-zfs.sh"
-	if [ -n "${systemdutildir}" ]; then
+	if [[ -n "${systemdutildir}" ]]; then
 		inst_script "${moddir}/zfs-generator.sh" "${systemdutildir}/system-generators/dracut-zfs-generator"
 	fi
 	inst_hook pre-mount 90 "${moddir}/zfs-load-key.sh"
@@ -68,7 +68,7 @@ install() {
 
 	# Synchronize initramfs and system hostid
 	if ! inst_simple -H @sysconfdir@/hostid; then
-		if HOSTID="$(hostid 2>/dev/null)" && [ "${HOSTID}" != "00000000" ]; then
+		if HOSTID="$(hostid 2>/dev/null)" && [[ "${HOSTID}" != "00000000" ]]; then
 			zgenhostid -o "${initdir}@sysconfdir@/hostid" "${HOSTID}"
 			mark_hostonly @sysconfdir@/hostid
 		fi

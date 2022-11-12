@@ -23,7 +23,7 @@
 
 BASE_DIR=${0%/*}
 SCRIPT_COMMON=common.sh
-if [ -f "${BASE_DIR}/${SCRIPT_COMMON}" ]; then
+if [[ -f "${BASE_DIR}/${SCRIPT_COMMON}" ]]; then
 	. "${BASE_DIR}/${SCRIPT_COMMON}"
 else
 	echo "Missing helper script ${SCRIPT_COMMON}" && exit 1
