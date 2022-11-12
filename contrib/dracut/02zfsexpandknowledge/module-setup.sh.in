@@ -3,7 +3,7 @@
 get_devtype() {
   local typ
   typ=$(udevadm info --query=property --name="$1" | sed -n 's|^ID_FS_TYPE=||p')
-  if [ -z "$typ" ] ; then
+  if [[ -z "$typ" ]] ; then
      typ=$(blkid -c /dev/null "$1" -o value -s TYPE)
   fi
   echo "$typ"
@@ -22,7 +22,7 @@ get_pool_devices() {
   else
     awk -F '\t' '/\t\/dev/ { print $2 }' "$poolconfigtemp" | \
     while read -r pooldev ; do
-        if [ -e "$pooldev" ] ; then
+        if [[ -e "$pooldev" ]] ; then
           resolved="$(readlink -f "$pooldev")"
           dinfo "zfsexpandknowledge: pool $1 has device $pooldev (which resolves to $resolved)"
           echo "$resolved"
@@ -38,15 +38,15 @@ find_zfs_block_devices() {
     local fstype
     local _
     numfields="$(awk '{print NF; exit}' /proc/self/mountinfo)"
-    if [ "$numfields" = "10" ] ; then
+    if [[ "$numfields" = "10" ]] ; then
         fields="_ _ _ _ mp _ _ fstype dev _"
     else
         fields="_ _ _ _ mp _ _ _ fstype dev _"
     fi
     # shellcheck disable=SC2086
     while read -r ${fields?} ; do
-       [ "$fstype" = "zfs" ] || continue
-       [ "$mp" = "$1" ] && get_pool_devices "${dev%%/*}"
+       [[ "$fstype" = "zfs" ]] || continue
+       [[ "$mp" = "$1" ]] && get_pool_devices "${dev%%/*}"
     done < /proc/self/mountinfo
 }
 
@@ -73,7 +73,7 @@ check() {
     local _depdevtype
 
 # shellcheck disable=SC2154
-if [ -n "$hostonly" ]; then
+if [[ -n "$hostonly" ]]; then
 
     for mp in \
         "/" \
@@ -92,7 +92,7 @@ if [ -n "$hostonly" ]; then
         mp=$(readlink -f "$mp")
         mountpoint "$mp" >/dev/null 2>&1 || continue
         blockdevs=$(find_zfs_block_devices "$mp")
-        if [ -z "$blockdevs" ] ; then continue ; fi
+        if [[ -z "$blockdevs" ]] ; then continue ; fi
         dinfo "zfsexpandknowledge: block devices backing ZFS dataset $mp: ${blockdevs//$'\n'/ }"
         for dev in $blockdevs
         do
@@ -100,9 +100,9 @@ if [ -n "$hostonly" ]; then
             fstype=$(get_devtype "$dev")
             host_fs_types["$dev"]="$fstype"
             majmin=$(get_maj_min "$dev")
-            if [ -d "/sys/dev/block/$majmin/slaves" ] ; then
+            if [[ -d "/sys/dev/block/$majmin/slaves" ]] ; then
                 for _depdev in "/sys/dev/block/$majmin/slaves"/*; do
-                    [ -f "$_depdev/dev" ] || continue
+                    [[ -f "$_depdev/dev" ]] || continue
                     _depdev="/dev/${_depdev##*/}"
                     _depdevname=$(udevadm info --query=property --name="$_depdev" | sed -n 's|^DEVNAME=||p')
                     _depdevtype=$(get_devtype "$_depdevname")

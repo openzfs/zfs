@@ -63,11 +63,11 @@ __zfs_list_filesystems()
 __zfs_match_snapshot()
 {
     local base_dataset="${cur%@*}"
-    if [ "$base_dataset" != "$cur" ]
+    if [[ "$base_dataset" != "$cur" ]]
     then
         $__ZFS_CMD list -H -o name -s name -t snapshot -d 1 "$base_dataset"
     else
-        if [ "$cur" != "" ] && __zfs_list_datasets "$cur" &> /dev/null
+        if [[ "$cur" != "" ]] && __zfs_list_datasets "$cur" &> /dev/null
         then
             $__ZFS_CMD list -H -o name -s name -t filesystem,volume -r "$cur" | tail -n +2
             # We output the base dataset name even though we might be
@@ -104,7 +104,7 @@ __zfs_match_snapshot()
 __zfs_match_snapshot_or_bookmark()
 {
     local base_dataset="${cur%[#@]*}"
-    if [ "$base_dataset" != "$cur" ]
+    if [[ "$base_dataset" != "$cur" ]]
     then
         if [[ $cur == *@* ]]
         then
@@ -114,7 +114,7 @@ __zfs_match_snapshot_or_bookmark()
         fi
     else
         $__ZFS_CMD list -H -o name -s name -t filesystem,volume
-        if [ -e "$cur" ] && $__ZFS_CMD list -H -o name -s name -t filesystem,volume "$cur" &> /dev/null
+        if [[ -e "$cur" ]] && $__ZFS_CMD list -H -o name -s name -t filesystem,volume "$cur" &> /dev/null
         then
             echo "$cur@"
             echo "$cur#"
@@ -126,10 +126,10 @@ __zfs_match_multiple_snapshots()
 {
     local existing_opts
     existing_opts="$(expr "$cur" : '\(.*\)[%,]')"
-    if [ -e "$existing_opts" ]
+    if [[ -e "$existing_opts" ]]
     then
         local base_dataset="${cur%@*}"
-        if [ "$base_dataset" != "$cur" ]
+        if [[ "$base_dataset" != "$cur" ]]
         then
             local cur="${cur##*,}"
             if [[ $cur =~ ^%|%.*% ]]
@@ -199,7 +199,7 @@ __zfs_complete_multiple_options()
 
     mapfile -t COMPREPLY < <(compgen -W "$options" -- "${cur##*,}")
     existing_opts=$(expr "$cur" : '\(.*,\)')
-    if [ -n "$existing_opts" ]
+    if [[ -n "$existing_opts" ]]
     then
         COMPREPLY=( "${COMPREPLY[@]/#/${existing_opts}}" )
     fi

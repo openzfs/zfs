@@ -16,7 +16,7 @@ automake --version | awk '{print $NF; exit}' | (
 			dir="${dir%/Makefile.am}"
 			grep -q '%[CD]%' "$dir/Makefile.am" || continue
 
-			reldir="${dir#$root}"
+			reldir="${dir#"$root"}"
 			reldir="${reldir#/}"
 
 			canon_reldir="$(printf '%s' "$reldir" | tr -C 'a-zA-Z0-9@_' '_')"
