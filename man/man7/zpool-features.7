@@ -62,7 +62,8 @@ Refer to the documentation for the ZFS
 implementation that created the pool for information about those features.
 .Pp
 Each supported feature also has a short name.
-By convention a feature's short name is the portion of its GUID which follows the
+By convention a feature's short name is the portion of its GUID which follows
+the
 .Sq \&:
 .Po
 i.e.
@@ -167,7 +168,8 @@ separated by whitespace and/or commas.
 Only features present in all files are enabled.
 .Pp
 Simple sanity checks are applied to the files:
-they must be between 1 B and 16 KiB in size, and must end with a newline character.
+they must be between 1 B and 16 KiB in size, and must end with a newline
+character.
 .Pp
 The requested features are applied when a pool is created using
 .Nm zpool Cm create Fl o Sy compatibility Ns = Ns Ar …
@@ -268,7 +270,7 @@ or when a new file is created under that filesystem. \
 The upgrade can also be triggered on filesystems via \
 Nm zfs Cm set Sy version Ns = Ns Sy current Ar fs . \
 No The upgrade process runs in the background and may take a while to complete \
-for filesystems containing large amounts of files.
+for filesystems containing large amounts of files .
 .
 .de checksum-spiel
 When the
@@ -339,7 +341,8 @@ while
 is non-zero.
 .
 .feature org.openzfs blake3 no extensible_dataset
-This feature enables the use of the BLAKE3 hash algorithm for checksum and dedup.
+This feature enables the use of the BLAKE3 hash algorithm for checksum and
+dedup.
 BLAKE3 is a secure hash algorithm focused on high performance.
 .Pp
 .checksum-spiel blake3

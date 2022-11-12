@@ -108,7 +108,8 @@ Issued when a pool is exported.
 .It Sy zpool.import
 Issued when a pool is imported.
 .It Sy zpool.reguid
-Issued when a REGUID (new unique identifier for the pool have been regenerated) have been detected.
+Issued when a REGUID (new unique identifier for the pool have been regenerated)
+have been detected.
 .It Sy vdev.unknown
 Issued when the vdev is unknown.
 Such as trying to clear device errors on a vdev that have failed/been kicked
@@ -226,7 +227,8 @@ ID of vdev (if any).
 .It Sy vdev_fru
 Physical FRU location.
 .It Sy vdev_state
-State of vdev (0=uninitialized, 1=closed, 2=offline, 3=removed, 4=failed to open, 5=faulted, 6=degraded, 7=healthy).
+State of vdev (0=uninitialized, 1=closed, 2=offline, 3=removed, 4=failed to
+open, 5=faulted, 6=degraded, 7=healthy).
 .It Sy vdev_ashift
 The ashift value of the vdev.
 .It Sy vdev_complete_ts
@@ -373,7 +375,8 @@ If this field exists, it is an array of counters.
 Each entry counts bit clears in a particular bit of a big-endian uint64 type.
 The first entry counts bits
 clears of the high-order bit of the first byte, the 9th byte, etc, and the
-last entry counts clears of the low-order bit of the 8th byte, the 16th byte, etc.
+last entry counts clears of the low-order bit of the 8th byte, the 16th byte,
+etc.
 This information is useful for observing a stuck bit in a parallel data
 path, such as IDE or parallel SCSI.
 .El

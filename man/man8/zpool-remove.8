@@ -75,9 +75,11 @@ The
 feature flag must be enabled to remove a top-level vdev, see
 .Xr zpool-features 7 .
 .Pp
-A mirrored top-level device (log or data) can be removed by specifying the top-level mirror for the
+A mirrored top-level device (log or data) can be removed by specifying the top-
+level mirror for the
 same.
-Non-log devices or data devices that are part of a mirrored configuration can be removed using
+Non-log devices or data devices that are part of a mirrored configuration can be
+removed using
 the
 .Nm zpool Cm detach
 command.
@@ -137,11 +139,11 @@ config:
 .Ed
 .Pp
 The command to remove the mirrored log
-.Ar mirror-2 No is:
+.Ar mirror-2 No is :
 .Dl # Nm zpool Cm remove Ar tank mirror-2
 .Pp
 The command to remove the mirrored data
-.Ar mirror-1 No is:
+.Ar mirror-1 No is :
 .Dl # Nm zpool Cm remove Ar tank mirror-1
 .
 .Sh SEE ALSO

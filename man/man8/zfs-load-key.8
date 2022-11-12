@@ -236,7 +236,8 @@ Key rotation is managed by ZFS.
 Changing the user's key (e.g. a passphrase)
 does not require re-encrypting the entire dataset.
 Datasets can be scrubbed,
-resilvered, renamed, and deleted without the encryption keys being loaded (see the
+resilvered, renamed, and deleted without the encryption keys being loaded (see
+the
 .Cm load-key
 subcommand for more info on key loading).
 .Pp
@@ -291,9 +292,11 @@ Encrypted datasets may not have
 since the implementation stores some encryption metadata where the third copy
 would normally be.
 Since compression is applied before encryption, datasets may
-be vulnerable to a CRIME-like attack if applications accessing the data allow for it.
+be vulnerable to a CRIME-like attack if applications accessing the data allow
+for it.
 Deduplication with encryption will leak information about which blocks
-are equivalent in a dataset and will incur an extra CPU cost for each block written.
+are equivalent in a dataset and will incur an extra CPU cost for each block
+written.
 .
 .Sh SEE ALSO
 .Xr zfsprops 7 ,

@@ -61,8 +61,10 @@ Lock all current and future pages in the virtual memory address space.
 This may help the daemon remain responsive when the system is under heavy
 memory pressure.
 .It Fl I
-Request that the daemon idle rather than exit when the kernel modules are not loaded.
-Processing of events will start, or resume, when the kernel modules are (re)loaded.
+Request that the daemon idle rather than exit when the kernel modules are not
+loaded.
+Processing of events will start, or resume, when the kernel modules are
+(re)loaded.
 Under Linux the kernel modules cannot be unloaded while the daemon is running.
 .It Fl Z
 Zero the daemon's state, thereby allowing zevents still within the kernel
@@ -75,12 +77,14 @@ Write the daemon's process ID to the specified file.
 Custom
 .Ev $PATH
 for zedlets to use.
-Normally zedlets run in a locked-down environment, with hardcoded paths to the ZFS commands
+Normally zedlets run in a locked-down environment, with hardcoded paths to the
+ZFS commands
 .Pq Ev $ZFS , $ZPOOL , $ZED , … ,
 and a hard-coded
 .Ev $PATH .
 This is done for security reasons.
-However, the ZFS test suite uses a custom PATH for its ZFS commands, and passes it to
+However, the ZFS test suite uses a custom PATH for its ZFS commands, and passes
+it to
 .Nm
 with
 .Fl P .
@@ -111,7 +115,8 @@ Defaults to
 .El
 .Sh ZEVENTS
 A zevent is comprised of a list of nvpairs (name/value pairs).
-Each zevent contains an EID (Event IDentifier) that uniquely identifies it throughout
+Each zevent contains an EID (Event IDentifier) that uniquely identifies it
+throughout
 the lifetime of the loaded ZFS kernel module; this EID is a monotonically
 increasing integer that resets to 1 each time the kernel module is loaded.
 Each zevent also contains a class string that identifies the type of event.
@@ -217,7 +222,8 @@ The ZFS release the daemon is part of.
 .El
 .Pp
 ZEDLETs may need to call other ZFS commands.
-The installation paths of the following executables are defined as environment variables:
+The installation paths of the following executables are defined as environment
+variables:
 .Sy ZDB ,
 .Sy ZED ,
 .Sy ZFS ,

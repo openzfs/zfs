@@ -121,7 +121,8 @@ or removes the specified device from the pool.
 .It Xr zpool-replace 8
 Replaces an existing device (which may be faulted) with a new one.
 .It Xr zpool-split 8
-Creates a new pool by splitting all mirrors in an existing pool (which decreases its redundancy).
+Creates a new pool by splitting all mirrors in an existing pool (which decreases
+its redundancy).
 .El
 .
 .Ss Properties
@@ -174,7 +175,8 @@ Checkpoints the current state of
 which can be later restored by
 .Nm zpool Cm import Fl -rewind-to-checkpoint .
 .It Xr zpool-trim 8
-Initiates an immediate on-demand TRIM operation for all of the free space in a pool.
+Initiates an immediate on-demand TRIM operation for all of the free space in a
+pool.
 This operation informs the underlying storage devices of all blocks
 in the pool which are no longer allocated and allows thinly provisioned
 devices to reclaim the space.
@@ -201,7 +203,8 @@ pool.
 Takes the specified physical device offline or brings it online.
 .It Xr zpool-resilver 8
 Starts a resilver.
-If an existing resilver is already running it will be restarted from the beginning.
+If an existing resilver is already running it will be restarted from the
+beginning.
 .It Xr zpool-reopen 8
 Reopen all the vdevs associated with the pool.
 .It Xr zpool-clear 8
@@ -384,11 +387,11 @@ config:
 .Ed
 .Pp
 The command to remove the mirrored log
-.Ar mirror-2 No is:
+.Ar mirror-2 No is :
 .Dl # Nm zpool Cm remove Ar tank mirror-2
 .Pp
 The command to remove the mirrored data
-.Ar mirror-1 No is:
+.Ar mirror-1 No is :
 .Dl # Nm zpool Cm remove Ar tank mirror-1
 .
 .Ss Example 15 : No Displaying expanded space on a device

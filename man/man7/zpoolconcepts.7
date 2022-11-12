@@ -91,7 +91,7 @@ vdev type is an alias for
 .Pp
 A raidz group with
 .Em N No disks of size Em X No with Em P No parity disks can hold approximately
-.Em (N-P)*X No bytes and can withstand Em P No devices failing without losing data.
+.Em (N-P)*X No bytes and can withstand Em P No devices failing without losing data .
 The minimum number of devices in a raidz group is one more than the number of
 parity disks.
 The recommended number is between 3 and 9 to help increase performance.
@@ -99,7 +99,7 @@ The recommended number is between 3 and 9 to help increase performance.
 A variant of raidz that provides integrated distributed hot spares which
 allows for faster resilvering while retaining the benefits of raidz.
 A dRAID vdev is constructed from multiple internal raidz groups, each with
-.Em D No data devices and Em P No parity devices.
+.Em D No data devices and Em P No parity devices .
 These groups are distributed over all of the children in order to fully
 utilize the available disk performance.
 .Pp
@@ -119,7 +119,7 @@ recommended to also add a mirrored
 vdev to store those blocks.
 .Pp
 In regards to I/O, performance is similar to raidz since for any read all
-.Em D No data disks must be accessed.
+.Em D No data disks must be accessed .
 Delivered random IOPS can be reasonably approximated as
 .Sy floor((N-S)/(D+P))*single_drive_IOPS .
 .Pp
@@ -136,7 +136,7 @@ vdev type is an alias for
 .Sy draid1 .
 .Pp
 A dRAID with
-.Em N No disks of size Em X , D No data disks per redundancy group, Em P
+.Em N No disks of size Em X , D No data disks per redundancy group , Em P
 .No parity level, and Em S No distributed hot spares can hold approximately
 .Em (N-S)*(D/(D+P))*X No bytes and can withstand Em P
 devices failing without losing data.
@@ -151,7 +151,7 @@ The parity level (1-3).
 .It Ar data
 The number of data devices per redundancy group.
 In general, a smaller value of
-.Em D No will increase IOPS, improve the compression ratio,
+.Em D No will increase IOPS, improve the compression ratio ,
 and speed up resilvering at the expense of total usable capacity.
 Defaults to
 .Em 8 , No unless Em N-P-S No is less than Em 8 .

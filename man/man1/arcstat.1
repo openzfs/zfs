@@ -134,7 +134,8 @@ ARC grow disabled
 .It Sy need
 ARC reclaim needed
 .It Sy free
-The ARC's idea of how much free memory there is, which includes evictable memory in the page cache.
+The ARC's idea of how much free memory there is, which includes evictable memory
+in the page cache.
 Since the ARC tries to keep
 .Sy avail
 above zero,
@@ -142,7 +143,8 @@ above zero,
 is usually more instructive to observe than
 .Sy free .
 .It Sy avail
-The ARC's idea of how much free memory is available to it, which is a bit less than
+The ARC's idea of how much free memory is available to it, which is a bit less
+than
 .Sy free .
 May temporarily be negative, in which case the ARC will reduce the target size
 .Sy c .

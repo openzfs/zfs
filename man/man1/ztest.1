@@ -114,15 +114,15 @@ Print a help summary.
 Number of vdevs.
 .It Fl s , -vdev-size Ns = (default: Sy 64M )
 Size of each vdev.
-.It Fl a , -alignment-shift Ns = (default: Sy 9 ) No (use Sy 0 No for random)
+.It Fl a , -alignment-shift Ns = (default: Sy 9 ) No (use Sy 0 No for random )
 Alignment shift used in test.
 .It Fl m , -mirror-copies Ns = (default: Sy 2 )
 Number of mirror copies.
-.It Fl r , -raid-disks Ns = (default: Sy 4 No for raidz/ Ns Sy 16 No for draid)
+.It Fl r , -raid-disks Ns = (default: Sy 4 No for raidz/ Ns Sy 16 No for draid )
 Number of raidz/draid disks.
 .It Fl R , -raid-parity Ns = (default: Sy 1 )
 Raid parity (raidz & draid).
-.It Fl K , -raid-kind Ns = Ns Sy raidz Ns | Ns Sy draid Ns | Ns Sy random No (default: Sy random )
+.It Fl K , -raid-kind Ns = Ns Sy raidz Ns | Ns Sy draid Ns | Ns Sy random No (default : Sy random )
 The kind of RAID config to use.
 With
 .Sy random
@@ -159,7 +159,8 @@ Max loops in
 .It Fl B , -alt-ztest Ns =
 Path to alternate ("older")
 .Nm ztest
-to drive, which will be used to initialise the pool, and, a stochastic half the time, to run the tests.
+to drive, which will be used to initialise the pool, and, a stochastic half the
+time, to run the tests.
 The parallel
 .Pa lib
 directory is prepended to
@@ -168,7 +169,7 @@ i.e. given
 .Fl B Pa ./chroots/lenny/usr/bin/ Ns Nm ,
 .Pa ./chroots/lenny/usr/lib
 will be loaded.
-.It Fl C , -vdev-class-state Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy random No (default: Sy random )
+.It Fl C , -vdev-class-state Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy random No (default : Sy random  )
 The vdev allocation class state.
 .It Fl o , -option Ns = Ns Ar variable Ns = Ns Ar value
 Set global
