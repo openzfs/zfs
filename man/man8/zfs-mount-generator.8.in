@@ -49,7 +49,7 @@ units for configured ZFS datasets.
 .No Skipped if Sy off .
 .No Skipped if only Sy noauto
 datasets exist for a given mountpoint and there's more than one.
-.No Datasets with Sy yes No take precedence over ones with Sy noauto No for the same mountpoint.
+.No Datasets with Sy yes No take precedence over ones with Sy noauto No for the same mountpoint .
 .No Sets logical Em noauto No flag if Sy noauto .
 Encryption roots always generate
 .Sy zfs-load-key@ Ns Ar root Ns Sy .service ,
@@ -94,14 +94,15 @@ as the mount unit.
 .No Sets Sy After Ns = for the mount unit.
 .
 .It Sy org.openzfs.systemd:wanted-by Ns = Ns Pa unit Ns Oo " " Ns Pa unit Oc Ns …
-.No Sets logical Em noauto No flag (see below).
+.No Sets logical Em noauto No flag (see below) .
 .No If not Sy none , No sets Sy WantedBy Ns = for the mount unit.
 .It Sy org.openzfs.systemd:required-by Ns = Ns Pa unit Ns Oo " " Ns Pa unit Oc Ns …
-.No Sets logical Em noauto No flag (see below).
+.No Sets logical Em noauto No flag (see below) .
 .No If not Sy none , No sets Sy RequiredBy Ns = for the mount unit.
 .
 .It Sy org.openzfs.systemd:nofail Ns = Ns (unset) Ns | Ns Sy on Ns | Ns Sy off
-Waxes or wanes strength of default reverse dependencies of the mount unit, see below.
+Waxes or wanes strength of default reverse dependencies of the mount unit, see
+below.
 .
 .It Sy org.openzfs.systemd:ignore Ns = Ns Sy on Ns | Ns Sy off
 .No Skip if Sy on .

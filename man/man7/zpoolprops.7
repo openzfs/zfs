@@ -82,11 +82,13 @@ By contrast, the
 property describes how much new data can be written to ZFS filesystems/volumes.
 The zpool
 .Sy free
-property is not generally useful for this purpose, and can be substantially more than the zfs
+property is not generally useful for this purpose, and can be substantially more
+than the zfs
 .Sy available
 space.
 This discrepancy is due to several factors, including raidz parity;
-zfs reservation, quota, refreservation, and refquota properties; and space set aside by
+zfs reservation, quota, refreservation, and refquota properties; and space set
+aside by
 .Sy spa_slop_shift
 (see
 .Xr zfs 4
@@ -272,7 +274,8 @@ using the
 command.
 .It Sy bootfs Ns = Ns Sy (unset) Ns | Ns Ar pool Ns Op / Ns Ar dataset
 Identifies the default bootable dataset for the root pool.
-This property is expected to be set mainly by the installation and upgrade programs.
+This property is expected to be set mainly by the installation and upgrade
+programs.
 Not all Linux distribution boot processes use the bootfs property.
 .It Sy cachefile Ns = Ns Ar path Ns | Ns Sy none
 Controls the location of where the pool configuration is cached.

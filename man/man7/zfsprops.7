@@ -192,7 +192,8 @@ and
 .It Sy guid
 The 64 bit GUID of this dataset or bookmark which does not change over its
 entire lifetime.
-When a snapshot is sent to another pool, the received snapshot has the same GUID.
+When a snapshot is sent to another pool, the received snapshot has the same
+GUID.
 Thus, the
 .Sy guid
 is suitable to identify a snapshot across pools.
@@ -259,7 +260,8 @@ this opaque token can be provided to
 to resume and complete the
 .Nm zfs Cm receive .
 .It Sy redact_snaps
-For bookmarks, this is the list of snapshot guids the bookmark contains a redaction
+For bookmarks, this is the list of snapshot guids the bookmark contains a
+redaction
 list for.
 For snapshots, this is the list of snapshot guids the snapshot is redacted with
 respect to.
@@ -798,7 +800,8 @@ Controls the compression algorithm used for this dataset.
 .Pp
 When set to
 .Sy on
-(the default), indicates that the current default compression algorithm should be used.
+(the default), indicates that the current default compression algorithm should
+be used.
 The default balances compression and decompression speed, with compression ratio
 and is expected to work well on a wide variety of workloads.
 Unlike all other settings for this property,
@@ -861,7 +864,8 @@ is equivalent to
 .Pp
 The
 .Sy zstd
-compression algorithm provides both high compression ratios and good performance.
+compression algorithm provides both high compression ratios and good
+performance.
 You can specify the
 .Sy zstd
 level by using the value
@@ -916,7 +920,8 @@ after compression, otherwise the compression will not be considered worthwhile
 and the block saved uncompressed.
 Note that when the logical block is less than
 8 times the disk sector size this effectively reduces the necessary compression
-ratio; for example, 8 KiB blocks on disks with 4 KiB disk sectors must compress to 1/2
+ratio; for example, 8 KiB blocks on disks with 4 KiB disk sectors must compress
+to 1/2
 or less of their original size.
 .It Xo
 .Sy context Ns = Ns Sy none Ns | Ns
@@ -1040,7 +1045,7 @@ file system.
 The default value is
 .Sy legacy .
 Setting this property to a value other than
-.Sy legacy No requires the Sy large_dnode No pool feature to be enabled.
+.Sy legacy No requires the Sy large_dnode No pool feature to be enabled .
 .Pp
 Consider setting
 .Sy dnodesize
@@ -1063,7 +1068,7 @@ if you need to receive a send stream of this dataset on a pool that doesn't
 enable the
 .Sy large_dnode
 feature, or if you need to import this pool on a system that doesn't support the
-.Sy large_dnode No feature.
+.Sy large_dnode No feature .
 .Pp
 This property can also be referred to by its shortened column name,
 .Sy dnsize .
@@ -1132,14 +1137,16 @@ is selected ZFS will ask for the key at the command prompt when it is required
 to access the encrypted data (see
 .Nm zfs Cm load-key
 for details).
-This setting will also allow the key to be passed in via the standard input stream,
+This setting will also allow the key to be passed in via the standard input
+stream,
 but users should be careful not to place keys which should be kept secret on
 the command line.
 If a file URI is selected, the key will be loaded from the
 specified absolute file path.
 If an HTTPS or HTTP URL is selected, it will be GETted using
 .Xr fetch 3 ,
-libcurl, or nothing, depending on compile-time configuration and run-time availability.
+libcurl, or nothing, depending on compile-time configuration and run-time
+availability.
 The
 .Sy SSL_CA_CERT_FILE
 environment variable can be set to set the location
@@ -1499,7 +1506,8 @@ future releases.
 When set to
 .Sy some ,
 ZFS stores an extra copy of only critical metadata.
-This can improve file create performance since less metadata needs to be written.
+This can improve file create performance since less metadata
+needs to be written.
 If a single on-disk block is corrupt, at worst a single user file can be lost.
 .Pp
 When set to
@@ -1642,7 +1650,8 @@ LDAP- or
 .Xr smbpasswd 5 Ns -based )
 by default.
 This means that any additional access control
-(disallow specific user specific access etc) must be done on the underlying file system.
+(disallow specific user specific access etc) must be done on the underlying file
+system.
 .It Sy sharenfs Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Ar opts
 Controls whether the file system is shared via NFS, and what options are to be
 used.

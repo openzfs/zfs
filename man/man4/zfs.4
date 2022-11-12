@@ -354,7 +354,8 @@ When a vdev is added, target this number of metaslabs per top-level vdev.
 Default limit for metaslab size.
 .
 .It Sy zfs_vdev_max_auto_ashift Ns = Ns Sy 14 Pq uint
-Maximum ashift used when optimizing for logical \[->] physical sector size on new
+Maximum ashift used when optimizing for logical \[->] physical sector size on
+new
 top-level vdevs.
 May be increased up to
 .Sy ASHIFT_MAX Po 16 Pc ,
@@ -397,7 +398,8 @@ Note, that both this many milliseconds and
 TXGs must pass before unloading will occur.
 .
 .It Sy reference_history Ns = Ns Sy 3 Pq uint
-Maximum reference holders being tracked when reference_tracking_enable is active.
+Maximum reference holders being tracked when reference_tracking_enable is
+active.
 .
 .It Sy reference_tracking_enable Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Track reference holders to
@@ -425,7 +427,8 @@ may wish to specify a more realistic inflation factor,
 particularly if they operate close to quota or capacity limits.
 .
 .It Sy spa_load_print_vdev_tree Ns = Ns Sy 0 Ns | Ns 1 Pq int
-Whether to print the vdev tree in the debugging message buffer during pool import.
+Whether to print the vdev tree in the debugging message buffer during pool
+import.
 .
 .It Sy spa_load_verify_data Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Whether to traverse data blocks during an "extreme rewind"
@@ -655,7 +658,8 @@ which indicates that a percentage based on
 .Sy zfs_arc_meta_limit_percent
 of the ARC may be used for metadata.
 .Pp
-This value my be changed dynamically, except that must be set to an explicit value
+This value my be changed dynamically, except that must be set to an explicit
+value
 .Pq cannot be set back to Sy 0 .
 .
 .It Sy zfs_arc_meta_limit_percent Ns = Ns Sy 75 Ns % Pq u64
@@ -778,7 +782,7 @@ If nonzero, this will update
 with the new value.
 .Sy arc_p_min_shift No is used as a shift of Sy arc_c
 when calculating the minumum
-.Sy arc_p No size.
+.Sy arc_p No size .
 .
 .It Sy zfs_arc_p_dampener_disable Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Disable
@@ -851,7 +855,8 @@ milliseconds during mapping generation.
 Intended for use with the test suite to throttle vdev removal speed.
 .
 .It Sy zfs_condense_indirect_obsolete_pct Ns = Ns Sy 25 Ns % Pq uint
-Minimum percent of obsolete bytes in vdev mapping required to attempt to condense
+Minimum percent of obsolete bytes in vdev mapping required to attempt to
+condense
 .Pq see Sy zfs_condense_indirect_vdevs_enable .
 Intended for use with the test suite
 to facilitate triggering condensing as needed.
@@ -864,7 +869,8 @@ if the mapping uses more than
 bytes of memory and if the obsolete space map object uses more than
 .Sy zfs_condense_max_obsolete_bytes
 bytes on-disk.
-The condensing process is an attempt to save memory by removing obsolete mappings.
+The condensing process is an attempt to save memory by removing obsolete
+mappings.
 .
 .It Sy zfs_condense_max_obsolete_bytes Ns = Ns Sy 1073741824 Ns B Po 1 GiB Pc Pq u64
 Only attempt to condense indirect vdev mappings if the on-disk size
@@ -991,7 +997,8 @@ will result in objects waiting when there is not actually contention on the
 same object.
 .
 .It Sy zfs_slow_io_events_per_second Ns = Ns Sy 20 Ns /s Pq int
-Rate limit delay and deadman zevents (which report slow I/O operations) to this many per
+Rate limit delay and deadman zevents (which report slow I/O operations) to this
+many per
 second.
 .
 .It Sy zfs_unflushed_max_mem_amt Ns = Ns Sy 1073741824 Ns B Po 1 GiB Pc Pq u64
@@ -1059,7 +1066,8 @@ Files containing more than
 will be deleted asynchronously, while smaller files are deleted synchronously.
 Decreasing this value will reduce the time spent in an
 .Xr unlink 2
-system call, at the expense of a longer delay before the freed space is available.
+system call, at the expense of a longer delay before the freed space is
+available.
 This only applies on Linux.
 .
 .It Sy zfs_dirty_data_max Ns = Pq int
@@ -1123,7 +1131,7 @@ Write operations are throttled when approaching the limit until log data is
 cleared out after transaction group sync.
 Because of some overhead, it should be set at least 2 times the size of
 .Sy zfs_dirty_data_max
-.No to prevent harming normal write throughput.
+.No to prevent harming normal write throughput .
 It also should be smaller than the size of the slog device if slog is present.
 .Pp
 Defaults to
@@ -1393,7 +1401,7 @@ _
 	4096	ZFS_DEBUG_LOG_SPACEMAP	Verify that the log summary is consistent with the spacemap log
 			       and enable \fBzfs_dbgmsgs\fP for metaslab loading and flushing.
 .TE
-.Sy \& * No Requires debug build.
+.Sy \& * No Requires debug build .
 .
 .It Sy zfs_btree_verify_intensity Ns = Ns Sy 0 Pq uint
 Enables btree verification.
@@ -1409,7 +1417,7 @@ lbz r l l .
 	4	Verify element order. (expensive)
 *	5	Verify unused memory is poisoned. (expensive)
 .TE
-.Sy \& * No Requires debug build.
+.Sy \& * No Requires debug build .
 .
 .It Sy zfs_free_leak_on_eio Ns = Ns Sy 0 Ns | Ns 1 Pq int
 If destroy encounters an
@@ -1583,7 +1591,8 @@ Once all groups have reached the threshold, all groups are allowed to accept
 allocations.
 The default value of
 .Sy 0
-disables the feature and causes all metaslab groups to be eligible for allocations.
+disables the feature and causes all metaslab groups to be eligible for
+allocations.
 .Pp
 This parameter allows one to deal with pools having heavily imbalanced
 vdevs such as would be the case when a new vdev has been added.
@@ -1602,7 +1611,8 @@ If enabled, ZFS will place user data indirect blocks
 into the special allocation class.
 .
 .It Sy zfs_multihost_history Ns = Ns Sy 0 Pq uint
-Historical statistics for this many latest multihost updates will be available in
+Historical statistics for this many latest multihost updates will be available
+in
 .Pa /proc/spl/kstat/zfs/ Ns Ao Ar pool Ac Ns Pa /multihost .
 .
 .It Sy zfs_multihost_interval Ns = Ns Sy 1000 Ns ms Po 1 s Pc Pq u64
@@ -1701,7 +1711,7 @@ or other data crawling operations.
 .It Sy zfs_per_txg_dirty_frees_percent Ns = Ns Sy 30 Ns % Pq u64
 Control percentage of dirtied indirect blocks from frees allowed into one TXG.
 After this threshold is crossed, additional frees will wait until the next TXG.
-.Sy 0 No disables this throttle.
+.Sy 0 No disables this throttle .
 .
 .It Sy zfs_prefetch_disable Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Disable predictive prefetch.
@@ -1818,7 +1828,8 @@ A higher number indicates that we care more about how filled in a segment is,
 while a lower number indicates we care more about the size of the extent without
 considering the gaps within a segment.
 This value is only tunable upon module insertion.
-Changing the value afterwards will have no effect on scrub or resilver performance.
+Changing the value afterwards will have no effect on scrub or resilver
+performance.
 .
 .It Sy zfs_scan_issue_strategy Ns = Ns Sy 0 Pq uint
 Determines the order that data will be verified while scrubbing or resilvering:
@@ -1834,7 +1845,7 @@ By deferring scrubbing of small segments, we may later find adjacent data
 to coalesce and increase the segment size.
 .It Sy 0
 .No Use strategy Sy 1 No during normal verification
-.No and strategy Sy 2 No while taking a checkpoint.
+.No and strategy Sy 2 No while taking a checkpoint .
 .El
 .
 .It Sy zfs_scan_legacy Ns = Ns Sy 0 Ns | Ns 1 Pq int
@@ -1861,7 +1872,8 @@ This is done until we get below the soft limit.
 The fraction of the hard limit used to determined the soft limit for I/O sorting
 by the sequential scan algorithm.
 When we cross this limit from below no action is taken.
-When we cross this limit from above it is because we are issuing verification I/O.
+When we cross this limit from above it is because we are issuing verification
+I/O.
 In this case (unless the metadata scan is done) we stop issuing verification I/O
 and start scanning metadata again until we get to the hard limit.
 .
@@ -1960,7 +1972,8 @@ vdev while discarding the checkpoint.
 .
 .It Sy zfs_special_class_metadata_reserve_pct Ns = Ns Sy 25 Ns % Pq uint
 Only allow small data blocks to be allocated on the special and dedup vdev
-types when the available free space percentage on these vdevs exceeds this value.
+types when the available free space percentage on these vdevs exceeds this
+value.
 This ensures reserved space is available for pool metadata as the
 special vdevs approach capacity.
 .
@@ -1982,7 +1995,8 @@ because these will not be compressed.
 The
 .Em 128 KiB
 allocations are especially detrimental to performance
-on highly fragmented systems, which may have very few free segments of this size,
+on highly fragmented systems, which may have very few free segments of this
+size,
 and may need to load new metaslabs to satisfy these allocations.
 .
 .It Sy zfs_sync_pass_rewrite Ns = Ns Sy 2 Pq uint
@@ -1997,7 +2011,8 @@ will create a maximum of one thread per CPU.
 .
 .It Sy zfs_trim_extent_bytes_max Ns = Ns Sy 134217728 Ns B Po 128 MiB Pc Pq uint
 Maximum size of TRIM command.
-Larger ranges will be split into chunks no larger than this value before issuing.
+Larger ranges will be split into chunks no larger than this value before
+issuing.
 .
 .It Sy zfs_trim_extent_bytes_min Ns = Ns Sy 32768 Ns B Po 32 KiB Pc Pq uint
 Minimum size of TRIM commands.
@@ -2008,7 +2023,8 @@ to negatively impact overall performance.
 .
 .It Sy zfs_trim_metaslab_skip Ns = Ns Sy 0 Ns | Ns 1 Pq uint
 Skip uninitialized metaslabs during the TRIM process.
-This option is useful for pools constructed from large thinly-provisioned devices
+This option is useful for pools constructed from large thinly-provisioned
+devices
 where TRIM operations are slow.
 As a pool ages, an increasing fraction of the pool's metaslabs
 will be initialized, progressively degrading the usefulness of this option.
@@ -2028,7 +2044,8 @@ more efficient TRIM operations and the delay
 before the recently trimmed space is available for use by the device.
 .Pp
 Increasing this value will allow frees to be aggregated for a longer time.
-This will result is larger TRIM operations and potentially increased memory usage.
+This will result is larger TRIM operations and potentially increased memory
+usage.
 Decreasing this value will have the opposite effect.
 The default of
 .Sy 32
@@ -2039,7 +2056,8 @@ Historical statistics for this many latest TXGs will be available in
 .Pa /proc/spl/kstat/zfs/ Ns Ao Ar pool Ac Ns Pa /TXGs .
 .
 .It Sy zfs_txg_timeout Ns = Ns Sy 5 Ns s Pq uint
-Flush dirty data to disk at least every this many seconds (maximum TXG duration).
+Flush dirty data to disk at least every this many seconds (maximum TXG
+duration).
 .
 .It Sy zfs_vdev_aggregate_trim Ns = Ns Sy 0 Ns | Ns 1 Pq uint
 Allow TRIM I/O operations to be aggregated.
@@ -2094,7 +2112,8 @@ when I/O operations do not immediately follow one another.
 .
 .It Sy zfs_vdev_mirror_non_rotating_seek_inc Ns = Ns Sy 1 Pq int
 A number by which the balancing algorithm increments the load calculation for
-the purpose of selecting the least busy mirror member when an I/O operation lacks
+the purpose of selecting the least busy mirror member when an I/O operation
+lacks
 locality as defined by the
 .Sy zfs_vdev_mirror_rotating_seek_offset .
 Operations within this that are not immediately following the previous operation
@@ -2208,7 +2227,8 @@ the ZIL to log synchronous writes.
 However, if there are fewer than
 .Sy zfs_embedded_slog_min_ms
 metaslabs in the vdev, this functionality is disabled.
-This ensures that we don't set aside an unreasonable amount of space for the ZIL.
+This ensures that we don't set aside an unreasonable amount of space for the
+ZIL.
 .
 .It Sy zstd_earlyabort_pass Ns = Ns Sy 1 Pq uint
 Whether heuristic for detection of incompressible data with zstd levels >= 3
@@ -2435,7 +2455,8 @@ the scheduler looks for classes whose maximum has not been satisfied.
 Iteration through the I/O classes is done in the order specified above.
 No further operations are issued
 if the aggregate maximum number of concurrent operations has been hit,
-or if there are no operations queued for an I/O class that has not hit its maximum.
+or if there are no operations queued for an I/O class that has not hit its
+maximum.
 Every time an I/O operation is queued or an operation completes,
 the scheduler looks for new operations to issue.
 .Pp
@@ -2466,10 +2487,10 @@ the I/O scheduler changes the maximum number of active async write operations
 according to the amount of dirty data in the pool.
 Since both throughput and latency typically increase with the number of
 concurrent operations issued to physical devices, reducing the
-burstiness in the number of concurrent operations also stabilizes the
-response time of operations from other – and in particular synchronous – queues.
+burstiness in the number of simultaneous operations also stabilizes the
+response time of operations from other queues, in particular synchronous ones.
 In broad strokes, the I/O scheduler will issue more concurrent operations
-from the async write queue as there's more dirty data in the pool.
+from the async write queue as there is more dirty data in the pool.
 .
 .Ss Async Writes
 The number of concurrent operations issued for the async write I/O class
@@ -2534,7 +2555,8 @@ so that we only start to delay after writing at full speed
 has failed to keep up with the incoming write rate.
 The scale of the curve is defined by
 .Sy zfs_delay_scale .
-Roughly speaking, this variable determines the amount of delay at the midpoint of the curve.
+Roughly speaking, this variable determines the amount of delay at the midpoint
+of the curve.
 .Bd -literal
 delay
  10ms +-------------------------------------------------------------*+
