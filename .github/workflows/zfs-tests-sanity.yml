@@ -6,7 +6,7 @@ on:
 
 jobs:
   tests:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
       with:
@@ -17,7 +17,8 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        xargs --arg-file=${{ github.workspace }}/.github/workflows/build-dependencies.txt sudo apt-get install -qq
+        sudo apt-get -qq upgrade
+        sudo xargs --arg-file=${{ github.workspace }}/.github/workflows/build-dependencies.txt apt-get install -qq
         sudo apt-get clean
     - name: Autogen.sh
       run: |

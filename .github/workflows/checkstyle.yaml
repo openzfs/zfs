@@ -6,7 +6,7 @@ on:
 
 jobs:
   checkstyle:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
       with:
@@ -14,8 +14,9 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
+        sudo apt-get -qq upgrade
         sudo xargs --arg-file=${{ github.workspace }}/.github/workflows/build-dependencies.txt apt-get install -qq
-        sudo apt-get install -qq mandoc cppcheck pax-utils devscripts
+        sudo xargs --arg-file=${{ github.workspace }}/.github/workflows/checkstyle-dependencies.txt apt-get install -qq
         sudo python3 -m pip install --quiet flake8
         sudo apt-get clean
 
