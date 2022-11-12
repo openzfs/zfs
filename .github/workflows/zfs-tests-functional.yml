@@ -9,7 +9,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [18.04, 20.04]
+        os: [18.04, 20.04, 22.04]
     runs-on: ubuntu-${{ matrix.os }}
     steps:
     - uses: actions/checkout@v3
@@ -21,7 +21,11 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        xargs --arg-file=${{ github.workspace }}/.github/workflows/build-dependencies.txt sudo apt-get install -qq
+        sudo apt-get -qq upgrade
+        if [ "${{ matrix.os }}" = "18.04" ]; then
+          sed -i.bak 's/rng-tools-debian/rng-tools/' ${{ github.workspace }}/.github/workflows/build-dependencies.txt
+        fi
+        sudo xargs --arg-file=${{ github.workspace }}/.github/workflows/build-dependencies.txt apt-get install -qq
         sudo apt-get clean
     - name: Autogen.sh
       run: |
