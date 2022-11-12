@@ -156,7 +156,7 @@ done
 export MAX_PARTITIONS=8
 
 if [ "@ASAN_ENABLED@" = "yes" ]; then
-	export ASAN_OPTIONS=abort_on_error=true:halt_on_error=true:allocator_may_return_null=true:disable_coredump=false:detect_stack_use_after_return=true
+	export ASAN_OPTIONS=abort_on_error=true:halt_on_error=true:allocator_may_return_null=true:disable_coredump=false:detect_stack_use_after_return=true:detect_odr_violation=1
 
 	# TODO
 	# disable memory leaks detection
