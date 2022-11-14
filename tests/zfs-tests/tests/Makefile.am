@@ -1367,6 +1367,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/events/events_001_pos.ksh \
 	functional/events/events_002_pos.ksh \
 	functional/events/setup.ksh \
+	functional/events/zed_cksum_reported.ksh \
 	functional/events/zed_fd_spill.ksh \
 	functional/events/zed_rc_filter.ksh \
 	functional/exec/cleanup.ksh \
