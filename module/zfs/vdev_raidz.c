@@ -683,13 +683,16 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 			 * rangelock, which is held exclusively while the
 			 * copy is in progress.
 			 */
-			if (!use_scratch && rc->rc_size != 0 &&
+			if (rc->rc_size != 0 &&
 			    row_phys_cols != physical_cols &&
 			    b + c < reflow_offset_next >> ashift) {
 				ASSERT3U(row_phys_cols, ==, physical_cols - 1);
 				rc->rc_shadow_devidx = (b + c) % physical_cols;
 				rc->rc_shadow_offset =
 				    ((b + c) / physical_cols) << ashift;
+				if (use_scratch)
+					rc->rc_shadow_offset -= VDEV_BOOT_SIZE;
+
 				zfs_dbgmsg("rm=%px row=%d b+c=%llu "
 				    "shadow_devidx=%u shadow_offset=%llu",
 				    rm, (int)row, (long long)(b + c),
