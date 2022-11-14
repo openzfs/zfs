@@ -86,7 +86,8 @@ tests = ['devices_001_pos', 'devices_002_neg', 'devices_003_pos']
 tags = ['functional', 'devices']
 
 [tests/functional/events:Linux]
-tests = ['events_001_pos', 'events_002_pos', 'zed_rc_filter', 'zed_fd_spill']
+tests = ['events_001_pos', 'events_002_pos', 'zed_rc_filter', 'zed_fd_spill',
+    'zed_cksum_reported']
 tags = ['functional', 'events']
 
 [tests/functional/fadvise:Linux]
