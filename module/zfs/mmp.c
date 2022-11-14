@@ -455,7 +455,8 @@ mmp_write_uberblock(spa_t *spa)
 
 	/*
 	 * Skip mmp uberblock writing if raidz expansion is in progress and
-	 * scratch object is active.
+	 * scratch object is active.  Take a priority to uberblocks with actual
+	 * scratch state information.
 	 */
 	if (vre) {
 		vdev_t *vd = vdev_lookup_top(spa, vre->vre_vdev_id);
