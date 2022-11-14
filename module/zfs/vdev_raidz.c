@@ -552,6 +552,7 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 #endif
 
 	for (uint64_t row = 0; row < rows; row++) {
+		boolean_t row_use_scratch = B_FALSE;
 		raidz_row_t *rr = vdev_raidz_row_alloc(cols);
 		rm->rm_row[row] = rr;
 
@@ -574,6 +575,8 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 		int row_phys_cols = physical_cols;
 		if (b + cols > reflow_offset_synced >> ashift)
 			row_phys_cols--;
+		else if (use_scratch)
+			row_use_scratch = B_TRUE;
 
 		/* starting child of this row */
 		uint64_t child_id = b % row_phys_cols;
@@ -613,18 +616,15 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 			rc->rc_offset = child_offset;
 
 			/*
-			 * Get this from the scratch space if appropriate. We
-			 * should only be doing reads if this is the case.
+			 * Get this from the scratch space if appropriate.
 			 * This only happens if we crashed in the middle of
 			 * raidz_reflow_scratch_sync() (while it's running,
 			 * the rangelock prevents us from doing concurrent
 			 * io), and even then only during zpool import or
 			 * when the pool is imported readonly.
 			 */
-			if (use_scratch &&
-			    (b + cols) << ashift <= reflow_offset_synced) {
+			if (row_use_scratch)
 				rc->rc_offset -= VDEV_BOOT_SIZE;
-			}
 
 			uint64_t dc = c - rr->rr_firstdatacol;
 			if (c < rr->rr_firstdatacol) {
