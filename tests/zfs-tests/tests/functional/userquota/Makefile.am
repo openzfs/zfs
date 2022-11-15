@@ -22,8 +22,10 @@ dist_pkgdata_SCRIPTS = \
 	userspace_002_pos.ksh \
 	userspace_003_pos.ksh \
 	userspace_encrypted.ksh \
-	userspace_send_encrypted.ksh
+	userspace_send_encrypted.ksh \
+	userspace_encrypted_13709.ksh
 
 dist_pkgdata_DATA = \
+	13709_reproducer.bz2 \
 	userquota.cfg \
 	userquota_common.kshlib
