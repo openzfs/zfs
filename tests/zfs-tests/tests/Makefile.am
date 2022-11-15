@@ -368,6 +368,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/upgrade/upgrade_common.kshlib \
 	functional/user_namespace/user_namespace.cfg \
 	functional/user_namespace/user_namespace_common.kshlib \
+	functional/userquota/13709_reproducer.bz2 \
 	functional/userquota/userquota.cfg \
 	functional/userquota/userquota_common.kshlib \
 	functional/vdev_zaps/vdev_zaps.kshlib \
@@ -1935,6 +1936,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/userquota/userspace_003_pos.ksh \
 	functional/userquota/userspace_encrypted.ksh \
 	functional/userquota/userspace_send_encrypted.ksh \
+	functional/userquota/userspace_encrypted_13709.ksh \
 	functional/vdev_zaps/cleanup.ksh \
 	functional/vdev_zaps/setup.ksh \
 	functional/vdev_zaps/vdev_zaps_001_pos.ksh \
