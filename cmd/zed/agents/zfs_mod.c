@@ -525,6 +525,7 @@ typedef struct dev_data {
 	boolean_t		dd_islabeled;
 	uint64_t		dd_pool_guid;
 	uint64_t		dd_vdev_guid;
+	uint64_t		dd_new_vdev_guid;
 	const char		*dd_new_devid;
 } dev_data_t;
 
@@ -535,6 +536,7 @@ zfs_iter_vdev(zpool_handle_t *zhp, nvlist_t *nvl, void *data)
 	char *path = NULL;
 	uint_t c, children;
 	nvlist_t **child;
+	uint64_t guid = 0;
 
 	/*
 	 * First iterate over any children.
@@ -562,17 +564,14 @@ zfs_iter_vdev(zpool_handle_t *zhp, nvlist_t *nvl, void *data)
 	/* once a vdev was matched and processed there is nothing left to do */
 	if (dp->dd_found)
 		return;
+	(void) nvlist_lookup_uint64(nvl, ZPOOL_CONFIG_GUID, &guid);
 
 	/*
 	 * Match by GUID if available otherwise fallback to devid or physical
 	 */
 	if (dp->dd_vdev_guid != 0) {
-		uint64_t guid;
-
-		if (nvlist_lookup_uint64(nvl, ZPOOL_CONFIG_GUID,
-		    &guid) != 0 || guid != dp->dd_vdev_guid) {
+		if (guid != dp->dd_vdev_guid)
 			return;
-		}
 		zed_log_msg(LOG_INFO, "  zfs_iter_vdev: matched on %llu", guid);
 		dp->dd_found = B_TRUE;
 
@@ -582,11 +581,23 @@ zfs_iter_vdev(zpool_handle_t *zhp, nvlist_t *nvl, void *data)
 		 * illumos, substring matching is not required to accommodate
 		 * the partition suffix. An exact match will be present in
 		 * the dp->dd_compare value.
+		 * If the attached disk already contains a vdev GUID, it means
+		 * the disk is not clean. In such a scenario, the physical path
+		 * would be a match that makes the disk faulted when trying to
+		 * online it. So, we would only want to proceed if either GUID
+		 * matches with the last attached disk or the disk is in clean
+		 * state.
 		 */
 		if (nvlist_lookup_string(nvl, dp->dd_prop, &path) != 0 ||
 		    strcmp(dp->dd_compare, path) != 0) {
 			zed_log_msg(LOG_INFO, "  %s: no match (%s != vdev %s)",
 			    __func__, dp->dd_compare, path);
+			return;
+		}
+		if (dp->dd_new_vdev_guid != 0 && dp->dd_new_vdev_guid != guid) {
+			zed_log_msg(LOG_INFO, "  %s: no match (GUID:%llu"
+			    " != vdev GUID:%llu)", __func__,
+			    dp->dd_new_vdev_guid, guid);
 			return;
 		}
 
@@ -670,7 +681,7 @@ zfs_iter_pool(zpool_handle_t *zhp, void *data)
  */
 static boolean_t
 devphys_iter(const char *physical, const char *devid, zfs_process_func_t func,
-    boolean_t is_slice)
+    boolean_t is_slice, uint64_t new_vdev_guid)
 {
 	dev_data_t data = { 0 };
 
@@ -680,6 +691,7 @@ devphys_iter(const char *physical, const char *devid, zfs_process_func_t func,
 	data.dd_found = B_FALSE;
 	data.dd_islabeled = is_slice;
 	data.dd_new_devid = devid;	/* used by auto replace code */
+	data.dd_new_vdev_guid = new_vdev_guid;
 
 	(void) zpool_iter(g_zfshdl, zfs_iter_pool, &data);
 
@@ -848,7 +860,7 @@ zfs_deliver_add(nvlist_t *nvl, boolean_t is_lofi)
 	if (devid_iter(devid, zfs_process_add, is_slice))
 		return (0);
 	if (devpath != NULL && devphys_iter(devpath, devid, zfs_process_add,
-	    is_slice))
+	    is_slice, vdev_guid))
 		return (0);
 	if (vdev_guid != 0)
 		(void) guid_iter(pool_guid, vdev_guid, devid, zfs_process_add,
