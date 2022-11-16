@@ -438,7 +438,6 @@ static void
 mmp_write_uberblock(spa_t *spa)
 {
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL;
-	vdev_raidz_expand_t *vre = spa->spa_raidz_expand;
 	mmp_thread_t *mmp = &spa->spa_mmp;
 	uberblock_t *ub;
 	vdev_t *vd = NULL;
