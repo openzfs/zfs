@@ -468,7 +468,7 @@ static void
 verify_livelist_allocs(metaslab_verify_t *mv, uint64_t txg,
     uint64_t offset, uint64_t size)
 {
-	sublivelist_verify_block_t svb;
+	sublivelist_verify_block_t svb = {{{0}}};
 	DVA_SET_VDEV(&svb.svb_dva, mv->mv_vdid);
 	DVA_SET_OFFSET(&svb.svb_dva, offset);
 	DVA_SET_ASIZE(&svb.svb_dva, size);
