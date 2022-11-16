@@ -104,6 +104,48 @@ static lua_Number readhexa (const char **s, lua_Number r, int *count) {
   return r;
 }
 
+/*
+ * The port to OpenZFS meant we could not use the userspace math library
+ * anymore, but simply replacing ldexp() in lua_strx2number() with a bitshift
+ * would not work for negative exponents, or any exponents outside of the range
+ * [0,31). Thus, we reimplement the library function in the port.
+ *
+ * This O(1) time ldexp() implementation is taken from musl libc, which is
+ * under the MIT license. The original source is:
+ *
+ * https://git.musl-libc.org/cgit/musl/tree/src/math/scalbn.c
+ */
+static double
+lua_ldexp(double x, int n)
+{
+  union {double f; uint64_t i;} u;
+  double y = x;
+
+  if (n > 1023) {
+    y *= 0x1p1023;
+    n -= 1023;
+    if (n > 1023) {
+      y *= 0x1p1023;
+      n -= 1023;
+      if (n > 1023)
+        n = 1023;
+    }
+  } else if (n < -1022) {
+    /* make sure final n < -53 to avoid double
+       rounding in the subnormal range */
+    y *= 0x1p-1022 * 0x1p53;
+    n += 1022 - 53;
+    if (n < -1022) {
+      y *= 0x1p-1022 * 0x1p53;
+      n += 1022 - 53;
+      if (n < -1022)
+        n = -1022;
+    }
+  }
+  u.i = (uint64_t)(0x3ff+n)<<52;
+  x = y * u.f;
+  return x;
+}
 
 /*
 ** convert an hexadecimal numeric string to a number, following
@@ -143,7 +185,7 @@ static lua_Number lua_strx2number (const char *s, char **endptr) {
   *endptr = cast(char *, s);  /* valid up to here */
  ret:
   if (neg) r = -r;
-  return (r * (1 << e));
+  return (lua_ldexp(r, e));
 }
 
 #endif
