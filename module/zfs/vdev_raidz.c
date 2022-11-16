@@ -3958,6 +3958,9 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	spa->spa_ubsync.ub_timestamp++;
 	ASSERT0(vdev_uberblock_sync_list(&spa->spa_root_vdev, 1,
 	    &spa->spa_ubsync, ZIO_FLAG_CONFIG_WRITER));
+	if (spa_multihost(spa))
+		mmp_update_uberblock(spa, &spa->spa_ubsync);
+
 
 	zfs_dbgmsg("reflow: uberblock updated "
 	    "(txg %llu, SCRATCH_VALID, size %llu, ts %llu)",
@@ -4011,6 +4014,8 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	spa->spa_ubsync.ub_timestamp++;
 	ASSERT0(vdev_uberblock_sync_list(&spa->spa_root_vdev, 1,
 	    &spa->spa_ubsync, ZIO_FLAG_CONFIG_WRITER));
+	if (spa_multihost(spa))
+		mmp_update_uberblock(spa, &spa->spa_ubsync);
 
 	zfs_dbgmsg("reflow: uberblock updated "
 	    "(txg %llu, SCRATCH_NOT_IN_USE, size %llu, ts %llu)",
@@ -4125,6 +4130,8 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 	spa->spa_ubsync.ub_timestamp++;
 	VERIFY0(vdev_uberblock_sync_list(&spa->spa_root_vdev, 1,
 	    &spa->spa_ubsync, ZIO_FLAG_CONFIG_WRITER));
+	if (spa_multihost(spa))
+		mmp_update_uberblock(spa, &spa->spa_ubsync);
 
 	zfs_dbgmsg("reflow recovery: uberblock updated "
 	    "(txg %llu, SCRATCH_NOT_IN_USE, size %llu, ts %llu)",

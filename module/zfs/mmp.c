@@ -453,20 +453,6 @@ mmp_write_uberblock(spa_t *spa)
 		    "gethrtime %llu", spa_name(spa), lock_acquire_time,
 		    gethrtime());
 
-	/*
-	 * Skip mmp uberblock writing if raidz expansion is in progress and
-	 * scratch object is active.  Take a priority to uberblocks with actual
-	 * scratch state information.
-	 */
-	if (vre) {
-		vdev_t *vd = vdev_lookup_top(spa, vre->vre_vdev_id);
-		if (vre->vre_offset <
-		    vd->vdev_children * VDEV_LABEL_START_SIZE) {
-			spa_config_exit(spa, SCL_STATE, mmp_tag);
-			return;
-		}
-	}
-
 	mutex_enter(&mmp->mmp_io_lock);
 
 	error = mmp_next_leaf(spa);
