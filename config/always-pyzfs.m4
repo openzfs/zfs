@@ -47,6 +47,16 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_PYZFS], [
 	AC_SUBST(DEFINE_PYZFS)
 
 	dnl #
+	dnl # Autodetection disables pyzfs if kernel or srpm config
+	dnl #
+	AS_IF([test "x$enable_pyzfs" = xcheck], [
+		AS_IF([test "x$ZFS_CONFIG" = xkernel -o "x$ZFS_CONFIG" = xsrpm ], [
+				enable_pyzfs=no
+				AC_MSG_NOTICE([Disabling pyzfs for kernel/srpm config])
+		])
+	])
+
+	dnl #
 	dnl # Python "packaging" (or, failing that, "distlib") module is required to build and install pyzfs
 	dnl #
 	AS_IF([test "x$enable_pyzfs" = xcheck -o "x$enable_pyzfs" = xyes], [
