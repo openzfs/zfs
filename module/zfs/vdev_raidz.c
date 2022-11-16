@@ -668,6 +668,9 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 				    rc->rc_size);
 			}
 
+			if (rc->rc_size == 0)
+				continue;
+
 			/*
 			 * If any part of this row is in both old and new
 			 * locations, the primary location is the old
@@ -683,14 +686,13 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 			 * rangelock, which is held exclusively while the
 			 * copy is in progress.
 			 */
-			if (rc->rc_size != 0 &&
-			    row_phys_cols != physical_cols &&
-			    b + c < reflow_offset_next >> ashift) {
-				ASSERT3U(row_phys_cols, ==, physical_cols - 1);
+			if (row_use_scratch ||
+			    (row_phys_cols != physical_cols &&
+			    b + c < reflow_offset_next >> ashift)) {
 				rc->rc_shadow_devidx = (b + c) % physical_cols;
 				rc->rc_shadow_offset =
 				    ((b + c) / physical_cols) << ashift;
-				if (use_scratch)
+				if (row_use_scratch)
 					rc->rc_shadow_offset -= VDEV_BOOT_SIZE;
 
 				zfs_dbgmsg("rm=%px row=%d b+c=%llu "
