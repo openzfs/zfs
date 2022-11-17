@@ -552,6 +552,7 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 #endif
 
 	for (uint64_t row = 0; row < rows; row++) {
+		boolean_t row_use_scratch = B_FALSE;
 		raidz_row_t *rr = vdev_raidz_row_alloc(cols);
 		rm->rm_row[row] = rr;
 
@@ -574,6 +575,8 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 		int row_phys_cols = physical_cols;
 		if (b + cols > reflow_offset_synced >> ashift)
 			row_phys_cols--;
+		else if (use_scratch)
+			row_use_scratch = B_TRUE;
 
 		/* starting child of this row */
 		uint64_t child_id = b % row_phys_cols;
@@ -613,18 +616,15 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 			rc->rc_offset = child_offset;
 
 			/*
-			 * Get this from the scratch space if appropriate. We
-			 * should only be doing reads if this is the case.
+			 * Get this from the scratch space if appropriate.
 			 * This only happens if we crashed in the middle of
 			 * raidz_reflow_scratch_sync() (while it's running,
 			 * the rangelock prevents us from doing concurrent
 			 * io), and even then only during zpool import or
 			 * when the pool is imported readonly.
 			 */
-			if (use_scratch &&
-			    (b + c) << ashift < reflow_offset_synced) {
+			if (row_use_scratch)
 				rc->rc_offset -= VDEV_BOOT_SIZE;
-			}
 
 			uint64_t dc = c - rr->rr_firstdatacol;
 			if (c < rr->rr_firstdatacol) {
@@ -668,6 +668,9 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 				    rc->rc_size);
 			}
 
+			if (rc->rc_size == 0)
+				continue;
+
 			/*
 			 * If any part of this row is in both old and new
 			 * locations, the primary location is the old
@@ -683,13 +686,15 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 			 * rangelock, which is held exclusively while the
 			 * copy is in progress.
 			 */
-			if (rc->rc_size != 0 &&
-			    row_phys_cols != physical_cols &&
-			    b + c < reflow_offset_next >> ashift) {
-				ASSERT3U(row_phys_cols, ==, physical_cols - 1);
+			if (row_use_scratch ||
+			    (row_phys_cols != physical_cols &&
+			    b + c < reflow_offset_next >> ashift)) {
 				rc->rc_shadow_devidx = (b + c) % physical_cols;
 				rc->rc_shadow_offset =
 				    ((b + c) / physical_cols) << ashift;
+				if (row_use_scratch)
+					rc->rc_shadow_offset -= VDEV_BOOT_SIZE;
+
 				zfs_dbgmsg("rm=%px row=%d b+c=%llu "
 				    "shadow_devidx=%u shadow_offset=%llu",
 				    rm, (int)row, (long long)(b + c),
@@ -1970,8 +1975,15 @@ vdev_raidz_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 		    cvd->vdev_physical_ashift);
 	}
 
-	*asize *= vd->vdev_children;
-	*max_asize *= vd->vdev_children;
+	if (vd->vdev_rz_expanding) {
+		*asize *= vd->vdev_children - 1;
+		*max_asize *= vd->vdev_children - 1;
+
+		vd->vdev_min_asize = *asize;
+	} else {
+		*asize *= vd->vdev_children;
+		*max_asize *= vd->vdev_children;
+	}
 
 	if (numerrors > nparity) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_NO_REPLICAS;
@@ -2146,6 +2158,9 @@ vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr)
 		if (rc->rc_size == 0)
 			continue;
 
+		ASSERT(rc->rc_offset + rc->rc_size <
+		    cvd->vdev_psize - VDEV_LABEL_END_SIZE);
+
 		ASSERT3P(rc->rc_abd, !=, NULL);
 		zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
 		    rc->rc_offset, rc->rc_abd,
@@ -2154,6 +2169,10 @@ vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr)
 
 		if (rc->rc_shadow_devidx != INT_MAX) {
 			vdev_t *cvd2 = vd->vdev_child[rc->rc_shadow_devidx];
+
+			ASSERT(rc->rc_shadow_offset + abd_get_size(rc->rc_abd) <
+			    cvd2->vdev_psize - VDEV_LABEL_END_SIZE);
+
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd2,
 			    rc->rc_shadow_offset, rc->rc_abd,
 			    abd_get_size(rc->rc_abd),
@@ -2181,6 +2200,9 @@ raidz_start_skip_writes(zio_t *zio)
 		if (rc->rc_size != 0)
 			continue;
 		ASSERT3P(rc->rc_abd, ==, NULL);
+
+		ASSERT(rc->rc_offset + rc->rc_size <
+		    cvd->vdev_psize - VDEV_LABEL_END_SIZE);
 
 		zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
 		    rc->rc_offset + rc->rc_size, NULL, 1ULL << ashift,
@@ -3916,6 +3938,9 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	spa->spa_ubsync.ub_timestamp++;
 	ASSERT0(vdev_uberblock_sync_list(&spa->spa_root_vdev, 1,
 	    &spa->spa_ubsync, ZIO_FLAG_CONFIG_WRITER));
+	if (spa_multihost(spa))
+		mmp_update_uberblock(spa, &spa->spa_ubsync);
+
 
 	zfs_dbgmsg("reflow: uberblock updated "
 	    "(txg %llu, SCRATCH_VALID, size %llu, ts %llu)",
@@ -3969,6 +3994,8 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	spa->spa_ubsync.ub_timestamp++;
 	ASSERT0(vdev_uberblock_sync_list(&spa->spa_root_vdev, 1,
 	    &spa->spa_ubsync, ZIO_FLAG_CONFIG_WRITER));
+	if (spa_multihost(spa))
+		mmp_update_uberblock(spa, &spa->spa_ubsync);
 
 	zfs_dbgmsg("reflow: uberblock updated "
 	    "(txg %llu, SCRATCH_NOT_IN_USE, size %llu, ts %llu)",
@@ -4083,6 +4110,8 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 	spa->spa_ubsync.ub_timestamp++;
 	VERIFY0(vdev_uberblock_sync_list(&spa->spa_root_vdev, 1,
 	    &spa->spa_ubsync, ZIO_FLAG_CONFIG_WRITER));
+	if (spa_multihost(spa))
+		mmp_update_uberblock(spa, &spa->spa_ubsync);
 
 	zfs_dbgmsg("reflow recovery: uberblock updated "
 	    "(txg %llu, SCRATCH_NOT_IN_USE, size %llu, ts %llu)",
