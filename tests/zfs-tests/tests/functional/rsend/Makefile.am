@@ -50,6 +50,7 @@ dist_pkgdata_SCRIPTS = \
 	send_realloc_encrypted_files.ksh \
 	send_spill_block.ksh \
 	send_raw_spill_block.ksh \
+	send_raw_large_blocks.ksh \
 	send_raw_ashift.ksh \
 	send_holds.ksh \
 	send_hole_birth.ksh \
