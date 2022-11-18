@@ -325,7 +325,7 @@ def process_results(pathname):
         print('Error opening file:', e)
         sys.exit(1)
 
-    prefix = '/zfs-tests/tests/functional/'
+    prefix = '/zfs-tests/tests/(?:functional|perf/regression)/'
     pattern = \
         r'^Test(?:\s+\(\S+\))?:' + \
         rf'\s*\S*{prefix}(\S+)' + \
