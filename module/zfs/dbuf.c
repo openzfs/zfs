@@ -1503,8 +1503,8 @@ dbuf_read_verify_dnode_crypt(dmu_buf_impl_t *db, uint32_t flags)
 
 	ASSERT(MUTEX_HELD(&db->db_mtx));
 
-	if (!os->os_encrypted || os->os_raw_receive ||
-	    (flags & DB_RF_NO_DECRYPT) != 0)
+	if ((flags & DB_RF_NO_DECRYPT) != 0 ||
+	    !os->os_encrypted || os->os_raw_receive)
 		return (0);
 
 	DB_DNODE_ENTER(db);
@@ -1738,8 +1738,6 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 
 	mutex_enter(&db->db_mtx);
 	if (db->db_state == DB_CACHED) {
-		spa_t *spa = dn->dn_objset->os_spa;
-
 		/*
 		 * Ensure that this block's dnode has been decrypted if
 		 * the caller has requested decrypted data.
@@ -1758,6 +1756,7 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 		    (arc_is_encrypted(db->db_buf) ||
 		    arc_is_unauthenticated(db->db_buf) ||
 		    arc_get_compression(db->db_buf) != ZIO_COMPRESS_OFF)) {
+			spa_t *spa = dn->dn_objset->os_spa;
 			zbookmark_phys_t zb;
 
 			SET_BOOKMARK(&zb, dmu_objset_id(db->db_objset),
@@ -1774,13 +1773,13 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 		DB_DNODE_EXIT(db);
 		DBUF_STAT_BUMP(hash_hits);
 	} else if (db->db_state == DB_UNCACHED) {
-		spa_t *spa = dn->dn_objset->os_spa;
 		boolean_t need_wait = B_FALSE;
 
 		db_lock_type_t dblt = dmu_buf_lock_parent(db, RW_READER, FTAG);
 
 		if (zio == NULL &&
 		    db->db_blkptr != NULL && !BP_IS_HOLE(db->db_blkptr)) {
+			spa_t *spa = dn->dn_objset->os_spa;
 			zio = zio_root(spa, NULL, NULL, ZIO_FLAG_CANFAIL);
 			need_wait = B_TRUE;
 		}
