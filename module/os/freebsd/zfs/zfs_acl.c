@@ -2483,7 +2483,7 @@ zfs_zaccess_rwx(znode_t *zp, mode_t mode, int flags, cred_t *cr,
  * Access function for secpolicy_vnode_setattr
  */
 int
-zfs_zaccess_unix(znode_t *zp, mode_t mode, cred_t *cr)
+zfs_zaccess_unix(void *zp, int mode, cred_t *cr)
 {
 	int v4_mode = zfs_unix_to_v4(mode >> 6);
 

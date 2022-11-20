@@ -2186,7 +2186,7 @@ top:
 			vap->va_mask &= ~trim_mask;
 		}
 		err = secpolicy_vnode_setattr(cr, ip, vap, &oldva, flags,
-		    (int (*)(void *, int, cred_t *))zfs_zaccess_unix, zp);
+		    zfs_zaccess_unix, zp);
 		if (err)
 			goto out3;
 
