@@ -3300,10 +3300,10 @@ dbuf_prefetch_indirect_done(zio_t *zio, const zbookmark_phys_t *zb,
 	blkptr_t *bp = ((blkptr_t *)abuf->b_data) +
 	    P2PHASE(nextblkid, 1ULL << dpa->dpa_epbs);
 
-	ASSERT(!BP_IS_REDACTED(bp) ||
+	ASSERT(!BP_IS_REDACTED(bp) || (dpa->dpa_dnode &&
 	    dsl_dataset_feature_is_active(
 	    dpa->dpa_dnode->dn_objset->os_dsl_dataset,
-	    SPA_FEATURE_REDACTED_DATASETS));
+	    SPA_FEATURE_REDACTED_DATASETS)));
 	if (BP_IS_HOLE(bp) || BP_IS_REDACTED(bp)) {
 		dbuf_prefetch_fini(dpa, B_TRUE);
 	} else if (dpa->dpa_curlevel == dpa->dpa_zb.zb_level) {
