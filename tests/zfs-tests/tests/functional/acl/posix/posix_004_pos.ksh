@@ -35,6 +35,7 @@
 # STRATEGY:
 #	1. Prepare an appropriate ACL on the test directory
 #	2. Change the owner of the directory
+#	3. Reset and set the ACLs for test directory owned by the user
 #
 
 verify_runnable "both"
@@ -44,6 +45,8 @@ log_must setfacl -d -m u:$ZFS_ACL_STAFF1:rwx $TESTDIR
 log_must setfacl -b $TESTDIR
 
 log_must chown $ZFS_ACL_STAFF1 $TESTDIR
+log_must setfacl -b $TESTDIR
+log_must setfacl -d -m u:$ZFS_ACL_STAFF1:rwx $TESTDIR
 log_must chown 0 $TESTDIR
 
 log_pass "chown works with POSIX ACLs"
