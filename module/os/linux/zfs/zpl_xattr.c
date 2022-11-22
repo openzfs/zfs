@@ -496,7 +496,7 @@ zpl_xattr_set_dir(struct inode *ip, const char *name, const void *value,
 		vap->va_gid = crgetgid(cr);
 
 		error = -zfs_create(dxzp, (char *)name, vap, 0, 0644, &xzp,
-		    cr, 0, NULL);
+		    cr, ATTR_NOACLCHECK, NULL);
 		if (error)
 			goto out;
 	}
