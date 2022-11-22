@@ -1112,10 +1112,6 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, znode_t **xzpp, cred_t *cr)
 
 	*xzpp = NULL;
 
-	if ((error = zfs_zaccess(zp, ACE_WRITE_NAMED_ATTRS, 0, B_FALSE, cr,
-	    kcred->user_ns)))
-		return (error);
-
 	if ((error = zfs_acl_ids_create(zp, IS_XATTR, vap, cr, NULL,
 	    &acl_ids, kcred->user_ns)) != 0)
 		return (error);
