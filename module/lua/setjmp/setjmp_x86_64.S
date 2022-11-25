@@ -23,7 +23,7 @@
  * Copyright (c) 1992, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
-#if defined(__APPLE__)
+#if defined(__APPLE__)	/* __APPLE__ */
 
 #define _ASM
 #include <osx/asm_linkage.h>
@@ -45,7 +45,7 @@ x:
 #define	SET_SIZE(x) \
 	.size	x, [.-x]
 
-#endif
+#endif	/* __APPLE__ */
 
 
 #ifndef RET
