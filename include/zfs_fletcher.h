@@ -75,6 +75,23 @@ typedef struct zfs_fletcher_superscalar {
 	uint64_t v[4];
 } zfs_fletcher_superscalar_t;
 
+typedef uint32_t u32x4 __attribute__((vector_size(16)));
+typedef uint64_t u64x2 __attribute__((vector_size(16)));
+
+typedef uint8_t u8x32 __attribute__((vector_size(32)));
+typedef uint64_t u64x4 __attribute__((vector_size(32)));
+
+typedef uint64_t u64x8 __attribute__((vector_size(64)));
+
+typedef union {
+	u8x32   u8h[2];
+	u64x8   u64;
+	u64x4   u64h[2];
+	u64x2   u64q[4];
+} v512;
+
+typedef v512 zfs_fletcher_generic_t;
+
 typedef struct zfs_fletcher_sse {
 	uint64_t v[2] __attribute__((aligned(16)));
 } zfs_fletcher_sse_t;
@@ -95,6 +112,7 @@ typedef struct zfs_fletcher_aarch64_neon {
 typedef union fletcher_4_ctx {
 	zio_cksum_t scalar;
 	zfs_fletcher_superscalar_t superscalar[4];
+	zfs_fletcher_generic_t generic[4];
 
 #if defined(HAVE_SSE2) || (defined(HAVE_SSE2) && defined(HAVE_SSSE3))
 	zfs_fletcher_sse_t sse[4];
@@ -131,6 +149,7 @@ typedef struct fletcher_4_func {
 
 _ZFS_FLETCHER_H const fletcher_4_ops_t fletcher_4_superscalar_ops;
 _ZFS_FLETCHER_H const fletcher_4_ops_t fletcher_4_superscalar4_ops;
+_ZFS_FLETCHER_H const fletcher_4_ops_t fletcher_4_generic_ops;
 
 #if defined(HAVE_SSE2)
 _ZFS_FLETCHER_H const fletcher_4_ops_t fletcher_4_sse2_ops;
