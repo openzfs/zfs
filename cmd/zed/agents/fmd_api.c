@@ -125,14 +125,14 @@ fmd_hdl_unregister(fmd_hdl_t *hdl)
 	const fmd_hdl_ops_t *ops = mp->mod_info->fmdi_ops;
 
 	/* dump generic module stats */
-	fmd_hdl_debug(hdl, "%s: %llu", msp->ms_accepted.fmds_name,
+	fmd_hdl_debug(hdl, "%s: %"PRIu64, msp->ms_accepted.fmds_name,
 	    msp->ms_accepted.fmds_value.ui64);
 	if (ops->fmdo_close != NULL) {
-		fmd_hdl_debug(hdl, "%s: %llu", msp->ms_caseopen.fmds_name,
+		fmd_hdl_debug(hdl, "%s: %"PRIu64, msp->ms_caseopen.fmds_name,
 		    msp->ms_caseopen.fmds_value.ui64);
-		fmd_hdl_debug(hdl, "%s: %llu", msp->ms_casesolved.fmds_name,
+		fmd_hdl_debug(hdl, "%s: %"PRIu64, msp->ms_casesolved.fmds_name,
 		    msp->ms_casesolved.fmds_value.ui64);
-		fmd_hdl_debug(hdl, "%s: %llu", msp->ms_caseclosed.fmds_name,
+		fmd_hdl_debug(hdl, "%s: %"PRIu64, msp->ms_caseclosed.fmds_name,
 		    msp->ms_caseclosed.fmds_value.ui64);
 	}
 
@@ -141,7 +141,7 @@ fmd_hdl_unregister(fmd_hdl_t *hdl)
 		int i;
 
 		for (i = 0; i < mp->mod_ustat_cnt; i++) {
-			fmd_hdl_debug(hdl, "%s: %llu",
+			fmd_hdl_debug(hdl, "%s: %"PRIu64,
 			    mp->mod_ustat[i].fmds_name,
 			    mp->mod_ustat[i].fmds_value.ui64);
 		}
@@ -378,11 +378,11 @@ zed_log_fault(nvlist_t *nvl, const char *uuid, const char *code)
 			zed_log_msg(LOG_INFO, "\t%s: %s", FM_FMRI_SCHEME,
 			    strval);
 		if (nvlist_lookup_uint64(rsrc, FM_FMRI_ZFS_POOL, &guid) == 0)
-			zed_log_msg(LOG_INFO, "\t%s: %llu", FM_FMRI_ZFS_POOL,
+			zed_log_msg(LOG_INFO, "\t%s: %"PRIu64, FM_FMRI_ZFS_POOL,
 			    guid);
 		if (nvlist_lookup_uint64(rsrc, FM_FMRI_ZFS_VDEV, &guid) == 0)
-			zed_log_msg(LOG_INFO, "\t%s: %llu \n", FM_FMRI_ZFS_VDEV,
-			    guid);
+			zed_log_msg(LOG_INFO, "\t%s: %"PRIu64" \n",
+			    FM_FMRI_ZFS_VDEV, guid);
 	}
 }
 

@@ -77,13 +77,16 @@ zed_udev_event(const char *class, const char *subclass, nvlist_t *nvl)
 	if (nvlist_lookup_string(nvl, DEV_PHYS_PATH, &strval) == 0)
 		zed_log_msg(LOG_INFO, "\t%s: %s", DEV_PHYS_PATH, strval);
 	if (nvlist_lookup_uint64(nvl, DEV_SIZE, &numval) == 0)
-		zed_log_msg(LOG_INFO, "\t%s: %llu", DEV_SIZE, numval);
+		zed_log_msg(LOG_INFO, "\t%s: %" PRIu64, DEV_SIZE, numval);
 	if (nvlist_lookup_uint64(nvl, DEV_PARENT_SIZE, &numval) == 0)
-		zed_log_msg(LOG_INFO, "\t%s: %llu", DEV_PARENT_SIZE, numval);
+		zed_log_msg(LOG_INFO, "\t%s: %" PRIu64, DEV_PARENT_SIZE,
+		    numval);
 	if (nvlist_lookup_uint64(nvl, ZFS_EV_POOL_GUID, &numval) == 0)
-		zed_log_msg(LOG_INFO, "\t%s: %llu", ZFS_EV_POOL_GUID, numval);
+		zed_log_msg(LOG_INFO, "\t%s: %" PRIu64, ZFS_EV_POOL_GUID,
+		    numval);
 	if (nvlist_lookup_uint64(nvl, ZFS_EV_VDEV_GUID, &numval) == 0)
-		zed_log_msg(LOG_INFO, "\t%s: %llu", ZFS_EV_VDEV_GUID, numval);
+		zed_log_msg(LOG_INFO, "\t%s: %" PRIu64, ZFS_EV_VDEV_GUID,
+		    numval);
 
 	(void) zfs_agent_post_event(class, subclass, nvl);
 }

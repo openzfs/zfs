@@ -562,10 +562,11 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 	 * once the pool is used.
 	 */
 	if (pool_found && timeval_earlier(&er_when, &pool_load)) {
-		fmd_hdl_debug(hdl, "ignoring pool %llx, "
-		    "ereport time %lld.%lld, pool load time = %lld.%lld",
-		    pool_guid, er_when.ertv_sec, er_when.ertv_nsec,
-		    pool_load.ertv_sec, pool_load.ertv_nsec);
+		fmd_hdl_debug(hdl, "ignoring pool %"PRIx64", "
+		    "ereport time %"PRId64".%"PRId64", pool load time = %"
+		    PRId64".%"PRId64, pool_guid, er_when.ertv_sec,
+		    er_when.ertv_nsec, pool_load.ertv_sec,
+		    pool_load.ertv_nsec);
 		zfs_stats.old_drops.fmds_value.ui64++;
 		return;
 	}
@@ -588,9 +589,9 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 			pool_found = B_TRUE;
 
 			if (timeval_earlier(&er_when, &pool_load)) {
-				fmd_hdl_debug(hdl, "ignoring pool %llx, "
-				    "ereport time %lld.%lld, "
-				    "pool load time = %lld.%lld",
+				fmd_hdl_debug(hdl, "ignoring pool %"PRIx64", "
+				    "ereport time %"PRId64".%"PRId64", "
+				    "pool load time = %"PRId64".%"PRId64,
 				    pool_guid, er_when.ertv_sec,
 				    er_when.ertv_nsec, pool_load.ertv_sec,
 				    pool_load.ertv_nsec);
@@ -610,7 +611,7 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 		 */
 		if (isresource) {
 			zfs_stats.resource_drops.fmds_value.ui64++;
-			fmd_hdl_debug(hdl, "discarding '%s for vdev %llu",
+			fmd_hdl_debug(hdl, "discarding '%s for vdev %"PRIu64,
 			    class, vdev_guid);
 			return;
 		}
@@ -633,8 +634,8 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 		 */
 		cs = fmd_case_open(hdl, NULL);
 
-		fmd_hdl_debug(hdl, "opening case for vdev %llu due to '%s'",
-		    vdev_guid, class);
+		fmd_hdl_debug(hdl, "opening case for vdev %"PRIu64
+		    " due to '%s'", vdev_guid, class);
 
 		/*
 		 * Initialize the case buffer.  To commonize code, we actually
