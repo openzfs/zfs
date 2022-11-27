@@ -57,12 +57,12 @@ function verify_nopwrite
 	within_percent $origin_used $snap_refer $high || return 1
 
 	#
-	# The comparisons below should pass regardless of nopwrite. They're
-	# here for sanity.
+	# The comparisons below should be within 90% regardless of nopwrite.
+	# They're here for sanity.
 	#
 	typeset deadlist=$(zdb -Pddd $clone | awk '/Deadlist:/ {print $2}')
-	within_percent $deadlist $clone_written $high || return 1
-	within_percent $snap_refer $snap_written $high || return 1
+	within_percent $deadlist $clone_written 90 || return 1
+	within_percent $snap_refer $snap_written 90 || return 1
 
 	return 0
 }
