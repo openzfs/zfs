@@ -624,3 +624,7 @@ tags = ['functional', 'zvol', 'zvol_swap']
 [tests/functional/zpool_influxdb]
 tests = ['zpool_influxdb']
 tags = ['functional', 'zpool_influxdb']
+
+[tests/functional/pyzfs]
+tests = ['pyzfs_unittest']
+tags = ['functional', 'pyzfs']

@@ -62,14 +62,6 @@ known_reason = 'Known issue'
 exec_reason = 'Test user execute permissions required for utilities'
 
 #
-# Some tests require a minimum python version of 3.6 and will be skipped when
-# the default system version is too old.  There may also be tests which require
-# additional python modules be installed, for example python3-cffi is required
-# by the pyzfs tests.
-#
-python_deps_reason = 'Python modules missing: python3-cffi'
-
-#
 # Some tests require that the kernel supports renameat2 syscall.
 #
 renameat2_reason = 'Kernel renameat2 support required'
@@ -232,7 +224,6 @@ maybe = {
     'io/mmap': ['SKIP', fio_reason],
     'largest_pool/largest_pool_001_pos': ['FAIL', known_reason],
     'mmp/mmp_on_uberblocks': ['FAIL', known_reason],
-    'pyzfs/pyzfs_unittest': ['SKIP', python_deps_reason],
     'pool_checkpoint/checkpoint_discard_busy': ['FAIL', 11946],
     'projectquota/setup': ['SKIP', exec_reason],
     'removal/removal_condense_export': ['FAIL', known_reason],
