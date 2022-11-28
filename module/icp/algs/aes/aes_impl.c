@@ -424,13 +424,15 @@ icp_aes_impl_get(char *buffer, zfs_kernel_param_t *kp)
 	/* list mandatory options */
 	for (i = 0; i < ARRAY_SIZE(aes_impl_opts); i++) {
 		fmt = (impl == aes_impl_opts[i].sel) ? "[%s] " : "%s ";
-		cnt += sprintf(buffer + cnt, fmt, aes_impl_opts[i].name);
+		cnt += kmem_scnprintf(buffer + cnt, PAGE_SIZE - cnt, fmt,
+		    aes_impl_opts[i].name);
 	}
 
 	/* list all supported implementations */
 	for (i = 0; i < aes_supp_impl_cnt; i++) {
 		fmt = (i == impl) ? "[%s] " : "%s ";
-		cnt += sprintf(buffer + cnt, fmt, aes_supp_impl[i]->name);
+		cnt += kmem_scnprintf(buffer + cnt, PAGE_SIZE - cnt, fmt,
+		    aes_supp_impl[i]->name);
 	}
 
 	return (cnt);

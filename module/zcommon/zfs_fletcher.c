@@ -903,12 +903,12 @@ fletcher_4_param_get(char *buffer, zfs_kernel_param_t *unused)
 
 	/* list fastest */
 	fmt = IMPL_FMT(impl, IMPL_FASTEST);
-	cnt += sprintf(buffer + cnt, fmt, "fastest");
+	cnt += kmem_scnprintf(buffer + cnt, PAGE_SIZE - cnt, fmt, "fastest");
 
 	/* list all supported implementations */
 	for (uint32_t i = 0; i < fletcher_4_supp_impls_cnt; ++i) {
 		fmt = IMPL_FMT(impl, i);
-		cnt += sprintf(buffer + cnt, fmt,
+		cnt += kmem_scnprintf(buffer + cnt, PAGE_SIZE - cnt, fmt,
 		    fletcher_4_supp_impls[i]->name);
 	}
 
