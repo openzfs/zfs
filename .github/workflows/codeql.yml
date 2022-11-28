@@ -19,6 +19,10 @@ jobs:
         language: [ 'cpp', 'python' ]
 
     steps:
+    - name: Set make jobs
+      run: |
+        echo "MAKEFLAGS=-j$(nproc)" >> $GITHUB_ENV
+
     - name: Checkout repository
       uses: actions/checkout@v3
 
