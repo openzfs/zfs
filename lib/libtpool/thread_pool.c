@@ -28,6 +28,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <assert.h>
+#include <limits.h>
 #include "thread_pool_impl.h"
 
 static pthread_mutex_t thread_pool_lock = PTHREAD_MUTEX_INITIALIZER;
