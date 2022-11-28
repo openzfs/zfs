@@ -1328,7 +1328,8 @@ zfs_mount(vfs_t *vfsp)
 	}
 
 	fetch_osname_options(osname, &checkpointrewind);
-	isctlsnap = (zfsctl_is_node(mvp) && strchr(osname, '@') != NULL);
+	isctlsnap = (mvp != NULL && zfsctl_is_node(mvp) &&
+	    strchr(osname, '@') != NULL);
 
 	/*
 	 * Check for mount privilege?
