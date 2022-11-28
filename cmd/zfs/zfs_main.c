@@ -396,7 +396,7 @@ get_usage(zfs_help_t idx)
 	case HELP_RELEASE:
 		return (gettext("\trelease [-r] <tag> <snapshot> ...\n"));
 	case HELP_DIFF:
-		return (gettext("\tdiff [-FHt] <snapshot> "
+		return (gettext("\tdiff [-FHth] <snapshot> "
 		    "[snapshot|filesystem]\n"));
 	case HELP_BOOKMARK:
 		return (gettext("\tbookmark <snapshot|bookmark> "
