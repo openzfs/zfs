@@ -78,7 +78,7 @@
 %define __python                  %{__use_python}
 %define __python_pkg_version      %{__use_python_pkg_version}
 %endif
-%define __python_sitelib          %(%{__python} -Esc "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
+%define __python_sitelib          %(%{__python} -Esc "from distutils.sysconfig import get_python_lib; print(get_python_lib())" 2>/dev/null || %{__python} -Esc "import sysconfig; print(sysconfig.get_path('purelib'))")
 
 Name:           @PACKAGE@
 Version:        @VERSION@
