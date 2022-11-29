@@ -1,6 +1,6 @@
 %{?!packager: %define packager Brian Behlendorf <behlendorf1@llnl.gov>}
 
-%if ! 0%{?rhel}%{?fedora}%{?mageia}%{?suse_version}
+%if ! 0%{?rhel}%{?fedora}%{?mageia}%{?suse_version}%{?openEuler}
 %define not_rpm 1
 %endif
 
@@ -28,7 +28,7 @@ Requires(post): dkms >= 2.2.0.3
 Requires(preun): dkms >= 2.2.0.3
 Requires:       gcc, make, perl, diffutils
 Requires(post): gcc, make, perl, diffutils
-%if 0%{?rhel}%{?fedora}%{?mageia}%{?suse_version}
+%if 0%{?rhel}%{?fedora}%{?mageia}%{?suse_version}%{?openEuler}
 Requires:       kernel-devel >= @ZFS_META_KVER_MIN@, kernel-devel <= @ZFS_META_KVER_MAX@.999
 Requires(post): kernel-devel >= @ZFS_META_KVER_MIN@, kernel-devel <= @ZFS_META_KVER_MAX@.999
 Obsoletes:      spl-dkms <= %{version}
@@ -36,7 +36,7 @@ Obsoletes:      spl-dkms <= %{version}
 Provides:       %{module}-kmod = %{version}
 AutoReqProv:    no
 
-%if (0%{?fedora}%{?suse_version}) || (0%{?rhel} && 0%{?rhel} < 9)
+%if (0%{?fedora}%{?suse_version}%{?openEuler}) || (0%{?rhel} && 0%{?rhel} < 9)
 # We don't directly use it, but if this isn't installed, rpmbuild as root can
 # crash+corrupt rpmdb
 # See issue #12071
