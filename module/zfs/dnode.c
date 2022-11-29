@@ -2407,17 +2407,9 @@ dnode_spill_freed(dnode_t *dn)
 uint64_t
 dnode_block_freed(dnode_t *dn, uint64_t blkid)
 {
-	void *dp = spa_get_dsl(dn->dn_objset->os_spa);
 	int i;
 
 	if (blkid == DMU_BONUS_BLKID)
-		return (FALSE);
-
-	/*
-	 * If we're in the process of opening the pool, dp will not be
-	 * set yet, but there shouldn't be anything dirty.
-	 */
-	if (dp == NULL)
 		return (FALSE);
 
 	if (dn->dn_free_txg)
