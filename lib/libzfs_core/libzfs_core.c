@@ -1105,7 +1105,8 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 		fnvlist_free(outnvl);
 	} else {
 		zfs_cmd_t zc = {"\0"};
-		char *packed = NULL;
+		char *rp_packed = NULL;
+		char *lp_packed = NULL;
 		size_t size;
 
 		ASSERT3S(g_refcount, >, 0);
@@ -1114,14 +1115,14 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 		(void) strlcpy(zc.zc_value, snapname, sizeof (zc.zc_value));
 
 		if (recvdprops != NULL) {
-			packed = fnvlist_pack(recvdprops, &size);
-			zc.zc_nvlist_src = (uint64_t)(uintptr_t)packed;
+			rp_packed = fnvlist_pack(recvdprops, &size);
+			zc.zc_nvlist_src = (uint64_t)(uintptr_t)rp_packed;
 			zc.zc_nvlist_src_size = size;
 		}
 
 		if (localprops != NULL) {
-			packed = fnvlist_pack(localprops, &size);
-			zc.zc_nvlist_conf = (uint64_t)(uintptr_t)packed;
+			lp_packed = fnvlist_pack(localprops, &size);
+			zc.zc_nvlist_conf = (uint64_t)(uintptr_t)lp_packed;
 			zc.zc_nvlist_conf_size = size;
 		}
 
@@ -1156,8 +1157,10 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 				    zc.zc_nvlist_dst_size, errors, KM_SLEEP));
 		}
 
-		if (packed != NULL)
-			fnvlist_pack_free(packed, size);
+		if (rp_packed != NULL)
+			fnvlist_pack_free(rp_packed, size);
+		if (lp_packed != NULL)
+			fnvlist_pack_free(lp_packed, size);
 		free((void *)(uintptr_t)zc.zc_nvlist_dst);
 	}
 
