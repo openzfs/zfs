@@ -36,6 +36,7 @@
 #include <sys/dmu_zfetch.h>
 #include <sys/zrlock.h>
 #include <sys/multilist.h>
+#include <sys/wmsum.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -587,10 +588,42 @@ typedef struct dnode_stats {
 	kstat_named_t dnode_move_active;
 } dnode_stats_t;
 
+typedef struct dnode_sums {
+	wmsum_t dnode_hold_dbuf_hold;
+	wmsum_t dnode_hold_dbuf_read;
+	wmsum_t dnode_hold_alloc_hits;
+	wmsum_t dnode_hold_alloc_misses;
+	wmsum_t dnode_hold_alloc_interior;
+	wmsum_t dnode_hold_alloc_lock_retry;
+	wmsum_t dnode_hold_alloc_lock_misses;
+	wmsum_t dnode_hold_alloc_type_none;
+	wmsum_t dnode_hold_free_hits;
+	wmsum_t dnode_hold_free_misses;
+	wmsum_t dnode_hold_free_lock_misses;
+	wmsum_t dnode_hold_free_lock_retry;
+	wmsum_t dnode_hold_free_refcount;
+	wmsum_t dnode_hold_free_overflow;
+	wmsum_t dnode_free_interior_lock_retry;
+	wmsum_t dnode_allocate;
+	wmsum_t dnode_reallocate;
+	wmsum_t dnode_buf_evict;
+	wmsum_t dnode_alloc_next_chunk;
+	wmsum_t dnode_alloc_race;
+	wmsum_t dnode_alloc_next_block;
+	wmsum_t dnode_move_invalid;
+	wmsum_t dnode_move_recheck1;
+	wmsum_t dnode_move_recheck2;
+	wmsum_t dnode_move_special;
+	wmsum_t dnode_move_handle;
+	wmsum_t dnode_move_rwlock;
+	wmsum_t dnode_move_active;
+} dnode_sums_t;
+
 extern dnode_stats_t dnode_stats;
+extern dnode_sums_t dnode_sums;
 
 #define	DNODE_STAT_INCR(stat, val) \
-    atomic_add_64(&dnode_stats.stat.value.ui64, (val));
+    wmsum_add(&dnode_sums.stat, (val))
 #define	DNODE_STAT_BUMP(stat) \
     DNODE_STAT_INCR(stat, 1);
 
