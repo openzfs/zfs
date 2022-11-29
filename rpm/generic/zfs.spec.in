@@ -3,7 +3,7 @@
 
 # Set the default udev directory based on distribution.
 %if %{undefined _udevdir}
-%if 0%{?fedora}%{?rhel}%{?centos}
+%if 0%{?fedora}%{?rhel}%{?centos}%{?openEuler}
 %global _udevdir    %{_prefix}/lib/udev
 %else
 %global _udevdir    /lib/udev
@@ -12,7 +12,7 @@
 
 # Set the default udevrule directory based on distribution.
 %if %{undefined _udevruledir}
-%if 0%{?fedora}%{?rhel}%{?centos}
+%if 0%{?fedora}%{?rhel}%{?centos}%{?openEuler}
 %global _udevruledir    %{_prefix}/lib/udev/rules.d
 %else
 %global _udevruledir    /lib/udev/rules.d
@@ -21,7 +21,7 @@
 
 # Set the default dracut directory based on distribution.
 %if %{undefined _dracutdir}
-%if 0%{?fedora}%{?rhel}%{?centos}
+%if 0%{?fedora}%{?rhel}%{?centos}%{?openEuler}
 %global _dracutdir  %{_prefix}/lib/dracut
 %else
 %global _dracutdir  %{_prefix}/share/dracut
@@ -66,7 +66,7 @@
 %endif
 
 # Distros below support systemd
-%if 0%{?rhel}%{?fedora}%{?centos}%{?suse_version}
+%if 0%{?rhel}%{?fedora}%{?centos}%{?suse_version}%{?openEuler}
 %define _systemd 1
 %endif
 
@@ -102,7 +102,7 @@ Obsoletes:      spl <= %{version}
 # Renaming those on either side would conflict with all available documentation.
 Conflicts:      zfs-fuse
 
-%if 0%{?rhel}%{?centos}%{?fedora}%{?suse_version}
+%if 0%{?rhel}%{?centos}%{?fedora}%{?suse_version}%{?openEuler}
 BuildRequires:  gcc, make
 BuildRequires:  zlib-devel
 BuildRequires:  libuuid-devel
@@ -110,11 +110,11 @@ BuildRequires:  libblkid-devel
 BuildRequires:  libudev-devel
 BuildRequires:  libattr-devel
 BuildRequires:  openssl-devel
-%if 0%{?fedora} || 0%{?rhel} >= 8 || 0%{?centos} >= 8
+%if 0%{?fedora}%{?openEuler} || 0%{?rhel} >= 8 || 0%{?centos} >= 8
 BuildRequires:  libtirpc-devel
 %endif
 
-%if (0%{?fedora}%{?suse_version}) || (0%{?rhel} && 0%{?rhel} < 9)
+%if (0%{?fedora}%{?suse_version}%{?openEuler}) || (0%{?rhel} && 0%{?rhel} < 9)
 # We don't directly use it, but if this isn't installed, rpmbuild as root can
 # crash+corrupt rpmdb
 # See issue #12071
@@ -251,7 +251,7 @@ Requires:       sudo
 Requires:       sysstat
 Requires:       libaio
 Requires:       python%{__python_pkg_version}
-%if 0%{?rhel}%{?centos}%{?fedora}%{?suse_version}
+%if 0%{?rhel}%{?centos}%{?fedora}%{?suse_version}%{?openEuler}
 BuildRequires:  libaio-devel
 %endif
 AutoReqProv:    no
@@ -292,7 +292,7 @@ Requires:       python36-cffi
 Requires:       python%{__python_pkg_version}-cffi
 %endif
 
-%if 0%{?rhel}%{?centos}%{?fedora}%{?suse_version}
+%if 0%{?rhel}%{?centos}%{?fedora}%{?suse_version}%{?openEuler}
 %if 0%{?centos} == 7
 BuildRequires:  python36-packaging
 BuildRequires:  python36-devel
@@ -328,7 +328,7 @@ image which is ZFS aware.
 %package -n pam_zfs_key
 Summary:        PAM module for encrypted ZFS datasets
 
-%if 0%{?rhel}%{?centos}%{?fedora}%{?suse_version}
+%if 0%{?rhel}%{?centos}%{?fedora}%{?suse_version}%{?openEuler}
 BuildRequires:  pam-devel
 %endif
 

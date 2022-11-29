@@ -1,7 +1,7 @@
 %define module  @PACKAGE@
 
 %if !%{defined ksrc}
-%if 0%{?rhel}%{?fedora}
+%if 0%{?rhel}%{?fedora}%{?openEuler}
 %define ksrc    ${kernel_version##*___}
 %else
 %define ksrc    "$( \
@@ -16,7 +16,7 @@
 %endif
 
 %if !%{defined kobj}
-%if 0%{?rhel}%{?fedora}
+%if 0%{?rhel}%{?fedora}%{?openEuler}
 %define kobj    ${kernel_version##*___}
 %else
 %define kobj    "$( \
@@ -52,12 +52,12 @@ URL:            https://github.com/openzfs/zfs
 Source0:        %{module}-%{version}.tar.gz
 Source10:       kmodtool
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id} -u -n)
-%if 0%{?rhel}%{?fedora}
+%if 0%{?rhel}%{?fedora}%{?openEuler}
 BuildRequires:  gcc, make
 BuildRequires:  elfutils-libelf-devel
 %endif
 
-%if (0%{?fedora}%{?suse_version}) || (0%{?rhel} && 0%{?rhel} < 9)
+%if (0%{?fedora}%{?suse_version}%{?openEuler}) || (0%{?rhel} && 0%{?rhel} < 9)
 # We don't directly use it, but if this isn't installed, rpmbuild as root can
 # crash+corrupt rpmdb
 # See issue #12071
@@ -79,10 +79,11 @@ BuildRequires:  %{_bindir}/kmodtool
 # Building local packages attempt to to use the installed kernel.
 %{?rhel:BuildRequires: kernel-devel}
 %{?fedora:BuildRequires: kernel-devel}
+%{?openEuler:BuildRequires: kernel-devel}
 %{?suse_version:BuildRequires: kernel-source}
 
 %if !%{defined kernels} && !%{defined build_src_rpm}
-    %if 0%{?rhel}%{?fedora}%{?suse_version}
+    %if 0%{?rhel}%{?fedora}%{?suse_version}%{?openEuler}
         %define kernels %(ls -1 /usr/src/kernels)
     %else
         %define kernels %(ls -1 /lib/modules)
