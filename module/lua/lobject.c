@@ -144,7 +144,7 @@ static lua_Number lua_strx2number (const char *s, char **endptr) {
   *endptr = cast(char *, s);  /* valid up to here */
  ret:
   if (neg) r = -r;
-  return (r * (1 << e));
+  return ((e >= 0) ? (r * (1ULL << e)) : (r / (1ULL << -e)));
 }
 
 #endif
