@@ -864,7 +864,7 @@ zfs_lookup(vnode_t *dvp, const char *nm, vnode_t **vpp,
 	}
 
 	if (zfsvfs->z_utf8 && u8_validate(nm, strlen(nm),
-	    NULL, U8_VALIDATE_ENTIRE, &error) < 0) {
+	    U8_VALIDATE_ENTIRE, &error) < 0) {
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EILSEQ));
 	}
@@ -1083,7 +1083,7 @@ zfs_create(znode_t *dzp, const char *name, vattr_t *vap, int excl, int mode,
 	zilog = zfsvfs->z_log;
 
 	if (zfsvfs->z_utf8 && u8_validate(name, strlen(name),
-	    NULL, U8_VALIDATE_ENTIRE, &error) < 0) {
+	    U8_VALIDATE_ENTIRE, &error) < 0) {
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EILSEQ));
 	}
@@ -1436,7 +1436,7 @@ zfs_mkdir(znode_t *dzp, const char *dirname, vattr_t *vap, znode_t **zpp,
 	}
 
 	if (zfsvfs->z_utf8 && u8_validate(dirname,
-	    strlen(dirname), NULL, U8_VALIDATE_ENTIRE, &error) < 0) {
+	    strlen(dirname), U8_VALIDATE_ENTIRE, &error) < 0) {
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EILSEQ));
 	}
@@ -3209,7 +3209,7 @@ zfs_do_rename_impl(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
 	zilog = zfsvfs->z_log;
 
 	if (zfsvfs->z_utf8 && u8_validate(tnm,
-	    strlen(tnm), NULL, U8_VALIDATE_ENTIRE, &error) < 0) {
+	    strlen(tnm), U8_VALIDATE_ENTIRE, &error) < 0) {
 		error = SET_ERROR(EILSEQ);
 		goto out;
 	}
@@ -3492,7 +3492,7 @@ zfs_symlink(znode_t *dzp, const char *name, vattr_t *vap,
 	zilog = zfsvfs->z_log;
 
 	if (zfsvfs->z_utf8 && u8_validate(name, strlen(name),
-	    NULL, U8_VALIDATE_ENTIRE, &error) < 0) {
+	    U8_VALIDATE_ENTIRE, &error) < 0) {
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EILSEQ));
 	}
@@ -3711,7 +3711,7 @@ zfs_link(znode_t *tdzp, znode_t *szp, const char *name, cred_t *cr,
 	}
 
 	if (zfsvfs->z_utf8 && u8_validate(name,
-	    strlen(name), NULL, U8_VALIDATE_ENTIRE, &error) < 0) {
+	    strlen(name), U8_VALIDATE_ENTIRE, &error) < 0) {
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EILSEQ));
 	}

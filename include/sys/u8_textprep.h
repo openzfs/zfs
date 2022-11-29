@@ -73,12 +73,11 @@ extern "C" {
 #define	U8_UNICODE_LATEST		(U8_UNICODE_500)
 
 #define	U8_VALIDATE_ENTIRE		(0x00100000)
-#define	U8_VALIDATE_CHECK_ADDITIONAL	(0x00200000)
 
 #define	U8_ILLEGAL_CHAR			(-1)
 #define	U8_OUT_OF_RANGE_CHAR		(-2)
 
-extern int u8_validate(const char *, size_t, char **, int, int *);
+extern int u8_validate(const char *, size_t, int, int *);
 extern int u8_strcmp(const char *, const char *, size_t, int, size_t, int *);
 extern size_t u8_textprep_str(char *, size_t *, char *, size_t *, int, size_t,
 	int *);

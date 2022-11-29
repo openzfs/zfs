@@ -324,20 +324,16 @@ static const uint8_t u8_valid_max_2nd_byte[0x100] = {
  * specific to UTF-8 and Unicode.
  */
 int
-u8_validate(const char *u8str, size_t n, char **list, int flag, int *errnum)
+u8_validate(const char *u8str, size_t n, int flag, int *errnum)
 {
 	uchar_t *ib;
 	uchar_t *ibtail;
-	uchar_t **p;
-	uchar_t *s1;
-	uchar_t *s2;
 	uchar_t f;
 	int sz;
 	size_t i;
 	int ret_val;
 	boolean_t second;
 	boolean_t no_need_to_validate_entire;
-	boolean_t check_additional;
 
 	if (! u8str)
 		return (0);
@@ -348,7 +344,6 @@ u8_validate(const char *u8str, size_t n, char **list, int flag, int *errnum)
 	ret_val = 0;
 
 	no_need_to_validate_entire = ! (flag & U8_VALIDATE_ENTIRE);
-	check_additional = flag & U8_VALIDATE_CHECK_ADDITIONAL;
 
 	while (ib < ibtail) {
 		/*
@@ -404,24 +399,6 @@ u8_validate(const char *u8str, size_t n, char **list, int flag, int *errnum)
 				}
 				ib++;
 				ret_val++;
-			}
-		}
-
-		if (check_additional) {
-			for (p = (uchar_t **)list, i = 0; p[i]; i++) {
-				s1 = ib - sz;
-				s2 = p[i];
-				while (s1 < ib) {
-					if (*s1 != *s2 || *s2 == '\0')
-						break;
-					s1++;
-					s2++;
-				}
-
-				if (s1 >= ib && *s2 == '\0') {
-					*errnum = EBADF;
-					return (-1);
-				}
 			}
 		}
 
