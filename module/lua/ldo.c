@@ -197,7 +197,8 @@ l_noret luaD_throw (lua_State *L, int errcode) {
   }
 }
 
-#if defined(HAVE_INFINITE_RECURSION)
+#if defined(__GNUC__) && !defined(__clang__) && \
+	defined(HAVE_INFINITE_RECURSION)
 #pragma GCC diagnostic pop
 #endif
 
