@@ -154,4 +154,9 @@ ifeq ($(CONFIG_ALTIVEC),y)
 $(obj)/vdev_raidz_math_powerpc_altivec.o: c_flags += -maltivec
 endif
 
+ifeq ($(CONFIG_ARM64),y)
+CFLAGS_REMOVE_vdev_raidz_math_aarch64_neon.o += -mgeneral-regs-only
+CFLAGS_REMOVE_vdev_raidz_math_aarch64_neonx2.o += -mgeneral-regs-only
+endif
+
 include $(mfdir)/../os/linux/zfs/Makefile
