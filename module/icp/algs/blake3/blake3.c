@@ -276,7 +276,7 @@ static size_t compress_parents_parallel(const blake3_ops_t *ops,
     const uint8_t *child_chaining_values, size_t num_chaining_values,
     const uint32_t key[8], uint8_t flags, uint8_t *out)
 {
-	const uint8_t *parents_array[MAX_SIMD_DEGREE_OR_2];
+	const uint8_t *parents_array[MAX_SIMD_DEGREE_OR_2] = {0};
 	size_t parents_array_len = 0;
 
 	while (num_chaining_values - (2 * parents_array_len) >= 2) {
