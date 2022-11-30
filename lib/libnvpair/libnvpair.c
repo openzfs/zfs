@@ -200,6 +200,17 @@ nvprint_##type_and_variant(nvlist_prtctl_t pctl, void *private, \
 	return (1); \
 }
 
+/*
+ * Workaround for GCC 12+ with UBSan enabled deficencies.
+ *
+ * GCC 12+ invoked with -fsanitize=undefined incorrectly reports the code
+ * below as violating -Wformat-overflow.
+ */
+#if defined(__GNUC__) && !defined(__clang__) && \
+	defined(ZFS_UBSAN_ENABLED) && defined(HAVE_FORMAT_OVERFLOW)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-overflow"
+#endif
 NVLIST_PRTFUNC(boolean, int, int, "%d")
 NVLIST_PRTFUNC(boolean_value, boolean_t, int, "%d")
 NVLIST_PRTFUNC(byte, uchar_t, uchar_t, "0x%2.2x")
@@ -214,6 +225,10 @@ NVLIST_PRTFUNC(uint64, uint64_t, u_longlong_t, "0x%llx")
 NVLIST_PRTFUNC(double, double, double, "0x%f")
 NVLIST_PRTFUNC(string, char *, char *, "%s")
 NVLIST_PRTFUNC(hrtime, hrtime_t, hrtime_t, "0x%llx")
+#if defined(__GNUC__) && !defined(__clang__) && \
+	defined(ZFS_UBSAN_ENABLED) && defined(HAVE_FORMAT_OVERFLOW)
+#pragma GCC diagnostic pop
+#endif
 
 /*
  * Generate functions to print array-valued nvlist members.

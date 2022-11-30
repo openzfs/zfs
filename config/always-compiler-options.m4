@@ -181,6 +181,62 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_INFINITE_RECURSION], [
 ])
 
 dnl #
+dnl # Check if kernel cc supports -Winfinite-recursion option.
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_KERNEL_CC_INFINITE_RECURSION], [
+	AC_MSG_CHECKING([whether $KERNEL_CC supports -Winfinite-recursion])
+
+	saved_cc="$CC"
+	saved_flags="$CFLAGS"
+	CC="gcc"
+	CFLAGS="$CFLAGS -Werror -Winfinite-recursion"
+
+	AS_IF([ test -n "$KERNEL_CC" ], [
+		CC="$KERNEL_CC"
+	])
+	AS_IF([ test -n "$KERNEL_LLVM" ], [
+		CC="clang"
+	])
+
+	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
+		KERNEL_INFINITE_RECURSION=-Winfinite-recursion
+		AC_DEFINE([HAVE_KERNEL_INFINITE_RECURSION], 1,
+			[Define if compiler supports -Winfinite-recursion])
+		AC_MSG_RESULT([yes])
+	], [
+		KERNEL_INFINITE_RECURSION=
+		AC_MSG_RESULT([no])
+	])
+
+	CC="$saved_cc"
+	CFLAGS="$saved_flags"
+	AC_SUBST([KERNEL_INFINITE_RECURSION])
+])
+
+dnl #
+dnl # Check if cc supports -Wformat-overflow option.
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_FORMAT_OVERFLOW], [
+	AC_MSG_CHECKING([whether $CC supports -Wformat-overflow])
+
+	saved_flags="$CFLAGS"
+	CFLAGS="$CFLAGS -Werror -Wformat-overflow"
+
+	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
+		FORMAT_OVERFLOW=-Wformat-overflow
+		AC_DEFINE([HAVE_FORMAT_OVERFLOW], 1,
+			[Define if compiler supports -Wformat-overflow])
+		AC_MSG_RESULT([yes])
+	], [
+		FORMAT_OVERFLOW=
+		AC_MSG_RESULT([no])
+	])
+
+	CFLAGS="$saved_flags"
+	AC_SUBST([FORMAT_OVERFLOW])
+])
+
+dnl #
 dnl # Check if gcc supports -fno-omit-frame-pointer option.
 dnl #
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_OMIT_FRAME_POINTER], [
