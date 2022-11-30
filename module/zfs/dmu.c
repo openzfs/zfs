@@ -549,14 +549,14 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 		    ZIO_FLAG_CANFAIL);
 	blkid = dbuf_whichblock(dn, 0, offset);
 	if ((flags & DMU_READ_NO_PREFETCH) == 0 &&
-	    DNODE_META_IS_CACHEABLE(dn) && length <= zfetch_array_rd_sz) {
+	    length <= zfetch_array_rd_sz) {
 		/*
 		 * Prepare the zfetch before initiating the demand reads, so
 		 * that if multiple threads block on same indirect block, we
 		 * base predictions on the original less racy request order.
 		 */
-		zs = dmu_zfetch_prepare(&dn->dn_zfetch, blkid, nblks,
-		    read && DNODE_IS_CACHEABLE(dn), B_TRUE);
+		zs = dmu_zfetch_prepare(&dn->dn_zfetch, blkid, nblks, read,
+		    B_TRUE);
 	}
 	for (i = 0; i < nblks; i++) {
 		dmu_buf_impl_t *db = dbuf_hold(dn, blkid + i, tag);
@@ -579,6 +579,14 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 		 * state will not yet be CACHED.
 		 */
 		if (read) {
+			if (i == nblks - 1 && blkid + i < dn->dn_maxblkid &&
+			    offset + length < db->db.db_offset +
+			    db->db.db_size) {
+				if (offset <= db->db.db_offset)
+					dbuf_flags |= DB_RF_PARTIAL_FIRST;
+				else
+					dbuf_flags |= DB_RF_PARTIAL_MORE;
+			}
 			(void) dbuf_read(db, zio, dbuf_flags);
 			if (db->db_state != DB_CACHED)
 				missed = B_TRUE;
@@ -1850,8 +1858,8 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 	dsa->dsa_zgd = zgd;
 	dsa->dsa_tx = NULL;
 
-	zio_nowait(arc_write(pio, os->os_spa, txg,
-	    zgd->zgd_bp, dr->dt.dl.dr_data, dbuf_is_l2cacheable(db),
+	zio_nowait(arc_write(pio, os->os_spa, txg, zgd->zgd_bp,
+	    dr->dt.dl.dr_data, !DBUF_IS_CACHEABLE(db), dbuf_is_l2cacheable(db),
 	    &zp, dmu_sync_ready, NULL, NULL, dmu_sync_done, dsa,
 	    ZIO_PRIORITY_SYNC_WRITE, ZIO_FLAG_CANFAIL, &zb));
 

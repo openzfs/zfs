@@ -55,6 +55,8 @@ extern "C" {
 #define	DB_RF_NEVERWAIT		(1 << 4)
 #define	DB_RF_CACHED		(1 << 5)
 #define	DB_RF_NO_DECRYPT	(1 << 6)
+#define	DB_RF_PARTIAL_FIRST	(1 << 7)
+#define	DB_RF_PARTIAL_MORE	(1 << 8)
 
 /*
  * The simplified state transition diagram for dbufs looks like:
@@ -321,6 +323,9 @@ typedef struct dmu_buf_impl {
 	uint8_t db_pending_evict;
 
 	uint8_t db_dirtycnt;
+
+	/* The buffer was partially read.  More reads may follow. */
+	uint8_t db_partial_read;
 } dmu_buf_impl_t;
 
 #define	DBUF_HASH_MUTEX(h, idx) \

@@ -1608,7 +1608,9 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags,
 	DTRACE_SET_STATE(db, "read issued");
 	mutex_exit(&db->db_mtx);
 
-	if (dbuf_is_l2cacheable(db))
+	if (!DBUF_IS_CACHEABLE(db))
+		aflags |= ARC_FLAG_UNCACHED;
+	else if (dbuf_is_l2cacheable(db))
 		aflags |= ARC_FLAG_L2CACHE;
 
 	dbuf_add_ref(db, NULL);
@@ -1736,10 +1738,13 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 	dn = DB_DNODE(db);
 
 	prefetch = db->db_level == 0 && db->db_blkid != DMU_BONUS_BLKID &&
-	    (flags & DB_RF_NOPREFETCH) == 0 && dn != NULL &&
-	    DBUF_IS_CACHEABLE(db);
+	    (flags & DB_RF_NOPREFETCH) == 0 && dn != NULL;
 
 	mutex_enter(&db->db_mtx);
+	if (flags & DB_RF_PARTIAL_FIRST)
+		db->db_partial_read = B_TRUE;
+	else if (!(flags & DB_RF_PARTIAL_MORE))
+		db->db_partial_read = B_FALSE;
 	if (db->db_state == DB_CACHED) {
 		/*
 		 * Ensure that this block's dnode has been decrypted if
@@ -3463,8 +3468,9 @@ dbuf_prefetch_impl(dnode_t *dn, int64_t level, uint64_t blkid,
 	dpa->dpa_cb = cb;
 	dpa->dpa_arg = arg;
 
-	/* flag if L2ARC eligible, l2arc_noprefetch then decides */
-	if (dnode_level_is_l2cacheable(&bp, dn, level))
+	if (!DNODE_LEVEL_IS_CACHEABLE(dn, level))
+		dpa->dpa_aflags |= ARC_FLAG_UNCACHED;
+	else if (dnode_level_is_l2cacheable(&bp, dn, level))
 		dpa->dpa_aflags |= ARC_FLAG_L2CACHE;
 
 	/*
@@ -3853,59 +3859,38 @@ dbuf_rele_and_unlock(dmu_buf_impl_t *db, const void *tag, boolean_t evicting)
 			 * This dbuf has anonymous data associated with it.
 			 */
 			dbuf_destroy(db);
-		} else {
-			boolean_t do_arc_evict = B_FALSE;
-			blkptr_t bp;
-			spa_t *spa = dmu_objset_spa(db->db_objset);
+		} else if (!(DBUF_IS_CACHEABLE(db) || db->db_partial_read) ||
+		    db->db_pending_evict) {
+			dbuf_destroy(db);
+		} else if (!multilist_link_active(&db->db_cache_link)) {
+			ASSERT3U(db->db_caching_status, ==, DB_NO_CACHE);
 
-			if (!DBUF_IS_CACHEABLE(db) &&
-			    db->db_blkptr != NULL &&
-			    !BP_IS_HOLE(db->db_blkptr) &&
-			    !BP_IS_EMBEDDED(db->db_blkptr)) {
-				do_arc_evict = B_TRUE;
-				bp = *db->db_blkptr;
+			dbuf_cached_state_t dcs =
+			    dbuf_include_in_metadata_cache(db) ?
+			    DB_DBUF_METADATA_CACHE : DB_DBUF_CACHE;
+			db->db_caching_status = dcs;
+
+			multilist_insert(&dbuf_caches[dcs].cache, db);
+			uint64_t db_size = db->db.db_size;
+			size = zfs_refcount_add_many(
+			    &dbuf_caches[dcs].size, db_size, db);
+			uint8_t db_level = db->db_level;
+			mutex_exit(&db->db_mtx);
+
+			if (dcs == DB_DBUF_METADATA_CACHE) {
+				DBUF_STAT_BUMP(metadata_cache_count);
+				DBUF_STAT_MAX(metadata_cache_size_bytes_max,
+				    size);
+			} else {
+				DBUF_STAT_BUMP(cache_count);
+				DBUF_STAT_MAX(cache_size_bytes_max, size);
+				DBUF_STAT_BUMP(cache_levels[db_level]);
+				DBUF_STAT_INCR(cache_levels_bytes[db_level],
+				    db_size);
 			}
 
-			if (!DBUF_IS_CACHEABLE(db) ||
-			    db->db_pending_evict) {
-				dbuf_destroy(db);
-			} else if (!multilist_link_active(&db->db_cache_link)) {
-				ASSERT3U(db->db_caching_status, ==,
-				    DB_NO_CACHE);
-
-				dbuf_cached_state_t dcs =
-				    dbuf_include_in_metadata_cache(db) ?
-				    DB_DBUF_METADATA_CACHE : DB_DBUF_CACHE;
-				db->db_caching_status = dcs;
-
-				multilist_insert(&dbuf_caches[dcs].cache, db);
-				uint64_t db_size = db->db.db_size;
-				size = zfs_refcount_add_many(
-				    &dbuf_caches[dcs].size, db_size, db);
-				uint8_t db_level = db->db_level;
-				mutex_exit(&db->db_mtx);
-
-				if (dcs == DB_DBUF_METADATA_CACHE) {
-					DBUF_STAT_BUMP(metadata_cache_count);
-					DBUF_STAT_MAX(
-					    metadata_cache_size_bytes_max,
-					    size);
-				} else {
-					DBUF_STAT_BUMP(cache_count);
-					DBUF_STAT_MAX(cache_size_bytes_max,
-					    size);
-					DBUF_STAT_BUMP(cache_levels[db_level]);
-					DBUF_STAT_INCR(
-					    cache_levels_bytes[db_level],
-					    db_size);
-				}
-
-				if (dcs == DB_DBUF_CACHE && !evicting)
-					dbuf_evict_notify(size);
-			}
-
-			if (do_arc_evict)
-				arc_freed(spa, &bp);
+			if (dcs == DB_DBUF_CACHE && !evicting)
+				dbuf_evict_notify(size);
 		}
 	} else {
 		mutex_exit(&db->db_mtx);
@@ -5083,8 +5068,8 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 			children_ready_cb = dbuf_write_children_ready;
 
 		dr->dr_zio = arc_write(pio, os->os_spa, txg,
-		    &dr->dr_bp_copy, data, dbuf_is_l2cacheable(db),
-		    &zp, dbuf_write_ready,
+		    &dr->dr_bp_copy, data, !DBUF_IS_CACHEABLE(db),
+		    dbuf_is_l2cacheable(db), &zp, dbuf_write_ready,
 		    children_ready_cb, dbuf_write_physdone,
 		    dbuf_write_done, db, ZIO_PRIORITY_ASYNC_WRITE,
 		    ZIO_FLAG_MUSTSUCCEED, &zb);
