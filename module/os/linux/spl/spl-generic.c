@@ -254,8 +254,10 @@ __div_u64(uint64_t u, uint32_t v)
  * replacements for libgcc-provided functions and will never be called
  * directly.
  */
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-prototypes"
+#endif
 
 /*
  * Implementation of 64-bit unsigned division for 32-bit machines.
@@ -449,7 +451,9 @@ __aeabi_ldivmod(int64_t u, int64_t v)
 EXPORT_SYMBOL(__aeabi_ldivmod);
 #endif /* __arm || __arm__ */
 
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic pop
+#endif
 
 #endif /* BITS_PER_LONG */
 
