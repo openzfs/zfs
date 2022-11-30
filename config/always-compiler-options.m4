@@ -221,3 +221,34 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_IPA_SRA], [
 	CFLAGS="$saved_flags"
 	AC_SUBST([NO_IPA_SRA])
 ])
+
+dnl #
+dnl # Check if kernel cc supports -fno-ipa-sra option.
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_KERNEL_CC_NO_IPA_SRA], [
+	AC_MSG_CHECKING([whether $KERNEL_CC supports -fno-ipa-sra])
+
+	saved_cc="$CC"
+	saved_flags="$CFLAGS"
+	CC="gcc"
+	CFLAGS="$CFLAGS -Werror -fno-ipa-sra"
+
+	AS_IF([ test -n "$KERNEL_CC" ], [
+		CC="$KERNEL_CC"
+	])
+	AS_IF([ test -n "$KERNEL_LLVM" ], [
+		CC="clang"
+	])
+
+	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
+		KERNEL_NO_IPA_SRA=-fno-ipa-sra
+		AC_MSG_RESULT([yes])
+	], [
+		KERNEL_NO_IPA_SRA=
+		AC_MSG_RESULT([no])
+	])
+
+	CC="$saved_cc"
+	CFLAGS="$saved_flags"
+	AC_SUBST([KERNEL_NO_IPA_SRA])
+])
