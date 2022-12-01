@@ -6,7 +6,7 @@ on:
 
 jobs:
   tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     env:
       TEST_DIR: /var/tmp/zloop
     steps:
