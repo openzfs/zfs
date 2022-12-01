@@ -3966,6 +3966,15 @@ zfs_setup_cmdline_props(libzfs_handle_t *hdl, zfs_type_t type,
 			goto error;
 		}
 
+		/*
+		 * For plain replicated send, we can ignore encryption
+		 * properties other than first stream
+		 */
+		if ((zfs_prop_encryption_key_param(prop) || prop ==
+		    ZFS_PROP_ENCRYPTION) && !newfs && recursive && !raw) {
+			continue;
+		}
+
 		/* incremental streams can only exclude encryption properties */
 		if ((zfs_prop_encryption_key_param(prop) ||
 		    prop == ZFS_PROP_ENCRYPTION) && !newfs &&
@@ -4065,7 +4074,8 @@ zfs_setup_cmdline_props(libzfs_handle_t *hdl, zfs_type_t type,
 		if (cp != NULL)
 			*cp = '\0';
 
-		if (!raw && zfs_crypto_create(hdl, namebuf, voprops, NULL,
+		if (!raw && !(!newfs && recursive) &&
+		    zfs_crypto_create(hdl, namebuf, voprops, NULL,
 		    B_FALSE, wkeydata_out, wkeylen_out) != 0) {
 			fnvlist_free(voprops);
 			ret = zfs_error(hdl, EZFS_CRYPTOFAILED, errbuf);
