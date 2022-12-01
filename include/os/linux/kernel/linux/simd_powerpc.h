@@ -69,6 +69,7 @@
 #define	kfpu_allowed()			1
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
+#ifdef CONFIG_SPE
 #define	kfpu_begin()				\
 	{					\
 		preempt_disable();		\
@@ -83,6 +84,20 @@
 		disable_kernel_altivec();	\
 		preempt_enable();		\
 	}
+#else /* CONFIG_SPE */
+#define	kfpu_begin()				\
+	{					\
+		preempt_disable();		\
+		enable_kernel_altivec();	\
+		enable_kernel_vsx();		\
+	}
+#define	kfpu_end()				\
+	{					\
+		disable_kernel_vsx();		\
+		disable_kernel_altivec();	\
+		preempt_enable();		\
+	}
+#endif
 #else
 /* seems that before 4.5 no-one bothered */
 #define	kfpu_begin()
