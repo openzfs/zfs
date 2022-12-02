@@ -21,7 +21,7 @@
 /*
  * Copyright 2015 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2024 by Delphix. All rights reserved.
  * Copyright 2015 RackTop Systems.
  * Copyright (c) 2016, Intel Corporation.
  * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
@@ -633,6 +633,18 @@ get_configs(libpc_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 					    ZPOOL_CONFIG_HOSTNAME);
 					fnvlist_add_string(config,
 					    ZPOOL_CONFIG_HOSTNAME, hostname);
+				}
+
+				if (nvlist_lookup_uint64(tmp,
+				    ZPOOL_CONFIG_SHARED_LOG_POOL, &guid) == 0) {
+					fnvlist_add_uint64(config,
+					    ZPOOL_CONFIG_SHARED_LOG_POOL, guid);
+				}
+
+				if (fnvlist_lookup_boolean(tmp,
+				    ZPOOL_CONFIG_IS_SHARED_LOG)) {
+					fnvlist_add_boolean(config,
+					    ZPOOL_CONFIG_IS_SHARED_LOG);
 				}
 
 				config_seen = B_TRUE;
@@ -1511,6 +1523,11 @@ zpool_find_import_impl(libpc_handle_t *hdl, importargs_t *iarg,
 				    iarg->guid == this_guid;
 			}
 			if (matched) {
+				if (iarg->shared_log_guid) {
+					fnvlist_add_uint64(config,
+					    ZPOOL_CONFIG_SHARED_LOG_POOL,
+					    iarg->shared_log_guid);
+				}
 				/*
 				 * Verify all remaining entries can be opened
 				 * exclusively. This will prune all underlying

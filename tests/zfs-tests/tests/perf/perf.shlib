@@ -10,7 +10,7 @@
 #
 
 #
-# Copyright (c) 2015, 2021 by Delphix. All rights reserved.
+# Copyright (c) 2015, 2023 by Delphix. All rights reserved.
 # Copyright (c) 2016, Intel Corporation.
 #
 
@@ -21,6 +21,7 @@ export PERF_RUNTIME=${PERF_RUNTIME:-'180'}
 export PERF_RANDSEED=${PERF_RANDSEED:-'1234'}
 export PERF_COMPPERCENT=${PERF_COMPPERCENT:-'66'}
 export PERF_COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
+export PERF_LOG_TYPES=${PERF_LOG_TYPES:-"none slog shared"}
 
 # Default to JSON for fio output
 export PERF_FIO_FORMAT=${PERF_FIO_FORMAT:-'json'}
@@ -44,12 +45,13 @@ function get_suffix
 	typeset threads=$1
 	typeset sync=$2
 	typeset iosize=$3
+	typeset log_type=$4
 
 	typeset sync_str=$(get_sync_str $sync)
 	typeset filesystems=$(get_nfilesystems)
 
 	typeset suffix="$sync_str.$iosize-ios"
-	suffix="$suffix.$threads-threads.$filesystems-filesystems"
+	suffix="$suffix.$threads-threads.$filesystems-filesystems.$log_type-log"
 	echo $suffix
 }
 
@@ -63,9 +65,10 @@ function do_fio_run_impl
 	typeset threads_per_fs=$5
 	typeset sync=$6
 	typeset iosize=$7
+	typeset log_type=$8
 
 	typeset sync_str=$(get_sync_str $sync)
-	log_note "Running with $threads $sync_str threads, $iosize ios"
+	log_note "Running with $threads $sync_str threads, $iosize ios with log $log_type"
 
 	if [[ -n $threads_per_fs && $threads_per_fs -ne 0 ]]; then
 		log_must test $do_recreate
@@ -73,7 +76,7 @@ function do_fio_run_impl
 	fi
 
 	if $do_recreate; then
-		recreate_perf_pool
+		recreate_perf_pool $log_type
 
 		#
 		# A value of zero for "threads_per_fs" is "special", and
@@ -127,7 +130,7 @@ function do_fio_run_impl
 	fi
 
 	# This will be part of the output filename.
-	typeset suffix=$(get_suffix $threads $sync $iosize)
+	typeset suffix=$(get_suffix $threads $sync $iosize $log_type)
 
 	# Start the data collection
 	do_collect_scripts $suffix
@@ -168,20 +171,27 @@ function do_fio_run
 	typeset script=$1
 	typeset do_recreate=$2
 	typeset clear_cache=$3
+	typeset log_types=$4
 	typeset threads threads_per_fs sync iosize
 
 	for threads in $PERF_NTHREADS; do
 		for threads_per_fs in $PERF_NTHREADS_PER_FS; do
 			for sync in $PERF_SYNC_TYPES; do
 				for iosize in $PERF_IOSIZES; do
-					do_fio_run_impl \
-					    $script \
-					    $do_recreate \
-					    $clear_cache \
-					    $threads \
-					    $threads_per_fs \
-					    $sync \
-					    $iosize
+					for logtype in $log_types; do
+						if [[ $sync == "0" && $logtype != "none" ]]; then
+							continue
+						fi
+						do_fio_run_impl \
+							$script \
+							$do_recreate \
+							$clear_cache \
+							$threads \
+							$threads_per_fs \
+							$sync \
+							$iosize \
+							$logtype
+					done
 				done
 			done
 		done
@@ -286,8 +296,10 @@ function clear_zinject_delays
 #
 function recreate_perf_pool
 {
+	typeset logtype=$1
 	[[ -n $PERFPOOL ]] || log_fail "The \$PERFPOOL variable isn't set."
 
+	log_note "recreating $PERFPOOL with $logtype"
 	#
 	# In case there's been some "leaked" zinject delays, or if the
 	# performance test injected some delays itself, we clear all
@@ -297,6 +309,23 @@ function recreate_perf_pool
 	#
 	clear_zinject_delays
 
+	if [[ $logtype == "none" ]]; then
+		destroy_pool $PERFPOOL
+		destroy_pool "${PERFPOOL}_log"
+		create_pool $PERFPOOL $DISKS
+	else
+		typeset disks="${DISKS% *}"
+		typeset log_disk="${DISKS##* }"
+		if [[ $logtype == "slog" ]]; then
+			destroy_pool $PERFPOOL
+			destroy_pool "${PERFPOOL}_log"
+			create_pool $PERFPOOL $disks log $log_disk
+		else
+			destroy_pool $PERFPOOL
+			create_pool ${PERFPOOL}_log -L $log_disk
+			create_pool $PERFPOOL -l ${PERFPOOL}_log $disks
+		fi
+	fi
 	#
 	# This function handles the case where the pool already exists,
 	# and will destroy the previous pool and recreate a new pool.

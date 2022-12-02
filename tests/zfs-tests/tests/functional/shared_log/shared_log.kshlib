@@ -1,0 +1,43 @@
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or https://opensource.org/licenses/CDDL-1.0.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+#
+# Copyright (c) 2023 by Delphix. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/shared_log/shared_log.cfg
+
+function cleanup
+{
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+	poolexists $TESTPOOL2 && destroy_pool $TESTPOOL2
+	poolexists $LOGPOOL && destroy_pool $LOGPOOL
+	poolexists ${LOGPOOL}2 && destroy_pool ${LOGPOOL}2
+}
+
+function verify_shared_log
+{
+	local target="$1"
+	local log_pool_name="$2"
+
+	zpool list -v $target | grep -A 1 "shared log" | tail -n 1 | grep "^ *$log_pool_name" >/dev/null
+	return $?
+}
