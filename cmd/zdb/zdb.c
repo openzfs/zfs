@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2024 by Delphix. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
  * Copyright 2016 Nexenta Systems, Inc.
  * Copyright (c) 2017, 2018 Lawrence Livermore National Security, LLC.
@@ -6011,6 +6011,17 @@ skipped:
 	if (!do_claim)
 		return;
 
+
+	/*
+	 * Theoretically, we could try to track leaks here, but it would
+	 * require also importing the shared log pool and processing the
+	 * chain map and space maps for it. ZDB currently doesn't have
+	 * much facility to support multiple pools at once, so we leave this
+	 * for future work.
+	 */
+	if (zilog && zilog->zl_spa != zilog->zl_io_spa)
+		return;
+
 	VERIFY0(zio_wait(zio_claim(NULL, zcb->zcb_spa,
 	    spa_min_claim_txg(zcb->zcb_spa), bp, NULL, NULL,
 	    ZIO_FLAG_CANFAIL)));
@@ -6961,6 +6972,47 @@ zdb_brt_entry_compare(const void *zcn1, const void *zcn2)
 }
 
 static int
+chain_map_count_blk_cb(spa_t *spa, const blkptr_t *bp, void *arg)
+{
+	(void) spa;
+	zdb_cb_t *zbc = arg;
+	zdb_count_block(zbc, NULL, bp, ZDB_OT_OTHER);
+	return (0);
+}
+
+static int
+chain_map_count_lr_cb(spa_t *spa, const lr_t *lrc, void *arg)
+{
+	(void) spa;
+	zdb_cb_t *zbc = arg;
+	lr_write_t *lr = (lr_write_t *)lrc;
+	blkptr_t *bp = &lr->lr_blkptr;
+	if (lrc->lrc_txtype != TX_WRITE || BP_IS_HOLE(bp))
+		return (0);
+	zdb_count_block(zbc, NULL, bp, ZDB_OT_OTHER);
+	return (0);
+}
+
+/*
+ * Count the blocks in the chain maps.
+ */
+static void
+chain_map_count_blocks(spa_t *spa, zdb_cb_t *zbc)
+{
+	avl_tree_t *pool_t = &spa->spa_chain_map;
+
+	for (spa_chain_map_pool_t *pool_node = avl_first(pool_t);
+	    pool_node != NULL; pool_node = AVL_NEXT(pool_t, pool_node)) {
+		avl_tree_t *os_t = &pool_node->scmp_os_tree;
+		for (spa_chain_map_os_t *os_node = avl_first(os_t);
+		    os_node != NULL; os_node = AVL_NEXT(os_t, os_node)) {
+			(void) zil_parse_raw(spa, &os_node->scmo_chain_head,
+			    chain_map_count_blk_cb, chain_map_count_lr_cb, zbc);
+		}
+	}
+}
+
+static int
 dump_block_stats(spa_t *spa)
 {
 	zdb_cb_t *zcb;
@@ -7024,6 +7076,10 @@ dump_block_stats(spa_t *spa)
 	}
 
 	deleted_livelists_count_blocks(spa, zcb);
+
+	if (spa_is_shared_log(spa)) {
+		chain_map_count_blocks(spa, zcb);
+	}
 
 	if (dump_opt['c'] > 1)
 		flags |= TRAVERSE_PREFETCH_DATA;
@@ -7378,7 +7434,7 @@ zdb_ddt_add_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	zdb_ddt_entry_t *zdde, zdde_search;
 
 	if (zb->zb_level == ZB_DNODE_LEVEL || BP_IS_HOLE(bp) ||
-	    BP_IS_EMBEDDED(bp))
+	    BP_IS_EMBEDDED(bp) || (zilog && zilog->zl_spa != zilog->zl_io_spa))
 		return (0);
 
 	if (dump_opt['S'] > 1 && zb->zb_level == ZB_ROOT_LEVEL) {
@@ -8148,6 +8204,8 @@ dump_mos_leaks(spa_t *spa)
 	    scip_next_mapping_object);
 	mos_obj_refd(spa->spa_condensing_indirect_phys.
 	    scip_prev_obsolete_sm_object);
+	if (spa_is_shared_log(spa))
+		mos_obj_refd(spa->spa_dsl_pool->dp_chain_map_obj);
 	if (spa->spa_condensing_indirect_phys.scip_next_mapping_object != 0) {
 		vdev_indirect_mapping_t *vim =
 		    vdev_indirect_mapping_open(mos,

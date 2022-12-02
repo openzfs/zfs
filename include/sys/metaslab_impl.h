@@ -24,7 +24,7 @@
  */
 
 /*
- * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2023 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_METASLAB_IMPL_H
@@ -179,7 +179,15 @@ typedef struct metaslab_class_allocator {
 struct metaslab_class {
 	kmutex_t		mc_lock;
 	spa_t			*mc_spa;
-	const metaslab_ops_t		*mc_ops;
+	const metaslab_ops_t	*mc_ops;
+	/*
+	 * If this field is set, this is a "virtual" metaslab class. In
+	 * actuality, the allocations will be done by the spa this is pointing
+	 * to, using another pool for our storage. This enables the shared
+	 * SLOG architecture.  If this field is set, most of the other fields
+	 * in this metaslab class are not used, and should be unset.
+	 */
+	struct spa		*mc_virtual;
 
 	/*
 	 * Track the number of metaslab groups that have been initialized

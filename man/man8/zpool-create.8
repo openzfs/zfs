@@ -19,7 +19,7 @@
 .\" CDDL HEADER END
 .\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
-.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+.\" Copyright (c) 2012, 2023 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
 .\" Copyright (c) 2017 Datto Inc.
 .\" Copyright (c) 2018 George Melikov. All Rights Reserved.
@@ -37,8 +37,9 @@
 .Sh SYNOPSIS
 .Nm zpool
 .Cm create
-.Op Fl dfn
+.Op Fl dfnL
 .Op Fl m Ar mountpoint
+.Op Fl l Ar pool
 .Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
 .Oo Fl o Sy feature@ Ns Ar feature Ns = Ns Ar value Oc
 .Op Fl o Ar compatibility Ns = Ns Sy off Ns | Ns Sy legacy Ns | Ns Ar file Ns Oo , Ns Ar file Oc Ns …
@@ -167,6 +168,18 @@ Displays the configuration that would be used without actually creating the
 pool.
 The actual pool creation can still fail due to insufficient privileges or
 device sharing.
+.It Fl L
+Create the pool as a shared log pool.
+Shared log pools cannot have filesystems or ZVOLs created in them, but they
+can be used as a virtual log device by several other pools, allowing more
+efficient use of physical log devices.
+Only one shared log pool can be imported on the system at a given
+time.
+.It Fl l Ar pool
+Create the pool using the provided pool as the log device.
+The provided pool must be a shared log pool (created using the
+.Fl L
+flag), and no other log devices can be specified as part of the vdev tree.
 .It Fl o Ar property Ns = Ns Ar value
 Sets the given pool properties.
 See

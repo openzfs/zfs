@@ -947,6 +947,11 @@ tests = ['scrub_mirror_001_pos', 'scrub_mirror_002_pos',
     'scrub_mirror_003_pos', 'scrub_mirror_004_pos']
 tags = ['functional', 'scrub_mirror']
 
+[tests/functional/shared_log]
+tests = ['shared_log_001_pos', 'shared_log_002_pos', 'shared_log_003_pos', 'shared_log_004_pos',
+    'shared_log_005_pos', 'shared_log_006_neg']
+tags = ['functional', 'shared_log']
+
 [tests/functional/slog]
 tests = ['slog_001_pos', 'slog_002_pos', 'slog_003_pos', 'slog_004_pos',
     'slog_005_pos', 'slog_006_pos', 'slog_007_pos', 'slog_008_neg',

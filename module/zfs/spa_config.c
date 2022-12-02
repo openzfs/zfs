@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2023 by Delphix. All rights reserved.
  * Copyright 2017 Joyent, Inc.
  * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
  */
@@ -466,6 +466,11 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	if (spa->spa_compatibility != NULL)
 		fnvlist_add_string(config, ZPOOL_CONFIG_COMPATIBILITY,
 		    spa->spa_compatibility);
+	if (spa->spa_uses_shared_log)
+		fnvlist_add_uint64(config, ZPOOL_CONFIG_SHARED_LOG_POOL,
+		    spa_guid(spa_get_shared_log_pool(spa)));
+	if (spa_is_shared_log(spa))
+		fnvlist_add_boolean(config, ZPOOL_CONFIG_IS_SHARED_LOG);
 
 	hostid = spa_get_hostid(spa);
 	if (hostid != 0)

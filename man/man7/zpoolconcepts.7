@@ -19,7 +19,7 @@
 .\" CDDL HEADER END
 .\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
-.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+.\" Copyright (c) 2012, 2023 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
 .\" Copyright (c) 2017 Datto Inc.
 .\" Copyright (c) 2018 George Melikov. All Rights Reserved.
@@ -175,6 +175,13 @@ If more than one log device is specified, then writes are load-balanced between
 devices.
 Log devices can be mirrored.
 However, raidz vdev types are not supported for the intent log.
+For more information, see the
+.Sx Intent Log
+section.
+.It Sy shared log
+A separate ZFS storage pool used as a shared intent log device.
+Only one shared log can specified at pool creation or import, and a normal log
+device cannot also be specified.
 For more information, see the
 .Sx Intent Log
 section.
@@ -395,6 +402,9 @@ In addition, log devices are imported and exported as part of the pool
 that contains them.
 Mirrored devices can be removed by specifying the top-level mirror vdev.
 .
+A shared log pool can be used as a log device; this pool can be used by
+several different "client" pools to provide easier management of space
+to be used for the intent log.
 .Ss Cache Devices
 Devices can be added to a storage pool as
 .Qq cache devices .

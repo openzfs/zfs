@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2023 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2015, Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
@@ -1660,6 +1660,12 @@ static metaslab_ops_t metaslab_allocators[] = {
 	{ "new-dynamic", metaslab_ndf_alloc },
 };
 
+const metaslab_ops_t zfs_virtual_ops = {
+	"virtual",
+	NULL,
+	METASLAB_TYPE_VIRTUAL
+};
+
 static int
 spa_find_allocator_byname(const char *val)
 {
@@ -2866,6 +2872,10 @@ metaslab_fini(metaslab_t *msp)
 	range_tree_destroy(msp->ms_unflushed_frees);
 
 	for (int t = 0; t < TXG_SIZE; t++) {
+		if (spa_is_shared_log(spa) &&
+		    spa_load_state(spa) != SPA_LOAD_NONE) {
+			range_tree_vacate(msp->ms_allocating[t], NULL, NULL);
+		}
 		range_tree_destroy(msp->ms_allocating[t]);
 	}
 	for (int t = 0; t < TXG_DEFER_SIZE; t++) {
@@ -5845,6 +5855,19 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
     int ndvas, uint64_t txg, blkptr_t *hintbp, int flags,
     zio_alloc_list_t *zal, zio_t *zio, int allocator)
 {
+	if (mc->mc_ops->msop_type == METASLAB_TYPE_VIRTUAL) {
+		ASSERT3P(mc->mc_virtual, !=, NULL);
+		spa_t *target_spa = mc->mc_virtual;
+		dmu_tx_t *tx = dmu_tx_create_mos(target_spa->spa_dsl_pool);
+		VERIFY0(dmu_tx_assign(tx, TXG_WAIT | TXG_NOTHROTTLE));
+		uint64_t target_txg = dmu_tx_get_txg(tx);
+		int ret = metaslab_alloc(target_spa,
+		    spa_normal_class(target_spa), psize, bp, ndvas, target_txg,
+		    hintbp, flags, zal, zio, allocator);
+		dmu_tx_commit(tx);
+		return (ret);
+	}
+
 	dva_t *dva = bp->blk_dva;
 	dva_t *hintdva = (hintbp != NULL) ? hintbp->blk_dva : NULL;
 	int error = 0;
@@ -5861,7 +5884,7 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
 	}
 
 	ASSERT(ndvas > 0 && ndvas <= spa_max_replication(spa));
-	ASSERT(BP_GET_NDVAS(bp) == 0);
+	ASSERT0(BP_GET_NDVAS(bp));
 	ASSERT(hintbp == NULL || ndvas <= BP_GET_NDVAS(hintbp));
 	ASSERT3P(zal, !=, NULL);
 
@@ -5887,8 +5910,8 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
 			    DVA_GET_VDEV(&dva[d]), zio, flags, allocator);
 		}
 	}
-	ASSERT(error == 0);
-	ASSERT(BP_GET_NDVAS(bp) == ndvas);
+	ASSERT0(error);
+	ASSERT3U(BP_GET_NDVAS(bp), ==, ndvas);
 
 	spa_config_exit(spa, SCL_ALLOC, FTAG);
 

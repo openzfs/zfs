@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2023 by Delphix. All rights reserved.
  * Copyright 2016 Nexenta Systems, Inc.  All rights reserved.
  */
 
@@ -106,6 +106,7 @@ typedef struct dsl_pool {
 	uint64_t dp_bptree_obj;
 	uint64_t dp_empty_bpobj;
 	bpobj_t dp_obsolete_bpobj;
+	uint64_t dp_chain_map_obj;
 
 	struct dsl_scan *dp_scan;
 

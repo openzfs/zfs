@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2023 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
@@ -86,6 +86,7 @@ typedef enum spa_feature {
 	SPA_FEATURE_FAST_DEDUP,
 	SPA_FEATURE_LONGNAME,
 	SPA_FEATURE_LARGE_MICROZAP,
+	SPA_FEATURE_SHARED_LOG,
 	SPA_FEATURES
 } spa_feature_t;
 

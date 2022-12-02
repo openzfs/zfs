@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2023 by Delphix. All rights reserved.
  */
 
 #ifndef	ZPOOL_UTIL_H
@@ -57,8 +58,8 @@ char *zpool_get_cmd_search_path(void);
  */
 
 nvlist_t *make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force,
-    int check_rep, boolean_t replacing, boolean_t dryrun, int argc,
-    char **argv);
+    int check_rep, boolean_t replacing, boolean_t dryrun,
+    boolean_t have_shlog, int argc, char **argv);
 nvlist_t *split_mirror_vdev(zpool_handle_t *zhp, char *newname,
     nvlist_t *props, splitflags_t flags, int argc, char **argv);
 

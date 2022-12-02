@@ -218,6 +218,36 @@ typedef enum spa_config_source {
 	SPA_CONFIG_SRC_MOS		/* MOS, but not always from right txg */
 } spa_config_source_t;
 
+typedef enum spa_pool_type {
+	SPA_TYPE_NORMAL = 0,
+	SPA_TYPE_SHARED_LOG,
+} spa_pool_type_t;
+
+typedef struct spa_zil_update_head {
+	avl_node_t	szuh_avl;
+	list_t		szuh_list;
+	uint64_t	szuh_id;
+	blkptr_t	szuh_chain_head;
+	boolean_t	szuh_set;
+} spa_zil_update_head_t;
+
+typedef struct spa_zil_update {
+	list_node_t	szu_list;
+	blkptr_t	szu_chain_head;
+} spa_zil_update_t;
+
+typedef struct spa_chain_map_os {
+	avl_node_t	scmo_avl;
+	uint64_t	scmo_id;
+	blkptr_t	scmo_chain_head;
+} spa_chain_map_os_t;
+
+typedef struct spa_chain_map_pool {
+	avl_node_t	scmp_avl;
+	uint64_t	scmp_guid;
+	avl_tree_t	scmp_os_tree;
+} spa_chain_map_pool_t;
+
 struct spa {
 	/*
 	 * Fields protected by spa_namespace_lock.
@@ -225,6 +255,9 @@ struct spa {
 	char		spa_name[ZFS_MAX_DATASET_NAME_LEN];	/* pool name */
 	char		*spa_comment;		/* comment */
 	avl_node_t	spa_avl;		/* node in spa_namespace_avl */
+	avl_node_t	spa_log_avl;		/* node in spa_shared_log_avl */
+	/* node in spa_registered_clients */
+	avl_node_t	spa_client_avl;
 	nvlist_t	*spa_config;		/* last synced config */
 	nvlist_t	*spa_config_syncing;	/* currently syncing config */
 	nvlist_t	*spa_config_splitting;	/* config for splitting */
@@ -245,6 +278,8 @@ struct spa {
 	boolean_t	spa_is_initializing;	/* true while opening pool */
 	boolean_t	spa_is_exporting;	/* true while exporting pool */
 	kthread_t	*spa_export_thread;	/* valid during pool export */
+	/* true if pool's log device is shared log */
+	boolean_t	spa_uses_shared_log;
 	kthread_t	*spa_load_thread;	/* loading, no namespace lock */
 	metaslab_class_t *spa_normal_class;	/* normal data class */
 	metaslab_class_t *spa_log_class;	/* intent log data class */
@@ -304,6 +339,7 @@ struct spa {
 	boolean_t	spa_extreme_rewind;	/* rewind past deferred frees */
 	kmutex_t	spa_scrub_lock;		/* resilver/scrub lock */
 	uint64_t	spa_scrub_inflight;	/* in-flight scrub bytes */
+	boolean_t	spa_pool_type;	/* normal or object-based */
 
 	/* in-flight verification bytes */
 	uint64_t	spa_load_verify_bytes;
@@ -479,6 +515,17 @@ struct spa {
 	 */
 	spa_config_lock_t spa_config_lock[SCL_LOCKS]; /* config changes */
 	zfs_refcount_t	spa_refcount;		/* number of opens */
+
+	/* Only used if type is shared log */
+	kmutex_t	spa_chain_map_lock;
+	avl_tree_t	spa_chain_map;
+	avl_tree_t	spa_registered_clients;
+
+	/* Only used during syncing context if using shared log */
+	kmutex_t	spa_zil_map_lock;
+	avl_tree_t	spa_zil_map;
+	list_t		spa_zil_deletes;
+	taskq_t		*spa_chain_map_taskq;
 };
 
 extern char *spa_config_path;
@@ -497,6 +544,7 @@ extern void spa_set_deadman_ziotime(hrtime_t ns);
 extern const char *spa_history_zone(void);
 extern const char *zfs_active_allocator;
 extern int param_set_active_allocator_common(const char *val);
+extern void spa_set_pool_type(spa_t *);
 
 #ifdef	__cplusplus
 }

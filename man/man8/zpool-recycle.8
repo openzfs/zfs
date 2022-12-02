@@ -1,0 +1,70 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or https://opensource.org/licenses/CDDL-1.0.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2023 by Delphix. All rights reserved.
+.\"
+.Dd February 13, 2023
+.Dt ZPOOL-RECYCLE 8
+.Os
+.
+.Sh NAME
+.Nm zpool-recycle
+.Nd recycle space used by shared log ZIL chains
+.Sh SYNOPSIS
+.Nm zpool
+.Cm recycle
+.Op Fl n
+.Op Ar pool
+.
+.Sh DESCRIPTION
+Client pools (from
+.Nm zpool
+.Cm create
+.Fl l
+) store their ZIL logs on the shared log pool (from
+.Nm zpool
+.Cm create
+.Fl L
+).
+When a client pool is deleted with
+.Nm zpool
+.Cm destroy
+, any space used in the shared log pool is reclaimed.
+However, if a client pool is exported and will not be imported again
+(e.g. because the disks were damaged or removed), any space associated with
+it in the shared log pool remains allocated.
+.Nm zpool
+.Cm recycle
+will reclaim space in the shared log pool that is referenced by any
+non-imported client pools.
+These non-imported client pools will have their logs deleted; if they are
+subsequently imported,
+.Nm zpool
+.Cm import
+.Fl m
+will need to be used to ignore the missing logs, discarding any recent
+transactions.
+.
+.Sh OPTIONS
+.Bl -tag -width "-n"
+.It Fl n
+Do not actually perform any deletions, just print out the list of pool
+GUIDs that would be affected.
+.El

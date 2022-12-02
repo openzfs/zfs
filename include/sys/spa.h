@@ -841,6 +841,8 @@ void spa_select_allocator(zio_t *zio);
 extern kmutex_t spa_namespace_lock;
 extern avl_tree_t spa_namespace_avl;
 extern kcondvar_t spa_namespace_cv;
+extern avl_tree_t spa_shared_log_avl;
+extern kmutex_t spa_shared_log_lock;
 
 /*
  * SPA configuration functions in spa_config.c
@@ -1045,7 +1047,8 @@ extern void spa_altroot(spa_t *, char *, size_t);
 extern uint32_t spa_sync_pass(spa_t *spa);
 extern char *spa_name(spa_t *spa);
 extern uint64_t spa_guid(spa_t *spa);
-extern uint64_t spa_load_guid(spa_t *spa);
+extern uint64_t spa_const_guid(const spa_t *spa);
+extern uint64_t spa_load_guid(const spa_t *spa);
 extern uint64_t spa_last_synced_txg(spa_t *spa);
 extern uint64_t spa_first_txg(spa_t *spa);
 extern uint64_t spa_syncing_txg(spa_t *spa);
@@ -1140,7 +1143,8 @@ extern boolean_t spa_multihost(spa_t *spa);
 extern uint32_t spa_get_hostid(spa_t *spa);
 extern void spa_activate_allocation_classes(spa_t *, dmu_tx_t *);
 extern boolean_t spa_livelist_delete_check(spa_t *spa);
-
+extern boolean_t spa_is_shared_log(const spa_t *spa);
+extern boolean_t spa_uses_shared_log(const spa_t *spa);
 extern boolean_t spa_mmp_remote_host_activity(spa_t *spa);
 
 extern spa_mode_t spa_mode(spa_t *spa);
@@ -1237,6 +1241,15 @@ extern void spa_import_os(spa_t *spa);
 extern void spa_export_os(spa_t *spa);
 extern void spa_activate_os(spa_t *spa);
 extern void spa_deactivate_os(spa_t *spa);
+
+extern void spa_zil_map_insert(spa_t *spa, objset_t *os,
+    const blkptr_t *prev_bp, blkptr_t *bp);
+extern void spa_zil_map_set_final(spa_t *spa, objset_t *os, blkptr_t *bp);
+extern void spa_zil_delete(spa_t *spa, objset_t *os);
+extern void spa_zil_header_convert(spa_t *spa, objset_t *os, blkptr_t *bp);
+extern void spa_zil_header_mask(spa_t *spa, blkptr_t *bp);
+extern spa_t *spa_get_shared_log_pool(spa_t *spa);
+extern int spa_recycle(spa_t *spa, boolean_t dryrun, nvlist_t *outnvl);
 
 /* module param call functions */
 int param_set_deadman_ziotime(ZFS_MODULE_PARAM_ARGS);

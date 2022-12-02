@@ -238,6 +238,8 @@
 
 avl_tree_t spa_namespace_avl;
 kmutex_t spa_namespace_lock;
+avl_tree_t spa_shared_log_avl;
+kmutex_t spa_shared_log_lock;
 kcondvar_t spa_namespace_cv;
 static const int spa_max_replication_override = SPA_DVAS_PER_BP;
 
@@ -444,6 +446,41 @@ static int zfs_user_indirect_is_special = B_TRUE;
  * let metadata into the class.
  */
 static uint_t zfs_special_class_metadata_reserve_pct = 25;
+
+void
+spa_set_pool_type(spa_t *spa)
+{
+	ASSERT3P(spa->spa_root_vdev, !=, NULL);
+
+	/*
+	 * Must hold all of spa_config locks.
+	 */
+	ASSERT3U(spa_config_held(spa, SCL_ALL, RW_WRITER), ==, SCL_ALL);
+
+	if (fnvlist_lookup_boolean(spa->spa_config,
+	    ZPOOL_CONFIG_IS_SHARED_LOG)) {
+		spa->spa_pool_type = SPA_TYPE_SHARED_LOG;
+		avl_index_t where;
+		mutex_enter(&spa_shared_log_lock);
+		if (avl_find(&spa_shared_log_avl, spa, &where) == NULL)
+			avl_insert(&spa_shared_log_avl, spa, where);
+		mutex_exit(&spa_shared_log_lock);
+	} else {
+		spa->spa_pool_type = SPA_TYPE_NORMAL;
+	}
+}
+
+boolean_t
+spa_is_shared_log(const spa_t *spa)
+{
+	return (spa->spa_pool_type == SPA_TYPE_SHARED_LOG);
+}
+
+boolean_t
+spa_uses_shared_log(const spa_t *spa)
+{
+	return (spa->spa_uses_shared_log);
+}
 
 /*
  * ==========================================================================
@@ -685,6 +722,15 @@ spa_log_sm_sort_by_txg(const void *va, const void *vb)
 	return (TREE_CMP(a->sls_txg, b->sls_txg));
 }
 
+static int
+spa_guid_compare(const void *a1, const void *a2)
+{
+	const spa_t *s1 = a1;
+	const spa_t *s2 = a2;
+
+	return (TREE_CMP(spa_const_guid(s1), spa_const_guid(s2)));
+}
+
 /*
  * Create an uninitialized spa_t with the given name.  Requires
  * spa_namespace_lock.  The caller must ensure that the spa_t doesn't already
@@ -714,6 +760,8 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	mutex_init(&spa->spa_feat_stats_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&spa->spa_flushed_ms_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&spa->spa_activities_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&spa->spa_chain_map_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&spa->spa_zil_map_lock, NULL, MUTEX_DEFAULT, NULL);
 
 	cv_init(&spa->spa_async_cv, NULL, CV_DEFAULT, NULL);
 	cv_init(&spa->spa_evicting_os_cv, NULL, CV_DEFAULT, NULL);
@@ -777,6 +825,8 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	    sizeof (metaslab_t), offsetof(metaslab_t, ms_spa_txg_node));
 	avl_create(&spa->spa_sm_logs_by_txg, spa_log_sm_sort_by_txg,
 	    sizeof (spa_log_sm_t), offsetof(spa_log_sm_t, sls_node));
+	avl_create(&spa->spa_registered_clients, spa_guid_compare,
+	    sizeof (spa_t), offsetof(spa_t, spa_client_avl));
 	list_create(&spa->spa_log_summary, sizeof (log_summary_entry_t),
 	    offsetof(log_summary_entry_t, lse_node));
 
@@ -852,6 +902,12 @@ spa_remove(spa_t *spa)
 
 	avl_remove(&spa_namespace_avl, spa);
 
+	if (spa_is_shared_log(spa)) {
+		mutex_enter(&spa_shared_log_lock);
+		avl_remove(&spa_shared_log_avl, spa);
+		mutex_exit(&spa_shared_log_lock);
+	}
+
 	if (spa->spa_root)
 		spa_strfree(spa->spa_root);
 
@@ -875,6 +931,7 @@ spa_remove(spa_t *spa)
 
 	avl_destroy(&spa->spa_metaslabs_by_flushed);
 	avl_destroy(&spa->spa_sm_logs_by_txg);
+	avl_destroy(&spa->spa_registered_clients);
 	list_destroy(&spa->spa_log_summary);
 	list_destroy(&spa->spa_config_list);
 	list_destroy(&spa->spa_leaf_list);
@@ -916,6 +973,7 @@ spa_remove(spa_t *spa)
 	mutex_destroy(&spa->spa_vdev_top_lock);
 	mutex_destroy(&spa->spa_feat_stats_lock);
 	mutex_destroy(&spa->spa_activities_lock);
+	mutex_destroy(&spa->spa_chain_map_lock);
 
 	kmem_free(spa, sizeof (spa_t));
 }
@@ -1748,6 +1806,20 @@ spa_name(spa_t *spa)
 }
 
 uint64_t
+spa_const_guid(const spa_t *spa)
+{
+	/*
+	 * If we fail to parse the config during spa_load(), we can go through
+	 * the error path (which posts an ereport) and end up here with no root
+	 * vdev.  We stash the original pool guid in 'spa_config_guid' to handle
+	 * this case.
+	 */
+	if (spa->spa_root_vdev == NULL)
+		return (spa->spa_config_guid);
+	return (spa->spa_root_vdev->vdev_guid);
+}
+
+uint64_t
 spa_guid(spa_t *spa)
 {
 	dsl_pool_t *dp = spa_get_dsl(spa);
@@ -1776,7 +1848,7 @@ spa_guid(spa_t *spa)
 }
 
 uint64_t
-spa_load_guid(spa_t *spa)
+spa_load_guid(const spa_t *spa)
 {
 	/*
 	 * This is a GUID that exists solely as a reference for the
@@ -2535,6 +2607,7 @@ void
 spa_init(spa_mode_t mode)
 {
 	mutex_init(&spa_namespace_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&spa_shared_log_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&spa_spare_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&spa_l2cache_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&spa_namespace_cv, NULL, CV_DEFAULT, NULL);
@@ -2547,6 +2620,9 @@ spa_init(spa_mode_t mode)
 
 	avl_create(&spa_l2cache_avl, spa_l2cache_compare, sizeof (spa_aux_t),
 	    offsetof(spa_aux_t, aux_avl));
+
+	avl_create(&spa_shared_log_avl, spa_guid_compare, sizeof (spa_t),
+	    offsetof(spa_t, spa_log_avl));
 
 	spa_mode_global = mode;
 
@@ -2625,6 +2701,7 @@ spa_fini(void)
 
 	cv_destroy(&spa_namespace_cv);
 	mutex_destroy(&spa_namespace_lock);
+	mutex_destroy(&spa_shared_log_lock);
 	mutex_destroy(&spa_spare_lock);
 	mutex_destroy(&spa_l2cache_lock);
 }
@@ -2637,7 +2714,8 @@ spa_fini(void)
 boolean_t
 spa_has_slogs(spa_t *spa)
 {
-	return (spa->spa_log_class->mc_groups != 0);
+	return (spa->spa_log_class->mc_groups != 0 ||
+	    spa->spa_log_class->mc_virtual != NULL);
 }
 
 spa_log_state_t

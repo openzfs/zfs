@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2023 by Delphix. All rights reserved.
  * Copyright (c) 2013 Martin Matuska <mm@FreeBSD.org>. All rights reserved.
  */
 
@@ -246,6 +246,8 @@ spa_import_rootpool(const char *name, bool checkpointrewind)
 	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
 	error = spa_config_parse(spa, &rvd, nvtop, NULL, 0,
 	    VDEV_ALLOC_ROOTPOOL);
+	if (error == 0)
+		spa_set_pool_type(spa);
 	spa_config_exit(spa, SCL_ALL, FTAG);
 	if (error) {
 		mutex_exit(&spa_namespace_lock);

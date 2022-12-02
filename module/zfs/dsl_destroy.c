@@ -726,7 +726,8 @@ kill_blkptr(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		 * It's a block in the intent log.  It has no
 		 * accounting, so just free it.
 		 */
-		dsl_free(ka->tx->tx_pool, ka->tx->tx_txg, bp);
+		if (!zil_shared_log(zilog))
+			dsl_free(ka->tx->tx_pool, ka->tx->tx_txg, bp);
 	} else {
 		ASSERT(zilog == NULL);
 		ASSERT3U(BP_GET_LOGICAL_BIRTH(bp), >,

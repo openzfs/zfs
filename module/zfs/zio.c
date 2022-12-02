@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2022 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2023 by Delphix. All rights reserved.
  * Copyright (c) 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2019, 2023, 2024, Klara Inc.
@@ -4208,15 +4208,16 @@ zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg, blkptr_t *new_bp,
 	int flags = METASLAB_ZIL;
 	int allocator = (uint_t)cityhash1(os->os_dsl_dataset->ds_object)
 	    % spa->spa_alloc_count;
+	boolean_t must_slog = spa_uses_shared_log(spa);
 	error = metaslab_alloc(spa, spa_log_class(spa), size, new_bp, 1,
 	    txg, NULL, flags, &io_alloc_list, NULL, allocator);
-	*slog = (error == 0);
-	if (error != 0) {
+	*slog = (error == 0 || must_slog);
+	if (error != 0 && !must_slog) {
 		error = metaslab_alloc(spa, spa_embedded_log_class(spa), size,
 		    new_bp, 1, txg, NULL, flags,
 		    &io_alloc_list, NULL, allocator);
 	}
-	if (error != 0) {
+	if (error != 0 && !must_slog) {
 		error = metaslab_alloc(spa, spa_normal_class(spa), size,
 		    new_bp, 1, txg, NULL, flags,
 		    &io_alloc_list, NULL, allocator);

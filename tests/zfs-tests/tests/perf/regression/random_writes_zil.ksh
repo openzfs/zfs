@@ -12,7 +12,7 @@
 #
 
 #
-# Copyright (c) 2015, 2021 by Delphix. All rights reserved.
+# Copyright (c) 2015, 2023 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -26,21 +26,12 @@ function cleanup
 	pkill fio
 	pkill iostat
 
-	#
-	# We're using many filesystems depending on the number of
-	# threads for each test, and there's no good way to get a list
-	# of all the filesystems that should be destroyed on cleanup
-	# (i.e. the list of filesystems used for the last test ran).
-	# Thus, we simply recreate the pool as a way to destroy all
-	# filesystems and leave a fresh pool behind.
-	#
-	recreate_perf_pool
 }
 
 trap "log_fail \"Measure IO stats during random write load\"" SIGTERM
 log_onexit cleanup
 
-recreate_perf_pool
+recreate_perf_pool none
 
 # Aim to fill the pool to 50% capacity while accounting for a 3x compressratio.
 export TOTAL_SIZE=$(($(get_prop avail $PERFPOOL) * 3 / 2))
@@ -82,5 +73,5 @@ else
 fi
 log_note \
     "ZIL specific random write workload with settings: $(print_perf_settings)"
-do_fio_run random_writes.fio true false
+do_fio_run random_writes.fio true false "$PERF_LOG_TYPES"
 log_pass "Measure IO stats during ZIL specific random write workload"
