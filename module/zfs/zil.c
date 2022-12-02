@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2023 by Delphix. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
  * Copyright (c) 2018 Datto Inc.
  */
@@ -247,19 +247,13 @@ zil_kstats_global_update(kstat_t *ksp, int rw)
  * Read a log block and make sure it's valid.
  */
 static int
-zil_read_log_block(zilog_t *zilog, boolean_t decrypt, const blkptr_t *bp,
-    blkptr_t *nbp, char **begin, char **end, arc_buf_t **abuf)
+zil_read_log_block_impl(spa_t *spa, zio_flag_t zio_flags, boolean_t decrypt,
+    const blkptr_t *bp, blkptr_t *nbp, char **begin, char **end,
+    arc_buf_t **abuf)
 {
-	zio_flag_t zio_flags = ZIO_FLAG_CANFAIL;
 	arc_flags_t aflags = ARC_FLAG_WAIT;
 	zbookmark_phys_t zb;
 	int error;
-
-	if (zilog->zl_header->zh_claim_txg == 0)
-		zio_flags |= ZIO_FLAG_SPECULATIVE | ZIO_FLAG_SCRUB;
-
-	if (!(zilog->zl_header->zh_flags & ZIL_CLAIM_LR_SEQ_VALID))
-		zio_flags |= ZIO_FLAG_SPECULATIVE;
 
 	if (!decrypt)
 		zio_flags |= ZIO_FLAG_RAW;
@@ -267,7 +261,7 @@ zil_read_log_block(zilog_t *zilog, boolean_t decrypt, const blkptr_t *bp,
 	SET_BOOKMARK(&zb, bp->blk_cksum.zc_word[ZIL_ZC_OBJSET],
 	    ZB_ZIL_OBJECT, ZB_ZIL_LEVEL, bp->blk_cksum.zc_word[ZIL_ZC_SEQ]);
 
-	error = arc_read(NULL, zilog->zl_spa, bp, arc_getbuf_func,
+	error = arc_read(NULL, spa, bp, arc_getbuf_func,
 	    abuf, ZIO_PRIORITY_SYNC_READ, zio_flags, &aflags, &zb);
 
 	if (error == 0) {
@@ -317,6 +311,29 @@ zil_read_log_block(zilog_t *zilog, boolean_t decrypt, const blkptr_t *bp,
 	return (error);
 }
 
+static int
+zil_read_log_block(zilog_t *zilog, boolean_t decrypt, const blkptr_t *bp,
+    blkptr_t *nbp, char **begin, char **end, arc_buf_t **abuf)
+{
+	zio_flag_t zio_flags = ZIO_FLAG_CANFAIL;
+	if (zilog->zl_header->zh_claim_txg == 0)
+		zio_flags |= ZIO_FLAG_SPECULATIVE | ZIO_FLAG_SCRUB;
+
+	if (!(zilog->zl_header->zh_flags & ZIL_CLAIM_LR_SEQ_VALID))
+		zio_flags |= ZIO_FLAG_SPECULATIVE;
+
+	return (zil_read_log_block_impl(zilog->zl_io_spa, zio_flags, decrypt,
+	    bp, nbp, begin, end, abuf));
+}
+
+static int
+zil_read_log_block_spa(spa_t *spa, boolean_t decrypt, const blkptr_t *bp,
+    blkptr_t *nbp, char **begin, char **end, arc_buf_t **abuf)
+{
+	return (zil_read_log_block_impl(spa, ZIO_FLAG_CANFAIL, decrypt, bp, nbp,
+	    begin, end, abuf));
+}
+
 /*
  * Read a TX_WRITE log data block.
  */
@@ -351,7 +368,7 @@ zil_read_log_data(zilog_t *zilog, const lr_write_t *lr, void *wbuf)
 	SET_BOOKMARK(&zb, dmu_objset_id(zilog->zl_os), lr->lr_foid,
 	    ZB_ZIL_LEVEL, lr->lr_offset / BP_GET_LSIZE(bp));
 
-	error = arc_read(NULL, zilog->zl_spa, bp, arc_getbuf_func, &abuf,
+	error = arc_read(NULL, zilog->zl_io_spa, bp, arc_getbuf_func, &abuf,
 	    ZIO_PRIORITY_SYNC_READ, zio_flags, &aflags, &zb);
 
 	if (error == 0) {
@@ -445,6 +462,57 @@ zil_kstat_values_update(zil_kstat_values_t *zs, zil_sums_t *zil_sums)
 	zs->zil_itx_metaslab_slog_alloc.value.ui64 =
 	    wmsum_value(&zil_sums->zil_itx_metaslab_slog_alloc);
 }
+
+/*
+ * Parse the intent log, and call parse_blk_func for each valid block within
+ *  and parse_lr_func for each valid record within.
+ */
+int
+zil_parse_raw(spa_t *spa, blkptr_t *bp,
+    zil_parse_raw_blk_func_t *parse_blk_func,
+    zil_parse_raw_lr_func_t *parse_lr_func, void *arg)
+{
+	(void) parse_lr_func;
+	blkptr_t blk, next_blk = {{{{0}}}};
+	int error = 0;
+
+	for (blk = *bp; !BP_IS_HOLE(&blk); blk = next_blk) {
+		char *lrp, *end;
+		arc_buf_t *abuf = NULL;
+
+		int read_error = zil_read_log_block_spa(spa, B_FALSE, &blk,
+		    &next_blk, &lrp, &end, &abuf);
+
+		error = parse_blk_func(spa, &blk, arg);
+		if (error != 0) {
+			if (abuf)
+				arc_buf_destroy(abuf, &abuf);
+			break;
+		}
+
+		if (read_error != 0) {
+			if (abuf)
+				arc_buf_destroy(abuf, &abuf);
+			error = read_error;
+			break;
+		}
+
+		int reclen;
+		for (; lrp < end; lrp += reclen) {
+			lr_t *lr = (lr_t *)lrp;
+			reclen = lr->lrc_reclen;
+			ASSERT3U(reclen, >=, sizeof (lr_t));
+
+			error = parse_lr_func(spa, lr, arg);
+			if (error != 0)
+				break;
+		}
+		arc_buf_destroy(abuf, &abuf);
+	}
+
+	return (error);
+}
+
 
 /*
  * Parse the intent log, and call parse_func for each valid record within.
@@ -557,6 +625,8 @@ zil_clear_log_block(zilog_t *zilog, const blkptr_t *bp, void *tx,
 	(void) tx;
 	ASSERT(!BP_IS_HOLE(bp));
 
+	// XXX how do we handle checkpoints?
+	ASSERT(!zilog->zl_spa->spa_uses_shared_log);
 	/*
 	 * As we call this function from the context of a rewind to a
 	 * checkpoint, each ZIL block whose txg is later than the txg
@@ -569,7 +639,7 @@ zil_clear_log_block(zilog_t *zilog, const blkptr_t *bp, void *tx,
 	if (zil_bp_tree_add(zilog, bp) != 0)
 		return (0);
 
-	zio_free(zilog->zl_spa, first_txg, bp);
+	zio_free(zilog->zl_io_spa, first_txg, bp);
 	return (0);
 }
 
@@ -590,7 +660,8 @@ zil_claim_log_block(zilog_t *zilog, const blkptr_t *bp, void *tx,
 	 * If tx == NULL, just verify that the block is claimable.
 	 */
 	if (BP_IS_HOLE(bp) || bp->blk_birth < first_txg ||
-	    zil_bp_tree_add(zilog, bp) != 0)
+	    zil_bp_tree_add(zilog, bp) != 0 ||
+	    zilog->zl_spa != zilog->zl_io_spa)
 		return (0);
 
 	return (zio_wait(zio_claim(NULL, zilog->zl_spa,
@@ -680,7 +751,8 @@ zil_free_log_block(zilog_t *zilog, const blkptr_t *bp, void *tx,
 {
 	(void) claim_txg;
 
-	zio_free(zilog->zl_spa, dmu_tx_get_txg(tx), bp);
+	if (!zilog->zl_spa->spa_uses_shared_log)
+		zio_free(zilog->zl_spa, dmu_tx_get_txg(tx), bp);
 
 	return (0);
 }
@@ -697,7 +769,7 @@ zil_free_write(zilog_t *zilog, const lr_t *lrc, void *tx, uint64_t claim_txg)
 	 * If we previously claimed it, we need to free it.
 	 */
 	if (bp->blk_birth >= claim_txg && zil_bp_tree_add(zilog, bp) == 0 &&
-	    !BP_IS_HOLE(bp)) {
+	    !BP_IS_HOLE(bp) && !zilog->zl_spa->spa_uses_shared_log) {
 		zio_free(zilog->zl_spa, dmu_tx_get_txg(tx), bp);
 	}
 
@@ -960,7 +1032,11 @@ zil_create(zilog_t *zilog)
 		txg = dmu_tx_get_txg(tx);
 
 		if (!BP_IS_HOLE(&blk)) {
-			zio_free(zilog->zl_spa, txg, &blk);
+			if (spa_uses_shared_log(zilog->zl_spa)) {
+				spa_zil_delete(zilog->zl_spa, zilog->zl_os);
+			} else {
+				zio_free(zilog->zl_spa, txg, &blk);
+			}
 			BP_ZERO(&blk);
 		}
 
@@ -968,6 +1044,7 @@ zil_create(zilog_t *zilog)
 		    ZIL_MIN_BLKSZ, &slog);
 		if (error == 0)
 			zil_init_log_chain(zilog, &blk);
+		spa_zil_map_insert(zilog->zl_spa, zilog->zl_os, NULL, &blk);
 	}
 
 	/*
@@ -1058,11 +1135,14 @@ zil_destroy(zilog_t *zilog, boolean_t keep_first)
 	if (!list_is_empty(&zilog->zl_lwb_list)) {
 		ASSERT(zh->zh_claim_txg == 0);
 		VERIFY(!keep_first);
+		spa_zil_delete(zilog->zl_spa, zilog->zl_os);
 		while ((lwb = list_remove_head(&zilog->zl_lwb_list)) != NULL) {
 			if (lwb->lwb_buf != NULL)
 				zio_buf_free(lwb->lwb_buf, lwb->lwb_sz);
-			if (!BP_IS_HOLE(&lwb->lwb_blk))
+			if (!BP_IS_HOLE(&lwb->lwb_blk) &&
+			    !spa_uses_shared_log(zilog->zl_spa)) {
 				zio_free(zilog->zl_spa, txg, &lwb->lwb_blk);
+			}
 			zil_free_lwb(zilog, lwb);
 		}
 	} else if (!keep_first) {
@@ -1367,6 +1447,7 @@ zil_lwb_flush_defer(lwb_t *lwb, lwb_t *nlwb)
 	 * future writes to additional vdevs.
 	 */
 	mutex_enter(&nlwb->lwb_vdev_lock);
+	mutex_exit(&lwb->lwb_zilog->zl_lock);
 	/*
 	 * Tear down the 'lwb' vdev tree, ensuring that entries which do not
 	 * exist in 'nlwb' are moved to it, freeing any would-be duplicates.
@@ -1412,7 +1493,7 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 	zil_commit_waiter_t *zcw;
 	itx_t *itx;
 
-	spa_config_exit(zilog->zl_spa, SCL_STATE, lwb);
+	spa_config_exit(zilog->zl_io_spa, SCL_STATE, lwb);
 
 	hrtime_t t = gethrtime() - lwb->lwb_issued_timestamp;
 
@@ -1560,10 +1641,10 @@ zil_lwb_write_done(zio_t *zio)
 	nlwb = list_next(&zilog->zl_lwb_list, lwb);
 	if (nlwb && nlwb->lwb_state != LWB_STATE_ISSUED)
 		nlwb = NULL;
-	mutex_exit(&zilog->zl_lock);
-
-	if (avl_numnodes(t) == 0)
+	if (avl_numnodes(t) == 0) {
+		mutex_exit(&zilog->zl_lock);
 		return;
+	}
 
 	/*
 	 * If there was an IO error, we're not going to call zio_flush()
@@ -1579,6 +1660,7 @@ zil_lwb_write_done(zio_t *zio)
 	 * that function).
 	 */
 	if (zio->io_error != 0) {
+		mutex_exit(&zilog->zl_lock);
 		while ((zv = avl_destroy_nodes(t, &cookie)) != NULL)
 			kmem_free(zv, sizeof (*zv));
 		return;
@@ -1604,6 +1686,8 @@ zil_lwb_write_done(zio_t *zio)
 		ASSERT(avl_is_empty(&lwb->lwb_vdev_tree));
 		return;
 	}
+	mutex_enter(&lwb->lwb_vdev_lock);
+	mutex_exit(&zilog->zl_lock);
 
 	while ((zv = avl_destroy_nodes(t, &cookie)) != NULL) {
 		vdev_t *vd = vdev_lookup_top(spa, zv->zv_vdev);
@@ -1620,6 +1704,7 @@ zil_lwb_write_done(zio_t *zio)
 		}
 		kmem_free(zv, sizeof (*zv));
 	}
+	mutex_exit(&lwb->lwb_vdev_lock);
 }
 
 /*
@@ -1781,6 +1866,7 @@ static void
 zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 {
 	spa_t *spa = zilog->zl_spa;
+	spa_t *io_spa = zilog->zl_io_spa;
 	zil_chain_t *zilc;
 	boolean_t slog;
 	zbookmark_phys_t zb;
@@ -1828,7 +1914,7 @@ next_lwb:
 		SET_BOOKMARK(&zb, lwb->lwb_blk.blk_cksum.zc_word[ZIL_ZC_OBJSET],
 		    ZB_ZIL_OBJECT, ZB_ZIL_LEVEL,
 		    lwb->lwb_blk.blk_cksum.zc_word[ZIL_ZC_SEQ]);
-		lwb->lwb_write_zio = zio_rewrite(lwb->lwb_root_zio, spa, 0,
+		lwb->lwb_write_zio = zio_rewrite(lwb->lwb_root_zio, io_spa, 0,
 		    &lwb->lwb_blk, lwb_abd, lwb->lwb_sz, zil_lwb_write_done,
 		    lwb, prio, ZIO_FLAG_CANFAIL, &zb);
 		zil_lwb_add_block(lwb, &lwb->lwb_blk);
@@ -1877,11 +1963,14 @@ next_lwb:
 		    &slog);
 	}
 	if (error == 0) {
-		ASSERT3U(bp->blk_birth, ==, txg);
+		IMPLY(spa == io_spa, bp->blk_birth == txg);
 		BP_SET_CHECKSUM(bp, nlwb->lwb_slim ? ZIO_CHECKSUM_ZILOG2 :
 		    ZIO_CHECKSUM_ZILOG);
+		VERIFY(zfs_blkptr_verify(io_spa, bp, B_FALSE,
+		    BLK_VERIFY_HALT));
 		bp->blk_cksum = lwb->lwb_blk.blk_cksum;
 		bp->blk_cksum.zc_word[ZIL_ZC_SEQ]++;
+		spa_zil_map_insert(spa, zilog->zl_os, &lwb->lwb_blk, bp);
 	}
 
 	/*
@@ -1895,7 +1984,7 @@ next_lwb:
 	mutex_exit(&zilog->zl_lwb_io_lock);
 	dmu_tx_commit(tx);
 
-	spa_config_enter(spa, SCL_STATE, lwb, RW_READER);
+	spa_config_enter(io_spa, SCL_STATE, lwb, RW_READER);
 
 	/*
 	 * We've completed all potentially blocking operations.  Update the
@@ -3564,6 +3653,7 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 			 */
 			zil_init_log_chain(zilog, &blk);
 			zh->zh_log = blk;
+			spa_zil_map_set_final(spa, zilog->zl_os, &blk);
 		} else {
 			/*
 			 * A destroyed ZIL chain can't contain any TX_SETSAXATTR
@@ -3574,7 +3664,11 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 			    SPA_FEATURE_ZILSAXATTR))
 				dsl_dataset_deactivate_feature(ds,
 				    SPA_FEATURE_ZILSAXATTR, tx);
+			spa_zil_delete(spa, zilog->zl_os);
 		}
+
+		mutex_exit(&zilog->zl_lock);
+		return;
 	}
 
 	while ((lwb = list_head(&zilog->zl_lwb_list)) != NULL) {
@@ -3583,7 +3677,7 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 		    lwb->lwb_alloc_txg > txg || lwb->lwb_max_txg > txg)
 			break;
 		list_remove(&zilog->zl_lwb_list, lwb);
-		if (!BP_IS_HOLE(&lwb->lwb_blk))
+		if (!BP_IS_HOLE(&lwb->lwb_blk) && !spa->spa_uses_shared_log)
 			zio_free(spa, txg, &lwb->lwb_blk);
 		zil_free_lwb(zilog, lwb);
 
@@ -3595,6 +3689,7 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 		 */
 		if (list_is_empty(&zilog->zl_lwb_list))
 			BP_ZERO(&zh->zh_log);
+	spa_zil_map_set_final(spa, zilog->zl_os, &zh->zh_log);
 	}
 
 	mutex_exit(&zilog->zl_lock);
@@ -3683,6 +3778,13 @@ zil_alloc(objset_t *os, zil_header_t *zh_phys)
 	zilog->zl_header = zh_phys;
 	zilog->zl_os = os;
 	zilog->zl_spa = dmu_objset_spa(os);
+	zilog->zl_io_spa = spa_get_shared_log_pool(zilog->zl_spa);
+	if (zilog->zl_io_spa == NULL) {
+		zilog->zl_io_spa = zilog->zl_spa;
+	} else {
+		IMPLY(BP_IS_HOLE(&(zh_phys->zh_log)),
+		    zh_phys->zh_log.blk_birth == 0);
+	}
 	zilog->zl_dmu_pool = dmu_objset_pool(os);
 	zilog->zl_destroy_txg = TXG_INITIAL - 1;
 	zilog->zl_logbias = dmu_objset_logbias(os);
@@ -3763,6 +3865,8 @@ zil_open(objset_t *os, zil_get_data_t *get_data, zil_sums_t *zil_sums)
 	ASSERT3P(zilog->zl_get_data, ==, NULL);
 	ASSERT3P(zilog->zl_last_lwb_opened, ==, NULL);
 	ASSERT(list_is_empty(&zilog->zl_lwb_list));
+	IMPLY(BP_IS_HOLE(&zilog->zl_header->zh_log),
+	    zilog->zl_header->zh_log.blk_birth == 0);
 
 	zilog->zl_get_data = get_data;
 	zilog->zl_sums = zil_sums;
@@ -4181,6 +4285,12 @@ zil_reset(const char *osname, void *arg)
 	if (error != 0)
 		return (SET_ERROR(EEXIST));
 	return (0);
+}
+
+boolean_t
+zil_shared_log(zilog_t *zilog)
+{
+	return (zilog->zl_spa != zilog->zl_io_spa);
 }
 
 EXPORT_SYMBOL(zil_alloc);

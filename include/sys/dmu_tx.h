@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 /*
- * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2013 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_DMU_TX_H
@@ -154,6 +154,7 @@ void dmu_tx_wait(dmu_tx_t *tx);
  */
 extern dmu_tx_t *dmu_tx_create_assigned(struct dsl_pool *dp, uint64_t txg);
 
+dmu_tx_t *dmu_tx_create_mos(struct dsl_pool *dp);
 /*
  * These routines are only called by the DMU.
  */

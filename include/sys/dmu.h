@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2023 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * Copyright 2014 HybridCluster. All rights reserved.
@@ -390,6 +390,7 @@ typedef struct dmu_buf {
 #define	DMU_POOL_ZPOOL_CHECKPOINT	"com.delphix:zpool_checkpoint"
 #define	DMU_POOL_LOG_SPACEMAP_ZAP	"com.delphix:log_spacemap_zap"
 #define	DMU_POOL_DELETED_CLONES		"com.delphix:deleted_clones"
+#define	DMU_POOL_CHAIN_MAP_OBJ		"com.delphix:chain_map_obj"
 
 /*
  * Allocate an object from this objset.  The range of object numbers

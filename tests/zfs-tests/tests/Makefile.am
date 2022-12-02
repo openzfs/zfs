@@ -360,6 +360,8 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/rsend/rsend.kshlib \
 	functional/scrub_mirror/default.cfg \
 	functional/scrub_mirror/scrub_mirror_common.kshlib \
+	functional/shared_log/shared_log.cfg \
+	functional/shared_log/shared_log.kshlib \
 	functional/slog/slog.cfg \
 	functional/slog/slog.kshlib \
 	functional/snapshot/snapshot.cfg \
@@ -1880,6 +1882,14 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/scrub_mirror/scrub_mirror_003_pos.ksh \
 	functional/scrub_mirror/scrub_mirror_004_pos.ksh \
 	functional/scrub_mirror/setup.ksh \
+	functional/shared_log/cleanup.ksh \
+	functional/shared_log/setup.ksh \
+	functional/shared_log/shared_log_001_pos.ksh \
+	functional/shared_log/shared_log_002_pos.ksh \
+	functional/shared_log/shared_log_003_pos.ksh \
+	functional/shared_log/shared_log_004_pos.ksh \
+	functional/shared_log/shared_log_005_pos.ksh \
+	functional/shared_log/shared_log_006_neg.ksh \
 	functional/slog/cleanup.ksh \
 	functional/slog/setup.ksh \
 	functional/slog/slog_001_pos.ksh \

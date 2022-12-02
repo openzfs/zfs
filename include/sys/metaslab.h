@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2023 by Delphix. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
  */
 
@@ -37,14 +37,20 @@
 extern "C" {
 #endif
 
+typedef enum metaslab_type {
+	METASLAB_TYPE_NORMAL,
+	METASLAB_TYPE_VIRTUAL,
+} metaslab_type_t;
 
 typedef struct metaslab_ops {
 	const char *msop_name;
 	uint64_t (*msop_alloc)(metaslab_t *, uint64_t);
+	metaslab_type_t msop_type;
 } metaslab_ops_t;
 
 
 extern const metaslab_ops_t zfs_metaslab_ops;
+extern const metaslab_ops_t zfs_virtual_ops;
 
 int metaslab_init(metaslab_group_t *, uint64_t, uint64_t, uint64_t,
     metaslab_t **);

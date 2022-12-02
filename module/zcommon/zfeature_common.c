@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2023 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright (c) 2014, Nexenta Systems, Inc. All rights reserved.
@@ -748,6 +748,11 @@ zpool_feature_init(void)
 		    "arguments in zfs redact.", 0, ZFEATURE_TYPE_BOOLEAN,
 		    redact_list_spill_deps, sfeatures);
 	}
+
+	zfeature_register(SPA_FEATURE_SHARED_LOG,
+	    "com.delphix:shared_log", "shared_log",
+	    "Support for shared log pools.", 0, ZFEATURE_TYPE_BOOLEAN, NULL,
+	    sfeatures);
 
 	zfs_mod_list_supported_free(sfeatures);
 }

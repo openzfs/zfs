@@ -19,7 +19,7 @@
 .\" CDDL HEADER END
 .\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
-.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+.\" Copyright (c) 2012, 2023 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
 .\" Copyright (c) 2017 Datto Inc.
 .\" Copyright (c) 2018 George Melikov. All Rights Reserved.
@@ -50,8 +50,9 @@
 .Op Fl R Ar root
 .Nm zpool
 .Cm import
-.Op Fl Dflmt
+.Op Fl Dflt
 .Op Fl F Op Fl nTX
+.Op Fl m Op Fl L Ar pool
 .Op Fl -rewind-to-checkpoint
 .Op Fl c Ar cachefile Ns | Ns Fl d Ar dir Ns | Ns Ar device
 .Op Fl o Ar mntopts
@@ -256,8 +257,9 @@ health of your pool and should only be used as a last resort.
 .It Xo
 .Nm zpool
 .Cm import
-.Op Fl Dflmt
+.Op Fl Dflt
 .Op Fl F Op Fl nTX
+.Op Fl m Op Fl L Ar pool
 .Op Fl c Ar cachefile Ns | Ns Fl d Ar dir Ns | Ns Ar device
 .Op Fl o Ar mntopts
 .Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
@@ -330,6 +332,12 @@ encrypted datasets will be left unavailable until the keys are loaded.
 .It Fl m
 Allows a pool to import when there is a missing log device.
 Recent transactions can be lost because the log device will be discarded.
+.It Fl L
+Causes the pool to switch to using the specified shared log pool when
+imported.
+Requires the
+.Fl m
+flag.
 .It Fl n
 Used with the
 .Fl F
