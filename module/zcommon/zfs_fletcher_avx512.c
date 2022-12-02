@@ -39,6 +39,7 @@ ZFS_NO_SANITIZE_UNDEFINED
 static void
 fletcher_4_avx512f_init(fletcher_4_ctx_t *ctx)
 {
+	kfpu_begin();
 	memset(ctx->avx512, 0, 4 * sizeof (zfs_fletcher_avx512_t));
 }
 
@@ -72,6 +73,7 @@ fletcher_4_avx512f_fini(fletcher_4_ctx_t *ctx, zio_cksum_t *zcp)
 	}
 
 	ZIO_SET_CHECKSUM(zcp, A, B, C, D);
+	kfpu_end();
 }
 
 #define	FLETCHER_4_AVX512_RESTORE_CTX(ctx)				\
@@ -96,21 +98,17 @@ fletcher_4_avx512f_native(fletcher_4_ctx_t *ctx, const void *buf, uint64_t size)
 	const uint32_t *ip = buf;
 	const uint32_t *ipend = (uint32_t *)((uint8_t *)ip + size);
 
-	kfpu_begin();
-
 	FLETCHER_4_AVX512_RESTORE_CTX(ctx);
 
-	for (; ip < ipend; ip += 8) {
+	do {
 		__asm("vpmovzxdq %0, %%zmm4"::"m" (*ip));
 		__asm("vpaddq %zmm4, %zmm0, %zmm0");
 		__asm("vpaddq %zmm0, %zmm1, %zmm1");
 		__asm("vpaddq %zmm1, %zmm2, %zmm2");
 		__asm("vpaddq %zmm2, %zmm3, %zmm3");
-	}
+	} while ((ip += 8) < ipend);
 
 	FLETCHER_4_AVX512_SAVE_CTX(ctx);
-
-	kfpu_end();
 }
 STACK_FRAME_NON_STANDARD(fletcher_4_avx512f_native);
 
@@ -122,8 +120,6 @@ fletcher_4_avx512f_byteswap(fletcher_4_ctx_t *ctx, const void *buf,
 	const uint32_t *ip = buf;
 	const uint32_t *ipend = (uint32_t *)((uint8_t *)ip + size);
 
-	kfpu_begin();
-
 	FLETCHER_4_AVX512_RESTORE_CTX(ctx);
 
 	__asm("vpbroadcastq %0, %%zmm8" :: "r" (byteswap_mask));
@@ -131,7 +127,7 @@ fletcher_4_avx512f_byteswap(fletcher_4_ctx_t *ctx, const void *buf,
 	__asm("vpsllq $16, %zmm8, %zmm10");
 	__asm("vpsllq $24, %zmm8, %zmm11");
 
-	for (; ip < ipend; ip += 8) {
+	do {
 		__asm("vpmovzxdq %0, %%zmm5"::"m" (*ip));
 
 		__asm("vpsrlq $24, %zmm5, %zmm6");
@@ -150,11 +146,9 @@ fletcher_4_avx512f_byteswap(fletcher_4_ctx_t *ctx, const void *buf,
 		__asm("vpaddq %zmm0, %zmm1, %zmm1");
 		__asm("vpaddq %zmm1, %zmm2, %zmm2");
 		__asm("vpaddq %zmm2, %zmm3, %zmm3");
-	}
+	} while ((ip += 8) < ipend);
 
 	FLETCHER_4_AVX512_SAVE_CTX(ctx)
-
-	kfpu_end();
 }
 STACK_FRAME_NON_STANDARD(fletcher_4_avx512f_byteswap);
 
@@ -189,13 +183,11 @@ fletcher_4_avx512bw_byteswap(fletcher_4_ctx_t *ctx, const void *buf,
 	const uint32_t *ip = buf;
 	const uint32_t *ipend = (uint32_t *)((uint8_t *)ip + size);
 
-	kfpu_begin();
-
 	FLETCHER_4_AVX512_RESTORE_CTX(ctx);
 
 	__asm("vmovdqu64 %0, %%zmm5" :: "m" (mask));
 
-	for (; ip < ipend; ip += 8) {
+	do {
 		__asm("vpmovzxdq %0, %%zmm4"::"m" (*ip));
 
 		__asm("vpshufb %zmm5, %zmm4, %zmm4");
@@ -204,11 +196,9 @@ fletcher_4_avx512bw_byteswap(fletcher_4_ctx_t *ctx, const void *buf,
 		__asm("vpaddq %zmm0, %zmm1, %zmm1");
 		__asm("vpaddq %zmm1, %zmm2, %zmm2");
 		__asm("vpaddq %zmm2, %zmm3, %zmm3");
-	}
+	} while ((ip += 8) < ipend);
 
 	FLETCHER_4_AVX512_SAVE_CTX(ctx)
-
-	kfpu_end();
 }
 STACK_FRAME_NON_STANDARD(fletcher_4_avx512bw_byteswap);
 

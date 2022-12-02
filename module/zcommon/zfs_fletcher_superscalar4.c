@@ -113,7 +113,7 @@ fletcher_4_superscalar4_native(fletcher_4_ctx_t *ctx,
 	c4 = ctx->superscalar[2].v[3];
 	d4 = ctx->superscalar[3].v[3];
 
-	for (; ip < ipend; ip += 4) {
+	do {
 		a += ip[0];
 		a2 += ip[1];
 		a3 += ip[2];
@@ -130,7 +130,7 @@ fletcher_4_superscalar4_native(fletcher_4_ctx_t *ctx,
 		d2 += c2;
 		d3 += c3;
 		d4 += c4;
-	}
+	} while ((ip += 4) < ipend);
 
 	ctx->superscalar[0].v[0] = a;
 	ctx->superscalar[1].v[0] = b;
@@ -179,7 +179,7 @@ fletcher_4_superscalar4_byteswap(fletcher_4_ctx_t *ctx,
 	c4 = ctx->superscalar[2].v[3];
 	d4 = ctx->superscalar[3].v[3];
 
-	for (; ip < ipend; ip += 4) {
+	do {
 		a += BSWAP_32(ip[0]);
 		a2 += BSWAP_32(ip[1]);
 		a3 += BSWAP_32(ip[2]);
@@ -196,7 +196,7 @@ fletcher_4_superscalar4_byteswap(fletcher_4_ctx_t *ctx,
 		d2 += c2;
 		d3 += c3;
 		d4 += c4;
-	}
+	} while ((ip += 4) < ipend);
 
 	ctx->superscalar[0].v[0] = a;
 	ctx->superscalar[1].v[0] = b;
