@@ -9,6 +9,7 @@
 #define LUA_CORE
 
 #include <sys/lua/lua.h>
+#include <sys/asm_linkage.h>
 
 #include "lapi.h"
 #include "ldebug.h"
@@ -25,7 +26,6 @@
 #include "ltm.h"
 #include "lvm.h"
 #include "lzio.h"
-
 
 
 /* Return the number of bytes available on the stack. */
@@ -90,8 +90,8 @@ static intptr_t stack_remaining(void) {
 
 typedef	struct _label_t { long long unsigned val[JMP_BUF_CNT]; } label_t;
 
-int setjmp(label_t *) __attribute__ ((__nothrow__));
-extern __attribute__((noreturn)) void longjmp(label_t *);
+int ASMABI setjmp(label_t *) __attribute__ ((__nothrow__));
+extern __attribute__((noreturn)) void ASMABI longjmp(label_t *);
 
 #define LUAI_THROW(L,c)		longjmp(&(c)->b)
 #define LUAI_TRY(L,c,a)		if (setjmp(&(c)->b) == 0) { a }

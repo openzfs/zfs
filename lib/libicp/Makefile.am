@@ -67,3 +67,4 @@ nodist_libicp_la_SOURCES += \
 	module/icp/asm-x86_64/blake3/blake3_sse2.S \
 	module/icp/asm-x86_64/blake3/blake3_sse41.S
 endif
+

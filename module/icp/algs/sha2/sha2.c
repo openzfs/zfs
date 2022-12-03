@@ -48,6 +48,7 @@
 #define	HAVE_HTONL
 #endif
 #include <sys/isa_defs.h>	/* for _ILP32 */
+#include <sys/asm_linkage.h>
 
 static void Encode(uint8_t *, uint32_t *, size_t);
 static void Encode64(uint8_t *, uint64_t *, size_t);
@@ -57,8 +58,8 @@ static void Encode64(uint8_t *, uint64_t *, size_t);
 #define	SHA512Transform(ctx, in) SHA512TransformBlocks((ctx), (in), 1)
 #define	SHA256Transform(ctx, in) SHA256TransformBlocks((ctx), (in), 1)
 
-void SHA512TransformBlocks(SHA2_CTX *ctx, const void *in, size_t num);
-void SHA256TransformBlocks(SHA2_CTX *ctx, const void *in, size_t num);
+void ASMABI SHA512TransformBlocks(SHA2_CTX *ctx, const void *in, size_t num);
+void ASMABI SHA256TransformBlocks(SHA2_CTX *ctx, const void *in, size_t num);
 
 #else
 static void SHA256Transform(SHA2_CTX *, const uint8_t *);
