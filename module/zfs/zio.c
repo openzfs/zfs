@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2022 by Delphix. All rights reserved.
  * Copyright (c) 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2019, Klara Inc.
@@ -2974,6 +2974,7 @@ zio_nop_write(zio_t *zio)
 	blkptr_t *bp_orig = &zio->io_bp_orig;
 	zio_prop_t *zp = &zio->io_prop;
 
+	ASSERT(BP_IS_HOLE(bp));
 	ASSERT(BP_GET_LEVEL(bp) == 0);
 	ASSERT(!(zio->io_flags & ZIO_FLAG_IO_REWRITE));
 	ASSERT(zp->zp_nopwrite);
@@ -3007,8 +3008,7 @@ zio_nop_write(zio_t *zio)
 		ASSERT3U(BP_GET_PSIZE(bp), ==, BP_GET_PSIZE(bp_orig));
 		ASSERT3U(BP_GET_LSIZE(bp), ==, BP_GET_LSIZE(bp_orig));
 		ASSERT(zp->zp_compress != ZIO_COMPRESS_OFF);
-		ASSERT(memcmp(&bp->blk_prop, &bp_orig->blk_prop,
-		    sizeof (uint64_t)) == 0);
+		ASSERT3U(bp->blk_prop, ==, bp_orig->blk_prop);
 
 		/*
 		 * If we're overwriting a block that is currently on an
@@ -3016,11 +3016,13 @@ zio_nop_write(zio_t *zio)
 		 * allow a new block to be allocated on a concrete vdev.
 		 */
 		spa_config_enter(zio->io_spa, SCL_VDEV, FTAG, RW_READER);
-		vdev_t *tvd = vdev_lookup_top(zio->io_spa,
-		    DVA_GET_VDEV(&bp->blk_dva[0]));
-		if (tvd->vdev_ops == &vdev_indirect_ops) {
-			spa_config_exit(zio->io_spa, SCL_VDEV, FTAG);
-			return (zio);
+		for (int d = 0; d < BP_GET_NDVAS(bp_orig); d++) {
+			vdev_t *tvd = vdev_lookup_top(zio->io_spa,
+			    DVA_GET_VDEV(&bp_orig->blk_dva[d]));
+			if (tvd->vdev_ops == &vdev_indirect_ops) {
+				spa_config_exit(zio->io_spa, SCL_VDEV, FTAG);
+				return (zio);
+			}
 		}
 		spa_config_exit(zio->io_spa, SCL_VDEV, FTAG);
 

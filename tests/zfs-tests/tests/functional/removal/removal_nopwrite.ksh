@@ -15,7 +15,7 @@
 #
 
 #
-# Copyright (c) 2019 by Delphix. All rights reserved.
+# Copyright (c) 2019, 2022 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -24,19 +24,35 @@
 
 default_setup_noexit "$DISKS"
 log_onexit default_cleanup_noexit
-BLOCKSIZE=8192
+
+#
+# Randomly pick a device to remove
+#
+DISK_TOKENS=( $DISKS )
+DISK_INDEX_TO_REMOVE=$((RANDOM%${#DISK_TOKENS[@]}))
+DISK_TO_REMOVE=${DISK_TOKENS[${DISK_INDEX_TO_REMOVE}]}
 
 origin="$TESTPOOL/$TESTFS"
 
 log_must zfs set compress=on $origin
 log_must zfs set checksum=skein $origin
 
+log_must zfs set copies=1 $origin
 log_must zfs set recordsize=8k $origin
 dd if=/dev/urandom of=$TESTDIR/file_8k bs=1024k count=$MEGS oflag=sync \
     conv=notrunc >/dev/null 2>&1 || log_fail "dd into $TESTDIR/file failed."
+log_must zfs set copies=3 $origin
+dd if=/dev/urandom of=$TESTDIR/file_8k_copies bs=1024k count=$MEGS oflag=sync \
+    conv=notrunc >/dev/null 2>&1 || log_fail "dd into $TESTDIR/file failed."
+
+log_must zfs set copies=1 $origin
 log_must zfs set recordsize=128k $origin
 dd if=/dev/urandom of=$TESTDIR/file_128k bs=1024k count=$MEGS oflag=sync \
     conv=notrunc >/dev/null 2>&1 || log_fail "dd into $TESTDIR/file failed."
+log_must zfs set copies=3 $origin
+dd if=/dev/urandom of=$TESTDIR/file_128k_copies bs=1024k \
+    count=$MEGS oflag=sync conv=notrunc >/dev/null 2>&1 || \
+    log_fail "dd into $TESTDIR/file failed."
 
 zfs snapshot $origin@a || log_fail "zfs snap failed"
 log_must zfs clone $origin@a $origin/clone
@@ -44,22 +60,33 @@ log_must zfs clone $origin@a $origin/clone
 #
 # Verify that nopwrites work prior to removal
 #
+log_must zfs set copies=1 $origin/clone
 log_must zfs set recordsize=8k $origin/clone
 dd if=/$TESTDIR/file_8k of=/$TESTDIR/clone/file_8k bs=1024k \
      oflag=sync conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
 log_must verify_nopwrite $origin $origin@a $origin/clone
+log_must zfs set copies=3 $origin/clone
+dd if=/$TESTDIR/file_8k_copies of=/$TESTDIR/clone/file_8k_copies bs=1024k \
+     oflag=sync conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
+log_must verify_nopwrite $origin $origin@a $origin/clone
 
+log_must zfs set copies=1 $origin/clone
 log_must zfs set recordsize=128k $origin/clone
 dd if=/$TESTDIR/file_128k of=/$TESTDIR/clone/file_128k bs=1024k \
+     oflag=sync conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
+log_must verify_nopwrite $origin $origin@a $origin/clone
+log_must zfs set copies=3 $origin/clone
+dd if=/$TESTDIR/file_128k_copies of=/$TESTDIR/clone/file_128k_copies bs=1024k \
      oflag=sync conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
 log_must verify_nopwrite $origin $origin@a $origin/clone
 
 #
 # Remove a device before testing nopwrites again
 #
-log_must zpool remove $TESTPOOL $REMOVEDISK
+log_note "Removing: $DISK_TO_REMOVE"
+log_must zpool remove $TESTPOOL $DISK_TO_REMOVE
 log_must wait_for_removal $TESTPOOL
-log_mustnot vdevs_in_pool $TESTPOOL $REMOVEDISK
+log_mustnot vdevs_in_pool $TESTPOOL $DISK_TO_REMOVE
 
 #
 # Normally, we expect nopwrites to avoid allocating new blocks, but
@@ -71,16 +98,26 @@ log_mustnot vdevs_in_pool $TESTPOOL $REMOVEDISK
 #
 # Perform a direct zil nopwrite test
 #
+log_must zfs set copies=1 $origin/clone
 log_must zfs set recordsize=8k $origin/clone
 dd if=/$TESTDIR/file_8k of=/$TESTDIR/clone/file_8k bs=1024k \
+     oflag=sync conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
+log_mustnot verify_nopwrite $origin $origin@a $origin/clone
+log_must zfs set copies=3 $origin/clone
+dd if=/$TESTDIR/file_8k_copies of=/$TESTDIR/clone/file_8k_copies bs=1024k \
      oflag=sync conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
 log_mustnot verify_nopwrite $origin $origin@a $origin/clone
 
 #
 # Perform an indirect zil nopwrite test
 #
+log_must zfs set copies=1 $origin/clone
 log_must zfs set recordsize=128k $origin/clone
 dd if=/$TESTDIR/file_128k of=/$TESTDIR/clone/file_128k bs=1024k \
+     oflag=sync conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
+log_mustnot verify_nopwrite $origin $origin@a $origin/clone
+log_must zfs set copies=3 $origin/clone
+dd if=/$TESTDIR/file_128k_copies of=/$TESTDIR/clone/file_128k_copies bs=1024k \
      oflag=sync conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
 log_mustnot verify_nopwrite $origin $origin@a $origin/clone
 
