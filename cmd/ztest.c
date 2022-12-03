@@ -1133,14 +1133,14 @@ process_options(int argc, char **argv)
 		const char *invalid_what = "ztest";
 		char *val = zo->zo_alt_ztest;
 		if (0 != access(val, X_OK) ||
-		    (strrchr(val, '/') == NULL && (errno = EINVAL)))
+		    (strrchr(val, '/') == NULL && (errno == EINVAL)))
 			goto invalid;
 
 		int dirlen = strrchr(val, '/') - val;
 		strlcpy(zo->zo_alt_libpath, val,
 		    MIN(sizeof (zo->zo_alt_libpath), dirlen + 1));
 		invalid_what = "library path", val = zo->zo_alt_libpath;
-		if (strrchr(val, '/') == NULL && (errno = EINVAL))
+		if (strrchr(val, '/') == NULL && (errno == EINVAL))
 			goto invalid;
 		*strrchr(val, '/') = '\0';
 		strlcat(val, "/lib", sizeof (zo->zo_alt_libpath));
