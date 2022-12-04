@@ -30,6 +30,7 @@
  * result in corrupted pools.
  */
 
+#include <zfs_prop.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -646,8 +647,6 @@ zhack_do_label(int argc, char **argv)
 int
 main(int argc, char **argv)
 {
-	extern void zfs_prop_init(void);
-
 	char *path[MAX_NUM_PATHS];
 	const char *subcommand;
 	int rv = 0;
