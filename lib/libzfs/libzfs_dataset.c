@@ -690,6 +690,7 @@ zfs_open(libzfs_handle_t *hdl, const char *path, int types)
 	 */
 	if (!zfs_validate_name(hdl, path, types, B_FALSE)) {
 		(void) zfs_error(hdl, EZFS_INVALIDNAME, errbuf);
+		errno = EINVAL;
 		return (NULL);
 	}
 
@@ -737,6 +738,7 @@ zfs_open(libzfs_handle_t *hdl, const char *path, int types)
 		    &cb_data) == 0) && (cb_data.zhp == NULL)) {
 			(void) zfs_error(hdl, EZFS_NOENT, errbuf);
 			zfs_close(pzhp);
+			errno = ENOENT;
 			return (NULL);
 		}
 		if (cb_data.zhp == NULL) {
@@ -755,6 +757,7 @@ zfs_open(libzfs_handle_t *hdl, const char *path, int types)
 	if (!(types & zhp->zfs_type)) {
 		(void) zfs_error(hdl, EZFS_BADTYPE, errbuf);
 		zfs_close(zhp);
+		errno = EINVAL;
 		return (NULL);
 	}
 
