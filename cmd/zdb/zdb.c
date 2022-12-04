@@ -3496,9 +3496,9 @@ dump_object(objset_t *os, uint64_t object, int verbosity,
 	zdb_nicenum(doi.doi_physical_blocks_512 << 9, asize, sizeof (asize));
 	zdb_nicenum(doi.doi_bonus_size, bonus_size, sizeof (bonus_size));
 	zdb_nicenum(doi.doi_dnodesize, dnsize, sizeof (dnsize));
-	(void) sprintf(fill, "%6.2f", 100.0 * doi.doi_fill_count *
-	    doi.doi_data_block_size / (object == 0 ? DNODES_PER_BLOCK : 1) /
-	    doi.doi_max_offset);
+	(void) snprintf(fill, sizeof (fill), "%6.2f", 100.0 *
+	    doi.doi_fill_count * doi.doi_data_block_size / (object == 0 ?
+	    DNODES_PER_BLOCK : 1) / doi.doi_max_offset);
 
 	aux[0] = '\0';
 
