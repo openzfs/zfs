@@ -1289,7 +1289,7 @@ dump_filesystem(zfs_handle_t *zhp, send_dump_data_t *sdd)
 			if (snap != NULL)
 				rv = dump_snapshot(snap, sdd);
 			else
-				rv = -1;
+				rv = errno;
 		}
 
 		/* Dump tosnap. */
@@ -1301,7 +1301,7 @@ dump_filesystem(zfs_handle_t *zhp, send_dump_data_t *sdd)
 			if (snap != NULL)
 				rv = dump_snapshot(snap, sdd);
 			else
-				rv = -1;
+				rv = errno;
 		}
 	}
 
