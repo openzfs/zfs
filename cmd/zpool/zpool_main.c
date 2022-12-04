@@ -1288,7 +1288,6 @@ zpool_do_labelclear(int argc, char **argv)
 {
 	char vdev[MAXPATHLEN];
 	char *name = NULL;
-	struct stat st;
 	int c, fd = -1, ret = 0;
 	nvlist_t *config;
 	pool_state_t state;
@@ -1321,14 +1320,20 @@ zpool_do_labelclear(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
+	(void) strlcpy(vdev, argv[0], sizeof (vdev));
+
 	/*
-	 * Check if we were given absolute path and use it as is.
+	 * If we cannot open an absolute path, we quit.
 	 * Otherwise if the provided vdev name doesn't point to a file,
 	 * try prepending expected disk paths and partition numbers.
 	 */
-	(void) strlcpy(vdev, argv[0], sizeof (vdev));
-	if (vdev[0] != '/' && stat(vdev, &st) != 0) {
+	if ((fd = open(vdev, O_RDWR)) < 0) {
 		int error;
+		if (vdev[0] == '/') {
+			(void) fprintf(stderr, gettext("failed to open "
+			    "%s: %s\n"), vdev, strerror(errno));
+			return (1);
+		}
 
 		error = zfs_resolve_shortname(argv[0], vdev, MAXPATHLEN);
 		if (error == 0 && zfs_dev_is_whole_disk(vdev)) {
@@ -1336,18 +1341,19 @@ zpool_do_labelclear(int argc, char **argv)
 				error = ENOENT;
 		}
 
-		if (error || (stat(vdev, &st) != 0)) {
-			(void) fprintf(stderr, gettext(
-			    "failed to find device %s, try specifying absolute "
-			    "path instead\n"), argv[0]);
+		if (error || ((fd = open(vdev, O_RDWR)) < 0)) {
+			if (errno == ENOENT) {
+				(void) fprintf(stderr, gettext(
+				    "failed to find device %s, try "
+				    "specifying absolute path instead\n"),
+				    argv[0]);
+				return (1);
+			}
+
+			(void) fprintf(stderr, gettext("failed to open %s:"
+			    " %s\n"), vdev, strerror(errno));
 			return (1);
 		}
-	}
-
-	if ((fd = open(vdev, O_RDWR)) < 0) {
-		(void) fprintf(stderr, gettext("failed to open %s: %s\n"),
-		    vdev, strerror(errno));
-		return (1);
 	}
 
 	/*
