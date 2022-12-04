@@ -4341,26 +4341,26 @@ dump_l2arc_log_entries(uint64_t log_entries,
 }
 
 static void
-dump_l2arc_log_blkptr(l2arc_log_blkptr_t lbps)
+dump_l2arc_log_blkptr(const l2arc_log_blkptr_t *lbps)
 {
-	(void) printf("|\t\tdaddr: %llu\n", (u_longlong_t)lbps.lbp_daddr);
+	(void) printf("|\t\tdaddr: %llu\n", (u_longlong_t)lbps->lbp_daddr);
 	(void) printf("|\t\tpayload_asize: %llu\n",
-	    (u_longlong_t)lbps.lbp_payload_asize);
+	    (u_longlong_t)lbps->lbp_payload_asize);
 	(void) printf("|\t\tpayload_start: %llu\n",
-	    (u_longlong_t)lbps.lbp_payload_start);
+	    (u_longlong_t)lbps->lbp_payload_start);
 	(void) printf("|\t\tlsize: %llu\n",
-	    (u_longlong_t)L2BLK_GET_LSIZE((&lbps)->lbp_prop));
+	    (u_longlong_t)L2BLK_GET_LSIZE(lbps->lbp_prop));
 	(void) printf("|\t\tasize: %llu\n",
-	    (u_longlong_t)L2BLK_GET_PSIZE((&lbps)->lbp_prop));
+	    (u_longlong_t)L2BLK_GET_PSIZE(lbps->lbp_prop));
 	(void) printf("|\t\tcompralgo: %llu\n",
-	    (u_longlong_t)L2BLK_GET_COMPRESS((&lbps)->lbp_prop));
+	    (u_longlong_t)L2BLK_GET_COMPRESS(lbps->lbp_prop));
 	(void) printf("|\t\tcksumalgo: %llu\n",
-	    (u_longlong_t)L2BLK_GET_CHECKSUM((&lbps)->lbp_prop));
+	    (u_longlong_t)L2BLK_GET_CHECKSUM(lbps->lbp_prop));
 	(void) printf("|\n\n");
 }
 
 static void
-dump_l2arc_log_blocks(int fd, l2arc_dev_hdr_phys_t l2dhdr,
+dump_l2arc_log_blocks(int fd, const l2arc_dev_hdr_phys_t *l2dhdr,
     l2arc_dev_hdr_phys_t *rebuild)
 {
 	l2arc_log_blk_phys_t this_lb;
@@ -4373,13 +4373,13 @@ dump_l2arc_log_blocks(int fd, l2arc_dev_hdr_phys_t l2dhdr,
 
 	if (!dump_opt['q'])
 		print_l2arc_log_blocks();
-	memcpy(lbps, l2dhdr.dh_start_lbps, sizeof (lbps));
+	memcpy(lbps, l2dhdr->dh_start_lbps, sizeof (lbps));
 
-	dev.l2ad_evict = l2dhdr.dh_evict;
-	dev.l2ad_start = l2dhdr.dh_start;
-	dev.l2ad_end = l2dhdr.dh_end;
+	dev.l2ad_evict = l2dhdr->dh_evict;
+	dev.l2ad_start = l2dhdr->dh_start;
+	dev.l2ad_end = l2dhdr->dh_end;
 
-	if (l2dhdr.dh_start_lbps[0].lbp_daddr == 0) {
+	if (l2dhdr->dh_start_lbps[0].lbp_daddr == 0) {
 		/* no log blocks to read */
 		if (!dump_opt['q']) {
 			(void) printf("No log blocks to read\n");
@@ -4391,7 +4391,7 @@ dump_l2arc_log_blocks(int fd, l2arc_dev_hdr_phys_t l2dhdr,
 		    L2BLK_GET_PSIZE((&lbps[0])->lbp_prop);
 	}
 
-	dev.l2ad_first = !!(l2dhdr.dh_flags & L2ARC_DEV_HDR_EVICT_FIRST);
+	dev.l2ad_first = !!(l2dhdr->dh_flags & L2ARC_DEV_HDR_EVICT_FIRST);
 
 	for (;;) {
 		if (!l2arc_log_blkptr_valid(&dev, &lbps[0]))
@@ -4412,7 +4412,7 @@ dump_l2arc_log_blocks(int fd, l2arc_dev_hdr_phys_t l2dhdr,
 			failed++;
 			if (!dump_opt['q']) {
 				(void) printf("Invalid cksum\n");
-				dump_l2arc_log_blkptr(lbps[0]);
+				dump_l2arc_log_blkptr(&lbps[0]);
 			}
 			break;
 		}
@@ -4449,11 +4449,11 @@ dump_l2arc_log_blocks(int fd, l2arc_dev_hdr_phys_t l2dhdr,
 			(void) printf("lb[%4llu]\tmagic: %llu\n",
 			    (u_longlong_t)rebuild->dh_lb_count,
 			    (u_longlong_t)this_lb.lb_magic);
-			dump_l2arc_log_blkptr(lbps[0]);
+			dump_l2arc_log_blkptr(&lbps[0]);
 		}
 
 		if (dump_opt['l'] > 2 && !dump_opt['q'])
-			dump_l2arc_log_entries(l2dhdr.dh_log_entries,
+			dump_l2arc_log_entries(l2dhdr->dh_log_entries,
 			    this_lb.lb_entries,
 			    rebuild->dh_lb_count);
 
@@ -4531,7 +4531,7 @@ dump_l2arc_header(int fd)
 		    (u_longlong_t)l2dhdr.dh_trim_state);
 	}
 
-	dump_l2arc_log_blocks(fd, l2dhdr, &rebuild);
+	dump_l2arc_log_blocks(fd, &l2dhdr, &rebuild);
 	/*
 	 * The total aligned size of log blocks and the number of log blocks
 	 * reported in the header of the device may be less than what zdb
