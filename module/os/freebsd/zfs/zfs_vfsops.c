@@ -720,7 +720,7 @@ zfs_register_callbacks(vfs_t *vfsp)
 		nbmand = B_FALSE;
 	} else if (vfs_optionisset(vfsp, MNTOPT_NBMAND, NULL)) {
 		nbmand = B_TRUE;
-	} else if ((error = dsl_prop_get_int_ds(ds, "nbmand", &nbmand) != 0)) {
+	} else if ((error = dsl_prop_get_int_ds(ds, "nbmand", &nbmand)) != 0) {
 		dsl_pool_config_exit(dmu_objset_pool(os), FTAG);
 		return (error);
 	}
