@@ -1711,6 +1711,11 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/rename_dirs/cleanup.ksh \
 	functional/rename_dirs/rename_dirs_001_pos.ksh \
 	functional/rename_dirs/setup.ksh \
+	functional/renameat2/cleanup.ksh \
+	functional/renameat2/setup.ksh \
+	functional/renameat2/renameat2_exchange.ksh \
+	functional/renameat2/renameat2_noreplace.ksh \
+	functional/renameat2/renameat2_whiteout.ksh \
 	functional/replacement/attach_import.ksh \
 	functional/replacement/attach_multiple.ksh \
 	functional/replacement/attach_rebuild.ksh \
@@ -1789,7 +1794,6 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/rsend/send-c_incremental.ksh \
 	functional/rsend/send-c_lz4_disabled.ksh \
 	functional/rsend/send-c_mixed_compression.ksh \
-	functional/rsend/send-cpL_varied_recsize.ksh \
 	functional/rsend/send-c_props.ksh \
 	functional/rsend/send-c_recv_dedup.ksh \
 	functional/rsend/send-c_recv_lz4_disabled.ksh \
@@ -1798,7 +1802,9 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/rsend/send-c_verify_contents.ksh \
 	functional/rsend/send-c_verify_ratio.ksh \
 	functional/rsend/send-c_volume.ksh \
+	functional/rsend/send-c_zstream_recompress.ksh \
 	functional/rsend/send-c_zstreamdump.ksh \
+	functional/rsend/send-cpL_varied_recsize.ksh \
 	functional/rsend/send_doall.ksh \
 	functional/rsend/send_encrypted_files.ksh \
 	functional/rsend/send_encrypted_hierarchy.ksh \
