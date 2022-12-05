@@ -231,7 +231,8 @@ ZCOMMON_OBJS_X86 := \
 	zfs_fletcher_sse.o
 
 ZCOMMON_OBJS_ARM64 := \
-	zfs_fletcher_aarch64_neon.o
+	zfs_fletcher_aarch64_neon.o \
+	zfs_fletcher_aarch64_neon_impl.o
 
 zfs-objs            += $(addprefix zcommon/,$(ZCOMMON_OBJS))
 zfs-$(CONFIG_X86)   += $(addprefix zcommon/,$(ZCOMMON_OBJS_X86))

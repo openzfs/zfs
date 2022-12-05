@@ -48,6 +48,12 @@
 #include <sys/string.h>
 #include <zfs_fletcher.h>
 
+extern void fletcher_4_aarch64_neon_native(
+		fletcher_4_ctx_t *ctx, const void *buf, uint64_t size);
+
+extern void fletcher_4_aarch64_neon_byteswap(
+		fletcher_4_ctx_t *ctx, const void *buf, uint64_t size);
+
 ZFS_NO_SANITIZE_UNDEFINED
 static void
 fletcher_4_aarch64_neon_init(fletcher_4_ctx_t *ctx)
@@ -61,135 +67,28 @@ static void
 fletcher_4_aarch64_neon_fini(fletcher_4_ctx_t *ctx, zio_cksum_t *zcp)
 {
 	uint64_t A, B, C, D;
-	A = ctx->aarch64_neon[0].v[0] + ctx->aarch64_neon[0].v[1];
-	B = 2 * ctx->aarch64_neon[1].v[0] + 2 * ctx->aarch64_neon[1].v[1] -
-	    ctx->aarch64_neon[0].v[1];
-	C = 4 * ctx->aarch64_neon[2].v[0] - ctx->aarch64_neon[1].v[0] +
-	    4 * ctx->aarch64_neon[2].v[1] - 3 * ctx->aarch64_neon[1].v[1];
-	D = 8 * ctx->aarch64_neon[3].v[0] - 4 * ctx->aarch64_neon[2].v[0] +
-	    8 * ctx->aarch64_neon[3].v[1] - 8 * ctx->aarch64_neon[2].v[1] +
-	    ctx->aarch64_neon[1].v[1];
+	A = ctx->aarch64_neon[0].v[0] + ctx->aarch64_neon[0].v[1] +
+	    ctx->aarch64_neon[0].v[2] + ctx->aarch64_neon[0].v[3];
+	B = 0 - ctx->aarch64_neon[0].v[1] - 2 * ctx->aarch64_neon[0].v[2] -
+	    3 * ctx->aarch64_neon[0].v[3] + 4 * ctx->aarch64_neon[1].v[0] +
+	    4 * ctx->aarch64_neon[1].v[1] + 4 * ctx->aarch64_neon[1].v[2] +
+	    4 * ctx->aarch64_neon[1].v[3];
+
+	C = ctx->aarch64_neon[0].v[2] + 3 * ctx->aarch64_neon[0].v[3] -
+	    6 * ctx->aarch64_neon[1].v[0] - 10 * ctx->aarch64_neon[1].v[1] -
+	    14 * ctx->aarch64_neon[1].v[2] - 18 * ctx->aarch64_neon[1].v[3] +
+	    16 * ctx->aarch64_neon[2].v[0] + 16 * ctx->aarch64_neon[2].v[1] +
+	    16 * ctx->aarch64_neon[2].v[2] + 16 * ctx->aarch64_neon[2].v[3];
+
+	D = 0 - ctx->aarch64_neon[0].v[3] + 4 * ctx->aarch64_neon[1].v[0] +
+	    10 * ctx->aarch64_neon[1].v[1] + 20 * ctx->aarch64_neon[1].v[2] +
+	    34 * ctx->aarch64_neon[1].v[3] - 48 * ctx->aarch64_neon[2].v[0] -
+	    64 * ctx->aarch64_neon[2].v[1] - 80 * ctx->aarch64_neon[2].v[2] -
+	    96 * ctx->aarch64_neon[2].v[3] + 64 * ctx->aarch64_neon[3].v[0] +
+	    64 * ctx->aarch64_neon[3].v[1] + 64 * ctx->aarch64_neon[3].v[2] +
+	    64 * ctx->aarch64_neon[3].v[3];
 	ZIO_SET_CHECKSUM(zcp, A, B, C, D);
 	kfpu_end();
-}
-
-#define	NEON_INIT_LOOP()			\
-	asm("eor %[ZERO].16b,%[ZERO].16b,%[ZERO].16b\n"	\
-	"ld1 { %[ACC0].4s }, %[CTX0]\n"		\
-	"ld1 { %[ACC1].4s }, %[CTX1]\n"		\
-	"ld1 { %[ACC2].4s }, %[CTX2]\n"		\
-	"ld1 { %[ACC3].4s }, %[CTX3]\n"		\
-	: [ZERO] "=w" (ZERO),			\
-	[ACC0] "=w" (ACC0), [ACC1] "=w" (ACC1),	\
-	[ACC2] "=w" (ACC2), [ACC3] "=w" (ACC3)	\
-	: [CTX0] "Q" (ctx->aarch64_neon[0]),	\
-	[CTX1] "Q" (ctx->aarch64_neon[1]),	\
-	[CTX2] "Q" (ctx->aarch64_neon[2]),	\
-	[CTX3] "Q" (ctx->aarch64_neon[3]))
-
-#define	NEON_DO_REVERSE "rev32 %[SRC].16b, %[SRC].16b\n"
-
-#define	NEON_DONT_REVERSE ""
-
-#define	NEON_MAIN_LOOP(REVERSE)				\
-	asm("ld1 { %[SRC].4s }, %[IP]\n"		\
-	REVERSE						\
-	"zip1 %[TMP1].4s, %[SRC].4s, %[ZERO].4s\n"	\
-	"zip2 %[TMP2].4s, %[SRC].4s, %[ZERO].4s\n"	\
-	"add %[ACC0].2d, %[ACC0].2d, %[TMP1].2d\n"	\
-	"add %[ACC1].2d, %[ACC1].2d, %[ACC0].2d\n"	\
-	"add %[ACC2].2d, %[ACC2].2d, %[ACC1].2d\n"	\
-	"add %[ACC3].2d, %[ACC3].2d, %[ACC2].2d\n"	\
-	"add %[ACC0].2d, %[ACC0].2d, %[TMP2].2d\n"	\
-	"add %[ACC1].2d, %[ACC1].2d, %[ACC0].2d\n"	\
-	"add %[ACC2].2d, %[ACC2].2d, %[ACC1].2d\n"	\
-	"add %[ACC3].2d, %[ACC3].2d, %[ACC2].2d\n"	\
-	: [SRC] "=&w" (SRC),				\
-	[TMP1] "=&w" (TMP1), [TMP2] "=&w" (TMP2),	\
-	[ACC0] "+w" (ACC0), [ACC1] "+w" (ACC1),		\
-	[ACC2] "+w" (ACC2), [ACC3] "+w" (ACC3)		\
-	: [ZERO] "w" (ZERO), [IP] "Q" (*ip))
-
-#define	NEON_FINI_LOOP()			\
-	asm("st1 { %[ACC0].4s },%[DST0]\n"	\
-	"st1 { %[ACC1].4s },%[DST1]\n"		\
-	"st1 { %[ACC2].4s },%[DST2]\n"		\
-	"st1 { %[ACC3].4s },%[DST3]\n"		\
-	: [DST0] "=Q" (ctx->aarch64_neon[0]),	\
-	[DST1] "=Q" (ctx->aarch64_neon[1]),	\
-	[DST2] "=Q" (ctx->aarch64_neon[2]),	\
-	[DST3] "=Q" (ctx->aarch64_neon[3])	\
-	: [ACC0] "w" (ACC0), [ACC1] "w" (ACC1),	\
-	[ACC2] "w" (ACC2), [ACC3] "w" (ACC3))
-
-static void
-fletcher_4_aarch64_neon_native(fletcher_4_ctx_t *ctx,
-    const void *buf, uint64_t size)
-{
-	const uint64_t *ip = buf;
-	const uint64_t *ipend = (uint64_t *)((uint8_t *)ip + size);
-#if defined(_KERNEL)
-register unsigned char ZERO asm("v0") __attribute__((vector_size(16)));
-register unsigned char ACC0 asm("v1") __attribute__((vector_size(16)));
-register unsigned char ACC1 asm("v2") __attribute__((vector_size(16)));
-register unsigned char ACC2 asm("v3") __attribute__((vector_size(16)));
-register unsigned char ACC3 asm("v4") __attribute__((vector_size(16)));
-register unsigned char TMP1 asm("v5") __attribute__((vector_size(16)));
-register unsigned char TMP2 asm("v6") __attribute__((vector_size(16)));
-register unsigned char SRC asm("v7") __attribute__((vector_size(16)));
-#else
-unsigned char ZERO __attribute__((vector_size(16)));
-unsigned char ACC0 __attribute__((vector_size(16)));
-unsigned char ACC1 __attribute__((vector_size(16)));
-unsigned char ACC2 __attribute__((vector_size(16)));
-unsigned char ACC3 __attribute__((vector_size(16)));
-unsigned char TMP1 __attribute__((vector_size(16)));
-unsigned char TMP2 __attribute__((vector_size(16)));
-unsigned char SRC __attribute__((vector_size(16)));
-#endif
-
-	NEON_INIT_LOOP();
-
-	do {
-		NEON_MAIN_LOOP(NEON_DONT_REVERSE);
-	} while ((ip += 2) < ipend);
-
-	NEON_FINI_LOOP();
-}
-
-static void
-fletcher_4_aarch64_neon_byteswap(fletcher_4_ctx_t *ctx,
-    const void *buf, uint64_t size)
-{
-	const uint64_t *ip = buf;
-	const uint64_t *ipend = (uint64_t *)((uint8_t *)ip + size);
-#if defined(_KERNEL)
-register unsigned char ZERO asm("v0") __attribute__((vector_size(16)));
-register unsigned char ACC0 asm("v1") __attribute__((vector_size(16)));
-register unsigned char ACC1 asm("v2") __attribute__((vector_size(16)));
-register unsigned char ACC2 asm("v3") __attribute__((vector_size(16)));
-register unsigned char ACC3 asm("v4") __attribute__((vector_size(16)));
-register unsigned char TMP1 asm("v5") __attribute__((vector_size(16)));
-register unsigned char TMP2 asm("v6") __attribute__((vector_size(16)));
-register unsigned char SRC asm("v7") __attribute__((vector_size(16)));
-#else
-unsigned char ZERO __attribute__((vector_size(16)));
-unsigned char ACC0 __attribute__((vector_size(16)));
-unsigned char ACC1 __attribute__((vector_size(16)));
-unsigned char ACC2 __attribute__((vector_size(16)));
-unsigned char ACC3 __attribute__((vector_size(16)));
-unsigned char TMP1 __attribute__((vector_size(16)));
-unsigned char TMP2 __attribute__((vector_size(16)));
-unsigned char SRC __attribute__((vector_size(16)));
-#endif
-
-	NEON_INIT_LOOP();
-
-	do {
-		NEON_MAIN_LOOP(NEON_DO_REVERSE);
-	} while ((ip += 2) < ipend);
-
-	NEON_FINI_LOOP();
 }
 
 static boolean_t fletcher_4_aarch64_neon_valid(void)

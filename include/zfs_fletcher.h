@@ -88,7 +88,7 @@ typedef struct zfs_fletcher_avx512 {
 } zfs_fletcher_avx512_t;
 
 typedef struct zfs_fletcher_aarch64_neon {
-	uint64_t v[2] __attribute__((aligned(16)));
+	uint64_t v[4] __attribute__((aligned(16)));
 } zfs_fletcher_aarch64_neon_t;
 
 

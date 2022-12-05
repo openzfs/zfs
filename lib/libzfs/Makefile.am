@@ -78,3 +78,8 @@ pkgconfig_DATA += %D%/libzfs.pc
 
 dist_noinst_DATA += %D%/libzfs.abi %D%/libzfs.suppr
 dist_noinst_DATA += %D%/THIRDPARTYLICENSE.openssl %D%/THIRDPARTYLICENSE.openssl.descrip
+
+if TARGET_CPU_AARCH64
+nodist_libzfs_la_SOURCES += \
+module/zcommon/zfs_fletcher_aarch64_neon_impl.S
+endif

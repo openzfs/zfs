@@ -211,3 +211,8 @@ if TARGET_CPU_POWERPC
 module/zfs/libzpool_la-vdev_raidz_math_powerpc_altivec.$(OBJEXT) : CFLAGS += -maltivec
 module/zfs/libzpool_la-vdev_raidz_math_powerpc_altivec.l$(OBJEXT): CFLAGS += -maltivec
 endif
+
+if TARGET_CPU_AARCH64
+nodist_libzpool_la_SOURCES += \
+module/zcommon/zfs_fletcher_aarch64_neon_impl.S
+endif
