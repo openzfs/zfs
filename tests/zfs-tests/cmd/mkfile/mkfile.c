@@ -273,7 +273,7 @@ main(int argc, char **argv)
 	return (errors);
 }
 
-static void usage()
+static void usage(void)
 {
 	(void) fprintf(stderr, gettext(
 	    "Usage: mkfile [-nv] <size>[g|k|b|m] <name1> [<name2>] ...\n"));
