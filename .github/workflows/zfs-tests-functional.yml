@@ -9,7 +9,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [18.04, 20.04]
+        os: [20.04]
     runs-on: ubuntu-${{ matrix.os }}
     steps:
     - uses: actions/checkout@v3
