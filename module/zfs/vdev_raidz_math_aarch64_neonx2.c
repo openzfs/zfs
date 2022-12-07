@@ -210,9 +210,13 @@ DEFINE_GEN_METHODS(aarch64_neonx2);
  * If compiled with -O0, gcc doesn't do any stack frame coalescing
  * and -Wframe-larger-than=1024 is triggered in debug mode.
  */
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic ignored "-Wframe-larger-than="
+#endif
 DEFINE_REC_METHODS(aarch64_neonx2);
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic pop
+#endif
 
 static boolean_t
 raidz_will_aarch64_neonx2_work(void)
