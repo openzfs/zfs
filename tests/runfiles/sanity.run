@@ -627,4 +627,6 @@ tags = ['functional', 'zpool_influxdb']
 
 [tests/functional/pyzfs]
 tests = ['pyzfs_unittest']
+pre =
+post =
 tags = ['functional', 'pyzfs']
