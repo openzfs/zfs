@@ -333,25 +333,21 @@ mount_fs()
 		# Can't use the mountpoint property. Might be one of our
 		# clones. Check the 'org.zol:mountpoint' property set in
 		# clone_snap() if that's usable.
-		mountpoint=$(get_fs_value "$fs" org.zol:mountpoint)
-		if [ "$mountpoint" = "legacy" ] ||
-		   [ "$mountpoint" = "none" ] ||
-		   [ "$mountpoint" = "-" ]
+		mountpoint1=$(get_fs_value "$fs" org.zol:mountpoint)
+		if [ "$mountpoint1" = "legacy" ] ||
+		   [ "$mountpoint1" = "none" ] ||
+		   [ "$mountpoint1" = "-" ]
 		then
 			if [ "$fs" != "${ZFS_BOOTFS}" ]; then
 				# We don't have a proper mountpoint and this
 				# isn't the root fs.
 				return 0
-			else
-				# Last hail-mary: Hope 'rootmnt' is set!
-				mountpoint=""
 			fi
-		fi
-
-		# If it's not a legacy filesystem, it can only be a
-		# native one...
-		if [ "$mountpoint" = "legacy" ]; then
 			ZFS_CMD="mount.zfs"
+			# Last hail-mary: Hope 'rootmnt' is set!
+			mountpoint=""
+		else
+			mountpoint="$mountpoint1"
 		fi
 	fi
 
