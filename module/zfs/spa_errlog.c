@@ -160,10 +160,8 @@ get_head_and_birth_txg(spa_t *spa, zbookmark_err_phys_t *zep, uint64_t ds_obj,
 	dsl_dataset_t *ds;
 	objset_t *os;
 
-	dsl_pool_config_enter(dp, FTAG);
 	int error = dsl_dataset_hold_obj(dp, ds_obj, FTAG, &ds);
 	if (error != 0) {
-		dsl_pool_config_exit(dp, FTAG);
 		return (error);
 	}
 	ASSERT(head_dataset_id);
@@ -172,7 +170,6 @@ get_head_and_birth_txg(spa_t *spa, zbookmark_err_phys_t *zep, uint64_t ds_obj,
 	error = dmu_objset_from_ds(ds, &os);
 	if (error != 0) {
 		dsl_dataset_rele(ds, FTAG);
-		dsl_pool_config_exit(dp, FTAG);
 		return (error);
 	}
 
@@ -189,7 +186,6 @@ get_head_and_birth_txg(spa_t *spa, zbookmark_err_phys_t *zep, uint64_t ds_obj,
 	    ZFS_KEYSTATUS_UNAVAILABLE) {
 		zep->zb_birth = 0;
 		dsl_dataset_rele(ds, FTAG);
-		dsl_pool_config_exit(dp, FTAG);
 		return (0);
 	}
 
@@ -199,7 +195,6 @@ get_head_and_birth_txg(spa_t *spa, zbookmark_err_phys_t *zep, uint64_t ds_obj,
 	error = dnode_hold(os, zep->zb_object, FTAG, &dn);
 	if (error != 0) {
 		dsl_dataset_rele(ds, FTAG);
-		dsl_pool_config_exit(dp, FTAG);
 		return (error);
 	}
 
@@ -225,7 +220,6 @@ get_head_and_birth_txg(spa_t *spa, zbookmark_err_phys_t *zep, uint64_t ds_obj,
 	rw_exit(&dn->dn_struct_rwlock);
 	dnode_rele(dn, FTAG);
 	dsl_dataset_rele(ds, FTAG);
-	dsl_pool_config_exit(dp, FTAG);
 	return (error);
 }
 
@@ -303,17 +297,31 @@ find_birth_txg(dsl_dataset_t *ds, zbookmark_err_phys_t *zep,
 }
 
 /*
- * This function serves a double role. If only_count is true, it returns
- * (in *count) how many times an error block belonging to this filesystem is
- * referenced by snapshots or clones. If only_count is false, each time the
- * error block is referenced by a snapshot or clone, it fills the userspace
- * array at uaddr with the bookmarks of the error blocks. The array is filled
- * from the back and *count is modified to be the number of unused entries at
- * the beginning of the array.
+ * Copy the bookmark to the end of the user-space buffer which starts at
+ * uaddr and has *count unused entries, and decrement *count by 1.
+ */
+static int
+copyout_entry(const zbookmark_phys_t *zb, void *uaddr, uint64_t *count)
+{
+	if (*count == 0)
+		return (SET_ERROR(ENOMEM));
+
+	*count -= 1;
+	if (copyout(zb, (char *)uaddr + (*count) * sizeof (zbookmark_phys_t),
+	    sizeof (zbookmark_phys_t)) != 0)
+		return (SET_ERROR(EFAULT));
+	return (0);
+}
+
+/*
+ * Each time the error block is referenced by a snapshot or clone, add a
+ * zbookmark_phys_t entry to the userspace array at uaddr. The array is
+ * filled from the back and the in-out parameter *count is modified to be the
+ * number of unused entries at the beginning of the array.
  */
 static int
 check_filesystem(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
-    uint64_t *count, void *uaddr, boolean_t only_count)
+    void *uaddr, uint64_t *count)
 {
 	dsl_dataset_t *ds;
 	dsl_pool_t *dp = spa->spa_dsl_pool;
@@ -343,18 +351,12 @@ check_filesystem(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 	}
 	if (zep->zb_birth == latest_txg) {
 		/* Block neither free nor rewritten. */
-		if (!only_count) {
-			zbookmark_phys_t zb;
-			zep_to_zb(head_ds, zep, &zb);
-			if (copyout(&zb, (char *)uaddr + (*count - 1)
-			    * sizeof (zbookmark_phys_t),
-			    sizeof (zbookmark_phys_t)) != 0) {
-				dsl_dataset_rele(ds, FTAG);
-				return (SET_ERROR(EFAULT));
-			}
-			(*count)--;
-		} else {
-			(*count)++;
+		zbookmark_phys_t zb;
+		zep_to_zb(head_ds, zep, &zb);
+		error = copyout_entry(&zb, uaddr, count);
+		if (error != 0) {
+			dsl_dataset_rele(ds, FTAG);
+			return (error);
 		}
 		check_snapshot = B_FALSE;
 	} else {
@@ -407,19 +409,12 @@ check_filesystem(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 			snap_obj_array[aff_snap_count] = snap_obj;
 			aff_snap_count++;
 
-			if (!only_count) {
-				zbookmark_phys_t zb;
-				zep_to_zb(snap_obj, zep, &zb);
-				if (copyout(&zb, (char *)uaddr + (*count - 1) *
-				    sizeof (zbookmark_phys_t),
-				    sizeof (zbookmark_phys_t)) != 0) {
-					dsl_dataset_rele(ds, FTAG);
-					error = SET_ERROR(EFAULT);
-					goto out;
-				}
-				(*count)--;
-			} else {
-				(*count)++;
+			zbookmark_phys_t zb;
+			zep_to_zb(snap_obj, zep, &zb);
+			error = copyout_entry(&zb, uaddr, count);
+			if (error != 0) {
+				dsl_dataset_rele(ds, FTAG);
+				goto out;
 			}
 
 			/*
@@ -433,8 +428,7 @@ check_filesystem(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 			    zap_cursor_retrieve(&zc, &za) == 0;
 			    zap_cursor_advance(&zc)) {
 				error = check_filesystem(spa,
-				    za.za_first_integer, zep,
-				    count, uaddr, only_count);
+				    za.za_first_integer, zep, uaddr, count);
 
 				if (error != 0) {
 					zap_cursor_fini(&zc);
@@ -477,11 +471,8 @@ find_top_affected_fs(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 
 static int
 process_error_block(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
-    uint64_t *count, void *uaddr, boolean_t only_count)
+    void *uaddr, uint64_t *count)
 {
-	dsl_pool_t *dp = spa->spa_dsl_pool;
-	uint64_t top_affected_fs;
-
 	/*
 	 * If the zb_birth is 0 it means we failed to retrieve the birth txg
 	 * of the block pointer. This happens when an encrypted filesystem is
@@ -489,94 +480,23 @@ process_error_block(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 	 * check_filesystem(), instead do the accounting here.
 	 */
 	if (zep->zb_birth == 0) {
-		if (!only_count) {
-			zbookmark_phys_t zb;
-			zep_to_zb(head_ds, zep, &zb);
-			if (copyout(&zb, (char *)uaddr + (*count - 1)
-			    * sizeof (zbookmark_phys_t),
-			    sizeof (zbookmark_phys_t)) != 0) {
-				return (SET_ERROR(EFAULT));
-			}
-			(*count)--;
-		} else {
-			(*count)++;
+		zbookmark_phys_t zb;
+		zep_to_zb(head_ds, zep, &zb);
+		int error = copyout_entry(&zb, uaddr, count);
+		if (error != 0) {
+			return (error);
 		}
 		return (0);
 	}
 
-	dsl_pool_config_enter(dp, FTAG);
+	uint64_t top_affected_fs;
 	int error = find_top_affected_fs(spa, head_ds, zep, &top_affected_fs);
-	if (error == 0)
-		error = check_filesystem(spa, top_affected_fs, zep, count,
-		    uaddr, only_count);
+	if (error == 0) {
+		error = check_filesystem(spa, top_affected_fs, zep,
+		    uaddr, count);
+	}
 
-	dsl_pool_config_exit(dp, FTAG);
 	return (error);
-}
-
-static uint64_t
-get_errlog_size(spa_t *spa, uint64_t spa_err_obj)
-{
-	if (spa_err_obj == 0)
-		return (0);
-	uint64_t total = 0;
-
-	zap_cursor_t zc;
-	zap_attribute_t za;
-	for (zap_cursor_init(&zc, spa->spa_meta_objset, spa_err_obj);
-	    zap_cursor_retrieve(&zc, &za) == 0; zap_cursor_advance(&zc)) {
-
-		zap_cursor_t head_ds_cursor;
-		zap_attribute_t head_ds_attr;
-		zbookmark_err_phys_t head_ds_block;
-
-		uint64_t head_ds;
-		name_to_object(za.za_name, &head_ds);
-
-		for (zap_cursor_init(&head_ds_cursor, spa->spa_meta_objset,
-		    za.za_first_integer); zap_cursor_retrieve(&head_ds_cursor,
-		    &head_ds_attr) == 0; zap_cursor_advance(&head_ds_cursor)) {
-
-			name_to_errphys(head_ds_attr.za_name, &head_ds_block);
-			(void) process_error_block(spa, head_ds, &head_ds_block,
-			    &total, NULL, B_TRUE);
-		}
-		zap_cursor_fini(&head_ds_cursor);
-	}
-	zap_cursor_fini(&zc);
-	return (total);
-}
-
-static uint64_t
-get_errlist_size(spa_t *spa, avl_tree_t *tree)
-{
-	if (avl_numnodes(tree) == 0)
-		return (0);
-	uint64_t total = 0;
-
-	spa_error_entry_t *se;
-	for (se = avl_first(tree); se != NULL; se = AVL_NEXT(tree, se)) {
-		zbookmark_err_phys_t zep;
-		zep.zb_object = se->se_bookmark.zb_object;
-		zep.zb_level = se->se_bookmark.zb_level;
-		zep.zb_blkid = se->se_bookmark.zb_blkid;
-		zep.zb_birth = 0;
-
-		/*
-		 * If we cannot find out the head dataset and birth txg of
-		 * the present error block, we opt not to error out. In the
-		 * next pool sync this information will be retrieved by
-		 * sync_error_list() and written to the on-disk error log.
-		 */
-		uint64_t head_ds_obj;
-		int error = get_head_and_birth_txg(spa, &zep,
-		    se->se_bookmark.zb_objset, &head_ds_obj);
-
-		if (!error)
-			(void) process_error_block(spa, head_ds_obj, &zep,
-			    &total, NULL, B_TRUE);
-	}
-	return (total);
 }
 #endif
 
@@ -677,13 +597,33 @@ spa_remove_error(spa_t *spa, zbookmark_phys_t *zb)
 	spa_add_healed_error(spa, spa->spa_errlog_scrub, zb);
 }
 
+static uint64_t
+approx_errlog_size_impl(spa_t *spa, uint64_t spa_err_obj)
+{
+	if (spa_err_obj == 0)
+		return (0);
+	uint64_t total = 0;
+
+	zap_cursor_t zc;
+	zap_attribute_t za;
+	for (zap_cursor_init(&zc, spa->spa_meta_objset, spa_err_obj);
+	    zap_cursor_retrieve(&zc, &za) == 0; zap_cursor_advance(&zc)) {
+		uint64_t count;
+		if (zap_count(spa->spa_meta_objset, za.za_first_integer,
+		    &count) == 0)
+			total += count;
+	}
+	zap_cursor_fini(&zc);
+	return (total);
+}
+
 /*
- * Return the number of errors currently in the error log.  This is actually the
- * sum of both the last log and the current log, since we don't know the union
- * of these logs until we reach userland.
+ * Return the approximate number of errors currently in the error log.  This
+ * will be nonzero if there are some errors, but otherwise it may be more
+ * or less than the number of entries returned by spa_get_errlog().
  */
 uint64_t
-spa_get_errlog_size(spa_t *spa)
+spa_approx_errlog_size(spa_t *spa)
 {
 	uint64_t total = 0;
 
@@ -701,23 +641,16 @@ spa_get_errlog_size(spa_t *spa)
 			total += count;
 		mutex_exit(&spa->spa_errlog_lock);
 
-		mutex_enter(&spa->spa_errlist_lock);
-		total += avl_numnodes(&spa->spa_errlist_last);
-		total += avl_numnodes(&spa->spa_errlist_scrub);
-		mutex_exit(&spa->spa_errlist_lock);
 	} else {
-#ifdef _KERNEL
 		mutex_enter(&spa->spa_errlog_lock);
-		total += get_errlog_size(spa, spa->spa_errlog_last);
-		total += get_errlog_size(spa, spa->spa_errlog_scrub);
+		total += approx_errlog_size_impl(spa, spa->spa_errlog_last);
+		total += approx_errlog_size_impl(spa, spa->spa_errlog_scrub);
 		mutex_exit(&spa->spa_errlog_lock);
-
-		mutex_enter(&spa->spa_errlist_lock);
-		total += get_errlist_size(spa, &spa->spa_errlist_last);
-		total += get_errlist_size(spa, &spa->spa_errlist_scrub);
-		mutex_exit(&spa->spa_errlist_lock);
-#endif
 	}
+	mutex_enter(&spa->spa_errlist_lock);
+	total += avl_numnodes(&spa->spa_errlist_last);
+	total += avl_numnodes(&spa->spa_errlist_scrub);
+	mutex_exit(&spa->spa_errlist_lock);
 	return (total);
 }
 
@@ -860,8 +793,7 @@ spa_upgrade_errlog(spa_t *spa, dmu_tx_t *tx)
 
 #ifdef _KERNEL
 /*
- * If an error block is shared by two datasets it will be counted twice. For
- * detailed message see spa_get_errlog_size() above.
+ * If an error block is shared by two datasets it will be counted twice.
  */
 static int
 process_error_log(spa_t *spa, uint64_t obj, void *uaddr, uint64_t *count)
@@ -884,14 +816,11 @@ process_error_log(spa_t *spa, uint64_t obj, void *uaddr, uint64_t *count)
 			zbookmark_phys_t zb;
 			name_to_bookmark(za.za_name, &zb);
 
-			if (copyout(&zb, (char *)uaddr +
-			    (*count - 1) * sizeof (zbookmark_phys_t),
-			    sizeof (zbookmark_phys_t)) != 0) {
+			int error = copyout_entry(&zb, uaddr, count);
+			if (error != 0) {
 				zap_cursor_fini(&zc);
-				return (SET_ERROR(EFAULT));
+				return (error);
 			}
-			*count -= 1;
-
 		}
 		zap_cursor_fini(&zc);
 		return (0);
@@ -914,7 +843,7 @@ process_error_log(spa_t *spa, uint64_t obj, void *uaddr, uint64_t *count)
 			zbookmark_err_phys_t head_ds_block;
 			name_to_errphys(head_ds_attr.za_name, &head_ds_block);
 			int error = process_error_block(spa, head_ds,
-			    &head_ds_block, count, uaddr, B_FALSE);
+			    &head_ds_block, uaddr, count);
 
 			if (error != 0) {
 				zap_cursor_fini(&head_ds_cursor);
@@ -936,16 +865,11 @@ process_error_list(spa_t *spa, avl_tree_t *list, void *uaddr, uint64_t *count)
 	if (!spa_feature_is_enabled(spa, SPA_FEATURE_HEAD_ERRLOG)) {
 		for (se = avl_first(list); se != NULL;
 		    se = AVL_NEXT(list, se)) {
-
-			if (*count == 0)
-				return (SET_ERROR(ENOMEM));
-
-			if (copyout(&se->se_bookmark, (char *)uaddr +
-			    (*count - 1) * sizeof (zbookmark_phys_t),
-			    sizeof (zbookmark_phys_t)) != 0)
-				return (SET_ERROR(EFAULT));
-
-			*count -= 1;
+			int error =
+			    copyout_entry(&se->se_bookmark, uaddr, count);
+			if (error != 0) {
+				return (error);
+			}
 		}
 		return (0);
 	}
@@ -963,7 +887,7 @@ process_error_list(spa_t *spa, avl_tree_t *list, void *uaddr, uint64_t *count)
 
 		if (!error)
 			error = process_error_block(spa, head_ds_obj, &zep,
-			    count, uaddr, B_FALSE);
+			    uaddr, count);
 		if (error)
 			return (error);
 	}
@@ -988,6 +912,12 @@ spa_get_errlog(spa_t *spa, void *uaddr, uint64_t *count)
 	int ret = 0;
 
 #ifdef _KERNEL
+	/*
+	 * The pool config lock is needed to hold a dataset_t via (among other
+	 * places) process_error_list() -> get_head_and_birth_txg(), and lock
+	 * ordering requires that we get it before the spa_errlog_lock.
+	 */
+	dsl_pool_config_enter(spa->spa_dsl_pool, FTAG);
 	mutex_enter(&spa->spa_errlog_lock);
 
 	ret = process_error_log(spa, spa->spa_errlog_scrub, uaddr, count);
@@ -1006,6 +936,7 @@ spa_get_errlog(spa_t *spa, void *uaddr, uint64_t *count)
 	mutex_exit(&spa->spa_errlist_lock);
 
 	mutex_exit(&spa->spa_errlog_lock);
+	dsl_pool_config_exit(spa->spa_dsl_pool, FTAG);
 #else
 	(void) spa, (void) uaddr, (void) count;
 #endif
@@ -1174,6 +1105,13 @@ spa_errlog_sync(spa_t *spa, uint64_t txg)
 	spa->spa_scrub_finished = B_FALSE;
 
 	mutex_exit(&spa->spa_errlist_lock);
+
+	/*
+	 * The pool config lock is needed to hold a dataset_t via
+	 * sync_error_list() -> get_head_and_birth_txg(), and lock ordering
+	 * requires that we get it before the spa_errlog_lock.
+	 */
+	dsl_pool_config_enter(spa->spa_dsl_pool, FTAG);
 	mutex_enter(&spa->spa_errlog_lock);
 
 	tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
@@ -1218,6 +1156,7 @@ spa_errlog_sync(spa_t *spa, uint64_t txg)
 	dmu_tx_commit(tx);
 
 	mutex_exit(&spa->spa_errlog_lock);
+	dsl_pool_config_exit(spa->spa_dsl_pool, FTAG);
 }
 
 static void
@@ -1354,7 +1293,7 @@ spa_swap_errlog(spa_t *spa, uint64_t new_head_ds, uint64_t old_head_ds,
 #if defined(_KERNEL)
 /* error handling */
 EXPORT_SYMBOL(spa_log_error);
-EXPORT_SYMBOL(spa_get_errlog_size);
+EXPORT_SYMBOL(spa_approx_errlog_size);
 EXPORT_SYMBOL(spa_get_errlog);
 EXPORT_SYMBOL(spa_errlog_rotate);
 EXPORT_SYMBOL(spa_errlog_drain);

@@ -6313,7 +6313,7 @@ ztest_scrub_impl(spa_t *spa)
 	while (dsl_scan_scrubbing(spa_get_dsl(spa)))
 		txg_wait_synced(spa_get_dsl(spa), 0);
 
-	if (spa_get_errlog_size(spa) > 0)
+	if (spa_approx_errlog_size(spa) > 0)
 		return (ECKSUM);
 
 	ztest_pool_scrubbed = B_TRUE;

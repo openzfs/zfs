@@ -222,7 +222,6 @@ check_status(nvlist_t *config, boolean_t isimport,
 {
 	pool_scan_stat_t *ps = NULL;
 	uint_t vsc, psc;
-	uint64_t nerr;
 	uint64_t suspended;
 	uint64_t hostid = 0;
 	uint64_t errata = 0;
@@ -392,6 +391,7 @@ check_status(nvlist_t *config, boolean_t isimport,
 	 * Persistent data errors.
 	 */
 	if (!isimport) {
+		uint64_t nerr;
 		if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_ERRCOUNT,
 		    &nerr) == 0 && nerr != 0)
 			return (ZPOOL_STATUS_CORRUPT_DATA);

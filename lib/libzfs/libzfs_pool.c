@@ -4133,33 +4133,28 @@ zpool_get_errlog(zpool_handle_t *zhp, nvlist_t **nverrlistp)
 {
 	zfs_cmd_t zc = {"\0"};
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
-	uint64_t count;
-	zbookmark_phys_t *zb = NULL;
-	int i;
+	zbookmark_phys_t *buf;
+	uint64_t buflen = 10000; /* approx. 1MB of RAM */
+
+	if (fnvlist_lookup_uint64(zhp->zpool_config,
+	    ZPOOL_CONFIG_ERRCOUNT) == 0)
+		return (0);
 
 	/*
-	 * Retrieve the raw error list from the kernel.  If the number of errors
-	 * has increased, allocate more space and continue until we get the
-	 * entire list.
+	 * Retrieve the raw error list from the kernel.  If it doesn't fit,
+	 * allocate a larger buffer and retry.
 	 */
-	count = fnvlist_lookup_uint64(zhp->zpool_config, ZPOOL_CONFIG_ERRCOUNT);
-	if (count == 0)
-		return (0);
-	zc.zc_nvlist_dst = (uintptr_t)zfs_alloc(zhp->zpool_hdl,
-	    count * sizeof (zbookmark_phys_t));
-	zc.zc_nvlist_dst_size = count;
 	(void) strcpy(zc.zc_name, zhp->zpool_name);
 	for (;;) {
+		buf = zfs_alloc(zhp->zpool_hdl,
+		    buflen * sizeof (zbookmark_phys_t));
+		zc.zc_nvlist_dst = (uintptr_t)buf;
+		zc.zc_nvlist_dst_size = buflen;
 		if (zfs_ioctl(zhp->zpool_hdl, ZFS_IOC_ERROR_LOG,
 		    &zc) != 0) {
-			free((void *)(uintptr_t)zc.zc_nvlist_dst);
+			free(buf);
 			if (errno == ENOMEM) {
-				void *dst;
-
-				count = zc.zc_nvlist_dst_size;
-				dst = zfs_alloc(zhp->zpool_hdl, count *
-				    sizeof (zbookmark_phys_t));
-				zc.zc_nvlist_dst = (uintptr_t)dst;
+				buflen *= 2;
 			} else {
 				return (zpool_standard_error_fmt(hdl, errno,
 				    dgettext(TEXT_DOMAIN, "errors: List of "
@@ -4177,18 +4172,17 @@ zpool_get_errlog(zpool_handle_t *zhp, nvlist_t **nverrlistp)
 	 * _not_ copied as part of the process.  So we point the start of our
 	 * array appropriate and decrement the total number of elements.
 	 */
-	zb = ((zbookmark_phys_t *)(uintptr_t)zc.zc_nvlist_dst) +
-	    zc.zc_nvlist_dst_size;
-	count -= zc.zc_nvlist_dst_size;
+	zbookmark_phys_t *zb = buf + zc.zc_nvlist_dst_size;
+	uint64_t zblen = buflen - zc.zc_nvlist_dst_size;
 
-	qsort(zb, count, sizeof (zbookmark_phys_t), zbookmark_mem_compare);
+	qsort(zb, zblen, sizeof (zbookmark_phys_t), zbookmark_mem_compare);
 
 	verify(nvlist_alloc(nverrlistp, 0, KM_SLEEP) == 0);
 
 	/*
 	 * Fill in the nverrlistp with nvlist's of dataset and object numbers.
 	 */
-	for (i = 0; i < count; i++) {
+	for (uint64_t i = 0; i < zblen; i++) {
 		nvlist_t *nv;
 
 		/* ignoring zb_blkid and zb_level for now */
@@ -4215,11 +4209,11 @@ zpool_get_errlog(zpool_handle_t *zhp, nvlist_t **nverrlistp)
 		nvlist_free(nv);
 	}
 
-	free((void *)(uintptr_t)zc.zc_nvlist_dst);
+	free(buf);
 	return (0);
 
 nomem:
-	free((void *)(uintptr_t)zc.zc_nvlist_dst);
+	free(buf);
 	return (no_memory(zhp->zpool_hdl));
 }
 
