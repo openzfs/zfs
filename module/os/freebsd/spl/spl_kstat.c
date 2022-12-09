@@ -39,6 +39,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/sysctl.h>
 #include <sys/kstat.h>
 #include <sys/sbuf.h>
+#include <sys/zone.h>
 
 static MALLOC_DEFINE(M_KSTAT, "kstat_data", "Kernel statistics");
 
@@ -130,6 +131,55 @@ kstat_sysctl_string(SYSCTL_HANDLER_ARGS)
 	val = KSTAT_NAMED_STR_PTR(ksent);
 	len = KSTAT_NAMED_STR_BUFLEN(ksent);
 	val[len-1] = '\0';
+
+	return (sysctl_handle_string(oidp, val, len, req));
+}
+
+static int
+kstat_sysctl_dataset(SYSCTL_HANDLER_ARGS)
+{
+	kstat_t *ksp = arg1;
+	kstat_named_t *ksent;
+	kstat_named_t *ksent_ds;
+	uint64_t val;
+	char *ds_name;
+	uint32_t ds_len = 0;
+
+	ksent_ds = ksent = ksp->ks_data;
+	ds_name = KSTAT_NAMED_STR_PTR(ksent_ds);
+	ds_len = KSTAT_NAMED_STR_BUFLEN(ksent_ds);
+	ds_name[ds_len-1] = '\0';
+
+	if (!zone_dataset_visible(ds_name, NULL)) {
+		return (EPERM);
+	}
+
+	/* Select the correct element */
+	ksent += arg2;
+	/* Update the aggsums before reading */
+	(void) ksp->ks_update(ksp, KSTAT_READ);
+	val = ksent->value.ui64;
+
+	return (sysctl_handle_64(oidp, &val, 0, req));
+}
+
+static int
+kstat_sysctl_dataset_string(SYSCTL_HANDLER_ARGS)
+{
+	kstat_t *ksp = arg1;
+	kstat_named_t *ksent = ksp->ks_data;
+	char *val;
+	uint32_t len = 0;
+
+	/* Select the correct element */
+	ksent += arg2;
+	val = KSTAT_NAMED_STR_PTR(ksent);
+	len = KSTAT_NAMED_STR_BUFLEN(ksent);
+	val[len-1] = '\0';
+
+	if (!zone_dataset_visible(val, NULL)) {
+		return (EPERM);
+	}
 
 	return (sysctl_handle_string(oidp, val, len, req));
 }
@@ -422,11 +472,20 @@ kstat_install_named(kstat_t *ksp)
 			    ksp, i, kstat_sysctl, "Q", namelast);
 			break;
 		case KSTAT_DATA_UINT64:
-			SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
-			    SYSCTL_CHILDREN(ksp->ks_sysctl_root),
-			    OID_AUTO, namelast,
-			    CTLTYPE_U64 | CTLFLAG_RD | CTLFLAG_MPSAFE,
-			    ksp, i, kstat_sysctl, "QU", namelast);
+			if (strcmp(ksp->ks_class, "dataset") == 0) {
+				SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
+				    SYSCTL_CHILDREN(ksp->ks_sysctl_root),
+				    OID_AUTO, namelast,
+				    CTLTYPE_U64 | CTLFLAG_RD | CTLFLAG_MPSAFE,
+				    ksp, i, kstat_sysctl_dataset, "QU",
+				    namelast);
+			} else {
+				SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
+				    SYSCTL_CHILDREN(ksp->ks_sysctl_root),
+				    OID_AUTO, namelast,
+				    CTLTYPE_U64 | CTLFLAG_RD | CTLFLAG_MPSAFE,
+				    ksp, i, kstat_sysctl, "QU", namelast);
+			}
 			break;
 		case KSTAT_DATA_LONG:
 			SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
@@ -443,11 +502,21 @@ kstat_install_named(kstat_t *ksp)
 			    ksp, i, kstat_sysctl, "LU", namelast);
 			break;
 		case KSTAT_DATA_STRING:
-			SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
-			    SYSCTL_CHILDREN(ksp->ks_sysctl_root),
-			    OID_AUTO, namelast,
-			    CTLTYPE_STRING | CTLFLAG_RD | CTLFLAG_MPSAFE,
-			    ksp, i, kstat_sysctl_string, "A", namelast);
+			if (strcmp(ksp->ks_class, "dataset") == 0) {
+				SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
+				    SYSCTL_CHILDREN(ksp->ks_sysctl_root),
+				    OID_AUTO, namelast, CTLTYPE_STRING |
+				    CTLFLAG_RD | CTLFLAG_MPSAFE,
+				    ksp, i, kstat_sysctl_dataset_string, "A",
+				    namelast);
+			} else {
+				SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
+				    SYSCTL_CHILDREN(ksp->ks_sysctl_root),
+				    OID_AUTO, namelast, CTLTYPE_STRING |
+				    CTLFLAG_RD | CTLFLAG_MPSAFE,
+				    ksp, i, kstat_sysctl_string, "A",
+				    namelast);
+			}
 			break;
 		default:
 			panic("unsupported type: %d", typelast);
