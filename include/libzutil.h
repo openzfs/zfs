@@ -151,13 +151,15 @@ int zfs_ioctl_fd(int fd, unsigned long request, struct zfs_cmd *zc);
  * List of colors to use
  */
 #define	ANSI_RED	"\033[0;31m"
+#define	ANSI_GREEN	"\033[0;32m"
 #define	ANSI_YELLOW	"\033[0;33m"
+#define	ANSI_BLUE	"\033[0;34m"
 #define	ANSI_RESET	"\033[0m"
 #define	ANSI_BOLD	"\033[1m"
 
-void color_start(char *color);
+void color_start(const char *color);
 void color_end(void);
-int printf_color(char *color, char *format, ...);
+int printf_color(const char *color, char *format, ...);
 
 /*
  * These functions are used by the ZFS libraries and cmd/zpool code, but are

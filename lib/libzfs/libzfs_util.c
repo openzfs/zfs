@@ -2082,22 +2082,26 @@ use_color(void)
  * color_end();
  */
 void
-color_start(char *color)
+color_start(const char *color)
 {
-	if (use_color())
-		printf("%s", color);
+	if (use_color()) {
+		fputs(color, stdout);
+		fflush(stdout);
+	}
 }
 
 void
 color_end(void)
 {
-	if (use_color())
-		printf(ANSI_RESET);
+	if (use_color()) {
+		fputs(ANSI_RESET, stdout);
+		fflush(stdout);
+	}
 }
 
 /* printf() with a color.  If color is NULL, then do a normal printf. */
 int
-printf_color(char *color, char *format, ...)
+printf_color(const char *color, char *format, ...)
 {
 	va_list aptr;
 	int rc;

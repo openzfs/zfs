@@ -45,6 +45,7 @@
 #include <pthread.h>
 #include <sys/zfs_ioctl.h>
 #include <libzfs.h>
+#include <libzutil.h>
 #include "libzfs_impl.h"
 
 #define	ZDIFF_SNAPDIR		"/.zfs/snapshot/"
@@ -55,6 +56,10 @@
 #define	ZDIFF_REMOVED	'-'
 #define	ZDIFF_RENAMED	"R"
 
+#define	ZDIFF_ADDED_COLOR ANSI_GREEN
+#define	ZDIFF_MODIFIED_COLOR ANSI_YELLOW
+#define	ZDIFF_REMOVED_COLOR ANSI_RED
+#define	ZDIFF_RENAMED_COLOR ANSI_BLUE
 
 /*
  * Given a {dsname, object id}, get the object path
@@ -129,6 +134,25 @@ stream_bytes(FILE *fp, const char *string)
 	}
 }
 
+/*
+ * Takes the type of change (like `print_file`), outputs the appropriate color
+ */
+static const char *
+type_to_color(char type)
+{
+	if (type == '+')
+		return (ZDIFF_ADDED_COLOR);
+	else if (type == '-')
+		return (ZDIFF_REMOVED_COLOR);
+	else if (type == 'M')
+		return (ZDIFF_MODIFIED_COLOR);
+	else if (type == 'R')
+		return (ZDIFF_RENAMED_COLOR);
+	else
+		return (NULL);
+}
+
+
 static char
 get_what(mode_t what)
 {
@@ -176,6 +200,8 @@ static void
 print_rename(FILE *fp, differ_info_t *di, const char *old, const char *new,
     zfs_stat_t *isb)
 {
+	if (isatty(fileno(fp)))
+		color_start(ZDIFF_RENAMED_COLOR);
 	if (di->timestamped)
 		(void) fprintf(fp, "%10lld.%09lld\t",
 		    (longlong_t)isb->zs_ctime[0],
@@ -187,12 +213,18 @@ print_rename(FILE *fp, differ_info_t *di, const char *old, const char *new,
 	(void) fputs(di->scripted ? "\t" : " -> ", fp);
 	print_cmn(fp, di, new);
 	(void) fputc('\n', fp);
+
+	if (isatty(fileno(fp)))
+		color_end();
 }
 
 static void
 print_link_change(FILE *fp, differ_info_t *di, int delta, const char *file,
     zfs_stat_t *isb)
 {
+	if (isatty(fileno(fp)))
+		color_start(ZDIFF_MODIFIED_COLOR);
+
 	if (di->timestamped)
 		(void) fprintf(fp, "%10lld.%09lld\t",
 		    (longlong_t)isb->zs_ctime[0],
@@ -202,12 +234,17 @@ print_link_change(FILE *fp, differ_info_t *di, int delta, const char *file,
 		(void) fprintf(fp, "%c\t", get_what(isb->zs_mode));
 	print_cmn(fp, di, file);
 	(void) fprintf(fp, "\t(%+d)\n", delta);
+	if (isatty(fileno(fp)))
+		color_end();
 }
 
 static void
 print_file(FILE *fp, differ_info_t *di, char type, const char *file,
     zfs_stat_t *isb)
 {
+	if (isatty(fileno(fp)))
+		color_start(type_to_color(type));
+
 	if (di->timestamped)
 		(void) fprintf(fp, "%10lld.%09lld\t",
 		    (longlong_t)isb->zs_ctime[0],
@@ -217,6 +254,9 @@ print_file(FILE *fp, differ_info_t *di, char type, const char *file,
 		(void) fprintf(fp, "%c\t", get_what(isb->zs_mode));
 	print_cmn(fp, di, file);
 	(void) fputc('\n', fp);
+
+	if (isatty(fileno(fp)))
+		color_end();
 }
 
 static int
