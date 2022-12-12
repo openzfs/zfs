@@ -5197,6 +5197,14 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			    destsnap);
 			*cp = '@';
 			break;
+		case E2BIG:
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "zfs receive required kernel memory allocation "
+			    "larger than the system can support. Please file "
+			    "an issue at the OpenZFS issue tracker:\n"
+			    "https://github.com/openzfs/zfs/issues/new"));
+			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
+			break;
 		case EBUSY:
 			if (hastoken) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,

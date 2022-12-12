@@ -31,6 +31,7 @@
  * Copyright (c) 2022 Axcient.
  */
 
+#include <sys/arc.h>
 #include <sys/spa_impl.h>
 #include <sys/dmu.h>
 #include <sys/dmu_impl.h>
@@ -1246,19 +1247,29 @@ dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
 
 	uint32_t payloadlen = drc->drc_drr_begin->drr_payloadlen;
 	void *payload = NULL;
+
+	/*
+	 * Since OpenZFS 2.0.0, we have enforced a 64MB limit in userspace
+	 * configurable via ZFS_SENDRECV_MAX_NVLIST. We enforce 256MB as a hard
+	 * upper limit. Systems with less than 1GB of RAM will see a lower
+	 * limit from `arc_all_memory() / 4`.
+	 */
+	if (payloadlen > (MIN((1U << 28), arc_all_memory() / 4)))
+		return (E2BIG);
+
 	if (payloadlen != 0)
-		payload = kmem_alloc(payloadlen, KM_SLEEP);
+		payload = vmem_alloc(payloadlen, KM_SLEEP);
 
 	err = receive_read_payload_and_next_header(drc, payloadlen,
 	    payload);
 	if (err != 0) {
-		kmem_free(payload, payloadlen);
+		vmem_free(payload, payloadlen);
 		return (err);
 	}
 	if (payloadlen != 0) {
 		err = nvlist_unpack(payload, payloadlen, &drc->drc_begin_nvl,
 		    KM_SLEEP);
-		kmem_free(payload, payloadlen);
+		vmem_free(payload, payloadlen);
 		if (err != 0) {
 			kmem_free(drc->drc_next_rrd,
 			    sizeof (*drc->drc_next_rrd));
