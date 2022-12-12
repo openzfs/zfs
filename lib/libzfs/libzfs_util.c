@@ -2010,15 +2010,20 @@ use_color(void)
 void
 color_start(const char *color)
 {
-	if (use_color())
+	if (use_color()) {
 		fputs(color, stdout);
+		fflush(stdout);
+	}
 }
 
 void
 color_end(void)
 {
-	if (use_color())
+	if (use_color()) {
 		fputs(ANSI_RESET, stdout);
+		fflush(stdout);
+	}
+
 }
 
 /* printf() with a color.  If color is NULL, then do a normal printf. */
