@@ -132,16 +132,13 @@ zfsdev_ioctl(struct cdev *dev, ulong_t zcmd, caddr_t arg, int flag,
 	len = IOCPARM_LEN(zcmd);
 	vecnum = zcmd & 0xff;
 	zp = (void *)arg;
-	uaddr = (void *)zp->zfs_cmd;
 	error = 0;
 	zcl = NULL;
 
-	if (len != sizeof (zfs_iocparm_t)) {
-		printf("len %d vecnum: %d sizeof (zfs_cmd_t) %ju\n",
-		    len, vecnum, (uintmax_t)sizeof (zfs_cmd_t));
+	if (len != sizeof (zfs_iocparm_t))
 		return (EINVAL);
-	}
 
+	uaddr = (void *)zp->zfs_cmd;
 	zc = kmem_zalloc(sizeof (zfs_cmd_t), KM_SLEEP);
 	/*
 	 * Remap ioctl code for legacy user binaries
