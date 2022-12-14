@@ -41,6 +41,9 @@ verify_runnable "both"
 
 function cleanup
 {
+	datasetexists $TESTPOOL/encrypted && \
+		destroy_dataset $TESTPOOL/encrypted -r
+
 	snapexists $snap && destroy_dataset $snap -f
 	snapexists $snap2 && destroy_dataset $snap2 -f
 
@@ -96,5 +99,16 @@ log_must test "$(get_prop 'encryption' $TESTPOOL/$TESTFS1/c3)" == "off"
 log_note "Verifying ZFS will not receive to an encrypted child when the" \
 	"parent key is unloaded"
 log_mustnot eval "zfs send $snap | zfs receive $TESTPOOL/$TESTFS1/c4"
+
+# Verify that replication can override encryption properties
+log_note "Verifying replication can override encryption properties for plain dataset"
+typeset key_location="/$TESTPOOL/pkey1"
+log_must eval "echo $passphrase > $key_location"
+log_must eval "zfs send -R $snap2 | zfs recv -s -F -o encryption=on" \
+	"-o keyformat=passphrase -o keylocation=file://$key_location" \
+	"-o mountpoint=none $TESTPOOL/encrypted"
+log_must test "$(get_prop 'encryption' $TESTPOOL/encrypted)" != "off"
+log_must test "$(get_prop 'keyformat' $TESTPOOL/encrypted)" == "passphrase"
+log_must test "$(get_prop 'keylocation' $TESTPOOL/encrypted)" == "file://$key_location"
 
 log_pass "ZFS can receive encrypted filesystems into child dataset"
