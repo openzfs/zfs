@@ -584,7 +584,13 @@ dump_write_embedded(dmu_send_cookie_t *dscp, uint64_t object, uint64_t offset,
 
 	decode_embedded_bp_compressed(bp, buf);
 
-	if (dump_record(dscp, buf, P2ROUNDUP(drrw->drr_psize, 8)) != 0)
+	uint32_t psize = drrw->drr_psize;
+	uint32_t rsize = P2ROUNDUP(psize, 8);
+
+	if (psize != rsize)
+		memset(buf + psize, 0, rsize - psize);
+
+	if (dump_record(dscp, buf, rsize) != 0)
 		return (SET_ERROR(EINTR));
 	return (0);
 }
