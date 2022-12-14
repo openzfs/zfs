@@ -28,15 +28,18 @@ jobs:
         ./configure --enable-debug --enable-debuginfo --enable-asan --enable-ubsan
     - name: Make
       run: |
-        make -j$(nproc) --no-print-directory --silent pkg-utils pkg-kmod
+        make --no-print-directory --silent native-deb-utils native-deb-kmod
+        mv ../*.deb .
+        rm ./openzfs-zfs-dkms*.deb ./openzfs-zfs-dracut*.deb
     - name: Install
       run: |
-        sudo dpkg -i *.deb
         # Update order of directories to search for modules, otherwise
         #   Ubuntu will load kernel-shipped ones.
         sudo sed -i.bak 's/updates/extra updates/' /etc/depmod.d/ubuntu.conf
-        sudo depmod
-        sudo modprobe zfs
+        sudo dpkg -i *.deb
+        # Native Debian packages enable and start the services
+        # Stop zfs-zed daemon, as it may interfere with some ZTS test cases
+        sudo systemctl stop zfs-zed
         # Workaround for cloud-init bug
         # see https://github.com/openzfs/zfs/issues/12644
         FILE=/lib/udev/rules.d/10-cloud-init-hook-hotplug.rules
