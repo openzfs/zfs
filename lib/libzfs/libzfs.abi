@@ -2925,13 +2925,14 @@
   <abi-instr address-size='64' path='lib/libzfs/libzfs_iter.c' language='LANG_C99'>
     <function-decl name='zfs_iter_filesystems' mangled-name='zfs_iter_filesystems' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_iter_filesystems'>
       <parameter type-id='9200a744' name='zhp'/>
+      <parameter type-id='95e97e5e' name='flags'/>
       <parameter type-id='d8e49ab9' name='func'/>
       <parameter type-id='eaa32e2f' name='data'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zfs_iter_snapshots' mangled-name='zfs_iter_snapshots' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_iter_snapshots'>
       <parameter type-id='9200a744' name='zhp'/>
-      <parameter type-id='c19b74c3' name='simple'/>
+      <parameter type-id='95e97e5e' name='flags'/>
       <parameter type-id='d8e49ab9' name='func'/>
       <parameter type-id='eaa32e2f' name='data'/>
       <parameter type-id='9c313c2d' name='min_txg'/>
@@ -2940,12 +2941,14 @@
     </function-decl>
     <function-decl name='zfs_iter_bookmarks' mangled-name='zfs_iter_bookmarks' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_iter_bookmarks'>
       <parameter type-id='9200a744' name='zhp'/>
+      <parameter type-id='95e97e5e' name='flags'/>
       <parameter type-id='d8e49ab9' name='func'/>
       <parameter type-id='eaa32e2f' name='data'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zfs_iter_snapshots_sorted' mangled-name='zfs_iter_snapshots_sorted' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_iter_snapshots_sorted'>
       <parameter type-id='9200a744' name='zhp'/>
+      <parameter type-id='95e97e5e' name='flags'/>
       <parameter type-id='d8e49ab9' name='callback'/>
       <parameter type-id='eaa32e2f' name='data'/>
       <parameter type-id='9c313c2d' name='min_txg'/>
@@ -2954,6 +2957,7 @@
     </function-decl>
     <function-decl name='zfs_iter_snapspec' mangled-name='zfs_iter_snapspec' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_iter_snapspec'>
       <parameter type-id='9200a744' name='fs_zhp'/>
+      <parameter type-id='95e97e5e' name='flags'/>
       <parameter type-id='80f4b756' name='spec_orig'/>
       <parameter type-id='d8e49ab9' name='func'/>
       <parameter type-id='eaa32e2f' name='arg'/>
@@ -2961,12 +2965,14 @@
     </function-decl>
     <function-decl name='zfs_iter_children' mangled-name='zfs_iter_children' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_iter_children'>
       <parameter type-id='9200a744' name='zhp'/>
+      <parameter type-id='95e97e5e' name='flags'/>
       <parameter type-id='d8e49ab9' name='func'/>
       <parameter type-id='eaa32e2f' name='data'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zfs_iter_dependents' mangled-name='zfs_iter_dependents' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_iter_dependents'>
       <parameter type-id='9200a744' name='zhp'/>
+      <parameter type-id='95e97e5e' name='flags'/>
       <parameter type-id='c19b74c3' name='allowrecursion'/>
       <parameter type-id='d8e49ab9' name='func'/>
       <parameter type-id='eaa32e2f' name='data'/>
