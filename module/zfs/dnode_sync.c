@@ -70,8 +70,8 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 	dmu_buf_impl_t *children[DN_MAX_NBLKPTR];
 	ASSERT3U(nblkptr, <=, DN_MAX_NBLKPTR);
 	for (i = 0; i < nblkptr; i++) {
-		children[i] =
-		    dbuf_find(dn->dn_objset, dn->dn_object, old_toplvl, i);
+		children[i] = dbuf_find(dn->dn_objset, dn->dn_object,
+		    old_toplvl, i, NULL);
 	}
 
 	/* transfer dnode's block pointers to new indirect block */

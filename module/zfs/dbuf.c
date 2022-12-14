@@ -339,7 +339,8 @@ dbuf_hash(void *os, uint64_t obj, uint8_t lvl, uint64_t blkid)
 	(dbuf)->db_blkid == (blkid))
 
 dmu_buf_impl_t *
-dbuf_find(objset_t *os, uint64_t obj, uint8_t level, uint64_t blkid)
+dbuf_find(objset_t *os, uint64_t obj, uint8_t level, uint64_t blkid,
+    uint64_t *hash_out)
 {
 	dbuf_hash_table_t *h = &dbuf_hash_table;
 	uint64_t hv;
@@ -361,6 +362,8 @@ dbuf_find(objset_t *os, uint64_t obj, uint8_t level, uint64_t blkid)
 		}
 	}
 	mutex_exit(DBUF_HASH_MUTEX(h, idx));
+	if (hash_out != NULL)
+		*hash_out = hv;
 	return (NULL);
 }
 
@@ -395,13 +398,13 @@ dbuf_hash_insert(dmu_buf_impl_t *db)
 	objset_t *os = db->db_objset;
 	uint64_t obj = db->db.db_object;
 	int level = db->db_level;
-	uint64_t blkid, hv, idx;
+	uint64_t blkid, idx;
 	dmu_buf_impl_t *dbf;
 	uint32_t i;
 
 	blkid = db->db_blkid;
-	hv = dbuf_hash(os, obj, level, blkid);
-	idx = hv & h->hash_table_mask;
+	ASSERT3U(dbuf_hash(os, obj, level, blkid), ==, db->db_hash);
+	idx = db->db_hash & h->hash_table_mask;
 
 	mutex_enter(DBUF_HASH_MUTEX(h, idx));
 	for (dbf = h->hash_table[idx], i = 0; dbf != NULL;
@@ -475,12 +478,12 @@ static void
 dbuf_hash_remove(dmu_buf_impl_t *db)
 {
 	dbuf_hash_table_t *h = &dbuf_hash_table;
-	uint64_t hv, idx;
+	uint64_t idx;
 	dmu_buf_impl_t *dbf, **dbp;
 
-	hv = dbuf_hash(db->db_objset, db->db.db_object,
-	    db->db_level, db->db_blkid);
-	idx = hv & h->hash_table_mask;
+	ASSERT3U(dbuf_hash(db->db_objset, db->db.db_object, db->db_level,
+	    db->db_blkid), ==, db->db_hash);
+	idx = db->db_hash & h->hash_table_mask;
 
 	/*
 	 * We mustn't hold db_mtx to maintain lock ordering:
@@ -2124,7 +2127,8 @@ dbuf_dirty_lightweight(dnode_t *dn, uint64_t blkid, dmu_tx_t *tx)
 	 * Otherwise the buffer contents could be inconsistent between the
 	 * dbuf and the lightweight dirty record.
 	 */
-	ASSERT3P(NULL, ==, dbuf_find(dn->dn_objset, dn->dn_object, 0, blkid));
+	ASSERT3P(NULL, ==, dbuf_find(dn->dn_objset, dn->dn_object, 0, blkid,
+	    NULL));
 
 	mutex_enter(&dn->dn_mtx);
 	int txgoff = tx->tx_txg & TXG_MASK;
@@ -3073,7 +3077,7 @@ dbuf_findbp(dnode_t *dn, int level, uint64_t blkid, int fail_sparse,
 
 static dmu_buf_impl_t *
 dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
-    dmu_buf_impl_t *parent, blkptr_t *blkptr)
+    dmu_buf_impl_t *parent, blkptr_t *blkptr, uint64_t hash)
 {
 	objset_t *os = dn->dn_objset;
 	dmu_buf_impl_t *db, *odb;
@@ -3094,6 +3098,7 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 	db->db_dnode_handle = dn->dn_handle;
 	db->db_parent = parent;
 	db->db_blkptr = blkptr;
+	db->db_hash = hash;
 
 	db->db_user = NULL;
 	db->db_user_immediate_evict = FALSE;
@@ -3394,7 +3399,7 @@ dbuf_prefetch_impl(dnode_t *dn, int64_t level, uint64_t blkid,
 		goto no_issue;
 
 	dmu_buf_impl_t *db = dbuf_find(dn->dn_objset, dn->dn_object,
-	    level, blkid);
+	    level, blkid, NULL);
 	if (db != NULL) {
 		mutex_exit(&db->db_mtx);
 		/*
@@ -3559,6 +3564,7 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
     const void *tag, dmu_buf_impl_t **dbp)
 {
 	dmu_buf_impl_t *db, *parent = NULL;
+	uint64_t hv;
 
 	/* If the pool has been created, verify the tx_sync_lock is not held */
 	spa_t *spa = dn->dn_objset->os_spa;
@@ -3574,7 +3580,7 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
 	*dbp = NULL;
 
 	/* dbuf_find() returns with db_mtx held */
-	db = dbuf_find(dn->dn_objset, dn->dn_object, level, blkid);
+	db = dbuf_find(dn->dn_objset, dn->dn_object, level, blkid, &hv);
 
 	if (db == NULL) {
 		blkptr_t *bp = NULL;
@@ -3596,7 +3602,7 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
 		}
 		if (err && err != ENOENT)
 			return (err);
-		db = dbuf_create(dn, level, blkid, parent, bp);
+		db = dbuf_create(dn, level, blkid, parent, bp, hv);
 	}
 
 	if (fail_uncached && db->db_state != DB_CACHED) {
@@ -3680,7 +3686,8 @@ dbuf_create_bonus(dnode_t *dn)
 	ASSERT(RW_WRITE_HELD(&dn->dn_struct_rwlock));
 
 	ASSERT(dn->dn_bonus == NULL);
-	dn->dn_bonus = dbuf_create(dn, 0, DMU_BONUS_BLKID, dn->dn_dbuf, NULL);
+	dn->dn_bonus = dbuf_create(dn, 0, DMU_BONUS_BLKID, dn->dn_dbuf, NULL,
+	    dbuf_hash(dn->dn_objset, dn->dn_object, 0, DMU_BONUS_BLKID));
 }
 
 int
@@ -3726,7 +3733,7 @@ dbuf_try_add_ref(dmu_buf_t *db_fake, objset_t *os, uint64_t obj, uint64_t blkid,
 	if (blkid == DMU_BONUS_BLKID)
 		found_db = dbuf_find_bonus(os, obj);
 	else
-		found_db = dbuf_find(os, obj, 0, blkid);
+		found_db = dbuf_find(os, obj, 0, blkid, NULL);
 
 	if (found_db != NULL) {
 		if (db == found_db && dbuf_refcount(db) > db->db_dirtycnt) {
