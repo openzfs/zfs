@@ -170,7 +170,7 @@ zfs_agent_iter_pool(zpool_handle_t *zhp, void *arg)
 	}
 
 	zpool_close(zhp);
-	return (gsp->gs_vdev_guid != 0);
+	return (gsp->gs_devid != NULL && gsp->gs_vdev_guid != 0);
 }
 
 void

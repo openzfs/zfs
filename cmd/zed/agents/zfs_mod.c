@@ -190,10 +190,12 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	uint64_t wholedisk = 0ULL;
 	uint64_t offline = 0ULL, faulted = 0ULL;
 	uint64_t guid = 0ULL;
+	uint64_t is_spare = 0;
 	char *physpath = NULL, *new_devid = NULL, *enc_sysfs_path = NULL;
 	char rawpath[PATH_MAX], fullpath[PATH_MAX];
 	char devpath[PATH_MAX];
 	int ret;
+	int online_flag = ZFS_ONLINE_CHECKREMOVE | ZFS_ONLINE_UNSPARE;
 	boolean_t is_sd = B_FALSE;
 	boolean_t is_mpath_wholedisk = B_FALSE;
 	uint_t c;
@@ -219,6 +221,7 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	(void) nvlist_lookup_uint64(vdev, ZPOOL_CONFIG_FAULTED, &faulted);
 
 	(void) nvlist_lookup_uint64(vdev, ZPOOL_CONFIG_GUID, &guid);
+	(void) nvlist_lookup_uint64(vdev, ZPOOL_CONFIG_IS_SPARE, &is_spare);
 
 	/*
 	 * Special case:
@@ -309,11 +312,13 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 		}
 	}
 
+	if (is_spare)
+		online_flag |= ZFS_ONLINE_SPARE;
+
 	/*
 	 * Attempt to online the device.
 	 */
-	if (zpool_vdev_online(zhp, fullpath,
-	    ZFS_ONLINE_CHECKREMOVE | ZFS_ONLINE_UNSPARE, &newstate) == 0 &&
+	if (zpool_vdev_online(zhp, fullpath, online_flag, &newstate) == 0 &&
 	    (newstate == VDEV_STATE_HEALTHY ||
 	    newstate == VDEV_STATE_DEGRADED)) {
 		zed_log_msg(LOG_INFO,
@@ -537,6 +542,7 @@ typedef struct dev_data {
 	uint64_t		dd_vdev_guid;
 	uint64_t		dd_new_vdev_guid;
 	const char		*dd_new_devid;
+	uint64_t		dd_num_spares;
 } dev_data_t;
 
 static void
@@ -547,6 +553,7 @@ zfs_iter_vdev(zpool_handle_t *zhp, nvlist_t *nvl, void *data)
 	uint_t c, children;
 	nvlist_t **child;
 	uint64_t guid = 0;
+	uint64_t isspare = 0;
 
 	/*
 	 * First iterate over any children.
@@ -572,7 +579,7 @@ zfs_iter_vdev(zpool_handle_t *zhp, nvlist_t *nvl, void *data)
 	}
 
 	/* once a vdev was matched and processed there is nothing left to do */
-	if (dp->dd_found)
+	if (dp->dd_found && dp->dd_num_spares == 0)
 		return;
 	(void) nvlist_lookup_uint64(nvl, ZPOOL_CONFIG_GUID, &guid);
 
@@ -621,6 +628,10 @@ zfs_iter_vdev(zpool_handle_t *zhp, nvlist_t *nvl, void *data)
 			    dp->dd_new_devid);
 		}
 	}
+
+	if (dp->dd_found == B_TRUE && nvlist_lookup_uint64(nvl,
+	    ZPOOL_CONFIG_IS_SPARE, &isspare) == 0 && isspare)
+		dp->dd_num_spares++;
 
 	(dp->dd_func)(zhp, nvl, dp->dd_islabeled);
 }
@@ -682,7 +693,9 @@ zfs_iter_pool(zpool_handle_t *zhp, void *data)
 	}
 
 	zpool_close(zhp);
-	return (dp->dd_found);	/* cease iteration after a match */
+
+	/* cease iteration after a match */
+	return (dp->dd_found && dp->dd_num_spares == 0);
 }
 
 /*
