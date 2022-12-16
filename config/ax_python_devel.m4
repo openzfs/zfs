@@ -97,23 +97,13 @@ AC_DEFUN([AX_PYTHON_DEVEL],[
 	# Check for a version of Python >= 2.1.0
 	#
 	AC_MSG_CHECKING([for a version of Python >= '2.1.0'])
-	ac_supports_python_ver=`cat<<EOD | $PYTHON -
-from __future__ import print_function;
-import sys;
-try:
-	from packaging import version;
-except ImportError:
-	from distlib import version;
-ver = sys.version.split ()[[0]];
-(tst_cmp, tst_ver) = ">= '2.1.0'".split ();
-tst_ver = tst_ver.strip ("'");
-eval ("print (version.LegacyVersion (ver)"+ tst_cmp +"version.LegacyVersion (tst_ver))")
-EOD`
+	ac_supports_python_ver=`$PYTHON -c "import sys; \
+		ver = sys.version.split ()[[0]]; \
+		print (ver >= '2.1.0')"`
 	if test "$ac_supports_python_ver" != "True"; then
 		if test -z "$PYTHON_NOVERSIONCHECK"; then
 			AC_MSG_RESULT([no])
-			m4_ifvaln([$2],[$2],[
-				AC_MSG_FAILURE([
+			AC_MSG_FAILURE([
 This version of the AC@&t@_PYTHON_DEVEL macro
 doesn't work properly with versions of Python before
 2.1.0. You may need to re-run configure, setting the
@@ -122,7 +112,6 @@ PYTHON_EXTRA_LIBS and PYTHON_EXTRA_LDFLAGS by hand.
 Moreover, to disable this check, set PYTHON_NOVERSIONCHECK
 to something else than an empty string.
 ])
-			])
 		else
 			AC_MSG_RESULT([skip at user request])
 		fi
@@ -131,37 +120,47 @@ to something else than an empty string.
 	fi
 
 	#
-	# if the macro parameter ``version'' is set, honour it
+	# If the macro parameter ``version'' is set, honour it.
+	# A Python shim class, VPy, is used to implement correct version comparisons via
+	# string expressions, since e.g. a naive textual ">= 2.7.3" won't work for
+	# Python 2.7.10 (the ".1" being evaluated as less than ".3").
 	#
 	if test -n "$1"; then
 		AC_MSG_CHECKING([for a version of Python $1])
-		# Why the strip ()?  Because if we don't, version.parse
-		# will, for example, report 3.10.0 >= '3.11.0'
-		ac_supports_python_ver=`cat<<EOD | $PYTHON -
-
-from __future__ import print_function;
-import sys;
-try:
-	from packaging import version;
-except ImportError:
-	from distlib import version;
-ver = sys.version.split ()[[0]];
-(tst_cmp, tst_ver) = "$1".split ();
-tst_ver = tst_ver.strip ("'");
-eval ("print (version.LegacyVersion (ver)"+ tst_cmp +"version.LegacyVersion (tst_ver))")
-EOD`
+                cat << EOF > ax_python_devel_vpy.py
+class VPy:
+    def vtup(self, s):
+        return tuple(map(int, s.strip().replace("rc", ".").split(".")))
+    def __init__(self):
+        import sys
+        self.vpy = tuple(sys.version_info)
+    def __eq__(self, s):
+        return self.vpy == self.vtup(s)
+    def __ne__(self, s):
+        return self.vpy != self.vtup(s)
+    def __lt__(self, s):
+        return self.vpy < self.vtup(s)
+    def __gt__(self, s):
+        return self.vpy > self.vtup(s)
+    def __le__(self, s):
+        return self.vpy <= self.vtup(s)
+    def __ge__(self, s):
+        return self.vpy >= self.vtup(s)
+EOF
+		ac_supports_python_ver=`$PYTHON -c "import ax_python_devel_vpy; \
+                        ver = ax_python_devel_vpy.VPy(); \
+			print (ver $1)"`
+                rm -rf ax_python_devel_vpy*.py* __pycache__/ax_python_devel_vpy*.py*
 		if test "$ac_supports_python_ver" = "True"; then
-		   AC_MSG_RESULT([yes])
+			AC_MSG_RESULT([yes])
 		else
 			AC_MSG_RESULT([no])
-			m4_ifvaln([$2],[$2],[
-				AC_MSG_ERROR([this package requires Python $1.
+			AC_MSG_ERROR([this package requires Python $1.
 If you have it installed, but it isn't the default Python
 interpreter in your system path, please pass the PYTHON_VERSION
 variable to configure. See ``configure --help'' for reference.
 ])
-				PYTHON_VERSION=""
-			])
+			PYTHON_VERSION=""
 		fi
 	fi
 
