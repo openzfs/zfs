@@ -16,7 +16,7 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.Dd January 9, 2024
+.Dd February 14, 2024
 .Dt ZFS 4
 .Os
 .
@@ -564,9 +564,8 @@ However, this is limited by
 Maximum micro ZAP size.
 A micro ZAP is upgraded to a fat ZAP, once it grows beyond the specified size.
 .
-.It Sy zfetch_hole_shift Ns = Ns Sy 2 Pq uint
-Log2 fraction of holes in speculative prefetch stream allowed for it to
-proceed.
+.It Sy zap_shrink_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
+If set, adjacent empty ZAP blocks will be collapsed, reducing disk space.
 .
 .It Sy zfetch_min_distance Ns = Ns Sy 4194304 Ns B Po 4 MiB Pc Pq uint
 Min bytes to prefetch per stream.
