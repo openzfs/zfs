@@ -5,7 +5,7 @@ ConditionPathIsDirectory=/sys/module/zfs
 
 [Service]
 ExecStart=@sbindir@/zed -F
-Restart=on-abort
+Restart=always
 
 [Install]
 Alias=zed.service
