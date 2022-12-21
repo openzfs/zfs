@@ -37,3 +37,41 @@ jobs:
           name: zfs
           path: artifacts
         if: success()
+
+  build-native-deb:
+    runs-on: ubuntu-20.04
+    container:
+      image: debian:testing
+    steps:
+      - name: Installing Dependencies
+        run: |
+          apt update > /dev/null 2>&1
+          apt install -y debhelper-compat devscripts > /dev/null 2>&1
+
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Build deb package
+        run: |
+          cp -a contrib/debian debian
+          mk-build-deps --build-dep
+          apt install -y ./*.deb
+          sed 's/@CFGOPTS@/--enable-debuginfo/g' debian/rules.in > debian/rules
+          chmod +x debian/rules
+          dch -b -M --force-distribution --distribution bullseye-truenas-unstable 'Tagged from zfs CI'
+          debuild -us -uc -b
+          debian/rules override_dh_binary-modules
+
+      - name: Create artifacts dir
+        run: mkdir artifacts
+        if: success()
+
+      - name: Move artifacts
+        run: mv ../*.deb artifacts
+        if: success()
+
+      - uses: actions/upload-artifact@v1
+        with:
+          name: zfs-native
+          path: artifacts
+        if: success()
