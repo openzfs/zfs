@@ -5779,10 +5779,9 @@ zdb_ddt_leak_init(spa_t *spa, zdb_cb_t *zcb)
 
 		ASSERT(ddt_phys_total_refcnt(&dde) > 1);
 
-		if (ddp->ddp_phys_birth == 0)
-			continue;
-
 		for (p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
+			if (ddp->ddp_phys_birth == 0)
+				continue;
 			ddt_bp_create(ddb.ddb_checksum,
 			    &dde.dde_key, ddp, &blk);
 			if (p == DDT_PHYS_DITTO) {
