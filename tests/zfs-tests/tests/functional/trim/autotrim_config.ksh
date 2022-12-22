@@ -95,6 +95,7 @@ for type in "" "mirror" "raidz2" "draid"; do
 
 	# Fill the pool, verify the vdevs are no longer sparse.
 	file_write -o create -f /$TESTPOOL/file -b 1048576 -c $fill_mb -d R
+	sync_pool $TESTPOOL
 	verify_vdevs "-ge" "$VDEV_MAX_MB" $VDEVS
 
 	# Remove the file, wait for trim, verify the vdevs are now sparse.
