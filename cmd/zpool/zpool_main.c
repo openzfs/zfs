@@ -8599,37 +8599,17 @@ status_callback(zpool_handle_t *zhp, void *data)
 
 		if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_ERRCOUNT,
 		    &nerr) == 0) {
-			nvlist_t *nverrlist = NULL;
-
-			/*
-			 * If the approximate error count is small, get a
-			 * precise count by fetching the entire log and
-			 * uniquifying the results.
-			 */
-			if (nerr > 0 && nerr < 100 && !cbp->cb_verbose &&
-			    zpool_get_errlog(zhp, &nverrlist) == 0) {
-				nvpair_t *elem;
-
-				elem = NULL;
-				nerr = 0;
-				while ((elem = nvlist_next_nvpair(nverrlist,
-				    elem)) != NULL) {
-					nerr++;
-				}
-			}
-			nvlist_free(nverrlist);
-
 			(void) printf("\n");
-
-			if (nerr == 0)
-				(void) printf(gettext("errors: No known data "
-				    "errors\n"));
-			else if (!cbp->cb_verbose)
+			if (nerr == 0) {
+				(void) printf(gettext(
+				    "errors: No known data errors\n"));
+			} else if (!cbp->cb_verbose) {
 				(void) printf(gettext("errors: %llu data "
 				    "errors, use '-v' for a list\n"),
 				    (u_longlong_t)nerr);
-			else
+			} else {
 				print_error_log(zhp);
+			}
 		}
 
 		if (cbp->cb_dedup_stats)
