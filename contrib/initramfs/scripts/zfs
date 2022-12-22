@@ -501,7 +501,7 @@ clone_snap()
 		echo "Error: $ZFS_ERROR"
 		echo ""
 		echo "Failed to clone snapshot."
-		echo "Make sure that the any problems are corrected and then make sure"
+		echo "Make sure that any problems are corrected and then make sure"
 		echo "that the dataset '$destfs' exists and is bootable."
 		shell
 	else
