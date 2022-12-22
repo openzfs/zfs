@@ -173,6 +173,10 @@ struct zfs_cmd;
 #define	ANSI_GREEN	"\033[0;32m"
 #define	ANSI_YELLOW	"\033[0;33m"
 #define	ANSI_BLUE	"\033[0;34m"
+#define	ANSI_MAGENTA	"\033[0;34m"
+#define	ANSI_CYAN	"\033[0;34m"
+
+#define	ANSI_GRAY	"\033[0;37m"
 #define	ANSI_RESET	"\033[0m"
 #define	ANSI_BOLD	"\033[1m"
 
