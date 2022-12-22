@@ -156,9 +156,6 @@ struct arc_write_callback {
  * these two allocation states.
  */
 typedef struct l1arc_buf_hdr {
-	kmutex_t		b_freeze_lock;
-	zio_cksum_t		*b_freeze_cksum;
-
 	/* for waiting on reads to complete */
 	kcondvar_t		b_cv;
 	uint8_t			b_byteswap;
@@ -181,6 +178,11 @@ typedef struct l1arc_buf_hdr {
 
 	arc_callback_t		*b_acb;
 	abd_t			*b_pabd;
+
+#ifdef ZFS_DEBUG
+	zio_cksum_t		*b_freeze_cksum;
+	kmutex_t		b_freeze_lock;
+#endif
 } l1arc_buf_hdr_t;
 
 typedef enum l2arc_dev_hdr_flags_t {
