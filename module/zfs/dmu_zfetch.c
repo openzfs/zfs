@@ -517,13 +517,11 @@ dmu_zfetch_run(zstream_t *zs, boolean_t missed, boolean_t have_lock)
 	issued = 0;
 	for (int64_t blk = pf_start; blk < pf_end; blk++) {
 		issued += dbuf_prefetch_impl(zf->zf_dnode, 0, blk,
-		    ZIO_PRIORITY_ASYNC_READ, ARC_FLAG_PREDICTIVE_PREFETCH,
-		    dmu_zfetch_done, zs);
+		    ZIO_PRIORITY_ASYNC_READ, 0, dmu_zfetch_done, zs);
 	}
 	for (int64_t iblk = ipf_start; iblk < ipf_end; iblk++) {
 		issued += dbuf_prefetch_impl(zf->zf_dnode, 1, iblk,
-		    ZIO_PRIORITY_ASYNC_READ, ARC_FLAG_PREDICTIVE_PREFETCH,
-		    dmu_zfetch_done, zs);
+		    ZIO_PRIORITY_ASYNC_READ, 0, dmu_zfetch_done, zs);
 	}
 
 	if (!have_lock)
