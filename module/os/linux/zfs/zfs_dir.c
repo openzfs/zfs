@@ -251,7 +251,7 @@ zfs_dirent_lock(zfs_dirlock_t **dlpp, znode_t *dzp, char *name,
 		}
 		for (dl = dzp->z_dirlocks; dl != NULL; dl = dl->dl_next) {
 			if ((u8_strcmp(name, dl->dl_name, 0, cmpflags,
-			    U8_UNICODE_LATEST, &error) == 0) || error != 0)
+			    &error) == 0) || error != 0)
 				break;
 		}
 		if (error != 0) {

@@ -51,12 +51,6 @@
 /* The maximum possible number of bytes in a UTF-8 character. */
 #define	U8_MB_CUR_MAX			(4)
 
-/*
- * The maximum number of bytes needed for a UTF-8 character to cover
- * U+0000 - U+FFFF, i.e., the coding space of now deprecated UCS-2.
- */
-#define	U8_MAX_BYTES_UCS2		(3)
-
 /* The maximum possible number of bytes in a Stream-Safe Text. */
 #define	U8_STREAM_SAFE_TEXT_MAX		(128)
 
@@ -119,9 +113,6 @@
 #define	U8_HANGUL_JAMO_T(u) \
 	((u) > U8_HANGUL_JAMO_T_FIRST && (u) <= U8_HANGUL_JAMO_T_LAST)
 
-#define	U8_HANGUL_JAMO(u) \
-	((u) >= U8_HANGUL_JAMO_L_FIRST && (u) <= U8_HANGUL_JAMO_T_LAST)
-
 #define	U8_HANGUL_SYLLABLE(u) \
 	((u) >= U8_HANGUL_SYL_FIRST && (u) <= U8_HANGUL_SYL_LAST)
 
@@ -151,9 +142,6 @@
 
 #define	U8_ASCII_TOUPPER(c) \
 	(((c) >= 'a' && (c) <= 'z') ? (c) - 'a' + 'A' : (c))
-
-#define	U8_ASCII_TOLOWER(c) \
-	(((c) >= 'A' && (c) <= 'Z') ? (c) - 'A' + 'a' : (c))
 
 #define	U8_ISASCII(c)			(((uchar_t)(c)) < 0x80U)
 /*
@@ -330,21 +318,16 @@ static const uint8_t u8_valid_max_2nd_byte[0x100] = {
  * specific to UTF-8 and Unicode.
  */
 int
-u8_validate(const char *u8str, size_t n, char **list, int flag, int *errnum)
+u8_validate(const char *u8str, size_t n, int flag, int *errnum)
 {
 	uchar_t *ib;
 	uchar_t *ibtail;
-	uchar_t **p;
-	uchar_t *s1;
-	uchar_t *s2;
 	uchar_t f;
 	int sz;
 	size_t i;
 	int ret_val;
 	boolean_t second;
 	boolean_t no_need_to_validate_entire;
-	boolean_t check_additional;
-	boolean_t validate_ucs2_range_only;
 
 	if (! u8str)
 		return (0);
@@ -355,8 +338,6 @@ u8_validate(const char *u8str, size_t n, char **list, int flag, int *errnum)
 	ret_val = 0;
 
 	no_need_to_validate_entire = ! (flag & U8_VALIDATE_ENTIRE);
-	check_additional = flag & U8_VALIDATE_CHECK_ADDITIONAL;
-	validate_ucs2_range_only = flag & U8_VALIDATE_UCS2_RANGE;
 
 	while (ib < ibtail) {
 		/*
@@ -371,8 +352,7 @@ u8_validate(const char *u8str, size_t n, char **list, int flag, int *errnum)
 			return (-1);
 		}
 
-		if (sz == U8_OUT_OF_RANGE_CHAR ||
-		    (validate_ucs2_range_only && sz > U8_MAX_BYTES_UCS2)) {
+		if (sz == U8_OUT_OF_RANGE_CHAR) {
 			*errnum = ERANGE;
 			return (-1);
 		}
@@ -416,24 +396,6 @@ u8_validate(const char *u8str, size_t n, char **list, int flag, int *errnum)
 			}
 		}
 
-		if (check_additional) {
-			for (p = (uchar_t **)list, i = 0; p[i]; i++) {
-				s1 = ib - sz;
-				s2 = p[i];
-				while (s1 < ib) {
-					if (*s1 != *s2 || *s2 == '\0')
-						break;
-					s1++;
-					s2++;
-				}
-
-				if (s1 >= ib && *s2 == '\0') {
-					*errnum = EBADF;
-					return (-1);
-				}
-			}
-		}
-
 		if (no_need_to_validate_entire)
 			break;
 	}
@@ -447,7 +409,7 @@ u8_validate(const char *u8str, size_t n, char **list, int flag, int *errnum)
  * always terminate the return bytes with a null character assuming that
  * there are plenty of room to do so.
  *
- * The case conversions are simple case conversions mapping a character to
+ * The case conversion is a simple case conversion mapping a character to
  * another character as specified in the Unicode data. The byte size of
  * the mapped character could be different from that of the input character.
  *
@@ -455,7 +417,7 @@ u8_validate(const char *u8str, size_t n, char **list, int flag, int *errnum)
  * the terminating null byte.
  */
 static size_t
-do_case_conv(int uv, uchar_t *u8s, uchar_t *s, int sz, boolean_t is_it_toupper)
+do_case_conv(uchar_t *u8s, uchar_t *s, int sz)
 {
 	size_t i;
 	uint16_t b1 = 0;
@@ -486,10 +448,7 @@ do_case_conv(int uv, uchar_t *u8s, uchar_t *s, int sz, boolean_t is_it_toupper)
 		b4 = u8s[3] = s[3];
 	} else {
 		/* This is not possible but just in case as a fallback. */
-		if (is_it_toupper)
-			*u8s = U8_ASCII_TOUPPER(*s);
-		else
-			*u8s = U8_ASCII_TOLOWER(*s);
+		*u8s = U8_ASCII_TOUPPER(*s);
 		u8s[1] = '\0';
 
 		return (1);
@@ -499,46 +458,29 @@ do_case_conv(int uv, uchar_t *u8s, uchar_t *s, int sz, boolean_t is_it_toupper)
 	/*
 	 * Let's find out if we have a corresponding character.
 	 */
-	b1 = u8_common_b1_tbl[uv][b1];
+	b1 = u8_common_b1_tbl[b1];
 	if (b1 == U8_TBL_ELEMENT_NOT_DEF)
 		return ((size_t)sz);
 
-	b2 = u8_case_common_b2_tbl[uv][b1][b2];
+	b2 = u8_case_common_b2_tbl[b1][b2];
 	if (b2 == U8_TBL_ELEMENT_NOT_DEF)
 		return ((size_t)sz);
 
-	if (is_it_toupper) {
-		b3_tbl = u8_toupper_b3_tbl[uv][b2][b3].tbl_id;
-		if (b3_tbl == U8_TBL_ELEMENT_NOT_DEF)
-			return ((size_t)sz);
+	b3_tbl = u8_toupper_b3_tbl[b2][b3].tbl_id;
+	if (b3_tbl == U8_TBL_ELEMENT_NOT_DEF)
+		return ((size_t)sz);
 
-		start_id = u8_toupper_b4_tbl[uv][b3_tbl][b4];
-		end_id = u8_toupper_b4_tbl[uv][b3_tbl][b4 + 1];
+	start_id = u8_toupper_b4_tbl[b3_tbl][b4];
+	end_id = u8_toupper_b4_tbl[b3_tbl][b4 + 1];
 
-		/* Either there is no match or an error at the table. */
-		if (start_id >= end_id || (end_id - start_id) > U8_MB_CUR_MAX)
-			return ((size_t)sz);
+	/* Either there is no match or an error at the table. */
+	if (start_id >= end_id || (end_id - start_id) > U8_MB_CUR_MAX)
+		return ((size_t)sz);
 
-		b3_base = u8_toupper_b3_tbl[uv][b2][b3].base;
+	b3_base = u8_toupper_b3_tbl[b2][b3].base;
 
-		for (i = 0; start_id < end_id; start_id++)
-			u8s[i++] = u8_toupper_final_tbl[uv][b3_base + start_id];
-	} else {
-		b3_tbl = u8_tolower_b3_tbl[uv][b2][b3].tbl_id;
-		if (b3_tbl == U8_TBL_ELEMENT_NOT_DEF)
-			return ((size_t)sz);
-
-		start_id = u8_tolower_b4_tbl[uv][b3_tbl][b4];
-		end_id = u8_tolower_b4_tbl[uv][b3_tbl][b4 + 1];
-
-		if (start_id >= end_id || (end_id - start_id) > U8_MB_CUR_MAX)
-			return ((size_t)sz);
-
-		b3_base = u8_tolower_b3_tbl[uv][b2][b3].base;
-
-		for (i = 0; start_id < end_id; start_id++)
-			u8s[i++] = u8_tolower_final_tbl[uv][b3_base + start_id];
-	}
+	for (i = 0; start_id < end_id; start_id++)
+		u8s[i++] = u8_toupper_final_tbl[b3_base + start_id];
 
 	/*
 	 * If i is still zero, that means there is no corresponding character.
@@ -561,8 +503,8 @@ do_case_conv(int uv, uchar_t *u8s, uchar_t *s, int sz, boolean_t is_it_toupper)
  * faster processing time.
  */
 static int
-do_case_compare(size_t uv, uchar_t *s1, uchar_t *s2, size_t n1,
-    size_t n2, boolean_t is_it_toupper, int *errnum)
+do_case_compare(uchar_t *s1, uchar_t *s2, size_t n1,
+    size_t n2, int *errnum)
 {
 	int f;
 	int sz1;
@@ -601,10 +543,7 @@ do_case_compare(size_t uv, uchar_t *s1, uchar_t *s2, size_t n1,
 		 * for the comparison.
 		 */
 		if (sz1 == 1) {
-			if (is_it_toupper)
-				u8s1[0] = U8_ASCII_TOUPPER(*s1);
-			else
-				u8s1[0] = U8_ASCII_TOLOWER(*s1);
+			u8s1[0] = U8_ASCII_TOUPPER(*s1);
 			s1++;
 			u8s1[1] = '\0';
 		} else if ((i1 + sz1) > n1) {
@@ -613,7 +552,7 @@ do_case_compare(size_t uv, uchar_t *s1, uchar_t *s2, size_t n1,
 				u8s1[j++] = *s1++;
 			u8s1[j] = '\0';
 		} else {
-			(void) do_case_conv(uv, u8s1, s1, sz1, is_it_toupper);
+			(void) do_case_conv(u8s1, s1, sz1);
 			s1 += sz1;
 		}
 
@@ -625,10 +564,7 @@ do_case_compare(size_t uv, uchar_t *s1, uchar_t *s2, size_t n1,
 		}
 
 		if (sz2 == 1) {
-			if (is_it_toupper)
-				u8s2[0] = U8_ASCII_TOUPPER(*s2);
-			else
-				u8s2[0] = U8_ASCII_TOLOWER(*s2);
+			u8s2[0] = U8_ASCII_TOUPPER(*s2);
 			s2++;
 			u8s2[1] = '\0';
 		} else if ((i2 + sz2) > n2) {
@@ -637,7 +573,7 @@ do_case_compare(size_t uv, uchar_t *s1, uchar_t *s2, size_t n1,
 				u8s2[j++] = *s2++;
 			u8s2[j] = '\0';
 		} else {
-			(void) do_case_conv(uv, u8s2, s2, sz2, is_it_toupper);
+			(void) do_case_conv(u8s2, s2, sz2);
 			s2 += sz2;
 		}
 
@@ -686,7 +622,7 @@ do_case_compare(size_t uv, uchar_t *s1, uchar_t *s2, size_t n1,
  * a Starter.
  */
 static uchar_t
-combining_class(size_t uv, uchar_t *s, size_t sz)
+combining_class(uchar_t *s, size_t sz)
 {
 	uint16_t b1 = 0;
 	uint16_t b2 = 0;
@@ -710,19 +646,19 @@ combining_class(size_t uv, uchar_t *s, size_t sz)
 		b4 = s[3];
 	}
 
-	b1 = u8_common_b1_tbl[uv][b1];
+	b1 = u8_common_b1_tbl[b1];
 	if (b1 == U8_TBL_ELEMENT_NOT_DEF)
 		return (0);
 
-	b2 = u8_combining_class_b2_tbl[uv][b1][b2];
+	b2 = u8_combining_class_b2_tbl[b1][b2];
 	if (b2 == U8_TBL_ELEMENT_NOT_DEF)
 		return (0);
 
-	b3 = u8_combining_class_b3_tbl[uv][b2][b3];
+	b3 = u8_combining_class_b3_tbl[b2][b3];
 	if (b3 == U8_TBL_ELEMENT_NOT_DEF)
 		return (0);
 
-	return (u8_combining_class_b4_tbl[uv][b3][b4]);
+	return (u8_combining_class_b4_tbl[b3][b4]);
 }
 
 /*
@@ -739,7 +675,7 @@ combining_class(size_t uv, uchar_t *s, size_t sz)
  * a Hangul character decomposed which then will be used by the caller.
  */
 static size_t
-do_decomp(size_t uv, uchar_t *u8s, uchar_t *s, int sz,
+do_decomp(uchar_t *u8s, uchar_t *s, int sz,
     boolean_t canonical_decomposition, u8_normalization_states_t *state)
 {
 	uint16_t b1 = 0;
@@ -843,15 +779,15 @@ do_decomp(size_t uv, uchar_t *u8s, uchar_t *s, int sz,
 	*state = U8_STATE_START;
 
 	/* Try to find matching decomposition mapping byte sequence. */
-	b1 = u8_common_b1_tbl[uv][b1];
+	b1 = u8_common_b1_tbl[b1];
 	if (b1 == U8_TBL_ELEMENT_NOT_DEF)
 		return ((size_t)sz);
 
-	b2 = u8_decomp_b2_tbl[uv][b1][b2];
+	b2 = u8_decomp_b2_tbl[b1][b2];
 	if (b2 == U8_TBL_ELEMENT_NOT_DEF)
 		return ((size_t)sz);
 
-	b3_tbl = u8_decomp_b3_tbl[uv][b2][b3].tbl_id;
+	b3_tbl = u8_decomp_b3_tbl[b2][b3].tbl_id;
 	if (b3_tbl == U8_TBL_ELEMENT_NOT_DEF)
 		return ((size_t)sz);
 
@@ -862,13 +798,13 @@ do_decomp(size_t uv, uchar_t *u8s, uchar_t *s, int sz,
 	 */
 	if (b3_tbl >= U8_16BIT_TABLE_INDICATOR) {
 		b3_tbl -= U8_16BIT_TABLE_INDICATOR;
-		start_id = u8_decomp_b4_16bit_tbl[uv][b3_tbl][b4];
-		end_id = u8_decomp_b4_16bit_tbl[uv][b3_tbl][b4 + 1];
+		start_id = u8_decomp_b4_16bit_tbl[b3_tbl][b4];
+		end_id = u8_decomp_b4_16bit_tbl[b3_tbl][b4 + 1];
 	} else {
 		// cppcheck-suppress arrayIndexOutOfBoundsCond
-		start_id = u8_decomp_b4_tbl[uv][b3_tbl][b4];
+		start_id = u8_decomp_b4_tbl[b3_tbl][b4];
 		// cppcheck-suppress arrayIndexOutOfBoundsCond
-		end_id = u8_decomp_b4_tbl[uv][b3_tbl][b4 + 1];
+		end_id = u8_decomp_b4_tbl[b3_tbl][b4 + 1];
 	}
 
 	/* This also means there wasn't any matching decomposition. */
@@ -916,10 +852,10 @@ do_decomp(size_t uv, uchar_t *u8s, uchar_t *s, int sz,
 	 * already.
 	 */
 
-	b3_base = u8_decomp_b3_tbl[uv][b2][b3].base;
+	b3_base = u8_decomp_b3_tbl[b2][b3].base;
 
 	/* Get the type, T, of the byte sequence. */
-	b1 = u8_decomp_final_tbl[uv][b3_base + start_id];
+	b1 = u8_decomp_final_tbl[b3_base + start_id];
 
 	/*
 	 * If necessary, adjust start_id, end_id, or both. Note that if
@@ -935,7 +871,7 @@ do_decomp(size_t uv, uchar_t *u8s, uchar_t *s, int sz,
 
 		if (b1 == U8_DECOMP_BOTH) {
 			end_id = start_id +
-			    u8_decomp_final_tbl[uv][b3_base + start_id];
+			    u8_decomp_final_tbl[b3_base + start_id];
 			start_id++;
 		}
 	} else {
@@ -945,14 +881,14 @@ do_decomp(size_t uv, uchar_t *u8s, uchar_t *s, int sz,
 		 */
 		if (b1 == U8_DECOMP_BOTH) {
 			start_id++;
-			start_id += u8_decomp_final_tbl[uv][b3_base + start_id];
+			start_id += u8_decomp_final_tbl[b3_base + start_id];
 		} else if (b1 == U8_DECOMP_CANONICAL) {
 			start_id++;
 		}
 	}
 
 	for (i = 0; start_id < end_id; start_id++)
-		u8s[i++] = u8_decomp_final_tbl[uv][b3_base + start_id];
+		u8s[i++] = u8_decomp_final_tbl[b3_base + start_id];
 	u8s[i] = '\0';
 
 	return (i);
@@ -964,7 +900,7 @@ do_decomp(size_t uv, uchar_t *u8s, uchar_t *s, int sz,
  * to the composition mappings as explained in the do_composition().
  */
 static uchar_t *
-find_composition_start(size_t uv, uchar_t *s, size_t sz)
+find_composition_start(uchar_t *s, size_t sz)
 {
 	uint16_t b1 = 0;
 	uint16_t b2 = 0;
@@ -997,35 +933,35 @@ find_composition_start(size_t uv, uchar_t *s, size_t sz)
 		return (NULL);
 	}
 
-	b1 = u8_composition_b1_tbl[uv][b1];
+	b1 = u8_composition_b1_tbl[b1];
 	if (b1 == U8_TBL_ELEMENT_NOT_DEF)
 		return (NULL);
 
-	b2 = u8_composition_b2_tbl[uv][b1][b2];
+	b2 = u8_composition_b2_tbl[b1][b2];
 	if (b2 == U8_TBL_ELEMENT_NOT_DEF)
 		return (NULL);
 
-	b3_tbl = u8_composition_b3_tbl[uv][b2][b3].tbl_id;
+	b3_tbl = u8_composition_b3_tbl[b2][b3].tbl_id;
 	if (b3_tbl == U8_TBL_ELEMENT_NOT_DEF)
 		return (NULL);
 
 	if (b3_tbl >= U8_16BIT_TABLE_INDICATOR) {
 		b3_tbl -= U8_16BIT_TABLE_INDICATOR;
-		start_id = u8_composition_b4_16bit_tbl[uv][b3_tbl][b4];
-		end_id = u8_composition_b4_16bit_tbl[uv][b3_tbl][b4 + 1];
+		start_id = u8_composition_b4_16bit_tbl[b3_tbl][b4];
+		end_id = u8_composition_b4_16bit_tbl[b3_tbl][b4 + 1];
 	} else {
 		// cppcheck-suppress arrayIndexOutOfBoundsCond
-		start_id = u8_composition_b4_tbl[uv][b3_tbl][b4];
+		start_id = u8_composition_b4_tbl[b3_tbl][b4];
 		// cppcheck-suppress arrayIndexOutOfBoundsCond
-		end_id = u8_composition_b4_tbl[uv][b3_tbl][b4 + 1];
+		end_id = u8_composition_b4_tbl[b3_tbl][b4 + 1];
 	}
 
 	if (start_id >= end_id)
 		return (NULL);
 
-	b3_base = u8_composition_b3_tbl[uv][b2][b3].base;
+	b3_base = u8_composition_b3_tbl[b2][b3].base;
 
-	return ((uchar_t *)&(u8_composition_final_tbl[uv][b3_base + start_id]));
+	return ((uchar_t *)&(u8_composition_final_tbl[b3_base + start_id]));
 }
 
 /*
@@ -1055,7 +991,7 @@ blocked(uchar_t *comb_class, size_t last)
  * The input argument 's' cannot contain more than 32 characters.
  */
 static size_t
-do_composition(size_t uv, uchar_t *s, uchar_t *comb_class, uchar_t *start,
+do_composition(uchar_t *s, uchar_t *comb_class, uchar_t *start,
     uchar_t *disp, size_t last, uchar_t **os, uchar_t *oslast)
 {
 	uchar_t t[U8_STREAM_SAFE_TEXT_MAX + 1];
@@ -1142,7 +1078,7 @@ SAVE_THE_CHAR:
 		 * Let's then find out if this Starter has composition
 		 * mapping.
 		 */
-		p = find_composition_start(uv, s + start[i], disp[i]);
+		p = find_composition_start(s + start[i], disp[i]);
 		if (p == NULL)
 			goto SAVE_THE_CHAR;
 
@@ -1244,7 +1180,7 @@ TRY_THE_NEXT_MARK:
 				goto TRY_THE_NEXT_MARK;
 			}
 		} else if (i < last) {
-			p = find_composition_start(uv, t + saved_l,
+			p = find_composition_start(t + saved_l,
 			    l - saved_l);
 			if (p != NULL) {
 				saved_p = p;
@@ -1295,7 +1231,7 @@ TRY_THE_NEXT_MARK:
 			for (i = 0; i < size; i++)
 				tc[i] = *p++;
 
-			q = find_composition_start(uv, t + saved_l,
+			q = find_composition_start(t + saved_l,
 			    l - saved_l);
 			if (q == NULL) {
 				p = saved_p;
@@ -1377,8 +1313,8 @@ SAFE_RETURN:
  * null byte.
  */
 static size_t
-collect_a_seq(size_t uv, uchar_t *u8s, uchar_t **source, uchar_t *slast,
-    boolean_t is_it_toupper, boolean_t is_it_tolower,
+collect_a_seq(uchar_t *u8s, uchar_t **source, uchar_t *slast,
+    boolean_t is_it_toupper,
     boolean_t canonical_decomposition, boolean_t compatibility_decomposition,
     boolean_t canonical_composition,
     int *errnum, u8_normalization_states_t *state)
@@ -1437,8 +1373,6 @@ collect_a_seq(size_t uv, uchar_t *u8s, uchar_t **source, uchar_t *slast,
 	if (sz == 1) {
 		if (is_it_toupper)
 			u8s[0] = U8_ASCII_TOUPPER(*s);
-		else if (is_it_tolower)
-			u8s[0] = U8_ASCII_TOLOWER(*s);
 		else
 			u8s[0] = *s;
 		s++;
@@ -1454,8 +1388,8 @@ collect_a_seq(size_t uv, uchar_t *u8s, uchar_t **source, uchar_t *slast,
 
 		return (i);
 	} else {
-		if (is_it_toupper || is_it_tolower) {
-			i = do_case_conv(uv, u8s, s, sz, is_it_toupper);
+		if (is_it_toupper) {
+			i = do_case_conv(u8s, s, sz);
 			s += sz;
 			sz = i;
 		} else {
@@ -1483,7 +1417,7 @@ collect_a_seq(size_t uv, uchar_t *u8s, uchar_t **source, uchar_t *slast,
 
 			last = 1;
 		} else {
-			saved_sz = do_decomp(uv, u8s, u8s, sz,
+			saved_sz = do_decomp(u8s, u8s, sz,
 			    canonical_decomposition, state);
 
 			last = 0;
@@ -1491,8 +1425,7 @@ collect_a_seq(size_t uv, uchar_t *u8s, uchar_t **source, uchar_t *slast,
 			for (i = 0; i < saved_sz; ) {
 				sz = u8_number_of_bytes[u8s[i]];
 
-				comb_class[last] = combining_class(uv,
-				    u8s + i, sz);
+				comb_class[last] = combining_class(u8s + i, sz);
 				start[last] = i;
 				disp[last] = sz;
 
@@ -1562,7 +1495,7 @@ collect_a_seq(size_t uv, uchar_t *u8s, uchar_t **source, uchar_t *slast,
 				 * since that's a new start and we will deal
 				 * with it at the next time.
 				 */
-				i = combining_class(uv, s, sz);
+				i = combining_class(s, sz);
 				if (i == U8_COMBINING_CLASS_STARTER)
 					break;
 
@@ -1613,13 +1546,13 @@ TURN_STREAM_SAFE:
 				if (*state == U8_STATE_COMBINING_MARK) {
 					k = last;
 					l = sz;
-					i = do_decomp(uv, uts, s, sz,
+					i = do_decomp(uts, s, sz,
 					    canonical_decomposition, state);
 					for (j = 0; j < i; ) {
 						sz = u8_number_of_bytes[uts[j]];
 
 						comb_class[last] =
-						    combining_class(uv,
+						    combining_class(
 						    uts + j, sz);
 						start[last] = saved_sz + j;
 						disp[last] = sz;
@@ -1704,7 +1637,7 @@ TURN_STREAM_SAFE:
 		 * only after a canonical or compatibility decomposition to
 		 * finish up NFC or NFKC.
 		 */
-		sz = do_composition(uv, u8s, comb_class, start, disp, last,
+		sz = do_composition(u8s, comb_class, start, disp, last,
 		    &s, slast);
 	}
 
@@ -1723,7 +1656,7 @@ TURN_STREAM_SAFE:
  * The meanings on the return values are the same as the usual strcmp().
  */
 static int
-do_norm_compare(size_t uv, uchar_t *s1, uchar_t *s2, size_t n1, size_t n2,
+do_norm_compare(uchar_t *s1, uchar_t *s2, size_t n1, size_t n2,
     int flag, int *errnum)
 {
 	int result;
@@ -1734,7 +1667,6 @@ do_norm_compare(size_t uv, uchar_t *s1, uchar_t *s2, size_t n1, size_t n2,
 	uchar_t *s1last;
 	uchar_t *s2last;
 	boolean_t is_it_toupper;
-	boolean_t is_it_tolower;
 	boolean_t canonical_decomposition;
 	boolean_t compatibility_decomposition;
 	boolean_t canonical_composition;
@@ -1744,7 +1676,6 @@ do_norm_compare(size_t uv, uchar_t *s1, uchar_t *s2, size_t n1, size_t n2,
 	s2last = s2 + n2;
 
 	is_it_toupper = flag & U8_TEXTPREP_TOUPPER;
-	is_it_tolower = flag & U8_TEXTPREP_TOLOWER;
 	canonical_decomposition = flag & U8_CANON_DECOMP;
 	compatibility_decomposition = flag & U8_COMPAT_DECOMP;
 	canonical_composition = flag & U8_CANON_COMP;
@@ -1763,8 +1694,6 @@ do_norm_compare(size_t uv, uchar_t *s1, uchar_t *s2, size_t n1, size_t n2,
 		    ((s1 + 1) < s1last && U8_ISASCII(*(s1 + 1))))) {
 			if (is_it_toupper)
 				u8s1[0] = U8_ASCII_TOUPPER(*s1);
-			else if (is_it_tolower)
-				u8s1[0] = U8_ASCII_TOLOWER(*s1);
 			else
 				u8s1[0] = *s1;
 			u8s1[1] = '\0';
@@ -1772,8 +1701,8 @@ do_norm_compare(size_t uv, uchar_t *s1, uchar_t *s2, size_t n1, size_t n2,
 			s1++;
 		} else {
 			state = U8_STATE_START;
-			sz1 = collect_a_seq(uv, u8s1, &s1, s1last,
-			    is_it_toupper, is_it_tolower,
+			sz1 = collect_a_seq(u8s1, &s1, s1last,
+			    is_it_toupper,
 			    canonical_decomposition,
 			    compatibility_decomposition,
 			    canonical_composition, errnum, &state);
@@ -1783,8 +1712,6 @@ do_norm_compare(size_t uv, uchar_t *s1, uchar_t *s2, size_t n1, size_t n2,
 		    ((s2 + 1) < s2last && U8_ISASCII(*(s2 + 1))))) {
 			if (is_it_toupper)
 				u8s2[0] = U8_ASCII_TOUPPER(*s2);
-			else if (is_it_tolower)
-				u8s2[0] = U8_ASCII_TOLOWER(*s2);
 			else
 				u8s2[0] = *s2;
 			u8s2[1] = '\0';
@@ -1792,8 +1719,8 @@ do_norm_compare(size_t uv, uchar_t *s1, uchar_t *s2, size_t n1, size_t n2,
 			s2++;
 		} else {
 			state = U8_STATE_START;
-			sz2 = collect_a_seq(uv, u8s2, &s2, s2last,
-			    is_it_toupper, is_it_tolower,
+			sz2 = collect_a_seq(u8s2, &s2, s2last,
+			    is_it_toupper,
 			    canonical_decomposition,
 			    compatibility_decomposition,
 			    canonical_composition, errnum, &state);
@@ -1839,8 +1766,7 @@ do_norm_compare(size_t uv, uchar_t *s1, uchar_t *s2, size_t n1, size_t n2,
  * can be requested and checked against.
  */
 int
-u8_strcmp(const char *s1, const char *s2, size_t n, int flag, size_t uv,
-    int *errnum)
+u8_strcmp(const char *s1, const char *s2, size_t n, int flag, int *errnum)
 {
 	int f;
 	size_t n1;
@@ -1848,25 +1774,15 @@ u8_strcmp(const char *s1, const char *s2, size_t n, int flag, size_t uv,
 
 	*errnum = 0;
 
-	/*
-	 * Check on the requested Unicode version, case conversion, and
-	 * normalization flag values.
-	 */
-
-	if (uv > U8_UNICODE_LATEST) {
-		*errnum = ERANGE;
-		uv = U8_UNICODE_LATEST;
-	}
+	/* Check on the case conversion, and normalization flag values */
 
 	if (flag == 0) {
 		flag = U8_STRCMP_CS;
 	} else {
-		f = flag & (U8_STRCMP_CS | U8_STRCMP_CI_UPPER |
-		    U8_STRCMP_CI_LOWER);
+		f = flag & (U8_STRCMP_CS | U8_STRCMP_CI_UPPER);
 		if (f == 0) {
 			flag |= U8_STRCMP_CS;
-		} else if (f != U8_STRCMP_CS && f != U8_STRCMP_CI_UPPER &&
-		    f != U8_STRCMP_CI_LOWER) {
+		} else if (f != U8_STRCMP_CS && f != U8_STRCMP_CI_UPPER) {
 			*errnum = EBADF;
 			flag = U8_STRCMP_CS;
 		}
@@ -1896,21 +1812,17 @@ u8_strcmp(const char *s1, const char *s2, size_t n, int flag, size_t uv,
 	 * Simple case conversion can be done much faster and so we do
 	 * them separately here.
 	 */
-	if (flag == U8_STRCMP_CI_UPPER) {
-		return (do_case_compare(uv, (uchar_t *)s1, (uchar_t *)s2,
-		    n1, n2, B_TRUE, errnum));
-	} else if (flag == U8_STRCMP_CI_LOWER) {
-		return (do_case_compare(uv, (uchar_t *)s1, (uchar_t *)s2,
-		    n1, n2, B_FALSE, errnum));
-	}
+	if (flag == U8_STRCMP_CI_UPPER)
+		return (do_case_compare((uchar_t *)s1, (uchar_t *)s2,
+		    n1, n2, errnum));
 
-	return (do_norm_compare(uv, (uchar_t *)s1, (uchar_t *)s2, n1, n2,
+	return (do_norm_compare((uchar_t *)s1, (uchar_t *)s2, n1, n2,
 	    flag, errnum));
 }
 
 size_t
 u8_textprep_str(char *inarray, size_t *inlen, char *outarray, size_t *outlen,
-    int flag, size_t unicode_version, int *errnum)
+    int flag, int *errnum)
 {
 	int f;
 	int sz;
@@ -1921,7 +1833,6 @@ u8_textprep_str(char *inarray, size_t *inlen, char *outarray, size_t *outlen,
 	boolean_t do_not_ignore_null;
 	boolean_t do_not_ignore_invalid;
 	boolean_t is_it_toupper;
-	boolean_t is_it_tolower;
 	boolean_t canonical_decomposition;
 	boolean_t compatibility_decomposition;
 	boolean_t canonical_composition;
@@ -1931,16 +1842,6 @@ u8_textprep_str(char *inarray, size_t *inlen, char *outarray, size_t *outlen,
 	uchar_t u8s[U8_STREAM_SAFE_TEXT_MAX + 1];
 	u8_normalization_states_t state;
 
-	if (unicode_version > U8_UNICODE_LATEST) {
-		*errnum = ERANGE;
-		return ((size_t)-1);
-	}
-
-	f = flag & (U8_TEXTPREP_TOUPPER | U8_TEXTPREP_TOLOWER);
-	if (f == (U8_TEXTPREP_TOUPPER | U8_TEXTPREP_TOLOWER)) {
-		*errnum = EBADF;
-		return ((size_t)-1);
-	}
 
 	f = flag & (U8_CANON_DECOMP | U8_COMPAT_DECOMP | U8_CANON_COMP);
 	if (f && f != U8_TEXTPREP_NFD && f != U8_TEXTPREP_NFC &&
@@ -1965,7 +1866,6 @@ u8_textprep_str(char *inarray, size_t *inlen, char *outarray, size_t *outlen,
 	do_not_ignore_null = !(flag & U8_TEXTPREP_IGNORE_NULL);
 	do_not_ignore_invalid = !(flag & U8_TEXTPREP_IGNORE_INVALID);
 	is_it_toupper = flag & U8_TEXTPREP_TOUPPER;
-	is_it_tolower = flag & U8_TEXTPREP_TOLOWER;
 
 	ret_val = 0;
 
@@ -2003,8 +1903,6 @@ u8_textprep_str(char *inarray, size_t *inlen, char *outarray, size_t *outlen,
 
 				if (is_it_toupper)
 					*ob = U8_ASCII_TOUPPER(*ib);
-				else if (is_it_tolower)
-					*ob = U8_ASCII_TOLOWER(*ib);
 				else
 					*ob = *ib;
 				ib++;
@@ -2031,9 +1929,9 @@ u8_textprep_str(char *inarray, size_t *inlen, char *outarray, size_t *outlen,
 				while (ib < ibtail)
 					*ob++ = *ib++;
 			} else {
-				if (is_it_toupper || is_it_tolower) {
-					i = do_case_conv(unicode_version, u8s,
-					    ib, sz, is_it_toupper);
+				if (is_it_toupper) {
+					i = do_case_conv(u8s,
+					    ib, sz);
 
 					if ((obtail - ob) < i) {
 						*errnum = E2BIG;
@@ -2087,8 +1985,6 @@ u8_textprep_str(char *inarray, size_t *inlen, char *outarray, size_t *outlen,
 
 				if (is_it_toupper)
 					*ob = U8_ASCII_TOUPPER(*ib);
-				else if (is_it_tolower)
-					*ob = U8_ASCII_TOLOWER(*ib);
 				else
 					*ob = *ib;
 				ib++;
@@ -2097,10 +1993,8 @@ u8_textprep_str(char *inarray, size_t *inlen, char *outarray, size_t *outlen,
 				*errnum = 0;
 				state = U8_STATE_START;
 
-				j = collect_a_seq(unicode_version, u8s,
-				    &ib, ibtail,
+				j = collect_a_seq(u8s, &ib, ibtail,
 				    is_it_toupper,
-				    is_it_tolower,
 				    canonical_decomposition,
 				    compatibility_decomposition,
 				    canonical_composition,

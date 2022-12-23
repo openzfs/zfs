@@ -139,7 +139,7 @@ zap_normalize(zap_t *zap, const char *name, char *namenorm, int normflags)
 	int err = 0;
 	(void) u8_textprep_str((char *)name, &inlen, namenorm, &outlen,
 	    normflags | U8_TEXTPREP_IGNORE_NULL | U8_TEXTPREP_IGNORE_INVALID,
-	    U8_UNICODE_LATEST, &err);
+	    &err);
 
 	return (err);
 }
