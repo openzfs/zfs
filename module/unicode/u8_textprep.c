@@ -1287,7 +1287,7 @@ TRY_THE_NEXT_MARK:
 
 		while (p < oslast) {
 			size = u8_number_of_bytes[*p];
-			if (size <= 1 || (p + size) > oslast)
+			if ((ssize_t)size <= 1 || (p + size) > oslast)
 				break;
 
 			saved_p = p;
