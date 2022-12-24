@@ -558,8 +558,12 @@ def section_arc(kstats_dict):
     arc_target_size = arc_stats['c']
     arc_max = arc_stats['c_max']
     arc_min = arc_stats['c_min']
+    anon_size = arc_stats['anon_size']
     mfu_size = arc_stats['mfu_size']
     mru_size = arc_stats['mru_size']
+    mfug_size = arc_stats['mfu_ghost_size']
+    mrug_size = arc_stats['mru_ghost_size']
+    unc_size = arc_stats['uncached_size']
     meta_limit = arc_stats['arc_meta_limit']
     meta_size = arc_stats['arc_meta_used']
     dnode_limit = arc_stats['arc_dnode_limit']
@@ -574,11 +578,17 @@ def section_arc(kstats_dict):
            f_perc(arc_min, arc_max), f_bytes(arc_min))
     prt_i2('Max size (high water):',
            target_size_ratio, f_bytes(arc_max))
-    caches_size = int(mfu_size)+int(mru_size)
+    caches_size = int(anon_size)+int(mfu_size)+int(mru_size)+int(unc_size)
+    prt_i2('Anonymouns data size:',
+           f_perc(anon_size, caches_size), f_bytes(anon_size))
     prt_i2('Most Frequently Used (MFU) cache size:',
            f_perc(mfu_size, caches_size), f_bytes(mfu_size))
     prt_i2('Most Recently Used (MRU) cache size:',
            f_perc(mru_size, caches_size), f_bytes(mru_size))
+    prt_i1('Most Frequently Used (MFU) ghost size:', f_bytes(mfug_size))
+    prt_i1('Most Recently Used (MRU) ghost size:', f_bytes(mrug_size))
+    prt_i2('Uncached data size:',
+           f_perc(unc_size, caches_size), f_bytes(unc_size))
     prt_i2('Metadata cache size (hard limit):',
            f_perc(meta_limit, arc_max), f_bytes(meta_limit))
     prt_i2('Metadata cache size (current):',
@@ -626,78 +636,119 @@ def section_archits(kstats_dict):
     """
 
     arc_stats = isolate_section('arcstats', kstats_dict)
-    all_accesses = int(arc_stats['hits'])+int(arc_stats['misses'])
-    actual_hits = int(arc_stats['mfu_hits'])+int(arc_stats['mru_hits'])
+    all_accesses = int(arc_stats['hits'])+int(arc_stats['iohits'])+\
+        int(arc_stats['misses'])
 
-    prt_1('ARC total accesses (hits + misses):', f_hits(all_accesses))
-    ta_todo = (('Cache hit ratio:', arc_stats['hits']),
-               ('Cache miss ratio:', arc_stats['misses']),
-               ('Actual hit ratio (MFU + MRU hits):', actual_hits))
-
+    prt_1('ARC total accesses:', f_hits(all_accesses))
+    ta_todo = (('Total hits:', arc_stats['hits']),
+               ('Total I/O hits:', arc_stats['iohits']),
+               ('Total misses:', arc_stats['misses']))
     for title, value in ta_todo:
         prt_i2(title, f_perc(value, all_accesses), f_hits(value))
+    print()
 
     dd_total = int(arc_stats['demand_data_hits']) +\
+        int(arc_stats['demand_data_iohits']) +\
         int(arc_stats['demand_data_misses'])
-    prt_i2('Data demand efficiency:',
-           f_perc(arc_stats['demand_data_hits'], dd_total),
-           f_hits(dd_total))
-
-    dp_total = int(arc_stats['prefetch_data_hits']) +\
-        int(arc_stats['prefetch_data_misses'])
-    prt_i2('Data prefetch efficiency:',
-           f_perc(arc_stats['prefetch_data_hits'], dp_total),
-           f_hits(dp_total))
-
-    known_hits = int(arc_stats['mfu_hits']) +\
-        int(arc_stats['mru_hits']) +\
-        int(arc_stats['mfu_ghost_hits']) +\
-        int(arc_stats['mru_ghost_hits'])
-
-    anon_hits = int(arc_stats['hits'])-known_hits
-
+    prt_2('ARC demand data accesses:', f_perc(dd_total, all_accesses),
+         f_hits(dd_total))
+    dd_todo = (('Demand data hits:', arc_stats['demand_data_hits']),
+               ('Demand data I/O hits:', arc_stats['demand_data_iohits']),
+               ('Demand data misses:', arc_stats['demand_data_misses']))
+    for title, value in dd_todo:
+        prt_i2(title, f_perc(value, dd_total), f_hits(value))
     print()
-    print('Cache hits by cache type:')
+
+    dm_total = int(arc_stats['demand_metadata_hits']) +\
+        int(arc_stats['demand_metadata_iohits']) +\
+        int(arc_stats['demand_metadata_misses'])
+    prt_2('ARC demand metadata accesses:', f_perc(dm_total, all_accesses),
+          f_hits(dm_total))
+    dm_todo = (('Demand metadata hits:', arc_stats['demand_metadata_hits']),
+               ('Demand metadata I/O hits:',
+                arc_stats['demand_metadata_iohits']),
+               ('Demand metadata misses:', arc_stats['demand_metadata_misses']))
+    for title, value in dm_todo:
+        prt_i2(title, f_perc(value, dm_total), f_hits(value))
+    print()
+
+    pd_total = int(arc_stats['prefetch_data_hits']) +\
+        int(arc_stats['prefetch_data_iohits']) +\
+        int(arc_stats['prefetch_data_misses'])
+    prt_2('ARC prefetch metadata accesses:', f_perc(pd_total, all_accesses),
+          f_hits(pd_total))
+    pd_todo = (('Prefetch data hits:', arc_stats['prefetch_data_hits']),
+               ('Prefetch data I/O hits:', arc_stats['prefetch_data_iohits']),
+               ('Prefetch data misses:', arc_stats['prefetch_data_misses']))
+    for title, value in pd_todo:
+        prt_i2(title, f_perc(value, pd_total), f_hits(value))
+    print()
+
+    pm_total = int(arc_stats['prefetch_metadata_hits']) +\
+        int(arc_stats['prefetch_metadata_iohits']) +\
+        int(arc_stats['prefetch_metadata_misses'])
+    prt_2('ARC prefetch metadata accesses:', f_perc(pm_total, all_accesses),
+          f_hits(pm_total))
+    pm_todo = (('Prefetch metadata hits:',
+                arc_stats['prefetch_metadata_hits']),
+               ('Prefetch metadata I/O hits:',
+                arc_stats['prefetch_metadata_iohits']),
+               ('Prefetch metadata misses:',
+                arc_stats['prefetch_metadata_misses']))
+    for title, value in pm_todo:
+        prt_i2(title, f_perc(value, pm_total), f_hits(value))
+    print()
+
+    all_prefetches = int(arc_stats['predictive_prefetch'])+\
+        int(arc_stats['prescient_prefetch'])
+    prt_2('ARC predictive prefetches:',
+           f_perc(arc_stats['predictive_prefetch'], all_prefetches),
+           f_hits(arc_stats['predictive_prefetch']))
+    prt_i2('Demand hits after predictive:',
+           f_perc(arc_stats['demand_hit_predictive_prefetch'],
+                  arc_stats['predictive_prefetch']),
+           f_hits(arc_stats['demand_hit_predictive_prefetch']))
+    prt_i2('Demand I/O hits after predictive:',
+           f_perc(arc_stats['demand_iohit_predictive_prefetch'],
+                  arc_stats['predictive_prefetch']),
+           f_hits(arc_stats['demand_iohit_predictive_prefetch']))
+    never = int(arc_stats['predictive_prefetch']) -\
+        int(arc_stats['demand_hit_predictive_prefetch']) -\
+        int(arc_stats['demand_iohit_predictive_prefetch'])
+    prt_i2('Never demanded after predictive:',
+           f_perc(never, arc_stats['predictive_prefetch']),
+           f_hits(never))
+    print()
+
+    prt_2('ARC prescient prefetches:',
+           f_perc(arc_stats['prescient_prefetch'], all_prefetches),
+           f_hits(arc_stats['prescient_prefetch']))
+    prt_i2('Demand hits after prescient:',
+           f_perc(arc_stats['demand_hit_prescient_prefetch'],
+                  arc_stats['prescient_prefetch']),
+           f_hits(arc_stats['demand_hit_prescient_prefetch']))
+    prt_i2('Demand I/O hits after prescient:',
+           f_perc(arc_stats['demand_iohit_prescient_prefetch'],
+                  arc_stats['prescient_prefetch']),
+           f_hits(arc_stats['demand_iohit_prescient_prefetch']))
+    never = int(arc_stats['prescient_prefetch'])-\
+        int(arc_stats['demand_hit_prescient_prefetch'])-\
+        int(arc_stats['demand_iohit_prescient_prefetch'])
+    prt_i2('Never demanded after prescient:',
+           f_perc(never, arc_stats['prescient_prefetch']),
+           f_hits(never))
+    print()
+
+    print('ARC states hits of all accesses:')
     cl_todo = (('Most frequently used (MFU):', arc_stats['mfu_hits']),
                ('Most recently used (MRU):', arc_stats['mru_hits']),
                ('Most frequently used (MFU) ghost:',
                 arc_stats['mfu_ghost_hits']),
                ('Most recently used (MRU) ghost:',
-                arc_stats['mru_ghost_hits']))
-
+                arc_stats['mru_ghost_hits']),
+               ('Uncached:', arc_stats['uncached_hits']))
     for title, value in cl_todo:
-        prt_i2(title, f_perc(value, arc_stats['hits']), f_hits(value))
-
-    # For some reason, anon_hits can turn negative, which is weird. Until we
-    # have figured out why this happens, we just hide the problem, following
-    # the behavior of the original arc_summary.
-    if anon_hits >= 0:
-        prt_i2('Anonymously used:',
-               f_perc(anon_hits, arc_stats['hits']), f_hits(anon_hits))
-
-    print()
-    print('Cache hits by data type:')
-    dt_todo = (('Demand data:', arc_stats['demand_data_hits']),
-               ('Prefetch data:', arc_stats['prefetch_data_hits']),
-               ('Demand metadata:', arc_stats['demand_metadata_hits']),
-               ('Prefetch metadata:',
-                arc_stats['prefetch_metadata_hits']))
-
-    for title, value in dt_todo:
-        prt_i2(title, f_perc(value, arc_stats['hits']), f_hits(value))
-
-    print()
-    print('Cache misses by data type:')
-    dm_todo = (('Demand data:', arc_stats['demand_data_misses']),
-               ('Prefetch data:',
-                arc_stats['prefetch_data_misses']),
-               ('Demand metadata:', arc_stats['demand_metadata_misses']),
-               ('Prefetch metadata:',
-                arc_stats['prefetch_metadata_misses']))
-
-    for title, value in dm_todo:
-        prt_i2(title, f_perc(value, arc_stats['misses']), f_hits(value))
-
+        prt_i2(title, f_perc(value, all_accesses), f_hits(value))
     print()
 
 
@@ -708,11 +759,17 @@ def section_dmu(kstats_dict):
 
     zfetch_access_total = int(zfetch_stats['hits'])+int(zfetch_stats['misses'])
 
-    prt_1('DMU prefetch efficiency:', f_hits(zfetch_access_total))
-    prt_i2('Hit ratio:', f_perc(zfetch_stats['hits'], zfetch_access_total),
+    prt_1('DMU predictive prefetcher calls:', f_hits(zfetch_access_total))
+    prt_i2('Stream hits:',
+           f_perc(zfetch_stats['hits'], zfetch_access_total),
            f_hits(zfetch_stats['hits']))
-    prt_i2('Miss ratio:', f_perc(zfetch_stats['misses'], zfetch_access_total),
+    prt_i2('Stream misses:',
+           f_perc(zfetch_stats['misses'], zfetch_access_total),
            f_hits(zfetch_stats['misses']))
+    prt_i2('Streams limit reached:',
+           f_perc(zfetch_stats['max_streams'], zfetch_stats['misses']),
+           f_hits(zfetch_stats['max_streams']))
+    prt_i1('Prefetches issued', f_hits(zfetch_stats['io_issued']))
     print()
 
 
