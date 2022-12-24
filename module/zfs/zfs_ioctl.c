@@ -714,9 +714,21 @@ zfs_secpolicy_send(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 static int
 zfs_secpolicy_send_new(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 {
-	(void) innvl;
-	return (zfs_secpolicy_write_perms(zc->zc_name,
-	    ZFS_DELEG_PERM_SEND, cr));
+	int error;
+	boolean_t rawok;
+
+	rawok = nvlist_exists(innvl, "rawok");
+
+	error = zfs_secpolicy_write_perms(zc->zc_name, ZFS_DELEG_PERM_SEND, cr);
+
+	// If we don't have permission to send the snapshot, check the lesser
+	// permission of sending it raw
+	if ((error != 0) && rawok) {
+		error = zfs_secpolicy_write_perms(zc->zc_name,
+		    ZFS_DELEG_PERM_SEND_RAW, cr);
+	}
+
+	return (error);
 }
 
 static int
