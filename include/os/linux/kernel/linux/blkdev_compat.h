@@ -357,7 +357,11 @@ vdev_lookup_bdev(const char *path, dev_t *dev)
 static inline void
 bio_set_op_attrs(struct bio *bio, unsigned rw, unsigned flags)
 {
+#if defined(HAVE_BIO_BI_OPF)
+	bio->bi_opf = rw | flags;
+#else
 	bio->bi_rw |= rw | flags;
+#endif /* HAVE_BIO_BI_OPF */
 }
 #endif
 
