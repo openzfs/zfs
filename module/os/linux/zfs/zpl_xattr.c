@@ -1124,7 +1124,7 @@ zpl_get_acl_impl(struct inode *ip, int type)
 	return (acl);
 }
 
-#if defined(HAVE_GET_ACL_RCU)
+#if defined(HAVE_GET_ACL_RCU) || defined(HAVE_GET_INODE_ACL)
 struct posix_acl *
 zpl_get_acl(struct inode *ip, int type, bool rcu)
 {
