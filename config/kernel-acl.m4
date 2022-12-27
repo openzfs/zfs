@@ -189,6 +189,18 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_GET_ACL], [
 			.get_acl = get_acl_fn,
 		};
 	],[])
+
+	ZFS_LINUX_TEST_SRC([inode_operations_get_inode_acl], [
+		#include <linux/fs.h>
+
+		struct posix_acl *get_inode_acl_fn(struct inode *inode, int type,
+		    bool rcu) { return NULL; }
+
+		static const struct inode_operations
+		    iops __attribute__ ((unused)) = {
+			.get_inode_acl = get_inode_acl_fn,
+		};
+	],[])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_INODE_OPERATIONS_GET_ACL], [
@@ -201,7 +213,12 @@ AC_DEFUN([ZFS_AC_KERNEL_INODE_OPERATIONS_GET_ACL], [
 			AC_MSG_RESULT(yes)
 			AC_DEFINE(HAVE_GET_ACL_RCU, 1, [iops->get_acl() takes rcu])
 		],[
-			ZFS_LINUX_TEST_ERROR([iops->get_acl()])
+			ZFS_LINUX_TEST_RESULT([inode_operations_get_inode_acl], [
+				AC_MSG_RESULT(yes)
+				AC_DEFINE(HAVE_GET_INODE_ACL, 1, [has iops->get_inode_acl()])
+			],[
+				ZFS_LINUX_TEST_ERROR([iops->get_acl() or iops->get_inode_acl()])
+			])
 		])
 	])
 ])
