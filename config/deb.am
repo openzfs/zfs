@@ -70,7 +70,7 @@ deb-utils: deb-local rpm-utils-initramfs
 ## to do this, so we install a shim onto the path which calls the real
 ## dh_shlibdeps with the required arguments.
 	path_prepend=`mktemp -d /tmp/intercept.XXXXXX`; \
-	echo "#$(SHELL)" > $${path_prepend}/dh_shlibdeps; \
+	echo "#!$(SHELL)" > $${path_prepend}/dh_shlibdeps; \
 	echo "`which dh_shlibdeps` -- \
 	 -xlibuutil3linux -xlibnvpair3linux -xlibzfs5linux -xlibzpool5linux" \
 	 >> $${path_prepend}/dh_shlibdeps; \
