@@ -195,7 +195,6 @@ typedef enum arc_buf_flags {
 struct arc_buf {
 	arc_buf_hdr_t		*b_hdr;
 	arc_buf_t		*b_next;
-	kmutex_t		b_evict_lock;
 	void			*b_data;
 	arc_buf_flags_t		b_flags;
 };
