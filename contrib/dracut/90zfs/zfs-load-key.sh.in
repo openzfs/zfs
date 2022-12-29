@@ -34,7 +34,7 @@ _load_key_cb() {
     case "${KEYLOCATION%%://*}" in
         prompt)
             for _ in 1 2 3; do
-                systemd-ask-password --no-tty "Encrypted ZFS password for ${dataset}" | zfs load-key "${ENCRYPTIONROOT}" && break
+                systemd-ask-password --timeout=0 --no-tty "Encrypted ZFS password for ${dataset}" | zfs load-key "${ENCRYPTIONROOT}" && break
             done
             ;;
         http*)
