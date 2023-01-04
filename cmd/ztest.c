@@ -3597,6 +3597,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	int newvd_is_spare = B_FALSE;
 	int newvd_is_dspare = B_FALSE;
 	int oldvd_is_log;
+	int oldvd_is_special;
 	int error, expected_error;
 
 	if (ztest_opts.zo_mmp_test)
@@ -3671,6 +3672,9 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	oldguid = oldvd->vdev_guid;
 	oldsize = vdev_get_min_asize(oldvd);
 	oldvd_is_log = oldvd->vdev_top->vdev_islog;
+	oldvd_is_special =
+	    oldvd->vdev_top->vdev_alloc_bias == VDEV_BIAS_SPECIAL ||
+	    oldvd->vdev_top->vdev_alloc_bias == VDEV_BIAS_DEDUP;
 	(void) strlcpy(oldpath, oldvd->vdev_path, MAXPATHLEN);
 	pvd = oldvd->vdev_parent;
 	pguid = pvd->vdev_guid;
@@ -3749,7 +3753,8 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	    pvd->vdev_ops == &vdev_replacing_ops ||
 	    pvd->vdev_ops == &vdev_spare_ops))
 		expected_error = ENOTSUP;
-	else if (newvd_is_spare && (!replacing || oldvd_is_log))
+	else if (newvd_is_spare &&
+	    (!replacing || oldvd_is_log || oldvd_is_special))
 		expected_error = ENOTSUP;
 	else if (newvd == oldvd)
 		expected_error = replacing ? 0 : EBUSY;
