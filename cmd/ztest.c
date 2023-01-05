@@ -2790,12 +2790,12 @@ ztest_io(ztest_ds_t *zd, uint64_t object, uint64_t offset)
 		err = ztest_dsl_prop_set_uint64(zd->zd_name,
 		    ZFS_PROP_CHECKSUM, spa_dedup_checksum(ztest_spa),
 		    B_FALSE);
-		VERIFY(err == 0 || err == ENOSPC);
+		ASSERT(err == 0 || err == ENOSPC);
 		err = ztest_dsl_prop_set_uint64(zd->zd_name,
 		    ZFS_PROP_COMPRESSION,
 		    ztest_random_dsl_prop(ZFS_PROP_COMPRESSION),
 		    B_FALSE);
-		VERIFY(err == 0 || err == ENOSPC);
+		ASSERT(err == 0 || err == ENOSPC);
 		(void) pthread_rwlock_unlock(&ztest_name_lock);
 
 		VERIFY0(dmu_read(zd->zd_os, object, offset, blocksize, data,
@@ -3347,8 +3347,9 @@ ztest_vdev_class_add(ztest_ds_t *zd, uint64_t id)
 	    spa_special_class(spa)->mc_groups == 1 && ztest_random(2) == 0) {
 		if (ztest_opts.zo_verbose >= 3)
 			(void) printf("Enabling special VDEV small blocks\n");
-		(void) ztest_dsl_prop_set_uint64(zd->zd_name,
+		error = ztest_dsl_prop_set_uint64(zd->zd_name,
 		    ZFS_PROP_SPECIAL_SMALL_BLOCKS, 32768, B_FALSE);
+		ASSERT(error == 0 || error == ENOSPC);
 	}
 
 	mutex_exit(&ztest_vdev_lock);
@@ -5839,12 +5840,15 @@ ztest_dsl_prop_get_set(ztest_ds_t *zd, uint64_t id)
 
 	(void) pthread_rwlock_rdlock(&ztest_name_lock);
 
-	for (int p = 0; p < sizeof (proplist) / sizeof (proplist[0]); p++)
-		(void) ztest_dsl_prop_set_uint64(zd->zd_name, proplist[p],
+	for (int p = 0; p < sizeof (proplist) / sizeof (proplist[0]); p++) {
+		int error = ztest_dsl_prop_set_uint64(zd->zd_name, proplist[p],
 		    ztest_random_dsl_prop(proplist[p]), (int)ztest_random(2));
+		ASSERT(error == 0 || error == ENOSPC);
+	}
 
-	VERIFY0(ztest_dsl_prop_set_uint64(zd->zd_name, ZFS_PROP_RECORDSIZE,
-	    ztest_random_blocksize(), (int)ztest_random(2)));
+	int error = ztest_dsl_prop_set_uint64(zd->zd_name, ZFS_PROP_RECORDSIZE,
+	    ztest_random_blocksize(), (int)ztest_random(2));
+	ASSERT(error == 0 || error == ENOSPC);
 
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
 }
