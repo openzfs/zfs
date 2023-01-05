@@ -60,7 +60,7 @@ AC_DEFUN([ZFS_AC_KERNEL_TMPFILE], [
 				AC_DEFINE(HAVE_TMPFILE, 1, [i_op->tmpfile() exists])
 				AC_DEFINE(HAVE_TMPFILE_DENTRY, 1, [i_op->tmpfile() uses old dentry signature])
 			],[
-				AC_MSG_RESULT(no)
+				ZFS_LINUX_REQUIRE_API([i_op->tmpfile()], [3.11])
 			])
 		])
 	])
