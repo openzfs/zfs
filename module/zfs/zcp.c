@@ -958,12 +958,12 @@ zcp_eval_impl(dmu_tx_t *tx, zcp_run_info_t *ri)
 }
 
 static void
-zcp_pool_error(zcp_run_info_t *ri, const char *poolname)
+zcp_pool_error(zcp_run_info_t *ri, const char *poolname, int error)
 {
 	ri->zri_result = SET_ERROR(ECHRNG);
 	lua_settop(ri->zri_state, 0);
-	(void) lua_pushfstring(ri->zri_state, "Could not open pool: %s",
-	    poolname);
+	(void) lua_pushfstring(ri->zri_state, "Could not open pool: %s "
+	    "errno: %d", poolname, error);
 	zcp_convert_return_values(ri->zri_state, ri->zri_outnvl,
 	    ZCP_RET_ERROR, &ri->zri_result);
 
@@ -1013,7 +1013,7 @@ zcp_eval_open(zcp_run_info_t *ri, const char *poolname)
 
 	error = dsl_pool_hold(poolname, FTAG, &dp);
 	if (error != 0) {
-		zcp_pool_error(ri, poolname);
+		zcp_pool_error(ri, poolname, error);
 		return;
 	}
 
@@ -1159,7 +1159,7 @@ zcp_eval(const char *poolname, const char *program, boolean_t sync,
 		err = dsl_sync_task_sig(poolname, NULL, zcp_eval_sync,
 		    zcp_eval_sig, &runinfo, 0, ZFS_SPACE_CHECK_ZCP_EVAL);
 		if (err != 0)
-			zcp_pool_error(&runinfo, poolname);
+			zcp_pool_error(&runinfo, poolname, err);
 	} else {
 		zcp_eval_open(&runinfo, poolname);
 	}
