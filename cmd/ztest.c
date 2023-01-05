@@ -4299,7 +4299,7 @@ ztest_snapshot_create(char *osname, uint64_t id)
 		ztest_record_enospc(FTAG);
 		return (B_FALSE);
 	}
-	if (error != 0 && error != EEXIST) {
+	if (error != 0 && error != EEXIST && error != ECHRNG) {
 		fatal(B_FALSE, "ztest_snapshot_create(%s@%s) = %d", osname,
 		    snapname, error);
 	}
@@ -4316,7 +4316,7 @@ ztest_snapshot_destroy(char *osname, uint64_t id)
 	    osname, id);
 
 	error = dsl_destroy_snapshot(snapname, B_FALSE);
-	if (error != 0 && error != ENOENT)
+	if (error != 0 && error != ENOENT && error != ECHRNG)
 		fatal(B_FALSE, "ztest_snapshot_destroy(%s) = %d",
 		    snapname, error);
 	return (B_TRUE);
@@ -4365,9 +4365,16 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 
 	/*
 	 * Verify that the destroyed dataset is no longer in the namespace.
+	 * It may still be present if the destroy above fails with ENOSPC.
 	 */
-	VERIFY3U(ENOENT, ==, ztest_dmu_objset_own(name, DMU_OST_OTHER, B_TRUE,
-	    B_TRUE, FTAG, &os));
+	error = ztest_dmu_objset_own(name, DMU_OST_OTHER, B_TRUE, B_TRUE,
+	    FTAG, &os);
+	if (error == 0) {
+		dmu_objset_disown(os, B_TRUE, FTAG);
+		ztest_record_enospc(FTAG);
+		goto out;
+	}
+	VERIFY3U(ENOENT, ==, error);
 
 	/*
 	 * Verify that we can create a new dataset.
