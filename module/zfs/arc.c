@@ -1156,7 +1156,9 @@ hdr_full_cons(void *vbuf, void *unused, int kmflag)
 	hdr->b_l1hdr.b_byteswap = DMU_BSWAP_NUMFUNCS;
 	cv_init(&hdr->b_l1hdr.b_cv, NULL, CV_DEFAULT, NULL);
 	zfs_refcount_create(&hdr->b_l1hdr.b_refcnt);
+#ifdef ZFS_DEBUG
 	mutex_init(&hdr->b_l1hdr.b_freeze_lock, NULL, MUTEX_DEFAULT, NULL);
+#endif
 	multilist_link_init(&hdr->b_l1hdr.b_arc_node);
 	list_link_init(&hdr->b_l2hdr.b_l2node);
 	arc_space_consume(HDR_FULL_SIZE, ARC_SPACE_HDRS);
@@ -1215,7 +1217,9 @@ hdr_full_dest(void *vbuf, void *unused)
 	ASSERT(HDR_EMPTY(hdr));
 	cv_destroy(&hdr->b_l1hdr.b_cv);
 	zfs_refcount_destroy(&hdr->b_l1hdr.b_refcnt);
+#ifdef ZFS_DEBUG
 	mutex_destroy(&hdr->b_l1hdr.b_freeze_lock);
+#endif
 	ASSERT(!multilist_link_active(&hdr->b_l1hdr.b_arc_node));
 	arc_space_return(HDR_FULL_SIZE, ARC_SPACE_HDRS);
 }
@@ -1414,6 +1418,7 @@ arc_buf_is_shared(arc_buf_t *buf)
 static inline void
 arc_cksum_free(arc_buf_hdr_t *hdr)
 {
+#ifdef ZFS_DEBUG
 	ASSERT(HDR_HAS_L1HDR(hdr));
 
 	mutex_enter(&hdr->b_l1hdr.b_freeze_lock);
@@ -1422,6 +1427,7 @@ arc_cksum_free(arc_buf_hdr_t *hdr)
 		hdr->b_l1hdr.b_freeze_cksum = NULL;
 	}
 	mutex_exit(&hdr->b_l1hdr.b_freeze_lock);
+#endif
 }
 
 /*
@@ -1450,6 +1456,7 @@ arc_hdr_has_uncompressed_buf(arc_buf_hdr_t *hdr)
 static void
 arc_cksum_verify(arc_buf_t *buf)
 {
+#ifdef ZFS_DEBUG
 	arc_buf_hdr_t *hdr = buf->b_hdr;
 	zio_cksum_t zc;
 
@@ -1472,6 +1479,7 @@ arc_cksum_verify(arc_buf_t *buf)
 	if (!ZIO_CHECKSUM_EQUAL(*hdr->b_l1hdr.b_freeze_cksum, zc))
 		panic("buffer modified while frozen!");
 	mutex_exit(&hdr->b_l1hdr.b_freeze_lock);
+#endif
 }
 
 /*
@@ -1512,14 +1520,13 @@ arc_cksum_is_equal(arc_buf_hdr_t *hdr, zio_t *zio)
 static void
 arc_cksum_compute(arc_buf_t *buf)
 {
-	arc_buf_hdr_t *hdr = buf->b_hdr;
-
 	if (!(zfs_flags & ZFS_DEBUG_MODIFY))
 		return;
 
+#ifdef ZFS_DEBUG
+	arc_buf_hdr_t *hdr = buf->b_hdr;
 	ASSERT(HDR_HAS_L1HDR(hdr));
-
-	mutex_enter(&buf->b_hdr->b_l1hdr.b_freeze_lock);
+	mutex_enter(&hdr->b_l1hdr.b_freeze_lock);
 	if (hdr->b_l1hdr.b_freeze_cksum != NULL || ARC_BUF_COMPRESSED(buf)) {
 		mutex_exit(&hdr->b_l1hdr.b_freeze_lock);
 		return;
@@ -1532,6 +1539,7 @@ arc_cksum_compute(arc_buf_t *buf)
 	fletcher_2_native(buf->b_data, arc_buf_size(buf), NULL,
 	    hdr->b_l1hdr.b_freeze_cksum);
 	mutex_exit(&hdr->b_l1hdr.b_freeze_lock);
+#endif
 	arc_buf_watch(buf);
 }
 
@@ -1717,12 +1725,14 @@ arc_buf_try_copy_decompressed_data(arc_buf_t *buf)
 		}
 	}
 
+#ifdef ZFS_DEBUG
 	/*
 	 * There were no decompressed bufs, so there should not be a
 	 * checksum on the hdr either.
 	 */
 	if (zfs_flags & ZFS_DEBUG_MODIFY)
 		EQUIV(!copied, hdr->b_l1hdr.b_freeze_cksum == NULL);
+#endif
 
 	return (copied);
 }
@@ -3301,7 +3311,9 @@ arc_hdr_alloc(uint64_t spa, int32_t psize, int32_t lsize,
 	}
 
 	ASSERT(HDR_EMPTY(hdr));
+#ifdef ZFS_DEBUG
 	ASSERT3P(hdr->b_l1hdr.b_freeze_cksum, ==, NULL);
+#endif
 	HDR_SET_PSIZE(hdr, psize);
 	HDR_SET_LSIZE(hdr, lsize);
 	hdr->b_spa = spa;
@@ -3377,7 +3389,9 @@ arc_hdr_realloc(arc_buf_hdr_t *hdr, kmem_cache_t *old, kmem_cache_t *new)
 	} else {
 		ASSERT3P(hdr->b_l1hdr.b_buf, ==, NULL);
 		ASSERT0(hdr->b_l1hdr.b_bufcnt);
+#ifdef ZFS_DEBUG
 		ASSERT3P(hdr->b_l1hdr.b_freeze_cksum, ==, NULL);
+#endif
 
 		/*
 		 * If we've reached here, We must have been called from
@@ -3487,7 +3501,9 @@ arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t need_crypt)
 	nhdr->b_psize = hdr->b_psize;
 	nhdr->b_lsize = hdr->b_lsize;
 	nhdr->b_spa = hdr->b_spa;
+#ifdef ZFS_DEBUG
 	nhdr->b_l1hdr.b_freeze_cksum = hdr->b_l1hdr.b_freeze_cksum;
+#endif
 	nhdr->b_l1hdr.b_bufcnt = hdr->b_l1hdr.b_bufcnt;
 	nhdr->b_l1hdr.b_byteswap = hdr->b_l1hdr.b_byteswap;
 	nhdr->b_l1hdr.b_state = hdr->b_l1hdr.b_state;
@@ -3530,7 +3546,9 @@ arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t need_crypt)
 	hdr->b_psize = 0;
 	hdr->b_lsize = 0;
 	hdr->b_spa = 0;
+#ifdef ZFS_DEBUG
 	hdr->b_l1hdr.b_freeze_cksum = NULL;
+#endif
 	hdr->b_l1hdr.b_buf = NULL;
 	hdr->b_l1hdr.b_bufcnt = 0;
 	hdr->b_l1hdr.b_byteswap = 0;
@@ -3634,7 +3652,6 @@ arc_alloc_compressed_buf(spa_t *spa, const void *tag, uint64_t psize,
 	VERIFY0(arc_buf_alloc_impl(hdr, spa, NULL, tag, B_FALSE,
 	    B_TRUE, B_FALSE, B_FALSE, &buf));
 	arc_buf_thaw(buf);
-	ASSERT3P(hdr->b_l1hdr.b_freeze_cksum, ==, NULL);
 
 	/*
 	 * To ensure that the hdr has the correct data in it if we call
@@ -3682,7 +3699,6 @@ arc_alloc_raw_buf(spa_t *spa, const void *tag, uint64_t dsobj,
 	VERIFY0(arc_buf_alloc_impl(hdr, spa, NULL, tag, B_TRUE, B_TRUE,
 	    B_FALSE, B_FALSE, &buf));
 	arc_buf_thaw(buf);
-	ASSERT3P(hdr->b_l1hdr.b_freeze_cksum, ==, NULL);
 
 	return (buf);
 }
@@ -3844,6 +3860,9 @@ arc_hdr_destroy(arc_buf_hdr_t *hdr)
 	if (HDR_HAS_L1HDR(hdr)) {
 		ASSERT(!multilist_link_active(&hdr->b_l1hdr.b_arc_node));
 		ASSERT3P(hdr->b_l1hdr.b_acb, ==, NULL);
+#ifdef ZFS_DEBUG
+		ASSERT3P(hdr->b_l1hdr.b_freeze_cksum, ==, NULL);
+#endif
 
 		if (!HDR_PROTECTED(hdr)) {
 			kmem_cache_free(hdr_full_cache, hdr);
@@ -6216,7 +6235,9 @@ top:
 				ASSERT0(zfs_refcount_count(
 				    &hdr->b_l1hdr.b_refcnt));
 				ASSERT3P(hdr->b_l1hdr.b_buf, ==, NULL);
+#ifdef ZFS_DEBUG
 				ASSERT3P(hdr->b_l1hdr.b_freeze_cksum, ==, NULL);
+#endif
 			} else if (HDR_IO_IN_PROGRESS(hdr)) {
 				/*
 				 * If this header already had an IO in progress
