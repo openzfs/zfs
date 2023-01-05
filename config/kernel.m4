@@ -958,3 +958,35 @@ AC_DEFUN([ZFS_LINUX_TRY_COMPILE_HEADER], [
 		    [test -f build/conftest/conftest.ko], [$3], [$4], [$5])
 	])
 ])
+
+dnl #
+dnl # AS_VERSION_COMPARE_LE
+dnl # like AS_VERSION_COMPARE_LE, but runs $3 if (and only if) $1 <= $2
+dnl # AS_VERSION_COMPARE_LE (version-1, version-2, [action-if-less-or-equal], [action-if-greater])
+dnl #
+AC_DEFUN([AS_VERSION_COMPARE_LE], [
+	AS_VERSION_COMPARE([$1], [$2], [$3], [$3], [$4])
+])
+
+dnl #
+dnl # ZFS_LINUX_REQUIRE_API
+dnl # like ZFS_LINUX_TEST_ERROR, except only fails if the kernel is
+dnl # at least some specified version.
+dnl #
+AC_DEFUN([ZFS_LINUX_REQUIRE_API], [
+	AS_VERSION_COMPARE_LE([$2], [$kernsrcver], [
+		AC_MSG_ERROR([
+		*** None of the expected "$1" interfaces were detected. This
+		*** interface is expected for kernels version "$2" and above.
+		*** This may be because your kernel version is newer than what is
+		*** supported, or you are using a patched custom kernel with
+		*** incompatible modifications.  Newer kernels may have incompatible
+		*** APIs.
+		***
+		*** ZFS Version: $ZFS_META_ALIAS
+		*** Compatible Kernels: $ZFS_META_KVER_MIN - $ZFS_META_KVER_MAX
+		])
+	], [
+		AC_MSG_RESULT(no)
+	])
+])
