@@ -366,10 +366,10 @@ SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, anon_size, CTLFLAG_RD,
 	&ARC_anon.arcs_size.rc_count, 0, "size of anonymous state");
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, anon_metadata_esize, CTLFLAG_RD,
 	&ARC_anon.arcs_esize[ARC_BUFC_METADATA].rc_count, 0,
-	"size of anonymous state");
+	"size of metadata in anonymous state");
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, anon_data_esize, CTLFLAG_RD,
 	&ARC_anon.arcs_esize[ARC_BUFC_DATA].rc_count, 0,
-	"size of anonymous state");
+	"size of data in anonymous state");
 /* END CSTYLED */
 
 extern arc_state_t ARC_mru;
@@ -422,6 +422,19 @@ SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, mfu_ghost_metadata_esize, CTLFLAG_RD,
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, mfu_ghost_data_esize, CTLFLAG_RD,
 	&ARC_mfu_ghost.arcs_esize[ARC_BUFC_DATA].rc_count, 0,
 	"size of data in mfu ghost state");
+/* END CSTYLED */
+
+extern arc_state_t ARC_uncached;
+
+/* BEGIN CSTYLED */
+SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, uncached_size, CTLFLAG_RD,
+	&ARC_uncached.arcs_size.rc_count, 0, "size of uncached state");
+SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, uncached_metadata_esize, CTLFLAG_RD,
+	&ARC_uncached.arcs_esize[ARC_BUFC_METADATA].rc_count, 0,
+	"size of metadata in uncached state");
+SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, uncached_data_esize, CTLFLAG_RD,
+	&ARC_uncached.arcs_esize[ARC_BUFC_DATA].rc_count, 0,
+	"size of data in uncached state");
 /* END CSTYLED */
 
 extern arc_state_t ARC_l2c_only;

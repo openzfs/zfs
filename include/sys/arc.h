@@ -115,6 +115,7 @@ typedef enum arc_flags
 	ARC_FLAG_PREFETCH		= 1 << 2,	/* I/O is a prefetch */
 	ARC_FLAG_CACHED			= 1 << 3,	/* I/O was in cache */
 	ARC_FLAG_L2CACHE		= 1 << 4,	/* cache in L2ARC */
+	ARC_FLAG_UNCACHED		= 1 << 5,	/* evict after use */
 	ARC_FLAG_PRESCIENT_PREFETCH	= 1 << 6,	/* long min lifespan */
 
 	/*
@@ -228,6 +229,7 @@ typedef enum arc_state_type {
 	ARC_STATE_MFU,
 	ARC_STATE_MFU_GHOST,
 	ARC_STATE_L2C_ONLY,
+	ARC_STATE_UNCACHED,
 	ARC_STATE_NUMTYPES
 } arc_state_type_t;
 
@@ -301,8 +303,8 @@ int arc_referenced(arc_buf_t *buf);
 int arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
     arc_read_done_func_t *done, void *priv, zio_priority_t priority,
     int flags, arc_flags_t *arc_flags, const zbookmark_phys_t *zb);
-zio_t *arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
-    blkptr_t *bp, arc_buf_t *buf, boolean_t l2arc, const zio_prop_t *zp,
+zio_t *arc_write(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
+    arc_buf_t *buf, boolean_t uncached, boolean_t l2arc, const zio_prop_t *zp,
     arc_write_done_func_t *ready, arc_write_done_func_t *child_ready,
     arc_write_done_func_t *physdone, arc_write_done_func_t *done,
     void *priv, zio_priority_t priority, int zio_flags,
