@@ -52,6 +52,7 @@
  */
 
 #define	NORMAL_WRITE_TH_NUM	2
+#define	MAX_WRITE_BYTES	262144000
 
 static void *
 normal_writer(void *filename)
@@ -67,18 +68,25 @@ normal_writer(void *filename)
 	}
 
 	char *buf = malloc(1);
-	while (1) {
+	off_t bytes_written = 0;
+
+	while (bytes_written < MAX_WRITE_BYTES) {
 		write_num = write(fd, buf, 1);
 		if (write_num == 0) {
 			err(1, "write failed!");
 			break;
 		}
-		lseek(fd, page_size, SEEK_CUR);
+		if ((bytes_written = lseek(fd, page_size, SEEK_CUR)) == -1) {
+			err(1, "lseek failed on %s: %s", file_path,
+			    strerror(errno));
+			break;
+		}
 	}
 
 	if (buf) {
 		free(buf);
 	}
+	return (NULL);
 }
 
 static void *
