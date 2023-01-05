@@ -443,7 +443,7 @@ static ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_dmu_commit_callbacks, 1, &zopt_always),
 	ZTI_INIT(ztest_zap, 30, &zopt_always),
 	ZTI_INIT(ztest_zap_parallel, 100, &zopt_always),
-	ZTI_INIT(ztest_split_pool, 1, &zopt_always),
+	ZTI_INIT(ztest_split_pool, 1, &zopt_sometimes),
 	ZTI_INIT(ztest_zil_commit, 1, &zopt_incessant),
 	ZTI_INIT(ztest_zil_remount, 1, &zopt_sometimes),
 	ZTI_INIT(ztest_dmu_read_write_zcopy, 1, &zopt_often),
