@@ -62,31 +62,64 @@ from signal import signal, SIGINT, SIGWINCH, SIG_DFL
 cols = {
     # HDR:        [Size, Scale, Description]
     "time":       [8, -1, "Time"],
-    "hits":       [4, 1000, "ARC reads per second"],
+    "hits":       [4, 1000, "ARC hits per second"],
+    "iohs":       [4, 1000, "ARC I/O hits per second"],
     "miss":       [4, 1000, "ARC misses per second"],
     "read":       [4, 1000, "Total ARC accesses per second"],
     "hit%":       [4, 100, "ARC hit percentage"],
+    "ioh%":       [4, 100, "ARC I/O hit percentage"],
     "miss%":      [5, 100, "ARC miss percentage"],
     "dhit":       [4, 1000, "Demand hits per second"],
+    "dioh":       [4, 1000, "Demand I/O hits per second"],
     "dmis":       [4, 1000, "Demand misses per second"],
     "dh%":        [3, 100, "Demand hit percentage"],
+    "di%":        [3, 100, "Demand I/O hit percentage"],
     "dm%":        [3, 100, "Demand miss percentage"],
+    "ddhit":      [5, 1000, "Demand data hits per second"],
+    "ddioh":      [5, 1000, "Demand data I/O hits per second"],
+    "ddmis":      [5, 1000, "Demand data misses per second"],
+    "ddh%":       [4, 100, "Demand data hit percentage"],
+    "ddi%":       [4, 100, "Demand data I/O hit percentage"],
+    "ddm%":       [4, 100, "Demand data miss percentage"],
+    "dmhit":      [5, 1000, "Demand metadata hits per second"],
+    "dmioh":      [5, 1000, "Demand metadata I/O hits per second"],
+    "dmmis":      [5, 1000, "Demand metadata misses per second"],
+    "dmh%":       [4, 100, "Demand metadata hit percentage"],
+    "dmi%":       [4, 100, "Demand metadata I/O hit percentage"],
+    "dmm%":       [4, 100, "Demand metadata miss percentage"],
     "phit":       [4, 1000, "Prefetch hits per second"],
+    "pioh":       [4, 1000, "Prefetch I/O hits per second"],
     "pmis":       [4, 1000, "Prefetch misses per second"],
     "ph%":        [3, 100, "Prefetch hits percentage"],
+    "pi%":        [3, 100, "Prefetch I/O hits percentage"],
     "pm%":        [3, 100, "Prefetch miss percentage"],
+    "pdhit":      [5, 1000, "Prefetch data hits per second"],
+    "pdioh":      [5, 1000, "Prefetch data I/O hits per second"],
+    "pdmis":      [5, 1000, "Prefetch data misses per second"],
+    "pdh%":       [4, 100, "Prefetch data hits percentage"],
+    "pdi%":       [4, 100, "Prefetch data I/O hits percentage"],
+    "pdm%":       [4, 100, "Prefetch data miss percentage"],
+    "pmhit":      [5, 1000, "Prefetch metadata hits per second"],
+    "pmioh":      [5, 1000, "Prefetch metadata I/O hits per second"],
+    "pmmis":      [5, 1000, "Prefetch metadata misses per second"],
+    "pmh%":       [4, 100, "Prefetch metadata hits percentage"],
+    "pmi%":       [4, 100, "Prefetch metadata I/O hits percentage"],
+    "pmm%":       [4, 100, "Prefetch metadata miss percentage"],
     "mhit":       [4, 1000, "Metadata hits per second"],
+    "mioh":       [4, 1000, "Metadata I/O hits per second"],
     "mmis":       [4, 1000, "Metadata misses per second"],
     "mread":      [5, 1000, "Metadata accesses per second"],
     "mh%":        [3, 100, "Metadata hit percentage"],
+    "mi%":        [3, 100, "Metadata I/O hit percentage"],
     "mm%":        [3, 100, "Metadata miss percentage"],
     "arcsz":      [5, 1024, "ARC size"],
-    "size":       [4, 1024, "ARC size"],
-    "c":          [4, 1024, "ARC target size"],
+    "size":       [5, 1024, "ARC size"],
+    "c":          [5, 1024, "ARC target size"],
     "mfu":        [4, 1000, "MFU list hits per second"],
     "mru":        [4, 1000, "MRU list hits per second"],
     "mfug":       [4, 1000, "MFU ghost list hits per second"],
     "mrug":       [4, 1000, "MRU ghost list hits per second"],
+    "unc":        [4, 1000, "Uncached list hits per second"],
     "eskip":      [5, 1000, "evict_skip per second"],
     "el2skip":    [7, 1000, "evict skip, due to l2 writes, per second"],
     "el2cach":    [7, 1024, "Size of L2 cached evictions per second"],
@@ -96,7 +129,11 @@ cols = {
     "el2inel":    [7, 1024, "Size of L2 ineligible evictions per second"],
     "mtxmis":     [6, 1000, "mutex_miss per second"],
     "dread":      [5, 1000, "Demand accesses per second"],
+    "ddread":     [6, 1000, "Demand data accesses per second"],
+    "dmread":     [6, 1000, "Demand metadata accesses per second"],
     "pread":      [5, 1000, "Prefetch accesses per second"],
+    "pdread":     [6, 1000, "Prefetch data accesses per second"],
+    "pmread":     [6, 1000, "Prefetch metadata accesses per second"],
     "l2hits":     [6, 1000, "L2ARC hits per second"],
     "l2miss":     [6, 1000, "L2ARC misses per second"],
     "l2read":     [6, 1000, "Total L2ARC accesses per second"],
@@ -116,23 +153,22 @@ cols = {
     "l2size":     [6, 1024, "Size of the L2ARC"],
     "l2bytes":    [7, 1024, "Bytes read per second from the L2ARC"],
     "grow":       [4, 1000, "ARC grow disabled"],
-    "need":       [4, 1024, "ARC reclaim need"],
-    "free":       [4, 1024, "ARC free memory"],
+    "need":       [5, 1024, "ARC reclaim need"],
+    "free":       [5, 1024, "ARC free memory"],
     "avail":      [5, 1024, "ARC available memory"],
     "waste":      [5, 1024, "Wasted memory due to round up to pagesize"],
 }
 
 v = {}
-hdr = ["time", "read", "miss", "miss%", "dmis", "dm%", "pmis", "pm%", "mmis",
-       "mm%", "size", "c", "avail"]
-xhdr = ["time", "mfu", "mru", "mfug", "mrug", "eskip", "mtxmis", "dread",
-        "pread", "read"]
+hdr = ["time", "read", "ddread", "ddh%", "dmread", "dmh%", "pread", "ph%",
+       "size", "c", "avail"]
+xhdr = ["time", "mfu", "mru", "mfug", "mrug", "unc", "eskip", "mtxmis",
+        "dread", "pread", "read"]
 sint = 1               # Default interval is 1 second
 count = 1              # Default count is 1
 hdr_intr = 20          # Print header every 20 lines of output
 opfile = None
 sep = "  "              # Default separator is 2 spaces
-version = "0.4"
 l2exist = False
 cmd = ("Usage: arcstat [-havxp] [-f fields] [-o file] [-s string] [interval "
        "[count]]\n")
@@ -442,34 +478,80 @@ def calculate():
     v = dict()
     v["time"] = time.strftime("%H:%M:%S", time.localtime())
     v["hits"] = d["hits"] // sint
+    v["iohs"] = d["iohits"] // sint
     v["miss"] = d["misses"] // sint
-    v["read"] = v["hits"] + v["miss"]
+    v["read"] = v["hits"] + v["iohs"] + v["miss"]
     v["hit%"] = 100 * v["hits"] // v["read"] if v["read"] > 0 else 0
-    v["miss%"] = 100 - v["hit%"] if v["read"] > 0 else 0
+    v["ioh%"] = 100 * v["iohs"] // v["read"] if v["read"] > 0 else 0
+    v["miss%"] = 100 - v["hit%"] - v["ioh%"] if v["read"] > 0 else 0
 
     v["dhit"] = (d["demand_data_hits"] + d["demand_metadata_hits"]) // sint
+    v["dioh"] = (d["demand_data_iohits"] + d["demand_metadata_iohits"]) // sint
     v["dmis"] = (d["demand_data_misses"] + d["demand_metadata_misses"]) // sint
 
-    v["dread"] = v["dhit"] + v["dmis"]
+    v["dread"] = v["dhit"] + v["dioh"] + v["dmis"]
     v["dh%"] = 100 * v["dhit"] // v["dread"] if v["dread"] > 0 else 0
-    v["dm%"] = 100 - v["dh%"] if v["dread"] > 0 else 0
+    v["di%"] = 100 * v["dioh"] // v["dread"] if v["dread"] > 0 else 0
+    v["dm%"] = 100 - v["dh%"] - v["di%"] if v["dread"] > 0 else 0
+
+    v["ddhit"] = d["demand_data_hits"] // sint
+    v["ddioh"] = d["demand_data_iohits"] // sint
+    v["ddmis"] = d["demand_data_misses"] // sint
+
+    v["ddread"] = v["ddhit"] + v["ddioh"] + v["ddmis"]
+    v["ddh%"] = 100 * v["ddhit"] // v["ddread"] if v["ddread"] > 0 else 0
+    v["ddi%"] = 100 * v["ddioh"] // v["ddread"] if v["ddread"] > 0 else 0
+    v["ddm%"] = 100 - v["ddh%"] - v["ddi%"] if v["ddread"] > 0 else 0
+
+    v["dmhit"] = d["demand_metadata_hits"] // sint
+    v["dmioh"] = d["demand_metadata_iohits"] // sint
+    v["dmmis"] = d["demand_metadata_misses"] // sint
+
+    v["dmread"] = v["dmhit"] + v["dmioh"] + v["dmmis"]
+    v["dmh%"] = 100 * v["dmhit"] // v["dmread"] if v["dmread"] > 0 else 0
+    v["dmi%"] = 100 * v["dmioh"] // v["dmread"] if v["dmread"] > 0 else 0
+    v["dmm%"] = 100 - v["dmh%"] - v["dmi%"] if v["dmread"] > 0 else 0
 
     v["phit"] = (d["prefetch_data_hits"] + d["prefetch_metadata_hits"]) // sint
+    v["pioh"] = (d["prefetch_data_iohits"] +
+                 d["prefetch_metadata_iohits"]) // sint
     v["pmis"] = (d["prefetch_data_misses"] +
                  d["prefetch_metadata_misses"]) // sint
 
-    v["pread"] = v["phit"] + v["pmis"]
+    v["pread"] = v["phit"] + v["pioh"] + v["pmis"]
     v["ph%"] = 100 * v["phit"] // v["pread"] if v["pread"] > 0 else 0
-    v["pm%"] = 100 - v["ph%"] if v["pread"] > 0 else 0
+    v["pi%"] = 100 * v["pioh"] // v["pread"] if v["pread"] > 0 else 0
+    v["pm%"] = 100 - v["ph%"] - v["pi%"] if v["pread"] > 0 else 0
+
+    v["pdhit"] = d["prefetch_data_hits"] // sint
+    v["pdioh"] = d["prefetch_data_iohits"] // sint
+    v["pdmis"] = d["prefetch_data_misses"] // sint
+
+    v["pdread"] = v["pdhit"] + v["pdioh"] + v["pdmis"]
+    v["pdh%"] = 100 * v["pdhit"] // v["pdread"] if v["pdread"] > 0 else 0
+    v["pdi%"] = 100 * v["pdioh"] // v["pdread"] if v["pdread"] > 0 else 0
+    v["pdm%"] = 100 - v["pdh%"] - v["pdi%"] if v["pdread"] > 0 else 0
+
+    v["pmhit"] = d["prefetch_metadata_hits"] // sint
+    v["pmioh"] = d["prefetch_metadata_iohits"] // sint
+    v["pmmis"] = d["prefetch_metadata_misses"] // sint
+
+    v["pmread"] = v["pmhit"] + v["pmioh"] + v["pmmis"]
+    v["pmh%"] = 100 * v["pmhit"] // v["pmread"] if v["pmread"] > 0 else 0
+    v["pmi%"] = 100 * v["pmioh"] // v["pmread"] if v["pmread"] > 0 else 0
+    v["pmm%"] = 100 - v["pmh%"] - v["pmi%"] if v["pmread"] > 0 else 0
 
     v["mhit"] = (d["prefetch_metadata_hits"] +
                  d["demand_metadata_hits"]) // sint
+    v["mioh"] = (d["prefetch_metadata_iohits"] +
+                 d["demand_metadata_iohits"]) // sint
     v["mmis"] = (d["prefetch_metadata_misses"] +
                  d["demand_metadata_misses"]) // sint
 
-    v["mread"] = v["mhit"] + v["mmis"]
+    v["mread"] = v["mhit"] + v["mioh"] + v["mmis"]
     v["mh%"] = 100 * v["mhit"] // v["mread"] if v["mread"] > 0 else 0
-    v["mm%"] = 100 - v["mh%"] if v["mread"] > 0 else 0
+    v["mi%"] = 100 * v["mioh"] // v["mread"] if v["mread"] > 0 else 0
+    v["mm%"] = 100 - v["mh%"] - v["mi%"] if v["mread"] > 0 else 0
 
     v["arcsz"] = cur["size"]
     v["size"] = cur["size"]
@@ -478,6 +560,7 @@ def calculate():
     v["mru"] = d["mru_hits"] // sint
     v["mrug"] = d["mru_ghost_hits"] // sint
     v["mfug"] = d["mfu_ghost_hits"] // sint
+    v["unc"] = d["uncached_hits"] // sint
     v["eskip"] = d["evict_skip"] // sint
     v["el2skip"] = d["evict_l2_skip"] // sint
     v["el2cach"] = d["evict_l2_cached"] // sint

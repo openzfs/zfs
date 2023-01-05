@@ -12,7 +12,7 @@
 .\" Copyright (c) 2015 by Delphix. All rights reserved.
 .\" Copyright (c) 2020 by AJ Jordan. All rights reserved.
 .\"
-.Dd May 26, 2021
+.Dd December 23, 2022
 .Dt ARCSTAT 1
 .Os
 .
@@ -35,33 +35,83 @@ prints various ZFS ARC and L2ARC statistics in vmstat-like fashion:
 .It Sy c
 ARC target size
 .It Sy dh%
-Demand data hit percentage
+Demand hit percentage
+.It Sy di%
+Demand I/O hit percentage
 .It Sy dm%
+Demand miss percentage
+.It Sy ddh%
+Demand data hit percentage
+.It Sy ddi%
+Demand data I/O hit percentage
+.It Sy ddm%
 Demand data miss percentage
+.It Sy dmh%
+Demand metadata hit percentage
+.It Sy dmi%
+Demand metadata I/O hit percentage
+.It Sy dmm%
+Demand metadata miss percentage
 .It Sy mfu
 MFU list hits per second
 .It Sy mh%
 Metadata hit percentage
+.It Sy mi%
+Metadata I/O hit percentage
 .It Sy mm%
 Metadata miss percentage
 .It Sy mru
 MRU list hits per second
 .It Sy ph%
 Prefetch hits percentage
+.It Sy pi%
+Prefetch I/O hits percentage
 .It Sy pm%
 Prefetch miss percentage
+.It Sy pdh%
+Prefetch data hits percentage
+.It Sy pdi%
+Prefetch data I/O hits percentage
+.It Sy pdm%
+Prefetch data miss percentage
+.It Sy pmh%
+Prefetch metadata hits percentage
+.It Sy pmi%
+Prefetch metadata I/O hits percentage
+.It Sy pmm%
+Prefetch metadata miss percentage
 .It Sy dhit
-Demand data hits per second
+Demand hits per second
+.It Sy dioh
+Demand I/O hits per second
 .It Sy dmis
+Demand misses per second
+.It Sy ddhit
+Demand data hits per second
+.It Sy ddioh
+Demand data I/O hits per second
+.It Sy ddmis
 Demand data misses per second
+.It Sy dmhit
+Demand metadata hits per second
+.It Sy dmioh
+Demand metadata I/O hits per second
+.It Sy dmmis
+Demand metadata misses per second
 .It Sy hit%
 ARC hit percentage
 .It Sy hits
-ARC reads per second
+ARC hits per second
+.It Sy ioh%
+ARC I/O hits percentage
+.It Sy iohs
+ARC I/O hits per second
 .It Sy mfug
 MFU ghost list hits per second
 .It Sy mhit
 Metadata hits per second
+.It Sy mioh
+Metadata I/O hits per second
 .It Sy miss
 ARC misses per second
 .It Sy mmis
@@ -70,8 +120,22 @@ Metadata misses per second
 MRU ghost list hits per second
 .It Sy phit
 Prefetch hits per second
+.It Sy pioh
+Prefetch I/O hits per second
 .It Sy pmis
 Prefetch misses per second
+.It Sy pdhit
+Prefetch data hits per second
+.It Sy pdioh
+Prefetch data I/O hits per second
+.It Sy pdmis
+Prefetch data misses per second
+.It Sy pmhit
+Prefetch metadata hits per second
+.It Sy pmioh
+Prefetch metadata I/O hits per second
+.It Sy pmmis
+Prefetch metadata misses per second
 .It Sy read
 Total ARC accesses per second
 .It Sy time
@@ -81,8 +145,14 @@ ARC size
 .It Sy arcsz
 Alias for
 .Sy size
+.It Sy unc
+Uncached list hits per second
 .It Sy dread
+Demand accesses per second
+.It Sy ddread
 Demand data accesses per second
+.It Sy dmread
+Demand metadata accesses per second
 .It Sy eskip
 evict_skip per second
 .It Sy miss%
@@ -91,6 +161,10 @@ ARC miss percentage
 Metadata accesses per second
 .It Sy pread
 Prefetch accesses per second
+.It Sy pdread
+Prefetch data accesses per second
+.It Sy pmread
+Prefetch metadata accesses per second
 .It Sy l2hit%
 L2ARC access hit percentage
 .It Sy l2hits
