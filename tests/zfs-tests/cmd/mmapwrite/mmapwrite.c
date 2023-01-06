@@ -86,6 +86,10 @@ normal_writer(void *filename)
 	if (buf) {
 		free(buf);
 	}
+
+	if (close(fd) != 0)
+		err(1, "failed to close file");
+
 	return (NULL);
 }
 
