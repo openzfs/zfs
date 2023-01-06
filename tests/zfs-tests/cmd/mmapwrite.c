@@ -82,6 +82,10 @@ normal_writer(void *filename)
 			break;
 		}
 	}
+
+	if (close(fd) != 0)
+		err(1, "failed to close file");
+
 	return (NULL);
 }
 
