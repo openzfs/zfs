@@ -558,14 +558,6 @@ This value acts as a ceiling to the amount of dnode metadata, and defaults to
 which indicates that a percent which is based on
 .Sy zfs_arc_dnode_limit_percent
 of the ARC meta buffers that may be used for dnodes.
-.Pp
-Also see
-.Sy zfs_arc_meta_prune
-which serves a similar purpose but is used
-when the amount of metadata in the ARC exceeds
-.Sy zfs_arc_meta_limit
-rather than in response to overall demand for non-metadata.
-.
 .It Sy zfs_arc_dnode_limit_percent Ns = Ns Sy 10 Ns % Pq u64
 Percentage that can be consumed by dnodes of ARC meta buffers.
 .Pp
@@ -648,62 +640,10 @@ It cannot be set back to
 while running, and reducing it below the current ARC size will not cause
 the ARC to shrink without memory pressure to induce shrinking.
 .
-.It Sy zfs_arc_meta_adjust_restarts Ns = Ns Sy 4096 Pq uint
-The number of restart passes to make while scanning the ARC attempting
-the free buffers in order to stay below the
-.Sy fs_arc_meta_limit .
-This value should not need to be tuned but is available to facilitate
-performance analysis.
-.
-.It Sy zfs_arc_meta_limit Ns = Ns Sy 0 Ns B Pq u64
-The maximum allowed size in bytes that metadata buffers are allowed to
-consume in the ARC.
-When this limit is reached, metadata buffers will be reclaimed,
-even if the overall
-.Sy arc_c_max
-has not been reached.
-It defaults to
-.Sy 0 ,
-which indicates that a percentage based on
-.Sy zfs_arc_meta_limit_percent
-of the ARC may be used for metadata.
-.Pp
-This value my be changed dynamically, except that must be set to an explicit
-value
-.Pq cannot be set back to Sy 0 .
-.
-.It Sy zfs_arc_meta_limit_percent Ns = Ns Sy 75 Ns % Pq u64
-Percentage of ARC buffers that can be used for metadata.
-.Pp
-See also
-.Sy zfs_arc_meta_limit ,
-which serves a similar purpose but has a higher priority if nonzero.
-.
-.It Sy zfs_arc_meta_min Ns = Ns Sy 0 Ns B Pq u64
-The minimum allowed size in bytes that metadata buffers may consume in
-the ARC.
-.
-.It Sy zfs_arc_meta_prune Ns = Ns Sy 10000 Pq int
-The number of dentries and inodes to be scanned looking for entries
-which can be dropped.
-This may be required when the ARC reaches the
-.Sy zfs_arc_meta_limit
-because dentries and inodes can pin buffers in the ARC.
-Increasing this value will cause to dentry and inode caches
-to be pruned more aggressively.
-Setting this value to
-.Sy 0
-will disable pruning the inode and dentry caches.
-.
-.It Sy zfs_arc_meta_strategy Ns = Ns Sy 1 Ns | Ns 0 Pq uint
-Define the strategy for ARC metadata buffer eviction (meta reclaim strategy):
-.Bl -tag -compact -offset 4n -width "0 (META_ONLY)"
-.It Sy 0 Pq META_ONLY
-evict only the ARC metadata buffers
-.It Sy 1 Pq BALANCED
-additional data buffers may be evicted if required
-to evict the required number of metadata buffers.
-.El
+.It Sy zfs_arc_meta_balance Ns = Ns Sy 500 Pq uint
+Balance between metadata and data on ghost hits.
+Values above 100 increase metadata caching by proportionally reducing effect
+of ghost data hits on target data/metadata rate.
 .
 .It Sy zfs_arc_min Ns = Ns Sy 0 Ns B Pq u64
 Min size of ARC in bytes.
@@ -785,20 +725,6 @@ causes the ARC to start reclamation if it exceeds the target size by
 .Em 0.2%
 of the target size, and block allocations by
 .Em 0.6% .
-.
-.It Sy zfs_arc_p_min_shift Ns = Ns Sy 0 Pq uint
-If nonzero, this will update
-.Sy arc_p_min_shift Pq default Sy 4
-with the new value.
-.Sy arc_p_min_shift No is used as a shift of Sy arc_c
-when calculating the minumum
-.Sy arc_p No size .
-.
-.It Sy zfs_arc_p_dampener_disable Ns = Ns Sy 1 Ns | Ns 0 Pq int
-Disable
-.Sy arc_p
-adapt dampener, which reduces the maximum single adjustment to
-.Sy arc_p .
 .
 .It Sy zfs_arc_shrink_shift Ns = Ns Sy 0 Pq uint
 If nonzero, this will update

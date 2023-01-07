@@ -200,7 +200,6 @@ struct arc_buf {
 };
 
 typedef enum arc_buf_contents {
-	ARC_BUFC_INVALID,			/* invalid type */
 	ARC_BUFC_DATA,				/* buffer contains data */
 	ARC_BUFC_METADATA,			/* buffer contains metadata */
 	ARC_BUFC_NUMTYPES
