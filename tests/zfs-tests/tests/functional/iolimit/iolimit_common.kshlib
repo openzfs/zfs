@@ -1,0 +1,343 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or https://opensource.org/licenses/CDDL-1.0.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright (c) 2024 The FreeBSD Foundation
+#
+# This software was developed by Pawel Dawidek <pawel@dawidek.net>
+# under sponsorship from the FreeBSD Foundation.
+#
+
+function iolimit_reset
+{
+	for dataset in $(zfs list -H -r -t filesystem,volume -o name $TESTPOOL); do
+		for type in bw op; do
+			for io in read write total; do
+				log_must zfs set iolimit_${type}_${io}=none $dataset
+			done
+		done
+	done
+}
+
+function stopwatch_start
+{
+	STARTTIME=$(date "+%s")
+}
+
+function stopwatch_stop
+{
+	typeset -r endtime=$(date "+%s")
+
+	echo $((endtime-STARTTIME))
+}
+
+# The github runners tends to be slow, so if the test is taking too long,
+# repeat it up to two time.
+function stopwatch_check
+{
+	typeset -r exp=$1	# Expected duration.
+	typeset -r delta=$(stopwatch_stop)
+
+	min=$((exp-1))
+	max=$((exp+1))
+
+	if [ $delta -lt $min ]; then
+		log_note "took less time (${delta}s) than expected (${exp}s)"
+		return 1
+	fi
+	if [ $delta -gt $max ]; then
+		log_note "took more time (${delta}s) than expected (${exp}s)"
+		return 2
+	fi
+	return 0
+}
+
+function ddio
+{
+	typeset -r src=$1
+	typeset -r dst=$2
+	typeset -r cnt=$3
+	typeset iflag=""
+	typeset oflag=""
+
+	if is_linux; then
+		case $src in
+		/dev/zvol/*)
+			iflag="iflag=direct"
+			;;
+		esac
+		case $dst in
+		/dev/zvol/*)
+			oflag="oflag=direct"
+			;;
+		esac
+	fi
+
+	dd if=$src of=$dst bs=1M count=$cnt conv=notrunc status=none $iflag $oflag
+}
+
+
+
+function iolimit_bw_read
+{
+	typeset -r cnt=$1
+	typeset -r exp=$2
+
+	shift 2
+
+	for r in {0..2}; do
+		stopwatch_start
+		for src in $@; do
+			ddio $src /dev/null $cnt &
+		done
+		wait
+		stopwatch_check $exp
+		result=$?
+		if [ $result -ne 2 ]; then
+			return $result
+		fi
+	done
+}
+
+function iolimit_bw_write
+{
+	typeset -r cnt=$1
+	typeset -r exp=$2
+
+	shift 2
+
+	for r in {0..2}; do
+		sync_pool $TESTPOOL
+		stopwatch_start
+		for dst in $@; do
+			ddio /dev/zero $dst $cnt &
+		done
+		wait
+		stopwatch_check $exp
+		result=$?
+		if [ $result -ne 2 ]; then
+			return $result
+		fi
+	done
+}
+
+function iolimit_bw
+{
+	typeset -r prs=$1
+	typeset -r cnt=$2
+	typeset -r exp=$3
+	typeset -r src=$4
+	typeset -r dst=$5
+
+	for r in {0..2}; do
+		stopwatch_start
+		for i in {1..$prs}; do
+			ddio $src $dst $cnt &
+		done
+		wait
+		stopwatch_check $exp
+		result=$?
+		if [ $result -ne 2 ]; then
+			return $result
+		fi
+	done
+}
+
+function iolimit_filesystem_bw_read_single
+{
+	typeset -r lmt=$1
+	typeset -r cnt=$2
+	typeset -r exp=$3
+
+	log_must zfs set $lmt "$TESTPOOL/$TESTFS"
+	iolimit_bw 1 $cnt $exp "$TESTDIR/file" "/dev/null"
+}
+
+function iolimit_filesystem_bw_write_single
+{
+	typeset -r lmt=$1
+	typeset -r cnt=$2
+	typeset -r exp=$3
+
+	log_must zfs set $lmt "$TESTPOOL/$TESTFS"
+	sync_pool $TESTPOOL
+	iolimit_bw 1 $cnt $exp "/dev/zero" "$TESTDIR/file"
+}
+
+function iolimit_filesystem_bw_read_multiple
+{
+	typeset -r lmt=$1
+	typeset -r cnt=$2
+	typeset -r exp=$3
+
+	log_must zfs set $lmt "$TESTPOOL/$TESTFS"
+	iolimit_bw 3 $cnt $exp "$TESTDIR/file" "/dev/null"
+}
+
+function iolimit_filesystem_bw_write_multiple
+{
+	typeset -r lmt=$1
+	typeset -r cnt=$2
+	typeset -r exp=$3
+
+	log_must zfs set $lmt "$TESTPOOL/$TESTFS"
+	sync_pool $TESTPOOL
+	iolimit_bw 3 $cnt $exp "/dev/zero" "$TESTDIR/file"
+}
+
+function iolimit_volume_bw_read_single
+{
+	typeset -r lmt=$1
+	typeset -r cnt=$2
+	typeset -r exp=$3
+
+	log_must zfs set $lmt "$TESTPOOL/$TESTFS/vol"
+	iolimit_bw 1 $cnt $exp "/dev/zvol/$TESTPOOL/$TESTFS/vol" "/dev/null"
+}
+
+function iolimit_volume_bw_write_single
+{
+	typeset -r lmt=$1
+	typeset -r cnt=$2
+	typeset -r exp=$3
+
+	log_must zfs set $lmt "$TESTPOOL/$TESTFS/vol"
+	sync_pool $TESTPOOL
+	iolimit_bw 1 $cnt $exp "/dev/zero" "/dev/zvol/$TESTPOOL/$TESTFS/vol"
+}
+
+function iolimit_volume_bw_read_multiple
+{
+	typeset -r lmt=$1
+	typeset -r cnt=$2
+	typeset -r exp=$3
+
+	log_must zfs set $lmt "$TESTPOOL/$TESTFS/vol"
+	iolimit_bw 3 $cnt $exp "/dev/zvol/$TESTPOOL/$TESTFS/vol" "/dev/null"
+}
+
+function iolimit_volume_bw_write_multiple
+{
+	typeset -r lmt=$1
+	typeset -r cnt=$2
+	typeset -r exp=$3
+
+	log_must zfs set $lmt "$TESTPOOL/$TESTFS/vol"
+	sync_pool $TESTPOOL
+	iolimit_bw 3 $cnt $exp "/dev/zero" "/dev/zvol/$TESTPOOL/$TESTFS/vol"
+}
+
+function iolimit_filesystem_op_single
+{
+	typeset -r sys=$1
+	typeset -r lmt=$2
+	typeset -r cnt=$3
+	typeset -r exp=$4
+	typeset -r pth=$5
+
+	log_must zfs set $lmt "$TESTPOOL/$TESTFS"
+	for r in {0..2}; do
+		sync_pool $TESTPOOL
+		stopwatch_start
+		log_must fsop $cnt $sys $pth
+		stopwatch_check $exp
+		result=$?
+		if [ $result -ne 2 ]; then
+			return $result
+		fi
+	done
+}
+
+function iolimit_filesystem_op_read_multiple
+{
+	typeset -r lmt=$1
+	typeset -r cnt=$2
+	typeset -r exp=$3
+
+	log_must zfs set $lmt "$TESTPOOL/$TESTFS"
+	for r in {0..2}; do
+		stopwatch_start
+		fsop $cnt stat "$TESTDIR/file" &
+		fsop $cnt readlink "$TESTDIR/symlink" &
+		wait
+		stopwatch_check $exp
+		result=$?
+		if [ $result -ne 2 ]; then
+			return $result
+		fi
+	done
+}
+
+function iolimit_filesystem_op_write_multiple_create
+{
+	typeset -r lmt=$1
+	typeset -r cnt=$2
+	typeset -r exp=$3
+
+	log_must zfs set $lmt "$TESTPOOL/$TESTFS"
+	for r in {0..2}; do
+		sync_pool $TESTPOOL
+		stopwatch_start
+		fsop $cnt chmod "$TESTDIR/file0" &
+		# Creating a file also triggers VOP_GETATTR() on FreeBSD,
+		# so switch to link(2) for the time being when setting
+		# total limits.
+		if is_freebsd && echo $lmt | grep -q iolimit_op_total=; then
+			fsop $cnt link "$TESTDIR/file1" &
+		else
+			fsop $cnt create "$TESTDIR/file1" &
+		fi
+		fsop $cnt mkdir "$TESTDIR/file2" &
+		fsop $cnt link "$TESTDIR/file3" &
+		fsop $cnt symlink "$TESTDIR/file4" &
+		wait
+		stopwatch_check $exp
+		result=$?
+		if [ $result -ne 2 ]; then
+			return $result
+		fi
+	done
+}
+
+function iolimit_filesystem_op_write_multiple_remove
+{
+	typeset -r lmt=$1
+	typeset -r cnt=$2
+	typeset -r exp=$3
+
+	log_must zfs set $lmt "$TESTPOOL/$TESTFS"
+	for r in {0..2}; do
+		sync_pool $TESTPOOL
+		stopwatch_start
+		fsop $cnt chown "$TESTDIR/file0" &
+		fsop $cnt unlink "$TESTDIR/file1" &
+		fsop $cnt rmdir "$TESTDIR/file2" &
+		fsop $cnt unlink "$TESTDIR/file3" &
+		fsop $cnt unlink "$TESTDIR/file4" &
+		wait
+		stopwatch_check $exp
+		result=$?
+		if [ $result -ne 2 ]; then
+			return $result
+		fi
+	done
+}

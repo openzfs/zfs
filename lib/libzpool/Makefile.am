@@ -180,6 +180,7 @@ nodist_libzpool_la_SOURCES = \
 	module/zfs/zfs_crrd.c \
 	module/zfs/zfs_fm.c \
 	module/zfs/zfs_fuid.c \
+	module/zfs/zfs_iolimit.c \
 	module/zfs/zfs_ratelimit.c \
 	module/zfs/zfs_rlock.c \
 	module/zfs/zfs_sa.c \

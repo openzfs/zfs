@@ -56,6 +56,7 @@
 #include <sys/dbuf.h>
 #include <sys/policy.h>
 #include <sys/zfeature.h>
+#include <sys/zfs_iolimit.h>
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_quota.h>
 #include <sys/zfs_vfsops.h>
@@ -451,6 +452,16 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	while (n > 0) {
 		ssize_t nbytes = MIN(n, chunk_size -
 		    P2PHASE(zfs_uio_offset(uio), blksz));
+
+		error = zfs_iolimit_data_read(zfsvfs->z_os, zp->z_blksz,
+		    nbytes);
+		if (error != 0) {
+			if (error == EINTR && n < start_resid) {
+				error = 0;
+			}
+			break;
+		}
+
 #ifdef UIO_NOCOPY
 		if (zfs_uio_segflg(uio) == UIO_NOCOPY)
 			error = mappedread_sf(zp, nbytes, uio);
@@ -857,6 +868,16 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 				}
 				pfbytes = nbytes;
 			}
+		}
+
+		error = zfs_iolimit_data_write(zfsvfs->z_os, blksz, nbytes);
+		if (error != 0) {
+			if (error == EINTR && n < start_resid) {
+				error = 0;
+			}
+			if (abuf != NULL)
+				dmu_return_arcbuf(abuf);
+			break;
 		}
 
 		/*
@@ -1819,6 +1840,11 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 		    zfs_id_overblockquota(outzfsvfs, DMU_PROJECTUSED_OBJECT,
 		    projid))) {
 			error = SET_ERROR(EDQUOT);
+			break;
+		}
+
+		error = zfs_iolimit_data_copy(inos, outos, inblksz, size);
+		if (error != 0) {
 			break;
 		}
 

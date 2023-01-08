@@ -169,9 +169,12 @@ zfs_exit(zfsvfs_t *zfsvfs, const char *tag)
 	(tp)->tv_sec = (time_t)(stmp)[0];		\
 	(tp)->tv_nsec = (long)(stmp)[1];		\
 }
-#define	ZFS_ACCESSTIME_STAMP(zfsvfs, zp) \
-	if ((zfsvfs)->z_atime && !((zfsvfs)->z_vfs->vfs_flag & VFS_RDONLY)) \
-		zfs_tstamp_update_setup_ext(zp, ACCESSED, NULL, NULL, B_FALSE);
+#define	ZFS_ACCESSTIME_STAMP(zfsvfs, zp) do {				\
+	if ((zfsvfs)->z_atime && !((zfsvfs)->z_vfs->vfs_flag & VFS_RDONLY)) { \
+		zfs_iolimit_metadata_write((zfsvfs)->z_os);		\
+		zfs_tstamp_update_setup_ext(zp, ACCESSED, NULL, NULL, B_FALSE);\
+	}								\
+} while (0)
 
 extern void	zfs_tstamp_update_setup_ext(struct znode *,
     uint_t, uint64_t [2], uint64_t [2], boolean_t have_tx);

@@ -63,6 +63,7 @@
 #include <sys/zvol.h>
 #include <sys/policy.h>
 #include <sys/objlist.h>
+#include <sys/zfs_iolimit.h>
 #ifdef _KERNEL
 #include <sys/zfs_vfsops.h>
 #endif
@@ -1644,6 +1645,12 @@ issue_data_read(struct send_reader_thread_arg *srta, struct send_range *range)
 	    .zb_level = 0,
 	    .zb_blkid = range->start_blkid,
 	};
+
+	/*
+	 * zfs_iolimit_data_read_spin() will sleep in short periods and return
+	 * immediately when a signal is pending.
+	 */
+	zfs_iolimit_data_read_spin(os, 0, BP_GET_LSIZE(bp));
 
 	arc_flags_t aflags = ARC_FLAG_CACHED_ONLY;
 
