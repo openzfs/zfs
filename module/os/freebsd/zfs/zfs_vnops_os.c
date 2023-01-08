@@ -81,6 +81,7 @@
 #include <sys/acl.h>
 #include <sys/vmmeter.h>
 #include <vm/vm_param.h>
+#include <sys/vfs_ratelimit.h>
 #include <sys/zil.h>
 #include <sys/zfs_vnops.h>
 #include <sys/module.h>
@@ -483,6 +484,8 @@ update_pages(znode_t *zp, int64_t start, int len, objset_t *os)
 	obj = vp->v_object;
 	ASSERT3P(obj, !=, NULL);
 
+	vfs_ratelimit_data_read(zp->z_zfsvfs->z_os, PAGESIZE, len);
+
 	off = start & PAGEOFFSET;
 	zfs_vmobject_wlock_12(obj);
 #if __FreeBSD_version >= 1300041
@@ -541,6 +544,8 @@ mappedread_sf(znode_t *zp, int nbytes, zfs_uio_t *uio)
 	obj = vp->v_object;
 	ASSERT3P(obj, !=, NULL);
 	ASSERT0(zfs_uio_offset(uio) & PAGEOFFSET);
+
+	vfs_ratelimit_data_read(os, PAGESIZE, len);
 
 	zfs_vmobject_wlock_12(obj);
 	for (start = zfs_uio_offset(uio); len > 0; start += PAGESIZE) {
@@ -620,6 +625,8 @@ mappedread(znode_t *zp, int nbytes, zfs_uio_t *uio)
 	ASSERT3P(vp->v_mount, !=, NULL);
 	obj = vp->v_object;
 	ASSERT3P(obj, !=, NULL);
+
+	vfs_ratelimit_data_read(zp->z_zfsvfs->z_os, PAGESIZE, nbytes);
 
 	start = zfs_uio_offset(uio);
 	off = start & PAGEOFFSET;
@@ -1149,6 +1156,8 @@ zfs_create(znode_t *dzp, const char *name, vattr_t *vap, int excl, int mode,
 		goto out;
 	}
 
+	vfs_ratelimit_metadata_write(os);
+
 	getnewvnode_reserve_();
 
 	tx = dmu_tx_create(os);
@@ -1281,6 +1290,8 @@ zfs_remove_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 		error = zfs_zget(zfsvfs, xattr_obj, &xzp);
 		ASSERT0(error);
 	}
+
+	vfs_ratelimit_metadata_write(zfsvfs->z_os);
 
 	/*
 	 * We may delete the znode now, or we may put it in the unlinked set;
@@ -1509,6 +1520,8 @@ zfs_mkdir(znode_t *dzp, const char *dirname, vattr_t *vap, znode_t **zpp,
 		return (SET_ERROR(EDQUOT));
 	}
 
+	vfs_ratelimit_metadata_write(zfsvfs->z_os);
+
 	/*
 	 * Add a new entry to the directory.
 	 */
@@ -1631,6 +1644,8 @@ zfs_rmdir_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 	}
 
 	vnevent_rmdir(vp, dvp, name, ct);
+
+	vfs_ratelimit_metadata_write(zfsvfs->z_os);
 
 	tx = dmu_tx_create(zfsvfs->z_os);
 	dmu_tx_hold_zap(tx, dzp->z_id, FALSE, name);
@@ -1788,12 +1803,11 @@ zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, int *eofp,
 	 */
 	iovp = GET_UIO_STRUCT(uio)->uio_iov;
 	bytes_wanted = iovp->iov_len;
+	bufsize = bytes_wanted;
 	if (zfs_uio_segflg(uio) != UIO_SYSSPACE || zfs_uio_iovcnt(uio) != 1) {
-		bufsize = bytes_wanted;
 		outbuf = kmem_alloc(bufsize, KM_SLEEP);
 		odp = (struct dirent64 *)outbuf;
 	} else {
-		bufsize = bytes_wanted;
 		outbuf = NULL;
 		odp = (struct dirent64 *)iovp->iov_base;
 	}
@@ -1925,6 +1939,14 @@ zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, int *eofp,
 	if (ncookies != NULL)
 		*ncookies -= ncooks;
 
+	/*
+	 * This is post factum, but if we would do that inside the loop we
+	 * wouldn't know the record length before reading it anyway plus we
+	 * would be calling vfs_ratelimit_data_read() way too often and each
+	 * call accounts for a single operation.
+	 */
+	vfs_ratelimit_data_read(os, zp->z_blksz, outcount);
+
 	if (zfs_uio_segflg(uio) == UIO_SYSSPACE && zfs_uio_iovcnt(uio) == 1) {
 		iovp->iov_base += outcount;
 		iovp->iov_len -= outcount;
@@ -2016,6 +2038,8 @@ zfs_getattr(vnode_t *vp, vattr_t *vap, int flags, cred_t *cr)
 			return (error);
 		}
 	}
+
+	vfs_ratelimit_metadata_read(zfsvfs->z_os);
 
 	/*
 	 * Return all attributes.  It's cheaper to provide the answer
@@ -2612,6 +2636,9 @@ zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr, zidmap_t *mnt_ns)
 			goto out2;
 		}
 	}
+
+	vfs_ratelimit_metadata_write(os);
+
 	tx = dmu_tx_create(os);
 
 	if (mask & AT_MODE) {
@@ -3367,6 +3394,8 @@ zfs_do_rename_impl(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
 		vnevent_rename_dest_dir(tdvp, ct);
 	}
 
+	vfs_ratelimit_metadata_write(zfsvfs->z_os);
+
 	tx = dmu_tx_create(zfsvfs->z_os);
 	dmu_tx_hold_sa(tx, szp->z_sa_hdl, B_FALSE);
 	dmu_tx_hold_sa(tx, sdzp->z_sa_hdl, B_FALSE);
@@ -3564,6 +3593,8 @@ zfs_symlink(znode_t *dzp, const char *name, vattr_t *vap,
 		return (SET_ERROR(EDQUOT));
 	}
 
+	vfs_ratelimit_metadata_write(zfsvfs->z_os);
+
 	getnewvnode_reserve_();
 	tx = dmu_tx_create(zfsvfs->z_os);
 	fuid_dirtied = zfsvfs->z_fuid_dirty;
@@ -3660,6 +3691,8 @@ zfs_readlink(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, caller_context_t *ct)
 
 	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (error);
+
+	vfs_ratelimit_metadata_read(zfsvfs->z_os);
 
 	if (zp->z_is_sa)
 		error = sa_lookup_uio(zp->z_sa_hdl,
@@ -3788,6 +3821,8 @@ zfs_link(znode_t *tdzp, znode_t *szp, const char *name, cred_t *cr,
 		zfs_exit(zfsvfs, FTAG);
 		return (error);
 	}
+
+	vfs_ratelimit_metadata_write(zfsvfs->z_os);
 
 	tx = dmu_tx_create(zfsvfs->z_os);
 	dmu_tx_hold_sa(tx, szp->z_sa_hdl, B_FALSE);
@@ -4118,6 +4153,9 @@ zfs_getpages(struct vnode *vp, vm_page_t *ma, int count, int *rbehind,
 		pgsin_a = MIN(*rahead, pgsin_a);
 	}
 
+	vfs_ratelimit_data_read(zfsvfs->z_os, zp->z_blksz,
+	    MIN(end, obj_size) - start);
+
 	/*
 	 * NB: we need to pass the exact byte size of the data that we expect
 	 * to read after accounting for the file size.  This is required because
@@ -4253,6 +4291,8 @@ zfs_putpages(struct vnode *vp, vm_page_t *ma, size_t len, int flags,
 	    zp->z_projid))) {
 		goto out;
 	}
+
+	vfs_ratelimit_data_write(zfsvfs->z_os, zp->z_blksz, len);
 
 	tx = dmu_tx_create(zfsvfs->z_os);
 	dmu_tx_hold_write(tx, zp->z_id, off, len);

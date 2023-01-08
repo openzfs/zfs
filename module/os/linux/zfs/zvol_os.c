@@ -35,6 +35,7 @@
 #include <sys/zio.h>
 #include <sys/zfs_rlock.h>
 #include <sys/spa_impl.h>
+#include <sys/vfs_ratelimit.h>
 #include <sys/zvol.h>
 #include <sys/zvol_impl.h>
 #include <cityhash.h>
@@ -292,10 +293,14 @@ zvol_write(zv_request_t *zvr)
 	while (uio.uio_resid > 0 && uio.uio_loffset < volsize) {
 		uint64_t bytes = MIN(uio.uio_resid, DMU_MAX_ACCESS >> 1);
 		uint64_t off = uio.uio_loffset;
-		dmu_tx_t *tx = dmu_tx_create(zv->zv_objset);
 
 		if (bytes > volsize - off)	/* don't write past the end */
 			bytes = volsize - off;
+
+		vfs_ratelimit_data_write(zv->zv_objset, zv->zv_volblocksize,
+		    bytes);
+
+		dmu_tx_t *tx = dmu_tx_create(zv->zv_objset);
 
 		dmu_tx_hold_write_by_dnode(tx, zv->zv_dn, off, bytes);
 
@@ -394,6 +399,9 @@ zvol_discard(zv_request_t *zvr)
 	zfs_locked_range_t *lr = zfs_rangelock_enter(&zv->zv_rangelock,
 	    start, size, RL_WRITER);
 
+	/* Should we account only for a single metadata write? */
+	vfs_ratelimit_metadata_write(zv->zv_objset);
+
 	tx = dmu_tx_create(zv->zv_objset);
 	dmu_tx_mark_netfree(tx);
 	error = dmu_tx_assign(tx, TXG_WAIT);
@@ -474,6 +482,9 @@ zvol_read(zv_request_t *zvr)
 		/* don't read past the end */
 		if (bytes > volsize - uio.uio_loffset)
 			bytes = volsize - uio.uio_loffset;
+
+		vfs_ratelimit_data_read(zv->zv_objset, zv->zv_volblocksize,
+		    bytes);
 
 		error = dmu_read_uio_dnode(zv->zv_dn, &uio, bytes);
 		if (error) {

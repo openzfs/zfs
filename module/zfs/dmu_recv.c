@@ -63,6 +63,7 @@
 #include <sys/zfeature.h>
 #include <sys/bqueue.h>
 #include <sys/objlist.h>
+#include <sys/vfs_ratelimit.h>
 #ifdef _KERNEL
 #include <sys/zfs_vfsops.h>
 #endif
@@ -2203,6 +2204,9 @@ flush_write_batch_impl(struct receive_writer_arg *rwa)
 		abd_t *abd = rrd->abd;
 
 		ASSERT3U(drrw->drr_object, ==, rwa->last_object);
+
+		vfs_ratelimit_data_write(rwa->os, drrw->drr_logical_size,
+		    drrw->drr_logical_size);
 
 		if (drrw->drr_logical_size != dn->dn_datablksz) {
 			/*

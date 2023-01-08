@@ -53,6 +53,7 @@
 #include <sys/dbuf.h>
 #include <sys/policy.h>
 #include <sys/zfeature.h>
+#include <sys/vfs_ratelimit.h>
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_quota.h>
 #include <sys/zfs_vfsops.h>
@@ -297,6 +298,9 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	while (n > 0) {
 		ssize_t nbytes = MIN(n, zfs_vnops_read_chunk_size -
 		    P2PHASE(zfs_uio_offset(uio), zfs_vnops_read_chunk_size));
+
+		vfs_ratelimit_data_read(zfsvfs->z_os, zp->z_blksz, nbytes);
+
 #ifdef UIO_NOCOPY
 		if (zfs_uio_segflg(uio) == UIO_NOCOPY)
 			error = mappedread_sf(zp, nbytes, uio);
@@ -609,6 +613,8 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 				pfbytes = nbytes;
 			}
 		}
+
+		vfs_ratelimit_data_write(zfsvfs->z_os, blksz, nbytes);
 
 		/*
 		 * Start a transaction.
@@ -1308,6 +1314,9 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 			error = SET_ERROR(EDQUOT);
 			break;
 		}
+
+		vfs_ratelimit_data_read(inos, inblksz, size);
+		vfs_ratelimit_data_write(outos, inblksz, size);
 
 		nbps = maxblocks;
 		last_synced_txg = spa_last_synced_txg(dmu_objset_spa(inos));

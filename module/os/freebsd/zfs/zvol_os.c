@@ -88,6 +88,7 @@
 #include <sys/dataset_kstats.h>
 #include <sys/dbuf.h>
 #include <sys/dmu_tx.h>
+#include <sys/vfs_ratelimit.h>
 #include <sys/zfeature.h>
 #include <sys/zio_checksum.h>
 #include <sys/zil_impl.h>
@@ -728,6 +729,8 @@ zvol_geom_bio_strategy(struct bio *bp)
 	    doread ? RL_READER : RL_WRITER);
 
 	if (bp->bio_cmd == BIO_DELETE) {
+		/* Should we account only for a single metadata write? */
+		vfs_ratelimit_metadata_write(zv->zv_objset);
 		dmu_tx_t *tx = dmu_tx_create(zv->zv_objset);
 		error = dmu_tx_assign(tx, TXG_WAIT);
 		if (error != 0) {
@@ -744,9 +747,13 @@ zvol_geom_bio_strategy(struct bio *bp)
 	while (resid != 0 && off < volsize) {
 		size_t size = MIN(resid, zvol_maxphys);
 		if (doread) {
+			vfs_ratelimit_data_read(zv->zv_objset,
+			    zv->zv_volblocksize, size);
 			error = dmu_read(os, ZVOL_OBJ, off, size, addr,
 			    DMU_READ_PREFETCH);
 		} else {
+			vfs_ratelimit_data_write(zv->zv_objset,
+			    zv->zv_volblocksize, size);
 			dmu_tx_t *tx = dmu_tx_create(os);
 			dmu_tx_hold_write_by_dnode(tx, zv->zv_dn, off, size);
 			error = dmu_tx_assign(tx, TXG_WAIT);

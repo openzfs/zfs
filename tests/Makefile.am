@@ -22,6 +22,7 @@ dist_scripts_runfiles_DATA = \
 	%D%/runfiles/linux.run \
 	%D%/runfiles/longevity.run \
 	%D%/runfiles/perf-regression.run \
+	%D%/runfiles/ratelimit.run \
 	%D%/runfiles/sanity.run \
 	%D%/runfiles/sunos.run
 
