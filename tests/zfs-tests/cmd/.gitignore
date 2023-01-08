@@ -14,6 +14,7 @@
 /file_check
 /file_trunc
 /file_write
+/fsop
 /get_diff
 /getversion
 /largest_file
