@@ -1189,7 +1189,7 @@ This property may be changed with
 .It Sy limit_bw_total Ns = Ns Ar size Ns | Ns Sy none
 Limits the read, write, or combined bandwidth, respectively, that a dataset and
 its descendants can consume.
-Limits are applied to both file systems and ZFS volumes.
+Limits are applied to file systems, volumes and their snapshots.
 Bandwidth limits are in bytes per second.
 .Pp
 The configured limits are hierarchical, just like quotas; i.e., even if a

@@ -78,7 +78,8 @@ static int zfs_bclone_wait_dirty = 0;
 /*
  * Maximum bytes to read per chunk in zfs_read().
  */
-static uint64_t zfs_vnops_read_chunk_size = 1024 * 1024;
+//static uint64_t zfs_vnops_read_chunk_size = 1024 * 1024;
+static uint64_t zfs_vnops_read_chunk_size = 1024 * 512;
 
 int
 zfs_fsync(znode_t *zp, int syncflag, cred_t *cr)
@@ -299,7 +300,14 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		ssize_t nbytes = MIN(n, zfs_vnops_read_chunk_size -
 		    P2PHASE(zfs_uio_offset(uio), zfs_vnops_read_chunk_size));
 
-		vfs_ratelimit_data_read(zfsvfs->z_os, zp->z_blksz, nbytes);
+		error = vfs_ratelimit_data_read(zfsvfs->z_os, zp->z_blksz,
+		    nbytes);
+		if (error != 0) {
+			if (error == EINTR && n < start_resid) {
+				error = 0;
+			}
+			break;
+		}
 
 #ifdef UIO_NOCOPY
 		if (zfs_uio_segflg(uio) == UIO_NOCOPY)
@@ -614,7 +622,15 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 			}
 		}
 
-		vfs_ratelimit_data_write(zfsvfs->z_os, blksz, nbytes);
+		error = vfs_ratelimit_data_write(zfsvfs->z_os, blksz, nbytes);
+		if (error != 0) {
+			if (error == EINTR && n < start_resid) {
+				error = 0;
+			}
+			if (abuf != NULL)
+				dmu_return_arcbuf(abuf);
+			break;
+		}
 
 		/*
 		 * Start a transaction.
@@ -1315,8 +1331,10 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 			break;
 		}
 
-		vfs_ratelimit_data_read(inos, inblksz, size);
-		vfs_ratelimit_data_write(outos, inblksz, size);
+		error = vfs_ratelimit_data_copy(inos, outos, inblksz, size);
+		if (error != 0) {
+			break;
+		}
 
 		nbps = maxblocks;
 		last_synced_txg = spa_last_synced_txg(dmu_objset_spa(inos));

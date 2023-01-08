@@ -37,7 +37,7 @@ SDT_PROBE_DECLARE(sdt, , , set__error);
 #define	SET_ERROR(err) \
 	((sdt_sdt___set__error->id ? \
 	(*sdt_probe_func)(sdt_sdt___set__error->id, \
-	    (uintptr_t)err, 0, 0, 0, 0) : 0), err)
+	    (uintptr_t)err, 0, 0, 0, 0, 0) : 0), err)
 #else
 #define	SET_ERROR(err) (err)
 #endif

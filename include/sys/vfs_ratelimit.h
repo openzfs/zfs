@@ -55,10 +55,15 @@ void vfs_ratelimit_free(struct vfs_ratelimit *rl);
 struct vfs_ratelimit *vfs_ratelimit_set(struct vfs_ratelimit *rl,
     zfs_prop_t prop, uint64_t limit);
 
-void vfs_ratelimit_data_read(objset_t *os, size_t blocksize, size_t bytes);
-void vfs_ratelimit_data_write(objset_t *os, size_t blocksize, size_t bytes);
-void vfs_ratelimit_metadata_read(objset_t *os);
-void vfs_ratelimit_metadata_write(objset_t *os);
+int vfs_ratelimit_data_read(objset_t *os, size_t blocksize, size_t bytes);
+int vfs_ratelimit_data_write(objset_t *os, size_t blocksize, size_t bytes);
+int vfs_ratelimit_data_copy(objset_t *srcos, objset_t *dstos, size_t blocksize,
+    size_t bytes);
+int vfs_ratelimit_metadata_read(objset_t *os);
+int vfs_ratelimit_metadata_write(objset_t *os);
+
+void vfs_ratelimit_data_read_spin(objset_t *os, size_t blocksize, size_t bytes);
+void vfs_ratelimit_data_write_spin(objset_t *os, size_t blocksize, size_t bytes);
 
 #ifdef	__cplusplus
 }

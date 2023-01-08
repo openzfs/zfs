@@ -371,6 +371,10 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 			dd->dd_snap_cmtime = t;
 		}
 
+		if (dd->dd_myname[0] != '$') {
+			dsl_dir_ratelimit_read(dd);
+		}
+
 		dmu_buf_init_user(&dd->dd_dbu, NULL, dsl_dir_evict_async,
 		    &dd->dd_dbuf);
 		winner = dmu_buf_set_user_ie(dbuf, &dd->dd_dbu);
@@ -380,6 +384,7 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 			if (dsl_deadlist_is_open(&dd->dd_livelist))
 				dsl_dir_livelist_close(dd);
 			dsl_prop_fini(dd);
+			vfs_ratelimit_free(dd->dd_ratelimit);
 			cv_destroy(&dd->dd_activity_cv);
 			mutex_destroy(&dd->dd_activity_lock);
 			mutex_destroy(&dd->dd_lock);
@@ -2036,7 +2041,6 @@ dsl_dir_ratelimit_recurse(dsl_dir_t *dd)
 		ASSERT(child_dd->dd_ratelimit == NULL);
 		child_dd->dd_ratelimit_root = dd->dd_ratelimit_root;
 
-
 		dsl_dir_ratelimit_recurse(child_dd);
 
 		dsl_dir_rele(child_dd, FTAG);
@@ -2320,7 +2324,7 @@ dsl_dir_ratelimit_rename(dsl_dir_t *dd, dsl_dir_t *newparent)
 
 	if (dd->dd_ratelimit_root != dd) {
 		ASSERT(dd->dd_ratelimit == NULL);
-		dd->dd_ratelimit_root = newparent;
+		dd->dd_ratelimit_root = newparent->dd_ratelimit_root;
 
 		dsl_dir_ratelimit_recurse(dd);
 	}

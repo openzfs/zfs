@@ -90,15 +90,7 @@ log_must ratelimit_filesystem_op_single unlink limit_op_write=none 1024 1 "$TEST
 # Operations total limits limit writing.
 log_must ratelimit_filesystem_op_single chmod limit_op_total=128 512 4 "$TESTDIR/file"
 log_must ratelimit_filesystem_op_single chown limit_op_total=64 512 8 "$TESTDIR/file"
-# Creating a file requires one metadata write and one metadata read operation.
-# On successful open(2), zfs_freebsd_open() calls vnode_create_vobject()
-# with size=0. If size=0, vnode_create_vobject() interprets this as not having
-# the proper size and calls VOP_GETATTR().
-if is_freebsd; then
-	log_must ratelimit_filesystem_op_single create limit_op_total=128 512 8 "$TESTDIR/file"
-else
-	log_must ratelimit_filesystem_op_single create limit_op_total=128 512 4 "$TESTDIR/file"
-fi
+log_must ratelimit_filesystem_op_single create limit_op_total=128 512 4 "$TESTDIR/file"
 log_must ratelimit_filesystem_op_single unlink limit_op_total=64 512 8 "$TESTDIR/file"
 log_must ratelimit_filesystem_op_single mkdir limit_op_total=128 512 4 "$TESTDIR/file"
 log_must ratelimit_filesystem_op_single rmdir limit_op_total=64 512 8 "$TESTDIR/file"
@@ -122,11 +114,7 @@ log_must ratelimit_filesystem_op_single unlink limit_op_total=none 1024 1 "$TEST
 # Operations read limits don't affect writing.
 log_must ratelimit_filesystem_op_single chmod limit_op_read=32 1024 1 "$TESTDIR/file"
 log_must ratelimit_filesystem_op_single chown limit_op_read=64 1024 1 "$TESTDIR/file"
-if is_freebsd; then
-	log_must ratelimit_filesystem_op_single create limit_op_read=128 1024 8 "$TESTDIR/file"
-else
-	log_must ratelimit_filesystem_op_single create limit_op_read=128 1024 1 "$TESTDIR/file"
-fi
+log_must ratelimit_filesystem_op_single create limit_op_read=128 1024 1 "$TESTDIR/file"
 log_must ratelimit_filesystem_op_single unlink limit_op_read=256 1024 1 "$TESTDIR/file"
 log_must ratelimit_filesystem_op_single mkdir limit_op_read=32 1024 1 "$TESTDIR/file"
 log_must ratelimit_filesystem_op_single rmdir limit_op_read=64 1024 1 "$TESTDIR/file"

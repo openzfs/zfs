@@ -297,8 +297,14 @@ zvol_write(zv_request_t *zvr)
 		if (bytes > volsize - off)	/* don't write past the end */
 			bytes = volsize - off;
 
-		vfs_ratelimit_data_write(zv->zv_objset, zv->zv_volblocksize,
-		    bytes);
+		error = vfs_ratelimit_data_write(zv->zv_objset,
+		    zv->zv_volblocksize, bytes);
+		if (error != 0) {
+			/* XXX-PJD Is it safe to reset the error? */
+			if (error == EINTR && uio.uio_resid < start_resid)
+				error = 0;
+			break;
+		}
 
 		dmu_tx_t *tx = dmu_tx_create(zv->zv_objset);
 
@@ -400,7 +406,11 @@ zvol_discard(zv_request_t *zvr)
 	    start, size, RL_WRITER);
 
 	/* Should we account only for a single metadata write? */
-	vfs_ratelimit_metadata_write(zv->zv_objset);
+	error = vfs_ratelimit_metadata_write(zv->zv_objset);
+	if (error != 0) {
+		zfs_rangelock_exit(lr);
+		goto unlock;
+	}
 
 	tx = dmu_tx_create(zv->zv_objset);
 	dmu_tx_mark_netfree(tx);
@@ -483,8 +493,14 @@ zvol_read(zv_request_t *zvr)
 		if (bytes > volsize - uio.uio_loffset)
 			bytes = volsize - uio.uio_loffset;
 
-		vfs_ratelimit_data_read(zv->zv_objset, zv->zv_volblocksize,
-		    bytes);
+		error = vfs_ratelimit_data_read(zv->zv_objset,
+		    zv->zv_volblocksize, bytes);
+		if (error != 0) {
+			/* XXX-PJD Is it safe to reset the error? */
+			if (error == EINTR && uio.uio_resid < start_resid)
+				error = 0;
+			break;
+		}
 
 		error = dmu_read_uio_dnode(zv->zv_dn, &uio, bytes);
 		if (error) {
