@@ -364,6 +364,7 @@ SRCS+=	abd.c \
 	zfs_fuid.c \
 	zfs_impl.c \
 	zfs_ioctl.c \
+	zfs_iolimit.c \
 	zfs_log.c \
 	zfs_onexit.c \
 	zfs_quota.c \

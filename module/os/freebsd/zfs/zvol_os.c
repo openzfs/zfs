@@ -91,6 +91,7 @@
 #include <sys/dbuf.h>
 #include <sys/dmu_tx.h>
 #include <sys/zfeature.h>
+#include <sys/zfs_iolimit.h>
 #include <sys/zio_checksum.h>
 #include <sys/zil_impl.h>
 #include <sys/filio.h>
@@ -662,6 +663,10 @@ zvol_strategy_impl(zv_request_t *zvr)
 	    doread ? RL_READER : RL_WRITER);
 
 	if (bp->bio_cmd == BIO_DELETE) {
+		/* Should we account only for a single metadata write? */
+		error = zfs_iolimit_metadata_write(zv->zv_objset);
+		if (error != 0)
+			goto unlock;
 		dmu_tx_t *tx = dmu_tx_create(zv->zv_objset);
 		error = dmu_tx_assign(tx, DMU_TX_WAIT);
 		if (error != 0) {
@@ -678,13 +683,23 @@ zvol_strategy_impl(zv_request_t *zvr)
 	while (resid != 0 && off < volsize) {
 		size_t size = MIN(resid, zvol_maxphys);
 		if (doread) {
+			error = zfs_iolimit_data_read(zv->zv_objset,
+			    zv->zv_volblocksize, size);
+			if (error != 0)
+				break;
 			error = dmu_read_by_dnode(zv->zv_dn, off, size, addr,
 			    DMU_READ_PREFETCH);
+			if (error != 0)
+				break;
 		} else {
+			error = zfs_iolimit_data_write(zv->zv_objset,
+			    zv->zv_volblocksize, size);
+			if (error != 0)
+				break;
 			dmu_tx_t *tx = dmu_tx_create(os);
 			dmu_tx_hold_write_by_dnode(tx, zv->zv_dn, off, size);
 			error = dmu_tx_assign(tx, DMU_TX_WAIT);
-			if (error) {
+			if (error != 0) {
 				dmu_tx_abort(tx);
 			} else {
 				dmu_write_by_dnode(zv->zv_dn, off, size, addr,
@@ -692,12 +707,9 @@ zvol_strategy_impl(zv_request_t *zvr)
 				zvol_log_write(zv, tx, off, size, commit);
 				dmu_tx_commit(tx);
 			}
-		}
-		if (error) {
-			/* Convert checksum errors into IO errors. */
-			if (error == ECKSUM)
-				error = SET_ERROR(EIO);
-			break;
+			dmu_write(os, ZVOL_OBJ, off, size, addr, tx);
+			zvol_log_write(zv, tx, off, size, commit);
+			dmu_tx_commit(tx);
 		}
 		off += size;
 		addr += size;
@@ -707,7 +719,12 @@ unlock:
 	zfs_rangelock_exit(lr);
 
 	bp->bio_completed = bp->bio_length - resid;
-	if (bp->bio_completed < bp->bio_length && off > volsize)
+	if (error == EINTR && bp->bio_completed > 0)
+		error = 0;
+	/* Convert checksum errors into IO errors. */
+	else if (error == ECKSUM)
+		error = SET_ERROR(EIO);
+	if (error == 0 && bp->bio_completed < bp->bio_length && off > volsize)
 		error = SET_ERROR(EINVAL);
 
 	switch (bp->bio_cmd) {
