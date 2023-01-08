@@ -397,6 +397,7 @@ ZFS_OBJS := \
 	vdev_removal.o \
 	vdev_root.o \
 	vdev_trim.o \
+	vfs_ratelimit.o \
 	zap.o \
 	zap_leaf.o \
 	zap_micro.o \

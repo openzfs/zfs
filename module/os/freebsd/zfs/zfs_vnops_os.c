@@ -81,6 +81,7 @@
 #include <sys/acl.h>
 #include <sys/vmmeter.h>
 #include <vm/vm_param.h>
+#include <sys/vfs_ratelimit.h>
 #include <sys/zil.h>
 #include <sys/zfs_vnops.h>
 #include <sys/module.h>
@@ -1149,6 +1150,12 @@ zfs_create(znode_t *dzp, const char *name, vattr_t *vap, int excl, int mode,
 		goto out;
 	}
 
+	error = vfs_ratelimit_metadata_write(os);
+	if (error != 0) {
+		zfs_acl_ids_free(&acl_ids);
+		goto out;
+	}
+
 	getnewvnode_reserve_();
 
 	tx = dmu_tx_create(os);
@@ -1282,6 +1289,11 @@ zfs_remove_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 		ASSERT0(error);
 	}
 
+	error = vfs_ratelimit_metadata_write(zfsvfs->z_os);
+	if (error != 0) {
+		goto out;
+	}
+
 	/*
 	 * We may delete the znode now, or we may put it in the unlinked set;
 	 * it depends on whether we're the last link, and on whether there are
@@ -1310,8 +1322,7 @@ zfs_remove_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 	error = dmu_tx_assign(tx, TXG_WAIT);
 	if (error) {
 		dmu_tx_abort(tx);
-		zfs_exit(zfsvfs, FTAG);
-		return (error);
+		goto out;
 	}
 
 	/*
@@ -1509,6 +1520,13 @@ zfs_mkdir(znode_t *dzp, const char *dirname, vattr_t *vap, znode_t **zpp,
 		return (SET_ERROR(EDQUOT));
 	}
 
+	error = vfs_ratelimit_metadata_write(zfsvfs->z_os);
+	if (error != 0) {
+		zfs_acl_ids_free(&acl_ids);
+		zfs_exit(zfsvfs, FTAG);
+		return (error);
+	}
+
 	/*
 	 * Add a new entry to the directory.
 	 */
@@ -1620,13 +1638,17 @@ zfs_rmdir_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 	}
 	zilog = zfsvfs->z_log;
 
-
 	if ((error = zfs_zaccess_delete(dzp, zp, cr, NULL))) {
 		goto out;
 	}
 
 	if (vp->v_type != VDIR) {
 		error = SET_ERROR(ENOTDIR);
+		goto out;
+	}
+
+	error = vfs_ratelimit_metadata_write(zfsvfs->z_os);
+	if (error != 0) {
 		goto out;
 	}
 
@@ -1642,12 +1664,10 @@ zfs_rmdir_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 	error = dmu_tx_assign(tx, TXG_WAIT);
 	if (error) {
 		dmu_tx_abort(tx);
-		zfs_exit(zfsvfs, FTAG);
-		return (error);
+		goto out;
 	}
 
 	error = zfs_link_destroy(dzp, name, zp, tx, ZEXISTS, NULL);
-
 	if (error == 0) {
 		uint64_t txtype = TX_RMDIR;
 		zfs_log_remove(zilog, tx, txtype, dzp, name,
@@ -1658,10 +1678,10 @@ zfs_rmdir_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 
 	if (zfsvfs->z_use_namecache)
 		cache_vop_rmdir(dvp, vp);
-out:
+
 	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, 0);
-
+out:
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
 }
@@ -1769,6 +1789,21 @@ zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, int *eofp,
 	prefetch = zp->z_zn_prefetch;
 
 	/*
+	 * Calling vfs_ratelimit_data_read() for each directory entry would be
+	 * way too expensive. We don't want to do that so we do the following
+	 * instead:
+	 * We charge here only for a single block. If there is a lot of traffic
+	 * we are going to wait before any reading is issued. Once we read all
+	 * directory entries we will charge the process for the rest, as this is
+	 * when we will know how much data exactly was read.
+	 */
+	error = vfs_ratelimit_data_read(os, zp->z_blksz, zp->z_blksz);
+	if (error != 0) {
+		zfs_exit(zfsvfs, FTAG);
+		return (error);
+	}
+
+	/*
 	 * Initialize the iterator cursor.
 	 */
 	if (offset <= 3) {
@@ -1788,12 +1823,11 @@ zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, int *eofp,
 	 */
 	iovp = GET_UIO_STRUCT(uio)->uio_iov;
 	bytes_wanted = iovp->iov_len;
+	bufsize = bytes_wanted;
 	if (zfs_uio_segflg(uio) != UIO_SYSSPACE || zfs_uio_iovcnt(uio) != 1) {
-		bufsize = bytes_wanted;
 		outbuf = kmem_alloc(bufsize, KM_SLEEP);
 		odp = (struct dirent64 *)outbuf;
 	} else {
-		bufsize = bytes_wanted;
 		outbuf = NULL;
 		odp = (struct dirent64 *)iovp->iov_base;
 	}
@@ -1925,6 +1959,18 @@ zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, int *eofp,
 	if (ncookies != NULL)
 		*ncookies -= ncooks;
 
+	/*
+	 * Charge the process for the rest, if more than a single block was
+	 * read.
+	 */
+	if (error == 0 && outcount > zp->z_blksz) {
+		error = vfs_ratelimit_data_read(os, zp->z_blksz,
+		    outcount - zp->z_blksz);
+		if (error != 0) {
+			goto update;
+		}
+	}
+
 	if (zfs_uio_segflg(uio) == UIO_SYSSPACE && zfs_uio_iovcnt(uio) == 1) {
 		iovp->iov_base += outcount;
 		iovp->iov_len -= outcount;
@@ -2015,6 +2061,12 @@ zfs_getattr(vnode_t *vp, vattr_t *vap, int flags, cred_t *cr)
 			zfs_exit(zfsvfs, FTAG);
 			return (error);
 		}
+	}
+
+	error = vfs_ratelimit_metadata_read(zfsvfs->z_os);
+	if (error != 0) {
+		zfs_exit(zfsvfs, FTAG);
+		return (error);
 	}
 
 	/*
@@ -2612,6 +2664,12 @@ zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr, zidmap_t *mnt_ns)
 			goto out2;
 		}
 	}
+
+	err = vfs_ratelimit_metadata_write(os);
+	if (err != 0) {
+		goto out2;
+	}
+
 	tx = dmu_tx_create(os);
 
 	if (mask & AT_MODE) {
@@ -3348,6 +3406,11 @@ zfs_do_rename_impl(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
 		}
 	}
 
+	error = vfs_ratelimit_metadata_write(zfsvfs->z_os);
+	if (error != 0) {
+		goto out;
+	}
+
 	vn_seqc_write_begin(*svpp);
 	vn_seqc_write_begin(sdvp);
 	if (*tvpp != NULL)
@@ -3557,11 +3620,17 @@ zfs_symlink(znode_t *dzp, const char *name, vattr_t *vap,
 		return (error);
 	}
 
-	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids,
-	    0 /* projid */)) {
+	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids, 0 /* projid */)) {
 		zfs_acl_ids_free(&acl_ids);
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EDQUOT));
+	}
+
+	error = vfs_ratelimit_metadata_write(zfsvfs->z_os);
+	if (error != 0) {
+		zfs_acl_ids_free(&acl_ids);
+		zfs_exit(zfsvfs, FTAG);
+		return (error);
 	}
 
 	getnewvnode_reserve_();
@@ -3660,6 +3729,12 @@ zfs_readlink(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, caller_context_t *ct)
 
 	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (error);
+
+	error = vfs_ratelimit_metadata_read(zfsvfs->z_os);
+	if (error != 0) {
+		zfs_exit(zfsvfs, FTAG);
+		return (error);
+	}
 
 	if (zp->z_is_sa)
 		error = sa_lookup_uio(zp->z_sa_hdl,
@@ -3789,6 +3864,12 @@ zfs_link(znode_t *tdzp, znode_t *szp, const char *name, cred_t *cr,
 		return (error);
 	}
 
+	error = vfs_ratelimit_metadata_write(zfsvfs->z_os);
+	if (error != 0) {
+		zfs_exit(zfsvfs, FTAG);
+		return (error);
+	}
+
 	tx = dmu_tx_create(zfsvfs->z_os);
 	dmu_tx_hold_sa(tx, szp->z_sa_hdl, B_FALSE);
 	dmu_tx_hold_zap(tx, tdzp->z_id, TRUE, name);
@@ -3804,8 +3885,7 @@ zfs_link(znode_t *tdzp, znode_t *szp, const char *name, cred_t *cr,
 	error = zfs_link_create(tdzp, name, szp, tx, 0);
 
 	if (error == 0) {
-		uint64_t txtype = TX_LINK;
-		zfs_log_link(zilog, tx, txtype, tdzp, szp, name);
+		zfs_log_link(zilog, tx, TX_LINK, tdzp, szp, name);
 	}
 
 	dmu_tx_commit(tx);
@@ -4118,14 +4198,19 @@ zfs_getpages(struct vnode *vp, vm_page_t *ma, int count, int *rbehind,
 		pgsin_a = MIN(*rahead, pgsin_a);
 	}
 
+	error = vfs_ratelimit_data_read(zfsvfs->z_os, zp->z_blksz,
+	    MIN(end, obj_size) - start);
+
 	/*
 	 * NB: we need to pass the exact byte size of the data that we expect
 	 * to read after accounting for the file size.  This is required because
 	 * ZFS will panic if we request DMU to read beyond the end of the last
 	 * allocated block.
 	 */
-	error = dmu_read_pages(zfsvfs->z_os, zp->z_id, ma, count, &pgsin_b,
-	    &pgsin_a, MIN(end, obj_size) - (end - PAGE_SIZE));
+	if (error == 0) {
+		error = dmu_read_pages(zfsvfs->z_os, zp->z_id, ma, count,
+		    &pgsin_b, &pgsin_a, MIN(end, obj_size) - (end - PAGE_SIZE));
+	}
 
 	if (lr != NULL)
 		zfs_rangelock_exit(lr);
@@ -4251,6 +4336,10 @@ zfs_putpages(struct vnode *vp, vm_page_t *ma, size_t len, int flags,
 	    (zp->z_projid != ZFS_DEFAULT_PROJID &&
 	    zfs_id_overblockquota(zfsvfs, DMU_PROJECTUSED_OBJECT,
 	    zp->z_projid))) {
+		goto out;
+	}
+
+	if (vfs_ratelimit_data_write(zfsvfs->z_os, zp->z_blksz, len) != 0) {
 		goto out;
 	}
 

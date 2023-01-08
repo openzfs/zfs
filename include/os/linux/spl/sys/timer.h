@@ -51,6 +51,7 @@
 #define	ddi_time_after_eq64(a, b)	ddi_time_before_eq64(b, a)
 
 #define	delay(ticks)			schedule_timeout_uninterruptible(ticks)
+#define	delay_sig(ticks)		(schedule_timeout_interruptible(ticks) > 0)
 
 #define	SEC_TO_TICK(sec)		((sec) * HZ)
 #define	MSEC_TO_TICK(ms)		msecs_to_jiffies(ms)
