@@ -1198,7 +1198,6 @@ buf_cons(void *vbuf, void *unused, int kmflag)
 	arc_buf_t *buf = vbuf;
 
 	memset(buf, 0, sizeof (arc_buf_t));
-	mutex_init(&buf->b_evict_lock, NULL, MUTEX_DEFAULT, NULL);
 	arc_space_consume(sizeof (arc_buf_t), ARC_SPACE_HDRS);
 
 	return (0);
@@ -1248,9 +1247,8 @@ static void
 buf_dest(void *vbuf, void *unused)
 {
 	(void) unused;
-	arc_buf_t *buf = vbuf;
+	(void) vbuf;
 
-	mutex_destroy(&buf->b_evict_lock);
 	arc_space_return(sizeof (arc_buf_t), ARC_SPACE_HDRS);
 }
 
@@ -3522,11 +3520,8 @@ arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t need_crypt)
 	 */
 	(void) zfs_refcount_add(&nhdr->b_l1hdr.b_refcnt, FTAG);
 	nhdr->b_l1hdr.b_buf = hdr->b_l1hdr.b_buf;
-	for (buf = nhdr->b_l1hdr.b_buf; buf != NULL; buf = buf->b_next) {
-		mutex_enter(&buf->b_evict_lock);
+	for (buf = nhdr->b_l1hdr.b_buf; buf != NULL; buf = buf->b_next)
 		buf->b_hdr = nhdr;
-		mutex_exit(&buf->b_evict_lock);
-	}
 
 	zfs_refcount_transfer(&nhdr->b_l1hdr.b_refcnt, &hdr->b_l1hdr.b_refcnt);
 	(void) zfs_refcount_remove(&nhdr->b_l1hdr.b_refcnt, FTAG);
@@ -3933,11 +3928,13 @@ arc_evict_hdr(arc_buf_hdr_t *hdr, uint64_t *real_evicted)
 	ASSERT(MUTEX_HELD(HDR_LOCK(hdr)));
 	ASSERT(HDR_HAS_L1HDR(hdr));
 	ASSERT(!HDR_IO_IN_PROGRESS(hdr));
+	ASSERT0(hdr->b_l1hdr.b_bufcnt);
+	ASSERT3P(hdr->b_l1hdr.b_buf, ==, NULL);
+	ASSERT0(zfs_refcount_count(&hdr->b_l1hdr.b_refcnt));
 
 	*real_evicted = 0;
 	state = hdr->b_l1hdr.b_state;
 	if (GHOST_STATE(state)) {
-		ASSERT3P(hdr->b_l1hdr.b_buf, ==, NULL);
 
 		/*
 		 * l2arc_write_buffers() relies on a header's L1 portion
@@ -3991,21 +3988,6 @@ arc_evict_hdr(arc_buf_hdr_t *hdr, uint64_t *real_evicted)
 		return (bytes_evicted);
 	}
 
-	ASSERT0(zfs_refcount_count(&hdr->b_l1hdr.b_refcnt));
-	while (hdr->b_l1hdr.b_buf) {
-		arc_buf_t *buf = hdr->b_l1hdr.b_buf;
-		if (!mutex_tryenter(&buf->b_evict_lock)) {
-			ARCSTAT_BUMP(arcstat_mutex_miss);
-			break;
-		}
-		if (buf->b_data != NULL) {
-			bytes_evicted += HDR_GET_LSIZE(hdr);
-			*real_evicted += HDR_GET_LSIZE(hdr);
-		}
-		mutex_exit(&buf->b_evict_lock);
-		arc_buf_destroy_impl(buf);
-	}
-
 	if (HDR_HAS_L2HDR(hdr)) {
 		ARCSTAT_INCR(arcstat_evict_l2_cached, HDR_GET_LSIZE(hdr));
 	} else {
@@ -4033,32 +4015,27 @@ arc_evict_hdr(arc_buf_hdr_t *hdr, uint64_t *real_evicted)
 		}
 	}
 
-	if (hdr->b_l1hdr.b_bufcnt == 0) {
-		arc_cksum_free(hdr);
+	bytes_evicted += arc_hdr_size(hdr);
+	*real_evicted += arc_hdr_size(hdr);
 
-		bytes_evicted += arc_hdr_size(hdr);
-		*real_evicted += arc_hdr_size(hdr);
+	/*
+	 * If this hdr is being evicted and has a compressed buffer then we
+	 * discard it here before we change states.  This ensures that the
+	 * accounting is updated correctly in arc_free_data_impl().
+	 */
+	if (hdr->b_l1hdr.b_pabd != NULL)
+		arc_hdr_free_abd(hdr, B_FALSE);
 
-		/*
-		 * If this hdr is being evicted and has a compressed
-		 * buffer then we discard it here before we change states.
-		 * This ensures that the accounting is updated correctly
-		 * in arc_free_data_impl().
-		 */
-		if (hdr->b_l1hdr.b_pabd != NULL)
-			arc_hdr_free_abd(hdr, B_FALSE);
+	if (HDR_HAS_RABD(hdr))
+		arc_hdr_free_abd(hdr, B_TRUE);
 
-		if (HDR_HAS_RABD(hdr))
-			arc_hdr_free_abd(hdr, B_TRUE);
-
-		arc_change_state(evicted_state, hdr);
-		DTRACE_PROBE1(arc__evict, arc_buf_hdr_t *, hdr);
-		if (evicted_state == arc_anon) {
-			arc_hdr_destroy(hdr);
-			*real_evicted += HDR_FULL_SIZE;
-		} else {
-			ASSERT(HDR_IN_HASH_TABLE(hdr));
-		}
+	arc_change_state(evicted_state, hdr);
+	DTRACE_PROBE1(arc__evict, arc_buf_hdr_t *, hdr);
+	if (evicted_state == arc_anon) {
+		arc_hdr_destroy(hdr);
+		*real_evicted += HDR_FULL_SIZE;
+	} else {
+		ASSERT(HDR_IN_HASH_TABLE(hdr));
 	}
 
 	return (bytes_evicted);
@@ -5650,7 +5627,6 @@ arc_access(arc_buf_hdr_t *hdr, arc_flags_t arc_flags, boolean_t hit)
 void
 arc_buf_access(arc_buf_t *buf)
 {
-	mutex_enter(&buf->b_evict_lock);
 	arc_buf_hdr_t *hdr = buf->b_hdr;
 
 	/*
@@ -5658,22 +5634,17 @@ arc_buf_access(arc_buf_t *buf)
 	 * The header must be checked again under the hash_lock in order
 	 * to handle the case where it is concurrently being released.
 	 */
-	if (hdr->b_l1hdr.b_state == arc_anon || HDR_EMPTY(hdr)) {
-		mutex_exit(&buf->b_evict_lock);
+	if (hdr->b_l1hdr.b_state == arc_anon || HDR_EMPTY(hdr))
 		return;
-	}
 
 	kmutex_t *hash_lock = HDR_LOCK(hdr);
 	mutex_enter(hash_lock);
 
 	if (hdr->b_l1hdr.b_state == arc_anon || HDR_EMPTY(hdr)) {
 		mutex_exit(hash_lock);
-		mutex_exit(&buf->b_evict_lock);
 		ARCSTAT_BUMP(arcstat_access_skip);
 		return;
 	}
-
-	mutex_exit(&buf->b_evict_lock);
 
 	ASSERT(hdr->b_l1hdr.b_state == arc_mru ||
 	    hdr->b_l1hdr.b_state == arc_mfu ||
@@ -6614,8 +6585,6 @@ arc_release(arc_buf_t *buf, const void *tag)
 	 * But we don't know that information at this level.
 	 */
 
-	mutex_enter(&buf->b_evict_lock);
-
 	ASSERT(HDR_HAS_L1HDR(hdr));
 
 	/*
@@ -6624,7 +6593,6 @@ arc_release(arc_buf_t *buf, const void *tag)
 	 * linked into the hash table.
 	 */
 	if (hdr->b_l1hdr.b_state == arc_anon) {
-		mutex_exit(&buf->b_evict_lock);
 		ASSERT(!HDR_IO_IN_PROGRESS(hdr));
 		ASSERT(!HDR_IN_HASH_TABLE(hdr));
 		ASSERT(!HDR_HAS_L2HDR(hdr));
@@ -6774,10 +6742,6 @@ arc_release(arc_buf_t *buf, const void *tag)
 
 		mutex_exit(hash_lock);
 
-		/*
-		 * Allocate a new hdr. The new hdr will contain a b_pabd
-		 * buffer which will be freed in arc_write().
-		 */
 		nhdr = arc_hdr_alloc(spa, psize, lsize, protected,
 		    compress, hdr->b_complevel, type);
 		ASSERT3P(nhdr->b_l1hdr.b_buf, ==, NULL);
@@ -6793,11 +6757,9 @@ arc_release(arc_buf_t *buf, const void *tag)
 		(void) zfs_refcount_add(&nhdr->b_l1hdr.b_refcnt, tag);
 		buf->b_hdr = nhdr;
 
-		mutex_exit(&buf->b_evict_lock);
 		(void) zfs_refcount_add_many(&arc_anon->arcs_size,
 		    arc_buf_size(buf), buf);
 	} else {
-		mutex_exit(&buf->b_evict_lock);
 		ASSERT(zfs_refcount_count(&hdr->b_l1hdr.b_refcnt) == 1);
 		/* protected by hash lock, or hdr is on arc_anon */
 		ASSERT(!multilist_link_active(&hdr->b_l1hdr.b_arc_node));
@@ -6818,25 +6780,15 @@ arc_release(arc_buf_t *buf, const void *tag)
 int
 arc_released(arc_buf_t *buf)
 {
-	int released;
-
-	mutex_enter(&buf->b_evict_lock);
-	released = (buf->b_data != NULL &&
+	return (buf->b_data != NULL &&
 	    buf->b_hdr->b_l1hdr.b_state == arc_anon);
-	mutex_exit(&buf->b_evict_lock);
-	return (released);
 }
 
 #ifdef ZFS_DEBUG
 int
 arc_referenced(arc_buf_t *buf)
 {
-	int referenced;
-
-	mutex_enter(&buf->b_evict_lock);
-	referenced = (zfs_refcount_count(&buf->b_hdr->b_l1hdr.b_refcnt));
-	mutex_exit(&buf->b_evict_lock);
-	return (referenced);
+	return (zfs_refcount_count(&buf->b_hdr->b_l1hdr.b_refcnt));
 }
 #endif
 
