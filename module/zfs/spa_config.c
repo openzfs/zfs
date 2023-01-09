@@ -354,6 +354,8 @@ spa_write_cachefile(spa_t *target, boolean_t removing, boolean_t postsysevent,
 		vdev_post_kobj_evt(target->spa_root_vdev);
 		for (int i = 0; i < target->spa_l2cache.sav_count; i++)
 			vdev_post_kobj_evt(target->spa_l2cache.sav_vdevs[i]);
+		for (int i = 0; i < target->spa_spares.sav_count; i++)
+			vdev_post_kobj_evt(target->spa_spares.sav_vdevs[i]);
 	}
 }
 
