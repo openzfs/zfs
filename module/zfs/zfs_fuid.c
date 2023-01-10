@@ -622,7 +622,7 @@ zfs_fuid_create(zfsvfs_t *zfsvfs, uint64_t id, cred_t *cr,
 			rid = FUID_RID(fuidp->z_fuid_group);
 			idx = FUID_INDEX(fuidp->z_fuid_group);
 			break;
-		};
+		}
 		domain = fuidp->z_domain_table[idx - 1];
 	} else {
 		if (type == ZFS_OWNER || type == ZFS_ACE_USER)
