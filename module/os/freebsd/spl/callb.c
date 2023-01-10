@@ -263,7 +263,7 @@ callb_execute_class(int class, int code)
 	mutex_enter(&ct->ct_lock);
 
 	for (cp = ct->ct_first_cb[class];
-	    cp != NULL && ret == 0; cp = cp->c_next) {
+	    cp != NULL && ret == NULL; cp = cp->c_next) {
 		while (cp->c_flag & CALLB_EXECUTING)
 			cv_wait(&cp->c_done_cv, &ct->ct_lock);
 		/*
