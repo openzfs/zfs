@@ -35,6 +35,10 @@
 #define	d_make_root(inode)	d_alloc_root(inode)
 #endif /* HAVE_D_MAKE_ROOT */
 
+#ifdef HAVE_DENTRY_D_U_ALIASES
+#define	d_alias			d_u.d_alias
+#endif
+
 /*
  * 2.6.30 API change,
  * The const keyword was added to the 'struct dentry_operations' in
@@ -70,11 +74,7 @@ zpl_d_drop_aliases(struct inode *inode)
 {
 	struct dentry *dentry;
 	spin_lock(&inode->i_lock);
-#ifdef HAVE_DENTRY_D_U_ALIASES
-	hlist_for_each_entry(dentry, &inode->i_dentry, d_u.d_alias) {
-#else
 	hlist_for_each_entry(dentry, &inode->i_dentry, d_alias) {
-#endif
 		if (!IS_ROOT(dentry) && !d_mountpoint(dentry) &&
 		    (dentry->d_inode == inode)) {
 			d_drop(dentry);
