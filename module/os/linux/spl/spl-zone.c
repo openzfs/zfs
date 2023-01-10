@@ -50,7 +50,7 @@ typedef struct zone_datasets {
 typedef struct zone_dataset {
 	struct list_head zd_list;	/* zone_dataset linkage */
 	size_t zd_dsnamelen;		/* length of name */
-	char zd_dsname[0];		/* name of the member dataset */
+	char zd_dsname[];		/* name of the member dataset */
 } zone_dataset_t;
 
 #if defined(CONFIG_USER_NS) && defined(HAVE_USER_NS_COMMON_INUM)
