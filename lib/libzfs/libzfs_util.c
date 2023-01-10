@@ -2010,7 +2010,7 @@ use_color(void)
 void
 color_start(const char *color)
 {
-	if (use_color()) {
+	if (color && use_color()) {
 		fputs(color, stdout);
 		fflush(stdout);
 	}
