@@ -876,7 +876,7 @@ zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
 		return (SET_ERROR(ENOENT));
 	}
 
-	zgd = (zgd_t *)kmem_zalloc(sizeof (zgd_t), KM_SLEEP);
+	zgd = kmem_zalloc(sizeof (zgd_t), KM_SLEEP);
 	zgd->zgd_lwb = lwb;
 	zgd->zgd_private = zp;
 

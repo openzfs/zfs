@@ -251,7 +251,7 @@ chksum_benchmark(void)
 	/* space for the benchmark times */
 	chksum_stat_cnt = 4;
 	chksum_stat_cnt += blake3_impl_getcnt();
-	chksum_stat_data = (chksum_stat_t *)kmem_zalloc(
+	chksum_stat_data = kmem_zalloc(
 	    sizeof (chksum_stat_t) * chksum_stat_cnt, KM_SLEEP);
 
 	/* edonr - needs to be the first one here (slow CPU check) */

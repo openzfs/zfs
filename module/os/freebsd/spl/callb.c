@@ -146,7 +146,7 @@ callb_add_common(boolean_t (*func)(void *arg, int code),
 		cv_wait(&ct->ct_busy_cv, &ct->ct_lock);
 	if ((cp = ct->ct_freelist) == NULL) {
 		ct->ct_ncallb++;
-		cp = (callb_t *)kmem_zalloc(sizeof (callb_t), KM_SLEEP);
+		cp = kmem_zalloc(sizeof (callb_t), KM_SLEEP);
 	}
 	ct->ct_freelist = cp->c_next;
 	cp->c_thread = t;

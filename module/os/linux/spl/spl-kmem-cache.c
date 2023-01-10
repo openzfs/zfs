@@ -701,7 +701,7 @@ spl_kmem_cache_create(const char *name, size_t size, size_t align,
 
 	skc->skc_magic = SKC_MAGIC;
 	skc->skc_name_size = strlen(name) + 1;
-	skc->skc_name = (char *)kmalloc(skc->skc_name_size, lflags);
+	skc->skc_name = kmalloc(skc->skc_name_size, lflags);
 	if (skc->skc_name == NULL) {
 		kfree(skc);
 		return (NULL);
