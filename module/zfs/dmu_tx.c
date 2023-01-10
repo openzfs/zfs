@@ -460,6 +460,7 @@ dmu_tx_hold_zap_impl(dmu_tx_hold_t *txh, const char *name)
 	dmu_tx_t *tx = txh->txh_tx;
 	dnode_t *dn = txh->txh_dnode;
 	int err;
+	extern int zap_micro_max_size;
 
 	ASSERT(tx->tx_txg == 0);
 
@@ -475,7 +476,7 @@ dmu_tx_hold_zap_impl(dmu_tx_hold_t *txh, const char *name)
 	 *    - 2 grown ptrtbl blocks
 	 */
 	(void) zfs_refcount_add_many(&txh->txh_space_towrite,
-	    MZAP_MAX_BLKSZ, FTAG);
+	    zap_micro_max_size, FTAG);
 
 	if (dn == NULL)
 		return;
