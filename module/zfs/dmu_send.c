@@ -1842,8 +1842,7 @@ send_reader_thread(void *arg)
 				continue;
 			}
 			uint64_t file_max =
-			    (dn->dn_maxblkid < range->end_blkid ?
-			    dn->dn_maxblkid : range->end_blkid);
+			    MIN(dn->dn_maxblkid, range->end_blkid);
 			/*
 			 * The object exists, so we need to try to find the
 			 * blkptr for each block in the range we're processing.
