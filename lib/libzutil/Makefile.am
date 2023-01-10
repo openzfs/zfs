@@ -17,6 +17,7 @@ libzutil_la_SOURCES = \
 
 if BUILD_LINUX
 libzutil_la_SOURCES += \
+	%D%/os/linux/zutil_setproctitle.c \
 	%D%/os/linux/zutil_device_path_os.c \
 	%D%/os/linux/zutil_import_os.c
 endif
