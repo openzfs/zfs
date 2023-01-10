@@ -281,7 +281,7 @@ typedef struct scan_io {
 	 * event of an error. This array must go at the end of the
 	 * struct to allow this for the variable number of elements.
 	 */
-	dva_t			sio_dva[0];
+	dva_t			sio_dva[];
 } scan_io_t;
 
 #define	SIO_SET_OFFSET(sio, x)		DVA_SET_OFFSET(&(sio)->sio_dva[0], x)

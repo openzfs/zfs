@@ -71,7 +71,7 @@ typedef struct dio_request {
 	atomic_t		dr_ref;		/* References */
 	int			dr_error;	/* Bio error */
 	int			dr_bio_count;	/* Count of bio's */
-	struct bio		*dr_bio[0];	/* Attached bio's */
+	struct bio		*dr_bio[];	/* Attached bio's */
 } dio_request_t;
 
 /*
