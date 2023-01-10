@@ -946,9 +946,9 @@ fzap_length(zap_name_t *zn,
 	if (err != 0)
 		goto out;
 
-	if (integer_size != 0)
+	if (integer_size != NULL)
 		*integer_size = zeh.zeh_integer_size;
-	if (num_integers != 0)
+	if (num_integers != NULL)
 		*num_integers = zeh.zeh_num_integers;
 out:
 	zap_put_leaf(l);

@@ -4783,7 +4783,7 @@ arc_flush(spa_t *spa, boolean_t retry)
 	 * no good way to determine if all of a spa's buffers have been
 	 * evicted from an arc state.
 	 */
-	ASSERT(!retry || spa == 0);
+	ASSERT(!retry || spa == NULL);
 
 	if (spa != NULL)
 		guid = spa_load_guid(spa);

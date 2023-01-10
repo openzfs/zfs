@@ -47,7 +47,7 @@ void
 abd_checksum_blake3_native(abd_t *abd, uint64_t size, const void *ctx_template,
     zio_cksum_t *zcp)
 {
-	ASSERT(ctx_template != 0);
+	ASSERT(ctx_template != NULL);
 
 #if defined(_KERNEL)
 	BLAKE3_CTX *ctx = blake3_per_cpu_ctx[CPU_SEQID_UNSTABLE];
@@ -76,7 +76,7 @@ abd_checksum_blake3_byteswap(abd_t *abd, uint64_t size,
 {
 	zio_cksum_t tmp;
 
-	ASSERT(ctx_template != 0);
+	ASSERT(ctx_template != NULL);
 
 	abd_checksum_blake3_native(abd, size, ctx_template, &tmp);
 	zcp->zc_word[0] = BSWAP_64(tmp.zc_word[0]);
