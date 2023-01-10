@@ -270,7 +270,7 @@ typedef struct indirect_split {
 	 */
 	indirect_child_t *is_good_child;
 
-	indirect_child_t is_child[1]; /* variable-length */
+	indirect_child_t is_child[];
 } indirect_split_t;
 
 /*
