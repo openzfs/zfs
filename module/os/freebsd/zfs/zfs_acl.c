@@ -2041,8 +2041,7 @@ zfs_zaccess_dataset_check(znode_t *zp, uint32_t v4_mode)
 {
 	if ((v4_mode & WRITE_MASK) &&
 	    (zp->z_zfsvfs->z_vfs->vfs_flag & VFS_RDONLY) &&
-	    (!IS_DEVVP(ZTOV(zp)) ||
-	    (IS_DEVVP(ZTOV(zp)) && (v4_mode & WRITE_MASK_ATTRS)))) {
+	    (!IS_DEVVP(ZTOV(zp)) || (v4_mode & WRITE_MASK_ATTRS))) {
 		return (SET_ERROR(EROFS));
 	}
 
