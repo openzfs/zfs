@@ -30,7 +30,7 @@ typedef struct zfs_dbgmsg {
 	list_node_t zdm_node;
 	time_t zdm_timestamp;
 	uint_t zdm_size;
-	char zdm_msg[1]; /* variable length allocation */
+	char zdm_msg[];
 } zfs_dbgmsg_t;
 
 static list_t zfs_dbgmsgs;
@@ -159,7 +159,7 @@ __zfs_dbgmsg(char *buf)
 
 	DTRACE_PROBE1(zfs__dbgmsg, char *, buf);
 
-	size = sizeof (zfs_dbgmsg_t) + strlen(buf);
+	size = sizeof (zfs_dbgmsg_t) + strlen(buf) + 1;
 	zdm = kmem_zalloc(size, KM_SLEEP);
 	zdm->zdm_size = size;
 	zdm->zdm_timestamp = gethrestime_sec();
