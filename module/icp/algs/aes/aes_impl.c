@@ -211,7 +211,7 @@ aes_alloc_keysched(size_t *size, int kmflag)
 {
 	aes_key_t *keysched;
 
-	keysched = (aes_key_t *)kmem_alloc(sizeof (aes_key_t), kmflag);
+	keysched = kmem_alloc(sizeof (aes_key_t), kmflag);
 	if (keysched != NULL) {
 		*size = sizeof (aes_key_t);
 		return (keysched);
