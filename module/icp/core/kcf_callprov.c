@@ -63,7 +63,7 @@ is_in_triedlist(kcf_provider_desc_t *pd, kcf_prov_tried_t *triedl)
 		if (triedl->pt_pd == pd)
 			return (B_TRUE);
 		triedl = triedl->pt_next;
-	};
+	}
 
 	return (B_FALSE);
 }
