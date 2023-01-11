@@ -356,14 +356,6 @@ SYSCTL_UINT(_vfs_zfs_zfetch, OID_AUTO, max_idistance, CTLFLAG_RWTUN,
 /* dsl_pool.c */
 
 /* dnode.c */
-extern int zfs_default_bs;
-SYSCTL_INT(_vfs_zfs, OID_AUTO, default_bs, CTLFLAG_RWTUN,
-    &zfs_default_bs, 0, "Default dnode block shift");
-
-extern int zfs_default_ibs;
-SYSCTL_INT(_vfs_zfs, OID_AUTO, default_ibs, CTLFLAG_RWTUN,
-    &zfs_default_ibs, 0, "Default dnode indirect block shift");
-
 
 /* dsl_scan.c */
 
