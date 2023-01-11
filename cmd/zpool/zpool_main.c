@@ -5184,21 +5184,14 @@ get_stat_flags(zpool_list_t *list)
 static int
 is_vdev_cb(void *zhp_data, nvlist_t *nv, void *cb_data)
 {
+	uint64_t guid;
 	vdev_cbdata_t *cb = cb_data;
-	char *name = NULL;
-	int ret = 1; /* assume match */
 	zpool_handle_t *zhp = zhp_data;
 
-	name = zpool_vdev_name(g_zfs, zhp, nv, cb->cb_name_flags);
+	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID, &guid) != 0)
+		return (0);
 
-	if (strcmp(name, cb->cb_names[0])) {
-		free(name);
-		name = zpool_vdev_name(g_zfs, zhp, nv, VDEV_NAME_GUID);
-		ret = (strcmp(name, cb->cb_names[0]) == 0);
-	}
-	free(name);
-
-	return (ret);
+	return (guid == zpool_vdev_path_to_guid(zhp, cb->cb_names[0]));
 }
 
 /*
