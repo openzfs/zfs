@@ -2696,3 +2696,8 @@ EXPORT_SYMBOL(dnode_free_range);
 EXPORT_SYMBOL(dnode_evict_dbufs);
 EXPORT_SYMBOL(dnode_evict_bonus);
 #endif
+
+ZFS_MODULE_PARAM(zfs, zfs_, default_bs, INT, ZMOD_RW,
+	"Default dnode block shift");
+ZFS_MODULE_PARAM(zfs, zfs_, default_ibs, INT, ZMOD_RW,
+	"Default dnode indirect block shift");

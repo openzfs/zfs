@@ -15,7 +15,7 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.Dd December 21, 2022
+.Dd January 10, 2023
 .Dt ZFS 4
 .Os
 .
@@ -238,6 +238,12 @@ relative to the pool.
 .It Sy metaslab_force_ganging Ns = Ns Sy 16777217 Ns B Po 16 MiB + 1 B Pc Pq u64
 Make some blocks above a certain size be gang blocks.
 This option is used by the test suite to facilitate testing.
+.
+.It Sy zfs_default_bs Ns = Ns Sy 9 Po 512 B Pc Pq int
+Default dnode block size as a power of 2.
+.
+.It Sy zfs_default_ibs Ns = Ns Sy 17 Po 128 KiB Pc Pq int
+Default dnode indirect block size as a power of 2.
 .
 .It Sy zfs_history_output_max Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq u64
 When attempting to log an output nvlist of an ioctl in the on-disk history,
