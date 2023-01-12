@@ -49,7 +49,7 @@ raw_backup=$TEST_BASE_DIR/raw_backup
 function cleanup
 {
 	log_must rm -f $backup $raw_backup $ibackup $unc_backup
-	destroy_pool pool_lb/fs
+	destroy_pool pool_lb
 	log_must rm -f $TESTDIR/vdev_a
 }
 
