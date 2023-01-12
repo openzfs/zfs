@@ -97,9 +97,11 @@ typedef struct {
 #endif
 
 /*
- * PF_FSTRANS is removed from Linux 4.12
+ * Linux 4.12 replaced PF_FSTRANS with PF_MEMALLOC_NOFS
  */
-#ifdef PF_FSTRANS
+#ifdef PF_MEMALLOC_NOFS
+#define	__SPL_PF_FSTRANS (PF_MEMALLOC_NOFS)
+#elif defined(PF_FSTRANS)
 #define	__SPL_PF_FSTRANS (PF_FSTRANS)
 #else
 #define	__SPL_PF_FSTRANS (0)
