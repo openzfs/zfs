@@ -425,7 +425,7 @@ vdev_disk_dio_get(dio_request_t *dr)
 	atomic_inc(&dr->dr_ref);
 }
 
-static int
+static void
 vdev_disk_dio_put(dio_request_t *dr)
 {
 	int rc = atomic_dec_return(&dr->dr_ref);
@@ -449,14 +449,11 @@ vdev_disk_dio_put(dio_request_t *dr)
 			zio_delay_interrupt(zio);
 		}
 	}
-
-	return (rc);
 }
 
 BIO_END_IO_PROTO(vdev_disk_physio_completion, bio, error)
 {
 	dio_request_t *dr = bio->bi_private;
-	int rc;
 
 	if (dr->dr_error == 0) {
 #ifdef HAVE_1ARG_BIO_END_IO_T
@@ -470,7 +467,7 @@ BIO_END_IO_PROTO(vdev_disk_physio_completion, bio, error)
 	}
 
 	/* Drop reference acquired by __vdev_disk_physio */
-	rc = vdev_disk_dio_put(dr);
+	vdev_disk_dio_put(dr);
 }
 
 static inline void
@@ -742,7 +739,7 @@ retry:
 	if (dr->dr_bio_count > 1)
 		blk_finish_plug(&plug);
 
-	(void) vdev_disk_dio_put(dr);
+	vdev_disk_dio_put(dr);
 
 	return (error);
 }

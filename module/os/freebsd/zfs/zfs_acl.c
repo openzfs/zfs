@@ -2414,7 +2414,6 @@ zfs_zaccess(znode_t *zp, int mode, int flags, boolean_t skipaclchk, cred_t *cr,
 		 * read_acl/read_attributes
 		 */
 
-		error = 0;
 		ASSERT3U(working_mode, !=, 0);
 
 		if ((working_mode & (ACE_READ_ACL|ACE_READ_ATTRIBUTES) &&

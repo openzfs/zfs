@@ -98,9 +98,6 @@ extern struct rw_semaphore spl_kmem_cache_sem;
 #define	SPL_MAX_KMEM_ORDER_NR_PAGES	(KMALLOC_MAX_SIZE >> PAGE_SHIFT)
 #endif
 
-#define	POINTER_IS_VALID(p)		0	/* Unimplemented */
-#define	POINTER_INVALIDATE(pp)			/* Unimplemented */
-
 typedef int (*spl_kmem_ctor_t)(void *, void *, int);
 typedef void (*spl_kmem_dtor_t)(void *, void *);
 

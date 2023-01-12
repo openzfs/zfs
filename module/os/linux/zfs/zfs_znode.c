@@ -495,13 +495,11 @@ zfs_set_inode_flags(znode_t *zp, struct inode *ip)
 void
 zfs_znode_update_vfs(znode_t *zp)
 {
-	zfsvfs_t	*zfsvfs;
 	struct inode	*ip;
 	uint32_t	blksize;
 	u_longlong_t	i_blocks;
 
 	ASSERT(zp != NULL);
-	zfsvfs = ZTOZSB(zp);
 	ip = ZTOI(zp);
 
 	/* Skip .zfs control nodes which do not exist on disk. */
@@ -1885,6 +1883,7 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	}
 	ASSERT(version != 0);
 	error = zap_update(os, moid, ZPL_VERSION_STR, 8, 1, &version, tx);
+	ASSERT(error == 0);
 
 	/*
 	 * Create zap object used for SA attribute registration

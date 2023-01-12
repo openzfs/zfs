@@ -73,11 +73,9 @@
 #define	FSE_buildDTable_raw zfs_FSE_buildDTable_raw
 #define	FSE_buildDTable_rle zfs_FSE_buildDTable_rle
 #define	FSE_buildDTable zfs_FSE_buildDTable
-#define	FSE_createDTable zfs_FSE_createDTable
 #define	FSE_decompress_usingDTable zfs_FSE_decompress_usingDTable
 #define	FSE_decompress_wksp zfs_FSE_decompress_wksp
 #define	FSE_decompress zfs_FSE_decompress
-#define	FSE_freeDTable zfs_FSE_freeDTable
 
 /* lib/common/pool.o: */
 #define	POOL_add zfs_POOL_add

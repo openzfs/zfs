@@ -2581,7 +2581,6 @@ zfs_fastaccesschk_execute(znode_t *zdp, cred_t *cr)
 	}
 
 	if (uid == KUID_TO_SUID(ZTOI(zdp)->i_uid)) {
-		owner = B_TRUE;
 		if (zdp->z_mode & S_IXUSR) {
 			mutex_exit(&zdp->z_acl_lock);
 			return (0);
@@ -2591,7 +2590,6 @@ zfs_fastaccesschk_execute(znode_t *zdp, cred_t *cr)
 		}
 	}
 	if (groupmember(KGID_TO_SGID(ZTOI(zdp)->i_gid), cr)) {
-		groupmbr = B_TRUE;
 		if (zdp->z_mode & S_IXGRP) {
 			mutex_exit(&zdp->z_acl_lock);
 			return (0);
@@ -2720,7 +2718,6 @@ zfs_zaccess(znode_t *zp, int mode, int flags, boolean_t skipaclchk, cred_t *cr,
 		 * read_acl/read_attributes
 		 */
 
-		error = 0;
 		ASSERT(working_mode != 0);
 
 		if ((working_mode & (ACE_READ_ACL|ACE_READ_ATTRIBUTES) &&
