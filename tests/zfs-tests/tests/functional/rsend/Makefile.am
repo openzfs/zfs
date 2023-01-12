@@ -57,7 +57,8 @@ dist_pkgdata_SCRIPTS = \
 	send_invalid.ksh \
 	send_mixed_raw.ksh \
 	send-wR_encrypted_zvol.ksh \
-	send_doall.ksh
+	send_doall.ksh \
+	send_encrypted_incremental.ksh
 
 dist_pkgdata_DATA = \
 	dedup.zsend.bz2 \

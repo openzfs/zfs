@@ -1749,16 +1749,20 @@ dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
 
 	/*
 	 * We are not allowed to dirty a filesystem when done receiving
-	 * a snapshot. In this case the flag SPA_FEATURE_LARGE_BLOCKS will
-	 * not be set and a subsequent encrypted raw send will fail. Hence
-	 * activate this feature if needed here.
+	 * a snapshot. In this case some flags such as SPA_FEATURE_LARGE_BLOCKS
+	 * will not be set and a subsequent encrypted raw send will fail. Hence
+	 * activate this feature if needed here. This needs to happen only in
+	 * syncing context.
 	 */
-	for (spa_feature_t f = 0; f < SPA_FEATURES; f++) {
-		if (zfeature_active(f, ds->ds_feature_activation[f]) &&
-		    !(zfeature_active(f, ds->ds_feature[f]))) {
-			dsl_dataset_activate_feature(dsobj, f,
-			    ds->ds_feature_activation[f], tx);
-			ds->ds_feature[f] = ds->ds_feature_activation[f];
+	if (dmu_tx_is_syncing(tx)) {
+		for (spa_feature_t f = 0; f < SPA_FEATURES; f++) {
+			if (zfeature_active(f, ds->ds_feature_activation[f]) &&
+			    !(zfeature_active(f, ds->ds_feature[f]))) {
+				dsl_dataset_activate_feature(dsobj, f,
+				    ds->ds_feature_activation[f], tx);
+				ds->ds_feature[f] =
+				    ds->ds_feature_activation[f];
+			}
 		}
 	}
 
