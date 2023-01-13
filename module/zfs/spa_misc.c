@@ -2556,7 +2556,6 @@ spa_scan_stat_init(spa_t *spa)
 	spa->spa_scan_pass_scrub_spent_paused = 0;
 	spa->spa_scan_pass_exam = 0;
 	spa->spa_scan_pass_issued = 0;
-	vdev_scan_stat_init(spa->spa_root_vdev);
 }
 
 /*

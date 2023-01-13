@@ -132,6 +132,15 @@ extern uint_t zfs_vdev_async_write_active_min_dirty_percent;
 static int zfs_scan_blkstats = 0;
 
 /*
+ * 'zpool status' uses bytes processed per pass to report throughput and
+ * estimate time remaining.  We define a pass to start when the scanning
+ * phase completes for a sequential resilver.  Optionally, this value
+ * may be used to reset the pass statistics every N txgs to provide an
+ * estimated completion time based on currently observed performance.
+ */
+static uint_t zfs_scan_report_txgs = 0;
+
+/*
  * By default zfs will check to ensure it is not over the hard memory
  * limit before each txg. If finer-grained control of this is needed
  * this value can be set to 1 to enable checking before scanning each
@@ -604,6 +613,8 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 	}
 
 	spa_scan_stat_init(spa);
+	vdev_scan_stat_init(spa->spa_root_vdev);
+
 	return (0);
 }
 
@@ -763,6 +774,7 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 	scn->scn_last_checkpoint = 0;
 	scn->scn_checkpointing = B_FALSE;
 	spa_scan_stat_init(spa);
+	vdev_scan_stat_init(spa->spa_root_vdev);
 
 	if (DSL_SCAN_IS_SCRUB_RESILVER(scn)) {
 		scn->scn_phys.scn_ddt_class_max = zfs_scrub_ddt_class_max;
@@ -3653,6 +3665,16 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	}
 
 	/*
+	 * Disabled by default, set zfs_scan_report_txgs to report
+	 * average performance over the last zfs_scan_report_txgs TXGs.
+	 */
+	if (!dsl_scan_is_paused_scrub(scn) && zfs_scan_report_txgs != 0 &&
+	    tx->tx_txg % zfs_scan_report_txgs == 0) {
+		scn->scn_issued_before_pass += spa->spa_scan_pass_issued;
+		spa_scan_stat_init(spa);
+	}
+
+	/*
 	 * It is possible to switch from unsorted to sorted at any time,
 	 * but afterwards the scan will remain sorted unless reloaded from
 	 * a checkpoint after a reboot.
@@ -3780,6 +3802,9 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 			if (scn->scn_is_sorted) {
 				scn->scn_checkpointing = B_TRUE;
 				scn->scn_clearing = B_TRUE;
+				scn->scn_issued_before_pass +=
+				    spa->spa_scan_pass_issued;
+				spa_scan_stat_init(spa);
 			}
 			zfs_dbgmsg("scan complete for %s txg %llu",
 			    spa->spa_name,
@@ -4506,6 +4531,9 @@ ZFS_MODULE_PARAM(zfs, zfs_, scan_strict_mem_lim, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, scan_fill_weight, UINT, ZMOD_RW,
 	"Tunable to adjust bias towards more filled segments during scans");
+
+ZFS_MODULE_PARAM(zfs, zfs_, scan_report_txgs, UINT, ZMOD_RW,
+	"Tunable to report resilver performance over the last N txgs");
 
 ZFS_MODULE_PARAM(zfs, zfs_, resilver_disable_defer, INT, ZMOD_RW,
 	"Process all resilvers immediately");
