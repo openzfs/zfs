@@ -6098,7 +6098,7 @@
     <array-type-def dimensions='1' type-id='b96825af' size-in-bits='64' id='13339fda'>
       <subrange length='8' type-id='7359adad' id='56e0c0b1'/>
     </array-type-def>
-    <class-decl name='sendflags' size-in-bits='544' is-struct='yes' visibility='default' id='f6aa15be'>
+    <class-decl name='sendflags' size-in-bits='576' is-struct='yes' visibility='default' id='f6aa15be'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='verbosity' type-id='95e97e5e' visibility='default'/>
       </data-member>
@@ -6130,24 +6130,27 @@
         <var-decl name='progress' type-id='c19b74c3' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='320'>
-        <var-decl name='largeblock' type-id='c19b74c3' visibility='default'/>
+        <var-decl name='progressastitle' type-id='c19b74c3' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='352'>
-        <var-decl name='embed_data' type-id='c19b74c3' visibility='default'/>
+        <var-decl name='largeblock' type-id='c19b74c3' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='384'>
-        <var-decl name='compress' type-id='c19b74c3' visibility='default'/>
+        <var-decl name='embed_data' type-id='c19b74c3' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='416'>
-        <var-decl name='raw' type-id='c19b74c3' visibility='default'/>
+        <var-decl name='compress' type-id='c19b74c3' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='448'>
-        <var-decl name='backup' type-id='c19b74c3' visibility='default'/>
+        <var-decl name='raw' type-id='c19b74c3' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='480'>
-        <var-decl name='holds' type-id='c19b74c3' visibility='default'/>
+        <var-decl name='backup' type-id='c19b74c3' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='512'>
+        <var-decl name='holds' type-id='c19b74c3' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='544'>
         <var-decl name='saved' type-id='c19b74c3' visibility='default'/>
       </data-member>
     </class-decl>
@@ -6726,6 +6729,11 @@
     </function-decl>
     <function-decl name='libzfs_set_pipe_max' mangled-name='libzfs_set_pipe_max' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='libzfs_set_pipe_max'>
       <parameter type-id='95e97e5e'/>
+      <return type-id='48b5725f'/>
+    </function-decl>
+    <function-decl name='zfs_setproctitle' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='80f4b756'/>
+      <parameter is-variadic='yes'/>
       <return type-id='48b5725f'/>
     </function-decl>
     <function-decl name='avl_insert' visibility='default' binding='global' size-in-bits='64'>
