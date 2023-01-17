@@ -194,6 +194,7 @@ elif sys.platform.startswith('linux'):
 # reasons listed above can be used.
 #
 maybe = {
+    'append/threadsappend_001_pos': ['FAIL', 6136],
     'chattr/setup': ['SKIP', exec_reason],
     'crtime/crtime_001_pos': ['SKIP', statx_reason],
     'cli_root/zdb/zdb_006_pos': ['FAIL', known_reason],
@@ -224,6 +225,7 @@ maybe = {
     'io/mmap': ['SKIP', fio_reason],
     'largest_pool/largest_pool_001_pos': ['FAIL', known_reason],
     'mmp/mmp_on_uberblocks': ['FAIL', known_reason],
+    'pam/setup': ['SKIP', "pamtester might be not available"],
     'pool_checkpoint/checkpoint_discard_busy': ['FAIL', 11946],
     'projectquota/setup': ['SKIP', exec_reason],
     'removal/removal_condense_export': ['FAIL', known_reason],
@@ -235,13 +237,12 @@ maybe = {
     'snapshot/snapshot_010_pos': ['FAIL', 7961],
     'snapused/snapused_004_pos': ['FAIL', 5513],
     'tmpfile/setup': ['SKIP', tmpfile_reason],
-    'append/threadsappend_001_pos': ['FAIL', 6136],
     'trim/setup': ['SKIP', trim_reason],
     'upgrade/upgrade_projectquota_001_pos': ['SKIP', project_id_reason],
     'user_namespace/setup': ['SKIP', user_ns_reason],
     'userquota/setup': ['SKIP', exec_reason],
+    'vdev_zaps/vdev_zaps_004_pos': ['FAIL', known_reason],
     'zvol/zvol_ENOSPC/zvol_ENOSPC_001_pos': ['FAIL', 5848],
-    'pam/setup': ['SKIP', "pamtester might be not available"],
 }
 
 if sys.platform.startswith('freebsd'):
@@ -261,8 +262,11 @@ elif sys.platform.startswith('linux'):
     maybe.update({
         'cli_root/zfs_rename/zfs_rename_002_pos': ['FAIL', known_reason],
         'cli_root/zpool_reopen/zpool_reopen_003_pos': ['FAIL', known_reason],
-        'fault/auto_spare_shared': ['FAIL', 11889],
+        'fault/auto_online_002_pos': ['FAIL', 11889],
+        'fault/auto_spare_002_pos': ['FAIL', 11889],
         'fault/auto_spare_multiple': ['FAIL', 11889],
+        'fault/auto_spare_shared': ['FAIL', 11889],
+        'fault/decompress_fault': ['FAIL', 11889],
         'io/io_uring': ['SKIP', 'io_uring support required'],
         'limits/filesystem_limit': ['SKIP', known_reason],
         'limits/snapshot_limit': ['SKIP', known_reason],
