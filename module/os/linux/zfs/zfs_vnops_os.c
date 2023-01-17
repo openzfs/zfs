@@ -721,7 +721,6 @@ top:
 
 		if (have_acl)
 			zfs_acl_ids_free(&acl_ids);
-		have_acl = B_FALSE;
 
 		/*
 		 * A directory entry already exists for this name.
@@ -2532,7 +2531,7 @@ out:
 		dmu_tx_commit(tx);
 		if (attrzp) {
 			if (err2 == 0 && handle_eadir)
-				err2 = zfs_setattr_dir(attrzp);
+				err = zfs_setattr_dir(attrzp);
 			zrele(attrzp);
 		}
 		zfs_znode_update_vfs(zp);

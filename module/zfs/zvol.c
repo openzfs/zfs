@@ -1076,7 +1076,7 @@ zvol_create_minors_cb(const char *dsname, void *arg)
 			 * traverse snapshots only, do not traverse children,
 			 * and skip the 'dsname'
 			 */
-			error = dmu_objset_find(dsname,
+			(void) dmu_objset_find(dsname,
 			    zvol_create_snap_minor_cb, (void *)job,
 			    DS_FIND_SNAPSHOTS);
 		}

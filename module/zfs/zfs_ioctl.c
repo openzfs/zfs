@@ -1081,7 +1081,7 @@ zfs_secpolicy_diff(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 	(void) innvl;
 	int error;
 
-	if ((error = secpolicy_sys_config(cr, B_FALSE)) == 0)
+	if (secpolicy_sys_config(cr, B_FALSE) == 0)
 		return (0);
 
 	error = zfs_secpolicy_write_perms(zc->zc_name, ZFS_DELEG_PERM_DIFF, cr);
@@ -1230,8 +1230,8 @@ zfs_secpolicy_tmp_snapshot(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 	 */
 	int error;
 
-	if ((error = zfs_secpolicy_write_perms(zc->zc_name,
-	    ZFS_DELEG_PERM_DIFF, cr)) == 0)
+	if (zfs_secpolicy_write_perms(zc->zc_name,
+	    ZFS_DELEG_PERM_DIFF, cr) == 0)
 		return (0);
 
 	error = zfs_secpolicy_snapshot_perms(zc->zc_name, cr);
@@ -1279,8 +1279,7 @@ get_nvlist(uint64_t nvl, uint64_t size, int iflag, nvlist_t **nvp)
 
 	packed = vmem_alloc(size, KM_SLEEP);
 
-	if ((error = ddi_copyin((void *)(uintptr_t)nvl, packed, size,
-	    iflag)) != 0) {
+	if (ddi_copyin((void *)(uintptr_t)nvl, packed, size, iflag) != 0) {
 		vmem_free(packed, size);
 		return (SET_ERROR(EFAULT));
 	}
@@ -2682,7 +2681,6 @@ retry:
 	pair = NULL;
 	while ((pair = nvlist_next_nvpair(genericnvl, pair)) != NULL) {
 		const char *propname = nvpair_name(pair);
-		err = 0;
 
 		propval = pair;
 		if (nvpair_type(pair) == DATA_TYPE_NVLIST) {
@@ -3095,7 +3093,7 @@ zfs_ioc_set_fsacl(zfs_cmd_t *zc)
 	/*
 	 * Verify nvlist is constructed correctly
 	 */
-	if ((error = zfs_deleg_verify_nvlist(fsaclnv)) != 0) {
+	if (zfs_deleg_verify_nvlist(fsaclnv) != 0) {
 		nvlist_free(fsaclnv);
 		return (SET_ERROR(EINVAL));
 	}
