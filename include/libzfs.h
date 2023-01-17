@@ -740,6 +740,9 @@ typedef struct sendflags {
 	/* show progress (ie. -v) */
 	boolean_t progress;
 
+	/* show progress as process title (ie. -V) */
+	boolean_t progressastitle;
+
 	/* large blocks (>128K) are permitted */
 	boolean_t largeblock;
 

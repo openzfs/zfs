@@ -29,7 +29,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd March 16, 2022
+.Dd January 12, 2023
 .Dt ZFS-SEND 8
 .Os
 .
@@ -39,29 +39,29 @@
 .Sh SYNOPSIS
 .Nm zfs
 .Cm send
-.Op Fl DLPbcehnpsvw
+.Op Fl DLPVbcehnpsvw
 .Op Fl R Op Fl X Ar dataset Ns Oo , Ns Ar dataset Oc Ns …
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
 .Nm zfs
 .Cm send
-.Op Fl DLPcensvw
+.Op Fl DLPVcensvw
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
 .Nm zfs
 .Cm send
 .Fl -redact Ar redaction_bookmark
-.Op Fl DLPcenpv
+.Op Fl DLPVcenpv
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Ar snapshot
 .Nm zfs
 .Cm send
-.Op Fl Penv
+.Op Fl PVenv
 .Fl t
 .Ar receive_resume_token
 .Nm zfs
 .Cm send
-.Op Fl Pnv
+.Op Fl PVnv
 .Fl S Ar filesystem
 .Nm zfs
 .Cm redact
@@ -73,7 +73,7 @@
 .It Xo
 .Nm zfs
 .Cm send
-.Op Fl DLPbcehnpsvw
+.Op Fl DLPVbcehnpsvw
 .Op Fl R Op Fl X Ar dataset Ns Oo , Ns Ar dataset Oc Ns …
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
@@ -142,6 +142,8 @@ If the
 flag is used to send encrypted datasets, then
 .Fl w
 must also be specified.
+.It Fl V , -proctitle
+Set the process title to a per-second report of how much data has been sent.
 .It Fl X , -exclude Ar dataset Ns Oo , Ns Ar dataset Oc Ns …
 With
 .Fl R ,
@@ -302,7 +304,7 @@ You will be able to receive your streams on future versions of ZFS.
 .It Xo
 .Nm zfs
 .Cm send
-.Op Fl DLPcenvw
+.Op Fl DLPVcenvw
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
 .Xc
@@ -436,7 +438,7 @@ This information includes a per-second report of how much data has been sent.
 .Nm zfs
 .Cm send
 .Fl -redact Ar redaction_bookmark
-.Op Fl DLPcenpv
+.Op Fl DLPVcenpv
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Ar snapshot
 .Xc
@@ -530,7 +532,7 @@ raw sends and redacted sends cannot be combined at this time.
 .It Xo
 .Nm zfs
 .Cm send
-.Op Fl Penv
+.Op Fl PVenv
 .Fl t
 .Ar receive_resume_token
 .Xc
@@ -545,7 +547,7 @@ for more details.
 .It Xo
 .Nm zfs
 .Cm send
-.Op Fl Pnv
+.Op Fl PVnv
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Fl S
 .Ar filesystem
