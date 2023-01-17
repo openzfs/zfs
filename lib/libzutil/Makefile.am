@@ -18,6 +18,7 @@ USER_C = \
 
 if BUILD_LINUX
 USER_C += \
+	os/linux/zutil_setproctitle.c \
 	os/linux/zutil_device_path_os.c \
 	os/linux/zutil_import_os.c \
 	os/linux/zutil_compat.c
