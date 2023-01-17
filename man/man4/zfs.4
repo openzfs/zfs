@@ -1104,7 +1104,10 @@ This parameter takes precedence over
 .No See Sx ZFS TRANSACTION DELAY .
 .Pp
 Defaults to
-.Sy physical_ram/4 ,
+.Sy min(physical_ram/4, 4GiB) ,
+or
+.Sy min(physical_ram/4, 1GiB)
+for 32-bit systems.
 .
 .It Sy zfs_dirty_data_max_max_percent Ns = Ns Sy 25 Ns % Pq uint
 Maximum allowable value of
