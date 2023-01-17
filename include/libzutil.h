@@ -167,6 +167,14 @@ void color_start(const char *color);
 void color_end(void);
 int printf_color(const char *color, char *format, ...);
 
+#ifdef __linux__
+_LIBZUTIL_H void zfs_setproctitle_init(int argc, char *argv[], char *envp[]);
+_LIBZUTIL_H void zfs_setproctitle(const char *fmt, ...);
+#else
+#define	zfs_setproctitle(fmt, ...)	setproctitle(fmt, ##__VA_ARGS__)
+#define	zfs_setproctitle_init(x, y, z)	((void)0)
+#endif
+
 /*
  * These functions are used by the ZFS libraries and cmd/zpool code, but are
  * not exported in the ABI.

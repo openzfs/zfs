@@ -119,33 +119,33 @@ full_size=$(zfs send $full_snapshot 2>&1 | wc -c)
 incremental_size=$(zfs send $incremental_snapshot 2>&1 | wc -c)
 incremental_send=$(zfs send -i $full_snapshot $incremental_snapshot 2>&1 | wc -c)
 
-log_note "verify zfs send -nv"
-options="-nv"
+log_note "verify zfs send -nvV"
+options="-nvV"
 refer_size=$(get_prop refer $full_snapshot)
 estimate_size=$(get_estimate_size $full_snapshot $options)
 log_must verify_size_estimates $options $full_size
 
-log_note "verify zfs send -Pnv"
-options="-Pnv"
+log_note "verify zfs send -PnvV"
+options="-PnvV"
 
 estimate_size=$(get_estimate_size $full_snapshot $options)
 log_must verify_size_estimates $options $full_size
 
-log_note "verify zfs send -nv for multiple snapshot send"
-options="-nv"
+log_note "verify zfs send -nvV for multiple snapshot send"
+options="-nvV"
 refer_size=$(get_prop refer $incremental_snapshot)
 
 estimate_size=$(get_estimate_size $incremental_snapshot $options)
 log_must verify_size_estimates $options $incremental_size
 
-log_note "verify zfs send -vPn for multiple snapshot send"
-options="-vPn"
+log_note "verify zfs send -vVPn for multiple snapshot send"
+options="-vVPn"
 
 estimate_size=$(get_estimate_size $incremental_snapshot $options)
 log_must verify_size_estimates $options $incremental_size
 
-log_note "verify zfs send -inv for incremental send"
-options="-nvi"
+log_note "verify zfs send -invV for incremental send"
+options="-nvVi"
 refer_size=$(get_prop refer $incremental_snapshot)
 deduct_size=$(get_prop refer $full_snapshot)
 refer_size=$(echo "$refer_size - $deduct_size" | bc)
@@ -155,8 +155,8 @@ log_must verify_size_estimates $options $incremental_send
 estimate_size=$(get_estimate_size $incremental_snapshot $options $full_bookmark)
 log_must verify_size_estimates $options $incremental_send
 
-log_note "verify zfs send -ivPn for incremental send"
-options="-vPni"
+log_note "verify zfs send -ivVPn for incremental send"
+options="-vVPni"
 
 estimate_size=$(get_estimate_size $incremental_snapshot $options $full_snapshot)
 log_must verify_size_estimates $options $incremental_send
@@ -186,16 +186,16 @@ for ds in $datasets; do
         datasetexists $ds@snap64 || log_fail "Create $ds@snap64 snapshot fail."
 done
 recursive_size=$(zfs send -R $full_snapshot 2>&1 | wc -c)
-log_note "verify zfs send -Rnv for recursive send"
-options="-Rnv"
+log_note "verify zfs send -RnvV for recursive send"
+options="-RnvV"
 refer_size=$(get_prop refer $full_snapshot)
 refer_size=$(echo "$refer_size * 3" | bc)
 
 estimate_size=$(get_estimate_size $full_snapshot $options)
 log_must verify_size_estimates $options $recursive_size
 
-log_note "verify zfs send -RvPn for recursive send"
-options="-RvPn"
+log_note "verify zfs send -RvVPn for recursive send"
+options="-RvVPn"
 estimate_size=$(get_estimate_size $full_snapshot $options)
 log_must verify_size_estimates $options $recursive_size
 
