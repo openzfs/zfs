@@ -2066,7 +2066,7 @@ SET_SIZE(SHA512TransformBlocks)
 
 .section .rodata
 .align	64
-.type	K512,@object
+SET_OBJ(K512)
 K512:
 	.quad	0x428a2f98d728ae22,0x7137449123ef65cd
 	.quad	0xb5c0fbcfec4d3b2f,0xe9b5dba58189dbbc
@@ -2110,6 +2110,7 @@ K512:
 	.quad	0x5fcb6fab3ad6faec,0x6c44198c4a475817
 #endif /* !lint && !__lint */
 
-#ifdef __ELF__
+#if defined(__ELF__)
 .section .note.GNU-stack,"",%progbits
 #endif
+

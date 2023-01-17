@@ -27,9 +27,6 @@
 #ifndef _IA32_SYS_ASM_LINKAGE_H
 #define	_IA32_SYS_ASM_LINKAGE_H
 
-#include <sys/stack.h>
-#include <sys/trap.h>
-
 #if defined(_KERNEL) && defined(__linux__)
 #include <linux/linkage.h>
 #endif
@@ -55,6 +52,13 @@
 #ifndef RET
 #define	RET	ret
 #endif
+
+/* You can set to nothing on Unix platforms */
+#undef ASMABI
+#define	ASMABI	__attribute__((sysv_abi))
+
+#define	SECTION_TEXT .text
+#define	SECTION_STATIC .section .rodata
 
 #ifdef	__cplusplus
 extern "C" {
@@ -157,6 +161,17 @@ x:	MCOUNT(x)
 	.type	x, @function; \
 x:
 
+#define	ENTRY_ALIGN(x, a) \
+	.text; \
+	.align	a; \
+	.globl	x; \
+	.type	x, @function; \
+x:
+
+#define	FUNCTION(x) \
+	.type	x, @function; \
+x:
+
 /*
  * ENTRY2 is identical to ENTRY but provides two labels for the entry point.
  */
@@ -184,6 +199,9 @@ y:
  */
 #define	SET_SIZE(x) \
 	.size	x, [.-x]
+
+#define	SET_OBJ(x) .type	x, @object
+
 
 #endif /* _ASM */
 

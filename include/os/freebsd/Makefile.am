@@ -6,6 +6,8 @@ noinst_HEADERS = \
 	\
 	%D%/spl/rpc/xdr.h \
 	\
+	%D%/spl/sys/ia32/asm_linkage.h \
+	\
 	%D%/spl/sys/acl.h \
 	%D%/spl/sys/acl_impl.h \
 	%D%/spl/sys/atomic.h \
@@ -88,3 +90,4 @@ noinst_HEADERS = \
 	%D%/zfs/sys/zfs_vnops_os.h \
 	%D%/zfs/sys/zfs_znode_impl.h \
 	%D%/zfs/sys/zpl.h
+

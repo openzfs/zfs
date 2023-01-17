@@ -20,6 +20,7 @@ COMMON_H = \
 	sys/aggsum.h \
 	sys/arc.h \
 	sys/arc_impl.h \
+	sys/asm_linkage.h \
 	sys/avl.h \
 	sys/avl_impl.h \
 	sys/bitops.h \

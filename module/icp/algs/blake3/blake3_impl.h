@@ -35,6 +35,7 @@ extern "C" {
 #include <sys/types.h>
 #include <sys/blake3.h>
 #include <sys/simd.h>
+#include <sys/asm_linkage.h>
 
 /*
  * Methods used to define BLAKE3 assembler implementations

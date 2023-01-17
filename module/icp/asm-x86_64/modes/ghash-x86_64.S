@@ -102,12 +102,13 @@
 
 .text
 
-.globl	gcm_gmult_clmul
-.type	gcm_gmult_clmul,@function
-.align	16
-gcm_gmult_clmul:
+/* Windows userland links with OpenSSL */
+#if !defined (_WIN32) || defined (_KERNEL)
+ENTRY_ALIGN(gcm_gmult_clmul, 16)
+
 .cfi_startproc
 	ENDBR
+
 .L_gmult_clmul:
 	movdqu	(%rdi),%xmm0
 	movdqa	.Lbswap_mask(%rip),%xmm5
@@ -155,12 +156,10 @@ gcm_gmult_clmul:
 	movdqu	%xmm0,(%rdi)
 	RET
 .cfi_endproc
-.size	gcm_gmult_clmul,.-gcm_gmult_clmul
+SET_SIZE(gcm_gmult_clmul)
+#endif /* !_WIN32 || _KERNEL */
 
-.globl	gcm_init_htab_avx
-.type	gcm_init_htab_avx,@function
-.align	32
-gcm_init_htab_avx:
+ENTRY_ALIGN(gcm_init_htab_avx, 32)
 .cfi_startproc
 	ENDBR
 	vzeroupper
@@ -269,21 +268,17 @@ gcm_init_htab_avx:
 	vzeroupper
 	RET
 .cfi_endproc
-.size	gcm_init_htab_avx,.-gcm_init_htab_avx
+SET_SIZE(gcm_init_htab_avx)
 
-.globl	gcm_gmult_avx
-.type	gcm_gmult_avx,@function
-.align	32
-gcm_gmult_avx:
+#if !defined (_WIN32) || defined (_KERNEL)
+ENTRY_ALIGN(gcm_gmult_avx, 32)
 .cfi_startproc
 	ENDBR
 	jmp	.L_gmult_clmul
 .cfi_endproc
-.size	gcm_gmult_avx,.-gcm_gmult_avx
-.globl	gcm_ghash_avx
-.type	gcm_ghash_avx,@function
-.align	32
-gcm_ghash_avx:
+SET_SIZE(gcm_gmult_avx)
+
+ENTRY_ALIGN(gcm_ghash_avx, 32)
 .cfi_startproc
 	ENDBR
 	vzeroupper
@@ -658,9 +653,11 @@ gcm_ghash_avx:
 	vzeroupper
 	RET
 .cfi_endproc
-.size	gcm_ghash_avx,.-gcm_ghash_avx
+SET_SIZE(gcm_ghash_avx)
 
-.pushsection .rodata
+#endif /* !_WIN32 || _KERNEL */
+
+SECTION_STATIC
 .align	64
 .Lbswap_mask:
 .byte	15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0
@@ -671,13 +668,13 @@ gcm_ghash_avx:
 .L7_mask_poly:
 .long	7,0,450,0
 .align	64
-.type	.Lrem_4bit,@object
+SET_OBJ(.Lrem_4bit)
 .Lrem_4bit:
 .long	0,0,0,471859200,0,943718400,0,610271232
 .long	0,1887436800,0,1822425088,0,1220542464,0,1423966208
 .long	0,3774873600,0,4246732800,0,3644850176,0,3311403008
 .long	0,2441084928,0,2376073216,0,2847932416,0,3051356160
-.type	.Lrem_8bit,@object
+SET_OBJ(.Lrem_8bit)
 .Lrem_8bit:
 .value	0x0000,0x01C2,0x0384,0x0246,0x0708,0x06CA,0x048C,0x054E
 .value	0x0E10,0x0FD2,0x0D94,0x0C56,0x0918,0x08DA,0x0A9C,0x0B5E
@@ -714,7 +711,6 @@ gcm_ghash_avx:
 
 .byte	71,72,65,83,72,32,102,111,114,32,120,56,54,95,54,52,44,32,67,82,89,80,84,79,71,65,77,83,32,98,121,32,60,97,112,112,114,111,64,111,112,101,110,115,115,108,46,111,114,103,62,0
 .align	64
-.popsection
 
 /* Mark the stack non-executable. */
 #if defined(__linux__) && defined(__ELF__)

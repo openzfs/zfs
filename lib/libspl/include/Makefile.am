@@ -26,6 +26,7 @@ libspl_sysdir = $(libspldir)/sys
 libspl_sys_HEADERS = \
 	%D%/sys/acl.h \
 	%D%/sys/acl_impl.h \
+	%D%/sys/asm_linkage.h \
 	%D%/sys/callb.h \
 	%D%/sys/cmn_err.h \
 	%D%/sys/cred.h \
@@ -62,6 +63,8 @@ libspl_sys_HEADERS = \
 	%D%/sys/wmsum.h \
 	%D%/sys/zone.h
 
+libspl_ia32dir = $(libspldir)/sys/ia32
+
 if BUILD_LINUX
 libspl_sys_HEADERS += \
 	%D%/os/linux/sys/byteorder.h \
@@ -72,6 +75,9 @@ libspl_sys_HEADERS += \
 	%D%/os/linux/sys/stat.h \
 	%D%/os/linux/sys/sysmacros.h \
 	%D%/os/linux/sys/zfs_context_os.h
+
+libspl_ia32_HEADERS = \
+	%D%/os/linux/sys/ia32/asm_linkage.h
 endif
 
 if BUILD_FREEBSD
@@ -86,9 +92,13 @@ libspl_sys_HEADERS += \
 	%D%/os/freebsd/sys/sysmacros.h \
 	%D%/os/freebsd/sys/vfs.h \
 	%D%/os/freebsd/sys/zfs_context_os.h
+
+libspl_ia32_HEADERS = \
+	%D%/os/freebsd/sys/ia32/asm_linkage.h
 endif
 
 
 libspl_sys_dktpdir = $(libspl_sysdir)/dktp
 libspl_sys_dktp_HEADERS = \
 	%D%/sys/dktp/fdisk.h
+
