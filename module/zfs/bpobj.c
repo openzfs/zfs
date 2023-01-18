@@ -663,14 +663,13 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 	}
 
 	VERIFY3U(0, ==, bpobj_open(&subbpo, bpo->bpo_os, subobj));
-	VERIFY3U(0, ==, bpobj_space(&subbpo, &used, &comp, &uncomp));
-
 	if (bpobj_is_empty(&subbpo)) {
 		/* No point in having an empty subobj. */
 		bpobj_close(&subbpo);
 		bpobj_free(bpo->bpo_os, subobj, tx);
 		return;
 	}
+	VERIFY3U(0, ==, bpobj_space(&subbpo, &used, &comp, &uncomp));
 
 	mutex_enter(&bpo->bpo_lock);
 	dmu_buf_will_dirty(bpo->bpo_dbuf, tx);
@@ -778,6 +777,68 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 	bpo->bpo_phys->bpo_uncomp += uncomp;
 	mutex_exit(&bpo->bpo_lock);
 
+}
+
+/*
+ * Prefetch metadata required for bpobj_enqueue_subobj().
+ */
+void
+bpobj_prefetch_subobj(bpobj_t *bpo, uint64_t subobj)
+{
+	dmu_object_info_t doi;
+	bpobj_t subbpo;
+	uint64_t subsubobjs;
+	boolean_t copy_subsub = B_TRUE;
+	boolean_t copy_bps = B_TRUE;
+
+	ASSERT(bpobj_is_open(bpo));
+	ASSERT(subobj != 0);
+
+	if (subobj == dmu_objset_pool(bpo->bpo_os)->dp_empty_bpobj)
+		return;
+
+	if (bpobj_open(&subbpo, bpo->bpo_os, subobj) != 0)
+		return;
+	if (bpobj_is_empty(&subbpo)) {
+		bpobj_close(&subbpo);
+		return;
+	}
+	subsubobjs = subbpo.bpo_phys->bpo_subobjs;
+	bpobj_close(&subbpo);
+
+	if (subsubobjs != 0) {
+		if (dmu_object_info(bpo->bpo_os, subsubobjs, &doi) != 0)
+			return;
+		if (doi.doi_max_offset > doi.doi_data_block_size)
+			copy_subsub = B_FALSE;
+	}
+
+	if (dmu_object_info(bpo->bpo_os, subobj, &doi) != 0)
+		return;
+	if (doi.doi_max_offset > doi.doi_data_block_size || !copy_subsub)
+		copy_bps = B_FALSE;
+
+	if (copy_subsub && subsubobjs != 0) {
+		if (bpo->bpo_phys->bpo_subobjs) {
+			dmu_prefetch(bpo->bpo_os, bpo->bpo_phys->bpo_subobjs, 0,
+			    bpo->bpo_phys->bpo_num_subobjs * sizeof (subobj), 1,
+			    ZIO_PRIORITY_ASYNC_READ);
+		}
+		dmu_prefetch(bpo->bpo_os, subsubobjs, 0, 0, 1,
+		    ZIO_PRIORITY_ASYNC_READ);
+	}
+
+	if (copy_bps) {
+		dmu_prefetch(bpo->bpo_os, bpo->bpo_object, 0,
+		    bpo->bpo_phys->bpo_num_blkptrs * sizeof (blkptr_t), 1,
+		    ZIO_PRIORITY_ASYNC_READ);
+		dmu_prefetch(bpo->bpo_os, subobj, 0, 0, 1,
+		    ZIO_PRIORITY_ASYNC_READ);
+	} else if (bpo->bpo_phys->bpo_subobjs) {
+		dmu_prefetch(bpo->bpo_os, bpo->bpo_phys->bpo_subobjs, 0,
+		    bpo->bpo_phys->bpo_num_subobjs * sizeof (subobj), 1,
+		    ZIO_PRIORITY_ASYNC_READ);
+	}
 }
 
 void
