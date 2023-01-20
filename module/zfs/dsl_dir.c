@@ -1186,10 +1186,9 @@ dsl_dir_space_towrite(dsl_dir_t *dd)
 
 	ASSERT(MUTEX_HELD(&dd->dd_lock));
 
-	for (int i = 0; i < TXG_SIZE; i++) {
+	for (int i = 0; i < TXG_SIZE; i++)
 		space += dd->dd_space_towrite[i & TXG_MASK];
-		ASSERT3U(dd->dd_space_towrite[i & TXG_MASK], >=, 0);
-	}
+
 	return (space);
 }
 

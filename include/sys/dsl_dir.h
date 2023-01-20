@@ -116,7 +116,7 @@ struct dsl_dir {
 	/* gross estimate of space used by in-flight tx's */
 	uint64_t dd_tempreserved[TXG_SIZE];
 	/* amount of space we expect to write; == amount of dirty data */
-	int64_t dd_space_towrite[TXG_SIZE];
+	uint64_t dd_space_towrite[TXG_SIZE];
 
 	dsl_deadlist_t dd_livelist;
 	bplist_t dd_pending_frees;
