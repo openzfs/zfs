@@ -426,6 +426,7 @@ zfs_rmnode(znode_t *zp)
 	zfsvfs_t	*zfsvfs = zp->z_zfsvfs;
 	objset_t	*os = zfsvfs->z_os;
 	dmu_tx_t	*tx;
+	uint64_t	z_id = zp->z_id;
 	uint64_t	acl_obj;
 	uint64_t	xattr_obj;
 	uint64_t	count;
@@ -445,8 +446,10 @@ zfs_rmnode(znode_t *zp)
 			 * Not enough space to delete some xattrs.
 			 * Leave it in the unlinked set.
 			 */
+			ZFS_OBJ_HOLD_ENTER(zfsvfs, z_id);
 			zfs_znode_dmu_fini(zp);
 			zfs_znode_free(zp);
+			ZFS_OBJ_HOLD_EXIT(zfsvfs, z_id);
 			return;
 		}
 	} else {
@@ -464,8 +467,10 @@ zfs_rmnode(znode_t *zp)
 			 * Not enough space or we were interrupted by unmount.
 			 * Leave the file in the unlinked set.
 			 */
+			ZFS_OBJ_HOLD_ENTER(zfsvfs, z_id);
 			zfs_znode_dmu_fini(zp);
 			zfs_znode_free(zp);
+			ZFS_OBJ_HOLD_EXIT(zfsvfs, z_id);
 			return;
 		}
 	}
@@ -501,8 +506,10 @@ zfs_rmnode(znode_t *zp)
 		 * which point we'll call zfs_unlinked_drain() to process it).
 		 */
 		dmu_tx_abort(tx);
+		ZFS_OBJ_HOLD_ENTER(zfsvfs, z_id);
 		zfs_znode_dmu_fini(zp);
 		zfs_znode_free(zp);
+		ZFS_OBJ_HOLD_EXIT(zfsvfs, z_id);
 		return;
 	}
 
