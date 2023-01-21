@@ -1061,11 +1061,18 @@ int
 #ifdef HAVE_SET_ACL_USERNS
 zpl_set_acl(struct user_namespace *userns, struct inode *ip,
     struct posix_acl *acl, int type)
+#elif defined(HAVE_SET_ACL_USERNS_DENTRY_ARG2)
+zpl_set_acl(struct user_namespace *userns, struct dentry *dentry,
+    struct posix_acl *acl, int type)
 #else
 zpl_set_acl(struct inode *ip, struct posix_acl *acl, int type)
 #endif /* HAVE_SET_ACL_USERNS */
 {
+#ifdef HAVE_SET_ACL_USERNS_DENTRY_ARG2
+	return (zpl_set_acl_impl(d_inode(dentry), acl, type));
+#else
 	return (zpl_set_acl_impl(ip, acl, type));
+#endif /* HAVE_SET_ACL_USERNS_DENTRY_ARG2 */
 }
 #endif /* HAVE_SET_ACL */
 
