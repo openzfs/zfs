@@ -2030,6 +2030,7 @@ ENTRY_ALIGN(zfs_blake3_hash_many_sse2, 64)
         movups  xmmword ptr [rbx], xmm0
         movups  xmmword ptr [rbx+0x10], xmm1
         jmp     4b
+SET_SIZE(zfs_blake3_hash_many_sse2)
 
 ENTRY_ALIGN(zfs_blake3_compress_in_place_sse2, 64)
         ENDBR
@@ -2140,6 +2141,7 @@ ENTRY_ALIGN(zfs_blake3_compress_in_place_sse2, 64)
         movups  xmmword ptr [rdi], xmm0
         movups  xmmword ptr [rdi+0x10], xmm1
         RET
+SET_SIZE(zfs_blake3_compress_in_place_sse2)
 
 ENTRY_ALIGN(zfs_blake3_compress_xof_sse2, 64)
         ENDBR
@@ -2258,9 +2260,6 @@ ENTRY_ALIGN(zfs_blake3_compress_xof_sse2, 64)
         movups  xmmword ptr [r9+0x20], xmm2
         movups  xmmword ptr [r9+0x30], xmm3
         RET
-
-SET_SIZE(zfs_blake3_hash_many_sse2)
-SET_SIZE(zfs_blake3_compress_in_place_sse2)
 SET_SIZE(zfs_blake3_compress_xof_sse2)
 
 SECTION_STATIC
