@@ -58,7 +58,7 @@
 .text
 
 #ifdef HAVE_MOVBE
-.align 32
+.balign 32
 FUNCTION(_aesni_ctr32_ghash_6x)
 .cfi_startproc
 	ENDBR
@@ -75,7 +75,7 @@ FUNCTION(_aesni_ctr32_ghash_6x)
 	vmovdqu	%xmm4,16+8(%rsp)
 	jmp	.Loop6x
 
-.align	32
+.balign	32
 .Loop6x:
 	addl	$100663296,%ebx
 	jc	.Lhandle_ctr32
@@ -287,7 +287,7 @@ FUNCTION(_aesni_ctr32_ghash_6x)
 	vmovups	224-128(%rcx),%xmm1
 	jmp	.Lenc_tail
 
-.align	32
+.balign	32
 .Lhandle_ctr32:
 	vmovdqu	(%r11),%xmm0
 	vpshufb	%xmm0,%xmm1,%xmm6
@@ -309,7 +309,7 @@ FUNCTION(_aesni_ctr32_ghash_6x)
 	vpshufb	%xmm0,%xmm1,%xmm1
 	jmp	.Lresume_ctr32
 
-.align	32
+.balign	32
 .Lenc_tail:
 	vaesenc	%xmm15,%xmm9,%xmm9
 	vmovdqu	%xmm7,16+8(%rsp)
@@ -374,7 +374,7 @@ FUNCTION(_aesni_ctr32_ghash_6x)
 SET_SIZE(_aesni_ctr32_ghash_6x)
 #endif /* ifdef HAVE_MOVBE */
 
-.align 32
+.balign 32
 FUNCTION(_aesni_ctr32_ghash_no_movbe_6x)
 .cfi_startproc
 	ENDBR
@@ -391,7 +391,7 @@ FUNCTION(_aesni_ctr32_ghash_no_movbe_6x)
 	vmovdqu	%xmm4,16+8(%rsp)
 	jmp	.Loop6x_nmb
 
-.align	32
+.balign	32
 .Loop6x_nmb:
 	addl	$100663296,%ebx
 	jc	.Lhandle_ctr32_nmb
@@ -615,7 +615,7 @@ FUNCTION(_aesni_ctr32_ghash_no_movbe_6x)
 	vmovups	224-128(%rcx),%xmm1
 	jmp	.Lenc_tail_nmb
 
-.align	32
+.balign	32
 .Lhandle_ctr32_nmb:
 	vmovdqu	(%r11),%xmm0
 	vpshufb	%xmm0,%xmm1,%xmm6
@@ -637,7 +637,7 @@ FUNCTION(_aesni_ctr32_ghash_no_movbe_6x)
 	vpshufb	%xmm0,%xmm1,%xmm1
 	jmp	.Lresume_ctr32_nmb
 
-.align	32
+.balign	32
 .Lenc_tail_nmb:
 	vaesenc	%xmm15,%xmm9,%xmm9
 	vmovdqu	%xmm7,16+8(%rsp)
@@ -818,7 +818,7 @@ ENTRY_ALIGN(aesni_gcm_decrypt, 32)
 .cfi_endproc
 SET_SIZE(aesni_gcm_decrypt)
 
-.align 32
+.balign 32
 FUNCTION(_aesni_ctr32_6x)
 .cfi_startproc
 	ENDBR
@@ -843,7 +843,7 @@ FUNCTION(_aesni_ctr32_6x)
 	vpxor	%xmm4,%xmm14,%xmm14
 	jmp	.Loop_ctr32
 
-.align	16
+.balign	16
 .Loop_ctr32:
 	vaesenc	%xmm15,%xmm9,%xmm9
 	vaesenc	%xmm15,%xmm10,%xmm10
@@ -886,7 +886,7 @@ FUNCTION(_aesni_ctr32_6x)
 	leaq	96(%rsi),%rsi
 
 	RET
-.align	32
+.balign	32
 .Lhandle_ctr32_2:
 	vpshufb	%xmm0,%xmm1,%xmm6
 	vmovdqu	48(%r11),%xmm5
@@ -1237,7 +1237,7 @@ SET_SIZE(atomic_toggle_boolean_nv)
 
 SECTION_STATIC
 
-.align	64
+.balign	64
 .Lbswap_mask:
 .byte	15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0
 .Lpoly:
@@ -1249,7 +1249,7 @@ SECTION_STATIC
 .Lone_lsb:
 .byte	1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 .byte	65,69,83,45,78,73,32,71,67,77,32,109,111,100,117,108,101,32,102,111,114,32,120,56,54,95,54,52,44,32,67,82,89,80,84,79,71,65,77,83,32,98,121,32,60,97,112,112,114,111,64,111,112,101,110,115,115,108,46,111,114,103,62,0
-.align	64
+.balign	64
 
 /* Mark the stack non-executable. */
 #if defined(__linux__) && defined(__ELF__)

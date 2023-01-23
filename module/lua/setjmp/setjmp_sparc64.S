@@ -50,7 +50,7 @@
 
 #define	ENTRY(x)		\
 	.text ;			\
-	.align 32 ;		\
+	.balign 32 ;		\
 	.globl	x ;		\
 	.type	x,@function ;	\
 x:

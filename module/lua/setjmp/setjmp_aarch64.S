@@ -35,7 +35,7 @@
 #define	ENTRY(sym) \
 	.text; \
 	.globl	sym; \
-	.align	2; \
+	.balign	2; \
 	.type	sym,#function; \
 sym:
 
