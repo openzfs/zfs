@@ -2389,6 +2389,7 @@ ENTRY_ALIGN(zfs_blake3_hash_many_avx512, 64)
         vmovdqu xmmword ptr [rbx], xmm0
         vmovdqu xmmword ptr [rbx+0x10], xmm1
         jmp     4b
+SET_SIZE(zfs_blake3_hash_many_avx512)
 
 ENTRY_ALIGN(zfs_blake3_compress_in_place_avx512, 64)
         ENDBR
@@ -2470,6 +2471,7 @@ ENTRY_ALIGN(zfs_blake3_compress_in_place_avx512, 64)
         vmovdqu xmmword ptr [rdi], xmm0
         vmovdqu xmmword ptr [rdi+0x10], xmm1
         RET
+SET_SIZE(zfs_blake3_compress_in_place_avx512)
 
 ENTRY_ALIGN(zfs_blake3_compress_xof_avx512, 64)
         ENDBR
@@ -2555,9 +2557,6 @@ ENTRY_ALIGN(zfs_blake3_compress_xof_avx512, 64)
         vmovdqu xmmword ptr [r9+0x20], xmm2
         vmovdqu xmmword ptr [r9+0x30], xmm3
         RET
-
-SET_SIZE(zfs_blake3_hash_many_avx512)
-SET_SIZE(zfs_blake3_compress_in_place_avx512)
 SET_SIZE(zfs_blake3_compress_xof_avx512)
 
 SECTION_STATIC
