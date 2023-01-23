@@ -469,6 +469,14 @@ struct vdev {
 	zfs_ratelimit_t vdev_delay_rl;
 	zfs_ratelimit_t vdev_deadman_rl;
 	zfs_ratelimit_t vdev_checksum_rl;
+
+	/*
+	 * Checksum and IO thresholds for tuning ZED
+	 */
+	uint64_t	vdev_checksum_n;
+	uint64_t	vdev_checksum_t;
+	uint64_t	vdev_io_n;
+	uint64_t	vdev_io_t;
 };
 
 #define	VDEV_PAD_SIZE		(8 << 10)

@@ -43,7 +43,8 @@ section, below.
 .Ss Native Properties
 Every vdev has a set of properties that export statistics about the vdev
 as well as control various behaviors.
-Properties are NOT inherited from top-level vdevs.
+Properties are not inherited from top-level vdevs, with the exception of
+checksum_n, checksum_t, io_n, and io_t.
 .Pp
 The values of numeric properties can be specified using human-readable suffixes
 .Po for example,
@@ -114,9 +115,19 @@ The cumulative size of all operations of each type performed by this vdev
 If this device is currently being removed from the pool
 .El
 .Pp
-The following native properties can be used to change the behavior of a ZFS
-dataset.
+The following native properties can be used to change the behavior of a vdev.
 .Bl -tag -width "allocating"
+.It Sy checksum_n , checksum_t , io_n , io_t
+Tune the fault management daemon by specifying checksum/io thresholds of <N>
+errors in <T> seconds, respectively.
+These properties can be set on leaf and top-level vdevs.
+When the property is set on the leaf and top-level vdev, the value of the leaf
+vdev will be used.
+If the property is only set on the top-level vdev, this value will be used.
+The value of these properties do not persist across vdev replacement.
+For this reason, it is advisable to set the property on the top-level vdev -
+not on the leaf vdev itself.
+The default values are 10 errors in 600 seconds.
 .It Sy comment
 A text comment up to 8192 characters long
 .It Sy bootsize

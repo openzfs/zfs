@@ -389,6 +389,31 @@ vdev_get_nparity(vdev_t *vd)
 	return (nparity);
 }
 
+static int
+vdev_prop_get_int(vdev_t *vd, vdev_prop_t prop, uint64_t *value)
+{
+	spa_t *spa = vd->vdev_spa;
+	objset_t *mos = spa->spa_meta_objset;
+	uint64_t objid;
+	int err;
+
+	if (vd->vdev_top_zap != 0) {
+		objid = vd->vdev_top_zap;
+	} else if (vd->vdev_leaf_zap != 0) {
+		objid = vd->vdev_leaf_zap;
+	} else {
+		return (EINVAL);
+	}
+
+	err = zap_lookup(mos, objid, vdev_prop_to_name(prop),
+	    sizeof (uint64_t), 1, value);
+
+	if (err == ENOENT)
+		*value = vdev_prop_default_numeric(prop);
+
+	return (err);
+}
+
 /*
  * Get the number of data disks for a top-level vdev.
  */
@@ -641,6 +666,14 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 	    1);
 	zfs_ratelimit_init(&vd->vdev_checksum_rl,
 	    &zfs_checksum_events_per_second, 1);
+
+	/*
+	 * Default Thresholds for tuning ZED
+	 */
+	vd->vdev_checksum_n = vdev_prop_default_numeric(VDEV_PROP_CHECKSUM_N);
+	vd->vdev_checksum_t = vdev_prop_default_numeric(VDEV_PROP_CHECKSUM_T);
+	vd->vdev_io_n = vdev_prop_default_numeric(VDEV_PROP_IO_N);
+	vd->vdev_io_t = vdev_prop_default_numeric(VDEV_PROP_IO_T);
 
 	list_link_init(&vd->vdev_config_dirty_node);
 	list_link_init(&vd->vdev_state_dirty_node);
@@ -3597,6 +3630,39 @@ vdev_load(vdev_t *vd)
 		}
 	}
 
+	if (vd->vdev_top_zap != 0 || vd->vdev_leaf_zap != 0) {
+		uint64_t zapobj;
+
+		if (vd->vdev_top_zap != 0)
+			zapobj = vd->vdev_top_zap;
+		else
+			zapobj = vd->vdev_leaf_zap;
+
+		error = vdev_prop_get_int(vd, VDEV_PROP_CHECKSUM_N,
+		    &vd->vdev_checksum_n);
+		if (error && error != ENOENT)
+			vdev_dbgmsg(vd, "vdev_load: zap_lookup(zap=%llu) "
+			    "failed [error=%d]", (u_longlong_t)zapobj, error);
+
+		error = vdev_prop_get_int(vd, VDEV_PROP_CHECKSUM_T,
+		    &vd->vdev_checksum_t);
+		if (error && error != ENOENT)
+			vdev_dbgmsg(vd, "vdev_load: zap_lookup(zap=%llu) "
+			    "failed [error=%d]", (u_longlong_t)zapobj, error);
+
+		error = vdev_prop_get_int(vd, VDEV_PROP_IO_N,
+		    &vd->vdev_io_n);
+		if (error && error != ENOENT)
+			vdev_dbgmsg(vd, "vdev_load: zap_lookup(zap=%llu) "
+			    "failed [error=%d]", (u_longlong_t)zapobj, error);
+
+		error = vdev_prop_get_int(vd, VDEV_PROP_IO_T,
+		    &vd->vdev_io_t);
+		if (error && error != ENOENT)
+			vdev_dbgmsg(vd, "vdev_load: zap_lookup(zap=%llu) "
+			    "failed [error=%d]", (u_longlong_t)zapobj, error);
+	}
+
 	/*
 	 * If this is a top-level vdev, initialize its metaslabs.
 	 */
@@ -5736,6 +5802,34 @@ vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 			}
 			vd->vdev_failfast = intval & 1;
 			break;
+		case VDEV_PROP_CHECKSUM_N:
+			if (nvpair_value_uint64(elem, &intval) != 0) {
+				error = EINVAL;
+				break;
+			}
+			vd->vdev_checksum_n = intval;
+			break;
+		case VDEV_PROP_CHECKSUM_T:
+			if (nvpair_value_uint64(elem, &intval) != 0) {
+				error = EINVAL;
+				break;
+			}
+			vd->vdev_checksum_t = intval;
+			break;
+		case VDEV_PROP_IO_N:
+			if (nvpair_value_uint64(elem, &intval) != 0) {
+				error = EINVAL;
+				break;
+			}
+			vd->vdev_io_n = intval;
+			break;
+		case VDEV_PROP_IO_T:
+			if (nvpair_value_uint64(elem, &intval) != 0) {
+				error = EINVAL;
+				break;
+			}
+			vd->vdev_io_t = intval;
+			break;
 		default:
 			/* Most processing is done in vdev_props_set_sync */
 			break;
@@ -6025,28 +6119,25 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 				continue;
 			/* Numeric Properites */
 			case VDEV_PROP_ALLOCATING:
-				src = ZPROP_SRC_LOCAL;
-				strval = NULL;
-
-				err = zap_lookup(mos, objid, nvpair_name(elem),
-				    sizeof (uint64_t), 1, &intval);
-				if (err == ENOENT) {
-					intval =
-					    vdev_prop_default_numeric(prop);
-					err = 0;
-				} else if (err)
-					break;
-				if (intval == vdev_prop_default_numeric(prop))
-					src = ZPROP_SRC_DEFAULT;
-
 				/* Leaf vdevs cannot have this property */
 				if (vd->vdev_mg == NULL &&
 				    vd->vdev_top != NULL) {
 					src = ZPROP_SRC_NONE;
 					intval = ZPROP_BOOLEAN_NA;
+				} else {
+					err = vdev_prop_get_int(vd, prop,
+					    &intval);
+					if (err && err != ENOENT)
+						break;
+
+					if (intval ==
+					    vdev_prop_default_numeric(prop))
+						src = ZPROP_SRC_DEFAULT;
+					else
+						src = ZPROP_SRC_LOCAL;
 				}
 
-				vdev_prop_add_list(outnvl, propname, strval,
+				vdev_prop_add_list(outnvl, propname, NULL,
 				    intval, src);
 				break;
 			case VDEV_PROP_FAILFAST:
@@ -6066,6 +6157,22 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 					src = ZPROP_SRC_DEFAULT;
 
 				vdev_prop_add_list(outnvl, propname, strval,
+				    intval, src);
+				break;
+			case VDEV_PROP_CHECKSUM_N:
+			case VDEV_PROP_CHECKSUM_T:
+			case VDEV_PROP_IO_N:
+			case VDEV_PROP_IO_T:
+				err = vdev_prop_get_int(vd, prop, &intval);
+				if (err && err != ENOENT)
+					break;
+
+				if (intval == vdev_prop_default_numeric(prop))
+					src = ZPROP_SRC_DEFAULT;
+				else
+					src = ZPROP_SRC_LOCAL;
+
+				vdev_prop_add_list(outnvl, propname, NULL,
 				    intval, src);
 				break;
 			/* Text Properties */
