@@ -899,7 +899,14 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_abd_chunk_waste_size;
 } arc_stats_t;
 
+/*
+ * We place aggsum_t members first to reduce structure padding.
+ */
 typedef struct arc_sums {
+	aggsum_t arcstat_size;
+	aggsum_t arcstat_dnode_size;
+	aggsum_t arcstat_l2_hdr_size;
+	aggsum_t arcstat_meta_used;
 	wmsum_t arcstat_hits;
 	wmsum_t arcstat_iohits;
 	wmsum_t arcstat_misses;
@@ -933,7 +940,6 @@ typedef struct arc_sums {
 	wmsum_t arcstat_evict_l2_skip;
 	wmsum_t arcstat_hash_collisions;
 	wmsum_t arcstat_hash_chains;
-	aggsum_t arcstat_size;
 	wmsum_t arcstat_compressed_size;
 	wmsum_t arcstat_uncompressed_size;
 	wmsum_t arcstat_overhead_size;
@@ -941,7 +947,6 @@ typedef struct arc_sums {
 	wmsum_t arcstat_data_size;
 	wmsum_t arcstat_metadata_size;
 	wmsum_t arcstat_dbuf_size;
-	aggsum_t arcstat_dnode_size;
 	wmsum_t arcstat_bonus_size;
 	wmsum_t arcstat_l2_hits;
 	wmsum_t arcstat_l2_misses;
@@ -967,7 +972,6 @@ typedef struct arc_sums {
 	wmsum_t arcstat_l2_io_error;
 	wmsum_t arcstat_l2_lsize;
 	wmsum_t arcstat_l2_psize;
-	aggsum_t arcstat_l2_hdr_size;
 	wmsum_t arcstat_l2_log_blk_writes;
 	wmsum_t arcstat_l2_log_blk_asize;
 	wmsum_t arcstat_l2_log_blk_count;
@@ -986,7 +990,6 @@ typedef struct arc_sums {
 	wmsum_t arcstat_memory_direct_count;
 	wmsum_t arcstat_memory_indirect_count;
 	wmsum_t arcstat_prune;
-	aggsum_t arcstat_meta_used;
 	wmsum_t arcstat_async_upgrade_sync;
 	wmsum_t arcstat_predictive_prefetch;
 	wmsum_t arcstat_demand_hit_predictive_prefetch;
