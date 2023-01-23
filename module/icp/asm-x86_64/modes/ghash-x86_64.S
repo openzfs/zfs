@@ -188,7 +188,7 @@ ENTRY_ALIGN(gcm_init_htab_avx, 32)
 	vpxor	%xmm2,%xmm6,%xmm6
 	movq	$4,%r10
 	jmp	.Linit_start_avx
-.align	32
+.balign	32
 .Linit_loop_avx:
 	vpalignr	$8,%xmm3,%xmm4,%xmm5
 	vmovdqu	%xmm5,-16(%rdi)
@@ -386,7 +386,7 @@ ENTRY_ALIGN(gcm_ghash_avx, 32)
 	subq	$0x80,%rcx
 	jmp	.Loop8x_avx
 
-.align	32
+.balign	32
 .Loop8x_avx:
 	vpunpckhqdq	%xmm15,%xmm15,%xmm8
 	vmovdqu	112(%rdx),%xmm14
@@ -506,7 +506,7 @@ ENTRY_ALIGN(gcm_ghash_avx, 32)
 	addq	$0x80,%rcx
 	jmp	.Ltail_no_xor_avx
 
-.align	32
+.balign	32
 .Lshort_avx:
 	vmovdqu	-16(%rdx,%rcx,1),%xmm14
 	leaq	(%rdx,%rcx,1),%rdx
@@ -610,7 +610,7 @@ ENTRY_ALIGN(gcm_ghash_avx, 32)
 	subq	$0x10,%rcx
 	jmp	.Ltail_avx
 
-.align	32
+.balign	32
 .Ltail_avx:
 	vpxor	%xmm10,%xmm15,%xmm15
 .Ltail_no_xor_avx:
@@ -658,7 +658,7 @@ SET_SIZE(gcm_ghash_avx)
 #endif /* !_WIN32 || _KERNEL */
 
 SECTION_STATIC
-.align	64
+.balign	64
 .Lbswap_mask:
 .byte	15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0
 .L0x1c2_polynomial:
@@ -667,7 +667,7 @@ SECTION_STATIC
 .long	7,0,7,0
 .L7_mask_poly:
 .long	7,0,450,0
-.align	64
+.balign	64
 SET_OBJ(.Lrem_4bit)
 .Lrem_4bit:
 .long	0,0,0,471859200,0,943718400,0,610271232
@@ -710,7 +710,7 @@ SET_OBJ(.Lrem_8bit)
 .value	0xBBF0,0xBA32,0xB874,0xB9B6,0xBCF8,0xBD3A,0xBF7C,0xBEBE
 
 .byte	71,72,65,83,72,32,102,111,114,32,120,56,54,95,54,52,44,32,67,82,89,80,84,79,71,65,77,83,32,98,121,32,60,97,112,112,114,111,64,111,112,101,110,115,115,108,46,111,114,103,62,0
-.align	64
+.balign	64
 
 /* Mark the stack non-executable. */
 #if defined(__linux__) && defined(__ELF__)

@@ -694,7 +694,7 @@ aes_decrypt_amd64(const uint32_t rk[], int Nr, const uint32_t ct[4],
  *	unsigned char *out, const aes_encrypt_ctx cx[1])/
  */
 SECTION_STATIC
-.align	64
+.balign	64
 enc_tab:
 	enc_vals(u8)
 #ifdef	LAST_ROUND_TABLES
@@ -800,7 +800,7 @@ ENTRY_NP(aes_encrypt_amd64)
  *	unsigned char *out, const aes_encrypt_ctx cx[1])/
  */
 SECTION_STATIC
-.align	64
+.balign	64
 dec_tab:
 	dec_vals(v8)
 #ifdef	LAST_ROUND_TABLES

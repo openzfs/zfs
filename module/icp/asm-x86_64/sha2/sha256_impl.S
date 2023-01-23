@@ -133,7 +133,7 @@ ENTRY_NP(SHA256TransformBlocks)
 	mov	4*7(%rdi),%r11d
 	jmp	.Lloop
 
-.align	16
+.balign	16
 .Lloop:
 	xor	%rdi,%rdi
 	mov	4*0(%rsi),%r12d
@@ -873,7 +873,7 @@ ENTRY_NP(SHA256TransformBlocks)
 
 	add	%r14d,%eax			# h+=Maj(a,b,c)
 	jmp	.Lrounds_16_xx
-.align	16
+.balign	16
 .Lrounds_16_xx:
 	mov	4(%rsp),%r13d
 	mov	56(%rsp),%r12d
@@ -2064,7 +2064,7 @@ ENTRY_NP(SHA256TransformBlocks)
 SET_SIZE(SHA256TransformBlocks)
 
 .section .rodata
-.align	64
+.balign	64
 SET_OBJ(K256)
 K256:
 	.long	0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5

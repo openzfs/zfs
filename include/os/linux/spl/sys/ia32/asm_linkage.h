@@ -149,21 +149,21 @@ extern "C" {
 #undef ENTRY
 #define	ENTRY(x) \
 	.text; \
-	.align	ASM_ENTRY_ALIGN; \
+	.balign	ASM_ENTRY_ALIGN; \
 	.globl	x; \
 	.type	x, @function; \
 x:	MCOUNT(x)
 
 #define	ENTRY_NP(x) \
 	.text; \
-	.align	ASM_ENTRY_ALIGN; \
+	.balign	ASM_ENTRY_ALIGN; \
 	.globl	x; \
 	.type	x, @function; \
 x:
 
 #define	ENTRY_ALIGN(x, a) \
 	.text; \
-	.align	a; \
+	.balign	a; \
 	.globl	x; \
 	.type	x, @function; \
 x:
@@ -177,7 +177,7 @@ x:
  */
 #define	ENTRY2(x, y) \
 	.text;	\
-	.align	ASM_ENTRY_ALIGN; \
+	.balign	ASM_ENTRY_ALIGN; \
 	.globl	x, y; \
 	.type	x, @function; \
 	.type	y, @function; \
@@ -186,7 +186,7 @@ y:	MCOUNT(x)
 
 #define	ENTRY_NP2(x, y) \
 	.text; \
-	.align	ASM_ENTRY_ALIGN; \
+	.balign	ASM_ENTRY_ALIGN; \
 	.globl	x, y; \
 	.type	x, @function; \
 	.type	y, @function; \
