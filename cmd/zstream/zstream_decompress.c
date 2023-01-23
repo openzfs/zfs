@@ -179,7 +179,10 @@ zstream_do_decompress(int argc, char *argv[])
 			VERIFY0(begin++);
 			seen = B_TRUE;
 
-			int sz = drr->drr_payloadlen;
+			uint32_t sz = drr->drr_payloadlen;
+
+			VERIFY3U(sz, <=, 1U << 28);
+
 			if (sz != 0) {
 				if (sz > bufsz) {
 					buf = realloc(buf, sz);
