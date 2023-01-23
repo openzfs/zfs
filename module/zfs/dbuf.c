@@ -221,8 +221,8 @@ static boolean_t dbuf_evict_thread_exit;
  * by those caches' matching enum values (from dbuf_cached_state_t).
  */
 typedef struct dbuf_cache {
-	multilist_t cache;
 	zfs_refcount_t size ____cacheline_aligned;
+	multilist_t cache;
 } dbuf_cache_t;
 dbuf_cache_t dbuf_caches[DB_CACHE_MAX];
 
