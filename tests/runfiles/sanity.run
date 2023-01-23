@@ -547,6 +547,7 @@ tests = ['recv_dedup', 'recv_dedup_encrypted_zvol', 'rsend_001_pos',
     'rsend_014_pos', 'rsend_016_neg', 'send-c_verify_contents',
     'send-c_volume', 'send-c_zstreamdump', 'send-c_recv_dedup',
     'send-L_toggle', 'send_encrypted_hierarchy', 'send_encrypted_props',
+    'send_encrypted_freeobjects',
     'send_encrypted_truncated_files', 'send_freeobjects', 'send_holds',
     'send_mixed_raw', 'send-wR_encrypted_zvol', 'send_partial_dataset',
     'send_invalid']
