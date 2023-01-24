@@ -93,9 +93,9 @@ zio_compress_select(spa_t *spa, enum zio_compress child,
 {
 	enum zio_compress result;
 
-	ASSERT(child < ZIO_COMPRESS_FUNCTIONS);
-	ASSERT(parent < ZIO_COMPRESS_FUNCTIONS);
-	ASSERT(parent != ZIO_COMPRESS_INHERIT);
+	ASSERT3U(child, <, ZIO_COMPRESS_FUNCTIONS);
+	ASSERT3U(parent, <, ZIO_COMPRESS_FUNCTIONS);
+	ASSERT3U(parent, !=, ZIO_COMPRESS_INHERIT);
 
 	result = child;
 	if (result == ZIO_COMPRESS_INHERIT)
@@ -132,7 +132,7 @@ zio_compress_data(enum zio_compress c, abd_t *src, void *dst, size_t s_len,
 	uint8_t complevel;
 	zio_compress_info_t *ci = &zio_compress_table[c];
 
-	ASSERT((uint_t)c < ZIO_COMPRESS_FUNCTIONS);
+	ASSERT3U((uint_t)c, <, ZIO_COMPRESS_FUNCTIONS);
 	ASSERT((uint_t)c == ZIO_COMPRESS_EMPTY || ci->ci_compress != NULL);
 
 	/*

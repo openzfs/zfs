@@ -477,7 +477,7 @@ spa_config_tryenter(spa_t *spa, int locks, const void *tag, krw_t rw)
 				return (0);
 			}
 		} else {
-			ASSERT(scl->scl_writer != curthread);
+			ASSERT3U(scl->scl_writer, !=, curthread);
 			if (scl->scl_count != 0) {
 				mutex_exit(&scl->scl_lock);
 				spa_config_exit(spa, locks & ((1 << i) - 1),
@@ -512,7 +512,7 @@ spa_config_enter(spa_t *spa, int locks, const void *tag, krw_t rw)
 				cv_wait(&scl->scl_cv, &scl->scl_lock);
 			}
 		} else {
-			ASSERT(scl->scl_writer != curthread);
+			ASSERT3U(scl->scl_writer, !=, curthread);
 			while (scl->scl_count != 0) {
 				scl->scl_write_wanted++;
 				cv_wait(&scl->scl_cv, &scl->scl_lock);
@@ -535,7 +535,7 @@ spa_config_exit(spa_t *spa, int locks, const void *tag)
 		if (!(locks & (1 << i)))
 			continue;
 		mutex_enter(&scl->scl_lock);
-		ASSERT(scl->scl_count > 0);
+		ASSERT3U(scl->scl_count, >, 0);
 		if (--scl->scl_count == 0) {
 			ASSERT(scl->scl_writer == NULL ||
 			    scl->scl_writer == curthread);
@@ -777,7 +777,7 @@ spa_remove(spa_t *spa)
 	spa_config_dirent_t *dp;
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
-	ASSERT(spa_state(spa) == POOL_STATE_UNINITIALIZED);
+	ASSERT3U(spa_state(spa), ==, POOL_STATE_UNINITIALIZED);
 	ASSERT3U(zfs_refcount_count(&spa->spa_refcount), ==, 0);
 	ASSERT0(spa->spa_waiters);
 
@@ -1021,7 +1021,7 @@ spa_aux_activate(vdev_t *vd, avl_tree_t *avl)
 	search.aux_guid = vd->vdev_guid;
 	found = avl_find(avl, &search, &where);
 	ASSERT3P(found, !=, NULL);
-	ASSERT(found->aux_pool == 0ULL);
+	ASSERT3U(found->aux_pool, ==, 0ULL);
 
 	found->aux_pool = spa_guid(vd->vdev_spa);
 }
@@ -1221,7 +1221,7 @@ spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error,
 
 	int config_changed = B_FALSE;
 
-	ASSERT(txg > spa_last_synced_txg(spa));
+	ASSERT3U(txg, >, spa_last_synced_txg(spa));
 
 	spa->spa_pending_vdev = NULL;
 
@@ -1926,7 +1926,7 @@ spa_preferred_class(spa_t *spa, uint64_t size, dmu_object_type_t objtype,
 	/*
 	 * ZIL allocations determine their class in zio_alloc_zil().
 	 */
-	ASSERT(objtype != DMU_OT_INTENT_LOG);
+	ASSERT3U(objtype, !=, DMU_OT_INTENT_LOG);
 
 	boolean_t has_special_class = spa->spa_special_class->mc_groups != 0;
 

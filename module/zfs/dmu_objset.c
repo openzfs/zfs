@@ -182,7 +182,7 @@ checksum_changed_cb(void *arg, uint64_t newval)
 	/*
 	 * Inheritance should have been done by now.
 	 */
-	ASSERT(newval != ZIO_CHECKSUM_INHERIT);
+	ASSERT3U(newval, !=, ZIO_CHECKSUM_INHERIT);
 
 	os->os_checksum = zio_checksum_select(newval, ZIO_CHECKSUM_ON_VALUE);
 }
@@ -195,7 +195,7 @@ compression_changed_cb(void *arg, uint64_t newval)
 	/*
 	 * Inheritance and range checking should have been done by now.
 	 */
-	ASSERT(newval != ZIO_COMPRESS_INHERIT);
+	ASSERT3U(newval, !=, ZIO_COMPRESS_INHERIT);
 
 	os->os_compress = zio_compress_select(os->os_spa,
 	    ZIO_COMPRESS_ALGO(newval), ZIO_COMPRESS_ON);
@@ -211,8 +211,8 @@ copies_changed_cb(void *arg, uint64_t newval)
 	/*
 	 * Inheritance and range checking should have been done by now.
 	 */
-	ASSERT(newval > 0);
-	ASSERT(newval <= spa_max_replication(os->os_spa));
+	ASSERT3U(newval, >, 0);
+	ASSERT3U(newval, <=, spa_max_replication(os->os_spa));
 
 	os->os_copies = newval;
 }
@@ -227,7 +227,7 @@ dedup_changed_cb(void *arg, uint64_t newval)
 	/*
 	 * Inheritance should have been done by now.
 	 */
-	ASSERT(newval != ZIO_CHECKSUM_INHERIT);
+	ASSERT3U(newval, !=, ZIO_CHECKSUM_INHERIT);
 
 	checksum = zio_checksum_dedup_select(spa, newval, ZIO_CHECKSUM_OFF);
 
@@ -331,7 +331,7 @@ smallblk_changed_cb(void *arg, uint64_t newval)
 	/*
 	 * Inheritance and range checking should have been done by now.
 	 */
-	ASSERT(newval <= SPA_MAXBLOCKSIZE);
+	ASSERT3U(newval, <=, SPA_MAXBLOCKSIZE);
 	ASSERT(ISP2(newval));
 
 	os->os_zpl_special_smallblock = newval;
@@ -385,7 +385,7 @@ dnode_hash(const objset_t *os, uint64_t obj)
 	uintptr_t osv = (uintptr_t)os;
 	uint64_t crc = -1ULL;
 
-	ASSERT(zfs_crc64_table[128] == ZFS_CRC64_POLY);
+	ASSERT3U(zfs_crc64_table[128], ==, ZFS_CRC64_POLY);
 	/*
 	 * The low 6 bits of the pointer don't have much entropy, because
 	 * the objset_t is larger than 2^6 bytes long.
@@ -1108,9 +1108,9 @@ dmu_objset_create_impl_dnstats(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 		    mdn->dn_nlevels = levels;
 	}
 
-	ASSERT(type != DMU_OST_NONE);
-	ASSERT(type != DMU_OST_ANY);
-	ASSERT(type < DMU_OST_NUMTYPES);
+	ASSERT3U(type, !=, DMU_OST_NONE);
+	ASSERT3U(type, !=, DMU_OST_ANY);
+	ASSERT3U(type, <, DMU_OST_NUMTYPES);
 	os->os_phys->os_type = type;
 
 	/*
@@ -1541,7 +1541,7 @@ dmu_objset_sync_dnodes(multilist_sublist_t *list, dmu_tx_t *tx)
 	dnode_t *dn;
 
 	while ((dn = multilist_sublist_head(list)) != NULL) {
-		ASSERT(dn->dn_object != DMU_META_DNODE_OBJECT);
+		ASSERT3U(dn->dn_object, !=, DMU_META_DNODE_OBJECT);
 		ASSERT(dn->dn_dbuf->db_data_pending);
 		/*
 		 * Initialize dn_zio outside dnode_sync() because the
@@ -1903,7 +1903,7 @@ userquota_update_cache(avl_tree_t *avl, const char *id, int64_t delta)
 	userquota_node_t *uqn;
 	avl_index_t idx;
 
-	ASSERT(strlen(id) < sizeof (uqn->uqn_id));
+	ASSERT3U(strlen(id), <, sizeof (uqn->uqn_id));
 	/*
 	 * Use id directly for searching because uqn_id is the first field of
 	 * userquota_node_t and fields after uqn_id won't be accessed in

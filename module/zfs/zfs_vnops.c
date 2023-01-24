@@ -273,7 +273,7 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		goto out;
 	}
 
-	ASSERT(zfs_uio_offset(uio) < zp->z_size);
+	ASSERT3U(zfs_uio_offset(uio), <, zp->z_size);
 #if defined(__linux__)
 	ssize_t start_offset = zfs_uio_offset(uio);
 #endif
@@ -557,7 +557,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 			abuf = dmu_request_arcbuf(sa_get_db(zp->z_sa_hdl),
 			    max_blksz);
 			ASSERT3P(abuf, !=, NULL);
-			ASSERT(arc_buf_size(abuf) == max_blksz);
+			ASSERT3U(arc_buf_size(abuf), ==, max_blksz);
 			if ((error = zfs_uiocopy(abuf->b_data, max_blksz,
 			    UIO_WRITE, uio, &cbytes))) {
 				dmu_return_arcbuf(abuf);
@@ -936,8 +936,8 @@ zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
 			zgd->zgd_db = db;
 			zgd->zgd_bp = bp;
 
-			ASSERT(db->db_offset == offset);
-			ASSERT(db->db_size == size);
+			ASSERT3U(db->db_offset, ==, offset);
+			ASSERT3U(db->db_size, ==, size);
 
 			error = dmu_sync(zio, lr->lr_common.lrc_txg,
 			    zfs_get_done, zgd);

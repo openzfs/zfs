@@ -71,7 +71,7 @@ ddt_object_create(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
 
 	ASSERT0(*objectp);
 	VERIFY0(ddt_ops[type]->ddt_op_create(os, objectp, tx, prehash));
-	ASSERT(*objectp != 0);
+	ASSERT3U(*objectp, !=, 0);
 
 	VERIFY0(zap_add(os, DMU_POOL_DIRECTORY_OBJECT, name, sizeof (uint64_t),
 	    1, objectp, tx));
@@ -93,7 +93,7 @@ ddt_object_destroy(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
 
 	ddt_object_name(ddt, type, class, name);
 
-	ASSERT(*objectp != 0);
+	ASSERT3U(*objectp, !=, 0);
 	ASSERT(ddt_histogram_empty(&ddt->ddt_histogram[type][class]));
 	VERIFY(ddt_object_count(ddt, type, class, &count) == 0 && count == 0);
 	VERIFY0(zap_remove(os, DMU_POOL_DIRECTORY_OBJECT, name, tx));
@@ -261,7 +261,7 @@ ddt_object_name(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
 void
 ddt_bp_fill(const ddt_phys_t *ddp, blkptr_t *bp, uint64_t txg)
 {
-	ASSERT(txg != 0);
+	ASSERT3U(txg, !=, 0);
 
 	for (int d = 0; d < SPA_DVAS_PER_BP; d++)
 		bp->blk_dva[d] = ddp->ddp_dva[d];
@@ -335,7 +335,7 @@ void
 ddt_phys_decref(ddt_phys_t *ddp)
 {
 	if (ddp) {
-		ASSERT(ddp->ddp_refcnt > 0);
+		ASSERT3U(ddp->ddp_refcnt, >, 0);
 		ddp->ddp_refcnt--;
 	}
 }
@@ -560,7 +560,7 @@ ddt_compress(void *src, uchar_t *dst, size_t s_len, size_t d_len)
 	zio_compress_info_t *ci = &zio_compress_table[cpfunc];
 	size_t c_len;
 
-	ASSERT(d_len >= s_len + 1);	/* no compression plus version byte */
+	ASSERT3U(d_len, >=, s_len + 1);	/* no compression plus version byte */
 
 	c_len = ci->ci_compress(src, dst, s_len, d_len - 1, ci->ci_level);
 
@@ -712,8 +712,8 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 
 	ddt_enter(ddt);
 
-	ASSERT(dde->dde_loaded == B_FALSE);
-	ASSERT(dde->dde_loading == B_TRUE);
+	ASSERT3U(dde->dde_loaded, ==, B_FALSE);
+	ASSERT3U(dde->dde_loading, ==, B_TRUE);
 
 	dde->dde_type = type;	/* will be DDT_TYPES if no entry found */
 	dde->dde_class = class;	/* will be DDT_CLASSES if no entry found */
@@ -1080,7 +1080,7 @@ ddt_sync_table(ddt_t *ddt, dmu_tx_t *tx, uint64_t txg)
 	if (avl_numnodes(&ddt->ddt_tree) == 0)
 		return;
 
-	ASSERT(spa->spa_uberblock.ub_version >= SPA_VERSION_DEDUP);
+	ASSERT3U(spa->spa_uberblock.ub_version, >=, SPA_VERSION_DEDUP);
 
 	if (spa->spa_ddt_stat_object == 0) {
 		spa->spa_ddt_stat_object = zap_create_link(ddt->ddt_os,
@@ -1121,7 +1121,7 @@ ddt_sync(spa_t *spa, uint64_t txg)
 	dmu_tx_t *tx;
 	zio_t *rio;
 
-	ASSERT(spa_syncing_txg(spa) == txg);
+	ASSERT3U(spa_syncing_txg(spa), ==, txg);
 
 	tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
 

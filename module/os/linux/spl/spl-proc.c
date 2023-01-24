@@ -375,7 +375,7 @@ slab_seq_show(struct seq_file *f, void *p)
 {
 	spl_kmem_cache_t *skc = p;
 
-	ASSERT(skc->skc_magic == SKC_MAGIC);
+	ASSERT3U(skc->skc_magic, ==, SKC_MAGIC);
 
 	if (skc->skc_flags & KMC_SLAB) {
 		/*

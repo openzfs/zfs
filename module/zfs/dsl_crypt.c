@@ -2390,7 +2390,7 @@ dsl_crypto_populate_key_nvlist(objset_t *os, uint64_t from_ivset_guid,
 	uint8_t iv[WRAPPING_IV_LEN];
 	uint8_t mac[WRAPPING_MAC_LEN];
 
-	ASSERT(dckobj != 0);
+	ASSERT3U(dckobj, !=, 0);
 
 	mdn = DMU_META_DNODE(os);
 

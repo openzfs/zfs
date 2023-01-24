@@ -734,7 +734,7 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 	isint = (dodefault(zfs_name_to_prop(propname), 8, 1, &intval) == 0);
 
 	if (ds->ds_is_snapshot) {
-		ASSERT(version >= SPA_VERSION_SNAP_PROPS);
+		ASSERT3U(version, >=, SPA_VERSION_SNAP_PROPS);
 		if (dsl_dataset_phys(ds)->ds_props_obj == 0 &&
 		    (source & ZPROP_SRC_NONE) == 0) {
 			dmu_buf_will_dirty(ds->ds_dbuf, tx);

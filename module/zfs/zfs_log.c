@@ -433,7 +433,7 @@ zfs_log_remove(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 	 * the new file data and flushes a write record for the old object.
 	 */
 	if (unlinked) {
-		ASSERT((txtype & ~TX_CI) == TX_REMOVE);
+		ASSERT3U((txtype & ~TX_CI), ==, TX_REMOVE);
 		zil_remove_async(zilog, foid);
 	}
 	zil_itx_assign(zilog, itx, tx);

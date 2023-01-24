@@ -1229,7 +1229,7 @@ scan_ds_queue_sync(dsl_scan_t *scn, dmu_tx_t *tx)
 	    DMU_OT_SCAN_QUEUE : DMU_OT_ZAP_OTHER;
 
 	ASSERT0(scn->scn_queues_pending);
-	ASSERT(scn->scn_phys.scn_queue_obj != 0);
+	ASSERT3U(scn->scn_phys.scn_queue_obj, !=, 0);
 
 	VERIFY0(dmu_object_free(dp->dp_meta_objset,
 	    scn->scn_phys.scn_queue_obj, tx));
@@ -2224,7 +2224,7 @@ dsl_scan_ds_snapshotted(dsl_dataset_t *ds, dmu_tx_t *tx)
 	if (!dsl_scan_is_running(scn))
 		return;
 
-	ASSERT(dsl_dataset_phys(ds)->ds_prev_snap_obj != 0);
+	ASSERT3U(dsl_dataset_phys(ds)->ds_prev_snap_obj, !=, 0);
 
 	ds_snapshotted_bookmark(ds, &scn->scn_phys.scn_bookmark);
 	ds_snapshotted_bookmark(ds, &scn->scn_phys_cached.scn_bookmark);
@@ -3174,9 +3174,9 @@ scan_io_queues_run(dsl_scan_t *scn)
 
 		mutex_enter(&vd->vdev_scan_io_queue_lock);
 		if (vd->vdev_scan_io_queue != NULL) {
-			VERIFY(taskq_dispatch(scn->scn_taskq,
+			VERIFY3U(taskq_dispatch(scn->scn_taskq,
 			    scan_io_queues_run_one, vd->vdev_scan_io_queue,
-			    TQ_SLEEP) != TASKQID_INVALID);
+			    TQ_SLEEP), !=, TASKQID_INVALID);
 		}
 		mutex_exit(&vd->vdev_scan_io_queue_lock);
 	}
@@ -3746,7 +3746,7 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		scn->scn_prefetch_stop = B_FALSE;
 		prefetch_tqid = taskq_dispatch(dp->dp_sync_taskq,
 		    dsl_scan_prefetch_thread, scn, TQ_SLEEP);
-		ASSERT(prefetch_tqid != TASKQID_INVALID);
+		ASSERT3U(prefetch_tqid, !=, TASKQID_INVALID);
 
 		dsl_pool_config_enter(dp, FTAG);
 		dsl_scan_visit(scn, tx);

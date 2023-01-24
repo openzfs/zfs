@@ -114,7 +114,7 @@ zvol_name_hash(const char *name)
 	int i;
 	uint64_t crc = -1ULL;
 	const uint8_t *p = (const uint8_t *)name;
-	ASSERT(zfs_crc64_table[128] == ZFS_CRC64_POLY);
+	ASSERT3U(zfs_crc64_table[128], ==, ZFS_CRC64_POLY);
 	for (i = 0; i < MAXNAMELEN - 1 && *p; i++, p++) {
 		crc = (crc >> 8) ^ zfs_crc64_table[(crc ^ (*p)) & 0xFF];
 	}
@@ -680,8 +680,8 @@ zvol_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 			zgd->zgd_bp = bp;
 
 			ASSERT3P(db, !=, NULL);
-			ASSERT(db->db_offset == offset);
-			ASSERT(db->db_size == size);
+			ASSERT3U(db->db_offset, ==, offset);
+			ASSERT3U(db->db_size, ==, size);
 
 			error = dmu_sync(zio, lr->lr_common.lrc_txg,
 			    zvol_get_done, zgd);

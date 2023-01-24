@@ -288,7 +288,7 @@ feature_get_enabled_txg(spa_t *spa, zfeature_info_t *feature, uint64_t *res)
 		return (SET_ERROR(ENOTSUP));
 	}
 
-	ASSERT(enabled_txg_obj != 0);
+	ASSERT3U(enabled_txg_obj, !=, 0);
 
 	VERIFY0(zap_lookup(spa->spa_meta_objset, spa->spa_feat_enabled_txg_obj,
 	    feature->fi_guid, sizeof (uint64_t), 1, res));
@@ -342,7 +342,7 @@ feature_enable_sync(spa_t *spa, zfeature_info_t *feature, dmu_tx_t *tx)
 	uint64_t zapobj = (feature->fi_flags & ZFEATURE_FLAG_READONLY_COMPAT) ?
 	    spa->spa_feat_for_write_obj : spa->spa_feat_for_read_obj;
 
-	ASSERT(0 != zapobj);
+	ASSERT3U(0, !=, zapobj);
 	ASSERT(zfeature_is_valid_guid(feature->fi_guid));
 	ASSERT3U(spa_version(spa), >=, SPA_VERSION_FEATURES);
 
@@ -409,7 +409,7 @@ feature_do_action(spa_t *spa, spa_feature_t fid, feature_action_t action,
 	    spa->spa_feat_for_write_obj : spa->spa_feat_for_read_obj;
 
 	ASSERT(VALID_FEATURE_FID(fid));
-	ASSERT(0 != zapobj);
+	ASSERT3U(0, !=, zapobj);
 	ASSERT(zfeature_is_valid_guid(feature->fi_guid));
 
 	ASSERT(dmu_tx_is_syncing(tx));

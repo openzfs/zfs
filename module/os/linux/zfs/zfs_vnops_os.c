@@ -380,7 +380,7 @@ zfs_zrele_async(znode_t *zp)
 	struct inode *ip = ZTOI(zp);
 	objset_t *os = ITOZSB(ip)->z_os;
 
-	ASSERT(atomic_read(&ip->i_count) > 0);
+	ASSERT3U(atomic_read(&ip->i_count), >, 0);
 	ASSERT3P(os, !=, NULL);
 
 	/*
@@ -392,8 +392,9 @@ zfs_zrele_async(znode_t *zp)
 	 * header comment of this file.
 	 */
 	if (!atomic_add_unless(&ip->i_count, -1, 1)) {
-		VERIFY(taskq_dispatch(dsl_pool_zrele_taskq(dmu_objset_pool(os)),
-		    zfs_rele_async_task, ip, TQ_SLEEP) != TASKQID_INVALID);
+		VERIFY3U(taskq_dispatch(dsl_pool_zrele_taskq(
+		    dmu_objset_pool(os)), zfs_rele_async_task, ip, TQ_SLEEP),
+		    !=, TASKQID_INVALID);
 	}
 }
 

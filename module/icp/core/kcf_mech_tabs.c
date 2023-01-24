@@ -242,7 +242,7 @@ kcf_add_mech_provider(short mech_indx,
 		}
 		/* get the KCF mech type that was assigned to the mechanism */
 		kcf_mech_type = crypto_mech2id(mech_info->cm_mech_name);
-		ASSERT(kcf_mech_type != CRYPTO_MECH_INVALID);
+		ASSERT3U(kcf_mech_type, !=, CRYPTO_MECH_INVALID);
 	}
 
 	error = kcf_get_mech_entry(kcf_mech_type, &mech_entry);
@@ -423,7 +423,7 @@ crypto_mech2id(const char *mechname)
 	strlcpy(tmptab.me_name, mechname, CRYPTO_MAX_MECH_NAME);
 
 	if ((found = avl_find(&kcf_mech_hash, &tmptab, NULL))) {
-		ASSERT(found->me_mechid != CRYPTO_MECH_INVALID);
+		ASSERT3U(found->me_mechid, !=, CRYPTO_MECH_INVALID);
 		return (found->me_mechid);
 	}
 

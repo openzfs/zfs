@@ -289,7 +289,7 @@ dsl_destroy_snapshot_handle_remaps(dsl_dataset_t *ds, dsl_dataset_t *ds_next,
 	if (dsl_dataset_remap_deadlist_exists(ds)) {
 		uint64_t remap_deadlist_object =
 		    dsl_dataset_get_remap_deadlist_object(ds);
-		ASSERT(remap_deadlist_object != 0);
+		ASSERT3U(remap_deadlist_object, !=, 0);
 
 		mutex_enter(&ds_next->ds_remap_deadlist_lock);
 		if (!dsl_dataset_remap_deadlist_exists(ds_next))
@@ -320,7 +320,7 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 	if (defer &&
 	    (ds->ds_userrefs > 0 ||
 	    dsl_dataset_phys(ds)->ds_num_children > 1)) {
-		ASSERT(spa_version(dp->dp_spa) >= SPA_VERSION_USERREFS);
+		ASSERT3U(spa_version(dp->dp_spa), >=, SPA_VERSION_USERREFS);
 		dmu_buf_will_dirty(ds->ds_dbuf, tx);
 		dsl_dataset_phys(ds)->ds_flags |= DS_FLAG_DEFER_DESTROY;
 		if (zfs_snapshot_history_enabled) {
@@ -503,7 +503,7 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 			uint64_t new_unique =
 			    dsl_dataset_phys(ds_next)->ds_unique_bytes;
 
-			ASSERT(old_unique <= new_unique);
+			ASSERT3U(old_unique, <=, new_unique);
 			mrsdelta = MIN(new_unique - old_unique,
 			    ds_next->ds_reserved - old_unique);
 			dsl_dir_diduse_space(ds->ds_dir,
@@ -1114,7 +1114,7 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 	dmu_buf_will_dirty(ds->ds_dir->dd_dbuf, tx);
 	dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj = 0;
 	ddobj = ds->ds_dir->dd_object;
-	ASSERT(dsl_dataset_phys(ds)->ds_snapnames_zapobj != 0);
+	ASSERT3U(dsl_dataset_phys(ds)->ds_snapnames_zapobj, !=, 0);
 	VERIFY0(zap_destroy(mos,
 	    dsl_dataset_phys(ds)->ds_snapnames_zapobj, tx));
 

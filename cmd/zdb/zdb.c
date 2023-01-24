@@ -1030,7 +1030,7 @@ dump_zap_stats(objset_t *os, uint64_t object)
 		return;
 
 	if (zs.zs_ptrtbl_len == 0) {
-		ASSERT(zs.zs_num_blocks == 1);
+		ASSERT3U(zs.zs_num_blocks, ==, 1);
 		(void) printf("\tmicrozap: %llu bytes, %llu entries\n",
 		    (u_longlong_t)zs.zs_blocksize,
 		    (u_longlong_t)zs.zs_num_entries);
@@ -2558,7 +2558,7 @@ dump_dsl_dataset(objset_t *os, uint64_t object, void *data, size_t size)
 	if (ds == NULL)
 		return;
 
-	ASSERT(size == sizeof (*ds));
+	ASSERT3U(size, ==, sizeof (*ds));
 	crtime = ds->ds_creation_time;
 	zdb_nicenum(ds->ds_referenced_bytes, used, sizeof (used));
 	zdb_nicenum(ds->ds_compressed_bytes, compressed, sizeof (compressed));
@@ -2650,7 +2650,7 @@ dump_bpobj_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed, dmu_tx_t *tx)
 	(void) arg, (void) tx;
 	char blkbuf[BP_SPRINTF_LEN];
 
-	ASSERT(bp->blk_birth != 0);
+	ASSERT3U(bp->blk_birth, !=, 0);
 	snprintf_blkptr_compact(blkbuf, sizeof (blkbuf), bp, bp_freed);
 	(void) printf("\t%s\n", blkbuf);
 	return (0);
@@ -5315,7 +5315,7 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 	uint64_t refcnt = 0;
 	int i;
 
-	ASSERT(type < ZDB_OT_TOTAL);
+	ASSERT3U(type, <, ZDB_OT_TOTAL);
 
 	if (zilog && zil_bp_tree_add(zilog, bp) != 0)
 		return;
@@ -5720,7 +5720,7 @@ increment_indirect_mapping_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
 	ASSERT3P(vd, !=, NULL);
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 
-	ASSERT(vd->vdev_indirect_config.vic_mapping_object != 0);
+	ASSERT3U(vd->vdev_indirect_config.vic_mapping_object, !=, 0);
 	ASSERT3P(zcb->zcb_vd_obsolete_counts[vd->vdev_id], !=, NULL);
 
 	vdev_indirect_mapping_increment_obsolete_count(
@@ -5777,7 +5777,7 @@ zdb_ddt_leak_init(spa_t *spa, zdb_cb_t *zcb)
 		if (ddb.ddb_class == DDT_CLASS_UNIQUE)
 			return;
 
-		ASSERT(ddt_phys_total_refcnt(&dde) > 1);
+		ASSERT3U(ddt_phys_total_refcnt(&dde), >, 1);
 
 		for (p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
 			if (ddp->ddp_phys_birth == 0)
@@ -5814,7 +5814,7 @@ checkpoint_sm_exclude_entry_cb(space_map_entry_t *sme, void *arg)
 	metaslab_t *ms = vd->vdev_ms[sme->sme_offset >> vd->vdev_ms_shift];
 	uint64_t end = sme->sme_offset + sme->sme_run;
 
-	ASSERT(sme->sme_type == SM_FREE);
+	ASSERT3U(sme->sme_type, ==, SM_FREE);
 
 	/*
 	 * Since the vdev_checkpoint_sm exists in the vdev level
@@ -6854,7 +6854,7 @@ dump_simulated_ddt(spa_t *spa)
 	while ((zdde = avl_destroy_nodes(&t, &cookie)) != NULL) {
 		ddt_stat_t dds;
 		uint64_t refcnt = zdde->zdde_ref_blocks;
-		ASSERT(refcnt != 0);
+		ASSERT3U(refcnt, !=, 0);
 
 		dds.dds_blocks = zdde->zdde_ref_blocks / refcnt;
 		dds.dds_lsize = zdde->zdde_ref_lsize / refcnt;
@@ -6901,7 +6901,7 @@ verify_device_removal_feature_counts(spa_t *spa)
 	    &spa->spa_condensing_indirect_phys;
 	if (scip->scip_next_mapping_object != 0) {
 		vdev_t *vd = spa->spa_root_vdev->vdev_child[scip->scip_vdev];
-		ASSERT(scip->scip_prev_obsolete_sm_object != 0);
+		ASSERT3U(scip->scip_prev_obsolete_sm_object, !=, 0);
 		ASSERT3P(vd->vdev_ops, ==, &vdev_indirect_ops);
 
 		(void) printf("Condensing indirect vdev %llu: new mapping "
@@ -6940,14 +6940,14 @@ verify_device_removal_feature_counts(spa_t *spa)
 		boolean_t are_precise;
 		VERIFY0(vdev_obsolete_counts_are_precise(vd, &are_precise));
 		if (are_precise) {
-			ASSERT(vic->vic_mapping_object != 0);
+			ASSERT3U(vic->vic_mapping_object, !=, 0);
 			precise_vdev_count++;
 		}
 
 		uint64_t obsolete_sm_object;
 		VERIFY0(vdev_obsolete_sm_object(vd, &obsolete_sm_object));
 		if (obsolete_sm_object != 0) {
-			ASSERT(vic->vic_mapping_object != 0);
+			ASSERT3U(vic->vic_mapping_object, !=, 0);
 			obsolete_sm_count++;
 		}
 	}
@@ -7117,7 +7117,7 @@ verify_checkpoint_sm_entry_cb(space_map_entry_t *sme, void *arg)
 	metaslab_t *ms = vd->vdev_ms[sme->sme_offset >> vd->vdev_ms_shift];
 	uint64_t end = sme->sme_offset + sme->sme_run;
 
-	ASSERT(sme->sme_type == SM_FREE);
+	ASSERT3U(sme->sme_type, ==, SM_FREE);
 
 	if ((vcsec->vcsec_entryid % ENTRIES_PER_PROGRESS_UPDATE) == 0) {
 		(void) fprintf(stderr,
@@ -7317,7 +7317,7 @@ verify_checkpoint_blocks(spa_t *spa)
 	 */
 	checkpoint_pool = import_checkpointed_state(spa->spa_name, NULL,
 	    NULL);
-	ASSERT(strcmp(spa->spa_name, checkpoint_pool) != 0);
+	ASSERT3U(strcmp(spa->spa_name, checkpoint_pool), !=, 0);
 
 	error = spa_open(checkpoint_pool, &checkpoint_spa, FTAG);
 	if (error != 0) {
@@ -7883,7 +7883,7 @@ zdb_dump_block_raw(void *buf, uint64_t size, int flags)
 {
 	if (flags & ZDB_FLAG_BSWAP)
 		byteswap_uint64_array(buf, size);
-	VERIFY(write(fileno(stdout), buf, size) == size);
+	VERIFY3U(write(fileno(stdout), buf, size), ==, size);
 }
 
 static void

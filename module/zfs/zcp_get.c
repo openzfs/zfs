@@ -305,7 +305,7 @@ get_special_prop(lua_State *state, dsl_dataset_t *ds, const char *dsname,
 		break;
 	case ZFS_PROP_VERSION:
 		/* should be a snapshot or filesystem */
-		ASSERT(ds_type != ZFS_TYPE_VOLUME);
+		ASSERT3U(ds_type, !=, ZFS_TYPE_VOLUME);
 		error = dmu_objset_from_ds(ds, &os);
 		/* look in the master node for the version */
 		if (error == 0) {
@@ -366,7 +366,7 @@ get_special_prop(lua_State *state, dsl_dataset_t *ds, const char *dsname,
 
 		break;
 	case ZFS_PROP_VOLBLOCKSIZE: {
-		ASSERT(ds_type == ZFS_TYPE_VOLUME);
+		ASSERT3U(ds_type, ==, ZFS_TYPE_VOLUME);
 		dmu_object_info_t doi;
 		error = dmu_objset_from_ds(ds, &os);
 		if (error == 0) {

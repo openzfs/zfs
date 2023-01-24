@@ -227,8 +227,8 @@ zio_checksum_to_feature(enum zio_checksum cksum)
 enum zio_checksum
 zio_checksum_select(enum zio_checksum child, enum zio_checksum parent)
 {
-	ASSERT(child < ZIO_CHECKSUM_FUNCTIONS);
-	ASSERT(parent < ZIO_CHECKSUM_FUNCTIONS);
+	ASSERT3U(child, <, ZIO_CHECKSUM_FUNCTIONS);
+	ASSERT3U(parent, <, ZIO_CHECKSUM_FUNCTIONS);
 	ASSERT(parent != ZIO_CHECKSUM_INHERIT && parent != ZIO_CHECKSUM_ON);
 
 	if (child == ZIO_CHECKSUM_INHERIT)
@@ -244,8 +244,8 @@ enum zio_checksum
 zio_checksum_dedup_select(spa_t *spa, enum zio_checksum child,
     enum zio_checksum parent)
 {
-	ASSERT((child & ZIO_CHECKSUM_MASK) < ZIO_CHECKSUM_FUNCTIONS);
-	ASSERT((parent & ZIO_CHECKSUM_MASK) < ZIO_CHECKSUM_FUNCTIONS);
+	ASSERT3U((child & ZIO_CHECKSUM_MASK), <, ZIO_CHECKSUM_FUNCTIONS);
+	ASSERT3U((parent & ZIO_CHECKSUM_MASK), <, ZIO_CHECKSUM_FUNCTIONS);
 	ASSERT(parent != ZIO_CHECKSUM_INHERIT && parent != ZIO_CHECKSUM_ON);
 
 	if (child == ZIO_CHECKSUM_INHERIT)
@@ -348,7 +348,7 @@ zio_checksum_compute(zio_t *zio, enum zio_checksum checksum,
 	spa_t *spa = zio->io_spa;
 	boolean_t insecure = (ci->ci_flags & ZCHECKSUM_FLAG_DEDUP) == 0;
 
-	ASSERT((uint_t)checksum < ZIO_CHECKSUM_FUNCTIONS);
+	ASSERT3U((uint_t)checksum, <, ZIO_CHECKSUM_FUNCTIONS);
 	ASSERT3P(ci->ci_func[0], !=, NULL);
 
 	zio_checksum_template_init(checksum, spa);

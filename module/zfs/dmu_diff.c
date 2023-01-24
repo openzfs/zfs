@@ -71,7 +71,7 @@ write_record(dmu_diffarg_t *da)
 static int
 report_free_dnode_range(dmu_diffarg_t *da, uint64_t first, uint64_t last)
 {
-	ASSERT(first <= last);
+	ASSERT3U(first, <=, last);
 	if (da->da_ddr.ddr_type != DDR_FREE ||
 	    first != da->da_ddr.ddr_last + 1) {
 		if (write_record(da) != 0)

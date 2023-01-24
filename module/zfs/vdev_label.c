@@ -160,7 +160,7 @@
 uint64_t
 vdev_label_offset(uint64_t psize, int l, uint64_t offset)
 {
-	ASSERT(offset < sizeof (vdev_label_t));
+	ASSERT3U(offset, <, sizeof (vdev_label_t));
 	ASSERT0(P2PHASE_TYPED(psize, sizeof (vdev_label_t), uint64_t));
 
 	return (offset + l * sizeof (vdev_label_t) + (l < VDEV_LABELS / 2 ?
@@ -1023,7 +1023,7 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 	uint64_t spare_guid = 0, l2cache_guid = 0;
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL;
 
-	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
+	ASSERT3U(spa_config_held(spa, SCL_ALL, RW_WRITER), ==, SCL_ALL);
 
 	for (int c = 0; c < vd->vdev_children; c++)
 		if ((error = vdev_label_init(vd->vdev_child[c],
@@ -1091,7 +1091,7 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 		 */
 		if (reason == VDEV_LABEL_L2CACHE)
 			return (0);
-		ASSERT(reason == VDEV_LABEL_REPLACE);
+		ASSERT3U(reason, ==, VDEV_LABEL_REPLACE);
 	}
 
 	/*
@@ -1293,7 +1293,7 @@ vdev_label_read_bootenv(vdev_t *rvd, nvlist_t *bootenv)
 	    ZIO_FLAG_SPECULATIVE | ZIO_FLAG_TRYHARD;
 
 	ASSERT(bootenv);
-	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
+	ASSERT3U(spa_config_held(spa, SCL_ALL, RW_WRITER), ==, SCL_ALL);
 
 	zio_t *zio = zio_root(spa, NULL, &abd, flags);
 	vdev_label_read_bootenv_impl(zio, rvd, flags);
@@ -1368,7 +1368,7 @@ vdev_label_write_bootenv(vdev_t *vd, nvlist_t *env)
 		return (SET_ERROR(E2BIG));
 	}
 
-	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
+	ASSERT3U(spa_config_held(spa, SCL_ALL, RW_WRITER), ==, SCL_ALL);
 
 	error = ENXIO;
 	for (int c = 0; c < vd->vdev_children; c++) {
@@ -1619,7 +1619,7 @@ vdev_copy_uberblocks(vdev_t *vd)
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL |
 	    ZIO_FLAG_SPECULATIVE;
 
-	ASSERT(spa_config_held(vd->vdev_spa, SCL_STATE, RW_READER) ==
+	ASSERT3U(spa_config_held(vd->vdev_spa, SCL_STATE, RW_READER), ==,
 	    SCL_STATE);
 	ASSERT(vd->vdev_ops->vdev_op_leaf);
 
@@ -1926,7 +1926,7 @@ retry:
 		flags |= ZIO_FLAG_TRYHARD;
 	}
 
-	ASSERT(ub->ub_txg <= txg);
+	ASSERT3U(ub->ub_txg, <=, txg);
 
 	/*
 	 * If this isn't a resync due to I/O errors,
@@ -1945,7 +1945,7 @@ retry:
 	if (txg > spa_freeze_txg(spa))
 		return (0);
 
-	ASSERT(txg <= spa->spa_final_txg);
+	ASSERT3U(txg, <=, spa->spa_final_txg);
 
 	/*
 	 * Flush the write cache of every disk that's been written to

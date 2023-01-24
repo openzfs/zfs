@@ -396,7 +396,7 @@ dmu_tx_hold_free_impl(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 		uint64_t start = off >> shift;
 		uint64_t end = (off + len) >> shift;
 
-		ASSERT(dn->dn_indblkshift != 0);
+		ASSERT3U(dn->dn_indblkshift, !=, 0);
 
 		/*
 		 * dnode_reallocate() can result in an object with indirect
@@ -585,7 +585,7 @@ dmu_tx_dirty_buf(dmu_tx_t *tx, dmu_buf_impl_t *db)
 
 	DB_DNODE_ENTER(db);
 	dnode_t *dn = DB_DNODE(db);
-	ASSERT(tx->tx_txg != 0);
+	ASSERT3U(tx->tx_txg, !=, 0);
 	ASSERT(tx->tx_objset == NULL || dn->dn_objset == tx->tx_objset);
 	ASSERT3U(dn->dn_object, ==, db->db.db_object);
 
@@ -1180,7 +1180,7 @@ dmu_tx_destroy(dmu_tx_t *tx)
 void
 dmu_tx_commit(dmu_tx_t *tx)
 {
-	ASSERT(tx->tx_txg != 0);
+	ASSERT3U(tx->tx_txg, !=, 0);
 
 	/*
 	 * Go through the transaction's hold list and remove holds on
@@ -1232,7 +1232,7 @@ dmu_tx_abort(dmu_tx_t *tx)
 uint64_t
 dmu_tx_get_txg(dmu_tx_t *tx)
 {
-	ASSERT(tx->tx_txg != 0);
+	ASSERT3U(tx->tx_txg, !=, 0);
 	return (tx->tx_txg);
 }
 

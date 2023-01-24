@@ -368,7 +368,7 @@ txg_rele_to_sync(txg_handle_t *th)
 	int g = th->th_txg & TXG_MASK;
 
 	mutex_enter(&tc->tc_lock);
-	ASSERT(tc->tc_count[g] != 0);
+	ASSERT3U(tc->tc_count[g], !=, 0);
 	if (--tc->tc_count[g] == 0)
 		cv_broadcast(&tc->tc_cv[g]);
 	mutex_exit(&tc->tc_lock);
@@ -396,7 +396,7 @@ txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 	for (c = 0; c < max_ncpus; c++)
 		mutex_enter(&tx->tx_cpu[c].tc_open_lock);
 
-	ASSERT(txg == tx->tx_open_txg);
+	ASSERT3U(txg, ==, tx->tx_open_txg);
 	tx->tx_open_txg++;
 	tx->tx_open_time = tx_open_time = gethrtime();
 
@@ -574,7 +574,7 @@ txg_sync_thread(void *arg)
 		 * us.  This may cause the quiescing thread to now be
 		 * able to quiesce another txg, so we must signal it.
 		 */
-		ASSERT(tx->tx_quiesced_txg != 0);
+		ASSERT3U(tx->tx_quiesced_txg, !=, 0);
 		txg = tx->tx_quiesced_txg;
 		tx->tx_quiesced_txg = 0;
 		tx->tx_syncing_txg = txg;

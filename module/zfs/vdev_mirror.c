@@ -613,7 +613,7 @@ vdev_mirror_io_start(zio_t *zio)
 
 	if (mm == NULL) {
 		ASSERT0(spa_trust_config(zio->io_spa));
-		ASSERT(zio->io_type == ZIO_TYPE_READ);
+		ASSERT3U(zio->io_type, ==, ZIO_TYPE_READ);
 		zio_execute(zio);
 		return;
 	}
@@ -658,7 +658,7 @@ vdev_mirror_io_start(zio_t *zio)
 		c = vdev_mirror_child_select(zio);
 		children = (c >= 0);
 	} else {
-		ASSERT(zio->io_type == ZIO_TYPE_WRITE);
+		ASSERT3U(zio->io_type, ==, ZIO_TYPE_WRITE);
 
 		/*
 		 * Writes go to all children.
@@ -762,7 +762,7 @@ vdev_mirror_io_done(zio_t *zio)
 		return;
 	}
 
-	ASSERT(zio->io_type == ZIO_TYPE_READ);
+	ASSERT3U(zio->io_type, ==, ZIO_TYPE_READ);
 
 	/*
 	 * If we don't have a good copy yet, keep trying other children.

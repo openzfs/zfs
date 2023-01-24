@@ -327,7 +327,7 @@ vdev_indirect_mark_obsolete(vdev_t *vd, uint64_t offset, uint64_t size)
 
 	ASSERT3U(vd->vdev_indirect_config.vic_mapping_object, !=, 0);
 	ASSERT(vd->vdev_removing || vd->vdev_ops == &vdev_indirect_ops);
-	ASSERT(size > 0);
+	ASSERT3U(size, >, 0);
 	VERIFY3P(vdev_indirect_mapping_entry_for_offset(
 	    vd->vdev_indirect_mapping, offset), !=, NULL);
 
@@ -497,10 +497,10 @@ spa_condense_indirect_complete_sync(void *arg, dmu_tx_t *tx)
 	for (int i = 0; i < TXG_SIZE; i++) {
 		ASSERT(list_is_empty(&sci->sci_new_mapping_entries[i]));
 	}
-	ASSERT(vic->vic_mapping_object != 0);
+	ASSERT3U(vic->vic_mapping_object, !=, 0);
 	ASSERT3U(vd->vdev_id, ==, scip->scip_vdev);
-	ASSERT(scip->scip_next_mapping_object != 0);
-	ASSERT(scip->scip_prev_obsolete_sm_object != 0);
+	ASSERT3U(scip->scip_next_mapping_object, !=, 0);
+	ASSERT3U(scip->scip_prev_obsolete_sm_object, !=, 0);
 
 	/*
 	 * Reset vdev_indirect_mapping to refer to the new object.
@@ -667,8 +667,8 @@ spa_condense_indirect_thread(void *arg, zthr_t *zthr)
 	space_map_t *prev_obsolete_sm = NULL;
 
 	ASSERT3U(vd->vdev_id, ==, scip->scip_vdev);
-	ASSERT(scip->scip_next_mapping_object != 0);
-	ASSERT(scip->scip_prev_obsolete_sm_object != 0);
+	ASSERT3U(scip->scip_next_mapping_object, !=, 0);
+	ASSERT3U(scip->scip_prev_obsolete_sm_object, !=, 0);
 	ASSERT3P(vd->vdev_ops, ==, &vdev_indirect_ops);
 
 	for (int i = 0; i < TXG_SIZE; i++) {
@@ -816,7 +816,7 @@ vdev_indirect_sync_obsolete(vdev_t *vd, dmu_tx_t *tx)
 	vdev_indirect_config_t *vic __maybe_unused = &vd->vdev_indirect_config;
 
 	ASSERT3U(vic->vic_mapping_object, !=, 0);
-	ASSERT(range_tree_space(vd->vdev_obsolete_segments) > 0);
+	ASSERT3U(range_tree_space(vd->vdev_obsolete_segments), >, 0);
 	ASSERT(vd->vdev_removing || vd->vdev_ops == &vdev_indirect_ops);
 	ASSERT(spa_feature_is_enabled(spa, SPA_FEATURE_OBSOLETE_COUNTS));
 
@@ -826,7 +826,7 @@ vdev_indirect_sync_obsolete(vdev_t *vd, dmu_tx_t *tx)
 		obsolete_sm_object = space_map_alloc(spa->spa_meta_objset,
 		    zfs_vdev_standard_sm_blksz, tx);
 
-		ASSERT(vd->vdev_top_zap != 0);
+		ASSERT3U(vd->vdev_top_zap, !=, 0);
 		VERIFY0(zap_add(vd->vdev_spa->spa_meta_objset, vd->vdev_top_zap,
 		    VDEV_TOP_ZAP_INDIRECT_OBSOLETE_SM,
 		    sizeof (obsolete_sm_object), 1, &obsolete_sm_object, tx));
@@ -1070,7 +1070,7 @@ vdev_indirect_remap(vdev_t *vd, uint64_t offset, uint64_t asize,
 		uint64_t num_entries = 0;
 
 		ASSERT3S(spa_config_held(spa, SCL_ALL, RW_READER), !=, 0);
-		ASSERT(rs->rs_asize > 0);
+		ASSERT3U(rs->rs_asize, >, 0);
 
 		/*
 		 * Note: As this function can be called from open context
@@ -1311,8 +1311,8 @@ vdev_indirect_io_start(zio_t *zio)
 		 * Note: this code can handle other kinds of writes,
 		 * but we don't expect them.
 		 */
-		ASSERT((zio->io_flags & (ZIO_FLAG_SELF_HEAL |
-		    ZIO_FLAG_RESILVER | ZIO_FLAG_INDUCE_DAMAGE)) != 0);
+		ASSERT3U((zio->io_flags & (ZIO_FLAG_SELF_HEAL |
+		    ZIO_FLAG_RESILVER | ZIO_FLAG_INDUCE_DAMAGE)), !=, 0);
 	}
 
 	vdev_indirect_remap(zio->io_vd, zio->io_offset, zio->io_size,

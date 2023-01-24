@@ -492,7 +492,8 @@ vdev_add_child(vdev_t *pvd, vdev_t *cvd)
 	uint64_t id = cvd->vdev_id;
 	vdev_t **newchild;
 
-	ASSERT(spa_config_held(cvd->vdev_spa, SCL_ALL, RW_WRITER) == SCL_ALL);
+	ASSERT3U(spa_config_held(cvd->vdev_spa, SCL_ALL, RW_WRITER), ==,
+	    SCL_ALL);
 	ASSERT3P(cvd->vdev_parent, ==, NULL);
 
 	cvd->vdev_parent = pvd;
@@ -536,13 +537,13 @@ vdev_remove_child(vdev_t *pvd, vdev_t *cvd)
 	int c;
 	uint_t id = cvd->vdev_id;
 
-	ASSERT(cvd->vdev_parent == pvd);
+	ASSERT3U(cvd->vdev_parent, ==, pvd);
 
 	if (pvd == NULL)
 		return;
 
-	ASSERT(id < pvd->vdev_children);
-	ASSERT(pvd->vdev_child[id] == cvd);
+	ASSERT3U(id, <, pvd->vdev_children);
+	ASSERT3U(pvd->vdev_child[id], ==, cvd);
 
 	pvd->vdev_child[id] = NULL;
 	cvd->vdev_parent = NULL;
@@ -580,7 +581,8 @@ vdev_compact_children(vdev_t *pvd)
 	int oldc = pvd->vdev_children;
 	int newc;
 
-	ASSERT(spa_config_held(pvd->vdev_spa, SCL_ALL, RW_WRITER) == SCL_ALL);
+	ASSERT3U(spa_config_held(pvd->vdev_spa, SCL_ALL, RW_WRITER), ==,
+	    SCL_ALL);
 
 	if (oldc == 0)
 		return;
@@ -736,7 +738,7 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	vdev_alloc_bias_t alloc_bias = VDEV_BIAS_NONE;
 	boolean_t top_level = (parent && !parent->vdev_parent);
 
-	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
+	ASSERT3U(spa_config_held(spa, SCL_ALL, RW_WRITER), ==, SCL_ALL);
 
 	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type) != 0)
 		return (SET_ERROR(EINVAL));
@@ -1051,7 +1053,7 @@ vdev_free(vdev_t *vd)
 		vdev_free(vd->vdev_child[c]);
 
 	ASSERT3P(vd->vdev_child, ==, NULL);
-	ASSERT(vd->vdev_guid_sum == vd->vdev_guid);
+	ASSERT3U(vd->vdev_guid_sum, ==, vd->vdev_guid);
 
 	if (vd->vdev_ops->vdev_op_fini != NULL)
 		vd->vdev_ops->vdev_op_fini(vd);
@@ -1303,7 +1305,7 @@ vdev_add_parent(vdev_t *cvd, vdev_ops_t *ops)
 	vdev_t *pvd = cvd->vdev_parent;
 	vdev_t *mvd;
 
-	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
+	ASSERT3U(spa_config_held(spa, SCL_ALL, RW_WRITER), ==, SCL_ALL);
 
 	mvd = vdev_alloc_common(spa, cvd->vdev_id, 0, ops);
 
@@ -1338,9 +1340,10 @@ vdev_remove_parent(vdev_t *cvd)
 	vdev_t *mvd = cvd->vdev_parent;
 	vdev_t *pvd = mvd->vdev_parent;
 
-	ASSERT(spa_config_held(cvd->vdev_spa, SCL_ALL, RW_WRITER) == SCL_ALL);
+	ASSERT3U(spa_config_held(cvd->vdev_spa, SCL_ALL, RW_WRITER), ==,
+	    SCL_ALL);
 
-	ASSERT(mvd->vdev_children == 1);
+	ASSERT3U(mvd->vdev_children, ==, 1);
 	ASSERT(mvd->vdev_ops == &vdev_mirror_ops ||
 	    mvd->vdev_ops == &vdev_replacing_ops ||
 	    mvd->vdev_ops == &vdev_spare_ops);
@@ -1462,7 +1465,7 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 
 	ASSERT0(vd->vdev_ishole);
 
-	ASSERT(oldc <= newc);
+	ASSERT3U(oldc, <=, newc);
 
 	mspp = vmem_zalloc(newc * sizeof (*mspp), KM_SLEEP);
 
@@ -1663,7 +1666,7 @@ vdev_probe_done(zio_t *zio)
 		}
 
 		mutex_enter(&vd->vdev_probe_lock);
-		ASSERT(vd->vdev_probe_zio == zio);
+		ASSERT3U(vd->vdev_probe_zio, ==, zio);
 		vd->vdev_probe_zio = NULL;
 		mutex_exit(&vd->vdev_probe_lock);
 
@@ -1840,8 +1843,8 @@ vdev_open_children_impl(vdev_t *vd, vdev_open_children_func_t *open_func)
 		if (tq == NULL || vdev_uses_zvols(vd)) {
 			cvd->vdev_open_error = vdev_open(cvd);
 		} else {
-			VERIFY(taskq_dispatch(tq, vdev_open_child,
-			    cvd, TQ_SLEEP) != TASKQID_INVALID);
+			VERIFY3U(taskq_dispatch(tq, vdev_open_child, cvd,
+			    TQ_SLEEP), !=, TASKQID_INVALID);
 		}
 
 		vd->vdev_nonrot &= cvd->vdev_nonrot;
@@ -2260,8 +2263,8 @@ vdev_validate(vdev_t *vd)
 		if (tq == NULL || vdev_uses_zvols(cvd)) {
 			vdev_validate_child(cvd);
 		} else {
-			VERIFY(taskq_dispatch(tq, vdev_validate_child, cvd,
-			    TQ_SLEEP) != TASKQID_INVALID);
+			VERIFY3U(taskq_dispatch(tq, vdev_validate_child, cvd,
+			    TQ_SLEEP), !=, TASKQID_INVALID);
 		}
 	}
 	if (tq != NULL) {
@@ -2535,7 +2538,7 @@ vdev_copy_path_strict(vdev_t *svd, vdev_t *dvd)
 static void
 vdev_copy_path_search(vdev_t *stvd, vdev_t *dvd)
 {
-	ASSERT(stvd->vdev_top == stvd);
+	ASSERT3U(stvd->vdev_top, ==, stvd);
 	ASSERT3U(stvd->vdev_id, ==, dvd->vdev_top->vdev_id);
 
 	for (uint64_t i = 0; i < dvd->vdev_children; i++) {
@@ -2570,8 +2573,8 @@ void
 vdev_copy_path_relaxed(vdev_t *srvd, vdev_t *drvd)
 {
 	uint64_t children = MIN(srvd->vdev_children, drvd->vdev_children);
-	ASSERT(srvd->vdev_ops == &vdev_root_ops);
-	ASSERT(drvd->vdev_ops == &vdev_root_ops);
+	ASSERT3U(srvd->vdev_ops, ==, &vdev_root_ops);
+	ASSERT3U(drvd->vdev_ops, ==, &vdev_root_ops);
 
 	for (uint64_t i = 0; i < children; i++) {
 		vdev_copy_path_search(srvd->vdev_child[i],
@@ -2655,7 +2658,8 @@ vdev_reopen(vdev_t *vd)
 {
 	spa_t *spa = vd->vdev_spa;
 
-	ASSERT(spa_config_held(spa, SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
+	ASSERT3U(spa_config_held(spa, SCL_STATE_ALL, RW_WRITER), ==,
+	    SCL_STATE_ALL);
 
 	/* set the reopening flag unless we're taking the vdev offline */
 	vd->vdev_reopening = !vd->vdev_offline;
@@ -2866,7 +2870,7 @@ vdev_dtl_dirty(vdev_t *vd, vdev_dtl_type_t t, uint64_t txg, uint64_t size)
 {
 	range_tree_t *rt = vd->vdev_dtl[t];
 
-	ASSERT(t < DTL_TYPES);
+	ASSERT3U(t, <, DTL_TYPES);
 	ASSERT3P(vd, !=, vd->vdev_spa->spa_root_vdev);
 	ASSERT(spa_writeable(vd->vdev_spa));
 
@@ -2882,7 +2886,7 @@ vdev_dtl_contains(vdev_t *vd, vdev_dtl_type_t t, uint64_t txg, uint64_t size)
 	range_tree_t *rt = vd->vdev_dtl[t];
 	boolean_t dirty = B_FALSE;
 
-	ASSERT(t < DTL_TYPES);
+	ASSERT3U(t, <, DTL_TYPES);
 	ASSERT3P(vd, !=, vd->vdev_spa->spa_root_vdev);
 
 	/*
@@ -3290,7 +3294,7 @@ vdev_zap_allocation_data(vdev_t *vd, dmu_tx_t *tx)
 	vdev_alloc_bias_t alloc_bias = vd->vdev_alloc_bias;
 	const char *string;
 
-	ASSERT(alloc_bias != VDEV_BIAS_NONE);
+	ASSERT3U(alloc_bias, !=, VDEV_BIAS_NONE);
 
 	string =
 	    (alloc_bias == VDEV_BIAS_LOG) ? VDEV_ALLOC_BIAS_LOG :
@@ -3323,7 +3327,7 @@ vdev_create_link_zap(vdev_t *vd, dmu_tx_t *tx)
 	uint64_t zap = zap_create(spa->spa_meta_objset, DMU_OTN_ZAP_METADATA,
 	    DMU_OT_NONE, 0, tx);
 
-	ASSERT(zap != 0);
+	ASSERT3U(zap, !=, 0);
 	VERIFY0(zap_add_int(spa->spa_meta_objset, spa->spa_all_vdev_zaps,
 	    zap, tx));
 
@@ -3439,7 +3443,8 @@ vdev_dtl_required(vdev_t *vd)
 	uint8_t cant_read = vd->vdev_cant_read;
 	boolean_t required;
 
-	ASSERT(spa_config_held(spa, SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
+	ASSERT3U(spa_config_held(spa, SCL_STATE_ALL, RW_WRITER), ==,
+	    SCL_STATE_ALL);
 
 	if (vd == spa->spa_root_vdev || vd == tvd)
 		return (B_TRUE);
@@ -3554,8 +3559,8 @@ vdev_load(vdev_t *vd)
 		if (tq == NULL || vdev_uses_zvols(cvd)) {
 			cvd->vdev_load_error = vdev_load(cvd);
 		} else {
-			VERIFY(taskq_dispatch(tq, vdev_load_child,
-			    cvd, TQ_SLEEP) != TASKQID_INVALID);
+			VERIFY3U(taskq_dispatch(tq, vdev_load_child, cvd,
+			    TQ_SLEEP), !=, TASKQID_INVALID);
 		}
 	}
 
@@ -3584,7 +3589,7 @@ vdev_load(vdev_t *vd)
 		    VDEV_TOP_ZAP_ALLOCATION_BIAS, 1, sizeof (bias_str),
 		    bias_str);
 		if (error == 0) {
-			ASSERT(vd->vdev_alloc_bias == VDEV_BIAS_NONE);
+			ASSERT3U(vd->vdev_alloc_bias, ==, VDEV_BIAS_NONE);
 			vd->vdev_alloc_bias = vdev_derive_alloc_bias(bias_str);
 		} else if (error != ENOENT) {
 			vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
@@ -3691,7 +3696,7 @@ vdev_load(vdev_t *vd)
 		error = vdev_checkpoint_sm_object(vd, &checkpoint_sm_obj);
 		if (error == 0 && checkpoint_sm_obj != 0) {
 			objset_t *mos = spa_meta_objset(vd->vdev_spa);
-			ASSERT(vd->vdev_asize != 0);
+			ASSERT3U(vd->vdev_asize, !=, 0);
 			ASSERT3P(vd->vdev_checkpoint_sm, ==, NULL);
 
 			error = space_map_open(&vd->vdev_checkpoint_sm,
@@ -3739,7 +3744,7 @@ vdev_load(vdev_t *vd)
 	error = vdev_obsolete_sm_object(vd, &obsolete_sm_object);
 	if (error == 0 && obsolete_sm_object != 0) {
 		objset_t *mos = vd->vdev_spa->spa_meta_objset;
-		ASSERT(vd->vdev_asize != 0);
+		ASSERT3U(vd->vdev_asize, !=, 0);
 		ASSERT3P(vd->vdev_obsolete_sm, ==, NULL);
 
 		if ((error = space_map_open(&vd->vdev_obsolete_sm, mos,
@@ -3927,7 +3932,7 @@ vdev_sync(vdev_t *vd, uint64_t txg)
 		ASSERT0(vd->vdev_indirect_config.vic_mapping_object);
 		vd->vdev_ms_array = dmu_object_alloc(spa->spa_meta_objset,
 		    DMU_OT_OBJECT_ARRAY, 0, DMU_OT_NONE, 0, tx);
-		ASSERT(vd->vdev_ms_array != 0);
+		ASSERT3U(vd->vdev_ms_array, !=, 0);
 		vdev_config_dirty(vd);
 	}
 
@@ -4321,7 +4326,8 @@ vdev_clear(spa_t *spa, vdev_t *vd)
 {
 	vdev_t *rvd = spa->spa_root_vdev;
 
-	ASSERT(spa_config_held(spa, SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
+	ASSERT3U(spa_config_held(spa, SCL_STATE_ALL, RW_WRITER), ==,
+	    SCL_STATE_ALL);
 
 	if (vd == NULL)
 		vd = rvd;
@@ -4439,7 +4445,7 @@ vdev_allocatable(vdev_t *vd)
 boolean_t
 vdev_accessible(vdev_t *vd, zio_t *zio)
 {
-	ASSERT(zio->io_vd == vd);
+	ASSERT3U(zio->io_vd, ==, vd);
 
 	if (vdev_is_dead(vd) || vd->vdev_remove_wanted)
 		return (B_FALSE);
@@ -4882,14 +4888,14 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 			uint64_t commit_txg = txg;
 			if (flags & ZIO_FLAG_SCAN_THREAD) {
 				ASSERT(flags & ZIO_FLAG_IO_REPAIR);
-				ASSERT(spa_sync_pass(spa) == 1);
+				ASSERT3U(spa_sync_pass(spa), ==, 1);
 				vdev_dtl_dirty(vd, DTL_SCRUB, txg, 1);
 				commit_txg = spa_syncing_txg(spa);
 			} else if (spa->spa_claiming) {
 				ASSERT(flags & ZIO_FLAG_IO_REPAIR);
 				commit_txg = spa_first_txg(spa);
 			}
-			ASSERT(commit_txg >= spa_syncing_txg(spa));
+			ASSERT3U(commit_txg, >=, spa_syncing_txg(spa));
 			if (vdev_dtl_contains(vd, DTL_MISSING, txg, 1))
 				return;
 			for (pvd = vd; pvd != rvd; pvd = pvd->vdev_parent)
@@ -4988,7 +4994,7 @@ vdev_config_dirty(vdev_t *vd)
 			/*
 			 * We're being removed.  There's nothing more to do.
 			 */
-			ASSERT(sav->sav_sync == B_TRUE);
+			ASSERT3U(sav->sav_sync, ==, B_TRUE);
 			return;
 		}
 
@@ -5000,7 +5006,7 @@ vdev_config_dirty(vdev_t *vd)
 			    ZPOOL_CONFIG_SPARES, &aux, &naux));
 		}
 
-		ASSERT(c < naux);
+		ASSERT3U(c, <, naux);
 
 		/*
 		 * Setting the nvlist in the middle if the array is a little
@@ -5374,8 +5380,9 @@ vdev_log_state_valid(vdev_t *vd)
 void
 vdev_expand(vdev_t *vd, uint64_t txg)
 {
-	ASSERT(vd->vdev_top == vd);
-	ASSERT(spa_config_held(vd->vdev_spa, SCL_ALL, RW_WRITER) == SCL_ALL);
+	ASSERT3U(vd->vdev_top, ==, vd);
+	ASSERT3U(spa_config_held(vd->vdev_spa, SCL_ALL, RW_WRITER), ==,
+	    SCL_ALL);
 	ASSERT(vdev_is_concrete(vd));
 
 	vdev_set_deflate_ratio(vd);
@@ -5694,7 +5701,7 @@ vdev_props_set_sync(void *arg, dmu_tx_t *tx)
 			proptype = vdev_prop_get_type(prop);
 
 			if (nvpair_type(elem) == DATA_TYPE_STRING) {
-				ASSERT(proptype == PROP_TYPE_STRING);
+				ASSERT3U(proptype, ==, PROP_TYPE_STRING);
 				strval = fnvpair_value_string(elem);
 				VERIFY0(zap_update(mos, objid, propname,
 				    1, strlen(strval) + 1, strval, tx));
@@ -5877,7 +5884,7 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 	} else {
 		return (SET_ERROR(EINVAL));
 	}
-	ASSERT(objid != 0);
+	ASSERT3U(objid, !=, 0);
 
 	mutex_enter(&spa->spa_props_lock);
 

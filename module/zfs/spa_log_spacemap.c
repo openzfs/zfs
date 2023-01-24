@@ -559,7 +559,7 @@ spa_log_sm_decrement_mscount(spa_t *spa, uint64_t txg)
 		return;
 	}
 
-	ASSERT(sls->sls_mscount > 0);
+	ASSERT3U(sls->sls_mscount, >, 0);
 	sls->sls_mscount--;
 }
 
@@ -638,7 +638,7 @@ spa_estimate_metaslabs_to_flush(spa_t *spa)
 {
 	ASSERT(spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP));
 	ASSERT3U(spa_sync_pass(spa), ==, 1);
-	ASSERT(spa_log_sm_blocklimit(spa) != 0);
+	ASSERT3U(spa_log_sm_blocklimit(spa), !=, 0);
 
 	/*
 	 * This variable contains the incoming rate that will be projected
@@ -887,7 +887,7 @@ spa_sync_close_syncing_log_sm(spa_t *spa)
 	 * in spa_metaslabs_by_flushed is loading and we were
 	 * not able to flush any metaslabs the current TXG.
 	 */
-	ASSERT(sls->sls_nblocks != 0);
+	ASSERT3U(sls->sls_nblocks, !=, 0);
 
 	spa_log_summary_add_incoming_blocks(spa, sls->sls_nblocks);
 	spa_log_summary_verify_counts(spa);

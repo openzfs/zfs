@@ -1389,8 +1389,8 @@ zil_lwb_flush_wait_all(zilog_t *zilog, uint64_t txg)
 	lwb_t *lwb = list_head(&zilog->zl_lwb_list);
 	while (lwb != NULL && lwb->lwb_max_txg <= txg) {
 		if (lwb->lwb_issued_txg <= txg) {
-			ASSERT(lwb->lwb_state != LWB_STATE_ISSUED);
-			ASSERT(lwb->lwb_state != LWB_STATE_WRITE_DONE);
+			ASSERT3U(lwb->lwb_state, !=, LWB_STATE_ISSUED);
+			ASSERT3U(lwb->lwb_state, !=, LWB_STATE_WRITE_DONE);
 			IMPLY(lwb->lwb_issued_txg > 0,
 			    lwb->lwb_state == LWB_STATE_FLUSH_DONE);
 		}
@@ -1429,10 +1429,10 @@ zil_lwb_write_done(zio_t *zio)
 
 	ASSERT3S(spa_config_held(spa, SCL_STATE, RW_READER), !=, 0);
 
-	ASSERT(BP_GET_COMPRESS(zio->io_bp) == ZIO_COMPRESS_OFF);
-	ASSERT(BP_GET_TYPE(zio->io_bp) == DMU_OT_INTENT_LOG);
+	ASSERT3U(BP_GET_COMPRESS(zio->io_bp), ==, ZIO_COMPRESS_OFF);
+	ASSERT3U(BP_GET_TYPE(zio->io_bp), ==, DMU_OT_INTENT_LOG);
 	ASSERT0(BP_GET_LEVEL(zio->io_bp));
-	ASSERT(BP_GET_BYTEORDER(zio->io_bp) == ZFS_HOST_BYTEORDER);
+	ASSERT3U(BP_GET_BYTEORDER(zio->io_bp), ==, ZFS_HOST_BYTEORDER);
 	ASSERT0(BP_IS_GANG(zio->io_bp));
 	ASSERT0(BP_IS_HOLE(zio->io_bp));
 	ASSERT0(BP_GET_FILL(zio->io_bp));
@@ -1691,7 +1691,7 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 		bp = &zilc->zc_next_blk;
 	}
 
-	ASSERT(lwb->lwb_nused <= lwb->lwb_sz);
+	ASSERT3U(lwb->lwb_nused, <=, lwb->lwb_sz);
 
 	/*
 	 * Allocate the next block and save its address in this block
@@ -2128,7 +2128,7 @@ zil_remove_async(zilog_t *zilog, uint64_t oid)
 	list_t clean_list;
 	itx_t *itx;
 
-	ASSERT(oid != 0);
+	ASSERT3U(oid, !=, 0);
 	list_create(&clean_list, sizeof (itx_t), offsetof(itx_t, itx_node));
 
 	if (spa_freeze_txg(zilog->zl_spa) != UINT64_MAX) /* ziltest support */
@@ -3290,7 +3290,7 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 	ASSERT0(zilog->zl_stop_sync);
 
 	if (*replayed_seq != 0) {
-		ASSERT(zh->zh_replay_seq < *replayed_seq);
+		ASSERT3U(zh->zh_replay_seq, <, *replayed_seq);
 		zh->zh_replay_seq = *replayed_seq;
 		*replayed_seq = 0;
 	}
@@ -3754,7 +3754,7 @@ zil_resume(void *cookie)
 	zilog_t *zilog = dmu_objset_zil(os);
 
 	mutex_enter(&zilog->zl_lock);
-	ASSERT(zilog->zl_suspend != 0);
+	ASSERT3U(zilog->zl_suspend, !=, 0);
 	zilog->zl_suspend--;
 	mutex_exit(&zilog->zl_lock);
 	dsl_dataset_long_rele(dmu_objset_ds(os), suspend_tag);

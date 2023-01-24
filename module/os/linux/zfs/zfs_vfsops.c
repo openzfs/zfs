@@ -687,7 +687,7 @@ zfsvfs_init(zfsvfs_t *zfsvfs, objset_t *os)
 	    &zfsvfs->z_root);
 	if (error != 0)
 		return (error);
-	ASSERT(zfsvfs->z_root != 0);
+	ASSERT3U(zfsvfs->z_root, !=, 0);
 
 	error = zap_lookup(os, MASTER_NODE_OBJ, ZFS_UNLINKED_SET, 8, 1,
 	    &zfsvfs->z_unlinkedobj);
@@ -2147,7 +2147,7 @@ zfs_get_vfs_flag_unmounted(objset_t *os)
 	zfsvfs_t *zfvp;
 	boolean_t unmounted = B_FALSE;
 
-	ASSERT(dmu_objset_type(os) == DMU_OST_ZFS);
+	ASSERT3U(dmu_objset_type(os), ==, DMU_OST_ZFS);
 
 	mutex_enter(&os->os_user_ptr_lock);
 	zfvp = dmu_objset_get_user(os);

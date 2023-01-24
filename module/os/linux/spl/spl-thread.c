@@ -48,7 +48,7 @@ thread_generic_wrapper(void *arg)
 	void (*func)(void *);
 	void *args;
 
-	ASSERT(tp->tp_magic == TP_MAGIC);
+	ASSERT3U(tp->tp_magic, ==, TP_MAGIC);
 	func = tp->tp_func;
 	args = tp->tp_args;
 	set_current_state(tp->tp_state);

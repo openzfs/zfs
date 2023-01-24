@@ -236,8 +236,8 @@ zfs_rangelock_proxify(avl_tree_t *tree, zfs_locked_range_t *lr)
 		return (lr); /* already a proxy */
 
 	ASSERT3U(lr->lr_count, ==, 1);
-	ASSERT(lr->lr_write_wanted == B_FALSE);
-	ASSERT(lr->lr_read_wanted == B_FALSE);
+	ASSERT3U(lr->lr_write_wanted, ==, B_FALSE);
+	ASSERT3U(lr->lr_read_wanted, ==, B_FALSE);
 	avl_remove(tree, lr);
 	lr->lr_count = 0;
 
@@ -267,8 +267,8 @@ zfs_rangelock_split(avl_tree_t *tree, zfs_locked_range_t *lr, uint64_t off)
 	ASSERT3U(lr->lr_length, >, 1);
 	ASSERT3U(off, >, lr->lr_offset);
 	ASSERT3U(off, <, lr->lr_offset + lr->lr_length);
-	ASSERT(lr->lr_write_wanted == B_FALSE);
-	ASSERT(lr->lr_read_wanted == B_FALSE);
+	ASSERT3U(lr->lr_write_wanted, ==, B_FALSE);
+	ASSERT3U(lr->lr_read_wanted, ==, B_FALSE);
 
 	/* create the rear proxy range lock */
 	rear = kmem_alloc(sizeof (zfs_locked_range_t), KM_SLEEP);
@@ -295,7 +295,7 @@ zfs_rangelock_new_proxy(avl_tree_t *tree, uint64_t off, uint64_t len)
 {
 	zfs_locked_range_t *lr;
 
-	ASSERT(len != 0);
+	ASSERT3U(len, !=, 0);
 	lr = kmem_alloc(sizeof (zfs_locked_range_t), KM_SLEEP);
 	lr->lr_offset = off;
 	lr->lr_length = len;

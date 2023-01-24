@@ -1578,7 +1578,7 @@ zfs_zero_partial_page(znode_t *zp, uint64_t start, uint64_t len)
 	int64_t	off;
 	void *pb;
 
-	ASSERT((start & PAGE_MASK) == ((start + len - 1) & PAGE_MASK));
+	ASSERT3U((start & PAGE_MASK), ==, ((start + len - 1) & PAGE_MASK));
 
 	off = start & (PAGE_SIZE - 1);
 	start &= PAGE_MASK;
@@ -1866,7 +1866,7 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 		uint64_t val;
 		char *name;
 
-		ASSERT(nvpair_type(elem) == DATA_TYPE_UINT64);
+		ASSERT3U(nvpair_type(elem), ==, DATA_TYPE_UINT64);
 		VERIFY0(nvpair_value_uint64(elem, &val));
 		name = nvpair_name(elem);
 		if (strcmp(name, zfs_prop_to_name(ZFS_PROP_VERSION)) == 0) {
@@ -1881,7 +1881,7 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 		else if (strcmp(name, zfs_prop_to_name(ZFS_PROP_CASE)) == 0)
 			sense = val;
 	}
-	ASSERT(version != 0);
+	ASSERT3U(version, !=, 0);
 	error = zap_update(os, moid, ZPL_VERSION_STR, 8, 1, &version, tx);
 	ASSERT0(error);
 
@@ -2171,7 +2171,7 @@ zfs_obj_to_path_impl(objset_t *osp, uint64_t obj, sa_handle_t *hdl,
 
 		complen = strlen(component);
 		path -= complen;
-		ASSERT(path >= buf);
+		ASSERT3U(path, >=, buf);
 		memcpy(path, component, complen);
 		obj = pobj;
 

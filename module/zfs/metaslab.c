@@ -867,7 +867,7 @@ metaslab_group_destroy(metaslab_group_t *mg)
 	 * either because we never activated in the first place or
 	 * because we're done, and possibly removing the vdev.
 	 */
-	ASSERT(mg->mg_activation_count <= 0);
+	ASSERT3U(mg->mg_activation_count, <=, 0);
 
 	taskq_destroy(mg->mg_taskq);
 	avl_destroy(&mg->mg_metaslab_tree);
@@ -894,7 +894,7 @@ metaslab_group_activate(metaslab_group_t *mg)
 
 	ASSERT3P(mg->mg_prev, ==, NULL);
 	ASSERT3P(mg->mg_next, ==, NULL);
-	ASSERT(mg->mg_activation_count <= 0);
+	ASSERT3U(mg->mg_activation_count, <=, 0);
 
 	if (++mg->mg_activation_count <= 0)
 		return;
@@ -938,10 +938,10 @@ metaslab_group_passivate(metaslab_group_t *mg)
 
 	if (--mg->mg_activation_count != 0) {
 		for (int i = 0; i < spa->spa_alloc_count; i++)
-			ASSERT(mc->mc_allocator[i].mca_rotor != mg);
+			ASSERT3U(mc->mc_allocator[i].mca_rotor, !=, mg);
 		ASSERT3P(mg->mg_prev, ==, NULL);
 		ASSERT3P(mg->mg_next, ==, NULL);
-		ASSERT(mg->mg_activation_count < 0);
+		ASSERT3U(mg->mg_activation_count, <, 0);
 		return;
 	}
 
@@ -1135,7 +1135,7 @@ metaslab_group_remove(metaslab_group_t *mg, metaslab_t *msp)
 	mutex_exit(&msp->ms_lock);
 
 	mutex_enter(&mg->mg_lock);
-	ASSERT(msp->ms_group == mg);
+	ASSERT3U(msp->ms_group, ==, mg);
 	avl_remove(&mg->mg_metaslab_tree, msp);
 
 	metaslab_class_t *mc = msp->ms_group->mg_class;
@@ -1154,7 +1154,7 @@ metaslab_group_sort_impl(metaslab_group_t *mg, metaslab_t *msp, uint64_t weight)
 {
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 	ASSERT(MUTEX_HELD(&mg->mg_lock));
-	ASSERT(msp->ms_group == mg);
+	ASSERT3U(msp->ms_group, ==, mg);
 
 	avl_remove(&mg->mg_metaslab_tree, msp);
 	msp->ms_weight = weight;
@@ -2628,7 +2628,7 @@ metaslab_space_update(vdev_t *vd, metaslab_class_t *mc, int64_t alloc_delta,
 	vdev_space_update(vd, alloc_delta, defer_delta, space_delta);
 
 	ASSERT3P(vd->vdev_spa->spa_root_vdev, ==, vd->vdev_parent);
-	ASSERT(vd->vdev_ms_count != 0);
+	ASSERT3U(vd->vdev_ms_count, !=, 0);
 
 	metaslab_class_space_update(mc, alloc_delta, defer_delta, space_delta,
 	    vdev_deflated_space(vd, space_delta));
@@ -3443,7 +3443,7 @@ metaslab_passivate(metaslab_t *msp, uint64_t weight)
 	    range_tree_space(msp->ms_allocatable) == 0);
 	ASSERT0(weight & METASLAB_ACTIVE_MASK);
 
-	ASSERT(msp->ms_activation_weight != 0);
+	ASSERT3U(msp->ms_activation_weight, !=, 0);
 	msp->ms_activation_weight = 0;
 	metaslab_passivate_allocator(msp->ms_group, msp, weight);
 	ASSERT0(msp->ms_weight & METASLAB_ACTIVE_MASK);
@@ -3529,8 +3529,8 @@ metaslab_group_preload(metaslab_group_t *mg)
 			continue;
 		}
 
-		VERIFY(taskq_dispatch(mg->mg_taskq, metaslab_preload,
-		    msp, TQ_SLEEP) != TASKQID_INVALID);
+		VERIFY3U(taskq_dispatch(mg->mg_taskq, metaslab_preload, msp,
+		    TQ_SLEEP), !=, TASKQID_INVALID);
 	}
 	mutex_exit(&mg->mg_lock);
 }
@@ -3764,7 +3764,7 @@ metaslab_unflushed_bump(metaslab_t *msp, dmu_tx_t *tx, boolean_t dirty)
 	spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
 	ASSERT3P(spa_syncing_log_sm(spa), !=, NULL);
 	ASSERT3P(msp->ms_sm, !=, NULL);
-	ASSERT(metaslab_unflushed_txg(msp) != 0);
+	ASSERT3U(metaslab_unflushed_txg(msp), !=, 0);
 	ASSERT3P(avl_find(&spa->spa_metaslabs_by_flushed, msp, NULL), ==, msp);
 	ASSERT(range_tree_is_empty(msp->ms_unflushed_allocs));
 	ASSERT(range_tree_is_empty(msp->ms_unflushed_frees));
@@ -3838,7 +3838,7 @@ metaslab_flush(metaslab_t *msp, dmu_tx_t *tx)
 	ASSERT(spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP));
 
 	ASSERT3P(msp->ms_sm, !=, NULL);
-	ASSERT(metaslab_unflushed_txg(msp) != 0);
+	ASSERT3U(metaslab_unflushed_txg(msp), !=, 0);
 	ASSERT3P(avl_find(&spa->spa_metaslabs_by_flushed, msp, NULL), !=,
 	    NULL);
 
@@ -5175,7 +5175,7 @@ top:
 	do {
 		boolean_t allocatable;
 
-		ASSERT(mg->mg_activation_count == 1);
+		ASSERT3U(mg->mg_activation_count, ==, 1);
 		vd = mg->mg_vd;
 
 		/*
@@ -5221,7 +5221,7 @@ top:
 			goto next;
 		}
 
-		ASSERT(mg->mg_class == mc);
+		ASSERT3U(mg->mg_class, ==, mc);
 
 		uint64_t asize = vdev_psize_to_asize(vd, psize);
 		ASSERT0(P2PHASE(asize, 1ULL << vd->vdev_ashift));
@@ -5845,7 +5845,7 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
 		}
 	}
 	ASSERT0(error);
-	ASSERT(BP_GET_NDVAS(bp) == ndvas);
+	ASSERT3U(BP_GET_NDVAS(bp), ==, ndvas);
 
 	spa_config_exit(spa, SCL_ALLOC, FTAG);
 
@@ -5948,7 +5948,7 @@ metaslab_fastwrite_mark(spa_t *spa, const blkptr_t *bp)
 
 	ASSERT0(BP_IS_HOLE(bp));
 	ASSERT0(BP_IS_EMBEDDED(bp));
-	ASSERT(psize > 0);
+	ASSERT3U(psize, >, 0);
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 
@@ -5972,7 +5972,7 @@ metaslab_fastwrite_unmark(spa_t *spa, const blkptr_t *bp)
 
 	ASSERT0(BP_IS_HOLE(bp));
 	ASSERT0(BP_IS_EMBEDDED(bp));
-	ASSERT(psize > 0);
+	ASSERT3U(psize, >, 0);
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 

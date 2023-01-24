@@ -69,8 +69,8 @@ ddt_zap_lookup(objset_t *os, uint64_t object, ddt_entry_t *dde)
 	if (error)
 		goto out;
 
-	ASSERT(one == 1);
-	ASSERT(csize <= (sizeof (dde->dde_phys) + 1));
+	ASSERT3U(one, ==, 1);
+	ASSERT3U(csize, <=, sizeof (dde->dde_phys) + 1);
 
 	error = zap_lookup_uint64(os, object, (uint64_t *)&dde->dde_key,
 	    DDT_KEY_WORDS, 1, csize, cbuf);

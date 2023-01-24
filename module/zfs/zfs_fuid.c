@@ -110,7 +110,7 @@ zfs_fuid_table_load(objset_t *os, uint64_t fuid_obj, avl_tree_t *idx_tree,
 	dmu_buf_t *db;
 	uint64_t fuid_size;
 
-	ASSERT(fuid_obj != 0);
+	ASSERT3U(fuid_obj, !=, 0);
 	VERIFY0(dmu_bonus_hold(os, fuid_obj, FTAG, &db));
 	fuid_size = *(uint64_t *)db->db_data;
 	dmu_buf_rele(db, FTAG);

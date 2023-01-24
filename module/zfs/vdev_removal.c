@@ -666,7 +666,7 @@ free_from_removing_vdev(vdev_t *vd, uint64_t offset, uint64_t size)
 	uint64_t txg = spa_syncing_txg(spa);
 	uint64_t max_offset_yet = 0;
 
-	ASSERT(vd->vdev_indirect_config.vic_mapping_object != 0);
+	ASSERT3U(vd->vdev_indirect_config.vic_mapping_object, !=, 0);
 	ASSERT3U(vd->vdev_indirect_config.vic_mapping_object, ==,
 	    vdev_indirect_mapping_object(vim));
 	ASSERT3U(vd->vdev_id, ==, svr->svr_vdev_id);
@@ -902,7 +902,7 @@ vdev_mapping_sync(void *arg, dmu_tx_t *tx)
 	uint64_t txg = dmu_tx_get_txg(tx);
 	vdev_indirect_mapping_t *vim = vd->vdev_indirect_mapping;
 
-	ASSERT(vic->vic_mapping_object != 0);
+	ASSERT3U(vic->vic_mapping_object, !=, 0);
 	ASSERT3U(txg, ==, spa_syncing_txg(spa));
 
 	vdev_indirect_mapping_add_entries(vim,
@@ -1607,7 +1607,7 @@ spa_vdev_remove_thread(void *arg)
 	ASSERT3P(vd->vdev_ops, !=, &vdev_indirect_ops);
 	ASSERT(vdev_is_concrete(vd));
 	ASSERT(vd->vdev_removing);
-	ASSERT(vd->vdev_indirect_config.vic_mapping_object != 0);
+	ASSERT3U(vd->vdev_indirect_config.vic_mapping_object, !=, 0);
 	ASSERT3P(vim, !=, NULL);
 
 	mutex_init(&vca.vca_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -2035,7 +2035,7 @@ vdev_remove_make_hole_and_free(vdev_t *vd)
 	vdev_t *rvd = spa->spa_root_vdev;
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
-	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
+	ASSERT3U(spa_config_held(spa, SCL_ALL, RW_WRITER), ==, SCL_ALL);
 
 	vdev_free(vd);
 
@@ -2139,7 +2139,7 @@ spa_vdev_remove_log(vdev_t *vd, uint64_t *txg)
 	sysevent_t *ev = spa_event_create(spa, vd, NULL,
 	    ESC_ZFS_VDEV_REMOVE_DEV);
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
-	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
+	ASSERT3U(spa_config_held(spa, SCL_ALL, RW_WRITER), ==, SCL_ALL);
 
 	/* The top ZAP should have been destroyed by vdev_remove_empty. */
 	ASSERT0(vd->vdev_top_zap);

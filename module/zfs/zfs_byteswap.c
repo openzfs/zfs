@@ -157,7 +157,7 @@ zfs_znode_byteswap(void *buf, size_t size)
 {
 	znode_phys_t *zp = buf;
 
-	ASSERT(size >= sizeof (znode_phys_t));
+	ASSERT3U(size, >=, sizeof (znode_phys_t));
 
 	zp->zp_crtime[0] = BSWAP_64(zp->zp_crtime[0]);
 	zp->zp_crtime[1] = BSWAP_64(zp->zp_crtime[1]);

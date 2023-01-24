@@ -173,8 +173,8 @@ zap_table_grow(zap_t *zap, zap_table_phys_t *tbl,
 	/* hepb = half the number of entries in a block */
 
 	ASSERT(RW_WRITE_HELD(&zap->zap_rwlock));
-	ASSERT(tbl->zt_blk != 0);
-	ASSERT(tbl->zt_numblks > 0);
+	ASSERT3U(tbl->zt_blk, !=, 0);
+	ASSERT3U(tbl->zt_numblks, >, 0);
 
 	if (tbl->zt_nextblk != 0) {
 		newblk = tbl->zt_nextblk;
@@ -246,7 +246,7 @@ zap_table_store(zap_t *zap, zap_table_phys_t *tbl, uint64_t idx, uint64_t val,
 	int bs = FZAP_BLOCK_SHIFT(zap);
 
 	ASSERT(RW_LOCK_HELD(&zap->zap_rwlock));
-	ASSERT(tbl->zt_blk != 0);
+	ASSERT3U(tbl->zt_blk, !=, 0);
 
 	dprintf("storing %llx at index %llx\n", (u_longlong_t)val,
 	    (u_longlong_t)idx);
@@ -471,7 +471,7 @@ zap_put_leaf(zap_leaf_t *l)
 static zap_leaf_t *
 zap_open_leaf(uint64_t blkid, dmu_buf_t *db)
 {
-	ASSERT(blkid != 0);
+	ASSERT3U(blkid, !=, 0);
 
 	zap_leaf_t *l = kmem_zalloc(sizeof (zap_leaf_t), KM_SLEEP);
 	rw_init(&l->l_rwlock, NULL, RW_DEFAULT, NULL);
@@ -543,7 +543,7 @@ zap_get_leaf_byblk(zap_t *zap, uint64_t blkid, dmu_tx_t *tx, krw_t lt,
 	ASSERT3U(db->db_object, ==, zap->zap_object);
 	ASSERT3U(db->db_offset, ==, blkid << bs);
 	ASSERT3U(db->db_size, ==, 1 << bs);
-	ASSERT(blkid != 0);
+	ASSERT3U(blkid, !=, 0);
 
 	zap_leaf_t *l = dmu_buf_get_user(db);
 
@@ -1007,7 +1007,7 @@ zap_create_link_dnsize(objset_t *os, dmu_object_type_t ot, uint64_t parent_obj,
 	uint64_t new_obj;
 
 	new_obj = zap_create_dnsize(os, ot, DMU_OT_NONE, 0, dnodesize, tx);
-	VERIFY(new_obj != 0);
+	VERIFY3U(new_obj, !=, 0);
 	VERIFY0(zap_add(os, parent_obj, name, sizeof (uint64_t), 1, &new_obj,
 	    tx));
 

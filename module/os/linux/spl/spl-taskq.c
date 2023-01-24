@@ -298,7 +298,7 @@ taskq_lowest_id(taskq_t *tq)
 	if (!list_empty(&tq->tq_active_list)) {
 		tqt = list_entry(tq->tq_active_list.next, taskq_thread_t,
 		    tqt_active_list);
-		ASSERT(tqt->tqt_id != TASKQID_INVALID);
+		ASSERT3U(tqt->tqt_id, !=, TASKQID_INVALID);
 		lowest_id = MIN(lowest_id, tqt->tqt_id);
 	}
 
@@ -585,7 +585,7 @@ taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 		goto out;
 
 	/* Do not queue the task unless there is idle thread for it */
-	ASSERT(tq->tq_nactive <= tq->tq_nthreads);
+	ASSERT3U(tq->tq_nactive, <=, tq->tq_nthreads);
 	if ((flags & TQ_NOQUEUE) && (tq->tq_nactive == tq->tq_nthreads)) {
 		/* Dynamic taskq may be able to spawn another thread */
 		if (!(tq->tq_flags & TASKQ_DYNAMIC) ||

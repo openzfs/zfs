@@ -724,7 +724,7 @@ avl_remove(avl_tree_t *tree, void *data)
 	 * Here we know "delete" is at least partially a leaf node. It can
 	 * be easily removed from the tree.
 	 */
-	ASSERT(tree->avl_numnodes > 0);
+	ASSERT3U(tree->avl_numnodes, >, 0);
 	--tree->avl_numnodes;
 	parent = AVL_XPARENT(delete);
 	which_child = AVL_XCHILD(delete);
@@ -873,8 +873,8 @@ avl_create(avl_tree_t *tree, int (*compar) (const void *, const void *),
 {
 	ASSERT(tree);
 	ASSERT(compar);
-	ASSERT(size > 0);
-	ASSERT(size >= offset + sizeof (avl_node_t));
+	ASSERT3U(size, >, 0);
+	ASSERT3U(size, >=, offset + sizeof (avl_node_t));
 #ifdef _LP64
 	ASSERT0((offset & 0x7));
 #endif
@@ -969,7 +969,7 @@ avl_destroy_nodes(avl_tree_t *tree, void **cookie)
 	parent = (avl_node_t *)((uintptr_t)(*cookie) & ~CHILDBIT);
 	if (parent == NULL) {
 		if (tree->avl_root != NULL) {
-			ASSERT(tree->avl_numnodes == 1);
+			ASSERT3U(tree->avl_numnodes, ==, 1);
 			tree->avl_root = NULL;
 			tree->avl_numnodes = 0;
 		}
@@ -981,7 +981,7 @@ avl_destroy_nodes(avl_tree_t *tree, void **cookie)
 	 */
 	child = (uintptr_t)(*cookie) & CHILDBIT;
 	parent->avl_child[child] = NULL;
-	ASSERT(tree->avl_numnodes > 1);
+	ASSERT3U(tree->avl_numnodes, >, 1);
 	--tree->avl_numnodes;
 
 	/*
@@ -1008,13 +1008,13 @@ avl_destroy_nodes(avl_tree_t *tree, void **cookie)
 	 */
 check_right_side:
 	if (node->avl_child[1] != NULL) {
-		ASSERT(AVL_XBALANCE(node) == 1);
+		ASSERT3U(AVL_XBALANCE(node), ==, 1);
 		parent = node;
 		node = node->avl_child[1];
 		ASSERT(node->avl_child[0] == NULL &&
 		    node->avl_child[1] == NULL);
 	} else {
-		ASSERT(AVL_XBALANCE(node) <= 0);
+		ASSERT3U(AVL_XBALANCE(node), <=, 0);
 	}
 
 done:

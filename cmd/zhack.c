@@ -202,7 +202,7 @@ dump_obj(objset_t *os, uint64_t obj, const char *name)
 	    zap_cursor_retrieve(&zc, &za) == 0;
 	    zap_cursor_advance(&zc)) {
 		if (za.za_integer_length == 8) {
-			ASSERT(za.za_num_integers == 1);
+			ASSERT3U(za.za_num_integers, ==, 1);
 			(void) printf("\t%s = %llu\n",
 			    za.za_name, (u_longlong_t)za.za_first_integer);
 		} else {

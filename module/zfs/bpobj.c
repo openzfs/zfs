@@ -50,7 +50,7 @@ bpobj_alloc_empty(objset_t *os, int blocksize, dmu_tx_t *tx)
 			    &dp->dp_empty_bpobj, tx));
 		}
 		spa_feature_incr(spa, SPA_FEATURE_EMPTY_BPOBJ, tx);
-		ASSERT(dp->dp_empty_bpobj != 0);
+		ASSERT3U(dp->dp_empty_bpobj, !=, 0);
 		return (dp->dp_empty_bpobj);
 	} else {
 		return (bpobj_alloc(os, blocksize, tx));
@@ -101,7 +101,7 @@ bpobj_free(objset_t *os, uint64_t obj, dmu_tx_t *tx)
 	int epb;
 	dmu_buf_t *dbuf = NULL;
 
-	ASSERT(obj != dmu_objset_pool(os)->dp_empty_bpobj);
+	ASSERT3U(obj, !=, dmu_objset_pool(os)->dp_empty_bpobj);
 	VERIFY3U(0, ==, bpobj_open(&bpo, os, obj));
 
 	mutex_enter(&bpo.bpo_lock);
@@ -160,7 +160,7 @@ bpobj_open(bpobj_t *bpo, objset_t *os, uint64_t object)
 
 	ASSERT3P(bpo->bpo_dbuf, ==, NULL);
 	ASSERT3P(bpo->bpo_phys, ==, NULL);
-	ASSERT(object != 0);
+	ASSERT3U(object, !=, 0);
 	ASSERT3U(doi.doi_type, ==, DMU_OT_BPOBJ);
 	ASSERT3U(doi.doi_bonus_type, ==, DMU_OT_BPOBJ_HDR);
 
@@ -651,10 +651,11 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 	boolean_t copy_bps = B_TRUE;
 
 	ASSERT(bpobj_is_open(bpo));
-	ASSERT(subobj != 0);
+	ASSERT3U(subobj, !=, 0);
 	ASSERT(bpo->bpo_havesubobj);
 	ASSERT(bpo->bpo_havecomp);
-	ASSERT(bpo->bpo_object != dmu_objset_pool(bpo->bpo_os)->dp_empty_bpobj);
+	ASSERT3U(bpo->bpo_object, !=,
+	    dmu_objset_pool(bpo->bpo_os)->dp_empty_bpobj);
 
 	if (subobj == dmu_objset_pool(bpo->bpo_os)->dp_empty_bpobj) {
 		bpobj_decr_empty(bpo->bpo_os, tx);
@@ -790,7 +791,8 @@ bpobj_enqueue(bpobj_t *bpo, const blkptr_t *bp, boolean_t bp_freed,
 
 	ASSERT(bpobj_is_open(bpo));
 	ASSERT0(BP_IS_HOLE(bp));
-	ASSERT(bpo->bpo_object != dmu_objset_pool(bpo->bpo_os)->dp_empty_bpobj);
+	ASSERT3U(bpo->bpo_object, !=,
+	    dmu_objset_pool(bpo->bpo_os)->dp_empty_bpobj);
 
 	if (BP_IS_EMBEDDED(bp)) {
 		/*

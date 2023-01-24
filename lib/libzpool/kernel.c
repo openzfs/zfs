@@ -938,7 +938,7 @@ kmem_vasprintf(const char *fmt, va_list adx)
 	va_list adx_copy;
 
 	va_copy(adx_copy, adx);
-	VERIFY(vasprintf(&buf, fmt, adx_copy) != -1);
+	VERIFY3U(vasprintf(&buf, fmt, adx_copy), !=, -1);
 	va_end(adx_copy);
 
 	return (buf);
@@ -951,7 +951,7 @@ kmem_asprintf(const char *fmt, ...)
 	va_list adx;
 
 	va_start(adx, fmt);
-	VERIFY(vasprintf(&buf, fmt, adx) != -1);
+	VERIFY3U(vasprintf(&buf, fmt, adx), !=, -1);
 	va_end(adx);
 
 	return (buf);

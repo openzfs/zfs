@@ -83,13 +83,13 @@ zap_hash(zap_name_t *zn)
 		h = *(uint64_t *)zn->zn_key_orig;
 	} else {
 		h = zap->zap_salt;
-		ASSERT(h != 0);
-		ASSERT(zfs_crc64_table[128] == ZFS_CRC64_POLY);
+		ASSERT3U(h, !=, 0);
+		ASSERT3U(zfs_crc64_table[128], ==, ZFS_CRC64_POLY);
 
 		if (zap_getflags(zap) & ZAP_FLAG_UINT64_KEY) {
 			const uint64_t *wp = zn->zn_key_norm;
 
-			ASSERT(zn->zn_key_intlen == 8);
+			ASSERT3U(zn->zn_key_intlen, ==, 8);
 			for (int i = 0; i < zn->zn_key_norm_numints;
 			    wp++, i++) {
 				uint64_t word = *wp;
@@ -112,7 +112,7 @@ zap_hash(zap_name_t *zn)
 			 */
 			int len = zn->zn_key_norm_numints - 1;
 
-			ASSERT(zn->zn_key_intlen == 1);
+			ASSERT3U(zn->zn_key_intlen, ==, 1);
 			for (int i = 0; i < len; cp++, i++) {
 				h = (h >> 8) ^
 				    zfs_crc64_table[(h ^ *cp) & 0xFF];
@@ -308,7 +308,7 @@ mze_insert(zap_t *zap, uint16_t chunkid, uint64_t hash)
 	mze.mze_hash = hash >> 32;
 	ASSERT3U(MZE_PHYS(zap, &mze)->mze_cd, <=, 0xffff);
 	mze.mze_cd = (uint16_t)MZE_PHYS(zap, &mze)->mze_cd;
-	ASSERT(MZE_PHYS(zap, &mze)->mze_name[0] != 0);
+	ASSERT3U(MZE_PHYS(zap, &mze)->mze_name[0], !=, 0);
 	zfs_btree_add(&zap->zap_m.zap_tree, &mze);
 }
 
@@ -551,9 +551,9 @@ zap_lockdir_impl(dmu_buf_t *db, const void *tag, dmu_tx_t *tx,
 	rw_enter(&zap->zap_rwlock, lt);
 	if (lt != ((!zap->zap_ismicro && fatreader) ? RW_READER : lti)) {
 		/* it was upgraded, now we only need reader */
-		ASSERT(lt == RW_WRITER);
-		ASSERT(RW_READER ==
-		    ((!zap->zap_ismicro && fatreader) ? RW_READER : lti));
+		ASSERT3U(lt, ==, RW_WRITER);
+		ASSERT3U(RW_READER, ==, ((!zap->zap_ismicro && fatreader) ?
+		    RW_READER : lti));
 		rw_downgrade(&zap->zap_rwlock);
 		lt = RW_READER;
 	}
@@ -1217,13 +1217,13 @@ mzap_addent(zap_name_t *zn, uint64_t value)
 #ifdef ZFS_DEBUG
 	for (int i = 0; i < zap->zap_m.zap_num_chunks; i++) {
 		mzap_ent_phys_t *mze = &zap_m_phys(zap)->mz_chunk[i];
-		ASSERT(strcmp(zn->zn_key_orig, mze->mze_name) != 0);
+		ASSERT3U(strcmp(zn->zn_key_orig, mze->mze_name), !=, 0);
 	}
 #endif
 
 	uint32_t cd = mze_find_unused_cd(zap, zn->zn_hash);
 	/* given the limited size of the microzap, this can't happen */
-	ASSERT(cd < zap_maxcd(zap));
+	ASSERT3U(cd, <, zap_maxcd(zap));
 
 again:
 	for (uint16_t i = start; i < zap->zap_m.zap_num_chunks; i++) {
@@ -1566,7 +1566,7 @@ zap_cursor_serialize(zap_cursor_t *zc)
 	if (zc->zc_zap == NULL)
 		return (zc->zc_serialized);
 	ASSERT0((zc->zc_hash & zap_maxcd(zc->zc_zap)));
-	ASSERT(zc->zc_cd < zap_maxcd(zc->zc_zap));
+	ASSERT3U(zc->zc_cd, <, zap_maxcd(zc->zc_zap));
 
 	/*
 	 * We want to keep the high 32 bits of the cursor zero if we can, so

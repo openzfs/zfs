@@ -1189,7 +1189,7 @@ spa_thread(void *arg)
 	CALLB_CPR_INIT(&cprinfo, &spa->spa_proc_lock, callb_generic_cpr,
 	    spa->spa_name);
 
-	ASSERT(curproc != &p0);
+	ASSERT3U(curproc, !=, &p0);
 	(void) snprintf(pu->u_psargs, sizeof (pu->u_psargs),
 	    "zpool-%s", spa->spa_name);
 	(void) strlcpy(pu->u_comm, pu->u_psargs, sizeof (pu->u_comm));
@@ -1226,7 +1226,7 @@ spa_thread(void *arg)
 	spa_create_zio_taskqs(spa);
 
 	mutex_enter(&spa->spa_proc_lock);
-	ASSERT(spa->spa_proc_state == SPA_PROC_CREATED);
+	ASSERT3U(spa->spa_proc_state, ==, SPA_PROC_CREATED);
 
 	spa->spa_proc_state = SPA_PROC_ACTIVE;
 	cv_broadcast(&spa->spa_proc_cv);
@@ -1236,7 +1236,7 @@ spa_thread(void *arg)
 		cv_wait(&spa->spa_proc_cv, &spa->spa_proc_lock);
 	CALLB_CPR_SAFE_END(&cprinfo, &spa->spa_proc_lock);
 
-	ASSERT(spa->spa_proc_state == SPA_PROC_DEACTIVATE);
+	ASSERT3U(spa->spa_proc_state, ==, SPA_PROC_DEACTIVATE);
 	spa->spa_proc_state = SPA_PROC_GONE;
 	spa->spa_proc = &p0;
 	cv_broadcast(&spa->spa_proc_cv);
@@ -1253,7 +1253,7 @@ spa_thread(void *arg)
 static void
 spa_activate(spa_t *spa, spa_mode_t mode)
 {
-	ASSERT(spa->spa_state == POOL_STATE_UNINITIALIZED);
+	ASSERT3U(spa->spa_state, ==, POOL_STATE_UNINITIALIZED);
 
 	spa->spa_state = POOL_STATE_ACTIVE;
 	spa->spa_mode = mode;
@@ -1268,8 +1268,8 @@ spa_activate(spa_t *spa, spa_mode_t mode)
 
 	/* Try to create a covering process */
 	mutex_enter(&spa->spa_proc_lock);
-	ASSERT(spa->spa_proc_state == SPA_PROC_NONE);
-	ASSERT(spa->spa_proc == &p0);
+	ASSERT3U(spa->spa_proc_state, ==, SPA_PROC_NONE);
+	ASSERT3U(spa->spa_proc, ==, &p0);
 	spa->spa_did = 0;
 
 	(void) spa_create_process;
@@ -1283,9 +1283,9 @@ spa_activate(spa_t *spa, spa_mode_t mode)
 				cv_wait(&spa->spa_proc_cv,
 				    &spa->spa_proc_lock);
 			}
-			ASSERT(spa->spa_proc_state == SPA_PROC_ACTIVE);
-			ASSERT(spa->spa_proc != &p0);
-			ASSERT(spa->spa_did != 0);
+			ASSERT3U(spa->spa_proc_state, ==, SPA_PROC_ACTIVE);
+			ASSERT3U(spa->spa_proc, !=, &p0);
+			ASSERT3U(spa->spa_did, !=, 0);
 		} else {
 #ifdef _KERNEL
 			cmn_err(CE_WARN,
@@ -1371,11 +1371,11 @@ spa_activate(spa_t *spa, spa_mode_t mode)
 static void
 spa_deactivate(spa_t *spa)
 {
-	ASSERT(spa->spa_sync_on == B_FALSE);
+	ASSERT3U(spa->spa_sync_on, ==, B_FALSE);
 	ASSERT3P(spa->spa_dsl_pool, ==, NULL);
 	ASSERT3P(spa->spa_root_vdev, ==, NULL);
 	ASSERT3P(spa->spa_async_zio_root, ==, NULL);
-	ASSERT(spa->spa_state != POOL_STATE_UNINITIALIZED);
+	ASSERT3U(spa->spa_state, !=, POOL_STATE_UNINITIALIZED);
 
 	spa_evicting_os_wait(spa);
 
@@ -1444,17 +1444,17 @@ spa_deactivate(spa_t *spa)
 
 	mutex_enter(&spa->spa_proc_lock);
 	if (spa->spa_proc_state != SPA_PROC_NONE) {
-		ASSERT(spa->spa_proc_state == SPA_PROC_ACTIVE);
+		ASSERT3U(spa->spa_proc_state, ==, SPA_PROC_ACTIVE);
 		spa->spa_proc_state = SPA_PROC_DEACTIVATE;
 		cv_broadcast(&spa->spa_proc_cv);
 		while (spa->spa_proc_state == SPA_PROC_DEACTIVATE) {
-			ASSERT(spa->spa_proc != &p0);
+			ASSERT3U(spa->spa_proc, !=, &p0);
 			cv_wait(&spa->spa_proc_cv, &spa->spa_proc_lock);
 		}
-		ASSERT(spa->spa_proc_state == SPA_PROC_GONE);
+		ASSERT3U(spa->spa_proc_state, ==, SPA_PROC_GONE);
 		spa->spa_proc_state = SPA_PROC_NONE;
 	}
-	ASSERT(spa->spa_proc == &p0);
+	ASSERT3U(spa->spa_proc, ==, &p0);
 	mutex_exit(&spa->spa_proc_lock);
 
 	/*
@@ -1607,7 +1607,7 @@ static void
 spa_unload(spa_t *spa)
 {
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
-	ASSERT(spa_state(spa) != POOL_STATE_UNINITIALIZED);
+	ASSERT3U(spa_state(spa), !=, POOL_STATE_UNINITIALIZED);
 
 	spa_import_progress_remove(spa_guid(spa));
 	spa_load_note(spa, "UNLOADING");
@@ -1784,7 +1784,7 @@ spa_load_spares(spa_t *spa)
 		return;
 #endif
 
-	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
+	ASSERT3U(spa_config_held(spa, SCL_ALL, RW_WRITER), ==, SCL_ALL);
 
 	/*
 	 * First, close and free any existing spare vdevs.
@@ -1916,7 +1916,7 @@ spa_load_l2cache(spa_t *spa)
 		return;
 #endif
 
-	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
+	ASSERT3U(spa_config_held(spa, SCL_ALL, RW_WRITER), ==, SCL_ALL);
 
 	oldvdevs = sav->sav_vdevs;
 	oldnvdevs = sav->sav_count;
@@ -3471,12 +3471,12 @@ spa_ld_parse_config(spa_t *spa, spa_import_type_t type)
 		return (error);
 	}
 
-	ASSERT(spa->spa_root_vdev == rvd);
+	ASSERT3U(spa->spa_root_vdev, ==, rvd);
 	ASSERT3U(spa->spa_min_ashift, >=, SPA_MINBLOCKSHIFT);
 	ASSERT3U(spa->spa_max_ashift, <=, SPA_MAXBLOCKSHIFT);
 
 	if (type != SPA_IMPORT_ASSEMBLE) {
-		ASSERT(spa_guid(spa) == pool_guid);
+		ASSERT3U(spa_guid(spa), ==, pool_guid);
 	}
 
 	return (0);
@@ -4294,7 +4294,7 @@ spa_ld_open_aux_vdevs(spa_t *spa, spa_import_type_t type)
 	if (error != 0 && error != ENOENT)
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 	if (error == 0 && type != SPA_IMPORT_ASSEMBLE) {
-		ASSERT(spa_version(spa) >= SPA_VERSION_SPARES);
+		ASSERT3U(spa_version(spa), >=, SPA_VERSION_SPARES);
 		if (load_nvlist(spa, spa->spa_spares.sav_object,
 		    &spa->spa_spares.sav_config) != 0) {
 			spa_load_failed(spa, "error loading spares nvlist");
@@ -4316,7 +4316,7 @@ spa_ld_open_aux_vdevs(spa_t *spa, spa_import_type_t type)
 	if (error != 0 && error != ENOENT)
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 	if (error == 0 && type != SPA_IMPORT_ASSEMBLE) {
-		ASSERT(spa_version(spa) >= SPA_VERSION_L2CACHE);
+		ASSERT3U(spa_version(spa), >=, SPA_VERSION_L2CACHE);
 		if (load_nvlist(spa, spa->spa_l2cache.sav_object,
 		    &spa->spa_l2cache.sav_config) != 0) {
 			spa_load_failed(spa, "error loading l2cache nvlist");
@@ -4567,7 +4567,7 @@ spa_ld_mos_init(spa_t *spa, spa_import_type_t type)
 	int error = 0;
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
-	ASSERT(spa->spa_config_source != SPA_CONFIG_SRC_NONE);
+	ASSERT3U(spa->spa_config_source, !=, SPA_CONFIG_SRC_NONE);
 
 	/*
 	 * Never trust the config that is provided unless we are assembling
@@ -4789,7 +4789,7 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 	boolean_t update_config_cache = B_FALSE;
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
-	ASSERT(spa->spa_config_source != SPA_CONFIG_SRC_NONE);
+	ASSERT3U(spa->spa_config_source, !=, SPA_CONFIG_SRC_NONE);
 
 	spa_load_note(spa, "LOADING");
 
@@ -4902,7 +4902,7 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 		return (error);
 
 	if (missing_feat_write) {
-		ASSERT(spa->spa_load_state == SPA_LOAD_TRYIMPORT);
+		ASSERT3U(spa->spa_load_state, ==, SPA_LOAD_TRYIMPORT);
 
 		/*
 		 * At this point, we know that we can open the pool in
@@ -4938,7 +4938,7 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 	    spa->spa_load_max_txg == UINT64_MAX)) {
 		uint64_t config_cache_txg = spa->spa_config_txg;
 
-		ASSERT(spa->spa_load_state != SPA_LOAD_TRYIMPORT);
+		ASSERT3U(spa->spa_load_state, !=, SPA_LOAD_TRYIMPORT);
 
 		/*
 		 * In case of a checkpoint rewind, log the original txg
@@ -5603,7 +5603,7 @@ spa_validate_aux_devs(spa_t *spa, nvlist_t *nvroot, uint64_t crtxg, int mode,
 	vdev_t *vd;
 	int error;
 
-	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
+	ASSERT3U(spa_config_held(spa, SCL_ALL, RW_WRITER), ==, SCL_ALL);
 
 	/*
 	 * It's acceptable to have no devs specified.
@@ -5667,7 +5667,7 @@ spa_validate_aux(spa_t *spa, nvlist_t *nvroot, uint64_t crtxg, int mode)
 {
 	int error;
 
-	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
+	ASSERT3U(spa_config_held(spa, SCL_ALL, RW_WRITER), ==, SCL_ALL);
 
 	if ((error = spa_validate_aux_devs(spa, nvroot, crtxg, mode,
 	    &spa->spa_spares, ZPOOL_CONFIG_SPARES, SPA_VERSION_SPARES,
@@ -6929,9 +6929,9 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	if (pvd->vdev_ops != pvops)
 		pvd = vdev_add_parent(oldvd, pvops);
 
-	ASSERT(pvd->vdev_top->vdev_parent == rvd);
-	ASSERT(pvd->vdev_ops == pvops);
-	ASSERT(oldvd->vdev_parent == pvd);
+	ASSERT3U(pvd->vdev_top->vdev_parent, ==, rvd);
+	ASSERT3U(pvd->vdev_ops, ==, pvops);
+	ASSERT3U(oldvd->vdev_parent, ==, pvd);
 
 	/*
 	 * Extract the new device from its root and add it to pvd.
@@ -6947,8 +6947,8 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	vdev_propagate_state(pvd);
 
 	tvd = newvd->vdev_top;
-	ASSERT(pvd->vdev_top == tvd);
-	ASSERT(tvd->vdev_parent == rvd);
+	ASSERT3U(pvd->vdev_top, ==, tvd);
+	ASSERT3U(tvd->vdev_parent, ==, rvd);
 
 	vdev_config_dirty(tvd);
 
@@ -7112,7 +7112,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	if (vdev_dtl_required(vd))
 		return (spa_vdev_exit(spa, NULL, txg, EBUSY));
 
-	ASSERT(pvd->vdev_children >= 2);
+	ASSERT3U(pvd->vdev_children, >=, 2);
 
 	/*
 	 * If we are detaching the second disk from a replacing vdev, then
@@ -7207,7 +7207,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	 * may have been the previous top-level vdev.
 	 */
 	tvd = cvd->vdev_top;
-	ASSERT(tvd->vdev_parent == rvd);
+	ASSERT3U(tvd->vdev_parent, ==, rvd);
 
 	/*
 	 * Reevaluate the parent vdev state.
@@ -7899,7 +7899,7 @@ spa_vdev_resilver_done_hunt(vdev_t *vd)
 	 * user intervention to determine which disk the admin wishes to keep.
 	 */
 	if (vd->vdev_ops == &vdev_replacing_ops) {
-		ASSERT(vd->vdev_children > 1);
+		ASSERT3U(vd->vdev_children, >, 1);
 
 		newvd = vd->vdev_child[vd->vdev_children - 1];
 		oldvd = vd->vdev_child[0];
@@ -7979,7 +7979,7 @@ spa_vdev_resilver_done(spa_t *spa)
 		 */
 		if (ppvd->vdev_ops == &vdev_spare_ops && pvd->vdev_id == 0 &&
 		    ppvd->vdev_children == 2) {
-			ASSERT(pvd->vdev_ops == &vdev_replacing_ops);
+			ASSERT3U(pvd->vdev_ops, ==, &vdev_replacing_ops);
 			sguid = ppvd->vdev_child[1]->vdev_guid;
 		}
 		ASSERT(vd->vdev_resilver_txg == 0 || !vdev_dtl_required(vd));
@@ -8347,7 +8347,7 @@ void
 spa_async_resume(spa_t *spa)
 {
 	mutex_enter(&spa->spa_async_lock);
-	ASSERT(spa->spa_async_suspended != 0);
+	ASSERT3U(spa->spa_async_suspended, !=, 0);
 	spa->spa_async_suspended--;
 	mutex_exit(&spa->spa_async_lock);
 	spa_restart_removal(spa);
@@ -8723,10 +8723,10 @@ spa_sync_version(void *arg, dmu_tx_t *tx)
 	/*
 	 * Setting the version is special cased when first creating the pool.
 	 */
-	ASSERT(tx->tx_txg != TXG_INITIAL);
+	ASSERT3U(tx->tx_txg, !=, TXG_INITIAL);
 
 	ASSERT(SPA_VERSION_IS_SUPPORTED(version));
-	ASSERT(version >= spa_version(spa));
+	ASSERT3U(version, >=, spa_version(spa));
 
 	spa->spa_uberblock.ub_version = version;
 	vdev_config_dirty(spa->spa_root_vdev);
@@ -8847,7 +8847,7 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 			proptype = zpool_prop_get_type(prop);
 
 			if (nvpair_type(elem) == DATA_TYPE_STRING) {
-				ASSERT(proptype == PROP_TYPE_STRING);
+				ASSERT3U(proptype, ==, PROP_TYPE_STRING);
 				strval = fnvpair_value_string(elem);
 				VERIFY0(zap_update(mos,
 				    spa->spa_pool_props_object, propname,
@@ -8997,8 +8997,8 @@ vdev_indirect_state_sync_verify(vdev_t *vd)
 		ASSERT3P(vd->vdev_obsolete_sm, !=, NULL);
 		ASSERT(vd->vdev_removing ||
 		    vd->vdev_ops == &vdev_indirect_ops);
-		ASSERT(vdev_indirect_mapping_num_entries(vim) > 0);
-		ASSERT(vdev_indirect_mapping_bytes_mapped(vim) > 0);
+		ASSERT3U(vdev_indirect_mapping_num_entries(vim), >, 0);
+		ASSERT3U(vdev_indirect_mapping_bytes_mapped(vim), >, 0);
 		ASSERT3U(obsolete_sm_object, ==,
 		    space_map_object(vd->vdev_obsolete_sm));
 		ASSERT3U(vdev_indirect_mapping_bytes_mapped(vim), >=,

@@ -31,7 +31,7 @@ vdev_indirect_mapping_verify(vdev_indirect_mapping_t *vim)
 {
 	ASSERT3P(vim, !=, NULL);
 
-	ASSERT(vim->vim_object != 0);
+	ASSERT3U(vim->vim_object, !=, 0);
 	ASSERT3P(vim->vim_objset, !=, NULL);
 	ASSERT3P(vim->vim_phys, !=, NULL);
 	ASSERT3P(vim->vim_dbuf, !=, NULL);
@@ -49,7 +49,7 @@ vdev_indirect_mapping_verify(vdev_indirect_mapping_t *vim)
 		ASSERT3U(vim->vim_phys->vimp_max_offset, >=, offset + size);
 	}
 	if (vim->vim_havecounts) {
-		ASSERT(vim->vim_phys->vimp_counts_object != 0);
+		ASSERT3U(vim->vim_phys->vimp_counts_object, !=, 0);
 	}
 
 	return (B_TRUE);
@@ -177,7 +177,7 @@ vdev_indirect_mapping_entry_for_offset_impl(vdev_indirect_mapping_t *vim,
     uint64_t offset, boolean_t next_if_missing)
 {
 	ASSERT(vdev_indirect_mapping_verify(vim));
-	ASSERT(vim->vim_phys->vimp_num_entries > 0);
+	ASSERT3U(vim->vim_phys->vimp_num_entries, >, 0);
 
 	vdev_indirect_mapping_entry_phys_t *entry = NULL;
 
@@ -511,7 +511,7 @@ vdev_indirect_mapping_increment_obsolete_count(vdev_indirect_mapping_t *vim,
 
 	mapping = vdev_indirect_mapping_entry_for_offset(vim,  offset);
 
-	ASSERT(length > 0);
+	ASSERT3U(length, >, 0);
 	ASSERT3P(mapping, !=, NULL);
 
 	index = mapping - vim->vim_entries;

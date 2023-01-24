@@ -172,8 +172,8 @@ rrw_enter_read_impl(rrwlock_t *rrl, boolean_t prio, const void *tag)
 	}
 	DTRACE_PROBE(zfs__rrwfastpath__rdmiss);
 #endif
-	ASSERT(rrl->rr_writer != curthread);
-	ASSERT(zfs_refcount_count(&rrl->rr_anon_rcount) >= 0);
+	ASSERT3U(rrl->rr_writer, !=, curthread);
+	ASSERT3U(zfs_refcount_count(&rrl->rr_anon_rcount), >=, 0);
 
 	while (rrl->rr_writer != NULL || (rrl->rr_writer_wanted &&
 	    zfs_refcount_is_zero(&rrl->rr_anon_rcount) && !prio &&
@@ -214,7 +214,7 @@ void
 rrw_enter_write(rrwlock_t *rrl)
 {
 	mutex_enter(&rrl->rr_lock);
-	ASSERT(rrl->rr_writer != curthread);
+	ASSERT3U(rrl->rr_writer, !=, curthread);
 
 	while (zfs_refcount_count(&rrl->rr_anon_rcount) > 0 ||
 	    zfs_refcount_count(&rrl->rr_linked_rcount) > 0 ||
@@ -266,7 +266,7 @@ rrw_exit(rrwlock_t *rrl, const void *tag)
 		if (count == 0)
 			cv_broadcast(&rrl->rr_cv);
 	} else {
-		ASSERT(rrl->rr_writer == curthread);
+		ASSERT3U(rrl->rr_writer, ==, curthread);
 		ASSERT(zfs_refcount_is_zero(&rrl->rr_anon_rcount) &&
 		    zfs_refcount_is_zero(&rrl->rr_linked_rcount));
 		rrl->rr_writer = NULL;

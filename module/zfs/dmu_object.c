@@ -369,7 +369,7 @@ dmu_object_free(objset_t *os, uint64_t object, dmu_tx_t *tx)
 	if (err)
 		return (err);
 
-	ASSERT(dn->dn_type != DMU_OT_NONE);
+	ASSERT3U(dn->dn_type, !=, DMU_OT_NONE);
 	/*
 	 * If we don't create this free range, we'll leak indirect blocks when
 	 * we get to freeing the dnode in syncing context.

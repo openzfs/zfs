@@ -51,7 +51,7 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 	rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 
 	/* this dnode can't be paged out because it's dirty */
-	ASSERT(dn->dn_phys->dn_type != DMU_OT_NONE);
+	ASSERT3U(dn->dn_phys->dn_type, !=, DMU_OT_NONE);
 	ASSERT(new_level > 1 && dn->dn_phys->dn_nlevels > 0);
 
 	db = dbuf_hold_level(dn, dn->dn_phys->dn_nlevels, 0, FTAG);
@@ -98,7 +98,7 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 		DB_DNODE_EXIT(child);
 #endif	/* DEBUG */
 		if (child->db_parent && child->db_parent != dn->dn_dbuf) {
-			ASSERT(child->db_parent->db_level == db->db_level);
+			ASSERT3U(child->db_parent->db_level, ==, db->db_level);
 			ASSERT3P(child->db_blkptr, !=,
 			    &dn->dn_phys->dn_blkptr[child->db_blkid]);
 			mutex_exit(&child->db_mtx);
@@ -200,7 +200,7 @@ free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
 		dmu_buf_impl_t *child;
 		dbuf_dirty_record_t *dr;
 
-		ASSERT(db->db_level == 1);
+		ASSERT3U(db->db_level, ==, 1);
 
 		rw_enter(&dn->dn_struct_rwlock, RW_READER);
 		err = dbuf_hold_impl(dn, db->db_level - 1,
@@ -378,7 +378,7 @@ dnode_sync_free_range_impl(dnode_t *dn, uint64_t blkid, uint64_t nblks,
 	if (blkid > dn->dn_phys->dn_maxblkid)
 		return;
 
-	ASSERT(dn->dn_phys->dn_maxblkid < UINT64_MAX);
+	ASSERT3U(dn->dn_phys->dn_maxblkid, <, UINT64_MAX);
 	if (blkid + nblks > dn->dn_phys->dn_maxblkid) {
 		nblks = dn->dn_phys->dn_maxblkid - blkid + 1;
 		trunc = B_TRUE;
@@ -399,7 +399,7 @@ dnode_sync_free_range_impl(dnode_t *dn, uint64_t blkid, uint64_t nblks,
 		int end = (blkid + nblks - 1) >> shift;
 		dmu_buf_impl_t *db;
 
-		ASSERT(start < dn->dn_phys->dn_nblkptr);
+		ASSERT3U(start, <, dn->dn_phys->dn_nblkptr);
 		bp += start;
 		for (int i = start; i <= end; i++, bp++) {
 			if (BP_IS_HOLE(bp))
@@ -598,10 +598,10 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 	dn->dn_next_maxblkid[txgoff] = 0;
 
 	/* ASSERT(blkptrs are zero); */
-	ASSERT(dn->dn_phys->dn_type != DMU_OT_NONE);
-	ASSERT(dn->dn_type != DMU_OT_NONE);
+	ASSERT3U(dn->dn_phys->dn_type, !=, DMU_OT_NONE);
+	ASSERT3U(dn->dn_type, !=, DMU_OT_NONE);
 
-	ASSERT(dn->dn_free_txg > 0);
+	ASSERT3U(dn->dn_free_txg, >, 0);
 	if (dn->dn_allocated_txg != dn->dn_free_txg)
 		dmu_buf_will_dirty(&dn->dn_dbuf->db, tx);
 	memset(dn->dn_phys, 0, sizeof (dnode_phys_t) * dn->dn_num_slots);
@@ -616,7 +616,7 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 	dn->dn_num_slots = 1;
 	mutex_exit(&dn->dn_mtx);
 
-	ASSERT(dn->dn_object != DMU_META_DNODE_OBJECT);
+	ASSERT3U(dn->dn_object, !=, DMU_META_DNODE_OBJECT);
 
 	dnode_rele(dn, (void *)(uintptr_t)tx->tx_txg);
 	/*
@@ -722,7 +722,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 			dnp->dn_bonuslen = 0;
 		else
 			dnp->dn_bonuslen = dn->dn_next_bonuslen[txgoff];
-		ASSERT(dnp->dn_bonuslen <=
+		ASSERT3U(dnp->dn_bonuslen, <=,
 		    DN_SLOTS_TO_BONUSLEN(dnp->dn_extra_slots + 1));
 		dn->dn_next_bonuslen[txgoff] = 0;
 	}
@@ -747,7 +747,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	}
 
 	if (dn->dn_next_indblkshift[txgoff] != 0) {
-		ASSERT(dnp->dn_nlevels == 1);
+		ASSERT3U(dnp->dn_nlevels, ==, 1);
 		dnp->dn_indblkshift = dn->dn_next_indblkshift[txgoff];
 		dn->dn_next_indblkshift[txgoff] = 0;
 	}
@@ -830,7 +830,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 
 	if (dn->dn_next_nblkptr[txgoff]) {
 		/* this should only happen on a realloc */
-		ASSERT(dn->dn_allocated_txg == tx->tx_txg);
+		ASSERT3U(dn->dn_allocated_txg, ==, tx->tx_txg);
 		if (dn->dn_next_nblkptr[txgoff] > dnp->dn_nblkptr) {
 			/* zero the new blkptrs we are gaining */
 			memset(dnp->dn_blkptr + dnp->dn_nblkptr, 0,
@@ -839,7 +839,8 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 #ifdef ZFS_DEBUG
 		} else {
 			int i;
-			ASSERT(dn->dn_next_nblkptr[txgoff] < dnp->dn_nblkptr);
+			ASSERT3U(dn->dn_next_nblkptr[txgoff], <,
+			    dnp->dn_nblkptr);
 			/* the blkptrs we are losing better be unallocated */
 			for (i = 0; i < dnp->dn_nblkptr; i++) {
 				if (i >= dn->dn_next_nblkptr[txgoff])

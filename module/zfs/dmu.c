@@ -511,7 +511,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 	zio_t *zio = NULL;
 	boolean_t missed = B_FALSE;
 
-	ASSERT(length <= DMU_MAX_ACCESS);
+	ASSERT3U(length, <=, DMU_MAX_ACCESS);
 
 	/*
 	 * Note: We directly notify the prefetch code of this read, so that
@@ -1005,7 +1005,7 @@ dmu_free_range(objset_t *os, uint64_t object, uint64_t offset,
 	int err = dnode_hold(os, object, FTAG, &dn);
 	if (err)
 		return (err);
-	ASSERT(offset < UINT64_MAX);
+	ASSERT3U(offset, <, UINT64_MAX);
 	ASSERT(size == DMU_OBJECT_END || size <= UINT64_MAX - offset);
 	dnode_free_range(dn, offset, size, tx);
 	dnode_rele(dn, FTAG);
@@ -1049,7 +1049,7 @@ dmu_read_impl(dnode_t *dn, uint64_t offset, uint64_t size,
 			int64_t bufoff;
 			dmu_buf_t *db = dbp[i];
 
-			ASSERT(size > 0);
+			ASSERT3U(size, >, 0);
 
 			bufoff = offset - db->db_offset;
 			tocpy = MIN(db->db_size - bufoff, size);
@@ -1099,7 +1099,7 @@ dmu_write_impl(dmu_buf_t **dbp, int numbufs, uint64_t offset, uint64_t size,
 		int64_t bufoff;
 		dmu_buf_t *db = dbp[i];
 
-		ASSERT(size > 0);
+		ASSERT3U(size, >, 0);
 
 		bufoff = offset - db->db_offset;
 		tocpy = MIN(db->db_size - bufoff, size);
@@ -1232,7 +1232,7 @@ dmu_read_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size)
 		int64_t bufoff;
 		dmu_buf_t *db = dbp[i];
 
-		ASSERT(size > 0);
+		ASSERT3U(size, >, 0);
 
 		bufoff = zfs_uio_offset(uio) - db->db_offset;
 		tocpy = MIN(db->db_size - bufoff, size);
@@ -1320,7 +1320,7 @@ dmu_write_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size, dmu_tx_t *tx)
 		int64_t bufoff;
 		dmu_buf_t *db = dbp[i];
 
-		ASSERT(size > 0);
+		ASSERT3U(size, >, 0);
 
 		bufoff = zfs_uio_offset(uio) - db->db_offset;
 		tocpy = MIN(db->db_size - bufoff, size);
@@ -1566,7 +1566,7 @@ dmu_sync_done(zio_t *zio, arc_buf_t *buf, void *varg)
 	}
 
 	mutex_enter(&db->db_mtx);
-	ASSERT(dr->dt.dl.dr_override_state == DR_IN_DMU_SYNC);
+	ASSERT3U(dr->dt.dl.dr_override_state, ==, DR_IN_DMU_SYNC);
 	if (zio->io_error == 0) {
 		dr->dt.dl.dr_nopwrite = !!(zio->io_flags & ZIO_FLAG_NOPWRITE);
 		if (dr->dt.dl.dr_nopwrite) {
@@ -1576,7 +1576,8 @@ dmu_sync_done(zio_t *zio, arc_buf_t *buf, void *varg)
 
 			ASSERT(BP_EQUAL(bp, bp_orig));
 			VERIFY(BP_EQUAL(bp, db->db_blkptr));
-			ASSERT(zio->io_prop.zp_compress != ZIO_COMPRESS_OFF);
+			ASSERT3U(zio->io_prop.zp_compress, !=,
+			    ZIO_COMPRESS_OFF);
 			VERIFY(zio_checksum_table[chksum].ci_flags &
 			    ZCHECKSUM_FLAG_NOPWRITE);
 		}
@@ -1626,8 +1627,8 @@ dmu_sync_late_arrival_done(zio_t *zio)
 			blkptr_t *bp_orig __maybe_unused = &zio->io_bp_orig;
 			ASSERT0((zio->io_flags & ZIO_FLAG_NOPWRITE));
 			ASSERT(BP_IS_HOLE(bp_orig) || !BP_EQUAL(bp, bp_orig));
-			ASSERT(zio->io_bp->blk_birth == zio->io_txg);
-			ASSERT(zio->io_txg > spa_syncing_txg(zio->io_spa));
+			ASSERT3U(zio->io_bp->blk_birth, ==, zio->io_txg);
+			ASSERT3U(zio->io_txg, >, spa_syncing_txg(zio->io_spa));
 			zio_free(zio->io_spa, zio->io_txg, zio->io_bp);
 		}
 	}
@@ -1738,7 +1739,7 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 	dnode_t *dn;
 
 	ASSERT3P(pio, !=, NULL);
-	ASSERT(txg != 0);
+	ASSERT3U(txg, !=, 0);
 
 	SET_BOOKMARK(&zb, ds->ds_object,
 	    db->db.db_object, db->db_level, db->db_blkid);
@@ -1836,7 +1837,7 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 		zp.zp_nopwrite = B_FALSE;
 	DB_DNODE_EXIT(db);
 
-	ASSERT(dr->dr_txg == txg);
+	ASSERT3U(dr->dr_txg, ==, txg);
 	if (dr->dt.dl.dr_override_state == DR_IN_DMU_SYNC ||
 	    dr->dt.dl.dr_override_state == DR_OVERRIDDEN) {
 		/*
@@ -1848,7 +1849,7 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 		return (SET_ERROR(EALREADY));
 	}
 
-	ASSERT(dr->dt.dl.dr_override_state == DR_NOT_OVERRIDDEN);
+	ASSERT3U(dr->dt.dl.dr_override_state, ==, DR_NOT_OVERRIDDEN);
 	dr->dt.dl.dr_override_state = DR_IN_DMU_SYNC;
 	mutex_exit(&db->db_mtx);
 

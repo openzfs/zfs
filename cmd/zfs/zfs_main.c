@@ -5368,7 +5368,7 @@ parse_who_perm(who_perm_t *who_perm, nvlist_t *nvl, char locality)
 		deleg_perm_node_t *node =
 		    safe_malloc(sizeof (deleg_perm_node_t));
 
-		VERIFY(type == DATA_TYPE_BOOLEAN);
+		VERIFY3U(type, ==, DATA_TYPE_BOOLEAN);
 
 		uu_avl_node_init(node, &node->dpn_avl_node, avl_pool);
 		set_deleg_perm_node(avl, node, who_type, name, locality);
@@ -5498,7 +5498,7 @@ parse_fs_perm_set(fs_perm_set_t *fspset, nvlist_t *nvl)
 
 		fsperm = &node->fspn_fsperm;
 
-		VERIFY(DATA_TYPE_NVLIST == type);
+		VERIFY3U(DATA_TYPE_NVLIST, ==, type);
 
 		uu_list_node_init(node, &node->fspn_list_node,
 		    fspset->fsps_list_pool);

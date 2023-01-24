@@ -6678,7 +6678,7 @@ join_strings(char **strings, const char *sep)
 		totallen += strlen(sep);
 	}
 	if (totallen > 0) {
-		ASSERT(totallen >= strlen(sep));
+		ASSERT3U(totallen, >=, strlen(sep));
 		totallen -= strlen(sep);
 	}
 

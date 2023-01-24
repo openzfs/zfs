@@ -53,7 +53,7 @@ gzip_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 	int ret;
 	zlen_t dstlen = d_len;
 
-	ASSERT(d_len <= s_len);
+	ASSERT3U(d_len, <=, s_len);
 
 	/* check if hardware accelerator can be used */
 	if (qat_dc_use_accel(s_len)) {
@@ -88,7 +88,7 @@ gzip_decompress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 	(void) n;
 	zlen_t dstlen = d_len;
 
-	ASSERT(d_len >= s_len);
+	ASSERT3U(d_len, >=, s_len);
 
 	/* check if hardware accelerator can be used */
 	if (qat_dc_use_accel(d_len)) {

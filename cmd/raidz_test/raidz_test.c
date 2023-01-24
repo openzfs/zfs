@@ -523,8 +523,9 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 		 */
 		if (rr->rr_firstdatacol == 1 && rr->rr_cols > 1 &&
 		    (offset & (1ULL << 20))) {
-			ASSERT(rr->rr_cols >= 2);
-			ASSERT(rr->rr_col[0].rc_size == rr->rr_col[1].rc_size);
+			ASSERT3U(rr->rr_cols, >=, 2);
+			ASSERT3U(rr->rr_col[0].rc_size, ==,
+			    rr->rr_col[1].rc_size);
 			devidx = rr->rr_col[0].rc_devidx;
 			uint64_t o = rr->rr_col[0].rc_offset;
 			rr->rr_col[0].rc_devidx = rr->rr_col[1].rc_devidx;

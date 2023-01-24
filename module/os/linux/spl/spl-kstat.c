@@ -56,7 +56,7 @@ kstat_seq_show_headers(struct seq_file *f)
 	kstat_t *ksp = (kstat_t *)f->private;
 	int rc = 0;
 
-	ASSERT(ksp->ks_magic == KS_MAGIC);
+	ASSERT3U(ksp->ks_magic, ==, KS_MAGIC);
 
 	seq_printf(f, "%d %d 0x%02x %d %d %lld %lld\n",
 	    ksp->ks_kid, ksp->ks_type, ksp->ks_flags,
@@ -225,7 +225,7 @@ kstat_seq_show(struct seq_file *f, void *p)
 	kstat_t *ksp = (kstat_t *)f->private;
 	int rc = 0;
 
-	ASSERT(ksp->ks_magic == KS_MAGIC);
+	ASSERT3U(ksp->ks_magic, ==, KS_MAGIC);
 
 	switch (ksp->ks_type) {
 		case KSTAT_TYPE_RAW:
@@ -238,7 +238,7 @@ restart:
 				if (!rc)
 					seq_puts(f, ksp->ks_raw_buf);
 			} else {
-				ASSERT(ksp->ks_ndata == 1);
+				ASSERT3U(ksp->ks_ndata, ==, 1);
 				rc = kstat_seq_show_raw(f, ksp->ks_data,
 				    ksp->ks_data_size);
 			}
@@ -309,7 +309,7 @@ kstat_seq_start(struct seq_file *f, loff_t *pos)
 {
 	loff_t n = *pos;
 	kstat_t *ksp = (kstat_t *)f->private;
-	ASSERT(ksp->ks_magic == KS_MAGIC);
+	ASSERT3U(ksp->ks_magic, ==, KS_MAGIC);
 
 	mutex_enter(ksp->ks_lock);
 
@@ -337,7 +337,7 @@ static void *
 kstat_seq_next(struct seq_file *f, void *p, loff_t *pos)
 {
 	kstat_t *ksp = (kstat_t *)f->private;
-	ASSERT(ksp->ks_magic == KS_MAGIC);
+	ASSERT3U(ksp->ks_magic, ==, KS_MAGIC);
 
 	++*pos;
 	if (*pos >= ksp->ks_ndata)
@@ -350,7 +350,7 @@ static void
 kstat_seq_stop(struct seq_file *f, void *v)
 {
 	kstat_t *ksp = (kstat_t *)f->private;
-	ASSERT(ksp->ks_magic == KS_MAGIC);
+	ASSERT3U(ksp->ks_magic, ==, KS_MAGIC);
 
 	if (ksp->ks_type == KSTAT_TYPE_RAW)
 		vmem_free(ksp->ks_raw_buf, ksp->ks_raw_bufsize);
@@ -431,7 +431,7 @@ proc_kstat_write(struct file *filp, const char __user *buf, size_t len,
 	kstat_t *ksp = f->private;
 	int rc;
 
-	ASSERT(ksp->ks_magic == KS_MAGIC);
+	ASSERT3U(ksp->ks_magic, ==, KS_MAGIC);
 
 	mutex_enter(ksp->ks_lock);
 	rc = ksp->ks_update(ksp, KSTAT_WRITE);
@@ -496,7 +496,7 @@ __kstat_create(const char *ks_module, int ks_instance, const char *ks_name,
 	ASSERT(ks_name);
 
 	if ((ks_type == KSTAT_TYPE_INTR) || (ks_type == KSTAT_TYPE_IO))
-		ASSERT(ks_ndata == 1);
+		ASSERT3U(ks_ndata, ==, 1);
 
 	ksp = kmem_zalloc(sizeof (*ksp), KM_SLEEP);
 	if (ksp == NULL)

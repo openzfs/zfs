@@ -366,7 +366,7 @@ zprop_random_value(int prop, uint64_t seed, zfs_type_t type)
 	zprop_desc_t *prop_tbl;
 	const zprop_index_t *idx_tbl;
 
-	ASSERT((uint_t)prop < zprop_get_numprops(type));
+	ASSERT3U((uint_t)prop, <, zprop_get_numprops(type));
 	prop_tbl = zprop_get_proptable(type);
 	idx_tbl = prop_tbl[prop].pd_table;
 

@@ -337,7 +337,7 @@ nvt_lookup_name_type(const nvlist_t *nvl, const char *name, data_type_t type)
 		ASSERT0(priv->nvp_nentries);
 		return (NULL);
 	} else {
-		ASSERT(priv->nvp_nbuckets != 0);
+		ASSERT3U(priv->nvp_nbuckets, !=, 0);
 	}
 
 	uint64_t hash = nvt_hash(name);
@@ -1199,7 +1199,7 @@ nvlist_add_common(nvlist_t *nvl, const char *name,
 	if ((nvp = nvp_buf_alloc(nvl, nvp_sz)) == NULL)
 		return (ENOMEM);
 
-	ASSERT(nvp->nvp_size == nvp_sz);
+	ASSERT3U(nvp->nvp_size, ==, nvp_sz);
 	nvp->nvp_name_sz = name_sz;
 	nvp->nvp_value_elem = nelem;
 	nvp->nvp_type = type;

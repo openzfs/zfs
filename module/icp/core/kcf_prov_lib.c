@@ -46,7 +46,7 @@ crypto_uio_copy_to_data(crypto_data_t *data, uchar_t *buf, int len)
 	size_t cur_len;
 	uchar_t *datap;
 
-	ASSERT(data->cd_format == CRYPTO_DATA_UIO);
+	ASSERT3U(data->cd_format, ==, CRYPTO_DATA_UIO);
 	if (zfs_uio_segflg(uiop) != UIO_SYSSPACE) {
 		return (CRYPTO_ARGUMENTS_BAD);
 	}

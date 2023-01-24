@@ -129,7 +129,7 @@ range_tree_stat_incr(range_tree_t *rt, range_seg_t *rs)
 	uint64_t size = rs_get_end(rs, rt) - rs_get_start(rs, rt);
 	int idx = highbit64(size) - 1;
 
-	ASSERT(size != 0);
+	ASSERT3U(size, !=, 0);
 	ASSERT3U(idx, <,
 	    sizeof (rt->rt_histogram) / sizeof (*rt->rt_histogram));
 
@@ -143,7 +143,7 @@ range_tree_stat_decr(range_tree_t *rt, range_seg_t *rs)
 	uint64_t size = rs_get_end(rs, rt) - rs_get_start(rs, rt);
 	int idx = highbit64(size) - 1;
 
-	ASSERT(size != 0);
+	ASSERT3U(size, !=, 0);
 	ASSERT3U(idx, <,
 	    sizeof (rt->rt_histogram) / sizeof (*rt->rt_histogram));
 
@@ -576,7 +576,7 @@ range_tree_find_impl(range_tree_t *rt, uint64_t start, uint64_t size)
 	range_seg_max_t rsearch;
 	uint64_t end = start + size;
 
-	VERIFY(size != 0);
+	VERIFY3U(size, !=, 0);
 
 	rs_set_start(&rsearch, rt, start);
 	rs_set_end(&rsearch, rt, end);

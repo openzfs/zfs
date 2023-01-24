@@ -183,7 +183,7 @@ zap_leaf_init(zap_leaf_t *l, boolean_t sort)
 static uint16_t
 zap_leaf_chunk_alloc(zap_leaf_t *l)
 {
-	ASSERT(zap_leaf_phys(l)->l_hdr.lh_nfree > 0);
+	ASSERT3U(zap_leaf_phys(l)->l_hdr.lh_nfree, >, 0);
 
 	int chunk = zap_leaf_phys(l)->l_hdr.lh_freelist;
 	ASSERT3U(chunk, <, ZAP_LEAF_NUMCHUNKS(l));
@@ -203,7 +203,7 @@ zap_leaf_chunk_free(zap_leaf_t *l, uint16_t chunk)
 	struct zap_leaf_free *zlf = &ZAP_LEAF_CHUNK(l, chunk).l_free;
 	ASSERT3U(zap_leaf_phys(l)->l_hdr.lh_nfree, <, ZAP_LEAF_NUMCHUNKS(l));
 	ASSERT3U(chunk, <, ZAP_LEAF_NUMCHUNKS(l));
-	ASSERT(zlf->lf_type != ZAP_CHUNK_FREE);
+	ASSERT3U(zlf->lf_type, !=, ZAP_CHUNK_FREE);
 
 	zlf->lf_type = ZAP_CHUNK_FREE;
 	zlf->lf_next = zap_leaf_phys(l)->l_hdr.lh_freelist;
@@ -340,7 +340,7 @@ zap_leaf_array_match(zap_leaf_t *l, zap_name_t *zn,
 	if (zap_getflags(zn->zn_zap) & ZAP_FLAG_UINT64_KEY) {
 		uint64_t *thiskey =
 		    kmem_alloc(array_numints * sizeof (*thiskey), KM_SLEEP);
-		ASSERT(zn->zn_key_intlen == sizeof (*thiskey));
+		ASSERT3U(zn->zn_key_intlen, ==, sizeof (*thiskey));
 
 		zap_leaf_array_read(l, chunk, sizeof (*thiskey), array_numints,
 		    sizeof (*thiskey), array_numints, thiskey);

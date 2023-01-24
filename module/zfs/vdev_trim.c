@@ -640,7 +640,7 @@ vdev_trim_calculate_progress(vdev_t *vd)
 {
 	ASSERT(spa_config_held(vd->vdev_spa, SCL_CONFIG, RW_READER) ||
 	    spa_config_held(vd->vdev_spa, SCL_CONFIG, RW_WRITER));
-	ASSERT(vd->vdev_leaf_zap != 0);
+	ASSERT3U(vd->vdev_leaf_zap, !=, 0);
 
 	vd->vdev_trim_bytes_est = 0;
 	vd->vdev_trim_bytes_done = 0;
@@ -716,7 +716,7 @@ vdev_trim_load(vdev_t *vd)
 	int err = 0;
 	ASSERT(spa_config_held(vd->vdev_spa, SCL_CONFIG, RW_READER) ||
 	    spa_config_held(vd->vdev_spa, SCL_CONFIG, RW_WRITER));
-	ASSERT(vd->vdev_leaf_zap != 0);
+	ASSERT3U(vd->vdev_leaf_zap, !=, 0);
 
 	if (vd->vdev_trim_state == VDEV_TRIM_ACTIVE ||
 	    vd->vdev_trim_state == VDEV_TRIM_SUSPENDED) {

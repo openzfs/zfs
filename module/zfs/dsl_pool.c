@@ -1209,7 +1209,7 @@ dsl_pool_clean_tmp_userrefs(dsl_pool_t *dp)
 
 	if (zapobj == 0)
 		return;
-	ASSERT(spa_version(dp->dp_spa) >= SPA_VERSION_USERREFS);
+	ASSERT3U(spa_version(dp->dp_spa), >=, SPA_VERSION_USERREFS);
 
 	holds = fnvlist_alloc();
 
@@ -1260,7 +1260,7 @@ dsl_pool_user_hold_rele_impl(dsl_pool_t *dp, uint64_t dsobj,
 	char *name;
 	int error;
 
-	ASSERT(spa_version(dp->dp_spa) >= SPA_VERSION_USERREFS);
+	ASSERT3U(spa_version(dp->dp_spa), >=, SPA_VERSION_USERREFS);
 	ASSERT(dmu_tx_is_syncing(tx));
 
 	/*

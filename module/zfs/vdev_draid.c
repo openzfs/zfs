@@ -2056,7 +2056,7 @@ vdev_draid_io_start(zio_t *zio)
 			vdev_draid_io_start_write(zio, rm->rm_row[i]);
 		}
 	} else {
-		ASSERT(zio->io_type == ZIO_TYPE_READ);
+		ASSERT3U(zio->io_type, ==, ZIO_TYPE_READ);
 
 		for (int i = 0; i < rm->rm_nrows; i++) {
 			vdev_draid_io_start_read(zio, rm->rm_row[i]);
@@ -2080,7 +2080,7 @@ static void
 vdev_draid_state_change(vdev_t *vd, int faulted, int degraded)
 {
 	vdev_draid_config_t *vdc = vd->vdev_tsd;
-	ASSERT(vd->vdev_ops == &vdev_draid_ops);
+	ASSERT3U(vd->vdev_ops, ==, &vdev_draid_ops);
 
 	if (faulted > vdc->vdc_nparity)
 		vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
@@ -2096,7 +2096,7 @@ vdev_draid_xlate(vdev_t *cvd, const range_seg64_t *logical_rs,
     range_seg64_t *physical_rs, range_seg64_t *remain_rs)
 {
 	vdev_t *raidvd = cvd->vdev_parent;
-	ASSERT(raidvd->vdev_ops == &vdev_draid_ops);
+	ASSERT3U(raidvd->vdev_ops, ==, &vdev_draid_ops);
 
 	vdev_draid_config_t *vdc = raidvd->vdev_tsd;
 	uint64_t ashift = raidvd->vdev_top->vdev_ashift;

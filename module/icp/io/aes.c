@@ -479,8 +479,10 @@ aes_decrypt(crypto_ctx_t *ctx, crypto_data_t *ciphertext,
 	}
 
 	if (aes_ctx->ac_flags & CCM_MODE) {
-		ASSERT(aes_ctx->ac_processed_data_len == aes_ctx->ac_data_len);
-		ASSERT(aes_ctx->ac_processed_mac_len == aes_ctx->ac_mac_len);
+		ASSERT3U(aes_ctx->ac_processed_data_len, ==,
+		    aes_ctx->ac_data_len);
+		ASSERT3U(aes_ctx->ac_processed_mac_len, ==,
+		    aes_ctx->ac_mac_len);
 
 		/* order of following 2 lines MUST not be reversed */
 		plaintext->cd_offset = plaintext->cd_length;
@@ -771,8 +773,9 @@ aes_decrypt_final(crypto_ctx_t *ctx, crypto_data_t *data)
 			return (CRYPTO_BUFFER_TOO_SMALL);
 		}
 
-		ASSERT(aes_ctx->ac_processed_data_len == pt_len);
-		ASSERT(aes_ctx->ac_processed_mac_len == aes_ctx->ac_mac_len);
+		ASSERT3U(aes_ctx->ac_processed_data_len, ==, pt_len);
+		ASSERT3U(aes_ctx->ac_processed_mac_len, ==,
+		    aes_ctx->ac_mac_len);
 		saved_offset = data->cd_offset;
 		saved_length = data->cd_length;
 		ret = ccm_decrypt_final((ccm_ctx_t *)aes_ctx, data,
@@ -1039,10 +1042,10 @@ aes_decrypt_atomic(crypto_mechanism_t *mechanism,
 
 	if (ret == CRYPTO_SUCCESS) {
 		if (mechanism->cm_type == AES_CCM_MECH_INFO_TYPE) {
-			ASSERT(aes_ctx.ac_processed_data_len
-			    == aes_ctx.ac_data_len);
-			ASSERT(aes_ctx.ac_processed_mac_len
-			    == aes_ctx.ac_mac_len);
+			ASSERT3U(aes_ctx.ac_processed_data_len, ==,
+			    aes_ctx.ac_data_len);
+			ASSERT3U(aes_ctx.ac_processed_mac_len, ==,
+			    aes_ctx.ac_mac_len);
 			ret = ccm_decrypt_final((ccm_ctx_t *)&aes_ctx,
 			    plaintext, AES_BLOCK_LEN, aes_encrypt_block,
 			    aes_copy_block, aes_xor_block);
@@ -1165,7 +1168,7 @@ aes_free_context(crypto_ctx_t *ctx)
 
 	if (aes_ctx != NULL) {
 		if (aes_ctx->ac_flags & PROVIDER_OWNS_KEY_SCHEDULE) {
-			ASSERT(aes_ctx->ac_keysched_len != 0);
+			ASSERT3U(aes_ctx->ac_keysched_len, !=, 0);
 			memset(aes_ctx->ac_keysched, 0,
 			    aes_ctx->ac_keysched_len);
 			kmem_free(aes_ctx->ac_keysched,

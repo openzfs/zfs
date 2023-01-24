@@ -815,7 +815,7 @@ space_map_open(space_map_t **smp, objset_t *os, uint64_t object,
 
 	ASSERT3P(*smp, ==, NULL);
 	ASSERT3P(os, !=, NULL);
-	ASSERT(object != 0);
+	ASSERT3U(object, !=, 0);
 
 	sm = kmem_alloc(sizeof (space_map_t), KM_SLEEP);
 

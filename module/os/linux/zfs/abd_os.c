@@ -1128,7 +1128,7 @@ abd_bio_map_off(struct bio *bio, abd_t *abd,
 		sgoff = aiter.iter_offset;
 		pgoff = sgoff & (PAGESIZE - 1);
 		len = MIN(io_size, PAGESIZE - pgoff);
-		ASSERT(len > 0);
+		ASSERT3U(len, >, 0);
 
 		pg = nth_page(sg_page(sg), sgoff >> PAGE_SHIFT);
 		if (bio_add_page(bio, pg, len, pgoff) != len)

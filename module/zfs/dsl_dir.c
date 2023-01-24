@@ -497,7 +497,7 @@ dsl_dir_hold(dsl_pool_t *dp, const char *name, const void *tag,
 		err = getcomponent(next, buf, &nextnext);
 		if (err != 0)
 			break;
-		ASSERT(next[0] != '\0');
+		ASSERT3U(next[0], !=, '\0');
 		if (next[0] == '@')
 			break;
 		dprintf("looking up %s in obj%lld\n",
@@ -1237,8 +1237,8 @@ dsl_dir_space_available(dsl_dir_t *dd,
 	}
 
 	if (dd == ancestor) {
-		ASSERT(delta <= 0);
-		ASSERT(used >= -delta);
+		ASSERT3U(delta, <=, 0);
+		ASSERT3U(used, >=, -delta);
 		used += delta;
 		if (parentspace != UINT64_MAX)
 			parentspace -= delta;
@@ -1549,7 +1549,7 @@ dsl_dir_diduse_space(dsl_dir_t *dd, dd_used_t type,
 	int64_t accounted_delta;
 
 	ASSERT(dmu_tx_is_syncing(tx));
-	ASSERT(type < DD_USED_NUM);
+	ASSERT3U(type, <, DD_USED_NUM);
 
 	dmu_buf_will_dirty(dd->dd_dbuf, tx);
 
@@ -1601,8 +1601,8 @@ dsl_dir_transfer_space(dsl_dir_t *dd, int64_t delta,
     dd_used_t oldtype, dd_used_t newtype, dmu_tx_t *tx)
 {
 	ASSERT(dmu_tx_is_syncing(tx));
-	ASSERT(oldtype < DD_USED_NUM);
-	ASSERT(newtype < DD_USED_NUM);
+	ASSERT3U(oldtype, <, DD_USED_NUM);
+	ASSERT3U(newtype, <, DD_USED_NUM);
 
 	dsl_dir_phys_t *ddp = dsl_dir_phys(dd);
 	if (delta == 0 ||
@@ -1614,7 +1614,7 @@ dsl_dir_transfer_space(dsl_dir_t *dd, int64_t delta,
 	ASSERT(delta > 0 ?
 	    ddp->dd_used_breakdown[oldtype] >= delta :
 	    ddp->dd_used_breakdown[newtype] >= -delta);
-	ASSERT(ddp->dd_used_bytes >= ABS(delta));
+	ASSERT3U(ddp->dd_used_bytes, >=, ABS(delta));
 	ddp->dd_used_breakdown[oldtype] -= delta;
 	ddp->dd_used_breakdown[newtype] += delta;
 	mutex_exit(&dd->dd_lock);
@@ -1628,8 +1628,8 @@ dsl_dir_diduse_transfer_space(dsl_dir_t *dd, int64_t used,
 	int64_t accounted_delta;
 
 	ASSERT(dmu_tx_is_syncing(tx));
-	ASSERT(oldtype < DD_USED_NUM);
-	ASSERT(newtype < DD_USED_NUM);
+	ASSERT3U(oldtype, <, DD_USED_NUM);
+	ASSERT3U(newtype, <, DD_USED_NUM);
 
 	dmu_buf_will_dirty(dd->dd_dbuf, tx);
 

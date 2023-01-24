@@ -69,7 +69,7 @@ __cv_init(kcondvar_t *cvp, char *name, kcv_type_t type, void *arg)
 {
 	ASSERT(cvp);
 	ASSERT3P(name, ==, NULL);
-	ASSERT(type == CV_DEFAULT);
+	ASSERT3U(type, ==, CV_DEFAULT);
 	ASSERT3P(arg, ==, NULL);
 
 	cvp->cv_magic = CV_MAGIC;
@@ -97,7 +97,7 @@ void
 __cv_destroy(kcondvar_t *cvp)
 {
 	ASSERT(cvp);
-	ASSERT(cvp->cv_magic == CV_MAGIC);
+	ASSERT3U(cvp->cv_magic, ==, CV_MAGIC);
 
 	cvp->cv_magic = CV_DESTROY;
 	atomic_dec(&cvp->cv_refs);
@@ -121,7 +121,7 @@ cv_wait_common(kcondvar_t *cvp, kmutex_t *mp, int state, int io)
 
 	ASSERT(cvp);
 	ASSERT(mp);
-	ASSERT(cvp->cv_magic == CV_MAGIC);
+	ASSERT3U(cvp->cv_magic, ==, CV_MAGIC);
 	ASSERT(mutex_owned(mp));
 	atomic_inc(&cvp->cv_refs);
 
@@ -265,7 +265,7 @@ __cv_timedwait_common(kcondvar_t *cvp, kmutex_t *mp, clock_t expire_time,
 
 	ASSERT(cvp);
 	ASSERT(mp);
-	ASSERT(cvp->cv_magic == CV_MAGIC);
+	ASSERT3U(cvp->cv_magic, ==, CV_MAGIC);
 	ASSERT(mutex_owned(mp));
 
 	/* XXX - Does not handle jiffie wrap properly */
@@ -373,7 +373,7 @@ __cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t expire_time,
 
 	ASSERT(cvp);
 	ASSERT(mp);
-	ASSERT(cvp->cv_magic == CV_MAGIC);
+	ASSERT3U(cvp->cv_magic, ==, CV_MAGIC);
 	ASSERT(mutex_owned(mp));
 
 	time_left = expire_time - gethrtime();
@@ -474,7 +474,7 @@ void
 __cv_signal(kcondvar_t *cvp)
 {
 	ASSERT(cvp);
-	ASSERT(cvp->cv_magic == CV_MAGIC);
+	ASSERT3U(cvp->cv_magic, ==, CV_MAGIC);
 	atomic_inc(&cvp->cv_refs);
 
 	/*
@@ -494,7 +494,7 @@ void
 __cv_broadcast(kcondvar_t *cvp)
 {
 	ASSERT(cvp);
-	ASSERT(cvp->cv_magic == CV_MAGIC);
+	ASSERT3U(cvp->cv_magic, ==, CV_MAGIC);
 	atomic_inc(&cvp->cv_refs);
 
 	/*

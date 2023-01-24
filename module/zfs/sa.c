@@ -329,7 +329,7 @@ sa_attr_op(sa_handle_t *hdl, sa_bulk_attr_t *bulk, int count,
 
 	ASSERT3S(count, >, 0);
 	for (i = 0; i != count; i++) {
-		ASSERT(bulk[i].sa_attr <= hdl->sa_os->os_sa->sa_num_attrs);
+		ASSERT3U(bulk[i].sa_attr, <=, hdl->sa_os->os_sa->sa_num_attrs);
 
 		bulk[i].sa_addr = NULL;
 		/* First check the bonus buffer */
@@ -619,7 +619,7 @@ sa_find_sizes(sa_os_t *sa, sa_bulk_attr_t *attr_desc, int attr_count,
 				if (*index != -1 || might_spill_here)
 					extra_hdrsize += sizeof (uint16_t);
 			} else {
-				ASSERT(buftype == SA_BONUS);
+				ASSERT3U(buftype, ==, SA_BONUS);
 				if (*index == -1)
 					*index = i;
 				*will_spill = B_TRUE;
@@ -738,7 +738,7 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 			length = attr_desc[i].sa_length;
 
 		if (spilling && i == spill_idx) { /* switch to spill buffer */
-			VERIFY(bonustype == DMU_OT_SA);
+			VERIFY3U(bonustype, ==, DMU_OT_SA);
 			if (buftype == SA_BONUS && !sa->sa_force_spill) {
 				sa_find_layout(hdl->sa_os, hash, attrs_start,
 				    lot_count, tx, &lot);

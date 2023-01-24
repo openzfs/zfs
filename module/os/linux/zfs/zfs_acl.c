@@ -804,7 +804,7 @@ zfs_acl_xform(znode_t *zp, zfs_acl_t *aclp, cred_t *cr)
 	void *cookie = NULL;
 	zfs_acl_node_t *newaclnode;
 
-	ASSERT(aclp->z_version == ZFS_ACL_VERSION_INITIAL);
+	ASSERT3U(aclp->z_version, ==, ZFS_ACL_VERSION_INITIAL);
 	/*
 	 * First create the ACE in a contiguous piece of memory
 	 * for zfs_copy_ace_2_fuid().
@@ -1392,7 +1392,7 @@ zfs_aclset_common(znode_t *zp, zfs_acl_t *aclp, cred_t *cr, dmu_tx_t *tx)
 		if ((aclp->z_version == ZFS_ACL_VERSION_INITIAL) &&
 		    (zfsvfs->z_version >= ZPL_VERSION_FUID))
 			zfs_acl_xform(zp, aclp, cr);
-		ASSERT(aclp->z_version >= ZFS_ACL_VERSION_FUID);
+		ASSERT3U(aclp->z_version, >=, ZFS_ACL_VERSION_FUID);
 		otype = DMU_OT_ACL;
 	}
 
@@ -1746,8 +1746,8 @@ zfs_acl_inherit(zfsvfs_t *zfsvfs, umode_t va_mode, zfs_acl_t *paclp,
 		 * Copy special opaque data if any
 		 */
 		if ((data1sz = paclp->z_ops->ace_data(pacep, &data1)) != 0) {
-			VERIFY((data2sz = aclp->z_ops->ace_data(acep,
-			    &data2)) == data1sz);
+			VERIFY3U((data2sz = aclp->z_ops->ace_data(acep,
+			    &data2)), ==, data1sz);
 			memcpy(data2, data1, data2sz);
 		}
 
@@ -2044,8 +2044,8 @@ zfs_getacl(znode_t *zp, vsecattr_t *vsecp, boolean_t skipaclchk, cred_t *cr)
 				    aclnode->z_size);
 				start = (caddr_t)start + aclnode->z_size;
 			}
-			ASSERT((caddr_t)start - (caddr_t)vsecp->vsa_aclentp ==
-			    aclp->z_acl_bytes);
+			ASSERT3U((caddr_t)start - (caddr_t)vsecp->vsa_aclentp,
+			    ==, aclp->z_acl_bytes);
 		}
 	}
 	if (mask & VSA_ACE_ACLFLAGS) {
@@ -2718,7 +2718,7 @@ zfs_zaccess(znode_t *zp, int mode, int flags, boolean_t skipaclchk, cred_t *cr,
 		 * read_acl/read_attributes
 		 */
 
-		ASSERT(working_mode != 0);
+		ASSERT3U(working_mode, !=, 0);
 
 		if ((working_mode & (ACE_READ_ACL|ACE_READ_ATTRIBUTES) &&
 		    owner == crgetuid(cr)))

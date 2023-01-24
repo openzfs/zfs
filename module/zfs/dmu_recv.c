@@ -1569,13 +1569,13 @@ save_resume_state(struct receive_writer_arg *rwa,
 	 * We use ds_resume_bytes[] != 0 to indicate that we need to
 	 * update this on disk, so it must not be 0.
 	 */
-	ASSERT(rwa->bytes_read != 0);
+	ASSERT3U(rwa->bytes_read, !=, 0);
 
 	/*
 	 * We only resume from write records, which have a valid
 	 * (non-meta-dnode) object number.
 	 */
-	ASSERT(object != 0);
+	ASSERT3U(object, !=, 0);
 
 	/*
 	 * For resuming to work correctly, we must receive records in order,
