@@ -455,7 +455,7 @@ spa_config_lock_destroy(spa_t *spa)
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		mutex_destroy(&scl->scl_lock);
 		cv_destroy(&scl->scl_cv);
-		ASSERT(scl->scl_writer == NULL);
+		ASSERT3P(scl->scl_writer, ==, NULL);
 		ASSERT0(scl->scl_write_wanted);
 		ASSERT0(scl->scl_count);
 	}
@@ -977,7 +977,7 @@ spa_aux_remove(vdev_t *vd, avl_tree_t *avl)
 	search.aux_guid = vd->vdev_guid;
 	aux = avl_find(avl, &search, &where);
 
-	ASSERT(aux != NULL);
+	ASSERT3P(aux, !=, NULL);
 
 	if (--aux->aux_count == 0) {
 		avl_remove(avl, aux);
@@ -1020,7 +1020,7 @@ spa_aux_activate(vdev_t *vd, avl_tree_t *avl)
 
 	search.aux_guid = vd->vdev_guid;
 	found = avl_find(avl, &search, &where);
-	ASSERT(found != NULL);
+	ASSERT3P(found, !=, NULL);
 	ASSERT(found->aux_pool == 0ULL);
 
 	found->aux_pool = spa_guid(vd->vdev_spa);

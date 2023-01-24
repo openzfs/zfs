@@ -227,7 +227,7 @@ dsl_dataset_block_remapped(dsl_dataset_t *ds, uint64_t vdev, uint64_t offset,
 		blkptr_t fakebp;
 		dva_t *dva = &fakebp.blk_dva[0];
 
-		ASSERT(ds != NULL);
+		ASSERT3P(ds, !=, NULL);
 
 		mutex_enter(&ds->ds_remap_deadlist_lock);
 		if (!dsl_dataset_remap_deadlist_exists(ds)) {
@@ -423,7 +423,7 @@ dsl_dataset_evict_sync(void *dbu)
 {
 	dsl_dataset_t *ds = dbu;
 
-	ASSERT(ds->ds_owner == NULL);
+	ASSERT3P(ds->ds_owner, ==, NULL);
 
 	unique_remove(ds->ds_fsid_guid);
 }
@@ -433,7 +433,7 @@ dsl_dataset_evict_async(void *dbu)
 {
 	dsl_dataset_t *ds = dbu;
 
-	ASSERT(ds->ds_owner == NULL);
+	ASSERT3P(ds->ds_owner, ==, NULL);
 
 	ds->ds_dbuf = NULL;
 
@@ -1001,7 +1001,7 @@ void
 dsl_dataset_disown(dsl_dataset_t *ds, ds_hold_flags_t flags, const void *tag)
 {
 	ASSERT3P(ds->ds_owner, ==, tag);
-	ASSERT(ds->ds_dbuf != NULL);
+	ASSERT3P(ds->ds_dbuf, !=, NULL);
 
 	mutex_enter(&ds->ds_lock);
 	ds->ds_owner = NULL;
@@ -1434,7 +1434,7 @@ dsl_dataset_dirty(dsl_dataset_t *ds, dmu_tx_t *tx)
 	if (ds == NULL) /* this is the meta-objset */
 		return;
 
-	ASSERT(ds->ds_objset != NULL);
+	ASSERT3P(ds->ds_objset, !=, NULL);
 
 	if (dsl_dataset_phys(ds)->ds_next_snap_obj != 0)
 		panic("dirtying snapshot!");
@@ -2095,7 +2095,7 @@ void
 dsl_dataset_sync(dsl_dataset_t *ds, zio_t *zio, dmu_tx_t *tx)
 {
 	ASSERT(dmu_tx_is_syncing(tx));
-	ASSERT(ds->ds_objset != NULL);
+	ASSERT3P(ds->ds_objset, !=, NULL);
 	ASSERT0(dsl_dataset_phys(ds)->ds_next_snap_obj);
 
 	/*
@@ -3349,7 +3349,7 @@ dsl_dataset_promote_check(void *arg, dmu_tx_t *tx)
 
 	/* compute origin's new unique space */
 	snap = list_tail(&ddpa->clone_snaps);
-	ASSERT(snap != NULL);
+	ASSERT3P(snap, !=, NULL);
 	ASSERT3U(dsl_dataset_phys(snap->ds)->ds_prev_snap_obj, ==,
 	    origin_ds->ds_object);
 	dsl_deadlist_space_range(&snap->ds->ds_deadlist,

@@ -504,7 +504,7 @@ zpl_xattr_set_dir(struct inode *ip, const char *name, const void *value,
 			goto out;
 	}
 
-	ASSERT(xzp != NULL);
+	ASSERT3P(xzp, !=, NULL);
 
 	error = -zfs_freesp(xzp, 0, 0, xattr_mode, TRUE);
 	if (error)

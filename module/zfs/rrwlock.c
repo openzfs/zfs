@@ -154,7 +154,7 @@ rrw_destroy(rrwlock_t *rrl)
 {
 	mutex_destroy(&rrl->rr_lock);
 	cv_destroy(&rrl->rr_cv);
-	ASSERT(rrl->rr_writer == NULL);
+	ASSERT3P(rrl->rr_writer, ==, NULL);
 	zfs_refcount_destroy(&rrl->rr_anon_rcount);
 	zfs_refcount_destroy(&rrl->rr_linked_rcount);
 }
@@ -187,7 +187,7 @@ rrw_enter_read_impl(rrwlock_t *rrl, boolean_t prio, const void *tag)
 	} else {
 		(void) zfs_refcount_add(&rrl->rr_anon_rcount, tag);
 	}
-	ASSERT(rrl->rr_writer == NULL);
+	ASSERT3P(rrl->rr_writer, ==, NULL);
 	mutex_exit(&rrl->rr_lock);
 }
 

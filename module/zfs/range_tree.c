@@ -735,7 +735,7 @@ range_tree_numsegs(range_tree_t *rt)
 boolean_t
 range_tree_is_empty(range_tree_t *rt)
 {
-	ASSERT(rt != NULL);
+	ASSERT3P(rt, !=, NULL);
 	return (range_tree_space(rt) == 0);
 }
 

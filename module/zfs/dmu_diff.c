@@ -88,7 +88,7 @@ report_free_dnode_range(dmu_diffarg_t *da, uint64_t first, uint64_t last)
 static int
 report_dnode(dmu_diffarg_t *da, uint64_t object, dnode_phys_t *dnp)
 {
-	ASSERT(dnp != NULL);
+	ASSERT3P(dnp, !=, NULL);
 	if (dnp->dn_type == DMU_OT_NONE)
 		return (report_free_dnode_range(da, object, object));
 

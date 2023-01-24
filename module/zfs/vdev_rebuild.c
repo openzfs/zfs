@@ -1080,7 +1080,7 @@ vdev_rebuild_stop_wait(vdev_t *vd)
 			vdev_rebuild_stop_wait(vd->vdev_child[i]);
 
 	} else if (vd->vdev_top_zap != 0) {
-		ASSERT(vd == vd->vdev_top);
+		ASSERT3P(vd, ==, vd->vdev_top);
 
 		mutex_enter(&vd->vdev_rebuild_lock);
 		if (vd->vdev_rebuild_thread != NULL) {

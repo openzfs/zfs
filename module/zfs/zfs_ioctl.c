@@ -3182,7 +3182,7 @@ zfs_fill_zplprops_impl(objset_t *os, uint64_t zplver,
 	uint64_t u8 = ZFS_PROP_UNDEFINED;
 	int error;
 
-	ASSERT(zplprops != NULL);
+	ASSERT3P(zplprops, !=, NULL);
 
 	/* parent dataset must be a filesystem */
 	if (os != NULL && os->os_phys->os_type != DMU_OST_ZFS)
@@ -7581,7 +7581,7 @@ zfsdev_state_destroy(void *priv)
 {
 	zfsdev_state_t *zs = zfsdev_private_get_state(priv);
 
-	ASSERT(zs != NULL);
+	ASSERT3P(zs, !=, NULL);
 	ASSERT3S(zs->zs_minor, >, 0);
 
 	/*
@@ -7725,7 +7725,7 @@ zfsdev_ioctl_common(uint_t vecnum, zfs_cmd_t *zc, int flag)
 		spa_t *spa;
 		nvlist_t *lognv = NULL;
 
-		ASSERT(vec->zvec_legacy_func == NULL);
+		ASSERT3P(vec->zvec_legacy_func, ==, NULL);
 
 		/*
 		 * Add the innvl to the lognv before calling the func,

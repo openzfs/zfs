@@ -698,7 +698,7 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 			}
 
 			slash = strrchr(strval, '/');
-			ASSERT(slash != NULL);
+			ASSERT3P(slash, !=, NULL);
 
 			if (slash[1] == '\0' || strcmp(slash, "/.") == 0 ||
 			    strcmp(slash, "/..") == 0)
@@ -1372,9 +1372,9 @@ static void
 spa_deactivate(spa_t *spa)
 {
 	ASSERT(spa->spa_sync_on == B_FALSE);
-	ASSERT(spa->spa_dsl_pool == NULL);
-	ASSERT(spa->spa_root_vdev == NULL);
-	ASSERT(spa->spa_async_zio_root == NULL);
+	ASSERT3P(spa->spa_dsl_pool, ==, NULL);
+	ASSERT3P(spa->spa_root_vdev, ==, NULL);
+	ASSERT3P(spa->spa_async_zio_root, ==, NULL);
 	ASSERT(spa->spa_state != POOL_STATE_UNINITIALIZED);
 
 	spa_evicting_os_wait(spa);
@@ -1513,7 +1513,7 @@ spa_config_parse(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent,
 		}
 	}
 
-	ASSERT(*vdp != NULL);
+	ASSERT3P(*vdp, !=, NULL);
 
 	return (0);
 }
@@ -1695,7 +1695,7 @@ spa_unload(spa_t *spa)
 	 */
 	if (spa->spa_root_vdev)
 		vdev_free(spa->spa_root_vdev);
-	ASSERT(spa->spa_root_vdev == NULL);
+	ASSERT3P(spa->spa_root_vdev, ==, NULL);
 
 	/*
 	 * Close the dsl pool.
@@ -1830,7 +1830,7 @@ spa_load_spares(spa_t *spa)
 	for (i = 0; i < spa->spa_spares.sav_count; i++) {
 		VERIFY0(spa_config_parse(spa, &vd, spares[i], NULL, 0,
 		    VDEV_ALLOC_SPARE));
-		ASSERT(vd != NULL);
+		ASSERT3P(vd, !=, NULL);
 
 		spa->spa_spares.sav_vdevs[i] = vd;
 
@@ -1958,7 +1958,7 @@ spa_load_l2cache(spa_t *spa)
 			 */
 			VERIFY0(spa_config_parse(spa, &vd, l2cache[i], NULL, 0,
 			    VDEV_ALLOC_L2CACHE));
-			ASSERT(vd != NULL);
+			ASSERT3P(vd, !=, NULL);
 			newvdevs[i] = vd;
 
 			/*
@@ -2683,7 +2683,7 @@ static int
 livelist_track_new_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
     dmu_tx_t *tx)
 {
-	ASSERT(tx == NULL);
+	ASSERT3P(tx, ==, NULL);
 	livelist_new_arg_t *lna = arg;
 	if (bp_freed) {
 		bplist_append(lna->frees, bp);
@@ -3422,11 +3422,11 @@ spa_ld_parse_config(spa_t *spa, spa_import_type_t type)
 	nvlist_free(spa->spa_load_info);
 	spa->spa_load_info = fnvlist_alloc();
 
-	ASSERT(spa->spa_comment == NULL);
+	ASSERT3P(spa->spa_comment, ==, NULL);
 	if (nvlist_lookup_string(config, ZPOOL_CONFIG_COMMENT, &comment) == 0)
 		spa->spa_comment = spa_strdup(comment);
 
-	ASSERT(spa->spa_compatibility == NULL);
+	ASSERT3P(spa->spa_compatibility, ==, NULL);
 	if (nvlist_lookup_string(config, ZPOOL_CONFIG_COMPATIBILITY,
 	    &compatibility) == 0)
 		spa->spa_compatibility = spa_strdup(compatibility);
@@ -5420,7 +5420,7 @@ spa_add_l2cache(spa_t *spa, nvlist_t *config)
 					break;
 				}
 			}
-			ASSERT(vd != NULL);
+			ASSERT3P(vd, !=, NULL);
 
 			VERIFY0(nvlist_lookup_uint64_array(l2cache[i],
 			    ZPOOL_CONFIG_VDEV_STATS, (uint64_t **)&vs, &vsc));
@@ -5736,7 +5736,7 @@ spa_l2cache_drop(spa_t *spa)
 		uint64_t pool;
 
 		vd = sav->sav_vdevs[i];
-		ASSERT(vd != NULL);
+		ASSERT3P(vd, !=, NULL);
 
 		if (spa_l2cache_exists(vd->vdev_guid, &pool) &&
 		    pool != 0ULL && l2arc_vdev_present(vd))
@@ -8784,7 +8784,7 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 			 * 'altroot' is a non-persistent property. It should
 			 * have been set temporarily at creation or import time.
 			 */
-			ASSERT(spa->spa_root != NULL);
+			ASSERT3P(spa->spa_root, !=, NULL);
 			break;
 
 		case ZPOOL_PROP_READONLY:
@@ -8987,14 +8987,14 @@ vdev_indirect_state_sync_verify(vdev_t *vd)
 	vdev_indirect_births_t *vib __maybe_unused = vd->vdev_indirect_births;
 
 	if (vd->vdev_ops == &vdev_indirect_ops) {
-		ASSERT(vim != NULL);
-		ASSERT(vib != NULL);
+		ASSERT3P(vim, !=, NULL);
+		ASSERT3P(vib, !=, NULL);
 	}
 
 	uint64_t obsolete_sm_object = 0;
 	ASSERT0(vdev_obsolete_sm_object(vd, &obsolete_sm_object));
 	if (obsolete_sm_object != 0) {
-		ASSERT(vd->vdev_obsolete_sm != NULL);
+		ASSERT3P(vd->vdev_obsolete_sm, !=, NULL);
 		ASSERT(vd->vdev_removing ||
 		    vd->vdev_ops == &vdev_indirect_ops);
 		ASSERT(vdev_indirect_mapping_num_entries(vim) > 0);
@@ -9004,7 +9004,7 @@ vdev_indirect_state_sync_verify(vdev_t *vd)
 		ASSERT3U(vdev_indirect_mapping_bytes_mapped(vim), >=,
 		    space_map_allocated(vd->vdev_obsolete_sm));
 	}
-	ASSERT(vd->vdev_obsolete_segments != NULL);
+	ASSERT3P(vd->vdev_obsolete_segments, !=, NULL);
 
 	/*
 	 * Since frees / remaps to an indirect vdev can only

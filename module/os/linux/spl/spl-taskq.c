@@ -1046,7 +1046,7 @@ taskq_create(const char *name, int threads_arg, pri_t pri,
 	unsigned long irqflags;
 	int nthreads = threads_arg;
 
-	ASSERT(name != NULL);
+	ASSERT3P(name, !=, NULL);
 	ASSERT(minalloc >= 0);
 	ASSERT0((flags & (TASKQ_CPR_SAFE))); /* Unsupported */
 

@@ -365,7 +365,7 @@ skein_digest(crypto_ctx_t *ctx, crypto_data_t *data, crypto_data_t *digest)
 {
 	int error = CRYPTO_SUCCESS;
 
-	ASSERT(SKEIN_CTX(ctx) != NULL);
+	ASSERT3P(SKEIN_CTX(ctx), !=, NULL);
 
 	if (digest->cd_length <
 	    CRYPTO_BITS2BYTES(SKEIN_CTX(ctx)->sc_digest_bitlen)) {
@@ -397,7 +397,7 @@ skein_update(crypto_ctx_t *ctx, crypto_data_t *data)
 {
 	int error = CRYPTO_SUCCESS;
 
-	ASSERT(SKEIN_CTX(ctx) != NULL);
+	ASSERT3P(SKEIN_CTX(ctx), !=, NULL);
 
 	switch (data->cd_format) {
 	case CRYPTO_DATA_RAW:
@@ -425,7 +425,7 @@ skein_final_nofree(crypto_ctx_t *ctx, crypto_data_t *digest)
 {
 	int error = CRYPTO_SUCCESS;
 
-	ASSERT(SKEIN_CTX(ctx) != NULL);
+	ASSERT3P(SKEIN_CTX(ctx), !=, NULL);
 
 	if (digest->cd_length <
 	    CRYPTO_BITS2BYTES(SKEIN_CTX(ctx)->sc_digest_bitlen)) {

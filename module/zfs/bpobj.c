@@ -158,8 +158,8 @@ bpobj_open(bpobj_t *bpo, objset_t *os, uint64_t object)
 	memset(bpo, 0, sizeof (*bpo));
 	mutex_init(&bpo->bpo_lock, NULL, MUTEX_DEFAULT, NULL);
 
-	ASSERT(bpo->bpo_dbuf == NULL);
-	ASSERT(bpo->bpo_phys == NULL);
+	ASSERT3P(bpo->bpo_dbuf, ==, NULL);
+	ASSERT3P(bpo->bpo_phys, ==, NULL);
 	ASSERT(object != 0);
 	ASSERT3U(doi.doi_type, ==, DMU_OT_BPOBJ);
 	ASSERT3U(doi.doi_bonus_type, ==, DMU_OT_BPOBJ_HDR);

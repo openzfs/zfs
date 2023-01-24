@@ -842,7 +842,7 @@ sweep_thread(void *arg)
 {
 	int err = 0;
 	raidz_test_opts_t *opts = (raidz_test_opts_t *)arg;
-	VERIFY(opts != NULL);
+	VERIFY3P(opts, !=, NULL);
 
 	err = run_test(opts);
 

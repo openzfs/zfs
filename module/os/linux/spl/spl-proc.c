@@ -726,6 +726,6 @@ spl_proc_fini(void)
 	remove_proc_entry("taskq", proc_spl);
 	remove_proc_entry("spl", NULL);
 
-	ASSERT(spl_header != NULL);
+	ASSERT3P(spl_header, !=, NULL);
 	unregister_sysctl_table(spl_header);
 }

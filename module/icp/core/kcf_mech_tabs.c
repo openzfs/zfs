@@ -371,7 +371,7 @@ kcf_get_mech_entry(crypto_mech_type_t mech_type, kcf_mech_entry_t **mep)
 	int			index;
 	const kcf_mech_entry_tab_t	*me_tab;
 
-	ASSERT(mep != NULL);
+	ASSERT3P(mep, !=, NULL);
 
 	class = KCF_MECH2CLASS(mech_type);
 

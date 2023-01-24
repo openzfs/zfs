@@ -132,7 +132,7 @@ zfs_sa_get_scanstamp(znode_t *zp, xvattr_t *xvap)
 	xoptattr_t *xoap;
 
 	ASSERT(MUTEX_HELD(&zp->z_lock));
-	VERIFY((xoap = xva_getxoptattr(xvap)) != NULL);
+	VERIFY3P((xoap = xva_getxoptattr(xvap)), !=, NULL);
 	if (zp->z_is_sa) {
 		if (sa_lookup(zp->z_sa_hdl, SA_ZPL_SCANSTAMP(zfsvfs),
 		    &xoap->xoa_av_scanstamp,
@@ -166,7 +166,7 @@ zfs_sa_set_scanstamp(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx)
 	xoptattr_t *xoap;
 
 	ASSERT(MUTEX_HELD(&zp->z_lock));
-	VERIFY((xoap = xva_getxoptattr(xvap)) != NULL);
+	VERIFY3P((xoap = xva_getxoptattr(xvap)), !=, NULL);
 	if (zp->z_is_sa)
 		VERIFY0(sa_update(zp->z_sa_hdl, SA_ZPL_SCANSTAMP(zfsvfs),
 		    &xoap->xoa_av_scanstamp, sizeof (xoap->xoa_av_scanstamp),
@@ -199,7 +199,7 @@ zfs_sa_get_xattr(znode_t *zp)
 	int error;
 
 	ASSERT(RW_LOCK_HELD(&zp->z_xattr_lock));
-	ASSERT(zp->z_xattr_cached);
+	ASSERT3P(zp->z_xattr_cached, !=, NULL);
 	ASSERT(zp->z_is_sa);
 
 	error = sa_size(zp->z_sa_hdl, SA_ZPL_DXATTR(zfsvfs), &size);
@@ -233,7 +233,7 @@ zfs_sa_set_xattr(znode_t *zp, const char *name, const void *value, size_t vsize)
 	int error, logsaxattr = 0;
 
 	ASSERT(RW_WRITE_HELD(&zp->z_xattr_lock));
-	ASSERT(zp->z_xattr_cached);
+	ASSERT3P(zp->z_xattr_cached, !=, NULL);
 	ASSERT(zp->z_is_sa);
 
 	error = nvlist_size(zp->z_xattr_cached, &size, NV_ENCODE_XDR);

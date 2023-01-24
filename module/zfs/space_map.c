@@ -220,7 +220,7 @@ space_map_reversed_last_block_entries(space_map_t *sm, uint64_t *buf,
 	ASSERT3U(sm->sm_object, ==, db->db_object);
 	ASSERT3U(sm->sm_blksz, ==, db->db_size);
 	ASSERT3U(bufsz, >=, db->db_size);
-	ASSERT(nwords != NULL);
+	ASSERT3P(nwords, !=, NULL);
 
 	uint64_t *words = db->db_data;
 	*nwords =
@@ -813,8 +813,8 @@ space_map_open(space_map_t **smp, objset_t *os, uint64_t object,
 	space_map_t *sm;
 	int error;
 
-	ASSERT(*smp == NULL);
-	ASSERT(os != NULL);
+	ASSERT3P(*smp, ==, NULL);
+	ASSERT3P(os, !=, NULL);
 	ASSERT(object != 0);
 
 	sm = kmem_alloc(sizeof (space_map_t), KM_SLEEP);

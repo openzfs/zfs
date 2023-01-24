@@ -719,14 +719,14 @@ kill_blkptr(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		return (0);
 
 	if (zb->zb_level == ZB_ZIL_LEVEL) {
-		ASSERT(zilog != NULL);
+		ASSERT3P(zilog, !=, NULL);
 		/*
 		 * It's a block in the intent log.  It has no
 		 * accounting, so just free it.
 		 */
 		dsl_free(ka->tx->tx_pool, ka->tx->tx_txg, bp);
 	} else {
-		ASSERT(zilog == NULL);
+		ASSERT3P(zilog, ==, NULL);
 		ASSERT3U(bp->blk_birth, >,
 		    dsl_dataset_phys(ka->ds)->ds_prev_snap_txg);
 		(void) dsl_dataset_block_kill(ka->ds, bp, tx, B_FALSE);
@@ -1047,7 +1047,7 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 
 	if (dsl_dataset_phys(ds)->ds_prev_snap_obj != 0) {
 		/* This is a clone */
-		ASSERT(ds->ds_prev != NULL);
+		ASSERT3P(ds->ds_prev, !=, NULL);
 		ASSERT3U(dsl_dataset_phys(ds->ds_prev)->ds_next_snap_obj, !=,
 		    obj);
 		ASSERT0(dsl_dataset_phys(ds)->ds_next_snap_obj);

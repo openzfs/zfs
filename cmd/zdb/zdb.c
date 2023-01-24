@@ -1866,7 +1866,7 @@ print_vdev_indirect(vdev_t *vd)
 		objset_t *mos = vd->vdev_spa->spa_meta_objset;
 		(void) printf("obsolete space map object %llu:\n",
 		    (u_longlong_t)obsolete_sm_object);
-		ASSERT(vd->vdev_obsolete_sm != NULL);
+		ASSERT3P(vd->vdev_obsolete_sm, !=, NULL);
 		ASSERT3U(space_map_object(vd->vdev_obsolete_sm), ==,
 		    obsolete_sm_object);
 		dump_spacemap(mos, vd->vdev_obsolete_sm);
@@ -2909,7 +2909,7 @@ dsl_deadlist_entry_count_refd(void *arg, dsl_deadlist_entry_t *dle)
 static int
 dsl_deadlist_entry_dump(void *arg, dsl_deadlist_entry_t *dle)
 {
-	ASSERT(arg == NULL);
+	ASSERT3P(arg, ==, NULL);
 	if (dump_opt['d'] >= 5) {
 		char buf[128];
 		(void) snprintf(buf, sizeof (buf),
@@ -5794,7 +5794,7 @@ zdb_ddt_leak_init(spa_t *spa, zdb_cb_t *zcb)
 		}
 		ddt_t *ddt = spa->spa_ddt[ddb.ddb_checksum];
 		ddt_enter(ddt);
-		VERIFY(ddt_lookup(ddt, &blk, B_TRUE) != NULL);
+		VERIFY3P(ddt_lookup(ddt, &blk, B_TRUE), !=, NULL);
 		ddt_exit(ddt);
 	}
 
@@ -6198,7 +6198,7 @@ zdb_check_for_obsolete_leaks(vdev_t *vd, zdb_cb_t *zcb)
 	uint64_t total_leaked = 0;
 	boolean_t are_precise = B_FALSE;
 
-	ASSERT(vim != NULL);
+	ASSERT3P(vim, !=, NULL);
 
 	for (uint64_t i = 0; i < vdev_indirect_mapping_num_entries(vim); i++) {
 		vdev_indirect_mapping_entry_phys_t *vimep =
@@ -8843,8 +8843,8 @@ main(int argc, char **argv)
 
 	if (error == 0) {
 		if (dump_opt['k'] && (target_is_spa || dump_opt['R'])) {
-			ASSERT(checkpoint_pool != NULL);
-			ASSERT(checkpoint_target == NULL);
+			ASSERT3P(checkpoint_pool, !=, NULL);
+			ASSERT3P(checkpoint_target, ==, NULL);
 
 			error = spa_open(checkpoint_pool, &spa, FTAG);
 			if (error != 0) {

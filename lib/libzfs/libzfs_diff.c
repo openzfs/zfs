@@ -577,7 +577,7 @@ get_snapshot_names(differ_info_t *di, const char *fromsnap,
 		}
 
 		atptrf = strchr(fromsnap, '@');
-		ASSERT(atptrf != NULL);
+		ASSERT3P(atptrf, !=, NULL);
 		fdslen = atptrf - fromsnap;
 
 		di->fromsnap = zfs_strdup(hdl, fromsnap);

@@ -265,7 +265,7 @@ restart:
 static int
 kstat_default_update(kstat_t *ksp, int rw)
 {
-	ASSERT(ksp != NULL);
+	ASSERT3P(ksp, !=, NULL);
 
 	if (rw == KSTAT_WRITE)
 		return (EACCES);

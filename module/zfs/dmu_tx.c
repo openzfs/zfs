@@ -529,7 +529,7 @@ dmu_tx_hold_zap_by_dnode(dmu_tx_t *tx, dnode_t *dn, int add, const char *name)
 	dmu_tx_hold_t *txh;
 
 	ASSERT0(tx->tx_txg);
-	ASSERT(dn != NULL);
+	ASSERT3P(dn, !=, NULL);
 
 	txh = dmu_tx_hold_dnode_impl(tx, dn, THT_ZAP, add, (uintptr_t)name);
 	if (txh != NULL)
@@ -1239,7 +1239,7 @@ dmu_tx_get_txg(dmu_tx_t *tx)
 dsl_pool_t *
 dmu_tx_pool(dmu_tx_t *tx)
 {
-	ASSERT(tx->tx_pool != NULL);
+	ASSERT3P(tx->tx_pool, !=, NULL);
 	return (tx->tx_pool);
 }
 
@@ -1358,7 +1358,7 @@ dmu_tx_hold_sa(dmu_tx_t *tx, sa_handle_t *hdl, boolean_t may_grow)
 	uint64_t object;
 	sa_os_t *sa = tx->tx_objset->os_sa;
 
-	ASSERT(hdl != NULL);
+	ASSERT3P(hdl, !=, NULL);
 
 	object = sa_handle_object(hdl);
 

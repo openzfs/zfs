@@ -417,7 +417,7 @@ zfs_fuid_map_id(zfsvfs_t *zfsvfs, uint64_t fuid,
 		return (fuid);
 
 	domain = zfs_fuid_find_by_idx(zfsvfs, index);
-	ASSERT(domain != NULL);
+	ASSERT3P(domain, !=, NULL);
 
 	if (type == ZFS_OWNER || type == ZFS_ACE_USER) {
 		(void) kidmap_getuidbysid(crgetzone(cr), domain,
@@ -744,7 +744,7 @@ zfs_groupmember(zfsvfs_t *zfsvfs, uint64_t id, cred_t *cr)
 				const char *domain;
 
 				domain = zfs_fuid_find_by_idx(zfsvfs, idx);
-				ASSERT(domain != NULL);
+				ASSERT3P(domain, !=, NULL);
 
 				if (strcmp(domain,
 				    IDMAP_WK_CREATOR_SID_AUTHORITY) == 0)

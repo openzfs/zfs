@@ -367,7 +367,7 @@ sha2_digest(crypto_ctx_t *ctx, crypto_data_t *data, crypto_data_t *digest)
 	int ret = CRYPTO_SUCCESS;
 	uint_t sha_digest_len;
 
-	ASSERT(ctx->cc_provider_private != NULL);
+	ASSERT3P(ctx->cc_provider_private, !=, NULL);
 
 	switch (PROV_SHA2_CTX(ctx)->sc_mech_type) {
 	case SHA256_MECH_INFO_TYPE:
@@ -452,7 +452,7 @@ sha2_digest_update(crypto_ctx_t *ctx, crypto_data_t *data)
 {
 	int ret = CRYPTO_SUCCESS;
 
-	ASSERT(ctx->cc_provider_private != NULL);
+	ASSERT3P(ctx->cc_provider_private, !=, NULL);
 
 	/*
 	 * Do the SHA2 update on the specified input data.
@@ -480,7 +480,7 @@ sha2_digest_final(crypto_ctx_t *ctx, crypto_data_t *digest)
 	int ret = CRYPTO_SUCCESS;
 	uint_t sha_digest_len;
 
-	ASSERT(ctx->cc_provider_private != NULL);
+	ASSERT3P(ctx->cc_provider_private, !=, NULL);
 
 	switch (PROV_SHA2_CTX(ctx)->sc_mech_type) {
 	case SHA256_MECH_INFO_TYPE:
@@ -762,7 +762,7 @@ sha2_mac_update(crypto_ctx_t *ctx, crypto_data_t *data)
 {
 	int ret = CRYPTO_SUCCESS;
 
-	ASSERT(ctx->cc_provider_private != NULL);
+	ASSERT3P(ctx->cc_provider_private, !=, NULL);
 
 	/*
 	 * Do a SHA2 update of the inner context using the specified
@@ -792,7 +792,7 @@ sha2_mac_final(crypto_ctx_t *ctx, crypto_data_t *mac)
 	uchar_t digest[SHA512_DIGEST_LENGTH];
 	uint32_t digest_len, sha_digest_len;
 
-	ASSERT(ctx->cc_provider_private != NULL);
+	ASSERT3P(ctx->cc_provider_private, !=, NULL);
 
 	/* Set the digest lengths to values appropriate to the mechanism */
 	switch (PROV_SHA2_HMAC_CTX(ctx)->hc_mech_type) {

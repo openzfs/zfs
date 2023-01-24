@@ -1756,7 +1756,7 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 	if (fid_gen == 0 &&
 	    (object == ZFSCTL_INO_ROOT || object == ZFSCTL_INO_SNAPDIR)) {
 		*ipp = zfsvfs->z_ctldir;
-		ASSERT(*ipp != NULL);
+		ASSERT3P(*ipp, !=, NULL);
 		if (object == ZFSCTL_INO_SNAPDIR) {
 			VERIFY0(zfsctl_root_lookup(*ipp, "snapshot", ipp, 0,
 			    kcred, NULL, NULL));

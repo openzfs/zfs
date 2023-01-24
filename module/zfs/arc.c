@@ -2313,7 +2313,7 @@ add_reference(arc_buf_hdr_t *hdr, const void *tag)
 
 	ASSERT(HDR_HAS_L1HDR(hdr));
 	if (!HDR_EMPTY(hdr) && !MUTEX_HELD(HDR_LOCK(hdr))) {
-		ASSERT(state == arc_anon);
+		ASSERT3P(state, ==, arc_anon);
 		ASSERT(zfs_refcount_is_zero(&hdr->b_l1hdr.b_refcnt));
 		ASSERT3P(hdr->b_l1hdr.b_buf, ==, NULL);
 	}
@@ -3954,7 +3954,7 @@ arc_evict_hdr(arc_buf_hdr_t *hdr, uint64_t *real_evicted)
 		DTRACE_PROBE1(arc__delete, arc_buf_hdr_t *, hdr);
 
 		if (HDR_HAS_L2HDR(hdr)) {
-			ASSERT(hdr->b_l1hdr.b_pabd == NULL);
+			ASSERT3P(hdr->b_l1hdr.b_pabd, ==, NULL);
 			ASSERT(!HDR_HAS_RABD(hdr));
 			/*
 			 * This buffer is cached on the 2nd Level ARC;
@@ -5687,7 +5687,7 @@ arc_getbuf_func(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,
 	} else {
 		ASSERT(zio == NULL || zio->io_error == 0);
 		*bufp = buf;
-		ASSERT(buf->b_data != NULL);
+		ASSERT3P(buf->b_data, !=, NULL);
 	}
 }
 
@@ -7039,7 +7039,7 @@ arc_write_done(zio_t *zio)
 			} else {
 				/* Dedup */
 				ASSERT(hdr->b_l1hdr.b_bufcnt == 1);
-				ASSERT(hdr->b_l1hdr.b_state == arc_anon);
+				ASSERT3P(hdr->b_l1hdr.b_state, ==, arc_anon);
 				ASSERT(BP_GET_DEDUP(zio->io_bp));
 				ASSERT(BP_GET_LEVEL(zio->io_bp) == 0);
 			}
@@ -8787,7 +8787,7 @@ top:
 	kmem_cache_free(hdr_l2only_cache, head);
 	mutex_exit(&dev->l2ad_mtx);
 
-	ASSERT(dev->l2ad_vdev != NULL);
+	ASSERT3P(dev->l2ad_vdev, !=, NULL);
 	vdev_space_update(dev->l2ad_vdev, -bytes_dropped, 0, 0);
 
 	l2arc_do_free_on_write();
@@ -9284,7 +9284,7 @@ retry:
 			arc_change_state(arc_anon, hdr);
 			arc_hdr_destroy(hdr);
 		} else {
-			ASSERT(hdr->b_l1hdr.b_state != arc_l2c_only);
+			ASSERT3P(hdr->b_l1hdr.b_state, !=, arc_l2c_only);
 			ARCSTAT_BUMP(arcstat_l2_evict_l1cached);
 			/*
 			 * Invalidate issued or about to be issued

@@ -1737,7 +1737,7 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 	zio_prop_t zp;
 	dnode_t *dn;
 
-	ASSERT(pio != NULL);
+	ASSERT3P(pio, !=, NULL);
 	ASSERT(txg != 0);
 
 	SET_BOOKMARK(&zb, ds->ds_object,

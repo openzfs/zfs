@@ -396,7 +396,7 @@ zfs_ereport_is_duplicate(const char *subclass, spa_t *spa, vdev_t *vd,
 	if (avl_numnodes(&recent_events_tree) >= zfs_zevent_retain_max) {
 		/* recycle oldest node */
 		entry = list_tail(&recent_events_list);
-		ASSERT(entry != NULL);
+		ASSERT3P(entry, !=, NULL);
 		list_remove(&recent_events_list, entry);
 		avl_remove(&recent_events_tree, entry);
 	} else {

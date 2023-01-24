@@ -647,7 +647,7 @@ ddt_free(ddt_entry_t *dde)
 	ASSERT0(dde->dde_loading);
 
 	for (int p = 0; p < DDT_PHYS_TYPES; p++)
-		ASSERT(dde->dde_lead_zio[p] == NULL);
+		ASSERT3P(dde->dde_lead_zio[p], ==, NULL);
 
 	if (dde->dde_repair_abd != NULL)
 		abd_free(dde->dde_repair_abd);
@@ -1016,7 +1016,7 @@ ddt_sync_entry(ddt_t *ddt, ddt_entry_t *dde, dmu_tx_t *tx, uint64_t txg)
 	ASSERT0(dde->dde_loading);
 
 	for (int p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
-		ASSERT(dde->dde_lead_zio[p] == NULL);
+		ASSERT3P(dde->dde_lead_zio[p], ==, NULL);
 		if (ddp->ddp_phys_birth == 0) {
 			ASSERT0(ddp->ddp_refcnt);
 			continue;

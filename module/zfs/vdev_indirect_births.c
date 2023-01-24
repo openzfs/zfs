@@ -27,12 +27,12 @@
 static boolean_t
 vdev_indirect_births_verify(vdev_indirect_births_t *vib)
 {
-	ASSERT(vib != NULL);
+	ASSERT3P(vib, !=, NULL);
 
 	ASSERT(vib->vib_object != 0);
-	ASSERT(vib->vib_objset != NULL);
-	ASSERT(vib->vib_phys != NULL);
-	ASSERT(vib->vib_dbuf != NULL);
+	ASSERT3P(vib->vib_objset, !=, NULL);
+	ASSERT3P(vib->vib_phys, !=, NULL);
+	ASSERT3P(vib->vib_dbuf, !=, NULL);
 
 	EQUIV(vib->vib_phys->vib_count > 0, vib->vib_entries != NULL);
 

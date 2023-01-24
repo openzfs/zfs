@@ -1608,7 +1608,7 @@ spa_vdev_remove_thread(void *arg)
 	ASSERT(vdev_is_concrete(vd));
 	ASSERT(vd->vdev_removing);
 	ASSERT(vd->vdev_indirect_config.vic_mapping_object != 0);
-	ASSERT(vim != NULL);
+	ASSERT3P(vim, !=, NULL);
 
 	mutex_init(&vca.vca_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&vca.vca_cv, NULL, CV_DEFAULT, NULL);
@@ -1862,7 +1862,7 @@ spa_vdev_remove_cancel_sync(void *arg, dmu_tx_t *tx)
 	uint64_t obsolete_sm_object;
 	VERIFY0(vdev_obsolete_sm_object(vd, &obsolete_sm_object));
 	if (obsolete_sm_object != 0) {
-		ASSERT(vd->vdev_obsolete_sm != NULL);
+		ASSERT3P(vd->vdev_obsolete_sm, !=, NULL);
 		ASSERT3U(obsolete_sm_object, ==,
 		    space_map_object(vd->vdev_obsolete_sm));
 
@@ -2060,7 +2060,7 @@ spa_vdev_remove_log(vdev_t *vd, uint64_t *txg)
 	int error = 0;
 
 	ASSERT(vd->vdev_islog);
-	ASSERT(vd == vd->vdev_top);
+	ASSERT3P(vd, ==, vd->vdev_top);
 	ASSERT3P(vd->vdev_log_mg, ==, NULL);
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 

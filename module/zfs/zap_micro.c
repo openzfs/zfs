@@ -1282,7 +1282,7 @@ zap_add_impl(zap_t *zap, const char *key,
 			mzap_addent(zn, *intval);
 		}
 	}
-	ASSERT(zap == zn->zn_zap);
+	ASSERT3P(zap, ==, zn->zn_zap);
 	zap_name_free(zn);
 	if (zap != NULL)	/* may be NULL if fzap_add() failed */
 		zap_unlockdir(zap, tag);
@@ -1385,7 +1385,7 @@ zap_update(objset_t *os, uint64_t zapobj, const char *name,
 			mzap_addent(zn, *intval);
 		}
 	}
-	ASSERT(zap == zn->zn_zap);
+	ASSERT3P(zap, ==, zn->zn_zap);
 	zap_name_free(zn);
 	if (zap != NULL)	/* may be NULL if fzap_upgrade() failed */
 		zap_unlockdir(zap, FTAG);

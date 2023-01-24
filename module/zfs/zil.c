@@ -1077,7 +1077,7 @@ zil_check_log_chain(dsl_pool_t *dp, dsl_dataset_t *ds, void *tx)
 	blkptr_t *bp;
 	int error;
 
-	ASSERT(tx == NULL);
+	ASSERT3P(tx, ==, NULL);
 
 	error = dmu_objset_from_ds(ds, &os);
 	if (error != 0) {
@@ -3299,7 +3299,7 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 		blkptr_t blk = zh->zh_log;
 		dsl_dataset_t *ds = dmu_objset_ds(zilog->zl_os);
 
-		ASSERT(list_head(&zilog->zl_lwb_list) == NULL);
+		ASSERT3P(list_head(&zilog->zl_lwb_list), ==, NULL);
 
 		memset(zh, 0, sizeof (zil_header_t));
 		memset(zilog->zl_replayed_seq, 0,
@@ -3688,7 +3688,7 @@ zil_suspend(const char *osname, void **cookiep)
 	 * to clean up.
 	 */
 	if (BP_IS_HOLE(&zh->zh_log)) {
-		ASSERT(cookiep != NULL); /* fast path already handled */
+		ASSERT3P(cookiep, !=, NULL); /* fast path already handled */
 
 		*cookiep = os;
 		mutex_exit(&zilog->zl_lock);

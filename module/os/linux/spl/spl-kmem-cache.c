@@ -690,8 +690,8 @@ spl_kmem_cache_create(const char *name, size_t size, size_t align,
 	/*
 	 * Unsupported flags
 	 */
-	ASSERT(vmp == NULL);
-	ASSERT(reclaim == NULL);
+	ASSERT3P(vmp, ==, NULL);
+	ASSERT3P(reclaim, ==, NULL);
 
 	might_sleep();
 
@@ -838,7 +838,7 @@ void
 spl_kmem_cache_set_move(spl_kmem_cache_t *skc,
     kmem_cbrc_t (move)(void *, void *, size_t, void *))
 {
-	ASSERT(move != NULL);
+	ASSERT3P(move, !=, NULL);
 }
 EXPORT_SYMBOL(spl_kmem_cache_set_move);
 
@@ -919,7 +919,7 @@ spl_cache_obj(spl_kmem_cache_t *skc, spl_kmem_slab_t *sks)
 
 	sko = list_entry(sks->sks_free_list.next, spl_kmem_obj_t, sko_list);
 	ASSERT(sko->sko_magic == SKO_MAGIC);
-	ASSERT(sko->sko_addr != NULL);
+	ASSERT3P(sko->sko_addr, !=, NULL);
 
 	/* Remove from sks_free_list */
 	list_del_init(&sko->sko_list);
@@ -1186,7 +1186,7 @@ spl_cache_shrink(spl_kmem_cache_t *skc, void *obj)
 	ASSERT(sko->sko_magic == SKO_MAGIC);
 	sks = sko->sko_slab;
 	ASSERT(sks->sks_magic == SKS_MAGIC);
-	ASSERT(sks->sks_cache == skc);
+	ASSERT3P(sks->sks_cache, ==, skc);
 	list_add(&sko->sko_list, &sks->sks_free_list);
 
 	sks->sks_age = jiffies;

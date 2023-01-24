@@ -307,7 +307,7 @@ aes_encrypt(crypto_ctx_t *ctx, crypto_data_t *plaintext,
 	aes_ctx_t *aes_ctx;
 	size_t saved_length, saved_offset, length_needed;
 
-	ASSERT(ctx->cc_provider_private != NULL);
+	ASSERT3P(ctx->cc_provider_private, !=, NULL);
 	aes_ctx = ctx->cc_provider_private;
 
 	/*
@@ -318,7 +318,7 @@ aes_encrypt(crypto_ctx_t *ctx, crypto_data_t *plaintext,
 	    == 0) && (plaintext->cd_length & (AES_BLOCK_LEN - 1)) != 0)
 		return (CRYPTO_DATA_LEN_RANGE);
 
-	ASSERT(ciphertext != NULL);
+	ASSERT3P(ciphertext, !=, NULL);
 
 	/*
 	 * We need to just return the length needed to store the output.
@@ -423,7 +423,7 @@ aes_decrypt(crypto_ctx_t *ctx, crypto_data_t *ciphertext,
 	off_t saved_offset;
 	size_t saved_length, length_needed;
 
-	ASSERT(ctx->cc_provider_private != NULL);
+	ASSERT3P(ctx->cc_provider_private, !=, NULL);
 	aes_ctx = ctx->cc_provider_private;
 
 	/*
@@ -435,7 +435,7 @@ aes_decrypt(crypto_ctx_t *ctx, crypto_data_t *ciphertext,
 		return (CRYPTO_ENCRYPTED_DATA_LEN_RANGE);
 	}
 
-	ASSERT(plaintext != NULL);
+	ASSERT3P(plaintext, !=, NULL);
 
 	/*
 	 * Return length needed to store the output.
@@ -536,10 +536,10 @@ aes_encrypt_update(crypto_ctx_t *ctx, crypto_data_t *plaintext,
 	int ret = CRYPTO_SUCCESS;
 	aes_ctx_t *aes_ctx;
 
-	ASSERT(ctx->cc_provider_private != NULL);
+	ASSERT3P(ctx->cc_provider_private, !=, NULL);
 	aes_ctx = ctx->cc_provider_private;
 
-	ASSERT(ciphertext != NULL);
+	ASSERT3P(ciphertext, !=, NULL);
 
 	/* compute number of bytes that will hold the ciphertext */
 	out_len = aes_ctx->ac_remainder_len;
@@ -604,10 +604,10 @@ aes_decrypt_update(crypto_ctx_t *ctx, crypto_data_t *ciphertext,
 	int ret = CRYPTO_SUCCESS;
 	aes_ctx_t *aes_ctx;
 
-	ASSERT(ctx->cc_provider_private != NULL);
+	ASSERT3P(ctx->cc_provider_private, !=, NULL);
 	aes_ctx = ctx->cc_provider_private;
 
-	ASSERT(plaintext != NULL);
+	ASSERT3P(plaintext, !=, NULL);
 
 	/*
 	 * Compute number of bytes that will hold the plaintext.
@@ -677,7 +677,7 @@ aes_encrypt_final(crypto_ctx_t *ctx, crypto_data_t *data)
 	aes_ctx_t *aes_ctx;
 	int ret;
 
-	ASSERT(ctx->cc_provider_private != NULL);
+	ASSERT3P(ctx->cc_provider_private, !=, NULL);
 	aes_ctx = ctx->cc_provider_private;
 
 	if (data->cd_format != CRYPTO_DATA_RAW &&
@@ -734,7 +734,7 @@ aes_decrypt_final(crypto_ctx_t *ctx, crypto_data_t *data)
 	off_t saved_offset;
 	size_t saved_length;
 
-	ASSERT(ctx->cc_provider_private != NULL);
+	ASSERT3P(ctx->cc_provider_private, !=, NULL);
 	aes_ctx = ctx->cc_provider_private;
 
 	if (data->cd_format != CRYPTO_DATA_RAW &&
@@ -838,7 +838,7 @@ aes_encrypt_atomic(crypto_mechanism_t *mechanism,
 	size_t length_needed;
 	int ret;
 
-	ASSERT(ciphertext != NULL);
+	ASSERT3P(ciphertext, !=, NULL);
 
 	/*
 	 * CTR, CCM, GCM, and GMAC modes do not require that plaintext
@@ -970,7 +970,7 @@ aes_decrypt_atomic(crypto_mechanism_t *mechanism,
 	size_t length_needed;
 	int ret;
 
-	ASSERT(plaintext != NULL);
+	ASSERT3P(plaintext, !=, NULL);
 
 	/*
 	 * CCM, GCM, CTR, and GMAC modes do not require that ciphertext

@@ -328,8 +328,8 @@ vdev_indirect_mark_obsolete(vdev_t *vd, uint64_t offset, uint64_t size)
 	ASSERT3U(vd->vdev_indirect_config.vic_mapping_object, !=, 0);
 	ASSERT(vd->vdev_removing || vd->vdev_ops == &vdev_indirect_ops);
 	ASSERT(size > 0);
-	VERIFY(vdev_indirect_mapping_entry_for_offset(
-	    vd->vdev_indirect_mapping, offset) != NULL);
+	VERIFY3P(vdev_indirect_mapping_entry_for_offset(
+	    vd->vdev_indirect_mapping, offset), !=, NULL);
 
 	if (spa_feature_is_enabled(spa, SPA_FEATURE_OBSOLETE_COUNTS)) {
 		mutex_enter(&vd->vdev_obsolete_lock);
@@ -427,7 +427,7 @@ vdev_indirect_should_condense(vdev_t *vd)
 		return (B_FALSE);
 	}
 
-	ASSERT(vd->vdev_obsolete_sm != NULL);
+	ASSERT3P(vd->vdev_obsolete_sm, !=, NULL);
 
 	ASSERT3U(obsolete_sm_obj, ==, space_map_object(vd->vdev_obsolete_sm));
 
@@ -839,7 +839,7 @@ vdev_indirect_sync_obsolete(vdev_t *vd, dmu_tx_t *tx)
 		    0, vd->vdev_asize, 0));
 	}
 
-	ASSERT(vd->vdev_obsolete_sm != NULL);
+	ASSERT3P(vd->vdev_obsolete_sm, !=, NULL);
 	ASSERT3U(obsolete_sm_object, ==,
 	    space_map_object(vd->vdev_obsolete_sm));
 

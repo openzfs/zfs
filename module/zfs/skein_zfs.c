@@ -47,7 +47,7 @@ abd_checksum_skein_native(abd_t *abd, uint64_t size,
 {
 	Skein_512_Ctxt_t ctx;
 
-	ASSERT(ctx_template != NULL);
+	ASSERT3P(ctx_template, !=, NULL);
 	memcpy(&ctx, ctx_template, sizeof (ctx));
 	(void) abd_iterate_func(abd, 0, size, skein_incremental, &ctx);
 	(void) Skein_512_Final(&ctx, (uint8_t *)zcp);

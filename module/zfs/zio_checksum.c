@@ -304,12 +304,12 @@ zio_checksum_template_init(enum zio_checksum checksum, spa_t *spa)
 	if (spa->spa_cksum_tmpls[checksum] != NULL)
 		return;
 
-	VERIFY(ci->ci_tmpl_free != NULL);
+	VERIFY3P(ci->ci_tmpl_free, !=, NULL);
 	mutex_enter(&spa->spa_cksum_tmpls_lock);
 	if (spa->spa_cksum_tmpls[checksum] == NULL) {
 		spa->spa_cksum_tmpls[checksum] =
 		    ci->ci_tmpl_init(&spa->spa_cksum_salt);
-		VERIFY(spa->spa_cksum_tmpls[checksum] != NULL);
+		VERIFY3P(spa->spa_cksum_tmpls[checksum], !=, NULL);
 	}
 	mutex_exit(&spa->spa_cksum_tmpls_lock);
 }
@@ -349,7 +349,7 @@ zio_checksum_compute(zio_t *zio, enum zio_checksum checksum,
 	boolean_t insecure = (ci->ci_flags & ZCHECKSUM_FLAG_DEDUP) == 0;
 
 	ASSERT((uint_t)checksum < ZIO_CHECKSUM_FUNCTIONS);
-	ASSERT(ci->ci_func[0] != NULL);
+	ASSERT3P(ci->ci_func[0], !=, NULL);
 
 	zio_checksum_template_init(checksum, spa);
 
@@ -564,7 +564,7 @@ zio_checksum_templates_free(spa_t *spa)
 		if (spa->spa_cksum_tmpls[checksum] != NULL) {
 			zio_checksum_info_t *ci = &zio_checksum_table[checksum];
 
-			VERIFY(ci->ci_tmpl_free != NULL);
+			VERIFY3P(ci->ci_tmpl_free, !=, NULL);
 			ci->ci_tmpl_free(spa->spa_cksum_tmpls[checksum]);
 			spa->spa_cksum_tmpls[checksum] = NULL;
 		}

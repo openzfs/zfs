@@ -244,7 +244,7 @@ dsl_onexit_hold_cleanup(spa_t *spa, nvlist_t *holds, minor_t minor)
 		return;
 	}
 
-	ASSERT(spa != NULL);
+	ASSERT3P(spa, !=, NULL);
 	ca = kmem_alloc(sizeof (*ca), KM_SLEEP);
 
 	(void) strlcpy(ca->zhca_spaname, spa_name(spa),
@@ -650,7 +650,7 @@ dsl_dataset_user_release(nvlist_t *holds, nvlist_t *errlist)
 void
 dsl_dataset_user_release_tmp(struct dsl_pool *dp, nvlist_t *holds)
 {
-	ASSERT(dp != NULL);
+	ASSERT3P(dp, !=, NULL);
 	(void) dsl_dataset_user_release_impl(holds, NULL, dp);
 }
 

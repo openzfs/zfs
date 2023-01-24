@@ -29,12 +29,12 @@
 static boolean_t
 vdev_indirect_mapping_verify(vdev_indirect_mapping_t *vim)
 {
-	ASSERT(vim != NULL);
+	ASSERT3P(vim, !=, NULL);
 
 	ASSERT(vim->vim_object != 0);
-	ASSERT(vim->vim_objset != NULL);
-	ASSERT(vim->vim_phys != NULL);
-	ASSERT(vim->vim_dbuf != NULL);
+	ASSERT3P(vim->vim_objset, !=, NULL);
+	ASSERT3P(vim->vim_phys, !=, NULL);
+	ASSERT3P(vim->vim_dbuf, !=, NULL);
 
 	EQUIV(vim->vim_phys->vimp_num_entries > 0,
 	    vim->vim_entries != NULL);

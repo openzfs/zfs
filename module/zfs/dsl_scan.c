@@ -1215,7 +1215,7 @@ scan_ds_queue_remove(dsl_scan_t *scn, uint64_t dsobj)
 	srch.sds_dsobj = dsobj;
 
 	sds = avl_find(&scn->scn_queue, &srch, NULL);
-	VERIFY(sds != NULL);
+	VERIFY3P(sds, !=, NULL);
 	avl_remove(&scn->scn_queue, sds);
 	kmem_free(sds, sizeof (*sds));
 }
@@ -2693,7 +2693,7 @@ dsl_scan_ddt(dsl_scan_t *scn, dmu_tx_t *tx)
 
 		/* There should be no pending changes to the dedup table */
 		ddt = scn->scn_dp->dp_spa->spa_ddt[ddb->ddb_checksum];
-		ASSERT(avl_first(&ddt->ddt_tree) == NULL);
+		ASSERT3P(avl_first(&ddt->ddt_tree), ==, NULL);
 
 		dsl_scan_ddt_entry(scn, ddb->ddb_checksum, &dde, tx);
 		n++;
@@ -2914,7 +2914,7 @@ scan_io_queue_gather(dsl_scan_io_queue_t *queue, range_seg_t *rs, list_t *list)
 	uint_t num_sios = 0;
 	int64_t bytes_issued = 0;
 
-	ASSERT(rs != NULL);
+	ASSERT3P(rs, !=, NULL);
 	ASSERT(MUTEX_HELD(&queue->q_vd->vdev_scan_io_queue_lock));
 
 	srch_sio = sio_alloc(1);
@@ -3963,12 +3963,12 @@ dsl_scan_enqueue(dsl_pool_t *dp, const blkptr_t *bp, int zio_flags,
 
 		dva = bp->blk_dva[i];
 		vdev = vdev_lookup_top(spa, DVA_GET_VDEV(&dva));
-		ASSERT(vdev != NULL);
+		ASSERT3P(vdev, !=, NULL);
 
 		mutex_enter(&vdev->vdev_scan_io_queue_lock);
 		if (vdev->vdev_scan_io_queue == NULL)
 			vdev->vdev_scan_io_queue = scan_io_queue_create(vdev);
-		ASSERT(dp->dp_scan != NULL);
+		ASSERT3P(dp->dp_scan, !=, NULL);
 		scan_io_queue_insert(vdev->vdev_scan_io_queue, bp,
 		    i, zio_flags, zb);
 		mutex_exit(&vdev->vdev_scan_io_queue_lock);
@@ -4103,7 +4103,7 @@ scan_exec_io(dsl_pool_t *dp, const blkptr_t *bp, int zio_flags,
 		mutex_exit(q_lock);
 	}
 
-	ASSERT(pio != NULL);
+	ASSERT3P(pio, !=, NULL);
 	count_block_issued(spa, bp, queue == NULL);
 	zio_nowait(zio_read(pio, spa, bp, data, size, dsl_scan_scrub_done,
 	    queue, ZIO_PRIORITY_SCRUB, zio_flags, zb));
@@ -4337,7 +4337,7 @@ dsl_scan_freed_dva(spa_t *spa, const blkptr_t *bp, int dva_i)
 	uint64_t start, size;
 
 	vdev = vdev_lookup_top(spa, DVA_GET_VDEV(&bp->blk_dva[dva_i]));
-	ASSERT(vdev != NULL);
+	ASSERT3P(vdev, !=, NULL);
 	q_lock = &vdev->vdev_scan_io_queue_lock;
 	queue = vdev->vdev_scan_io_queue;
 
@@ -4409,7 +4409,7 @@ dsl_scan_freed(spa_t *spa, const blkptr_t *bp)
 	dsl_scan_t *scn = dp->dp_scan;
 
 	ASSERT0(BP_IS_EMBEDDED(bp));
-	ASSERT(scn != NULL);
+	ASSERT3P(scn, !=, NULL);
 	if (!dsl_scan_is_running(scn))
 		return;
 

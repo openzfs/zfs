@@ -207,7 +207,7 @@ zfs_zevent_post(nvlist_t *nvl, nvlist_t *detector, zevent_cb_t *cb)
 	zevent_t *ev;
 	int error;
 
-	ASSERT(cb != NULL);
+	ASSERT3P(cb, !=, NULL);
 
 	gethrestime(&tv);
 	tv_array[0] = tv.tv_sec;

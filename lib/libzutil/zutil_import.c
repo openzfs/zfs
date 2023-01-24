@@ -444,7 +444,7 @@ static int
 zutil_pool_active(libpc_handle_t *hdl, const char *name, uint64_t guid,
     boolean_t *isactive)
 {
-	ASSERT(hdl->lpc_ops->pco_pool_active != NULL);
+	ASSERT3P(hdl->lpc_ops->pco_pool_active, !=, NULL);
 
 	int error = hdl->lpc_ops->pco_pool_active(hdl->lpc_lib_handle, name,
 	    guid, isactive);
@@ -455,7 +455,7 @@ zutil_pool_active(libpc_handle_t *hdl, const char *name, uint64_t guid,
 static nvlist_t *
 zutil_refresh_config(libpc_handle_t *hdl, nvlist_t *tryconfig)
 {
-	ASSERT(hdl->lpc_ops->pco_refresh_config != NULL);
+	ASSERT3P(hdl->lpc_ops->pco_refresh_config, !=, NULL);
 
 	return (hdl->lpc_ops->pco_refresh_config(hdl->lpc_lib_handle,
 	    tryconfig));

@@ -375,7 +375,7 @@ static kstat_t *metaslab_ksp;
 void
 metaslab_stat_init(void)
 {
-	ASSERT(metaslab_alloc_trace_cache == NULL);
+	ASSERT3P(metaslab_alloc_trace_cache, ==, NULL);
 	metaslab_alloc_trace_cache = kmem_cache_create(
 	    "metaslab_alloc_trace_cache", sizeof (metaslab_alloc_trace_t),
 	    0, NULL, NULL, NULL, NULL, NULL, 0);
@@ -439,7 +439,7 @@ metaslab_class_destroy(metaslab_class_t *mc)
 
 	for (int i = 0; i < spa->spa_alloc_count; i++) {
 		metaslab_class_allocator_t *mca = &mc->mc_allocator[i];
-		ASSERT(mca->mca_rotor == NULL);
+		ASSERT3P(mca->mca_rotor, ==, NULL);
 		zfs_refcount_destroy(&mca->mca_alloc_slots);
 	}
 	mutex_destroy(&mc->mc_lock);
@@ -465,7 +465,7 @@ metaslab_class_validate(metaslab_class_t *mc)
 
 	do {
 		vd = mg->mg_vd;
-		ASSERT(vd->vdev_mg != NULL);
+		ASSERT3P(vd->vdev_mg, !=, NULL);
 		ASSERT3P(vd->vdev_top, ==, vd);
 		ASSERT3P(mg->mg_class, ==, mc);
 		ASSERT3P(vd->vdev_ops, !=, &vdev_hole_ops);
@@ -742,7 +742,7 @@ metaslab_group_alloc_update(metaslab_group_t *mg)
 	boolean_t was_allocatable;
 	boolean_t was_initialized;
 
-	ASSERT(vd == vd->vdev_top);
+	ASSERT3P(vd, ==, vd->vdev_top);
 	ASSERT3U(spa_config_held(mc->mc_spa, SCL_ALLOC, RW_READER), ==,
 	    SCL_ALLOC);
 
@@ -860,8 +860,8 @@ metaslab_group_create(metaslab_class_t *mc, vdev_t *vd, int allocators)
 void
 metaslab_group_destroy(metaslab_group_t *mg)
 {
-	ASSERT(mg->mg_prev == NULL);
-	ASSERT(mg->mg_next == NULL);
+	ASSERT3P(mg->mg_prev, ==, NULL);
+	ASSERT3P(mg->mg_next, ==, NULL);
 	/*
 	 * We may have gone below zero with the activation count
 	 * either because we never activated in the first place or
@@ -892,8 +892,8 @@ metaslab_group_activate(metaslab_group_t *mg)
 
 	ASSERT3U(spa_config_held(spa, SCL_ALLOC, RW_WRITER), !=, 0);
 
-	ASSERT(mg->mg_prev == NULL);
-	ASSERT(mg->mg_next == NULL);
+	ASSERT3P(mg->mg_prev, ==, NULL);
+	ASSERT3P(mg->mg_next, ==, NULL);
 	ASSERT(mg->mg_activation_count <= 0);
 
 	if (++mg->mg_activation_count <= 0)
@@ -939,8 +939,8 @@ metaslab_group_passivate(metaslab_group_t *mg)
 	if (--mg->mg_activation_count != 0) {
 		for (int i = 0; i < spa->spa_alloc_count; i++)
 			ASSERT(mc->mc_allocator[i].mca_rotor != mg);
-		ASSERT(mg->mg_prev == NULL);
-		ASSERT(mg->mg_next == NULL);
+		ASSERT3P(mg->mg_prev, ==, NULL);
+		ASSERT3P(mg->mg_next, ==, NULL);
 		ASSERT(mg->mg_activation_count < 0);
 		return;
 	}
@@ -1115,7 +1115,7 @@ metaslab_group_histogram_remove(metaslab_group_t *mg, metaslab_t *msp)
 static void
 metaslab_group_add(metaslab_group_t *mg, metaslab_t *msp)
 {
-	ASSERT(msp->ms_group == NULL);
+	ASSERT3P(msp->ms_group, ==, NULL);
 	mutex_enter(&mg->mg_lock);
 	msp->ms_group = mg;
 	msp->ms_weight = 0;
@@ -1822,7 +1822,7 @@ metaslab_ndf_alloc(metaslab_t *msp, uint64_t size)
 		rs = zfs_btree_find(t, &rsearch, &where);
 		if (rs == NULL)
 			rs = zfs_btree_next(t, &where, &where);
-		ASSERT(rs != NULL);
+		ASSERT3P(rs, !=, NULL);
 	}
 
 	if ((rs_get_end(rs, rt) - rs_get_start(rs, rt)) >= size) {
@@ -2004,7 +2004,7 @@ static void
 metaslab_aux_histograms_update(metaslab_t *msp)
 {
 	space_map_t *sm = msp->ms_sm;
-	ASSERT(sm != NULL);
+	ASSERT3P(sm, !=, NULL);
 
 	/*
 	 * This is similar to the metaslab's space map histogram updates
@@ -2683,7 +2683,7 @@ metaslab_init(metaslab_group_t *mg, uint64_t id, uint64_t object,
 			return (error);
 		}
 
-		ASSERT(ms->ms_sm != NULL);
+		ASSERT3P(ms->ms_sm, !=, NULL);
 		ms->ms_allocated_space = space_map_allocated(ms->ms_sm);
 	}
 
@@ -2784,7 +2784,7 @@ metaslab_fini(metaslab_t *msp)
 	metaslab_group_remove(mg, msp);
 
 	mutex_enter(&msp->ms_lock);
-	VERIFY(msp->ms_group == NULL);
+	VERIFY3P(msp->ms_group, ==, NULL);
 
 	/*
 	 * If this metaslab hasn't been through metaslab_sync_done() yet its
@@ -3084,7 +3084,7 @@ metaslab_weight_from_spacemap(metaslab_t *msp)
 {
 	space_map_t *sm = msp->ms_sm;
 	ASSERT0(msp->ms_loaded);
-	ASSERT(sm != NULL);
+	ASSERT3P(sm, !=, NULL);
 	ASSERT3U(space_map_object(sm), !=, 0);
 	ASSERT3U(sm->sm_dbuf->db_size, ==, sizeof (space_map_phys_t));
 
@@ -3565,7 +3565,7 @@ metaslab_should_condense(metaslab_t *msp)
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 	ASSERT(msp->ms_loaded);
-	ASSERT(sm != NULL);
+	ASSERT3P(sm, !=, NULL);
 	ASSERT3U(spa_sync_pass(vd->vdev_spa), ==, 1);
 
 	/*
@@ -3603,7 +3603,7 @@ metaslab_condense(metaslab_t *msp, dmu_tx_t *tx)
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 	ASSERT(msp->ms_loaded);
-	ASSERT(msp->ms_sm != NULL);
+	ASSERT3P(msp->ms_sm, !=, NULL);
 
 	/*
 	 * In order to condense the space map, we need to change it so it
@@ -3743,8 +3743,8 @@ static void
 metaslab_unflushed_add(metaslab_t *msp, dmu_tx_t *tx)
 {
 	spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
-	ASSERT(spa_syncing_log_sm(spa) != NULL);
-	ASSERT(msp->ms_sm != NULL);
+	ASSERT3P(spa_syncing_log_sm(spa), !=, NULL);
+	ASSERT3P(msp->ms_sm, !=, NULL);
 	ASSERT(range_tree_is_empty(msp->ms_unflushed_allocs));
 	ASSERT(range_tree_is_empty(msp->ms_unflushed_frees));
 
@@ -3762,8 +3762,8 @@ void
 metaslab_unflushed_bump(metaslab_t *msp, dmu_tx_t *tx, boolean_t dirty)
 {
 	spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
-	ASSERT(spa_syncing_log_sm(spa) != NULL);
-	ASSERT(msp->ms_sm != NULL);
+	ASSERT3P(spa_syncing_log_sm(spa), !=, NULL);
+	ASSERT3P(msp->ms_sm, !=, NULL);
 	ASSERT(metaslab_unflushed_txg(msp) != 0);
 	ASSERT3P(avl_find(&spa->spa_metaslabs_by_flushed, msp, NULL), ==, msp);
 	ASSERT(range_tree_is_empty(msp->ms_unflushed_allocs));
@@ -3837,9 +3837,10 @@ metaslab_flush(metaslab_t *msp, dmu_tx_t *tx)
 	ASSERT3U(spa_sync_pass(spa), ==, 1);
 	ASSERT(spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP));
 
-	ASSERT(msp->ms_sm != NULL);
+	ASSERT3P(msp->ms_sm, !=, NULL);
 	ASSERT(metaslab_unflushed_txg(msp) != 0);
-	ASSERT(avl_find(&spa->spa_metaslabs_by_flushed, msp, NULL) != NULL);
+	ASSERT3P(avl_find(&spa->spa_metaslabs_by_flushed, msp, NULL), !=,
+	    NULL);
 
 	/*
 	 * There is nothing wrong with flushing the same metaslab twice, as
@@ -4034,7 +4035,7 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 
 		VERIFY0(space_map_open(&msp->ms_sm, mos, new_object,
 		    msp->ms_start, msp->ms_size, vd->vdev_ashift));
-		ASSERT(msp->ms_sm != NULL);
+		ASSERT3P(msp->ms_sm, !=, NULL);
 
 		ASSERT(range_tree_is_empty(msp->ms_unflushed_allocs));
 		ASSERT(range_tree_is_empty(msp->ms_unflushed_frees));
@@ -5158,7 +5159,7 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 		} while ((fast_mg = fast_mg->mg_next) != mca->mca_rotor);
 
 	} else {
-		ASSERT(mca->mca_rotor != NULL);
+		ASSERT3P(mca->mca_rotor, !=, NULL);
 		mg = mca->mca_rotor;
 	}
 

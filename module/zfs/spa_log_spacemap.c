@@ -1053,7 +1053,7 @@ spa_ld_log_sm_metadata(spa_t *spa)
 		 * lenient. Thus, for DEBUG bits we always cause a panic, while
 		 * in production we log the error and just fail the import.
 		 */
-		ASSERT(sls != NULL);
+		ASSERT3P(sls, !=, NULL);
 		if (sls == NULL) {
 			spa_load_failed(spa, "spa_ld_log_sm_metadata(): bug "
 			    "encountered: could not find log spacemap for "
@@ -1293,7 +1293,7 @@ spa_ld_unflushed_txgs(vdev_t *vd)
 
 	for (uint64_t m = 0; m < vd->vdev_ms_count; m++) {
 		metaslab_t *ms = vd->vdev_ms[m];
-		ASSERT(ms != NULL);
+		ASSERT3P(ms, !=, NULL);
 
 		metaslab_unflushed_phys_t entry;
 		uint64_t entry_size = sizeof (entry);

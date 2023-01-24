@@ -335,8 +335,8 @@ zfs_clear_setid_bits_if_necessary(zfsvfs_t *zfsvfs, znode_t *zp, cred_t *cr,
 	zilog_t *zilog = zfsvfs->z_log;
 	const uint64_t uid = KUID_TO_SUID(ZTOUID(zp));
 
-	ASSERT(clear_setid_bits_txgp != NULL);
-	ASSERT(tx != NULL);
+	ASSERT3P(clear_setid_bits_txgp, !=, NULL);
+	ASSERT3P(tx, !=, NULL);
 
 	/*
 	 * Clear Set-UID/Set-GID bits on successful write if not
@@ -556,7 +556,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 
 			abuf = dmu_request_arcbuf(sa_get_db(zp->z_sa_hdl),
 			    max_blksz);
-			ASSERT(abuf != NULL);
+			ASSERT3P(abuf, !=, NULL);
 			ASSERT(arc_buf_size(abuf) == max_blksz);
 			if ((error = zfs_uiocopy(abuf->b_data, max_blksz,
 			    UIO_WRITE, uio, &cbytes))) {

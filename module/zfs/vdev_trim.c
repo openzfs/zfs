@@ -1433,7 +1433,7 @@ vdev_autotrim_thread(void *arg)
 	}
 
 	mutex_enter(&vd->vdev_autotrim_lock);
-	ASSERT(vd->vdev_autotrim_thread != NULL);
+	ASSERT3P(vd->vdev_autotrim_thread, !=, NULL);
 	vd->vdev_autotrim_thread = NULL;
 	cv_broadcast(&vd->vdev_autotrim_cv);
 	mutex_exit(&vd->vdev_autotrim_lock);
@@ -1461,7 +1461,7 @@ vdev_autotrim(spa_t *spa)
 			tvd->vdev_autotrim_thread = thread_create(NULL, 0,
 			    vdev_autotrim_thread, tvd, 0, &p0, TS_RUN,
 			    maxclsyspri);
-			ASSERT(tvd->vdev_autotrim_thread != NULL);
+			ASSERT3P(tvd->vdev_autotrim_thread, !=, NULL);
 		}
 		mutex_exit(&tvd->vdev_autotrim_lock);
 	}

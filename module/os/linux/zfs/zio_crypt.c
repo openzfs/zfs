@@ -226,7 +226,7 @@ zio_crypt_key_init(uint64_t crypt, zio_crypt_key_t *key)
 	crypto_mechanism_t mech;
 	uint_t keydata_len;
 
-	ASSERT(key != NULL);
+	ASSERT3P(key, !=, NULL);
 	ASSERT3U(crypt, <, ZIO_CRYPT_FUNCTIONS);
 
 /*

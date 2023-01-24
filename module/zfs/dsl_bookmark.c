@@ -993,7 +993,7 @@ dsl_bookmark_destroy_sync_impl(dsl_dataset_t *ds, const char *name,
 
 	search.dbn_name = realname;
 	dsl_bookmark_node_t *dbn = avl_find(&ds->ds_bookmarks, &search, NULL);
-	ASSERT(dbn != NULL);
+	ASSERT3P(dbn, !=, NULL);
 
 	if (dbn->dbn_phys.zbm_flags & ZBM_FLAG_HAS_FBN) {
 		/*

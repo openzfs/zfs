@@ -191,12 +191,12 @@ zfs_znode_init(void)
 	 * backed by kmalloc() when on the Linux slab in order that any
 	 * wait_on_bit() operations on the related inode operate properly.
 	 */
-	ASSERT(znode_cache == NULL);
+	ASSERT3P(znode_cache, ==, NULL);
 	znode_cache = kmem_cache_create("zfs_znode_cache",
 	    sizeof (znode_t), 0, zfs_znode_cache_constructor,
 	    zfs_znode_cache_destructor, NULL, NULL, NULL, KMC_SLAB);
 
-	ASSERT(znode_hold_cache == NULL);
+	ASSERT3P(znode_hold_cache, ==, NULL);
 	znode_hold_cache = kmem_cache_create("zfs_znode_hold_cache",
 	    sizeof (znode_hold_t), 0, zfs_znode_hold_cache_constructor,
 	    zfs_znode_hold_cache_destructor, NULL, NULL, NULL, 0);
@@ -339,8 +339,8 @@ zfs_znode_sa_init(zfsvfs_t *zfsvfs, znode_t *zp,
 
 	mutex_enter(&zp->z_lock);
 
-	ASSERT(zp->z_sa_hdl == NULL);
-	ASSERT(zp->z_acl_cached == NULL);
+	ASSERT3P(zp->z_sa_hdl, ==, NULL);
+	ASSERT3P(zp->z_acl_cached, ==, NULL);
 	if (sa_hdl == NULL) {
 		VERIFY0(sa_handle_get_from_db(zfsvfs->z_os, db, zp,
 		    SA_HDL_SHARED, &zp->z_sa_hdl));
@@ -499,7 +499,7 @@ zfs_znode_update_vfs(znode_t *zp)
 	uint32_t	blksize;
 	u_longlong_t	i_blocks;
 
-	ASSERT(zp != NULL);
+	ASSERT3P(zp, !=, NULL);
 	ip = ZTOI(zp);
 
 	/* Skip .zfs control nodes which do not exist on disk. */
@@ -539,14 +539,14 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	sa_bulk_attr_t bulk[12];
 	int count = 0;
 
-	ASSERT(zfsvfs != NULL);
+	ASSERT3P(zfsvfs, !=, NULL);
 
 	ip = new_inode(zfsvfs->z_sb);
 	if (ip == NULL)
 		return (NULL);
 
 	zp = ITOZ(ip);
-	ASSERT(zp->z_dirlocks == NULL);
+	ASSERT3P(zp->z_dirlocks, ==, NULL);
 	ASSERT3P(zp->z_acl_cached, ==, NULL);
 	ASSERT3P(zp->z_xattr_cached, ==, NULL);
 	zp->z_unlinked = B_FALSE;
@@ -932,8 +932,8 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 			*zpp = zfs_znode_alloc(zfsvfs, db, 0, obj_type, sa_hdl);
 		} while (*zpp == NULL);
 
-		VERIFY(*zpp != NULL);
-		VERIFY(dzp != NULL);
+		VERIFY3P(*zpp, !=, NULL);
+		VERIFY3P(dzp, !=, NULL);
 	} else {
 		/*
 		 * If we are creating the root node, the "parent" we
@@ -1216,7 +1216,7 @@ zfs_rezget(znode_t *zp)
 	}
 	rw_exit(&zp->z_xattr_lock);
 
-	ASSERT(zp->z_sa_hdl == NULL);
+	ASSERT3P(zp->z_sa_hdl, ==, NULL);
 	err = sa_buf_hold(zfsvfs->z_os, obj_num, NULL, &db);
 	if (err) {
 		zfs_znode_hold_exit(zfsvfs, zh);
@@ -2145,7 +2145,7 @@ zfs_obj_to_path_impl(objset_t *osp, uint64_t obj, sa_handle_t *hdl,
 		int is_xattrdir = 0;
 
 		if (prevdb) {
-			ASSERT(prevhdl != NULL);
+			ASSERT3P(prevhdl, !=, NULL);
 			zfs_release_sa_handle(prevhdl, prevdb, FTAG);
 		}
 
@@ -2188,7 +2188,7 @@ zfs_obj_to_path_impl(objset_t *osp, uint64_t obj, sa_handle_t *hdl,
 	}
 
 	if (sa_hdl != NULL && sa_hdl != hdl) {
-		ASSERT(sa_db != NULL);
+		ASSERT3P(sa_db, !=, NULL);
 		zfs_release_sa_handle(sa_hdl, sa_db, FTAG);
 	}
 

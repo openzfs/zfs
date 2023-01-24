@@ -107,8 +107,8 @@ zprop_register_impl(int prop, const char *name, zprop_type_t type,
 	pd = &prop_tbl[prop];
 
 	ASSERT(pd->pd_name == NULL || pd->pd_name == name);
-	ASSERT(name != NULL);
-	ASSERT(colname != NULL);
+	ASSERT3P(name, !=, NULL);
+	ASSERT3P(colname, !=, NULL);
 
 	pd->pd_name = name;
 	pd->pd_propnum = prop;
@@ -253,7 +253,7 @@ propname_match(const char *p, size_t len, zprop_desc_t *prop_entry)
 	int c;
 #endif
 
-	ASSERT(propname != NULL);
+	ASSERT3P(propname, !=, NULL);
 
 	if (len == strlen(propname) &&
 	    strncmp(p, propname, len) == 0)

@@ -842,7 +842,7 @@ real_LZ4_compress(const char *source, char *dest, int isize, int osize)
 	void *ctx;
 	int result;
 
-	ASSERT(lz4_cache != NULL);
+	ASSERT3P(lz4_cache, !=, NULL);
 	ctx = kmem_cache_alloc(lz4_cache, KM_SLEEP);
 
 	/*

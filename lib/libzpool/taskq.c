@@ -161,7 +161,7 @@ void
 taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
     taskq_ent_t *t)
 {
-	ASSERT(func != NULL);
+	ASSERT3P(func, !=, NULL);
 
 	/*
 	 * Mark it as a prealloc'd task.  This is important
@@ -295,8 +295,8 @@ taskq_create(const char *name, int nthreads, pri_t pri,
 	}
 
 	for (t = 0; t < nthreads; t++)
-		VERIFY((tq->tq_threadlist[t] = thread_create(NULL, 0,
-		    taskq_thread, tq, 0, &p0, TS_RUN, pri)) != NULL);
+		VERIFY3P((tq->tq_threadlist[t] = thread_create(NULL, 0,
+		    taskq_thread, tq, 0, &p0, TS_RUN, pri)), !=, NULL);
 
 	return (tq);
 }
@@ -318,7 +318,7 @@ taskq_destroy(taskq_t *tq)
 
 	tq->tq_minalloc = 0;
 	while (tq->tq_nalloc != 0) {
-		ASSERT(tq->tq_freelist != NULL);
+		ASSERT3P(tq->tq_freelist, !=, NULL);
 		taskq_ent_t *tqent_nexttq = tq->tq_freelist->tqent_next;
 		task_free(tq, tq->tq_freelist);
 		tq->tq_freelist = tqent_nexttq;

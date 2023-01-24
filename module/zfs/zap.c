@@ -585,7 +585,7 @@ zap_idx_to_blk(zap_t *zap, uint64_t idx, uint64_t *valp)
 static int
 zap_set_idx_to_blk(zap_t *zap, uint64_t idx, uint64_t blk, dmu_tx_t *tx)
 {
-	ASSERT(tx != NULL);
+	ASSERT3P(tx, !=, NULL);
 	ASSERT(RW_WRITE_HELD(&zap->zap_rwlock));
 
 	if (zap_f_phys(zap)->zap_ptrtbl.zt_blk == 0) {

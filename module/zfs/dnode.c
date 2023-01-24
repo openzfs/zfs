@@ -296,7 +296,7 @@ dnode_kstats_update(kstat_t *ksp, int rw)
 void
 dnode_init(void)
 {
-	ASSERT(dnode_cache == NULL);
+	ASSERT3P(dnode_cache, ==, NULL);
 	dnode_cache = kmem_cache_create("dnode_t", sizeof (dnode_t),
 	    0, dnode_cons, dnode_dest, NULL, NULL, NULL, 0);
 	kmem_cache_set_move(dnode_cache, dnode_move);
@@ -1066,7 +1066,9 @@ dnode_move(void *buf, void *newbuf, size_t size, void *arg)
 		DNODE_STAT_BUMP(dnode_move_special);
 		return (KMEM_CBRC_NO);
 	}
-	ASSERT(odn->dn_dbuf != NULL); /* only "special" dnodes have no parent */
+
+	/* only "special" dnodes have no parent */
+	ASSERT3P(odn->dn_dbuf, !=, NULL);
 
 	/*
 	 * Lock the dnode handle to prevent the dnode from obtaining any new
@@ -1951,7 +1953,7 @@ dnode_set_nlevels_impl(dnode_t *dn, int new_nlevels, dmu_tx_t *tx)
 
 	/* dirty the left indirects */
 	db = dbuf_hold_level(dn, old_nlevels, 0, FTAG);
-	ASSERT(db != NULL);
+	ASSERT3P(db, !=, NULL);
 	new = dbuf_dirty(db, tx);
 	dbuf_rele(db, FTAG);
 

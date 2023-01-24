@@ -55,7 +55,7 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 	ASSERT(new_level > 1 && dn->dn_phys->dn_nlevels > 0);
 
 	db = dbuf_hold_level(dn, dn->dn_phys->dn_nlevels, 0, FTAG);
-	ASSERT(db != NULL);
+	ASSERT3P(db, !=, NULL);
 
 	dn->dn_phys->dn_nlevels = new_level;
 	dprintf("os=%p obj=%llu, increase to %d\n", dn->dn_objset,
@@ -99,7 +99,7 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 #endif	/* DEBUG */
 		if (child->db_parent && child->db_parent != dn->dn_dbuf) {
 			ASSERT(child->db_parent->db_level == db->db_level);
-			ASSERT(child->db_blkptr !=
+			ASSERT3P(child->db_blkptr, !=,
 			    &dn->dn_phys->dn_blkptr[child->db_blkid]);
 			mutex_exit(&child->db_mtx);
 			continue;
@@ -193,7 +193,7 @@ free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
 	ASSERT3U(db->db_level, >, 0);
 	ASSERT3U(db->db.db_size, ==, 1 << dn->dn_phys->dn_indblkshift);
 	ASSERT3U(off+num, <=, db->db.db_size >> SPA_BLKPTRSHIFT);
-	ASSERT(db->db_blkptr != NULL);
+	ASSERT3P(db->db_blkptr, !=, NULL);
 
 	for (i = off; i < off+num; i++) {
 		uint64_t *buf;
@@ -547,7 +547,7 @@ dnode_undirty_dbufs(list_t *list)
 		mutex_enter(&db->db_mtx);
 		/* XXX - use dbuf_undirty()? */
 		list_remove(list, dr);
-		ASSERT(list_head(&db->db_dirty_records) == dr);
+		ASSERT3P(list_head(&db->db_dirty_records), ==, dr);
 		list_remove_head(&db->db_dirty_records);
 		ASSERT(list_is_empty(&db->db_dirty_records));
 		db->db_dirtycnt -= 1;

@@ -672,7 +672,7 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 	 */
 	while ((first->io_flags & ZIO_FLAG_OPTIONAL) && first != last) {
 		first = AVL_NEXT(t, first);
-		ASSERT(first != NULL);
+		ASSERT3P(first, !=, NULL);
 	}
 
 
@@ -732,7 +732,7 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 		while (last != mandatory && last != first) {
 			ASSERT(last->io_flags & ZIO_FLAG_OPTIONAL);
 			last = AVL_PREV(t, last);
-			ASSERT(last != NULL);
+			ASSERT3P(last, !=, NULL);
 		}
 	}
 

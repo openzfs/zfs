@@ -228,11 +228,11 @@ zio_init(void)
 	}
 
 	while (--c != 0) {
-		ASSERT(zio_buf_cache[c] != NULL);
+		ASSERT3P(zio_buf_cache[c], !=, NULL);
 		if (zio_buf_cache[c - 1] == NULL)
 			zio_buf_cache[c - 1] = zio_buf_cache[c];
 
-		ASSERT(zio_data_buf_cache[c] != NULL);
+		ASSERT3P(zio_data_buf_cache[c], !=, NULL);
 		if (zio_data_buf_cache[c - 1] == NULL)
 			zio_data_buf_cache[c - 1] = zio_data_buf_cache[c];
 	}
@@ -681,7 +681,7 @@ zio_wait_for_children(zio_t *zio, uint8_t childbits, enum zio_wait_type wait)
 	boolean_t waiting = B_FALSE;
 
 	mutex_enter(&zio->io_lock);
-	ASSERT(zio->io_stall == NULL);
+	ASSERT3P(zio->io_stall, ==, NULL);
 	for (int c = 0; c < ZIO_CHILD_TYPES; c++) {
 		if (!(ZIO_CHILD_BIT_IS_SET(childbits, c)))
 			continue;
@@ -1458,7 +1458,7 @@ zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
 	 */
 	if (flags & ZIO_FLAG_IO_ALLOCATING &&
 	    (vd != vd->vdev_top || (flags & ZIO_FLAG_IO_RETRY))) {
-		ASSERT(pio->io_metaslab_class != NULL);
+		ASSERT3P(pio->io_metaslab_class, !=, NULL);
 		ASSERT(pio->io_metaslab_class->mc_alloc_throttle_enabled);
 		ASSERT(type == ZIO_TYPE_WRITE);
 		ASSERT(priority == ZIO_PRIORITY_ASYNC_WRITE);
@@ -1675,7 +1675,7 @@ zio_write_compress(zio_t *zio)
 	}
 
 	ASSERT(zio->io_child_type != ZIO_CHILD_DDT);
-	ASSERT(zio->io_bp_override == NULL);
+	ASSERT3P(zio->io_bp_override, ==, NULL);
 
 	if (!BP_IS_HOLE(bp) && bp->blk_birth == zio->io_txg) {
 		/*
@@ -2171,7 +2171,7 @@ __zio_execute(zio_t *zio)
 
 		ASSERT0(MUTEX_HELD(&zio->io_lock));
 		ASSERT(ISP2(stage));
-		ASSERT(zio->io_stall == NULL);
+		ASSERT3P(zio->io_stall, ==, NULL);
 
 		do {
 			stage <<= 1;
@@ -2319,8 +2319,8 @@ zio_reexecute(void *arg)
 
 	ASSERT(pio->io_child_type == ZIO_CHILD_LOGICAL);
 	ASSERT(pio->io_orig_stage == ZIO_STAGE_OPEN);
-	ASSERT(pio->io_gang_leader == NULL);
-	ASSERT(pio->io_gang_tree == NULL);
+	ASSERT3P(pio->io_gang_leader, ==, NULL);
+	ASSERT3P(pio->io_gang_tree, ==, NULL);
 
 	pio->io_flags = pio->io_orig_flags;
 	pio->io_stage = pio->io_orig_stage;
@@ -2392,9 +2392,9 @@ zio_suspend(spa_t *spa, zio_t *zio, zio_suspend_reason_t reason)
 
 	if (zio != NULL) {
 		ASSERT0((zio->io_flags & ZIO_FLAG_GODFATHER));
-		ASSERT(zio != spa->spa_suspend_zio_root);
+		ASSERT3P(zio, !=, spa->spa_suspend_zio_root);
 		ASSERT(zio->io_child_type == ZIO_CHILD_LOGICAL);
-		ASSERT(zio_unique_parent(zio) == NULL);
+		ASSERT3P(zio_unique_parent(zio), ==, NULL);
 		ASSERT(zio->io_stage == ZIO_STAGE_DONE);
 		zio_add_child(spa->spa_suspend_zio_root, zio);
 	}
@@ -2604,7 +2604,7 @@ zio_gang_node_alloc(zio_gang_node_t **gnpp)
 {
 	zio_gang_node_t *gn;
 
-	ASSERT(*gnpp == NULL);
+	ASSERT3P(*gnpp, ==, NULL);
 
 	gn = kmem_zalloc(sizeof (*gn), KM_SLEEP);
 	gn->gn_gbh = zio_buf_alloc(SPA_GANGBLOCKSIZE);
@@ -2619,7 +2619,7 @@ zio_gang_node_free(zio_gang_node_t **gnpp)
 	zio_gang_node_t *gn = *gnpp;
 
 	for (int g = 0; g < SPA_GBH_NBLKPTRS; g++)
-		ASSERT(gn->gn_child[g] == NULL);
+		ASSERT3P(gn->gn_child[g], ==, NULL);
 
 	zio_buf_free(gn->gn_gbh, SPA_GANGBLOCKSIZE);
 	kmem_free(gn, sizeof (*gn));
@@ -2661,7 +2661,7 @@ zio_gang_tree_assemble_done(zio_t *zio)
 	zio_gang_node_t *gn = zio->io_private;
 	blkptr_t *bp = zio->io_bp;
 
-	ASSERT(gio == zio_unique_parent(zio));
+	ASSERT3P(gio, ==, zio_unique_parent(zio));
 	ASSERT0(zio->io_child_count);
 
 	if (zio->io_error)
@@ -2982,7 +2982,7 @@ zio_nop_write(zio_t *zio)
 	ASSERT0((zio->io_flags & ZIO_FLAG_IO_REWRITE));
 	ASSERT(zp->zp_nopwrite);
 	ASSERT0(zp->zp_dedup);
-	ASSERT(zio->io_bp_override == NULL);
+	ASSERT3P(zio->io_bp_override, ==, NULL);
 	ASSERT(IO_IS_ALLOCATING(zio));
 
 	/*
@@ -3078,7 +3078,7 @@ zio_ddt_read_start(zio_t *zio)
 		ddt_phys_t *ddp_self = ddt_phys_select(dde, bp);
 		blkptr_t blk;
 
-		ASSERT(zio->io_vsd == NULL);
+		ASSERT3P(zio->io_vsd, ==, NULL);
 		zio->io_vsd = dde;
 
 		if (ddp_self == NULL)
@@ -3139,7 +3139,7 @@ zio_ddt_read_done(zio_t *zio)
 		zio->io_vsd = NULL;
 	}
 
-	ASSERT(zio->io_vsd == NULL);
+	ASSERT3P(zio->io_vsd, ==, NULL);
 
 	return (zio);
 }
@@ -3624,7 +3624,7 @@ static void
 zio_dva_unallocate(zio_t *zio, zio_gang_node_t *gn, blkptr_t *bp)
 {
 	ASSERT(bp->blk_birth == zio->io_txg || BP_IS_HOLE(bp));
-	ASSERT(zio->io_bp_override == NULL);
+	ASSERT3P(zio->io_bp_override, ==, NULL);
 
 	if (!BP_IS_HOLE(bp))
 		metaslab_free(zio->io_spa, bp, bp->blk_birth, B_TRUE);
@@ -3781,7 +3781,7 @@ zio_vdev_io_start(zio_t *zio)
 		/* Transform logical writes to be a full physical block size. */
 		uint64_t asize = P2ROUNDUP(zio->io_size, align);
 		abd_t *abuf = abd_alloc_sametype(zio->io_abd, asize);
-		ASSERT(vd == vd->vdev_top);
+		ASSERT3P(vd, ==, vd->vdev_top);
 		if (zio->io_type == ZIO_TYPE_WRITE) {
 			abd_copy(abuf, zio->io_abd, zio->io_size);
 			abd_zero_off(abuf, zio->io_size, asize - zio->io_size);
@@ -3930,7 +3930,7 @@ zio_vdev_io_done(zio_t *zio)
 	ops->vdev_op_io_done(zio);
 
 	if (unexpected_error && vd->vdev_remove_wanted == B_FALSE)
-		VERIFY(vdev_probe(vd, zio) == NULL);
+		VERIFY3P(vdev_probe(vd, zio), ==, NULL);
 
 	return (zio);
 }
@@ -4299,7 +4299,7 @@ zio_checksum_verify(zio_t *zio)
 	blkptr_t *bp = zio->io_bp;
 	int error;
 
-	ASSERT(zio->io_vd != NULL);
+	ASSERT3P(zio->io_vd, !=, NULL);
 
 	if (bp == NULL) {
 		/*
@@ -4398,7 +4398,7 @@ zio_ready(zio_t *zio)
 		if (zio->io_flags & ZIO_FLAG_IO_ALLOCATING) {
 			ASSERT(IO_IS_ALLOCATING(zio));
 			ASSERT(zio->io_priority == ZIO_PRIORITY_ASYNC_WRITE);
-			ASSERT(zio->io_metaslab_class != NULL);
+			ASSERT3P(zio->io_metaslab_class, !=, NULL);
 
 			/*
 			 * We were unable to allocate anything, unreserve and
@@ -4459,7 +4459,7 @@ zio_dva_throttle_done(zio_t *zio)
 	ASSERT3U(zio->io_type, ==, ZIO_TYPE_WRITE);
 	ASSERT3U(zio->io_priority, ==, ZIO_PRIORITY_ASYNC_WRITE);
 	ASSERT3U(zio->io_child_type, ==, ZIO_CHILD_VDEV);
-	ASSERT(vd != NULL);
+	ASSERT3P(vd, !=, NULL);
 	ASSERT3P(vd, ==, vd->vdev_top);
 	ASSERT(zio_injection_enabled || !(zio->io_flags & ZIO_FLAG_IO_RETRY));
 	ASSERT0((zio->io_flags & ZIO_FLAG_IO_REPAIR));
@@ -4486,10 +4486,10 @@ zio_dva_throttle_done(zio_t *zio)
 
 	ASSERT(IO_IS_ALLOCATING(pio));
 	ASSERT3P(zio, !=, zio->io_logical);
-	ASSERT(zio->io_logical != NULL);
+	ASSERT3P(zio->io_logical, !=, NULL);
 	ASSERT0((zio->io_flags & ZIO_FLAG_IO_REPAIR));
 	ASSERT0(zio->io_flags & ZIO_FLAG_NOPWRITE);
-	ASSERT(zio->io_metaslab_class != NULL);
+	ASSERT3P(zio->io_metaslab_class, !=, NULL);
 
 	mutex_enter(&pio->io_lock);
 	metaslab_group_alloc_decrement(zio->io_spa, vd->vdev_id, pio, flags,
@@ -4534,7 +4534,7 @@ zio_done(zio_t *zio)
 	 */
 	if (zio->io_flags & ZIO_FLAG_IO_ALLOCATING &&
 	    zio->io_child_type == ZIO_CHILD_VDEV) {
-		ASSERT(zio->io_metaslab_class != NULL);
+		ASSERT3P(zio->io_metaslab_class, !=, NULL);
 		ASSERT(zio->io_metaslab_class->mc_alloc_throttle_enabled);
 		zio_dva_throttle_done(zio);
 	}
@@ -4546,7 +4546,7 @@ zio_done(zio_t *zio)
 	if (zio->io_flags & ZIO_FLAG_IO_ALLOCATING) {
 		ASSERT(zio->io_type == ZIO_TYPE_WRITE);
 		ASSERT(zio->io_priority == ZIO_PRIORITY_ASYNC_WRITE);
-		ASSERT(zio->io_bp != NULL);
+		ASSERT3P(zio->io_bp, !=, NULL);
 
 		metaslab_group_alloc_verify(zio->io_spa, zio->io_bp, zio,
 		    zio->io_allocator);

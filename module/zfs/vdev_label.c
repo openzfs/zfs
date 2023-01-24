@@ -563,7 +563,7 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		}
 
 		if (vd->vdev_top_zap != 0) {
-			ASSERT(vd == vd->vdev_top);
+			ASSERT3P(vd, ==, vd->vdev_top);
 			fnvlist_add_uint64(nv, ZPOOL_CONFIG_VDEV_TOP_ZAP,
 			    vd->vdev_top_zap);
 		}
@@ -588,7 +588,7 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		 */
 		rw_enter(&vd->vdev_indirect_rwlock, RW_READER);
 		if (vd->vdev_indirect_mapping != NULL) {
-			ASSERT(vd->vdev_indirect_births != NULL);
+			ASSERT3P(vd->vdev_indirect_births, !=, NULL);
 			vdev_indirect_mapping_t *vim =
 			    vd->vdev_indirect_mapping;
 			fnvlist_add_uint64(nv, ZPOOL_CONFIG_INDIRECT_SIZE,

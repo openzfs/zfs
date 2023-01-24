@@ -220,7 +220,7 @@ mmp_thread_enter(mmp_thread_t *mmp, callb_cpr_t *cpr)
 static void
 mmp_thread_exit(mmp_thread_t *mmp, kthread_t **mpp, callb_cpr_t *cpr)
 {
-	ASSERT(*mpp != NULL);
+	ASSERT3P(*mpp, !=, NULL);
 	*mpp = NULL;
 	cv_broadcast(&mmp->mmp_thread_cv);
 	CALLB_CPR_EXIT(cpr);		/* drops &mmp->mmp_thread_lock */
@@ -259,7 +259,7 @@ mmp_thread_stop(spa_t *spa)
 	zfs_dbgmsg("MMP thread stopped pool '%s' gethrtime %llu",
 	    spa_name(spa), gethrtime());
 
-	ASSERT(mmp->mmp_thread == NULL);
+	ASSERT3P(mmp->mmp_thread, ==, NULL);
 	mmp->mmp_thread_exiting = 0;
 }
 

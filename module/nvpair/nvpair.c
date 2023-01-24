@@ -327,7 +327,7 @@ static nvpair_t *
 nvt_lookup_name_type(const nvlist_t *nvl, const char *name, data_type_t type)
 {
 	const nvpriv_t *priv = (const nvpriv_t *)(uintptr_t)nvl->nvl_priv;
-	ASSERT(priv != NULL);
+	ASSERT3P(priv, !=, NULL);
 
 	i_nvp_t **tab = priv->nvp_hashtable;
 
@@ -3304,7 +3304,7 @@ nvs_xdr_nvp_op(nvstream_t *nvs, nvpair_t *nvp)
 	bool_t	ret = FALSE;
 	XDR	*xdr = nvs->nvs_private;
 
-	ASSERT(xdr != NULL);
+	ASSERT3P(xdr, !=, NULL);
 
 	/* name string */
 	if ((buf = NVP_NAME(nvp)) >= buf_end)

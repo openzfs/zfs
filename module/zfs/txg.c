@@ -229,7 +229,7 @@ txg_thread_enter(tx_state_t *tx, callb_cpr_t *cpr)
 static void
 txg_thread_exit(tx_state_t *tx, callb_cpr_t *cpr, kthread_t **tpp)
 {
-	ASSERT(*tpp != NULL);
+	ASSERT3P(*tpp, !=, NULL);
 	*tpp = NULL;
 	tx->tx_threads--;
 	cv_broadcast(&tx->tx_exit_cv);

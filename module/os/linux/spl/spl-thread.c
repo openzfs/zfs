@@ -77,7 +77,7 @@ __thread_create(caddr_t stk, size_t  stksize, thread_func_t func,
 
 	/* Option pp is simply ignored */
 	/* Variable stack size unsupported */
-	ASSERT(stk == NULL);
+	ASSERT3P(stk, ==, NULL);
 
 	tp = kmem_alloc(sizeof (thread_priv_t), KM_PUSHPAGE);
 	if (tp == NULL)

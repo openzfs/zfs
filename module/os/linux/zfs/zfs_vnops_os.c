@@ -381,7 +381,7 @@ zfs_zrele_async(znode_t *zp)
 	objset_t *os = ITOZSB(ip)->z_os;
 
 	ASSERT(atomic_read(&ip->i_count) > 0);
-	ASSERT(os != NULL);
+	ASSERT3P(os, !=, NULL);
 
 	/*
 	 * If decrementing the count would put us at 0, we can't do it inline

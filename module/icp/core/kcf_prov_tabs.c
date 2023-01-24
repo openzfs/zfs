@@ -252,7 +252,7 @@ kcf_free_provider_desc(kcf_provider_desc_t *desc)
 	mutex_enter(&prov_tab_mutex);
 	if (desc->pd_prov_id != KCF_PROVID_INVALID) {
 		/* release the associated providers table entry */
-		ASSERT(prov_tab[desc->pd_prov_id] != NULL);
+		ASSERT3P(prov_tab[desc->pd_prov_id], !=, NULL);
 		prov_tab[desc->pd_prov_id] = NULL;
 		prov_tab_num--;
 	}

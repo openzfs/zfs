@@ -679,7 +679,7 @@ zvol_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 			zgd->zgd_db = db;
 			zgd->zgd_bp = bp;
 
-			ASSERT(db != NULL);
+			ASSERT3P(db, !=, NULL);
 			ASSERT(db->db_offset == offset);
 			ASSERT(db->db_size == size);
 
@@ -773,7 +773,7 @@ zvol_shutdown_zv(zvol_state_t *zv)
 	    RW_LOCK_HELD(&zv->zv_suspend_lock));
 
 	if (zv->zv_flags & ZVOL_WRITTEN_TO) {
-		ASSERT(zv->zv_zilog != NULL);
+		ASSERT3P(zv->zv_zilog, !=, NULL);
 		zil_close(zv->zv_zilog);
 	}
 
