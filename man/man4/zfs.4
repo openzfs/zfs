@@ -1769,7 +1769,7 @@ completes in order to verify the checksums of all blocks which have been
 resilvered.
 This is enabled by default and strongly recommended.
 .
-.It Sy zfs_rebuild_vdev_limit Ns = Ns Sy 33554432 Ns B Po 32 MiB Pc Pq u64
+.It Sy zfs_rebuild_vdev_limit Ns = Ns Sy 67108864 Ns B Po 64 MiB Pc Pq u64
 Maximum amount of I/O that can be concurrently issued for a sequential
 resilver per leaf device, given in bytes.
 .
