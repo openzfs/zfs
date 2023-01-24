@@ -34,6 +34,7 @@
 #include <sys/zio.h>
 #include <sys/dmu_tx.h>
 #include <sys/arc.h>
+#include <sys/arc_impl.h>
 #include <sys/zap.h>
 
 /*
@@ -116,13 +117,12 @@ unsigned long zfs_rebuild_max_segment = 1024 * 1024;
  * segment size is also large (zfs_rebuild_max_segment=1M).  This helps keep
  * the queue depth short.
  *
- * 32MB was selected as the default value to achieve good performance with
- * a large 90-drive dRAID HDD configuration (draid2:8d:90c:2s). A sequential
- * rebuild was unable to saturate all of the drives using smaller values.
- * With a value of 32MB the sequential resilver write rate was measured at
- * 800MB/s sustained while rebuilding to a distributed spare.
+ * 64MB was observed to deliver the best performance and set as the default.
+ * Testing was performed with a 106-drive dRAID HDD pool (draid2:11d:106c)
+ * and a rebuild rate of 1.2GB/s was measured to the distribute spare.
+ * Smaller values were unable to fully saturate the available pool I/O.
  */
-unsigned long zfs_rebuild_vdev_limit = 32 << 20;
+unsigned long zfs_rebuild_vdev_limit = 64 << 20;
 
 /*
  * Automatically start a pool scrub when the last active sequential resilver
@@ -754,6 +754,7 @@ vdev_rebuild_thread(void *arg)
 {
 	vdev_t *vd = arg;
 	spa_t *spa = vd->vdev_spa;
+	vdev_t *rvd = spa->spa_root_vdev;
 	int error = 0;
 
 	/*
@@ -786,9 +787,6 @@ vdev_rebuild_thread(void *arg)
 	vr->vr_pass_bytes_scanned = 0;
 	vr->vr_pass_bytes_issued = 0;
 
-	vr->vr_bytes_inflight_max = MAX(1ULL << 20,
-	    zfs_rebuild_vdev_limit * vd->vdev_children);
-
 	uint64_t update_est_time = gethrtime();
 	vdev_rebuild_update_bytes_est(vd, 0);
 
@@ -803,6 +801,17 @@ vdev_rebuild_thread(void *arg)
 	for (uint64_t i = 0; i < vd->vdev_ms_count; i++) {
 		metaslab_t *msp = vd->vdev_ms[i];
 		vr->vr_scan_msp = msp;
+
+		/*
+		 * Calculate the max number of in-flight bytes for top-level
+		 * vdev scanning operations (minimum 1MB, maximum 1/4 of
+		 * arc_c_max shared by all top-level vdevs).  Limits for the
+		 * issuing phase are done per top-level vdev and are handled
+		 * separately.
+		 */
+		uint64_t limit = (arc_c_max / 4) / MAX(rvd->vdev_children, 1);
+		vr->vr_bytes_inflight_max = MIN(limit, MAX(1ULL << 20,
+		    zfs_rebuild_vdev_limit * vd->vdev_children));
 
 		/*
 		 * Removal of vdevs from the vdev tree may eliminate the need
