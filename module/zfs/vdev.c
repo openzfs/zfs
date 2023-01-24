@@ -638,7 +638,7 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 			 */
 			guid = spa_generate_guid(spa);
 		}
-		ASSERT(!spa_guid_exists(spa_guid(spa), guid));
+		ASSERT0(spa_guid_exists(spa_guid(spa), guid));
 	}
 
 	vd->vdev_spa = spa;
@@ -1041,8 +1041,8 @@ vdev_free(vdev_t *vd)
 	 */
 	vdev_close(vd);
 
-	ASSERT(!list_link_active(&vd->vdev_config_dirty_node));
-	ASSERT(!list_link_active(&vd->vdev_state_dirty_node));
+	ASSERT0(list_link_active(&vd->vdev_config_dirty_node));
+	ASSERT0(list_link_active(&vd->vdev_state_dirty_node));
 
 	/*
 	 * Free all children.
@@ -1080,7 +1080,7 @@ vdev_free(vdev_t *vd)
 	vdev_remove_child(vd->vdev_parent, vd);
 
 	ASSERT(vd->vdev_parent == NULL);
-	ASSERT(!list_link_active(&vd->vdev_leaf_node));
+	ASSERT0(list_link_active(&vd->vdev_leaf_node));
 
 	/*
 	 * Clean up vdev structure.
@@ -1380,7 +1380,7 @@ vdev_remove_parent(vdev_t *cvd)
 	if (cvd == cvd->vdev_top)
 		vdev_top_transfer(mvd, cvd);
 
-	ASSERT(mvd->vdev_children == 0);
+	ASSERT0(mvd->vdev_children);
 	vdev_free(mvd);
 }
 
@@ -1460,7 +1460,7 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 	if (vd->vdev_ms_shift == 0)
 		return (0);
 
-	ASSERT(!vd->vdev_ishole);
+	ASSERT0(vd->vdev_ishole);
 
 	ASSERT(oldc <= newc);
 
@@ -1590,7 +1590,7 @@ vdev_metaslab_fini(vdev_t *vd)
 
 		metaslab_group_passivate(mg);
 		if (vd->vdev_log_mg != NULL) {
-			ASSERT(!vd->vdev_islog);
+			ASSERT0(vd->vdev_islog);
 			metaslab_group_passivate(vd->vdev_log_mg);
 		}
 
@@ -1967,14 +1967,14 @@ vdev_open(vdev_t *vd)
 	 * faulted, bail out of the open.
 	 */
 	if (!vd->vdev_removed && vd->vdev_faulted) {
-		ASSERT(vd->vdev_children == 0);
+		ASSERT0(vd->vdev_children);
 		ASSERT(vd->vdev_label_aux == VDEV_AUX_ERR_EXCEEDED ||
 		    vd->vdev_label_aux == VDEV_AUX_EXTERNAL);
 		vdev_set_state(vd, B_TRUE, VDEV_STATE_FAULTED,
 		    vd->vdev_label_aux);
 		return (SET_ERROR(ENXIO));
 	} else if (vd->vdev_offline) {
-		ASSERT(vd->vdev_children == 0);
+		ASSERT0(vd->vdev_children);
 		vdev_set_state(vd, B_TRUE, VDEV_STATE_OFFLINE, VDEV_AUX_NONE);
 		return (SET_ERROR(ENXIO));
 	}
@@ -2030,7 +2030,7 @@ vdev_open(vdev_t *vd)
 	 * the vdev is accessible.  If we're faulted, bail.
 	 */
 	if (vd->vdev_faulted) {
-		ASSERT(vd->vdev_children == 0);
+		ASSERT0(vd->vdev_children);
 		ASSERT(vd->vdev_label_aux == VDEV_AUX_ERR_EXCEEDED ||
 		    vd->vdev_label_aux == VDEV_AUX_EXTERNAL);
 		vdev_set_state(vd, B_TRUE, VDEV_STATE_FAULTED,
@@ -2039,7 +2039,7 @@ vdev_open(vdev_t *vd)
 	}
 
 	if (vd->vdev_degraded) {
-		ASSERT(vd->vdev_children == 0);
+		ASSERT0(vd->vdev_children);
 		vdev_set_state(vd, B_TRUE, VDEV_STATE_DEGRADED,
 		    VDEV_AUX_ERR_EXCEEDED);
 	} else {
@@ -4904,7 +4904,7 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 int64_t
 vdev_deflated_space(vdev_t *vd, int64_t space)
 {
-	ASSERT((space & (SPA_MINBLOCKSIZE-1)) == 0);
+	ASSERT0((space & (SPA_MINBLOCKSIZE - 1)));
 	ASSERT(vd->vdev_deflate_ratio != 0 || vd->vdev_isl2cache);
 
 	return ((space >> SPA_MINBLOCKSHIFT) * vd->vdev_deflate_ratio);
@@ -4946,7 +4946,7 @@ vdev_space_update(vdev_t *vd, int64_t alloc_delta, int64_t defer_delta,
 
 	/* every class but log contributes to root space stats */
 	if (vd->vdev_mg != NULL && !vd->vdev_islog) {
-		ASSERT(!vd->vdev_isl2cache);
+		ASSERT0(vd->vdev_isl2cache);
 		mutex_enter(&rvd->vdev_stat_lock);
 		rvd->vdev_stat.vs_alloc += alloc_delta;
 		rvd->vdev_stat.vs_space += space_delta;
@@ -4996,8 +4996,8 @@ vdev_config_dirty(vdev_t *vd)
 
 		if (nvlist_lookup_nvlist_array(sav->sav_config,
 		    ZPOOL_CONFIG_L2CACHE, &aux, &naux) != 0) {
-			VERIFY(nvlist_lookup_nvlist_array(sav->sav_config,
-			    ZPOOL_CONFIG_SPARES, &aux, &naux) == 0);
+			VERIFY0(nvlist_lookup_nvlist_array(sav->sav_config,
+			    ZPOOL_CONFIG_SPARES, &aux, &naux));
 		}
 
 		ASSERT(c < naux);
@@ -5306,7 +5306,7 @@ vdev_set_state(vdev_t *vd, boolean_t isopen, vdev_state_t state, vdev_aux_t aux)
 boolean_t
 vdev_children_are_offline(vdev_t *vd)
 {
-	ASSERT(!vd->vdev_ops->vdev_op_leaf);
+	ASSERT0(vd->vdev_ops->vdev_op_leaf);
 
 	for (uint64_t i = 0; i < vd->vdev_children; i++) {
 		if (vd->vdev_child[i]->vdev_state != VDEV_STATE_OFFLINE)
@@ -5383,7 +5383,7 @@ vdev_expand(vdev_t *vd, uint64_t txg)
 	if ((vd->vdev_asize >> vd->vdev_ms_shift) > vd->vdev_ms_count &&
 	    vdev_is_concrete(vd)) {
 		vdev_metaslab_group_create(vd);
-		VERIFY(vdev_metaslab_init(vd, txg) == 0);
+		VERIFY0(vdev_metaslab_init(vd, txg));
 		vdev_config_dirty(vd);
 	}
 }

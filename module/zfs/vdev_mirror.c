@@ -612,7 +612,7 @@ vdev_mirror_io_start(zio_t *zio)
 	zio->io_vsd_ops = &vdev_mirror_vsd_ops;
 
 	if (mm == NULL) {
-		ASSERT(!spa_trust_config(zio->io_spa));
+		ASSERT0(spa_trust_config(zio->io_spa));
 		ASSERT(zio->io_type == ZIO_TYPE_READ);
 		zio_execute(zio);
 		return;

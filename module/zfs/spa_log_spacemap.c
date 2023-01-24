@@ -1093,7 +1093,7 @@ spa_ld_log_sm_cb(space_map_entry_t *sme, void *arg)
 		return (0);
 
 	metaslab_t *ms = vd->vdev_ms[offset >> vd->vdev_ms_shift];
-	ASSERT(!ms->ms_loaded);
+	ASSERT0(ms->ms_loaded);
 
 	/*
 	 * If we have already flushed entries for this TXG to this

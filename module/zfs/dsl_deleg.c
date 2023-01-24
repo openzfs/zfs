@@ -101,7 +101,7 @@ dsl_deleg_can_allow(char *ddname, nvlist_t *nvp, cred_t *cr)
 		nvlist_t *perms;
 		nvpair_t *permpair = NULL;
 
-		VERIFY(nvpair_value_nvlist(whopair, &perms) == 0);
+		VERIFY0(nvpair_value_nvlist(whopair, &perms));
 
 		while ((permpair = nvlist_next_nvpair(perms, permpair))) {
 			const char *perm = nvpair_name(permpair);
@@ -188,8 +188,7 @@ dsl_deleg_set_sync(void *arg, dmu_tx_t *tx)
 			const char *perm = nvpair_name(permpair);
 			uint64_t n = 0;
 
-			VERIFY(zap_update(mos, jumpobj,
-			    perm, 8, 1, &n, tx) == 0);
+			VERIFY0(zap_update(mos, jumpobj, perm, 8, 1, &n, tx));
 			spa_history_log_internal_dd(dd, "permission update", tx,
 			    "%s %s", whokey, perm);
 		}
@@ -224,7 +223,7 @@ dsl_deleg_unset_sync(void *arg, dmu_tx_t *tx)
 			if (zap_lookup(mos, zapobj, whokey, 8,
 			    1, &jumpobj) == 0) {
 				(void) zap_remove(mos, zapobj, whokey, tx);
-				VERIFY(0 == zap_destroy(mos, jumpobj, tx));
+				VERIFY0(zap_destroy(mos, jumpobj, tx));
 			}
 			spa_history_log_internal_dd(dd, "permission who remove",
 			    tx, "%s", whokey);
@@ -242,8 +241,7 @@ dsl_deleg_unset_sync(void *arg, dmu_tx_t *tx)
 			if (zap_count(mos, jumpobj, &n) == 0 && n == 0) {
 				(void) zap_remove(mos, zapobj,
 				    whokey, tx);
-				VERIFY(0 == zap_destroy(mos,
-				    jumpobj, tx));
+				VERIFY0(zap_destroy(mos, jumpobj, tx));
 			}
 			spa_history_log_internal_dd(dd, "permission remove", tx,
 			    "%s %s", whokey, perm);
@@ -331,7 +329,7 @@ dsl_deleg_get(const char *ddname, nvlist_t **nvp)
 	basezc = kmem_alloc(sizeof (zap_cursor_t), KM_SLEEP);
 	baseza = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
 	source = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
-	VERIFY(nvlist_alloc(nvp, NV_UNIQUE_NAME, KM_SLEEP) == 0);
+	VERIFY0(nvlist_alloc(nvp, NV_UNIQUE_NAME, KM_SLEEP));
 
 	for (dd = startdd; dd != NULL; dd = dd->dd_parent) {
 		nvlist_t *sp_nvp;
@@ -703,7 +701,7 @@ copy_create_perms(dsl_dir_t *dd, uint64_t pzapobj,
 	    ZFS_DELEG_LOCAL, &uid);
 	if (zap_lookup(mos, zapobj, whokey, 8, 1, &jumpobj) == ENOENT) {
 		jumpobj = zap_create(mos, DMU_OT_DSL_PERMS, DMU_OT_NONE, 0, tx);
-		VERIFY(zap_add(mos, zapobj, whokey, 8, 1, &jumpobj, tx) == 0);
+		VERIFY0(zap_add(mos, zapobj, whokey, 8, 1, &jumpobj, tx));
 	}
 
 	for (zap_cursor_init(&zc, mos, pjumpobj);
@@ -712,8 +710,7 @@ copy_create_perms(dsl_dir_t *dd, uint64_t pzapobj,
 		uint64_t zero = 0;
 		ASSERT(za.za_integer_length == 8 && za.za_num_integers == 1);
 
-		VERIFY(zap_update(mos, jumpobj, za.za_name,
-		    8, 1, &zero, tx) == 0);
+		VERIFY0(zap_update(mos, jumpobj, za.za_name, 8, 1, &zero, tx));
 	}
 	zap_cursor_fini(&zc);
 }
@@ -755,10 +752,10 @@ dsl_deleg_destroy(objset_t *mos, uint64_t zapobj, dmu_tx_t *tx)
 	    zap_cursor_retrieve(&zc, &za) == 0;
 	    zap_cursor_advance(&zc)) {
 		ASSERT(za.za_integer_length == 8 && za.za_num_integers == 1);
-		VERIFY(0 == zap_destroy(mos, za.za_first_integer, tx));
+		VERIFY0(zap_destroy(mos, za.za_first_integer, tx));
 	}
 	zap_cursor_fini(&zc);
-	VERIFY(0 == zap_destroy(mos, zapobj, tx));
+	VERIFY0(zap_destroy(mos, zapobj, tx));
 	return (0);
 }
 

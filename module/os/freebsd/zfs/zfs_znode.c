@@ -165,9 +165,9 @@ zfs_znode_cache_destructor(void *buf, void *arg)
 	(void) arg;
 	znode_t *zp = buf;
 
-	ASSERT(!POINTER_IS_VALID(zp->z_zfsvfs));
+	ASSERT0(POINTER_IS_VALID(zp->z_zfsvfs));
 	ASSERT3P(zp->z_vnode, ==, NULL);
-	ASSERT(!list_link_active(&zp->z_link_node));
+	ASSERT0(list_link_active(&zp->z_link_node));
 	mutex_destroy(&zp->z_lock);
 	mutex_destroy(&zp->z_acl_lock);
 	rw_destroy(&zp->z_xattr_lock);
@@ -291,7 +291,7 @@ zfs_create_share_dir(zfsvfs_t *zfsvfs, dmu_tx_t *tx)
 	vattr.va_gid = crgetgid(kcred);
 
 	sharezp = zfs_znode_alloc_kmem(KM_SLEEP);
-	ASSERT(!POINTER_IS_VALID(sharezp->z_zfsvfs));
+	ASSERT0(POINTER_IS_VALID(sharezp->z_zfsvfs));
 	sharezp->z_unlinked = 0;
 	sharezp->z_atime_dirty = 0;
 	sharezp->z_zfsvfs = zfsvfs;
@@ -448,7 +448,7 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	zp->z_vnode = vp;
 	vp->v_data = zp;
 
-	ASSERT(!POINTER_IS_VALID(zp->z_zfsvfs));
+	ASSERT0(POINTER_IS_VALID(zp->z_zfsvfs));
 
 	zp->z_sa_hdl = NULL;
 	zp->z_unlinked = 0;
@@ -1227,7 +1227,7 @@ zfs_znode_delete(znode_t *zp, dmu_tx_t *tx)
 
 	ZFS_OBJ_HOLD_ENTER(zfsvfs, obj);
 	if (acl_obj) {
-		VERIFY(!zp->z_is_sa);
+		VERIFY0(zp->z_is_sa);
 		VERIFY0(dmu_object_free(os, acl_obj, tx));
 	}
 	VERIFY0(dmu_object_free(os, obj, tx));
@@ -1258,7 +1258,7 @@ zfs_zinactive(znode_t *zp)
 	 * closed.  The file will remain in the unlinked set.
 	 */
 	if (zp->z_unlinked) {
-		ASSERT(!zfsvfs->z_issnap);
+		ASSERT0(zfsvfs->z_issnap);
 		if ((zfsvfs->z_vfs->vfs_flag & VFS_RDONLY) == 0) {
 			ZFS_OBJ_HOLD_EXIT(zfsvfs, z_id);
 			zfs_rmnode(zp);
@@ -1424,7 +1424,7 @@ zfs_extend(znode_t *zp, uint64_t end)
 			 * "recordsize" property.  Only let it grow to
 			 * the next power of 2.
 			 */
-			ASSERT(!ISP2(zp->z_blksz));
+			ASSERT0(ISP2(zp->z_blksz));
 			newblksz = MIN(end, 1 << highbit64(zp->z_blksz));
 		} else {
 			newblksz = MIN(end, zp->z_zfsvfs->z_max_blksz);
@@ -1743,7 +1743,7 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	zfsvfs = kmem_zalloc(sizeof (zfsvfs_t), KM_SLEEP);
 
 	rootzp = zfs_znode_alloc_kmem(KM_SLEEP);
-	ASSERT(!POINTER_IS_VALID(rootzp->z_zfsvfs));
+	ASSERT0(POINTER_IS_VALID(rootzp->z_zfsvfs));
 	rootzp->z_unlinked = 0;
 	rootzp->z_atime_dirty = 0;
 	rootzp->z_is_sa = USE_SA(version, os);

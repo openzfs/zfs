@@ -309,7 +309,7 @@ dbuf_dest(void *vdb, void *unused)
 	mutex_destroy(&db->db_mtx);
 	rw_destroy(&db->db_rwlock);
 	cv_destroy(&db->db_changed);
-	ASSERT(!multilist_link_active(&db->db_cache_link));
+	ASSERT0(multilist_link_active(&db->db_cache_link));
 	zfs_refcount_destroy(&db->db_holds);
 }
 
@@ -491,7 +491,7 @@ dbuf_hash_remove(dmu_buf_impl_t *db)
 	 */
 	ASSERT(zfs_refcount_is_zero(&db->db_holds));
 	ASSERT(db->db_state == DB_EVICTING);
-	ASSERT(!MUTEX_HELD(&db->db_mtx));
+	ASSERT0(MUTEX_HELD(&db->db_mtx));
 
 	mutex_enter(DBUF_HASH_MUTEX(h, idx));
 	dbp = &h->hash_table[idx];
@@ -523,7 +523,7 @@ dbuf_verify_user(dmu_buf_impl_t *db, dbvu_verify_type_t verify_type)
 		return;
 
 	/* Only data blocks support the attachment of user data. */
-	ASSERT(db->db_level == 0);
+	ASSERT0(db->db_level);
 
 	/* Clients must resolve a dbuf before attaching user data. */
 	ASSERT(db->db.db_data != NULL);
@@ -756,7 +756,7 @@ dbuf_evict_one(void)
 	multilist_sublist_t *mls = multilist_sublist_lock(
 	    &dbuf_caches[DB_DBUF_CACHE].cache, idx);
 
-	ASSERT(!MUTEX_HELD(&dbuf_evict_lock));
+	ASSERT0(MUTEX_HELD(&dbuf_evict_lock));
 
 	dmu_buf_impl_t *db = multilist_sublist_tail(mls);
 	while (db != NULL && mutex_tryenter(&db->db_mtx) == 0) {
@@ -1173,7 +1173,7 @@ dbuf_verify(dmu_buf_impl_t *db)
 				int i;
 
 				for (i = 0; i < db->db.db_size >> 3; i++) {
-					ASSERT(buf[i] == 0);
+					ASSERT0(buf[i]);
 				}
 			} else {
 				blkptr_t *bps = db->db.db_data;
@@ -1199,7 +1199,7 @@ dbuf_verify(dmu_buf_impl_t *db)
 					ASSERT0(bp->blk_fill);
 					ASSERT0(bp->blk_pad[0]);
 					ASSERT0(bp->blk_pad[1]);
-					ASSERT(!BP_IS_EMBEDDED(bp));
+					ASSERT0(BP_IS_EMBEDDED(bp));
 					ASSERT(BP_IS_HOLE(bp));
 					ASSERT0(bp->blk_phys_birth);
 				}
@@ -1554,7 +1554,7 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags,
 
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
-	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
+	ASSERT0(zfs_refcount_is_zero(&db->db_holds));
 	ASSERT(MUTEX_HELD(&db->db_mtx));
 	ASSERT(db->db_state == DB_UNCACHED);
 	ASSERT(db->db_buf == NULL);
@@ -1660,7 +1660,7 @@ dbuf_fix_old_data(dmu_buf_impl_t *db, uint64_t txg)
 
 	ASSERT(MUTEX_HELD(&db->db_mtx));
 	ASSERT(db->db.db_data != NULL);
-	ASSERT(db->db_level == 0);
+	ASSERT0(db->db_level);
 	ASSERT(db->db.db_object != DMU_META_DNODE_OBJECT);
 
 	if (dr == NULL ||
@@ -1729,7 +1729,7 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 	 * We don't have to hold the mutex to check db_state because it
 	 * can't be freed while we have a hold on the buffer.
 	 */
-	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
+	ASSERT0(zfs_refcount_is_zero(&db->db_holds));
 
 	if (db->db_state == DB_NOFILL)
 		return (SET_ERROR(EIO));
@@ -1856,7 +1856,7 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 static void
 dbuf_noread(dmu_buf_impl_t *db)
 {
-	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
+	ASSERT0(zfs_refcount_is_zero(&db->db_holds));
 	ASSERT(db->db_blkid != DMU_BONUS_BLKID);
 	mutex_enter(&db->db_mtx);
 	while (db->db_state == DB_READ || db->db_state == DB_FILL)
@@ -1889,7 +1889,7 @@ dbuf_unoverride(dbuf_dirty_record_t *dr)
 	 * comes from dbuf_dirty() callers who must also hold a range lock.
 	 */
 	ASSERT(dr->dt.dl.dr_override_state != DR_IN_DMU_SYNC);
-	ASSERT(db->db_level == 0);
+	ASSERT0(db->db_level);
 
 	if (db->db_blkid == DMU_BONUS_BLKID ||
 	    dr->dt.dl.dr_override_state == DR_NOT_OVERRIDDEN)
@@ -2190,7 +2190,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	boolean_t drop_struct_rwlock = B_FALSE;
 
 	ASSERT(tx->tx_txg != 0);
-	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
+	ASSERT0(zfs_refcount_is_zero(&db->db_holds));
 	DMU_TX_DIRTY_BUF(tx, db);
 
 	DB_DNODE_ENTER(db);
@@ -2362,7 +2362,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	if (db->db_blkid == DMU_BONUS_BLKID ||
 	    db->db_blkid == DMU_SPILL_BLKID) {
 		mutex_enter(&dn->dn_mtx);
-		ASSERT(!list_link_active(&dr->dr_dirty_node));
+		ASSERT0(list_link_active(&dr->dr_dirty_node));
 		list_insert_tail(&dn->dn_dirty_records[txgoff], dr);
 		mutex_exit(&dn->dn_mtx);
 		dnode_setdirty(dn, tx);
@@ -2434,7 +2434,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 		    dn->dn_object == DMU_META_DNODE_OBJECT) {
 			mutex_enter(&di->dt.di.dr_mtx);
 			ASSERT3U(di->dr_txg, ==, tx->tx_txg);
-			ASSERT(!list_link_active(&dr->dr_dirty_node));
+			ASSERT0(list_link_active(&dr->dr_dirty_node));
 			list_insert_tail(&di->dt.di.dr_children, dr);
 			mutex_exit(&di->dt.di.dr_mtx);
 			dr->dr_parent = di;
@@ -2445,7 +2445,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 		ASSERT(db->db_blkid < dn->dn_nblkptr);
 		ASSERT(db->db_parent == NULL || db->db_parent == dn->dn_dbuf);
 		mutex_enter(&dn->dn_mtx);
-		ASSERT(!list_link_active(&dr->dr_dirty_node));
+		ASSERT0(list_link_active(&dr->dr_dirty_node));
 		list_insert_tail(&dn->dn_dirty_records[txgoff], dr);
 		mutex_exit(&dn->dn_mtx);
 		if (drop_struct_rwlock)
@@ -2571,7 +2571,7 @@ dmu_buf_will_dirty_impl(dmu_buf_t *db_fake, int flags, dmu_tx_t *tx)
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
 
 	ASSERT(tx->tx_txg != 0);
-	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
+	ASSERT0(zfs_refcount_is_zero(&db->db_holds));
 
 	/*
 	 * Quick check for dirtiness.  For already dirty blocks, this
@@ -2641,8 +2641,8 @@ dmu_buf_will_fill(dmu_buf_t *db_fake, dmu_tx_t *tx)
 
 	ASSERT(db->db_blkid != DMU_BONUS_BLKID);
 	ASSERT(tx->tx_txg != 0);
-	ASSERT(db->db_level == 0);
-	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
+	ASSERT0(db->db_level);
+	ASSERT0(zfs_refcount_is_zero(&db->db_holds));
 
 	ASSERT(db->db.db_object != DMU_META_DNODE_OBJECT ||
 	    dmu_tx_private_ok(tx));
@@ -2802,9 +2802,9 @@ dmu_buf_redact(dmu_buf_t *dbuf, dmu_tx_t *tx)
 void
 dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx)
 {
-	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
+	ASSERT0(zfs_refcount_is_zero(&db->db_holds));
 	ASSERT(db->db_blkid != DMU_BONUS_BLKID);
-	ASSERT(db->db_level == 0);
+	ASSERT0(db->db_level);
 	ASSERT3U(dbuf_is_metadata(db), ==, arc_is_metadata(buf));
 	ASSERT(buf != NULL);
 	ASSERT3U(arc_buf_lsize(buf), ==, db->db.db_size);
@@ -2828,7 +2828,7 @@ dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx)
 		 * dbuf. We don't handle this here so we simply assert that
 		 * fact instead.
 		 */
-		ASSERT(!arc_is_encrypted(buf));
+		ASSERT0(arc_is_encrypted(buf));
 		mutex_exit(&db->db_mtx);
 		(void) dbuf_dirty(db, tx);
 		memcpy(db->db.db_data, buf->b_data, db->db.db_size);
@@ -2968,7 +2968,7 @@ dbuf_destroy(dmu_buf_impl_t *db)
 	ASSERT(db->db_blkptr == NULL);
 	ASSERT(db->db_data_pending == NULL);
 	ASSERT3U(db->db_caching_status, ==, DB_NO_CACHE);
-	ASSERT(!multilist_link_active(&db->db_cache_link));
+	ASSERT0(multilist_link_active(&db->db_cache_link));
 
 	/*
 	 * If this dbuf is referenced from an indirect dbuf,
@@ -3576,7 +3576,7 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
 	spa_t *spa = dn->dn_objset->os_spa;
 	dsl_pool_t *dp = spa->spa_dsl_pool;
 	if (dp != NULL) {
-		ASSERT(!MUTEX_HELD(&dp->dp_tx.tx_sync_lock));
+		ASSERT0(MUTEX_HELD(&dp->dp_tx.tx_sync_lock));
 	}
 
 	ASSERT(blkid != DMU_BONUS_BLKID);
@@ -4195,7 +4195,7 @@ dbuf_sync_leaf_verify_bonus_dnode(dbuf_dirty_record_t *dr)
 
 	/* ensure that everything is zero after our data */
 	for (; datap_end < datap_max; datap_end++)
-		ASSERT(*datap_end == 0);
+		ASSERT0(*datap_end);
 #endif
 }
 
@@ -4489,7 +4489,7 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 
 	dbuf_write(dr, *datap, tx);
 
-	ASSERT(!list_link_active(&dr->dr_dirty_node));
+	ASSERT0(list_link_active(&dr->dr_dirty_node));
 	if (dn->dn_object == DMU_META_DNODE_OBJECT) {
 		list_insert_tail(&dn->dn_dirty_records[txg & TXG_MASK], dr);
 	} else {
@@ -4729,7 +4729,7 @@ dbuf_write_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 
 	dbuf_dirty_record_t *dr = db->db_data_pending;
 	dnode_t *dn = dr->dr_dnode;
-	ASSERT(!list_link_active(&dr->dr_dirty_node));
+	ASSERT0(list_link_active(&dr->dr_dirty_node));
 	ASSERT(dr->dr_dbuf == db);
 	ASSERT(list_next(&db->db_dirty_records, dr) == NULL);
 	list_remove(&db->db_dirty_records, dr);
@@ -4888,7 +4888,7 @@ dbuf_remap_impl(dnode_t *dn, blkptr_t *bp, krwlock_t *rw, dmu_tx_t *tx)
 			dsl_dataset_t *ds = dmu_objset_ds(dn->dn_objset);
 			if (dsl_deadlist_is_open(&ds->ds_dir->dd_livelist) &&
 			    bp->blk_birth > ds->ds_dir->dd_origin_txg) {
-				ASSERT(!BP_IS_EMBEDDED(bp));
+				ASSERT0(BP_IS_EMBEDDED(bp));
 				ASSERT(dsl_dir_is_clone(ds->ds_dir));
 				ASSERT(spa_feature_is_enabled(spa,
 				    SPA_FEATURE_LIVELIST));

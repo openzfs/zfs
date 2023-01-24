@@ -162,7 +162,7 @@ dmu_zfetch_init(zfetch_t *zf, dnode_t *dno)
 static void
 dmu_zfetch_stream_fini(zstream_t *zs)
 {
-	ASSERT(!list_link_active(&zs->zs_node));
+	ASSERT0(list_link_active(&zs->zs_node));
 	zfs_refcount_destroy(&zs->zs_callers);
 	zfs_refcount_destroy(&zs->zs_refs);
 	kmem_free(zs, sizeof (*zs));

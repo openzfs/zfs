@@ -208,8 +208,8 @@ free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
 		rw_exit(&dn->dn_struct_rwlock);
 		if (err == ENOENT)
 			continue;
-		ASSERT(err == 0);
-		ASSERT(child->db_level == 0);
+		ASSERT0(err);
+		ASSERT0(child->db_level);
 		dr = dbuf_find_dirty_eq(child, txg);
 
 		/* data_old better be zeroed */
@@ -669,9 +669,9 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 		 * to account for it until the receiving dataset has been
 		 * mounted.
 		 */
-		ASSERT(!(dn->dn_phys->dn_flags &
+		ASSERT0((dn->dn_phys->dn_flags &
 		    DNODE_FLAG_USERUSED_ACCOUNTED));
-		ASSERT(!(dn->dn_phys->dn_flags &
+		ASSERT0((dn->dn_phys->dn_flags &
 		    DNODE_FLAG_USEROBJUSED_ACCOUNTED));
 	}
 
@@ -706,8 +706,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	}
 
 	if (dn->dn_next_blksz[txgoff] != 0) {
-		ASSERT(P2PHASE(dn->dn_next_blksz[txgoff],
-		    SPA_MINBLOCKSIZE) == 0);
+		ASSERT0(P2PHASE(dn->dn_next_blksz[txgoff], SPA_MINBLOCKSIZE));
 		ASSERT(BP_IS_HOLE(&dnp->dn_blkptr[0]) ||
 		    dn->dn_maxblkid == 0 || list_head(list) != NULL ||
 		    dn->dn_next_blksz[txgoff] >> SPA_MINBLOCKSHIFT ==

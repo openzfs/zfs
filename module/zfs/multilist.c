@@ -178,7 +178,7 @@ multilist_insert(multilist_t *ml, void *obj)
 	if (need_lock)
 		mutex_enter(&mls->mls_lock);
 
-	ASSERT(!multilist_link_active(multilist_d2l(ml, obj)));
+	ASSERT0(multilist_link_active(multilist_d2l(ml, obj)));
 
 	multilist_sublist_insert_head(mls, obj);
 
@@ -346,7 +346,7 @@ multilist_sublist_move_forward(multilist_sublist_t *mls, void *obj)
 	void *prev = list_prev(&mls->mls_list, obj);
 
 	ASSERT(MUTEX_HELD(&mls->mls_lock));
-	ASSERT(!list_is_empty(&mls->mls_list));
+	ASSERT0(list_is_empty(&mls->mls_list));
 
 	/* 'obj' must be at the head of the list, nothing to do */
 	if (prev == NULL)
@@ -378,7 +378,7 @@ multilist_sublist_is_empty_idx(multilist_t *ml, unsigned int sublist_idx)
 
 	ASSERT3U(sublist_idx, <, ml->ml_num_sublists);
 	mls = &ml->ml_sublists[sublist_idx];
-	ASSERT(!MUTEX_HELD(&mls->mls_lock));
+	ASSERT0(MUTEX_HELD(&mls->mls_lock));
 	mutex_enter(&mls->mls_lock);
 	empty = list_is_empty(&mls->mls_list);
 	mutex_exit(&mls->mls_lock);

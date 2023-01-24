@@ -450,7 +450,7 @@ zap_create_leaf(zap_t *zap, dmu_tx_t *tx)
 int
 fzap_count(zap_t *zap, uint64_t *count)
 {
-	ASSERT(!zap->zap_ismicro);
+	ASSERT0(zap->zap_ismicro);
 	mutex_enter(&zap->zap_f.zap_num_entries_mtx); /* unnecessary */
 	*count = zap_f_phys(zap)->zap_num_entries;
 	mutex_exit(&zap->zap_f.zap_num_entries_mtx);
@@ -652,7 +652,7 @@ zap_expand_leaf(zap_name_t *zn, zap_leaf_t *l,
 		zap = zn->zn_zap;
 		if (err != 0)
 			return (err);
-		ASSERT(!zap->zap_ismicro);
+		ASSERT0(zap->zap_ismicro);
 
 		while (old_prefix_len ==
 		    zap_f_phys(zap)->zap_ptrtbl.zt_shift) {
@@ -832,8 +832,8 @@ fzap_add_cd(zap_name_t *zn,
 	zap_t *zap = zn->zn_zap;
 
 	ASSERT(RW_LOCK_HELD(&zap->zap_rwlock));
-	ASSERT(!zap->zap_ismicro);
-	ASSERT(fzap_check(zn, integer_size, num_integers) == 0);
+	ASSERT0(zap->zap_ismicro);
+	ASSERT0(fzap_check(zn, integer_size, num_integers));
 
 	err = zap_deref_leaf(zap, zn->zn_hash, tx, RW_WRITER, &l);
 	if (err != 0)
@@ -1289,7 +1289,7 @@ again:
 		}
 		err = zap_entry_read_name(zap, &zeh,
 		    sizeof (za->za_name), za->za_name);
-		ASSERT(err == 0);
+		ASSERT0(err);
 
 		za->za_normalization_conflict =
 		    zap_entry_normalization_conflict(&zeh,

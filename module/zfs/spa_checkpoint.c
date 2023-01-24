@@ -368,7 +368,7 @@ spa_checkpoint_discard_is_done(spa_t *spa)
 {
 	vdev_t *rvd = spa->spa_root_vdev;
 
-	ASSERT(!spa_has_checkpoint(spa));
+	ASSERT0(spa_has_checkpoint(spa));
 	ASSERT(spa_feature_is_active(spa, SPA_FEATURE_POOL_CHECKPOINT));
 
 	for (uint64_t c = 0; c < rvd->vdev_children; c++) {

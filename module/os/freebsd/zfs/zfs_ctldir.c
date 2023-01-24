@@ -1366,7 +1366,7 @@ zfsctl_snapshot_unmount(const char *snapname, int flags __unused)
 	}
 	vfsp = zfsvfs->z_vfs;
 
-	ASSERT(!dsl_pool_config_held(dmu_objset_pool(zfsvfs->z_os)));
+	ASSERT0(dsl_pool_config_held(dmu_objset_pool(zfsvfs->z_os)));
 
 	vfs_ref(vfsp);
 	vfs_unbusy(vfsp);

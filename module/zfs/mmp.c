@@ -289,7 +289,7 @@ mmp_next_leaf(spa_t *spa)
 	ASSERT(MUTEX_HELD(&spa->spa_mmp.mmp_io_lock));
 	ASSERT(spa_config_held(spa, SCL_STATE, RW_READER));
 	ASSERT(list_link_active(&spa->spa_leaf_list.list_head) == B_TRUE);
-	ASSERT(!list_is_empty(&spa->spa_leaf_list));
+	ASSERT0(list_is_empty(&spa->spa_leaf_list));
 
 	if (spa->spa_mmp.mmp_leaf_last_gen != spa->spa_leaf_list_gen) {
 		spa->spa_mmp.mmp_last_leaf = list_head(&spa->spa_leaf_list);

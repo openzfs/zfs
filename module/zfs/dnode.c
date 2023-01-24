@@ -188,10 +188,10 @@ dnode_dest(void *arg, void *unused)
 	cv_destroy(&dn->dn_nodnholds);
 	zfs_refcount_destroy(&dn->dn_holds);
 	zfs_refcount_destroy(&dn->dn_tx_holds);
-	ASSERT(!list_link_active(&dn->dn_link));
+	ASSERT0(list_link_active(&dn->dn_link));
 
 	for (int i = 0; i < TXG_SIZE; i++) {
-		ASSERT(!multilist_link_active(&dn->dn_dirty_link[i]));
+		ASSERT0(multilist_link_active(&dn->dn_dirty_link[i]));
 		ASSERT3P(dn->dn_free_ranges[i], ==, NULL);
 		list_destroy(&dn->dn_dirty_records[i]);
 		ASSERT0(dn->dn_next_nblkptr[i]);
@@ -211,7 +211,7 @@ dnode_dest(void *arg, void *unused)
 	ASSERT0(dn->dn_dirtyctx);
 	ASSERT3P(dn->dn_dirtyctx_firstset, ==, NULL);
 	ASSERT3P(dn->dn_bonus, ==, NULL);
-	ASSERT(!dn->dn_have_spill);
+	ASSERT0(dn->dn_have_spill);
 	ASSERT3P(dn->dn_zio, ==, NULL);
 	ASSERT0(dn->dn_oldused);
 	ASSERT0(dn->dn_oldflags);
@@ -487,7 +487,7 @@ dnode_buf_byteswap(void *vbuf, size_t size)
 	int i = 0;
 
 	ASSERT3U(sizeof (dnode_phys_t), ==, (1<<DNODE_SHIFT));
-	ASSERT((size & (sizeof (dnode_phys_t)-1)) == 0);
+	ASSERT0((size & (sizeof (dnode_phys_t) - 1)));
 
 	while (i < size) {
 		dnode_phys_t *dnp = (void *)(((char *)vbuf) + i);
@@ -600,7 +600,7 @@ dnode_create(objset_t *os, dnode_phys_t *dnp, dmu_buf_impl_t *db,
 
 	ASSERT(DMU_OT_IS_VALID(dn->dn_phys->dn_type));
 	ASSERT(zrl_is_locked(&dnh->dnh_zrlock));
-	ASSERT(!DN_SLOT_IS_PTR(dnh->dnh_dnode));
+	ASSERT0(DN_SLOT_IS_PTR(dnh->dnh_dnode));
 
 	mutex_enter(&os->os_lock);
 
@@ -638,7 +638,7 @@ dnode_destroy(dnode_t *dn)
 	objset_t *os = dn->dn_objset;
 	boolean_t complete_os_eviction = B_FALSE;
 
-	ASSERT((dn->dn_id_flags & DN_ID_NEW_EXIST) == 0);
+	ASSERT0((dn->dn_id_flags & DN_ID_NEW_EXIST));
 
 	mutex_enter(&os->os_lock);
 	POINTER_INVALIDATE(&dn->dn_objset);
@@ -740,7 +740,7 @@ dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
 		ASSERT0(dn->dn_rm_spillblk[i]);
 		ASSERT0(dn->dn_next_blksz[i]);
 		ASSERT0(dn->dn_next_maxblkid[i]);
-		ASSERT(!multilist_link_active(&dn->dn_dirty_link[i]));
+		ASSERT0(multilist_link_active(&dn->dn_dirty_link[i]));
 		ASSERT3P(list_head(&dn->dn_dirty_records[i]), ==, NULL);
 		ASSERT3P(dn->dn_free_ranges[i], ==, NULL);
 	}
@@ -867,7 +867,7 @@ dnode_reallocate(dnode_t *dn, dmu_object_type_t ot, int blocksize,
 static void
 dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 {
-	ASSERT(!RW_LOCK_HELD(&odn->dn_struct_rwlock));
+	ASSERT0(RW_LOCK_HELD(&odn->dn_struct_rwlock));
 	ASSERT(MUTEX_NOT_HELD(&odn->dn_mtx));
 	ASSERT(MUTEX_NOT_HELD(&odn->dn_dbufs_mtx));
 
@@ -920,7 +920,7 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	ndn->dn_dirty_txg = odn->dn_dirty_txg;
 	ndn->dn_dirtyctx = odn->dn_dirtyctx;
 	ndn->dn_dirtyctx_firstset = odn->dn_dirtyctx_firstset;
-	ASSERT(zfs_refcount_count(&odn->dn_tx_holds) == 0);
+	ASSERT0(zfs_refcount_count(&odn->dn_tx_holds));
 	zfs_refcount_transfer(&ndn->dn_holds, &odn->dn_holds);
 	ASSERT(avl_is_empty(&ndn->dn_dbufs));
 	avl_swap(&ndn->dn_dbufs, &odn->dn_dbufs);
@@ -2229,7 +2229,7 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 		if ((off >> blkshift) > dn->dn_maxblkid)
 			return;
 	} else {
-		ASSERT(dn->dn_maxblkid == 0);
+		ASSERT0(dn->dn_maxblkid);
 		if (off == 0 && len >= blksz) {
 			/*
 			 * Freeing the whole block; fast-track this request.
@@ -2447,7 +2447,7 @@ dnode_diduse_space(dnode_t *dn, int64_t delta)
 	}
 	space += delta;
 	if (spa_version(dn->dn_objset->os_spa) < SPA_VERSION_DNODE_BYTES) {
-		ASSERT((dn->dn_phys->dn_flags & DNODE_FLAG_USED_BYTES) == 0);
+		ASSERT0((dn->dn_phys->dn_flags & DNODE_FLAG_USED_BYTES));
 		ASSERT0(P2PHASE(space, 1<<DEV_BSHIFT));
 		dn->dn_phys->dn_used = space >> DEV_BSHIFT;
 	} else {
@@ -2537,7 +2537,7 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 		dnode_phys_t *dnp = data;
 
 		ASSERT(dn->dn_type == DMU_OT_DNODE);
-		ASSERT(!(flags & DNODE_FIND_BACKWARDS));
+		ASSERT0((flags & DNODE_FIND_BACKWARDS));
 
 		for (i = (*offset >> DNODE_SHIFT) & (blkfill - 1);
 		    i < blkfill; i += dnp[i].dn_extra_slots + 1) {

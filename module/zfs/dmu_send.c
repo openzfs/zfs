@@ -495,7 +495,7 @@ dmu_dump_write(dmu_send_cookie_t *dscp, dmu_object_type_t type, uint64_t object,
 	if (raw || compressed) {
 		ASSERT(raw || dscp->dsc_featureflags &
 		    DMU_BACKUP_FEATURE_COMPRESSED);
-		ASSERT(!BP_IS_EMBEDDED(bp));
+		ASSERT0(BP_IS_EMBEDDED(bp));
 		ASSERT3S(psize, >, 0);
 
 		if (raw) {
@@ -516,8 +516,8 @@ dmu_dump_write(dmu_send_cookie_t *dscp, dmu_object_type_t type, uint64_t object,
 			/* this is a compressed block */
 			ASSERT(dscp->dsc_featureflags &
 			    DMU_BACKUP_FEATURE_COMPRESSED);
-			ASSERT(!BP_SHOULD_BYTESWAP(bp));
-			ASSERT(!DMU_OT_IS_METADATA(BP_GET_TYPE(bp)));
+			ASSERT0(BP_SHOULD_BYTESWAP(bp));
+			ASSERT0(DMU_OT_IS_METADATA(BP_GET_TYPE(bp)));
 			ASSERT3U(BP_GET_COMPRESS(bp), !=, ZIO_COMPRESS_OFF);
 			ASSERT3S(lsize, >=, psize);
 		}
@@ -1890,7 +1890,7 @@ send_reader_thread(void *arg)
 				    NULL, NULL);
 				if (err != 0)
 					break;
-				ASSERT(!BP_IS_HOLE(&bp));
+				ASSERT0(BP_IS_HOLE(&bp));
 				enqueue_range(srta, outq, dn, blkid, 1, &bp,
 				    datablksz);
 			}

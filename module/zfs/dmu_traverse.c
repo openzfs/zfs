@@ -202,7 +202,7 @@ traverse_prefetch_metadata(traverse_data_t *td,
 		return (B_FALSE);
 	if (BP_GET_LEVEL(bp) == 0 && BP_GET_TYPE(bp) != DMU_OT_DNODE)
 		return (B_FALSE);
-	ASSERT(!BP_IS_REDACTED(bp));
+	ASSERT0(BP_IS_REDACTED(bp));
 
 	if ((td->td_flags & TRAVERSE_NO_DECRYPT) && BP_IS_PROTECTED(bp))
 		zio_flags |= ZIO_FLAG_RAW;
@@ -307,7 +307,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		int32_t epb = BP_GET_LSIZE(bp) >> SPA_BLKPTRSHIFT;
 		zbookmark_phys_t *czb;
 
-		ASSERT(!BP_IS_PROTECTED(bp));
+		ASSERT0(BP_IS_PROTECTED(bp));
 
 		err = arc_read(NULL, td->td_spa, bp, arc_getbuf_func, &buf,
 		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, zb);
@@ -676,7 +676,7 @@ traverse_impl(spa_t *spa, dsl_dataset_t *ds, uint64_t objset, blkptr_t *rootbp,
 		uint32_t flags = ARC_FLAG_WAIT;
 		objset_phys_t *osp;
 		arc_buf_t *buf;
-		ASSERT(!BP_IS_REDACTED(rootbp));
+		ASSERT0(BP_IS_REDACTED(rootbp));
 
 		if ((td->td_flags & TRAVERSE_NO_DECRYPT) &&
 		    BP_IS_PROTECTED(rootbp))

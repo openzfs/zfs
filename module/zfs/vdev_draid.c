@@ -821,7 +821,7 @@ vdev_draid_map_alloc_empty(zio_t *zio, raidz_row_t *rr)
 			ASSERT3U(rc->rc_size + skip_size, ==, parity_size);
 			ASSERT3U(rr->rr_nempty, !=, 0);
 			ASSERT3P(rc->rc_abd, !=, NULL);
-			ASSERT(!abd_is_gang(rc->rc_abd));
+			ASSERT0(abd_is_gang(rc->rc_abd));
 			abd_t *read_abd = rc->rc_abd;
 			rc->rc_abd = abd_alloc_gang();
 			abd_gang_add(rc->rc_abd, read_abd, B_TRUE);

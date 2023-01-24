@@ -827,7 +827,7 @@ dsl_bookmark_init_ds(dsl_dataset_t *ds)
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
 	objset_t *mos = dp->dp_meta_objset;
 
-	ASSERT(!ds->ds_is_snapshot);
+	ASSERT0(ds->ds_is_snapshot);
 
 	avl_create(&ds->ds_bookmarks, dsl_bookmark_compare,
 	    sizeof (dsl_bookmark_node_t),
@@ -1344,7 +1344,7 @@ dsl_bookmark_ds_destroyed(dsl_dataset_t *ds, dmu_tx_t *tx)
 	    dsl_dataset_phys(ds)->ds_creation_txg;
 	    dbn = AVL_NEXT(&head->ds_bookmarks, dbn)) {
 		if (!(dbn->dbn_phys.zbm_flags & ZBM_FLAG_HAS_FBN)) {
-			ASSERT(!(dbn->dbn_phys.zbm_flags &
+			ASSERT0((dbn->dbn_phys.zbm_flags &
 			    ZBM_FLAG_SNAPSHOT_EXISTS));
 			continue;
 		}
@@ -1541,7 +1541,7 @@ dsl_bookmark_sync_done(dsl_dataset_t *ds, dmu_tx_t *tx)
 #ifdef ZFS_DEBUG
 	for (dsl_bookmark_node_t *dbn = avl_first(&ds->ds_bookmarks);
 	    dbn != NULL; dbn = AVL_NEXT(&ds->ds_bookmarks, dbn)) {
-		ASSERT(!dbn->dbn_dirty);
+		ASSERT0(dbn->dbn_dirty);
 	}
 #endif
 }

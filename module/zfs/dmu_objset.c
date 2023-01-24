@@ -456,7 +456,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	int i, err;
 
 	ASSERT(ds == NULL || MUTEX_HELD(&ds->ds_opening_lock));
-	ASSERT(!BP_IS_REDACTED(bp));
+	ASSERT0(BP_IS_REDACTED(bp));
 
 	/*
 	 * We need the pool config lock to get properties.
@@ -981,7 +981,7 @@ dmu_objset_evict(objset_t *os)
 	dsl_dataset_t *ds = os->os_dsl_dataset;
 
 	for (int t = 0; t < TXG_SIZE; t++)
-		ASSERT(!dmu_objset_is_dirty(os, t));
+		ASSERT0(dmu_objset_is_dirty(os, t));
 
 	if (ds)
 		dsl_prop_unregister_all(ds, os);
@@ -1575,7 +1575,7 @@ dmu_objset_write_ready(zio_t *zio, arc_buf_t *abuf, void *arg)
 	dnode_phys_t *dnp = &os->os_phys->os_meta_dnode;
 	uint64_t fill = 0;
 
-	ASSERT(!BP_IS_EMBEDDED(bp));
+	ASSERT0(BP_IS_EMBEDDED(bp));
 	ASSERT3U(BP_GET_TYPE(bp), ==, DMU_OT_OBJSET);
 	ASSERT0(BP_GET_LEVEL(bp));
 
@@ -2001,7 +2001,7 @@ userquota_updates_task(void *arg)
 
 	while ((dn = multilist_sublist_head(list)) != NULL) {
 		int flags;
-		ASSERT(!DMU_OBJECT_IS_SPECIAL(dn->dn_object));
+		ASSERT0(DMU_OBJECT_IS_SPECIAL(dn->dn_object));
 		ASSERT(dn->dn_phys->dn_type == DMU_OT_NONE ||
 		    dn->dn_phys->dn_flags &
 		    DNODE_FLAG_USERUSED_ACCOUNTED);
@@ -2228,7 +2228,7 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 			error = dmu_spill_hold_by_dnode(dn,
 			    rf | DB_RF_MUST_SUCCEED,
 			    FTAG, (dmu_buf_t **)&db);
-			ASSERT(error == 0);
+			ASSERT0(error);
 			mutex_enter(&db->db_mtx);
 			data = (before) ? db->db.db_data :
 			    dmu_objset_userquota_find_data(db, tx);

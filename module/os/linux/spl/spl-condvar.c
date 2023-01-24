@@ -86,7 +86,7 @@ cv_destroy_wakeup(kcondvar_t *cvp)
 {
 	if (!atomic_read(&cvp->cv_waiters) && !atomic_read(&cvp->cv_refs)) {
 		ASSERT(cvp->cv_mutex == NULL);
-		ASSERT(!waitqueue_active(&cvp->cv_event));
+		ASSERT0(waitqueue_active(&cvp->cv_event));
 		return (1);
 	}
 

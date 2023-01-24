@@ -138,7 +138,7 @@ dsl_deadlist_load_tree(dsl_deadlist_t *dl)
 
 	ASSERT(MUTEX_HELD(&dl->dl_lock));
 
-	ASSERT(!dl->dl_oldfmt);
+	ASSERT0(dl->dl_oldfmt);
 	if (dl->dl_havecache) {
 		/*
 		 * After loading the tree, the caller may modify the tree,
@@ -212,7 +212,7 @@ dsl_deadlist_load_cache(dsl_deadlist_t *dl)
 
 	ASSERT(MUTEX_HELD(&dl->dl_lock));
 
-	ASSERT(!dl->dl_oldfmt);
+	ASSERT0(dl->dl_oldfmt);
 	if (dl->dl_havecache)
 		return;
 
@@ -300,7 +300,7 @@ dsl_deadlist_open(dsl_deadlist_t *dl, objset_t *os, uint64_t object)
 {
 	dmu_object_info_t doi;
 
-	ASSERT(!dsl_deadlist_is_open(dl));
+	ASSERT0(dsl_deadlist_is_open(dl));
 
 	mutex_init(&dl->dl_lock, NULL, MUTEX_DEFAULT, NULL);
 	dl->dl_os = os;
@@ -872,7 +872,7 @@ dsl_deadlist_move_bpobj(dsl_deadlist_t *dl, bpobj_t *bpo, uint64_t mintxg,
 	dsl_deadlist_entry_t *dle;
 	avl_index_t where;
 
-	ASSERT(!dl->dl_oldfmt);
+	ASSERT0(dl->dl_oldfmt);
 
 	mutex_enter(&dl->dl_lock);
 	dmu_buf_will_dirty(dl->dl_dbuf, tx);

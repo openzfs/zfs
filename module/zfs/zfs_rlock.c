@@ -620,7 +620,7 @@ zfs_rangelock_exit(zfs_locked_range_t *lr)
 
 	ASSERT(lr->lr_type == RL_WRITER || lr->lr_type == RL_READER);
 	ASSERT(lr->lr_count == 1 || lr->lr_count == 0);
-	ASSERT(!lr->lr_proxy);
+	ASSERT0(lr->lr_proxy);
 
 	/*
 	 * The free list is used to defer the cv_destroy() and
@@ -667,7 +667,7 @@ zfs_rangelock_reduce(zfs_locked_range_t *lr, uint64_t off, uint64_t len)
 	ASSERT3U(avl_numnodes(&rl->rl_tree), ==, 1);
 	ASSERT3U(lr->lr_offset, ==, 0);
 	ASSERT3U(lr->lr_type, ==, RL_WRITER);
-	ASSERT(!lr->lr_proxy);
+	ASSERT0(lr->lr_proxy);
 	ASSERT3U(lr->lr_length, ==, UINT64_MAX);
 	ASSERT3U(lr->lr_count, ==, 1);
 

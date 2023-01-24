@@ -585,9 +585,9 @@ vdev_initialize(vdev_t *vd)
 	ASSERT(vd->vdev_ops->vdev_op_leaf);
 	ASSERT(vdev_is_concrete(vd));
 	ASSERT3P(vd->vdev_initialize_thread, ==, NULL);
-	ASSERT(!vd->vdev_detached);
-	ASSERT(!vd->vdev_initialize_exit_wanted);
-	ASSERT(!vd->vdev_top->vdev_removing);
+	ASSERT0(vd->vdev_detached);
+	ASSERT0(vd->vdev_initialize_exit_wanted);
+	ASSERT0(vd->vdev_top->vdev_removing);
 
 	vdev_initialize_change_state(vd, VDEV_INITIALIZE_ACTIVE);
 	vd->vdev_initialize_thread = thread_create(NULL, 0,
@@ -640,7 +640,8 @@ void
 vdev_initialize_stop(vdev_t *vd, vdev_initializing_state_t tgt_state,
     list_t *vd_list)
 {
-	ASSERT(!spa_config_held(vd->vdev_spa, SCL_CONFIG|SCL_STATE, RW_WRITER));
+	ASSERT0(spa_config_held(vd->vdev_spa, SCL_CONFIG | SCL_STATE,
+	    RW_WRITER));
 	ASSERT(MUTEX_HELD(&vd->vdev_initialize_lock));
 	ASSERT(vd->vdev_ops->vdev_op_leaf);
 	ASSERT(vdev_is_concrete(vd));
@@ -712,7 +713,7 @@ void
 vdev_initialize_restart(vdev_t *vd)
 {
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
-	ASSERT(!spa_config_held(vd->vdev_spa, SCL_ALL, RW_WRITER));
+	ASSERT0(spa_config_held(vd->vdev_spa, SCL_ALL, RW_WRITER));
 
 	if (vd->vdev_leaf_zap != 0) {
 		mutex_enter(&vd->vdev_initialize_lock);

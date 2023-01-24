@@ -346,7 +346,7 @@ txg_rele_to_quiesce(txg_handle_t *th)
 {
 	tx_cpu_t *tc = th->th_cpu;
 
-	ASSERT(!MUTEX_HELD(&tc->tc_lock));
+	ASSERT0(MUTEX_HELD(&tc->tc_lock));
 	mutex_exit(&tc->tc_open_lock);
 }
 
@@ -694,7 +694,7 @@ txg_wait_synced_impl(dsl_pool_t *dp, uint64_t txg, boolean_t wait_sig)
 {
 	tx_state_t *tx = &dp->dp_tx;
 
-	ASSERT(!dsl_pool_config_held(dp));
+	ASSERT0(dsl_pool_config_held(dp));
 
 	mutex_enter(&tx->tx_sync_lock);
 	ASSERT3U(tx->tx_threads, ==, 2);
@@ -755,7 +755,7 @@ txg_wait_open(dsl_pool_t *dp, uint64_t txg, boolean_t should_quiesce)
 {
 	tx_state_t *tx = &dp->dp_tx;
 
-	ASSERT(!dsl_pool_config_held(dp));
+	ASSERT0(dsl_pool_config_held(dp));
 
 	mutex_enter(&tx->tx_sync_lock);
 	ASSERT3U(tx->tx_threads, ==, 2);
@@ -792,7 +792,7 @@ txg_kick(dsl_pool_t *dp, uint64_t txg)
 {
 	tx_state_t *tx = &dp->dp_tx;
 
-	ASSERT(!dsl_pool_config_held(dp));
+	ASSERT0(dsl_pool_config_held(dp));
 
 	if (tx->tx_sync_txg_waiting >= txg)
 		return;

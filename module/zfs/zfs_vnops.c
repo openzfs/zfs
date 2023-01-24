@@ -605,7 +605,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 				 * "recordsize" property.  Only let it grow to
 				 * the next power of 2.
 				 */
-				ASSERT(!ISP2(zp->z_blksz));
+				ASSERT0(ISP2(zp->z_blksz));
 				new_blksz = MIN(end_size,
 				    1 << highbit64(zp->z_blksz));
 			} else {

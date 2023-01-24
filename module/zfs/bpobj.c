@@ -45,10 +45,9 @@ bpobj_alloc_empty(objset_t *os, int blocksize, dmu_tx_t *tx)
 			ASSERT0(dp->dp_empty_bpobj);
 			dp->dp_empty_bpobj =
 			    bpobj_alloc(os, SPA_OLD_MAXBLOCKSIZE, tx);
-			VERIFY(zap_add(os,
-			    DMU_POOL_DIRECTORY_OBJECT,
+			VERIFY0(zap_add(os, DMU_POOL_DIRECTORY_OBJECT,
 			    DMU_POOL_EMPTY_BPOBJ, sizeof (uint64_t), 1,
-			    &dp->dp_empty_bpobj, tx) == 0);
+			    &dp->dp_empty_bpobj, tx));
 		}
 		spa_feature_incr(spa, SPA_FEATURE_EMPTY_BPOBJ, tx);
 		ASSERT(dp->dp_empty_bpobj != 0);
@@ -790,7 +789,7 @@ bpobj_enqueue(bpobj_t *bpo, const blkptr_t *bp, boolean_t bp_freed,
 	blkptr_t *bparray;
 
 	ASSERT(bpobj_is_open(bpo));
-	ASSERT(!BP_IS_HOLE(bp));
+	ASSERT0(BP_IS_HOLE(bp));
 	ASSERT(bpo->bpo_object != dmu_objset_pool(bpo->bpo_os)->dp_empty_bpobj);
 
 	if (BP_IS_EMBEDDED(bp)) {

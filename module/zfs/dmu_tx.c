@@ -123,7 +123,7 @@ dmu_tx_hold_dnode_impl(dmu_tx_t *tx, dnode_t *dn, enum dmu_tx_hold_type type,
 			 * problem, but there's no way for it to happen (for
 			 * now, at least).
 			 */
-			ASSERT(dn->dn_assigned_txg == 0);
+			ASSERT0(dn->dn_assigned_txg);
 			dn->dn_assigned_txg = tx->tx_txg;
 			(void) zfs_refcount_add(&dn->dn_tx_holds, tx);
 			mutex_exit(&dn->dn_mtx);
@@ -355,7 +355,7 @@ dmu_tx_hold_free_impl(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 	dnode_t *dn = txh->txh_dnode;
 	int err;
 
-	ASSERT(tx->tx_txg == 0);
+	ASSERT0(tx->tx_txg);
 
 	dmu_tx_count_dnode(txh);
 
@@ -467,7 +467,7 @@ dmu_tx_hold_zap_impl(dmu_tx_hold_t *txh, const char *name)
 	int err;
 	extern int zap_micro_max_size;
 
-	ASSERT(tx->tx_txg == 0);
+	ASSERT0(tx->tx_txg);
 
 	dmu_tx_count_dnode(txh);
 
@@ -541,7 +541,7 @@ dmu_tx_hold_bonus(dmu_tx_t *tx, uint64_t object)
 {
 	dmu_tx_hold_t *txh;
 
-	ASSERT(tx->tx_txg == 0);
+	ASSERT0(tx->tx_txg);
 
 	txh = dmu_tx_hold_object_impl(tx, tx->tx_objset,
 	    object, THT_BONUS, 0, 0);
@@ -566,7 +566,7 @@ dmu_tx_hold_space(dmu_tx_t *tx, uint64_t space)
 {
 	dmu_tx_hold_t *txh;
 
-	ASSERT(tx->tx_txg == 0);
+	ASSERT0(tx->tx_txg);
 
 	txh = dmu_tx_hold_object_impl(tx, tx->tx_objset,
 	    DMU_NEW_OBJECT, THT_SPACE, space, 0);
@@ -950,7 +950,7 @@ dmu_tx_try_assign(dmu_tx_t *tx, uint64_t txg_how)
 			 * read either, but the rwlock doesn't record
 			 * enough information to make that assertion.
 			 */
-			ASSERT(!RW_WRITE_HELD(&dn->dn_struct_rwlock));
+			ASSERT0(RW_WRITE_HELD(&dn->dn_struct_rwlock));
 
 			mutex_enter(&dn->dn_mtx);
 			if (dn->dn_assigned_txg == tx->tx_txg - 1) {
@@ -1062,9 +1062,9 @@ dmu_tx_assign(dmu_tx_t *tx, uint64_t txg_how)
 {
 	int err;
 
-	ASSERT(tx->tx_txg == 0);
+	ASSERT0(tx->tx_txg);
 	ASSERT0(txg_how & ~(TXG_WAIT | TXG_NOTHROTTLE));
-	ASSERT(!dsl_pool_sync_context(tx->tx_pool));
+	ASSERT0(dsl_pool_sync_context(tx->tx_pool));
 
 	/* If we might wait, we must not hold the config lock. */
 	IMPLY((txg_how & TXG_WAIT), !dsl_pool_config_held(tx->tx_pool));
@@ -1093,8 +1093,8 @@ dmu_tx_wait(dmu_tx_t *tx)
 	dsl_pool_t *dp = tx->tx_pool;
 	hrtime_t before;
 
-	ASSERT(tx->tx_txg == 0);
-	ASSERT(!dsl_pool_config_held(tx->tx_pool));
+	ASSERT0(tx->tx_txg);
+	ASSERT0(dsl_pool_config_held(tx->tx_pool));
 
 	before = gethrtime();
 
@@ -1218,7 +1218,7 @@ dmu_tx_commit(dmu_tx_t *tx)
 void
 dmu_tx_abort(dmu_tx_t *tx)
 {
-	ASSERT(tx->tx_txg == 0);
+	ASSERT0(tx->tx_txg);
 
 	/*
 	 * Call any registered callbacks with an error code.
@@ -1384,7 +1384,7 @@ dmu_tx_hold_sa(dmu_tx_t *tx, sa_handle_t *hdl, boolean_t may_grow)
 		dmu_tx_hold_zap(tx, sa->sa_layout_attr_obj, B_TRUE, NULL);
 
 	if (sa->sa_force_spill || may_grow || hdl->sa_spill) {
-		ASSERT(tx->tx_txg == 0);
+		ASSERT0(tx->tx_txg);
 		dmu_tx_hold_spill(tx, object);
 	} else {
 		dnode_t *dn;
@@ -1392,7 +1392,7 @@ dmu_tx_hold_sa(dmu_tx_t *tx, sa_handle_t *hdl, boolean_t may_grow)
 		DB_DNODE_ENTER(db);
 		dn = DB_DNODE(db);
 		if (dn->dn_have_spill) {
-			ASSERT(tx->tx_txg == 0);
+			ASSERT0(tx->tx_txg);
 			dmu_tx_hold_spill(tx, object);
 		}
 		DB_DNODE_EXIT(db);

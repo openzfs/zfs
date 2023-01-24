@@ -2184,8 +2184,8 @@ ztest_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 			    DMU_READ_PREFETCH : DMU_READ_NO_PREFETCH;
 			ztest_block_tag_t rbt;
 
-			VERIFY(dmu_read(os, lr->lr_foid, offset,
-			    sizeof (rbt), &rbt, prefetch) == 0);
+			VERIFY0(dmu_read(os, lr->lr_foid, offset, sizeof (rbt),
+			    &rbt, prefetch));
 			if (rbt.bt_magic == BT_MAGIC) {
 				ztest_bt_verify(&rbt, os, lr->lr_foid, 0,
 				    offset, gen, txg, crtxg);
@@ -5151,8 +5151,8 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 			}
 
 			if (i == 1) {
-				VERIFY(dmu_buf_hold(os, bigobj, off,
-				    FTAG, &dbt, DMU_READ_NO_PREFETCH) == 0);
+				VERIFY0(dmu_buf_hold(os, bigobj, off, FTAG,
+				    &dbt, DMU_READ_NO_PREFETCH));
 			}
 			if (i != 5 || chunksize < (SPA_MINBLOCKSIZE * 2)) {
 				VERIFY0(dmu_assign_arcbuf_by_dbuf(bonus_db,
@@ -5601,7 +5601,7 @@ ztest_commit_callback(void *arg, int error)
 
 	VERIFY3P(data, !=, NULL);
 	VERIFY3S(data->zcd_expected_err, ==, error);
-	VERIFY(!data->zcd_called);
+	VERIFY0(data->zcd_called);
 
 	synced_txg = spa_last_synced_txg(data->zcd_spa);
 	if (data->zcd_txg > synced_txg)
@@ -5614,7 +5614,7 @@ ztest_commit_callback(void *arg, int error)
 
 	if (error == ECANCELED) {
 		ASSERT0(data->zcd_txg);
-		ASSERT(!data->zcd_added);
+		ASSERT0(data->zcd_added);
 
 		/*
 		 * The private callback data should be destroyed here, but
@@ -5706,7 +5706,7 @@ ztest_dmu_commit_callbacks(ztest_ds_t *zd, uint64_t id)
 		 */
 		for (i = 0; i < 2; i++) {
 			cb_data[i]->zcd_expected_err = ECANCELED;
-			VERIFY(!cb_data[i]->zcd_called);
+			VERIFY0(cb_data[i]->zcd_called);
 		}
 
 		dmu_tx_abort(tx);
@@ -5780,7 +5780,7 @@ ztest_dmu_commit_callbacks(ztest_ds_t *zd, uint64_t id)
 			    cb_data[i]);
 
 		cb_data[i]->zcd_added = B_TRUE;
-		VERIFY(!cb_data[i]->zcd_called);
+		VERIFY0(cb_data[i]->zcd_called);
 
 		tmp_cb = cb_data[i];
 	}
@@ -8200,10 +8200,10 @@ main(int argc, char **argv)
 			(void) printf("Executing older ztest for "
 			    "initialization: %s\n", ztest_opts.zo_alt_ztest);
 		}
-		VERIFY(!exec_child(ztest_opts.zo_alt_ztest,
+		VERIFY0(exec_child(ztest_opts.zo_alt_ztest,
 		    ztest_opts.zo_alt_libpath, B_FALSE, NULL));
 	} else {
-		VERIFY(!exec_child(NULL, NULL, B_FALSE, NULL));
+		VERIFY0(exec_child(NULL, NULL, B_FALSE, NULL));
 	}
 	zs->zs_do_init = B_FALSE;
 

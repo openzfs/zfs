@@ -310,7 +310,7 @@ spl_slab_free(spl_kmem_slab_t *sks,
 	spl_kmem_cache_t *skc;
 
 	ASSERT(sks->sks_magic == SKS_MAGIC);
-	ASSERT(sks->sks_ref == 0);
+	ASSERT0(sks->sks_ref);
 
 	skc = sks->sks_cache;
 	ASSERT(skc->skc_magic == SKC_MAGIC);
@@ -610,7 +610,7 @@ static void
 spl_magazine_free(spl_kmem_magazine_t *skm)
 {
 	ASSERT(skm->skm_magic == SKM_MAGIC);
-	ASSERT(skm->skm_avail == 0);
+	ASSERT0(skm->skm_avail);
 	kfree(skm);
 }
 
@@ -622,7 +622,7 @@ spl_magazine_create(spl_kmem_cache_t *skc)
 {
 	int i = 0;
 
-	ASSERT((skc->skc_flags & KMC_SLAB) == 0);
+	ASSERT0((skc->skc_flags & KMC_SLAB));
 
 	skc->skc_mag = kzalloc(sizeof (spl_kmem_magazine_t *) *
 	    num_possible_cpus(), kmem_flags_convert(KM_SLEEP));
@@ -652,7 +652,7 @@ spl_magazine_destroy(spl_kmem_cache_t *skc)
 	spl_kmem_magazine_t *skm;
 	int i = 0;
 
-	ASSERT((skc->skc_flags & KMC_SLAB) == 0);
+	ASSERT0((skc->skc_flags & KMC_SLAB));
 
 	for_each_possible_cpu(i) {
 		skm = skc->skc_mag[i];
@@ -859,7 +859,7 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 	up_write(&spl_kmem_cache_sem);
 
 	/* Cancel any and wait for any pending delayed tasks */
-	VERIFY(!test_and_set_bit(KMC_BIT_DESTROY, &skc->skc_flags));
+	VERIFY0(test_and_set_bit(KMC_BIT_DESTROY, &skc->skc_flags));
 
 	spin_lock(&skc->skc_lock);
 	id = skc->skc_taskqid;
@@ -1011,7 +1011,7 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 
 	ASSERT0(flags & ~KM_PUBLIC_MASK);
 	ASSERT(skc->skc_magic == SKC_MAGIC);
-	ASSERT((skc->skc_flags & KMC_SLAB) == 0);
+	ASSERT0((skc->skc_flags & KMC_SLAB));
 	might_sleep();
 	*obj = NULL;
 
@@ -1145,7 +1145,7 @@ spl_cache_refill(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flags)
 		    spl_kmem_slab_t, sks_list);
 		ASSERT(sks->sks_magic == SKS_MAGIC);
 		ASSERT(sks->sks_ref < sks->sks_objs);
-		ASSERT(!list_empty(&sks->sks_free_list));
+		ASSERT0(list_empty(&sks->sks_free_list));
 
 		/*
 		 * Consume as many objects as needed to refill the requested
@@ -1226,7 +1226,7 @@ spl_kmem_cache_alloc(spl_kmem_cache_t *skc, int flags)
 
 	ASSERT0(flags & ~KM_PUBLIC_MASK);
 	ASSERT(skc->skc_magic == SKC_MAGIC);
-	ASSERT(!test_bit(KMC_BIT_DESTROY, &skc->skc_flags));
+	ASSERT0(test_bit(KMC_BIT_DESTROY, &skc->skc_flags));
 
 	/*
 	 * Allocate directly from a Linux slab.  All optimizations are left
@@ -1307,7 +1307,7 @@ spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj)
 	int do_emergency = 0;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
-	ASSERT(!test_bit(KMC_BIT_DESTROY, &skc->skc_flags));
+	ASSERT0(test_bit(KMC_BIT_DESTROY, &skc->skc_flags));
 
 	/*
 	 * Run the destructor
@@ -1381,7 +1381,7 @@ void
 spl_kmem_cache_reap_now(spl_kmem_cache_t *skc)
 {
 	ASSERT(skc->skc_magic == SKC_MAGIC);
-	ASSERT(!test_bit(KMC_BIT_DESTROY, &skc->skc_flags));
+	ASSERT0(test_bit(KMC_BIT_DESTROY, &skc->skc_flags));
 
 	if (skc->skc_flags & KMC_SLAB)
 		return;

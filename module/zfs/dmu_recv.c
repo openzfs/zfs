@@ -621,7 +621,7 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 
 	/* already checked */
 	ASSERT3U(drrb->drr_magic, ==, DMU_BACKUP_MAGIC);
-	ASSERT(!(featureflags & DMU_BACKUP_FEATURE_RESUMING));
+	ASSERT0((featureflags & DMU_BACKUP_FEATURE_RESUMING));
 
 	if (DMU_GET_STREAM_HDRTYPE(drrb->drr_versioninfo) ==
 	    DMU_COMPOUNDSTREAM ||

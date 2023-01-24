@@ -161,7 +161,7 @@ uint64_t
 vdev_label_offset(uint64_t psize, int l, uint64_t offset)
 {
 	ASSERT(offset < sizeof (vdev_label_t));
-	ASSERT(P2PHASE_TYPED(psize, sizeof (vdev_label_t), uint64_t) == 0);
+	ASSERT0(P2PHASE_TYPED(psize, sizeof (vdev_label_t), uint64_t));
 
 	return (offset + l * sizeof (vdev_label_t) + (l < VDEV_LABELS / 2 ?
 	    0 : psize - VDEV_LABELS * sizeof (vdev_label_t)));
@@ -646,7 +646,7 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		nvlist_t **child;
 		int c, idx;
 
-		ASSERT(!vd->vdev_ishole);
+		ASSERT0(vd->vdev_ishole);
 
 		child = kmem_alloc(vd->vdev_children * sizeof (nvlist_t *),
 		    KM_SLEEP);
@@ -753,12 +753,12 @@ vdev_top_config_generate(spa_t *spa, nvlist_t *config)
 	}
 
 	if (idx) {
-		VERIFY(nvlist_add_uint64_array(config, ZPOOL_CONFIG_HOLE_ARRAY,
-		    array, idx) == 0);
+		VERIFY0(nvlist_add_uint64_array(config,
+		    ZPOOL_CONFIG_HOLE_ARRAY, array, idx));
 	}
 
-	VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_VDEV_CHILDREN,
-	    rvd->vdev_children) == 0);
+	VERIFY0(nvlist_add_uint64(config, ZPOOL_CONFIG_VDEV_CHILDREN,
+	    rvd->vdev_children));
 
 	kmem_free(array, rvd->vdev_children * sizeof (uint64_t));
 }
@@ -1116,27 +1116,27 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 		 * active hot spare (in which case we want to revert the
 		 * labels).
 		 */
-		VERIFY(nvlist_alloc(&label, NV_UNIQUE_NAME, KM_SLEEP) == 0);
+		VERIFY0(nvlist_alloc(&label, NV_UNIQUE_NAME, KM_SLEEP));
 
-		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_VERSION,
-		    spa_version(spa)) == 0);
-		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_POOL_STATE,
-		    POOL_STATE_SPARE) == 0);
-		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_GUID,
-		    vd->vdev_guid) == 0);
+		VERIFY0(nvlist_add_uint64(label, ZPOOL_CONFIG_VERSION,
+		    spa_version(spa)));
+		VERIFY0(nvlist_add_uint64(label, ZPOOL_CONFIG_POOL_STATE,
+		    POOL_STATE_SPARE));
+		VERIFY0(nvlist_add_uint64(label, ZPOOL_CONFIG_GUID,
+		    vd->vdev_guid));
 	} else if (reason == VDEV_LABEL_L2CACHE ||
 	    (reason == VDEV_LABEL_REMOVE && vd->vdev_isl2cache)) {
 		/*
 		 * For level 2 ARC devices, add a special label.
 		 */
-		VERIFY(nvlist_alloc(&label, NV_UNIQUE_NAME, KM_SLEEP) == 0);
+		VERIFY0(nvlist_alloc(&label, NV_UNIQUE_NAME, KM_SLEEP));
 
-		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_VERSION,
-		    spa_version(spa)) == 0);
-		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_POOL_STATE,
-		    POOL_STATE_L2CACHE) == 0);
-		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_GUID,
-		    vd->vdev_guid) == 0);
+		VERIFY0(nvlist_add_uint64(label, ZPOOL_CONFIG_VERSION,
+		    spa_version(spa)));
+		VERIFY0(nvlist_add_uint64(label, ZPOOL_CONFIG_POOL_STATE,
+		    POOL_STATE_L2CACHE));
+		VERIFY0(nvlist_add_uint64(label, ZPOOL_CONFIG_GUID,
+		    vd->vdev_guid));
 	} else {
 		uint64_t txg = 0ULL;
 
@@ -1149,8 +1149,8 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 		 * vdev uses as described above, and automatically expires if we
 		 * fail.
 		 */
-		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_CREATE_TXG,
-		    crtxg) == 0);
+		VERIFY0(nvlist_add_uint64(label, ZPOOL_CONFIG_CREATE_TXG,
+		    crtxg));
 	}
 
 	buf = vp->vp_nvlist;
@@ -1866,7 +1866,7 @@ vdev_label_sync_list(spa_t *spa, int l, uint64_t txg, int flags)
 	for (vd = list_head(dl); vd != NULL; vd = list_next(dl, vd)) {
 		uint64_t *good_writes;
 
-		ASSERT(!vd->vdev_ishole);
+		ASSERT0(vd->vdev_ishole);
 
 		good_writes = kmem_zalloc(sizeof (uint64_t), KM_SLEEP);
 		zio_t *vio = zio_null(zio, spa, NULL,

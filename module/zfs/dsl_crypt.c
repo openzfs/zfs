@@ -499,7 +499,7 @@ out:
 static void
 dsl_crypto_key_free(dsl_crypto_key_t *dck)
 {
-	ASSERT(zfs_refcount_count(&dck->dck_holds) == 0);
+	ASSERT0(zfs_refcount_count(&dck->dck_holds));
 
 	/* destroy the zio_crypt_key_t */
 	zio_crypt_key_destroy(&dck->dck_key);
@@ -1511,7 +1511,7 @@ spa_keystore_change_key_sync(void *arg, dmu_tx_t *tx)
 
 	/* create and initialize the wrapping key */
 	VERIFY0(dsl_dataset_hold(dp, skcka->skcka_dsname, FTAG, &ds));
-	ASSERT(!ds->ds_is_snapshot);
+	ASSERT0(ds->ds_is_snapshot);
 
 	if (dcp->cp_cmd == DCP_CMD_NEW_KEY ||
 	    dcp->cp_cmd == DCP_CMD_FORCE_NEW_KEY) {

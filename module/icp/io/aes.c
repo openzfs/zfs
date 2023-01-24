@@ -406,7 +406,7 @@ aes_encrypt(crypto_ctx_t *ctx, crypto_data_t *plaintext,
 		ciphertext->cd_offset = saved_offset;
 	}
 
-	ASSERT(aes_ctx->ac_remainder_len == 0);
+	ASSERT0(aes_ctx->ac_remainder_len);
 	(void) aes_free_context(ctx);
 
 	return (ret);
@@ -518,7 +518,7 @@ aes_decrypt(crypto_ctx_t *ctx, crypto_data_t *ciphertext,
 		plaintext->cd_offset = saved_offset;
 	}
 
-	ASSERT(aes_ctx->ac_remainder_len == 0);
+	ASSERT0(aes_ctx->ac_remainder_len);
 
 cleanup:
 	(void) aes_free_context(ctx);
@@ -911,7 +911,7 @@ aes_encrypt_atomic(crypto_mechanism_t *mechanism,
 			    aes_xor_block);
 			if (ret != CRYPTO_SUCCESS)
 				goto out;
-			ASSERT(aes_ctx.ac_remainder_len == 0);
+			ASSERT0(aes_ctx.ac_remainder_len);
 		} else if (mechanism->cm_type == AES_GCM_MECH_INFO_TYPE ||
 		    mechanism->cm_type == AES_GMAC_MECH_INFO_TYPE) {
 			ret = gcm_encrypt_final((gcm_ctx_t *)&aes_ctx,
@@ -919,7 +919,7 @@ aes_encrypt_atomic(crypto_mechanism_t *mechanism,
 			    aes_copy_block, aes_xor_block);
 			if (ret != CRYPTO_SUCCESS)
 				goto out;
-			ASSERT(aes_ctx.ac_remainder_len == 0);
+			ASSERT0(aes_ctx.ac_remainder_len);
 		} else if (mechanism->cm_type == AES_CTR_MECH_INFO_TYPE) {
 			if (aes_ctx.ac_remainder_len > 0) {
 				ret = ctr_mode_final((ctr_ctx_t *)&aes_ctx,
@@ -928,7 +928,7 @@ aes_encrypt_atomic(crypto_mechanism_t *mechanism,
 					goto out;
 			}
 		} else {
-			ASSERT(aes_ctx.ac_remainder_len == 0);
+			ASSERT0(aes_ctx.ac_remainder_len);
 		}
 
 		if (plaintext != ciphertext) {
@@ -1046,7 +1046,7 @@ aes_decrypt_atomic(crypto_mechanism_t *mechanism,
 			ret = ccm_decrypt_final((ccm_ctx_t *)&aes_ctx,
 			    plaintext, AES_BLOCK_LEN, aes_encrypt_block,
 			    aes_copy_block, aes_xor_block);
-			ASSERT(aes_ctx.ac_remainder_len == 0);
+			ASSERT0(aes_ctx.ac_remainder_len);
 			if ((ret == CRYPTO_SUCCESS) &&
 			    (ciphertext != plaintext)) {
 				plaintext->cd_length =
@@ -1059,7 +1059,7 @@ aes_decrypt_atomic(crypto_mechanism_t *mechanism,
 			ret = gcm_decrypt_final((gcm_ctx_t *)&aes_ctx,
 			    plaintext, AES_BLOCK_LEN, aes_encrypt_block,
 			    aes_xor_block);
-			ASSERT(aes_ctx.ac_remainder_len == 0);
+			ASSERT0(aes_ctx.ac_remainder_len);
 			if ((ret == CRYPTO_SUCCESS) &&
 			    (ciphertext != plaintext)) {
 				plaintext->cd_length =
@@ -1068,7 +1068,7 @@ aes_decrypt_atomic(crypto_mechanism_t *mechanism,
 				plaintext->cd_length = saved_length;
 			}
 		} else if (mechanism->cm_type != AES_CTR_MECH_INFO_TYPE) {
-			ASSERT(aes_ctx.ac_remainder_len == 0);
+			ASSERT0(aes_ctx.ac_remainder_len);
 			if (ciphertext != plaintext)
 				plaintext->cd_length =
 				    plaintext->cd_offset - saved_offset;

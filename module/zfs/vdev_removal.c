@@ -175,7 +175,7 @@ vdev_activate(vdev_t *vd)
 	uint64_t vdev_space = spa_deflate(spa) ?
 	    vd->vdev_stat.vs_dspace : vd->vdev_stat.vs_space;
 
-	ASSERT(!vd->vdev_islog);
+	ASSERT0(vd->vdev_islog);
 	ASSERT(vd->vdev_noalloc);
 
 	metaslab_group_activate(mg);
@@ -194,7 +194,7 @@ vdev_passivate(vdev_t *vd, uint64_t *txg)
 	spa_t *spa = vd->vdev_spa;
 	int error;
 
-	ASSERT(!vd->vdev_noalloc);
+	ASSERT0(vd->vdev_noalloc);
 
 	vdev_t *rvd = spa->spa_root_vdev;
 	metaslab_group_t *mg = vd->vdev_mg;
@@ -227,7 +227,7 @@ vdev_passivate(vdev_t *vd, uint64_t *txg)
 	}
 
 	metaslab_group_passivate(mg);
-	ASSERT(!vd->vdev_islog);
+	ASSERT0(vd->vdev_islog);
 	metaslab_group_passivate(vd->vdev_log_mg);
 
 	/*
@@ -249,7 +249,7 @@ vdev_passivate(vdev_t *vd, uint64_t *txg)
 
 	if (error != 0) {
 		metaslab_group_activate(mg);
-		ASSERT(!vd->vdev_islog);
+		ASSERT0(vd->vdev_islog);
 		if (vd->vdev_log_mg != NULL)
 			metaslab_group_activate(vd->vdev_log_mg);
 		return (error);
@@ -278,7 +278,7 @@ spa_vdev_noalloc(spa_t *spa, uint64_t guid)
 	uint64_t txg;
 	int error = 0;
 
-	ASSERT(!MUTEX_HELD(&spa_namespace_lock));
+	ASSERT0(MUTEX_HELD(&spa_namespace_lock));
 	ASSERT(spa_writeable(spa));
 
 	txg = spa_vdev_enter(spa);
@@ -311,7 +311,7 @@ spa_vdev_alloc(spa_t *spa, uint64_t guid)
 	uint64_t txg;
 	int error = 0;
 
-	ASSERT(!MUTEX_HELD(&spa_namespace_lock));
+	ASSERT0(MUTEX_HELD(&spa_namespace_lock));
 	ASSERT(spa_writeable(spa));
 
 	txg = spa_vdev_enter(spa);
@@ -349,10 +349,10 @@ spa_vdev_remove_aux(nvlist_t *config, const char *name, nvlist_t **dev,
 	for (int i = 0, j = 0; i < count; i++) {
 		if (dev[i] == dev_to_remove)
 			continue;
-		VERIFY(nvlist_dup(dev[i], &newdev[j++], KM_SLEEP) == 0);
+		VERIFY0(nvlist_dup(dev[i], &newdev[j++], KM_SLEEP));
 	}
 
-	VERIFY(nvlist_remove(config, name, DATA_TYPE_NVLIST_ARRAY) == 0);
+	VERIFY0(nvlist_remove(config, name, DATA_TYPE_NVLIST_ARRAY));
 	fnvlist_add_nvlist_array(config, name, (const nvlist_t * const *)newdev,
 	    count - 1);
 
@@ -689,7 +689,7 @@ free_from_removing_vdev(vdev_t *vd, uint64_t offset, uint64_t size)
 	 * a checkpoint and removing a device can't happen at the same
 	 * time.
 	 */
-	ASSERT(!spa_has_checkpoint(spa));
+	ASSERT0(spa_has_checkpoint(spa));
 	metaslab_free_concrete(vd, offset, size, B_FALSE);
 
 	uint64_t synced_size = 0;
@@ -1331,7 +1331,7 @@ vdev_remove_replace_with_indirect(vdev_t *vd, uint64_t txg)
 	vdev_remove_child(ivd, vd);
 	vdev_compact_children(ivd);
 
-	ASSERT(!list_link_active(&vd->vdev_state_dirty_node));
+	ASSERT0(list_link_active(&vd->vdev_state_dirty_node));
 
 	mutex_enter(&svr->svr_lock);
 	svr->svr_thread = NULL;
@@ -2240,7 +2240,7 @@ spa_vdev_remove_top_check(vdev_t *vd)
 	/*
 	 * A removed special/dedup vdev must have same ashift as normal class.
 	 */
-	ASSERT(!vd->vdev_islog);
+	ASSERT0(vd->vdev_islog);
 	if (vd->vdev_alloc_bias != VDEV_BIAS_NONE &&
 	    vd->vdev_ashift != spa->spa_max_ashift) {
 		return (SET_ERROR(EINVAL));
@@ -2472,13 +2472,13 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 		spa_load_l2cache(spa);
 		spa->spa_l2cache.sav_sync = B_TRUE;
 	} else if (vd != NULL && vd->vdev_islog) {
-		ASSERT(!locked);
+		ASSERT0(locked);
 		vd_type = VDEV_TYPE_LOG;
 		vd_path = spa_strdup((vd->vdev_path != NULL) ?
 		    vd->vdev_path : "-");
 		error = spa_vdev_remove_log(vd, &txg);
 	} else if (vd != NULL) {
-		ASSERT(!locked);
+		ASSERT0(locked);
 		error = spa_vdev_remove_top(vd, &txg);
 	} else {
 		/*

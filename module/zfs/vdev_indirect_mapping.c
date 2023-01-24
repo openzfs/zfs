@@ -403,7 +403,7 @@ vdev_indirect_mapping_add_entries(vdev_indirect_mapping_t *vim,
 	ASSERT(vdev_indirect_mapping_verify(vim));
 	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT(dsl_pool_sync_context(dmu_tx_pool(tx)));
-	ASSERT(!list_is_empty(list));
+	ASSERT0(list_is_empty(list));
 
 	old_size = vdev_indirect_mapping_size(vim);
 	old_entries = vim->vim_entries;

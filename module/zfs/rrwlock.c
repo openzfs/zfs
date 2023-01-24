@@ -107,7 +107,7 @@ rrn_add(rrwlock_t *rrl, const void *tag)
 	rn->rn_rrl = rrl;
 	rn->rn_next = tsd_get(rrw_tsd_key);
 	rn->rn_tag = tag;
-	VERIFY(tsd_set(rrw_tsd_key, rn) == 0);
+	VERIFY0(tsd_set(rrw_tsd_key, rn));
 }
 
 /*
@@ -128,7 +128,7 @@ rrn_find_and_remove(rrwlock_t *rrl, const void *tag)
 			if (prev)
 				prev->rn_next = rn->rn_next;
 			else
-				VERIFY(tsd_set(rrw_tsd_key, rn->rn_next) == 0);
+				VERIFY0(tsd_set(rrw_tsd_key, rn->rn_next));
 			kmem_free(rn, sizeof (*rn));
 			return (B_TRUE);
 		}
@@ -260,7 +260,7 @@ rrw_exit(rrwlock_t *rrl, const void *tag)
 			count = zfs_refcount_remove(
 			    &rrl->rr_linked_rcount, tag);
 		} else {
-			ASSERT(!rrl->rr_track_all);
+			ASSERT0(rrl->rr_track_all);
 			count = zfs_refcount_remove(&rrl->rr_anon_rcount, tag);
 		}
 		if (count == 0)

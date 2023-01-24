@@ -1221,8 +1221,8 @@ void
 zvol_os_free(zvol_state_t *zv)
 {
 
-	ASSERT(!RW_LOCK_HELD(&zv->zv_suspend_lock));
-	ASSERT(!MUTEX_HELD(&zv->zv_state_lock));
+	ASSERT0(RW_LOCK_HELD(&zv->zv_suspend_lock));
+	ASSERT0(MUTEX_HELD(&zv->zv_state_lock));
 	ASSERT0(zv->zv_open_count);
 	ASSERT3P(zv->zv_zso->zvo_disk->private_data, ==, NULL);
 

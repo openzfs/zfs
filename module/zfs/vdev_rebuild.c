@@ -282,7 +282,7 @@ vdev_rebuild_initiate(vdev_t *vd)
 
 	ASSERT(vd->vdev_top == vd);
 	ASSERT(MUTEX_HELD(&vd->vdev_rebuild_lock));
-	ASSERT(!vd->vdev_rebuilding);
+	ASSERT0(vd->vdev_rebuilding);
 
 	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
 	VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
@@ -1002,7 +1002,7 @@ vdev_rebuild(vdev_t *vd)
 
 	ASSERT(vd->vdev_top == vd);
 	ASSERT(vdev_is_concrete(vd));
-	ASSERT(!vd->vdev_removing);
+	ASSERT0(vd->vdev_removing);
 	ASSERT(spa_feature_is_enabled(vd->vdev_spa,
 	    SPA_FEATURE_DEVICE_REBUILD));
 

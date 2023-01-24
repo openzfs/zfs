@@ -752,7 +752,7 @@ livelist_metaslab_validate(spa_t *spa)
 		int vdev_id = DVA_GET_VDEV(&svb->svb_dva);
 		ASSERT3U(vdev_id, <, rvd->vdev_children);
 		vdev_t *vd = rvd->vdev_child[vdev_id];
-		ASSERT(!vdev_is_concrete(vd));
+		ASSERT0(vdev_is_concrete(vd));
 		(void) printf("<%d:%llx:%llx> TXG %llx\n",
 		    vdev_id, (u_longlong_t)DVA_GET_OFFSET(&svb->svb_dva),
 		    (u_longlong_t)DVA_GET_ASIZE(&svb->svb_dva),
@@ -948,9 +948,9 @@ dump_packed_nvlist(objset_t *os, uint64_t object, void *data, size_t size)
 	size_t nvsize = *(uint64_t *)data;
 	char *packed = umem_alloc(nvsize, UMEM_NOFAIL);
 
-	VERIFY(0 == dmu_read(os, object, 0, nvsize, packed, DMU_READ_PREFETCH));
+	VERIFY0(dmu_read(os, object, 0, nvsize, packed, DMU_READ_PREFETCH));
 
-	VERIFY(nvlist_unpack(packed, nvsize, &nv, 0) == 0);
+	VERIFY0(nvlist_unpack(packed, nvsize, &nv, 0));
 
 	umem_free(packed, nvsize);
 
@@ -1368,9 +1368,9 @@ dump_sa_layouts(objset_t *os, uint64_t object, void *data, size_t size)
 		layout_attrs = umem_zalloc(attr.za_num_integers *
 		    attr.za_integer_length, UMEM_NOFAIL);
 
-		VERIFY(zap_lookup(os, object, attr.za_name,
-		    attr.za_integer_length,
-		    attr.za_num_integers, layout_attrs) == 0);
+		VERIFY0(zap_lookup(os, object, attr.za_name,
+		    attr.za_integer_length, attr.za_num_integers,
+		    layout_attrs));
 
 		for (i = 0; i != attr.za_num_integers; i++)
 			(void) printf(" %d ", (int)layout_attrs[i]);
@@ -1996,10 +1996,10 @@ dump_ddt(ddt_t *ddt, enum ddt_type type, enum ddt_class class)
 
 	if (error == ENOENT)
 		return;
-	ASSERT(error == 0);
+	ASSERT0(error);
 
 	error = ddt_object_count(ddt, type, class, &count);
-	ASSERT(error == 0);
+	ASSERT0(error);
 	if (count == 0)
 		return;
 
@@ -2433,7 +2433,7 @@ visit_indirect(spa_t *spa, const dnode_phys_t *dnp,
 		int epb = BP_GET_LSIZE(bp) >> SPA_BLKPTRSHIFT;
 		arc_buf_t *buf;
 		uint64_t fill = 0;
-		ASSERT(!BP_IS_REDACTED(bp));
+		ASSERT0(BP_IS_REDACTED(bp));
 
 		err = arc_read(NULL, spa, bp, arc_getbuf_func, &buf,
 		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, zb);
@@ -2980,7 +2980,7 @@ verify_dd_livelist(objset_t *os)
 	dsl_pool_t *dp = spa_get_dsl(os->os_spa);
 	dsl_dir_t  *dd = os->os_dsl_dataset->ds_dir;
 
-	ASSERT(!dmu_objset_is_snapshot(os));
+	ASSERT0(dmu_objset_is_snapshot(os));
 	if (!dsl_deadlist_is_open(&dd->dd_livelist))
 		return (0);
 
@@ -3126,8 +3126,8 @@ dump_uidgid(objset_t *os, uint64_t uid, uint64_t gid)
 		uint64_t fuid_obj;
 
 		/* first find the fuid object.  It lives in the master node */
-		VERIFY(zap_lookup(os, MASTER_NODE_OBJ, ZFS_FUID_TABLES,
-		    8, 1, &fuid_obj) == 0);
+		VERIFY0(zap_lookup(os, MASTER_NODE_OBJ, ZFS_FUID_TABLES, 8, 1,
+		    &fuid_obj));
 		zfs_fuid_avl_tree_create(&idx_tree, &domain_tree);
 		(void) zfs_fuid_table_load(os, fuid_obj,
 		    &idx_tree, &domain_tree);
@@ -5711,8 +5711,8 @@ increment_indirect_mapping_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
 	vdev_t *vd;
 	const dva_t *dva = &bp->blk_dva[0];
 
-	ASSERT(!bp_freed);
-	ASSERT(!dump_opt['L']);
+	ASSERT0(bp_freed);
+	ASSERT0(dump_opt['L']);
 	ASSERT3U(BP_GET_NDVAS(bp), ==, 1);
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
@@ -5768,7 +5768,7 @@ zdb_ddt_leak_init(spa_t *spa, zdb_cb_t *zcb)
 	int error;
 	int p;
 
-	ASSERT(!dump_opt['L']);
+	ASSERT0(dump_opt['L']);
 
 	while ((error = ddt_walk(spa, &ddb, &dde)) == 0) {
 		blkptr_t blk;
@@ -5899,7 +5899,7 @@ zdb_leak_init_vdev_exclude_checkpoint(vdev_t *vd, zdb_cb_t *zcb)
 static void
 zdb_leak_init_exclude_checkpoint(spa_t *spa, zdb_cb_t *zcb)
 {
-	ASSERT(!dump_opt['L']);
+	ASSERT0(dump_opt['L']);
 
 	vdev_t *rvd = spa->spa_root_vdev;
 	for (uint64_t c = 0; c < rvd->vdev_children; c++) {
@@ -6075,7 +6075,7 @@ load_indirect_ms_allocatable_tree(vdev_t *vd, metaslab_t *msp,
 static void
 zdb_leak_init_prepare_indirect_vdevs(spa_t *spa, zdb_cb_t *zcb)
 {
-	ASSERT(!dump_opt['L']);
+	ASSERT0(dump_opt['L']);
 
 	vdev_t *rvd = spa->spa_root_vdev;
 	for (uint64_t c = 0; c < rvd->vdev_children; c++) {
@@ -6366,7 +6366,7 @@ static int
 bpobj_count_block_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
     dmu_tx_t *tx)
 {
-	ASSERT(!bp_freed);
+	ASSERT0(bp_freed);
 	return (count_block_cb(arg, bp, tx));
 }
 
@@ -7304,7 +7304,7 @@ verify_checkpoint_ms_spacemaps(spa_t *checkpoint, spa_t *current)
 static void
 verify_checkpoint_blocks(spa_t *spa)
 {
-	ASSERT(!dump_opt['L']);
+	ASSERT0(dump_opt['L']);
 
 	spa_t *checkpoint_spa;
 	char *checkpoint_pool;

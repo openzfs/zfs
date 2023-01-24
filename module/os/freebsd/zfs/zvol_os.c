@@ -1336,8 +1336,8 @@ zvol_os_rename_minor(zvol_state_t *zv, const char *newname)
 void
 zvol_os_free(zvol_state_t *zv)
 {
-	ASSERT(!RW_LOCK_HELD(&zv->zv_suspend_lock));
-	ASSERT(!MUTEX_HELD(&zv->zv_state_lock));
+	ASSERT0(RW_LOCK_HELD(&zv->zv_suspend_lock));
+	ASSERT0(MUTEX_HELD(&zv->zv_state_lock));
 	ASSERT0(zv->zv_open_count);
 
 	ZFS_LOG(1, "ZVOL %s destroyed.", zv->zv_name);
@@ -1541,7 +1541,7 @@ zvol_os_clear_private(zvol_state_t *zv)
 			msleep(&zsg->zsg_state, &zsg->zsg_queue_mtx,
 			    0, "zvol:w", 0);
 		mtx_unlock(&zsg->zsg_queue_mtx);
-		ASSERT(!RW_LOCK_HELD(&zv->zv_suspend_lock));
+		ASSERT0(RW_LOCK_HELD(&zv->zv_suspend_lock));
 	} else if (zv->zv_volmode == ZFS_VOLMODE_DEV) {
 		struct zvol_state_dev *zsd = &zv->zv_zso->zso_dev;
 		struct cdev *dev = zsd->zsd_cdev;

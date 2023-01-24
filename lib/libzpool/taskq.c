@@ -45,7 +45,7 @@ task_alloc(taskq_t *tq, int tqflags)
 	int rv;
 
 again:	if ((t = tq->tq_freelist) != NULL && tq->tq_nalloc >= tq->tq_minalloc) {
-		ASSERT(!(t->tqent_flags & TQENT_FLAG_PREALLOC));
+		ASSERT0((t->tqent_flags & TQENT_FLAG_PREALLOC));
 		tq->tq_freelist = t->tqent_next;
 	} else {
 		if (tq->tq_nalloc >= tq->tq_maxalloc) {

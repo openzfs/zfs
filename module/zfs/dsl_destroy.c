@@ -130,7 +130,7 @@ process_old_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed, dmu_tx_t *tx)
 	struct process_old_arg *poa = arg;
 	dsl_pool_t *dp = poa->ds->ds_dir->dd_pool;
 
-	ASSERT(!BP_IS_HOLE(bp));
+	ASSERT0(BP_IS_HOLE(bp));
 
 	if (bp->blk_birth <= dsl_dataset_phys(poa->ds)->ds_prev_snap_txg) {
 		dsl_deadlist_insert(&poa->ds->ds_deadlist, bp, bp_freed, tx);
@@ -523,7 +523,7 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 
 	/* remove from snapshot namespace */
 	dsl_dataset_t *ds_head;
-	ASSERT(dsl_dataset_phys(ds)->ds_snapnames_zapobj == 0);
+	ASSERT0(dsl_dataset_phys(ds)->ds_snapnames_zapobj);
 	VERIFY0(dsl_dataset_hold_obj(dp,
 	    dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj, FTAG, &ds_head));
 	VERIFY0(dsl_dataset_get_snapname(ds));
@@ -767,7 +767,7 @@ dsl_destroy_head_check_impl(dsl_dataset_t *ds, int expected_holds)
 	uint64_t count;
 	objset_t *mos;
 
-	ASSERT(!ds->ds_is_snapshot);
+	ASSERT0(ds->ds_is_snapshot);
 	if (ds->ds_is_snapshot)
 		return (SET_ERROR(EINVAL));
 
@@ -982,7 +982,7 @@ dsl_async_dataset_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
 		    DMU_POOL_DIRECTORY_OBJECT,
 		    DMU_POOL_BPTREE_OBJ, sizeof (uint64_t), 1,
 		    &dp->dp_bptree_obj, tx));
-		ASSERT(!scn->scn_async_destroying);
+		ASSERT0(scn->scn_async_destroying);
 		scn->scn_async_destroying = B_TRUE;
 	}
 
