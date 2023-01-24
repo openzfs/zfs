@@ -2827,7 +2827,7 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	 * have a third copy.
 	 */
 	gbh_copies = MIN(copies + 1, spa_max_replication(spa));
-	if (BP_IS_ENCRYPTED(bp) && gbh_copies >= SPA_DVAS_PER_BP)
+	if (gio->io_prop.zp_encrypt && gbh_copies >= SPA_DVAS_PER_BP)
 		gbh_copies = SPA_DVAS_PER_BP - 1;
 
 	int flags = METASLAB_HINTBP_FAVOR | METASLAB_GANG_HEADER;
