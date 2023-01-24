@@ -71,6 +71,9 @@ extern int zpl_xattr_security_init(struct inode *ip, struct inode *dip,
 #if defined(HAVE_SET_ACL_USERNS)
 extern int zpl_set_acl(struct user_namespace *userns, struct inode *ip,
     struct posix_acl *acl, int type);
+#elif defined(HAVE_SET_ACL_USERNS_DENTRY_ARG2)
+extern int zpl_set_acl(struct user_namespace *userns, struct dentry *dentry,
+    struct posix_acl *acl, int type);
 #else
 extern int zpl_set_acl(struct inode *ip, struct posix_acl *acl, int type);
 #endif /* HAVE_SET_ACL_USERNS */
