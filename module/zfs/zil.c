@@ -93,6 +93,14 @@
 static uint_t zfs_commit_timeout_pct = 5;
 
 /*
+ * Minimal time we care to delay commit waiting for more ZIL records.
+ * At least FreeBSD kernel can't sleep for less than 2us at its best.
+ * So requests to sleep for less then 5us is a waste of CPU time with
+ * a risk of significant log latency increase due to oversleep.
+ */
+static uint64_t zil_min_commit_timeout = 5000;
+
+/*
  * See zil.h for more information about these fields.
  */
 static zil_kstat_values_t zil_stats = {
@@ -1295,7 +1303,8 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 	lwb->lwb_buf = NULL;
 
 	ASSERT3U(lwb->lwb_issued_timestamp, >, 0);
-	zilog->zl_last_lwb_latency = gethrtime() - lwb->lwb_issued_timestamp;
+	zilog->zl_last_lwb_latency = (zilog->zl_last_lwb_latency * 3 +
+	    gethrtime() - lwb->lwb_issued_timestamp) / 4;
 
 	lwb->lwb_root_zio = NULL;
 
@@ -2463,8 +2472,9 @@ zil_process_commit_list(zilog_t *zilog)
 	spa_t *spa = zilog->zl_spa;
 	list_t nolwb_itxs;
 	list_t nolwb_waiters;
-	lwb_t *lwb;
+	lwb_t *lwb, *plwb;
 	itx_t *itx;
+	boolean_t first = B_TRUE;
 
 	ASSERT(MUTEX_HELD(&zilog->zl_issuer_lock));
 
@@ -2491,6 +2501,9 @@ zil_process_commit_list(zilog_t *zilog)
 		ASSERT3S(lwb->lwb_state, !=, LWB_STATE_ISSUED);
 		ASSERT3S(lwb->lwb_state, !=, LWB_STATE_WRITE_DONE);
 		ASSERT3S(lwb->lwb_state, !=, LWB_STATE_FLUSH_DONE);
+		first = (lwb->lwb_state != LWB_STATE_OPENED) &&
+		    ((plwb = list_prev(&zilog->zl_lwb_list, lwb)) == NULL ||
+		    plwb->lwb_state == LWB_STATE_FLUSH_DONE);
 	}
 
 	while ((itx = list_head(&zilog->zl_itx_commit_list)) != NULL) {
@@ -2661,7 +2674,23 @@ zil_process_commit_list(zilog_t *zilog)
 		 * try and pack as many itxs into as few lwbs as
 		 * possible, without significantly impacting the latency
 		 * of each individual itx.
+		 *
+		 * If we had no already running or open LWBs, it can be
+		 * the workload is single-threaded.  And if the ZIL write
+		 * latency is very small or if the LWB is almost full, it
+		 * may be cheaper to bypass the delay.
 		 */
+		if (lwb->lwb_state == LWB_STATE_OPENED && first) {
+			hrtime_t sleep = zilog->zl_last_lwb_latency *
+			    zfs_commit_timeout_pct / 100;
+			if (sleep < zil_min_commit_timeout ||
+			    lwb->lwb_sz - lwb->lwb_nused < lwb->lwb_sz / 8) {
+				lwb = zil_lwb_write_issue(zilog, lwb);
+				zilog->zl_cur_used = 0;
+				if (lwb == NULL)
+					zil_commit_writer_stall(zilog);
+			}
+		}
 	}
 }
 
@@ -3948,6 +3977,9 @@ EXPORT_SYMBOL(zil_kstat_values_update);
 
 ZFS_MODULE_PARAM(zfs, zfs_, commit_timeout_pct, UINT, ZMOD_RW,
 	"ZIL block open timeout percentage");
+
+ZFS_MODULE_PARAM(zfs_zil, zil_, min_commit_timeout, U64, ZMOD_RW,
+	"Minimum delay we care for ZIL block commit");
 
 ZFS_MODULE_PARAM(zfs_zil, zil_, replay_disable, INT, ZMOD_RW,
 	"Disable intent logging replay");
