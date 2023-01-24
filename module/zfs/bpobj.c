@@ -491,7 +491,7 @@ bpobj_iterate_impl(bpobj_t *initial_bpo, bpobj_itor_t func, void *arg,
 	 */
 	while ((bpi = list_remove_head(&stack)) != NULL) {
 		bpobj_t *bpo = bpi->bpi_bpo;
-		ASSERT(err != 0);
+		ASSERT3S(err, !=, 0);
 		ASSERT3P(bpo, !=, NULL);
 
 		mutex_exit(&bpo->bpo_lock);

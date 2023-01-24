@@ -802,7 +802,7 @@ vdev_raidz_reconstruct_q(raidz_row_t *rr, int *tgts, int ntgts)
 	int c, exp;
 	abd_t *dst, *src;
 
-	ASSERT(ntgts == 1);
+	ASSERT3S(ntgts, ==, 1);
 
 	ASSERT(rr->rr_col[x].rc_size <= rr->rr_col[VDEV_RAIDZ_Q].rc_size);
 
@@ -848,8 +848,8 @@ vdev_raidz_reconstruct_pq(raidz_row_t *rr, int *tgts, int ntgts)
 	int y = tgts[1];
 	abd_t *xd, *yd;
 
-	ASSERT(ntgts == 2);
-	ASSERT(x < y);
+	ASSERT3S(ntgts, ==, 2);
+	ASSERT3S(x, <, y);
 	ASSERT(x >= rr->rr_firstdatacol);
 	ASSERT(y < rr->rr_cols);
 
@@ -1097,7 +1097,7 @@ vdev_raidz_matrix_init(raidz_row_t *rr, int n, int nmap, int *map,
 		pow = map[i] * n;
 		if (pow > 255)
 			pow -= 255;
-		ASSERT(pow <= 255);
+		ASSERT3S(pow, <=, 255);
 
 		for (j = 0; j < n; j++) {
 			pow -= map[i];
@@ -1338,7 +1338,7 @@ vdev_raidz_reconstruct_general(raidz_row_t *rr, int *tgts, int ntgts)
 	 * data columns.
 	 */
 	for (tt = 0, c = 0, i = 0; i < nmissing_rows; c++) {
-		ASSERT(tt < ntgts);
+		ASSERT3S(tt, <, ntgts);
 		ASSERT(c < rr->rr_firstdatacol);
 
 		/*
@@ -1447,9 +1447,9 @@ vdev_raidz_reconstruct_row(raidz_map_t *rm, raidz_row_t *rr,
 		}
 	}
 
-	ASSERT(ntgts >= nt);
-	ASSERT(nbaddata >= 0);
-	ASSERT(nbaddata + nbadparity == ntgts);
+	ASSERT3S(ntgts, >=, nt);
+	ASSERT3S(nbaddata, >=, 0);
+	ASSERT3S(nbaddata + nbadparity, ==, ntgts);
 
 	dt = &tgts[nbadparity];
 
@@ -2309,7 +2309,7 @@ vdev_raidz_io_done_reconstruct_known_missing(zio_t *zio, raidz_map_t *rm,
 		for (int c = rr->rr_firstdatacol; c < rr->rr_cols; c++) {
 			raidz_col_t *rc = &rr->rr_col[c];
 			if (rc->rc_error != 0) {
-				ASSERT(n < VDEV_RAIDZ_MAXPARITY);
+				ASSERT3S(n, <, VDEV_RAIDZ_MAXPARITY);
 				tgts[n++] = c;
 			}
 		}

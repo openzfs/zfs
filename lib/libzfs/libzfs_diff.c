@@ -490,7 +490,7 @@ differ(void *arg)
 	if (err)
 		return ((void *)-1);
 	if (di->zerr) {
-		ASSERT(di->zerr == EPIPE);
+		ASSERT3S(di->zerr, ==, EPIPE);
 		(void) snprintf(di->errbuf, sizeof (di->errbuf),
 		    dgettext(TEXT_DOMAIN,
 		    "Internal error: bad data from diff IOCTL"));
@@ -728,7 +728,7 @@ setup_differ_info(zfs_handle_t *zhp, const char *fromsnap,
 	di->zhp = zhp;
 
 	di->cleanupfd = open(ZFS_DEV, O_RDWR | O_CLOEXEC);
-	VERIFY(di->cleanupfd >= 0);
+	VERIFY3S(di->cleanupfd, >=, 0);
 
 	if (get_snapshot_names(di, fromsnap, tosnap) != 0)
 		return (-1);

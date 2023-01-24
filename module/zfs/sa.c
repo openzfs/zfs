@@ -327,7 +327,7 @@ sa_attr_op(sa_handle_t *hdl, sa_bulk_attr_t *bulk, int count,
 
 	buftypes = 0;
 
-	ASSERT(count > 0);
+	ASSERT3S(count, >, 0);
 	for (i = 0; i != count; i++) {
 		ASSERT(bulk[i].sa_attr <= hdl->sa_os->os_sa->sa_num_attrs);
 
@@ -939,7 +939,7 @@ sa_attr_table_setup(objset_t *os, const sa_attr_reg_t *reg_attrs, int count)
 		 * attributes
 		 */
 		if (registered_count != sa_reg_count) {
-			ASSERT(error != 0);
+			ASSERT3S(error, !=, 0);
 			goto bail;
 		}
 
@@ -986,7 +986,7 @@ bail:
 	kmem_free(sa->sa_user_table, count * sizeof (sa_attr_type_t));
 	sa->sa_user_table = NULL;
 	sa_free_attr_table(sa);
-	ASSERT(error != 0);
+	ASSERT3S(error, !=, 0);
 	return (error);
 }
 
@@ -1085,7 +1085,7 @@ sa_setup(objset_t *os, uint64_t sa_obj, const sa_attr_reg_t *reg_attrs,
 		 * to AVL tree
 		 */
 		if (avl_numnodes(&sa->sa_layout_num_tree) != layout_count) {
-			ASSERT(error != 0);
+			ASSERT3S(error, !=, 0);
 			goto fail;
 		}
 	}

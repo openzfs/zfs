@@ -3942,7 +3942,7 @@ out:
 static void
 trunc_prop_errs(int truncated)
 {
-	ASSERT(truncated != 0);
+	ASSERT3S(truncated, !=, 0);
 
 	if (truncated == 1)
 		(void) fprintf(stderr, dgettext(TEXT_DOMAIN,

@@ -1180,7 +1180,7 @@ dsl_prop_get_all_impl(objset_t *mos, uint64_t propobj,
 			/*
 			 * Integer property
 			 */
-			ASSERT(za.za_integer_length == 8);
+			ASSERT3S(za.za_integer_length, ==, 8);
 			(void) nvlist_add_uint64(propval, ZPROP_VALUE,
 			    za.za_first_integer);
 		}

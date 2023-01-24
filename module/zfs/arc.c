@@ -2701,14 +2701,14 @@ arc_space_return(uint64_t space, arc_space_type_t type)
 	}
 
 	if (type != ARC_SPACE_DATA && type != ARC_SPACE_ABD_CHUNK_WASTE) {
-		ASSERT(aggsum_compare(&arc_sums.arcstat_meta_used,
-		    space) >= 0);
+		ASSERT3S(aggsum_compare(&arc_sums.arcstat_meta_used, space),
+		    >=, 0);
 		ARCSTAT_MAX(arcstat_meta_max,
 		    aggsum_upper_bound(&arc_sums.arcstat_meta_used));
 		aggsum_add(&arc_sums.arcstat_meta_used, -space);
 	}
 
-	ASSERT(aggsum_compare(&arc_sums.arcstat_size, space) >= 0);
+	ASSERT3S(aggsum_compare(&arc_sums.arcstat_size, space), >=, 0);
 	aggsum_add(&arc_sums.arcstat_size, -space);
 }
 
@@ -5149,7 +5149,7 @@ arc_adapt(int bytes, arc_state_t *state)
 	int64_t mrug_size = zfs_refcount_count(&arc_mru_ghost->arcs_size);
 	int64_t mfug_size = zfs_refcount_count(&arc_mfu_ghost->arcs_size);
 
-	ASSERT(bytes > 0);
+	ASSERT3S(bytes, >, 0);
 	/*
 	 * Adapt the target size of the MRU list:
 	 *	- if we just hit in the MRU ghost list, then increase

@@ -9780,7 +9780,7 @@ zpool_do_events_next(ev_opts_t *opts)
 	char *pool;
 
 	zevent_fd = open(ZFS_DEV, O_RDWR);
-	VERIFY(zevent_fd >= 0);
+	VERIFY3S(zevent_fd, >=, 0);
 
 	if (!opts->scripted)
 		(void) printf(gettext("%-30s %s\n"), "TIME", "CLASS");

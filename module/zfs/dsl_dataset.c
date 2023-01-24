@@ -3766,7 +3766,7 @@ snaplist_make(dsl_pool_t *dp,
 		int err;
 
 		err = dsl_dataset_hold_obj(dp, obj, tag, &ds);
-		ASSERT(err != ENOENT);
+		ASSERT3S(err, !=, ENOENT);
 		if (err != 0)
 			return (err);
 

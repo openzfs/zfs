@@ -1460,7 +1460,7 @@ zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
 	    (vd != vd->vdev_top || (flags & ZIO_FLAG_IO_RETRY))) {
 		ASSERT3P(pio->io_metaslab_class, !=, NULL);
 		ASSERT(pio->io_metaslab_class->mc_alloc_throttle_enabled);
-		ASSERT(type == ZIO_TYPE_WRITE);
+		ASSERT3S(type, ==, ZIO_TYPE_WRITE);
 		ASSERT(priority == ZIO_PRIORITY_ASYNC_WRITE);
 		ASSERT0((flags & ZIO_FLAG_IO_REPAIR));
 		ASSERT(!(pio->io_flags & ZIO_FLAG_IO_REWRITE) ||

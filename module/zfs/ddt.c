@@ -437,7 +437,7 @@ ddt_stat_update(ddt_t *ddt, ddt_entry_t *dde, uint64_t neg)
 	ddt_stat_generate(ddt, dde, &dds);
 
 	bucket = highbit64(dds.dds_ref_blocks) - 1;
-	ASSERT(bucket >= 0);
+	ASSERT3S(bucket, >=, 0);
 
 	ddh = &ddt->ddt_histogram[dde->dde_type][dde->dde_class];
 
@@ -1044,7 +1044,8 @@ ddt_sync_entry(ddt_t *ddt, ddt_entry_t *dde, dmu_tx_t *tx, uint64_t txg)
 	if (otype != DDT_TYPES &&
 	    (otype != ntype || oclass != nclass || total_refcnt == 0)) {
 		VERIFY0(ddt_object_remove(ddt, otype, oclass, dde, tx));
-		ASSERT(ddt_object_lookup(ddt, otype, oclass, dde) == ENOENT);
+		ASSERT3S(ddt_object_lookup(ddt, otype, oclass, dde), ==,
+		    ENOENT);
 	}
 
 	if (total_refcnt != 0) {

@@ -246,7 +246,7 @@ kcf_add_mech_provider(short mech_indx,
 	}
 
 	error = kcf_get_mech_entry(kcf_mech_type, &mech_entry);
-	ASSERT(error == KCF_SUCCESS);
+	ASSERT3S(error, ==, KCF_SUCCESS);
 
 	/* allocate and initialize new kcf_prov_mech_desc */
 	prov_mech = kmem_zalloc(sizeof (kcf_prov_mech_desc_t), KM_SLEEP);

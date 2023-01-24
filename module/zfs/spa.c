@@ -2841,7 +2841,7 @@ spa_livelist_condense_cb(void *arg, zthr_t *t)
 	 * space. In the second case, we'll just end up trying to condense
 	 * again in a later txg.
 	 */
-	ASSERT(err != 0);
+	ASSERT3S(err, !=, 0);
 	bplist_clear(&lca->to_keep);
 	bplist_destroy(&lca->to_keep);
 	kmem_free(lca, sizeof (livelist_condense_arg_t));
@@ -3147,7 +3147,7 @@ spa_activity_check_duration(spa_t *spa, uberblock_t *ub)
 	 * these cases and times.
 	 */
 
-	ASSERT(MMP_IMPORT_SAFETY_FACTOR >= 100);
+	ASSERT3S(MMP_IMPORT_SAFETY_FACTOR, >=, 100);
 
 	if (MMP_INTERVAL_VALID(ub) && MMP_FAIL_INT_VALID(ub) &&
 	    MMP_FAIL_INT(ub) > 0) {

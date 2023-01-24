@@ -1069,7 +1069,7 @@ vdev_indirect_remap(vdev_t *vd, uint64_t offset, uint64_t asize,
 		vdev_t *v = rs->rs_vd;
 		uint64_t num_entries = 0;
 
-		ASSERT(spa_config_held(spa, SCL_ALL, RW_READER) != 0);
+		ASSERT3S(spa_config_held(spa, SCL_ALL, RW_READER), !=, 0);
 		ASSERT(rs->rs_asize > 0);
 
 		/*
@@ -1304,7 +1304,7 @@ vdev_indirect_io_start(zio_t *zio)
 	zio->io_vsd = iv;
 	zio->io_vsd_ops = &vdev_indirect_vsd_ops;
 
-	ASSERT(spa_config_held(spa, SCL_ALL, RW_READER) != 0);
+	ASSERT3S(spa_config_held(spa, SCL_ALL, RW_READER), !=, 0);
 	if (zio->io_type != ZIO_TYPE_READ) {
 		ASSERT3U(zio->io_type, ==, ZIO_TYPE_WRITE);
 		/*

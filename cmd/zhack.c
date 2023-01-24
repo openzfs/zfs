@@ -206,7 +206,7 @@ dump_obj(objset_t *os, uint64_t obj, const char *name)
 			(void) printf("\t%s = %llu\n",
 			    za.za_name, (u_longlong_t)za.za_first_integer);
 		} else {
-			ASSERT(za.za_integer_length == 1);
+			ASSERT3S(za.za_integer_length, ==, 1);
 			char val[1024];
 			VERIFY0(zap_lookup(os, obj, za.za_name, 1,
 			    sizeof (val), val));

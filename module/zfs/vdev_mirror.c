@@ -854,7 +854,7 @@ vdev_mirror_io_done(zio_t *zio)
 
 	if (good_copies == 0) {
 		zio->io_error = vdev_mirror_worst_error(mm);
-		ASSERT(zio->io_error != 0);
+		ASSERT3S(zio->io_error, !=, 0);
 	}
 
 	if (good_copies && spa_writeable(zio->io_spa) &&

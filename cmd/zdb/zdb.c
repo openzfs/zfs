@@ -1364,7 +1364,7 @@ dump_sa_layouts(objset_t *os, uint64_t object, void *data, size_t size)
 			continue;
 		}
 
-		VERIFY(attr.za_integer_length == 2);
+		VERIFY3S(attr.za_integer_length, ==, 2);
 		layout_attrs = umem_zalloc(attr.za_num_integers *
 		    attr.za_integer_length, UMEM_NOFAIL);
 
@@ -2248,13 +2248,13 @@ blkid2offset(const dnode_phys_t *dnp, const blkptr_t *bp,
     const zbookmark_phys_t *zb)
 {
 	if (dnp == NULL) {
-		ASSERT(zb->zb_level < 0);
+		ASSERT3S(zb->zb_level, <, 0);
 		if (zb->zb_object == 0)
 			return (zb->zb_blkid);
 		return (zb->zb_blkid * BP_GET_LSIZE(bp));
 	}
 
-	ASSERT(zb->zb_level >= 0);
+	ASSERT3S(zb->zb_level, >=, 0);
 
 	return ((zb->zb_blkid <<
 	    (zb->zb_level * (dnp->dn_indblkshift - SPA_BLKPTRSHIFT))) *
@@ -2399,7 +2399,7 @@ print_indirect(spa_t *spa, blkptr_t *bp, const zbookmark_phys_t *zb,
 
 	(void) printf("%16llx ", (u_longlong_t)blkid2offset(dnp, bp, zb));
 
-	ASSERT(zb->zb_level >= 0);
+	ASSERT3S(zb->zb_level, >=, 0);
 
 	for (l = dnp->dn_nlevels - 1; l >= -1; l--) {
 		if (l == zb->zb_level) {
@@ -5798,7 +5798,7 @@ zdb_ddt_leak_init(spa_t *spa, zdb_cb_t *zcb)
 		ddt_exit(ddt);
 	}
 
-	ASSERT(error == ENOENT);
+	ASSERT3S(error, ==, ENOENT);
 }
 
 typedef struct checkpoint_sm_exclude_entry_arg {

@@ -723,8 +723,10 @@ static int random_fd = -1, urandom_fd = -1;
 void
 random_init(void)
 {
-	VERIFY((random_fd = open(random_path, O_RDONLY | O_CLOEXEC)) != -1);
-	VERIFY((urandom_fd = open(urandom_path, O_RDONLY | O_CLOEXEC)) != -1);
+	VERIFY3S((random_fd = open(random_path, O_RDONLY | O_CLOEXEC)), !=,
+	    -1);
+	VERIFY3S((urandom_fd = open(urandom_path, O_RDONLY | O_CLOEXEC)), !=,
+	    -1);
 }
 
 void
@@ -743,7 +745,7 @@ random_get_bytes_common(uint8_t *ptr, size_t len, int fd)
 	size_t resid = len;
 	ssize_t bytes;
 
-	ASSERT(fd != -1);
+	ASSERT3S(fd, !=, -1);
 
 	while (resid != 0) {
 		bytes = read(fd, ptr, resid);
@@ -1276,7 +1278,7 @@ zfs_file_pread(zfs_file_t *fp, void *buf, size_t count, loff_t off,
 		int status;
 
 		status = pwrite64(fp->f_dump_fd, buf, rc, off);
-		ASSERT(status != -1);
+		ASSERT3S(status, !=, -1);
 	}
 
 	if (resid) {

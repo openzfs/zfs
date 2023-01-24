@@ -578,7 +578,7 @@ avl_insert_here(
 #ifdef ZFS_DEBUG
 	diff = tree->avl_compar(new_data, here);
 	ASSERT(-1 <= diff && diff <= 1);
-	ASSERT(diff != 0);
+	ASSERT3S(diff, !=, 0);
 	ASSERT(diff > 0 ? child == 1 : child == 0);
 #endif
 
@@ -590,7 +590,7 @@ avl_insert_here(
 			diff = tree->avl_compar(new_data,
 			    AVL_NODE2DATA(node, tree->avl_offset));
 			ASSERT(-1 <= diff && diff <= 1);
-			ASSERT(diff != 0);
+			ASSERT3S(diff, !=, 0);
 			ASSERT(diff > 0 ? child == 1 : child == 0);
 #endif
 			node = node->avl_child[child];
@@ -599,7 +599,7 @@ avl_insert_here(
 		diff = tree->avl_compar(new_data,
 		    AVL_NODE2DATA(node, tree->avl_offset));
 		ASSERT(-1 <= diff && diff <= 1);
-		ASSERT(diff != 0);
+		ASSERT3S(diff, !=, 0);
 		ASSERT(diff > 0 ? child == 1 : child == 0);
 #endif
 	}

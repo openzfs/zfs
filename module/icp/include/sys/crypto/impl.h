@@ -133,18 +133,18 @@ typedef struct kcf_provider_desc {
  */
 #define	KCF_PROV_REFHOLD(desc) {				\
 	int newval = atomic_add_32_nv(&(desc)->pd_refcnt, 1);	\
-	ASSERT(newval != 0);					\
+	ASSERT3S(newval, !=, 0);					\
 }
 
 #define	KCF_PROV_IREFHOLD(desc) {				\
 	int newval = atomic_add_32_nv(&(desc)->pd_irefcnt, 1);	\
-	ASSERT(newval != 0);					\
+	ASSERT3S(newval, !=, 0);					\
 }
 
 #define	KCF_PROV_IREFRELE(desc) {				\
 	membar_producer();					\
 	int newval = atomic_add_32_nv(&(desc)->pd_irefcnt, -1);	\
-	ASSERT(newval != -1);					\
+	ASSERT3S(newval, !=, -1);					\
 	if (newval == 0) {					\
 		cv_broadcast(&(desc)->pd_remove_cv);		\
 	}							\
@@ -155,7 +155,7 @@ typedef struct kcf_provider_desc {
 #define	KCF_PROV_REFRELE(desc) {				\
 	membar_producer();					\
 	int newval = atomic_add_32_nv(&(desc)->pd_refcnt, -1);	\
-	ASSERT(newval != -1);					\
+	ASSERT3S(newval, !=, -1);					\
 	if (newval == 0) {					\
 		kcf_provider_zero_refcnt((desc));		\
 	}							\
@@ -194,7 +194,7 @@ typedef	struct kcf_mech_entry {
  */
 #define	KCF_POLICY_REFHOLD(desc) {				\
 	int newval = atomic_add_32_nv(&(desc)->pd_refcnt, 1);	\
-	ASSERT(newval != 0);					\
+	ASSERT3S(newval, !=, 0);					\
 }
 
 /*
@@ -204,7 +204,7 @@ typedef	struct kcf_mech_entry {
 #define	KCF_POLICY_REFRELE(desc) {				\
 	membar_producer();					\
 	int newval = atomic_add_32_nv(&(desc)->pd_refcnt, -1);	\
-	ASSERT(newval != -1);					\
+	ASSERT3S(newval, !=, -1);					\
 	if (newval == 0)					\
 		kcf_policy_free_desc(desc);			\
 }

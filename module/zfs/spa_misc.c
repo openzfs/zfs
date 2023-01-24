@@ -2091,7 +2091,7 @@ dva_get_dsize_sync(spa_t *spa, const dva_t *dva)
 	uint64_t asize = DVA_GET_ASIZE(dva);
 	uint64_t dsize = asize;
 
-	ASSERT(spa_config_held(spa, SCL_ALL, RW_READER) != 0);
+	ASSERT3S(spa_config_held(spa, SCL_ALL, RW_READER), !=, 0);
 
 	if (asize != 0 && spa->spa_deflate) {
 		vdev_t *vd = vdev_lookup_top(spa, DVA_GET_VDEV(dva));

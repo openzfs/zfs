@@ -1911,7 +1911,7 @@ vdev_config_sync(vdev_t **svd, int svdcount, uint64_t txg)
 	int error = 0;
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL;
 
-	ASSERT(svdcount != 0);
+	ASSERT3S(svdcount, !=, 0);
 retry:
 	/*
 	 * Normally, we don't want to try too hard to write every label and

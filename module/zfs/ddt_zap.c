@@ -133,7 +133,7 @@ ddt_zap_walk(objset_t *os, uint64_t object, ddt_entry_t *dde, uint64_t *walk)
 	if ((error = zap_cursor_retrieve(&zc, &za)) == 0) {
 		uchar_t cbuf[sizeof (dde->dde_phys) + 1];
 		uint64_t csize = za.za_num_integers;
-		ASSERT(za.za_integer_length == 1);
+		ASSERT3S(za.za_integer_length, ==, 1);
 		error = zap_lookup_uint64(os, object, (uint64_t *)za.za_name,
 		    DDT_KEY_WORDS, 1, csize, cbuf);
 		ASSERT0(error);

@@ -433,7 +433,7 @@ vdev_lookup_top(spa_t *spa, uint64_t vdev)
 {
 	vdev_t *rvd = spa->spa_root_vdev;
 
-	ASSERT(spa_config_held(spa, SCL_ALL, RW_READER) != 0);
+	ASSERT3S(spa_config_held(spa, SCL_ALL, RW_READER), !=, 0);
 
 	if (vdev < rvd->vdev_children) {
 		ASSERT3P(rvd->vdev_child[vdev], !=, NULL);
@@ -1655,7 +1655,7 @@ vdev_probe_done(zio_t *zio)
 		    (vdev_writeable(vd) || !spa_writeable(spa))) {
 			zio->io_error = 0;
 		} else {
-			ASSERT(zio->io_error != 0);
+			ASSERT3S(zio->io_error, !=, 0);
 			vdev_dbgmsg(vd, "failed probe");
 			(void) zfs_ereport_post(FM_EREPORT_ZFS_PROBE_FAILURE,
 			    spa, vd, NULL, NULL, 0);
@@ -3054,7 +3054,7 @@ vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
 	avl_tree_t reftree;
 	int minref;
 
-	ASSERT(spa_config_held(spa, SCL_ALL, RW_READER) != 0);
+	ASSERT3S(spa_config_held(spa, SCL_ALL, RW_READER), !=, 0);
 
 	for (int c = 0; c < vd->vdev_children; c++)
 		vdev_dtl_reassess(vd->vdev_child[c], txg,
@@ -5588,7 +5588,7 @@ vdev_name(vdev_t *vd, char *buf, int buflen)
 boolean_t
 vdev_replace_in_progress(vdev_t *vdev)
 {
-	ASSERT(spa_config_held(vdev->vdev_spa, SCL_ALL, RW_READER) != 0);
+	ASSERT3S(spa_config_held(vdev->vdev_spa, SCL_ALL, RW_READER), !=, 0);
 
 	if (vdev->vdev_ops == &vdev_replacing_ops)
 		return (B_TRUE);

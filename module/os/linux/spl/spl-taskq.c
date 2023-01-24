@@ -1047,13 +1047,13 @@ taskq_create(const char *name, int threads_arg, pri_t pri,
 	int nthreads = threads_arg;
 
 	ASSERT3P(name, !=, NULL);
-	ASSERT(minalloc >= 0);
+	ASSERT3S(minalloc, >=, 0);
 	ASSERT0((flags & (TASKQ_CPR_SAFE))); /* Unsupported */
 
 	/* Scale the number of threads using nthreads as a percentage */
 	if (flags & TASKQ_THREADS_CPU_PCT) {
-		ASSERT(nthreads <= 100);
-		ASSERT(nthreads >= 0);
+		ASSERT3S(nthreads, <=, 100);
+		ASSERT3S(nthreads, >=, 0);
 		nthreads = MIN(threads_arg, 100);
 		nthreads = MAX(nthreads, 0);
 		nthreads = MAX((num_online_cpus() * nthreads) /100, 1);

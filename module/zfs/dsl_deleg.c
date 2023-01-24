@@ -347,7 +347,7 @@ dsl_deleg_get(const char *ddname, nvlist_t **nvp)
 		    zap_cursor_advance(basezc)) {
 			nvlist_t *perms_nvp;
 
-			ASSERT(baseza->za_integer_length == 8);
+			ASSERT3S(baseza->za_integer_length, ==, 8);
 			ASSERT(baseza->za_num_integers == 1);
 
 			perms_nvp = fnvlist_alloc();

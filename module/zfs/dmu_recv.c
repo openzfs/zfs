@@ -3098,7 +3098,7 @@ receive_process_record(struct receive_writer_arg *rwa,
 			 * EAGAIN to indicate that we do not want to free
 			 * the rrd or arc_buf.
 			 */
-			ASSERT(err != 0);
+			ASSERT3S(err, !=, 0);
 			abd_free(rrd->abd);
 			rrd->abd = NULL;
 		}

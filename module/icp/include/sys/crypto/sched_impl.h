@@ -75,7 +75,7 @@ typedef struct kcf_context {
 #define	KCF_CONTEXT_REFRELE(ictx) {				\
 	membar_producer();					\
 	int newval = atomic_add_32_nv(&(ictx)->kc_refcnt, -1);	\
-	ASSERT(newval != -1);					\
+	ASSERT3S(newval, !=, -1);					\
 	if (newval == 0)					\
 		kcf_free_context(ictx);				\
 }

@@ -950,7 +950,7 @@ run_sweep(void)
 exit:
 	LOG(D_ALL, "\nWaiting for test threads to finish...\n");
 	mutex_enter(&sem_mtx);
-	VERIFY(free_slots <= max_free_slots);
+	VERIFY3S(free_slots, <=, max_free_slots);
 	while (free_slots < max_free_slots) {
 		(void) cv_wait(&sem_cv, &sem_mtx);
 	}

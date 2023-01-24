@@ -350,7 +350,7 @@ zap_leaf_array_match(zap_leaf_t *l, zap_name_t *zn,
 		return (match);
 	}
 
-	ASSERT(zn->zn_key_intlen == 1);
+	ASSERT3S(zn->zn_key_intlen, ==, 1);
 	if (zn->zn_matchtype & MT_NORMALIZE) {
 		char *thisname = kmem_alloc(array_numints, KM_SLEEP);
 
