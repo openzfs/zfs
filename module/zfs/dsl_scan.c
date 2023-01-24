@@ -37,6 +37,7 @@
 #include <sys/dmu_tx.h>
 #include <sys/dmu_objset.h>
 #include <sys/arc.h>
+#include <sys/arc_impl.h>
 #include <sys/zap.h>
 #include <sys/zio.h>
 #include <sys/zfs_context.h>
@@ -126,7 +127,7 @@ static boolean_t scan_ds_queue_contains(dsl_scan_t *scn, uint64_t dsobj,
 static void scan_ds_queue_insert(dsl_scan_t *scn, uint64_t dsobj, uint64_t txg);
 static void scan_ds_queue_remove(dsl_scan_t *scn, uint64_t dsobj);
 static void scan_ds_queue_sync(dsl_scan_t *scn, dmu_tx_t *tx);
-static uint64_t dsl_scan_count_data_disks(vdev_t *vd);
+static uint64_t dsl_scan_count_data_disks(spa_t *spa);
 
 extern uint_t zfs_vdev_async_write_active_min_dirty_percent;
 static int zfs_scan_blkstats = 0;
@@ -156,7 +157,7 @@ static int zfs_scan_strict_mem_lim = B_FALSE;
  * overload the drives with I/O, since that is protected by
  * zfs_vdev_scrub_max_active.
  */
-static uint64_t zfs_scan_vdev_limit = 4 << 20;
+static uint64_t zfs_scan_vdev_limit = 16 << 20;
 
 static uint_t zfs_scan_issue_strategy = 0;
 
@@ -475,11 +476,12 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 
 	/*
 	 * Calculate the max number of in-flight bytes for pool-wide
-	 * scanning operations (minimum 1MB). Limits for the issuing
-	 * phase are done per top-level vdev and are handled separately.
+	 * scanning operations (minimum 1MB, maximum 1/4 of arc_c_max).
+	 * Limits for the issuing phase are done per top-level vdev and
+	 * are handled separately.
 	 */
-	scn->scn_maxinflight_bytes = MAX(zfs_scan_vdev_limit *
-	    dsl_scan_count_data_disks(spa->spa_root_vdev), 1ULL << 20);
+	scn->scn_maxinflight_bytes = MIN(arc_c_max / 4, MAX(1ULL << 20,
+	    zfs_scan_vdev_limit * dsl_scan_count_data_disks(spa)));
 
 	avl_create(&scn->scn_queue, scan_ds_queue_compare, sizeof (scan_ds_t),
 	    offsetof(scan_ds_t, sds_node));
@@ -2823,8 +2825,9 @@ dsl_scan_visit(dsl_scan_t *scn, dmu_tx_t *tx)
 }
 
 static uint64_t
-dsl_scan_count_data_disks(vdev_t *rvd)
+dsl_scan_count_data_disks(spa_t *spa)
 {
+	vdev_t *rvd = spa->spa_root_vdev;
 	uint64_t i, leaves = 0;
 
 	for (i = 0; i < rvd->vdev_children; i++) {
@@ -3733,12 +3736,13 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		taskqid_t prefetch_tqid;
 
 		/*
-		 * Recalculate the max number of in-flight bytes for pool-wide
-		 * scanning operations (minimum 1MB). Limits for the issuing
-		 * phase are done per top-level vdev and are handled separately.
+		 * Calculate the max number of in-flight bytes for pool-wide
+		 * scanning operations (minimum 1MB, maximum 1/4 of arc_c_max).
+		 * Limits for the issuing phase are done per top-level vdev and
+		 * are handled separately.
 		 */
-		scn->scn_maxinflight_bytes = MAX(zfs_scan_vdev_limit *
-		    dsl_scan_count_data_disks(spa->spa_root_vdev), 1ULL << 20);
+		scn->scn_maxinflight_bytes = MIN(arc_c_max / 4, MAX(1ULL << 20,
+		    zfs_scan_vdev_limit * dsl_scan_count_data_disks(spa)));
 
 		if (scnp->scn_ddt_bookmark.ddb_class <=
 		    scnp->scn_ddt_class_max) {

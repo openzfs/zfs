@@ -1905,7 +1905,7 @@ When disabled, the memory limit may be exceeded by fast disks.
 Freezes a scrub/resilver in progress without actually pausing it.
 Intended for testing/debugging.
 .
-.It Sy zfs_scan_vdev_limit Ns = Ns Sy 4194304 Ns B Po 4 MiB Pc Pq int
+.It Sy zfs_scan_vdev_limit Ns = Ns Sy 16777216 Ns B Po 16 MiB Pc Pq int
 Maximum amount of data that can be concurrently issued at once for scrubs and
 resilvers per leaf device, given in bytes.
 .
