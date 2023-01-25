@@ -7524,19 +7524,20 @@ print_scan_scrub_resilver_status(pool_scan_stat_t *ps)
 
 	zfs_nicebytes(ps->pss_processed, processed_buf, sizeof (processed_buf));
 
-	assert(ps->pss_func == POOL_SCAN_SCRUB ||
-	    ps->pss_func == POOL_SCAN_RESILVER);
+	int is_resilver = ps->pss_func == POOL_SCAN_RESILVER;
+	int is_scrub = ps->pss_func == POOL_SCAN_SCRUB;
+	assert(is_resilver || is_scrub);
 
 	/* Scan is finished or canceled. */
 	if (ps->pss_state == DSS_FINISHED) {
 		secs_to_dhms(end - start, time_buf);
 
-		if (ps->pss_func == POOL_SCAN_SCRUB) {
+		if (is_scrub) {
 			(void) printf(gettext("scrub repaired %s "
 			    "in %s with %llu errors on %s"), processed_buf,
 			    time_buf, (u_longlong_t)ps->pss_errors,
 			    ctime(&end));
-		} else if (ps->pss_func == POOL_SCAN_RESILVER) {
+		} else if (is_resilver) {
 			(void) printf(gettext("resilvered %s "
 			    "in %s with %llu errors on %s"), processed_buf,
 			    time_buf, (u_longlong_t)ps->pss_errors,
@@ -7544,10 +7545,10 @@ print_scan_scrub_resilver_status(pool_scan_stat_t *ps)
 		}
 		return;
 	} else if (ps->pss_state == DSS_CANCELED) {
-		if (ps->pss_func == POOL_SCAN_SCRUB) {
+		if (is_scrub) {
 			(void) printf(gettext("scrub canceled on %s"),
 			    ctime(&end));
-		} else if (ps->pss_func == POOL_SCAN_RESILVER) {
+		} else if (is_resilver) {
 			(void) printf(gettext("resilver canceled on %s"),
 			    ctime(&end));
 		}
@@ -7557,7 +7558,7 @@ print_scan_scrub_resilver_status(pool_scan_stat_t *ps)
 	assert(ps->pss_state == DSS_SCANNING);
 
 	/* Scan is in progress. Resilvers can't be paused. */
-	if (ps->pss_func == POOL_SCAN_SCRUB) {
+	if (is_scrub) {
 		if (pause == 0) {
 			(void) printf(gettext("scrub in progress since %s"),
 			    ctime(&start));
@@ -7567,7 +7568,7 @@ print_scan_scrub_resilver_status(pool_scan_stat_t *ps)
 			(void) printf(gettext("\tscrub started on %s"),
 			    ctime(&start));
 		}
-	} else if (ps->pss_func == POOL_SCAN_RESILVER) {
+	} else if (is_resilver) {
 		(void) printf(gettext("resilver in progress since %s"),
 		    ctime(&start));
 	}
@@ -7609,17 +7610,27 @@ print_scan_scrub_resilver_status(pool_scan_stat_t *ps)
 		    scanned_buf, issued_buf, total_buf);
 	}
 
-	if (ps->pss_func == POOL_SCAN_RESILVER) {
+	if (is_resilver) {
 		(void) printf(gettext("\t%s resilvered, %.2f%% done"),
 		    processed_buf, 100 * fraction_done);
-	} else if (ps->pss_func == POOL_SCAN_SCRUB) {
+	} else if (is_scrub) {
 		(void) printf(gettext("\t%s repaired, %.2f%% done"),
 		    processed_buf, 100 * fraction_done);
 	}
 
 	if (pause == 0) {
+		/*
+		 * Only provide an estimate iff:
+		 * 1) the time remaining is valid, and
+		 * 2) the issue rate exceeds 10 MB/s, and
+		 * 3) it's either:
+		 *    a) a resilver which has started repairs, or
+		 *    b) a scrub which has entered the issue phase.
+		 */
 		if (total_secs_left != UINT64_MAX &&
-		    issue_rate >= 10 * 1024 * 1024) {
+		    issue_rate >= 10 * 1024 * 1024 &&
+		    ((is_resilver && ps->pss_processed > 0) ||
+		    (is_scrub && issued > 0))) {
 			(void) printf(gettext(", %s to go\n"), time_buf);
 		} else {
 			(void) printf(gettext(", no estimated "

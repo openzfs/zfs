@@ -1890,6 +1890,13 @@ I/O.
 In this case (unless the metadata scan is done) we stop issuing verification I/O
 and start scanning metadata again until we get to the hard limit.
 .
+.It Sy zfs_scan_report_txgs Ns = Ns Sy 0 Ns | Ns 1 Pq uint
+When reporting resilver throughput and estimated completion time use the
+performance observed over roughly the last
+.Sy zfs_scan_report_txgs
+TXGs.
+When set to zero performance is calculated over the time between checkpoints.
+.
 .It Sy zfs_scan_strict_mem_lim Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Enforce tight memory limits on pool scans when a sequential scan is in progress.
 When disabled, the memory limit may be exceeded by fast disks.
