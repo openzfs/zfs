@@ -87,6 +87,7 @@ int livelist_bpobj_iterate_from_nofree(bpobj_t *bpo, bpobj_itor_t func,
     void *arg, int64_t start);
 
 void bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx);
+void bpobj_prefetch_subobj(bpobj_t *bpo, uint64_t subobj);
 void bpobj_enqueue(bpobj_t *bpo, const blkptr_t *bp, boolean_t bp_freed,
     dmu_tx_t *tx);
 
