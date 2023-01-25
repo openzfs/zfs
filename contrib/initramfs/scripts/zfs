@@ -272,30 +272,46 @@ import_pool()
 # with more logging etc.
 load_module_initrd()
 {
-	[ -n "$ROOTDELAY" ] && ZFS_INITRD_PRE_MOUNTROOT_SLEEP="$ROOTDELAY"
+	ZFS_INITRD_PRE_MOUNTROOT_SLEEP=${ROOTDELAY:-0}
 
-	if [ "$ZFS_INITRD_PRE_MOUNTROOT_SLEEP" -gt 0 ] 2>/dev/null
-	then
-		if [ "$quiet" != "y" ]; then
-			zfs_log_begin_msg "Sleeping for" \
-				"$ZFS_INITRD_PRE_MOUNTROOT_SLEEP seconds..."
+	if [ "$ZFS_INITRD_PRE_MOUNTROOT_SLEEP" -gt 0 ]; then
+		[ "$quiet" != "y" ] && zfs_log_begin_msg "Delaying for up to '${ZFS_INITRD_PRE_MOUNTROOT_SLEEP}' seconds."
+	fi
+
+	START=$(/bin/date -u +%s)
+	END=$((START+ZFS_INITRD_PRE_MOUNTROOT_SLEEP))
+	while true; do
+
+		# Wait for all of the /dev/{hd,sd}[a-z] device nodes to appear.
+		if command -v wait_for_udev > /dev/null 2>&1 ; then
+			wait_for_udev 10
+		elif command -v wait_for_dev > /dev/null 2>&1 ; then
+			wait_for_dev
 		fi
-		sleep "$ZFS_INITRD_PRE_MOUNTROOT_SLEEP"
+
+		#
+		# zpool import refuse to import without a valid
+		# /proc/self/mounts
+		#
+		[ ! -f /proc/self/mounts ] && mount proc /proc
+
+		# Load the module
+		if load_module "zfs"; then
+			ret=0
+			break
+		else
+			ret=1
+		fi
+
+		[ "$(/bin/date -u +%s)" -gt "$END" ] && break
+		sleep 1
+
+	done
+	if [ "$ZFS_INITRD_PRE_MOUNTROOT_SLEEP" -gt 0 ]; then
 		[ "$quiet" != "y" ] && zfs_log_end_msg
 	fi
 
-	# Wait for all of the /dev/{hd,sd}[a-z] device nodes to appear.
-	if command -v wait_for_udev > /dev/null 2>&1 ; then
-		wait_for_udev 10
-	elif command -v wait_for_dev > /dev/null 2>&1 ; then
-		wait_for_dev
-	fi
-
-	# zpool import refuse to import without a valid /proc/self/mounts
-	[ ! -f /proc/self/mounts ] && mount proc /proc
-
-	# Load the module
-	load_module "zfs" || return 1
+	[ "$ret" -ne 0 ] && return 1
 
 	if [ "$ZFS_INITRD_POST_MODPROBE_SLEEP" -gt 0 ] 2>/dev/null
 	then
