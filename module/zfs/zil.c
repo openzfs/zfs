@@ -2986,6 +2986,8 @@ zil_alloc_commit_waiter(void)
 static void
 zil_free_commit_waiter(zil_commit_waiter_t *zcw)
 {
+	mutex_enter(&zcw->zcw_lock);
+	mutex_exit(&zcw->zcw_lock);
 	ASSERT(!list_link_active(&zcw->zcw_node));
 	ASSERT3P(zcw->zcw_lwb, ==, NULL);
 	ASSERT3B(zcw->zcw_done, ==, B_TRUE);
