@@ -746,7 +746,11 @@ dmu_prefetch(objset_t *os, uint64_t object, int64_t level, uint64_t offset,
 	}
 
 	if (nblks != 0) {
+		uint64_t maxnblks;
 		blkid = dbuf_whichblock(dn, level, offset);
+		maxnblks = dn->dn_maxblkid + 1 - blkid;
+		if (nblks > maxnblks)
+			nblks = maxnblks;
 		for (int i = 0; i < nblks; i++)
 			dbuf_prefetch(dn, level, blkid + i, pri, 0);
 	}
