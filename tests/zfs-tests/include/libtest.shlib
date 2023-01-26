@@ -3620,7 +3620,7 @@ function get_arcstat # stat
 		kstat arcstats.$stat
 		;;
 	Linux)
-		kstat arcstats | awk "/$stat/"' { print $3 }'
+		kstat arcstats | awk "/^$stat	/"' { print $3 }'
 		;;
 	*)
 		false
