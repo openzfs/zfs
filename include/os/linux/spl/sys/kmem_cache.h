@@ -72,6 +72,8 @@ typedef enum kmem_cbrc {
 
 #define	KMC_RECLAIM_ONCE	0x1	/* Force a single shrinker pass */
 
+#define	KMC_NUMA_BALANCE	0x0
+
 extern struct list_head spl_kmem_cache_list;
 extern struct rw_semaphore spl_kmem_cache_sem;
 

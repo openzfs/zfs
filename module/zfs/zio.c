@@ -166,9 +166,10 @@ zio_init(void)
 		size_t size = (c + 1) << SPA_MINBLOCKSHIFT;
 		size_t p2 = size;
 		size_t align = 0;
-		size_t data_cflags, cflags;
+		size_t data_cflags, cflags, common_cflags;
 
 		data_cflags = KMC_NODEBUG;
+		common_cflags = KMC_NUMA_BALANCE;
 		cflags = (zio_exclude_metadata || size > zio_buf_debug_limit) ?
 		    KMC_NODEBUG : 0;
 
@@ -211,19 +212,21 @@ zio_init(void)
 				    "zio_buf_comb_%lu", (ulong_t)size);
 				zio_buf_cache[c] = kmem_cache_create(name,
 				    size, align, NULL, NULL, NULL, NULL, NULL,
-				    cflags);
+				    common_cflags | cflags);
 				zio_data_buf_cache[c] = zio_buf_cache[c];
 				continue;
 			}
 			(void) snprintf(name, sizeof (name), "zio_buf_%lu",
 			    (ulong_t)size);
 			zio_buf_cache[c] = kmem_cache_create(name, size,
-			    align, NULL, NULL, NULL, NULL, NULL, cflags);
+			    align, NULL, NULL, NULL, NULL, NULL,
+			    common_cflags | cflags);
 
 			(void) snprintf(name, sizeof (name), "zio_data_buf_%lu",
 			    (ulong_t)size);
 			zio_data_buf_cache[c] = kmem_cache_create(name, size,
-			    align, NULL, NULL, NULL, NULL, NULL, data_cflags);
+			    align, NULL, NULL, NULL, NULL, NULL,
+			    common_cflags | data_cflags);
 		}
 	}
 
