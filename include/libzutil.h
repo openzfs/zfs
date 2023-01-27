@@ -183,6 +183,7 @@ _LIBZUTIL_H int printf_color(const char *color, const char *format, ...);
 _LIBZUTIL_H const char *zfs_basename(const char *path);
 _LIBZUTIL_H ssize_t zfs_dirnamelen(const char *path);
 #ifdef __linux__
+extern char **environ;
 _LIBZUTIL_H void zfs_setproctitle_init(int argc, char *argv[], char *envp[]);
 _LIBZUTIL_H void zfs_setproctitle(const char *fmt, ...);
 #else
