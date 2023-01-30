@@ -47,9 +47,16 @@
 extern "C" {
 #endif
 
+#if defined(HAVE_FILEMAP_RANGE_HAS_PAGE)
 #define	ZNODE_OS_FIELDS			\
 	inode_timespec_t z_btime; /* creation/birth time (cached) */ \
 	struct inode	z_inode;
+#else
+#define	ZNODE_OS_FIELDS			\
+	inode_timespec_t z_btime; /* creation/birth time (cached) */ \
+	struct inode	z_inode;                                     \
+	boolean_t	z_is_mapped;    /* we are mmap'ed */
+#endif
 
 /*
  * Convert between znode pointers and inode pointers
@@ -70,7 +77,14 @@ extern "C" {
 #define	Z_ISDEV(type)	(S_ISCHR(type) || S_ISBLK(type) || S_ISFIFO(type))
 #define	Z_ISDIR(type)	S_ISDIR(type)
 
-#define	zn_has_cached_data(zp)		((zp)->z_is_mapped)
+#if defined(HAVE_FILEMAP_RANGE_HAS_PAGE)
+#define	zn_has_cached_data(zp, start, end) \
+	filemap_range_has_page(ZTOI(zp)->i_mapping, start, end)
+#else
+#define	zn_has_cached_data(zp, start, end) \
+	((zp)->z_is_mapped)
+#endif
+
 #define	zn_flush_cached_data(zp, sync)	write_inode_now(ZTOI(zp), sync)
 #define	zn_rlimit_fsize(zp, uio)	(0)
 

@@ -188,7 +188,6 @@ typedef struct znode {
 	boolean_t	z_atime_dirty;	/* atime needs to be synced */
 	boolean_t	z_zn_prefetch;	/* Prefetch znodes? */
 	boolean_t	z_is_sa;	/* are we native sa? */
-	boolean_t	z_is_mapped;	/* are we mmap'ed */
 	boolean_t	z_is_ctldir;	/* are we .zfs entry */
 	boolean_t	z_suspended;	/* extra ref from a suspend? */
 	uint_t		z_blksz;	/* block size in bytes */
