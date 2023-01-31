@@ -297,7 +297,7 @@ User: %s
         proc = Popen(privcmd, stdout=PIPE, stderr=PIPE)
         # Allow a special timeout value of 0 to mean infinity
         if int(self.timeout) == 0:
-            self.timeout = sys.maxsize
+            self.timeout = sys.maxsize / (10 ** 9)
         t = Timer(int(self.timeout), self.kill_cmd, [proc])
 
         try:
