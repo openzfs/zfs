@@ -272,18 +272,20 @@ abd_alloc_chunks(abd_t *abd, size_t size)
 	struct page *page, *tmp_page = NULL;
 	gfp_t gfp = __GFP_NOWARN | GFP_NOIO;
 	gfp_t gfp_comp = (gfp | __GFP_NORETRY | __GFP_COMP) & ~__GFP_RECLAIM;
-	int max_order = MIN(zfs_abd_scatter_max_order, MAX_ORDER - 1);
-	int nr_pages = abd_chunkcnt_for_bytes(size);
-	int chunks = 0, zones = 0;
+	unsigned int max_order = MIN(zfs_abd_scatter_max_order, MAX_ORDER - 1);
+	unsigned int nr_pages = abd_chunkcnt_for_bytes(size);
+	unsigned int chunks = 0, zones = 0;
 	size_t remaining_size;
 	int nid = NUMA_NO_NODE;
-	int alloc_pages = 0;
+	unsigned int alloc_pages = 0;
 
 	INIT_LIST_HEAD(&pages);
 
+	ASSERT3U(alloc_pages, <, nr_pages);
+
 	while (alloc_pages < nr_pages) {
-		unsigned chunk_pages;
-		int order;
+		unsigned int chunk_pages;
+		unsigned int order;
 
 		order = MIN(highbit64(nr_pages - alloc_pages) - 1, max_order);
 		chunk_pages = (1U << order);
