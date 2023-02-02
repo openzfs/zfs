@@ -8638,7 +8638,6 @@ main(int argc, char **argv)
 	int i = 0;
 	char *cmdname;
 	char **newargv;
-	extern char **environ;
 
 	(void) setlocale(LC_ALL, "");
 	(void) setlocale(LC_NUMERIC, "C");
