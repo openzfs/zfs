@@ -53,6 +53,11 @@
 /* Windows userland links with OpenSSL */
 #if !defined (_WIN32) || defined (_KERNEL)
 
+/* Apple needs _ */
+#if defined (__APPLE__)
+#define	gcm_avx_can_use_movbe _gcm_avx_can_use_movbe
+#endif
+
 .extern gcm_avx_can_use_movbe
 
 .text

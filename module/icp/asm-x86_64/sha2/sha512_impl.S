@@ -2064,7 +2064,7 @@ ENTRY_NP(SHA512TransformBlocks)
 .cfi_endproc
 SET_SIZE(SHA512TransformBlocks)
 
-.section .rodata
+SECTION_STATIC
 .balign	64
 SET_OBJ(K512)
 K512:
@@ -2113,4 +2113,3 @@ K512:
 #if defined(__ELF__)
 .section .note.GNU-stack,"",%progbits
 #endif
-
