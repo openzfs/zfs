@@ -1422,10 +1422,10 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 	 * Walk through and first unshare everything.
 	 */
 	for (i = 0; i < used; i++) {
-		for (enum sa_protocol i = 0; i < SA_PROTOCOL_COUNT; ++i) {
-			if (sa_is_shared(sets[i].mountpoint, i) &&
+		for (enum sa_protocol p = 0; p < SA_PROTOCOL_COUNT; ++p) {
+			if (sa_is_shared(sets[i].mountpoint, p) &&
 			    unshare_one(hdl, sets[i].mountpoint,
-			    sets[i].mountpoint, i) != 0)
+			    sets[i].mountpoint, p) != 0)
 				goto out;
 		}
 	}
