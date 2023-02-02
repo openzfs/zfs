@@ -84,6 +84,7 @@ typedef struct progress_arg {
 	boolean_t pa_estimate;
 	int pa_verbosity;
 	boolean_t pa_astitle;
+	boolean_t pa_progress;
 	uint64_t pa_size;
 } progress_arg_t;
 
@@ -940,7 +941,7 @@ send_progress_thread(void *arg)
 	struct tm tm;
 	int err;
 
-	if (!pa->pa_parsable && pa->pa_verbosity != 0) {
+	if (!pa->pa_parsable && pa->pa_progress) {
 		(void) fprintf(stderr,
 		    "TIME       %s   %sSNAPSHOT %s\n",
 		    pa->pa_estimate ? "BYTES" : " SENT",
@@ -990,7 +991,7 @@ send_progress_thread(void *arg)
 			(void) fprintf(stderr, "%02d:%02d:%02d\t%llu\t%s\n",
 			    tm.tm_hour, tm.tm_min, tm.tm_sec,
 			    (u_longlong_t)bytes, zhp->zfs_name);
-		} else if (pa->pa_verbosity != 0) {
+		} else if (pa->pa_progress) {
 			zfs_nicebytes(bytes, buf, sizeof (buf));
 			(void) fprintf(stderr, "%02d:%02d:%02d   %5s   %s\n",
 			    tm.tm_hour, tm.tm_min, tm.tm_sec,
@@ -1206,6 +1207,7 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 			pa.pa_verbosity = sdd->verbosity;
 			pa.pa_size = sdd->size;
 			pa.pa_astitle = sdd->progressastitle;
+			pa.pa_progress = sdd->progress;
 
 			if ((err = pthread_create(&tid, NULL,
 			    send_progress_thread, &pa)) != 0) {
@@ -1886,6 +1888,7 @@ zfs_send_resume_impl_cb_impl(libzfs_handle_t *hdl, sendflags_t *flags,
 			pa.pa_verbosity = flags->verbosity;
 			pa.pa_size = size;
 			pa.pa_astitle = flags->progressastitle;
+			pa.pa_progress = flags->progress;
 
 			error = pthread_create(&tid, NULL,
 			    send_progress_thread, &pa);
@@ -2696,6 +2699,7 @@ zfs_send_one_cb_impl(zfs_handle_t *zhp, const char *from, int fd,
 		pa.pa_verbosity = flags->verbosity;
 		pa.pa_size = size;
 		pa.pa_astitle = flags->progressastitle;
+		pa.pa_progress = flags->progress;
 
 		err = pthread_create(&ptid, NULL,
 		    send_progress_thread, &pa);
