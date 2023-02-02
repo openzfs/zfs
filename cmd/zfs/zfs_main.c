@@ -4565,7 +4565,7 @@ zfs_do_send(int argc, char **argv)
 		}
 	}
 
-	if (flags.parsable && flags.verbosity == 0)
+	if ((flags.parsable || flags.progressastitle) && flags.verbosity == 0)
 		flags.verbosity = 1;
 
 	argc -= optind;
