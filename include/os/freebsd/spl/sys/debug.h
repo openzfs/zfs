@@ -84,13 +84,11 @@ spl_assert(const char *buf, const char *file, const char *func, int line)
 }
 
 #ifndef expect
-#define        expect(expr, value) (__builtin_expect((expr), (value)))
+#define	expect(expr, value) (__builtin_expect((expr), (value)))
 #endif
-#ifndef likely
-#define        likely(expr)   expect((expr) != 0, 1)
-#endif
-#ifndef unlikely
-#define        unlikely(expr) expect((expr) != 0, 0)
+#ifndef __linux__
+#define	likely(expr)   expect((expr) != 0, 1)
+#define	unlikely(expr) expect((expr) != 0, 0)
 #endif
 
 #define	PANIC(fmt, a...)						\
@@ -246,10 +244,10 @@ spl_assert(const char *buf, const char *file, const char *func, int line)
 #define	ASSERT3P(x, y, z)						\
 	((void) sizeof ((uintptr_t)(x)), (void) sizeof ((uintptr_t)(z)))
 #define	ASSERT0(x)		((void) sizeof ((uintptr_t)(x)))
-#define	ASSERT3Bf(x, y, z, str, ...)	ASSERT3B(x,y,z)
-#define	ASSERT3Sf(x, y, z, str, ...)	ASSERT3S(x,y,z)
-#define	ASSERT3Uf(x, y, z, str, ...)	ASSERT3U(x,y,z)
-#define	ASSERT3Pf(x, y, z, str, ...)	ASSERT3P(x,y,z)
+#define	ASSERT3Bf(x, y, z, str, ...)	ASSERT3B(x, y, z)
+#define	ASSERT3Sf(x, y, z, str, ...)	ASSERT3S(x, y, z)
+#define	ASSERT3Uf(x, y, z, str, ...)	ASSERT3U(x, y, z)
+#define	ASSERT3Pf(x, y, z, str, ...)	ASSERT3P(x, y, z)
 #define	ASSERT0f(x, str, ...)		ASSERT0(x)
 #define	IMPLY(A, B)							\
 	((void) sizeof ((uintptr_t)(A)), (void) sizeof ((uintptr_t)(B)))
