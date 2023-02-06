@@ -50,15 +50,30 @@
 #ifndef _SPL_DEBUG_H
 #define	_SPL_DEBUG_H
 
-
 /*
  * Common DEBUG functionality.
+ */
+#define	__printflike(a, b)	__printf(a, b)
+
+#ifndef __maybe_unused
+#define	__maybe_unused __attribute__((unused))
+#endif
+
+/*
+ * Without this, we see warnings from objtool during normal Linux builds when
+ * the kernel is built with CONFIG_STACK_VALIDATION=y:
+ *
+ * warning: objtool: tsd_create() falls through to next function __list_add()
+ * warning: objtool: .text: unexpected end of section
+ *
+ * Until the toolchain stops doing this, we must only define this attribute on
+ * spl_panic() when doing static analysis.
  */
 #if defined(__COVERITY__) || defined(__clang_analyzer__)
 __attribute__((__noreturn__))
 #endif
 extern void spl_panic(const char *file, const char *func, int line,
-    const char *fmt, ...) __attribute__((__noreturn__));
+    const char *fmt, ...);
 extern void spl_dumpstack(void);
 
 static inline int
@@ -69,10 +84,14 @@ spl_assert(const char *buf, const char *file, const char *func, int line)
 }
 
 #ifndef expect
-#define	expect(expr, value) (__builtin_expect((expr), (value)))
+#define        expect(expr, value) (__builtin_expect((expr), (value)))
 #endif
-#define	likely(expr)   expect((expr) != 0, 1)
-#define	unlikely(expr) expect((expr) != 0, 0)
+#ifndef likely
+#define        likely(expr)   expect((expr) != 0, 1)
+#endif
+#ifndef unlikely
+#define        unlikely(expr) expect((expr) != 0, 0)
+#endif
 
 #define	PANIC(fmt, a...)						\
 	spl_panic(__FILE__, __FUNCTION__, __LINE__, fmt, ## a)
@@ -100,8 +119,8 @@ spl_assert(const char *buf, const char *file, const char *func, int line)
 		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
 		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
 		    "failed (%lld " #OP " %lld)\n",			\
-		    (long long) (_verify3_left),			\
-		    (long long) (_verify3_right));			\
+		    (long long)(_verify3_left),				\
+		    (long long)(_verify3_right));			\
 	} while (0)
 
 #define	VERIFY3U(LEFT, OP, RIGHT)	do {				\
@@ -111,8 +130,8 @@ spl_assert(const char *buf, const char *file, const char *func, int line)
 		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
 		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
 		    "failed (%llu " #OP " %llu)\n",			\
-		    (unsigned long long) (_verify3_left),		\
-		    (unsigned long long) (_verify3_right));		\
+		    (unsigned long long)(_verify3_left),		\
+		    (unsigned long long)(_verify3_right));		\
 	} while (0)
 
 #define	VERIFY3P(LEFT, OP, RIGHT)	do {				\
@@ -137,6 +156,82 @@ spl_assert(const char *buf, const char *file, const char *func, int line)
 	} while (0)
 
 /*
+ * Note that you should not put any operations you want to always happen
+ * in the print section unless you only want them to run on debug builds!
+ * e.g. VERIFY3Uf(2, <, 3, "%s", foo(x)), foo(x) won't run on non-debug
+ * builds.
+ */
+
+#define	VERIFY3Bf(LEFT, OP, RIGHT, STR, ...)	do {			\
+		const boolean_t _verify3_left = (boolean_t)(LEFT);	\
+		const boolean_t _verify3_right = (boolean_t)(RIGHT);	\
+		if (unlikely(!(_verify3_left OP _verify3_right)))	\
+		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
+		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
+		    "failed (%d " #OP " %d) " STR "\n",			\
+		    (boolean_t)(_verify3_left),				\
+		    (boolean_t)(_verify3_right),			\
+		    __VA_ARGS__);					\
+	} while (0)
+
+#define	VERIFY3Sf(LEFT, OP, RIGHT, STR, ...)	do {			\
+		const int64_t _verify3_left = (int64_t)(LEFT);		\
+		const int64_t _verify3_right = (int64_t)(RIGHT);	\
+		if (unlikely(!(_verify3_left OP _verify3_right)))	\
+		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
+		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
+		    "failed (%lld " #OP " %lld) " STR "\n",		\
+		    (long long)(_verify3_left),				\
+		    (long long)(_verify3_right),			\
+		    __VA_ARGS);						\
+	} while (0)
+
+#define	VERIFY3Uf(LEFT, OP, RIGHT, STR, ...)	do {			\
+		const uint64_t _verify3_left = (uint64_t)(LEFT);	\
+		const uint64_t _verify3_right = (uint64_t)(RIGHT);	\
+		if (unlikely(!(_verify3_left OP _verify3_right)))	\
+		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
+		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
+		    "failed (%llu " #OP " %llu) " STR "\n",		\
+		    (unsigned long long)(_verify3_left),		\
+		    (unsigned long long)(_verify3_right),		\
+		    __VA_ARGS);						\
+	} while (0)
+
+#define	VERIFY3Pf(LEFT, OP, RIGHT, STR, ...)	do {			\
+		const uintptr_t _verify3_left = (uintptr_t)(LEFT);	\
+		const uintptr_t _verify3_right = (uintptr_t)(RIGHT);	\
+		if (unlikely(!(_verify3_left OP _verify3_right)))	\
+		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
+		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
+		    "failed (%px " #OP " %px) " STR "\n",		\
+		    (void *) (_verify3_left),				\
+		    (void *) (_verify3_right),				\
+		    __VA_ARGS__);					\
+	} while (0)
+
+#define	VERIFY0f(RIGHT, STR, ...)	do {				\
+		const int64_t _verify3_left = (int64_t)(0);		\
+		const int64_t _verify3_right = (int64_t)(RIGHT);	\
+		if (unlikely(!(_verify3_left == _verify3_right)))	\
+		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
+		    "VERIFY0(0 == " #RIGHT ") "				\
+		    "failed (0 == %lld) " STR "\n",			\
+		    (long long) (_verify3_right),			\
+		    __VA_ARGS__);					\
+	} while (0)
+
+#define	VERIFY_IMPLY(A, B) \
+	((void)(likely((!(A)) || (B)) ||				\
+	    spl_assert("(" #A ") implies (" #B ")",			\
+	    __FILE__, __FUNCTION__, __LINE__)))
+
+#define	VERIFY_EQUIV(A, B) \
+	((void)(likely(!!(A) == !!(B)) || 				\
+	    spl_assert("(" #A ") is equivalent to (" #B ")",		\
+	    __FILE__, __FUNCTION__, __LINE__)))
+
+/*
  * Debugging disabled (--disable-debug)
  */
 #ifdef NDEBUG
@@ -151,6 +246,11 @@ spl_assert(const char *buf, const char *file, const char *func, int line)
 #define	ASSERT3P(x, y, z)						\
 	((void) sizeof ((uintptr_t)(x)), (void) sizeof ((uintptr_t)(z)))
 #define	ASSERT0(x)		((void) sizeof ((uintptr_t)(x)))
+#define	ASSERT3Bf(x, y, z, str, ...)	ASSERT3B(x,y,z)
+#define	ASSERT3Sf(x, y, z, str, ...)	ASSERT3S(x,y,z)
+#define	ASSERT3Uf(x, y, z, str, ...)	ASSERT3U(x,y,z)
+#define	ASSERT3Pf(x, y, z, str, ...)	ASSERT3P(x,y,z)
+#define	ASSERT0f(x, str, ...)		ASSERT0(x)
 #define	IMPLY(A, B)							\
 	((void) sizeof ((uintptr_t)(A)), (void) sizeof ((uintptr_t)(B)))
 #define	EQUIV(A, B)		\
@@ -166,16 +266,14 @@ spl_assert(const char *buf, const char *file, const char *func, int line)
 #define	ASSERT3U	VERIFY3U
 #define	ASSERT3P	VERIFY3P
 #define	ASSERT0		VERIFY0
+#define	ASSERT3Bf	VERIFY3Bf
+#define	ASSERT3Sf	VERIFY3Sf
+#define	ASSERT3Uf	VERIFY3Uf
+#define	ASSERT3Pf	VERIFY3Pf
+#define	ASSERT0f	VERIFY0f
 #define	ASSERT		VERIFY
-#define	IMPLY(A, B) \
-	((void)(likely((!(A)) || (B)) ||				\
-	    spl_assert("(" #A ") implies (" #B ")",			\
-	    __FILE__, __FUNCTION__, __LINE__)))
-#define	EQUIV(A, B) \
-	((void)(likely(!!(A) == !!(B)) || 				\
-	    spl_assert("(" #A ") is equivalent to (" #B ")",		\
-	    __FILE__, __FUNCTION__, __LINE__)))
-
+#define	IMPLY		VERIFY_IMPLY
+#define	EQUIV		VERIFY_EQUIV
 
 #endif /* NDEBUG */
 
