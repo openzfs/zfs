@@ -1023,6 +1023,8 @@ vdev_draid_map_alloc_row(zio_t *zio, raidz_row_t **rrp, uint64_t io_offset,
 	/* The total number of data and parity sectors for this I/O. */
 	uint64_t tot = psize + (vdc->vdc_nparity * (q + (r == 0 ? 0 : 1)));
 
+	ASSERT3U(vdc->vdc_nparity, >, 0);
+
 	raidz_row_t *rr;
 	rr = kmem_alloc(offsetof(raidz_row_t, rr_col[groupwidth]), KM_SLEEP);
 	rr->rr_cols = groupwidth;
