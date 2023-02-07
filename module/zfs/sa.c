@@ -1201,6 +1201,7 @@ sa_attr_iter(objset_t *os, sa_hdr_phys_t *hdr, dmu_object_type_t type,
 		uint8_t idx_len;
 
 		reg_length = sa->sa_attr_table[tb->lot_attrs[i]].sa_length;
+		IMPLY(reg_length == 0, IS_SA_BONUSTYPE(type));
 		if (reg_length) {
 			attr_length = reg_length;
 			idx_len = 0;
