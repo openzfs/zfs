@@ -2377,7 +2377,8 @@ snprintf_blkptr_compact(char *blkbuf, size_t buflen, const blkptr_t *bp,
 			(void) snprintf(blkbuf + strlen(blkbuf),
 			    buflen - strlen(blkbuf), " %s", "FREE");
 		(void) snprintf(blkbuf + strlen(blkbuf),
-		    buflen - strlen(blkbuf), " cksum=%llx:%llx:%llx:%llx",
+		    buflen - strlen(blkbuf),
+		    " cksum=%016llx:%016llx:%016llx:%016llx",
 		    (u_longlong_t)bp->blk_cksum.zc_word[0],
 		    (u_longlong_t)bp->blk_cksum.zc_word[1],
 		    (u_longlong_t)bp->blk_cksum.zc_word[2],
@@ -8383,7 +8384,9 @@ zdb_read_block(char *thing, spa_t *spa)
 				    DVA_GET_OFFSET(&bp->blk_dva[0]);
 				ck_zio->io_bp = bp;
 				zio_checksum_compute(ck_zio, ck, pabd, lsize);
-				printf("%12s\tcksum=%llx:%llx:%llx:%llx\n",
+				printf(
+				    "%12s\t"
+				    "cksum=%016llx:%016llx:%016llx:%016llx\n",
 				    zio_checksum_table[ck].ci_name,
 				    (u_longlong_t)bp->blk_cksum.zc_word[0],
 				    (u_longlong_t)bp->blk_cksum.zc_word[1],
