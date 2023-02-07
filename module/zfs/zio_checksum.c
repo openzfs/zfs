@@ -423,6 +423,9 @@ zio_checksum_error_impl(spa_t *spa, const blkptr_t *bp,
 
 	zio_checksum_template_init(checksum, spa);
 
+	IMPLY(bp == NULL, ci->ci_flags & ZCHECKSUM_FLAG_EMBEDDED);
+	IMPLY(bp == NULL, checksum == ZIO_CHECKSUM_LABEL);
+
 	if (ci->ci_flags & ZCHECKSUM_FLAG_EMBEDDED) {
 		zio_cksum_t verifier;
 		size_t eck_offset;
