@@ -222,7 +222,7 @@
 #include <sys/zfs_ioctl_impl.h>
 
 kmutex_t zfsdev_state_lock;
-static zfsdev_state_t *zfsdev_state_list;
+static zfsdev_state_t zfsdev_state_listhead;
 
 /*
  * Limit maximum nvlist size.  We don't want users passing in insane values
@@ -7469,7 +7469,7 @@ zfsdev_getminor(zfs_file_t *fp, minor_t *minorp)
 
 	mutex_enter(&zfsdev_state_lock);
 
-	for (zs = zfsdev_state_list; zs != NULL; zs = zs->zs_next) {
+	for (zs = &zfsdev_state_listhead; zs != NULL; zs = zs->zs_next) {
 
 		if (zs->zs_minor == -1)
 			continue;
@@ -7491,7 +7491,7 @@ zfsdev_get_state(minor_t minor, enum zfsdev_state_type which)
 {
 	zfsdev_state_t *zs;
 
-	for (zs = zfsdev_state_list; zs != NULL; zs = zs->zs_next) {
+	for (zs = &zfsdev_state_listhead; zs != NULL; zs = zs->zs_next) {
 		if (zs->zs_minor == minor) {
 			membar_consumer();
 			switch (which) {
@@ -7545,7 +7545,7 @@ zfsdev_state_init(void *priv)
 	if (minor == 0)
 		return (SET_ERROR(ENXIO));
 
-	for (zs = zfsdev_state_list; zs != NULL; zs = zs->zs_next) {
+	for (zs = &zfsdev_state_listhead; zs != NULL; zs = zs->zs_next) {
 		if (zs->zs_minor == -1)
 			break;
 		zsprev = zs;
@@ -7829,8 +7829,7 @@ zfs_kmod_init(void)
 	zfs_ioctl_init();
 
 	mutex_init(&zfsdev_state_lock, NULL, MUTEX_DEFAULT, NULL);
-	zfsdev_state_list = kmem_zalloc(sizeof (zfsdev_state_t), KM_SLEEP);
-	zfsdev_state_list->zs_minor = -1;
+	zfsdev_state_listhead.zs_minor = -1;
 
 	if ((error = zfsdev_attach()) != 0)
 		goto out;
@@ -7857,7 +7856,7 @@ zfs_kmod_fini(void)
 
 	mutex_destroy(&zfsdev_state_lock);
 
-	for (zs = zfsdev_state_list; zs != NULL; zs = zsnext) {
+	for (zs = &zfsdev_state_listhead; zs != NULL; zs = zsnext) {
 		zsnext = zs->zs_next;
 		if (zs->zs_onexit)
 			zfs_onexit_destroy(zs->zs_onexit);
