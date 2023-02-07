@@ -3632,8 +3632,10 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
 	    dn->dn_object != DMU_META_DNODE_OBJECT &&
 	    db->db_state == DB_CACHED && db->db_data_pending) {
 		dbuf_dirty_record_t *dr = db->db_data_pending;
-		if (dr->dt.dl.dr_data == db->db_buf)
+		if (dr->dt.dl.dr_data == db->db_buf) {
+			ASSERT3P(db->db_buf, !=, NULL);
 			dbuf_hold_copy(dn, db);
+		}
 	}
 
 	if (multilist_link_active(&db->db_cache_link)) {
