@@ -1,0 +1,10 @@
+This directory contains some of the original "Intel(R) Intelligent Storage
+Acceleration Library Crypto Version" [1] GCM x86-64 assembly files [2]. They
+are included here for reference purposes only.
+
+These files were ported to the GNU assembler to be used within the ICP. The
+ported version can be found in the isa-l_crypto-ported directory one level up.
+
+
+[1] https://github.com/intel/isa-l_crypto
+[2] https://github.com/intel/isa-l_crypto/tree/v2.24.0/aes

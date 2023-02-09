@@ -1,0 +1,18 @@
+This directory contains the ported "Intel(R) Intelligent Storage Acceleration
+Library Crypto Version" [1] GCM x86-64 assembly files [2]. They were adapted
+for the GNU assembler and translated to AT&T syntax. The later was necessary to
+support LLVM clangs integrated assembler. It was verified that the ported
+versions still pass the GCM tests in the isa-l_crypto source tree. The original
+files can be found in the isa-l_crypto directory one level up.
+
+The ported assembler files where then further adapted to be used within the
+ICP.
+
+The main purpose to include these files (and the original ones) here, is to
+serve as a reference if upstream changes need to be applied to the files
+included and modified in the ICP. They could be used by other projects
+depending on the GNU or LLVM assemblers as a starting point as well.
+
+
+[1] https://github.com/intel/isa-l_crypto
+[2] https://github.com/intel/isa-l_crypto/tree/v2.24.0/aes
