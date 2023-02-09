@@ -40,6 +40,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <getopt.h>
+#include <openssl/evp.h>
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
@@ -785,16 +786,17 @@ usage(void)
 	    "Usage:\t%s [-AbcdDFGhikLMPsvXy] [-e [-V] [-p <path> ...]] "
 	    "[-I <inflight I/Os>]\n"
 	    "\t\t[-o <var>=<value>]... [-t <txg>] [-U <cache>] [-x <dumpdir>]\n"
+	    "\t\t[-K <key>]\n"
 	    "\t\t[<poolname>[/<dataset | objset id>] [<object | range> ...]]\n"
-	    "\t%s [-AdiPv] [-e [-V] [-p <path> ...]] [-U <cache>]\n"
+	    "\t%s [-AdiPv] [-e [-V] [-p <path> ...]] [-U <cache>] [-K <key>]\n"
 	    "\t\t[<poolname>[/<dataset | objset id>] [<object | range> ...]\n"
 	    "\t%s [-v] <bookmark>\n"
 	    "\t%s -C [-A] [-U <cache>]\n"
 	    "\t%s -l [-Aqu] <device>\n"
 	    "\t%s -m [-AFLPX] [-e [-V] [-p <path> ...]] [-t <txg>] "
 	    "[-U <cache>]\n\t\t<poolname> [<vdev> [<metaslab> ...]]\n"
-	    "\t%s -O <dataset> <path>\n"
-	    "\t%s -r <dataset> <path> <destination>\n"
+	    "\t%s -O [-K <key>] <dataset> <path>\n"
+	    "\t%s -r [-K <key>] <dataset> <path> <destination>\n"
 	    "\t%s -R [-A] [-e [-V] [-p <path> ...]] [-U <cache>]\n"
 	    "\t\t<poolname> <vdev>:<offset>:<size>[:<flags>]\n"
 	    "\t%s -E [-A] word0:word1:...:word15\n"
@@ -879,6 +881,8 @@ usage(void)
 	(void) fprintf(stderr, "        -I --inflight=INTEGER        "
 	    "specify the maximum number of checksumming I/Os "
 	    "[default is 200]\n");
+	(void) fprintf(stderr, "        -K --key=KEY                 "
+	    "decryption key for encrypted dataset\n");
 	(void) fprintf(stderr, "        -o --option=\"OPTION=INTEGER\" "
 	    "set global variable to an unsigned 32-bit integer\n");
 	(void) fprintf(stderr, "        -p --path==PATH              "
@@ -3023,6 +3027,117 @@ verify_dd_livelist(objset_t *os)
 	return (0);
 }
 
+static char *key_material = NULL;
+
+static boolean_t
+zdb_derive_key(dsl_dir_t *dd, uint8_t *key_out)
+{
+	uint64_t keyformat, salt, iters;
+	int i;
+	unsigned char c;
+
+	zap_lookup(dd->dd_pool->dp_meta_objset, dd->dd_crypto_obj,
+	    zfs_prop_to_name(ZFS_PROP_KEYFORMAT), sizeof (uint64_t),
+	    1, &keyformat);
+
+	switch (keyformat) {
+	case ZFS_KEYFORMAT_HEX:
+		for (i = 0; i < WRAPPING_KEY_LEN * 2; i += 2) {
+			if (!isxdigit(key_material[i]) ||
+			    !isxdigit(key_material[i+1]))
+				return (B_FALSE);
+			if (sscanf(&key_material[i], "%02hhx", &c) != 1)
+				return (B_FALSE);
+			key_out[i / 2] = c;
+		}
+		break;
+
+	case ZFS_KEYFORMAT_PASSPHRASE:
+		zap_lookup(dd->dd_pool->dp_meta_objset, dd->dd_crypto_obj,
+		    zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT), sizeof (uint64_t),
+		    1, &salt);
+		zap_lookup(dd->dd_pool->dp_meta_objset, dd->dd_crypto_obj,
+		    zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS), sizeof (uint64_t),
+		    1, &iters);
+
+		if (PKCS5_PBKDF2_HMAC_SHA1(key_material, strlen(key_material),
+		    ((uint8_t *)&salt), sizeof (uint64_t), iters,
+		    WRAPPING_KEY_LEN, key_out) != 1)
+			return (B_FALSE);
+
+		break;
+
+	default:
+		fatal("no support for key format %u\n",
+		    (unsigned int) keyformat);
+	}
+
+	return (B_TRUE);
+}
+
+static char encroot[ZFS_MAX_DATASET_NAME_LEN];
+static boolean_t key_loaded = B_FALSE;
+
+static void
+zdb_load_key(objset_t *os)
+{
+	dsl_pool_t *dp;
+	dsl_dir_t *dd, *rdd;
+	uint8_t key[WRAPPING_KEY_LEN];
+	uint64_t rddobj;
+	int err;
+
+	dp = spa_get_dsl(os->os_spa);
+	dd = os->os_dsl_dataset->ds_dir;
+
+	dsl_pool_config_enter(dp, FTAG);
+	zap_lookup(dd->dd_pool->dp_meta_objset, dd->dd_crypto_obj,
+	    DSL_CRYPTO_KEY_ROOT_DDOBJ, sizeof (uint64_t), 1, &rddobj);
+	dsl_dir_hold_obj(dd->dd_pool, rddobj, NULL, FTAG, &rdd);
+	dsl_dir_name(rdd, encroot);
+	dsl_dir_rele(rdd, FTAG);
+
+	if (!zdb_derive_key(dd, key))
+		fatal("couldn't derive encryption key");
+
+	dsl_pool_config_exit(dp, FTAG);
+
+	ASSERT3U(dsl_dataset_get_keystatus(dd), ==, ZFS_KEYSTATUS_UNAVAILABLE);
+
+	dsl_crypto_params_t *dcp;
+	nvlist_t *crypto_args;
+
+	crypto_args = fnvlist_alloc();
+	fnvlist_add_uint8_array(crypto_args, "wkeydata",
+	    (uint8_t *)key, WRAPPING_KEY_LEN);
+	dsl_crypto_params_create_nvlist(DCP_CMD_NONE,
+	    NULL, crypto_args, &dcp);
+	err = spa_keystore_load_wkey(encroot, dcp, B_FALSE);
+
+	dsl_crypto_params_free(dcp, (err != 0));
+	fnvlist_free(crypto_args);
+
+	if (err != 0)
+		fatal(
+		    "couldn't load encryption key for %s: %s",
+		    encroot, strerror(err));
+
+	ASSERT3U(dsl_dataset_get_keystatus(dd), ==, ZFS_KEYSTATUS_AVAILABLE);
+
+	printf("Unlocked encryption root: %s\n", encroot);
+	key_loaded = B_TRUE;
+}
+
+static void
+zdb_unload_key(void)
+{
+	if (!key_loaded)
+		return;
+
+	spa_keystore_unload_wkey(encroot);
+	key_loaded = B_FALSE;
+}
+
 static avl_tree_t idx_tree;
 static avl_tree_t domain_tree;
 static boolean_t fuid_table_loaded;
@@ -3037,12 +3152,36 @@ open_objset(const char *path, const void *tag, objset_t **osp)
 	uint64_t version = 0;
 
 	VERIFY3P(sa_os, ==, NULL);
+
 	/*
 	 * We can't own an objset if it's redacted.  Therefore, we do this
 	 * dance: hold the objset, then acquire a long hold on its dataset, then
 	 * release the pool (which is held as part of holding the objset).
 	 */
-	err = dmu_objset_hold(path, tag, osp);
+
+	if (dump_opt['K']) {
+		/* decryption requested, try to load keys */
+		err = dmu_objset_hold(path, tag, osp);
+		if (err != 0) {
+			(void) fprintf(stderr, "failed to hold dataset "
+			    "'%s': %s\n",
+			    path, strerror(err));
+			return (err);
+		}
+		dsl_dataset_long_hold(dmu_objset_ds(*osp), tag);
+		dsl_pool_rele(dmu_objset_pool(*osp), tag);
+
+		/* succeeds or dies */
+		zdb_load_key(*osp);
+
+		/* release it all */
+		dsl_dataset_long_rele(dmu_objset_ds(*osp), tag);
+		dsl_dataset_rele(dmu_objset_ds(*osp), tag);
+	}
+
+	int ds_hold_flags = key_loaded ? DS_HOLD_FLAG_DECRYPT : 0;
+
+	err = dmu_objset_hold_flags(path, ds_hold_flags, tag, osp);
 	if (err != 0) {
 		(void) fprintf(stderr, "failed to hold dataset '%s': %s\n",
 		    path, strerror(err));
@@ -3051,7 +3190,8 @@ open_objset(const char *path, const void *tag, objset_t **osp)
 	dsl_dataset_long_hold(dmu_objset_ds(*osp), tag);
 	dsl_pool_rele(dmu_objset_pool(*osp), tag);
 
-	if (dmu_objset_type(*osp) == DMU_OST_ZFS && !(*osp)->os_encrypted) {
+	if (dmu_objset_type(*osp) == DMU_OST_ZFS &&
+	    (key_loaded || !(*osp)->os_encrypted)) {
 		(void) zap_lookup(*osp, MASTER_NODE_OBJ, ZPL_VERSION_STR,
 		    8, 1, &version);
 		if (version >= ZPL_VERSION_SA) {
@@ -3064,7 +3204,8 @@ open_objset(const char *path, const void *tag, objset_t **osp)
 			(void) fprintf(stderr, "sa_setup failed: %s\n",
 			    strerror(err));
 			dsl_dataset_long_rele(dmu_objset_ds(*osp), tag);
-			dsl_dataset_rele(dmu_objset_ds(*osp), tag);
+			dsl_dataset_rele_flags(dmu_objset_ds(*osp),
+			    ds_hold_flags, tag);
 			*osp = NULL;
 		}
 	}
@@ -3080,9 +3221,12 @@ close_objset(objset_t *os, const void *tag)
 	if (os->os_sa != NULL)
 		sa_tear_down(os);
 	dsl_dataset_long_rele(dmu_objset_ds(os), tag);
-	dsl_dataset_rele(dmu_objset_ds(os), tag);
+	dsl_dataset_rele_flags(dmu_objset_ds(os),
+	    key_loaded ? DS_HOLD_FLAG_DECRYPT : 0, tag);
 	sa_attr_table = NULL;
 	sa_os = NULL;
+
+	zdb_unload_key();
 }
 
 static void
@@ -3464,7 +3608,7 @@ dump_object(objset_t *os, uint64_t object, int verbosity,
 		if (error)
 			fatal("dmu_object_info() failed, errno %u", error);
 
-		if (os->os_encrypted &&
+		if (!key_loaded && os->os_encrypted &&
 		    DMU_OT_IS_ENCRYPTED(doi.doi_bonus_type)) {
 			error = dnode_hold(os, object, FTAG, &dn);
 			if (error)
@@ -3561,7 +3705,8 @@ dump_object(objset_t *os, uint64_t object, int verbosity,
 			(void) printf("\t\t(bonus encrypted)\n");
 		}
 
-		if (!os->os_encrypted || !DMU_OT_IS_ENCRYPTED(doi.doi_type)) {
+		if (key_loaded ||
+		    (!os->os_encrypted || !DMU_OT_IS_ENCRYPTED(doi.doi_type))) {
 			object_viewer[ZDB_OT_TYPE(doi.doi_type)](os, object,
 			    NULL, 0);
 		} else {
@@ -8516,6 +8661,7 @@ main(int argc, char **argv)
 		{"intent-logs",		no_argument,		NULL, 'i'},
 		{"inflight",		required_argument,	NULL, 'I'},
 		{"checkpointed-state",	no_argument,		NULL, 'k'},
+		{"key",			required_argument,	NULL, 'K'},
 		{"label",		no_argument,		NULL, 'l'},
 		{"disable-leak-tracking",	no_argument,	NULL, 'L'},
 		{"metaslabs",		no_argument,		NULL, 'm'},
@@ -8544,7 +8690,7 @@ main(int argc, char **argv)
 	};
 
 	while ((c = getopt_long(argc, argv,
-	    "AbcCdDeEFGhiI:klLmMNo:Op:PqrRsSt:uU:vVx:XYyZ",
+	    "AbcCdDeEFGhiI:kK:lLmMNo:Op:PqrRsSt:uU:vVx:XYyZ",
 	    long_options, NULL)) != -1) {
 		switch (c) {
 		case 'b':
@@ -8594,6 +8740,12 @@ main(int argc, char **argv)
 				    "than 0\n");
 				usage();
 			}
+			break;
+		case 'K':
+			dump_opt[c]++;
+			key_material = strdup(optarg);
+			/* redact key material in process table */
+			while (*optarg != '\0') { *optarg++ = '*'; }
 			break;
 		case 'o':
 			error = set_global_var(optarg);
@@ -8689,7 +8841,7 @@ main(int argc, char **argv)
 		verbose = MAX(verbose, 1);
 
 	for (c = 0; c < 256; c++) {
-		if (dump_all && strchr("AeEFklLNOPrRSXy", c) == NULL)
+		if (dump_all && strchr("AeEFkKlLNOPrRSXy", c) == NULL)
 			dump_opt[c] = 1;
 		if (dump_opt[c])
 			dump_opt[c] += verbose;

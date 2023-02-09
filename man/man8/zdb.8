@@ -30,12 +30,14 @@
 .Op Fl t Ar txg
 .Op Fl U Ar cache
 .Op Fl x Ar dumpdir
+.Op Fl K Ar key
 .Op Ar poolname Ns Op / Ns Ar dataset Ns | Ns Ar objset-ID
 .Op Ar object Ns | Ns Ar range Ns …
 .Nm
 .Op Fl AdiPv
 .Op Fl e Oo Fl V Oc Oo Fl p Ar path Oc Ns …
 .Op Fl U Ar cache
+.Op Fl K Ar key
 .Ar poolname Ns Op Ar / Ns Ar dataset Ns | Ns Ar objset-ID
 .Op Ar object Ns | Ns Ar range Ns …
 .Nm
@@ -59,9 +61,11 @@
 .Ar poolname Op Ar vdev Oo Ar metaslab Oc Ns …
 .Nm
 .Fl O
+.Op Fl K Ar key
 .Ar dataset path
 .Nm
 .Fl r
+.Op Fl K Ar key
 .Ar dataset path destination
 .Nm
 .Fl R
@@ -418,6 +422,24 @@ The default value is 200.
 This option affects the performance of the
 .Fl c
 option.
+.It Fl K , -key Ns = Ns Ar key
+Decryption key needed to access an encrypted dataset.
+This will cause
+.Nm
+to attempt to unlock the dataset using the encryption root, key format and other
+encryption parameters on the given dataset.
+.Nm
+can still inspect pool and dataset structures on encrypted datasets without
+unlocking them, but will not be able to access file names and attributes and
+object contents. \fBWARNING:\fP The raw decryption key and any decrypted data
+will be in user memory while
+.Nm
+is running.
+Other user programs may be able to extract it by inspecting
+.Nm
+as it runs.
+Exercise extreme caution when using this option in shared or uncontrolled
+environments.
 .It Fl o , -option Ns = Ns Ar var Ns = Ns Ar value Ns …
 Set the given global libzpool variable to the provided value.
 The value must be an unsigned 32-bit integer.
