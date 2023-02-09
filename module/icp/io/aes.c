@@ -1095,7 +1095,6 @@ out:
 	} else if (aes_ctx.ac_flags & (GCM_MODE|GMAC_MODE)) {
 		gcm_clear_ctx((gcm_ctx_t *)&aes_ctx);
 	}
-
 	return (ret);
 }
 

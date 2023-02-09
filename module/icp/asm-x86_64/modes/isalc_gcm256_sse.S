@@ -27,5 +27,10 @@
 //  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //////////////////////////////////////////////////////////////////////////
 
+#if defined(__x86_64__) && defined(HAVE_SSE4_1) && defined(HAVE_AES) && \
+    defined(HAVE_PCLMULQDQ)
+
 #define GCM256_MODE 1
-#include "isalc_gcm_sse_att.S"
+#include "isalc_gcm_sse.S"
+
+#endif

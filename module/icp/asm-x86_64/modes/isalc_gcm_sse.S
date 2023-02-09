@@ -116,30 +116,59 @@
 // for GHASH part, two tabs is for AES part.
 //
 
-// .altmacro
+// Port to GNU as, translation to GNU as att-syntax and adoptions for the ICP
+// Copyright(c) 2023 Attila Fülöp <attila@fueloep.org>
+
 .att_syntax prefix
 
-#include "isalc_reg_sizes_att.S"
-#include "isalc_gcm_defines_att.S"
+#define _ASM
+#include <sys/asm_linkage.h>
 
-#if !defined(GCM128_MODE) && !defined(GCM256_MODE)
+#if !defined(GCM128_MODE) && !defined(GCM192_MODE) && !defined(GCM256_MODE)
 #error "No GCM mode selected for gcm_sse.S!"
 #endif
+
+#if 0
+#ifdef GCM128_MODE
+#define FN_NAME(x,y) ENTRY_NP(icp_isalc_gcm_ ## x ## _128 ## y ## sse)
+//#define FN_NAME(x,y) aes_gcm_ ## x ## _128 ## y ## sse:
+#define NROUNDS 9
+#endif
+
+#ifdef GCM192_MODE
+#define FN_NAME(x,y) ENTRY(icp_isalc_gcm_ ## x ## _192 ## y ## sse)
+#define NROUNDS 11
+#endif
+
+#ifdef GCM256_MODE
+#define FN_NAME(x,y) ENTRY(icp_isalc_gcm_ ## x ## _256 ## y ## sse)
+#define NROUNDS 13
+#endif
+#else
+#ifdef GCM128_MODE
+#define FN_NAME(x,y) icp_isalc_gcm_ ## x ## _128 ## y ## sse
+#define NROUNDS 9
+#endif
+
+#ifdef GCM192_MODE
+#define FN_NAME(x,y) icp_isalc_gcm_ ## x ## _192 ## y ## sse
+#define NROUNDS 11
+#endif
+
+#ifdef GCM256_MODE
+#define FN_NAME(x,y) icp_isalc_gcm_ ## x ## _256 ## y ## sse
+#define NROUNDS 13
+#endif
+#endif
+
+#include "isalc_reg_sizes.S"
+#include "isalc_gcm_defines.S"
+
 
 #if defined(FUNCT_EXTENSION)
 #error "No support for non-temporal versions yet!"
 #endif
 #define	_nt	1
-
-#ifdef GCM128_MODE
-#define FN_NAME(x,y) aes_gcm_ ## x ## _128 ## y ## sse
-#define NROUNDS 9
-#endif
-
-#ifdef GCM256_MODE
-#define FN_NAME(x,y) aes_gcm_ ## x ## _256 ## y ## sse
-#define NROUNDS 13
-#endif
 
 
 // need to push 5 registers into stack to maintain
@@ -235,59 +264,59 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 // PRECOMPUTE: Precompute HashKey_{2..8} and HashKey{,_{2..8}}_k.
-// HasKey_i_k holds XORed values of the low and high parts of the Haskey_i.
+// HashKey_i_k holds XORed values of the low and high parts of the Haskey_i.
 ////////////////////////////////////////////////////////////////////////////////
-.macro PRECOMPUTE GDATA, HK, T1, T2, T3, T4, T5, T6
+.macro PRECOMPUTE HTAB, HK, T1, T2, T3, T4, T5, T6
 
 	movdqa	\HK, \T4
 	pshufd	$0b01001110, \HK, \T1
 	pxor	\HK, \T1
-	movdqu	\T1, HashKey_k(\GDATA)
+	movdqu	\T1, HashKey_k(\HTAB)
 
 
 	GHASH_MUL \T4, \HK, \T1, \T2, \T3, \T5, \T6	//  \T4 = HashKey^2<<1 mod poly
-	movdqu	\T4, HashKey_2(\GDATA)		//  [HashKey_2] = HashKey^2<<1 mod poly
+	movdqu	\T4, HashKey_2(\HTAB)		//  [HashKey_2] = HashKey^2<<1 mod poly
 	pshufd	$0b01001110, \T4, \T1
 	pxor	\T4, \T1
-	movdqu	\T1, HashKey_2_k(\GDATA)
+	movdqu	\T1, HashKey_2_k(\HTAB)
 
 	GHASH_MUL \T4, \HK, \T1, \T2, \T3, \T5, \T6	//  \T4 = HashKey^3<<1 mod poly
-	movdqu	\T4, HashKey_3(\GDATA)
+	movdqu	\T4, HashKey_3(\HTAB)
 	pshufd	$0b01001110, \T4, \T1
 	pxor	\T4, \T1
-	movdqu	\T1, HashKey_3_k(\GDATA)
+	movdqu	\T1, HashKey_3_k(\HTAB)
 
 
 	GHASH_MUL \T4, \HK, \T1, \T2, \T3, \T5, \T6	//  \T4 = HashKey^4<<1 mod poly
-	movdqu	\T4, HashKey_4(\GDATA)
+	movdqu	\T4, HashKey_4(\HTAB)
 	pshufd	$0b01001110, \T4, \T1
 	pxor	\T4, \T1
-	movdqu	\T1, HashKey_4_k(\GDATA)
+	movdqu	\T1, HashKey_4_k(\HTAB)
 
 	GHASH_MUL \T4, \HK, \T1, \T2, \T3, \T5, \T6	//  \T4 = HashKey^5<<1 mod poly
-	movdqu	\T4, HashKey_5(\GDATA)
+	movdqu	\T4, HashKey_5(\HTAB)
 	pshufd	$0b01001110, \T4, \T1
 	pxor	\T4, \T1
-	movdqu	\T1, HashKey_5_k(\GDATA)
+	movdqu	\T1, HashKey_5_k(\HTAB)
 
 
 	GHASH_MUL \T4, \HK, \T1, \T2, \T3, \T5, \T6	//  \T4 = HashKey^6<<1 mod poly
-	movdqu	\T4, HashKey_6(\GDATA)
+	movdqu	\T4, HashKey_6(\HTAB)
 	pshufd	$0b01001110, \T4, \T1
 	pxor	\T4, \T1
-	movdqu	\T1, HashKey_6_k(\GDATA)
+	movdqu	\T1, HashKey_6_k(\HTAB)
 
 	GHASH_MUL \T4, \HK, \T1, \T2, \T3, \T5, \T6	//  \T4 = HashKey^7<<1 mod poly
-	movdqu	\T4, HashKey_7(\GDATA)
+	movdqu	\T4, HashKey_7(\HTAB)
 	pshufd	$0b01001110, \T4, \T1
 	pxor	\T4, \T1
-	movdqu	\T1, HashKey_7_k(\GDATA)
+	movdqu	\T1, HashKey_7_k(\HTAB)
 
 	GHASH_MUL \T4, \HK, \T1, \T2, \T3, \T5, \T6	//  \T4 = HashKey^8<<1 mod poly
-	movdqu  \T4, HashKey_8(\GDATA)
+	movdqu  \T4, HashKey_8(\HTAB)
 	pshufd  $0b01001110, \T4, \T1
 	pxor    \T4, \T1
-	movdqu  \T1, HashKey_8_k(\GDATA)
+	movdqu  \T1, HashKey_8_k(\HTAB)
 
 .endm // PRECOMPUTE
 
@@ -397,7 +426,7 @@ _CALC_AAD_done_\@:
 ////////////////////////////////////////////////////////////////////////////////
 // PARTIAL_BLOCK: Handles encryption/decryption and the tag partial blocks
 // between update calls. Requires the input data be at least 1 byte long.
-// Input: gcm_key_data (GDATA_KEY), gcm_context_data (GDATA_CTX), input text
+// Input: gcm_key_data (GCM_HTAB), gcm_context_data (GDATA_CTX), input text
 // (PLAIN_CYPH_IN), input text length (PLAIN_CYPH_LEN), the current data offset
 // (DATA_OFFSET), and whether encoding or decoding (ENC_DEC).
 // Output: A cypher of the first partial block (CYPH_PLAIN_OUT), and updated
@@ -405,7 +434,7 @@ _CALC_AAD_done_\@:
 // Clobbers rax, r10, r12, r13, r15, xmm0, xmm1, xmm2, xmm3, xmm5, xmm6, xmm9,
 // xmm10, xmm11, xmm13
 ////////////////////////////////////////////////////////////////////////////////
-.macro PARTIAL_BLOCK	GDATA_KEY, GDATA_CTX, CYPH_PLAIN_OUT, PLAIN_CYPH_IN, \
+.macro PARTIAL_BLOCK	GCM_HTAB, GDATA_CTX, CYPH_PLAIN_OUT, PLAIN_CYPH_IN, \
 			PLAIN_CYPH_LEN, DATA_OFFSET, AAD_HASH, ENC_DEC
 
 	// clang compat: no local support
@@ -432,7 +461,7 @@ _data_read_\@:				//Finished reading in data
 
 
 	movdqu	PBlockEncKey(\GDATA_CTX), %xmm9	//xmm9 = ctx_data.partial_block_enc_key
-	movdqu	HashKey(\GDATA_KEY), %xmm13
+	movdqu	HashKey(\GCM_HTAB), %xmm13
 
 	lea	SHIFT_MASK(%rip), %r12
 
@@ -440,7 +469,7 @@ _data_read_\@:				//Finished reading in data
 	movdqu	(%r12), %xmm2		// get the appropriate shuffle mask
 	pshufb	%xmm2, %xmm9		// shift right r13 bytes
 
-	.ifc	\ENC_DEC, DEC
+	.ifc	\ENC_DEC, DEC		// We are decrypting.
 
 	movdqa	%xmm1, %xmm3
 	pxor	%xmm1, %xmm9		// Cyphertext XOR E(K, Yn)
@@ -473,7 +502,7 @@ _partial_incomplete_1_\@:
 _dec_done_\@:
 	movdqu	\AAD_HASH, AadHash(\GDATA_CTX)
 
-	.else	// .ifc \ENC_DEC, DEC
+	.else	// .ifc \ENC_DEC, DEC; We are encrypting.
 
 	pxor	%xmm1, %xmm9		// Plaintext XOR E(K, Yn)
 
@@ -542,11 +571,11 @@ _partial_block_done_\@:
 // INITIAL_BLOCKS: If a = number of total plaintext bytes; b = floor(a/16);
 // \num_initial_blocks = b mod 8;  encrypt the initial \num_initial_blocks
 // blocks and apply ghash on the ciphertext.
-// \GDATA_KEY, \GDATA_CTX, \CYPH_PLAIN_OUT, \PLAIN_CYPH_IN, r14 are used as a
+// \KEYSCHED, \GDATA_CTX, \CYPH_PLAIN_OUT, \PLAIN_CYPH_IN, r14 are used as a
 // pointer only, not modified.
 // Updated AAD_HASH is returned in \T3.
 ////////////////////////////////////////////////////////////////////////////////
-.macro INITIAL_BLOCKS	GDATA_KEY, GDATA_CTX, CYPH_PLAIN_OUT, PLAIN_CYPH_IN, \
+.macro INITIAL_BLOCKS	KEYSCHED, GDATA_CTX, CYPH_PLAIN_OUT, PLAIN_CYPH_IN, \
 			LENGTH, DATA_OFFSET, num_initial_blocks, T1, HASH_KEY, \
 			T3, T4, T5, CTR, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, \
 			XMM7, XMM8, T6, T_key, ENC_DEC
@@ -566,13 +595,13 @@ _partial_block_done_\@:
 .set i, (9-\num_initial_blocks)
 .rept \num_initial_blocks
 		xmmreg	i, %i
-		paddd	ONE(%rip), \CTR			// INCR Y0
+		paddd	ONE(%rip), \CTR		// INCR Y0
 		movdqa	\CTR, xmmi
-		pshufb	SHUF_MASK(%rip), xmmi		// perform a 16Byte swap
+		pshufb	SHUF_MASK(%rip), xmmi	// perform a 16Byte swap
 .set i, (i+1)
 .endr
 
-movdqu	16*0(\GDATA_KEY), \T_key
+movdqu	16*0(\KEYSCHED), \T_key
 .set i, (9-\num_initial_blocks)
 .rept \num_initial_blocks
 		xmmreg	i, %i
@@ -581,8 +610,8 @@ movdqu	16*0(\GDATA_KEY), \T_key
 .endr
 
 .set j, 1
-.rept NROUNDS						// encrypt N blocks with 13 key rounds (11 for GCM192)
-movdqu	16*j(\GDATA_KEY), \T_key
+.rept NROUNDS				// encrypt N blocks with 13 key rounds (11 for GCM192)
+movdqu	16*j(\KEYSCHED), \T_key
 .set i, (9-\num_initial_blocks)
 .rept \num_initial_blocks
 		xmmreg	i, %i
@@ -593,7 +622,7 @@ movdqu	16*j(\GDATA_KEY), \T_key
 .set j, (j+1)
 .endr
 
-movdqu	16*j(\GDATA_KEY), \T_key			// encrypt with last (14th) key round (12 for GCM192)
+movdqu	16*j(\KEYSCHED), \T_key		// encrypt with last (14th) key round (12 for GCM192)
 .set i, (9-\num_initial_blocks)
 .rept \num_initial_blocks
 		xmmreg	i, %i
@@ -668,7 +697,7 @@ movdqu	16*j(\GDATA_KEY), \T_key			// encrypt with last (14th) key round (12 for 
 		movdqa  \CTR, \XMM8
 		pshufb  SHUF_MASK(%rip), \XMM8	// perform a 16Byte swap
 
-		movdqu  16*0(\GDATA_KEY), \T_key
+		movdqu  16*0(\KEYSCHED), \T_key
 		pxor	\T_key, \XMM1
 		pxor	\T_key, \XMM2
 		pxor	\T_key, \XMM3
@@ -680,7 +709,7 @@ movdqu	16*j(\GDATA_KEY), \T_key			// encrypt with last (14th) key round (12 for 
 
 .set i, 1
 .rept    NROUNDS			// do early (13) rounds (11 for GCM192)
-		movdqu  16*i(\GDATA_KEY), \T_key
+		movdqu  16*i(\KEYSCHED), \T_key
 		aesenc	\T_key, \XMM1
 		aesenc	\T_key, \XMM2
 		aesenc	\T_key, \XMM3
@@ -692,7 +721,7 @@ movdqu	16*j(\GDATA_KEY), \T_key			// encrypt with last (14th) key round (12 for 
 .set i, (i+1)
 .endr
 
-		movdqu	16*i(\GDATA_KEY), \T_key	// do final key round
+		movdqu	16*i(\KEYSCHED), \T_key	// do final key round
 		aesenclast	\T_key, \XMM1
 		aesenclast	\T_key, \XMM2
 		aesenclast	\T_key, \XMM3
@@ -780,14 +809,14 @@ _initial_blocks_done_\@:
 ////////////////////////////////////////////////////////////////////////////////
 // GHASH_8_ENCRYPT_8_PARALLEL: Encrypt 8 blocks at a time and ghash the 8
 // previously encrypted ciphertext blocks.
-// \GDATA (KEY), \CYPH_PLAIN_OUT, \PLAIN_CYPH_IN are used as pointers only,
-// not modified.
+// \KEYSCHED, \GCM_HTAB, \CYPH_PLAIN_OUT, \PLAIN_CYPH_IN are used as pointers
+//  only, not modified.
 // \DATA_OFFSET is the data offset value
 ////////////////////////////////////////////////////////////////////////////////
-.macro GHASH_8_ENCRYPT_8_PARALLEL GDATA, CYPH_PLAIN_OUT, PLAIN_CYPH_IN, \
-				  DATA_OFFSET, T1, T2, T3, T4, T5, T6, CTR, \
-				  XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7, \
-				  XMM8, T7, loop_idx, ENC_DEC
+.macro GHASH_8_ENCRYPT_8_PARALLEL KEYSCHED, GCM_HTAB, CYPH_PLAIN_OUT, \
+				  PLAIN_CYPH_IN, DATA_OFFSET, T1, T2, T3, T4, \
+				  T5, T6, CTR, XMM1, XMM2, XMM3, XMM4, XMM5, \
+				  XMM6, XMM7, XMM8, T7, loop_idx, ENC_DEC
 
 
 	movdqa	\XMM1, \T7
@@ -810,10 +839,10 @@ _initial_blocks_done_\@:
 		.else
 		paddd	ONEf(%rip), \CTR			// INCR CNT
 		.endif
-	movdqu	HashKey_8(\GDATA), \T5
+	movdqu	HashKey_8(\GCM_HTAB), \T5
 	pclmulqdq	 $0x11, \T5, \T4		// \T1 = a1*b1
 	pclmulqdq	$0x00, \T5, \T7			// \T7 = a0*b0
-	movdqu	HashKey_8_k(\GDATA), \T5
+	movdqu	HashKey_8_k(\GCM_HTAB), \T5
 	pclmulqdq	$0x00, \T5, \T6			// \T2 = (a1+a0)*(b1+b0)
 		movdqa	\CTR, \XMM1
 
@@ -875,7 +904,7 @@ _initial_blocks_done_\@:
 		.endif	// .ifc \loop_idx, in_order
 	////////////////////////////////////////////////////////////////////////
 
-		movdqu	16*0(\GDATA), \T1
+		movdqu	16*0(\KEYSCHED), \T1
 		pxor	\T1, \XMM1
 		pxor	\T1, \XMM2
 		pxor	\T1, \XMM3
@@ -894,16 +923,16 @@ _initial_blocks_done_\@:
 
 	pshufd	$0b01001110, \T3, \T2
 	pxor	\T3, \T2
-	movdqu	HashKey_7(\GDATA), \T5
+	movdqu	HashKey_7(\GCM_HTAB), \T5
 	pclmulqdq	$0x11, \T5, \T1			// \T1 = a1*b1
 	pclmulqdq	$0x00, \T5, \T3			// \T3 = a0*b0
-	movdqu  HashKey_7_k(\GDATA), \T5
+	movdqu  HashKey_7_k(\GCM_HTAB), \T5
 	pclmulqdq	$0x00, \T5, \T2			// \T2 = (a1+a0)*(b1+b0)
 	pxor	\T1, \T4				// accumulate the results in \T4:\T7, \T6 holds the middle part
 	pxor	\T3, \T7
 	pxor	\T2, \T6
 
-		movdqu	16*1(\GDATA), \T1
+		movdqu	16*1(\KEYSCHED), \T1
 		aesenc	\T1, \XMM1
 		aesenc	\T1, \XMM2
 		aesenc	\T1, \XMM3
@@ -913,7 +942,7 @@ _initial_blocks_done_\@:
 		aesenc	\T1, \XMM7
 		aesenc	\T1, \XMM8
 
-		movdqu	16*2(\GDATA), \T1
+		movdqu	16*2(\KEYSCHED), \T1
 		aesenc	\T1, \XMM1
 		aesenc	\T1, \XMM2
 		aesenc	\T1, \XMM3
@@ -930,16 +959,16 @@ _initial_blocks_done_\@:
 
 	pshufd	$0b01001110, \T3, \T2
 	pxor	\T3, \T2
-	movdqu	HashKey_6(\GDATA), \T5
+	movdqu	HashKey_6(\GCM_HTAB), \T5
 	pclmulqdq	$0x11, \T5, \T1		// \T1 = a1*b1
 	pclmulqdq	$0x00, \T5, \T3		// \T3 = a0*b0
-	movdqu  HashKey_6_k(\GDATA), \T5
+	movdqu  HashKey_6_k(\GCM_HTAB), \T5
 	pclmulqdq	$0x00, \T5, \T2		// \T2 = (a1+a0)*(b1+b0)
 	pxor	\T1, \T4			// accumulate the results in \T4:\T7, \T6 holds the middle part
 	pxor	\T3, \T7
 	pxor	\T2, \T6
 
-		movdqu	16*3(\GDATA), \T1
+		movdqu	16*3(\KEYSCHED), \T1
 		aesenc	\T1, \XMM1
 		aesenc	\T1, \XMM2
 		aesenc	\T1, \XMM3
@@ -954,16 +983,16 @@ _initial_blocks_done_\@:
 
 	pshufd	$0b01001110, \T3, \T2
 	pxor	\T3, \T2
-	movdqu	HashKey_5(\GDATA), \T5
+	movdqu	HashKey_5(\GCM_HTAB), \T5
 	pclmulqdq	$0x11, \T5, \T1		// \T1 = a1*b1
 	pclmulqdq	$0x00, \T5, \T3		// \T3 = a0*b0
-	movdqu  HashKey_5_k(\GDATA), \T5
+	movdqu  HashKey_5_k(\GCM_HTAB), \T5
 	pclmulqdq	$0x00, \T5, \T2		// \T2 = (a1+a0)*(b1+b0)
 	pxor	\T1, \T4			// accumulate the results in \T4:\T7, \T6 holds the middle part
 	pxor	\T3, \T7
 	pxor	\T2, \T6
 
-		movdqu	16*4(\GDATA), \T1
+		movdqu	16*4(\KEYSCHED), \T1
 		aesenc	\T1, \XMM1
 		aesenc	\T1, \XMM2
 		aesenc	\T1, \XMM3
@@ -973,7 +1002,7 @@ _initial_blocks_done_\@:
 		aesenc	\T1, \XMM7
 		aesenc	\T1, \XMM8
 
-		movdqu	16*5(\GDATA), \T1
+		movdqu	16*5(\KEYSCHED), \T1
 		aesenc	\T1, \XMM1
 		aesenc	\T1, \XMM2
 		aesenc	\T1, \XMM3
@@ -988,16 +1017,16 @@ _initial_blocks_done_\@:
 
 	pshufd	$0b01001110, \T3, \T2
 	pxor	\T3, \T2
-	movdqu	HashKey_4(\GDATA), \T5
+	movdqu	HashKey_4(\GCM_HTAB), \T5
 	pclmulqdq	$0x11, \T5, \T1		// \T1 = a1*b1
 	pclmulqdq	$0x00, \T5, \T3		// \T3 = a0*b0
-	movdqu  HashKey_4_k(\GDATA), \T5
+	movdqu  HashKey_4_k(\GCM_HTAB), \T5
 	pclmulqdq	$0x00, \T5, \T2		// \T2 = (a1+a0)*(b1+b0)
 	pxor	\T1, \T4			// accumulate the results in \T4:\T7, \T6 holds the middle part
 	pxor	\T3, \T7
 	pxor	\T2, \T6
 
-		movdqu	16*6(\GDATA), \T1
+		movdqu	16*6(\KEYSCHED), \T1
 		aesenc	\T1, \XMM1
 		aesenc	\T1, \XMM2
 		aesenc	\T1, \XMM3
@@ -1013,16 +1042,16 @@ _initial_blocks_done_\@:
 
 	pshufd	$0b01001110, \T3, \T2
 	pxor	\T3, \T2
-	movdqu	HashKey_3(\GDATA), \T5
+	movdqu	HashKey_3(\GCM_HTAB), \T5
 	pclmulqdq	$0x11, \T5, \T1		// \T1 = a1*b1
 	pclmulqdq	$0x00, \T5, \T3		// \T3 = a0*b0
-	movdqu  HashKey_3_k(\GDATA), \T5
+	movdqu  HashKey_3_k(\GCM_HTAB), \T5
 	pclmulqdq	$0x00, \T5, \T2		// \T2 = (a1+a0)*(b1+b0)
 	pxor	\T1, \T4			// accumulate the results in \T4:\T7, \T6 holds the middle part
 	pxor	\T3, \T7
 	pxor	\T2, \T6
 
-		movdqu	16*7(\GDATA), \T1
+		movdqu	16*7(\KEYSCHED), \T1
 		aesenc	\T1, \XMM1
 		aesenc	\T1, \XMM2
 		aesenc	\T1, \XMM3
@@ -1037,16 +1066,16 @@ _initial_blocks_done_\@:
 
 	pshufd	$0b01001110, \T3, \T2
 	pxor	\T3, \T2
-	movdqu	HashKey_2(\GDATA), \T5
+	movdqu	HashKey_2(\GCM_HTAB), \T5
 	pclmulqdq	$0x11, \T5, \T1			// \T1 = a1*b1
 	pclmulqdq	$0x00, \T5, \T3			// \T3 = a0*b0
-	movdqu  HashKey_2_k(\GDATA), \T5
+	movdqu  HashKey_2_k(\GCM_HTAB), \T5
 	pclmulqdq	$0x00, \T5, \T2			// \T2 = (a1+a0)*(b1+b0)
 	pxor	\T1, \T4				// accumulate the results in \T4:\T7, \T6 holds the middle part
 	pxor	\T3, \T7
 	pxor	\T2, \T6
 
-		movdqu	16*8(\GDATA), \T1
+		movdqu	16*8(\KEYSCHED), \T1
 		aesenc	\T1, \XMM1
 		aesenc	\T1, \XMM2
 		aesenc	\T1, \XMM3
@@ -1066,15 +1095,15 @@ _initial_blocks_done_\@:
 
 	pshufd	$0b01001110, \T3, \T2
 	pxor	\T3, \T2
-	movdqu	HashKey(\GDATA), \T5
+	movdqu	HashKey(\GCM_HTAB), \T5
 	pclmulqdq	$0x11, \T5, \T1		// \T1 = a1*b1
 	pclmulqdq	$0x00, \T5, \T3		// \T3 = a0*b0
-	movdqu  HashKey_k(\GDATA), \T5
+	movdqu  HashKey_k(\GCM_HTAB), \T5
 	pclmulqdq	$0x00, \T5, \T2		// \T2 = (a1+a0)*(b1+b0)
 	pxor	\T3, \T7
 	pxor	\T1, \T4			// accumulate the results in \T4:\T7, \T6 holds the middle part
 
-		movdqu	16*9(\GDATA), \T1
+		movdqu	16*9(\KEYSCHED), \T1
 		aesenc	\T1, \XMM1
 		aesenc	\T1, \XMM2
 		aesenc	\T1, \XMM3
@@ -1086,10 +1115,10 @@ _initial_blocks_done_\@:
 
 
 #ifdef GCM128_MODE
-		movdqu	16*10(\GDATA), \T5
+		movdqu	16*10(\KEYSCHED), \T5
 #endif
 #ifdef GCM192_MODE
-		movdqu	16*10(\GDATA), \T1
+		movdqu	16*10(\KEYSCHED), \T1
 		aesenc	\T1, \XMM1
 		aesenc	\T1, \XMM2
 		aesenc	\T1, \XMM3
@@ -1099,7 +1128,7 @@ _initial_blocks_done_\@:
 		aesenc	\T1, \XMM7
 		aesenc	\T1, \XMM8
 
-		movdqu	16*11(\GDATA), \T1
+		movdqu	16*11(\KEYSCHED), \T1
 		aesenc	\T1, \XMM1
 		aesenc	\T1, \XMM2
 		aesenc	\T1, \XMM3
@@ -1109,10 +1138,10 @@ _initial_blocks_done_\@:
 		aesenc	\T1, \XMM7
 		aesenc	\T1, \XMM8
 
-		movdqu	16*12(\GDATA), \T5	// finish last key round
+		movdqu	16*12(\KEYSCHED), \T5	// finish last key round
 #endif
 #ifdef GCM256_MODE
-		movdqu	16*10(\GDATA), \T1
+		movdqu	16*10(\KEYSCHED), \T1
 		aesenc	\T1, \XMM1
 		aesenc	\T1, \XMM2
 		aesenc	\T1, \XMM3
@@ -1122,7 +1151,7 @@ _initial_blocks_done_\@:
 		aesenc	\T1, \XMM7
 		aesenc	\T1, \XMM8
 
-		movdqu	16*11(\GDATA), \T1
+		movdqu	16*11(\KEYSCHED), \T1
 		aesenc	\T1, \XMM1
 		aesenc	\T1, \XMM2
 		aesenc	\T1, \XMM3
@@ -1132,7 +1161,7 @@ _initial_blocks_done_\@:
 		aesenc	\T1, \XMM7
 		aesenc	\T1, \XMM8
 
-		movdqu	16*12(\GDATA), \T1
+		movdqu	16*12(\KEYSCHED), \T1
 		aesenc	\T1, \XMM1
 		aesenc	\T1, \XMM2
 		aesenc	\T1, \XMM3
@@ -1142,7 +1171,7 @@ _initial_blocks_done_\@:
 		aesenc	\T1, \XMM7
 		aesenc	\T1, \XMM8
 
-		movdqu	16*13(\GDATA), \T1
+		movdqu	16*13(\KEYSCHED), \T1
 		aesenc	\T1, \XMM1
 		aesenc	\T1, \XMM2
 		aesenc	\T1, \XMM3
@@ -1152,7 +1181,7 @@ _initial_blocks_done_\@:
 		aesenc	\T1, \XMM7
 		aesenc	\T1, \XMM8
 
-	movdqu	16*14(\GDATA), \T5		// finish last key round
+	movdqu	16*14(\KEYSCHED), \T5		// finish last key round
 #endif
 
 .altmacro
@@ -1242,7 +1271,7 @@ _initial_blocks_done_\@:
 ////////////////////////////////////////////////////////////////////////////////
 // GHASH_LAST_8: GHASH the last 8 ciphertext blocks.
 ////////////////////////////////////////////////////////////////////////////////
-.macro	GHASH_LAST_8	GDATA, T1, T2, T3, T4, T5, T6, T7, \
+.macro	GHASH_LAST_8	GCM_HTAB, T1, T2, T3, T4, T5, T6, T7, \
 			XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7, XMM8
 
 
@@ -1250,11 +1279,11 @@ _initial_blocks_done_\@:
 	movdqa	\XMM1, \T6
 	pshufd	$0b01001110,  \XMM1, \T2
 	pxor	\XMM1, \T2
-	movdqu	HashKey_8(\GDATA), \T5
+	movdqu	HashKey_8(\GCM_HTAB), \T5
 	pclmulqdq	$0x11, \T5, \T6		// \T6 = a1*b1
 
 	pclmulqdq	$0x00, \T5, \XMM1	// \XMM1 = a0*b0
-	movdqu	HashKey_8_k(\GDATA), \T4
+	movdqu	HashKey_8_k(\GCM_HTAB), \T4
 	pclmulqdq	$0x00, \T4, \T2		// \T2 = (a1+a0)*(b1+b0)
 
 	movdqa	\XMM1, \T7
@@ -1264,11 +1293,11 @@ _initial_blocks_done_\@:
 	movdqa	\XMM2, \T1
 	pshufd	$0b01001110,  \XMM2, \T2
 	pxor	\XMM2, \T2
-	movdqu	HashKey_7(\GDATA), \T5
+	movdqu	HashKey_7(\GCM_HTAB), \T5
 	pclmulqdq	$0x11, \T5, \T1		// \T1 = a1*b1
 
 	pclmulqdq	$0x00, \T5, \XMM2	// \XMM2 = a0*b0
-	movdqu	HashKey_7_k(\GDATA), \T4
+	movdqu	HashKey_7_k(\GCM_HTAB), \T4
 	pclmulqdq	$0x00, \T4, \T2		// \T2 = (a1+a0)*(b1+b0)
 
 	pxor	\T1, \T6
@@ -1279,11 +1308,11 @@ _initial_blocks_done_\@:
 	movdqa	\XMM3, \T1
 	pshufd	$0b01001110,  \XMM3, \T2
 	pxor	\XMM3, \T2
-	movdqu	HashKey_6(\GDATA), \T5
+	movdqu	HashKey_6(\GCM_HTAB), \T5
 	pclmulqdq	$0x11, \T5, \T1		// \T1 = a1*b1
 
 	pclmulqdq	$0x00, \T5, \XMM3	// \XMM3 = a0*b0
-	movdqu	HashKey_6_k(\GDATA), \T4
+	movdqu	HashKey_6_k(\GCM_HTAB), \T4
 	pclmulqdq	$0x00, \T4, \T2		// \T2 = (a1+a0)*(b1+b0)
 
 	pxor	\T1, \T6
@@ -1294,11 +1323,11 @@ _initial_blocks_done_\@:
 	movdqa	\XMM4, \T1
 	pshufd	$0b01001110,  \XMM4, \T2
 	pxor	\XMM4, \T2
-	movdqu	HashKey_5(\GDATA), \T5
+	movdqu	HashKey_5(\GCM_HTAB), \T5
 	pclmulqdq	$0x11, \T5, \T1		// \T1 = a1*b1
 
 	pclmulqdq	$0x00, \T5, \XMM4	// \XMM4 = a0*b0
-	movdqu	HashKey_5_k(\GDATA), \T4
+	movdqu	HashKey_5_k(\GCM_HTAB), \T4
 	pclmulqdq	$0x00, \T4, \T2		// \T2 = (a1+a0)*(b1+b0)
 
 	pxor	\T1, \T6
@@ -1309,11 +1338,11 @@ _initial_blocks_done_\@:
 	movdqa	\XMM5, \T1
 	pshufd	$0b01001110,  \XMM5, \T2
 	pxor	\XMM5, \T2
-	movdqu	HashKey_4(\GDATA), \T5
+	movdqu	HashKey_4(\GCM_HTAB), \T5
 	pclmulqdq	$0x11, \T5, \T1		// \T1 = a1*b1
 
 	pclmulqdq	$0x00, \T5, \XMM5	// \XMM5 = a0*b0
-	movdqu	HashKey_4_k(\GDATA), \T4
+	movdqu	HashKey_4_k(\GCM_HTAB), \T4
 	pclmulqdq	$0x00, \T4, \T2		// \T2 = (a1+a0)*(b1+b0)
 
 	pxor	\T1, \T6
@@ -1324,11 +1353,11 @@ _initial_blocks_done_\@:
 	movdqa	\XMM6, \T1
 	pshufd	$0b01001110,  \XMM6, \T2
 	pxor	\XMM6, \T2
-	movdqu	HashKey_3(\GDATA), \T5
+	movdqu	HashKey_3(\GCM_HTAB), \T5
 	pclmulqdq	$0x11, \T5, \T1		// \T1 = a1*b1
 
 	pclmulqdq	$0x00, \T5, \XMM6	// \XMM6 = a0*b0
-	movdqu	HashKey_3_k(\GDATA), \T4
+	movdqu	HashKey_3_k(\GCM_HTAB), \T4
 	pclmulqdq	$0x00, \T4, \T2		// \T2 = (a1+a0)*(b1+b0)
 
 	pxor	\T1, \T6
@@ -1339,11 +1368,11 @@ _initial_blocks_done_\@:
 	movdqa	\XMM7, \T1
 	pshufd	$0b01001110,  \XMM7, \T2
 	pxor	\XMM7, \T2
-	movdqu	HashKey_2(\GDATA), \T5
+	movdqu	HashKey_2(\GCM_HTAB), \T5
 	pclmulqdq	$0x11, \T5, \T1		// \T1 = a1*b1
 
 	pclmulqdq	$0x00, \T5, \XMM7	// \XMM7 = a0*b0
-	movdqu	HashKey_2_k(\GDATA), \T4
+	movdqu	HashKey_2_k(\GCM_HTAB), \T4
 	pclmulqdq	$0x00, \T4, \T2		// \T2 = (a1+a0)*(b1+b0)
 
 	pxor	\T1, \T6
@@ -1355,11 +1384,11 @@ _initial_blocks_done_\@:
 	movdqa	\XMM8, \T1
 	pshufd	$0b01001110,  \XMM8, \T2
 	pxor	\XMM8, \T2
-	movdqu	HashKey(\GDATA), \T5
+	movdqu	HashKey(\GCM_HTAB), \T5
 	pclmulqdq	$0x11, \T5, \T1		// \T1 = a1*b1
 
 	pclmulqdq	$0x00, \T5, \XMM8	// \XMM8 = a0*b0
-	movdqu	HashKey_k(\GDATA), \T4
+	movdqu	HashKey_k(\GCM_HTAB), \T4
 	pclmulqdq	$0x00, \T4, \T2		// \T2 = (a1+a0)*(b1+b0)
 
 	pxor	\T1, \T6
@@ -1414,19 +1443,19 @@ _initial_blocks_done_\@:
 ////////////////////////////////////////////////////////////////////////////////
 // ENCRYPT_SINGLE_BLOCK: Encrypt a single block.
 ////////////////////////////////////////////////////////////////////////////////
-.macro ENCRYPT_SINGLE_BLOCK	GDATA, ST, T1
+.macro ENCRYPT_SINGLE_BLOCK	KEYSCHED, ST, T1
 
-		movdqu	16*0(\GDATA), \T1
+		movdqu	16*0(\KEYSCHED), \T1
 		pxor	\T1, \ST
 
 .set i, 1
 .rept NROUNDS
-		movdqu	16*i(\GDATA), \T1
+		movdqu	16*i(\KEYSCHED), \T1
 		aesenc	\T1, \ST
 
 .set i, (i+1)
 .endr
-		movdqu	16*i(\GDATA), \T1
+		movdqu	16*i(\KEYSCHED), \T1
 		aesenclast	\T1, \ST
 .endm // ENCRYPT_SINGLE_BLOCK
 
@@ -1437,92 +1466,67 @@ _initial_blocks_done_\@:
 .macro FUNC_SAVE
 	//// Required for Update/GMC_ENC
 	//the number of pushes must equal STACK_OFFSET
-	push    %r12
-	push    %r13
-	push    %r14
-	push    %r15
-	push    %rsi
-	mov	%rsp, %r14
+	CFI_PUSHQ	%r12, -16
+	CFI_PUSHQ	%r13, -24
+	CFI_PUSHQ	%r14, -32
+	CFI_PUSHQ	%r15, -40
+	CFI_PUSHQ	%rsi, -48	// XXXX Why push %rsi ????
+	mov		%rsp, %r14
+	.cfi_def_cfa_register	%r14
 
 	sub	$(VARIABLE_OFFSET), %rsp
 	and	$~63, %rsp
 
-#if __OUTPUT_FORMAT__ == win64
-	// xmm6:xmm15 need to be maintained for Windows
-	movdqu	%xmm6, (LOCAL_STORAGE + 0*16)(%rsp)
-	movdqu	%xmm7, (LOCAL_STORAGE + 1*16)(%rsp)
-	movdqu	%xmm8, (LOCAL_STORAGE + 2*16)(%rsp)
-	movdqu	%xmm9, (LOCAL_STORAGE + 3*16)(%rsp)
-	movdqu	%xmm10, (LOCAL_STORAGE + 4*16)(%rsp)
-	movdqu	%xmm11, (LOCAL_STORAGE + 5*16)(%rsp)
-	movdqu	%xmm12, (LOCAL_STORAGE + 6*16)(%rsp)
-	movdqu	%xmm13, (LOCAL_STORAGE + 7*16)(%rsp)
-	movdqu	%xmm14, (LOCAL_STORAGE + 8*16)(%rsp)
-	movdqu	%xmm15, (LOCAL_STORAGE + 9*16)(%rsp)
-
-	mov	arg(5), arg5  // XXXX [r14 + STACK_OFFSET + 8*5]
-#endif
 .endm // FUNC_SAVE
 
 ////////////////////////////////////////////////////////////////////////////////
 // FUNC_RESTORE: Restore clobbered regs from the stack.
 ////////////////////////////////////////////////////////////////////////////////
 .macro FUNC_RESTORE
-
-#if __OUTPUT_FORMAT__ == win64
-	movdqu	(LOCAL_STORAGE + 9*16)(%rsp), %xmm15
-	movdqu	(LOCAL_STORAGE + 8*16)(%rsp), %xmm14
-	movdqu	(LOCAL_STORAGE + 7*16)(%rsp), %xmm13
-	movdqu	(LOCAL_STORAGE + 6*16)(%rsp), %xmm12
-	movdqu	(LOCAL_STORAGE + 5*16)(%rsp), %xmm11
-	movdqu	(LOCAL_STORAGE + 4*16)(%rsp), %xmm10
-	movdqu	(LOCAL_STORAGE + 3*16)(%rsp), %xmm9
-	movdqu	(LOCAL_STORAGE + 2*16)(%rsp), %xmm8
-	movdqu	(LOCAL_STORAGE + 1*16)(%rsp), %xmm7
-	movdqu	(LOCAL_STORAGE + 0*16)(%rsp), %xmm6
-#endif
-
 	// Required for Update/GMC_ENC
-	mov	%r14, %rsp
-	pop	%rsi
-	pop	%r15
-	pop	%r14
-	pop	%r13
-	pop	%r12
+	mov		%r14, %rsp
+	.cfi_def_cfa_register	%rsp
+	CFI_POPQ	%rsi
+	CFI_POPQ	%r15
+	CFI_POPQ	%r14
+	CFI_POPQ	%r13
+	CFI_POPQ	%r12
 .endm // FUNC_RESTORE
 
 
 ////////////////////////////////////////////////////////////////////////////////
 // GCM_INIT: Initializes a gcm_context_data struct to prepare for
 // encoding/decoding.
-// Input: gcm_key_data * (GDATA_KEY), gcm_context_data *(GDATA_CTX), IV,
+// Input: gcm_ctx->gcm_Htable *(GCM_HTAB), gcm_ctx_t *(GDATA_CTX), IV,
 // Additional Authentication data (A_IN), Additional Data length (A_LEN).
 // Output: Updated GDATA_CTX with the hash of A_IN (AadHash) and initialized
-// other parts of GDATA.
+// other parts of GDATA_CTX.
 // Clobbers rax, r10-r13 and xmm0-xmm6
 ////////////////////////////////////////////////////////////////////////////////
-.macro  GCM_INIT	GDATA_KEY, GDATA_CTX, IV, A_IN, A_LEN
+.macro  GCM_INIT	GCM_HTAB, GDATA_CTX, IV, A_IN, A_LEN, TAG_LEN
 
 #define AAD_HASH	%xmm0
 #define SUBHASH		%xmm1
 
-	movdqu  HashKey(\GDATA_KEY), SUBHASH
+	movdqu  HashKey(\GCM_HTAB), SUBHASH
 
 	CALC_AAD_HASH \A_IN, \A_LEN, AAD_HASH, SUBHASH, %xmm2, %xmm3, %xmm4, %xmm5, %xmm6, %r10, %r11, %r12, %r13, %rax
 	pxor	%xmm3, %xmm2
-	mov	\A_LEN, %r10
+	movq	\A_LEN, %r10			// %r10 = AAD length
 
-	movdqu	AAD_HASH, AadHash(\GDATA_CTX)	// ctx_data.aad hash = aad_hash
-	mov	%r10, AadLen(\GDATA_CTX)		// ctx_data.aad_length = aad_length
+	movdqu	AAD_HASH, AadHash(\GDATA_CTX)	// gcm_ctx.gcm_ghash = aad_hash
+	movq	%r10, AadLen(\GDATA_CTX)	// gcm_ctx->gcm_len_a_len_c[0] = aad_length
+	movq	\TAG_LEN, %r10			// %r10 = aad_tag_len
+	movq	%r10, TagLen(\GDATA_CTX)	// gcm_ctx->gcm_tag_len = aad_tag_len
 	xor	%r10, %r10
-	mov	%r10, InLen(\GDATA_CTX)		// ctx_data.in_length = 0
-	mov	 %r10, PBlockLen(\GDATA_CTX)	// ctx_data.partial_block_length = 0
-	movdqu	%xmm2, PBlockEncKey(\GDATA_CTX)	// ctx_data.partial_block_enc_key = 0
-	mov	\IV, %r10
-	movdqa  ONEf(%rip), %xmm2			// read 12 IV bytes and pad with 0x00000001
+	movq	%r10, InLen(\GDATA_CTX)		// gcm_ctx.gcm_processed_data_len = 0
+	movq	%r10, PBlockLen(\GDATA_CTX)	// gcm_ctx.gcm_remainder_len = 0
+	movdqu	%xmm2, PBlockEncKey(\GDATA_CTX)	// XXXX last counter block ???? gcm_ctx.gcm_remainder = 0
+	movq	\IV, %r10
+	movdqa  ONEf(%rip), %xmm2		// read 12 IV bytes and pad with 0x00000001
 	pinsrq  $0, (%r10), %xmm2
 	pinsrd  $2, 8(%r10), %xmm2
-	movdqu	%xmm2, OrigIV(\GDATA_CTX)	// ctx_data.orig_IV = iv
+	movdqu	%xmm2, OrigIV(\GDATA_CTX)	// gcm_ctx.gcm_J0 = CTR0
 
 	pshufb	SHUF_MASK(%rip), %xmm2
 
@@ -1535,15 +1539,15 @@ _initial_blocks_done_\@:
 // gcm_context_data struct has been initialized by GCM_INIT.
 // Requires the input data be at least 1 byte long because of
 // READ_SMALL_INPUT_DATA.
-// Input: gcm_key_data * (GDATA_KEY), gcm_context_data (GDATA_CTX),
+// Input: gcm_key_data * (KEYSCHED, GCM_HTAB), gcm_context_data (GDATA_CTX),
 // input text (PLAIN_CYPH_IN), input text length (PLAIN_CYPH_LEN) and whether
 // encoding or decoding (ENC_DEC).
 // Output: A cypher of the given plain text (CYPH_PLAIN_OUT), and updated
 // GDATA_CTX
 // Clobbers rax, r10-r15, and xmm0-xmm15
 ////////////////////////////////////////////////////////////////////////////////
-.macro	GCM_ENC_DEC	GDATA_KEY, GDATA_CTX, CYPH_PLAIN_OUT, PLAIN_CYPH_IN, \
-			PLAIN_CYPH_LEN, ENC_DEC
+.macro	GCM_ENC_DEC	KEYSCHED, GCM_HTAB, GDATA_CTX, CYPH_PLAIN_OUT, \
+			PLAIN_CYPH_IN, PLAIN_CYPH_LEN, ENC_DEC
 
 #define	DATA_OFFSET		%r11
 
@@ -1567,11 +1571,10 @@ _initial_blocks_done_\@:
 
 	xor	DATA_OFFSET, DATA_OFFSET
 	add	\PLAIN_CYPH_LEN, InLen(\GDATA_CTX)	//Update length of data processed
-	movdqu	HashKey(\GDATA_KEY), %xmm13		// xmm13 = HashKey
+	movdqu	HashKey(\GCM_HTAB), %xmm13		// xmm13 = HashKey
 	movdqu	AadHash(\GDATA_CTX), %xmm8
 
-
-	PARTIAL_BLOCK \GDATA_KEY, \GDATA_CTX, \CYPH_PLAIN_OUT, \PLAIN_CYPH_IN, \PLAIN_CYPH_LEN, DATA_OFFSET, %xmm8, \ENC_DEC
+	PARTIAL_BLOCK \GCM_HTAB, \GDATA_CTX, \CYPH_PLAIN_OUT, \PLAIN_CYPH_IN, \PLAIN_CYPH_LEN, DATA_OFFSET, %xmm8, \ENC_DEC
 
 	mov	\PLAIN_CYPH_LEN, %r13                                // save the number of bytes of plaintext/ciphertext
 	sub	DATA_OFFSET, %r13
@@ -1600,42 +1603,42 @@ _initial_blocks_done_\@:
 	jmp     _initial_num_blocks_is_1_\@
 
 _initial_num_blocks_is_7_\@:
-	INITIAL_BLOCKS	\GDATA_KEY, \GDATA_CTX, \CYPH_PLAIN_OUT, \PLAIN_CYPH_IN, %r13, DATA_OFFSET, 7, %xmm12, %xmm13, %xmm14, %xmm15, %xmm11, %xmm9, %xmm1, %xmm2, %xmm3, %xmm4, %xmm5, %xmm6, %xmm7, %xmm8, %xmm10, %xmm0, \ENC_DEC
+	INITIAL_BLOCKS	\KEYSCHED, \GDATA_CTX, \CYPH_PLAIN_OUT, \PLAIN_CYPH_IN, %r13, DATA_OFFSET, 7, %xmm12, %xmm13, %xmm14, %xmm15, %xmm11, %xmm9, %xmm1, %xmm2, %xmm3, %xmm4, %xmm5, %xmm6, %xmm7, %xmm8, %xmm10, %xmm0, \ENC_DEC
 	sub	$(16*7), %r13
 	jmp     _initial_blocks_encrypted_\@
 
 _initial_num_blocks_is_6_\@:
-	INITIAL_BLOCKS	\GDATA_KEY, \GDATA_CTX, \CYPH_PLAIN_OUT, \PLAIN_CYPH_IN, %r13, DATA_OFFSET, 6, %xmm12, %xmm13, %xmm14, %xmm15, %xmm11, %xmm9, %xmm1, %xmm2, %xmm3, %xmm4, %xmm5, %xmm6, %xmm7, %xmm8, %xmm10, %xmm0, \ENC_DEC
+	INITIAL_BLOCKS	\KEYSCHED, \GDATA_CTX, \CYPH_PLAIN_OUT, \PLAIN_CYPH_IN, %r13, DATA_OFFSET, 6, %xmm12, %xmm13, %xmm14, %xmm15, %xmm11, %xmm9, %xmm1, %xmm2, %xmm3, %xmm4, %xmm5, %xmm6, %xmm7, %xmm8, %xmm10, %xmm0, \ENC_DEC
 	sub	$(16*6), %r13
 	jmp     _initial_blocks_encrypted_\@
 
 _initial_num_blocks_is_5_\@:
-	INITIAL_BLOCKS	\GDATA_KEY, \GDATA_CTX, \CYPH_PLAIN_OUT, \PLAIN_CYPH_IN, %r13, DATA_OFFSET, 5, %xmm12, %xmm13, %xmm14, %xmm15, %xmm11, %xmm9, %xmm1, %xmm2, %xmm3, %xmm4, %xmm5, %xmm6, %xmm7, %xmm8, %xmm10, %xmm0, \ENC_DEC
+	INITIAL_BLOCKS	\KEYSCHED, \GDATA_CTX, \CYPH_PLAIN_OUT, \PLAIN_CYPH_IN, %r13, DATA_OFFSET, 5, %xmm12, %xmm13, %xmm14, %xmm15, %xmm11, %xmm9, %xmm1, %xmm2, %xmm3, %xmm4, %xmm5, %xmm6, %xmm7, %xmm8, %xmm10, %xmm0, \ENC_DEC
 	sub	$(16*5), %r13
 	jmp     _initial_blocks_encrypted_\@
 
 _initial_num_blocks_is_4_\@:
-	INITIAL_BLOCKS	\GDATA_KEY, \GDATA_CTX, \CYPH_PLAIN_OUT, \PLAIN_CYPH_IN, %r13, DATA_OFFSET, 4, %xmm12, %xmm13, %xmm14, %xmm15, %xmm11, %xmm9, %xmm1, %xmm2, %xmm3, %xmm4, %xmm5, %xmm6, %xmm7, %xmm8, %xmm10, %xmm0, \ENC_DEC
+	INITIAL_BLOCKS	\KEYSCHED, \GDATA_CTX, \CYPH_PLAIN_OUT, \PLAIN_CYPH_IN, %r13, DATA_OFFSET, 4, %xmm12, %xmm13, %xmm14, %xmm15, %xmm11, %xmm9, %xmm1, %xmm2, %xmm3, %xmm4, %xmm5, %xmm6, %xmm7, %xmm8, %xmm10, %xmm0, \ENC_DEC
 	sub	$(16*4), %r13
 	jmp     _initial_blocks_encrypted_\@
 
 _initial_num_blocks_is_3_\@:
-	INITIAL_BLOCKS	\GDATA_KEY, \GDATA_CTX, \CYPH_PLAIN_OUT, \PLAIN_CYPH_IN, %r13, DATA_OFFSET, 3, %xmm12, %xmm13, %xmm14, %xmm15, %xmm11, %xmm9, %xmm1, %xmm2, %xmm3, %xmm4, %xmm5, %xmm6, %xmm7, %xmm8, %xmm10, %xmm0, \ENC_DEC
+	INITIAL_BLOCKS	\KEYSCHED, \GDATA_CTX, \CYPH_PLAIN_OUT, \PLAIN_CYPH_IN, %r13, DATA_OFFSET, 3, %xmm12, %xmm13, %xmm14, %xmm15, %xmm11, %xmm9, %xmm1, %xmm2, %xmm3, %xmm4, %xmm5, %xmm6, %xmm7, %xmm8, %xmm10, %xmm0, \ENC_DEC
 	sub	$(16*3), %r13
 	jmp     _initial_blocks_encrypted_\@
 
 _initial_num_blocks_is_2_\@:
-	INITIAL_BLOCKS	\GDATA_KEY, \GDATA_CTX, \CYPH_PLAIN_OUT, \PLAIN_CYPH_IN, %r13, DATA_OFFSET, 2, %xmm12, %xmm13, %xmm14, %xmm15, %xmm11, %xmm9, %xmm1, %xmm2, %xmm3, %xmm4, %xmm5, %xmm6, %xmm7, %xmm8, %xmm10, %xmm0, \ENC_DEC
+	INITIAL_BLOCKS	\KEYSCHED, \GDATA_CTX, \CYPH_PLAIN_OUT, \PLAIN_CYPH_IN, %r13, DATA_OFFSET, 2, %xmm12, %xmm13, %xmm14, %xmm15, %xmm11, %xmm9, %xmm1, %xmm2, %xmm3, %xmm4, %xmm5, %xmm6, %xmm7, %xmm8, %xmm10, %xmm0, \ENC_DEC
 	sub	$(16*2), %r13
 	jmp     _initial_blocks_encrypted_\@
 
 _initial_num_blocks_is_1_\@:
-	INITIAL_BLOCKS	\GDATA_KEY, \GDATA_CTX, \CYPH_PLAIN_OUT, \PLAIN_CYPH_IN, %r13, DATA_OFFSET, 1, %xmm12, %xmm13, %xmm14, %xmm15, %xmm11, %xmm9, %xmm1, %xmm2, %xmm3, %xmm4, %xmm5, %xmm6, %xmm7, %xmm8, %xmm10, %xmm0, \ENC_DEC
+	INITIAL_BLOCKS	\KEYSCHED, \GDATA_CTX, \CYPH_PLAIN_OUT, \PLAIN_CYPH_IN, %r13, DATA_OFFSET, 1, %xmm12, %xmm13, %xmm14, %xmm15, %xmm11, %xmm9, %xmm1, %xmm2, %xmm3, %xmm4, %xmm5, %xmm6, %xmm7, %xmm8, %xmm10, %xmm0, \ENC_DEC
 	sub	$(16*1), %r13
 	jmp     _initial_blocks_encrypted_\@
 
 _initial_num_blocks_is_0_\@:
-	INITIAL_BLOCKS	\GDATA_KEY, \GDATA_CTX, \CYPH_PLAIN_OUT, \PLAIN_CYPH_IN, %r13, DATA_OFFSET, 0, %xmm12, %xmm13, %xmm14, %xmm15, %xmm11, %xmm9, %xmm1, %xmm2, %xmm3, %xmm4, %xmm5, %xmm6, %xmm7, %xmm8, %xmm10, %xmm0, \ENC_DEC
+	INITIAL_BLOCKS	\KEYSCHED, \GDATA_CTX, \CYPH_PLAIN_OUT, \PLAIN_CYPH_IN, %r13, DATA_OFFSET, 0, %xmm12, %xmm13, %xmm14, %xmm15, %xmm11, %xmm9, %xmm1, %xmm2, %xmm3, %xmm4, %xmm5, %xmm6, %xmm7, %xmm8, %xmm10, %xmm0, \ENC_DEC
 
 _initial_blocks_encrypted_\@:
 	cmp	$0, %r13
@@ -1654,7 +1657,7 @@ _encrypt_by_8_new_\@:
 	jg      _encrypt_by_8_\@
 
 	add	$8, %r15b
-	GHASH_8_ENCRYPT_8_PARALLEL	\GDATA_KEY, \CYPH_PLAIN_OUT, \PLAIN_CYPH_IN, DATA_OFFSET, %xmm0, %xmm10, %xmm11, %xmm12, %xmm13, %xmm14, %xmm9, %xmm1, %xmm2, %xmm3, %xmm4, %xmm5, %xmm6, %xmm7, %xmm8, %xmm15, out_order, \ENC_DEC
+	GHASH_8_ENCRYPT_8_PARALLEL	\KEYSCHED, \GCM_HTAB, \CYPH_PLAIN_OUT, \PLAIN_CYPH_IN, DATA_OFFSET, %xmm0, %xmm10, %xmm11, %xmm12, %xmm13, %xmm14, %xmm9, %xmm1, %xmm2, %xmm3, %xmm4, %xmm5, %xmm6, %xmm7, %xmm8, %xmm15, out_order, \ENC_DEC
 	add	$128, DATA_OFFSET
 	sub	$128, %r13
 	jne     _encrypt_by_8_new_\@
@@ -1666,7 +1669,7 @@ _encrypt_by_8_\@:
 	pshufb	SHUF_MASK(%rip), %xmm9
 	add	$8, %r15b
 
-	GHASH_8_ENCRYPT_8_PARALLEL	\GDATA_KEY, \CYPH_PLAIN_OUT, \PLAIN_CYPH_IN, DATA_OFFSET, %xmm0, %xmm10, %xmm11, %xmm12, %xmm13, %xmm14, %xmm9, %xmm1, %xmm2, %xmm3, %xmm4, %xmm5, %xmm6, %xmm7, %xmm8, %xmm15, in_order, \ENC_DEC
+	GHASH_8_ENCRYPT_8_PARALLEL	\KEYSCHED, \GCM_HTAB, \CYPH_PLAIN_OUT, \PLAIN_CYPH_IN, DATA_OFFSET, %xmm0, %xmm10, %xmm11, %xmm12, %xmm13, %xmm14, %xmm9, %xmm1, %xmm2, %xmm3, %xmm4, %xmm5, %xmm6, %xmm7, %xmm8, %xmm15, in_order, \ENC_DEC
 	pshufb	SHUF_MASK(%rip), %xmm9
 	add	$128, DATA_OFFSET
 	sub	$128, %r13
@@ -1677,12 +1680,12 @@ _encrypt_by_8_\@:
 
 
 _eight_cipher_left_\@:
-	GHASH_LAST_8	\GDATA_KEY, %xmm0, %xmm10, %xmm11, %xmm12, %xmm13, %xmm14, %xmm15, %xmm1, %xmm2, %xmm3, %xmm4, %xmm5, %xmm6, %xmm7, %xmm8
+	GHASH_LAST_8	\GCM_HTAB, %xmm0, %xmm10, %xmm11, %xmm12, %xmm13, %xmm14, %xmm15, %xmm1, %xmm2, %xmm3, %xmm4, %xmm5, %xmm6, %xmm7, %xmm8
 
 
 _zero_cipher_left_\@:
-	movdqu	%xmm14, AadHash(\GDATA_CTX) 
-	movdqu	%xmm9, CurCount(\GDATA_CTX) 
+	movdqu	%xmm14, AadHash(\GDATA_CTX)
+	movdqu	%xmm9, CurCount(\GDATA_CTX)
 
 	mov	%r10, %r13
 	and	$15, %r13			// r13 = (\PLAIN_CYPH_LEN mod 16)
@@ -1695,7 +1698,7 @@ _zero_cipher_left_\@:
 	paddd	ONE(%rip), %xmm9			// INCR CNT to get Yn
 	movdqu	%xmm9, CurCount(\GDATA_CTX)	// my_ctx.data.current_counter = xmm9
 	pshufb  SHUF_MASK(%rip), %xmm9
-	ENCRYPT_SINGLE_BLOCK	\GDATA_KEY, %xmm9, %xmm2	// E(K, Yn)
+	ENCRYPT_SINGLE_BLOCK	\KEYSCHED, %xmm9, %xmm2	// E(K, Yn)
 	movdqu	%xmm9, PBlockEncKey(\GDATA_CTX)	// my_ctx_data.partial_block_enc_key = xmm9
 
 	cmp	$16, \PLAIN_CYPH_LEN
@@ -1774,13 +1777,12 @@ _multiple_of_16_bytes_\@:
 ////////////////////////////////////////////////////////////////////////////////
 // GCM_COMPLETE: Finishes Encyrption/Decryption of last partial block after
 // GCM_UPDATE finishes.
-// Input: A gcm_key_data * (GDATA_KEY), gcm_context_data * (GDATA_CTX) and
-// whether encoding or decoding (ENC_DEC).
-// Output: Authorization Tag (AUTH_TAG) and Authorization Tag length
-// (AUTH_TAG_LEN)
+// Input: A gcm_key_data * (KEYSCHED, GCM_HTAB), gcm_context_data * (GDATA_CTX)
+//  and whether encoding or decoding (ENC_DEC).
+// Output: Authorization Tag (AUTH_TAG) stored in gcm_ctx.gcm_ghash
 // Clobbers %rax, r10-r12, and xmm0, xmm1, xmm5, xmm6, xmm9, xmm11, xmm14, xmm15
 ////////////////////////////////////////////////////////////////////////////////
-.macro	GCM_COMPLETE	GDATA_KEY, GDATA_CTX, AUTH_TAG, AUTH_TAG_LEN, ENC_DEC
+.macro	GCM_COMPLETE	KEYSCHED, GCM_HTAB, GDATA_CTX, ENC_DEC
 
 #define	PLAIN_CYPH_LEN	%rax
 
@@ -1789,7 +1791,7 @@ _multiple_of_16_bytes_\@:
 
 	mov	PBlockLen(\GDATA_CTX), %r12	// r12 = aadLen (number of bytes)
 	movdqu	AadHash(\GDATA_CTX), %xmm14
-	movdqu	HashKey(\GDATA_KEY), %xmm13
+	movdqu	HashKey(\GCM_HTAB), %xmm13
 
 	cmp	$0, %r12
 
@@ -1803,26 +1805,32 @@ _partial_done_\@:
 	mov	AadLen(\GDATA_CTX), %r12		// r12 = aadLen (number of bytes)
 	mov	InLen(\GDATA_CTX), PLAIN_CYPH_LEN
 
-	shl	$3, %r12			// convert into number of bits
+	shl	$3, %r12		// convert into number of bits
 	movd	%r12d, %xmm15		// len(A) in xmm15
 
 	shl	$3, PLAIN_CYPH_LEN	// len(C) in bits  (*128)
 	movq	PLAIN_CYPH_LEN, %xmm1
 	pslldq	$8, %xmm15		// xmm15 = len(A)|| 0x0000000000000000
 	pxor	%xmm1, %xmm15		// xmm15 = len(A)||len(C)
-
+#ifdef DEBUG
+	pshufb	SHUF_MASK(%rip), %xmm15		// perform a 16Byte swap
+	movdqu	%xmm15, LenALenC(\GDATA_CTX)
+	pshufb	SHUF_MASK(%rip), %xmm15		// undo 16Byte swap
+#endif
 	pxor	%xmm15, %xmm14
 	GHASH_MUL %xmm14, %xmm13, %xmm0, %xmm10, %xmm11, %xmm5, %xmm6    // final GHASH computation
 	pshufb	SHUF_MASK(%rip), %xmm14		// perform a 16Byte swap
 	movdqu	OrigIV(\GDATA_CTX), %xmm9	// xmm9 = Y0
 
-	ENCRYPT_SINGLE_BLOCK	\GDATA_KEY, %xmm9, %xmm2	// E(K, Y0)
+	ENCRYPT_SINGLE_BLOCK	\KEYSCHED, %xmm9, %xmm2	// E(K, Y0)
 
 	pxor	%xmm14, %xmm9
 
 _return_T_\@:
-	mov	\AUTH_TAG, %r10			// r10 = authTag
-	mov	\AUTH_TAG_LEN, %r11		// r11 = auth_tag_len
+	// mov	\AUTH_TAG, %r10			// r10 = authTag
+	// mov	\AUTH_TAG_LEN, %r11		// r11 = auth_tag_len
+	lea	AadHash(\GDATA_CTX), %r10	// r10 = authTag
+	movq	TagLen(\GDATA_CTX), %r11	// r11 = auth_tag_len
 
 	cmp	$16, %r11
 	je      _T_16_\@
@@ -1830,14 +1838,14 @@ _return_T_\@:
 	cmp	$12, %r11
 	je      _T_12_\@
 
-_T_8_\@:
-	movq	%xmm9, %rax
-	mov	%rax, (%r10)
+_T_8_\@:			// XXXX: Why use intermediate reg %rax/%eax?
+	movq	%xmm9, %rax	// %rax (ret val) contains 8 bytes tag
+	movq	%rax, (%r10)
 	jmp     _return_T_done_\@
 
 _T_12_\@:
-	movq	%xmm9, %rax
-	mov	%rax, (%r10)
+	movq	%xmm9, %rax	// %rax (ret val) contains upper and lower 4 bytes of tag
+	movq	%rax, (%r10)
 	psrldq	$8, %xmm9
 	movd	%xmm9, %eax
 	mov	%eax, 8(%r10)
@@ -1850,37 +1858,34 @@ _return_T_done_\@:
 .endm //GCM_COMPLETE
 
 
-#if 1
-
-	.balign 16
 ////////////////////////////////////////////////////////////////////////////////
-//void	aes_gcm_precomp_{128,256}_sse
-//        (struct gcm_key_data *key_data);
+// void	icp_isalc_gcm_precomp_{128,192,256}_sse(
+//          gcm_ctx_t *context_data		/* arg1 */
+// );
 ////////////////////////////////////////////////////////////////////////////////
 #if FUNCT_EXTENSION != _nt
-.global FN_NAME(precomp,_)
-FN_NAME(precomp,_):
 
-	endbranch
+ENTRY_NP(FN_NAME(precomp,_))
+.cfi_startproc
+	ENDBR
 
-	push	%r12
-	push	%r13
-	push	%r14
-	push	%r15
-
-	mov     %rsp, %r14
+	CFI_PUSHQ	%r12, -16
+	CFI_PUSHQ	%r13, -24
+	CFI_PUSHQ	%r14, -32
+	CFI_PUSHQ	%r15, -40
+	mov		%rsp, %r14
+	.cfi_def_cfa_register	%r14
 
 	sub	$(VARIABLE_OFFSET), %rsp
-	and	$(~63), %rsp				// align rsp to 64 bytes
+	and	$(~63), %rsp		// align rsp to 64 bytes
 
-#if __OUTPUT_FORMAT__ == win64
-	// only xmm6 needs to be maintained
-	movdqu	%xmm6, (LOCAL_STORAGE + 0*16)(%rsp)
-#endif
-
+	mov	KeySched(arg1), arg2	// arg2 = gcm_ctx->gcm_keysched
+	mov	GcmHtab(arg1), arg3	// arg3 = gcm_ctx->gcm_Htable
 	pxor	%xmm6, %xmm6
-	ENCRYPT_SINGLE_BLOCK	arg1, %xmm6, %xmm2	// xmm6 = HashKey
-
+	ENCRYPT_SINGLE_BLOCK	arg2, %xmm6, %xmm2	// xmm6 = HashKey
+#ifdef DEBUG
+	movdqu	%xmm6, GcmH(arg1)	// Save hash key to context.
+#endif
 	pshufb	SHUF_MASK(%rip), %xmm6
 	///////////////  PRECOMPUTATION of HashKey<<1 mod poly from the HashKey
 	movdqa	%xmm6, %xmm2
@@ -1897,254 +1902,218 @@ FN_NAME(precomp,_):
 	pand	POLY(%rip), %xmm2
 	pxor	%xmm2, %xmm6		// xmm6 holds the HashKey<<1 mod poly
 	///////////////////////////////////////////////////////////////////////
-	movdqu	 %xmm6, HashKey(arg1)	// store HashKey<<1 mod poly
+	movdqu	 %xmm6, HashKey(arg3)	// store HashKey<<1 mod poly
 
-	PRECOMPUTE  arg1, %xmm6, %xmm0, %xmm1, %xmm2, %xmm3, %xmm4, %xmm5
+	PRECOMPUTE  arg3, %xmm6, %xmm0, %xmm1, %xmm2, %xmm3, %xmm4, %xmm5
 
-#if __OUTPUT_FORMAT__ == win64
-	movdqu (LOCAL_STORAGE + 0*16)(%rsp), %xmm6
-#endif
-	mov	%r14, %rsp
+	mov		%r14, %rsp
+	.cfi_def_cfa_register	%rsp
+	CFI_POPQ	%r15
+	CFI_POPQ	%r14
+	CFI_POPQ	%r13
+	CFI_POPQ	%r12
+	RET
+.cfi_endproc
+SET_SIZE(FN_NAME(precomp,_))
 
-	pop	%r15
-	pop	%r14
-	pop	%r13
-	pop	%r12
-	ret
 #endif	// _nt
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//void   aes_gcm_init_128_sse / aes_gcm_init_256_sse (
-//        const struct gcm_key_data *key_data,
-//        struct gcm_context_data *context_data,
-//        u8      *iv,
-//        const   u8 *aad,
-//        u64     aad_len);
+// void   icp_isalc_gcm_init_{128,192,256}_sse
+//            gcm_ctx_t		*context_data,	/* arg1 */
+//            const uint8_t	*iv,		/* arg2 */
+//            const uint8_t	*aad,		/* arg3 */
+//            uint64_t		aad_len		/* arg4 */
+//            uint64_t		tag_len		/* arg5 */
+// );
 ////////////////////////////////////////////////////////////////////////////////
 #if FUNCT_EXTENSION != _nt
-.global FN_NAME(init,_)
-FN_NAME(init,_):
-	endbranch
+ENTRY_NP(FN_NAME(init,_))
+.cfi_startproc
+	ENDBR
 
-	push	%r12
-	push	%r13
-#if __OUTPUT_FORMAT__ == win64
-	push	arg5
-	sub	$(1*16), %rsp
-	movdqu	%xmm6, (0*16)(%rsp)
-	mov	(1*16 + 8*3 + 8*5)(%rsp), arg5
-#endif
+	CFI_PUSHQ	%r12, -16
+	CFI_PUSHQ	%r13, -24
 
-	GCM_INIT arg1, arg2, arg3, arg4, arg5
+	mov	 GcmHtab(arg1), arg6		// arg5 = gcm_ctx->gcm_Htable
+	GCM_INIT arg6, arg1, arg2, arg3, arg4, arg5
 
-#if __OUTPUT_FORMAT__ == win64
-	movdqu	(0*16)(%rsp), %xmm6
-	add	$(1*16), %rsp
-	pop	arg5
-#endif
-	pop	%r13
-	pop	%r12
-	ret
+	CFI_POPQ	%r13
+	CFI_POPQ	%r12
+	RET
+.cfi_endproc
+SET_SIZE(FN_NAME(init,_))
 #endif	// _nt
 
-
 ////////////////////////////////////////////////////////////////////////////////
-//void   aes_gcm_enc_128_update_sse / aes_gcm_enc_256_update_sse
-//        const struct gcm_key_data *key_data,
-//        struct gcm_context_data *context_data,
-//        u8      *out,
-//        const   u8 *in,
-//        u64     plaintext_len);
+// void   icp_isalc_gcm_enc_{128,192,256}_update_sse(
+//            gcm_ctx_t		*context_data,	/* arg1 */
+//            uint8_t		*out,		/* arg2 */
+//            const uint8_t	*in,		/* arg3 */
+//            uint64_t		plaintext_len	/* arg4 */
+// );
 ////////////////////////////////////////////////////////////////////////////////
-.global FN_NAME(enc,_update_)
-FN_NAME(enc,_update_):
-	endbranch
+ENTRY_NP(FN_NAME(enc,_update_))
+.cfi_startproc
+	ENDBR
 
 	FUNC_SAVE
 
-	GCM_ENC_DEC arg1, arg2, arg3, arg4, arg5, ENC
+	movq	KeySched(arg1), arg5	// arg5 = gcm_ctx->gcm_keysched
+	movq	GcmHtab(arg1), arg6	// arg6 = gcm_ctx->gcm_Htable
+
+	GCM_ENC_DEC arg5, arg6, arg1, arg2, arg3, arg4, ENC
 
 	FUNC_RESTORE
 
-	ret
-
+	RET
+.cfi_endproc
+SET_SIZE(FN_NAME(enc,_update_))
 
 ////////////////////////////////////////////////////////////////////////////////
-//void   aes_gcm_dec_256_update_sse / aes_gcm_dec_256_update_sse
-//        const struct gcm_key_data *key_data,
-//        struct gcm_context_data *context_data,
-//        u8      *out,
-//        const   u8 *in,
-//        u64     plaintext_len);
+// void   icp_isalc_gcm_dec_{128,192,256}_update_sse(
+//            gcm_ctx_t		*context_data,	/* arg1 */
+//            uint8_t		*out,		/* arg2 */
+//            const uint8_t	*in,		/* arg3 */
+//            uint64_t		plaintext_len	/* arg4 */
+// );
 ////////////////////////////////////////////////////////////////////////////////
-.global FN_NAME(dec,_update_)
-FN_NAME(dec,_update_):
-	endbranch
+ENTRY_NP(FN_NAME(dec,_update_))
+.cfi_startproc
+	ENDBR
 
 	FUNC_SAVE
 
-	GCM_ENC_DEC arg1, arg2, arg3, arg4, arg5, DEC
+	mov	KeySched(arg1), arg5	// arg5 = gcm_ctx->gcm_keysched
+	mov	GcmHtab(arg1), arg6	// arg6 = gcm_ctx->gcm_Htable
+
+	GCM_ENC_DEC arg5, arg6, arg1, arg2, arg3, arg4, DEC
 
 	FUNC_RESTORE
 
-	ret
+	RET
+.cfi_endproc
+SET_SIZE(FN_NAME(dec,_update_))
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//void   aes_gcm_enc_128_finalize_sse / aes_gcm_enc_256_finalize_sse
-//        const struct gcm_key_data *key_data,
-//        struct gcm_context_data *context_data,
-//        u8      *auth_tag,
-//        u64     auth_tag_len);
+// void   icp_isalc_gcm_enc_{128,192,256}_finalize_sse(
+//           gcm_ctx_t	*context_data,	/* arg1 */
+// );
 ////////////////////////////////////////////////////////////////////////////////
 #if FUNCT_EXTENSION != _nt
-.global FN_NAME(enc,_finalize_)
-FN_NAME(enc,_finalize_):
+ENTRY_NP(FN_NAME(enc,_finalize_))
+.cfi_startproc
+	ENDBR
 
-	endbranch
+	CFI_PUSHQ	%r12, -16
 
-	push	%r12
+	movq		KeySched(arg1), arg2	// arg4 = gcm_ctx->gcm_keysched
+	movq		GcmHtab(arg1), arg3	// arg5 = gcm_ctx->gcm_Htable
 
-#if __OUTPUT_FORMAT__ == win64
-	// xmm6:xmm15 need to be maintained for Windows
-	sub	$(5*16), %rsp
-	movdqu	%xmm6, (0*16)(%rsp)
-	movdqu	%xmm9, (1*16)(%rsp)
-	movdqu	%xmm11, (2*16)(%rsp)
-	movdqu	%xmm14, (3*16)(%rsp)
-	movdqu	%xmm15, (4*16)(%rsp)
-#endif
-	GCM_COMPLETE	arg1, arg2, arg3, arg4, ENC
+	GCM_COMPLETE	arg2, arg3, arg1, ENC
 
-#if __OUTPUT_FORMAT__ == win64
-	movdqu	(4*16)(%rsp), %xmm15
-	movdqu	(3*16)(%rsp), %xmm14
-	movdqu	(2*16)(%rsp), %xmm11
-	movdqu	(1*16)(%rsp), %xmm9
-	movdqu	(0*16)(%rsp), %xmm6
-	add	$(5*16), %rsp
-#endif
-
-	pop	%r12
-	ret
+	CFI_POPQ	%r12
+	RET
+.cfi_endproc
+SET_SIZE(FN_NAME(enc,_finalize_))
 #endif	// _nt
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//void   aes_gcm_dec_128_finalize_sse / aes_gcm_dec_256_finalize_sse
-//        const struct gcm_key_data *key_data,
-//        struct gcm_context_data *context_data,
-//        u8      *auth_tag,
-//        u64     auth_tag_len);
+// void   icp_isalc_gcm_dec_{128,129,256}_finalize_sse(
+//           gcm_ctx_t	*context_data,	/* arg1 */
+// );
 ////////////////////////////////////////////////////////////////////////////////
 #if FUNCT_EXTENSION != _nt
-.global FN_NAME(dec,_finalize_)
-FN_NAME(dec,_finalize_):
+ENTRY_NP(FN_NAME(dec,_finalize_))
+.cfi_startproc
+	ENDBR
 
-	endbranch
+	CFI_PUSHQ	%r12, -16
 
-	push	%r12
+	movq	KeySched(arg1), arg2	// arg4 = gcm_ctx->gcm_keysched
+	movq	GcmHtab(arg1), arg3	// arg5 = gcm_ctx->gcm_Htable
 
-#if __OUTPUT_FORMAT == win64
-	// xmm6:xmm15 need to be maintained for Windows
-	sub	$(5*16), %rsp
-	movdqu	%xmm6, (0*16)(%rsp)
-	movdqu	%xmm9, (1*16)(%rsp)
-	movdqu	%xmm11, (2*16)(%rsp)
-	movdqu	%xmm14, (3*16)(%rsp)
-	movdqu	%xmm15, (4*16)(%rsp)
-#endif
-	GCM_COMPLETE	arg1, arg2, arg3, arg4, DEC
+	GCM_COMPLETE	arg2, arg3, arg1, DEC
 
-#if __OUTPUT_FORMAT__ == win64
-	movdqu	(4*16)(%rsp), %xmm15
-	movdqu	(3*16)(%rsp), %xmm14
-	movdqu	(2*16)(%rsp), %xmm11
-	movdqu	(1*16)(%rsp), %xmm9
-	movdqu	(0*16)(%rsp), %xmm6
-	add	$(5*16), %rsp
-#endif
-
-	pop	%r12
-	ret
+	CFI_POPQ	%r12
+	RET
+.cfi_endproc
+SET_SIZE(FN_NAME(dec,_finalize_))
 #endif	// _nt
 
-
 ////////////////////////////////////////////////////////////////////////////////
-//void   aes_gcm_enc_128_sse / aes_gcm_enc_256_sse
-//        const struct gcm_key_data *key_data,
-//        struct gcm_context_data *context_data,
-//        u8      *out,
-//        const   u8 *in,
-//        u64     plaintext_len,
-//        u8      *iv,
-//        const   u8 *aad,
-//        u64     aad_len,
-//        u8      *auth_tag,
-//        u64     auth_tag_len)//
+// void   icp_isalc_gcm_enc_{128,192,256}_sse(
+//            gcm_ctx_t		*context_data,	/* arg1 */
+//            uint8_t		*out,		/* arg2 */
+//            const uint8_t	*in,		/* arg3 */
+//            uint64_t		plaintext_len,	/* arg4 */
+//            const uint8_t	*iv,		/* arg5 */
+//            const uint8_t	*aad,		/* arg6 */
+//            uint64_t		aad_len,	/* arg7 */
+//            uint64_t		tag_len,	/* arg8 */
+// );
 ////////////////////////////////////////////////////////////////////////////////
-.global FN_NAME(enc,_)
-FN_NAME(enc,_):
-	endbranch
+ENTRY_NP(FN_NAME(enc,_))
+.cfi_startproc
+	ENDBR
 
 	FUNC_SAVE
 
-	GCM_INIT arg1, arg2, arg6, arg7, arg8
+	pushq	arg2
+	movq	GcmHtab(arg1), arg2	// arg2 = gcm_ctx->gcm_Htable
 
-	GCM_ENC_DEC  arg1, arg2, arg3, arg4, arg5, ENC
+	GCM_INIT	arg2, arg1, arg5, arg6, arg7, arg8
 
-	GCM_COMPLETE arg1, arg2, arg9, arg10, ENC
+	popq	arg2
+	mov	KeySched(arg1), arg5	// arg5 = gcm_ctx->gcm_keysched
+	mov	GcmHtab(arg1), arg6	// arg6 = gcm_ctx->gcm_Htable
+
+	GCM_ENC_DEC  arg5, arg6, arg1, arg2, arg3, arg4, ENC
+	GCM_COMPLETE arg5, arg6, arg1, ENC
+
 	FUNC_RESTORE
 
-	ret
+	RET
+.cfi_endproc
+SET_SIZE(FN_NAME(enc,_))
 
 ////////////////////////////////////////////////////////////////////////////////
-//void   aes_gcm_dec_128_sse / aes_gcm_dec_256_sse
-//        const struct gcm_key_data *key_data,
-//        struct gcm_context_data *context_data,
-//        u8      *out,
-//        const   u8 *in,
-//        u64     plaintext_len,
-//        u8      *iv,
-//        const   u8 *aad,
-//        u64     aad_len,
-//        u8      *auth_tag,
-//        u64     auth_tag_len)//
+// void   icp_isalc_gcm_dec_{128,192,256}_sse(
+//            gcm_ctx_t *context_data,		/* arg1 */
+//            u8        *out,			/* arg2 */
+//            const u8  *in,			/* arg3 */
+//            u64       plaintext_len,		/* arg4 */
+//            u8        *iv,			/* arg5 */
+//            const u8  *aad,			/* arg6 */
+//            u64       aad_len,		/* arg7 */
+//            u64       tag_len,		/* arg8 */
+// );
 ////////////////////////////////////////////////////////////////////////////////
-.global FN_NAME(dec,_)
-FN_NAME(dec,_):
-	endbranch
+ENTRY_NP(FN_NAME(dec,_))
+.cfi_startproc
+	ENDBR
 
 	FUNC_SAVE
 
-	GCM_INIT arg1, arg2, arg6, arg7, arg8
+	pushq	arg2
+	movq	GcmHtab(arg1), arg2	// arg2 = gcm_ctx->gcm_Htable
 
-	GCM_ENC_DEC  arg1, arg2, arg3, arg4, arg5, DEC
+	GCM_INIT	arg2, arg1, arg5, arg6, arg7, arg8
 
-	GCM_COMPLETE arg1, arg2, arg9, arg10, DEC
+	popq	arg2
+	mov	KeySched(arg1), arg5	// arg5 = gcm_ctx->gcm_keysched
+	mov	GcmHtab(arg1), arg6	// arg6 = gcm_ctx->gcm_Htable
+
+	GCM_ENC_DEC  arg5, arg6, arg1, arg2, arg3, arg4, DEC
+	GCM_COMPLETE arg5, arg6, arg1, DEC
+
 	FUNC_RESTORE
 
-	ret
+	RET
+.cfi_endproc
+SET_SIZE(FN_NAME(dec,_))
 
-.global FN_NAME(this_is_gas,_)
-FN_NAME(this_is_gas,_):
-	endbranch
-	FUNC_SAVE
-	FUNC_RESTORE
-	ret
-
-#else
-	// GAS doesnt't provide the linenuber in the macro
-	////////////////////////
-	// GHASH_MUL xmm0, xmm1, xmm2, xmm3, xmm4, xmm5, xmm6
-	// PRECOMPUTE rax, xmm0, xmm1, xmm2, xmm3, xmm4, xmm5, xmm6
-	// READ_SMALL_DATA_INPUT xmm1, r10, 8, rax, r12, r15
-	// ENCRYPT_SINGLE_BLOCK rax, xmm0, xmm1
-	// INITIAL_BLOCKS rdi,rsi,rdx,rcx,r13,r11,7,xmm12,xmm13,xmm14,xmm15,xmm11,xmm9,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,xmm8,xmm10,xmm0,ENC
-	// CALC_AAD_HASH [r14+8*5+8*1],[r14+8*5+8*2],xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,r10,r11,r12,r13,rax
-	// READ_SMALL_DATA_INPUT	xmm2, r10, r11, r12, r13, rax
-	// PARTIAL_BLOCK  rdi,rsi,rdx,rcx,r8,r11,xmm8,ENC
-	// GHASH_8_ENCRYPT_8_PARALLEL rdi,rdx,rcx,r11,xmm0,xmm10,xmm11,xmm12,xmm13,xmm14,xmm9,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,xmm8,xmm15,out_order,ENC
-	//GHASH_LAST_8 rdi,xmm0,xmm10,xmm11,xmm12,xmm13,xmm14,xmm15,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,xmm8
-#endif
+// -eof-
