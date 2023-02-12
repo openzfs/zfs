@@ -108,6 +108,10 @@
 #include <sys/cmn_err.h>
 #include <sys/mod.h>
 
+#ifndef _KERNEL
+#include <string.h>
+#endif
+
 /*
  * Walk from one node to the previous valued node (ie. an infix walk
  * towards the left). At any given node we do one of 2 things:
@@ -695,7 +699,7 @@ avl_remove(avl_tree_t *tree, void *data)
 		 */
 		tmp = *node;
 
-		*node = *delete;
+		memcpy(node, delete, sizeof (*node));
 		if (node->avl_child[left] == node)
 			node->avl_child[left] = &tmp;
 
