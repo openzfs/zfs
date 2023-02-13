@@ -5958,6 +5958,7 @@ arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
 	    (zio_flags & ZIO_FLAG_RAW_ENCRYPT) != 0;
 	boolean_t embedded_bp = !!BP_IS_EMBEDDED(bp);
 	boolean_t no_buf = *arc_flags & ARC_FLAG_NO_BUF;
+	arc_buf_t *buf = NULL;
 	int rc = 0;
 
 	ASSERT(!embedded_bp ||
@@ -5987,7 +5988,7 @@ top:
 	if (!zfs_blkptr_verify(spa, bp, zio_flags & ZIO_FLAG_CONFIG_WRITER,
 	    BLK_VERIFY_LOG)) {
 		rc = SET_ERROR(ECKSUM);
-		goto out;
+		goto done;
 	}
 
 	if (!embedded_bp) {
@@ -6008,14 +6009,13 @@ top:
 	if (hdr != NULL && HDR_HAS_L1HDR(hdr) && (HDR_HAS_RABD(hdr) ||
 	    (hdr->b_l1hdr.b_pabd != NULL && !encrypted_read))) {
 		boolean_t is_data = !HDR_ISTYPE_METADATA(hdr);
-		arc_buf_t *buf = NULL;
 
 		if (HDR_IO_IN_PROGRESS(hdr)) {
 			if (*arc_flags & ARC_FLAG_CACHED_ONLY) {
 				mutex_exit(hash_lock);
 				ARCSTAT_BUMP(arcstat_cached_only_in_progress);
 				rc = SET_ERROR(ENOENT);
-				goto out;
+				goto done;
 			}
 
 			zio_t *head_zio = hdr->b_l1hdr.b_acb->acb_zio_head;
@@ -6144,9 +6144,7 @@ top:
 		ARCSTAT_CONDSTAT(!(*arc_flags & ARC_FLAG_PREFETCH),
 		    demand, prefetch, is_data, data, metadata, hits);
 		*arc_flags |= ARC_FLAG_CACHED;
-
-		if (done)
-			done(NULL, zb, bp, buf, private);
+		goto done;
 	} else {
 		uint64_t lsize = BP_GET_LSIZE(bp);
 		uint64_t psize = BP_GET_PSIZE(bp);
@@ -6159,10 +6157,10 @@ top:
 		int alloc_flags = encrypted_read ? ARC_HDR_ALLOC_RDATA : 0;
 
 		if (*arc_flags & ARC_FLAG_CACHED_ONLY) {
-			rc = SET_ERROR(ENOENT);
 			if (hash_lock != NULL)
 				mutex_exit(hash_lock);
-			goto out;
+			rc = SET_ERROR(ENOENT);
+			goto done;
 		}
 
 		if (hdr == NULL) {
@@ -6482,6 +6480,16 @@ out:
 		spa_read_history_add(spa, zb, *arc_flags);
 	spl_fstrans_unmark(cookie);
 	return (rc);
+
+done:
+	if (done)
+		done(NULL, zb, bp, buf, private);
+	if (pio && rc != 0) {
+		zio_t *zio = zio_null(pio, spa, NULL, NULL, NULL, zio_flags);
+		zio->io_error = rc;
+		zio_nowait(zio);
+	}
+	goto out;
 }
 
 arc_prune_t *
