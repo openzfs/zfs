@@ -392,7 +392,20 @@ zfsctl_snapshot_unmount_delay_impl(zfs_snapentry_t *se, int delay)
 
 	zfsctl_snapshot_hold(se);
 	rw_enter(&se->se_taskqid_lock, RW_WRITER);
-	ASSERT3S(se->se_taskqid, ==, TASKQID_INVALID);
+	/*
+	 * If this condition happens, we managed to:
+	 * - dispatch once
+	 * - want to dispatch _again_ before it returned
+	 *
+	 * So let's just return - if that task fails at unmounting,
+	 * we'll eventually dispatch again, and if it succeeds,
+	 * no problem.
+	 */
+	if (se->se_taskqid != TASKQID_INVALID) {
+		rw_exit(&se->se_taskqid_lock);
+		zfsctl_snapshot_rele(se);
+		return;
+	}
 	se->se_taskqid = taskq_dispatch_delay(system_delay_taskq,
 	    snapentry_expire, se, TQ_SLEEP, ddi_get_lbolt() + delay * HZ);
 	rw_exit(&se->se_taskqid_lock);
