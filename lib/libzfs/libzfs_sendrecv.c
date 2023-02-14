@@ -4590,7 +4590,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			    B_FALSE, destsnap) == 0) {
 				*strchr(destsnap, '@') = '\0';
 				(void) strlcat(destsnap, suffix,
-				    sizeof (destsnap) - strlen(destsnap));
+				    sizeof (destsnap));
 			}
 		}
 	} else {
@@ -4626,7 +4626,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			    B_FALSE, destsnap) == 0) {
 				*strchr(destsnap, '@') = '\0';
 				(void) strlcat(destsnap, snap,
-				    sizeof (destsnap) - strlen(destsnap));
+				    sizeof (destsnap));
 			}
 		}
 	}

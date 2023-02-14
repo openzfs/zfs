@@ -3029,8 +3029,7 @@ dmu_send_estimate_fast(dsl_dataset_t *origds, dsl_dataset_t *fromds,
 
 		dsl_dataset_name(origds, dsname);
 		(void) strcat(dsname, "/");
-		(void) strlcat(dsname, recv_clone_name,
-		    sizeof (dsname) - strlen(dsname));
+		(void) strlcat(dsname, recv_clone_name, sizeof (dsname));
 
 		err = dsl_dataset_hold(origds->ds_dir->dd_pool,
 		    dsname, FTAG, &ds);
