@@ -987,7 +987,7 @@ top:
 
 	mutex_enter(&zp->z_lock);
 	may_delete_now = atomic_read(&ZTOI(zp)->i_count) == 1 &&
-	    !(zp->z_is_mapped);
+	    !zn_has_cached_data(zp, 0, LLONG_MAX);
 	mutex_exit(&zp->z_lock);
 
 	/*
@@ -1075,7 +1075,8 @@ top:
 		    &xattr_obj_unlinked, sizeof (xattr_obj_unlinked));
 		delete_now = may_delete_now && !toobig &&
 		    atomic_read(&ZTOI(zp)->i_count) == 1 &&
-		    !(zp->z_is_mapped) && xattr_obj == xattr_obj_unlinked &&
+		    !zn_has_cached_data(zp, 0, LLONG_MAX) &&
+		    xattr_obj == xattr_obj_unlinked &&
 		    zfs_external_acl(zp) == acl_obj;
 	}
 
