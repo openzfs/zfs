@@ -678,7 +678,7 @@ typedef struct blkptr {
 		len += func(buf + len, size - len,			\
 		    "[L%llu %s] %s %s %s %s %s %s %s%c"			\
 		    "size=%llxL/%llxP birth=%lluL/%lluP fill=%llu%c"	\
-		    "cksum=%llx:%llx:%llx:%llx",			\
+		    "cksum=%016llx:%016llx:%016llx:%016llx",		\
 		    (u_longlong_t)BP_GET_LEVEL(bp),			\
 		    type,						\
 		    checksum,						\
