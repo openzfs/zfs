@@ -135,7 +135,7 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 
 	vecnum = cmd - ZFS_IOC_FIRST;
 
-	zc = kmem_zalloc(sizeof (zfs_cmd_t), KM_SLEEP);
+	zc = vmem_zalloc(sizeof (zfs_cmd_t), KM_SLEEP);
 
 	if (ddi_copyin((void *)(uintptr_t)arg, zc, sizeof (zfs_cmd_t), 0)) {
 		error = -SET_ERROR(EFAULT);
@@ -146,7 +146,7 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 	if (error == 0 && rc != 0)
 		error = -SET_ERROR(EFAULT);
 out:
-	kmem_free(zc, sizeof (zfs_cmd_t));
+	vmem_free(zc, sizeof (zfs_cmd_t));
 	return (error);
 
 }
