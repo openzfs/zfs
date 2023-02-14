@@ -512,9 +512,9 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 	 *
 	 * The _ATTR versions will grab the fuid info in their subcases.
 	 */
-	if ((int)lr->lr_common.lrc_txtype != TX_SYMLINK &&
-	    (int)lr->lr_common.lrc_txtype != TX_MKDIR_ATTR &&
-	    (int)lr->lr_common.lrc_txtype != TX_CREATE_ATTR) {
+	if (txtype != TX_SYMLINK &&
+	    txtype != TX_MKDIR_ATTR &&
+	    txtype != TX_CREATE_ATTR) {
 		start = (lr + 1);
 		zfsvfs->z_fuid_replay =
 		    zfs_replay_fuid_domain(start, &start,
