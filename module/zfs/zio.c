@@ -1704,12 +1704,15 @@ zio_write_compress(zio_t *zio)
 	/* If it's a compressed write that is not raw, compress the buffer. */
 	if (compress != ZIO_COMPRESS_OFF &&
 	    !(zio->io_flags & ZIO_FLAG_RAW_COMPRESS)) {
-		void *cbuf = zio_buf_alloc(lsize);
-		psize = zio_compress_data(compress, zio->io_abd, cbuf, lsize,
+		void *cbuf = NULL;
+		psize = zio_compress_data(compress, zio->io_abd, &cbuf, lsize,
 		    zp->zp_complevel);
-		if (psize == 0 || psize >= lsize) {
+		if (psize == 0) {
 			compress = ZIO_COMPRESS_OFF;
-			zio_buf_free(cbuf, lsize);
+		} else if (psize >= lsize) {
+			compress = ZIO_COMPRESS_OFF;
+			if (cbuf != NULL)
+				zio_buf_free(cbuf, lsize);
 		} else if (!zp->zp_dedup && !zp->zp_encrypt &&
 		    psize <= BPE_PAYLOAD_SIZE &&
 		    zp->zp_level == 0 && !DMU_OT_HAS_FILL(zp->zp_type) &&
