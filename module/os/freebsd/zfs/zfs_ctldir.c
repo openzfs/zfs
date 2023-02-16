@@ -1153,7 +1153,7 @@ zfsctl_snapshot_inactive(struct vop_inactive_args *ap)
 {
 	vnode_t *vp = ap->a_vp;
 
-	VERIFY3S(vrecycle(vp), ==, 1);
+	vrecycle(vp);
 	return (0);
 }
 
@@ -1237,6 +1237,8 @@ static struct vop_vector zfsctl_ops_snapshot = {
 #if __FreeBSD_version >= 1300121
 	.vop_fplookup_vexec =	VOP_EAGAIN,
 #endif
+	.vop_open =		zfsctl_common_open,
+	.vop_close =		zfsctl_common_close,
 	.vop_inactive =		zfsctl_snapshot_inactive,
 #if __FreeBSD_version >= 1300045
 	.vop_need_inactive = vop_stdneed_inactive,
