@@ -10,12 +10,12 @@ INCDIR=${.CURDIR:H}/include
 KMOD=	openzfs
 
 .PATH:	${SRCDIR}/avl \
+	${SRCDIR}/lua \
+	${SRCDIR}/nvpair \
 	${SRCDIR}/icp/algs/blake3 \
 	${SRCDIR}/icp/asm-aarch64/blake3 \
 	${SRCDIR}/icp/asm-ppc64/blake3 \
 	${SRCDIR}/icp/asm-x86_64/blake3 \
-	${SRCDIR}/lua \
-	${SRCDIR}/nvpair \
 	${SRCDIR}/icp/algs/edonr \
 	${SRCDIR}/os/freebsd/spl \
 	${SRCDIR}/os/freebsd/zfs \
@@ -29,7 +29,6 @@ KMOD=	openzfs
 
 
 
-CFLAGS+= -I${.OBJDIR:H}/include
 CFLAGS+= -I${INCDIR}
 CFLAGS+= -I${INCDIR}/os/freebsd
 CFLAGS+= -I${INCDIR}/os/freebsd/spl
@@ -37,14 +36,15 @@ CFLAGS+= -I${INCDIR}/os/freebsd/zfs
 CFLAGS+= -I${SRCDIR}/zstd/include
 CFLAGS+= -I${SRCDIR}/icp/include
 CFLAGS+= -include ${INCDIR}/os/freebsd/spl/sys/ccompile.h
+CFLAGS+= -I${.CURDIR}
 
-CFLAGS+= -D__KERNEL__ -DFREEBSD_NAMECACHE -DBUILDING_ZFS  -D__BSD_VISIBLE=1 \
-	 -DHAVE_UIO_ZEROCOPY -DWITHOUT_NETDUMP -D__KERNEL -D_SYS_CONDVAR_H_ \
-	 -D_SYS_VMEM_H_ -DKDTRACE_HOOKS -DSMP -DCOMPAT_FREEBSD11
+CFLAGS+= -D__KERNEL__ -DFREEBSD_NAMECACHE -DBUILDING_ZFS -D__BSD_VISIBLE=1 \
+	-DHAVE_UIO_ZEROCOPY -DWITHOUT_NETDUMP -D__KERNEL -D_SYS_CONDVAR_H_ \
+	-D_SYS_VMEM_H_ -DKDTRACE_HOOKS -DCOMPAT_FREEBSD11
 
 .if ${MACHINE_ARCH} == "amd64"
 CFLAGS+= -D__x86_64 -DHAVE_SSE2 -DHAVE_SSSE3 -DHAVE_SSE4_1 -DHAVE_SSE4_2 \
-	 -DHAVE_AVX -DHAVE_AVX2 -DHAVE_AVX512F -DHAVE_AVX512VL
+	-DHAVE_AVX -DHAVE_AVX2 -DHAVE_AVX512F -DHAVE_AVX512VL -DHAVE_AVX512BW
 .endif
 
 .if defined(WITH_DEBUG) && ${WITH_DEBUG} == "true"
@@ -71,7 +71,7 @@ CFLAGS+=	 -fprofile-arcs -ftest-coverage
 DEBUG_FLAGS=-g
 
 .if ${MACHINE_ARCH} == "i386" || ${MACHINE_ARCH} == "powerpc" || \
-	${MACHINE_ARCH} == "arm"
+	${MACHINE_ARCH} == "powerpcspe" || ${MACHINE_ARCH} == "arm"
 CFLAGS+= -DBITS_PER_LONG=32
 .else
 CFLAGS+= -DBITS_PER_LONG=64
@@ -79,11 +79,11 @@ CFLAGS+= -DBITS_PER_LONG=64
 
 SRCS=	vnode_if.h device_if.h bus_if.h
 
-#avl
+# avl
 SRCS+=	avl.c
 
 # icp
-SRCS+=  edonr.c
+SRCS+=	edonr.c
 
 #icp/algs/blake3
 SRCS+=	blake3.c \
@@ -163,7 +163,7 @@ SRCS+=	acl_common.c \
 
 
 .if ${MACHINE_ARCH} == "i386" || ${MACHINE_ARCH} == "powerpc" || \
-	${MACHINE_ARCH} == "arm"
+	${MACHINE_ARCH} == "powerpcspe" || ${MACHINE_ARCH} == "arm"
 SRCS+= spl_atomic.c
 .endif
 
@@ -345,25 +345,26 @@ SRCS+=	abd.c \
 SRCS+=	zfs_zstd.c \
 	entropy_common.c \
 	error_private.c \
-	fse_decompress.c \
-	pool.c \
-	zstd_common.c \
 	fse_compress.c \
+	fse_decompress.c \
 	hist.c \
 	huf_compress.c \
+	huf_decompress.c \
+	pool.c \
+	xxhash.c \
+	zstd_common.c \
 	zstd_compress.c \
 	zstd_compress_literals.c \
 	zstd_compress_sequences.c \
 	zstd_compress_superblock.c \
+	zstd_ddict.c \
+	zstd_decompress.c \
+	zstd_decompress_block.c \
 	zstd_double_fast.c \
 	zstd_fast.c \
 	zstd_lazy.c \
 	zstd_ldm.c \
-	zstd_opt.c \
-	huf_decompress.c \
-	zstd_ddict.c \
-	zstd_decompress.c \
-	zstd_decompress_block.c
+	zstd_opt.c
 
 beforeinstall:
 .if ${MK_DEBUG_FILES} != "no"
@@ -374,74 +375,121 @@ beforeinstall:
 
 .include <bsd.kmod.mk>
 
+CFLAGS.sysctl_os.c= -include ../zfs_config.h
+CFLAGS.xxhash.c+= -include ${SYSDIR}/sys/_null.h
 
 CFLAGS.gcc+= -Wno-pointer-to-int-cast
 
-CFLAGS.lapi.c= -Wno-cast-qual
-CFLAGS.lcompat.c= -Wno-cast-qual
-CFLAGS.lobject.c= -Wno-cast-qual
-CFLAGS.ltable.c= -Wno-cast-qual
-CFLAGS.lvm.c= -Wno-cast-qual
-CFLAGS.nvpair.c= -DHAVE_RPC_TYPES -Wno-cast-qual
-CFLAGS.spl_string.c= -Wno-cast-qual
-CFLAGS.spl_vm.c= -Wno-cast-qual
-CFLAGS.spl_zlib.c= -Wno-cast-qual
 CFLAGS.abd.c= -Wno-cast-qual
-CFLAGS.zfs_log.c= -Wno-cast-qual
-CFLAGS.zfs_vnops_os.c= -Wno-pointer-arith
-CFLAGS.u8_textprep.c= -Wno-cast-qual
-CFLAGS.zfs_fletcher.c= -Wno-cast-qual -Wno-pointer-arith
-CFLAGS.zfs_fletcher_intel.c= -Wno-cast-qual -Wno-pointer-arith
-CFLAGS.zfs_fletcher_sse.c= -Wno-cast-qual -Wno-pointer-arith
-CFLAGS.zfs_fletcher_avx512.c= -Wno-cast-qual -Wno-pointer-arith
-CFLAGS.zprop_common.c= -Wno-cast-qual
 CFLAGS.ddt.c= -Wno-cast-qual
 CFLAGS.dmu.c= -Wno-cast-qual
 CFLAGS.dmu_traverse.c= -Wno-cast-qual
-CFLAGS.dsl_dir.c= -Wno-cast-qual
+CFLAGS.dnode.c= ${NO_WUNUSED_BUT_SET_VARIABLE}
 CFLAGS.dsl_deadlist.c= -Wno-cast-qual
+CFLAGS.dsl_dir.c= -Wno-cast-qual
 CFLAGS.dsl_prop.c= -Wno-cast-qual
-CFLAGS.edonr.c=-Wno-cast-qual
+CFLAGS.edonr.c= -Wno-cast-qual
 CFLAGS.fm.c= -Wno-cast-qual
+CFLAGS.hist.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.lapi.c= -Wno-cast-qual
+CFLAGS.lcompat.c= -Wno-cast-qual
+CFLAGS.ldo.c= ${NO_WINFINITE_RECURSION}
+CFLAGS.lobject.c= -Wno-cast-qual
+CFLAGS.ltable.c= -Wno-cast-qual
+CFLAGS.lvm.c= -Wno-cast-qual
+CFLAGS.lz4.c= -Wno-cast-qual
 CFLAGS.lz4_zfs.c= -Wno-cast-qual
+CFLAGS.nvpair.c= -Wno-cast-qual -DHAVE_RPC_TYPES ${NO_WSTRINGOP_OVERREAD}
+CFLAGS.pool.c+= ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.pool.c= -U__BMI__ -fno-tree-vectorize
 CFLAGS.spa.c= -Wno-cast-qual
 CFLAGS.spa_misc.c= -Wno-cast-qual
-CFLAGS.sysctl_os.c= -include ../zfs_config.h
+CFLAGS.spl_string.c= -Wno-cast-qual
+CFLAGS.spl_vm.c= -Wno-cast-qual
+CFLAGS.spl_zlib.c= -Wno-cast-qual
+CFLAGS.u8_textprep.c= -Wno-cast-qual
 CFLAGS.vdev_draid.c= -Wno-cast-qual
 CFLAGS.vdev_raidz.c= -Wno-cast-qual
 CFLAGS.vdev_raidz_math.c= -Wno-cast-qual
-CFLAGS.vdev_raidz_math_scalar.c= -Wno-cast-qual
 CFLAGS.vdev_raidz_math_avx2.c= -Wno-cast-qual -Wno-duplicate-decl-specifier
 CFLAGS.vdev_raidz_math_avx512f.c= -Wno-cast-qual -Wno-duplicate-decl-specifier
+CFLAGS.vdev_raidz_math_scalar.c= -Wno-cast-qual
 CFLAGS.vdev_raidz_math_sse2.c= -Wno-cast-qual -Wno-duplicate-decl-specifier
 CFLAGS.zap_leaf.c= -Wno-cast-qual
 CFLAGS.zap_micro.c= -Wno-cast-qual
 CFLAGS.zcp.c= -Wno-cast-qual
-CFLAGS.zfs_fm.c= -Wno-cast-qual
+CFLAGS.zfs_fletcher.c= -Wno-cast-qual -Wno-pointer-arith
+CFLAGS.zfs_fletcher_avx512.c= -Wno-cast-qual -Wno-pointer-arith
+CFLAGS.zfs_fletcher_intel.c= -Wno-cast-qual -Wno-pointer-arith
+CFLAGS.zfs_fletcher_sse.c= -Wno-cast-qual -Wno-pointer-arith
+CFLAGS.zfs_fm.c= -Wno-cast-qual ${NO_WUNUSED_BUT_SET_VARIABLE}
 CFLAGS.zfs_ioctl.c= -Wno-cast-qual
+CFLAGS.zfs_log.c= -Wno-cast-qual
+CFLAGS.zfs_vnops_os.c= -Wno-pointer-arith
+CFLAGS.zfs_zstd.c= -Wno-cast-qual -Wno-pointer-arith
 CFLAGS.zil.c= -Wno-cast-qual
 CFLAGS.zio.c= -Wno-cast-qual
+CFLAGS.zprop_common.c= -Wno-cast-qual
 CFLAGS.zrlock.c= -Wno-cast-qual
-CFLAGS.zfs_zstd.c= -Wno-cast-qual -Wno-pointer-arith
-CFLAGS.entropy_common.c= -fno-tree-vectorize -U__BMI__
-CFLAGS.error_private.c= -fno-tree-vectorize -U__BMI__
-CFLAGS.fse_decompress.c= -fno-tree-vectorize -U__BMI__
-CFLAGS.pool.c= -fno-tree-vectorize -U__BMI__
-CFLAGS.xxhash.c= -fno-tree-vectorize -U__BMI__
-CFLAGS.zstd_common.c= -fno-tree-vectorize -U__BMI__
-CFLAGS.fse_compress.c= -fno-tree-vectorize -U__BMI__
-CFLAGS.hist.c= -fno-tree-vectorize -U__BMI__
-CFLAGS.huf_compress.c= -fno-tree-vectorize -U__BMI__
-CFLAGS.zstd_compress.c= -fno-tree-vectorize -U__BMI__
-CFLAGS.zstd_compress_literals.c= -fno-tree-vectorize -U__BMI__
-CFLAGS.zstd_compress_sequences.c= -fno-tree-vectorize -U__BMI__
-CFLAGS.zstd_compress_superblock.c= -fno-tree-vectorize -U__BMI__
-CFLAGS.zstd_double_fast.c= -fno-tree-vectorize -U__BMI__
-CFLAGS.zstd_fast.c= -fno-tree-vectorize -U__BMI__
-CFLAGS.zstd_lazy.c= -fno-tree-vectorize -U__BMI__
-CFLAGS.zstd_ldm.c= -fno-tree-vectorize -U__BMI__
-CFLAGS.zstd_opt.c= -fno-tree-vectorize -U__BMI__
-CFLAGS.huf_decompress.c= -fno-tree-vectorize -U__BMI__
-CFLAGS.zstd_ddict.c= -fno-tree-vectorize -U__BMI__
-CFLAGS.zstd_decompress.c= -fno-tree-vectorize -U__BMI__
-CFLAGS.zstd_decompress_block.c= -fno-tree-vectorize -U__BMI__
+
+#zstd
+CFLAGS.entropy_common.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.error_private.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.fse_compress.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL} ${NO_WUNUSED_BUT_SET_VARIABLE}
+CFLAGS.fse_decompress.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.huf_compress.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.huf_decompress.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.xxhash.c+= -U__BMI__ -fno-tree-vectorize
+CFLAGS.xxhash.c+= ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.zstd.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.zstd_common.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.zstd_compress.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.zstd_compress_literals.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.zstd_compress_sequences.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.zstd_compress_superblock.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL} ${NO_WUNUSED_BUT_SET_VARIABLE}
+CFLAGS.zstd_ddict.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.zstd_decompress.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.zstd_decompress_block.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.zstd_double_fast.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.zstd_fast.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.zstd_lazy.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.zstd_ldm.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.zstd_opt.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+
+.if ${MACHINE_CPUARCH} == "aarch64"
+__ZFS_ZSTD_AARCH64_FLAGS= -include ${SRCDIR}/zstd/include/aarch64_compat.h
+CFLAGS.zstd.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
+CFLAGS.entropy_common.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
+CFLAGS.error_private.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
+CFLAGS.fse_compress.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
+CFLAGS.fse_decompress.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
+CFLAGS.hist.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
+CFLAGS.huf_compress.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
+CFLAGS.huf_decompress.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
+CFLAGS.pool.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
+CFLAGS.xxhash.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
+CFLAGS.zstd_common.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
+CFLAGS.zstd_compress.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
+CFLAGS.zstd_compress_literals.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
+CFLAGS.zstd_compress_sequences.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
+CFLAGS.zstd_compress_superblock.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
+CFLAGS.zstd_ddict.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
+CFLAGS.zstd_decompress.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
+CFLAGS.zstd_decompress_block.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
+CFLAGS.zstd_double_fast.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
+CFLAGS.zstd_fast.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
+CFLAGS.zstd_lazy.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
+CFLAGS.zstd_ldm.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
+CFLAGS.zstd_opt.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
+
+b3_aarch64_sse2.o: b3_aarch64_sse2.S
+	${CC} -c ${CFLAGS:N-mgeneral-regs-only} ${WERROR} ${.IMPSRC} \
+	     -o ${.TARGET}
+	${CTFCONVERT_CMD}
+
+b3_aarch64_sse41.o: b3_aarch64_sse41.S
+	${CC} -c ${CFLAGS:N-mgeneral-regs-only} ${WERROR} ${.IMPSRC} \
+	     -o ${.TARGET}
+	${CTFCONVERT_CMD}
+
+.endif
