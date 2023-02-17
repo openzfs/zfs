@@ -343,6 +343,7 @@ zstd_mempool_alloc(struct zstd_pool *zstd_mempool, size_t size)
 				pool->timeout = gethrestime_sec() +
 				    ZSTD_POOL_TIMEOUT;
 				mem = pool->mem;
+				mutex_exit(&pool->barrier);
 				return (mem);
 			}
 			mutex_exit(&pool->barrier);
@@ -380,6 +381,7 @@ zstd_mempool_alloc(struct zstd_pool *zstd_mempool, size_t size)
 				pool->timeout = gethrestime_sec() +
 				    ZSTD_POOL_TIMEOUT;
 
+				mutex_exit(&pool->barrier);
 				return (pool->mem);
 			}
 
