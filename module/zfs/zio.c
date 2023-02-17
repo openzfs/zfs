@@ -2167,9 +2167,16 @@ __zio_execute(zio_t *zio)
 		enum zio_stage pipeline = zio->io_pipeline;
 		enum zio_stage stage = zio->io_stage;
 
+#ifdef DEBUG
+		mutex_enter(&zio->io_lock);
+		ASSERT(zio->io_executor == NULL ||
+		    zio->io_executor == curthread);
 		zio->io_executor = curthread;
+		mutex_exit(&zio->io_lock);
+#else
+		zio->io_executor = curthread;
+#endif
 
-		ASSERT(!MUTEX_HELD(&zio->io_lock));
 		ASSERT(ISP2(stage));
 		ASSERT(zio->io_stall == NULL);
 
