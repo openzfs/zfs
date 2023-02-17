@@ -2058,11 +2058,6 @@ dsl_scan_visitbp(blkptr_t *bp, const zbookmark_phys_t *zb,
 		return;
 	}
 
-	if (bp->blk_birth <= scn->scn_phys.scn_cur_min_txg) {
-		scn->scn_lt_min_this_txg++;
-		return;
-	}
-
 	bp_toread = kmem_alloc(sizeof (blkptr_t), KM_SLEEP);
 	*bp_toread = *bp;
 
