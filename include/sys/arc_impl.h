@@ -30,6 +30,7 @@
 #define	_SYS_ARC_IMPL_H
 
 #include <sys/arc.h>
+#include <sys/multilist.h>
 #include <sys/zio_crypt.h>
 #include <sys/zthr.h>
 #include <sys/aggsum.h>
