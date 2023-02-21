@@ -55,7 +55,7 @@ log_assert "Migrating test file from $NEWFS_DEFAULT_FS fs to ZFS fs using cp"
 
 log_onexit cleanup
 
-log_mustprepare $DNAME "cp $BNAME $NONZFS_TESTDIR/cp$$.cp"
-log_mustmigrate $TESTDIR $SUMA $SUMB "cp $NONZFS_TESTDIR/cp$$.cp $BNAME"
+log_must prepare $DNAME "cp $BNAME $NONZFS_TESTDIR/cp$$.cp"
+log_must migrate $TESTDIR $SUMA $SUMB "cp $NONZFS_TESTDIR/cp$$.cp $BNAME"
 
 log_pass "Successfully migrated test file from $NEWFS_DEFAULT_FS fs to ZFS fs".
