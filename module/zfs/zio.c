@@ -4431,7 +4431,7 @@ zio_ready(zio_t *zio)
 	}
 
 	if (zio->io_flags & ZIO_FLAG_NODATA) {
-		if (BP_IS_GANG(bp)) {
+		if (bp != NULL && BP_IS_GANG(bp)) {
 			zio->io_flags &= ~ZIO_FLAG_NODATA;
 		} else {
 			ASSERT((uintptr_t)zio->io_abd < SPA_MAXBLOCKSIZE);
