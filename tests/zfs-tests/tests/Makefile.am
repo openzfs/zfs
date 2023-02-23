@@ -1491,6 +1491,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/migration/setup.ksh \
 	functional/mmap/cleanup.ksh \
 	functional/mmap/mmap_libaio_001_pos.ksh \
+	functional/mmap/mmap_mixed.ksh \
 	functional/mmap/mmap_read_001_pos.ksh \
 	functional/mmap/mmap_seek_001_pos.ksh \
 	functional/mmap/mmap_sync_001_pos.ksh \

@@ -59,7 +59,7 @@ main(int argc, char *argv[])
 		return (1);
 	}
 
-	int run_time_mins = 5;
+	int run_time_mins = 1;
 	if (argc >= 2) {
 		run_time_mins = atoi(argv[1]);
 	}
