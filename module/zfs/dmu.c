@@ -357,8 +357,10 @@ int dmu_bonus_hold_by_dnode(dnode_t *dn, const void *tag, dmu_buf_t **dbp,
 
 	rw_enter(&dn->dn_struct_rwlock, RW_READER);
 	if (dn->dn_bonus == NULL) {
-		rw_exit(&dn->dn_struct_rwlock);
-		rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
+		if (!rw_tryupgrade(&dn->dn_struct_rwlock)) {
+			rw_exit(&dn->dn_struct_rwlock);
+			rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
+		}
 		if (dn->dn_bonus == NULL)
 			dbuf_create_bonus(dn);
 	}
