@@ -426,7 +426,7 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 		spa_config_enter(spa, SCL_CONFIG | SCL_STATE, FTAG, RW_READER);
 	}
 
-	ASSERT(spa_config_held(spa, SCL_CONFIG | SCL_STATE, RW_READER) ==
+	ASSERT3U(spa_config_held(spa, SCL_CONFIG | SCL_STATE, RW_READER), ==,
 	    (SCL_CONFIG | SCL_STATE));
 
 	/*

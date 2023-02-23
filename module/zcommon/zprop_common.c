@@ -107,8 +107,8 @@ zprop_register_impl(int prop, const char *name, zprop_type_t type,
 	pd = &prop_tbl[prop];
 
 	ASSERT(pd->pd_name == NULL || pd->pd_name == name);
-	ASSERT(name != NULL);
-	ASSERT(colname != NULL);
+	ASSERT3P(name, !=, NULL);
+	ASSERT3P(colname, !=, NULL);
 
 	pd->pd_name = name;
 	pd->pd_propnum = prop;
@@ -253,7 +253,7 @@ propname_match(const char *p, size_t len, zprop_desc_t *prop_entry)
 	int c;
 #endif
 
-	ASSERT(propname != NULL);
+	ASSERT3P(propname, !=, NULL);
 
 	if (len == strlen(propname) &&
 	    strncmp(p, propname, len) == 0)
@@ -316,7 +316,7 @@ zprop_string_to_index(int prop, const char *string, uint64_t *index,
 	if (prop == ZPROP_INVAL || prop == ZPROP_CONT)
 		return (-1);
 
-	ASSERT(prop < zprop_get_numprops(type));
+	ASSERT3S(prop, <, zprop_get_numprops(type));
 	prop_tbl = zprop_get_proptable(type);
 	if ((idx_tbl = prop_tbl[prop].pd_table) == NULL)
 		return (-1);
@@ -342,7 +342,7 @@ zprop_index_to_string(int prop, uint64_t index, const char **string,
 	if (prop == ZPROP_INVAL || prop == ZPROP_CONT)
 		return (-1);
 
-	ASSERT(prop < zprop_get_numprops(type));
+	ASSERT3S(prop, <, zprop_get_numprops(type));
 	prop_tbl = zprop_get_proptable(type);
 	if ((idx_tbl = prop_tbl[prop].pd_table) == NULL)
 		return (-1);
@@ -366,7 +366,7 @@ zprop_random_value(int prop, uint64_t seed, zfs_type_t type)
 	zprop_desc_t *prop_tbl;
 	const zprop_index_t *idx_tbl;
 
-	ASSERT((uint_t)prop < zprop_get_numprops(type));
+	ASSERT3U((uint_t)prop, <, zprop_get_numprops(type));
 	prop_tbl = zprop_get_proptable(type);
 	idx_tbl = prop_tbl[prop].pd_table;
 
@@ -382,7 +382,7 @@ zprop_values(int prop, zfs_type_t type)
 	zprop_desc_t *prop_tbl;
 
 	ASSERT(prop != ZPROP_INVAL && prop != ZPROP_CONT);
-	ASSERT(prop < zprop_get_numprops(type));
+	ASSERT3S(prop, <, zprop_get_numprops(type));
 
 	prop_tbl = zprop_get_proptable(type);
 
@@ -404,7 +404,7 @@ zprop_valid_for_type(int prop, zfs_type_t type, boolean_t headcheck)
 	if (prop == ZPROP_INVAL || prop == ZPROP_CONT)
 		return (B_FALSE);
 
-	ASSERT(prop < zprop_get_numprops(type));
+	ASSERT3S(prop, <, zprop_get_numprops(type));
 	prop_tbl = zprop_get_proptable(type);
 	if (headcheck && prop_tbl[prop].pd_types == ZFS_TYPE_SNAPSHOT)
 		return (B_TRUE);
@@ -438,7 +438,7 @@ zprop_width(int prop, boolean_t *fixed, zfs_type_t type)
 	int i;
 
 	ASSERT(prop != ZPROP_INVAL && prop != ZPROP_CONT);
-	ASSERT(prop < zprop_get_numprops(type));
+	ASSERT3S(prop, <, zprop_get_numprops(type));
 
 	prop_tbl = zprop_get_proptable(type);
 	pd = &prop_tbl[prop];

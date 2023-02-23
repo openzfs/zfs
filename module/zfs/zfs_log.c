@@ -159,7 +159,7 @@ zfs_log_xvattr(lr_attr_t *lrattr, xvattr_t *xvap)
 	if (XVA_ISSET_REQ(xvap, XAT_CREATETIME))
 		ZFS_TIME_ENCODE(&xoap->xoa_createtime, end->lr_attr_crtime);
 	if (XVA_ISSET_REQ(xvap, XAT_AV_SCANSTAMP)) {
-		ASSERT(!XVA_ISSET_REQ(xvap, XAT_PROJID));
+		ASSERT0(XVA_ISSET_REQ(xvap, XAT_PROJID));
 
 		memcpy(end->lr_attr_scanstamp, xoap->xoa_av_scanstamp,
 		    AV_SCANSTAMP_SZ);
@@ -433,7 +433,7 @@ zfs_log_remove(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 	 * the new file data and flushes a write record for the old object.
 	 */
 	if (unlinked) {
-		ASSERT((txtype & ~TX_CI) == TX_REMOVE);
+		ASSERT3U((txtype & ~TX_CI), ==, TX_REMOVE);
 		zil_remove_async(zilog, foid);
 	}
 	zil_itx_assign(zilog, itx, tx);

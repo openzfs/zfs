@@ -76,7 +76,7 @@ do_thread_create(caddr_t stk, size_t stksize, void (*proc)(void *), void *arg,
 	 */
 	ASSERT(stk == NULL);
 	ASSERT(len == 0);
-	ASSERT(state == TS_RUN);
+	ASSERT3S(state, ==, TS_RUN);
 
 	if (pp == &p0)
 		ppp = &system_proc;

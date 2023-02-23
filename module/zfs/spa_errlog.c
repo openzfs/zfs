@@ -109,13 +109,13 @@ static void
 name_to_errphys(char *buf, zbookmark_err_phys_t *zep)
 {
 	zep->zb_object = zfs_strtonum(buf, &buf);
-	ASSERT(*buf == ':');
+	ASSERT3U(*buf, ==, ':');
 	zep->zb_level = (int)zfs_strtonum(buf + 1, &buf);
-	ASSERT(*buf == ':');
+	ASSERT3U(*buf, ==, ':');
 	zep->zb_blkid = zfs_strtonum(buf + 1, &buf);
-	ASSERT(*buf == ':');
+	ASSERT3U(*buf, ==, ':');
 	zep->zb_birth = zfs_strtonum(buf + 1, &buf);
-	ASSERT(*buf == '\0');
+	ASSERT3U(*buf, ==, '\0');
 }
 
 /*
@@ -125,13 +125,13 @@ static void
 name_to_bookmark(char *buf, zbookmark_phys_t *zb)
 {
 	zb->zb_objset = zfs_strtonum(buf, &buf);
-	ASSERT(*buf == ':');
+	ASSERT3U(*buf, ==, ':');
 	zb->zb_object = zfs_strtonum(buf + 1, &buf);
-	ASSERT(*buf == ':');
+	ASSERT3U(*buf, ==, ':');
 	zb->zb_level = (int)zfs_strtonum(buf + 1, &buf);
-	ASSERT(*buf == ':');
+	ASSERT3U(*buf, ==, ':');
 	zb->zb_blkid = zfs_strtonum(buf + 1, &buf);
-	ASSERT(*buf == '\0');
+	ASSERT3U(*buf, ==, '\0');
 }
 
 #ifdef _KERNEL
@@ -149,7 +149,7 @@ static void
 name_to_object(char *buf, uint64_t *obj)
 {
 	*obj = zfs_strtonum(buf, &buf);
-	ASSERT(*buf == '\0');
+	ASSERT3U(*buf, ==, '\0');
 }
 
 static int
@@ -1220,7 +1220,7 @@ find_txg_ancestor_snapshot(spa_t *spa, uint64_t new_head, uint64_t old_head,
 		prev_obj = dsl_dataset_phys(ds)->ds_prev_snap_obj;
 	}
 	dsl_dataset_rele(ds, FTAG);
-	ASSERT(prev_obj != 0);
+	ASSERT3U(prev_obj, !=, 0);
 	*txg = prev_obj_txg;
 	return (0);
 }

@@ -190,7 +190,7 @@ zfs_dirent_lookup(znode_t *dzp, const char *name, znode_t **zpp, int flag)
 		error = zfs_zget(zfsvfs, zoid, &zp);
 		if (error)
 			return (error);
-		ASSERT(!zp->z_unlinked);
+		ASSERT0(zp->z_unlinked);
 		*zpp = zp;
 	}
 
@@ -593,7 +593,7 @@ zfs_link_create(znode_t *dzp, const char *name, znode_t *zp, dmu_tx_t *tx,
 	}
 	if (!(flag & ZRENAMING)) {
 		if (zp->z_unlinked) {	/* no new links to unlinked zp */
-			ASSERT(!(flag & (ZNEW | ZEXISTS)));
+			ASSERT0((flag & (ZNEW | ZEXISTS)));
 			return (SET_ERROR(ENOENT));
 		}
 		if (zp->z_links >= ZFS_LINK_MAX - zp_is_dir) {
@@ -604,7 +604,7 @@ zfs_link_create(znode_t *dzp, const char *name, znode_t *zp, dmu_tx_t *tx,
 		    &zp->z_links, sizeof (zp->z_links));
 
 	} else {
-		ASSERT(!zp->z_unlinked);
+		ASSERT0(zp->z_unlinked);
 	}
 	value = zfs_dirent(zp, zp->z_mode);
 	error = zap_add(zp->z_zfsvfs->z_os, dzp->z_id, name,
@@ -763,7 +763,7 @@ zfs_link_destroy(znode_t *dzp, const char *name, znode_t *zp, dmu_tx_t *tx,
 		count = 0;
 		ASSERT0(error);
 	} else {
-		ASSERT(!zp->z_unlinked);
+		ASSERT0(zp->z_unlinked);
 		error = zfs_dropname(dzp, name, zp, tx, flag);
 		if (error != 0)
 			return (error);

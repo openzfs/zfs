@@ -348,7 +348,7 @@ page_busy(vnode_t *vp, int64_t start, int64_t off, int64_t nbytes)
 			}
 			vm_page_sbusy(pp);
 		} else if (pp != NULL) {
-			ASSERT(!pp->valid);
+			ASSERT0(pp->valid);
 			pp = NULL;
 		}
 		if (pp != NULL) {
@@ -3071,7 +3071,7 @@ zfs_rename_check(znode_t *szp, znode_t *sdzp, znode_t *tdzp)
 		return (0);
 	zp = tdzp;
 	for (;;) {
-		ASSERT(!zp->z_unlinked);
+		ASSERT0(zp->z_unlinked);
 		if ((error = sa_lookup(zp->z_sa_hdl,
 		    SA_ZPL_PARENT(zfsvfs), &parent, sizeof (parent))) != 0)
 			break;

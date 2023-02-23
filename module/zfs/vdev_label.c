@@ -160,8 +160,8 @@
 uint64_t
 vdev_label_offset(uint64_t psize, int l, uint64_t offset)
 {
-	ASSERT(offset < sizeof (vdev_label_t));
-	ASSERT(P2PHASE_TYPED(psize, sizeof (vdev_label_t), uint64_t) == 0);
+	ASSERT3U(offset, <, sizeof (vdev_label_t));
+	ASSERT0(P2PHASE_TYPED(psize, sizeof (vdev_label_t), uint64_t));
 
 	return (offset + l * sizeof (vdev_label_t) + (l < VDEV_LABELS / 2 ?
 	    0 : psize - VDEV_LABELS * sizeof (vdev_label_t)));
@@ -563,7 +563,7 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		}
 
 		if (vd->vdev_top_zap != 0) {
-			ASSERT(vd == vd->vdev_top);
+			ASSERT3P(vd, ==, vd->vdev_top);
 			fnvlist_add_uint64(nv, ZPOOL_CONFIG_VDEV_TOP_ZAP,
 			    vd->vdev_top_zap);
 		}
@@ -588,7 +588,7 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		 */
 		rw_enter(&vd->vdev_indirect_rwlock, RW_READER);
 		if (vd->vdev_indirect_mapping != NULL) {
-			ASSERT(vd->vdev_indirect_births != NULL);
+			ASSERT3P(vd->vdev_indirect_births, !=, NULL);
 			vdev_indirect_mapping_t *vim =
 			    vd->vdev_indirect_mapping;
 			fnvlist_add_uint64(nv, ZPOOL_CONFIG_INDIRECT_SIZE,
@@ -646,7 +646,7 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		nvlist_t **child;
 		int c, idx;
 
-		ASSERT(!vd->vdev_ishole);
+		ASSERT0(vd->vdev_ishole);
 
 		child = kmem_alloc(vd->vdev_children * sizeof (nvlist_t *),
 		    KM_SLEEP);
@@ -753,12 +753,12 @@ vdev_top_config_generate(spa_t *spa, nvlist_t *config)
 	}
 
 	if (idx) {
-		VERIFY(nvlist_add_uint64_array(config, ZPOOL_CONFIG_HOLE_ARRAY,
-		    array, idx) == 0);
+		VERIFY0(nvlist_add_uint64_array(config,
+		    ZPOOL_CONFIG_HOLE_ARRAY, array, idx));
 	}
 
-	VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_VDEV_CHILDREN,
-	    rvd->vdev_children) == 0);
+	VERIFY0(nvlist_add_uint64(config, ZPOOL_CONFIG_VDEV_CHILDREN,
+	    rvd->vdev_children));
 
 	kmem_free(array, rvd->vdev_children * sizeof (uint64_t));
 }
@@ -1023,7 +1023,7 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 	uint64_t spare_guid = 0, l2cache_guid = 0;
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL;
 
-	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
+	ASSERT3U(spa_config_held(spa, SCL_ALL, RW_WRITER), ==, SCL_ALL);
 
 	for (int c = 0; c < vd->vdev_children; c++)
 		if ((error = vdev_label_init(vd->vdev_child[c],
@@ -1091,7 +1091,7 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 		 */
 		if (reason == VDEV_LABEL_L2CACHE)
 			return (0);
-		ASSERT(reason == VDEV_LABEL_REPLACE);
+		ASSERT3U(reason, ==, VDEV_LABEL_REPLACE);
 	}
 
 	/*
@@ -1116,27 +1116,27 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 		 * active hot spare (in which case we want to revert the
 		 * labels).
 		 */
-		VERIFY(nvlist_alloc(&label, NV_UNIQUE_NAME, KM_SLEEP) == 0);
+		VERIFY0(nvlist_alloc(&label, NV_UNIQUE_NAME, KM_SLEEP));
 
-		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_VERSION,
-		    spa_version(spa)) == 0);
-		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_POOL_STATE,
-		    POOL_STATE_SPARE) == 0);
-		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_GUID,
-		    vd->vdev_guid) == 0);
+		VERIFY0(nvlist_add_uint64(label, ZPOOL_CONFIG_VERSION,
+		    spa_version(spa)));
+		VERIFY0(nvlist_add_uint64(label, ZPOOL_CONFIG_POOL_STATE,
+		    POOL_STATE_SPARE));
+		VERIFY0(nvlist_add_uint64(label, ZPOOL_CONFIG_GUID,
+		    vd->vdev_guid));
 	} else if (reason == VDEV_LABEL_L2CACHE ||
 	    (reason == VDEV_LABEL_REMOVE && vd->vdev_isl2cache)) {
 		/*
 		 * For level 2 ARC devices, add a special label.
 		 */
-		VERIFY(nvlist_alloc(&label, NV_UNIQUE_NAME, KM_SLEEP) == 0);
+		VERIFY0(nvlist_alloc(&label, NV_UNIQUE_NAME, KM_SLEEP));
 
-		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_VERSION,
-		    spa_version(spa)) == 0);
-		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_POOL_STATE,
-		    POOL_STATE_L2CACHE) == 0);
-		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_GUID,
-		    vd->vdev_guid) == 0);
+		VERIFY0(nvlist_add_uint64(label, ZPOOL_CONFIG_VERSION,
+		    spa_version(spa)));
+		VERIFY0(nvlist_add_uint64(label, ZPOOL_CONFIG_POOL_STATE,
+		    POOL_STATE_L2CACHE));
+		VERIFY0(nvlist_add_uint64(label, ZPOOL_CONFIG_GUID,
+		    vd->vdev_guid));
 	} else {
 		uint64_t txg = 0ULL;
 
@@ -1149,8 +1149,8 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 		 * vdev uses as described above, and automatically expires if we
 		 * fail.
 		 */
-		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_CREATE_TXG,
-		    crtxg) == 0);
+		VERIFY0(nvlist_add_uint64(label, ZPOOL_CONFIG_CREATE_TXG,
+		    crtxg));
 	}
 
 	buf = vp->vp_nvlist;
@@ -1293,7 +1293,7 @@ vdev_label_read_bootenv(vdev_t *rvd, nvlist_t *bootenv)
 	    ZIO_FLAG_SPECULATIVE | ZIO_FLAG_TRYHARD;
 
 	ASSERT(bootenv);
-	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
+	ASSERT3U(spa_config_held(spa, SCL_ALL, RW_WRITER), ==, SCL_ALL);
 
 	zio_t *zio = zio_root(spa, NULL, &abd, flags);
 	vdev_label_read_bootenv_impl(zio, rvd, flags);
@@ -1368,7 +1368,7 @@ vdev_label_write_bootenv(vdev_t *vd, nvlist_t *env)
 		return (SET_ERROR(E2BIG));
 	}
 
-	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
+	ASSERT3U(spa_config_held(spa, SCL_ALL, RW_WRITER), ==, SCL_ALL);
 
 	error = ENXIO;
 	for (int c = 0; c < vd->vdev_children; c++) {
@@ -1619,7 +1619,7 @@ vdev_copy_uberblocks(vdev_t *vd)
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL |
 	    ZIO_FLAG_SPECULATIVE;
 
-	ASSERT(spa_config_held(vd->vdev_spa, SCL_STATE, RW_READER) ==
+	ASSERT3U(spa_config_held(vd->vdev_spa, SCL_STATE, RW_READER), ==,
 	    SCL_STATE);
 	ASSERT(vd->vdev_ops->vdev_op_leaf);
 
@@ -1866,7 +1866,7 @@ vdev_label_sync_list(spa_t *spa, int l, uint64_t txg, int flags)
 	for (vd = list_head(dl); vd != NULL; vd = list_next(dl, vd)) {
 		uint64_t *good_writes;
 
-		ASSERT(!vd->vdev_ishole);
+		ASSERT0(vd->vdev_ishole);
 
 		good_writes = kmem_zalloc(sizeof (uint64_t), KM_SLEEP);
 		zio_t *vio = zio_null(zio, spa, NULL,
@@ -1911,7 +1911,7 @@ vdev_config_sync(vdev_t **svd, int svdcount, uint64_t txg)
 	int error = 0;
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL;
 
-	ASSERT(svdcount != 0);
+	ASSERT3S(svdcount, !=, 0);
 retry:
 	/*
 	 * Normally, we don't want to try too hard to write every label and
@@ -1926,7 +1926,7 @@ retry:
 		flags |= ZIO_FLAG_TRYHARD;
 	}
 
-	ASSERT(ub->ub_txg <= txg);
+	ASSERT3U(ub->ub_txg, <=, txg);
 
 	/*
 	 * If this isn't a resync due to I/O errors,
@@ -1945,7 +1945,7 @@ retry:
 	if (txg > spa_freeze_txg(spa))
 		return (0);
 
-	ASSERT(txg <= spa->spa_final_txg);
+	ASSERT3U(txg, <=, spa->spa_final_txg);
 
 	/*
 	 * Flush the write cache of every disk that's been written to

@@ -350,7 +350,7 @@ void
 callb_lock_table(void)
 {
 	mutex_enter(&ct->ct_lock);
-	ASSERT(!ct->ct_busy);
+	ASSERT0(ct->ct_busy);
 	ct->ct_busy = B_TRUE;
 	mutex_exit(&ct->ct_lock);
 }

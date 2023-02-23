@@ -114,7 +114,7 @@ zvol_name_hash(const char *name)
 	int i;
 	uint64_t crc = -1ULL;
 	const uint8_t *p = (const uint8_t *)name;
-	ASSERT(zfs_crc64_table[128] == ZFS_CRC64_POLY);
+	ASSERT3U(zfs_crc64_table[128], ==, ZFS_CRC64_POLY);
 	for (i = 0; i < MAXNAMELEN - 1 && *p; i++, p++) {
 		crc = (crc >> 8) ^ zfs_crc64_table[(crc ^ (*p)) & 0xFF];
 	}
@@ -191,8 +191,8 @@ zvol_create_cb(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx)
 	int error;
 	uint64_t volblocksize, volsize;
 
-	VERIFY(nvlist_lookup_uint64(nvprops,
-	    zfs_prop_to_name(ZFS_PROP_VOLSIZE), &volsize) == 0);
+	VERIFY0(nvlist_lookup_uint64(nvprops,
+	    zfs_prop_to_name(ZFS_PROP_VOLSIZE), &volsize));
 	if (nvlist_lookup_uint64(nvprops,
 	    zfs_prop_to_name(ZFS_PROP_VOLBLOCKSIZE), &volblocksize) != 0)
 		volblocksize = zfs_prop_default_numeric(ZFS_PROP_VOLBLOCKSIZE);
@@ -201,21 +201,20 @@ zvol_create_cb(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx)
 	 * These properties must be removed from the list so the generic
 	 * property setting step won't apply to them.
 	 */
-	VERIFY(nvlist_remove_all(nvprops,
-	    zfs_prop_to_name(ZFS_PROP_VOLSIZE)) == 0);
+	VERIFY0(nvlist_remove_all(nvprops, zfs_prop_to_name(ZFS_PROP_VOLSIZE)));
 	(void) nvlist_remove_all(nvprops,
 	    zfs_prop_to_name(ZFS_PROP_VOLBLOCKSIZE));
 
 	error = dmu_object_claim(os, ZVOL_OBJ, DMU_OT_ZVOL, volblocksize,
 	    DMU_OT_NONE, 0, tx);
-	ASSERT(error == 0);
+	ASSERT0(error);
 
 	error = zap_create_claim(os, ZVOL_ZAP_OBJ, DMU_OT_ZVOL_PROP,
 	    DMU_OT_NONE, 0, tx);
-	ASSERT(error == 0);
+	ASSERT0(error);
 
 	error = zap_update(os, ZVOL_ZAP_OBJ, "size", 8, 1, &volsize, tx);
-	ASSERT(error == 0);
+	ASSERT0(error);
 }
 
 /*
@@ -680,9 +679,9 @@ zvol_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 			zgd->zgd_db = db;
 			zgd->zgd_bp = bp;
 
-			ASSERT(db != NULL);
-			ASSERT(db->db_offset == offset);
-			ASSERT(db->db_size == size);
+			ASSERT3P(db, !=, NULL);
+			ASSERT3U(db->db_offset, ==, offset);
+			ASSERT3U(db->db_size, ==, size);
 
 			error = dmu_sync(zio, lr->lr_common.lrc_txg,
 			    zvol_get_done, zgd);
@@ -774,7 +773,7 @@ zvol_shutdown_zv(zvol_state_t *zv)
 	    RW_LOCK_HELD(&zv->zv_suspend_lock));
 
 	if (zv->zv_flags & ZVOL_WRITTEN_TO) {
-		ASSERT(zv->zv_zilog != NULL);
+		ASSERT3P(zv->zv_zilog, !=, NULL);
 		zil_close(zv->zv_zilog);
 	}
 

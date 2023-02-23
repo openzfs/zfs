@@ -386,7 +386,7 @@ gcm_decrypt_final(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size,
 	uint64_t counter_mask = ntohll(0x00000000ffffffffULL);
 	int processed = 0, rv;
 
-	ASSERT(ctx->gcm_processed_data_len == ctx->gcm_pt_buf_len);
+	ASSERT3U(ctx->gcm_processed_data_len, ==, ctx->gcm_pt_buf_len);
 
 	gops = gcm_impl_get_ops();
 	pt_len = ctx->gcm_processed_data_len - ctx->gcm_tag_len;
@@ -1179,7 +1179,7 @@ gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
 	uint8_t *tmp = (uint8_t *)ctx->gcm_tmp;
 	int rv = CRYPTO_SUCCESS;
 
-	ASSERT(block_size == GCM_BLOCK_LEN);
+	ASSERT3U(block_size, ==, GCM_BLOCK_LEN);
 	/*
 	 * If the last call left an incomplete block, try to fill
 	 * it first.
@@ -1323,7 +1323,7 @@ gcm_encrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 	int aes_rounds = ((aes_key_t *)keysched)->nr;
 	int rv;
 
-	ASSERT(block_size == GCM_BLOCK_LEN);
+	ASSERT3U(block_size, ==, GCM_BLOCK_LEN);
 
 	if (out->cd_length < (rem_len + ctx->gcm_tag_len)) {
 		return (CRYPTO_DATA_LEN_RANGE);
@@ -1421,7 +1421,7 @@ gcm_decrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 		datap += done;
 		bleft -= done;
 	}
-	ASSERT(bleft < GCM_AVX_MIN_DECRYPT_BYTES);
+	ASSERT3U(bleft, <, GCM_AVX_MIN_DECRYPT_BYTES);
 
 	/*
 	 * Now less than GCM_AVX_MIN_DECRYPT_BYTES bytes remain,
@@ -1498,7 +1498,7 @@ gcm_init_avx(gcm_ctx_t *ctx, unsigned char *iv, size_t iv_len,
 	size_t chunk_size = (size_t)GCM_CHUNK_SIZE_READ;
 	size_t bleft;
 
-	ASSERT(block_size == GCM_BLOCK_LEN);
+	ASSERT3U(block_size, ==, GCM_BLOCK_LEN);
 
 	/* Init H (encrypt zero block) and create the initial counter block. */
 	memset(ctx->gcm_ghash, 0, sizeof (ctx->gcm_ghash));

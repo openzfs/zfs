@@ -688,7 +688,7 @@ zfsvfs_init(zfsvfs_t *zfsvfs, objset_t *os)
 	    &zfsvfs->z_root);
 	if (error != 0)
 		return (error);
-	ASSERT(zfsvfs->z_root != 0);
+	ASSERT3U(zfsvfs->z_root, !=, 0);
 
 	error = zap_lookup(os, MASTER_NODE_OBJ, ZFS_UNLINKED_SET, 8, 1,
 	    &zfsvfs->z_unlinkedobj);
@@ -1639,7 +1639,7 @@ zfs_umount(struct super_block *sb)
 
 	if (zfsvfs->z_arc_prune != NULL)
 		arc_remove_prune_callback(zfsvfs->z_arc_prune);
-	VERIFY(zfsvfs_teardown(zfsvfs, B_TRUE) == 0);
+	VERIFY0(zfsvfs_teardown(zfsvfs, B_TRUE));
 	os = zfsvfs->z_os;
 	zpl_bdi_destroy(sb);
 
@@ -1757,10 +1757,10 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 	if (fid_gen == 0 &&
 	    (object == ZFSCTL_INO_ROOT || object == ZFSCTL_INO_SNAPDIR)) {
 		*ipp = zfsvfs->z_ctldir;
-		ASSERT(*ipp != NULL);
+		ASSERT3P(*ipp, !=, NULL);
 		if (object == ZFSCTL_INO_SNAPDIR) {
-			VERIFY(zfsctl_root_lookup(*ipp, "snapshot", ipp,
-			    0, kcred, NULL, NULL) == 0);
+			VERIFY0(zfsctl_root_lookup(*ipp, "snapshot", ipp, 0,
+			    kcred, NULL, NULL));
 		} else {
 			/*
 			 * Must have an existing ref, so igrab()
@@ -1862,7 +1862,7 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 		goto bail;
 
 	ds->ds_dir->dd_activity_cancelled = B_FALSE;
-	VERIFY(zfsvfs_setup(zfsvfs, B_FALSE) == 0);
+	VERIFY0(zfsvfs_setup(zfsvfs, B_FALSE));
 
 	zfs_set_fuid_feature(zfsvfs);
 	zfsvfs->z_rollback_time = jiffies;
@@ -2035,7 +2035,7 @@ zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers)
 		    ZFS_SA_ATTRS, 8, 1, &sa_obj, tx);
 		ASSERT0(error);
 
-		VERIFY(0 == sa_set_sa_object(os, sa_obj));
+		VERIFY0(sa_set_sa_object(os, sa_obj));
 		sa_register_update_callback(os, zfs_sa_upgrade);
 	}
 
@@ -2148,7 +2148,7 @@ zfs_get_vfs_flag_unmounted(objset_t *os)
 	zfsvfs_t *zfvp;
 	boolean_t unmounted = B_FALSE;
 
-	ASSERT(dmu_objset_type(os) == DMU_OST_ZFS);
+	ASSERT3U(dmu_objset_type(os), ==, DMU_OST_ZFS);
 
 	mutex_enter(&os->os_user_ptr_lock);
 	zfvp = dmu_objset_get_user(os);

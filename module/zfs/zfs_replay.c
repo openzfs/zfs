@@ -105,7 +105,7 @@ zfs_replay_xvattr(lr_attr_t *lrattr, xvattr_t *xvap)
 		return;
 	}
 
-	ASSERT(lrattr->lr_attr_masksize == xvap->xva_mapsize);
+	ASSERT3U(lrattr->lr_attr_masksize, ==, xvap->xva_mapsize);
 
 	bitmap = &lrattr->lr_attr_bitmap;
 	for (i = 0; i != lrattr->lr_attr_masksize; i++, bitmap++)
@@ -141,7 +141,7 @@ zfs_replay_xvattr(lr_attr_t *lrattr, xvattr_t *xvap)
 	if (XVA_ISSET_REQ(xvap, XAT_CREATETIME))
 		ZFS_TIME_DECODE(&xoap->xoa_createtime, crtime);
 	if (XVA_ISSET_REQ(xvap, XAT_AV_SCANSTAMP)) {
-		ASSERT(!XVA_ISSET_REQ(xvap, XAT_PROJID));
+		ASSERT0(XVA_ISSET_REQ(xvap, XAT_PROJID));
 
 		memcpy(xoap->xoa_av_scanstamp, scanstamp, AV_SCANSTAMP_SZ);
 	} else if (XVA_ISSET_REQ(xvap, XAT_PROJID)) {

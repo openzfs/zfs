@@ -130,7 +130,7 @@ process_old_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed, dmu_tx_t *tx)
 	struct process_old_arg *poa = arg;
 	dsl_pool_t *dp = poa->ds->ds_dir->dd_pool;
 
-	ASSERT(!BP_IS_HOLE(bp));
+	ASSERT0(BP_IS_HOLE(bp));
 
 	if (bp->blk_birth <= dsl_dataset_phys(poa->ds)->ds_prev_snap_txg) {
 		dsl_deadlist_insert(&poa->ds->ds_deadlist, bp, bp_freed, tx);
@@ -289,7 +289,7 @@ dsl_destroy_snapshot_handle_remaps(dsl_dataset_t *ds, dsl_dataset_t *ds_next,
 	if (dsl_dataset_remap_deadlist_exists(ds)) {
 		uint64_t remap_deadlist_object =
 		    dsl_dataset_get_remap_deadlist_object(ds);
-		ASSERT(remap_deadlist_object != 0);
+		ASSERT3U(remap_deadlist_object, !=, 0);
 
 		mutex_enter(&ds_next->ds_remap_deadlist_lock);
 		if (!dsl_dataset_remap_deadlist_exists(ds_next))
@@ -320,7 +320,7 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 	if (defer &&
 	    (ds->ds_userrefs > 0 ||
 	    dsl_dataset_phys(ds)->ds_num_children > 1)) {
-		ASSERT(spa_version(dp->dp_spa) >= SPA_VERSION_USERREFS);
+		ASSERT3U(spa_version(dp->dp_spa), >=, SPA_VERSION_USERREFS);
 		dmu_buf_will_dirty(ds->ds_dbuf, tx);
 		dsl_dataset_phys(ds)->ds_flags |= DS_FLAG_DEFER_DESTROY;
 		if (zfs_snapshot_history_enabled) {
@@ -503,7 +503,7 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 			uint64_t new_unique =
 			    dsl_dataset_phys(ds_next)->ds_unique_bytes;
 
-			ASSERT(old_unique <= new_unique);
+			ASSERT3U(old_unique, <=, new_unique);
 			mrsdelta = MIN(new_unique - old_unique,
 			    ds_next->ds_reserved - old_unique);
 			dsl_dir_diduse_space(ds->ds_dir,
@@ -523,7 +523,7 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 
 	/* remove from snapshot namespace */
 	dsl_dataset_t *ds_head;
-	ASSERT(dsl_dataset_phys(ds)->ds_snapnames_zapobj == 0);
+	ASSERT0(dsl_dataset_phys(ds)->ds_snapnames_zapobj);
 	VERIFY0(dsl_dataset_hold_obj(dp,
 	    dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj, FTAG, &ds_head));
 	VERIFY0(dsl_dataset_get_snapname(ds));
@@ -719,14 +719,14 @@ kill_blkptr(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		return (0);
 
 	if (zb->zb_level == ZB_ZIL_LEVEL) {
-		ASSERT(zilog != NULL);
+		ASSERT3P(zilog, !=, NULL);
 		/*
 		 * It's a block in the intent log.  It has no
 		 * accounting, so just free it.
 		 */
 		dsl_free(ka->tx->tx_pool, ka->tx->tx_txg, bp);
 	} else {
-		ASSERT(zilog == NULL);
+		ASSERT3P(zilog, ==, NULL);
 		ASSERT3U(bp->blk_birth, >,
 		    dsl_dataset_phys(ka->ds)->ds_prev_snap_txg);
 		(void) dsl_dataset_block_kill(ka->ds, bp, tx, B_FALSE);
@@ -767,7 +767,7 @@ dsl_destroy_head_check_impl(dsl_dataset_t *ds, int expected_holds)
 	uint64_t count;
 	objset_t *mos;
 
-	ASSERT(!ds->ds_is_snapshot);
+	ASSERT0(ds->ds_is_snapshot);
 	if (ds->ds_is_snapshot)
 		return (SET_ERROR(EINVAL));
 
@@ -982,7 +982,7 @@ dsl_async_dataset_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
 		    DMU_POOL_DIRECTORY_OBJECT,
 		    DMU_POOL_BPTREE_OBJ, sizeof (uint64_t), 1,
 		    &dp->dp_bptree_obj, tx));
-		ASSERT(!scn->scn_async_destroying);
+		ASSERT0(scn->scn_async_destroying);
 		scn->scn_async_destroying = B_TRUE;
 	}
 
@@ -1047,7 +1047,7 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 
 	if (dsl_dataset_phys(ds)->ds_prev_snap_obj != 0) {
 		/* This is a clone */
-		ASSERT(ds->ds_prev != NULL);
+		ASSERT3P(ds->ds_prev, !=, NULL);
 		ASSERT3U(dsl_dataset_phys(ds->ds_prev)->ds_next_snap_obj, !=,
 		    obj);
 		ASSERT0(dsl_dataset_phys(ds)->ds_next_snap_obj);
@@ -1114,7 +1114,7 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 	dmu_buf_will_dirty(ds->ds_dir->dd_dbuf, tx);
 	dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj = 0;
 	ddobj = ds->ds_dir->dd_object;
-	ASSERT(dsl_dataset_phys(ds)->ds_snapnames_zapobj != 0);
+	ASSERT3U(dsl_dataset_phys(ds)->ds_snapnames_zapobj, !=, 0);
 	VERIFY0(zap_destroy(mos,
 	    dsl_dataset_phys(ds)->ds_snapnames_zapobj, tx));
 

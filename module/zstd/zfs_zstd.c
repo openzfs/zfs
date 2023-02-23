@@ -109,7 +109,7 @@ static zstd_stats_t zstd_stats = {
 static int
 kstat_zstd_update(kstat_t *ksp, int rw)
 {
-	ASSERT(ksp != NULL);
+	ASSERT3P(ksp, !=, NULL);
 
 	if (rw == KSTAT_WRITE && ksp == zstd_ksp) {
 		ZSTDSTAT_ZERO(zstd_stat_alloc_fail);

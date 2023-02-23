@@ -327,7 +327,7 @@ static nvpair_t *
 nvt_lookup_name_type(const nvlist_t *nvl, const char *name, data_type_t type)
 {
 	const nvpriv_t *priv = (const nvpriv_t *)(uintptr_t)nvl->nvl_priv;
-	ASSERT(priv != NULL);
+	ASSERT3P(priv, !=, NULL);
 
 	i_nvp_t **tab = priv->nvp_hashtable;
 
@@ -337,7 +337,7 @@ nvt_lookup_name_type(const nvlist_t *nvl, const char *name, data_type_t type)
 		ASSERT0(priv->nvp_nentries);
 		return (NULL);
 	} else {
-		ASSERT(priv->nvp_nbuckets != 0);
+		ASSERT3U(priv->nvp_nbuckets, !=, 0);
 	}
 
 	uint64_t hash = nvt_hash(name);
@@ -1199,7 +1199,7 @@ nvlist_add_common(nvlist_t *nvl, const char *name,
 	if ((nvp = nvp_buf_alloc(nvl, nvp_sz)) == NULL)
 		return (ENOMEM);
 
-	ASSERT(nvp->nvp_size == nvp_sz);
+	ASSERT3U(nvp->nvp_size, ==, nvp_sz);
 	nvp->nvp_name_sz = name_sz;
 	nvp->nvp_value_elem = nelem;
 	nvp->nvp_type = type;
@@ -3304,7 +3304,7 @@ nvs_xdr_nvp_op(nvstream_t *nvs, nvpair_t *nvp)
 	bool_t	ret = FALSE;
 	XDR	*xdr = nvs->nvs_private;
 
-	ASSERT(xdr != NULL);
+	ASSERT3P(xdr, !=, NULL);
 
 	/* name string */
 	if ((buf = NVP_NAME(nvp)) >= buf_end)

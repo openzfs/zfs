@@ -62,8 +62,8 @@ void
 list_create(list_t *list, size_t size, size_t offset)
 {
 	ASSERT(list);
-	ASSERT(size > 0);
-	ASSERT(size >= offset + sizeof (list_node_t));
+	ASSERT3U(size, >, 0);
+	ASSERT3U(size, >=, offset + sizeof (list_node_t));
 
 	list->list_size = size;
 	list->list_offset = offset;
@@ -76,8 +76,8 @@ list_destroy(list_t *list)
 	list_node_t *node = &list->list_head;
 
 	ASSERT(list);
-	ASSERT(list->list_head.next == node);
-	ASSERT(list->list_head.prev == node);
+	ASSERT3U(list->list_head.next, ==, node);
+	ASSERT3U(list->list_head.prev, ==, node);
 
 	node->next = node->prev = NULL;
 }
@@ -122,8 +122,8 @@ void
 list_remove(list_t *list, void *object)
 {
 	list_node_t *lold = list_d2l(list, object);
-	ASSERT(!list_empty(list));
-	ASSERT(lold->next != NULL);
+	ASSERT0(list_empty(list));
+	ASSERT3P(lold->next, !=, NULL);
 	list_remove_node(lold);
 }
 
@@ -194,8 +194,8 @@ list_move_tail(list_t *dst, list_t *src)
 	list_node_t *dstnode = &dst->list_head;
 	list_node_t *srcnode = &src->list_head;
 
-	ASSERT(dst->list_size == src->list_size);
-	ASSERT(dst->list_offset == src->list_offset);
+	ASSERT3U(dst->list_size, ==, src->list_size);
+	ASSERT3U(dst->list_offset, ==, src->list_offset);
 
 	if (list_empty(src))
 		return;
@@ -213,7 +213,7 @@ void
 list_link_replace(list_node_t *lold, list_node_t *lnew)
 {
 	ASSERT(list_link_active(lold));
-	ASSERT(!list_link_active(lnew));
+	ASSERT0(list_link_active(lnew));
 
 	lnew->next = lold->next;
 	lnew->prev = lold->prev;

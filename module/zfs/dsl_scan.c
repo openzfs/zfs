@@ -470,7 +470,7 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 	 * make sure that the scan_async_destroying flag is initialized
 	 * appropriately.
 	 */
-	ASSERT(!scn->scn_async_destroying);
+	ASSERT0(scn->scn_async_destroying);
 	scn->scn_async_destroying = spa_feature_is_active(dp->dp_spa,
 	    SPA_FEATURE_ASYNC_DESTROY);
 
@@ -759,7 +759,7 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 	dsl_pool_t *dp = scn->scn_dp;
 	spa_t *spa = dp->dp_spa;
 
-	ASSERT(!dsl_scan_is_running(scn));
+	ASSERT0(dsl_scan_is_running(scn));
 	ASSERT(*funcp > POOL_SCAN_NONE && *funcp < POOL_SCAN_FUNCS);
 	memset(&scn->scn_phys, 0, sizeof (scn->scn_phys));
 	scn->scn_phys.scn_func = *funcp;
@@ -938,7 +938,7 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 	 * with anything else.
 	 */
 	if (!dsl_scan_is_running(scn)) {
-		ASSERT(!scn->scn_is_sorted);
+		ASSERT0(scn->scn_is_sorted);
 		return;
 	}
 
@@ -1041,7 +1041,7 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 	if (spa->spa_errata == ZPOOL_ERRATA_ZOL_2094_SCRUB)
 		spa->spa_errata = 0;
 
-	ASSERT(!dsl_scan_is_running(scn));
+	ASSERT0(dsl_scan_is_running(scn));
 }
 
 static int
@@ -1148,7 +1148,7 @@ dsl_scan_restart_resilver(dsl_pool_t *dp, uint64_t txg)
 	if (txg == 0) {
 		dmu_tx_t *tx;
 		tx = dmu_tx_create_dd(dp->dp_mos_dir);
-		VERIFY(0 == dmu_tx_assign(tx, TXG_WAIT));
+		VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
 
 		txg = dmu_tx_get_txg(tx);
 		dp->dp_scan->scn_restart_txg = txg;
@@ -1229,7 +1229,7 @@ scan_ds_queue_remove(dsl_scan_t *scn, uint64_t dsobj)
 	srch.sds_dsobj = dsobj;
 
 	sds = avl_find(&scn->scn_queue, &srch, NULL);
-	VERIFY(sds != NULL);
+	VERIFY3P(sds, !=, NULL);
 	avl_remove(&scn->scn_queue, sds);
 	kmem_free(sds, sizeof (*sds));
 }
@@ -1243,7 +1243,7 @@ scan_ds_queue_sync(dsl_scan_t *scn, dmu_tx_t *tx)
 	    DMU_OT_SCAN_QUEUE : DMU_OT_ZAP_OTHER;
 
 	ASSERT0(scn->scn_queues_pending);
-	ASSERT(scn->scn_phys.scn_queue_obj != 0);
+	ASSERT3U(scn->scn_phys.scn_queue_obj, !=, 0);
 
 	VERIFY0(dmu_object_free(dp->dp_meta_objset,
 	    scn->scn_phys.scn_queue_obj, tx));
@@ -1437,7 +1437,7 @@ dsl_scan_zil_block(zilog_t *zilog, const blkptr_t *bp, void *arg,
 	zil_header_t *zh = zsa->zsa_zh;
 	zbookmark_phys_t zb;
 
-	ASSERT(!BP_IS_REDACTED(bp));
+	ASSERT0(BP_IS_REDACTED(bp));
 	if (BP_IS_HOLE(bp) || bp->blk_birth <= scn->scn_phys.scn_cur_min_txg)
 		return (0);
 
@@ -1453,7 +1453,7 @@ dsl_scan_zil_block(zilog_t *zilog, const blkptr_t *bp, void *arg,
 	SET_BOOKMARK(&zb, zh->zh_log.blk_cksum.zc_word[ZIL_ZC_OBJSET],
 	    ZB_ZIL_OBJECT, ZB_ZIL_LEVEL, bp->blk_cksum.zc_word[ZIL_ZC_SEQ]);
 
-	VERIFY(0 == scan_funcs[scn->scn_phys.scn_func](dp, bp, &zb));
+	VERIFY0(scan_funcs[scn->scn_phys.scn_func](dp, bp, &zb));
 	return (0);
 }
 
@@ -1471,7 +1471,7 @@ dsl_scan_zil_record(zilog_t *zilog, const lr_t *lrc, void *arg,
 		const blkptr_t *bp = &lr->lr_blkptr;
 		zbookmark_phys_t zb;
 
-		ASSERT(!BP_IS_REDACTED(bp));
+		ASSERT0(BP_IS_REDACTED(bp));
 		if (BP_IS_HOLE(bp) ||
 		    bp->blk_birth <= scn->scn_phys.scn_cur_min_txg)
 			return (0);
@@ -1489,7 +1489,7 @@ dsl_scan_zil_record(zilog_t *zilog, const lr_t *lrc, void *arg,
 		    lr->lr_foid, ZB_ZIL_LEVEL,
 		    lr->lr_offset / BP_GET_LSIZE(bp));
 
-		VERIFY(0 == scan_funcs[scn->scn_phys.scn_func](dp, bp, &zb));
+		VERIFY0(scan_funcs[scn->scn_phys.scn_func](dp, bp, &zb));
 	}
 	return (0);
 }
@@ -1869,7 +1869,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 	int zio_flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_SCAN_THREAD;
 	int err;
 
-	ASSERT(!BP_IS_REDACTED(bp));
+	ASSERT0(BP_IS_REDACTED(bp));
 
 	/*
 	 * There is an unlikely case of encountering dnodes with contradicting
@@ -2198,10 +2198,10 @@ dsl_scan_ds_destroyed(dsl_dataset_t *ds, dmu_tx_t *tx)
 			 * ds_creation_txg if the previous snapshot was
 			 * deleted too.
 			 */
-			VERIFY(zap_add_int_key(dp->dp_meta_objset,
+			VERIFY0(zap_add_int_key(dp->dp_meta_objset,
 			    scn->scn_phys.scn_queue_obj,
-			    dsl_dataset_phys(ds)->ds_next_snap_obj,
-			    mintxg, tx) == 0);
+			    dsl_dataset_phys(ds)->ds_next_snap_obj, mintxg,
+			    tx));
 			zfs_dbgmsg("destroying ds %llu on %s; in queue; "
 			    "replacing with %llu",
 			    (u_longlong_t)ds->ds_object,
@@ -2253,7 +2253,7 @@ dsl_scan_ds_snapshotted(dsl_dataset_t *ds, dmu_tx_t *tx)
 	if (!dsl_scan_is_running(scn))
 		return;
 
-	ASSERT(dsl_dataset_phys(ds)->ds_prev_snap_obj != 0);
+	ASSERT3U(dsl_dataset_phys(ds)->ds_prev_snap_obj, !=, 0);
 
 	ds_snapshotted_bookmark(ds, &scn->scn_phys.scn_bookmark);
 	ds_snapshotted_bookmark(ds, &scn->scn_phys_cached.scn_bookmark);
@@ -2268,9 +2268,9 @@ dsl_scan_ds_snapshotted(dsl_dataset_t *ds, dmu_tx_t *tx)
 	    ds->ds_object, &mintxg) == 0) {
 		VERIFY3U(0, ==, zap_remove_int(dp->dp_meta_objset,
 		    scn->scn_phys.scn_queue_obj, ds->ds_object, tx));
-		VERIFY(zap_add_int_key(dp->dp_meta_objset,
+		VERIFY0(zap_add_int_key(dp->dp_meta_objset,
 		    scn->scn_phys.scn_queue_obj,
-		    dsl_dataset_phys(ds)->ds_prev_snap_obj, mintxg, tx) == 0);
+		    dsl_dataset_phys(ds)->ds_prev_snap_obj, mintxg, tx));
 		zfs_dbgmsg("snapshotting ds %llu on %s; in queue; "
 		    "replacing with %llu",
 		    (u_longlong_t)ds->ds_object,
@@ -2722,7 +2722,7 @@ dsl_scan_ddt(dsl_scan_t *scn, dmu_tx_t *tx)
 
 		/* There should be no pending changes to the dedup table */
 		ddt = scn->scn_dp->dp_spa->spa_ddt[ddb->ddb_checksum];
-		ASSERT(avl_first(&ddt->ddt_tree) == NULL);
+		ASSERT3P(avl_first(&ddt->ddt_tree), ==, NULL);
 
 		dsl_scan_ddt_entry(scn, ddb->ddb_checksum, &dde, tx);
 		n++;
@@ -2782,7 +2782,7 @@ dsl_scan_visit(dsl_scan_t *scn, dmu_tx_t *tx)
 			dsl_scan_visitds(scn,
 			    dp->dp_origin_snap->ds_object, tx);
 		}
-		ASSERT(!scn->scn_suspending);
+		ASSERT0(scn->scn_suspending);
 	} else if (scn->scn_phys.scn_bookmark.zb_objset !=
 	    ZB_DESTROYED_OBJSET) {
 		uint64_t dsobj = scn->scn_phys.scn_bookmark.zb_objset;
@@ -2944,7 +2944,7 @@ scan_io_queue_gather(dsl_scan_io_queue_t *queue, range_seg_t *rs, list_t *list)
 	uint_t num_sios = 0;
 	int64_t bytes_issued = 0;
 
-	ASSERT(rs != NULL);
+	ASSERT3P(rs, !=, NULL);
 	ASSERT(MUTEX_HELD(&queue->q_vd->vdev_scan_io_queue_lock));
 
 	srch_sio = sio_alloc(1);
@@ -3120,7 +3120,7 @@ scan_io_queues_run_one(void *arg)
 			 * processed next. Gather up the corresponding sios.
 			 */
 			more_left = scan_io_queue_gather(queue, rs, &sio_list);
-			ASSERT(!list_is_empty(&sio_list));
+			ASSERT0(list_is_empty(&sio_list));
 			first_sio = list_head(&sio_list);
 			last_sio = list_tail(&sio_list);
 
@@ -3204,9 +3204,9 @@ scan_io_queues_run(dsl_scan_t *scn)
 
 		mutex_enter(&vd->vdev_scan_io_queue_lock);
 		if (vd->vdev_scan_io_queue != NULL) {
-			VERIFY(taskq_dispatch(scn->scn_taskq,
+			VERIFY3U(taskq_dispatch(scn->scn_taskq,
 			    scan_io_queues_run_one, vd->vdev_scan_io_queue,
-			    TQ_SLEEP) != TASKQID_INVALID);
+			    TQ_SLEEP), !=, TASKQID_INVALID);
 		}
 		mutex_exit(&vd->vdev_scan_io_queue_lock);
 	}
@@ -3305,7 +3305,7 @@ static int
 bpobj_dsl_scan_free_block_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
     dmu_tx_t *tx)
 {
-	ASSERT(!bp_freed);
+	ASSERT0(bp_freed);
 	return (dsl_scan_free_block_cb(arg, bp, tx));
 }
 
@@ -3313,7 +3313,7 @@ static int
 dsl_scan_obsolete_block_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
     dmu_tx_t *tx)
 {
-	ASSERT(!bp_freed);
+	ASSERT0(bp_freed);
 	dsl_scan_t *scn = arg;
 	const dva_t *dva = &bp->blk_dva[0];
 
@@ -3465,7 +3465,7 @@ dsl_process_async_destroys(dsl_pool_t *dp, dmu_tx_t *tx)
 		if (bptree_is_empty(dp->dp_meta_objset, dp->dp_bptree_obj)) {
 			/* finished; deactivate async destroy feature */
 			spa_feature_decr(spa, SPA_FEATURE_ASYNC_DESTROY, tx);
-			ASSERT(!spa_feature_is_active(spa,
+			ASSERT0(spa_feature_is_active(spa,
 			    SPA_FEATURE_ASYNC_DESTROY));
 			VERIFY0(zap_remove(dp->dp_meta_objset,
 			    DMU_POOL_DIRECTORY_OBJECT,
@@ -3787,7 +3787,7 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		scn->scn_prefetch_stop = B_FALSE;
 		prefetch_tqid = taskq_dispatch(dp->dp_sync_taskq,
 		    dsl_scan_prefetch_thread, scn, TQ_SLEEP);
-		ASSERT(prefetch_tqid != TASKQID_INVALID);
+		ASSERT3U(prefetch_tqid, !=, TASKQID_INVALID);
 
 		dsl_pool_config_enter(dp, FTAG);
 		dsl_scan_visit(scn, tx);
@@ -3990,7 +3990,7 @@ dsl_scan_enqueue(dsl_pool_t *dp, const blkptr_t *bp, int zio_flags,
 {
 	spa_t *spa = dp->dp_spa;
 
-	ASSERT(!BP_IS_EMBEDDED(bp));
+	ASSERT0(BP_IS_EMBEDDED(bp));
 
 	/*
 	 * Gang blocks are hard to issue sequentially, so we just issue them
@@ -4007,12 +4007,12 @@ dsl_scan_enqueue(dsl_pool_t *dp, const blkptr_t *bp, int zio_flags,
 
 		dva = bp->blk_dva[i];
 		vdev = vdev_lookup_top(spa, DVA_GET_VDEV(&dva));
-		ASSERT(vdev != NULL);
+		ASSERT3P(vdev, !=, NULL);
 
 		mutex_enter(&vdev->vdev_scan_io_queue_lock);
 		if (vdev->vdev_scan_io_queue == NULL)
 			vdev->vdev_scan_io_queue = scan_io_queue_create(vdev);
-		ASSERT(dp->dp_scan != NULL);
+		ASSERT3P(dp->dp_scan, !=, NULL);
 		scan_io_queue_insert(vdev->vdev_scan_io_queue, bp,
 		    i, zio_flags, zb);
 		mutex_exit(&vdev->vdev_scan_io_queue_lock);
@@ -4038,7 +4038,7 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 	}
 
 	/* Embedded BP's have phys_birth==0, so we reject them above. */
-	ASSERT(!BP_IS_EMBEDDED(bp));
+	ASSERT0(BP_IS_EMBEDDED(bp));
 
 	ASSERT(DSL_SCAN_IS_SCRUB_RESILVER(scn));
 	if (scn->scn_phys.scn_func == POOL_SCAN_SCRUB) {
@@ -4147,7 +4147,7 @@ scan_exec_io(dsl_pool_t *dp, const blkptr_t *bp, int zio_flags,
 		mutex_exit(q_lock);
 	}
 
-	ASSERT(pio != NULL);
+	ASSERT3P(pio, !=, NULL);
 	count_block_issued(spa, bp, queue == NULL);
 	zio_nowait(zio_read(pio, spa, bp, data, size, dsl_scan_scrub_done,
 	    queue, ZIO_PRIORITY_SCRUB, zio_flags, zb));
@@ -4381,7 +4381,7 @@ dsl_scan_freed_dva(spa_t *spa, const blkptr_t *bp, int dva_i)
 	uint64_t start, size;
 
 	vdev = vdev_lookup_top(spa, DVA_GET_VDEV(&bp->blk_dva[dva_i]));
-	ASSERT(vdev != NULL);
+	ASSERT3P(vdev, !=, NULL);
 	q_lock = &vdev->vdev_scan_io_queue_lock;
 	queue = vdev->vdev_scan_io_queue;
 
@@ -4452,8 +4452,8 @@ dsl_scan_freed(spa_t *spa, const blkptr_t *bp)
 	dsl_pool_t *dp = spa->spa_dsl_pool;
 	dsl_scan_t *scn = dp->dp_scan;
 
-	ASSERT(!BP_IS_EMBEDDED(bp));
-	ASSERT(scn != NULL);
+	ASSERT0(BP_IS_EMBEDDED(bp));
+	ASSERT3P(scn, !=, NULL);
 	if (!dsl_scan_is_running(scn))
 		return;
 

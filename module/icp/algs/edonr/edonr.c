@@ -516,7 +516,7 @@ EdonRUpdate(EdonRState *state, const uint8_t *data, size_t databitlen)
 			/* LastBytes = databitlen / 8 */
 			int LastBytes = (int)databitlen >> 3;
 
-			ASSERT(state->unprocessed_bits + databitlen <=
+			ASSERT3U(state->unprocessed_bits + databitlen, <=,
 			    EdonR256_BLOCK_SIZE * 8);
 
 			memcpy(hashState256(state)->LastPart
@@ -553,7 +553,7 @@ EdonRUpdate(EdonRState *state, const uint8_t *data, size_t databitlen)
 			/* LastBytes = databitlen / 8 */
 			int LastBytes = (int)databitlen >> 3;
 
-			ASSERT(state->unprocessed_bits + databitlen <=
+			ASSERT3U(state->unprocessed_bits + databitlen, <=,
 			    EdonR512_BLOCK_SIZE * 8);
 
 			memcpy(hashState512(state)->LastPart

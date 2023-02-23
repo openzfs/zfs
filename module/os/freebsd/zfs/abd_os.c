@@ -123,7 +123,7 @@ abd_chunkcnt_for_bytes(size_t size)
 static inline uint_t
 abd_scatter_chunkcnt(abd_t *abd)
 {
-	ASSERT(!abd_is_linear(abd));
+	ASSERT0(abd_is_linear(abd));
 	return (abd_chunkcnt_for_bytes(
 	    ABD_SCATTER(abd).abd_offset + abd->abd_size));
 }
@@ -175,7 +175,7 @@ abd_verify_scatter(abd_t *abd)
 	 * There is no scatter linear pages in FreeBSD so there is
 	 * an error if the ABD has been marked as a linear page.
 	 */
-	ASSERT(!abd_is_linear_page(abd));
+	ASSERT0(abd_is_linear_page(abd));
 	ASSERT3U(ABD_SCATTER(abd).abd_offset, <, PAGE_SIZE);
 	n = abd_scatter_chunkcnt(abd);
 	for (i = 0; i < n; i++) {
@@ -415,7 +415,7 @@ abd_get_offset_scatter(abd_t *abd, abd_t *sabd, size_t off,
 void
 abd_iter_init(struct abd_iter *aiter, abd_t *abd)
 {
-	ASSERT(!abd_is_gang(abd));
+	ASSERT0(abd_is_gang(abd));
 	abd_verify(abd);
 	aiter->iter_abd = abd;
 	aiter->iter_pos = 0;

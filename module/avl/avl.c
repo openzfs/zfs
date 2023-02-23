@@ -220,7 +220,7 @@ avl_nearest(avl_tree_t *tree, avl_index_t where, int direction)
 	size_t off = tree->avl_offset;
 
 	if (node == NULL) {
-		ASSERT(tree->avl_root == NULL);
+		ASSERT3P(tree->avl_root, ==, NULL);
 		return (NULL);
 	}
 	data = AVL_NODE2DATA(node, off);
@@ -473,7 +473,7 @@ avl_insert(avl_tree_t *tree, void *new_data, avl_index_t where)
 	size_t off = tree->avl_offset;
 
 #ifdef _LP64
-	ASSERT(((uintptr_t)new_data & 0x7) == 0);
+	ASSERT0(((uintptr_t)new_data & 0x7));
 #endif
 
 	node = AVL_DATA2NODE(new_data, off);
@@ -490,10 +490,10 @@ avl_insert(avl_tree_t *tree, void *new_data, avl_index_t where)
 	AVL_SETBALANCE(node, 0);
 	AVL_SETPARENT(node, parent);
 	if (parent != NULL) {
-		ASSERT(parent->avl_child[which_child] == NULL);
+		ASSERT3P(parent->avl_child[which_child], ==, NULL);
 		parent->avl_child[which_child] = node;
 	} else {
-		ASSERT(tree->avl_root == NULL);
+		ASSERT3P(tree->avl_root, ==, NULL);
 		tree->avl_root = node;
 	}
 	/*
@@ -564,9 +564,9 @@ avl_insert_here(
 	int diff;
 #endif
 
-	ASSERT(tree != NULL);
-	ASSERT(new_data != NULL);
-	ASSERT(here != NULL);
+	ASSERT3P(tree, !=, NULL);
+	ASSERT3P(new_data, !=, NULL);
+	ASSERT3P(here, !=, NULL);
 	ASSERT(direction == AVL_BEFORE || direction == AVL_AFTER);
 
 	/*
@@ -578,7 +578,7 @@ avl_insert_here(
 #ifdef ZFS_DEBUG
 	diff = tree->avl_compar(new_data, here);
 	ASSERT(-1 <= diff && diff <= 1);
-	ASSERT(diff != 0);
+	ASSERT3S(diff, !=, 0);
 	ASSERT(diff > 0 ? child == 1 : child == 0);
 #endif
 
@@ -590,7 +590,7 @@ avl_insert_here(
 			diff = tree->avl_compar(new_data,
 			    AVL_NODE2DATA(node, tree->avl_offset));
 			ASSERT(-1 <= diff && diff <= 1);
-			ASSERT(diff != 0);
+			ASSERT3S(diff, !=, 0);
 			ASSERT(diff > 0 ? child == 1 : child == 0);
 #endif
 			node = node->avl_child[child];
@@ -599,11 +599,11 @@ avl_insert_here(
 		diff = tree->avl_compar(new_data,
 		    AVL_NODE2DATA(node, tree->avl_offset));
 		ASSERT(-1 <= diff && diff <= 1);
-		ASSERT(diff != 0);
+		ASSERT3S(diff, !=, 0);
 		ASSERT(diff > 0 ? child == 1 : child == 0);
 #endif
 	}
-	ASSERT(node->avl_child[child] == NULL);
+	ASSERT3P(node->avl_child[child], ==, NULL);
 
 	avl_insert(tree, new_data, AVL_MKINDEX(node, child));
 }
@@ -617,7 +617,7 @@ avl_add(avl_tree_t *tree, void *new_node)
 {
 	avl_index_t where = 0;
 
-	VERIFY(avl_find(tree, new_node, &where) == NULL);
+	VERIFY3P(avl_find(tree, new_node, &where), ==, NULL);
 
 	avl_insert(tree, new_node, where);
 }
@@ -724,7 +724,7 @@ avl_remove(avl_tree_t *tree, void *data)
 	 * Here we know "delete" is at least partially a leaf node. It can
 	 * be easily removed from the tree.
 	 */
-	ASSERT(tree->avl_numnodes > 0);
+	ASSERT3U(tree->avl_numnodes, >, 0);
 	--tree->avl_numnodes;
 	parent = AVL_XPARENT(delete);
 	which_child = AVL_XCHILD(delete);
@@ -873,10 +873,10 @@ avl_create(avl_tree_t *tree, int (*compar) (const void *, const void *),
 {
 	ASSERT(tree);
 	ASSERT(compar);
-	ASSERT(size > 0);
-	ASSERT(size >= offset + sizeof (avl_node_t));
+	ASSERT3U(size, >, 0);
+	ASSERT3U(size, >=, offset + sizeof (avl_node_t));
 #ifdef _LP64
-	ASSERT((offset & 0x7) == 0);
+	ASSERT0((offset & 0x7));
 #endif
 
 	tree->avl_compar = compar;
@@ -892,8 +892,8 @@ void
 avl_destroy(avl_tree_t *tree)
 {
 	ASSERT(tree);
-	ASSERT(tree->avl_numnodes == 0);
-	ASSERT(tree->avl_root == NULL);
+	ASSERT0(tree->avl_numnodes);
+	ASSERT3P(tree->avl_root, ==, NULL);
 }
 
 
@@ -969,7 +969,7 @@ avl_destroy_nodes(avl_tree_t *tree, void **cookie)
 	parent = (avl_node_t *)((uintptr_t)(*cookie) & ~CHILDBIT);
 	if (parent == NULL) {
 		if (tree->avl_root != NULL) {
-			ASSERT(tree->avl_numnodes == 1);
+			ASSERT3U(tree->avl_numnodes, ==, 1);
 			tree->avl_root = NULL;
 			tree->avl_numnodes = 0;
 		}
@@ -981,7 +981,7 @@ avl_destroy_nodes(avl_tree_t *tree, void **cookie)
 	 */
 	child = (uintptr_t)(*cookie) & CHILDBIT;
 	parent->avl_child[child] = NULL;
-	ASSERT(tree->avl_numnodes > 1);
+	ASSERT3U(tree->avl_numnodes, >, 1);
 	--tree->avl_numnodes;
 
 	/*
@@ -1008,19 +1008,19 @@ avl_destroy_nodes(avl_tree_t *tree, void **cookie)
 	 */
 check_right_side:
 	if (node->avl_child[1] != NULL) {
-		ASSERT(AVL_XBALANCE(node) == 1);
+		ASSERT3U(AVL_XBALANCE(node), ==, 1);
 		parent = node;
 		node = node->avl_child[1];
 		ASSERT(node->avl_child[0] == NULL &&
 		    node->avl_child[1] == NULL);
 	} else {
-		ASSERT(AVL_XBALANCE(node) <= 0);
+		ASSERT3U(AVL_XBALANCE(node), <=, 0);
 	}
 
 done:
 	if (parent == NULL) {
 		*cookie = (void *)CHILDBIT;
-		ASSERT(node == tree->avl_root);
+		ASSERT3P(node, ==, tree->avl_root);
 	} else {
 		*cookie = (void *)((uintptr_t)parent | AVL_XCHILD(node));
 	}

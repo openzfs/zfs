@@ -27,12 +27,12 @@
 static boolean_t
 vdev_indirect_births_verify(vdev_indirect_births_t *vib)
 {
-	ASSERT(vib != NULL);
+	ASSERT3P(vib, !=, NULL);
 
-	ASSERT(vib->vib_object != 0);
-	ASSERT(vib->vib_objset != NULL);
-	ASSERT(vib->vib_phys != NULL);
-	ASSERT(vib->vib_dbuf != NULL);
+	ASSERT3U(vib->vib_object, !=, 0);
+	ASSERT3P(vib->vib_objset, !=, NULL);
+	ASSERT3P(vib->vib_phys, !=, NULL);
+	ASSERT3P(vib->vib_dbuf, !=, NULL);
 
 	EQUIV(vib->vib_phys->vib_count > 0, vib->vib_entries != NULL);
 
@@ -163,7 +163,7 @@ uint64_t
 vdev_indirect_births_last_entry_txg(vdev_indirect_births_t *vib)
 {
 	ASSERT(vdev_indirect_births_verify(vib));
-	ASSERT(vib->vib_phys->vib_count > 0);
+	ASSERT3U(vib->vib_phys->vib_count, >, 0);
 
 	vdev_indirect_birth_entry_phys_t *last =
 	    &vib->vib_entries[vib->vib_phys->vib_count - 1];
@@ -191,7 +191,7 @@ vdev_indirect_births_physbirth(vdev_indirect_births_t *vib, uint64_t offset,
 	vdev_indirect_birth_entry_phys_t *last;
 
 	ASSERT(vdev_indirect_births_verify(vib));
-	ASSERT(vib->vib_phys->vib_count > 0);
+	ASSERT3U(vib->vib_phys->vib_count, >, 0);
 
 	base = vib->vib_entries;
 	last = base + vib->vib_phys->vib_count - 1;

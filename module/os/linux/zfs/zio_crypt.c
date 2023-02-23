@@ -226,7 +226,7 @@ zio_crypt_key_init(uint64_t crypt, zio_crypt_key_t *key)
 	crypto_mechanism_t mech;
 	uint_t keydata_len;
 
-	ASSERT(key != NULL);
+	ASSERT3P(key, !=, NULL);
 	ASSERT3U(crypt, <, ZIO_CRYPT_FUNCTIONS);
 
 /*
@@ -409,7 +409,7 @@ zio_do_crypt_uio(boolean_t encrypt, uint64_t crypt, crypto_key_t *key,
 	/* the mac will always be the last iovec_t in the cipher uio */
 	maclen = cuio->uio_iov[cuio->uio_iovcnt - 1].iov_len;
 
-	ASSERT(maclen <= ZIO_DATA_MAC_LEN);
+	ASSERT3U(maclen, <=, ZIO_DATA_MAC_LEN);
 
 	/* setup encryption mechanism (same as crypt) */
 	mech.cm_type = crypto_mech2id(crypt_info.ci_mechname);
@@ -1368,7 +1368,7 @@ zio_crypt_do_indirect_mac_checksum(boolean_t generate, void *buf,
 	ret = zio_crypt_do_indirect_mac_checksum_impl(generate, buf,
 	    datalen, ZIO_CRYPT_KEY_CURRENT_VERSION, byteswap, cksum);
 	if (ret == ECKSUM) {
-		ASSERT(!generate);
+		ASSERT0(generate);
 		ret = zio_crypt_do_indirect_mac_checksum_impl(generate,
 		    buf, datalen, 0, byteswap, cksum);
 	}

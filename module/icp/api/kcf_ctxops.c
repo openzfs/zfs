@@ -136,7 +136,7 @@ crypto_destroy_ctx_template(crypto_ctx_template_t tmpl)
 	if (ctx_tmpl == NULL)
 		return;
 
-	ASSERT(ctx_tmpl->ct_prov_tmpl != NULL);
+	ASSERT3P(ctx_tmpl->ct_prov_tmpl, !=, NULL);
 
 	memset(ctx_tmpl->ct_prov_tmpl, 0, ctx_tmpl->ct_size);
 	kmem_free(ctx_tmpl->ct_prov_tmpl, ctx_tmpl->ct_size);

@@ -559,7 +559,7 @@ spa_log_sm_decrement_mscount(spa_t *spa, uint64_t txg)
 		return;
 	}
 
-	ASSERT(sls->sls_mscount > 0);
+	ASSERT3U(sls->sls_mscount, >, 0);
 	sls->sls_mscount--;
 }
 
@@ -638,7 +638,7 @@ spa_estimate_metaslabs_to_flush(spa_t *spa)
 {
 	ASSERT(spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP));
 	ASSERT3U(spa_sync_pass(spa), ==, 1);
-	ASSERT(spa_log_sm_blocklimit(spa) != 0);
+	ASSERT3U(spa_log_sm_blocklimit(spa), !=, 0);
 
 	/*
 	 * This variable contains the incoming rate that will be projected
@@ -887,7 +887,7 @@ spa_sync_close_syncing_log_sm(spa_t *spa)
 	 * in spa_metaslabs_by_flushed is loading and we were
 	 * not able to flush any metaslabs the current TXG.
 	 */
-	ASSERT(sls->sls_nblocks != 0);
+	ASSERT3U(sls->sls_nblocks, !=, 0);
 
 	spa_log_summary_add_incoming_blocks(spa, sls->sls_nblocks);
 	spa_log_summary_verify_counts(spa);
@@ -1053,7 +1053,7 @@ spa_ld_log_sm_metadata(spa_t *spa)
 		 * lenient. Thus, for DEBUG bits we always cause a panic, while
 		 * in production we log the error and just fail the import.
 		 */
-		ASSERT(sls != NULL);
+		ASSERT3P(sls, !=, NULL);
 		if (sls == NULL) {
 			spa_load_failed(spa, "spa_ld_log_sm_metadata(): bug "
 			    "encountered: could not find log spacemap for "
@@ -1093,7 +1093,7 @@ spa_ld_log_sm_cb(space_map_entry_t *sme, void *arg)
 		return (0);
 
 	metaslab_t *ms = vd->vdev_ms[offset >> vd->vdev_ms_shift];
-	ASSERT(!ms->ms_loaded);
+	ASSERT0(ms->ms_loaded);
 
 	/*
 	 * If we have already flushed entries for this TXG to this
@@ -1293,7 +1293,7 @@ spa_ld_unflushed_txgs(vdev_t *vd)
 
 	for (uint64_t m = 0; m < vd->vdev_ms_count; m++) {
 		metaslab_t *ms = vd->vdev_ms[m];
-		ASSERT(ms != NULL);
+		ASSERT3P(ms, !=, NULL);
 
 		metaslab_unflushed_phys_t entry;
 		uint64_t entry_size = sizeof (entry);

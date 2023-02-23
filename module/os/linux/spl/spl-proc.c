@@ -375,7 +375,7 @@ slab_seq_show(struct seq_file *f, void *p)
 {
 	spl_kmem_cache_t *skc = p;
 
-	ASSERT(skc->skc_magic == SKC_MAGIC);
+	ASSERT3U(skc->skc_magic, ==, SKC_MAGIC);
 
 	if (skc->skc_flags & KMC_SLAB) {
 		/*
@@ -726,6 +726,6 @@ spl_proc_fini(void)
 	remove_proc_entry("taskq", proc_spl);
 	remove_proc_entry("spl", NULL);
 
-	ASSERT(spl_header != NULL);
+	ASSERT3P(spl_header, !=, NULL);
 	unregister_sysctl_table(spl_header);
 }

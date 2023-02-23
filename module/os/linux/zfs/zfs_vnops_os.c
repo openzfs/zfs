@@ -380,8 +380,8 @@ zfs_zrele_async(znode_t *zp)
 	struct inode *ip = ZTOI(zp);
 	objset_t *os = ITOZSB(ip)->z_os;
 
-	ASSERT(atomic_read(&ip->i_count) > 0);
-	ASSERT(os != NULL);
+	ASSERT3U(atomic_read(&ip->i_count), >, 0);
+	ASSERT3P(os, !=, NULL);
 
 	/*
 	 * If decrementing the count would put us at 0, we can't do it inline
@@ -392,8 +392,9 @@ zfs_zrele_async(znode_t *zp)
 	 * header comment of this file.
 	 */
 	if (!atomic_add_unless(&ip->i_count, -1, 1)) {
-		VERIFY(taskq_dispatch(dsl_pool_zrele_taskq(dmu_objset_pool(os)),
-		    zfs_rele_async_task, ip, TQ_SLEEP) != TASKQID_INVALID);
+		VERIFY3U(taskq_dispatch(dsl_pool_zrele_taskq(
+		    dmu_objset_pool(os)), zfs_rele_async_task, ip, TQ_SLEEP),
+		    !=, TASKQID_INVALID);
 	}
 }
 
@@ -2393,10 +2394,10 @@ top:
 			new_mode = zp->z_mode;
 		}
 		err = zfs_acl_chown_setattr(zp);
-		ASSERT(err == 0);
+		ASSERT0(err);
 		if (attrzp) {
 			err = zfs_acl_chown_setattr(attrzp);
-			ASSERT(err == 0);
+			ASSERT0(err);
 		}
 	}
 
@@ -2509,7 +2510,7 @@ out:
 	if (err == 0 && xattr_count > 0) {
 		err2 = sa_bulk_update(attrzp->z_sa_hdl, xattr_bulk,
 		    xattr_count, tx);
-		ASSERT(err2 == 0);
+		ASSERT0(err2);
 	}
 
 	if (aclp)
@@ -3560,8 +3561,8 @@ top:
 		 * operation are sync safe.
 		 */
 		if (is_tmpfile) {
-			VERIFY(zap_remove_int(zfsvfs->z_os,
-			    zfsvfs->z_unlinkedobj, szp->z_id, tx) == 0);
+			VERIFY0(zap_remove_int(zfsvfs->z_os,
+			    zfsvfs->z_unlinkedobj, szp->z_id, tx));
 		} else {
 			if (flags & FIGNORECASE)
 				txtype |= TX_CI;

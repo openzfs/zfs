@@ -1200,7 +1200,7 @@ zio_crypt_do_indirect_mac_checksum(boolean_t generate, void *buf,
 	ret = zio_crypt_do_indirect_mac_checksum_impl(generate, buf,
 	    datalen, ZIO_CRYPT_KEY_CURRENT_VERSION, byteswap, cksum);
 	if (ret == ECKSUM) {
-		ASSERT(!generate);
+		ASSERT0(generate);
 		ret = zio_crypt_do_indirect_mac_checksum_impl(generate,
 		    buf, datalen, 0, byteswap, cksum);
 	}

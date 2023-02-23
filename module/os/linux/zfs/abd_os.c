@@ -336,7 +336,7 @@ abd_alloc_chunks(abd_t *abd, size_t size)
 	 * These conditions ensure that a possible transformation to a linear
 	 * ABD would be valid.
 	 */
-	ASSERT(!PageHighMem(sg_page(table.sgl)));
+	ASSERT0(PageHighMem(sg_page(table.sgl)));
 	ASSERT0(ABD_SCATTER(abd).abd_offset);
 
 	if (table.nents == 1) {
@@ -554,7 +554,7 @@ sg_set_page(struct scatterlist *sg, struct page *page, unsigned int len,
     unsigned int offset)
 {
 	/* currently we don't use offset */
-	ASSERT(offset == 0);
+	ASSERT0(offset);
 	sg->page = page;
 	sg->length = len;
 }
@@ -884,7 +884,7 @@ abd_get_offset_scatter(abd_t *abd, abd_t *sabd, size_t off,
 void
 abd_iter_init(struct abd_iter *aiter, abd_t *abd)
 {
-	ASSERT(!abd_is_gang(abd));
+	ASSERT0(abd_is_gang(abd));
 	abd_verify(abd);
 	aiter->iter_abd = abd;
 	aiter->iter_mapaddr = NULL;
@@ -1111,7 +1111,7 @@ abd_bio_map_off(struct bio *bio, abd_t *abd,
 	if (abd_is_linear(abd))
 		return (bio_map(bio, ((char *)abd_to_buf(abd)) + off, io_size));
 
-	ASSERT(!abd_is_linear(abd));
+	ASSERT0(abd_is_linear(abd));
 	if (abd_is_gang(abd))
 		return (abd_gang_bio_map_off(bio, abd, io_size, off));
 
@@ -1130,7 +1130,7 @@ abd_bio_map_off(struct bio *bio, abd_t *abd,
 		sgoff = aiter.iter_offset;
 		pgoff = sgoff & (PAGESIZE - 1);
 		len = MIN(io_size, PAGESIZE - pgoff);
-		ASSERT(len > 0);
+		ASSERT3U(len, >, 0);
 
 		pg = nth_page(sg_page(sg), sgoff >> PAGE_SHIFT);
 		if (bio_add_page(bio, pg, len, pgoff) != len)

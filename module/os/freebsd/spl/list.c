@@ -122,7 +122,7 @@ void
 list_remove(list_t *list, void *object)
 {
 	list_node_t *lold = list_d2l(list, object);
-	ASSERT(!list_empty(list));
+	ASSERT0(list_empty(list));
 	ASSERT3P(lold->list_next, !=, NULL);
 	list_remove_node(lold);
 }
@@ -213,7 +213,7 @@ void
 list_link_replace(list_node_t *lold, list_node_t *lnew)
 {
 	ASSERT(list_link_active(lold));
-	ASSERT(!list_link_active(lnew));
+	ASSERT0(list_link_active(lnew));
 
 	lnew->list_next = lold->list_next;
 	lnew->list_prev = lold->list_prev;

@@ -152,7 +152,7 @@ static void
 abd_fini_struct(abd_t *abd)
 {
 	mutex_destroy(&abd->abd_mtx);
-	ASSERT(!list_link_active(&abd->abd_gang_link));
+	ASSERT0(list_link_active(&abd->abd_gang_link));
 #ifdef ZFS_DEBUG
 	zfs_refcount_destroy(&abd->abd_children);
 #endif
@@ -406,11 +406,11 @@ abd_gang_add(abd_t *pabd, abd_t *cabd, boolean_t free_on_free)
 	 * for the offset correctly in the parent gang ABD.
 	 */
 	if (abd_is_gang(cabd)) {
-		ASSERT(!list_link_active(&cabd->abd_gang_link));
-		ASSERT(!list_is_empty(&ABD_GANG(cabd).abd_gang_chain));
+		ASSERT0(list_link_active(&cabd->abd_gang_link));
+		ASSERT0(list_is_empty(&ABD_GANG(cabd).abd_gang_chain));
 		return (abd_gang_add_gang(pabd, cabd, free_on_free));
 	}
-	ASSERT(!abd_is_gang(cabd));
+	ASSERT0(abd_is_gang(cabd));
 
 	/*
 	 * In order to verify that an ABD is not already part of
@@ -700,7 +700,7 @@ abd_release_ownership_of_buf(abd_t *abd)
 	 * abd_take_ownership_of_buf() sequence, we don't allow releasing
 	 * these "linear but not zio_[data_]buf_alloc()'ed" ABD's.
 	 */
-	ASSERT(!abd_is_linear_page(abd));
+	ASSERT0(abd_is_linear_page(abd));
 
 	abd_verify(abd);
 
@@ -722,7 +722,7 @@ void
 abd_take_ownership_of_buf(abd_t *abd, boolean_t is_metadata)
 {
 	ASSERT(abd_is_linear(abd));
-	ASSERT(!(abd->abd_flags & ABD_FLAG_OWNER));
+	ASSERT0((abd->abd_flags & ABD_FLAG_OWNER));
 	abd_verify(abd);
 
 	abd->abd_flags |= ABD_FLAG_OWNER;

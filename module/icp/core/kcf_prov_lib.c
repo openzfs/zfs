@@ -46,7 +46,7 @@ crypto_uio_copy_to_data(crypto_data_t *data, uchar_t *buf, int len)
 	size_t cur_len;
 	uchar_t *datap;
 
-	ASSERT(data->cd_format == CRYPTO_DATA_UIO);
+	ASSERT3U(data->cd_format, ==, CRYPTO_DATA_UIO);
 	if (zfs_uio_segflg(uiop) != UIO_SYSSPACE) {
 		return (CRYPTO_ARGUMENTS_BAD);
 	}
@@ -116,7 +116,7 @@ int
 crypto_update_iov(void *ctx, crypto_data_t *input, crypto_data_t *output,
     int (*cipher)(void *, caddr_t, size_t, crypto_data_t *))
 {
-	ASSERT(input != output);
+	ASSERT3P(input, !=, output);
 
 	if (input->cd_raw.iov_len < input->cd_length)
 		return (CRYPTO_ARGUMENTS_BAD);
@@ -135,7 +135,7 @@ crypto_update_uio(void *ctx, crypto_data_t *input, crypto_data_t *output,
 	uint_t vec_idx;
 	size_t cur_len;
 
-	ASSERT(input != output);
+	ASSERT3P(input, !=, output);
 
 	if (zfs_uio_segflg(input->cd_uio) != UIO_SYSSPACE) {
 		return (CRYPTO_ARGUMENTS_BAD);

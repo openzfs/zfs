@@ -140,13 +140,13 @@ space_reftree_generate_map(avl_tree_t *t, range_tree_t *rt, int64_t minref)
 		} else {
 			if (start != -1ULL) {
 				uint64_t end = sr->sr_offset;
-				ASSERT(start <= end);
+				ASSERT3U(start, <=, end);
 				if (end > start)
 					range_tree_add(rt, start, end - start);
 				start = -1ULL;
 			}
 		}
 	}
-	ASSERT(refcnt == 0);
-	ASSERT(start == -1ULL);
+	ASSERT0(refcnt);
+	ASSERT3U(start, ==, -1ULL);
 }

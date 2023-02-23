@@ -184,7 +184,7 @@ dmu_read_pages(objset_t *os, uint64_t object, vm_page_t *ma, int count,
 			break;
 		}
 		ASSERT3U(m->dirty, ==, 0);
-		ASSERT(!pmap_page_is_write_mapped(m));
+		ASSERT0(pmap_page_is_write_mapped(m));
 
 		ASSERT3U(db->db_size, >, PAGE_SIZE);
 		bufoff = IDX_TO_OFF(m->pindex) % db->db_size;
@@ -211,7 +211,7 @@ dmu_read_pages(objset_t *os, uint64_t object, vm_page_t *ma, int count,
 				vm_page_assert_xbusied(m);
 				ASSERT(vm_page_none_valid(m));
 				ASSERT3U(m->dirty, ==, 0);
-				ASSERT(!pmap_page_is_write_mapped(m));
+				ASSERT0(pmap_page_is_write_mapped(m));
 				va = zfs_map_page(m, &sf);
 			}
 		}
@@ -303,7 +303,7 @@ dmu_read_pages(objset_t *os, uint64_t object, vm_page_t *ma, int count,
 			break;
 		}
 		ASSERT3U(m->dirty, ==, 0);
-		ASSERT(!pmap_page_is_write_mapped(m));
+		ASSERT0(pmap_page_is_write_mapped(m));
 
 		ASSERT3U(db->db_size, >, PAGE_SIZE);
 		bufoff = IDX_TO_OFF(m->pindex) % db->db_size;

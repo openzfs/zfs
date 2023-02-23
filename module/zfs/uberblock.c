@@ -47,7 +47,7 @@ uberblock_verify(uberblock_t *ub)
 boolean_t
 uberblock_update(uberblock_t *ub, vdev_t *rvd, uint64_t txg, uint64_t mmp_delay)
 {
-	ASSERT(ub->ub_txg < txg);
+	ASSERT3U(ub->ub_txg, <, txg);
 
 	/*
 	 * We explicitly do not set ub_version here, so that older versions

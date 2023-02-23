@@ -152,9 +152,9 @@ zhack_import(char *target, boolean_t readonly)
 
 	props = NULL;
 	if (readonly) {
-		VERIFY(nvlist_alloc(&props, NV_UNIQUE_NAME, 0) == 0);
-		VERIFY(nvlist_add_uint64(props,
-		    zpool_prop_to_name(ZPOOL_PROP_READONLY), 1) == 0);
+		VERIFY0(nvlist_alloc(&props, NV_UNIQUE_NAME, 0));
+		VERIFY0(nvlist_add_uint64(props,
+		    zpool_prop_to_name(ZPOOL_PROP_READONLY), 1));
 	}
 
 	zfeature_checks_disable = B_TRUE;
@@ -202,14 +202,14 @@ dump_obj(objset_t *os, uint64_t obj, const char *name)
 	    zap_cursor_retrieve(&zc, &za) == 0;
 	    zap_cursor_advance(&zc)) {
 		if (za.za_integer_length == 8) {
-			ASSERT(za.za_num_integers == 1);
+			ASSERT3U(za.za_num_integers, ==, 1);
 			(void) printf("\t%s = %llu\n",
 			    za.za_name, (u_longlong_t)za.za_first_integer);
 		} else {
-			ASSERT(za.za_integer_length == 1);
+			ASSERT3S(za.za_integer_length, ==, 1);
 			char val[1024];
-			VERIFY(zap_lookup(os, obj, za.za_name,
-			    1, sizeof (val), val) == 0);
+			VERIFY0(zap_lookup(os, obj, za.za_name, 1,
+			    sizeof (val), val));
 			(void) printf("\t%s = %s\n", za.za_name, val);
 		}
 	}

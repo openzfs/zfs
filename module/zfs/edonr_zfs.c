@@ -52,7 +52,7 @@ abd_checksum_edonr_native(abd_t *abd, uint64_t size,
 	uint8_t		digest[EDONR_MODE / 8];
 	EdonRState	ctx;
 
-	ASSERT(ctx_template != NULL);
+	ASSERT3P(ctx_template, !=, NULL);
 	memcpy(&ctx, ctx_template, sizeof (ctx));
 	(void) abd_iterate_func(abd, 0, size, edonr_incremental, &ctx);
 	EdonRFinal(&ctx, digest);

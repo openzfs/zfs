@@ -1059,7 +1059,7 @@ zcp_eval(const char *poolname, const char *program, boolean_t sync,
 	 * This should never fail.
 	 */
 	state = lua_newstate(zcp_lua_alloc, &allocargs);
-	VERIFY(state != NULL);
+	VERIFY3P(state, !=, NULL);
 	(void) lua_atpanic(state, zcp_panic_cb);
 
 	/*

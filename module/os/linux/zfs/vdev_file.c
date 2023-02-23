@@ -59,13 +59,13 @@ static uint_t vdev_file_physical_ashift = SPA_MINBLOCKSHIFT;
 static void
 vdev_file_hold(vdev_t *vd)
 {
-	ASSERT(vd->vdev_path != NULL);
+	ASSERT3P(vd->vdev_path, !=, NULL);
 }
 
 static void
 vdev_file_rele(vdev_t *vd)
 {
-	ASSERT(vd->vdev_path != NULL);
+	ASSERT3P(vd->vdev_path, !=, NULL);
 }
 
 static mode_t

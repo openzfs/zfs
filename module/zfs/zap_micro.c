@@ -83,13 +83,13 @@ zap_hash(zap_name_t *zn)
 		h = *(uint64_t *)zn->zn_key_orig;
 	} else {
 		h = zap->zap_salt;
-		ASSERT(h != 0);
-		ASSERT(zfs_crc64_table[128] == ZFS_CRC64_POLY);
+		ASSERT3U(h, !=, 0);
+		ASSERT3U(zfs_crc64_table[128], ==, ZFS_CRC64_POLY);
 
 		if (zap_getflags(zap) & ZAP_FLAG_UINT64_KEY) {
 			const uint64_t *wp = zn->zn_key_norm;
 
-			ASSERT(zn->zn_key_intlen == 8);
+			ASSERT3U(zn->zn_key_intlen, ==, 8);
 			for (int i = 0; i < zn->zn_key_norm_numints;
 			    wp++, i++) {
 				uint64_t word = *wp;
@@ -112,7 +112,7 @@ zap_hash(zap_name_t *zn)
 			 */
 			int len = zn->zn_key_norm_numints - 1;
 
-			ASSERT(zn->zn_key_intlen == 1);
+			ASSERT3U(zn->zn_key_intlen, ==, 1);
 			for (int i = 0; i < len; cp++, i++) {
 				h = (h >> 8) ^
 				    zfs_crc64_table[(h ^ *cp) & 0xFF];
@@ -133,7 +133,7 @@ zap_hash(zap_name_t *zn)
 static int
 zap_normalize(zap_t *zap, const char *name, char *namenorm, int normflags)
 {
-	ASSERT(!(zap_getflags(zap) & ZAP_FLAG_UINT64_KEY));
+	ASSERT0((zap_getflags(zap) & ZAP_FLAG_UINT64_KEY));
 
 	size_t inlen = strlen(name) + 1;
 	size_t outlen = ZAP_MAXNAMELEN;
@@ -149,7 +149,7 @@ zap_normalize(zap_t *zap, const char *name, char *namenorm, int normflags)
 boolean_t
 zap_match(zap_name_t *zn, const char *matchname)
 {
-	ASSERT(!(zap_getflags(zn->zn_zap) & ZAP_FLAG_UINT64_KEY));
+	ASSERT0((zap_getflags(zn->zn_zap) & ZAP_FLAG_UINT64_KEY));
 
 	if (zn->zn_matchtype & MT_NORMALIZE) {
 		char norm[ZAP_MAXNAMELEN];
@@ -246,7 +246,7 @@ zap_name_alloc_uint64(zap_t *zap, const uint64_t *key, int numints)
 {
 	zap_name_t *zn = kmem_alloc(sizeof (zap_name_t), KM_SLEEP);
 
-	ASSERT(zap->zap_normflags == 0);
+	ASSERT0(zap->zap_normflags);
 	zn->zn_zap = zap;
 	zn->zn_key_intlen = sizeof (*key);
 	zn->zn_key_orig = zn->zn_key_norm = key;
@@ -308,7 +308,7 @@ mze_insert(zap_t *zap, uint16_t chunkid, uint64_t hash)
 	mze.mze_hash = hash >> 32;
 	ASSERT3U(MZE_PHYS(zap, &mze)->mze_cd, <=, 0xffff);
 	mze.mze_cd = (uint16_t)MZE_PHYS(zap, &mze)->mze_cd;
-	ASSERT(MZE_PHYS(zap, &mze)->mze_name[0] != 0);
+	ASSERT3U(MZE_PHYS(zap, &mze)->mze_name[0], !=, 0);
 	zfs_btree_add(&zap->zap_m.zap_tree, &mze);
 }
 
@@ -551,9 +551,9 @@ zap_lockdir_impl(dmu_buf_t *db, const void *tag, dmu_tx_t *tx,
 	rw_enter(&zap->zap_rwlock, lt);
 	if (lt != ((!zap->zap_ismicro && fatreader) ? RW_READER : lti)) {
 		/* it was upgraded, now we only need reader */
-		ASSERT(lt == RW_WRITER);
-		ASSERT(RW_READER ==
-		    ((!zap->zap_ismicro && fatreader) ? RW_READER : lti));
+		ASSERT3U(lt, ==, RW_WRITER);
+		ASSERT3U(RW_READER, ==, ((!zap->zap_ismicro && fatreader) ?
+		    RW_READER : lti));
 		rw_downgrade(&zap->zap_rwlock);
 		lt = RW_READER;
 	}
@@ -1217,13 +1217,13 @@ mzap_addent(zap_name_t *zn, uint64_t value)
 #ifdef ZFS_DEBUG
 	for (int i = 0; i < zap->zap_m.zap_num_chunks; i++) {
 		mzap_ent_phys_t *mze = &zap_m_phys(zap)->mz_chunk[i];
-		ASSERT(strcmp(zn->zn_key_orig, mze->mze_name) != 0);
+		ASSERT3U(strcmp(zn->zn_key_orig, mze->mze_name), !=, 0);
 	}
 #endif
 
 	uint32_t cd = mze_find_unused_cd(zap, zn->zn_hash);
 	/* given the limited size of the microzap, this can't happen */
-	ASSERT(cd < zap_maxcd(zap));
+	ASSERT3U(cd, <, zap_maxcd(zap));
 
 again:
 	for (uint16_t i = start; i < zap->zap_m.zap_num_chunks; i++) {
@@ -1282,7 +1282,7 @@ zap_add_impl(zap_t *zap, const char *key,
 			mzap_addent(zn, *intval);
 		}
 	}
-	ASSERT(zap == zn->zn_zap);
+	ASSERT3P(zap, ==, zn->zn_zap);
 	zap_name_free(zn);
 	if (zap != NULL)	/* may be NULL if fzap_add() failed */
 		zap_unlockdir(zap, tag);
@@ -1385,7 +1385,7 @@ zap_update(objset_t *os, uint64_t zapobj, const char *name,
 			mzap_addent(zn, *intval);
 		}
 	}
-	ASSERT(zap == zn->zn_zap);
+	ASSERT3P(zap, ==, zn->zn_zap);
 	zap_name_free(zn);
 	if (zap != NULL)	/* may be NULL if fzap_upgrade() failed */
 		zap_unlockdir(zap, FTAG);
@@ -1565,8 +1565,8 @@ zap_cursor_serialize(zap_cursor_t *zc)
 		return (-1ULL);
 	if (zc->zc_zap == NULL)
 		return (zc->zc_serialized);
-	ASSERT((zc->zc_hash & zap_maxcd(zc->zc_zap)) == 0);
-	ASSERT(zc->zc_cd < zap_maxcd(zc->zc_zap));
+	ASSERT0((zc->zc_hash & zap_maxcd(zc->zc_zap)));
+	ASSERT3U(zc->zc_cd, <, zap_maxcd(zc->zc_zap));
 
 	/*
 	 * We want to keep the high 32 bits of the cursor zero if we can, so
@@ -1600,7 +1600,7 @@ zap_cursor_retrieve(zap_cursor_t *zc, zap_attribute_t *za)
 		 * we must add to the existing zc_cd, which may already
 		 * be 1 due to the zap_cursor_advance.
 		 */
-		ASSERT(zc->zc_hash == 0);
+		ASSERT0(zc->zc_hash);
 		hb = zap_hashbits(zc->zc_zap);
 		zc->zc_hash = zc->zc_serialized << (64 - hb);
 		zc->zc_cd += zc->zc_serialized >> hb;

@@ -455,9 +455,9 @@ spa_config_lock_destroy(spa_t *spa)
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		mutex_destroy(&scl->scl_lock);
 		cv_destroy(&scl->scl_cv);
-		ASSERT(scl->scl_writer == NULL);
-		ASSERT(scl->scl_write_wanted == 0);
-		ASSERT(scl->scl_count == 0);
+		ASSERT3P(scl->scl_writer, ==, NULL);
+		ASSERT0(scl->scl_write_wanted);
+		ASSERT0(scl->scl_count);
 	}
 }
 
@@ -477,7 +477,7 @@ spa_config_tryenter(spa_t *spa, int locks, const void *tag, krw_t rw)
 				return (0);
 			}
 		} else {
-			ASSERT(scl->scl_writer != curthread);
+			ASSERT3U(scl->scl_writer, !=, curthread);
 			if (scl->scl_count != 0) {
 				mutex_exit(&scl->scl_lock);
 				spa_config_exit(spa, locks & ((1 << i) - 1),
@@ -512,7 +512,7 @@ spa_config_enter(spa_t *spa, int locks, const void *tag, krw_t rw)
 				cv_wait(&scl->scl_cv, &scl->scl_lock);
 			}
 		} else {
-			ASSERT(scl->scl_writer != curthread);
+			ASSERT3U(scl->scl_writer, !=, curthread);
 			while (scl->scl_count != 0) {
 				scl->scl_write_wanted++;
 				cv_wait(&scl->scl_cv, &scl->scl_lock);
@@ -535,7 +535,7 @@ spa_config_exit(spa_t *spa, int locks, const void *tag)
 		if (!(locks & (1 << i)))
 			continue;
 		mutex_enter(&scl->scl_lock);
-		ASSERT(scl->scl_count > 0);
+		ASSERT3U(scl->scl_count, >, 0);
 		if (--scl->scl_count == 0) {
 			ASSERT(scl->scl_writer == NULL ||
 			    scl->scl_writer == curthread);
@@ -725,24 +725,23 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	dp->scd_path = altroot ? NULL : spa_strdup(spa_config_path);
 	list_insert_head(&spa->spa_config_list, dp);
 
-	VERIFY(nvlist_alloc(&spa->spa_load_info, NV_UNIQUE_NAME,
-	    KM_SLEEP) == 0);
+	VERIFY0(nvlist_alloc(&spa->spa_load_info, NV_UNIQUE_NAME, KM_SLEEP));
 
 	if (config != NULL) {
 		nvlist_t *features;
 
 		if (nvlist_lookup_nvlist(config, ZPOOL_CONFIG_FEATURES_FOR_READ,
 		    &features) == 0) {
-			VERIFY(nvlist_dup(features, &spa->spa_label_features,
-			    0) == 0);
+			VERIFY0(nvlist_dup(features, &spa->spa_label_features,
+			    0));
 		}
 
-		VERIFY(nvlist_dup(config, &spa->spa_config, 0) == 0);
+		VERIFY0(nvlist_dup(config, &spa->spa_config, 0));
 	}
 
 	if (spa->spa_label_features == NULL) {
-		VERIFY(nvlist_alloc(&spa->spa_label_features, NV_UNIQUE_NAME,
-		    KM_SLEEP) == 0);
+		VERIFY0(nvlist_alloc(&spa->spa_label_features, NV_UNIQUE_NAME,
+		    KM_SLEEP));
 	}
 
 	spa->spa_min_ashift = INT_MAX;
@@ -778,7 +777,7 @@ spa_remove(spa_t *spa)
 	spa_config_dirent_t *dp;
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
-	ASSERT(spa_state(spa) == POOL_STATE_UNINITIALIZED);
+	ASSERT3U(spa_state(spa), ==, POOL_STATE_UNINITIALIZED);
 	ASSERT3U(zfs_refcount_count(&spa->spa_refcount), ==, 0);
 	ASSERT0(spa->spa_waiters);
 
@@ -978,7 +977,7 @@ spa_aux_remove(vdev_t *vd, avl_tree_t *avl)
 	search.aux_guid = vd->vdev_guid;
 	aux = avl_find(avl, &search, &where);
 
-	ASSERT(aux != NULL);
+	ASSERT3P(aux, !=, NULL);
 
 	if (--aux->aux_count == 0) {
 		avl_remove(avl, aux);
@@ -1021,8 +1020,8 @@ spa_aux_activate(vdev_t *vd, avl_tree_t *avl)
 
 	search.aux_guid = vd->vdev_guid;
 	found = avl_find(avl, &search, &where);
-	ASSERT(found != NULL);
-	ASSERT(found->aux_pool == 0ULL);
+	ASSERT3P(found, !=, NULL);
+	ASSERT3U(found->aux_pool, ==, 0ULL);
 
 	found->aux_pool = spa_guid(vd->vdev_spa);
 }
@@ -1059,7 +1058,7 @@ void
 spa_spare_add(vdev_t *vd)
 {
 	mutex_enter(&spa_spare_lock);
-	ASSERT(!vd->vdev_isspare);
+	ASSERT0(vd->vdev_isspare);
 	spa_aux_add(vd, &spa_spare_avl);
 	vd->vdev_isspare = B_TRUE;
 	mutex_exit(&spa_spare_lock);
@@ -1112,7 +1111,7 @@ void
 spa_l2cache_add(vdev_t *vd)
 {
 	mutex_enter(&spa_l2cache_lock);
-	ASSERT(!vd->vdev_isl2cache);
+	ASSERT0(vd->vdev_isl2cache);
 	spa_aux_add(vd, &spa_l2cache_avl);
 	vd->vdev_isl2cache = B_TRUE;
 	mutex_exit(&spa_l2cache_lock);
@@ -1222,7 +1221,7 @@ spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error,
 
 	int config_changed = B_FALSE;
 
-	ASSERT(txg > spa_last_synced_txg(spa));
+	ASSERT3U(txg, >, spa_last_synced_txg(spa));
 
 	spa->spa_pending_vdev = NULL;
 
@@ -1239,11 +1238,11 @@ spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error,
 	/*
 	 * Verify the metaslab classes.
 	 */
-	ASSERT(metaslab_class_validate(spa_normal_class(spa)) == 0);
-	ASSERT(metaslab_class_validate(spa_log_class(spa)) == 0);
-	ASSERT(metaslab_class_validate(spa_embedded_log_class(spa)) == 0);
-	ASSERT(metaslab_class_validate(spa_special_class(spa)) == 0);
-	ASSERT(metaslab_class_validate(spa_dedup_class(spa)) == 0);
+	ASSERT0(metaslab_class_validate(spa_normal_class(spa)));
+	ASSERT0(metaslab_class_validate(spa_log_class(spa)));
+	ASSERT0(metaslab_class_validate(spa_embedded_log_class(spa)));
+	ASSERT0(metaslab_class_validate(spa_special_class(spa)));
+	ASSERT0(metaslab_class_validate(spa_dedup_class(spa)));
 
 	spa_config_exit(spa, SCL_ALL, spa);
 
@@ -1927,7 +1926,7 @@ spa_preferred_class(spa_t *spa, uint64_t size, dmu_object_type_t objtype,
 	/*
 	 * ZIL allocations determine their class in zio_alloc_zil().
 	 */
-	ASSERT(objtype != DMU_OT_INTENT_LOG);
+	ASSERT3U(objtype, !=, DMU_OT_INTENT_LOG);
 
 	boolean_t has_special_class = spa->spa_special_class->mc_groups != 0;
 
@@ -2092,7 +2091,7 @@ dva_get_dsize_sync(spa_t *spa, const dva_t *dva)
 	uint64_t asize = DVA_GET_ASIZE(dva);
 	uint64_t dsize = asize;
 
-	ASSERT(spa_config_held(spa, SCL_ALL, RW_READER) != 0);
+	ASSERT3S(spa_config_held(spa, SCL_ALL, RW_READER), !=, 0);
 
 	if (asize != 0 && spa->spa_deflate) {
 		vdev_t *vd = vdev_lookup_top(spa, DVA_GET_VDEV(dva));

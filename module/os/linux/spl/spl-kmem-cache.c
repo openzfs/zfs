@@ -309,11 +309,11 @@ spl_slab_free(spl_kmem_slab_t *sks,
 {
 	spl_kmem_cache_t *skc;
 
-	ASSERT(sks->sks_magic == SKS_MAGIC);
-	ASSERT(sks->sks_ref == 0);
+	ASSERT3U(sks->sks_magic, ==, SKS_MAGIC);
+	ASSERT0(sks->sks_ref);
 
 	skc = sks->sks_cache;
-	ASSERT(skc->skc_magic == SKC_MAGIC);
+	ASSERT3U(skc->skc_magic, ==, SKC_MAGIC);
 
 	/*
 	 * Update slab/objects counters in the cache, then remove the
@@ -365,11 +365,11 @@ spl_slab_reclaim(spl_kmem_cache_t *skc)
 	 */
 
 	list_for_each_entry_safe(sko, n, &sko_list, sko_list) {
-		ASSERT(sko->sko_magic == SKO_MAGIC);
+		ASSERT3U(sko->sko_magic, ==, SKO_MAGIC);
 	}
 
 	list_for_each_entry_safe(sks, m, &sks_list, sks_list) {
-		ASSERT(sks->sks_magic == SKS_MAGIC);
+		ASSERT3U(sks->sks_magic, ==, SKS_MAGIC);
 		kv_free(skc, sks, skc->skc_slab_size);
 	}
 }
@@ -505,8 +505,8 @@ spl_cache_flush(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flush)
 {
 	spin_lock(&skc->skc_lock);
 
-	ASSERT(skc->skc_magic == SKC_MAGIC);
-	ASSERT(skm->skm_magic == SKM_MAGIC);
+	ASSERT3U(skc->skc_magic, ==, SKC_MAGIC);
+	ASSERT3U(skm->skm_magic, ==, SKM_MAGIC);
 
 	int count = MIN(flush, skm->skm_avail);
 	for (int i = 0; i < count; i++)
@@ -609,8 +609,8 @@ spl_magazine_alloc(spl_kmem_cache_t *skc, int cpu)
 static void
 spl_magazine_free(spl_kmem_magazine_t *skm)
 {
-	ASSERT(skm->skm_magic == SKM_MAGIC);
-	ASSERT(skm->skm_avail == 0);
+	ASSERT3U(skm->skm_magic, ==, SKM_MAGIC);
+	ASSERT0(skm->skm_avail);
 	kfree(skm);
 }
 
@@ -622,7 +622,7 @@ spl_magazine_create(spl_kmem_cache_t *skc)
 {
 	int i = 0;
 
-	ASSERT((skc->skc_flags & KMC_SLAB) == 0);
+	ASSERT0((skc->skc_flags & KMC_SLAB));
 
 	skc->skc_mag = kzalloc(sizeof (spl_kmem_magazine_t *) *
 	    num_possible_cpus(), kmem_flags_convert(KM_SLEEP));
@@ -652,7 +652,7 @@ spl_magazine_destroy(spl_kmem_cache_t *skc)
 	spl_kmem_magazine_t *skm;
 	int i = 0;
 
-	ASSERT((skc->skc_flags & KMC_SLAB) == 0);
+	ASSERT0((skc->skc_flags & KMC_SLAB));
 
 	for_each_possible_cpu(i) {
 		skm = skc->skc_mag[i];
@@ -690,8 +690,8 @@ spl_kmem_cache_create(const char *name, size_t size, size_t align,
 	/*
 	 * Unsupported flags
 	 */
-	ASSERT(vmp == NULL);
-	ASSERT(reclaim == NULL);
+	ASSERT3P(vmp, ==, NULL);
+	ASSERT3P(reclaim, ==, NULL);
 
 	might_sleep();
 
@@ -838,7 +838,7 @@ void
 spl_kmem_cache_set_move(spl_kmem_cache_t *skc,
     kmem_cbrc_t (move)(void *, void *, size_t, void *))
 {
-	ASSERT(move != NULL);
+	ASSERT3P(move, !=, NULL);
 }
 EXPORT_SYMBOL(spl_kmem_cache_set_move);
 
@@ -851,7 +851,7 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 	DECLARE_WAIT_QUEUE_HEAD(wq);
 	taskqid_t id;
 
-	ASSERT(skc->skc_magic == SKC_MAGIC);
+	ASSERT3U(skc->skc_magic, ==, SKC_MAGIC);
 	ASSERT(skc->skc_flags & (KMC_KVMEM | KMC_SLAB));
 
 	down_write(&spl_kmem_cache_sem);
@@ -859,7 +859,7 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 	up_write(&spl_kmem_cache_sem);
 
 	/* Cancel any and wait for any pending delayed tasks */
-	VERIFY(!test_and_set_bit(KMC_BIT_DESTROY, &skc->skc_flags));
+	VERIFY0(test_and_set_bit(KMC_BIT_DESTROY, &skc->skc_flags));
 
 	spin_lock(&skc->skc_lock);
 	id = skc->skc_taskqid;
@@ -914,12 +914,12 @@ spl_cache_obj(spl_kmem_cache_t *skc, spl_kmem_slab_t *sks)
 {
 	spl_kmem_obj_t *sko;
 
-	ASSERT(skc->skc_magic == SKC_MAGIC);
-	ASSERT(sks->sks_magic == SKS_MAGIC);
+	ASSERT3U(skc->skc_magic, ==, SKC_MAGIC);
+	ASSERT3U(sks->sks_magic, ==, SKS_MAGIC);
 
 	sko = list_entry(sks->sks_free_list.next, spl_kmem_obj_t, sko_list);
-	ASSERT(sko->sko_magic == SKO_MAGIC);
-	ASSERT(sko->sko_addr != NULL);
+	ASSERT3U(sko->sko_magic, ==, SKO_MAGIC);
+	ASSERT3P(sko->sko_addr, !=, NULL);
 
 	/* Remove from sks_free_list */
 	list_del_init(&sko->sko_list);
@@ -1010,8 +1010,8 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 	int remaining, rc = 0;
 
 	ASSERT0(flags & ~KM_PUBLIC_MASK);
-	ASSERT(skc->skc_magic == SKC_MAGIC);
-	ASSERT((skc->skc_flags & KMC_SLAB) == 0);
+	ASSERT3U(skc->skc_magic, ==, SKC_MAGIC);
+	ASSERT0((skc->skc_flags & KMC_SLAB));
 	might_sleep();
 	*obj = NULL;
 
@@ -1103,8 +1103,8 @@ spl_cache_refill(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flags)
 	int count = 0, rc, refill;
 	void *obj = NULL;
 
-	ASSERT(skc->skc_magic == SKC_MAGIC);
-	ASSERT(skm->skm_magic == SKM_MAGIC);
+	ASSERT3U(skc->skc_magic, ==, SKC_MAGIC);
+	ASSERT3U(skm->skm_magic, ==, SKM_MAGIC);
 
 	refill = MIN(skm->skm_refill, skm->skm_size - skm->skm_avail);
 	spin_lock(&skc->skc_lock);
@@ -1143,9 +1143,9 @@ spl_cache_refill(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flags)
 		/* Grab the next available slab */
 		sks = list_entry((&skc->skc_partial_list)->next,
 		    spl_kmem_slab_t, sks_list);
-		ASSERT(sks->sks_magic == SKS_MAGIC);
-		ASSERT(sks->sks_ref < sks->sks_objs);
-		ASSERT(!list_empty(&sks->sks_free_list));
+		ASSERT3U(sks->sks_magic, ==, SKS_MAGIC);
+		ASSERT3U(sks->sks_ref, <, sks->sks_objs);
+		ASSERT0(list_empty(&sks->sks_free_list));
 
 		/*
 		 * Consume as many objects as needed to refill the requested
@@ -1153,8 +1153,8 @@ spl_cache_refill(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flags)
 		 */
 		while (sks->sks_ref < sks->sks_objs && refill-- > 0 &&
 		    ++count) {
-			ASSERT(skm->skm_avail < skm->skm_size);
-			ASSERT(count < skm->skm_size);
+			ASSERT3U(skm->skm_avail, <, skm->skm_size);
+			ASSERT3U(count, <, skm->skm_size);
 			skm->skm_objs[skm->skm_avail++] =
 			    spl_cache_obj(skc, sks);
 		}
@@ -1180,13 +1180,13 @@ spl_cache_shrink(spl_kmem_cache_t *skc, void *obj)
 	spl_kmem_slab_t *sks = NULL;
 	spl_kmem_obj_t *sko = NULL;
 
-	ASSERT(skc->skc_magic == SKC_MAGIC);
+	ASSERT3U(skc->skc_magic, ==, SKC_MAGIC);
 
 	sko = spl_sko_from_obj(skc, obj);
-	ASSERT(sko->sko_magic == SKO_MAGIC);
+	ASSERT3U(sko->sko_magic, ==, SKO_MAGIC);
 	sks = sko->sko_slab;
-	ASSERT(sks->sks_magic == SKS_MAGIC);
-	ASSERT(sks->sks_cache == skc);
+	ASSERT3U(sks->sks_magic, ==, SKS_MAGIC);
+	ASSERT3P(sks->sks_cache, ==, skc);
 	list_add(&sko->sko_list, &sks->sks_free_list);
 
 	sks->sks_age = jiffies;
@@ -1225,8 +1225,8 @@ spl_kmem_cache_alloc(spl_kmem_cache_t *skc, int flags)
 	void *obj = NULL;
 
 	ASSERT0(flags & ~KM_PUBLIC_MASK);
-	ASSERT(skc->skc_magic == SKC_MAGIC);
-	ASSERT(!test_bit(KMC_BIT_DESTROY, &skc->skc_flags));
+	ASSERT3U(skc->skc_magic, ==, SKC_MAGIC);
+	ASSERT0(test_bit(KMC_BIT_DESTROY, &skc->skc_flags));
 
 	/*
 	 * Allocate directly from a Linux slab.  All optimizations are left
@@ -1261,7 +1261,7 @@ restart:
 	 * when we need to grow the cache.
 	 */
 	skm = skc->skc_mag[smp_processor_id()];
-	ASSERT(skm->skm_magic == SKM_MAGIC);
+	ASSERT3U(skm->skm_magic, ==, SKM_MAGIC);
 
 	if (likely(skm->skm_avail)) {
 		/* Object available in CPU cache, use it */
@@ -1306,8 +1306,8 @@ spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj)
 	int do_reclaim = 0;
 	int do_emergency = 0;
 
-	ASSERT(skc->skc_magic == SKC_MAGIC);
-	ASSERT(!test_bit(KMC_BIT_DESTROY, &skc->skc_flags));
+	ASSERT3U(skc->skc_magic, ==, SKC_MAGIC);
+	ASSERT0(test_bit(KMC_BIT_DESTROY, &skc->skc_flags));
 
 	/*
 	 * Run the destructor
@@ -1348,7 +1348,7 @@ spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj)
 	 * CPU cache and return it to another.
 	 */
 	skm = skc->skc_mag[smp_processor_id()];
-	ASSERT(skm->skm_magic == SKM_MAGIC);
+	ASSERT3U(skm->skm_magic, ==, SKM_MAGIC);
 
 	/*
 	 * Per-CPU cache full, flush it to make space for this object,
@@ -1380,8 +1380,8 @@ EXPORT_SYMBOL(spl_kmem_cache_free);
 void
 spl_kmem_cache_reap_now(spl_kmem_cache_t *skc)
 {
-	ASSERT(skc->skc_magic == SKC_MAGIC);
-	ASSERT(!test_bit(KMC_BIT_DESTROY, &skc->skc_flags));
+	ASSERT3U(skc->skc_magic, ==, SKC_MAGIC);
+	ASSERT0(test_bit(KMC_BIT_DESTROY, &skc->skc_flags));
 
 	if (skc->skc_flags & KMC_SLAB)
 		return;

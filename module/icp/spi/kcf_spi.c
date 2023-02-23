@@ -210,7 +210,7 @@ init_prov_mechs(const crypto_provider_info_t *info, kcf_provider_desc_t *desc)
 	 * mechanism, SUN_RANDOM, in this case.
 	 */
 	if (info != NULL) {
-		ASSERT(info->pi_mechanisms != NULL);
+		ASSERT3P(info->pi_mechanisms, !=, NULL);
 		desc->pd_mech_list_count = info->pi_mech_list_count;
 		desc->pd_mechanisms = info->pi_mechanisms;
 	}

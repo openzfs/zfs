@@ -148,7 +148,7 @@ dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 	/* It could have been compressed away to nothing */
 	if (BP_IS_HOLE(bp) || BP_IS_REDACTED(bp))
 		return;
-	ASSERT(BP_GET_TYPE(bp) != DMU_OT_NONE);
+	ASSERT3U(BP_GET_TYPE(bp), !=, DMU_OT_NONE);
 	ASSERT(DMU_OT_IS_VALID(BP_GET_TYPE(bp)));
 	if (ds == NULL) {
 		dsl_pool_mos_diduse_space(tx->tx_pool,
@@ -218,8 +218,8 @@ dsl_dataset_block_remapped(dsl_dataset_t *ds, uint64_t vdev, uint64_t offset,
 	spa_t *spa = ds->ds_dir->dd_pool->dp_spa;
 
 	ASSERT(dmu_tx_is_syncing(tx));
-	ASSERT(birth <= tx->tx_txg);
-	ASSERT(!ds->ds_is_snapshot);
+	ASSERT3U(birth, <=, tx->tx_txg);
+	ASSERT0(ds->ds_is_snapshot);
 
 	if (birth > dsl_dataset_phys(ds)->ds_prev_snap_txg) {
 		spa_vdev_indirect_mark_obsolete(spa, vdev, offset, size, tx);
@@ -227,7 +227,7 @@ dsl_dataset_block_remapped(dsl_dataset_t *ds, uint64_t vdev, uint64_t offset,
 		blkptr_t fakebp;
 		dva_t *dva = &fakebp.blk_dva[0];
 
-		ASSERT(ds != NULL);
+		ASSERT3P(ds, !=, NULL);
 
 		mutex_enter(&ds->ds_remap_deadlist_lock);
 		if (!dsl_dataset_remap_deadlist_exists(ds)) {
@@ -259,7 +259,7 @@ dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
 		return (0);
 
 	ASSERT(dmu_tx_is_syncing(tx));
-	ASSERT(bp->blk_birth <= tx->tx_txg);
+	ASSERT3U(bp->blk_birth, <=, tx->tx_txg);
 
 	if (ds == NULL) {
 		dsl_free(tx->tx_pool, tx->tx_txg, bp);
@@ -269,7 +269,7 @@ dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
 	}
 	ASSERT3P(tx->tx_pool, ==, ds->ds_dir->dd_pool);
 
-	ASSERT(!ds->ds_is_snapshot);
+	ASSERT0(ds->ds_is_snapshot);
 	dmu_buf_will_dirty(ds->ds_dbuf, tx);
 
 	/*
@@ -316,7 +316,7 @@ dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
 		}
 		ASSERT3U(ds->ds_prev->ds_object, ==,
 		    dsl_dataset_phys(ds)->ds_prev_snap_obj);
-		ASSERT(dsl_dataset_phys(ds->ds_prev)->ds_num_children > 0);
+		ASSERT3U(dsl_dataset_phys(ds->ds_prev)->ds_num_children, >, 0);
 		/* if (bp->blk_birth > prev prev snap txg) prev unique += bs */
 		if (dsl_dataset_phys(ds->ds_prev)->ds_next_snap_obj ==
 		    ds->ds_object && bp->blk_birth >
@@ -423,7 +423,7 @@ dsl_dataset_evict_sync(void *dbu)
 {
 	dsl_dataset_t *ds = dbu;
 
-	ASSERT(ds->ds_owner == NULL);
+	ASSERT3P(ds->ds_owner, ==, NULL);
 
 	unique_remove(ds->ds_fsid_guid);
 }
@@ -433,7 +433,7 @@ dsl_dataset_evict_async(void *dbu)
 {
 	dsl_dataset_t *ds = dbu;
 
-	ASSERT(ds->ds_owner == NULL);
+	ASSERT3P(ds->ds_owner, ==, NULL);
 
 	ds->ds_dbuf = NULL;
 
@@ -455,7 +455,7 @@ dsl_dataset_evict_async(void *dbu)
 	if (ds->ds_dir)
 		dsl_dir_async_rele(ds->ds_dir, ds);
 
-	ASSERT(!list_link_active(&ds->ds_synced_link));
+	ASSERT0(list_link_active(&ds->ds_synced_link));
 
 	for (spa_feature_t f = 0; f < SPA_FEATURES; f++) {
 		if (dsl_dataset_feature_is_active(ds, f))
@@ -1001,7 +1001,7 @@ void
 dsl_dataset_disown(dsl_dataset_t *ds, ds_hold_flags_t flags, const void *tag)
 {
 	ASSERT3P(ds->ds_owner, ==, tag);
-	ASSERT(ds->ds_dbuf != NULL);
+	ASSERT3P(ds->ds_dbuf, !=, NULL);
 
 	mutex_enter(&ds->ds_lock);
 	ds->ds_owner = NULL;
@@ -1154,7 +1154,7 @@ dsl_dataset_create_sync_dd(dsl_dir_t *dd, dsl_dataset_t *origin,
 	ASSERT(origin == NULL || origin->ds_dir->dd_pool == dp);
 	ASSERT(origin == NULL || dsl_dataset_phys(origin)->ds_num_children > 0);
 	ASSERT(dmu_tx_is_syncing(tx));
-	ASSERT(dsl_dir_phys(dd)->dd_head_dataset_obj == 0);
+	ASSERT0(dsl_dir_phys(dd)->dd_head_dataset_obj);
 
 	dsobj = dmu_object_alloc(mos, DMU_OT_DSL_DATASET, 0,
 	    DMU_OT_DSL_DATASET, sizeof (dsl_dataset_phys_t), tx);
@@ -1289,7 +1289,7 @@ dsl_dataset_create_sync(dsl_dir_t *pdd, const char *lastname,
 	dsl_dir_t *dd;
 
 	ASSERT(dmu_tx_is_syncing(tx));
-	ASSERT(lastname[0] != '@');
+	ASSERT3U(lastname[0], !=, '@');
 	/*
 	 * Filesystems will eventually have their origin set to dp_origin_snap,
 	 * but that's taken care of in dsl_dataset_create_sync_dd. When
@@ -1367,7 +1367,7 @@ dsl_dataset_recalc_head_uniq(dsl_dataset_t *ds)
 	uint64_t mrs_used;
 	uint64_t dlused, dlcomp, dluncomp;
 
-	ASSERT(!ds->ds_is_snapshot);
+	ASSERT0(ds->ds_is_snapshot);
 
 	if (dsl_dataset_phys(ds)->ds_prev_snap_obj != 0)
 		mrs_used = dsl_dataset_phys(ds->ds_prev)->ds_referenced_bytes;
@@ -1393,7 +1393,7 @@ dsl_dataset_remove_from_next_clones(dsl_dataset_t *ds, uint64_t obj,
 	uint64_t count __maybe_unused;
 	int err;
 
-	ASSERT(dsl_dataset_phys(ds)->ds_num_children >= 2);
+	ASSERT3U(dsl_dataset_phys(ds)->ds_num_children, >=, 2);
 	err = zap_remove_int(mos, dsl_dataset_phys(ds)->ds_next_clones_obj,
 	    obj, tx);
 	/*
@@ -1434,7 +1434,7 @@ dsl_dataset_dirty(dsl_dataset_t *ds, dmu_tx_t *tx)
 	if (ds == NULL) /* this is the meta-objset */
 		return;
 
-	ASSERT(ds->ds_objset != NULL);
+	ASSERT3P(ds->ds_objset, !=, NULL);
 
 	if (dsl_dataset_phys(ds)->ds_next_snap_obj != 0)
 		panic("dirtying snapshot!");
@@ -1629,7 +1629,7 @@ dsl_dataset_snapshot_check(void *arg, dmu_tx_t *tx)
 
 			name = nvpair_name(pair);
 			cnt = fnvpair_value_uint64(pair);
-			ASSERT(cnt > 0);
+			ASSERT3U(cnt, >, 0);
 
 			error = dsl_dataset_hold(dp, name, FTAG, &ds);
 			if (error == 0) {
@@ -1712,8 +1712,8 @@ dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
 	    sizeof (zero_zil)) == 0);
 
 	/* Should not snapshot a dirty dataset. */
-	ASSERT(!txg_list_member(&ds->ds_dir->dd_pool->dp_dirty_datasets,
-	    ds, tx->tx_txg));
+	ASSERT0(txg_list_member(&ds->ds_dir->dd_pool->dp_dirty_datasets, ds,
+	    tx->tx_txg));
 
 	dsl_fs_ss_count_adjust(ds->ds_dir, 1, DD_FIELD_SNAPSHOT_COUNT, tx);
 
@@ -2076,8 +2076,8 @@ void
 dsl_dataset_sync(dsl_dataset_t *ds, zio_t *zio, dmu_tx_t *tx)
 {
 	ASSERT(dmu_tx_is_syncing(tx));
-	ASSERT(ds->ds_objset != NULL);
-	ASSERT(dsl_dataset_phys(ds)->ds_next_snap_obj == 0);
+	ASSERT3P(ds->ds_objset, !=, NULL);
+	ASSERT0(dsl_dataset_phys(ds)->ds_next_snap_obj);
 
 	/*
 	 * in case we had to change ds_fsid_guid when we opened it,
@@ -2271,7 +2271,7 @@ dsl_dataset_sync_done(dsl_dataset_t *ds, dmu_tx_t *tx)
 	else
 		ASSERT0(os->os_next_write_raw[tx->tx_txg & TXG_MASK]);
 
-	ASSERT(!dmu_objset_is_dirty(os, dmu_tx_get_txg(tx)));
+	ASSERT0(dmu_objset_is_dirty(os, dmu_tx_get_txg(tx)));
 
 	dmu_buf_rele(ds->ds_dbuf, ds);
 
@@ -3331,7 +3331,7 @@ dsl_dataset_promote_check(void *arg, dmu_tx_t *tx)
 
 	/* compute origin's new unique space */
 	snap = list_tail(&ddpa->clone_snaps);
-	ASSERT(snap != NULL);
+	ASSERT3P(snap, !=, NULL);
 	ASSERT3U(dsl_dataset_phys(snap->ds)->ds_prev_snap_obj, ==,
 	    origin_ds->ds_object);
 	dsl_deadlist_space_range(&snap->ds->ds_deadlist,
@@ -3674,7 +3674,7 @@ dsl_dataset_promote_sync(void *arg, dmu_tx_t *tx)
 			zap_cursor_fini(&zc);
 		}
 
-		ASSERT(!dsl_prop_hascb(ds));
+		ASSERT0(dsl_prop_hascb(ds));
 	}
 
 	/*
@@ -3748,7 +3748,7 @@ snaplist_make(dsl_pool_t *dp,
 		int err;
 
 		err = dsl_dataset_hold_obj(dp, obj, tag, &ds);
-		ASSERT(err != ENOENT);
+		ASSERT3S(err, !=, ENOENT);
 		if (err != 0)
 			return (err);
 
@@ -4021,7 +4021,7 @@ dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	int64_t unused_refres_delta;
 
-	ASSERT(clone->ds_reserved == 0);
+	ASSERT0(clone->ds_reserved);
 	/*
 	 * NOTE: On DEBUG kernels there could be a race between this and
 	 * the check function if spa_asize_inflation is adjusted...
@@ -4039,8 +4039,8 @@ dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
 	for (spa_feature_t f = 0; f < SPA_FEATURES; f++) {
 		if (!(spa_feature_table[f].fi_flags &
 		    ZFEATURE_FLAG_PER_DATASET)) {
-			ASSERT(!dsl_dataset_feature_is_active(clone, f));
-			ASSERT(!dsl_dataset_feature_is_active(origin_head, f));
+			ASSERT0(dsl_dataset_feature_is_active(clone, f));
+			ASSERT0(dsl_dataset_feature_is_active(origin_head, f));
 			continue;
 		}
 
@@ -4854,7 +4854,7 @@ dsl_dataset_get_remap_deadlist_object(dsl_dataset_t *ds)
 		return (0);
 	}
 
-	ASSERT(remap_deadlist_obj != 0);
+	ASSERT3U(remap_deadlist_obj, !=, 0);
 	return (remap_deadlist_obj);
 }
 
@@ -4870,7 +4870,7 @@ static void
 dsl_dataset_set_remap_deadlist_object(dsl_dataset_t *ds, uint64_t obj,
     dmu_tx_t *tx)
 {
-	ASSERT(obj != 0);
+	ASSERT3U(obj, !=, 0);
 	dsl_dataset_zapify(ds, tx);
 	VERIFY0(zap_add(ds->ds_dir->dd_pool->dp_meta_objset, ds->ds_object,
 	    DS_FIELD_REMAP_DEADLIST, sizeof (obj), 1, &obj, tx));

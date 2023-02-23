@@ -459,7 +459,7 @@ zfs_unlinked_add(znode_t *zp, dmu_tx_t *tx)
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
 
 	ASSERT(zp->z_unlinked);
-	ASSERT(ZTOI(zp)->i_nlink == 0);
+	ASSERT0(ZTOI(zp)->i_nlink);
 
 	VERIFY3U(0, ==,
 	    zap_add_int(zfsvfs->z_os, zfsvfs->z_unlinkedobj, zp->z_id, tx));
@@ -656,8 +656,8 @@ zfs_rmnode(znode_t *zp)
 	uint64_t	links;
 	int		error;
 
-	ASSERT(ZTOI(zp)->i_nlink == 0);
-	ASSERT(atomic_read(&ZTOI(zp)->i_count) == 0);
+	ASSERT0(ZTOI(zp)->i_nlink);
+	ASSERT0(atomic_read(&ZTOI(zp)->i_count));
 
 	/*
 	 * If this is an attribute directory, purge its contents.
@@ -704,7 +704,7 @@ zfs_rmnode(znode_t *zp)
 	    &xattr_obj, sizeof (xattr_obj));
 	if (error == 0 && xattr_obj) {
 		error = zfs_zget(zfsvfs, xattr_obj, &xzp);
-		ASSERT(error == 0);
+		ASSERT0(error);
 	}
 
 	acl_obj = zfs_external_acl(zp);
@@ -738,13 +738,13 @@ zfs_rmnode(znode_t *zp)
 	}
 
 	if (xzp) {
-		ASSERT(error == 0);
+		ASSERT0(error);
 		mutex_enter(&xzp->z_lock);
 		xzp->z_unlinked = B_TRUE;	/* mark xzp for deletion */
 		clear_nlink(ZTOI(xzp));		/* no more links to it */
 		links = 0;
-		VERIFY(0 == sa_update(xzp->z_sa_hdl, SA_ZPL_LINKS(zfsvfs),
-		    &links, sizeof (links), tx));
+		VERIFY0(sa_update(xzp->z_sa_hdl, SA_ZPL_LINKS(zfsvfs), &links,
+		    sizeof (links), tx));
 		mutex_exit(&xzp->z_lock);
 		zfs_unlinked_add(xzp, tx);
 	}
@@ -812,7 +812,7 @@ zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
 
 	if (!(flag & ZRENAMING)) {
 		if (zp->z_unlinked) {	/* no new links to unlinked zp */
-			ASSERT(!(flag & (ZNEW | ZEXISTS)));
+			ASSERT0((flag & (ZNEW | ZEXISTS)));
 			mutex_exit(&zp->z_lock);
 			return (SET_ERROR(ENOENT));
 		}
@@ -857,7 +857,7 @@ zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
 		    ctime);
 	}
 	error = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
-	ASSERT(error == 0);
+	ASSERT0(error);
 
 	mutex_exit(&zp->z_lock);
 
@@ -879,7 +879,7 @@ zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
 	    &dzp->z_pflags, sizeof (dzp->z_pflags));
 	zfs_tstamp_update_setup(dzp, CONTENT_MODIFIED, mtime, ctime);
 	error = sa_bulk_update(dzp->z_sa_hdl, bulk, count, tx);
-	ASSERT(error == 0);
+	ASSERT0(error);
 	mutex_exit(&dzp->z_lock);
 
 	return (0);
@@ -1068,7 +1068,7 @@ zfs_link_destroy(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag,
 	    NULL, &dzp->z_pflags, sizeof (dzp->z_pflags));
 	zfs_tstamp_update_setup(dzp, CONTENT_MODIFIED, mtime, ctime);
 	error = sa_bulk_update(dzp->z_sa_hdl, bulk, count, tx);
-	ASSERT(error == 0);
+	ASSERT0(error);
 	mutex_exit(&dzp->z_lock);
 
 	if (unlinkedp != NULL)
@@ -1152,7 +1152,7 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, znode_t **xzpp, cred_t *cr)
 	ASSERT(error == 0 && parent == zp->z_id);
 #endif
 
-	VERIFY(0 == sa_update(zp->z_sa_hdl, SA_ZPL_XATTR(zfsvfs), &xzp->z_id,
+	VERIFY0(sa_update(zp->z_sa_hdl, SA_ZPL_XATTR(zfsvfs), &xzp->z_id,
 	    sizeof (xzp->z_id), tx));
 
 	if (!zp->z_unlinked)

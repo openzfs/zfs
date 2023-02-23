@@ -327,8 +327,8 @@ zfeature_register(spa_feature_t fid, const char *guid, const char *name,
 	zfeature_info_t *feature = &spa_feature_table[fid];
 	static const spa_feature_t nodeps[] = { SPA_FEATURE_NONE };
 
-	ASSERT(name != NULL);
-	ASSERT(desc != NULL);
+	ASSERT3P(name, !=, NULL);
+	ASSERT3P(desc, !=, NULL);
 	ASSERT((flags & ZFEATURE_FLAG_READONLY_COMPAT) == 0 ||
 	    (flags & ZFEATURE_FLAG_MOS) == 0);
 	ASSERT3U(fid, <, SPA_FEATURES);

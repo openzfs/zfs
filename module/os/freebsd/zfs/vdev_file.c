@@ -138,7 +138,7 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	 * to local zone users, so the underlying devices should be as well.
 	 */
 	ASSERT3P(vd->vdev_path, !=, NULL);
-	ASSERT(vd->vdev_path[0] == '/');
+	ASSERT3U(vd->vdev_path[0], ==, '/');
 
 	error = zfs_file_open(vd->vdev_path,
 	    vdev_file_open_mode(spa_mode(vd->vdev_spa)), 0, &fp);

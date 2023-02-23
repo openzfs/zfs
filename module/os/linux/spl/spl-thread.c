@@ -48,7 +48,7 @@ thread_generic_wrapper(void *arg)
 	void (*func)(void *);
 	void *args;
 
-	ASSERT(tp->tp_magic == TP_MAGIC);
+	ASSERT3U(tp->tp_magic, ==, TP_MAGIC);
 	func = tp->tp_func;
 	args = tp->tp_args;
 	set_current_state(tp->tp_state);
@@ -77,7 +77,7 @@ __thread_create(caddr_t stk, size_t  stksize, thread_func_t func,
 
 	/* Option pp is simply ignored */
 	/* Variable stack size unsupported */
-	ASSERT(stk == NULL);
+	ASSERT3P(stk, ==, NULL);
 
 	tp = kmem_alloc(sizeof (thread_priv_t), KM_PUSHPAGE);
 	if (tp == NULL)

@@ -631,7 +631,7 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 	 * leaf vdevs for aggregation.  See the comment at the end of the
 	 * zio_vdev_io_start() function.
 	 */
-	ASSERT(vq->vq_vdev->vdev_ops != &vdev_draid_spare_ops);
+	ASSERT3U(vq->vq_vdev->vdev_ops, !=, &vdev_draid_spare_ops);
 
 	first = last = zio;
 
@@ -672,7 +672,7 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 	 */
 	while ((first->io_flags & ZIO_FLAG_OPTIONAL) && first != last) {
 		first = AVL_NEXT(t, first);
-		ASSERT(first != NULL);
+		ASSERT3P(first, !=, NULL);
 	}
 
 
@@ -732,7 +732,7 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 		while (last != mandatory && last != first) {
 			ASSERT(last->io_flags & ZIO_FLAG_OPTIONAL);
 			last = AVL_PREV(t, last);
-			ASSERT(last != NULL);
+			ASSERT3P(last, !=, NULL);
 		}
 	}
 
@@ -882,7 +882,7 @@ vdev_queue_io(zio_t *zio)
 	 * not match the child's i/o type.  Fix it up here.
 	 */
 	if (zio->io_type == ZIO_TYPE_READ) {
-		ASSERT(zio->io_priority != ZIO_PRIORITY_TRIM);
+		ASSERT3U(zio->io_priority, !=, ZIO_PRIORITY_TRIM);
 
 		if (zio->io_priority != ZIO_PRIORITY_SYNC_READ &&
 		    zio->io_priority != ZIO_PRIORITY_ASYNC_READ &&
@@ -893,7 +893,7 @@ vdev_queue_io(zio_t *zio)
 			zio->io_priority = ZIO_PRIORITY_ASYNC_READ;
 		}
 	} else if (zio->io_type == ZIO_TYPE_WRITE) {
-		ASSERT(zio->io_priority != ZIO_PRIORITY_TRIM);
+		ASSERT3U(zio->io_priority, !=, ZIO_PRIORITY_TRIM);
 
 		if (zio->io_priority != ZIO_PRIORITY_SYNC_WRITE &&
 		    zio->io_priority != ZIO_PRIORITY_ASYNC_WRITE &&
@@ -903,8 +903,8 @@ vdev_queue_io(zio_t *zio)
 			zio->io_priority = ZIO_PRIORITY_ASYNC_WRITE;
 		}
 	} else {
-		ASSERT(zio->io_type == ZIO_TYPE_TRIM);
-		ASSERT(zio->io_priority == ZIO_PRIORITY_TRIM);
+		ASSERT3U(zio->io_type, ==, ZIO_TYPE_TRIM);
+		ASSERT3U(zio->io_priority, ==, ZIO_PRIORITY_TRIM);
 	}
 
 	zio->io_flags |= ZIO_FLAG_DONT_CACHE | ZIO_FLAG_DONT_QUEUE;
@@ -988,7 +988,7 @@ vdev_queue_change_io_priority(zio_t *zio, zio_priority_t priority)
 		    priority != ZIO_PRIORITY_SCRUB)
 			priority = ZIO_PRIORITY_ASYNC_READ;
 	} else {
-		ASSERT(zio->io_type == ZIO_TYPE_WRITE);
+		ASSERT3U(zio->io_type, ==, ZIO_TYPE_WRITE);
 		if (priority != ZIO_PRIORITY_SYNC_WRITE &&
 		    priority != ZIO_PRIORITY_ASYNC_WRITE)
 			priority = ZIO_PRIORITY_ASYNC_WRITE;

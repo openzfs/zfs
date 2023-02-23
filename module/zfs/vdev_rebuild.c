@@ -280,9 +280,9 @@ vdev_rebuild_initiate(vdev_t *vd)
 {
 	spa_t *spa = vd->vdev_spa;
 
-	ASSERT(vd->vdev_top == vd);
+	ASSERT3U(vd->vdev_top, ==, vd);
 	ASSERT(MUTEX_HELD(&vd->vdev_rebuild_lock));
-	ASSERT(!vd->vdev_rebuilding);
+	ASSERT0(vd->vdev_rebuilding);
 
 	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
 	VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
@@ -406,7 +406,7 @@ vdev_rebuild_reset_sync(void *arg, dmu_tx_t *tx)
 
 	mutex_enter(&vd->vdev_rebuild_lock);
 
-	ASSERT(vrp->vrp_rebuild_state == VDEV_REBUILD_ACTIVE);
+	ASSERT3U(vrp->vrp_rebuild_state, ==, VDEV_REBUILD_ACTIVE);
 	ASSERT3P(vd->vdev_rebuild_thread, ==, NULL);
 
 	vrp->vrp_last_offset = 0;
@@ -719,7 +719,7 @@ vdev_rebuild_load(vdev_t *vd)
 		return (SET_ERROR(ENOTSUP));
 	}
 
-	ASSERT(vd->vdev_top == vd);
+	ASSERT3U(vd->vdev_top, ==, vd);
 
 	err = zap_lookup(spa->spa_meta_objset, vd->vdev_top_zap,
 	    VDEV_TOP_ZAP_VDEV_REBUILD_PHYS, sizeof (uint64_t),
@@ -957,7 +957,7 @@ vdev_rebuild_thread(void *arg)
 		 * when detaching a child vdev or when exporting the pool.  The
 		 * rebuild is left in the active state so it will be resumed.
 		 */
-		ASSERT(vrp->vrp_rebuild_state == VDEV_REBUILD_ACTIVE);
+		ASSERT3U(vrp->vrp_rebuild_state, ==, VDEV_REBUILD_ACTIVE);
 		vd->vdev_rebuilding = B_FALSE;
 	}
 
@@ -1009,9 +1009,9 @@ vdev_rebuild(vdev_t *vd)
 	vdev_rebuild_t *vr = &vd->vdev_rebuild_config;
 	vdev_rebuild_phys_t *vrp __maybe_unused = &vr->vr_rebuild_phys;
 
-	ASSERT(vd->vdev_top == vd);
+	ASSERT3U(vd->vdev_top, ==, vd);
 	ASSERT(vdev_is_concrete(vd));
-	ASSERT(!vd->vdev_removing);
+	ASSERT0(vd->vdev_removing);
 	ASSERT(spa_feature_is_enabled(vd->vdev_spa,
 	    SPA_FEATURE_DEVICE_REBUILD));
 
@@ -1089,7 +1089,7 @@ vdev_rebuild_stop_wait(vdev_t *vd)
 			vdev_rebuild_stop_wait(vd->vdev_child[i]);
 
 	} else if (vd->vdev_top_zap != 0) {
-		ASSERT(vd == vd->vdev_top);
+		ASSERT3P(vd, ==, vd->vdev_top);
 
 		mutex_enter(&vd->vdev_rebuild_lock);
 		if (vd->vdev_rebuild_thread != NULL) {

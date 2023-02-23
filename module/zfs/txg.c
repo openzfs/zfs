@@ -229,7 +229,7 @@ txg_thread_enter(tx_state_t *tx, callb_cpr_t *cpr)
 static void
 txg_thread_exit(tx_state_t *tx, callb_cpr_t *cpr, kthread_t **tpp)
 {
-	ASSERT(*tpp != NULL);
+	ASSERT3P(*tpp, !=, NULL);
 	*tpp = NULL;
 	tx->tx_threads--;
 	cv_broadcast(&tx->tx_exit_cv);
@@ -346,7 +346,7 @@ txg_rele_to_quiesce(txg_handle_t *th)
 {
 	tx_cpu_t *tc = th->th_cpu;
 
-	ASSERT(!MUTEX_HELD(&tc->tc_lock));
+	ASSERT0(MUTEX_HELD(&tc->tc_lock));
 	mutex_exit(&tc->tc_open_lock);
 }
 
@@ -368,7 +368,7 @@ txg_rele_to_sync(txg_handle_t *th)
 	int g = th->th_txg & TXG_MASK;
 
 	mutex_enter(&tc->tc_lock);
-	ASSERT(tc->tc_count[g] != 0);
+	ASSERT3U(tc->tc_count[g], !=, 0);
 	if (--tc->tc_count[g] == 0)
 		cv_broadcast(&tc->tc_cv[g]);
 	mutex_exit(&tc->tc_lock);
@@ -396,7 +396,7 @@ txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 	for (c = 0; c < max_ncpus; c++)
 		mutex_enter(&tx->tx_cpu[c].tc_open_lock);
 
-	ASSERT(txg == tx->tx_open_txg);
+	ASSERT3U(txg, ==, tx->tx_open_txg);
 	tx->tx_open_txg++;
 	tx->tx_open_time = tx_open_time = gethrtime();
 
@@ -574,7 +574,7 @@ txg_sync_thread(void *arg)
 		 * us.  This may cause the quiescing thread to now be
 		 * able to quiesce another txg, so we must signal it.
 		 */
-		ASSERT(tx->tx_quiesced_txg != 0);
+		ASSERT3U(tx->tx_quiesced_txg, !=, 0);
 		txg = tx->tx_quiesced_txg;
 		tx->tx_quiesced_txg = 0;
 		tx->tx_syncing_txg = txg;
@@ -694,7 +694,7 @@ txg_wait_synced_impl(dsl_pool_t *dp, uint64_t txg, boolean_t wait_sig)
 {
 	tx_state_t *tx = &dp->dp_tx;
 
-	ASSERT(!dsl_pool_config_held(dp));
+	ASSERT0(dsl_pool_config_held(dp));
 
 	mutex_enter(&tx->tx_sync_lock);
 	ASSERT3U(tx->tx_threads, ==, 2);
@@ -755,7 +755,7 @@ txg_wait_open(dsl_pool_t *dp, uint64_t txg, boolean_t should_quiesce)
 {
 	tx_state_t *tx = &dp->dp_tx;
 
-	ASSERT(!dsl_pool_config_held(dp));
+	ASSERT0(dsl_pool_config_held(dp));
 
 	mutex_enter(&tx->tx_sync_lock);
 	ASSERT3U(tx->tx_threads, ==, 2);
@@ -792,7 +792,7 @@ txg_kick(dsl_pool_t *dp, uint64_t txg)
 {
 	tx_state_t *tx = &dp->dp_tx;
 
-	ASSERT(!dsl_pool_config_held(dp));
+	ASSERT0(dsl_pool_config_held(dp));
 
 	if (tx->tx_sync_txg_waiting >= txg)
 		return;

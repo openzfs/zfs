@@ -356,7 +356,7 @@ cv_timedwait(kcondvar_t *cv, kmutex_t *mp, clock_t abstime)
 	if (delta <= 0)
 		return (-1);
 
-	VERIFY(gettimeofday(&tv, NULL) == 0);
+	VERIFY0(gettimeofday(&tv, NULL));
 
 	ts.tv_sec = tv.tv_sec + delta / hz;
 	ts.tv_nsec = tv.tv_usec * NSEC_PER_USEC + (delta % hz) * (NANOSEC / hz);
@@ -723,8 +723,10 @@ static int random_fd = -1, urandom_fd = -1;
 void
 random_init(void)
 {
-	VERIFY((random_fd = open(random_path, O_RDONLY | O_CLOEXEC)) != -1);
-	VERIFY((urandom_fd = open(urandom_path, O_RDONLY | O_CLOEXEC)) != -1);
+	VERIFY3S((random_fd = open(random_path, O_RDONLY | O_CLOEXEC)), !=,
+	    -1);
+	VERIFY3S((urandom_fd = open(urandom_path, O_RDONLY | O_CLOEXEC)), !=,
+	    -1);
 }
 
 void
@@ -743,7 +745,7 @@ random_get_bytes_common(uint8_t *ptr, size_t len, int fd)
 	size_t resid = len;
 	ssize_t bytes;
 
-	ASSERT(fd != -1);
+	ASSERT3S(fd, !=, -1);
 
 	while (resid != 0) {
 		bytes = read(fd, ptr, resid);
@@ -936,7 +938,7 @@ kmem_vasprintf(const char *fmt, va_list adx)
 	va_list adx_copy;
 
 	va_copy(adx_copy, adx);
-	VERIFY(vasprintf(&buf, fmt, adx_copy) != -1);
+	VERIFY3U(vasprintf(&buf, fmt, adx_copy), !=, -1);
 	va_end(adx_copy);
 
 	return (buf);
@@ -949,7 +951,7 @@ kmem_asprintf(const char *fmt, ...)
 	va_list adx;
 
 	va_start(adx, fmt);
-	VERIFY(vasprintf(&buf, fmt, adx) != -1);
+	VERIFY3U(vasprintf(&buf, fmt, adx), !=, -1);
 	va_end(adx);
 
 	return (buf);
@@ -1276,7 +1278,7 @@ zfs_file_pread(zfs_file_t *fp, void *buf, size_t count, loff_t off,
 		int status;
 
 		status = pwrite64(fp->f_dump_fd, buf, rc, off);
-		ASSERT(status != -1);
+		ASSERT3S(status, !=, -1);
 	}
 
 	if (resid) {

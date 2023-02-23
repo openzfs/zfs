@@ -473,7 +473,7 @@ bt_shift_leaf(zfs_btree_t *tree, zfs_btree_leaf_t *node, uint32_t idx,
 {
 	size_t size = tree->bt_elem_size;
 	zfs_btree_hdr_t *hdr = &node->btl_hdr;
-	ASSERT(!zfs_btree_is_core(hdr));
+	ASSERT0(zfs_btree_is_core(hdr));
 
 	if (count == 0)
 		return;
@@ -491,7 +491,7 @@ bt_grow_leaf(zfs_btree_t *tree, zfs_btree_leaf_t *leaf, uint32_t idx,
     uint32_t n)
 {
 	zfs_btree_hdr_t *hdr = &leaf->btl_hdr;
-	ASSERT(!zfs_btree_is_core(hdr));
+	ASSERT0(zfs_btree_is_core(hdr));
 	ASSERT3U(idx, <=, hdr->bth_count);
 	uint32_t capacity = tree->bt_leaf_cap;
 	ASSERT3U(hdr->bth_count + n, <=, capacity);
@@ -526,7 +526,7 @@ bt_shrink_leaf(zfs_btree_t *tree, zfs_btree_leaf_t *leaf, uint32_t idx,
     uint32_t n)
 {
 	zfs_btree_hdr_t *hdr = &leaf->btl_hdr;
-	ASSERT(!zfs_btree_is_core(hdr));
+	ASSERT0(zfs_btree_is_core(hdr));
 	ASSERT3U(idx, <=, hdr->bth_count);
 	ASSERT3U(idx + n, <=, hdr->bth_count);
 
@@ -569,8 +569,8 @@ bt_transfer_leaf(zfs_btree_t *tree, zfs_btree_leaf_t *source, uint32_t sidx,
     uint32_t count, zfs_btree_leaf_t *dest, uint32_t didx)
 {
 	size_t size = tree->bt_elem_size;
-	ASSERT(!zfs_btree_is_core(&source->btl_hdr));
-	ASSERT(!zfs_btree_is_core(&dest->btl_hdr));
+	ASSERT0(zfs_btree_is_core(&source->btl_hdr));
+	ASSERT0(zfs_btree_is_core(&dest->btl_hdr));
 
 	bcpy(source->btl_elems + (source->btl_hdr.bth_first + sidx) * size,
 	    dest->btl_elems + (dest->btl_hdr.bth_first + didx) * size,
@@ -591,7 +591,7 @@ zfs_btree_first_helper(zfs_btree_t *tree, zfs_btree_hdr_t *hdr,
 	    node = ((zfs_btree_core_t *)node)->btc_children[0])
 		;
 
-	ASSERT(!zfs_btree_is_core(node));
+	ASSERT0(zfs_btree_is_core(node));
 	zfs_btree_leaf_t *leaf = (zfs_btree_leaf_t *)node;
 	if (where != NULL) {
 		where->bti_node = node;
@@ -953,7 +953,7 @@ zfs_btree_bulk_finish(zfs_btree_t *tree)
 		uint32_t common_idx = idx.bti_offset;
 
 		VERIFY3P(zfs_btree_prev(tree, &idx, &idx), !=, NULL);
-		ASSERT(!zfs_btree_is_core(idx.bti_node));
+		ASSERT0(zfs_btree_is_core(idx.bti_node));
 		zfs_btree_leaf_t *l_neighbor = (zfs_btree_leaf_t *)idx.bti_node;
 		zfs_btree_hdr_t *l_hdr = idx.bti_node;
 		uint32_t move_count = (capacity / 2) - hdr->bth_count;
@@ -1154,7 +1154,7 @@ zfs_btree_add_idx(zfs_btree_t *tree, const void *value,
 		VERIFY3P(zfs_btree_first_helper(tree, subtree, &new_idx), !=,
 		    NULL);
 		ASSERT0(new_idx.bti_offset);
-		ASSERT(!zfs_btree_is_core(new_idx.bti_node));
+		ASSERT0(zfs_btree_is_core(new_idx.bti_node));
 		zfs_btree_insert_into_leaf(tree,
 		    (zfs_btree_leaf_t *)new_idx.bti_node, buf, 0);
 		kmem_free(buf, size);
@@ -1378,7 +1378,7 @@ zfs_btree_prev(zfs_btree_t *tree, const zfs_btree_index_t *idx,
 void *
 zfs_btree_get(zfs_btree_t *tree, zfs_btree_index_t *idx)
 {
-	ASSERT(!idx->bti_before);
+	ASSERT0(idx->bti_before);
 	size_t size = tree->bt_elem_size;
 	if (!zfs_btree_is_core(idx->bti_node)) {
 		zfs_btree_leaf_t *leaf = (zfs_btree_leaf_t *)idx->bti_node;
@@ -1646,7 +1646,7 @@ zfs_btree_remove_idx(zfs_btree_t *tree, zfs_btree_index_t *where)
 	zfs_btree_hdr_t *hdr = where->bti_node;
 	uint32_t idx = where->bti_offset;
 
-	ASSERT(!where->bti_before);
+	ASSERT0(where->bti_before);
 	if (tree->bt_bulk != NULL) {
 		/*
 		 * Leave bulk insert mode. Note that our index would be
@@ -1682,7 +1682,7 @@ zfs_btree_remove_idx(zfs_btree_t *tree, zfs_btree_index_t *where)
 
 		hdr = where->bti_node;
 		idx = where->bti_offset;
-		ASSERT(!where->bti_before);
+		ASSERT0(where->bti_before);
 	}
 
 	/*
@@ -1690,7 +1690,7 @@ zfs_btree_remove_idx(zfs_btree_t *tree, zfs_btree_index_t *where)
 	 * elements after the idx to the left. After that, we rebalance if
 	 * needed.
 	 */
-	ASSERT(!zfs_btree_is_core(hdr));
+	ASSERT0(zfs_btree_is_core(hdr));
 	zfs_btree_leaf_t *leaf = (zfs_btree_leaf_t *)hdr;
 	ASSERT3U(hdr->bth_count, >, 0);
 
@@ -1735,7 +1735,7 @@ zfs_btree_remove_idx(zfs_btree_t *tree, zfs_btree_index_t *where)
 	    parent->btc_children[parent_idx - 1]);
 	if (l_hdr != NULL && l_hdr->bth_count > min_count) {
 		/* We can take a node from the left neighbor. */
-		ASSERT(!zfs_btree_is_core(l_hdr));
+		ASSERT0(zfs_btree_is_core(l_hdr));
 		zfs_btree_leaf_t *neighbor = (zfs_btree_leaf_t *)l_hdr;
 
 		/*
@@ -1764,7 +1764,7 @@ zfs_btree_remove_idx(zfs_btree_t *tree, zfs_btree_index_t *where)
 	    NULL : parent->btc_children[parent_idx + 1]);
 	if (r_hdr != NULL && r_hdr->bth_count > min_count) {
 		/* We can take a node from the right neighbor. */
-		ASSERT(!zfs_btree_is_core(r_hdr));
+		ASSERT0(zfs_btree_is_core(r_hdr));
 		zfs_btree_leaf_t *neighbor = (zfs_btree_leaf_t *)r_hdr;
 
 		/*
@@ -1811,8 +1811,8 @@ zfs_btree_remove_idx(zfs_btree_t *tree, zfs_btree_index_t *where)
 		rm_hdr = r_hdr;
 		parent_idx++;
 	}
-	ASSERT(!zfs_btree_is_core(k_hdr));
-	ASSERT(!zfs_btree_is_core(rm_hdr));
+	ASSERT0(zfs_btree_is_core(k_hdr));
+	ASSERT0(zfs_btree_is_core(rm_hdr));
 	ASSERT3U(k_hdr->bth_count, ==, min_count);
 	ASSERT3U(rm_hdr->bth_count, ==, min_count);
 	zfs_btree_leaf_t *keep = (zfs_btree_leaf_t *)k_hdr;

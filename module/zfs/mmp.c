@@ -220,7 +220,7 @@ mmp_thread_enter(mmp_thread_t *mmp, callb_cpr_t *cpr)
 static void
 mmp_thread_exit(mmp_thread_t *mmp, kthread_t **mpp, callb_cpr_t *cpr)
 {
-	ASSERT(*mpp != NULL);
+	ASSERT3P(*mpp, !=, NULL);
 	*mpp = NULL;
 	cv_broadcast(&mmp->mmp_thread_cv);
 	CALLB_CPR_EXIT(cpr);		/* drops &mmp->mmp_thread_lock */
@@ -259,7 +259,7 @@ mmp_thread_stop(spa_t *spa)
 	zfs_dbgmsg("MMP thread stopped pool '%s' gethrtime %llu",
 	    spa_name(spa), gethrtime());
 
-	ASSERT(mmp->mmp_thread == NULL);
+	ASSERT3P(mmp->mmp_thread, ==, NULL);
 	mmp->mmp_thread_exiting = 0;
 }
 
@@ -288,8 +288,8 @@ mmp_next_leaf(spa_t *spa)
 
 	ASSERT(MUTEX_HELD(&spa->spa_mmp.mmp_io_lock));
 	ASSERT(spa_config_held(spa, SCL_STATE, RW_READER));
-	ASSERT(list_link_active(&spa->spa_leaf_list.list_head) == B_TRUE);
-	ASSERT(!list_is_empty(&spa->spa_leaf_list));
+	ASSERT3U(list_link_active(&spa->spa_leaf_list.list_head), ==, B_TRUE);
+	ASSERT0(list_is_empty(&spa->spa_leaf_list));
 
 	if (spa->spa_mmp.mmp_leaf_last_gen != spa->spa_leaf_list_gen) {
 		spa->spa_mmp.mmp_last_leaf = list_head(&spa->spa_leaf_list);

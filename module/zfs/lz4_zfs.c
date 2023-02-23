@@ -60,7 +60,7 @@ lz4_compress_zfs(void *s_start, void *d_start, size_t s_len,
 	uint32_t bufsiz;
 	char *dest = d_start;
 
-	ASSERT(d_len >= sizeof (bufsiz));
+	ASSERT3U(d_len, >=, sizeof (bufsiz));
 
 	bufsiz = real_LZ4_compress(s_start, &dest[sizeof (bufsiz)], s_len,
 	    d_len - sizeof (bufsiz));
@@ -842,7 +842,7 @@ real_LZ4_compress(const char *source, char *dest, int isize, int osize)
 	void *ctx;
 	int result;
 
-	ASSERT(lz4_cache != NULL);
+	ASSERT3P(lz4_cache, !=, NULL);
 	ctx = kmem_cache_alloc(lz4_cache, KM_SLEEP);
 
 	/*

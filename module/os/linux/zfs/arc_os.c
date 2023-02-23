@@ -206,7 +206,7 @@ arc_shrinker_count(struct shrinker *shrink, struct shrink_control *sc)
 static unsigned long
 arc_shrinker_scan(struct shrinker *shrink, struct shrink_control *sc)
 {
-	ASSERT((sc->gfp_mask & __GFP_FS) != 0);
+	ASSERT3U((sc->gfp_mask & __GFP_FS), !=, 0);
 
 	/* The arc is considered warm once reclaim has occurred */
 	if (unlikely(arc_warm == B_FALSE))

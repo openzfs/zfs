@@ -520,8 +520,8 @@ dsl_pool_create(spa_t *spa, nvlist_t *zplprops __attribute__((unused)),
 
 		/* create and open the free_bplist */
 		obj = bpobj_alloc(dp->dp_meta_objset, SPA_OLD_MAXBLOCKSIZE, tx);
-		VERIFY(zap_add(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
-		    DMU_POOL_FREE_BPOBJ, sizeof (uint64_t), 1, &obj, tx) == 0);
+		VERIFY0(zap_add(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+		    DMU_POOL_FREE_BPOBJ, sizeof (uint64_t), 1, &obj, tx));
 		VERIFY0(bpobj_open(&dp->dp_free_bpobj,
 		    dp->dp_meta_objset, obj));
 	}
@@ -713,7 +713,7 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 		 * we may have taken a snapshot of them.  However, we
 		 * may sync newly-created datasets on pass 2.
 		 */
-		ASSERT(!list_link_active(&ds->ds_synced_link));
+		ASSERT0(list_link_active(&ds->ds_synced_link));
 		list_insert_tail(&synced_datasets, ds);
 		dsl_dataset_sync(ds, zio, tx);
 	}
@@ -869,13 +869,13 @@ dsl_pool_sync_done(dsl_pool_t *dp, uint64_t txg)
 		 */
 		zil_clean(zilog, txg);
 		(void) txg_list_remove_this(&dp->dp_dirty_zilogs, zilog, txg);
-		ASSERT(!dmu_objset_is_dirty(zilog->zl_os, txg));
+		ASSERT0(dmu_objset_is_dirty(zilog->zl_os, txg));
 		dmu_buf_rele(ds->ds_dbuf, zilog);
 	}
 
 	dsl_pool_wrlog_clear(dp, txg);
 
-	ASSERT(!dmu_objset_is_dirty(dp->dp_meta_objset, txg));
+	ASSERT0(dmu_objset_is_dirty(dp->dp_meta_objset, txg));
 }
 
 /*
@@ -1073,7 +1073,7 @@ upgrade_clones_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
 		dsl_dataset_phys(prev)->ds_num_children++;
 
 		if (dsl_dataset_phys(ds)->ds_next_snap_obj == 0) {
-			ASSERT(ds->ds_prev == NULL);
+			ASSERT3P(ds->ds_prev, ==, NULL);
 			VERIFY0(dsl_dataset_hold_obj(dp,
 			    dsl_dataset_phys(ds)->ds_prev_snap_obj,
 			    ds, &ds->ds_prev));
@@ -1102,7 +1102,7 @@ void
 dsl_pool_upgrade_clones(dsl_pool_t *dp, dmu_tx_t *tx)
 {
 	ASSERT(dmu_tx_is_syncing(tx));
-	ASSERT(dp->dp_origin_snap != NULL);
+	ASSERT3P(dp->dp_origin_snap, !=, NULL);
 
 	VERIFY0(dmu_objset_find_dp(dp, dp->dp_root_dir_obj, upgrade_clones_cb,
 	    tx, DS_FIND_CHILDREN | DS_FIND_SERIALIZE));
@@ -1169,7 +1169,7 @@ dsl_pool_create_origin(dsl_pool_t *dp, dmu_tx_t *tx)
 	dsl_dataset_t *ds;
 
 	ASSERT(dmu_tx_is_syncing(tx));
-	ASSERT(dp->dp_origin_snap == NULL);
+	ASSERT3P(dp->dp_origin_snap, ==, NULL);
 	ASSERT(rrw_held(&dp->dp_config_rwlock, RW_WRITER));
 
 	/* create the origin dir, ds, & snap-ds */
@@ -1209,7 +1209,7 @@ dsl_pool_clean_tmp_userrefs(dsl_pool_t *dp)
 
 	if (zapobj == 0)
 		return;
-	ASSERT(spa_version(dp->dp_spa) >= SPA_VERSION_USERREFS);
+	ASSERT3U(spa_version(dp->dp_spa), >=, SPA_VERSION_USERREFS);
 
 	holds = fnvlist_alloc();
 
@@ -1244,7 +1244,7 @@ dsl_pool_user_hold_create_obj(dsl_pool_t *dp, dmu_tx_t *tx)
 {
 	objset_t *mos = dp->dp_meta_objset;
 
-	ASSERT(dp->dp_tmp_userrefs_obj == 0);
+	ASSERT0(dp->dp_tmp_userrefs_obj);
 	ASSERT(dmu_tx_is_syncing(tx));
 
 	dp->dp_tmp_userrefs_obj = zap_create_link(mos, DMU_OT_USERREFS,
@@ -1260,7 +1260,7 @@ dsl_pool_user_hold_rele_impl(dsl_pool_t *dp, uint64_t dsobj,
 	char *name;
 	int error;
 
-	ASSERT(spa_version(dp->dp_spa) >= SPA_VERSION_USERREFS);
+	ASSERT3U(spa_version(dp->dp_spa), >=, SPA_VERSION_USERREFS);
 	ASSERT(dmu_tx_is_syncing(tx));
 
 	/*
@@ -1421,14 +1421,14 @@ dsl_pool_config_enter(dsl_pool_t *dp, const void *tag)
 	 * read, but not *which* threads, so rw_held(RW_READER) returns TRUE
 	 * if any thread holds it for read, even if this thread doesn't).
 	 */
-	ASSERT(!rrw_held(&dp->dp_config_rwlock, RW_READER));
+	ASSERT0(rrw_held(&dp->dp_config_rwlock, RW_READER));
 	rrw_enter(&dp->dp_config_rwlock, RW_READER, tag);
 }
 
 void
 dsl_pool_config_enter_prio(dsl_pool_t *dp, const void *tag)
 {
-	ASSERT(!rrw_held(&dp->dp_config_rwlock, RW_READER));
+	ASSERT0(rrw_held(&dp->dp_config_rwlock, RW_READER));
 	rrw_enter_read_prio(&dp->dp_config_rwlock, tag);
 }
 

@@ -413,7 +413,7 @@ tpool_dispatch(tpool_t *tpool, void (*func)(void *), void *arg)
 {
 	tpool_job_t *job;
 
-	ASSERT(!(tpool->tp_flags & (TP_DESTROY | TP_ABANDON)));
+	ASSERT0((tpool->tp_flags & (TP_DESTROY | TP_ABANDON)));
 
 	if ((job = calloc(1, sizeof (*job))) == NULL)
 		return (-1);
@@ -460,8 +460,8 @@ tpool_destroy(tpool_t *tpool)
 {
 	tpool_active_t *activep;
 
-	ASSERT(!tpool_member(tpool));
-	ASSERT(!(tpool->tp_flags & (TP_DESTROY | TP_ABANDON)));
+	ASSERT0(tpool_member(tpool));
+	ASSERT0((tpool->tp_flags & (TP_DESTROY | TP_ABANDON)));
 
 	pthread_mutex_lock(&tpool->tp_mutex);
 	pthread_cleanup_push(tpool_cleanup, tpool);
@@ -496,7 +496,7 @@ tpool_destroy(tpool_t *tpool)
 void
 tpool_abandon(tpool_t *tpool)
 {
-	ASSERT(!(tpool->tp_flags & (TP_DESTROY | TP_ABANDON)));
+	ASSERT0((tpool->tp_flags & (TP_DESTROY | TP_ABANDON)));
 
 	pthread_mutex_lock(&tpool->tp_mutex);
 	if (tpool->tp_current == 0) {
@@ -519,15 +519,15 @@ tpool_abandon(tpool_t *tpool)
 void
 tpool_wait(tpool_t *tpool)
 {
-	ASSERT(!tpool_member(tpool));
-	ASSERT(!(tpool->tp_flags & (TP_DESTROY | TP_ABANDON)));
+	ASSERT0(tpool_member(tpool));
+	ASSERT0((tpool->tp_flags & (TP_DESTROY | TP_ABANDON)));
 
 	pthread_mutex_lock(&tpool->tp_mutex);
 	pthread_cleanup_push(tpool_cleanup, tpool);
 	while (tpool->tp_head != NULL || tpool->tp_active != NULL) {
 		tpool->tp_flags |= TP_WAIT;
 		(void) pthread_cond_wait(&tpool->tp_waitcv, &tpool->tp_mutex);
-		ASSERT(!(tpool->tp_flags & (TP_DESTROY | TP_ABANDON)));
+		ASSERT0((tpool->tp_flags & (TP_DESTROY | TP_ABANDON)));
 	}
 	pthread_cleanup_pop(1);	/* pthread_mutex_unlock(&tpool->tp_mutex); */
 }
@@ -535,7 +535,7 @@ tpool_wait(tpool_t *tpool)
 void
 tpool_suspend(tpool_t *tpool)
 {
-	ASSERT(!(tpool->tp_flags & (TP_DESTROY | TP_ABANDON)));
+	ASSERT0((tpool->tp_flags & (TP_DESTROY | TP_ABANDON)));
 
 	pthread_mutex_lock(&tpool->tp_mutex);
 	tpool->tp_flags |= TP_SUSPEND;
@@ -547,7 +547,7 @@ tpool_suspended(tpool_t *tpool)
 {
 	int suspended;
 
-	ASSERT(!(tpool->tp_flags & (TP_DESTROY | TP_ABANDON)));
+	ASSERT0((tpool->tp_flags & (TP_DESTROY | TP_ABANDON)));
 
 	pthread_mutex_lock(&tpool->tp_mutex);
 	suspended = (tpool->tp_flags & TP_SUSPEND) != 0;
@@ -561,7 +561,7 @@ tpool_resume(tpool_t *tpool)
 {
 	int excess;
 
-	ASSERT(!(tpool->tp_flags & (TP_DESTROY | TP_ABANDON)));
+	ASSERT0((tpool->tp_flags & (TP_DESTROY | TP_ABANDON)));
 
 	pthread_mutex_lock(&tpool->tp_mutex);
 	if (!(tpool->tp_flags & TP_SUSPEND)) {
@@ -585,7 +585,7 @@ tpool_member(tpool_t *tpool)
 	pthread_t my_tid = pthread_self();
 	tpool_active_t *activep;
 
-	ASSERT(!(tpool->tp_flags & (TP_DESTROY | TP_ABANDON)));
+	ASSERT0((tpool->tp_flags & (TP_DESTROY | TP_ABANDON)));
 
 	pthread_mutex_lock(&tpool->tp_mutex);
 	for (activep = tpool->tp_active; activep; activep = activep->tpa_next) {

@@ -107,7 +107,7 @@ rrn_add(rrwlock_t *rrl, const void *tag)
 	rn->rn_rrl = rrl;
 	rn->rn_next = tsd_get(rrw_tsd_key);
 	rn->rn_tag = tag;
-	VERIFY(tsd_set(rrw_tsd_key, rn) == 0);
+	VERIFY0(tsd_set(rrw_tsd_key, rn));
 }
 
 /*
@@ -128,7 +128,7 @@ rrn_find_and_remove(rrwlock_t *rrl, const void *tag)
 			if (prev)
 				prev->rn_next = rn->rn_next;
 			else
-				VERIFY(tsd_set(rrw_tsd_key, rn->rn_next) == 0);
+				VERIFY0(tsd_set(rrw_tsd_key, rn->rn_next));
 			kmem_free(rn, sizeof (*rn));
 			return (B_TRUE);
 		}
@@ -154,7 +154,7 @@ rrw_destroy(rrwlock_t *rrl)
 {
 	mutex_destroy(&rrl->rr_lock);
 	cv_destroy(&rrl->rr_cv);
-	ASSERT(rrl->rr_writer == NULL);
+	ASSERT3P(rrl->rr_writer, ==, NULL);
 	zfs_refcount_destroy(&rrl->rr_anon_rcount);
 	zfs_refcount_destroy(&rrl->rr_linked_rcount);
 }
@@ -172,8 +172,8 @@ rrw_enter_read_impl(rrwlock_t *rrl, boolean_t prio, const void *tag)
 	}
 	DTRACE_PROBE(zfs__rrwfastpath__rdmiss);
 #endif
-	ASSERT(rrl->rr_writer != curthread);
-	ASSERT(zfs_refcount_count(&rrl->rr_anon_rcount) >= 0);
+	ASSERT3U(rrl->rr_writer, !=, curthread);
+	ASSERT3U(zfs_refcount_count(&rrl->rr_anon_rcount), >=, 0);
 
 	while (rrl->rr_writer != NULL || (rrl->rr_writer_wanted &&
 	    zfs_refcount_is_zero(&rrl->rr_anon_rcount) && !prio &&
@@ -187,7 +187,7 @@ rrw_enter_read_impl(rrwlock_t *rrl, boolean_t prio, const void *tag)
 	} else {
 		(void) zfs_refcount_add(&rrl->rr_anon_rcount, tag);
 	}
-	ASSERT(rrl->rr_writer == NULL);
+	ASSERT3P(rrl->rr_writer, ==, NULL);
 	mutex_exit(&rrl->rr_lock);
 }
 
@@ -214,7 +214,7 @@ void
 rrw_enter_write(rrwlock_t *rrl)
 {
 	mutex_enter(&rrl->rr_lock);
-	ASSERT(rrl->rr_writer != curthread);
+	ASSERT3U(rrl->rr_writer, !=, curthread);
 
 	while (zfs_refcount_count(&rrl->rr_anon_rcount) > 0 ||
 	    zfs_refcount_count(&rrl->rr_linked_rcount) > 0 ||
@@ -260,13 +260,13 @@ rrw_exit(rrwlock_t *rrl, const void *tag)
 			count = zfs_refcount_remove(
 			    &rrl->rr_linked_rcount, tag);
 		} else {
-			ASSERT(!rrl->rr_track_all);
+			ASSERT0(rrl->rr_track_all);
 			count = zfs_refcount_remove(&rrl->rr_anon_rcount, tag);
 		}
 		if (count == 0)
 			cv_broadcast(&rrl->rr_cv);
 	} else {
-		ASSERT(rrl->rr_writer == curthread);
+		ASSERT3U(rrl->rr_writer, ==, curthread);
 		ASSERT(zfs_refcount_is_zero(&rrl->rr_anon_rcount) &&
 		    zfs_refcount_is_zero(&rrl->rr_linked_rcount));
 		rrl->rr_writer = NULL;

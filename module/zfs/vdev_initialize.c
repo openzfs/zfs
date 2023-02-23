@@ -73,7 +73,7 @@ vdev_initialize_zap_update_sync(void *arg, dmu_tx_t *tx)
 	uint64_t last_offset = vd->vdev_initialize_offset[txg & TXG_MASK];
 	vd->vdev_initialize_offset[txg & TXG_MASK] = 0;
 
-	VERIFY(vd->vdev_leaf_zap != 0);
+	VERIFY3U(vd->vdev_leaf_zap, !=, 0);
 
 	objset_t *mos = vd->vdev_spa->spa_meta_objset;
 
@@ -343,7 +343,7 @@ vdev_initialize_calculate_progress(vdev_t *vd)
 {
 	ASSERT(spa_config_held(vd->vdev_spa, SCL_CONFIG, RW_READER) ||
 	    spa_config_held(vd->vdev_spa, SCL_CONFIG, RW_WRITER));
-	ASSERT(vd->vdev_leaf_zap != 0);
+	ASSERT3U(vd->vdev_leaf_zap, !=, 0);
 
 	vd->vdev_initialize_bytes_est = 0;
 	vd->vdev_initialize_bytes_done = 0;
@@ -416,7 +416,7 @@ vdev_initialize_load(vdev_t *vd)
 	int err = 0;
 	ASSERT(spa_config_held(vd->vdev_spa, SCL_CONFIG, RW_READER) ||
 	    spa_config_held(vd->vdev_spa, SCL_CONFIG, RW_WRITER));
-	ASSERT(vd->vdev_leaf_zap != 0);
+	ASSERT3U(vd->vdev_leaf_zap, !=, 0);
 
 	if (vd->vdev_initialize_state == VDEV_INITIALIZE_ACTIVE ||
 	    vd->vdev_initialize_state == VDEV_INITIALIZE_SUSPENDED) {
@@ -585,9 +585,9 @@ vdev_initialize(vdev_t *vd)
 	ASSERT(vd->vdev_ops->vdev_op_leaf);
 	ASSERT(vdev_is_concrete(vd));
 	ASSERT3P(vd->vdev_initialize_thread, ==, NULL);
-	ASSERT(!vd->vdev_detached);
-	ASSERT(!vd->vdev_initialize_exit_wanted);
-	ASSERT(!vd->vdev_top->vdev_removing);
+	ASSERT0(vd->vdev_detached);
+	ASSERT0(vd->vdev_initialize_exit_wanted);
+	ASSERT0(vd->vdev_top->vdev_removing);
 
 	vdev_initialize_change_state(vd, VDEV_INITIALIZE_ACTIVE);
 	vd->vdev_initialize_thread = thread_create(NULL, 0,
@@ -640,7 +640,8 @@ void
 vdev_initialize_stop(vdev_t *vd, vdev_initializing_state_t tgt_state,
     list_t *vd_list)
 {
-	ASSERT(!spa_config_held(vd->vdev_spa, SCL_CONFIG|SCL_STATE, RW_WRITER));
+	ASSERT0(spa_config_held(vd->vdev_spa, SCL_CONFIG | SCL_STATE,
+	    RW_WRITER));
 	ASSERT(MUTEX_HELD(&vd->vdev_initialize_lock));
 	ASSERT(vd->vdev_ops->vdev_op_leaf);
 	ASSERT(vdev_is_concrete(vd));
@@ -712,7 +713,7 @@ void
 vdev_initialize_restart(vdev_t *vd)
 {
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
-	ASSERT(!spa_config_held(vd->vdev_spa, SCL_ALL, RW_WRITER));
+	ASSERT0(spa_config_held(vd->vdev_spa, SCL_ALL, RW_WRITER));
 
 	if (vd->vdev_leaf_zap != 0) {
 		mutex_enter(&vd->vdev_initialize_lock);

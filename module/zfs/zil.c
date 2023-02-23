@@ -534,7 +534,7 @@ zil_clear_log_block(zilog_t *zilog, const blkptr_t *bp, void *tx,
     uint64_t first_txg)
 {
 	(void) tx;
-	ASSERT(!BP_IS_HOLE(bp));
+	ASSERT0(BP_IS_HOLE(bp));
 
 	/*
 	 * As we call this function from the context of a rewind to a
@@ -672,7 +672,7 @@ zil_alloc_lwb(zilog_t *zilog, blkptr_t *bp, boolean_t slog, uint64_t txg,
 	list_insert_tail(&zilog->zl_lwb_list, lwb);
 	mutex_exit(&zilog->zl_lock);
 
-	ASSERT(!MUTEX_HELD(&lwb->lwb_vdev_lock));
+	ASSERT0(MUTEX_HELD(&lwb->lwb_vdev_lock));
 	ASSERT(avl_is_empty(&lwb->lwb_vdev_tree));
 	VERIFY(list_is_empty(&lwb->lwb_waiters));
 	VERIFY(list_is_empty(&lwb->lwb_itxs));
@@ -684,7 +684,7 @@ static void
 zil_free_lwb(zilog_t *zilog, lwb_t *lwb)
 {
 	ASSERT(MUTEX_HELD(&zilog->zl_lock));
-	ASSERT(!MUTEX_HELD(&lwb->lwb_vdev_lock));
+	ASSERT0(MUTEX_HELD(&lwb->lwb_vdev_lock));
 	VERIFY(list_is_empty(&lwb->lwb_waiters));
 	VERIFY(list_is_empty(&lwb->lwb_itxs));
 	ASSERT(avl_is_empty(&lwb->lwb_vdev_tree));
@@ -812,8 +812,8 @@ zil_create(zilog_t *zilog)
 	 */
 	txg_wait_synced(zilog->zl_dmu_pool, zilog->zl_destroy_txg);
 
-	ASSERT(zh->zh_claim_txg == 0);
-	ASSERT(zh->zh_replay_seq == 0);
+	ASSERT0(zh->zh_claim_txg);
+	ASSERT0(zh->zh_replay_seq);
 
 	blk = zh->zh_log;
 
@@ -927,8 +927,8 @@ zil_destroy(zilog_t *zilog, boolean_t keep_first)
 	zilog->zl_keep_first = keep_first;
 
 	if (!list_is_empty(&zilog->zl_lwb_list)) {
-		ASSERT(zh->zh_claim_txg == 0);
-		VERIFY(!keep_first);
+		ASSERT0(zh->zh_claim_txg);
+		VERIFY0(keep_first);
 		while ((lwb = list_head(&zilog->zl_lwb_list)) != NULL) {
 			if (lwb->lwb_fastwrite)
 				metaslab_fastwrite_unmark(zilog->zl_spa,
@@ -1077,7 +1077,7 @@ zil_check_log_chain(dsl_pool_t *dp, dsl_dataset_t *ds, void *tx)
 	blkptr_t *bp;
 	int error;
 
-	ASSERT(tx == NULL);
+	ASSERT3P(tx, ==, NULL);
 
 	error = dmu_objset_from_ds(ds, &os);
 	if (error != 0) {
@@ -1170,7 +1170,7 @@ zil_commit_waiter_link_lwb(zil_commit_waiter_t *zcw, lwb_t *lwb)
 	ASSERT(MUTEX_HELD(&lwb->lwb_zilog->zl_lock));
 
 	mutex_enter(&zcw->zcw_lock);
-	ASSERT(!list_link_active(&zcw->zcw_node));
+	ASSERT0(list_link_active(&zcw->zcw_node));
 	ASSERT3P(zcw->zcw_lwb, ==, NULL);
 	ASSERT3P(lwb, !=, NULL);
 	ASSERT(lwb->lwb_state == LWB_STATE_OPENED ||
@@ -1191,7 +1191,7 @@ static void
 zil_commit_waiter_link_nolwb(zil_commit_waiter_t *zcw, list_t *nolwb)
 {
 	mutex_enter(&zcw->zcw_lock);
-	ASSERT(!list_link_active(&zcw->zcw_node));
+	ASSERT0(list_link_active(&zcw->zcw_node));
 	ASSERT3P(zcw->zcw_lwb, ==, NULL);
 	list_insert_tail(nolwb, zcw);
 	mutex_exit(&zcw->zcw_lock);
@@ -1389,8 +1389,8 @@ zil_lwb_flush_wait_all(zilog_t *zilog, uint64_t txg)
 	lwb_t *lwb = list_head(&zilog->zl_lwb_list);
 	while (lwb != NULL && lwb->lwb_max_txg <= txg) {
 		if (lwb->lwb_issued_txg <= txg) {
-			ASSERT(lwb->lwb_state != LWB_STATE_ISSUED);
-			ASSERT(lwb->lwb_state != LWB_STATE_WRITE_DONE);
+			ASSERT3U(lwb->lwb_state, !=, LWB_STATE_ISSUED);
+			ASSERT3U(lwb->lwb_state, !=, LWB_STATE_WRITE_DONE);
 			IMPLY(lwb->lwb_issued_txg > 0,
 			    lwb->lwb_state == LWB_STATE_FLUSH_DONE);
 		}
@@ -1429,13 +1429,13 @@ zil_lwb_write_done(zio_t *zio)
 
 	ASSERT3S(spa_config_held(spa, SCL_STATE, RW_READER), !=, 0);
 
-	ASSERT(BP_GET_COMPRESS(zio->io_bp) == ZIO_COMPRESS_OFF);
-	ASSERT(BP_GET_TYPE(zio->io_bp) == DMU_OT_INTENT_LOG);
-	ASSERT(BP_GET_LEVEL(zio->io_bp) == 0);
-	ASSERT(BP_GET_BYTEORDER(zio->io_bp) == ZFS_HOST_BYTEORDER);
-	ASSERT(!BP_IS_GANG(zio->io_bp));
-	ASSERT(!BP_IS_HOLE(zio->io_bp));
-	ASSERT(BP_GET_FILL(zio->io_bp) == 0);
+	ASSERT3U(BP_GET_COMPRESS(zio->io_bp), ==, ZIO_COMPRESS_OFF);
+	ASSERT3U(BP_GET_TYPE(zio->io_bp), ==, DMU_OT_INTENT_LOG);
+	ASSERT0(BP_GET_LEVEL(zio->io_bp));
+	ASSERT3U(BP_GET_BYTEORDER(zio->io_bp), ==, ZFS_HOST_BYTEORDER);
+	ASSERT0(BP_IS_GANG(zio->io_bp));
+	ASSERT0(BP_IS_HOLE(zio->io_bp));
+	ASSERT0(BP_GET_FILL(zio->io_bp));
 
 	abd_free(zio->io_abd);
 
@@ -1691,7 +1691,7 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 		bp = &zilc->zc_next_blk;
 	}
 
-	ASSERT(lwb->lwb_nused <= lwb->lwb_sz);
+	ASSERT3U(lwb->lwb_nused, <=, lwb->lwb_sz);
 
 	/*
 	 * Allocate the next block and save its address in this block
@@ -2128,7 +2128,7 @@ zil_remove_async(zilog_t *zilog, uint64_t oid)
 	list_t clean_list;
 	itx_t *itx;
 
-	ASSERT(oid != 0);
+	ASSERT3U(oid, !=, 0);
 	list_create(&clean_list, sizeof (itx_t), offsetof(itx_t, itx_node));
 
 	if (spa_freeze_txg(zilog->zl_spa) != UINT64_MAX) /* ziltest support */
@@ -2711,7 +2711,7 @@ zil_process_commit_list(zilog_t *zilog)
 static void
 zil_commit_writer(zilog_t *zilog, zil_commit_waiter_t *zcw)
 {
-	ASSERT(!MUTEX_HELD(&zilog->zl_lock));
+	ASSERT0(MUTEX_HELD(&zilog->zl_lock));
 	ASSERT(spa_writeable(zilog->zl_spa));
 
 	mutex_enter(&zilog->zl_issuer_lock);
@@ -2749,7 +2749,7 @@ out:
 static void
 zil_commit_waiter_timeout(zilog_t *zilog, zil_commit_waiter_t *zcw)
 {
-	ASSERT(!MUTEX_HELD(&zilog->zl_issuer_lock));
+	ASSERT0(MUTEX_HELD(&zilog->zl_issuer_lock));
 	ASSERT(MUTEX_HELD(&zcw->zcw_lock));
 	ASSERT3B(zcw->zcw_done, ==, B_FALSE);
 
@@ -2899,8 +2899,8 @@ out:
 static void
 zil_commit_waiter(zilog_t *zilog, zil_commit_waiter_t *zcw)
 {
-	ASSERT(!MUTEX_HELD(&zilog->zl_lock));
-	ASSERT(!MUTEX_HELD(&zilog->zl_issuer_lock));
+	ASSERT0(MUTEX_HELD(&zilog->zl_lock));
+	ASSERT0(MUTEX_HELD(&zilog->zl_issuer_lock));
 	ASSERT(spa_writeable(zilog->zl_spa));
 
 	mutex_enter(&zcw->zcw_lock);
@@ -3015,7 +3015,7 @@ zil_alloc_commit_waiter(void)
 static void
 zil_free_commit_waiter(zil_commit_waiter_t *zcw)
 {
-	ASSERT(!list_link_active(&zcw->zcw_node));
+	ASSERT0(list_link_active(&zcw->zcw_node));
 	ASSERT3P(zcw->zcw_lwb, ==, NULL);
 	ASSERT3B(zcw->zcw_done, ==, B_TRUE);
 	mutex_destroy(&zcw->zcw_lock);
@@ -3287,10 +3287,10 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 
 	mutex_enter(&zilog->zl_lock);
 
-	ASSERT(zilog->zl_stop_sync == 0);
+	ASSERT0(zilog->zl_stop_sync);
 
 	if (*replayed_seq != 0) {
-		ASSERT(zh->zh_replay_seq < *replayed_seq);
+		ASSERT3U(zh->zh_replay_seq, <, *replayed_seq);
 		zh->zh_replay_seq = *replayed_seq;
 		*replayed_seq = 0;
 	}
@@ -3299,7 +3299,7 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 		blkptr_t blk = zh->zh_log;
 		dsl_dataset_t *ds = dmu_objset_ds(zilog->zl_os);
 
-		ASSERT(list_head(&zilog->zl_lwb_list) == NULL);
+		ASSERT3P(list_head(&zilog->zl_lwb_list), ==, NULL);
 
 		memset(zh, 0, sizeof (zil_header_t));
 		memset(zilog->zl_replayed_seq, 0,
@@ -3578,7 +3578,7 @@ zil_close(zilog_t *zilog)
 		zfs_dbgmsg("zil (%px) is dirty, txg %llu", zilog,
 		    (u_longlong_t)txg);
 	if (txg < spa_freeze_txg(zilog->zl_spa))
-		VERIFY(!zilog_is_dirty(zilog));
+		VERIFY0(zilog_is_dirty(zilog));
 
 	zilog->zl_get_data = NULL;
 
@@ -3688,7 +3688,7 @@ zil_suspend(const char *osname, void **cookiep)
 	 * to clean up.
 	 */
 	if (BP_IS_HOLE(&zh->zh_log)) {
-		ASSERT(cookiep != NULL); /* fast path already handled */
+		ASSERT3P(cookiep, !=, NULL); /* fast path already handled */
 
 		*cookiep = os;
 		mutex_exit(&zilog->zl_lock);
@@ -3754,7 +3754,7 @@ zil_resume(void *cookie)
 	zilog_t *zilog = dmu_objset_zil(os);
 
 	mutex_enter(&zilog->zl_lock);
-	ASSERT(zilog->zl_suspend != 0);
+	ASSERT3U(zilog->zl_suspend, !=, 0);
 	zilog->zl_suspend--;
 	mutex_exit(&zilog->zl_lock);
 	dsl_dataset_long_rele(dmu_objset_ds(os), suspend_tag);
@@ -3907,7 +3907,7 @@ zil_replay(objset_t *os, void *arg,
 
 	zilog->zl_replay = B_TRUE;
 	zilog->zl_replay_time = ddi_get_lbolt();
-	ASSERT(zilog->zl_replay_blks == 0);
+	ASSERT0(zilog->zl_replay_blks);
 	(void) zil_parse(zilog, zil_incr_blks, zil_replay_log_record, &zr,
 	    zh->zh_claim_txg, B_TRUE);
 	vmem_free(zr.zr_lr, 2 * SPA_MAXBLOCKSIZE);

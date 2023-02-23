@@ -244,7 +244,7 @@ dsl_onexit_hold_cleanup(spa_t *spa, nvlist_t *holds, minor_t minor)
 		return;
 	}
 
-	ASSERT(spa != NULL);
+	ASSERT3P(spa, !=, NULL);
 	ca = kmem_alloc(sizeof (*ca), KM_SLEEP);
 
 	(void) strlcpy(ca->zhca_spaname, spa_name(spa),
@@ -334,7 +334,7 @@ dsl_dataset_user_hold(nvlist_t *holds, minor_t cleanup_minor, nvlist_t *errlist)
 
 	dduha.dduha_holds = holds;
 	/* chkholds can have non-unique name */
-	VERIFY(0 == nvlist_alloc(&dduha.dduha_chkholds, 0, KM_SLEEP));
+	VERIFY0(nvlist_alloc(&dduha.dduha_chkholds, 0, KM_SLEEP));
 	dduha.dduha_errlist = errlist;
 	dduha.dduha_minor = cleanup_minor;
 
@@ -650,7 +650,7 @@ dsl_dataset_user_release(nvlist_t *holds, nvlist_t *errlist)
 void
 dsl_dataset_user_release_tmp(struct dsl_pool *dp, nvlist_t *holds)
 {
-	ASSERT(dp != NULL);
+	ASSERT3P(dp, !=, NULL);
 	(void) dsl_dataset_user_release_impl(holds, NULL, dp);
 }
 

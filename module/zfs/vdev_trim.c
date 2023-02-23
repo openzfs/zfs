@@ -640,7 +640,7 @@ vdev_trim_calculate_progress(vdev_t *vd)
 {
 	ASSERT(spa_config_held(vd->vdev_spa, SCL_CONFIG, RW_READER) ||
 	    spa_config_held(vd->vdev_spa, SCL_CONFIG, RW_WRITER));
-	ASSERT(vd->vdev_leaf_zap != 0);
+	ASSERT3U(vd->vdev_leaf_zap, !=, 0);
 
 	vd->vdev_trim_bytes_est = 0;
 	vd->vdev_trim_bytes_done = 0;
@@ -716,7 +716,7 @@ vdev_trim_load(vdev_t *vd)
 	int err = 0;
 	ASSERT(spa_config_held(vd->vdev_spa, SCL_CONFIG, RW_READER) ||
 	    spa_config_held(vd->vdev_spa, SCL_CONFIG, RW_WRITER));
-	ASSERT(vd->vdev_leaf_zap != 0);
+	ASSERT3U(vd->vdev_leaf_zap, !=, 0);
 
 	if (vd->vdev_trim_state == VDEV_TRIM_ACTIVE ||
 	    vd->vdev_trim_state == VDEV_TRIM_SUSPENDED) {
@@ -973,9 +973,9 @@ vdev_trim(vdev_t *vd, uint64_t rate, boolean_t partial, boolean_t secure)
 	ASSERT(vd->vdev_ops->vdev_op_leaf);
 	ASSERT(vdev_is_concrete(vd));
 	ASSERT3P(vd->vdev_trim_thread, ==, NULL);
-	ASSERT(!vd->vdev_detached);
-	ASSERT(!vd->vdev_trim_exit_wanted);
-	ASSERT(!vd->vdev_top->vdev_removing);
+	ASSERT0(vd->vdev_detached);
+	ASSERT0(vd->vdev_trim_exit_wanted);
+	ASSERT0(vd->vdev_top->vdev_removing);
 
 	vdev_trim_change_state(vd, VDEV_TRIM_ACTIVE, rate, partial, secure);
 	vd->vdev_trim_thread = thread_create(NULL, 0,
@@ -1027,7 +1027,8 @@ vdev_trim_stop_wait(spa_t *spa, list_t *vd_list)
 void
 vdev_trim_stop(vdev_t *vd, vdev_trim_state_t tgt_state, list_t *vd_list)
 {
-	ASSERT(!spa_config_held(vd->vdev_spa, SCL_CONFIG|SCL_STATE, RW_WRITER));
+	ASSERT0(spa_config_held(vd->vdev_spa, SCL_CONFIG | SCL_STATE,
+	    RW_WRITER));
 	ASSERT(MUTEX_HELD(&vd->vdev_trim_lock));
 	ASSERT(vd->vdev_ops->vdev_op_leaf);
 	ASSERT(vdev_is_concrete(vd));
@@ -1115,7 +1116,7 @@ void
 vdev_trim_restart(vdev_t *vd)
 {
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
-	ASSERT(!spa_config_held(vd->vdev_spa, SCL_ALL, RW_WRITER));
+	ASSERT0(spa_config_held(vd->vdev_spa, SCL_ALL, RW_WRITER));
 
 	if (vd->vdev_leaf_zap != 0) {
 		mutex_enter(&vd->vdev_trim_lock);
@@ -1432,7 +1433,7 @@ vdev_autotrim_thread(void *arg)
 	}
 
 	mutex_enter(&vd->vdev_autotrim_lock);
-	ASSERT(vd->vdev_autotrim_thread != NULL);
+	ASSERT3P(vd->vdev_autotrim_thread, !=, NULL);
 	vd->vdev_autotrim_thread = NULL;
 	cv_broadcast(&vd->vdev_autotrim_cv);
 	mutex_exit(&vd->vdev_autotrim_lock);
@@ -1460,7 +1461,7 @@ vdev_autotrim(spa_t *spa)
 			tvd->vdev_autotrim_thread = thread_create(NULL, 0,
 			    vdev_autotrim_thread, tvd, 0, &p0, TS_RUN,
 			    maxclsyspri);
-			ASSERT(tvd->vdev_autotrim_thread != NULL);
+			ASSERT3P(tvd->vdev_autotrim_thread, !=, NULL);
 		}
 		mutex_exit(&tvd->vdev_autotrim_lock);
 	}
@@ -1636,9 +1637,9 @@ vdev_trim_l2arc(spa_t *spa)
 		ASSERT(vd->vdev_ops->vdev_op_leaf);
 		ASSERT(vdev_is_concrete(vd));
 		ASSERT3P(vd->vdev_trim_thread, ==, NULL);
-		ASSERT(!vd->vdev_detached);
-		ASSERT(!vd->vdev_trim_exit_wanted);
-		ASSERT(!vd->vdev_top->vdev_removing);
+		ASSERT0(vd->vdev_detached);
+		ASSERT0(vd->vdev_trim_exit_wanted);
+		ASSERT0(vd->vdev_top->vdev_removing);
 		vdev_trim_change_state(vd, VDEV_TRIM_ACTIVE, 0, 0, 0);
 		vd->vdev_trim_thread = thread_create(NULL, 0,
 		    vdev_trim_l2arc_thread, vd, 0, &p0, TS_RUN, maxclsyspri);
@@ -1661,8 +1662,8 @@ vdev_trim_simple(vdev_t *vd, uint64_t start, uint64_t size)
 
 	ASSERT(vdev_is_concrete(vd));
 	ASSERT(vd->vdev_ops->vdev_op_leaf);
-	ASSERT(!vd->vdev_detached);
-	ASSERT(!vd->vdev_top->vdev_removing);
+	ASSERT0(vd->vdev_detached);
+	ASSERT0(vd->vdev_top->vdev_removing);
 
 	ta.trim_vdev = vd;
 	ta.trim_tree = range_tree_create(NULL, RANGE_SEG64, NULL, 0, 0);

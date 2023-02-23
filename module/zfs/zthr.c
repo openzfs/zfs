@@ -313,8 +313,8 @@ zthr_create_timer(const char *zthr_name, zthr_checkfunc_t *checkfunc,
 void
 zthr_destroy(zthr_t *t)
 {
-	ASSERT(!MUTEX_HELD(&t->zthr_state_lock));
-	ASSERT(!MUTEX_HELD(&t->zthr_request_lock));
+	ASSERT0(MUTEX_HELD(&t->zthr_state_lock));
+	ASSERT0(MUTEX_HELD(&t->zthr_request_lock));
 	VERIFY3P(t->zthr_thread, ==, NULL);
 	mutex_destroy(&t->zthr_request_lock);
 	mutex_destroy(&t->zthr_state_lock);
@@ -392,7 +392,7 @@ zthr_cancel(zthr_t *t)
 		while (t->zthr_thread != NULL)
 			cv_wait(&t->zthr_cv, &t->zthr_state_lock);
 
-		ASSERT(!t->zthr_cancel);
+		ASSERT0(t->zthr_cancel);
 	}
 
 	mutex_exit(&t->zthr_state_lock);
@@ -412,8 +412,8 @@ zthr_resume(zthr_t *t)
 
 	ASSERT3P(&t->zthr_checkfunc, !=, NULL);
 	ASSERT3P(&t->zthr_func, !=, NULL);
-	ASSERT(!t->zthr_cancel);
-	ASSERT(!t->zthr_haswaiters);
+	ASSERT0(t->zthr_cancel);
+	ASSERT0(t->zthr_haswaiters);
 
 	/*
 	 * There are 4 states that we find the zthr in at this point
@@ -515,7 +515,7 @@ zthr_wait_cycle_done(zthr_t *t)
 		while ((t->zthr_haswaiters) && (t->zthr_thread != NULL))
 			cv_wait(&t->zthr_wait_cv, &t->zthr_state_lock);
 
-		ASSERT(!t->zthr_haswaiters);
+		ASSERT0(t->zthr_haswaiters);
 	}
 
 	mutex_exit(&t->zthr_state_lock);

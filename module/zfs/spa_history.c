@@ -577,7 +577,7 @@ spa_history_log_internal_ds(dsl_dataset_t *ds, const char *operation,
 	char namebuf[ZFS_MAX_DATASET_NAME_LEN];
 	nvlist_t *nvl = fnvlist_alloc();
 
-	ASSERT(tx != NULL);
+	ASSERT3P(tx, !=, NULL);
 
 	dsl_dataset_name(ds, namebuf);
 	fnvlist_add_string(nvl, ZPOOL_HIST_DSNAME, namebuf);
@@ -596,7 +596,7 @@ spa_history_log_internal_dd(dsl_dir_t *dd, const char *operation,
 	char namebuf[ZFS_MAX_DATASET_NAME_LEN];
 	nvlist_t *nvl = fnvlist_alloc();
 
-	ASSERT(tx != NULL);
+	ASSERT3P(tx, !=, NULL);
 
 	dsl_dir_name(dd, namebuf);
 	fnvlist_add_string(nvl, ZPOOL_HIST_DSNAME, namebuf);

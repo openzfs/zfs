@@ -273,7 +273,7 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		goto out;
 	}
 
-	ASSERT(zfs_uio_offset(uio) < zp->z_size);
+	ASSERT3U(zfs_uio_offset(uio), <, zp->z_size);
 #if defined(__linux__)
 	ssize_t start_offset = zfs_uio_offset(uio);
 #endif
@@ -336,8 +336,8 @@ zfs_clear_setid_bits_if_necessary(zfsvfs_t *zfsvfs, znode_t *zp, cred_t *cr,
 	zilog_t *zilog = zfsvfs->z_log;
 	const uint64_t uid = KUID_TO_SUID(ZTOUID(zp));
 
-	ASSERT(clear_setid_bits_txgp != NULL);
-	ASSERT(tx != NULL);
+	ASSERT3P(clear_setid_bits_txgp, !=, NULL);
+	ASSERT3P(tx, !=, NULL);
 
 	/*
 	 * Clear Set-UID/Set-GID bits on successful write if not
@@ -557,8 +557,8 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 
 			abuf = dmu_request_arcbuf(sa_get_db(zp->z_sa_hdl),
 			    max_blksz);
-			ASSERT(abuf != NULL);
-			ASSERT(arc_buf_size(abuf) == max_blksz);
+			ASSERT3P(abuf, !=, NULL);
+			ASSERT3U(arc_buf_size(abuf), ==, max_blksz);
 			if ((error = zfs_uiocopy(abuf->b_data, max_blksz,
 			    UIO_WRITE, uio, &cbytes))) {
 				dmu_return_arcbuf(abuf);
@@ -606,7 +606,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 				 * "recordsize" property.  Only let it grow to
 				 * the next power of 2.
 				 */
-				ASSERT(!ISP2(zp->z_blksz));
+				ASSERT0(ISP2(zp->z_blksz));
 				new_blksz = MIN(end_size,
 				    1 << highbit64(zp->z_blksz));
 			} else {
@@ -711,7 +711,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 			(void) sa_update(zp->z_sa_hdl, SA_ZPL_SIZE(zfsvfs),
 			    (void *)&zp->z_size, sizeof (uint64_t), tx);
 			dmu_tx_commit(tx);
-			ASSERT(error != 0);
+			ASSERT3S(error, !=, 0);
 			break;
 		}
 
@@ -938,8 +938,8 @@ zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
 			zgd->zgd_db = db;
 			zgd->zgd_bp = bp;
 
-			ASSERT(db->db_offset == offset);
-			ASSERT(db->db_size == size);
+			ASSERT3U(db->db_offset, ==, offset);
+			ASSERT3U(db->db_size, ==, size);
 
 			error = dmu_sync(zio, lr->lr_common.lrc_txg,
 			    zfs_get_done, zgd);

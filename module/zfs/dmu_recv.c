@@ -621,7 +621,7 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 
 	/* already checked */
 	ASSERT3U(drrb->drr_magic, ==, DMU_BACKUP_MAGIC);
-	ASSERT(!(featureflags & DMU_BACKUP_FEATURE_RESUMING));
+	ASSERT0((featureflags & DMU_BACKUP_FEATURE_RESUMING));
 
 	if (DMU_GET_STREAM_HDRTYPE(drrb->drr_versioninfo) ==
 	    DMU_COMPOUNDSTREAM ||
@@ -1569,13 +1569,13 @@ save_resume_state(struct receive_writer_arg *rwa,
 	 * We use ds_resume_bytes[] != 0 to indicate that we need to
 	 * update this on disk, so it must not be 0.
 	 */
-	ASSERT(rwa->bytes_read != 0);
+	ASSERT3U(rwa->bytes_read, !=, 0);
 
 	/*
 	 * We only resume from write records, which have a valid
 	 * (non-meta-dnode) object number.
 	 */
-	ASSERT(object != 0);
+	ASSERT3U(object, !=, 0);
 
 	/*
 	 * For resuming to work correctly, we must receive records in order,
@@ -3098,7 +3098,7 @@ receive_process_record(struct receive_writer_arg *rwa,
 			 * EAGAIN to indicate that we do not want to free
 			 * the rrd or arc_buf.
 			 */
-			ASSERT(err != 0);
+			ASSERT3S(err, !=, 0);
 			abd_free(rrd->abd);
 			rrd->abd = NULL;
 		}

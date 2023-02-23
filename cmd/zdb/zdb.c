@@ -752,7 +752,7 @@ livelist_metaslab_validate(spa_t *spa)
 		int vdev_id = DVA_GET_VDEV(&svb->svb_dva);
 		ASSERT3U(vdev_id, <, rvd->vdev_children);
 		vdev_t *vd = rvd->vdev_child[vdev_id];
-		ASSERT(!vdev_is_concrete(vd));
+		ASSERT0(vdev_is_concrete(vd));
 		(void) printf("<%d:%llx:%llx> TXG %llx\n",
 		    vdev_id, (u_longlong_t)DVA_GET_OFFSET(&svb->svb_dva),
 		    (u_longlong_t)DVA_GET_ASIZE(&svb->svb_dva),
@@ -948,9 +948,9 @@ dump_packed_nvlist(objset_t *os, uint64_t object, void *data, size_t size)
 	size_t nvsize = *(uint64_t *)data;
 	char *packed = umem_alloc(nvsize, UMEM_NOFAIL);
 
-	VERIFY(0 == dmu_read(os, object, 0, nvsize, packed, DMU_READ_PREFETCH));
+	VERIFY0(dmu_read(os, object, 0, nvsize, packed, DMU_READ_PREFETCH));
 
-	VERIFY(nvlist_unpack(packed, nvsize, &nv, 0) == 0);
+	VERIFY0(nvlist_unpack(packed, nvsize, &nv, 0));
 
 	umem_free(packed, nvsize);
 
@@ -1030,7 +1030,7 @@ dump_zap_stats(objset_t *os, uint64_t object)
 		return;
 
 	if (zs.zs_ptrtbl_len == 0) {
-		ASSERT(zs.zs_num_blocks == 1);
+		ASSERT3U(zs.zs_num_blocks, ==, 1);
 		(void) printf("\tmicrozap: %llu bytes, %llu entries\n",
 		    (u_longlong_t)zs.zs_blocksize,
 		    (u_longlong_t)zs.zs_num_entries);
@@ -1364,13 +1364,13 @@ dump_sa_layouts(objset_t *os, uint64_t object, void *data, size_t size)
 			continue;
 		}
 
-		VERIFY(attr.za_integer_length == 2);
+		VERIFY3S(attr.za_integer_length, ==, 2);
 		layout_attrs = umem_zalloc(attr.za_num_integers *
 		    attr.za_integer_length, UMEM_NOFAIL);
 
-		VERIFY(zap_lookup(os, object, attr.za_name,
-		    attr.za_integer_length,
-		    attr.za_num_integers, layout_attrs) == 0);
+		VERIFY0(zap_lookup(os, object, attr.za_name,
+		    attr.za_integer_length, attr.za_num_integers,
+		    layout_attrs));
 
 		for (i = 0; i != attr.za_num_integers; i++)
 			(void) printf(" %d ", (int)layout_attrs[i]);
@@ -1866,7 +1866,7 @@ print_vdev_indirect(vdev_t *vd)
 		objset_t *mos = vd->vdev_spa->spa_meta_objset;
 		(void) printf("obsolete space map object %llu:\n",
 		    (u_longlong_t)obsolete_sm_object);
-		ASSERT(vd->vdev_obsolete_sm != NULL);
+		ASSERT3P(vd->vdev_obsolete_sm, !=, NULL);
 		ASSERT3U(space_map_object(vd->vdev_obsolete_sm), ==,
 		    obsolete_sm_object);
 		dump_spacemap(mos, vd->vdev_obsolete_sm);
@@ -1996,10 +1996,10 @@ dump_ddt(ddt_t *ddt, enum ddt_type type, enum ddt_class class)
 
 	if (error == ENOENT)
 		return;
-	ASSERT(error == 0);
+	ASSERT0(error);
 
 	error = ddt_object_count(ddt, type, class, &count);
-	ASSERT(error == 0);
+	ASSERT0(error);
 	if (count == 0)
 		return;
 
@@ -2248,13 +2248,13 @@ blkid2offset(const dnode_phys_t *dnp, const blkptr_t *bp,
     const zbookmark_phys_t *zb)
 {
 	if (dnp == NULL) {
-		ASSERT(zb->zb_level < 0);
+		ASSERT3S(zb->zb_level, <, 0);
 		if (zb->zb_object == 0)
 			return (zb->zb_blkid);
 		return (zb->zb_blkid * BP_GET_LSIZE(bp));
 	}
 
-	ASSERT(zb->zb_level >= 0);
+	ASSERT3S(zb->zb_level, >=, 0);
 
 	return ((zb->zb_blkid <<
 	    (zb->zb_level * (dnp->dn_indblkshift - SPA_BLKPTRSHIFT))) *
@@ -2400,7 +2400,7 @@ print_indirect(spa_t *spa, blkptr_t *bp, const zbookmark_phys_t *zb,
 
 	(void) printf("%16llx ", (u_longlong_t)blkid2offset(dnp, bp, zb));
 
-	ASSERT(zb->zb_level >= 0);
+	ASSERT3S(zb->zb_level, >=, 0);
 
 	for (l = dnp->dn_nlevels - 1; l >= -1; l--) {
 		if (l == zb->zb_level) {
@@ -2434,7 +2434,7 @@ visit_indirect(spa_t *spa, const dnode_phys_t *dnp,
 		int epb = BP_GET_LSIZE(bp) >> SPA_BLKPTRSHIFT;
 		arc_buf_t *buf;
 		uint64_t fill = 0;
-		ASSERT(!BP_IS_REDACTED(bp));
+		ASSERT0(BP_IS_REDACTED(bp));
 
 		err = arc_read(NULL, spa, bp, arc_getbuf_func, &buf,
 		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, zb);
@@ -2559,7 +2559,7 @@ dump_dsl_dataset(objset_t *os, uint64_t object, void *data, size_t size)
 	if (ds == NULL)
 		return;
 
-	ASSERT(size == sizeof (*ds));
+	ASSERT3U(size, ==, sizeof (*ds));
 	crtime = ds->ds_creation_time;
 	zdb_nicenum(ds->ds_referenced_bytes, used, sizeof (used));
 	zdb_nicenum(ds->ds_compressed_bytes, compressed, sizeof (compressed));
@@ -2651,7 +2651,7 @@ dump_bpobj_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed, dmu_tx_t *tx)
 	(void) arg, (void) tx;
 	char blkbuf[BP_SPRINTF_LEN];
 
-	ASSERT(bp->blk_birth != 0);
+	ASSERT3U(bp->blk_birth, !=, 0);
 	snprintf_blkptr_compact(blkbuf, sizeof (blkbuf), bp, bp_freed);
 	(void) printf("\t%s\n", blkbuf);
 	return (0);
@@ -2910,7 +2910,7 @@ dsl_deadlist_entry_count_refd(void *arg, dsl_deadlist_entry_t *dle)
 static int
 dsl_deadlist_entry_dump(void *arg, dsl_deadlist_entry_t *dle)
 {
-	ASSERT(arg == NULL);
+	ASSERT3P(arg, ==, NULL);
 	if (dump_opt['d'] >= 5) {
 		char buf[128];
 		(void) snprintf(buf, sizeof (buf),
@@ -2981,7 +2981,7 @@ verify_dd_livelist(objset_t *os)
 	dsl_pool_t *dp = spa_get_dsl(os->os_spa);
 	dsl_dir_t  *dd = os->os_dsl_dataset->ds_dir;
 
-	ASSERT(!dmu_objset_is_snapshot(os));
+	ASSERT0(dmu_objset_is_snapshot(os));
 	if (!dsl_deadlist_is_open(&dd->dd_livelist))
 		return (0);
 
@@ -3127,8 +3127,8 @@ dump_uidgid(objset_t *os, uint64_t uid, uint64_t gid)
 		uint64_t fuid_obj;
 
 		/* first find the fuid object.  It lives in the master node */
-		VERIFY(zap_lookup(os, MASTER_NODE_OBJ, ZFS_FUID_TABLES,
-		    8, 1, &fuid_obj) == 0);
+		VERIFY0(zap_lookup(os, MASTER_NODE_OBJ, ZFS_FUID_TABLES, 8, 1,
+		    &fuid_obj));
 		zfs_fuid_avl_tree_create(&idx_tree, &domain_tree);
 		(void) zfs_fuid_table_load(os, fuid_obj,
 		    &idx_tree, &domain_tree);
@@ -5316,7 +5316,7 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 	uint64_t refcnt = 0;
 	int i;
 
-	ASSERT(type < ZDB_OT_TOTAL);
+	ASSERT3U(type, <, ZDB_OT_TOTAL);
 
 	if (zilog && zil_bp_tree_add(zilog, bp) != 0)
 		return;
@@ -5712,8 +5712,8 @@ increment_indirect_mapping_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
 	vdev_t *vd;
 	const dva_t *dva = &bp->blk_dva[0];
 
-	ASSERT(!bp_freed);
-	ASSERT(!dump_opt['L']);
+	ASSERT0(bp_freed);
+	ASSERT0(dump_opt['L']);
 	ASSERT3U(BP_GET_NDVAS(bp), ==, 1);
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
@@ -5721,7 +5721,7 @@ increment_indirect_mapping_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
 	ASSERT3P(vd, !=, NULL);
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 
-	ASSERT(vd->vdev_indirect_config.vic_mapping_object != 0);
+	ASSERT3U(vd->vdev_indirect_config.vic_mapping_object, !=, 0);
 	ASSERT3P(zcb->zcb_vd_obsolete_counts[vd->vdev_id], !=, NULL);
 
 	vdev_indirect_mapping_increment_obsolete_count(
@@ -5769,7 +5769,7 @@ zdb_ddt_leak_init(spa_t *spa, zdb_cb_t *zcb)
 	int error;
 	int p;
 
-	ASSERT(!dump_opt['L']);
+	ASSERT0(dump_opt['L']);
 
 	while ((error = ddt_walk(spa, &ddb, &dde)) == 0) {
 		blkptr_t blk;
@@ -5778,7 +5778,7 @@ zdb_ddt_leak_init(spa_t *spa, zdb_cb_t *zcb)
 		if (ddb.ddb_class == DDT_CLASS_UNIQUE)
 			return;
 
-		ASSERT(ddt_phys_total_refcnt(&dde) > 1);
+		ASSERT3U(ddt_phys_total_refcnt(&dde), >, 1);
 
 		for (p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
 			if (ddp->ddp_phys_birth == 0)
@@ -5795,11 +5795,11 @@ zdb_ddt_leak_init(spa_t *spa, zdb_cb_t *zcb)
 		}
 		ddt_t *ddt = spa->spa_ddt[ddb.ddb_checksum];
 		ddt_enter(ddt);
-		VERIFY(ddt_lookup(ddt, &blk, B_TRUE) != NULL);
+		VERIFY3P(ddt_lookup(ddt, &blk, B_TRUE), !=, NULL);
 		ddt_exit(ddt);
 	}
 
-	ASSERT(error == ENOENT);
+	ASSERT3S(error, ==, ENOENT);
 }
 
 typedef struct checkpoint_sm_exclude_entry_arg {
@@ -5815,7 +5815,7 @@ checkpoint_sm_exclude_entry_cb(space_map_entry_t *sme, void *arg)
 	metaslab_t *ms = vd->vdev_ms[sme->sme_offset >> vd->vdev_ms_shift];
 	uint64_t end = sme->sme_offset + sme->sme_run;
 
-	ASSERT(sme->sme_type == SM_FREE);
+	ASSERT3U(sme->sme_type, ==, SM_FREE);
 
 	/*
 	 * Since the vdev_checkpoint_sm exists in the vdev level
@@ -5900,7 +5900,7 @@ zdb_leak_init_vdev_exclude_checkpoint(vdev_t *vd, zdb_cb_t *zcb)
 static void
 zdb_leak_init_exclude_checkpoint(spa_t *spa, zdb_cb_t *zcb)
 {
-	ASSERT(!dump_opt['L']);
+	ASSERT0(dump_opt['L']);
 
 	vdev_t *rvd = spa->spa_root_vdev;
 	for (uint64_t c = 0; c < rvd->vdev_children; c++) {
@@ -6076,7 +6076,7 @@ load_indirect_ms_allocatable_tree(vdev_t *vd, metaslab_t *msp,
 static void
 zdb_leak_init_prepare_indirect_vdevs(spa_t *spa, zdb_cb_t *zcb)
 {
-	ASSERT(!dump_opt['L']);
+	ASSERT0(dump_opt['L']);
 
 	vdev_t *rvd = spa->spa_root_vdev;
 	for (uint64_t c = 0; c < rvd->vdev_children; c++) {
@@ -6199,7 +6199,7 @@ zdb_check_for_obsolete_leaks(vdev_t *vd, zdb_cb_t *zcb)
 	uint64_t total_leaked = 0;
 	boolean_t are_precise = B_FALSE;
 
-	ASSERT(vim != NULL);
+	ASSERT3P(vim, !=, NULL);
 
 	for (uint64_t i = 0; i < vdev_indirect_mapping_num_entries(vim); i++) {
 		vdev_indirect_mapping_entry_phys_t *vimep =
@@ -6367,7 +6367,7 @@ static int
 bpobj_count_block_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
     dmu_tx_t *tx)
 {
-	ASSERT(!bp_freed);
+	ASSERT0(bp_freed);
 	return (count_block_cb(arg, bp, tx));
 }
 
@@ -6855,7 +6855,7 @@ dump_simulated_ddt(spa_t *spa)
 	while ((zdde = avl_destroy_nodes(&t, &cookie)) != NULL) {
 		ddt_stat_t dds;
 		uint64_t refcnt = zdde->zdde_ref_blocks;
-		ASSERT(refcnt != 0);
+		ASSERT3U(refcnt, !=, 0);
 
 		dds.dds_blocks = zdde->zdde_ref_blocks / refcnt;
 		dds.dds_lsize = zdde->zdde_ref_lsize / refcnt;
@@ -6902,7 +6902,7 @@ verify_device_removal_feature_counts(spa_t *spa)
 	    &spa->spa_condensing_indirect_phys;
 	if (scip->scip_next_mapping_object != 0) {
 		vdev_t *vd = spa->spa_root_vdev->vdev_child[scip->scip_vdev];
-		ASSERT(scip->scip_prev_obsolete_sm_object != 0);
+		ASSERT3U(scip->scip_prev_obsolete_sm_object, !=, 0);
 		ASSERT3P(vd->vdev_ops, ==, &vdev_indirect_ops);
 
 		(void) printf("Condensing indirect vdev %llu: new mapping "
@@ -6941,14 +6941,14 @@ verify_device_removal_feature_counts(spa_t *spa)
 		boolean_t are_precise;
 		VERIFY0(vdev_obsolete_counts_are_precise(vd, &are_precise));
 		if (are_precise) {
-			ASSERT(vic->vic_mapping_object != 0);
+			ASSERT3U(vic->vic_mapping_object, !=, 0);
 			precise_vdev_count++;
 		}
 
 		uint64_t obsolete_sm_object;
 		VERIFY0(vdev_obsolete_sm_object(vd, &obsolete_sm_object));
 		if (obsolete_sm_object != 0) {
-			ASSERT(vic->vic_mapping_object != 0);
+			ASSERT3U(vic->vic_mapping_object, !=, 0);
 			obsolete_sm_count++;
 		}
 	}
@@ -7118,7 +7118,7 @@ verify_checkpoint_sm_entry_cb(space_map_entry_t *sme, void *arg)
 	metaslab_t *ms = vd->vdev_ms[sme->sme_offset >> vd->vdev_ms_shift];
 	uint64_t end = sme->sme_offset + sme->sme_run;
 
-	ASSERT(sme->sme_type == SM_FREE);
+	ASSERT3U(sme->sme_type, ==, SM_FREE);
 
 	if ((vcsec->vcsec_entryid % ENTRIES_PER_PROGRESS_UPDATE) == 0) {
 		(void) fprintf(stderr,
@@ -7305,7 +7305,7 @@ verify_checkpoint_ms_spacemaps(spa_t *checkpoint, spa_t *current)
 static void
 verify_checkpoint_blocks(spa_t *spa)
 {
-	ASSERT(!dump_opt['L']);
+	ASSERT0(dump_opt['L']);
 
 	spa_t *checkpoint_spa;
 	char *checkpoint_pool;
@@ -7318,7 +7318,7 @@ verify_checkpoint_blocks(spa_t *spa)
 	 */
 	checkpoint_pool = import_checkpointed_state(spa->spa_name, NULL,
 	    NULL);
-	ASSERT(strcmp(spa->spa_name, checkpoint_pool) != 0);
+	ASSERT3U(strcmp(spa->spa_name, checkpoint_pool), !=, 0);
 
 	error = spa_open(checkpoint_pool, &checkpoint_spa, FTAG);
 	if (error != 0) {
@@ -7903,7 +7903,7 @@ zdb_dump_block_raw(void *buf, uint64_t size, int flags)
 {
 	if (flags & ZDB_FLAG_BSWAP)
 		byteswap_uint64_array(buf, size);
-	VERIFY(write(fileno(stdout), buf, size) == size);
+	VERIFY3U(write(fileno(stdout), buf, size), ==, size);
 }
 
 static void
@@ -8865,8 +8865,8 @@ main(int argc, char **argv)
 
 	if (error == 0) {
 		if (dump_opt['k'] && (target_is_spa || dump_opt['R'])) {
-			ASSERT(checkpoint_pool != NULL);
-			ASSERT(checkpoint_target == NULL);
+			ASSERT3P(checkpoint_pool, !=, NULL);
+			ASSERT3P(checkpoint_target, ==, NULL);
 
 			error = spa_open(checkpoint_pool, &spa, FTAG);
 			if (error != 0) {
