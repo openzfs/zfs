@@ -36,7 +36,7 @@
 #define	ENDBR
 
 #define	SECTION_TEXT .text
-#define	SECTION_STATIC .rodata
+#define	SECTION_STATIC .section .rodata
 
 #ifdef	__cplusplus
 extern "C" {
