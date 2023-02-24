@@ -786,6 +786,7 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 		}
 
 		dsl_dataset_sync_done(ds, tx);
+		dmu_buf_rele(ds->ds_dbuf, ds);
 	}
 
 	while ((dd = txg_list_remove(&dp->dp_dirty_dirs, txg)) != NULL) {
