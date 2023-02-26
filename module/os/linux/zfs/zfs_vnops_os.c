@@ -3977,12 +3977,16 @@ zfs_fillpage(struct inode *ip, struct page *pp)
 	u_offset_t io_off = page_offset(pp);
 	size_t io_len = PAGE_SIZE;
 
+	ASSERT3U(io_off, <, i_size);
+
 	if (io_off + io_len > i_size)
 		io_len = i_size - io_off;
 
 	void *va = kmap(pp);
 	int error = dmu_read(zfsvfs->z_os, ITOZ(ip)->z_id, io_off,
-	    PAGE_SIZE, va, DMU_READ_PREFETCH);
+	    io_len, va, DMU_READ_PREFETCH);
+	if (io_len != PAGE_SIZE)
+		memset((char *)va + io_len, 0, PAGE_SIZE - io_len);
 	kunmap(pp);
 
 	if (error) {
