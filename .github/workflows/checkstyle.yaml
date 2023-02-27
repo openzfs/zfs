@@ -13,8 +13,10 @@ jobs:
         ref: ${{ github.event.pull_request.head.sha }}
     - name: Install dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get -qq upgrade
+        # https://github.com/orgs/community/discussions/47863
+        sudo apt-mark hold grub-efi-amd64-signed
+        sudo apt-get update --fix-missing
+        sudo apt-get upgrade
         sudo xargs --arg-file=${{ github.workspace }}/.github/workflows/build-dependencies.txt apt-get install -qq
         sudo xargs --arg-file=${{ github.workspace }}/.github/workflows/checkstyle-dependencies.txt apt-get install -qq
         sudo python3 -m pip install --quiet flake8
