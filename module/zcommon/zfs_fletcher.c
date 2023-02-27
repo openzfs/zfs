@@ -172,6 +172,9 @@ static const fletcher_4_ops_t *fletcher_4_impls[] = {
 	&fletcher_4_scalar_ops,
 	&fletcher_4_superscalar_ops,
 	&fletcher_4_superscalar4_ops,
+#ifndef _MSC_VER
+	&fletcher_4_generic_ops,
+#endif
 #if defined(HAVE_SSE2)
 	&fletcher_4_sse2_ops,
 #endif

@@ -43,6 +43,7 @@ nodist_libzfs_la_SOURCES = \
 	module/zcommon/zfs_fletcher.c \
 	module/zcommon/zfs_fletcher_aarch64_neon.c \
 	module/zcommon/zfs_fletcher_avx512.c \
+	module/zcommon/zfs_fletcher_generic.c \
 	module/zcommon/zfs_fletcher_intel.c \
 	module/zcommon/zfs_fletcher_sse.c \
 	module/zcommon/zfs_fletcher_superscalar.c \

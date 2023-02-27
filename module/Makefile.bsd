@@ -203,6 +203,7 @@ SRCS+=	zfeature_common.c \
 	zfs_deleg.c \
 	zfs_fletcher.c \
 	zfs_fletcher_avx512.c \
+	zfs_fletcher_generic.c \
 	zfs_fletcher_intel.c \
 	zfs_fletcher_sse.c \
 	zfs_fletcher_superscalar.c \
@@ -391,6 +392,7 @@ CFLAGS.zfs_log.c= -Wno-cast-qual
 CFLAGS.zfs_vnops_os.c= -Wno-pointer-arith
 CFLAGS.u8_textprep.c= -Wno-cast-qual
 CFLAGS.zfs_fletcher.c= -Wno-cast-qual -Wno-pointer-arith
+CFLAGS.zfs_fletcher_generic.c= -Wno-cast-qual -Wno-pointer-arith
 CFLAGS.zfs_fletcher_intel.c= -Wno-cast-qual -Wno-pointer-arith
 CFLAGS.zfs_fletcher_sse.c= -Wno-cast-qual -Wno-pointer-arith
 CFLAGS.zfs_fletcher_avx512.c= -Wno-cast-qual -Wno-pointer-arith

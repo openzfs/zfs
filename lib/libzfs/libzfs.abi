@@ -584,6 +584,7 @@
     <elf-symbol name='fletcher_4_avx2_ops' size='64' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='fletcher_4_avx512bw_ops' size='64' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='fletcher_4_avx512f_ops' size='64' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='fletcher_4_generic_ops' size='64' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='fletcher_4_sse2_ops' size='64' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='fletcher_4_ssse3_ops' size='64' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='fletcher_4_superscalar4_ops' size='64' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -5367,6 +5368,9 @@
       <parameter type-id='c24fc2ee'/>
       <return type-id='48b5725f'/>
     </function-type>
+  </abi-instr>
+  <abi-instr address-size='64' path='module/zcommon/zfs_fletcher_generic.c' language='LANG_C99'>
+    <var-decl name='fletcher_4_generic_ops' type-id='9eeabdc8' mangled-name='fletcher_4_generic_ops' visibility='default' elf-symbol-id='fletcher_4_generic_ops'/>
   </abi-instr>
   <abi-instr address-size='64' path='module/zcommon/zfs_fletcher_intel.c' language='LANG_C99'>
     <var-decl name='fletcher_4_avx2_ops' type-id='9eeabdc8' mangled-name='fletcher_4_avx2_ops' visibility='default' elf-symbol-id='fletcher_4_avx2_ops'/>
