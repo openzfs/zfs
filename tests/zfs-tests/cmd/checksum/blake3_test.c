@@ -31,6 +31,8 @@
 #include <sys/time.h>
 #include <sys/blake3.h>
 
+#include <sys/zfs_impl.h>
+
 /*
  * set it to a define for debugging
  */
@@ -485,9 +487,13 @@ main(int argc, char *argv[])
 	uint8_t buffer[102400];
 	uint64_t cpu_mhz = 0;
 	int id, i, j;
+	const zfs_impl_t *blake3 = zfs_impl_get_ops("blake3");
 
 	if (argc == 2)
 		cpu_mhz = atoi(argv[1]);
+
+	if (!blake3)
+		return (1);
 
 	/* fill test message */
 	for (i = 0, j = 0; i < sizeof (buffer); i++, j++) {
@@ -497,9 +503,9 @@ main(int argc, char *argv[])
 	}
 
 	(void) printf("Running algorithm correctness tests:\n");
-	for (id = 0; id < blake3_impl_getcnt(); id++) {
-		blake3_impl_setid(id);
-		const char *name = blake3_impl_getname();
+	for (id = 0; id < blake3->getcnt(); id++) {
+		blake3->setid(id);
+		const char *name = blake3->getname();
 		dprintf("Result for BLAKE3-%s:\n", name);
 		for (i = 0; TestArray[i].hash; i++) {
 			blake3_test_t *cur = &TestArray[i];
@@ -565,9 +571,9 @@ main(int argc, char *argv[])
 	} while (0)
 
 	printf("Running performance tests (hashing 1024 MiB of data):\n");
-	for (id = 0; id < blake3_impl_getcnt(); id++) {
-		blake3_impl_setid(id);
-		const char *name = blake3_impl_getname();
+	for (id = 0; id < blake3->getcnt(); id++) {
+		blake3->setid(id);
+		const char *name = blake3->getname();
 		BLAKE3_PERF_TEST(name, 256);
 	}
 
