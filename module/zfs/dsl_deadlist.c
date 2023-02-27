@@ -859,7 +859,7 @@ void
 dsl_deadlist_merge(dsl_deadlist_t *dl, uint64_t obj, dmu_tx_t *tx)
 {
 	zap_cursor_t zc, pzc;
-	zap_attribute_t za, pza;
+	zap_attribute_t *za, *pza;
 	dmu_buf_t *bonus;
 	dsl_deadlist_phys_t *dlp;
 	dmu_object_info_t doi;
@@ -874,28 +874,31 @@ dsl_deadlist_merge(dsl_deadlist_t *dl, uint64_t obj, dmu_tx_t *tx)
 		return;
 	}
 
+	za = kmem_alloc(sizeof (*za), KM_SLEEP);
+	pza = kmem_alloc(sizeof (*pza), KM_SLEEP);
+
 	mutex_enter(&dl->dl_lock);
 	/*
 	 * Prefetch up to 128 deadlists first and then more as we progress.
 	 * The limit is a balance between ARC use and diminishing returns.
 	 */
 	for (zap_cursor_init(&pzc, dl->dl_os, obj), i = 0;
-	    (perror = zap_cursor_retrieve(&pzc, &pza)) == 0 && i < 128;
+	    (perror = zap_cursor_retrieve(&pzc, pza)) == 0 && i < 128;
 	    zap_cursor_advance(&pzc), i++) {
-		dsl_deadlist_prefetch_bpobj(dl, pza.za_first_integer,
-		    zfs_strtonum(pza.za_name, NULL));
+		dsl_deadlist_prefetch_bpobj(dl, pza->za_first_integer,
+		    zfs_strtonum(pza->za_name, NULL));
 	}
 	for (zap_cursor_init(&zc, dl->dl_os, obj);
-	    (error = zap_cursor_retrieve(&zc, &za)) == 0;
+	    (error = zap_cursor_retrieve(&zc, za)) == 0;
 	    zap_cursor_advance(&zc)) {
-		uint64_t mintxg = zfs_strtonum(za.za_name, NULL);
-		dsl_deadlist_insert_bpobj(dl, za.za_first_integer, mintxg, tx);
+		uint64_t mintxg = zfs_strtonum(za->za_name, NULL);
+		dsl_deadlist_insert_bpobj(dl, za->za_first_integer, mintxg, tx);
 		VERIFY0(zap_remove_int(dl->dl_os, obj, mintxg, tx));
 		if (perror == 0) {
-			dsl_deadlist_prefetch_bpobj(dl, pza.za_first_integer,
-			    zfs_strtonum(pza.za_name, NULL));
+			dsl_deadlist_prefetch_bpobj(dl, pza->za_first_integer,
+			    zfs_strtonum(pza->za_name, NULL));
 			zap_cursor_advance(&pzc);
-			perror = zap_cursor_retrieve(&pzc, &pza);
+			perror = zap_cursor_retrieve(&pzc, pza);
 		}
 	}
 	VERIFY3U(error, ==, ENOENT);
@@ -908,6 +911,9 @@ dsl_deadlist_merge(dsl_deadlist_t *dl, uint64_t obj, dmu_tx_t *tx)
 	bzero(dlp, sizeof (*dlp));
 	dmu_buf_rele(bonus, FTAG);
 	mutex_exit(&dl->dl_lock);
+
+	kmem_free(za, sizeof (*za));
+	kmem_free(pza, sizeof (*pza));
 }
 
 /*
