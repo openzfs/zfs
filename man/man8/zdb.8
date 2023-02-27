@@ -103,6 +103,12 @@ characters, it is interpreted as a pool name.
 The root dataset can be specified as
 .Qq Ar pool Ns / .
 .Pp
+.Nm
+is an
+.Qq offline
+tool; it accesses the block devices underneath the pools directly from
+userspace and does not care if the pool is imported or datasets are mounted
+(or even if the system understands ZFS at all).
 When operating on an imported and active pool it is possible, though unlikely,
 that zdb may interpret inconsistent pool data and behave erratically.
 .
