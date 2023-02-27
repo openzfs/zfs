@@ -94,7 +94,6 @@ ICP_OBJS := \
 	algs/modes/gcm.o \
 	algs/modes/gcm_generic.o \
 	algs/modes/modes.o \
-	algs/sha2/sha2.o \
 	algs/skein/skein.o \
 	algs/skein/skein_block.o \
 	algs/skein/skein_iv.o \
@@ -122,9 +121,7 @@ ICP_OBJS_X86_64 := \
 	asm-x86_64/blake3/blake3_sse41.o \
 	asm-x86_64/modes/aesni-gcm-x86_64.o \
 	asm-x86_64/modes/gcm_pclmulqdq.o \
-	asm-x86_64/modes/ghash-x86_64.o \
-	asm-x86_64/sha2/sha256_impl.o \
-	asm-x86_64/sha2/sha512_impl.o
+	asm-x86_64/modes/ghash-x86_64.o
 
 
 ICP_OBJS_X86 := \
@@ -158,13 +155,6 @@ $(addprefix $(obj)/icp/,$(ICP_OBJS) $(ICP_OBJS_X86) $(ICP_OBJS_X86_64) \
 
 # Suppress objtool "return with modified stack frame" warnings.
 OBJECT_FILES_NON_STANDARD_aesni-gcm-x86_64.o := y
-
-# Suppress objtool "unsupported stack pointer realignment" warnings. We are
-# not using a DRAP register while aligning the stack to a 64 byte boundary.
-# See #6950 for the reasoning.
-OBJECT_FILES_NON_STANDARD_sha256_impl.o := y
-OBJECT_FILES_NON_STANDARD_sha512_impl.o := y
-
 
 LUA_OBJS := \
 	lapi.o \
@@ -344,7 +334,7 @@ ZFS_OBJS := \
 	refcount.o \
 	rrwlock.o \
 	sa.o \
-	sha256.o \
+	sha2_zfs.o \
 	skein_zfs.o \
 	spa.o \
 	spa_checkpoint.o \

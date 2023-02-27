@@ -141,8 +141,6 @@ SRCS+=	nvpair.c \
 SRCS+=	acl_common.c \
 	callb.c \
 	list.c \
-	sha256c.c \
-	sha512c.c \
 	spl_acl.c \
 	spl_cmn_err.c \
 	spl_dtrace.c \
@@ -268,7 +266,7 @@ SRCS+=	abd.c \
 	refcount.c \
 	rrwlock.c \
 	sa.c \
-	sha256.c \
+	sha2_zfs.c \
 	skein_zfs.c \
 	spa.c \
 	spa_checkpoint.c \
