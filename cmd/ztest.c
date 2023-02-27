@@ -135,6 +135,7 @@
 #include <libnvpair.h>
 #include <libzutil.h>
 #include <sys/crypto/icp.h>
+#include <sys/zfs_impl.h>
 #if (__GLIBC__ && !__UCLIBC__)
 #include <execinfo.h> /* for backtrace() */
 #endif
@@ -6410,6 +6411,7 @@ ztest_blake3(ztest_ds_t *zd, uint64_t id)
 	int i, *ptr;
 	uint32_t size;
 	BLAKE3_CTX ctx;
+	const zfs_impl_t *blake3 = zfs_impl_get_ops("blake3");
 
 	size = ztest_random_blocksize();
 	buf = umem_alloc(size, UMEM_NOFAIL);
@@ -6434,7 +6436,7 @@ ztest_blake3(ztest_ds_t *zd, uint64_t id)
 		void *res2 = &zc_res2;
 
 		/* BLAKE3_KEY_LEN = 32 */
-		VERIFY0(blake3_impl_setname("generic"));
+		VERIFY0(blake3->setname("generic"));
 		templ = abd_checksum_blake3_tmpl_init(&salt);
 		Blake3_InitKeyed(&ctx, salt_ptr);
 		Blake3_Update(&ctx, buf, size);
@@ -6443,7 +6445,7 @@ ztest_blake3(ztest_ds_t *zd, uint64_t id)
 		ZIO_CHECKSUM_BSWAP(&zc_ref2);
 		abd_checksum_blake3_tmpl_free(templ);
 
-		VERIFY0(blake3_impl_setname("cycle"));
+		VERIFY0(blake3->setname("cycle"));
 		while (run_count-- > 0) {
 
 			/* Test current implementation */

@@ -432,7 +432,7 @@ static void hasher_init_base(BLAKE3_CTX *ctx, const uint32_t key[8],
 	memcpy(ctx->key, key, BLAKE3_KEY_LEN);
 	chunk_state_init(&ctx->chunk, key, flags);
 	ctx->cv_stack_len = 0;
-	ctx->ops = blake3_impl_get_ops();
+	ctx->ops = blake3_get_ops();
 }
 
 /*
