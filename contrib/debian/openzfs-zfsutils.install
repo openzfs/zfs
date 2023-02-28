@@ -124,6 +124,7 @@ usr/share/man/man8/zpool-trim.8
 usr/share/man/man8/zpool-upgrade.8
 usr/share/man/man8/zpool-wait.8
 usr/share/man/man8/zpool.8
+usr/share/man/man7/vdevprops.7
 usr/share/man/man7/zpoolconcepts.7
 usr/share/man/man7/zpoolprops.7
 usr/share/man/man8/zstream.8
