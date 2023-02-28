@@ -27,7 +27,7 @@ fi
 
 IFS="
 "
-files="$(find "$@" -type f -name '*[1-9]*')" || exit 1
+files="$(find "$@" -type f -name '*[1-9]*' -not -name '.*')" || exit 1
 
 add_excl="$(awk '
     /^.\\" lint-ok:/ {
