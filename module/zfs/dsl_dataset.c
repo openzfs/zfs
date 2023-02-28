@@ -1039,7 +1039,7 @@ dsl_dataset_has_owner(dsl_dataset_t *ds)
 	return (rv);
 }
 
-boolean_t
+static boolean_t
 zfeature_active(spa_feature_t f, void *arg)
 {
 	switch (spa_feature_table[f].fi_type) {
