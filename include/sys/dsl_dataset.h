@@ -372,7 +372,6 @@ int dsl_dataset_rename_snapshot(const char *fsname,
     const char *oldsnapname, const char *newsnapname, boolean_t recursive);
 int dsl_dataset_snapshot_tmp(const char *fsname, const char *snapname,
     minor_t cleanup_minor, const char *htag);
-boolean_t zfeature_active(spa_feature_t f, void *arg);
 
 blkptr_t *dsl_dataset_get_blkptr(dsl_dataset_t *ds);
 
