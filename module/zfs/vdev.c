@@ -4199,7 +4199,7 @@ vdev_clear(spa_t *spa, vdev_t *vd)
 	 * written out to disk.
 	 */
 	if (vd->vdev_faulted || vd->vdev_degraded ||
-	    !vdev_readable(vd) || !vdev_writeable(vd)) {
+	    !vdev_readable(vd) || !vdev_writeable(vd) || vd->vdev_removed) {
 		/*
 		 * When reopening in response to a clear event, it may be due to
 		 * a fmadm repair request.  In this case, if the device is
