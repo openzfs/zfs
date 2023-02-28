@@ -3036,9 +3036,9 @@ zdb_derive_key(dsl_dir_t *dd, uint8_t *key_out)
 	int i;
 	unsigned char c;
 
-	zap_lookup(dd->dd_pool->dp_meta_objset, dd->dd_crypto_obj,
+	VERIFY0(zap_lookup(dd->dd_pool->dp_meta_objset, dd->dd_crypto_obj,
 	    zfs_prop_to_name(ZFS_PROP_KEYFORMAT), sizeof (uint64_t),
-	    1, &keyformat);
+	    1, &keyformat));
 
 	switch (keyformat) {
 	case ZFS_KEYFORMAT_HEX:
@@ -3053,12 +3053,12 @@ zdb_derive_key(dsl_dir_t *dd, uint8_t *key_out)
 		break;
 
 	case ZFS_KEYFORMAT_PASSPHRASE:
-		zap_lookup(dd->dd_pool->dp_meta_objset, dd->dd_crypto_obj,
-		    zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT), sizeof (uint64_t),
-		    1, &salt);
-		zap_lookup(dd->dd_pool->dp_meta_objset, dd->dd_crypto_obj,
-		    zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS), sizeof (uint64_t),
-		    1, &iters);
+		VERIFY0(zap_lookup(dd->dd_pool->dp_meta_objset,
+		    dd->dd_crypto_obj, zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT),
+		    sizeof (uint64_t), 1, &salt));
+		VERIFY0(zap_lookup(dd->dd_pool->dp_meta_objset,
+		    dd->dd_crypto_obj, zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS),
+		    sizeof (uint64_t), 1, &iters));
 
 		if (PKCS5_PBKDF2_HMAC_SHA1(key_material, strlen(key_material),
 		    ((uint8_t *)&salt), sizeof (uint64_t), iters,
@@ -3091,9 +3091,9 @@ zdb_load_key(objset_t *os)
 	dd = os->os_dsl_dataset->ds_dir;
 
 	dsl_pool_config_enter(dp, FTAG);
-	zap_lookup(dd->dd_pool->dp_meta_objset, dd->dd_crypto_obj,
-	    DSL_CRYPTO_KEY_ROOT_DDOBJ, sizeof (uint64_t), 1, &rddobj);
-	dsl_dir_hold_obj(dd->dd_pool, rddobj, NULL, FTAG, &rdd);
+	VERIFY0(zap_lookup(dd->dd_pool->dp_meta_objset, dd->dd_crypto_obj,
+	    DSL_CRYPTO_KEY_ROOT_DDOBJ, sizeof (uint64_t), 1, &rddobj));
+	VERIFY0(dsl_dir_hold_obj(dd->dd_pool, rddobj, NULL, FTAG, &rdd));
 	dsl_dir_name(rdd, encroot);
 	dsl_dir_rele(rdd, FTAG);
 
@@ -3110,8 +3110,8 @@ zdb_load_key(objset_t *os)
 	crypto_args = fnvlist_alloc();
 	fnvlist_add_uint8_array(crypto_args, "wkeydata",
 	    (uint8_t *)key, WRAPPING_KEY_LEN);
-	dsl_crypto_params_create_nvlist(DCP_CMD_NONE,
-	    NULL, crypto_args, &dcp);
+	VERIFY0(dsl_crypto_params_create_nvlist(DCP_CMD_NONE,
+	    NULL, crypto_args, &dcp));
 	err = spa_keystore_load_wkey(encroot, dcp, B_FALSE);
 
 	dsl_crypto_params_free(dcp, (err != 0));
@@ -3134,7 +3134,7 @@ zdb_unload_key(void)
 	if (!key_loaded)
 		return;
 
-	spa_keystore_unload_wkey(encroot);
+	VERIFY0(spa_keystore_unload_wkey(encroot));
 	key_loaded = B_FALSE;
 }
 
