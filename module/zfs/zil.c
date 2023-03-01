@@ -1977,13 +1977,39 @@ cont:
 				/* Zero any padding bytes in the last block. */
 				memset((char *)dbuf + lrwb->lr_length, 0, dpad);
 
-			if (error == EIO) {
+			/*
+			 * Typically, the only return values we should see from
+			 * ->zl_get_data() are 0, EIO, ENOENT, EEXIST or
+			 *  EALREADY. However, it is also possible to see other
+			 *  error values such as ENOSPC or EINVAL from
+			 *  dmu_read() -> dnode_hold() -> dnode_hold_impl() or
+			 *  ENXIO as well as a multitude of others from the
+			 *  block layer through dmu_buf_hold() -> dbuf_read()
+			 *  -> zio_wait(), as well as through dmu_read() ->
+			 *  dnode_hold() -> dnode_hold_impl() -> dbuf_read() ->
+			 *  zio_wait(). When these errors happen, we can assume
+			 *  that neither an immediate write nor an indirect
+			 *  write occurred, so we need to fall back to
+			 *  txg_wait_synced(). This is unusual, so we print to
+			 *  dmesg whenever one of these errors occurs.
+			 */
+			switch (error) {
+			case 0:
+				break;
+			default:
+				cmn_err(CE_WARN, "zil_lwb_commit() received "
+				    "unexpected error %d from ->zl_get_data()"
+				    ". Falling back to txg_wait_synced().",
+				    error);
+				zfs_fallthrough;
+			case EIO:
 				txg_wait_synced(zilog->zl_dmu_pool, txg);
-				return (lwb);
-			}
-			if (error != 0) {
-				ASSERT(error == ENOENT || error == EEXIST ||
-				    error == EALREADY);
+				zfs_fallthrough;
+			case ENOENT:
+				zfs_fallthrough;
+			case EEXIST:
+				zfs_fallthrough;
+			case EALREADY:
 				return (lwb);
 			}
 		}
