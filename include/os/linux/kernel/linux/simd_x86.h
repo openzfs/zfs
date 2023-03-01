@@ -378,6 +378,13 @@ static inline void
 kfpu_end(void)
 {
 	uint8_t  *state = zfs_kfpu_fpregs[smp_processor_id()];
+
+#if defined(HAVE_XSAVEC)
+	if (static_cpu_has(X86_FEATURE_XSAVEC)) {
+		kfpu_do_xrstor("xrstor", state, ~0);
+		goto out;
+	}
+#endif
 #if defined(HAVE_XSAVES)
 	if (static_cpu_has(X86_FEATURE_XSAVES)) {
 		kfpu_do_xrstor("xrstors", state, ~0);
