@@ -24,7 +24,7 @@
 #define _ASM
 #include <sys/asm_linkage.h>
 
-.section .rodata
+SECTION_STATIC
 
 .align	64
 .type	K512,@object
