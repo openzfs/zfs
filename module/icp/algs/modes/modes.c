@@ -154,3 +154,43 @@ crypto_free_mode_ctx(void *ctx)
 		kmem_free(ctx, sizeof (gcm_ctx_t));
 	}
 }
+
+static void *
+explicit_memset(void *s, int c, size_t n)
+{
+	memset(s, c, n);
+	__asm__ __volatile__("" :: "r"(s) : "memory");
+	return (s);
+}
+
+/*
+ * Clear sensitive data in the context and free allocated memory.
+ *
+ * ctx->gcm_remainder may contain a plaintext remainder. ctx->gcm_H and
+ * ctx->gcm_Htable contain the hash sub key which protects authentication.
+ * ctx->gcm_pt_buf contains the plaintext result of decryption.
+ *
+ * Although extremely unlikely, ctx->gcm_J0 and ctx->gcm_tmp could be used for
+ * a known plaintext attack, they consist of the IV and the first and last
+ * counter respectively. If they should be cleared is debatable.
+ */
+void
+gcm_clear_ctx(gcm_ctx_t *ctx)
+{
+	explicit_memset(ctx->gcm_remainder, 0, sizeof (ctx->gcm_remainder));
+	explicit_memset(ctx->gcm_H, 0, sizeof (ctx->gcm_H));
+#if defined(CAN_USE_GCM_ASM)
+	if (ctx->gcm_use_avx == B_TRUE) {
+		ASSERT3P(ctx->gcm_Htable, !=, NULL);
+		memset(ctx->gcm_Htable, 0, ctx->gcm_htab_len);
+		kmem_free(ctx->gcm_Htable, ctx->gcm_htab_len);
+	}
+#endif
+	if (ctx->gcm_pt_buf != NULL) {
+		memset(ctx->gcm_pt_buf, 0, ctx->gcm_pt_buf_len);
+		vmem_free(ctx->gcm_pt_buf, ctx->gcm_pt_buf_len);
+	}
+	/* Optional */
+	explicit_memset(ctx->gcm_J0, 0, sizeof (ctx->gcm_J0));
+	explicit_memset(ctx->gcm_tmp, 0, sizeof (ctx->gcm_tmp));
+}
