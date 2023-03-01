@@ -37,6 +37,7 @@
 #include <opencrypto/cryptodev.h>
 #include <crypto/sha2/sha256.h>
 #include <crypto/sha2/sha512.h>
+#include <sys/zio_checksum.h>
 
 #define	SUN_CKM_AES_CCM	"CKM_AES_CCM"
 #define	SUN_CKM_AES_GCM	"CKM_AES_GCM"
@@ -87,6 +88,14 @@ void crypto_mac_final(struct hmac_ctx *ctx, void *out_data,
 int freebsd_crypt_newsession(freebsd_crypt_session_t *sessp,
     const struct zio_crypt_info *, crypto_key_t *);
 void freebsd_crypt_freesession(freebsd_crypt_session_t *sessp);
+
+int freebsd_hash_newsession(freebsd_crypt_session_t *sessionp,
+    size_t checksum);
+int freebsd_hash(freebsd_crypt_session_t *input_sessionp,
+    size_t checksum, uint8_t *buf, uint64_t size, uint8_t *obuf,
+    uint64_t osize);
+int freebsd_offload_hash_to_ocf(uint64_t checksum, abd_t *abd,
+    uint64_t size, zio_cksum_t *zcp);
 
 int freebsd_crypt_uio(boolean_t, freebsd_crypt_session_t *,
 	const struct zio_crypt_info *, zfs_uio_t *, crypto_key_t *, uint8_t *,
