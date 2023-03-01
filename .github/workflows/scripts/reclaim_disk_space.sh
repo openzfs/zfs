@@ -6,7 +6,7 @@ set -eu
 sudo systemd-run docker system prune --force --all --volumes
 
 # remove unused software
-sudo systemd-run rm -rf \
+sudo systemd-run --wait rm -rf \
   "$AGENT_TOOLSDIRECTORY" \
   /opt/* \
   /usr/local/* \
@@ -18,3 +18,6 @@ sudo systemd-run rm -rf \
   /var/lib/gems \
   /var/lib/mysql \
   /var/lib/snapd
+
+# trim the cleaned space
+sudo fstrim /
