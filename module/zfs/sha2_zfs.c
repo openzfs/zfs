@@ -18,16 +18,14 @@
  *
  * CDDL HEADER END
  */
+
 /*
  * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
- */
-/*
  * Copyright 2013 Saso Kiselkov. All rights reserved.
  * Copyright (c) 2016 by Delphix. All rights reserved.
  */
+
 #include <sys/zfs_context.h>
-#include <sys/zio.h>
 #include <sys/zio_checksum.h>
 #include <sys/sha2.h>
 #include <sys/abd.h>
@@ -42,7 +40,7 @@ sha_incremental(void *buf, size_t size, void *arg)
 }
 
 void
-abd_checksum_SHA256(abd_t *abd, uint64_t size,
+abd_checksum_sha256(abd_t *abd, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
 	(void) ctx_template;
@@ -79,7 +77,7 @@ bswap:
 }
 
 void
-abd_checksum_SHA512_native(abd_t *abd, uint64_t size,
+abd_checksum_sha512_native(abd_t *abd, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
 	(void) ctx_template;
@@ -91,12 +89,12 @@ abd_checksum_SHA512_native(abd_t *abd, uint64_t size,
 }
 
 void
-abd_checksum_SHA512_byteswap(abd_t *abd, uint64_t size,
+abd_checksum_sha512_byteswap(abd_t *abd, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
 	zio_cksum_t	tmp;
 
-	abd_checksum_SHA512_native(abd, size, ctx_template, &tmp);
+	abd_checksum_sha512_native(abd, size, ctx_template, &tmp);
 	zcp->zc_word[0] = BSWAP_64(tmp.zc_word[0]);
 	zcp->zc_word[1] = BSWAP_64(tmp.zc_word[1]);
 	zcp->zc_word[2] = BSWAP_64(tmp.zc_word[2]);

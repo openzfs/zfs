@@ -85,7 +85,6 @@ ICP_OBJS := \
 	algs/blake3/blake3.o \
 	algs/blake3/blake3_generic.o \
 	algs/blake3/blake3_impl.o \
-	algs/blake3/blake3_x86-64.o \
 	algs/edonr/edonr.o \
 	algs/modes/cbc.o \
 	algs/modes/ccm.o \
@@ -94,6 +93,9 @@ ICP_OBJS := \
 	algs/modes/gcm.o \
 	algs/modes/gcm_generic.o \
 	algs/modes/modes.o \
+	algs/sha2/sha2_generic.o \
+	algs/sha2/sha256_impl.o \
+	algs/sha2/sha512_impl.o \
 	algs/skein/skein.o \
 	algs/skein/skein_block.o \
 	algs/skein/skein_iv.o \
@@ -119,30 +121,40 @@ ICP_OBJS_X86_64 := \
 	asm-x86_64/blake3/blake3_avx512.o \
 	asm-x86_64/blake3/blake3_sse2.o \
 	asm-x86_64/blake3/blake3_sse41.o \
+	asm-x86_64/sha2/sha256-x86_64.o \
+	asm-x86_64/sha2/sha512-x86_64.o \
 	asm-x86_64/modes/aesni-gcm-x86_64.o \
 	asm-x86_64/modes/gcm_pclmulqdq.o \
 	asm-x86_64/modes/ghash-x86_64.o
-
 
 ICP_OBJS_X86 := \
 	algs/aes/aes_impl_aesni.o \
 	algs/aes/aes_impl_x86-64.o \
 	algs/modes/gcm_pclmulqdq.o
 
+ICP_OBJS_ARM := \
+	asm-arm/sha2/sha256-armv7.o \
+	asm-arm/sha2/sha512-armv7.o
 
 ICP_OBJS_ARM64 := \
 	asm-aarch64/blake3/b3_aarch64_sse2.o \
-	asm-aarch64/blake3/b3_aarch64_sse41.o
-
+	asm-aarch64/blake3/b3_aarch64_sse41.o \
+	asm-aarch64/sha2/sha256-armv8.o \
+	asm-aarch64/sha2/sha512-armv8.o
 
 ICP_OBJS_PPC_PPC64 := \
 	asm-ppc64/blake3/b3_ppc64le_sse2.o \
-	asm-ppc64/blake3/b3_ppc64le_sse41.o
+	asm-ppc64/blake3/b3_ppc64le_sse41.o \
+	asm-ppc64/sha2/sha256-p8.o \
+	asm-ppc64/sha2/sha512-p8.o \
+	asm-ppc64/sha2/sha256-ppc.o \
+	asm-ppc64/sha2/sha512-ppc.o
 
 zfs-objs             += $(addprefix icp/,$(ICP_OBJS))
 zfs-$(CONFIG_X86)    += $(addprefix icp/,$(ICP_OBJS_X86))
 zfs-$(CONFIG_UML_X86)+= $(addprefix icp/,$(ICP_OBJS_X86))
 zfs-$(CONFIG_X86_64) += $(addprefix icp/,$(ICP_OBJS_X86_64))
+zfs-$(CONFIG_ARM)    += $(addprefix icp/,$(ICP_OBJS_ARM))
 zfs-$(CONFIG_ARM64)  += $(addprefix icp/,$(ICP_OBJS_ARM64))
 zfs-$(CONFIG_PPC)    += $(addprefix icp/,$(ICP_OBJS_PPC_PPC64))
 zfs-$(CONFIG_PPC64)  += $(addprefix icp/,$(ICP_OBJS_PPC_PPC64))
@@ -155,6 +167,11 @@ $(addprefix $(obj)/icp/,$(ICP_OBJS) $(ICP_OBJS_X86) $(ICP_OBJS_X86_64) \
 
 # Suppress objtool "return with modified stack frame" warnings.
 OBJECT_FILES_NON_STANDARD_aesni-gcm-x86_64.o := y
+
+# Suppress objtool "unsupported stack pointer realignment" warnings.
+# See #6950 for the reasoning.
+OBJECT_FILES_NON_STANDARD_sha256-x86_64.o := y
+OBJECT_FILES_NON_STANDARD_sha512-x86_64.o := y
 
 LUA_OBJS := \
 	lapi.o \
@@ -382,6 +399,7 @@ ZFS_OBJS := \
 	zfs_chksum.o \
 	zfs_fm.o \
 	zfs_fuid.o \
+	zfs_impl.o \
 	zfs_ioctl.o \
 	zfs_log.o \
 	zfs_onexit.o \
