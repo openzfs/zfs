@@ -109,7 +109,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE_DISCARD], [
 		int value __attribute__ ((unused));
 		memset(q, 0, sizeof(r));
 		value = blk_queue_discard(q);
-	])
+	],[-Wframe-larger-than=8192])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE_DISCARD], [
@@ -155,7 +155,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE_SECURE_ERASE], [
 		int value __attribute__ ((unused));
 		memset(q, 0, sizeof(r));
 		value = blk_queue_secure_erase(q);
-	])
+	],[-Wframe-larger-than=8192])
 
 	ZFS_LINUX_TEST_SRC([blk_queue_secdiscard], [
 		#include <linux/blkdev.h>
