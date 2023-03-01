@@ -23,13 +23,13 @@
  * Copyright (c) 2021-2022 Tino Reichardt <milky-zfs@mcmilk.de>
  */
 
-#include <sys/types.h>
-#include <sys/spa.h>
 #include <sys/zio_checksum.h>
 #include <sys/zfs_context.h>
 #include <sys/zfs_chksum.h>
+#include <sys/zfs_impl.h>
 
 #include <sys/blake3.h>
+#include <sys/sha2.h>
 
 /* limit benchmarking to max 256KiB, when EdonR is slower then this: */
 #define	LIMIT_PERF_MBS	300
@@ -56,25 +56,26 @@ static int chksum_stat_cnt = 0;
 static kstat_t *chksum_kstat = NULL;
 
 /*
- * i3-1005G1 test output:
+ * Sample output on i3-1005G1 System:
  *
- * implementation     1k      4k     16k     64k    256k      1m      4m
- * fletcher-4       5421   15001   26468   32555   34720   32801   18847
- * edonr-generic    1196    1602    1761    1749    1762    1759    1751
- * skein-generic     546     591     608     615     619     612     616
- * sha256-generic    246     270     274     274     277     275     276
- * sha256-avx        262     296     304     307     307     307     306
- * sha256-sha-ni     769    1072    1172    1220    1219    1232    1228
- * sha256-openssl    240     300     316     314     304     285     276
- * sha512-generic    333     374     385     392     391     393     392
- * sha512-openssl    353     441     467     476     472     467     426
- * sha512-avx        362     444     473     475     479     476     478
- * sha512-avx2       394     500     530     538     543     545     542
- * blake3-generic    308     313     313     313     312     313     312
- * blake3-sse2       402    1289    1423    1446    1432    1458    1413
- * blake3-sse41      427    1470    1625    1704    1679    1607    1629
- * blake3-avx2       428    1920    3095    3343    3356    3318    3204
- * blake3-avx512     473    2687    4905    5836    5844    5643    5374
+ * implementation   1k      4k     16k     64k    256k      1m      4m     16m
+ * edonr-generic  1278    1625    1769    1776    1783    1778    1771    1767
+ * skein-generic   548     594     613     623     621     623     621     486
+ * sha256-generic  255     270     281     278     279     281     283     283
+ * sha256-x64      288     310     316     317     318     317     317     316
+ * sha256-ssse3    304     342     351     355     356     357     356     356
+ * sha256-avx      311     348     359     362     362     363     363     362
+ * sha256-avx2     330     378     389     395     395     395     395     395
+ * sha256-shani    908    1127    1212    1230    1233    1234    1223    1230
+ * sha512-generic  359     409     431     427     429     430     428     423
+ * sha512-x64      420     473     490     496     497     497     496     495
+ * sha512-avx      406     522     546     560     560     560     556     560
+ * sha512-avx2     464     568     601     606     609     610     607     608
+ * blake3-generic  330     327     324     323     324     320     323     322
+ * blake3-sse2     424    1366    1449    1468    1458    1453    1395    1408
+ * blake3-sse41    453    1554    1658    1703    1689    1669    1622    1630
+ * blake3-avx2     452    2013    3225    3351    3356    3261    3076    3101
+ * blake3-avx512   498    2869    5269    5926    5872    5643    5014    5005
  */
 static int
 chksum_kstat_headers(char *buf, size_t size)
@@ -237,25 +238,30 @@ abort:
 static void
 chksum_benchmark(void)
 {
-
 #ifndef _KERNEL
 	/* we need the benchmark only for the kernel module */
 	return;
 #endif
 
 	chksum_stat_t *cs;
-	int cbid = 0;
-	uint64_t max = 0;
-	uint32_t id, id_save;
+	uint64_t max;
+	uint32_t id, cbid = 0, id_save;
+	const zfs_impl_t *blake3 = zfs_impl_get_ops("blake3");
+	const zfs_impl_t *sha256 = zfs_impl_get_ops("sha256");
+	const zfs_impl_t *sha512 = zfs_impl_get_ops("sha512");
 
-	/* space for the benchmark times */
-	chksum_stat_cnt = 4;
-	chksum_stat_cnt += blake3_impl_getcnt();
+	/* count implementations */
+	chksum_stat_cnt = 2;
+	chksum_stat_cnt += sha256->getcnt();
+	chksum_stat_cnt += sha512->getcnt();
+	chksum_stat_cnt += blake3->getcnt();
 	chksum_stat_data = kmem_zalloc(
 	    sizeof (chksum_stat_t) * chksum_stat_cnt, KM_SLEEP);
 
 	/* edonr - needs to be the first one here (slow CPU check) */
 	cs = &chksum_stat_data[cbid++];
+
+	/* edonr */
 	cs->init = abd_checksum_edonr_tmpl_init;
 	cs->func = abd_checksum_edonr_native;
 	cs->free = abd_checksum_edonr_tmpl_free;
@@ -273,42 +279,58 @@ chksum_benchmark(void)
 	chksum_benchit(cs);
 
 	/* sha256 */
-	cs = &chksum_stat_data[cbid++];
-	cs->init = 0;
-	cs->func = abd_checksum_SHA256;
-	cs->free = 0;
-	cs->name = "sha256";
-	cs->impl = "generic";
-	chksum_benchit(cs);
+	id_save = sha256->getid();
+	for (max = 0, id = 0; id < sha256->getcnt(); id++) {
+		sha256->setid(id);
+		cs = &chksum_stat_data[cbid++];
+		cs->init = 0;
+		cs->func = abd_checksum_sha256;
+		cs->free = 0;
+		cs->name = sha256->name;
+		cs->impl = sha256->getname();
+		chksum_benchit(cs);
+		if (cs->bs256k > max) {
+			max = cs->bs256k;
+			sha256->set_fastest(id);
+		}
+	}
+	sha256->setid(id_save);
 
 	/* sha512 */
-	cs = &chksum_stat_data[cbid++];
-	cs->init = 0;
-	cs->func = abd_checksum_SHA512_native;
-	cs->free = 0;
-	cs->name = "sha512";
-	cs->impl = "generic";
-	chksum_benchit(cs);
+	id_save = sha512->getid();
+	for (max = 0, id = 0; id < sha512->getcnt(); id++) {
+		sha512->setid(id);
+		cs = &chksum_stat_data[cbid++];
+		cs->init = 0;
+		cs->func = abd_checksum_sha512_native;
+		cs->free = 0;
+		cs->name = sha512->name;
+		cs->impl = sha512->getname();
+		chksum_benchit(cs);
+		if (cs->bs256k > max) {
+			max = cs->bs256k;
+			sha512->set_fastest(id);
+		}
+	}
+	sha512->setid(id_save);
 
 	/* blake3 */
-	id_save = blake3_impl_getid();
-	for (id = 0; id < blake3_impl_getcnt(); id++) {
-		blake3_impl_setid(id);
+	id_save = blake3->getid();
+	for (max = 0, id = 0; id < blake3->getcnt(); id++) {
+		blake3->setid(id);
 		cs = &chksum_stat_data[cbid++];
 		cs->init = abd_checksum_blake3_tmpl_init;
 		cs->func = abd_checksum_blake3_native;
 		cs->free = abd_checksum_blake3_tmpl_free;
-		cs->name = "blake3";
-		cs->impl = blake3_impl_getname();
+		cs->name = blake3->name;
+		cs->impl = blake3->getname();
 		chksum_benchit(cs);
 		if (cs->bs256k > max) {
 			max = cs->bs256k;
-			blake3_impl_set_fastest(id);
+			blake3->set_fastest(id);
 		}
 	}
-
-	/* restore initial value */
-	blake3_impl_setid(id_save);
+	blake3->setid(id_save);
 }
 
 void

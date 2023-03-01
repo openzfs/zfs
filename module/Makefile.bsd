@@ -13,10 +13,15 @@ KMOD=	openzfs
 	${SRCDIR}/lua \
 	${SRCDIR}/nvpair \
 	${SRCDIR}/icp/algs/blake3 \
+	${SRCDIR}/icp/algs/edonr \
+	${SRCDIR}/icp/algs/sha2 \
 	${SRCDIR}/icp/asm-aarch64/blake3 \
+	${SRCDIR}/icp/asm-aarch64/sha2 \
+	${SRCDIR}/icp/asm-arm/sha2 \
+	${SRCDIR}/icp/asm-ppc64/sha2 \
 	${SRCDIR}/icp/asm-ppc64/blake3 \
 	${SRCDIR}/icp/asm-x86_64/blake3 \
-	${SRCDIR}/icp/algs/edonr \
+	${SRCDIR}/icp/asm-x86_64/sha2 \
 	${SRCDIR}/os/freebsd/spl \
 	${SRCDIR}/os/freebsd/zfs \
 	${SRCDIR}/unicode \
@@ -26,8 +31,6 @@ KMOD=	openzfs
 	${SRCDIR}/zstd/lib/common \
 	${SRCDIR}/zstd/lib/compress \
 	${SRCDIR}/zstd/lib/decompress
-
-
 
 CFLAGS+= -I${INCDIR}
 CFLAGS+= -I${INCDIR}/os/freebsd
@@ -88,8 +91,7 @@ SRCS+=	edonr.c
 #icp/algs/blake3
 SRCS+=	blake3.c \
 	blake3_generic.c \
-	blake3_impl.c \
-	blake3_x86-64.c
+	blake3_impl.c
 
 #icp/asm-aarch64/blake3
 SRCS+=	b3_aarch64_sse2.S \
@@ -104,6 +106,29 @@ SRCS+=	blake3_avx2.S \
 	blake3_avx512.S \
 	blake3_sse2.S \
 	blake3_sse41.S
+
+#icp/algs/sha2
+SRCS+=	sha2_generic.c \
+	sha256_impl.c \
+	sha512_impl.c
+
+#icp/asm-arm/sha2
+SRCS+=	sha256-armv7.S \
+	sha512-armv7.S
+
+#icp/asm-aarch64/sha2
+SRCS+=	sha256-armv8.S \
+	sha512-armv8.S
+
+#icp/asm-ppc64/sha2
+SRCS+=	sha256-p8.S \
+	sha512-p8.S \
+	sha256-ppc.S \
+	sha512-ppc.S
+
+#icp/asm-x86_64/sha2
+SRCS+=	sha256-x86_64.S \
+	sha512-x86_64.S
 
 #lua
 SRCS+=	lapi.c \
@@ -320,6 +345,7 @@ SRCS+=	abd.c \
 	zfs_file_os.c \
 	zfs_fm.c \
 	zfs_fuid.c \
+	zfs_impl.c \
 	zfs_ioctl.c \
 	zfs_log.c \
 	zfs_onexit.c \

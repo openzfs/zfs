@@ -75,6 +75,7 @@ COMMON_H = \
 	sys/rrwlock.h \
 	sys/sa.h \
 	sys/sa_impl.h \
+	sys/sha2.h \
 	sys/skein.h \
 	sys/spa.h \
 	sys/spa_checkpoint.h \
@@ -124,6 +125,7 @@ COMMON_H = \
 	sys/zfs_delay.h \
 	sys/zfs_file.h \
 	sys/zfs_fuid.h \
+	sys/zfs_impl.h \
 	sys/zfs_project.h \
 	sys/zfs_quota.h \
 	sys/zfs_racct.h \

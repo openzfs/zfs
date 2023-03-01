@@ -28,7 +28,6 @@
 #include <sys/crypto/common.h>
 #include <sys/crypto/spi.h>
 #include <sys/crypto/icp.h>
-#define	_SHA2_IMPL
 #include <sys/sha2.h>
 #include <sha2/sha2_impl.h>
 

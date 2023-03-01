@@ -110,9 +110,9 @@ _SYS_ZIO_CHECKSUM_H zio_checksum_info_t
  */
 
 /* SHA2 */
-extern zio_checksum_t abd_checksum_SHA256;
-extern zio_checksum_t abd_checksum_SHA512_native;
-extern zio_checksum_t abd_checksum_SHA512_byteswap;
+extern zio_checksum_t abd_checksum_sha256;
+extern zio_checksum_t abd_checksum_sha512_native;
+extern zio_checksum_t abd_checksum_sha512_byteswap;
 
 /* Skein */
 extern zio_checksum_t abd_checksum_skein_native;
