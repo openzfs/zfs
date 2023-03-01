@@ -183,6 +183,7 @@ struct zilog {
 	uint64_t	zl_destroy_txg;	/* txg of last zil_destroy() */
 	uint64_t	zl_replayed_seq[TXG_SIZE]; /* last replayed rec seq */
 	uint64_t	zl_replaying_seq; /* current replay seq number */
+	krwlock_t	zl_suspend_lock;	/* protects suspend count */
 	uint32_t	zl_suspend;	/* log suspend count */
 	kcondvar_t	zl_cv_suspend;	/* log suspend completion */
 	uint8_t		zl_suspending;	/* log is currently suspending */
