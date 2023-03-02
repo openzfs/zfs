@@ -6,7 +6,7 @@ on:
 
 jobs:
   tests:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     env:
       TEST_DIR: /var/tmp/zloop
     steps:
@@ -16,6 +16,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
+        sudo apt-get -qq upgrade
         sudo apt-get install --yes -qq build-essential autoconf libtool gdb \
           git alien fakeroot \
           zlib1g-dev uuid-dev libblkid-dev libselinux-dev \
