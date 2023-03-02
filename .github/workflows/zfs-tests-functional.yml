@@ -9,7 +9,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [20.04]
+        os: [20.04, 22.04]
     runs-on: ubuntu-${{ matrix.os }}
     steps:
     - uses: actions/checkout@v3
@@ -18,6 +18,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
+        sudo apt-get -qq upgrade
         sudo apt-get install --yes -qq build-essential autoconf libtool gdb lcov \
           git alien fakeroot wget curl bc fio acl \
           sysstat mdadm lsscsi parted gdebi attr dbench watchdog ksh \
