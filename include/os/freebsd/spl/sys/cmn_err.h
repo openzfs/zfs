@@ -33,6 +33,7 @@
 
 #if !defined(_ASM)
 #include <sys/_stdarg.h>
+#include <sys/atomic.h>
 #endif
 
 #ifdef	__cplusplus
@@ -72,6 +73,38 @@ extern void vuprintf(const char *, __va_list)
 
 extern void panic(const char *, ...)
     __attribute__((format(printf, 1, 2), __noreturn__));
+
+#define	cmn_err_once(ce, ...)				\
+{							\
+	static volatile uint32_t printed = 0;		\
+	if (atomic_cas_32(&printed, 0, 1) == 0) {	\
+		cmn_err(ce, __VA_ARGS__);		\
+	}						\
+}
+
+#define	vcmn_err_once(ce, fmt, ap)			\
+{							\
+	static volatile uint32_t printed = 0;		\
+	if (atomic_cas_32(&printed, 0, 1) == 0) {	\
+		vcmn_err(ce, fmt, ap);			\
+	}						\
+}
+
+#define	zcmn_err_once(zone, ce, ...)			\
+{							\
+	static volatile uint32_t printed = 0;		\
+	if (atomic_cas_32(&printed, 0, 1) == 0) {	\
+		zcmn_err(zone, ce, __VA_ARGS__);	\
+	}						\
+}
+
+#define	vzcmn_err_once(zone, ce, fmt, ap)		\
+{							\
+	static volatile uint32_t printed = 0;		\
+	if (atomic_cas_32(&printed, 0, 1) == 0) {	\
+		vzcmn_err(zone, ce, fmt, ap);		\
+	}						\
+}
 
 #endif /* !_ASM */
 
