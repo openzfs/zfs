@@ -26,8 +26,8 @@
 
 SECTION_STATIC
 
-.align	64
-.type	K512,@object
+.balign	64
+SET_OBJ(K512)
 K512:
 .quad	0x428a2f98d728ae22,0x7137449123ef65cd
 .quad	0x428a2f98d728ae22,0x7137449123ef65cd
@@ -148,7 +148,7 @@ ENTRY_ALIGN(zfs_sha512_transform_x64, 16)
 	movq	48(%rdi),%r10
 	movq	56(%rdi),%r11
 	jmp	.Lloop
-.align	16
+.balign	16
 .Lloop:
 	movq	%rbx,%rdi
 	leaq	K512(%rip),%rbp
@@ -665,7 +665,7 @@ ENTRY_ALIGN(zfs_sha512_transform_x64, 16)
 	addq	%r12,%rax
 	leaq	24(%rbp),%rbp
 	jmp	.Lrounds_16_xx
-.align	16
+.balign	16
 .Lrounds_16_xx:
 	movq	8(%rsp),%r13
 	movq	112(%rsp),%r15
@@ -1501,7 +1501,7 @@ ENTRY_ALIGN(zfs_sha512_transform_avx, 64)
 	movq	48(%rdi),%r10
 	movq	56(%rdi),%r11
 	jmp	.Lloop_avx
-.align	16
+.balign	16
 .Lloop_avx:
 	vmovdqa	K512+1280(%rip),%xmm11
 	vmovdqu	0(%rsi),%xmm0
@@ -1543,7 +1543,7 @@ ENTRY_ALIGN(zfs_sha512_transform_avx, 64)
 	movq	%r8,%r13
 	jmp	.Lavx_00_47
 
-.align	16
+.balign	16
 .Lavx_00_47:
 	addq	$256,%rbp
 	vpalignr	$8,%xmm0,%xmm1,%xmm8
@@ -2670,7 +2670,7 @@ ENTRY_ALIGN(zfs_sha512_transform_avx2, 64)
 	movq	48(%rdi),%r10
 	movq	56(%rdi),%r11
 	jmp	.Loop_avx2
-.align	16
+.balign	16
 .Loop_avx2:
 	vmovdqu	-128(%rsi),%xmm0
 	vmovdqu	-128+16(%rsi),%xmm1
@@ -2732,7 +2732,7 @@ ENTRY_ALIGN(zfs_sha512_transform_avx2, 64)
 	addq	$32*8,%rbp
 	jmp	.Lavx2_00_47
 
-.align	16
+.balign	16
 .Lavx2_00_47:
 	leaq	-128(%rsp),%rsp
 .cfi_escape	0x0f,0x06,0x77,0xf8,0x00,0x06,0x23,0x08
@@ -3750,7 +3750,7 @@ ENTRY_ALIGN(zfs_sha512_transform_avx2, 64)
 	xorq	%rcx,%rdi
 	movq	%r9,%r12
 	jmp	.Lower_avx2
-.align	16
+.balign	16
 .Lower_avx2:
 	addq	0+16(%rbp),%r11
 	andq	%r8,%r12
