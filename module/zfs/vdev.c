@@ -5396,8 +5396,12 @@ vdev_split(vdev_t *vd)
 {
 	vdev_t *cvd, *pvd = vd->vdev_parent;
 
+	VERIFY3U(pvd->vdev_children, >, 1);
+
 	vdev_remove_child(pvd, vd);
 	vdev_compact_children(pvd);
+
+	ASSERT3P(pvd->vdev_child, !=, NULL);
 
 	cvd = pvd->vdev_child[0];
 	if (pvd->vdev_children == 1) {
