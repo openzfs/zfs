@@ -1329,8 +1329,13 @@ draid_config_by_type(nvlist_t *nv, const char *type, uint64_t children)
 		return (EINVAL);
 
 	nparity = (uint64_t)get_parity(type);
-	if (nparity == 0)
+	if (nparity == 0 || nparity > VDEV_DRAID_MAXPARITY) {
+		fprintf(stderr,
+		    gettext("invalid dRAID parity level %llu; must be "
+		    "between 1 and %d\n"), (u_longlong_t)nparity,
+		    VDEV_DRAID_MAXPARITY);
 		return (EINVAL);
+	}
 
 	char *p = (char *)type;
 	while ((p = strchr(p, ':')) != NULL) {
@@ -1398,14 +1403,6 @@ draid_config_by_type(nvlist_t *nv, const char *type, uint64_t children)
 		    "disks per group %llu is too high,\nat most %llu disks "
 		    "are available for data\n"), (u_longlong_t)ndata,
 		    (u_longlong_t)(children - nspares - nparity));
-		return (EINVAL);
-	}
-
-	if (nparity == 0 || nparity > VDEV_DRAID_MAXPARITY) {
-		fprintf(stderr,
-		    gettext("invalid dRAID parity level %llu; must be "
-		    "between 1 and %d\n"), (u_longlong_t)nparity,
-		    VDEV_DRAID_MAXPARITY);
 		return (EINVAL);
 	}
 
