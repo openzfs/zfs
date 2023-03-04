@@ -3187,6 +3187,7 @@ dbuf_dnode_findbp(dnode_t *dn, uint64_t level, uint64_t blkid,
 
 	err = dbuf_findbp(dn, level, blkid, B_FALSE, &dbp, &bp2);
 	if (err == 0) {
+		ASSERT3P(bp2, !=, NULL);
 		*bp = *bp2;
 		if (dbp != NULL)
 			dbuf_rele(dbp, NULL);
