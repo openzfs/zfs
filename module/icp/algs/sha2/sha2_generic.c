@@ -400,8 +400,8 @@ SHA2Init(int algotype, SHA2_CTX *ctx)
 	sha256_ctx *ctx256 = &ctx->sha256;
 	sha512_ctx *ctx512 = &ctx->sha512;
 
-	ASSERT3U(algotype, >=, SHA256_MECH_INFO_TYPE);
-	ASSERT3U(algotype, <=, SHA512_256_MECH_INFO_TYPE);
+	ASSERT3S(algotype, >=, SHA256_MECH_INFO_TYPE);
+	ASSERT3S(algotype, <=, SHA512_256_MECH_INFO_TYPE);
 
 	memset(ctx, 0, sizeof (*ctx));
 	ctx->algotype = algotype;
