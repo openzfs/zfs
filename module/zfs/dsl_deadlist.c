@@ -943,7 +943,7 @@ dsl_deadlist_move_bpobj(dsl_deadlist_t *dl, bpobj_t *bpo, uint64_t mintxg,
 	 * Prefetch up to 128 deadlists first and then more as we progress.
 	 * The limit is a balance between ARC use and diminishing returns.
 	 */
-	for (pdle = dle, i = 0; pdle && i < 128; ) {
+	for (pdle = dle, i = 0; pdle && i < 128; i++) {
 		bpobj_prefetch_subobj(bpo, pdle->dle_bpobj.bpo_object);
 		pdle = AVL_NEXT(&dl->dl_tree, pdle);
 	}
