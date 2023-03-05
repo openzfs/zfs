@@ -890,6 +890,7 @@ bpobj_enqueue(bpobj_t *bpo, const blkptr_t *bp, boolean_t bp_freed,
 			dmu_buf_rele(bpo->bpo_cached_dbuf, bpo);
 		VERIFY3U(0, ==, dmu_buf_hold(bpo->bpo_os, bpo->bpo_object,
 		    offset, bpo, &bpo->bpo_cached_dbuf, 0));
+		ASSERT3P(bpo->bpo_cached_dbuf, !=, NULL);
 	}
 
 	dmu_buf_will_dirty(bpo->bpo_cached_dbuf, tx);
