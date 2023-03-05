@@ -496,7 +496,7 @@ int ddi_strto##type(const char *str, char **endptr,			\
 			if (tolower(str[1]) == 'x' && isxdigit(str[2])) { \
 				base = 16; /* hex */			\
 				ptr += 2;				\
-			} else if (str[1] >= '0' && str[1] < 8) {	\
+			} else if (str[1] >= '0' && str[1] < '8') {	\
 				base = 8; /* octal */			\
 				ptr += 1;				\
 			} else {					\
