@@ -223,7 +223,7 @@ int
 zio_crypt_key_init(uint64_t crypt, zio_crypt_key_t *key)
 {
 	int ret;
-	crypto_mechanism_t mech;
+	crypto_mechanism_t mech = {0};
 	uint_t keydata_len;
 
 	ASSERT(key != NULL);
