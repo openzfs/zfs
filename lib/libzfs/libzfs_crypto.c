@@ -1407,6 +1407,11 @@ try_again:
 			    "Incorrect key provided for '%s'."),
 			    zfs_get_name(zhp));
 			break;
+		case ZFS_ERR_CRYPTO_NOTSUP:
+			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
+			    "'%s' uses an unsupported encryption suite."),
+			    zfs_get_name(zhp));
+			break;
 		}
 		goto error;
 	}

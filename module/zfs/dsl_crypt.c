@@ -541,6 +541,12 @@ dsl_crypto_key_open(objset_t *mos, dsl_wrapping_key_t *wkey,
 	if (ret != 0)
 		goto error;
 
+	/* handle a future crypto suite that we don't support */
+	if (crypt >= ZIO_CRYPT_FUNCTIONS) {
+		ret = (SET_ERROR(ZFS_ERR_CRYPTO_NOTSUP));
+		goto error;
+	}
+
 	ret = zap_lookup(mos, dckobj, DSL_CRYPTO_KEY_GUID, 8, 1, &guid);
 	if (ret != 0)
 		goto error;
