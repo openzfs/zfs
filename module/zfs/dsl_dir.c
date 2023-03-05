@@ -2125,6 +2125,8 @@ dsl_dir_rename_sync(void *arg, dmu_tx_t *tx)
 	VERIFY0(dsl_dir_hold(dp, ddra->ddra_newname, FTAG, &newparent,
 	    &mynewname));
 
+	ASSERT3P(mynewname, !=, NULL);
+
 	/* Log this before we change the name. */
 	spa_history_log_internal_dd(dd, "rename", tx,
 	    "-> %s", ddra->ddra_newname);
