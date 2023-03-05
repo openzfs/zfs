@@ -1089,6 +1089,7 @@ top:
 		    !zn_has_cached_data(zp, 0, LLONG_MAX) &&
 		    xattr_obj == xattr_obj_unlinked &&
 		    zfs_external_acl(zp) == acl_obj;
+		VERIFY_IMPLY(xattr_obj_unlinked, xzp);
 	}
 
 	if (delete_now) {
