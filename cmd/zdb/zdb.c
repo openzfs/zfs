@@ -3120,7 +3120,8 @@ zdb_load_key(objset_t *os)
 	if (err != 0)
 		fatal(
 		    "couldn't load encryption key for %s: %s",
-		    encroot, strerror(err));
+		    encroot, err == ZFS_ERR_CRYPTO_NOTSUP ?
+		    "crypto params not supported" : strerror(err));
 
 	ASSERT3U(dsl_dataset_get_keystatus(dd), ==, ZFS_KEYSTATUS_AVAILABLE);
 
