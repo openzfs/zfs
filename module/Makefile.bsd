@@ -243,6 +243,8 @@ SRCS+=	abd.c \
 	spa_log_spacemap.c \
 	spa_misc.c \
 	spa_stats.c \
+	json_stats.c \
+	jprint.c \
 	space_map.c \
 	space_reftree.c \
 	txg.c \

@@ -722,6 +722,7 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 	dsl_pool_t *dp = scn->scn_dp;
 	spa_t *spa = dp->dp_spa;
 
+
 	ASSERT(!dsl_scan_is_running(scn));
 	ASSERT(*funcp > POOL_SCAN_NONE && *funcp < POOL_SCAN_FUNCS);
 	bzero(&scn->scn_phys, sizeof (scn->scn_phys));
@@ -1963,11 +1964,13 @@ dsl_scan_visitbp(blkptr_t *bp, const zbookmark_phys_t *zb,
 	dsl_pool_t *dp = scn->scn_dp;
 	blkptr_t *bp_toread = NULL;
 
-	if (dsl_scan_check_suspend(scn, zb))
+	if (dsl_scan_check_suspend(scn, zb)) {
 		return;
+	}
 
-	if (dsl_scan_check_resume(scn, dnp, zb))
+	if (dsl_scan_check_resume(scn, dnp, zb)) {
 		return;
+	}
 
 	scn->scn_visited_this_txg++;
 

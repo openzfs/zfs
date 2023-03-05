@@ -129,6 +129,9 @@ static int zpool_do_wait(int, char **);
 static zpool_compat_status_t zpool_do_load_compat(
     const char *, boolean_t *);
 
+/* fmgw - added to allow injection into zfs kernel log */
+static int zpool_do_addlog(int, char **);
+
 /*
  * These libumem hooks provide a reasonable set of defaults for the allocator's
  * debugging facilities.
@@ -162,6 +165,7 @@ typedef enum {
 	HELP_IOSTAT,
 	HELP_LABELCLEAR,
 	HELP_LIST,
+	HELP_ADDLOG,
 	HELP_OFFLINE,
 	HELP_ONLINE,
 	HELP_REPLACE,
@@ -290,6 +294,7 @@ static zpool_command_t command_table[] = {
 	{ "labelclear",	zpool_do_labelclear,	HELP_LABELCLEAR		},
 	{ NULL },
 	{ "checkpoint",	zpool_do_checkpoint,	HELP_CHECKPOINT		},
+	{ "addlog",	zpool_do_addlog,	HELP_ADDLOG		},
 	{ NULL },
 	{ "list",	zpool_do_list,		HELP_LIST		},
 	{ "iostat",	zpool_do_iostat,	HELP_IOSTAT		},
@@ -380,6 +385,9 @@ get_usage(zpool_help_t idx)
 		return (gettext("\tlist [-gHLpPv] [-o property[,...]] "
 		    "[-T d|u] [pool] ... \n"
 		    "\t    [interval [count]]\n"));
+	case HELP_ADDLOG:
+		return (gettext("\taddlog [-m message]\n"
+		    "\tmessage <= 254 characters\n"));
 	case HELP_OFFLINE:
 		return (gettext("\toffline [-f] [-t] <pool> <device> ...\n"));
 	case HELP_ONLINE:
@@ -3427,6 +3435,46 @@ zpool_do_checkpoint(int argc, char **argv)
 
 	zpool_close(zhp);
 
+	return (err);
+}
+
+static int zpool_addlog(char *msg)
+{
+	int ret;
+	zfs_cmd_t zc = {"\0"};
+
+	if (msg == NULL)
+		msg = (char *)"---EMPTY---";
+	(void) strlcpy(zc.zc_name, msg, sizeof (zc.zc_name));
+	ret = zfs_ioctl(g_zfs, ZFS_IOC_ADD_LOG, &zc);
+	return (ret);
+}
+
+int zpool_do_addlog(int argc, char **argv)
+{
+	int c;
+	char *msg = NULL;
+	int err = 0;
+
+	while ((c = getopt(argc, argv, "m:")) != -1) {
+		switch (c) {
+		case 'm':
+			msg = optarg;
+			break;
+		case ':':
+			(void) fprintf(stderr,
+			    gettext("missing argument for "
+			    "'%c' option\n"), optopt);
+			usage(B_FALSE);
+			break;
+		case '?':
+			(void) fprintf(stderr,
+			    gettext("invalid option '%c'\n"),
+			    optopt);
+			usage(B_FALSE);
+		}
+	}
+	err = zpool_addlog(msg);
 	return (err);
 }
 

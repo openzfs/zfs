@@ -24,6 +24,7 @@
 #include <sys/vdev_impl.h>
 #include <sys/spa.h>
 #include <zfs_comutil.h>
+#include <sys/json_stats.h>
 
 /*
  * Keeps stats on last N reads per spa_t, disabled by default.
@@ -951,11 +952,13 @@ spa_stats_init(spa_t *spa)
 	spa_mmp_history_init(spa);
 	spa_state_init(spa);
 	spa_iostats_init(spa);
+	json_stats_init(spa);
 }
 
 void
 spa_stats_destroy(spa_t *spa)
 {
+	json_stats_destroy(spa);
 	spa_iostats_destroy(spa);
 	spa_health_destroy(spa);
 	spa_tx_assign_destroy(spa);

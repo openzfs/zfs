@@ -68,3 +68,6 @@ venv
 *.so
 *.so.debug
 *.so.full
+
+cscope.out
+*,v

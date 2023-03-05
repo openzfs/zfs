@@ -93,6 +93,8 @@ KERNEL_C = \
 	hkdf.c \
 	fm.c \
 	gzip.c \
+	jprint.c \
+	json_stats.c \
 	lzjb.c \
 	lz4.c \
 	metaslab.c \

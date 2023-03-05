@@ -406,6 +406,7 @@ struct spa {
 	uint64_t	spa_autotrim;		/* automatic background trim? */
 	uint64_t	spa_errata;		/* errata issues detected */
 	spa_stats_t	spa_stats;		/* assorted spa statistics */
+	json_stats_t	spa_json_stats;		/* json stats */
 	spa_keystore_t	spa_keystore;		/* loaded crypto keys */
 
 	/* arc_memory_throttle() parameters during low memory condition */
