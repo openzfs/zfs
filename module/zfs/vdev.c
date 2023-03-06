@@ -4700,8 +4700,14 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 	vdev_t *vd = zio->io_vd ? zio->io_vd : rvd;
 	vdev_t *pvd;
 	uint64_t txg = zio->io_txg;
+/* Suppress ASAN false positive */
+#ifdef __SANITIZE_ADDRESS__
 	vdev_stat_t *vs = vd ? &vd->vdev_stat : NULL;
 	vdev_stat_ex_t *vsx = vd ? &vd->vdev_stat_ex : NULL;
+#else
+	vdev_stat_t *vs = &vd->vdev_stat;
+	vdev_stat_ex_t *vsx = &vd->vdev_stat_ex;
+#endif
 	zio_type_t type = zio->io_type;
 	int flags = zio->io_flags;
 
