@@ -1056,57 +1056,42 @@ dmu_objset_create_impl_dnstats(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	dnode_t *mdn;
 
 	ASSERT(dmu_tx_is_syncing(tx));
+	ASSERT3P(ds, !=, NULL);
 
 	if (blksz == 0)
 		blksz = DNODE_BLOCK_SIZE;
 	if (ibs == 0)
 		ibs = DN_MAX_INDBLKSHIFT;
 
-	if (ds != NULL)
-		VERIFY0(dmu_objset_from_ds(ds, &os));
-	else
-		VERIFY0(dmu_objset_open_impl(spa, NULL, bp, &os));
+	VERIFY0(dmu_objset_from_ds(ds, &os));
 
 	mdn = DMU_META_DNODE(os);
 
 	dnode_allocate(mdn, DMU_OT_DNODE, blksz, ibs, DMU_OT_NONE, 0,
 	    DNODE_MIN_SLOTS, tx);
 
-	/*
-	 * We don't want to have to increase the meta-dnode's nlevels
-	 * later, because then we could do it in quiescing context while
-	 * we are also accessing it in open context.
-	 *
-	 * This precaution is not necessary for the MOS (ds == NULL),
-	 * because the MOS is only updated in syncing context.
-	 * This is most fortunate: the MOS is the only objset that
-	 * needs to be synced multiple times as spa_sync() iterates
-	 * to convergence, so minimizing its dn_nlevels matters.
-	 */
-	if (ds != NULL) {
-		if (levels == 0) {
-			levels = 1;
+	if (levels == 0) {
+		levels = 1;
 
-			/*
-			 * Determine the number of levels necessary for the
-			 * meta-dnode to contain DN_MAX_OBJECT dnodes.  Note
-			 * that in order to ensure that we do not overflow
-			 * 64 bits, there has to be a nlevels that gives us a
-			 * number of blocks > DN_MAX_OBJECT but < 2^64.
-			 * Therefore, (mdn->dn_indblkshift - SPA_BLKPTRSHIFT)
-			 * (10) must be less than (64 - log2(DN_MAX_OBJECT))
-			 * (16).
-			 */
-			while ((uint64_t)mdn->dn_nblkptr <<
-			    (mdn->dn_datablkshift - DNODE_SHIFT + (levels - 1) *
-			    (mdn->dn_indblkshift - SPA_BLKPTRSHIFT)) <
-			    DN_MAX_OBJECT)
-				levels++;
-		}
-
-		mdn->dn_next_nlevels[tx->tx_txg & TXG_MASK] =
-		    mdn->dn_nlevels = levels;
+		/*
+		 * Determine the number of levels necessary for the
+		 * meta-dnode to contain DN_MAX_OBJECT dnodes.  Note
+		 * that in order to ensure that we do not overflow
+		 * 64 bits, there has to be a nlevels that gives us a
+		 * number of blocks > DN_MAX_OBJECT but < 2^64.
+		 * Therefore, (mdn->dn_indblkshift - SPA_BLKPTRSHIFT)
+		 * (10) must be less than (64 - log2(DN_MAX_OBJECT))
+		 * (16).
+		 */
+		while ((uint64_t)mdn->dn_nblkptr <<
+		    (mdn->dn_datablkshift - DNODE_SHIFT + (levels - 1) *
+		    (mdn->dn_indblkshift - SPA_BLKPTRSHIFT)) <
+		    DN_MAX_OBJECT)
+			levels++;
 	}
+
+	mdn->dn_next_nlevels[tx->tx_txg & TXG_MASK] =
+	    mdn->dn_nlevels = levels;
 
 	ASSERT(type != DMU_OST_NONE);
 	ASSERT(type != DMU_OST_ANY);
@@ -1121,7 +1106,6 @@ dmu_objset_create_impl_dnstats(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	    (!os->os_encrypted || !dmu_objset_is_receiving(os))) {
 		os->os_phys->os_flags |= OBJSET_FLAG_USERACCOUNTING_COMPLETE;
 		if (dmu_objset_userobjused_enabled(os)) {
-			ASSERT3P(ds, !=, NULL);
 			ds->ds_feature_activation[
 			    SPA_FEATURE_USEROBJ_ACCOUNTING] = (void *)B_TRUE;
 			os->os_phys->os_flags |=
