@@ -1005,11 +1005,13 @@ dump_histogram(const uint64_t *histo, int size, int offset)
 	uint64_t max = 0;
 
 	for (i = 0; i < size; i++) {
+		if (histo[i] == 0)
+			continue;
 		if (histo[i] > max)
 			max = histo[i];
-		if (histo[i] > 0 && i > maxidx)
+		if (i > maxidx)
 			maxidx = i;
-		if (histo[i] > 0 && i < minidx)
+		if (i < minidx)
 			minidx = i;
 	}
 
