@@ -1279,7 +1279,7 @@ dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
 		 */
 
 		err = receive_read_payload_and_next_header(drc, payloadlen,
-			payload);
+		    payload);
 		if (err != 0) {
 			vmem_free(payload, payloadlen);
 			return (err);
@@ -3324,9 +3324,9 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 	}
 
 	/*
-	 * For compatibility with recursive send streams, we do this here, rather
-	 * than in dmu_recv_begin. If we pull the next header too early, and it's
-	 * the END record, we break the `recv_skip` logic.
+	 * For compatibility with recursive send streams, we do this here,
+	 * rather than in dmu_recv_begin. If we pull the next header too
+	 * early, and it's the END record, we break the `recv_skip` logic.
 	 */
 	if (drc->drc_drr_begin->drr_payloadlen == 0) {
 		err = receive_read_payload_and_next_header(drc, 0,
