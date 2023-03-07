@@ -25,7 +25,7 @@
 # 1. Create snapshots on source filesystem.
 # 2. Recursively send snapshots.
 # 3. Delete snapshot on source filesystem
-# 4. Perform incremental recursive send.,
+# 4. Perform incremental recursive send.
 # 5. Verify matching snapshot lists.
 #
 
@@ -34,7 +34,13 @@ verify_runnable "both"
 sendfs=$POOL/sendfs
 recvfs=$POOL2/recvfs
 
+function cleanup {
+	rm $BACKDIR/stream1
+	rm $BACKDIR/stream2
+}
+
 log_assert "Verify recursive incremental sends missing snapshots behave correctly."
+log_onexit cleanup
 
 log_must zfs create $sendfs
 log_must zfs snapshot $sendfs@A

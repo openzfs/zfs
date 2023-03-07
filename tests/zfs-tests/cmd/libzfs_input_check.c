@@ -549,6 +549,7 @@ test_recv_new(const char *dataset, int fd)
 	fnvlist_add_string(props, "org.openzfs:launch", "September 17th, 2013");
 	fnvlist_add_nvlist(optional, "localprops", props);
 	fnvlist_add_boolean(optional, "force");
+	fnvlist_add_boolean(optional, "heal");
 	fnvlist_add_int32(optional, "cleanup_fd", cleanup_fd);
 
 	/*
@@ -562,7 +563,7 @@ test_recv_new(const char *dataset, int fd)
 	fnvlist_add_uint64(optional, "action_handle", *action_handle);
 #endif
 	IOC_INPUT_TEST(ZFS_IOC_RECV_NEW, dataset, required, optional,
-	    ZFS_ERR_STREAM_TRUNCATED);
+	    ENOTSUP);
 
 	nvlist_free(props);
 	nvlist_free(optional);
