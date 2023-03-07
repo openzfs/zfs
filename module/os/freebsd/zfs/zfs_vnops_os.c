@@ -1624,7 +1624,8 @@ zfs_rmdir_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 
 	dmu_tx_commit(tx);
 
-	cache_vop_rmdir(dvp, vp);
+	if (zfsvfs->z_use_namecache)
+		cache_vop_rmdir(dvp, vp);
 out:
 	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, 0);
