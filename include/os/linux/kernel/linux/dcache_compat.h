@@ -40,6 +40,21 @@
 #endif
 
 /*
+ * Starting from Linux 5.13, flush_dcache_page() becomes an inline function
+ * and under some configurations, may indirectly referencing GPL-only
+ * cpu_feature_keys on powerpc. Override this function when it is detected
+ * being GPL-only.
+ */
+#if defined __powerpc__ && defined HAVE_FLUSH_DCACHE_PAGE_GPL_ONLY
+#include <linux/simd_powerpc.h>
+#define	flush_dcache_page(page)	do {					\
+		if (!cpu_has_feature(CPU_FTR_COHERENT_ICACHE) &&	\
+		    test_bit(PG_dcache_clean, &(page)->flags))		\
+			clear_bit(PG_dcache_clean, &(page)->flags);	\
+	} while (0)
+#endif
+
+/*
  * 2.6.30 API change,
  * The const keyword was added to the 'struct dentry_operations' in
  * the dentry structure.  To handle this we define an appropriate
