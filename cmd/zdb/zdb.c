@@ -7689,7 +7689,7 @@ dump_mos_leaks(spa_t *spa)
 	mos_obj_refd(spa->spa_errlog_last);
 	mos_obj_refd(spa->spa_errlog_scrub);
 
-	if (!spa_feature_is_enabled(spa, SPA_FEATURE_HEAD_ERRLOG)) {
+	if (spa_feature_is_enabled(spa, SPA_FEATURE_HEAD_ERRLOG)) {
 		errorlog_count_refd(mos, spa->spa_errlog_last);
 		errorlog_count_refd(mos, spa->spa_errlog_scrub);
 	}
