@@ -51,8 +51,12 @@ The values of numeric properties can be specified using human-readable suffixes
 .Sy k , KB , M , Gb ,
 and so forth, up to
 .Sy Z
-for zettabyte
+for zebibyte
 .Pc .
+The specified suffix will always be interpreted in binary factor; for example
+specifying
+.Sy M
+will multiply the value by 1,048,576 (2^20).
 The following are all valid
 .Pq and equal
 specifications:

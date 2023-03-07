@@ -75,8 +75,12 @@ The values of numeric properties can be specified using human-readable suffixes
 .Sy Gb ,
 and so forth, up to
 .Sy Z
-for zettabyte
+for zebibyte
 .Pc .
+The specified suffix will always be interpreted in binary factor; for example
+specifying
+.Sy M
+will multiply the value by 1,048,576 (2^20).
 The following are all valid
 .Pq and equal
 specifications:
@@ -1867,7 +1871,7 @@ Although under Linux the
 and
 .Xr setxattr 2
 system calls limit the maximum size to
-.Sy 64K .
+.Sy 64 KiB .
 This is the most compatible
 style of extended attribute and is supported by all ZFS implementations.
 .Pp
@@ -1877,7 +1881,7 @@ The key advantage of this type of xattr is improved performance.
 Storing extended attributes as system attributes
 significantly decreases the amount of disk I/O required.
 Up to
-.Sy 64K
+.Sy 64 KiB
 of data may be stored per-file in the space reserved for system attributes.
 If there is not enough space available for an extended attribute
 then it will be automatically written as a directory-based xattr.
