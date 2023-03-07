@@ -136,14 +136,14 @@ const sha512_ops_t sha512_ppc_impl = {
 	.name = "ppc"
 };
 
-static boolean_t sha512_have_vsx(void)
+static boolean_t sha512_have_isa207(void)
 {
-	return (kfpu_allowed() && zfs_vsx_available());
+	return (kfpu_allowed() && zfs_isa207_available());
 }
 
 TF(zfs_sha512_power8, tf_sha512_power8);
 const sha512_ops_t sha512_power8_impl = {
-	.is_supported = sha512_have_vsx,
+	.is_supported = sha512_have_isa207,
 	.transform = tf_sha512_power8,
 	.name = "power8"
 };

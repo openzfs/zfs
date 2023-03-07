@@ -151,9 +151,9 @@ const sha256_ops_t sha256_armv8_impl = {
 };
 
 #elif defined(__PPC64__)
-static boolean_t sha256_have_vsx(void)
+static boolean_t sha256_have_isa207(void)
 {
-	return (kfpu_allowed() && zfs_vsx_available());
+	return (kfpu_allowed() && zfs_isa207_available());
 }
 
 TF(zfs_sha256_ppc, tf_sha256_ppc);
@@ -165,7 +165,7 @@ const sha256_ops_t sha256_ppc_impl = {
 
 TF(zfs_sha256_power8, tf_sha256_power8);
 const sha256_ops_t sha256_power8_impl = {
-	.is_supported = sha256_have_vsx,
+	.is_supported = sha256_have_isa207,
 	.transform = tf_sha256_power8,
 	.name = "power8"
 };
