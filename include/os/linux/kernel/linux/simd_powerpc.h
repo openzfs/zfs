@@ -66,32 +66,46 @@
 #define	kfpu_allowed()			1
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
+#ifdef	CONFIG_ALTIVEC
+#define	ENABLE_KERNEL_ALTIVEC	enable_kernel_altivec()
+#define	DISABLE_KERNEL_ALTIVEC	disable_kernel_altivec()
+#else
+#define	ENABLE_KERNEL_ALTIVEC
+#define	DISABLE_KERNEL_ALTIVEC
+#endif
+#ifdef	CONFIG_VSX
+#define	ENABLE_KERNEL_VSX	enable_kernel_vsx()
+#define	DISABLE_KERNEL_VSX	disable_kernel_vsx()
+#else
+#define	ENABLE_KERNEL_VSX
+#define	DISABLE_KERNEL_VSX
+#endif
 #ifdef CONFIG_SPE
 #define	kfpu_begin()				\
 	{					\
 		preempt_disable();		\
-		enable_kernel_altivec();	\
-		enable_kernel_vsx();		\
+		ENABLE_KERNEL_ALTIVEC		\
+		ENABLE_KERNEL_VSX		\
 		enable_kernel_spe();		\
 	}
 #define	kfpu_end()				\
 	{					\
 		disable_kernel_spe();		\
-		disable_kernel_vsx();		\
-		disable_kernel_altivec();	\
+		DISABLE_KERNEL_VSX		\
+		DISABLE_KERNEL_ALTIVEC		\
 		preempt_enable();		\
 	}
 #else /* CONFIG_SPE */
 #define	kfpu_begin()				\
 	{					\
 		preempt_disable();		\
-		enable_kernel_altivec();	\
-		enable_kernel_vsx();		\
+		ENABLE_KERNEL_ALTIVEC		\
+		ENABLE_KERNEL_VSX		\
 	}
 #define	kfpu_end()				\
 	{					\
-		disable_kernel_vsx();		\
-		disable_kernel_altivec();	\
+		DISABLE_KERNEL_VSX		\
+		DISABLE_KERNEL_ALTIVEC		\
 		preempt_enable();		\
 	}
 #endif
