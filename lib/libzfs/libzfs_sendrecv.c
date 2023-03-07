@@ -5161,6 +5161,12 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 				    "stream."));
 			(void) zfs_error(hdl, EZFS_BADVERSION, errbuf);
 			break;
+		case ZFS_ERR_CRYPTO_NOTSUP:
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "stream uses crypto parameters not compatible with "
+			    "this pool"));
+			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
+			break;
 		case EDQUOT:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "destination %s space quota exceeded."), name);
