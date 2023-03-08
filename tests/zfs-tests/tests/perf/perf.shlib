@@ -485,7 +485,6 @@ function get_system_config
 		printf "  \"tunables\": {\n" >>$config
 		for tunable in \
 		    zfs_arc_max \
-		    zfs_arc_meta_limit \
 		    zfs_arc_sys_free \
 		    zfs_dirty_data_max \
 		    zfs_flags \

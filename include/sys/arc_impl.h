@@ -83,14 +83,17 @@ typedef struct arc_state {
 	 */
 	arc_state_type_t arcs_state;
 	/*
+	 * total amount of data in this state.
+	 */
+	zfs_refcount_t arcs_size[ARC_BUFC_NUMTYPES] ____cacheline_aligned;
+	/*
 	 * total amount of evictable data in this state
 	 */
-	zfs_refcount_t arcs_esize[ARC_BUFC_NUMTYPES] ____cacheline_aligned;
+	zfs_refcount_t arcs_esize[ARC_BUFC_NUMTYPES];
 	/*
-	 * total amount of data in this state; this includes: evictable,
-	 * non-evictable, ARC_BUFC_DATA, and ARC_BUFC_METADATA.
+	 * amount of hit bytes for this state (counted only for ghost states)
 	 */
-	zfs_refcount_t arcs_size;
+	wmsum_t arcs_hits[ARC_BUFC_NUMTYPES];
 } arc_state_t;
 
 typedef struct arc_callback arc_callback_t;
@@ -358,8 +361,9 @@ typedef struct l2arc_lb_ptr_buf {
 #define	L2BLK_SET_PREFETCH(field, x)	BF64_SET((field), 39, 1, x)
 #define	L2BLK_GET_CHECKSUM(field)	BF64_GET((field), 40, 8)
 #define	L2BLK_SET_CHECKSUM(field, x)	BF64_SET((field), 40, 8, x)
-#define	L2BLK_GET_TYPE(field)		BF64_GET((field), 48, 8)
-#define	L2BLK_SET_TYPE(field, x)	BF64_SET((field), 48, 8, x)
+/* +/- 1 here are to keep compatibility after ARC_BUFC_INVALID removal. */
+#define	L2BLK_GET_TYPE(field)		(BF64_GET((field), 48, 8) - 1)
+#define	L2BLK_SET_TYPE(field, x)	BF64_SET((field), 48, 8, (x) + 1)
 #define	L2BLK_GET_PROTECTED(field)	BF64_GET((field), 56, 1)
 #define	L2BLK_SET_PROTECTED(field, x)	BF64_SET((field), 56, 1, x)
 #define	L2BLK_GET_STATE(field)		BF64_GET((field), 57, 4)
@@ -582,7 +586,9 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_hash_collisions;
 	kstat_named_t arcstat_hash_chains;
 	kstat_named_t arcstat_hash_chain_max;
-	kstat_named_t arcstat_p;
+	kstat_named_t arcstat_meta;
+	kstat_named_t arcstat_pd;
+	kstat_named_t arcstat_pm;
 	kstat_named_t arcstat_c;
 	kstat_named_t arcstat_c_min;
 	kstat_named_t arcstat_c_max;
@@ -655,6 +661,8 @@ typedef struct arc_stats {
 	 * are all included in this value.
 	 */
 	kstat_named_t arcstat_anon_size;
+	kstat_named_t arcstat_anon_data;
+	kstat_named_t arcstat_anon_metadata;
 	/*
 	 * Number of bytes consumed by ARC buffers that meet the
 	 * following criteria: backing buffers of type ARC_BUFC_DATA,
@@ -676,6 +684,8 @@ typedef struct arc_stats {
 	 * are all included in this value.
 	 */
 	kstat_named_t arcstat_mru_size;
+	kstat_named_t arcstat_mru_data;
+	kstat_named_t arcstat_mru_metadata;
 	/*
 	 * Number of bytes consumed by ARC buffers that meet the
 	 * following criteria: backing buffers of type ARC_BUFC_DATA,
@@ -700,6 +710,8 @@ typedef struct arc_stats {
 	 * buffers *would have* consumed this number of bytes.
 	 */
 	kstat_named_t arcstat_mru_ghost_size;
+	kstat_named_t arcstat_mru_ghost_data;
+	kstat_named_t arcstat_mru_ghost_metadata;
 	/*
 	 * Number of bytes that *would have been* consumed by ARC
 	 * buffers that are eligible for eviction, of type
@@ -719,6 +731,8 @@ typedef struct arc_stats {
 	 * are all included in this value.
 	 */
 	kstat_named_t arcstat_mfu_size;
+	kstat_named_t arcstat_mfu_data;
+	kstat_named_t arcstat_mfu_metadata;
 	/*
 	 * Number of bytes consumed by ARC buffers that are eligible for
 	 * eviction, of type ARC_BUFC_DATA, and reside in the arc_mfu
@@ -737,6 +751,8 @@ typedef struct arc_stats {
 	 * arcstat_mru_ghost_size for more details.
 	 */
 	kstat_named_t arcstat_mfu_ghost_size;
+	kstat_named_t arcstat_mfu_ghost_data;
+	kstat_named_t arcstat_mfu_ghost_metadata;
 	/*
 	 * Number of bytes that *would have been* consumed by ARC
 	 * buffers that are eligible for eviction, of type
@@ -754,6 +770,8 @@ typedef struct arc_stats {
 	 * ARC_FLAG_UNCACHED being set.
 	 */
 	kstat_named_t arcstat_uncached_size;
+	kstat_named_t arcstat_uncached_data;
+	kstat_named_t arcstat_uncached_metadata;
 	/*
 	 * Number of data bytes that are going to be evicted from ARC due to
 	 * ARC_FLAG_UNCACHED being set.
@@ -876,10 +894,7 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_loaned_bytes;
 	kstat_named_t arcstat_prune;
 	kstat_named_t arcstat_meta_used;
-	kstat_named_t arcstat_meta_limit;
 	kstat_named_t arcstat_dnode_limit;
-	kstat_named_t arcstat_meta_max;
-	kstat_named_t arcstat_meta_min;
 	kstat_named_t arcstat_async_upgrade_sync;
 	/* Number of predictive prefetch requests. */
 	kstat_named_t arcstat_predictive_prefetch;
@@ -942,7 +957,7 @@ typedef struct arc_sums {
 	wmsum_t arcstat_data_size;
 	wmsum_t arcstat_metadata_size;
 	wmsum_t arcstat_dbuf_size;
-	aggsum_t arcstat_dnode_size;
+	wmsum_t arcstat_dnode_size;
 	wmsum_t arcstat_bonus_size;
 	wmsum_t arcstat_l2_hits;
 	wmsum_t arcstat_l2_misses;
@@ -987,7 +1002,7 @@ typedef struct arc_sums {
 	wmsum_t arcstat_memory_direct_count;
 	wmsum_t arcstat_memory_indirect_count;
 	wmsum_t arcstat_prune;
-	aggsum_t arcstat_meta_used;
+	wmsum_t arcstat_meta_used;
 	wmsum_t arcstat_async_upgrade_sync;
 	wmsum_t arcstat_predictive_prefetch;
 	wmsum_t arcstat_demand_hit_predictive_prefetch;
@@ -1015,7 +1030,9 @@ typedef struct arc_evict_waiter {
 #define	ARCSTAT_BUMPDOWN(stat)	ARCSTAT_INCR(stat, -1)
 
 #define	arc_no_grow	ARCSTAT(arcstat_no_grow) /* do not grow cache size */
-#define	arc_p		ARCSTAT(arcstat_p)	/* target size of MRU */
+#define	arc_meta	ARCSTAT(arcstat_meta)	/* target frac of metadata */
+#define	arc_pd		ARCSTAT(arcstat_pd)	/* target frac of data MRU */
+#define	arc_pm		ARCSTAT(arcstat_pm)	/* target frac of meta MRU */
 #define	arc_c		ARCSTAT(arcstat_c)	/* target size of cache */
 #define	arc_c_min	ARCSTAT(arcstat_c_min)	/* min target cache size */
 #define	arc_c_max	ARCSTAT(arcstat_c_max)	/* max target cache size */
