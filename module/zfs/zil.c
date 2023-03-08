@@ -1287,8 +1287,6 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 	itx_t *itx;
 	uint64_t txg;
 
-	spa_config_exit(zilog->zl_spa, SCL_STATE, lwb);
-
 	zio_buf_free(lwb->lwb_buf, lwb->lwb_sz);
 
 	mutex_enter(&zilog->zl_lock);
@@ -1427,8 +1425,6 @@ zil_lwb_write_done(zio_t *zio)
 	zil_vdev_node_t *zv;
 	lwb_t *nlwb;
 
-	ASSERT3S(spa_config_held(spa, SCL_STATE, RW_READER), !=, 0);
-
 	ASSERT(BP_GET_COMPRESS(zio->io_bp) == ZIO_COMPRESS_OFF);
 	ASSERT(BP_GET_TYPE(zio->io_bp) == DMU_OT_INTENT_LOG);
 	ASSERT(BP_GET_LEVEL(zio->io_bp) == 0);
@@ -1490,6 +1486,7 @@ zil_lwb_write_done(zio_t *zio)
 		return;
 	}
 
+	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
 	while ((zv = avl_destroy_nodes(t, &cookie)) != NULL) {
 		vdev_t *vd = vdev_lookup_top(spa, zv->zv_vdev);
 		if (vd != NULL) {
@@ -1505,6 +1502,7 @@ zil_lwb_write_done(zio_t *zio)
 		}
 		kmem_free(zv, sizeof (*zv));
 	}
+	spa_config_exit(spa, SCL_STATE, FTAG);
 }
 
 static void
@@ -1782,8 +1780,6 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 	 * clear unused data for security
 	 */
 	memset(lwb->lwb_buf + lwb->lwb_nused, 0, wsz - lwb->lwb_nused);
-
-	spa_config_enter(zilog->zl_spa, SCL_STATE, lwb, RW_READER);
 
 	zil_lwb_add_block(lwb, &lwb->lwb_blk);
 	lwb->lwb_issued_timestamp = gethrtime();
