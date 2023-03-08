@@ -103,7 +103,14 @@ top:
  * Iterate over all child filesystems
  */
 int
-zfs_iter_filesystems(zfs_handle_t *zhp, int flags, zfs_iter_f func, void *data)
+zfs_iter_filesystems(zfs_handle_t *zhp, zfs_iter_f func, void *data)
+{
+	return (zfs_iter_filesystems_v2(zhp, 0, func, data));
+}
+
+int
+zfs_iter_filesystems_v2(zfs_handle_t *zhp, int flags, zfs_iter_f func,
+    void *data)
 {
 	zfs_cmd_t zc = {"\0"};
 	zfs_handle_t *nzhp;
@@ -143,7 +150,15 @@ zfs_iter_filesystems(zfs_handle_t *zhp, int flags, zfs_iter_f func, void *data)
  * Iterate over all snapshots
  */
 int
-zfs_iter_snapshots(zfs_handle_t *zhp, int flags, zfs_iter_f func,
+zfs_iter_snapshots(zfs_handle_t *zhp, boolean_t simple, zfs_iter_f func,
+    void *data, uint64_t min_txg, uint64_t max_txg)
+{
+	return (zfs_iter_snapshots_v2(zhp, simple ? ZFS_ITER_SIMPLE : 0, func,
+	    data, min_txg, max_txg));
+}
+
+int
+zfs_iter_snapshots_v2(zfs_handle_t *zhp, int flags, zfs_iter_f func,
     void *data, uint64_t min_txg, uint64_t max_txg)
 {
 	zfs_cmd_t zc = {"\0"};
@@ -197,7 +212,13 @@ zfs_iter_snapshots(zfs_handle_t *zhp, int flags, zfs_iter_f func,
  * Iterate over all bookmarks
  */
 int
-zfs_iter_bookmarks(zfs_handle_t *zhp, int flags __maybe_unused,
+zfs_iter_bookmarks(zfs_handle_t *zhp, zfs_iter_f func, void *data)
+{
+	return (zfs_iter_bookmarks_v2(zhp, 0, func, data));
+}
+
+int
+zfs_iter_bookmarks_v2(zfs_handle_t *zhp, int flags __maybe_unused,
     zfs_iter_f func, void *data)
 {
 	zfs_handle_t *nzhp;
@@ -305,7 +326,15 @@ zfs_snapshot_compare(const void *larg, const void *rarg)
 }
 
 int
-zfs_iter_snapshots_sorted(zfs_handle_t *zhp, int flags, zfs_iter_f callback,
+zfs_iter_snapshots_sorted(zfs_handle_t *zhp, zfs_iter_f callback,
+    void *data, uint64_t min_txg, uint64_t max_txg)
+{
+	return (zfs_iter_snapshots_sorted_v2(zhp, 0, callback, data,
+	    min_txg, max_txg));
+}
+
+int
+zfs_iter_snapshots_sorted_v2(zfs_handle_t *zhp, int flags, zfs_iter_f callback,
     void *data, uint64_t min_txg, uint64_t max_txg)
 {
 	int ret = 0;
@@ -316,7 +345,7 @@ zfs_iter_snapshots_sorted(zfs_handle_t *zhp, int flags, zfs_iter_f callback,
 	avl_create(&avl, zfs_snapshot_compare,
 	    sizeof (zfs_node_t), offsetof(zfs_node_t, zn_avlnode));
 
-	ret = zfs_iter_snapshots(zhp, flags, zfs_sort_snaps, &avl, min_txg,
+	ret = zfs_iter_snapshots_v2(zhp, flags, zfs_sort_snaps, &avl, min_txg,
 	    max_txg);
 
 	for (node = avl_first(&avl); node != NULL; node = AVL_NEXT(&avl, node))
@@ -379,7 +408,14 @@ snapspec_cb(zfs_handle_t *zhp, void *arg)
  * return ENOENT at the end.
  */
 int
-zfs_iter_snapspec(zfs_handle_t *fs_zhp, int flags, const char *spec_orig,
+zfs_iter_snapspec(zfs_handle_t *fs_zhp, const char *spec_orig,
+    zfs_iter_f func, void *arg)
+{
+	return (zfs_iter_snapspec_v2(fs_zhp, 0, spec_orig, func, arg));
+}
+
+int
+zfs_iter_snapspec_v2(zfs_handle_t *fs_zhp, int flags, const char *spec_orig,
     zfs_iter_f func, void *arg)
 {
 	char *buf, *comma_separated, *cp;
@@ -419,7 +455,7 @@ zfs_iter_snapspec(zfs_handle_t *fs_zhp, int flags, const char *spec_orig,
 				}
 			}
 
-			err = zfs_iter_snapshots_sorted(fs_zhp, flags,
+			err = zfs_iter_snapshots_sorted_v2(fs_zhp, flags,
 			    snapspec_cb, &ssa, 0, 0);
 			if (ret == 0)
 				ret = err;
@@ -456,14 +492,20 @@ zfs_iter_snapspec(zfs_handle_t *fs_zhp, int flags, const char *spec_orig,
  * and as close as possible.
  */
 int
-zfs_iter_children(zfs_handle_t *zhp, int flags, zfs_iter_f func, void *data)
+zfs_iter_children(zfs_handle_t *zhp, zfs_iter_f func, void *data)
+{
+	return (zfs_iter_children_v2(zhp, 0, func, data));
+}
+
+int
+zfs_iter_children_v2(zfs_handle_t *zhp, int flags, zfs_iter_f func, void *data)
 {
 	int ret;
 
-	if ((ret = zfs_iter_snapshots(zhp, flags, func, data, 0, 0)) != 0)
+	if ((ret = zfs_iter_snapshots_v2(zhp, flags, func, data, 0, 0)) != 0)
 		return (ret);
 
-	return (zfs_iter_filesystems(zhp, flags, func, data));
+	return (zfs_iter_filesystems_v2(zhp, flags, func, data));
 }
 
 
@@ -524,10 +566,10 @@ iter_dependents_cb(zfs_handle_t *zhp, void *arg)
 		isf.zhp = zhp;
 		isf.next = ida->stack;
 		ida->stack = &isf;
-		err = zfs_iter_filesystems(zhp, ida->flags,
+		err = zfs_iter_filesystems_v2(zhp, ida->flags,
 		    iter_dependents_cb, ida);
 		if (err == 0)
-			err = zfs_iter_snapshots(zhp, ida->flags,
+			err = zfs_iter_snapshots_v2(zhp, ida->flags,
 			    iter_dependents_cb, ida, 0, 0);
 		ida->stack = isf.next;
 	}
@@ -541,7 +583,14 @@ iter_dependents_cb(zfs_handle_t *zhp, void *arg)
 }
 
 int
-zfs_iter_dependents(zfs_handle_t *zhp, int flags, boolean_t allowrecursion,
+zfs_iter_dependents(zfs_handle_t *zhp, boolean_t allowrecursion,
+    zfs_iter_f func, void *data)
+{
+	return (zfs_iter_dependents_v2(zhp, 0, allowrecursion, func, data));
+}
+
+int
+zfs_iter_dependents_v2(zfs_handle_t *zhp, int flags, boolean_t allowrecursion,
     zfs_iter_f func, void *data)
 {
 	iter_dependents_arg_t ida;

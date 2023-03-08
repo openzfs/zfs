@@ -288,7 +288,7 @@ send_iterate_prop(zfs_handle_t *zhp, boolean_t received_only, nvlist_t *nv);
 
 /*
  * Collect guid, valid props, optionally holds, etc. of a snapshot.
- * This interface is intended for use as a zfs_iter_snapshots_sorted visitor.
+ * This interface is intended for use as a zfs_iter_snapshots_v2_sorted visitor.
  */
 static int
 send_iterate_snap(zfs_handle_t *zhp, void *arg)
@@ -619,8 +619,8 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 			min_txg = fromsnap_txg;
 		if (!sd->replicate && tosnap_txg != 0)
 			max_txg = tosnap_txg;
-		(void) zfs_iter_snapshots_sorted(zhp, 0, send_iterate_snap, sd,
-		    min_txg, max_txg);
+		(void) zfs_iter_snapshots_sorted_v2(zhp, 0, send_iterate_snap,
+		    sd, min_txg, max_txg);
 	} else {
 		char snapname[MAXPATHLEN] = { 0 };
 		zfs_handle_t *snap;
@@ -662,7 +662,7 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 
 	/* Iterate over children. */
 	if (sd->recursive)
-		rv = zfs_iter_filesystems(zhp, 0, send_iterate_fs, sd);
+		rv = zfs_iter_filesystems_v2(zhp, 0, send_iterate_fs, sd);
 
 out:
 	/* Restore saved fields. */
@@ -1083,7 +1083,7 @@ send_print_verbose(FILE *fout, const char *tosnap, const char *fromsnap,
 
 /*
  * Send a single filesystem snapshot, updating the send dump data.
- * This interface is intended for use as a zfs_iter_snapshots_sorted visitor.
+ * This interface is intended for use as a zfs_iter_snapshots_v2_sorted visitor.
  */
 static int
 dump_snapshot(zfs_handle_t *zhp, void *arg)
@@ -1293,7 +1293,7 @@ dump_filesystem(zfs_handle_t *zhp, send_dump_data_t *sdd)
 				    zhp->zfs_name, sdd->tosnap);
 			}
 		}
-		rv = zfs_iter_snapshots_sorted(zhp, 0, dump_snapshot, sdd,
+		rv = zfs_iter_snapshots_sorted_v2(zhp, 0, dump_snapshot, sdd,
 		    min_txg, max_txg);
 	} else {
 		char snapname[MAXPATHLEN] = { 0 };
@@ -3162,9 +3162,9 @@ guid_to_name_cb(zfs_handle_t *zhp, void *arg)
 		return (EEXIST);
 	}
 
-	err = zfs_iter_children(zhp, 0, guid_to_name_cb, gtnd);
+	err = zfs_iter_children_v2(zhp, 0, guid_to_name_cb, gtnd);
 	if (err != EEXIST && gtnd->bookmark_ok)
-		err = zfs_iter_bookmarks(zhp, 0, guid_to_name_cb, gtnd);
+		err = zfs_iter_bookmarks_v2(zhp, 0, guid_to_name_cb, gtnd);
 	zfs_close(zhp);
 	return (err);
 }
@@ -3218,9 +3218,10 @@ guid_to_name_redact_snaps(libzfs_handle_t *hdl, const char *parent,
 			continue;
 		int err = guid_to_name_cb(zfs_handle_dup(zhp), &gtnd);
 		if (err != EEXIST)
-			err = zfs_iter_children(zhp, 0, guid_to_name_cb, &gtnd);
+			err = zfs_iter_children_v2(zhp, 0, guid_to_name_cb,
+			    &gtnd);
 		if (err != EEXIST && bookmark_ok)
-			err = zfs_iter_bookmarks(zhp, 0, guid_to_name_cb,
+			err = zfs_iter_bookmarks_v2(zhp, 0, guid_to_name_cb,
 			    &gtnd);
 		zfs_close(zhp);
 		if (err == EEXIST)
