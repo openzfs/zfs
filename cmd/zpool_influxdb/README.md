@@ -178,8 +178,8 @@ of I/Os by type and vdev.
 ### zpool_io_size Histogram
 ZFS tracks I/O throughout the ZIO pipeline. The size of each I/O is used
 to create a histogram of the size by I/O type and vdev. For example, a
-4KiB write to mirrored pool will show a 4KiB write to the top-level vdev
-(root) and a 4KiB write to each of the mirror leaf vdevs.
+4KB write to mirrored pool will show a 4KB write to the top-level vdev
+(root) and a 4KB write to each of the mirror leaf vdevs.
 
 The ZIO pipeline can aggregate I/O operations. For example, a contiguous
 series of writes can be aggregated into a single, larger I/O to the leaf
@@ -190,8 +190,8 @@ The histogram fields show cumulative values from lowest to highest.
 The largest bucket is tagged "le=+Inf", representing the total count
 of I/Os by type and vdev.
 
-Note: trim I/Os can be larger than 16MiB, but the larger sizes are
-accounted in the 16MiB bucket.
+Note: trim I/Os can be larger than 16MB, but the larger sizes are
+accounted in the 16MB bucket.
 
 #### zpool_io_size Histogram Tags
 | label | description |

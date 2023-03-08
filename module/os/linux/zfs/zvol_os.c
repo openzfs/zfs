@@ -954,8 +954,8 @@ zvol_os_clear_private(zvol_state_t *zv)
 
 /*
  * Provide a simple virtual geometry for legacy compatibility.  For devices
- * smaller than 1 MiB a small head and sector count is used to allow very
- * tiny devices.  For devices over 1 Mib a standard head and sector count
+ * smaller than 1 MB a small head and sector count is used to allow very
+ * tiny devices.  For devices over 1 Mb a standard head and sector count
  * is used to keep the cylinders count reasonable.
  */
 static int

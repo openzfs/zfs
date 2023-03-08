@@ -145,8 +145,8 @@ zpl_statfs(struct dentry *dentry, struct kstatfs *statp)
 
 	/*
 	 * If required by a 32-bit system call, dynamically scale the
-	 * block size up to 16MiB and decrease the block counts.  This
-	 * allows for a maximum size of 64EiB to be reported.  The file
+	 * block size up to 16MB and decrease the block counts.  This
+	 * allows for a maximum size of 64EB to be reported.  The file
 	 * counts must be artificially capped at 2^32-1.
 	 */
 	if (unlikely(zpl_is_32bit_api())) {

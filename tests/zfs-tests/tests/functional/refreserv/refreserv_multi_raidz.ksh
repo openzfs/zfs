@@ -82,7 +82,7 @@ log_note "Testing in ashift=${allshifts[0]} mode"
 typeset -A sizes=
 
 #
-# Determine the refreservation for a $volsize MiB volume on each raidz type at
+# Determine the refreservation for a $volsize MB volume on each raidz type at
 # various block sizes.
 #
 for parity in 1 2 3; do

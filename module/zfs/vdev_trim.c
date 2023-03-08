@@ -94,7 +94,7 @@
  */
 
 /*
- * Maximum size of TRIM I/O, ranges will be chunked in to 128MiB lengths.
+ * Maximum size of TRIM I/O, ranges will be chunked in to 128MB lengths.
  */
 static unsigned int zfs_trim_extent_bytes_max = 128 * 1024 * 1024;
 

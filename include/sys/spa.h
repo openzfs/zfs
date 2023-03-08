@@ -77,7 +77,7 @@ struct dsl_crypto_params;
  * which can only be set at vdev creation time. Physical writes are always done
  * according to it, which makes 2^ashift the smallest possible IO on a vdev.
  *
- * We currently allow values ranging from 512 bytes (2^9 = 512) to 64 KiB
+ * We currently allow values ranging from 512 bytes (2^9 = 512) to 64 KB
  * (2^16 = 65,536).
  */
 #define	ASHIFT_MIN		9

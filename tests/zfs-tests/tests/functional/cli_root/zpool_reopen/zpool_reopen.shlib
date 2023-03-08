@@ -47,7 +47,7 @@ function set_removed_disk
 }
 
 #
-# Generate random file of the given size in MiB
+# Generate random file of the given size in MB
 #
 function generate_random_file #path size_mb
 {

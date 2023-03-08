@@ -303,19 +303,19 @@ def draw_graph(kstats_dict):
 
 def f_bytes(byte_string):
     """Return human-readable representation of a byte value in
-    powers of 2 (eg "KiB" for "kibibytes", etc) to two decimal
-    points. Values smaller than one KiB are returned without
+    powers of 2 (eg "KB" for "kilobytes", etc) to two decimal
+    points. Values smaller than one KB are returned without
     decimal points. Note "bytes" is a reserved keyword.
     """
 
-    prefixes = ([2**80, "YiB"],   # yobibytes (yotta)
-                [2**70, "ZiB"],   # zebibytes (zetta)
-                [2**60, "EiB"],   # exbibytes (exa)
-                [2**50, "PiB"],   # pebibytes (peta)
-                [2**40, "TiB"],   # tebibytes (tera)
-                [2**30, "GiB"],   # gibibytes (giga)
-                [2**20, "MiB"],   # mebibytes (mega)
-                [2**10, "KiB"])   # kibibytes (kilo)
+    prefixes = ([2**80, "YB"],   # yottabytes (yotta)
+                [2**70, "ZB"],   # zettabytes (zetta)
+                [2**60, "EB"],   # exabytes (exa)
+                [2**50, "PB"],   # petabytes (peta)
+                [2**40, "TB"],   # terabytes (tera)
+                [2**30, "GB"],   # gigabytes (giga)
+                [2**20, "MB"],   # megabytes (mega)
+                [2**10, "KB"])   # kilobytes (kilo)
 
     bites = int(byte_string)
 

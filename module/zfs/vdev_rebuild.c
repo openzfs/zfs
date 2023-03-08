@@ -102,7 +102,7 @@
 
 
 /*
- * Size of rebuild reads; defaults to 1MiB per data disk and is capped at
+ * Size of rebuild reads; defaults to 1MB per data disk and is capped at
  * SPA_MAXBLOCKSIZE.
  */
 static uint64_t zfs_rebuild_max_segment = 1024 * 1024;

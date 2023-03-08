@@ -1268,7 +1268,7 @@ scan_ds_queue_sync(dsl_scan_t *scn, dmu_tx_t *tx)
  *	I/Os to reduce memory usage.
  *	This limit is calculated as a fraction of physmem (by default 5%).
  *	We constrain the lower bound of the hard limit to an absolute
- *	minimum of zfs_scan_mem_lim_min (default: 16 MiB). We also constrain
+ *	minimum of zfs_scan_mem_lim_min (default: 16 MB). We also constrain
  *	the upper bound to 5% of the total pool size - no chance we'll
  *	ever need that much memory, but just to keep the value in check.
  * 2) Soft memory limit: once we hit the hard memory limit, we start
@@ -1283,10 +1283,10 @@ scan_ds_queue_sync(dsl_scan_t *scn, dmu_tx_t *tx)
  *	limit from the hard limit. By default this fraction is 5%, so
  *	the soft limit is 95% of the hard limit. We cap the size of the
  *	difference between the hard and soft limits at an absolute
- *	maximum of zfs_scan_mem_lim_soft_max (default: 128 MiB) - this is
+ *	maximum of zfs_scan_mem_lim_soft_max (default: 128 MB) - this is
  *	sufficient to not cause too frequent switching between the
- *	metadata scan and I/O issue (even at 2k recordsize, 128 MiB's
- *	worth of queues is about 1.2 GiB of on-pool data, so scanning
+ *	metadata scan and I/O issue (even at 2k recordsize, 128 MB's
+ *	worth of queues is about 1.2 GB of on-pool data, so scanning
  *	that should take at least a decent fraction of a second).
  */
 static boolean_t
@@ -4168,8 +4168,8 @@ scan_exec_io(dsl_pool_t *dp, const blkptr_t *bp, int zio_flags,
  * SCORE = FILL_IN_BYTES + (FILL_IN_PERCENT * FILL_IN_BYTES * FILL_WEIGHT)
  *
  * Example:
- * 1) assume extsz = 64 MiB
- * 2) assume fill = 32 MiB (extent is half full)
+ * 1) assume extsz = 64 MB
+ * 2) assume fill = 32 MB (extent is half full)
  * 3) assume fill_weight = 3
  * 4)	SCORE = 32M + (((32M * 100) / 64M) * 3 * 32M) / 100
  *	SCORE = 32M + (50 * 3 * 32M) / 100

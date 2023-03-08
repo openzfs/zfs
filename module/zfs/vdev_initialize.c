@@ -41,7 +41,7 @@ static uint64_t zfs_initialize_value = 0xdeadbeefdeadbeeeULL;
 /* maximum number of I/Os outstanding per leaf vdev */
 static const int zfs_initialize_limit = 1;
 
-/* size of initializing writes; default 1MiB, see zfs_remove_max_segment */
+/* size of initializing writes; default 1MB, see zfs_remove_max_segment */
 static uint64_t zfs_initialize_chunk_size = 1024 * 1024;
 
 static boolean_t

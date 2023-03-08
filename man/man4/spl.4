@@ -47,7 +47,7 @@ Conversely, a smaller value will minimize the footprint
 and improve cache reclaim time but individual allocations may take longer.
 .
 .It Sy spl_kmem_cache_max_size Ns = Ns Sy 32 Po 64-bit Pc or Sy 4 Po 32-bit Pc Pq uint
-The maximum size of a kmem cache slab in MiB.
+The maximum size of a kmem cache slab in MB.
 This effectively limits the maximum cache object size to
 .Sy spl_kmem_cache_max_size Ns / Ns Sy spl_kmem_cache_obj_per_slab .
 .Pp

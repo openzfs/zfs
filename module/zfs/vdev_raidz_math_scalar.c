@@ -62,7 +62,7 @@ typedef union {
  * they are faster to obtain while solving the syndrome equations.
  *
  * PERFORMANCE NOTE:
- * Even though the complete lookup table uses 64kiB, only relatively small
+ * Even though the complete lookup table uses 64kB, only relatively small
  * portion of it is used at the same time. Following shows number of accessed
  * bytes for different cases:
  * 	- 1 failed disk: 256B (1 mul. coefficient)

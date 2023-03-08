@@ -542,7 +542,7 @@ fletcher_4_incremental_combine(zio_cksum_t *zcp, const uint64_t size,
 	const uint64_t c3 = c2 * (c1 + 2) / 3;
 
 	/*
-	 * Value of 'c3' overflows on buffer sizes close to 16MiB. For that
+	 * Value of 'c3' overflows on buffer sizes close to 16MB. For that
 	 * reason we split incremental fletcher4 computation of large buffers
 	 * to steps of (ZFS_FLETCHER_4_INC_MAX_SIZE) size.
 	 */
@@ -748,7 +748,7 @@ fletcher_4_benchmark(void)
 	fletcher_4_supp_impls_cnt = c;	/* number of supported impl */
 
 #if defined(_KERNEL)
-	static const size_t data_size = 1 << SPA_OLD_MAXBLOCKSHIFT; /* 128kiB */
+	static const size_t data_size = 1 << SPA_OLD_MAXBLOCKSHIFT; /* 128kB */
 	char *databuf = vmem_alloc(data_size, KM_SLEEP);
 
 	for (i = 0; i < data_size / sizeof (uint64_t); i++)

@@ -2,7 +2,7 @@
 
 set -eu
 
-# remove 4GiB of images
+# remove 4GB of images
 sudo systemd-run docker system prune --force --all --volumes
 
 # remove unused software

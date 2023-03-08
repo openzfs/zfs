@@ -46,7 +46,7 @@ function histo_populate_test_pool
 
 	set -A recordsizes
 	typeset -i min_rsbits=9 #512
-	typeset -i max_rsbits=SPA_MAXBLOCKSHIFT #16 MiB
+	typeset -i max_rsbits=SPA_MAXBLOCKSHIFT #16 MB
 	typeset -i sum_filesizes=0
 	re_number='^[0-9]+$'
 
