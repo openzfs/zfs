@@ -37,6 +37,8 @@ recvfs=$POOL2/recvfs
 function cleanup {
 	rm $BACKDIR/stream1
 	rm $BACKDIR/stream2
+	zfs destroy -r $sendfs
+	zfs destroy -r $recvfs
 }
 
 log_assert "Verify recursive incremental sends missing snapshots behave correctly."
