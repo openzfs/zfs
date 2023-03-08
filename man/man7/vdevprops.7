@@ -62,6 +62,15 @@ The following are all valid
 specifications:
 .Li 1536M , 1.5g , 1.50GB .
 .Pp
+When displaying properties for sizes in human-readable mode, to conserve
+display space, values will be printed in powers of 1024, with a single letter
+indicating the multiples followed immediately after the value.
+For example a human-readable output of the
+.Sy allocated
+property
+.Ar 16.0G
+means 16.0 GiB, which approximately equals to 17,179,869,184 byte.
+.Pp
 The values of non-numeric properties are case sensitive and must be lowercase.
 .Pp
 The following native properties consist of read-only statistics about the

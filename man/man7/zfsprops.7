@@ -86,6 +86,15 @@ The following are all valid
 specifications:
 .Li 1536M, 1.5g, 1.50GB .
 .Pp
+When displaying properties for sizes in human-readable mode, to conserve
+display space, values will be printed in powers of 1024, with a single letter
+indicating the multiples followed immediately after the value.
+For example a human-readable output of the
+.Sy recordsize
+property
+.Ar 128K
+means 128 KiB, which equals to 131,072 byte.
+.Pp
 The values of non-numeric properties are case sensitive and must be lowercase,
 except for
 .Sy mountpoint ,

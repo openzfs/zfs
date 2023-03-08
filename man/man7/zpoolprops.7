@@ -40,6 +40,15 @@ Each pool has several properties associated with it.
 Some properties are read-only statistics while others are configurable and
 change the behavior of the pool.
 .Pp
+When displaying properties for sizes in human-readable mode, to conserve
+display space, values will be printed in powers of 1024, with a single letter
+indicating the multiples followed immediately after the value.
+For example a human-readable output of the
+.Sy allocated
+property
+.Ar 16.0G
+means 16.0 GiB, which approximately equals to 17,179,869,184 byte.
+.Pp
 The following are read-only properties:
 .Bl -tag -width "unsupported@guid"
 .It Cm allocated
