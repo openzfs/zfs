@@ -358,7 +358,7 @@ def f_hits(hits_string):
                 value = hits/limit
                 break
 
-        result = "%0.1f%s" % (value, symbol)
+        result = "%0.1f %s" % (value, symbol)
     else:
         result = "%d" % hits
 
