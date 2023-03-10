@@ -24,6 +24,7 @@
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
+ * Copyright (c) 2021, 2022 by Pawel Jakub Dawidek
  */
 
 /* Portions Copyright 2007 Jeremy Teo */
@@ -50,6 +51,7 @@
 #include <sys/txg.h>
 #include <sys/dbuf.h>
 #include <sys/policy.h>
+#include <sys/zfeature.h>
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_quota.h>
 #include <sys/zfs_vfsops.h>
@@ -501,7 +503,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		lr = zfs_rangelock_enter(&zp->z_rangelock, woff, n, RL_WRITER);
 	}
 
-	if (zn_rlimit_fsize(zp, uio)) {
+	if (zn_rlimit_fsize_uio(zp, uio)) {
 		zfs_rangelock_exit(lr);
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EFBIG));
@@ -995,6 +997,467 @@ zfs_get_done(zgd_t *zgd, int error)
 	kmem_free(zgd, sizeof (zgd_t));
 }
 
+static int
+zfs_enter_two(zfsvfs_t *zfsvfs1, zfsvfs_t *zfsvfs2, const char *tag)
+{
+	int error;
+
+	/* Swap. Not sure if the order of zfs_enter()s is important. */
+	if (zfsvfs1 > zfsvfs2) {
+		zfsvfs_t *tmpzfsvfs;
+
+		tmpzfsvfs = zfsvfs2;
+		zfsvfs2 = zfsvfs1;
+		zfsvfs1 = tmpzfsvfs;
+	}
+
+	error = zfs_enter(zfsvfs1, tag);
+	if (error != 0)
+		return (error);
+	if (zfsvfs1 != zfsvfs2) {
+		error = zfs_enter(zfsvfs2, tag);
+		if (error != 0) {
+			zfs_exit(zfsvfs1, tag);
+			return (error);
+		}
+	}
+
+	return (0);
+}
+
+static void
+zfs_exit_two(zfsvfs_t *zfsvfs1, zfsvfs_t *zfsvfs2, const char *tag)
+{
+
+	zfs_exit(zfsvfs1, tag);
+	if (zfsvfs1 != zfsvfs2)
+		zfs_exit(zfsvfs2, tag);
+}
+
+/*
+ * We split each clone request in chunks that can fit into a single ZIL
+ * log entry. Each ZIL log entry can fit 130816 bytes for a block cloning
+ * operation (see zil_max_log_data() and zfs_log_clone_range()). This gives
+ * us room for storing 1022 block pointers.
+ *
+ * On success, the function return the number of bytes copied in *lenp.
+ * Note, it doesn't return how much bytes are left to be copied.
+ */
+int
+zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
+    uint64_t *outoffp, uint64_t *lenp, cred_t *cr)
+{
+	zfsvfs_t	*inzfsvfs, *outzfsvfs;
+	objset_t	*inos, *outos;
+	zfs_locked_range_t *inlr, *outlr;
+	dmu_buf_impl_t	*db;
+	dmu_tx_t	*tx;
+	zilog_t		*zilog;
+	uint64_t	inoff, outoff, len, done;
+	uint64_t	outsize, size;
+	int		error;
+	int		count = 0;
+	sa_bulk_attr_t	bulk[3];
+	uint64_t	mtime[2], ctime[2];
+	uint64_t	uid, gid, projid;
+	blkptr_t	*bps;
+	size_t		maxblocks, nbps;
+	uint_t		inblksz;
+	uint64_t	clear_setid_bits_txg = 0;
+
+	inoff = *inoffp;
+	outoff = *outoffp;
+	len = *lenp;
+	done = 0;
+
+	inzfsvfs = ZTOZSB(inzp);
+	outzfsvfs = ZTOZSB(outzp);
+	inos = inzfsvfs->z_os;
+	outos = outzfsvfs->z_os;
+
+	/*
+	 * Both source and destination have to belong to the same storage pool.
+	 */
+	if (dmu_objset_spa(inos) != dmu_objset_spa(outos)) {
+		zfs_exit_two(inzfsvfs, outzfsvfs, FTAG);
+		return (SET_ERROR(EXDEV));
+	}
+
+	/*
+	 * We need to call zfs_enter() potentially on two different datasets,
+	 * so we need a dedicated function for that.
+	 */
+	error = zfs_enter_two(inzfsvfs, outzfsvfs, FTAG);
+	if (error != 0)
+		return (error);
+
+	ASSERT(!outzfsvfs->z_replay);
+
+	error = zfs_verify_zp(inzp);
+	if (error == 0)
+		error = zfs_verify_zp(outzp);
+	if (error != 0) {
+		zfs_exit_two(inzfsvfs, outzfsvfs, FTAG);
+		return (error);
+	}
+
+	if (!spa_feature_is_enabled(dmu_objset_spa(outos),
+	    SPA_FEATURE_BLOCK_CLONING)) {
+		zfs_exit_two(inzfsvfs, outzfsvfs, FTAG);
+		return (SET_ERROR(EXDEV));
+	}
+
+	/*
+	 * We don't copy source file's flags that's why we don't allow to clone
+	 * files that are in quarantine.
+	 */
+	if (inzp->z_pflags & ZFS_AV_QUARANTINED) {
+		zfs_exit_two(inzfsvfs, outzfsvfs, FTAG);
+		return (SET_ERROR(EACCES));
+	}
+
+	if (inoff >= inzp->z_size) {
+		*lenp = 0;
+		zfs_exit_two(inzfsvfs, outzfsvfs, FTAG);
+		return (0);
+	}
+	if (len > inzp->z_size - inoff) {
+		len = inzp->z_size - inoff;
+	}
+	if (len == 0) {
+		*lenp = 0;
+		zfs_exit_two(inzfsvfs, outzfsvfs, FTAG);
+		return (0);
+	}
+
+	/*
+	 * Callers might not be able to detect properly that we are read-only,
+	 * so check it explicitly here.
+	 */
+	if (zfs_is_readonly(outzfsvfs)) {
+		zfs_exit_two(inzfsvfs, outzfsvfs, FTAG);
+		return (SET_ERROR(EROFS));
+	}
+
+	/*
+	 * If immutable or not appending then return EPERM.
+	 * Intentionally allow ZFS_READONLY through here.
+	 * See zfs_zaccess_common()
+	 */
+	if ((outzp->z_pflags & ZFS_IMMUTABLE) != 0) {
+		zfs_exit_two(inzfsvfs, outzfsvfs, FTAG);
+		return (SET_ERROR(EPERM));
+	}
+
+	/*
+	 * No overlapping if we are cloning within the same file.
+	 */
+	if (inzp == outzp) {
+		if (inoff < outoff + len && outoff < inoff + len) {
+			zfs_exit_two(inzfsvfs, outzfsvfs, FTAG);
+			return (SET_ERROR(EINVAL));
+		}
+	}
+
+	/*
+	 * Maintain predictable lock order.
+	 */
+	if (inzp < outzp || (inzp == outzp && inoff < outoff)) {
+		inlr = zfs_rangelock_enter(&inzp->z_rangelock, inoff, len,
+		    RL_READER);
+		outlr = zfs_rangelock_enter(&outzp->z_rangelock, outoff, len,
+		    RL_WRITER);
+	} else {
+		outlr = zfs_rangelock_enter(&outzp->z_rangelock, outoff, len,
+		    RL_WRITER);
+		inlr = zfs_rangelock_enter(&inzp->z_rangelock, inoff, len,
+		    RL_READER);
+	}
+
+	inblksz = inzp->z_blksz;
+
+	/*
+	 * We cannot clone into files with different block size.
+	 */
+	if (inblksz != outzp->z_blksz && outzp->z_size > inblksz) {
+		error = SET_ERROR(EXDEV);
+		goto unlock;
+	}
+
+	/*
+	 * Offsets and len must be at block boundries.
+	 */
+	if ((inoff % inblksz) != 0 || (outoff % inblksz) != 0) {
+		error = SET_ERROR(EXDEV);
+		goto unlock;
+	}
+	/*
+	 * Length must be multipe of blksz, except for the end of the file.
+	 */
+	if ((len % inblksz) != 0 &&
+	    (len < inzp->z_size - inoff || len < outzp->z_size - outoff)) {
+		error = SET_ERROR(EXDEV);
+		goto unlock;
+	}
+
+	error = zn_rlimit_fsize(outoff + len);
+	if (error != 0) {
+		goto unlock;
+	}
+
+	if (inoff >= MAXOFFSET_T || outoff >= MAXOFFSET_T) {
+		error = SET_ERROR(EFBIG);
+		goto unlock;
+	}
+
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(outzfsvfs), NULL,
+	    &mtime, 16);
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(outzfsvfs), NULL,
+	    &ctime, 16);
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_SIZE(outzfsvfs), NULL,
+	    &outzp->z_size, 8);
+
+	zilog = outzfsvfs->z_log;
+	maxblocks = zil_max_log_data(zilog, sizeof (lr_clone_range_t)) /
+	    sizeof (bps[0]);
+
+	uid = KUID_TO_SUID(ZTOUID(outzp));
+	gid = KGID_TO_SGID(ZTOGID(outzp));
+	projid = outzp->z_projid;
+
+	bps = kmem_alloc(sizeof (bps[0]) * maxblocks, KM_SLEEP);
+
+	/*
+	 * Clone the file in reasonable size chunks.  Each chunk is cloned
+	 * in a separate transaction; this keeps the intent log records small
+	 * and allows us to do more fine-grained space accounting.
+	 */
+	while (len > 0) {
+		size = MIN(inblksz * maxblocks, len);
+
+		if (zfs_id_overblockquota(outzfsvfs, DMU_USERUSED_OBJECT,
+		    uid) ||
+		    zfs_id_overblockquota(outzfsvfs, DMU_GROUPUSED_OBJECT,
+		    gid) ||
+		    (projid != ZFS_DEFAULT_PROJID &&
+		    zfs_id_overblockquota(outzfsvfs, DMU_PROJECTUSED_OBJECT,
+		    projid))) {
+			error = SET_ERROR(EDQUOT);
+			break;
+		}
+
+		/*
+		 * Start a transaction.
+		 */
+		tx = dmu_tx_create(outos);
+
+		nbps = maxblocks;
+		error = dmu_read_l0_bps(inos, inzp->z_id, inoff, size, tx, bps,
+		    &nbps);
+		if (error != 0) {
+			dmu_tx_abort(tx);
+			/*
+			 * If we are tyring to clone a block that was created
+			 * in the current transaction group. Return an error,
+			 * so the caller can fallback to just copying the data.
+			 */
+			if (error == EAGAIN) {
+				error = SET_ERROR(EXDEV);
+			}
+			break;
+		}
+		/*
+		 * Encrypted data is fine as long as it comes from the same
+		 * dataset.
+		 * TODO: We want to extend it in the future to allow cloning to
+		 * datasets with the same keys, like clones or to be able to
+		 * clone a file from a snapshot of an encrypted dataset into the
+		 * dataset itself.
+		 */
+		if (BP_IS_PROTECTED(&bps[0])) {
+			if (inzfsvfs != outzfsvfs) {
+				dmu_tx_abort(tx);
+				error = SET_ERROR(EXDEV);
+				break;
+			}
+		}
+
+		dmu_tx_hold_sa(tx, outzp->z_sa_hdl, B_FALSE);
+		db = (dmu_buf_impl_t *)sa_get_db(outzp->z_sa_hdl);
+		DB_DNODE_ENTER(db);
+		dmu_tx_hold_clone_by_dnode(tx, DB_DNODE(db), outoff, size);
+		DB_DNODE_EXIT(db);
+		zfs_sa_upgrade_txholds(tx, outzp);
+		error = dmu_tx_assign(tx, TXG_WAIT);
+		if (error != 0) {
+			dmu_tx_abort(tx);
+			break;
+		}
+
+		/*
+		 * Copy source znode's block size. This only happens on the
+		 * first iteration since zfs_rangelock_reduce() will shrink down
+		 * lr_len to the appropriate size.
+		 */
+		if (outlr->lr_length == UINT64_MAX) {
+			zfs_grow_blocksize(outzp, inblksz, tx);
+			/*
+			 * Round range lock up to the block boundary, so we
+			 * prevent appends until we are done.
+			 */
+			zfs_rangelock_reduce(outlr, outoff,
+			    ((len - 1) / inblksz + 1) * inblksz);
+		}
+
+		dmu_brt_clone(outos, outzp->z_id, outoff, size, tx, bps, nbps,
+		    B_FALSE);
+
+		zfs_clear_setid_bits_if_necessary(outzfsvfs, outzp, cr,
+		    &clear_setid_bits_txg, tx);
+
+		zfs_tstamp_update_setup(outzp, CONTENT_MODIFIED, mtime, ctime);
+
+		/*
+		 * Update the file size (zp_size) if it has changed;
+		 * account for possible concurrent updates.
+		 */
+		while ((outsize = outzp->z_size) < outoff + size) {
+			(void) atomic_cas_64(&outzp->z_size, outsize,
+			    outoff + size);
+		}
+
+		error = sa_bulk_update(outzp->z_sa_hdl, bulk, count, tx);
+
+		zfs_log_clone_range(zilog, tx, TX_CLONE_RANGE, outzp, outoff,
+		    size, inblksz, bps, nbps);
+
+		dmu_tx_commit(tx);
+
+		if (error != 0)
+			break;
+
+		inoff += size;
+		outoff += size;
+		len -= size;
+		done += size;
+	}
+
+	kmem_free(bps, sizeof (bps[0]) * maxblocks);
+	zfs_znode_update_vfs(outzp);
+
+unlock:
+	zfs_rangelock_exit(outlr);
+	zfs_rangelock_exit(inlr);
+
+	if (done > 0) {
+		/*
+		 * If we have made at least partial progress, reset the error.
+		 */
+		error = 0;
+
+		ZFS_ACCESSTIME_STAMP(inzfsvfs, inzp);
+
+		if (outos->os_sync == ZFS_SYNC_ALWAYS) {
+			zil_commit(zilog, outzp->z_id);
+		}
+
+		*inoffp += done;
+		*outoffp += done;
+		*lenp = done;
+	}
+
+	zfs_exit_two(inzfsvfs, outzfsvfs, FTAG);
+
+	return (error);
+}
+
+/*
+ * Usual pattern would be to call zfs_clone_range() from zfs_replay_clone(),
+ * but we cannot do that, because when replaying we don't have source znode
+ * available. This is why we need a dedicated replay function.
+ */
+int
+zfs_clone_range_replay(znode_t *zp, uint64_t off, uint64_t len, uint64_t blksz,
+    const blkptr_t *bps, size_t nbps)
+{
+	zfsvfs_t	*zfsvfs;
+	dmu_buf_impl_t	*db;
+	dmu_tx_t	*tx;
+	int		error;
+	int		count = 0;
+	sa_bulk_attr_t	bulk[3];
+	uint64_t	mtime[2], ctime[2];
+
+	ASSERT3U(off, <, MAXOFFSET_T);
+	ASSERT3U(len, >, 0);
+	ASSERT3U(nbps, >, 0);
+
+	zfsvfs = ZTOZSB(zp);
+
+	ASSERT(spa_feature_is_enabled(dmu_objset_spa(zfsvfs->z_os),
+	    SPA_FEATURE_BLOCK_CLONING));
+
+	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
+		return (error);
+
+	ASSERT(zfsvfs->z_replay);
+	ASSERT(!zfs_is_readonly(zfsvfs));
+
+	if ((off % blksz) != 0) {
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EINVAL));
+	}
+
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(zfsvfs), NULL, &mtime, 16);
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zfsvfs), NULL, &ctime, 16);
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_SIZE(zfsvfs), NULL,
+	    &zp->z_size, 8);
+
+	/*
+	 * Start a transaction.
+	 */
+	tx = dmu_tx_create(zfsvfs->z_os);
+
+	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
+	db = (dmu_buf_impl_t *)sa_get_db(zp->z_sa_hdl);
+	DB_DNODE_ENTER(db);
+	dmu_tx_hold_clone_by_dnode(tx, DB_DNODE(db), off, len);
+	DB_DNODE_EXIT(db);
+	zfs_sa_upgrade_txholds(tx, zp);
+	error = dmu_tx_assign(tx, TXG_WAIT);
+	if (error != 0) {
+		dmu_tx_abort(tx);
+		zfs_exit(zfsvfs, FTAG);
+		return (error);
+	}
+
+	if (zp->z_blksz < blksz)
+		zfs_grow_blocksize(zp, blksz, tx);
+
+	dmu_brt_clone(zfsvfs->z_os, zp->z_id, off, len, tx, bps, nbps, B_TRUE);
+
+	zfs_tstamp_update_setup(zp, CONTENT_MODIFIED, mtime, ctime);
+
+	if (zp->z_size < off + len)
+		zp->z_size = off + len;
+
+	error = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
+
+	/*
+	 * zil_replaying() not only check if we are replaying ZIL, but also
+	 * updates the ZIL header to record replay progress.
+	 */
+	VERIFY(zil_replaying(zfsvfs->z_log, tx));
+
+	dmu_tx_commit(tx);
+
+	zfs_znode_update_vfs(zp);
+
+	zfs_exit(zfsvfs, FTAG);
+
+	return (error);
+}
+
 EXPORT_SYMBOL(zfs_access);
 EXPORT_SYMBOL(zfs_fsync);
 EXPORT_SYMBOL(zfs_holey);
@@ -1002,6 +1465,8 @@ EXPORT_SYMBOL(zfs_read);
 EXPORT_SYMBOL(zfs_write);
 EXPORT_SYMBOL(zfs_getsecattr);
 EXPORT_SYMBOL(zfs_setsecattr);
+EXPORT_SYMBOL(zfs_clone_range);
+EXPORT_SYMBOL(zfs_clone_range_replay);
 
 ZFS_MODULE_PARAM(zfs_vnops, zfs_vnops_, read_chunk_size, U64, ZMOD_RW,
 	"Bytes to read per chunk");

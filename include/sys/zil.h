@@ -166,7 +166,8 @@ typedef enum zil_create {
 #define	TX_SETSAXATTR		21	/* Set sa xattrs on file */
 #define	TX_RENAME_EXCHANGE	22	/* Atomic swap via renameat2 */
 #define	TX_RENAME_WHITEOUT	23	/* Atomic whiteout via renameat2 */
-#define	TX_MAX_TYPE		24	/* Max transaction type */
+#define	TX_CLONE_RANGE		24	/* Clone a file range */
+#define	TX_MAX_TYPE		25	/* Max transaction type */
 
 /*
  * The transactions for mkdir, symlink, remove, rmdir, link, and rename
@@ -176,9 +177,9 @@ typedef enum zil_create {
 #define	TX_CI	((uint64_t)0x1 << 63) /* case-insensitive behavior requested */
 
 /*
- * Transactions for write, truncate, setattr, acl_v0, and acl can be logged
- * out of order.  For convenience in the code, all such records must have
- * lr_foid at the same offset.
+ * Transactions for operations below can be logged out of order.
+ * For convenience in the code, all such records must have lr_foid
+ * at the same offset.
  */
 #define	TX_OOO(txtype)			\
 	((txtype) == TX_WRITE ||	\
@@ -187,7 +188,8 @@ typedef enum zil_create {
 	(txtype) == TX_ACL_V0 ||	\
 	(txtype) == TX_ACL ||		\
 	(txtype) == TX_WRITE2 ||	\
-	(txtype) == TX_SETSAXATTR)
+	(txtype) == TX_SETSAXATTR ||	\
+	(txtype) == TX_CLONE_RANGE)
 
 /*
  * The number of dnode slots consumed by the object is stored in the 8
@@ -387,6 +389,17 @@ typedef struct {
 	/* lr_acl_bytes number of variable sized ace's follows */
 } lr_acl_t;
 
+typedef struct {
+	lr_t		lr_common;	/* common portion of log record */
+	uint64_t	lr_foid;	/* file object to clone into */
+	uint64_t	lr_offset;	/* offset to clone to */
+	uint64_t	lr_length;	/* length of the blocks to clone */
+	uint64_t	lr_blksz;	/* file's block size */
+	uint64_t	lr_nbps;	/* number of block pointers */
+	blkptr_t	lr_bps[];
+	/* block pointers of the blocks to clone follows */
+} lr_clone_range_t;
+
 /*
  * ZIL structure definitions, interface function prototype and globals.
  */
@@ -574,7 +587,7 @@ extern void	zil_set_sync(zilog_t *zilog, uint64_t syncval);
 extern void	zil_set_logbias(zilog_t *zilog, uint64_t slogval);
 
 extern uint64_t	zil_max_copied_data(zilog_t *zilog);
-extern uint64_t	zil_max_log_data(zilog_t *zilog);
+extern uint64_t	zil_max_log_data(zilog_t *zilog, size_t hdrsize);
 
 extern void zil_sums_init(zil_sums_t *zs);
 extern void zil_sums_fini(zil_sums_t *zs);

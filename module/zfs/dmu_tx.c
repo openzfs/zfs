@@ -349,7 +349,7 @@ dmu_tx_mark_netfree(dmu_tx_t *tx)
 }
 
 static void
-dmu_tx_hold_free_impl(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
+dmu_tx_count_free(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 {
 	dmu_tx_t *tx = txh->txh_tx;
 	dnode_t *dn = txh->txh_dnode;
@@ -357,14 +357,10 @@ dmu_tx_hold_free_impl(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 
 	ASSERT(tx->tx_txg == 0);
 
-	dmu_tx_count_dnode(txh);
-
 	if (off >= (dn->dn_maxblkid + 1) * dn->dn_datablksz)
 		return;
 	if (len == DMU_OBJECT_END)
 		len = (dn->dn_maxblkid + 1) * dn->dn_datablksz - off;
-
-	dmu_tx_count_dnode(txh);
 
 	/*
 	 * For i/o error checking, we read the first and last level-0
@@ -445,8 +441,10 @@ dmu_tx_hold_free(dmu_tx_t *tx, uint64_t object, uint64_t off, uint64_t len)
 
 	txh = dmu_tx_hold_object_impl(tx, tx->tx_objset,
 	    object, THT_FREE, off, len);
-	if (txh != NULL)
-		(void) dmu_tx_hold_free_impl(txh, off, len);
+	if (txh != NULL) {
+		dmu_tx_count_dnode(txh);
+		dmu_tx_count_free(txh, off, len);
+	}
 }
 
 void
@@ -455,8 +453,35 @@ dmu_tx_hold_free_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off, uint64_t len)
 	dmu_tx_hold_t *txh;
 
 	txh = dmu_tx_hold_dnode_impl(tx, dn, THT_FREE, off, len);
-	if (txh != NULL)
-		(void) dmu_tx_hold_free_impl(txh, off, len);
+	if (txh != NULL) {
+		dmu_tx_count_dnode(txh);
+		dmu_tx_count_free(txh, off, len);
+	}
+}
+
+static void
+dmu_tx_count_clone(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
+{
+
+	/*
+	 * Reuse dmu_tx_count_free(), it does exactly what we need for clone.
+	 */
+	dmu_tx_count_free(txh, off, len);
+}
+
+void
+dmu_tx_hold_clone_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off, int len)
+{
+	dmu_tx_hold_t *txh;
+
+	ASSERT0(tx->tx_txg);
+	ASSERT(len == 0 || UINT64_MAX - off >= len - 1);
+
+	txh = dmu_tx_hold_dnode_impl(tx, dn, THT_CLONE, off, len);
+	if (txh != NULL) {
+		dmu_tx_count_dnode(txh);
+		dmu_tx_count_clone(txh, off, len);
+	}
 }
 
 static void
@@ -666,6 +691,10 @@ dmu_tx_dirty_buf(dmu_tx_t *tx, dmu_buf_impl_t *db)
 				break;
 			case THT_NEWOBJECT:
 				match_object = TRUE;
+				break;
+			case THT_CLONE:
+				if (blkid >= beginblk && blkid <= endblk)
+					match_offset = TRUE;
 				break;
 			default:
 				cmn_err(CE_PANIC, "bad txh_type %d",

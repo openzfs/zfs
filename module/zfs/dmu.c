@@ -29,6 +29,7 @@
  * Copyright (c) 2019, Klara Inc.
  * Copyright (c) 2019, Allan Jude
  * Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
+ * Copyright (c) 2021, 2022 by Pawel Jakub Dawidek
  */
 
 #include <sys/dmu.h>
@@ -52,6 +53,7 @@
 #include <sys/sa.h>
 #include <sys/zfeature.h>
 #include <sys/abd.h>
+#include <sys/brt.h>
 #include <sys/trace_zfs.h>
 #include <sys/zfs_racct.h>
 #include <sys/zfs_rlock.h>
@@ -513,7 +515,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 	zio_t *zio = NULL;
 	boolean_t missed = B_FALSE;
 
-	ASSERT(length <= DMU_MAX_ACCESS);
+	ASSERT(!read || length <= DMU_MAX_ACCESS);
 
 	/*
 	 * Note: We directly notify the prefetch code of this read, so that
@@ -2163,6 +2165,155 @@ restart:
 	dnode_rele(dn, FTAG);
 
 	return (err);
+}
+
+int
+dmu_read_l0_bps(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
+    dmu_tx_t *tx, blkptr_t *bps, size_t *nbpsp)
+{
+	dmu_buf_t **dbp, *dbuf;
+	dmu_buf_impl_t *db;
+	blkptr_t *bp;
+	int error, numbufs;
+
+	error = dmu_buf_hold_array(os, object, offset, length, FALSE, FTAG,
+	    &numbufs, &dbp);
+	if (error != 0) {
+		if (error == ESRCH) {
+			error = SET_ERROR(ENXIO);
+		}
+		return (error);
+	}
+
+	ASSERT3U(numbufs, <=, *nbpsp);
+
+	for (int i = 0; i < numbufs; i++) {
+		dbuf = dbp[i];
+		db = (dmu_buf_impl_t *)dbuf;
+		bp = db->db_blkptr;
+
+		/*
+		 * If the block is not on the disk yet, it has no BP assigned.
+		 * There is not much we can do...
+		 */
+		if (!list_is_empty(&db->db_dirty_records)) {
+			dbuf_dirty_record_t *dr;
+
+			dr = list_head(&db->db_dirty_records);
+			if (dr->dt.dl.dr_brtwrite) {
+				/*
+				 * This is very special case where we clone a
+				 * block and in the same transaction group we
+				 * read its BP (most likely to clone the clone).
+				 */
+				bp = &dr->dt.dl.dr_overridden_by;
+			} else {
+				/*
+				 * The block was modified in the same
+				 * transaction group.
+				 */
+				error = SET_ERROR(EAGAIN);
+				goto out;
+			}
+		}
+		if (bp == NULL) {
+			/*
+			 * The block was created in this transaction group,
+			 * so it has no BP yet.
+			 */
+			error = SET_ERROR(EAGAIN);
+			goto out;
+		}
+		if (dmu_buf_is_dirty(dbuf, tx)) {
+			error = SET_ERROR(EAGAIN);
+			goto out;
+		}
+		/*
+		 * Make sure we clone only data blocks.
+		 */
+		if (BP_IS_METADATA(bp) && !BP_IS_HOLE(bp)) {
+			error = SET_ERROR(EINVAL);
+			goto out;
+		}
+
+		bps[i] = *bp;
+	}
+
+	*nbpsp = numbufs;
+out:
+	dmu_buf_rele_array(dbp, numbufs, FTAG);
+
+	return (error);
+}
+
+void
+dmu_brt_clone(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
+    dmu_tx_t *tx, const blkptr_t *bps, size_t nbps, boolean_t replay)
+{
+	spa_t *spa;
+	dmu_buf_t **dbp, *dbuf;
+	dmu_buf_impl_t *db;
+	struct dirty_leaf *dl;
+	dbuf_dirty_record_t *dr;
+	const blkptr_t *bp;
+	int numbufs;
+
+	spa = os->os_spa;
+
+	VERIFY0(dmu_buf_hold_array(os, object, offset, length, FALSE, FTAG,
+	    &numbufs, &dbp));
+	ASSERT3U(nbps, ==, numbufs);
+
+	for (int i = 0; i < numbufs; i++) {
+		dbuf = dbp[i];
+		db = (dmu_buf_impl_t *)dbuf;
+		bp = &bps[i];
+
+		ASSERT0(db->db_level);
+		ASSERT(db->db_blkid != DMU_BONUS_BLKID);
+		ASSERT(BP_IS_HOLE(bp) || dbuf->db_size == BP_GET_LSIZE(bp));
+
+		if (db->db_state == DB_UNCACHED) {
+			/*
+			 * XXX-PJD: If the dbuf is already cached, calling
+			 * dmu_buf_will_not_fill() will panic on assertion
+			 * (db->db_buf == NULL) in dbuf_clear_data(),
+			 * which is called from dbuf_noread() in DB_NOFILL
+			 * case. I'm not 100% sure this is the right thing
+			 * to do, but it seems to work.
+			 */
+			dmu_buf_will_not_fill(dbuf, tx);
+		}
+
+		dr = list_head(&db->db_dirty_records);
+		ASSERT3U(dr->dr_txg, ==, tx->tx_txg);
+		dl = &dr->dt.dl;
+		dl->dr_overridden_by = *bp;
+		dl->dr_brtwrite = B_TRUE;
+
+		dl->dr_override_state = DR_OVERRIDDEN;
+		if (BP_IS_HOLE(bp)) {
+			dl->dr_overridden_by.blk_birth = 0;
+			dl->dr_overridden_by.blk_phys_birth = 0;
+		} else {
+			dl->dr_overridden_by.blk_birth = dr->dr_txg;
+			dl->dr_overridden_by.blk_phys_birth =
+			    BP_PHYSICAL_BIRTH(bp);
+		}
+
+		/*
+		 * When data in embedded into BP there is no need to create
+		 * BRT entry as there is no data block. Just copy the BP as
+		 * it contains the data.
+		 * Also, when replaying ZIL we don't want to bump references
+		 * in the BRT as it was already done during ZIL claim.
+		 */
+		if (!replay && !BP_IS_HOLE(bp) && !BP_IS_EMBEDDED(bp)) {
+			brt_pending_add(spa, bp, tx);
+		}
+	}
+
+	dmu_buf_rele_array(dbp, numbufs, FTAG);
 }
 
 void

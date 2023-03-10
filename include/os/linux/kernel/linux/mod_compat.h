@@ -47,6 +47,7 @@ typedef const struct kernel_param zfs_kernel_param_t;
 enum scope_prefix_types {
 	zfs,
 	zfs_arc,
+	zfs_brt,
 	zfs_condense,
 	zfs_dbuf,
 	zfs_dbuf_cache,

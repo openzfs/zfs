@@ -33,11 +33,11 @@ KMOD=	openzfs
 	${SRCDIR}/zstd/lib/decompress
 
 CFLAGS+= -I${INCDIR}
+CFLAGS+= -I${SRCDIR}/icp/include
 CFLAGS+= -I${INCDIR}/os/freebsd
 CFLAGS+= -I${INCDIR}/os/freebsd/spl
 CFLAGS+= -I${INCDIR}/os/freebsd/zfs
 CFLAGS+= -I${SRCDIR}/zstd/include
-CFLAGS+= -I${SRCDIR}/icp/include
 CFLAGS+= -include ${INCDIR}/os/freebsd/spl/sys/ccompile.h
 CFLAGS+= -I${.CURDIR}
 
@@ -243,6 +243,7 @@ SRCS+=	abd.c \
 	blkptr.c \
 	bplist.c \
 	bpobj.c \
+	brt.c \
 	btree.c \
 	cityhash.c \
 	dbuf.c \

@@ -782,6 +782,8 @@ dmu_tx_t *dmu_tx_create(objset_t *os);
 void dmu_tx_hold_write(dmu_tx_t *tx, uint64_t object, uint64_t off, int len);
 void dmu_tx_hold_write_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off,
     int len);
+void dmu_tx_hold_clone_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off,
+    int len);
 void dmu_tx_hold_free(dmu_tx_t *tx, uint64_t object, uint64_t off,
     uint64_t len);
 void dmu_tx_hold_free_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off,
@@ -1058,6 +1060,12 @@ int dmu_sync(struct zio *zio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd);
  */
 int dmu_offset_next(objset_t *os, uint64_t object, boolean_t hole,
     uint64_t *off);
+
+int dmu_read_l0_bps(objset_t *os, uint64_t object, uint64_t offset,
+    uint64_t length, dmu_tx_t *tx, struct blkptr *bps, size_t *nbpsp);
+void dmu_brt_clone(objset_t *os, uint64_t object, uint64_t offset,
+    uint64_t length, dmu_tx_t *tx, const struct blkptr *bps, size_t nbps,
+    boolean_t replay);
 
 /*
  * Initial setup and final teardown.
