@@ -2225,7 +2225,7 @@ flush_write_batch_impl(struct receive_writer_arg *rwa)
 			if (err == 0)
 				abd_free(abd);
 		} else {
-			zio_prop_t zp;
+			zio_prop_t zp = {0};
 			dmu_write_policy(rwa->os, dn, 0, 0, &zp);
 
 			zio_flag_t zio_flags = 0;
