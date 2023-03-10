@@ -563,7 +563,7 @@ test_recv_new(const char *dataset, int fd)
 	fnvlist_add_uint64(optional, "action_handle", *action_handle);
 #endif
 	IOC_INPUT_TEST(ZFS_IOC_RECV_NEW, dataset, required, optional,
-	    ZFS_ERR_STREAM_TRUNCATED);
+	    ENOTSUP);
 
 	nvlist_free(props);
 	nvlist_free(optional);

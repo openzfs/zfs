@@ -1255,7 +1255,6 @@ dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
 	    DMU_GET_FEATUREFLAGS(drc->drc_drrb->drr_versioninfo);
 
 	uint32_t payloadlen = drc->drc_drr_begin->drr_payloadlen;
-	void *payload = NULL;
 
 	/*
 	 * Since OpenZFS 2.0.0, we have enforced a 64MB limit in userspace
@@ -1266,16 +1265,23 @@ dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
 	if (payloadlen > (MIN((1U << 28), arc_all_memory() / 4)))
 		return (E2BIG);
 
-	if (payloadlen != 0)
-		payload = vmem_alloc(payloadlen, KM_SLEEP);
 
-	err = receive_read_payload_and_next_header(drc, payloadlen,
-	    payload);
-	if (err != 0) {
-		vmem_free(payload, payloadlen);
-		return (err);
-	}
 	if (payloadlen != 0) {
+		void *payload = vmem_alloc(payloadlen, KM_SLEEP);
+		/*
+		 * For compatibility with recursive send streams, we don't do
+		 * this here if the stream could be part of a package. Instead,
+		 * we'll do it in dmu_recv_stream. If we pull the next header
+		 * too early, and it's the END record, we break the `recv_skip`
+		 * logic.
+		 */
+
+		err = receive_read_payload_and_next_header(drc, payloadlen,
+		    payload);
+		if (err != 0) {
+			vmem_free(payload, payloadlen);
+			return (err);
+		}
 		err = nvlist_unpack(payload, payloadlen, &drc->drc_begin_nvl,
 		    KM_SLEEP);
 		vmem_free(payload, payloadlen);
@@ -3311,6 +3317,17 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 
 	if (drc->drc_featureflags & DMU_BACKUP_FEATURE_RESUMING) {
 		err = resume_check(drc, drc->drc_begin_nvl);
+		if (err != 0)
+			goto out;
+	}
+
+	/*
+	 * For compatibility with recursive send streams, we do this here,
+	 * rather than in dmu_recv_begin. If we pull the next header too
+	 * early, and it's the END record, we break the `recv_skip` logic.
+	 */
+	if (drc->drc_drr_begin->drr_payloadlen == 0) {
+		err = receive_read_payload_and_next_header(drc, 0, NULL);
 		if (err != 0)
 			goto out;
 	}
