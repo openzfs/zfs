@@ -157,7 +157,7 @@ static resume_skip_t
 resume_skip_check(const traverse_data_t *td, const dnode_phys_t *dnp,
     const zbookmark_phys_t *zb)
 {
-	if (td->td_resume != NULL && !ZB_IS_ZERO(td->td_resume)) {
+	if (td->td_resume != NULL) {
 		/*
 		 * If we already visited this bp & everything below,
 		 * don't bother doing it again.
@@ -233,12 +233,6 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		break;
 	default:
 		ASSERT(0);
-	}
-
-	if (td->td_resume != NULL &&
-	    memcmp(zb, td->td_resume, sizeof (*zb)) == 0) {
-		/* found the resume point; no longer resuming */
-		memset(td->td_resume, 0, sizeof (*zb));
 	}
 
 	if (bp->blk_birth == 0) {
