@@ -77,6 +77,17 @@
 #define	kfpu_fini()		((void) 0)
 
 /*
+ * Linux 4.7 makes cpu_has_feature to use jump labels on powerpc if
+ * CONFIG_JUMP_LABEL_FEATURE_CHECKS is enabled, in this case however it
+ * references GPL-only symbol cpu_feature_keys. Therefore we overrides this
+ * interface when it is detected being GPL-only.
+ */
+#if defined(CONFIG_JUMP_LABEL_FEATURE_CHECKS) && \
+    defined(HAVE_CPU_HAS_FEATURE_GPL_ONLY)
+#define	cpu_has_feature(feature)	early_cpu_has_feature(feature)
+#endif
+
+/*
  * Check if AltiVec instruction set is available
  */
 static inline boolean_t
