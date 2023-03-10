@@ -360,9 +360,10 @@ mount_fs()
 				return 0
 			fi
 			# Last hail-mary: Hope 'rootmnt' is set!
-			mountpoint=""
 			if [ "$mountpoint" = "legacy" ]; then
 				ZFS_CMD="mount.zfs"
+			else
+				mountpoint=""
 			fi
 		else
 			mountpoint="$mountpoint1"
