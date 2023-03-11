@@ -76,7 +76,7 @@ typedef struct nvpair {
 	int16_t	nvp_reserve;	/* not used */
 	int32_t	nvp_value_elem;	/* number of elements for array types */
 	data_type_t nvp_type;	/* type of value */
-	/* name string */
+	char	nvp_name[];	/* name string */
 	/* aligned ptr array for string arrays */
 	/* aligned array of data for value */
 } nvpair_t;
@@ -109,7 +109,7 @@ typedef struct nvlist {
 #define	NV_ALIGN4(x)		(((x) + 3) & ~3)
 
 #define	NVP_SIZE(nvp)		((nvp)->nvp_size)
-#define	NVP_NAME(nvp)		((char *)(nvp) + sizeof (nvpair_t))
+#define	NVP_NAME(nvp)		((nvp)->nvp_name)
 #define	NVP_TYPE(nvp)		((nvp)->nvp_type)
 #define	NVP_NELEM(nvp)		((nvp)->nvp_value_elem)
 #define	NVP_VALUE(nvp)		((char *)(nvp) + NV_ALIGN(sizeof (nvpair_t) \
