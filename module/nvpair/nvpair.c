@@ -2057,8 +2057,11 @@ nvlist_lookup_nvpair_ei_sep(nvlist_t *nvl, const char *name, const char sep,
 				nvl = EMBEDDED_NVL(nvp);
 				break;
 			} else if (nvpair_type(nvp) == DATA_TYPE_NVLIST_ARRAY) {
-				(void) nvpair_value_nvlist_array(nvp,
-				    &nva, (uint_t *)&n);
+				if (nvpair_value_nvlist_array(nvp,
+				    &nva, (uint_t *)&n) != 0)
+					goto fail;
+				if (nva == NULL)
+					goto fail;
 				if ((n < 0) || (idx >= n))
 					goto fail;
 				nvl = nva[idx];
