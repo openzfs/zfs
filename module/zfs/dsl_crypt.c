@@ -143,7 +143,7 @@ dsl_crypto_params_create_nvlist(dcp_cmd_t cmd, nvlist_t *props,
 	dsl_wrapping_key_t *wkey = NULL;
 	uint8_t *wkeydata = NULL;
 	uint_t wkeydata_len = 0;
-	char *keylocation = NULL;
+	const char *keylocation = NULL;
 
 	dcp = kmem_zalloc(sizeof (dsl_crypto_params_t), KM_SLEEP);
 	dcp->cp_cmd = cmd;

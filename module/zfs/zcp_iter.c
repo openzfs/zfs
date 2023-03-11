@@ -333,7 +333,7 @@ zcp_user_props_list_gc(lua_State *state)
 static int
 zcp_user_props_iter(lua_State *state)
 {
-	char *source, *val;
+	const char *source, *val;
 	nvlist_t *nvprop;
 	nvlist_t **props = lua_touserdata(state, lua_upvalueindex(1));
 	nvpair_t *pair = lua_touserdata(state, lua_upvalueindex(2));

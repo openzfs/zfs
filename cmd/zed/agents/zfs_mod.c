@@ -183,7 +183,7 @@ zfs_unavail_pool(zpool_handle_t *zhp, void *data)
 static void
 zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 {
-	char *path;
+	const char *path;
 	vdev_state_t newstate;
 	nvlist_t *nvroot, *newvd;
 	pendingdev_t *device;
@@ -191,7 +191,7 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	uint64_t offline = 0ULL, faulted = 0ULL;
 	uint64_t guid = 0ULL;
 	uint64_t is_spare = 0;
-	char *physpath = NULL, *new_devid = NULL, *enc_sysfs_path = NULL;
+	const char *physpath = NULL, *new_devid = NULL, *enc_sysfs_path = NULL;
 	char rawpath[PATH_MAX], fullpath[PATH_MAX];
 	char devpath[PATH_MAX];
 	int ret;
@@ -549,7 +549,7 @@ static void
 zfs_iter_vdev(zpool_handle_t *zhp, nvlist_t *nvl, void *data)
 {
 	dev_data_t *dp = data;
-	char *path = NULL;
+	const char *path = NULL;
 	uint_t c, children;
 	nvlist_t **child;
 	uint64_t guid = 0;
@@ -851,7 +851,7 @@ guid_iter(uint64_t pool_guid, uint64_t vdev_guid, const char *devid,
 static int
 zfs_deliver_add(nvlist_t *nvl)
 {
-	char *devpath = NULL, *devid = NULL;
+	const char *devpath = NULL, *devid = NULL;
 	uint64_t pool_guid = 0, vdev_guid = 0;
 	boolean_t is_slice;
 
@@ -999,7 +999,8 @@ zfsdle_vdev_online(zpool_handle_t *zhp, void *data)
 	nvlist_t *tgt;
 	int error;
 
-	char *tmp_devname, devname[MAXPATHLEN] = "";
+	const char *tmp_devname;
+	char devname[MAXPATHLEN] = "";
 	uint64_t guid;
 
 	if (nvlist_lookup_uint64(udev_nvl, ZFS_EV_VDEV_GUID, &guid) == 0) {
@@ -1017,7 +1018,8 @@ zfsdle_vdev_online(zpool_handle_t *zhp, void *data)
 
 	if ((tgt = zpool_find_vdev_by_physpath(zhp, devname,
 	    &avail_spare, &l2cache, NULL)) != NULL) {
-		char *path, fullpath[MAXPATHLEN];
+		const char *path;
+		char fullpath[MAXPATHLEN];
 		uint64_t wholedisk = 0;
 
 		error = nvlist_lookup_string(tgt, ZPOOL_CONFIG_PATH, &path);
@@ -1030,10 +1032,11 @@ zfsdle_vdev_online(zpool_handle_t *zhp, void *data)
 		    &wholedisk);
 
 		if (wholedisk) {
+			char *tmp;
 			path = strrchr(path, '/');
 			if (path != NULL) {
-				path = zfs_strip_partition(path + 1);
-				if (path == NULL) {
+				tmp = zfs_strip_partition(path + 1);
+				if (tmp == NULL) {
 					zpool_close(zhp);
 					return (0);
 				}
@@ -1042,8 +1045,8 @@ zfsdle_vdev_online(zpool_handle_t *zhp, void *data)
 				return (0);
 			}
 
-			(void) strlcpy(fullpath, path, sizeof (fullpath));
-			free(path);
+			(void) strlcpy(fullpath, tmp, sizeof (fullpath));
+			free(tmp);
 
 			/*
 			 * We need to reopen the pool associated with this
@@ -1148,7 +1151,8 @@ zfsdle_vdev_online(zpool_handle_t *zhp, void *data)
 static int
 zfs_deliver_dle(nvlist_t *nvl)
 {
-	char *devname, name[MAXPATHLEN];
+	const char *devname;
+	char name[MAXPATHLEN];
 	uint64_t guid;
 
 	if (nvlist_lookup_uint64(nvl, ZFS_EV_VDEV_GUID, &guid) == 0) {

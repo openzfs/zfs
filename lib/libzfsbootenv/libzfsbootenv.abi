@@ -181,6 +181,7 @@
     <qualified-type-def type-id='a84c031d' const='yes' id='9b45d938'/>
     <pointer-type-def type-id='9b45d938' size-in-bits='64' id='80f4b756'/>
     <qualified-type-def type-id='80f4b756' restrict='yes' id='9d26089a'/>
+    <pointer-type-def type-id='80f4b756' size-in-bits='64' id='7d3cd834'/>
     <qualified-type-def type-id='8e8d4be3' const='yes' id='693c3853'/>
     <pointer-type-def type-id='693c3853' size-in-bits='64' id='22cce67b'/>
     <pointer-type-def type-id='95942d0c' size-in-bits='64' id='b0382bb3'/>
@@ -235,9 +236,9 @@
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='nvlist_lookup_string' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='5ce45b60'/>
+      <parameter type-id='22cce67b'/>
       <parameter type-id='80f4b756'/>
-      <parameter type-id='9b23c9ad'/>
+      <parameter type-id='7d3cd834'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='nvlist_exists' visibility='default' binding='global' size-in-bits='64'>

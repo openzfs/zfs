@@ -116,7 +116,7 @@ lzbe_get_boot_device(const char *pool, char **device)
 	libzfs_handle_t *hdl;
 	zpool_handle_t *zphdl;
 	nvlist_t *nv;
-	char *val;
+	const char *val;
 	int rv = -1;
 
 	if (pool == NULL || *pool == '\0' || device == NULL)
@@ -140,14 +140,13 @@ lzbe_get_boot_device(const char *pool, char **device)
 			 * we only do need dataset name.
 			 */
 			if (strncmp(val, "zfs:", 4) == 0) {
-				val += 4;
-				val = strdup(val);
-				if (val != NULL) {
-					size_t len = strlen(val);
+				char *tmp = strdup(val + 4);
+				if (tmp != NULL) {
+					size_t len = strlen(tmp);
 
-					if (val[len - 1] == ':')
-						val[len - 1] = '\0';
-					*device = val;
+					if (tmp[len - 1] == ':')
+						tmp[len - 1] = '\0';
+					*device = tmp;
 				} else {
 					rv = ENOMEM;
 				}

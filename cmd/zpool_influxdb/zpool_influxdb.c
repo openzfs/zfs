@@ -264,7 +264,7 @@ get_vdev_name(nvlist_t *nvroot, const char *parent_name)
 	static char vdev_name[256];
 	uint64_t vdev_id = 0;
 
-	char *vdev_type = (char *)"unknown";
+	const char *vdev_type = "unknown";
 	(void) nvlist_lookup_string(nvroot, ZPOOL_CONFIG_TYPE, &vdev_type);
 
 	if (nvlist_lookup_uint64(
@@ -299,9 +299,9 @@ get_vdev_desc(nvlist_t *nvroot, const char *parent_name)
 	char vdev_value[MAXPATHLEN];
 	char *s, *t;
 
-	char *vdev_type = (char *)"unknown";
+	const char *vdev_type = "unknown";
 	uint64_t vdev_id = UINT64_MAX;
-	char *vdev_path = NULL;
+	const char *vdev_path = NULL;
 	(void) nvlist_lookup_string(nvroot, ZPOOL_CONFIG_TYPE, &vdev_type);
 	(void) nvlist_lookup_uint64(nvroot, ZPOOL_CONFIG_ID, &vdev_id);
 	(void) nvlist_lookup_string(nvroot, ZPOOL_CONFIG_PATH, &vdev_path);

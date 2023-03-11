@@ -291,7 +291,7 @@ static int
 zfs_add_option(zfs_handle_t *zhp, char *options, int len,
     zfs_prop_t prop, const char *on, const char *off)
 {
-	char *source;
+	const char *source;
 	uint64_t value;
 
 	/* Skip adding duplicate default options */

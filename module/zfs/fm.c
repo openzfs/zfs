@@ -892,7 +892,7 @@ fm_fmri_hc_create(nvlist_t *fmri, int version, const nvlist_t *auth,
 	uint_t n;
 	int i, j;
 	va_list ap;
-	char *hcname, *hcid;
+	const char *hcname, *hcid;
 
 	if (!fm_fmri_hc_set_common(fmri, version, auth))
 		return;

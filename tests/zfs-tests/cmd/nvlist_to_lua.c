@@ -39,7 +39,7 @@ nvlist_equal(nvlist_t *nvla, nvlist_t *nvlb)
 	 */
 	for (nvpair_t *pair = nvlist_next_nvpair(nvla, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(nvla, pair)) {
-		char *key = nvpair_name(pair);
+		const char *key = nvpair_name(pair);
 
 		if (!nvlist_exists(nvlb, key))
 			return (B_FALSE);

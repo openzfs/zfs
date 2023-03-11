@@ -348,7 +348,7 @@ zfs_sort(const void *larg, const void *rarg, void *data)
 
 	for (psc = sc; psc != NULL; psc = psc->sc_next) {
 		char lbuf[ZFS_MAXPROPLEN], rbuf[ZFS_MAXPROPLEN];
-		char *lstr, *rstr;
+		const char *lstr, *rstr;
 		uint64_t lnum = 0, rnum = 0;
 		boolean_t lvalid, rvalid;
 		int ret = 0;

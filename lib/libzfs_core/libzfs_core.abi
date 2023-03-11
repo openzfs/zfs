@@ -1061,6 +1061,9 @@
     <array-type-def dimensions='1' type-id='a84c031d' size-in-bits='65536' id='163f6aa5'>
       <subrange length='8192' type-id='7359adad' id='c88f397d'/>
     </array-type-def>
+    <array-type-def dimensions='1' type-id='a84c031d' size-in-bits='infinite' id='e84913bd'>
+      <subrange length='infinite' type-id='7359adad' id='031f2035'/>
+    </array-type-def>
     <class-decl name='_IO_codecvt' is-struct='yes' visibility='default' is-declaration-only='yes' id='a4036571'/>
     <class-decl name='_IO_marker' is-struct='yes' visibility='default' is-declaration-only='yes' id='010ae0b9'/>
     <class-decl name='_IO_wide_data' is-struct='yes' visibility='default' is-declaration-only='yes' id='79bd3751'/>
@@ -1324,6 +1327,9 @@
       </data-member>
       <data-member access='public' layout-offset-in-bits='96'>
         <var-decl name='nvp_type' type-id='8d0687d2' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='128'>
+        <var-decl name='nvp_name' type-id='e84913bd' visibility='default'/>
       </data-member>
     </class-decl>
     <typedef-decl name='nvpair_t' type-id='1c34e459' id='57928edf'/>
@@ -2229,7 +2235,7 @@
     </function-decl>
     <function-decl name='nvpair_name' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='dace003f'/>
-      <return type-id='26a90f95'/>
+      <return type-id='80f4b756'/>
     </function-decl>
     <function-decl name='fnvlist_alloc' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='5ce45b60'/>
@@ -2317,9 +2323,9 @@
       <return type-id='9c313c2d'/>
     </function-decl>
     <function-decl name='fnvlist_lookup_string' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='5ce45b60'/>
+      <parameter type-id='22cce67b'/>
       <parameter type-id='80f4b756'/>
-      <return type-id='26a90f95'/>
+      <return type-id='80f4b756'/>
     </function-decl>
     <function-decl name='libspl_assertf' mangled-name='libspl_assertf' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='libspl_assertf'>
       <parameter type-id='80f4b756'/>

@@ -64,7 +64,7 @@ typedef enum device_type {
 typedef struct guid_search {
 	uint64_t	gs_pool_guid;
 	uint64_t	gs_vdev_guid;
-	char		*gs_devid;
+	const char	*gs_devid;
 	device_type_t	gs_vdev_type;
 	uint64_t	gs_vdev_expandtime;	/* vdev expansion time */
 } guid_search_t;
@@ -77,7 +77,7 @@ static boolean_t
 zfs_agent_iter_vdev(zpool_handle_t *zhp, nvlist_t *nvl, void *arg)
 {
 	guid_search_t *gsp = arg;
-	char *path = NULL;
+	const char *path = NULL;
 	uint_t c, children;
 	nvlist_t **child;
 	uint64_t vdev_guid;
@@ -211,7 +211,7 @@ zfs_agent_post_event(const char *class, const char *subclass, nvlist_t *nvl)
 		uint64_t pool_guid = 0, vdev_guid = 0;
 		guid_search_t search = { 0 };
 		device_type_t devtype = DEVICE_TYPE_PRIMARY;
-		char *devid = NULL;
+		const char *devid = NULL;
 
 		class = "resource.fs.zfs.removed";
 		subclass = "";

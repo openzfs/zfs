@@ -115,7 +115,7 @@ dsl_dataset_user_hold_check(void *arg, dmu_tx_t *tx)
 	    pair != NULL; pair = nvlist_next_nvpair(dduha->dduha_holds, pair)) {
 		dsl_dataset_t *ds;
 		int error = 0;
-		char *htag, *name;
+		const char *htag, *name;
 
 		/* must be a snapshot */
 		name = nvpair_name(pair);
@@ -572,7 +572,7 @@ dsl_dataset_user_release_impl(nvlist_t *holds, nvlist_t *errlist,
 {
 	dsl_dataset_user_release_arg_t ddura;
 	nvpair_t *pair;
-	char *pool;
+	const char *pool;
 	int error;
 
 	pair = nvlist_next_nvpair(holds, NULL);

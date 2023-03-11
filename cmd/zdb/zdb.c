@@ -4209,7 +4209,7 @@ collect_nvlist_stats(nvlist_t *nvl, zdb_nvl_stats_t *stats)
 {
 	nvlist_t *list, **array;
 	nvpair_t *nvp = NULL;
-	char *name;
+	const char *name;
 	uint_t i, items;
 
 	stats->zns_list_count++;

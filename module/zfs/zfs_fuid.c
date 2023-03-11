@@ -133,7 +133,7 @@ zfs_fuid_table_load(objset_t *os, uint64_t fuid_obj, avl_tree_t *idx_tree,
 
 		for (i = 0; i != count; i++) {
 			fuid_domain_t *domnode;
-			char *domain;
+			const char *domain;
 			uint64_t idx;
 
 			VERIFY(nvlist_lookup_string(fuidnvp[i], FUID_DOMAIN,

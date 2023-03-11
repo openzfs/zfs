@@ -199,7 +199,7 @@ spa_history_log_notify(spa_t *spa, nvlist_t *nvl)
 {
 	nvlist_t *hist_nvl = fnvlist_alloc();
 	uint64_t uint64;
-	char *string;
+	const char *string;
 
 	if (nvlist_lookup_string(nvl, ZPOOL_HIST_CMD, &string) == 0)
 		fnvlist_add_string(hist_nvl, ZFS_EV_HIST_CMD, string);

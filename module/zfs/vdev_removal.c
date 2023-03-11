@@ -2414,7 +2414,7 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 		 * in this pool.
 		 */
 		if (vd == NULL || unspare) {
-			char *type;
+			const char *type;
 			boolean_t draid_spare = B_FALSE;
 
 			if (nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type)

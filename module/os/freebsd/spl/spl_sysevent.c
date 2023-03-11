@@ -114,7 +114,7 @@ log_sysevent(nvlist_t *event)
 		}
 		case DATA_TYPE_STRING:
 		{
-			char *value;
+			const char *value;
 
 			(void) nvpair_value_string(elem, &value);
 			sbuf_printf(sb, " %s=%s", nvpair_name(elem), value);
@@ -180,7 +180,7 @@ log_sysevent(nvlist_t *event)
 		}
 		case DATA_TYPE_STRING_ARRAY:
 		{
-			char **strarr;
+			const char **strarr;
 			uint_t ii, nelem;
 
 			(void) nvpair_value_string_array(elem, &strarr, &nelem);

@@ -2307,7 +2307,7 @@ spa_import_progress_add(spa_t *spa)
 {
 	spa_history_list_t *shl = spa_import_progress_list;
 	spa_import_progress_t *sip;
-	char *poolname = NULL;
+	const char *poolname = NULL;
 
 	sip = kmem_zalloc(sizeof (spa_import_progress_t), KM_SLEEP);
 	sip->pool_guid = spa_guid(spa);
