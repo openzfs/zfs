@@ -694,6 +694,7 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 			if (strval[0] != '\0' &&
 			    (stat64(strval, &statbuf) != 0 ||
 			    !S_ISDIR(statbuf.st_mode))) {
+				*slash = '/';
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "'%s' is not a valid directory"),
 				    strval);
