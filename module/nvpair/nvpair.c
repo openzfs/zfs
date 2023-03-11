@@ -2808,7 +2808,7 @@ nvs_native_create(nvstream_t *nvs, nvs_native_t *native, char *buf,
 static void
 nvs_native_destroy(nvstream_t *nvs)
 {
-	(void) nvs;
+	nvs->nvs_private = NULL;
 }
 
 static int
@@ -3189,7 +3189,7 @@ nvs_xdr_destroy(nvstream_t *nvs)
 	switch (nvs->nvs_op) {
 	case NVS_OP_ENCODE:
 	case NVS_OP_DECODE:
-		xdr_destroy((XDR *)nvs->nvs_private);
+		nvs->nvs_private = NULL;
 		break;
 	default:
 		break;
