@@ -1029,7 +1029,7 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 {
 	nvpair_t *elem;
 	uint64_t intval;
-	char *strval;
+	const char *strval;
 	zfs_prop_t prop;
 	nvlist_t *ret;
 	int chosen_normal = -1;
@@ -2065,7 +2065,7 @@ error:
  * extract them appropriately.
  */
 uint64_t
-getprop_uint64(zfs_handle_t *zhp, zfs_prop_t prop, char **source)
+getprop_uint64(zfs_handle_t *zhp, zfs_prop_t prop, const char **source)
 {
 	nvlist_t *nv;
 	uint64_t value;
@@ -2079,14 +2079,14 @@ getprop_uint64(zfs_handle_t *zhp, zfs_prop_t prop, char **source)
 		verify(!zhp->zfs_props_table ||
 		    zhp->zfs_props_table[prop] == B_TRUE);
 		value = zfs_prop_default_numeric(prop);
-		*source = (char *)"";
+		*source = "";
 	}
 
 	return (value);
 }
 
 static const char *
-getprop_string(zfs_handle_t *zhp, zfs_prop_t prop, char **source)
+getprop_string(zfs_handle_t *zhp, zfs_prop_t prop, const char **source)
 {
 	nvlist_t *nv;
 	const char *value;
@@ -2100,7 +2100,7 @@ getprop_string(zfs_handle_t *zhp, zfs_prop_t prop, char **source)
 		verify(!zhp->zfs_props_table ||
 		    zhp->zfs_props_table[prop] == B_TRUE);
 		value = zfs_prop_default_string(prop);
-		*source = (char *)"";
+		*source = "";
 	}
 
 	return (value);
@@ -2138,7 +2138,7 @@ zfs_unset_recvd_props_mode(zfs_handle_t *zhp, uintptr_t *cookie)
  */
 static int
 get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
-    char **source, uint64_t *val)
+    const char **source, uint64_t *val)
 {
 	zfs_cmd_t zc = {"\0"};
 	nvlist_t *zplprops = NULL;
@@ -2370,7 +2370,7 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
  * Calculate the source type, given the raw source string.
  */
 static void
-get_source(zfs_handle_t *zhp, zprop_source_t *srctype, char *source,
+get_source(zfs_handle_t *zhp, zprop_source_t *srctype, const char *source,
     char *statbuf, size_t statlen)
 {
 	if (statbuf == NULL ||
@@ -2418,7 +2418,7 @@ zfs_prop_get_recvd(zfs_handle_t *zhp, const char *propname, char *propbuf,
 		zfs_unset_recvd_props_mode(zhp, &cookie);
 	} else {
 		nvlist_t *propval;
-		char *recvdval;
+		const char *recvdval;
 		if (nvlist_lookup_nvlist(zhp->zfs_recvd_props,
 		    propname, &propval) != 0)
 			return (-1);
@@ -2620,7 +2620,7 @@ zcp_check(zfs_handle_t *zhp, zfs_prop_t prop, uint64_t intval,
 				    (u_longlong_t)intval, (u_longlong_t)ans);
 			}
 		} else {
-			char *str_ans;
+			const char *str_ans;
 			error = nvlist_lookup_string(retnvl, "value", &str_ans);
 			if (error != 0) {
 				(void) fprintf(stderr, "%s: zcp check error: "
@@ -2652,7 +2652,7 @@ int
 zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
     zprop_source_t *src, char *statbuf, size_t statlen, boolean_t literal)
 {
-	char *source = NULL;
+	const char *source = NULL;
 	uint64_t val;
 	const char *str;
 	const char *strval;
@@ -3053,7 +3053,7 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 uint64_t
 zfs_prop_get_int(zfs_handle_t *zhp, zfs_prop_t prop)
 {
-	char *source;
+	const char *source;
 	uint64_t val = 0;
 
 	(void) get_numeric_property(zhp, prop, NULL, &source, &val);
@@ -3077,7 +3077,7 @@ int
 zfs_prop_get_numeric(zfs_handle_t *zhp, zfs_prop_t prop, uint64_t *value,
     zprop_source_t *src, char *statbuf, size_t statlen)
 {
-	char *source;
+	const char *source;
 
 	/*
 	 * Check to see if this property applies to our object
@@ -4698,7 +4698,7 @@ zfs_expand_proplist(zfs_handle_t *zhp, zprop_list_t **plp, boolean_t received,
 	zprop_list_t **last, **start;
 	nvlist_t *userprops, *propval;
 	nvpair_t *elem;
-	char *strval;
+	const char *strval;
 	char buf[ZFS_MAXPROPLEN];
 
 	if (zprop_expand_list(hdl, plp, ZFS_TYPE_DATASET) != 0)
@@ -5484,7 +5484,7 @@ volsize_from_vdevs(zpool_handle_t *zhp, uint64_t nblocks, uint64_t blksize)
 	}
 
 	for (int v = 0; v < nvdevs; v++) {
-		char *type;
+		const char *type;
 		uint64_t nparity, ashift, asize, tsize;
 		uint64_t volsize;
 
@@ -5566,7 +5566,7 @@ zvol_volsize_to_reservation(zpool_handle_t *zph, uint64_t volsize,
 	uint64_t numdb;
 	uint64_t nblocks, volblocksize;
 	int ncopies;
-	char *strval;
+	const char *strval;
 
 	if (nvlist_lookup_string(props,
 	    zfs_prop_to_name(ZFS_PROP_COPIES), &strval) == 0)

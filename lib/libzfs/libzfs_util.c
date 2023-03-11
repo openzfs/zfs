@@ -1595,13 +1595,13 @@ zfs_nicestrtonum(libzfs_handle_t *hdl, const char *value, uint64_t *num)
  */
 int
 zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
-    zfs_type_t type, nvlist_t *ret, char **svalp, uint64_t *ivalp,
+    zfs_type_t type, nvlist_t *ret, const char **svalp, uint64_t *ivalp,
     const char *errbuf)
 {
 	data_type_t datatype = nvpair_type(elem);
 	zprop_type_t proptype;
 	const char *propname;
-	char *value;
+	const char *value;
 	boolean_t isnone = B_FALSE;
 	boolean_t isauto = B_FALSE;
 	int err = 0;

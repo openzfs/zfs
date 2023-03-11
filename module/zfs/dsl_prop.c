@@ -956,7 +956,7 @@ dsl_props_set_check(void *arg, dmu_tx_t *tx)
 			return (SET_ERROR(ENAMETOOLONG));
 		}
 		if (nvpair_type(elem) == DATA_TYPE_STRING) {
-			char *valstr = fnvpair_value_string(elem);
+			const char *valstr = fnvpair_value_string(elem);
 			if (strlen(valstr) >= (version <
 			    SPA_VERSION_STMF_PROP ?
 			    ZAP_OLDMAXVALUELEN : ZAP_MAXVALUELEN)) {

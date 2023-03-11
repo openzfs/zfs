@@ -102,9 +102,9 @@ zfs_deleg_canonicalize_perm(const char *perm)
 }
 
 static int
-zfs_validate_who(char *who)
+zfs_validate_who(const char *who)
 {
-	char *p;
+	const char *p;
 
 	if (who[2] != ZFS_DELEG_FIELD_SEP_CHR)
 		return (-1);

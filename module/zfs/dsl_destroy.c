@@ -658,7 +658,7 @@ dsl_destroy_snapshots_nvl(nvlist_t *snaps, boolean_t defer,
 	    zfs_lua_max_memlimit,
 	    fnvlist_lookup_nvpair(wrapper, ZCP_ARG_ARGLIST), result);
 	if (error != 0) {
-		char *errorstr = NULL;
+		const char *errorstr = NULL;
 		(void) nvlist_lookup_string(result, ZCP_RET_ERROR, &errorstr);
 		if (errorstr != NULL) {
 			zfs_dbgmsg("%s", errorstr);

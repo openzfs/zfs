@@ -380,7 +380,7 @@ make_leaf_vdev(nvlist_t *props, const char *arg, boolean_t is_primary)
 	 * Override defaults if custom properties are provided.
 	 */
 	if (props != NULL) {
-		char *value = NULL;
+		const char *value = NULL;
 
 		if (nvlist_lookup_string(props,
 		    zpool_prop_to_name(ZPOOL_PROP_ASHIFT), &value) == 0) {
@@ -435,7 +435,7 @@ make_leaf_vdev(nvlist_t *props, const char *arg, boolean_t is_primary)
  *	one general purpose vdev.
  */
 typedef struct replication_level {
-	char *zprl_type;
+	const char *zprl_type;
 	uint64_t zprl_children;
 	uint64_t zprl_parity;
 } replication_level_t;
@@ -489,7 +489,7 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 	nvlist_t **child;
 	uint_t c, children;
 	nvlist_t *nv;
-	char *type;
+	const char *type;
 	replication_level_t lastrep = {0};
 	replication_level_t rep;
 	replication_level_t *ret;
@@ -567,10 +567,10 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 			vdev_size = -1LL;
 			for (c = 0; c < children; c++) {
 				nvlist_t *cnv = child[c];
-				char *path;
+				const char *path;
 				struct stat64 statbuf;
 				int64_t size = -1LL;
-				char *childtype;
+				const char *childtype;
 				int fd, err;
 
 				rep.zprl_children++;
@@ -904,7 +904,7 @@ check_replication(nvlist_t *config, nvlist_t *newroot)
 }
 
 static int
-zero_label(char *path)
+zero_label(const char *path)
 {
 	const int size = 4096;
 	char buf[size];
@@ -951,7 +951,7 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 {
 	nvlist_t **child;
 	uint_t c, children;
-	char *type, *path;
+	const char *type, *path;
 	char devpath[MAXPATHLEN];
 	char udevpath[MAXPATHLEN];
 	uint64_t wholedisk;
@@ -1110,7 +1110,7 @@ is_device_in_use(nvlist_t *config, nvlist_t *nv, boolean_t force,
 {
 	nvlist_t **child;
 	uint_t c, children;
-	char *type, *path;
+	const char *type, *path;
 	int ret = 0;
 	char buf[MAXPATHLEN];
 	uint64_t wholedisk = B_FALSE;
@@ -1761,7 +1761,7 @@ split_mirror_vdev(zpool_handle_t *zhp, char *newname, nvlist_t *props,
 		verify(nvlist_lookup_nvlist_array(newroot,
 		    ZPOOL_CONFIG_CHILDREN, &child, &children) == 0);
 		for (c = 0; c < children; c++) {
-			char *path;
+			const char *path;
 			const char *type;
 			int min, max;
 

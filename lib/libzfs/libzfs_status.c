@@ -168,7 +168,8 @@ find_vdev_problem(nvlist_t *vdev, int (*func)(vdev_stat_t *, uint_t),
 	 * later.
 	 */
 	if (ignore_replacing == B_TRUE) {
-		char *type = fnvlist_lookup_string(vdev, ZPOOL_CONFIG_TYPE);
+		const char *type = fnvlist_lookup_string(vdev,
+		    ZPOOL_CONFIG_TYPE);
 		if (strcmp(type, VDEV_TYPE_REPLACING) == 0)
 			return (B_FALSE);
 	}

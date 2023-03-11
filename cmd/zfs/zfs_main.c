@@ -1049,7 +1049,7 @@ zfs_do_create(int argc, char **argv)
 	int ret = 1;
 	nvlist_t *props;
 	uint64_t intval;
-	char *strval;
+	const char *strval;
 
 	if (nvlist_alloc(&props, NV_UNIQUE_NAME, 0) != 0)
 		nomem();
@@ -1173,11 +1173,12 @@ zfs_do_create(int argc, char **argv)
 
 		if (volblocksize != ZVOL_DEFAULT_BLOCKSIZE &&
 		    nvlist_lookup_string(props, prop, &strval) != 0) {
-			if (asprintf(&strval, "%llu",
+			char *tmp;
+			if (asprintf(&tmp, "%llu",
 			    (u_longlong_t)volblocksize) == -1)
 				nomem();
-			nvlist_add_string(props, prop, strval);
-			free(strval);
+			nvlist_add_string(props, prop, tmp);
+			free(tmp);
 		}
 
 		/*
@@ -1252,7 +1253,7 @@ zfs_do_create(int argc, char **argv)
 		    dryrun ? "would create %s\n" : "create %s\n", argv[0]);
 		while ((nvp = nvlist_next_nvpair(props, nvp)) != NULL) {
 			uint64_t uval;
-			char *sval;
+			const char *sval;
 
 			switch (nvpair_type(nvp)) {
 			case DATA_TYPE_UINT64:
@@ -2701,8 +2702,8 @@ us_compare(const void *larg, const void *rarg, void *unused)
 	boolean_t lvb, rvb;
 
 	for (; sortcol != NULL; sortcol = sortcol->sc_next) {
-		char *lvstr = (char *)"";
-		char *rvstr = (char *)"";
+		const char *lvstr = "";
+		const char *rvstr = "";
 		uint32_t lv32 = 0;
 		uint32_t rv32 = 0;
 		uint64_t lv64 = 0;
@@ -6495,7 +6496,7 @@ print_holds(boolean_t scripted, int nwidth, int tagwidth, nvlist_t *nvl,
 	}
 
 	while ((nvp = nvlist_next_nvpair(nvl, nvp)) != NULL) {
-		char *zname = nvpair_name(nvp);
+		const char *zname = nvpair_name(nvp);
 		nvlist_t *nvl2;
 		nvpair_t *nvp2 = NULL;
 		(void) nvpair_value_nvlist(nvp, &nvl2);
@@ -8095,7 +8096,7 @@ zfs_do_channel_program(int argc, char **argv)
 		const char *msg = gettext("Channel program execution failed");
 		uint64_t instructions = 0;
 		if (outnvl != NULL && nvlist_exists(outnvl, ZCP_RET_ERROR)) {
-			char *es = NULL;
+			const char *es = NULL;
 			(void) nvlist_lookup_string(outnvl,
 			    ZCP_RET_ERROR, &es);
 			if (es == NULL)

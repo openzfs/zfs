@@ -473,7 +473,7 @@ nvt_remove_nvpair(nvlist_t *nvl, const nvpair_t *nvp)
 	}
 	i_nvp_t **tab = priv->nvp_hashtable;
 
-	char *name = NVP_NAME(nvp);
+	const char *name = NVP_NAME(nvp);
 	uint64_t hash = nvt_hash(name);
 	uint64_t index = hash & (priv->nvp_nbuckets - 1);
 
@@ -528,7 +528,7 @@ nvt_add_nvpair(nvlist_t *nvl, nvpair_t *nvp)
 	}
 	i_nvp_t **tab = priv->nvp_hashtable;
 
-	char *name = NVP_NAME(nvp);
+	const char *name = NVP_NAME(nvp);
 	uint64_t hash = nvt_hash(name);
 	uint64_t index = hash & (priv->nvp_nbuckets - 1);
 
@@ -1517,7 +1517,7 @@ nvlist_empty(const nvlist_t *nvl)
 	return (priv->nvp_list == NULL);
 }
 
-char *
+const char *
 nvpair_name(const nvpair_t *nvp)
 {
 	return (NVP_NAME(nvp));
@@ -1731,7 +1731,7 @@ nvlist_lookup_double(const nvlist_t *nvl, const char *name, double *val)
 #endif
 
 int
-nvlist_lookup_string(nvlist_t *nvl, const char *name, char **val)
+nvlist_lookup_string(const nvlist_t *nvl, const char *name, const char **val)
 {
 	return (nvlist_lookup_common(nvl, name, DATA_TYPE_STRING, NULL, val));
 }
@@ -1917,7 +1917,7 @@ nvlist_lookup_pairs(nvlist_t *nvl, int flag, ...)
  */
 static int
 nvlist_lookup_nvpair_ei_sep(nvlist_t *nvl, const char *name, const char sep,
-    nvpair_t **ret, int *ip, char **ep)
+    nvpair_t **ret, int *ip, const char **ep)
 {
 	nvpair_t	*nvp;
 	const char	*np;
@@ -2097,7 +2097,7 @@ nvlist_lookup_nvpair(nvlist_t *nvl, const char *name, nvpair_t **ret)
  * description.
  */
 int nvlist_lookup_nvpair_embedded_index(nvlist_t *nvl,
-    const char *name, nvpair_t **ret, int *ip, char **ep)
+    const char *name, nvpair_t **ret, int *ip, const char **ep)
 {
 	return (nvlist_lookup_nvpair_ei_sep(nvl, name, '.', ret, ip, ep));
 }
@@ -2192,7 +2192,7 @@ nvpair_value_double(const nvpair_t *nvp, double *val)
 #endif
 
 int
-nvpair_value_string(nvpair_t *nvp, char **val)
+nvpair_value_string(const nvpair_t *nvp, const char **val)
 {
 	return (nvpair_value_common(nvp, DATA_TYPE_STRING, NULL, val));
 }
@@ -2264,7 +2264,7 @@ nvpair_value_uint64_array(nvpair_t *nvp, uint64_t **val, uint_t *nelem)
 }
 
 int
-nvpair_value_string_array(nvpair_t *nvp, char ***val, uint_t *nelem)
+nvpair_value_string_array(nvpair_t *nvp, const char ***val, uint_t *nelem)
 {
 	return (nvpair_value_common(nvp, DATA_TYPE_STRING_ARRAY, nelem, val));
 }

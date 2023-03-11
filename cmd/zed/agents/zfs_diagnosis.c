@@ -464,7 +464,7 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 	nvlist_t *detector;
 	boolean_t pool_found = B_FALSE;
 	boolean_t isresource;
-	char *type;
+	const char *type;
 
 	/*
 	 * We subscribe to notifications for vdev or pool removal.  In these
@@ -780,7 +780,7 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 	    ZFS_MAKE_EREPORT(FM_EREPORT_ZFS_IO_FAILURE)) ||
 	    fmd_nvl_class_match(hdl, nvl,
 	    ZFS_MAKE_EREPORT(FM_EREPORT_ZFS_PROBE_FAILURE))) {
-		char *failmode = NULL;
+		const char *failmode = NULL;
 		boolean_t checkremove = B_FALSE;
 		uint32_t pri = 0;
 		int32_t flags = 0;

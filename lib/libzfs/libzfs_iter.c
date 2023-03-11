@@ -224,7 +224,7 @@ zfs_iter_bookmarks(zfs_handle_t *zhp, int flags __maybe_unused,
 	for (pair = nvlist_next_nvpair(bmarks, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(bmarks, pair)) {
 		char name[ZFS_MAX_DATASET_NAME_LEN];
-		char *bmark_name;
+		const char *bmark_name;
 		nvlist_t *bmark_props;
 
 		bmark_name = nvpair_name(pair);

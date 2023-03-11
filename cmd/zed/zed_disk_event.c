@@ -60,7 +60,7 @@ struct udev_monitor *g_mon;
 static void
 zed_udev_event(const char *class, const char *subclass, nvlist_t *nvl)
 {
-	char *strval;
+	const char *strval;
 	uint64_t numval;
 
 	zed_log_msg(LOG_INFO, "zed_disk_event:");
@@ -178,7 +178,8 @@ static void *
 zed_udev_monitor(void *arg)
 {
 	struct udev_monitor *mon = arg;
-	char *tmp, *tmp2;
+	const char *tmp;
+	char *tmp2;
 
 	zed_log_msg(LOG_INFO, "Waiting for new udev disk events...");
 
@@ -336,7 +337,7 @@ zed_udev_monitor(void *arg)
 		if (strcmp(class, EC_DEV_STATUS) == 0 &&
 		    udev_device_get_property_value(dev, "DM_UUID") &&
 		    udev_device_get_property_value(dev, "MPATH_SBIN_PATH")) {
-			tmp = (char *)udev_device_get_devnode(dev);
+			tmp = udev_device_get_devnode(dev);
 			tmp2 = zfs_get_underlying_path(tmp);
 			if (tmp && tmp2 && (strcmp(tmp, tmp2) != 0)) {
 				/*
@@ -353,8 +354,7 @@ zed_udev_monitor(void *arg)
 				class = EC_DEV_ADD;
 				subclass = ESC_DISK;
 			} else {
-				tmp = (char *)
-				    udev_device_get_property_value(dev,
+				tmp = udev_device_get_property_value(dev,
 				    "DM_NR_VALID_PATHS");
 				/* treat as a multipath remove */
 				if (tmp != NULL && strcmp(tmp, "0") == 0) {

@@ -612,7 +612,7 @@ _zed_event_add_string_array(uint64_t eid, zed_strings_t *zsp,
 	char buf[MAXBUF];
 	int buflen = sizeof (buf);
 	const char *name;
-	char **strp;
+	const char **strp;
 	uint_t nelem;
 	uint_t i;
 	char *p;
@@ -652,7 +652,7 @@ _zed_event_add_nvpair(uint64_t eid, zed_strings_t *zsp, nvpair_t *nvp)
 	uint16_t i16;
 	uint32_t i32;
 	uint64_t i64;
-	char *str;
+	const char *str;
 
 	assert(zsp != NULL);
 	assert(nvp != NULL);
@@ -935,7 +935,7 @@ zed_event_service(struct zed_conf *zcp)
 	uint64_t eid;
 	int64_t *etime;
 	uint_t nelem;
-	char *class;
+	const char *class;
 	const char *subclass;
 	int rv;
 
