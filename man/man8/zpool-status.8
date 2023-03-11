@@ -52,6 +52,18 @@ For more information on pool and device health, see the
 section of
 .Xr zpoolconcepts 7 .
 .Pp
+This command will attempt to reduce the number of digits to print the error
+counters of each vdev, using binary multiples with a single letter suffix
+.Po for example
+.Sy K, M, G ,
+etc. for 2^10, 2^20, 2^30, and so on, respectively
+.Pc , unless
+.Fl p
+is specified .
+For example for a vdev having 50000 checksum errors, the errors will be
+represented as
+.Ar 48.8K .
+.Pp
 If a scrub or resilver is in progress, this command reports the percentage done
 and the estimated time to completion.
 Both of these are only approximate, because the amount of data in the pool and
