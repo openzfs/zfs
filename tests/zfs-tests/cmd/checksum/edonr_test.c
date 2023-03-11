@@ -203,7 +203,7 @@ main(int argc, char *argv[])
 	if (failed)
 		return (1);
 
-	(void) printf("Running performance tests (hashing 1024 MiB of "
+	(void) printf("Running performance tests (hashing 1024 MB of "
 	    "data):\n");
 	EDONR_PERF_TEST(256);
 	EDONR_PERF_TEST(512);

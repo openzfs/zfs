@@ -4329,7 +4329,7 @@ zpool_get_history(zpool_handle_t *zhp, nvlist_t **nvhisp, uint64_t *off,
 
 	buf = zfs_alloc(hdl, buflen);
 
-	/* process about 1MiB a time */
+	/* process about 1MB a time */
 	while (*off - start < 1024 * 1024) {
 		uint64_t bytes_read = buflen;
 		uint64_t leftover;

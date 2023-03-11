@@ -207,7 +207,7 @@ space/performance trade-off.
 For optimal performance, the pool sector size should be greater than
 or equal to the sector size of the underlying disks.
 The typical case for setting this property is when
-performance is important and the underlying disks use 4KiB sectors but
+performance is important and the underlying disks use 4kB sectors but
 report 512B sectors to the OS (for compatibility reasons); in that
 case, set
 .Sy ashift Ns = Ns Sy 12
@@ -218,7 +218,7 @@ used as the default hint value in subsequent vdev operations (add,
 attach and replace).
 Changing this value will not modify any existing
 vdev, not even on disk replacement; however it can be used, for
-instance, to replace a dying 512B sectors disk with a newer 4KiB
+instance, to replace a dying 512B sectors disk with a newer 4kB
 sectors device: this will probably result in bad performance but at the
 same time could prevent loss of data.
 .It Sy autoexpand Ns = Ns Sy on Ns | Ns Sy off

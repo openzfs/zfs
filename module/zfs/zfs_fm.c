@@ -119,7 +119,7 @@ static kmutex_t recent_events_lock;
 static taskqid_t recent_events_cleaner_tqid;
 
 /*
- * Each node is about 128 bytes so 2,000 would consume 1/4 MiB.
+ * Each node is about 128 bytes so 2,000 would consume 1/4 MB.
  *
  * This setting can be changed dynamically and setting it to zero
  * disables duplicate detection.

@@ -168,7 +168,7 @@ separated by whitespace and/or commas.
 Only features present in all files are enabled.
 .Pp
 Simple sanity checks are applied to the files:
-they must be between 1 B and 16 KiB in size, and must end with a newline
+they must be between 1 B and 16kB in size, and must end with a newline
 character.
 .Pp
 The requested features are applied when a pool is created using
@@ -494,7 +494,7 @@ itself
 the compressed data, rather than a pointer to its location on disk
 .Pc .
 Thus the space of the block
-.Pq one sector, typically 512 B or 4 KiB
+.Pq one sector, typically 512B or 4kB
 is saved, and no additional I/O is needed to read and write the data block.
 .
 \*[instant-never]
@@ -625,29 +625,29 @@ already exist on the receiving side.
 \*[instant-never]
 .
 .feature org.open-zfs large_blocks no extensible_dataset
-This feature allows the record size on a dataset to be set larger than 128 KiB.
+This feature allows the record size on a dataset to be set larger than 128kB.
 .Pp
 This feature becomes
 .Sy active
-once a dataset contains a file with a block size larger than 128 KiB,
+once a dataset contains a file with a block size larger than 128kB,
 and will return to being
 .Sy enabled
-once all filesystems that have ever had their recordsize larger than 128 KiB
+once all filesystems that have ever had their recordsize larger than 128kB
 are destroyed.
 .
 .feature org.zfsonlinux large_dnode no extensible_dataset
-This feature allows the size of dnodes in a dataset to be set larger than 512 B.
+This feature allows the size of dnodes in a dataset to be set larger than 512B.
 .
 This feature becomes
 .Sy active
-once a dataset contains an object with a dnode larger than 512 B,
+once a dataset contains an object with a dnode larger than 512B,
 which occurs as a result of setting the
 .Sy dnodesize
 dataset property to a value other than
 .Sy legacy .
 The feature will return to being
 .Sy enabled
-once all filesystems that have ever contained a dnode larger than 512 B
+once all filesystems that have ever contained a dnode larger than 512B
 are destroyed.
 Large dnodes allow more data to be stored in the bonus buffer,
 thus potentially improving performance by avoiding the use of spill blocks.

@@ -570,7 +570,7 @@ main(int argc, char *argv[])
 		    (u_longlong_t)delta, cpb);				\
 	} while (0)
 
-	printf("Running performance tests (hashing 1024 MiB of data):\n");
+	printf("Running performance tests (hashing 1024 MB of data):\n");
 	for (id = 0; id < blake3->getcnt(); id++) {
 		blake3->setid(id);
 		const char *name = blake3->getname();

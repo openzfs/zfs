@@ -468,18 +468,18 @@ static void hasher_merge_cv_stack(BLAKE3_CTX *ctx, uint64_t total_len)
  *
  * This setting is different. We want to feed as much input as possible to
  * compress_subtree_wide(), without setting aside anything for the chunk_state.
- * If the user gives us 64 KiB, we want to parallelize over all 64 KiB at once
+ * If the user gives us 64 KB, we want to parallelize over all 64 KB at once
  * as a single subtree, if at all possible.
  *
  * This leads to two problems:
- * 1) This 64 KiB input might be the only call that ever gets made to update.
- *    In this case, the root node of the 64 KiB subtree would be the root node
+ * 1) This 64 KB input might be the only call that ever gets made to update.
+ *    In this case, the root node of the 64 KB subtree would be the root node
  *    of the whole tree, and it would need to be ROOT finalized. We can't
  *    compress it until we know.
- * 2) This 64 KiB input might complete a larger tree, whose root node is
+ * 2) This 64 KB input might complete a larger tree, whose root node is
  *    similarly going to be the the root of the whole tree. For example, maybe
- *    we have 196 KiB (that is, 128 + 64) hashed so far. We can't compress the
- *    node at the root of the 256 KiB subtree until we know how to finalize it.
+ *    we have 196 KB (that is, 128 + 64) hashed so far. We can't compress the
+ *    node at the root of the 256 KB subtree until we know how to finalize it.
  *
  * The second problem is solved with "lazy merging". That is, when we're about
  * to add a CV to the stack, we don't merge it with anything first, as the

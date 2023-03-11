@@ -245,7 +245,7 @@ main(int argc, char *argv[])
 	if (failed)
 		return (1);
 
-	(void) printf("Running performance tests (hashing 1024 MiB of "
+	(void) printf("Running performance tests (hashing 1024 MB of "
 	    "data):\n");
 
 	for (id = 0; id < sha256->getcnt(); id++) {

@@ -31,7 +31,7 @@
 #include <sys/blake3.h>
 #include <sys/sha2.h>
 
-/* limit benchmarking to max 256KiB, when EdonR is slower then this: */
+/* limit benchmarking to max 256KB, when EdonR is slower then this: */
 #define	LIMIT_PERF_MBS	300
 
 typedef struct {
@@ -176,7 +176,7 @@ chksum_run(chksum_stat_t *cs, abd_t *abd, void *ctx, int round,
 
 	run_bw = size * run_count * NANOSEC;
 	run_bw /= run_time_ns;	/* B/s */
-	*result = run_bw/1024/1024; /* MiB/s */
+	*result = run_bw/1024/1024; /* MB/s */
 }
 
 #define	LIMIT_INIT	0
@@ -212,7 +212,7 @@ chksum_benchit(chksum_stat_t *cs)
 		}
 	}
 
-	/* skip benchmarks >= 1MiB when the CPU is to slow */
+	/* skip benchmarks >= 1MB when the CPU is to slow */
 	if (chksum_stat_limit == LIMIT_NEEDED)
 		goto abort;
 

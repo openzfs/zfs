@@ -29,7 +29,7 @@
 
 static char *filename = NULL;
 static int expected_offset = -1;
-static int blocksize = 131072; /* 128KiB */
+static int blocksize = 131072; /* 128KB */
 static int numblocks = 8;
 static const char *execname = "file_append";
 static int use_odirect = 0;
@@ -61,7 +61,7 @@ usage(void)
 	    "    expected_offset\n"
 	    "\n"
 	    "    Default values:\n"
-	    "    blocksize   -> 131072 (128 KiB)\n"
+	    "    blocksize   -> 131072 (128 KB)\n"
 	    "    numblocks   -> 8\n"
 	    "    use_odirect -> False\n",
 	    execname);
