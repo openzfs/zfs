@@ -23,6 +23,9 @@ import sys
 import ctypes
 import re
 import configparser
+import glob
+import json
+import difflib
 
 from datetime import datetime
 from optparse import OptionParser
@@ -390,6 +393,109 @@ User: %s
                 kmem.write(self.result.kmemleak)
 
 
+class ModuleParamsNotInvariantError(Exception):
+    def __init__(self, testtype, testname, params_diff):
+        super(ModuleParamsNotInvariantError, self).__init__()
+        self.testtype = testtype
+        self.testname = testname
+        self.params_diff = params_diff
+    def __str__(self):
+        return """Kernel module parameters were not reset properly at end of:
+%s %s
+Affected parameters:
+%s
+""" % (self.testtype, self.testname, self.params_diff)
+
+do_assert_invariant_module_params = False
+
+def assert_invariant_module_params(runfunc):
+
+    def _assert_invariant_module_params(*args, **kwargs):
+
+        if not do_assert_invariant_module_params:
+            runfunc(*args, **kwargs)
+            return
+
+        def get_current_params():
+            modules = [ "zfs", "spl" ]
+            params = {}
+            for mod in modules:
+                for f in glob.glob("/sys/module/%s/parameters/*" % mod):
+                    assert params.get(f, None) is None
+                    if os.path.isfile(f):
+                        with open(f, "r") as fd:
+                            params[f] = fd.read()
+            assert len(params) > 0
+            # XXX: ZED changes this param dynamically
+            # https://github.com/openzfs/zfs/pull/13287#issuecomment-1224887857
+            params.pop("/sys/module/zfs/parameters/zfs_zevent_len_max", None)
+            return params
+
+        def pretty_diffable_json(d):
+            return json.dumps(d, sort_keys=True, indent=4, separators=(',', ': '))
+
+        def diff_params(l, r):
+            l_j = pretty_diffable_json(l)
+            r_j = pretty_diffable_json(r)
+
+            if l_j == r_j:
+                return None
+
+            # difflib takes lists of strings (= lines) and returns a generator
+            # that produces human-readable diff output
+            ret = "\n".join(difflib.unified_diff(l_j.splitlines(), r_j.splitlines()))
+            assert ret is not None
+            return ret
+
+        """
+        The control flow is as follows:
+        Capture params, call runfunc, capture params again, and diff them.
+        If the diff is non-zero, raise a ModuleParamsNotInvariantError.
+        We use try and finally to ensure that we always check and diff the params.
+        So, we raise ModuleParamsNotInvariantError from finally.
+
+        In this program, the decorator can be active multiple times.
+        For example, TestRun.run calls TestGroup.run calls TestGroupCmd.run.
+        If the TestGroupCmd.run raises, we want that exception to win,
+        so that the error message points the user to the specific offending test.
+        But since we raise from finally, the default Python behavior is that the
+        outermost exception raised in finally wins, i.e., the one from TestRun.run.
+        Therefore, if we catch a ModuleParamsNotInvariantError, we stop checking
+        and simply re-raise it.
+        """
+
+        assert len(args) > 0 # the decorator is only meant for the .run() method, which takes `self`
+        testtype = str(args[0].__class__)
+        testname = getattr(args[0], "pathname", "<no pathname member>")
+
+        def debug(s):
+            if os.getenv("ZFS_TEST_SUITE_DEBUG_RUNNER") is not None:
+                sys.stderr.write("%s: %s %s: %s\n" % (__func__, testtype, testname, s))
+                sys.stderr.flush()
+
+        nested_runfunc_threw = False
+        pre_params = get_current_params()
+        try:
+            runfunc(*args, **kwargs)
+        except ModuleParamsNotInvariantError:
+            nested_runfunc_threw = True
+            raise
+        finally:
+            debug("nested_runfunc_threw=%s" % nested_runfunc_threw)
+            if not nested_runfunc_threw:
+                post_params = get_current_params()
+                # We could just compare the dictionaries instead of producing a diff,
+                # but by including the diff in the ModuleParamsNotInvariantError
+                # enables developers to fix the offending test just from the test runner
+                # output, without need for further debugging.
+                diff = diff_params(pre_params, post_params)
+                debug("params_diff? %s" % (diff is not None))
+                if diff is not None:
+                    raise ModuleParamsNotInvariantError(testtype, testname, diff)
+
+    return _assert_invariant_module_params
+
+
 class Test(Cmd):
     props = ['outputdir', 'timeout', 'user', 'pre', 'pre_user', 'post',
              'post_user', 'failsafe', 'failsafe_user', 'tags']
@@ -450,6 +556,7 @@ Tags: %s
 
         return True
 
+    @assert_invariant_module_params
     def run(self, options):
         """
         Create Cmd instances for the pre/post/failsafe scripts. If the pre
@@ -489,6 +596,11 @@ Tags: %s
         if len(posttest.pathname):
             posttest.run(options.dryrun, False, options.kmsg)
             posttest.log(options)
+
+class TestGroupCmd(Cmd):
+    @assert_invariant_module_params
+    def run(self, *args, **kwargs):
+        super(TestGroupCmd, self).run(*args, **kwargs)
 
 
 class TestGroup(Test):
@@ -571,6 +683,7 @@ Tags: %s
 
         return len(self.tests) != 0
 
+    @assert_invariant_module_params
     def run(self, options):
         """
         Create Cmd instances for the pre/post/failsafe scripts. If the pre
@@ -595,8 +708,16 @@ Tags: %s
             pretest.log(options)
 
         for fname in self.tests:
+            # Use TestGroupCmd which decorates .run() with
+            # assert_invariant_module_params. That way, it will fail
+            # early at the specific test that violates the invariant.
+            # If we just used undecorated Cmd.run(), we wouldn't notice
+            # until we return from this method (which is decorated as well).
+            # Note that we can't just decorate Cmd.run because then
+            # pretest/posttest) would no longer be allowed to change/restore
+            # module parameters for an entire test group.
             odir = os.path.join(self.outputdir, fname)
-            test = Cmd(os.path.join(self.pathname, fname), outputdir=odir,
+            test = TestGroupCmd(os.path.join(self.pathname, fname), outputdir=odir,
                        timeout=self.timeout, user=self.user,
                        identifier=self.identifier)
             odir = os.path.join(odir, os.path.basename(self.failsafe))
@@ -861,6 +982,7 @@ class TestRun(object):
             except OSError as e:
                 fail('%s' % e)
 
+    @assert_invariant_module_params
     def run(self, options):
         """
         Walk through all the Tests and TestGroups, calling run().
@@ -1114,6 +1236,10 @@ def parse_args():
     parser.add_option('-I', action='callback', callback=options_cb, default=1,
                       dest='iterations', metavar='iterations', type='int',
                       help='Number of times to run the test run.')
+    parser.add_option('--assert-invariant-module-params', action='store_true',
+                      default=False, dest='do_assert_invariant_module_params',
+                      help="Assert that tests / test groups properly "
+                      "restore module parameters.")
     (options, pathnames) = parser.parse_args()
 
     if options.runfiles and len(pathnames):
@@ -1140,6 +1266,9 @@ def main():
     if options.template:
         testrun.write(options)
         exit(0)
+
+    global do_assert_invariant_module_params
+    do_assert_invariant_module_params = options.do_assert_invariant_module_params
 
     testrun.complete_outputdirs()
     testrun.run(options)

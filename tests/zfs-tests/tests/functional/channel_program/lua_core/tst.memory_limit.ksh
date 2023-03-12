@@ -25,6 +25,9 @@
 
 verify_runnable "global"
 
+save_tunable32 LUA_MAX_MEMLIMIT
+log_onexit_push restore_tunable32 LUA_MAX_MEMLIMIT
+
 log_mustnot_checkerror_program "Memory limit exhausted" \
     -t 100000000 $TESTPOOL - <<-EOF
 	a = {};

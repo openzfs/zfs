@@ -151,7 +151,11 @@ function test_replace_vdev
 }
 
 # Record txg history
-is_linux && log_must set_tunable32 TXG_HISTORY 100
+if is_linux ; then
+	save_tunable32 TXG_HISTORY
+	log_onexit_push restore_tunable32 TXG_HISTORY
+	log_must set_tunable32 TXG_HISTORY 100
+fi
 
 log_must mkdir -p $BACKUP_DEVICE_DIR
 # Make the devices bigger to reduce chances of overwriting MOS metadata.

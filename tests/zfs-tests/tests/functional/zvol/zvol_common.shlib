@@ -139,3 +139,17 @@ function set_blk_mq
 		log_must set_tunable32 VOL_USE_BLK_MQ $1
 	fi
 }
+
+function save_blk_mq
+{
+	if tunable_exists VOL_USE_BLK_MQ ; then
+		save_tunable32 VOL_USE_BLK_MQ
+	fi
+}
+
+function restore_blk_mq
+{
+	if tunable_exists VOL_USE_BLK_MQ ; then
+		restore_tunable32 VOL_USE_BLK_MQ
+	fi
+}

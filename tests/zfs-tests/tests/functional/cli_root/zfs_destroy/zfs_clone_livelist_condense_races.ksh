@@ -37,11 +37,6 @@
 function cleanup
 {
 	log_must zfs destroy -Rf $TESTPOOL/$TESTFS1
-	# reset the livelist sublist size to the original value
-	set_tunable64 LIVELIST_MAX_ENTRIES $ORIGINAL_MAX
-	# reset the condense tests to 0
-	set_tunable32 LIVELIST_CONDENSE_ZTHR_PAUSE 0
-	set_tunable32 LIVELIST_CONDENSE_SYNC_PAUSE 0
 	log_must zfs inherit compression $TESTPOOL
 }
 
@@ -90,9 +85,18 @@ function disable_race
 	log_must zfs destroy $TESTPOOL/$TESTCLONE
 }
 
-ORIGINAL_MAX=$(get_tunable LIVELIST_MAX_ENTRIES)
+save_tunable64 LIVELIST_MAX_ENTRIES
+log_onexit_push restore_tunable64 LIVELIST_MAX_ENTRIES
+save_tunable32 LIVELIST_CONDENSE_ZTHR_PAUSE
+log_onexit_push restore_tunable32 LIVELIST_CONDENSE_ZTHR_PAUSE
+save_tunable32 LIVELIST_CONDENSE_SYNC_PAUSE
+log_onexit_push restore_tunable32 LIVELIST_CONDENSE_SYNC_PAUSE
+save_tunable32 LIVELIST_CONDENSE_SYNC_CANCEL
+log_onexit_push restore_tunable32 LIVELIST_CONDENSE_SYNC_CANCEL
+save_tunable32 LIVELIST_CONDENSE_ZTHR_CANCEL
+log_onexit_push restore_tunable32 LIVELIST_CONDENSE_ZTHR_CANCEL
 
-log_onexit cleanup
+log_onexit_push cleanup
 
 # You might think that setting compression=off for $TESTFS1 would be
 # sufficient. You would be mistaken.

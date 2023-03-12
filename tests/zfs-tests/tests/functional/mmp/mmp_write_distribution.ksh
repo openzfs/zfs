@@ -46,6 +46,9 @@ function cleanup
 log_assert "mmp writes are evenly distributed across leaf vdevs"
 log_onexit cleanup
 
+save_tunable64 MULTIHOST_HISTORY
+log_onexit_push restore_tunable64 MULTIHOST_HISTORY
+
 MMP_HISTORY_TMP=$MMP_DIR/history
 MMP_HISTORY=/proc/spl/kstat/zfs/$MMP_POOL/multihost
 

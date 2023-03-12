@@ -56,14 +56,13 @@ function cleanup
 {
 	default_cleanup_noexit
 	log_must rm -f $DISKS
-
-	# reset REMOVE_MAX_SEGMENT to 1M
-	set_tunable32 REMOVE_MAX_SEGMENT 1048576
 }
 
 log_onexit cleanup
 
 # set REMOVE_MAX_SEGMENT to 32k
+save_tunable32 REMOVE_MAX_SEGMENT
+log_onexit_push restore_tunable32 REMOVE_MAX_SEGMENT
 log_must set_tunable32 REMOVE_MAX_SEGMENT 32768
 
 log_must dd if=/dev/urandom of=$TESTDIR/$TESTFILE0 bs=128k count=1

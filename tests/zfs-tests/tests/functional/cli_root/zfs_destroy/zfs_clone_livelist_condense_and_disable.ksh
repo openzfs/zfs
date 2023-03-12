@@ -35,10 +35,6 @@
 function cleanup
 {
 	log_must zfs destroy -Rf $TESTPOOL/$TESTFS1
-	# reset the livelist sublist size to the original value
-	set_tunable64 LIVELIST_MAX_ENTRIES $ORIGINAL_MAX
-	# reset the minimum percent shared to 75
-	set_tunable32 LIVELIST_MIN_PERCENT_SHARED $ORIGINAL_MIN
 	log_must zfs inherit compression $TESTPOOL
 }
 
@@ -113,10 +109,12 @@ function test_deactivated
 	log_must zfs destroy -R $TESTPOOL/$TESTCLONE
 }
 
-ORIGINAL_MAX=$(get_tunable LIVELIST_MAX_ENTRIES)
-ORIGINAL_MIN=$(get_tunable LIVELIST_MIN_PERCENT_SHARED)
+save_tunable64 LIVELIST_MAX_ENTRIES
+log_onexit_push restore_tunable64 LIVELIST_MAX_ENTRIES
+save_tunable32 LIVELIST_MIN_PERCENT_SHARED
+log_onexit_push restore_tunable32 LIVELIST_MIN_PERCENT_SHARED
 
-log_onexit cleanup
+log_onexit_push cleanup
 # You might think that setting compression=off for $TESTFS1 would be
 # sufficient. You would be mistaken.
 # You need compression=off for whatever the parent of $TESTFS1 is,
@@ -129,3 +127,4 @@ test_condense
 test_deactivated
 
 log_pass "Clone's livelist condenses and disables as expected."
+

@@ -32,6 +32,7 @@ SCRIPT_COMMON=${SCRIPT_COMMON:-${0%/*}/common.sh}
 PROG=zfs-tests.sh
 VERBOSE="no"
 QUIET=""
+DO_ASSERT_INVARIANT_MODULE_PARAMS=""
 CLEANUP="yes"
 CLEANUPALL="no"
 KMSG=""
@@ -329,6 +330,8 @@ OPTIONS:
 	-t PATH     Run single test at PATH relative to test suite
 	-T TAGS     Comma separated list of tags (default: 'functional')
 	-u USER     Run single test as USER (default: root)
+	-P          Assert that tests / test groups properly
+                    restore module parameters.
 
 EXAMPLES:
 # Run the default ($(echo "${DEFAULT_RUNFILES}" | sed 's/\.run//')) suite of tests and output the configuration used.
@@ -347,7 +350,7 @@ $0 -x
 EOF
 }
 
-while getopts 'hvqxkKfScRmn:d:s:r:?t:T:u:I:' OPTION; do
+while getopts 'hvqxkKfScRmn:d:s:r:?t:T:u:I:P' OPTION; do
 	case $OPTION in
 	h)
 		usage
@@ -416,6 +419,9 @@ while getopts 'hvqxkKfScRmn:d:s:r:?t:T:u:I:' OPTION; do
 		;;
 	u)
 		SINGLETESTUSER="$OPTARG"
+		;;
+	P)
+		DO_ASSERT_INVARIANT_MODULE_PARAMS="yes"
 		;;
 	?)
 		usage
@@ -682,6 +688,7 @@ msg "${TEST_RUNNER}" \
     "${QUIET:+-q}" \
     "${KMEMLEAK:+-m}" \
     "${KMSG:+-K}" \
+    "${DO_ASSERT_INVARIANT_MODULE_PARAMS:+--assert-invariant-module-params}" \
     "-c \"${RUNFILES}\"" \
     "-T \"${TAGS}\"" \
     "-i \"${STF_SUITE}\"" \
@@ -691,6 +698,7 @@ msg "${TEST_RUNNER}" \
     ${QUIET:+-q} \
     ${KMEMLEAK:+-m} \
     ${KMSG:+-K} \
+    ${DO_ASSERT_INVARIANT_MODULE_PARAMS:+--assert-invariant-module-params} \
     -c "${RUNFILES}" \
     -T "${TAGS}" \
     -i "${STF_SUITE}" \
@@ -716,6 +724,8 @@ if [ "$RESULT" -eq "2" ] && [ -n "$RERUN" ]; then
 	    ${TEST_RUNNER} \
 	        ${QUIET:+-q} \
 	        ${KMEMLEAK:+-m} \
+	        ${DO_ASSERT_INVARIANT_MODULE_PARAMS:+\
+	            --assert-invariant-module-params} \
 	    -c "${RUNFILES}" \
 	    -T "${TAGS}" \
 	    -i "${STF_SUITE}" \
