@@ -1564,12 +1564,19 @@ discover_cached_paths(libpc_handle_t *hdl, nvlist_t *nv,
 	 * our directory cache.
 	 */
 	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) == 0) {
-		if ((dl = zfs_dirnamelen(path)) == -1)
+		int ret;
+		char c = '\0';
+		if ((dl = zfs_dirnamelen(path)) == -1) {
 			path = (char *)".";
-		else
+		} else {
+			c = path[dl];
 			path[dl] = '\0';
-		return (zpool_find_import_scan_dir(hdl, lock, cache,
-		    path, 0));
+		}
+		ret = zpool_find_import_scan_dir(hdl, lock, cache,
+		    path, 0);
+		if (c != '\0')
+			path[dl] = c;
+		return (ret);
 	}
 	return (0);
 }
