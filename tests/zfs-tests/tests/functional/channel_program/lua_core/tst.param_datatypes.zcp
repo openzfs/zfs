@@ -1,0 +1,121 @@
+--
+-- This file and its contents are supplied under the terms of the
+-- Common Development and Distribution License ("CDDL"), version 1.0.
+-- You may only use this file in accordance with the terms of version
+-- 1.0 of the CDDL.
+--
+-- A full copy of the text of the CDDL should have accompanied this
+-- source.  A copy of the CDDL is also available via the Internet at
+-- http://www.illumos.org/license/CDDL.
+--
+
+--
+-- Copyright (c) 2022 by Chris Lindee. All rights reserved.
+--
+
+-- This program should be invoked as "./param_datatypes_test <pool> tst.param_datatypes.zcp"
+
+arg = ...
+
+assert(arg.bTrue == true, "boolean is true")
+assert(arg.bFalse == false, "boolean is false")
+assert(arg.string == "string", "string scalar")
+assert(arg.byte == string.byte("0"), "byte scalar")
+assert(arg.uint8 == 8, "uint8 scalar")
+assert(arg.int8 == -8, "int8 scalar")
+assert(arg.uint16 == 16, "uint16 scalar")
+assert(arg.int16 == -16, "int16 scalar")
+assert(arg.uint32 == 32, "uint32 scalar")
+assert(arg.int32 == -32, "int32 scalar")
+assert(arg.uint64 == 64, "uint64 scalar")
+assert(arg.int64 == -64, "int64 scalar")
+assert(arg.hrtime == 1151280000 * 1000000000, "hrtime scalar")
+
+assert(arg.nvlist.boolean == false, "nested boolean")
+assert(arg.nvlist.integer == 42, "nested integer")
+assert(arg.nvlist.string == "answer", "nested string")
+assert(arg.nvlist.table.key == "value", "nested table nvpair")
+
+-- Verify arrays/lists
+assert(#arg.booleanArray == 8, "boolean array size")
+assert(arg.booleanArray[1] == false, "booleanArray[1]")
+assert(arg.booleanArray[2] == false, "booleanArray[2]")
+assert(arg.booleanArray[3] == true, "booleanArray[3]")
+assert(arg.booleanArray[4] == false, "booleanArray[4]")
+assert(arg.booleanArray[5] == true, "booleanArray[5]")
+assert(arg.booleanArray[6] == false, "booleanArray[6]")
+assert(arg.booleanArray[7] == true, "booleanArray[7]")
+assert(arg.booleanArray[8] == false, "booleanArray[8]")
+
+assert(#arg.stringArray == 3, "string array size")
+assert(arg.stringArray[1] == "array", "stringArray[1]")
+assert(arg.stringArray[2] == "of", "stringArray[2]")
+assert(arg.stringArray[3] == "strings", "stringArray[3]")
+
+assert(#arg.byteArray == 4, "byte array size")
+assert(arg.byteArray[1] == string.byte("Z"), "byteArray[1]")
+assert(arg.byteArray[2] == string.byte("F"), "byteArray[2]")
+assert(arg.byteArray[3] == string.byte("S"), "byteArray[3]")
+assert(arg.byteArray[4] == 0, "byteArray[4]")
+
+assert(#arg.uint8Array == 8, "uint8 array size")
+for i=1, 8 do
+	assert(arg.uint8Array[i] == 7*i, "uint8Array["..tostring(i).."]")
+end
+
+assert(#arg.int8Array == 8, "int8 array size")
+for i=1, 8 do
+	assert(arg.int8Array[i] == -7*i, "int8Array["..tostring(i).."]")
+end
+
+assert(#arg.uint16Array == 16, "uint16 array size")
+for i=1, 16 do
+	assert(arg.uint16Array[i] == 5*i, "uint16Array["..tostring(i).."]")
+end
+
+assert(#arg.int16Array == 16, "int16 array size")
+for i=1, 16 do
+	assert(arg.int16Array[i] == -5*i, "int16Array["..tostring(i).."]")
+end
+
+assert(#arg.uint32Array == 32, "uint32 array size")
+for i=1, 32 do
+	assert(arg.uint32Array[i] == 3*i, "uint32Array["..tostring(i).."]")
+end
+
+assert(#arg.int32Array == 32, "int32 array size")
+for i=1, 32 do
+	assert(arg.int32Array[i] == -3*i, "int32Array["..tostring(i).."]")
+end
+
+assert(#arg.uint64Array == 64, "uint64 array size")
+for i=1, 64 do
+	assert(arg.uint64Array[i] == 2*i, "uint64Array["..tostring(i).."]")
+end
+
+assert(#arg.int64Array == 64, "int64 array size")
+for i=1, 64 do
+	assert(arg.int64Array[i] == -2*i, "int64Array["..tostring(i).."]")
+end
+
+assert(#arg.nvlistArray == 6, "nvlist array size")
+assert(type(next(arg.nvlistArray[1])) == "nil", "nvlistArray[1]")	-- Is table empty?
+assert(arg.nvlistArray[2].bool == true, "nvlistArray[2]")
+assert(arg.nvlistArray[3].int == 9000, "nvlistArray[3]")
+assert(arg.nvlistArray[4].str == "question", "nvlistArray[4]")
+assert(arg.nvlistArray[5].hash.key == "value", "nvlistArray[5]")
+--
+assert(#arg.nvlistArray[6].tableArray == 2, "nested nvlist array size")
+assert(arg.nvlistArray[6].tableArray[1].max == 9223372036854775807, "nvlistArray[6].tableArray[1].max")
+assert(arg.nvlistArray[6].tableArray[1].min == -9223372036854775808, "nvlistArray[6].tableArray[1].min")
+assert(arg.nvlistArray[6].tableArray[2].max == 127, "nvlistArray[6].tableArray[2].min")
+assert(arg.nvlistArray[6].tableArray[2].min == -128, "nvlistArray[6].tableArray[2].min")
+
+-- Verify correct handling of integer overflow
+assert(#arg.overflowArray == 2, "uint64 overflow array size")
+assert(arg.overflowArray[1] == -9223372036854775808, "2^63 overflow")
+assert(arg.overflowArray[2] == -1, "2^64 - 1 overflow")
+
+assert(arg.overflowScalar == -4611686018427387904, "2^63 + 2^62 overflow")
+
+return

@@ -510,6 +510,18 @@ zcp_nvlist_to_lua(lua_State *state, nvlist_t *nvl,
 	return (0);
 }
 
+#define	ZCP_NVPAIR_CONVERT_ARRAY_TO_LUA(DATATYPE, FETCHTYPE, PUSHTYPE) \
+{ \
+	DATATYPE *arr; \
+	uint_t nelem; \
+	(void) nvpair_value_ ## FETCHTYPE ## _array(pair, &arr, &nelem); \
+	lua_newtable(state); \
+	for (int i = 0; i < nelem; i++) { \
+		(void) lua_pushinteger(state, i + 1); \
+		(void) lua_push ## PUSHTYPE(state, arr[i]); \
+		(void) lua_settable(state, -3); \
+	} \
+}
 /*
  * Push a Lua object representing the value of "pair" onto the stack.
  *
@@ -536,45 +548,89 @@ zcp_nvpair_value_to_lua(lua_State *state, nvpair_t *pair,
 	case DATA_TYPE_STRING:
 		(void) lua_pushstring(state, fnvpair_value_string(pair));
 		break;
+	case DATA_TYPE_BYTE:
+		(void) lua_pushinteger(state, fnvpair_value_byte(pair));
+		break;
+	case DATA_TYPE_UINT8:
+		(void) lua_pushinteger(state, fnvpair_value_uint8(pair));
+		break;
+	case DATA_TYPE_INT8:
+		(void) lua_pushinteger(state, fnvpair_value_int8(pair));
+		break;
+	case DATA_TYPE_UINT16:
+		(void) lua_pushinteger(state, fnvpair_value_uint16(pair));
+		break;
+	case DATA_TYPE_INT16:
+		(void) lua_pushinteger(state, fnvpair_value_int16(pair));
+		break;
+	case DATA_TYPE_UINT32:
+		(void) lua_pushinteger(state, fnvpair_value_uint32(pair));
+		break;
+	case DATA_TYPE_INT32:
+		(void) lua_pushinteger(state, fnvpair_value_int32(pair));
+		break;
+	case DATA_TYPE_UINT64:
+		(void) lua_pushinteger(state, fnvpair_value_uint64(pair));
+		break;
 	case DATA_TYPE_INT64:
 		(void) lua_pushinteger(state, fnvpair_value_int64(pair));
 		break;
+	case DATA_TYPE_HRTIME: {
+		hrtime_t hrtime;
+		(void) nvpair_value_hrtime(pair, &hrtime);
+		(void) lua_pushinteger(state, hrtime);
+		break;
+	}
 	case DATA_TYPE_NVLIST:
 		err = zcp_nvlist_to_lua(state,
 		    fnvpair_value_nvlist(pair), errbuf, errbuf_len);
 		break;
-	case DATA_TYPE_STRING_ARRAY: {
-		char **strarr;
-		uint_t nelem;
-		(void) nvpair_value_string_array(pair, &strarr, &nelem);
-		lua_newtable(state);
-		for (int i = 0; i < nelem; i++) {
-			(void) lua_pushinteger(state, i + 1);
-			(void) lua_pushstring(state, strarr[i]);
-			(void) lua_settable(state, -3);
-		}
+	case DATA_TYPE_BOOLEAN_ARRAY:
+		ZCP_NVPAIR_CONVERT_ARRAY_TO_LUA(boolean_t, boolean, boolean)
 		break;
-	}
-	case DATA_TYPE_UINT64_ARRAY: {
-		uint64_t *intarr;
-		uint_t nelem;
-		(void) nvpair_value_uint64_array(pair, &intarr, &nelem);
-		lua_newtable(state);
-		for (int i = 0; i < nelem; i++) {
-			(void) lua_pushinteger(state, i + 1);
-			(void) lua_pushinteger(state, intarr[i]);
-			(void) lua_settable(state, -3);
-		}
+	case DATA_TYPE_STRING_ARRAY:
+		ZCP_NVPAIR_CONVERT_ARRAY_TO_LUA(char *, string, string)
 		break;
-	}
-	case DATA_TYPE_INT64_ARRAY: {
-		int64_t *intarr;
+	case DATA_TYPE_BYTE_ARRAY:
+		ZCP_NVPAIR_CONVERT_ARRAY_TO_LUA(uchar_t, byte, integer)
+		break;
+	case DATA_TYPE_UINT8_ARRAY:
+		ZCP_NVPAIR_CONVERT_ARRAY_TO_LUA(uint8_t, uint8, integer)
+		break;
+	case DATA_TYPE_INT8_ARRAY:
+		ZCP_NVPAIR_CONVERT_ARRAY_TO_LUA(int8_t, int8, integer)
+		break;
+	case DATA_TYPE_UINT16_ARRAY:
+		ZCP_NVPAIR_CONVERT_ARRAY_TO_LUA(uint16_t, uint16, integer)
+		break;
+	case DATA_TYPE_INT16_ARRAY:
+		ZCP_NVPAIR_CONVERT_ARRAY_TO_LUA(int16_t, int16, integer)
+		break;
+	case DATA_TYPE_UINT32_ARRAY:
+		ZCP_NVPAIR_CONVERT_ARRAY_TO_LUA(uint32_t, uint32, integer)
+		break;
+	case DATA_TYPE_INT32_ARRAY:
+		ZCP_NVPAIR_CONVERT_ARRAY_TO_LUA(int32_t, int32, integer)
+		break;
+	case DATA_TYPE_UINT64_ARRAY:
+		ZCP_NVPAIR_CONVERT_ARRAY_TO_LUA(uint64_t, uint64, integer)
+		break;
+	case DATA_TYPE_INT64_ARRAY:
+		ZCP_NVPAIR_CONVERT_ARRAY_TO_LUA(int64_t, int64, integer)
+		break;
+	case DATA_TYPE_NVLIST_ARRAY: {
+		nvlist_t **arr;
 		uint_t nelem;
-		(void) nvpair_value_int64_array(pair, &intarr, &nelem);
+		(void) nvpair_value_nvlist_array(pair, &arr, &nelem);
 		lua_newtable(state);
 		for (int i = 0; i < nelem; i++) {
 			(void) lua_pushinteger(state, i + 1);
-			(void) lua_pushinteger(state, intarr[i]);
+			err = zcp_nvlist_to_lua(state, arr[i],
+			    errbuf, errbuf_len);
+			if (err != 0) {
+				lua_pop(state, 2);	// index & table
+				return (err);
+			}
 			(void) lua_settable(state, -3);
 		}
 		break;
