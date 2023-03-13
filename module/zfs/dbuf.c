@@ -1157,7 +1157,7 @@ dbuf_verify(dmu_buf_impl_t *db)
 	if ((db->db_blkptr == NULL || BP_IS_HOLE(db->db_blkptr)) &&
 	    (db->db_buf == NULL || db->db_buf->b_data) &&
 	    db->db.db_data && db->db_blkid != DMU_BONUS_BLKID &&
-	    db->db_state != DB_FILL && !dn->dn_free_txg) {
+	    db->db_state != DB_FILL && (dn == NULL || !dn->dn_free_txg)) {
 		/*
 		 * If the blkptr isn't set but they have nonzero data,
 		 * it had better be dirty, otherwise we'll lose that
