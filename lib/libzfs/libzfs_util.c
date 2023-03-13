@@ -2073,10 +2073,11 @@ use_color(void)
 }
 
 /*
- * color_start() and color_end() are used for when you want to colorize a block
- * of text.  For example:
+ * The functions color_start() and color_end() are used for when you want
+ * to colorize a block of text.
  *
- * color_start(ANSI_RED_FG)
+ * For example:
+ * color_start(ANSI_RED)
  * printf("hello");
  * printf("world");
  * color_end();
@@ -2084,7 +2085,7 @@ use_color(void)
 void
 color_start(const char *color)
 {
-	if (use_color()) {
+	if (color && use_color()) {
 		fputs(color, stdout);
 		fflush(stdout);
 	}
@@ -2099,7 +2100,9 @@ color_end(void)
 	}
 }
 
-/* printf() with a color.  If color is NULL, then do a normal printf. */
+/*
+ * printf() with a color. If color is NULL, then do a normal printf.
+ */
 int
 printf_color(const char *color, char *format, ...)
 {
