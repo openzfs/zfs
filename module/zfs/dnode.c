@@ -2588,8 +2588,9 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 
 		if (inc < 0) {
 			/* traversing backwards; position offset at the end */
-			ASSERT3U(*offset, <=, start);
-			*offset = MIN(*offset + (1ULL << span) - 1, start);
+			if (span < 8 * sizeof (*offset))
+				*offset = MIN(*offset + (1ULL << span) - 1,
+				    start);
 		} else if (*offset < start) {
 			*offset = start;
 		}
