@@ -2649,7 +2649,9 @@ dnode_next_offset(dnode_t *dn, int flags, uint64_t *offset,
 		rw_enter(&dn->dn_struct_rwlock, RW_READER);
 
 	if (dn->dn_phys->dn_nlevels == 0) {
-		error = SET_ERROR(ESRCH);
+		if (!(flags & DNODE_FIND_HOLE)) {
+			error = SET_ERROR(ESRCH);
+		}
 		goto out;
 	}
 
