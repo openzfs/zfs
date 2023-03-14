@@ -67,15 +67,15 @@
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
 #ifdef	CONFIG_ALTIVEC
-#define	ENABLE_KERNEL_ALTIVEC	enable_kernel_altivec()
-#define	DISABLE_KERNEL_ALTIVEC	disable_kernel_altivec()
+#define	ENABLE_KERNEL_ALTIVEC	enable_kernel_altivec();
+#define	DISABLE_KERNEL_ALTIVEC	disable_kernel_altivec();
 #else
 #define	ENABLE_KERNEL_ALTIVEC
 #define	DISABLE_KERNEL_ALTIVEC
 #endif
 #ifdef	CONFIG_VSX
-#define	ENABLE_KERNEL_VSX	enable_kernel_vsx()
-#define	DISABLE_KERNEL_VSX	disable_kernel_vsx()
+#define	ENABLE_KERNEL_VSX	enable_kernel_vsx();
+#define	DISABLE_KERNEL_VSX	disable_kernel_vsx();
 #else
 #define	ENABLE_KERNEL_VSX
 #define	DISABLE_KERNEL_VSX
