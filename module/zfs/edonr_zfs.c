@@ -90,17 +90,15 @@ abd_checksum_edonr_tmpl_init(const zio_cksum_salt_t *salt)
 	 */
 	_Static_assert(EDONR_BLOCK_SIZE == 2 * (EDONR_MODE / 8),
 	    "Edon-R block size mismatch");
-	EdonRHash(EDONR_MODE, salt->zcs_bytes, sizeof (salt->zcs_bytes) * 8,
-	    salt_block);
-	EdonRHash(EDONR_MODE, salt_block, EDONR_MODE, salt_block +
-	    EDONR_MODE / 8);
+	EdonRHash(salt->zcs_bytes, sizeof (salt->zcs_bytes) * 8, salt_block);
+	EdonRHash(salt_block, EDONR_MODE, salt_block + EDONR_MODE / 8);
 
 	/*
 	 * Feed the new salt block into the hash function - this will serve
 	 * as our MAC key.
 	 */
 	ctx = kmem_zalloc(sizeof (*ctx), KM_SLEEP);
-	EdonRInit(ctx, EDONR_MODE);
+	EdonRInit(ctx);
 	EdonRUpdate(ctx, salt_block, sizeof (salt_block) * 8);
 	return (ctx);
 }
