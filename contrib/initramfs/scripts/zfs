@@ -359,11 +359,12 @@ mount_fs()
 				# isn't the root fs.
 				return 0
 			fi
-			# Last hail-mary: Hope 'rootmnt' is set!
-			mountpoint=""
+			# Don't use mount.zfs -o zfsutils for legacy mountpoint
 			if [ "$mountpoint" = "legacy" ]; then
 				ZFS_CMD="mount.zfs"
 			fi
+			# Last hail-mary: Hope 'rootmnt' is set!
+			mountpoint=""
 		else
 			mountpoint="$mountpoint1"
 		fi
