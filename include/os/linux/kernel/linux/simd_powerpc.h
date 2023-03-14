@@ -80,40 +80,32 @@
 #define	ENABLE_KERNEL_VSX
 #define	DISABLE_KERNEL_VSX
 #endif
-#ifdef CONFIG_SPE
-#define	kfpu_begin()				\
-	{					\
-		preempt_disable();		\
-		ENABLE_KERNEL_ALTIVEC		\
-		ENABLE_KERNEL_VSX		\
-		enable_kernel_spe();		\
-	}
-#define	kfpu_end()				\
-	{					\
-		disable_kernel_spe();		\
-		DISABLE_KERNEL_VSX		\
-		DISABLE_KERNEL_ALTIVEC		\
-		preempt_enable();		\
-	}
-#else /* CONFIG_SPE */
-#define	kfpu_begin()				\
-	{					\
-		preempt_disable();		\
-		ENABLE_KERNEL_ALTIVEC		\
-		ENABLE_KERNEL_VSX		\
-	}
-#define	kfpu_end()				\
-	{					\
-		DISABLE_KERNEL_VSX		\
-		DISABLE_KERNEL_ALTIVEC		\
-		preempt_enable();		\
-	}
+#ifdef	CONFIG_SPE
+#define	ENABLE_KERNEL_SPE	enable_kernel_spe();
+#define	DISABLE_KERNEL_SPE	disable_kernel_spe();
+#else
+#define	ENABLE_KERNEL_SPE
+#define	DISABLE_KERNEL_SPE
 #endif
+#define	kfpu_begin()				\
+	{					\
+		preempt_disable();		\
+		ENABLE_KERNEL_ALTIVEC		\
+		ENABLE_KERNEL_VSX		\
+		ENABLE_KERNEL_SPE		\
+	}
+#define	kfpu_end()				\
+	{					\
+		DISABLE_KERNEL_SPE		\
+		DISABLE_KERNEL_VSX		\
+		DISABLE_KERNEL_ALTIVEC		\
+		preempt_enable();		\
+	}
 #else
 /* seems that before 4.5 no-one bothered */
 #define	kfpu_begin()
 #define	kfpu_end()		preempt_enable()
-#endif
+#endif	/* Linux version >= 4.5 */
 
 #define	kfpu_init()		0
 #define	kfpu_fini()		((void) 0)
