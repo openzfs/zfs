@@ -578,13 +578,13 @@
   <elf-variable-symbols>
     <elf-symbol name='efi_debug' size='4' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='fletcher_4_abd_ops' size='24' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='fletcher_4_avx2_ops' size='64' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='fletcher_4_avx512bw_ops' size='64' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='fletcher_4_avx512f_ops' size='64' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='fletcher_4_sse2_ops' size='64' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='fletcher_4_ssse3_ops' size='64' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='fletcher_4_superscalar4_ops' size='64' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='fletcher_4_superscalar_ops' size='64' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='fletcher_4_avx2_ops' size='128' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='fletcher_4_avx512bw_ops' size='128' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='fletcher_4_avx512f_ops' size='128' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='fletcher_4_sse2_ops' size='128' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='fletcher_4_ssse3_ops' size='128' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='fletcher_4_superscalar4_ops' size='128' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='fletcher_4_superscalar_ops' size='128' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='libzfs_config_ops' size='16' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='sa_protocol_names' size='16' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='spa_feature_table' size='2128' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -9053,7 +9053,7 @@
     <typedef-decl name='fletcher_4_init_f' type-id='173aa527' id='b9ae1656'/>
     <typedef-decl name='fletcher_4_fini_f' type-id='0ad5b8a8' id='c4c1f4fc'/>
     <typedef-decl name='fletcher_4_compute_f' type-id='38147eff' id='ad1dc4cb'/>
-    <class-decl name='fletcher_4_func' size-in-bits='512' is-struct='yes' visibility='default' id='57f479a0'>
+    <class-decl name='fletcher_4_func' size-in-bits='1024' is-struct='yes' visibility='default' id='57f479a0'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='init_native' type-id='b9ae1656' visibility='default'/>
       </data-member>
@@ -9076,6 +9076,9 @@
         <var-decl name='valid' type-id='297d38bc' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='448'>
+        <var-decl name='uses_fpu' type-id='c19b74c3' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='512'>
         <var-decl name='name' type-id='80f4b756' visibility='default'/>
       </data-member>
     </class-decl>

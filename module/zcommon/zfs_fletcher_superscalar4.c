@@ -229,5 +229,6 @@ const fletcher_4_ops_t fletcher_4_superscalar4_ops = {
 	.compute_byteswap = fletcher_4_superscalar4_byteswap,
 	.fini_byteswap = fletcher_4_superscalar4_fini,
 	.valid = fletcher_4_superscalar4_valid,
+	.uses_fpu = B_FALSE,
 	.name = "superscalar4"
 };

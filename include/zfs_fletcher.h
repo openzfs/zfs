@@ -126,8 +126,9 @@ typedef struct fletcher_4_func {
 	fletcher_4_fini_f fini_byteswap;
 	fletcher_4_compute_f compute_byteswap;
 	boolean_t (*valid)(void);
+	boolean_t uses_fpu;
 	const char *name;
-} fletcher_4_ops_t;
+} __attribute__((aligned(64))) fletcher_4_ops_t;
 
 _ZFS_FLETCHER_H const fletcher_4_ops_t fletcher_4_superscalar_ops;
 _ZFS_FLETCHER_H const fletcher_4_ops_t fletcher_4_superscalar4_ops;

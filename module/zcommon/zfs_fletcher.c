@@ -160,6 +160,7 @@ static const fletcher_4_ops_t fletcher_4_scalar_ops = {
 	.fini_byteswap = fletcher_4_scalar_fini,
 	.compute_byteswap = fletcher_4_scalar_byteswap,
 	.valid = fletcher_4_scalar_valid,
+	.uses_fpu = B_FALSE,
 	.name = "scalar"
 };
 
@@ -458,9 +459,15 @@ fletcher_4_native_impl(const void *buf, uint64_t size, zio_cksum_t *zcp)
 	fletcher_4_ctx_t ctx;
 	const fletcher_4_ops_t *ops = fletcher_4_impl_get();
 
+	if (ops->uses_fpu == B_TRUE) {
+		kfpu_begin();
+	}
 	ops->init_native(&ctx);
 	ops->compute_native(&ctx, buf, size);
 	ops->fini_native(&ctx, zcp);
+	if (ops->uses_fpu == B_TRUE) {
+		kfpu_end();
+	}
 }
 
 void
@@ -500,9 +507,15 @@ fletcher_4_byteswap_impl(const void *buf, uint64_t size, zio_cksum_t *zcp)
 	fletcher_4_ctx_t ctx;
 	const fletcher_4_ops_t *ops = fletcher_4_impl_get();
 
+	if (ops->uses_fpu == B_TRUE) {
+		kfpu_begin();
+	}
 	ops->init_byteswap(&ctx);
 	ops->compute_byteswap(&ctx, buf, size);
 	ops->fini_byteswap(&ctx, zcp);
+	if (ops->uses_fpu == B_TRUE) {
+		kfpu_end();
+	}
 }
 
 void
@@ -661,6 +674,7 @@ fletcher_4_kstat_addr(kstat_t *ksp, loff_t n)
 	fletcher_4_fastest_impl.init_ ## type = src->init_ ## type;	  \
 	fletcher_4_fastest_impl.fini_ ## type = src->fini_ ## type;	  \
 	fletcher_4_fastest_impl.compute_ ## type = src->compute_ ## type; \
+	fletcher_4_fastest_impl.uses_fpu = src->uses_fpu;		  \
 }
 
 #define	FLETCHER_4_BENCH_NS	(MSEC2NSEC(1))		/* 1ms */
@@ -816,10 +830,14 @@ abd_fletcher_4_init(zio_abd_checksum_data_t *cdp)
 	const fletcher_4_ops_t *ops = fletcher_4_impl_get();
 	cdp->acd_private = (void *) ops;
 
+	if (ops->uses_fpu == B_TRUE) {
+		kfpu_begin();
+	}
 	if (cdp->acd_byteorder == ZIO_CHECKSUM_NATIVE)
 		ops->init_native(cdp->acd_ctx);
 	else
 		ops->init_byteswap(cdp->acd_ctx);
+
 }
 
 static void
@@ -833,7 +851,12 @@ abd_fletcher_4_fini(zio_abd_checksum_data_t *cdp)
 		ops->fini_native(cdp->acd_ctx, cdp->acd_zcp);
 	else
 		ops->fini_byteswap(cdp->acd_ctx, cdp->acd_zcp);
+
+	if (ops->uses_fpu == B_TRUE) {
+		kfpu_end();
+	}
 }
+
 
 static void
 abd_fletcher_4_simd2scalar(boolean_t native, void *data, size_t size,
