@@ -1955,7 +1955,7 @@ setup_featureflags(struct dmu_send_params *dspp, objset_t *os,
 {
 	dsl_dataset_t *to_ds = dspp->to_ds;
 	dsl_pool_t *dp = dspp->dp;
-#ifdef _KERNEL
+
 	if (dmu_objset_type(os) == DMU_OST_ZFS) {
 		uint64_t version;
 		if (zfs_get_zplprop(os, ZFS_PROP_VERSION, &version) != 0)
@@ -1964,7 +1964,6 @@ setup_featureflags(struct dmu_send_params *dspp, objset_t *os,
 		if (version >= ZPL_VERSION_SA)
 			*featureflags |= DMU_BACKUP_FEATURE_SA_SPILL;
 	}
-#endif
 
 	/* raw sends imply large_block_ok */
 	if ((dspp->rawok || dspp->large_block_ok) &&
