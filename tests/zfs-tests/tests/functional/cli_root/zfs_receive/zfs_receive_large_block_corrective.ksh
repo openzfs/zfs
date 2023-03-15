@@ -23,7 +23,8 @@
 
 #
 # DESCRIPTION:
-# OpenZFS should be able to heal data using corrective recv
+# OpenZFS should be able to heal data using corrective recv when the send file
+#   was generated with the --large-block flag
 #
 # STRATEGY:
 # 0. Create a file, checksum the file to be corrupted then compare it's checksum
@@ -85,11 +86,12 @@ typeset passphrase="password"
 typeset file="/$TESTPOOL/$TESTFS1/$TESTFILE0"
 
 log_must eval "poolexists $TESTPOOL && destroy_pool $TESTPOOL"
-log_must zpool create -f $TESTPOOL $DISK
+log_must zpool create -f -o feature@large_blocks=enabled \
+    -o feature@head_errlog=disabled $TESTPOOL $DISK
 
 log_must eval "echo $passphrase > /$TESTPOOL/pwd"
 
-log_must zfs create -o primarycache=none \
+log_must zfs create -o recordsize=1m -o primarycache=none \
     -o atime=off -o compression=lz4 $TESTPOOL/$TESTFS1
 
 log_must dd if=/dev/urandom of=$file bs=1024 count=1024 oflag=sync
@@ -99,13 +101,13 @@ typeset checksum=$(md5digest $file)
 log_must zfs snapshot $TESTPOOL/$TESTFS1@snap1
 
 # create full send file
-log_must eval "zfs send $TESTPOOL/$TESTFS1@snap1 > $backup"
+log_must eval "zfs send -L $TESTPOOL/$TESTFS1@snap1 > $backup"
 
 log_must dd if=/dev/urandom of=$file"1" bs=1024 count=1024 oflag=sync
 log_must eval "echo 'bbbbbbbb' >> "$file"1"
 log_must zfs snapshot $TESTPOOL/$TESTFS1@snap2
 # create incremental send file
-log_must eval "zfs send -i $TESTPOOL/$TESTFS1@snap1 \
+log_must eval "zfs send -Li $TESTPOOL/$TESTFS1@snap1 \
     $TESTPOOL/$TESTFS1@snap2 > $ibackup"
 
 corrupt_blocks_at_level $file 0
@@ -127,9 +129,9 @@ corrupt_blocks_at_level "/$TESTPOOL/$TESTFS2/$TESTFILE0" 0
 test_corrective_recv "$TESTPOOL/$TESTFS2@snap1" $backup
 
 # create a full sendfile from an uncompressed source
-log_must eval "zfs send $TESTPOOL/$TESTFS2@snap1 > $unc_backup"
+log_must eval "zfs send -L $TESTPOOL/$TESTFS2@snap1 > $unc_backup"
 log_must eval "zfs recv -o compression=gzip -o primarycache=none \
-    $TESTPOOL/testfs3 < $unc_backup"
+    -o recordsize=1m $TESTPOOL/testfs3 < $unc_backup"
 typeset compr=$(get_prop compression $TESTPOOL/testfs3)
 [[ "$compr" == "gzip" ]] || \
 	log_fail "Unexpected compression $compr in recved dataset"
@@ -139,7 +141,7 @@ test_corrective_recv "$TESTPOOL/testfs3@snap1" $unc_backup
 
 # create new compressed dataset using our send file
 log_must eval "zfs recv -o compression=gzip -o primarycache=none \
-    $TESTPOOL/testfs4 < $backup"
+    -o recordsize=1m $TESTPOOL/testfs4 < $backup"
 typeset compr=$(get_prop compression $TESTPOOL/testfs4)
 [[ "$compr" == "gzip" ]] || \
 	log_fail "Unexpected compression $compr in recved dataset"
@@ -149,13 +151,13 @@ test_corrective_recv "$TESTPOOL/testfs4@snap1" $backup
 
 # create new encrypted (and compressed) dataset using our send file
 log_must eval "zfs recv -o encryption=aes-256-ccm -o keyformat=passphrase \
-    -o keylocation=file:///$TESTPOOL/pwd -o primarycache=none \
+    -o recordsize=1m -o keylocation=file:///$TESTPOOL/pwd -o primarycache=none \
     $TESTPOOL/testfs5 < $backup"
 typeset encr=$(get_prop encryption $TESTPOOL/testfs5)
 [[ "$encr" == "aes-256-ccm" ]] || \
 	log_fail "Unexpected encryption $encr in recved dataset"
-log_must eval "zfs send --raw $TESTPOOL/testfs5@snap1 > $raw_backup"
-log_must eval "zfs send $TESTPOOL/testfs5@snap1 > $backup"
+log_must eval "zfs send -L --raw $TESTPOOL/testfs5@snap1 > $raw_backup"
+log_must eval "zfs send -L $TESTPOOL/testfs5@snap1 > $backup"
 corrupt_blocks_at_level "/$TESTPOOL/testfs5/$TESTFILE0" 0
 # test healing recv of an encrypted dataset using an unencrypted send file
 test_corrective_recv "$TESTPOOL/testfs5@snap1" $backup
@@ -172,7 +174,7 @@ corrupt_blocks_at_level $file 0
 # test healing when specifying destination filesystem only (no snapshot)
 test_corrective_recv $TESTPOOL/$TESTFS1 $backup
 # test incremental recv aftear healing recv
-log_must eval "zfs recv $TESTPOOL/$TESTFS1 < $ibackup"
+log_must eval "zfs recv -o recordsize=1m $TESTPOOL/$TESTFS1 < $ibackup"
 
 # test that healing recv can not be combined with incompatible recv options
 log_mustnot eval "zfs recv -h -c $TESTPOOL/$TESTFS1@snap1 < $backup"
