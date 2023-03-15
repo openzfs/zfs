@@ -66,6 +66,7 @@ typedef struct spa_error_entry {
 	zbookmark_phys_t	se_bookmark;
 	char			*se_name;
 	avl_node_t		se_avl;
+	zbookmark_err_phys_t	se_zep;		/* not accounted in avl_find */
 } spa_error_entry_t;
 
 typedef struct spa_history_phys {
