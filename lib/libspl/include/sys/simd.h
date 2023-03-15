@@ -31,7 +31,7 @@
 #include <sys/types.h>
 
 /* including <sys/auxv.h> clashes with AT_UID and others */
-#if defined(__arm__) || defined(__aarch64__) || defined(powerpc)
+#if defined(__arm__) || defined(__aarch64__) || defined(__powerpc__)
 #if defined(__FreeBSD__)
 #define	AT_HWCAP	25
 #define	AT_HWCAP2	26
