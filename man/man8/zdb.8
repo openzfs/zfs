@@ -14,7 +14,7 @@
 .\" Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 .\" Copyright (c) 2017 Intel Corporation.
 .\"
-.Dd October 7, 2020
+.Dd June 4, 2023
 .Dt ZDB 8
 .Os
 .
@@ -40,6 +40,13 @@
 .Op Fl K Ar key
 .Ar poolname Ns Op Ar / Ns Ar dataset Ns | Ns Ar objset-ID
 .Op Ar object Ns | Ns Ar range Ns …
+.Nm
+.Fl B
+.Op Fl e Oo Fl V Oc Oo Fl p Ar path Oc Ns …
+.Op Fl U Ar cache
+.Op Fl K Ar key
+.Ar poolname Ns Ar / Ns Ar objset-ID
+.Op Ar backup-flags
 .Nm
 .Fl C
 .Op Fl A
@@ -123,6 +130,22 @@ Display options:
 Display statistics regarding the number, size
 .Pq logical, physical and allocated
 and deduplication of blocks.
+.It Fl B , -backup
+Generate a backup stream, similar to
+.Nm zfs Cm send ,
+but for the numeric objset ID, and without opening the dataset.
+This can be useful in recovery scenarios if dataset metadata has become
+corrupted but the dataset itself is readable.
+The optional
+.Ar flags
+argument is a string of one or more of the letters
+.Sy e ,
+.Sy L ,
+.Sy c ,
+and
+.Sy w ,
+which correspond to the same flags in
+.Xr zfs-send 8 .
 .It Fl c , -checksum
 Verify the checksum of all metadata blocks while printing block statistics
 .Po see
