@@ -23,7 +23,8 @@ echo "================================================================="
 echo " Tailing last $lines lines of dmesg log"
 echo "================================================================="
 
-sudo dmesg | tail -n $lines
+# report and reset afterwards
+sudo dmesg -c | tail -n $lines
 
 echo "================================================================="
 echo " End of dmesg log"

@@ -24,6 +24,9 @@ echo "================================================================="
 
 sudo tail -n $lines /proc/spl/kstat/zfs/dbgmsg
 
+# reset dbgmsg
+sudo bash -c "echo > /proc/spl/kstat/zfs/dbgmsg"
+
 echo "================================================================="
 echo " End of zfs_dbgmsg log"
 echo "================================================================="
