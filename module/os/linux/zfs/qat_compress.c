@@ -247,7 +247,7 @@ qat_compress_impl(qat_compress_dir_t dir, char *src, int src_len,
 	Cpa8U *buffer_meta_src = NULL;
 	Cpa8U *buffer_meta_dst = NULL;
 	Cpa32U buffer_meta_size = 0;
-	CpaDcRqResults dc_results;
+	CpaDcRqResults dc_results = {.checksum = 1};
 	CpaStatus status = CPA_STATUS_FAIL;
 	Cpa32U hdr_sz = 0;
 	Cpa32U compressed_sz;
