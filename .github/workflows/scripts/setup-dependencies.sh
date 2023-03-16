@@ -37,7 +37,7 @@ function mod_install() {
   fi
 
   echo "::group::Install and load modules"
-  # delete kernel-shipped zfs modules, be sure about correct modules
+  # don't use kernel-shipped zfs modules
   sudo sed -i.bak 's/updates/extra updates/' /etc/depmod.d/ubuntu.conf
   sudo apt-get install --fix-missing ./*.deb
 
