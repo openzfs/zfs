@@ -41,6 +41,7 @@ jobs:
         path: |
           /var/tmp/zloop/*/
           !/var/tmp/zloop/*/vdev/
+        retention-days: 14
         if-no-files-found: ignore
     - uses: actions/upload-artifact@v3
       if: failure()
@@ -48,6 +49,7 @@ jobs:
         name: Zpool-files-${{ inputs.os }}
         path: |
           /var/tmp/zloop/*/vdev/
+        retention-days: 14
         if-no-files-found: ignore
 
   sanity:
