@@ -69,6 +69,10 @@ typedef struct zio_abd_checksum_data {
 	fletcher_4_ctx_t	*acd_ctx;
 	zio_cksum_t 		*acd_zcp;
 	void 			*acd_private;
+#if defined(_WIN32) && defined(_KERNEL)
+	NTSTATUS saveStatus;
+	XSTATE_SAVE SaveState;
+#endif
 } zio_abd_checksum_data_t;
 
 typedef void zio_abd_checksum_init_t(zio_abd_checksum_data_t *);
