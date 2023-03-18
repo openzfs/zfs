@@ -160,8 +160,6 @@ arc_prune_task(void *arg)
 {
 	int64_t nr_scan = (intptr_t)arg;
 
-	arc_reduce_target_size(ptob(nr_scan));
-
 #ifndef __ILP32__
 	if (nr_scan > INT_MAX)
 		nr_scan = INT_MAX;
