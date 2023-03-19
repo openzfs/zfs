@@ -35,14 +35,12 @@
 #define	__asm __asm__ __volatile__
 #endif
 
-ZFS_NO_SANITIZE_UNDEFINED
 static void
 fletcher_4_avx512f_init(fletcher_4_ctx_t *ctx)
 {
 	memset(ctx->avx512, 0, 4 * sizeof (zfs_fletcher_avx512_t));
 }
 
-ZFS_NO_SANITIZE_UNDEFINED
 static void
 fletcher_4_avx512f_fini(fletcher_4_ctx_t *ctx, zio_cksum_t *zcp)
 {
