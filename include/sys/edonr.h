@@ -50,8 +50,6 @@ extern "C" {
 /* Specific algorithm definitions */
 #define	EdonR512_DIGEST_SIZE	64
 #define	EdonR512_BLOCK_SIZE	128
-
-#define	EdonR256_BLOCK_BITSIZE	512
 #define	EdonR512_BLOCK_BITSIZE	1024
 
 typedef struct {
