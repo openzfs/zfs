@@ -6927,14 +6927,16 @@ zpool_do_online(int argc, char **argv)
 					(void) printf(gettext("use 'zpool "
 					    "replace' to replace devices "
 					    "that are no longer present\n"));
-				if ((flags & ZFS_ONLINE_EXPAND) &&
-				    oldstate >= VDEV_STATE_DEGRADED) {
-					(void) printf(gettext("error: failed "
+				if ((flags & ZFS_ONLINE_EXPAND)) {
+					(void) printf(gettext("%s: failed "
 					    "to expand usable space on "
 					    "unhealthy device '%s'\n"),
-					    argv[i]);
-					ret = 1;
-					break;
+					    (oldstate >= VDEV_STATE_DEGRADED ?
+					    "error" : "warning"), argv[i]);
+					if (oldstate >= VDEV_STATE_DEGRADED) {
+						ret = 1;
+						break;
+					}
 				}
 			}
 		} else {
