@@ -2281,14 +2281,15 @@ dmu_brt_clone(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 		ASSERT(BP_IS_HOLE(bp) || dbuf->db_size == BP_GET_LSIZE(bp));
 
 		mutex_enter(&db->db_mtx);
+
 		VERIFY(!dbuf_undirty(db, tx));
 		ASSERT(list_head(&db->db_dirty_records) == NULL);
-		mutex_exit(&db->db_mtx);
-
 		if (db->db_buf != NULL) {
 			arc_buf_destroy(db->db_buf, db);
 			db->db_buf = NULL;
 		}
+
+		mutex_exit(&db->db_mtx);
 
 		dmu_buf_will_not_fill(dbuf, tx);
 
