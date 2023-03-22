@@ -445,7 +445,7 @@ mmp_write_uberblock(spa_t *spa)
 	uint64_t offset;
 
 	hrtime_t lock_acquire_time = gethrtime();
-	spa_config_enter(spa, SCL_STATE, mmp_tag, RW_READER);
+	spa_config_enter_mmp(spa, SCL_STATE, mmp_tag, RW_READER);
 	lock_acquire_time = gethrtime() - lock_acquire_time;
 	if (lock_acquire_time > (MSEC2NSEC(MMP_MIN_INTERVAL) / 10))
 		zfs_dbgmsg("MMP SCL_STATE acquisition pool '%s' took %llu ns "

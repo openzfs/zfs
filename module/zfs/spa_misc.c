@@ -492,8 +492,9 @@ spa_config_tryenter(spa_t *spa, int locks, const void *tag, krw_t rw)
 	return (1);
 }
 
-void
-spa_config_enter(spa_t *spa, int locks, const void *tag, krw_t rw)
+static void
+spa_config_enter_impl(spa_t *spa, int locks, const void *tag, krw_t rw,
+    int mmp_flag)
 {
 	(void) tag;
 	int wlocks_held = 0;
@@ -508,7 +509,7 @@ spa_config_enter(spa_t *spa, int locks, const void *tag, krw_t rw)
 			continue;
 		mutex_enter(&scl->scl_lock);
 		if (rw == RW_READER) {
-			while (scl->scl_writer || scl->scl_write_wanted) {
+			while (scl->scl_writer || (!mmp_flag && scl->scl_write_wanted)) {
 				cv_wait(&scl->scl_cv, &scl->scl_lock);
 			}
 		} else {
@@ -524,6 +525,18 @@ spa_config_enter(spa_t *spa, int locks, const void *tag, krw_t rw)
 		mutex_exit(&scl->scl_lock);
 	}
 	ASSERT3U(wlocks_held, <=, locks);
+}
+
+void
+spa_config_enter(spa_t *spa, int locks, const void *tag, krw_t rw)
+{
+	spa_config_enter_impl(spa, locks, tag, rw, 0);
+}
+
+void
+spa_config_enter_mmp(spa_t *spa, int locks, const void *tag, krw_t rw)
+{
+	spa_config_enter_impl(spa, locks, tag, rw, 1);
 }
 
 void
