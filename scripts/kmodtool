@@ -333,7 +333,22 @@ print_customrpmtemplate ()
 {
 	for kernel in ${1}
 	do
-		if [[ -e "${buildroot}/usr/src/kernels/${kernel}" ]] ; then
+		if [[ -e "${prefix}/lib/modules/${kernel}/build/Makefile" ]]; then
+			# likely a user-build-kernel with available buildfiles
+			# fixme: we should check if uname from Makefile is the same as ${kernel}
+
+			kernel_versions="${kernel_versions}${kernel}___${prefix}/lib/modules/${kernel}/build/ "
+			print_rpmtemplate_per_kmodpkg --custom "${kernel}"
+
+			# create development package
+			if [[ -n "${devel}" ]]; then
+				# create devel package including common headers
+				print_rpmtemplate_kmoddevelpkg --custom "${kernel}"
+
+				# create devel package
+				print_rpmtemplate_per_kmoddevelpkg --custom "${kernel}"
+			fi
+		elif [[ -e "${buildroot}/usr/src/kernels/${kernel}" ]]; then
 			# this looks like a Fedora/RH kernel -- print a normal template (which includes the proper BR) and be happy :)
 			kernel_versions="${kernel_versions}${kernel}___${buildroot}%{_usrsrc}/kernels/${kernel} "
 
@@ -348,21 +363,6 @@ print_customrpmtemplate ()
 
 				# create devel package
 				print_rpmtemplate_per_kmoddevelpkg --redhat ${kernel} ${kernel##${kernel_verrelarch}}
-			fi
-		elif [[ -e "${prefix}/lib/modules/${kernel}/build/Makefile" ]]; then
-			# likely a user-build-kernel with available buildfiles
-			# fixme: we should check if uname from Makefile is the same as ${kernel}
-
-			kernel_versions="${kernel_versions}${kernel}___${prefix}/lib/modules/${kernel}/build/ "
-			print_rpmtemplate_per_kmodpkg --custom "${kernel}"
-
-			# create development package
-			if [[ -n "${devel}" ]]; then
-				# create devel package including common headers
-				print_rpmtemplate_kmoddevelpkg --custom "${kernel}"
-
-				# create devel package
-				print_rpmtemplate_per_kmoddevelpkg --custom "${kernel}"
 			fi
 		else
 			error_out 2 "Don't know how to handle ${kernel} -- ${prefix}/lib/modules/${kernel}/build/Makefile not found"
