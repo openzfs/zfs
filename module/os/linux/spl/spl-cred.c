@@ -145,6 +145,18 @@ crgetgid(const cred_t *cr)
 	return (KGID_TO_SGID(cr->fsgid));
 }
 
+/* Return the initial user ns or nop_mnt_idmap */
+zidmap_t *
+zfs_get_init_idmap(void)
+{
+#ifdef HAVE_IOPS_CREATE_IDMAP
+	return ((zidmap_t *)&nop_mnt_idmap);
+#else
+	return ((zidmap_t *)&init_user_ns);
+#endif
+}
+
+EXPORT_SYMBOL(zfs_get_init_idmap);
 EXPORT_SYMBOL(crhold);
 EXPORT_SYMBOL(crfree);
 EXPORT_SYMBOL(crgetuid);

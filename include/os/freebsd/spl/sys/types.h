@@ -105,7 +105,7 @@ typedef	u_longlong_t	len_t;
 
 typedef	longlong_t	diskaddr_t;
 
-typedef void		zuserns_t;
+typedef void		zidmap_t;
 
 #include <sys/debug.h>
 #endif	/* !_OPENSOLARIS_SYS_TYPES_H_ */

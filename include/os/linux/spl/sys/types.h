@@ -55,6 +55,19 @@ typedef int			major_t;
 typedef int			minor_t;
 
 struct user_namespace;
-typedef struct user_namespace	zuserns_t;
+#ifdef HAVE_IOPS_CREATE_IDMAP
+#include <linux/refcount.h>
+struct mnt_idmap {
+	struct user_namespace *owner;
+	refcount_t count;
+};
+typedef struct mnt_idmap	zidmap_t;
+#define	idmap_owner(p)	(((struct mnt_idmap *)p)->owner)
+#else
+typedef struct user_namespace	zidmap_t;
+#define	idmap_owner(p)	((struct user_namespace *)p)
+#endif
+
+extern zidmap_t *zfs_init_idmap;
 
 #endif	/* _SPL_TYPES_H */

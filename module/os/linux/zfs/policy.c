@@ -124,7 +124,7 @@ secpolicy_vnode_any_access(const cred_t *cr, struct inode *ip, uid_t owner)
 	if (crgetuid(cr) == owner)
 		return (0);
 
-	if (zpl_inode_owner_or_capable(kcred->user_ns, ip))
+	if (zpl_inode_owner_or_capable(zfs_init_idmap, ip))
 		return (0);
 
 #if defined(CONFIG_USER_NS)
@@ -214,8 +214,8 @@ secpolicy_vnode_setid_retain(struct znode *zp __maybe_unused, const cred_t *cr,
  * Determine that subject can set the file setgid flag.
  */
 int
-secpolicy_vnode_setids_setgids(const cred_t *cr, gid_t gid, zuserns_t *mnt_ns,
-    zuserns_t *fs_ns)
+secpolicy_vnode_setids_setgids(const cred_t *cr, gid_t gid, zidmap_t *mnt_ns,
+    struct user_namespace *fs_ns)
 {
 	gid = zfs_gid_to_vfsgid(mnt_ns, fs_ns, gid);
 #if defined(CONFIG_USER_NS)
@@ -286,8 +286,8 @@ secpolicy_setid_clear(vattr_t *vap, cred_t *cr)
  * Determine that subject can set the file setid flags.
  */
 static int
-secpolicy_vnode_setid_modify(const cred_t *cr, uid_t owner, zuserns_t *mnt_ns,
-    zuserns_t *fs_ns)
+secpolicy_vnode_setid_modify(const cred_t *cr, uid_t owner, zidmap_t *mnt_ns,
+    struct user_namespace *fs_ns)
 {
 	owner = zfs_uid_to_vfsuid(mnt_ns, fs_ns, owner);
 
@@ -315,7 +315,8 @@ secpolicy_vnode_stky_modify(const cred_t *cr)
 
 int
 secpolicy_setid_setsticky_clear(struct inode *ip, vattr_t *vap,
-    const vattr_t *ovap, cred_t *cr, zuserns_t *mnt_ns, zuserns_t *fs_ns)
+    const vattr_t *ovap, cred_t *cr, zidmap_t *mnt_ns,
+    struct user_namespace *fs_ns)
 {
 	int error;
 

@@ -1619,7 +1619,7 @@ zfs_acl_inherit(zfsvfs_t *zfsvfs, vtype_t vtype, zfs_acl_t *paclp,
  */
 int
 zfs_acl_ids_create(znode_t *dzp, int flag, vattr_t *vap, cred_t *cr,
-    vsecattr_t *vsecp, zfs_acl_ids_t *acl_ids, zuserns_t *mnt_ns)
+    vsecattr_t *vsecp, zfs_acl_ids_t *acl_ids, zidmap_t *mnt_ns)
 {
 	int		error;
 	zfsvfs_t	*zfsvfs = dzp->z_zfsvfs;
@@ -2341,7 +2341,7 @@ zfs_fastaccesschk_execute(znode_t *zdp, cred_t *cr)
  */
 int
 zfs_zaccess(znode_t *zp, int mode, int flags, boolean_t skipaclchk, cred_t *cr,
-    zuserns_t *mnt_ns)
+    zidmap_t *mnt_ns)
 {
 	uint32_t	working_mode;
 	int		error;
@@ -2471,7 +2471,7 @@ zfs_zaccess(znode_t *zp, int mode, int flags, boolean_t skipaclchk, cred_t *cr,
  */
 int
 zfs_zaccess_rwx(znode_t *zp, mode_t mode, int flags, cred_t *cr,
-    zuserns_t *mnt_ns)
+    zidmap_t *mnt_ns)
 {
 	return (zfs_zaccess(zp, zfs_unix_to_v4(mode >> 6), flags, B_FALSE, cr,
 	    mnt_ns));
@@ -2541,7 +2541,7 @@ zfs_delete_final_check(znode_t *zp, znode_t *dzp,
  *
  */
 int
-zfs_zaccess_delete(znode_t *dzp, znode_t *zp, cred_t *cr, zuserns_t *mnt_ns)
+zfs_zaccess_delete(znode_t *dzp, znode_t *zp, cred_t *cr, zidmap_t *mnt_ns)
 {
 	uint32_t dzp_working_mode = 0;
 	uint32_t zp_working_mode = 0;
@@ -2628,7 +2628,7 @@ zfs_zaccess_delete(znode_t *dzp, znode_t *zp, cred_t *cr, zuserns_t *mnt_ns)
 
 int
 zfs_zaccess_rename(znode_t *sdzp, znode_t *szp, znode_t *tdzp,
-    znode_t *tzp, cred_t *cr, zuserns_t *mnt_ns)
+    znode_t *tzp, cred_t *cr, zidmap_t *mnt_ns)
 {
 	int add_perm;
 	int error;
