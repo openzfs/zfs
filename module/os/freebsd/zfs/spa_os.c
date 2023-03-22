@@ -184,7 +184,7 @@ spa_import_rootpool(const char *name, bool checkpointrewind)
 	spa_t *spa;
 	vdev_t *rvd;
 	nvlist_t *config, *nvtop;
-	char *pname;
+	const char *pname;
 	int error;
 
 	/*
