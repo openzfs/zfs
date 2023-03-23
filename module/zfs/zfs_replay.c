@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012 Cyril Plisko. All rights reserved.
  * Copyright (c) 2013, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2021, 2022 by Pawel Jakub Dawidek
  */
 
 #include <sys/types.h>
@@ -1162,6 +1163,34 @@ zfs_replay_acl(void *arg1, void *arg2, boolean_t byteswap)
 	return (error);
 }
 
+static int
+zfs_replay_clone_range(void *arg1, void *arg2, boolean_t byteswap)
+{
+	zfsvfs_t *zfsvfs = arg1;
+	lr_clone_range_t *lr = arg2;
+	znode_t *zp;
+	int error;
+
+	if (byteswap)
+		byteswap_uint64_array(lr, sizeof (*lr));
+
+	if ((error = zfs_zget(zfsvfs, lr->lr_foid, &zp)) != 0) {
+		/*
+		 * Clones can be logged out of order, so don't be surprised if
+		 * the file is gone - just return success.
+		 */
+		if (error == ENOENT)
+			error = 0;
+		return (error);
+	}
+
+	error = zfs_clone_range_replay(zp, lr->lr_offset, lr->lr_length,
+	    lr->lr_blksz, lr->lr_bps, lr->lr_nbps);
+
+	zrele(zp);
+	return (error);
+}
+
 /*
  * Callback vectors for replaying records
  */
@@ -1190,4 +1219,5 @@ zil_replay_func_t *const zfs_replay_vector[TX_MAX_TYPE] = {
 	zfs_replay_setsaxattr,	/* TX_SETSAXATTR */
 	zfs_replay_rename_exchange,	/* TX_RENAME_EXCHANGE */
 	zfs_replay_rename_whiteout,	/* TX_RENAME_WHITEOUT */
+	zfs_replay_clone_range,	/* TX_CLONE_RANGE */
 };

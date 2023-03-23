@@ -85,7 +85,7 @@ typeset passphrase="password"
 typeset file="/$TESTPOOL/$TESTFS1/$TESTFILE0"
 
 log_must eval "poolexists $TESTPOOL && destroy_pool $TESTPOOL"
-log_must zpool create -f -o feature@head_errlog=disabled $TESTPOOL $DISK
+log_must zpool create -f $TESTPOOL $DISK
 
 log_must eval "echo $passphrase > /$TESTPOOL/pwd"
 

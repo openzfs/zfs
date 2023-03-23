@@ -1023,6 +1023,8 @@ vdev_draid_map_alloc_row(zio_t *zio, raidz_row_t **rrp, uint64_t io_offset,
 	/* The total number of data and parity sectors for this I/O. */
 	uint64_t tot = psize + (vdc->vdc_nparity * (q + (r == 0 ? 0 : 1)));
 
+	ASSERT3U(vdc->vdc_nparity, >, 0);
+
 	raidz_row_t *rr;
 	rr = kmem_alloc(offsetof(raidz_row_t, rr_col[groupwidth]), KM_SLEEP);
 	rr->rr_cols = groupwidth;
@@ -2718,7 +2720,7 @@ vdev_draid_spare_lookup(spa_t *spa, nvlist_t *nv, uint64_t *top_guidp,
 		return (SET_ERROR(ENOENT));
 	}
 
-	char *spare_name;
+	const char *spare_name;
 	error = nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &spare_name);
 	if (error != 0)
 		return (SET_ERROR(EINVAL));
@@ -2726,7 +2728,7 @@ vdev_draid_spare_lookup(spa_t *spa, nvlist_t *nv, uint64_t *top_guidp,
 	for (int i = 0; i < nspares; i++) {
 		nvlist_t *spare = spares[i];
 		uint64_t top_guid, spare_id;
-		char *type, *path;
+		const char *type, *path;
 
 		/* Skip non-distributed spares */
 		error = nvlist_lookup_string(spare, ZPOOL_CONFIG_TYPE, &type);

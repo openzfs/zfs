@@ -727,11 +727,11 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
     int alloctype)
 {
 	vdev_ops_t *ops;
-	char *type;
+	const char *type;
 	uint64_t guid = 0, islog;
 	vdev_t *vd;
 	vdev_indirect_config_t *vic;
-	char *tmp = NULL;
+	const char *tmp = NULL;
 	int rc;
 	vdev_alloc_bias_t alloc_bias = VDEV_BIAS_NONE;
 	boolean_t top_level = (parent && !parent->vdev_parent);
@@ -786,7 +786,7 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 		return (SET_ERROR(ENOTSUP));
 
 	if (top_level && alloctype == VDEV_ALLOC_ADD) {
-		char *bias;
+		const char *bias;
 
 		/*
 		 * If creating a top-level vdev, check for allocation
@@ -832,8 +832,8 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	if (top_level && alloc_bias != VDEV_BIAS_NONE)
 		vd->vdev_alloc_bias = alloc_bias;
 
-	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &vd->vdev_path) == 0)
-		vd->vdev_path = spa_strdup(vd->vdev_path);
+	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &tmp) == 0)
+		vd->vdev_path = spa_strdup(tmp);
 
 	/*
 	 * ZPOOL_CONFIG_AUX_STATE = "external" means we previously forced a
@@ -847,18 +847,17 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 		vd->vdev_label_aux = VDEV_AUX_EXTERNAL;
 	}
 
-	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_DEVID, &vd->vdev_devid) == 0)
-		vd->vdev_devid = spa_strdup(vd->vdev_devid);
-	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PHYS_PATH,
-	    &vd->vdev_physpath) == 0)
-		vd->vdev_physpath = spa_strdup(vd->vdev_physpath);
+	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_DEVID, &tmp) == 0)
+		vd->vdev_devid = spa_strdup(tmp);
+	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PHYS_PATH, &tmp) == 0)
+		vd->vdev_physpath = spa_strdup(tmp);
 
 	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH,
-	    &vd->vdev_enc_sysfs_path) == 0)
-		vd->vdev_enc_sysfs_path = spa_strdup(vd->vdev_enc_sysfs_path);
+	    &tmp) == 0)
+		vd->vdev_enc_sysfs_path = spa_strdup(tmp);
 
-	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_FRU, &vd->vdev_fru) == 0)
-		vd->vdev_fru = spa_strdup(vd->vdev_fru);
+	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_FRU, &tmp) == 0)
+		vd->vdev_fru = spa_strdup(tmp);
 
 	/*
 	 * Set the whole_disk property.  If it's not specified, leave the value
@@ -989,7 +988,7 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 			    &vd->vdev_removed);
 
 			if (vd->vdev_faulted || vd->vdev_degraded) {
-				char *aux;
+				const char *aux;
 
 				vd->vdev_label_aux =
 				    VDEV_AUX_ERR_EXCEEDED;
@@ -4700,8 +4699,14 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 	vdev_t *vd = zio->io_vd ? zio->io_vd : rvd;
 	vdev_t *pvd;
 	uint64_t txg = zio->io_txg;
+/* Suppress ASAN false positive */
+#ifdef __SANITIZE_ADDRESS__
 	vdev_stat_t *vs = vd ? &vd->vdev_stat : NULL;
 	vdev_stat_ex_t *vsx = vd ? &vd->vdev_stat_ex : NULL;
+#else
+	vdev_stat_t *vs = &vd->vdev_stat;
+	vdev_stat_ex_t *vsx = &vd->vdev_stat_ex;
+#endif
 	zio_type_t type = zio->io_type;
 	int flags = zio->io_flags;
 
@@ -5396,8 +5401,12 @@ vdev_split(vdev_t *vd)
 {
 	vdev_t *cvd, *pvd = vd->vdev_parent;
 
+	VERIFY3U(pvd->vdev_children, >, 1);
+
 	vdev_remove_child(pvd, vd);
 	vdev_compact_children(pvd);
+
+	ASSERT3P(pvd->vdev_child, !=, NULL);
 
 	cvd = pvd->vdev_child[0];
 	if (pvd->vdev_children == 1) {
@@ -5614,7 +5623,7 @@ vdev_replace_in_progress(vdev_t *vdev)
  * Add a (source=src, propname=propval) list to an nvlist.
  */
 static void
-vdev_prop_add_list(nvlist_t *nvl, const char *propname, char *strval,
+vdev_prop_add_list(nvlist_t *nvl, const char *propname, const char *strval,
     uint64_t intval, zprop_source_t src)
 {
 	nvlist_t *propval;
@@ -5654,7 +5663,7 @@ vdev_props_set_sync(void *arg, dmu_tx_t *tx)
 
 	while ((elem = nvlist_next_nvpair(nvprops, elem)) != NULL) {
 		uint64_t intval, objid = 0;
-		char *strval;
+		const char *strval;
 		vdev_prop_t prop;
 		const char *propname = nvpair_name(elem);
 		zprop_type_t proptype;
@@ -5750,10 +5759,10 @@ vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 		return (SET_ERROR(EINVAL));
 
 	while ((elem = nvlist_next_nvpair(nvprops, elem)) != NULL) {
-		char *propname = nvpair_name(elem);
+		const char *propname = nvpair_name(elem);
 		vdev_prop_t prop = vdev_name_to_prop(propname);
 		uint64_t intval = 0;
-		char *strval = NULL;
+		const char *strval = NULL;
 
 		if (prop == VDEV_PROP_USERPROP && !vdev_prop_user(propname)) {
 			error = EINVAL;

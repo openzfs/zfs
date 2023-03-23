@@ -140,8 +140,6 @@ arc_prune_task(void *arg)
 {
 	uint64_t nr_scan = (uintptr_t)arg;
 
-	arc_reduce_target_size(ptob(nr_scan));
-
 #ifndef __ILP32__
 	if (nr_scan > INT_MAX)
 		nr_scan = INT_MAX;
@@ -159,7 +157,7 @@ arc_prune_task(void *arg)
 /*
  * Notify registered consumers they must drop holds on a portion of the ARC
  * buffered they reference.  This provides a mechanism to ensure the ARC can
- * honor the arc_meta_limit and reclaim otherwise pinned ARC buffers.  This
+ * honor the metadata limit and reclaim otherwise pinned ARC buffers.  This
  * is analogous to dnlc_reduce_cache() but more generic.
  *
  * This operation is performed asynchronously so it may be safely called

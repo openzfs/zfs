@@ -41,6 +41,7 @@
 #include <sys/zio_checksum.h>
 #include <sys/dmu_objset.h>
 #include <sys/arc.h>
+#include <sys/brt.h>
 #include <sys/ddt.h>
 #include <sys/blkptr.h>
 #include <sys/zfeature.h>
@@ -1176,12 +1177,14 @@ zio_rewrite(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp, abd_t *data,
 }
 
 void
-zio_write_override(zio_t *zio, blkptr_t *bp, int copies, boolean_t nopwrite)
+zio_write_override(zio_t *zio, blkptr_t *bp, int copies, boolean_t nopwrite,
+    boolean_t brtwrite)
 {
 	ASSERT(zio->io_type == ZIO_TYPE_WRITE);
 	ASSERT(zio->io_child_type == ZIO_CHILD_LOGICAL);
 	ASSERT(zio->io_stage == ZIO_STAGE_OPEN);
 	ASSERT(zio->io_txg == spa_syncing_txg(zio->io_spa));
+	ASSERT(!brtwrite || !nopwrite);
 
 	/*
 	 * We must reset the io_prop to match the values that existed
@@ -1190,6 +1193,7 @@ zio_write_override(zio_t *zio, blkptr_t *bp, int copies, boolean_t nopwrite)
 	 */
 	zio->io_prop.zp_dedup = nopwrite ? B_FALSE : zio->io_prop.zp_dedup;
 	zio->io_prop.zp_nopwrite = nopwrite;
+	zio->io_prop.zp_brtwrite = brtwrite;
 	zio->io_prop.zp_copies = copies;
 	zio->io_bp_override = bp;
 }
@@ -1222,7 +1226,8 @@ zio_free(spa_t *spa, uint64_t txg, const blkptr_t *bp)
 	    BP_GET_DEDUP(bp) ||
 	    txg != spa->spa_syncing_txg ||
 	    (spa_sync_pass(spa) >= zfs_sync_pass_deferred_free &&
-	    !spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP))) {
+	    !spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP)) ||
+	    brt_maybe_exists(spa, bp)) {
 		metaslab_check_free(spa, bp);
 		bplist_append(&spa->spa_free_bplist[txg & TXG_MASK], bp);
 	} else {
@@ -1249,11 +1254,13 @@ zio_free_sync(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 	arc_freed(spa, bp);
 	dsl_scan_freed(spa, bp);
 
-	if (BP_IS_GANG(bp) || BP_GET_DEDUP(bp)) {
+	if (BP_IS_GANG(bp) ||
+	    BP_GET_DEDUP(bp) ||
+	    brt_maybe_exists(spa, bp)) {
 		/*
-		 * GANG and DEDUP blocks can induce a read (for the gang block
-		 * header, or the DDT), so issue them asynchronously so that
-		 * this thread is not tied up.
+		 * GANG, DEDUP and BRT blocks can induce a read (for the gang
+		 * block header, the DDT or the BRT), so issue them
+		 * asynchronously so that this thread is not tied up.
 		 */
 		enum zio_stage stage =
 		    ZIO_FREE_PIPELINE | ZIO_STAGE_ISSUE_ASYNC;
@@ -1594,10 +1601,14 @@ zio_write_bp_init(zio_t *zio)
 		zio_prop_t *zp = &zio->io_prop;
 
 		ASSERT(bp->blk_birth != zio->io_txg);
-		ASSERT(BP_GET_DEDUP(zio->io_bp_override) == 0);
 
 		*bp = *zio->io_bp_override;
 		zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
+
+		if (zp->zp_brtwrite)
+			return (zio);
+
+		ASSERT(!BP_GET_DEDUP(zio->io_bp_override));
 
 		if (BP_IS_EMBEDDED(bp))
 			return (zio);
@@ -3037,6 +3048,35 @@ zio_nop_write(zio_t *zio)
 		*bp = *bp_orig;
 		zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
 		zio->io_flags |= ZIO_FLAG_NOPWRITE;
+	}
+
+	return (zio);
+}
+
+/*
+ * ==========================================================================
+ * Block Reference Table
+ * ==========================================================================
+ */
+static zio_t *
+zio_brt_free(zio_t *zio)
+{
+	blkptr_t *bp;
+
+	bp = zio->io_bp;
+
+	if (BP_GET_LEVEL(bp) > 0 ||
+	    BP_IS_METADATA(bp) ||
+	    !brt_maybe_exists(zio->io_spa, bp)) {
+		return (zio);
+	}
+
+	if (!brt_entry_decref(zio->io_spa, bp)) {
+		/*
+		 * This isn't the last reference, so we cannot free
+		 * the data yet.
+		 */
+		zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
 	}
 
 	return (zio);
@@ -4894,6 +4934,7 @@ static zio_pipe_stage_t *zio_pipeline[] = {
 	zio_encrypt,
 	zio_checksum_generate,
 	zio_nop_write,
+	zio_brt_free,
 	zio_ddt_read_start,
 	zio_ddt_read_done,
 	zio_ddt_write,

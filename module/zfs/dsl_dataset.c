@@ -1620,7 +1620,7 @@ dsl_dataset_snapshot_check(void *arg, dmu_tx_t *tx)
 		for (pair = nvlist_next_nvpair(cnt_track, NULL);
 		    pair != NULL; pair = nvlist_next_nvpair(cnt_track, pair)) {
 			int error = 0;
-			char *name;
+			const char *name;
 			uint64_t cnt = 0;
 			dsl_dataset_t *ds;
 
@@ -1652,7 +1652,7 @@ dsl_dataset_snapshot_check(void *arg, dmu_tx_t *tx)
 	    pair != NULL; pair = nvlist_next_nvpair(ddsa->ddsa_snaps, pair)) {
 		int error = 0;
 		dsl_dataset_t *ds;
-		char *name, *atp = NULL;
+		const char *name, *atp = NULL;
 		char dsname[ZFS_MAX_DATASET_NAME_LEN];
 
 		name = nvpair_name(pair);
@@ -1877,7 +1877,7 @@ dsl_dataset_snapshot_sync(void *arg, dmu_tx_t *tx)
 	for (pair = nvlist_next_nvpair(ddsa->ddsa_snaps, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(ddsa->ddsa_snaps, pair)) {
 		dsl_dataset_t *ds;
-		char *name, *atp;
+		const char *name, *atp;
 		char dsname[ZFS_MAX_DATASET_NAME_LEN];
 
 		name = nvpair_name(pair);
@@ -1906,7 +1906,7 @@ dsl_dataset_snapshot(nvlist_t *snaps, nvlist_t *props, nvlist_t *errors)
 	boolean_t needsuspend;
 	int error;
 	spa_t *spa;
-	char *firstname;
+	const char *firstname;
 	nvlist_t *suspended = NULL;
 
 	pair = nvlist_next_nvpair(snaps, NULL);
@@ -1925,8 +1925,8 @@ dsl_dataset_snapshot(nvlist_t *snaps, nvlist_t *props, nvlist_t *errors)
 		for (pair = nvlist_next_nvpair(snaps, NULL); pair != NULL;
 		    pair = nvlist_next_nvpair(snaps, pair)) {
 			char fsname[ZFS_MAX_DATASET_NAME_LEN];
-			char *snapname = nvpair_name(pair);
-			char *atp;
+			const char *snapname = nvpair_name(pair);
+			const char *atp;
 			void *cookie;
 
 			atp = strchr(snapname, '@');

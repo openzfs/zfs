@@ -543,7 +543,7 @@ process_vdev_config(nvlist_t ***configs, uint64_t *count, nvlist_t *cfg,
 	uint64_t pool_guid;
 	uint64_t vdev_guid;
 	uint64_t id, txg, known_txg;
-	char *pname;
+	const char *pname;
 
 	if (nvlist_lookup_string(cfg, ZPOOL_CONFIG_POOL_NAME, &pname) != 0 ||
 	    strcmp(pname, name) != 0)

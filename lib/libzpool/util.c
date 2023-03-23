@@ -65,7 +65,7 @@ show_vdev_stats(const char *desc, const char *ctype, nvlist_t *nv, int indent)
 
 	if (desc != NULL) {
 		const char *suffix = "";
-		char *bias = NULL;
+		const char *bias = NULL;
 		char bias_suffix[32];
 
 		(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_IS_LOG, &is_log);
@@ -113,12 +113,13 @@ show_vdev_stats(const char *desc, const char *ctype, nvlist_t *nv, int indent)
 
 	for (c = 0; c < children; c++) {
 		nvlist_t *cnv = child[c];
-		char *cname = NULL, *tname;
+		const char *cname = NULL;
+		char *tname;
 		uint64_t np;
 		int len;
 		if (nvlist_lookup_string(cnv, ZPOOL_CONFIG_PATH, &cname) &&
 		    nvlist_lookup_string(cnv, ZPOOL_CONFIG_TYPE, &cname))
-			cname = (char *)"<unknown>";
+			cname = "<unknown>";
 		len = strlen(cname) + 2;
 		tname = umem_zalloc(len, UMEM_NOFAIL);
 		(void) strlcpy(tname, cname, len);
@@ -133,7 +134,7 @@ void
 show_pool_stats(spa_t *spa)
 {
 	nvlist_t *config, *nvroot;
-	char *name;
+	const char *name;
 
 	VERIFY(spa_get_stats(spa_name(spa), &config, NULL, 0) == 0);
 

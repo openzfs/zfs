@@ -663,6 +663,7 @@ typedef struct blkptr {
 			    (u_longlong_t)DVA_GET_ASIZE(dva),		\
 			    ws);					\
 		}							\
+		ASSERT3S(copies, >, 0);					\
 		if (BP_IS_ENCRYPTED(bp)) {				\
 			len += func(buf + len, size - len,		\
 			    "salt=%llx iv=%llx:%llx%c",			\

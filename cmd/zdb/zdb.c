@@ -117,7 +117,6 @@ zdb_ot_name(dmu_object_type_t type)
 
 extern int reference_tracking_enable;
 extern int zfs_recover;
-extern unsigned long zfs_arc_meta_min, zfs_arc_meta_limit;
 extern uint_t zfs_vdev_async_read_max_active;
 extern boolean_t spa_load_verify_dryrun;
 extern boolean_t spa_mode_readable_spacemaps;
@@ -1005,11 +1004,13 @@ dump_histogram(const uint64_t *histo, int size, int offset)
 	uint64_t max = 0;
 
 	for (i = 0; i < size; i++) {
+		if (histo[i] == 0)
+			continue;
 		if (histo[i] > max)
 			max = histo[i];
-		if (histo[i] > 0 && i > maxidx)
+		if (i > maxidx)
 			maxidx = i;
-		if (histo[i] > 0 && i < minidx)
+		if (i < minidx)
 			minidx = i;
 	}
 
@@ -3120,7 +3121,8 @@ zdb_load_key(objset_t *os)
 	if (err != 0)
 		fatal(
 		    "couldn't load encryption key for %s: %s",
-		    encroot, strerror(err));
+		    encroot, err == ZFS_ERR_CRYPTO_NOTSUP ?
+		    "crypto params not supported" : strerror(err));
 
 	ASSERT3U(dsl_dataset_get_keystatus(dd), ==, ZFS_KEYSTATUS_AVAILABLE);
 
@@ -4207,7 +4209,7 @@ collect_nvlist_stats(nvlist_t *nvl, zdb_nvl_stats_t *stats)
 {
 	nvlist_t *list, **array;
 	nvpair_t *nvp = NULL;
-	char *name;
+	const char *name;
 	uint_t i, items;
 
 	stats->zns_list_count++;
@@ -7689,7 +7691,7 @@ dump_mos_leaks(spa_t *spa)
 	mos_obj_refd(spa->spa_errlog_last);
 	mos_obj_refd(spa->spa_errlog_scrub);
 
-	if (!spa_feature_is_enabled(spa, SPA_FEATURE_HEAD_ERRLOG)) {
+	if (spa_feature_is_enabled(spa, SPA_FEATURE_HEAD_ERRLOG)) {
 		errorlog_count_refd(mos, spa->spa_errlog_last);
 		errorlog_count_refd(mos, spa->spa_errlog_scrub);
 	}
@@ -8808,8 +8810,8 @@ main(int argc, char **argv)
 	 * ZDB does not typically re-read blocks; therefore limit the ARC
 	 * to 256 MB, which can be used entirely for metadata.
 	 */
-	zfs_arc_min = zfs_arc_meta_min = 2ULL << SPA_MAXBLOCKSHIFT;
-	zfs_arc_max = zfs_arc_meta_limit = 256 * 1024 * 1024;
+	zfs_arc_min = 2ULL << SPA_MAXBLOCKSHIFT;
+	zfs_arc_max = 256 * 1024 * 1024;
 #endif
 
 	/*

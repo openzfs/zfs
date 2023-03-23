@@ -47,6 +47,7 @@
 #include <sys/vdev_impl.h>
 #include <sys/zil_impl.h>
 #include <sys/zio_checksum.h>
+#include <sys/brt.h>
 #include <sys/ddt.h>
 #include <sys/sa.h>
 #include <sys/sa_impl.h>
@@ -3499,11 +3500,12 @@ dsl_process_async_destroys(dsl_pool_t *dp, dmu_tx_t *tx)
 		scn->scn_dedup_frees_this_txg = 0;
 
 		/*
-		 * Write out changes to the DDT that may be required as a
-		 * result of the blocks freed.  This ensures that the DDT
-		 * is clean when a scrub/resilver runs.
+		 * Write out changes to the DDT and the BRT that may be required
+		 * as a result of the blocks freed.  This ensures that the DDT
+		 * and the BRT are clean when a scrub/resilver runs.
 		 */
 		ddt_sync(spa, tx->tx_txg);
+		brt_sync(spa, tx->tx_txg);
 	}
 	if (err != 0)
 		return (err);

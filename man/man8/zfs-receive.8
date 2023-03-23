@@ -29,7 +29,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd April 26, 2022
+.Dd March 12, 2023
 .Dt ZFS-RECEIVE 8
 .Os
 .
@@ -56,8 +56,7 @@
 .Cm receive
 .Fl A
 .Ar filesystem Ns | Ns Ar volume
-.
-.Nm
+.Nm zfs
 .Cm receive
 .Fl c
 .Op Fl vn
@@ -406,15 +405,15 @@ deleting its saved partially received state.
 .Op Fl vn
 .Ar filesystem Ns | Ns Ar snapshot
 .Xc
-Attempt to correct data corruption in the specified dataset,
+Attempt to repair data corruption in the specified dataset,
 by using the provided stream as the source of healthy data.
 This method of healing can only heal data blocks present in the stream.
 Metadata can not be healed by corrective receive.
-Running a scrub is recommended post-healing to ensure all corruption was
-healed.
+Running a scrub is recommended post-healing to ensure all data corruption was
+repaired.
 .Pp
-It's important to consider why corruption has happened in the first place
-since if you have slowly failing hardware periodically healing the data
+It's important to consider why corruption has happened in the first place.
+If you have slowly failing hardware - periodically repairing the data
 is not going to save you from data loss later on when the hardware fails
 completely.
 .El

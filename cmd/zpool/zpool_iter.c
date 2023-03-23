@@ -564,9 +564,9 @@ for_each_vdev_run_cb(void *zhp_data, nvlist_t *nv, void *cb_vcdl)
 {
 	vdev_cmd_data_list_t *vcdl = cb_vcdl;
 	vdev_cmd_data_t *data;
-	char *path = NULL;
+	const char *path = NULL;
 	char *vname = NULL;
-	char *vdev_enc_sysfs_path = NULL;
+	const char *vdev_enc_sysfs_path = NULL;
 	int i, match = 0;
 	zpool_handle_t *zhp = zhp_data;
 

@@ -160,14 +160,14 @@ dsl_bookmark_create_nvl_validate_pair(const char *bmark, const char *source)
 int
 dsl_bookmark_create_nvl_validate(nvlist_t *bmarks)
 {
-	char *first = NULL;
+	const char *first = NULL;
 	size_t first_len = 0;
 
 	for (nvpair_t *pair = nvlist_next_nvpair(bmarks, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(bmarks, pair)) {
 
-		char *bmark = nvpair_name(pair);
-		char *source;
+		const char *bmark = nvpair_name(pair);
+		const char *source;
 
 		/* list structure: values must be snapshots XOR bookmarks */
 		if (nvpair_value_string(pair, &source) != 0)
@@ -177,7 +177,7 @@ dsl_bookmark_create_nvl_validate(nvlist_t *bmarks)
 
 		/* same pool check */
 		if (first == NULL) {
-			char *cp = strpbrk(bmark, "/#");
+			const char *cp = strpbrk(bmark, "/#");
 			if (cp == NULL)
 				return (-1);
 			first = bmark;
@@ -305,11 +305,11 @@ dsl_bookmark_create_check(void *arg, dmu_tx_t *tx)
 
 	for (nvpair_t *pair = nvlist_next_nvpair(dbca->dbca_bmarks, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(dbca->dbca_bmarks, pair)) {
-		char *new = nvpair_name(pair);
+		const char *new = nvpair_name(pair);
 
 		int error = schema_err;
 		if (error == 0) {
-			char *source = fnvpair_value_string(pair);
+			const char *source = fnvpair_value_string(pair);
 			error = dsl_bookmark_create_check_impl(dp, new, source);
 			if (error != 0)
 				error = SET_ERROR(error);
@@ -589,8 +589,8 @@ dsl_bookmark_create_sync(void *arg, dmu_tx_t *tx)
 	for (nvpair_t *pair = nvlist_next_nvpair(dbca->dbca_bmarks, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(dbca->dbca_bmarks, pair)) {
 
-		char *new = nvpair_name(pair);
-		char *source = fnvpair_value_string(pair);
+		const char *new = nvpair_name(pair);
+		const char *source = fnvpair_value_string(pair);
 
 		if (strchr(source, '@') != NULL) {
 			dsl_bookmark_create_sync_impl_snap(new, source, tx,

@@ -270,16 +270,14 @@ def draw_graph(kstats_dict):
     arc_perc = f_perc(arc_stats['size'], arc_stats['c_max'])
     mfu_size = f_bytes(arc_stats['mfu_size'])
     mru_size = f_bytes(arc_stats['mru_size'])
-    meta_limit = f_bytes(arc_stats['arc_meta_limit'])
     meta_size = f_bytes(arc_stats['arc_meta_used'])
     dnode_limit = f_bytes(arc_stats['arc_dnode_limit'])
     dnode_size = f_bytes(arc_stats['dnode_size'])
 
-    info_form = ('ARC: {0} ({1})  MFU: {2}  MRU: {3}  META: {4} ({5}) '
-                 'DNODE {6} ({7})')
+    info_form = ('ARC: {0} ({1})  MFU: {2}  MRU: {3}  META: {4} '
+                 'DNODE {5} ({6})')
     info_line = info_form.format(arc_size, arc_perc, mfu_size, mru_size,
-                                 meta_size, meta_limit, dnode_size,
-                                 dnode_limit)
+                                 meta_size, dnode_size, dnode_limit)
     info_spc = ' '*int((GRAPH_WIDTH-len(info_line))/2)
     info_line = GRAPH_INDENT+info_spc+info_line
 
@@ -558,16 +556,28 @@ def section_arc(kstats_dict):
     arc_target_size = arc_stats['c']
     arc_max = arc_stats['c_max']
     arc_min = arc_stats['c_min']
-    anon_size = arc_stats['anon_size']
-    mfu_size = arc_stats['mfu_size']
-    mru_size = arc_stats['mru_size']
-    mfug_size = arc_stats['mfu_ghost_size']
-    mrug_size = arc_stats['mru_ghost_size']
-    unc_size = arc_stats['uncached_size']
-    meta_limit = arc_stats['arc_meta_limit']
-    meta_size = arc_stats['arc_meta_used']
+    meta = arc_stats['meta']
+    pd = arc_stats['pd']
+    pm = arc_stats['pm']
+    anon_data = arc_stats['anon_data']
+    anon_metadata = arc_stats['anon_metadata']
+    mfu_data = arc_stats['mfu_data']
+    mfu_metadata = arc_stats['mfu_metadata']
+    mru_data = arc_stats['mru_data']
+    mru_metadata = arc_stats['mru_metadata']
+    mfug_data = arc_stats['mfu_ghost_data']
+    mfug_metadata = arc_stats['mfu_ghost_metadata']
+    mrug_data = arc_stats['mru_ghost_data']
+    mrug_metadata = arc_stats['mru_ghost_metadata']
+    unc_data = arc_stats['uncached_data']
+    unc_metadata = arc_stats['uncached_metadata']
+    bonus_size = arc_stats['bonus_size']
     dnode_limit = arc_stats['arc_dnode_limit']
     dnode_size = arc_stats['dnode_size']
+    dbuf_size = arc_stats['dbuf_size']
+    hdr_size = arc_stats['hdr_size']
+    l2_hdr_size = arc_stats['l2_hdr_size']
+    abd_chunk_waste_size = arc_stats['abd_chunk_waste_size']
     target_size_ratio = '{0}:1'.format(int(arc_max) // int(arc_min))
 
     prt_2('ARC size (current):',
@@ -578,25 +588,56 @@ def section_arc(kstats_dict):
            f_perc(arc_min, arc_max), f_bytes(arc_min))
     prt_i2('Max size (high water):',
            target_size_ratio, f_bytes(arc_max))
-    caches_size = int(anon_size)+int(mfu_size)+int(mru_size)+int(unc_size)
-    prt_i2('Anonymouns data size:',
-           f_perc(anon_size, caches_size), f_bytes(anon_size))
-    prt_i2('Most Frequently Used (MFU) cache size:',
-           f_perc(mfu_size, caches_size), f_bytes(mfu_size))
-    prt_i2('Most Recently Used (MRU) cache size:',
-           f_perc(mru_size, caches_size), f_bytes(mru_size))
-    prt_i1('Most Frequently Used (MFU) ghost size:', f_bytes(mfug_size))
-    prt_i1('Most Recently Used (MRU) ghost size:', f_bytes(mrug_size))
+    caches_size = int(anon_data)+int(anon_metadata)+\
+        int(mfu_data)+int(mfu_metadata)+int(mru_data)+int(mru_metadata)+\
+        int(unc_data)+int(unc_metadata)
+    prt_i2('Anonymous data size:',
+           f_perc(anon_data, caches_size), f_bytes(anon_data))
+    prt_i2('Anonymous metadata size:',
+           f_perc(anon_metadata, caches_size), f_bytes(anon_metadata))
+    s = 4294967296
+    v = (s-int(pd))*(s-int(meta))/s
+    prt_i2('MFU data target:', f_perc(v, s),
+        f_bytes(v / 65536 * caches_size / 65536))
+    prt_i2('MFU data size:',
+           f_perc(mfu_data, caches_size), f_bytes(mfu_data))
+    prt_i1('MFU ghost data size:', f_bytes(mfug_data))
+    v = (s-int(pm))*int(meta)/s
+    prt_i2('MFU metadata target:', f_perc(v, s),
+        f_bytes(v / 65536 * caches_size / 65536))
+    prt_i2('MFU metadata size:',
+           f_perc(mfu_metadata, caches_size), f_bytes(mfu_metadata))
+    prt_i1('MFU ghost metadata size:', f_bytes(mfug_metadata))
+    v = int(pd)*(s-int(meta))/s
+    prt_i2('MRU data target:', f_perc(v, s),
+        f_bytes(v / 65536 * caches_size / 65536))
+    prt_i2('MRU data size:',
+           f_perc(mru_data, caches_size), f_bytes(mru_data))
+    prt_i1('MRU ghost data size:', f_bytes(mrug_data))
+    v = int(pm)*int(meta)/s
+    prt_i2('MRU metadata target:', f_perc(v, s),
+        f_bytes(v / 65536 * caches_size / 65536))
+    prt_i2('MRU metadata size:',
+           f_perc(mru_metadata, caches_size), f_bytes(mru_metadata))
+    prt_i1('MRU ghost metadata size:', f_bytes(mrug_metadata))
     prt_i2('Uncached data size:',
-           f_perc(unc_size, caches_size), f_bytes(unc_size))
-    prt_i2('Metadata cache size (hard limit):',
-           f_perc(meta_limit, arc_max), f_bytes(meta_limit))
-    prt_i2('Metadata cache size (current):',
-           f_perc(meta_size, meta_limit), f_bytes(meta_size))
-    prt_i2('Dnode cache size (hard limit):',
-           f_perc(dnode_limit, meta_limit), f_bytes(dnode_limit))
-    prt_i2('Dnode cache size (current):',
+           f_perc(unc_data, caches_size), f_bytes(unc_data))
+    prt_i2('Uncached metadata size:',
+           f_perc(unc_metadata, caches_size), f_bytes(unc_metadata))
+    prt_i2('Bonus size:',
+           f_perc(bonus_size, arc_size), f_bytes(bonus_size))
+    prt_i2('Dnode cache target:',
+           f_perc(dnode_limit, arc_max), f_bytes(dnode_limit))
+    prt_i2('Dnode cache size:',
            f_perc(dnode_size, dnode_limit), f_bytes(dnode_size))
+    prt_i2('Dbuf size:',
+           f_perc(dbuf_size, arc_size), f_bytes(dbuf_size))
+    prt_i2('Header size:',
+           f_perc(hdr_size, arc_size), f_bytes(hdr_size))
+    prt_i2('L2 header size:',
+           f_perc(l2_hdr_size, arc_size), f_bytes(l2_hdr_size))
+    prt_i2('ABD chunk waste size:',
+           f_perc(abd_chunk_waste_size, arc_size), f_bytes(abd_chunk_waste_size))
     print()
 
     print('ARC hash breakdown:')

@@ -1359,6 +1359,7 @@ vdev_label_write_bootenv(vdev_t *vd, nvlist_t *env)
 	int error;
 	size_t nvsize;
 	char *nvbuf;
+	const char *tmp;
 
 	error = nvlist_size(env, &nvsize, NV_ENCODE_XDR);
 	if (error != 0)
@@ -1398,8 +1399,8 @@ vdev_label_write_bootenv(vdev_t *vd, nvlist_t *env)
 	bootenv->vbe_version = fnvlist_lookup_uint64(env, BOOTENV_VERSION);
 	switch (bootenv->vbe_version) {
 	case VB_RAW:
-		if (nvlist_lookup_string(env, GRUB_ENVMAP, &nvbuf) == 0) {
-			(void) strlcpy(bootenv->vbe_bootenv, nvbuf, nvsize);
+		if (nvlist_lookup_string(env, GRUB_ENVMAP, &tmp) == 0) {
+			(void) strlcpy(bootenv->vbe_bootenv, tmp, nvsize);
 		}
 		error = 0;
 		break;

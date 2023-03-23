@@ -34,6 +34,7 @@
 #include <sys/systm.h>
 #include <sys/sysmacros.h>
 #include <sys/resource.h>
+#include <sys/resourcevar.h>
 #include <sys/mntent.h>
 #include <sys/u8_textprep.h>
 #include <sys/dsl_dataset.h>
@@ -1689,7 +1690,7 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	while ((elem = nvlist_next_nvpair(zplprops, elem)) != NULL) {
 		/* For the moment we expect all zpl props to be uint64_ts */
 		uint64_t val;
-		char *name;
+		const char *name;
 
 		ASSERT3S(nvpair_type(elem), ==, DATA_TYPE_UINT64);
 		val = fnvpair_value_uint64(elem);
@@ -2111,5 +2112,30 @@ zfs_znode_parent_and_name(znode_t *zp, znode_t **dzpp, char *buf)
 		return (err);
 	err = zfs_zget(zfsvfs, parent, dzpp);
 	return (err);
+}
+#endif /* _KERNEL */
+
+#ifdef _KERNEL
+int
+zfs_rlimit_fsize(off_t fsize)
+{
+	struct thread *td = curthread;
+	off_t lim;
+
+	if (td == NULL)
+		return (0);
+
+	lim = lim_cur(td, RLIMIT_FSIZE);
+	if (__predict_true((uoff_t)fsize <= lim))
+		return (0);
+
+	/*
+	 * The limit is reached.
+	 */
+	PROC_LOCK(td->td_proc);
+	kern_psignal(td->td_proc, SIGXFSZ);
+	PROC_UNLOCK(td->td_proc);
+
+	return (EFBIG);
 }
 #endif /* _KERNEL */

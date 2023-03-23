@@ -746,10 +746,8 @@ perform_thread_merge(bqueue_t *q, uint32_t num_threads,
 		bqueue_enqueue(q, record, sizeof (*record));
 		return (0);
 	}
-	if (num_threads > 0) {
-		redact_nodes = kmem_zalloc(num_threads *
-		    sizeof (*redact_nodes), KM_SLEEP);
-	}
+	redact_nodes = kmem_zalloc(num_threads *
+	    sizeof (*redact_nodes), KM_SLEEP);
 
 	avl_create(&start_tree, redact_node_compare_start,
 	    sizeof (struct redact_node),

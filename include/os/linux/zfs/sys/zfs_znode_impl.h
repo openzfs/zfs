@@ -86,7 +86,8 @@ extern "C" {
 #endif
 
 #define	zn_flush_cached_data(zp, sync)	write_inode_now(ZTOI(zp), sync)
-#define	zn_rlimit_fsize(zp, uio)	(0)
+#define	zn_rlimit_fsize(size)		(0)
+#define	zn_rlimit_fsize_uio(zp, uio)	(0)
 
 /*
  * zhold() wraps igrab() on Linux, and igrab() may fail when the

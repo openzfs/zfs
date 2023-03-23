@@ -23,7 +23,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Portions Copyright 2011 Martin Matuska
  * Copyright 2015, OmniTI Computer Consulting, Inc. All rights reserved.
- * Portions Copyright 2012 Pawel Jakub Dawidek <pawel@dawidek.net>
+ * Copyright (c) 2012 Pawel Jakub Dawidek
  * Copyright (c) 2014, 2016 Joyent, Inc. All rights reserved.
  * Copyright 2016 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014, Joyent, Inc. All rights reserved.
@@ -604,7 +604,7 @@ static int
 zfs_secpolicy_setprop(const char *dsname, zfs_prop_t prop, nvpair_t *propval,
     cred_t *cr)
 {
-	char *strval;
+	const char *strval;
 
 	/*
 	 * Check permissions for special properties.
@@ -935,7 +935,7 @@ zfs_secpolicy_snapshot(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 
 	for (pair = nvlist_next_nvpair(snaps, NULL); pair != NULL;
 	    pair = nvlist_next_nvpair(snaps, pair)) {
-		char *name = nvpair_name(pair);
+		char *name = (char *)nvpair_name(pair);
 		char *atp = strchr(name, '@');
 
 		if (atp == NULL) {
@@ -962,7 +962,7 @@ zfs_secpolicy_bookmark(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 
 	for (nvpair_t *pair = nvlist_next_nvpair(innvl, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(innvl, pair)) {
-		char *name = nvpair_name(pair);
+		char *name = (char *)nvpair_name(pair);
 		char *hashp = strchr(name, '#');
 
 		if (hashp == NULL) {
@@ -988,7 +988,7 @@ zfs_secpolicy_destroy_bookmarks(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 
 	for (pair = nvlist_next_nvpair(innvl, NULL); pair != NULL;
 	    pair = nextpair) {
-		char *name = nvpair_name(pair);
+		char *name = (char *)nvpair_name(pair);
 		char *hashp = strchr(name, '#');
 		nextpair = nvlist_next_nvpair(innvl, pair);
 
@@ -1036,9 +1036,9 @@ zfs_secpolicy_log_history(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 static int
 zfs_secpolicy_create_clone(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 {
-	char	parentname[ZFS_MAX_DATASET_NAME_LEN];
-	int	error;
-	char	*origin;
+	char		parentname[ZFS_MAX_DATASET_NAME_LEN];
+	int		error;
+	const char	*origin;
 
 	if ((error = zfs_get_parent(zc->zc_name, parentname,
 	    sizeof (parentname))) != 0)
@@ -1460,7 +1460,7 @@ zfs_ioc_pool_create(zfs_cmd_t *zc)
 		nvlist_t *nvl = NULL;
 		nvlist_t *hidden_args = NULL;
 		uint64_t version = SPA_VERSION;
-		char *tname;
+		const char *tname;
 
 		(void) nvlist_lookup_uint64(props,
 		    zpool_prop_to_name(ZPOOL_PROP_VERSION), &version);
@@ -3916,7 +3916,7 @@ static int
 zfs_ioc_channel_program(const char *poolname, nvlist_t *innvl,
     nvlist_t *outnvl)
 {
-	char *program;
+	const char *program;
 	uint64_t instrlimit, memlimit;
 	boolean_t sync_flag;
 	nvpair_t *nvarg = NULL;
@@ -4336,7 +4336,7 @@ zfs_ioc_rollback(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 {
 	zfsvfs_t *zfsvfs;
 	zvol_state_handle_t *zv;
-	char *target = NULL;
+	const char *target = NULL;
 	int error;
 
 	(void) nvlist_lookup_string(innvl, "target", &target);
@@ -4412,7 +4412,7 @@ zfs_ioc_redact(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 {
 	(void) outnvl;
 	nvlist_t *redactnvl = NULL;
-	char *redactbook = NULL;
+	const char *redactbook = NULL;
 
 	if (nvlist_lookup_nvlist(innvl, "snapnv", &redactnvl) != 0)
 		return (SET_ERROR(EINVAL));
@@ -4808,10 +4808,10 @@ propval_equals(nvpair_t *p1, nvpair_t *p2)
 		return (B_FALSE);
 
 	if (nvpair_type(p1) == DATA_TYPE_STRING) {
-		char *valstr1, *valstr2;
+		const char *valstr1, *valstr2;
 
-		VERIFY(nvpair_value_string(p1, (char **)&valstr1) == 0);
-		VERIFY(nvpair_value_string(p2, (char **)&valstr2) == 0);
+		VERIFY(nvpair_value_string(p1, &valstr1) == 0);
+		VERIFY(nvpair_value_string(p2, &valstr2) == 0);
 		return (strcmp(valstr1, valstr2) == 0);
 	} else {
 		uint64_t intval1, intval2;
@@ -4932,9 +4932,9 @@ static boolean_t zfs_ioc_recv_inject_err;
  * encountered errors, if any. It's the callers responsibility to free.
  */
 static int
-zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
-    nvlist_t *localprops, nvlist_t *hidden_args, boolean_t force,
-    boolean_t heal, boolean_t resumable, int input_fd,
+zfs_ioc_recv_impl(char *tofs, char *tosnap, const char *origin,
+    nvlist_t *recvprops, nvlist_t *localprops, nvlist_t *hidden_args,
+    boolean_t force, boolean_t heal, boolean_t resumable, int input_fd,
     dmu_replay_record_t *begin_record, uint64_t *read_bytes,
     uint64_t *errflags, nvlist_t **errors)
 {
@@ -5280,7 +5280,7 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 	nvlist_t *errors = NULL;
 	nvlist_t *recvdprops = NULL;
 	nvlist_t *localprops = NULL;
-	char *origin = NULL;
+	const char *origin = NULL;
 	char *tosnap;
 	char tofs[ZFS_MAX_DATASET_NAME_LEN];
 	int error = 0;
@@ -5382,8 +5382,8 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	nvlist_t *recvprops = NULL;
 	nvlist_t *localprops = NULL;
 	nvlist_t *hidden_args = NULL;
-	char *snapname;
-	char *origin = NULL;
+	const char *snapname;
+	const char *origin = NULL;
 	char *tosnap;
 	char tofs[ZFS_MAX_DATASET_NAME_LEN];
 	boolean_t force;
@@ -6232,7 +6232,7 @@ zfs_ioc_hold(const char *pool, nvlist_t *args, nvlist_t *errlist)
 	/* make sure the user didn't pass us any invalid (empty) tags */
 	for (pair = nvlist_next_nvpair(holds, NULL); pair != NULL;
 	    pair = nvlist_next_nvpair(holds, pair)) {
-		char *htag;
+		const char *htag;
 
 		error = nvpair_value_string(pair, &htag);
 		if (error != 0)
@@ -6452,7 +6452,7 @@ zfs_ioc_space_snaps(const char *lastsnap, nvlist_t *innvl, nvlist_t *outnvl)
 	int error;
 	dsl_pool_t *dp;
 	dsl_dataset_t *new, *old;
-	char *firstsnap;
+	const char *firstsnap;
 	uint64_t used, comp, uncomp;
 
 	firstsnap = fnvlist_lookup_string(innvl, "firstsnap");
@@ -6533,7 +6533,7 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	(void) outnvl;
 	int error;
 	offset_t off;
-	char *fromname = NULL;
+	const char *fromname = NULL;
 	int fd;
 	zfs_file_t *fp;
 	boolean_t largeblockok;
@@ -6543,7 +6543,7 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	boolean_t savedok;
 	uint64_t resumeobj = 0;
 	uint64_t resumeoff = 0;
-	char *redactbook = NULL;
+	const char *redactbook = NULL;
 
 	fd = fnvlist_lookup_int32(innvl, "fd");
 
@@ -6633,8 +6633,8 @@ zfs_ioc_send_space(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	dsl_dataset_t *tosnap;
 	dsl_dataset_t *fromsnap = NULL;
 	int error;
-	char *fromname = NULL;
-	char *redactlist_book = NULL;
+	const char *fromname = NULL;
+	const char *redactlist_book = NULL;
 	boolean_t largeblockok;
 	boolean_t embedok;
 	boolean_t compressok;
@@ -7378,7 +7378,7 @@ zfs_check_input_nvpairs(nvlist_t *innvl, const zfs_ioc_vec_t *vec)
 	 */
 	for (nvpair_t *pair = nvlist_next_nvpair(innvl, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(innvl, pair)) {
-		char *name = nvpair_name(pair);
+		const char *name = nvpair_name(pair);
 		data_type_t type = nvpair_type(pair);
 		boolean_t identified = B_FALSE;
 

@@ -43,6 +43,7 @@
 #include <sys/metaslab.h>
 #include <sys/trace_zfs.h>
 #include <sys/abd.h>
+#include <sys/brt.h>
 #include <sys/wmsum.h>
 
 /*
@@ -578,14 +579,12 @@ zil_claim_log_block(zilog_t *zilog, const blkptr_t *bp, void *tx,
 }
 
 static int
-zil_claim_log_record(zilog_t *zilog, const lr_t *lrc, void *tx,
-    uint64_t first_txg)
+zil_claim_write(zilog_t *zilog, const lr_t *lrc, void *tx, uint64_t first_txg)
 {
 	lr_write_t *lr = (lr_write_t *)lrc;
 	int error;
 
-	if (lrc->lrc_txtype != TX_WRITE)
-		return (0);
+	ASSERT(lrc->lrc_txtype == TX_WRITE);
 
 	/*
 	 * If the block is not readable, don't claim it.  This can happen
@@ -605,6 +604,57 @@ zil_claim_log_record(zilog_t *zilog, const lr_t *lrc, void *tx,
 }
 
 static int
+zil_claim_clone_range(zilog_t *zilog, const lr_t *lrc, void *tx)
+{
+	const lr_clone_range_t *lr = (const lr_clone_range_t *)lrc;
+	const blkptr_t *bp;
+	spa_t *spa;
+	uint_t ii;
+
+	ASSERT(lrc->lrc_txtype == TX_CLONE_RANGE);
+
+	if (tx == NULL) {
+		return (0);
+	}
+
+	/*
+	 * XXX: Do we need to byteswap lr?
+	 */
+
+	spa = zilog->zl_spa;
+
+	for (ii = 0; ii < lr->lr_nbps; ii++) {
+		bp = &lr->lr_bps[ii];
+
+		/*
+		 * When data in embedded into BP there is no need to create
+		 * BRT entry as there is no data block. Just copy the BP as
+		 * it contains the data.
+		 */
+		if (!BP_IS_HOLE(bp) && !BP_IS_EMBEDDED(bp)) {
+			brt_pending_add(spa, bp, tx);
+		}
+	}
+
+	return (0);
+}
+
+static int
+zil_claim_log_record(zilog_t *zilog, const lr_t *lrc, void *tx,
+    uint64_t first_txg)
+{
+
+	switch (lrc->lrc_txtype) {
+	case TX_WRITE:
+		return (zil_claim_write(zilog, lrc, tx, first_txg));
+	case TX_CLONE_RANGE:
+		return (zil_claim_clone_range(zilog, lrc, tx));
+	default:
+		return (0);
+	}
+}
+
+static int
 zil_free_log_block(zilog_t *zilog, const blkptr_t *bp, void *tx,
     uint64_t claim_txg)
 {
@@ -616,21 +666,68 @@ zil_free_log_block(zilog_t *zilog, const blkptr_t *bp, void *tx,
 }
 
 static int
-zil_free_log_record(zilog_t *zilog, const lr_t *lrc, void *tx,
-    uint64_t claim_txg)
+zil_free_write(zilog_t *zilog, const lr_t *lrc, void *tx, uint64_t claim_txg)
 {
 	lr_write_t *lr = (lr_write_t *)lrc;
 	blkptr_t *bp = &lr->lr_blkptr;
 
+	ASSERT(lrc->lrc_txtype == TX_WRITE);
+
 	/*
 	 * If we previously claimed it, we need to free it.
 	 */
-	if (claim_txg != 0 && lrc->lrc_txtype == TX_WRITE &&
-	    bp->blk_birth >= claim_txg && zil_bp_tree_add(zilog, bp) == 0 &&
-	    !BP_IS_HOLE(bp))
+	if (bp->blk_birth >= claim_txg && zil_bp_tree_add(zilog, bp) == 0 &&
+	    !BP_IS_HOLE(bp)) {
 		zio_free(zilog->zl_spa, dmu_tx_get_txg(tx), bp);
+	}
 
 	return (0);
+}
+
+static int
+zil_free_clone_range(zilog_t *zilog, const lr_t *lrc, void *tx)
+{
+	const lr_clone_range_t *lr = (const lr_clone_range_t *)lrc;
+	const blkptr_t *bp;
+	spa_t *spa;
+	uint_t ii;
+
+	ASSERT(lrc->lrc_txtype == TX_CLONE_RANGE);
+
+	if (tx == NULL) {
+		return (0);
+	}
+
+	spa = zilog->zl_spa;
+
+	for (ii = 0; ii < lr->lr_nbps; ii++) {
+		bp = &lr->lr_bps[ii];
+
+		if (!BP_IS_HOLE(bp)) {
+			zio_free(spa, dmu_tx_get_txg(tx), bp);
+		}
+	}
+
+	return (0);
+}
+
+static int
+zil_free_log_record(zilog_t *zilog, const lr_t *lrc, void *tx,
+    uint64_t claim_txg)
+{
+
+	if (claim_txg == 0) {
+		return (0);
+	}
+
+	switch (lrc->lrc_txtype) {
+	case TX_WRITE:
+		return (zil_free_write(zilog, lrc, tx, claim_txg));
+	case TX_CLONE_RANGE:
+		return (zil_free_clone_range(zilog, lrc, tx));
+	default:
+		return (0);
+	}
 }
 
 static int
@@ -1287,8 +1384,6 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 	itx_t *itx;
 	uint64_t txg;
 
-	spa_config_exit(zilog->zl_spa, SCL_STATE, lwb);
-
 	zio_buf_free(lwb->lwb_buf, lwb->lwb_sz);
 
 	mutex_enter(&zilog->zl_lock);
@@ -1427,8 +1522,6 @@ zil_lwb_write_done(zio_t *zio)
 	zil_vdev_node_t *zv;
 	lwb_t *nlwb;
 
-	ASSERT3S(spa_config_held(spa, SCL_STATE, RW_READER), !=, 0);
-
 	ASSERT(BP_GET_COMPRESS(zio->io_bp) == ZIO_COMPRESS_OFF);
 	ASSERT(BP_GET_TYPE(zio->io_bp) == DMU_OT_INTENT_LOG);
 	ASSERT(BP_GET_LEVEL(zio->io_bp) == 0);
@@ -1490,6 +1583,7 @@ zil_lwb_write_done(zio_t *zio)
 		return;
 	}
 
+	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
 	while ((zv = avl_destroy_nodes(t, &cookie)) != NULL) {
 		vdev_t *vd = vdev_lookup_top(spa, zv->zv_vdev);
 		if (vd != NULL) {
@@ -1505,6 +1599,7 @@ zil_lwb_write_done(zio_t *zio)
 		}
 		kmem_free(zv, sizeof (*zv));
 	}
+	spa_config_exit(spa, SCL_STATE, FTAG);
 }
 
 static void
@@ -1783,8 +1878,6 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 	 */
 	memset(lwb->lwb_buf + lwb->lwb_nused, 0, wsz - lwb->lwb_nused);
 
-	spa_config_enter(zilog->zl_spa, SCL_STATE, lwb, RW_READER);
-
 	zil_lwb_add_block(lwb, &lwb->lwb_blk);
 	lwb->lwb_issued_timestamp = gethrtime();
 	lwb->lwb_state = LWB_STATE_ISSUED;
@@ -1802,13 +1895,12 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 }
 
 /*
- * Maximum amount of write data that can be put into single log block.
+ * Maximum amount of data that can be put into single log block.
  */
 uint64_t
-zil_max_log_data(zilog_t *zilog)
+zil_max_log_data(zilog_t *zilog, size_t hdrsize)
 {
-	return (zilog->zl_max_block_size -
-	    sizeof (zil_chain_t) - sizeof (lr_write_t));
+	return (zilog->zl_max_block_size - sizeof (zil_chain_t) - hdrsize);
 }
 
 /*
@@ -1818,7 +1910,7 @@ zil_max_log_data(zilog_t *zilog)
 static inline uint64_t
 zil_max_waste_space(zilog_t *zilog)
 {
-	return (zil_max_log_data(zilog) / 8);
+	return (zil_max_log_data(zilog, sizeof (lr_write_t)) / 8);
 }
 
 /*
@@ -1891,7 +1983,7 @@ cont:
 	 * For WR_NEED_COPY optimize layout for minimal number of chunks.
 	 */
 	lwb_sp = lwb->lwb_sz - lwb->lwb_nused;
-	max_log_data = zil_max_log_data(zilog);
+	max_log_data = zil_max_log_data(zilog, sizeof (lr_write_t));
 	if (reclen > lwb_sp || (reclen + dlen > lwb_sp &&
 	    lwb_sp < zil_max_waste_space(zilog) &&
 	    (dlen % max_log_data == 0 ||

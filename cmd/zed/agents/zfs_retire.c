@@ -282,7 +282,7 @@ replace_with_spare(fmd_hdl_t *hdl, zpool_handle_t *zhp, nvlist_t *vdev)
 	 */
 	for (s = 0; s < nspares; s++) {
 		boolean_t rebuild = B_FALSE;
-		char *spare_name, *type;
+		const char *spare_name, *type;
 
 		if (nvlist_lookup_string(spares[s], ZPOOL_CONFIG_PATH,
 		    &spare_name) != 0)
@@ -377,9 +377,9 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 	boolean_t is_repair;
 	boolean_t l2arc = B_FALSE;
 	boolean_t spare = B_FALSE;
-	char *scheme;
+	const char *scheme;
 	nvlist_t *vdev = NULL;
-	char *uuid;
+	const char *uuid;
 	int repair_done = 0;
 	boolean_t retire;
 	boolean_t is_disk;
@@ -401,7 +401,7 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 	if (strcmp(class, "resource.fs.zfs.removed") == 0 ||
 	    (strcmp(class, "resource.fs.zfs.statechange") == 0 &&
 	    (state == VDEV_STATE_REMOVED || state == VDEV_STATE_FAULTED))) {
-		char *devtype;
+		const char *devtype;
 		char *devname;
 
 		if (nvlist_lookup_string(nvl, FM_EREPORT_PAYLOAD_ZFS_VDEV_TYPE,

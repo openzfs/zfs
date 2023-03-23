@@ -97,6 +97,8 @@ __FBSDID("$FreeBSD$");
 SYSCTL_DECL(_vfs_zfs);
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, arc, CTLFLAG_RW, 0,
 	"ZFS adaptive replacement cache");
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, brt, CTLFLAG_RW, 0,
+	"ZFS Block Reference Table");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, condense, CTLFLAG_RW, 0, "ZFS condense");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, dbuf, CTLFLAG_RW, 0, "ZFS disk buf cache");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, dbuf_cache, CTLFLAG_RW, 0,
@@ -359,89 +361,114 @@ SYSCTL_INT(_vfs_zfs, OID_AUTO, l2arc_norw,
 	"No reads during writes (LEGACY)");
 /* END CSTYLED */
 
+static int
+param_get_arc_state_size(SYSCTL_HANDLER_ARGS)
+{
+	arc_state_t *state = (arc_state_t *)arg1;
+	int64_t val;
+
+	val = zfs_refcount_count(&state->arcs_size[ARC_BUFC_DATA]) +
+	    zfs_refcount_count(&state->arcs_size[ARC_BUFC_METADATA]);
+	return (sysctl_handle_64(oidp, &val, 0, req));
+}
+
 extern arc_state_t ARC_anon;
 
 /* BEGIN CSTYLED */
-SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, anon_size, CTLFLAG_RD,
-	&ARC_anon.arcs_size.rc_count, 0, "size of anonymous state");
+SYSCTL_PROC(_vfs_zfs, OID_AUTO, anon_size,
+	CTLTYPE_S64 | CTLFLAG_RD | CTLFLAG_MPSAFE,
+	&ARC_anon, 0, param_get_arc_state_size, "Q",
+	"size of anonymous state");
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, anon_metadata_esize, CTLFLAG_RD,
 	&ARC_anon.arcs_esize[ARC_BUFC_METADATA].rc_count, 0,
-	"size of metadata in anonymous state");
+	"size of evictable metadata in anonymous state");
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, anon_data_esize, CTLFLAG_RD,
 	&ARC_anon.arcs_esize[ARC_BUFC_DATA].rc_count, 0,
-	"size of data in anonymous state");
+	"size of evictable data in anonymous state");
 /* END CSTYLED */
 
 extern arc_state_t ARC_mru;
 
 /* BEGIN CSTYLED */
-SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, mru_size, CTLFLAG_RD,
-	&ARC_mru.arcs_size.rc_count, 0, "size of mru state");
+SYSCTL_PROC(_vfs_zfs, OID_AUTO, mru_size,
+	CTLTYPE_S64 | CTLFLAG_RD | CTLFLAG_MPSAFE,
+	&ARC_mru, 0, param_get_arc_state_size, "Q",
+	"size of mru state");
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, mru_metadata_esize, CTLFLAG_RD,
 	&ARC_mru.arcs_esize[ARC_BUFC_METADATA].rc_count, 0,
-	"size of metadata in mru state");
+	"size of evictable metadata in mru state");
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, mru_data_esize, CTLFLAG_RD,
 	&ARC_mru.arcs_esize[ARC_BUFC_DATA].rc_count, 0,
-	"size of data in mru state");
+	"size of evictable data in mru state");
 /* END CSTYLED */
 
 extern arc_state_t ARC_mru_ghost;
 
 /* BEGIN CSTYLED */
-SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, mru_ghost_size, CTLFLAG_RD,
-	&ARC_mru_ghost.arcs_size.rc_count, 0, "size of mru ghost state");
+SYSCTL_PROC(_vfs_zfs, OID_AUTO, mru_ghost_size,
+	CTLTYPE_S64 | CTLFLAG_RD | CTLFLAG_MPSAFE,
+	&ARC_mru_ghost, 0, param_get_arc_state_size, "Q",
+	"size of mru ghost state");
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, mru_ghost_metadata_esize, CTLFLAG_RD,
 	&ARC_mru_ghost.arcs_esize[ARC_BUFC_METADATA].rc_count, 0,
-	"size of metadata in mru ghost state");
+	"size of evictable metadata in mru ghost state");
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, mru_ghost_data_esize, CTLFLAG_RD,
 	&ARC_mru_ghost.arcs_esize[ARC_BUFC_DATA].rc_count, 0,
-	"size of data in mru ghost state");
+	"size of evictable data in mru ghost state");
 /* END CSTYLED */
 
 extern arc_state_t ARC_mfu;
 
 /* BEGIN CSTYLED */
-SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, mfu_size, CTLFLAG_RD,
-	&ARC_mfu.arcs_size.rc_count, 0, "size of mfu state");
+SYSCTL_PROC(_vfs_zfs, OID_AUTO, mfu_size,
+	CTLTYPE_S64 | CTLFLAG_RD | CTLFLAG_MPSAFE,
+	&ARC_mfu, 0, param_get_arc_state_size, "Q",
+	"size of mfu state");
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, mfu_metadata_esize, CTLFLAG_RD,
 	&ARC_mfu.arcs_esize[ARC_BUFC_METADATA].rc_count, 0,
-	"size of metadata in mfu state");
+	"size of evictable metadata in mfu state");
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, mfu_data_esize, CTLFLAG_RD,
 	&ARC_mfu.arcs_esize[ARC_BUFC_DATA].rc_count, 0,
-	"size of data in mfu state");
+	"size of evictable data in mfu state");
 /* END CSTYLED */
 
 extern arc_state_t ARC_mfu_ghost;
 
 /* BEGIN CSTYLED */
-SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, mfu_ghost_size, CTLFLAG_RD,
-	&ARC_mfu_ghost.arcs_size.rc_count, 0, "size of mfu ghost state");
+SYSCTL_PROC(_vfs_zfs, OID_AUTO, mfu_ghost_size,
+	CTLTYPE_S64 | CTLFLAG_RD | CTLFLAG_MPSAFE,
+	&ARC_mfu_ghost, 0, param_get_arc_state_size, "Q",
+	"size of mfu ghost state");
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, mfu_ghost_metadata_esize, CTLFLAG_RD,
 	&ARC_mfu_ghost.arcs_esize[ARC_BUFC_METADATA].rc_count, 0,
-	"size of metadata in mfu ghost state");
+	"size of evictable metadata in mfu ghost state");
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, mfu_ghost_data_esize, CTLFLAG_RD,
 	&ARC_mfu_ghost.arcs_esize[ARC_BUFC_DATA].rc_count, 0,
-	"size of data in mfu ghost state");
+	"size of evictable data in mfu ghost state");
 /* END CSTYLED */
 
 extern arc_state_t ARC_uncached;
 
 /* BEGIN CSTYLED */
-SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, uncached_size, CTLFLAG_RD,
-	&ARC_uncached.arcs_size.rc_count, 0, "size of uncached state");
+SYSCTL_PROC(_vfs_zfs, OID_AUTO, uncached_size,
+	CTLTYPE_S64 | CTLFLAG_RD | CTLFLAG_MPSAFE,
+	&ARC_uncached, 0, param_get_arc_state_size, "Q",
+	"size of uncached state");
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, uncached_metadata_esize, CTLFLAG_RD,
 	&ARC_uncached.arcs_esize[ARC_BUFC_METADATA].rc_count, 0,
-	"size of metadata in uncached state");
+	"size of evictable metadata in uncached state");
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, uncached_data_esize, CTLFLAG_RD,
 	&ARC_uncached.arcs_esize[ARC_BUFC_DATA].rc_count, 0,
-	"size of data in uncached state");
+	"size of evictable data in uncached state");
 /* END CSTYLED */
 
 extern arc_state_t ARC_l2c_only;
 
 /* BEGIN CSTYLED */
-SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, l2c_only_size, CTLFLAG_RD,
-	&ARC_l2c_only.arcs_size.rc_count, 0, "size of mru state");
+SYSCTL_PROC(_vfs_zfs, OID_AUTO, l2c_only_size,
+	CTLTYPE_S64 | CTLFLAG_RD | CTLFLAG_MPSAFE,
+	&ARC_l2c_only, 0, param_get_arc_state_size, "Q",
+	"size of l2c_only state");
 /* END CSTYLED */
 
 /* dbuf.c */

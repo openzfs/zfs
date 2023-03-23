@@ -339,6 +339,8 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 		case ZPOOL_PROP_ASHIFT:
 		case ZPOOL_PROP_MAXBLOCKSIZE:
 		case ZPOOL_PROP_MAXDNODESIZE:
+		case ZPOOL_PROP_BCLONESAVED:
+		case ZPOOL_PROP_BCLONEUSED:
 			if (literal)
 				(void) snprintf(buf, len, "%llu",
 				    (u_longlong_t)intval);
@@ -380,6 +382,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 			}
 			break;
 
+		case ZPOOL_PROP_BCLONERATIO:
 		case ZPOOL_PROP_DEDUPRATIO:
 			if (literal)
 				(void) snprintf(buf, len, "%llu.%02llu",
@@ -456,9 +459,9 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 	nvpair_t *elem;
 	nvlist_t *retprops;
 	zpool_prop_t prop;
-	char *strval;
+	const char *strval;
 	uint64_t intval;
-	char *slash, *check;
+	const char *slash, *check;
 	struct stat64 statbuf;
 	zpool_handle_t *zhp;
 	char report[1024];
@@ -686,11 +689,12 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 				goto error;
 			}
 
-			*slash = '\0';
+			*(char *)slash = '\0';
 
 			if (strval[0] != '\0' &&
 			    (stat64(strval, &statbuf) != 0 ||
 			    !S_ISDIR(statbuf.st_mode))) {
+				*(char *)slash = '/';
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "'%s' is not a valid directory"),
 				    strval);
@@ -698,7 +702,7 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 				goto error;
 			}
 
-			*slash = '/';
+			*(char *)slash = '/';
 			break;
 
 		case ZPOOL_PROP_COMPATIBILITY:
@@ -928,7 +932,7 @@ vdev_expand_proplist(zpool_handle_t *zhp, const char *vdevname,
 {
 	zprop_list_t *entry;
 	char buf[ZFS_MAXPROPLEN];
-	char *strval = NULL;
+	const char *strval = NULL;
 	int err = 0;
 	nvpair_t *elem = NULL;
 	nvlist_t *vprops = NULL;
@@ -1286,7 +1290,7 @@ zpool_has_special_vdev(nvlist_t *nvroot)
 	if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN, &child,
 	    &children) == 0) {
 		for (uint_t c = 0; c < children; c++) {
-			char *bias;
+			const char *bias;
 
 			if (nvlist_lookup_string(child[c],
 			    ZPOOL_CONFIG_ALLOCATION_BIAS, &bias) == 0 &&
@@ -1310,7 +1314,7 @@ zpool_has_draid_vdev(nvlist_t *nvroot)
 	if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
 	    &child, &children) == 0) {
 		for (uint_t c = 0; c < children; c++) {
-			char *type;
+			const char *type;
 
 			if (nvlist_lookup_string(child[c],
 			    ZPOOL_CONFIG_TYPE, &type) == 0 &&
@@ -1390,7 +1394,7 @@ zpool_create(libzfs_handle_t *hdl, const char *pool, nvlist_t *nvroot,
 
 	if (fsprops) {
 		uint64_t zoned;
-		char *zonestr;
+		const char *zonestr;
 
 		zoned = ((nvlist_lookup_string(fsprops,
 		    zfs_prop_to_name(ZFS_PROP_ZONED), &zonestr) == 0) &&
@@ -1983,7 +1987,7 @@ zpool_print_unsup_feat(nvlist_t *config)
 
 	for (nvpair_t *nvp = nvlist_next_nvpair(unsup_feat, NULL);
 	    nvp != NULL; nvp = nvlist_next_nvpair(unsup_feat, nvp)) {
-		char *desc = fnvpair_value_string(nvp);
+		const char *desc = fnvpair_value_string(nvp);
 		if (strlen(desc) > 0)
 			(void) printf("\t%s (%s)\n", nvpair_name(nvp), desc);
 		else
@@ -2007,7 +2011,7 @@ zpool_import_props(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
 	nvlist_t *nvinfo = NULL;
 	nvlist_t *missing = NULL;
 	const char *thename;
-	char *origname;
+	const char *origname;
 	int ret;
 	int error = 0;
 	char errbuf[ERRBUFLEN];
@@ -2235,7 +2239,7 @@ zpool_translate_vdev_guids(zpool_handle_t *zhp, nvlist_t *vds,
 	    elem = nvlist_next_nvpair(vds, elem)) {
 		boolean_t spare, cache;
 
-		char *vd_path = nvpair_name(elem);
+		const char *vd_path = nvpair_name(elem);
 		nvlist_t *tgt = zpool_find_vdev(zhp, vd_path, &spare, &cache,
 		    NULL);
 
@@ -2349,7 +2353,7 @@ list_errors:
 	for (elem = nvlist_next_nvpair(vd_errlist, NULL); elem != NULL;
 	    elem = nvlist_next_nvpair(vd_errlist, elem)) {
 		int64_t vd_error = xlate_init_err(fnvpair_value_int64(elem));
-		char *path;
+		const char *path;
 
 		if (nvlist_lookup_string(guids_to_paths, nvpair_name(elem),
 		    &path) != 0)
@@ -2447,7 +2451,7 @@ check_trim_errs(zpool_handle_t *zhp, trimflags_t *trim_flags,
 	for (elem = nvlist_next_nvpair(errlist, NULL);
 	    elem != NULL; elem = nvlist_next_nvpair(errlist, elem)) {
 		int64_t vd_error = xlate_trim_err(fnvpair_value_int64(elem));
-		char *path;
+		const char *path;
 
 		/*
 		 * If only the pool was specified, and it was not a secure
@@ -2630,7 +2634,7 @@ vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
 	nvlist_t **child;
 	nvlist_t *ret;
 	uint64_t is_log;
-	char *srchkey;
+	const char *srchkey;
 	nvpair_t *pair = nvlist_next_nvpair(search, NULL);
 
 	/* Nothing to look for */
@@ -2652,7 +2656,7 @@ vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
 		break;
 
 	case DATA_TYPE_STRING: {
-		char *srchval, *val;
+		const char *srchval, *val;
 
 		srchval = fnvpair_value_string(pair);
 		if (nvlist_lookup_string(nv, srchkey, &val) != 0)
@@ -2965,7 +2969,7 @@ zpool_vdev_online(zpool_handle_t *zhp, const char *path, int flags,
 		return (zfs_error(hdl, EZFS_ISSPARE, errbuf));
 
 #ifndef __FreeBSD__
-	char *pathname;
+	const char *pathname;
 	if ((flags & ZFS_ONLINE_EXPAND ||
 	    zpool_get_prop_int(zhp, ZPOOL_PROP_AUTOEXPAND, NULL)) &&
 	    nvlist_lookup_string(tgt, ZPOOL_CONFIG_PATH, &pathname) == 0) {
@@ -3177,7 +3181,8 @@ is_replacing_spare(nvlist_t *search, nvlist_t *tgt, int which)
 
 	if (nvlist_lookup_nvlist_array(search, ZPOOL_CONFIG_CHILDREN, &child,
 	    &children) == 0) {
-		char *type = fnvlist_lookup_string(search, ZPOOL_CONFIG_TYPE);
+		const char *type = fnvlist_lookup_string(search,
+		    ZPOOL_CONFIG_TYPE);
 		if ((strcmp(type, VDEV_TYPE_SPARE) == 0 ||
 		    strcmp(type, VDEV_TYPE_DRAID_SPARE) == 0) &&
 		    children == 2 && child[which] == tgt)
@@ -3480,7 +3485,8 @@ zpool_vdev_split(zpool_handle_t *zhp, char *newname, nvlist_t **newroot,
     nvlist_t *props, splitflags_t flags)
 {
 	zfs_cmd_t zc = {"\0"};
-	char errbuf[ERRBUFLEN], *bias;
+	char errbuf[ERRBUFLEN];
+	const char *bias;
 	nvlist_t *tree, *config, **child, **newchild, *newconfig = NULL;
 	nvlist_t **varray = NULL, *zc_props = NULL;
 	uint_t c, children, newchildren, lastlog = 0, vcount, found = 0;
@@ -3538,7 +3544,7 @@ zpool_vdev_split(zpool_handle_t *zhp, char *newname, nvlist_t **newroot,
 	for (c = 0; c < children; c++) {
 		uint64_t is_log = B_FALSE, is_hole = B_FALSE;
 		boolean_t is_special = B_FALSE, is_dedup = B_FALSE;
-		char *type;
+		const char *type;
 		nvlist_t **mchild, *vdev;
 		uint_t mchildren;
 		int entry;
@@ -4011,7 +4017,7 @@ char *
 zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
     int name_flags)
 {
-	char *type, *tpath;
+	const char *type, *tpath;
 	const char *path;
 	uint64_t value;
 	char buf[PATH_BUF_LEN];

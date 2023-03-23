@@ -33,8 +33,8 @@
 #define	IMPORT_ORDER_SCAN_OFFSET	10
 #define	IMPORT_ORDER_DEFAULT		100
 
-int label_paths(libpc_handle_t *hdl, nvlist_t *label, char **path,
-    char **devid);
+int label_paths(libpc_handle_t *hdl, nvlist_t *label, const char **path,
+    const char **devid);
 int zpool_find_import_blkid(libpc_handle_t *hdl, pthread_mutex_t *lock,
     avl_tree_t **slice_cache);
 

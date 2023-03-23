@@ -23,6 +23,7 @@ COMMON_H = \
 	sys/asm_linkage.h \
 	sys/avl.h \
 	sys/avl_impl.h \
+	sys/bitmap.h \
 	sys/bitops.h \
 	sys/blake3.h \
 	sys/blkptr.h \
@@ -31,6 +32,7 @@ COMMON_H = \
 	sys/bptree.h \
 	sys/bqueue.h \
 	sys/btree.h \
+	sys/brt.h \
 	sys/dataset_kstats.h \
 	sys/dbuf.h \
 	sys/ddt.h \

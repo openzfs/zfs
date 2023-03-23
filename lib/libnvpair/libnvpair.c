@@ -70,7 +70,7 @@ struct nvlist_printops {
 	DEFINEOP(print_int64, int64_t);
 	DEFINEOP(print_uint64, uint64_t);
 	DEFINEOP(print_double, double);
-	DEFINEOP(print_string, char *);
+	DEFINEOP(print_string, const char *);
 	DEFINEOP(print_hrtime, hrtime_t);
 	DEFINEOP(print_nvlist, nvlist_t *);
 	DEFINEARROP(print_boolean_array, boolean_t *);
@@ -83,7 +83,7 @@ struct nvlist_printops {
 	DEFINEARROP(print_uint32_array, uint32_t *);
 	DEFINEARROP(print_int64_array, int64_t *);
 	DEFINEARROP(print_uint64_array, uint64_t *);
-	DEFINEARROP(print_string_array, char **);
+	DEFINEARROP(print_string_array, const char **);
 	DEFINEARROP(print_nvlist_array, nvlist_t **);
 };
 
@@ -222,7 +222,7 @@ NVLIST_PRTFUNC(uint32, uint32_t, uint32_t, "0x%x")
 NVLIST_PRTFUNC(int64, int64_t, longlong_t, "%lld")
 NVLIST_PRTFUNC(uint64, uint64_t, u_longlong_t, "0x%llx")
 NVLIST_PRTFUNC(double, double, double, "0x%f")
-NVLIST_PRTFUNC(string, char *, char *, "%s")
+NVLIST_PRTFUNC(string, const char *, const char *, "%s")
 NVLIST_PRTFUNC(hrtime, hrtime_t, hrtime_t, "0x%llx")
 #if defined(__GNUC__) && !defined(__clang__) && \
 	defined(ZFS_UBSAN_ENABLED) && defined(HAVE_FORMAT_OVERFLOW)
@@ -266,7 +266,7 @@ NVLIST_ARRPRTFUNC(int32_array, int32_t, int32_t, "%d")
 NVLIST_ARRPRTFUNC(uint32_array, uint32_t, uint32_t, "0x%x")
 NVLIST_ARRPRTFUNC(int64_array, int64_t, longlong_t, "%lld")
 NVLIST_ARRPRTFUNC(uint64_array, uint64_t, u_longlong_t, "0x%llx")
-NVLIST_ARRPRTFUNC(string_array, char *, char *, "%s")
+NVLIST_ARRPRTFUNC(string_array, const char *, const char *, "%s")
 
 static int
 nvprint_nvlist(nvlist_prtctl_t pctl, void *private,
@@ -398,13 +398,13 @@ nvlist_prtctl_dofmt(nvlist_prtctl_t pctl, enum nvlist_prtctl_fmt which, ...)
 {
 	FILE *fp = pctl->nvprt_fp;
 	va_list ap;
-	char *name;
+	const char *name;
 
 	va_start(ap, which);
 
 	switch (which) {
 	case NVLIST_FMT_MEMBER_NAME:
-		name = va_arg(ap, char *);
+		name = va_arg(ap, const char *);
 		(void) fprintf(fp, pctl->nvprt_nmfmt, name);
 		break;
 
@@ -453,7 +453,7 @@ NVLIST_PRINTCTL_REPLACE(uint32, uint32_t)
 NVLIST_PRINTCTL_REPLACE(int64, int64_t)
 NVLIST_PRINTCTL_REPLACE(uint64, uint64_t)
 NVLIST_PRINTCTL_REPLACE(double, double)
-NVLIST_PRINTCTL_REPLACE(string, char *)
+NVLIST_PRINTCTL_REPLACE(string, const char *)
 NVLIST_PRINTCTL_REPLACE(hrtime, hrtime_t)
 NVLIST_PRINTCTL_REPLACE(nvlist, nvlist_t *)
 
@@ -477,7 +477,7 @@ NVLIST_PRINTCTL_AREPLACE(int32_array, int32_t *)
 NVLIST_PRINTCTL_AREPLACE(uint32_array, uint32_t *)
 NVLIST_PRINTCTL_AREPLACE(int64_array, int64_t *)
 NVLIST_PRINTCTL_AREPLACE(uint64_array, uint64_t *)
-NVLIST_PRINTCTL_AREPLACE(string_array, char **)
+NVLIST_PRINTCTL_AREPLACE(string_array, const char **)
 NVLIST_PRINTCTL_AREPLACE(nvlist_array, nvlist_t **)
 
 /*
@@ -580,7 +580,7 @@ static void
 nvlist_print_with_indent(nvlist_t *nvl, nvlist_prtctl_t pctl)
 {
 	FILE *fp = pctl->nvprt_fp;
-	char *name;
+	const char *name;
 	uint_t nelem;
 	nvpair_t *nvp;
 
@@ -670,7 +670,7 @@ nvlist_print_with_indent(nvlist_t *nvl, nvlist_prtctl_t pctl)
 			break;
 		}
 		case DATA_TYPE_STRING: {
-			char *val;
+			const char *val;
 			(void) nvpair_value_string(nvp, &val);
 			RENDER(pctl, string, nvl, name, val);
 			break;
@@ -736,7 +736,7 @@ nvlist_print_with_indent(nvlist_t *nvl, nvlist_prtctl_t pctl)
 			break;
 		}
 		case DATA_TYPE_STRING_ARRAY: {
-			char **val;
+			const char **val;
 			(void) nvpair_value_string_array(nvp, &val, &nelem);
 			ARENDER(pctl, string_array, nvl, name, val, nelem);
 			break;
@@ -866,7 +866,7 @@ dump_nvlist(nvlist_t *list, int indent)
 			break;
 
 		case DATA_TYPE_STRING:
-			NVP(elem, string, char *, char *, "'%s'");
+			NVP(elem, string, const char *, const char *, "'%s'");
 			break;
 
 		case DATA_TYPE_BYTE_ARRAY:
@@ -907,7 +907,8 @@ dump_nvlist(nvlist_t *list, int indent)
 			break;
 
 		case DATA_TYPE_STRING_ARRAY:
-			NVPA(elem, string_array, char *, char *, "'%s'");
+			NVPA(elem, string_array, const char *, const char *,
+			    "'%s'");
 			break;
 
 		case DATA_TYPE_NVLIST:
@@ -961,11 +962,11 @@ dump_nvlist(nvlist_t *list, int indent)
  */
 int
 nvpair_value_match_regex(nvpair_t *nvp, int ai,
-    char *value, regex_t *value_regex, char **ep)
+    const char *value, regex_t *value_regex, const char **ep)
 {
-	char	*evalue;
-	uint_t	a_len;
-	int	sr;
+	const char	*evalue;
+	uint_t		a_len;
+	int		sr;
 
 	if (ep)
 		*ep = NULL;
@@ -993,7 +994,7 @@ nvpair_value_match_regex(nvpair_t *nvp, int ai,
 	sr = EOF;
 	switch (nvpair_type(nvp)) {
 	case DATA_TYPE_STRING: {
-		char	*val;
+		const char *val;
 
 		/* check string value for match */
 		if (nvpair_value_string(nvp, &val) == 0) {
@@ -1009,7 +1010,7 @@ nvpair_value_match_regex(nvpair_t *nvp, int ai,
 		break;
 	}
 	case DATA_TYPE_STRING_ARRAY: {
-		char **val_array;
+		const char **val_array;
 
 		/* check indexed string value of array for match */
 		if ((nvpair_value_string_array(nvp, &val_array, &a_len) == 0) &&
@@ -1285,7 +1286,7 @@ nvpair_value_match_regex(nvpair_t *nvp, int ai,
 }
 
 int
-nvpair_value_match(nvpair_t *nvp, int ai, char *value, char **ep)
+nvpair_value_match(nvpair_t *nvp, int ai, const char *value, const char **ep)
 {
 	return (nvpair_value_match_regex(nvp, ai, value, NULL, ep));
 }

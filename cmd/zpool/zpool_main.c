@@ -712,7 +712,7 @@ print_vdev_tree(zpool_handle_t *zhp, const char *name, nvlist_t *nv, int indent,
 
 	for (c = 0; c < children; c++) {
 		uint64_t is_log = B_FALSE, is_hole = B_FALSE;
-		char *class = (char *)"";
+		const char *class = "";
 
 		(void) nvlist_lookup_uint64(child[c], ZPOOL_CONFIG_IS_HOLE,
 		    &is_hole);
@@ -724,7 +724,7 @@ print_vdev_tree(zpool_handle_t *zhp, const char *name, nvlist_t *nv, int indent,
 		(void) nvlist_lookup_uint64(child[c], ZPOOL_CONFIG_IS_LOG,
 		    &is_log);
 		if (is_log)
-			class = (char *)VDEV_ALLOC_BIAS_LOG;
+			class = VDEV_ALLOC_BIAS_LOG;
 		(void) nvlist_lookup_string(child[c],
 		    ZPOOL_CONFIG_ALLOCATION_BIAS, &class);
 		if (strcmp(match, class) != 0)
@@ -811,7 +811,7 @@ add_prop_list(const char *propname, const char *propval, nvlist_t **props,
 	zpool_prop_t prop = ZPOOL_PROP_INVAL;
 	nvlist_t *proplist;
 	const char *normnm;
-	char *strval;
+	const char *strval;
 
 	if (*props == NULL &&
 	    nvlist_alloc(props, NV_UNIQUE_NAME, 0) != 0) {
@@ -909,7 +909,7 @@ static int
 add_prop_list_default(const char *propname, const char *propval,
     nvlist_t **props)
 {
-	char *pval;
+	const char *pval;
 
 	if (nvlist_lookup_string(*props, propname, &pval) == 0)
 		return (0);
@@ -1288,7 +1288,6 @@ zpool_do_labelclear(int argc, char **argv)
 {
 	char vdev[MAXPATHLEN];
 	char *name = NULL;
-	struct stat st;
 	int c, fd = -1, ret = 0;
 	nvlist_t *config;
 	pool_state_t state;
@@ -1321,14 +1320,20 @@ zpool_do_labelclear(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
+	(void) strlcpy(vdev, argv[0], sizeof (vdev));
+
 	/*
-	 * Check if we were given absolute path and use it as is.
+	 * If we cannot open an absolute path, we quit.
 	 * Otherwise if the provided vdev name doesn't point to a file,
 	 * try prepending expected disk paths and partition numbers.
 	 */
-	(void) strlcpy(vdev, argv[0], sizeof (vdev));
-	if (vdev[0] != '/' && stat(vdev, &st) != 0) {
+	if ((fd = open(vdev, O_RDWR)) < 0) {
 		int error;
+		if (vdev[0] == '/') {
+			(void) fprintf(stderr, gettext("failed to open "
+			    "%s: %s\n"), vdev, strerror(errno));
+			return (1);
+		}
 
 		error = zfs_resolve_shortname(argv[0], vdev, MAXPATHLEN);
 		if (error == 0 && zfs_dev_is_whole_disk(vdev)) {
@@ -1336,18 +1341,19 @@ zpool_do_labelclear(int argc, char **argv)
 				error = ENOENT;
 		}
 
-		if (error || (stat(vdev, &st) != 0)) {
-			(void) fprintf(stderr, gettext(
-			    "failed to find device %s, try specifying absolute "
-			    "path instead\n"), argv[0]);
+		if (error || ((fd = open(vdev, O_RDWR)) < 0)) {
+			if (errno == ENOENT) {
+				(void) fprintf(stderr, gettext(
+				    "failed to find device %s, try "
+				    "specifying absolute path instead\n"),
+				    argv[0]);
+				return (1);
+			}
+
+			(void) fprintf(stderr, gettext("failed to open %s:"
+			    " %s\n"), vdev, strerror(errno));
 			return (1);
 		}
-	}
-
-	if ((fd = open(vdev, O_RDWR)) < 0) {
-		(void) fprintf(stderr, gettext("failed to open %s: %s\n"),
-		    vdev, strerror(errno));
-		return (1);
 	}
 
 	/*
@@ -1755,7 +1761,7 @@ zpool_do_create(int argc, char **argv)
 		 */
 		for (spa_feature_t i = 0; i < SPA_FEATURES; i++) {
 			char propname[MAXPATHLEN];
-			char *propval;
+			const char *propval;
 			zfeature_info_t *feat = &spa_feature_table[i];
 
 			(void) snprintf(propname, sizeof (propname),
@@ -2083,7 +2089,7 @@ is_blank_str(const char *str)
 
 /* Print command output lines for specific vdev in a specific pool */
 static void
-zpool_print_cmd(vdev_cmd_data_list_t *vcdl, const char *pool, char *path)
+zpool_print_cmd(vdev_cmd_data_list_t *vcdl, const char *pool, const char *path)
 {
 	vdev_cmd_data_t *data;
 	int i, j;
@@ -2275,8 +2281,8 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 	uint64_t notpresent;
 	spare_cbdata_t spare_cb;
 	const char *state;
-	char *type;
-	char *path = NULL;
+	const char *type;
+	const char *path = NULL;
 	const char *rcolor = NULL, *wcolor = NULL, *ccolor = NULL;
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
@@ -2544,7 +2550,8 @@ print_import_config(status_cbdata_t *cb, const char *name, nvlist_t *nv,
 	nvlist_t **child;
 	uint_t c, children;
 	vdev_stat_t *vs;
-	char *type, *vname;
+	const char *type;
+	char *vname;
 
 	verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type) == 0);
 	if (strcmp(type, VDEV_TYPE_MISSING) == 0 ||
@@ -2672,8 +2679,8 @@ print_class_vdevs(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t *nv,
 
 	for (c = 0; c < children; c++) {
 		uint64_t is_log = B_FALSE;
-		char *bias = NULL;
-		char *type = NULL;
+		const char *bias = NULL;
+		const char *type = NULL;
 
 		(void) nvlist_lookup_uint64(child[c], ZPOOL_CONFIG_IS_LOG,
 		    &is_log);
@@ -2716,7 +2723,7 @@ show_import(nvlist_t *config, boolean_t report_error)
 {
 	uint64_t pool_state;
 	vdev_stat_t *vs;
-	char *name;
+	const char *name;
 	uint64_t guid;
 	uint64_t hostid = 0;
 	const char *msgid;
@@ -2726,7 +2733,7 @@ show_import(nvlist_t *config, boolean_t report_error)
 	zpool_errata_t errata;
 	const char *health;
 	uint_t vsc;
-	char *comment;
+	const char *comment;
 	status_cbdata_t cb = { 0 };
 
 	verify(nvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME,
@@ -3279,7 +3286,7 @@ import_pools(nvlist_t *pools, nvlist_t *props, char *mntopts, int flags,
 					(void) show_import(config, B_TRUE);
 			}
 		} else if (import->poolname != NULL) {
-			char *name;
+			const char *name;
 
 			/*
 			 * We are searching for a pool based on name.
@@ -3354,7 +3361,7 @@ name_or_guid_exists(zpool_handle_t *zhp, void *data)
 		return (0);
 
 	if (args->poolname != NULL) {
-		char *pool_name;
+		const char *pool_name;
 
 		verify(nvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME,
 		    &pool_name) == 0);
@@ -4790,7 +4797,7 @@ print_vdev_stats(zpool_handle_t *zhp, const char *name, nvlist_t *oldnv,
 	}
 
 	if (cb->vcdl != NULL) {
-		char *path;
+		const char *path;
 		if (nvlist_lookup_string(newnv, ZPOOL_CONFIG_PATH,
 		    &path) == 0) {
 			printf("  ");
@@ -4855,13 +4862,13 @@ children:
 
 		for (c = 0; c < children; c++) {
 			uint64_t islog = B_FALSE;
-			char *bias = NULL;
-			char *type = NULL;
+			const char *bias = NULL;
+			const char *type = NULL;
 
 			(void) nvlist_lookup_uint64(newchild[c],
 			    ZPOOL_CONFIG_IS_LOG, &islog);
 			if (islog) {
-				bias = (char *)VDEV_ALLOC_CLASS_LOGS;
+				bias = VDEV_ALLOC_CLASS_LOGS;
 			} else {
 				(void) nvlist_lookup_string(newchild[c],
 				    ZPOOL_CONFIG_ALLOCATION_BIAS, &bias);
@@ -6221,12 +6228,12 @@ print_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 		boolean_t printed = B_FALSE;
 
 		for (c = 0; c < children; c++) {
-			char *bias = NULL;
-			char *type = NULL;
+			const char *bias = NULL;
+			const char *type = NULL;
 
 			if (nvlist_lookup_uint64(child[c], ZPOOL_CONFIG_IS_LOG,
 			    &islog) == 0 && islog) {
-				bias = (char *)VDEV_ALLOC_CLASS_LOGS;
+				bias = VDEV_ALLOC_CLASS_LOGS;
 			} else {
 				(void) nvlist_lookup_string(child[c],
 				    ZPOOL_CONFIG_ALLOCATION_BIAS, &bias);
@@ -9525,7 +9532,8 @@ typedef struct ev_opts {
 static void
 zpool_do_events_short(nvlist_t *nvl, ev_opts_t *opts)
 {
-	char ctime_str[26], str[32], *ptr;
+	char ctime_str[26], str[32];
+	const char *ptr;
 	int64_t *tv;
 	uint_t n;
 
@@ -9561,7 +9569,7 @@ zpool_do_events_nvprint(nvlist_t *nvl, int depth)
 		uint16_t i16;
 		uint32_t i32;
 		uint64_t i64;
-		char *str;
+		const char *str;
 		nvlist_t *cnv;
 
 		printf(gettext("%*s%s = "), depth, "", name);
@@ -9759,7 +9767,7 @@ zpool_do_events_nvprint(nvlist_t *nvl, int depth)
 			}
 
 		case DATA_TYPE_STRING_ARRAY: {
-			char **str;
+			const char **str;
 			uint_t i, nelem;
 
 			(void) nvpair_value_string_array(nvp, &str, &nelem);
@@ -9788,7 +9796,7 @@ zpool_do_events_next(ev_opts_t *opts)
 {
 	nvlist_t *nvl;
 	int zevent_fd, ret, dropped;
-	char *pool;
+	const char *pool;
 
 	zevent_fd = open(ZFS_DEV, O_RDWR);
 	VERIFY(zevent_fd >= 0);
@@ -10437,7 +10445,7 @@ vdev_any_spare_replacing(nvlist_t *nv)
 {
 	nvlist_t **child;
 	uint_t c, children;
-	char *vdev_type;
+	const char *vdev_type;
 
 	(void) nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &vdev_type);
 
