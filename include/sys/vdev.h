@@ -186,9 +186,8 @@ extern boolean_t vdev_clear_resilver_deferred(vdev_t *vd, dmu_tx_t *tx);
 typedef enum vdev_config_flag {
 	VDEV_CONFIG_SPARE = 1 << 0,
 	VDEV_CONFIG_L2CACHE = 1 << 1,
-	VDEV_CONFIG_REMOVING = 1 << 2,
-	VDEV_CONFIG_MOS = 1 << 3,
-	VDEV_CONFIG_MISSING = 1 << 4
+	VDEV_CONFIG_MOS = 1 << 2,
+	VDEV_CONFIG_MISSING = 1 << 3
 } vdev_config_flag_t;
 
 extern void vdev_post_kobj_evt(vdev_t *vd);
