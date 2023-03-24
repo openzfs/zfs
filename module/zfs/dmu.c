@@ -2190,7 +2190,8 @@ dmu_read_l0_bps(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 	for (int i = 0; i < numbufs; i++) {
 		dbuf = dbp[i];
 		db = (dmu_buf_impl_t *)dbuf;
-		bp = db->db_blkptr;
+
+		mutex_enter(&db->db_mtx);
 
 		/*
 		 * If the block is not on the disk yet, it has no BP assigned.
@@ -2212,10 +2213,16 @@ dmu_read_l0_bps(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 				 * The block was modified in the same
 				 * transaction group.
 				 */
+				mutex_exit(&db->db_mtx);
 				error = SET_ERROR(EAGAIN);
 				goto out;
 			}
+		} else {
+			bp = db->db_blkptr;
 		}
+
+		mutex_exit(&db->db_mtx);
+
 		if (bp == NULL) {
 			/*
 			 * The block was created in this transaction group,
@@ -2273,19 +2280,23 @@ dmu_brt_clone(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 		ASSERT(db->db_blkid != DMU_BONUS_BLKID);
 		ASSERT(BP_IS_HOLE(bp) || dbuf->db_size == BP_GET_LSIZE(bp));
 
-		if (db->db_state == DB_UNCACHED) {
-			/*
-			 * XXX-PJD: If the dbuf is already cached, calling
-			 * dmu_buf_will_not_fill() will panic on assertion
-			 * (db->db_buf == NULL) in dbuf_clear_data(),
-			 * which is called from dbuf_noread() in DB_NOFILL
-			 * case. I'm not 100% sure this is the right thing
-			 * to do, but it seems to work.
-			 */
-			dmu_buf_will_not_fill(dbuf, tx);
+		mutex_enter(&db->db_mtx);
+
+		VERIFY(!dbuf_undirty(db, tx));
+		ASSERT(list_head(&db->db_dirty_records) == NULL);
+		if (db->db_buf != NULL) {
+			arc_buf_destroy(db->db_buf, db);
+			db->db_buf = NULL;
 		}
 
+		mutex_exit(&db->db_mtx);
+
+		dmu_buf_will_not_fill(dbuf, tx);
+
+		mutex_enter(&db->db_mtx);
+
 		dr = list_head(&db->db_dirty_records);
+		VERIFY(dr != NULL);
 		ASSERT3U(dr->dr_txg, ==, tx->tx_txg);
 		dl = &dr->dt.dl;
 		dl->dr_overridden_by = *bp;
@@ -2300,6 +2311,8 @@ dmu_brt_clone(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 			dl->dr_overridden_by.blk_phys_birth =
 			    BP_PHYSICAL_BIRTH(bp);
 		}
+
+		mutex_exit(&db->db_mtx);
 
 		/*
 		 * When data in embedded into BP there is no need to create
