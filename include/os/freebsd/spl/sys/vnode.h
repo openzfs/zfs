@@ -143,6 +143,10 @@ vn_flush_cached_data(vnode_t *vp, boolean_t sync)
 /*
  * Attributes of interest to the caller of setattr or getattr.
  */
+
+#undef AT_UID
+#undef AT_GID
+
 #define	AT_MODE		0x00002
 #define	AT_UID		0x00004
 #define	AT_GID		0x00008

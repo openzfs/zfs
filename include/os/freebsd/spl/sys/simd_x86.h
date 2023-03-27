@@ -45,6 +45,10 @@
 		fpu_kern_enter(curthread, NULL, FPU_KERN_NOCTX);\
 }
 
+#ifndef PCB_FPUNOSAVE
+#define	PCB_FPUNOSAVE	PCB_NPXNOSAVE
+#endif
+
 #define	kfpu_end()	{			\
 	if (__predict_false(curpcb->pcb_flags & PCB_FPUNOSAVE))	\
 		fpu_kern_leave(curthread, NULL);	\

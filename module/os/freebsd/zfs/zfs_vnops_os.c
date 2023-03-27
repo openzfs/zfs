@@ -29,12 +29,12 @@
 /* Portions Copyright 2007 Jeremy Teo */
 /* Portions Copyright 2010 Robert Milkowski */
 
-
 #include <sys/param.h>
 #include <sys/time.h>
 #include <sys/systm.h>
 #include <sys/sysmacros.h>
 #include <sys/resource.h>
+#include <security/mac/mac_framework.h>
 #include <sys/vfs.h>
 #include <sys/endian.h>
 #include <sys/vm.h>
@@ -85,7 +85,6 @@
 #include <sys/zfs_vnops.h>
 #include <sys/module.h>
 #include <sys/sysent.h>
-#include <security/mac/mac_framework.h>
 #include <sys/dmu_impl.h>
 #include <sys/brt.h>
 #include <sys/zfeature.h>
@@ -6241,6 +6240,7 @@ zfs_freebsd_copy_file_range(struct vop_copy_file_range_args *ap)
 	struct mount *mp;
 	struct uio io;
 	int error;
+	uint64_t len = *ap->a_lenp;
 
 	/*
 	 * TODO: If offset/length is not aligned to recordsize, use
@@ -6289,7 +6289,8 @@ zfs_freebsd_copy_file_range(struct vop_copy_file_range_args *ap)
 		goto unlock;
 
 	error = zfs_clone_range(VTOZ(invp), ap->a_inoffp, VTOZ(outvp),
-	    ap->a_outoffp, ap->a_lenp, ap->a_fsizetd->td_ucred);
+	    ap->a_outoffp, &len, ap->a_fsizetd->td_ucred);
+	*ap->a_lenp = (size_t)len;
 
 unlock:
 	if (invp != outvp)

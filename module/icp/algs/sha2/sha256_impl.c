@@ -23,10 +23,10 @@
  * Copyright (c) 2022 Tino Reichardt <milky-zfs@mcmilk.de>
  */
 
+#include <sys/simd.h>
 #include <sys/zfs_context.h>
 #include <sys/zfs_impl.h>
 #include <sys/sha2.h>
-#include <sys/simd.h>
 
 #include <sha2/sha2_impl.h>
 #include <sys/asm_linkage.h>
@@ -118,7 +118,7 @@ const sha256_ops_t sha256_shani_impl = {
 };
 #endif
 
-#elif defined(__aarch64__) || defined(__arm__)
+#elif defined(__aarch64__) || (defined(__arm__) && __ARM_ARCH > 6)
 static boolean_t sha256_have_neon(void)
 {
 	return (kfpu_allowed() && zfs_neon_available());
@@ -192,7 +192,7 @@ static const sha256_ops_t *const sha256_impls[] = {
 #if defined(__x86_64) && defined(HAVE_SSE4_1)
 	&sha256_shani_impl,
 #endif
-#if defined(__aarch64__) || defined(__arm__)
+#if defined(__aarch64__) || (defined(__arm__) && __ARM_ARCH > 6)
 	&sha256_armv7_impl,
 	&sha256_neon_impl,
 	&sha256_armv8_impl,
