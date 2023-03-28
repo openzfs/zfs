@@ -5,8 +5,9 @@ After=zfs-import.target dracut-pre-mount.service zfs-snapshot-bootfs.service
 Before=dracut-mount.service
 DefaultDependencies=no
 ConditionKernelCommandLine=bootfs.rollback
+ConditionEnvironment=BOOTFS
 
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -c '. /lib/dracut-zfs-lib.sh; decode_root_args || exit; [ "$root" = "zfs:AUTO" ] && root="$BOOTFS"; SNAPNAME="$(getarg bootfs.rollback)"; exec @sbindir@/zfs rollback -Rf "$root@${SNAPNAME:-%v}"'
+ExecStart=/bin/sh -c '. /lib/dracut-lib.sh; SNAPNAME="$(getarg bootfs.rollback)"; exec @sbindir@/zfs rollback -Rf "$BOOTFS@${SNAPNAME:-%v}"'
 RemainAfterExit=yes

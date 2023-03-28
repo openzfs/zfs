@@ -81,6 +81,9 @@ install() {
 		inst_simple "${moddir}/zfs-env-bootfs.service" "${systemdsystemunitdir}/zfs-env-bootfs.service"
 		systemctl -q --root "${initdir}" add-wants zfs-import.target zfs-env-bootfs.service
 
+		inst_simple "${moddir}/zfs-nonroot-necessities.service" "${systemdsystemunitdir}/zfs-nonroot-necessities.service"
+		systemctl -q --root "${initdir}" add-requires initrd-root-fs.target zfs-nonroot-necessities.service
+
 		# Add user-provided unit overrides:
 		# - /etc/systemd/system/${_service}
 		# - /etc/systemd/system/${_service}.d/overrides.conf
