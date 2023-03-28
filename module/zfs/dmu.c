@@ -2100,18 +2100,18 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 }
 
 /*
- * This function is only called from zfs_holey_common() for zpl_llseek()
- * in order to determine the location of holes.  In order to accurately
- * report holes all dirty data must be synced to disk.  This causes extremely
- * poor performance when seeking for holes in a dirty file.  As a compromise,
- * only provide hole data when the dnode is clean.  When a dnode is dirty
- * report the dnode as having no holes which is always a safe thing to do.
+ * Reports the location of data and holes in an object.  In order to
+ * accurately report holes all dirty data must be synced to disk.  This
+ * causes extremely poor performance when seeking for holes in a dirty file.
+ * As a compromise, only provide hole data when the dnode is clean.  When
+ * a dnode is dirty report the dnode as having no holes by returning EBUSY
+ * which is always safe to do.
  */
 int
 dmu_offset_next(objset_t *os, uint64_t object, boolean_t hole, uint64_t *off)
 {
 	dnode_t *dn;
-	int err;
+	int restarted = 0, err;
 
 restart:
 	err = dnode_hold(os, object, FTAG, &dn);
@@ -2123,19 +2123,23 @@ restart:
 	if (dnode_is_dirty(dn)) {
 		/*
 		 * If the zfs_dmu_offset_next_sync module option is enabled
-		 * then strict hole reporting has been requested.  Dirty
-		 * dnodes must be synced to disk to accurately report all
-		 * holes.  When disabled dirty dnodes are reported to not
-		 * have any holes which is always safe.
+		 * then hole reporting has been requested.  Dirty dnodes
+		 * must be synced to disk to accurately report holes.
 		 *
-		 * When called by zfs_holey_common() the zp->z_rangelock
-		 * is held to prevent zfs_write() and mmap writeback from
-		 * re-dirtying the dnode after txg_wait_synced().
+		 * Provided a RL_READER rangelock spanning 0-UINT64_MAX is
+		 * held by the caller only a single restart will be required.
+		 * We tolerate callers which do not hold the rangelock by
+		 * returning EBUSY and not reporting holes after one restart.
 		 */
 		if (zfs_dmu_offset_next_sync) {
 			rw_exit(&dn->dn_struct_rwlock);
 			dnode_rele(dn, FTAG);
+
+			if (restarted)
+				return (SET_ERROR(EBUSY));
+
 			txg_wait_synced(dmu_objset_pool(os), 0);
+			restarted = 1;
 			goto restart;
 		}
 
