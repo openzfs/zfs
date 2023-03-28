@@ -565,6 +565,7 @@ and keyed by the head id.
 In case of encrypted filesystems with unloaded keys or unmounted encrypted
 filesystems we are unable to check their snapshots or clones for errors and
 these will not be reported.
+In this case no filenames will be reported either.
 With this feature enabled, every dataset affected by an error block is listed
 in the output of
 .Nm zpool Cm status .

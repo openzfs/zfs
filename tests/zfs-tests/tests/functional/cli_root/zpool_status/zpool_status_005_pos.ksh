@@ -24,7 +24,6 @@
 # Copyright (c) 2022 George Amanakis. All rights reserved.
 #
 
-. $STF_SUITE/include/libtest.shlib
 #
 # DESCRIPTION:
 # Verify correct output with 'zpool status -v' after corrupting a file
@@ -34,7 +33,12 @@
 # 2. zinject checksum errors
 # 3. Unmount the filesystem and unload the key
 # 4. Scrub the pool
-# 5. Verify we report errors in the pool in 'zpool status -v'
+# 5. Verify we report that errors were detected but we do not report
+#	the filename since the key is not loaded.
+# 6. Load the key and mount the encrypted fs.
+# 7. Verify we report errors in the pool in 'zpool status -v'
+
+. $STF_SUITE/include/libtest.shlib
 
 verify_runnable "both"
 
@@ -66,13 +70,21 @@ log_must dd if=/dev/urandom of=$file bs=1024 count=1024 oflag=sync
 log_must eval "echo 'aaaaaaaa' >> "$file
 
 corrupt_blocks_at_level $file 0
-log_must zfs unmount $TESTPOOL2/$TESTFS1
-log_must zfs unload-key $TESTPOOL2/$TESTFS1
+log_must zfs umount $TESTPOOL2/$TESTFS1
+log_must zfs unload-key -a
 log_must zpool sync $TESTPOOL2
 log_must zpool scrub $TESTPOOL2
 log_must zpool wait -t scrub $TESTPOOL2
 log_must zpool status -v $TESTPOOL2
 log_must eval "zpool status -v $TESTPOOL2 | \
     grep \"Permanent errors have been detected\""
+log_mustnot eval "zpool status -v $TESTPOOL2 | grep '$file'"
+
+log_must eval "cat /$TESTPOOL2/pwd | zfs load-key $TESTPOOL2/$TESTFS1"
+log_must zfs mount $TESTPOOL2/$TESTFS1
+log_must zpool status -v $TESTPOOL2
+log_must eval "zpool status -v $TESTPOOL2 | \
+    grep \"Permanent errors have been detected\""
+log_must eval "zpool status -v $TESTPOOL2 | grep '$file'"
 
 log_pass "Verify reporting errors with unloaded keys works"

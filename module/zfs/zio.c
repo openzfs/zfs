@@ -570,7 +570,8 @@ error:
 	if (ret == ECKSUM) {
 		zio->io_error = SET_ERROR(EIO);
 		if ((zio->io_flags & ZIO_FLAG_SPECULATIVE) == 0) {
-			spa_log_error(spa, &zio->io_bookmark);
+			spa_log_error(spa, &zio->io_bookmark,
+			    &zio->io_bp->blk_birth);
 			(void) zfs_ereport_post(FM_EREPORT_ZFS_AUTHENTICATION,
 			    spa, NULL, &zio->io_bookmark, zio, 0);
 		}
@@ -4718,7 +4719,8 @@ zio_done(zio_t *zio)
 			 * For logical I/O requests, tell the SPA to log the
 			 * error and generate a logical data ereport.
 			 */
-			spa_log_error(zio->io_spa, &zio->io_bookmark);
+			spa_log_error(zio->io_spa, &zio->io_bookmark,
+			    &zio->io_bp->blk_birth);
 			(void) zfs_ereport_post(FM_EREPORT_ZFS_DATA,
 			    zio->io_spa, NULL, &zio->io_bookmark, zio, 0);
 		}

@@ -1881,7 +1881,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 	if (dnp != NULL &&
 	    dnp->dn_bonuslen > DN_MAX_BONUS_LEN(dnp)) {
 		scn->scn_phys.scn_errors++;
-		spa_log_error(spa, zb);
+		spa_log_error(spa, zb, &bp->blk_birth);
 		return (SET_ERROR(EINVAL));
 	}
 
@@ -1976,7 +1976,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 		 * by arc_read() for the cases above.
 		 */
 		scn->scn_phys.scn_errors++;
-		spa_log_error(spa, zb);
+		spa_log_error(spa, zb, &bp->blk_birth);
 		return (SET_ERROR(EINVAL));
 	}
 

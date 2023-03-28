@@ -65,6 +65,7 @@ typedef struct spa_aux_vdev spa_aux_vdev_t;
 typedef struct ddt ddt_t;
 typedef struct ddt_entry ddt_entry_t;
 typedef struct zbookmark_phys zbookmark_phys_t;
+typedef struct zbookmark_err_phys zbookmark_err_phys_t;
 
 struct bpobj;
 struct bplist;
@@ -1134,7 +1135,8 @@ extern const char *spa_state_to_name(spa_t *spa);
 
 /* error handling */
 struct zbookmark_phys;
-extern void spa_log_error(spa_t *spa, const zbookmark_phys_t *zb);
+extern void spa_log_error(spa_t *spa, const zbookmark_phys_t *zb,
+    const uint64_t *birth);
 extern void spa_remove_error(spa_t *spa, zbookmark_phys_t *zb);
 extern int zfs_ereport_post(const char *clazz, spa_t *spa, vdev_t *vd,
     const zbookmark_phys_t *zb, zio_t *zio, uint64_t state);
