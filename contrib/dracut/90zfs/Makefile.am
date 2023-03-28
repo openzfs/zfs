@@ -15,6 +15,7 @@ pkgdracut_SCRIPTS = \
 
 pkgdracut_DATA = \
 	zfs-env-bootfs.service \
+	zfs-nonroot-necessities.service \
 	zfs-snapshot-bootfs.service \
 	zfs-rollback-bootfs.service
 

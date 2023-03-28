@@ -1,6 +1,6 @@
 .\" SPDX-License-Identifier: 0BSD
 .\"
-.Dd April 4, 2022
+.Dd March 28, 2023
 .Dt DRACUT.ZFS 7
 .Os
 .
@@ -28,13 +28,13 @@ zfs-import-scan.service \(da                       \(da           | zfs-import-c
                  zfs-import.target \(-> dracut-pre-mount.service
                         |          \(ua            |
                         | dracut-zfs-generator  |
-                        |  ____________________/|
+                        | _____________________/|
                         |/                      \(da
-                        |                   sysroot.mount \(<-\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em dracut-zfs-generator
-                        |                       |                                        \(da   |
-                        |                       \(da            sysroot-{usr,etc,lib,&c.}.mount |
-                        |             initrd-root-fs.target \(<-\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em or                 \(da
-                        |                       |              zfs-nonroot-necessities.service
+                        |                   sysroot.mount \(<-\(em\(em\(em dracut-zfs-generator
+                        |                       |
+                        |                       \(da
+                        |             initrd-root-fs.target \(<-\(em zfs-nonroot-necessities.service
+                        |                       |                                 |
                         |                       \(da                                 |
                         \(da             dracut-mount.service                        |
        zfs-snapshot-bootfs.service              |                                 |
@@ -42,7 +42,7 @@ zfs-import-scan.service \(da                       \(da           | zfs-import-c
                         \(da                       …                                 |
        zfs-rollback-bootfs.service              |                                 |
                         |                       \(da                                 |
-                        |               sysroot-usr.mount \(<-\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em/
+                        |          /sysroot/{usr,etc,lib,&c.} \(<-\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em\(em/
                         |                       |
                         |                       \(da
                         |                initrd-fs.target
