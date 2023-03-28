@@ -105,7 +105,7 @@ zfs_holey_common(znode_t *zp, ulong_t cmd, loff_t *off)
 	if (zn_has_cached_data(zp))
 		zn_flush_cached_data(zp, B_FALSE);
 
-	lr = zfs_rangelock_enter(&zp->z_rangelock, 0, file_sz, RL_READER);
+	lr = zfs_rangelock_enter(&zp->z_rangelock, 0, UINT64_MAX, RL_READER);
 	error = dmu_offset_next(ZTOZSB(zp)->z_os, zp->z_id, hole, &noff);
 	zfs_rangelock_exit(lr);
 
