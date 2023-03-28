@@ -1161,7 +1161,10 @@ zvol_cdev_ioctl(struct cdev *dev, ulong_t cmd, caddr_t data,
 
 		hole = (cmd == FIOSEEKHOLE);
 		noff = *off;
+		lr = zfs_rangelock_enter(&zv->zv_rangelock, 0, UINT64_MAX,
+		    RL_READER);
 		error = dmu_offset_next(zv->zv_objset, ZVOL_OBJ, hole, &noff);
+		zfs_rangelock_exit(lr);
 		*off = noff;
 		break;
 	}
