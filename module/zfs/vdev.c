@@ -696,6 +696,7 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 	mutex_init(&vd->vdev_trim_io_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&vd->vdev_trim_cv, NULL, CV_DEFAULT, NULL);
 	cv_init(&vd->vdev_autotrim_cv, NULL, CV_DEFAULT, NULL);
+	cv_init(&vd->vdev_autotrim_kick_cv, NULL, CV_DEFAULT, NULL);
 	cv_init(&vd->vdev_trim_io_cv, NULL, CV_DEFAULT, NULL);
 
 	mutex_init(&vd->vdev_rebuild_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -1148,6 +1149,7 @@ vdev_free(vdev_t *vd)
 	mutex_destroy(&vd->vdev_trim_io_lock);
 	cv_destroy(&vd->vdev_trim_cv);
 	cv_destroy(&vd->vdev_autotrim_cv);
+	cv_destroy(&vd->vdev_autotrim_kick_cv);
 	cv_destroy(&vd->vdev_trim_io_cv);
 
 	mutex_destroy(&vd->vdev_rebuild_lock);
