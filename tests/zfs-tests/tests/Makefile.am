@@ -178,6 +178,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/cli_root/zpool_expand/zpool_expand.cfg \
 	functional/cli_root/zpool_export/zpool_export.cfg \
 	functional/cli_root/zpool_export/zpool_export.kshlib \
+	functional/cli_root/zpool_get/vdev_get.cfg \
 	functional/cli_root/zpool_get/zpool_get.cfg \
 	functional/cli_root/zpool_get/zpool_get_parsable.cfg \
 	functional/cli_root/zpool_import/blockfiles/cryptv0.dat.bz2 \
@@ -1032,6 +1033,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_export/zpool_export_004_pos.ksh \
 	functional/cli_root/zpool_get/cleanup.ksh \
 	functional/cli_root/zpool_get/setup.ksh \
+	functional/cli_root/zpool_get/vdev_get_001_pos.ksh \
 	functional/cli_root/zpool_get/zpool_get_001_pos.ksh \
 	functional/cli_root/zpool_get/zpool_get_002_pos.ksh \
 	functional/cli_root/zpool_get/zpool_get_003_pos.ksh \
@@ -1146,6 +1148,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_set/cleanup.ksh \
 	functional/cli_root/zpool_set/setup.ksh \
 	functional/cli_root/zpool/setup.ksh \
+	functional/cli_root/zpool_set/vdev_set_001_pos.ksh \
 	functional/cli_root/zpool_set/zpool_set_001_pos.ksh \
 	functional/cli_root/zpool_set/zpool_set_002_neg.ksh \
 	functional/cli_root/zpool_set/zpool_set_003_neg.ksh \
