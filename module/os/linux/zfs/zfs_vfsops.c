@@ -1194,7 +1194,7 @@ zfs_prune_aliases(zfsvfs_t *zfsvfs, unsigned long nr_to_scan)
 	int objects = 0;
 	int i = 0, j = 0;
 
-	zp_array = kmem_zalloc(max_array * sizeof (znode_t *), KM_SLEEP);
+	zp_array = vmem_zalloc(max_array * sizeof (znode_t *), KM_SLEEP);
 
 	mutex_enter(&zfsvfs->z_znodes_lock);
 	while ((zp = list_head(&zfsvfs->z_all_znodes)) != NULL) {
@@ -1230,7 +1230,7 @@ zfs_prune_aliases(zfsvfs_t *zfsvfs, unsigned long nr_to_scan)
 		zrele(zp);
 	}
 
-	kmem_free(zp_array, max_array * sizeof (znode_t *));
+	vmem_free(zp_array, max_array * sizeof (znode_t *));
 
 	return (objects);
 }
