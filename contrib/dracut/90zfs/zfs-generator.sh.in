@@ -14,80 +14,23 @@ GENERATOR_DIR="$1"
 . /lib/dracut-zfs-lib.sh
 decode_root_args || exit 0
 
-[ -z "${rootflags}" ] && rootflags=$(getarg rootflags=)
-case ",${rootflags}," in
-	*,zfsutil,*) ;;
-	,,)	rootflags=zfsutil ;;
-	*)	rootflags="zfsutil,${rootflags}" ;;
-esac
-
 [ -n "$debug" ] && echo "zfs-generator: writing extension for sysroot.mount to $GENERATOR_DIR/sysroot.mount.d/zfs-enhancement.conf" >> /dev/kmsg
 
 
-mkdir -p "$GENERATOR_DIR"/sysroot.mount.d "$GENERATOR_DIR"/initrd-root-fs.target.requires "$GENERATOR_DIR"/dracut-pre-mount.service.d
+mkdir -p "$GENERATOR_DIR"/sysroot.mount.d "$GENERATOR_DIR"/dracut-pre-mount.service.d
+
 {
     echo "[Unit]"
     echo "Before=initrd-root-fs.target"
     echo "After=zfs-import.target"
     echo
     echo "[Mount]"
-    if [ "${root}" = "zfs:AUTO" ]; then
-      echo "PassEnvironment=BOOTFS"
-      echo 'What=${BOOTFS}'
-    else
-      echo "What=${root}"
-    fi
+    echo "PassEnvironment=BOOTFS BOOTFSFLAGS"
+    echo 'What=${BOOTFS}'
     echo "Type=zfs"
-    echo "Options=${rootflags}"
+    echo 'Options=${BOOTFSFLAGS}'
 } > "$GENERATOR_DIR"/sysroot.mount.d/zfs-enhancement.conf
 ln -fs ../sysroot.mount "$GENERATOR_DIR"/initrd-root-fs.target.requires/sysroot.mount
-
-
-if [ "${root}" = "zfs:AUTO" ]; then
-  {
-      echo "[Unit]"
-      echo "Before=initrd-root-fs.target"
-      echo "After=sysroot.mount"
-      echo "DefaultDependencies=no"
-      echo
-      echo "[Service]"
-      echo "Type=oneshot"
-      echo "PassEnvironment=BOOTFS"
-      echo "ExecStart=/bin/sh -c '" '                                        \
-        . /lib/dracut-zfs-lib.sh;                                            \
-        _zfs_nonroot_necessities_cb() {                                      \
-            zfs mount | grep -m1 -q "^$1 " && return 0;                      \
-            echo "Mounting $1 on /sysroot$2";                                \
-            mount -o zfsutil -t zfs "$1" "/sysroot$2";                       \
-        };                                                                   \
-        for_relevant_root_children "${BOOTFS}" _zfs_nonroot_necessities_cb;' \
-      "'"
-  } > "$GENERATOR_DIR"/zfs-nonroot-necessities.service
-  ln -fs ../zfs-nonroot-necessities.service "$GENERATOR_DIR"/initrd-root-fs.target.requires/zfs-nonroot-necessities.service
-else
-  # We can solve this statically at generation time, so do!
-  _zfs_generator_cb() {
-      dset="${1}"
-      mpnt="${2}"
-      unit="$(systemd-escape --suffix=mount -p "/sysroot${mpnt}")"
-
-      {
-          echo "[Unit]"
-          echo "Before=initrd-root-fs.target"
-          echo "After=sysroot.mount"
-          echo
-          echo "[Mount]"
-          echo "Where=/sysroot${mpnt}"
-          echo "What=${dset}"
-          echo "Type=zfs"
-          echo "Options=zfsutil"
-      } > "$GENERATOR_DIR/${unit}"
-      ln -fs ../"${unit}" "$GENERATOR_DIR"/initrd-root-fs.target.requires/"${unit}"
-  }
-
-  for_relevant_root_children "${root}" _zfs_generator_cb
-fi
-
 
 {
     echo "[Unit]"

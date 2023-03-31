@@ -39,7 +39,7 @@ mount_dataset() {
 
 # for_relevant_root_children DATASET EXEC
 #   Runs "EXEC dataset mountpoint" for all children of DATASET that are needed for system bringup
-#   Used by zfs-generator.sh and friends, too!
+#   Used by zfs-nonroot-necessities.service and friends, too!
 for_relevant_root_children() {
     dataset="${1}"
     exec="${2}"
