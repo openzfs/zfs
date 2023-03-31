@@ -38,7 +38,8 @@ verify_runnable "both"
 # is expected to fail on older kernels and is skipped.
 #
 if is_linux; then
-	if [[ $(linux_version) -lt $(linux_version "4.10") ]]; then
+	if [[ $(linux_version) -lt $(linux_version "4.10") ]] && \
+	    ! (. /etc/os-release 2>/dev/null; echo $ID $ID_LIKE | grep -q rhel); then
 		log_unsupported "Requires has_capability() kernel function"
 	fi
 fi

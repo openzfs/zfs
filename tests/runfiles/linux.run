@@ -52,6 +52,10 @@ tests = ['zfs_share_005_pos', 'zfs_share_007_neg', 'zfs_share_009_neg',
     'zfs_share_012_pos', 'zfs_share_013_pos']
 tags = ['functional', 'cli_root', 'zfs_share']
 
+[tests/functional/cli_root/zfs_unshare:Linux]
+tests = ['zfs_unshare_008_pos']
+tags = ['functional', 'cli_root', 'zfs_unshare']
+
 [tests/functional/cli_root/zfs_sysfs:Linux]
 tests = ['zfeature_set_unsupported', 'zfs_get_unsupported',
     'zfs_set_unsupported', 'zfs_sysfs_live', 'zpool_get_unsupported',
@@ -121,7 +125,7 @@ post =
 tags = ['functional', 'largest_pool']
 
 [tests/functional/mmap:Linux]
-tests = ['mmap_libaio_001_pos']
+tests = ['mmap_libaio_001_pos', 'mmap_sync_001_pos']
 tags = ['functional', 'mmap']
 
 [tests/functional/mmp:Linux]

@@ -13,6 +13,7 @@ jobs:
         ref: ${{ github.event.pull_request.head.sha }}
     - name: Install dependencies
       run: |
+        exit 1
         # https://github.com/orgs/community/discussions/47863
         sudo apt-mark hold grub-efi-amd64-signed
         sudo apt-get update --fix-missing

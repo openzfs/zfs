@@ -240,19 +240,23 @@ applications against the ZFS libraries.
 Summary:        Test infrastructure
 Group:          System Environment/Kernel
 Requires:       %{name}%{?_isa} = %{version}-%{release}
-Requires:       parted
+Requires:       acl
+Requires:       attr
+Requires:       bc
+Requires:       fio
+Requires:       ksh
+Requires:       libaio
 Requires:       lsscsi
 Requires:       mdadm
-Requires:       bc
-Requires:       ksh
-Requires:       fio
-Requires:       acl
+Requires:       parted
+Requires:       python%{__python_pkg_version}
 Requires:       sudo
 Requires:       sysstat
-Requires:       libaio
-Requires:       python%{__python_pkg_version}
 %if 0%{?rhel}%{?centos}%{?fedora}%{?suse_version}%{?openEuler}
 BuildRequires:  libaio-devel
+Requires:       nfs-utils
+%else
+Requires:       nfs-common
 %endif
 AutoReqProv:    no
 
