@@ -426,7 +426,7 @@ static inline void
 bio_set_flush(struct bio *bio)
 {
 #if defined(HAVE_REQ_PREFLUSH)	/* >= 4.10 */
-	bio_set_op_attrs(bio, 0, REQ_PREFLUSH);
+	bio_set_op_attrs(bio, 0, REQ_PREFLUSH | REQ_OP_WRITE);
 #elif defined(WRITE_FLUSH_FUA)	/* >= 2.6.37 and <= 4.9 */
 	bio_set_op_attrs(bio, 0, WRITE_FLUSH_FUA);
 #else
