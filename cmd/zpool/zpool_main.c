@@ -9978,31 +9978,31 @@ get_callback_vdev(zpool_handle_t *zhp, char *vdevname, void *data)
 }
 
 static int
-get_callback_vdev_width_cb(void *zhp_data, nvlist_t *nv, void *data)
-{
-	zpool_handle_t *zhp = zhp_data;
-	zprop_get_cbdata_t *cbp = (zprop_get_cbdata_t *)data;
-	char *vdevname = zpool_vdev_name(g_zfs, zhp, nv,
-	    cbp->cb_vdevs.cb_name_flags);
-	int ret;
-
-	/* Adjust the column widths for the vdev properties */
-	ret = vdev_expand_proplist(zhp, vdevname, &cbp->cb_proplist);
-
-	return (ret);
-}
-
-static int
 get_callback_vdev_cb(void *zhp_data, nvlist_t *nv, void *data)
 {
 	zpool_handle_t *zhp = zhp_data;
 	zprop_get_cbdata_t *cbp = (zprop_get_cbdata_t *)data;
-	char *vdevname = zpool_vdev_name(g_zfs, zhp, nv,
-	    cbp->cb_vdevs.cb_name_flags);
+	char *vdevname;
+	const char *type;
 	int ret;
 
-	/* Display the properties */
+	/*
+	 * zpool_vdev_name() transforms the root vdev name (i.e., root-0) to the
+	 * pool name for display purposes, which is not desired. Fallback to
+	 * zpool_vdev_name() when not dealing with the root vdev.
+	 */
+	type = fnvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE);
+	if (zhp != NULL && strcmp(type, "root") == 0)
+		vdevname = strdup("root-0");
+	else
+		vdevname = zpool_vdev_name(g_zfs, zhp, nv,
+		    cbp->cb_vdevs.cb_name_flags);
+
+	(void) vdev_expand_proplist(zhp, vdevname, &cbp->cb_proplist);
+
 	ret = get_callback_vdev(zhp, vdevname, data);
+
+	free(vdevname);
 
 	return (ret);
 }
@@ -10018,7 +10018,6 @@ get_callback(zpool_handle_t *zhp, void *data)
 
 	if (cbp->cb_type == ZFS_TYPE_VDEV) {
 		if (strcmp(cbp->cb_vdevs.cb_names[0], "all-vdevs") == 0) {
-			for_each_vdev(zhp, get_callback_vdev_width_cb, data);
 			for_each_vdev(zhp, get_callback_vdev_cb, data);
 		} else {
 			/* Adjust column widths for vdev properties */
@@ -10095,6 +10094,7 @@ zpool_do_get(int argc, char **argv)
 	int ret;
 	int c, i;
 	char *propstr = NULL;
+	char *vdev = NULL;
 
 	cb.cb_first = B_TRUE;
 
@@ -10192,10 +10192,17 @@ found:
 	} else if (are_all_pools(1, argv)) {
 		/* The first arg is a pool name */
 		if ((argc == 2 && strcmp(argv[1], "all-vdevs") == 0) ||
+		    (argc == 2 && strcmp(argv[1], "root") == 0) ||
 		    are_vdevs_in_pool(argc - 1, argv + 1, argv[0],
 		    &cb.cb_vdevs)) {
+
+			if (strcmp(argv[1], "root") == 0)
+				vdev = strdup("root-0");
+			else
+				vdev = strdup(argv[1]);
+
 			/* ... and the rest are vdev names */
-			cb.cb_vdevs.cb_names = argv + 1;
+			cb.cb_vdevs.cb_names = &vdev;
 			cb.cb_vdevs.cb_names_count = argc - 1;
 			cb.cb_type = ZFS_TYPE_VDEV;
 			argc = 1; /* One pool to process */
@@ -10239,6 +10246,9 @@ found:
 		zprop_free_list(fake_name.pl_next);
 	else
 		zprop_free_list(cb.cb_proplist);
+
+	if (vdev != NULL)
+		free(vdev);
 
 	return (ret);
 }
@@ -10341,6 +10351,7 @@ zpool_do_set(int argc, char **argv)
 {
 	set_cbdata_t cb = { 0 };
 	int error;
+	char *vdev = NULL;
 
 	current_prop_type = ZFS_TYPE_POOL;
 	if (argc > 1 && argv[1][0] == '-') {
@@ -10389,19 +10400,29 @@ zpool_do_set(int argc, char **argv)
 
 	/* argv[1], when supplied, is vdev name */
 	if (argc == 2) {
-		if (!are_vdevs_in_pool(1, argv + 1, argv[0], &cb.cb_vdevs)) {
+
+		if (strcmp(argv[1], "root") == 0)
+			vdev = strdup("root-0");
+		else
+			vdev = strdup(argv[1]);
+
+		if (!are_vdevs_in_pool(1, &vdev, argv[0], &cb.cb_vdevs)) {
 			(void) fprintf(stderr, gettext(
 			    "cannot find '%s' in '%s': device not in pool\n"),
-			    argv[1], argv[0]);
+			    vdev, argv[0]);
+			free(vdev);
 			return (EINVAL);
 		}
-		cb.cb_vdevs.cb_names = argv + 1;
+		cb.cb_vdevs.cb_names = &vdev;
 		cb.cb_vdevs.cb_names_count = 1;
 		cb.cb_type = ZFS_TYPE_VDEV;
 	}
 
 	error = for_each_pool(1, argv, B_TRUE, NULL, ZFS_TYPE_POOL,
 	    B_FALSE, set_callback, &cb);
+
+	if (vdev != NULL)
+		free(vdev);
 
 	return (error);
 }
