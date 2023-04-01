@@ -420,6 +420,16 @@ decrypt_fs()
 			# Continue only if the key needs to be loaded
 			[ "$KEYSTATUS" = "unavailable" ] || return 0
 
+			# Try extensions first
+			for f in "/etc/zfs/initramfs-tools-load-key" "/etc/zfs/initramfs-tools-load-key.d/"*; do
+				[ -r "$f" ] || continue
+				(. "$f") && {
+					# Successful return and actually-loaded key: we're done
+					KEYSTATUS="$(get_fs_value "${ENCRYPTIONROOT}" keystatus)"
+					[ "$KEYSTATUS" = "unavailable" ] || return 0
+				}
+			done
+
 			# Do not prompt if key is stored noninteractively,
 			if ! [ "${KEYLOCATION}" = "prompt" ]; then
 				$ZFS load-key "${ENCRYPTIONROOT}"
