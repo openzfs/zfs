@@ -420,6 +420,16 @@ decrypt_fs()
 			# Continue only if the key needs to be loaded
 			[ "$KEYSTATUS" = "unavailable" ] || return 0
 
+			# Use user-provided key loading function if available
+			if [ -f "/etc/zfs/zfs-load-key-user" ]; then
+				. /etc/zfs/zfs-load-key-user
+				load_key_user "${ENCRYPTIONROOT}"
+				# Don't trust user function, check key status
+				KEYSTATUS="$(get_fs_value "${ENCRYPTIONROOT}" keystatus)"	
+				# Exit if user function was successful
+				[ "$KEYSTATUS" = "unavailable" ] || return 0
+			fi
+			
 			# Do not prompt if key is stored noninteractively,
 			if ! [ "${KEYLOCATION}" = "prompt" ]; then
 				$ZFS load-key "${ENCRYPTIONROOT}"

@@ -82,3 +82,23 @@ To use this feature:
    in that case, use RSA (2048-bit or more) instead.
 3. Rebuild the initramfs with your keys: `update-initramfs -u`
 4. During the system boot, login via SSH and run: `zfsunlock`
+
+### Unlocking a ZFS encrypted root via alternate means
+
+You may supply your own unlocking mechanism, if you have another use case. 
+Examples:
+
+* retrieve a key from the TPM (clevis, tpm2-tools)
+* retrieve a key over the network (Hashicorp Vault)
+
+(These use cases are not supported or endorsed by the project.)
+
+To supply your own mechanism:
+
+1. Create `/etc/zfs/zfs-load-key-user` and define the `load_key_user` function,
+ which will be called with `$1` set to the value of `encryptionroot`
+  * `load_key_user` is expected to call `zfs load-key` or achieve the same 
+effect. 
+  * Key status will be checked after the function returns. If successful, 
+  `decrypt_fs` will return immediately.
+2. Rebuild the initramfs
