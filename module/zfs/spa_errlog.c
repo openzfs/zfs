@@ -470,9 +470,9 @@ static int check_clones(spa_t *spa, uint64_t zap_clone, uint64_t snap_count,
 			break;
 	}
 
+	zap_cursor_fini(zc);
 	kmem_free(za, sizeof (*za));
 	kmem_free(zc, sizeof (*zc));
-	zap_cursor_fini(zc);
 
 	return (error);
 }
