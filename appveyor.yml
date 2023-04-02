@@ -1,10 +1,4 @@
 version: 1.0.{build}
-branches:
-  only:
-  - macos
-  - macos_pure
-  - development
-  - new_zfsctl
 image: macOS
 environment:
   APPVEYOR_SSH_KEY: ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAyeE48edr8Iwht7jh4QHrtoejh8928Cs1MarXo950CrHPRv+56LGWxYQ7RJ9T5bDH7Mj0tvzU2RyIjiiO3LJGxVe+q30WIxFk0xKviniilu4dvKC8gXC85/Ae26vEztX9DrXAY0E5eGCQqwZX2++f5LGdPkuOHmYyt341lLgmhfSk33oEaZR5EbuV++SB0QefB7y1UyAT2xtDEl6l4/74pn2oAszoWyaITEGijxEKTxtSBdNe4l8Cytf0Ep5LlAESzaUg6dtGCdmCpNMmhrjQtstkx2GV7Xicd9TsJjmM1anuJ9oHKLYaBC7C11kNQte2nkMxGz1D2fl39vGzcPcOsQ== lundman@solaris
