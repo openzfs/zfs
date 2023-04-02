@@ -30,11 +30,9 @@ nodist_libicp_la_SOURCES = \
 	module/icp/algs/sha2/sha512_impl.c \
 	module/icp/algs/skein/skein.c \
 	module/icp/algs/skein/skein_block.c \
-	module/icp/algs/skein/skein_iv.c \
 	module/icp/illumos-crypto.c \
 	module/icp/io/aes.c \
 	module/icp/io/sha2_mod.c \
-	module/icp/io/skein_mod.c \
 	module/icp/core/kcf_sched.c \
 	module/icp/core/kcf_prov_lib.c \
 	module/icp/core/kcf_callprov.c \

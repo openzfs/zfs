@@ -32,9 +32,6 @@ int aes_mod_fini(void);
 int sha2_mod_init(void);
 int sha2_mod_fini(void);
 
-int skein_mod_init(void);
-int skein_mod_fini(void);
-
 int icp_init(void);
 void icp_fini(void);
 

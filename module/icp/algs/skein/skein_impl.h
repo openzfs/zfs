@@ -1,41 +1,78 @@
 /*
- * Internal definitions for Skein hashing.
- * Source code author: Doug Whiting, 2008.
- * This algorithm and source code is released to the public domain.
+ * CDDL HEADER START
  *
- * The following compile-time switches may be defined to control some
- * tradeoffs between speed, code size, error checking, and security.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
- * The "default" note explains what happens when the switch is not defined.
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
  *
- *  SKEIN_DEBUG            -- make callouts from inside Skein code
- *                            to examine/display intermediate values.
- *                            [default: no callouts (no overhead)]
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
  *
- *  SKEIN_ERR_CHECK        -- how error checking is handled inside Skein
- *                            code. If not defined, most error checking
- *                            is disabled (for performance). Otherwise,
- *                            the switch value is interpreted as:
- *                                0: use assert()      to flag errors
- *                                1: return SKEIN_FAIL to flag errors
+ * CDDL HEADER END
  */
-/* Copyright 2013 Doug Whiting. This code is released to the public domain. */
+
+/*
+ * Implementation of the Skein 512-bit hash function, based
+ * on the public domain implementation by Doug Whiting.
+ *
+ * Copyright (c) 2008,2013 Doug Whiting
+ * Copyright (c) 2023 Tino Reichardt <milky-zfs@mcmilk.de>
+ */
 
 #ifndef	_SKEIN_IMPL_H_
 #define	_SKEIN_IMPL_H_
 
-#include <sys/skein.h>
 #include <sys/string.h>
-#include "skein_impl.h"
-#include "skein_port.h"
+#include <sys/skein.h>
 
-/*
- * "Internal" Skein definitions
- *    -- not needed for sequential hashing API, but will be
- *           helpful for other uses of Skein (e.g., tree hash mode).
- *    -- included here so that they can be shared between
- *           reference and optimized code.
- */
+#include "skein_impl.h"
+
+#if defined(_ZFS_BIG_ENDIAN)
+#define	SKEIN_NEED_SWAP		(1)
+#define	Skein_Swap64(w64)	(__builtin_bswap64(w64))
+#else
+#define	SKEIN_NEED_SWAP		(0)
+#define	Skein_Swap64(w64)	(w64)
+#define	Skein_Put64_LSB_First(dst, src, bCnt) memcpy(dst, src, bCnt)
+#define	Skein_Get64_LSB_First(dst, src, wCnt) memcpy(dst, src, 8 * (wCnt))
+#endif
+
+#ifndef	Skein_Put64_LSB_First
+/* this is fully portable for all endian, but slow */
+static inline void
+Skein_Put64_LSB_First(uint8_t *dst, const uint64_t *src, size_t bCnt)
+{
+	size_t n;
+	for (n = 0; n < bCnt; n++)
+		dst[n] = (uint8_t)(src[n >> 3] >> (8 * (n & 7)));
+}
+#endif				/* ifndef Skein_Put64_LSB_First */
+
+#ifndef	Skein_Get64_LSB_First
+/* this is fully portable for all endian, but slow */
+static inline void
+Skein_Get64_LSB_First(uint64_t *dst, const uint8_t *src, size_t wCnt)
+{
+	size_t n;
+	for (n = 0; n < 8 * wCnt; n += 8)
+		dst[n / 8] = (((uint64_t)src[n])) +
+		    (((uint64_t)src[n + 1]) << 8) +
+		    (((uint64_t)src[n + 2]) << 16) +
+		    (((uint64_t)src[n + 3]) << 24) +
+		    (((uint64_t)src[n + 4]) << 32) +
+		    (((uint64_t)src[n + 5]) << 40) +
+		    (((uint64_t)src[n + 6]) << 48) +
+		    (((uint64_t)src[n + 7]) << 56);
+}
+#endif				/* ifndef Skein_Get64_LSB_First */
 
 /* tweak word T[1]: bit field starting positions */
 /* offset 64 because it's the second word  */
@@ -65,7 +102,7 @@
 #define	SKEIN_BLK_TYPE_KEY	(0)	/* key, for MAC and KDF */
 #define	SKEIN_BLK_TYPE_CFG	(4)	/* configuration block */
 #define	SKEIN_BLK_TYPE_PERS	(8)	/* personalization string */
-#define	SKEIN_BLK_TYPE_PK	(12)	/* public key (for signature hashing) */
+#define	SKEIN_BLK_TYPE_PK	(12)	/* public key (for hashing) */
 #define	SKEIN_BLK_TYPE_KDF	(16)	/* key identifier for KDF */
 #define	SKEIN_BLK_TYPE_NONCE	(20)	/* nonce for PRNG */
 #define	SKEIN_BLK_TYPE_MSG	(48)	/* message processing */
@@ -180,103 +217,26 @@
 	} while (0)
 
 /*
- * "Internal" Skein definitions for debugging and error checking
- * Note: in Illumos we always disable debugging features.
- */
-#define	Skein_Show_Block(bits, ctx, X, blkPtr, wPtr, ksEvenPtr, ksOddPtr)
-#define	Skein_Show_Round(bits, ctx, r, X)
-#define	Skein_Show_R_Ptr(bits, ctx, r, X_ptr)
-#define	Skein_Show_Final(bits, ctx, cnt, outPtr)
-#define	Skein_Show_Key(bits, ctx, key, keyBytes)
-
-/* run-time checks (e.g., bad params, uninitialized context)? */
-#ifndef	SKEIN_ERR_CHECK
-/* default: ignore all Asserts, for performance */
-#define	Skein_Assert(x, retCode)
-#define	Skein_assert(x)
-#elif	defined(SKEIN_ASSERT)
-#include <sys/debug.h>
-#define	Skein_Assert(x, retCode)	ASSERT(x)
-#define	Skein_assert(x)			ASSERT(x)
-#else
-#include <sys/debug.h>
-/*  caller error */
-#define	Skein_Assert(x, retCode)		\
-	do {					\
-		if (!(x))			\
-			return (retCode);	\
-	} while (0)
-/* internal error */
-#define	Skein_assert(x)	ASSERT(x)
-#endif
-
-/*
  * Skein block function constants (shared across Ref and Opt code)
  */
 enum {
-	/* Skein_256 round rotation constants */
-	R_256_0_0 = 14, R_256_0_1 = 16,
-	R_256_1_0 = 52, R_256_1_1 = 57,
-	R_256_2_0 = 23, R_256_2_1 = 40,
-	R_256_3_0 = 5, R_256_3_1 = 37,
-	R_256_4_0 = 25, R_256_4_1 = 33,
-	R_256_5_0 = 46, R_256_5_1 = 12,
-	R_256_6_0 = 58, R_256_6_1 = 22,
-	R_256_7_0 = 32, R_256_7_1 = 32,
-
 	/* Skein_512 round rotation constants */
 	R_512_0_0 = 46, R_512_0_1 = 36, R_512_0_2 = 19, R_512_0_3 = 37,
 	R_512_1_0 = 33, R_512_1_1 = 27, R_512_1_2 = 14, R_512_1_3 = 42,
 	R_512_2_0 = 17, R_512_2_1 = 49, R_512_2_2 = 36, R_512_2_3 = 39,
-	R_512_3_0 = 44, R_512_3_1 = 9, R_512_3_2 = 54, R_512_3_3 = 56,
+	R_512_3_0 = 44, R_512_3_1 = 9,  R_512_3_2 = 54, R_512_3_3 = 56,
 	R_512_4_0 = 39, R_512_4_1 = 30, R_512_4_2 = 34, R_512_4_3 = 24,
 	R_512_5_0 = 13, R_512_5_1 = 50, R_512_5_2 = 10, R_512_5_3 = 17,
 	R_512_6_0 = 25, R_512_6_1 = 29, R_512_6_2 = 39, R_512_6_3 = 43,
-	R_512_7_0 = 8, R_512_7_1 = 35, R_512_7_2 = 56, R_512_7_3 = 22,
-
-	/* Skein1024 round rotation constants */
-	R1024_0_0 = 24, R1024_0_1 = 13, R1024_0_2 = 8, R1024_0_3 =
-	    47, R1024_0_4 = 8, R1024_0_5 = 17, R1024_0_6 = 22, R1024_0_7 = 37,
-	R1024_1_0 = 38, R1024_1_1 = 19, R1024_1_2 = 10, R1024_1_3 =
-	    55, R1024_1_4 = 49, R1024_1_5 = 18, R1024_1_6 = 23, R1024_1_7 = 52,
-	R1024_2_0 = 33, R1024_2_1 = 4, R1024_2_2 = 51, R1024_2_3 =
-	    13, R1024_2_4 = 34, R1024_2_5 = 41, R1024_2_6 = 59, R1024_2_7 = 17,
-	R1024_3_0 = 5, R1024_3_1 = 20, R1024_3_2 = 48, R1024_3_3 =
-	    41, R1024_3_4 = 47, R1024_3_5 = 28, R1024_3_6 = 16, R1024_3_7 = 25,
-	R1024_4_0 = 41, R1024_4_1 = 9, R1024_4_2 = 37, R1024_4_3 =
-	    31, R1024_4_4 = 12, R1024_4_5 = 47, R1024_4_6 = 44, R1024_4_7 = 30,
-	R1024_5_0 = 16, R1024_5_1 = 34, R1024_5_2 = 56, R1024_5_3 =
-	    51, R1024_5_4 = 4, R1024_5_5 = 53, R1024_5_6 = 42, R1024_5_7 = 41,
-	R1024_6_0 = 31, R1024_6_1 = 44, R1024_6_2 = 47, R1024_6_3 =
-	    46, R1024_6_4 = 19, R1024_6_5 = 42, R1024_6_6 = 44, R1024_6_7 = 25,
-	R1024_7_0 = 9, R1024_7_1 = 48, R1024_7_2 = 35, R1024_7_3 =
-	    52, R1024_7_4 = 23, R1024_7_5 = 31, R1024_7_6 = 37, R1024_7_7 = 20
+	R_512_7_0 = 8,  R_512_7_1 = 35, R_512_7_2 = 56, R_512_7_3 = 22,
 };
 
 /* number of rounds for the different block sizes */
-#define	SKEIN_256_ROUNDS_TOTAL	(72)
 #define	SKEIN_512_ROUNDS_TOTAL	(72)
-#define	SKEIN1024_ROUNDS_TOTAL	(80)
-
-
-extern const uint64_t SKEIN_256_IV_128[];
-extern const uint64_t SKEIN_256_IV_160[];
-extern const uint64_t SKEIN_256_IV_224[];
-extern const uint64_t SKEIN_256_IV_256[];
-extern const uint64_t SKEIN_512_IV_224[];
-extern const uint64_t SKEIN_512_IV_256[];
-extern const uint64_t SKEIN_512_IV_384[];
-extern const uint64_t SKEIN_512_IV_512[];
-extern const uint64_t SKEIN1024_IV_384[];
-extern const uint64_t SKEIN1024_IV_512[];
-extern const uint64_t SKEIN1024_IV_1024[];
 
 /* Functions to process blkCnt (nonzero) full block(s) of data. */
-void Skein_256_Process_Block(Skein_256_Ctxt_t *ctx, const uint8_t *blkPtr,
-    size_t blkCnt, size_t byteCntAdd);
-void Skein_512_Process_Block(Skein_512_Ctxt_t *ctx, const uint8_t *blkPtr,
-    size_t blkCnt, size_t byteCntAdd);
-void Skein1024_Process_Block(Skein1024_Ctxt_t *ctx, const uint8_t *blkPtr,
+extern void
+Skein_512_Process_Block(SKEIN_CTX *ctx, const uint8_t *blkPtr,
     size_t blkCnt, size_t byteCntAdd);
 
-#endif	/* _SKEIN_IMPL_H_ */
+#endif				/* _SKEIN_IMPL_H_ */
