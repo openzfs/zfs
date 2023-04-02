@@ -246,6 +246,7 @@ boolean_t dmu_objset_userspace_present(objset_t *os);
 boolean_t dmu_objset_userobjused_enabled(objset_t *os);
 boolean_t dmu_objset_userobjspace_upgradable(objset_t *os);
 boolean_t dmu_objset_userobjspace_present(objset_t *os);
+uint64_t dmu_objset_encryption_root(objset_t *os);
 boolean_t dmu_objset_incompatible_encryption_version(objset_t *os);
 boolean_t dmu_objset_projectquota_enabled(objset_t *os);
 boolean_t dmu_objset_projectquota_present(objset_t *os);

@@ -328,7 +328,7 @@ spa_keystore_fini(spa_keystore_t *sk)
 	rw_destroy(&sk->sk_dk_lock);
 }
 
-static int
+int
 dsl_dir_get_encryption_root_ddobj(dsl_dir_t *dd, uint64_t *rddobj)
 {
 	if (dd->dd_crypto_obj == 0)

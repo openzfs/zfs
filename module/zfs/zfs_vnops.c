@@ -1108,6 +1108,16 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 	}
 
 	/*
+	 * Cloning across encrypted dataset is possible only if they share
+	 * the same encryption root.
+	 */
+	if (inos != outos && dmu_objset_encryption_root(inos) !=
+	    dmu_objset_encryption_root(outos)) {
+		zfs_exit_two(inzfsvfs, outzfsvfs, FTAG);
+		return (SET_ERROR(EXDEV));
+	}
+
+	/*
 	 * We don't copy source file's flags that's why we don't allow to clone
 	 * files that are in quarantine.
 	 */
@@ -1265,21 +1275,6 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 				error = SET_ERROR(EXDEV);
 			}
 			break;
-		}
-		/*
-		 * Encrypted data is fine as long as it comes from the same
-		 * dataset.
-		 * TODO: We want to extend it in the future to allow cloning to
-		 * datasets with the same keys, like clones or to be able to
-		 * clone a file from a snapshot of an encrypted dataset into the
-		 * dataset itself.
-		 */
-		if (BP_IS_PROTECTED(&bps[0])) {
-			if (inzfsvfs != outzfsvfs) {
-				dmu_tx_abort(tx);
-				error = SET_ERROR(EXDEV);
-				break;
-			}
 		}
 
 		dmu_tx_hold_sa(tx, outzp->z_sa_hdl, B_FALSE);

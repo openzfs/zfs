@@ -2973,6 +2973,18 @@ dmu_objset_find(const char *name, int func(const char *, void *), void *arg,
 	return (error);
 }
 
+uint64_t
+dmu_objset_encryption_root(objset_t *os)
+{
+	dsl_dir_t *dd = os->os_dsl_dataset->ds_dir;
+	uint64_t encroot = 0;
+
+	if (dsl_dir_get_encryption_root_ddobj(dd, &encroot) != 0) {
+		return (0);
+	}
+	return (encroot);
+}
+
 boolean_t
 dmu_objset_incompatible_encryption_version(objset_t *os)
 {
