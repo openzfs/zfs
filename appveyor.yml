@@ -1,0 +1,80 @@
+version: 1.0.{build}
+branches:
+  only:
+  - macos
+  - macos_pure
+  - development
+  - new_zfsctl
+image: macOS
+environment:
+  APPVEYOR_SSH_KEY: ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAyeE48edr8Iwht7jh4QHrtoejh8928Cs1MarXo950CrHPRv+56LGWxYQ7RJ9T5bDH7Mj0tvzU2RyIjiiO3LJGxVe+q30WIxFk0xKviniilu4dvKC8gXC85/Ae26vEztX9DrXAY0E5eGCQqwZX2++f5LGdPkuOHmYyt341lLgmhfSk33oEaZR5EbuV++SB0QefB7y1UyAT2xtDEl6l4/74pn2oAszoWyaITEGijxEKTxtSBdNe4l8Cytf0Ep5LlAESzaUg6dtGCdmCpNMmhrjQtstkx2GV7Xicd9TsJjmM1anuJ9oHKLYaBC7C11kNQte2nkMxGz1D2fl39vGzcPcOsQ== lundman@solaris
+  APPVEYOR_VNC_PASSWORD: thevncpassword
+build_script:
+- sh: >-
+    curl -sflL 'https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-ssh.sh' | bash -e -
+
+    curl -sflL 'https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-vnc.sh' | bash -e -
+
+
+
+    sh autogen.sh
+
+    ./configure CPPFLAGS="-I/usr/local/opt/gettext/include -I/usr/local/opt/openssl@1.1/include" LDFLAGS="-L/usr/local/opt/gettext/lib/ -L/usr/local/opt/openssl@1.1/lib" CFLAGS="-g -O2"  --sysconfdir=/etc --localstatedir=/var --prefix=/usr/local/zfs --sbindir=/usr/local/zfs/bin --enable-debug
+
+
+    echo "Checking codestyle"
+
+    make cstyle || exit 1
+
+
+
+    make -j2 # V=1
+
+
+
+    sudo make -j2 V=1 install
+test_script:
+- sh: >-
+    # log stream --source --predicate 'sender == "zfs"' --style compact  &
+
+
+    echo "Loading kernel modules..."
+
+    sudo scripts/load_macos.sh || exit 1
+
+    sleep 5
+
+    echo "Running zfs-tests..."
+
+    export SHELL=/bin/ksh
+
+
+    sudo scripts/cmd-macos.sh zed -fF &
+
+
+    scripts/zfs-tests.sh -r macOS-CI || echo "Tests not quite right"
+
+
+    sysctl kern.stack_depth_max
+
+
+    sysctl kstat > kstat.txt
+
+
+    7z a kext.zip /tmp/zfs.kext/
+
+    7z a zfs-tests.zip /var/tmp/test_results/current/ kstat.txt
+
+    ls -la
+
+
+    echo "Attempting to unload"
+
+    sudo /usr/local/zfs/bin/zpool export -fa
+
+    sudo kextunload -b org.openzfsonosx.zfs || echo "Unload failed".
+artifacts:
+- path: kext.zip
+  name: kext
+- path: zfs-tests.zip
+  name: zfstest-log
