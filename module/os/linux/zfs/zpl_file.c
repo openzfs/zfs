@@ -745,6 +745,20 @@ zpl_putfolio(struct folio *pp, struct writeback_control *wbc, void *data)
 }
 #endif
 
+static inline int
+zpl_write_cache_pages(struct address_space *mapping,
+    struct writeback_control *wbc, void *data)
+{
+	int result;
+
+#ifdef HAVE_WRITEPAGE_T_FOLIO
+	result = write_cache_pages(mapping, wbc, zpl_putfolio, data);
+#else
+	result = write_cache_pages(mapping, wbc, zpl_putpage, data);
+#endif
+	return (result);
+}
+
 static int
 zpl_writepages(struct address_space *mapping, struct writeback_control *wbc)
 {
@@ -769,11 +783,7 @@ zpl_writepages(struct address_space *mapping, struct writeback_control *wbc)
 	 */
 	boolean_t for_sync = (sync_mode == WB_SYNC_ALL);
 	wbc->sync_mode = WB_SYNC_NONE;
-#ifdef HAVE_WRITEPAGE_T_FOLIO
-	result = write_cache_pages(mapping, wbc, zpl_putfolio, &for_sync);
-#else
-	result = write_cache_pages(mapping, wbc, zpl_putpage, &for_sync);
-#endif
+	result = zpl_write_cache_pages(mapping, wbc, &for_sync);
 	if (sync_mode != wbc->sync_mode) {
 		if ((result = zpl_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 			return (result);
@@ -789,13 +799,7 @@ zpl_writepages(struct address_space *mapping, struct writeback_control *wbc)
 		 * details). That being said, this is a no-op in most cases.
 		 */
 		wbc->sync_mode = sync_mode;
-#ifdef HAVE_WRITEPAGE_T_FOLIO
-		result = write_cache_pages(mapping, wbc, zpl_putfolio,
-		    &for_sync);
-#else
-		result = write_cache_pages(mapping, wbc, zpl_putpage,
-		    &for_sync);
-#endif
+		result = zpl_write_cache_pages(mapping, wbc, &for_sync);
 	}
 	return (result);
 }
