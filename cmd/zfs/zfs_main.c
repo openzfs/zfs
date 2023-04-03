@@ -3556,8 +3556,21 @@ print_dataset(zfs_handle_t *zhp, list_cbdata_t *cb)
 			right_justify = B_FALSE;
 		}
 
-		if (pl->pl_prop == ZFS_PROP_AVAILABLE)
-			color_start(zfs_list_avail_color(zhp));
+		/*
+		 * zfs_list_avail_color() needs ZFS_PROP_AVAILABLE + USED
+		 * - so we need another for() search for the USED part
+		 * - when no colors wanted, we can skip the whole thing
+		 */
+		if (use_color() && pl->pl_prop == ZFS_PROP_AVAILABLE) {
+			zprop_list_t *pl2 = cb->cb_proplist;
+			for (; pl2 != NULL; pl2 = pl2->pl_next) {
+				if (pl2->pl_prop == ZFS_PROP_USED) {
+					color_start(zfs_list_avail_color(zhp));
+					/* found it, no need for more loops */
+					break;
+				}
+			}
+		}
 
 		/*
 		 * If this is being called in scripted mode, or if this is the

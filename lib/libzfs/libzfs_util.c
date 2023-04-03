@@ -1965,7 +1965,7 @@ zfs_version_print(void)
  * Return 1 if the user requested ANSI color output, and our terminal supports
  * it.  Return 0 for no color.
  */
-static int
+int
 use_color(void)
 {
 	static int use_color = -1;

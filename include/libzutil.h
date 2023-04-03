@@ -182,6 +182,7 @@ struct zfs_cmd;
 #define	ANSI_RESET	"\033[0m"
 #define	ANSI_BOLD	"\033[1m"
 
+_LIBZUTIL_H int use_color(void);
 _LIBZUTIL_H void color_start(const char *color);
 _LIBZUTIL_H void color_end(void);
 _LIBZUTIL_H int printf_color(const char *color, const char *format, ...);
