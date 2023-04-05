@@ -163,6 +163,7 @@ int zfs_ioctl_fd(int fd, unsigned long request, struct zfs_cmd *zc);
 #define	ANSI_RESET	"\033[0m"
 #define	ANSI_BOLD	"\033[1m"
 
+int use_color(void);
 void color_start(const char *color);
 void color_end(void);
 int printf_color(const char *color, char *format, ...);
