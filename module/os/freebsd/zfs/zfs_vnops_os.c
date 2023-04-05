@@ -6235,6 +6235,7 @@ struct vop_copy_file_range_args {
 static int
 zfs_freebsd_copy_file_range(struct vop_copy_file_range_args *ap)
 {
+	zfsvfs_t *outzfsvfs;
 	struct vnode *invp = ap->a_invp;
 	struct vnode *outvp = ap->a_outvp;
 	struct mount *mp;
@@ -6250,6 +6251,13 @@ zfs_freebsd_copy_file_range(struct vop_copy_file_range_args *ap)
 	 */
 
 	vn_start_write(outvp, &mp, V_WAIT);
+	if (__predict_true(mp == outvp->v_mount)) {
+		outzfsvfs = (zfsvfs_t *)mp->mnt_data;
+		if (!spa_feature_is_enabled(dmu_objset_spa(outzfsvfs->z_os),
+		    SPA_FEATURE_BLOCK_CLONING)) {
+			goto bad_write_fallback;
+		}
+	}
 	if (invp == outvp) {
 		if (vn_lock(outvp, LK_EXCLUSIVE) != 0) {
 			goto bad_write_fallback;
