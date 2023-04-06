@@ -1292,6 +1292,11 @@ as fuller devices will tend to be slower than empty devices.
 Also see
 .Sy zio_dva_throttle_enabled .
 .
+.It Sy zfs_vdev_def_queue_depth Ns = Ns Sy 32 Pq uint
+Default queue depth for each vdev IO allocator.
+Higher values allow for better coalescing of sequential writes before sending
+them to the disk, but can increase transaction commit times.
+.
 .It Sy zfs_vdev_failfast_mask Ns = Ns Sy 1 Pq uint
 Defines if the driver should retire on a given error type.
 The following options may be bitwise-ored together:

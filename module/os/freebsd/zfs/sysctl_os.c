@@ -887,14 +887,6 @@ SYSCTL_UINT(_vfs_zfs, OID_AUTO, top_maxinflight,
 	" (LEGACY)");
 /* END CSTYLED */
 
-extern uint_t zfs_vdev_def_queue_depth;
-
-/* BEGIN CSTYLED */
-SYSCTL_UINT(_vfs_zfs_vdev, OID_AUTO, def_queue_depth,
-	CTLFLAG_RWTUN, &zfs_vdev_def_queue_depth, 0,
-	"Default queue depth for each allocator");
-/* END CSTYLED */
-
 /* zio.c */
 
 /* BEGIN CSTYLED */
