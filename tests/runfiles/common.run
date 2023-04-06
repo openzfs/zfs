@@ -106,7 +106,7 @@ tests = ['tst.destroy_fs', 'tst.destroy_snap', 'tst.get_count_and_limit',
     'tst.list_user_props', 'tst.parse_args_neg','tst.promote_conflict',
     'tst.promote_multiple', 'tst.promote_simple', 'tst.rollback_mult',
     'tst.rollback_one', 'tst.set_props', 'tst.snapshot_destroy', 'tst.snapshot_neg',
-    'tst.snapshot_recursive', 'tst.snapshot_simple',
+    'tst.snapshot_recursive', 'tst.snapshot_rename', 'tst.snapshot_simple',
     'tst.bookmark.create', 'tst.bookmark.copy',
     'tst.terminate_by_signal'
     ]
@@ -151,7 +151,8 @@ tags = ['functional', 'cli_root', 'zfs_change-key']
 tests = ['zfs_clone_001_neg', 'zfs_clone_002_pos', 'zfs_clone_003_pos',
     'zfs_clone_004_pos', 'zfs_clone_005_pos', 'zfs_clone_006_pos',
     'zfs_clone_007_pos', 'zfs_clone_008_neg', 'zfs_clone_009_neg',
-    'zfs_clone_010_pos', 'zfs_clone_encrypted', 'zfs_clone_deeply_nested']
+    'zfs_clone_010_pos', 'zfs_clone_encrypted', 'zfs_clone_deeply_nested',
+    'zfs_clone_rm_nested']
 tags = ['functional', 'cli_root', 'zfs_clone']
 
 [tests/functional/cli_root/zfs_copies]
@@ -266,8 +267,8 @@ tags = ['functional', 'cli_root', 'zfs_rollback']
 [tests/functional/cli_root/zfs_send]
 tests = ['zfs_send_001_pos', 'zfs_send_002_pos', 'zfs_send_003_pos',
     'zfs_send_004_neg', 'zfs_send_005_pos', 'zfs_send_006_pos',
-    'zfs_send_007_pos', 'zfs_send_encrypted', 'zfs_send_raw',
-    'zfs_send_sparse', 'zfs_send-b', 'zfs_send_skip_missing']
+    'zfs_send_007_pos', 'zfs_send_encrypted', 'zfs_send_encrypted_unloaded',
+    'zfs_send_raw', 'zfs_send_sparse', 'zfs_send-b', 'zfs_send_skip_missing']
 tags = ['functional', 'cli_root', 'zfs_send']
 
 [tests/functional/cli_root/zfs_set]
@@ -310,7 +311,7 @@ tags = ['functional', 'cli_root', 'zfs_unmount']
 [tests/functional/cli_root/zfs_unshare]
 tests = ['zfs_unshare_001_pos', 'zfs_unshare_002_pos', 'zfs_unshare_003_pos',
     'zfs_unshare_004_neg', 'zfs_unshare_005_neg', 'zfs_unshare_006_pos',
-    'zfs_unshare_007_pos', 'zfs_unshare_008_pos']
+    'zfs_unshare_007_pos']
 tags = ['functional', 'cli_root', 'zfs_unshare']
 
 [tests/functional/cli_root/zfs_upgrade]
@@ -794,13 +795,13 @@ tests = ['removal_all_vdev', 'removal_cancel', 'removal_check_space',
     'removal_nopwrite', 'removal_remap_deadlists',
     'removal_resume_export', 'removal_sanity', 'removal_with_add',
     'removal_with_create_fs', 'removal_with_dedup',
-    'removal_with_errors', 'removal_with_export',
+    'removal_with_errors', 'removal_with_export', 'removal_with_indirect',
     'removal_with_ganging', 'removal_with_faulted',
     'removal_with_remove', 'removal_with_scrub', 'removal_with_send',
     'removal_with_send_recv', 'removal_with_snapshot',
     'removal_with_write', 'removal_with_zdb', 'remove_expanded',
     'remove_mirror', 'remove_mirror_sanity', 'remove_raidz',
-    'remove_indirect', 'remove_attach_mirror']
+    'remove_indirect', 'remove_attach_mirror', 'removal_reservation']
 tags = ['functional', 'removal']
 
 [tests/functional/rename_dirs]
