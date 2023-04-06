@@ -5460,7 +5460,10 @@ ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, default_ms_count, INT, ZMOD_RW,
 	"Target number of metaslabs per top-level vdev");
 
 ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, default_ms_shift, INT, ZMOD_RW,
-	"Default limit for metaslab size");
+	"Default lower limit for metaslab size");
+
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, max_ms_shift, INT, ZMOD_RW,
+	"Default upper limit for metaslab size");
 
 ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, min_ms_count, INT, ZMOD_RW,
 	"Minimum number of metaslabs per top-level vdev");
