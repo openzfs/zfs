@@ -339,14 +339,21 @@
     <elf-symbol name='zfs_is_shared' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_isnumber' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_iter_bookmarks' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_iter_bookmarks_v2' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_iter_children' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_iter_children_v2' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_iter_dependents' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_iter_dependents_v2' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_iter_filesystems' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_iter_filesystems_v2' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_iter_mounted' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_iter_root' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_iter_snapshots' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_iter_snapshots_sorted' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_iter_snapshots_sorted_v2' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_iter_snapshots_v2' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_iter_snapspec' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_iter_snapspec_v2' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_mod_supported' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_mount' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_mount_at' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -2261,18 +2268,31 @@
       <return type-id='9c313c2d'/>
     </function-decl>
     <function-decl name='zfs_iter_children' mangled-name='zfs_iter_children' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_iter_children'>
-      <parameter type-id='9200a744'/>
-      <parameter type-id='95e97e5e'/>
-      <parameter type-id='d8e49ab9'/>
-      <parameter type-id='eaa32e2f'/>
+      <parameter type-id='9200a744' name='zhp'/>
+      <parameter type-id='d8e49ab9' name='func'/>
+      <parameter type-id='eaa32e2f' name='data'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='zfs_iter_children_v2' mangled-name='zfs_iter_children_v2' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_iter_children_v2'>
+      <parameter type-id='9200a744' name='zhp'/>
+      <parameter type-id='95e97e5e' name='flags'/>
+      <parameter type-id='d8e49ab9' name='func'/>
+      <parameter type-id='eaa32e2f' name='data'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zfs_iter_dependents' mangled-name='zfs_iter_dependents' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_iter_dependents'>
-      <parameter type-id='9200a744'/>
-      <parameter type-id='95e97e5e'/>
-      <parameter type-id='c19b74c3'/>
-      <parameter type-id='d8e49ab9'/>
-      <parameter type-id='eaa32e2f'/>
+      <parameter type-id='9200a744' name='zhp'/>
+      <parameter type-id='c19b74c3' name='allowrecursion'/>
+      <parameter type-id='d8e49ab9' name='func'/>
+      <parameter type-id='eaa32e2f' name='data'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='zfs_iter_dependents_v2' mangled-name='zfs_iter_dependents_v2' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_iter_dependents_v2'>
+      <parameter type-id='9200a744' name='zhp'/>
+      <parameter type-id='95e97e5e' name='flags'/>
+      <parameter type-id='c19b74c3' name='allowrecursion'/>
+      <parameter type-id='d8e49ab9' name='func'/>
+      <parameter type-id='eaa32e2f' name='data'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zfs_iter_mounted' mangled-name='zfs_iter_mounted' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_iter_mounted'>
@@ -3305,10 +3325,16 @@
       <return type-id='80f4b756'/>
     </function-decl>
     <function-decl name='zfs_iter_filesystems' mangled-name='zfs_iter_filesystems' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_iter_filesystems'>
-      <parameter type-id='9200a744'/>
-      <parameter type-id='95e97e5e'/>
-      <parameter type-id='d8e49ab9'/>
-      <parameter type-id='eaa32e2f'/>
+      <parameter type-id='9200a744' name='zhp'/>
+      <parameter type-id='d8e49ab9' name='func'/>
+      <parameter type-id='eaa32e2f' name='data'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='zfs_iter_filesystems_v2' mangled-name='zfs_iter_filesystems_v2' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_iter_filesystems_v2'>
+      <parameter type-id='9200a744' name='zhp'/>
+      <parameter type-id='95e97e5e' name='flags'/>
+      <parameter type-id='d8e49ab9' name='func'/>
+      <parameter type-id='eaa32e2f' name='data'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zfs_parent_name' mangled-name='zfs_parent_name' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_parent_name'>
@@ -3882,19 +3908,34 @@
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zfs_iter_snapshots' mangled-name='zfs_iter_snapshots' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_iter_snapshots'>
-      <parameter type-id='9200a744'/>
-      <parameter type-id='95e97e5e'/>
-      <parameter type-id='d8e49ab9'/>
-      <parameter type-id='eaa32e2f'/>
-      <parameter type-id='9c313c2d'/>
-      <parameter type-id='9c313c2d'/>
+      <parameter type-id='9200a744' name='zhp'/>
+      <parameter type-id='c19b74c3' name='simple'/>
+      <parameter type-id='d8e49ab9' name='func'/>
+      <parameter type-id='eaa32e2f' name='data'/>
+      <parameter type-id='9c313c2d' name='min_txg'/>
+      <parameter type-id='9c313c2d' name='max_txg'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='zfs_iter_snapshots_v2' mangled-name='zfs_iter_snapshots_v2' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_iter_snapshots_v2'>
+      <parameter type-id='9200a744' name='zhp'/>
+      <parameter type-id='95e97e5e' name='flags'/>
+      <parameter type-id='d8e49ab9' name='func'/>
+      <parameter type-id='eaa32e2f' name='data'/>
+      <parameter type-id='9c313c2d' name='min_txg'/>
+      <parameter type-id='9c313c2d' name='max_txg'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zfs_iter_bookmarks' mangled-name='zfs_iter_bookmarks' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_iter_bookmarks'>
-      <parameter type-id='9200a744'/>
-      <parameter type-id='95e97e5e'/>
-      <parameter type-id='d8e49ab9'/>
-      <parameter type-id='eaa32e2f'/>
+      <parameter type-id='9200a744' name='zhp'/>
+      <parameter type-id='d8e49ab9' name='func'/>
+      <parameter type-id='eaa32e2f' name='data'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='zfs_iter_bookmarks_v2' mangled-name='zfs_iter_bookmarks_v2' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_iter_bookmarks_v2'>
+      <parameter type-id='9200a744' name='zhp'/>
+      <parameter type-id='95e97e5e' name='flags'/>
+      <parameter type-id='d8e49ab9' name='func'/>
+      <parameter type-id='eaa32e2f' name='data'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zfs_destroy_snaps_nvl_os' mangled-name='zfs_destroy_snaps_nvl_os' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_destroy_snaps_nvl_os'>
@@ -5092,6 +5133,14 @@
     </function-decl>
     <function-decl name='zfs_iter_snapshots_sorted' mangled-name='zfs_iter_snapshots_sorted' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_iter_snapshots_sorted'>
       <parameter type-id='9200a744' name='zhp'/>
+      <parameter type-id='d8e49ab9' name='callback'/>
+      <parameter type-id='eaa32e2f' name='data'/>
+      <parameter type-id='9c313c2d' name='min_txg'/>
+      <parameter type-id='9c313c2d' name='max_txg'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='zfs_iter_snapshots_sorted_v2' mangled-name='zfs_iter_snapshots_sorted_v2' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_iter_snapshots_sorted_v2'>
+      <parameter type-id='9200a744' name='zhp'/>
       <parameter type-id='95e97e5e' name='flags'/>
       <parameter type-id='d8e49ab9' name='callback'/>
       <parameter type-id='eaa32e2f' name='data'/>
@@ -5100,6 +5149,13 @@
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zfs_iter_snapspec' mangled-name='zfs_iter_snapspec' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_iter_snapspec'>
+      <parameter type-id='9200a744' name='fs_zhp'/>
+      <parameter type-id='80f4b756' name='spec_orig'/>
+      <parameter type-id='d8e49ab9' name='func'/>
+      <parameter type-id='eaa32e2f' name='arg'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='zfs_iter_snapspec_v2' mangled-name='zfs_iter_snapspec_v2' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_iter_snapspec_v2'>
       <parameter type-id='9200a744' name='fs_zhp'/>
       <parameter type-id='95e97e5e' name='flags'/>
       <parameter type-id='80f4b756' name='spec_orig'/>
