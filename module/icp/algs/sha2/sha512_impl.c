@@ -23,10 +23,10 @@
  * Copyright (c) 2022 Tino Reichardt <milky-zfs@mcmilk.de>
  */
 
+#include <sys/simd.h>
 #include <sys/zfs_context.h>
 #include <sys/zfs_impl.h>
 #include <sys/sha2.h>
-#include <sys/simd.h>
 
 #include <sha2/sha2_impl.h>
 #include <sys/asm_linkage.h>
@@ -108,7 +108,7 @@ const sha512_ops_t sha512_armv8_impl = {
 	.name = "armv8-ce"
 };
 
-#elif defined(__arm__)
+#elif defined(__arm__) && __ARM_ARCH > 6
 extern void zfs_sha512_block_armv7(uint64_t s[8], const void *, size_t);
 const sha512_ops_t sha512_armv7_impl = {
 	.is_supported = sha2_is_supported,
@@ -168,7 +168,7 @@ static const sha512_ops_t *const sha512_impls[] = {
 	&sha512_armv7_impl,
 	&sha512_armv8_impl,
 #endif
-#if defined(__arm__)
+#if defined(__arm__) && __ARM_ARCH > 6
 	&sha512_armv7_impl,
 	&sha512_neon_impl,
 #endif

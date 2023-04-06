@@ -45,6 +45,7 @@
 
 #include <sys/types.h>
 #include <machine/elf.h>
+#include <machine/md_var.h>
 
 #define	kfpu_allowed()		1
 #define	kfpu_initialize(tsk)	do {} while (0)
