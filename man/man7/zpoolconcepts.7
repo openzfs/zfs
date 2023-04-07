@@ -70,7 +70,7 @@ devices failing, without losing data.
 .It Sy raidz , raidz1 , raidz2 , raidz3
 A distributed-parity layout, similar to RAID-5/6, with improved distribution of
 parity, and which does not suffer from the RAID-5/6
-.Qq write hole,
+.Qq write hole ,
 .Pq in which data and parity become inconsistent after a power loss .
 Data and parity is striped across all disks within a raidz group, though not
 necessarily in a consistent stripe width.
@@ -327,7 +327,8 @@ and might not be supported on all platforms.
 .Ss Hot Spares
 ZFS allows devices to be associated with pools as
 .Qq hot spares .
-These devices are not actively used in the pool. But, when an active device
+These devices are not actively used in the pool.
+But, when an active device
 fails, it is automatically replaced by a hot spare.
 To create a pool with hot spares, specify a
 .Sy spare
@@ -444,8 +445,8 @@ If a cache device is onlined with
 its contents will be restored in L2ARC.
 This is useful in case of memory pressure,
 where the contents of the cache device are not fully restored in L2ARC.
-The user can off- and online the cache device when there is less memory pressure,
-in order to fully restore its contents to L2ARC.
+The user can off- and online the cache device when there is less memory
+pressure, to fully restore its contents to L2ARC.
 .
 .Ss Pool checkpoint
 Before starting critical procedures that include destructive actions
