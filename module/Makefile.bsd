@@ -507,6 +507,16 @@ CFLAGS.zstd_lazy.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
 CFLAGS.zstd_ldm.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
 CFLAGS.zstd_opt.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
 
+sha256-armv8.o: sha256-armv8.S
+	${CC} -c ${CFLAGS:N-mgeneral-regs-only} ${WERROR} ${.IMPSRC} \
+	     -o ${.TARGET}
+	${CTFCONVERT_CMD}
+
+sha512-armv8.o: sha512-armv8.S
+	${CC} -c ${CFLAGS:N-mgeneral-regs-only} ${WERROR} ${.IMPSRC} \
+	     -o ${.TARGET}
+	${CTFCONVERT_CMD}
+
 b3_aarch64_sse2.o: b3_aarch64_sse2.S
 	${CC} -c ${CFLAGS:N-mgeneral-regs-only} ${WERROR} ${.IMPSRC} \
 	     -o ${.TARGET}
