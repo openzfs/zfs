@@ -9,11 +9,11 @@ build_script:
 
     curl -sflL 'https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-vnc.sh' | bash -e -
 
-
+    brew install gsed
 
     sh autogen.sh
 
-    ./configure CPPFLAGS="-I/usr/local/opt/gettext/include -I/usr/local/opt/openssl@1.1/include" LDFLAGS="-L/usr/local/opt/gettext/lib/ -L/usr/local/opt/openssl@1.1/lib" CFLAGS="-g -O2"  --sysconfdir=/etc --localstatedir=/var --prefix=/usr/local/zfs --sbindir=/usr/local/zfs/bin --enable-debug
+    ./configure SED=gsed CPPFLAGS="-I/usr/local/opt/gettext/include -I/usr/local/opt/openssl@1.1/include" LDFLAGS="-L/usr/local/opt/gettext/lib/ -L/usr/local/opt/openssl@1.1/lib" CFLAGS="-g -O2"  --sysconfdir=/etc --localstatedir=/var --prefix=/usr/local/zfs --sbindir=/usr/local/zfs/bin --enable-debug
 
 
     echo "Checking codestyle"
