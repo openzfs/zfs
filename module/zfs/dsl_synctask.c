@@ -57,7 +57,7 @@ dsl_sync_task_common(const char *pool, dsl_checkfunc_t *checkfunc,
 
 top:
 	tx = dmu_tx_create_dd(dp->dp_mos_dir);
-	err = dmu_tx_assign(tx, TXG_WAIT);
+	err = dmu_tx_assign(tx, DMU_TX_ASSIGN_WAIT);
 	if (err != 0) {
 		ASSERT(spa_exiting_any(spa));
 		dmu_tx_abort(tx);

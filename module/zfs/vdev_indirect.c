@@ -570,7 +570,7 @@ spa_condense_indirect_commit_entry(spa_t *spa,
 
 	tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
 	dmu_tx_hold_space(tx, sizeof (*vimep) + sizeof (count));
-	if (dmu_tx_assign(tx, TXG_WAIT) != 0) {
+	if (dmu_tx_assign(tx, DMU_TX_ASSIGN_WAIT) != 0) {
 		ASSERT(spa_exiting_any(spa));
 		dmu_tx_abort(tx);
 		return;

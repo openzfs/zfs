@@ -556,7 +556,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		    MIN(n, max_blksz));
 		DB_DNODE_EXIT(db);
 		zfs_sa_upgrade_txholds(tx, zp);
-		error = dmu_tx_assign(tx, TXG_WAIT);
+		error = dmu_tx_assign(tx, DMU_TX_ASSIGN_WAIT);
 		if (error) {
 			dmu_tx_abort(tx);
 			if (abuf != NULL)

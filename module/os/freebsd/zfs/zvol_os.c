@@ -677,7 +677,7 @@ zvol_geom_bio_strategy(struct bio *bp)
 
 	if (bp->bio_cmd == BIO_DELETE) {
 		dmu_tx_t *tx = dmu_tx_create(zv->zv_objset);
-		error = dmu_tx_assign(tx, TXG_WAIT);
+		error = dmu_tx_assign(tx, DMU_TX_ASSIGN_WAIT);
 		if (error != 0) {
 			dmu_tx_abort(tx);
 		} else {
@@ -697,7 +697,7 @@ zvol_geom_bio_strategy(struct bio *bp)
 		} else {
 			dmu_tx_t *tx = dmu_tx_create(os);
 			dmu_tx_hold_write_by_dnode(tx, zv->zv_dn, off, size);
-			error = dmu_tx_assign(tx, TXG_WAIT);
+			error = dmu_tx_assign(tx, DMU_TX_ASSIGN_WAIT);
 			if (error) {
 				dmu_tx_abort(tx);
 			} else {
@@ -842,7 +842,7 @@ zvol_cdev_write(struct cdev *dev, struct uio *uio_s, int ioflag)
 			bytes = volsize - off;
 
 		dmu_tx_hold_write_by_dnode(tx, zv->zv_dn, off, bytes);
-		error = dmu_tx_assign(tx, TXG_WAIT);
+		error = dmu_tx_assign(tx, DMU_TX_ASSIGN_WAIT);
 		if (error) {
 			dmu_tx_abort(tx);
 			break;
@@ -1104,7 +1104,7 @@ zvol_cdev_ioctl(struct cdev *dev, ulong_t cmd, caddr_t data,
 		lr = zfs_rangelock_enter(&zv->zv_rangelock, offset, length,
 		    RL_WRITER);
 		dmu_tx_t *tx = dmu_tx_create(zv->zv_objset);
-		error = dmu_tx_assign(tx, TXG_WAIT);
+		error = dmu_tx_assign(tx, DMU_TX_ASSIGN_WAIT);
 		if (error != 0) {
 			sync = FALSE;
 			dmu_tx_abort(tx);

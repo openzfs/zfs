@@ -1106,7 +1106,7 @@ dsl_scan_restart_resilver(dsl_pool_t *dp, uint64_t txg)
 	if (txg == 0) {
 		dmu_tx_t *tx;
 		tx = dmu_tx_create_dd(dp->dp_mos_dir);
-		error = dmu_tx_assign(tx, TXG_WAIT);
+		error = dmu_tx_assign(tx, DMU_TX_ASSIGN_WAIT);
 		if (error != 0) {
 			ASSERT(spa_exiting_any(dp->dp_spa));
 			dmu_tx_abort(tx);

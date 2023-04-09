@@ -1535,7 +1535,7 @@ spa_vdev_remove_thread(void *arg)
 			 * If a tx can't be assigned, just punt and wait for
 			 * the next round.  This must be an exiting spa.
 			 */
-			if (dmu_tx_assign(tx, TXG_WAIT) != 0) {
+			if (dmu_tx_assign(tx, DMU_TX_ASSIGN_WAIT) != 0) {
 				ASSERT(spa_exiting_any(spa));
 				dmu_tx_abort(tx);
 				goto done;

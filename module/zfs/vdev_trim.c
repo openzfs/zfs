@@ -317,7 +317,7 @@ vdev_trim_change_state(vdev_t *vd, vdev_trim_state_t new_state,
 	vd->vdev_trim_state = new_state;
 
 	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
-	int txerr = dmu_tx_assign(tx, TXG_WAIT);
+	int txerr = dmu_tx_assign(tx, DMU_TX_ASSIGN_WAIT);
 	if (txerr != 0) {
 		ASSERT(spa_exiting_any(spa));
 		dmu_tx_abort(tx);
@@ -509,7 +509,7 @@ vdev_trim_range(trim_args_t *ta, uint64_t start, uint64_t size)
 	mutex_exit(&vd->vdev_trim_io_lock);
 
 	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
-	int err = dmu_tx_assign(tx, TXG_WAIT);
+	int err = dmu_tx_assign(tx, DMU_TX_ASSIGN_WAIT);
 	if (err != 0) {
 		ASSERT(spa_exiting_any(spa));
 		mutex_enter(&vd->vdev_trim_io_lock);

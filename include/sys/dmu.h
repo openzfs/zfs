@@ -269,14 +269,16 @@ typedef enum dmu_object_type {
 } dmu_object_type_t;
 
 /*
- * These flags are intended to be used to specify the "txg_how"
+ * These flags are intended to be used to specify the "flags"
  * parameter when calling the dmu_tx_assign() function. See the comment
  * above dmu_tx_assign() for more details on the meaning of these flags.
  */
-#define	TXG_NOWAIT	(0ULL)
-#define	TXG_WAIT	(1ULL<<0)
-#define	TXG_NOTHROTTLE	(1ULL<<1)
-#define	TXG_NOSUSPEND	(1ULL<<2)
+typedef enum {
+	DMU_TX_ASSIGN_NOWAIT		= 0,
+	DMU_TX_ASSIGN_WAIT		= (1U << 0),
+	DMU_TX_ASSIGN_NOTHROTTLE	= (1U << 1),
+	DMU_TX_ASSIGN_NOSUSPEND		= (1U << 2),
+} dmu_tx_assign_flag_t;
 
 void byteswap_uint64_array(void *buf, size_t size);
 void byteswap_uint32_array(void *buf, size_t size);
@@ -785,7 +787,7 @@ void dmu_tx_hold_spill(dmu_tx_t *tx, uint64_t object);
 void dmu_tx_hold_sa(dmu_tx_t *tx, struct sa_handle *hdl, boolean_t may_grow);
 void dmu_tx_hold_sa_create(dmu_tx_t *tx, int total_size);
 void dmu_tx_abort(dmu_tx_t *tx);
-int dmu_tx_assign(dmu_tx_t *tx, uint64_t txg_how);
+int dmu_tx_assign(dmu_tx_t *tx, dmu_tx_assign_flag_t flags);
 void dmu_tx_wait(dmu_tx_t *tx);
 void dmu_tx_commit(dmu_tx_t *tx);
 void dmu_tx_mark_netfree(dmu_tx_t *tx);

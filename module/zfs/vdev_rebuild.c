@@ -283,7 +283,7 @@ vdev_rebuild_initiate(vdev_t *vd)
 	ASSERT(!vd->vdev_rebuilding);
 
 	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
-	int err = dmu_tx_assign(tx, TXG_WAIT);
+	int err = dmu_tx_assign(tx, DMU_TX_ASSIGN_WAIT);
 	if (err != 0) {
 		ASSERT(spa_exiting_any(vd->vdev_spa));
 		dmu_tx_abort(tx);
@@ -576,7 +576,7 @@ vdev_rebuild_range(vdev_rebuild_t *vr, uint64_t start, uint64_t size)
 	mutex_exit(&vr->vr_io_lock);
 
 	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
-	int err = dmu_tx_assign(tx, TXG_WAIT);
+	int err = dmu_tx_assign(tx, DMU_TX_ASSIGN_WAIT);
 	if (err != 0) {
 		ASSERT(spa_exiting_any(spa));
 		dmu_tx_abort(tx);
@@ -914,7 +914,7 @@ vdev_rebuild_thread(void *arg)
 
 	dsl_pool_t *dp = spa_get_dsl(spa);
 	dmu_tx_t *tx = dmu_tx_create_dd(dp->dp_mos_dir);
-	int txerr = dmu_tx_assign(tx, TXG_WAIT);
+	int txerr = dmu_tx_assign(tx, DMU_TX_ASSIGN_WAIT);
 
 	mutex_enter(&vd->vdev_rebuild_lock);
 	if (txerr != 0) {

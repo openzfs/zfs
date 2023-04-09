@@ -565,7 +565,7 @@ commit_rl_updates(objset_t *os, struct merge_data *md, uint64_t object,
 	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(os->os_spa)->dp_mos_dir);
 	dmu_tx_hold_space(tx, sizeof (struct redact_block_list_node));
 
-	int err = dmu_tx_assign(tx, TXG_WAIT);
+	int err = dmu_tx_assign(tx, DMU_TX_ASSIGN_WAIT);
 	if (err != 0) {
 		ASSERT(spa_exiting_any(os->os_spa));
 		dmu_tx_abort(tx);

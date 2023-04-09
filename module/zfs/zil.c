@@ -695,7 +695,7 @@ zil_create(zilog_t *zilog)
 	 */
 	if (BP_IS_HOLE(&blk) || BP_SHOULD_BYTESWAP(&blk)) {
 		tx = dmu_tx_create(zilog->zl_os);
-		error = dmu_tx_assign(tx, TXG_WAIT);
+		error = dmu_tx_assign(tx, DMU_TX_ASSIGN_WAIT);
 		if (error != 0) {
 			ASSERT(dmu_objset_exiting(zilog->zl_os));
 			dmu_tx_abort(tx);
@@ -768,7 +768,7 @@ zil_destroy(zilog_t *zilog, boolean_t keep_first)
 		return;
 
 	tx = dmu_tx_create(zilog->zl_os);
-	error = dmu_tx_assign(tx, TXG_WAIT);
+	error = dmu_tx_assign(tx, DMU_TX_ASSIGN_WAIT);
 	if (error != 0) {
 		ASSERT(dmu_objset_exiting(zilog->zl_os));
 		dmu_tx_abort(tx);
@@ -1530,9 +1530,10 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 	 * Since we are not going to create any new dirty data, and we
 	 * can even help with clearing the existing dirty data, we
 	 * should not be subject to the dirty data based delays. We
-	 * use TXG_NOTHROTTLE to bypass the delay mechanism.
+	 * use DMU_TX_ASSIGN_NOTHROTTLE to bypass the delay mechanism.
 	 */
-	if (dmu_tx_assign(tx, TXG_WAIT | TXG_NOTHROTTLE) != 0) {
+	if (dmu_tx_assign(tx,
+	    DMU_TX_ASSIGN_WAIT | DMU_TX_ASSIGN_NOTHROTTLE) != 0) {
 		ASSERT(dmu_objset_exiting(zilog->zl_os));
 		dmu_tx_abort(tx);
 		return (NULL);
@@ -2829,7 +2830,7 @@ zil_commit_itx_assign(zilog_t *zilog, zil_commit_waiter_t *zcw)
 {
 	dmu_tx_t *tx = dmu_tx_create(zilog->zl_os);
 
-	if (dmu_tx_assign(tx, TXG_WAIT) != 0) {
+	if (dmu_tx_assign(tx, DMU_TX_ASSIGN_WAIT) != 0) {
 		ASSERT(dmu_objset_exiting(zilog->zl_os));
 		dmu_tx_abort(tx);
 		return;
