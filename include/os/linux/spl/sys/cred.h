@@ -45,6 +45,8 @@ typedef struct cred cred_t;
 #define	SGID_TO_KGID(x)		(KGIDT_INIT(x))
 #define	KGIDP_TO_SGIDP(x)	(&(x)->val)
 
+extern zidmap_t *zfs_get_init_idmap(void);
+
 extern void crhold(cred_t *cr);
 extern void crfree(cred_t *cr);
 extern uid_t crgetuid(const cred_t *cr);

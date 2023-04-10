@@ -54,4 +54,18 @@ typedef ulong_t			pgcnt_t;
 typedef int			major_t;
 typedef int			minor_t;
 
+struct user_namespace;
+#ifdef HAVE_IOPS_CREATE_IDMAP
+#include <linux/refcount.h>
+struct mnt_idmap {
+	struct user_namespace *owner;
+	refcount_t count;
+};
+typedef struct mnt_idmap	zidmap_t;
+#else
+typedef struct user_namespace	zidmap_t;
+#endif
+
+extern zidmap_t *zfs_init_idmap;
+
 #endif	/* _SPL_TYPES_H */

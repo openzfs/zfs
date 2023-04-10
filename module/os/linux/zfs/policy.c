@@ -124,7 +124,7 @@ secpolicy_vnode_any_access(const cred_t *cr, struct inode *ip, uid_t owner)
 	if (crgetuid(cr) == owner)
 		return (0);
 
-	if (zpl_inode_owner_or_capable(kcred->user_ns, ip))
+	if (zpl_inode_owner_or_capable(zfs_init_idmap, ip))
 		return (0);
 
 #if defined(CONFIG_USER_NS)

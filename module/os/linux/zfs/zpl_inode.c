@@ -131,6 +131,9 @@ static int
 #ifdef HAVE_IOPS_CREATE_USERNS
 zpl_create(struct user_namespace *user_ns, struct inode *dir,
     struct dentry *dentry, umode_t mode, bool flag)
+#elif defined(HAVE_IOPS_CREATE_IDMAP)
+zpl_create(struct mnt_idmap *user_ns, struct inode *dir,
+    struct dentry *dentry, umode_t mode, bool flag)
 #else
 zpl_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool flag)
 #endif
@@ -173,6 +176,9 @@ zpl_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool flag)
 static int
 #ifdef HAVE_IOPS_MKNOD_USERNS
 zpl_mknod(struct user_namespace *user_ns, struct inode *dir,
+    struct dentry *dentry, umode_t mode,
+#elif defined(HAVE_IOPS_MKNOD_IDMAP)
+zpl_mknod(struct mnt_idmap *user_ns, struct inode *dir,
     struct dentry *dentry, umode_t mode,
 #else
 zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
@@ -224,7 +230,10 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
 
 #ifdef HAVE_TMPFILE
 static int
-#ifndef HAVE_TMPFILE_DENTRY
+#ifdef HAVE_TMPFILE_IDMAP
+zpl_tmpfile(struct mnt_idmap *userns, struct inode *dir,
+    struct file *file, umode_t mode)
+#elif !defined(HAVE_TMPFILE_DENTRY)
 zpl_tmpfile(struct user_namespace *userns, struct inode *dir,
     struct file *file, umode_t mode)
 #else
@@ -317,6 +326,9 @@ static int
 #ifdef HAVE_IOPS_MKDIR_USERNS
 zpl_mkdir(struct user_namespace *user_ns, struct inode *dir,
     struct dentry *dentry, umode_t mode)
+#elif defined(HAVE_IOPS_MKDIR_IDMAP)
+zpl_mkdir(struct mnt_idmap *user_ns, struct inode *dir,
+    struct dentry *dentry, umode_t mode)
 #else
 zpl_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 #endif
@@ -386,6 +398,10 @@ static int
 zpl_getattr_impl(struct user_namespace *user_ns,
     const struct path *path, struct kstat *stat, u32 request_mask,
     unsigned int query_flags)
+#elif defined(HAVE_IDMAP_IOPS_GETATTR)
+zpl_getattr_impl(struct mnt_idmap *user_ns,
+    const struct path *path, struct kstat *stat, u32 request_mask,
+    unsigned int query_flags)
 #else
 zpl_getattr_impl(const struct path *path, struct kstat *stat, u32 request_mask,
     unsigned int query_flags)
@@ -402,7 +418,7 @@ zpl_getattr_impl(const struct path *path, struct kstat *stat, u32 request_mask,
 	 * XXX query_flags currently ignored.
 	 */
 
-#ifdef HAVE_USERNS_IOPS_GETATTR
+#if (defined(HAVE_USERNS_IOPS_GETATTR) || defined(HAVE_IDMAP_IOPS_GETATTR))
 	error = -zfs_getattr_fast(user_ns, ip, stat);
 #else
 	error = -zfs_getattr_fast(kcred->user_ns, ip, stat);
@@ -441,8 +457,11 @@ zpl_getattr_impl(const struct path *path, struct kstat *stat, u32 request_mask,
 ZPL_GETATTR_WRAPPER(zpl_getattr);
 
 static int
-#ifdef HAVE_SETATTR_PREPARE_USERNS
+#ifdef HAVE_USERNS_IOPS_SETATTR
 zpl_setattr(struct user_namespace *user_ns, struct dentry *dentry,
+    struct iattr *ia)
+#elif defined(HAVE_IDMAP_IOPS_SETATTR)
+zpl_setattr(struct mnt_idmap *user_ns, struct dentry *dentry,
     struct iattr *ia)
 #else
 zpl_setattr(struct dentry *dentry, struct iattr *ia)
@@ -454,7 +473,13 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 	int error;
 	fstrans_cookie_t cookie;
 
-	error = zpl_setattr_prepare(kcred->user_ns, dentry, ia);
+#ifdef HAVE_SETATTR_PREPARE_USERNS
+	error = zpl_setattr_prepare(user_ns, dentry, ia);
+#elif defined(HAVE_SETATTR_PREPARE_IDMAP)
+	error = zpl_setattr_prepare(user_ns, dentry, ia);
+#else
+	error = zpl_setattr_prepare(zfs_init_idmap, dentry, ia);
+#endif
 	if (error)
 		return (error);
 
@@ -489,10 +514,14 @@ static int
 #ifdef HAVE_IOPS_RENAME_USERNS
 zpl_rename2(struct user_namespace *user_ns, struct inode *sdip,
     struct dentry *sdentry, struct inode *tdip, struct dentry *tdentry,
-    unsigned int flags)
+    unsigned int rflags)
+#elif defined(HAVE_IOPS_RENAME_IDMAP)
+zpl_rename2(struct mnt_idmap *user_ns, struct inode *sdip,
+    struct dentry *sdentry, struct inode *tdip, struct dentry *tdentry,
+    unsigned int rflags)
 #else
 zpl_rename2(struct inode *sdip, struct dentry *sdentry,
-    struct inode *tdip, struct dentry *tdentry, unsigned int flags)
+    struct inode *tdip, struct dentry *tdentry, unsigned int rflags)
 #endif
 {
 	cred_t *cr = CRED();
@@ -500,7 +529,7 @@ zpl_rename2(struct inode *sdip, struct dentry *sdentry,
 	fstrans_cookie_t cookie;
 
 	/* We don't have renameat2(2) support */
-	if (flags)
+	if (rflags)
 		return (-EINVAL);
 
 	crhold(cr);
@@ -514,7 +543,9 @@ zpl_rename2(struct inode *sdip, struct dentry *sdentry,
 	return (error);
 }
 
-#if !defined(HAVE_RENAME_WANTS_FLAGS) && !defined(HAVE_IOPS_RENAME_USERNS)
+#if !defined(HAVE_IOPS_RENAME_USERNS) && \
+	!defined(HAVE_RENAME_WANTS_FLAGS) && \
+	!defined(HAVE_IOPS_RENAME_IDMAP)
 static int
 zpl_rename(struct inode *sdip, struct dentry *sdentry,
     struct inode *tdip, struct dentry *tdentry)
@@ -526,6 +557,9 @@ zpl_rename(struct inode *sdip, struct dentry *sdentry,
 static int
 #ifdef HAVE_IOPS_SYMLINK_USERNS
 zpl_symlink(struct user_namespace *user_ns, struct inode *dir,
+    struct dentry *dentry, const char *name)
+#elif defined(HAVE_IOPS_SYMLINK_IDMAP)
+zpl_symlink(struct mnt_idmap *user_ns, struct inode *dir,
     struct dentry *dentry, const char *name)
 #else
 zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
@@ -744,6 +778,8 @@ const struct inode_operations zpl_dir_inode_operations = {
 	.rmdir		= zpl_rmdir,
 	.mknod		= zpl_mknod,
 #if defined(HAVE_RENAME_WANTS_FLAGS) || defined(HAVE_IOPS_RENAME_USERNS)
+	.rename		= zpl_rename2,
+#elif defined(HAVE_IOPS_RENAME_IDMAP)
 	.rename		= zpl_rename2,
 #else
 	.rename		= zpl_rename,

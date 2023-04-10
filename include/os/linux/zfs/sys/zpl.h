@@ -64,7 +64,10 @@ extern int zpl_xattr_security_init(struct inode *ip, struct inode *dip,
     const struct qstr *qstr);
 #if defined(CONFIG_FS_POSIX_ACL)
 #if defined(HAVE_SET_ACL)
-#if defined(HAVE_SET_ACL_USERNS)
+#if defined(HAVE_SET_ACL_IDMAP_DENTRY)
+extern int zpl_set_acl(struct mnt_idmap *idmap, struct dentry *dentry,
+    struct posix_acl *acl, int type);
+#elif defined(HAVE_SET_ACL_USERNS)
 extern int zpl_set_acl(struct user_namespace *userns, struct inode *ip,
     struct posix_acl *acl, int type);
 #elif defined(HAVE_SET_ACL_USERNS_DENTRY_ARG2)
@@ -186,13 +189,15 @@ zpl_dir_emit_dots(struct file *file, zpl_dir_context_t *ctx)
 
 #if defined(HAVE_INODE_OWNER_OR_CAPABLE)
 #define	zpl_inode_owner_or_capable(ns, ip)	inode_owner_or_capable(ip)
-#elif defined(HAVE_INODE_OWNER_OR_CAPABLE_IDMAPPED)
+#elif defined(HAVE_INODE_OWNER_OR_CAPABLE_USERNS)
 #define	zpl_inode_owner_or_capable(ns, ip)	inode_owner_or_capable(ns, ip)
+#elif defined(HAVE_INODE_OWNER_OR_CAPABLE_IDMAP)
+#define	zpl_inode_owner_or_capable(idmap, ip) inode_owner_or_capable(idmap, ip)
 #else
 #error "Unsupported kernel"
 #endif
 
-#ifdef HAVE_SETATTR_PREPARE_USERNS
+#if defined(HAVE_SETATTR_PREPARE_USERNS) || defined(HAVE_SETATTR_PREPARE_IDMAP)
 #define	zpl_setattr_prepare(ns, dentry, ia)	setattr_prepare(ns, dentry, ia)
 #else
 /*

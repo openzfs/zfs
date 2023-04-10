@@ -288,6 +288,8 @@ zfsdev_detach(void)
 #define	ZFS_DEBUG_STR	""
 #endif
 
+zidmap_t *zfs_init_idmap;
+
 static int __init
 openzfs_init(void)
 {
@@ -310,6 +312,8 @@ openzfs_init(void)
 #ifndef CONFIG_FS_POSIX_ACL
 	printk(KERN_NOTICE "ZFS: Posix ACLs disabled by kernel\n");
 #endif /* CONFIG_FS_POSIX_ACL */
+
+	zfs_init_idmap = (zidmap_t *)zfs_get_init_idmap();
 
 	return (0);
 }
