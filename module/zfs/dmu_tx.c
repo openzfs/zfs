@@ -885,17 +885,30 @@ dmu_tx_try_assign(dmu_tx_t *tx, dmu_tx_assign_flag_t flags)
 		/*
 		 * If the user has indicated a blocking failure mode
 		 * then return ERESTART which will block in dmu_tx_wait().
-		 * Otherwise, return EIO so that an error can get
-		 * propagated back to the VOP calls.
-		 *
-		 * Note that we always honor the DMU_TX_ASSIGN_WAIT flag
-		 * regardless of the failuremode setting.
 		 */
-		if (spa_get_failmode(spa) == ZIO_FAILURE_MODE_CONTINUE &&
-		    !(flags & DMU_TX_ASSIGN_WAIT))
+		if (spa_get_failmode(spa) != ZIO_FAILURE_MODE_CONTINUE)
+			return (SET_ERROR(ERESTART));
+
+		/*
+		 * If failmode=continue and we got here through some syscall,
+		 * then return EIO so it can be propagated back to the caller.
+		 */
+		if (flags & DMU_TX_ASSIGN_CONTINUE)
 			return (SET_ERROR(EIO));
 
-		return (SET_ERROR(ERESTART));
+		/*
+		 * If DMU_TX_ASSIGN_WAIT is set, always honor it. Non-syscall
+		 * ops (ZFS internals) that haven't opted out are expecting
+		 * dmu_tx_assign to block, regardless of failmode.
+		 */
+		if (flags & DMU_TX_ASSIGN_WAIT)
+			return (SET_ERROR(ERESTART));
+
+		/*
+		 * Anything else is requesting we don't wait, and doesn't care
+		 * about suspend state, so just return a general failure.
+		 */
+		return (SET_ERROR(EIO));
 	}
 
 	if (!tx->tx_dirty_delayed &&
@@ -1034,6 +1047,13 @@ static void dmu_tx_wait_flags(dmu_tx_t *, txg_wait_flag_t);
  * ensures that the request does not inadvertently cause conditions that cannot
  * be unwound.
  *
+ * If DMU_TX_ASSIGN_CONTINUE is set, the request will return EIO if
+ * failmode=continue and the pool becomes suspended while the request is in
+ * progress. For any other failmode, it is ignored. This is meant as a variant
+ * of NOSUSPEND for in syscalls and other places where it its possible to
+ * propagate a failure back at the earliest opportunity, and the operator has
+ * requested that we do so.
+ *
  * It is guaranteed that subsequent successful calls to dmu_tx_assign()
  * will assign the tx to monotonically increasing txgs. Of course this is
  * not strong monotonicity, because the same txg can be returned multiple
@@ -1053,11 +1073,12 @@ static void dmu_tx_wait_flags(dmu_tx_t *, txg_wait_flag_t);
 int
 dmu_tx_assign(dmu_tx_t *tx, dmu_tx_assign_flag_t flags)
 {
+	spa_t *spa = tx->tx_pool->dp_spa;
 	int err;
 
 	ASSERT(tx->tx_txg == 0);
-	ASSERT0(flags & ~(DMU_TX_ASSIGN_NOSUSPEND | DMU_TX_ASSIGN_WAIT |
-	    DMU_TX_ASSIGN_NOTHROTTLE));
+	ASSERT0(flags & ~(DMU_TX_ASSIGN_WAIT | DMU_TX_ASSIGN_NOTHROTTLE |
+	    DMU_TX_ASSIGN_NOSUSPEND | DMU_TX_ASSIGN_CONTINUE));
 	ASSERT(!dsl_pool_sync_context(tx->tx_pool));
 
 	/* If we might wait, we must not hold the config lock. */
@@ -1065,6 +1086,10 @@ dmu_tx_assign(dmu_tx_t *tx, dmu_tx_assign_flag_t flags)
 
 	if ((flags & DMU_TX_ASSIGN_NOTHROTTLE))
 		tx->tx_dirty_delayed = B_TRUE;
+
+	boolean_t nosuspend = (flags & DMU_TX_ASSIGN_NOSUSPEND) ||
+	    ((flags & DMU_TX_ASSIGN_CONTINUE) &&
+	    spa_get_failmode(spa) == ZIO_FAILURE_MODE_CONTINUE);
 
 	while ((err = dmu_tx_try_assign(tx, flags)) != 0) {
 		dmu_tx_unassign(tx);
@@ -1074,14 +1099,15 @@ dmu_tx_assign(dmu_tx_t *tx, dmu_tx_assign_flag_t flags)
 
 		/*
 		 * Wait until there's room in this txg, or until its been
-		 * synced out and a new one is available. We pass the NOSUSPEND
-		 * flag down if its set; if the pool suspends while we're
-		 * waiting for the txg, this will return and we'll loop and end
-		 * up back in dmu_tx_try_assign, which will deal with the
-		 * suspension appropriately.
+		 * synced out and a new one is available.
+		 *
+		 * The caller may request that we abort if the pool suspends;
+		 * if so, we pass the NOSUSPEND flag down.  If the pool
+		 * suspends while we're waiting for the txg, this will return
+		 * and we'll loop and end up back in dmu_tx_try_assign, which
+		 * will deal with the suspension appropriately.
 		 */
-		dmu_tx_wait_flags(tx, (flags & DMU_TX_ASSIGN_NOSUSPEND)
-		    ? TXG_WAIT_F_NOSUSPEND : 0);
+		dmu_tx_wait_flags(tx, nosuspend ? TXG_WAIT_F_NOSUSPEND : 0);
 	}
 
 	txg_rele_to_quiesce(&tx->tx_txgh);

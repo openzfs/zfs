@@ -278,6 +278,7 @@ typedef enum {
 	DMU_TX_ASSIGN_WAIT		= (1U << 0),
 	DMU_TX_ASSIGN_NOTHROTTLE	= (1U << 1),
 	DMU_TX_ASSIGN_NOSUSPEND		= (1U << 2),
+	DMU_TX_ASSIGN_CONTINUE		= (1U << 3),
 } dmu_tx_assign_flag_t;
 
 void byteswap_uint64_array(void *buf, size_t size);
