@@ -1192,8 +1192,19 @@ dmu_tx_wait_flags(dmu_tx_t *tx, txg_wait_flag_t flags)
 void
 dmu_tx_wait(dmu_tx_t *tx)
 {
-
-	return (dmu_tx_wait_flags(tx, TXG_WAIT_F_NONE));
+	/*
+	 * If we're in a non-blocking failmode, we call dmu_tx_wait_flags() with
+	 * NOSUSPEND to ensure that if we end up in txg_wait_synced_tx(), we
+	 * don't we don't get stuck there.
+	 *
+	 * If the pool does suspend and we're in failmode=continue, the caller
+	 * will call dmu_tx_abort() and then try again. Eventually, it'll land
+	 * back in dmu_tx_assign(NOWAIT), which will return EIO, and the caller
+	 * will enter its error path.
+	 */
+	(void) dmu_tx_wait_flags(tx,
+	    (spa_get_failmode(tx->tx_pool->dp_spa) == ZIO_FAILURE_MODE_CONTINUE)
+	    ? TXG_WAIT_F_NOSUSPEND : 0);
 }
 
 static void
