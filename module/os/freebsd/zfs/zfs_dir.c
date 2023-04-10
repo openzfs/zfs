@@ -827,7 +827,7 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, znode_t **xvpp, cred_t *cr)
 	fuid_dirtied = zfsvfs->z_fuid_dirty;
 	if (fuid_dirtied)
 		zfs_fuid_txhold(zfsvfs, tx);
-	error = dmu_tx_assign(tx, DMU_TX_ASSIGN_WAIT);
+	error = dmu_tx_assign(tx, DMU_TX_ASSIGN_WAIT | DMU_TX_ASSIGN_CONTINUE);
 	if (error) {
 		zfs_acl_ids_free(&acl_ids);
 		dmu_tx_abort(tx);

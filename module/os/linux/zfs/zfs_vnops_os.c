@@ -2327,7 +2327,7 @@ top:
 
 	zfs_sa_upgrade_txholds(tx, zp);
 
-	err = dmu_tx_assign(tx, DMU_TX_ASSIGN_WAIT);
+	err = dmu_tx_assign(tx, DMU_TX_ASSIGN_WAIT | DMU_TX_ASSIGN_CONTINUE);
 	if (err)
 		goto out;
 
