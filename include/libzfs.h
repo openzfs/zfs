@@ -656,17 +656,29 @@ _LIBZFS_H void zprop_print_one_property(const char *, zprop_get_cbdata_t *,
 
 typedef int (*zfs_iter_f)(zfs_handle_t *, void *);
 _LIBZFS_H int zfs_iter_root(libzfs_handle_t *, zfs_iter_f, void *);
-_LIBZFS_H int zfs_iter_children(zfs_handle_t *, int, zfs_iter_f, void *);
-_LIBZFS_H int zfs_iter_dependents(zfs_handle_t *, int, boolean_t, zfs_iter_f,
+_LIBZFS_H int zfs_iter_children(zfs_handle_t *, zfs_iter_f, void *);
+_LIBZFS_H int zfs_iter_dependents(zfs_handle_t *, boolean_t, zfs_iter_f,
     void *);
-_LIBZFS_H int zfs_iter_filesystems(zfs_handle_t *, int, zfs_iter_f, void *);
-_LIBZFS_H int zfs_iter_snapshots(zfs_handle_t *, int, zfs_iter_f, void *,
+_LIBZFS_H int zfs_iter_filesystems(zfs_handle_t *, zfs_iter_f, void *);
+_LIBZFS_H int zfs_iter_snapshots(zfs_handle_t *, boolean_t, zfs_iter_f, void *,
     uint64_t, uint64_t);
-_LIBZFS_H int zfs_iter_snapshots_sorted(zfs_handle_t *, int, zfs_iter_f, void *,
+_LIBZFS_H int zfs_iter_snapshots_sorted(zfs_handle_t *, zfs_iter_f, void *,
     uint64_t, uint64_t);
-_LIBZFS_H int zfs_iter_snapspec(zfs_handle_t *, int, const char *, zfs_iter_f,
+_LIBZFS_H int zfs_iter_snapspec(zfs_handle_t *, const char *, zfs_iter_f,
     void *);
-_LIBZFS_H int zfs_iter_bookmarks(zfs_handle_t *, int, zfs_iter_f, void *);
+_LIBZFS_H int zfs_iter_bookmarks(zfs_handle_t *, zfs_iter_f, void *);
+
+_LIBZFS_H int zfs_iter_children_v2(zfs_handle_t *, int, zfs_iter_f, void *);
+_LIBZFS_H int zfs_iter_dependents_v2(zfs_handle_t *, int, boolean_t, zfs_iter_f,
+    void *);
+_LIBZFS_H int zfs_iter_filesystems_v2(zfs_handle_t *, int, zfs_iter_f, void *);
+_LIBZFS_H int zfs_iter_snapshots_v2(zfs_handle_t *, int, zfs_iter_f, void *,
+    uint64_t, uint64_t);
+_LIBZFS_H int zfs_iter_snapshots_sorted_v2(zfs_handle_t *, int, zfs_iter_f,
+    void *, uint64_t, uint64_t);
+_LIBZFS_H int zfs_iter_snapspec_v2(zfs_handle_t *, int, const char *,
+    zfs_iter_f, void *);
+_LIBZFS_H int zfs_iter_bookmarks_v2(zfs_handle_t *, int, zfs_iter_f, void *);
 _LIBZFS_H int zfs_iter_mounted(zfs_handle_t *, zfs_iter_f, void *);
 
 typedef struct get_all_cb {
