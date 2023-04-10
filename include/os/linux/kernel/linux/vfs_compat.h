@@ -341,7 +341,8 @@ static inline void zfs_gid_write(struct inode *ip, gid_t gid)
  * 4.9 API change
  */
 #if !(defined(HAVE_SETATTR_PREPARE_NO_USERNS) || \
-    defined(HAVE_SETATTR_PREPARE_USERNS))
+    defined(HAVE_SETATTR_PREPARE_USERNS) || \
+    defined(HAVE_SETATTR_PREPARE_IDMAP))
 static inline int
 setattr_prepare(struct dentry *dentry, struct iattr *ia)
 {
@@ -396,6 +397,15 @@ func(struct user_namespace *user_ns, const struct path *path,	\
 	return (func##_impl(user_ns, path, stat, request_mask, \
 	    query_flags));	\
 }
+#elif defined(HAVE_IDMAP_IOPS_GETATTR)
+#define	ZPL_GETATTR_WRAPPER(func)					\
+static int								\
+func(struct mnt_idmap *user_ns, const struct path *path,	\
+    struct kstat *stat, u32 request_mask, unsigned int query_flags)	\
+{									\
+	return (func##_impl(user_ns, path, stat, request_mask,	\
+	    query_flags));	\
+}
 #else
 #error
 #endif
@@ -447,8 +457,15 @@ zpl_is_32bit_api(void)
  * 5.12 API change
  * To support id-mapped mounts, generic_fillattr() was modified to
  * accept a new struct user_namespace* as its first arg.
+ *
+ * 6.3 API change
+ * generic_fillattr() first arg is changed to struct mnt_idmap *
+ *
  */
-#ifdef HAVE_GENERIC_FILLATTR_USERNS
+#ifdef HAVE_GENERIC_FILLATTR_IDMAP
+#define	zpl_generic_fillattr(idmap, ip, sp)	\
+    generic_fillattr(idmap, ip, sp)
+#elif defined(HAVE_GENERIC_FILLATTR_USERNS)
 #define	zpl_generic_fillattr(user_ns, ip, sp)	\
     generic_fillattr(user_ns, ip, sp)
 #else
