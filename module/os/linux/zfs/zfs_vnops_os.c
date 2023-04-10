@@ -1675,8 +1675,7 @@ out:
  */
 /* ARGSUSED */
 int
-zfs_getattr_fast(struct user_namespace *user_ns, struct inode *ip,
-    struct kstat *sp)
+zfs_getattr_fast(zidmap_t *user_ns, struct inode *ip, struct kstat *sp)
 {
 	znode_t *zp = ITOZ(ip);
 	zfsvfs_t *zfsvfs = ITOZSB(ip);

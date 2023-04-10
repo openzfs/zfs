@@ -236,7 +236,22 @@ dnl #
 dnl # 6.2 API change,
 dnl # set_acl() second paramter changed to a struct dentry *
 dnl #
+dnl # 6.3 API change,
+dnl # set_acl() first parameter changed to struct mnt_idmap *
+dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_SET_ACL], [
+	ZFS_LINUX_TEST_SRC([inode_operations_set_acl_mnt_idmap_dentry], [
+		#include <linux/fs.h>
+
+		int set_acl_fn(struct mnt_idmap *idmap,
+		    struct dentry *dent, struct posix_acl *acl,
+		    int type) { return 0; }
+
+		static const struct inode_operations
+		    iops __attribute__ ((unused)) = {
+			.set_acl = set_acl_fn,
+		};
+	],[])
 	ZFS_LINUX_TEST_SRC([inode_operations_set_acl_userns_dentry], [
 		#include <linux/fs.h>
 
@@ -281,17 +296,24 @@ AC_DEFUN([ZFS_AC_KERNEL_INODE_OPERATIONS_SET_ACL], [
 		AC_DEFINE(HAVE_SET_ACL, 1, [iops->set_acl() exists])
 		AC_DEFINE(HAVE_SET_ACL_USERNS, 1, [iops->set_acl() takes 4 args])
 	],[
-		ZFS_LINUX_TEST_RESULT([inode_operations_set_acl_userns_dentry], [
+		ZFS_LINUX_TEST_RESULT([inode_operations_set_acl_mnt_idmap_dentry], [
 			AC_MSG_RESULT(yes)
 			AC_DEFINE(HAVE_SET_ACL, 1, [iops->set_acl() exists])
-			AC_DEFINE(HAVE_SET_ACL_USERNS_DENTRY_ARG2, 1,
-			    [iops->set_acl() takes 4 args, arg2 is struct dentry *])
+			AC_DEFINE(HAVE_SET_ACL_IDMAP_DENTRY, 1,
+			    [iops->set_acl() takes 4 args, arg1 is struct mnt_idmap *])
 		],[
-			ZFS_LINUX_TEST_RESULT([inode_operations_set_acl], [
+			ZFS_LINUX_TEST_RESULT([inode_operations_set_acl_userns_dentry], [
 				AC_MSG_RESULT(yes)
-				AC_DEFINE(HAVE_SET_ACL, 1, [iops->set_acl() exists, takes 3 args])
+				AC_DEFINE(HAVE_SET_ACL, 1, [iops->set_acl() exists])
+				AC_DEFINE(HAVE_SET_ACL_USERNS_DENTRY_ARG2, 1,
+				    [iops->set_acl() takes 4 args, arg2 is struct dentry *])
 			],[
-				ZFS_LINUX_REQUIRE_API([i_op->set_acl()], [3.14])
+				ZFS_LINUX_TEST_RESULT([inode_operations_set_acl], [
+					AC_MSG_RESULT(yes)
+					AC_DEFINE(HAVE_SET_ACL, 1, [iops->set_acl() exists, takes 3 args])
+				],[
+					ZFS_LINUX_REQUIRE_API([i_op->set_acl()], [3.14])
+				])
 			])
 		])
 	])
