@@ -120,6 +120,10 @@ extern "C" {
 #define	DN_MAX_LEVELS	(DIV_ROUND_UP(DN_MAX_OFFSET_SHIFT - SPA_MINBLOCKSHIFT, \
 	DN_MIN_INDBLKSHIFT - SPA_BLKPTRSHIFT) + 1)
 
+/*
+ * Use the flexible array instead of the fixed length one dn_bonus
+ * to address memcpy/memmove fortify error
+ */
 #define	DN_BONUS(dnp)	((void*)((dnp)->dn_bonus_flexible + \
 	(((dnp)->dn_nblkptr - 1) * sizeof (blkptr_t))))
 #define	DN_MAX_BONUS_LEN(dnp) \
