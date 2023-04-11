@@ -354,12 +354,12 @@ check_filesystem(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 			dsl_dataset_rele(ds, FTAG);
 			return (error);
 		}
+	}
 
-		if (snap_count == 0) {
-			/* Filesystem without snapshots. */
-			dsl_dataset_rele(ds, FTAG);
-			return (0);
-		}
+	if (snap_count == 0) {
+		/* Filesystem without snapshots. */
+		dsl_dataset_rele(ds, FTAG);
+		return (0);
 	}
 
 	uint64_t *snap_obj_array = kmem_zalloc(snap_count * sizeof (uint64_t),
