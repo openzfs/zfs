@@ -2466,8 +2466,7 @@ zfs_zaccess_trivial(znode_t *zp, uint32_t *working_mode, cred_t *cr,
 
 #if (defined(HAVE_IOPS_PERMISSION_USERNS) || \
 	defined(HAVE_IOPS_PERMISSION_IDMAP))
-	if (mnt_ns)
-		err = generic_permission(mnt_ns, ZTOI(zp), mask);
+	err = generic_permission(mnt_ns, ZTOI(zp), mask);
 #else
 	err = generic_permission(ZTOI(zp), mask);
 #endif
