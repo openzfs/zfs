@@ -2312,8 +2312,10 @@ dmu_brt_clone(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 			dl->dr_overridden_by.blk_phys_birth = 0;
 		} else {
 			dl->dr_overridden_by.blk_birth = dr->dr_txg;
-			dl->dr_overridden_by.blk_phys_birth =
-			    BP_PHYSICAL_BIRTH(bp);
+			if (!BP_IS_EMBEDDED(bp)) {
+				dl->dr_overridden_by.blk_phys_birth =
+				    BP_PHYSICAL_BIRTH(bp);
+			}
 		}
 
 		mutex_exit(&db->db_mtx);
