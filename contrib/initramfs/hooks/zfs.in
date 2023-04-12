@@ -41,6 +41,9 @@ copy_file cache  "@sysconfdir@/zfs/zpool.cache"
 copy_file config "@initconfdir@/zfs"
 copy_file config "@sysconfdir@/zfs/zfs-functions"
 copy_file config "@sysconfdir@/zfs/vdev_id.conf"
+for f in "@sysconfdir@/zfs/initramfs-tools-load-key" "@sysconfdir@/zfs/initramfs-tools-load-key.d/"*; do
+	copy_file config "$f"
+done
 copy_file rule   "@udevruledir@/60-zvol.rules"
 copy_file rule   "@udevruledir@/69-vdev.rules"
 

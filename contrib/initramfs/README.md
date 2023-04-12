@@ -78,7 +78,30 @@ To use this feature:
 1. Install the `dropbear-initramfs` package.  You may wish to uninstall the
    `cryptsetup-initramfs` package to avoid warnings.
 2. Add your SSH key(s) to `/etc/dropbear-initramfs/authorized_keys`.  Note
-   that Dropbear does not support ed25519 keys before version 2020.79; 
+   that Dropbear does not support ed25519 keys before version 2020.79;
    in that case, use RSA (2048-bit or more) instead.
 3. Rebuild the initramfs with your keys: `update-initramfs -u`
 4. During the system boot, login via SSH and run: `zfsunlock`
+
+### Unlocking a ZFS encrypted root via alternate means
+
+If present, a shell program at `/etc/zfs/initramfs-tools-load-key`
+and files matching `/etc/zfs/initramfs-tools-load-key.d/*`
+will be copied to the initramfs during generation
+and sourced to load the key, if required.
+
+The `$ENCRYPTIONROOT` to load the key for and `$KEYLOCATION` variables are set,
+and all initramfs-tools functions are available;
+use unquoted `$ZPOOL` and `$ZFS` to run `zpool` and `zfs`.
+
+A successful return (and loaded key) stops the search.
+A failure return is non-fatal,
+and loading keys proceeds as normal if no hook succeeds.
+
+A trivial example of a key-loading drop-in that uses the BLAKE2 checksum
+of the file at the `keylocation` as the key follows.
+
+```sh
+key="$(b2sum "${KEYLOCATION#file://}")" || return
+printf '%s\n' "${key%% *}" | $ZFS load-key -L prompt "$ENCRYPTIONROOT"
+```
