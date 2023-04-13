@@ -39,14 +39,14 @@ jobs:
         if: success()
 
   build-native-deb:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     container:
       image: debian:testing
     steps:
       - name: Installing Dependencies
         run: |
           apt update > /dev/null 2>&1
-          apt install -y debhelper-compat devscripts > /dev/null 2>&1
+          apt install -y linux-image-amd64 linux-headers-amd64 debhelper-compat devscripts > /dev/null 2>&1
 
       - name: Checkout
         uses: actions/checkout@v2
