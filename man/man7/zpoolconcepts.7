@@ -26,7 +26,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd June 2, 2021
+.Dd April 7, 2023
 .Dt ZPOOLCONCEPTS 7
 .Os
 .
@@ -36,7 +36,7 @@
 .
 .Sh DESCRIPTION
 .Ss Virtual Devices (vdevs)
-A "virtual device" describes a single device or a collection of devices
+A "virtual device" describes a single device or a collection of devices,
 organized according to certain performance and fault characteristics.
 The following virtual devices are supported:
 .Bl -tag -width "special"
@@ -66,13 +66,14 @@ A mirror of two or more devices.
 Data is replicated in an identical fashion across all components of a mirror.
 A mirror with
 .Em N No disks of size Em X No can hold Em X No bytes and can withstand Em N-1
-devices failing without losing data.
+devices failing, without losing data.
 .It Sy raidz , raidz1 , raidz2 , raidz3
-A variation on RAID-5 that allows for better distribution of parity and
-eliminates the RAID-5
-.Qq write hole
+A distributed-parity layout, similar to RAID-5/6, with improved distribution of
+parity, and which does not suffer from the RAID-5/6
+.Qq write hole ,
 .Pq in which data and parity become inconsistent after a power loss .
-Data and parity is striped across all disks within a raidz group.
+Data and parity is striped across all disks within a raidz group, though not
+necessarily in a consistent stripe width.
 .Pp
 A raidz group can have single, double, or triple parity, meaning that the
 raidz group can sustain one, two, or three failures, respectively, without
@@ -96,8 +97,8 @@ The minimum number of devices in a raidz group is one more than the number of
 parity disks.
 The recommended number is between 3 and 9 to help increase performance.
 .It Sy draid , draid1 , draid2 , draid3
-A variant of raidz that provides integrated distributed hot spares which
-allows for faster resilvering while retaining the benefits of raidz.
+A variant of raidz that provides integrated distributed hot spares, allowing
+for faster resilvering, while retaining the benefits of raidz.
 A dRAID vdev is constructed from multiple internal raidz groups, each with
 .Em D No data devices and Em P No parity devices .
 These groups are distributed over all of the children in order to fully
@@ -105,12 +106,12 @@ utilize the available disk performance.
 .Pp
 Unlike raidz, dRAID uses a fixed stripe width (padding as necessary with
 zeros) to allow fully sequential resilvering.
-This fixed stripe width significantly effects both usable capacity and IOPS.
+This fixed stripe width significantly affects both usable capacity and IOPS.
 For example, with the default
 .Em D=8 No and Em 4 KiB No disk sectors the minimum allocation size is Em 32 KiB .
 If using compression, this relatively large allocation size can reduce the
 effective compression ratio.
-When using ZFS volumes and dRAID, the default of the
+When using ZFS volumes (zvols) and dRAID, the default of the
 .Sy volblocksize
 property is increased to account for the allocation size.
 If a dRAID pool will hold a significant amount of small blocks, it is
@@ -118,7 +119,7 @@ recommended to also add a mirrored
 .Sy special
 vdev to store those blocks.
 .Pp
-In regards to I/O, performance is similar to raidz since for any read all
+In regards to I/O, performance is similar to raidz since, for any read, all
 .Em D No data disks must be accessed .
 Delivered random IOPS can be reasonably approximated as
 .Sy floor((N-S)/(D+P))*single_drive_IOPS .
@@ -178,7 +179,7 @@ For more information, see the
 .Sx Intent Log
 section.
 .It Sy dedup
-A device dedicated solely for deduplication tables.
+A device solely dedicated for deduplication tables.
 The redundancy of this device should match the redundancy of the other normal
 devices in the pool.
 If more than one dedup device is specified, then
@@ -230,7 +231,7 @@ each a mirror of two disks:
 ZFS supports a rich set of mechanisms for handling device failure and data
 corruption.
 All metadata and data is checksummed, and ZFS automatically repairs bad data
-from a good copy when corruption is detected.
+from a good copy, when corruption is detected.
 .Pp
 In order to take advantage of these features, a pool must make use of some form
 of redundancy, using either mirrored or raidz groups.
@@ -247,7 +248,7 @@ A faulted pool has corrupted metadata, or one or more faulted devices, and
 insufficient replicas to continue functioning.
 .Pp
 The health of the top-level vdev, such as a mirror or raidz device,
-is potentially impacted by the state of its associated vdevs,
+is potentially impacted by the state of its associated vdevs
 or component devices.
 A top-level vdev or component device is in one of the following states:
 .Bl -tag -width "DEGRADED"
@@ -319,14 +320,15 @@ In this case, checksum errors are reported for all disks on which the block
 is stored.
 .Pp
 If a device is removed and later re-attached to the system,
-ZFS attempts online the device automatically.
+ZFS attempts to bring the device online automatically.
 Device attachment detection is hardware-dependent
 and might not be supported on all platforms.
 .
 .Ss Hot Spares
 ZFS allows devices to be associated with pools as
 .Qq hot spares .
-These devices are not actively used in the pool, but when an active device
+These devices are not actively used in the pool.
+But, when an active device
 fails, it is automatically replaced by a hot spare.
 To create a pool with hot spares, specify a
 .Sy spare
@@ -343,10 +345,10 @@ Once a spare replacement is initiated, a new
 .Sy spare
 vdev is created within the configuration that will remain there until the
 original device is replaced.
-At this point, the hot spare becomes available again if another device fails.
+At this point, the hot spare becomes available again, if another device fails.
 .Pp
-If a pool has a shared spare that is currently being used, the pool can not be
-exported since other pools may use this shared spare, which may lead to
+If a pool has a shared spare that is currently being used, the pool cannot be
+exported, since other pools may use this shared spare, which may lead to
 potential data corruption.
 .Pp
 Shared spares add some risk.
@@ -390,7 +392,7 @@ See the
 .Sx EXAMPLES
 section for an example of mirroring multiple log devices.
 .Pp
-Log devices can be added, replaced, attached, detached and removed.
+Log devices can be added, replaced, attached, detached, and removed.
 In addition, log devices are imported and exported as part of the pool
 that contains them.
 Mirrored devices can be removed by specifying the top-level mirror vdev.
@@ -423,8 +425,8 @@ This can be disabled by setting
 .Sy l2arc_rebuild_enabled Ns = Ns Sy 0 .
 For cache devices smaller than
 .Em 1 GiB ,
-we do not write the metadata structures
-required for rebuilding the L2ARC in order not to waste space.
+ZFS does not write the metadata structures
+required for rebuilding the L2ARC, to conserve space.
 This can be changed with
 .Sy l2arc_rebuild_blocks_min_l2size .
 The cache device header
@@ -435,21 +437,21 @@ Setting
 will result in scanning the full-length ARC lists for cacheable content to be
 written in L2ARC (persistent ARC).
 If a cache device is added with
-.Nm zpool Cm add
-its label and header will be overwritten and its contents are not going to be
+.Nm zpool Cm add ,
+its label and header will be overwritten and its contents will not be
 restored in L2ARC, even if the device was previously part of the pool.
 If a cache device is onlined with
-.Nm zpool Cm online
+.Nm zpool Cm online ,
 its contents will be restored in L2ARC.
-This is useful in case of memory pressure
+This is useful in case of memory pressure,
 where the contents of the cache device are not fully restored in L2ARC.
-The user can off- and online the cache device when there is less memory pressure
-in order to fully restore its contents to L2ARC.
+The user can off- and online the cache device when there is less memory
+pressure, to fully restore its contents to L2ARC.
 .
 .Ss Pool checkpoint
 Before starting critical procedures that include destructive actions
 .Pq like Nm zfs Cm destroy ,
-an administrator can checkpoint the pool's state and in the case of a
+an administrator can checkpoint the pool's state and, in the case of a
 mistake or failure, rewind the entire pool back to the checkpoint.
 Otherwise, the checkpoint can be discarded when the procedure has completed
 successfully.
@@ -485,7 +487,7 @@ current state of the pool won't be scanned during a scrub.
 .
 .Ss Special Allocation Class
 Allocations in the special class are dedicated to specific block types.
-By default this includes all metadata, the indirect blocks of user data, and
+By default, this includes all metadata, the indirect blocks of user data, and
 any deduplication tables.
 The class can also be provisioned to accept small file blocks.
 .Pp
