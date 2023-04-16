@@ -69,18 +69,28 @@ Some properties apply only to certain types of datasets
 .Pp
 The values of numeric properties can be specified using human-readable suffixes
 .Po for example,
-.Sy k ,
-.Sy KB ,
-.Sy M ,
-.Sy Gb ,
+.Sy k , KB , M , Gb , GiB ,
 and so forth, up to
 .Sy Z
-for zettabyte
+for zebibyte
 .Pc .
+The specified suffix will always be interpreted in binary factor; for example
+specifying
+.Sy M
+will multiply the value by 1,048,576 (2^20).
 The following are all valid
 .Pq and equal
 specifications:
-.Li 1536M, 1.5g, 1.50GB .
+.Li 1536M, 1.5g, 1.50GB, 1536MiB .
+.Pp
+When displaying properties for sizes in human-readable mode, to conserve
+display space, values will be printed in powers of 1024, with a single letter
+indicating the multiples followed immediately after the value.
+For example a human-readable output of the
+.Sy recordsize
+property
+.Ar 128K
+means 128 KiB, which equals to 131,072 byte.
 .Pp
 The values of non-numeric properties are case sensitive and must be lowercase,
 except for
@@ -1867,7 +1877,7 @@ Although under Linux the
 and
 .Xr setxattr 2
 system calls limit the maximum size to
-.Sy 64K .
+.Sy 64 KiB .
 This is the most compatible
 style of extended attribute and is supported by all ZFS implementations.
 .Pp
@@ -1877,7 +1887,7 @@ The key advantage of this type of xattr is improved performance.
 Storing extended attributes as system attributes
 significantly decreases the amount of disk I/O required.
 Up to
-.Sy 64K
+.Sy 64 KiB
 of data may be stored per-file in the space reserved for system attributes.
 If there is not enough space available for an extended attribute
 then it will be automatically written as a directory-based xattr.
