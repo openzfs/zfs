@@ -4636,6 +4636,20 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 				i += DNODE_MIN_SIZE;
 				if (dnp->dn_type != DMU_OT_NONE) {
 					fill++;
+					for (int j = 0; j < dnp->dn_nblkptr;
+					    j++) {
+						(void) zfs_blkptr_verify(spa,
+						    &dnp->dn_blkptr[j],
+						    BLK_CONFIG_SKIP,
+						    BLK_VERIFY_HALT);
+					}
+					if (dnp->dn_flags &
+					    DNODE_FLAG_SPILL_BLKPTR) {
+						(void) zfs_blkptr_verify(spa,
+						    DN_SPILL_BLKPTR(dnp),
+						    BLK_CONFIG_SKIP,
+						    BLK_VERIFY_HALT);
+					}
 					i += dnp->dn_extra_slots *
 					    DNODE_MIN_SIZE;
 				}
@@ -4653,6 +4667,8 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 		for (i = db->db.db_size >> SPA_BLKPTRSHIFT; i > 0; i--, ibp++) {
 			if (BP_IS_HOLE(ibp))
 				continue;
+			(void) zfs_blkptr_verify(spa, ibp,
+			    BLK_CONFIG_SKIP, BLK_VERIFY_HALT);
 			fill += BP_GET_FILL(ibp);
 		}
 	}

@@ -935,9 +935,35 @@ zfs_blkptr_verify_log(spa_t *spa, const blkptr_t *bp,
 	(void) vsnprintf(buf, sizeof (buf), fmt, adx);
 	va_end(adx);
 
+	zfs_dbgmsg("bad blkptr at %px: "
+	    "DVA[0]=%#llx/%#llx "
+	    "DVA[1]=%#llx/%#llx "
+	    "DVA[2]=%#llx/%#llx "
+	    "prop=%#llx "
+	    "pad=%#llx,%#llx "
+	    "phys_birth=%#llx "
+	    "birth=%#llx "
+	    "fill=%#llx "
+	    "cksum=%#llx/%#llx/%#llx/%#llx",
+	    bp,
+	    (long long)bp->blk_dva[0].dva_word[0],
+	    (long long)bp->blk_dva[0].dva_word[1],
+	    (long long)bp->blk_dva[1].dva_word[0],
+	    (long long)bp->blk_dva[1].dva_word[1],
+	    (long long)bp->blk_dva[2].dva_word[0],
+	    (long long)bp->blk_dva[2].dva_word[1],
+	    (long long)bp->blk_prop,
+	    (long long)bp->blk_pad[0],
+	    (long long)bp->blk_pad[1],
+	    (long long)bp->blk_phys_birth,
+	    (long long)bp->blk_birth,
+	    (long long)bp->blk_fill,
+	    (long long)bp->blk_cksum.zc_word[0],
+	    (long long)bp->blk_cksum.zc_word[1],
+	    (long long)bp->blk_cksum.zc_word[2],
+	    (long long)bp->blk_cksum.zc_word[3]);
 	switch (blk_verify) {
 	case BLK_VERIFY_HALT:
-		dprintf_bp(bp, "blkptr at %p dprintf_bp():", bp);
 		zfs_panic_recover("%s: %s", spa_name(spa), buf);
 		break;
 	case BLK_VERIFY_LOG:
@@ -958,47 +984,54 @@ zfs_blkptr_verify_log(spa_t *spa, const blkptr_t *bp,
  * If everything checks out B_TRUE is returned.  The zfs_blkptr_verify
  * argument controls the behavior when an invalid field is detected.
  *
- * Modes for zfs_blkptr_verify:
- *   1) BLK_VERIFY_ONLY (evaluate the block)
- *   2) BLK_VERIFY_LOG (evaluate the block and log problems)
- *   3) BLK_VERIFY_HALT (call zfs_panic_recover on error)
+ * Values for blk_verify_flag:
+ *   BLK_VERIFY_ONLY: evaluate the block
+ *   BLK_VERIFY_LOG: evaluate the block and log problems
+ *   BLK_VERIFY_HALT: call zfs_panic_recover on error
+ *
+ * Values for blk_config_flag:
+ *   BLK_CONFIG_HELD: caller holds SCL_VDEV for writer
+ *   BLK_CONFIG_NEEDED: caller holds no config lock, SCL_VDEV will be
+ *   obtained for reader
+ *   BLK_CONFIG_SKIP: skip checks which require SCL_VDEV, for better
+ *   performance
  */
 boolean_t
-zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp, boolean_t config_held,
-    enum blk_verify_flag blk_verify)
+zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp,
+    enum blk_config_flag blk_config, enum blk_verify_flag blk_verify)
 {
 	int errors = 0;
 
 	if (!DMU_OT_IS_VALID(BP_GET_TYPE(bp))) {
 		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
-		    "blkptr at %p has invalid TYPE %llu",
+		    "blkptr at %px has invalid TYPE %llu",
 		    bp, (longlong_t)BP_GET_TYPE(bp));
 	}
 	if (BP_GET_CHECKSUM(bp) >= ZIO_CHECKSUM_FUNCTIONS) {
 		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
-		    "blkptr at %p has invalid CHECKSUM %llu",
+		    "blkptr at %px has invalid CHECKSUM %llu",
 		    bp, (longlong_t)BP_GET_CHECKSUM(bp));
 	}
 	if (BP_GET_COMPRESS(bp) >= ZIO_COMPRESS_FUNCTIONS) {
 		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
-		    "blkptr at %p has invalid COMPRESS %llu",
+		    "blkptr at %px has invalid COMPRESS %llu",
 		    bp, (longlong_t)BP_GET_COMPRESS(bp));
 	}
 	if (BP_GET_LSIZE(bp) > SPA_MAXBLOCKSIZE) {
 		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
-		    "blkptr at %p has invalid LSIZE %llu",
+		    "blkptr at %px has invalid LSIZE %llu",
 		    bp, (longlong_t)BP_GET_LSIZE(bp));
 	}
 	if (BP_GET_PSIZE(bp) > SPA_MAXBLOCKSIZE) {
 		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
-		    "blkptr at %p has invalid PSIZE %llu",
+		    "blkptr at %px has invalid PSIZE %llu",
 		    bp, (longlong_t)BP_GET_PSIZE(bp));
 	}
 
 	if (BP_IS_EMBEDDED(bp)) {
 		if (BPE_GET_ETYPE(bp) >= NUM_BP_EMBEDDED_TYPES) {
 			errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
-			    "blkptr at %p has invalid ETYPE %llu",
+			    "blkptr at %px has invalid ETYPE %llu",
 			    bp, (longlong_t)BPE_GET_ETYPE(bp));
 		}
 	}
@@ -1010,10 +1043,19 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp, boolean_t config_held,
 	if (!spa->spa_trust_config)
 		return (errors == 0);
 
-	if (!config_held)
-		spa_config_enter(spa, SCL_VDEV, bp, RW_READER);
-	else
+	switch (blk_config) {
+	case BLK_CONFIG_HELD:
 		ASSERT(spa_config_held(spa, SCL_VDEV, RW_WRITER));
+		break;
+	case BLK_CONFIG_NEEDED:
+		spa_config_enter(spa, SCL_VDEV, bp, RW_READER);
+		break;
+	case BLK_CONFIG_SKIP:
+		return (errors == 0);
+	default:
+		panic("invalid blk_config %u", blk_config);
+	}
+
 	/*
 	 * Pool-specific checks.
 	 *
@@ -1028,20 +1070,20 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp, boolean_t config_held,
 
 		if (vdevid >= spa->spa_root_vdev->vdev_children) {
 			errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
-			    "blkptr at %p DVA %u has invalid VDEV %llu",
+			    "blkptr at %px DVA %u has invalid VDEV %llu",
 			    bp, i, (longlong_t)vdevid);
 			continue;
 		}
 		vdev_t *vd = spa->spa_root_vdev->vdev_child[vdevid];
 		if (vd == NULL) {
 			errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
-			    "blkptr at %p DVA %u has invalid VDEV %llu",
+			    "blkptr at %px DVA %u has invalid VDEV %llu",
 			    bp, i, (longlong_t)vdevid);
 			continue;
 		}
 		if (vd->vdev_ops == &vdev_hole_ops) {
 			errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
-			    "blkptr at %p DVA %u has hole VDEV %llu",
+			    "blkptr at %px DVA %u has hole VDEV %llu",
 			    bp, i, (longlong_t)vdevid);
 			continue;
 		}
@@ -1059,13 +1101,11 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp, boolean_t config_held,
 			asize = vdev_gang_header_asize(vd);
 		if (offset + asize > vd->vdev_asize) {
 			errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
-			    "blkptr at %p DVA %u has invalid OFFSET %llu",
+			    "blkptr at %px DVA %u has invalid OFFSET %llu",
 			    bp, i, (longlong_t)offset);
 		}
 	}
-	if (errors > 0)
-		dprintf_bp(bp, "blkptr at %p dprintf_bp():", bp);
-	if (!config_held)
+	if (blk_config == BLK_CONFIG_NEEDED)
 		spa_config_exit(spa, SCL_VDEV, bp);
 
 	return (errors == 0);
@@ -1203,7 +1243,7 @@ void
 zio_free(spa_t *spa, uint64_t txg, const blkptr_t *bp)
 {
 
-	(void) zfs_blkptr_verify(spa, bp, B_FALSE, BLK_VERIFY_HALT);
+	(void) zfs_blkptr_verify(spa, bp, BLK_CONFIG_NEEDED, BLK_VERIFY_HALT);
 
 	/*
 	 * The check for EMBEDDED is a performance optimization.  We
@@ -1282,8 +1322,8 @@ zio_claim(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 {
 	zio_t *zio;
 
-	(void) zfs_blkptr_verify(spa, bp, flags & ZIO_FLAG_CONFIG_WRITER,
-	    BLK_VERIFY_HALT);
+	(void) zfs_blkptr_verify(spa, bp, (flags & ZIO_FLAG_CONFIG_WRITER) ?
+	    BLK_CONFIG_HELD : BLK_CONFIG_NEEDED, BLK_VERIFY_HALT);
 
 	if (BP_IS_EMBEDDED(bp))
 		return (zio_null(pio, spa, NULL, NULL, NULL, 0));

@@ -531,6 +531,12 @@ enum blk_verify_flag {
 	BLK_VERIFY_HALT
 };
 
+enum blk_config_flag {
+	BLK_CONFIG_HELD,   // SCL_VDEV held for writer
+	BLK_CONFIG_NEEDED, // SCL_VDEV should be obtained for reader
+	BLK_CONFIG_SKIP,   // skip checks which require SCL_VDEV
+};
+
 extern int zio_bookmark_compare(const void *, const void *);
 
 extern zio_t *zio_null(zio_t *pio, spa_t *spa, vdev_t *vd,
@@ -646,7 +652,7 @@ extern int zio_resume(spa_t *spa);
 extern void zio_resume_wait(spa_t *spa);
 
 extern boolean_t zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp,
-    boolean_t config_held, enum blk_verify_flag blk_verify);
+    enum blk_config_flag blk_config, enum blk_verify_flag blk_verify);
 
 /*
  * Initial setup and teardown.
