@@ -905,9 +905,7 @@ zfs_log_clone_range(zilog_t *zilog, dmu_tx_t *tx, int txtype, znode_t *zp,
 	uint64_t partlen, max_log_data;
 	size_t i, partnbps;
 
-	VERIFY(!zil_replaying(zilog, tx));
-
-	if (zp->z_unlinked)
+	if (zil_replaying(zilog, tx) || zp->z_unlinked)
 		return;
 
 	max_log_data = zil_max_log_data(zilog, sizeof (lr_clone_range_t));
