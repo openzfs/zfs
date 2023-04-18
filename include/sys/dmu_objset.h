@@ -72,7 +72,9 @@ struct dmu_tx;
  */
 #define	OBJSET_CRYPT_PORTABLE_FLAGS_MASK	(0)
 
+#if defined(__clang__))
 #pragma clang diagnostic ignored "-Wgnu-variable-sized-type-not-at-end"
+#endif
 typedef struct objset_phys {
 	dnode_phys_t os_meta_dnode;
 	zil_header_t os_zil_header;
