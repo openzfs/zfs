@@ -73,6 +73,7 @@ struct dmu_tx;
 #define	OBJSET_CRYPT_PORTABLE_FLAGS_MASK	(0)
 
 #if defined(__clang__)
+#pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wgnu-variable-sized-type-not-at-end"
 #endif
 typedef struct objset_phys {
@@ -91,6 +92,9 @@ typedef struct objset_phys {
 	char os_pad1[OBJSET_PHYS_SIZE_V3 - OBJSET_PHYS_SIZE_V2 -
 	    sizeof (dnode_phys_t)];
 } objset_phys_t;
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
 typedef int (*dmu_objset_upgrade_cb_t)(objset_t *);
 
