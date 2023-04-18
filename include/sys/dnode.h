@@ -128,7 +128,7 @@ extern "C" {
 #define	DN_BONUS(dnp)	((void*)((dnp)->dn_bonus_flexible + \
 	(((dnp)->dn_nblkptr - 1) * sizeof (blkptr_t))))
 #else
-#define DN_BONUS(dnp)	((void*)((dnp)->dn_bonus + \
+#define	DN_BONUS(dnp)	((void*)((dnp)->dn_bonus + \
 	(((dnp)->dn_nblkptr - 1) * sizeof (blkptr_t))))
 #endif
 #define	DN_MAX_BONUS_LEN(dnp) \
