@@ -124,8 +124,13 @@ extern "C" {
  * Use the flexible array instead of the fixed length one dn_bonus
  * to address memcpy/memmove fortify error
  */
+#if defined(__GNUC__) && !defined(__clang__)
 #define	DN_BONUS(dnp)	((void*)((dnp)->dn_bonus_flexible + \
 	(((dnp)->dn_nblkptr - 1) * sizeof (blkptr_t))))
+#else
+#define DN_BONUS(dnp)	((void*)((dnp)->dn_bonus + \
+	(((dnp)->dn_nblkptr - 1) * sizeof (blkptr_t))))
+#endif
 #define	DN_MAX_BONUS_LEN(dnp) \
 	((dnp->dn_flags & DNODE_FLAG_SPILL_BLKPTR) ? \
 	(uint8_t *)DN_SPILL_BLKPTR(dnp) - (uint8_t *)DN_BONUS(dnp) : \
@@ -270,10 +275,12 @@ typedef struct dnode_phys {
 			    sizeof (blkptr_t)];
 			blkptr_t dn_spill;
 		};
+#if defined(__GNUC__) && !defined(__clang__)
 		struct {
 			blkptr_t __dn_ignore4;
 			uint8_t dn_bonus_flexible[];
 		};
+#endif
 	};
 } dnode_phys_t;
 
