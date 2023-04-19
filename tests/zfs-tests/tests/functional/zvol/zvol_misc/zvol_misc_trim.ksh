@@ -125,12 +125,12 @@ log_must $trimcmd $zvolpath
 
 
 set_blk_mq 1
-log_must zpool export $TESTPOOL
+log_must_busy zpool export $TESTPOOL
 log_must zpool import $TESTPOOL
 do_test
 
 set_blk_mq 0
-log_must zpool export $TESTPOOL
+log_must_busy zpool export $TESTPOOL
 log_must zpool import $TESTPOOL
 do_test
 
