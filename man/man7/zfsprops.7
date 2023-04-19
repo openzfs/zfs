@@ -38,7 +38,7 @@
 .\" Copyright (c) 2019, Kjeld Schouten-Lebbing
 .\" Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
 .\"
-.Dd July 21, 2022
+.Dd April 18, 2023
 .Dt ZFSPROPS 7
 .Os
 .
@@ -80,7 +80,9 @@ for zettabyte
 The following are all valid
 .Pq and equal
 specifications:
-.Li 1536M, 1.5g, 1.50GB .
+.Li 1536M ,
+.Li 1.5g ,
+.Li 1.50GB .
 .Pp
 The values of non-numeric properties are case sensitive and must be lowercase,
 except for
@@ -1254,10 +1256,12 @@ location.
 Controls whether the file system should be mounted with
 .Sy nbmand
 .Pq Non-blocking mandatory locks .
-This is used for SMB clients.
 Changes to this property only take effect when the file system is umounted and
 remounted.
-Support for these locks is scarce and not described by POSIX.
+This was only supported by Linux prior to 5.15, and was buggy there,
+and is not supported by
+.Fx .
+On Solaris it's used for SMB clients.
 .It Sy overlay Ns = Ns Sy on Ns | Ns Sy off
 Allow mounting on a busy directory or a directory which already contains
 files or directories.
