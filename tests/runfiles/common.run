@@ -325,7 +325,8 @@ tests = ['zfs_wait_deleteq', 'zfs_wait_getsubopt']
 tags = ['functional', 'cli_root', 'zfs_wait']
 
 [tests/functional/cli_root/zhack]
-tests = ['zhack_label_checksum']
+tests = ['zhack_label_repair_001', 'zhack_label_repair_002',
+    'zhack_label_repair_003', 'zhack_label_repair_004']
 pre =
 post =
 tags = ['functional', 'cli_root', 'zhack']

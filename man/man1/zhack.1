@@ -98,10 +98,29 @@ feature is now required to read the pool MOS.
 .It Xo
 .Nm zhack
 .Cm label repair
+.Op Fl cu
 .Ar device
 .Xc
-Repair corrupted labels by rewriting the checksum using the presumed valid
-contents of the label.
+Repair labels of a specified
+.Ar device
+according to options.
+.Pp
+Flags may be combined to do their functions simultaneously.
+.
+.Pp
+The
+.Fl c
+flag repairs corrupted label checksums
+.
+.Pp
+The
+.Fl u
+flag restores the label on a detached device
+.Pp
+Example:
+.Nm zhack Cm label repair Fl cu Ar device
+  Fix checksums and undetach a device
+.
 .El
 .
 .Sh GLOBAL OPTIONS
