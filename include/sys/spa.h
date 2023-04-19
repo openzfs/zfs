@@ -977,6 +977,8 @@ extern int spa_import_progress_set_state(uint64_t pool_guid,
 extern int spa_config_tryenter(spa_t *spa, int locks, const void *tag,
     krw_t rw);
 extern void spa_config_enter(spa_t *spa, int locks, const void *tag, krw_t rw);
+extern void spa_config_enter_mmp(spa_t *spa, int locks, const void *tag,
+    krw_t rw);
 extern void spa_config_exit(spa_t *spa, int locks, const void *tag);
 extern int spa_config_held(spa_t *spa, int locks, krw_t rw);
 
