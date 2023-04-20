@@ -675,6 +675,17 @@ zfsctl_root_readdir(struct vop_readdir_args *ap)
 
 	ASSERT3S(vp->v_type, ==, VDIR);
 
+	/*
+	 * FIXME: this routine only ever emits 3 entries and does not tolerate
+	 * being called with a buffer too small to handle all of them.
+	 *
+	 * The check below facilitates the idiom of repeating calls until the
+	 * count to return is 0.
+	 */
+	if (zfs_uio_offset(&uio) == 3 * sizeof(entry)) {
+		return (0);
+	}
+
 	error = sfs_readdir_common(zfsvfs->z_root, ZFSCTL_INO_ROOT, ap, &uio,
 	    &dots_offset);
 	if (error != 0) {
