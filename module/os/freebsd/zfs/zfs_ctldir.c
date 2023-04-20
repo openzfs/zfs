@@ -204,6 +204,10 @@ sfs_vgetx(struct mount *mp, int flags, uint64_t parent_id, uint64_t id,
 		return (error);
 	}
 
+#if __FreeBSD_version >= 1400077
+	vn_set_state(vp, VSTATE_CONSTRUCTED);
+#endif
+
 	*vpp = vp;
 	return (0);
 }
