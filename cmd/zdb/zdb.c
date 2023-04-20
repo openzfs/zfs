@@ -7630,6 +7630,9 @@ mos_leak_vdev(vdev_t *vd)
 		mos_obj_refd(space_map_object(ms->ms_sm));
 	}
 
+	if (vd->vdev_root_zap != 0)
+		mos_obj_refd(vd->vdev_root_zap);
+
 	if (vd->vdev_top_zap != 0) {
 		mos_obj_refd(vd->vdev_top_zap);
 		mos_leak_vdev_top_zap(vd);

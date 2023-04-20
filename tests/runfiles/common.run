@@ -394,7 +394,7 @@ tags = ['functional', 'cli_root', 'zpool_export']
 
 [tests/functional/cli_root/zpool_get]
 tests = ['zpool_get_001_pos', 'zpool_get_002_pos', 'zpool_get_003_pos',
-    'zpool_get_004_neg', 'zpool_get_005_pos']
+    'zpool_get_004_neg', 'zpool_get_005_pos', 'vdev_get_001_pos']
 tags = ['functional', 'cli_root', 'zpool_get']
 
 [tests/functional/cli_root/zpool_history]
@@ -482,7 +482,7 @@ tags = ['functional', 'cli_root', 'zpool_scrub']
 
 [tests/functional/cli_root/zpool_set]
 tests = ['zpool_set_001_pos', 'zpool_set_002_neg', 'zpool_set_003_neg',
-    'zpool_set_ashift', 'zpool_set_features']
+    'zpool_set_ashift', 'zpool_set_features', 'vdev_set_001_pos']
 tags = ['functional', 'cli_root', 'zpool_set']
 
 [tests/functional/cli_root/zpool_split]

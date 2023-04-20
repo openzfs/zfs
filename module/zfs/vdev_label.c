@@ -573,6 +573,12 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 			    vd->vdev_top_zap);
 		}
 
+		if (vd->vdev_ops == &vdev_root_ops && vd->vdev_root_zap != 0 &&
+		    spa_feature_is_active(vd->vdev_spa, SPA_FEATURE_AVZ_V2)) {
+			fnvlist_add_uint64(nv, ZPOOL_CONFIG_VDEV_ROOT_ZAP,
+			    vd->vdev_root_zap);
+		}
+
 		if (vd->vdev_resilver_deferred) {
 			ASSERT(vd->vdev_ops->vdev_op_leaf);
 			ASSERT(spa->spa_resilver_deferred);
