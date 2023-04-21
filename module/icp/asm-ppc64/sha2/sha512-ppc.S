@@ -21,6 +21,7 @@
 
 #if (defined(__PPC64__) && defined(__BIG_ENDIAN__))
 
+#if (!defined(_CALL_ELF) || _CALL_ELF == 1)
 .text
 
 .globl	zfs_sha512_ppc
@@ -33,6 +34,16 @@ zfs_sha512_ppc:
 .previous
 .align	6
 .zfs_sha512_ppc:
+#else
+.abiversion	2
+.text
+
+.globl	zfs_sha512_ppc
+.type	zfs_sha512_ppc,@function
+.align	6
+zfs_sha512_ppc:
+.localentry	zfs_sha512_ppc,0
+#endif
 	stdu	1,-384(1)
 	mflr	0
 	sldi	5,5,7
@@ -1350,8 +1361,12 @@ zfs_sha512_ppc:
 	blr	
 .long	0
 .byte	0,12,0x14,0,0,0,0,0
+#if (!defined(_CALL_ELF) || _CALL_ELF == 1)
 .size	.zfs_sha512_ppc,.-.zfs_sha512_ppc
 .size	zfs_sha512_ppc,.-.zfs_sha512_ppc
+#else
+.size	zfs_sha512_ppc,.-zfs_sha512_ppc
+#endif
 .align	6
 .LPICmeup:
 	mflr	0
