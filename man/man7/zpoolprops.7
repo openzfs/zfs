@@ -26,8 +26,9 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
+.\" Copyright (c) 2023, Klara Inc.
 .\"
-.Dd May 27, 2021
+.Dd April 18, 2023
 .Dt ZPOOLPROPS 7
 .Os
 .
@@ -39,6 +40,12 @@
 Each pool has several properties associated with it.
 Some properties are read-only statistics while others are configurable and
 change the behavior of the pool.
+.Pp
+User properties have no effect on ZFS behavior.
+Use them to annotate pools in a way that is meaningful in your environment.
+For more information about user properties, see the
+.Sx User Properties
+section.
 .Pp
 The following are read-only properties:
 .Bl -tag -width "unsupported@guid"
@@ -431,3 +438,49 @@ backwards compatibility.
 Once feature flags are enabled on a pool this property will no longer have a
 value.
 .El
+.
+.Ss User Properties
+In addition to the standard native properties, ZFS supports arbitrary user
+properties.
+User properties have no effect on ZFS behavior, but applications or
+administrators can use them to annotate pools.
+.Pp
+User property names must contain a colon
+.Pq Qq Sy \&:
+character to distinguish them from native properties.
+They may contain lowercase letters, numbers, and the following punctuation
+characters: colon
+.Pq Qq Sy \&: ,
+dash
+.Pq Qq Sy - ,
+period
+.Pq Qq Sy \&. ,
+and underscore
+.Pq Qq Sy _ .
+The expected convention is that the property name is divided into two portions
+such as
+.Ar module : Ns Ar property ,
+but this namespace is not enforced by ZFS.
+User property names can be at most 256 characters, and cannot begin with a dash
+.Pq Qq Sy - .
+.Pp
+When making programmatic use of user properties, it is strongly suggested to use
+a reversed DNS domain name for the
+.Ar module
+component of property names to reduce the chance that two
+independently-developed packages use the same property name for different
+purposes.
+.Pp
+The values of user properties are arbitrary strings and
+are never validated.
+All of the commands that operate on properties
+.Po Nm zpool Cm list ,
+.Nm zpool Cm get ,
+.Nm zpool Cm set ,
+and so forth
+.Pc
+can be used to manipulate both native properties and user properties.
+Use
+.Nm zpool Cm set Ar name Ns =
+to clear a user property.
+Property values are limited to 8192 bytes.

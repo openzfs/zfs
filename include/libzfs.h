@@ -333,6 +333,8 @@ _LIBZFS_H const char *zpool_get_state_str(zpool_handle_t *);
 _LIBZFS_H int zpool_set_prop(zpool_handle_t *, const char *, const char *);
 _LIBZFS_H int zpool_get_prop(zpool_handle_t *, zpool_prop_t, char *,
     size_t proplen, zprop_source_t *, boolean_t literal);
+_LIBZFS_H int zpool_get_userprop(zpool_handle_t *, const char *, char *,
+    size_t proplen, zprop_source_t *);
 _LIBZFS_H uint64_t zpool_get_prop_int(zpool_handle_t *, zpool_prop_t,
     zprop_source_t *);
 _LIBZFS_H int zpool_props_refresh(zpool_handle_t *);

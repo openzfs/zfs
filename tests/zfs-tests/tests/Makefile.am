@@ -1149,10 +1149,13 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_set/setup.ksh \
 	functional/cli_root/zpool/setup.ksh \
 	functional/cli_root/zpool_set/vdev_set_001_pos.ksh \
+	functional/cli_root/zpool_set/zpool_set_common.kshlib \
 	functional/cli_root/zpool_set/zpool_set_001_pos.ksh \
 	functional/cli_root/zpool_set/zpool_set_002_neg.ksh \
 	functional/cli_root/zpool_set/zpool_set_003_neg.ksh \
 	functional/cli_root/zpool_set/zpool_set_ashift.ksh \
+	functional/cli_root/zpool_set/user_property_001_pos.ksh \
+	functional/cli_root/zpool_set/user_property_002_neg.ksh \
 	functional/cli_root/zpool_set/zpool_set_features.ksh \
 	functional/cli_root/zpool_split/cleanup.ksh \
 	functional/cli_root/zpool_split/setup.ksh \

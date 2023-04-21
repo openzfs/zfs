@@ -297,6 +297,22 @@ spa_prop_add_list(nvlist_t *nvl, zpool_prop_t prop, const char *strval,
 }
 
 /*
+ * Add a user property (source=src, propname=propval) to an nvlist.
+ */
+static void
+spa_prop_add_user(nvlist_t *nvl, const char *propname, char *strval,
+    zprop_source_t src)
+{
+	nvlist_t *propval;
+
+	VERIFY(nvlist_alloc(&propval, NV_UNIQUE_NAME, KM_SLEEP) == 0);
+	VERIFY(nvlist_add_uint64(propval, ZPROP_SOURCE, src) == 0);
+	VERIFY(nvlist_add_string(propval, ZPROP_VALUE, strval) == 0);
+	VERIFY(nvlist_add_nvlist(nvl, propname, propval) == 0);
+	nvlist_free(propval);
+}
+
+/*
  * Get property values from the spa configuration.
  */
 static void
@@ -471,7 +487,8 @@ spa_prop_get(spa_t *spa, nvlist_t **nvp)
 		zprop_source_t src = ZPROP_SRC_DEFAULT;
 		zpool_prop_t prop;
 
-		if ((prop = zpool_name_to_prop(za.za_name)) == ZPOOL_PROP_INVAL)
+		if ((prop = zpool_name_to_prop(za.za_name)) ==
+		    ZPOOL_PROP_INVAL && !zfs_prop_user(za.za_name))
 			continue;
 
 		switch (za.za_integer_length) {
@@ -514,7 +531,13 @@ spa_prop_get(spa_t *spa, nvlist_t **nvp)
 				kmem_free(strval, za.za_num_integers);
 				break;
 			}
-			spa_prop_add_list(*nvp, prop, strval, 0, src);
+			if (prop != ZPOOL_PROP_INVAL) {
+				spa_prop_add_list(*nvp, prop, strval, 0, src);
+			} else {
+				src = ZPROP_SRC_LOCAL;
+				spa_prop_add_user(*nvp, za.za_name, strval,
+				    src);
+			}
 			kmem_free(strval, za.za_num_integers);
 			break;
 
@@ -556,36 +579,47 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 
 		switch (prop) {
 		case ZPOOL_PROP_INVAL:
-			if (!zpool_prop_feature(propname)) {
-				error = SET_ERROR(EINVAL);
-				break;
-			}
-
 			/*
 			 * Sanitize the input.
 			 */
-			if (nvpair_type(elem) != DATA_TYPE_UINT64) {
+			if (zfs_prop_user(propname)) {
+				if (strlen(propname) >= ZAP_MAXNAMELEN) {
+					error = SET_ERROR(ENAMETOOLONG);
+					break;
+				}
+
+				if (strlen(fnvpair_value_string(elem)) >=
+				    ZAP_MAXVALUELEN) {
+					error = SET_ERROR(E2BIG);
+					break;
+				}
+			} else if (zpool_prop_feature(propname)) {
+				if (nvpair_type(elem) != DATA_TYPE_UINT64) {
+					error = SET_ERROR(EINVAL);
+					break;
+				}
+
+				if (nvpair_value_uint64(elem, &intval) != 0) {
+					error = SET_ERROR(EINVAL);
+					break;
+				}
+
+				if (intval != 0) {
+					error = SET_ERROR(EINVAL);
+					break;
+				}
+
+				fname = strchr(propname, '@') + 1;
+				if (zfeature_lookup_name(fname, NULL) != 0) {
+					error = SET_ERROR(EINVAL);
+					break;
+				}
+
+				has_feature = B_TRUE;
+			} else {
 				error = SET_ERROR(EINVAL);
 				break;
 			}
-
-			if (nvpair_value_uint64(elem, &intval) != 0) {
-				error = SET_ERROR(EINVAL);
-				break;
-			}
-
-			if (intval != 0) {
-				error = SET_ERROR(EINVAL);
-				break;
-			}
-
-			fname = strchr(propname, '@') + 1;
-			if (zfeature_lookup_name(fname, NULL) != 0) {
-				error = SET_ERROR(EINVAL);
-				break;
-			}
-
-			has_feature = B_TRUE;
 			break;
 
 		case ZPOOL_PROP_VERSION:
@@ -791,6 +825,12 @@ spa_prop_set(spa_t *spa, nvlist_t *nvp)
 		    prop == ZPOOL_PROP_ALTROOT ||
 		    prop == ZPOOL_PROP_READONLY)
 			continue;
+
+		if (prop == ZPOOL_PROP_INVAL &&
+		    zfs_prop_user(nvpair_name(elem))) {
+			need_sync = B_TRUE;
+			break;
+		}
 
 		if (prop == ZPOOL_PROP_VERSION || prop == ZPOOL_PROP_INVAL) {
 			uint64_t ver = 0;
@@ -8800,24 +8840,11 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 		const char *strval, *fname;
 		zpool_prop_t prop;
 		const char *propname;
+		const char *elemname = nvpair_name(elem);
 		zprop_type_t proptype;
 		spa_feature_t fid;
 
-		switch (prop = zpool_name_to_prop(nvpair_name(elem))) {
-		case ZPOOL_PROP_INVAL:
-			/*
-			 * We checked this earlier in spa_prop_validate().
-			 */
-			ASSERT(zpool_prop_feature(nvpair_name(elem)));
-
-			fname = strchr(nvpair_name(elem), '@') + 1;
-			VERIFY0(zfeature_lookup_name(fname, &fid));
-
-			spa_feature_enable(spa, fid, tx);
-			spa_history_log_internal(spa, "set", tx,
-			    "%s=enabled", nvpair_name(elem));
-			break;
-
+		switch (prop = zpool_name_to_prop(elemname)) {
 		case ZPOOL_PROP_VERSION:
 			intval = fnvpair_value_uint64(elem);
 			/*
@@ -8860,7 +8887,7 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 				spa_async_request(spa, SPA_ASYNC_CONFIG_UPDATE);
 			}
 			spa_history_log_internal(spa, "set", tx,
-			    "%s=%s", nvpair_name(elem), strval);
+			    "%s=%s", elemname, strval);
 			break;
 		case ZPOOL_PROP_COMPATIBILITY:
 			strval = fnvpair_value_string(elem);
@@ -8879,6 +8906,20 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 			    "%s=%s", nvpair_name(elem), strval);
 			break;
 
+		case ZPOOL_PROP_INVAL:
+			if (zpool_prop_feature(elemname)) {
+				fname = strchr(elemname, '@') + 1;
+				VERIFY0(zfeature_lookup_name(fname, &fid));
+
+				spa_feature_enable(spa, fid, tx);
+				spa_history_log_internal(spa, "set", tx,
+				    "%s=enabled", elemname);
+				break;
+			} else if (!zfs_prop_user(elemname)) {
+				ASSERT(zpool_prop_feature(elemname));
+				break;
+			}
+			zfs_fallthrough;
 		default:
 			/*
 			 * Set pool property values in the poolprops mos object.
@@ -8893,6 +8934,11 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 			/* normalize the property name */
 			propname = zpool_prop_to_name(prop);
 			proptype = zpool_prop_get_type(prop);
+			if (prop == ZPOOL_PROP_INVAL &&
+			    zfs_prop_user(elemname)) {
+				propname = elemname;
+				proptype = PROP_TYPE_STRING;
+			}
 
 			if (nvpair_type(elem) == DATA_TYPE_STRING) {
 				ASSERT(proptype == PROP_TYPE_STRING);
@@ -8901,7 +8947,7 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 				    spa->spa_pool_props_object, propname,
 				    1, strlen(strval) + 1, strval, tx));
 				spa_history_log_internal(spa, "set", tx,
-				    "%s=%s", nvpair_name(elem), strval);
+				    "%s=%s", elemname, strval);
 			} else if (nvpair_type(elem) == DATA_TYPE_UINT64) {
 				intval = fnvpair_value_uint64(elem);
 
@@ -8914,7 +8960,7 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 				    spa->spa_pool_props_object, propname,
 				    8, 1, &intval, tx));
 				spa_history_log_internal(spa, "set", tx,
-				    "%s=%lld", nvpair_name(elem),
+				    "%s=%lld", elemname,
 				    (longlong_t)intval);
 
 				switch (prop) {

@@ -427,6 +427,37 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 }
 
 /*
+ * Get a zpool property value for 'propname' and return the value in
+ * a pre-allocated buffer.
+ */
+int
+zpool_get_userprop(zpool_handle_t *zhp, const char *propname, char *buf,
+    size_t len, zprop_source_t *srctype)
+{
+	nvlist_t *nv, *nvl;
+	uint64_t ival;
+	const char *value;
+	zprop_source_t source = ZPROP_SRC_LOCAL;
+
+	nvl = zhp->zpool_props;
+	if (nvlist_lookup_nvlist(nvl, propname, &nv) == 0) {
+		if (nvlist_lookup_uint64(nv, ZPROP_SOURCE, &ival) == 0)
+			source = ival;
+		verify(nvlist_lookup_string(nv, ZPROP_VALUE, &value) == 0);
+	} else {
+		source = ZPROP_SRC_DEFAULT;
+		value = "-";
+	}
+
+	if (srctype)
+		*srctype = source;
+
+	(void) strlcpy(buf, value, len);
+
+	return (0);
+}
+
+/*
  * Check if the bootfs name has the same pool name as it is set to.
  * Assuming bootfs is a valid dataset name.
  */
@@ -549,6 +580,44 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 				(void) no_memory(hdl);
 				goto error;
 			}
+			continue;
+		} else if (prop == ZPOOL_PROP_INVAL &&
+		    zfs_prop_user(propname)) {
+			/*
+			 * This is a user property: make sure it's a
+			 * string, and that it's less than ZAP_MAXNAMELEN.
+			 */
+			if (nvpair_type(elem) != DATA_TYPE_STRING) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "'%s' must be a string"), propname);
+				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+				goto error;
+			}
+
+			if (strlen(nvpair_name(elem)) >= ZAP_MAXNAMELEN) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "property name '%s' is too long"),
+				    propname);
+				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+				goto error;
+			}
+
+			(void) nvpair_value_string(elem, &strval);
+
+			if (strlen(strval) >= ZFS_MAXPROPLEN) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "property value '%s' is too long"),
+				    strval);
+				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+				goto error;
+			}
+
+			if (nvlist_add_string(retprops, propname,
+			    strval) != 0) {
+				(void) no_memory(hdl);
+				goto error;
+			}
+
 			continue;
 		}
 
@@ -855,9 +924,30 @@ zpool_expand_proplist(zpool_handle_t *zhp, zprop_list_t **plp,
 		features = zpool_get_features(zhp);
 
 	if ((*plp)->pl_all && firstexpand) {
+		/* Handle userprops in the all properties case */
+		if (zhp->zpool_props == NULL && zpool_props_refresh(zhp))
+			return (-1);
+
+		nvp = NULL;
+		while ((nvp = nvlist_next_nvpair(zhp->zpool_props, nvp)) !=
+		    NULL) {
+			const char *propname = nvpair_name(nvp);
+
+			if (!zfs_prop_user(propname))
+				continue;
+
+			entry = zfs_alloc(hdl, sizeof (zprop_list_t));
+			entry->pl_prop = ZPROP_USERPROP;
+			entry->pl_user_prop = zfs_strdup(hdl, propname);
+			entry->pl_width = strlen(entry->pl_user_prop);
+			entry->pl_all = B_TRUE;
+
+			*last = entry;
+			last = &entry->pl_next;
+		}
+
 		for (i = 0; i < SPA_FEATURES; i++) {
-			zprop_list_t *entry = zfs_alloc(hdl,
-			    sizeof (zprop_list_t));
+			entry = zfs_alloc(hdl, sizeof (zprop_list_t));
 			entry->pl_prop = ZPROP_USERPROP;
 			entry->pl_user_prop = zfs_asprintf(hdl, "feature@%s",
 			    spa_feature_table[i].fi_uname);
@@ -874,7 +964,6 @@ zpool_expand_proplist(zpool_handle_t *zhp, zprop_list_t **plp,
 	    nvp != NULL; nvp = nvlist_next_nvpair(features, nvp)) {
 		char *propname;
 		boolean_t found;
-		zprop_list_t *entry;
 
 		if (zfeature_is_supported(nvpair_name(nvp)))
 			continue;
@@ -918,6 +1007,12 @@ zpool_expand_proplist(zpool_handle_t *zhp, zprop_list_t **plp,
 		if (entry->pl_prop != ZPROP_USERPROP &&
 		    zpool_get_prop(zhp, entry->pl_prop, buf, sizeof (buf),
 		    NULL, literal) == 0) {
+			if (strlen(buf) > entry->pl_width)
+				entry->pl_width = strlen(buf);
+		} else if (entry->pl_prop == ZPROP_INVAL &&
+		    zfs_prop_user(entry->pl_user_prop) &&
+		    zpool_get_userprop(zhp, entry->pl_user_prop, buf,
+		    sizeof (buf), NULL) == 0) {
 			if (strlen(buf) > entry->pl_width)
 				entry->pl_width = strlen(buf);
 		}
