@@ -424,6 +424,7 @@ typedef enum {
 	ZPOOL_STATUS_NON_NATIVE_ASHIFT,	/* (e.g. 512e dev with ashift of 9) */
 	ZPOOL_STATUS_COMPATIBILITY_ERR,	/* bad 'compatibility' property */
 	ZPOOL_STATUS_INCOMPATIBLE_FEAT,	/* feature set outside compatibility */
+	ZPOOL_STATUS_FORCE_EXPORTING,	/* pool is being force exported */
 
 	/*
 	 * Finally, the following indicates a healthy pool.
@@ -982,9 +983,15 @@ _LIBZFS_H int zfs_smb_acl_rename(libzfs_handle_t *, char *, char *, char *,
  * sharing/unsharing them.
  */
 _LIBZFS_H int zpool_enable_datasets(zpool_handle_t *, const char *, int);
-_LIBZFS_H int zpool_disable_datasets(zpool_handle_t *, boolean_t);
+_LIBZFS_H int zpool_disable_datasets(zpool_handle_t *, boolean_t, boolean_t);
 _LIBZFS_H void zpool_disable_datasets_os(zpool_handle_t *, boolean_t);
 _LIBZFS_H void zpool_disable_volume_os(const char *);
+
+/*
+ * Procedure to inform os that we have started force unmount (linux specific).
+ */
+_LIBZFS_H void zpool_unmount_mark_hard_force_begin(zpool_handle_t *zhp);
+_LIBZFS_H void zpool_unmount_mark_hard_force_end(zpool_handle_t *zhp);
 
 /*
  * Parse a features file for -o compatibility

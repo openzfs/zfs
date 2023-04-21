@@ -1920,7 +1920,7 @@ retry:
 	 * bailing out and declaring the pool faulted.
 	 */
 	if (error != 0) {
-		if ((flags & ZIO_FLAG_TRYHARD) != 0)
+		if (spa_exiting_any(spa) || (flags & ZIO_FLAG_TRYHARD) != 0)
 			return (error);
 		flags |= ZIO_FLAG_TRYHARD;
 	}

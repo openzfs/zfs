@@ -60,7 +60,7 @@ typedef struct refcount {
 
 /*
  * Note: zfs_refcount_t must be initialized with
- * refcount_create[_untracked]()
+ * zfs_refcount_create[_untracked]()
  */
 
 void zfs_refcount_create(zfs_refcount_t *);

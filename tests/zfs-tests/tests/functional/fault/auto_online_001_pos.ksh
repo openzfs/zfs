@@ -105,7 +105,7 @@ log_must mkfile $FSIZE /$TESTPOOL/data
 
 for offline_disk in $autoonline_disks
 do
-	log_must zpool export -F $TESTPOOL
+	log_must zpool export -f $TESTPOOL
 
 	host=$(get_scsi_host $offline_disk)
 

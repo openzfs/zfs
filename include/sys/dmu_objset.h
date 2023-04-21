@@ -179,6 +179,7 @@ struct objset {
 
 	/* Protected by os_lock */
 	kmutex_t os_lock;
+	kthread_t *os_shutdown_initiator;
 	multilist_t os_dirty_dnodes[TXG_SIZE];
 	list_t os_dnodes;
 	list_t os_downgraded_dbufs;
@@ -265,6 +266,10 @@ int dmu_fsname(const char *snapname, char *buf);
 
 void dmu_objset_evict_done(objset_t *os);
 void dmu_objset_willuse_space(objset_t *os, int64_t space, dmu_tx_t *tx);
+
+int dmu_objset_shutdown_register(objset_t *os);
+boolean_t dmu_objset_exiting(objset_t *os);
+void dmu_objset_shutdown_unregister(objset_t *os);
 
 void dmu_objset_init(void);
 void dmu_objset_fini(void);

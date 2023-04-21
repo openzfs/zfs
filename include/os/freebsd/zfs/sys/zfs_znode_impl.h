@@ -135,6 +135,8 @@ zfs_enter(zfsvfs_t *zfsvfs, const char *tag)
 	return (0);
 }
 
+#define	zfs_enter_unmountok	zfs_enter
+
 /* Must be called before exiting the vop */
 static inline void
 zfs_exit(zfsvfs_t *zfsvfs, const char *tag)

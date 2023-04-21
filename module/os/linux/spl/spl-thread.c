@@ -204,3 +204,15 @@ issig(int why)
 }
 
 EXPORT_SYMBOL(issig);
+
+/*
+ * spl_kthread_signal - Wrapper for sending signals to a thread.
+ */
+int
+spl_kthread_signal(kthread_t *tsk, int sig)
+{
+
+	return (send_sig(sig, tsk, 0));
+}
+
+EXPORT_SYMBOL(spl_kthread_signal);

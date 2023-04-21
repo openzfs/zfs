@@ -473,8 +473,6 @@ make_dataset_handle_common(zfs_handle_t *zhp, zfs_cmd_t *zc)
 zfs_handle_t *
 make_dataset_handle(libzfs_handle_t *hdl, const char *path)
 {
-	zfs_cmd_t zc = {"\0"};
-
 	zfs_handle_t *zhp = calloc(1, sizeof (zfs_handle_t));
 
 	if (zhp == NULL)
@@ -482,18 +480,33 @@ make_dataset_handle(libzfs_handle_t *hdl, const char *path)
 
 	zhp->zfs_hdl = hdl;
 	(void) strlcpy(zhp->zfs_name, path, sizeof (zhp->zfs_name));
-	zcmd_alloc_dst_nvlist(hdl, &zc, 0);
+	if (!hdl->libzfs_force_export) {
+		zfs_cmd_t zc = {"\0"};
 
-	if (get_stats_ioctl(zhp, &zc) == -1) {
+		zcmd_alloc_dst_nvlist(hdl, &zc, 0);
+		if (get_stats_ioctl(zhp, &zc) == -1) {
+			zcmd_free_nvlists(&zc);
+			free(zhp);
+			return (NULL);
+		}
+		if (make_dataset_handle_common(zhp, &zc) == -1) {
+			free(zhp);
+			zhp = NULL;
+		}
 		zcmd_free_nvlists(&zc);
-		free(zhp);
-		return (NULL);
+	} else {
+		/*
+		 * Called from zpool_disable_datasets() which sets force
+		 * export and uses mount entries, so de facto the dataset
+		 * is a ZFS filesystem.  Furthermore, we need to avoid
+		 * calling get_stats_ioctl() here since it results in
+		 * zfs_ioc_objset_stats()->dmu_objset_hold() being called by
+		 * the kernel which can potentially cause IO to be issued
+		 * depending on what's currently cached in ARC.
+		 */
+		zhp->zfs_dmustats.dds_type = DMU_OST_ZFS;
+		zhp->zfs_type = ZFS_TYPE_FILESYSTEM;
 	}
-	if (make_dataset_handle_common(zhp, &zc) == -1) {
-		free(zhp);
-		zhp = NULL;
-	}
-	zcmd_free_nvlists(&zc);
 	return (zhp);
 }
 

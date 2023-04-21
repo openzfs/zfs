@@ -88,6 +88,7 @@ fi
 
 # online the device so the zpool will use the new space
 log_must zpool online -e $TESTPOOL1 $SDISK
+log_must zpool sync $TESTPOOL1
 
 typeset new_size=$(get_pool_prop size $TESTPOOL1)
 log_note "new pool size: $new_size"

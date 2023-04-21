@@ -72,6 +72,7 @@ struct libzfs_handle {
 	uint64_t libzfs_max_nvlist;
 	void *libfetch;
 	char *libfetch_load_error;
+	boolean_t libzfs_force_export;
 };
 
 struct zfs_handle {

@@ -2220,6 +2220,7 @@ setup_send_progress(struct dmu_send_params *dspp)
 	dssp->dss_outfd = dspp->outfd;
 	dssp->dss_off = dspp->off;
 	dssp->dss_proc = curproc;
+	dssp->dss_thread = curthread;
 	mutex_enter(&dspp->to_ds->ds_sendstream_lock);
 	list_insert_head(&dspp->to_ds->ds_sendstreams, dssp);
 	mutex_exit(&dspp->to_ds->ds_sendstream_lock);
@@ -2509,6 +2510,14 @@ dmu_send_impl(struct dmu_send_params *dspp)
 		}
 	}
 
+	/*
+	 * Last chance, bail if possible at this point, now that the send is
+	 * registered and can be cancelled by signalling this thread.
+	 */
+	err = spa_operation_interrupted(os->os_spa);
+	if (err != 0)
+		goto out;
+
 	if (resuming || book_resuming) {
 		err = setup_resume_points(dspp, to_arg, from_arg,
 		    rlt_arg, smt_arg, resuming, os, redact_rl, nvl);
@@ -2555,8 +2564,8 @@ dmu_send_impl(struct dmu_send_params *dspp)
 	while (err == 0 && !range->eos_marker) {
 		err = do_dump(&dsc, range);
 		range = get_next_range(&srt_arg->q, range);
-		if (issig(JUSTLOOKING) && issig(FORREAL))
-			err = SET_ERROR(EINTR);
+		if (err == 0)
+			err = spa_operation_interrupted(os->os_spa);
 	}
 
 	/*
@@ -3097,6 +3106,30 @@ out:
 	if (ds != origds)
 		dsl_dataset_rele(ds, FTAG);
 	return (err);
+}
+
+/* Close all send streams on the dataset.  */
+int
+dmu_send_close(dsl_dataset_t *ds)
+{
+	int err = 0;
+	dmu_sendstatus_t *dss;
+
+	mutex_enter(&ds->ds_sendstream_lock);
+	dss = list_head(&ds->ds_sendstreams);
+	while (err == 0 && dss != NULL) {
+		/*
+		 * Interrupt the initiator thread, which will cause it
+		 * to initiate a cleanup error exit.  Also send SIGPIPE
+		 * because this interrupts pipe writes.
+		 */
+		thread_signal(dss->dss_thread, SIGINT);
+		thread_signal(dss->dss_thread, SIGPIPE);
+		dss = list_next(&ds->ds_sendstreams, dss);
+	}
+	mutex_exit(&ds->ds_sendstream_lock);
+
+	return (0);
 }
 
 ZFS_MODULE_PARAM(zfs_send, zfs_send_, corrupt_data, INT, ZMOD_RW,

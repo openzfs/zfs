@@ -73,6 +73,10 @@ typedef struct zfs_ioc_key {
 
 int zfs_secpolicy_config(zfs_cmd_t *, nvlist_t *, cred_t *);
 
+void zfs_ioctl_register_pool(zfs_ioc_t ioc, zfs_ioc_legacy_func_t *func,
+    zfs_secpolicy_func_t *secpolicy, boolean_t log_history,
+    zfs_ioc_poolcheck_t pool_check);
+
 void zfs_ioctl_register_dataset_nolog(zfs_ioc_t, zfs_ioc_legacy_func_t *,
     zfs_secpolicy_func_t *, zfs_ioc_poolcheck_t);
 

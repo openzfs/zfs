@@ -73,7 +73,6 @@ static uint_t zfs_recv_queue_ff = 20;
 static uint_t zfs_recv_write_batch_size = 1024 * 1024;
 static int zfs_recv_best_effort_corrective = 0;
 
-static const void *const dmu_recv_tag = "dmu_recv_tag";
 const char *const recv_clone_name = "%recv";
 
 typedef enum {
@@ -81,6 +80,9 @@ typedef enum {
 	ORNS_YES,
 	ORNS_MAYBE
 } or_need_sync_t;
+
+/* The receive was closed by an external call. */
+#define	DRC_CLOSED	(1U << 0)
 
 static int receive_read_payload_and_next_header(dmu_recv_cookie_t *ra, int len,
     void *buf);
@@ -354,6 +356,34 @@ recv_check_large_blocks(dsl_dataset_t *ds, uint64_t featureflags)
 	    !(featureflags & DMU_BACKUP_FEATURE_LARGE_BLOCKS))
 		return (SET_ERROR(ZFS_ERR_STREAM_LARGE_BLOCK_MISMATCH));
 	return (0);
+}
+
+static void
+recv_own(dsl_pool_t *dp, dmu_tx_t *tx, uint64_t dsobj, ds_hold_flags_t dsflags,
+    dmu_recv_cookie_t *drc, dsl_dataset_t **dsp, objset_t **osp)
+{
+	dsl_dataset_t *ds;
+
+	/*
+	 * The dataset must be marked inconsistent before exit in any event,
+	 * so dirty it now.  This ensures it's cleaned up if interrupted.
+	 */
+	VERIFY0(dsl_dataset_own_obj_force(dp, dsobj, dsflags, drc, &ds));
+	dmu_buf_will_dirty(ds->ds_dbuf, tx);
+	dsl_dataset_phys(ds)->ds_flags |= DS_FLAG_INCONSISTENT;
+	ds->ds_receiver = drc;
+	*dsp = ds;
+	VERIFY0(dmu_objset_from_ds(ds, osp));
+}
+
+static void
+recv_disown(dsl_dataset_t *ds, dmu_recv_cookie_t *drc)
+{
+	ds_hold_flags_t dsflags = (drc->drc_raw) ? 0 : DS_HOLD_FLAG_DECRYPT;
+
+	ASSERT3P(ds->ds_receiver, ==, drc);
+	ds->ds_receiver = NULL;
+	dsl_dataset_disown(ds, dsflags, drc);
 }
 
 static int
@@ -906,8 +936,8 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 		dsl_dir_rele(dd, FTAG);
 		drc->drc_newfs = B_TRUE;
 	}
-	VERIFY0(dsl_dataset_own_obj_force(dp, dsobj, dsflags, dmu_recv_tag,
-	    &newds));
+	recv_own(dp, tx, dsobj, dsflags, drba->drba_cookie, &newds, &os);
+
 	if (dsl_dataset_feature_is_active(newds,
 	    SPA_FEATURE_REDACTED_DATASETS)) {
 		/*
@@ -986,9 +1016,6 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 		dsl_dataset_activate_redaction(newds, redact_snaps,
 		    numredactsnaps, tx);
 	}
-
-	dmu_buf_will_dirty(newds->ds_dbuf, tx);
-	dsl_dataset_phys(newds)->ds_flags |= DS_FLAG_INCONSISTENT;
 
 	/*
 	 * If we actually created a non-clone, we need to create the objset
@@ -1175,8 +1202,9 @@ dmu_recv_resume_begin_sync(void *arg, dmu_tx_t *tx)
 {
 	dmu_recv_begin_arg_t *drba = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
-	const char *tofs = drba->drba_cookie->drc_tofs;
-	uint64_t featureflags = drba->drba_cookie->drc_featureflags;
+	dmu_recv_cookie_t *drc = drba->drba_cookie;
+	const char *tofs = drc->drc_tofs;
+	uint64_t featureflags = drc->drc_featureflags;
 	dsl_dataset_t *ds;
 	ds_hold_flags_t dsflags = DS_HOLD_FLAG_NONE;
 	/* 6 extra bytes for /%recv */
@@ -1186,28 +1214,26 @@ dmu_recv_resume_begin_sync(void *arg, dmu_tx_t *tx)
 	    recv_clone_name);
 
 	if (featureflags & DMU_BACKUP_FEATURE_RAW) {
-		drba->drba_cookie->drc_raw = B_TRUE;
+		drc->drc_raw = B_TRUE;
 	} else {
 		dsflags |= DS_HOLD_FLAG_DECRYPT;
 	}
 
-	if (dsl_dataset_own_force(dp, recvname, dsflags, dmu_recv_tag, &ds)
-	    != 0) {
+	if (dsl_dataset_own_force(dp, recvname, dsflags, drc, &ds) != 0) {
 		/* %recv does not exist; continue in tofs */
-		VERIFY0(dsl_dataset_own_force(dp, tofs, dsflags, dmu_recv_tag,
-		    &ds));
-		drba->drba_cookie->drc_newfs = B_TRUE;
+		VERIFY0(dsl_dataset_own_force(dp, tofs, dsflags, drc, &ds));
+		drc->drc_newfs = B_TRUE;
 	}
+	ds->ds_receiver = drc;
 
 	ASSERT(DS_IS_INCONSISTENT(ds));
 	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
-	ASSERT(!BP_IS_HOLE(dsl_dataset_get_blkptr(ds)) ||
-	    drba->drba_cookie->drc_raw);
+	ASSERT(!BP_IS_HOLE(dsl_dataset_get_blkptr(ds)) || drc->drc_raw);
 	rrw_exit(&ds->ds_bp_rwlock, FTAG);
 
-	drba->drba_cookie->drc_ds = ds;
-	VERIFY0(dmu_objset_from_ds(ds, &drba->drba_cookie->drc_os));
-	drba->drba_cookie->drc_should_save = B_TRUE;
+	drc->drc_ds = ds;
+	VERIFY0(dmu_objset_from_ds(ds, &drc->drc_os));
+	drc->drc_should_save = B_TRUE;
 
 	spa_history_log_internal_ds(ds, "resume receive", tx, " ");
 }
@@ -1227,6 +1253,7 @@ dmu_recv_begin(const char *tofs, const char *tosnap,
 	int err = 0;
 
 	memset(drc, 0, sizeof (dmu_recv_cookie_t));
+	drc->drc_initiator = curthread;
 	drc->drc_drr_begin = drr_begin;
 	drc->drc_drrb = &drr_begin->drr_u.drr_begin;
 	drc->drc_tosnap = tosnap;
@@ -1331,6 +1358,16 @@ dmu_recv_begin(const char *tofs, const char *tosnap,
 		}
 	}
 
+	if (err == 0 && drc->drc_ds == NULL) {
+		/*
+		 * Make sure the dataset is destroyed before returning.  We
+		 * can't do this in the sync task because a dataset can't be
+		 * synced and destroyed in the same txg.  In this scenario,
+		 * it should be flagged as inconsistent so we're ok anyway.
+		 */
+		(void) dsl_destroy_head(tofs);
+		return (SET_ERROR(ENXIO));
+	}
 	if (err != 0) {
 		kmem_free(drc->drc_next_rrd, sizeof (*drc->drc_next_rrd));
 		nvlist_free(drc->drc_begin_nvl);
@@ -2661,29 +2698,37 @@ static void
 dmu_recv_cleanup_ds(dmu_recv_cookie_t *drc)
 {
 	dsl_dataset_t *ds = drc->drc_ds;
-	ds_hold_flags_t dsflags;
+	objset_t *os = ds->ds_objset;
+	int error = 0;
 
-	dsflags = (drc->drc_raw) ? DS_HOLD_FLAG_NONE : DS_HOLD_FLAG_DECRYPT;
 	/*
 	 * Wait for the txg sync before cleaning up the receive. For
 	 * resumable receives, this ensures that our resume state has
 	 * been written out to disk. For raw receives, this ensures
 	 * that the user accounting code will not attempt to do anything
 	 * after we stopped receiving the dataset.
+	 *
+	 * If this is interrupted due to suspension and the pool is being
+	 * force exported, just exit and cleanup.
 	 */
-	txg_wait_synced(ds->ds_dir->dd_pool, 0);
+	for (;;) {
+		error = txg_wait_synced_tx(ds->ds_dir->dd_pool, 0,
+		    NULL, TXG_WAIT_F_NOSUSPEND);
+		if (error == 0 || spa_exiting_any(os->os_spa))
+			break;
+	}
 	ds->ds_objset->os_raw_receive = B_FALSE;
 
 	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
 	if (drc->drc_resumable && drc->drc_should_save &&
 	    !BP_IS_HOLE(dsl_dataset_get_blkptr(ds))) {
 		rrw_exit(&ds->ds_bp_rwlock, FTAG);
-		dsl_dataset_disown(ds, dsflags, dmu_recv_tag);
+		recv_disown(ds, drc);
 	} else {
 		char name[ZFS_MAX_DATASET_NAME_LEN];
 		rrw_exit(&ds->ds_bp_rwlock, FTAG);
 		dsl_dataset_name(ds, name);
-		dsl_dataset_disown(ds, dsflags, dmu_recv_tag);
+		recv_disown(ds, drc);
 		if (!drc->drc_heal)
 			(void) dsl_destroy_head(name);
 	}
@@ -3245,6 +3290,35 @@ resume_check(dmu_recv_cookie_t *drc, nvlist_t *begin_nvl)
 }
 
 /*
+ * Cancel the receive stream for the dataset, if there is one.
+ */
+int
+dmu_recv_close(dsl_dataset_t *ds)
+{
+	int err = 0;
+	dmu_recv_cookie_t *drc;
+
+	/*
+	 * This lock isn't technically for recv, but it's not worth
+	 * adding a dedicated one for this purpose.
+	 */
+	mutex_enter(&ds->ds_sendstream_lock);
+	drc = ds->ds_receiver;
+	if (drc != NULL) {
+		drc->drc_flags |= DRC_CLOSED;
+		/*
+		 * Send an interrupt to the initiator thread, which will
+		 * cause it to end the stream and clean up.
+		 */
+		if (drc->drc_initiator != curthread)
+			thread_signal(drc->drc_initiator, SIGINT);
+	}
+	mutex_exit(&ds->ds_sendstream_lock);
+
+	return (err);
+}
+
+/*
  * Read in the stream's records, one by one, and apply them to the pool.  There
  * are two threads involved; the thread that calls this function will spin up a
  * worker thread, read the records off the stream one by one, and issue
@@ -3260,6 +3334,7 @@ int
 dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 {
 	int err = 0;
+	spa_t *spa = dsl_dataset_get_spa(drc->drc_ds);
 	struct receive_writer_arg *rwa = kmem_zalloc(sizeof (*rwa), KM_SLEEP);
 
 	if (dsl_dataset_has_resume_receive_state(drc->drc_ds)) {
@@ -3300,7 +3375,7 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 			 * are sure the rest of the receive succeeded so we
 			 * stash the keynvl away until then.
 			 */
-			err = dsl_crypto_recv_raw(spa_name(drc->drc_os->os_spa),
+			err = dsl_crypto_recv_raw(spa_name(spa),
 			    drc->drc_ds->ds_object, drc->drc_fromsnapobj,
 			    drc->drc_drrb->drr_type, keynvl, drc->drc_newfs);
 			if (err != 0)
@@ -3340,6 +3415,12 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 	 */
 	drc->drc_should_save = B_TRUE;
 
+	/* Last chance before kicking off. */
+	if (drc->drc_flags & DRC_CLOSED) {
+		err = SET_ERROR(EINTR);
+		goto out;
+	}
+
 	(void) bqueue_init(&rwa->q, zfs_recv_queue_ff,
 	    MAX(zfs_recv_queue_length, 2 * zfs_max_recordsize),
 	    offsetof(struct receive_record_arg, node));
@@ -3361,8 +3442,17 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 	list_create(&rwa->write_batch, sizeof (struct receive_record_arg),
 	    offsetof(struct receive_record_arg, node.bqn_node));
 
-	(void) thread_create(NULL, 0, receive_writer_thread, rwa, 0, curproc,
-	    TS_RUN, minclsyspri);
+	/*
+	 * Register the rwa with the drc so it can be interrupted.  This
+	 * requires a mutex handshake to ensure validity.
+	 */
+	mutex_enter(&drc->drc_ds->ds_sendstream_lock);
+	drc->drc_rwa = rwa;
+	mutex_exit(&drc->drc_ds->ds_sendstream_lock);
+
+	kthread_t *rw_td = thread_create(NULL, 0, receive_writer_thread,
+	    rwa, 0, curproc, TS_RUN, minclsyspri);
+
 	/*
 	 * We're reading rwa->err without locks, which is safe since we are the
 	 * only reader, and the worker thread is the only writer.  It's ok if we
@@ -3378,11 +3468,10 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 	 * it.  Finally, if receive_read_record fails or we're at the end of the
 	 * stream, then we free drc->drc_rrd and exit.
 	 */
-	while (rwa->err == 0) {
-		if (issig(JUSTLOOKING) && issig(FORREAL)) {
-			err = SET_ERROR(EINTR);
+	while (rwa->err == 0 && err == 0) {
+		err = spa_operation_interrupted(dmu_objset_spa(rwa->os));
+		if (err)
 			break;
-		}
 
 		ASSERT3P(drc->drc_rrd, ==, NULL);
 		drc->drc_rrd = drc->drc_next_rrd;
@@ -3409,9 +3498,22 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 
 	mutex_enter(&rwa->mutex);
 	while (!rwa->done) {
+		boolean_t closed = drc->drc_flags & DRC_CLOSED;
+
+		if (!closed) {
+			if (err == 0)
+				err = spa_operation_interrupted(spa);
+			if (err != 0) {
+				drc->drc_flags |= DRC_CLOSED;
+				thread_signal(rw_td, SIGINT);
+				closed = B_TRUE;
+			}
+		}
+
 		/*
 		 * We need to use cv_wait_sig() so that any process that may
-		 * be sleeping here can still fork.
+		 * be sleeping here can still fork.  Also, it allows
+		 * dmu_recv_close to cause an eos marker to be injected.
 		 */
 		(void) cv_wait_sig(&rwa->cv, &rwa->mutex);
 	}
@@ -3442,6 +3544,10 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 				err = next_err;
 		}
 	}
+
+	mutex_enter(&drc->drc_ds->ds_sendstream_lock);
+	drc->drc_rwa = NULL;
+	mutex_exit(&drc->drc_ds->ds_sendstream_lock);
 
 	cv_destroy(&rwa->cv);
 	mutex_destroy(&rwa->mutex);
@@ -3491,7 +3597,7 @@ dmu_recv_end_check(void *arg, dmu_tx_t *tx)
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	int error;
 
-	ASSERT3P(drc->drc_ds->ds_owner, ==, dmu_recv_tag);
+	ASSERT3P(drc->drc_ds->ds_receiver, ==, drc);
 
 	if (drc->drc_heal) {
 		error = 0;
@@ -3716,7 +3822,7 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 		(void) spa_keystore_remove_mapping(dmu_tx_pool(tx)->dp_spa,
 		    drc->drc_ds->ds_object, drc->drc_ds);
 	}
-	dsl_dataset_disown(drc->drc_ds, 0, dmu_recv_tag);
+	recv_disown(drc->drc_ds, drc);
 	drc->drc_ds = NULL;
 }
 
@@ -3782,7 +3888,7 @@ boolean_t
 dmu_objset_is_receiving(objset_t *os)
 {
 	return (os->os_dsl_dataset != NULL &&
-	    os->os_dsl_dataset->ds_owner == dmu_recv_tag);
+	    os->os_dsl_dataset->ds_receiver != NULL);
 }
 
 ZFS_MODULE_PARAM(zfs_recv, zfs_recv_, queue_length, UINT, ZMOD_RW,

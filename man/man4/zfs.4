@@ -922,6 +922,18 @@ receive of encrypted datasets.
 Intended for users whose pools were created with
 OpenZFS pre-release versions and now have compatibility issues.
 .
+.It Sy zfs_forced_export_unmount_enabled Ns = Ns Sy 0 Ns | Ns 1 Pq int
+During forced unmount, leave the filesystem in a disabled mode of operation,
+in which all new I/Os fail, except for those required to unmount it.
+Intended for users trying to forcibly export a pool even when I/Os are in
+progress, without the need to find and stop them.
+This option does not affect processes that are merely sitting on the
+filesystem, only those performing active I/O.
+.Pp
+This parameter can be set to 1 to enable this behavior.
+.Pp
+This parameter only applies on Linux.
+.
 .It Sy zfs_key_max_salt_uses Ns = Ns Sy 400000000 Po 4*10^8 Pc Pq ulong
 Maximum number of uses of a single salt value before generating a new one for
 encrypted datasets.

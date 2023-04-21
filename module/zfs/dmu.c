@@ -1132,12 +1132,16 @@ dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 {
 	dmu_buf_t **dbp;
 	int numbufs;
+	int error;
 
 	if (size == 0)
 		return;
 
-	VERIFY0(dmu_buf_hold_array(os, object, offset, size,
-	    FALSE, FTAG, &numbufs, &dbp));
+	error = dmu_buf_hold_array(os, object, offset, size,
+	    FALSE, FTAG, &numbufs, &dbp);
+	VERIFY(error == 0 || spa_exiting_any(os->os_spa));
+	if (error != 0)
+		return;
 	dmu_write_impl(dbp, numbufs, offset, size, buf, tx);
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 }
@@ -1151,12 +1155,16 @@ dmu_write_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
 {
 	dmu_buf_t **dbp;
 	int numbufs;
+	int error;
 
 	if (size == 0)
 		return;
 
-	VERIFY0(dmu_buf_hold_array_by_dnode(dn, offset, size,
-	    FALSE, FTAG, &numbufs, &dbp, DMU_READ_PREFETCH));
+	error = dmu_buf_hold_array_by_dnode(dn, offset, size,
+	    FALSE, FTAG, &numbufs, &dbp, DMU_READ_PREFETCH);
+	VERIFY(error == 0 || spa_exiting_any(dn->dn_objset->os_spa));
+	if (error != 0)
+		return;
 	dmu_write_impl(dbp, numbufs, offset, size, buf, tx);
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 }
@@ -1188,11 +1196,15 @@ dmu_write_embedded(objset_t *os, uint64_t object, uint64_t offset,
     int compressed_size, int byteorder, dmu_tx_t *tx)
 {
 	dmu_buf_t *db;
+	int error;
 
 	ASSERT3U(etype, <, NUM_BP_EMBEDDED_TYPES);
 	ASSERT3U(comp, <, ZIO_COMPRESS_FUNCTIONS);
-	VERIFY0(dmu_buf_hold_noread(os, object, offset,
-	    FTAG, &db));
+	error = dmu_buf_hold_noread(os, object, offset,
+	    FTAG, &db);
+	VERIFY(error == 0 || spa_exiting_any(os->os_spa));
+	if (error != 0)
+		return;
 
 	dmu_buf_write_embedded(db,
 	    data, (bp_embedded_type_t)etype, (enum zio_compress)comp,

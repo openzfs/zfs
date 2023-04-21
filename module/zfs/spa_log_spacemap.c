@@ -881,6 +881,9 @@ spa_sync_close_syncing_log_sm(spa_t *spa)
 	sls->sls_nblocks = space_map_nblocks(spa_syncing_log_sm(spa));
 	spa->spa_unflushed_stats.sus_nblocks += sls->sls_nblocks;
 
+	if (sls->sls_nblocks == 0 && spa_exiting(spa))
+		return;
+
 	/*
 	 * Note that we can't assert that sls_mscount is not 0,
 	 * because there is the case where the first metaslab
@@ -919,7 +922,9 @@ spa_cleanup_old_sm_logs(spa_t *spa, dmu_tx_t *tx)
 		ASSERT(avl_is_empty(&spa->spa_sm_logs_by_txg));
 		return;
 	}
-	VERIFY0(error);
+	VERIFY(error == 0 || spa_exiting_any(spa));
+	if (error != 0)
+		return;
 
 	metaslab_t *oldest = avl_first(&spa->spa_metaslabs_by_flushed);
 	uint64_t oldest_flushed_txg = metaslab_unflushed_txg(oldest);
@@ -973,7 +978,9 @@ spa_generate_syncing_log_sm(spa_t *spa, dmu_tx_t *tx)
 		    &spacemap_zap, tx));
 		spa_feature_incr(spa, SPA_FEATURE_LOG_SPACEMAP, tx);
 	}
-	VERIFY0(error);
+	VERIFY(error == 0 || spa_exiting_any(spa));
+	if (error != 0)
+		return;
 
 	uint64_t sm_obj;
 	ASSERT3U(zap_lookup_int_key(mos, spacemap_zap, txg, &sm_obj),

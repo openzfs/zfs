@@ -208,7 +208,7 @@ zfs_close(struct inode *ip, int flag, cred_t *cr)
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
 	int error;
 
-	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
+	if ((error = zfs_enter_unmountok_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (error);
 
 	/* Decrement the synchronous opens in the znode */
@@ -1660,7 +1660,7 @@ zfs_getattr_fast(zidmap_t *user_ns, struct inode *ip, struct kstat *sp)
 	u_longlong_t nblocks;
 	int error;
 
-	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
+	if ((error = zfs_enter_unmountok_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (error);
 
 	mutex_enter(&zp->z_lock);
@@ -3869,7 +3869,11 @@ zfs_dirty_inode(struct inode *ip, int flags)
 	if (zfs_is_readonly(zfsvfs) || dmu_objset_is_snapshot(zfsvfs->z_os))
 		return (0);
 
-	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
+	/*
+	 * If we're shutting down, just return success. We must not queue up
+	 * a write at this point.
+	 */
+	if ((error = zfs_enter_unmountok_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (error);
 
 #ifdef I_DIRTY_TIME

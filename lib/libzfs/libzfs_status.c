@@ -228,6 +228,9 @@ check_status(nvlist_t *config, boolean_t isimport,
 	uint64_t errata = 0;
 	unsigned long system_hostid = get_system_hostid();
 
+	if (config == NULL)
+		return (ZPOOL_STATUS_FORCE_EXPORTING);
+
 	uint64_t version = fnvlist_lookup_uint64(config, ZPOOL_CONFIG_VERSION);
 	nvlist_t *nvroot = fnvlist_lookup_nvlist(config,
 	    ZPOOL_CONFIG_VDEV_TREE);

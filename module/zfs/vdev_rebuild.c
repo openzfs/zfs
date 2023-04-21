@@ -285,7 +285,12 @@ vdev_rebuild_initiate(vdev_t *vd)
 	ASSERT(!vd->vdev_rebuilding);
 
 	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
-	VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
+	int err = dmu_tx_assign(tx, TXG_WAIT);
+	if (err != 0) {
+		ASSERT(spa_exiting_any(vd->vdev_spa));
+		dmu_tx_abort(tx);
+		return;
+	}
 
 	vd->vdev_rebuilding = B_TRUE;
 
@@ -584,7 +589,15 @@ vdev_rebuild_range(vdev_rebuild_t *vr, uint64_t start, uint64_t size)
 	mutex_exit(&vr->vr_io_lock);
 
 	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
-	VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
+	int err = dmu_tx_assign(tx, TXG_WAIT);
+	if (err != 0) {
+		ASSERT(spa_exiting_any(spa));
+		dmu_tx_abort(tx);
+		mutex_enter(&vr->vr_io_lock);
+		vr->vr_bytes_inflight -= psize;
+		mutex_exit(&vr->vr_io_lock);
+		return (err);
+	}
 	uint64_t txg = dmu_tx_get_txg(tx);
 
 	spa_config_enter(spa, SCL_STATE_ALL, vd, RW_READER);
@@ -922,9 +935,15 @@ vdev_rebuild_thread(void *arg)
 
 	dsl_pool_t *dp = spa_get_dsl(spa);
 	dmu_tx_t *tx = dmu_tx_create_dd(dp->dp_mos_dir);
-	VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
+	int txerr = dmu_tx_assign(tx, TXG_WAIT);
 
 	mutex_enter(&vd->vdev_rebuild_lock);
+	if (txerr != 0) {
+		ASSERT(spa_exiting_any(vd->vdev_spa));
+		vd->vdev_rebuilding = B_FALSE;
+		dmu_tx_abort(tx);
+		goto done;
+	}
 	if (error == 0) {
 		/*
 		 * After a successful rebuild clear the DTLs of all ranges
@@ -963,6 +982,7 @@ vdev_rebuild_thread(void *arg)
 
 	dmu_tx_commit(tx);
 
+done:
 	vd->vdev_rebuild_thread = NULL;
 	mutex_exit(&vd->vdev_rebuild_lock);
 	spa_config_exit(spa, SCL_CONFIG, FTAG);

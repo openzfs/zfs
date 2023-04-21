@@ -509,6 +509,16 @@ metaslab_class_get_dspace(metaslab_class_t *mc)
 }
 
 void
+metaslab_class_force_discard(metaslab_class_t *mc)
+{
+
+	mc->mc_alloc = 0;
+	mc->mc_deferred = 0;
+	mc->mc_space = 0;
+	mc->mc_dspace = 0;
+}
+
+void
 metaslab_class_histogram_verify(metaslab_class_t *mc)
 {
 	spa_t *spa = mc->mc_spa;
@@ -1923,6 +1933,8 @@ metaslab_verify_space(metaslab_t *msp, uint64_t txg)
 	if (txg != spa_syncing_txg(spa) || msp->ms_sm == NULL ||
 	    !msp->ms_loaded)
 		return;
+	if (spa_exiting(spa))
+		return;
 
 	/*
 	 * Even though the smp_alloc field can get negative,
@@ -2793,6 +2805,19 @@ metaslab_fini(metaslab_t *msp)
 	metaslab_group_remove(mg, msp);
 
 	mutex_enter(&msp->ms_lock);
+	if (spa_exiting_any(mg->mg_vd->vdev_spa)) {
+		/* Catch-all cleanup as required for force export. */
+		range_tree_vacate(msp->ms_allocatable, NULL, NULL);
+		range_tree_vacate(msp->ms_freeing, NULL, NULL);
+		range_tree_vacate(msp->ms_freed, NULL, NULL);
+		range_tree_vacate(msp->ms_checkpointing, NULL, NULL);
+		for (int t = 0; t < TXG_SIZE; t++)
+			range_tree_vacate(msp->ms_allocating[t], NULL, NULL);
+		for (int t = 0; t < TXG_DEFER_SIZE; t++)
+			range_tree_vacate(msp->ms_defer[t], NULL, NULL);
+		msp->ms_deferspace = 0;
+	}
+
 	VERIFY(msp->ms_group == NULL);
 
 	/*
@@ -3991,6 +4016,31 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 	}
 
 	/*
+	 * The pool is being forcibly exported.  Just discard everything.
+	 */
+	if (spa_exiting_any(spa)) {
+		mutex_enter(&msp->ms_sync_lock);
+		mutex_enter(&msp->ms_lock);
+		range_tree_vacate(alloctree, NULL, NULL);
+		range_tree_vacate(msp->ms_allocatable, NULL, NULL);
+		range_tree_vacate(msp->ms_freeing, NULL, NULL);
+		range_tree_vacate(msp->ms_freed, NULL, NULL);
+		range_tree_vacate(msp->ms_trim, NULL, NULL);
+		range_tree_vacate(msp->ms_checkpointing, NULL, NULL);
+		range_tree_vacate(msp->ms_allocating[txg & TXG_MASK],
+		    NULL, NULL);
+		range_tree_vacate(msp->ms_allocating[TXG_CLEAN(txg) & TXG_MASK],
+		    NULL, NULL);
+		for (int t = 0; t < TXG_DEFER_SIZE; t++) {
+			range_tree_vacate(msp->ms_defer[t], NULL, NULL);
+		}
+		msp->ms_deferspace = 0;
+		mutex_exit(&msp->ms_lock);
+		mutex_exit(&msp->ms_sync_lock);
+		return;
+	}
+
+	/*
 	 * Normally, we don't want to process a metaslab if there are no
 	 * allocations or frees to perform. However, if the metaslab is being
 	 * forced to condense, it's loaded and we're not beyond the final
@@ -4009,7 +4059,7 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 		return;
 
 
-	VERIFY3U(txg, <=, spa_final_dirty_txg(spa));
+	spa_verify_dirty_txg(spa, txg);
 
 	/*
 	 * The only state that can actually be changing concurrently
@@ -4365,7 +4415,7 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	msp->ms_deferspace += defer_delta;
 	ASSERT3S(msp->ms_deferspace, >=, 0);
 	ASSERT3S(msp->ms_deferspace, <=, msp->ms_size);
-	if (msp->ms_deferspace != 0) {
+	if (msp->ms_deferspace != 0 && !spa_exiting_any(spa)) {
 		/*
 		 * Keep syncing this metaslab until all deferred frees
 		 * are back in circulation.
@@ -5586,6 +5636,11 @@ metaslab_unalloc_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 	msp = vd->vdev_ms[offset >> vd->vdev_ms_shift];
 
 	mutex_enter(&msp->ms_lock);
+	if (spa_exiting_any(spa) &&
+	    range_tree_space(msp->ms_allocating[txg & TXG_MASK]) == 0) {
+		mutex_exit(&msp->ms_lock);
+		return;
+	}
 	range_tree_remove(msp->ms_allocating[txg & TXG_MASK],
 	    offset, size);
 	msp->ms_allocating_total -= size;
@@ -6186,7 +6241,9 @@ metaslab_update_ondisk_flush_data(metaslab_t *ms, dmu_tx_t *tx)
 	int err = zap_lookup(mos, vd->vdev_top_zap,
 	    VDEV_TOP_ZAP_MS_UNFLUSHED_PHYS_TXGS, sizeof (uint64_t), 1,
 	    &object);
-	if (err == ENOENT) {
+	if (err != 0 && spa_exiting_any(spa)) {
+		return;
+	} else if (err == ENOENT) {
 		object = dmu_object_alloc(mos, DMU_OTN_UINT64_METADATA,
 		    SPA_OLD_MAXBLOCKSIZE, DMU_OT_NONE, 0, tx);
 		VERIFY0(zap_add(mos, vd->vdev_top_zap,

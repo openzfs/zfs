@@ -29,7 +29,10 @@
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_ctldir.h>
 #include <sys/zpl.h>
+#include <sys/dmu_objset.h>
+#include <sys/dsl_dir.h>
 
+int zfs_forced_export_unmount_enabled = 0;
 
 static struct inode *
 zpl_inode_alloc(struct super_block *sb)
@@ -101,6 +104,31 @@ zpl_evict_inode(struct inode *ip)
 	clear_inode(ip);
 	zfs_inactive(ip);
 	spl_fstrans_unmark(cookie);
+}
+
+static void
+zpl_umount_begin(struct super_block *sb)
+{
+	zfsvfs_t *zfsvfs = sb->s_fs_info;
+
+	if (zfsvfs) {
+		/*
+		 * Flush out all POSIX I/Os.  Notify all waiters that they
+		 * must end, then wait for all users to drop their holds on
+		 * z_teardown_*_lock, and evict buffers.
+		 */
+		if (zfs_forced_export_unmount_enabled)
+			zfsvfs->z_force_unmounted = B_TRUE;
+		(void) dmu_objset_shutdown_register(zfsvfs->z_os);
+		rrm_enter(&zfsvfs->z_teardown_lock, RW_WRITER, FTAG);
+		rw_enter(&zfsvfs->z_teardown_inactive_lock, RW_WRITER);
+		rw_exit(&zfsvfs->z_teardown_inactive_lock);
+		rrm_exit(&zfsvfs->z_teardown_lock, FTAG);
+		dmu_objset_evict_dbufs(zfsvfs->z_os);
+
+		dsl_dir_cancel_waiters(zfsvfs->z_os->os_dsl_dataset->ds_dir);
+		dmu_objset_shutdown_unregister(zfsvfs->z_os);
+	}
 }
 
 static void
@@ -187,7 +215,7 @@ static int
 __zpl_show_devname(struct seq_file *seq, zfsvfs_t *zfsvfs)
 {
 	int error;
-	if ((error = zpl_enter(zfsvfs, FTAG)) != 0)
+	if ((error = zfs_enter_unmountok(zfsvfs, FTAG)) != 0)
 		return (error);
 
 	char *fsname = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
@@ -381,6 +409,7 @@ const struct super_operations zpl_super_operations = {
 	.write_inode		= NULL,
 	.evict_inode		= zpl_evict_inode,
 	.put_super		= zpl_put_super,
+	.umount_begin		= zpl_umount_begin,
 	.sync_fs		= zpl_sync_fs,
 	.statfs			= zpl_statfs,
 	.remount_fs		= zpl_remount_fs,
@@ -400,3 +429,8 @@ struct file_system_type zpl_fs_type = {
 	.mount			= zpl_mount,
 	.kill_sb		= zpl_kill_sb,
 };
+
+/* BEGIN CSTYLED */
+ZFS_MODULE_PARAM(zfs, zfs_, forced_export_unmount_enabled, INT, ZMOD_RW,
+	"Enable forced export unmount to keep POSIX I/O users off");
+/* END CSTYLED */

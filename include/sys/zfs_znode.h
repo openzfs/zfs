@@ -239,6 +239,20 @@ zfs_enter_verify_zp(zfsvfs_t *zfsvfs, znode_t *zp, const char *tag)
 	return (0);
 }
 
+/* zfs_enter_unmountok and zfs_verify_zp together */
+static inline int
+zfs_enter_unmountok_verify_zp(zfsvfs_t *zfsvfs, znode_t *zp, const char *tag)
+{
+	int error;
+	if ((error = zfs_enter_unmountok(zfsvfs, tag)) != 0)
+		return (error);
+	if ((error = zfs_verify_zp(zp)) != 0) {
+		zfs_exit(zfsvfs, tag);
+		return (error);
+	}
+	return (0);
+}
+
 typedef struct znode_hold {
 	uint64_t	zh_obj;		/* object id */
 	avl_node_t	zh_node;	/* avl tree linkage */

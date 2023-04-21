@@ -680,6 +680,7 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	dsl_dataset_t *ds;
 	objset_t *mos = dp->dp_meta_objset;
 	list_t synced_datasets;
+	int error;
 
 	list_create(&synced_datasets, sizeof (dsl_dataset_t),
 	    offsetof(dsl_dataset_t, ds_synced_link));
@@ -717,7 +718,8 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 		list_insert_tail(&synced_datasets, ds);
 		dsl_dataset_sync(ds, zio, tx);
 	}
-	VERIFY0(zio_wait(zio));
+	error = zio_wait(zio);
+	VERIFY(error == 0 || (spa_exiting_any(zio->io_spa) && error == EIO));
 
 	/*
 	 * Update the long range free counter after
