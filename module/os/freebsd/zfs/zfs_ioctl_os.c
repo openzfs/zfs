@@ -59,7 +59,7 @@ zfs_vfs_ref(zfsvfs_t **zfvp)
 	return (error);
 }
 
-int
+boolean_t
 zfs_vfs_held(zfsvfs_t *zfsvfs)
 {
 	return (zfsvfs->z_vfs != NULL);
