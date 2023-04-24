@@ -802,6 +802,9 @@ static struct vop_vector zfsctl_ops_root = {
 #if __FreeBSD_version >= 1300121
 	.vop_fplookup_vexec = VOP_EAGAIN,
 #endif
+#if __FreeBSD_version >= 1300139
+	.vop_fplookup_symlink = VOP_EAGAIN,
+#endif
 	.vop_open =	zfsctl_common_open,
 	.vop_close =	zfsctl_common_close,
 	.vop_ioctl =	VOP_EINVAL,
@@ -1130,6 +1133,9 @@ static struct vop_vector zfsctl_ops_snapdir = {
 #if __FreeBSD_version >= 1300121
 	.vop_fplookup_vexec = VOP_EAGAIN,
 #endif
+#if __FreeBSD_version >= 1300139
+	.vop_fplookup_symlink = VOP_EAGAIN,
+#endif
 	.vop_open =	zfsctl_common_open,
 	.vop_close =	zfsctl_common_close,
 	.vop_getattr =	zfsctl_snapdir_getattr,
@@ -1236,6 +1242,9 @@ static struct vop_vector zfsctl_ops_snapshot = {
 	.vop_default =		NULL, /* ensure very restricted access */
 #if __FreeBSD_version >= 1300121
 	.vop_fplookup_vexec =	VOP_EAGAIN,
+#endif
+#if __FreeBSD_version >= 1300139
+	.vop_fplookup_symlink = VOP_EAGAIN,
 #endif
 	.vop_open =		zfsctl_common_open,
 	.vop_close =		zfsctl_common_close,
