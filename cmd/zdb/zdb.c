@@ -6812,12 +6812,15 @@ dump_block_stats(spa_t *spa)
 
 	if (dump_opt['b'] >= 2) {
 		int l, t, level;
+		char csize[32], lsize[32], psize[32], asize[32];
+		char avg[32], gang[32];
 		(void) printf("\nBlocks\tLSIZE\tPSIZE\tASIZE"
 		    "\t  avg\t comp\t%%Total\tType\n");
 
+		zfs_blkstat_t *mdstats = umem_zalloc(sizeof (zfs_blkstat_t),
+		    UMEM_NOFAIL);
+
 		for (t = 0; t <= ZDB_OT_TOTAL; t++) {
-			char csize[32], lsize[32], psize[32], asize[32];
-			char avg[32], gang[32];
 			const char *typename;
 
 			/* make sure nicenum has enough space */
@@ -6859,6 +6862,15 @@ dump_block_stats(spa_t *spa)
 
 				if (zb->zb_asize == 0)
 					continue;
+
+				if (level != ZB_TOTAL && t < DMU_OT_NUMTYPES &&
+				    (level > 0 || DMU_OT_IS_METADATA(t))) {
+					mdstats->zb_count += zb->zb_count;
+					mdstats->zb_lsize += zb->zb_lsize;
+					mdstats->zb_psize += zb->zb_psize;
+					mdstats->zb_asize += zb->zb_asize;
+					mdstats->zb_gangs += zb->zb_gangs;
+				}
 
 				if (dump_opt['b'] < 3 && level != ZB_TOTAL)
 					continue;
@@ -6905,6 +6917,24 @@ dump_block_stats(spa_t *spa)
 				}
 			}
 		}
+		zdb_nicenum(mdstats->zb_count, csize,
+		    sizeof (csize));
+		zdb_nicenum(mdstats->zb_lsize, lsize,
+		    sizeof (lsize));
+		zdb_nicenum(mdstats->zb_psize, psize,
+		    sizeof (psize));
+		zdb_nicenum(mdstats->zb_asize, asize,
+		    sizeof (asize));
+		zdb_nicenum(mdstats->zb_asize / mdstats->zb_count, avg,
+		    sizeof (avg));
+		zdb_nicenum(mdstats->zb_gangs, gang, sizeof (gang));
+
+		(void) printf("%6s\t%5s\t%5s\t%5s\t%5s"
+		    "\t%5.2f\t%6.2f\t",
+		    csize, lsize, psize, asize, avg,
+		    (double)mdstats->zb_lsize / mdstats->zb_psize,
+		    100.0 * mdstats->zb_asize / tzb->zb_asize);
+		(void) printf("%s\n", "Metadata Total");
 
 		/* Output a table summarizing block sizes in the pool */
 		if (dump_opt['b'] >= 2) {
