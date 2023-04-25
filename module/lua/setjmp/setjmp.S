@@ -16,4 +16,6 @@
 #include "setjmp_s390x.S"
 #elif defined(__riscv)
 #include "setjmp_rv64g.S"
+#elif defined(__loongarch_lp64)
+#include "setjmp_loongarch64.S"
 #endif

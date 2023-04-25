@@ -84,6 +84,8 @@ static intptr_t stack_remaining(void) {
 #define JMP_BUF_CNT	18
 #elif defined(__riscv)
 #define JMP_BUF_CNT     64
+#elif defined(__loongarch_lp64)
+#define JMP_BUF_CNT     64
 #else
 #define	JMP_BUF_CNT	1
 #endif
