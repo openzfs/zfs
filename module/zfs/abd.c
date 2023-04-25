@@ -109,7 +109,6 @@ void
 abd_verify(abd_t *abd)
 {
 #ifdef ZFS_DEBUG
-	ASSERT3U(abd->abd_size, >, 0);
 	ASSERT3U(abd->abd_size, <=, SPA_MAXBLOCKSIZE);
 	ASSERT3U(abd->abd_flags, ==, abd->abd_flags & (ABD_FLAG_LINEAR |
 	    ABD_FLAG_OWNER | ABD_FLAG_META | ABD_FLAG_MULTI_ZONE |
@@ -118,6 +117,7 @@ abd_verify(abd_t *abd)
 	IMPLY(abd->abd_parent != NULL, !(abd->abd_flags & ABD_FLAG_OWNER));
 	IMPLY(abd->abd_flags & ABD_FLAG_META, abd->abd_flags & ABD_FLAG_OWNER);
 	if (abd_is_linear(abd)) {
+		ASSERT3U(abd->abd_size, >, 0);
 		ASSERT3P(ABD_LINEAR_BUF(abd), !=, NULL);
 	} else if (abd_is_gang(abd)) {
 		uint_t child_sizes = 0;
@@ -130,6 +130,7 @@ abd_verify(abd_t *abd)
 		}
 		ASSERT3U(abd->abd_size, ==, child_sizes);
 	} else {
+		ASSERT3U(abd->abd_size, >, 0);
 		abd_verify_scatter(abd);
 	}
 #endif
