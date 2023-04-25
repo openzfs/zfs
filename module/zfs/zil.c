@@ -3318,21 +3318,6 @@ zil_commit(zilog_t *zilog, uint64_t foid)
 	}
 
 	/*
-	 * The ->zl_suspend_lock rwlock ensures that all in-flight
-	 * zil_commit() operations finish before suspension begins and that
-	 * no more begin. Without it, it is possible for the scheduler to
-	 * preempt us right after the zilog->zl_suspend suspend check, run
-	 * another thread that runs zil_suspend() and after the other thread
-	 * has finished its call to zil_commit_impl(), resume this thread while
-	 * zil is suspended. This can trigger an assertion failure in
-	 * VERIFY(list_is_empty(&lwb->lwb_itxs)). If it is held, it means that
-	 * `zil_suspend()` is executing in another thread, so we go to
-	 * txg_wait_synced().
-	 */
-	if (!rw_tryenter(&zilog->zl_suspend_lock, RW_READER))
-		goto wait;
-
-	/*
 	 * If the ZIL is suspended, we don't want to dirty it by calling
 	 * zil_commit_itx_assign() below, nor can we write out
 	 * lwbs like would be done in zil_commit_write(). Thus, we
@@ -3340,14 +3325,11 @@ zil_commit(zilog_t *zilog, uint64_t foid)
 	 * semantics, and avoid calling those functions altogether.
 	 */
 	if (zilog->zl_suspend > 0) {
-		rw_exit(&zilog->zl_suspend_lock);
-wait:
 		txg_wait_synced(zilog->zl_dmu_pool, 0);
 		return;
 	}
 
 	zil_commit_impl(zilog, foid);
-	rw_exit(&zilog->zl_suspend_lock);
 }
 
 void
@@ -3612,8 +3594,6 @@ zil_alloc(objset_t *os, zil_header_t *zh_phys)
 	cv_init(&zilog->zl_cv_suspend, NULL, CV_DEFAULT, NULL);
 	cv_init(&zilog->zl_lwb_io_cv, NULL, CV_DEFAULT, NULL);
 
-	rw_init(&zilog->zl_suspend_lock, NULL, RW_DEFAULT, NULL);
-
 	return (zilog);
 }
 
@@ -3652,8 +3632,6 @@ zil_free(zilog_t *zilog)
 
 	cv_destroy(&zilog->zl_cv_suspend);
 	cv_destroy(&zilog->zl_lwb_io_cv);
-
-	rw_destroy(&zilog->zl_suspend_lock);
 
 	kmem_free(zilog, sizeof (zilog_t));
 }
@@ -3782,14 +3760,11 @@ zil_suspend(const char *osname, void **cookiep)
 		return (error);
 	zilog = dmu_objset_zil(os);
 
-	rw_enter(&zilog->zl_suspend_lock, RW_WRITER);
-
 	mutex_enter(&zilog->zl_lock);
 	zh = zilog->zl_header;
 
 	if (zh->zh_flags & ZIL_REPLAY_NEEDED) {		/* unplayed log */
 		mutex_exit(&zilog->zl_lock);
-		rw_exit(&zilog->zl_suspend_lock);
 		dmu_objset_rele(os, suspend_tag);
 		return (SET_ERROR(EBUSY));
 	}
@@ -3803,7 +3778,6 @@ zil_suspend(const char *osname, void **cookiep)
 	if (cookiep == NULL && !zilog->zl_suspending &&
 	    (zilog->zl_suspend > 0 || BP_IS_HOLE(&zh->zh_log))) {
 		mutex_exit(&zilog->zl_lock);
-		rw_exit(&zilog->zl_suspend_lock);
 		dmu_objset_rele(os, suspend_tag);
 		return (0);
 	}
@@ -3812,7 +3786,6 @@ zil_suspend(const char *osname, void **cookiep)
 	dsl_pool_rele(dmu_objset_pool(os), suspend_tag);
 
 	zilog->zl_suspend++;
-	rw_exit(&zilog->zl_suspend_lock);
 
 	if (zilog->zl_suspend > 1) {
 		/*
