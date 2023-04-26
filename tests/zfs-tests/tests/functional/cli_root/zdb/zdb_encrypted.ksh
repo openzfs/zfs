@@ -55,8 +55,8 @@ log_must eval "echo $PASSPHRASE | zfs create -o mountpoint=$TESTDIR2" \
 
 echo 'my great encrypted text' > $file
 
-obj="$(ls -i $file | cut -d' ' -f1)"
-size="$(wc -c < $file)"
+typeset -i obj=$(ls -i $file | cut -d' ' -f1)
+typeset -i size=$(wc -c < $file)
 
 log_note "test file $file is objid $obj, size $size"
 
