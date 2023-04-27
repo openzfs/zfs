@@ -371,7 +371,7 @@ change_key(pam_handle_t *pamh, const char *ds_name,
 
 static int
 decrypt_mount(pam_handle_t *pamh, const char *ds_name,
-    const char *passphrase)
+    const char *passphrase, boolean_t noop)
 {
 	zfs_handle_t *ds = zfs_open(g_zfs, ds_name, ZFS_TYPE_FILESYSTEM);
 	if (ds == NULL) {
@@ -383,7 +383,7 @@ decrypt_mount(pam_handle_t *pamh, const char *ds_name,
 		zfs_close(ds);
 		return (-1);
 	}
-	int ret = lzc_load_key(ds_name, B_FALSE, (uint8_t *)key->value,
+	int ret = lzc_load_key(ds_name, noop, (uint8_t *)key->value,
 	    WRAPPING_KEY_LEN);
 	pw_free(key);
 	if (ret) {
@@ -391,12 +391,16 @@ decrypt_mount(pam_handle_t *pamh, const char *ds_name,
 		zfs_close(ds);
 		return (-1);
 	}
+	if (noop) {
+		goto out;
+	}
 	ret = zfs_mount(ds, NULL, 0);
 	if (ret) {
 		pam_syslog(pamh, LOG_ERR, "mount failed: %d", ret);
 		zfs_close(ds);
 		return (-1);
 	}
+out:
 	zfs_close(ds);
 	return (0);
 }
@@ -443,13 +447,13 @@ zfs_key_config_load(pam_handle_t *pamh, zfs_key_config_t *config,
 	config->homes_prefix = strdup("rpool/home");
 	if (config->homes_prefix == NULL) {
 		pam_syslog(pamh, LOG_ERR, "strdup failure");
-		return (-1);
+		return (PAM_SERVICE_ERR);
 	}
 	config->runstatedir = strdup(RUNSTATEDIR "/pam_zfs_key");
 	if (config->runstatedir == NULL) {
 		pam_syslog(pamh, LOG_ERR, "strdup failure");
 		free(config->homes_prefix);
-		return (-1);
+		return (PAM_SERVICE_ERR);
 	}
 	const char *name;
 	if (pam_get_user(pamh, &name, NULL) != PAM_SUCCESS) {
@@ -457,13 +461,13 @@ zfs_key_config_load(pam_handle_t *pamh, zfs_key_config_t *config,
 		    "couldn't get username from PAM stack");
 		free(config->runstatedir);
 		free(config->homes_prefix);
-		return (-1);
+		return (PAM_SERVICE_ERR);
 	}
 	struct passwd *entry = getpwnam(name);
 	if (!entry) {
 		free(config->runstatedir);
 		free(config->homes_prefix);
-		return (-1);
+		return (PAM_USER_UNKNOWN);
 	}
 	config->uid = entry->pw_uid;
 	config->username = name;
@@ -484,7 +488,7 @@ zfs_key_config_load(pam_handle_t *pamh, zfs_key_config_t *config,
 				config->homedir = strdup(entry->pw_dir);
 		}
 	}
-	return (0);
+	return (PAM_SUCCESS);
 }
 
 static void
@@ -644,12 +648,43 @@ PAM_EXTERN int
 pam_sm_authenticate(pam_handle_t *pamh, int flags,
     int argc, const char **argv)
 {
-	(void) flags, (void) argc, (void) argv;
+	(void) flags;
 
-	if (pw_fetch_lazy(pamh) == NULL) {
-		return (PAM_AUTH_ERR);
+	if (geteuid() != 0) {
+		pam_syslog(pamh, LOG_ERR,
+		    "Cannot zfs_mount when not being root.");
+		return (PAM_SERVICE_ERR);
+	}
+	zfs_key_config_t config;
+	int config_err = zfs_key_config_load(pamh, &config, argc, argv);
+	if (config_err != PAM_SUCCESS) {
+		return (config_err);
 	}
 
+	const pw_password_t *token = pw_fetch_lazy(pamh);
+	if (token == NULL) {
+		zfs_key_config_free(&config);
+		return (PAM_AUTH_ERR);
+	}
+	if (pam_zfs_init(pamh) != 0) {
+		zfs_key_config_free(&config);
+		return (PAM_SERVICE_ERR);
+	}
+	char *dataset = zfs_key_config_get_dataset(&config);
+	if (!dataset) {
+		pam_zfs_free();
+		zfs_key_config_free(&config);
+		return (PAM_SERVICE_ERR);
+	}
+	if (decrypt_mount(pamh, dataset, token->value, B_TRUE) == -1) {
+		free(dataset);
+		pam_zfs_free();
+		zfs_key_config_free(&config);
+		return (PAM_AUTH_ERR);
+	}
+	free(dataset);
+	pam_zfs_free();
+	zfs_key_config_free(&config);
 	return (PAM_SUCCESS);
 }
 
@@ -673,7 +708,7 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 		return (PAM_PERM_DENIED);
 	}
 	zfs_key_config_t config;
-	if (zfs_key_config_load(pamh, &config, argc, argv) == -1) {
+	if (zfs_key_config_load(pamh, &config, argc, argv) != PAM_SUCCESS) {
 		return (PAM_SERVICE_ERR);
 	}
 	if (config.uid < 1000) {
@@ -754,7 +789,7 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
 		return (PAM_SUCCESS);
 	}
 	zfs_key_config_t config;
-	if (zfs_key_config_load(pamh, &config, argc, argv) != 0) {
+	if (zfs_key_config_load(pamh, &config, argc, argv) != PAM_SUCCESS) {
 		return (PAM_SESSION_ERR);
 	}
 
@@ -784,7 +819,7 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
 		zfs_key_config_free(&config);
 		return (PAM_SERVICE_ERR);
 	}
-	if (decrypt_mount(pamh, dataset, token->value) == -1) {
+	if (decrypt_mount(pamh, dataset, token->value, B_FALSE) == -1) {
 		free(dataset);
 		pam_zfs_free();
 		zfs_key_config_free(&config);
@@ -813,7 +848,7 @@ pam_sm_close_session(pam_handle_t *pamh, int flags,
 		return (PAM_SUCCESS);
 	}
 	zfs_key_config_t config;
-	if (zfs_key_config_load(pamh, &config, argc, argv) != 0) {
+	if (zfs_key_config_load(pamh, &config, argc, argv) != PAM_SUCCESS) {
 		return (PAM_SESSION_ERR);
 	}
 	if (config.uid < 1000) {
