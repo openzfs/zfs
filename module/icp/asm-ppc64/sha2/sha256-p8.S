@@ -21,6 +21,7 @@
 
 #if (defined(__PPC64__) && defined(__BIG_ENDIAN__))
 
+#if (!defined(_CALL_ELF) || _CALL_ELF == 1)
 .text
 
 .globl	zfs_sha256_power8
@@ -33,6 +34,16 @@ zfs_sha256_power8:
 .previous
 .align	6
 .zfs_sha256_power8:
+#else
+.abiversion	2
+.text
+
+.globl	zfs_sha256_power8
+.type	zfs_sha256_power8,@function
+.align	6
+zfs_sha256_power8:
+.localentry	zfs_sha256_power8,0
+#endif
 	stdu	1,-384(1)
 	mflr	8
 	li	10,207
@@ -677,8 +688,12 @@ zfs_sha256_power8:
 .long	0
 .byte	0,12,4,1,0x80,6,3,0
 .long	0
+#if (!defined(_CALL_ELF) || _CALL_ELF == 1)
 .size	.zfs_sha256_power8,.-.zfs_sha256_power8
 .size	zfs_sha256_power8,.-.zfs_sha256_power8
+#else
+.size	zfs_sha256_power8,.-zfs_sha256_power8
+#endif
 .align	6
 .LPICmeup:
 	mflr	0
