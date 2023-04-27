@@ -41,8 +41,8 @@ if is_linux; then
 		log_unsupported "Requires statx(2) system call on Linux"
 	fi
 	typeset stat_version=$(stat --version | awk '{ print $NF; exit }')
-	if compare_version_gte "8.30" "${stat_version}"; then
-		log_unsupported "Requires coreutils stat(1) > 8.30 on Linux"
+	if ! compare_version_gte "$stat_version" "8.31"; then
+		log_unsupported "Requires coreutils stat(1) >= 8.31 on Linux"
 	fi
 fi
 

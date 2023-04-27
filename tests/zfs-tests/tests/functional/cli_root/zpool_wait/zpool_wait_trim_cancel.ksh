@@ -58,10 +58,6 @@ function do_test
 	bkgrnd_proc_succeeded $pid
 }
 
-if is_freebsd; then
-	log_unsupported "FreeBSD has no hole punching mechanism for the time being."
-fi
-
 typeset pid
 typeset -r FILE_VDEV="$TESTDIR/file_vdev1"
 
