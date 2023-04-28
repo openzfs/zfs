@@ -53,6 +53,24 @@ tags = ['functional', 'arc']
 tests = ['atime_001_pos', 'atime_002_neg', 'root_atime_off', 'root_atime_on']
 tags = ['functional', 'atime']
 
+[tests/functional/bclone]
+tests = ['bclone_crossfs_corner_cases_limited',
+    'bclone_crossfs_data',
+    'bclone_crossfs_embedded',
+    'bclone_crossfs_hole',
+    'bclone_diffprops_all',
+    'bclone_diffprops_checksum',
+    'bclone_diffprops_compress',
+    'bclone_diffprops_copies',
+    'bclone_diffprops_recordsize',
+    'bclone_prop_sync',
+    'bclone_samefs_corner_cases_limited',
+    'bclone_samefs_data',
+    'bclone_samefs_embedded',
+    'bclone_samefs_hole']
+tags = ['functional', 'bclone']
+timeout = 7200
+
 [tests/functional/bootfs]
 tests = ['bootfs_001_pos', 'bootfs_002_neg', 'bootfs_003_pos',
     'bootfs_004_neg', 'bootfs_005_neg', 'bootfs_006_pos', 'bootfs_007_pos',
