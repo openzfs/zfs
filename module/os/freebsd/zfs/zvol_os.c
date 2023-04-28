@@ -1248,7 +1248,8 @@ zvol_ensure_zilog(zvol_state_t *zv)
 		}
 		if (zv->zv_zilog == NULL) {
 			zv->zv_zilog = zil_open(zv->zv_objset,
-			    zvol_get_data, &zv->zv_kstat.dk_zil_sums);
+			    zvol_get_data, zvol_done_data,
+			    &zv->zv_kstat.dk_zil_sums);
 			zv->zv_flags |= ZVOL_WRITTEN_TO;
 			/* replay / destroy done in zvol_os_create_minor() */
 			VERIFY0(zv->zv_zilog->zl_header->zh_flags &
@@ -1491,7 +1492,8 @@ zvol_os_create_minor(const char *name)
 	if (error)
 		goto out_dmu_objset_disown;
 	ASSERT3P(zv->zv_zilog, ==, NULL);
-	zv->zv_zilog = zil_open(os, zvol_get_data, &zv->zv_kstat.dk_zil_sums);
+	zv->zv_zilog = zil_open(os, zvol_get_data, zvol_done_data,
+	    &zv->zv_kstat.dk_zil_sums);
 	if (spa_writeable(dmu_objset_spa(os))) {
 		if (zil_replay_disable)
 			replayed_zil = zil_destroy(zv->zv_zilog, B_FALSE);

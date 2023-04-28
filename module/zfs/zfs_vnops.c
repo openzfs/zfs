@@ -44,6 +44,7 @@
 #include <sys/zfs_dir.h>
 #include <sys/zfs_acl.h>
 #include <sys/zfs_ioctl.h>
+#include <sys/zil_impl.h>
 #include <sys/fs/zfs.h>
 #include <sys/dmu.h>
 #include <sys/dmu_objset.h>
@@ -832,14 +833,46 @@ zfs_setsecattr(znode_t *zp, vsecattr_t *vsecp, int flag, cred_t *cr)
 static int zil_fault_io = 0;
 #endif
 
-static void zfs_get_done(zgd_t *zgd, int error);
+static void
+zfs_get_done(zgd_t *zgd, int error)
+{
+	(void) error;
+	znode_t *zp = zgd->zgd_private;
+
+	if (zgd->zgd_db)
+		dmu_buf_rele(zgd->zgd_db, zgd);
+	else if (zgd->zgd_dbp)
+		dmu_buf_rele_array(zgd->zgd_dbp, zgd->zgd_dbn, zgd);
+
+	zfs_rangelock_exit(zgd->zgd_lr);
+
+	/*
+	 * Release the vnode asynchronously as we currently have the
+	 * txg stopped from syncing.
+	 */
+	zfs_zrele_async(zp);
+
+	kmem_free(zgd, sizeof (zgd_t));
+}
+
+void
+zfs_done_data(struct lwb *lwb)
+{
+	zgd_t *zgd, *next;
+
+	for (zgd = (zgd_t *)lwb->lwb_private; zgd != NULL; zgd = next) {
+		next = zgd->zgd_next;
+		zfs_get_done(zgd, 0);
+	}
+	lwb->lwb_private = NULL;
+}
 
 /*
  * Get data to generate a TX_WRITE intent log record.
  */
 int
-zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
-    struct lwb *lwb, zio_t *zio)
+zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, struct lwb *lwb,
+    boolean_t usegang)
 {
 	zfsvfs_t *zfsvfs = arg;
 	objset_t *os = zfsvfs->z_os;
@@ -853,7 +886,6 @@ zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
 	uint64_t zp_gen;
 
 	ASSERT3P(lwb, !=, NULL);
-	ASSERT3P(zio, !=, NULL);
 	ASSERT3U(size, !=, 0);
 
 	/*
@@ -891,19 +923,9 @@ zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
 	 * sync the data and get a pointer to it (indirect) so that
 	 * we don't have to write the data twice.
 	 */
-	if (buf != NULL) { /* immediate write */
-		zgd->zgd_lr = zfs_rangelock_enter(&zp->z_rangelock,
-		    offset, size, RL_READER);
-		/* test for truncation needs to be done while range locked */
-		if (offset >= zp->z_size) {
-			error = SET_ERROR(ENOENT);
-		} else {
-			error = dmu_read(os, object, offset, size, buf,
-			    DMU_READ_NO_PREFETCH);
-		}
-		ASSERT(error == 0 || error == ENOENT);
-	} else { /* indirect write */
+	if (lr->lr_common.lrc_reclen == sizeof (lr_write_t)) {
 		/*
+		 * indirect write
 		 * Have to lock the whole block to ensure when it's
 		 * written out and its checksum is being calculated
 		 * that no one can change the data. We need to re-check
@@ -921,6 +943,55 @@ zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
 			offset += blkoff;
 			zfs_rangelock_exit(zgd->zgd_lr);
 		}
+	} else {
+		zgd->zgd_lr = zfs_rangelock_enter(&zp->z_rangelock,
+		    offset, size, RL_READER);
+	}
+	if (lr->lr_common.lrc_reclen != sizeof (lr_write_t) && usegang) {
+		/* Immediate write using Gang ABD to avoid copy. */
+		/* test for truncation needs to be done while range locked */
+		if (offset >= zp->z_size) {
+			error = SET_ERROR(ENOENT);
+		} else {
+			error = dmu_buf_hold_array(os, object, offset, size,
+			    TRUE, zgd, &zgd->zgd_dbn, &zgd->zgd_dbp,
+			    DMU_READ_NO_PREFETCH);
+		}
+		if (error == 0) {
+			zil_lwb_add_buf(lwb);
+			for (int i = 0; i < zgd->zgd_dbn; i++) {
+				db = zgd->zgd_dbp[i];
+				ASSERT(size > 0);
+				int64_t bufoff = offset - db->db_offset;
+				uint64_t s = MIN(db->db_size - bufoff, size);
+
+				abd_gang_add_buf(lwb->lwb_abd,
+				    (char *)db->db_data + bufoff, s);
+				lwb->lwb_nused += s;
+
+				offset += s;
+				size -= s;
+			}
+			zgd->zgd_next = lwb->lwb_private;
+			lwb->lwb_private = zgd;
+			return (0);
+		}
+	} else if (lr->lr_common.lrc_reclen != sizeof (lr_write_t)) {
+		/* immediate write */
+		/* test for truncation needs to be done while range locked */
+		if (offset >= zp->z_size) {
+			error = SET_ERROR(ENOENT);
+		} else {
+			error = dmu_read(os, object, offset, size,
+			    lwb->lwb_buf + lwb->lwb_bused,
+			    DMU_READ_NO_PREFETCH);
+			if (error == 0) {
+				lwb->lwb_bused += size;
+				lwb->lwb_nused += size;
+			}
+		}
+		ASSERT(error == 0 || error == ENOENT);
+	} else { /* indirect write */
 		/* test for truncation needs to be done while range locked */
 		if (lr->lr_offset >= zp->z_size)
 			error = SET_ERROR(ENOENT);
@@ -943,8 +1014,8 @@ zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
 			ASSERT(db->db_offset == offset);
 			ASSERT(db->db_size == size);
 
-			error = dmu_sync(zio, lr->lr_common.lrc_txg,
-			    zfs_get_done, zgd);
+			error = dmu_sync(lwb->lwb_write_zio,
+			    lr->lr_common.lrc_txg, zfs_get_done, zgd);
 			ASSERT(error || lr->lr_length <= size);
 
 			/*
@@ -974,27 +1045,6 @@ zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
 	zfs_get_done(zgd, error);
 
 	return (error);
-}
-
-
-static void
-zfs_get_done(zgd_t *zgd, int error)
-{
-	(void) error;
-	znode_t *zp = zgd->zgd_private;
-
-	if (zgd->zgd_db)
-		dmu_buf_rele(zgd->zgd_db, zgd);
-
-	zfs_rangelock_exit(zgd->zgd_lr);
-
-	/*
-	 * Release the vnode asynchronously as we currently have the
-	 * txg stopped from syncing.
-	 */
-	zfs_zrele_async(zp);
-
-	kmem_free(zgd, sizeof (zgd_t));
 }
 
 static int

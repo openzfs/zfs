@@ -1058,7 +1058,7 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 		if (error)
 			return (error);
 		zfsvfs->z_log = zil_open(zfsvfs->z_os, zfs_get_data,
-		    &zfsvfs->z_kstat.dk_zil_sums);
+		    zfs_done_data, &zfsvfs->z_kstat.dk_zil_sums);
 
 		/*
 		 * During replay we remove the read only flag to
@@ -1132,7 +1132,7 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 	} else {
 		ASSERT3P(zfsvfs->z_kstat.dk_kstats, !=, NULL);
 		zfsvfs->z_log = zil_open(zfsvfs->z_os, zfs_get_data,
-		    &zfsvfs->z_kstat.dk_zil_sums);
+		    zfs_done_data, &zfsvfs->z_kstat.dk_zil_sums);
 	}
 
 	/*

@@ -677,18 +677,32 @@ zvol_get_done(zgd_t *zgd, int error)
 	(void) error;
 	if (zgd->zgd_db)
 		dmu_buf_rele(zgd->zgd_db, zgd);
+	else if (zgd->zgd_dbp)
+		dmu_buf_rele_array(zgd->zgd_dbp, zgd->zgd_dbn, zgd);
 
 	zfs_rangelock_exit(zgd->zgd_lr);
 
 	kmem_free(zgd, sizeof (zgd_t));
 }
 
+void
+zvol_done_data(struct lwb *lwb)
+{
+	zgd_t *zgd, *next;
+
+	for (zgd = (zgd_t *)lwb->lwb_private; zgd != NULL; zgd = next) {
+		next = zgd->zgd_next;
+		zvol_get_done(zgd, 0);
+	}
+	lwb->lwb_private = NULL;
+}
+
 /*
  * Get data to generate a TX_WRITE intent log record.
  */
 int
-zvol_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
-    struct lwb *lwb, zio_t *zio)
+zvol_get_data(void *arg, uint64_t arg2, lr_write_t *lr, struct lwb *lwb,
+    boolean_t usegang)
 {
 	zvol_state_t *zv = arg;
 	uint64_t offset = lr->lr_offset;
@@ -698,7 +712,6 @@ zvol_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 	int error;
 
 	ASSERT3P(lwb, !=, NULL);
-	ASSERT3P(zio, !=, NULL);
 	ASSERT3U(size, !=, 0);
 
 	zgd = kmem_zalloc(sizeof (zgd_t), KM_SLEEP);
@@ -711,13 +724,9 @@ zvol_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 	 * sync the data and get a pointer to it (indirect) so that
 	 * we don't have to write the data twice.
 	 */
-	if (buf != NULL) { /* immediate write */
-		zgd->zgd_lr = zfs_rangelock_enter(&zv->zv_rangelock, offset,
-		    size, RL_READER);
-		error = dmu_read_by_dnode(zv->zv_dn, offset, size, buf,
-		    DMU_READ_NO_PREFETCH);
-	} else { /* indirect write */
+	if (lr->lr_common.lrc_reclen == sizeof (lr_write_t)) {
 		/*
+		 * indirect write
 		 * Have to lock the whole block to ensure when it's written out
 		 * and its checksum is being calculated that no one can change
 		 * the data. Contrarily to zfs_get_data we need not re-check
@@ -725,8 +734,42 @@ zvol_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 		 */
 		size = zv->zv_volblocksize;
 		offset = P2ALIGN_TYPED(offset, size, uint64_t);
-		zgd->zgd_lr = zfs_rangelock_enter(&zv->zv_rangelock, offset,
-		    size, RL_READER);
+	}
+	zgd->zgd_lr = zfs_rangelock_enter(&zv->zv_rangelock, offset, size,
+	    RL_READER);
+	if (lr->lr_common.lrc_reclen != sizeof (lr_write_t) && usegang) {
+		/* Immediate write using Gang ABD to avoid copy. */
+		error = dmu_buf_hold_array_by_dnode(zv->zv_dn, offset, size,
+		    TRUE, zgd, &zgd->zgd_dbn, &zgd->zgd_dbp,
+		    DMU_READ_NO_PREFETCH);
+		if (error == 0) {
+			zil_lwb_add_buf(lwb);
+			for (int i = 0; i < zgd->zgd_dbn; i++) {
+				db = zgd->zgd_dbp[i];
+				ASSERT(size > 0);
+				int64_t bufoff = offset - db->db_offset;
+				uint64_t s = MIN(db->db_size - bufoff, size);
+
+				abd_gang_add_buf(lwb->lwb_abd,
+				    (char *)db->db_data + bufoff, s);
+				lwb->lwb_nused += s;
+
+				offset += s;
+				size -= s;
+			}
+			zgd->zgd_next = lwb->lwb_private;
+			lwb->lwb_private = zgd;
+			return (0);
+		}
+	} else if (lr->lr_common.lrc_reclen != sizeof (lr_write_t)) {
+		/* immediate write */
+		error = dmu_read_by_dnode(zv->zv_dn, offset, size,
+		    lwb->lwb_buf + lwb->lwb_bused, DMU_READ_NO_PREFETCH);
+		if (error == 0) {
+			lwb->lwb_bused += size;
+			lwb->lwb_nused += size;
+		}
+	} else { /* indirect write */
 		error = dmu_buf_hold_by_dnode(zv->zv_dn, offset, zgd, &db,
 		    DMU_READ_NO_PREFETCH);
 		if (error == 0) {
@@ -739,8 +782,8 @@ zvol_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 			ASSERT(db->db_offset == offset);
 			ASSERT(db->db_size == size);
 
-			error = dmu_sync(zio, lr->lr_common.lrc_txg,
-			    zvol_get_done, zgd);
+			error = dmu_sync(lwb->lwb_write_zio,
+			    lr->lr_common.lrc_txg, zvol_get_done, zgd);
 
 			if (error == 0)
 				return (0);

@@ -84,8 +84,8 @@ void zvol_log_truncate(zvol_state_t *zv, dmu_tx_t *tx, uint64_t off,
     uint64_t len, boolean_t sync);
 void zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
     uint64_t size, int sync);
-int zvol_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
-    struct lwb *lwb, zio_t *zio);
+zil_get_data_t zvol_get_data;
+zil_done_data_t zvol_done_data;
 int zvol_init_impl(void);
 void zvol_fini_impl(void);
 void zvol_wait_close(zvol_state_t *zv);

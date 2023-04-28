@@ -2387,6 +2387,8 @@ ztest_get_done(zgd_t *zgd, int error)
 
 	if (zgd->zgd_db)
 		dmu_buf_rele(zgd->zgd_db, zgd);
+	else if (zgd->zgd_dbp)
+		dmu_buf_rele_array(zgd->zgd_dbp, zgd->zgd_dbn, zgd);
 
 	ztest_range_unlock((rl_t *)zgd->zgd_lr);
 	ztest_object_unlock(zd, object);
@@ -2394,9 +2396,21 @@ ztest_get_done(zgd_t *zgd, int error)
 	umem_free(zgd, sizeof (*zgd));
 }
 
+static void
+ztest_done_data(struct lwb *lwb)
+{
+	zgd_t *zgd, *next;
+
+	for (zgd = (zgd_t *)lwb->lwb_private; zgd != NULL; zgd = next) {
+		next = zgd->zgd_next;
+		ztest_get_done(zgd, 0);
+	}
+	lwb->lwb_private = NULL;
+}
+
 static int
-ztest_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
-    struct lwb *lwb, zio_t *zio)
+ztest_get_data(void *arg, uint64_t arg2, lr_write_t *lr, struct lwb *lwb,
+    boolean_t usegang)
 {
 	(void) arg2;
 	ztest_ds_t *zd = arg;
@@ -2412,7 +2426,6 @@ ztest_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 	int error;
 
 	ASSERT3P(lwb, !=, NULL);
-	ASSERT3P(zio, !=, NULL);
 	ASSERT3U(size, !=, 0);
 
 	ztest_object_lock(zd, object, RL_READER);
@@ -2438,14 +2451,8 @@ ztest_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 	zgd->zgd_lwb = lwb;
 	zgd->zgd_private = zd;
 
-	if (buf != NULL) {	/* immediate write */
-		zgd->zgd_lr = (struct zfs_locked_range *)ztest_range_lock(zd,
-		    object, offset, size, RL_READER);
-
-		error = dmu_read(os, object, offset, size, buf,
-		    DMU_READ_NO_PREFETCH);
-		ASSERT0(error);
-	} else {
+	if (lr->lr_common.lrc_reclen == sizeof (lr_write_t)) {
+		/* indirect write */
 		size = doi.doi_data_block_size;
 		if (ISP2(size)) {
 			offset = P2ALIGN(offset, size);
@@ -2453,13 +2460,43 @@ ztest_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 			ASSERT3U(offset, <, size);
 			offset = 0;
 		}
+	}
+	zgd->zgd_lr = (struct zfs_locked_range *)ztest_range_lock(zd, object,
+	    offset, size, RL_READER);
+	if (lr->lr_common.lrc_reclen != sizeof (lr_write_t) && usegang) {
+		/* Immediate write using Gang ABD to avoid copy. */
+		error = dmu_buf_hold_array(os, object, offset, size,
+		    TRUE, zgd, &zgd->zgd_dbn, &zgd->zgd_dbp,
+		    DMU_READ_NO_PREFETCH);
+		if (error == 0) {
+			zil_lwb_add_buf(lwb);
+			for (int i = 0; i < zgd->zgd_dbn; i++) {
+				db = zgd->zgd_dbp[i];
+				ASSERT(size > 0);
+				int64_t bufoff = offset - db->db_offset;
+				uint64_t s = MIN(db->db_size - bufoff, size);
 
-		zgd->zgd_lr = (struct zfs_locked_range *)ztest_range_lock(zd,
-		    object, offset, size, RL_READER);
+				abd_gang_add_buf(lwb->lwb_abd,
+				    (char *)db->db_data + bufoff, s);
+				lwb->lwb_nused += s;
 
+				offset += s;
+				size -= s;
+			}
+			zgd->zgd_next = lwb->lwb_private;
+			lwb->lwb_private = zgd;
+			return (0);
+		}
+	} else if (lr->lr_common.lrc_reclen != sizeof (lr_write_t)) {
+		/* immediate write */
+		error = dmu_read(os, object, offset, size,
+		    lwb->lwb_buf + lwb->lwb_bused, DMU_READ_NO_PREFETCH);
+		ASSERT0(error);
+		lwb->lwb_bused += size;
+		lwb->lwb_nused += size;
+	} else { /* indirect write */
 		error = dmu_buf_hold(os, object, offset, zgd, &db,
 		    DMU_READ_NO_PREFETCH);
-
 		if (error == 0) {
 			blkptr_t *bp = &lr->lr_blkptr;
 
@@ -2469,8 +2506,8 @@ ztest_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 			ASSERT3U(db->db_offset, ==, offset);
 			ASSERT3U(db->db_size, ==, size);
 
-			error = dmu_sync(zio, lr->lr_common.lrc_txg,
-			    ztest_get_done, zgd);
+			error = dmu_sync(lwb->lwb_write_zio,
+			    lr->lr_common.lrc_txg, ztest_get_done, zgd);
 
 			if (error == 0)
 				return (0);
@@ -2913,7 +2950,8 @@ ztest_zil_remount(ztest_ds_t *zd, uint64_t id)
 	zil_close(zd->zd_zilog);
 
 	/* zfsvfs_setup() */
-	VERIFY3P(zil_open(os, ztest_get_data, NULL), ==, zd->zd_zilog);
+	VERIFY3P(zil_open(os, ztest_get_data, ztest_done_data, NULL), ==,
+	    zd->zd_zilog);
 	zil_replay(os, zd, ztest_replay_vector);
 
 	(void) pthread_rwlock_unlock(&zd->zd_zilog_lock);
@@ -4397,7 +4435,7 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 	/*
 	 * Open the intent log for it.
 	 */
-	zilog = zil_open(os, ztest_get_data, NULL);
+	zilog = zil_open(os, ztest_get_data, ztest_done_data, NULL);
 
 	/*
 	 * Put some objects in there, do a little I/O to them,
@@ -7336,7 +7374,7 @@ ztest_dataset_open(int d)
 		    zilog->zl_parse_lr_count,
 		    zilog->zl_replaying_seq);
 
-	zilog = zil_open(os, ztest_get_data, NULL);
+	zilog = zil_open(os, ztest_get_data, ztest_done_data, NULL);
 
 	if (zilog->zl_replaying_seq != 0 &&
 	    zilog->zl_replaying_seq < committed_seq)

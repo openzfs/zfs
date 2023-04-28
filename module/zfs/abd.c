@@ -89,8 +89,8 @@
  * functions.
  *
  * As an additional feature, linear and scatter ABD's can be stitched together
- * by using the gang ABD type (abd_alloc_gang_abd()). This allows for
- * multiple ABDs to be viewed as a singular ABD.
+ * by using the gang ABD type (abd_alloc_gang()). This allows for multiple ABDs
+ * to be viewed as a singular ABD.
  *
  * It is possible to make all ABDs linear by setting zfs_abd_scatter_enabled to
  * B_FALSE.
@@ -185,7 +185,7 @@ abd_alloc(size_t size, boolean_t is_metadata)
 	if (abd_size_alloc_linear(size))
 		return (abd_alloc_linear(size, is_metadata));
 
-	VERIFY3U(size, <=, SPA_MAXBLOCKSIZE);
+	ASSERT3U(size, <=, SPA_MAXBLOCKSIZE);
 
 	abd_t *abd = abd_alloc_struct(size);
 	abd->abd_flags |= ABD_FLAG_OWNER;
@@ -212,7 +212,7 @@ abd_alloc_linear(size_t size, boolean_t is_metadata)
 {
 	abd_t *abd = abd_alloc_struct(0);
 
-	VERIFY3U(size, <=, SPA_MAXBLOCKSIZE);
+	ASSERT3U(size, <=, SPA_MAXBLOCKSIZE);
 
 	abd->abd_flags |= ABD_FLAG_LINEAR | ABD_FLAG_OWNER;
 	if (is_metadata) {
@@ -370,7 +370,20 @@ abd_gang_add_gang(abd_t *pabd, abd_t *cabd, boolean_t free_on_free)
 		 * will retain all the free_on_free settings after being
 		 * added to the parents list.
 		 */
+#ifdef ZFS_DEBUG
+		/*
+		 * If cabd had abd_parent, we have to drop it here.  We can't
+		 * transfer it to pabd, nor we can clear abd_size leaving it.
+		 */
+		if (cabd->abd_parent != NULL) {
+			(void) zfs_refcount_remove_many(
+			    &cabd->abd_parent->abd_children,
+			    cabd->abd_size, cabd);
+			cabd->abd_parent = NULL;
+		}
+#endif
 		pabd->abd_size += cabd->abd_size;
+		cabd->abd_size = 0;
 		list_move_tail(&ABD_GANG(pabd).abd_gang_chain,
 		    &ABD_GANG(cabd).abd_gang_chain);
 		ASSERT(list_is_empty(&ABD_GANG(cabd).abd_gang_chain));
@@ -408,7 +421,6 @@ abd_gang_add(abd_t *pabd, abd_t *cabd, boolean_t free_on_free)
 	 */
 	if (abd_is_gang(cabd)) {
 		ASSERT(!list_link_active(&cabd->abd_gang_link));
-		ASSERT(!list_is_empty(&ABD_GANG(cabd).abd_gang_chain));
 		return (abd_gang_add_gang(pabd, cabd, free_on_free));
 	}
 	ASSERT(!abd_is_gang(cabd));
@@ -465,6 +477,32 @@ abd_gang_add(abd_t *pabd, abd_t *cabd, boolean_t free_on_free)
 }
 
 /*
+ * Allocate a linear ABD for buf and add as child to the gang.
+ */
+void
+abd_gang_add_buf(abd_t *pabd, void *buf, size_t size)
+{
+	ASSERT(abd_is_gang(pabd));
+	abd_t *cabd = abd_get_from_buf(buf, size);
+	cabd->abd_flags |= ABD_FLAG_GANG_FREE;
+	list_insert_tail(&ABD_GANG(pabd).abd_gang_chain, cabd);
+	pabd->abd_size += size;
+}
+
+/*
+ * Allocate a zeros ABD and add as child to the gang.
+ */
+void
+abd_gang_add_zeros(abd_t *pabd, size_t size)
+{
+	ASSERT(abd_is_gang(pabd));
+	abd_t *cabd = abd_get_zeros(size);
+	cabd->abd_flags |= ABD_FLAG_GANG_FREE;
+	list_insert_tail(&ABD_GANG(pabd).abd_gang_chain, cabd);
+	pabd->abd_size += size;
+}
+
+/*
  * Locate the ABD for the supplied offset in the gang ABD.
  * Return a new offset relative to the returned ABD.
  */
@@ -482,7 +520,7 @@ abd_gang_get_offset(abd_t *abd, size_t *off)
 		else
 			return (cabd);
 	}
-	VERIFY3P(cabd, !=, NULL);
+	ASSERT3P(cabd, !=, NULL);
 	return (cabd);
 }
 
@@ -567,8 +605,8 @@ abd_get_offset_struct(abd_t *abd, abd_t *sabd, size_t off, size_t size)
 abd_t *
 abd_get_offset(abd_t *sabd, size_t off)
 {
-	size_t size = sabd->abd_size > off ? sabd->abd_size - off : 0;
-	VERIFY3U(size, >, 0);
+	ASSERT3U(off, <, sabd->abd_size);
+	size_t size = sabd->abd_size - off;
 	return (abd_get_offset_impl(NULL, sabd, off, size));
 }
 
@@ -598,7 +636,7 @@ abd_get_from_buf(void *buf, size_t size)
 {
 	abd_t *abd = abd_alloc_struct(0);
 
-	VERIFY3U(size, <=, SPA_MAXBLOCKSIZE);
+	ASSERT3U(size, <=, SPA_MAXBLOCKSIZE);
 
 	/*
 	 * Even if this buf is filesystem metadata, we only track that if we

@@ -90,13 +90,17 @@ typedef enum {
  */
 typedef struct lwb {
 	zilog_t		*lwb_zilog;	/* back pointer to log struct */
+	void		*lwb_private;	/* private storage for get_data() */
 	blkptr_t	lwb_blk;	/* on disk address of this log blk */
 	boolean_t	lwb_fastwrite;	/* is blk marked for fastwrite? */
 	boolean_t	lwb_slog;	/* lwb_blk is on SLOG device */
-	int		lwb_nused;	/* # used bytes in buffer */
+	int		lwb_bused;	/* # used bytes in buffer */
+	int		lwb_badded;	/* # buffer bytes added to block */
+	int		lwb_nused;	/* # used bytes in block */
 	int		lwb_sz;		/* size of block and buffer */
 	lwb_state_t	lwb_state;	/* the state of this lwb */
 	char		*lwb_buf;	/* log write buffer */
+	abd_t		*lwb_abd;	/* Gang ABD passed to write ZIO */
 	zio_t		*lwb_write_zio;	/* zio for the lwb buffer */
 	zio_t		*lwb_root_zio;	/* root zio for lwb write and flushes */
 	uint64_t	lwb_issued_txg;	/* the txg when the write is issued */
@@ -176,6 +180,7 @@ struct zilog {
 	const zil_header_t *zl_header;	/* log header buffer */
 	objset_t	*zl_os;		/* object set we're logging */
 	zil_get_data_t	*zl_get_data;	/* callback to get object content */
+	zil_done_data_t	*zl_done_data;	/* callback to release object content */
 	lwb_t		*zl_last_lwb_opened; /* most recent lwb opened */
 	hrtime_t	zl_last_lwb_latency; /* zio latency of last lwb done */
 	uint64_t	zl_lr_seq;	/* on-disk log record sequence number */

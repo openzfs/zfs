@@ -570,7 +570,7 @@ int dmu_buf_hold(objset_t *os, uint64_t object, uint64_t offset,
     const void *tag, dmu_buf_t **, int flags);
 int dmu_buf_hold_array(objset_t *os, uint64_t object, uint64_t offset,
     uint64_t length, int read, const void *tag, int *numbufsp,
-    dmu_buf_t ***dbpp);
+    dmu_buf_t ***dbpp, uint32_t flags);
 int dmu_buf_hold_by_dnode(dnode_t *dn, uint64_t offset,
     const void *tag, dmu_buf_t **dbp, int flags);
 int dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset,
@@ -1047,8 +1047,11 @@ typedef struct zgd {
 	struct lwb	*zgd_lwb;
 	struct blkptr	*zgd_bp;
 	dmu_buf_t	*zgd_db;
+	dmu_buf_t	**zgd_dbp;
+	int		zgd_dbn;
 	struct zfs_locked_range *zgd_lr;
 	void		*zgd_private;
+	struct zgd	*zgd_next;
 } zgd_t;
 
 typedef void dmu_sync_cb_t(zgd_t *arg, int error);

@@ -129,6 +129,11 @@ static kstat_t *zil_kstats_global;
 int zil_replay_disable = 0;
 
 /*
+ * Maximum size of data to copy under the lock vs using gang.
+ */
+static int zil_maxcopy = 4096;
+
+/*
  * Disable the DKIOCFLUSHWRITECACHE commands that are normally sent to
  * the disk(s) by the ZIL after an LWB write has completed. Setting this
  * will cause ZIL corruption on power loss if a volatile out-of-order
@@ -145,9 +150,6 @@ static uint64_t zil_slog_bulk = 768 * 1024;
 
 static kmem_cache_t *zil_lwb_cache;
 static kmem_cache_t *zil_zcw_cache;
-
-#define	LWB_EMPTY(lwb) ((BP_GET_LSIZE(&lwb->lwb_blk) - \
-    sizeof (zil_chain_t)) == (lwb->lwb_sz - lwb->lwb_nused))
 
 static int
 zil_bp_compare(const void *x1, const void *x2)
@@ -747,21 +749,24 @@ zil_alloc_lwb(zilog_t *zilog, blkptr_t *bp, boolean_t slog, uint64_t txg,
 
 	lwb = kmem_cache_alloc(zil_lwb_cache, KM_SLEEP);
 	lwb->lwb_zilog = zilog;
+	lwb->lwb_private = NULL;
 	lwb->lwb_blk = *bp;
 	lwb->lwb_fastwrite = fastwrite;
 	lwb->lwb_slog = slog;
 	lwb->lwb_state = LWB_STATE_CLOSED;
 	lwb->lwb_buf = zio_buf_alloc(BP_GET_LSIZE(bp));
+	lwb->lwb_abd = abd_alloc_gang();
 	lwb->lwb_max_txg = txg;
 	lwb->lwb_write_zio = NULL;
 	lwb->lwb_root_zio = NULL;
 	lwb->lwb_issued_timestamp = 0;
 	lwb->lwb_issued_txg = 0;
+	lwb->lwb_badded = 0;
 	if (BP_GET_CHECKSUM(bp) == ZIO_CHECKSUM_ZILOG2) {
-		lwb->lwb_nused = sizeof (zil_chain_t);
+		lwb->lwb_bused = lwb->lwb_nused = sizeof (zil_chain_t);
 		lwb->lwb_sz = BP_GET_LSIZE(bp);
 	} else {
-		lwb->lwb_nused = 0;
+		lwb->lwb_bused = lwb->lwb_nused = 0;
 		lwb->lwb_sz = BP_GET_LSIZE(bp) - sizeof (zil_chain_t);
 	}
 
@@ -798,6 +803,10 @@ zil_free_lwb(zilog_t *zilog, lwb_t *lwb)
 	if (zilog->zl_last_lwb_opened == lwb)
 		zilog->zl_last_lwb_opened = NULL;
 
+	if (lwb->lwb_buf != NULL)
+		zio_buf_free(lwb->lwb_buf, BP_GET_LSIZE(&lwb->lwb_blk));
+	if (lwb->lwb_abd != NULL)
+		abd_free(lwb->lwb_abd);
 	kmem_cache_free(zil_lwb_cache, lwb);
 }
 
@@ -1032,8 +1041,6 @@ zil_destroy(zilog_t *zilog, boolean_t keep_first)
 				    &lwb->lwb_blk);
 
 			list_remove(&zilog->zl_lwb_list, lwb);
-			if (lwb->lwb_buf != NULL)
-				zio_buf_free(lwb->lwb_buf, lwb->lwb_sz);
 			zio_free(zilog->zl_spa, txg, &lwb->lwb_blk);
 			zil_free_lwb(zilog, lwb);
 		}
@@ -1386,18 +1393,7 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 
 	spa_config_exit(zilog->zl_spa, SCL_STATE, lwb);
 
-	zio_buf_free(lwb->lwb_buf, lwb->lwb_sz);
-
 	mutex_enter(&zilog->zl_lock);
-
-	/*
-	 * If we have had an allocation failure and the txg is
-	 * waiting to sync then we want zil_sync() to remove the lwb so
-	 * that it's not picked up as the next new one in
-	 * zil_process_commit_list(). zil_sync() will only remove the
-	 * lwb if lwb_buf is null.
-	 */
-	lwb->lwb_buf = NULL;
 
 	ASSERT3U(lwb->lwb_issued_timestamp, >, 0);
 	zilog->zl_last_lwb_latency = (zilog->zl_last_lwb_latency * 3 +
@@ -1491,7 +1487,7 @@ zil_lwb_flush_wait_all(zilog_t *zilog, uint64_t txg)
 			IMPLY(lwb->lwb_issued_txg > 0,
 			    lwb->lwb_state == LWB_STATE_FLUSH_DONE);
 		}
-		IMPLY(lwb->lwb_state == LWB_STATE_FLUSH_DONE,
+		IMPLY(lwb->lwb_state >= LWB_STATE_WRITE_DONE,
 		    lwb->lwb_buf == NULL);
 		lwb = list_next(&zilog->zl_lwb_list, lwb);
 	}
@@ -1534,7 +1530,12 @@ zil_lwb_write_done(zio_t *zio)
 	ASSERT(!BP_IS_HOLE(zio->io_bp));
 	ASSERT(BP_GET_FILL(zio->io_bp) == 0);
 
-	abd_free(zio->io_abd);
+	abd_free(lwb->lwb_abd);
+	lwb->lwb_abd = NULL;
+	if (zilog->zl_done_data != NULL)
+		zilog->zl_done_data(lwb);
+	zio_buf_free(lwb->lwb_buf, BP_GET_LSIZE(&lwb->lwb_blk));
+	lwb->lwb_buf = NULL;
 
 	mutex_enter(&zilog->zl_lock);
 	ASSERT3S(lwb->lwb_state, ==, LWB_STATE_ISSUED);
@@ -1696,9 +1697,6 @@ zil_lwb_write_open(zilog_t *zilog, lwb_t *lwb)
 	/* Lock so zil_sync() doesn't fastwrite_unmark after zio is created */
 	mutex_enter(&zilog->zl_lock);
 	if (lwb->lwb_root_zio == NULL) {
-		abd_t *lwb_abd = abd_get_from_buf(lwb->lwb_buf,
-		    BP_GET_LSIZE(&lwb->lwb_blk));
-
 		if (!lwb->lwb_fastwrite) {
 			metaslab_fastwrite_mark(zilog->zl_spa, &lwb->lwb_blk);
 			lwb->lwb_fastwrite = 1;
@@ -1714,7 +1712,7 @@ zil_lwb_write_open(zilog_t *zilog, lwb_t *lwb)
 		ASSERT3P(lwb->lwb_root_zio, !=, NULL);
 
 		lwb->lwb_write_zio = zio_rewrite(lwb->lwb_root_zio,
-		    zilog->zl_spa, 0, &lwb->lwb_blk, lwb_abd,
+		    zilog->zl_spa, 0, &lwb->lwb_blk, lwb->lwb_abd,
 		    BP_GET_LSIZE(&lwb->lwb_blk), zil_lwb_write_done, lwb,
 		    prio, ZIO_FLAG_CANFAIL | ZIO_FLAG_FASTWRITE, &zb);
 		ASSERT3P(lwb->lwb_write_zio, !=, NULL);
@@ -1729,6 +1727,20 @@ zil_lwb_write_open(zilog_t *zilog, lwb_t *lwb)
 	ASSERT3P(lwb->lwb_root_zio, !=, NULL);
 	ASSERT3P(lwb->lwb_write_zio, !=, NULL);
 	ASSERT3S(lwb->lwb_state, ==, LWB_STATE_OPENED);
+}
+
+/*
+ * Add any new data in lwb_buf to lwb_abd Gang ABD.
+ */
+void
+zil_lwb_add_buf(struct lwb *lwb)
+{
+	if (lwb->lwb_bused == lwb->lwb_badded)
+		return;
+	ASSERT3S(lwb->lwb_bused, >, lwb->lwb_badded);
+	abd_gang_add_buf(lwb->lwb_abd, lwb->lwb_buf + lwb->lwb_badded,
+	    lwb->lwb_bused - lwb->lwb_badded);
+	lwb->lwb_badded = lwb->lwb_bused;
 }
 
 /*
@@ -1772,7 +1784,7 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 	dmu_tx_t *tx;
 	uint64_t txg;
 	uint64_t zil_blksz, wsz;
-	int i, error;
+	int i, error, nused;
 	boolean_t slog;
 
 	ASSERT(MUTEX_HELD(&zilog->zl_issuer_lock));
@@ -1780,15 +1792,35 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 	ASSERT3P(lwb->lwb_write_zio, !=, NULL);
 	ASSERT3S(lwb->lwb_state, ==, LWB_STATE_OPENED);
 
-	if (BP_GET_CHECKSUM(&lwb->lwb_blk) == ZIO_CHECKSUM_ZILOG2) {
-		zilc = (zil_chain_t *)lwb->lwb_buf;
-		bp = &zilc->zc_next_blk;
+	nused = lwb->lwb_nused;
+	if (BP_GET_CHECKSUM(&lwb->lwb_blk) == ZIO_CHECKSUM_ZILOG2 && 0) {
+		/* For Slim ZIL only write what is used. */
+		wsz = P2ROUNDUP_TYPED(lwb->lwb_nused, ZIL_MIN_BLKSZ, uint64_t);
+		ASSERT3U(wsz, <=, BP_GET_LSIZE(&lwb->lwb_blk));
+		zio_shrink(lwb->lwb_write_zio, wsz);
+		wsz = lwb->lwb_write_zio->io_size;
 	} else {
-		zilc = (zil_chain_t *)(lwb->lwb_buf + lwb->lwb_sz);
-		bp = &zilc->zc_next_blk;
+		wsz = lwb->lwb_sz;
 	}
 
-	ASSERT(lwb->lwb_nused <= lwb->lwb_sz);
+	/* Add required zero padding. */
+	if (wsz - lwb->lwb_nused > zil_maxcopy &&
+	    !BP_IS_RAIDZ(&lwb->lwb_blk) && 0) {
+		zil_lwb_add_buf(lwb);
+		abd_gang_add_zeros(lwb->lwb_abd, wsz - lwb->lwb_nused);
+	} else {
+		memset(lwb->lwb_buf + lwb->lwb_bused, 0, wsz - lwb->lwb_nused);
+		lwb->lwb_bused += wsz - lwb->lwb_nused;
+	}
+	lwb->lwb_nused += wsz - lwb->lwb_nused;
+
+	if (BP_GET_CHECKSUM(&lwb->lwb_blk) != ZIO_CHECKSUM_ZILOG2) {
+		/* For old ZIL add chain at the end. */
+		lwb->lwb_bused += sizeof (zil_chain_t);
+		lwb->lwb_nused += sizeof (zil_chain_t);
+		lwb->lwb_sz += sizeof (zil_chain_t);
+		wsz += sizeof (zil_chain_t);
+	}
 
 	/*
 	 * Allocate the next block and save its address in this block
@@ -1839,17 +1871,15 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 		zil_blksz = MAX(zil_blksz, zilog->zl_prev_blks[i]);
 	zilog->zl_prev_rotor = (zilog->zl_prev_rotor + 1) & (ZIL_PREV_BLKS - 1);
 
+	if (BP_GET_CHECKSUM(&lwb->lwb_blk) == ZIO_CHECKSUM_ZILOG2) {
+		zilc = (zil_chain_t *)lwb->lwb_buf;
+	} else {
+		zilc = (zil_chain_t *)(lwb->lwb_buf + lwb->lwb_bused -
+		    sizeof (zil_chain_t));
+	}
+	bp = &zilc->zc_next_blk;
 	BP_ZERO(bp);
 	error = zio_alloc_zil(spa, zilog->zl_os, txg, bp, zil_blksz, &slog);
-	if (slog) {
-		ZIL_STAT_BUMP(zilog, zil_itx_metaslab_slog_count);
-		ZIL_STAT_INCR(zilog, zil_itx_metaslab_slog_bytes,
-		    lwb->lwb_nused);
-	} else {
-		ZIL_STAT_BUMP(zilog, zil_itx_metaslab_normal_count);
-		ZIL_STAT_INCR(zilog, zil_itx_metaslab_normal_bytes,
-		    lwb->lwb_nused);
-	}
 	if (error == 0) {
 		ASSERT3U(bp->blk_birth, ==, txg);
 		bp->blk_cksum = lwb->lwb_blk.blk_cksum;
@@ -1860,31 +1890,27 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 		 */
 		nlwb = zil_alloc_lwb(zilog, bp, slog, txg, TRUE);
 	}
-
-	if (BP_GET_CHECKSUM(&lwb->lwb_blk) == ZIO_CHECKSUM_ZILOG2) {
-		/* For Slim ZIL only write what is used. */
-		wsz = P2ROUNDUP_TYPED(lwb->lwb_nused, ZIL_MIN_BLKSZ, uint64_t);
-		ASSERT3U(wsz, <=, lwb->lwb_sz);
-		zio_shrink(lwb->lwb_write_zio, wsz);
-
-	} else {
-		wsz = lwb->lwb_sz;
-	}
-
 	zilc->zc_pad = 0;
-	zilc->zc_nused = lwb->lwb_nused;
+	zilc->zc_nused = nused;
 	zilc->zc_eck.zec_cksum = lwb->lwb_blk.blk_cksum;
 
-	/*
-	 * clear unused data for security
-	 */
-	memset(lwb->lwb_buf + lwb->lwb_nused, 0, wsz - lwb->lwb_nused);
+	zil_lwb_add_buf(lwb);
+	ASSERT3S(lwb->lwb_bused, ==, lwb->lwb_badded);
+	ASSERT3S(lwb->lwb_nused, ==, wsz);
+	ASSERT3S(lwb->lwb_nused, ==, abd_get_size(lwb->lwb_abd));
 
 	spa_config_enter(zilog->zl_spa, SCL_STATE, lwb, RW_READER);
 
 	zil_lwb_add_block(lwb, &lwb->lwb_blk);
 	lwb->lwb_issued_timestamp = gethrtime();
 	lwb->lwb_state = LWB_STATE_ISSUED;
+	if (lwb->lwb_slog) {
+		ZIL_STAT_BUMP(zilog, zil_itx_metaslab_slog_count);
+		ZIL_STAT_INCR(zilog, zil_itx_metaslab_slog_bytes, wsz);
+	} else {
+		ZIL_STAT_BUMP(zilog, zil_itx_metaslab_normal_count);
+		ZIL_STAT_INCR(zilog, zil_itx_metaslab_normal_bytes, wsz);
+	}
 
 	zio_nowait(lwb->lwb_root_zio);
 	zio_nowait(lwb->lwb_write_zio);
@@ -1940,8 +1966,6 @@ zil_lwb_commit(zilog_t *zilog, itx_t *itx, lwb_t *lwb)
 	uint64_t dlen, dnow, dpad, lwb_sp, reclen, txg, max_log_data;
 
 	ASSERT(MUTEX_HELD(&zilog->zl_issuer_lock));
-	ASSERT3P(lwb, !=, NULL);
-	ASSERT3P(lwb->lwb_buf, !=, NULL);
 
 	zil_lwb_write_open(zilog, lwb);
 
@@ -1996,7 +2020,6 @@ cont:
 		if (lwb == NULL)
 			return (NULL);
 		zil_lwb_write_open(zilog, lwb);
-		ASSERT(LWB_EMPTY(lwb));
 		lwb_sp = lwb->lwb_sz - lwb->lwb_nused;
 
 		/*
@@ -2012,8 +2035,17 @@ cont:
 	}
 
 	dnow = MIN(dlen, lwb_sp - reclen);
-	lr_buf = lwb->lwb_buf + lwb->lwb_nused;
-	memcpy(lr_buf, lrc, reclen);
+	if (reclen > zil_maxcopy && dlen == 0 &&
+	    !BP_IS_RAIDZ(&lwb->lwb_blk) && 0) {
+		lr_buf = (char *)lrc;
+		zil_lwb_add_buf(lwb);
+		abd_gang_add_buf(lwb->lwb_abd, lr_buf, reclen);
+	} else {
+		lr_buf = lwb->lwb_buf + lwb->lwb_bused;
+		memcpy(lr_buf, lrc, reclen);
+		lwb->lwb_bused += reclen;
+	}
+	lwb->lwb_nused += reclen;
 	lrcb = (lr_t *)lr_buf;		/* Like lrc, but inside lwb. */
 	lrwb = (lr_write_t *)lrcb;	/* Like lrw, but inside lwb. */
 
@@ -2030,11 +2062,7 @@ cont:
 			ZIL_STAT_INCR(zilog, zil_itx_copied_bytes,
 			    lrw->lr_length);
 		} else {
-			char *dbuf;
-			int error;
-
 			if (itx->itx_wr_state == WR_NEED_COPY) {
-				dbuf = lr_buf + reclen;
 				lrcb->lrc_reclen += dnow;
 				if (lrwb->lr_length > dnow)
 					lrwb->lr_length = dnow;
@@ -2045,33 +2073,21 @@ cont:
 				    dnow);
 			} else {
 				ASSERT3S(itx->itx_wr_state, ==, WR_INDIRECT);
-				dbuf = NULL;
 				ZIL_STAT_BUMP(zilog, zil_itx_indirect_count);
 				ZIL_STAT_INCR(zilog, zil_itx_indirect_bytes,
 				    lrw->lr_length);
 			}
 
-			/*
-			 * We pass in the "lwb_write_zio" rather than
-			 * "lwb_root_zio" so that the "lwb_write_zio"
-			 * becomes the parent of any zio's created by
-			 * the "zl_get_data" callback. The vdevs are
-			 * flushed after the "lwb_write_zio" completes,
-			 * so we want to make sure that completion
-			 * callback waits for these additional zio's,
-			 * such that the vdevs used by those zio's will
-			 * be included in the lwb's vdev tree, and those
-			 * vdevs will be properly flushed. If we passed
-			 * in "lwb_root_zio" here, then these additional
-			 * vdevs may not be flushed; e.g. if these zio's
-			 * completed after "lwb_write_zio" completed.
-			 */
-			error = zilog->zl_get_data(itx->itx_private,
-			    itx->itx_gen, lrwb, dbuf, lwb,
-			    lwb->lwb_write_zio);
-			if (dbuf != NULL && error == 0 && dnow == dlen)
+			int error = zilog->zl_get_data(itx->itx_private,
+			    itx->itx_gen, lrwb, lwb,
+			    (lrwb->lr_length > zil_maxcopy) &&
+			    !BP_IS_RAIDZ(&lwb->lwb_blk) && 0);
+			if (error == 0 && dpad != 0 && dnow == dlen) {
 				/* Zero any padding bytes in the last block. */
-				memset((char *)dbuf + lrwb->lr_length, 0, dpad);
+				memset(lwb->lwb_buf + lwb->lwb_bused, 0, dpad);
+				lwb->lwb_bused += dpad;
+				lwb->lwb_nused += dpad;
+			}
 
 			/*
 			 * Typically, the only return values we should see from
@@ -2106,6 +2122,8 @@ cont:
 			case EEXIST:
 				zfs_fallthrough;
 			case EALREADY:
+				lwb->lwb_bused -= reclen;
+				lwb->lwb_nused -= reclen;
 				return (lwb);
 			}
 		}
@@ -2118,12 +2136,11 @@ cont:
 	 * are synchronous, and sometimes spa_sync() gets there first.
 	 */
 	lrcb->lrc_seq = ++zilog->zl_lr_seq;
-	lwb->lwb_nused += reclen + dnow;
-
-	zil_lwb_add_txg(lwb, txg);
 
 	ASSERT3U(lwb->lwb_nused, <=, lwb->lwb_sz);
 	ASSERT0(P2PHASE(lwb->lwb_nused, sizeof (uint64_t)));
+
+	zil_lwb_add_txg(lwb, txg);
 
 	dlen -= dnow;
 	if (dlen > 0) {
@@ -3460,7 +3477,8 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 
 	while ((lwb = list_head(&zilog->zl_lwb_list)) != NULL) {
 		zh->zh_log = lwb->lwb_blk;
-		if (lwb->lwb_buf != NULL || lwb->lwb_max_txg > txg)
+		if (lwb->lwb_state != LWB_STATE_FLUSH_DONE ||
+		    lwb->lwb_max_txg > txg)
 			break;
 		list_remove(&zilog->zl_lwb_list, lwb);
 		zio_free(spa, txg, &lwb->lwb_blk);
@@ -3647,15 +3665,18 @@ zil_free(zilog_t *zilog)
  * Open an intent log.
  */
 zilog_t *
-zil_open(objset_t *os, zil_get_data_t *get_data, zil_sums_t *zil_sums)
+zil_open(objset_t *os, zil_get_data_t *get_data, zil_done_data_t *done_data,
+    zil_sums_t *zil_sums)
 {
 	zilog_t *zilog = dmu_objset_zil(os);
 
 	ASSERT3P(zilog->zl_get_data, ==, NULL);
+	ASSERT3P(zilog->zl_done_data, ==, NULL);
 	ASSERT3P(zilog->zl_last_lwb_opened, ==, NULL);
 	ASSERT(list_is_empty(&zilog->zl_lwb_list));
 
 	zilog->zl_get_data = get_data;
+	zilog->zl_done_data = done_data;
 	zilog->zl_sums = zil_sums;
 
 	return (zilog);
@@ -3710,6 +3731,7 @@ zil_close(zilog_t *zilog)
 		VERIFY(!zilog_is_dirty(zilog));
 
 	zilog->zl_get_data = NULL;
+	zilog->zl_done_data = NULL;
 
 	/*
 	 * We should have only one lwb left on the list; remove it now.
@@ -3724,7 +3746,6 @@ zil_close(zilog_t *zilog)
 			metaslab_fastwrite_unmark(zilog->zl_spa, &lwb->lwb_blk);
 
 		list_remove(&zilog->zl_lwb_list, lwb);
-		zio_buf_free(lwb->lwb_buf, lwb->lwb_sz);
 		zil_free_lwb(zilog, lwb);
 	}
 	mutex_exit(&zilog->zl_lock);
@@ -4112,6 +4133,9 @@ ZFS_MODULE_PARAM(zfs_zil, zil_, min_commit_timeout, U64, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_zil, zil_, replay_disable, INT, ZMOD_RW,
 	"Disable intent logging replay");
+
+ZFS_MODULE_PARAM(zfs_zil, zil_, maxcopy, INT, ZMOD_RW,
+	"Maximum memory copy size under the lock");
 
 ZFS_MODULE_PARAM(zfs_zil, zil_, nocacheflush, INT, ZMOD_RW,
 	"Disable ZIL cache flushes");

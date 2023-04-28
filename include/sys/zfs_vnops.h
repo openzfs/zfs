@@ -55,5 +55,6 @@ extern void update_pages(znode_t *, int64_t, int, objset_t *);
 extern void zfs_zrele_async(znode_t *zp);
 
 extern zil_get_data_t zfs_get_data;
+extern zil_done_data_t zfs_done_data;
 
 #endif
