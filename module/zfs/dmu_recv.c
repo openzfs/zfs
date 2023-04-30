@@ -1353,7 +1353,7 @@ corrective_read_done(zio_t *zio)
 	cr_cb_data_t *data = zio->io_private;
 	/* Corruption corrected; update error log if needed */
 	if (zio->io_error == 0)
-		spa_remove_error(data->spa, &data->zb);
+		spa_remove_error(data->spa, &data->zb, &zio->io_bp->blk_birth);
 	kmem_free(data, sizeof (cr_cb_data_t));
 	abd_free(zio->io_abd);
 }

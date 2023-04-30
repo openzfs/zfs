@@ -119,6 +119,9 @@ See
 .It Fl v
 Displays verbose data error information, printing out a complete list of all
 data errors since the last complete pool scrub.
+If the head_errlog feature is enabled and files containing errors have been
+removed then the respective filenames will not be reported in subsequent runs
+of this command.
 .It Fl x
 Only display status for pools that are exhibiting errors or are otherwise
 unavailable.
