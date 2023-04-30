@@ -1573,24 +1573,22 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags,
 			bpp = &bp;
 		}
 	} else {
-		struct dirty_leaf *dl;
 		dbuf_dirty_record_t *dr;
 
 		ASSERT3S(db->db_state, ==, DB_NOFILL);
 
+		/*
+		 * Block cloning: If we have a pending block clone,
+		 * we don't want to read the underlying block, but the content
+		 * of the block being cloned, so we have the most recent data.
+		 */
 		dr = list_head(&db->db_dirty_records);
-		if (dr == NULL) {
+		if (dr == NULL || !dr->dt.dl.dr_brtwrite) {
 			err = EIO;
 			goto early_unlock;
-		} else {
-			dl = &dr->dt.dl;
-			if (!dl->dr_brtwrite) {
-				err = EIO;
-				goto early_unlock;
-			}
-			bp = dl->dr_overridden_by;
-			bpp = &bp;
 		}
+		bp = dr->dt.dl.dr_overridden_by;
+		bpp = &bp;
 	}
 
 	err = dbuf_read_hole(db, dn, bpp);
@@ -1906,6 +1904,7 @@ dbuf_unoverride(dbuf_dirty_record_t *dr)
 	dmu_buf_impl_t *db = dr->dr_dbuf;
 	blkptr_t *bp = &dr->dt.dl.dr_overridden_by;
 	uint64_t txg = dr->dr_txg;
+	boolean_t release;
 
 	ASSERT(MUTEX_HELD(&db->db_mtx));
 	/*
@@ -1926,8 +1925,10 @@ dbuf_unoverride(dbuf_dirty_record_t *dr)
 	if (!BP_IS_HOLE(bp) && !dr->dt.dl.dr_nopwrite)
 		zio_free(db->db_objset->os_spa, txg, bp);
 
+	release = !dr->dt.dl.dr_brtwrite;
 	dr->dt.dl.dr_override_state = DR_NOT_OVERRIDDEN;
 	dr->dt.dl.dr_nopwrite = B_FALSE;
+	dr->dt.dl.dr_brtwrite = B_FALSE;
 	dr->dt.dl.dr_has_raw_params = B_FALSE;
 
 	/*
@@ -1938,7 +1939,7 @@ dbuf_unoverride(dbuf_dirty_record_t *dr)
 	 * the buf thawed to save the effort of freezing &
 	 * immediately re-thawing it.
 	 */
-	if (!dr->dt.dl.dr_brtwrite)
+	if (release)
 		arc_release(dr->dt.dl.dr_data, db);
 }
 
@@ -2022,11 +2023,6 @@ dbuf_free_range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 				    db->db_blkid > dn->dn_maxblkid)
 					dn->dn_maxblkid = db->db_blkid;
 				dbuf_unoverride(dr);
-				if (dr->dt.dl.dr_brtwrite) {
-					ASSERT(db->db.db_data == NULL);
-					mutex_exit(&db->db_mtx);
-					continue;
-				}
 			} else {
 				/*
 				 * This dbuf is not dirty in the open context.
@@ -2613,6 +2609,7 @@ static void
 dmu_buf_will_dirty_impl(dmu_buf_t *db_fake, int flags, dmu_tx_t *tx)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
+	boolean_t undirty = B_FALSE;
 
 	ASSERT(tx->tx_txg != 0);
 	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
@@ -2625,7 +2622,7 @@ dmu_buf_will_dirty_impl(dmu_buf_t *db_fake, int flags, dmu_tx_t *tx)
 	 */
 	mutex_enter(&db->db_mtx);
 
-	if (db->db_state == DB_CACHED) {
+	if (db->db_state == DB_CACHED || db->db_state == DB_NOFILL) {
 		dbuf_dirty_record_t *dr = dbuf_find_dirty_eq(db, tx->tx_txg);
 		/*
 		 * It's possible that it is already dirty but not cached,
@@ -2633,10 +2630,21 @@ dmu_buf_will_dirty_impl(dmu_buf_t *db_fake, int flags, dmu_tx_t *tx)
 		 * go through dmu_buf_will_dirty().
 		 */
 		if (dr != NULL) {
-			/* This dbuf is already dirty and cached. */
-			dbuf_redirty(dr);
-			mutex_exit(&db->db_mtx);
-			return;
+			if (dr->dt.dl.dr_brtwrite) {
+				/*
+				 * Block cloning: If we are dirtying a cloned
+				 * block, we cannot simply redirty it, because
+				 * this dr has no data associated with it.
+				 * We will go through a full undirtying below,
+				 * before dirtying it again.
+				 */
+				undirty = B_TRUE;
+			} else {
+				/* This dbuf is already dirty and cached. */
+				dbuf_redirty(dr);
+				mutex_exit(&db->db_mtx);
+				return;
+			}
 		}
 	}
 	mutex_exit(&db->db_mtx);
@@ -2645,7 +2653,20 @@ dmu_buf_will_dirty_impl(dmu_buf_t *db_fake, int flags, dmu_tx_t *tx)
 	if (RW_WRITE_HELD(&DB_DNODE(db)->dn_struct_rwlock))
 		flags |= DB_RF_HAVESTRUCT;
 	DB_DNODE_EXIT(db);
+
+	/*
+	 * Block cloning: Do the dbuf_read() before undirtying the dbuf, as we
+	 * want to make sure dbuf_read() will read the pending cloned block and
+	 * not the uderlying block that is being replaced. dbuf_undirty() will
+	 * do dbuf_unoverride(), so we will end up with cloned block content,
+	 * without overridden BP.
+	 */
 	(void) dbuf_read(db, NULL, flags);
+	if (undirty) {
+		mutex_enter(&db->db_mtx);
+		VERIFY(!dbuf_undirty(db, tx));
+		mutex_exit(&db->db_mtx);
+	}
 	(void) dbuf_dirty(db, tx);
 }
 
@@ -2669,13 +2690,37 @@ dmu_buf_is_dirty(dmu_buf_t *db_fake, dmu_tx_t *tx)
 }
 
 void
+dmu_buf_will_clone(dmu_buf_t *db_fake, dmu_tx_t *tx)
+{
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
+
+	/*
+	 * Block cloning: We are going to clone into this block, so undirty
+	 * modifications done to this block so far in this txg. This includes
+	 * writes and clones into this block.
+	 */
+	mutex_enter(&db->db_mtx);
+	VERIFY(!dbuf_undirty(db, tx));
+	ASSERT(list_head(&db->db_dirty_records) == NULL);
+	if (db->db_buf != NULL) {
+		arc_buf_destroy(db->db_buf, db);
+		db->db_buf = NULL;
+	}
+	mutex_exit(&db->db_mtx);
+
+	dmu_buf_will_not_fill(db_fake, tx);
+}
+
+void
 dmu_buf_will_not_fill(dmu_buf_t *db_fake, dmu_tx_t *tx)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
 
 	db->db_state = DB_NOFILL;
 	DTRACE_SET_STATE(db, "allocating NOFILL buffer");
-	dmu_buf_will_fill(db_fake, tx);
+
+	dbuf_noread(db);
+	(void) dbuf_dirty(db, tx);
 }
 
 void
@@ -2690,6 +2735,19 @@ dmu_buf_will_fill(dmu_buf_t *db_fake, dmu_tx_t *tx)
 
 	ASSERT(db->db.db_object != DMU_META_DNODE_OBJECT ||
 	    dmu_tx_private_ok(tx));
+
+	if (db->db_state == DB_NOFILL) {
+		/*
+		 * Block cloning: We will be completely overwriting a block
+		 * cloned in this transaction group, so let's undirty the
+		 * pending clone and mark the block as uncached. This will be
+		 * as if the clone was never done.
+		 */
+		mutex_enter(&db->db_mtx);
+		VERIFY(!dbuf_undirty(db, tx));
+		mutex_exit(&db->db_mtx);
+		db->db_state = DB_UNCACHED;
+	}
 
 	dbuf_noread(db);
 	(void) dbuf_dirty(db, tx);
@@ -5155,6 +5213,7 @@ EXPORT_SYMBOL(dbuf_dirty);
 EXPORT_SYMBOL(dmu_buf_set_crypt_params);
 EXPORT_SYMBOL(dmu_buf_will_dirty);
 EXPORT_SYMBOL(dmu_buf_is_dirty);
+EXPORT_SYMBOL(dmu_buf_will_clone);
 EXPORT_SYMBOL(dmu_buf_will_not_fill);
 EXPORT_SYMBOL(dmu_buf_will_fill);
 EXPORT_SYMBOL(dmu_buf_fill_done);

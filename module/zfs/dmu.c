@@ -2284,18 +2284,7 @@ dmu_brt_clone(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 		ASSERT(db->db_blkid != DMU_BONUS_BLKID);
 		ASSERT(BP_IS_HOLE(bp) || dbuf->db_size == BP_GET_LSIZE(bp));
 
-		mutex_enter(&db->db_mtx);
-
-		VERIFY(!dbuf_undirty(db, tx));
-		ASSERT(list_head(&db->db_dirty_records) == NULL);
-		if (db->db_buf != NULL) {
-			arc_buf_destroy(db->db_buf, db);
-			db->db_buf = NULL;
-		}
-
-		mutex_exit(&db->db_mtx);
-
-		dmu_buf_will_not_fill(dbuf, tx);
+		dmu_buf_will_clone(dbuf, tx);
 
 		mutex_enter(&db->db_mtx);
 
@@ -2305,7 +2294,6 @@ dmu_brt_clone(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 		dl = &dr->dt.dl;
 		dl->dr_overridden_by = *bp;
 		dl->dr_brtwrite = B_TRUE;
-
 		dl->dr_override_state = DR_OVERRIDDEN;
 		if (BP_IS_HOLE(bp)) {
 			dl->dr_overridden_by.blk_birth = 0;
