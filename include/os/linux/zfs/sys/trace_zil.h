@@ -153,8 +153,10 @@
  *     itx_t *, ...);
  */
 
+#if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wordered-compare-function-pointers"
+#endif
 /* BEGIN CSTYLED */
 DECLARE_EVENT_CLASS(zfs_zil_process_itx_class,
 	TP_PROTO(zilog_t *zilog, itx_t *itx),
@@ -172,7 +174,9 @@ DECLARE_EVENT_CLASS(zfs_zil_process_itx_class,
 	    ZILOG_TP_PRINTK_ARGS, ITX_TP_PRINTK_ARGS)
 );
 /* END CSTYLED */
+#if defined(__clang__)
 #pragma clang diagnostic pop
+#endif
 
 #define	DEFINE_ZIL_PROCESS_ITX_EVENT(name) \
 DEFINE_EVENT(zfs_zil_process_itx_class, name, \
