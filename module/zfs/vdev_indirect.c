@@ -1370,9 +1370,10 @@ vdev_indirect_io_start(zio_t *zio)
 			    is != NULL; is = list_next(&iv->iv_splits, is)) {
 				zio_nowait(zio_vdev_child_io(zio, NULL,
 				    is->is_vdev, is->is_target_offset,
-				    abd_get_offset(zio->io_abd,
-				    is->is_split_offset), is->is_size,
-				    zio->io_type, zio->io_priority, 0,
+				    abd_get_offset_size(zio->io_abd,
+				    is->is_split_offset, is->is_size),
+				    is->is_size, zio->io_type,
+				    zio->io_priority, 0,
 				    vdev_indirect_child_io_done, zio));
 			}
 
