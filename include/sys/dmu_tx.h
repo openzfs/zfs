@@ -91,6 +91,7 @@ enum dmu_tx_hold_type {
 	THT_SPACE,
 	THT_SPILL,
 	THT_CLONE,
+	THT_APPEND,
 	THT_NUMTYPES
 };
 
