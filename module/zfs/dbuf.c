@@ -1620,8 +1620,7 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags,
 	 * If this is not true it indicates tampering and we report an error.
 	 */
 	if (db->db_objset->os_encrypted && !BP_USES_CRYPT(bpp)) {
-		spa_log_error(db->db_objset->os_spa, &zb,
-		    &db->db_blkptr->blk_birth);
+		spa_log_error(db->db_objset->os_spa, &zb, &bpp->blk_birth);
 		zfs_panic_recover("unencrypted block in encrypted "
 		    "object set %llu", dmu_objset_id(db->db_objset));
 		err = SET_ERROR(EIO);
