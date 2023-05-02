@@ -1246,16 +1246,10 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 			break;
 		}
 
-		/*
-		 * Start a transaction.
-		 */
-		tx = dmu_tx_create(outos);
-
 		nbps = maxblocks;
-		error = dmu_read_l0_bps(inos, inzp->z_id, inoff, size, tx, bps,
+		error = dmu_read_l0_bps(inos, inzp->z_id, inoff, size, bps,
 		    &nbps);
 		if (error != 0) {
-			dmu_tx_abort(tx);
 			/*
 			 * If we are tyring to clone a block that was created
 			 * in the current transaction group. Return an error,
@@ -1276,12 +1270,15 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 		 */
 		if (BP_IS_PROTECTED(&bps[0])) {
 			if (inzfsvfs != outzfsvfs) {
-				dmu_tx_abort(tx);
 				error = SET_ERROR(EXDEV);
 				break;
 			}
 		}
 
+		/*
+		 * Start a transaction.
+		 */
+		tx = dmu_tx_create(outos);
 		dmu_tx_hold_sa(tx, outzp->z_sa_hdl, B_FALSE);
 		db = (dmu_buf_impl_t *)sa_get_db(outzp->z_sa_hdl);
 		DB_DNODE_ENTER(db);

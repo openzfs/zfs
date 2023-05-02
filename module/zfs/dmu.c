@@ -2173,7 +2173,7 @@ restart:
 
 int
 dmu_read_l0_bps(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
-    dmu_tx_t *tx, blkptr_t *bps, size_t *nbpsp)
+    blkptr_t *bps, size_t *nbpsp)
 {
 	dmu_buf_t **dbp, *dbuf;
 	dmu_buf_impl_t *db;
@@ -2232,10 +2232,6 @@ dmu_read_l0_bps(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 			 * The block was created in this transaction group,
 			 * so it has no BP yet.
 			 */
-			error = SET_ERROR(EAGAIN);
-			goto out;
-		}
-		if (dmu_buf_is_dirty(dbuf, tx)) {
 			error = SET_ERROR(EAGAIN);
 			goto out;
 		}
