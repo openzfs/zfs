@@ -2257,7 +2257,7 @@ out:
 	return (error);
 }
 
-void
+int
 dmu_brt_clone(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
     dmu_tx_t *tx, const blkptr_t *bps, size_t nbps, boolean_t replay)
 {
@@ -2267,7 +2267,7 @@ dmu_brt_clone(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 	struct dirty_leaf *dl;
 	dbuf_dirty_record_t *dr;
 	const blkptr_t *bp;
-	int numbufs;
+	int error = 0, i, numbufs;
 
 	spa = os->os_spa;
 
@@ -2275,7 +2275,26 @@ dmu_brt_clone(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 	    &numbufs, &dbp));
 	ASSERT3U(nbps, ==, numbufs);
 
-	for (int i = 0; i < numbufs; i++) {
+	/*
+	 * Before we start cloning make sure that the dbufs sizes much new BPs
+	 * sizes. If they don't, that's a no-go, as we are not able to shrink
+	 * dbufs.
+	 */
+	for (i = 0; i < numbufs; i++) {
+		dbuf = dbp[i];
+		db = (dmu_buf_impl_t *)dbuf;
+		bp = &bps[i];
+
+		ASSERT0(db->db_level);
+		ASSERT(db->db_blkid != DMU_BONUS_BLKID);
+
+		if (!BP_IS_HOLE(bp) && BP_GET_LSIZE(bp) != dbuf->db_size) {
+			error = SET_ERROR(EXDEV);
+			goto out;
+		}
+	}
+
+	for (i = 0; i < numbufs; i++) {
 		dbuf = dbp[i];
 		db = (dmu_buf_impl_t *)dbuf;
 		bp = &bps[i];
@@ -2319,8 +2338,10 @@ dmu_brt_clone(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 			brt_pending_add(spa, bp, tx);
 		}
 	}
-
+out:
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
+
+	return (error);
 }
 
 void

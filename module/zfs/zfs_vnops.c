@@ -1309,8 +1309,12 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 			    ((len - 1) / inblksz + 1) * inblksz);
 		}
 
-		dmu_brt_clone(outos, outzp->z_id, outoff, size, tx, bps, nbps,
-		    B_FALSE);
+		error = dmu_brt_clone(outos, outzp->z_id, outoff, size, tx,
+		    bps, nbps, B_FALSE);
+		if (error != 0) {
+			dmu_tx_commit(tx);
+			break;
+		}
 
 		zfs_clear_setid_bits_if_necessary(outzfsvfs, outzp, cr,
 		    &clear_setid_bits_txg, tx);

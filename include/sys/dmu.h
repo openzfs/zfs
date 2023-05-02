@@ -1066,7 +1066,7 @@ int dmu_offset_next(objset_t *os, uint64_t object, boolean_t hole,
 
 int dmu_read_l0_bps(objset_t *os, uint64_t object, uint64_t offset,
     uint64_t length, dmu_tx_t *tx, struct blkptr *bps, size_t *nbpsp);
-void dmu_brt_clone(objset_t *os, uint64_t object, uint64_t offset,
+int dmu_brt_clone(objset_t *os, uint64_t object, uint64_t offset,
     uint64_t length, dmu_tx_t *tx, const struct blkptr *bps, size_t nbps,
     boolean_t replay);
 
