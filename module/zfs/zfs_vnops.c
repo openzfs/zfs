@@ -1072,6 +1072,15 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 
 	inzfsvfs = ZTOZSB(inzp);
 	outzfsvfs = ZTOZSB(outzp);
+
+	/*
+	 * We need to call zfs_enter() potentially on two different datasets,
+	 * so we need a dedicated function for that.
+	 */
+	error = zfs_enter_two(inzfsvfs, outzfsvfs, FTAG);
+	if (error != 0)
+		return (error);
+
 	inos = inzfsvfs->z_os;
 	outos = outzfsvfs->z_os;
 
@@ -1082,14 +1091,6 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 		zfs_exit_two(inzfsvfs, outzfsvfs, FTAG);
 		return (SET_ERROR(EXDEV));
 	}
-
-	/*
-	 * We need to call zfs_enter() potentially on two different datasets,
-	 * so we need a dedicated function for that.
-	 */
-	error = zfs_enter_two(inzfsvfs, outzfsvfs, FTAG);
-	if (error != 0)
-		return (error);
 
 	ASSERT(!outzfsvfs->z_replay);
 
