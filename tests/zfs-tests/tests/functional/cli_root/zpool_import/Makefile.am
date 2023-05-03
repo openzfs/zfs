@@ -12,6 +12,7 @@ dist_pkgdata_SCRIPTS = \
 	import_cachefile_paths_changed.ksh \
 	import_cachefile_shared_device.ksh \
 	import_devices_missing.ksh \
+	import_log_missing.ksh \
 	import_paths_changed.ksh \
 	import_rewind_config_changed.ksh \
 	import_rewind_device_replaced.ksh \

@@ -407,7 +407,7 @@ tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'import_cachefile_mirror_detached',
     'import_cachefile_paths_changed',
     'import_cachefile_shared_device',
-    'import_devices_missing',
+    'import_devices_missing', 'import_log_missing',
     'import_paths_changed',
     'import_rewind_config_changed',
     'import_rewind_device_replaced']
