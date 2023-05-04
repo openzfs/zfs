@@ -275,7 +275,8 @@ zfs_sync(struct super_block *sb, int wait, cred_t *cr)
 		 */
 		dsl_pool_t *dp;
 
-		ZFS_ENTER(zfsvfs);
+		ZFS_ENTER_UNMOUNTOK(zfsvfs);
+
 		dp = dmu_objset_pool(zfsvfs->z_os);
 
 		/*

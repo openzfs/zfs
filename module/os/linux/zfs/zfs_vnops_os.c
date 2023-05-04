@@ -3665,7 +3665,7 @@ zfs_dirty_inode(struct inode *ip, int flags)
 	if (zfs_is_readonly(zfsvfs) || dmu_objset_is_snapshot(zfsvfs->z_os))
 		return (0);
 
-	ZFS_ENTER(zfsvfs);
+	ZFS_ENTER_UNMOUNTOK(zfsvfs);
 	ZFS_VERIFY_ZP(zp);
 
 #ifdef I_DIRTY_TIME
