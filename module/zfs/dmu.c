@@ -2197,10 +2197,6 @@ dmu_read_l0_bps(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 
 		mutex_enter(&db->db_mtx);
 
-		/*
-		 * If the block is not on the disk yet, it has no BP assigned.
-		 * There is not much we can do...
-		 */
 		if (!list_is_empty(&db->db_dirty_records)) {
 			dbuf_dirty_record_t *dr;
 
