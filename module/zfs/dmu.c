@@ -2268,7 +2268,7 @@ dmu_brt_clone(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 	ASSERT3U(nbps, ==, numbufs);
 
 	/*
-	 * Before we start cloning make sure that the dbufs sizes much new BPs
+	 * Before we start cloning make sure that the dbufs sizes match new BPs
 	 * sizes. If they don't, that's a no-go, as we are not able to shrink
 	 * dbufs.
 	 */
