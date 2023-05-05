@@ -7862,6 +7862,8 @@ zfs_kmod_fini(void)
 			zfs_onexit_destroy(zs->zs_onexit);
 		if (zs->zs_zevent)
 			zfs_zevent_destroy(zs->zs_zevent);
+		if (zs != &zfsdev_state_listhead)
+			kmem_free(zs, sizeof (zfsdev_state_t));
 	}
 
 	zfs_ereport_taskq_fini();	/* run before zfs_fini() on Linux */
