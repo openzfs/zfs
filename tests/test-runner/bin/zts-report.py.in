@@ -257,6 +257,7 @@ if sys.platform.startswith('freebsd'):
         'resilver/resilver_restart_001': ['FAIL', known_reason],
         'pool_checkpoint/checkpoint_big_rewind': ['FAIL', 12622],
         'pool_checkpoint/checkpoint_indirect': ['FAIL', 12623],
+        'snapshot/snapshot_002_pos': ['FAIL', '14831'],
     })
 elif sys.platform.startswith('linux'):
     maybe.update({
