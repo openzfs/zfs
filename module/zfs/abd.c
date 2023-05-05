@@ -370,7 +370,20 @@ abd_gang_add_gang(abd_t *pabd, abd_t *cabd, boolean_t free_on_free)
 		 * will retain all the free_on_free settings after being
 		 * added to the parents list.
 		 */
+#ifdef ZFS_DEBUG
+		/*
+		 * If cabd had abd_parent, we have to drop it here.  We can't
+		 * transfer it to pabd, nor we can clear abd_size leaving it.
+		 */
+		if (cabd->abd_parent != NULL) {
+			(void) zfs_refcount_remove_many(
+			    &cabd->abd_parent->abd_children,
+			    cabd->abd_size, cabd);
+			cabd->abd_parent = NULL;
+		}
+#endif
 		pabd->abd_size += cabd->abd_size;
+		cabd->abd_size = 0;
 		list_move_tail(&ABD_GANG(pabd).abd_gang_chain,
 		    &ABD_GANG(cabd).abd_gang_chain);
 		ASSERT(list_is_empty(&ABD_GANG(cabd).abd_gang_chain));
@@ -408,7 +421,6 @@ abd_gang_add(abd_t *pabd, abd_t *cabd, boolean_t free_on_free)
 	 */
 	if (abd_is_gang(cabd)) {
 		ASSERT(!list_link_active(&cabd->abd_gang_link));
-		ASSERT(!list_is_empty(&ABD_GANG(cabd).abd_gang_chain));
 		return (abd_gang_add_gang(pabd, cabd, free_on_free));
 	}
 	ASSERT(!abd_is_gang(cabd));
