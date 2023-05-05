@@ -8198,10 +8198,17 @@ l2arc_write_size(l2arc_dev_t *dev)
 	 * iteration can occur.
 	 */
 	dev_size = dev->l2ad_end - dev->l2ad_start;
+
+	/* We need to add in the worst case scenario of log block overhead. */
 	tsize = size + l2arc_log_blk_overhead(size, dev);
-	if (dev->l2ad_vdev->vdev_has_trim && l2arc_trim_ahead > 0)
+	if (dev->l2ad_vdev->vdev_has_trim && l2arc_trim_ahead > 0) {
+		/*
+		 * Trim ahead of the write size 64MB or (l2arc_trim_ahead/100)
+		 * times the writesize, whichever is greater.
+		 */
 		tsize += MAX(64 * 1024 * 1024,
 		    (tsize * l2arc_trim_ahead) / 100);
+	}
 
 	if (tsize >= dev_size) {
 		cmn_err(CE_NOTE, "l2arc_write_max or l2arc_write_boost "
@@ -8835,19 +8842,6 @@ l2arc_evict(l2arc_dev_t *dev, uint64_t distance, boolean_t all)
 	boolean_t rerun;
 
 	buflist = &dev->l2ad_buflist;
-
-	/*
-	 * We need to add in the worst case scenario of log block overhead.
-	 */
-	distance += l2arc_log_blk_overhead(distance, dev);
-	if (vd->vdev_has_trim && l2arc_trim_ahead > 0) {
-		/*
-		 * Trim ahead of the write size 64MB or (l2arc_trim_ahead/100)
-		 * times the write size, whichever is greater.
-		 */
-		distance += MAX(64 * 1024 * 1024,
-		    (distance * l2arc_trim_ahead) / 100);
-	}
 
 top:
 	rerun = B_FALSE;
