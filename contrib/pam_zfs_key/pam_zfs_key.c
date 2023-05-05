@@ -386,7 +386,7 @@ decrypt_mount(pam_handle_t *pamh, const char *ds_name,
 	int ret = lzc_load_key(ds_name, noop, (uint8_t *)key->value,
 	    WRAPPING_KEY_LEN);
 	pw_free(key);
-	if (ret) {
+	if (ret && ret != EEXIST) {
 		pam_syslog(pamh, LOG_ERR, "load_key failed: %d", ret);
 		zfs_close(ds);
 		return (-1);
