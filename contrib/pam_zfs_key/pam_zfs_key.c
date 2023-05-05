@@ -438,6 +438,7 @@ typedef struct {
 	uid_t uid;
 	const char *username;
 	boolean_t unmount_and_unload;
+	boolean_t recursive_homes;
 } zfs_key_config_t;
 
 static int
@@ -472,6 +473,7 @@ zfs_key_config_load(pam_handle_t *pamh, zfs_key_config_t *config,
 	config->uid = entry->pw_uid;
 	config->username = name;
 	config->unmount_and_unload = B_TRUE;
+	config->recursive_homes = B_FALSE;
 	config->dsname = NULL;
 	config->homedir = NULL;
 	for (int c = 0; c < argc; c++) {
@@ -483,6 +485,8 @@ zfs_key_config_load(pam_handle_t *pamh, zfs_key_config_t *config,
 			config->runstatedir = strdup(argv[c] + 12);
 		} else if (strcmp(argv[c], "nounmount") == 0) {
 			config->unmount_and_unload = B_FALSE;
+		} else if (strcmp(argv[c], "recursive_homes") == 0) {
+			config->recursive_homes = B_TRUE;
 		} else if (strcmp(argv[c], "prop_mountpoint") == 0) {
 			if (config->homedir == NULL)
 				config->homedir = strdup(entry->pw_dir);
@@ -517,8 +521,12 @@ find_dsname_by_prop_value(zfs_handle_t *zhp, void *data)
 	(void) zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, mountpoint,
 	    sizeof (mountpoint), NULL, NULL, 0, B_FALSE);
 	if (strcmp(target->homedir, mountpoint) != 0) {
+		if (target->recursive_homes) {
+			(void) zfs_iter_filesystems_v2(zhp, 0,
+			    find_dsname_by_prop_value, target);
+		}
 		zfs_close(zhp);
-		return (0);
+		return (target->dsname != NULL);
 	}
 
 	target->dsname = strdup(zfs_get_name(zhp));
@@ -531,17 +539,23 @@ zfs_key_config_get_dataset(zfs_key_config_t *config)
 {
 	if (config->homedir != NULL &&
 	    config->homes_prefix != NULL) {
-		zfs_handle_t *zhp = zfs_open(g_zfs, config->homes_prefix,
-		    ZFS_TYPE_FILESYSTEM);
-		if (zhp == NULL) {
-			pam_syslog(NULL, LOG_ERR, "dataset %s not found",
-			    config->homes_prefix);
-			return (NULL);
-		}
+		if (strcmp(config->homes_prefix, "*") == 0) {
+			(void) zfs_iter_root(g_zfs,
+			    find_dsname_by_prop_value, config);
+		} else {
+			zfs_handle_t *zhp = zfs_open(g_zfs,
+			    config->homes_prefix, ZFS_TYPE_FILESYSTEM);
+			if (zhp == NULL) {
+				pam_syslog(NULL, LOG_ERR,
+				    "dataset %s not found",
+				    config->homes_prefix);
+				return (NULL);
+			}
 
-		(void) zfs_iter_filesystems_v2(zhp, 0,
-		    find_dsname_by_prop_value, config);
-		zfs_close(zhp);
+			(void) zfs_iter_filesystems_v2(zhp, 0,
+			    find_dsname_by_prop_value, config);
+			zfs_close(zhp);
+		}
 		char *dsname = config->dsname;
 		config->dsname = NULL;
 		return (dsname);
