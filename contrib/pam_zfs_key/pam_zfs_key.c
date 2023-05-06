@@ -67,6 +67,7 @@ pam_syslog(pam_handle_t *pamh, int loglevel, const char *fmt, ...)
 #include <sys/mman.h>
 
 static const char PASSWORD_VAR_NAME[] = "pam_zfs_key_authtok";
+static const char OLD_PASSWORD_VAR_NAME[] = "pam_zfs_key_oldauthtok";
 
 static libzfs_handle_t *g_zfs;
 
@@ -160,10 +161,10 @@ pw_free(pw_password_t *pw)
 }
 
 static pw_password_t *
-pw_fetch(pam_handle_t *pamh)
+pw_fetch(pam_handle_t *pamh, int tok)
 {
 	const char *token;
-	if (pam_get_authtok(pamh, PAM_AUTHTOK, &token, NULL) != PAM_SUCCESS) {
+	if (pam_get_authtok(pamh, tok, &token, NULL) != PAM_SUCCESS) {
 		pam_syslog(pamh, LOG_ERR,
 		    "couldn't get password from PAM stack");
 		return (NULL);
@@ -177,13 +178,13 @@ pw_fetch(pam_handle_t *pamh)
 }
 
 static const pw_password_t *
-pw_fetch_lazy(pam_handle_t *pamh)
+pw_fetch_lazy(pam_handle_t *pamh, int tok, const char *var_name)
 {
-	pw_password_t *pw = pw_fetch(pamh);
+	pw_password_t *pw = pw_fetch(pamh, tok);
 	if (pw == NULL) {
 		return (NULL);
 	}
-	int ret = pam_set_data(pamh, PASSWORD_VAR_NAME, pw, destroy_pw);
+	int ret = pam_set_data(pamh, var_name, pw, destroy_pw);
 	if (ret != PAM_SUCCESS) {
 		pw_free(pw);
 		pam_syslog(pamh, LOG_ERR, "pam_set_data failed");
@@ -193,23 +194,23 @@ pw_fetch_lazy(pam_handle_t *pamh)
 }
 
 static const pw_password_t *
-pw_get(pam_handle_t *pamh)
+pw_get(pam_handle_t *pamh, int tok, const char *var_name)
 {
 	const pw_password_t *authtok = NULL;
-	int ret = pam_get_data(pamh, PASSWORD_VAR_NAME,
+	int ret = pam_get_data(pamh, var_name,
 	    (const void**)(&authtok));
 	if (ret == PAM_SUCCESS)
 		return (authtok);
 	if (ret == PAM_NO_MODULE_DATA)
-		return (pw_fetch_lazy(pamh));
+		return (pw_fetch_lazy(pamh, tok, var_name));
 	pam_syslog(pamh, LOG_ERR, "password not available");
 	return (NULL);
 }
 
 static int
-pw_clear(pam_handle_t *pamh)
+pw_clear(pam_handle_t *pamh, const char *var_name)
 {
-	int ret = pam_set_data(pamh, PASSWORD_VAR_NAME, NULL, NULL);
+	int ret = pam_set_data(pamh, var_name, NULL, NULL);
 	if (ret != PAM_SUCCESS) {
 		pam_syslog(pamh, LOG_ERR, "clearing password failed");
 		return (-1);
@@ -686,7 +687,8 @@ pam_sm_authenticate(pam_handle_t *pamh, int flags,
 		return (PAM_SERVICE_ERR);
 	}
 
-	const pw_password_t *token = pw_fetch_lazy(pamh);
+	const pw_password_t *token = pw_fetch_lazy(pamh,
+	    PAM_AUTHTOK, PASSWORD_VAR_NAME);
 	if (token == NULL) {
 		zfs_key_config_free(&config);
 		return (PAM_AUTH_ERR);
@@ -740,6 +742,8 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 		zfs_key_config_free(&config);
 		return (PAM_SERVICE_ERR);
 	}
+	const pw_password_t *old_token = pw_get(pamh,
+	    PAM_OLDAUTHTOK, OLD_PASSWORD_VAR_NAME);
 	{
 		if (pam_zfs_init(pamh) != 0) {
 			zfs_key_config_free(&config);
@@ -751,49 +755,62 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 			zfs_key_config_free(&config);
 			return (PAM_SERVICE_ERR);
 		}
-		int key_loaded = is_key_loaded(pamh, dataset);
-		if (key_loaded == -1) {
+		if (!old_token) {
+			pam_syslog(pamh, LOG_ERR,
+			    "old password from PAM stack is null");
 			free(dataset);
 			pam_zfs_free();
 			zfs_key_config_free(&config);
 			return (PAM_SERVICE_ERR);
 		}
-		free(dataset);
-		pam_zfs_free();
-		if (! key_loaded) {
+		if (decrypt_mount(pamh, dataset,
+		    old_token->value, B_TRUE) == -1) {
 			pam_syslog(pamh, LOG_ERR,
-			    "key not loaded, returning try_again");
+			    "old token mismatch");
+			free(dataset);
+			pam_zfs_free();
 			zfs_key_config_free(&config);
 			return (PAM_PERM_DENIED);
 		}
 	}
 
 	if ((flags & PAM_UPDATE_AUTHTOK) != 0) {
-		const pw_password_t *token = pw_get(pamh);
+		const pw_password_t *token = pw_get(pamh, PAM_AUTHTOK,
+		    PASSWORD_VAR_NAME);
 		if (token == NULL) {
+			pam_syslog(pamh, LOG_ERR, "new password unavailable");
+			pam_zfs_free();
 			zfs_key_config_free(&config);
-			return (PAM_SERVICE_ERR);
-		}
-		if (pam_zfs_init(pamh) != 0) {
-			zfs_key_config_free(&config);
+			pw_clear(pamh, OLD_PASSWORD_VAR_NAME);
 			return (PAM_SERVICE_ERR);
 		}
 		char *dataset = zfs_key_config_get_dataset(&config);
 		if (!dataset) {
 			pam_zfs_free();
 			zfs_key_config_free(&config);
+			pw_clear(pamh, OLD_PASSWORD_VAR_NAME);
+			pw_clear(pamh, PASSWORD_VAR_NAME);
 			return (PAM_SERVICE_ERR);
 		}
-		if (change_key(pamh, dataset, token->value) == -1) {
+		int was_loaded = is_key_loaded(pamh, dataset);
+		if (!was_loaded && decrypt_mount(pamh, dataset,
+		    old_token->value, B_FALSE) == -1) {
 			free(dataset);
 			pam_zfs_free();
 			zfs_key_config_free(&config);
+			pw_clear(pamh, OLD_PASSWORD_VAR_NAME);
+			pw_clear(pamh, PASSWORD_VAR_NAME);
 			return (PAM_SERVICE_ERR);
+		}
+		int changed = change_key(pamh, dataset, token->value);
+		if (!was_loaded) {
+			unmount_unload(pamh, dataset, config.force_unmount);
 		}
 		free(dataset);
 		pam_zfs_free();
 		zfs_key_config_free(&config);
-		if (pw_clear(pamh) == -1) {
+		if (pw_clear(pamh, OLD_PASSWORD_VAR_NAME) == -1 ||
+		    pw_clear(pamh, PASSWORD_VAR_NAME) == -1 || changed == -1) {
 			return (PAM_SERVICE_ERR);
 		}
 	} else {
@@ -829,7 +846,8 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
 		return (PAM_SUCCESS);
 	}
 
-	const pw_password_t *token = pw_get(pamh);
+	const pw_password_t *token = pw_get(pamh,
+	    PAM_AUTHTOK, PASSWORD_VAR_NAME);
 	if (token == NULL) {
 		zfs_key_config_free(&config);
 		return (PAM_SESSION_ERR);
@@ -853,7 +871,7 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
 	free(dataset);
 	pam_zfs_free();
 	zfs_key_config_free(&config);
-	if (pw_clear(pamh) == -1) {
+	if (pw_clear(pamh, PASSWORD_VAR_NAME) == -1) {
 		return (PAM_SERVICE_ERR);
 	}
 	return (PAM_SUCCESS);
