@@ -49,6 +49,9 @@ typedef struct dsl_wrapping_key {
 	/* link on spa_keystore_t:sk_wkeys */
 	avl_node_t wk_avl_link;
 
+	/* key kdf algorithm */
+	uint64_t wk_key_kdf;
+
 	/* keyformat property enum */
 	zfs_keyformat_t wk_keyformat;
 
@@ -57,6 +60,18 @@ typedef struct dsl_wrapping_key {
 
 	/* the pbkdf2 iterations, if the keyformat is of type passphrase */
 	uint64_t wk_iters;
+
+	/* key kdf algorithm */
+	uint64_t wk_argon2_t_cost;
+
+	/* key kdf algorithm */
+	uint64_t wk_argon2_m_cost;
+
+	/* key kdf algorithm */
+	uint64_t wk_argon2_parallelism;
+
+	/* key kdf algorithm */
+	uint64_t wk_argon2_version;
 
 	/* actual wrapping key */
 	crypto_key_t wk_key;

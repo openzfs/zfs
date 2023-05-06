@@ -413,7 +413,7 @@ get_usage(zfs_help_t idx)
 		    "<-a | filesystem|volume>\n"));
 	case HELP_CHANGE_KEY:
 		return (gettext("\tchange-key [-l] [-o keyformat=<value>]\n"
-		    "\t    [-o keylocation=<value>] [-o pbkdf2iters=<value>]\n"
+		    "\t    [-o keylocation=<value>] [-o pbkdf2iters=<value>] [-o keykdf=<value>] [-o argon2_t_cost=<value>] [-o argon2_m_cost=<value>] [-o argon2_parallelism=<value>]\n"
 		    "\t    <filesystem|volume>\n"
 		    "\tchange-key -i [-l] <filesystem|volume>\n"));
 	case HELP_VERSION:
