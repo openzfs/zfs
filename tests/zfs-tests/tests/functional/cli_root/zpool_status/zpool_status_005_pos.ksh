@@ -29,7 +29,7 @@
 # Verify correct output with 'zpool status -v' after corrupting a file
 #
 # STRATEGY:
-# 1. Create a pool, an ancrypted filesystem and a file
+# 1. Create a pool, an encrypted filesystem and a file
 # 2. zinject checksum errors
 # 3. Unmount the filesystem and unload the key
 # 4. Scrub the pool
@@ -76,8 +76,8 @@ log_must zpool sync $TESTPOOL2
 log_must zpool scrub $TESTPOOL2
 log_must zpool wait -t scrub $TESTPOOL2
 log_must zpool status -v $TESTPOOL2
-log_must eval "zpool status -v $TESTPOOL2 | \
-    grep \"Permanent errors have been detected\""
+log_mustnot eval "zpool status -v $TESTPOOL2 | \
+    grep \"permission denied\""
 log_mustnot eval "zpool status -v $TESTPOOL2 | grep '$file'"
 
 log_must eval "cat /$TESTPOOL2/pwd | zfs load-key $TESTPOOL2/$TESTFS1"

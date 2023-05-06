@@ -163,15 +163,15 @@ name_to_object(char *buf, uint64_t *obj)
 static int get_head_ds(spa_t *spa, uint64_t dsobj, uint64_t *head_ds)
 {
 	dsl_dataset_t *ds;
-	int error = dsl_dataset_hold_obj(spa->spa_dsl_pool,
-	    dsobj, FTAG, &ds);
+	int error = dsl_dataset_hold_obj_flags(spa->spa_dsl_pool,
+	    dsobj, DS_HOLD_FLAG_DECRYPT, FTAG, &ds);
 
 	if (error != 0)
 		return (error);
 
 	ASSERT(head_ds);
 	*head_ds = dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj;
-	dsl_dataset_rele(ds, FTAG);
+	dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 
 	return (error);
 }
@@ -297,7 +297,8 @@ check_filesystem(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 	dsl_dataset_t *ds;
 	dsl_pool_t *dp = spa->spa_dsl_pool;
 
-	int error = dsl_dataset_hold_obj(dp, head_ds, FTAG, &ds);
+	int error = dsl_dataset_hold_obj_flags(dp, head_ds,
+	    DS_HOLD_FLAG_DECRYPT, FTAG, &ds);
 	if (error != 0)
 		return (error);
 
@@ -305,23 +306,6 @@ check_filesystem(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 	uint64_t txg_to_consider = spa->spa_syncing_txg;
 	boolean_t check_snapshot = B_TRUE;
 	error = find_birth_txg(ds, zep, &latest_txg);
-
-	/*
-	 * If the filesystem is encrypted and the key is not loaded
-	 * or the encrypted filesystem is not mounted the error will be EACCES.
-	 * In that case report an error in the head filesystem and return.
-	 */
-	if (error == EACCES) {
-		dsl_dataset_rele(ds, FTAG);
-		zbookmark_phys_t zb;
-		zep_to_zb(head_ds, zep, &zb);
-		error = copyout_entry(&zb, uaddr, count);
-		if (error != 0) {
-			dsl_dataset_rele(ds, FTAG);
-			return (error);
-		}
-		return (0);
-	}
 
 	/*
 	 * If find_birth_txg() errors out otherwise, let txg_to_consider be
@@ -334,7 +318,7 @@ check_filesystem(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 		zep_to_zb(head_ds, zep, &zb);
 		error = copyout_entry(&zb, uaddr, count);
 		if (error != 0) {
-			dsl_dataset_rele(ds, FTAG);
+			dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 			return (error);
 		}
 		check_snapshot = B_FALSE;
@@ -352,14 +336,14 @@ check_filesystem(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 		    dsl_dataset_phys(ds)->ds_snapnames_zapobj, &snap_count);
 
 		if (error != 0) {
-			dsl_dataset_rele(ds, FTAG);
+			dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 			return (error);
 		}
 	}
 
 	if (snap_count == 0) {
 		/* Filesystem without snapshots. */
-		dsl_dataset_rele(ds, FTAG);
+		dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 		return (0);
 	}
 
@@ -371,20 +355,21 @@ check_filesystem(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 	uint64_t snap_obj_txg = dsl_dataset_phys(ds)->ds_prev_snap_txg;
 	uint64_t zap_clone = dsl_dir_phys(ds->ds_dir)->dd_clones;
 
-	dsl_dataset_rele(ds, FTAG);
+	dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 
 	/* Check only snapshots created from this file system. */
 	while (snap_obj != 0 && zep->zb_birth < snap_obj_txg &&
 	    snap_obj_txg <= txg_to_consider) {
 
-		error = dsl_dataset_hold_obj(dp, snap_obj, FTAG, &ds);
+		error = dsl_dataset_hold_obj_flags(dp, snap_obj,
+		    DS_HOLD_FLAG_DECRYPT, FTAG, &ds);
 		if (error != 0)
 			goto out;
 
 		if (dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj != head_ds) {
 			snap_obj = dsl_dataset_phys(ds)->ds_prev_snap_obj;
 			snap_obj_txg = dsl_dataset_phys(ds)->ds_prev_snap_txg;
-			dsl_dataset_rele(ds, FTAG);
+			dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 			continue;
 		}
 
@@ -404,13 +389,14 @@ check_filesystem(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 			zep_to_zb(snap_obj, zep, &zb);
 			error = copyout_entry(&zb, uaddr, count);
 			if (error != 0) {
-				dsl_dataset_rele(ds, FTAG);
+				dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT,
+				    FTAG);
 				goto out;
 			}
 		}
 		snap_obj = dsl_dataset_phys(ds)->ds_prev_snap_obj;
 		snap_obj_txg = dsl_dataset_phys(ds)->ds_prev_snap_txg;
-		dsl_dataset_rele(ds, FTAG);
+		dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 	}
 
 	if (zap_clone == 0 || aff_snap_count == 0)
@@ -428,8 +414,8 @@ check_filesystem(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 	    zap_cursor_advance(zc)) {
 
 		dsl_dataset_t *clone;
-		error = dsl_dataset_hold_obj(dp, za->za_first_integer,
-		    FTAG, &clone);
+		error = dsl_dataset_hold_obj_flags(dp, za->za_first_integer,
+		    DS_HOLD_FLAG_DECRYPT, FTAG, &clone);
 
 		if (error != 0)
 			break;
@@ -444,7 +430,7 @@ check_filesystem(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 			    == snap_obj_array[i])
 				found = B_TRUE;
 		}
-		dsl_dataset_rele(clone, FTAG);
+		dsl_dataset_rele_flags(clone, DS_HOLD_FLAG_DECRYPT, FTAG);
 
 		if (!found)
 			continue;
@@ -474,14 +460,14 @@ find_top_affected_fs(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 		return (error);
 
 	dsl_dataset_t *ds;
-	error = dsl_dataset_hold_obj(spa->spa_dsl_pool, oldest_dsobj,
-	    FTAG, &ds);
+	error = dsl_dataset_hold_obj_flags(spa->spa_dsl_pool, oldest_dsobj,
+	    DS_HOLD_FLAG_DECRYPT, FTAG, &ds);
 	if (error != 0)
 		return (error);
 
 	*top_affected_fs =
 	    dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj;
-	dsl_dataset_rele(ds, FTAG);
+	dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 	return (0);
 }
 
@@ -744,7 +730,8 @@ sync_upgrade_errlog(spa_t *spa, uint64_t spa_err_obj, uint64_t *newobj,
 		dsl_dataset_t *ds;
 		objset_t *os;
 
-		int error = dsl_dataset_hold_obj(dp, zb.zb_objset, FTAG, &ds);
+		int error = dsl_dataset_hold_obj_flags(dp, zb.zb_objset,
+		    DS_HOLD_FLAG_DECRYPT, FTAG, &ds);
 		if (error != 0)
 			continue;
 
@@ -759,7 +746,7 @@ sync_upgrade_errlog(spa_t *spa, uint64_t spa_err_obj, uint64_t *newobj,
 		 * truly persistent, it should re-appear after a scan.
 		 */
 		if (dmu_objset_from_ds(ds, &os) != 0) {
-			dsl_dataset_rele(ds, FTAG);
+			dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 			continue;
 		}
 
@@ -767,7 +754,7 @@ sync_upgrade_errlog(spa_t *spa, uint64_t spa_err_obj, uint64_t *newobj,
 		blkptr_t bp;
 
 		if (dnode_hold(os, zep.zb_object, FTAG, &dn) != 0) {
-			dsl_dataset_rele(ds, FTAG);
+			dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 			continue;
 		}
 
@@ -781,7 +768,7 @@ sync_upgrade_errlog(spa_t *spa, uint64_t spa_err_obj, uint64_t *newobj,
 
 		rw_exit(&dn->dn_struct_rwlock);
 		dnode_rele(dn, FTAG);
-		dsl_dataset_rele(ds, FTAG);
+		dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 
 		if (error != 0 || BP_IS_HOLE(&bp))
 			continue;
@@ -1259,7 +1246,8 @@ find_txg_ancestor_snapshot(spa_t *spa, uint64_t new_head, uint64_t old_head,
 	dsl_dataset_t *ds;
 	dsl_pool_t *dp = spa->spa_dsl_pool;
 
-	int error = dsl_dataset_hold_obj(dp, old_head, FTAG, &ds);
+	int error = dsl_dataset_hold_obj_flags(dp, old_head,
+	    DS_HOLD_FLAG_DECRYPT, FTAG, &ds);
 	if (error != 0)
 		return (error);
 
@@ -1267,9 +1255,9 @@ find_txg_ancestor_snapshot(spa_t *spa, uint64_t new_head, uint64_t old_head,
 	uint64_t prev_obj_txg = dsl_dataset_phys(ds)->ds_prev_snap_txg;
 
 	while (prev_obj != 0) {
-		dsl_dataset_rele(ds, FTAG);
-		if ((error = dsl_dataset_hold_obj(dp, prev_obj,
-		    FTAG, &ds)) == 0 &&
+		dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
+		if ((error = dsl_dataset_hold_obj_flags(dp, prev_obj,
+		    DS_HOLD_FLAG_DECRYPT, FTAG, &ds)) == 0 &&
 		    dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj == new_head)
 			break;
 
@@ -1279,7 +1267,7 @@ find_txg_ancestor_snapshot(spa_t *spa, uint64_t new_head, uint64_t old_head,
 		prev_obj_txg = dsl_dataset_phys(ds)->ds_prev_snap_txg;
 		prev_obj = dsl_dataset_phys(ds)->ds_prev_snap_obj;
 	}
-	dsl_dataset_rele(ds, FTAG);
+	dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 	ASSERT(prev_obj != 0);
 	*txg = prev_obj_txg;
 	return (0);
