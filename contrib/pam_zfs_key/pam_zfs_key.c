@@ -437,7 +437,7 @@ typedef struct {
 	char *dsname;
 	uid_t uid;
 	const char *username;
-	int unmount_and_unload;
+	boolean_t unmount_and_unload;
 } zfs_key_config_t;
 
 static int
@@ -471,7 +471,7 @@ zfs_key_config_load(pam_handle_t *pamh, zfs_key_config_t *config,
 	}
 	config->uid = entry->pw_uid;
 	config->username = name;
-	config->unmount_and_unload = 1;
+	config->unmount_and_unload = B_TRUE;
 	config->dsname = NULL;
 	config->homedir = NULL;
 	for (int c = 0; c < argc; c++) {
@@ -482,7 +482,7 @@ zfs_key_config_load(pam_handle_t *pamh, zfs_key_config_t *config,
 			free(config->runstatedir);
 			config->runstatedir = strdup(argv[c] + 12);
 		} else if (strcmp(argv[c], "nounmount") == 0) {
-			config->unmount_and_unload = 0;
+			config->unmount_and_unload = B_FALSE;
 		} else if (strcmp(argv[c], "prop_mountpoint") == 0) {
 			if (config->homedir == NULL)
 				config->homedir = strdup(entry->pw_dir);
