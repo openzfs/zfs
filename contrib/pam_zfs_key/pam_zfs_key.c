@@ -406,14 +406,14 @@ out:
 }
 
 static int
-unmount_unload(pam_handle_t *pamh, const char *ds_name)
+unmount_unload(pam_handle_t *pamh, const char *ds_name, boolean_t force)
 {
 	zfs_handle_t *ds = zfs_open(g_zfs, ds_name, ZFS_TYPE_FILESYSTEM);
 	if (ds == NULL) {
 		pam_syslog(pamh, LOG_ERR, "dataset %s not found", ds_name);
 		return (-1);
 	}
-	int ret = zfs_unmount(ds, NULL, 0);
+	int ret = zfs_unmount(ds, NULL, force ? MS_FORCE : 0);
 	if (ret) {
 		pam_syslog(pamh, LOG_ERR, "zfs_unmount failed with: %d", ret);
 		zfs_close(ds);
@@ -438,6 +438,7 @@ typedef struct {
 	uid_t uid;
 	const char *username;
 	boolean_t unmount_and_unload;
+	boolean_t force_unmount;
 	boolean_t recursive_homes;
 } zfs_key_config_t;
 
@@ -473,6 +474,7 @@ zfs_key_config_load(pam_handle_t *pamh, zfs_key_config_t *config,
 	config->uid = entry->pw_uid;
 	config->username = name;
 	config->unmount_and_unload = B_TRUE;
+	config->force_unmount = B_FALSE;
 	config->recursive_homes = B_FALSE;
 	config->dsname = NULL;
 	config->homedir = NULL;
@@ -485,6 +487,8 @@ zfs_key_config_load(pam_handle_t *pamh, zfs_key_config_t *config,
 			config->runstatedir = strdup(argv[c] + 12);
 		} else if (strcmp(argv[c], "nounmount") == 0) {
 			config->unmount_and_unload = B_FALSE;
+		} else if (strcmp(argv[c], "forceunmount") == 0) {
+			config->force_unmount = B_TRUE;
 		} else if (strcmp(argv[c], "recursive_homes") == 0) {
 			config->recursive_homes = B_TRUE;
 		} else if (strcmp(argv[c], "prop_mountpoint") == 0) {
@@ -882,7 +886,7 @@ pam_sm_close_session(pam_handle_t *pamh, int flags,
 			zfs_key_config_free(&config);
 			return (PAM_SESSION_ERR);
 		}
-		if (unmount_unload(pamh, dataset) == -1) {
+		if (unmount_unload(pamh, dataset, config.force_unmount) == -1) {
 			free(dataset);
 			pam_zfs_free();
 			zfs_key_config_free(&config);
