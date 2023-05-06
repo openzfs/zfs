@@ -435,6 +435,8 @@ typedef struct {
 	char *runstatedir;
 	char *homedir;
 	char *dsname;
+	uid_t uid_min;
+	uid_t uid_max;
 	uid_t uid;
 	const char *username;
 	boolean_t unmount_and_unload;
@@ -471,6 +473,8 @@ zfs_key_config_load(pam_handle_t *pamh, zfs_key_config_t *config,
 		free(config->homes_prefix);
 		return (PAM_USER_UNKNOWN);
 	}
+	config->uid_min = 1000;
+	config->uid_max = MAXUID;
 	config->uid = entry->pw_uid;
 	config->username = name;
 	config->unmount_and_unload = B_TRUE;
@@ -485,6 +489,10 @@ zfs_key_config_load(pam_handle_t *pamh, zfs_key_config_t *config,
 		} else if (strncmp(argv[c], "runstatedir=", 12) == 0) {
 			free(config->runstatedir);
 			config->runstatedir = strdup(argv[c] + 12);
+		} else if (strncmp(argv[c], "uid_min=", 8) == 0) {
+			sscanf(argv[c] + 8, "%u", &config->uid_min);
+		} else if (strncmp(argv[c], "uid_max=", 8) == 0) {
+			sscanf(argv[c] + 8, "%u", &config->uid_max);
 		} else if (strcmp(argv[c], "nounmount") == 0) {
 			config->unmount_and_unload = B_FALSE;
 		} else if (strcmp(argv[c], "forceunmount") == 0) {
@@ -673,6 +681,10 @@ pam_sm_authenticate(pam_handle_t *pamh, int flags,
 	if (config_err != PAM_SUCCESS) {
 		return (config_err);
 	}
+	if (config.uid < config.uid_min || config.uid > config.uid_max) {
+		zfs_key_config_free(&config);
+		return (PAM_SERVICE_ERR);
+	}
 
 	const pw_password_t *token = pw_fetch_lazy(pamh);
 	if (token == NULL) {
@@ -724,9 +736,9 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 	if (zfs_key_config_load(pamh, &config, argc, argv) != PAM_SUCCESS) {
 		return (PAM_SERVICE_ERR);
 	}
-	if (config.uid < 1000) {
+	if (config.uid < config.uid_min || config.uid > config.uid_max) {
 		zfs_key_config_free(&config);
-		return (PAM_SUCCESS);
+		return (PAM_SERVICE_ERR);
 	}
 	{
 		if (pam_zfs_init(pamh) != 0) {
@@ -806,7 +818,7 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
 		return (PAM_SESSION_ERR);
 	}
 
-	if (config.uid < 1000) {
+	if (config.uid < config.uid_min || config.uid > config.uid_max) {
 		zfs_key_config_free(&config);
 		return (PAM_SUCCESS);
 	}
@@ -864,7 +876,7 @@ pam_sm_close_session(pam_handle_t *pamh, int flags,
 	if (zfs_key_config_load(pamh, &config, argc, argv) != PAM_SUCCESS) {
 		return (PAM_SESSION_ERR);
 	}
-	if (config.uid < 1000) {
+	if (config.uid < config.uid_min || config.uid > config.uid_max) {
 		zfs_key_config_free(&config);
 		return (PAM_SUCCESS);
 	}
