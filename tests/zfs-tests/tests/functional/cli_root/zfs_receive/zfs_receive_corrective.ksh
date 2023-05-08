@@ -163,7 +163,24 @@ corrupt_blocks_at_level "/$TESTPOOL/testfs5/$TESTFILE0" 0
 log_must zfs unmount $TESTPOOL/testfs5
 log_must zfs unload-key $TESTPOOL/testfs5
 # test healing recv (on an encrypted dataset) using a raw send file
-test_corrective_recv "$TESTPOOL/testfs5@snap1" $raw_backup
+# This is a special case since with unloaded keys we cannot report errors
+# in the filesystem.
+log_must zpool scrub -w $TESTPOOL
+log_must zpool status -v $TESTPOOL
+log_mustnot eval "zpool status -v $TESTPOOL | \
+    grep \"permission denied\""
+# make sure we will read the corruption from disk by flushing the ARC
+log_must zinject -a
+log_must eval "zfs recv -c $TESTPOOL/testfs5@snap1 < $raw_backup"
+
+log_must zpool scrub -w $TESTPOOL
+log_must zpool status -v $TESTPOOL
+log_mustnot eval "zpool status -v $TESTPOOL | \
+    grep \"Permanent errors have been detected\""
+typeset cksum=$(md5digest $file)
+[[ "$cksum" == "$checksum" ]] || \
+	log_fail "Checksums differ ($cksum != $checksum)"
+
 # non raw send file healing an encrypted dataset with an unloaded key will fail
 log_mustnot eval "zfs recv -c $TESTPOOL/testfs5@snap1 < $backup"
 
