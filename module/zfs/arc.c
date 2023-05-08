@@ -5696,8 +5696,8 @@ top:
 	 * and treat it as a checksum error.  This allows an alternate blkptr
 	 * to be tried when one is available (e.g. ditto blocks).
 	 */
-	if (!zfs_blkptr_verify(spa, bp, zio_flags & ZIO_FLAG_CONFIG_WRITER,
-	    BLK_VERIFY_LOG)) {
+	if (!zfs_blkptr_verify(spa, bp, (zio_flags & ZIO_FLAG_CONFIG_WRITER) ?
+	    BLK_CONFIG_HELD : BLK_CONFIG_NEEDED, BLK_VERIFY_LOG)) {
 		rc = SET_ERROR(ECKSUM);
 		goto done;
 	}

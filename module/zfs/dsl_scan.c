@@ -1970,7 +1970,8 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 			    DMU_USERUSED_OBJECT, tx);
 		}
 		arc_buf_destroy(buf, &buf);
-	} else if (!zfs_blkptr_verify(spa, bp, B_FALSE, BLK_VERIFY_LOG)) {
+	} else if (!zfs_blkptr_verify(spa, bp,
+	    BLK_CONFIG_NEEDED, BLK_VERIFY_LOG)) {
 		/*
 		 * Sanity check the block pointer contents, this is handled
 		 * by arc_read() for the cases above.
