@@ -3102,13 +3102,22 @@ dump_znode_sa_xattr(sa_handle_t *hdl)
 	(void) printf("\tSA xattrs: %d bytes, %d entries\n\n",
 	    sa_xattr_size, sa_xattr_entries);
 	while ((elem = nvlist_next_nvpair(sa_xattr, elem)) != NULL) {
+		boolean_t can_print = !dump_opt['P'];
 		uchar_t *value;
 		uint_t cnt, idx;
 
 		(void) printf("\t\t%s = ", nvpair_name(elem));
 		nvpair_value_byte_array(elem, &value, &cnt);
+
 		for (idx = 0; idx < cnt; ++idx) {
-			if (isprint(value[idx]))
+			if (!isprint(value[idx])) {
+				can_print = B_FALSE;
+				break;
+			}
+		}
+
+		for (idx = 0; idx < cnt; ++idx) {
+			if (can_print)
 				(void) putchar(value[idx]);
 			else
 				(void) printf("\\%3.3o", value[idx]);
