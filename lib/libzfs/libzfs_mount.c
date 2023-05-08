@@ -1538,6 +1538,10 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force,
 	int ret = -1;
 	int flags = ((hardforce || force) ? MS_FORCE : 0);
 
+#ifdef __linux__
+	if (hardforce) flags |= MS_DETACH;
+#endif
+
 	hdl->libzfs_force_export = flags & MS_FORCE;
 	namelen = strlen(zhp->zpool_name);
 
