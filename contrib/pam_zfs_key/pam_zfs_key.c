@@ -587,16 +587,11 @@ zfs_key_config_modify_session_counter(pam_handle_t *pamh,
 		    errno);
 		return (-1);
 	}
-	size_t runtime_path_len = strlen(runtime_path);
-	size_t counter_path_len = runtime_path_len + 1 + 10;
-	char *counter_path = malloc(counter_path_len + 1);
-	if (!counter_path) {
+
+	char *counter_path;
+	if (asprintf(&counter_path, "%s/%u", runtime_path, config->uid) == -1)
 		return (-1);
-	}
-	counter_path[0] = 0;
-	strcat(counter_path, runtime_path);
-	snprintf(counter_path + runtime_path_len, counter_path_len, "/%d",
-	    config->uid);
+
 	const int fd = open(counter_path,
 	    O_RDWR | O_CLOEXEC | O_CREAT | O_NOFOLLOW,
 	    S_IRUSR | S_IWUSR);
