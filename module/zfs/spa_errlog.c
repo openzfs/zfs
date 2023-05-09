@@ -493,6 +493,7 @@ process_error_block(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 	}
 
 	uint64_t top_affected_fs;
+	uint64_t init_count = *count;
 	int error = find_top_affected_fs(spa, head_ds, zep, &top_affected_fs);
 	if (error == 0) {
 		clones_t *ct;
@@ -520,6 +521,16 @@ process_error_block(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 
 		list_destroy(&clones_list);
 	}
+	if (error == 0 && init_count == *count) {
+		/*
+		 * If we reach this point, no errors have been detected
+		 * in the checked filesystems/snapshots. Before returning mark
+		 * the error block to be removed from the error lists and logs.
+		 */
+		zbookmark_phys_t zb;
+		zep_to_zb(head_ds, zep, &zb);
+		spa_remove_error(spa, &zb, &zep->zb_birth);
+	}
 
 	return (error);
 }
@@ -530,37 +541,111 @@ process_error_block(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
  * so that we can later remove the related log entries in sync context.
  */
 static void
-spa_add_healed_error(spa_t *spa, uint64_t obj, zbookmark_phys_t *healed_zb)
+spa_add_healed_error(spa_t *spa, uint64_t obj, zbookmark_phys_t *healed_zb,
+    const uint64_t *birth)
 {
 	char name[NAME_MAX_LEN];
 
 	if (obj == 0)
 		return;
 
-	bookmark_to_name(healed_zb, name, sizeof (name));
-	mutex_enter(&spa->spa_errlog_lock);
-	if (zap_contains(spa->spa_meta_objset, obj, name) == 0) {
-		/*
-		 * Found an error matching healed zb, add zb to our
-		 * tree of healed errors
-		 */
-		avl_tree_t *tree = &spa->spa_errlist_healed;
-		spa_error_entry_t search;
-		spa_error_entry_t *new;
-		avl_index_t where;
-		search.se_bookmark = *healed_zb;
-		mutex_enter(&spa->spa_errlist_lock);
-		if (avl_find(tree, &search, &where) != NULL) {
-			mutex_exit(&spa->spa_errlist_lock);
-			mutex_exit(&spa->spa_errlog_lock);
-			return;
+	boolean_t held_list = B_FALSE;
+	boolean_t held_log = B_FALSE;
+
+	if (!spa_feature_is_enabled(spa, SPA_FEATURE_HEAD_ERRLOG)) {
+		bookmark_to_name(healed_zb, name, sizeof (name));
+
+		if (zap_contains(spa->spa_meta_objset, healed_zb->zb_objset,
+		    name) == 0) {
+			if (!MUTEX_HELD(&spa->spa_errlog_lock)) {
+				mutex_enter(&spa->spa_errlog_lock);
+				held_log = B_TRUE;
+			}
+
+			/*
+			 * Found an error matching healed zb, add zb to our
+			 * tree of healed errors
+			 */
+			avl_tree_t *tree = &spa->spa_errlist_healed;
+			spa_error_entry_t search;
+			spa_error_entry_t *new;
+			avl_index_t where;
+			search.se_bookmark = *healed_zb;
+			if (!MUTEX_HELD(&spa->spa_errlist_lock)) {
+				mutex_enter(&spa->spa_errlist_lock);
+				held_list = B_TRUE;
+			}
+			if (avl_find(tree, &search, &where) != NULL) {
+				if (held_list)
+					mutex_exit(&spa->spa_errlist_lock);
+				if (held_log)
+					mutex_exit(&spa->spa_errlog_lock);
+				return;
+			}
+			new = kmem_zalloc(sizeof (spa_error_entry_t), KM_SLEEP);
+			new->se_bookmark = *healed_zb;
+			avl_insert(tree, new, where);
+			if (held_list)
+				mutex_exit(&spa->spa_errlist_lock);
+			if (held_log)
+				mutex_exit(&spa->spa_errlog_lock);
 		}
-		new = kmem_zalloc(sizeof (spa_error_entry_t), KM_SLEEP);
-		new->se_bookmark = *healed_zb;
-		avl_insert(tree, new, where);
-		mutex_exit(&spa->spa_errlist_lock);
+		return;
 	}
-	mutex_exit(&spa->spa_errlog_lock);
+
+	zbookmark_err_phys_t healed_zep;
+	healed_zep.zb_object = healed_zb->zb_object;
+	healed_zep.zb_level = healed_zb->zb_level;
+	healed_zep.zb_blkid = healed_zb->zb_blkid;
+
+	if (birth != NULL)
+		healed_zep.zb_birth = *birth;
+	else
+		healed_zep.zb_birth = 0;
+
+	errphys_to_name(&healed_zep, name, sizeof (name));
+
+	zap_cursor_t zc;
+	zap_attribute_t za;
+	for (zap_cursor_init(&zc, spa->spa_meta_objset, spa->spa_errlog_last);
+	    zap_cursor_retrieve(&zc, &za) == 0; zap_cursor_advance(&zc)) {
+		if (zap_contains(spa->spa_meta_objset, za.za_first_integer,
+		    name) == 0) {
+			if (!MUTEX_HELD(&spa->spa_errlog_lock)) {
+				mutex_enter(&spa->spa_errlog_lock);
+				held_log = B_TRUE;
+			}
+
+			avl_tree_t *tree = &spa->spa_errlist_healed;
+			spa_error_entry_t search;
+			spa_error_entry_t *new;
+			avl_index_t where;
+			search.se_bookmark = *healed_zb;
+
+			if (!MUTEX_HELD(&spa->spa_errlist_lock)) {
+				mutex_enter(&spa->spa_errlist_lock);
+				held_list = B_TRUE;
+			}
+
+			if (avl_find(tree, &search, &where) != NULL) {
+				if (held_list)
+					mutex_exit(&spa->spa_errlist_lock);
+				if (held_log)
+					mutex_exit(&spa->spa_errlog_lock);
+				continue;
+			}
+			new = kmem_zalloc(sizeof (spa_error_entry_t), KM_SLEEP);
+			new->se_bookmark = *healed_zb;
+			new->se_zep = healed_zep;
+			avl_insert(tree, new, where);
+
+			if (held_list)
+				mutex_exit(&spa->spa_errlist_lock);
+			if (held_log)
+				mutex_exit(&spa->spa_errlog_lock);
+		}
+	}
+	zap_cursor_fini(&zc);
 }
 
 /*
@@ -598,12 +683,36 @@ spa_remove_healed_errors(spa_t *spa, avl_tree_t *s, avl_tree_t *l, dmu_tx_t *tx)
 	    &cookie)) != NULL) {
 		remove_error_from_list(spa, s, &se->se_bookmark);
 		remove_error_from_list(spa, l, &se->se_bookmark);
-		bookmark_to_name(&se->se_bookmark, name, sizeof (name));
 		kmem_free(se, sizeof (spa_error_entry_t));
-		(void) zap_remove(spa->spa_meta_objset,
-		    spa->spa_errlog_last, name, tx);
-		(void) zap_remove(spa->spa_meta_objset,
-		    spa->spa_errlog_scrub, name, tx);
+
+		if (!spa_feature_is_enabled(spa, SPA_FEATURE_HEAD_ERRLOG)) {
+			bookmark_to_name(&se->se_bookmark, name, sizeof (name));
+			(void) zap_remove(spa->spa_meta_objset,
+			    spa->spa_errlog_last, name, tx);
+			(void) zap_remove(spa->spa_meta_objset,
+			    spa->spa_errlog_scrub, name, tx);
+		} else {
+			errphys_to_name(&se->se_zep, name, sizeof (name));
+			zap_cursor_t zc;
+			zap_attribute_t za;
+			for (zap_cursor_init(&zc, spa->spa_meta_objset,
+			    spa->spa_errlog_last);
+			    zap_cursor_retrieve(&zc, &za) == 0;
+			    zap_cursor_advance(&zc)) {
+				zap_remove(spa->spa_meta_objset,
+				    za.za_first_integer, name, tx);
+			}
+			zap_cursor_fini(&zc);
+
+			for (zap_cursor_init(&zc, spa->spa_meta_objset,
+			    spa->spa_errlog_scrub);
+			    zap_cursor_retrieve(&zc, &za) == 0;
+			    zap_cursor_advance(&zc)) {
+				zap_remove(spa->spa_meta_objset,
+				    za.za_first_integer, name, tx);
+			}
+			zap_cursor_fini(&zc);
+		}
 	}
 }
 
@@ -612,14 +721,10 @@ spa_remove_healed_errors(spa_t *spa, avl_tree_t *s, avl_tree_t *l, dmu_tx_t *tx)
  * later in spa_remove_healed_errors().
  */
 void
-spa_remove_error(spa_t *spa, zbookmark_phys_t *zb)
+spa_remove_error(spa_t *spa, zbookmark_phys_t *zb, const uint64_t *birth)
 {
-	char name[NAME_MAX_LEN];
-
-	bookmark_to_name(zb, name, sizeof (name));
-
-	spa_add_healed_error(spa, spa->spa_errlog_last, zb);
-	spa_add_healed_error(spa, spa->spa_errlog_scrub, zb);
+	spa_add_healed_error(spa, spa->spa_errlog_last, zb, birth);
+	spa_add_healed_error(spa, spa->spa_errlog_scrub, zb, birth);
 }
 
 static uint64_t

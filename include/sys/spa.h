@@ -1140,7 +1140,8 @@ extern const char *spa_state_to_name(spa_t *spa);
 struct zbookmark_phys;
 extern void spa_log_error(spa_t *spa, const zbookmark_phys_t *zb,
     const uint64_t *birth);
-extern void spa_remove_error(spa_t *spa, zbookmark_phys_t *zb);
+extern void spa_remove_error(spa_t *spa, zbookmark_phys_t *zb,
+    const uint64_t *birth);
 extern int zfs_ereport_post(const char *clazz, spa_t *spa, vdev_t *vd,
     const zbookmark_phys_t *zb, zio_t *zio, uint64_t state);
 extern boolean_t zfs_ereport_is_valid(const char *clazz, spa_t *spa, vdev_t *vd,

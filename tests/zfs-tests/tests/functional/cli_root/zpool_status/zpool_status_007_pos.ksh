@@ -39,6 +39,9 @@
 # 7. Verify we report errors in the pool in 'zpool status -v'
 # 8. Promote clone1
 # 9. Verify we report errors in the pool in 'zpool status -v'
+# 10. Delete the corrupted file and origin snapshots.
+# 11. Verify we do not report data errors anymore, without requiring
+# 	a scrub.
 
 . $STF_SUITE/include/libtest.shlib
 
@@ -94,5 +97,15 @@ log_mustnot eval "zpool status -v | grep '$TESTPOOL2/clone2/$TESTFILE0'"
 log_mustnot eval "zpool status -v | grep '$TESTPOOL2/clonexx/$TESTFILE0'"
 log_must eval "zpool status -v | grep '$TESTPOOL2/clone2@snap3:/$TESTFILE0'"
 log_must eval "zpool status -v | grep '$TESTPOOL2/clone3/$TESTFILE0'"
+
+log_must rm /$TESTPOOL2/clone1/$TESTFILE0
+log_must zfs destroy -R $TESTPOOL2/clone1@snap1
+log_must zfs destroy -R $TESTPOOL2/clone1@snap2
+log_must zfs list -r $TESTPOOL2
+log_must zpool status -v $TESTPOOL2
+log_must zpool sync
+log_must zpool status -v $TESTPOOL2
+log_must eval "zpool status -v $TESTPOOL2 | \
+    grep \"No known data errors\""
 
 log_pass "Verify reporting errors when deleting corrupted files after scrub"
