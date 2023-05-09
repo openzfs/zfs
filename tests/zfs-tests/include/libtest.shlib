@@ -1951,6 +1951,7 @@ function check_pool_status # pool token keyword <verbose>
 #	is_pool_removing - to check if the pool removing is a vdev
 #	is_pool_removed - to check if the pool remove is completed
 #	is_pool_discarding - to check if the pool checkpoint is being discarded
+#	is_pool_replacing - to check if the pool is performing a replacement
 #
 function is_pool_resilvering #pool <verbose>
 {
@@ -1996,6 +1997,10 @@ function is_pool_removed #pool
 function is_pool_discarding #pool
 {
 	check_pool_status "$1" "checkpoint" "discarding"
+}
+function is_pool_replacing #pool
+{
+	zpool status "$1" | grep -qE 'replacing-[0-9]+'
 }
 
 function wait_for_degraded
@@ -2983,12 +2988,15 @@ function wait_freeing #pool
 # Wait for every device replace operation to complete
 #
 # $1 pool name
+# $2 timeout
 #
-function wait_replacing #pool
+function wait_replacing #pool timeout
 {
+	typeset timeout=${2:-300}
 	typeset pool=${1:-$TESTPOOL}
-	while zpool status $pool | grep -qE 'replacing-[0-9]+'; do
-		log_must sleep 1
+	for (( timer = 0; timer < $timeout; timer++ )); do
+		is_pool_replacing $pool || break;
+		sleep 1;
 	done
 }
 
