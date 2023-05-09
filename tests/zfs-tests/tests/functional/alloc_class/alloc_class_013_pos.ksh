@@ -42,7 +42,8 @@ log_must display_status "$TESTPOOL"
 
 log_must zfs create -o dedup=on -V 2G $TESTPOOL/$TESTVOL
 
-log_must eval "new_fs $ZVOL_DEVDIR/$TESTPOOL/$TESTVOL >/dev/null 2>&1"
+block_device_wait "$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL"
+log_must eval "new_fs $ZVOL_DEVDIR/$TESTPOOL/$TESTVOL >/dev/null"
 
 sync_pool
 log_must zpool list -v $TESTPOOL
