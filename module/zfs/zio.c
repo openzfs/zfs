@@ -2287,7 +2287,7 @@ zio_nowait(zio_t *zio)
 	ASSERT3P(zio->io_executor, ==, NULL);
 
 	if (zio->io_child_type == ZIO_CHILD_LOGICAL &&
-	    zio_unique_parent(zio) == NULL) {
+	    list_is_empty(&zio->io_parent_list)) {
 		zio_t *pio;
 
 		/*
