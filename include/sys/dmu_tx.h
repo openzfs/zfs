@@ -90,6 +90,7 @@ enum dmu_tx_hold_type {
 	THT_ZAP,
 	THT_SPACE,
 	THT_SPILL,
+	THT_APPEND,
 	THT_NUMTYPES
 };
 
