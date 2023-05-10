@@ -147,6 +147,12 @@ ddt_zap_prefetch(objset_t *os, uint64_t object, const ddt_key_t *ddk)
 	(void) zap_prefetch_uint64(os, object, (uint64_t *)ddk, DDT_KEY_WORDS);
 }
 
+static void
+ddt_zap_prefetch_all(objset_t *os, uint64_t object)
+{
+	(void) zap_prefetch_object(os, object);
+}
+
 static int
 ddt_zap_update(objset_t *os, uint64_t object, const ddt_key_t *ddk,
     const ddt_phys_t *phys, size_t psize, dmu_tx_t *tx)
@@ -231,6 +237,7 @@ const ddt_ops_t ddt_zap_ops = {
 	ddt_zap_lookup,
 	ddt_zap_contains,
 	ddt_zap_prefetch,
+	ddt_zap_prefetch_all,
 	ddt_zap_update,
 	ddt_zap_remove,
 	ddt_zap_walk,

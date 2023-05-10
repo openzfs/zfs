@@ -47,6 +47,7 @@ typedef struct {
 	    const ddt_key_t *ddk);
 	void (*ddt_op_prefetch)(objset_t *os, uint64_t object,
 	    const ddt_key_t *ddk);
+	void (*ddt_op_prefetch_all)(objset_t *os, uint64_t object);
 	int (*ddt_op_update)(objset_t *os, uint64_t object,
 	    const ddt_key_t *ddk, const ddt_phys_t *phys, size_t psize,
 	    dmu_tx_t *tx);
@@ -66,7 +67,7 @@ extern void ddt_stat_update(ddt_t *ddt, ddt_entry_t *dde, uint64_t neg);
  * outside of the DDT implementation proper, and if you do, consider moving
  * them up.
  */
-#define	DDT_NAMELEN	110
+#define	DDT_NAMELEN	118
 
 extern uint64_t ddt_phys_total_refcnt(const ddt_entry_t *dde);
 
