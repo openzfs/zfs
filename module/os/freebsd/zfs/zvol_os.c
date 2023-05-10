@@ -832,6 +832,7 @@ zvol_cdev_read(struct cdev *dev, struct uio *uio_s, int ioflag)
 	    (zfs_uio_offset(&uio) < 0 || zfs_uio_offset(&uio) > volsize))
 		return (SET_ERROR(EIO));
 
+	rw_enter(&zv->zv_suspend_lock, ZVOL_RW_READER);
 	ssize_t start_resid = zfs_uio_resid(&uio);
 	lr = zfs_rangelock_enter(&zv->zv_rangelock, zfs_uio_offset(&uio),
 	    zfs_uio_resid(&uio), RL_READER);
@@ -853,6 +854,7 @@ zvol_cdev_read(struct cdev *dev, struct uio *uio_s, int ioflag)
 	zfs_rangelock_exit(lr);
 	int64_t nread = start_resid - zfs_uio_resid(&uio);
 	dataset_kstats_update_read_kstats(&zv->zv_kstat, nread);
+	rw_exit(&zv->zv_suspend_lock);
 
 	return (error);
 }
