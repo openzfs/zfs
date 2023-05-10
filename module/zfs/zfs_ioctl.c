@@ -1702,44 +1702,6 @@ else if (zc->zc_cookie == POOL_SCAN_NONE)
 	return (error);
 }
 
-/*
- * This interface lets us put messages into zfs_dbgmsg() log. We
- * also look at the message; if the first character is *, we take
- * it as a private command. *D0..F sets fmgw_debug bits to 0..F
- */
-static int
-zfs_ioc_addlog(zfs_cmd_t *zc)
-{
-	char *s = "(NULL)";
-	s = zc->zc_name;
-	if ((s[0] == '*') && (s[1] == 'D')) {
-		switch (s[2]) {
-		case '0': fmgw_debug = 0x0; break;
-		case '1': fmgw_debug = 0x1; break;
-		case '2': fmgw_debug = 0x2; break;
-		case '3': fmgw_debug = 0x3; break;
-		case '4': fmgw_debug = 0x4; break;
-		case '5': fmgw_debug = 0x5; break;
-		case '6': fmgw_debug = 0x6; break;
-		case '7': fmgw_debug = 0x7; break;
-		case '8': fmgw_debug = 0x8; break;
-		case '9': fmgw_debug = 0x9; break;
-		case 'A': fmgw_debug = 0xa; break;
-		case 'B': fmgw_debug = 0xb; break;
-		case 'C': fmgw_debug = 0xc; break;
-		case 'D': fmgw_debug = 0xd; break;
-		case 'E': fmgw_debug = 0xe; break;
-		case 'F': fmgw_debug = 0xf; break;
-		default:                    break;
-		}
-	} else if (s[0] == '*') {
-		zfs_dbgmsg("bad command %c", s[1]);
-	} else {
-		zfs_dbgmsg("%s", s);
-	}
-	return (0);
-}
-
 static int
 zfs_ioc_pool_freeze(zfs_cmd_t *zc)
 {
@@ -7165,12 +7127,6 @@ zfs_ioctl_init(void)
 	zfs_ioctl_register_legacy(ZFS_IOC_POOL_FREEZE, zfs_ioc_pool_freeze,
 	    zfs_secpolicy_config, NO_NAME, B_FALSE, POOL_CHECK_READONLY);
 
-	/* fmgw - we sneak this in here... just as awful as zfs_ioc_pool_freeze
-	 * which we are modeled on.
-	 */
-	zfs_ioctl_register_legacy(ZFS_IOC_ADD_LOG, zfs_ioc_addlog,
-	    zfs_secpolicy_none, NO_NAME, B_FALSE, POOL_CHECK_READONLY);
-    
 	zfs_ioctl_register_pool(ZFS_IOC_POOL_CREATE, zfs_ioc_pool_create,
 	    zfs_secpolicy_config, B_TRUE, POOL_CHECK_NONE);
 	zfs_ioctl_register_pool_modify(ZFS_IOC_POOL_SCAN,
