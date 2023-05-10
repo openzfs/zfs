@@ -181,7 +181,7 @@ Timeout: %d
 User: %s
 ''' % (self.pathname, self.identifier, self.outputdir, self.timeout, self.user)
 
-    def kill_cmd(self, proc, keyboard_interrupt=False):
+    def kill_cmd(self, proc, options, kmemleak, keyboard_interrupt=False):
         """
         Kill a running command due to timeout, or ^C from the keyboard. If
         sudo is required, this user was verified previously.
@@ -211,7 +211,7 @@ User: %s
             if int(self.timeout) > runtime:
                 self.killed = False
                 self.reran = False
-                self.run(False)
+                self.run(options, dryrun=False, kmemleak=kmemleak)
                 self.reran = True
 
     def update_cmd_privs(self, cmd, user):
@@ -257,15 +257,19 @@ User: %s
 
         return out.lines, err.lines
 
-    def run(self, dryrun, kmemleak, kmsg):
+    def run(self, options, dryrun=None, kmemleak=None):
         """
         This is the main function that runs each individual test.
         Determine whether or not the command requires sudo, and modify it
         if needed. Run the command, and update the result object.
         """
+        if dryrun is None:
+            dryrun = options.dryrun
         if dryrun is True:
             print(self)
             return
+        if kmemleak is None:
+            kmemleak = options.kmemleak
 
         privcmd = self.update_cmd_privs(self.pathname, self.user)
         try:
@@ -280,7 +284,7 @@ User: %s
         Log each test we run to /dev/kmsg (on Linux), so if there's a kernel
         warning we'll be able to match it up to a particular test.
         """
-        if kmsg is True and exists("/dev/kmsg"):
+        if options.kmsg is True and exists("/dev/kmsg"):
             try:
                 kp = Popen([SUDO, "sh", "-c",
                             f"echo ZTS run {self.pathname} > /dev/kmsg"])
@@ -298,7 +302,9 @@ User: %s
         # Allow a special timeout value of 0 to mean infinity
         if int(self.timeout) == 0:
             self.timeout = sys.maxsize / (10 ** 9)
-        t = Timer(int(self.timeout), self.kill_cmd, [proc])
+        t = Timer(
+            int(self.timeout), self.kill_cmd, [proc, options, kmemleak]
+        )
 
         try:
             t.start()
@@ -310,7 +316,7 @@ User: %s
                 cmd = f'{SUDO} cat {KMEMLEAK_FILE}'
                 self.result.kmemleak = check_output(cmd, shell=True)
         except KeyboardInterrupt:
-            self.kill_cmd(proc, True)
+            self.kill_cmd(proc, options, kmemleak, True)
             fail('\nRun terminated at user request.')
         finally:
             t.cancel()
@@ -450,7 +456,7 @@ Tags: %s
 
         return True
 
-    def run(self, options):
+    def run(self, options, dryrun=None, kmemleak=None):
         """
         Create Cmd instances for the pre/post/failsafe scripts. If the pre
         script doesn't pass, skip this Test. Run the post script regardless.
@@ -472,14 +478,14 @@ Tags: %s
 
         cont = True
         if len(pretest.pathname):
-            pretest.run(options.dryrun, False, options.kmsg)
+            pretest.run(options, kmemleak=False)
             cont = pretest.result.result == 'PASS'
             pretest.log(options)
 
         if cont:
-            test.run(options.dryrun, options.kmemleak, options.kmsg)
+            test.run(options, kmemleak=kmemleak)
             if test.result.result == 'KILLED' and len(failsafe.pathname):
-                failsafe.run(options.dryrun, False, options.kmsg)
+                failsafe.run(options, kmemleak=False)
                 failsafe.log(options, suppress_console=True)
         else:
             test.skip()
@@ -487,7 +493,7 @@ Tags: %s
         test.log(options)
 
         if len(posttest.pathname):
-            posttest.run(options.dryrun, False, options.kmsg)
+            posttest.run(options, kmemleak=False)
             posttest.log(options)
 
 
@@ -571,7 +577,7 @@ Tags: %s
 
         return len(self.tests) != 0
 
-    def run(self, options):
+    def run(self, options, dryrun=None, kmemleak=None):
         """
         Create Cmd instances for the pre/post/failsafe scripts. If the pre
         script doesn't pass, skip all the tests in this TestGroup. Run the
@@ -590,7 +596,7 @@ Tags: %s
 
         cont = True
         if len(pretest.pathname):
-            pretest.run(options.dryrun, False, options.kmsg)
+            pretest.run(options, dryrun=dryrun, kmemleak=False)
             cont = pretest.result.result == 'PASS'
             pretest.log(options)
 
@@ -603,9 +609,9 @@ Tags: %s
             failsafe = Cmd(self.failsafe, outputdir=odir, timeout=self.timeout,
                            user=self.failsafe_user, identifier=self.identifier)
             if cont:
-                test.run(options.dryrun, options.kmemleak, options.kmsg)
+                test.run(options, dryrun=dryrun, kmemleak=kmemleak)
                 if test.result.result == 'KILLED' and len(failsafe.pathname):
-                    failsafe.run(options.dryrun, False, options.kmsg)
+                    failsafe.run(options, dryrun=dryrun, kmemleak=False)
                     failsafe.log(options, suppress_console=True)
             else:
                 test.skip()
@@ -613,7 +619,7 @@ Tags: %s
             test.log(options)
 
         if len(posttest.pathname):
-            posttest.run(options.dryrun, False, options.kmsg)
+            posttest.run(options, dryrun=dryrun, kmemleak=False)
             posttest.log(options)
 
 
