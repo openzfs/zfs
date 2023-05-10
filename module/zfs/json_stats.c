@@ -210,9 +210,11 @@ static void vdev_to_json(vdev_t *v, pool_scan_stat_t *ps, jprint_t *jp)
 		/* (removing) */
 		jp_printf(jp, "vs_scan_removing: %b",
 		    v->vdev_stat.vs_scan_removing != 0);
+#if 0 /* XXX: The vs_noalloc member is not available in ZFS 2.1.5. */
 		/* (non-allocating) */
 		jp_printf(jp, "vs_noalloc: %b",
 		    v->vdev_stat.vs_noalloc != 0);
+#endif
 		/* (awaiting resilver) */
 		jp_printf(jp, "vs_resilver_deferred: %b",
 		    v->vdev_stat.vs_resilver_deferred);
