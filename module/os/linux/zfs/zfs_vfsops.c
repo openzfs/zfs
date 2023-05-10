@@ -280,18 +280,29 @@ zfs_sync(struct super_block *sb, int wait, cred_t *cr)
 		dp = dmu_objset_pool(zfsvfs->z_os);
 
 		/*
-		 * If the system is shutting down, then skip any
-		 * filesystems which may exist on a suspended pool.
+		 * If the system is shutting down, then skip any filesystems
+		 * which may exist on a suspended pool. We don't do this if
+		 * failmode=continue becase zil_commit might have a better
+		 * error for us.
 		 */
-		if (spa_suspended(dp->dp_spa)) {
+		if (spa_suspended(dp->dp_spa) &&
+		    spa_get_failmode(dp->dp_spa) != ZIO_FAILURE_MODE_CONTINUE) {
 			ZFS_EXIT(zfsvfs);
 			return (0);
 		}
 
+		/*
+		 * If there's a ZIL, try to flush it. If the pool is in some
+		 * unflushable state, this will get us an approprate error
+		 * return.
+		 */
+		int err = 0;
 		if (zfsvfs->z_log != NULL)
-			zil_commit(zfsvfs->z_log, 0);
+			err = zil_commit(zfsvfs->z_log, 0);
 
 		ZFS_EXIT(zfsvfs);
+
+		return (err);
 	} else {
 		/*
 		 * Sync all ZFS filesystems.  This is what happens when you

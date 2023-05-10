@@ -146,6 +146,7 @@ typedef struct itxg {
 	kmutex_t	itxg_lock;	/* lock for this structure */
 	uint64_t	itxg_txg;	/* txg for this chain */
 	itxs_t		*itxg_itxs;	/* sync and async itxs */
+	boolean_t	itxg_failed;	/* ZIL failed, don't touch */
 } itxg_t;
 
 /* for async nodes we build up an AVL tree of lists of async itxs per file */
@@ -198,6 +199,8 @@ struct zilog {
 	uint64_t	zl_parse_blk_count; /* number of blocks parsed */
 	uint64_t	zl_parse_lr_count; /* number of log records parsed */
 	itxg_t		zl_itxg[TXG_SIZE]; /* intent log txg chains */
+	itxg_t		zl_fail_itxg;	/* holding space for failed itxs */
+	uint64_t	zl_unfail_txg;	/* txg to unfail ZIL at */
 	list_t		zl_itx_commit_list; /* itx list to be committed */
 	uint64_t	zl_cur_used;	/* current commit log size used */
 	list_t		zl_lwb_list;	/* in-flight log write list */

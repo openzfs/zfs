@@ -1648,7 +1648,8 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 
 	tx = dmu_tx_create(os);
 	dmu_tx_hold_space(tx, zgd->zgd_db->db_size);
-	if (dmu_tx_assign(tx, DMU_TX_ASSIGN_WAIT) != 0) {
+	if (dmu_tx_assign(tx,
+	    DMU_TX_ASSIGN_WAIT | DMU_TX_ASSIGN_CONTINUE) != 0) {
 		dmu_tx_abort(tx);
 		/* Make zl_get_data do txg_waited_synced() */
 		return (SET_ERROR(EIO));
