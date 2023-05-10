@@ -1322,7 +1322,8 @@ zil_lwb_write_done(zio_t *zio)
 			 * since these "zio_flush" errors will not be
 			 * propagated up to "zil_lwb_flush_vdevs_done".
 			 */
-			zio_flush(lwb->lwb_root_zio, vd);
+			zio_flush(lwb->lwb_root_zio, vd,
+			    ZIO_FLAG_DONT_PROPAGATE);
 		}
 		kmem_free(zv, sizeof (*zv));
 	}
