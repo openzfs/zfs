@@ -1034,6 +1034,7 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 	nvlist_t *ret;
 	int chosen_normal = -1;
 	int chosen_utf = -1;
+	int set_maxbs = 0;
 
 	if (nvlist_alloc(&ret, NV_UNIQUE_NAME, 0) != 0) {
 		(void) no_memory(hdl);
@@ -1252,12 +1253,17 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 				goto error;
 			}
+			/* save the ZFS_PROP_RECORDSIZE during create op */
+			if (zpool_hdl == NULL && prop == ZFS_PROP_RECORDSIZE) {
+				set_maxbs = intval;
+			}
 			break;
 		}
 
 		case ZFS_PROP_SPECIAL_SMALL_BLOCKS:
 		{
-			int maxbs = SPA_OLD_MAXBLOCKSIZE;
+			int maxbs =
+			    set_maxbs == 0 ? SPA_OLD_MAXBLOCKSIZE : set_maxbs;
 			char buf[64];
 
 			if (zpool_hdl != NULL) {
