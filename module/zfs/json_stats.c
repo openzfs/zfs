@@ -79,6 +79,8 @@ static void nvlist_to_json(nvlist_t *nvl, jprint_t *jp) {
 		const char *name = (const char *)NVP_NAME(nvp);
 		data_type_t type = NVP_TYPE(nvp);
 		void *p = NVP_VALUE(nvp);
+		uint64_t *u;
+		nvlist_t **a;
 
 		if (jp_error(jp) != JPRINT_OK)
 			return;
@@ -89,7 +91,7 @@ static void nvlist_to_json(nvlist_t *nvl, jprint_t *jp) {
 		 * Array types
 		 */
 		case DATA_TYPE_UINT64_ARRAY:
-			uint64_t *u = (uint64_t *)p;
+			u = (uint64_t *)p;
 			jp_printf(jp, "%k: [", name);
 			for (int i = 0; i < NVP_NELEM(nvp); ++i) {
 				if (jp_error(jp) != JPRINT_OK)
@@ -99,7 +101,7 @@ static void nvlist_to_json(nvlist_t *nvl, jprint_t *jp) {
 			jp_printf(jp, "]");
 			break;
 		case DATA_TYPE_NVLIST_ARRAY:
-			nvlist_t **a = (nvlist_t **)p;
+			a = (nvlist_t **)p;
 			jp_printf(jp, "%k: [", name);
 			for (int i = 0; i < NVP_NELEM(nvp); ++i)  {
 				if (jp_error(jp) != JPRINT_OK)
