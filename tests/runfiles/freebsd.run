@@ -25,3 +25,8 @@ tags = ['functional']
 [tests/functional/cli_root/zfs_jail:FreeBSD]
 tests = ['zfs_jail_001_pos']
 tags = ['functional', 'cli_root', 'zfs_jail']
+
+[tests/functional/pam:FreeBSD]
+tests = ['pam_basic', 'pam_change_unmounted', 'pam_nounmount', 'pam_recursive',
+    'pam_short_password']
+tags = ['functional', 'pam']
