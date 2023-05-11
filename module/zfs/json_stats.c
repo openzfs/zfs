@@ -351,7 +351,7 @@ static int json_data(char *buf, size_t size, void *data) {
 	jp_open(&jp, buf, size); 
 	jp_printf(&jp, "{");
 
-	jp_printf(&jp, "stats_json_version: %d", 2);
+	jp_printf(&jp, "status_json_version: %d", 2);
 	jp_printf(&jp, "scan_error: %d", ps_error);
 	jp_printf(&jp, "scan_stats: {");
 	if (ps_error == 0) {
@@ -460,7 +460,7 @@ void json_stats_init(spa_t *spa)
 
 	mutex_init(&shk->lock, NULL, MUTEX_DEFAULT, NULL);
 	name = kmem_asprintf("zfs/%s", spa_name(spa));
-	ksp = kstat_create(name, 0, "stats.json", "misc",
+	ksp = kstat_create(name, 0, "status.json", "misc",
 	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
 	shk->kstat = ksp;
 	if (ksp) {
