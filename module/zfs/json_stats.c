@@ -218,21 +218,21 @@ static void vdev_to_json(vdev_t *v, pool_scan_stat_t *ps, jprint_t *jp)
 		/* (awaiting resilver) */
 		jp_printf(jp, "vs_resilver_deferred: %b",
 		    v->vdev_stat.vs_resilver_deferred);
+		s = "none";
 		if ((v->vdev_state == VDEV_STATE_UNKNOWN) ||
-		    (v->vdev_state == VDEV_STATE_HEALTHY)) {
+	            (v->vdev_state == VDEV_STATE_HEALTHY)) {
 			if (v->vdev_stat.vs_scan_processed != 0) {
 				if (ps &&
 				    (ps->pss_state == DSS_SCANNING)) {
-					jp_printf(jp, "resilver_repair: %s",
-					    (ps->pss_func == POOL_SCAN_RESILVER) ?
-					    "resilvering" : "repairing");
+					s = (ps->pss_func == POOL_SCAN_RESILVER) ?
+					    "resilvering" : "repairing";
 				} else if (ps &&
 				    v->vdev_stat.vs_resilver_deferred) {
-					jp_printf(jp, "resilver_repair: %s",
-					    "awaiting resilver");
+					s = "awaiting resilver";
 				}
 			}
 		}
+		jp_printf(jp, "resilver_repair: %s", s);
 		jp_printf(jp, "initialize_state: {");
 		s = "VDEV_INITIALIZE_NONE";
 		if (v->vdev_stat.vs_initialize_state == VDEV_INITIALIZE_ACTIVE)
@@ -324,7 +324,7 @@ static int json_data(char *buf, size_t size, void *data) {
 
 	if (nvlist_dup(spa->spa_config, &nvl, 0) != 0) {
 		/*
-		 * fmgw - fixme, what to do here?!?
+		 * FIXME, what to do here?!?
 		 */
 		zfs_dbgmsg("json_data: nvlist_dup failed");
 		return (0);
@@ -351,10 +351,10 @@ static int json_data(char *buf, size_t size, void *data) {
 	jp_open(&jp, buf, size); 
 	jp_printf(&jp, "{");
 
-	jp_printf(&jp, "status_json_version: %d", 1);
+	jp_printf(&jp, "stats_json_version: %d", 2);
 	jp_printf(&jp, "scan_error: %d", ps_error);
+	jp_printf(&jp, "scan_stats: {");
 	if (ps_error == 0) {
-		jp_printf(&jp, "scan_stats: {");
 		switch (ps.pss_func) {
 		case POOL_SCAN_NONE:     s = "NONE";     break;
 		case POOL_SCAN_SCRUB:    s = "SCRUB";    break;
@@ -380,12 +380,18 @@ static int json_data(char *buf, size_t size, void *data) {
 		jp_printf(&jp, "pass_exam: %U", ps.pss_pass_exam);
 		jp_printf(&jp, "pass_start: %U", ps.pss_pass_start);
 		jp_printf(&jp, "pass_scrub_pause: %U", ps.pss_pass_scrub_pause);
-		jp_printf(&jp, "pass_scrub_scrub_spent_paused: %U",
+		jp_printf(&jp, "pass_scrub_spent_paused: %U",
 		    ps.pss_pass_scrub_spent_paused);
 		jp_printf(&jp, "pass_issued: %U", ps.pss_pass_issued);
 		jp_printf(&jp, "issued: %U", ps.pss_issued);
-		jp_printf(&jp, "}");
+	} else if (ps_error == ENOENT) {
+		jp_printf(&jp, "func: %s", "NONE");
+		jp_printf(&jp, "state: %s", "NONE");
+	} else {
+		jp_printf(&jp, "func: %s", "?");
+		jp_printf(&jp, "state: %s", "?");
 	}
+	jp_printf(&jp, "}");
 	s = "?";
 	switch (spa->spa_state) {
 	case POOL_STATE_ACTIVE:             s = "ACTIVE"; break;
@@ -454,7 +460,7 @@ void json_stats_init(spa_t *spa)
 
 	mutex_init(&shk->lock, NULL, MUTEX_DEFAULT, NULL);
 	name = kmem_asprintf("zfs/%s", spa_name(spa));
-	ksp = kstat_create(name, 0, "status.json", "misc",
+	ksp = kstat_create(name, 0, "stats.json", "misc",
 	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
 	shk->kstat = ksp;
 	if (ksp) {
