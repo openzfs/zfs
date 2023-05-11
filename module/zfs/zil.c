@@ -1866,6 +1866,7 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 		wsz = P2ROUNDUP_TYPED(lwb->lwb_nused, ZIL_MIN_BLKSZ, uint64_t);
 		ASSERT3U(wsz, <=, lwb->lwb_sz);
 		zio_shrink(lwb->lwb_write_zio, wsz);
+		wsz = lwb->lwb_write_zio->io_size;
 
 	} else {
 		wsz = lwb->lwb_sz;
