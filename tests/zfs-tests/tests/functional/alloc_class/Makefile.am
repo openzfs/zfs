@@ -14,7 +14,9 @@ dist_pkgdata_SCRIPTS = \
 	alloc_class_010_pos.ksh \
 	alloc_class_011_neg.ksh \
 	alloc_class_012_pos.ksh \
-	alloc_class_013_pos.ksh
+	alloc_class_013_pos.ksh \
+	alloc_class_014_neg.ksh \
+	alloc_class_015_pos.ksh
 
 dist_pkgdata_DATA = \
 	alloc_class.cfg \
