@@ -4064,7 +4064,6 @@ zil_close(zilog_t *zilog)
 		if (lwb->lwb_buf != NULL)
 			zio_buf_free(lwb->lwb_buf, lwb->lwb_sz);
 
-		zio_free(zilog->zl_spa, txg, &lwb->lwb_blk);
 		zil_free_lwb(zilog, lwb);
 	} while ((lwb = list_head(&zilog->zl_lwb_list)) != NULL);
 
