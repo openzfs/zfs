@@ -761,7 +761,6 @@ zil_create(zilog_t *zilog)
 			mutex_exit(&zilog->zl_lock);
 
 			zio_buf_free(lwb->lwb_buf, lwb->lwb_sz);
-			zio_free(zilog->zl_spa, txg, &lwb->lwb_blk);
 			zil_free_lwb(zilog, lwb);
 
 			return (NULL);
