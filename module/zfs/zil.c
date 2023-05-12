@@ -1376,19 +1376,9 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 
 	spa_config_exit(zilog->zl_spa, SCL_STATE, lwb);
 
-	zio_buf_free(lwb->lwb_buf, lwb->lwb_sz);
 	hrtime_t t = gethrtime() - lwb->lwb_issued_timestamp;
 
 	mutex_enter(&zilog->zl_lock);
-
-	/*
-	 * If we have had an allocation failure and the txg is
-	 * waiting to sync then we want zil_sync() to remove the lwb so
-	 * that it's not picked up as the next new one in
-	 * zil_process_commit_list(). zil_sync() will only remove the
-	 * lwb if lwb_buf is null.
-	 */
-	lwb->lwb_buf = NULL;
 
 	zilog->zl_last_lwb_latency = (zilog->zl_last_lwb_latency * 7 + t) / 8;
 
@@ -1475,7 +1465,8 @@ zil_lwb_flush_wait_all(zilog_t *zilog, uint64_t txg)
 			IMPLY(lwb->lwb_issued_txg > 0,
 			    lwb->lwb_state == LWB_STATE_FLUSH_DONE);
 		}
-		IMPLY(lwb->lwb_state == LWB_STATE_FLUSH_DONE,
+		IMPLY(lwb->lwb_state == LWB_STATE_WRITE_DONE ||
+		    lwb->lwb_state == LWB_STATE_FLUSH_DONE,
 		    lwb->lwb_buf == NULL);
 		lwb = list_next(&zilog->zl_lwb_list, lwb);
 	}
@@ -1519,6 +1510,8 @@ zil_lwb_write_done(zio_t *zio)
 	ASSERT(BP_GET_FILL(zio->io_bp) == 0);
 
 	abd_free(zio->io_abd);
+	zio_buf_free(lwb->lwb_buf, lwb->lwb_sz);
+	lwb->lwb_buf = NULL;
 
 	mutex_enter(&zilog->zl_lock);
 	ASSERT3S(lwb->lwb_state, ==, LWB_STATE_ISSUED);
@@ -3433,7 +3426,8 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 
 	while ((lwb = list_head(&zilog->zl_lwb_list)) != NULL) {
 		zh->zh_log = lwb->lwb_blk;
-		if (lwb->lwb_buf != NULL || lwb->lwb_max_txg > txg)
+		if (lwb->lwb_state != LWB_STATE_FLUSH_DONE ||
+		    lwb->lwb_max_txg > txg)
 			break;
 		list_remove(&zilog->zl_lwb_list, lwb);
 		zio_free(spa, txg, &lwb->lwb_blk);
