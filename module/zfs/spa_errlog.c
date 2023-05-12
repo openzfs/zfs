@@ -683,7 +683,6 @@ spa_remove_healed_errors(spa_t *spa, avl_tree_t *s, avl_tree_t *l, dmu_tx_t *tx)
 	    &cookie)) != NULL) {
 		remove_error_from_list(spa, s, &se->se_bookmark);
 		remove_error_from_list(spa, l, &se->se_bookmark);
-		kmem_free(se, sizeof (spa_error_entry_t));
 
 		if (!spa_feature_is_enabled(spa, SPA_FEATURE_HEAD_ERRLOG)) {
 			bookmark_to_name(&se->se_bookmark, name, sizeof (name));
@@ -713,6 +712,7 @@ spa_remove_healed_errors(spa_t *spa, avl_tree_t *s, avl_tree_t *l, dmu_tx_t *tx)
 			}
 			zap_cursor_fini(&zc);
 		}
+		kmem_free(se, sizeof (spa_error_entry_t));
 	}
 }
 
