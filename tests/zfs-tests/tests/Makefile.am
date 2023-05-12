@@ -415,6 +415,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/alloc_class/alloc_class_011_neg.ksh \
 	functional/alloc_class/alloc_class_012_pos.ksh \
 	functional/alloc_class/alloc_class_013_pos.ksh \
+	functional/alloc_class/alloc_class_014_neg.ksh \
+	functional/alloc_class/alloc_class_015_pos.ksh \
 	functional/alloc_class/cleanup.ksh \
 	functional/alloc_class/setup.ksh \
 	functional/append/file_append.ksh \
