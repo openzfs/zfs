@@ -8942,12 +8942,12 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 			}
 
 			/* normalize the property name */
-			propname = zpool_prop_to_name(prop);
-			proptype = zpool_prop_get_type(prop);
-			if (prop == ZPOOL_PROP_INVAL &&
-			    zfs_prop_user(elemname)) {
+			if (prop == ZPOOL_PROP_INVAL) {
 				propname = elemname;
 				proptype = PROP_TYPE_STRING;
+			} else {
+				propname = zpool_prop_to_name(prop);
+				proptype = zpool_prop_get_type(prop);
 			}
 
 			if (nvpair_type(elem) == DATA_TYPE_STRING) {
