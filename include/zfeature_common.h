@@ -96,7 +96,9 @@ typedef enum zfeature_flags {
 	/* Activate this feature at the same time it is enabled. */
 	ZFEATURE_FLAG_ACTIVATE_ON_ENABLE =	(1 << 2),
 	/* Each dataset has a field set if it has ever used this feature. */
-	ZFEATURE_FLAG_PER_DATASET =		(1 << 3)
+	ZFEATURE_FLAG_PER_DATASET =		(1 << 3),
+	/* Deny use in new pools while contining to enable in existing ones */
+	ZFEATURE_FLAG_DENY_ENABLE =		(1 << 4)
 } zfeature_flags_t;
 
 typedef enum zfeature_type {

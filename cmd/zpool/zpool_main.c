@@ -1775,6 +1775,8 @@ zpool_do_create(int argc, char **argv)
 			char propname[MAXPATHLEN];
 			const char *propval;
 			zfeature_info_t *feat = &spa_feature_table[i];
+			int deny_enable =
+			    feat->fi_flags & ZFEATURE_FLAG_DENY_ENABLE;
 
 			(void) snprintf(propname, sizeof (propname),
 			    "feature@%s", feat->fi_uname);
@@ -1792,10 +1794,19 @@ zpool_do_create(int argc, char **argv)
 					    "but is not in specified "
 					    "'compatibility' feature set.\n"),
 					    feat->fi_uname);
+				} else if (deny_enable) {
+					(void) fprintf(stderr, gettext(
+					    "Warning: feature \"%s\" enabled "
+					    "but creation is denied on this "
+					    "platform.\n"),
+					    feat->fi_uname);
+					(void) nvlist_remove_all(props,
+					    propname);
 				}
 			} else if (
 			    enable_pool_features &&
 			    feat->fi_zfs_mod_supported &&
+			    !deny_enable &&
 			    requested_features[i]) {
 				ret = add_prop_list(propname,
 				    ZFS_FEATURE_ENABLED, &props, B_TRUE);
@@ -9047,8 +9058,12 @@ upgrade_enable_all(zpool_handle_t *zhp, int *countp)
 	for (i = 0; i < SPA_FEATURES; i++) {
 		const char *fname = spa_feature_table[i].fi_uname;
 		const char *fguid = spa_feature_table[i].fi_guid;
+		zfeature_info_t *feat = &spa_feature_table[i];
 
-		if (!spa_feature_table[i].fi_zfs_mod_supported)
+		if (!feat->fi_zfs_mod_supported)
+			continue;
+
+		if (feat->fi_flags & ZFEATURE_FLAG_DENY_ENABLE)
 			continue;
 
 		if (!nvlist_exists(enabled, fguid) && requested_features[i]) {
