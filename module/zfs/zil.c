@@ -116,8 +116,12 @@ static zil_kstat_values_t zil_stats = {
 	{ "zil_itx_needcopy_bytes",		KSTAT_DATA_UINT64 },
 	{ "zil_itx_metaslab_normal_count",	KSTAT_DATA_UINT64 },
 	{ "zil_itx_metaslab_normal_bytes",	KSTAT_DATA_UINT64 },
+	{ "zil_itx_metaslab_normal_write",	KSTAT_DATA_UINT64 },
+	{ "zil_itx_metaslab_normal_alloc",	KSTAT_DATA_UINT64 },
 	{ "zil_itx_metaslab_slog_count",	KSTAT_DATA_UINT64 },
 	{ "zil_itx_metaslab_slog_bytes",	KSTAT_DATA_UINT64 },
+	{ "zil_itx_metaslab_slog_write",	KSTAT_DATA_UINT64 },
+	{ "zil_itx_metaslab_slog_alloc",	KSTAT_DATA_UINT64 },
 };
 
 static zil_sums_t zil_sums_global;
@@ -378,8 +382,12 @@ zil_sums_init(zil_sums_t *zs)
 	wmsum_init(&zs->zil_itx_needcopy_bytes, 0);
 	wmsum_init(&zs->zil_itx_metaslab_normal_count, 0);
 	wmsum_init(&zs->zil_itx_metaslab_normal_bytes, 0);
+	wmsum_init(&zs->zil_itx_metaslab_normal_write, 0);
+	wmsum_init(&zs->zil_itx_metaslab_normal_alloc, 0);
 	wmsum_init(&zs->zil_itx_metaslab_slog_count, 0);
 	wmsum_init(&zs->zil_itx_metaslab_slog_bytes, 0);
+	wmsum_init(&zs->zil_itx_metaslab_slog_write, 0);
+	wmsum_init(&zs->zil_itx_metaslab_slog_alloc, 0);
 }
 
 void
@@ -396,8 +404,12 @@ zil_sums_fini(zil_sums_t *zs)
 	wmsum_fini(&zs->zil_itx_needcopy_bytes);
 	wmsum_fini(&zs->zil_itx_metaslab_normal_count);
 	wmsum_fini(&zs->zil_itx_metaslab_normal_bytes);
+	wmsum_fini(&zs->zil_itx_metaslab_normal_write);
+	wmsum_fini(&zs->zil_itx_metaslab_normal_alloc);
 	wmsum_fini(&zs->zil_itx_metaslab_slog_count);
 	wmsum_fini(&zs->zil_itx_metaslab_slog_bytes);
+	wmsum_fini(&zs->zil_itx_metaslab_slog_write);
+	wmsum_fini(&zs->zil_itx_metaslab_slog_alloc);
 }
 
 void
@@ -425,10 +437,18 @@ zil_kstat_values_update(zil_kstat_values_t *zs, zil_sums_t *zil_sums)
 	    wmsum_value(&zil_sums->zil_itx_metaslab_normal_count);
 	zs->zil_itx_metaslab_normal_bytes.value.ui64 =
 	    wmsum_value(&zil_sums->zil_itx_metaslab_normal_bytes);
+	zs->zil_itx_metaslab_normal_write.value.ui64 =
+	    wmsum_value(&zil_sums->zil_itx_metaslab_normal_write);
+	zs->zil_itx_metaslab_normal_alloc.value.ui64 =
+	    wmsum_value(&zil_sums->zil_itx_metaslab_normal_alloc);
 	zs->zil_itx_metaslab_slog_count.value.ui64 =
 	    wmsum_value(&zil_sums->zil_itx_metaslab_slog_count);
 	zs->zil_itx_metaslab_slog_bytes.value.ui64 =
 	    wmsum_value(&zil_sums->zil_itx_metaslab_slog_bytes);
+	zs->zil_itx_metaslab_slog_write.value.ui64 =
+	    wmsum_value(&zil_sums->zil_itx_metaslab_slog_write);
+	zs->zil_itx_metaslab_slog_alloc.value.ui64 =
+	    wmsum_value(&zil_sums->zil_itx_metaslab_slog_alloc);
 }
 
 /*
@@ -1814,6 +1834,9 @@ zil_lwb_write_close(zilog_t *zilog, lwb_t *lwb)
 	zilog->zl_prev_blks[zilog->zl_prev_rotor] = zil_blksz;
 	for (i = 0; i < ZIL_PREV_BLKS; i++)
 		zil_blksz = MAX(zil_blksz, zilog->zl_prev_blks[i]);
+	DTRACE_PROBE3(zil__block__size, zilog_t *, zilog,
+	    uint64_t, zil_blksz,
+	    uint64_t, zilog->zl_prev_blks[zilog->zl_prev_rotor]);
 	zilog->zl_prev_rotor = (zilog->zl_prev_rotor + 1) & (ZIL_PREV_BLKS - 1);
 
 	if (BP_GET_CHECKSUM(&lwb->lwb_blk) == ZIO_CHECKSUM_ZILOG2)
@@ -1888,10 +1911,18 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 		ZIL_STAT_BUMP(zilog, zil_itx_metaslab_slog_count);
 		ZIL_STAT_INCR(zilog, zil_itx_metaslab_slog_bytes,
 		    lwb->lwb_nused);
+		ZIL_STAT_INCR(zilog, zil_itx_metaslab_slog_write,
+		    wsz);
+		ZIL_STAT_INCR(zilog, zil_itx_metaslab_slog_alloc,
+		    BP_GET_LSIZE(&lwb->lwb_blk));
 	} else {
 		ZIL_STAT_BUMP(zilog, zil_itx_metaslab_normal_count);
 		ZIL_STAT_INCR(zilog, zil_itx_metaslab_normal_bytes,
 		    lwb->lwb_nused);
+		ZIL_STAT_INCR(zilog, zil_itx_metaslab_normal_write,
+		    wsz);
+		ZIL_STAT_INCR(zilog, zil_itx_metaslab_normal_alloc,
+		    BP_GET_LSIZE(&lwb->lwb_blk));
 	}
 	spa_config_enter(zilog->zl_spa, SCL_STATE, lwb, RW_READER);
 	zil_lwb_add_block(lwb, &lwb->lwb_blk);

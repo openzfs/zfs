@@ -25,7 +25,7 @@
 is_freebsd && ! python3 -c 'import sysctl' 2>/dev/null && log_unsupported "python3 sysctl module missing"
 
 set -A args  "" "-s \",\"" "-v" \
-    "-f time,zcwc,zimnb,zimsb"
+    "-f time,cwc,imnb,imsb"
 
 log_assert "zilstat generates output and doesn't return an error code"
 

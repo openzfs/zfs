@@ -215,6 +215,39 @@ DEFINE_EVENT(zfs_zil_commit_io_error_class, name, \
     TP_ARGS(zilog, zcw))
 DEFINE_ZIL_COMMIT_IO_ERROR_EVENT(zfs_zil__commit__io__error);
 
+/*
+ * Generic support for three argument tracepoints of the form:
+ *
+ * DTRACE_PROBE3(...,
+ *     zilog_t *, ...,
+ *     uint64_t, ...,
+ *     uint64_t, ...);
+ */
+/* BEGIN CSTYLED */
+DECLARE_EVENT_CLASS(zfs_zil_block_size_class,
+	TP_PROTO(zilog_t *zilog, uint64_t res, uint64_t s1),
+	TP_ARGS(zilog, res, s1),
+	TP_STRUCT__entry(
+	    ZILOG_TP_STRUCT_ENTRY
+	    __field(uint64_t, res)
+	    __field(uint64_t, s1)
+	),
+	TP_fast_assign(
+	    ZILOG_TP_FAST_ASSIGN
+	    __entry->res = res;
+	    __entry->s1 = s1;
+	),
+	TP_printk(
+	    ZILOG_TP_PRINTK_FMT " res %llu s1 %llu",
+	    ZILOG_TP_PRINTK_ARGS, __entry->res, __entry->s1)
+);
+
+#define	DEFINE_ZIL_BLOCK_SIZE_EVENT(name) \
+DEFINE_EVENT(zfs_zil_block_size_class, name, \
+    TP_PROTO(zilog_t *zilog, uint64_t res, uint64_t s1), \
+    TP_ARGS(zilog, res, s1))
+DEFINE_ZIL_BLOCK_SIZE_EVENT(zfs_zil__block__size);
+
 #endif /* _TRACE_ZIL_H */
 
 #undef TRACE_INCLUDE_PATH
@@ -228,6 +261,7 @@ DEFINE_ZIL_COMMIT_IO_ERROR_EVENT(zfs_zil__commit__io__error);
 DEFINE_DTRACE_PROBE2(zil__process__commit__itx);
 DEFINE_DTRACE_PROBE2(zil__process__normal__itx);
 DEFINE_DTRACE_PROBE2(zil__commit__io__error);
+DEFINE_DTRACE_PROBE3(zil__block__size);
 
 #endif /* HAVE_DECLARE_EVENT_CLASS */
 #endif /* _KERNEL */
