@@ -43,6 +43,8 @@ COMMON_H = \
 	edonr.h \
 	efi_partition.h \
 	frame.h \
+	jprint.h \
+	json_stats.h \
 	hkdf.h \
 	metaslab.h \
 	metaslab_impl.h \
