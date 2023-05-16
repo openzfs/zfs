@@ -79,6 +79,7 @@ nodist_libzpool_la_SOURCES = \
 	module/zfs/dbuf.c \
 	module/zfs/dbuf_stats.c \
 	module/zfs/ddt.c \
+	module/zfs/ddt_stats.c \
 	module/zfs/ddt_zap.c \
 	module/zfs/dmu.c \
 	module/zfs/dmu_diff.c \

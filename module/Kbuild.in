@@ -326,6 +326,7 @@ ZFS_OBJS := \
 	dbuf.o \
 	dbuf_stats.o \
 	ddt.o \
+	ddt_stats.o \
 	ddt_zap.o \
 	dmu.o \
 	dmu_diff.o \
