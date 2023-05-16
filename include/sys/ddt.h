@@ -204,6 +204,7 @@ extern void ddt_phys_free(ddt_t *ddt, ddt_key_t *ddk, ddt_phys_t *ddp,
 extern ddt_phys_t *ddt_phys_select(const ddt_entry_t *dde, const blkptr_t *bp);
 extern uint64_t ddt_phys_total_refcnt(const ddt_entry_t *dde);
 
+extern void ddt_stat_update(ddt_t *ddt, ddt_entry_t *dde, uint64_t neg);
 extern void ddt_stat_add(ddt_stat_t *dst, const ddt_stat_t *src, uint64_t neg);
 
 extern void ddt_histogram_add(ddt_histogram_t *dst, const ddt_histogram_t *src);
