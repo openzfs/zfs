@@ -2064,11 +2064,11 @@ spa_preferred_class(spa_t *spa, const zio_t *zio)
 	}
 
 	/*
-	 * Allow small file blocks in special class in some cases (like
-	 * for the dRAID vdev feature). But always leave a reserve of
+	 * Allow small file or zvol blocks in special class if opted in by
+	 * the special_smallblk property. However, always leave a reserve of
 	 * zfs_special_class_metadata_reserve_pct exclusively for metadata.
 	 */
-	if (DMU_OT_IS_FILE(objtype) &&
+	if ((DMU_OT_IS_FILE(objtype) || objtype == DMU_OT_ZVOL) &&
 	    has_special_class && zio->io_size <= zp->zp_zpl_smallblk) {
 		metaslab_class_t *special = spa_special_class(spa);
 		uint64_t alloc = metaslab_class_get_alloc(special);
