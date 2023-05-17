@@ -488,7 +488,8 @@ current state of the pool won't be scanned during a scrub.
 Allocations in the special class are dedicated to specific block types.
 By default, this includes all metadata, the indirect blocks of user data, and
 any deduplication tables.
-The class can also be provisioned to accept small file blocks.
+The class can also be provisioned to accept small file blocks or zvol blocks
+on a per dataset granularity.
 .Pp
 A pool must always have at least one normal
 .Pq non- Ns Sy dedup Ns /- Ns Sy special
@@ -503,7 +504,7 @@ Deduplication tables can be excluded from the special class by unsetting the
 .Sy zfs_ddt_data_is_special
 ZFS module parameter.
 .Pp
-Inclusion of small file blocks in the special class is opt-in.
+Inclusion of small file or zvol blocks in the special class is opt-in.
 Each dataset can control the size of small file blocks allowed
 in the special class by setting the
 .Sy special_small_blocks
