@@ -1342,6 +1342,7 @@ metaslab_group_allocatable(metaslab_group_t *mg, metaslab_group_t *rotor,
  * Comparison function for the private size-ordered tree using 32-bit
  * ranges. Tree is sorted by size, larger sizes at the end of the tree.
  */
+__attribute__((always_inline)) inline
 static int
 metaslab_rangesize32_compare(const void *x1, const void *x2)
 {
@@ -1352,16 +1353,15 @@ metaslab_rangesize32_compare(const void *x1, const void *x2)
 	uint64_t rs_size2 = r2->rs_end - r2->rs_start;
 
 	int cmp = TREE_CMP(rs_size1, rs_size2);
-	if (likely(cmp))
-		return (cmp);
 
-	return (TREE_CMP(r1->rs_start, r2->rs_start));
+	return (cmp + !cmp * TREE_CMP(r1->rs_start, r2->rs_start));
 }
 
 /*
  * Comparison function for the private size-ordered tree using 64-bit
  * ranges. Tree is sorted by size, larger sizes at the end of the tree.
  */
+__attribute__((always_inline)) inline
 static int
 metaslab_rangesize64_compare(const void *x1, const void *x2)
 {
@@ -1372,11 +1372,10 @@ metaslab_rangesize64_compare(const void *x1, const void *x2)
 	uint64_t rs_size2 = r2->rs_end - r2->rs_start;
 
 	int cmp = TREE_CMP(rs_size1, rs_size2);
-	if (likely(cmp))
-		return (cmp);
 
-	return (TREE_CMP(r1->rs_start, r2->rs_start));
+	return (cmp + !cmp * TREE_CMP(r1->rs_start, r2->rs_start));
 }
+
 typedef struct metaslab_rt_arg {
 	zfs_btree_t *mra_bt;
 	uint32_t mra_floor_shift;
@@ -1412,6 +1411,13 @@ metaslab_size_tree_full_load(range_tree_t *rt)
 	range_tree_walk(rt, metaslab_size_sorted_add, &arg);
 }
 
+
+ZFS_BTREE_FIND_IN_BUF_FUNC(metaslab_rt_find_rangesize32_in_buf,
+    range_seg32_t, metaslab_rangesize32_compare)
+
+ZFS_BTREE_FIND_IN_BUF_FUNC(metaslab_rt_find_rangesize64_in_buf,
+    range_seg64_t, metaslab_rangesize64_compare)
+
 /*
  * Create any block allocator specific components. The current allocators
  * rely on using both a size-ordered range_tree_t and an array of uint64_t's.
@@ -1424,19 +1430,22 @@ metaslab_rt_create(range_tree_t *rt, void *arg)
 
 	size_t size;
 	int (*compare) (const void *, const void *);
+	bt_find_in_buf_f bt_find;
 	switch (rt->rt_type) {
 	case RANGE_SEG32:
 		size = sizeof (range_seg32_t);
 		compare = metaslab_rangesize32_compare;
+		bt_find = metaslab_rt_find_rangesize32_in_buf;
 		break;
 	case RANGE_SEG64:
 		size = sizeof (range_seg64_t);
 		compare = metaslab_rangesize64_compare;
+		bt_find = metaslab_rt_find_rangesize64_in_buf;
 		break;
 	default:
 		panic("Invalid range seg type %d", rt->rt_type);
 	}
-	zfs_btree_create(size_tree, compare, size);
+	zfs_btree_create(size_tree, compare, bt_find, size);
 	mrap->mra_floor_shift = metaslab_by_size_min_shift;
 }
 

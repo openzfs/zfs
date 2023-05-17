@@ -326,7 +326,7 @@ sublivelist_verify_func(void *args, dsl_deadlist_entry_t *dle)
 	int err;
 	struct sublivelist_verify *sv = args;
 
-	zfs_btree_create(&sv->sv_pair, sublivelist_block_refcnt_compare,
+	zfs_btree_create(&sv->sv_pair, sublivelist_block_refcnt_compare, NULL,
 	    sizeof (sublivelist_verify_block_refcnt_t));
 
 	err = bpobj_iterate_nofree(&dle->dle_bpobj, sublivelist_verify_blkptr,
@@ -390,7 +390,7 @@ sublivelist_verify_lightweight(void *args, dsl_deadlist_entry_t *dle)
 {
 	(void) args;
 	sublivelist_verify_t sv;
-	zfs_btree_create(&sv.sv_leftover, livelist_block_compare,
+	zfs_btree_create(&sv.sv_leftover, livelist_block_compare, NULL,
 	    sizeof (sublivelist_verify_block_t));
 	int err = sublivelist_verify_func(&sv, dle);
 	zfs_btree_clear(&sv.sv_leftover);
@@ -682,7 +682,7 @@ livelist_metaslab_validate(spa_t *spa)
 	(void) printf("Verifying deleted livelist entries\n");
 
 	sublivelist_verify_t sv;
-	zfs_btree_create(&sv.sv_leftover, livelist_block_compare,
+	zfs_btree_create(&sv.sv_leftover, livelist_block_compare, NULL,
 	    sizeof (sublivelist_verify_block_t));
 	iterate_deleted_livelists(spa, livelist_verify, &sv);
 
@@ -716,7 +716,7 @@ livelist_metaslab_validate(spa_t *spa)
 			mv.mv_start = m->ms_start;
 			mv.mv_end = m->ms_start + m->ms_size;
 			zfs_btree_create(&mv.mv_livelist_allocs,
-			    livelist_block_compare,
+			    livelist_block_compare, NULL,
 			    sizeof (sublivelist_verify_block_t));
 
 			mv_populate_livelist_allocs(&mv, &sv);

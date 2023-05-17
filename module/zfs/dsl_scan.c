@@ -4877,6 +4877,7 @@ scan_exec_io(dsl_pool_t *dp, const blkptr_t *bp, int zio_flags,
  * with single operation.  Plus it makes scrubs more sequential and reduces
  * chances that minor extent change move it within the B-tree.
  */
+__attribute__((always_inline)) inline
 static int
 ext_size_compare(const void *x, const void *y)
 {
@@ -4885,13 +4886,17 @@ ext_size_compare(const void *x, const void *y)
 	return (TREE_CMP(*a, *b));
 }
 
+ZFS_BTREE_FIND_IN_BUF_FUNC(ext_size_find_in_buf, uint64_t,
+    ext_size_compare)
+
 static void
 ext_size_create(range_tree_t *rt, void *arg)
 {
 	(void) rt;
 	zfs_btree_t *size_tree = arg;
 
-	zfs_btree_create(size_tree, ext_size_compare, sizeof (uint64_t));
+	zfs_btree_create(size_tree, ext_size_compare, ext_size_find_in_buf,
+	    sizeof (uint64_t));
 }
 
 static void

@@ -285,6 +285,7 @@ zap_byteswap(void *buf, size_t size)
 	}
 }
 
+__attribute__((always_inline)) inline
 static int
 mze_compare(const void *arg1, const void *arg2)
 {
@@ -294,6 +295,9 @@ mze_compare(const void *arg1, const void *arg2)
 	return (TREE_CMP((uint64_t)(mze1->mze_hash) << 32 | mze1->mze_cd,
 	    (uint64_t)(mze2->mze_hash) << 32 | mze2->mze_cd));
 }
+
+ZFS_BTREE_FIND_IN_BUF_FUNC(mze_find_in_buf, mzap_ent_t,
+    mze_compare)
 
 static void
 mze_insert(zap_t *zap, uint16_t chunkid, uint64_t hash)
@@ -461,7 +465,7 @@ mzap_open(objset_t *os, uint64_t obj, dmu_buf_t *db)
 		 * 62 entries before we have to add 2KB B-tree core node.
 		 */
 		zfs_btree_create_custom(&zap->zap_m.zap_tree, mze_compare,
-		    sizeof (mzap_ent_t), 512);
+		    mze_find_in_buf, sizeof (mzap_ent_t), 512);
 
 		zap_name_t *zn = zap_name_alloc(zap);
 		for (uint16_t i = 0; i < zap->zap_m.zap_num_chunks; i++) {

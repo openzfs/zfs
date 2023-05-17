@@ -34,6 +34,20 @@ ifeq ($(CONFIG_KASAN),y)
 ZFS_MODULE_CFLAGS += -Wno-error=frame-larger-than=
 endif
 
+# Generated binary search code is particularly bad with this optimization.
+# Oddly, range_tree.c is not affected when unrolling is not done and dsl_scan.c
+# is not affected when unrolling is done.
+# Disable it until the following upstream issue is resolved:
+# https://github.com/llvm/llvm-project/issues/62790
+ifeq ($(CONFIG_X86),y)
+ifeq ($(CONFIG_CC_IS_CLANG),y)
+CFLAGS_zfs/dsl_scan.o += -mllvm -x86-cmov-converter=false
+CFLAGS_zfs/metaslab.o += -mllvm -x86-cmov-converter=false
+CFLAGS_zfs/range_tree.o += -mllvm -x86-cmov-converter=false
+CFLAGS_zfs/zap_micro.o += -mllvm -x86-cmov-converter=false
+endif
+endif
+
 ifneq ($(KBUILD_EXTMOD),)
 @CONFIG_QAT_TRUE@ZFS_MODULE_CFLAGS += -I@QAT_SRC@/include
 @CONFIG_QAT_TRUE@KBUILD_EXTRA_SYMBOLS += @QAT_SYMBOLS@
