@@ -10,6 +10,7 @@ dist_pkgdata_SCRIPTS = \
 	zpool_initialize_start_and_cancel_neg.ksh \
 	zpool_initialize_start_and_cancel_pos.ksh \
 	zpool_initialize_suspend_resume.ksh \
+	zpool_initialize_uninit.ksh \
 	zpool_initialize_unsupported_vdevs.ksh \
 	zpool_initialize_verify_checksums.ksh \
 	zpool_initialize_verify_initialized.ksh

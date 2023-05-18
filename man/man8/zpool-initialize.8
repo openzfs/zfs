@@ -36,7 +36,7 @@
 .Sh SYNOPSIS
 .Nm zpool
 .Cm initialize
-.Op Fl c Ns | Ns Fl s
+.Op Fl c Ns | Ns Fl s | Ns Fl u
 .Op Fl w
 .Ar pool
 .Oo Ar device Oc Ns …
@@ -60,6 +60,14 @@ initialized, the command will fail and no suspension will occur on any device.
 Initializing can then be resumed by running
 .Nm zpool Cm initialize
 with no flags on the relevant target devices.
+.It Fl u , -uninit
+Clears the initialization state on the specified devices, or all eligible
+devices if none are specified.
+If the devices are being actively initialized the command will fail.
+After being cleared
+.Nm zpool Cm initialize
+with no flags can be used to re-initialize all unallocoated regions on
+the relevant target devices.
 .It Fl w , -wait
 Wait until the devices have finished initializing before returning.
 .El

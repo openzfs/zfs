@@ -2224,8 +2224,8 @@ xlate_init_err(int err)
 }
 
 /*
- * Begin, suspend, or cancel the initialization (initializing of all free
- * blocks) for the given vdevs in the given pool.
+ * Begin, suspend, cancel, or uninit (clear) the initialization (initializing
+ * of all free blocks) for the given vdevs in the given pool.
  */
 static int
 zpool_initialize_impl(zpool_handle_t *zhp, pool_initialize_func_t cmd_type,
@@ -2251,11 +2251,16 @@ zpool_initialize_impl(zpool_handle_t *zhp, pool_initialize_func_t cmd_type,
 	    vdev_guids, &errlist);
 
 	if (err != 0) {
-		if (errlist != NULL) {
-			vd_errlist = fnvlist_lookup_nvlist(errlist,
-			    ZPOOL_INITIALIZE_VDEVS);
+		if (errlist != NULL && nvlist_lookup_nvlist(errlist,
+		    ZPOOL_INITIALIZE_VDEVS, &vd_errlist) == 0) {
 			goto list_errors;
 		}
+
+		if (err == EINVAL && cmd_type == POOL_INITIALIZE_UNINIT) {
+			zfs_error_aux(zhp->zpool_hdl, dgettext(TEXT_DOMAIN,
+			    "uninitialize is not supported by kernel"));
+		}
+
 		(void) zpool_standard_error(zhp->zpool_hdl, err,
 		    dgettext(TEXT_DOMAIN, "operation failed"));
 		goto out;
