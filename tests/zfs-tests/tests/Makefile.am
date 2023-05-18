@@ -1102,6 +1102,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_initialize/zpool_initialize_start_and_cancel_neg.ksh \
 	functional/cli_root/zpool_initialize/zpool_initialize_start_and_cancel_pos.ksh \
 	functional/cli_root/zpool_initialize/zpool_initialize_suspend_resume.ksh \
+	functional/cli_root/zpool_initialize/zpool_initialize_uninit.ksh \
 	functional/cli_root/zpool_initialize/zpool_initialize_unsupported_vdevs.ksh \
 	functional/cli_root/zpool_initialize/zpool_initialize_verify_checksums.ksh \
 	functional/cli_root/zpool_initialize/zpool_initialize_verify_initialized.ksh \
