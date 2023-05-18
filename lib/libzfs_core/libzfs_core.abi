@@ -1726,7 +1726,8 @@
       <enumerator name='POOL_INITIALIZE_START' value='0'/>
       <enumerator name='POOL_INITIALIZE_CANCEL' value='1'/>
       <enumerator name='POOL_INITIALIZE_SUSPEND' value='2'/>
-      <enumerator name='POOL_INITIALIZE_FUNCS' value='3'/>
+      <enumerator name='POOL_INITIALIZE_UNINIT' value='3'/>
+      <enumerator name='POOL_INITIALIZE_FUNCS' value='4'/>
     </enum-decl>
     <typedef-decl name='pool_initialize_func_t' type-id='5c246ad4' id='7063e1ab'/>
     <enum-decl name='pool_trim_func' id='54ed608a'>
