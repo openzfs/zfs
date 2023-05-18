@@ -678,6 +678,24 @@ io_data_dir(struct bio *bio, struct request *rq)
 }
 
 static inline int
+io_is_write(struct bio *bio, struct request *rq)
+{
+#ifdef HAVE_BLK_MQ
+	if (rq != NULL) {
+		if (op_is_write(req_op(rq))) {
+			return (WRITE);
+		} else {
+			return (READ);
+		}
+	}
+#else
+	ASSERT3P(rq, ==, NULL);
+#endif
+	return (bio_data_dir(bio) == WRITE);
+
+}
+
+static inline int
 io_is_flush(struct bio *bio, struct request *rq)
 {
 #ifdef HAVE_BLK_MQ
