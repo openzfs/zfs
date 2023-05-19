@@ -1278,7 +1278,6 @@ zvol_os_create_minor(const char *name)
 	int error = 0;
 	int idx;
 	uint64_t hash = zvol_name_hash(name);
-	bool replayed_zil = B_FALSE;
 
 	if (zvol_inhibit_dev)
 		return (0);
@@ -1420,12 +1419,11 @@ zvol_os_create_minor(const char *name)
 	zv->zv_zilog = zil_open(os, zvol_get_data, &zv->zv_kstat.dk_zil_sums);
 	if (spa_writeable(dmu_objset_spa(os))) {
 		if (zil_replay_disable)
-			replayed_zil = zil_destroy(zv->zv_zilog, B_FALSE);
+			zil_destroy(zv->zv_zilog, B_FALSE);
 		else
-			replayed_zil = zil_replay(os, zv, zvol_replay_vector);
+			zil_replay(os, zv, zvol_replay_vector);
 	}
-	if (replayed_zil)
-		zil_close(zv->zv_zilog);
+	zil_close(zv->zv_zilog);
 	zv->zv_zilog = NULL;
 
 	/*
