@@ -445,14 +445,16 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 			return;
 
 		/* Remove the vdev since device is unplugged */
+		int remove_status = 0;
 		if (l2arc || (strcmp(class, "resource.fs.zfs.removed") == 0)) {
-			int status = zpool_vdev_remove_wanted(zhp, devname);
+			remove_status = zpool_vdev_remove_wanted(zhp, devname);
 			fmd_hdl_debug(hdl, "zpool_vdev_remove_wanted '%s'"
-			    ", ret:%d", devname, status);
+			    ", err:%d", devname, libzfs_errno(zhdl));
 		}
 
 		/* Replace the vdev with a spare if its not a l2arc */
-		if (!l2arc && (!fmd_prop_get_int32(hdl, "spare_on_remove") ||
+		if (!l2arc && !remove_status &&
+		    (!fmd_prop_get_int32(hdl, "spare_on_remove") ||
 		    replace_with_spare(hdl, zhp, vdev) == B_FALSE)) {
 			/* Could not handle with spare */
 			fmd_hdl_debug(hdl, "no spare for '%s'", devname);

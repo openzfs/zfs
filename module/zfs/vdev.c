@@ -4097,10 +4097,17 @@ vdev_remove_wanted(spa_t *spa, uint64_t guid)
 		return (spa_vdev_state_exit(spa, NULL, SET_ERROR(ENODEV)));
 
 	/*
-	 * If the vdev is already removed, then don't do anything.
+	 * If the vdev is already removed, or expanding which can trigger
+	 * repartition add/remove events, then don't do anything.
 	 */
-	if (vd->vdev_removed)
+	if (vd->vdev_removed || vd->vdev_expanding)
 		return (spa_vdev_state_exit(spa, NULL, 0));
+
+	/*
+	 * Confirm the vdev has been removed, otherwise don't do anything.
+	 */
+	if (vd->vdev_ops->vdev_op_leaf && !zio_wait(vdev_probe(vd, NULL)))
+		return (spa_vdev_state_exit(spa, NULL, SET_ERROR(EEXIST)));
 
 	vd->vdev_remove_wanted = B_TRUE;
 	spa_async_request(spa, SPA_ASYNC_REMOVE);
