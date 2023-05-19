@@ -596,6 +596,11 @@ extern void zil_kstat_values_update(zil_kstat_values_t *zs,
 
 extern int zil_replay_disable;
 
+void zil_log_clear(void);
+
+void zil_log(zilog_t *zilog, const char* fmt, ...);
+void zil_log_print(zilog_t *zilog);
+
 #ifdef	__cplusplus
 }
 #endif

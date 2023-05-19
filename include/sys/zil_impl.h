@@ -166,6 +166,7 @@ typedef struct zil_vdev_node {
 
 #define	ZIL_PREV_BLKS 16
 
+#define ZIL_LOG_LEN 150
 /*
  * Stable storage intent log management structure.  One per dataset.
  */
@@ -225,6 +226,9 @@ struct zilog {
 
 	/* Pointer for per dataset zil sums */
 	zil_sums_t *zl_sums;
+
+    uint64_t pos;
+    char log[ZIL_LOG_LEN][80];
 };
 
 typedef struct zil_bp_node {
