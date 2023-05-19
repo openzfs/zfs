@@ -166,6 +166,7 @@ typedef struct zil_vdev_node {
 
 #define	ZIL_PREV_BLKS 16
 
+#define ZIL_LOG_LEN 150
 /*
  * Stable storage intent log management structure.  One per dataset.
  */

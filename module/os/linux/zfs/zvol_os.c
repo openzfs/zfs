@@ -1602,8 +1602,8 @@ MODULE_PARM_DESC(zvol_volmode, "Default volmode property value");
 module_param(zvol_blk_mq_queue_depth, uint, 0644);
 MODULE_PARM_DESC(zvol_blk_mq_queue_depth, "Default blk-mq queue depth");
 
-module_param(zvol_use_blk_mq, uint, 0644);
-MODULE_PARM_DESC(zvol_use_blk_mq, "Use the blk-mq API for zvols");
+// module_param(zvol_use_blk_mq, uint, 0644);
+// MODULE_PARM_DESC(zvol_use_blk_mq, "Use the blk-mq API for zvols");
 
 module_param(zvol_blk_mq_blocks_per_thread, uint, 0644);
 MODULE_PARM_DESC(zvol_blk_mq_blocks_per_thread,

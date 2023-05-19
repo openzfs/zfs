@@ -38,6 +38,7 @@
 #include <sys/sa_impl.h>
 #include <sys/callb.h>
 #include <sys/zfeature.h>
+#include <sys/zil_impl.h>
 
 static int32_t zfs_pd_bytes_max = 50 * 1024 * 1024;	/* 50MB */
 static int32_t send_holes_without_birth_time = 1;
@@ -134,6 +135,9 @@ traverse_zil(traverse_data_t *td, zil_header_t *zh)
 		return;
 
 	zilog_t *zilog = zil_alloc(spa_get_dsl(td->td_spa)->dp_meta_objset, zh);
+#ifdef _KERNEL
+	zil_log(NULL, "%s: begin %p txg %llu", __func__, zilog->zl_header,  zilog->zl_header->zh_claim_txg);
+#endif
 	(void) zil_parse(zilog, traverse_zil_block, traverse_zil_record, td,
 	    claim_txg, !(td->td_flags & TRAVERSE_NO_DECRYPT));
 	zil_free(zilog);

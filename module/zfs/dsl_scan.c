@@ -1512,6 +1512,9 @@ dsl_scan_zil(dsl_pool_t *dp, zil_header_t *zh)
 		return;
 
 	zilog = zil_alloc(dp->dp_meta_objset, zh);
+#ifdef _KERNEL
+       zil_log(NULL, "%s: begin %p txg %llu", __func__, zilog->zl_header,  zilog->zl_header->zh_claim_txg);
+#endif
 
 	(void) zil_parse(zilog, dsl_scan_zil_block, dsl_scan_zil_record, &zsa,
 	    claim_txg, B_FALSE);

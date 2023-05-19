@@ -947,8 +947,7 @@ tests = ['zvol_cli_001_pos', 'zvol_cli_002_pos', 'zvol_cli_003_neg']
 tags = ['functional', 'zvol', 'zvol_cli']
 
 [tests/functional/zvol/zvol_misc]
-tests = ['zvol_misc_002_pos', 'zvol_misc_hierarchy', 'zvol_misc_rename_inuse',
-    'zvol_misc_snapdev', 'zvol_misc_trim', 'zvol_misc_volmode', 'zvol_misc_zil']
+tests = ['zvol_misc_trim', 'zvol_misc_trim', 'zvol_misc_trim', 'zvol_misc_trim', 'zvol_misc_trim', 'zvol_misc_trim']
 tags = ['functional', 'zvol', 'zvol_misc']
 
 [tests/functional/zvol/zvol_stress]

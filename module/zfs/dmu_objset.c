@@ -66,6 +66,7 @@
 #include "zfs_namecheck.h"
 #include <sys/vdev_impl.h>
 #include <sys/arc.h>
+#include <sys/zil_impl.h>
 
 /*
  * Needed to close a window in dnode_move() that allows the objset to be freed
@@ -462,6 +463,8 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	 * We need the pool config lock to get properties.
 	 */
 	ASSERT(ds == NULL || dsl_pool_config_held(ds->ds_dir->dd_pool));
+//	zil_log_clear();
+	zil_log(NULL, "%s: begin", __func__);
 
 	/*
 	 * The $ORIGIN dataset (if it exists) doesn't have an associated
@@ -478,6 +481,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	os->os_dsl_dataset = ds;
 	os->os_spa = spa;
 	os->os_rootbp = bp;
+
 	if (!BP_IS_HOLE(os->os_rootbp)) {
 		arc_flags_t aflags = ARC_FLAG_WAIT;
 		zbookmark_phys_t zb;
@@ -494,6 +498,9 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 			ASSERT(BP_IS_AUTHENTICATED(bp));
 			zio_flags |= ZIO_FLAG_RAW;
 		}
+
+		zil_log(NULL, "%s: reading os_rootbp", __func__);
+		zil_log_blkptr(os->os_rootbp);
 
 		dprintf_bp(os->os_rootbp, "reading %s", "");
 		err = arc_read(NULL, spa, os->os_rootbp,
@@ -528,7 +535,11 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 
 		os->os_phys = os->os_phys_buf->b_data;
 		os->os_flags = os->os_phys->os_flags;
+		zil_log(NULL, "%s: its not a hole txg %llu", __func__, os->os_phys->os_zil_header.zh_claim_txg);
+
 	} else {
+		zil_log(NULL, "%s: its a hole, zero", __func__);
+
 		int size = spa_version(spa) >= SPA_VERSION_USERSPACE ?
 		    sizeof (objset_phys_t) : OBJSET_PHYS_SIZE_V1;
 		os->os_phys_buf = arc_alloc_buf(spa, &os->os_phys_buf,
@@ -536,6 +547,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 		os->os_phys = os->os_phys_buf->b_data;
 		memset(os->os_phys, 0, size);
 	}
+
 	/*
 	 * These properties will be filled in by the logic in zfs_get_zplprop()
 	 * when they are queried for the first time.
@@ -637,9 +649,20 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 		os->os_dnodesize = DNODE_MIN_SIZE;
 	}
 
-	if (ds == NULL || !ds->ds_is_snapshot)
+	if (ds == NULL || !ds->ds_is_snapshot) {
+
+		zil_log(NULL, "%s: using os_phys txg %llu", __func__, os->os_phys->os_zil_header.zh_claim_txg);
 		os->os_zil_header = os->os_phys->os_zil_header;
+	}
+
 	os->os_zil = zil_alloc(os, &os->os_zil_header);
+
+
+#ifdef _KERNEL
+       zil_log(os->os_zil, "%s: after zil alloc %p txg %llu, txg os_zil_header %llu, os->os_phys->os_zil_header %p", __func__, os->os_zil->zl_header, os->os_zil->zl_header->zh_claim_txg,
+		os->os_phys->os_zil_header.zh_claim_txg, os->os_phys->os_zil_header);
+#endif
+
 
 	for (i = 0; i < TXG_SIZE; i++) {
 		multilist_create(&os->os_dirty_dnodes[i], sizeof (dnode_t),
@@ -1657,6 +1680,8 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 	multilist_t *ml;
 	blkptr_t *blkptr_copy = kmem_alloc(sizeof (*os->os_rootbp), KM_SLEEP);
 	*blkptr_copy = *os->os_rootbp;
+	zil_log_clear();
+	zil_log(NULL, "%s: begin txg %d", __func__, os->os_phys->os_zil_header.zh_claim_txg);
 
 	dprintf_ds(os->os_dsl_dataset, "txg=%llu\n", (u_longlong_t)tx->tx_txg);
 
@@ -1773,6 +1798,8 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 	zil_sync(os->os_zil, tx);
 	os->os_phys->os_zil_header = os->os_zil_header;
 	zio_nowait(zio);
+	zil_log(NULL, "%s: finish txg %d", __func__, os->os_phys->os_zil_header.zh_claim_txg);
+
 }
 
 boolean_t

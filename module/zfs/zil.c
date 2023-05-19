@@ -46,6 +46,12 @@
 #include <sys/brt.h>
 #include <sys/wmsum.h>
 
+#ifdef _KERNEL
+#include <linux/module.h>  /* Needed by all modules */
+#include <linux/timekeeping.h>
+#endif
+
+
 /*
  * The ZFS Intent Log (ZIL) saves "transaction records" (itxs) of system
  * calls that change the file system. Each itx has enough information to
@@ -145,6 +151,64 @@ static uint64_t zil_slog_bulk = 768 * 1024;
 
 static kmem_cache_t *zil_lwb_cache;
 static kmem_cache_t *zil_zcw_cache;
+
+static uint64_t pos = 0;
+#define CHARS_PER_LINE 512
+static char log[ZIL_LOG_LEN][CHARS_PER_LINE] = {0}; 
+
+void zil_log_clear(void)
+{
+	pos = 0;
+	memset(log, 0, ZIL_LOG_LEN * CHARS_PER_LINE); 
+}
+
+void zil_log(zilog_t *zilog __attribute__((unused)), const char* fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    pos++;
+
+    if (pos >= ZIL_LOG_LEN - 1) {
+	zil_log_clear();    	
+    	goto end;
+	}	
+#ifdef _KERNEL
+    sprintf(log[pos], "%llu ", ktime_get_coarse_ns());
+#endif
+
+    vsprintf(&log[pos][strlen(log[pos])], fmt, args);
+end:
+    va_end(args);
+}
+
+void zil_log_blkptr(const blkptr_t *bp __attribute__((unused)))
+{
+
+#ifdef _KERNEL
+    pos++;
+
+    if (pos >= ZIL_LOG_LEN - 1) {
+	    zil_log_clear();    	
+	    return;
+    }	
+    sprintf(log[pos], "%llu ", ktime_get_coarse_ns());
+    snprintf_blkptr(&log[pos][strlen(log[pos])], sizeof(log[pos]), bp);
+
+#endif
+
+}
+ 
+
+void zil_log_print(zilog_t *zilog __attribute__((unused)))
+{
+#ifdef _KERNEL
+	uint64_t i;
+	for (i = 0; i < pos; i++) {
+		if (log[i][0] != 0)
+			printk("%llu: %s\n", i, log[i]);
+	}
+#endif
+}
 
 static int
 zil_bp_compare(const void *x1, const void *x2)
@@ -894,15 +958,23 @@ zil_create(zilog_t *zilog)
 	boolean_t fastwrite = FALSE;
 	boolean_t slog = FALSE;
 	dsl_dataset_t *ds = dmu_objset_ds(zilog->zl_os);
+	static int print_once = 0;
 
-
+	zil_log(zilog, "%s: begin %p, txg %lu", __func__, zilog->zl_header, zilog->zl_header->zh_claim_txg);
 	/*
 	 * Wait for any previous destroy to complete.
 	 */
 	txg_wait_synced(zilog->zl_dmu_pool, zilog->zl_destroy_txg);
 
+	print_once++;
+	if (print_once % 1000 == 0 || zh->zh_claim_txg != 0) {
+		zil_log_print(zilog);
+	}
+
 	ASSERT3U(zh->zh_claim_txg, ==, 0);
+
 	ASSERT(zh->zh_replay_seq == 0);
+	
 
 	blk = zh->zh_log;
 
@@ -1131,6 +1203,7 @@ zil_claim(dsl_pool_t *dp, dsl_dataset_t *ds, void *txarg)
 	if (zh->zh_claim_txg == 0 && !BP_IS_HOLE(&zh->zh_log)) {
 		(void) zil_parse(zilog, zil_claim_log_block,
 		    zil_claim_log_record, tx, first_txg, B_FALSE);
+		zil_log(zilog, "%s: setting %p to %d\n", __func__, zh, first_txg);
 		zh->zh_claim_txg = first_txg;
 		zh->zh_claim_blk_seq = zilog->zl_parse_blk_seq;
 		zh->zh_claim_lr_seq = zilog->zl_parse_lr_seq;
@@ -2569,6 +2642,8 @@ zil_process_commit_list(zilog_t *zilog)
 
 	ASSERT(MUTEX_HELD(&zilog->zl_issuer_lock));
 
+	zil_log(zilog, "%s: begin %p, txg %lu", __func__, zilog->zl_header, zilog->zl_header->zh_claim_txg);
+
 	/*
 	 * Return if there's nothing to commit before we dirty the fs by
 	 * calling zil_create().
@@ -2798,6 +2873,7 @@ zil_commit_writer(zilog_t *zilog, zil_commit_waiter_t *zcw)
 {
 	ASSERT(!MUTEX_HELD(&zilog->zl_lock));
 	ASSERT(spa_writeable(zilog->zl_spa));
+	zil_log(zilog, "%s: begin %p, tag %lu", __func__, zilog->zl_header, zilog->zl_header->zh_claim_txg);
 
 	mutex_enter(&zilog->zl_issuer_lock);
 
@@ -3367,6 +3443,7 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 	spa_t *spa = zilog->zl_spa;
 	uint64_t *replayed_seq = &zilog->zl_replayed_seq[txg & TXG_MASK];
 	lwb_t *lwb;
+	zil_log(NULL, "%s: begin txg %d", __func__, zilog->zl_header->zh_claim_txg);
 
 	/*
 	 * We don't zero out zl_destroy_txg, so make sure we don't try
@@ -3392,7 +3469,7 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 		dsl_dataset_t *ds = dmu_objset_ds(zilog->zl_os);
 
 		ASSERT(list_is_empty(&zilog->zl_lwb_list));
-
+		zil_log(zilog, "%s: %p memsetting zh", __func__, zh);
 		memset(zh, 0, sizeof (zil_header_t));
 		memset(zilog->zl_replayed_seq, 0,
 		    sizeof (zilog->zl_replayed_seq));
@@ -3533,7 +3610,14 @@ zil_alloc(objset_t *os, zil_header_t *zh_phys)
 {
 	zilog_t *zilog;
 
+	char name[ZFS_MAX_DATASET_NAME_LEN];
+
 	zilog = kmem_zalloc(sizeof (zilog_t), KM_SLEEP);
+
+	// char name[ZFS_MAX_DATASET_NAME_LEN];
+	/// dmu_objset_name
+
+	dmu_objset_name(os, name);
 
 	zilog->zl_header = zh_phys;
 	zilog->zl_os = os;
@@ -3546,6 +3630,8 @@ zil_alloc(objset_t *os, zil_header_t *zh_phys)
 	zilog->zl_last_lwb_opened = NULL;
 	zilog->zl_last_lwb_latency = 0;
 	zilog->zl_max_block_size = zil_maxblocksize;
+
+	zil_log(zilog, "%s: %s allocated %p, txg %lu", __func__, name, zh_phys, zilog->zl_header->zh_claim_txg);
 
 	mutex_init(&zilog->zl_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&zilog->zl_issuer_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -3622,6 +3708,8 @@ zil_open(objset_t *os, zil_get_data_t *get_data, zil_sums_t *zil_sums)
 	zilog->zl_get_data = get_data;
 	zilog->zl_sums = zil_sums;
 
+	zil_log(zilog, "%s: done %p, txg %lu", __func__, zilog->zl_header, zilog->zl_header->zh_claim_txg);
+
 	return (zilog);
 }
 
@@ -3633,6 +3721,8 @@ zil_close(zilog_t *zilog)
 {
 	lwb_t *lwb;
 	uint64_t txg;
+
+	zil_log(zilog, "%s: begin %p, txg %lu", __func__, zilog->zl_header, zilog->zl_header->zh_claim_txg);
 
 	if (!dmu_objset_is_snapshot(zilog->zl_os)) {
 		zil_commit(zilog, 0);
