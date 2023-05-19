@@ -6874,9 +6874,11 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 		if (!spa_feature_is_enabled(spa, SPA_FEATURE_DEVICE_REBUILD))
 			return (spa_vdev_exit(spa, NULL, txg, ENOTSUP));
 
-		if (dsl_scan_resilvering(spa_get_dsl(spa)))
+		if (dsl_scan_resilvering(spa_get_dsl(spa)) ||
+		    dsl_scan_resilver_scheduled(spa_get_dsl(spa))) {
 			return (spa_vdev_exit(spa, NULL, txg,
 			    ZFS_ERR_RESILVER_IN_PROGRESS));
+		}
 	} else {
 		if (vdev_rebuild_active(rvd))
 			return (spa_vdev_exit(spa, NULL, txg,
@@ -8355,13 +8357,18 @@ spa_async_thread(void *arg)
 	}
 
 	/*
-	 * Kick off a resilver.
+	 * Kick off a resilver being careful to double check that a resilver
+	 * is still needed.  For example, a "zpool clear" reopens devices and
+	 * can request a resilver before validating the vdev label.  In which
+	 * case the device won't be writable and there's no need to resilver.
 	 */
 	if (tasks & SPA_ASYNC_RESILVER &&
+	    vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL) &&
 	    !vdev_rebuild_active(spa->spa_root_vdev) &&
 	    (!dsl_scan_resilvering(dp) ||
-	    !spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_RESILVER_DEFER)))
+	    !spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_RESILVER_DEFER))) {
 		dsl_scan_restart_resilver(dp, 0);
+	}
 
 	if (tasks & SPA_ASYNC_INITIALIZE_RESTART) {
 		mutex_enter(&spa_namespace_lock);
