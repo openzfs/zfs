@@ -2716,8 +2716,10 @@ dmu_buf_will_not_fill(dmu_buf_t *db_fake, dmu_tx_t *tx)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
 
+	mutex_enter(&db->db_mtx);
 	db->db_state = DB_NOFILL;
 	DTRACE_SET_STATE(db, "allocating NOFILL buffer");
+	mutex_exit(&db->db_mtx);
 
 	dbuf_noread(db);
 	(void) dbuf_dirty(db, tx);
@@ -2736,6 +2738,7 @@ dmu_buf_will_fill(dmu_buf_t *db_fake, dmu_tx_t *tx)
 	ASSERT(db->db.db_object != DMU_META_DNODE_OBJECT ||
 	    dmu_tx_private_ok(tx));
 
+	mutex_enter(&db->db_mtx);
 	if (db->db_state == DB_NOFILL) {
 		/*
 		 * Block cloning: We will be completely overwriting a block
@@ -2743,11 +2746,10 @@ dmu_buf_will_fill(dmu_buf_t *db_fake, dmu_tx_t *tx)
 		 * pending clone and mark the block as uncached. This will be
 		 * as if the clone was never done.
 		 */
-		mutex_enter(&db->db_mtx);
 		VERIFY(!dbuf_undirty(db, tx));
-		mutex_exit(&db->db_mtx);
 		db->db_state = DB_UNCACHED;
 	}
+	mutex_exit(&db->db_mtx);
 
 	dbuf_noread(db);
 	(void) dbuf_dirty(db, tx);
