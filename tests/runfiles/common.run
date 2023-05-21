@@ -472,7 +472,8 @@ tests = ['zpool_replace_001_neg', 'replace-o_ashift', 'replace_prop_ashift']
 tags = ['functional', 'cli_root', 'zpool_replace']
 
 [tests/functional/cli_root/zpool_resilver]
-tests = ['zpool_resilver_bad_args', 'zpool_resilver_restart']
+tests = ['zpool_resilver_bad_args', 'zpool_resilver_restart',
+    'zpool_resilver_concurrent']
 tags = ['functional', 'cli_root', 'zpool_resilver']
 
 [tests/functional/cli_root/zpool_scrub]

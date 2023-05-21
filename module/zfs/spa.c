@@ -33,6 +33,7 @@
  * Copyright 2017 Joyent, Inc.
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
+ * Copyright (c) 2023 Hewlett Packard Enterprise Development LP.
  */
 
 /*
@@ -6874,9 +6875,11 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 		if (!spa_feature_is_enabled(spa, SPA_FEATURE_DEVICE_REBUILD))
 			return (spa_vdev_exit(spa, NULL, txg, ENOTSUP));
 
-		if (dsl_scan_resilvering(spa_get_dsl(spa)))
+		if (dsl_scan_resilvering(spa_get_dsl(spa)) ||
+		    dsl_scan_resilver_scheduled(spa_get_dsl(spa))) {
 			return (spa_vdev_exit(spa, NULL, txg,
 			    ZFS_ERR_RESILVER_IN_PROGRESS));
+		}
 	} else {
 		if (vdev_rebuild_active(rvd))
 			return (spa_vdev_exit(spa, NULL, txg,

@@ -29,7 +29,7 @@
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2019, Datto Inc. All rights reserved.
  * Copyright (c) 2021, Klara Inc.
- * Copyright [2021] Hewlett Packard Enterprise Development LP
+ * Copyright (c) 2021, 2023 Hewlett Packard Enterprise Development LP.
  */
 
 #include <sys/zfs_context.h>
@@ -2697,6 +2697,17 @@ vdev_reopen(vdev_t *vd)
 		}
 	} else {
 		(void) vdev_validate(vd);
+	}
+
+	/*
+	 * Recheck if resilver is still needed and cancel any
+	 * scheduled resilver if resilver is unneeded.
+	 */
+	if (!vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL) &&
+	    spa->spa_async_tasks & SPA_ASYNC_RESILVER) {
+		mutex_enter(&spa->spa_async_lock);
+		spa->spa_async_tasks &= ~SPA_ASYNC_RESILVER;
+		mutex_exit(&spa->spa_async_lock);
 	}
 
 	/*

@@ -1142,6 +1142,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_resilver/setup.ksh \
 	functional/cli_root/zpool_resilver/zpool_resilver_bad_args.ksh \
 	functional/cli_root/zpool_resilver/zpool_resilver_restart.ksh \
+	functional/cli_root/zpool_resilver/zpool_resilver_concurrent.ksh \
 	functional/cli_root/zpool_scrub/cleanup.ksh \
 	functional/cli_root/zpool_scrub/setup.ksh \
 	functional/cli_root/zpool_scrub/zpool_scrub_001_neg.ksh \
