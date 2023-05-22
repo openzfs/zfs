@@ -7,8 +7,8 @@ NAME := $(shell awk '$$1 == "Name:" { print $$2; }' META)
 LINUX_MIN  := $(shell awk '/Linux-Minimum:/{print $$2}' META)
 LINUX_NEXT := $(shell awk -F'[ .]' '/Linux-Maximum:/{print $$2 "." $$3+1}' META)
 
-DKMSFILES := module include config zfs.release.in autogen.sh META AUTHORS \
-		COPYRIGHT LICENSE README.md
+DKMSFILES := module include config zfs.release.in autogen.sh copy-builtin META AUTHORS \
+		COPYRIGHT LICENSE README.md CODE_OF_CONDUCT.md NEWS NOTICE RELEASES.md
 
 ifndef KVERS
 KVERS=$(shell uname -r)
