@@ -1766,7 +1766,7 @@ zfs_btree_remove_idx(zfs_btree_t *tree, zfs_btree_index_t *where)
 	zfs_btree_poison_node_at(tree, keep_hdr, keep_hdr->bth_count);
 
 	rm_hdr->bth_count = 0;
-	zfs_btree_node_destroy(tree, rm_hdr);
+
 	/* Remove the emptied node from the parent. */
 	zfs_btree_remove_from_node(tree, parent, rm_hdr);
 	zfs_btree_node_destroy(tree, rm_hdr);
