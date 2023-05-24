@@ -183,8 +183,11 @@ kv_free(spl_kmem_cache_t *skc, void *ptr, int size)
 	 * of that infrastructure we are responsible for incrementing it.
 	 */
 	if (current->reclaim_state)
+#ifdef	HAVE_RECLAIM_STATE_RECLAIMED
+		current->reclaim_state->reclaimed += size >> PAGE_SHIFT;
+#else
 		current->reclaim_state->reclaimed_slab += size >> PAGE_SHIFT;
-
+#endif
 	vfree(ptr);
 }
 
