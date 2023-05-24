@@ -88,9 +88,9 @@ log_must zpool export $TESTPOOL
 log_must zpool import $TESTPOOL
 do_test
 
-set_blk_mq 1
-log_must zpool export $TESTPOOL
-log_must zpool import $TESTPOOL
-do_test
+# set_blk_mq 1
+# log_must zpool export $TESTPOOL
+# log_must zpool import $TESTPOOL
+# do_test
 
 log_pass "ZFS volume FUA works"

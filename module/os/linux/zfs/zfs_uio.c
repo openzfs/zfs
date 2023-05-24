@@ -204,22 +204,6 @@ zfs_uiomove_bvec_rq(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
 	this_seg_start = orig_loffset;
 
 	rq_for_each_segment(bv, rq, iter) {
-		if (uio->iter.bio) {
-			/*
-			 * If uio->iter.bio is present, then we know we've saved
-			 * uio->iter from a previous call to this function, and
-			 * we can skip ahead in this rq_for_each_segment() loop
-			 * to where we last left off.  That way, we don't need
-			 * to iterate over tons of segments we've already
-			 * processed - we can just restore the "saved state".
-			 */
-			iter = uio->iter;
-			bv = uio->bv;
-			this_seg_start = uio->uio_loffset;
-			memset(&uio->iter, 0, sizeof (uio->iter));
-			continue;
-		}
-
 		/*
 		 * Lookup what the logical offset of the last byte of this
 		 * segment is.
@@ -258,19 +242,6 @@ zfs_uiomove_bvec_rq(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
 			uio->uio_resid -= copy_from_seg;
 			uio->uio_loffset += copy_from_seg;
 			copied = 1;	/* We copied some data */
-		}
-
-		if (n == 0) {
-			/*
-			 * All done copying.  Save our 'iter' value to the uio.
-			 * This allows us to "save our state" and skip ahead in
-			 * the rq_for_each_segment() loop the next time we call
-			 * call zfs_uiomove_bvec_rq() on this uio (which we
-			 * will be doing for any remaining data in the uio).
-			 */
-			uio->iter = iter; /* make a copy of the struct data */
-			uio->bv = bv;
-			return (0);
 		}
 
 		this_seg_start = this_seg_end + 1;

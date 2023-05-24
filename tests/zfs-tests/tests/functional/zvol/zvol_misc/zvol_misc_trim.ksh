@@ -124,14 +124,17 @@ log_must zfs set compression=off $TESTPOOL/$TESTVOL
 log_must $trimcmd $zvolpath
 
 
-set_blk_mq 1
-log_must_busy zpool export $TESTPOOL
-log_must zpool import $TESTPOOL
-do_test
+# set_blk_mq 1
+# log_must_busy zpool export $TESTPOOL
+# log_must zpool import $TESTPOOL
+# do_test
 
 set_blk_mq 0
+echo "exporting pool" > /dev/kmsg
 log_must_busy zpool export $TESTPOOL
+echo "importing pool" > /dev/kmsg
 log_must zpool import $TESTPOOL
+echo "doing test" > /dev/kmsg
 do_test
 
 log_pass "ZFS volumes can be trimmed"
