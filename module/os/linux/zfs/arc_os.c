@@ -219,7 +219,11 @@ arc_shrinker_scan(struct shrinker *shrink, struct shrink_control *sc)
 	arc_reduce_target_size(ptob(sc->nr_to_scan));
 	arc_wait_for_eviction(ptob(sc->nr_to_scan), B_FALSE);
 	if (current->reclaim_state != NULL)
+#ifdef	HAVE_RECLAIM_STATE_RECLAIMED
+		current->reclaim_state->reclaimed += sc->nr_to_scan;
+#else
 		current->reclaim_state->reclaimed_slab += sc->nr_to_scan;
+#endif
 
 	/*
 	 * We are experiencing memory pressure which the arc_evict_zthr was
