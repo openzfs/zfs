@@ -8,8 +8,8 @@ ConditionPathIsDirectory=/sys/module/zfs
 
 [Service]
 EnvironmentFile=-@initconfdir@/zfs
-ExecStart=/bin/sh -c '\
-if @sbindir@/zpool status %i | grep -q "(trimming)"; then\
-exec @sbindir@/zpool wait -t trim %i;\
-else exec @sbindir@/zpool trim -w %i; fi'
-ExecStop=-/bin/sh -c '@sbindir@/zpool trim -s %i 2>/dev/null || true'
+ExecStart=sh -c '\
+if zpool status %i | grep -q "(trimming)"; then\
+exec zpool wait -t trim %i;\
+else exec zpool trim -w %i; fi'
+ExecStop=-sh -c 'zpool trim -s %i 2>/dev/null || true'
