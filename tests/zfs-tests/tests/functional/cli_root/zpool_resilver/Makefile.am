@@ -3,7 +3,8 @@ dist_pkgdata_SCRIPTS = \
 	setup.ksh \
 	cleanup.ksh \
 	zpool_resilver_bad_args.ksh \
-	zpool_resilver_restart.ksh
+	zpool_resilver_restart.ksh \
+	zpool_resilver_concurrent.ksh
 
 dist_pkgdata_DATA = \
 	zpool_resilver.cfg
