@@ -794,7 +794,10 @@ vdev_disk_io_start(zio_t *zio)
 		return;
 	}
 
-	if (zio->io_size == 0) {
+	if (zio->io_size == 0 && (
+	    zio->io_type == ZIO_TYPE_WRITE ||
+	    zio->io_type == ZIO_TYPE_READ ||
+	    zio->io_type == ZIO_TYPE_TRIM)) {
 		cmn_err(CE_WARN, "KLARA: vdev_disk_io_start() "
 		    "io_type=%d io_size=%d!", zio->io_type, zio->io_size);
 		if (zio->io_type == ZIO_TYPE_WRITE &&
