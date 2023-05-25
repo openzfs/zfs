@@ -44,7 +44,7 @@ extern "C" {
  * must be held.
  *
  * After the lwb is "opened", it can transition into the "issued" state
- * via zil_lwb_write_issue(). Again, the zilog's "zl_issuer_lock" must
+ * via zil_lwb_write_close(). Again, the zilog's "zl_issuer_lock" must
  * be held when making this transition.
  *
  * After the lwb's write zio completes, it transitions into the "write
@@ -93,20 +93,23 @@ typedef struct lwb {
 	blkptr_t	lwb_blk;	/* on disk address of this log blk */
 	boolean_t	lwb_fastwrite;	/* is blk marked for fastwrite? */
 	boolean_t	lwb_slog;	/* lwb_blk is on SLOG device */
+	boolean_t	lwb_indirect;	/* do not postpone zil_lwb_commit() */
 	int		lwb_nused;	/* # used bytes in buffer */
+	int		lwb_nfilled;	/* # filled bytes in buffer */
 	int		lwb_sz;		/* size of block and buffer */
 	lwb_state_t	lwb_state;	/* the state of this lwb */
 	char		*lwb_buf;	/* log write buffer */
 	zio_t		*lwb_write_zio;	/* zio for the lwb buffer */
 	zio_t		*lwb_root_zio;	/* root zio for lwb write and flushes */
+	hrtime_t	lwb_issued_timestamp; /* when was the lwb issued? */
 	uint64_t	lwb_issued_txg;	/* the txg when the write is issued */
 	uint64_t	lwb_max_txg;	/* highest txg in this lwb */
 	list_node_t	lwb_node;	/* zilog->zl_lwb_list linkage */
+	list_node_t	lwb_issue_node;	/* linkage of lwbs ready for issue */
 	list_t		lwb_itxs;	/* list of itx's */
 	list_t		lwb_waiters;	/* list of zil_commit_waiter's */
 	avl_tree_t	lwb_vdev_tree;	/* vdevs to flush after lwb write */
 	kmutex_t	lwb_vdev_lock;	/* protects lwb_vdev_tree */
-	hrtime_t	lwb_issued_timestamp; /* when was the lwb issued? */
 } lwb_t;
 
 /*
