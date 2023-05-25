@@ -489,18 +489,22 @@ typedef struct zil_stats {
 	 * Transactions which have been allocated to the "normal"
 	 * (i.e. not slog) storage pool. Note that "bytes" accumulate
 	 * the actual log record sizes - which do not include the actual
-	 * data in case of indirect writes.
+	 * data in case of indirect writes.  bytes <= write <= alloc.
 	 */
 	kstat_named_t zil_itx_metaslab_normal_count;
 	kstat_named_t zil_itx_metaslab_normal_bytes;
+	kstat_named_t zil_itx_metaslab_normal_write;
+	kstat_named_t zil_itx_metaslab_normal_alloc;
 
 	/*
 	 * Transactions which have been allocated to the "slog" storage pool.
 	 * If there are no separate log devices, this is the same as the
-	 * "normal" pool.
+	 * "normal" pool.  bytes <= write <= alloc.
 	 */
 	kstat_named_t zil_itx_metaslab_slog_count;
 	kstat_named_t zil_itx_metaslab_slog_bytes;
+	kstat_named_t zil_itx_metaslab_slog_write;
+	kstat_named_t zil_itx_metaslab_slog_alloc;
 } zil_kstat_values_t;
 
 typedef struct zil_sums {
@@ -515,8 +519,12 @@ typedef struct zil_sums {
 	wmsum_t zil_itx_needcopy_bytes;
 	wmsum_t zil_itx_metaslab_normal_count;
 	wmsum_t zil_itx_metaslab_normal_bytes;
+	wmsum_t zil_itx_metaslab_normal_write;
+	wmsum_t zil_itx_metaslab_normal_alloc;
 	wmsum_t zil_itx_metaslab_slog_count;
 	wmsum_t zil_itx_metaslab_slog_bytes;
+	wmsum_t zil_itx_metaslab_slog_write;
+	wmsum_t zil_itx_metaslab_slog_alloc;
 } zil_sums_t;
 
 #define	ZIL_STAT_INCR(zil, stat, val) \

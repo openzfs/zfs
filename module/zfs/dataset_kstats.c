@@ -49,8 +49,12 @@ static dataset_kstat_values_t empty_dataset_kstats = {
 	{ "zil_itx_needcopy_bytes",		KSTAT_DATA_UINT64 },
 	{ "zil_itx_metaslab_normal_count",	KSTAT_DATA_UINT64 },
 	{ "zil_itx_metaslab_normal_bytes",	KSTAT_DATA_UINT64 },
+	{ "zil_itx_metaslab_normal_write",	KSTAT_DATA_UINT64 },
+	{ "zil_itx_metaslab_normal_alloc",	KSTAT_DATA_UINT64 },
 	{ "zil_itx_metaslab_slog_count",	KSTAT_DATA_UINT64 },
-	{ "zil_itx_metaslab_slog_bytes",	KSTAT_DATA_UINT64 }
+	{ "zil_itx_metaslab_slog_bytes",	KSTAT_DATA_UINT64 },
+	{ "zil_itx_metaslab_slog_write",	KSTAT_DATA_UINT64 },
+	{ "zil_itx_metaslab_slog_alloc",	KSTAT_DATA_UINT64 }
 	}
 };
 
