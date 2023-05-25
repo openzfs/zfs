@@ -46,6 +46,7 @@ typedef struct vdev_disk {
 	krwlock_t			vd_lock;
 } vdev_disk_t;
 
+int zio_suppress_zero_writes = B_TRUE;
 /*
  * Unique identifier for the exclusive vdev holder.
  */
@@ -793,6 +794,19 @@ vdev_disk_io_start(zio_t *zio)
 		return;
 	}
 
+	if (zio->io_size == 0) {
+		cmn_err(CE_WARN, "KLARA: vdev_disk_io_start() "
+		    "io_type=%d io_size=%d!", zio->io_type, zio->io_size);
+		if (zio->io_type == ZIO_TYPE_WRITE &&
+		    zio_suppress_zero_writes == B_TRUE) {
+			cmn_err(CE_WARN, "KLARA: vdev_disk_io_start() "
+			    "cancelling write of 0 bytes");
+			zio->io_error = 0;
+			zio_interrupt(zio);
+			return;
+		}
+	}
+
 	rw_enter(&vd->vd_lock, RW_READER);
 
 	/*
@@ -1010,3 +1024,6 @@ param_set_max_auto_ashift(const char *buf, zfs_kernel_param_t *kp)
 
 	return (0);
 }
+
+ZFS_MODULE_PARAM(zfs_zio, zio_, suppress_zero_writes, INT, ZMOD_RW,
+	"Do not send zero byte writes to hardware");
