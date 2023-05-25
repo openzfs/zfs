@@ -234,7 +234,7 @@ static int zfs_resilver_disable_defer = B_FALSE;
 static int zfs_free_bpobj_enabled = 1;
 
 /* Error blocks to be scrubbed in one txg. */
-unsigned long zfs_scrub_error_blocks_per_txg = 1 << 12;
+static uint_t zfs_scrub_error_blocks_per_txg = 1 << 12;
 
 /* the order has to match pool_scan_type */
 static scan_cb_t *scan_funcs[POOL_SCAN_FUNCS] = {
@@ -5242,6 +5242,6 @@ ZFS_MODULE_PARAM(zfs, zfs_, scan_report_txgs, UINT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, resilver_disable_defer, INT, ZMOD_RW,
 	"Process all resilvers immediately");
 
-ZFS_MODULE_PARAM(zfs, zfs_, scrub_error_blocks_per_txg, U64, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, scrub_error_blocks_per_txg, UINT, ZMOD_RW,
 	"Error blocks to be scrubbed in one txg");
 /* END CSTYLED */
