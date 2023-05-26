@@ -163,6 +163,8 @@ if sys.platform.startswith('freebsd'):
     known.update({
         'cli_root/zfs_receive/receive-o-x_props_override':
             ['FAIL', known_reason],
+        'cli_root/zpool_resilver/zpool_resilver_concurrent':
+            ['SKIP', na_reason],
         'cli_root/zpool_wait/zpool_wait_trim_basic': ['SKIP', trim_reason],
         'cli_root/zpool_wait/zpool_wait_trim_cancel': ['SKIP', trim_reason],
         'cli_root/zpool_wait/zpool_wait_trim_flag': ['SKIP', trim_reason],
