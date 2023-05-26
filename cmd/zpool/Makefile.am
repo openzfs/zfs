@@ -169,6 +169,11 @@ zpoolcompatlinks = \
 	"freebsd-11.3		freebsd-12.0" \
 	"freebsd-11.3		freebsd-12.1" \
 	"freebsd-11.3		freebsd-12.2" \
+	"freebsd-11.3		freebsd-12.3" \
+	"freebsd-11.3		freebsd-12.4" \
+	"openzfs-2.1-freebsd	freebsd-13.0" \
+	"openzfs-2.1-freebsd	freebsd-13.1" \
+	"openzfs-2.1-freebsd	freebsd-13.2" \
 	"freebsd-11.3		freenas-11.3" \
 	"freenas-11.0		freenas-11.1" \
 	"openzfsonosx-1.9.3	openzfsonosx-1.9.4" \
