@@ -400,6 +400,20 @@ beforeinstall:
 
 .include <bsd.kmod.mk>
 
+# Generated binary search code is particularly bad with this optimization.
+# Oddly, range_tree.c is not affected when unrolling is not done and dsl_scan.c
+# is not affected when unrolling is done.
+# Disable it until the following upstream issue is resolved:
+# https://github.com/llvm/llvm-project/issues/62790
+.if ${CC} == "clang"
+.if ${MACHINE_ARCH} == "i386" || ${MACHINE_ARCH} == "amd64"
+CFLAGS.dsl_scan.c= -mllvm -x86-cmov-converter=false
+CFLAGS.metaslab.c= -mllvm -x86-cmov-converter=false
+CFLAGS.range_tree.c= -mllvm -x86-cmov-converter=false
+CFLAGS.zap_micro.c= -mllvm -x86-cmov-converter=false
+.endif
+.endif
+
 CFLAGS.sysctl_os.c= -include ../zfs_config.h
 CFLAGS.xxhash.c+= -include ${SYSDIR}/sys/_null.h
 

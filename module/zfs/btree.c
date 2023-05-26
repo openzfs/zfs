@@ -193,14 +193,20 @@ zfs_btree_leaf_free(zfs_btree_t *tree, void *ptr)
 
 void
 zfs_btree_create(zfs_btree_t *tree, int (*compar) (const void *, const void *),
-    size_t size)
+    bt_find_in_buf_f bt_find_in_buf, size_t size)
 {
-	zfs_btree_create_custom(tree, compar, size, BTREE_LEAF_SIZE);
+	zfs_btree_create_custom(tree, compar, bt_find_in_buf, size,
+	    BTREE_LEAF_SIZE);
 }
+
+static void *
+zfs_btree_find_in_buf(zfs_btree_t *tree, uint8_t *buf, uint32_t nelems,
+    const void *value, zfs_btree_index_t *where);
 
 void
 zfs_btree_create_custom(zfs_btree_t *tree,
     int (*compar) (const void *, const void *),
+    bt_find_in_buf_f bt_find_in_buf,
     size_t size, size_t lsize)
 {
 	size_t esize = lsize - offsetof(zfs_btree_leaf_t, btl_elems);
@@ -208,6 +214,8 @@ zfs_btree_create_custom(zfs_btree_t *tree,
 	ASSERT3U(size, <=, esize / 2);
 	memset(tree, 0, sizeof (*tree));
 	tree->bt_compar = compar;
+	tree->bt_find_in_buf = (bt_find_in_buf == NULL) ?
+	    zfs_btree_find_in_buf : bt_find_in_buf;
 	tree->bt_elem_size = size;
 	tree->bt_leaf_size = lsize;
 	tree->bt_leaf_cap = P2ALIGN(esize / size, 2);
@@ -303,7 +311,7 @@ zfs_btree_find(zfs_btree_t *tree, const void *value, zfs_btree_index_t *where)
 			 * element in the last leaf, it's in the last leaf or
 			 * it's not in the tree.
 			 */
-			void *d = zfs_btree_find_in_buf(tree,
+			void *d = tree->bt_find_in_buf(tree,
 			    last_leaf->btl_elems +
 			    last_leaf->btl_hdr.bth_first * size,
 			    last_leaf->btl_hdr.bth_count, value, &idx);
@@ -327,7 +335,7 @@ zfs_btree_find(zfs_btree_t *tree, const void *value, zfs_btree_index_t *where)
 	for (node = (zfs_btree_core_t *)tree->bt_root; depth < tree->bt_height;
 	    node = (zfs_btree_core_t *)node->btc_children[child], depth++) {
 		ASSERT3P(node, !=, NULL);
-		void *d = zfs_btree_find_in_buf(tree, node->btc_elems,
+		void *d = tree->bt_find_in_buf(tree, node->btc_elems,
 		    node->btc_hdr.bth_count, value, &idx);
 		EQUIV(d != NULL, !idx.bti_before);
 		if (d != NULL) {
@@ -347,7 +355,7 @@ zfs_btree_find(zfs_btree_t *tree, const void *value, zfs_btree_index_t *where)
 	 */
 	zfs_btree_leaf_t *leaf = (depth == 0 ?
 	    (zfs_btree_leaf_t *)tree->bt_root : (zfs_btree_leaf_t *)node);
-	void *d = zfs_btree_find_in_buf(tree, leaf->btl_elems +
+	void *d = tree->bt_find_in_buf(tree, leaf->btl_elems +
 	    leaf->btl_hdr.bth_first * size,
 	    leaf->btl_hdr.bth_count, value, &idx);
 
@@ -671,7 +679,7 @@ zfs_btree_insert_into_parent(zfs_btree_t *tree, zfs_btree_hdr_t *old_node,
 	zfs_btree_hdr_t *par_hdr = &parent->btc_hdr;
 	zfs_btree_index_t idx;
 	ASSERT(zfs_btree_is_core(par_hdr));
-	VERIFY3P(zfs_btree_find_in_buf(tree, parent->btc_elems,
+	VERIFY3P(tree->bt_find_in_buf(tree, parent->btc_elems,
 	    par_hdr->bth_count, buf, &idx), ==, NULL);
 	ASSERT(idx.bti_before);
 	uint32_t offset = idx.bti_offset;
@@ -897,7 +905,7 @@ zfs_btree_find_parent_idx(zfs_btree_t *tree, zfs_btree_hdr_t *hdr)
 	}
 	zfs_btree_index_t idx;
 	zfs_btree_core_t *parent = hdr->bth_parent;
-	VERIFY3P(zfs_btree_find_in_buf(tree, parent->btc_elems,
+	VERIFY3P(tree->bt_find_in_buf(tree, parent->btc_elems,
 	    parent->btc_hdr.bth_count, buf, &idx), ==, NULL);
 	ASSERT(idx.bti_before);
 	ASSERT3U(idx.bti_offset, <=, parent->btc_hdr.bth_count);

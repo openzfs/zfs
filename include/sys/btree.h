@@ -105,8 +105,13 @@ typedef struct zfs_btree_index {
 	boolean_t	bti_before;
 } zfs_btree_index_t;
 
-typedef struct btree {
+typedef struct btree zfs_btree_t;
+typedef void * (*bt_find_in_buf_f) (zfs_btree_t *, uint8_t *, uint32_t,
+    const void *, zfs_btree_index_t *);
+
+struct btree {
 	int (*bt_compar) (const void *, const void *);
+	bt_find_in_buf_f	bt_find_in_buf;
 	size_t			bt_elem_size;
 	size_t			bt_leaf_size;
 	uint32_t		bt_leaf_cap;
@@ -115,7 +120,54 @@ typedef struct btree {
 	uint64_t		bt_num_nodes;
 	zfs_btree_hdr_t		*bt_root;
 	zfs_btree_leaf_t	*bt_bulk; // non-null if bulk loading
-} zfs_btree_t;
+};
+
+/*
+ * Implementation of Shar's algorithm designed to accelerate binary search by
+ * eliminating impossible to predict branches.
+ *
+ * For optimality, this should be used to generate the search function in the
+ * same file as the comparator  and the comparator should be marked
+ * `__attribute__((always_inline) inline` so that the compiler will inline it.
+ *
+ * Arguments are:
+ *
+ * NAME   - The function name for this instance of the search function. Use it
+ *          in a subsequent call to zfs_btree_create().
+ * T      - The element type stored inside the B-Tree.
+ * COMP   - A comparator to compare two nodes, it must return exactly: -1, 0,
+ *          or +1 -1 for <, 0 for ==, and +1 for >. For trivial comparisons,
+ *          TREE_CMP() from avl.h can be used in a boilerplate function.
+ */
+/* BEGIN CSTYLED */
+#define	ZFS_BTREE_FIND_IN_BUF_FUNC(NAME, T, COMP)			\
+_Pragma("GCC diagnostic push")						\
+_Pragma("GCC diagnostic ignored \"-Wunknown-pragmas\"")			\
+static void *								\
+NAME(zfs_btree_t *tree, uint8_t *buf, uint32_t nelems,			\
+    const void *value, zfs_btree_index_t *where)			\
+{									\
+	T *i = (T *)buf;						\
+	(void) tree;							\
+	_Pragma("GCC unroll 9")						\
+	while (nelems > 1) {						\
+		uint32_t half = nelems / 2;				\
+		nelems -= half;						\
+		i += (COMP(&i[half - 1], value) < 0) * half;		\
+	}								\
+									\
+	int comp = COMP(i, value);					\
+	where->bti_offset = (i - (T *)buf) + (comp < 0);		\
+	where->bti_before = (comp != 0);				\
+									\
+	if (comp == 0) {						\
+		return (i);						\
+	}								\
+									\
+	return (NULL);							\
+}									\
+_Pragma("GCC diagnostic pop")
+/* END CSTYLED */
 
 /*
  * Allocate and deallocate caches for btree nodes.
@@ -129,13 +181,19 @@ void zfs_btree_fini(void);
  * tree   - the tree to be initialized
  * compar - function to compare two nodes, it must return exactly: -1, 0, or +1
  *          -1 for <, 0 for ==, and +1 for >
+ * find   - optional function to accelerate searches inside B-Tree nodes
+ *          through Shar's algorithm and comparator inlining. Setting this to
+ *          NULL will use a generic function. The function should be created
+ *          using ZFS_BTREE_FIND_IN_BUF_FUNC() in the same file as compar.
+ *          compar should be marked `__attribute__((always_inline)) inline` or
+ *          performance is unlikely to improve very much.
  * size   - the value of sizeof(struct my_type)
  * lsize  - custom leaf size
  */
 void zfs_btree_create(zfs_btree_t *, int (*) (const void *, const void *),
-    size_t);
+    bt_find_in_buf_f, size_t);
 void zfs_btree_create_custom(zfs_btree_t *, int (*)(const void *, const void *),
-    size_t, size_t);
+    bt_find_in_buf_f, size_t, size_t);
 
 /*
  * Find a node with a matching value in the tree. Returns the matching node

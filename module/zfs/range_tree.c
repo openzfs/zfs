@@ -151,6 +151,7 @@ range_tree_stat_decr(range_tree_t *rt, range_seg_t *rs)
 	rt->rt_histogram[idx]--;
 }
 
+__attribute__((always_inline)) inline
 static int
 range_tree_seg32_compare(const void *x1, const void *x2)
 {
@@ -163,6 +164,7 @@ range_tree_seg32_compare(const void *x1, const void *x2)
 	return ((r1->rs_start >= r2->rs_end) - (r1->rs_end <= r2->rs_start));
 }
 
+__attribute__((always_inline)) inline
 static int
 range_tree_seg64_compare(const void *x1, const void *x2)
 {
@@ -175,6 +177,7 @@ range_tree_seg64_compare(const void *x1, const void *x2)
 	return ((r1->rs_start >= r2->rs_end) - (r1->rs_end <= r2->rs_start));
 }
 
+__attribute__((always_inline)) inline
 static int
 range_tree_seg_gap_compare(const void *x1, const void *x2)
 {
@@ -187,6 +190,15 @@ range_tree_seg_gap_compare(const void *x1, const void *x2)
 	return ((r1->rs_start >= r2->rs_end) - (r1->rs_end <= r2->rs_start));
 }
 
+ZFS_BTREE_FIND_IN_BUF_FUNC(range_tree_seg32_find_in_buf, range_seg32_t,
+    range_tree_seg32_compare)
+
+ZFS_BTREE_FIND_IN_BUF_FUNC(range_tree_seg64_find_in_buf, range_seg64_t,
+    range_tree_seg64_compare)
+
+ZFS_BTREE_FIND_IN_BUF_FUNC(range_tree_seg_gap_find_in_buf, range_seg_gap_t,
+    range_tree_seg_gap_compare)
+
 range_tree_t *
 range_tree_create_gap(const range_tree_ops_t *ops, range_seg_type_t type,
     void *arg, uint64_t start, uint64_t shift, uint64_t gap)
@@ -197,23 +209,27 @@ range_tree_create_gap(const range_tree_ops_t *ops, range_seg_type_t type,
 	ASSERT3U(type, <=, RANGE_SEG_NUM_TYPES);
 	size_t size;
 	int (*compare) (const void *, const void *);
+	bt_find_in_buf_f bt_find;
 	switch (type) {
 	case RANGE_SEG32:
 		size = sizeof (range_seg32_t);
 		compare = range_tree_seg32_compare;
+		bt_find = range_tree_seg32_find_in_buf;
 		break;
 	case RANGE_SEG64:
 		size = sizeof (range_seg64_t);
 		compare = range_tree_seg64_compare;
+		bt_find = range_tree_seg64_find_in_buf;
 		break;
 	case RANGE_SEG_GAP:
 		size = sizeof (range_seg_gap_t);
 		compare = range_tree_seg_gap_compare;
+		bt_find = range_tree_seg_gap_find_in_buf;
 		break;
 	default:
 		panic("Invalid range seg type %d", type);
 	}
-	zfs_btree_create(&rt->rt_root, compare, size);
+	zfs_btree_create(&rt->rt_root, compare, bt_find, size);
 
 	rt->rt_ops = ops;
 	rt->rt_gap = gap;
