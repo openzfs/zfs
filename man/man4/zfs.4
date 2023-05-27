@@ -15,7 +15,7 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.Dd January 10, 2023
+.Dd May 26, 2023
 .Dt ZFS 4
 .Os
 .
@@ -790,7 +790,7 @@ Note that this should not be set below the ZED thresholds
 (currently 10 checksums over 10 seconds)
 or else the daemon may not trigger any action.
 .
-.It Sy zfs_commit_timeout_pct Ns = Ns Sy 5 Ns % Pq uint
+.It Sy zfs_commit_timeout_pct Ns = Ns Sy 10 Ns % Pq uint
 This controls the amount of time that a ZIL block (lwb) will remain "open"
 when it isn't "full", and it has a thread waiting for it to be committed to
 stable storage.
@@ -2142,12 +2142,10 @@ On very fragmented pools, lowering this
 .Pq typically to Sy 36 KiB
 can improve performance.
 .
-.It Sy zil_min_commit_timeout Ns = Ns Sy 5000 Pq u64
-This sets the minimum delay in nanoseconds ZIL care to delay block commit,
-waiting for more records.
-If ZIL writes are too fast, kernel may not be able sleep for so short interval,
-increasing log latency above allowed by
-.Sy zfs_commit_timeout_pct .
+.It Sy zil_maxcopied Ns = Ns Sy 8192 Ns B Po 8 KiB Pc Pq uint
+This sets the maximum number of write bytes logged via WR_COPIED.
+It tunes a tradeoff between additional memory copy and possibly worse log
+space efficiency vs additional range lock/unlock.
 .
 .It Sy zil_nocacheflush Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Disable the cache flush commands that are normally sent to disk by
@@ -2159,7 +2157,7 @@ if a volatile out-of-order write cache is enabled.
 Disable intent logging replay.
 Can be disabled for recovery from corrupted ZIL.
 .
-.It Sy zil_slog_bulk Ns = Ns Sy 786432 Ns B Po 768 KiB Pc Pq u64
+.It Sy zil_slog_bulk Ns = Ns Sy 67108864 Ns B Po 64 MiB Pc Pq u64
 Limit SLOG write size per commit executed with synchronous priority.
 Any writes above that will be executed with lower (asynchronous) priority
 to limit potential SLOG device abuse by single active ZIL writer.

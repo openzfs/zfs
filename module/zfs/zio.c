@@ -3741,7 +3741,7 @@ zio_dva_unallocate(zio_t *zio, zio_gang_node_t *gn, blkptr_t *bp)
  */
 int
 zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg, blkptr_t *new_bp,
-    uint64_t size, boolean_t *slog)
+    uint64_t size, uint64_t maxsize, boolean_t *slog)
 {
 	int error = 1;
 	zio_alloc_list_t io_alloc_list;
@@ -3771,6 +3771,11 @@ zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg, blkptr_t *new_bp,
 	    txg, NULL, flags, &io_alloc_list, NULL, allocator);
 	*slog = (error == 0);
 	if (error != 0) {
+		/* ZIL may find a good use for the extra allocated space. */
+		size = roundup(size, spa->spa_min_alloc);
+		size = P2ALIGN_TYPED(size, ZIL_MIN_BLKSZ, uint64_t);
+		size = MIN(size, maxsize);
+
 		error = metaslab_alloc(spa, spa_embedded_log_class(spa), size,
 		    new_bp, 1, txg, NULL, flags,
 		    &io_alloc_list, NULL, allocator);
