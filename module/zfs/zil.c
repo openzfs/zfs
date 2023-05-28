@@ -248,11 +248,10 @@ zil_kstats_global_update(kstat_t *ksp, int rw)
  */
 static int
 zil_read_log_block(zilog_t *zilog, boolean_t decrypt, const blkptr_t *bp,
-    blkptr_t *nbp, void *dst, char **end)
+    blkptr_t *nbp, char **begin, char **end, arc_buf_t **abuf)
 {
 	zio_flag_t zio_flags = ZIO_FLAG_CANFAIL;
 	arc_flags_t aflags = ARC_FLAG_WAIT;
-	arc_buf_t *abuf = NULL;
 	zbookmark_phys_t zb;
 	int error;
 
@@ -269,7 +268,7 @@ zil_read_log_block(zilog_t *zilog, boolean_t decrypt, const blkptr_t *bp,
 	    ZB_ZIL_OBJECT, ZB_ZIL_LEVEL, bp->blk_cksum.zc_word[ZIL_ZC_SEQ]);
 
 	error = arc_read(NULL, zilog->zl_spa, bp, arc_getbuf_func,
-	    &abuf, ZIO_PRIORITY_SYNC_READ, zio_flags, &aflags, &zb);
+	    abuf, ZIO_PRIORITY_SYNC_READ, zio_flags, &aflags, &zb);
 
 	if (error == 0) {
 		zio_cksum_t cksum = bp->blk_cksum;
@@ -284,23 +283,23 @@ zil_read_log_block(zilog_t *zilog, boolean_t decrypt, const blkptr_t *bp,
 		 */
 		cksum.zc_word[ZIL_ZC_SEQ]++;
 
+		uint64_t size = BP_GET_LSIZE(bp);
 		if (BP_GET_CHECKSUM(bp) == ZIO_CHECKSUM_ZILOG2) {
-			zil_chain_t *zilc = abuf->b_data;
+			zil_chain_t *zilc = (*abuf)->b_data;
 			char *lr = (char *)(zilc + 1);
-			uint64_t len = zilc->zc_nused - sizeof (zil_chain_t);
 
 			if (memcmp(&cksum, &zilc->zc_next_blk.blk_cksum,
-			    sizeof (cksum)) || BP_IS_HOLE(&zilc->zc_next_blk)) {
+			    sizeof (cksum)) || BP_IS_HOLE(&zilc->zc_next_blk) ||
+			    zilc->zc_nused < sizeof (*zilc) ||
+			    zilc->zc_nused > size) {
 				error = SET_ERROR(ECKSUM);
 			} else {
-				ASSERT3U(len, <=, SPA_OLD_MAXBLOCKSIZE);
-				memcpy(dst, lr, len);
-				*end = (char *)dst + len;
+				*begin = lr;
+				*end = lr + zilc->zc_nused - sizeof (*zilc);
 				*nbp = zilc->zc_next_blk;
 			}
 		} else {
-			char *lr = abuf->b_data;
-			uint64_t size = BP_GET_LSIZE(bp);
+			char *lr = (*abuf)->b_data;
 			zil_chain_t *zilc = (zil_chain_t *)(lr + size) - 1;
 
 			if (memcmp(&cksum, &zilc->zc_next_blk.blk_cksum,
@@ -308,15 +307,11 @@ zil_read_log_block(zilog_t *zilog, boolean_t decrypt, const blkptr_t *bp,
 			    (zilc->zc_nused > (size - sizeof (*zilc)))) {
 				error = SET_ERROR(ECKSUM);
 			} else {
-				ASSERT3U(zilc->zc_nused, <=,
-				    SPA_OLD_MAXBLOCKSIZE);
-				memcpy(dst, lr, zilc->zc_nused);
-				*end = (char *)dst + zilc->zc_nused;
+				*begin = lr;
+				*end = lr + zilc->zc_nused;
 				*nbp = zilc->zc_next_blk;
 			}
 		}
-
-		arc_buf_destroy(abuf, &abuf);
 	}
 
 	return (error);
@@ -468,7 +463,6 @@ zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
 	uint64_t blk_count = 0;
 	uint64_t lr_count = 0;
 	blkptr_t blk, next_blk = {{{{0}}}};
-	char *lrbuf, *lrp;
 	int error = 0;
 
 	/*
@@ -486,13 +480,13 @@ zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
 	 * If the log has been claimed, stop if we encounter a sequence
 	 * number greater than the highest claimed sequence number.
 	 */
-	lrbuf = zio_buf_alloc(SPA_OLD_MAXBLOCKSIZE);
 	zil_bp_tree_init(zilog);
 
 	for (blk = zh->zh_log; !BP_IS_HOLE(&blk); blk = next_blk) {
 		uint64_t blk_seq = blk.blk_cksum.zc_word[ZIL_ZC_SEQ];
 		int reclen;
-		char *end = NULL;
+		char *lrp, *end;
+		arc_buf_t *abuf = NULL;
 
 		if (blk_seq > claim_blk_seq)
 			break;
@@ -508,8 +502,10 @@ zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
 			break;
 
 		error = zil_read_log_block(zilog, decrypt, &blk, &next_blk,
-		    lrbuf, &end);
+		    &lrp, &end, &abuf);
 		if (error != 0) {
+			if (abuf)
+				arc_buf_destroy(abuf, &abuf);
 			if (claimed) {
 				char name[ZFS_MAX_DATASET_NAME_LEN];
 
@@ -522,7 +518,7 @@ zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
 			break;
 		}
 
-		for (lrp = lrbuf; lrp < end; lrp += reclen) {
+		for (; lrp < end; lrp += reclen) {
 			lr_t *lr = (lr_t *)lrp;
 			reclen = lr->lrc_reclen;
 			ASSERT3U(reclen, >=, sizeof (lr_t));
@@ -536,6 +532,7 @@ zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
 			max_lr_seq = lr->lrc_seq;
 			lr_count++;
 		}
+		arc_buf_destroy(abuf, &abuf);
 	}
 done:
 	zilog->zl_parse_error = error;
@@ -545,7 +542,6 @@ done:
 	zilog->zl_parse_lr_count = lr_count;
 
 	zil_bp_tree_fini(zilog);
-	zio_buf_free(lrbuf, SPA_OLD_MAXBLOCKSIZE);
 
 	return (error);
 }
