@@ -212,7 +212,7 @@ elif sys.platform.startswith('linux'):
 # reasons listed above can be used.
 #
 maybe = {
-    'append/threadsappend_001_pos': ['FAIL', 6136],
+    'threadsappend/threadsappend_001_pos': ['FAIL', 6136],
     'chattr/setup': ['SKIP', exec_reason],
     'crtime/crtime_001_pos': ['SKIP', statx_reason],
     'cli_root/zdb/zdb_006_pos': ['FAIL', known_reason],
