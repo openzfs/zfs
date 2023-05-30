@@ -2797,6 +2797,7 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
 			}
 
 			if (err == 0) {
+				owned = B_TRUE;
 				err = zap_lookup(dspp.dp->dp_meta_objset,
 				    dspp.to_ds->ds_object,
 				    DS_FIELD_RESUME_TOGUID, 8, 1,
@@ -2810,21 +2811,24 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
 				    sizeof (dspp.saved_toname),
 				    dspp.saved_toname);
 			}
-			if (err != 0)
+			/* Only disown if there was an error in the lookups */
+			if (owned && (err != 0))
 				dsl_dataset_disown(dspp.to_ds, dsflags, FTAG);
 
 			kmem_strfree(name);
 		} else {
 			err = dsl_dataset_own(dspp.dp, tosnap, dsflags,
 			    FTAG, &dspp.to_ds);
+			if (err == 0)
+				owned = B_TRUE;
 		}
-		owned = B_TRUE;
 	} else {
 		err = dsl_dataset_hold_flags(dspp.dp, tosnap, dsflags, FTAG,
 		    &dspp.to_ds);
 	}
 
 	if (err != 0) {
+		/* Note: dsl dataset is not owned at this point */
 		dsl_pool_rele(dspp.dp, FTAG);
 		return (err);
 	}
