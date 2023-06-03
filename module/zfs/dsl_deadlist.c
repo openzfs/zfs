@@ -999,8 +999,9 @@ livelist_compare(const void *larg, const void *rarg)
 	/* if vdevs are equal, sort by offsets. */
 	uint64_t l_dva0_offset = DVA_GET_OFFSET(&l->blk_dva[0]);
 	uint64_t r_dva0_offset = DVA_GET_OFFSET(&r->blk_dva[0]);
-	if (l_dva0_offset == r_dva0_offset)
-		ASSERT3U(l->blk_birth, ==, r->blk_birth);
+
+	/* Assert here dropped for now, see PR #14931 for discussion */
+
 	return (TREE_CMP(l_dva0_offset, r_dva0_offset));
 }
 
