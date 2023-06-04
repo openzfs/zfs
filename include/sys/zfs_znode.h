@@ -158,6 +158,7 @@ extern "C" {
 #define	ZFS_DIRENT_OBJ(de) BF64_GET(de, 0, 48)
 
 extern int zfs_obj_to_path(objset_t *osp, uint64_t obj, char *buf, int len);
+extern int zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value);
 
 #ifdef _KERNEL
 #include <sys/zfs_znode_impl.h>
@@ -280,7 +281,6 @@ extern void	zfs_znode_delete(znode_t *, dmu_tx_t *);
 extern void	zfs_remove_op_tables(void);
 extern int	zfs_create_op_tables(void);
 extern dev_t	zfs_cmpldev(uint64_t);
-extern int	zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value);
 extern int	zfs_get_stats(objset_t *os, nvlist_t *nv);
 extern boolean_t zfs_get_vfs_flag_unmounted(objset_t *os);
 extern void	zfs_znode_dmu_fini(znode_t *);
