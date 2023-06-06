@@ -12,7 +12,7 @@ ConditionPathIsDirectory=/sys/module/zfs
 Type=oneshot
 RemainAfterExit=yes
 EnvironmentFile=-@initconfdir@/zfs
-ExecStart=zfs mount -a
+ExecStart=@sbindir@/zfs mount -a
 
 [Install]
 WantedBy=zfs.target

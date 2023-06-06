@@ -5,7 +5,7 @@ ConditionPathIsDirectory=/sys/module/zfs
 
 [Service]
 EnvironmentFile=-@initconfdir@/zfs
-ExecStart=zed -F
+ExecStart=@sbindir@/zed -F
 Restart=always
 
 [Install]
