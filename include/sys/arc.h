@@ -304,9 +304,8 @@ int arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
 zio_t *arc_write(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
     arc_buf_t *buf, boolean_t uncached, boolean_t l2arc, const zio_prop_t *zp,
     arc_write_done_func_t *ready, arc_write_done_func_t *child_ready,
-    arc_write_done_func_t *physdone, arc_write_done_func_t *done,
-    void *priv, zio_priority_t priority, int zio_flags,
-    const zbookmark_phys_t *zb);
+    arc_write_done_func_t *done, void *priv, zio_priority_t priority,
+    int zio_flags, const zbookmark_phys_t *zb);
 
 arc_prune_t *arc_add_prune_callback(arc_prune_func_t *func, void *priv);
 void arc_remove_prune_callback(arc_prune_t *p);
