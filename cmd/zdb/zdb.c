@@ -8546,9 +8546,9 @@ zdb_read_block(char *thing, spa_t *spa)
 		 */
 		zio_nowait(zio_vdev_child_io(zio, bp, vd, offset, pabd,
 		    psize, ZIO_TYPE_READ, ZIO_PRIORITY_SYNC_READ,
-		    ZIO_FLAG_DONT_CACHE | ZIO_FLAG_DONT_PROPAGATE |
-		    ZIO_FLAG_DONT_RETRY | ZIO_FLAG_CANFAIL | ZIO_FLAG_RAW |
-		    ZIO_FLAG_OPTIONAL, NULL, NULL));
+		    ZIO_FLAG_DONT_PROPAGATE | ZIO_FLAG_DONT_RETRY |
+		    ZIO_FLAG_CANFAIL | ZIO_FLAG_RAW | ZIO_FLAG_OPTIONAL,
+		    NULL, NULL));
 	}
 
 	error = zio_wait(zio);
@@ -8642,7 +8642,6 @@ zdb_read_block(char *thing, spa_t *spa)
 				zio_nowait(zio_vdev_child_io(czio, bp, vd,
 				    offset, pabd, psize, ZIO_TYPE_READ,
 				    ZIO_PRIORITY_SYNC_READ,
-				    ZIO_FLAG_DONT_CACHE |
 				    ZIO_FLAG_DONT_PROPAGATE |
 				    ZIO_FLAG_DONT_RETRY |
 				    ZIO_FLAG_CANFAIL | ZIO_FLAG_RAW |

@@ -715,7 +715,6 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 	    offsetof(struct vdev, vdev_dtl_node));
 	vd->vdev_stat.vs_timestamp = gethrtime();
 	vdev_queue_init(vd);
-	vdev_cache_init(vd);
 
 	return (vd);
 }
@@ -1096,7 +1095,6 @@ vdev_free(vdev_t *vd)
 	 * Clean up vdev structure.
 	 */
 	vdev_queue_fini(vd);
-	vdev_cache_fini(vd);
 
 	if (vd->vdev_path)
 		spa_strfree(vd->vdev_path);
@@ -1720,8 +1718,7 @@ vdev_probe(vdev_t *vd, zio_t *zio)
 		vps = kmem_zalloc(sizeof (*vps), KM_SLEEP);
 
 		vps->vps_flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_PROBE |
-		    ZIO_FLAG_DONT_CACHE | ZIO_FLAG_DONT_AGGREGATE |
-		    ZIO_FLAG_TRYHARD;
+		    ZIO_FLAG_DONT_AGGREGATE | ZIO_FLAG_TRYHARD;
 
 		if (spa_config_held(spa, SCL_ZIO, RW_WRITER)) {
 			/*
@@ -2611,8 +2608,6 @@ vdev_close(vdev_t *vd)
 		vd->vdev_reopening = (pvd->vdev_reopening && !vd->vdev_offline);
 
 	vd->vdev_ops->vdev_op_close(vd);
-
-	vdev_cache_purge(vd);
 
 	/*
 	 * We record the previous state before we close it, so that if we are

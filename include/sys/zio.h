@@ -190,7 +190,6 @@ typedef uint64_t zio_flag_t;
 #define	ZIO_FLAG_SPECULATIVE	(1ULL << 8)
 #define	ZIO_FLAG_CONFIG_WRITER	(1ULL << 9)
 #define	ZIO_FLAG_DONT_RETRY	(1ULL << 10)
-#define	ZIO_FLAG_DONT_CACHE	(1ULL << 11)
 #define	ZIO_FLAG_NODATA		(1ULL << 12)
 #define	ZIO_FLAG_INDUCE_DAMAGE	(1ULL << 13)
 #define	ZIO_FLAG_IO_ALLOCATING	(1ULL << 14)

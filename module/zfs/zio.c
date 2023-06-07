@@ -1617,12 +1617,6 @@ zio_read_bp_init(zio_t *zio)
 		ASSERT3P(zio->io_bp, ==, &zio->io_bp_copy);
 	}
 
-	if (!DMU_OT_IS_METADATA(BP_GET_TYPE(bp)) && BP_GET_LEVEL(bp) == 0)
-		zio->io_flags |= ZIO_FLAG_DONT_CACHE;
-
-	if (BP_GET_TYPE(bp) == DMU_OT_DDT_ZAP)
-		zio->io_flags |= ZIO_FLAG_DONT_CACHE;
-
 	if (BP_GET_DEDUP(bp) && zio->io_child_type == ZIO_CHILD_LOGICAL)
 		zio->io_pipeline = ZIO_DDT_READ_PIPELINE;
 
@@ -3955,9 +3949,6 @@ zio_vdev_io_start(zio_t *zio)
 	    zio->io_type == ZIO_TYPE_WRITE ||
 	    zio->io_type == ZIO_TYPE_TRIM)) {
 
-		if (zio->io_type == ZIO_TYPE_READ && vdev_cache_read(zio))
-			return (zio);
-
 		if ((zio = vdev_queue_io(zio)) == NULL)
 			return (NULL);
 
@@ -3993,9 +3984,6 @@ zio_vdev_io_done(zio_t *zio)
 	if (vd != NULL && vd->vdev_ops->vdev_op_leaf &&
 	    vd->vdev_ops != &vdev_draid_spare_ops) {
 		vdev_queue_io_done(zio);
-
-		if (zio->io_type == ZIO_TYPE_WRITE)
-			vdev_cache_write(zio);
 
 		if (zio_injection_enabled && zio->io_error == 0)
 			zio->io_error = zio_handle_device_injections(vd, zio,
@@ -4106,8 +4094,7 @@ zio_vdev_io_assess(zio_t *zio)
 		ASSERT(!(zio->io_flags & ZIO_FLAG_DONT_QUEUE));	/* not a leaf */
 		ASSERT(!(zio->io_flags & ZIO_FLAG_IO_BYPASS));	/* not a leaf */
 		zio->io_error = 0;
-		zio->io_flags |= ZIO_FLAG_IO_RETRY |
-		    ZIO_FLAG_DONT_CACHE | ZIO_FLAG_DONT_AGGREGATE;
+		zio->io_flags |= ZIO_FLAG_IO_RETRY | ZIO_FLAG_DONT_AGGREGATE;
 		zio->io_stage = ZIO_STAGE_VDEV_IO_START >> 1;
 		zio_taskq_dispatch(zio, ZIO_TASKQ_ISSUE,
 		    zio_requeue_io_start_cut_in_line);

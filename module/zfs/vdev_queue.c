@@ -748,8 +748,7 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 
 	aio = zio_vdev_delegated_io(first->io_vd, first->io_offset,
 	    abd, size, first->io_type, zio->io_priority,
-	    flags | ZIO_FLAG_DONT_CACHE | ZIO_FLAG_DONT_QUEUE,
-	    vdev_queue_agg_io_done, NULL);
+	    flags | ZIO_FLAG_DONT_QUEUE, vdev_queue_agg_io_done, NULL);
 	aio->io_timestamp = first->io_timestamp;
 
 	nio = first;
@@ -907,7 +906,7 @@ vdev_queue_io(zio_t *zio)
 		ASSERT(zio->io_priority == ZIO_PRIORITY_TRIM);
 	}
 
-	zio->io_flags |= ZIO_FLAG_DONT_CACHE | ZIO_FLAG_DONT_QUEUE;
+	zio->io_flags |= ZIO_FLAG_DONT_QUEUE;
 	zio->io_timestamp = gethrtime();
 
 	mutex_enter(&vq->vq_lock);

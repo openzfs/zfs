@@ -57,8 +57,6 @@ extern "C" {
  * Forward declarations that lots of things need.
  */
 typedef struct vdev_queue vdev_queue_t;
-typedef struct vdev_cache vdev_cache_t;
-typedef struct vdev_cache_entry vdev_cache_entry_t;
 struct abd;
 
 extern uint_t zfs_vdev_queue_depth_pct;
@@ -132,23 +130,6 @@ typedef const struct vdev_ops {
 /*
  * Virtual device properties
  */
-struct vdev_cache_entry {
-	struct abd	*ve_abd;
-	uint64_t	ve_offset;
-	clock_t		ve_lastused;
-	avl_node_t	ve_offset_node;
-	avl_node_t	ve_lastused_node;
-	uint32_t	ve_hits;
-	uint16_t	ve_missed_update;
-	zio_t		*ve_fill_io;
-};
-
-struct vdev_cache {
-	avl_tree_t	vc_offset_tree;
-	avl_tree_t	vc_lastused_tree;
-	kmutex_t	vc_lock;
-};
-
 typedef struct vdev_queue_class {
 	uint32_t	vqc_active;
 
@@ -443,7 +424,6 @@ struct vdev {
 	boolean_t	vdev_resilver_deferred;  /* resilver deferred */
 	boolean_t	vdev_kobj_flag; /* kobj event record */
 	vdev_queue_t	vdev_queue;	/* I/O deadline schedule queue	*/
-	vdev_cache_t	vdev_cache;	/* physical block cache		*/
 	spa_aux_vdev_t	*vdev_aux;	/* for l2cache and spares vdevs	*/
 	zio_t		*vdev_probe_zio; /* root of current probe	*/
 	vdev_aux_t	vdev_label_aux;	/* on-disk aux state		*/

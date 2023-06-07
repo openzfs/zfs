@@ -2439,7 +2439,6 @@ spa_init(spa_mode_t mode)
 	zio_init();
 	dmu_init();
 	zil_init();
-	vdev_cache_stat_init();
 	vdev_mirror_stat_init();
 	vdev_raidz_math_init();
 	vdev_file_init();
@@ -2463,7 +2462,6 @@ spa_fini(void)
 	spa_evict_all();
 
 	vdev_file_fini();
-	vdev_cache_stat_fini();
 	vdev_mirror_stat_fini();
 	vdev_raidz_math_fini();
 	chksum_fini();

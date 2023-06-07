@@ -1174,10 +1174,6 @@ extern void zep_to_zb(uint64_t dataset, zbookmark_err_phys_t *zep,
     zbookmark_phys_t *zb);
 extern void name_to_errphys(char *buf, zbookmark_err_phys_t *zep);
 
-/* vdev cache */
-extern void vdev_cache_stat_init(void);
-extern void vdev_cache_stat_fini(void);
-
 /* vdev mirror */
 extern void vdev_mirror_stat_init(void);
 extern void vdev_mirror_stat_fini(void);

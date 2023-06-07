@@ -382,7 +382,6 @@ ZFS_OBJS := \
 	uberblock.o \
 	unique.o \
 	vdev.o \
-	vdev_cache.o \
 	vdev_draid.o \
 	vdev_draid_rand.o \
 	vdev_indirect.o \

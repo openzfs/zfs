@@ -872,8 +872,6 @@ SYSCTL_INT(_vfs_zfs, OID_AUTO, validate_skip,
 	"Enable to bypass vdev_validate().");
 /* END CSTYLED */
 
-/* vdev_cache.c */
-
 /* vdev_mirror.c */
 
 /* vdev_queue.c */
