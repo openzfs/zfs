@@ -1393,8 +1393,13 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 	zil_commit_waiter_t *zcw;
 	itx_t *itx;
 	uint64_t txg;
+	list_t itxs, waiters;
 
 	spa_config_exit(zilog->zl_spa, SCL_STATE, lwb);
+
+	list_create(&itxs, sizeof (itx_t), offsetof(itx_t, itx_node));
+	list_create(&waiters, sizeof (zil_commit_waiter_t),
+	    offsetof(zil_commit_waiter_t, zcw_node));
 
 	hrtime_t t = gethrtime() - lwb->lwb_issued_timestamp;
 
@@ -1403,9 +1408,6 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 	zilog->zl_last_lwb_latency = (zilog->zl_last_lwb_latency * 7 + t) / 8;
 
 	lwb->lwb_root_zio = NULL;
-
-	ASSERT3S(lwb->lwb_state, ==, LWB_STATE_WRITE_DONE);
-	lwb->lwb_state = LWB_STATE_FLUSH_DONE;
 
 	if (zilog->zl_last_lwb_opened == lwb) {
 		/*
@@ -1417,15 +1419,21 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 		zilog->zl_commit_lr_seq = zilog->zl_lr_seq;
 	}
 
+	list_move_tail(&itxs, &lwb->lwb_itxs);
+	list_move_tail(&waiters, &lwb->lwb_waiters);
+
+	ASSERT3S(lwb->lwb_state, ==, LWB_STATE_WRITE_DONE);
+	lwb->lwb_state = LWB_STATE_FLUSH_DONE;
+
 	mutex_exit(&zilog->zl_lock);
 
-	while ((itx = list_remove_head(&lwb->lwb_itxs)) != NULL)
+	while ((itx = list_remove_head(&itxs)) != NULL)
 		zil_itx_destroy(itx);
+	list_destroy(&itxs);
 
-	while ((zcw = list_remove_head(&lwb->lwb_waiters)) != NULL) {
+	while ((zcw = list_remove_head(&waiters)) != NULL) {
 		mutex_enter(&zcw->zcw_lock);
 
-		ASSERT3P(zcw->zcw_lwb, ==, lwb);
 		zcw->zcw_lwb = NULL;
 		/*
 		 * We expect any ZIO errors from child ZIOs to have been
@@ -1450,6 +1458,7 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 
 		mutex_exit(&zcw->zcw_lock);
 	}
+	list_destroy(&waiters);
 
 	mutex_enter(&zilog->zl_lwb_io_lock);
 	txg = lwb->lwb_issued_txg;
