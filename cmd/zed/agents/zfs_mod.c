@@ -1288,17 +1288,14 @@ zfs_slm_fini(void)
 		tpool_destroy(g_tpool);
 	}
 
-	while ((pool = (list_head(&g_pool_list))) != NULL) {
-		list_remove(&g_pool_list, pool);
+	while ((pool = list_remove_head(&g_pool_list)) != NULL) {
 		zpool_close(pool->uap_zhp);
 		free(pool);
 	}
 	list_destroy(&g_pool_list);
 
-	while ((device = (list_head(&g_device_list))) != NULL) {
-		list_remove(&g_device_list, device);
+	while ((device = list_remove_head(&g_device_list)) != NULL)
 		free(device);
-	}
 	list_destroy(&g_device_list);
 
 	libzfs_fini(g_zfshdl);

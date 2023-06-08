@@ -293,17 +293,16 @@ vdev_indirect_map_free(zio_t *zio)
 	indirect_vsd_t *iv = zio->io_vsd;
 
 	indirect_split_t *is;
-	while ((is = list_head(&iv->iv_splits)) != NULL) {
+	while ((is = list_remove_head(&iv->iv_splits)) != NULL) {
 		for (int c = 0; c < is->is_children; c++) {
 			indirect_child_t *ic = &is->is_child[c];
 			if (ic->ic_data != NULL)
 				abd_free(ic->ic_data);
 		}
-		list_remove(&iv->iv_splits, is);
 
 		indirect_child_t *ic;
-		while ((ic = list_head(&is->is_unique_child)) != NULL)
-			list_remove(&is->is_unique_child, ic);
+		while ((ic = list_remove_head(&is->is_unique_child)) != NULL)
+			;
 
 		list_destroy(&is->is_unique_child);
 
@@ -1659,8 +1658,8 @@ out:
 	for (indirect_split_t *is = list_head(&iv->iv_splits);
 	    is != NULL; is = list_next(&iv->iv_splits, is)) {
 		indirect_child_t *ic;
-		while ((ic = list_head(&is->is_unique_child)) != NULL)
-			list_remove(&is->is_unique_child, ic);
+		while ((ic = list_remove_head(&is->is_unique_child)) != NULL)
+			;
 
 		is->is_unique_children = 0;
 	}

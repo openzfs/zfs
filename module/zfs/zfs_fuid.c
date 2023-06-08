@@ -699,19 +699,15 @@ zfs_fuid_info_free(zfs_fuid_info_t *fuidp)
 	zfs_fuid_t *zfuid;
 	zfs_fuid_domain_t *zdomain;
 
-	while ((zfuid = list_head(&fuidp->z_fuids)) != NULL) {
-		list_remove(&fuidp->z_fuids, zfuid);
+	while ((zfuid = list_remove_head(&fuidp->z_fuids)) != NULL)
 		kmem_free(zfuid, sizeof (zfs_fuid_t));
-	}
 
 	if (fuidp->z_domain_table != NULL)
 		kmem_free(fuidp->z_domain_table,
 		    (sizeof (char *)) * fuidp->z_domain_cnt);
 
-	while ((zdomain = list_head(&fuidp->z_domains)) != NULL) {
-		list_remove(&fuidp->z_domains, zdomain);
+	while ((zdomain = list_remove_head(&fuidp->z_domains)) != NULL)
 		kmem_free(zdomain, sizeof (zfs_fuid_domain_t));
-	}
 
 	kmem_free(fuidp, sizeof (zfs_fuid_info_t));
 }

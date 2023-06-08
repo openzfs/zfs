@@ -7866,8 +7866,7 @@ arc_fini(void)
 	taskq_destroy(arc_prune_taskq);
 
 	mutex_enter(&arc_prune_mtx);
-	while ((p = list_head(&arc_prune_list)) != NULL) {
-		list_remove(&arc_prune_list, p);
+	while ((p = list_remove_head(&arc_prune_list)) != NULL) {
 		zfs_refcount_remove(&p->p_refcnt, &arc_prune_list);
 		zfs_refcount_destroy(&p->p_refcnt);
 		kmem_free(p, sizeof (*p));
@@ -8324,20 +8323,14 @@ out:
 static void
 l2arc_do_free_on_write(void)
 {
-	list_t *buflist;
-	l2arc_data_free_t *df, *df_prev;
+	l2arc_data_free_t *df;
 
 	mutex_enter(&l2arc_free_on_write_mtx);
-	buflist = l2arc_free_on_write;
-
-	for (df = list_tail(buflist); df; df = df_prev) {
-		df_prev = list_prev(buflist, df);
+	while ((df = list_remove_head(l2arc_free_on_write)) != NULL) {
 		ASSERT3P(df->l2df_abd, !=, NULL);
 		abd_free(df->l2df_abd);
-		list_remove(buflist, df);
 		kmem_free(df, sizeof (l2arc_data_free_t));
 	}
-
 	mutex_exit(&l2arc_free_on_write_mtx);
 }
 

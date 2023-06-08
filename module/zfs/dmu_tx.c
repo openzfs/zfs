@@ -1396,8 +1396,7 @@ dmu_tx_do_callbacks(list_t *cb_list, int error)
 {
 	dmu_tx_callback_t *dcb;
 
-	while ((dcb = list_tail(cb_list)) != NULL) {
-		list_remove(cb_list, dcb);
+	while ((dcb = list_remove_tail(cb_list)) != NULL) {
 		dcb->dcb_func(dcb->dcb_data, error);
 		kmem_free(dcb, sizeof (dmu_tx_callback_t));
 	}

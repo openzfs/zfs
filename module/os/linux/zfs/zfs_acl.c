@@ -493,10 +493,8 @@ zfs_acl_release_nodes(zfs_acl_t *aclp)
 {
 	zfs_acl_node_t *aclnode;
 
-	while ((aclnode = list_head(&aclp->z_acl))) {
-		list_remove(&aclp->z_acl, aclnode);
+	while ((aclnode = list_remove_head(&aclp->z_acl)))
 		zfs_acl_node_free(aclnode);
-	}
 	aclp->z_acl_count = 0;
 	aclp->z_acl_bytes = 0;
 }

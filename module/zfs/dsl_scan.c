@@ -3437,10 +3437,8 @@ scan_io_queues_run_one(void *arg)
 	 * If we were suspended in the middle of processing,
 	 * requeue any unfinished sios and exit.
 	 */
-	while ((sio = list_head(&sio_list)) != NULL) {
-		list_remove(&sio_list, sio);
+	while ((sio = list_remove_head(&sio_list)) != NULL)
 		scan_io_queue_insert_impl(queue, sio);
-	}
 
 	queue->q_zio = NULL;
 	mutex_exit(q_lock);

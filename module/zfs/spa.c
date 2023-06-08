@@ -1609,16 +1609,16 @@ spa_unload_log_sm_metadata(spa_t *spa)
 {
 	void *cookie = NULL;
 	spa_log_sm_t *sls;
+	log_summary_entry_t *e;
+
 	while ((sls = avl_destroy_nodes(&spa->spa_sm_logs_by_txg,
 	    &cookie)) != NULL) {
 		VERIFY0(sls->sls_mscount);
 		kmem_free(sls, sizeof (spa_log_sm_t));
 	}
 
-	for (log_summary_entry_t *e = list_head(&spa->spa_log_summary);
-	    e != NULL; e = list_head(&spa->spa_log_summary)) {
+	while ((e = list_remove_head(&spa->spa_log_summary)) != NULL) {
 		VERIFY0(e->lse_mscount);
-		list_remove(&spa->spa_log_summary, e);
 		kmem_free(e, sizeof (log_summary_entry_t));
 	}
 

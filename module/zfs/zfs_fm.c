@@ -1522,9 +1522,8 @@ zfs_ereport_fini(void)
 {
 	recent_events_node_t *entry;
 
-	while ((entry = list_head(&recent_events_list)) != NULL) {
+	while ((entry = list_remove_head(&recent_events_list)) != NULL) {
 		avl_remove(&recent_events_tree, entry);
-		list_remove(&recent_events_list, entry);
 		kmem_free(entry, sizeof (*entry));
 	}
 	avl_destroy(&recent_events_tree);
