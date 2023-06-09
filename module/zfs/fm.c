@@ -148,8 +148,7 @@ zfs_zevent_drain(zevent_t *ev)
 	list_remove(&zevent_list, ev);
 
 	/* Remove references to this event in all private file data */
-	while ((ze = list_head(&ev->ev_ze_list)) != NULL) {
-		list_remove(&ev->ev_ze_list, ze);
+	while ((ze = list_remove_head(&ev->ev_ze_list)) != NULL) {
 		ze->ze_zevent = NULL;
 		ze->ze_dropped++;
 	}

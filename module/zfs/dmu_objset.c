@@ -1755,9 +1755,8 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 	taskq_wait(dmu_objset_pool(os)->dp_sync_taskq);
 
 	list = &DMU_META_DNODE(os)->dn_dirty_records[txgoff];
-	while ((dr = list_head(list)) != NULL) {
+	while ((dr = list_remove_head(list)) != NULL) {
 		ASSERT0(dr->dr_dbuf->db_level);
-		list_remove(list, dr);
 		zio_nowait(dr->dr_zio);
 	}
 

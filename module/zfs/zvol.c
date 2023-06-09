@@ -1203,8 +1203,7 @@ zvol_create_minors_recursive(const char *name)
 	 * Prefetch is completed, we can do zvol_os_create_minor
 	 * sequentially.
 	 */
-	while ((job = list_head(&minors_list)) != NULL) {
-		list_remove(&minors_list, job);
+	while ((job = list_remove_head(&minors_list)) != NULL) {
 		if (!job->error)
 			(void) zvol_os_create_minor(job->name);
 		kmem_strfree(job->name);
@@ -1311,10 +1310,8 @@ zvol_remove_minors_impl(const char *name)
 	rw_exit(&zvol_state_lock);
 
 	/* Drop zvol_state_lock before calling zvol_free() */
-	while ((zv = list_head(&free_list)) != NULL) {
-		list_remove(&free_list, zv);
+	while ((zv = list_remove_head(&free_list)) != NULL)
 		zvol_os_free(zv);
-	}
 }
 
 /* Remove minor for this specific volume only */

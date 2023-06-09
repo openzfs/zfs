@@ -369,9 +369,7 @@ zfs_agent_consumer_thread(void *arg)
 			return (NULL);
 		}
 
-		if ((event = (list_head(&agent_events))) != NULL) {
-			list_remove(&agent_events, event);
-
+		if ((event = list_remove_head(&agent_events)) != NULL) {
 			(void) pthread_mutex_unlock(&agent_lock);
 
 			/* dispatch to all event subscribers */
@@ -434,8 +432,7 @@ zfs_agent_fini(void)
 	(void) pthread_join(g_agents_tid, NULL);
 
 	/* drain any pending events */
-	while ((event = (list_head(&agent_events))) != NULL) {
-		list_remove(&agent_events, event);
+	while ((event = list_remove_head(&agent_events)) != NULL) {
 		nvlist_free(event->ae_nvl);
 		free(event);
 	}

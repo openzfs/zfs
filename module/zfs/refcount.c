@@ -88,14 +88,11 @@ zfs_refcount_destroy_many(zfs_refcount_t *rc, uint64_t number)
 	reference_t *ref;
 
 	ASSERT3U(rc->rc_count, ==, number);
-	while ((ref = list_head(&rc->rc_list))) {
-		list_remove(&rc->rc_list, ref);
+	while ((ref = list_remove_head(&rc->rc_list)))
 		kmem_cache_free(reference_cache, ref);
-	}
 	list_destroy(&rc->rc_list);
 
-	while ((ref = list_head(&rc->rc_removed))) {
-		list_remove(&rc->rc_removed, ref);
+	while ((ref = list_remove_head(&rc->rc_removed))) {
 		kmem_cache_free(reference_history_cache, ref->ref_removed);
 		kmem_cache_free(reference_cache, ref);
 	}
