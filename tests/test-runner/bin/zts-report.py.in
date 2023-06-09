@@ -173,6 +173,7 @@ if sys.platform.startswith('freebsd'):
         'link_count/link_count_001': ['SKIP', na_reason],
         'casenorm/mixed_create_failure': ['FAIL', 13215],
         'mmap/mmap_sync_001_pos': ['SKIP', na_reason],
+        'rsend/send_raw_ashift': ['SKIP', 14961],
     })
 elif sys.platform.startswith('linux'):
     known.update({
