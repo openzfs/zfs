@@ -114,6 +114,7 @@ enum ddt_phys_type {
  * In-core ddt entry
  */
 struct ddt_entry {
+	/* key must be first for ddt_key_compare */
 	ddt_key_t	dde_key;
 	ddt_phys_t	dde_phys[DDT_PHYS_TYPES];
 	zio_t		*dde_lead_zio[DDT_PHYS_TYPES];
@@ -230,7 +231,7 @@ extern boolean_t ddt_class_contains(spa_t *spa, enum ddt_class max_class,
 extern ddt_entry_t *ddt_repair_start(ddt_t *ddt, const blkptr_t *bp);
 extern void ddt_repair_done(ddt_t *ddt, ddt_entry_t *dde);
 
-extern int ddt_entry_compare(const void *x1, const void *x2);
+extern int ddt_key_compare(const void *x1, const void *x2);
 
 extern void ddt_create(spa_t *spa);
 extern int ddt_load(spa_t *spa);
