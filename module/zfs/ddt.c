@@ -628,7 +628,8 @@ ddt_remove(ddt_t *ddt, ddt_entry_t *dde)
 ddt_entry_t *
 ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 {
-	ddt_entry_t *dde, dde_search;
+	ddt_key_t search;
+	ddt_entry_t *dde;
 	enum ddt_type type;
 	enum ddt_class class;
 	avl_index_t where;
@@ -636,13 +637,13 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 
 	ASSERT(MUTEX_HELD(&ddt->ddt_lock));
 
-	ddt_key_fill(&dde_search.dde_key, bp);
+	ddt_key_fill(&search, bp);
 
-	dde = avl_find(&ddt->ddt_tree, &dde_search, &where);
+	dde = avl_find(&ddt->ddt_tree, &search, &where);
 	if (dde == NULL) {
 		if (!add)
 			return (NULL);
-		dde = ddt_alloc(&dde_search.dde_key);
+		dde = ddt_alloc(&search);
 		avl_insert(&ddt->ddt_tree, dde, where);
 	}
 
@@ -713,7 +714,8 @@ ddt_prefetch(spa_t *spa, const blkptr_t *bp)
 }
 
 /*
- * Opaque struct used for ddt_key comparison
+ * Key comparison. Any struct wanting to make use of this function must have
+ * the key as the first element.
  */
 #define	DDT_KEY_CMP_LEN	(sizeof (ddt_key_t) / sizeof (uint16_t))
 
@@ -722,12 +724,10 @@ typedef struct ddt_key_cmp {
 } ddt_key_cmp_t;
 
 int
-ddt_entry_compare(const void *x1, const void *x2)
+ddt_key_compare(const void *x1, const void *x2)
 {
-	const ddt_entry_t *dde1 = x1;
-	const ddt_entry_t *dde2 = x2;
-	const ddt_key_cmp_t *k1 = (const ddt_key_cmp_t *)&dde1->dde_key;
-	const ddt_key_cmp_t *k2 = (const ddt_key_cmp_t *)&dde2->dde_key;
+	const ddt_key_cmp_t *k1 = (const ddt_key_cmp_t *)x1;
+	const ddt_key_cmp_t *k2 = (const ddt_key_cmp_t *)x2;
 	int32_t cmp = 0;
 
 	for (int i = 0; i < DDT_KEY_CMP_LEN; i++) {
@@ -748,9 +748,9 @@ ddt_table_alloc(spa_t *spa, enum zio_checksum c)
 	memset(ddt, 0, sizeof (ddt_t));
 
 	mutex_init(&ddt->ddt_lock, NULL, MUTEX_DEFAULT, NULL);
-	avl_create(&ddt->ddt_tree, ddt_entry_compare,
+	avl_create(&ddt->ddt_tree, ddt_key_compare,
 	    sizeof (ddt_entry_t), offsetof(ddt_entry_t, dde_node));
-	avl_create(&ddt->ddt_repair_tree, ddt_entry_compare,
+	avl_create(&ddt->ddt_repair_tree, ddt_key_compare,
 	    sizeof (ddt_entry_t), offsetof(ddt_entry_t, dde_node));
 	ddt->ddt_checksum = c;
 	ddt->ddt_spa = spa;
