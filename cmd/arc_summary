@@ -64,7 +64,6 @@ SECTION_HELP = 'print info from one section ('+' '.join(SECTIONS)+')'
 SECTION_PATHS = {'arc': 'arcstats',
                  'dmu': 'dmu_tx',
                  'l2arc': 'arcstats',  # L2ARC stuff lives in arcstats
-                 'vdev': 'vdev_cache_stats',
                  'zfetch': 'zfetchstats',
                  'zil': 'zil'}
 
@@ -89,8 +88,6 @@ ARGS = parser.parse_args()
 if sys.platform.startswith('freebsd'):
     # Requires py36-sysctl on FreeBSD
     import sysctl
-
-    VDEV_CACHE_SIZE = 'vdev.cache_size'
 
     def is_value(ctl):
         return ctl.type != sysctl.CTLTYPE_NODE
@@ -134,8 +131,6 @@ elif sys.platform.startswith('linux'):
     KSTAT_PATH = '/proc/spl/kstat/zfs'
     SPL_PATH = '/sys/module/spl/parameters'
     TUNABLES_PATH = '/sys/module/zfs/parameters'
-
-    VDEV_CACHE_SIZE = 'zfs_vdev_cache_size'
 
     def load_kstats(section):
         path = os.path.join(KSTAT_PATH, section)
@@ -952,35 +947,6 @@ def section_tunables(*_):
     print()
 
 
-def section_vdev(kstats_dict):
-    """Collect information on VDEV caches"""
-
-    # Currently [Nov 2017] the VDEV cache is disabled, because it is actually
-    # harmful. When this is the case, we just skip the whole entry. See
-    # https://github.com/openzfs/zfs/blob/master/module/zfs/vdev_cache.c
-    # for details
-    tunables = get_vdev_params()
-
-    if tunables[VDEV_CACHE_SIZE] == '0':
-        print('VDEV cache disabled, skipping section\n')
-        return
-
-    vdev_stats = isolate_section('vdev_cache_stats', kstats_dict)
-
-    vdev_cache_total = int(vdev_stats['hits']) +\
-        int(vdev_stats['misses']) +\
-        int(vdev_stats['delegations'])
-
-    prt_1('VDEV cache summary:', f_hits(vdev_cache_total))
-    prt_i2('Hit ratio:', f_perc(vdev_stats['hits'], vdev_cache_total),
-           f_hits(vdev_stats['hits']))
-    prt_i2('Miss ratio:', f_perc(vdev_stats['misses'], vdev_cache_total),
-           f_hits(vdev_stats['misses']))
-    prt_i2('Delegations:', f_perc(vdev_stats['delegations'], vdev_cache_total),
-           f_hits(vdev_stats['delegations']))
-    print()
-
-
 def section_zil(kstats_dict):
     """Collect information on the ZFS Intent Log. Some of the information
     taken from https://github.com/openzfs/zfs/blob/master/include/sys/zil.h
@@ -1008,7 +974,6 @@ section_calls = {'arc': section_arc,
                  'l2arc': section_l2arc,
                  'spl': section_spl,
                  'tunables': section_tunables,
-                 'vdev': section_vdev,
                  'zil': section_zil}
 
 

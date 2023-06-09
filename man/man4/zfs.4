@@ -2028,21 +2028,6 @@ Max vdev I/O aggregation size.
 .It Sy zfs_vdev_aggregation_limit_non_rotating Ns = Ns Sy 131072 Ns B Po 128 KiB Pc Pq uint
 Max vdev I/O aggregation size for non-rotating media.
 .
-.It Sy zfs_vdev_cache_bshift Ns = Ns Sy 16 Po 64 KiB Pc Pq uint
-Shift size to inflate reads to.
-.
-.It Sy zfs_vdev_cache_max Ns = Ns Sy 16384 Ns B Po 16 KiB Pc Pq uint
-Inflate reads smaller than this value to meet the
-.Sy zfs_vdev_cache_bshift
-size
-.Pq default Sy 64 KiB .
-.
-.It Sy zfs_vdev_cache_size Ns = Ns Sy 0 Pq uint
-Total size of the per-disk cache in bytes.
-.Pp
-Currently this feature is disabled, as it has been found to not be helpful
-for performance and in some cases harmful.
-.
 .It Sy zfs_vdev_mirror_rotating_inc Ns = Ns Sy 0 Pq int
 A number by which the balancing algorithm increments the load calculation for
 the purpose of selecting the least busy mirror member when an I/O operation

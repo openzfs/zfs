@@ -135,7 +135,6 @@ nodist_libzpool_la_SOURCES = \
 	module/zfs/uberblock.c \
 	module/zfs/unique.c \
 	module/zfs/vdev.c \
-	module/zfs/vdev_cache.c \
 	module/zfs/vdev_draid.c \
 	module/zfs/vdev_draid_rand.c \
 	module/zfs/vdev_indirect.c \
