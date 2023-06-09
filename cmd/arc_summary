@@ -842,7 +842,8 @@ def section_l2arc(kstats_dict):
                ('Free on write:', 'l2_free_on_write'),
                ('R/W clashes:', 'l2_rw_clash'),
                ('Bad checksums:', 'l2_cksum_bad'),
-               ('I/O errors:', 'l2_io_error'))
+               ('Read errors:', 'l2_io_error'),
+               ('Write errors:', 'l2_writes_error'))
 
     for title, value in l2_todo:
         prt_i1(title, f_hits(arc_stats[value]))
@@ -878,28 +879,20 @@ def section_l2arc(kstats_dict):
     prt_i2('Miss ratio:',
            f_perc(arc_stats['l2_misses'], l2_access_total),
            f_hits(arc_stats['l2_misses']))
-    prt_i1('Feeds:', f_hits(arc_stats['l2_feeds']))
 
     print()
-    print('L2ARC writes:')
-
-    if arc_stats['l2_writes_done'] != arc_stats['l2_writes_sent']:
-        prt_i2('Writes sent:', 'FAULTED', f_hits(arc_stats['l2_writes_sent']))
-        prt_i2('Done ratio:',
-               f_perc(arc_stats['l2_writes_done'],
-                      arc_stats['l2_writes_sent']),
-               f_hits(arc_stats['l2_writes_done']))
-        prt_i2('Error ratio:',
-               f_perc(arc_stats['l2_writes_error'],
-                      arc_stats['l2_writes_sent']),
-               f_hits(arc_stats['l2_writes_error']))
-    else:
-        prt_i2('Writes sent:', '100 %', f_hits(arc_stats['l2_writes_sent']))
+    print('L2ARC I/O:')
+    prt_i2('Reads:',
+           f_bytes(arc_stats['l2_read_bytes']),
+           f_hits(arc_stats['l2_hits']))
+    prt_i2('Writes:',
+           f_bytes(arc_stats['l2_write_bytes']),
+           f_hits(arc_stats['l2_writes_sent']))
 
     print()
     print('L2ARC evicts:')
-    prt_i1('Lock retries:', f_hits(arc_stats['l2_evict_lock_retry']))
-    prt_i1('Upon reading:', f_hits(arc_stats['l2_evict_reading']))
+    prt_i1('L1 cached:', f_hits(arc_stats['l2_evict_l1cached']))
+    prt_i1('While reading:', f_hits(arc_stats['l2_evict_reading']))
     print()
 
 
