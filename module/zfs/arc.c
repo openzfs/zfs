@@ -8206,7 +8206,7 @@ l2arc_write_size(l2arc_dev_t *dev)
 	 * device. This is important in l2arc_evict(), otherwise infinite
 	 * iteration can occur.
 	 */
-	if (size >= dev->l2ad_end - dev->l2ad_start) {
+	if (size > dev->l2ad_end - dev->l2ad_start) {
 		cmn_err(CE_NOTE, "l2arc_write_max or l2arc_write_boost "
 		    "plus the overhead of log blocks (persistent L2ARC, "
 		    "%llu bytes) exceeds the size of the cache device "
@@ -8215,6 +8215,11 @@ l2arc_write_size(l2arc_dev_t *dev)
 		    (u_longlong_t)dev->l2ad_vdev->vdev_guid, L2ARC_WRITE_SIZE);
 
 		size = l2arc_write_max = l2arc_write_boost = L2ARC_WRITE_SIZE;
+
+		if (l2arc_trim_ahead > 1) {
+			cmn_err(CE_NOTE, "l2arc_trim_ahead set to 1");
+			l2arc_trim_ahead = 1;
+		}
 
 		if (arc_warm == B_FALSE)
 			size += l2arc_write_boost;
@@ -8842,7 +8847,7 @@ l2arc_evict(l2arc_dev_t *dev, uint64_t distance, boolean_t all)
 
 top:
 	rerun = B_FALSE;
-	if (dev->l2ad_hand >= (dev->l2ad_end - distance)) {
+	if (dev->l2ad_hand + distance > dev->l2ad_end) {
 		/*
 		 * When there is no space to accommodate upcoming writes,
 		 * evict to the end. Then bump the write and evict hands
@@ -9036,7 +9041,7 @@ out:
 		 */
 		ASSERT3U(dev->l2ad_hand + distance, <, dev->l2ad_end);
 		if (!dev->l2ad_first)
-			ASSERT3U(dev->l2ad_hand, <, dev->l2ad_evict);
+			ASSERT3U(dev->l2ad_hand, <=, dev->l2ad_evict);
 	}
 }
 
@@ -9296,7 +9301,13 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 			uint64_t asize = vdev_psize_to_asize(dev->l2ad_vdev,
 			    psize);
 
-			if ((write_asize + asize) > target_sz) {
+			/*
+			 * If the allocated size of this buffer plus the max
+			 * size for the pending log block exceeds the evicted
+			 * target size, terminate writing buffers for this run.
+			 */
+			if (write_asize + asize +
+			    sizeof (l2arc_log_blk_phys_t) > target_sz) {
 				full = B_TRUE;
 				mutex_exit(hash_lock);
 				break;
@@ -9412,7 +9423,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 			 */
 			if (l2arc_log_blk_insert(dev, hdr)) {
 				/*
-				 * l2ad_hand has been accounted for in
+				 * l2ad_hand will be adjusted in
 				 * l2arc_log_blk_commit().
 				 */
 				write_asize +=
