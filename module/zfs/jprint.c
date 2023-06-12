@@ -22,7 +22,7 @@
 #endif
 
 /* literal key length maximum */
-#define	KEYLEN		5
+#define	KEYLEN		255
 
 /* return error position (call number of jp_printf) */
 int
