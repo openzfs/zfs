@@ -10,19 +10,19 @@
 /* #include "jprint.h" */
 
 /* Do not support %g format. Just %d and %l for integers (if set) */
-#define NO_DOUBLE 1
+#define	 NO_DOUBLE	1
 
 /* Use %g instead of %e for double format */
-#define USE_G 1
+#define	USE_G		1
 
 /* Formats for int64_t and uint64_t */
 #ifndef PRId64
-#define PRId64 "lld" /* %D, int64_t */
-#define PRIu64 "llu" /* %U, uint64_t*/
+#define	PRId64		"lld"	/* %D, int64_t */
+#define	PRIu64		"llu"	/* %U, uint64_t */
 #endif
 
 /* literal key length maximum */
-#define KEYLEN 255
+#define	KEYLEN		5
 
 /* return error position (call number of jp_printf) */
 int
@@ -36,17 +36,17 @@ const char *
 jp_errorstring(int err)
 {
 	switch (err) {
-	case JPRINT_OK:          return "jprint ok";
-	case JPRINT_BUF_FULL:    return "jprint buffer full";
-	case JPRINT_NEST_ERROR:  return "jprint nest error";
-	case JPRINT_STACK_FULL:  return "jprint stack full";
-	case JPRINT_STACK_EMPTY: return "jprint stack empty";
-	case JPRINT_OPEN:        return "jprint open";
-	case JPRINT_FMT:         return "jprint format";
-	case JPRINT_NO_DOUBLE:   return "jprint no double support";
-	default:                 return "jprint unknown error";
+	case JPRINT_OK:			return "jprint ok";
+	case JPRINT_BUF_FULL:		return "jprint buffer full";
+	case JPRINT_NEST_ERROR:		return "jprint nest error";
+	case JPRINT_STACK_FULL:		return "jprint stack full";
+	case JPRINT_STACK_EMPTY:	return "jprint stack empty";
+	case JPRINT_OPEN:		return "jprint open";
+	case JPRINT_FMT:		return "jprint format";
+	case JPRINT_NO_DOUBLE:		return "jprint no double support";
+	default:			return "jprint unknown error";
 	}
-	return "jprint unknown error";
+	return ("jprint unknown error");
 }
 
 /* return error from jprint_t */
@@ -74,7 +74,7 @@ int
 jp_close(jprint_t *jp)
 {
 	if (jp->error != JPRINT_OK)
-	    return (jp->error);
+		return (jp->error);
 	if (jp->stackp != -1)
 		jp->error = JPRINT_OPEN;
 	return (jp->error);
@@ -118,51 +118,51 @@ jp_putsq(jprint_t *jp, char *s)
 	}
 	jp_putc(jp, '\"');
 	while (*s && (jp->error == JPRINT_OK)) {
-                c = (int)*s++;
-                /* formfeed, newline, return, tab, backspace */
-                if (c == 12)
-                        jp_puts(jp, (char *)"\\f");
-                else if (c == 10)
-                        jp_puts(jp, (char *)"\\n");
-                else if (c == 13)
-                        jp_puts(jp, (char *)"\\r");
-                else if (c == 9)
-                        jp_puts(jp, (char *)"\\t");
-                else if (c == 8)
-                        jp_puts(jp, (char *)"\\b");
-               /*
-		* all characters from 0x00 to 0x1f, and 0x7f are
-                * escaped as: \u00xx
-                */
-                else if (((0 <= c) && (c <= 0x1f)) || (c == 0x7f)) {
-                        jp_puts(jp, (char *)"\\u00");
-                        jp_putc(jp, hex[(c >> 4) & 0x0f]);
-                        jp_putc(jp, hex[c & 0x0f]);
-                /* * " \ / */
-                } else if (c == '"')
-                        jp_puts(jp, (char *)"\\\"");
-                else if (c == '\\')
-                        jp_puts(jp, (char *)"\\\\");
-                else if (c == '/')
-                        jp_puts(jp, (char *)"\\/");
-                /*
+		c = (int)*s++;
+		/* formfeed, newline, return, tab, backspace */
+		if (c == 12)
+			jp_puts(jp, (char *)"\\f");
+		else if (c == 10)
+			jp_puts(jp, (char *)"\\n");
+		else if (c == 13)
+			jp_puts(jp, (char *)"\\r");
+		else if (c == 9)
+			jp_puts(jp, (char *)"\\t");
+		else if (c == 8)
+			jp_puts(jp, (char *)"\\b");
+		/*
+		 * all characters from 0x00 to 0x1f, and 0x7f are
+		 * escaped as: \u00xx
+		 */
+		else if (((0 <= c) && (c <= 0x1f)) || (c == 0x7f)) {
+			jp_puts(jp, (char *)"\\u00");
+			jp_putc(jp, hex[(c >> 4) & 0x0f]);
+			jp_putc(jp, hex[c & 0x0f]);
+		/* * " \ / */
+		} else if (c == '"')
+			jp_puts(jp, (char *)"\\\"");
+		else if (c == '\\')
+			jp_puts(jp, (char *)"\\\\");
+		else if (c == '/')
+			jp_puts(jp, (char *)"\\/");
+		/*
 		 * all other printable characters ' ' to '~', and
-                 * any utf-8 sequences (high bit set):
-                 * 1xxxxxxx 10xxxxxx ...
-                 * is a utf-8 sequence (10xxxxxx may occur 1 to 3 times).
-                 * Note that this is simply distinguished here as high
-                 * bit set.
-                 */
-                else
+		 * any utf-8 sequences (high bit set):
+		 * 1xxxxxxx 10xxxxxx ...
+		 * is a utf-8 sequence (10xxxxxx may occur 1 to 3 times).
+		 * Note that this is simply distinguished here as high
+		 * bit set.
+		 */
+		else
 			jp_putc(jp, (char)c);
-        }
+	}
 	jp_putc(jp, '\"');
 }
 
 
 /* put out key if object open. error if nothing open */
 static int
-jp_key(jprint_t *jp, char *key) 
+jp_key(jprint_t *jp, char *key)
 {
 	if (jp->error != JPRINT_OK)
 		goto err;
@@ -323,7 +323,7 @@ jp_printf(jprint_t *jp, const char *fmt, ...)
 					 */
 					i = snprintf(
 					    jp->tmpbuf, sizeof (jp->tmpbuf),
-				            "%g", x);
+					    "%g", x);
 #else
 					/*
 					 * double has 15 places:
@@ -331,7 +331,7 @@ jp_printf(jprint_t *jp, const char *fmt, ...)
 					 */
 					i = snprintf(
 					    jp->tmpbuf, sizeof (jp->tmpbuf),
-				            "%21.14e", x);
+					    "%21.14e", x);
 #endif
 					if ((i >= sizeof (jp->tmpbuf)) ||
 					    (i < 0))
@@ -349,8 +349,9 @@ jp_printf(jprint_t *jp, const char *fmt, ...)
 				}
 				if (jp_key(jp, key) == JPRINT_OK) {
 					b = (boolean_t)va_arg(ap, int);
-					s = b ? (char *)"true" :
-					        (char *)"false";
+					s = b ?
+					    (char *)"true" :
+					    (char *)"false";
 					jp_puts(jp, s);
 				}
 				key[k = 0] = '\0';
@@ -440,7 +441,6 @@ jp_printf(jprint_t *jp, const char *fmt, ...)
 	va_end(ap);
 	if (jp->error != JPRINT_OK)
 		return (-1);
-	
+
 	return (int)(jp->bufp - start);
 }
-

@@ -1598,7 +1598,9 @@ zfs_ioc_pool_configs(zfs_cmd_t *zc)
 	int error;
 
 	if (fmgw_debug != 0)
-	    zfs_dbgmsg("fmgw -- calling spa_all_configs, which takes spa_namespace_lock");
+		zfs_dbgmsg(
+		    "fmgw -- calling spa_all_configs,"
+		    "which takes spa_namespace_lock");
 	if ((configs = spa_all_configs(&zc->zc_cookie)) == NULL)
 		return (SET_ERROR(EEXIST));
 
@@ -7475,8 +7477,6 @@ zfsdev_ioctl_common(uint_t vecnum, zfs_cmd_t *zc, int flag)
 	if (vec->zvec_func == NULL && vec->zvec_legacy_func == NULL)
 		return (SET_ERROR(ZFS_ERR_IOC_CMD_UNAVAIL));
 
-//	if (fmgw_debug != 0)
-//		zfs_dbgmsg("enter ioctl, %d %x %s", vecnum, vecnum, fmgw_zioctl(vecnum + ZFS_IOC_FIRST));
 	zc->zc_iflags = flag & FKIOCTL;
 	max_nvlist_src_size = zfs_max_nvlist_src_size_os();
 	if (zc->zc_nvlist_src_size > max_nvlist_src_size) {
