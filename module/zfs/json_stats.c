@@ -12,8 +12,10 @@
 #include <sys/json_stats.h>
 #include <sys/nvpair_impl.h>
 
-/* */
-void json_stats_destroy(spa_t *spa)
+#define	JSON_STATUS_VERSION	4
+
+void
+json_stats_destroy(spa_t *spa)
 {
 	spa_history_kstat_t *shk = &spa->spa_json_stats.kstat;
 	kstat_t *ksp = shk->kstat;
@@ -30,46 +32,183 @@ void json_stats_destroy(spa_t *spa)
  * Return string for datatype -- this guides us in implementing
  * json translation. This is only because I find it easier to read...
  */
-static const char *datatype_string(data_type_t t) {
+static const char *
+datatype_string(data_type_t t)
+{
 	switch (t) {
-	case DATA_TYPE_UNKNOWN:       return "DATA_TYPE_UNKNOWN";
-	case DATA_TYPE_BOOLEAN:       return "DATA_TYPE_BOOLEAN";
-	case DATA_TYPE_BYTE:          return "DATA_TYPE_BYTE";
-	case DATA_TYPE_INT16:         return "DATA_TYPE_INT16";
-	case DATA_TYPE_UINT16:        return "DATA_TYPE_UINT16";
-	case DATA_TYPE_INT32:         return "DATA_TYPE_INT32";
-	case DATA_TYPE_UINT32:        return "DATA_TYPE_UINT32";
-	case DATA_TYPE_INT64:         return "DATA_TYPE_INT64";
-	case DATA_TYPE_UINT64:        return "DATA_TYPE_UINT64";
-	case DATA_TYPE_STRING:        return "DATA_TYPE_STRING";
-	case DATA_TYPE_BYTE_ARRAY:    return "DATA_TYPE_BYTE_ARRAY";
-	case DATA_TYPE_INT16_ARRAY:   return "DATA_TYPE_INT16_ARRAY";
-	case DATA_TYPE_UINT16_ARRAY:  return "DATA_TYPE_UINT16_ARRAY";
-	case DATA_TYPE_INT32_ARRAY:   return "DATA_TYPE_INT32_ARRAY";
-	case DATA_TYPE_UINT32_ARRAY:  return "DATA_TYPE_UINT32_ARRAY";
-	case DATA_TYPE_INT64_ARRAY:   return "DATA_TYPE_INT64_ARRAY";
-	case DATA_TYPE_UINT64_ARRAY:  return "DATA_TYPE_UINT64_ARRAY";
-	case DATA_TYPE_STRING_ARRAY:  return "DATA_TYPE_STRING_ARRAY";
-	case DATA_TYPE_HRTIME:        return "DATA_TYPE_HRTIME";
-	case DATA_TYPE_NVLIST:        return "DATA_TYPE_NVLIST";
-	case DATA_TYPE_NVLIST_ARRAY:  return "DATA_TYPE_NVLIST_ARRAY";
-	case DATA_TYPE_BOOLEAN_VALUE: return "DATA_TYPE_BOOLEAN_VALUE";
-	case DATA_TYPE_INT8:          return "DATA_TYPE_INT8";
-	case DATA_TYPE_UINT8:         return "DATA_TYPE_UINT8";
-	case DATA_TYPE_BOOLEAN_ARRAY: return "DATA_TYPE_BOOLEAN_ARRAY";
-	case DATA_TYPE_INT8_ARRAY:    return "DATA_TYPE_INT8_ARRAY";
-	case DATA_TYPE_UINT8_ARRAY:   return "DATA_TYPE_UINT8_ARRAY";
-	default:                      return "UNKNOWN";
+	case DATA_TYPE_UNKNOWN:		return "DATA_TYPE_UNKNOWN";
+	case DATA_TYPE_BOOLEAN:		return "DATA_TYPE_BOOLEAN";
+	case DATA_TYPE_BYTE:		return "DATA_TYPE_BYTE";
+	case DATA_TYPE_INT16:		return "DATA_TYPE_INT16";
+	case DATA_TYPE_UINT16:		return "DATA_TYPE_UINT16";
+	case DATA_TYPE_INT32:		return "DATA_TYPE_INT32";
+	case DATA_TYPE_UINT32:		return "DATA_TYPE_UINT32";
+	case DATA_TYPE_INT64:		return "DATA_TYPE_INT64";
+	case DATA_TYPE_UINT64:		return "DATA_TYPE_UINT64";
+	case DATA_TYPE_STRING:		return "DATA_TYPE_STRING";
+	case DATA_TYPE_BYTE_ARRAY:	return "DATA_TYPE_BYTE_ARRAY";
+	case DATA_TYPE_INT16_ARRAY:	return "DATA_TYPE_INT16_ARRAY";
+	case DATA_TYPE_UINT16_ARRAY:	return "DATA_TYPE_UINT16_ARRAY";
+	case DATA_TYPE_INT32_ARRAY:	return "DATA_TYPE_INT32_ARRAY";
+	case DATA_TYPE_UINT32_ARRAY:	return "DATA_TYPE_UINT32_ARRAY";
+	case DATA_TYPE_INT64_ARRAY:	return "DATA_TYPE_INT64_ARRAY";
+	case DATA_TYPE_UINT64_ARRAY:	return "DATA_TYPE_UINT64_ARRAY";
+	case DATA_TYPE_STRING_ARRAY:	return "DATA_TYPE_STRING_ARRAY";
+	case DATA_TYPE_HRTIME:		return "DATA_TYPE_HRTIME";
+	case DATA_TYPE_NVLIST:		return "DATA_TYPE_NVLIST";
+	case DATA_TYPE_NVLIST_ARRAY:	return "DATA_TYPE_NVLIST_ARRAY";
+	case DATA_TYPE_BOOLEAN_VALUE:	return "DATA_TYPE_BOOLEAN_VALUE";
+	case DATA_TYPE_INT8:		return "DATA_TYPE_INT8";
+	case DATA_TYPE_UINT8:		return "DATA_TYPE_UINT8";
+	case DATA_TYPE_BOOLEAN_ARRAY:	return "DATA_TYPE_BOOLEAN_ARRAY";
+	case DATA_TYPE_INT8_ARRAY:	return "DATA_TYPE_INT8_ARRAY";
+	case DATA_TYPE_UINT8_ARRAY:	return "DATA_TYPE_UINT8_ARRAY";
+	default:			return "UNKNOWN";
 	}
 }
 
 /*
- * This code is NOT abstracted -- just some duplication, until I
- * actually understand what is needed.
+ * nvlist_to_json takes a filter function. If the functions returns
+ * B_TRUE, the case has been handled. If it returns B_FALSE, the
+ * case has not been handled, and will be handled. Invoking nvlist_to_json
+ * with a NULL filter chooses the default filter, which does nothing.
+ *
+ * The filtering is passed the jprint_t in case the nesting level is
+ * important, name, data type and value.
  */
-static void nvlist_to_json(nvlist_t *nvl, jprint_t *jp) {
+typedef boolean_t nvj_filter_t(jprint_t *, const char *, data_type_t, void *);
+
+static boolean_t
+null_filter(jprint_t *jp, const char *name, data_type_t type, void *value)
+{
+	jp = jp; name = name; type = type; value = value;
+	return (B_FALSE);
+}
+
+static void nvlist_to_json(nvlist_t *nvl, jprint_t *jp, nvj_filter_t f);
+
+/*
+ * Convert source (src) to string -- up to 105 characters, so pass in 256
+ * byte buffer (for future)
+ */
+static void
+source_to_string(uint64_t src, char *buf)
+{
+	buf[0] = '\0';
+	if (src & ZPROP_SRC_NONE) {
+		if (buf[0] != '\0')
+			strcat(buf, "|");
+		strcat(buf, "ZPROP_SRC_NONE");
+	}
+	if (src & ZPROP_SRC_DEFAULT) {
+		if (buf[0] != '\0')
+			strcat(buf, "|");
+		strcat(buf, "ZPROP_SRC_DEFAULT");
+	}
+	if (src & ZPROP_SRC_TEMPORARY) {
+		if (buf[0] != '\0')
+			strcat(buf, "|");
+		strcat(buf, "ZPROP_SRC_TEMPORARY");
+	}
+	if (src & ZPROP_SRC_INHERITED) {
+		if (buf[0] != '\0')
+			strcat(buf, "|");
+		strcat(buf, "ZPROP_SRC_INHERITED");
+	}
+	if (src & ZPROP_SRC_RECEIVED) {
+		if (buf[0] != '\0')
+			strcat(buf, "|");
+		strcat(buf, "ZPROP_SRC_RECEIVED");
+	}
+}
+
+/*
+ * spa_props_filter replace source: with string. The way source is
+ * defined it could be bitmap -- so generate the | sequence as
+ * needed.
+ */
+static boolean_t
+spa_props_filter(jprint_t *jp, const char *name, data_type_t type, void *value)
+{
+	if ((strcmp(name, "source") == 0) &&
+	    (type == DATA_TYPE_UINT64)) {
+		uint64_t src = *(uint64_t *)value;
+		char buf[256];
+		source_to_string(src, buf);
+		jp_printf(jp, "source: %s", buf);
+		return (B_TRUE);
+	}
+	return (B_FALSE);
+}
+
+/*
+ * stats_filter removes parts of the nvlist we don't want to visit.
+ */
+static boolean_t
+stats_filter(jprint_t *jp, const char *name, data_type_t type, void *value)
+{
+	/*
+	 * Suppress root object state:
+	 */
+	if ((jp->stackp == 0) &&
+	    (type == DATA_TYPE_UINT64) &&
+	    (strcmp(name, "state") == 0))
+		return (B_TRUE);
+
+	/*
+	 * Suppress root object vdev_children: -- we will
+	 * output at one level down.
+	 */
+	if ((jp->stackp == 0) &&
+	    (type == DATA_TYPE_UINT64) &&
+	    (strcmp(name, "vdev_children") == 0))
+		return (B_TRUE);
+
+	/*
+	 * We are going to suppress vdev_tree:, and generate the
+	 * data our rselves.
+	 * It does seem like a bit of a waste going through this
+	 * twice... but for now, this seems prudent.
+	 */
+	if ((jp->stackp == 0) &&
+	    (type == DATA_TYPE_NVLIST) &&
+	    (strcmp(name, "vdev_tree") == 0))
+		return (B_TRUE);
+
+	/*
+	 * Process spa_props:. Here we recurse, but with a filter that
+	 * modifies source.
+	 */
+	if ((jp->stackp == 0) &&
+	    (type == DATA_TYPE_NVLIST) &&
+	    (strcmp(name, "spa_props") == 0)) {
+		jp_printf(jp, "spa_props: {");
+		nvlist_to_json((nvlist_t *)value, jp, spa_props_filter);
+		jp_printf(jp, "}");
+		return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
+/*
+ * This code is NOT hightly abstracted -- just some duplication, until I
+ * actually understand what is needed.
+ *
+ * In avoiding early abstraction, we find the need for a "filter". Which
+ * is now implemented. This does appear in the spirit of other ZFS
+ * coding.
+ */
+static void
+nvlist_to_json(nvlist_t *nvl, jprint_t *jp, nvj_filter_t f)
+{
 	const nvpriv_t *priv;
 	const i_nvp_t *curr;
+	uint64_t *u = NULL;
+	nvlist_t **a = NULL;
+
+	if (f == NULL)
+		f = null_filter;
 
 	if ((priv = (const nvpriv_t *)(uintptr_t)nvl->nvl_priv) == NULL)
 		return;
@@ -79,12 +218,12 @@ static void nvlist_to_json(nvlist_t *nvl, jprint_t *jp) {
 		const char *name = (const char *)NVP_NAME(nvp);
 		data_type_t type = NVP_TYPE(nvp);
 		void *p = NVP_VALUE(nvp);
-		uint64_t *u;
-		nvlist_t **a;
 
 		if (jp_error(jp) != JPRINT_OK)
 			return;
 
+		if (f(jp, name, type, p))
+			continue;
 		switch (type) {
 
 		/*
@@ -107,11 +246,12 @@ static void nvlist_to_json(nvlist_t *nvl, jprint_t *jp) {
 				if (jp_error(jp) != JPRINT_OK)
 					break;
 				jp_printf(jp, "{");
-				nvlist_to_json(a[i], jp);
+				nvlist_to_json(a[i], jp, f);
 				jp_printf(jp, "}");
 			}
 			jp_printf(jp, "]");
 			break;
+
 		/*
 		 * Primitive types
 		 */
@@ -120,6 +260,12 @@ static void nvlist_to_json(nvlist_t *nvl, jprint_t *jp) {
 			break;
 		case DATA_TYPE_INT64:
 			jp_printf(jp, "%k: %D", name, *(int64_t *)p);
+			break;
+		case DATA_TYPE_UINT32:
+			jp_printf(jp, "%k: %u", name, *(uint32_t *)p);
+			break;
+		case DATA_TYPE_INT32:
+			jp_printf(jp, "%k: %d", name, *(int32_t *)p);
 			break;
 		case DATA_TYPE_STRING:
 			jp_printf(jp, "%k: %s", name, (char *)p);
@@ -135,19 +281,15 @@ static void nvlist_to_json(nvlist_t *nvl, jprint_t *jp) {
 		 * Object types
 		 */
 		case DATA_TYPE_NVLIST:
-			/*
-			 * We are going to suppress vdev_tree, and generate
-			 * later -- needs fixing... quick hack for wasabi
-			 */
-			if ((jp->stackp == 0) && (strcmp(name, "vdev_tree") == 0))
-				break;
 			jp_printf(jp, "%k: {", name);
-			nvlist_to_json((nvlist_t *)p , jp);
+			nvlist_to_json((nvlist_t *)p, jp, f);
 			jp_printf(jp, "}");
 			break;
 
 		/*
-		 * Default -- tell us what we are missing
+		 * Default -- tell us what we are missing. This is done to
+		 * simply avoid writing ALL the cases, YAGNI (yah ain't
+		 * gonna need it).
 		 */
 		default:
 			jp_printf(jp, "%k: %s", name, datatype_string(type));
@@ -158,7 +300,26 @@ static void nvlist_to_json(nvlist_t *nvl, jprint_t *jp) {
 	}
 }
 
-static void vdev_to_json(vdev_t *v, pool_scan_stat_t *ps, jprint_t *jp)
+static const char *
+vdev_state_string(uint64_t n)
+{
+	const char *s;
+	switch (n) {
+	case VDEV_STATE_UNKNOWN:	s = "HEALTHY";    break;
+	case VDEV_STATE_CLOSED:		s = "CLOSED";	  break;
+	case VDEV_STATE_OFFLINE:	s = "OFFLINE";    break;
+	case VDEV_STATE_REMOVED:	s = "REMOVED";    break;
+	case VDEV_STATE_CANT_OPEN:	s = "CAN'T OPEN"; break;
+	case VDEV_STATE_FAULTED:	s = "FAULTED";    break;
+	case VDEV_STATE_DEGRADED:	s = "DEGRADED";   break;
+	case VDEV_STATE_HEALTHY:	s = "HEALTHY";    break;
+	default:			s = "?";
+	}
+	return (s);
+}
+
+static void
+vdev_to_json(vdev_t *v, pool_scan_stat_t *ps, jprint_t *jp)
 {
 	uint64_t i, n;
 	vdev_t **a;
@@ -192,39 +353,33 @@ static void vdev_to_json(vdev_t *v, pool_scan_stat_t *ps, jprint_t *jp)
 		if (v->vdev_enc_sysfs_path != NULL)
 			jp_printf(jp, "enc_sysfs_path: %s",
 			    v->vdev_enc_sysfs_path);
-		switch (v->vdev_stat.vs_state) {
-		case VDEV_STATE_UNKNOWN:   s = "HEALTHY";    break;
-		case VDEV_STATE_CLOSED:    s = "CLOSED";     break;
-		case VDEV_STATE_OFFLINE:   s = "OFFLINE";    break;
-		case VDEV_STATE_REMOVED:   s = "REMOVED";    break;
-		case VDEV_STATE_CANT_OPEN: s = "CAN'T OPEN"; break;
-		case VDEV_STATE_FAULTED:   s = "FAULTED";    break;
-		case VDEV_STATE_DEGRADED:  s = "DEGRADED";   break;
-		case VDEV_STATE_HEALTHY:   s = "HEALTHY";    break;
-		default:                   s = "?";
-		}
-		jp_printf(jp, "state: %s", s);
-		/* Try for some of the extended status annotations that
+		jp_printf(jp, "state: %s", vdev_state_string(v->vdev_state));
+		/*
+		 * Try for some of the extended status annotations that
 		 * zpool status provides.
 		 */
 		/* (removing) */
 		jp_printf(jp, "vs_scan_removing: %b",
 		    v->vdev_stat.vs_scan_removing != 0);
-#if 0 /* XXX: The vs_noalloc member is not available in ZFS 2.1.5. */
-		/* (non-allocating) */
-		jp_printf(jp, "vs_noalloc: %b",
-		    v->vdev_stat.vs_noalloc != 0);
-#endif
+		/*
+		 * (non-allocating)
+		 *
+		 * -- for later, wasabi does not support this yet
+		 *
+		 * jp_printf(jp, "vs_noalloc: %b",
+		 *   v->vdev_stat.vs_noalloc != 0);
+		 */
 		/* (awaiting resilver) */
 		jp_printf(jp, "vs_resilver_deferred: %b",
 		    v->vdev_stat.vs_resilver_deferred);
 		s = "none";
 		if ((v->vdev_state == VDEV_STATE_UNKNOWN) ||
-	            (v->vdev_state == VDEV_STATE_HEALTHY)) {
+		    (v->vdev_state == VDEV_STATE_HEALTHY)) {
 			if (v->vdev_stat.vs_scan_processed != 0) {
 				if (ps &&
 				    (ps->pss_state == DSS_SCANNING)) {
-					s = (ps->pss_func == POOL_SCAN_RESILVER) ?
+					s = (ps->pss_func ==
+					    POOL_SCAN_RESILVER) ?
 					    "resilvering" : "repairing";
 				} else if (ps &&
 				    v->vdev_stat.vs_resilver_deferred) {
@@ -237,9 +392,11 @@ static void vdev_to_json(vdev_t *v, pool_scan_stat_t *ps, jprint_t *jp)
 		s = "VDEV_INITIALIZE_NONE";
 		if (v->vdev_stat.vs_initialize_state == VDEV_INITIALIZE_ACTIVE)
 			s = "VDEV_INITIALIZE_ACTIVE";
-		if (v->vdev_stat.vs_initialize_state == VDEV_INITIALIZE_SUSPENDED)
+		if (v->vdev_stat.vs_initialize_state ==
+		    VDEV_INITIALIZE_SUSPENDED)
 			s = "VDEV_INITIALIZE_SUSPENDED";
-		if (v->vdev_stat.vs_initialize_state == VDEV_INITIALIZE_COMPLETE)
+		if (v->vdev_stat.vs_initialize_state ==
+		    VDEV_INITIALIZE_COMPLETE)
 			s = "VDEV_INITIALIZE_COMPLETE";
 		jp_printf(jp, "vs_initialize_state: %s", s);
 		jp_printf(jp, "vs_initialize_bytes_done: %U",
@@ -282,13 +439,9 @@ static void vdev_to_json(vdev_t *v, pool_scan_stat_t *ps, jprint_t *jp)
 		jp_printf(jp, "trim_errors: %U",
 		    v->vdev_stat.vs_trim_errors);
 	}
-	/*
-	 * Please note that children of children will translate to
-	 * json... we will not put out the number, but that is not
-	 * needed in json anyway.
-	 */
 	n = v->vdev_children;
 	a = v->vdev_child;
+	jp_printf(jp, "vdev_children: %U", n);
 	if (n != 0) {
 		jp_printf(jp, "children: [");
 		for (i = 0; i < n; ++i) {
@@ -300,7 +453,8 @@ static void vdev_to_json(vdev_t *v, pool_scan_stat_t *ps, jprint_t *jp)
 	}
 }
 
-static void iterate_vdevs(spa_t *spa, pool_scan_stat_t *ps, jprint_t *jp)
+static void
+iterate_vdevs(spa_t *spa, pool_scan_stat_t *ps, jprint_t *jp)
 {
 	vdev_t *v = spa->spa_root_vdev;
 	if (v == NULL) {
@@ -312,7 +466,35 @@ static void iterate_vdevs(spa_t *spa, pool_scan_stat_t *ps, jprint_t *jp)
 	jp_printf(jp, "}");
 }
 
-static int json_data(char *buf, size_t size, void *data) {
+static const char *
+pss_func_to_string(uint64_t n)
+{
+	const char *s = "?";
+	switch (n) {
+		case POOL_SCAN_NONE:		s = "NONE";	break;
+		case POOL_SCAN_SCRUB:		s = "SCRUB";	break;
+		case POOL_SCAN_RESILVER:	s = "RESILVER";	break;
+		case POOL_SCAN_FUNCS:		s = "?";
+	}
+	return s;
+}
+
+static const char *pss_state_to_string(uint64_t n)
+{
+	const char *s = "?";
+	switch (n) {
+		case DSS_NONE:		s = "NONE";	break;
+		case DSS_SCANNING:	s = "SCANNING";	break;
+		case DSS_FINISHED:	s = "FINISHED";	break;
+		case DSS_CANCELED:	s = "CANCELED";	break;
+		case DSS_NUM_STATES:	s = "?";
+	}
+	return s;
+}
+
+static int
+json_data(char *buf, size_t size, void *data)
+{
 	spa_t *spa = (spa_t *)data;
 	int error = 0;
 	int ps_error = 0;
@@ -320,7 +502,7 @@ static int json_data(char *buf, size_t size, void *data) {
 	nvlist_t *nvl, *pnvl;
 	uint64_t loadtimes[2];
 	pool_scan_stat_t ps;
-	const char *s = NULL;
+	int scl_config_lock;
 
 	if (nvlist_dup(spa->spa_config, &nvl, 0) != 0) {
 		/*
@@ -330,8 +512,9 @@ static int json_data(char *buf, size_t size, void *data) {
 		return (0);
 	}
 	fnvlist_add_nvlist(nvl, ZPOOL_CONFIG_LOAD_INFO, spa->spa_load_info);
-	    
-	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+
+	scl_config_lock =
+	    spa_config_tryenter(spa, SCL_CONFIG, FTAG, RW_READER);
 
 	ps_error = spa_scan_get_stats(spa, &ps);
 
@@ -348,28 +531,16 @@ static int json_data(char *buf, size_t size, void *data) {
 	fnvlist_add_uint64(nvl, ZPOOL_CONFIG_SUSPENDED_REASON,
 	    spa->spa_suspended);
 
-	jp_open(&jp, buf, size); 
+	jp_open(&jp, buf, size);
 	jp_printf(&jp, "{");
 
-	jp_printf(&jp, "status_json_version: %d", 2);
+	jp_printf(&jp, "status_json_version: %d", JSON_STATUS_VERSION);
+	jp_printf(&jp, "scl_config_lock: %b", scl_config_lock != 0);
 	jp_printf(&jp, "scan_error: %d", ps_error);
 	jp_printf(&jp, "scan_stats: {");
 	if (ps_error == 0) {
-		switch (ps.pss_func) {
-		case POOL_SCAN_NONE:     s = "NONE";     break;
-		case POOL_SCAN_SCRUB:    s = "SCRUB";    break;
-		case POOL_SCAN_RESILVER: s = "RESILVER"; break;
-		case POOL_SCAN_FUNCS:    s = "?";
-		}
-		jp_printf(&jp, "func: %s", s);
-		switch (ps.pss_state) {
-		case DSS_NONE:       s = "NONE";     break;
-		case DSS_SCANNING:   s = "SCANNING"; break;
-		case DSS_FINISHED:   s = "FINISHED"; break;
-		case DSS_CANCELED:   s = "CANCELED"; break;
-		case DSS_NUM_STATES: s = "?";
-		}
-		jp_printf(&jp, "state: %s", s);
+		jp_printf(&jp, "func: %s", pss_func_to_string(ps.pss_func));
+		jp_printf(&jp, "state: %s", pss_state_to_string(ps.pss_state));
 		jp_printf(&jp, "start_time: %U", ps.pss_start_time);
 		jp_printf(&jp, "end_time: %U", ps.pss_end_time);
 		jp_printf(&jp, "to_examine: %U", ps.pss_to_examine);
@@ -392,25 +563,15 @@ static int json_data(char *buf, size_t size, void *data) {
 		jp_printf(&jp, "state: %s", "?");
 	}
 	jp_printf(&jp, "}");
-	s = "?";
-	switch (spa->spa_state) {
-	case POOL_STATE_ACTIVE:             s = "ACTIVE"; break;
-	case POOL_STATE_EXPORTED:           s = "EXPORTED"; break;
-	case POOL_STATE_DESTROYED:          s = "DESTROYED"; break;
-	case POOL_STATE_SPARE:              s = "SPARE"; break;
-	case POOL_STATE_L2CACHE:            s = "L2CACHE"; break;
-	case POOL_STATE_UNINITIALIZED:      s = "UNINITIALIZED"; break;
-	case POOL_STATE_UNAVAIL:            s = "UNAVAIL"; break;
-	case POOL_STATE_POTENTIALLY_ACTIVE: s = "POTENTIALLY ACTIVE"; break;
-	}
-	jp_printf(&jp, "pool_state: %s", s);
+
+	jp_printf(&jp, "state: %s", spa_state_to_name(spa));
 
 	spa_add_spares(spa, nvl);
 	spa_add_l2cache(spa, nvl);
 	spa_add_feature_stats(spa, nvl);
 
 	/* iterate and transfer nvl to json */
-	nvlist_to_json(nvl, &jp);
+	nvlist_to_json(nvl, &jp, stats_filter);
 
 	iterate_vdevs(spa, &ps, &jp);
 
@@ -419,12 +580,13 @@ static int json_data(char *buf, size_t size, void *data) {
 	 */
 	jp_printf(&jp, "}");
 
-	spa_config_exit(spa, SCL_CONFIG, FTAG);
+	if (scl_config_lock)
+		spa_config_exit(spa, SCL_CONFIG, FTAG);
 	nvlist_free(nvl);
 
-        error = jp_close(&jp);
+	error = jp_close(&jp);
 	if (error == JPRINT_BUF_FULL) {
-		 error = SET_ERROR(ENOMEM);
+		error = SET_ERROR(ENOMEM);
 	} else if (error != 0) {
 		/*
 		 * Another error from jprint, format an error message
@@ -444,15 +606,17 @@ static int json_data(char *buf, size_t size, void *data) {
 }
 
 
-static void *json_addr(kstat_t *ksp, loff_t n)
+static void *
+json_addr(kstat_t *ksp, loff_t n)
 {
 	if (n == 0)
-	    return (ksp->ks_private);
+		return (ksp->ks_private);
 	return (NULL);
 }
 
 
-void json_stats_init(spa_t *spa)
+void
+json_stats_init(spa_t *spa)
 {
 	spa_history_kstat_t *shk = &spa->spa_json_stats.kstat;
 	char *name;
@@ -474,4 +638,3 @@ void json_stats_init(spa_t *spa)
 
 	kmem_strfree(name);
 }
-
