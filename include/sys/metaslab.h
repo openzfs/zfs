@@ -114,6 +114,7 @@ boolean_t metaslab_class_throttle_reserve(metaslab_class_t *, int, int,
     zio_t *, int);
 void metaslab_class_throttle_unreserve(metaslab_class_t *, int, int, zio_t *);
 void metaslab_class_evict_old(metaslab_class_t *, uint64_t);
+void metaslab_class_force_discard(metaslab_class_t *);
 uint64_t metaslab_class_get_alloc(metaslab_class_t *);
 uint64_t metaslab_class_get_space(metaslab_class_t *);
 uint64_t metaslab_class_get_dspace(metaslab_class_t *);

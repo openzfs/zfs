@@ -231,6 +231,7 @@ typedef pthread_t	kthread_t;
 	zk_thread_create(func, arg, stksize, state)
 #define	thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
 	zk_thread_create(func, arg, stksize, state)
+#define	thread_signal(t, s) pthread_kill((pthread_t)(t), s)
 #define	thread_exit()	pthread_exit(NULL)
 #define	thread_join(t)	pthread_join((pthread_t)(t), NULL)
 

@@ -137,3 +137,15 @@ zpool_disable_volume_os(const char *name)
 {
 	(void) name;
 }
+
+void
+zpool_unmount_mark_hard_force_begin(zpool_handle_t *zhp)
+{
+	(void) zhp;
+}
+
+void
+zpool_unmount_mark_hard_force_end(zpool_handle_t *zhp)
+{
+	(void) zhp;
+}

@@ -547,6 +547,8 @@
     <elf-symbol name='zpool_state_to_name' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_sync_one' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_trim' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zpool_unmount_mark_hard_force_begin' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zpool_unmount_mark_hard_force_end' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_upgrade' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_vdev_attach' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_vdev_clear' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -2014,7 +2016,7 @@
     <typedef-decl name='__uint32_t' type-id='f0981eeb' id='62f1140c'/>
     <typedef-decl name='__uint64_t' type-id='7359adad' id='8910171f'/>
     <typedef-decl name='size_t' type-id='7359adad' id='b59d7dce'/>
-    <class-decl name='libzfs_handle' size-in-bits='18240' is-struct='yes' visibility='default' id='c8a9d9d8'>
+    <class-decl name='libzfs_handle' size-in-bits='18304' is-struct='yes' visibility='default' id='c8a9d9d8'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='libzfs_error' type-id='95e97e5e' visibility='default'/>
       </data-member>
@@ -2071,6 +2073,9 @@
       </data-member>
       <data-member access='public' layout-offset-in-bits='18176'>
         <var-decl name='libfetch_load_error' type-id='26a90f95' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='18240'>
+        <var-decl name='libzfs_force_export' type-id='c19b74c3' visibility='default'/>
       </data-member>
     </class-decl>
     <class-decl name='zfs_handle' size-in-bits='4928' is-struct='yes' visibility='default' id='f6ee4445'>
@@ -5375,6 +5380,14 @@
       <parameter type-id='80f4b756'/>
       <return type-id='48b5725f'/>
     </function-decl>
+    <function-decl name='zpool_unmount_mark_hard_force_begin' mangled-name='zpool_unmount_mark_hard_force_begin' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_unmount_mark_hard_force_begin'>
+      <parameter type-id='4c81de99'/>
+      <return type-id='48b5725f'/>
+    </function-decl>
+    <function-decl name='zpool_unmount_mark_hard_force_end' mangled-name='zpool_unmount_mark_hard_force_end' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_unmount_mark_hard_force_end'>
+      <parameter type-id='4c81de99'/>
+      <return type-id='48b5725f'/>
+    </function-decl>
     <function-decl name='tpool_create' mangled-name='tpool_create' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='tpool_create'>
       <parameter type-id='3502e3ff'/>
       <parameter type-id='3502e3ff'/>
@@ -5529,6 +5542,7 @@
     <function-decl name='zpool_disable_datasets' mangled-name='zpool_disable_datasets' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_disable_datasets'>
       <parameter type-id='4c81de99' name='zhp'/>
       <parameter type-id='c19b74c3' name='force'/>
+      <parameter type-id='c19b74c3' name='hardforce'/>
       <return type-id='95e97e5e'/>
     </function-decl>
   </abi-instr>
@@ -5595,7 +5609,8 @@
       <enumerator name='ZPOOL_STATUS_NON_NATIVE_ASHIFT' value='29'/>
       <enumerator name='ZPOOL_STATUS_COMPATIBILITY_ERR' value='30'/>
       <enumerator name='ZPOOL_STATUS_INCOMPATIBLE_FEAT' value='31'/>
-      <enumerator name='ZPOOL_STATUS_OK' value='32'/>
+      <enumerator name='ZPOOL_STATUS_FORCE_EXPORTING' value='32'/>
+      <enumerator name='ZPOOL_STATUS_OK' value='33'/>
     </enum-decl>
     <typedef-decl name='zpool_status_t' type-id='5e770b40' id='d3dd6294'/>
     <enum-decl name='zpool_compat_status_t' naming-typedef-id='901b78d1' id='20676925'>
@@ -5754,6 +5769,114 @@
       <enumerator name='POOL_TRIM_FUNCS' value='3'/>
     </enum-decl>
     <typedef-decl name='pool_trim_func_t' type-id='54ed608a' id='b1146b8d'/>
+    <enum-decl name='zfs_ioc' id='12033f13'>
+      <underlying-type type-id='9cac1fee'/>
+      <enumerator name='ZFS_IOC_FIRST' value='23040'/>
+      <enumerator name='ZFS_IOC' value='23040'/>
+      <enumerator name='ZFS_IOC_POOL_CREATE' value='23040'/>
+      <enumerator name='ZFS_IOC_POOL_DESTROY' value='23041'/>
+      <enumerator name='ZFS_IOC_POOL_IMPORT' value='23042'/>
+      <enumerator name='ZFS_IOC_POOL_EXPORT' value='23043'/>
+      <enumerator name='ZFS_IOC_POOL_CONFIGS' value='23044'/>
+      <enumerator name='ZFS_IOC_POOL_STATS' value='23045'/>
+      <enumerator name='ZFS_IOC_POOL_TRYIMPORT' value='23046'/>
+      <enumerator name='ZFS_IOC_POOL_SCAN' value='23047'/>
+      <enumerator name='ZFS_IOC_POOL_FREEZE' value='23048'/>
+      <enumerator name='ZFS_IOC_POOL_UPGRADE' value='23049'/>
+      <enumerator name='ZFS_IOC_POOL_GET_HISTORY' value='23050'/>
+      <enumerator name='ZFS_IOC_VDEV_ADD' value='23051'/>
+      <enumerator name='ZFS_IOC_VDEV_REMOVE' value='23052'/>
+      <enumerator name='ZFS_IOC_VDEV_SET_STATE' value='23053'/>
+      <enumerator name='ZFS_IOC_VDEV_ATTACH' value='23054'/>
+      <enumerator name='ZFS_IOC_VDEV_DETACH' value='23055'/>
+      <enumerator name='ZFS_IOC_VDEV_SETPATH' value='23056'/>
+      <enumerator name='ZFS_IOC_VDEV_SETFRU' value='23057'/>
+      <enumerator name='ZFS_IOC_OBJSET_STATS' value='23058'/>
+      <enumerator name='ZFS_IOC_OBJSET_ZPLPROPS' value='23059'/>
+      <enumerator name='ZFS_IOC_DATASET_LIST_NEXT' value='23060'/>
+      <enumerator name='ZFS_IOC_SNAPSHOT_LIST_NEXT' value='23061'/>
+      <enumerator name='ZFS_IOC_SET_PROP' value='23062'/>
+      <enumerator name='ZFS_IOC_CREATE' value='23063'/>
+      <enumerator name='ZFS_IOC_DESTROY' value='23064'/>
+      <enumerator name='ZFS_IOC_ROLLBACK' value='23065'/>
+      <enumerator name='ZFS_IOC_RENAME' value='23066'/>
+      <enumerator name='ZFS_IOC_RECV' value='23067'/>
+      <enumerator name='ZFS_IOC_SEND' value='23068'/>
+      <enumerator name='ZFS_IOC_INJECT_FAULT' value='23069'/>
+      <enumerator name='ZFS_IOC_CLEAR_FAULT' value='23070'/>
+      <enumerator name='ZFS_IOC_INJECT_LIST_NEXT' value='23071'/>
+      <enumerator name='ZFS_IOC_ERROR_LOG' value='23072'/>
+      <enumerator name='ZFS_IOC_CLEAR' value='23073'/>
+      <enumerator name='ZFS_IOC_PROMOTE' value='23074'/>
+      <enumerator name='ZFS_IOC_SNAPSHOT' value='23075'/>
+      <enumerator name='ZFS_IOC_DSOBJ_TO_DSNAME' value='23076'/>
+      <enumerator name='ZFS_IOC_OBJ_TO_PATH' value='23077'/>
+      <enumerator name='ZFS_IOC_POOL_SET_PROPS' value='23078'/>
+      <enumerator name='ZFS_IOC_POOL_GET_PROPS' value='23079'/>
+      <enumerator name='ZFS_IOC_SET_FSACL' value='23080'/>
+      <enumerator name='ZFS_IOC_GET_FSACL' value='23081'/>
+      <enumerator name='ZFS_IOC_SHARE' value='23082'/>
+      <enumerator name='ZFS_IOC_INHERIT_PROP' value='23083'/>
+      <enumerator name='ZFS_IOC_SMB_ACL' value='23084'/>
+      <enumerator name='ZFS_IOC_USERSPACE_ONE' value='23085'/>
+      <enumerator name='ZFS_IOC_USERSPACE_MANY' value='23086'/>
+      <enumerator name='ZFS_IOC_USERSPACE_UPGRADE' value='23087'/>
+      <enumerator name='ZFS_IOC_HOLD' value='23088'/>
+      <enumerator name='ZFS_IOC_RELEASE' value='23089'/>
+      <enumerator name='ZFS_IOC_GET_HOLDS' value='23090'/>
+      <enumerator name='ZFS_IOC_OBJSET_RECVD_PROPS' value='23091'/>
+      <enumerator name='ZFS_IOC_VDEV_SPLIT' value='23092'/>
+      <enumerator name='ZFS_IOC_NEXT_OBJ' value='23093'/>
+      <enumerator name='ZFS_IOC_DIFF' value='23094'/>
+      <enumerator name='ZFS_IOC_TMP_SNAPSHOT' value='23095'/>
+      <enumerator name='ZFS_IOC_OBJ_TO_STATS' value='23096'/>
+      <enumerator name='ZFS_IOC_SPACE_WRITTEN' value='23097'/>
+      <enumerator name='ZFS_IOC_SPACE_SNAPS' value='23098'/>
+      <enumerator name='ZFS_IOC_DESTROY_SNAPS' value='23099'/>
+      <enumerator name='ZFS_IOC_POOL_REGUID' value='23100'/>
+      <enumerator name='ZFS_IOC_POOL_REOPEN' value='23101'/>
+      <enumerator name='ZFS_IOC_SEND_PROGRESS' value='23102'/>
+      <enumerator name='ZFS_IOC_LOG_HISTORY' value='23103'/>
+      <enumerator name='ZFS_IOC_SEND_NEW' value='23104'/>
+      <enumerator name='ZFS_IOC_SEND_SPACE' value='23105'/>
+      <enumerator name='ZFS_IOC_CLONE' value='23106'/>
+      <enumerator name='ZFS_IOC_BOOKMARK' value='23107'/>
+      <enumerator name='ZFS_IOC_GET_BOOKMARKS' value='23108'/>
+      <enumerator name='ZFS_IOC_DESTROY_BOOKMARKS' value='23109'/>
+      <enumerator name='ZFS_IOC_RECV_NEW' value='23110'/>
+      <enumerator name='ZFS_IOC_POOL_SYNC' value='23111'/>
+      <enumerator name='ZFS_IOC_CHANNEL_PROGRAM' value='23112'/>
+      <enumerator name='ZFS_IOC_LOAD_KEY' value='23113'/>
+      <enumerator name='ZFS_IOC_UNLOAD_KEY' value='23114'/>
+      <enumerator name='ZFS_IOC_CHANGE_KEY' value='23115'/>
+      <enumerator name='ZFS_IOC_REMAP' value='23116'/>
+      <enumerator name='ZFS_IOC_POOL_CHECKPOINT' value='23117'/>
+      <enumerator name='ZFS_IOC_POOL_DISCARD_CHECKPOINT' value='23118'/>
+      <enumerator name='ZFS_IOC_POOL_INITIALIZE' value='23119'/>
+      <enumerator name='ZFS_IOC_POOL_TRIM' value='23120'/>
+      <enumerator name='ZFS_IOC_REDACT' value='23121'/>
+      <enumerator name='ZFS_IOC_GET_BOOKMARK_PROPS' value='23122'/>
+      <enumerator name='ZFS_IOC_WAIT' value='23123'/>
+      <enumerator name='ZFS_IOC_WAIT_FS' value='23124'/>
+      <enumerator name='ZFS_IOC_VDEV_GET_PROPS' value='23125'/>
+      <enumerator name='ZFS_IOC_VDEV_SET_PROPS' value='23126'/>
+      <enumerator name='ZFS_IOC_POOL_SCRUB' value='23127'/>
+      <enumerator name='ZFS_IOC_PLATFORM' value='23168'/>
+      <enumerator name='ZFS_IOC_EVENTS_NEXT' value='23169'/>
+      <enumerator name='ZFS_IOC_EVENTS_CLEAR' value='23170'/>
+      <enumerator name='ZFS_IOC_EVENTS_SEEK' value='23171'/>
+      <enumerator name='ZFS_IOC_NEXTBOOT' value='23172'/>
+      <enumerator name='ZFS_IOC_JAIL' value='23173'/>
+      <enumerator name='ZFS_IOC_USERNS_ATTACH' value='23173'/>
+      <enumerator name='ZFS_IOC_UNJAIL' value='23174'/>
+      <enumerator name='ZFS_IOC_USERNS_DETACH' value='23174'/>
+      <enumerator name='ZFS_IOC_SET_BOOTENV' value='23175'/>
+      <enumerator name='ZFS_IOC_GET_BOOTENV' value='23176'/>
+      <enumerator name='ZFS_IOC_HARD_FORCE_UNMOUNT_BEGIN' value='23177'/>
+      <enumerator name='ZFS_IOC_HARD_FORCE_UNMOUNT_END' value='23178'/>
+      <enumerator name='ZFS_IOC_LAST' value='23179'/>
+    </enum-decl>
+    <typedef-decl name='zfs_ioc_t' type-id='12033f13' id='5b35941c'/>
     <enum-decl name='zpool_wait_activity_t' naming-typedef-id='73446457' id='849338e3'>
       <underlying-type type-id='9cac1fee'/>
       <enumerator name='ZPOOL_WAIT_CKPT_DISCARD' value='0'/>
@@ -5921,6 +6044,13 @@
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='lzc_set_vdev_prop' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='5ce45b60'/>
+      <parameter type-id='857bb57e'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='lzc_scrub' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='5b35941c'/>
       <parameter type-id='80f4b756'/>
       <parameter type-id='5ce45b60'/>
       <parameter type-id='857bb57e'/>

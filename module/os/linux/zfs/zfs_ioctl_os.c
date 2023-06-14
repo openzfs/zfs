@@ -208,6 +208,18 @@ zfs_ioctl_update_mount_cache(const char *dsname)
 {
 }
 
+static int
+zfs_ioc_pool_unmount_begin(zfs_cmd_t *zc)
+{
+	return (spa_set_pre_export_status(zc->zc_name, true));
+}
+
+static int
+zfs_ioc_pool_unmount_end(zfs_cmd_t *zc)
+{
+	return (spa_set_pre_export_status(zc->zc_name, false));
+}
+
 void
 zfs_ioctl_init_os(void)
 {
@@ -215,6 +227,13 @@ zfs_ioctl_init_os(void)
 	    zfs_ioc_userns_attach, zfs_secpolicy_config, POOL_CHECK_NONE);
 	zfs_ioctl_register_dataset_nolog(ZFS_IOC_USERNS_DETACH,
 	    zfs_ioc_userns_detach, zfs_secpolicy_config, POOL_CHECK_NONE);
+
+	zfs_ioctl_register_pool(ZFS_IOC_HARD_FORCE_UNMOUNT_BEGIN,
+	    zfs_ioc_pool_unmount_begin, zfs_secpolicy_config, B_FALSE,
+	    POOL_CHECK_NONE);
+	zfs_ioctl_register_pool(ZFS_IOC_HARD_FORCE_UNMOUNT_END,
+	    zfs_ioc_pool_unmount_end, zfs_secpolicy_config, B_FALSE,
+	    POOL_CHECK_NONE);
 }
 
 #ifdef CONFIG_COMPAT

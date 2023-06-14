@@ -44,6 +44,9 @@
 #include <sys/dmu_traverse.h>
 #include <sys/dmu_impl.h>
 #include <sys/dmu_tx.h>
+#include <sys/dmu.h>
+#include <sys/dbuf.h>
+#include <sys/dnode.h>
 #include <sys/arc.h>
 #include <sys/zio.h>
 #include <sys/zap.h>
@@ -566,8 +569,8 @@ dsl_dataset_try_add_ref(dsl_pool_t *dp, dsl_dataset_t *ds, const void *tag)
 }
 
 int
-dsl_dataset_hold_obj(dsl_pool_t *dp, uint64_t dsobj, const void *tag,
-    dsl_dataset_t **dsp)
+dsl_dataset_hold_obj_flags(dsl_pool_t *dp, uint64_t dsobj,
+    ds_hold_flags_t flags, const void *tag, dsl_dataset_t **dsp)
 {
 	objset_t *mos = dp->dp_meta_objset;
 	dmu_buf_t *dbuf;
@@ -590,6 +593,11 @@ dsl_dataset_hold_obj(dsl_pool_t *dp, uint64_t dsobj, const void *tag,
 
 	ds = dmu_buf_get_user(dbuf);
 	if (ds == NULL) {
+		if (flags & DS_HOLD_FLAG_MUST_BE_OPEN) {
+			dmu_buf_rele(dbuf, tag);
+			return (SET_ERROR(ENXIO));
+		}
+
 		dsl_dataset_t *winner = NULL;
 
 		ds = kmem_zalloc(sizeof (dsl_dataset_t), KM_SLEEP);
@@ -734,6 +742,15 @@ after_dsl_bookmark_fini:
 		}
 	}
 
+	if (err == 0 && (flags & DS_HOLD_FLAG_DECRYPT)) {
+		err = dsl_dataset_create_key_mapping(ds);
+		if (err != 0)
+			dsl_dataset_rele(ds, tag);
+	}
+
+	if (err != 0)
+		return (err);
+
 	ASSERT3P(ds->ds_dbuf, ==, dbuf);
 	ASSERT3P(dsl_dataset_phys(ds), ==, dbuf->db_data);
 	ASSERT(dsl_dataset_phys(ds)->ds_prev_snap_obj != 0 ||
@@ -757,24 +774,10 @@ dsl_dataset_create_key_mapping(dsl_dataset_t *ds)
 }
 
 int
-dsl_dataset_hold_obj_flags(dsl_pool_t *dp, uint64_t dsobj,
-    ds_hold_flags_t flags, const void *tag, dsl_dataset_t **dsp)
+dsl_dataset_hold_obj(dsl_pool_t *dp, uint64_t dsobj, const void *tag,
+    dsl_dataset_t **dsp)
 {
-	int err;
-
-	err = dsl_dataset_hold_obj(dp, dsobj, tag, dsp);
-	if (err != 0)
-		return (err);
-
-	ASSERT3P(*dsp, !=, NULL);
-
-	if (flags & DS_HOLD_FLAG_DECRYPT) {
-		err = dsl_dataset_create_key_mapping(*dsp);
-		if (err != 0)
-			dsl_dataset_rele(*dsp, tag);
-	}
-
-	return (err);
+	return (dsl_dataset_hold_obj_flags(dp, dsobj, 0, tag, dsp));
 }
 
 int
@@ -923,6 +926,115 @@ boolean_t
 dsl_dataset_long_held(dsl_dataset_t *ds)
 {
 	return (!zfs_refcount_is_zero(&ds->ds_longholds));
+}
+
+/*
+ * Enumerate active datasets.  This function is intended for use cases that
+ * want to avoid I/O, and only operate on those that have been loaded in
+ * memory.  This works by enumerating the objects in the MOS that are known,
+ * and calling back with each dataset's MOS object IDs.  It would be nice if
+ * the objset_t's were registered in a spa_t global list, but they're not,
+ * so this implementation is a bit more complex...
+ */
+static int
+dsl_dataset_active_foreach(spa_t *spa, int func(dsl_dataset_t *, void *),
+    void *cl)
+{
+	dsl_pool_t *dp = spa_get_dsl(spa);
+	objset_t *mos = dp->dp_meta_objset;
+	dnode_t *mdn = DMU_META_DNODE(mos);
+	dmu_buf_impl_t *db;
+	uint64_t blkid, dsobj, i;
+	dnode_children_t *children_dnodes;
+	dnode_handle_t *dnh;
+	dsl_dataset_t *ds;
+	int epb, error;
+	int ret = 0;
+
+	/*
+	 * For each block of the MOS's meta-dnode's full size:
+	 * - If the block is not cached, skip.
+	 * - If the block has no user, skip.
+	 * - For each dnode child of the meta-dnode block:
+	 *   - If not loaded (no dnode pointer), skip.
+	 *   - Attempt to hold the dataset, skip on failure.
+	 *   - Call the callback, quit if returns non zero,
+	 *   - Rele the dataset either way.
+	 */
+	rrw_enter(&dp->dp_config_rwlock, RW_READER, FTAG);
+	rw_enter(&mdn->dn_struct_rwlock, RW_READER);
+	for (blkid = dsobj = 0;
+	    ret == 0 && blkid <= mdn->dn_maxblkid;
+	    blkid++, dsobj += epb) {
+		epb = DNODES_PER_BLOCK;
+		error = dbuf_hold_impl(mdn, 0, blkid, TRUE, TRUE, FTAG, &db);
+		if (error != 0) {
+			continue;
+		}
+
+		epb = db->db.db_size >> DNODE_SHIFT;
+		children_dnodes = dmu_buf_get_user(&db->db);
+		if (children_dnodes == NULL) {
+			goto skip;
+		}
+
+		for (i = 0; ret == 0 && i < epb; i++) {
+			dnh = &children_dnodes->dnc_children[i];
+			if (!DN_SLOT_IS_PTR(dnh->dnh_dnode))
+				continue;
+
+			error = dsl_dataset_hold_obj_flags(dp, dsobj + i,
+			    DS_HOLD_FLAG_MUST_BE_OPEN, FTAG, &ds);
+			if (error != 0)
+				continue;
+
+			ret = func(ds, cl);
+			dsl_dataset_rele(ds, FTAG);
+		}
+
+skip:
+		dbuf_rele(db, FTAG);
+	}
+	rw_exit(&mdn->dn_struct_rwlock);
+	rrw_exit(&dp->dp_config_rwlock, FTAG);
+
+	return (ret);
+}
+
+/*
+ * Cancellation interfaces for send/receive streams.
+ *
+ * If a send/recv wins the race with a forced destroy, their pipes will be
+ * interrupted, and the destroy will wait for all ioctl references to drop.
+ *
+ * If a forced destroy wins the race, the send/receive will fail to start.
+ */
+
+/* dsl_dataset_sendrecv_cancel_all callback for dsl_dataset_active_foreach. */
+static int
+dsl_dataset_sendrecv_cancel_cb(dsl_dataset_t *ds, __maybe_unused void *arg)
+{
+	(void) arg;
+	int err;
+
+	err = dmu_send_close(ds);
+	if (err == 0)
+		err = dmu_recv_close(ds);
+
+	return (err);
+}
+
+/*
+ * Cancel all outstanding sends/receives.  Used when the pool is trying to
+ * forcibly exit.  Iterates on all datasets in the MOS and cancels any
+ * running sends/receives by interrupting them.
+ */
+int
+dsl_dataset_sendrecv_cancel_all(spa_t *spa)
+{
+
+	return (dsl_dataset_active_foreach(spa,
+	    dsl_dataset_sendrecv_cancel_cb, NULL));
 }
 
 void

@@ -1570,7 +1570,9 @@ zfs_ioc_pool_export(zfs_cmd_t *zc)
 	boolean_t force = (boolean_t)zc->zc_cookie;
 	boolean_t hardforce = (boolean_t)zc->zc_guid;
 
-	zfs_log_history(zc);
+	if (!force && !hardforce)
+		zfs_log_history(zc);
+
 	error = spa_export(zc->zc_name, NULL, force, hardforce);
 
 	return (error);
@@ -7026,7 +7028,7 @@ zfs_ioctl_register(const char *name, zfs_ioc_t ioc, zfs_ioc_func_t *func,
 	vec->zvec_nvl_key_count = num_keys;
 }
 
-static void
+void
 zfs_ioctl_register_pool(zfs_ioc_t ioc, zfs_ioc_legacy_func_t *func,
     zfs_secpolicy_func_t *secpolicy, boolean_t log_history,
     zfs_ioc_poolcheck_t pool_check)
@@ -7313,9 +7315,9 @@ zfs_ioctl_init(void)
 	 * does the logging of those commands.
 	 */
 	zfs_ioctl_register_pool(ZFS_IOC_POOL_DESTROY, zfs_ioc_pool_destroy,
-	    zfs_secpolicy_config, B_FALSE, POOL_CHECK_SUSPENDED);
+	    zfs_secpolicy_config, B_FALSE, POOL_CHECK_NONE);
 	zfs_ioctl_register_pool(ZFS_IOC_POOL_EXPORT, zfs_ioc_pool_export,
-	    zfs_secpolicy_config, B_FALSE, POOL_CHECK_SUSPENDED);
+	    zfs_secpolicy_config, B_FALSE, POOL_CHECK_NONE);
 
 	zfs_ioctl_register_pool(ZFS_IOC_POOL_STATS, zfs_ioc_pool_stats,
 	    zfs_secpolicy_read, B_FALSE, POOL_CHECK_NONE);
@@ -7323,10 +7325,10 @@ zfs_ioctl_init(void)
 	    zfs_secpolicy_read, B_FALSE, POOL_CHECK_NONE);
 
 	zfs_ioctl_register_pool(ZFS_IOC_ERROR_LOG, zfs_ioc_error_log,
-	    zfs_secpolicy_inject, B_FALSE, POOL_CHECK_SUSPENDED);
+	    zfs_secpolicy_inject, B_FALSE, POOL_CHECK_NONE);
 	zfs_ioctl_register_pool(ZFS_IOC_DSOBJ_TO_DSNAME,
 	    zfs_ioc_dsobj_to_dsname,
-	    zfs_secpolicy_diff, B_FALSE, POOL_CHECK_SUSPENDED);
+	    zfs_secpolicy_diff, B_FALSE, POOL_CHECK_NONE);
 	zfs_ioctl_register_pool(ZFS_IOC_POOL_GET_HISTORY,
 	    zfs_ioc_pool_get_history,
 	    zfs_secpolicy_config, B_FALSE, POOL_CHECK_SUSPENDED);

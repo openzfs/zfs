@@ -1711,7 +1711,15 @@ spa_vdev_remove_thread(void *arg)
 			dmu_tx_t *tx =
 			    dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
 
-			VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
+			/*
+			 * If a tx can't be assigned, just punt and wait for
+			 * the next round.  This must be an exiting spa.
+			 */
+			if (dmu_tx_assign(tx, TXG_WAIT) != 0) {
+				ASSERT(spa_exiting_any(spa));
+				dmu_tx_abort(tx);
+				goto done;
+			}
 			uint64_t txg = dmu_tx_get_txg(tx);
 
 			/*
@@ -1745,6 +1753,7 @@ spa_vdev_remove_thread(void *arg)
 
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 
+done:
 	/*
 	 * Wait for all copies to finish before cleaning up the vca.
 	 */

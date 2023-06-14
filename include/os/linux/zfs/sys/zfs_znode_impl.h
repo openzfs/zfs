@@ -98,17 +98,8 @@ extern "C" {
 #define	zhold(zp)	VERIFY3P(igrab(ZTOI((zp))), !=, NULL)
 #define	zrele(zp)	iput(ZTOI((zp)))
 
-/* Called on entry to each ZFS inode and vfs operation. */
-static inline int
-zfs_enter(zfsvfs_t *zfsvfs, const char *tag)
-{
-	ZFS_TEARDOWN_ENTER_READ(zfsvfs, tag);
-	if (unlikely(zfsvfs->z_unmounted)) {
-		ZFS_TEARDOWN_EXIT_READ(zfsvfs, tag);
-		return (SET_ERROR(EIO));
-	}
-	return (0);
-}
+#define	zfsvfs_is_unmounted(zfsvfs)				\
+	((zfsvfs)->z_unmounted || (zfsvfs)->z_force_unmounted)
 
 /* Must be called before exiting the operation. */
 static inline void
@@ -116,6 +107,30 @@ zfs_exit(zfsvfs_t *zfsvfs, const char *tag)
 {
 	zfs_exit_fs(zfsvfs);
 	ZFS_TEARDOWN_EXIT_READ(zfsvfs, tag);
+}
+
+/* Called on entry to each ZFS inode and vfs operation. */
+static inline int
+zfs_enter(zfsvfs_t *zfsvfs, const char *tag)
+{
+	ZFS_TEARDOWN_ENTER_READ(zfsvfs, tag);
+	if (unlikely(zfsvfs_is_unmounted(zfsvfs))) {
+		ZFS_TEARDOWN_EXIT_READ(zfsvfs, tag);
+		return (SET_ERROR(EIO));
+	}
+	return (0);
+}
+
+/* zfs_enter() but ok with forced unmount having begun */
+static inline int
+zfs_enter_unmountok(zfsvfs_t *zfsvfs, const char *tag)
+{
+	ZFS_TEARDOWN_ENTER_READ(zfsvfs, tag);
+	if (unlikely((zfsvfs)->z_unmounted == B_TRUE)) {
+		zfs_exit(zfsvfs, tag);
+		return (SET_ERROR(EIO));
+	}
+	return (0);
 }
 
 static inline int

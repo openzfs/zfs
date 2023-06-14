@@ -1038,6 +1038,9 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_export/zpool_export_002_pos.ksh \
 	functional/cli_root/zpool_export/zpool_export_003_neg.ksh \
 	functional/cli_root/zpool_export/zpool_export_004_pos.ksh \
+	functional/cli_root/zpool_export/zpool_export_005_pos.ksh \
+	functional/cli_root/zpool_export/zpool_export_006_pos.ksh \
+	functional/cli_root/zpool_export/zpool_export_007_pos.ksh \
 	functional/cli_root/zpool_get/cleanup.ksh \
 	functional/cli_root/zpool_get/setup.ksh \
 	functional/cli_root/zpool_get/vdev_get_001_pos.ksh \

@@ -242,6 +242,8 @@ typedef struct dsl_dataset {
 	kmutex_t ds_sendstream_lock;
 	list_t ds_sendstreams;
 
+	struct dmu_recv_cookie *ds_receiver;
+
 	/*
 	 * When in the middle of a resumable receive, tracks how much
 	 * progress we have made.
@@ -324,7 +326,8 @@ typedef struct dsl_dataset_rename_snapshot_arg {
 /* flags for holding the dataset */
 typedef enum ds_hold_flags {
 	DS_HOLD_FLAG_NONE	= 0 << 0,
-	DS_HOLD_FLAG_DECRYPT	= 1 << 0 /* needs access to encrypted data */
+	DS_HOLD_FLAG_DECRYPT	= 1 << 0, /* needs access to encrypted data */
+	DS_HOLD_FLAG_MUST_BE_OPEN = 1 << 1, /* dataset must already be open */
 } ds_hold_flags_t;
 
 int dsl_dataset_hold(struct dsl_pool *dp, const char *name, const void *tag,
@@ -452,6 +455,8 @@ boolean_t dsl_dataset_is_before(dsl_dataset_t *later, dsl_dataset_t *earlier,
 void dsl_dataset_long_hold(dsl_dataset_t *ds, const void *tag);
 void dsl_dataset_long_rele(dsl_dataset_t *ds, const void *tag);
 boolean_t dsl_dataset_long_held(dsl_dataset_t *ds);
+
+int dsl_dataset_sendrecv_cancel_all(spa_t *spa);
 
 int dsl_dataset_clone_swap_check_impl(dsl_dataset_t *clone,
     dsl_dataset_t *origin_head, boolean_t force, void *owner, dmu_tx_t *tx);

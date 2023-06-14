@@ -933,7 +933,12 @@ zil_create(zilog_t *zilog)
 	 */
 	if (BP_IS_HOLE(&blk) || BP_SHOULD_BYTESWAP(&blk)) {
 		tx = dmu_tx_create(zilog->zl_os);
-		VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
+		error = dmu_tx_assign(tx, TXG_WAIT);
+		if (error != 0) {
+			ASSERT(dmu_objset_exiting(zilog->zl_os));
+			dmu_tx_abort(tx);
+			return (NULL);
+		}
 		dsl_dataset_dirty(dmu_objset_ds(zilog->zl_os), tx);
 		txg = dmu_tx_get_txg(tx);
 
@@ -1013,6 +1018,7 @@ zil_destroy(zilog_t *zilog, boolean_t keep_first)
 	lwb_t *lwb;
 	dmu_tx_t *tx;
 	uint64_t txg;
+	int error;
 
 	/*
 	 * Wait for any previous destroy to complete.
@@ -1025,7 +1031,12 @@ zil_destroy(zilog_t *zilog, boolean_t keep_first)
 		return (B_FALSE);
 
 	tx = dmu_tx_create(zilog->zl_os);
-	VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
+	error = dmu_tx_assign(tx, TXG_WAIT);
+	if (error != 0) {
+		ASSERT(dmu_objset_exiting(zilog->zl_os));
+		dmu_tx_abort(tx);
+		return (B_FALSE);
+	}
 	dsl_dataset_dirty(dmu_objset_ds(zilog->zl_os), tx);
 	txg = dmu_tx_get_txg(tx);
 
@@ -1805,7 +1816,11 @@ zil_lwb_write_close(zilog_t *zilog, lwb_t *lwb)
 	 * should not be subject to the dirty data based delays. We
 	 * use TXG_NOTHROTTLE to bypass the delay mechanism.
 	 */
-	VERIFY0(dmu_tx_assign(tx, TXG_WAIT | TXG_NOTHROTTLE));
+	if (dmu_tx_assign(tx, TXG_WAIT | TXG_NOTHROTTLE) != 0) {
+		ASSERT(dmu_objset_exiting(zilog->zl_os));
+		dmu_tx_abort(tx);
+		return (NULL);
+	}
 
 	dsl_dataset_dirty(dmu_objset_ds(zilog->zl_os), tx);
 	txg = dmu_tx_get_txg(tx);
@@ -2692,7 +2707,8 @@ zil_commit_writer_stall(zilog_t *zilog)
 	 */
 	ASSERT(MUTEX_HELD(&zilog->zl_issuer_lock));
 	txg_wait_synced(zilog->zl_dmu_pool, 0);
-	ASSERT(list_is_empty(&zilog->zl_lwb_list));
+	ASSERT(list_is_empty(&zilog->zl_lwb_list) ||
+	    spa_exiting(zilog->zl_spa));
 }
 
 /*
@@ -3296,7 +3312,11 @@ zil_commit_itx_assign(zilog_t *zilog, zil_commit_waiter_t *zcw)
 	 * should not be subject to the dirty data based delays. We
 	 * use TXG_NOTHROTTLE to bypass the delay mechanism.
 	 */
-	VERIFY0(dmu_tx_assign(tx, TXG_WAIT | TXG_NOTHROTTLE));
+	if (dmu_tx_assign(tx, TXG_WAIT | TXG_NOTHROTTLE) != 0) {
+		ASSERT(dmu_objset_exiting(zilog->zl_os));
+		dmu_tx_abort(tx);
+		return;
+	}
 
 	itx_t *itx = zil_itx_create(TX_COMMIT, sizeof (lr_t));
 	itx->itx_sync = B_TRUE;
@@ -3459,6 +3479,12 @@ zil_commit(zilog_t *zilog, uint64_t foid)
 	}
 
 	/*
+	 * If the objset is being forced to exit, there's nothing more to do.
+	 */
+	if (dmu_objset_exiting(zilog->zl_os))
+		return;
+
+	/*
 	 * If the ZIL is suspended, we don't want to dirty it by calling
 	 * zil_commit_itx_assign() below, nor can we write out
 	 * lwbs like would be done in zil_commit_write(). Thus, we
@@ -3510,7 +3536,7 @@ zil_commit_impl(zilog_t *zilog, uint64_t foid)
 	zil_commit_writer(zilog, zcw);
 	zil_commit_waiter(zilog, zcw);
 
-	if (zcw->zcw_zio_error != 0) {
+	if (zcw->zcw_zio_error != 0 && !dmu_objset_exiting(zilog->zl_os)) {
 		/*
 		 * If there was an error writing out the ZIL blocks that
 		 * this thread is waiting on, then we fallback to
@@ -3835,14 +3861,16 @@ zil_close(zilog_t *zilog)
 	 * zil_sync() will guarantee all lwbs up to that txg have been
 	 * written out, flushed, and cleaned.
 	 */
-	if (txg != 0)
-		txg_wait_synced(zilog->zl_dmu_pool, txg);
+	if (!dmu_objset_exiting(zilog->zl_os)) {
+		if (txg != 0)
+			txg_wait_synced(zilog->zl_dmu_pool, txg);
 
-	if (zilog_is_dirty(zilog))
-		zfs_dbgmsg("zil (%px) is dirty, txg %llu", zilog,
-		    (u_longlong_t)txg);
-	if (txg < spa_freeze_txg(zilog->zl_spa))
-		VERIFY(!zilog_is_dirty(zilog));
+		if (zilog_is_dirty(zilog))
+			zfs_dbgmsg("zil (%px) is dirty, txg %llu", zilog,
+			    (u_longlong_t)txg);
+		if (txg < spa_freeze_txg(zilog->zl_spa))
+			VERIFY(!zilog_is_dirty(zilog));
+	}
 
 	zilog->zl_get_data = NULL;
 
@@ -3858,7 +3886,16 @@ zil_close(zilog_t *zilog)
 		if (lwb->lwb_fastwrite)
 			metaslab_fastwrite_unmark(zilog->zl_spa, &lwb->lwb_blk);
 
-		zio_buf_free(lwb->lwb_buf, lwb->lwb_sz);
+		list_remove(&zilog->zl_lwb_list, lwb);
+		if (lwb->lwb_buf != NULL) {
+			zio_buf_free(lwb->lwb_buf, lwb->lwb_sz);
+		} else {
+			/*
+			 * Pool is being force exported, while this lwb was
+			 * between zil_lwb_flush_vdevs_done and zil_sync.
+			 */
+			ASSERT(spa_exiting(zilog->zl_spa));
+		}
 		zil_free_lwb(zilog, lwb);
 	}
 	mutex_exit(&zilog->zl_lock);

@@ -755,6 +755,7 @@ extern int spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 extern int spa_import(char *pool, nvlist_t *config, nvlist_t *props,
     uint64_t flags);
 extern nvlist_t *spa_tryimport(nvlist_t *tryconfig);
+extern int spa_set_pre_export_status(const char *pool, boolean_t status);
 extern int spa_destroy(const char *pool);
 extern int spa_checkpoint(const char *pool);
 extern int spa_checkpoint_discard(const char *pool);
@@ -838,16 +839,13 @@ extern kmutex_t spa_namespace_lock;
  * SPA configuration functions in spa_config.c
  */
 
-#define	SPA_CONFIG_UPDATE_POOL	0
-#define	SPA_CONFIG_UPDATE_VDEVS	1
-
 extern void spa_write_cachefile(spa_t *, boolean_t, boolean_t, boolean_t);
 extern void spa_config_load(void);
 extern nvlist_t *spa_all_configs(uint64_t *);
 extern void spa_config_set(spa_t *spa, nvlist_t *config);
 extern nvlist_t *spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg,
     int getstats);
-extern void spa_config_update(spa_t *spa, int what);
+extern int spa_config_update_pool(spa_t *spa);
 extern int spa_config_parse(spa_t *spa, vdev_t **vdp, nvlist_t *nv,
     vdev_t *parent, uint_t id, int atype);
 
@@ -964,6 +962,15 @@ extern void spa_iostats_trim_add(spa_t *spa, trim_type_t type,
     uint64_t extents_written, uint64_t bytes_written,
     uint64_t extents_skipped, uint64_t bytes_skipped,
     uint64_t extents_failed, uint64_t bytes_failed);
+
+typedef enum {
+	/* Config lock handling flags */
+	SCL_FLAG_TRYENTER	= 1U << 0,
+	SCL_FLAG_NOSUSPEND	= 1U << 1,
+	/* MMP flag */
+	SCL_FLAG_MMP		= 1U << 2,
+} spa_config_flag_t;
+
 extern void spa_import_progress_add(spa_t *spa);
 extern void spa_import_progress_remove(uint64_t spa_guid);
 extern int spa_import_progress_set_mmp_check(uint64_t pool_guid,
@@ -976,6 +983,8 @@ extern int spa_import_progress_set_state(uint64_t pool_guid,
 /* Pool configuration locks */
 extern int spa_config_tryenter(spa_t *spa, int locks, const void *tag,
     krw_t rw);
+extern int spa_config_enter_flags(spa_t *spa, int locks, const void *tag,
+    krw_t rw, spa_config_flag_t flags);
 extern void spa_config_enter(spa_t *spa, int locks, const void *tag, krw_t rw);
 extern void spa_config_enter_mmp(spa_t *spa, int locks, const void *tag,
     krw_t rw);
@@ -1026,6 +1035,7 @@ extern uint64_t spa_last_synced_txg(spa_t *spa);
 extern uint64_t spa_first_txg(spa_t *spa);
 extern uint64_t spa_syncing_txg(spa_t *spa);
 extern uint64_t spa_final_dirty_txg(spa_t *spa);
+extern void spa_verify_dirty_txg(spa_t *spa, uint64_t txg);
 extern uint64_t spa_version(spa_t *spa);
 extern pool_state_t spa_state(spa_t *spa);
 extern spa_load_state_t spa_load_state(spa_t *spa);
@@ -1045,6 +1055,8 @@ extern metaslab_class_t *spa_dedup_class(spa_t *spa);
 extern metaslab_class_t *spa_preferred_class(spa_t *spa, uint64_t size,
     dmu_object_type_t objtype, uint_t level, uint_t special_smallblk);
 
+extern void spa_evicting_os_lock(spa_t *);
+extern void spa_evicting_os_unlock(spa_t *);
 extern void spa_evicting_os_register(spa_t *, objset_t *os);
 extern void spa_evicting_os_deregister(spa_t *, objset_t *os);
 extern void spa_evicting_os_wait(spa_t *spa);
@@ -1135,6 +1147,10 @@ extern void spa_history_log_internal_dd(dsl_dir_t *dd, const char *operation,
     dmu_tx_t *tx, const char *fmt, ...) __printflike(4, 5);
 
 extern const char *spa_state_to_name(spa_t *spa);
+
+extern boolean_t spa_exiting_any(spa_t *spa);
+extern boolean_t spa_exiting(spa_t *spa);
+extern int spa_operation_interrupted(spa_t *spa);
 
 /* error handling */
 struct zbookmark_phys;

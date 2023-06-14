@@ -861,7 +861,7 @@ space_map_truncate(space_map_t *sm, int blocksize, dmu_tx_t *tx)
 
 	ASSERT(dsl_pool_sync_context(dmu_objset_pool(os)));
 	ASSERT(dmu_tx_is_syncing(tx));
-	VERIFY3U(dmu_tx_get_txg(tx), <=, spa_final_dirty_txg(spa));
+	spa_verify_dirty_txg(spa, dmu_tx_get_txg(tx));
 
 	dmu_object_info_from_db(sm->sm_dbuf, &doi);
 

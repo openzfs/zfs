@@ -283,6 +283,7 @@ typedef enum dmu_object_type {
 #define	TXG_NOWAIT	(0ULL)
 #define	TXG_WAIT	(1ULL<<0)
 #define	TXG_NOTHROTTLE	(1ULL<<1)
+#define	TXG_NOSUSPEND	(1ULL<<2)
 
 void byteswap_uint64_array(void *buf, size_t size);
 void byteswap_uint32_array(void *buf, size_t size);

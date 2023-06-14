@@ -400,6 +400,7 @@ spa_checkpoint_discard_thread(void *arg, zthr_t *zthr)
 {
 	spa_t *spa = arg;
 	vdev_t *rvd = spa->spa_root_vdev;
+	int err = 0;
 
 	for (uint64_t c = 0; c < rvd->vdev_children; c++) {
 		vdev_t *vd = rvd->vdev_child[c];
@@ -434,9 +435,10 @@ spa_checkpoint_discard_thread(void *arg, zthr_t *zthr)
 				    error, vd->vdev_id);
 			}
 
-			VERIFY0(dsl_sync_task(spa->spa_name, NULL,
+			err = dsl_sync_task(spa->spa_name, NULL,
 			    spa_checkpoint_discard_thread_sync, vd,
-			    0, ZFS_SPACE_CHECK_NONE));
+			    0, ZFS_SPACE_CHECK_NONE);
+			VERIFY(err == 0 || spa_exiting_any(spa));
 
 			dmu_buf_rele_array(dbp, numbufs, FTAG);
 		}
@@ -444,9 +446,10 @@ spa_checkpoint_discard_thread(void *arg, zthr_t *zthr)
 
 	VERIFY(spa_checkpoint_discard_is_done(spa));
 	VERIFY0(spa->spa_checkpoint_info.sci_dspace);
-	VERIFY0(dsl_sync_task(spa->spa_name, NULL,
+	err = dsl_sync_task(spa->spa_name, NULL,
 	    spa_checkpoint_discard_complete_sync, spa,
-	    0, ZFS_SPACE_CHECK_NONE));
+	    0, ZFS_SPACE_CHECK_NONE);
+	VERIFY(err == 0 || spa_exiting_any(spa));
 }
 
 

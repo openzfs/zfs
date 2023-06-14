@@ -104,6 +104,16 @@ spl_panic(const char *file, const char *func, int line, const char *fmt, ...)
 	va_end(ap);
 }
 
+int
+spl_kthread_signal(kthread_t *td, int sig)
+{
+
+	PROC_LOCK(td->td_proc);
+	tdsignal(td, sig);
+	PROC_UNLOCK(td->td_proc);
+	return (0);
+}
+
 
 SYSINIT(opensolaris_utsname_init, SI_SUB_TUNABLES, SI_ORDER_ANY,
     opensolaris_utsname_init, NULL);
