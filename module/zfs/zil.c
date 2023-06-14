@@ -2375,7 +2375,7 @@ zil_alloc_itxs(void)
 	    offsetof(itx_t, itx_node));
 	avl_create(&itxs->i_async_tree, zil_aitx_compare,
 	    sizeof (itx_async_node_t), offsetof(itx_async_node_t, ia_node));
-	return itxs;
+	return (itxs);
 }
 
 void
