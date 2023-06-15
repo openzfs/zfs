@@ -6675,18 +6675,6 @@ arc_write_children_ready(zio_t *zio)
 	callback->awcb_children_ready(zio, buf, callback->awcb_private);
 }
 
-/*
- * The SPA calls this callback for each physical write that happens on behalf
- * of a logical write.  See the comment in dbuf_write_physdone() for details.
- */
-static void
-arc_write_physdone(zio_t *zio)
-{
-	arc_write_callback_t *cb = zio->io_private;
-	if (cb->awcb_physdone != NULL)
-		cb->awcb_physdone(zio, cb->awcb_buf, cb->awcb_private);
-}
-
 static void
 arc_write_done(zio_t *zio)
 {
@@ -6776,9 +6764,9 @@ zio_t *
 arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
     blkptr_t *bp, arc_buf_t *buf, boolean_t uncached, boolean_t l2arc,
     const zio_prop_t *zp, arc_write_done_func_t *ready,
-    arc_write_done_func_t *children_ready, arc_write_done_func_t *physdone,
-    arc_write_done_func_t *done, void *private, zio_priority_t priority,
-    int zio_flags, const zbookmark_phys_t *zb)
+    arc_write_done_func_t *children_ready, arc_write_done_func_t *done,
+    void *private, zio_priority_t priority, int zio_flags,
+    const zbookmark_phys_t *zb)
 {
 	arc_buf_hdr_t *hdr = buf->b_hdr;
 	arc_write_callback_t *callback;
@@ -6825,7 +6813,6 @@ arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
 	callback = kmem_zalloc(sizeof (arc_write_callback_t), KM_SLEEP);
 	callback->awcb_ready = ready;
 	callback->awcb_children_ready = children_ready;
-	callback->awcb_physdone = physdone;
 	callback->awcb_done = done;
 	callback->awcb_private = private;
 	callback->awcb_buf = buf;
@@ -6862,8 +6849,7 @@ arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
 	    abd_get_from_buf(buf->b_data, HDR_GET_LSIZE(hdr)),
 	    HDR_GET_LSIZE(hdr), arc_buf_size(buf), &localprop, arc_write_ready,
 	    (children_ready != NULL) ? arc_write_children_ready : NULL,
-	    arc_write_physdone, arc_write_done, callback,
-	    priority, zio_flags, zb);
+	    arc_write_done, callback, priority, zio_flags, zb);
 
 	return (zio);
 }

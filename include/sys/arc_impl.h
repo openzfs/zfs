@@ -123,7 +123,6 @@ struct arc_write_callback {
 	void			*awcb_private;
 	arc_write_done_func_t	*awcb_ready;
 	arc_write_done_func_t	*awcb_children_ready;
-	arc_write_done_func_t	*awcb_physdone;
 	arc_write_done_func_t	*awcb_done;
 	arc_buf_t		*awcb_buf;
 };
