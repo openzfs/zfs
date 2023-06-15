@@ -92,8 +92,6 @@ extern uint64_t ddt_phys_total_refcnt(const ddt_t *ddt, const ddt_entry_t *dde);
 
 extern void ddt_key_fill(ddt_key_t *ddk, const blkptr_t *bp);
 
-extern void ddt_stat_add(ddt_stat_t *dst, const ddt_stat_t *src, uint64_t neg);
-
 extern void ddt_object_name(ddt_t *ddt, ddt_type_t type, ddt_class_t clazz,
     char *name);
 extern int ddt_object_walk(ddt_t *ddt, ddt_type_t type, ddt_class_t clazz,

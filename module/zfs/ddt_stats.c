@@ -33,17 +33,17 @@
 #include <sys/ddt_impl.h>
 
 static void
-ddt_stat_generate(ddt_t *ddt, ddt_entry_t *dde, ddt_stat_t *dds)
+ddt_stat_generate(ddt_t *ddt, const ddt_lightweight_entry_t *ddlwe,
+    ddt_stat_t *dds)
 {
 	spa_t *spa = ddt->ddt_spa;
-	ddt_key_t *ddk = &dde->dde_key;
-	uint64_t lsize = DDK_GET_LSIZE(ddk);
-	uint64_t psize = DDK_GET_PSIZE(ddk);
+	uint64_t lsize = DDK_GET_LSIZE(&ddlwe->ddlwe_key);
+	uint64_t psize = DDK_GET_PSIZE(&ddlwe->ddlwe_key);
 
 	memset(dds, 0, sizeof (*dds));
 
-	for (int p = 0; p < DDT_NPHYS(ddt); p++) {
-		ddt_phys_t *ddp = &dde->dde_phys[p];
+	for (int p = 0; p < ddlwe->ddlwe_nphys; p++) {
+		const ddt_phys_t *ddp = &ddlwe->ddlwe_phys[p];
 
 		uint64_t dsize = 0;
 		uint64_t refcnt = ddp->ddp_refcnt;
@@ -51,8 +51,11 @@ ddt_stat_generate(ddt_t *ddt, ddt_entry_t *dde, ddt_stat_t *dds)
 		if (ddp->ddp_phys_birth == 0)
 			continue;
 
-		int ndvas = DDK_GET_CRYPT(&dde->dde_key) ?
-		    SPA_DVAS_PER_BP - 1 : SPA_DVAS_PER_BP;
+		int ndvas =
+		    DVA_IS_VALID(&ddp->ddp_dva[0]) +
+		    DVA_IS_VALID(&ddp->ddp_dva[1]) +
+		    DVA_IS_VALID(&ddp->ddp_dva[2]) *
+		    !DDK_GET_CRYPT(&ddlwe->ddlwe_key);
 		for (int d = 0; d < ndvas; d++)
 			dsize += dva_get_dsize_sync(spa, &ddp->ddp_dva[d]);
 
@@ -68,61 +71,108 @@ ddt_stat_generate(ddt_t *ddt, ddt_entry_t *dde, ddt_stat_t *dds)
 	}
 }
 
-void
-ddt_stat_add(ddt_stat_t *dst, const ddt_stat_t *src, uint64_t neg)
+static void
+ddt_stat_add(ddt_stat_t *dst, const ddt_stat_t *src)
 {
-	const uint64_t *s = (const uint64_t *)src;
-	uint64_t *d = (uint64_t *)dst;
-	uint64_t *d_end = (uint64_t *)(dst + 1);
+	dst->dds_blocks		+= src->dds_blocks;
+	dst->dds_lsize		+= src->dds_lsize;
+	dst->dds_psize		+= src->dds_psize;
+	dst->dds_dsize		+= src->dds_dsize;
+	dst->dds_ref_blocks	+= src->dds_ref_blocks;
+	dst->dds_ref_lsize	+= src->dds_ref_lsize;
+	dst->dds_ref_psize	+= src->dds_ref_psize;
+	dst->dds_ref_dsize	+= src->dds_ref_dsize;
+}
 
-	ASSERT(neg == 0 || neg == -1ULL);	/* add or subtract */
+static void
+ddt_stat_sub(ddt_stat_t *dst, const ddt_stat_t *src)
+{
+	/* This caught more during development than you might expect... */
+	ASSERT3U(dst->dds_blocks, >=, src->dds_blocks);
+	ASSERT3U(dst->dds_lsize, >=, src->dds_lsize);
+	ASSERT3U(dst->dds_psize, >=, src->dds_psize);
+	ASSERT3U(dst->dds_dsize, >=, src->dds_dsize);
+	ASSERT3U(dst->dds_ref_blocks, >=, src->dds_ref_blocks);
+	ASSERT3U(dst->dds_ref_lsize, >=, src->dds_ref_lsize);
+	ASSERT3U(dst->dds_ref_psize, >=, src->dds_ref_psize);
+	ASSERT3U(dst->dds_ref_dsize, >=, src->dds_ref_dsize);
 
-	for (int i = 0; i < d_end - d; i++)
-		d[i] += (s[i] ^ neg) - neg;
+	dst->dds_blocks		-= src->dds_blocks;
+	dst->dds_lsize		-= src->dds_lsize;
+	dst->dds_psize		-= src->dds_psize;
+	dst->dds_dsize		-= src->dds_dsize;
+	dst->dds_ref_blocks	-= src->dds_ref_blocks;
+	dst->dds_ref_lsize	-= src->dds_ref_lsize;
+	dst->dds_ref_psize	-= src->dds_ref_psize;
+	dst->dds_ref_dsize	-= src->dds_ref_dsize;
 }
 
 void
-ddt_stat_update(ddt_t *ddt, ddt_entry_t *dde, uint64_t neg)
+ddt_histogram_add_entry(ddt_t *ddt, ddt_histogram_t *ddh,
+    const ddt_lightweight_entry_t *ddlwe)
 {
 	ddt_stat_t dds;
-	ddt_histogram_t *ddh;
 	int bucket;
 
-	ddt_stat_generate(ddt, dde, &dds);
+	ddt_stat_generate(ddt, ddlwe, &dds);
 
 	bucket = highbit64(dds.dds_ref_blocks) - 1;
-	ASSERT3U(bucket, >=, 0);
+	if (bucket < 0)
+		return;
 
-	ddh = &ddt->ddt_histogram[dde->dde_type][dde->dde_class];
+	ddt_stat_add(&ddh->ddh_stat[bucket], &dds);
+}
 
-	ddt_stat_add(&ddh->ddh_stat[bucket], &dds, neg);
+void
+ddt_histogram_sub_entry(ddt_t *ddt, ddt_histogram_t *ddh,
+    const ddt_lightweight_entry_t *ddlwe)
+{
+	ddt_stat_t dds;
+	int bucket;
+
+	ddt_stat_generate(ddt, ddlwe, &dds);
+
+	bucket = highbit64(dds.dds_ref_blocks) - 1;
+	if (bucket < 0)
+		return;
+
+	ddt_stat_sub(&ddh->ddh_stat[bucket], &dds);
 }
 
 void
 ddt_histogram_add(ddt_histogram_t *dst, const ddt_histogram_t *src)
 {
 	for (int h = 0; h < 64; h++)
-		ddt_stat_add(&dst->ddh_stat[h], &src->ddh_stat[h], 0);
+		ddt_stat_add(&dst->ddh_stat[h], &src->ddh_stat[h]);
 }
 
 void
-ddt_histogram_stat(ddt_stat_t *dds, const ddt_histogram_t *ddh)
+ddt_histogram_total(ddt_stat_t *dds, const ddt_histogram_t *ddh)
 {
 	memset(dds, 0, sizeof (*dds));
 
 	for (int h = 0; h < 64; h++)
-		ddt_stat_add(dds, &ddh->ddh_stat[h], 0);
+		ddt_stat_add(dds, &ddh->ddh_stat[h]);
 }
 
 boolean_t
 ddt_histogram_empty(const ddt_histogram_t *ddh)
 {
-	const uint64_t *s = (const uint64_t *)ddh;
-	const uint64_t *s_end = (const uint64_t *)(ddh + 1);
+	for (int h = 0; h < 64; h++) {
+		const ddt_stat_t *dds = &ddh->ddh_stat[h];
 
-	while (s < s_end)
-		if (*s++ != 0)
-			return (B_FALSE);
+		if (dds->dds_blocks == 0 &&
+		    dds->dds_lsize == 0 &&
+		    dds->dds_psize == 0 &&
+		    dds->dds_dsize == 0 &&
+		    dds->dds_ref_blocks == 0 &&
+		    dds->dds_ref_lsize == 0 &&
+		    dds->dds_ref_psize == 0 &&
+		    dds->dds_ref_dsize == 0)
+			continue;
+
+		return (B_FALSE);
+	}
 
 	return (B_TRUE);
 }
@@ -220,7 +270,7 @@ ddt_get_dedup_stats(spa_t *spa, ddt_stat_t *dds_total)
 
 	ddh_total = kmem_zalloc(sizeof (ddt_histogram_t), KM_SLEEP);
 	ddt_get_dedup_histogram(spa, ddh_total);
-	ddt_histogram_stat(dds_total, ddh_total);
+	ddt_histogram_total(dds_total, ddh_total);
 	kmem_free(ddh_total, sizeof (ddt_histogram_t));
 }
 

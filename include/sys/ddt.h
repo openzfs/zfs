@@ -271,9 +271,15 @@ extern void ddt_phys_decref(ddt_phys_t *ddp);
 extern ddt_phys_t *ddt_phys_select(const ddt_t *ddt, const ddt_entry_t *dde,
     const blkptr_t *bp);
 
+extern void ddt_histogram_add_entry(ddt_t *ddt, ddt_histogram_t *ddh,
+    const ddt_lightweight_entry_t *ddlwe);
+extern void ddt_histogram_sub_entry(ddt_t *ddt, ddt_histogram_t *ddh,
+    const ddt_lightweight_entry_t *ddlwe);
+
 extern void ddt_histogram_add(ddt_histogram_t *dst, const ddt_histogram_t *src);
-extern void ddt_histogram_stat(ddt_stat_t *dds, const ddt_histogram_t *ddh);
+extern void ddt_histogram_total(ddt_stat_t *dds, const ddt_histogram_t *ddh);
 extern boolean_t ddt_histogram_empty(const ddt_histogram_t *ddh);
+
 extern void ddt_get_dedup_object_stats(spa_t *spa, ddt_object_t *ddo);
 extern uint64_t ddt_get_ddt_dsize(spa_t *spa);
 extern void ddt_get_dedup_histogram(spa_t *spa, ddt_histogram_t *ddh);
