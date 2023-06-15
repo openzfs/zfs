@@ -77,8 +77,6 @@ typedef struct {
 
 extern const ddt_ops_t ddt_zap_ops;
 
-extern void ddt_stat_update(ddt_t *ddt, ddt_entry_t *dde, uint64_t neg);
-
 /*
  * These are only exposed so that zdb can access them. Try not to use them
  * outside of the DDT implementation proper, and if you do, consider moving
@@ -94,8 +92,6 @@ extern void ddt_stat_update(ddt_t *ddt, ddt_entry_t *dde, uint64_t neg);
 extern uint64_t ddt_phys_total_refcnt(const ddt_t *ddt, const ddt_entry_t *dde);
 
 extern void ddt_key_fill(ddt_key_t *ddk, const blkptr_t *bp);
-
-extern void ddt_stat_add(ddt_stat_t *dst, const ddt_stat_t *src, uint64_t neg);
 
 extern void ddt_object_name(ddt_t *ddt, ddt_type_t type, ddt_class_t clazz,
     char *name);
