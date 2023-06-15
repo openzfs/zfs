@@ -7250,29 +7250,27 @@ dump_simulated_ddt(spa_t *spa)
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 
 	while ((zdde = avl_destroy_nodes(&t, &cookie)) != NULL) {
-		ddt_stat_t dds;
 		uint64_t refcnt = zdde->zdde_ref_blocks;
 		ASSERT(refcnt != 0);
 
-		dds.dds_blocks = zdde->zdde_ref_blocks / refcnt;
-		dds.dds_lsize = zdde->zdde_ref_lsize / refcnt;
-		dds.dds_psize = zdde->zdde_ref_psize / refcnt;
-		dds.dds_dsize = zdde->zdde_ref_dsize / refcnt;
+		ddt_stat_t *dds = &ddh_total.ddh_stat[highbit64(refcnt) - 1];
 
-		dds.dds_ref_blocks = zdde->zdde_ref_blocks;
-		dds.dds_ref_lsize = zdde->zdde_ref_lsize;
-		dds.dds_ref_psize = zdde->zdde_ref_psize;
-		dds.dds_ref_dsize = zdde->zdde_ref_dsize;
+		dds->dds_blocks += zdde->zdde_ref_blocks / refcnt;
+		dds->dds_lsize += zdde->zdde_ref_lsize / refcnt;
+		dds->dds_psize += zdde->zdde_ref_psize / refcnt;
+		dds->dds_dsize += zdde->zdde_ref_dsize / refcnt;
 
-		ddt_stat_add(&ddh_total.ddh_stat[highbit64(refcnt) - 1],
-		    &dds, 0);
+		dds->dds_ref_blocks += zdde->zdde_ref_blocks;
+		dds->dds_ref_lsize += zdde->zdde_ref_lsize;
+		dds->dds_ref_psize += zdde->zdde_ref_psize;
+		dds->dds_ref_dsize += zdde->zdde_ref_dsize;
 
 		umem_free(zdde, sizeof (*zdde));
 	}
 
 	avl_destroy(&t);
 
-	ddt_histogram_stat(&dds_total, &ddh_total);
+	ddt_histogram_total(&dds_total, &ddh_total);
 
 	(void) printf("Simulated DDT histogram:\n");
 
