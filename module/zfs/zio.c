@@ -626,8 +626,6 @@ zio_unique_parent(zio_t *cio)
 void
 zio_add_child(zio_t *pio, zio_t *cio)
 {
-	zio_link_t *zl = kmem_cache_alloc(zio_link_cache, KM_SLEEP);
-
 	/*
 	 * Logical I/Os can have logical, gang, or vdev children.
 	 * Gang I/Os can have gang or vdev children.
@@ -636,6 +634,7 @@ zio_add_child(zio_t *pio, zio_t *cio)
 	 */
 	ASSERT3S(cio->io_child_type, <=, pio->io_child_type);
 
+	zio_link_t *zl = kmem_cache_alloc(zio_link_cache, KM_SLEEP);
 	zl->zl_parent = pio;
 	zl->zl_child = cio;
 
@@ -644,13 +643,45 @@ zio_add_child(zio_t *pio, zio_t *cio)
 
 	ASSERT(pio->io_state[ZIO_WAIT_DONE] == 0);
 
+	uint64_t *countp = pio->io_children[cio->io_child_type];
 	for (int w = 0; w < ZIO_WAIT_TYPES; w++)
-		pio->io_children[cio->io_child_type][w] += !cio->io_state[w];
+		countp[w] += !cio->io_state[w];
 
 	list_insert_head(&pio->io_child_list, zl);
 	list_insert_head(&cio->io_parent_list, zl);
 
 	mutex_exit(&cio->io_lock);
+	mutex_exit(&pio->io_lock);
+}
+
+void
+zio_add_child_first(zio_t *pio, zio_t *cio)
+{
+	/*
+	 * Logical I/Os can have logical, gang, or vdev children.
+	 * Gang I/Os can have gang or vdev children.
+	 * Vdev I/Os can only have vdev children.
+	 * The following ASSERT captures all of these constraints.
+	 */
+	ASSERT3S(cio->io_child_type, <=, pio->io_child_type);
+
+	zio_link_t *zl = kmem_cache_alloc(zio_link_cache, KM_SLEEP);
+	zl->zl_parent = pio;
+	zl->zl_child = cio;
+
+	ASSERT(list_is_empty(&cio->io_parent_list));
+	list_insert_head(&cio->io_parent_list, zl);
+
+	mutex_enter(&pio->io_lock);
+
+	ASSERT(pio->io_state[ZIO_WAIT_DONE] == 0);
+
+	uint64_t *countp = pio->io_children[cio->io_child_type];
+	for (int w = 0; w < ZIO_WAIT_TYPES; w++)
+		countp[w] += !cio->io_state[w];
+
+	list_insert_head(&pio->io_child_list, zl);
+
 	mutex_exit(&pio->io_lock);
 }
 
@@ -840,12 +871,14 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 		zio->io_child_type = ZIO_CHILD_LOGICAL;
 
 	if (bp != NULL) {
-		zio->io_bp = (blkptr_t *)bp;
-		zio->io_bp_copy = *bp;
-		zio->io_bp_orig = *bp;
 		if (type != ZIO_TYPE_WRITE ||
-		    zio->io_child_type == ZIO_CHILD_DDT)
+		    zio->io_child_type == ZIO_CHILD_DDT) {
+			zio->io_bp_copy = *bp;
 			zio->io_bp = &zio->io_bp_copy;	/* so caller can free */
+		} else {
+			zio->io_bp = (blkptr_t *)bp;
+		}
+		zio->io_bp_orig = *bp;
 		if (zio->io_child_type == ZIO_CHILD_LOGICAL)
 			zio->io_logical = zio;
 		if (zio->io_child_type > ZIO_CHILD_GANG && BP_IS_GANG(bp))
@@ -880,7 +913,7 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 			zio->io_logical = pio->io_logical;
 		if (zio->io_child_type == ZIO_CHILD_GANG)
 			zio->io_gang_leader = pio->io_gang_leader;
-		zio_add_child(pio, zio);
+		zio_add_child_first(pio, zio);
 	}
 
 	taskq_init_ent(&zio->io_tqent);
@@ -1601,7 +1634,6 @@ zio_read_bp_init(zio_t *zio)
 		abd_return_buf_copy(zio->io_abd, data, psize);
 	} else {
 		ASSERT(!BP_IS_EMBEDDED(bp));
-		ASSERT3P(zio->io_bp, ==, &zio->io_bp_copy);
 	}
 
 	if (BP_GET_DEDUP(bp) && zio->io_child_type == ZIO_CHILD_LOGICAL)
@@ -4442,8 +4474,10 @@ zio_ready(zio_t *zio)
 		zio->io_ready(zio);
 	}
 
+#ifdef ZFS_DEBUG
 	if (bp != NULL && bp != &zio->io_bp_copy)
 		zio->io_bp_copy = *bp;
+#endif
 
 	if (zio->io_error != 0) {
 		zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
