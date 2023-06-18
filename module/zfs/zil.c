@@ -522,12 +522,16 @@ zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
 			lr_t *lr = (lr_t *)lrp;
 			reclen = lr->lrc_reclen;
 			ASSERT3U(reclen, >=, sizeof (lr_t));
-			if (lr->lrc_seq > claim_lr_seq)
+			if (lr->lrc_seq > claim_lr_seq) {
+				arc_buf_destroy(abuf, &abuf);
 				goto done;
+			}
 
 			error = parse_lr_func(zilog, lr, arg, txg);
-			if (error != 0)
+			if (error != 0) {
+				arc_buf_destroy(abuf, &abuf);
 				goto done;
+			}
 			ASSERT3U(max_lr_seq, <, lr->lrc_seq);
 			max_lr_seq = lr->lrc_seq;
 			lr_count++;
