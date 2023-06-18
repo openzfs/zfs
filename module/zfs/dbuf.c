@@ -2701,7 +2701,6 @@ dmu_buf_will_clone(dmu_buf_t *db_fake, dmu_tx_t *tx)
 	 */
 	mutex_enter(&db->db_mtx);
 	VERIFY(!dbuf_undirty(db, tx));
-	ASSERT(list_head(&db->db_dirty_records) == NULL);
 	if (db->db_buf != NULL) {
 		arc_buf_destroy(db->db_buf, db);
 		db->db_buf = NULL;
@@ -4458,7 +4457,22 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 		/* This buffer was freed and is now being re-filled */
 		ASSERT(db->db.db_data != dr->dt.dl.dr_data);
 	} else {
-		ASSERT(db->db_state == DB_CACHED || db->db_state == DB_NOFILL);
+		/*
+		 * It looks like if you are fast enough to read the data
+		 * the ASSERT is false. The db->db_state will be DB_READ
+		 * but dr->dt.dl.dr_brtwrite is not synced to disk yet.
+		 * So if (db->db_state == DB_READ &&
+		 * dr->dt.dl.dr_brtwrite == B_TRUE)
+		 * is B_TRUE it is fine to continue. (in debug mode)
+		 * It can be repoduced with:
+		 * while true; do
+		 * /usr/bin/cp -fv /tank/test/test.img /tank/test/test.img2 &&
+		 * sleep 1 && sha256sum /tank/test/test.img2;
+		 * done
+		 */
+		ASSERT(db->db_state == DB_CACHED || db->db_state == DB_NOFILL ||
+		    (db->db_state == DB_READ &&
+		    dr->dt.dl.dr_brtwrite == B_TRUE));
 	}
 	DBUF_VERIFY(db);
 
