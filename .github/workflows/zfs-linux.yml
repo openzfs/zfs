@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [20.04, 22.04]
+        os: [22.04]
     runs-on: ubuntu-${{ matrix.os }}
     steps:
     - uses: actions/checkout@v3
@@ -32,7 +32,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [20.04, 22.04]
+        os: [22.04]
     needs: build
     uses: ./.github/workflows/zfs-linux-tests.yml
     with:

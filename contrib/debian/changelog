@@ -1,7 +1,149 @@
-openzfs-linux (2.1.99-1) unstable; urgency=low
+openzfs-linux (2.1.12-0) unstable; urgency=medium
 
-  * Integrate minimally modified Debian packaging from ZFS on Linux
-    (source: https://salsa.debian.org/zfsonlinux-team/zfs)
+  * Merge tag zfs-2.1.12
+
+ -- Ameer Hamza <ahamza@ixsystems.com>  Wed, 14 Jun 2023 09:00:00 -0500
+
+openzfs-linux (2.1.11-0) unstable; urgency=medium
+
+  * Merge tag zfs-2.1.11
+
+ -- Ameer Hamza <ahamza@ixsystems.com>  Thu, 20 Apr 2023 13:00:00 -0500
+
+openzfs-linux (2.1.10-0) unstable; urgency=medium
+
+  * Merge tag zfs-2.1.10
+
+ -- Ameer Hamza <ahamza@ixsystems.com>  Mon, 17 Apr 2023 12:00:00 -0500
+
+openzfs-linux (2.1.9-0) unstable; urgency=medium
+
+  * Merge tag zfs-2.1.9
+
+ -- Ryan Moeller <ryan@ixsystems.com>  Wed, 25 Jan 2023 14:00:00 -0500
+
+openzfs-linux (2.1.8-0) unstable; urgency=medium
+
+  * Merge tag zfs-2.1.8
+
+ -- Ryan Moeller <ryan@ixsystems.com>  Fri, 20 Jan 2023 12:30:00 -0500
+
+openzfs-linux (2.1.7-1) unstable; urgency=medium
+
+  * Integrate native Debian packaging with TrueNAS ZFS.
   * This packaging is a fork of Debian zfs-linux 2.1.6-2 release.
 
- -- Umer Saleem <usaleem@ixsystems.com>  Fri, 11 Oct 2022 15:00:00 -0400
+ -- Umer Saleem <usaleem@ixsystems.com>  Wed, 14 Dec 2022 15:00:00 -0400
+
+openzfs (2.1.7-0) unstable; urgency=medium
+
+  * Merge tag zfs-2.1.7
+  * Expose libzutil error info in libpc_handle_t
+  * Build packages with debug symbols
+  * Add support for overlayfs for docker
+  * Optimize microzaps
+  * zed: Avoid core dump if wholedisk property does not exist
+  * zed: post a udev change event from spa_vdev_attach()
+  * SCALE: ignore wholedisk
+  * Skip trivial permission checks on xattrs for POSIX ACL type
+
+ -- Ryan Moeller <ryan@ixsystems.com>  Wed, 07 Dec 2022 16:00:00 -0500
+
+openzfs (2.1.6-0) unstable; urgency=medium
+
+  * Merge tag zfs-2.1.6
+  * zed: mark disks as REMOVED when they are removed
+  * Provide kfpu_begin/end from spl
+  * Add snapshots_changed as property
+  * Add createtxg sort support for simple snapshot iterator
+  * Expose ZFS dataset case sensitivity setting via sb_opts
+
+ -- Ryan Moeller <ryan@ixsystems.com>  Wed, 22 Jun 2022 16:00:00 -0500
+
+openzfs (2.1.5-0) unstable; urgency=medium
+
+  * Merged tag zfs-2.1.5
+
+ -- Ryan Moeller <ryan@ixsystems.com>  Wed, 22 Jun 2022 16:00:00 -0500
+
+openzfs (2.1.4-1) unstable; urgency=medium
+
+  * Merged from zfs-2.1.5-staging
+  * Remove wrong assertion in log spacemap
+  * Add debug symbols to the truenas package
+
+ -- Ryan Moeller <ryan@ixsystems.com>  Thu, 02 Jun 2022 08:00:00 -0500
+
+openzfs (2.1.4-0) unstable; urgency=medium
+
+  * Merged OpenZFS zfs-2.1.4
+  * Also merged from zfs-2.1.5-staging
+  * Fix zfs send -V
+  * Expose zpool guids through kstats
+
+ -- Ryan Moeller <ryan@ixsystems.com>  Wed, 18 May 2022 14:00:00 -0500
+
+openzfs (2.1.3-0) unstable; urgency=medium
+
+  * Merged OpenZFS zfs-2.1.3
+
+ -- Ryan Moeller <ryan@ixsystems.com>  Thu, 10 Mar 2021 16:00:00 -0400
+
+openzfs (2.1.2-1) unstable; urgency=medium
+
+  * Merged OpenZFS zfs-2.1.2-release
+  * Implement FS_IOC_GETVERSION
+  * Improve log spacemap load time after unclean export
+
+ -- Ryan Moeller <ryan@ixsystems.com>  Mon, 20 Dec 2021 10:00:00 -0400
+
+openzfs (2.1.2-0) unstable; urgency=medium
+
+  * Merged OpenZFS zfs-2.1.2-staging
+  * Updated Python build dependencies
+  * Linux 5.14 build fixes
+
+ -- Ryan Moeller <ryan@ixsystems.com>  Wed, 03 Nov 2021 10:00:00 -0400
+
+openzfs (2.1.1-0) unstable; urgency=medium
+
+  * Merged OpenZFS 2.1.1
+  * Removed feature@xattr_compat and xattr_fallback property
+
+ -- Ryan Moeller <ryan@ixsystems.com>  Thu, 07 Oct 2021 14:09:30 -0400
+
+openzfs (2.1.0-0) unstable; urgency=medium
+
+  * Rebased to OpenZFS 2.1.0
+
+ -- Ryan Moeller <ryan@ixsystems.com>  Thu, 01 Apr 2021 13:00:00 -0500
+
+openzfs (2.0.4-0) unstable; urgency=medium
+
+  * Rebased to OpenZFS 2.0.4
+
+ -- Ryan Moeller <ryan@ixsystems.com>  Tue, 09 Mar 2021 14:00:00 -0500
+
+openzfs (2.0.3-0) unstable; urgency=medium
+
+  * Rebased to OpenZFS 2.0.3
+
+ -- Ryan Moeller <ryan@ixsystems.com>  Wed, 24 Feb 2021 15:00:00 -0500
+
+openzfs (2.0.2-0) unstable; urgency=medium
+
+  * Rebased to OpenZFS 2.0.2
+
+ -- Ryan Moeller <ryan@ixsystems.com>  Mon, 01 Feb 2021 15:00:00 -0500
+
+openzfs (2.0.1-0) unstable; urgency=medium
+
+  * Rebased to OpenZFS 2.0.1
+
+ -- Ryan Moeller <ryan@ixsystems.com>  Thu, 07 Jan 2021 17:34:28 -0500
+
+openzfs (2.0.0-0) unstable; urgency=medium
+
+  * Initial package for TrueNAS SCALE based on OpenZFS 2.0.0
+
+ -- Ryan Moeller <ryan@ixsystems.com>  Mon, 14 Sep 2020 22:01:55 -0400
