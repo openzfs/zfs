@@ -2039,7 +2039,7 @@ zfs_getacl_impl(znode_t *zp, vsecattr_t *vsecp, boolean_t stripped, cred_t *cr)
 
 			for (aclnode = list_head(&aclp->z_acl); aclnode;
 			    aclnode = list_next(&aclp->z_acl, aclnode)) {
-				bcopy(aclnode->z_acldata, start,
+				memcpy(start, aclnode->z_acldata,
 				    aclnode->z_size);
 				start = (caddr_t)start + aclnode->z_size;
 			}
@@ -2076,8 +2076,10 @@ zfs_getacl(znode_t *zp, vsecattr_t *vsecp, boolean_t skipaclchk, cred_t *cr)
 	if (mask == 0)
 		return (SET_ERROR(ENOSYS));
 
-	if ((error = zfs_zaccess(zp, ACE_READ_ACL, 0, skipaclchk, cr)))
+	if ((error = zfs_zaccess(zp, ACE_READ_ACL, 0, skipaclchk, cr,
+	    zfs_init_idmap))) {
 		return (error);
+	}
 
 	mutex_enter(&zp->z_acl_lock);
 	error  = zfs_getacl_impl(zp, vsecp, B_FALSE, cr);
@@ -2245,8 +2247,10 @@ zfs_setacl(znode_t *zp, vsecattr_t *vsecp, boolean_t skipaclchk, cred_t *cr)
 	if (zp->z_pflags & ZFS_IMMUTABLE)
 		return (SET_ERROR(EPERM));
 
-	if ((error = zfs_zaccess(zp, ACE_WRITE_ACL, 0, skipaclchk, cr)))
+	if ((error = zfs_zaccess(zp, ACE_WRITE_ACL, 0, skipaclchk, cr,
+	    zfs_init_idmap))) {
 		return (error);
+	}
 
 	mutex_enter(&zp->z_acl_lock);
 	mutex_enter(&zp->z_lock);
@@ -2270,15 +2274,19 @@ zfs_stripacl(znode_t *zp, cred_t *cr)
 		    VSA_ACE_ACLFLAGS
 	};
 
-	ZFS_ENTER(zfsvfs);
-	ZFS_VERIFY_ZP(zp);
+	if ((error = zfs_enter(zfsvfs, FTAG)) != 0)
+		return (error);
+
+	if ((error = zfs_verify_zp(zp)) != 0)
+		goto done;
 
 	if (zp->z_pflags & ZFS_IMMUTABLE) {
 		error = SET_ERROR(EPERM);
 		goto done;
 	}
 
-	if ((error = zfs_zaccess(zp, ACE_WRITE_ACL, 0, B_FALSE, cr)))
+	if ((error = zfs_zaccess(zp, ACE_WRITE_ACL, 0, B_FALSE, cr,
+	    zfs_init_idmap)))
 		goto done;
 
 	if (zp->z_pflags & ZFS_ACL_TRIVIAL) {
@@ -2307,7 +2315,7 @@ zfs_stripacl(znode_t *zp, cred_t *cr)
 		zil_commit(zfsvfs->z_log, 0);
 
 done:
-	ZFS_EXIT(zfsvfs);
+	zfs_exit(zfsvfs, FTAG);
 	return (error);
 }
 
