@@ -30,12 +30,14 @@
 #if defined(HAVE_KERNEL_FPU)
 
 void
+// cppcheck-suppress syntaxError
 kfpu_begin(void)
 {
 	kernel_fpu_begin();
 }
 
 void
+// cppcheck-suppress syntaxError
 kfpu_end(void)
 {
 	kernel_fpu_end();
@@ -44,6 +46,7 @@ kfpu_end(void)
 #elif defined(HAVE_UNDERSCORE_KERNEL_FPU)
 
 void
+// cppcheck-suppress syntaxError
 kfpu_begin(void)
 {
 	preempt_disable();
@@ -51,6 +54,7 @@ kfpu_begin(void)
 }
 
 void
+// cppcheck-suppress syntaxError
 kfpu_end(void)
 {
 	__kernel_fpu_end();
