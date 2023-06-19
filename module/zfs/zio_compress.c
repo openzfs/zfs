@@ -68,6 +68,7 @@ zio_compress_info_t zio_compress_table[ZIO_COMPRESS_FUNCTIONS] = {
 	{"lz4",		0,	lz4_compress_zfs, lz4_decompress_zfs, NULL},
 	{"zstd",	ZIO_ZSTD_LEVEL_DEFAULT,	zfs_zstd_compress,
 	    zfs_zstd_decompress, zfs_zstd_decompress_level},
+	{"slack",	0,	slack_compress,	NULL, NULL },
 };
 
 uint8_t
@@ -215,6 +216,8 @@ zio_compress_to_feature(enum zio_compress comp)
 	switch (comp) {
 	case ZIO_COMPRESS_ZSTD:
 		return (SPA_FEATURE_ZSTD_COMPRESS);
+	case ZIO_COMPRESS_SLACK:
+		return (SPA_FEATURE_SLACK_COMPRESS);
 	default:
 		break;
 	}

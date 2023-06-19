@@ -70,6 +70,7 @@ $(MODULE)-objs += rrwlock.o
 $(MODULE)-objs += sa.o
 $(MODULE)-objs += sha256.o
 $(MODULE)-objs += skein_zfs.o
+$(MODULE)-objs += slack.o
 $(MODULE)-objs += spa.o
 $(MODULE)-objs += spa_boot.o
 $(MODULE)-objs += spa_checkpoint.o

@@ -108,6 +108,7 @@ KERNEL_C = \
 	sa.c \
 	sha256.c \
 	skein_zfs.c \
+	slack.c \
 	spa.c \
 	spa_boot.c \
 	spa_checkpoint.c \
