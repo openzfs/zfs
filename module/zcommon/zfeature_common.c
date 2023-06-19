@@ -760,6 +760,20 @@ zpool_feature_init(void)
 	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN, NULL,
 	    sfeatures);
 
+	{
+		{
+		static const spa_feature_t slack_deps[] = {
+			SPA_FEATURE_EXTENSIBLE_DATASET,
+			SPA_FEATURE_NONE
+		};
+		zfeature_register(SPA_FEATURE_SLACK_COMPRESS,
+		    "com.klarasystems:slack_compress", "slack_compress",
+		    "slack compression support",
+		    ZFEATURE_FLAG_PER_DATASET, ZFEATURE_TYPE_BOOLEAN,
+		    slack_deps, sfeatures);
+		}
+	}
+
 	zfs_mod_list_supported_free(sfeatures);
 }
 

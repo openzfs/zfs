@@ -297,6 +297,7 @@ SRCS+=	abd.c \
 	sa.c \
 	sha2_zfs.c \
 	skein_zfs.c \
+	slack.c \
 	spa.c \
 	space_map.c \
 	space_reftree.c \
