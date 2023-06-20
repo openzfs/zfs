@@ -1922,14 +1922,16 @@ dump_ddt_entry(const ddt_t *ddt, const ddt_lightweight_entry_t *ddlwe,
 	blkptr_t blk;
 	int p;
 
-	for (p = 0; p < ddlwe->ddlwe_nphys; p++) {
-		const ddt_phys_t *ddp = &ddlwe->ddlwe_phys[p];
-		if (ddp->ddp_phys_birth == 0)
+	for (p = 0; p < DDT_NPHYS(ddt); p++) {
+		const ddt_univ_phys_t *ddp = &ddlwe->ddlwe_phys;
+		ddt_phys_variant_t v = DDT_PHYS_VARIANT(ddt, p);
+
+		if (ddt_phys_birth(ddp, v) == 0)
 			continue;
-		ddt_bp_create(ddt->ddt_checksum, ddk, ddp, &blk);
+		ddt_bp_create(ddt->ddt_checksum, ddk, ddp, v, &blk);
 		snprintf_blkptr(blkbuf, sizeof (blkbuf), &blk);
 		(void) printf("index %llx refcnt %llu phys %d %s\n",
-		    (u_longlong_t)index, (u_longlong_t)ddp->ddp_refcnt,
+		    (u_longlong_t)index, (u_longlong_t)ddt_phys_refcnt(ddp, v),
 		    p, blkbuf);
 	}
 }
@@ -5798,9 +5800,8 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 		if (dde == NULL) {
 			refcnt = 0;
 		} else {
-			ddt_phys_t *ddp = ddt_phys_select(ddt, dde, bp);
-			ddt_phys_decref(ddp);
-			refcnt = ddp->ddp_refcnt;
+			ddt_phys_variant_t v = ddt_phys_select(ddt, dde, bp);
+			refcnt = ddt_phys_decref(dde->dde_phys, v);
 			if (ddt_phys_total_refcnt(ddt, dde) == 0)
 				ddt_remove(ddt, dde);
 		}
@@ -6139,18 +6140,21 @@ zdb_ddt_leak_init(spa_t *spa, zdb_cb_t *zcb)
 		VERIFY(ddt);
 
 		uint64_t refcnt = 0;
-		for (int p = 0; p < ddlwe.ddlwe_nphys; p++) {
-			ddt_phys_t *ddp = &ddlwe.ddlwe_phys[p];
-			if (ddp->ddp_phys_birth == 0)
+		for (int p = 0; p < DDT_NPHYS(ddt); p++) {
+			ddt_univ_phys_t *ddp = &ddlwe.ddlwe_phys;
+			ddt_phys_variant_t v = DDT_PHYS_VARIANT(ddt, p);
+
+			if (ddt_phys_birth(ddp, v) == 0)
 				continue;
-			refcnt += ddp->ddp_refcnt;
+			refcnt += ddt_phys_refcnt(ddp, v);
+
 			ddt_bp_create(ddb.ddb_checksum,
-			    &ddlwe.ddlwe_key, ddp, &blk);
+			    &ddlwe.ddlwe_key, ddp, v, &blk);
 			if (DDT_PHYS_IS_DITTO(ddt, p)) {
 				zdb_count_block(zcb, NULL, &blk, ZDB_OT_DITTO);
 			} else {
-				zcb->zcb_dedup_asize +=
-				    BP_GET_ASIZE(&blk) * (ddp->ddp_refcnt - 1);
+				zcb->zcb_dedup_asize += BP_GET_ASIZE(&blk) *
+				    (ddt_phys_refcnt(ddp, v) - 1);
 				zcb->zcb_dedup_blocks++;
 			}
 		}

@@ -2929,7 +2929,7 @@ enqueue_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
 
 void
 dsl_scan_ddt_entry(dsl_scan_t *scn, enum zio_checksum checksum,
-    ddt_lightweight_entry_t *ddlwe, dmu_tx_t *tx)
+    ddt_t *ddt, ddt_lightweight_entry_t *ddlwe, dmu_tx_t *tx)
 {
 	(void) tx;
 	const ddt_key_t *ddk = &ddlwe->ddlwe_key;
@@ -2953,13 +2953,13 @@ dsl_scan_ddt_entry(dsl_scan_t *scn, enum zio_checksum checksum,
 	if (scn->scn_done_txg != 0)
 		return;
 
-	for (int p = 0; p < ddlwe->ddlwe_nphys; p++) {
-		ddt_phys_t *ddp = &ddlwe->ddlwe_phys[p];
+	for (int p = 0; p < DDT_NPHYS(ddt); p++) {
+		ddt_phys_variant_t v = DDT_PHYS_VARIANT(ddt, p);
+		uint64_t phys_birth = ddt_phys_birth(&ddlwe->ddlwe_phys, v);
 
-		if (ddp->ddp_phys_birth == 0 ||
-		    ddp->ddp_phys_birth > scn->scn_phys.scn_max_txg)
+		if (phys_birth == 0 || phys_birth > scn->scn_phys.scn_max_txg)
 			continue;
-		ddt_bp_create(checksum, ddk, ddp, &bp);
+		ddt_bp_create(checksum, ddk, &ddlwe->ddlwe_phys, v, &bp);
 
 		scn->scn_visited_this_txg++;
 		scan_funcs[scn->scn_phys.scn_func](scn->scn_dp, &bp, &zb);
@@ -3022,7 +3022,7 @@ dsl_scan_ddt(dsl_scan_t *scn, dmu_tx_t *tx)
 		ddt = scn->scn_dp->dp_spa->spa_ddt[ddb->ddb_checksum];
 		ASSERT(avl_first(&ddt->ddt_tree) == NULL);
 
-		dsl_scan_ddt_entry(scn, ddb->ddb_checksum, &ddlwe, tx);
+		dsl_scan_ddt_entry(scn, ddb->ddb_checksum, ddt, &ddlwe, tx);
 		n++;
 
 		if (dsl_scan_check_suspend(scn, NULL))
