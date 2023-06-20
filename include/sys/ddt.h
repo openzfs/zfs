@@ -42,8 +42,8 @@ struct abd;
 /*
  * DDT-wide feature flags. These are set in ddt_flags by ddt_configure().
  */
-/* No flags yet. */
-#define	DDT_FLAG_MASK	(0)
+#define	DDT_FLAG_FLAT	(1 << 0)	/* single extensible phys */
+#define	DDT_FLAG_MASK	(DDT_FLAG_FLAT)
 
 /*
  * DDT on-disk storage object types. Each one corresponds to specific
@@ -126,21 +126,80 @@ typedef struct {
  * characteristics of the stored block, such as its location on disk (DVAs),
  * birth txg and ref count.
  *
- * Note that an entry has an array of four ddt_phys_t, one for each number of
- * DVAs (copies= property) and another for additional "ditto" copies. Most
- * users of ddt_phys_t will handle indexing into or counting the phys they
- * want.
+ * The "traditional" entry has an array of four, one for each number of DVAs
+ * (copies= property) and another for additional "ditto" copies. Users of the
+ * traditional struct will specify the variant (index) of the one they want.
+ *
+ * The newer "flat" entry has only a single form that is specified using the
+ * DDT_PHYS_FLAT variant.
+ *
+ * Since the value size varies, use one of the size macros when interfacing
+ * with the ddt zap.
  */
-typedef struct {
-	dva_t		ddp_dva[SPA_DVAS_PER_BP];
-	uint64_t	ddp_refcnt;
-	uint64_t	ddp_phys_birth;
-} ddt_phys_t;
 
-#define	DDT_PHYS_MAX			(4)
-#define	DDT_NPHYS(ddt)			((ddt) ? DDT_PHYS_MAX : DDT_PHYS_MAX)
-#define	DDT_PHYS_IS_DITTO(ddt, p)	((ddt) && p == 0)
-#define	DDT_PHYS_FOR_COPIES(ddt, p)	((ddt) ? (p) : (p))
+#define	DDT_PHYS_MAX	(4)
+
+/*
+ * Note - this can be used in a flexible array and allocated for
+ * a specific size (ddp_trad or ddp_flat). So be careful not to
+ * copy using "=" assignment but instead use ddt_phys_copy().
+ */
+typedef union {
+	/*
+	 * Traditional physical payload value for DDT zap (256 bytes)
+	 */
+	struct {
+		dva_t		ddp_dva[SPA_DVAS_PER_BP];
+		uint64_t	ddp_refcnt;
+		uint64_t	ddp_phys_birth;
+	} ddp_trad[DDT_PHYS_MAX];
+
+	/*
+	 * Flat physical payload value for DDT zap (72 bytes)
+	 */
+	struct {
+		dva_t		ddp_dva[SPA_DVAS_PER_BP];
+		uint64_t	ddp_refcnt;
+		uint64_t	ddp_phys_birth; /* txg based from BP */
+		uint64_t	ddp_class_start; /* in realtime seconds */
+	} ddp_flat;
+} ddt_univ_phys_t;
+
+/*
+ * This enum denotes which variant of a ddt_univ_phys_t to target. For
+ * a traditional DDT entry, it represents the indexes into the ddp_trad
+ * array. Any consumer of a ddt_univ_phys_t needs to know which variant
+ * is being targeted.
+ *
+ * Note, we no longer generate new DDT_PHYS_DITTO-type blocks.  However,
+ * we maintain the ability to free existing dedup-ditto blocks.
+ */
+
+typedef enum {
+	DDT_PHYS_DITTO = 0,
+	DDT_PHYS_SINGLE = 1,
+	DDT_PHYS_DOUBLE = 2,
+	DDT_PHYS_TRIPLE = 3,
+	DDT_PHYS_FLAT = 4,
+	DDT_PHYS_NONE = 5
+} ddt_phys_variant_t;
+
+#define	DDT_PHYS_VARIANT(ddt, p)	\
+	(ASSERT((p) < DDT_PHYS_NONE),	\
+	((ddt)->ddt_flags & DDT_FLAG_FLAT ? DDT_PHYS_FLAT : (p)))
+
+#define	DDT_TRAD_PHYS_SIZE	sizeof (((ddt_univ_phys_t *)0)->ddp_trad)
+#define	DDT_FLAT_PHYS_SIZE	sizeof (((ddt_univ_phys_t *)0)->ddp_flat)
+
+#define	_DDT_PHYS_SWITCH(ddt, flat, trad)	\
+	(((ddt)->ddt_flags & DDT_FLAG_FLAT) ? (flat) : (trad))
+
+#define	DDT_PHYS_SIZE(ddt)		_DDT_PHYS_SWITCH(ddt,	\
+	DDT_FLAT_PHYS_SIZE, DDT_TRAD_PHYS_SIZE)
+
+#define	DDT_NPHYS(ddt)			_DDT_PHYS_SWITCH(ddt, 1, DDT_PHYS_MAX)
+#define	DDT_PHYS_FOR_COPIES(ddt, p)	_DDT_PHYS_SWITCH(ddt, 0, p)
+#define	DDT_PHYS_IS_DITTO(ddt, p)	_DDT_PHYS_SWITCH(ddt, 0, (p == 0))
 
 /*
  * A "live" entry, holding changes to an entry made this txg, and other data to
@@ -158,6 +217,9 @@ typedef struct {
 typedef struct {
 	/* copy of data after a repair read, to be rewritten */
 	abd_t		*dde_repair_abd;
+
+	/* original phys contents before update, for error handling */
+	ddt_univ_phys_t	dde_orig_phys;
 
 	/* in-flight update IOs */
 	zio_t		*dde_lead_zio[DDT_PHYS_MAX];
@@ -178,7 +240,7 @@ typedef struct {
 
 	ddt_entry_io_t	*dde_io;	/* IO support, when required */
 
-	ddt_phys_t	dde_phys[];	/* physical data */
+	ddt_univ_phys_t	dde_phys[];	/* flexible -- allocated size varies */
 } ddt_entry_t;
 
 /*
@@ -189,8 +251,7 @@ typedef struct {
 	ddt_key_t	ddlwe_key;
 	ddt_type_t	ddlwe_type;
 	ddt_class_t	ddlwe_class;
-	uint8_t		ddlwe_nphys;
-	ddt_phys_t	ddlwe_phys[DDT_PHYS_MAX];
+	ddt_univ_phys_t	ddlwe_phys;
 } ddt_lightweight_entry_t;
 
 /*
@@ -236,17 +297,26 @@ typedef struct {
 	uint64_t	ddb_cursor;
 } ddt_bookmark_t;
 
-extern void ddt_bp_fill(const ddt_phys_t *ddp, blkptr_t *bp,
-    uint64_t txg);
+extern void ddt_bp_fill(const ddt_univ_phys_t *ddp, ddt_phys_variant_t v,
+    blkptr_t *bp, uint64_t txg);
 extern void ddt_bp_create(enum zio_checksum checksum, const ddt_key_t *ddk,
-    const ddt_phys_t *ddp, blkptr_t *bp);
+    const ddt_univ_phys_t *ddp, ddt_phys_variant_t v, blkptr_t *bp);
 
-extern void ddt_phys_fill(ddt_phys_t *ddp, const blkptr_t *bp);
-extern void ddt_phys_clear(ddt_phys_t *ddp);
-extern void ddt_phys_addref(ddt_phys_t *ddp);
-extern void ddt_phys_decref(ddt_phys_t *ddp);
-extern ddt_phys_t *ddt_phys_select(const ddt_t *ddt, const ddt_entry_t *dde,
+extern void ddt_phys_extend(ddt_univ_phys_t *ddp, ddt_phys_variant_t v,
     const blkptr_t *bp);
+extern void ddt_phys_copy(ddt_univ_phys_t *dst, const ddt_univ_phys_t *src,
+    ddt_phys_variant_t v);
+extern void ddt_phys_clear(ddt_univ_phys_t *ddp, ddt_phys_variant_t v);
+extern void ddt_phys_addref(ddt_univ_phys_t *ddp, ddt_phys_variant_t v);
+extern uint64_t ddt_phys_decref(ddt_univ_phys_t *ddp, ddt_phys_variant_t v);
+extern uint64_t ddt_phys_refcnt(const ddt_univ_phys_t *ddp,
+    ddt_phys_variant_t v);
+extern ddt_phys_variant_t ddt_phys_select(const ddt_t *ddt,
+    const ddt_entry_t *dde, const blkptr_t *bp);
+extern uint64_t ddt_phys_birth(const ddt_univ_phys_t *ddp,
+    ddt_phys_variant_t v);
+extern int ddt_phys_dva_count(const ddt_univ_phys_t *ddp, ddt_phys_variant_t v,
+    boolean_t encrypted);
 
 extern void ddt_histogram_add(ddt_histogram_t *dst, const ddt_histogram_t *src);
 extern void ddt_histogram_stat(ddt_stat_t *dds, const ddt_histogram_t *ddh);

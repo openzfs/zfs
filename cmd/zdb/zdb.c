@@ -1922,14 +1922,16 @@ dump_ddt_entry(const ddt_t *ddt, const ddt_lightweight_entry_t *ddlwe,
 	blkptr_t blk;
 	int p;
 
-	for (p = 0; p < ddlwe->ddlwe_nphys; p++) {
-		const ddt_phys_t *ddp = &ddlwe->ddlwe_phys[p];
-		if (ddp->ddp_phys_birth == 0)
+	for (p = 0; p < DDT_NPHYS(ddt); p++) {
+		const ddt_univ_phys_t *ddp = &ddlwe->ddlwe_phys;
+		ddt_phys_variant_t v = DDT_PHYS_VARIANT(ddt, p);
+
+		if (ddt_phys_birth(ddp, v) == 0)
 			continue;
-		ddt_bp_create(ddt->ddt_checksum, ddk, ddp, &blk);
+		ddt_bp_create(ddt->ddt_checksum, ddk, ddp, v, &blk);
 		snprintf_blkptr(blkbuf, sizeof (blkbuf), &blk);
 		(void) printf("index %llx refcnt %llu phys %d %s\n",
-		    (u_longlong_t)index, (u_longlong_t)ddp->ddp_refcnt,
+		    (u_longlong_t)index, (u_longlong_t)ddt_phys_refcnt(ddp, v),
 		    p, blkbuf);
 	}
 }
@@ -3311,8 +3313,7 @@ zdb_ddt_cleanup(spa_t *spa)
 		ddt_entry_t *dde = avl_first(&ddt->ddt_tree), *next;
 		while (dde) {
 			next = AVL_NEXT(&ddt->ddt_tree, dde);
-			memset(&dde->dde_lead_zio, 0,
-			    sizeof (dde->dde_lead_zio));
+			dde->dde_io = NULL;
 			ddt_remove(ddt, dde);
 			dde = next;
 		}
@@ -5689,6 +5690,7 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 
 	spa_config_enter(zcb->zcb_spa, SCL_CONFIG, FTAG, RW_READER);
 
+	blkptr_t tempbp;
 	if (BP_GET_DEDUP(bp)) {
 		/*
 		 * Dedup'd blocks are special. We need to count them, so we can
@@ -5724,35 +5726,51 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 		VERIFY3P(dde, !=, NULL);
 
 		/* Get the phys for this variant */
-		ddt_phys_t *ddp = ddt_phys_select(ddt, dde, bp);
-		VERIFY3P(ddp, !=, NULL);
+		ddt_phys_variant_t v = ddt_phys_select(ddt, dde, bp);
 
 		/*
 		 * This entry may have multiple sets of DVAs. We must claim
 		 * each set the first time we see them in a real block on disk,
 		 * or count them on subsequent occurences. We don't have a
 		 * convenient way to track the first time we see each variant,
-		 * so we repurpose dde_lead_zio[] as a per-phys "seen" flag. We
-		 * can do this safely in zdb because it never writes, so it
-		 * will never have a writing zio for this block in that
-		 * pointer.
+		 * so we repurpose dde_io as a set of "seen" flag bits. We can
+		 * do this safely in zdb because it never writes, so it will
+		 * never have a writing zio for this block in that pointer.
 		 */
-
-		/*
-		 * Work out which dde_phys index was used, get the seen flag,
-		 * and update it if necessary.
-		 */
-		uint_t idx =
-		    ((uint_t)((uintptr_t)ddp - (uintptr_t)dde->dde_phys)) /
-		    sizeof (ddt_phys_t);
-		VERIFY3P(ddp, ==, &dde->dde_phys[idx]);
-		boolean_t seen = (boolean_t)(uintptr_t)dde->dde_lead_zio[idx];
+		boolean_t seen = !!(((uintptr_t)dde->dde_io) & (1 << v));
 		if (!seen)
-			dde->dde_lead_zio[idx] = (zio_t *)(uintptr_t)B_TRUE;
+			dde->dde_io =
+			    (void *)(((uintptr_t)dde->dde_io) | (1 << v));
 
 		/* Consume a reference for this block. */
 		VERIFY3U(ddt_phys_total_refcnt(ddt, dde), >, 0);
-		ddt_phys_decref(ddp);
+		ddt_phys_decref(dde->dde_phys, v);
+
+		/*
+		 * If this entry has a single flat phys, it may have been
+		 * extended with additional DVAs at some time in its life.
+		 * This block might be from before it was fully extended, and
+		 * so have fewer DVAs.
+		 *
+		 * If this is the first time we've seen this block, and we
+		 * claimed it as-is, then we would miss the claim on some
+		 * number of DVAs, which would then be seen as leaked.
+		 *
+		 * In all cases, if we've had fewer DVAs, then the asize would
+		 * be too small, and would lead to the pool apparently using
+		 * more space than allocated.
+		 *
+		 * To handle this, we copy the canonical set of DVAs from the
+		 * entry back to the block pointer before we claim it.
+		 */
+		if (v == DDT_PHYS_FLAT) {
+			ASSERT3U(BP_GET_BIRTH(bp), ==,
+			    ddt_phys_birth(dde->dde_phys, v));
+			tempbp = *bp;
+			ddt_bp_fill(dde->dde_phys, v, &tempbp,
+			    BP_GET_BIRTH(bp));
+			bp = &tempbp;
+		}
 
 		if (seen) {
 			/*
