@@ -6352,7 +6352,7 @@ ztest_reguid(ztest_ds_t *zd, uint64_t id)
 	load = spa_load_guid(spa);
 
 	(void) pthread_rwlock_wrlock(&ztest_name_lock);
-	error = spa_change_guid(spa);
+	error = spa_change_guid(spa, NULL);
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
 
 	if (error != 0)

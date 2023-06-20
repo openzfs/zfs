@@ -421,7 +421,7 @@ get_usage(zpool_help_t idx)
 		    "\t    [-o property=value] <pool> <newpool> "
 		    "[<device> ...]\n"));
 	case HELP_REGUID:
-		return (gettext("\treguid <pool>\n"));
+		return (gettext("\treguid [-g guid] <pool>\n"));
 	case HELP_SYNC:
 		return (gettext("\tsync [pool] ...\n"));
 	case HELP_VERSION:
@@ -7060,19 +7060,32 @@ zpool_do_clear(int argc, char **argv)
 }
 
 /*
- * zpool reguid <pool>
+ * zpool reguid [-g <guid>] <pool>
  */
 int
 zpool_do_reguid(int argc, char **argv)
 {
+	uint64_t guid;
+	uint64_t *guidp = NULL;
 	int c;
+	char *endptr;
 	char *poolname;
 	zpool_handle_t *zhp;
 	int ret = 0;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "")) != -1) {
+	while ((c = getopt(argc, argv, "g:")) != -1) {
 		switch (c) {
+		case 'g':
+			errno = 0;
+			guid = strtoull(optarg, &endptr, 10);
+			if (errno != 0 || *endptr != '\0') {
+				(void) fprintf(stderr,
+				    gettext("invalid GUID: %s\n"), optarg);
+				usage(B_FALSE);
+			}
+			guidp = &guid;
+			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
 			    optopt);
@@ -7098,7 +7111,7 @@ zpool_do_reguid(int argc, char **argv)
 	if ((zhp = zpool_open(g_zfs, poolname)) == NULL)
 		return (1);
 
-	ret = zpool_reguid(zhp);
+	ret = zpool_set_guid(zhp, guidp);
 
 	zpool_close(zhp);
 	return (ret);
