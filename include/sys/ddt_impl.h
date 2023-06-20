@@ -33,6 +33,14 @@
 extern "C" {
 #endif
 
+/* DDT version numbers */
+#define	DDT_VERSION_LEGACY	(0)
+#define	DDT_VERSION_FDT		(1)
+
+/* Names of interesting objects in the DDT root dir */
+#define	DDT_DIR_VERSION		"version"
+#define	DDT_DIR_FLAGS		"flags"
+
 /*
  * Ops vector to access a specific DDT object type.
  */
