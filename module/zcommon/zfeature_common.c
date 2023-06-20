@@ -754,6 +754,12 @@ zpool_feature_init(void)
 	    "Support for raidz expansion",
 	    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN, NULL, sfeatures);
 
+	zfeature_register(SPA_FEATURE_FAST_DEDUP,
+	    "com.klarasystems:fast_dedup", "fast_dedup",
+	    "Support for advanced deduplication",
+	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN, NULL,
+	    sfeatures);
+
 	zfs_mod_list_supported_free(sfeatures);
 }
 

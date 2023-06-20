@@ -40,6 +40,12 @@ extern "C" {
 struct abd;
 
 /*
+ * DDT-wide feature flags. These are set in ddt_flags by ddt_configure().
+ */
+/* No flags yet. */
+#define	DDT_FLAG_MASK	(0)
+
+/*
  * DDT on-disk storage object types. Each one corresponds to specific
  * implementation, see ddt_ops_t. The value itself is not stored on disk.
  *
@@ -185,11 +191,15 @@ typedef struct {
 
 	avl_tree_t	ddt_tree;	/* "live" (changed) entries this txg */
 
-	avl_tree_t	ddt_repair_tree;	/* entries being repaired */
+	avl_tree_t	ddt_repair_tree; /* entries being repaired */
 
-	enum zio_checksum ddt_checksum;		/* checksum algorithm in use */
-	spa_t		*ddt_spa;		/* pool this ddt is on */
-	objset_t	*ddt_os;		/* ddt objset (always MOS) */
+	enum zio_checksum ddt_checksum;	/* checksum algorithm in use */
+	spa_t		*ddt_spa;	/* pool this ddt is on */
+	objset_t	*ddt_os;	/* ddt objset (always MOS) */
+
+	uint64_t	ddt_dir_object;	/* MOS dir holding ddt objects */
+	uint64_t	ddt_version;	/* DDT version */
+	uint64_t	ddt_flags;	/* FDT option flags */
 
 	/* per-type/per-class entry store objects */
 	uint64_t	ddt_object[DDT_TYPES][DDT_CLASSES];
