@@ -573,7 +573,7 @@ typedef struct blkptr {
 #define	BP_IS_RAIDZ(bp)		(DVA_GET_ASIZE(&(bp)->blk_dva[0]) > \
 				BP_GET_PSIZE(bp))
 
-#define	BP_ZERO(bp)				\
+#define	BP_ZERO_DVAS(bp)			\
 {						\
 	(bp)->blk_dva[0].dva_word[0] = 0;	\
 	(bp)->blk_dva[0].dva_word[1] = 0;	\
@@ -581,6 +581,11 @@ typedef struct blkptr {
 	(bp)->blk_dva[1].dva_word[1] = 0;	\
 	(bp)->blk_dva[2].dva_word[0] = 0;	\
 	(bp)->blk_dva[2].dva_word[1] = 0;	\
+}
+
+#define	BP_ZERO(bp)				\
+{						\
+	BP_ZERO_DVAS(bp);			\
 	(bp)->blk_prop = 0;			\
 	(bp)->blk_pad[0] = 0;			\
 	(bp)->blk_pad[1] = 0;			\

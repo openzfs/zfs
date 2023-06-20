@@ -42,14 +42,12 @@ extern "C" {
 #define	DDT_DIR_FLAGS		"flags"
 
 /* Fill a lightweight entry from a live entry. */
-#define	DDT_ENTRY_TO_LIGHTWEIGHT(ddt, dde, ddlwe) do {		\
-	memset((ddlwe), 0, sizeof (*ddlwe));			\
-	(ddlwe)->ddlwe_key = (dde)->dde_key;			\
-	(ddlwe)->ddlwe_type = (dde)->dde_type;			\
-	(ddlwe)->ddlwe_class = (dde)->dde_class;		\
-	(ddlwe)->ddlwe_nphys = DDT_NPHYS(ddt);			\
-	for (int p = 0; p < (ddlwe)->ddlwe_nphys; p++)		\
-		(ddlwe)->ddlwe_phys[p] = (dde)->dde_phys[p];	\
+#define	DDT_ENTRY_TO_LIGHTWEIGHT(ddt, dde, ddlwe) do {			\
+	memset((ddlwe), 0, sizeof (*ddlwe));				\
+	(ddlwe)->ddlwe_key = (dde)->dde_key;				\
+	(ddlwe)->ddlwe_type = (dde)->dde_type;				\
+	(ddlwe)->ddlwe_class = (dde)->dde_class;			\
+	memcpy(&(ddlwe)->ddlwe_phys, (dde)->dde_phys, DDT_PHYS_SIZE(ddt)); \
 } while (0)
 
 /*
@@ -61,19 +59,19 @@ typedef struct {
 	    boolean_t prehash);
 	int (*ddt_op_destroy)(objset_t *os, uint64_t object, dmu_tx_t *tx);
 	int (*ddt_op_lookup)(objset_t *os, uint64_t object,
-	    const ddt_key_t *ddk, ddt_phys_t *phys, size_t psize);
+	    const ddt_key_t *ddk, void *phys, size_t psize);
 	int (*ddt_op_contains)(objset_t *os, uint64_t object,
 	    const ddt_key_t *ddk);
 	void (*ddt_op_prefetch)(objset_t *os, uint64_t object,
 	    const ddt_key_t *ddk);
 	void (*ddt_op_prefetch_all)(objset_t *os, uint64_t object);
 	int (*ddt_op_update)(objset_t *os, uint64_t object,
-	    const ddt_key_t *ddk, const ddt_phys_t *phys, size_t psize,
+	    const ddt_key_t *ddk, const void *phys, size_t psize,
 	    dmu_tx_t *tx);
 	int (*ddt_op_remove)(objset_t *os, uint64_t object,
 	    const ddt_key_t *ddk, dmu_tx_t *tx);
 	int (*ddt_op_walk)(objset_t *os, uint64_t object, uint64_t *walk,
-	    ddt_key_t *ddk, ddt_phys_t *phys, size_t psize);
+	    ddt_key_t *ddk, void *phys, size_t psize);
 	int (*ddt_op_count)(objset_t *os, uint64_t object, uint64_t *count);
 } ddt_ops_t;
 
