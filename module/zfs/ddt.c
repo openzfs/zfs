@@ -75,12 +75,19 @@
  * fill the BP with the DVAs from the entry, increment the refcount and cause
  * the write IO to return immediately.
  *
- * Each ddt_phys_t slot in the entry represents a separate dedup block for the
- * same content/checksum. The slot is selected based on the zp_copies parameter
- * the block is written with, that is, the number of DVAs in the block. The
- * "ditto" slot (DDT_PHYS_DITTO) used to be used for now-removed "dedupditto"
- * feature. These are no longer written, and will be freed if encountered on
- * old pools.
+ * Traditionally, each ddt_phys_t slot in the entry represents a separate dedup
+ * block for the same content/checksum. The slot is selected based on the
+ * zp_copies parameter the block is written with, that is, the number of DVAs
+ * in the block. The "ditto" slot (DDT_PHYS_DITTO) used to be used for
+ * now-removed "dedupditto" feature. These are no longer written, and will be
+ * freed if encountered on old pools.
+ *
+ * If the "fast_dedup" feature is enabled, new dedup tables will be created
+ * with the "flat phys" option. In this mode, there is only one ddt_phys_t
+ * slot. If a write is issued for an entry that exists, but has fewer DVAs,
+ * then only as many new DVAs are allocated and written to make up the
+ * shortfall. The existing entry is then extended (ddt_phys_extend()) with the
+ * new DVAs.
  *
  * ## Lifetime of an entry
  *
@@ -130,6 +137,12 @@
  * from the alternate block. If the block is actually damaged, this will invoke
  * the pool's "self-healing" mechanism, and repair the block.
  *
+ * If the "fast_dedup" feature is enabled, the "flat phys" option will be in
+ * use, so there is only ever one ddt_phys_t slot. Repair will not occur in
+ * this case, as there are no other equivalent blocks to fall back on. Note
+ * that this does not affect the regular OpenZFS scrub and self-healing
+ * mechanisms.
+ *
  * ## Scanning (scrub/resilver)
  *
  * If dedup is active, the scrub machinery will walk the dedup table first, and
@@ -162,10 +175,17 @@
 	c == ZIO_CHECKSUM_BLAKE3)
 
 static kmem_cache_t *ddt_cache;
-static kmem_cache_t *ddt_entry_cache;
 
-#define	DDT_ENTRY_SIZE	\
-	(sizeof (ddt_entry_t) + sizeof (ddt_phys_t) * DDT_PHYS_MAX)
+static kmem_cache_t *ddt_entry_flat_cache;
+static kmem_cache_t *ddt_entry_trad_cache;
+
+#define	DDT_ENTRY_FLAT_SIZE	\
+	(sizeof (ddt_entry_t) + sizeof (ddt_phys_flat_t))
+#define	DDT_ENTRY_TRAD_SIZE	\
+	(sizeof (ddt_entry_t) + sizeof (ddt_phys_trad_t))
+
+#define	DDT_ENTRY_SIZE(ddt)	\
+	_DDT_PHYS_SWITCH(ddt, DDT_ENTRY_FLAT_SIZE, DDT_ENTRY_TRAD_SIZE)
 
 /*
  * Enable/disable prefetching of dedup-ed blocks which are going to be freed.
@@ -195,7 +215,7 @@ static const char *const ddt_class_name[DDT_CLASSES] = {
  */
 static const uint64_t ddt_version_flags[] = {
 	[DDT_VERSION_LEGACY] = 0,
-	[DDT_VERSION_FDT] = 0,
+	[DDT_VERSION_FDT] = DDT_FLAG_FLAT,
 };
 
 /* New tables get this version */
@@ -349,7 +369,7 @@ ddt_object_lookup(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
 
 	return (ddt_ops[type]->ddt_op_lookup(ddt->ddt_os,
 	    ddt->ddt_object[type][class], &dde->dde_key,
-	    dde->dde_phys, sizeof (ddt_phys_t) * DDT_NPHYS(ddt)));
+	    dde->dde_phys, DDT_PHYS_SIZE(ddt)));
 }
 
 static int
@@ -391,8 +411,8 @@ ddt_object_update(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
 	ASSERT(ddt_object_exists(ddt, type, class));
 
 	return (ddt_ops[type]->ddt_op_update(ddt->ddt_os,
-	    ddt->ddt_object[type][class], &dde->dde_key, dde->dde_phys,
-	    sizeof (ddt_phys_t) * DDT_NPHYS(ddt), tx));
+	    ddt->ddt_object[type][class], &dde->dde_key,
+	    dde->dde_phys, DDT_PHYS_SIZE(ddt), tx));
 }
 
 static int
@@ -413,7 +433,7 @@ ddt_object_walk(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
 
 	int error = ddt_ops[type]->ddt_op_walk(ddt->ddt_os,
 	    ddt->ddt_object[type][class], walk, &ddlwe->ddlwe_key,
-	    ddlwe->ddlwe_phys, sizeof (ddlwe->ddlwe_phys));
+	    ddlwe->ddlwe_phys, DDT_PHYS_SIZE(ddt));
 	if (error == 0) {
 		ddlwe->ddlwe_type = type;
 		ddlwe->ddlwe_class = class;
@@ -505,13 +525,34 @@ ddt_key_fill(ddt_key_t *ddk, const blkptr_t *bp)
 }
 
 void
-ddt_phys_fill(ddt_phys_t *ddp, const blkptr_t *bp)
+ddt_phys_extend(ddt_phys_t *ddp, const blkptr_t *bp)
 {
-	ASSERT0(ddp->ddp_phys_birth);
+	int bp_ndvas = BP_GET_NDVAS(bp);
+	int ddp_max_dvas = BP_IS_ENCRYPTED(bp) ?
+	    SPA_DVAS_PER_BP - 1 : SPA_DVAS_PER_BP;
 
-	for (int d = 0; d < SPA_DVAS_PER_BP; d++)
-		ddp->ddp_dva[d] = bp->blk_dva[d];
-	ddp->ddp_phys_birth = BP_PHYSICAL_BIRTH(bp);
+	int s = 0, d = 0;
+	while (s < bp_ndvas && d < ddp_max_dvas) {
+		if (DVA_IS_VALID(&ddp->ddp_dva[d])) {
+			d++;
+			continue;
+		}
+		ddp->ddp_dva[d] = bp->blk_dva[s];
+		s++; d++;
+	}
+
+	/*
+	 * If the caller offered us more DVAs than we can fit, something has
+	 * gone wrong in their accounting. zio_ddt_write() should never ask for
+	 * more than we need.
+	 */
+	ASSERT3U(s, ==, bp_ndvas);
+
+	if (BP_IS_ENCRYPTED(bp))
+		ddp->ddp_dva[2] = bp->blk_dva[2];
+
+	if (ddp->ddp_phys_birth == 0)
+		ddp->ddp_phys_birth = BP_PHYSICAL_BIRTH(bp);
 }
 
 void
@@ -602,24 +643,33 @@ ddt_init(void)
 {
 	ddt_cache = kmem_cache_create("ddt_cache",
 	    sizeof (ddt_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
-	ddt_entry_cache = kmem_cache_create("ddt_entry_cache",
-	    DDT_ENTRY_SIZE, 0, NULL, NULL, NULL, NULL, NULL, 0);
+	ddt_entry_flat_cache = kmem_cache_create("ddt_entry_flat_cache",
+	    DDT_ENTRY_FLAT_SIZE, 0, NULL, NULL, NULL, NULL, NULL, 0);
+	ddt_entry_trad_cache = kmem_cache_create("ddt_entry_trad_cache",
+	    DDT_ENTRY_TRAD_SIZE, 0, NULL, NULL, NULL, NULL, NULL, 0);
 }
 
 void
 ddt_fini(void)
 {
-	kmem_cache_destroy(ddt_entry_cache);
+	kmem_cache_destroy(ddt_entry_trad_cache);
+	kmem_cache_destroy(ddt_entry_flat_cache);
 	kmem_cache_destroy(ddt_cache);
 }
 
 static ddt_entry_t *
-ddt_alloc(const ddt_key_t *ddk)
+ddt_alloc(const ddt_t *ddt, const ddt_key_t *ddk)
 {
 	ddt_entry_t *dde;
 
-	dde = kmem_cache_alloc(ddt_entry_cache, KM_SLEEP);
-	memset(dde, 0, DDT_ENTRY_SIZE);
+	if (ddt->ddt_flags & DDT_FLAG_FLAT) {
+		dde = kmem_cache_alloc(ddt_entry_flat_cache, KM_SLEEP);
+		memset(dde, 0, DDT_ENTRY_FLAT_SIZE);
+	} else {
+		dde = kmem_cache_alloc(ddt_entry_trad_cache, KM_SLEEP);
+		memset(dde, 0, DDT_ENTRY_TRAD_SIZE);
+	}
+
 	cv_init(&dde->dde_cv, NULL, CV_DEFAULT, NULL);
 
 	dde->dde_key = *ddk;
@@ -650,7 +700,8 @@ ddt_free(const ddt_t *ddt, ddt_entry_t *dde)
 	}
 
 	cv_destroy(&dde->dde_cv);
-	kmem_cache_free(ddt_entry_cache, dde);
+	kmem_cache_free(ddt->ddt_flags & DDT_FLAG_FLAT ?
+	    ddt_entry_flat_cache : ddt_entry_trad_cache, dde);
 }
 
 void
@@ -785,7 +836,7 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 		return (NULL);
 
 	/* Time to make a new entry. */
-	dde = ddt_alloc(&search);
+	dde = ddt_alloc(ddt, &search);
 	avl_insert(&ddt->ddt_tree, dde, where);
 
 	/*
@@ -1202,7 +1253,7 @@ ddt_repair_start(ddt_t *ddt, const blkptr_t *bp)
 
 	ddt_key_fill(&ddk, bp);
 
-	dde = ddt_alloc(&ddk);
+	dde = ddt_alloc(ddt, &ddk);
 	ddt_alloc_entry_io(dde);
 
 	for (ddt_type_t type = 0; type < DDT_TYPES; type++) {

@@ -23,7 +23,7 @@
  * Copyright (c) 2011, 2022 by Delphix. All rights reserved.
  * Copyright (c) 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
- * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, 2023, Klara Inc.
  * Copyright (c) 2019, Allan Jude
  * Copyright (c) 2021, Datto, Inc.
  */
@@ -3365,21 +3365,22 @@ zio_ddt_collision(zio_t *zio, ddt_t *ddt, ddt_entry_t *dde)
 		if (DDT_PHYS_IS_DITTO(ddt, p))
 			continue;
 
-		zio_t *lio = dde->dde_io->dde_lead_zio[p];
+		if (dde->dde_io == NULL)
+			continue;
 
-		if (lio != NULL && do_raw) {
+		zio_t *lio = dde->dde_io->dde_lead_zio[p];
+		if (lio == NULL)
+			continue;
+
+		if (do_raw)
 			return (lio->io_size != zio->io_size ||
 			    abd_cmp(zio->io_abd, lio->io_abd) != 0);
-		} else if (lio != NULL) {
-			return (lio->io_orig_size != zio->io_orig_size ||
-			    abd_cmp(zio->io_orig_abd, lio->io_orig_abd) != 0);
-		}
+
+		return (lio->io_orig_size != zio->io_orig_size ||
+		    abd_cmp(zio->io_orig_abd, lio->io_orig_abd) != 0);
 	}
 
 	for (int p = 0; p < DDT_NPHYS(ddt); p++) {
-		if (DDT_PHYS_IS_DITTO(ddt, p))
-			continue;
-
 		ddt_phys_t *ddp = &dde->dde_phys[p];
 
 		if (ddp->ddp_phys_birth != 0 && do_raw) {
@@ -3445,52 +3446,85 @@ zio_ddt_collision(zio_t *zio, ddt_t *ddt, ddt_entry_t *dde)
 }
 
 static void
-zio_ddt_child_write_ready(zio_t *zio)
-{
-	ddt_t *ddt = ddt_select(zio->io_spa, zio->io_bp);
-	ddt_entry_t *dde = zio->io_private;
-	zio_t *pio;
-
-	if (zio->io_error)
-		return;
-
-	int p = DDT_PHYS_FOR_COPIES(ddt, zio->io_prop.zp_copies);
-	ddt_phys_t *ddp = &dde->dde_phys[p];
-
-	ddt_enter(ddt);
-
-	ASSERT(dde->dde_io->dde_lead_zio[p] == zio);
-
-	ddt_phys_fill(ddp, zio->io_bp);
-
-	zio_link_t *zl = NULL;
-	while ((pio = zio_walk_parents(zio, &zl)) != NULL)
-		ddt_bp_fill(ddp, pio->io_bp, zio->io_txg);
-
-	ddt_exit(ddt);
-}
-
-static void
 zio_ddt_child_write_done(zio_t *zio)
 {
 	ddt_t *ddt = ddt_select(zio->io_spa, zio->io_bp);
 	ddt_entry_t *dde = zio->io_private;
 
+	zio_link_t *zl = NULL;
+	zio_t *pio = zio_walk_parents(zio, &zl);
+	ASSERT(pio);
+
 	int p = DDT_PHYS_FOR_COPIES(ddt, zio->io_prop.zp_copies);
 	ddt_phys_t *ddp = &dde->dde_phys[p];
 
 	ddt_enter(ddt);
 
-	ASSERT(ddp->ddp_refcnt == 0);
-	ASSERT(dde->dde_io->dde_lead_zio[p] == zio);
-	dde->dde_io->dde_lead_zio[p] = NULL;
+	/* we're the lead, so once we're done there's no one else outstanding */
+	if (dde->dde_io->dde_lead_zio[p] == zio)
+		dde->dde_io->dde_lead_zio[p] = NULL;
 
-	if (zio->io_error == 0) {
-		zio_link_t *zl = NULL;
-		while (zio_walk_parents(zio, &zl) != NULL)
+	ddt_phys_t *orig = &dde->dde_io->dde_orig_phys[p];
+
+	if (zio->io_error != 0) {
+		/*
+		 * The write failed, so we're about to abort the entire IO
+		 * chain. We need to revert the entry back to what it was at
+		 * the last time it was successfully extended.
+		 */
+		*ddp = *orig;
+		memset(orig, 0, sizeof (ddt_phys_t));
+
+		ddt_exit(ddt);
+		return;
+	}
+
+	/*
+	 * We've successfully added new DVAs to the entry. Clear the saved
+	 * state or, if there's still outstanding IO, remember it so we can
+	 * revert to a known good state if that IO fails.
+	 */
+	if (dde->dde_io->dde_lead_zio[p] == NULL)
+		memset(orig, 0, sizeof (ddt_phys_t));
+	else
+		*orig = *ddp;
+
+	/*
+	 * Add references for all dedup writes that were waiting on the
+	 * physical one, skipping any other physical writes that are waiting.
+	 */
+	zl = NULL;
+	while ((pio = zio_walk_parents(zio, &zl)) != NULL) {
+		if (!(pio->io_flags & ZIO_FLAG_DDT_CHILD))
 			ddt_phys_addref(ddp);
-	} else {
-		ddt_phys_clear(ddp);
+	}
+
+	ddt_exit(ddt);
+}
+
+static void
+zio_ddt_child_write_ready(zio_t *zio)
+{
+	ddt_t *ddt = ddt_select(zio->io_spa, zio->io_bp);
+	ddt_entry_t *dde = zio->io_private;
+
+	zio_link_t *zl = NULL;
+	zio_t *pio = zio_walk_parents(zio, &zl);
+	ASSERT(pio);
+
+	int p = DDT_PHYS_FOR_COPIES(ddt, zio->io_prop.zp_copies);
+	ddt_phys_t *ddp = &dde->dde_phys[p];
+
+	if (zio->io_error != 0)
+		return;
+
+	ddt_enter(ddt);
+
+	ddt_phys_extend(ddp, zio->io_bp);
+	zl = NULL;
+	while ((pio = zio_walk_parents(zio, &zl)) != NULL) {
+		if (!(pio->io_flags & ZIO_FLAG_DDT_CHILD))
+			ddt_bp_fill(ddp, pio->io_bp, zio->io_txg);
 	}
 
 	ddt_exit(ddt);
@@ -3503,9 +3537,9 @@ zio_ddt_write(zio_t *zio)
 	blkptr_t *bp = zio->io_bp;
 	uint64_t txg = zio->io_txg;
 	zio_prop_t *zp = &zio->io_prop;
-	zio_t *cio = NULL;
 	ddt_t *ddt = ddt_select(spa, bp);
 	ddt_entry_t *dde;
+	ddt_phys_t *ddp;
 
 	ASSERT(BP_GET_DEDUP(bp));
 	ASSERT(BP_GET_CHECKSUM(bp) == zp->zp_checksum);
@@ -3523,9 +3557,6 @@ zio_ddt_write(zio_t *zio)
 		ddt_exit(ddt);
 		return (zio);
 	}
-
-	int p = DDT_PHYS_FOR_COPIES(ddt, zp->zp_copies);
-	ddt_phys_t *ddp = &dde->dde_phys[p];
 
 	if (zp->zp_dedup_verify && zio_ddt_collision(zio, ddt, dde)) {
 		/*
@@ -3550,30 +3581,229 @@ zio_ddt_write(zio_t *zio)
 		return (zio);
 	}
 
-	ddt_alloc_entry_io(dde);
+	int p = DDT_PHYS_FOR_COPIES(ddt, zp->zp_copies);
+	ddp = &dde->dde_phys[p];
 
-	if (ddp->ddp_phys_birth != 0 || dde->dde_io->dde_lead_zio[p] != NULL) {
-		if (ddp->ddp_phys_birth != 0)
+	/*
+	 * In the common cases, at this point we have a regular BP with no
+	 * allocated DVAs, and the corresponding DDT entry for its checksum.
+	 * Our goal is to fill the BP with enough DVAs to satisfy its copies=
+	 * requirement.
+	 *
+	 * One of three things needs to happen to fulfill this:
+	 *
+	 * - if the DDT entry has enough DVAs to satisfy the BP, we just copy
+	 *   them out of the entry and return;
+	 *
+	 * - if the DDT entry has no DVAs (ie its brand new), then we have to
+	 *   issue the write as normal so that DVAs can be allocated and the
+	 *   data land on disk. We then copy the DVAs into the DDT entry on
+	 *   return.
+	 *
+	 * - if the DDT entry has some DVAs, but too few, we have to issue the
+	 *   write, adjusted to have allocate fewer copies. When it returns, we
+	 *   add the new DVAs to the DDT entry, and update the BP to have the
+	 *   full amount it originally requested.
+	 *
+	 * In all cases, if there's already a writing IO in flight, we need to
+	 * defer the action until after the write is done. If our action is to
+	 * write, we need to adjust our request for additional DVAs to match
+	 * what will be in the DDT entry after it completes. In this way every
+	 * IO can be guaranteed to recieve enough DVAs simply by joining the
+	 * end of the chain and letting the sequence play out.
+	 */
+
+	/*
+	 * Number of DVAs in the DDT entry. If the BP is encrypted we ignore
+	 * the third one as normal.
+	 */
+	int have_dvas =
+	    !!DVA_GET_ASIZE(&ddp->ddp_dva[0]) +
+	    !!DVA_GET_ASIZE(&ddp->ddp_dva[1]) +
+	    (!!DVA_GET_ASIZE(&ddp->ddp_dva[2]) *
+	    !BP_IS_ENCRYPTED(bp));
+	IMPLY(have_dvas == 0, ddp->ddp_phys_birth == 0);
+
+	/* Number of DVAs requested bya the IO. */
+	uint8_t need_dvas = zp->zp_copies;
+
+	/*
+	 * What we do next depends on whether or not there's IO outstanding that
+	 * will update this entry.
+	 */
+	if (dde->dde_io == NULL || dde->dde_io->dde_lead_zio[p] == NULL) {
+		/*
+		 * No IO outstanding, so we only need to worry about ourselves.
+		 */
+
+		/*
+		 * Override BPs bring their own DVAs and their own problems.
+		 */
+		if (zio->io_bp_override) {
+			/*
+			 * For a brand-new entry, all the work has been done
+			 * for us, and we can just fill it out from the provided
+			 * block and leave.
+			 */
+			if (have_dvas == 0) {
+				ASSERT(bp->blk_birth == txg);
+				ASSERT(BP_EQUAL(bp, zio->io_bp_override));
+				ddt_phys_extend(ddp, bp);
+				ddt_phys_addref(ddp);
+				ddt_exit(ddt);
+				return (zio);
+			}
+
+			/*
+			 * If we already have this entry, then we want to treat
+			 * it like a regular write. To do this we just wipe
+			 * them out and proceed like a regular write.
+			 *
+			 * Even if there are some DVAs in the entry, we still
+			 * have to clear them out. We can't use them to fill
+			 * out the dedup entry, as they are all referenced
+			 * together by a bp already on disk, and will be freed
+			 * as a group.
+			 */
+			BP_ZERO_DVAS(bp);
+			BP_SET_BIRTH(bp, 0, 0);
+		}
+
+		/*
+		 * If there are enough DVAs in the entry to service our request,
+		 * then we can just use them as-is.
+		 */
+		if (have_dvas >= need_dvas) {
 			ddt_bp_fill(ddp, bp, txg);
-		if (dde->dde_io->dde_lead_zio[p] != NULL)
-			zio_add_child(zio, dde->dde_io->dde_lead_zio[p]);
-		else
 			ddt_phys_addref(ddp);
-	} else if (zio->io_bp_override) {
-		ASSERT(bp->blk_birth == txg);
-		ASSERT(BP_EQUAL(bp, zio->io_bp_override));
-		ddt_phys_fill(ddp, bp);
-		ddt_phys_addref(ddp);
-	} else {
-		cio = zio_write(zio, spa, txg, bp, zio->io_orig_abd,
-		    zio->io_orig_size, zio->io_orig_size, zp,
-		    zio_ddt_child_write_ready, NULL,
-		    zio_ddt_child_write_done, dde, zio->io_priority,
-		    ZIO_DDT_CHILD_FLAGS(zio), &zio->io_bookmark);
+			ddt_exit(ddt);
+			return (zio);
+		}
 
-		zio_push_transform(cio, zio->io_abd, zio->io_size, 0, NULL);
-		dde->dde_io->dde_lead_zio[p] = cio;
+		/*
+		 * Otherwise, we have to issue IO to fill the entry up to the
+		 * amount we need.
+		 */
+		need_dvas -= have_dvas;
+	} else {
+		/*
+		 * There's a write in-flight. If there's already enough DVAs on
+		 * the entry, then either there were already enough to start
+		 * with, or the in-flight IO is between READY and DONE, and so
+		 * has extended the entry with new DVAs. Either way, we don't
+		 * need to do anything, we can just slot in behind it.
+		 */
+
+		if (zio->io_bp_override) {
+			/*
+			 * If there's a write out, then we're soon going to
+			 * have our own copies of this block, so clear out the
+			 * override block and treat it as a regular dedup
+			 * write. See comment above.
+			 */
+			BP_ZERO_DVAS(bp);
+			BP_SET_BIRTH(bp, 0, 0);
+		}
+
+		if (have_dvas >= need_dvas) {
+			/*
+			 * A minor point: there might already be enough
+			 * committed DVAs in the entry to service our request,
+			 * but we don't know which are completed and which are
+			 * allocated but not yet written. In this case, should
+			 * the IO for the new DVAs fail, we will be on the end
+			 * of the IO chain and will also recieve an error, even
+			 * though our request could have been serviced.
+			 *
+			 * This is an extremely rare case, as it requires the
+			 * original block to be copied with a request for a
+			 * larger number of DVAs, then copied again requesting
+			 * the same (or already fulfilled) number of DVAs while
+			 * the first request is active, and then that first
+			 * request errors. In return, the logic required to
+			 * catch and handle it is complex. For now, I'm just
+			 * not going to bother with it.
+			 */
+
+			/*
+			 * We always fill the bp here as we may have arrived
+			 * after the in-flight write has passed READY, and so
+			 * missed out.
+			 */
+			ddt_bp_fill(ddp, bp, txg);
+			zio_add_child(zio, dde->dde_io->dde_lead_zio[p]);
+			ddt_exit(ddt);
+			return (zio);
+		}
+
+		/*
+		 * There's not enough in the entry yet, so we need to look at
+		 * the write in-flight and see how many DVAs it will have once
+		 * it completes.
+		 *
+		 * The in-flight write has potentially had its copies request
+		 * reduced (if we're filling out an existing entry), so we need
+		 * to reach in and get the original write to find out what it is
+		 * expecting.
+		 *
+		 * Note that the parent of the lead zio will always have the
+		 * highest zp_copies of any zio in the chain, because ones that
+		 * can be serviced without additional IO are always added to
+		 * the back of the chain.
+		 */
+		zio_link_t *zl = NULL;
+		zio_t *pio =
+		    zio_walk_parents(dde->dde_io->dde_lead_zio[p], &zl);
+		ASSERT(pio);
+		uint8_t parent_dvas = pio->io_prop.zp_copies;
+
+		if (parent_dvas >= need_dvas) {
+			zio_add_child(zio, dde->dde_io->dde_lead_zio[p]);
+			ddt_exit(ddt);
+			return (zio);
+		}
+
+		/*
+		 * Still not enough, so we will need to issue to get the
+		 * shortfall.
+		 */
+		need_dvas -= parent_dvas;
 	}
+
+	/*
+	 * We need to write. We will create a new write with the copies
+	 * property adjusted to match the number of DVAs we need to need to
+	 * grow the DDT entry by to satisfy the request.
+	 */
+	zio_prop_t czp = *zp;
+	czp.zp_copies = need_dvas;
+	zio_t *cio = zio_write(zio, spa, txg, bp, zio->io_orig_abd,
+	    zio->io_orig_size, zio->io_orig_size, &czp,
+	    zio_ddt_child_write_ready, NULL,
+	    zio_ddt_child_write_done, dde, zio->io_priority,
+	    ZIO_DDT_CHILD_FLAGS(zio), &zio->io_bookmark);
+
+	zio_push_transform(cio, zio->io_abd, zio->io_size, 0, NULL);
+
+	/*
+	 * We are the new lead zio, because our parent has the highest
+	 * zp_copies that has been requested for this entry so far.
+	 */
+	ddt_alloc_entry_io(dde);
+	if (dde->dde_io->dde_lead_zio[p] == NULL) {
+		/*
+		 * First time out, take a copy of the stable entry to revert
+		 * to if there's an error (see zio_ddt_child_write_done())
+		 */
+		dde->dde_io->dde_orig_phys[p] = *ddp;
+	} else {
+		/*
+		 * Make the existing chain our child, because it cannot
+		 * complete until we have.
+		 */
+		zio_add_child(cio, dde->dde_io->dde_lead_zio[p]);
+	}
+	dde->dde_io->dde_lead_zio[p] = cio;
 
 	ddt_exit(ddt);
 

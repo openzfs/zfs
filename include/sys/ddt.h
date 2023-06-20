@@ -42,8 +42,8 @@ struct abd;
 /*
  * DDT-wide feature flags. These are set in ddt_flags by ddt_configure().
  */
-/* No flags yet. */
-#define	DDT_FLAG_MASK	(0)
+#define	DDT_FLAG_FLAT	(1 << 0)	/* single extensible phys */
+#define	DDT_FLAG_MASK	(DDT_FLAG_FLAT)
 
 /*
  * DDT on-disk storage object types. Each one corresponds to specific
@@ -126,21 +126,41 @@ typedef struct {
  * characteristics of the stored block, such as its location on disk (DVAs),
  * birth txg and ref count.
  *
- * Note that an entry has an array of four ddt_phys_t, one for each number of
- * DVAs (copies= property) and another for additional "ditto" copies. Most
+ * The "traditional" entry has an array of four ddt_phys_t, one for each number
+ * of DVAs (copies= property) and another for additional "ditto" copies. Most
  * users of ddt_phys_t will handle indexing into or counting the phys they
  * want.
+ *
+ * The newer "flat" entry has only a single ddt_phys_t, but is represented as
+ * an array so it can be used by indexing into it, making it easier to support
+ * both traditional and flat entries in the same code.
  */
+
+#define	DDT_PHYS_MAX	(4)
+
 typedef struct {
 	dva_t		ddp_dva[SPA_DVAS_PER_BP];
 	uint64_t	ddp_refcnt;
 	uint64_t	ddp_phys_birth;
 } ddt_phys_t;
 
-#define	DDT_PHYS_MAX			(4)
-#define	DDT_NPHYS(ddt)			((ddt) ? DDT_PHYS_MAX : DDT_PHYS_MAX)
-#define	DDT_PHYS_IS_DITTO(ddt, p)	((ddt) && p == 0)
-#define	DDT_PHYS_FOR_COPIES(ddt, p)	((ddt) ? (p) : (p))
+typedef struct {
+	ddt_phys_t	ddpf_phys[1];
+} ddt_phys_flat_t;
+
+typedef struct {
+	ddt_phys_t	ddpt_phys[DDT_PHYS_MAX];
+} ddt_phys_trad_t;
+
+#define	_DDT_PHYS_SWITCH(ddt, flat, trad)	\
+	(((ddt)->ddt_flags & DDT_FLAG_FLAT) ? (flat) : (trad))
+
+#define	DDT_PHYS_SIZE(ddt)		_DDT_PHYS_SWITCH(ddt,	\
+	sizeof (ddt_phys_flat_t), sizeof (ddt_phys_trad_t))
+
+#define	DDT_NPHYS(ddt)			_DDT_PHYS_SWITCH(ddt, 1, DDT_PHYS_MAX)
+#define	DDT_PHYS_FOR_COPIES(ddt, p)	_DDT_PHYS_SWITCH(ddt, 0, p)
+#define	DDT_PHYS_IS_DITTO(ddt, p)	_DDT_PHYS_SWITCH(ddt, 0, (p == 0))
 
 /*
  * A "live" entry, holding changes to an entry made this txg, and other data to
@@ -158,6 +178,9 @@ typedef struct {
 typedef struct {
 	/* copy of data after a repair read, to be rewritten */
 	abd_t		*dde_repair_abd;
+
+	/* original phys contents before update, for error handling */
+	ddt_phys_t	dde_orig_phys[DDT_PHYS_MAX];
 
 	/* in-flight update IOs */
 	zio_t		*dde_lead_zio[DDT_PHYS_MAX];
@@ -241,7 +264,7 @@ extern void ddt_bp_fill(const ddt_phys_t *ddp, blkptr_t *bp,
 extern void ddt_bp_create(enum zio_checksum checksum, const ddt_key_t *ddk,
     const ddt_phys_t *ddp, blkptr_t *bp);
 
-extern void ddt_phys_fill(ddt_phys_t *ddp, const blkptr_t *bp);
+extern void ddt_phys_extend(ddt_phys_t *ddp, const blkptr_t *bp);
 extern void ddt_phys_clear(ddt_phys_t *ddp);
 extern void ddt_phys_addref(ddt_phys_t *ddp);
 extern void ddt_phys_decref(ddt_phys_t *ddp);
