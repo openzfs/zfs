@@ -48,9 +48,7 @@
  * C++ flush methods
  */
 #undef   flush
-/* Likewise for __init */
-#undef __init
-
+#undef	__init
 #include <list>
 #include <map>
 #include <sstream>

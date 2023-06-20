@@ -262,9 +262,9 @@ void
 ZfsDaemon::RescanSystem()
 {
         struct gmesh	  mesh;
-        struct gclass	 *mp = NULL;
-        struct ggeom	 *gp = NULL;
-        struct gprovider *pp = NULL;
+        struct gclass	 *mp;
+        struct ggeom	 *gp;
+        struct gprovider *pp;
 	int		  result;
 
         /*
@@ -276,7 +276,7 @@ ZfsDaemon::RescanSystem()
 	result = geom_gettree(&mesh);
 	if (result != 0) {
 		syslog(LOG_ERR, "ZfsDaemon::RescanSystem: "
-		       "geom_gettree faild with error %d\n", result);
+		       "geom_gettree failed with error %d\n", result);
 		return;
 	}
 

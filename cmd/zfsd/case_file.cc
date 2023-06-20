@@ -309,8 +309,16 @@ CaseFile::ReEvaluate(const string &devPath, const string &physPath, Vdev *vdev)
 
 		if (IsSpare())
 			flags |= ZFS_ONLINE_SPARE;
-		zpool_vdev_online(pool, vdev->GUIDString().c_str(),
-		    flags, &m_vdevState);
+		if (zpool_vdev_online(pool, vdev->GUIDString().c_str(),
+		    flags, &m_vdevState) != 0) {
+			syslog(LOG_ERR,
+			    "Failed to online vdev(%s/%s:%s): %s: %s\n",
+			    zpool_get_name(pool), vdev->GUIDString().c_str(),
+			    devPath.c_str(), libzfs_error_action(g_zfsHandle),
+			    libzfs_error_description(g_zfsHandle));
+			return (/*consumed*/false);
+		}
+
 		syslog(LOG_INFO, "Onlined vdev(%s/%s:%s).  State now %s.\n",
 		       zpool_get_name(pool), vdev->GUIDString().c_str(),
 		       devPath.c_str(),
@@ -510,8 +518,7 @@ bool
 CaseFile::ActivateSpare() {
 	nvlist_t	*config, *nvroot, *parent_config;
 	nvlist_t       **spares;
-	char		*devPath, *vdev_type;
-	const char	*poolname;
+	const char	*devPath, *poolname, *vdev_type;
 	u_int		 nspares, i;
 	int		 error;
 
@@ -538,7 +545,7 @@ CaseFile::ActivateSpare() {
 
 	parent_config = find_parent(config, nvroot, m_vdevGUID);
 	if (parent_config != NULL) {
-		char *parent_type;
+		const char *parent_type;
 
 		/* 
 		 * Don't activate spares for members of a "replacing" vdev.
@@ -1140,7 +1147,7 @@ CaseFile::Replace(const char* vdev_type, const char* path, bool isspare) {
 	nvlist_free(newvd);
 
 	retval = (zpool_vdev_attach(zhp, oldstr.c_str(), path, nvroot,
-	    /*replace*/B_TRUE, /*detach*/B_FALSE) == 0);
+       /*replace*/B_TRUE, /*rebuild*/ B_FALSE) == 0);
 	if (retval)
 		syslog(LOG_INFO, "Replacing vdev(%s/%s) with %s\n",
 		    poolname, oldstr.c_str(), path);

@@ -95,7 +95,7 @@ public:
 	static PoolFilter_t ZpoolByName;
 
 	/**
-	 * \brief ZpoolList contructor
+	 * \brief ZpoolList constructor
 	 *
 	 * \param filter     The filter function to use when constructing
 	 *                   the ZpoolList.  This may be one of the static
