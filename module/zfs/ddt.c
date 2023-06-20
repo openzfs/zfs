@@ -75,12 +75,19 @@
  * fill the BP with the DVAs from the entry, increment the refcount and cause
  * the write IO to return immediately.
  *
- * Each ddt_phys_t slot in the entry represents a separate dedup block for the
- * same content/checksum. The slot is selected based on the zp_copies parameter
- * the block is written with, that is, the number of DVAs in the block. The
- * "ditto" slot (DDT_PHYS_DITTO) used to be used for now-removed "dedupditto"
- * feature. These are no longer written, and will be freed if encountered on
- * old pools.
+ * Traditionally, each ddt_phys_t slot in the entry represents a separate dedup
+ * block for the same content/checksum. The slot is selected based on the
+ * zp_copies parameter the block is written with, that is, the number of DVAs
+ * in the block. The "ditto" slot (DDT_PHYS_DITTO) used to be used for
+ * now-removed "dedupditto" feature. These are no longer written, and will be
+ * freed if encountered on old pools.
+ *
+ * If the "fast_dedup" feature is enabled, new dedup tables will be created
+ * with the "flat phys" option. In this mode, there is only one ddt_phys_t
+ * slot. If a write is issued for an entry that exists, but has fewer DVAs,
+ * then only as many new DVAs are allocated and written to make up the
+ * shortfall. The existing entry is then extended (ddt_phys_extend()) with the
+ * new DVAs.
  *
  * ## Lifetime of an entry
  *
@@ -130,6 +137,16 @@
  * from the alternate block. If the block is actually damaged, this will invoke
  * the pool's "self-healing" mechanism, and repair the block.
  *
+ * If the "fast_dedup" feature is enabled, the "flat phys" option will be in
+ * use, so there is only ever one ddt_phys_t slot. The repair process will
+ * still happen in this case, though it is unlikely to succeed as there will
+ * usually be no other equivalent blocks to fall back on (though there might
+ * be, if this was an early version of a dedup'd block that has since been
+ * extended).
+ *
+ * Note that this repair mechanism is in addition to and separate from the
+ * regular OpenZFS scrub and self-healing mechanisms.
+ *
  * ## Scanning (scrub/resilver)
  *
  * If dedup is active, the scrub machinery will walk the dedup table first, and
@@ -162,10 +179,15 @@
 	c == ZIO_CHECKSUM_BLAKE3)
 
 static kmem_cache_t *ddt_cache;
-static kmem_cache_t *ddt_entry_cache;
 
-#define	DDT_ENTRY_SIZE	\
-	(sizeof (ddt_entry_t) + sizeof (ddt_phys_t) * DDT_PHYS_MAX)
+static kmem_cache_t *ddt_entry_flat_cache;
+static kmem_cache_t *ddt_entry_trad_cache;
+
+#define	DDT_ENTRY_FLAT_SIZE	(sizeof (ddt_entry_t) + DDT_FLAT_PHYS_SIZE)
+#define	DDT_ENTRY_TRAD_SIZE	(sizeof (ddt_entry_t) + DDT_TRAD_PHYS_SIZE)
+
+#define	DDT_ENTRY_SIZE(ddt)	\
+	_DDT_PHYS_SWITCH(ddt, DDT_ENTRY_FLAT_SIZE, DDT_ENTRY_TRAD_SIZE)
 
 /*
  * Enable/disable prefetching of dedup-ed blocks which are going to be freed.
@@ -195,7 +217,7 @@ static const char *const ddt_class_name[DDT_CLASSES] = {
  */
 static const uint64_t ddt_version_flags[] = {
 	[DDT_VERSION_LEGACY] = 0,
-	[DDT_VERSION_FDT] = 0,
+	[DDT_VERSION_FDT] = DDT_FLAG_FLAT,
 };
 
 /* Dummy version to signal that configure is still necessary */
@@ -346,7 +368,7 @@ ddt_object_lookup(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
 
 	return (ddt_ops[type]->ddt_op_lookup(ddt->ddt_os,
 	    ddt->ddt_object[type][class], &dde->dde_key,
-	    dde->dde_phys, sizeof (ddt_phys_t) * DDT_NPHYS(ddt)));
+	    dde->dde_phys, DDT_PHYS_SIZE(ddt)));
 }
 
 static int
@@ -388,8 +410,8 @@ ddt_object_update(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
 	ASSERT(ddt_object_exists(ddt, type, class));
 
 	return (ddt_ops[type]->ddt_op_update(ddt->ddt_os,
-	    ddt->ddt_object[type][class], &dde->dde_key, dde->dde_phys,
-	    sizeof (ddt_phys_t) * DDT_NPHYS(ddt), tx));
+	    ddt->ddt_object[type][class], &dde->dde_key,
+	    dde->dde_phys, DDT_PHYS_SIZE(ddt), tx));
 }
 
 static int
@@ -410,11 +432,10 @@ ddt_object_walk(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
 
 	int error = ddt_ops[type]->ddt_op_walk(ddt->ddt_os,
 	    ddt->ddt_object[type][class], walk, &ddlwe->ddlwe_key,
-	    ddlwe->ddlwe_phys, sizeof (ddlwe->ddlwe_phys));
+	    &ddlwe->ddlwe_phys, DDT_PHYS_SIZE(ddt));
 	if (error == 0) {
 		ddlwe->ddlwe_type = type;
 		ddlwe->ddlwe_class = class;
-		ddlwe->ddlwe_nphys = DDT_NPHYS(ddt);
 		return (0);
 	}
 	return (error);
@@ -451,13 +472,25 @@ ddt_object_name(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
 }
 
 void
-ddt_bp_fill(const ddt_phys_t *ddp, blkptr_t *bp, uint64_t txg)
+ddt_bp_fill(const ddt_univ_phys_t *ddp, ddt_phys_variant_t v,
+    blkptr_t *bp, uint64_t txg)
 {
 	ASSERT3U(txg, !=, 0);
+	ASSERT3U(v, <, DDT_PHYS_NONE);
+	uint64_t phys_birth;
+	const dva_t *dvap;
+
+	if (v == DDT_PHYS_FLAT) {
+		phys_birth = ddp->ddp_flat.ddp_phys_birth;
+		dvap = ddp->ddp_flat.ddp_dva;
+	} else {
+		phys_birth = ddp->ddp_trad[v].ddp_phys_birth;
+		dvap = ddp->ddp_trad[v].ddp_dva;
+	}
 
 	for (int d = 0; d < SPA_DVAS_PER_BP; d++)
-		bp->blk_dva[d] = ddp->ddp_dva[d];
-	BP_SET_BIRTH(bp, txg, ddp->ddp_phys_birth);
+		bp->blk_dva[d] = dvap[d];
+	BP_SET_BIRTH(bp, txg, phys_birth);
 }
 
 /*
@@ -465,13 +498,13 @@ ddt_bp_fill(const ddt_phys_t *ddp, blkptr_t *bp, uint64_t txg)
  * will be missing the salt / IV required to do a full decrypting read.
  */
 void
-ddt_bp_create(enum zio_checksum checksum,
-    const ddt_key_t *ddk, const ddt_phys_t *ddp, blkptr_t *bp)
+ddt_bp_create(enum zio_checksum checksum, const ddt_key_t *ddk,
+    const ddt_univ_phys_t *ddp, ddt_phys_variant_t v, blkptr_t *bp)
 {
 	BP_ZERO(bp);
 
 	if (ddp != NULL)
-		ddt_bp_fill(ddp, bp, ddp->ddp_phys_birth);
+		ddt_bp_fill(ddp, v, bp, ddt_phys_birth(ddp, v));
 
 	bp->blk_cksum = ddk->ddk_cksum;
 
@@ -502,42 +535,101 @@ ddt_key_fill(ddt_key_t *ddk, const blkptr_t *bp)
 }
 
 void
-ddt_phys_fill(ddt_phys_t *ddp, const blkptr_t *bp)
+ddt_phys_extend(ddt_univ_phys_t *ddp, ddt_phys_variant_t v, const blkptr_t *bp)
 {
-	ASSERT0(ddp->ddp_phys_birth);
+	ASSERT3U(v, <, DDT_PHYS_NONE);
+	int bp_ndvas = BP_GET_NDVAS(bp);
+	int ddp_max_dvas = BP_IS_ENCRYPTED(bp) ?
+	    SPA_DVAS_PER_BP - 1 : SPA_DVAS_PER_BP;
+	dva_t *dvas = (v == DDT_PHYS_FLAT) ?
+	    ddp->ddp_flat.ddp_dva : ddp->ddp_trad[v].ddp_dva;
 
-	for (int d = 0; d < SPA_DVAS_PER_BP; d++)
-		ddp->ddp_dva[d] = bp->blk_dva[d];
-	ddp->ddp_phys_birth = BP_GET_BIRTH(bp);
-}
+	int s = 0, d = 0;
+	while (s < bp_ndvas && d < ddp_max_dvas) {
+		if (DVA_IS_VALID(&dvas[d])) {
+			d++;
+			continue;
+		}
+		dvas[d] = bp->blk_dva[s];
+		s++; d++;
+	}
 
-void
-ddt_phys_clear(ddt_phys_t *ddp)
-{
-	memset(ddp, 0, sizeof (*ddp));
-}
+	/*
+	 * If the caller offered us more DVAs than we can fit, something has
+	 * gone wrong in their accounting. zio_ddt_write() should never ask for
+	 * more than we need.
+	 */
+	ASSERT3U(s, ==, bp_ndvas);
 
-void
-ddt_phys_addref(ddt_phys_t *ddp)
-{
-	ddp->ddp_refcnt++;
-}
+	if (BP_IS_ENCRYPTED(bp))
+		dvas[2] = bp->blk_dva[2];
 
-void
-ddt_phys_decref(ddt_phys_t *ddp)
-{
-	if (ddp) {
-		ASSERT3U(ddp->ddp_refcnt, >, 0);
-		ddp->ddp_refcnt--;
+	if (ddt_phys_birth(ddp, v) == 0) {
+		if (v == DDT_PHYS_FLAT)
+			ddp->ddp_flat.ddp_phys_birth = BP_GET_BIRTH(bp);
+		else
+			ddp->ddp_trad[v].ddp_phys_birth = BP_GET_BIRTH(bp);
 	}
 }
 
+void
+ddt_phys_copy(ddt_univ_phys_t *dst, const ddt_univ_phys_t *src,
+    ddt_phys_variant_t v)
+{
+	ASSERT3U(v, <, DDT_PHYS_NONE);
+
+	if (v == DDT_PHYS_FLAT)
+		dst->ddp_flat = src->ddp_flat;
+	else
+		dst->ddp_trad[v] = src->ddp_trad[v];
+}
+
+void
+ddt_phys_clear(ddt_univ_phys_t *ddp, ddt_phys_variant_t v)
+{
+	ASSERT3U(v, <, DDT_PHYS_NONE);
+
+	if (v == DDT_PHYS_FLAT)
+		memset(&ddp->ddp_flat, 0, DDT_FLAT_PHYS_SIZE);
+	else
+		memset(&ddp->ddp_trad[v], 0, DDT_TRAD_PHYS_SIZE / DDT_PHYS_MAX);
+}
+
+void
+ddt_phys_addref(ddt_univ_phys_t *ddp, ddt_phys_variant_t v)
+{
+	ASSERT3U(v, <, DDT_PHYS_NONE);
+
+	if (v == DDT_PHYS_FLAT)
+		ddp->ddp_flat.ddp_refcnt++;
+	else
+		ddp->ddp_trad[v].ddp_refcnt++;
+}
+
+uint64_t
+ddt_phys_decref(ddt_univ_phys_t *ddp, ddt_phys_variant_t v)
+{
+	ASSERT3U(v, <, DDT_PHYS_NONE);
+
+	uint64_t *refcntp;
+
+	if (v == DDT_PHYS_FLAT)
+		refcntp = &ddp->ddp_flat.ddp_refcnt;
+	else
+		refcntp = &ddp->ddp_trad[v].ddp_refcnt;
+
+	ASSERT3U(*refcntp, >, 0);
+	(*refcntp)--;
+	return (*refcntp);
+}
+
 static void
-ddt_phys_free(ddt_t *ddt, ddt_key_t *ddk, ddt_phys_t *ddp, uint64_t txg)
+ddt_phys_free(ddt_t *ddt, ddt_key_t *ddk, ddt_univ_phys_t *ddp,
+    ddt_phys_variant_t v, uint64_t txg)
 {
 	blkptr_t blk;
 
-	ddt_bp_create(ddt->ddt_checksum, ddk, ddp, &blk);
+	ddt_bp_create(ddt->ddt_checksum, ddk, ddp, v, &blk);
 
 	/*
 	 * We clear the dedup bit so that zio_free() will actually free the
@@ -545,20 +637,67 @@ ddt_phys_free(ddt_t *ddt, ddt_key_t *ddk, ddt_phys_t *ddp, uint64_t txg)
 	 */
 	BP_SET_DEDUP(&blk, 0);
 
-	ddt_phys_clear(ddp);
+	ddt_phys_clear(ddp, v);
 	zio_free(ddt->ddt_spa, txg, &blk);
 }
 
-ddt_phys_t *
+uint64_t
+ddt_phys_birth(const ddt_univ_phys_t *ddp, ddt_phys_variant_t v)
+{
+	ASSERT3U(v, <, DDT_PHYS_NONE);
+
+	if (v == DDT_PHYS_FLAT)
+		return (ddp->ddp_flat.ddp_phys_birth);
+	else
+		return (ddp->ddp_trad[v].ddp_phys_birth);
+}
+
+int
+ddt_phys_dva_count(const ddt_univ_phys_t *ddp, ddt_phys_variant_t v,
+    boolean_t encrypted)
+{
+	ASSERT3U(v, <, DDT_PHYS_NONE);
+
+	const dva_t *dvas = (v == DDT_PHYS_FLAT) ?
+	    ddp->ddp_flat.ddp_dva : ddp->ddp_trad[v].ddp_dva;
+
+	return (DVA_IS_VALID(&dvas[0]) +
+	    DVA_IS_VALID(&dvas[1]) +
+	    DVA_IS_VALID(&dvas[2]) * !encrypted);
+}
+
+ddt_phys_variant_t
 ddt_phys_select(const ddt_t *ddt, const ddt_entry_t *dde, const blkptr_t *bp)
 {
-	for (int p = 0; p < DDT_NPHYS(ddt); p++) {
-		ddt_phys_t *ddp = (ddt_phys_t *)&dde->dde_phys[p];
-		if (DVA_EQUAL(BP_IDENTITY(bp), &ddp->ddp_dva[0]) &&
-		    BP_GET_BIRTH(bp) == ddp->ddp_phys_birth)
-			return (ddp);
+	const ddt_univ_phys_t *ddp = dde->dde_phys;
+
+	if (ddt->ddt_flags & DDT_FLAG_FLAT) {
+		if (DVA_EQUAL(BP_IDENTITY(bp), &ddp->ddp_flat.ddp_dva[0]) &&
+		    BP_GET_BIRTH(bp) == ddp->ddp_flat.ddp_phys_birth) {
+			return (DDT_PHYS_FLAT);
+		}
+	} else /* traditional phys */ {
+		for (int p = 0; p < DDT_PHYS_MAX; p++) {
+			if (DVA_EQUAL(BP_IDENTITY(bp),
+			    &ddp->ddp_trad[p].ddp_dva[0]) &&
+			    BP_GET_BIRTH(bp) ==
+			    ddp->ddp_trad[p].ddp_phys_birth) {
+				return (p);
+			}
+		}
 	}
-	return (NULL);
+	return (DDT_PHYS_NONE);
+}
+
+uint64_t
+ddt_phys_refcnt(const ddt_univ_phys_t *ddp, ddt_phys_variant_t v)
+{
+	ASSERT3U(v, <, DDT_PHYS_NONE);
+
+	if (v == DDT_PHYS_FLAT)
+		return (ddp->ddp_flat.ddp_refcnt);
+	else
+		return (ddp->ddp_trad[v].ddp_refcnt);
 }
 
 uint64_t
@@ -566,10 +705,11 @@ ddt_phys_total_refcnt(const ddt_t *ddt, const ddt_entry_t *dde)
 {
 	uint64_t refcnt = 0;
 
-	for (int p = 0; p < DDT_NPHYS(ddt); p++) {
-		if (DDT_PHYS_IS_DITTO(ddt, p))
-			continue;
-		refcnt += dde->dde_phys[p].ddp_refcnt;
+	if (ddt->ddt_flags & DDT_FLAG_FLAT) {
+		refcnt = dde->dde_phys->ddp_flat.ddp_refcnt;
+	} else {
+		for (int p = DDT_PHYS_SINGLE; p <= DDT_PHYS_TRIPLE; p++)
+			refcnt += dde->dde_phys->ddp_trad[p].ddp_refcnt;
 	}
 
 	return (refcnt);
@@ -599,24 +739,33 @@ ddt_init(void)
 {
 	ddt_cache = kmem_cache_create("ddt_cache",
 	    sizeof (ddt_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
-	ddt_entry_cache = kmem_cache_create("ddt_entry_cache",
-	    DDT_ENTRY_SIZE, 0, NULL, NULL, NULL, NULL, NULL, 0);
+	ddt_entry_flat_cache = kmem_cache_create("ddt_entry_flat_cache",
+	    DDT_ENTRY_FLAT_SIZE, 0, NULL, NULL, NULL, NULL, NULL, 0);
+	ddt_entry_trad_cache = kmem_cache_create("ddt_entry_trad_cache",
+	    DDT_ENTRY_TRAD_SIZE, 0, NULL, NULL, NULL, NULL, NULL, 0);
 }
 
 void
 ddt_fini(void)
 {
-	kmem_cache_destroy(ddt_entry_cache);
+	kmem_cache_destroy(ddt_entry_trad_cache);
+	kmem_cache_destroy(ddt_entry_flat_cache);
 	kmem_cache_destroy(ddt_cache);
 }
 
 static ddt_entry_t *
-ddt_alloc(const ddt_key_t *ddk)
+ddt_alloc(const ddt_t *ddt, const ddt_key_t *ddk)
 {
 	ddt_entry_t *dde;
 
-	dde = kmem_cache_alloc(ddt_entry_cache, KM_SLEEP);
-	memset(dde, 0, DDT_ENTRY_SIZE);
+	if (ddt->ddt_flags & DDT_FLAG_FLAT) {
+		dde = kmem_cache_alloc(ddt_entry_flat_cache, KM_SLEEP);
+		memset(dde, 0, DDT_ENTRY_FLAT_SIZE);
+	} else {
+		dde = kmem_cache_alloc(ddt_entry_trad_cache, KM_SLEEP);
+		memset(dde, 0, DDT_ENTRY_TRAD_SIZE);
+	}
+
 	cv_init(&dde->dde_cv, NULL, CV_DEFAULT, NULL);
 
 	dde->dde_key = *ddk;
@@ -647,7 +796,8 @@ ddt_free(const ddt_t *ddt, ddt_entry_t *dde)
 	}
 
 	cv_destroy(&dde->dde_cv);
-	kmem_cache_free(ddt_entry_cache, dde);
+	kmem_cache_free(ddt->ddt_flags & DDT_FLAG_FLAT ?
+	    ddt_entry_flat_cache : ddt_entry_trad_cache, dde);
 }
 
 void
@@ -793,7 +943,12 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp)
 	}
 
 	/* Time to make a new entry. */
-	dde = ddt_alloc(&search);
+	dde = ddt_alloc(ddt, &search);
+
+	/* Record the time this class was created (used by ddt prune) */
+	if (ddt->ddt_flags & DDT_FLAG_FLAT)
+		dde->dde_phys->ddp_flat.ddp_class_start = gethrestime_sec();
+
 	avl_insert(&ddt->ddt_tree, dde, where);
 
 	/*
@@ -1206,7 +1361,7 @@ ddt_repair_start(ddt_t *ddt, const blkptr_t *bp)
 
 	ddt_key_fill(&ddk, bp);
 
-	dde = ddt_alloc(&ddk);
+	dde = ddt_alloc(ddt, &ddk);
 	ddt_alloc_entry_io(dde);
 
 	for (ddt_type_t type = 0; type < DDT_TYPES; type++) {
@@ -1222,7 +1377,7 @@ ddt_repair_start(ddt_t *ddt, const blkptr_t *bp)
 		}
 	}
 
-	memset(dde->dde_phys, 0, sizeof (ddt_phys_t) * DDT_NPHYS(ddt));
+	memset(dde->dde_phys, 0, DDT_PHYS_SIZE(ddt));
 
 	return (dde);
 }
@@ -1265,13 +1420,26 @@ ddt_repair_entry(ddt_t *ddt, ddt_entry_t *dde, ddt_entry_t *rdde, zio_t *rio)
 	    ddt_repair_entry_done, rdde, rio->io_flags);
 
 	for (int p = 0; p < DDT_NPHYS(ddt); p++) {
-		ddt_phys_t *ddp = &dde->dde_phys[p];
-		ddt_phys_t *rddp = &rdde->dde_phys[p];
-		if (ddp->ddp_phys_birth == 0 ||
-		    ddp->ddp_phys_birth != rddp->ddp_phys_birth ||
-		    memcmp(ddp->ddp_dva, rddp->ddp_dva, sizeof (ddp->ddp_dva)))
+		ddt_univ_phys_t *ddp = dde->dde_phys;
+		ddt_univ_phys_t *rddp = rdde->dde_phys;
+		ddt_phys_variant_t v = DDT_PHYS_VARIANT(ddt, p);
+		uint64_t phys_birth = ddt_phys_birth(ddp, v);
+		const dva_t *dvas, *rdvas;
+
+		if (ddt->ddt_flags & DDT_FLAG_FLAT) {
+			dvas = ddp->ddp_flat.ddp_dva;
+			rdvas = rddp->ddp_flat.ddp_dva;
+		} else {
+			dvas = ddp->ddp_trad[p].ddp_dva;
+			rdvas = rddp->ddp_trad[p].ddp_dva;
+		}
+
+		if (phys_birth == 0 ||
+		    phys_birth != ddt_phys_birth(rddp, v) ||
+		    memcmp(dvas, rdvas, sizeof (dva_t) * SPA_DVAS_PER_BP))
 			continue;
-		ddt_bp_create(ddt->ddt_checksum, ddk, ddp, &blk);
+
+		ddt_bp_create(ddt->ddt_checksum, ddk, ddp, v, &blk);
 		zio_nowait(zio_rewrite(zio, zio->io_spa, 0, &blk,
 		    rdde->dde_io->dde_repair_abd, DDK_GET_PSIZE(rddk),
 		    NULL, NULL, ZIO_PRIORITY_SYNC_WRITE,
@@ -1297,7 +1465,8 @@ ddt_repair_table(ddt_t *ddt, zio_t *rio)
 		rdde_next = AVL_NEXT(t, rdde);
 		avl_remove(&ddt->ddt_repair_tree, rdde);
 		ddt_exit(ddt);
-		ddt_bp_create(ddt->ddt_checksum, &rdde->dde_key, NULL, &blk);
+		ddt_bp_create(ddt->ddt_checksum, &rdde->dde_key, NULL,
+		    DDT_PHYS_NONE, &blk);
 		dde = ddt_repair_start(ddt, &blk);
 		ddt_repair_entry(ddt, dde, rdde, rio);
 		ddt_repair_done(ddt, dde);
@@ -1322,9 +1491,12 @@ ddt_sync_entry(ddt_t *ddt, ddt_entry_t *dde, dmu_tx_t *tx, uint64_t txg)
 	for (int p = 0; p < DDT_NPHYS(ddt); p++) {
 		ASSERT(dde->dde_io == NULL ||
 		    dde->dde_io->dde_lead_zio[p] == NULL);
-		ddt_phys_t *ddp = &dde->dde_phys[p];
-		if (ddp->ddp_phys_birth == 0) {
-			ASSERT0(ddp->ddp_refcnt);
+		ddt_univ_phys_t *ddp = dde->dde_phys;
+		ddt_phys_variant_t v = DDT_PHYS_VARIANT(ddt, p);
+		uint64_t phys_refcnt = ddt_phys_refcnt(ddp, v);
+
+		if (ddt_phys_birth(ddp, v) == 0) {
+			ASSERT0(phys_refcnt);
 			continue;
 		}
 		if (DDT_PHYS_IS_DITTO(ddt, p)) {
@@ -1332,12 +1504,12 @@ ddt_sync_entry(ddt_t *ddt, ddt_entry_t *dde, dmu_tx_t *tx, uint64_t txg)
 			 * Note, we no longer create DDT-DITTO blocks, but we
 			 * don't want to leak any written by older software.
 			 */
-			ddt_phys_free(ddt, ddk, ddp, txg);
+			ddt_phys_free(ddt, ddk, ddp, v, txg);
 			continue;
 		}
-		if (ddp->ddp_refcnt == 0)
-			ddt_phys_free(ddt, ddk, ddp, txg);
-		total_refcnt += ddp->ddp_refcnt;
+		if (phys_refcnt == 0)
+			ddt_phys_free(ddt, ddk, ddp, v, txg);
+		total_refcnt += phys_refcnt;
 	}
 
 	if (total_refcnt > 1)
@@ -1371,7 +1543,7 @@ ddt_sync_entry(ddt_t *ddt, ddt_entry_t *dde, dmu_tx_t *tx, uint64_t txg)
 			ddt_lightweight_entry_t ddlwe;
 			DDT_ENTRY_TO_LIGHTWEIGHT(ddt, dde, &ddlwe);
 			dsl_scan_ddt_entry(dp->dp_scan,
-			    ddt->ddt_checksum, &ddlwe, tx);
+			    ddt->ddt_checksum, ddt, &ddlwe, tx);
 		}
 	}
 }
@@ -1536,12 +1708,10 @@ ddt_addref(spa_t *spa, const blkptr_t *bp)
 	}
 
 	if (dde->dde_type < DDT_TYPES) {
-		ddt_phys_t *ddp;
-
 		ASSERT3S(dde->dde_class, <, DDT_CLASSES);
 
 		int p = DDT_PHYS_FOR_COPIES(ddt, BP_GET_NDVAS(bp));
-		ddp = &dde->dde_phys[p];
+		ddt_phys_variant_t v = DDT_PHYS_VARIANT(ddt, p);
 
 		/*
 		 * This entry already existed (dde_type is real), so it must
@@ -1553,9 +1723,9 @@ ddt_addref(spa_t *spa, const blkptr_t *bp)
 		 * likely further action is required to fill out the DDT entry,
 		 * and this is a place that is likely to be missed in testing.
 		 */
-		ASSERT3U(ddp->ddp_refcnt, >, 0);
+		ASSERT3U(ddt_phys_refcnt(dde->dde_phys, v), >, 0);
 
-		ddt_phys_addref(ddp);
+		ddt_phys_addref(dde->dde_phys, v);
 		result = B_TRUE;
 	} else {
 		/*

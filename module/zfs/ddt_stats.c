@@ -43,18 +43,22 @@ ddt_stat_generate(ddt_t *ddt, ddt_entry_t *dde, ddt_stat_t *dds)
 	memset(dds, 0, sizeof (*dds));
 
 	for (int p = 0; p < DDT_NPHYS(ddt); p++) {
-		ddt_phys_t *ddp = &dde->dde_phys[p];
+		const ddt_univ_phys_t *ddp = dde->dde_phys;
+		ddt_phys_variant_t v = DDT_PHYS_VARIANT(ddt, p);
 
-		uint64_t dsize = 0;
-		uint64_t refcnt = ddp->ddp_refcnt;
-
-		if (ddp->ddp_phys_birth == 0)
+		if (ddt_phys_birth(ddp, v) == 0)
 			continue;
 
-		int ndvas = DDK_GET_CRYPT(&dde->dde_key) ?
-		    SPA_DVAS_PER_BP - 1 : SPA_DVAS_PER_BP;
+		int ndvas = ddt_phys_dva_count(ddp, v,
+		    DDK_GET_CRYPT(&dde->dde_key));
+		const dva_t *dvas = (ddt->ddt_flags & DDT_FLAG_FLAT) ?
+		    ddp->ddp_flat.ddp_dva : ddp->ddp_trad[p].ddp_dva;
+
+		uint64_t dsize = 0;
 		for (int d = 0; d < ndvas; d++)
-			dsize += dva_get_dsize_sync(spa, &ddp->ddp_dva[d]);
+			dsize += dva_get_dsize_sync(spa, &dvas[d]);
+
+		uint64_t refcnt = ddt_phys_refcnt(ddp, v);
 
 		dds->dds_blocks += 1;
 		dds->dds_lsize += lsize;

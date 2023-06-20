@@ -202,7 +202,7 @@ boolean_t dsl_scan_resilvering(struct dsl_pool *dp);
 boolean_t dsl_scan_resilver_scheduled(struct dsl_pool *dp);
 boolean_t dsl_dataset_unstable(struct dsl_dataset *ds);
 void dsl_scan_ddt_entry(dsl_scan_t *scn, enum zio_checksum checksum,
-    ddt_lightweight_entry_t *ddlwe, dmu_tx_t *tx);
+    ddt_t *ddt, ddt_lightweight_entry_t *ddlwe, dmu_tx_t *tx);
 void dsl_scan_ds_destroyed(struct dsl_dataset *ds, struct dmu_tx *tx);
 void dsl_scan_ds_snapshotted(struct dsl_dataset *ds, struct dmu_tx *tx);
 void dsl_scan_ds_clone_swapped(struct dsl_dataset *ds1, struct dsl_dataset *ds2,
