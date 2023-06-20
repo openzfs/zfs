@@ -66,6 +66,9 @@ include $(srcdir)/%D%/zpool/Makefile.am
 include $(srcdir)/%D%/zpool_influxdb/Makefile.am
 include $(srcdir)/%D%/zstream/Makefile.am
 
+if BUILD_FREEBSD
+include $(srcdir)/%D%/zfsd/Makefile.am
+endif
 
 if BUILD_LINUX
 mounthelper_PROGRAMS += mount.zfs
