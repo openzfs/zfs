@@ -41,6 +41,8 @@
 
 verify_runnable "global"
 
+log_unsupported "SKIP: nfsv4 acls incompatible with id-mapped mounts for now."
+
 export WORKDIR=$TESTDIR/idmap_test
 export IDMAPDIR=$TESTDIR/idmap_dest
 
