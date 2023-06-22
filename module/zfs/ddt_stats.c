@@ -42,7 +42,7 @@ ddt_stat_generate(ddt_t *ddt, const ddt_lightweight_entry_t *ddlwe,
 
 	memset(dds, 0, sizeof (*dds));
 
-	for (int p = 0; p < ddlwe->ddlwe_nphys; p++) {
+	for (int p = 0; p < DDT_NPHYS(ddt); p++) {
 		const ddt_univ_phys_t *ddp = &ddlwe->ddlwe_phys;
 		ddt_phys_variant_t v = DDT_PHYS_VARIANT(ddt, p);
 
@@ -222,6 +222,11 @@ ddt_get_dedup_object_stats(spa_t *spa, ddt_object_t *ddo_total)
 				ddo_total->ddo_mspace += ddo->ddo_mspace;
 			}
 		}
+
+		ddt_object_t *ddo = &ddt->ddt_log_stats;
+		ddo_total->ddo_count += ddo->ddo_count;
+		ddo_total->ddo_dspace += ddo->ddo_dspace;
+		ddo_total->ddo_mspace += ddo->ddo_mspace;
 	}
 
 	/*
@@ -259,6 +264,8 @@ ddt_get_dedup_histogram(spa_t *spa, ddt_histogram_t *ddh)
 				    &ddt->ddt_histogram_cache[type][class]);
 			}
 		}
+
+		ddt_histogram_add(ddh, &ddt->ddt_log_histogram);
 	}
 }
 

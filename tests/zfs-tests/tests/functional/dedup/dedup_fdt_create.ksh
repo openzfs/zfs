@@ -29,9 +29,16 @@
 
 log_assert "basic dedup (FDT) operations work"
 
+# we set the dedup log txg interval to 1, to get a log flush every txg,
+# effectively disabling the log. without this it's hard to predict when and
+# where things appear on-disk
+log_must save_tunable DEDUP_LOG_TXG_MAX
+log_must set_tunable32 DEDUP_LOG_TXG_MAX 1
+
 function cleanup
 {
 	destroy_pool $TESTPOOL
+	log_must restore_tunable DEDUP_LOG_TXG_MAX
 }
 
 log_onexit cleanup
