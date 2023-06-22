@@ -203,7 +203,7 @@ static void
 nvlist_to_json(nvlist_t *nvl, jprint_t *jp, nvj_filter_t f)
 {
 	const nvpriv_t *priv;
-	const i_nvp_t *curr;
+	i_nvp_t *curr;
 	uint64_t *u = NULL;
 	nvlist_t **a = NULL;
 
@@ -214,7 +214,7 @@ nvlist_to_json(nvlist_t *nvl, jprint_t *jp, nvj_filter_t f)
 		return;
 
 	for (curr = priv->nvp_list; curr != NULL; curr = curr->nvi_next) {
-		const nvpair_t *nvp = &curr->nvi_nvp;
+		nvpair_t *nvp = &curr->nvi_nvp;
 		const char *name = (const char *)NVP_NAME(nvp);
 		data_type_t type = NVP_TYPE(nvp);
 		void *p = NVP_VALUE(nvp);
