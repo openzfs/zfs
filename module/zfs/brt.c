@@ -680,7 +680,7 @@ brt_vdev_realloc(brt_t *brt, brt_vdev_t *brtvd)
 	size = (vdev_get_min_asize(vd) - 1) / brt->brt_rangesize + 1;
 	spa_config_exit(brt->brt_spa, SCL_VDEV, FTAG);
 
-	entcount = kmem_zalloc(sizeof (entcount[0]) * size, KM_SLEEP);
+	entcount = vmem_zalloc(sizeof (entcount[0]) * size, KM_SLEEP);
 	nblocks = BRT_RANGESIZE_TO_NBLOCKS(size);
 	bitmap = kmem_zalloc(BT_SIZEOFMAP(nblocks), KM_SLEEP);
 
@@ -709,7 +709,7 @@ brt_vdev_realloc(brt_t *brt, brt_vdev_t *brtvd)
 		    sizeof (entcount[0]) * MIN(size, brtvd->bv_size));
 		memcpy(bitmap, brtvd->bv_bitmap, MIN(BT_SIZEOFMAP(nblocks),
 		    BT_SIZEOFMAP(brtvd->bv_nblocks)));
-		kmem_free(brtvd->bv_entcount,
+		vmem_free(brtvd->bv_entcount,
 		    sizeof (entcount[0]) * brtvd->bv_size);
 		kmem_free(brtvd->bv_bitmap, BT_SIZEOFMAP(brtvd->bv_nblocks));
 	}
@@ -792,7 +792,7 @@ brt_vdev_dealloc(brt_t *brt, brt_vdev_t *brtvd)
 	ASSERT(RW_WRITE_HELD(&brt->brt_lock));
 	ASSERT(brtvd->bv_initiated);
 
-	kmem_free(brtvd->bv_entcount, sizeof (uint16_t) * brtvd->bv_size);
+	vmem_free(brtvd->bv_entcount, sizeof (uint16_t) * brtvd->bv_size);
 	brtvd->bv_entcount = NULL;
 	kmem_free(brtvd->bv_bitmap, BT_SIZEOFMAP(brtvd->bv_nblocks));
 	brtvd->bv_bitmap = NULL;
