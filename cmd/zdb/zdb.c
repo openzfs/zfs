@@ -1959,6 +1959,32 @@ dump_dedup_ratio(const ddt_stat_t *dds)
 }
 
 static void
+dump_ddt_log(ddt_t *ddt)
+{
+	for (int n = 0; n < 2; n++) {
+		ddt_log_t *ddl = &ddt->ddt_log[n];
+
+		uint64_t count = avl_numnodes(&ddl->ddl_tree);
+		if (count == 0)
+			continue;
+
+		printf(DMU_POOL_DDT_LOG ": %lu log entries\n",
+		    zio_checksum_table[ddt->ddt_checksum].ci_name, n, count);
+
+		if (dump_opt['D'] < 4)
+			continue;
+
+		ddt_lightweight_entry_t ddlwe;
+		uint64_t index = 0;
+		for (ddt_log_entry_t *ddle = avl_first(&ddl->ddl_tree);
+		    ddle; ddle = AVL_NEXT(&ddl->ddl_tree, ddle)) {
+			DDT_LOG_ENTRY_TO_LIGHTWEIGHT(ddt, ddle, &ddlwe);
+			dump_ddt_entry(ddt, &ddlwe, index++);
+		}
+	}
+}
+
+static void
 dump_ddt(ddt_t *ddt, ddt_type_t type, ddt_class_t class)
 {
 	char name[DDT_NAMELEN];
@@ -2027,6 +2053,7 @@ dump_all_ddts(spa_t *spa)
 				dump_ddt(ddt, type, class);
 			}
 		}
+		dump_ddt_log(ddt);
 	}
 
 	ddt_get_dedup_stats(spa, &dds_total);
@@ -5743,7 +5770,7 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 			    (void *)(((uintptr_t)dde->dde_io) | (1 << v));
 
 		/* Consume a reference for this block. */
-		VERIFY3U(ddt_phys_total_refcnt(ddt, dde), >, 0);
+		VERIFY3U(ddt_phys_total_refcnt(ddt, dde->dde_phys), >, 0);
 		ddt_phys_decref(dde->dde_phys, v);
 
 		/*
@@ -8120,6 +8147,10 @@ dump_mos_leaks(spa_t *spa)
 
 		/* FDT container */
 		mos_obj_refd(ddt->ddt_dir_object);
+
+		/* FDT log objects */
+		mos_obj_refd(ddt->ddt_log[0].ddl_object);
+		mos_obj_refd(ddt->ddt_log[1].ddl_object);
 	}
 
 	if (spa->spa_brt != NULL) {
