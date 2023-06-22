@@ -223,6 +223,11 @@ ddt_get_dedup_object_stats(spa_t *spa, ddt_object_t *ddo_total)
 				ddo_total->ddo_mspace += ddo->ddo_mspace;
 			}
 		}
+
+		ddt_object_t *ddo = &ddt->ddt_log_stats;
+		ddo_total->ddo_count += ddo->ddo_count;
+		ddo_total->ddo_dspace += ddo->ddo_dspace;
+		ddo_total->ddo_mspace += ddo->ddo_mspace;
 	}
 
 	/*
@@ -260,6 +265,8 @@ ddt_get_dedup_histogram(spa_t *spa, ddt_histogram_t *ddh)
 				    &ddt->ddt_histogram_cache[type][class]);
 			}
 		}
+
+		ddt_histogram_add(ddh, &ddt->ddt_log_histogram);
 	}
 }
 
