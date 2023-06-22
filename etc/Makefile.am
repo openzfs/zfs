@@ -21,6 +21,15 @@ SUBSTFILES          += $(sysconf_zfs_DATA)
 SHELLCHECKSCRIPTS   += $(sysconf_zfs_DATA)
 $(call SHELLCHECK_OPTS,$(sysconf_zfs_DATA)): SHELLCHECK_SHELL = sh
 
+if BUILD_FREEBSD
+sysconf_zfsddir = $(sysconfdir)/rc.d
+
+sysconf_zfsd_DATA = %D%/rc.d/zfsd
+
+SUBSTFILES          += $(sysconf_zfsd_DATA)
+SHELLCHECKSCRIPTS   += $(sysconf_zfsd_DATA)
+$(call SHELLCHECK_OPTS,$(sysconf_zfsd_DATA)): SHELLCHECK_SHELL = sh
+endif
 
 if BUILD_LINUX
 initconf_DATA = \

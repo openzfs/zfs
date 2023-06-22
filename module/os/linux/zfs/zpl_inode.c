@@ -813,6 +813,7 @@ const struct inode_operations zpl_inode_operations = {
 	.get_acl	= zpl_get_acl,
 #endif /* HAVE_GET_INODE_ACL */
 #endif /* CONFIG_FS_POSIX_ACL */
+	.permission	= zpl_permission,
 };
 
 #ifdef HAVE_RENAME2_OPERATIONS_WRAPPER
@@ -859,6 +860,7 @@ const struct inode_operations zpl_dir_inode_operations = {
 	.get_acl	= zpl_get_acl,
 #endif /* HAVE_GET_INODE_ACL */
 #endif /* CONFIG_FS_POSIX_ACL */
+	.permission	= zpl_permission,
 #ifdef HAVE_RENAME2_OPERATIONS_WRAPPER
 	},
 	.rename2	= zpl_rename2,
@@ -906,4 +908,5 @@ const struct inode_operations zpl_special_inode_operations = {
 	.get_acl	= zpl_get_acl,
 #endif /* HAVE_GET_INODE_ACL */
 #endif /* CONFIG_FS_POSIX_ACL */
+	.permission	= zpl_permission,
 };

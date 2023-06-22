@@ -74,6 +74,7 @@ SPL_OBJS := \
 	spl-cred.o \
 	spl-err.o \
 	spl-generic.o \
+	spl-kfpu.o \
 	spl-kmem-cache.o \
 	spl-kmem.o \
 	spl-kstat.o \

@@ -25,7 +25,7 @@ PARALLEL = $(subst parallel=,,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
 NJOBS    = -j$(or $(PARALLEL),$(NUM_CPUS),1)
 
 %:
-	dh $@ --with autoreconf,dkms,python3,sphinxdoc
+	dh $@ --with autoreconf,python3,sphinxdoc
 
 override_dh_autoreconf:
 	@# Embed the downstream version in the module.

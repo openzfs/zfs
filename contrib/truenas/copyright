@@ -1,0 +1,7 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: openzfs/zfs
+Source: https://github.com/openzfs/zfs
+
+Files: *
+Copyright: See AUTHORS file
+License: See COPYRIGHT and LICENSE files

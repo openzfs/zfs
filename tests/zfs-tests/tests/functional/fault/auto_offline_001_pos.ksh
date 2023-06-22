@@ -50,6 +50,7 @@
 verify_runnable "both"
 
 if is_linux; then
+	log_unsupported "SKIP because auto partitioning removed for SCALE"
 	# Add one 512b scsi_debug device (4Kn would generate IO errors)
 	# NOTE: must be larger than other "file" vdevs and minimum SPA devsize:
 	# add 32m of fudge

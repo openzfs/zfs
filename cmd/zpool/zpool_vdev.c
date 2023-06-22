@@ -976,8 +976,12 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 		 * magic value left by the previous filesystem.
 		 */
 		verify(!nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path));
+#ifdef TRUENAS_SCALE_NEVER_WHOLEDISK
+		wholedisk = B_FALSE;
+#else
 		verify(!nvlist_lookup_uint64(nv, ZPOOL_CONFIG_WHOLE_DISK,
 		    &wholedisk));
+#endif
 
 		if (!wholedisk) {
 			/*
@@ -1122,9 +1126,11 @@ is_device_in_use(nvlist_t *config, nvlist_t *nv, boolean_t force,
 	    &child, &children) != 0) {
 
 		verify(!nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path));
+#ifndef TRUENAS_SCALE_NEVER_WHOLEDISK
 		if (strcmp(type, VDEV_TYPE_DISK) == 0)
 			verify(!nvlist_lookup_uint64(nv,
 			    ZPOOL_CONFIG_WHOLE_DISK, &wholedisk));
+#endif
 
 		/*
 		 * As a generic check, we look to see if this is a replace of a

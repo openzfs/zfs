@@ -429,13 +429,7 @@ zfs_prop_init(void)
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
 	    "discard | groupmask | passthrough | restricted", "ACLMODE",
 	    acl_mode_table, sfeatures);
-	zprop_register_index(ZFS_PROP_ACLTYPE, "acltype",
-#ifdef __linux__
-	    /* Linux doesn't natively support ZFS's NFSv4-style ACLs. */
-	    ZFS_ACLTYPE_OFF,
-#else
-	    ZFS_ACLTYPE_NFSV4,
-#endif
+	zprop_register_index(ZFS_PROP_ACLTYPE, "acltype", ZFS_ACLTYPE_NFSV4,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
 	    "off | nfsv4 | posix", "ACLTYPE", acltype_table, sfeatures);
 	zprop_register_index(ZFS_PROP_ACLINHERIT, "aclinherit",
