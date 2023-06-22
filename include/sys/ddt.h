@@ -43,7 +43,8 @@ struct abd;
  * DDT-wide feature flags. These are set in ddt_flags by ddt_configure().
  */
 #define	DDT_FLAG_FLAT	(1 << 0)	/* single extensible phys */
-#define	DDT_FLAG_MASK	(DDT_FLAG_FLAT)
+#define	DDT_FLAG_LOG	(1 << 1)	/* dedup log (journal) */
+#define	DDT_FLAG_MASK	(DDT_FLAG_FLAT|DDT_FLAG_LOG)
 
 /*
  * DDT on-disk storage object types. Each one corresponds to specific
@@ -209,6 +210,7 @@ typedef enum {
 /* State flags for dde_flags */
 #define	DDE_FLAG_LOADED		(1 << 0)	/* entry ready for use */
 #define	DDE_FLAG_OVERQUOTA	(1 << 1)	/* entry unusable, no space */
+#define	DDE_FLAG_LOGGED		(1 << 2)	/* loaded from log */
 
 /*
  * Additional data to support entry update or repair. This is fixed size
@@ -255,6 +257,19 @@ typedef struct {
 } ddt_lightweight_entry_t;
 
 /*
+ * In-core DDT log. A separate struct to make it easier to switch between the
+ * appending and flushing logs.
+ */
+typedef struct {
+	avl_tree_t	ddl_tree;	/* logged entries */
+	uint32_t	ddl_flags;	/* flags for this log */
+	uint64_t	ddl_object;	/* log object id */
+	uint64_t	ddl_length;	/* on-disk log size */
+	uint64_t	ddl_first_txg;	/* txg log became active */
+	ddt_key_t	ddl_checkpoint;	/* last checkpoint */
+} ddt_log_t;
+
+/*
  * In-core DDT object. This covers all entries and stats for a the whole pool
  * for a given checksum type.
  */
@@ -262,8 +277,22 @@ typedef struct {
 	kmutex_t	ddt_lock;	/* protects changes to all fields */
 
 	avl_tree_t	ddt_tree;	/* "live" (changed) entries this txg */
+	avl_tree_t	ddt_log_tree;	/* logged entries */
 
-	avl_tree_t	ddt_repair_tree; /* entries being repaired */
+	avl_tree_t	ddt_repair_tree;	/* entries being repaired */
+
+	ddt_log_t	ddt_log[2];		/* active/flushing logs */
+	ddt_log_t	*ddt_log_active;	/* pointers into ddt_log */
+	ddt_log_t	*ddt_log_flushing;	/* swapped when flush starts */
+
+	hrtime_t	ddt_flush_start;	/* log flush start this txg */
+	uint32_t	ddt_flush_pass;		/* log flush pass this txg */
+
+	int32_t		ddt_flush_count;	/* entries flushed this txg */
+	int32_t		ddt_flush_min;		/* min rem entries to flush */
+	int32_t		ddt_log_ingest_rate;	/* rolling log ingest rate */
+	int32_t		ddt_log_flush_rate;	/* rolling log flush rate */
+	int32_t		ddt_log_flush_time_rate; /* avg time spent flushing */
 
 	enum zio_checksum ddt_checksum;	/* checksum algorithm in use */
 	spa_t		*ddt_spa;	/* pool this ddt is on */
@@ -276,13 +305,17 @@ typedef struct {
 	/* per-type/per-class entry store objects */
 	uint64_t	ddt_object[DDT_TYPES][DDT_CLASSES];
 
-	/* object ids for whole-ddt and per-type/per-class stats */
+	/* object ids for stored, logged and per-type/per-class stats */
 	uint64_t	ddt_stat_object;
+	ddt_object_t	ddt_log_stats;
 	ddt_object_t	ddt_object_stats[DDT_TYPES][DDT_CLASSES];
 
 	/* type/class stats by power-2-sized referenced blocks */
 	ddt_histogram_t	ddt_histogram[DDT_TYPES][DDT_CLASSES];
 	ddt_histogram_t	ddt_histogram_cache[DDT_TYPES][DDT_CLASSES];
+
+	/* log stats power-2-sized referenced blocks */
+	ddt_histogram_t	ddt_log_histogram;
 } ddt_t;
 
 /*
