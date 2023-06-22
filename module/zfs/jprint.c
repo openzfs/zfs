@@ -17,8 +17,13 @@
 
 /* Formats for int64_t and uint64_t */
 #ifndef PRId64
+#ifdef __FreeBSD__
+#define	PRId64		"ld"	/* %D, int64_t */
+#define	PRIu64		"lu"	/* %U, uint64_t */
+#else /* Linux */
 #define	PRId64		"lld"	/* %D, int64_t */
 #define	PRIu64		"llu"	/* %U, uint64_t */
+#endif
 #endif
 
 /* literal key length maximum */
