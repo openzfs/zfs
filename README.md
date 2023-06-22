@@ -33,3 +33,4 @@ For more details see the NOTICE, LICENSE and COPYRIGHT files; `UCRL-CODE-235197`
 # Supported Kernels
   * The `META` file contains the officially recognized supported Linux kernel versions.
   * Supported FreeBSD versions are any supported branches and releases starting from 12.2-RELEASE.
+
