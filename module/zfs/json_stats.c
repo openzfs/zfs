@@ -12,7 +12,14 @@
 #include <sys/json_stats.h>
 #include <sys/nvpair_impl.h>
 
-#define	JSON_STATUS_VERSION	4
+#define	JSON_STATUS_VERSION_MAJOR	1
+#define	JSON_STATUS_VERSION_MINOR	4
+
+#ifdef ZFS_DEBUG
+#define	ZFS_DEBUG_STR	" (DEBUG mode)"
+#else
+#define	ZFS_DEBUG_STR	""
+#endif
 
 void
 json_stats_destroy(spa_t *spa)
@@ -88,44 +95,37 @@ null_filter(jprint_t *jp __maybe_unused, const char *name __maybe_unused,
 static void nvlist_to_json(nvlist_t *nvl, jprint_t *jp, nvj_filter_t f);
 
 /*
- * Convert source (src) to string -- up to 105 characters, so pass in 256
- * byte buffer (for future)
+ * Convert source (src) to string array.
  */
 static void
-source_to_string(uint64_t src, char *buf)
+source_to_string_array(jprint_t *jp, uint64_t src)
 {
-	buf[0] = '\0';
-	if (src & ZPROP_SRC_NONE) {
-		if (buf[0] != '\0')
-			strcat(buf, "|");
-		strcat(buf, "ZPROP_SRC_NONE");
-	}
-	if (src & ZPROP_SRC_DEFAULT) {
-		if (buf[0] != '\0')
-			strcat(buf, "|");
-		strcat(buf, "ZPROP_SRC_DEFAULT");
-	}
-	if (src & ZPROP_SRC_TEMPORARY) {
-		if (buf[0] != '\0')
-			strcat(buf, "|");
-		strcat(buf, "ZPROP_SRC_TEMPORARY");
-	}
-	if (src & ZPROP_SRC_INHERITED) {
-		if (buf[0] != '\0')
-			strcat(buf, "|");
-		strcat(buf, "ZPROP_SRC_INHERITED");
-	}
-	if (src & ZPROP_SRC_RECEIVED) {
-		if (buf[0] != '\0')
-			strcat(buf, "|");
-		strcat(buf, "ZPROP_SRC_RECEIVED");
-	}
+	jp_printf(jp, "source: [");
+	src &= ZPROP_SRC_ALL;
+	/*
+	 * -- none is "-" if "sudo zpool get all", we translate to the
+	 *    empty array.
+	 *
+	 * if (src & ZPROP_SRC_NONE)
+	 *	jp_printf(jp, "%s", "none");
+	 */
+	if (src & ZPROP_SRC_DEFAULT)
+		jp_printf(jp, "%s", "default");
+	if (src & ZPROP_SRC_TEMPORARY)
+		jp_printf(jp, "%s", "temporary");
+	if (src & ZPROP_SRC_LOCAL)
+		jp_printf(jp, "%s", "local");
+	if (src & ZPROP_SRC_INHERITED)
+		jp_printf(jp, "%s", "inherited");
+	if (src & ZPROP_SRC_RECEIVED)
+		jp_printf(jp, "%s", "received");
+	jp_printf(jp, "]");
 }
 
 /*
  * spa_props_filter replace source: with string. The way source is
- * defined it could be bitmap -- so generate the | sequence as
- * needed.
+ * defined it could be bitmap -- so generate a nested array of strings.
+ * this is an approach to this kind of display.
  */
 static boolean_t
 spa_props_filter(jprint_t *jp, const char *name, data_type_t type, void *value)
@@ -133,9 +133,7 @@ spa_props_filter(jprint_t *jp, const char *name, data_type_t type, void *value)
 	if ((strcmp(name, "source") == 0) &&
 	    (type == DATA_TYPE_UINT64)) {
 		uint64_t src = *(uint64_t *)value;
-		char buf[256];
-		source_to_string(src, buf);
-		jp_printf(jp, "source: %s", buf);
+		source_to_string_array(jp, src);
 		return (B_TRUE);
 	}
 	return (B_FALSE);
@@ -166,7 +164,7 @@ stats_filter(jprint_t *jp, const char *name, data_type_t type, void *value)
 
 	/*
 	 * We are going to suppress vdev_tree:, and generate the
-	 * data our rselves.
+	 * data ourselves.
 	 * It does seem like a bit of a waste going through this
 	 * twice... but for now, this seems prudent.
 	 */
@@ -192,7 +190,7 @@ stats_filter(jprint_t *jp, const char *name, data_type_t type, void *value)
 }
 
 /*
- * This code is NOT hightly abstracted -- just some duplication, until I
+ * This code is NOT highly abstracted -- just some duplication, until I
  * actually understand what is needed.
  *
  * In avoiding early abstraction, we find the need for a "filter". Which
@@ -301,29 +299,56 @@ nvlist_to_json(nvlist_t *nvl, jprint_t *jp, nvj_filter_t f)
 }
 
 static const char *
-vdev_state_string(uint64_t n)
+vdev_state_string(vdev_t *v)
 {
-	const char *s;
-	switch (n) {
-	case VDEV_STATE_UNKNOWN:	s = "HEALTHY";    break;
-	case VDEV_STATE_CLOSED:		s = "CLOSED";	  break;
-	case VDEV_STATE_OFFLINE:	s = "OFFLINE";    break;
-	case VDEV_STATE_REMOVED:	s = "REMOVED";    break;
-	case VDEV_STATE_CANT_OPEN:	s = "CAN'T OPEN"; break;
-	case VDEV_STATE_FAULTED:	s = "FAULTED";    break;
-	case VDEV_STATE_DEGRADED:	s = "DEGRADED";   break;
-	case VDEV_STATE_HEALTHY:	s = "HEALTHY";    break;
-	default:			s = "?";
+	const char *s = "UNKNOWN";
+	switch (v->vdev_state) {
+	case VDEV_STATE_CLOSED:
+	case VDEV_STATE_OFFLINE:
+		s = "OFFLINE";
+		break;
+	case VDEV_STATE_REMOVED:
+		s = "REMOVED";
+		break;
+	case VDEV_STATE_CANT_OPEN:
+		if (v->vdev_stat.vs_aux == VDEV_AUX_CORRUPT_DATA ||
+		    v->vdev_stat.vs_aux == VDEV_AUX_BAD_LOG)
+			s = "FAULTED";
+		else if (v->vdev_stat.vs_aux == VDEV_AUX_SPLIT_POOL)
+			s = "SPLIT";
+		else
+			s = "UNAVAIL";
+		break;
+	case VDEV_STATE_FAULTED:
+		s = "FAULTED";
+		break;
+	case VDEV_STATE_DEGRADED:
+		s = "DEGRADED";
+		break;
+	case VDEV_STATE_HEALTHY:
+		s = "ONLINE";
+		break;
+	default:
+		s = "UNKNOWN";
 	}
 	return (s);
 }
 
+/*
+ * flags for vdev_to_json -- under no circumstance do we want to recurse
+ * for l2cache and spares. If spares, we want AVAIL/UNAVAIL as status
+ */
+#define	NO_RECURSE  1
+#define	USE_AVAIL   2
+
 static void
-vdev_to_json(vdev_t *v, pool_scan_stat_t *ps, jprint_t *jp)
+vdev_to_json(vdev_t *v, pool_scan_stat_t *ps, jprint_t *jp, uint_t flags)
 {
 	uint64_t i, n;
 	vdev_t **a;
 	const char *s;
+	if (v == NULL)
+		return;
 	jp_printf(jp, "type: %s", v->vdev_ops->vdev_op_type);
 	jp_printf(jp, "id: %U", v->vdev_id);
 	jp_printf(jp, "guid: %U", v->vdev_guid);
@@ -353,7 +378,14 @@ vdev_to_json(vdev_t *v, pool_scan_stat_t *ps, jprint_t *jp)
 		if (v->vdev_enc_sysfs_path != NULL)
 			jp_printf(jp, "enc_sysfs_path: %s",
 			    v->vdev_enc_sysfs_path);
-		jp_printf(jp, "state: %s", vdev_state_string(v->vdev_state));
+		s = vdev_state_string(v);
+		if (flags & USE_AVAIL) {
+			if (v->vdev_stat.vs_aux == VDEV_AUX_SPARED)
+				s = "INUSE";
+			else if (v->vdev_state == VDEV_STATE_HEALTHY)
+				s = "AVAIL";
+		}
+		jp_printf(jp, "state: %s", s);
 		/*
 		 * Try for some of the extended status annotations that
 		 * zpool status provides.
@@ -439,17 +471,19 @@ vdev_to_json(vdev_t *v, pool_scan_stat_t *ps, jprint_t *jp)
 		jp_printf(jp, "trim_errors: %U",
 		    v->vdev_stat.vs_trim_errors);
 	}
-	n = v->vdev_children;
-	a = v->vdev_child;
-	jp_printf(jp, "vdev_children: %U", n);
-	if (n != 0) {
-		jp_printf(jp, "children: [");
-		for (i = 0; i < n; ++i) {
-			jp_printf(jp, "{");
-			vdev_to_json(a[i], ps, jp);
-			jp_printf(jp, "}");
+	if ((flags & NO_RECURSE) == 0) {
+		n = v->vdev_children;
+		a = v->vdev_child;
+		jp_printf(jp, "vdev_children: %U", n);
+		if (n != 0) {
+			jp_printf(jp, "children: [");
+			for (i = 0; i < n; ++i) {
+				jp_printf(jp, "{");
+				vdev_to_json(a[i], ps, jp, flags);
+				jp_printf(jp, "}");
+			}
+			jp_printf(jp, "]");
 		}
-		jp_printf(jp, "]");
 	}
 }
 
@@ -458,12 +492,13 @@ iterate_vdevs(spa_t *spa, pool_scan_stat_t *ps, jprint_t *jp)
 {
 	vdev_t *v = spa->spa_root_vdev;
 	if (v == NULL) {
+		/*
+		 * How do we NOT have a root vdev?
+		 */
 		jp_printf(jp, "error: %s", "NO ROOT VDEV");
 		return;
 	}
-	jp_printf(jp, "vdev_tree: {");
-	vdev_to_json(v, ps, jp);
-	jp_printf(jp, "}");
+	vdev_to_json(v, ps, jp, 0);
 }
 
 static const char *
@@ -476,7 +511,7 @@ pss_func_to_string(uint64_t n)
 		case POOL_SCAN_RESILVER:	s = "RESILVER";	break;
 		case POOL_SCAN_FUNCS:		s = "?";
 	}
-	return s;
+	return (s);
 }
 
 static const char *pss_state_to_string(uint64_t n)
@@ -489,7 +524,7 @@ static const char *pss_state_to_string(uint64_t n)
 		case DSS_CANCELED:	s = "CANCELED";	break;
 		case DSS_NUM_STATES:	s = "?";
 	}
-	return s;
+	return (s);
 }
 
 static int
@@ -506,7 +541,13 @@ json_data(char *buf, size_t size, void *data)
 
 	if (nvlist_dup(spa->spa_config, &nvl, 0) != 0) {
 		/*
-		 * FIXME, what to do here?!?
+		 * This we DO NOT EXPECT. Should never happen, unless
+		 * other issues. dump into error log and bail. Note that
+		 * the json output isn't even open at this time! But...
+		 * we don't use the f... format yet, because we don't
+		 * want to just hang (that is used a bit below). Later,
+		 * when we have the nvlist, we are confident enough to
+		 * use f... functions.
 		 */
 		zfs_dbgmsg("json_data: nvlist_dup failed");
 		return (0);
@@ -534,7 +575,13 @@ json_data(char *buf, size_t size, void *data)
 	jp_open(&jp, buf, size);
 	jp_printf(&jp, "{");
 
-	jp_printf(&jp, "status_json_version: %d", JSON_STATUS_VERSION);
+	jp_printf(&jp, "status_json_version_major: %d",
+	    JSON_STATUS_VERSION_MAJOR);
+	jp_printf(&jp, "status_json_version_minor: %d",
+	    JSON_STATUS_VERSION_MINOR);
+	jp_printf(&jp, "zfs_module_version: %s",
+	    "v" ZFS_META_VERSION "-" ZFS_META_RELEASE ZFS_DEBUG_STR);
+ 
 	jp_printf(&jp, "scl_config_lock: %b", scl_config_lock != 0);
 	jp_printf(&jp, "scan_error: %d", ps_error);
 	jp_printf(&jp, "scan_stats: {");
@@ -566,17 +613,43 @@ json_data(char *buf, size_t size, void *data)
 
 	jp_printf(&jp, "state: %s", spa_state_to_name(spa));
 
-	spa_add_spares(spa, nvl);
-	spa_add_l2cache(spa, nvl);
-	spa_add_feature_stats(spa, nvl);
+	if (scl_config_lock) {
+		spa_add_spares(spa, nvl);
+		spa_add_l2cache(spa, nvl);
+		spa_add_feature_stats(spa, nvl);
+	}
 
 	/* iterate and transfer nvl to json */
 	nvlist_to_json(nvl, &jp, stats_filter);
 
+	jp_printf(&jp, "vdev_tree: {");
+
 	iterate_vdevs(spa, &ps, &jp);
 
+	jp_printf(&jp, "spares_children: %d", spa->spa_spares.sav_count);
+	jp_printf(&jp, "spares: [");
+	for (int i = 0; i < spa->spa_spares.sav_count; ++i) {
+		jp_printf(&jp, "{");
+		vdev_to_json(spa->spa_spares.sav_vdevs[i], NULL, &jp,
+		    NO_RECURSE | USE_AVAIL);
+		jp_printf(&jp, "}");
+	}
+	jp_printf(&jp, "]");
+
+	jp_printf(&jp, "cache_children: %d", spa->spa_l2cache.sav_count);
+	jp_printf(&jp, "cache: [");
+	for (int i = 0; i < spa->spa_l2cache.sav_count; ++i) {
+		jp_printf(&jp, "{");
+		vdev_to_json(spa->spa_l2cache.sav_vdevs[i], NULL, &jp,
+		    NO_RECURSE);
+		jp_printf(&jp, "}");
+	}
+	jp_printf(&jp, "]");
+
+	jp_printf(&jp, "}"); /* Close up vdev_tree */
+
 	/*
-	 * close the root object
+	 * Close the root object
 	 */
 	jp_printf(&jp, "}");
 
@@ -596,11 +669,18 @@ json_data(char *buf, size_t size, void *data)
 		 * If this does happen, we simply put the string where
 		 * the json should go... this is expected to trigger
 		 * a json decode error, and report "upstream"
+		 *
+		 * The only way we get this is if we produced malformed
+		 * json via bad format string. Or, if we didn't nest
+		 * correctly. Either way, it is a coding defect, and
+		 * not an operational one. We force bad json, and dump
+		 * to the error log.
 		 */
 		snprintf(buf, size,
 		    "jprint error %s (%d) callno %d, size %ld\n",
 		    jp_errorstring(error), error, jp_errorpos(&jp), size);
 		error = 0;
+		zfs_dbgmsg("json_stats error: %s\n", buf);
 	}
 	return (error);
 }
