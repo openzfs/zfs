@@ -1922,9 +1922,7 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 	zilog->zl_prev_rotor = (zilog->zl_prev_rotor + 1) & (ZIL_PREV_BLKS - 1);
 
 	BP_ZERO(bp);
-	if (error == 0)
-		error = zio_alloc_zil(spa, zilog->zl_os, txg, bp, zil_blksz,
-		    &slog);
+	error = zio_alloc_zil(spa, zilog->zl_os, txg, bp, zil_blksz, &slog);
 	if (slog) {
 		ZIL_STAT_BUMP(zil_itx_metaslab_slog_count);
 		ZIL_STAT_INCR(zil_itx_metaslab_slog_bytes, lwb->lwb_nused);
