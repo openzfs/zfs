@@ -79,9 +79,9 @@ datatype_string(data_type_t t)
 typedef boolean_t nvj_filter_t(jprint_t *, const char *, data_type_t, void *);
 
 static boolean_t
-null_filter(jprint_t *jp, const char *name, data_type_t type, void *value)
+null_filter(jprint_t *jp __maybe_unused, const char *name __maybe_unused,
+    data_type_t type __maybe_unused, void *value __maybe_unused)
 {
-	jp = jp; name = name; type = type; value = value;
 	return (B_FALSE);
 }
 
