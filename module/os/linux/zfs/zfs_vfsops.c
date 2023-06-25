@@ -2092,6 +2092,9 @@ zfs_init(void)
 	zfs_znode_init();
 	dmu_objset_register_type(DMU_OST_ZFS, zpl_get_file_info);
 	register_filesystem(&zpl_fs_type);
+#ifdef HAVE_VFS_FILE_OPERATIONS_EXTEND
+	register_fo_extend(&zpl_file_operations);
+#endif
 }
 
 void
@@ -2102,6 +2105,9 @@ zfs_fini(void)
 	 */
 	taskq_wait(system_delay_taskq);
 	taskq_wait(system_taskq);
+#ifdef HAVE_VFS_FILE_OPERATIONS_EXTEND
+	unregister_fo_extend(&zpl_file_operations);
+#endif
 	unregister_filesystem(&zpl_fs_type);
 	zfs_znode_fini();
 	zfsctl_fini();
