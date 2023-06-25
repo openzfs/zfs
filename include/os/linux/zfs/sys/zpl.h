@@ -52,7 +52,11 @@ extern const struct inode_operations zpl_special_inode_operations;
 
 /* zpl_file.c */
 extern const struct address_space_operations zpl_address_space_operations;
+#ifdef HAVE_VFS_FILE_OPERATIONS_EXTEND
+extern const struct file_operations_extend zpl_file_operations;
+#else
 extern const struct file_operations zpl_file_operations;
+#endif
 extern const struct file_operations zpl_dir_file_operations;
 
 /* zpl_super.c */

@@ -1311,7 +1311,12 @@ const struct address_space_operations zpl_address_space_operations = {
 #endif
 };
 
+#ifdef HAVE_VFS_FILE_OPERATIONS_EXTEND
+const struct file_operations_extend zpl_file_operations = {
+	.kabi_fops = {
+#else
 const struct file_operations zpl_file_operations = {
+#endif
 	.open		= zpl_open,
 	.release	= zpl_release,
 	.llseek		= zpl_llseek,
@@ -1341,11 +1346,11 @@ const struct file_operations zpl_file_operations = {
 #ifdef HAVE_VFS_COPY_FILE_RANGE
 	.copy_file_range	= zpl_copy_file_range,
 #endif
-#ifdef HAVE_VFS_REMAP_FILE_RANGE
-	.remap_file_range	= zpl_remap_file_range,
-#endif
 #ifdef HAVE_VFS_CLONE_FILE_RANGE
 	.clone_file_range	= zpl_clone_file_range,
+#endif
+#ifdef HAVE_VFS_REMAP_FILE_RANGE
+	.remap_file_range	= zpl_remap_file_range,
 #endif
 #ifdef HAVE_VFS_DEDUPE_FILE_RANGE
 	.dedupe_file_range	= zpl_dedupe_file_range,
@@ -1356,6 +1361,11 @@ const struct file_operations zpl_file_operations = {
 	.unlocked_ioctl	= zpl_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl	= zpl_compat_ioctl,
+#endif
+#ifdef HAVE_VFS_FILE_OPERATIONS_EXTEND
+	}, /* kabi_fops */
+	.copy_file_range	= zpl_copy_file_range,
+	.clone_file_range	= zpl_clone_file_range,
 #endif
 };
 
