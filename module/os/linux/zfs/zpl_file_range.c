@@ -77,7 +77,8 @@ __zpl_clone_file_range(struct file *src_file, loff_t src_off,
 	return ((ssize_t)len_o);
 }
 
-#ifdef HAVE_VFS_COPY_FILE_RANGE
+#if defined(HAVE_VFS_COPY_FILE_RANGE) || \
+    defined(HAVE_VFS_FILE_OPERATIONS_EXTEND)
 /*
  * Entry point for copy_file_range(). Copy len bytes from src_off in src_file
  * to dst_off in dst_file. We are permitted to do this however we like, so we
@@ -94,7 +95,7 @@ zpl_copy_file_range(struct file *src_file, loff_t src_off,
 		return (-EINVAL);
 
 	/* Try to do it via zfs_clone_range() */
-	ret =__zpl_clone_file_range(src_file, src_off,
+	ret = __zpl_clone_file_range(src_file, src_off,
 	    dst_file, dst_off, len);
 
 #ifdef HAVE_VFS_GENERIC_COPY_FILE_RANGE
@@ -109,7 +110,7 @@ zpl_copy_file_range(struct file *src_file, loff_t src_off,
 
 	return (ret);
 }
-#endif /* HAVE_VFS_COPY_FILE_RANGE */
+#endif /* HAVE_VFS_COPY_FILE_RANGE || HAVE_VFS_FILE_OPERATIONS_EXTEND */
 
 #ifdef HAVE_VFS_REMAP_FILE_RANGE
 /*
@@ -152,7 +153,8 @@ zpl_remap_file_range(struct file *src_file, loff_t src_off,
 }
 #endif /* HAVE_VFS_REMAP_FILE_RANGE */
 
-#ifdef HAVE_VFS_CLONE_FILE_RANGE
+#if defined(HAVE_VFS_CLONE_FILE_RANGE) || \
+    defined(HAVE_VFS_FILE_OPERATIONS_EXTEND)
 /*
  * Entry point for FICLONE and FICLONERANGE, before Linux 4.20.
  */
@@ -167,7 +169,7 @@ zpl_clone_file_range(struct file *src_file, loff_t src_off,
 	return (__zpl_clone_file_range(src_file, src_off,
 	    dst_file, dst_off, len));
 }
-#endif /* HAVE_VFS_CLONE_FILE_RANGE */
+#endif /* HAVE_VFS_CLONE_FILE_RANGE || HAVE_VFS_FILE_OPERATIONS_EXTEND */
 
 #ifdef HAVE_VFS_DEDUPE_FILE_RANGE
 /*
