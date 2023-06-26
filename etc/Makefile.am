@@ -22,13 +22,12 @@ SHELLCHECKSCRIPTS   += $(sysconf_zfs_DATA)
 $(call SHELLCHECK_OPTS,$(sysconf_zfs_DATA)): SHELLCHECK_SHELL = sh
 
 if BUILD_FREEBSD
-sysconf_zfsddir = $(sysconfdir)/rc.d
+rcdir = $(sysconfdir)/rc.d
+rc_SCRIPTS = %D%/rc.d/zfsd
 
-sysconf_zfsd_DATA = %D%/rc.d/zfsd
-
-SUBSTFILES          += $(sysconf_zfsd_DATA)
-SHELLCHECKSCRIPTS   += $(sysconf_zfsd_DATA)
-$(call SHELLCHECK_OPTS,$(sysconf_zfsd_DATA)): SHELLCHECK_SHELL = sh
+SUBSTFILES        += $(rc_SCRIPTS)
+SHELLCHECKSCRIPTS += $(rc_SCRIPTS)
+$(call SHELLCHECK_OPTS,$(rc_SCRIPTS)): SHELLCHECK_SHELL = sh
 endif
 
 if BUILD_LINUX
