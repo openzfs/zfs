@@ -34,6 +34,7 @@
 #include <sys/dsl_bookmark.h>
 #include <zfs_namecheck.h>
 #include <sys/dmu_send.h>
+#include <sys/dbuf.h>
 
 static int
 dsl_bookmark_hold_ds(dsl_pool_t *dp, const char *fullname,
@@ -459,14 +460,18 @@ dsl_bookmark_create_sync_impl_snap(const char *bookmark, const char *snapshot,
 	    SPA_FEATURE_REDACTED_DATASETS, &dsnumsnaps, &dsredactsnaps);
 	if (redaction_list != NULL || bookmark_redacted) {
 		redaction_list_t *local_rl;
+		boolean_t spill = B_FALSE;
 		if (bookmark_redacted) {
 			redact_snaps = dsredactsnaps;
 			num_redact_snaps = dsnumsnaps;
 		}
+		int bonuslen = sizeof (redaction_list_phys_t) +
+		    num_redact_snaps * sizeof (uint64_t);
+		if (bonuslen > dmu_bonus_max())
+			spill = B_TRUE;
 		dbn->dbn_phys.zbm_redaction_obj = dmu_object_alloc(mos,
 		    DMU_OTN_UINT64_METADATA, SPA_OLD_MAXBLOCKSIZE,
-		    DMU_OTN_UINT64_METADATA, sizeof (redaction_list_phys_t) +
-		    num_redact_snaps * sizeof (uint64_t), tx);
+		    DMU_OTN_UINT64_METADATA, spill ? 0 : bonuslen, tx);
 		spa_feature_incr(dp->dp_spa,
 		    SPA_FEATURE_REDACTION_BOOKMARKS, tx);
 
@@ -474,10 +479,19 @@ dsl_bookmark_create_sync_impl_snap(const char *bookmark, const char *snapshot,
 		    dbn->dbn_phys.zbm_redaction_obj, tag, &local_rl));
 		dsl_redaction_list_long_hold(dp, local_rl, tag);
 
-		ASSERT3U((local_rl)->rl_dbuf->db_size, >=,
-		    sizeof (redaction_list_phys_t) + num_redact_snaps *
-		    sizeof (uint64_t));
-		dmu_buf_will_dirty(local_rl->rl_dbuf, tx);
+		if (!spill) {
+			ASSERT3U((local_rl)->rl_bonus->db_size, >=,
+			    sizeof (redaction_list_phys_t) + num_redact_snaps *
+			    sizeof (uint64_t));
+			dmu_buf_will_dirty(local_rl->rl_bonus, tx);
+		} else {
+			dmu_buf_t *db;
+			VERIFY0(dmu_spill_hold_by_bonus((local_rl)->rl_bonus, DB_RF_MUST_SUCCEED, FTAG, &db));
+			dmu_buf_will_fill(db, tx);
+			VERIFY0(dbuf_spill_set_blksz(db, P2ROUNDUP(bonuslen, SPA_MINBLOCKSIZE), tx));
+			local_rl->rl_phys = db->db_data;
+			local_rl->rl_dbuf = db;
+		}
 		memcpy(local_rl->rl_phys->rlp_snaps, redact_snaps,
 		    sizeof (uint64_t) * num_redact_snaps);
 		local_rl->rl_phys->rlp_num_snaps = num_redact_snaps;
@@ -639,7 +653,7 @@ dsl_bookmark_create_redacted_check(void *arg, dmu_tx_t *tx)
 	 * If the list of redact snaps will not fit in the bonus buffer with
 	 * the furthest reached object and offset, fail.
 	 */
-	if (dbcra->dbcra_numsnaps > (dmu_bonus_max() -
+	if (dbcra->dbcra_numsnaps > (spa_maxblocksize(dp->dp_spa) -
 	    sizeof (redaction_list_phys_t)) / sizeof (uint64_t))
 		return (SET_ERROR(E2BIG));
 
@@ -1213,7 +1227,9 @@ redaction_list_evict_sync(void *rlu)
 void
 dsl_redaction_list_rele(redaction_list_t *rl, const void *tag)
 {
-	dmu_buf_rele(rl->rl_dbuf, tag);
+	if (rl->rl_bonus != rl->rl_dbuf)
+		dmu_buf_rele(rl->rl_dbuf, tag);
+	dmu_buf_rele(rl->rl_bonus, tag);
 }
 
 int
@@ -1221,7 +1237,7 @@ dsl_redaction_list_hold_obj(dsl_pool_t *dp, uint64_t rlobj, const void *tag,
     redaction_list_t **rlp)
 {
 	objset_t *mos = dp->dp_meta_objset;
-	dmu_buf_t *dbuf;
+	dmu_buf_t *dbuf, *spill_dbuf;
 	redaction_list_t *rl;
 	int err;
 
@@ -1236,13 +1252,18 @@ dsl_redaction_list_hold_obj(dsl_pool_t *dp, uint64_t rlobj, const void *tag,
 		redaction_list_t *winner = NULL;
 
 		rl = kmem_zalloc(sizeof (redaction_list_t), KM_SLEEP);
-		rl->rl_dbuf = dbuf;
+		rl->rl_bonus = dbuf;
+		if (dmu_spill_hold_existing(dbuf, tag, &spill_dbuf) == 0) {
+			rl->rl_dbuf = spill_dbuf;
+		} else {
+			rl->rl_dbuf = dbuf;
+		}
 		rl->rl_object = rlobj;
-		rl->rl_phys = dbuf->db_data;
+		rl->rl_phys = rl->rl_dbuf->db_data;
 		rl->rl_mos = dp->dp_meta_objset;
 		zfs_refcount_create(&rl->rl_longholds);
 		dmu_buf_init_user(&rl->rl_dbu, redaction_list_evict_sync, NULL,
-		    &rl->rl_dbuf);
+		    &rl->rl_bonus);
 		if ((winner = dmu_buf_set_user_ie(dbuf, &rl->rl_dbu)) != NULL) {
 			kmem_free(rl, sizeof (*rl));
 			rl = winner;
