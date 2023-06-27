@@ -1257,6 +1257,12 @@ zpl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		return (zpl_ioctl_getdosflags(filp, (void *)arg));
 	case ZFS_IOC_SETDOSFLAGS:
 		return (zpl_ioctl_setdosflags(filp, (void *)arg));
+	case ZFS_IOC_COMPAT_FICLONE:
+		return (zpl_ioctl_ficlone(filp, (void *)arg));
+	case ZFS_IOC_COMPAT_FICLONERANGE:
+		return (zpl_ioctl_ficlonerange(filp, (void *)arg));
+	case ZFS_IOC_COMPAT_FIDEDUPERANGE:
+		return (zpl_ioctl_fideduperange(filp, (void *)arg));
 	default:
 		return (-ENOTTY);
 	}
