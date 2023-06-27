@@ -2010,7 +2010,16 @@ metaslab_class_t *
 spa_preferred_class(spa_t *spa, const zio_t *zio)
 {
 	const zio_prop_t *zp = &zio->io_prop;
-	dmu_object_type_t objtype = zp->zp_type;
+
+	/*
+	 * Override object type for the purposes of selecting a storage class.
+	 * Primarily for DMU_OTN_ types where we can't explicitly control their
+	 * storage class; instead, choose a static type most closely matches
+	 * what we want.
+	 */
+	dmu_object_type_t objtype =
+	    zp->zp_storage_type == DMU_OT_NONE ?
+	    zp->zp_type : zp->zp_storage_type;
 
 	/*
 	 * ZIL allocations determine their class in zio_alloc_zil().
