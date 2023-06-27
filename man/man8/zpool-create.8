@@ -87,13 +87,13 @@ currently in use by another subsystem.
 However this check is not robust enough
 to detect simultaneous attempts to use a new device in different pools, even if
 .Sy multihost Ns = Sy enabled .
-The administrator must ensure, that simultaneous invocations of any combination
+The administrator must ensure that simultaneous invocations of any combination
 of
 .Nm zpool Cm replace ,
 .Nm zpool Cm create ,
 .Nm zpool Cm add ,
 or
-.Nm zpool Cm labelclear ,
+.Nm zpool Cm labelclear
 do not refer to the same device.
 Using the same device in two pools will result in pool corruption.
 .Pp
