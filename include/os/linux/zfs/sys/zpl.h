@@ -180,6 +180,20 @@ zpl_dir_emit_dots(struct file *file, zpl_dir_context_t *ctx)
 }
 #endif /* HAVE_VFS_ITERATE */
 
+
+/* zpl_file_range.c */
+
+/* handlers for file_operations of the same name */
+extern ssize_t zpl_copy_file_range(struct file *src_file, loff_t src_off,
+    struct file *dst_file, loff_t dst_off, size_t len, unsigned int flags);
+extern loff_t zpl_remap_file_range(struct file *src_file, loff_t src_off,
+    struct file *dst_file, loff_t dst_off, loff_t len, unsigned int flags);
+extern int zpl_clone_file_range(struct file *src_file, loff_t src_off,
+    struct file *dst_file, loff_t dst_off, uint64_t len);
+extern int zpl_dedupe_file_range(struct file *src_file, loff_t src_off,
+    struct file *dst_file, loff_t dst_off, uint64_t len);
+
+
 #if defined(HAVE_INODE_TIMESTAMP_TRUNCATE)
 #define	zpl_inode_timestamp_truncate(ts, ip)	timestamp_truncate(ts, ip)
 #elif defined(HAVE_INODE_TIMESPEC64_TIMES)

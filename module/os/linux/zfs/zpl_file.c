@@ -1283,7 +1283,6 @@ zpl_compat_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 }
 #endif /* CONFIG_COMPAT */
 
-
 const struct address_space_operations zpl_address_space_operations = {
 #ifdef HAVE_VFS_READPAGES
 	.readpages	= zpl_readpages,
@@ -1333,6 +1332,18 @@ const struct file_operations zpl_file_operations = {
 	.aio_fsync	= zpl_aio_fsync,
 #endif
 	.fallocate	= zpl_fallocate,
+#ifdef HAVE_VFS_COPY_FILE_RANGE
+	.copy_file_range	= zpl_copy_file_range,
+#endif
+#ifdef HAVE_VFS_REMAP_FILE_RANGE
+	.remap_file_range	= zpl_remap_file_range,
+#endif
+#ifdef HAVE_VFS_CLONE_FILE_RANGE
+	.clone_file_range	= zpl_clone_file_range,
+#endif
+#ifdef HAVE_VFS_DEDUPE_FILE_RANGE
+	.dedupe_file_range	= zpl_dedupe_file_range,
+#endif
 #ifdef HAVE_FILE_FADVISE
 	.fadvise	= zpl_fadvise,
 #endif
