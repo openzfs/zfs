@@ -130,27 +130,24 @@ typedef const struct vdev_ops {
 /*
  * Virtual device properties
  */
-typedef struct vdev_queue_class {
-	uint32_t	vqc_active;
-
-	/*
-	 * Sorted by offset or timestamp, depending on if the queue is
-	 * LBA-ordered vs FIFO.
-	 */
-	avl_tree_t	vqc_queued_tree;
+typedef union vdev_queue_class {
+	list_t		vqc_list;
+	avl_tree_t	vqc_tree;
 } vdev_queue_class_t;
 
 struct vdev_queue {
 	vdev_t		*vq_vdev;
 	vdev_queue_class_t vq_class[ZIO_PRIORITY_NUM_QUEUEABLE];
-	avl_tree_t	vq_active_tree;
 	avl_tree_t	vq_read_offset_tree;
 	avl_tree_t	vq_write_offset_tree;
-	avl_tree_t	vq_trim_offset_tree;
 	uint64_t	vq_last_offset;
 	zio_priority_t	vq_last_prio;	/* Last sent I/O priority. */
+	uint32_t	vq_cqueued;	/* Classes with queued I/Os. */
+	uint32_t	vq_cactive[ZIO_PRIORITY_NUM_QUEUEABLE];
+	uint32_t	vq_active;	/* Number of active I/Os. */
 	uint32_t	vq_ia_active;	/* Active interactive I/Os. */
 	uint32_t	vq_nia_credit;	/* Non-interactive I/Os credit. */
+	list_t		vq_active_list;	/* List of active I/Os. */
 	hrtime_t	vq_io_complete_ts; /* time last i/o completed */
 	hrtime_t	vq_io_delta_ts;
 	zio_t		vq_io_search; /* used as local for stack reduction */

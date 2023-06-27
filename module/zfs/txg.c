@@ -895,15 +895,10 @@ txg_list_destroy(txg_list_t *tl)
 boolean_t
 txg_all_lists_empty(txg_list_t *tl)
 {
-	mutex_enter(&tl->tl_lock);
-	for (int i = 0; i < TXG_SIZE; i++) {
-		if (!txg_list_empty_impl(tl, i)) {
-			mutex_exit(&tl->tl_lock);
-			return (B_FALSE);
-		}
-	}
-	mutex_exit(&tl->tl_lock);
-	return (B_TRUE);
+	boolean_t res = B_TRUE;
+	for (int i = 0; i < TXG_SIZE; i++)
+		res &= (tl->tl_head[i] == NULL);
+	return (res);
 }
 
 /*

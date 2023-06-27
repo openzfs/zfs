@@ -2016,12 +2016,6 @@ Historical statistics for this many latest TXGs will be available in
 Flush dirty data to disk at least every this many seconds (maximum TXG
 duration).
 .
-.It Sy zfs_vdev_aggregate_trim Ns = Ns Sy 0 Ns | Ns 1 Pq uint
-Allow TRIM I/O operations to be aggregated.
-This is normally not helpful because the extents to be trimmed
-will have been already been aggregated by the metaslab.
-This option is provided for debugging and performance analysis.
-.
 .It Sy zfs_vdev_aggregation_limit Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq uint
 Max vdev I/O aggregation size.
 .
