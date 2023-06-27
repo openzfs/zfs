@@ -170,7 +170,7 @@ stats_filter(jprint_t *jp, const char *name, data_type_t type, void *value)
 	 */
 	if ((jp->stackp == 0) &&
 	    (type == DATA_TYPE_NVLIST) &&
-	    (strcmp(name, "vdev_tree") == 0))
+	    (strcmp(name, ZPOOL_CONFIG_VDEV_TREE) == 0))
 		return (B_TRUE);
 
 	/*
@@ -347,6 +347,8 @@ vdev_to_json(vdev_t *v, pool_scan_stat_t *ps, jprint_t *jp, uint_t flags)
 	uint64_t i, n;
 	vdev_t **a;
 	const char *s;
+	uint64_t pool = 0ULL;
+
 	if (v == NULL)
 		return;
 	jp_printf(jp, "type: %s", v->vdev_ops->vdev_op_type);
@@ -380,9 +382,10 @@ vdev_to_json(vdev_t *v, pool_scan_stat_t *ps, jprint_t *jp, uint_t flags)
 			    v->vdev_enc_sysfs_path);
 		s = vdev_state_string(v);
 		if (flags & USE_AVAIL) {
-			if (v->vdev_stat.vs_aux == VDEV_AUX_SPARED)
+			if (spa_spare_exists(v->vdev_guid, &pool, NULL) &&
+			    (pool != 0ULL))
 				s = "INUSE";
-			else if (v->vdev_state == VDEV_STATE_HEALTHY)
+			else
 				s = "AVAIL";
 		}
 		jp_printf(jp, "state: %s", s);
@@ -514,7 +517,8 @@ pss_func_to_string(uint64_t n)
 	return (s);
 }
 
-static const char *pss_state_to_string(uint64_t n)
+static const char *
+pss_state_to_string(uint64_t n)
 {
 	const char *s = "?";
 	switch (n) {
@@ -581,7 +585,7 @@ json_data(char *buf, size_t size, void *data)
 	    JSON_STATUS_VERSION_MINOR);
 	jp_printf(&jp, "zfs_module_version: %s",
 	    "v" ZFS_META_VERSION "-" ZFS_META_RELEASE ZFS_DEBUG_STR);
- 
+
 	jp_printf(&jp, "scl_config_lock: %b", scl_config_lock != 0);
 	jp_printf(&jp, "scan_error: %d", ps_error);
 	jp_printf(&jp, "scan_stats: {");
@@ -614,8 +618,13 @@ json_data(char *buf, size_t size, void *data)
 	jp_printf(&jp, "state: %s", spa_state_to_name(spa));
 
 	if (scl_config_lock) {
-		spa_add_spares(spa, nvl);
-		spa_add_l2cache(spa, nvl);
+		/*
+		 * We could call spa_add_spares(spa, nvl); and
+		 * spa_add_l2cache(spa, nvl); if we needed (that is,
+		 * if there are side effects) -- as it is, spa_add_spares
+		 * is called JUST for a side effect, but we do what is
+		 * needed when spares are displayed.
+		 */
 		spa_add_feature_stats(spa, nvl);
 	}
 
