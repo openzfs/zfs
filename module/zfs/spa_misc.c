@@ -2007,9 +2007,11 @@ spa_special_has_ddt(spa_t *spa)
  * Locate an appropriate allocation class
  */
 metaslab_class_t *
-spa_preferred_class(spa_t *spa, uint64_t size, dmu_object_type_t objtype,
-    uint_t level, uint_t special_smallblk)
+spa_preferred_class(spa_t *spa, const zio_t *zio)
 {
+	const zio_prop_t *zp = &zio->io_prop;
+	dmu_object_type_t objtype = zp->zp_type;
+
 	/*
 	 * ZIL allocations determine their class in zio_alloc_zil().
 	 */
@@ -2027,14 +2029,15 @@ spa_preferred_class(spa_t *spa, uint64_t size, dmu_object_type_t objtype,
 	}
 
 	/* Indirect blocks for user data can land in special if allowed */
-	if (level > 0 && (DMU_OT_IS_FILE(objtype) || objtype == DMU_OT_ZVOL)) {
+	if (zp->zp_level > 0 &&
+	    (DMU_OT_IS_FILE(objtype) || objtype == DMU_OT_ZVOL)) {
 		if (has_special_class && zfs_user_indirect_is_special)
 			return (spa_special_class(spa));
 		else
 			return (spa_normal_class(spa));
 	}
 
-	if (DMU_OT_IS_METADATA(objtype) || level > 0) {
+	if (DMU_OT_IS_METADATA(objtype) || zp->zp_level > 0) {
 		if (has_special_class)
 			return (spa_special_class(spa));
 		else
@@ -2047,7 +2050,7 @@ spa_preferred_class(spa_t *spa, uint64_t size, dmu_object_type_t objtype,
 	 * zfs_special_class_metadata_reserve_pct exclusively for metadata.
 	 */
 	if (DMU_OT_IS_FILE(objtype) &&
-	    has_special_class && size <= special_smallblk) {
+	    has_special_class && zio->io_size <= zp->zp_zpl_smallblk) {
 		metaslab_class_t *special = spa_special_class(spa);
 		uint64_t alloc = metaslab_class_get_alloc(special);
 		uint64_t space = metaslab_class_get_space(special);
