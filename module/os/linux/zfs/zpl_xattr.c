@@ -1499,6 +1499,8 @@ static xattr_handler_t zpl_xattr_acl_default_handler = {
 int
 #if defined(HAVE_IOPS_PERMISSION_USERNS)
 zpl_permission(struct user_namespace *userns, struct inode *ip, int mask)
+#elif defined(HAVE_IOPS_PERMISSION_IDMAP)
+zpl_permission(struct mnt_idmap *idmap, struct inode *ip, int mask)
 #else
 zpl_permission(struct inode *ip, int mask)
 #endif
@@ -1514,8 +1516,9 @@ zpl_permission(struct inode *ip, int mask)
 	 */
 	if ((ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_NFSV4) ||
 	    ((ITOZ(ip)->z_pflags & ZFS_ACL_TRIVIAL && GENERIC_MASK(mask)))) {
-#if defined(HAVE_IOPS_PERMISSION_USERNS)
-		return (generic_permission(userns, ip, mask));
+#if (defined(HAVE_IOPS_PERMISSION_USERNS) || \
+	defined(HAVE_IOPS_PERMISSION_IDMAP))
+		return (generic_permission(zfs_init_idmap, ip, mask));
 #else
 		return (generic_permission(ip, mask));
 #endif
@@ -1532,8 +1535,9 @@ zpl_permission(struct inode *ip, int mask)
 	 * NFSv4 ACE. Pass back to default kernel permissions check.
 	 */
 	if (to_check == 0) {
-#if defined(HAVE_IOPS_PERMISSION_USERNS)
-		return (generic_permission(userns, ip, mask));
+#if (defined(HAVE_IOPS_PERMISSION_USERNS) || \
+	defined(HAVE_IOPS_PERMISSION_IDMAP))
+		return (generic_permission(zfs_init_idmap, ip, mask));
 #else
 		return (generic_permission(ip, mask));
 #endif
