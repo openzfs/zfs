@@ -1425,6 +1425,7 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 
 	list_move_tail(&itxs, &lwb->lwb_itxs);
 	list_move_tail(&waiters, &lwb->lwb_waiters);
+	txg = lwb->lwb_issued_txg;
 
 	ASSERT3S(lwb->lwb_state, ==, LWB_STATE_WRITE_DONE);
 	lwb->lwb_state = LWB_STATE_FLUSH_DONE;
@@ -1465,7 +1466,6 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 	list_destroy(&waiters);
 
 	mutex_enter(&zilog->zl_lwb_io_lock);
-	txg = lwb->lwb_issued_txg;
 	ASSERT3U(zilog->zl_lwb_inflight[txg & TXG_MASK], >, 0);
 	zilog->zl_lwb_inflight[txg & TXG_MASK]--;
 	if (zilog->zl_lwb_inflight[txg & TXG_MASK] == 0)
