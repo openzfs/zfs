@@ -275,7 +275,8 @@ This allows block device vdevs which support
 BLKDISCARD, such as SSDs, or file vdevs on which the underlying file system
 supports hole-punching, to reclaim unused blocks.
 The default value for this property is
-.Sy off .
+FREEBSD:.Sy on .
+LINUX:.Sy off .
 .Pp
 Automatic TRIM does not immediately reclaim blocks after a free.
 Instead, it will optimistically delay allowing smaller ranges to be aggregated
