@@ -62,4 +62,11 @@ log_must eval "zfs send --redact book1 $sendfs@snap >$stream"
 log_must eval "zfs recv $recvfs <$stream"
 compare_files $sendfs $recvfs "f2" "$RANGE8"
 
+rls_value="$(zpool get -H -o value feature@redaction_list_spill $POOL)"
+if [ "$rls_value" = "active" ]; then
+	log_note "redaction_list_spill feature active"
+else
+	log_fail "redaction_list_spill feature not active"
+fi
+
 log_pass "Redacted send can deal with a large redaction list."
