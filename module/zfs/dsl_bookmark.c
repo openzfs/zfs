@@ -474,6 +474,10 @@ dsl_bookmark_create_sync_impl_snap(const char *bookmark, const char *snapshot,
 		    DMU_OTN_UINT64_METADATA, spill ? 0 : bonuslen, tx);
 		spa_feature_incr(dp->dp_spa,
 		    SPA_FEATURE_REDACTION_BOOKMARKS, tx);
+		if (spill) {
+			spa_feature_incr(dp->dp_spa,
+			    SPA_FEATURE_REDACTION_LIST_SPILL, tx);
+		}
 
 		VERIFY0(dsl_redaction_list_hold_obj(dp,
 		    dbn->dbn_phys.zbm_redaction_obj, tag, &local_rl));
@@ -486,9 +490,11 @@ dsl_bookmark_create_sync_impl_snap(const char *bookmark, const char *snapshot,
 			dmu_buf_will_dirty(local_rl->rl_bonus, tx);
 		} else {
 			dmu_buf_t *db;
-			VERIFY0(dmu_spill_hold_by_bonus((local_rl)->rl_bonus, DB_RF_MUST_SUCCEED, FTAG, &db));
+			VERIFY0(dmu_spill_hold_by_bonus((local_rl)->rl_bonus,
+			    DB_RF_MUST_SUCCEED, FTAG, &db));
 			dmu_buf_will_fill(db, tx);
-			VERIFY0(dbuf_spill_set_blksz(db, P2ROUNDUP(bonuslen, SPA_MINBLOCKSIZE), tx));
+			VERIFY0(dbuf_spill_set_blksz(db, P2ROUNDUP(bonuslen,
+			    SPA_MINBLOCKSIZE), tx));
 			local_rl->rl_phys = db->db_data;
 			local_rl->rl_dbuf = db;
 		}
@@ -653,8 +659,11 @@ dsl_bookmark_create_redacted_check(void *arg, dmu_tx_t *tx)
 	 * If the list of redact snaps will not fit in the bonus buffer with
 	 * the furthest reached object and offset, fail.
 	 */
-	if (dbcra->dbcra_numsnaps > (spa_maxblocksize(dp->dp_spa) -
-	    sizeof (redaction_list_phys_t)) / sizeof (uint64_t))
+	uint64_t snaplimit = ((spa_feature_is_enabled(dp->dp_spa,
+	    SPA_FEATURE_REDACTION_LIST_SPILL) ? spa_maxblocksize(dp->dp_spa) :
+	    dmu_bonus_max()) -
+	    sizeof (redaction_list_phys_t)) / sizeof (uint64_t);
+	if (dbcra->dbcra_numsnaps > snaplimit)
 		return (SET_ERROR(E2BIG));
 
 	if (dsl_bookmark_create_nvl_validate_pair(
@@ -1054,6 +1063,14 @@ dsl_bookmark_destroy_sync_impl(dsl_dataset_t *ds, const char *name,
 	}
 
 	if (dbn->dbn_phys.zbm_redaction_obj != 0) {
+		dnode_t *rl;
+		VERIFY0(dnode_hold(mos,
+		    dbn->dbn_phys.zbm_redaction_obj, FTAG, &rl));
+		if (rl->dn_have_spill) {
+			spa_feature_decr(dmu_objset_spa(mos),
+			    SPA_FEATURE_REDACTION_LIST_SPILL, tx);
+		}
+		dnode_rele(rl, FTAG);
 		VERIFY0(dmu_object_free(mos,
 		    dbn->dbn_phys.zbm_redaction_obj, tx));
 		spa_feature_decr(dmu_objset_spa(mos),
