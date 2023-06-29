@@ -6650,9 +6650,17 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 	ret = zpool_vdev_attach(zhp, old_disk, new_disk, nvroot, replacing,
 	    rebuild);
 
-	if (ret == 0 && wait)
-		ret = zpool_wait(zhp,
-		    replacing ? ZPOOL_WAIT_REPLACE : ZPOOL_WAIT_RESILVER);
+	if (ret == 0 && wait) {
+		zpool_wait_activity_t activity = ZPOOL_WAIT_RESILVER;
+		char raidz_prefix[] = "raidz";
+		if (replacing) {
+			activity = ZPOOL_WAIT_REPLACE;
+		} else if (strncmp(old_disk,
+		    raidz_prefix, strlen(raidz_prefix)) == 0) {
+			activity = ZPOOL_WAIT_RAIDZ_EXPAND;
+		}
+		ret = zpool_wait(zhp, activity);
+	}
 
 	nvlist_free(props);
 	nvlist_free(nvroot);
@@ -6678,17 +6686,21 @@ zpool_do_replace(int argc, char **argv)
 }
 
 /*
- * zpool attach [-fsw] [-o property=value] <pool> <device> <new_device>
+ * zpool attach [-fsw] [-o property=value] <pool> <device>|<vdev> <new_device>
  *
  *	-f	Force attach, even if <new_device> appears to be in use.
  *	-s	Use sequential instead of healing reconstruction for resilver.
  *	-o	Set property=value.
- *	-w	Wait for resilvering to complete before returning
+ *	-w	Wait for resilvering (mirror) or expansion (raidz) to complete
+ *		before returning.
  *
- * Attach <new_device> to the mirror containing <device>.  If <device> is not
- * part of a mirror, then <device> will be transformed into a mirror of
- * <device> and <new_device>.  In either case, <new_device> will begin life
- * with a DTL of [0, now], and will immediately begin to resilver itself.
+ * Attach <new_device> to a <device> or <vdev>, where the vdev can be of type
+ * mirror or raidz. If <device> is not part of a mirror, then <device> will
+ * be transformed into a mirror of <device> and <new_device>. When a mirror
+ * is involved, <new_device> will begin life with a DTL of [0, now], and will
+ * immediately begin to resilver itself. For the raidz case, a expansion will
+ * commence and reflow the raidz data across all the disks including the
+ * <new_device>.
  */
 int
 zpool_do_attach(int argc, char **argv)
@@ -8195,6 +8207,97 @@ print_removal_status(zpool_handle_t *zhp, pool_removal_stat_t *prs)
 	}
 }
 
+/*
+ * Print out detailed raidz expansion status.
+ */
+static void
+print_raidz_expand_status(zpool_handle_t *zhp, pool_raidz_expand_stat_t *pres)
+{
+	char copied_buf[7];
+
+	if (pres == NULL || pres->pres_state == DSS_NONE)
+		return;
+
+	/*
+	 * Determine name of vdev.
+	 */
+	nvlist_t *config = zpool_get_config(zhp, NULL);
+	nvlist_t *nvroot = fnvlist_lookup_nvlist(config,
+	    ZPOOL_CONFIG_VDEV_TREE);
+	nvlist_t **child;
+	uint_t children;
+	verify(nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) == 0);
+	assert(pres->pres_expanding_vdev < children);
+
+	printf_color(ANSI_BOLD, gettext("expand: "));
+
+	time_t start = pres->pres_start_time;
+	time_t end = pres->pres_end_time;
+	char *vname =
+	    zpool_vdev_name(g_zfs, zhp, child[pres->pres_expanding_vdev], 0);
+	zfs_nicenum(pres->pres_reflowed, copied_buf, sizeof (copied_buf));
+
+	/*
+	 * Expansion is finished or canceled.
+	 */
+	if (pres->pres_state == DSS_FINISHED) {
+		char time_buf[32];
+		secs_to_dhms(end - start, time_buf);
+
+		(void) printf(gettext("expanded %s-%u copied %s in %s, "
+		    "on %s"), vname, (int)pres->pres_expanding_vdev,
+		    copied_buf, time_buf, ctime((time_t *)&end));
+	} else {
+		char examined_buf[7], total_buf[7], rate_buf[7];
+		uint64_t copied, total, elapsed, secs_left;
+		double fraction_done;
+		uint_t rate;
+
+		assert(pres->pres_state == DSS_SCANNING);
+
+		/*
+		 * Expansion is in progress.
+		 */
+		(void) printf(gettext(
+		    "expansion of %s-%u in progress since %s"),
+		    vname, (int)pres->pres_expanding_vdev, ctime(&start));
+
+		copied = pres->pres_reflowed > 0 ? pres->pres_reflowed : 1;
+		total = pres->pres_to_reflow;
+		fraction_done = (double)copied / total;
+
+		/* elapsed time for this pass */
+		elapsed = time(NULL) - pres->pres_start_time;
+		elapsed = elapsed > 0 ? elapsed : 1;
+		rate = copied / elapsed;
+		rate = rate > 0 ? rate : 1;
+		secs_left = (total - copied) / rate;
+
+		zfs_nicenum(copied, examined_buf, sizeof (examined_buf));
+		zfs_nicenum(total, total_buf, sizeof (total_buf));
+		zfs_nicenum(rate, rate_buf, sizeof (rate_buf));
+
+		/*
+		 * do not print estimated time if hours_left is more than
+		 * 30 days
+		 */
+		(void) printf(gettext("\t%s / %s copied at %s/s, %.2f%% done"),
+		    examined_buf, total_buf, rate_buf, 100 * fraction_done);
+		if (pres->pres_waiting_for_resilver) {
+			(void) printf(gettext(", paused for resilver or "
+			    "clear\n"));
+		} else if (secs_left < (30 * 24 * 3600)) {
+			char time_buf[32];
+			secs_to_dhms(secs_left, time_buf);
+			(void) printf(gettext(", %s to go\n"), time_buf);
+		} else {
+			(void) printf(gettext(
+			    ", (copy is slow, no estimated time)\n"));
+		}
+	}
+	free(vname);
+}
 static void
 print_checkpoint_status(pool_checkpoint_stat_t *pcs)
 {
@@ -8772,18 +8875,23 @@ status_callback(zpool_handle_t *zhp, void *data)
 		uint64_t nerr;
 		nvlist_t **spares, **l2cache;
 		uint_t nspares, nl2cache;
-		pool_checkpoint_stat_t *pcs = NULL;
-		pool_removal_stat_t *prs = NULL;
 
 		print_scan_status(zhp, nvroot);
 
+		pool_removal_stat_t *prs = NULL;
 		(void) nvlist_lookup_uint64_array(nvroot,
 		    ZPOOL_CONFIG_REMOVAL_STATS, (uint64_t **)&prs, &c);
 		print_removal_status(zhp, prs);
 
+		pool_checkpoint_stat_t *pcs = NULL;
 		(void) nvlist_lookup_uint64_array(nvroot,
 		    ZPOOL_CONFIG_CHECKPOINT_STATS, (uint64_t **)&pcs, &c);
 		print_checkpoint_status(pcs);
+
+		pool_raidz_expand_stat_t *pres = NULL;
+		(void) nvlist_lookup_uint64_array(nvroot,
+		    ZPOOL_CONFIG_RAIDZ_EXPAND_STATS, (uint64_t **)&pres, &c);
+		print_raidz_expand_status(zhp, pres);
 
 		cbp->cb_namewidth = max_width(zhp, nvroot, 0, 0,
 		    cbp->cb_name_flags | VDEV_NAME_TYPE_ID);
@@ -10738,8 +10846,9 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp, int row)
 	pool_checkpoint_stat_t *pcs = NULL;
 	pool_scan_stat_t *pss = NULL;
 	pool_removal_stat_t *prs = NULL;
+	pool_raidz_expand_stat_t *pres = NULL;
 	const char *const headers[] = {"DISCARD", "FREE", "INITIALIZE",
-	    "REPLACE", "REMOVE", "RESILVER", "SCRUB", "TRIM"};
+	    "REPLACE", "REMOVE", "RESILVER", "SCRUB", "TRIM", "RAIDZ_EXPAND"};
 	int col_widths[ZPOOL_WAIT_NUM_ACTIVITIES];
 
 	/* Calculate the width of each column */
@@ -10798,6 +10907,13 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp, int row)
 		    vdev_activity_top_remaining(nvroot);
 	}
 
+	(void) nvlist_lookup_uint64_array(nvroot,
+	    ZPOOL_CONFIG_RAIDZ_EXPAND_STATS, (uint64_t **)&pres, &c);
+	if (pres != NULL && pres->pres_state == DSS_SCANNING) {
+		int64_t rem = pres->pres_to_reflow - pres->pres_reflowed;
+		bytes_rem[ZPOOL_WAIT_RAIDZ_EXPAND] = rem;
+	}
+
 	bytes_rem[ZPOOL_WAIT_INITIALIZE] =
 	    vdev_activity_remaining(nvroot, ZPOOL_WAIT_INITIALIZE);
 	bytes_rem[ZPOOL_WAIT_TRIM] =
@@ -10827,11 +10943,12 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp, int row)
 		if (!wd->wd_enabled[i])
 			continue;
 
-		if (wd->wd_exact)
+		if (wd->wd_exact) {
 			(void) snprintf(buf, sizeof (buf), "%" PRIi64,
 			    bytes_rem[i]);
-		else
+		} else {
 			zfs_nicenum(bytes_rem[i], buf, sizeof (buf));
+		}
 
 		if (wd->wd_scripted)
 			(void) printf(i == 0 ? "%s" : "\t%s", buf);
@@ -10937,7 +11054,8 @@ zpool_do_wait(int argc, char **argv)
 			for (char *tok; (tok = strsep(&optarg, ",")); ) {
 				static const char *const col_opts[] = {
 				    "discard", "free", "initialize", "replace",
-				    "remove", "resilver", "scrub", "trim" };
+				    "remove", "resilver", "scrub", "trim",
+				    "raidz_expand" };
 
 				for (i = 0; i < ARRAY_SIZE(col_opts); ++i)
 					if (strcmp(tok, col_opts[i]) == 0) {

@@ -43,6 +43,7 @@ from ._constants import (
     ZFS_ERR_DEVRM_IN_PROGRESS,
     ZFS_ERR_VDEV_TOO_BIG,
     ZFS_ERR_WRONG_PARENT,
+    ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS,
     zfs_errno
 )
 
@@ -596,6 +597,8 @@ def lzc_pool_checkpoint_translate_error(ret, name, discard=False):
         raise lzc_exc.DeviceRemovalRunning()
     if ret == ZFS_ERR_VDEV_TOO_BIG:
         raise lzc_exc.DeviceTooBig()
+    if ret == ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS:
+        raise lzc_exc.RaidzExpansionRunning()
     if discard:
         raise _generic_exception(
             ret, name, "Failed to discard pool checkpoint")

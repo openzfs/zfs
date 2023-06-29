@@ -30,6 +30,7 @@ from ._constants import (
     ZFS_ERR_DEVRM_IN_PROGRESS,
     ZFS_ERR_VDEV_TOO_BIG,
     ZFS_ERR_WRONG_PARENT,
+    ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS,
     zfs_errno
 )
 
@@ -596,6 +597,11 @@ class DeviceRemovalRunning(ZFSError):
 class DeviceTooBig(ZFSError):
     errno = ZFS_ERR_VDEV_TOO_BIG
     message = "One or more top-level vdevs exceed the maximum vdev size"
+
+
+class RaidzExpansionRunning(ZFSError):
+    errno = ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS
+    message = "A raidz device is currently expanding"
 
 
 # vim: softtabstop=4 tabstop=4 expandtab shiftwidth=4

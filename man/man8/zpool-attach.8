@@ -26,7 +26,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd May 15, 2020
+.Dd June 28, 2023
 .Dt ZPOOL-ATTACH 8
 .Os
 .
@@ -45,7 +45,15 @@ Attaches
 .Ar new_device
 to the existing
 .Ar device .
-The existing device cannot be part of a raidz configuration.
+The behavior differs depending on if the existing
+.Ar device
+is a RAID-Z device, or a mirror/plain device.
+.Pp
+If the existing device is a mirror or plain device
+.Pq e.g. specified as Qo Li sda Qc or Qq Li mirror-7 ,
+the new device will be mirrored with the existing device, a resilver will be
+initiated, and the new device will contribute to additional redundancy once the
+resilver completes.
 If
 .Ar device
 is not currently part of a mirrored configuration,
@@ -62,6 +70,42 @@ creates a three-way mirror, and so on.
 In either case,
 .Ar new_device
 begins to resilver immediately and any running scrub is cancelled.
+.Pp
+If the existing device is a RAID-Z device
+.Pq e.g. specified as Qq Ar raidz2-0 ,
+the new device will become part of that RAID-Z group.
+A "raidz expansion" will be initiated, and once the expansion completes,
+the new device will contribute additional space to the RAID-Z group.
+The expansion entails reading all allocated space from existing disks in the
+RAID-Z group, and rewriting it to the new disks in the RAID-Z group (including
+the newly added
+.Ar device ) .
+Its progress can be monitored with
+.Nm zpool Cm status .
+.Pp
+Data redundancy is maintained during and after the expansion.
+If a disk fails while the expansion is in progress, the expansion pauses until
+the health of the RAID-Z vdev is restored (e.g. by replacing the failed disk
+and waiting for reconstruction to complete).
+Expansion does not change the number of failures that can be tolerated
+without data loss (e.g. a RAID-Z2 is still a RAID-Z2 even after expansion).
+A RAID-Z vdev can be expanded multiple times.
+.Pp
+After the expansion completes, old blocks retain their old data-to-parity
+ratio
+.Pq e.g. 5-wide RAID-Z2 has 3 data and 2 parity
+but distributed among the larger set of disks.
+New blocks will be written with the new data-to-parity ratio (e.g. a 5-wide
+RAID-Z2 which has been expanded once to 6-wide, has 4 data and 2 parity).
+However, the vdev's assumed parity ratio does not change, so slightly less
+space than is expected may be reported for newly-written blocks, according to
+.Nm zfs Cm list ,
+.Nm df ,
+.Nm ls Fl s ,
+and similar tools.
+.Pp
+A pool-wide scrub is initiated at the end of the expansion in order to verify
+the checksums of all blocks which have been copied during the expansion.
 .Bl -tag -width Ds
 .It Fl f
 Forces use of
@@ -76,16 +120,15 @@ manual page for a list of valid properties that can be set.
 The only property supported at the moment is
 .Sy ashift .
 .It Fl s
-The
+When attaching to a mirror or plain device, the
 .Ar new_device
 is reconstructed sequentially to restore redundancy as quickly as possible.
 Checksums are not verified during sequential reconstruction so a scrub is
 started when the resilver completes.
-Sequential reconstruction is not supported for raidz configurations.
 .It Fl w
 Waits until
 .Ar new_device
-has finished resilvering before returning.
+has finished resilvering or expanding before returning.
 .El
 .
 .Sh SEE ALSO

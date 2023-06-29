@@ -52,6 +52,16 @@
 .Op Fl T Ar time
 .Op Fl z Ar zil_failure_rate
 .
+.Nm
+.Fl X
+.Op Fl VG
+.Op Fl s Ar size_of_each_vdev
+.Op Fl a Ar alignment_shift
+.Op Fl r Ar raidz_disks
+.Op Fl R Ar raid_parity
+.Op Fl d Ar datasets
+.Op Fl t Ar threads
+.
 .Sh DESCRIPTION
 .Nm
 was written by the ZFS Developers as a ZFS unit test.
@@ -122,11 +132,17 @@ Number of mirror copies.
 Number of raidz/draid disks.
 .It Fl R , -raid-parity Ns = (default: Sy 1 )
 Raid parity (raidz & draid).
-.It Fl K , -raid-kind Ns = Ns Sy raidz Ns | Ns Sy draid Ns | Ns Sy random No (default : Sy random )
+.It Xo
+.Fl K , -raid-kind Ns = Ns
+.Sy raidz Ns | Ns Sy eraidz Ns | Ns Sy draid Ns | Ns Sy random
+(default:
+.Sy random Ns
+)
+.Xc
 The kind of RAID config to use.
 With
 .Sy random
-the kind alternates between raidz and draid.
+the kind alternates between raidz, eraidz (expandable raidz) and draid.
 .It Fl D , -draid-data Ns = (default: Sy 4 )
 Number of data disks in a dRAID redundancy group.
 .It Fl S , -draid-spares Ns = (default: Sy 1 )
@@ -181,6 +197,8 @@ to an unsigned 32-bit integer
 Dump zfs_dbgmsg buffer before exiting due to an error.
 .It Fl V , -verbose
 Verbose (use multiple times for ever more verbosity).
+.It Fl X , -raidz-expansion
+Perform a dedicated raidz expansion test.
 .El
 .
 .Sh EXAMPLES

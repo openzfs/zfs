@@ -48,7 +48,8 @@ static boolean_t
 vdev_initialize_should_stop(vdev_t *vd)
 {
 	return (vd->vdev_initialize_exit_wanted || !vdev_writeable(vd) ||
-	    vd->vdev_detached || vd->vdev_top->vdev_removing);
+	    vd->vdev_detached || vd->vdev_top->vdev_removing ||
+	    vd->vdev_top->vdev_rz_expanding);
 }
 
 static void
@@ -67,7 +68,8 @@ vdev_initialize_zap_update_sync(void *arg, dmu_tx_t *tx)
 	kmem_free(arg, sizeof (uint64_t));
 
 	vdev_t *vd = spa_lookup_by_guid(tx->tx_pool->dp_spa, guid, B_FALSE);
-	if (vd == NULL || vd->vdev_top->vdev_removing || !vdev_is_concrete(vd))
+	if (vd == NULL || vd->vdev_top->vdev_removing ||
+	    !vdev_is_concrete(vd) || vd->vdev_top->vdev_rz_expanding)
 		return;
 
 	uint64_t last_offset = vd->vdev_initialize_offset[txg & TXG_MASK];
@@ -631,6 +633,7 @@ vdev_initialize(vdev_t *vd)
 	ASSERT(!vd->vdev_detached);
 	ASSERT(!vd->vdev_initialize_exit_wanted);
 	ASSERT(!vd->vdev_top->vdev_removing);
+	ASSERT(!vd->vdev_top->vdev_rz_expanding);
 
 	vdev_initialize_change_state(vd, VDEV_INITIALIZE_ACTIVE);
 	vd->vdev_initialize_thread = thread_create(NULL, 0,
@@ -791,13 +794,14 @@ vdev_initialize_restart(vdev_t *vd)
 		ASSERT(err == 0 || err == ENOENT);
 		vd->vdev_initialize_action_time = timestamp;
 
-		if (vd->vdev_initialize_state == VDEV_INITIALIZE_SUSPENDED ||
-		    vd->vdev_offline) {
+		if ((vd->vdev_initialize_state == VDEV_INITIALIZE_SUSPENDED ||
+		    vd->vdev_offline) && !vd->vdev_top->vdev_rz_expanding) {
 			/* load progress for reporting, but don't resume */
 			VERIFY0(vdev_initialize_load(vd));
 		} else if (vd->vdev_initialize_state ==
 		    VDEV_INITIALIZE_ACTIVE && vdev_writeable(vd) &&
 		    !vd->vdev_top->vdev_removing &&
+		    !vd->vdev_top->vdev_rz_expanding &&
 		    vd->vdev_initialize_thread == NULL) {
 			vdev_initialize(vd);
 		}

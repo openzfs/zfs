@@ -767,6 +767,14 @@ as soon as it is enabled and will never return to being
 .Sy disabled .
 \*[remount-upgrade]
 .
+.feature org.openzfs raidz_expansion no none
+This feature enables the
+.Nm zpool Cm attach
+subcommand to attach a new device to a RAID-Z group, expanding the total
+amount usable space in the pool.
+See
+.Xr zpool-attach 8 .
+.
 .feature com.delphix redaction_bookmarks no bookmarks extensible_dataset
 This feature enables the use of redacted
 .Nm zfs Cm send Ns s ,
@@ -782,6 +790,18 @@ streams, which create redacted datasets when received.
 These datasets are missing some of their blocks,
 and so cannot be safely mounted, and their contents cannot be safely read.
 For more information about redacted receives, see
+.Xr zfs-send 8 .
+.
+.feature com.delphix redaction_list_spill no redaction_bookmarks
+This feature enables the redaction list created by zfs redact to store
+many more entries.
+It becomes
+.Sy active
+when a redaction list is created with more than 36 entries,
+and returns to being
+.Sy enabled
+when no long redaction lists remain in the pool.
+For more information about redacted sends, see
 .Xr zfs-send 8 .
 .
 .feature com.datto resilver_defer yes
@@ -947,18 +967,6 @@ once all filesystems that have ever had their
 property set to
 .Sy zstd
 are destroyed.
-.
-.feature com.delphix redaction_list_spill no redaction_bookmarks
-This feature enables the redaction list created by zfs redact to store
-many more entries.
-It becomes
-.Sy active
-when a redaction list is created with more than 36 entries,
-and returns to being
-.Sy enabled
-when no long redaction lists remain in the pool.
-For more information about redacted sends, see
-.Xr zfs-send 8 .
 .El
 .
 .Sh SEE ALSO

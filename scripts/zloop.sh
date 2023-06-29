@@ -252,38 +252,57 @@ while (( timeout == 0 )) || (( curtime <= (starttime + timeout) )); do
 	or_die rm -rf "$workdir"
 	or_die mkdir "$workdir"
 
-	# switch between three types of configs
-	# 1/3 basic, 1/3 raidz mix, and 1/3 draid mix
-	choice=$((RANDOM % 3))
-
 	# ashift range 9 - 15
 	align=$(((RANDOM % 2) * 3 + 9))
+
+	# choose parity value
+	parity=$(((RANDOM % 3) + 1))
+
+	draid_data=0
+	draid_spares=0
 
 	# randomly use special classes
 	class="special=random"
 
-	if [[ $choice -eq 0 ]]; then
-		# basic mirror only
-		parity=1
+	# choose between four types of configs
+	# (basic, raidz mix, raidz expansion, and draid mix)
+	case $((RANDOM % 4)) in
+
+	# basic mirror configuration
+	0)	parity=1
 		mirrors=2
-		draid_data=0
-		draid_spares=0
 		raid_children=0
 		vdevs=2
 		raid_type="raidz"
-	elif [[ $choice -eq 1 ]]; then
-		# fully randomized mirror/raidz (sans dRAID)
-		parity=$(((RANDOM % 3) + 1))
-		mirrors=$(((RANDOM % 3) * 1))
-		draid_data=0
-		draid_spares=0
+		;;
+
+	# fully randomized mirror/raidz (sans dRAID)
+	1)	mirrors=$(((RANDOM % 3) * 1))
 		raid_children=$((((RANDOM % 9) + parity + 1) * (RANDOM % 2)))
 		vdevs=$(((RANDOM % 3) + 3))
 		raid_type="raidz"
-	else
-		# fully randomized dRAID (sans mirror/raidz)
-		parity=$(((RANDOM % 3) + 1))
-		mirrors=0
+		;;
+
+	# randomized raidz expansion (one top-level raidz vdev)
+	2)	mirrors=0
+		vdevs=1
+		# derive initial raidz disk count based on parity choice
+		#   P1: 3 - 7 disks
+		#   P2: 5 - 9 disks
+		#   P3: 7 - 11 disks
+		raid_children=$(((RANDOM % 5) + (parity * 2) + 1))
+
+		# 1/3 of the time use a dedicated '-X' raidz expansion test
+		if [[ $((RANDOM % 3)) -eq 0 ]]; then
+			zopt="$zopt -X -t 16"
+			raid_type="raidz"
+		else
+			raid_type="eraidz"
+		fi
+		;;
+
+	# fully randomized dRAID (sans mirror/raidz)
+	3)	mirrors=0
 		draid_data=$(((RANDOM % 8) + 3))
 		draid_spares=$(((RANDOM % 2) + parity))
 		stripe=$((draid_data + parity))
@@ -291,7 +310,11 @@ while (( timeout == 0 )) || (( curtime <= (starttime + timeout) )); do
 		raid_children=$(((((RANDOM % 4) + 1) * stripe) + extra))
 		vdevs=$((RANDOM % 3))
 		raid_type="draid"
-	fi
+		;;
+	*)
+		# avoid shellcheck SC2249
+		;;
+	esac
 
 	zopt="$zopt -K $raid_type"
 	zopt="$zopt -m $mirrors"

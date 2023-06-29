@@ -327,14 +327,12 @@ init_raidz_golden_map(raidz_test_opts_t *opts, const int parity)
 
 	if (opts->rto_expand) {
 		opts->rm_golden =
-		    vdev_raidz_map_alloc_expanded(opts->zio_golden->io_abd,
-		    opts->zio_golden->io_size, opts->zio_golden->io_offset,
+		    vdev_raidz_map_alloc_expanded(opts->zio_golden,
 		    opts->rto_ashift, total_ncols+1, total_ncols,
-		    parity, opts->rto_expand_offset);
-		rm_test = vdev_raidz_map_alloc_expanded(zio_test->io_abd,
-		    zio_test->io_size, zio_test->io_offset,
+		    parity, opts->rto_expand_offset, 0, B_FALSE);
+		rm_test = vdev_raidz_map_alloc_expanded(zio_test,
 		    opts->rto_ashift, total_ncols+1, total_ncols,
-		    parity, opts->rto_expand_offset);
+		    parity, opts->rto_expand_offset, 0, B_FALSE);
 	} else {
 		opts->rm_golden = vdev_raidz_map_alloc(opts->zio_golden,
 		    opts->rto_ashift, total_ncols, parity);
@@ -361,187 +359,6 @@ init_raidz_golden_map(raidz_test_opts_t *opts, const int parity)
 	return (err);
 }
 
-/*
- * If reflow is not in progress, reflow_offset should be UINT64_MAX.
- * For each row, if the row is entirely before reflow_offset, it will
- * come from the new location.  Otherwise this row will come from the
- * old location.  Therefore, rows that straddle the reflow_offset will
- * come from the old location.
- *
- * NOTE: Until raidz expansion is implemented this function is only
- * needed by raidz_test.c to the multi-row raid_map_t functionality.
- */
-raidz_map_t *
-vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
-    uint64_t ashift, uint64_t physical_cols, uint64_t logical_cols,
-    uint64_t nparity, uint64_t reflow_offset)
-{
-	/* The zio's size in units of the vdev's minimum sector size. */
-	uint64_t s = size >> ashift;
-	uint64_t q, r, bc, devidx, asize = 0, tot;
-
-	/*
-	 * "Quotient": The number of data sectors for this stripe on all but
-	 * the "big column" child vdevs that also contain "remainder" data.
-	 * AKA "full rows"
-	 */
-	q = s / (logical_cols - nparity);
-
-	/*
-	 * "Remainder": The number of partial stripe data sectors in this I/O.
-	 * This will add a sector to some, but not all, child vdevs.
-	 */
-	r = s - q * (logical_cols - nparity);
-
-	/* The number of "big columns" - those which contain remainder data. */
-	bc = (r == 0 ? 0 : r + nparity);
-
-	/*
-	 * The total number of data and parity sectors associated with
-	 * this I/O.
-	 */
-	tot = s + nparity * (q + (r == 0 ? 0 : 1));
-
-	/* How many rows contain data (not skip) */
-	uint64_t rows = howmany(tot, logical_cols);
-	int cols = MIN(tot, logical_cols);
-
-	raidz_map_t *rm = kmem_zalloc(offsetof(raidz_map_t, rm_row[rows]),
-	    KM_SLEEP);
-	rm->rm_nrows = rows;
-
-	for (uint64_t row = 0; row < rows; row++) {
-		raidz_row_t *rr = kmem_alloc(offsetof(raidz_row_t,
-		    rr_col[cols]), KM_SLEEP);
-		rm->rm_row[row] = rr;
-
-		/* The starting RAIDZ (parent) vdev sector of the row. */
-		uint64_t b = (offset >> ashift) + row * logical_cols;
-
-		/*
-		 * If we are in the middle of a reflow, and any part of this
-		 * row has not been copied, then use the old location of
-		 * this row.
-		 */
-		int row_phys_cols = physical_cols;
-		if (b + (logical_cols - nparity) > reflow_offset >> ashift)
-			row_phys_cols--;
-
-		/* starting child of this row */
-		uint64_t child_id = b % row_phys_cols;
-		/* The starting byte offset on each child vdev. */
-		uint64_t child_offset = (b / row_phys_cols) << ashift;
-
-		/*
-		 * We set cols to the entire width of the block, even
-		 * if this row is shorter.  This is needed because parity
-		 * generation (for Q and R) needs to know the entire width,
-		 * because it treats the short row as though it was
-		 * full-width (and the "phantom" sectors were zero-filled).
-		 *
-		 * Another approach to this would be to set cols shorter
-		 * (to just the number of columns that we might do i/o to)
-		 * and have another mechanism to tell the parity generation
-		 * about the "entire width".  Reconstruction (at least
-		 * vdev_raidz_reconstruct_general()) would also need to
-		 * know about the "entire width".
-		 */
-		rr->rr_cols = cols;
-		rr->rr_bigcols = bc;
-		rr->rr_missingdata = 0;
-		rr->rr_missingparity = 0;
-		rr->rr_firstdatacol = nparity;
-		rr->rr_abd_empty = NULL;
-		rr->rr_nempty = 0;
-
-		for (int c = 0; c < rr->rr_cols; c++, child_id++) {
-			if (child_id >= row_phys_cols) {
-				child_id -= row_phys_cols;
-				child_offset += 1ULL << ashift;
-			}
-			rr->rr_col[c].rc_devidx = child_id;
-			rr->rr_col[c].rc_offset = child_offset;
-			rr->rr_col[c].rc_orig_data = NULL;
-			rr->rr_col[c].rc_error = 0;
-			rr->rr_col[c].rc_tried = 0;
-			rr->rr_col[c].rc_skipped = 0;
-			rr->rr_col[c].rc_need_orig_restore = B_FALSE;
-
-			uint64_t dc = c - rr->rr_firstdatacol;
-			if (c < rr->rr_firstdatacol) {
-				rr->rr_col[c].rc_size = 1ULL << ashift;
-				rr->rr_col[c].rc_abd =
-				    abd_alloc_linear(rr->rr_col[c].rc_size,
-				    B_TRUE);
-			} else if (row == rows - 1 && bc != 0 && c >= bc) {
-				/*
-				 * Past the end, this for parity generation.
-				 */
-				rr->rr_col[c].rc_size = 0;
-				rr->rr_col[c].rc_abd = NULL;
-			} else {
-				/*
-				 * "data column" (col excluding parity)
-				 * Add an ASCII art diagram here
-				 */
-				uint64_t off;
-
-				if (c < bc || r == 0) {
-					off = dc * rows + row;
-				} else {
-					off = r * rows +
-					    (dc - r) * (rows - 1) + row;
-				}
-				rr->rr_col[c].rc_size = 1ULL << ashift;
-				rr->rr_col[c].rc_abd = abd_get_offset_struct(
-				    &rr->rr_col[c].rc_abdstruct,
-				    abd, off << ashift, 1 << ashift);
-			}
-
-			asize += rr->rr_col[c].rc_size;
-		}
-		/*
-		 * If all data stored spans all columns, there's a danger that
-		 * parity will always be on the same device and, since parity
-		 * isn't read during normal operation, that that device's I/O
-		 * bandwidth won't be used effectively. We therefore switch
-		 * the parity every 1MB.
-		 *
-		 * ...at least that was, ostensibly, the theory. As a practical
-		 * matter unless we juggle the parity between all devices
-		 * evenly, we won't see any benefit. Further, occasional writes
-		 * that aren't a multiple of the LCM of the number of children
-		 * and the minimum stripe width are sufficient to avoid pessimal
-		 * behavior. Unfortunately, this decision created an implicit
-		 * on-disk format requirement that we need to support for all
-		 * eternity, but only for single-parity RAID-Z.
-		 *
-		 * If we intend to skip a sector in the zeroth column for
-		 * padding we must make sure to note this swap. We will never
-		 * intend to skip the first column since at least one data and
-		 * one parity column must appear in each row.
-		 */
-		if (rr->rr_firstdatacol == 1 && rr->rr_cols > 1 &&
-		    (offset & (1ULL << 20))) {
-			ASSERT(rr->rr_cols >= 2);
-			ASSERT(rr->rr_col[0].rc_size == rr->rr_col[1].rc_size);
-			devidx = rr->rr_col[0].rc_devidx;
-			uint64_t o = rr->rr_col[0].rc_offset;
-			rr->rr_col[0].rc_devidx = rr->rr_col[1].rc_devidx;
-			rr->rr_col[0].rc_offset = rr->rr_col[1].rc_offset;
-			rr->rr_col[1].rc_devidx = devidx;
-			rr->rr_col[1].rc_offset = o;
-		}
-
-	}
-	ASSERT3U(asize, ==, tot << ashift);
-
-	/* init RAIDZ parity ops */
-	rm->rm_ops = vdev_raidz_math_get_ops();
-
-	return (rm);
-}
-
 static raidz_map_t *
 init_raidz_map(raidz_test_opts_t *opts, zio_t **zio, const int parity)
 {
@@ -561,10 +378,9 @@ init_raidz_map(raidz_test_opts_t *opts, zio_t **zio, const int parity)
 	init_zio_abd(*zio);
 
 	if (opts->rto_expand) {
-		rm = vdev_raidz_map_alloc_expanded((*zio)->io_abd,
-		    (*zio)->io_size, (*zio)->io_offset,
+		rm = vdev_raidz_map_alloc_expanded(*zio,
 		    opts->rto_ashift, total_ncols+1, total_ncols,
-		    parity, opts->rto_expand_offset);
+		    parity, opts->rto_expand_offset, 0, B_FALSE);
 	} else {
 		rm = vdev_raidz_map_alloc(*zio, opts->rto_ashift,
 		    total_ncols, parity);

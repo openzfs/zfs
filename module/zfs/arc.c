@@ -4518,7 +4518,7 @@ arc_evict_cb_check(void *arg, zthr_t *zthr)
 static void
 arc_evict_cb(void *arg, zthr_t *zthr)
 {
-	(void) arg, (void) zthr;
+	(void) arg;
 
 	uint64_t evicted = 0;
 	fstrans_cookie_t cookie = spl_fstrans_mark();
@@ -4542,9 +4542,13 @@ arc_evict_cb(void *arg, zthr_t *zthr)
 	 * infinite loop.  Additionally, zthr_iscancelled() is
 	 * checked here so that if the arc is shutting down, the
 	 * broadcast will wake any remaining arc evict waiters.
+	 *
+	 * Note we cancel using zthr instead of arc_evict_zthr
+	 * because the latter may not yet be initializd when the
+	 * callback is first invoked.
 	 */
 	mutex_enter(&arc_evict_lock);
-	arc_evict_needed = !zthr_iscancelled(arc_evict_zthr) &&
+	arc_evict_needed = !zthr_iscancelled(zthr) &&
 	    evicted > 0 && aggsum_compare(&arc_sums.arcstat_size, arc_c) > 0;
 	if (!arc_evict_needed) {
 		/*

@@ -4342,7 +4342,8 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 
 	uint64_t free_space = metaslab_class_get_space(spa_normal_class(spa)) -
 	    metaslab_class_get_alloc(spa_normal_class(spa));
-	if (free_space <= spa_get_slop_space(spa) || vd->vdev_removing) {
+	if (free_space <= spa_get_slop_space(spa) || vd->vdev_removing ||
+	    vd->vdev_rz_expanding) {
 		defer_allowed = B_FALSE;
 	}
 
@@ -4650,6 +4651,7 @@ metaslab_block_alloc(metaslab_t *msp, uint64_t size, uint64_t txg)
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 	VERIFY(!msp->ms_condensing);
 	VERIFY0(msp->ms_disabled);
+	VERIFY0(msp->ms_new);
 
 	start = mc->mc_ops->msop_alloc(msp, size);
 	if (start != -1ULL) {
@@ -4721,10 +4723,10 @@ find_valid_metaslab(metaslab_group_t *mg, uint64_t activation_weight,
 		}
 
 		/*
-		 * If the selected metaslab is condensing or disabled,
-		 * skip it.
+		 * If the selected metaslab is condensing or disabled, or
+		 * hasn't gone through a metaslab_sync_done(), then skip it.
 		 */
-		if (msp->ms_condensing || msp->ms_disabled > 0)
+		if (msp->ms_condensing || msp->ms_disabled > 0 || msp->ms_new)
 			continue;
 
 		*was_active = msp->ms_allocator != -1;
@@ -5270,7 +5272,7 @@ top:
 
 		ASSERT(mg->mg_class == mc);
 
-		uint64_t asize = vdev_psize_to_asize(vd, psize);
+		uint64_t asize = vdev_psize_to_asize_txg(vd, psize, txg);
 		ASSERT(P2PHASE(asize, 1ULL << vd->vdev_ashift) == 0);
 
 		/*
