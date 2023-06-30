@@ -74,6 +74,7 @@
 #include <sys/arc.h>
 #include <sys/arc_impl.h>
 #include <sys/ddt.h>
+#include <sys/ddt_impl.h>
 #include <sys/zfeature.h>
 #include <sys/abd.h>
 #include <sys/blkptr.h>

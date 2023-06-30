@@ -28,6 +28,7 @@
 #include <sys/spa.h>
 #include <sys/zio.h>
 #include <sys/ddt.h>
+#include <sys/ddt_impl.h>
 #include <sys/zap.h>
 #include <sys/dmu_tx.h>
 #include <sys/zio_compress.h>
