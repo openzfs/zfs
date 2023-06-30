@@ -239,6 +239,16 @@ relative to the pool.
 Make some blocks above a certain size be gang blocks.
 This option is used by the test suite to facilitate testing.
 .
+.It Sy zfs_ddt_zap_default_bs Ns = Ns Sy 15 Po 32 KiB Pc Pq int
+Default DDT ZAP data block size as a power of 2. Note that changing this after
+creating a DDT on the pool will not affect existing DDTs, only newly created
+ones.
+.
+.It Sy zfs_ddt_zap_default_ibs Ns = Ns Sy 15 Po 32 KiB Pc Pq int
+Default DDT ZAP indirect block size as a power of 2. Note that changing this
+after creating a DDT on the pool will not affect existing DDTs, only newly
+created ones.
+.
 .It Sy zfs_default_bs Ns = Ns Sy 9 Po 512 B Pc Pq int
 Default dnode block size as a power of 2.
 .
