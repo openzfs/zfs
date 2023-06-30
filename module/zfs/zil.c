@@ -798,8 +798,8 @@ zil_free_lwb(zilog_t *zilog, lwb_t *lwb)
 {
 	ASSERT(MUTEX_HELD(&zilog->zl_lock));
 	ASSERT(!MUTEX_HELD(&lwb->lwb_vdev_lock));
-	ASSERT(list_is_empty(&lwb->lwb_waiters));
-	ASSERT(list_is_empty(&lwb->lwb_itxs));
+	VERIFY(list_is_empty(&lwb->lwb_waiters));
+	VERIFY(list_is_empty(&lwb->lwb_itxs));
 	ASSERT(avl_is_empty(&lwb->lwb_vdev_tree));
 	ASSERT3P(lwb->lwb_write_zio, ==, NULL);
 	ASSERT3P(lwb->lwb_root_zio, ==, NULL);
@@ -2525,10 +2525,10 @@ zil_clean(zilog_t *zilog, uint64_t synced_txg)
  * This function will traverse the queue of itxs that need to be
  * committed, and move them onto the ZIL's zl_itx_commit_list.
  */
-static void
+static uint64_t
 zil_get_commit_list(zilog_t *zilog)
 {
-	uint64_t otxg, txg;
+	uint64_t otxg, txg, wtxg = 0;
 	list_t *commit_list = &zilog->zl_itx_commit_list;
 
 	ASSERT(MUTEX_HELD(&zilog->zl_issuer_lock));
@@ -2562,10 +2562,22 @@ zil_get_commit_list(zilog_t *zilog)
 		 */
 		ASSERT(zilog_is_dirty_in_txg(zilog, txg) ||
 		    spa_freeze_txg(zilog->zl_spa) != UINT64_MAX);
-		list_move_tail(commit_list, &itxg->itxg_itxs->i_sync_list);
+		list_t *sync_list = &itxg->itxg_itxs->i_sync_list;
+		if (unlikely(zilog->zl_suspend > 0)) {
+			/*
+			 * ZIL was just suspended, but we lost the race.
+			 * Allow all earlier itxs to be committed, but ask
+			 * caller to do txg_wait_synced(txg) for any new.
+			 */
+			if (!list_is_empty(sync_list))
+				wtxg = MAX(wtxg, txg);
+		} else {
+			list_move_tail(commit_list, sync_list);
+		}
 
 		mutex_exit(&itxg->itxg_lock);
 	}
+	return (wtxg);
 }
 
 /*
@@ -2953,11 +2965,12 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
  * not issued, we rely on future calls to zil_commit_writer() to issue
  * the lwb, or the timeout mechanism found in zil_commit_waiter().
  */
-static void
+static uint64_t
 zil_commit_writer(zilog_t *zilog, zil_commit_waiter_t *zcw)
 {
 	list_t ilwbs;
 	lwb_t *lwb;
+	uint64_t wtxg = 0;
 
 	ASSERT(!MUTEX_HELD(&zilog->zl_lock));
 	ASSERT(spa_writeable(zilog->zl_spa));
@@ -2987,7 +3000,7 @@ zil_commit_writer(zilog_t *zilog, zil_commit_waiter_t *zcw)
 
 	ZIL_STAT_BUMP(zilog, zil_commit_writer_count);
 
-	zil_get_commit_list(zilog);
+	wtxg = zil_get_commit_list(zilog);
 	zil_prune_commit_list(zilog);
 	zil_process_commit_list(zilog, zcw, &ilwbs);
 
@@ -2996,6 +3009,7 @@ out:
 	while ((lwb = list_remove_head(&ilwbs)) != NULL)
 		zil_lwb_write_issue(zilog, lwb);
 	list_destroy(&ilwbs);
+	return (wtxg);
 }
 
 static void
@@ -3511,7 +3525,7 @@ zil_commit_impl(zilog_t *zilog, uint64_t foid)
 	zil_commit_waiter_t *zcw = zil_alloc_commit_waiter();
 	zil_commit_itx_assign(zilog, zcw);
 
-	zil_commit_writer(zilog, zcw);
+	uint64_t wtxg = zil_commit_writer(zilog, zcw);
 	zil_commit_waiter(zilog, zcw);
 
 	if (zcw->zcw_zio_error != 0) {
@@ -3526,6 +3540,8 @@ zil_commit_impl(zilog_t *zilog, uint64_t foid)
 		DTRACE_PROBE2(zil__commit__io__error,
 		    zilog_t *, zilog, zil_commit_waiter_t *, zcw);
 		txg_wait_synced(zilog->zl_dmu_pool, 0);
+	} else if (wtxg != 0) {
+		txg_wait_synced(zilog->zl_dmu_pool, wtxg);
 	}
 
 	zil_free_commit_waiter(zcw);
@@ -3905,11 +3921,13 @@ zil_suspend(const char *osname, void **cookiep)
 		return (error);
 	zilog = dmu_objset_zil(os);
 
+	mutex_enter(&zilog->zl_issuer_lock);
 	mutex_enter(&zilog->zl_lock);
 	zh = zilog->zl_header;
 
 	if (zh->zh_flags & ZIL_REPLAY_NEEDED) {		/* unplayed log */
 		mutex_exit(&zilog->zl_lock);
+		mutex_exit(&zilog->zl_issuer_lock);
 		dmu_objset_rele(os, suspend_tag);
 		return (SET_ERROR(EBUSY));
 	}
@@ -3923,6 +3941,7 @@ zil_suspend(const char *osname, void **cookiep)
 	if (cookiep == NULL && !zilog->zl_suspending &&
 	    (zilog->zl_suspend > 0 || BP_IS_HOLE(&zh->zh_log))) {
 		mutex_exit(&zilog->zl_lock);
+		mutex_exit(&zilog->zl_issuer_lock);
 		dmu_objset_rele(os, suspend_tag);
 		return (0);
 	}
@@ -3931,6 +3950,7 @@ zil_suspend(const char *osname, void **cookiep)
 	dsl_pool_rele(dmu_objset_pool(os), suspend_tag);
 
 	zilog->zl_suspend++;
+	mutex_exit(&zilog->zl_issuer_lock);
 
 	if (zilog->zl_suspend > 1) {
 		/*
