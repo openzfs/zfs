@@ -1209,10 +1209,19 @@ ddt_addref(spa_t *spa, const blkptr_t *bp)
 		ASSERT3S(dde->dde_class, <, DDT_CLASSES);
 
 		ddp = &dde->dde_phys[BP_GET_NDVAS(bp)];
-		if (ddp->ddp_refcnt == 0) {
-			/* This should never happen? */
-			ddt_phys_fill(ddp, bp);
-		}
+
+		/*
+		 * This entry already existed (dde_type is real), so it must
+		 * have refcnt >0 at the start of this txg. We are called from
+		 * brt_pending_apply(), before frees are issued, so the refcnt
+		 * can't be lowered yet. Therefore, it must be >0. We assert
+		 * this because if the order of BRT and DDT interactions were
+		 * ever to change and the refcnt was ever zero here, then
+		 * likely further action is required to fill out the DDT entry,
+		 * and this is a place that is likely to be missed in testing.
+		 */
+		ASSERT3U(ddp->ddp_refcnt, >, 0);
+
 		ddt_phys_addref(ddp);
 		result = B_TRUE;
 	} else {
