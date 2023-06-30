@@ -61,7 +61,7 @@ typedef struct dsl_scan_phys {
 	uint64_t scn_end_time;
 	uint64_t scn_to_examine; /* total bytes to be scanned */
 	uint64_t scn_examined; /* bytes scanned so far */
-	uint64_t scn_to_process;
+	uint64_t scn_skipped;	/* bytes skipped by scanner */
 	uint64_t scn_processed;
 	uint64_t scn_errors;	/* scan I/O error count */
 	uint64_t scn_ddt_class_max;

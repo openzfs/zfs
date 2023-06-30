@@ -571,8 +571,10 @@ vdev_rebuild_range(vdev_rebuild_t *vr, uint64_t start, uint64_t size)
 	vdev_rebuild_blkptr_init(&blk, vd, start, size);
 	uint64_t psize = BP_GET_PSIZE(&blk);
 
-	if (!vdev_dtl_need_resilver(vd, &blk.blk_dva[0], psize, TXG_UNKNOWN))
+	if (!vdev_dtl_need_resilver(vd, &blk.blk_dva[0], psize, TXG_UNKNOWN)) {
+		vr->vr_pass_bytes_skipped += size;
 		return (0);
+	}
 
 	mutex_enter(&vr->vr_io_lock);
 
@@ -786,6 +788,7 @@ vdev_rebuild_thread(void *arg)
 	vr->vr_pass_start_time = gethrtime();
 	vr->vr_pass_bytes_scanned = 0;
 	vr->vr_pass_bytes_issued = 0;
+	vr->vr_pass_bytes_skipped = 0;
 
 	uint64_t update_est_time = gethrtime();
 	vdev_rebuild_update_bytes_est(vd, 0);
@@ -1153,6 +1156,7 @@ vdev_rebuild_get_stats(vdev_t *tvd, vdev_rebuild_stat_t *vrs)
 		    vr->vr_pass_start_time);
 		vrs->vrs_pass_bytes_scanned = vr->vr_pass_bytes_scanned;
 		vrs->vrs_pass_bytes_issued = vr->vr_pass_bytes_issued;
+		vrs->vrs_pass_bytes_skipped = vr->vr_pass_bytes_skipped;
 		mutex_exit(&tvd->vdev_rebuild_lock);
 	}
 
