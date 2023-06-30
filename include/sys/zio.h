@@ -341,9 +341,9 @@ typedef struct zio_prop {
 	enum zio_checksum	zp_checksum;
 	enum zio_compress	zp_compress;
 	uint8_t			zp_complevel;
-	dmu_object_type_t	zp_type;
 	uint8_t			zp_level;
 	uint8_t			zp_copies;
+	dmu_object_type_t	zp_type;
 	boolean_t		zp_dedup;
 	boolean_t		zp_dedup_verify;
 	boolean_t		zp_nopwrite;
@@ -611,6 +611,7 @@ extern zio_t *zio_walk_parents(zio_t *cio, zio_link_t **);
 extern zio_t *zio_walk_children(zio_t *pio, zio_link_t **);
 extern zio_t *zio_unique_parent(zio_t *cio);
 extern void zio_add_child(zio_t *pio, zio_t *cio);
+extern void zio_add_child_first(zio_t *pio, zio_t *cio);
 
 extern void *zio_buf_alloc(size_t size);
 extern void zio_buf_free(void *buf, size_t size);
