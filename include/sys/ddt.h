@@ -58,9 +58,6 @@ enum ddt_class {
 
 #define	DDT_TYPE_CURRENT		0
 
-#define	DDT_COMPRESS_BYTEORDER_MASK	0x80
-#define	DDT_COMPRESS_FUNCTION_MASK	0x7f
-
 /*
  * On-disk ddt entry:  key (name) and physical storage (value).
  */
@@ -91,8 +88,6 @@ typedef struct ddt_key {
 
 #define	DDK_GET_CRYPT(ddk)		BF64_GET((ddk)->ddk_prop, 39, 1)
 #define	DDK_SET_CRYPT(ddk, x)	BF64_SET((ddk)->ddk_prop, 39, 1, x)
-
-#define	DDT_KEY_WORDS	(sizeof (ddt_key_t) / sizeof (uint64_t))
 
 #define	DDE_GET_NDVAS(dde) (DDK_GET_CRYPT(&dde->dde_key) \
 	? SPA_DVAS_PER_BP - 1 : SPA_DVAS_PER_BP)
@@ -219,9 +214,6 @@ extern void ddt_get_dedup_stats(spa_t *spa, ddt_stat_t *dds_total);
 
 extern uint64_t ddt_get_dedup_dspace(spa_t *spa);
 extern uint64_t ddt_get_pool_dedup_ratio(spa_t *spa);
-
-extern size_t ddt_compress(void *src, uchar_t *dst, size_t s_len, size_t d_len);
-extern void ddt_decompress(uchar_t *src, void *dst, size_t s_len, size_t d_len);
 
 extern ddt_t *ddt_select(spa_t *spa, const blkptr_t *bp);
 extern void ddt_enter(ddt_t *ddt);
