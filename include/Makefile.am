@@ -37,6 +37,7 @@ COMMON_H = \
 	sys/dataset_kstats.h \
 	sys/dbuf.h \
 	sys/ddt.h \
+	sys/ddt_impl.h \
 	sys/dmu.h \
 	sys/dmu_impl.h \
 	sys/dmu_objset.h \

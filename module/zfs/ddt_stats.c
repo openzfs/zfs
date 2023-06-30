@@ -30,6 +30,7 @@
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
 #include <sys/ddt.h>
+#include <sys/ddt_impl.h>
 
 static void
 ddt_stat_generate(ddt_t *ddt, ddt_entry_t *dde, ddt_stat_t *dds)

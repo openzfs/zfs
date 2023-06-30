@@ -30,6 +30,7 @@
 #include <sys/spa_impl.h>
 #include <sys/zio.h>
 #include <sys/ddt.h>
+#include <sys/ddt_impl.h>
 #include <sys/zap.h>
 #include <sys/dmu_tx.h>
 #include <sys/arc.h>
@@ -171,6 +172,12 @@ ddt_object_sync(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
 	ddo->ddo_mspace = doi.doi_fill_count * doi.doi_data_block_size;
 }
 
+static boolean_t
+ddt_object_exists(ddt_t *ddt, enum ddt_type type, enum ddt_class class)
+{
+	return (!!ddt->ddt_object[type][class]);
+}
+
 static int
 ddt_object_lookup(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
     ddt_entry_t *dde)
@@ -193,7 +200,7 @@ ddt_object_prefetch(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
 	    ddt->ddt_object[type][class], dde);
 }
 
-int
+static int
 ddt_object_update(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
     ddt_entry_t *dde, dmu_tx_t *tx)
 {
@@ -242,12 +249,6 @@ ddt_object_info(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
 
 	return (dmu_object_info(ddt->ddt_os, ddt->ddt_object[type][class],
 	    doi));
-}
-
-boolean_t
-ddt_object_exists(ddt_t *ddt, enum ddt_type type, enum ddt_class class)
-{
-	return (!!ddt->ddt_object[type][class]);
 }
 
 void
@@ -341,7 +342,7 @@ ddt_phys_decref(ddt_phys_t *ddp)
 	}
 }
 
-void
+static void
 ddt_phys_free(ddt_t *ddt, ddt_key_t *ddk, ddt_phys_t *ddp, uint64_t txg)
 {
 	blkptr_t blk;

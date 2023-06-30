@@ -152,57 +152,16 @@ typedef struct ddt_bookmark {
 	uint64_t	ddb_cursor;
 } ddt_bookmark_t;
 
-/*
- * Ops vector to access a specific DDT object type.
- */
-typedef struct ddt_ops {
-	char ddt_op_name[32];
-	int (*ddt_op_create)(objset_t *os, uint64_t *object, dmu_tx_t *tx,
-	    boolean_t prehash);
-	int (*ddt_op_destroy)(objset_t *os, uint64_t object, dmu_tx_t *tx);
-	int (*ddt_op_lookup)(objset_t *os, uint64_t object, ddt_entry_t *dde);
-	void (*ddt_op_prefetch)(objset_t *os, uint64_t object,
-	    ddt_entry_t *dde);
-	int (*ddt_op_update)(objset_t *os, uint64_t object, ddt_entry_t *dde,
-	    dmu_tx_t *tx);
-	int (*ddt_op_remove)(objset_t *os, uint64_t object, ddt_entry_t *dde,
-	    dmu_tx_t *tx);
-	int (*ddt_op_walk)(objset_t *os, uint64_t object, ddt_entry_t *dde,
-	    uint64_t *walk);
-	int (*ddt_op_count)(objset_t *os, uint64_t object, uint64_t *count);
-} ddt_ops_t;
-
-#define	DDT_NAMELEN	107
-
-extern void ddt_object_name(ddt_t *ddt, enum ddt_type type,
-    enum ddt_class clazz, char *name);
-extern int ddt_object_walk(ddt_t *ddt, enum ddt_type type,
-    enum ddt_class clazz, uint64_t *walk, ddt_entry_t *dde);
-extern int ddt_object_count(ddt_t *ddt, enum ddt_type type,
-    enum ddt_class clazz, uint64_t *count);
-extern int ddt_object_info(ddt_t *ddt, enum ddt_type type,
-    enum ddt_class clazz, dmu_object_info_t *);
-extern boolean_t ddt_object_exists(ddt_t *ddt, enum ddt_type type,
-    enum ddt_class clazz);
-
 extern void ddt_bp_fill(const ddt_phys_t *ddp, blkptr_t *bp,
     uint64_t txg);
 extern void ddt_bp_create(enum zio_checksum checksum, const ddt_key_t *ddk,
     const ddt_phys_t *ddp, blkptr_t *bp);
 
-extern void ddt_key_fill(ddt_key_t *ddk, const blkptr_t *bp);
-
 extern void ddt_phys_fill(ddt_phys_t *ddp, const blkptr_t *bp);
 extern void ddt_phys_clear(ddt_phys_t *ddp);
 extern void ddt_phys_addref(ddt_phys_t *ddp);
 extern void ddt_phys_decref(ddt_phys_t *ddp);
-extern void ddt_phys_free(ddt_t *ddt, ddt_key_t *ddk, ddt_phys_t *ddp,
-    uint64_t txg);
 extern ddt_phys_t *ddt_phys_select(const ddt_entry_t *dde, const blkptr_t *bp);
-extern uint64_t ddt_phys_total_refcnt(const ddt_entry_t *dde);
-
-extern void ddt_stat_update(ddt_t *ddt, ddt_entry_t *dde, uint64_t neg);
-extern void ddt_stat_add(ddt_stat_t *dst, const ddt_stat_t *src, uint64_t neg);
 
 extern void ddt_histogram_add(ddt_histogram_t *dst, const ddt_histogram_t *src);
 extern void ddt_histogram_stat(ddt_stat_t *dds, const ddt_histogram_t *ddh);
@@ -236,12 +195,8 @@ extern int ddt_load(spa_t *spa);
 extern void ddt_unload(spa_t *spa);
 extern void ddt_sync(spa_t *spa, uint64_t txg);
 extern int ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_entry_t *dde);
-extern int ddt_object_update(ddt_t *ddt, enum ddt_type type,
-    enum ddt_class clazz, ddt_entry_t *dde, dmu_tx_t *tx);
 
 extern boolean_t ddt_addref(spa_t *spa, const blkptr_t *bp);
-
-extern const ddt_ops_t ddt_zap_ops;
 
 #ifdef	__cplusplus
 }
