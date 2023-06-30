@@ -30,9 +30,56 @@
 #include <sys/ddt.h>
 #include <sys/zap.h>
 #include <sys/dmu_tx.h>
+#include <sys/zio_compress.h>
 
 static unsigned int ddt_zap_default_bs = 15;
 static unsigned int ddt_zap_default_ibs = 15;
+
+#define	DDT_ZAP_COMPRESS_BYTEORDER_MASK	0x80
+#define	DDT_ZAP_COMPRESS_FUNCTION_MASK	0x7f
+
+#define	DDT_KEY_WORDS	(sizeof (ddt_key_t) / sizeof (uint64_t))
+
+static size_t
+ddt_zap_compress(void *src, uchar_t *dst, size_t s_len, size_t d_len)
+{
+	uchar_t *version = dst++;
+	int cpfunc = ZIO_COMPRESS_ZLE;
+	zio_compress_info_t *ci = &zio_compress_table[cpfunc];
+	size_t c_len;
+
+	ASSERT3U(d_len, >=, s_len + 1);	/* no compression plus version byte */
+
+	c_len = ci->ci_compress(src, dst, s_len, d_len - 1, ci->ci_level);
+
+	if (c_len == s_len) {
+		cpfunc = ZIO_COMPRESS_OFF;
+		memcpy(dst, src, s_len);
+	}
+
+	*version = cpfunc;
+	if (ZFS_HOST_BYTEORDER)
+		*version |= DDT_ZAP_COMPRESS_BYTEORDER_MASK;
+
+	return (c_len + 1);
+}
+
+static void
+ddt_zap_decompress(uchar_t *src, void *dst, size_t s_len, size_t d_len)
+{
+	uchar_t version = *src++;
+	int cpfunc = version & DDT_ZAP_COMPRESS_FUNCTION_MASK;
+	zio_compress_info_t *ci = &zio_compress_table[cpfunc];
+
+	if (ci->ci_decompress != NULL)
+		(void) ci->ci_decompress(src, dst, s_len, d_len, ci->ci_level);
+	else
+		memcpy(dst, src, d_len);
+
+	if (((version & DDT_ZAP_COMPRESS_BYTEORDER_MASK) != 0) !=
+	    (ZFS_HOST_BYTEORDER != 0))
+		byteswap_uint64_array(dst, d_len);
+}
 
 static int
 ddt_zap_create(objset_t *os, uint64_t *objectp, dmu_tx_t *tx, boolean_t prehash)
@@ -77,7 +124,7 @@ ddt_zap_lookup(objset_t *os, uint64_t object, ddt_entry_t *dde)
 	if (error)
 		goto out;
 
-	ddt_decompress(cbuf, dde->dde_phys, csize, sizeof (dde->dde_phys));
+	ddt_zap_decompress(cbuf, dde->dde_phys, csize, sizeof (dde->dde_phys));
 out:
 	kmem_free(cbuf, sizeof (dde->dde_phys) + 1);
 
@@ -97,7 +144,7 @@ ddt_zap_update(objset_t *os, uint64_t object, ddt_entry_t *dde, dmu_tx_t *tx)
 	uchar_t cbuf[sizeof (dde->dde_phys) + 1];
 	uint64_t csize;
 
-	csize = ddt_compress(dde->dde_phys, cbuf,
+	csize = ddt_zap_compress(dde->dde_phys, cbuf,
 	    sizeof (dde->dde_phys), sizeof (cbuf));
 
 	return (zap_update_uint64(os, object, (uint64_t *)&dde->dde_key,
@@ -138,7 +185,7 @@ ddt_zap_walk(objset_t *os, uint64_t object, ddt_entry_t *dde, uint64_t *walk)
 		    DDT_KEY_WORDS, 1, csize, cbuf);
 		ASSERT0(error);
 		if (error == 0) {
-			ddt_decompress(cbuf, dde->dde_phys, csize,
+			ddt_zap_decompress(cbuf, dde->dde_phys, csize,
 			    sizeof (dde->dde_phys));
 			dde->dde_key = *(ddt_key_t *)za.za_name;
 		}
