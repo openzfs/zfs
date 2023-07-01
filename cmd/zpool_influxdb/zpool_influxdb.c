@@ -238,6 +238,7 @@ print_scan_status(nvlist_t *nvroot, const char *pool_name)
 	print_kv("end_ts", ps->pss_end_time);
 	print_kv(",errors", ps->pss_errors);
 	print_kv(",examined", examined);
+	print_kv(",skipped", ps->pss_skipped);
 	print_kv(",issued", ps->pss_issued);
 	print_kv(",pass_examined", pass_exam);
 	print_kv(",pass_issued", ps->pss_pass_issued);
@@ -249,7 +250,6 @@ print_scan_status(nvlist_t *nvroot, const char *pool_name)
 	print_kv(",remaining_t", remaining_time);
 	print_kv(",start_ts", ps->pss_start_time);
 	print_kv(",to_examine", ps->pss_to_examine);
-	print_kv(",to_process", ps->pss_to_process);
 	printf(" %llu\n", (u_longlong_t)timestamp);
 	return (0);
 }

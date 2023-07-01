@@ -462,14 +462,12 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		return (SET_ERROR(EINVAL));
 	}
 
-	const uint64_t max_blksz = zfsvfs->z_max_blksz;
-
 	/*
 	 * Pre-fault the pages to ensure slow (eg NFS) pages
 	 * don't hold up txg.
-	 * Skip this if uio contains loaned arc_buf.
 	 */
-	if (zfs_uio_prefaultpages(MIN(n, max_blksz), uio)) {
+	ssize_t pfbytes = MIN(n, DMU_MAX_ACCESS >> 1);
+	if (zfs_uio_prefaultpages(pfbytes, uio)) {
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EFAULT));
 	}
@@ -544,10 +542,31 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 			break;
 		}
 
+		uint64_t blksz;
+		if (lr->lr_length == UINT64_MAX && zp->z_size <= zp->z_blksz) {
+			if (zp->z_blksz > zfsvfs->z_max_blksz &&
+			    !ISP2(zp->z_blksz)) {
+				/*
+				 * File's blocksize is already larger than the
+				 * "recordsize" property.  Only let it grow to
+				 * the next power of 2.
+				 */
+				blksz = 1 << highbit64(zp->z_blksz);
+			} else {
+				blksz = zfsvfs->z_max_blksz;
+			}
+			blksz = MIN(blksz, P2ROUNDUP(end_size,
+			    SPA_MINBLOCKSIZE));
+			blksz = MAX(blksz, zp->z_blksz);
+		} else {
+			blksz = zp->z_blksz;
+		}
+
 		arc_buf_t *abuf = NULL;
-		if (n >= max_blksz && woff >= zp->z_size &&
-		    P2PHASE(woff, max_blksz) == 0 &&
-		    zp->z_blksz == max_blksz) {
+		ssize_t nbytes = n;
+		if (n >= blksz && woff >= zp->z_size &&
+		    P2PHASE(woff, blksz) == 0 &&
+		    (blksz >= SPA_OLD_MAXBLOCKSIZE || n < 4 * blksz)) {
 			/*
 			 * This write covers a full block.  "Borrow" a buffer
 			 * from the dmu so that we can fill it before we enter
@@ -555,18 +574,26 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 			 * holding up the transaction if the data copy hangs
 			 * up on a pagefault (e.g., from an NFS server mapping).
 			 */
-			size_t cbytes;
-
 			abuf = dmu_request_arcbuf(sa_get_db(zp->z_sa_hdl),
-			    max_blksz);
+			    blksz);
 			ASSERT(abuf != NULL);
-			ASSERT(arc_buf_size(abuf) == max_blksz);
-			if ((error = zfs_uiocopy(abuf->b_data, max_blksz,
-			    UIO_WRITE, uio, &cbytes))) {
+			ASSERT(arc_buf_size(abuf) == blksz);
+			if ((error = zfs_uiocopy(abuf->b_data, blksz,
+			    UIO_WRITE, uio, &nbytes))) {
 				dmu_return_arcbuf(abuf);
 				break;
 			}
-			ASSERT3S(cbytes, ==, max_blksz);
+			ASSERT3S(nbytes, ==, blksz);
+		} else {
+			nbytes = MIN(n, (DMU_MAX_ACCESS >> 1) -
+			    P2PHASE(woff, blksz));
+			if (pfbytes < nbytes) {
+				if (zfs_uio_prefaultpages(nbytes, uio)) {
+					error = SET_ERROR(EFAULT);
+					break;
+				}
+				pfbytes = nbytes;
+			}
 		}
 
 		/*
@@ -576,8 +603,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
 		dmu_buf_impl_t *db = (dmu_buf_impl_t *)sa_get_db(zp->z_sa_hdl);
 		DB_DNODE_ENTER(db);
-		dmu_tx_hold_write_by_dnode(tx, DB_DNODE(db), woff,
-		    MIN(n, max_blksz));
+		dmu_tx_hold_write_by_dnode(tx, DB_DNODE(db), woff, nbytes);
 		DB_DNODE_EXIT(db);
 		zfs_sa_upgrade_txholds(tx, zp);
 		error = dmu_tx_assign(tx, TXG_WAIT);
@@ -600,30 +626,9 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		 * shrink down lr_length to the appropriate size.
 		 */
 		if (lr->lr_length == UINT64_MAX) {
-			uint64_t new_blksz;
-
-			if (zp->z_blksz > max_blksz) {
-				/*
-				 * File's blocksize is already larger than the
-				 * "recordsize" property.  Only let it grow to
-				 * the next power of 2.
-				 */
-				ASSERT(!ISP2(zp->z_blksz));
-				new_blksz = MIN(end_size,
-				    1 << highbit64(zp->z_blksz));
-			} else {
-				new_blksz = MIN(end_size, max_blksz);
-			}
-			zfs_grow_blocksize(zp, new_blksz, tx);
+			zfs_grow_blocksize(zp, blksz, tx);
 			zfs_rangelock_reduce(lr, woff, n);
 		}
-
-		/*
-		 * XXX - should we really limit each write to z_max_blksz?
-		 * Perhaps we should use SPA_MAXBLOCKSIZE chunks?
-		 */
-		const ssize_t nbytes =
-		    MIN(n, max_blksz - P2PHASE(woff, max_blksz));
 
 		ssize_t tx_bytes;
 		if (abuf == NULL) {
@@ -644,12 +649,8 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 				 * zfs_uio_prefaultpages, or prefaultpages may
 				 * error, and we may break the loop early.
 				 */
-				if (tx_bytes != zfs_uio_resid(uio))
-					n -= tx_bytes - zfs_uio_resid(uio);
-				if (zfs_uio_prefaultpages(MIN(n, max_blksz),
-				    uio)) {
-					break;
-				}
+				n -= tx_bytes - zfs_uio_resid(uio);
+				pfbytes -= tx_bytes - zfs_uio_resid(uio);
 				continue;
 			}
 #endif
@@ -665,15 +666,6 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 			}
 			tx_bytes -= zfs_uio_resid(uio);
 		} else {
-			/* Implied by abuf != NULL: */
-			ASSERT3S(n, >=, max_blksz);
-			ASSERT0(P2PHASE(woff, max_blksz));
-			/*
-			 * We can simplify nbytes to MIN(n, max_blksz) since
-			 * P2PHASE(woff, max_blksz) is 0, and knowing
-			 * n >= max_blksz lets us simplify further:
-			 */
-			ASSERT3S(nbytes, ==, max_blksz);
 			/*
 			 * Thus, we're writing a full block at a block-aligned
 			 * offset and extending the file past EOF.
@@ -758,13 +750,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 			break;
 		ASSERT3S(tx_bytes, ==, nbytes);
 		n -= nbytes;
-
-		if (n > 0) {
-			if (zfs_uio_prefaultpages(MIN(n, max_blksz), uio)) {
-				error = SET_ERROR(EFAULT);
-				break;
-			}
-		}
+		pfbytes -= nbytes;
 	}
 
 	zfs_znode_update_vfs(zp);

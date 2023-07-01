@@ -4608,11 +4608,9 @@ vdev_get_stats_ex_impl(vdev_t *vd, vdev_stat_t *vs, vdev_stat_ex_t *vsx)
 
 		memcpy(vsx, &vd->vdev_stat_ex, sizeof (vd->vdev_stat_ex));
 
-		for (t = 0; t < ARRAY_SIZE(vd->vdev_queue.vq_class); t++) {
-			vsx->vsx_active_queue[t] =
-			    vd->vdev_queue.vq_class[t].vqc_active;
-			vsx->vsx_pend_queue[t] = avl_numnodes(
-			    &vd->vdev_queue.vq_class[t].vqc_queued_tree);
+		for (t = 0; t < ZIO_PRIORITY_NUM_QUEUEABLE; t++) {
+			vsx->vsx_active_queue[t] = vd->vdev_queue.vq_cactive[t];
+			vsx->vsx_pend_queue[t] = vdev_queue_class_length(vd, t);
 		}
 	}
 }
@@ -5470,20 +5468,20 @@ vdev_deadman(vdev_t *vd, const char *tag)
 		vdev_queue_t *vq = &vd->vdev_queue;
 
 		mutex_enter(&vq->vq_lock);
-		if (avl_numnodes(&vq->vq_active_tree) > 0) {
+		if (vq->vq_active > 0) {
 			spa_t *spa = vd->vdev_spa;
 			zio_t *fio;
 			uint64_t delta;
 
-			zfs_dbgmsg("slow vdev: %s has %lu active IOs",
-			    vd->vdev_path, avl_numnodes(&vq->vq_active_tree));
+			zfs_dbgmsg("slow vdev: %s has %u active IOs",
+			    vd->vdev_path, vq->vq_active);
 
 			/*
 			 * Look at the head of all the pending queues,
 			 * if any I/O has been outstanding for longer than
 			 * the spa_deadman_synctime invoke the deadman logic.
 			 */
-			fio = avl_first(&vq->vq_active_tree);
+			fio = list_head(&vq->vq_active_list);
 			delta = gethrtime() - fio->io_timestamp;
 			if (delta > spa_deadman_synctime(spa))
 				zio_deadman(fio, tag);

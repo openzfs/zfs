@@ -573,7 +573,8 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 		 * counter to how far we've scanned. We know we're consistent
 		 * up to here.
 		 */
-		scn->scn_issued_before_pass = scn->scn_phys.scn_examined;
+		scn->scn_issued_before_pass = scn->scn_phys.scn_examined -
+		    scn->scn_phys.scn_skipped;
 
 		if (dsl_scan_is_running(scn) &&
 		    spa_prev_software_version(dp->dp_spa) < SPA_VERSION_SCAN) {
@@ -4362,7 +4363,7 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	 * Disabled by default, set zfs_scan_report_txgs to report
 	 * average performance over the last zfs_scan_report_txgs TXGs.
 	 */
-	if (!dsl_scan_is_paused_scrub(scn) && zfs_scan_report_txgs != 0 &&
+	if (zfs_scan_report_txgs != 0 &&
 	    tx->tx_txg % zfs_scan_report_txgs == 0) {
 		scn->scn_issued_before_pass += spa->spa_scan_pass_issued;
 		spa_scan_stat_init(spa);
@@ -4565,6 +4566,15 @@ count_block_issued(spa_t *spa, const blkptr_t *bp, boolean_t all)
 }
 
 static void
+count_block_skipped(dsl_scan_t *scn, const blkptr_t *bp, boolean_t all)
+{
+	if (BP_IS_EMBEDDED(bp))
+		return;
+	atomic_add_64(&scn->scn_phys.scn_skipped,
+	    all ? BP_GET_ASIZE(bp) : DVA_GET_ASIZE(&bp->blk_dva[0]));
+}
+
+static void
 count_block(zfs_all_blkstats_t *zab, const blkptr_t *bp)
 {
 	/*
@@ -4709,7 +4719,7 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 	count_block(dp->dp_blkstats, bp);
 	if (phys_birth <= scn->scn_phys.scn_min_txg ||
 	    phys_birth >= scn->scn_phys.scn_max_txg) {
-		count_block_issued(spa, bp, B_TRUE);
+		count_block_skipped(scn, bp, B_TRUE);
 		return (0);
 	}
 
@@ -4750,7 +4760,7 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 	if (needs_io && !zfs_no_scrub_io) {
 		dsl_scan_enqueue(dp, bp, zio_flags, zb);
 	} else {
-		count_block_issued(spa, bp, B_TRUE);
+		count_block_skipped(scn, bp, B_TRUE);
 	}
 
 	/* do not relocate this block */
@@ -5119,9 +5129,9 @@ dsl_scan_freed_dva(spa_t *spa, const blkptr_t *bp, int dva_i)
 		ASSERT(range_tree_contains(queue->q_exts_by_addr, start, size));
 		range_tree_remove_fill(queue->q_exts_by_addr, start, size);
 
-		/* count the block as though we issued it */
+		/* count the block as though we skipped it */
 		sio2bp(sio, &tmpbp);
-		count_block_issued(spa, &tmpbp, B_FALSE);
+		count_block_skipped(scn, &tmpbp, B_FALSE);
 
 		sio_free(sio);
 	}
