@@ -82,7 +82,7 @@ extern void ddt_stat_update(ddt_t *ddt, ddt_entry_t *dde, uint64_t neg);
  */
 #define	DDT_NAMELEN	32
 
-extern uint64_t ddt_phys_total_refcnt(const ddt_entry_t *dde);
+extern uint64_t ddt_phys_total_refcnt(const ddt_t *ddt, const ddt_entry_t *dde);
 
 extern void ddt_key_fill(ddt_key_t *ddk, const blkptr_t *bp);
 

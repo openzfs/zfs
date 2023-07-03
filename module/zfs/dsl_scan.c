@@ -2933,7 +2933,6 @@ dsl_scan_ddt_entry(dsl_scan_t *scn, enum zio_checksum checksum,
 {
 	(void) tx;
 	const ddt_key_t *ddk = &dde->dde_key;
-	ddt_phys_t *ddp = dde->dde_phys;
 	blkptr_t bp;
 	zbookmark_phys_t zb = { 0 };
 
@@ -2954,7 +2953,10 @@ dsl_scan_ddt_entry(dsl_scan_t *scn, enum zio_checksum checksum,
 	if (scn->scn_done_txg != 0)
 		return;
 
-	for (int p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
+	ddt_t *ddt = ddt_select_checksum(tx->tx_pool->dp_spa, checksum);
+	for (int p = 0; p < DDT_NPHYS(ddt); p++) {
+		ddt_phys_t *ddp = &dde->dde_phys[p];
+
 		if (ddp->ddp_phys_birth == 0 ||
 		    ddp->ddp_phys_birth > scn->scn_phys.scn_max_txg)
 			continue;
