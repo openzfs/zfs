@@ -164,6 +164,9 @@
 static kmem_cache_t *ddt_cache;
 static kmem_cache_t *ddt_entry_cache;
 
+#define	DDT_ENTRY_SIZE	\
+	(sizeof (ddt_entry_t) + sizeof (ddt_phys_t) * DDT_PHYS_MAX)
+
 /*
  * Enable/disable prefetching of dedup-ed blocks which are going to be freed.
  */
@@ -343,7 +346,7 @@ ddt_object_lookup(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
 
 	return (ddt_ops[type]->ddt_op_lookup(ddt->ddt_os,
 	    ddt->ddt_object[type][class], &dde->dde_key,
-	    dde->dde_phys, sizeof (dde->dde_phys)));
+	    dde->dde_phys, sizeof (ddt_phys_t) * DDT_NPHYS(ddt)));
 }
 
 static int
@@ -386,7 +389,7 @@ ddt_object_update(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
 
 	return (ddt_ops[type]->ddt_op_update(ddt->ddt_os,
 	    ddt->ddt_object[type][class], &dde->dde_key, dde->dde_phys,
-	    sizeof (dde->dde_phys), tx));
+	    sizeof (ddt_phys_t) * DDT_NPHYS(ddt), tx));
 }
 
 static int
@@ -597,7 +600,7 @@ ddt_init(void)
 	ddt_cache = kmem_cache_create("ddt_cache",
 	    sizeof (ddt_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
 	ddt_entry_cache = kmem_cache_create("ddt_entry_cache",
-	    sizeof (ddt_entry_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
+	    DDT_ENTRY_SIZE, 0, NULL, NULL, NULL, NULL, NULL, 0);
 }
 
 void
@@ -613,7 +616,7 @@ ddt_alloc(const ddt_key_t *ddk)
 	ddt_entry_t *dde;
 
 	dde = kmem_cache_alloc(ddt_entry_cache, KM_SLEEP);
-	memset(dde, 0, sizeof (ddt_entry_t));
+	memset(dde, 0, DDT_ENTRY_SIZE);
 	cv_init(&dde->dde_cv, NULL, CV_DEFAULT, NULL);
 
 	dde->dde_key = *ddk;
@@ -621,14 +624,27 @@ ddt_alloc(const ddt_key_t *ddk)
 	return (dde);
 }
 
+void
+ddt_alloc_entry_io(ddt_entry_t *dde)
+{
+	if (dde->dde_io != NULL)
+		return;
+
+	dde->dde_io = kmem_zalloc(sizeof (ddt_entry_io_t), KM_SLEEP);
+}
+
 static void
 ddt_free(const ddt_t *ddt, ddt_entry_t *dde)
 {
-	for (int p = 0; p < DDT_NPHYS(ddt); p++)
-		ASSERT3P(dde->dde_lead_zio[p], ==, NULL);
+	if (dde->dde_io != NULL) {
+		for (int p = 0; p < DDT_NPHYS(ddt); p++)
+			ASSERT3P(dde->dde_io->dde_lead_zio[p], ==, NULL);
 
-	if (dde->dde_repair_abd != NULL)
-		abd_free(dde->dde_repair_abd);
+		if (dde->dde_io->dde_repair_abd != NULL)
+			abd_free(dde->dde_io->dde_repair_abd);
+
+		kmem_free(dde->dde_io, sizeof (ddt_entry_io_t));
+	}
 
 	cv_destroy(&dde->dde_cv);
 	kmem_cache_free(ddt_entry_cache, dde);
@@ -1195,6 +1211,7 @@ ddt_repair_start(ddt_t *ddt, const blkptr_t *bp)
 	ddt_key_fill(&ddk, bp);
 
 	dde = ddt_alloc(&ddk);
+	ddt_alloc_entry_io(dde);
 
 	for (ddt_type_t type = 0; type < DDT_TYPES; type++) {
 		for (ddt_class_t class = 0; class < DDT_CLASSES; class++) {
@@ -1209,7 +1226,7 @@ ddt_repair_start(ddt_t *ddt, const blkptr_t *bp)
 		}
 	}
 
-	memset(dde->dde_phys, 0, sizeof (dde->dde_phys));
+	memset(dde->dde_phys, 0, sizeof (ddt_phys_t) * DDT_NPHYS(ddt));
 
 	return (dde);
 }
@@ -1221,7 +1238,8 @@ ddt_repair_done(ddt_t *ddt, ddt_entry_t *dde)
 
 	ddt_enter(ddt);
 
-	if (dde->dde_repair_abd != NULL && spa_writeable(ddt->ddt_spa) &&
+	if (dde->dde_io->dde_repair_abd != NULL &&
+	    spa_writeable(ddt->ddt_spa) &&
 	    avl_find(&ddt->ddt_repair_tree, dde, &where) == NULL)
 		avl_insert(&ddt->ddt_repair_tree, dde, where);
 	else
@@ -1259,8 +1277,9 @@ ddt_repair_entry(ddt_t *ddt, ddt_entry_t *dde, ddt_entry_t *rdde, zio_t *rio)
 			continue;
 		ddt_bp_create(ddt->ddt_checksum, ddk, ddp, &blk);
 		zio_nowait(zio_rewrite(zio, zio->io_spa, 0, &blk,
-		    rdde->dde_repair_abd, DDK_GET_PSIZE(rddk), NULL, NULL,
-		    ZIO_PRIORITY_SYNC_WRITE, ZIO_DDT_CHILD_FLAGS(zio), NULL));
+		    rdde->dde_io->dde_repair_abd, DDK_GET_PSIZE(rddk),
+		    NULL, NULL, ZIO_PRIORITY_SYNC_WRITE,
+		    ZIO_DDT_CHILD_FLAGS(zio), NULL));
 	}
 
 	zio_nowait(zio);
@@ -1305,7 +1324,8 @@ ddt_sync_entry(ddt_t *ddt, ddt_entry_t *dde, dmu_tx_t *tx, uint64_t txg)
 	ASSERT(dde->dde_flags & DDE_FLAG_LOADED);
 
 	for (int p = 0; p < DDT_NPHYS(ddt); p++) {
-		ASSERT3P(dde->dde_lead_zio[p], ==, NULL);
+		ASSERT(dde->dde_io == NULL ||
+		    dde->dde_io->dde_lead_zio[p] == NULL);
 		ddt_phys_t *ddp = &dde->dde_phys[p];
 		if (ddp->ddp_phys_birth == 0) {
 			ASSERT0(ddp->ddp_refcnt);

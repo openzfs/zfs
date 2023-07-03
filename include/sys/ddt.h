@@ -151,16 +151,22 @@ typedef struct {
 #define	DDE_FLAG_LOADED		(1 << 0)	/* entry ready for use */
 #define	DDE_FLAG_OVERQUOTA	(1 << 1)	/* entry unusable, no space */
 
+/*
+ * Additional data to support entry update or repair. This is fixed size
+ * because its relatively rarely used.
+ */
 typedef struct {
-	/* key must be first for ddt_key_compare */
-	ddt_key_t	dde_key;		/* ddt_tree key */
-	ddt_phys_t	dde_phys[DDT_PHYS_MAX];	/* on-disk data */
+	/* copy of data after a repair read, to be rewritten */
+	abd_t		*dde_repair_abd;
 
 	/* in-flight update IOs */
 	zio_t		*dde_lead_zio[DDT_PHYS_MAX];
+} ddt_entry_io_t;
 
-	/* copy of data after a repair read, to be rewritten */
-	struct abd	*dde_repair_abd;
+typedef struct {
+	/* key must be first for ddt_key_compare */
+	ddt_key_t	dde_key;	/* ddt_tree key */
+	avl_node_t	dde_node;	/* ddt_tree_node */
 
 	/* storage type and class the entry was loaded from */
 	ddt_type_t	dde_type;
@@ -170,7 +176,9 @@ typedef struct {
 	kcondvar_t	dde_cv;		/* signaled when load completes */
 	uint64_t	dde_waiters;	/* count of waiters on dde_cv */
 
-	avl_node_t	dde_node;	/* ddt_tree node */
+	ddt_entry_io_t	*dde_io;	/* IO support, when required */
+
+	ddt_phys_t	dde_phys[];	/* physical data */
 } ddt_entry_t;
 
 /*
@@ -264,6 +272,8 @@ extern void ddt_prefetch_all(spa_t *spa);
 
 extern boolean_t ddt_class_contains(spa_t *spa, ddt_class_t max_class,
     const blkptr_t *bp);
+
+extern void ddt_alloc_entry_io(ddt_entry_t *dde);
 
 extern ddt_entry_t *ddt_repair_start(ddt_t *ddt, const blkptr_t *bp);
 extern void ddt_repair_done(ddt_t *ddt, ddt_entry_t *dde);
