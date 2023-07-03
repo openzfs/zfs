@@ -62,8 +62,6 @@ typedef struct metaslab_class metaslab_class_t;
 typedef struct zio zio_t;
 typedef struct zilog zilog_t;
 typedef struct spa_aux_vdev spa_aux_vdev_t;
-typedef struct ddt ddt_t;
-typedef struct ddt_entry ddt_entry_t;
 typedef struct zbookmark_phys zbookmark_phys_t;
 typedef struct zbookmark_err_phys zbookmark_err_phys_t;
 
