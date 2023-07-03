@@ -36,7 +36,7 @@ extern "C" {
 /*
  * Ops vector to access a specific DDT object type.
  */
-typedef struct ddt_ops {
+typedef struct {
 	char ddt_op_name[32];
 	int (*ddt_op_create)(objset_t *os, uint64_t *object, dmu_tx_t *tx,
 	    boolean_t prehash);

@@ -68,7 +68,7 @@ _Static_assert(DDT_CLASSES < UINT8_MAX,
 /*
  * On-disk ddt entry:  key (name) and physical storage (value).
  */
-typedef struct ddt_key {
+typedef struct {
 	zio_cksum_t	ddk_cksum;	/* 256-bit block checksum */
 	/*
 	 * Encoded with logical & physical size, encryption, and compression,
@@ -96,7 +96,7 @@ typedef struct ddt_key {
 #define	DDK_GET_CRYPT(ddk)		BF64_GET((ddk)->ddk_prop, 39, 1)
 #define	DDK_SET_CRYPT(ddk, x)	BF64_SET((ddk)->ddk_prop, 39, 1, x)
 
-typedef struct ddt_phys {
+typedef struct {
 	dva_t		ddp_dva[SPA_DVAS_PER_BP];
 	uint64_t	ddp_refcnt;
 	uint64_t	ddp_phys_birth;
@@ -117,7 +117,7 @@ enum ddt_phys_type {
 /*
  * In-core ddt entry
  */
-struct ddt_entry {
+typedef struct {
 	/* key must be first for ddt_key_compare */
 	ddt_key_t	dde_key;
 	ddt_phys_t	dde_phys[DDT_PHYS_TYPES];
@@ -129,12 +129,12 @@ struct ddt_entry {
 	uint8_t		dde_loaded;
 	kcondvar_t	dde_cv;
 	avl_node_t	dde_node;
-};
+} ddt_entry_t;
 
 /*
  * In-core ddt
  */
-struct ddt {
+typedef struct {
 	kmutex_t	ddt_lock;
 	avl_tree_t	ddt_tree;
 	avl_tree_t	ddt_repair_tree;
@@ -147,12 +147,12 @@ struct ddt {
 	ddt_histogram_t	ddt_histogram_cache[DDT_TYPES][DDT_CLASSES];
 	ddt_object_t	ddt_object_stats[DDT_TYPES][DDT_CLASSES];
 	avl_node_t	ddt_node;
-};
+} ddt_t;
 
 /*
  * In-core and on-disk bookmark for DDT walks
  */
-typedef struct ddt_bookmark {
+typedef struct {
 	uint64_t	ddb_class;
 	uint64_t	ddb_type;
 	uint64_t	ddb_checksum;
