@@ -1916,21 +1916,20 @@ dump_log_spacemaps(spa_t *spa)
 static void
 dump_dde(const ddt_t *ddt, const ddt_entry_t *dde, uint64_t index)
 {
-	const ddt_phys_t *ddp = dde->dde_phys;
 	const ddt_key_t *ddk = &dde->dde_key;
-	const char *types[4] = { "ditto", "single", "double", "triple" };
 	char blkbuf[BP_SPRINTF_LEN];
 	blkptr_t blk;
 	int p;
 
-	for (p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
+	for (p = 0; p < DDT_NPHYS(ddt); p++) {
+		const ddt_phys_t *ddp = &dde->dde_phys[p];
 		if (ddp->ddp_phys_birth == 0)
 			continue;
 		ddt_bp_create(ddt->ddt_checksum, ddk, ddp, &blk);
 		snprintf_blkptr(blkbuf, sizeof (blkbuf), &blk);
-		(void) printf("index %llx refcnt %llu %s %s\n",
+		(void) printf("index %llx refcnt %llu phys %d %s\n",
 		    (u_longlong_t)index, (u_longlong_t)ddp->ddp_refcnt,
-		    types[p], blkbuf);
+		    p, blkbuf);
 	}
 }
 
@@ -5724,7 +5723,7 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 		VERIFY3P(dde, !=, NULL);
 
 		/* Get the phys for this variant */
-		ddt_phys_t *ddp = ddt_phys_select(dde, bp);
+		ddt_phys_t *ddp = ddt_phys_select(ddt, dde, bp);
 		VERIFY3P(ddp, !=, NULL);
 
 		/*
@@ -5751,7 +5750,7 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 			dde->dde_lead_zio[idx] = (zio_t *)(uintptr_t)B_TRUE;
 
 		/* Consume a reference for this block. */
-		VERIFY3U(ddt_phys_total_refcnt(dde), >, 0);
+		VERIFY3U(ddt_phys_total_refcnt(ddt, dde), >, 0);
 		ddt_phys_decref(ddp);
 
 		if (seen) {

@@ -540,11 +540,10 @@ ddt_phys_free(ddt_t *ddt, ddt_key_t *ddk, ddt_phys_t *ddp, uint64_t txg)
 }
 
 ddt_phys_t *
-ddt_phys_select(const ddt_entry_t *dde, const blkptr_t *bp)
+ddt_phys_select(const ddt_t *ddt, const ddt_entry_t *dde, const blkptr_t *bp)
 {
-	ddt_phys_t *ddp = (ddt_phys_t *)dde->dde_phys;
-
-	for (int p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
+	for (int p = 0; p < DDT_NPHYS(ddt); p++) {
+		ddt_phys_t *ddp = (ddt_phys_t *)&dde->dde_phys[p];
 		if (DVA_EQUAL(BP_IDENTITY(bp), &ddp->ddp_dva[0]) &&
 		    BP_GET_BIRTH(bp) == ddp->ddp_phys_birth)
 			return (ddp);
@@ -553,12 +552,15 @@ ddt_phys_select(const ddt_entry_t *dde, const blkptr_t *bp)
 }
 
 uint64_t
-ddt_phys_total_refcnt(const ddt_entry_t *dde)
+ddt_phys_total_refcnt(const ddt_t *ddt, const ddt_entry_t *dde)
 {
 	uint64_t refcnt = 0;
 
-	for (int p = DDT_PHYS_SINGLE; p <= DDT_PHYS_TRIPLE; p++)
+	for (int p = 0; p < DDT_NPHYS(ddt); p++) {
+		if (DDT_PHYS_IS_DITTO(ddt, p))
+			continue;
 		refcnt += dde->dde_phys[p].ddp_refcnt;
+	}
 
 	return (refcnt);
 }
@@ -568,6 +570,12 @@ ddt_select(spa_t *spa, const blkptr_t *bp)
 {
 	ASSERT(DDT_CHECKSUM_VALID(BP_GET_CHECKSUM(bp)));
 	return (spa->spa_ddt[BP_GET_CHECKSUM(bp)]);
+}
+
+ddt_t *
+ddt_select_checksum(spa_t *spa, enum zio_checksum checksum)
+{
+	return (spa->spa_ddt[checksum]);
 }
 
 void
@@ -613,9 +621,9 @@ ddt_alloc(const ddt_key_t *ddk)
 }
 
 static void
-ddt_free(ddt_entry_t *dde)
+ddt_free(const ddt_t *ddt, ddt_entry_t *dde)
 {
-	for (int p = 0; p < DDT_PHYS_TYPES; p++)
+	for (int p = 0; p < DDT_NPHYS(ddt); p++)
 		ASSERT3P(dde->dde_lead_zio[p], ==, NULL);
 
 	if (dde->dde_repair_abd != NULL)
@@ -631,7 +639,7 @@ ddt_remove(ddt_t *ddt, ddt_entry_t *dde)
 	ASSERT(MUTEX_HELD(&ddt->ddt_lock));
 
 	avl_remove(&ddt->ddt_tree, dde);
-	ddt_free(dde);
+	ddt_free(ddt, dde);
 }
 
 static boolean_t
@@ -759,7 +767,7 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp)
 		if (dde->dde_flags & DDE_FLAG_OVERQUOTA) {
 			if (dde->dde_waiters == 0) {
 				avl_remove(&ddt->ddt_tree, dde);
-				ddt_free(dde);
+				ddt_free(ddt, dde);
 			}
 			return (NULL);
 		}
@@ -805,7 +813,7 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp)
 		/* Over quota. If no one is waiting, clean up right now. */
 		if (dde->dde_waiters == 0) {
 			avl_remove(&ddt->ddt_tree, dde);
-			ddt_free(dde);
+			ddt_free(ddt, dde);
 			return (NULL);
 		}
 
@@ -1212,7 +1220,7 @@ ddt_repair_done(ddt_t *ddt, ddt_entry_t *dde)
 	    avl_find(&ddt->ddt_repair_tree, dde, &where) == NULL)
 		avl_insert(&ddt->ddt_repair_tree, dde, where);
 	else
-		ddt_free(dde);
+		ddt_free(ddt, dde);
 
 	ddt_exit(ddt);
 }
@@ -1220,16 +1228,15 @@ ddt_repair_done(ddt_t *ddt, ddt_entry_t *dde)
 static void
 ddt_repair_entry_done(zio_t *zio)
 {
+	ddt_t *ddt = ddt_select(zio->io_spa, zio->io_bp);
 	ddt_entry_t *rdde = zio->io_private;
 
-	ddt_free(rdde);
+	ddt_free(ddt, rdde);
 }
 
 static void
 ddt_repair_entry(ddt_t *ddt, ddt_entry_t *dde, ddt_entry_t *rdde, zio_t *rio)
 {
-	ddt_phys_t *ddp = dde->dde_phys;
-	ddt_phys_t *rddp = rdde->dde_phys;
 	ddt_key_t *ddk = &dde->dde_key;
 	ddt_key_t *rddk = &rdde->dde_key;
 	zio_t *zio;
@@ -1238,7 +1245,9 @@ ddt_repair_entry(ddt_t *ddt, ddt_entry_t *dde, ddt_entry_t *rdde, zio_t *rio)
 	zio = zio_null(rio, rio->io_spa, NULL,
 	    ddt_repair_entry_done, rdde, rio->io_flags);
 
-	for (int p = 0; p < DDT_PHYS_TYPES; p++, ddp++, rddp++) {
+	for (int p = 0; p < DDT_NPHYS(ddt); p++) {
+		ddt_phys_t *ddp = &dde->dde_phys[p];
+		ddt_phys_t *rddp = &rdde->dde_phys[p];
 		if (ddp->ddp_phys_birth == 0 ||
 		    ddp->ddp_phys_birth != rddp->ddp_phys_birth ||
 		    memcmp(ddp->ddp_dva, rddp->ddp_dva, sizeof (ddp->ddp_dva)))
@@ -1281,7 +1290,6 @@ static void
 ddt_sync_entry(ddt_t *ddt, ddt_entry_t *dde, dmu_tx_t *tx, uint64_t txg)
 {
 	dsl_pool_t *dp = ddt->ddt_spa->spa_dsl_pool;
-	ddt_phys_t *ddp = dde->dde_phys;
 	ddt_key_t *ddk = &dde->dde_key;
 	ddt_type_t otype = dde->dde_type;
 	ddt_type_t ntype = DDT_TYPE_DEFAULT;
@@ -1291,13 +1299,14 @@ ddt_sync_entry(ddt_t *ddt, ddt_entry_t *dde, dmu_tx_t *tx, uint64_t txg)
 
 	ASSERT(dde->dde_flags & DDE_FLAG_LOADED);
 
-	for (int p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
+	for (int p = 0; p < DDT_NPHYS(ddt); p++) {
 		ASSERT3P(dde->dde_lead_zio[p], ==, NULL);
+		ddt_phys_t *ddp = &dde->dde_phys[p];
 		if (ddp->ddp_phys_birth == 0) {
 			ASSERT0(ddp->ddp_refcnt);
 			continue;
 		}
-		if (p == DDT_PHYS_DITTO) {
+		if (DDT_PHYS_IS_DITTO(ddt, p)) {
 			/*
 			 * Note, we no longer create DDT-DITTO blocks, but we
 			 * don't want to leak any written by older software.
@@ -1310,8 +1319,6 @@ ddt_sync_entry(ddt_t *ddt, ddt_entry_t *dde, dmu_tx_t *tx, uint64_t txg)
 		total_refcnt += ddp->ddp_refcnt;
 	}
 
-	/* We do not create new DDT-DITTO blocks. */
-	ASSERT0(dde->dde_phys[DDT_PHYS_DITTO].ddp_phys_birth);
 	if (total_refcnt > 1)
 		nclass = DDT_CLASS_DUPLICATE;
 	else
@@ -1369,7 +1376,7 @@ ddt_sync_table(ddt_t *ddt, dmu_tx_t *tx, uint64_t txg)
 
 	while ((dde = avl_destroy_nodes(&ddt->ddt_tree, &cookie)) != NULL) {
 		ddt_sync_entry(ddt, dde, tx, txg);
-		ddt_free(dde);
+		ddt_free(ddt, dde);
 	}
 
 	uint64_t count = 0;
@@ -1512,7 +1519,8 @@ ddt_addref(spa_t *spa, const blkptr_t *bp)
 
 		ASSERT3S(dde->dde_class, <, DDT_CLASSES);
 
-		ddp = &dde->dde_phys[BP_GET_NDVAS(bp)];
+		int p = DDT_PHYS_FOR_COPIES(ddt, BP_GET_NDVAS(bp));
+		ddp = &dde->dde_phys[p];
 
 		/*
 		 * This entry already existed (dde_type is real), so it must
