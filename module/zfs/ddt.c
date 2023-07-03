@@ -58,7 +58,7 @@ static const char *const ddt_class_name[DDT_CLASSES] = {
 };
 
 static void
-ddt_object_create(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
+ddt_object_create(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
     dmu_tx_t *tx)
 {
 	spa_t *spa = ddt->ddt_spa;
@@ -83,7 +83,7 @@ ddt_object_create(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
 }
 
 static void
-ddt_object_destroy(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
+ddt_object_destroy(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
     dmu_tx_t *tx)
 {
 	spa_t *spa = ddt->ddt_spa;
@@ -107,7 +107,7 @@ ddt_object_destroy(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
 }
 
 static int
-ddt_object_load(ddt_t *ddt, enum ddt_type type, enum ddt_class class)
+ddt_object_load(ddt_t *ddt, ddt_type_t type, ddt_class_t class)
 {
 	ddt_object_t *ddo = &ddt->ddt_object_stats[type][class];
 	dmu_object_info_t doi;
@@ -147,7 +147,7 @@ ddt_object_load(ddt_t *ddt, enum ddt_type type, enum ddt_class class)
 }
 
 static void
-ddt_object_sync(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
+ddt_object_sync(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
     dmu_tx_t *tx)
 {
 	ddt_object_t *ddo = &ddt->ddt_object_stats[type][class];
@@ -173,13 +173,13 @@ ddt_object_sync(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
 }
 
 static boolean_t
-ddt_object_exists(ddt_t *ddt, enum ddt_type type, enum ddt_class class)
+ddt_object_exists(ddt_t *ddt, ddt_type_t type, ddt_class_t class)
 {
 	return (!!ddt->ddt_object[type][class]);
 }
 
 static int
-ddt_object_lookup(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
+ddt_object_lookup(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
     ddt_entry_t *dde)
 {
 	if (!ddt_object_exists(ddt, type, class))
@@ -190,7 +190,7 @@ ddt_object_lookup(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
 }
 
 static void
-ddt_object_prefetch(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
+ddt_object_prefetch(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
     ddt_entry_t *dde)
 {
 	if (!ddt_object_exists(ddt, type, class))
@@ -201,7 +201,7 @@ ddt_object_prefetch(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
 }
 
 static int
-ddt_object_update(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
+ddt_object_update(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
     ddt_entry_t *dde, dmu_tx_t *tx)
 {
 	ASSERT(ddt_object_exists(ddt, type, class));
@@ -211,7 +211,7 @@ ddt_object_update(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
 }
 
 static int
-ddt_object_remove(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
+ddt_object_remove(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
     ddt_entry_t *dde, dmu_tx_t *tx)
 {
 	ASSERT(ddt_object_exists(ddt, type, class));
@@ -221,7 +221,7 @@ ddt_object_remove(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
 }
 
 int
-ddt_object_walk(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
+ddt_object_walk(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
     uint64_t *walk, ddt_entry_t *dde)
 {
 	ASSERT(ddt_object_exists(ddt, type, class));
@@ -231,7 +231,7 @@ ddt_object_walk(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
 }
 
 int
-ddt_object_count(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
+ddt_object_count(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
     uint64_t *count)
 {
 	ASSERT(ddt_object_exists(ddt, type, class));
@@ -241,7 +241,7 @@ ddt_object_count(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
 }
 
 int
-ddt_object_info(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
+ddt_object_info(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
     dmu_object_info_t *doi)
 {
 	if (!ddt_object_exists(ddt, type, class))
@@ -252,7 +252,7 @@ ddt_object_info(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
 }
 
 void
-ddt_object_name(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
+ddt_object_name(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
     char *name)
 {
 	(void) snprintf(name, DDT_NAMELEN, DMU_POOL_DDT,
@@ -460,8 +460,8 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 {
 	ddt_key_t search;
 	ddt_entry_t *dde;
-	enum ddt_type type;
-	enum ddt_class class;
+	ddt_type_t type;
+	ddt_class_t class;
 	avl_index_t where;
 	int error;
 
@@ -536,8 +536,8 @@ ddt_prefetch(spa_t *spa, const blkptr_t *bp)
 	ddt = ddt_select(spa, bp);
 	ddt_key_fill(&dde.dde_key, bp);
 
-	for (enum ddt_type type = 0; type < DDT_TYPES; type++) {
-		for (enum ddt_class class = 0; class < DDT_CLASSES; class++) {
+	for (ddt_type_t type = 0; type < DDT_TYPES; type++) {
+		for (ddt_class_t class = 0; class < DDT_CLASSES; class++) {
 			ddt_object_prefetch(ddt, type, class, &dde);
 		}
 	}
@@ -625,8 +625,8 @@ ddt_load(spa_t *spa)
 
 	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
 		ddt_t *ddt = spa->spa_ddt[c];
-		for (enum ddt_type type = 0; type < DDT_TYPES; type++) {
-			for (enum ddt_class class = 0; class < DDT_CLASSES;
+		for (ddt_type_t type = 0; type < DDT_TYPES; type++) {
+			for (ddt_class_t class = 0; class < DDT_CLASSES;
 			    class++) {
 				error = ddt_object_load(ddt, type, class);
 				if (error != 0 && error != ENOENT)
@@ -657,7 +657,7 @@ ddt_unload(spa_t *spa)
 }
 
 boolean_t
-ddt_class_contains(spa_t *spa, enum ddt_class max_class, const blkptr_t *bp)
+ddt_class_contains(spa_t *spa, ddt_class_t max_class, const blkptr_t *bp)
 {
 	ddt_t *ddt;
 	ddt_entry_t *dde;
@@ -673,8 +673,8 @@ ddt_class_contains(spa_t *spa, enum ddt_class max_class, const blkptr_t *bp)
 
 	ddt_key_fill(&(dde->dde_key), bp);
 
-	for (enum ddt_type type = 0; type < DDT_TYPES; type++) {
-		for (enum ddt_class class = 0; class <= max_class; class++) {
+	for (ddt_type_t type = 0; type < DDT_TYPES; type++) {
+		for (ddt_class_t class = 0; class <= max_class; class++) {
 			if (ddt_object_lookup(ddt, type, class, dde) == 0) {
 				kmem_cache_free(ddt_entry_cache, dde);
 				return (B_TRUE);
@@ -696,8 +696,8 @@ ddt_repair_start(ddt_t *ddt, const blkptr_t *bp)
 
 	dde = ddt_alloc(&ddk);
 
-	for (enum ddt_type type = 0; type < DDT_TYPES; type++) {
-		for (enum ddt_class class = 0; class < DDT_CLASSES; class++) {
+	for (ddt_type_t type = 0; type < DDT_TYPES; type++) {
+		for (ddt_class_t class = 0; class < DDT_CLASSES; class++) {
 			/*
 			 * We can only do repair if there are multiple copies
 			 * of the block.  For anything in the UNIQUE class,
@@ -796,10 +796,10 @@ ddt_sync_entry(ddt_t *ddt, ddt_entry_t *dde, dmu_tx_t *tx, uint64_t txg)
 	dsl_pool_t *dp = ddt->ddt_spa->spa_dsl_pool;
 	ddt_phys_t *ddp = dde->dde_phys;
 	ddt_key_t *ddk = &dde->dde_key;
-	enum ddt_type otype = dde->dde_type;
-	enum ddt_type ntype = DDT_TYPE_CURRENT;
-	enum ddt_class oclass = dde->dde_class;
-	enum ddt_class nclass;
+	ddt_type_t otype = dde->dde_type;
+	ddt_type_t ntype = DDT_TYPE_DEFAULT;
+	ddt_class_t oclass = dde->dde_class;
+	ddt_class_t nclass;
 	uint64_t total_refcnt = 0;
 
 	ASSERT(dde->dde_loaded);
@@ -883,9 +883,9 @@ ddt_sync_table(ddt_t *ddt, dmu_tx_t *tx, uint64_t txg)
 		ddt_free(dde);
 	}
 
-	for (enum ddt_type type = 0; type < DDT_TYPES; type++) {
+	for (ddt_type_t type = 0; type < DDT_TYPES; type++) {
 		uint64_t add, count = 0;
-		for (enum ddt_class class = 0; class < DDT_CLASSES; class++) {
+		for (ddt_class_t class = 0; class < DDT_CLASSES; class++) {
 			if (ddt_object_exists(ddt, type, class)) {
 				ddt_object_sync(ddt, type, class, tx);
 				VERIFY0(ddt_object_count(ddt, type, class,
@@ -893,7 +893,7 @@ ddt_sync_table(ddt_t *ddt, dmu_tx_t *tx, uint64_t txg)
 				count += add;
 			}
 		}
-		for (enum ddt_class class = 0; class < DDT_CLASSES; class++) {
+		for (ddt_class_t class = 0; class < DDT_CLASSES; class++) {
 			if (count == 0 && ddt_object_exists(ddt, type, class))
 				ddt_object_destroy(ddt, type, class, tx);
 		}
