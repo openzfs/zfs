@@ -1,5 +1,6 @@
 dist_noinst_DATA += \
-	%D%/libpyzfsacl.c
+	%D%/libpyzfsacl.c \
+	%D%/zfsacltests
 
 SUBSTFILES += %D%/setup.py
 
