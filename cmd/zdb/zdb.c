@@ -1892,15 +1892,16 @@ dump_log_spacemaps(spa_t *spa)
 }
 
 static void
-dump_dde(const ddt_t *ddt, const ddt_entry_t *dde, uint64_t index)
+dump_ddt_entry(const ddt_t *ddt, const ddt_lightweight_entry_t *ddlwe,
+    uint64_t index)
 {
-	const ddt_key_t *ddk = &dde->dde_key;
+	const ddt_key_t *ddk = &ddlwe->ddlwe_key;
 	char blkbuf[BP_SPRINTF_LEN];
 	blkptr_t blk;
 	int p;
 
-	for (p = 0; p < DDT_NPHYS(ddt); p++) {
-		const ddt_phys_t *ddp = &dde->dde_phys[p];
+	for (p = 0; p < ddlwe->ddlwe_nphys; p++) {
+		const ddt_phys_t *ddp = &ddlwe->ddlwe_phys[p];
 		if (ddp->ddp_phys_birth == 0)
 			continue;
 		ddt_bp_create(ddt->ddt_checksum, ddk, ddp, &blk);
@@ -1937,7 +1938,7 @@ static void
 dump_ddt(ddt_t *ddt, ddt_type_t type, ddt_class_t class)
 {
 	char name[DDT_NAMELEN];
-	ddt_entry_t dde;
+	ddt_lightweight_entry_t ddlwe;
 	uint64_t walk = 0;
 	dmu_object_info_t doi;
 	uint64_t count, dspace, mspace;
@@ -1978,8 +1979,8 @@ dump_ddt(ddt_t *ddt, ddt_type_t type, ddt_class_t class)
 
 	(void) printf("%s contents:\n\n", name);
 
-	while ((error = ddt_object_walk(ddt, type, class, &walk, &dde)) == 0)
-		dump_dde(ddt, &dde, walk);
+	while ((error = ddt_object_walk(ddt, type, class, &walk, &ddlwe)) == 0)
+		dump_ddt_entry(ddt, &ddlwe, walk);
 
 	ASSERT3U(error, ==, ENOENT);
 
@@ -6096,13 +6097,12 @@ static void
 zdb_ddt_leak_init(spa_t *spa, zdb_cb_t *zcb)
 {
 	ddt_bookmark_t ddb = {0};
-	ddt_entry_t dde;
+	ddt_lightweight_entry_t ddlwe;
 	int error;
-	int p;
 
 	ASSERT(!dump_opt['L']);
 
-	while ((error = ddt_walk(spa, &ddb, &dde)) == 0) {
+	while ((error = ddt_walk(spa, &ddb, &ddlwe)) == 0) {
 		blkptr_t blk;
 
 		if (ddb.ddb_class == DDT_CLASS_UNIQUE)
@@ -6111,14 +6111,14 @@ zdb_ddt_leak_init(spa_t *spa, zdb_cb_t *zcb)
 		ddt_t *ddt = spa->spa_ddt[ddb.ddb_checksum];
 		VERIFY(ddt);
 
-		ASSERT(ddt_phys_total_refcnt(ddt, &dde) > 1);
-
-		for (p = 0; p < DDT_NPHYS(ddt); p++) {
-			ddt_phys_t *ddp = &dde.dde_phys[p];
+		uint64_t refcnt = 0;
+		for (int p = 0; p < ddlwe.ddlwe_nphys; p++) {
+			ddt_phys_t *ddp = &ddlwe.ddlwe_phys[p];
 			if (ddp->ddp_phys_birth == 0)
 				continue;
+			refcnt += ddp->ddp_refcnt;
 			ddt_bp_create(ddb.ddb_checksum,
-			    &dde.dde_key, ddp, &blk);
+			    &ddlwe.ddlwe_key, ddp, &blk);
 			if (DDT_PHYS_IS_DITTO(ddt, p)) {
 				zdb_count_block(zcb, NULL, &blk, ZDB_OT_DITTO);
 			} else {
@@ -6127,6 +6127,7 @@ zdb_ddt_leak_init(spa_t *spa, zdb_cb_t *zcb)
 				zcb->zcb_dedup_blocks++;
 			}
 		}
+		ASSERT3U(refcnt, >, 1);
 
 		ddt_enter(ddt);
 		VERIFY(ddt_lookup(ddt, &blk, B_TRUE) != NULL);
