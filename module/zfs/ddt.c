@@ -401,13 +401,20 @@ ddt_object_remove(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
 
 int
 ddt_object_walk(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
-    uint64_t *walk, ddt_entry_t *dde)
+    uint64_t *walk, ddt_lightweight_entry_t *ddlwe)
 {
 	ASSERT(ddt_object_exists(ddt, type, class));
 
-	return (ddt_ops[type]->ddt_op_walk(ddt->ddt_os,
-	    ddt->ddt_object[type][class], walk, &dde->dde_key,
-	    dde->dde_phys, sizeof (dde->dde_phys)));
+	int error = ddt_ops[type]->ddt_op_walk(ddt->ddt_os,
+	    ddt->ddt_object[type][class], walk, &ddlwe->ddlwe_key,
+	    ddlwe->ddlwe_phys, sizeof (ddlwe->ddlwe_phys));
+	if (error == 0) {
+		ddlwe->ddlwe_type = type;
+		ddlwe->ddlwe_class = class;
+		ddlwe->ddlwe_nphys = DDT_NPHYS(ddt);
+		return (0);
+	}
+	return (error);
 }
 
 int
@@ -570,12 +577,6 @@ ddt_select(spa_t *spa, const blkptr_t *bp)
 {
 	ASSERT(DDT_CHECKSUM_VALID(BP_GET_CHECKSUM(bp)));
 	return (spa->spa_ddt[BP_GET_CHECKSUM(bp)]);
-}
-
-ddt_t *
-ddt_select_checksum(spa_t *spa, enum zio_checksum checksum)
-{
-	return (spa->spa_ddt[checksum]);
 }
 
 void
@@ -1347,8 +1348,10 @@ ddt_sync_entry(ddt_t *ddt, ddt_entry_t *dde, dmu_tx_t *tx, uint64_t txg)
 		 * traversing.)
 		 */
 		if (nclass < oclass) {
+			ddt_lightweight_entry_t ddlwe;
+			DDT_ENTRY_TO_LIGHTWEIGHT(ddt, dde, &ddlwe);
 			dsl_scan_ddt_entry(dp->dp_scan,
-			    ddt->ddt_checksum, dde, tx);
+			    ddt->ddt_checksum, &ddlwe, tx);
 		}
 	}
 }
@@ -1455,7 +1458,7 @@ ddt_sync(spa_t *spa, uint64_t txg)
 }
 
 int
-ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_entry_t *dde)
+ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_lightweight_entry_t *ddlwe)
 {
 	do {
 		do {
@@ -1468,10 +1471,8 @@ ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_entry_t *dde)
 				    ddb->ddb_class)) {
 					error = ddt_object_walk(ddt,
 					    ddb->ddb_type, ddb->ddb_class,
-					    &ddb->ddb_cursor, dde);
+					    &ddb->ddb_cursor, ddlwe);
 				}
-				dde->dde_type = ddb->ddb_type;
-				dde->dde_class = ddb->ddb_class;
 				if (error == 0)
 					return (0);
 				if (error != ENOENT)

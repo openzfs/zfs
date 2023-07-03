@@ -2929,10 +2929,10 @@ enqueue_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
 
 void
 dsl_scan_ddt_entry(dsl_scan_t *scn, enum zio_checksum checksum,
-    ddt_entry_t *dde, dmu_tx_t *tx)
+    ddt_lightweight_entry_t *ddlwe, dmu_tx_t *tx)
 {
 	(void) tx;
-	const ddt_key_t *ddk = &dde->dde_key;
+	const ddt_key_t *ddk = &ddlwe->ddlwe_key;
 	blkptr_t bp;
 	zbookmark_phys_t zb = { 0 };
 
@@ -2953,9 +2953,8 @@ dsl_scan_ddt_entry(dsl_scan_t *scn, enum zio_checksum checksum,
 	if (scn->scn_done_txg != 0)
 		return;
 
-	ddt_t *ddt = ddt_select_checksum(tx->tx_pool->dp_spa, checksum);
-	for (int p = 0; p < DDT_NPHYS(ddt); p++) {
-		ddt_phys_t *ddp = &dde->dde_phys[p];
+	for (int p = 0; p < ddlwe->ddlwe_nphys; p++) {
+		ddt_phys_t *ddp = &ddlwe->ddlwe_phys[p];
 
 		if (ddp->ddp_phys_birth == 0 ||
 		    ddp->ddp_phys_birth > scn->scn_phys.scn_max_txg)
@@ -3004,11 +3003,11 @@ static void
 dsl_scan_ddt(dsl_scan_t *scn, dmu_tx_t *tx)
 {
 	ddt_bookmark_t *ddb = &scn->scn_phys.scn_ddt_bookmark;
-	ddt_entry_t dde = {{{{0}}}};
+	ddt_lightweight_entry_t ddlwe = {0};
 	int error;
 	uint64_t n = 0;
 
-	while ((error = ddt_walk(scn->scn_dp->dp_spa, ddb, &dde)) == 0) {
+	while ((error = ddt_walk(scn->scn_dp->dp_spa, ddb, &ddlwe)) == 0) {
 		ddt_t *ddt;
 
 		if (ddb->ddb_class > scn->scn_phys.scn_ddt_class_max)
@@ -3023,7 +3022,7 @@ dsl_scan_ddt(dsl_scan_t *scn, dmu_tx_t *tx)
 		ddt = scn->scn_dp->dp_spa->spa_ddt[ddb->ddb_checksum];
 		ASSERT(avl_first(&ddt->ddt_tree) == NULL);
 
-		dsl_scan_ddt_entry(scn, ddb->ddb_checksum, &dde, tx);
+		dsl_scan_ddt_entry(scn, ddb->ddb_checksum, &ddlwe, tx);
 		n++;
 
 		if (dsl_scan_check_suspend(scn, NULL))

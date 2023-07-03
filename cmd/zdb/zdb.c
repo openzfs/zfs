@@ -1914,15 +1914,16 @@ dump_log_spacemaps(spa_t *spa)
 }
 
 static void
-dump_dde(const ddt_t *ddt, const ddt_entry_t *dde, uint64_t index)
+dump_ddt_entry(const ddt_t *ddt, const ddt_lightweight_entry_t *ddlwe,
+    uint64_t index)
 {
-	const ddt_key_t *ddk = &dde->dde_key;
+	const ddt_key_t *ddk = &ddlwe->ddlwe_key;
 	char blkbuf[BP_SPRINTF_LEN];
 	blkptr_t blk;
 	int p;
 
-	for (p = 0; p < DDT_NPHYS(ddt); p++) {
-		const ddt_phys_t *ddp = &dde->dde_phys[p];
+	for (p = 0; p < ddlwe->ddlwe_nphys; p++) {
+		const ddt_phys_t *ddp = &ddlwe->ddlwe_phys[p];
 		if (ddp->ddp_phys_birth == 0)
 			continue;
 		ddt_bp_create(ddt->ddt_checksum, ddk, ddp, &blk);
@@ -1959,7 +1960,7 @@ static void
 dump_ddt(ddt_t *ddt, ddt_type_t type, ddt_class_t class)
 {
 	char name[DDT_NAMELEN];
-	ddt_entry_t dde;
+	ddt_lightweight_entry_t ddlwe;
 	uint64_t walk = 0;
 	dmu_object_info_t doi;
 	uint64_t count, dspace, mspace;
@@ -2000,8 +2001,8 @@ dump_ddt(ddt_t *ddt, ddt_type_t type, ddt_class_t class)
 
 	(void) printf("%s contents:\n\n", name);
 
-	while ((error = ddt_object_walk(ddt, type, class, &walk, &dde)) == 0)
-		dump_dde(ddt, &dde, walk);
+	while ((error = ddt_object_walk(ddt, type, class, &walk, &ddlwe)) == 0)
+		dump_ddt_entry(ddt, &ddlwe, walk);
 
 	ASSERT3U(error, ==, ENOENT);
 
