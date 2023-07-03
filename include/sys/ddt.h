@@ -41,22 +41,29 @@ struct abd;
 /*
  * On-disk DDT formats, in the desired search order (newest version first).
  */
-enum ddt_type {
+typedef enum {
 	DDT_TYPE_ZAP = 0,
 	DDT_TYPES
-};
+} ddt_type_t;
+
+_Static_assert(DDT_TYPES <= UINT8_MAX,
+	"ddt_type_t must fit in a uint8_t");
+
+/* New and updated entries recieve this type, see ddt_sync_entry() */
+#define	DDT_TYPE_DEFAULT	(DDT_TYPE_ZAP)
 
 /*
  * DDT classes, in the desired search order (highest replication level first).
  */
-enum ddt_class {
+typedef enum {
 	DDT_CLASS_DITTO = 0,
 	DDT_CLASS_DUPLICATE,
 	DDT_CLASS_UNIQUE,
 	DDT_CLASSES
-};
+} ddt_class_t;
 
-#define	DDT_TYPE_CURRENT		0
+_Static_assert(DDT_CLASSES < UINT8_MAX,
+	"ddt_class_t must fit in a uint8_t");
 
 /*
  * On-disk ddt entry:  key (name) and physical storage (value).
@@ -116,8 +123,8 @@ struct ddt_entry {
 	ddt_phys_t	dde_phys[DDT_PHYS_TYPES];
 	zio_t		*dde_lead_zio[DDT_PHYS_TYPES];
 	struct abd	*dde_repair_abd;
-	enum ddt_type	dde_type;
-	enum ddt_class	dde_class;
+	ddt_type_t	dde_type;
+	ddt_class_t	dde_class;
 	uint8_t		dde_loading;
 	uint8_t		dde_loaded;
 	kcondvar_t	dde_cv;
@@ -182,7 +189,7 @@ extern ddt_entry_t *ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add);
 extern void ddt_prefetch(spa_t *spa, const blkptr_t *bp);
 extern void ddt_remove(ddt_t *ddt, ddt_entry_t *dde);
 
-extern boolean_t ddt_class_contains(spa_t *spa, enum ddt_class max_class,
+extern boolean_t ddt_class_contains(spa_t *spa, ddt_class_t max_class,
     const blkptr_t *bp);
 
 extern ddt_entry_t *ddt_repair_start(ddt_t *ddt, const blkptr_t *bp);

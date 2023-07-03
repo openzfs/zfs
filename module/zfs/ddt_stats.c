@@ -132,8 +132,8 @@ ddt_get_dedup_object_stats(spa_t *spa, ddt_object_t *ddo_total)
 	/* Sum the statistics we cached in ddt_object_sync(). */
 	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
 		ddt_t *ddt = spa->spa_ddt[c];
-		for (enum ddt_type type = 0; type < DDT_TYPES; type++) {
-			for (enum ddt_class class = 0; class < DDT_CLASSES;
+		for (ddt_type_t type = 0; type < DDT_TYPES; type++) {
+			for (ddt_class_t class = 0; class < DDT_CLASSES;
 			    class++) {
 				ddt_object_t *ddo =
 				    &ddt->ddt_object_stats[type][class];
@@ -156,8 +156,8 @@ ddt_get_dedup_histogram(spa_t *spa, ddt_histogram_t *ddh)
 {
 	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
 		ddt_t *ddt = spa->spa_ddt[c];
-		for (enum ddt_type type = 0; type < DDT_TYPES && ddt; type++) {
-			for (enum ddt_class class = 0; class < DDT_CLASSES;
+		for (ddt_type_t type = 0; type < DDT_TYPES && ddt; type++) {
+			for (ddt_class_t class = 0; class < DDT_CLASSES;
 			    class++) {
 				ddt_histogram_add(ddh,
 				    &ddt->ddt_histogram_cache[type][class]);

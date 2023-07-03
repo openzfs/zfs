@@ -70,14 +70,14 @@ extern void ddt_key_fill(ddt_key_t *ddk, const blkptr_t *bp);
 
 extern void ddt_stat_add(ddt_stat_t *dst, const ddt_stat_t *src, uint64_t neg);
 
-extern void ddt_object_name(ddt_t *ddt, enum ddt_type type,
-    enum ddt_class clazz, char *name);
-extern int ddt_object_walk(ddt_t *ddt, enum ddt_type type,
-    enum ddt_class clazz, uint64_t *walk, ddt_entry_t *dde);
-extern int ddt_object_count(ddt_t *ddt, enum ddt_type type,
-    enum ddt_class clazz, uint64_t *count);
-extern int ddt_object_info(ddt_t *ddt, enum ddt_type type,
-    enum ddt_class clazz, dmu_object_info_t *);
+extern void ddt_object_name(ddt_t *ddt, ddt_type_t type, ddt_class_t clazz,
+    char *name);
+extern int ddt_object_walk(ddt_t *ddt, ddt_type_t type, ddt_class_t clazz,
+    uint64_t *walk, ddt_entry_t *dde);
+extern int ddt_object_count(ddt_t *ddt, ddt_type_t type, ddt_class_t clazz,
+    uint64_t *count);
+extern int ddt_object_info(ddt_t *ddt, ddt_type_t type, ddt_class_t clazz,
+    dmu_object_info_t *);
 
 #ifdef	__cplusplus
 }
