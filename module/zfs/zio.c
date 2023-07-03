@@ -3238,12 +3238,14 @@ static void
 zio_ddt_child_read_done(zio_t *zio)
 {
 	blkptr_t *bp = zio->io_bp;
+	ddt_t *ddt;
 	ddt_entry_t *dde = zio->io_private;
 	ddt_phys_t *ddp;
 	zio_t *pio = zio_unique_parent(zio);
 
 	mutex_enter(&pio->io_lock);
-	ddp = ddt_phys_select(dde, bp);
+	ddt = ddt_select(zio->io_spa, bp);
+	ddp = ddt_phys_select(ddt, dde, bp);
 	if (zio->io_error == 0)
 		ddt_phys_clear(ddp);	/* this ddp doesn't need repair */
 
@@ -3266,8 +3268,7 @@ zio_ddt_read_start(zio_t *zio)
 	if (zio->io_child_error[ZIO_CHILD_DDT]) {
 		ddt_t *ddt = ddt_select(zio->io_spa, bp);
 		ddt_entry_t *dde = ddt_repair_start(ddt, bp);
-		ddt_phys_t *ddp = dde->dde_phys;
-		ddt_phys_t *ddp_self = ddt_phys_select(dde, bp);
+		ddt_phys_t *ddp_self = ddt_phys_select(ddt, dde, bp);
 		blkptr_t blk;
 
 		ASSERT(zio->io_vsd == NULL);
@@ -3276,7 +3277,8 @@ zio_ddt_read_start(zio_t *zio)
 		if (ddp_self == NULL)
 			return (zio);
 
-		for (int p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
+		for (int p = 0; p < DDT_NPHYS(ddt); p++) {
+			ddt_phys_t *ddp = &dde->dde_phys[p];
 			if (ddp->ddp_phys_birth == 0 || ddp == ddp_self)
 				continue;
 			ddt_bp_create(ddt->ddt_checksum, &dde->dde_key, ddp,
@@ -3356,7 +3358,10 @@ zio_ddt_collision(zio_t *zio, ddt_t *ddt, ddt_entry_t *dde)
 	 * loaded).
 	 */
 
-	for (int p = DDT_PHYS_SINGLE; p <= DDT_PHYS_TRIPLE; p++) {
+	for (int p = 0; p < DDT_NPHYS(ddt); p++) {
+		if (DDT_PHYS_IS_DITTO(ddt, p))
+			continue;
+
 		zio_t *lio = dde->dde_lead_zio[p];
 
 		if (lio != NULL && do_raw) {
@@ -3368,7 +3373,10 @@ zio_ddt_collision(zio_t *zio, ddt_t *ddt, ddt_entry_t *dde)
 		}
 	}
 
-	for (int p = DDT_PHYS_SINGLE; p <= DDT_PHYS_TRIPLE; p++) {
+	for (int p = 0; p < DDT_NPHYS(ddt); p++) {
+		if (DDT_PHYS_IS_DITTO(ddt, p))
+			continue;
+
 		ddt_phys_t *ddp = &dde->dde_phys[p];
 
 		if (ddp->ddp_phys_birth != 0 && do_raw) {
@@ -3436,14 +3444,15 @@ zio_ddt_collision(zio_t *zio, ddt_t *ddt, ddt_entry_t *dde)
 static void
 zio_ddt_child_write_ready(zio_t *zio)
 {
-	int p = zio->io_prop.zp_copies;
 	ddt_t *ddt = ddt_select(zio->io_spa, zio->io_bp);
 	ddt_entry_t *dde = zio->io_private;
-	ddt_phys_t *ddp = &dde->dde_phys[p];
 	zio_t *pio;
 
 	if (zio->io_error)
 		return;
+
+	int p = DDT_PHYS_FOR_COPIES(ddt, zio->io_prop.zp_copies);
+	ddt_phys_t *ddp = &dde->dde_phys[p];
 
 	ddt_enter(ddt);
 
@@ -3461,9 +3470,10 @@ zio_ddt_child_write_ready(zio_t *zio)
 static void
 zio_ddt_child_write_done(zio_t *zio)
 {
-	int p = zio->io_prop.zp_copies;
 	ddt_t *ddt = ddt_select(zio->io_spa, zio->io_bp);
 	ddt_entry_t *dde = zio->io_private;
+
+	int p = DDT_PHYS_FOR_COPIES(ddt, zio->io_prop.zp_copies);
 	ddt_phys_t *ddp = &dde->dde_phys[p];
 
 	ddt_enter(ddt);
@@ -3490,11 +3500,9 @@ zio_ddt_write(zio_t *zio)
 	blkptr_t *bp = zio->io_bp;
 	uint64_t txg = zio->io_txg;
 	zio_prop_t *zp = &zio->io_prop;
-	int p = zp->zp_copies;
 	zio_t *cio = NULL;
 	ddt_t *ddt = ddt_select(spa, bp);
 	ddt_entry_t *dde;
-	ddt_phys_t *ddp;
 
 	ASSERT(BP_GET_DEDUP(bp));
 	ASSERT(BP_GET_CHECKSUM(bp) == zp->zp_checksum);
@@ -3512,7 +3520,9 @@ zio_ddt_write(zio_t *zio)
 		ddt_exit(ddt);
 		return (zio);
 	}
-	ddp = &dde->dde_phys[p];
+
+	int p = DDT_PHYS_FOR_COPIES(ddt, zp->zp_copies);
+	ddt_phys_t *ddp = &dde->dde_phys[p];
 
 	if (zp->zp_dedup_verify && zio_ddt_collision(zio, ddt, dde)) {
 		/*
@@ -3584,7 +3594,7 @@ zio_ddt_free(zio_t *zio)
 	ddt_enter(ddt);
 	freedde = dde = ddt_lookup(ddt, bp, B_TRUE);
 	if (dde) {
-		ddp = ddt_phys_select(dde, bp);
+		ddp = ddt_phys_select(ddt, dde, bp);
 		if (ddp)
 			ddt_phys_decref(ddp);
 	}
