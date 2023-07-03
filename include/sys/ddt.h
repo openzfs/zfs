@@ -137,19 +137,10 @@ typedef struct {
 	uint64_t	ddp_phys_birth;
 } ddt_phys_t;
 
-/*
- * Named indexes into the ddt_phys_t array in each entry.
- *
- * Note, we no longer generate new DDT_PHYS_DITTO-type blocks.  However,
- * we maintain the ability to free existing dedup-ditto blocks.
- */
-enum ddt_phys_type {
-	DDT_PHYS_DITTO = 0,
-	DDT_PHYS_SINGLE = 1,
-	DDT_PHYS_DOUBLE = 2,
-	DDT_PHYS_TRIPLE = 3,
-	DDT_PHYS_TYPES
-};
+#define	DDT_PHYS_MAX			(4)
+#define	DDT_NPHYS(ddt)			((ddt) ? DDT_PHYS_MAX : DDT_PHYS_MAX)
+#define	DDT_PHYS_IS_DITTO(ddt, p)	((ddt) && p == 0)
+#define	DDT_PHYS_FOR_COPIES(ddt, p)	((ddt) ? (p) : (p))
 
 /*
  * A "live" entry, holding changes to an entry made this txg, and other data to
@@ -162,11 +153,11 @@ enum ddt_phys_type {
 
 typedef struct {
 	/* key must be first for ddt_key_compare */
-	ddt_key_t	dde_key;			/* ddt_tree key */
-	ddt_phys_t	dde_phys[DDT_PHYS_TYPES];	/* on-disk data */
+	ddt_key_t	dde_key;		/* ddt_tree key */
+	ddt_phys_t	dde_phys[DDT_PHYS_MAX];	/* on-disk data */
 
 	/* in-flight update IOs */
-	zio_t		*dde_lead_zio[DDT_PHYS_TYPES];
+	zio_t		*dde_lead_zio[DDT_PHYS_MAX];
 
 	/* copy of data after a repair read, to be rewritten */
 	struct abd	*dde_repair_abd;
@@ -234,7 +225,8 @@ extern void ddt_phys_fill(ddt_phys_t *ddp, const blkptr_t *bp);
 extern void ddt_phys_clear(ddt_phys_t *ddp);
 extern void ddt_phys_addref(ddt_phys_t *ddp);
 extern void ddt_phys_decref(ddt_phys_t *ddp);
-extern ddt_phys_t *ddt_phys_select(const ddt_entry_t *dde, const blkptr_t *bp);
+extern ddt_phys_t *ddt_phys_select(const ddt_t *ddt, const ddt_entry_t *dde,
+    const blkptr_t *bp);
 
 extern void ddt_histogram_add(ddt_histogram_t *dst, const ddt_histogram_t *src);
 extern void ddt_histogram_stat(ddt_stat_t *dds, const ddt_histogram_t *ddh);
@@ -249,6 +241,7 @@ extern uint64_t ddt_get_pool_dedup_ratio(spa_t *spa);
 extern int ddt_get_pool_dedup_cached(spa_t *spa, uint64_t *psize);
 
 extern ddt_t *ddt_select(spa_t *spa, const blkptr_t *bp);
+extern ddt_t *ddt_select_checksum(spa_t *spa, enum zio_checksum checksum);
 extern void ddt_enter(ddt_t *ddt);
 extern void ddt_exit(ddt_t *ddt);
 extern void ddt_init(void);

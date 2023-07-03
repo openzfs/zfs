@@ -36,14 +36,15 @@ static void
 ddt_stat_generate(ddt_t *ddt, ddt_entry_t *dde, ddt_stat_t *dds)
 {
 	spa_t *spa = ddt->ddt_spa;
-	ddt_phys_t *ddp = dde->dde_phys;
 	ddt_key_t *ddk = &dde->dde_key;
 	uint64_t lsize = DDK_GET_LSIZE(ddk);
 	uint64_t psize = DDK_GET_PSIZE(ddk);
 
 	memset(dds, 0, sizeof (*dds));
 
-	for (int p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
+	for (int p = 0; p < DDT_NPHYS(ddt); p++) {
+		ddt_phys_t *ddp = &dde->dde_phys[p];
+
 		uint64_t dsize = 0;
 		uint64_t refcnt = ddp->ddp_refcnt;
 
