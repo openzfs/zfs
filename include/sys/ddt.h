@@ -174,6 +174,18 @@ typedef struct {
 } ddt_entry_t;
 
 /*
+ * A lightweight entry is for short-lived or transient uses, like iterating or
+ * inspecting, when you don't care where it came from.
+ */
+typedef struct {
+	ddt_key_t	ddlwe_key;
+	ddt_type_t	ddlwe_type;
+	ddt_class_t	ddlwe_class;
+	uint8_t		ddlwe_nphys;
+	ddt_phys_t	ddlwe_phys[DDT_PHYS_MAX];
+} ddt_lightweight_entry_t;
+
+/*
  * In-core DDT object. This covers all entries and stats for a the whole pool
  * for a given checksum type.
  */
@@ -241,7 +253,6 @@ extern uint64_t ddt_get_pool_dedup_ratio(spa_t *spa);
 extern int ddt_get_pool_dedup_cached(spa_t *spa, uint64_t *psize);
 
 extern ddt_t *ddt_select(spa_t *spa, const blkptr_t *bp);
-extern ddt_t *ddt_select_checksum(spa_t *spa, enum zio_checksum checksum);
 extern void ddt_enter(ddt_t *ddt);
 extern void ddt_exit(ddt_t *ddt);
 extern void ddt_init(void);
@@ -263,7 +274,8 @@ extern void ddt_create(spa_t *spa);
 extern int ddt_load(spa_t *spa);
 extern void ddt_unload(spa_t *spa);
 extern void ddt_sync(spa_t *spa, uint64_t txg);
-extern int ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_entry_t *dde);
+extern int ddt_walk(spa_t *spa, ddt_bookmark_t *ddb,
+    ddt_lightweight_entry_t *ddlwe);
 
 extern boolean_t ddt_addref(spa_t *spa, const blkptr_t *bp);
 

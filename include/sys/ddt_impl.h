@@ -41,6 +41,17 @@ extern "C" {
 #define	DDT_DIR_VERSION		"version"
 #define	DDT_DIR_FLAGS		"flags"
 
+/* Fill a lightweight entry from a live entry. */
+#define	DDT_ENTRY_TO_LIGHTWEIGHT(ddt, dde, ddlwe) do {		\
+	memset((ddlwe), 0, sizeof (*ddlwe));			\
+	(ddlwe)->ddlwe_key = (dde)->dde_key;			\
+	(ddlwe)->ddlwe_type = (dde)->dde_type;			\
+	(ddlwe)->ddlwe_class = (dde)->dde_class;		\
+	(ddlwe)->ddlwe_nphys = DDT_NPHYS(ddt);			\
+	for (int p = 0; p < (ddlwe)->ddlwe_nphys; p++)		\
+		(ddlwe)->ddlwe_phys[p] = (dde)->dde_phys[p];	\
+} while (0)
+
 /*
  * Ops vector to access a specific DDT object type.
  */
@@ -91,7 +102,7 @@ extern void ddt_stat_add(ddt_stat_t *dst, const ddt_stat_t *src, uint64_t neg);
 extern void ddt_object_name(ddt_t *ddt, ddt_type_t type, ddt_class_t clazz,
     char *name);
 extern int ddt_object_walk(ddt_t *ddt, ddt_type_t type, ddt_class_t clazz,
-    uint64_t *walk, ddt_entry_t *dde);
+    uint64_t *walk, ddt_lightweight_entry_t *ddlwe);
 extern int ddt_object_count(ddt_t *ddt, ddt_type_t type, ddt_class_t clazz,
     uint64_t *count);
 extern int ddt_object_info(ddt_t *ddt, ddt_type_t type, ddt_class_t clazz,
