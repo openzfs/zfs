@@ -646,3 +646,4 @@ systemctl --system daemon-reload >/dev/null || true
 %files -n python%{__python_pkg_version}-libzfsacl
 %{__python_sitelib}/libzfsacl-*/*
 %{__python_sitelib}/libzfsacl.cpython*.so
+%{__python_sitelib}/zfsacltests/*

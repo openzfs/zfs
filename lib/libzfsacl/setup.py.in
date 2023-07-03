@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 from setuptools import setup, Extension, find_packages
 import os
 import sys
@@ -18,8 +19,9 @@ setup(
     version='@VERSION@',
     description='ACL wrapper library for acessing NFSv4 ACLs on Linux/FreeBSD',
     ext_modules=[libzfsacl_mod],
-    packages=find_packages(where=srcdir),
-    package_dir={"": os.path.relpath(srcdir)},
+    packages=find_packages(where=srcdir) + ['zfsacltests'],
+    package_dir={"": os.path.relpath(srcdir),
+                 "zfsacltests": os.path.relpath(srcdir) + '/zfsacltests'},
     include_package_data=True,
     python_requires='>=3.6,<4',
     zip_safe=False,
