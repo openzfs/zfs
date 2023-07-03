@@ -49,7 +49,9 @@ ddt_stat_generate(ddt_t *ddt, ddt_entry_t *dde, ddt_stat_t *dds)
 		if (ddp->ddp_phys_birth == 0)
 			continue;
 
-		for (int d = 0; d < DDE_GET_NDVAS(dde); d++)
+		int ndvas = DDK_GET_CRYPT(&dde->dde_key) ?
+		    SPA_DVAS_PER_BP - 1 : SPA_DVAS_PER_BP;
+		for (int d = 0; d < ndvas; d++)
 			dsize += dva_get_dsize_sync(spa, &ddp->ddp_dva[d]);
 
 		dds->dds_blocks += 1;

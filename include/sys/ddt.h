@@ -89,9 +89,6 @@ typedef struct ddt_key {
 #define	DDK_GET_CRYPT(ddk)		BF64_GET((ddk)->ddk_prop, 39, 1)
 #define	DDK_SET_CRYPT(ddk, x)	BF64_SET((ddk)->ddk_prop, 39, 1, x)
 
-#define	DDE_GET_NDVAS(dde) (DDK_GET_CRYPT(&dde->dde_key) \
-	? SPA_DVAS_PER_BP - 1 : SPA_DVAS_PER_BP)
-
 typedef struct ddt_phys {
 	dva_t		ddp_dva[SPA_DVAS_PER_BP];
 	uint64_t	ddp_refcnt;
