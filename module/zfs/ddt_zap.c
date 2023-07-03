@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2009, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2023, Klara Inc.
  */
 
 #include <sys/zfs_context.h>
