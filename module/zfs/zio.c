@@ -3249,8 +3249,8 @@ zio_ddt_child_read_done(zio_t *zio)
 	if (zio->io_error == 0)
 		ddt_phys_clear(ddp);	/* this ddp doesn't need repair */
 
-	if (zio->io_error == 0 && dde->dde_repair_abd == NULL)
-		dde->dde_repair_abd = zio->io_abd;
+	if (zio->io_error == 0 && dde->dde_io->dde_repair_abd == NULL)
+		dde->dde_io->dde_repair_abd = zio->io_abd;
 	else
 		abd_free(zio->io_abd);
 	mutex_exit(&pio->io_lock);
@@ -3324,8 +3324,8 @@ zio_ddt_read_done(zio_t *zio)
 			zio_taskq_dispatch(zio, ZIO_TASKQ_ISSUE, B_FALSE);
 			return (NULL);
 		}
-		if (dde->dde_repair_abd != NULL) {
-			abd_copy(zio->io_abd, dde->dde_repair_abd,
+		if (dde->dde_io->dde_repair_abd != NULL) {
+			abd_copy(zio->io_abd, dde->dde_io->dde_repair_abd,
 			    zio->io_size);
 			zio->io_child_error[ZIO_CHILD_DDT] = 0;
 		}
@@ -3362,7 +3362,7 @@ zio_ddt_collision(zio_t *zio, ddt_t *ddt, ddt_entry_t *dde)
 		if (DDT_PHYS_IS_DITTO(ddt, p))
 			continue;
 
-		zio_t *lio = dde->dde_lead_zio[p];
+		zio_t *lio = dde->dde_io->dde_lead_zio[p];
 
 		if (lio != NULL && do_raw) {
 			return (lio->io_size != zio->io_size ||
@@ -3456,7 +3456,7 @@ zio_ddt_child_write_ready(zio_t *zio)
 
 	ddt_enter(ddt);
 
-	ASSERT(dde->dde_lead_zio[p] == zio);
+	ASSERT(dde->dde_io->dde_lead_zio[p] == zio);
 
 	ddt_phys_fill(ddp, zio->io_bp);
 
@@ -3479,8 +3479,8 @@ zio_ddt_child_write_done(zio_t *zio)
 	ddt_enter(ddt);
 
 	ASSERT(ddp->ddp_refcnt == 0);
-	ASSERT(dde->dde_lead_zio[p] == zio);
-	dde->dde_lead_zio[p] = NULL;
+	ASSERT(dde->dde_io->dde_lead_zio[p] == zio);
+	dde->dde_io->dde_lead_zio[p] = NULL;
 
 	if (zio->io_error == 0) {
 		zio_link_t *zl = NULL;
@@ -3547,11 +3547,13 @@ zio_ddt_write(zio_t *zio)
 		return (zio);
 	}
 
-	if (ddp->ddp_phys_birth != 0 || dde->dde_lead_zio[p] != NULL) {
+	ddt_alloc_entry_io(dde);
+
+	if (ddp->ddp_phys_birth != 0 || dde->dde_io->dde_lead_zio[p] != NULL) {
 		if (ddp->ddp_phys_birth != 0)
 			ddt_bp_fill(ddp, bp, txg);
-		if (dde->dde_lead_zio[p] != NULL)
-			zio_add_child(zio, dde->dde_lead_zio[p]);
+		if (dde->dde_io->dde_lead_zio[p] != NULL)
+			zio_add_child(zio, dde->dde_io->dde_lead_zio[p]);
 		else
 			ddt_phys_addref(ddp);
 	} else if (zio->io_bp_override) {
@@ -3567,7 +3569,7 @@ zio_ddt_write(zio_t *zio)
 		    ZIO_DDT_CHILD_FLAGS(zio), &zio->io_bookmark);
 
 		zio_push_transform(cio, zio->io_abd, zio->io_size, 0, NULL);
-		dde->dde_lead_zio[p] = cio;
+		dde->dde_io->dde_lead_zio[p] = cio;
 	}
 
 	ddt_exit(ddt);
