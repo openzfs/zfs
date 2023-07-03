@@ -31,6 +31,10 @@ tags = ['functional']
 tests = ['dosmode', 'posixmode']
 tags = ['functional', 'acl']
 
+[tests/functional/acl/nfsv4]
+tests = ['nfsacl_001']
+tags = ['functional', 'acl', 'nfsv4']
+
 [tests/functional/alloc_class]
 tests = ['alloc_class_001_pos', 'alloc_class_002_neg', 'alloc_class_003_pos',
     'alloc_class_004_pos', 'alloc_class_005_pos', 'alloc_class_006_pos',
