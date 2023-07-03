@@ -186,18 +186,30 @@ ddt_object_lookup(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
 		return (SET_ERROR(ENOENT));
 
 	return (ddt_ops[type]->ddt_op_lookup(ddt->ddt_os,
-	    ddt->ddt_object[type][class], dde));
+	    ddt->ddt_object[type][class], &dde->dde_key,
+	    dde->dde_phys, sizeof (dde->dde_phys)));
+}
+
+static int
+ddt_object_contains(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
+    const ddt_key_t *ddk)
+{
+	if (!ddt_object_exists(ddt, type, class))
+		return (SET_ERROR(ENOENT));
+
+	return (ddt_ops[type]->ddt_op_contains(ddt->ddt_os,
+	    ddt->ddt_object[type][class], ddk));
 }
 
 static void
 ddt_object_prefetch(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
-    ddt_entry_t *dde)
+    const ddt_key_t *ddk)
 {
 	if (!ddt_object_exists(ddt, type, class))
 		return;
 
 	ddt_ops[type]->ddt_op_prefetch(ddt->ddt_os,
-	    ddt->ddt_object[type][class], dde);
+	    ddt->ddt_object[type][class], ddk);
 }
 
 static int
@@ -207,17 +219,18 @@ ddt_object_update(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
 	ASSERT(ddt_object_exists(ddt, type, class));
 
 	return (ddt_ops[type]->ddt_op_update(ddt->ddt_os,
-	    ddt->ddt_object[type][class], dde, tx));
+	    ddt->ddt_object[type][class], &dde->dde_key, dde->dde_phys,
+	    sizeof (dde->dde_phys), tx));
 }
 
 static int
 ddt_object_remove(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
-    ddt_entry_t *dde, dmu_tx_t *tx)
+    const ddt_key_t *ddk, dmu_tx_t *tx)
 {
 	ASSERT(ddt_object_exists(ddt, type, class));
 
 	return (ddt_ops[type]->ddt_op_remove(ddt->ddt_os,
-	    ddt->ddt_object[type][class], dde, tx));
+	    ddt->ddt_object[type][class], ddk, tx));
 }
 
 int
@@ -227,7 +240,8 @@ ddt_object_walk(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
 	ASSERT(ddt_object_exists(ddt, type, class));
 
 	return (ddt_ops[type]->ddt_op_walk(ddt->ddt_os,
-	    ddt->ddt_object[type][class], dde, walk));
+	    ddt->ddt_object[type][class], walk, &dde->dde_key,
+	    dde->dde_phys, sizeof (dde->dde_phys)));
 }
 
 int
@@ -523,7 +537,7 @@ void
 ddt_prefetch(spa_t *spa, const blkptr_t *bp)
 {
 	ddt_t *ddt;
-	ddt_entry_t dde;
+	ddt_key_t ddk;
 
 	if (!zfs_dedup_prefetch || bp == NULL || !BP_GET_DEDUP(bp))
 		return;
@@ -534,11 +548,11 @@ ddt_prefetch(spa_t *spa, const blkptr_t *bp)
 	 * Thus no locking is required as the DDT can't disappear on us.
 	 */
 	ddt = ddt_select(spa, bp);
-	ddt_key_fill(&dde.dde_key, bp);
+	ddt_key_fill(&ddk, bp);
 
 	for (ddt_type_t type = 0; type < DDT_TYPES; type++) {
 		for (ddt_class_t class = 0; class < DDT_CLASSES; class++) {
-			ddt_object_prefetch(ddt, type, class, &dde);
+			ddt_object_prefetch(ddt, type, class, &ddk);
 		}
 	}
 }
@@ -660,7 +674,7 @@ boolean_t
 ddt_class_contains(spa_t *spa, ddt_class_t max_class, const blkptr_t *bp)
 {
 	ddt_t *ddt;
-	ddt_entry_t *dde;
+	ddt_key_t ddk;
 
 	if (!BP_GET_DEDUP(bp))
 		return (B_FALSE);
@@ -669,20 +683,16 @@ ddt_class_contains(spa_t *spa, ddt_class_t max_class, const blkptr_t *bp)
 		return (B_TRUE);
 
 	ddt = spa->spa_ddt[BP_GET_CHECKSUM(bp)];
-	dde = kmem_cache_alloc(ddt_entry_cache, KM_SLEEP);
 
-	ddt_key_fill(&(dde->dde_key), bp);
+	ddt_key_fill(&ddk, bp);
 
 	for (ddt_type_t type = 0; type < DDT_TYPES; type++) {
 		for (ddt_class_t class = 0; class <= max_class; class++) {
-			if (ddt_object_lookup(ddt, type, class, dde) == 0) {
-				kmem_cache_free(ddt_entry_cache, dde);
+			if (ddt_object_contains(ddt, type, class, &ddk) == 0)
 				return (B_TRUE);
-			}
 		}
 	}
 
-	kmem_cache_free(ddt_entry_cache, dde);
 	return (B_FALSE);
 }
 
@@ -833,9 +843,9 @@ ddt_sync_entry(ddt_t *ddt, ddt_entry_t *dde, dmu_tx_t *tx, uint64_t txg)
 
 	if (otype != DDT_TYPES &&
 	    (otype != ntype || oclass != nclass || total_refcnt == 0)) {
-		VERIFY0(ddt_object_remove(ddt, otype, oclass, dde, tx));
+		VERIFY0(ddt_object_remove(ddt, otype, oclass, ddk, tx));
 		ASSERT3U(
-		    ddt_object_lookup(ddt, otype, oclass, dde), ==, ENOENT);
+		    ddt_object_contains(ddt, otype, oclass, ddk), ==, ENOENT);
 	}
 
 	if (total_refcnt != 0) {
