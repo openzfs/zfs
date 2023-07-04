@@ -54,7 +54,7 @@ static unsigned int zvol_prefetch_bytes = (128 * 1024);
 static unsigned long zvol_max_discard_blocks = 16384;
 
 #ifndef HAVE_BLKDEV_GET_ERESTARTSYS
-static const unsigned int zvol_open_timeout_ms = 1000;
+static unsigned int zvol_open_timeout_ms = 1000;
 #endif
 
 static unsigned int zvol_threads = 0;
@@ -1610,6 +1610,11 @@ MODULE_PARM_DESC(zvol_use_blk_mq, "Use the blk-mq API for zvols");
 module_param(zvol_blk_mq_blocks_per_thread, uint, 0644);
 MODULE_PARM_DESC(zvol_blk_mq_blocks_per_thread,
     "Process volblocksize blocks per thread");
+#endif
+
+#ifndef HAVE_BLKDEV_GET_ERESTARTSYS
+module_param(zvol_open_timeout_ms, uint, 0644);
+MODULE_PARM_DESC(zvol_open_timeout_ms, "Timeout for ZVOL open retries");
 #endif
 
 /* END CSTYLED */

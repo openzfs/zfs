@@ -36,7 +36,7 @@ install() {
 		{ dfatal "Failed to install essential binaries"; exit 1; }
 
 	# Adapted from https://github.com/zbm-dev/zfsbootmenu
-	if ! ldd "$(command -v zpool)" | grep -qF 'libgcc_s.so'; then
+	if ! ldd "$(command -v zpool)" | grep -qF 'libgcc_s.so' && ldconfig -p 2> /dev/null | grep -qF 'libc.so.6' ; then
 		# On systems with gcc-config (Gentoo, Funtoo, etc.), use it to find libgcc_s
 		if command -v gcc-config >/dev/null; then
 			inst_simple "/usr/lib/gcc/$(s=$(gcc-config -c); echo "${s%-*}/${s##*-}")/libgcc_s.so.1" ||

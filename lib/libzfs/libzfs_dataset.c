@@ -1789,7 +1789,8 @@ zfs_prop_set_list(zfs_handle_t *zhp, nvlist_t *props)
 	nvlist_t *nvl;
 	int nvl_len = 0;
 	int added_resv = 0;
-	zfs_prop_t prop = 0;
+	zfs_prop_t prop;
+	boolean_t nsprop = B_FALSE;
 	nvpair_t *elem;
 
 	(void) snprintf(errbuf, sizeof (errbuf),
@@ -1836,6 +1837,7 @@ zfs_prop_set_list(zfs_handle_t *zhp, nvlist_t *props)
 	    elem = nvlist_next_nvpair(nvl, elem)) {
 
 		prop = zfs_name_to_prop(nvpair_name(elem));
+		nsprop |= zfs_is_namespace_prop(prop);
 
 		assert(cl_idx < nvl_len);
 		/*
@@ -1934,8 +1936,7 @@ zfs_prop_set_list(zfs_handle_t *zhp, nvlist_t *props)
 			 * if one of the options handled by the generic
 			 * Linux namespace layer has been modified.
 			 */
-			if (zfs_is_namespace_prop(prop) &&
-			    zfs_is_mounted(zhp, NULL))
+			if (nsprop && zfs_is_mounted(zhp, NULL))
 				ret = zfs_mount(zhp, MNTOPT_REMOUNT, 0);
 		}
 	}

@@ -79,6 +79,7 @@ typedef struct vdev_rebuild {
 	uint64_t	vr_pass_start_time;
 	uint64_t	vr_pass_bytes_scanned;
 	uint64_t	vr_pass_bytes_issued;
+	uint64_t	vr_pass_bytes_skipped;
 
 	/* On-disk state updated by vdev_rebuild_zap_update_sync() */
 	vdev_rebuild_phys_t vr_rebuild_phys;
