@@ -4587,6 +4587,7 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 	}
 }
 
+/* May be called recursively from dbuf_sync_indirect(). */
 void
 dbuf_sync_list(list_t *list, int level, dmu_tx_t *tx)
 {
@@ -5005,7 +5006,10 @@ dbuf_remap(dnode_t *dn, dmu_buf_impl_t *db, dmu_tx_t *tx)
 }
 
 
-/* Issue I/O to commit a dirty buffer to disk. */
+/*
+ * Populate dr->dr_zio with a zio to commit a dirty buffer to disk.
+ * Caller is responsible for issuing the zio_[no]wait(dr->dr_zio).
+ */
 static void
 dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 {

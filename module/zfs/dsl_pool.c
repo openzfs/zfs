@@ -141,11 +141,6 @@ uint_t zfs_delay_min_dirty_percent = 60;
 uint64_t zfs_delay_scale = 1000 * 1000 * 1000 / 2000;
 
 /*
- * This determines the number of threads used by the dp_sync_taskq.
- */
-static int zfs_sync_taskq_batch_pct = 75;
-
-/*
  * These tunables determine the behavior of how zil_itxg_clean() is
  * called via zil_clean() in the context of spa_sync(). When an itxg
  * list needs to be cleaned, TQ_NOSLEEP will be used when dispatching.
@@ -215,8 +210,7 @@ dsl_pool_open_impl(spa_t *spa, uint64_t txg)
 	    offsetof(dsl_sync_task_t, dst_node));
 
 	dp->dp_sync_taskq = taskq_create("dp_sync_taskq",
-	    zfs_sync_taskq_batch_pct, minclsyspri, 1, INT_MAX,
-	    TASKQ_THREADS_CPU_PCT);
+	    MIN(spa->spa_alloc_count, boot_ncpus), minclsyspri, 1, INT_MAX, 0);
 
 	dp->dp_zil_clean_taskq = taskq_create("dp_zil_clean_taskq",
 	    zfs_zil_clean_taskq_nthr_pct, minclsyspri,
@@ -580,9 +574,7 @@ dsl_pool_mos_diduse_space(dsl_pool_t *dp,
 static void
 dsl_pool_sync_mos(dsl_pool_t *dp, dmu_tx_t *tx)
 {
-	zio_t *zio = zio_root(dp->dp_spa, NULL, NULL, ZIO_FLAG_MUSTSUCCEED);
-	dmu_objset_sync(dp->dp_meta_objset, zio, tx);
-	VERIFY0(zio_wait(zio));
+	VERIFY0(zio_wait(dmu_objset_sync(dp->dp_meta_objset, NULL, tx)));
 	dmu_objset_sync_done(dp->dp_meta_objset, tx);
 	taskq_wait(dp->dp_sync_taskq);
 	multilist_destroy(&dp->dp_meta_objset->os_synced_dnodes);
@@ -674,7 +666,7 @@ dsl_early_sync_task_verify(dsl_pool_t *dp, uint64_t txg)
 void
 dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 {
-	zio_t *zio;
+	zio_t *rio;	/* root zio for all dirty dataset syncs */
 	dmu_tx_t *tx;
 	dsl_dir_t *dd;
 	dsl_dataset_t *ds;
@@ -704,9 +696,10 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	}
 
 	/*
-	 * Write out all dirty blocks of dirty datasets.
+	 * Write out all dirty blocks of dirty datasets. Note, this could
+	 * create a very large (+10k) zio tree.
 	 */
-	zio = zio_root(dp->dp_spa, NULL, NULL, ZIO_FLAG_MUSTSUCCEED);
+	rio = zio_root(dp->dp_spa, NULL, NULL, ZIO_FLAG_MUSTSUCCEED);
 	while ((ds = txg_list_remove(&dp->dp_dirty_datasets, txg)) != NULL) {
 		/*
 		 * We must not sync any non-MOS datasets twice, because
@@ -715,9 +708,9 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 		 */
 		ASSERT(!list_link_active(&ds->ds_synced_link));
 		list_insert_tail(&synced_datasets, ds);
-		dsl_dataset_sync(ds, zio, tx);
+		dsl_dataset_sync(ds, rio, tx);
 	}
-	VERIFY0(zio_wait(zio));
+	VERIFY0(zio_wait(rio));
 
 	/*
 	 * Update the long range free counter after
@@ -748,13 +741,13 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	 * user accounting information (and we won't get confused
 	 * about which blocks are part of the snapshot).
 	 */
-	zio = zio_root(dp->dp_spa, NULL, NULL, ZIO_FLAG_MUSTSUCCEED);
+	rio = zio_root(dp->dp_spa, NULL, NULL, ZIO_FLAG_MUSTSUCCEED);
 	while ((ds = txg_list_remove(&dp->dp_dirty_datasets, txg)) != NULL) {
 		objset_t *os = ds->ds_objset;
 
 		ASSERT(list_link_active(&ds->ds_synced_link));
 		dmu_buf_rele(ds->ds_dbuf, ds);
-		dsl_dataset_sync(ds, zio, tx);
+		dsl_dataset_sync(ds, rio, tx);
 
 		/*
 		 * Release any key mappings created by calls to
@@ -767,7 +760,7 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 			key_mapping_rele(dp->dp_spa, ds->ds_key_mapping, ds);
 		}
 	}
-	VERIFY0(zio_wait(zio));
+	VERIFY0(zio_wait(rio));
 
 	/*
 	 * Now that the datasets have been completely synced, we can
@@ -1480,9 +1473,6 @@ ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_sync_percent, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, delay_scale, U64, ZMOD_RW,
 	"How quickly delay approaches infinity");
-
-ZFS_MODULE_PARAM(zfs, zfs_, sync_taskq_batch_pct, INT, ZMOD_RW,
-	"Max percent of CPUs that are used to sync dirty data");
 
 ZFS_MODULE_PARAM(zfs_zil, zfs_zil_, clean_taskq_nthr_pct, INT, ZMOD_RW,
 	"Max percent of CPUs that are used per dp_sync_taskq");

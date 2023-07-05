@@ -1644,6 +1644,7 @@ typedef struct sync_dnodes_arg {
 	int sda_sublist_idx;
 	multilist_t *sda_newlist;
 	dmu_tx_t *sda_tx;
+	zio_t *sda_cio;
 } sync_dnodes_arg_t;
 
 static void
@@ -1658,20 +1659,66 @@ sync_dnodes_task(void *arg)
 
 	multilist_sublist_unlock(ms);
 
+	zio_nowait(sda->sda_cio);
+
 	kmem_free(sda, sizeof (*sda));
 }
 
+typedef struct sync_objset_arg {
+	objset_t *soa_os;
+	dmu_tx_t *soa_tx;
+	zio_t *soa_zio;
+} sync_objset_arg_t;
 
-/* called from dsl */
+static void
+sync_dnodes_finish_task(void *arg)
+{
+	sync_objset_arg_t *soa = arg;
+	objset_t *os = soa->soa_os;
+	dmu_tx_t *tx = soa->soa_tx;
+
+	/* Free intent log blocks up to this tx. (May block.) */
+	zil_sync(os->os_zil, tx);
+	os->os_phys->os_zil_header = os->os_zil_header;
+
+	zio_nowait(soa->soa_zio);
+	kmem_free(soa, sizeof (*soa));
+}
+
 void
-dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
+dmu_objset_sync_sublists_done(zio_t *zio)
+{
+	sync_objset_arg_t *soa = zio->io_private;
+	objset_t *os = soa->soa_os;
+	dmu_tx_t *tx = soa->soa_tx;
+	int txgoff = tx->tx_txg & TXG_MASK;
+	dbuf_dirty_record_t *dr;
+
+	list_t *list = &DMU_META_DNODE(os)->dn_dirty_records[txgoff];
+	while ((dr = list_remove_head(list)) != NULL) {
+		ASSERT0(dr->dr_dbuf->db_level);
+		zio_nowait(dr->dr_zio);
+	}
+
+	/* Enable dnode backfill if enough objects have been freed. */
+	if (os->os_freed_dnodes >= dmu_rescan_dnode_threshold) {
+		os->os_rescan_dnodes = B_TRUE;
+		os->os_freed_dnodes = 0;
+	}
+
+	/* sync_dnodes_finsh_task calls zil_sync on our behalf. */
+	(void) taskq_dispatch(dmu_objset_pool(os)->dp_sync_taskq,
+	    sync_dnodes_finish_task, soa, TQ_FRONT);
+}
+
+/* Nonblocking objset sync. Called from dsl. */
+zio_t *
+dmu_objset_sync(objset_t *os, zio_t *rio, dmu_tx_t *tx)
 {
 	int txgoff;
 	zbookmark_phys_t zb;
 	zio_prop_t zp;
 	zio_t *zio;
-	list_t *list;
-	dbuf_dirty_record_t *dr;
 	int num_sublists;
 	multilist_t *ml;
 	blkptr_t *blkptr_copy = kmem_alloc(sizeof (*os->os_rootbp), KM_SLEEP);
@@ -1714,6 +1761,10 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 		    os->os_dsl_dataset->ds_object, ZFS_HOST_BYTEORDER,
 		    DMU_OT_OBJSET, NULL, NULL, NULL);
 	}
+
+	/* pio is a child of rio and a parent of zio */
+	zio_t *pio = zio_null(rio, os->os_spa, NULL, NULL, NULL,
+	    ZIO_FLAG_MUSTSUCCEED);
 
 	zio = arc_write(pio, os->os_spa, tx->tx_txg,
 	    blkptr_copy, os->os_phys_buf, B_FALSE, dmu_os_is_l2cacheable(os),
@@ -1758,6 +1809,16 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 		    offsetof(dnode_t, dn_dirty_link[txgoff]));
 	}
 
+	/* sync_dnodes_finish_task executes zio and frees soa */
+	sync_objset_arg_t *soa = kmem_alloc(sizeof (*soa), KM_SLEEP);
+	soa->soa_os = os;
+	soa->soa_tx = tx;
+	soa->soa_zio = zio;
+
+	/* sio is a child of the arc_write zio and parent of the sda_cio(s). */
+	zio_t *sio = zio_null(zio, os->os_spa, NULL,
+	    dmu_objset_sync_sublists_done, soa, ZIO_FLAG_MUSTSUCCEED);
+
 	ml = &os->os_dirty_dnodes[txgoff];
 	num_sublists = multilist_get_num_sublists(ml);
 	for (int i = 0; i < num_sublists; i++) {
@@ -1767,30 +1828,17 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 		sda->sda_list = ml;
 		sda->sda_sublist_idx = i;
 		sda->sda_tx = tx;
+		sda->sda_cio = zio_null(sio, os->os_spa, NULL, NULL, NULL,
+		    ZIO_FLAG_MUSTSUCCEED);
 		(void) taskq_dispatch(dmu_objset_pool(os)->dp_sync_taskq,
 		    sync_dnodes_task, sda, 0);
 		/* callback frees sda */
 	}
-	taskq_wait(dmu_objset_pool(os)->dp_sync_taskq);
 
-	list = &DMU_META_DNODE(os)->dn_dirty_records[txgoff];
-	while ((dr = list_remove_head(list)) != NULL) {
-		ASSERT0(dr->dr_dbuf->db_level);
-		zio_nowait(dr->dr_zio);
-	}
+	/* Syncs the meta dnode even if all sublists were empty */
+	zio_nowait(sio);
 
-	/* Enable dnode backfill if enough objects have been freed. */
-	if (os->os_freed_dnodes >= dmu_rescan_dnode_threshold) {
-		os->os_rescan_dnodes = B_TRUE;
-		os->os_freed_dnodes = 0;
-	}
-
-	/*
-	 * Free intent log blocks up to this tx.
-	 */
-	zil_sync(os->os_zil, tx);
-	os->os_phys->os_zil_header = os->os_zil_header;
-	zio_nowait(zio);
+	return (pio);
 }
 
 boolean_t
