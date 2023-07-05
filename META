@@ -1,8 +1,8 @@
 Meta:          1
 Name:          zfs
 Branch:        1.0
-Version:       2.1.5
-Release:       1
+Version:       2.1.5.4
+Release:       1wasabi0
 Release-Tags:  relext
 License:       CDDL
 Author:        OpenZFS
