@@ -46,7 +46,6 @@
 function test_cleanup
 {
 	poolexists $NESTEDPOOL && destroy_pool $NESTEDPOOL
-	set_tunable32 SPA_ASIZE_INFLATION 24
 	cleanup_test_pool
 }
 
@@ -54,7 +53,6 @@ verify_runnable "global"
 
 setup_test_pool
 log_onexit test_cleanup
-log_must set_tunable32 SPA_ASIZE_INFLATION 4
 
 log_must zfs create $DISKFS
 

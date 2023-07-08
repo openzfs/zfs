@@ -376,6 +376,20 @@ vdev_get_min_alloc(vdev_t *vd)
 }
 
 /*
+ * Get the worst case allocation size for the top-level vdev.
+ */
+uint64_t
+vdev_get_worst_alloc(vdev_t *vd)
+{
+	uint64_t worst_alloc = 1;
+
+	if (vd->vdev_ops->vdev_op_worst_alloc != NULL)
+		worst_alloc = vd->vdev_ops->vdev_op_worst_alloc(vd);
+
+	return (worst_alloc);
+}
+
+/*
  * Get the parity level for a top-level vdev.
  */
 uint64_t
@@ -1447,6 +1461,10 @@ vdev_metaslab_group_create(vdev_t *vd)
 			uint64_t min_alloc = vdev_get_min_alloc(vd);
 			if (min_alloc < spa->spa_min_alloc)
 				spa->spa_min_alloc = min_alloc;
+
+			uint64_t worst_alloc = vdev_get_worst_alloc(vd);
+			if (worst_alloc > spa->spa_worst_alloc)
+				spa->spa_worst_alloc = worst_alloc;
 		}
 	}
 }
@@ -2209,6 +2227,10 @@ vdev_open(vdev_t *vd)
 		uint64_t min_alloc = vdev_get_min_alloc(vd);
 		if (min_alloc < spa->spa_min_alloc)
 			spa->spa_min_alloc = min_alloc;
+
+		uint64_t worst_alloc = vdev_get_worst_alloc(vd);
+		if (worst_alloc > spa->spa_worst_alloc)
+			spa->spa_worst_alloc = worst_alloc;
 	}
 
 	/*
