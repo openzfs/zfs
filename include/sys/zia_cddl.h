@@ -19,19 +19,15 @@
  * CDDL HEADER END
  */
 
-#ifdef ZIA
-
 #ifndef _ZIA_CDDL_H
 #define	_ZIA_CDDL_H
 
 #include <sys/abd.h>
-#include <sys/spa.h>
 #include <sys/zio.h>
 #include <sys/zio_compress.h>
-#include <sys/zio_checksum.h>
 
+#ifdef ZIA
 #include <dpusm/user_api.h>
-
 int
 zia_compress_impl(const dpusm_uf_t *dpusm, zia_props_t *props,
     enum zio_compress c, abd_t *src, size_t s_len,
@@ -48,8 +44,8 @@ zia_disk_write_completion(void *zio_ptr, int error);
 
 void
 zia_disk_flush_completion(void *zio_ptr, int error);
-#endif
+#endif /* _KERNEL */
 
-#endif
+#endif /* ZIA */
 
-#endif
+#endif /* _ZIA_CDDL_H */

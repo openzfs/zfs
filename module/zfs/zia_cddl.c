@@ -204,6 +204,6 @@ zia_disk_flush_completion(void *zio_ptr, int error)
 		vdev_disk_error(zio);
 	zio_interrupt(zio);
 }
-#endif
+#endif /* _KERNEL */
 
-#endif
+#endif /* ZIA */

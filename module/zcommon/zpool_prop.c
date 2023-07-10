@@ -178,7 +178,6 @@ zpool_prop_init(void)
 	    PROP_TYPE_NUMBER, PROP_DEFAULT, ZFS_TYPE_POOL, "DEDUPDITTO",
 	    B_FALSE, sfeatures);
 
-#ifdef ZIA
 	zprop_register_string(ZPOOL_PROP_ZIA_PROVIDER, "zia_provider", NULL,
 	    PROP_DEFAULT, ZFS_TYPE_POOL, "<Z.I.A. Provider Name>", "PROVIDER",
 	    sfeatures);
@@ -215,7 +214,6 @@ zpool_prop_init(void)
 	zprop_register_index(ZPOOL_PROP_ZIA_DISK_WRITE, "zia_disk_write",
 	    1, PROP_DEFAULT, ZFS_TYPE_POOL, "on | off",
 	    "zia_disk_write", boolean_table, sfeatures);
-#endif
 
 	zfs_mod_list_supported_free(sfeatures);
 }

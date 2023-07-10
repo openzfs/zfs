@@ -101,10 +101,7 @@
 #include <sys/zio.h>
 #include <sys/zfs_context.h>
 #include <sys/zfs_znode.h>
-
-#ifdef ZIA
 #include <sys/zia.h>
-#endif
 
 /* see block comment above for description */
 int zfs_abd_scatter_enabled = B_TRUE;
@@ -152,17 +149,13 @@ abd_init_struct(abd_t *abd)
 #endif
 	abd->abd_size = 0;
 
-#ifdef ZIA
 	abd->abd_zia_handle = NULL;
-#endif
 }
 
 static void
 abd_fini_struct(abd_t *abd)
 {
-#ifdef ZIA
 	zia_free_abd(abd, B_TRUE);
-#endif
 
 	mutex_destroy(&abd->abd_mtx);
 	ASSERT(!list_link_active(&abd->abd_gang_link));
@@ -333,9 +326,7 @@ abd_free(abd_t *abd)
 		abd_free_struct_impl(abd);
 }
 
-#ifdef ZIA
 EXPORT_SYMBOL(abd_free);
-#endif
 
 /*
  * Allocate an ABD of the same format (same metadata flag, same scatterize
@@ -647,9 +638,7 @@ abd_get_from_buf(void *buf, size_t size)
 	return (abd);
 }
 
-#ifdef ZIA
 EXPORT_SYMBOL(abd_get_from_buf);
-#endif
 
 /*
  * Get the raw buffer associated with a linear ABD.

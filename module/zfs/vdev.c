@@ -719,9 +719,7 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 	vd->vdev_stat.vs_timestamp = gethrtime();
 	vdev_queue_init(vd);
 
-#ifdef ZIA
 	vd->vdev_zia_handle = NULL;
-#endif
 
 	return (vd);
 }
@@ -1065,9 +1063,7 @@ vdev_free(vdev_t *vd)
 	 */
 	vdev_close(vd);
 
-#ifdef ZIA
 	ASSERT3P(vd->vdev_zia_handle, ==, NULL);
-#endif
 
 	ASSERT(!list_link_active(&vd->vdev_config_dirty_node));
 	ASSERT(!list_link_active(&vd->vdev_state_dirty_node));

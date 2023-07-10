@@ -34,6 +34,7 @@
 #include <sys/vdev_trim.h>
 #include <sys/abd.h>
 #include <sys/fs/zfs.h>
+#include <sys/zia.h>
 #include <sys/zio.h>
 #include <linux/blkpg.h>
 #include <linux/msdos_fs.h>
@@ -60,10 +61,6 @@ typedef void zfs_bdev_handle_t;
 #define	BDH_IS_ERR(bdh)		(IS_ERR(BDH_BDEV(bdh)))
 #define	BDH_PTR_ERR(bdh)	(PTR_ERR(BDH_BDEV(bdh)))
 #define	BDH_ERR_PTR(err)	(ERR_PTR(err))
-#endif
-
-#ifdef ZIA
-#include <sys/zia.h>
 #endif
 
 typedef struct vdev_disk {
@@ -211,11 +208,7 @@ bdev_max_capacity(struct block_device *bdev, uint64_t wholedisk)
 	return (psize);
 }
 
-#ifndef ZIA
-static void
-#else
 void
-#endif
 vdev_disk_error(zio_t *zio)
 {
 	/*
@@ -330,9 +323,7 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 					reread_part = B_TRUE;
 			}
 
-#ifdef ZIA
 			zia_disk_close(v);
-#endif
 			vdev_blkdev_put(bdh, mode, zfs_vdev_holder);
 		}
 
@@ -454,12 +445,10 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	*logical_ashift = highbit64(MAX(logical_block_size,
 	    SPA_MINBLOCKSIZE)) - 1;
 
-#ifdef ZIA
 	zia_get_props(v->vdev_spa)->min_offload_size = 2 << *physical_ashift;
 
 	/* open disk; ignore errors - will fall back to ZFS */
 	zia_disk_open(v, v->vdev_path, vd->vd_bdh);
-#endif
 
 	return (0);
 }
@@ -473,9 +462,7 @@ vdev_disk_close(vdev_t *v)
 		return;
 
 	if (vd->vd_bdh != NULL) {
-#ifdef ZIA
 		zia_disk_close(v);
-#endif
 		vdev_blkdev_put(vd->vd_bdh, spa_mode(v->vdev_spa),
 		    zfs_vdev_holder);
 	}
@@ -1101,11 +1088,7 @@ vdev_classic_bio_max_segs(zio_t *zio, int bio_size, uint64_t abd_offset)
 #endif
 }
 
-#ifndef ZIA
-static int
-#else
 int
-#endif
 __vdev_classic_physio(struct block_device *bdev, zio_t *zio)
 {
 	size_t io_size = zio->io_size;
@@ -1219,9 +1202,7 @@ retry:
 	return (error);
 }
 
-#ifdef ZIA
 EXPORT_SYMBOL(__vdev_classic_physio);
-#endif
 
 static int
 vdev_classic_physio(zio_t *zio)
@@ -1252,11 +1233,7 @@ BIO_END_IO_PROTO(vdev_disk_io_flush_completion, bio, error)
 	zio_interrupt(zio);
 }
 
-#ifndef ZIA
-static int
-#else
 int
-#endif
 vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 {
 	struct request_queue *q;
@@ -1279,9 +1256,7 @@ vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 	return (0);
 }
 
-#ifdef ZIA
 EXPORT_SYMBOL(vdev_disk_io_flush);
-#endif
 
 #if defined(HAVE_BLKDEV_ISSUE_SECURE_ERASE) || \
 	defined(HAVE_BLKDEV_ISSUE_DISCARD_ASYNC)
@@ -1402,7 +1377,6 @@ vdev_disk_io_start(zio_t *zio)
 				break;
 			}
 
-#ifdef ZIA
 			error = zia_disk_flush(v, zio);
 
 			/*
@@ -1413,7 +1387,6 @@ vdev_disk_io_start(zio_t *zio)
 				rw_exit(&vd->vd_lock);
 				return;
 			}
-#endif
 			error = vdev_disk_io_flush(BDH_BDEV(vd->vd_bdh), zio);
 			if (error == 0) {
 				rw_exit(&vd->vd_lock);
@@ -1446,7 +1419,6 @@ vdev_disk_io_start(zio_t *zio)
 	case ZIO_TYPE_READ:
 	case ZIO_TYPE_WRITE:
 		zio->io_target_timestamp = zio_handle_io_delay(zio);
-#ifdef ZIA
 		error = EIO;
 
 		if (zio->io_type == ZIO_TYPE_WRITE) {
@@ -1478,7 +1450,6 @@ vdev_disk_io_start(zio_t *zio)
 				return;
 			}
 		}
-#endif
 		error = vdev_disk_io_rw_fn(zio);
 		rw_exit(&vd->vd_lock);
 		if (error) {
@@ -1519,9 +1490,7 @@ vdev_disk_io_done(zio_t *zio)
 		vdev_disk_t *vd = v->vdev_tsd;
 
 		if (!zfs_check_disk_status(BDH_BDEV(vd->vd_bdh))) {
-#ifdef ZIA
 			zia_disk_invalidate(v);
-#endif
 			invalidate_bdev(BDH_BDEV(vd->vd_bdh));
 			v->vdev_remove_wanted = B_TRUE;
 			spa_async_request(zio->io_spa, SPA_ASYNC_REMOVE);

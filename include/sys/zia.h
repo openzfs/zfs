@@ -44,8 +44,6 @@
  *
  */
 
-#ifdef ZIA
-
 #ifndef _ZIA_H
 #define	_ZIA_H
 
@@ -83,6 +81,9 @@ typedef struct raidz_map raidz_map_t;
  */
 #define	ZIA_ACCELERATOR_DOWN 1005
 /* ******************************************************** */
+
+/* DPUSM was not found by configure */
+#define	ZIA_DISABLED 1006
 
 /*
  * This struct is normally set with
@@ -218,8 +219,6 @@ int zia_disk_write(vdev_t *vdev, zio_t *zio,
     size_t io_size, uint64_t io_offset, int flags);
 int zia_disk_flush(vdev_t *vdev, zio_t *zio);
 int zia_disk_close(vdev_t *vdev);
-#endif
-
 #endif
 
 #endif

@@ -36,14 +36,10 @@
 #include <sys/fcntl.h>
 #include <sys/vnode.h>
 #include <sys/zfs_file.h>
+#include <sys/zia.h>
 #ifdef _KERNEL
 #include <linux/falloc.h>
 #endif
-
-#ifdef ZIA
-#include <sys/zia.h>
-#endif
-
 /*
  * Virtual device vector for files.
  */
@@ -166,13 +162,11 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	}
 #endif
 
-#ifdef ZIA
 	zia_get_props(vd->vdev_spa)->min_offload_size = 2 << *physical_ashift;
 
 	/* try to open the file; ignore errors - will fall back to ZFS */
 	zia_file_open(vd, vd->vdev_path,
 	    vdev_file_open_mode(spa_mode(vd->vdev_spa)), 0);
-#endif
 
 skip_open:
 
@@ -197,9 +191,7 @@ vdev_file_close(vdev_t *vd)
 	if (vd->vdev_reopening || vf == NULL)
 		return;
 
-#ifdef ZIA
 	zia_file_close(vd);
-#endif
 
 	if (vf->vf_file != NULL) {
 		(void) zfs_file_close(vf->vf_file);
@@ -231,7 +223,6 @@ vdev_file_io_strategy(void *arg)
 		err = zfs_file_pread(vf->vf_file, buf, size, off, &resid);
 		abd_return_buf_copy(zio->io_abd, buf, size);
 	} else {
-#ifdef ZIA
 		err = EIO;
 
 		boolean_t local_offload = B_FALSE;
@@ -261,7 +252,6 @@ vdev_file_io_strategy(void *arg)
 			zio_delay_interrupt(zio);
 			return;
 		}
-#endif
 		buf = abd_borrow_buf_copy(zio->io_abd, size);
 		err = zfs_file_pwrite(vf->vf_file, buf, size, off, &resid);
 		abd_return_buf(zio->io_abd, buf, size);

@@ -31,11 +31,8 @@
 #include <sys/zio_checksum.h>
 #include <sys/zil.h>
 #include <sys/abd.h>
-#include <zfs_fletcher.h>
-
-#ifdef ZIA
 #include <sys/zia.h>
-#endif
+#include <zfs_fletcher.h>
 
 /*
  * Checksum vectors.
@@ -361,14 +358,12 @@ zio_checksum_compute(zio_t *zio, enum zio_checksum checksum,
 		zio_eck_t eck;
 		size_t eck_offset;
 
-#ifdef ZIA
 		/* not handling embedded checksums, so bring back data */
 		const int zia_rc = zia_cleanup_abd(abd, size, B_FALSE);
 		if (zia_rc == ZIA_ACCELERATOR_DOWN) {
 			zia_restart_before_vdev(zio);
 			return;
 		}
-#endif
 
 		memset(&saved, 0, sizeof (zio_cksum_t));
 
@@ -417,7 +412,6 @@ zio_checksum_compute(zio_t *zio, enum zio_checksum checksum,
 	} else {
 		saved = bp->blk_cksum;
 
-#ifdef ZIA
 		int zia_rc = ZIA_FALLBACK;
 
 		/* only offload non-embedded checksums */
@@ -436,14 +430,11 @@ zio_checksum_compute(zio_t *zio, enum zio_checksum checksum,
 				zia_restart_before_vdev(zio);
 				return;
 			}
-#endif
 		ci->ci_func[0](abd, size, spa->spa_cksum_tmpls[checksum],
 		    &cksum);
-#ifdef ZIA
 		} else {
 			zio->io_flags |= ZIO_FLAG_DONT_AGGREGATE;
 		}
-#endif
 		if (BP_USES_CRYPT(bp) && BP_GET_TYPE(bp) != DMU_OT_OBJSET)
 			zio_checksum_handle_crypt(&cksum, &saved, insecure);
 		bp->blk_cksum = cksum;
@@ -472,13 +463,11 @@ zio_checksum_error_impl(spa_t *spa, const blkptr_t *bp,
 		zio_cksum_t verifier;
 		size_t eck_offset;
 
-#ifdef ZIA
 		/* not handling embedded checksums, so bring back data */
 		const int zia_rc = zia_cleanup_abd(abd, size, B_FALSE);
 		if (zia_rc == ZIA_ACCELERATOR_DOWN) {
 			return (zia_rc);
 		}
-#endif
 
 		if (checksum == ZIO_CHECKSUM_ZILOG2) {
 			zil_chain_t zilc;
@@ -542,7 +531,6 @@ zio_checksum_error_impl(spa_t *spa, const blkptr_t *bp,
 		byteswap = BP_SHOULD_BYTESWAP(bp);
 		expected_cksum = bp->blk_cksum;
 
-#ifdef ZIA
 		zia_props_t *zia_props = zia_get_props(spa);
 		int error = ZIA_FALLBACK;
 		if ((zia_props->can_offload == B_TRUE) &&
@@ -558,12 +546,9 @@ zio_checksum_error_impl(spa_t *spa, const blkptr_t *bp,
 			if (error == ZIA_ACCELERATOR_DOWN) {
 				return (error);
 			}
-#endif
-		ci->ci_func[byteswap](abd, size,
-		    spa->spa_cksum_tmpls[checksum], &actual_cksum);
-#ifdef ZIA
+			ci->ci_func[byteswap](abd, size,
+			    spa->spa_cksum_tmpls[checksum], &actual_cksum);
 		}
-#endif
 	}
 
 	/*

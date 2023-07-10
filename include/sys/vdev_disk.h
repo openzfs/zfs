@@ -43,10 +43,8 @@
 #ifdef _KERNEL
 #include <sys/vdev.h>
 
-#ifdef ZIA
 int __vdev_classic_physio(struct block_device *bdev, zio_t *zio);
 int vdev_disk_io_flush(struct block_device *bdev, zio_t *zio);
 void vdev_disk_error(zio_t *zio);
-#endif /* ZIA */
 #endif /* _KERNEL */
 #endif /* _SYS_VDEV_DISK_H */

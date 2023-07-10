@@ -136,9 +136,7 @@ typedef struct raidz_row {
 	uint64_t rr_offset;		/* Logical offset for *_io_verify() */
 	uint64_t rr_size;		/* Physical size for *_io_verify() */
 #endif
-#ifdef ZIA
 	void *rr_zia_handle;
-#endif
 	raidz_col_t rr_col[];		/* Flexible array of I/O columns */
 } raidz_row_t;
 

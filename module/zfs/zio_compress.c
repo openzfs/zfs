@@ -111,11 +111,7 @@ zio_compress_select(spa_t *spa, enum zio_compress child,
 	return (result);
 }
 
-#ifndef ZIA
-static int
-#else
 int
-#endif
 zio_compress_zeroed_cb(void *data, size_t len, void *private)
 {
 	(void) private;

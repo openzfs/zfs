@@ -44,8 +44,6 @@
  *
  */
 
-#ifdef ZIA
-
 #include <sys/abd.h>
 #include <sys/abd_impl.h>
 #include <sys/spa_impl.h>
@@ -56,7 +54,11 @@
 #include <sys/zia_cddl.h>
 #include <sys/zia_private.h>
 
+#ifdef ZIA
 #include <dpusm/user_api.h>
+#else
+typedef void * dpusm_uf_t;
+#endif
 
 /* ************************************************************* */
 /* global offloader functions initialized with ZFS */
@@ -72,20 +74,21 @@ zia_get_props(spa_t *spa)
 void
 zia_prop_warn(boolean_t val, const char *name)
 {
-	if (val == B_TRUE) {
 #ifdef _KERNEL
+	if (val == B_TRUE) {
 		printk("Z.I.A. %s enabled. Encryption and "
 		    "Dedup for this spa will be disabled.\n",
 		    name);
-#else
-		(void) name;
-#endif
 	}
+#else
+	(void) val; (void) name;
+#endif
 }
 
 int
 dpusm_to_ret(const int dpusm_ret)
 {
+#ifdef ZIA
 	int zia_ret = ZIA_FALLBACK;
 	switch (dpusm_ret) {
 		case DPUSM_OK:
@@ -112,12 +115,18 @@ dpusm_to_ret(const int dpusm_ret)
 			break;
 	}
 	return (zia_ret);
+#else
+	(void) dpusm_ret;
+	return (ZIA_DISABLED);
+#endif
 }
 
+#ifdef ZIA
 dpusm_compress_t
 compress_to_dpusm(enum zio_compress c)
 {
 	dpusm_compress_t dpusm_c = 0;
+
 	switch (c) {
 		case ZIO_COMPRESS_GZIP_1:
 			dpusm_c = DPUSM_COMPRESS_GZIP_1;
@@ -210,7 +219,9 @@ byteorder_to_dpusm(zio_byteorder_t bo)
 
 	return (dpusm_bo);
 }
+#endif
 
+#ifdef ZIA
 int
 zia_get_capabilities(void *provider, dpusm_pc_t **caps)
 {
@@ -218,10 +229,12 @@ zia_get_capabilities(void *provider, dpusm_pc_t **caps)
 	/* provider and caps are checked by the dpusm */
 	return (dpusm_to_ret(dpusm->capabilities(provider, caps)));
 }
+#endif
 
 int
 zia_init(void)
 {
+#ifdef ZIA
 	if (dpusm) {
 		return (ZIA_OK);
 	}
@@ -241,6 +254,9 @@ zia_init(void)
 	printk("Z.I.A. initialized (%p)\n", dpusm);
 #endif
 	return (ZIA_OK);
+#else
+	return (ZIA_DISABLED);
+#endif
 }
 
 int
@@ -254,6 +270,7 @@ zia_fini(void)
 		return (ZIA_ERROR);
 	}
 
+#ifdef ZIA
 	if (dpusm_finalize) {
 		dpusm_finalize();
 #ifdef _KERNEL
@@ -266,6 +283,7 @@ zia_fini(void)
 		}
 #endif
 	}
+#endif
 
 	dpusm = NULL;
 	return (ZIA_OK);
@@ -274,16 +292,22 @@ zia_fini(void)
 void *
 zia_get_provider(const char *name)
 {
+#ifdef ZIA
 	if (!dpusm) {
 		return (NULL);
 	}
 
-	void *provider = dpusm->get(name);
+	void *provider = NULL;
+	provider = dpusm->get(name);
 #ifdef _KERNEL
 	printk("Z.I.A. obtained handle to provider \"%s\" (%p)",
 	    name, provider);
 #endif
 	return (provider);
+#else
+	(void) name; (void) vdev;
+	return (NULL);
+#endif
 }
 
 const char *
@@ -293,12 +317,17 @@ zia_get_provider_name(void *provider)
 		return (NULL);
 	}
 
+#ifdef ZIA
 	return (dpusm->get_name(provider));
+#else
+	return (NULL);
+#endif
 }
 
 int
 zia_put_provider(void **provider)
 {
+#ifdef ZIA
 	if (!dpusm || !provider || !*provider) {
 		return (ZIA_FALLBACK);
 	}
@@ -306,6 +335,7 @@ zia_put_provider(void **provider)
 #ifdef _KERNEL
 	const char *name = zia_get_provider_name(*provider);
 #endif
+
 	const int ret = dpusm->put(*provider);
 
 #ifdef _KERNEL
@@ -317,6 +347,10 @@ zia_put_provider(void **provider)
 	*provider = NULL;
 
 	return (dpusm_to_ret(ret));
+#else
+	(void) provider; (void) vdev;
+	return (ZIA_DISABLED);
+#endif
 }
 
 int
@@ -407,10 +441,16 @@ zia_worst_error(const int lhs, const int rhs)
 void *
 zia_alloc(void *provider, size_t size, size_t min_offload_size)
 {
+#ifdef ZIA
 	if (size < min_offload_size) {
 		return (NULL);
 	}
+
 	return ((dpusm && provider)?dpusm->alloc(provider, size):NULL);
+#else
+	(void) provider; (void) size; (void) min_offload_size;
+	return (NULL);
+#endif
 }
 
 /* free the offloader handle without onloading the data */
@@ -419,18 +459,23 @@ zia_free(void **handle)
 {
 	ASSERT(handle);
 
+#ifdef ZIA
 	int ret = DPUSM_OK;
 	if (dpusm) {
 		ret = dpusm->free(*handle);
 		*handle = NULL;
 	}
 	return (dpusm_to_ret(ret));
+#else
+	return (ZIA_DISABLED);
+#endif
 }
 
 /* move data from the offloader into a linear abd and unregister the mapping */
 int
 zia_onload(void **handle, void *buf, size_t size)
 {
+#ifdef ZIA
 	if (!dpusm) {
 		return (ZIA_FALLBACK);
 	}
@@ -466,8 +511,13 @@ zia_onload(void **handle, void *buf, size_t size)
 	zia_free(handle);
 
 	return (dpusm_to_ret(ret));
+#else
+	(void) handle; (void) buf; (void) size;
+	return (ZIA_DISABLED);
+#endif
 }
 
+#ifdef ZIA
 static int
 zia_offload_generic_cb(void *buf, size_t len, void *priv)
 {
@@ -479,9 +529,9 @@ zia_offload_generic_cb(void *buf, size_t len, void *priv)
 	}
 
 	mv->offset += len;
-
 	return (0);
 }
+#endif
 
 /* offload abd + offset to handle + 0 */
 static int
@@ -489,6 +539,7 @@ zia_offload_abd_offset(void *provider, abd_t *abd,
     size_t offset, size_t size,
     size_t min_offload_size, boolean_t *local_offload)
 {
+#ifdef ZIA
 	/* already offloaded */
 	if (ABD_HANDLE(abd)) {
 		if (local_offload) {
@@ -545,6 +596,12 @@ zia_offload_abd_offset(void *provider, abd_t *abd,
 	}
 
 	return (ret);
+#else
+	(void) provider; (void) abd; (void) offset;
+	(void) size; (void) min_offload_size;
+	(void) local_offload;
+	return (ZIA_DISABLED);
+#endif
 }
 
 int
@@ -563,6 +620,7 @@ zia_offload_abd(void *provider, abd_t *abd,
 	    abd, 0, size, min_offload_size, local_offload));
 }
 
+#ifdef ZIA
 static int
 zia_onload_generic_cb(void *buf, size_t len, void *priv)
 {
@@ -576,12 +634,14 @@ zia_onload_generic_cb(void *buf, size_t len, void *priv)
 	mv->offset += len;
 	return (0);
 }
+#endif
 
 /* onload handle + 0 into abd + offset */
 static int
 zia_onload_abd_offset(abd_t *abd, size_t offset,
     size_t size, boolean_t keep_handle)
 {
+#ifdef ZIA
 	if (!dpusm) {
 		return (ZIA_FALLBACK);
 	}
@@ -631,6 +691,10 @@ zia_onload_abd_offset(abd_t *abd, size_t offset,
 	}
 
 	return (ret);
+#else
+	(void) abd; (void) offset; (void) size; (void) keep_handle;
+	return (ZIA_DISABLED);
+#endif
 }
 
 int
@@ -746,6 +810,7 @@ zia_restart_before_vdev(zio_t *zio)
 int
 zia_zero_fill(abd_t *abd, size_t offset, size_t size)
 {
+#ifdef ZIA
 	if (!dpusm) {
 		return (ZIA_FALLBACK);
 	}
@@ -755,6 +820,10 @@ zia_zero_fill(abd_t *abd, size_t offset, size_t size)
 	}
 
 	return (dpusm_to_ret(dpusm->zero_fill(ABD_HANDLE(abd), offset, size)));
+#else
+	(void) abd; (void) offset; (void) size;
+	return (ZIA_DISABLED);
+#endif
 }
 
 int
@@ -763,12 +832,19 @@ zia_compress(zia_props_t *props, enum zio_compress c,
     void **cbuf_handle, uint64_t *c_len,
     uint8_t level, boolean_t *local_offload)
 {
+#ifdef ZIA
 	if (!dpusm) {
 		return (ZIA_FALLBACK);
 	}
 
 	return (zia_compress_impl(dpusm, props, c, src, s_len,
 	    cbuf_handle, c_len, level, local_offload));
+#else
+	(void) props; (void) c; (void) src; (void) s_len;
+	(void) cbuf_handle; (void) c_len; (void) level;
+	(void) local_offload;
+	return (ZIA_DISABLED);
+#endif
 }
 
 int
@@ -776,6 +852,7 @@ zia_decompress(zia_props_t *props, enum zio_compress c,
     abd_t *src, size_t s_len, abd_t *dst, size_t d_len,
     uint8_t *level)
 {
+#ifdef ZIA
 	if (!props) {
 		return (ZIA_ERROR);
 	}
@@ -822,14 +899,19 @@ zia_decompress(zia_props_t *props, enum zio_compress c,
 		zia_free_abd(dst, B_FALSE);
 		/* let abd_free clean up zio->io_abd */
 	}
-
 	return (dpusm_to_ret(ret));
+#else
+	(void) props; (void) c; (void) src; (void) s_len;
+	(void) dst; (void) d_len; (void) level;
+	return (ZIA_FALLBACK);
+#endif
 }
 
 int
 zia_checksum_compute(void *provider, zio_cksum_t *dst, enum zio_checksum alg,
     zio_t *zio, uint64_t size, boolean_t *local_offload)
 {
+#ifdef ZIA
 	if (!dpusm || !provider) {
 		return (ZIA_FALLBACK);
 	}
@@ -862,12 +944,18 @@ zia_checksum_compute(void *provider, zio_cksum_t *dst, enum zio_checksum alg,
 	return (dpusm_to_ret(dpusm->checksum(checksum_to_dpusm(alg),
 	    byteorder, ABD_HANDLE(zio->io_abd), size, dst->zc_word,
 	    sizeof (dst->zc_word))));
+#else
+	(void) provider; (void) dst; (void) alg;
+	(void) zio; (void) size; (void) local_offload;
+	return (ZIA_FALLBACK);
+#endif
 }
 
 int
 zia_checksum_error(enum zio_checksum alg, abd_t *abd,
     uint64_t size, int byteswap, zio_cksum_t *actual_cksum)
 {
+#ifdef ZIA
 	if (!dpusm) {
 		return (ZIA_FALLBACK);
 	}
@@ -886,8 +974,14 @@ zia_checksum_error(enum zio_checksum alg, abd_t *abd,
 	return (dpusm_to_ret(dpusm->checksum(checksum_to_dpusm(alg),
 	    byteorder, ABD_HANDLE(abd), size, actual_cksum->zc_word,
 	    sizeof (actual_cksum->zc_word))));
+#else
+	(void) alg; (void) abd; (void) size;
+	(void) byteswap; (void) actual_cksum;
+	return (ZIA_FALLBACK);
+#endif
 }
 
+#ifdef ZIA
 static boolean_t
 zia_can_raidz(raidz_row_t *rr, zia_props_t *props, uint64_t raidn,
     boolean_t rec, uint_t cksum, size_t *col_sizes)
@@ -926,15 +1020,14 @@ zia_can_raidz(raidz_row_t *rr, zia_props_t *props, uint64_t raidn,
 		    /* make sure the checksum is supported by the provider */
 		    (caps->checksum & checksum_to_dpusm(cksum)));
 	}
-
 	return (good?B_TRUE:B_FALSE);
 }
+#endif
 
 /* onload abd and delete raidz_row_t stuff */
 static int
 zia_raidz_cleanup(zio_t *zio, raidz_row_t *rr,
-    boolean_t local_offload,
-    boolean_t onload_parity)
+    boolean_t local_offload, boolean_t onload_parity)
 {
 	/*
 	 * bring data back to zio->io_abd, which should
@@ -954,6 +1047,7 @@ int
 zia_raidz_alloc(zio_t *zio, raidz_row_t *rr, boolean_t rec,
     uint_t cksum, boolean_t *local_offload)
 {
+#ifdef ZIA
 	if (!dpusm) {
 		return (ZIA_FALLBACK);
 	}
@@ -1131,6 +1225,12 @@ error:
 	ASSERT(zia_is_offloaded(zio->io_abd) == B_FALSE);
 
 	return (ZIA_ERROR);
+#else
+	(void) zio; (void) rr; (void) rec;
+	(void) cksum; (void) local_offload;
+	return (ZIA_FALLBACK);
+#endif
+
 }
 
 /*
@@ -1140,6 +1240,7 @@ error:
 int
 zia_raidz_free(raidz_row_t *rr, boolean_t onload_parity)
 {
+#ifdef ZIA
 	if (!dpusm) {
 		return (ZIA_FALLBACK);
 	}
@@ -1176,11 +1277,16 @@ zia_raidz_free(raidz_row_t *rr, boolean_t onload_parity)
 	rr->rr_zia_handle = NULL;
 
 	return (ret);
+#else
+	(void) rr; (void) onload_parity;
+	return (ZIA_FALLBACK);
+#endif
 }
 
 int
 zia_raidz_gen(raidz_row_t *rr)
 {
+#ifdef ZIA
 	if (!dpusm) {
 		return (ZIA_FALLBACK);
 	}
@@ -1191,6 +1297,10 @@ zia_raidz_gen(raidz_row_t *rr)
 	}
 
 	return (dpusm_to_ret(dpusm->raid.gen(rr->rr_zia_handle)));
+#else
+	(void) rr;
+	return (ZIA_FALLBACK);
+#endif
 }
 
 int
@@ -1215,6 +1325,7 @@ zia_raidz_gen_cleanup(zio_t *zio, raidz_row_t *rr,
 int
 zia_raidz_new_parity(zio_t *zio, raidz_row_t *rr, uint64_t c)
 {
+#ifdef ZIA
 	if (!zio || !rr || (c >= rr->rr_firstdatacol)) {
 		return (ZIA_ERROR);
 	}
@@ -1249,11 +1360,16 @@ zia_raidz_new_parity(zio_t *zio, raidz_row_t *rr, uint64_t c)
 	}
 
 	return (dpusm_to_ret(ret));
+#else
+	(void) zio; (void) rr; (void) c;
+	return (ZIA_FALLBACK);
+#endif
 }
 
 int
 zia_raidz_cmp(abd_t *lhs, abd_t *rhs, int *diff)
 {
+#ifdef ZIA
 	if (!lhs || !rhs || !diff) {
 		return (ZIA_ERROR);
 	}
@@ -1270,11 +1386,16 @@ zia_raidz_cmp(abd_t *lhs, abd_t *rhs, int *diff)
 	}
 
 	return (dpusm_to_ret(dpusm->raid.cmp(lhs_handle, rhs_handle, diff)));
+#else
+	(void) lhs; (void) rhs; (void) diff;
+	return (ZIA_FALLBACK);
+#endif
 }
 
 int
 zia_raidz_rec(raidz_row_t *rr, int *t, int nt)
 {
+#ifdef ZIA
 	if (!dpusm) {
 		return (ZIA_FALLBACK);
 	}
@@ -1285,6 +1406,10 @@ zia_raidz_rec(raidz_row_t *rr, int *t, int nt)
 	}
 
 	return (dpusm_to_ret(zia_raidz_rec_impl(dpusm, rr, t, nt)));
+#else
+	(void) rr; (void) t; (void) nt;
+	return (ZIA_FALLBACK);
+#endif
 }
 
 int
@@ -1303,6 +1428,7 @@ zia_file_open(vdev_t *vdev, const char *path,
 		return (ZIA_ERROR);
 	}
 
+#ifdef ZIA
 	void *provider = zia_get_props(vdev->vdev_spa)->provider;
 	if (!dpusm || !provider) {
 		return (ZIA_FALLBACK);
@@ -1314,12 +1440,17 @@ zia_file_open(vdev_t *vdev, const char *path,
 	}
 
 	return (VDEV_HANDLE(vdev)?ZIA_OK:ZIA_ERROR);
+#else
+	(void) path; (void) flags; (void) mode;
+	return (ZIA_FALLBACK);
+#endif
 }
 
 int
 zia_file_write(vdev_t *vdev, abd_t *abd, ssize_t size,
     loff_t offset, ssize_t *resid, int *err)
 {
+#ifdef ZIA
 	if (!vdev || !abd) {
 		return (ZIA_ERROR);
 	}
@@ -1341,11 +1472,17 @@ zia_file_write(vdev_t *vdev, abd_t *abd, ssize_t size,
 
 	return (dpusm->file.write(VDEV_HANDLE(vdev),
 	    ABD_HANDLE(abd), data_size, trailing_zeros, offset, resid, err));
+#else
+	(void) vdev; (void) abd; (void) size;
+	(void) offset; (void) resid; (void) err;
+	return (ZIA_FALLBACK);
+#endif
 }
 
 int
 zia_file_close(vdev_t *vdev)
 {
+#ifdef ZIA
 	if (!vdev) {
 		return (ZIA_ERROR);
 	}
@@ -1359,6 +1496,10 @@ zia_file_close(vdev_t *vdev)
 	zia_get_props(vdev->vdev_spa)->min_offload_size = 0;
 
 	return (ZIA_OK);
+#else
+	(void) vdev;
+	return (ZIA_FALLBACK);
+#endif
 }
 
 #ifdef _KERNEL
@@ -1366,6 +1507,7 @@ int
 zia_disk_open(vdev_t *vdev, const char *path,
     struct block_device *bdev)
 {
+#ifdef ZIA
 	if (!vdev || !vdev->vdev_spa) {
 		return (ZIA_ERROR);
 	}
@@ -1381,11 +1523,16 @@ zia_disk_open(vdev_t *vdev, const char *path,
 	}
 
 	return (VDEV_HANDLE(vdev)?ZIA_OK:ZIA_ERROR);
+#else
+	(void) vdev; (void) path; (void) bdev;
+	return (ZIA_FALLBACK);
+#endif
 }
 
 int
 zia_disk_invalidate(vdev_t *vdev)
 {
+#ifdef ZIA
 	if (!vdev) {
 		return (ZIA_ERROR);
 	}
@@ -1395,12 +1542,17 @@ zia_disk_invalidate(vdev_t *vdev)
 	}
 
 	return (dpusm_to_ret(dpusm->disk.invalidate(VDEV_HANDLE(vdev))));
+#else
+	(void) vdev;
+	return (ZIA_FALLBACK);
+#endif
 }
 
 int
 zia_disk_write(vdev_t *vdev, zio_t *zio, size_t io_size,
     uint64_t io_offset, int flags)
 {
+#ifdef ZIA
 	if (!vdev || !zio || !zio->io_abd) {
 		return (EIO);
 	}
@@ -1424,12 +1576,18 @@ zia_disk_write(vdev_t *vdev, zio_t *zio, size_t io_size,
 	return (dpusm->disk.write(VDEV_HANDLE(vdev), ABD_HANDLE(zio->io_abd),
 	    data_size, trailing_zeros, io_offset, flags,
 	    zia_disk_write_completion, zio));
+#else
+	(void) vdev; (void) zio; (void) io_size;
+	(void) io_offset; (void) flags;
+	return (ZIA_FALLBACK);
+#endif
 }
 
 int
 zia_disk_flush(vdev_t *vdev, zio_t *zio)
 {
-	if (!vdev) {
+#ifdef ZIA
+	if (!vdev || !zio) {
 		return (EIO);
 	}
 
@@ -1439,11 +1597,16 @@ zia_disk_flush(vdev_t *vdev, zio_t *zio)
 
 	return (dpusm->disk.flush(VDEV_HANDLE(vdev),
 	    zia_disk_flush_completion, zio));
+#else
+	(void) vdev; (void) zio;
+	return (EIO);
+#endif
 }
 
 int
 zia_disk_close(vdev_t *vdev)
 {
+#ifdef ZIA
 	if (!vdev) {
 		return (ZIA_ERROR);
 	}
@@ -1461,7 +1624,9 @@ zia_disk_close(vdev_t *vdev)
 	dpusm->disk.close(handle);
 
 	return (ZIA_OK);
-}
+#else
+	(void) vdev;
+	return (ZIA_FALLBACK);
 #endif
-
+}
 #endif

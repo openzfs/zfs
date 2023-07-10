@@ -44,20 +44,16 @@
  *
  */
 
-#ifdef ZIA
-
 #ifndef _ZIA_PRIVATE_H
 #define	_ZIA_PRIVATE_H
-
-#include <sys/zio.h>
-#include <sys/zio_compress.h>
-#include <sys/zio_checksum.h>
-
-#include <dpusm/user_api.h>
 
 /*
  * needed by both zia.h and zia_cddl.h
  */
+
+#include <sys/zio.h>
+#include <sys/zio_compress.h>
+#include <sys/zio_checksum.h>
 
 #define	ABD_HANDLE(abd) (abd)->abd_zia_handle
 
@@ -66,11 +62,14 @@
 int
 dpusm_to_ret(const int dpusm_ret);
 
+#ifdef ZIA
+#include <dpusm/user_api.h>
+
 dpusm_compress_t
 compress_to_dpusm(enum zio_compress c);
 
 int zia_get_capabilities(void *provider, dpusm_pc_t **caps);
 
-#endif
+#endif /* ZIA */
 
-#endif
+#endif /* _ZIA_PRIVATE_H */
