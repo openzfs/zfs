@@ -6263,7 +6263,8 @@ zfs_freebsd_copy_file_range(struct vop_copy_file_range_args *ap)
 			goto bad_write_fallback;
 		}
 	} else {
-#if __FreeBSD_version >= 1400086
+#if (__FreeBSD_version >= 1302506 && __FreeBSD_version < 1400000) || \
+	__FreeBSD_version >= 1400086
 		vn_lock_pair(invp, false, LK_EXCLUSIVE, outvp, false,
 		    LK_EXCLUSIVE);
 #else
