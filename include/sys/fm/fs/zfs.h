@@ -102,8 +102,6 @@ extern "C" {
 #define	FM_EREPORT_PAYLOAD_ZFS_ZIO_TIMESTAMP	"zio_timestamp"
 #define	FM_EREPORT_PAYLOAD_ZFS_ZIO_DELTA	"zio_delta"
 #define	FM_EREPORT_PAYLOAD_ZFS_PREV_STATE	"prev_state"
-#define	FM_EREPORT_PAYLOAD_ZFS_CKSUM_EXPECTED	"cksum_expected"
-#define	FM_EREPORT_PAYLOAD_ZFS_CKSUM_ACTUAL	"cksum_actual"
 #define	FM_EREPORT_PAYLOAD_ZFS_CKSUM_ALGO	"cksum_algorithm"
 #define	FM_EREPORT_PAYLOAD_ZFS_CKSUM_BYTESWAP	"cksum_byteswap"
 #define	FM_EREPORT_PAYLOAD_ZFS_BAD_OFFSET_RANGES "bad_ranges"
