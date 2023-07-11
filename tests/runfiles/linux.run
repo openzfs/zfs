@@ -34,6 +34,15 @@ tags = ['functional', 'acl', 'posix-sa']
 tests = ['atime_003_pos', 'root_relatime_on']
 tags = ['functional', 'atime']
 
+[tests/functional/block_cloning:Linux]
+tests = ['block_cloning_copyfilerange', 'block_cloning_copyfilerange_partial',
+    'block_cloning_ficlone', 'block_cloning_ficlonerange',
+    'block_cloning_ficlonerange_partial',
+    'block_cloning_disabled_copyfilerange', 'block_cloning_disabled_ficlone',
+    'block_cloning_disabled_ficlonerange',
+    'block_cloning_copyfilerange_cross_dataset']
+tags = ['functional', 'block_cloning']
+
 [tests/functional/chattr:Linux]
 tests = ['chattr_001_pos', 'chattr_002_neg']
 tags = ['functional', 'chattr']
