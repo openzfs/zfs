@@ -119,6 +119,7 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/renameat2
 scripts_zfs_tests_bin_PROGRAMS += %D%/xattrtest
 scripts_zfs_tests_bin_PROGRAMS += %D%/zed_fd_spill-zedlet
 scripts_zfs_tests_bin_PROGRAMS += %D%/idmap_util
+scripts_zfs_tests_bin_PROGRAMS += %D%/clonefile
 
 %C%_idmap_util_LDADD = libspl.la
 
