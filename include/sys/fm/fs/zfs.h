@@ -112,8 +112,6 @@ extern "C" {
 #define	FM_EREPORT_PAYLOAD_ZFS_BAD_RANGE_CLEARS	"bad_range_clears"
 #define	FM_EREPORT_PAYLOAD_ZFS_BAD_SET_BITS	"bad_set_bits"
 #define	FM_EREPORT_PAYLOAD_ZFS_BAD_CLEARED_BITS	"bad_cleared_bits"
-#define	FM_EREPORT_PAYLOAD_ZFS_BAD_SET_HISTOGRAM "bad_set_histogram"
-#define	FM_EREPORT_PAYLOAD_ZFS_BAD_CLEARED_HISTOGRAM "bad_cleared_histogram"
 #define	FM_EREPORT_PAYLOAD_ZFS_SNAPSHOT_NAME	"snapshot_name"
 #define	FM_EREPORT_PAYLOAD_ZFS_DEVICE_NAME	"device_name"
 #define	FM_EREPORT_PAYLOAD_ZFS_RAW_DEVICE_NAME	"raw_name"
