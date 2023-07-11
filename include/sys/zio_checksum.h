@@ -94,8 +94,6 @@ typedef const struct zio_checksum_info {
 } zio_checksum_info_t;
 
 typedef struct zio_bad_cksum {
-	zio_cksum_t		zbc_expected;
-	zio_cksum_t		zbc_actual;
 	const char		*zbc_checksum_name;
 	uint8_t			zbc_byteswapped;
 	uint8_t			zbc_injected;

@@ -1398,7 +1398,7 @@ vdev_indirect_checksum_error(zio_t *zio,
 	vd->vdev_stat.vs_checksum_errors++;
 	mutex_exit(&vd->vdev_stat_lock);
 
-	zio_bad_cksum_t zbc = {{{ 0 }}};
+	zio_bad_cksum_t zbc = { 0 };
 	abd_t *bad_abd = ic->ic_data;
 	abd_t *good_abd = is->is_good_child->ic_data;
 	(void) zfs_ereport_post_checksum(zio->io_spa, vd, NULL, zio,
