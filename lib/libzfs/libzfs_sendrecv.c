@@ -4218,16 +4218,14 @@ zfs_setup_cmdline_props(libzfs_handle_t *hdl, zfs_type_t type,
 			 */
 			if (!zfs_prop_valid_for_type(prop, type, B_FALSE) &&
 			    !zfs_prop_user(name)) {
-				if (type == ZFS_TYPE_VOLUME &&
-				    strncmp("mountpoint", name, 10) == 0) {
-					// Don't complain about '-x mountpoint'
-					// applied to a volume.
-					continue;
-				}
-				(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
-				    "Warning: %s: property '%s' does not "
-				    "apply to datasets of this type\n"),
-				    fsname, name);
+				/*
+				 * These are non-user properties that are not
+				 * supported for this particular type of
+				 * destination. These could not have been set
+				 * on the source, so there is no reason to
+				 * complain about eliding them (-x) during the
+				 * receive.
+				 */
 				continue;
 			}
 			/*
