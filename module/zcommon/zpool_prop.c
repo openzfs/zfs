@@ -483,8 +483,8 @@ vdev_prop_user(const char *name)
 }
 
 /*
- * Given a pool property ID, returns the corresponding name.
- * Assuming the pool property ID is valid.
+ * Given a vdev property ID, returns the corresponding name.
+ * Assuming the vdev property ID is valid.
  */
 const char *
 vdev_prop_to_name(vdev_prop_t prop)
@@ -501,6 +501,9 @@ vdev_prop_get_type(vdev_prop_t prop)
 boolean_t
 vdev_prop_readonly(vdev_prop_t prop)
 {
+	if (prop == VDEV_PROP_USERPROP)
+		return (B_FALSE);
+
 	return (vdev_prop_table[prop].pd_attr == PROP_READONLY);
 }
 
