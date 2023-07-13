@@ -49,6 +49,7 @@
 #include <sys/spa_impl.h>
 #include <sys/vdev_impl.h>
 #include <sys/vdev_disk.h>
+#include <sys/vdev_file.h>
 #include <sys/vdev_raidz_impl.h>
 #include <sys/zia.h>
 #include <sys/zia_cddl.h>
@@ -289,8 +290,39 @@ zia_fini(void)
 	return (ZIA_OK);
 }
 
+#ifdef ZIA
+/* recursively find all leaf vdevs and open them */
+static void zia_open_vdevs(vdev_t *vd) {
+	vdev_ops_t *ops = vd->vdev_ops;
+	if (ops->vdev_op_leaf) {
+		ASSERT(!vd->vdev_zia_handle);
+
+		const size_t len = strlen(ops->vdev_op_type);
+		if (len == 4) {
+			if (memcmp(ops->vdev_op_type, "file", 4) == 0) {
+				zia_file_open(vd, vd->vdev_path,
+				    vdev_file_open_mode(spa_mode(vd->vdev_spa)),
+				    0);
+			}
+#ifdef _KERNEL
+			else if (memcmp(ops->vdev_op_type, "disk", 4) == 0) {
+				/* first member is struct block_device * */
+				void *disk = vd->vdev_tsd;
+				zia_disk_open(vd, vd->vdev_path, disk);
+			}
+#endif
+		}
+	} else {
+		for (uint64_t i = 0; i < vd->vdev_children; i++) {
+			vdev_t *child = vd->vdev_child[i];
+			zia_open_vdevs(child);
+		}
+	}
+}
+#endif
+
 void *
-zia_get_provider(const char *name)
+zia_get_provider(const char *name, vdev_t *vdev)
 {
 #ifdef ZIA
 	if (!dpusm) {
@@ -303,6 +335,11 @@ zia_get_provider(const char *name)
 	printk("Z.I.A. obtained handle to provider \"%s\" (%p)",
 	    name, provider);
 #endif
+
+	/* set up Z.I.A. for existing vdevs */
+	if (vdev) {
+		zia_open_vdevs(vdev);
+	}
 	return (provider);
 #else
 	(void) name; (void) vdev;
@@ -324,12 +361,45 @@ zia_get_provider_name(void *provider)
 #endif
 }
 
+#ifdef ZIA
+/* recursively find all leaf vdevs and close them */
+static void zia_close_vdevs(vdev_t *vd) {
+	vdev_ops_t *ops = vd->vdev_ops;
+	if (ops->vdev_op_leaf) {
+		const size_t len = strlen(ops->vdev_op_type);
+		if (len == 4) {
+			if (memcmp(ops->vdev_op_type, "file", 4) == 0) {
+				zia_file_close(vd);
+			}
+#ifdef _KERNEL
+			else if (memcmp(ops->vdev_op_type, "disk", 4) == 0) {
+				zia_disk_close(vd);
+			}
+#endif
+		}
+	} else {
+		for (uint64_t i = 0; i < vd->vdev_children; i++) {
+			vdev_t *child = vd->vdev_child[i];
+			zia_close_vdevs(child);
+		}
+	}
+}
+#endif
+
 int
-zia_put_provider(void **provider)
+zia_put_provider(void **provider, vdev_t *vdev)
 {
 #ifdef ZIA
 	if (!dpusm || !provider || !*provider) {
 		return (ZIA_FALLBACK);
+	}
+
+	/*
+	 * if the zpool is not going down, but the provider is going away,
+	 * make sure the vdevs don't keep pointing to the invalid provider
+	 */
+	if (vdev) {
+		zia_close_vdevs(vdev);
 	}
 
 #ifdef _KERNEL

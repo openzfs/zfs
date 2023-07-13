@@ -118,9 +118,9 @@ void zia_prop_warn(boolean_t val, const char *name);
 int zia_init(void);
 int zia_fini(void);
 
-void *zia_get_provider(const char *name);
+void *zia_get_provider(const char *name, vdev_t *vdev);
 const char *zia_get_provider_name(void *provider);
-int zia_put_provider(void **provider);
+int zia_put_provider(void **provider, vdev_t *vdev);
 
 /*
  * turn off offloading for this zio as well as

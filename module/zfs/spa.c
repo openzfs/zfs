@@ -2194,7 +2194,8 @@ spa_unload(spa_t *spa)
 	spa->spa_raidz_expand = NULL;
 
 	if (zia_get_props(spa)->provider != NULL) {
-		zia_put_provider(&zia_get_props(spa)->provider);
+		zia_put_provider(&zia_get_props(spa)->provider,
+		    spa->spa_root_vdev);
 	}
 
 	spa_config_exit(spa, SCL_ALL, spa);
@@ -9499,8 +9500,10 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 		case ZPOOL_PROP_ZIA_PROVIDER:
 			strval = fnvpair_value_string(elem);
 			if (zia_props->provider != NULL)
-				zia_put_provider(&zia_props->provider);
-			zia_props->provider = zia_get_provider(strval);
+				zia_put_provider(&zia_props->provider,
+				    spa->spa_root_vdev);
+			zia_props->provider = zia_get_provider(strval,
+			    spa->spa_root_vdev);
 			zia_props->can_offload = !!zia_props->provider;
 
 			/*

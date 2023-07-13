@@ -39,6 +39,7 @@ typedef struct vdev_file {
 
 extern void vdev_file_init(void);
 extern void vdev_file_fini(void);
+extern mode_t vdev_file_open_mode(spa_mode_t spa_mode);
 
 #ifdef	__cplusplus
 }
