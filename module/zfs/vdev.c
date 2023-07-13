@@ -5688,6 +5688,7 @@ vdev_props_set_sync(void *arg, dmu_tx_t *tx)
 	objset_t *mos = spa->spa_meta_objset;
 	nvpair_t *elem = NULL;
 	uint64_t vdev_guid;
+	uint64_t objid;
 	nvlist_t *nvprops;
 
 	vdev_guid = fnvlist_lookup_uint64(nvp, ZPOOL_VDEV_PROPS_SET_VDEV);
@@ -5698,30 +5699,27 @@ vdev_props_set_sync(void *arg, dmu_tx_t *tx)
 	if (vd == NULL)
 		return;
 
+	/*
+	 * Set vdev property values in the vdev props mos object.
+	 */
+	if (vd->vdev_root_zap != 0) {
+		objid = vd->vdev_root_zap;
+	} else if (vd->vdev_top_zap != 0) {
+		objid = vd->vdev_top_zap;
+	} else if (vd->vdev_leaf_zap != 0) {
+		objid = vd->vdev_leaf_zap;
+	} else {
+		panic("unexpected vdev type");
+	}
+
 	mutex_enter(&spa->spa_props_lock);
 
 	while ((elem = nvlist_next_nvpair(nvprops, elem)) != NULL) {
-		uint64_t intval, objid = 0;
+		uint64_t intval;
 		const char *strval;
 		vdev_prop_t prop;
 		const char *propname = nvpair_name(elem);
 		zprop_type_t proptype;
-
-		/*
-		 * Set vdev property values in the vdev props mos object.
-		 */
-		if (vd->vdev_root_zap != 0) {
-			objid = vd->vdev_root_zap;
-		} else if (vd->vdev_top_zap != 0) {
-			objid = vd->vdev_top_zap;
-		} else if (vd->vdev_leaf_zap != 0) {
-			objid = vd->vdev_leaf_zap;
-		} else {
-			/*
-			 * XXX: implement vdev_props_set_check()
-			 */
-			panic("vdev not root/top/leaf");
-		}
 
 		switch (prop = vdev_name_to_prop(propname)) {
 		case VDEV_PROP_USERPROP:
@@ -5790,6 +5788,12 @@ vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 	int error = 0;
 
 	ASSERT(vd != NULL);
+
+	/* Check that vdev has a zap we can use */
+	if (vd->vdev_root_zap == 0 &&
+	    vd->vdev_top_zap == 0 &&
+	    vd->vdev_leaf_zap == 0)
+		return (SET_ERROR(EINVAL));
 
 	if (nvlist_lookup_uint64(innvl, ZPOOL_VDEV_PROPS_SET_VDEV,
 	    &vdev_guid) != 0)
