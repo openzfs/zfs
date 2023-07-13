@@ -36,7 +36,11 @@ struct xucred;
 typedef struct flock	flock64_t;
 typedef	struct vnode	vnode_t;
 typedef	struct vattr	vattr_t;
+#if __FreeBSD_version < 1400093
 typedef enum vtype vtype_t;
+#else
+#define	vtype_t __enum_uint8(vtype)
+#endif
 
 #include <sys/types.h>
 #include <sys/queue.h>
