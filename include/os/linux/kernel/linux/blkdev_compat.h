@@ -181,7 +181,11 @@ bi_status_to_errno(blk_status_t status)
 		return (ENOLINK);
 	case BLK_STS_TARGET:
 		return (EREMOTEIO);
+#ifdef HAVE_BLK_STS_RESV_CONFLICT
+	case BLK_STS_RESV_CONFLICT:
+#else
 	case BLK_STS_NEXUS:
+#endif
 		return (EBADE);
 	case BLK_STS_MEDIUM:
 		return (ENODATA);
@@ -215,7 +219,11 @@ errno_to_bi_status(int error)
 	case EREMOTEIO:
 		return (BLK_STS_TARGET);
 	case EBADE:
+#ifdef HAVE_BLK_STS_RESV_CONFLICT
+		return (BLK_STS_RESV_CONFLICT);
+#else
 		return (BLK_STS_NEXUS);
+#endif
 	case ENODATA:
 		return (BLK_STS_MEDIUM);
 	case EILSEQ:
