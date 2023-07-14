@@ -790,7 +790,7 @@ update_histogram(uint64_t value_arg, uint8_t *hist, uint32_t *count)
 	/* We store the bits in big-endian (largest-first) order */
 	for (i = 0; i < 64; i++) {
 		if (value & (1ull << i)) {
-			hist[63 - i]++;
+			hist[63 - i] = MAX(hist[63 - i], hist[63 - i] + 1);
 			++bits;
 		}
 	}
