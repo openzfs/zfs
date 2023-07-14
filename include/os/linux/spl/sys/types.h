@@ -38,7 +38,7 @@ typedef unsigned long		ulong_t;
 typedef unsigned long long	u_longlong_t;
 typedef long long		longlong_t;
 
-typedef unsigned long		intptr_t;
+typedef long			intptr_t;
 typedef unsigned long long	rlim64_t;
 
 typedef struct task_struct	kthread_t;
