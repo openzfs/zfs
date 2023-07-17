@@ -173,8 +173,8 @@ dsl_deadlist_load_tree(dsl_deadlist_t *dl)
 		 * in parallel.  Then open them all in a second pass.
 		 */
 		dle->dle_bpobj.bpo_object = za.za_first_integer;
-		dmu_prefetch(dl->dl_os, dle->dle_bpobj.bpo_object,
-		    0, 0, 0, ZIO_PRIORITY_SYNC_READ);
+		dmu_prefetch_dnode(dl->dl_os, dle->dle_bpobj.bpo_object,
+		    ZIO_PRIORITY_SYNC_READ);
 
 		avl_add(&dl->dl_tree, dle);
 	}
@@ -235,8 +235,8 @@ dsl_deadlist_load_cache(dsl_deadlist_t *dl)
 		 * in parallel.  Then open them all in a second pass.
 		 */
 		dlce->dlce_bpobj = za.za_first_integer;
-		dmu_prefetch(dl->dl_os, dlce->dlce_bpobj,
-		    0, 0, 0, ZIO_PRIORITY_SYNC_READ);
+		dmu_prefetch_dnode(dl->dl_os, dlce->dlce_bpobj,
+		    ZIO_PRIORITY_SYNC_READ);
 		avl_add(&dl->dl_cache, dlce);
 	}
 	VERIFY3U(error, ==, ENOENT);
