@@ -1000,39 +1000,6 @@ abd_cache_reap_now(void)
 }
 
 #if defined(_KERNEL)
-/*
- * bio_nr_pages for ABD.
- * @off is the offset in @abd
- */
-unsigned long
-abd_nr_pages_off(abd_t *abd, unsigned int size, size_t off)
-{
-	unsigned long pos;
-
-	if (abd_is_gang(abd)) {
-		unsigned long count = 0;
-
-		for (abd_t *cabd = abd_gang_get_offset(abd, &off);
-		    cabd != NULL && size != 0;
-		    cabd = list_next(&ABD_GANG(abd).abd_gang_chain, cabd)) {
-			ASSERT3U(off, <, cabd->abd_size);
-			int mysize = MIN(size, cabd->abd_size - off);
-			count += abd_nr_pages_off(cabd, mysize, off);
-			size -= mysize;
-			off = 0;
-		}
-		return (count);
-	}
-
-	if (abd_is_linear(abd))
-		pos = (unsigned long)abd_to_buf(abd) + off;
-	else
-		pos = ABD_SCATTER(abd).abd_offset + off;
-
-	return (((pos + size + PAGESIZE - 1) >> PAGE_SHIFT) -
-	    (pos >> PAGE_SHIFT));
-}
-
 static unsigned int
 bio_map(struct bio *bio, void *buf_ptr, unsigned int bio_size)
 {

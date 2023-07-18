@@ -47,6 +47,13 @@ typedef struct vdev_disk {
 } vdev_disk_t;
 
 /*
+ * Maximum number of segments to add to a bio (min 4). If this is higher than
+ * the maximum allowed by the device queue or the kernel itself, it will be
+ * clamped. Setting it to zero will cause the kernel's ideal size to be used.
+ */
+unsigned long vdev_disk_max_segs = 0;
+
+/*
  * Unique identifier for the exclusive vdev holder.
  */
 static void *zfs_vdev_holder = VDEV_HOLDER;
@@ -671,15 +678,22 @@ vdev_bio_alloc(struct block_device *bdev, gfp_t gfp_mask,
 }
 
 static inline unsigned int
-vdev_bio_max_segs(zio_t *zio, int bio_size, uint64_t abd_offset)
+vdev_bio_max_segs(struct block_device *bdev)
 {
-	unsigned long nr_segs = abd_nr_pages_off(zio->io_abd,
-	    bio_size, abd_offset);
+	/*
+	 * Smallest of the device max segs and the tuneable max segs. Minimum
+	 * 4, so there's room to finish split pages if they come up.
+	 */
+	const unsigned long dev_max_segs =
+	    queue_max_segments(bdev_get_queue(bdev));
+	const unsigned long tune_max_segs = (vdev_disk_max_segs > 0) ?
+	    MAX(4, vdev_disk_max_segs) : dev_max_segs;
+	const unsigned long max_segs = MIN(tune_max_segs, dev_max_segs);
 
 #ifdef HAVE_BIO_MAX_SEGS
-	return (bio_max_segs(nr_segs));
+	return (bio_max_segs(max_segs));
 #else
-	return (MIN(nr_segs, BIO_MAX_PAGES));
+	return (MIN(max_segs, BIO_MAX_PAGES));
 #endif
 }
 
@@ -749,7 +763,7 @@ retry:
 			goto retry;
 		}
 
-		nr_vecs = vdev_bio_max_segs(zio, bio_size, abd_offset);
+		nr_vecs = vdev_bio_max_segs(bdev);
 		dr->dr_bio[i] = vdev_bio_alloc(bdev, GFP_NOIO, nr_vecs);
 		if (unlikely(dr->dr_bio[i] == NULL)) {
 			vdev_disk_dio_free(dr);
@@ -1103,3 +1117,6 @@ ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, open_timeout_ms, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, failfast_mask, UINT, ZMOD_RW,
 	"Defines failfast mask: 1 - device, 2 - transport, 4 - driver");
+
+ZFS_MODULE_PARAM(zfs_vdev_disk, vdev_disk_, max_segs, ULONG, ZMOD_RW,
+	"Maximum number of data segments to add to an IO request (min 4)");
