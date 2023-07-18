@@ -47,6 +47,14 @@ typedef struct vdev_disk {
 } vdev_disk_t;
 
 int zio_suppress_zero_writes = B_TRUE;
+
+/*
+ * Maximum number of segments to add to a bio. If this is higher than the
+ * maximum allowed by the device queue or the kernel itself, it will be
+ * clamped. Setting it to zero will cause the kernel's ideal size to be used.
+ */
+unsigned long vdev_disk_max_segs = 0;
+
 /*
  * Unique identifier for the exclusive vdev holder.
  */
@@ -591,15 +599,17 @@ vdev_bio_alloc(struct block_device *bdev, gfp_t gfp_mask,
 }
 
 static inline unsigned int
-vdev_bio_max_segs(zio_t *zio, int bio_size, uint64_t abd_offset)
-{
-	unsigned long nr_segs = abd_nr_pages_off(zio->io_abd,
-	    bio_size, abd_offset);
+vdev_bio_max_segs(struct block_device *bdev) {
+	const unsigned long tune_max_segs =
+	    vdev_disk_max_segs > 0 ? vdev_disk_max_segs : ULONG_MAX;
+	const unsigned long dev_max_segs =
+	    queue_max_segments(bdev_get_queue(bdev));
+	const unsigned long max_segs = MIN(tune_max_segs, dev_max_segs);
 
 #ifdef HAVE_BIO_MAX_SEGS
-	return (bio_max_segs(nr_segs));
+	return (bio_max_segs(max_segs));
 #else
-	return (MIN(nr_segs, BIO_MAX_PAGES));
+	return (MIN(max_segs, BIO_MAX_PAGES));
 #endif
 }
 
@@ -664,7 +674,7 @@ retry:
 			goto retry;
 		}
 
-		nr_vecs = vdev_bio_max_segs(zio, bio_size, abd_offset);
+		nr_vecs = vdev_bio_max_segs(bdev);
 		dr->dr_bio[i] = vdev_bio_alloc(bdev, GFP_NOIO, nr_vecs);
 		if (unlikely(dr->dr_bio[i] == NULL)) {
 			vdev_disk_dio_free(dr);
@@ -1030,3 +1040,6 @@ param_set_max_auto_ashift(const char *buf, zfs_kernel_param_t *kp)
 
 ZFS_MODULE_PARAM(zfs_zio, zio_, suppress_zero_writes, INT, ZMOD_RW,
 	"Do not send zero byte writes to hardware");
+
+ZFS_MODULE_PARAM(zfs_vdev_disk, vdev_disk_, max_segs, ULONG, ZMOD_RW,
+	"Maximum number of data segments to add to an IO request");
