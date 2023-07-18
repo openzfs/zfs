@@ -68,6 +68,7 @@ enum scope_prefix_types {
 	zfs_trim,
 	zfs_txg,
 	zfs_vdev,
+	zfs_vdev_disk,
 	zfs_vdev_file,
 	zfs_vdev_mirror,
 	zfs_vnops,

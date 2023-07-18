@@ -2,6 +2,7 @@
 .\" Copyright (c) 2013 by Turbo Fredriksson <turbo@bayour.com>. All rights reserved.
 .\" Copyright (c) 2019, 2021 by Delphix. All rights reserved.
 .\" Copyright (c) 2019 Datto Inc.
+.\" Copyright (c) 2023, 2024 Klara, Inc.
 .\" The contents of this file are subject to the terms of the Common Development
 .\" and Distribution License (the "License").  You may not use this file except
 .\" in compliance with the License. You can obtain a copy of the license at
@@ -15,7 +16,7 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.Dd July 21, 2023
+.Dd January 9, 2024
 .Dt ZFS 4
 .Os
 .
@@ -1374,6 +1375,13 @@ _
 	2	Transport	No driver retries on transport errors.
 	4	Driver	No driver retries on driver errors.
 .TE
+.
+.It Sy zfs_vdev_disk_max_segs Ns = Ns Sy 0 Pq uint
+Maximum number of segments to add to a BIO (min 4).
+If this is higher than the maximum allowed by the device queue or the kernel
+itself, it will be clamped.
+Setting it to zero will cause the kernel's ideal size to be used.
+This parameter only applies on Linux.
 .
 .It Sy zfs_expire_snapshot Ns = Ns Sy 300 Ns s Pq int
 Time before expiring

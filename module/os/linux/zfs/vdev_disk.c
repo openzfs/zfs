@@ -24,6 +24,7 @@
  * Rewritten for Linux by Brian Behlendorf <behlendorf1@llnl.gov>.
  * LLNL-CODE-403049.
  * Copyright (c) 2012, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2023, 2024, Klara Inc.
  */
 
 #include <sys/zfs_context.h>
@@ -65,6 +66,13 @@ typedef struct vdev_disk {
 	zfs_bdev_handle_t		*vd_bdh;
 	krwlock_t			vd_lock;
 } vdev_disk_t;
+
+/*
+ * Maximum number of segments to add to a bio (min 4). If this is higher than
+ * the maximum allowed by the device queue or the kernel itself, it will be
+ * clamped. Setting it to zero will cause the kernel's ideal size to be used.
+ */
+uint_t zfs_vdev_disk_max_segs = 0;
 
 /*
  * Unique identifier for the exclusive vdev holder.
@@ -607,10 +615,433 @@ vdev_bio_alloc(struct block_device *bdev, gfp_t gfp_mask,
 	return (bio);
 }
 
+static inline uint_t
+vdev_bio_max_segs(struct block_device *bdev)
+{
+	/*
+	 * Smallest of the device max segs and the tuneable max segs. Minimum
+	 * 4, so there's room to finish split pages if they come up.
+	 */
+	const uint_t dev_max_segs = queue_max_segments(bdev_get_queue(bdev));
+	const uint_t tune_max_segs = (zfs_vdev_disk_max_segs > 0) ?
+	    MAX(4, zfs_vdev_disk_max_segs) : dev_max_segs;
+	const uint_t max_segs = MIN(tune_max_segs, dev_max_segs);
+
+#ifdef HAVE_BIO_MAX_SEGS
+	return (bio_max_segs(max_segs));
+#else
+	return (MIN(max_segs, BIO_MAX_PAGES));
+#endif
+}
+
+static inline uint_t
+vdev_bio_max_bytes(struct block_device *bdev)
+{
+	return (queue_max_sectors(bdev_get_queue(bdev)) << 9);
+}
+
+
+/*
+ * Virtual block IO object (VBIO)
+ *
+ * Linux block IO (BIO) objects have a limit on how many data segments (pages)
+ * they can hold. Depending on how they're allocated and structured, a large
+ * ZIO can require more than one BIO to be submitted to the kernel, which then
+ * all have to complete before we can return the completed ZIO back to ZFS.
+ *
+ * A VBIO is a wrapper around multiple BIOs, carrying everything needed to
+ * translate a ZIO down into the kernel block layer and back again.
+ *
+ * Note that these are only used for data ZIOs (read/write). Meta-operations
+ * (flush/trim) don't need multiple BIOs and so can just make the call
+ * directly.
+ */
+typedef struct {
+	zio_t		*vbio_zio;	/* parent zio */
+
+	struct block_device *vbio_bdev;	/* blockdev to submit bios to */
+
+	abd_t		*vbio_abd;	/* abd carrying borrowed linear buf */
+
+	atomic_t	vbio_ref;	/* bio refcount */
+	int		vbio_error;	/* error from failed bio */
+
+	uint_t		vbio_max_segs;	/* max segs per bio */
+
+	uint_t		vbio_max_bytes;	/* max bytes per bio */
+	uint_t		vbio_lbs_mask;	/* logical block size mask */
+
+	uint64_t	vbio_offset;	/* start offset of next bio */
+
+	struct bio	*vbio_bio;	/* pointer to the current bio */
+	struct bio	*vbio_bios;	/* list of all bios */
+} vbio_t;
+
+static vbio_t *
+vbio_alloc(zio_t *zio, struct block_device *bdev)
+{
+	vbio_t *vbio = kmem_zalloc(sizeof (vbio_t), KM_SLEEP);
+
+	vbio->vbio_zio = zio;
+	vbio->vbio_bdev = bdev;
+	atomic_set(&vbio->vbio_ref, 0);
+	vbio->vbio_max_segs = vdev_bio_max_segs(bdev);
+	vbio->vbio_max_bytes = vdev_bio_max_bytes(bdev);
+	vbio->vbio_lbs_mask = ~(bdev_logical_block_size(bdev)-1);
+	vbio->vbio_offset = zio->io_offset;
+
+	return (vbio);
+}
+
+static int
+vbio_add_page(vbio_t *vbio, struct page *page, uint_t size, uint_t offset)
+{
+	struct bio *bio;
+	uint_t ssize;
+
+	while (size > 0) {
+		bio = vbio->vbio_bio;
+		if (bio == NULL) {
+			/* New BIO, allocate and set up */
+			bio = vdev_bio_alloc(vbio->vbio_bdev, GFP_NOIO,
+			    vbio->vbio_max_segs);
+			if (unlikely(bio == NULL))
+				return (SET_ERROR(ENOMEM));
+			BIO_BI_SECTOR(bio) = vbio->vbio_offset >> 9;
+
+			bio->bi_next = vbio->vbio_bios;
+			vbio->vbio_bios = vbio->vbio_bio = bio;
+		}
+
+		/*
+		 * Only load as much of the current page data as will fit in
+		 * the space left in the BIO, respecting lbs alignment. Older
+		 * kernels will error if we try to overfill the BIO, while
+		 * newer ones will accept it and split the BIO. This ensures
+		 * everything works on older kernels, and avoids an additional
+		 * overhead on the new.
+		 */
+		ssize = MIN(size, (vbio->vbio_max_bytes - BIO_BI_SIZE(bio)) &
+		    vbio->vbio_lbs_mask);
+		if (ssize > 0 &&
+		    bio_add_page(bio, page, ssize, offset) == ssize) {
+			/* Accepted, adjust and load any remaining. */
+			size -= ssize;
+			offset += ssize;
+			continue;
+		}
+
+		/* No room, set up for a new BIO and loop */
+		vbio->vbio_offset += BIO_BI_SIZE(bio);
+
+		/* Signal new BIO allocation wanted */
+		vbio->vbio_bio = NULL;
+	}
+
+	return (0);
+}
+
+BIO_END_IO_PROTO(vdev_disk_io_rw_completion, bio, error);
+static void vbio_put(vbio_t *vbio);
+
+static void
+vbio_submit(vbio_t *vbio, int flags)
+{
+	ASSERT(vbio->vbio_bios);
+	struct bio *bio = vbio->vbio_bios;
+	vbio->vbio_bio = vbio->vbio_bios = NULL;
+
+	/*
+	 * We take a reference for each BIO as we submit it, plus one to
+	 * protect us from BIOs completing before we're done submitting them
+	 * all, causing vbio_put() to free vbio out from under us and/or the
+	 * zio to be returned before all its IO has completed.
+	 */
+	atomic_set(&vbio->vbio_ref, 1);
+
+	/*
+	 * If we're submitting more than one BIO, inform the block layer so
+	 * it can batch them if it wants.
+	 */
+	struct blk_plug plug;
+	boolean_t do_plug = (bio->bi_next != NULL);
+	if (do_plug)
+		blk_start_plug(&plug);
+
+	/* Submit all the BIOs */
+	while (bio != NULL) {
+		atomic_inc(&vbio->vbio_ref);
+
+		struct bio *next = bio->bi_next;
+		bio->bi_next = NULL;
+
+		bio->bi_end_io = vdev_disk_io_rw_completion;
+		bio->bi_private = vbio;
+		bio_set_op_attrs(bio,
+		    vbio->vbio_zio->io_type == ZIO_TYPE_WRITE ?
+		    WRITE : READ, flags);
+
+		vdev_submit_bio(bio);
+
+		bio = next;
+	}
+
+	/* Finish the batch */
+	if (do_plug)
+		blk_finish_plug(&plug);
+
+	/* Release the extra reference */
+	vbio_put(vbio);
+}
+
+static void
+vbio_return_abd(vbio_t *vbio)
+{
+	zio_t *zio = vbio->vbio_zio;
+	if (vbio->vbio_abd == NULL)
+		return;
+
+	/*
+	 * If we copied the ABD before issuing it, clean up and return the copy
+	 * to the ADB, with changes if appropriate.
+	 */
+	void *buf = abd_to_buf(vbio->vbio_abd);
+	abd_free(vbio->vbio_abd);
+	vbio->vbio_abd = NULL;
+
+	if (zio->io_type == ZIO_TYPE_READ)
+		abd_return_buf_copy(zio->io_abd, buf, zio->io_size);
+	else
+		abd_return_buf(zio->io_abd, buf, zio->io_size);
+}
+
+static void
+vbio_free(vbio_t *vbio)
+{
+	VERIFY0(atomic_read(&vbio->vbio_ref));
+
+	vbio_return_abd(vbio);
+
+	kmem_free(vbio, sizeof (vbio_t));
+}
+
+static void
+vbio_put(vbio_t *vbio)
+{
+	if (atomic_dec_return(&vbio->vbio_ref) > 0)
+		return;
+
+	/*
+	 * This was the last reference, so the entire IO is completed. Clean
+	 * up and submit it for processing.
+	 */
+
+	/*
+	 * Get any data buf back to the original ABD, if necessary. We do this
+	 * now so we can get the ZIO into the pipeline as quickly as possible,
+	 * and then do the remaining cleanup after.
+	 */
+	vbio_return_abd(vbio);
+
+	zio_t *zio = vbio->vbio_zio;
+
+	/*
+	 * Set the overall error. If multiple BIOs returned an error, only the
+	 * first will be taken; the others are dropped (see
+	 * vdev_disk_io_rw_completion()). Its pretty much impossible for
+	 * multiple IOs to the same device to fail with different errors, so
+	 * there's no real risk.
+	 */
+	zio->io_error = vbio->vbio_error;
+	if (zio->io_error)
+		vdev_disk_error(zio);
+
+	/* All done, submit for processing */
+	zio_delay_interrupt(zio);
+
+	/* Finish cleanup */
+	vbio_free(vbio);
+}
+
+BIO_END_IO_PROTO(vdev_disk_io_rw_completion, bio, error)
+{
+	vbio_t *vbio = bio->bi_private;
+
+	if (vbio->vbio_error == 0) {
+#ifdef HAVE_1ARG_BIO_END_IO_T
+		vbio->vbio_error = BIO_END_IO_ERROR(bio);
+#else
+		if (error)
+			vbio->vbio_error = -(error);
+		else if (!test_bit(BIO_UPTODATE, &bio->bi_flags))
+			vbio->vbio_error = EIO;
+#endif
+	}
+
+	/*
+	 * Destroy the BIO. This is safe to do; the vbio owns its data and the
+	 * kernel won't touch it again after the completion function runs.
+	 */
+	bio_put(bio);
+
+	/* Drop this BIOs reference acquired by vbio_submit() */
+	vbio_put(vbio);
+}
+
+/*
+ * Iterator callback to count ABD pages and check their size & alignment.
+ *
+ * On Linux, each BIO segment can take a page pointer, and an offset+length of
+ * the data within that page. A page can be arbitrarily large ("compound"
+ * pages) but we still have to ensure the data portion is correctly sized and
+ * aligned to the logical block size, to ensure that if the kernel wants to
+ * split the BIO, the two halves will still be properly aligned.
+ */
+typedef struct {
+	uint_t  bmask;
+	uint_t  npages;
+	uint_t  end;
+} vdev_disk_check_pages_t;
+
+static int
+vdev_disk_check_pages_cb(struct page *page, size_t off, size_t len, void *priv)
+{
+	vdev_disk_check_pages_t *s = priv;
+
+	/*
+	 * If we didn't finish on a block size boundary last time, then there
+	 * would be a gap if we tried to use this ABD as-is, so abort.
+	 */
+	if (s->end != 0)
+		return (1);
+
+	/*
+	 * Note if we're taking less than a full block, so we can check it
+	 * above on the next call.
+	 */
+	s->end = len & s->bmask;
+
+	/* All blocks after the first must start on a block size boundary. */
+	if (s->npages != 0 && (off & s->bmask) != 0)
+		return (1);
+
+	s->npages++;
+	return (0);
+}
+
+/*
+ * Check if we can submit the pages in this ABD to the kernel as-is. Returns
+ * the number of pages, or 0 if it can't be submitted like this.
+ */
+static boolean_t
+vdev_disk_check_pages(abd_t *abd, uint64_t size, struct block_device *bdev)
+{
+	vdev_disk_check_pages_t s = {
+	    .bmask = bdev_logical_block_size(bdev)-1,
+	    .npages = 0,
+	    .end = 0,
+	};
+
+	if (abd_iterate_page_func(abd, 0, size, vdev_disk_check_pages_cb, &s))
+		return (B_FALSE);
+
+	return (B_TRUE);
+}
+
+/* Iterator callback to submit ABD pages to the vbio. */
+static int
+vdev_disk_fill_vbio_cb(struct page *page, size_t off, size_t len, void *priv)
+{
+	vbio_t *vbio = priv;
+	return (vbio_add_page(vbio, page, len, off));
+}
+
+static int
+vdev_disk_io_rw(zio_t *zio)
+{
+	vdev_t *v = zio->io_vd;
+	vdev_disk_t *vd = v->vdev_tsd;
+	struct block_device *bdev = BDH_BDEV(vd->vd_bdh);
+	int flags = 0;
+
+	/*
+	 * Accessing outside the block device is never allowed.
+	 */
+	if (zio->io_offset + zio->io_size > bdev->bd_inode->i_size) {
+		vdev_dbgmsg(zio->io_vd,
+		    "Illegal access %llu size %llu, device size %llu",
+		    (u_longlong_t)zio->io_offset,
+		    (u_longlong_t)zio->io_size,
+		    (u_longlong_t)i_size_read(bdev->bd_inode));
+		return (SET_ERROR(EIO));
+	}
+
+	if (!(zio->io_flags & (ZIO_FLAG_IO_RETRY | ZIO_FLAG_TRYHARD)) &&
+	    v->vdev_failfast == B_TRUE) {
+		bio_set_flags_failfast(bdev, &flags, zfs_vdev_failfast_mask & 1,
+		    zfs_vdev_failfast_mask & 2, zfs_vdev_failfast_mask & 4);
+	}
+
+	/*
+	 * Check alignment of the incoming ABD. If any part of it would require
+	 * submitting a page that is not aligned to the logical block size,
+	 * then we take a copy into a linear buffer and submit that instead.
+	 * This should be impossible on a 512b LBS, and fairly rare on 4K,
+	 * usually requiring abnormally-small data blocks (eg gang blocks)
+	 * mixed into the same ABD as larger ones (eg aggregated).
+	 */
+	abd_t *abd = zio->io_abd;
+	if (!vdev_disk_check_pages(abd, zio->io_size, bdev)) {
+		void *buf;
+		if (zio->io_type == ZIO_TYPE_READ)
+			buf = abd_borrow_buf(zio->io_abd, zio->io_size);
+		else
+			buf = abd_borrow_buf_copy(zio->io_abd, zio->io_size);
+
+		/*
+		 * Wrap the copy in an abd_t, so we can use the same iterators
+		 * to count and fill the vbio later.
+		 */
+		abd = abd_get_from_buf(buf, zio->io_size);
+
+		/*
+		 * False here would mean the borrowed copy has an invalid
+		 * alignment too, which would mean we've somehow been passed a
+		 * linear ABD with an interior page that has a non-zero offset
+		 * or a size not a multiple of PAGE_SIZE. This is not possible.
+		 * It would mean either zio_buf_alloc() or its underlying
+		 * allocators have done something extremely strange, or our
+		 * math in vdev_disk_check_pages() is wrong. In either case,
+		 * something in seriously wrong and its not safe to continue.
+		 */
+		VERIFY(vdev_disk_check_pages(abd, zio->io_size, bdev));
+	}
+
+	/* Allocate vbio, with a pointer to the borrowed ABD if necessary */
+	int error = 0;
+	vbio_t *vbio = vbio_alloc(zio, bdev);
+	if (abd != zio->io_abd)
+		vbio->vbio_abd = abd;
+
+	/* Fill it with pages */
+	error = abd_iterate_page_func(abd, 0, zio->io_size,
+	    vdev_disk_fill_vbio_cb, vbio);
+	if (error != 0) {
+		vbio_free(vbio);
+		return (error);
+	}
+
+	vbio_submit(vbio, flags);
+	return (0);
+}
+
 /* ========== */
 
 /*
- * This is the classic, battle-tested BIO submission code.
+ * This is the classic, battle-tested BIO submission code. Until we're totally
+ * sure that the new code is safe and correct in all cases, this will remain
+ * available and can be enabled by setting zfs_vdev_disk_classic=1 at module
+ * load time.
  *
  * These functions have been renamed to vdev_classic_* to make it clear what
  * they belong to, but their implementations are unchanged.
@@ -1116,7 +1547,8 @@ vdev_disk_init(spa_t *spa, nvlist_t *nv, void **tsd)
 	(void) tsd;
 
 	if (vdev_disk_io_rw_fn == NULL)
-		vdev_disk_io_rw_fn = vdev_classic_physio;
+		/* XXX make configurable */
+		vdev_disk_io_rw_fn = 0 ? vdev_classic_physio : vdev_disk_io_rw;
 
 	return (0);
 }
@@ -1215,3 +1647,6 @@ ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, open_timeout_ms, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, failfast_mask, UINT, ZMOD_RW,
 	"Defines failfast mask: 1 - device, 2 - transport, 4 - driver");
+
+ZFS_MODULE_PARAM(zfs_vdev_disk, zfs_vdev_disk_, max_segs, UINT, ZMOD_RW,
+	"Maximum number of data segments to add to an IO request (min 4)");
