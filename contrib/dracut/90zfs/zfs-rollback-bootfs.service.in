@@ -2,7 +2,7 @@
 Description=Rollback bootfs just before it is mounted
 Requisite=zfs-import.target
 After=zfs-import.target dracut-pre-mount.service zfs-snapshot-bootfs.service
-Before=dracut-mount.service
+Before=dracut-mount.service sysroot.mount
 DefaultDependencies=no
 ConditionKernelCommandLine=bootfs.rollback
 ConditionEnvironment=BOOTFS
