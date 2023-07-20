@@ -1399,6 +1399,36 @@ vdev_remove_parent(vdev_t *cvd)
 	vdev_free(mvd);
 }
 
+/*
+ * Choose GCD for spa_gcd_alloc.
+ */
+static uint64_t
+vdev_gcd(uint64_t a, uint64_t b)
+{
+	while (b != 0) {
+		uint64_t t = b;
+		b = a % b;
+		a = t;
+	}
+	return (a);
+}
+
+/*
+ * Set spa_min_alloc and spa_gcd_alloc.
+ */
+static void
+vdev_spa_set_alloc(spa_t *spa, uint64_t min_alloc)
+{
+	if (min_alloc < spa->spa_min_alloc)
+		spa->spa_min_alloc = min_alloc;
+	if (spa->spa_gcd_alloc == INT_MAX) {
+		spa->spa_gcd_alloc = min_alloc;
+	} else {
+		spa->spa_gcd_alloc = vdev_gcd(min_alloc,
+		    spa->spa_gcd_alloc);
+	}
+}
+
 void
 vdev_metaslab_group_create(vdev_t *vd)
 {
@@ -1451,8 +1481,7 @@ vdev_metaslab_group_create(vdev_t *vd)
 				spa->spa_min_ashift = vd->vdev_ashift;
 
 			uint64_t min_alloc = vdev_get_min_alloc(vd);
-			if (min_alloc < spa->spa_min_alloc)
-				spa->spa_min_alloc = min_alloc;
+			vdev_spa_set_alloc(spa, min_alloc);
 		}
 	}
 }
@@ -2213,8 +2242,7 @@ vdev_open(vdev_t *vd)
 	if (vd->vdev_top == vd && vd->vdev_ashift != 0 &&
 	    vd->vdev_islog == 0 && vd->vdev_aux == NULL) {
 		uint64_t min_alloc = vdev_get_min_alloc(vd);
-		if (min_alloc < spa->spa_min_alloc)
-			spa->spa_min_alloc = min_alloc;
+		vdev_spa_set_alloc(spa, min_alloc);
 	}
 
 	/*
