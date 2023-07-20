@@ -104,6 +104,33 @@ AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_CHECK_DISK_CHANGE], [
 ])
 
 dnl #
+dnl # 6.5.x API change
+dnl # disk_check_media_change() was added
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_DISK_CHECK_MEDIA_CHANGE], [
+	ZFS_LINUX_TEST_SRC([disk_check_media_change], [
+		#include <linux/fs.h>
+		#include <linux/blkdev.h>
+	], [
+		struct block_device *bdev = NULL;
+		bool error;
+
+		error = disk_check_media_change(bdev->bd_disk);
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_DISK_CHECK_MEDIA_CHANGE], [
+	AC_MSG_CHECKING([whether disk_check_media_change() exists])
+	ZFS_LINUX_TEST_RESULT([disk_check_media_change], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_DISK_CHECK_MEDIA_CHANGE, 1,
+		    [disk_check_media_change() exists])
+	], [
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
 dnl # bdev_kobj() is introduced from 5.12
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_KOBJ], [
@@ -481,6 +508,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV], [
 	ZFS_AC_KERNEL_SRC_BLKDEV_ISSUE_SECURE_ERASE
 	ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_KOBJ
 	ZFS_AC_KERNEL_SRC_BLKDEV_PART_TO_DEV
+	ZFS_AC_KERNEL_SRC_BLKDEV_DISK_CHECK_MEDIA_CHANGE
 	ZFS_AC_KERNEL_SRC_BLKDEV_BLK_STS_RESV_CONFLICT
 ])
 
@@ -500,5 +528,6 @@ AC_DEFUN([ZFS_AC_KERNEL_BLKDEV], [
 	ZFS_AC_KERNEL_BLKDEV_ISSUE_SECURE_ERASE
 	ZFS_AC_KERNEL_BLKDEV_BDEV_KOBJ
 	ZFS_AC_KERNEL_BLKDEV_PART_TO_DEV
+	ZFS_AC_KERNEL_BLKDEV_DISK_CHECK_MEDIA_CHANGE
 	ZFS_AC_KERNEL_BLKDEV_BLK_STS_RESV_CONFLICT
 ])
