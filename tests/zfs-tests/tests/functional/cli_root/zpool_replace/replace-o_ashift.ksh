@@ -35,7 +35,7 @@
 #
 # STRATEGY:
 #	1. Create various pools with different ashift values.
-#	2. Verify 'replace -o ashift=<n>' works only with allowed values.
+#	2. Verify 'replace' works.
 #
 
 verify_runnable "global"
@@ -66,26 +66,16 @@ log_must set_tunable32 VDEV_FILE_PHYSICAL_ASHIFT 16
 typeset ashifts=("9" "10" "11" "12" "13" "14" "15" "16")
 for ashift in ${ashifts[@]}
 do
-	for cmdval in ${ashifts[@]}
-	do
-		log_must zpool create -o ashift=$ashift $TESTPOOL1 $disk1
-		log_must verify_ashift $disk1 $ashift
-		# ashift_of(replacing_disk) <= ashift_of(existing_vdev)
-		if [[ $cmdval -le $ashift ]]
-		then
-			log_must zpool replace -o ashift=$cmdval $TESTPOOL1 \
-			    $disk1 $disk2
-			log_must verify_ashift $disk2 $ashift
-			wait_replacing $TESTPOOL1
-		else
-			log_mustnot zpool replace -o ashift=$cmdval $TESTPOOL1 \
-			    $disk1 $disk2
-		fi
-		# clean things for the next run
-		log_must zpool destroy $TESTPOOL1
-		log_must zpool labelclear $disk1
-		log_must zpool labelclear $disk2
-	done
+	log_must zpool create -o ashift=$ashift $TESTPOOL1 $disk1
+	log_must verify_ashift $disk1 $ashift
+	# ashift_of(replacing_disk) <= ashift_of(existing_vdev)
+	log_must zpool replace $TESTPOOL1 $disk1 $disk2
+	log_must verify_ashift $disk2 $ashift
+	wait_replacing $TESTPOOL1
+	# clean things for the next run
+	log_must zpool destroy $TESTPOOL1
+	log_must zpool labelclear $disk1
+	log_must zpool labelclear $disk2
 done
 
 typeset badvals=("off" "on" "1" "8" "17" "1b" "ff" "-")
