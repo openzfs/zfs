@@ -723,16 +723,10 @@ typedef enum spa_mode {
  * Send TRIM commands in-line during normal pool operation while deleting.
  *	OFF: no
  *	ON: yes
- * NB: IN_FREEBSD_BASE is defined within the FreeBSD sources.
  */
 typedef enum {
 	SPA_AUTOTRIM_OFF = 0,	/* default */
 	SPA_AUTOTRIM_ON,
-#ifdef IN_FREEBSD_BASE
-	SPA_AUTOTRIM_DEFAULT = SPA_AUTOTRIM_ON,
-#else
-	SPA_AUTOTRIM_DEFAULT = SPA_AUTOTRIM_OFF,
-#endif
 } spa_autotrim_t;
 
 /*

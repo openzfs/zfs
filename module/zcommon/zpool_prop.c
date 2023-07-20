@@ -160,7 +160,7 @@ zpool_prop_init(void)
 	    "wait | continue | panic", "FAILMODE", failuremode_table,
 	    sfeatures);
 	zprop_register_index(ZPOOL_PROP_AUTOTRIM, "autotrim",
-	    SPA_AUTOTRIM_DEFAULT, PROP_DEFAULT, ZFS_TYPE_POOL,
+	    SPA_AUTOTRIM_OFF, PROP_DEFAULT, ZFS_TYPE_POOL,
 	    "on | off", "AUTOTRIM", boolean_table, sfeatures);
 
 	/* hidden properties */
