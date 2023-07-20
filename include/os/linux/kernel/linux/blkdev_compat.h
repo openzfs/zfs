@@ -345,6 +345,8 @@ zfs_check_media_change(struct block_device *bdev)
 	return (0);
 }
 #define	vdev_bdev_reread_part(bdev)	zfs_check_media_change(bdev)
+#elif defined(HAVE_DISK_CHECK_MEDIA_CHANGE)
+#define	vdev_bdev_reread_part(bdev)	disk_check_media_change(bdev->bd_disk)
 #else
 /*
  * This is encountered if check_disk_change() and bdev_check_media_change()
