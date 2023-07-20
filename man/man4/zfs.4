@@ -15,7 +15,7 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.Dd January 10, 2023
+.Dd July 21, 2023
 .Dt ZFS 4
 .Os
 .
@@ -238,6 +238,11 @@ relative to the pool.
 .It Sy metaslab_force_ganging Ns = Ns Sy 16777217 Ns B Po 16 MiB + 1 B Pc Pq u64
 Make some blocks above a certain size be gang blocks.
 This option is used by the test suite to facilitate testing.
+.
+.It Sy metaslab_force_ganging_pct Ns = Ns Sy 3 Ns % Pq uint
+For blocks that could be forced to be a gang block (due to
+.Sy metaslab_force_ganging ) ,
+force this many of them to be gang blocks.
 .
 .It Sy zfs_ddt_zap_default_bs Ns = Ns Sy 15 Po 32 KiB Pc Pq int
 Default DDT ZAP data block size as a power of 2. Note that changing this after
