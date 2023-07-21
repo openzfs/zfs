@@ -89,7 +89,11 @@ static int zfs_dmu_offset_next_sync = 1;
  * helps to limit the amount of memory that can be used by prefetching.
  * Larger objects should be prefetched a bit at a time.
  */
+#ifdef _ILP32
+uint_t dmu_prefetch_max = 8 * 1024 * 1024;
+#else
 uint_t dmu_prefetch_max = 8 * SPA_MAXBLOCKSIZE;
+#endif
 
 const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
 	{DMU_BSWAP_UINT8,  TRUE,  FALSE, FALSE, "unallocated"		},
@@ -552,8 +556,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 		zio = zio_root(dn->dn_objset->os_spa, NULL, NULL,
 		    ZIO_FLAG_CANFAIL);
 	blkid = dbuf_whichblock(dn, 0, offset);
-	if ((flags & DMU_READ_NO_PREFETCH) == 0 &&
-	    length <= zfetch_array_rd_sz) {
+	if ((flags & DMU_READ_NO_PREFETCH) == 0) {
 		/*
 		 * Prepare the zfetch before initiating the demand reads, so
 		 * that if multiple threads block on same indirect block, we
