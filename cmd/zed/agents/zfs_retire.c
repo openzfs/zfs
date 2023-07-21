@@ -416,6 +416,11 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 		    FM_EREPORT_PAYLOAD_ZFS_VDEV_GUID, &vdev_guid) != 0)
 			return;
 
+		if (vdev_guid == 0) {
+			fmd_hdl_debug(hdl, "Got a zero GUID");
+			return;
+		}
+
 		if (spare) {
 			int nspares = find_and_remove_spares(zhdl, vdev_guid);
 			fmd_hdl_debug(hdl, "%d spares removed", nspares);
