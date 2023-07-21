@@ -4,6 +4,7 @@
 # Not following: a was not specified as input (see shellcheck -x). [SC1091]
 # Prefer putting braces around variable references even when not strictly required. [SC2250]
 # Consider invoking this command separately to avoid masking its return value (or use '|| true' to ignore). [SC2312]
+# Command appears to be unreachable. Check usage (or ignore if invoked indirectly). [SC2317]
 # In POSIX sh, 'local' is undefined. [SC2039] # older ShellCheck versions
 # In POSIX sh, 'local' is undefined. [SC3043] # newer ShellCheck versions
 
@@ -18,7 +19,7 @@ PHONY += shellcheck
 _STGT = $(subst ^,/,$(subst shellcheck-here-,,$@))
 shellcheck-here-%:
 if HAVE_SHELLCHECK
-	shellcheck --format=gcc --enable=all --exclude=SC1090,SC1091,SC2039,SC2250,SC2312,SC3043 $$([ -n "$(SHELLCHECK_SHELL)" ] && echo "--shell=$(SHELLCHECK_SHELL)") "$$([ -e "$(_STGT)" ] || echo "$(srcdir)/")$(_STGT)"
+	shellcheck --format=gcc --enable=all --exclude=SC1090,SC1091,SC2039,SC2250,SC2312,SC2317,SC3043 $$([ -n "$(SHELLCHECK_SHELL)" ] && echo "--shell=$(SHELLCHECK_SHELL)") "$$([ -e "$(_STGT)" ] || echo "$(srcdir)/")$(_STGT)"
 else
 	@echo "skipping shellcheck of" $(_STGT) "because shellcheck is not installed"
 endif
