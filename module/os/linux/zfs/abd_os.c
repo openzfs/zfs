@@ -1034,15 +1034,42 @@ abd_nr_pages_off(abd_t *abd, unsigned int size, size_t off)
 static unsigned int
 bio_map(struct bio *bio, void *buf_ptr, unsigned int bio_size)
 {
-	unsigned int offset, size, i;
+	unsigned int offset, size;
 	struct page *page;
 
 	offset = offset_in_page(buf_ptr);
-	for (i = 0; i < bio->bi_max_vecs; i++) {
-		size = PAGE_SIZE - offset;
 
+	boolean_t is_split = B_FALSE;
+	unsigned int split_rem = 0;
+	for (int i = bio->bi_vcnt; i < bio->bi_max_vecs; i++) {
 		if (bio_size <= 0)
 			break;
+
+		if (is_split &&
+		    (bio_size <= split_rem || ((i + 1) == bio->bi_max_vecs))) {
+			/*
+			 * Last segment and we're split, so we have to add just
+			 * enough to restore alignment.
+			 */
+			size = split_rem;
+			is_split = B_FALSE;
+		}
+		else if (offset != 0) {
+			/*
+			 * This is a split page, so we need to ensure that we
+			 * have room for the tail within this bio.
+			 */
+			if ((i + 1) == bio->bi_max_vecs)
+				break;
+
+			/* Take up to the end of the page */
+			size = PAGE_SIZE - offset;
+
+			is_split = B_TRUE;
+			split_rem = offset;
+		}
+		else
+			size = PAGE_SIZE;
 
 		if (size > bio_size)
 			size = bio_size;
