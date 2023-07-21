@@ -59,6 +59,11 @@ static uint64_t metaslab_aliquot = 1024 * 1024;
 uint64_t metaslab_force_ganging = SPA_MAXBLOCKSIZE + 1;
 
 /*
+ * Of blocks of size >= metaslab_force_ganging, actually gang them this often.
+ */
+uint_t metaslab_force_ganging_pct = 3;
+
+/*
  * In pools where the log space map feature is not enabled we touch
  * multiple metaslabs (and their respective space maps) with each
  * transaction group. Thus, we benefit from having a small space map
@@ -5109,7 +5114,9 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 	 * damage can result in extremely long reconstruction times.  This
 	 * will also test spilling from special to normal.
 	 */
-	if (psize >= metaslab_force_ganging && (random_in_range(100) < 3)) {
+	if (psize >= metaslab_force_ganging &&
+	    metaslab_force_ganging_pct > 0 &&
+	    (random_in_range(100) < MIN(metaslab_force_ganging_pct, 100))) {
 		metaslab_trace_add(zal, NULL, NULL, psize, d, TRACE_FORCE_GANG,
 		    allocator);
 		return (SET_ERROR(ENOSPC));
@@ -6266,7 +6273,10 @@ ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, switch_threshold, INT, ZMOD_RW,
 	"Segment-based metaslab selection maximum buckets before switching");
 
 ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, force_ganging, U64, ZMOD_RW,
-	"Blocks larger than this size are forced to be gang blocks");
+	"Blocks larger than this size are sometimes forced to be gang blocks");
+
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, force_ganging_pct, UINT, ZMOD_RW,
+	"Percentage of large blocks that will be forced to be gang blocks");
 
 ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, df_max_search, UINT, ZMOD_RW,
 	"Max distance (bytes) to search forward before using size tree");
