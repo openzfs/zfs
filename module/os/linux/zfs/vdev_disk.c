@@ -693,6 +693,14 @@ retry:
 		bio_size = abd_bio_map_off(dr->dr_bio[i], zio->io_abd,
 		    bio_size, abd_offset);
 
+		if (BIO_BI_SIZE(dr->dr_bio[i]) & 0xfff) {
+			cmn_err(CE_WARN, "misaligned bio! zio %p bio %p offset %lu size %lu vecs %lu", zio, dr->dr_bio[i], bio_offset, BIO_BI_SIZE(dr->dr_bio[i]), dr->dr_bio[i]->bi_vcnt);
+			for (int bi = 0; bi < dr->dr_bio[i]->bi_vcnt; bi++) {
+				struct bio_vec *bv = &dr->dr_bio[i]->bi_io_vec[bi];
+				cmn_err(CE_WARN, "    %02x: off %lu len %lu", bi, bv->bv_offset, bv->bv_len);
+			}
+		}
+
 		/* Advance in buffer and construct another bio if needed */
 		abd_offset += BIO_BI_SIZE(dr->dr_bio[i]);
 		bio_offset += BIO_BI_SIZE(dr->dr_bio[i]);

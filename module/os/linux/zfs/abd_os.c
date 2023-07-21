@@ -1055,12 +1055,16 @@ bio_map(struct bio *bio, void *buf_ptr, unsigned int bio_size)
 			is_split = B_FALSE;
 		}
 		else if (offset != 0) {
+			ASSERT(!is_split);
+
 			/*
 			 * This is a split page, so we need to ensure that we
 			 * have room for the tail within this bio.
 			 */
-			if ((i + 1) == bio->bi_max_vecs)
+			if ((i + 1) == bio->bi_max_vecs) {
+				cmn_err(CE_NOTE, "bio_map: avoided misalignment! bio %p", bio);
 				break;
+			}
 
 			/* Take up to the end of the page */
 			size = PAGE_SIZE - offset;
@@ -1093,6 +1097,9 @@ bio_map(struct bio *bio, void *buf_ptr, unsigned int bio_size)
 		bio_size -= size;
 		offset = 0;
 	}
+
+	if (is_split)
+		cmn_err(CE_WARN, "bio_map: still split at exit! bio %p size %lu vecs %lu", bio, BIO_BI_SIZE(bio), bio->bi_vcnt);
 
 	return (bio_size);
 }
@@ -1167,12 +1174,16 @@ abd_bio_map_off(struct bio *bio, abd_t *abd,
 			is_split = B_FALSE;
 		}
 		else if (pgoff != 0) {
+			ASSERT(!is_split);
+
 			/*
 			 * This is a split page, so we need to ensure that we
 			 * have room for the tail within this bio.
 			 */
-			if ((i + 1) == bio->bi_max_vecs)
+			if ((i + 1) == bio->bi_max_vecs) {
+				cmn_err(CE_NOTE, "abd_bio_map_off: avoided misalignment! bio %p", bio);
 				break;
+			}
 
 			/* Take up to the end of the page */
 			len = PAGE_SIZE - pgoff;
@@ -1195,6 +1206,9 @@ abd_bio_map_off(struct bio *bio, abd_t *abd,
 		io_size -= len;
 		abd_iter_advance(&aiter, len);
 	}
+
+	if (is_split)
+		cmn_err(CE_WARN, "abd_bio_map_off: still split at exit! bio %p size %lu vecs %lu", bio, BIO_BI_SIZE(bio), bio->bi_vcnt);
 
 	return (io_size);
 }
