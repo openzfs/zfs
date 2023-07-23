@@ -80,9 +80,22 @@ typedef struct dio_request {
 
 static unsigned int zfs_vdev_failfast_mask = 1;
 
+#ifdef HAVE_BLK_MODE_T
+static blk_mode_t
+#else
 static fmode_t
+#endif
 vdev_bdev_mode(spa_mode_t spa_mode)
 {
+#ifdef HAVE_BLK_MODE_T
+	blk_mode_t mode = 0;
+
+	if (spa_mode & SPA_MODE_READ)
+		mode |= BLK_OPEN_READ;
+
+	if (spa_mode & SPA_MODE_WRITE)
+		mode |= BLK_OPEN_WRITE;
+#else
 	fmode_t mode = 0;
 
 	if (spa_mode & SPA_MODE_READ)
@@ -90,6 +103,7 @@ vdev_bdev_mode(spa_mode_t spa_mode)
 
 	if (spa_mode & SPA_MODE_WRITE)
 		mode |= FMODE_WRITE;
+#endif
 
 	return (mode);
 }
@@ -202,7 +216,11 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
     uint64_t *logical_ashift, uint64_t *physical_ashift)
 {
 	struct block_device *bdev;
+#ifdef HAVE_BLK_MODE_T
+	blk_mode_t mode = vdev_bdev_mode(spa_mode(v->vdev_spa));
+#else
 	fmode_t mode = vdev_bdev_mode(spa_mode(v->vdev_spa));
+#endif
 	hrtime_t timeout = MSEC2NSEC(zfs_vdev_open_timeout_ms);
 	vdev_disk_t *vd;
 
@@ -252,15 +270,29 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 					reread_part = B_TRUE;
 			}
 
+#ifdef HAVE_BLKDEV_PUT_HOLDER
+			blkdev_put(bdev, zfs_vdev_holder);
+#else
 			blkdev_put(bdev, mode | FMODE_EXCL);
+#endif
 		}
 
 		if (reread_part) {
+#ifdef HAVE_BLKDEV_GET_BY_PATH_4ARG
+			bdev = blkdev_get_by_path(disk_name,
+			    mode | BLK_OPEN_EXCL,
+			    zfs_vdev_holder, NULL);
+#else
 			bdev = blkdev_get_by_path(disk_name, mode | FMODE_EXCL,
 			    zfs_vdev_holder);
+#endif
 			if (!IS_ERR(bdev)) {
 				int error = vdev_bdev_reread_part(bdev);
+#ifdef HAVE_BLKDEV_PUT_HOLDER
+				blkdev_put(bdev, zfs_vdev_holder);
+#else
 				blkdev_put(bdev, mode | FMODE_EXCL);
+#endif
 				if (error == 0) {
 					timeout = MSEC2NSEC(
 					    zfs_vdev_open_timeout_ms * 2);
@@ -305,8 +337,13 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	hrtime_t start = gethrtime();
 	bdev = ERR_PTR(-ENXIO);
 	while (IS_ERR(bdev) && ((gethrtime() - start) < timeout)) {
+#ifdef HAVE_BLKDEV_GET_BY_PATH_4ARG
+		bdev = blkdev_get_by_path(v->vdev_path, mode | BLK_OPEN_EXCL,
+		    zfs_vdev_holder, NULL);
+#else
 		bdev = blkdev_get_by_path(v->vdev_path, mode | FMODE_EXCL,
 		    zfs_vdev_holder);
+#endif
 		if (unlikely(PTR_ERR(bdev) == -ENOENT)) {
 			/*
 			 * There is no point of waiting since device is removed
@@ -382,8 +419,12 @@ vdev_disk_close(vdev_t *v)
 		return;
 
 	if (vd->vd_bdev != NULL) {
+#ifdef HAVE_BLKDEV_PUT_HOLDER
+		blkdev_put(vd->vd_bdev, zfs_vdev_holder);
+#else
 		blkdev_put(vd->vd_bdev,
 		    vdev_bdev_mode(spa_mode(v->vdev_spa)) | FMODE_EXCL);
+#endif
 	}
 
 	rw_destroy(&vd->vd_lock);
