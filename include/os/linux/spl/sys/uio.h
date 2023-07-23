@@ -173,4 +173,10 @@ zfs_uio_iov_iter_init(zfs_uio_t *uio, struct iov_iter *iter, offset_t offset,
 }
 #endif
 
+#if defined(HAVE_ITER_IOV)
+#define	zfs_uio_iter_iov(iter)	iter_iov((iter))
+#else
+#define	zfs_uio_iter_iov(iter)	(iter)->iov
+#endif
+
 #endif /* SPL_UIO_H */
