@@ -15,7 +15,7 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.Dd January 10, 2023
+.Dd July 21, 2023
 .Dt ZFS 4
 .Os
 .
@@ -238,6 +238,11 @@ relative to the pool.
 .It Sy metaslab_force_ganging Ns = Ns Sy 16777217 Ns B Po 16 MiB + 1 B Pc Pq u64
 Make some blocks above a certain size be gang blocks.
 This option is used by the test suite to facilitate testing.
+.
+.It Sy metaslab_force_ganging_pct Ns = Ns Sy 3 Ns % Pq uint
+For blocks that could be forced to be a gang block (due to
+.Sy metaslab_force_ganging ) ,
+force this many of them to be gang blocks.
 .
 .It Sy zfs_ddt_zap_default_bs Ns = Ns Sy 15 Po 32 KiB Pc Pq int
 Default DDT ZAP data block size as a power of 2. Note that changing this after
@@ -518,9 +523,6 @@ However, this is limited by
 .It Sy zap_micro_max_size Ns = Ns Sy 131072 Ns B Po 128 KiB Pc Pq int
 Maximum micro ZAP size.
 A micro ZAP is upgraded to a fat ZAP, once it grows beyond the specified size.
-.
-.It Sy zfetch_array_rd_sz Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq u64
-If prefetching is enabled, disable prefetching for reads larger than this size.
 .
 .It Sy zfetch_min_distance Ns = Ns Sy 4194304 Ns B Po 4 MiB Pc Pq uint
 Min bytes to prefetch per stream.

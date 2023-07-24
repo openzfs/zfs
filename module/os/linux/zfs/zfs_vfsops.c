@@ -1680,6 +1680,7 @@ zfs_umount(struct super_block *sb)
 	}
 
 	zfsvfs_free(zfsvfs);
+	sb->s_fs_info = NULL;
 	return (0);
 }
 

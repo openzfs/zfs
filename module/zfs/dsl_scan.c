@@ -2015,6 +2015,11 @@ dsl_scan_prefetch_cb(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,
 		    zb->zb_objset, DMU_META_DNODE_OBJECT);
 
 		if (OBJSET_BUF_HAS_USERUSED(buf)) {
+			if (OBJSET_BUF_HAS_PROJECTUSED(buf)) {
+				dsl_scan_prefetch_dnode(scn,
+				    &osp->os_projectused_dnode, zb->zb_objset,
+				    DMU_PROJECTUSED_OBJECT);
+			}
 			dsl_scan_prefetch_dnode(scn,
 			    &osp->os_groupused_dnode, zb->zb_objset,
 			    DMU_GROUPUSED_OBJECT);
@@ -2075,10 +2080,16 @@ dsl_scan_prefetch_thread(void *arg)
 			zio_flags |= ZIO_FLAG_RAW;
 		}
 
+		/* We don't need data L1 buffer since we do not prefetch L0. */
+		blkptr_t *bp = &spic->spic_bp;
+		if (BP_GET_LEVEL(bp) == 1 && BP_GET_TYPE(bp) != DMU_OT_DNODE &&
+		    BP_GET_TYPE(bp) != DMU_OT_OBJSET)
+			flags |= ARC_FLAG_NO_BUF;
+
 		/* issue the prefetch asynchronously */
-		(void) arc_read(scn->scn_zio_root, scn->scn_dp->dp_spa,
-		    &spic->spic_bp, dsl_scan_prefetch_cb, spic->spic_spc,
-		    ZIO_PRIORITY_SCRUB, zio_flags, &flags, &spic->spic_zb);
+		(void) arc_read(scn->scn_zio_root, spa, bp,
+		    dsl_scan_prefetch_cb, spic->spic_spc, ZIO_PRIORITY_SCRUB,
+		    zio_flags, &flags, &spic->spic_zb);
 
 		kmem_free(spic, sizeof (scan_prefetch_issue_ctx_t));
 	}
