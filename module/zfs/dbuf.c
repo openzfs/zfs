@@ -4457,6 +4457,15 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 	} else if (db->db_state == DB_FILL) {
 		/* This buffer was freed and is now being re-filled */
 		ASSERT(db->db.db_data != dr->dt.dl.dr_data);
+	} else if (db->db_state == DB_READ) {
+		/*
+		 * This buffer has a clone we need to write, and an in-flight
+		 * read on the BP we're about to clone. Its safe to issue the
+		 * write here because the read has already been issued and the
+		 * contents won't change.
+		 */
+		ASSERT(dr->dt.dl.dr_brtwrite &&
+		    dr->dt.dl.dr_override_state == DR_OVERRIDDEN);
 	} else {
 		ASSERT(db->db_state == DB_CACHED || db->db_state == DB_NOFILL);
 	}
