@@ -607,8 +607,6 @@ zfs_iter_vdev(zpool_handle_t *zhp, nvlist_t *nvl, void *data)
 		 */
 		if (nvlist_lookup_string(nvl, dp->dd_prop, &path) != 0 ||
 		    strcmp(dp->dd_compare, path) != 0) {
-			zed_log_msg(LOG_INFO, "  %s: no match (%s != vdev %s)",
-			    __func__, dp->dd_compare, path);
 			return;
 		}
 		if (dp->dd_new_vdev_guid != 0 && dp->dd_new_vdev_guid != guid) {
