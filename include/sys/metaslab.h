@@ -80,7 +80,6 @@ uint64_t metaslab_largest_allocatable(metaslab_t *);
 #define	METASLAB_ASYNC_ALLOC		0x8
 #define	METASLAB_DONT_THROTTLE		0x10
 #define	METASLAB_MUST_RESERVE		0x20
-#define	METASLAB_FASTWRITE		0x40
 #define	METASLAB_ZIL			0x80
 
 int metaslab_alloc(spa_t *, metaslab_class_t *, uint64_t,
@@ -96,8 +95,6 @@ void metaslab_unalloc_dva(spa_t *, const dva_t *, uint64_t);
 int metaslab_claim(spa_t *, const blkptr_t *, uint64_t);
 int metaslab_claim_impl(vdev_t *, uint64_t, uint64_t, uint64_t);
 void metaslab_check_free(spa_t *, const blkptr_t *);
-void metaslab_fastwrite_mark(spa_t *, const blkptr_t *);
-void metaslab_fastwrite_unmark(spa_t *, const blkptr_t *);
 
 void metaslab_stat_init(void);
 void metaslab_stat_fini(void);

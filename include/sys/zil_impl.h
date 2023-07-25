@@ -91,7 +91,6 @@ typedef enum {
 typedef struct lwb {
 	zilog_t		*lwb_zilog;	/* back pointer to log struct */
 	blkptr_t	lwb_blk;	/* on disk address of this log blk */
-	boolean_t	lwb_fastwrite;	/* is blk marked for fastwrite? */
 	boolean_t	lwb_slog;	/* lwb_blk is on SLOG device */
 	boolean_t	lwb_indirect;	/* do not postpone zil_lwb_commit() */
 	int		lwb_nused;	/* # used bytes in buffer */
