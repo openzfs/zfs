@@ -1078,6 +1078,16 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 		return (SET_ERROR(EXDEV));
 	}
 
+	/*
+	 * outos and inos belongs to the same storage pool.
+	 * see a few lines above, only one check.
+	 */
+	if (!spa_feature_is_enabled(dmu_objset_spa(outos),
+	    SPA_FEATURE_BLOCK_CLONING)) {
+		zfs_exit_two(inzfsvfs, outzfsvfs, FTAG);
+		return (SET_ERROR(EOPNOTSUPP));
+	}
+
 	ASSERT(!outzfsvfs->z_replay);
 
 	error = zfs_verify_zp(inzp);
@@ -1086,12 +1096,6 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 	if (error != 0) {
 		zfs_exit_two(inzfsvfs, outzfsvfs, FTAG);
 		return (error);
-	}
-
-	if (!spa_feature_is_enabled(dmu_objset_spa(outos),
-	    SPA_FEATURE_BLOCK_CLONING)) {
-		zfs_exit_two(inzfsvfs, outzfsvfs, FTAG);
-		return (SET_ERROR(EXDEV));
 	}
 
 	/*
