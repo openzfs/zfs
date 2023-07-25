@@ -60,7 +60,7 @@ typedef struct bpobj {
 	kmutex_t	bpo_lock;
 	objset_t	*bpo_os;
 	uint64_t	bpo_object;
-	int		bpo_epb;
+	uint32_t	bpo_epb;
 	uint8_t		bpo_havecomp;
 	uint8_t		bpo_havesubobj;
 	uint8_t		bpo_havefreed;

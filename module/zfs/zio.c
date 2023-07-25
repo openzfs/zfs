@@ -1597,6 +1597,19 @@ zio_shrink(zio_t *zio, uint64_t size)
 }
 
 /*
+ * Round provided allocation size up to a value that can be allocated
+ * by at least some vdev(s) in the pool with minimum or no additional
+ * padding and without extra space usage on others
+ */
+static uint64_t
+zio_roundup_alloc_size(spa_t *spa, uint64_t size)
+{
+	if (size > spa->spa_min_alloc)
+		return (roundup(size, spa->spa_gcd_alloc));
+	return (spa->spa_min_alloc);
+}
+
+/*
  * ==========================================================================
  * Prepare to read and write logical blocks
  * ==========================================================================
@@ -1802,9 +1815,8 @@ zio_write_compress(zio_t *zio)
 			 * in that we charge for the padding used to fill out
 			 * the last sector.
 			 */
-			ASSERT3U(spa->spa_min_alloc, >=, SPA_MINBLOCKSHIFT);
-			size_t rounded = (size_t)roundup(psize,
-			    spa->spa_min_alloc);
+			size_t rounded = (size_t)zio_roundup_alloc_size(spa,
+			    psize);
 			if (rounded >= lsize) {
 				compress = ZIO_COMPRESS_OFF;
 				zio_buf_free(cbuf, lsize);
@@ -1847,8 +1859,8 @@ zio_write_compress(zio_t *zio)
 		 * take this codepath because it will change the on-disk block
 		 * and decryption will fail.
 		 */
-		size_t rounded = MIN((size_t)roundup(psize,
-		    spa->spa_min_alloc), lsize);
+		size_t rounded = MIN((size_t)zio_roundup_alloc_size(spa, psize),
+		    lsize);
 
 		if (rounded != psize) {
 			abd_t *cdata = abd_alloc_linear(rounded, B_TRUE);

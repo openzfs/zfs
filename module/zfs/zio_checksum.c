@@ -515,8 +515,6 @@ zio_checksum_error_impl(spa_t *spa, const blkptr_t *bp,
 	}
 
 	if (info != NULL) {
-		info->zbc_expected = expected_cksum;
-		info->zbc_actual = actual_cksum;
 		info->zbc_checksum_name = ci->ci_name;
 		info->zbc_byteswapped = byteswap;
 		info->zbc_injected = 0;

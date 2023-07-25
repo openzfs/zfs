@@ -889,9 +889,15 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	    &vd->vdev_not_present);
 
 	/*
-	 * Get the alignment requirement.
+	 * Get the alignment requirement. Ignore pool ashift for vdev
+	 * attach case.
 	 */
-	(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_ASHIFT, &vd->vdev_ashift);
+	if (alloctype != VDEV_ALLOC_ATTACH) {
+		(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_ASHIFT,
+		    &vd->vdev_ashift);
+	} else {
+		vd->vdev_attaching = B_TRUE;
+	}
 
 	/*
 	 * Retrieve the vdev creation time.
@@ -1393,6 +1399,36 @@ vdev_remove_parent(vdev_t *cvd)
 	vdev_free(mvd);
 }
 
+/*
+ * Choose GCD for spa_gcd_alloc.
+ */
+static uint64_t
+vdev_gcd(uint64_t a, uint64_t b)
+{
+	while (b != 0) {
+		uint64_t t = b;
+		b = a % b;
+		a = t;
+	}
+	return (a);
+}
+
+/*
+ * Set spa_min_alloc and spa_gcd_alloc.
+ */
+static void
+vdev_spa_set_alloc(spa_t *spa, uint64_t min_alloc)
+{
+	if (min_alloc < spa->spa_min_alloc)
+		spa->spa_min_alloc = min_alloc;
+	if (spa->spa_gcd_alloc == INT_MAX) {
+		spa->spa_gcd_alloc = min_alloc;
+	} else {
+		spa->spa_gcd_alloc = vdev_gcd(min_alloc,
+		    spa->spa_gcd_alloc);
+	}
+}
+
 void
 vdev_metaslab_group_create(vdev_t *vd)
 {
@@ -1445,8 +1481,7 @@ vdev_metaslab_group_create(vdev_t *vd)
 				spa->spa_min_ashift = vd->vdev_ashift;
 
 			uint64_t min_alloc = vdev_get_min_alloc(vd);
-			if (min_alloc < spa->spa_min_alloc)
-				spa->spa_min_alloc = min_alloc;
+			vdev_spa_set_alloc(spa, min_alloc);
 		}
 	}
 }
@@ -2144,9 +2179,9 @@ vdev_open(vdev_t *vd)
 				return (SET_ERROR(EDOM));
 			}
 
-			if (vd->vdev_top == vd) {
+			if (vd->vdev_top == vd && vd->vdev_attaching == B_FALSE)
 				vdev_ashift_optimize(vd);
-			}
+			vd->vdev_attaching = B_FALSE;
 		}
 		if (vd->vdev_ashift != 0 && (vd->vdev_ashift < ASHIFT_MIN ||
 		    vd->vdev_ashift > ASHIFT_MAX)) {
@@ -2207,8 +2242,7 @@ vdev_open(vdev_t *vd)
 	if (vd->vdev_top == vd && vd->vdev_ashift != 0 &&
 	    vd->vdev_islog == 0 && vd->vdev_aux == NULL) {
 		uint64_t min_alloc = vdev_get_min_alloc(vd);
-		if (min_alloc < spa->spa_min_alloc)
-			spa->spa_min_alloc = min_alloc;
+		vdev_spa_set_alloc(spa, min_alloc);
 	}
 
 	/*
@@ -5688,6 +5722,7 @@ vdev_props_set_sync(void *arg, dmu_tx_t *tx)
 	objset_t *mos = spa->spa_meta_objset;
 	nvpair_t *elem = NULL;
 	uint64_t vdev_guid;
+	uint64_t objid;
 	nvlist_t *nvprops;
 
 	vdev_guid = fnvlist_lookup_uint64(nvp, ZPOOL_VDEV_PROPS_SET_VDEV);
@@ -5698,30 +5733,27 @@ vdev_props_set_sync(void *arg, dmu_tx_t *tx)
 	if (vd == NULL)
 		return;
 
+	/*
+	 * Set vdev property values in the vdev props mos object.
+	 */
+	if (vd->vdev_root_zap != 0) {
+		objid = vd->vdev_root_zap;
+	} else if (vd->vdev_top_zap != 0) {
+		objid = vd->vdev_top_zap;
+	} else if (vd->vdev_leaf_zap != 0) {
+		objid = vd->vdev_leaf_zap;
+	} else {
+		panic("unexpected vdev type");
+	}
+
 	mutex_enter(&spa->spa_props_lock);
 
 	while ((elem = nvlist_next_nvpair(nvprops, elem)) != NULL) {
-		uint64_t intval, objid = 0;
+		uint64_t intval;
 		const char *strval;
 		vdev_prop_t prop;
 		const char *propname = nvpair_name(elem);
 		zprop_type_t proptype;
-
-		/*
-		 * Set vdev property values in the vdev props mos object.
-		 */
-		if (vd->vdev_root_zap != 0) {
-			objid = vd->vdev_root_zap;
-		} else if (vd->vdev_top_zap != 0) {
-			objid = vd->vdev_top_zap;
-		} else if (vd->vdev_leaf_zap != 0) {
-			objid = vd->vdev_leaf_zap;
-		} else {
-			/*
-			 * XXX: implement vdev_props_set_check()
-			 */
-			panic("vdev not root/top/leaf");
-		}
 
 		switch (prop = vdev_name_to_prop(propname)) {
 		case VDEV_PROP_USERPROP:
@@ -5790,6 +5822,12 @@ vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 	int error = 0;
 
 	ASSERT(vd != NULL);
+
+	/* Check that vdev has a zap we can use */
+	if (vd->vdev_root_zap == 0 &&
+	    vd->vdev_top_zap == 0 &&
+	    vd->vdev_leaf_zap == 0)
+		return (SET_ERROR(EINVAL));
 
 	if (nvlist_lookup_uint64(innvl, ZPOOL_VDEV_PROPS_SET_VDEV,
 	    &vdev_guid) != 0)

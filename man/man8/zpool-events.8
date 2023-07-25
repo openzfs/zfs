@@ -26,7 +26,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd May 27, 2021
+.Dd July 11, 2023
 .Dt ZPOOL-EVENTS 8
 .Os
 .
@@ -305,10 +305,6 @@ The time when a given I/O request was submitted.
 The time required to service a given I/O request.
 .It Sy prev_state
 The previous state of the vdev.
-.It Sy cksum_expected
-The expected checksum value for the block.
-.It Sy cksum_actual
-The actual checksum value for an errant block.
 .It Sy cksum_algorithm
 Checksum algorithm used.
 See
@@ -362,23 +358,6 @@ Like
 but contains
 .Pq Ar good data No & ~( Ns Ar bad data ) ;
 that is, the bits set in the good data which are cleared in the bad data.
-.It Sy bad_set_histogram
-If this field exists, it is an array of counters.
-Each entry counts bits set in a particular bit of a big-endian uint64 type.
-The first entry counts bits
-set in the high-order bit of the first byte, the 9th byte, etc, and the last
-entry counts bits set of the low-order bit of the 8th byte, the 16th byte, etc.
-This information is useful for observing a stuck bit in a parallel data path,
-such as IDE or parallel SCSI.
-.It Sy bad_cleared_histogram
-If this field exists, it is an array of counters.
-Each entry counts bit clears in a particular bit of a big-endian uint64 type.
-The first entry counts bits
-clears of the high-order bit of the first byte, the 9th byte, etc, and the
-last entry counts clears of the low-order bit of the 8th byte, the 16th byte,
-etc.
-This information is useful for observing a stuck bit in a parallel data
-path, such as IDE or parallel SCSI.
 .El
 .
 .Sh I/O STAGES

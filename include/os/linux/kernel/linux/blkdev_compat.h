@@ -181,7 +181,11 @@ bi_status_to_errno(blk_status_t status)
 		return (ENOLINK);
 	case BLK_STS_TARGET:
 		return (EREMOTEIO);
+#ifdef HAVE_BLK_STS_RESV_CONFLICT
+	case BLK_STS_RESV_CONFLICT:
+#else
 	case BLK_STS_NEXUS:
+#endif
 		return (EBADE);
 	case BLK_STS_MEDIUM:
 		return (ENODATA);
@@ -215,7 +219,11 @@ errno_to_bi_status(int error)
 	case EREMOTEIO:
 		return (BLK_STS_TARGET);
 	case EBADE:
+#ifdef HAVE_BLK_STS_RESV_CONFLICT
+		return (BLK_STS_RESV_CONFLICT);
+#else
 		return (BLK_STS_NEXUS);
+#endif
 	case ENODATA:
 		return (BLK_STS_MEDIUM);
 	case EILSEQ:
@@ -337,6 +345,8 @@ zfs_check_media_change(struct block_device *bdev)
 	return (0);
 }
 #define	vdev_bdev_reread_part(bdev)	zfs_check_media_change(bdev)
+#elif defined(HAVE_DISK_CHECK_MEDIA_CHANGE)
+#define	vdev_bdev_reread_part(bdev)	disk_check_media_change(bdev->bd_disk)
 #else
 /*
  * This is encountered if check_disk_change() and bdev_check_media_change()
