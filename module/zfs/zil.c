@@ -1118,6 +1118,23 @@ zil_fail(zilog_t *zilog)
 	 */
 	uint64_t highest_txg = last_synced_txg;
 
+	/*
+	 * At the earliest opportunity, set all the failure state. We need
+	 * zil_failed() in particular to return true so that zil_commit() does
+	 * not proceed to itx processing, since we're about to start that
+	 * ourselves.
+	 */
+	zilog->zl_unfail_txg = highest_txg + 1;
+
+	for (int i = 0; i < TXG_SIZE; i++) {
+		itxg_t *itxg = &zilog->zl_itxg[i];
+
+		mutex_enter(&itxg->itxg_lock);
+		ASSERT(!itxg->itxg_failed);
+		itxg->itxg_failed = B_TRUE;
+		mutex_exit(&itxg->itxg_lock);
+	}
+
 	ASSERT3U(fail_itxg->itxg_txg, ==, 0);
 	ASSERT3P(fail_itxg->itxg_itxs, ==, NULL);
 
@@ -1232,14 +1249,6 @@ zil_fail(zilog_t *zilog)
 		itxg_t *itxg = &zilog->zl_itxg[i];
 
 		mutex_enter(&itxg->itxg_lock);
-		ASSERT(!itxg->itxg_failed);
-
-		/*
-		 * Flag itxgs as failed. Most itxg users (eg zil_itx_assign())
-		 * take itxg_lock but not zl_lock, to avoid contention. They
-		 * need a cheap way to test for failure; this is it.
-		 */
-		itxg->itxg_failed = B_TRUE;
 
 		if (itxg->itxg_txg == 0) {
 			/* Previously cleaned itxg, nothing to do. */
