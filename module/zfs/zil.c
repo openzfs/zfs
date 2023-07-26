@@ -1251,13 +1251,16 @@ zil_fail(zilog_t *zilog)
 		 * how they can legitimately end up here.
 		 */
 		l = &itxg->itxg_itxs->i_sync_list;
-		while ((itx = list_head(l)) != NULL) {
+		itx = list_head(l);
+		while (itx != NULL) {
+			itx_t *nitx = list_next(l, itx);
 			if (itx->itx_lr.lrc_txtype == TX_COMMIT) {
 				list_remove(l, itx);
 				list_insert_tail(&waiters, itx->itx_private);
 				itx->itx_private = NULL;
 				zil_itx_destroy(itx);
 			}
+			itx = nitx;
 		}
 
 		mutex_exit(&itxg->itxg_lock);
