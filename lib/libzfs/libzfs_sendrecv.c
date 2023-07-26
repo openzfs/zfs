@@ -928,6 +928,31 @@ zfs_send_progress(zfs_handle_t *zhp, int fd, uint64_t *bytes_written,
 	return (0);
 }
 
+static void
+signal_nop(int sig)
+{
+	(void) sig;
+}
+
+static void
+timer_delete_cleanup(void *timer)
+{
+	timer_delete(timer);
+}
+
+#ifdef SIGINFO
+#define	SEND_PROGRESS_THREAD_PARENT_BLOCK_SIGINFO sigaddset(&new, SIGINFO)
+#else
+#define	SEND_PROGRESS_THREAD_PARENT_BLOCK_SIGINFO
+#endif
+#define	SEND_PROGRESS_THREAD_PARENT_BLOCK(old) { \
+	sigset_t new; \
+	sigemptyset(&new); \
+	sigaddset(&new, SIGUSR1); \
+	SEND_PROGRESS_THREAD_PARENT_BLOCK_SIGINFO; \
+	pthread_sigmask(SIG_BLOCK, &new, old); \
+}
+
 static void *
 send_progress_thread(void *arg)
 {
@@ -941,6 +966,24 @@ send_progress_thread(void *arg)
 	struct tm tm;
 	int err;
 
+	const struct sigaction signal_action =
+	    {.sa_handler = signal_nop};
+	struct sigevent timer_cfg =
+	    {.sigev_notify = SIGEV_SIGNAL, .sigev_signo = SIGUSR1};
+	const struct itimerspec timer_time =
+	    {.it_value = {.tv_sec = 1}, .it_interval = {.tv_sec = 1}};
+	timer_t timer;
+
+	sigaction(SIGUSR1, &signal_action, NULL);
+#ifdef SIGINFO
+	sigaction(SIGINFO, &signal_action, NULL);
+#endif
+
+	if (timer_create(CLOCK_MONOTONIC, &timer_cfg, &timer))
+		return ((void *)(uintptr_t)errno);
+	pthread_cleanup_push(timer_delete_cleanup, timer);
+	(void) timer_settime(timer, 0, &timer_time, NULL);
+
 	if (!pa->pa_parsable && pa->pa_progress) {
 		(void) fprintf(stderr,
 		    "TIME       %s   %sSNAPSHOT %s\n",
@@ -953,12 +996,12 @@ send_progress_thread(void *arg)
 	 * Print the progress from ZFS_IOC_SEND_PROGRESS every second.
 	 */
 	for (;;) {
-		(void) sleep(1);
+		pause();
 		if ((err = zfs_send_progress(zhp, pa->pa_fd, &bytes,
 		    &blocks)) != 0) {
 			if (err == EINTR || err == ENOENT)
-				return ((void *)0);
-			return ((void *)(uintptr_t)err);
+				err = 0;
+			pthread_exit(((void *)(uintptr_t)err));
 		}
 
 		(void) time(&t);
@@ -998,14 +1041,17 @@ send_progress_thread(void *arg)
 			    buf, zhp->zfs_name);
 		}
 	}
+	pthread_cleanup_pop(B_TRUE);
 }
 
 static boolean_t
-send_progress_thread_exit(libzfs_handle_t *hdl, pthread_t ptid)
+send_progress_thread_exit(
+    libzfs_handle_t *hdl, pthread_t ptid, sigset_t *oldmask)
 {
 	void *status = NULL;
 	(void) pthread_cancel(ptid);
 	(void) pthread_join(ptid, &status);
+	pthread_sigmask(SIG_SETMASK, oldmask, NULL);
 	int error = (int)(uintptr_t)status;
 	if (error != 0 && status != PTHREAD_CANCELED)
 		return (zfs_standard_error(hdl, error,
@@ -1199,6 +1245,7 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 		 * If progress reporting is requested, spawn a new thread to
 		 * poll ZFS_IOC_SEND_PROGRESS at a regular interval.
 		 */
+		sigset_t oldmask;
 		if (sdd->progress || sdd->progressastitle) {
 			pa.pa_zhp = zhp;
 			pa.pa_fd = sdd->outfd;
@@ -1214,13 +1261,14 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 				zfs_close(zhp);
 				return (err);
 			}
+			SEND_PROGRESS_THREAD_PARENT_BLOCK(&oldmask);
 		}
 
 		err = dump_ioctl(zhp, sdd->prevsnap, sdd->prevsnap_obj,
 		    fromorigin, sdd->outfd, flags, sdd->debugnv);
 
 		if ((sdd->progress || sdd->progressastitle) &&
-		    send_progress_thread_exit(zhp->zfs_hdl, tid))
+		    send_progress_thread_exit(zhp->zfs_hdl, tid, &oldmask))
 			return (-1);
 	}
 
@@ -1562,6 +1610,7 @@ estimate_size(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 	progress_arg_t pa = { 0 };
 	int err = 0;
 	pthread_t ptid;
+	sigset_t oldmask;
 
 	if (flags->progress || flags->progressastitle) {
 		pa.pa_zhp = zhp;
@@ -1577,6 +1626,7 @@ estimate_size(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 			return (zfs_error(zhp->zfs_hdl,
 			    EZFS_THREADCREATEFAILED, errbuf));
 		}
+		SEND_PROGRESS_THREAD_PARENT_BLOCK(&oldmask);
 	}
 
 	err = lzc_send_space_resume_redacted(zhp->zfs_name, from,
@@ -1585,7 +1635,7 @@ estimate_size(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 	*sizep = size;
 
 	if ((flags->progress || flags->progressastitle) &&
-	    send_progress_thread_exit(zhp->zfs_hdl, ptid))
+	    send_progress_thread_exit(zhp->zfs_hdl, ptid, &oldmask))
 		return (-1);
 
 	if (!flags->progress && !flags->parsable)
@@ -1876,6 +1926,7 @@ zfs_send_resume_impl_cb_impl(libzfs_handle_t *hdl, sendflags_t *flags,
 	if (!flags->dryrun) {
 		progress_arg_t pa = { 0 };
 		pthread_t tid;
+		sigset_t oldmask;
 		/*
 		 * If progress reporting is requested, spawn a new thread to
 		 * poll ZFS_IOC_SEND_PROGRESS at a regular interval.
@@ -1898,6 +1949,7 @@ zfs_send_resume_impl_cb_impl(libzfs_handle_t *hdl, sendflags_t *flags,
 				zfs_close(zhp);
 				return (error);
 			}
+			SEND_PROGRESS_THREAD_PARENT_BLOCK(&oldmask);
 		}
 
 		error = lzc_send_resume_redacted(zhp->zfs_name, fromname, outfd,
@@ -1906,7 +1958,7 @@ zfs_send_resume_impl_cb_impl(libzfs_handle_t *hdl, sendflags_t *flags,
 			free(redact_book);
 
 		if ((flags->progressastitle || flags->progress) &&
-		    send_progress_thread_exit(hdl, tid)) {
+		    send_progress_thread_exit(hdl, tid, &oldmask)) {
 			zfs_close(zhp);
 			return (-1);
 		}
@@ -2691,6 +2743,7 @@ zfs_send_one_cb_impl(zfs_handle_t *zhp, const char *from, int fd,
 	 * If progress reporting is requested, spawn a new thread to poll
 	 * ZFS_IOC_SEND_PROGRESS at a regular interval.
 	 */
+	sigset_t oldmask;
 	if (flags->progress || flags->progressastitle) {
 		pa.pa_zhp = zhp;
 		pa.pa_fd = fd;
@@ -2708,13 +2761,14 @@ zfs_send_one_cb_impl(zfs_handle_t *zhp, const char *from, int fd,
 			return (zfs_error(zhp->zfs_hdl,
 			    EZFS_THREADCREATEFAILED, errbuf));
 		}
+		SEND_PROGRESS_THREAD_PARENT_BLOCK(&oldmask);
 	}
 
 	err = lzc_send_redacted(name, from, fd,
 	    lzc_flags_from_sendflags(flags), redactbook);
 
 	if ((flags->progress || flags->progressastitle) &&
-	    send_progress_thread_exit(hdl, ptid))
+	    send_progress_thread_exit(hdl, ptid, &oldmask))
 			return (-1);
 
 	if (err == 0 && (flags->props || flags->holds || flags->backup)) {
