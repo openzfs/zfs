@@ -29,7 +29,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd January 12, 2023
+.Dd July 27, 2023
 .Dt ZFS-SEND 8
 .Os
 .
@@ -297,6 +297,12 @@ This flag can only be used in conjunction with
 .It Fl v , -verbose
 Print verbose information about the stream package generated.
 This information includes a per-second report of how much data has been sent.
+The same report can be requested by sending
+.Dv SIGINFO
+or
+.Dv SIGUSR1 ,
+regardless of
+.Fl v .
 .Pp
 The format of the stream is committed.
 You will be able to receive your streams on future versions of ZFS.
@@ -433,6 +439,12 @@ and the verbose output goes to standard error
 .It Fl v , -verbose
 Print verbose information about the stream package generated.
 This information includes a per-second report of how much data has been sent.
+The same report can be requested by sending
+.Dv SIGINFO
+or
+.Dv SIGUSR1 ,
+regardless of
+.Fl v .
 .El
 .It Xo
 .Nm zfs
@@ -668,6 +680,10 @@ to and received on the target server; these snapshots are identical to the
 ones on the source, and are ready to be used, while the parent snapshot on the
 target contains none of the username and password data present on the source,
 because it was removed by the redacted send operation.
+.
+.Sh SIGNALS
+See
+.Fl v .
 .
 .Sh EXAMPLES
 .\" These are, respectively, examples 12, 13 from zfs.8
