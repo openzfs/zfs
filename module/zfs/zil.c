@@ -3054,6 +3054,15 @@ zil_commit_writer(zilog_t *zilog, zil_commit_waiter_t *zcw)
 
 	mutex_enter(&zilog->zl_issuer_lock);
 
+	/*
+	 * This is first time we've taken a ZIL-wide lock since zil_commit()
+	 * was called. zil_fail() may have completed since we first checked the
+	 * fail state in zil_commit(), so we need to recheck it now that we
+	 * have the issuer lock. If its failed, we eject right now.
+	 */
+	if (zil_failed(zilog))
+		goto out;
+
 	if (zcw->zcw_lwb != NULL || zcw->zcw_done) {
 		/*
 		 * It's possible that, while we were waiting to acquire
@@ -3158,6 +3167,14 @@ zil_commit_waiter_timeout(zilog_t *zilog, zil_commit_waiter_t *zcw)
 		goto out;
 
 	ASSERT3S(lwb->lwb_state, ==, LWB_STATE_OPENED);
+
+	/*
+	 * The ZIL may have failed between zil_commit_writer() releasing
+	 * zl_issuer_lock and us taking it. If it has failed, we must not issue
+	 * any IO right now.
+	 */
+	if (zil_failed(zilog))
+		goto out;
 
 	/*
 	 * As described in the comments above zil_commit_waiter() and
@@ -3318,10 +3335,18 @@ zil_commit_waiter(zilog_t *zilog, zil_commit_waiter_t *zcw)
 		 * "zcw" variable) to be found in this "in between" state;
 		 * where it's "zcw_lwb" field is NULL, and it hasn't yet
 		 * been skipped, so it's "zcw_done" field is still B_FALSE.
+		 *
+		 * If the ZIL failed before we got the issuer lock in
+		 * zil_commit_waiter_timeout(), then the lwb will remain open
+		 * and unissued. There's no point doing a timeout wait after
+		 * that, as all its ops will be commited before the ZIL is
+		 * reopened. So we just go to sleep until the waiter is fired
+		 * by zil_clean().
 		 */
 		IMPLY(lwb != NULL, lwb->lwb_state != LWB_STATE_CLOSED);
 
-		if (lwb != NULL && lwb->lwb_state == LWB_STATE_OPENED) {
+		if ((lwb != NULL && lwb->lwb_state == LWB_STATE_OPENED) ||
+		    zil_failed(zilog)) {
 			ASSERT3B(timedout, ==, B_FALSE);
 
 			/*
@@ -3364,12 +3389,17 @@ zil_commit_waiter(zilog_t *zilog, zil_commit_waiter_t *zcw)
 			 * will soon be signaled and marked done via
 			 * zil_clean() and zil_itxg_clean(), so no timeout
 			 * is required.
+			 *
+			 * If it is open, then the ZIL failed before we could
+			 * issue it. See comment at top of loop.
 			 */
 
 			IMPLY(lwb != NULL,
 			    lwb->lwb_state == LWB_STATE_ISSUED ||
 			    lwb->lwb_state == LWB_STATE_WRITE_DONE ||
-			    lwb->lwb_state == LWB_STATE_FLUSH_DONE);
+			    lwb->lwb_state == LWB_STATE_FLUSH_DONE ||
+			    (lwb->lwb_state == LWB_STATE_OPENED &&
+			    zil_failed(zilog)));
 			cv_wait(&zcw->zcw_cv, &zcw->zcw_lock);
 		}
 	}
@@ -3618,6 +3648,16 @@ zil_commit(zilog_t *zilog, uint64_t foid)
 	 * like would be done in zil_commit_write(). Thus, we simply rely on
 	 * txg_wait_synced() to maintain the necessary semantics, and avoid
 	 * calling those functions altogether.
+	 *
+	 * Note that we are checking failure without a lock to avoid
+	 * contention, so another thread might be failing or unfailing the ZIL
+	 * right now. If its going from failed to live, that's ok, as we'll end
+	 * up in zil_commit_fallback_sync() here and do a normal txg sync wait,
+	 * which is acceptable at this moment. If we're going from live to
+	 * failed then we may continue into zil_commit_impl() here. We'll
+	 * recheck the fail state further down as we acquire locks to make sure
+	 * it really still isn't failed, and if it becomes so, eject before
+	 * issuing IO.
 	 */
 	if (zil_failed(zilog) || zilog->zl_suspend > 0)
 		return (zil_commit_fallback_sync(zilog));
