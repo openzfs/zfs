@@ -1060,14 +1060,6 @@ zil_fail(zilog_t *zilog)
 	    offsetof(zil_commit_waiter_t, zcw_node));
 
 	/*
-	 * We have to take the namespace lock to prevent the txg being moved
-	 * forward while we're processing the itxgs.
-	 */
-	mutex_enter(&spa_namespace_lock);
-
-	uint64_t last_synced_txg = spa_last_synced_txg(zilog->zl_spa);
-
-	/*
 	 * A ZIL failure occurs when an LWB write or flush fails, or an LWB
 	 * can't be issued. This usually occurs when the pool suspends during
 	 * zil_commit().
@@ -1101,16 +1093,30 @@ zil_fail(zilog_t *zilog)
 	 * that.
 	 */
 
-	uint64_t highest_txg = last_synced_txg;
-
 	/*
 	 * Prepare the fail itxg. This is not a real itxg, just a convenient
 	 * holder for the itxs that couldn't be written and associated metadata
 	 * until their transaction is committed and we can fire their
 	 * callbacks.
+	 *
+	 * Note that once we take itxg_lock, zil_clean() is blocked until we're
+	 * done.
 	 */
 	itxg_t *fail_itxg = &zilog->zl_fail_itxg;
 	mutex_enter(&fail_itxg->itxg_lock);
+
+	/*
+	 * Starting txg for failure. Any itx seen on or before this txg is
+	 * already committed to the pool.
+	 */
+	uint64_t last_synced_txg = spa_last_synced_txg(zilog->zl_spa);
+
+	/*
+	 * The highest txg we've seen across all itxs. We'll bump this as we
+	 * scan them, and the ZIL can't resume until the pool has passed this
+	 * txg, thus fully committing all itxs.
+	 */
+	uint64_t highest_txg = last_synced_txg;
 
 	ASSERT3U(fail_itxg->itxg_txg, ==, 0);
 	ASSERT3P(fail_itxg->itxg_itxs, ==, NULL);
@@ -1302,8 +1308,6 @@ zil_fail(zilog_t *zilog)
 
 		mutex_exit(&zcw->zcw_lock);
 	}
-
-	mutex_exit(&spa_namespace_lock);
 }
 
 /*
@@ -2457,14 +2461,20 @@ zil_itxg_clean_failed(zilog_t *zilog, uint64_t synced_txg)
 {
 	itxg_t *fail_itxg = &zilog->zl_fail_itxg;
 
-	if (fail_itxg->itxg_txg == 0 || fail_itxg->itxg_txg > synced_txg)
+	/*
+	 * If zil_fail() is currently running, we will pause here until its
+	 * done. If its not (ie most of the time), we're the only one checking,
+	 * once per txg sync, so we should always get the lock without fuss.
+	 */
+	mutex_enter(&fail_itxg->itxg_lock);
+	if (fail_itxg->itxg_txg == 0 || fail_itxg->itxg_txg > synced_txg) {
+		mutex_exit(&fail_itxg->itxg_lock);
 		return;
+	}
 
-	ASSERT3U(fail_itxg->itxg_txg, ==, synced_txg);
+	ASSERT3U(fail_itxg->itxg_txg, <=, synced_txg);
 
 	uint64_t next_txg = UINT64_MAX;
-
-	mutex_enter(&fail_itxg->itxg_lock);
 
 	itx_t *itx, *next;
 	list_t *l = &fail_itxg->itxg_itxs->i_sync_list;
@@ -2509,15 +2519,13 @@ zil_clean(zilog_t *zilog, uint64_t synced_txg)
 
 	ASSERT3U(synced_txg, <, ZILTEST_TXG);
 
-	mutex_enter(&itxg->itxg_lock);
-
 	/*
-	 * Clean up the failed itxg if it has anything for this txg. This will
-	 * be fast and lock-free if it doesn't, so its ok to do this directly
-	 * on this thread.
+	 * First clean up the failed itxg if it has anything for this txg or
+	 * any before it.
 	 */
 	zil_itxg_clean_failed(zilog, synced_txg);
 
+	mutex_enter(&itxg->itxg_lock);
 	if (itxg->itxg_itxs == NULL || itxg->itxg_txg == ZILTEST_TXG) {
 		mutex_exit(&itxg->itxg_lock);
 		return;
