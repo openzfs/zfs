@@ -151,6 +151,7 @@ static kmem_cache_t *zil_lwb_cache;
 static kmem_cache_t *zil_zcw_cache;
 
 static void zil_lwb_commit(zilog_t *zilog, lwb_t *lwb, itx_t *itx);
+static void zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb);
 static itx_t *zil_itx_clone(itx_t *oitx);
 
 static int
@@ -1768,7 +1769,7 @@ static uint_t zil_maxblocksize = SPA_OLD_MAXBLOCKSIZE;
  * Has to be called under zl_issuer_lock to chain more lwbs.
  */
 static lwb_t *
-zil_lwb_write_close(zilog_t *zilog, lwb_t *lwb)
+zil_lwb_write_close(zilog_t *zilog, lwb_t *lwb, list_t *ilwbs)
 {
 	lwb_t *nlwb = NULL;
 	zil_chain_t *zilc;
@@ -1871,6 +1872,27 @@ zil_lwb_write_close(zilog_t *zilog, lwb_t *lwb)
 	dmu_tx_commit(tx);
 
 	/*
+	 * We need to acquire the config lock for the lwb to issue it later.
+	 * However, if we already have a queue of closed parent lwbs already
+	 * holding the config lock (but not yet issued), we can't block here
+	 * waiting on the lock or we will deadlock.  In that case we must
+	 * first issue to parent IOs before waiting on the lock.
+	 */
+	if (ilwbs && !list_is_empty(ilwbs)) {
+		if (!spa_config_tryenter(spa, SCL_STATE, lwb, RW_READER)) {
+			lwb_t *tlwb;
+			while ((tlwb = list_remove_head(ilwbs)) != NULL)
+				zil_lwb_write_issue(zilog, tlwb);
+			spa_config_enter(spa, SCL_STATE, lwb, RW_READER);
+		}
+	} else {
+		spa_config_enter(spa, SCL_STATE, lwb, RW_READER);
+	}
+
+	if (ilwbs)
+		list_insert_tail(ilwbs, lwb);
+
+	/*
 	 * If there was an allocation failure then nlwb will be null which
 	 * forces a txg_wait_synced().
 	 */
@@ -1933,7 +1955,7 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 		ZIL_STAT_INCR(zilog, zil_itx_metaslab_normal_alloc,
 		    BP_GET_LSIZE(&lwb->lwb_blk));
 	}
-	spa_config_enter(zilog->zl_spa, SCL_STATE, lwb, RW_READER);
+	ASSERT(spa_config_held(zilog->zl_spa, SCL_STATE, RW_READER));
 	zil_lwb_add_block(lwb, &lwb->lwb_blk);
 	lwb->lwb_issued_timestamp = gethrtime();
 	zio_nowait(lwb->lwb_root_zio);
@@ -2037,8 +2059,7 @@ cont:
 	    lwb_sp < zil_max_waste_space(zilog) &&
 	    (dlen % max_log_data == 0 ||
 	    lwb_sp < reclen + dlen % max_log_data))) {
-		list_insert_tail(ilwbs, lwb);
-		lwb = zil_lwb_write_close(zilog, lwb);
+		lwb = zil_lwb_write_close(zilog, lwb, ilwbs);
 		if (lwb == NULL)
 			return (NULL);
 		zil_lwb_write_open(zilog, lwb);
@@ -2937,8 +2958,7 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 			    zfs_commit_timeout_pct / 100;
 			if (sleep < zil_min_commit_timeout ||
 			    lwb->lwb_sz - lwb->lwb_nused < lwb->lwb_sz / 8) {
-				list_insert_tail(ilwbs, lwb);
-				lwb = zil_lwb_write_close(zilog, lwb);
+				lwb = zil_lwb_write_close(zilog, lwb, ilwbs);
 				zilog->zl_cur_used = 0;
 				if (lwb == NULL) {
 					while ((lwb = list_remove_head(ilwbs))
@@ -3096,7 +3116,7 @@ zil_commit_waiter_timeout(zilog_t *zilog, zil_commit_waiter_t *zcw)
 	 * since we've reached the commit waiter's timeout and it still
 	 * hasn't been issued.
 	 */
-	lwb_t *nlwb = zil_lwb_write_close(zilog, lwb);
+	lwb_t *nlwb = zil_lwb_write_close(zilog, lwb, NULL);
 
 	ASSERT3S(lwb->lwb_state, !=, LWB_STATE_OPENED);
 
@@ -3921,13 +3941,11 @@ zil_suspend(const char *osname, void **cookiep)
 		return (error);
 	zilog = dmu_objset_zil(os);
 
-	mutex_enter(&zilog->zl_issuer_lock);
 	mutex_enter(&zilog->zl_lock);
 	zh = zilog->zl_header;
 
 	if (zh->zh_flags & ZIL_REPLAY_NEEDED) {		/* unplayed log */
 		mutex_exit(&zilog->zl_lock);
-		mutex_exit(&zilog->zl_issuer_lock);
 		dmu_objset_rele(os, suspend_tag);
 		return (SET_ERROR(EBUSY));
 	}
@@ -3941,7 +3959,6 @@ zil_suspend(const char *osname, void **cookiep)
 	if (cookiep == NULL && !zilog->zl_suspending &&
 	    (zilog->zl_suspend > 0 || BP_IS_HOLE(&zh->zh_log))) {
 		mutex_exit(&zilog->zl_lock);
-		mutex_exit(&zilog->zl_issuer_lock);
 		dmu_objset_rele(os, suspend_tag);
 		return (0);
 	}
@@ -3950,7 +3967,6 @@ zil_suspend(const char *osname, void **cookiep)
 	dsl_pool_rele(dmu_objset_pool(os), suspend_tag);
 
 	zilog->zl_suspend++;
-	mutex_exit(&zilog->zl_issuer_lock);
 
 	if (zilog->zl_suspend > 1) {
 		/*

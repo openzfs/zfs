@@ -52,7 +52,11 @@ extern const struct inode_operations zpl_special_inode_operations;
 
 /* zpl_file.c */
 extern const struct address_space_operations zpl_address_space_operations;
+#ifdef HAVE_VFS_FILE_OPERATIONS_EXTEND
+extern const struct file_operations_extend zpl_file_operations;
+#else
 extern const struct file_operations zpl_file_operations;
+#endif
 extern const struct file_operations zpl_dir_file_operations;
 
 /* zpl_super.c */
@@ -188,6 +192,55 @@ zpl_dir_emit_dots(struct file *file, zpl_dir_context_t *ctx)
 	return (true);
 }
 #endif /* HAVE_VFS_ITERATE */
+
+
+/* zpl_file_range.c */
+
+/* handlers for file_operations of the same name */
+extern ssize_t zpl_copy_file_range(struct file *src_file, loff_t src_off,
+    struct file *dst_file, loff_t dst_off, size_t len, unsigned int flags);
+extern loff_t zpl_remap_file_range(struct file *src_file, loff_t src_off,
+    struct file *dst_file, loff_t dst_off, loff_t len, unsigned int flags);
+extern int zpl_clone_file_range(struct file *src_file, loff_t src_off,
+    struct file *dst_file, loff_t dst_off, uint64_t len);
+extern int zpl_dedupe_file_range(struct file *src_file, loff_t src_off,
+    struct file *dst_file, loff_t dst_off, uint64_t len);
+
+/* compat for FICLONE/FICLONERANGE/FIDEDUPERANGE ioctls */
+typedef struct {
+	int64_t		fcr_src_fd;
+	uint64_t	fcr_src_offset;
+	uint64_t	fcr_src_length;
+	uint64_t	fcr_dest_offset;
+} zfs_ioc_compat_file_clone_range_t;
+
+typedef struct {
+	int64_t		fdri_dest_fd;
+	uint64_t	fdri_dest_offset;
+	uint64_t	fdri_bytes_deduped;
+	int32_t		fdri_status;
+	uint32_t	fdri_reserved;
+} zfs_ioc_compat_dedupe_range_info_t;
+
+typedef struct {
+	uint64_t	fdr_src_offset;
+	uint64_t	fdr_src_length;
+	uint16_t	fdr_dest_count;
+	uint16_t	fdr_reserved1;
+	uint32_t	fdr_reserved2;
+	zfs_ioc_compat_dedupe_range_info_t	fdr_info[];
+} zfs_ioc_compat_dedupe_range_t;
+
+#define	ZFS_IOC_COMPAT_FICLONE		_IOW(0x94, 9, int)
+#define	ZFS_IOC_COMPAT_FICLONERANGE \
+    _IOW(0x94, 13, zfs_ioc_compat_file_clone_range_t)
+#define	ZFS_IOC_COMPAT_FIDEDUPERANGE \
+    _IOWR(0x94, 54, zfs_ioc_compat_dedupe_range_t)
+
+extern long zpl_ioctl_ficlone(struct file *filp, void *arg);
+extern long zpl_ioctl_ficlonerange(struct file *filp, void *arg);
+extern long zpl_ioctl_fideduperange(struct file *filp, void *arg);
+
 
 #if defined(HAVE_INODE_TIMESTAMP_TRUNCATE)
 #define	zpl_inode_timestamp_truncate(ts, ip)	timestamp_truncate(ts, ip)

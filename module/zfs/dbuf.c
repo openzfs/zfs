@@ -2701,7 +2701,7 @@ dmu_buf_will_clone(dmu_buf_t *db_fake, dmu_tx_t *tx)
 	 */
 	mutex_enter(&db->db_mtx);
 	VERIFY(!dbuf_undirty(db, tx));
-	ASSERT(list_head(&db->db_dirty_records) == NULL);
+	ASSERT0(dbuf_find_dirty_eq(db, tx->tx_txg));
 	if (db->db_buf != NULL) {
 		arc_buf_destroy(db->db_buf, db);
 		db->db_buf = NULL;
@@ -4457,6 +4457,15 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 	} else if (db->db_state == DB_FILL) {
 		/* This buffer was freed and is now being re-filled */
 		ASSERT(db->db.db_data != dr->dt.dl.dr_data);
+	} else if (db->db_state == DB_READ) {
+		/*
+		 * This buffer has a clone we need to write, and an in-flight
+		 * read on the BP we're about to clone. Its safe to issue the
+		 * write here because the read has already been issued and the
+		 * contents won't change.
+		 */
+		ASSERT(dr->dt.dl.dr_brtwrite &&
+		    dr->dt.dl.dr_override_state == DR_OVERRIDDEN);
 	} else {
 		ASSERT(db->db_state == DB_CACHED || db->db_state == DB_NOFILL);
 	}

@@ -135,6 +135,12 @@ ci_reason = 'CI runner doesn\'t have all requirements'
 idmap_reason = 'Idmapped mount needs kernel 5.12+'
 
 #
+# copy_file_range() is not supported by all kernels
+#
+cfr_reason = 'Kernel copy_file_range support required'
+cfr_cross_reason = 'copy_file_range(2) cross-filesystem needs kernel 5.3+'
+
+#
 # These tests are known to fail, thus we use this list to prevent these
 # failures from failing the job as a whole; only unexpected failures
 # bubble up to cause this script to exit with a non-zero exit status.
@@ -288,6 +294,14 @@ elif sys.platform.startswith('linux'):
         'idmap_mount/idmap_mount_003': ['SKIP', idmap_reason],
         'idmap_mount/idmap_mount_004': ['SKIP', idmap_reason],
         'idmap_mount/idmap_mount_005': ['SKIP', idmap_reason],
+        'block_cloning/block_cloning_disabled_copyfilerange':
+            ['SKIP', cfr_reason],
+        'block_cloning/block_cloning_copyfilerange':
+            ['SKIP', cfr_reason],
+        'block_cloning/block_cloning_copyfilerange_partial':
+            ['SKIP', cfr_reason],
+        'block_cloning/block_cloning_copyfilerange_cross_dataset':
+            ['SKIP', cfr_cross_reason],
     })
 
 
