@@ -1656,7 +1656,13 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 
 	tx = dmu_tx_create(os);
 	dmu_tx_hold_space(tx, zgd->zgd_db->db_size);
-	if (dmu_tx_assign(tx, TXG_WAIT) != 0) {
+	/*
+	 * This transaction does not produce any dirty data or log blocks, so
+	 * it should not be throttled.  All other cases wait for TXG sync, by
+	 * which time the log block we are writing will be obsolete, so we can
+	 * skip waiting and just return error here instead.
+	 */
+	if (dmu_tx_assign(tx, TXG_NOWAIT | TXG_NOTHROTTLE) != 0) {
 		dmu_tx_abort(tx);
 		/* Make zl_get_data do txg_waited_synced() */
 		return (SET_ERROR(EIO));
