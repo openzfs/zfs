@@ -388,7 +388,11 @@ uint_t spa_asize_inflation = 24;
 uint_t spa_slop_shift = 5;
 static const uint64_t spa_min_slop = 128ULL * 1024 * 1024;
 static const uint64_t spa_max_slop = 128ULL * 1024 * 1024 * 1024;
-static const int spa_allocators = 4;
+
+/*
+ * Number of allocators to use, per spa instance
+ */
+static int spa_num_allocators = 4;
 
 /*
  * Spa active allocator.
@@ -730,7 +734,9 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	if (altroot)
 		spa->spa_root = spa_strdup(altroot);
 
-	spa->spa_alloc_count = spa_allocators;
+	/* Do not allow more allocators than CPUs. */
+	spa->spa_alloc_count = MIN(MAX(spa_num_allocators, 1), boot_ncpus);
+
 	spa->spa_allocs = kmem_zalloc(spa->spa_alloc_count *
 	    sizeof (spa_alloc_t), KM_SLEEP);
 	for (int i = 0; i < spa->spa_alloc_count; i++) {
@@ -739,6 +745,7 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 		avl_create(&spa->spa_allocs[i].spaa_tree, zio_bookmark_compare,
 		    sizeof (zio_t), offsetof(zio_t, io_queue_node.a));
 	}
+
 	avl_create(&spa->spa_metaslabs_by_flushed, metaslab_sort_by_flushed,
 	    sizeof (metaslab_t), offsetof(metaslab_t, ms_spa_txg_node));
 	avl_create(&spa->spa_sm_logs_by_txg, spa_log_sm_sort_by_txg,
@@ -3009,3 +3016,6 @@ ZFS_MODULE_PARAM(zfs, zfs_, special_class_metadata_reserve_pct, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM_CALL(zfs_spa, spa_, slop_shift, param_set_slop_shift,
 	param_get_uint, ZMOD_RW, "Reserved free space in pool");
+
+ZFS_MODULE_PARAM(zfs, spa_, num_allocators, INT, ZMOD_RW,
+	"Number of allocators per spa, capped by ncpus");

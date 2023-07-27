@@ -1639,60 +1639,67 @@ dmu_objset_write_done(zio_t *zio, arc_buf_t *abuf, void *arg)
 	kmem_free(bp, sizeof (*bp));
 }
 
+typedef struct sync_objset_arg {
+	zio_t		*soa_zio;
+	objset_t	*soa_os;
+	dmu_tx_t	*soa_tx;
+	kmutex_t	soa_mutex;
+	int		soa_count;
+	taskq_ent_t	soa_tq_ent;
+} sync_objset_arg_t;
+
 typedef struct sync_dnodes_arg {
-	multilist_t *sda_list;
-	int sda_sublist_idx;
-	multilist_t *sda_newlist;
-	dmu_tx_t *sda_tx;
-	zio_t *sda_cio;
+	multilist_t	*sda_list;
+	int		sda_sublist_idx;
+	multilist_t	*sda_newlist;
+	sync_objset_arg_t *sda_soa;
 } sync_dnodes_arg_t;
+
+static void sync_meta_dnode_task(void *arg);
 
 static void
 sync_dnodes_task(void *arg)
 {
 	sync_dnodes_arg_t *sda = arg;
+	sync_objset_arg_t *soa = sda->sda_soa;
+	objset_t *os = soa->soa_os;
 
 	multilist_sublist_t *ms =
 	    multilist_sublist_lock(sda->sda_list, sda->sda_sublist_idx);
 
-	dmu_objset_sync_dnodes(ms, sda->sda_tx);
+	dmu_objset_sync_dnodes(ms, soa->soa_tx);
 
 	multilist_sublist_unlock(ms);
 
-	zio_nowait(sda->sda_cio);
-
 	kmem_free(sda, sizeof (*sda));
+
+	mutex_enter(&soa->soa_mutex);
+	ASSERT(soa->soa_count != 0);
+	if (--soa->soa_count != 0) {
+		mutex_exit(&soa->soa_mutex);
+		return;
+	}
+	mutex_exit(&soa->soa_mutex);
+
+	taskq_dispatch_ent(dmu_objset_pool(os)->dp_sync_taskq,
+	    sync_meta_dnode_task, soa, TQ_FRONT, &soa->soa_tq_ent);
 }
 
-typedef struct sync_objset_arg {
-	objset_t *soa_os;
-	dmu_tx_t *soa_tx;
-	zio_t *soa_zio;
-} sync_objset_arg_t;
-
+/*
+ * Issue the zio_nowait() for all dirty record zios on the meta dnode,
+ * then trigger the callback for the zil_sync. This runs once for each
+ * objset, only after any/all sublists in the objset have been synced.
+ */
 static void
-sync_dnodes_finish_task(void *arg)
+sync_meta_dnode_task(void *arg)
 {
 	sync_objset_arg_t *soa = arg;
 	objset_t *os = soa->soa_os;
 	dmu_tx_t *tx = soa->soa_tx;
-
-	/* Free intent log blocks up to this tx. (May block.) */
-	zil_sync(os->os_zil, tx);
-	os->os_phys->os_zil_header = os->os_zil_header;
-
-	zio_nowait(soa->soa_zio);
-	kmem_free(soa, sizeof (*soa));
-}
-
-void
-dmu_objset_sync_sublists_done(zio_t *zio)
-{
-	sync_objset_arg_t *soa = zio->io_private;
-	objset_t *os = soa->soa_os;
-	dmu_tx_t *tx = soa->soa_tx;
 	int txgoff = tx->tx_txg & TXG_MASK;
 	dbuf_dirty_record_t *dr;
+
+	ASSERT0(soa->soa_count);
 
 	list_t *list = &DMU_META_DNODE(os)->dn_dirty_records[txgoff];
 	while ((dr = list_remove_head(list)) != NULL) {
@@ -1706,14 +1713,20 @@ dmu_objset_sync_sublists_done(zio_t *zio)
 		os->os_freed_dnodes = 0;
 	}
 
-	/* sync_dnodes_finsh_task calls zil_sync on our behalf. */
-	(void) taskq_dispatch(dmu_objset_pool(os)->dp_sync_taskq,
-	    sync_dnodes_finish_task, soa, TQ_FRONT);
+	/*
+	 * Free intent log blocks up to this tx.
+	 */
+	zil_sync(os->os_zil, tx);
+	os->os_phys->os_zil_header = os->os_zil_header;
+	zio_nowait(soa->soa_zio);
+
+	mutex_destroy(&soa->soa_mutex);
+	kmem_free(soa, sizeof (*soa));
 }
 
-/* Nonblocking objset sync. Called from dsl. */
-zio_t *
-dmu_objset_sync(objset_t *os, zio_t *rio, dmu_tx_t *tx)
+/* called from dsl */
+void
+dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 {
 	int txgoff;
 	zbookmark_phys_t zb;
@@ -1762,10 +1775,6 @@ dmu_objset_sync(objset_t *os, zio_t *rio, dmu_tx_t *tx)
 		    DMU_OT_OBJSET, NULL, NULL, NULL);
 	}
 
-	/* pio is a child of rio and a parent of zio */
-	zio_t *pio = zio_null(rio, os->os_spa, NULL, NULL, NULL,
-	    ZIO_FLAG_MUSTSUCCEED);
-
 	zio = arc_write(pio, os->os_spa, tx->tx_txg,
 	    blkptr_copy, os->os_phys_buf, B_FALSE, dmu_os_is_l2cacheable(os),
 	    &zp, dmu_objset_write_ready, NULL, dmu_objset_write_done,
@@ -1809,36 +1818,49 @@ dmu_objset_sync(objset_t *os, zio_t *rio, dmu_tx_t *tx)
 		    offsetof(dnode_t, dn_dirty_link[txgoff]));
 	}
 
-	/* sync_dnodes_finish_task executes zio and frees soa */
+	/*
+	 * zio_nowait(zio) is done after any/all sublist and meta dnode
+	 * zios have been nowaited, and the zil_sync() has been performed.
+	 * The soa is freed at the end of sync_meta_dnode_task.
+	 */
 	sync_objset_arg_t *soa = kmem_alloc(sizeof (*soa), KM_SLEEP);
+	soa->soa_zio = zio;
 	soa->soa_os = os;
 	soa->soa_tx = tx;
-	soa->soa_zio = zio;
-
-	/* sio is a child of the arc_write zio and parent of the sda_cio(s). */
-	zio_t *sio = zio_null(zio, os->os_spa, NULL,
-	    dmu_objset_sync_sublists_done, soa, ZIO_FLAG_MUSTSUCCEED);
+	taskq_init_ent(&soa->soa_tq_ent);
+	mutex_init(&soa->soa_mutex, NULL, MUTEX_DEFAULT, NULL);
 
 	ml = &os->os_dirty_dnodes[txgoff];
-	num_sublists = multilist_get_num_sublists(ml);
+	soa->soa_count = num_sublists = multilist_get_num_sublists(ml);
+
 	for (int i = 0; i < num_sublists; i++) {
 		if (multilist_sublist_is_empty_idx(ml, i))
-			continue;
-		sync_dnodes_arg_t *sda = kmem_alloc(sizeof (*sda), KM_SLEEP);
-		sda->sda_list = ml;
-		sda->sda_sublist_idx = i;
-		sda->sda_tx = tx;
-		sda->sda_cio = zio_null(sio, os->os_spa, NULL, NULL, NULL,
-		    ZIO_FLAG_MUSTSUCCEED);
-		(void) taskq_dispatch(dmu_objset_pool(os)->dp_sync_taskq,
-		    sync_dnodes_task, sda, 0);
-		/* callback frees sda */
+			soa->soa_count--;
 	}
 
-	/* Syncs the meta dnode even if all sublists were empty */
-	zio_nowait(sio);
-
-	return (pio);
+	if (soa->soa_count == 0) {
+		taskq_dispatch_ent(dmu_objset_pool(os)->dp_sync_taskq,
+		    sync_meta_dnode_task, soa, TQ_FRONT, &soa->soa_tq_ent);
+	} else {
+		/*
+		 * Sync sublists in parallel. The last to finish
+		 * (i.e., when soa->soa_count reaches zero) must
+		 *  dispatch sync_meta_dnode_task.
+		 */
+		for (int i = 0; i < num_sublists; i++) {
+			if (multilist_sublist_is_empty_idx(ml, i))
+				continue;
+			sync_dnodes_arg_t *sda =
+			    kmem_alloc(sizeof (*sda), KM_SLEEP);
+			sda->sda_list = ml;
+			sda->sda_sublist_idx = i;
+			sda->sda_soa = soa;
+			(void) taskq_dispatch(
+			    dmu_objset_pool(os)->dp_sync_taskq,
+			    sync_dnodes_task, sda, 0);
+			/* sync_dnodes_task frees sda */
+		}
+	}
 }
 
 boolean_t

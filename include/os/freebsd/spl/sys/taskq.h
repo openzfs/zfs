@@ -42,6 +42,7 @@ extern "C" {
 
 typedef struct taskq {
 	struct taskqueue	*tq_queue;
+	int			tq_nthreads;
 } taskq_t;
 
 typedef uintptr_t taskqid_t;
@@ -93,6 +94,8 @@ extern void taskq_dispatch_ent(taskq_t *, task_func_t, void *, uint_t,
     taskq_ent_t *);
 extern int taskq_empty_ent(taskq_ent_t *);
 taskq_t	*taskq_create(const char *, int, pri_t, int, int, uint_t);
+taskq_t	*taskq_create_synced(const char *, int, pri_t, int, int, uint_t,
+    kthread_t ***);
 taskq_t	*taskq_create_instance(const char *, int, int, pri_t, int, int, uint_t);
 taskq_t	*taskq_create_proc(const char *, int, pri_t, int, int,
     struct proc *, uint_t);

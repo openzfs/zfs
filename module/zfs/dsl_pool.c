@@ -209,8 +209,7 @@ dsl_pool_open_impl(spa_t *spa, uint64_t txg)
 	txg_list_create(&dp->dp_early_sync_tasks, spa,
 	    offsetof(dsl_sync_task_t, dst_node));
 
-	dp->dp_sync_taskq = taskq_create("dp_sync_taskq",
-	    MIN(spa->spa_alloc_count, boot_ncpus), minclsyspri, 1, INT_MAX, 0);
+	dp->dp_sync_taskq = spa_sync_tq_create(spa, "dp_sync_taskq");
 
 	dp->dp_zil_clean_taskq = taskq_create("dp_zil_clean_taskq",
 	    zfs_zil_clean_taskq_nthr_pct, minclsyspri,
@@ -403,7 +402,7 @@ dsl_pool_close(dsl_pool_t *dp)
 	txg_list_destroy(&dp->dp_dirty_dirs);
 
 	taskq_destroy(dp->dp_zil_clean_taskq);
-	taskq_destroy(dp->dp_sync_taskq);
+	spa_sync_tq_destroy(dp->dp_spa);
 
 	/*
 	 * We can't set retry to TRUE since we're explicitly specifying
@@ -574,7 +573,9 @@ dsl_pool_mos_diduse_space(dsl_pool_t *dp,
 static void
 dsl_pool_sync_mos(dsl_pool_t *dp, dmu_tx_t *tx)
 {
-	VERIFY0(zio_wait(dmu_objset_sync(dp->dp_meta_objset, NULL, tx)));
+	zio_t *zio = zio_root(dp->dp_spa, NULL, NULL, ZIO_FLAG_MUSTSUCCEED);
+	dmu_objset_sync(dp->dp_meta_objset, zio, tx);
+	VERIFY0(zio_wait(zio));
 	dmu_objset_sync_done(dp->dp_meta_objset, tx);
 	taskq_wait(dp->dp_sync_taskq);
 	multilist_destroy(&dp->dp_meta_objset->os_synced_dnodes);

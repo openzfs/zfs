@@ -4587,7 +4587,10 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 	}
 }
 
-/* May be called recursively from dbuf_sync_indirect(). */
+/*
+ * Syncs out a range of dirty records for indirect or leaf dbufs.  May be
+ * called recursively from dbuf_sync_indirect().
+ */
 void
 dbuf_sync_list(list_t *list, int level, dmu_tx_t *tx)
 {

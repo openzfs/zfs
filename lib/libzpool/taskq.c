@@ -337,6 +337,36 @@ taskq_destroy(taskq_t *tq)
 	kmem_free(tq, sizeof (taskq_t));
 }
 
+/*
+ * Create a taskq with a specified number of pool threads. Allocate
+ * and return an array of nthreads kthread_t pointers, one for each
+ * thread in the pool. The array is not ordered and must be freed
+ * by the caller.
+ */
+taskq_t *
+taskq_create_synced(const char *name, int nthreads, pri_t pri,
+    int minalloc, int maxalloc, uint_t flags, kthread_t ***ktpp)
+{
+	taskq_t *tq;
+	kthread_t **kthreads = kmem_zalloc(sizeof (*kthreads) * nthreads,
+	    KM_SLEEP);
+
+	(void) pri; (void) minalloc; (void) maxalloc;
+
+	flags &= ~(TASKQ_DYNAMIC | TASKQ_THREADS_CPU_PCT | TASKQ_DC_BATCH);
+
+	tq = taskq_create(name, nthreads, minclsyspri, nthreads, INT_MAX,
+	    flags | TASKQ_PREPOPULATE);
+	VERIFY(tq != NULL);
+	VERIFY(tq->tq_nthreads == nthreads);
+
+	for (int i = 0; i < nthreads; i++) {
+		kthreads[i] = tq->tq_threadlist[i];
+	}
+	*ktpp = kthreads;
+	return (tq);
+}
+
 int
 taskq_member(taskq_t *tq, kthread_t *t)
 {

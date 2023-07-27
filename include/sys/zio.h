@@ -223,6 +223,9 @@ typedef uint64_t zio_flag_t;
 #define	ZIO_FLAG_REEXECUTED	(1ULL << 29)
 #define	ZIO_FLAG_DELEGATED	(1ULL << 30)
 
+#define	ZIO_ALLOCATOR_NONE	(-1)
+#define	ZIO_HAS_ALLOCATOR(zio)	((zio)->io_allocator != ZIO_ALLOCATOR_NONE)
+
 #define	ZIO_FLAG_MUSTSUCCEED		0
 #define	ZIO_FLAG_RAW	(ZIO_FLAG_RAW_COMPRESS | ZIO_FLAG_RAW_ENCRYPT)
 
@@ -526,6 +529,9 @@ struct zio {
 
 	/* Taskq dispatching state */
 	taskq_ent_t	io_tqent;
+
+	/* write issue taskq selection, based upon sync thread */
+	taskq_t		*io_wr_iss_tq;
 };
 
 enum blk_verify_flag {

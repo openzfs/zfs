@@ -496,6 +496,8 @@ extern taskq_t *system_taskq;
 extern taskq_t *system_delay_taskq;
 
 extern taskq_t	*taskq_create(const char *, int, pri_t, int, int, uint_t);
+extern taskq_t	*taskq_create_synced(const char *, int, pri_t, int, int, uint_t,
+    kthread_t ***);
 #define	taskq_create_proc(a, b, c, d, e, p, f) \
 	    (taskq_create(a, b, c, d, e, f))
 #define	taskq_create_sysdc(a, b, d, e, p, dc, f) \
