@@ -415,7 +415,11 @@ zfs_inode_set_ops(zfsvfs_t *zfsvfs, struct inode *ip)
 	switch (ip->i_mode & S_IFMT) {
 	case S_IFREG:
 		ip->i_op = &zpl_inode_operations;
+#ifdef HAVE_VFS_FILE_OPERATIONS_EXTEND
+		ip->i_fop = &zpl_file_operations.kabi_fops;
+#else
 		ip->i_fop = &zpl_file_operations;
+#endif
 		ip->i_mapping->a_ops = &zpl_address_space_operations;
 		break;
 
@@ -455,7 +459,11 @@ zfs_inode_set_ops(zfsvfs_t *zfsvfs, struct inode *ip)
 		/* Assume the inode is a file and attempt to continue */
 		ip->i_mode = S_IFREG | 0644;
 		ip->i_op = &zpl_inode_operations;
+#ifdef HAVE_VFS_FILE_OPERATIONS_EXTEND
+		ip->i_fop = &zpl_file_operations.kabi_fops;
+#else
 		ip->i_fop = &zpl_file_operations;
+#endif
 		ip->i_mapping->a_ops = &zpl_address_space_operations;
 		break;
 	}

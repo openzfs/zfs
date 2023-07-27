@@ -1257,6 +1257,12 @@ zpl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		return (zpl_ioctl_getdosflags(filp, (void *)arg));
 	case ZFS_IOC_SETDOSFLAGS:
 		return (zpl_ioctl_setdosflags(filp, (void *)arg));
+	case ZFS_IOC_COMPAT_FICLONE:
+		return (zpl_ioctl_ficlone(filp, (void *)arg));
+	case ZFS_IOC_COMPAT_FICLONERANGE:
+		return (zpl_ioctl_ficlonerange(filp, (void *)arg));
+	case ZFS_IOC_COMPAT_FIDEDUPERANGE:
+		return (zpl_ioctl_fideduperange(filp, (void *)arg));
 	default:
 		return (-ENOTTY);
 	}
@@ -1283,7 +1289,6 @@ zpl_compat_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 }
 #endif /* CONFIG_COMPAT */
 
-
 const struct address_space_operations zpl_address_space_operations = {
 #ifdef HAVE_VFS_READPAGES
 	.readpages	= zpl_readpages,
@@ -1306,7 +1311,12 @@ const struct address_space_operations zpl_address_space_operations = {
 #endif
 };
 
+#ifdef HAVE_VFS_FILE_OPERATIONS_EXTEND
+const struct file_operations_extend zpl_file_operations = {
+	.kabi_fops = {
+#else
 const struct file_operations zpl_file_operations = {
+#endif
 	.open		= zpl_open,
 	.release	= zpl_release,
 	.llseek		= zpl_llseek,
@@ -1333,12 +1343,29 @@ const struct file_operations zpl_file_operations = {
 	.aio_fsync	= zpl_aio_fsync,
 #endif
 	.fallocate	= zpl_fallocate,
+#ifdef HAVE_VFS_COPY_FILE_RANGE
+	.copy_file_range	= zpl_copy_file_range,
+#endif
+#ifdef HAVE_VFS_CLONE_FILE_RANGE
+	.clone_file_range	= zpl_clone_file_range,
+#endif
+#ifdef HAVE_VFS_REMAP_FILE_RANGE
+	.remap_file_range	= zpl_remap_file_range,
+#endif
+#ifdef HAVE_VFS_DEDUPE_FILE_RANGE
+	.dedupe_file_range	= zpl_dedupe_file_range,
+#endif
 #ifdef HAVE_FILE_FADVISE
 	.fadvise	= zpl_fadvise,
 #endif
 	.unlocked_ioctl	= zpl_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl	= zpl_compat_ioctl,
+#endif
+#ifdef HAVE_VFS_FILE_OPERATIONS_EXTEND
+	}, /* kabi_fops */
+	.copy_file_range	= zpl_copy_file_range,
+	.clone_file_range	= zpl_clone_file_range,
 #endif
 };
 

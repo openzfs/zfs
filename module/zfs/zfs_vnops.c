@@ -1212,7 +1212,7 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 	gid = KGID_TO_SGID(ZTOGID(outzp));
 	projid = outzp->z_projid;
 
-	bps = kmem_alloc(sizeof (bps[0]) * maxblocks, KM_SLEEP);
+	bps = vmem_alloc(sizeof (bps[0]) * maxblocks, KM_SLEEP);
 
 	/*
 	 * Clone the file in reasonable size chunks.  Each chunk is cloned
@@ -1330,7 +1330,7 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 		done += size;
 	}
 
-	kmem_free(bps, sizeof (bps[0]) * maxblocks);
+	vmem_free(bps, sizeof (bps[0]) * maxblocks);
 	zfs_znode_update_vfs(outzp);
 
 unlock:
