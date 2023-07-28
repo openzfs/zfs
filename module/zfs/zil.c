@@ -761,15 +761,13 @@ zil_lwb_vdev_compare(const void *x1, const void *x2)
 }
 
 static lwb_t *
-zil_alloc_lwb(zilog_t *zilog, blkptr_t *bp, boolean_t slog, uint64_t txg,
-    boolean_t fastwrite)
+zil_alloc_lwb(zilog_t *zilog, blkptr_t *bp, boolean_t slog, uint64_t txg)
 {
 	lwb_t *lwb;
 
 	lwb = kmem_cache_alloc(zil_lwb_cache, KM_SLEEP);
 	lwb->lwb_zilog = zilog;
 	lwb->lwb_blk = *bp;
-	lwb->lwb_fastwrite = fastwrite;
 	lwb->lwb_slog = slog;
 	lwb->lwb_indirect = B_FALSE;
 	if (BP_GET_CHECKSUM(bp) == ZIO_CHECKSUM_ZILOG2) {
@@ -916,7 +914,6 @@ zil_create(zilog_t *zilog)
 	dmu_tx_t *tx = NULL;
 	blkptr_t blk;
 	int error = 0;
-	boolean_t fastwrite = FALSE;
 	boolean_t slog = FALSE;
 	dsl_dataset_t *ds = dmu_objset_ds(zilog->zl_os);
 
@@ -949,8 +946,6 @@ zil_create(zilog_t *zilog)
 
 		error = zio_alloc_zil(zilog->zl_spa, zilog->zl_os, txg, &blk,
 		    ZIL_MIN_BLKSZ, &slog);
-		fastwrite = TRUE;
-
 		if (error == 0)
 			zil_init_log_chain(zilog, &blk);
 	}
@@ -959,7 +954,7 @@ zil_create(zilog_t *zilog)
 	 * Allocate a log write block (lwb) for the first log block.
 	 */
 	if (error == 0)
-		lwb = zil_alloc_lwb(zilog, &blk, slog, txg, fastwrite);
+		lwb = zil_alloc_lwb(zilog, &blk, slog, txg);
 
 	/*
 	 * If we just allocated the first log block, commit our transaction
@@ -1044,9 +1039,6 @@ zil_destroy(zilog_t *zilog, boolean_t keep_first)
 		ASSERT(zh->zh_claim_txg == 0);
 		VERIFY(!keep_first);
 		while ((lwb = list_remove_head(&zilog->zl_lwb_list)) != NULL) {
-			if (lwb->lwb_fastwrite)
-				metaslab_fastwrite_unmark(zilog->zl_spa,
-				    &lwb->lwb_blk);
 			if (lwb->lwb_buf != NULL)
 				zio_buf_free(lwb->lwb_buf, lwb->lwb_sz);
 			zio_free(zilog->zl_spa, txg, &lwb->lwb_blk);
@@ -1551,7 +1543,6 @@ zil_lwb_write_done(zio_t *zio)
 	ASSERT3S(lwb->lwb_state, ==, LWB_STATE_ISSUED);
 	lwb->lwb_state = LWB_STATE_WRITE_DONE;
 	lwb->lwb_write_zio = NULL;
-	lwb->lwb_fastwrite = FALSE;
 	nlwb = list_next(&zilog->zl_lwb_list, lwb);
 	mutex_exit(&zilog->zl_lock);
 
@@ -1718,20 +1709,12 @@ zil_lwb_write_open(zilog_t *zilog, lwb_t *lwb)
 	    ZB_ZIL_OBJECT, ZB_ZIL_LEVEL,
 	    lwb->lwb_blk.blk_cksum.zc_word[ZIL_ZC_SEQ]);
 
-	/* Lock so zil_sync() doesn't fastwrite_unmark after zio is created */
-	mutex_enter(&zilog->zl_lock);
-	if (!lwb->lwb_fastwrite) {
-		metaslab_fastwrite_mark(zilog->zl_spa, &lwb->lwb_blk);
-		lwb->lwb_fastwrite = 1;
-	}
-
 	lwb->lwb_write_zio = zio_rewrite(lwb->lwb_root_zio, zilog->zl_spa, 0,
 	    &lwb->lwb_blk, lwb_abd, BP_GET_LSIZE(&lwb->lwb_blk),
-	    zil_lwb_write_done, lwb, prio,
-	    ZIO_FLAG_CANFAIL | ZIO_FLAG_FASTWRITE, &zb);
+	    zil_lwb_write_done, lwb, prio, ZIO_FLAG_CANFAIL, &zb);
 
+	mutex_enter(&zilog->zl_lock);
 	lwb->lwb_state = LWB_STATE_OPENED;
-
 	zil_lwb_set_zio_dependency(zilog, lwb);
 	zilog->zl_last_lwb_opened = lwb;
 	mutex_exit(&zilog->zl_lock);
@@ -1864,7 +1847,7 @@ zil_lwb_write_close(zilog_t *zilog, lwb_t *lwb, list_t *ilwbs)
 		/*
 		 * Allocate a new log write block (lwb).
 		 */
-		nlwb = zil_alloc_lwb(zilog, bp, slog, txg, TRUE);
+		nlwb = zil_alloc_lwb(zilog, bp, slog, txg);
 	}
 
 	lwb->lwb_state = LWB_STATE_ISSUED;
@@ -3651,18 +3634,6 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 			BP_ZERO(&zh->zh_log);
 	}
 
-	/*
-	 * Remove fastwrite on any blocks that have been pre-allocated for
-	 * the next commit. This prevents fastwrite counter pollution by
-	 * unused, long-lived LWBs.
-	 */
-	for (; lwb != NULL; lwb = list_next(&zilog->zl_lwb_list, lwb)) {
-		if (lwb->lwb_fastwrite && !lwb->lwb_write_zio) {
-			metaslab_fastwrite_unmark(zilog->zl_spa, &lwb->lwb_blk);
-			lwb->lwb_fastwrite = 0;
-		}
-	}
-
 	mutex_exit(&zilog->zl_lock);
 }
 
@@ -3894,9 +3865,6 @@ zil_close(zilog_t *zilog)
 	if (lwb != NULL) {
 		ASSERT(list_is_empty(&zilog->zl_lwb_list));
 		ASSERT3S(lwb->lwb_state, !=, LWB_STATE_ISSUED);
-
-		if (lwb->lwb_fastwrite)
-			metaslab_fastwrite_unmark(zilog->zl_spa, &lwb->lwb_blk);
 
 		zio_buf_free(lwb->lwb_buf, lwb->lwb_sz);
 		zil_free_lwb(zilog, lwb);
