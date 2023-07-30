@@ -819,10 +819,12 @@ retry:
 static void
 #ifdef HAVE_BLOCK_DEVICE_OPERATIONS_RELEASE_VOID_1ARG
 zvol_release(struct gendisk *disk)
-#else
-zvol_release(struct gendisk *disk, fmode_t mode)
-#endif
 {
+#else
+zvol_release(struct gendisk *disk, fmode_t unused)
+{
+	(void) unused;
+#endif
 	zvol_state_t *zv;
 	boolean_t drop_suspend = B_TRUE;
 
