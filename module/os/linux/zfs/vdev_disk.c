@@ -211,7 +211,7 @@ vdev_disk_kobj_evt_post(vdev_t *v)
 	}
 }
 
-#ifndef HAVE_BLKDEV_GET_BY_PATH_4ARGS
+#if !defined(HAVE_BLKDEV_GET_BY_PATH_4ARG)
 /*
  * Define a dummy struct blk_holder_ops for kernel versions
  * prior to 6.5.
@@ -223,7 +223,7 @@ static inline struct block_device *
 vdev_blkdev_get_by_path(const char *path, spa_mode_t mode, void *holder,
     const struct blk_holder_ops *hops)
 {
-#ifdef HAVE_BLKDEV_GET_BY_PATH_4ARGS
+#ifdef HAVE_BLKDEV_GET_BY_PATH_4ARG
 	return (blkdev_get_by_path(path,
 	    vdev_bdev_mode(mode) | BLK_OPEN_EXCL, holder, hops));
 #else
