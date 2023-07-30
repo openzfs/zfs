@@ -817,7 +817,7 @@ retry:
 }
 
 static void
-#ifdef HAVE_BLOCK_DEVICE_OPERATIONS_RELEASE_VOID_1ARG
+#ifdef HAVE_BLOCK_DEVICE_OPERATIONS_RELEASE_1ARG
 zvol_release(struct gendisk *disk)
 {
 #else
