@@ -777,22 +777,15 @@ retry:
 			}
 		}
 
-#ifdef HAVE_BLK_MODE_T
-		error = -zvol_first_open(zv, !(flag & BLK_OPEN_WRITE));
-#else
-		error = -zvol_first_open(zv, !(flag & FMODE_WRITE));
-#endif
+		error = -zvol_first_open(zv, !(blk_mode_is_open_write(flag)));
 
 		if (drop_namespace)
 			mutex_exit(&spa_namespace_lock);
 	}
 
 	if (error == 0) {
-#ifdef HAVE_BLK_MODE_T
-		if ((flag & BLK_OPEN_WRITE) && (zv->zv_flags & ZVOL_RDONLY)) {
-#else
-		if ((flag & FMODE_WRITE) && (zv->zv_flags & ZVOL_RDONLY)) {
-#endif
+		if ((blk_mode_is_open_write(flag)) &&
+		    (zv->zv_flags & ZVOL_RDONLY)) {
 			if (zv->zv_open_count == 0)
 				zvol_last_close(zv);
 
