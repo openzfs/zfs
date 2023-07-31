@@ -219,7 +219,7 @@ vdev_disk_kobj_evt_post(vdev_t *v)
 struct blk_holder_ops {};
 #endif
 
-static inline struct block_device *
+static struct block_device *
 vdev_blkdev_get_by_path(const char *path, spa_mode_t mode, void *holder,
     const struct blk_holder_ops *hops)
 {
@@ -232,7 +232,7 @@ vdev_blkdev_get_by_path(const char *path, spa_mode_t mode, void *holder,
 #endif
 }
 
-static inline void
+static void
 vdev_blkdev_put(struct block_device *bdev, spa_mode_t mode, void *holder)
 {
 #ifdef HAVE_BLKDEV_PUT_HOLDER

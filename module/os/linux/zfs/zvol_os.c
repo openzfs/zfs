@@ -812,10 +812,11 @@ retry:
 static void
 #ifdef HAVE_BLOCK_DEVICE_OPERATIONS_RELEASE_1ARG
 zvol_release(struct gendisk *disk)
-{
 #else
 zvol_release(struct gendisk *disk, fmode_t unused)
+#endif
 {
+#if !defined(HAVE_BLOCK_DEVICE_OPERATIONS_RELEASE_1ARG)
 	(void) unused;
 #endif
 	zvol_state_t *zv;
