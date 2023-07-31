@@ -146,7 +146,6 @@ typedef struct {
 	ddt_histogram_t	ddt_histogram[DDT_TYPES][DDT_CLASSES];
 	ddt_histogram_t	ddt_histogram_cache[DDT_TYPES][DDT_CLASSES];
 	ddt_object_t	ddt_object_stats[DDT_TYPES][DDT_CLASSES];
-	avl_node_t	ddt_node;
 } ddt_t;
 
 /*
