@@ -443,6 +443,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/block_cloning/block_cloning_copyfilerange_cross_dataset.ksh \
 	functional/block_cloning/block_cloning_copyfilerange.ksh \
 	functional/block_cloning/block_cloning_copyfilerange_partial.ksh \
+	functional/block_cloning/block_cloning_copyfilerange_fallback.ksh \
 	functional/block_cloning/block_cloning_disabled_copyfilerange.ksh \
 	functional/block_cloning/block_cloning_disabled_ficlone.ksh \
 	functional/block_cloning/block_cloning_disabled_ficlonerange.ksh \
