@@ -1544,6 +1544,37 @@ out:
 	return (B_FALSE);
 }
 
+uint64_t
+brt_entry_get_refcount(spa_t *spa, const blkptr_t *bp)
+{
+	brt_t *brt = spa->spa_brt;
+	brt_vdev_t *brtvd;
+	brt_entry_t bre_search, *bre;
+	uint64_t vdevid, refcnt;
+	int error;
+
+	brt_entry_fill(bp, &bre_search, &vdevid);
+
+	brt_rlock(brt);
+
+	brtvd = brt_vdev(brt, vdevid);
+	ASSERT(brtvd != NULL);
+
+	bre = avl_find(&brtvd->bv_tree, &bre_search, NULL);
+	if (bre == NULL) {
+		error = brt_entry_lookup(brt, brtvd, &bre_search);
+		ASSERT(error == 0 || error == ENOENT);
+		if (error == ENOENT)
+			refcnt = 0;
+		else
+			refcnt = bre_search.bre_refcount;
+	} else
+		refcnt = bre->bre_refcount;
+
+	brt_unlock(brt);
+	return (refcnt);
+}
+
 static void
 brt_prefetch(brt_t *brt, const blkptr_t *bp)
 {
