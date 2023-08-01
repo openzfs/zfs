@@ -398,6 +398,12 @@ vdev_lookup_bdev(const char *path, dev_t *dev)
 #endif
 }
 
+#if defined(HAVE_BLK_MODE_T)
+#define	blk_mode_is_open_write(flag)	((flag) & BLK_OPEN_WRITE)
+#else
+#define	blk_mode_is_open_write(flag)	((flag) & FMODE_WRITE)
+#endif
+
 /*
  * Kernels without bio_set_op_attrs use bi_rw for the bio flags.
  */
