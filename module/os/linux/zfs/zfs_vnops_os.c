@@ -198,7 +198,7 @@ zfs_open(struct inode *ip, int mode, int flag, cred_t *cr)
 	ZFS_VERIFY_ZP(zp);
 
 	/* Honor ZFS_APPENDONLY file attribute */
-	if ((mode & FMODE_WRITE) && (zp->z_pflags & ZFS_APPENDONLY) &&
+	if (blk_mode_is_open_write(mode) && (zp->z_pflags & ZFS_APPENDONLY) &&
 	    ((flag & O_APPEND) == 0)) {
 		ZFS_EXIT(zfsvfs);
 		return (SET_ERROR(EPERM));
