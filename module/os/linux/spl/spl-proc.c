@@ -624,6 +624,7 @@ static struct ctl_table spl_table[] = {
 		.mode		= 0644,
 		.proc_handler	= &proc_dohostid,
 	},
+#ifdef HAVE_REGISTER_SYSCTL_TABLE
 	{
 		.procname	= "kmem",
 		.mode		= 0555,
@@ -634,9 +635,11 @@ static struct ctl_table spl_table[] = {
 		.mode		= 0555,
 		.child		= spl_kstat_table,
 	},
+#endif
 	{},
 };
 
+#ifdef HAVE_REGISTER_SYSCTL_TABLE
 static struct ctl_table spl_dir[] = {
 	{
 		.procname	= "spl",
@@ -648,21 +651,38 @@ static struct ctl_table spl_dir[] = {
 
 static struct ctl_table spl_root[] = {
 	{
-	.procname = "kernel",
-	.mode = 0555,
-	.child = spl_dir,
+		.procname	= "kernel",
+		.mode		= 0555,
+		.child		= spl_dir,
 	},
 	{}
 };
+#endif
 
 int
 spl_proc_init(void)
 {
 	int rc = 0;
 
+#ifdef HAVE_REGISTER_SYSCTL_TABLE
 	spl_header = register_sysctl_table(spl_root);
 	if (spl_header == NULL)
 		return (-EUNATCH);
+#else
+	spl_header = register_sysctl("kernel/spl", spl_table);
+	if (spl_header == NULL)
+		return (-EUNATCH);
+
+	if (register_sysctl("kernel/spl/kmem", spl_kmem_table) == NULL) {
+		rc = -EUNATCH;
+		goto out;
+	}
+
+	if (register_sysctl("kernel/spl/kstat", spl_kstat_table) == NULL) {
+		rc = -EUNATCH;
+		goto out;
+	}
+#endif
 
 	proc_spl = proc_mkdir("spl", NULL);
 	if (proc_spl == NULL) {
