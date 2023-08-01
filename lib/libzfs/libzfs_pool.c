@@ -3926,6 +3926,12 @@ zpool_vdev_remove(zpool_handle_t *zhp, const char *path)
 
 	switch (errno) {
 
+	case EALREADY:
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "removal for this vdev is already in progress."));
+		(void) zfs_error(hdl, EZFS_BUSY, errbuf);
+		break;
+
 	case EINVAL:
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 		    "invalid config; all top-level vdevs must "
