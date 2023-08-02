@@ -52,7 +52,7 @@ function cleanup {
 	fi
 }
 
-set -A args "on" "sa"
+set -A args "dir" "sa"
 
 log_assert "Create/read/write/append of xattrs works"
 log_onexit cleanup

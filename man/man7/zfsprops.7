@@ -1961,14 +1961,13 @@ enabled for virus scanning to occur.
 The default value is
 .Sy off .
 This property is not used by OpenZFS.
-.It Sy xattr Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy sa
+.It Sy xattr Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy dir Ns | Ns Sy sa
 Controls whether extended attributes are enabled for this file system.
 Two styles of extended attributes are supported: either directory-based
 or system-attribute-based.
 .Pp
-The default value of
-.Sy on
-enables directory-based extended attributes.
+Directory-based extended attributes can be enabled by setting the value to
+.Sy dir .
 This style of extended attribute imposes no practical limit
 on either the size or number of attributes which can be set on a file.
 Although under Linux the
@@ -1981,7 +1980,10 @@ This is the most compatible
 style of extended attribute and is supported by all ZFS implementations.
 .Pp
 System-attribute-based xattrs can be enabled by setting the value to
-.Sy sa .
+.Sy sa
+(default and equal to
+.Sy on
+) .
 The key advantage of this type of xattr is improved performance.
 Storing extended attributes as system attributes
 significantly decreases the amount of disk I/O required.
