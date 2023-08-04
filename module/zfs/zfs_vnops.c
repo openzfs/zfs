@@ -917,8 +917,8 @@ zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
 		}
 #endif
 		if (error == 0)
-			error = dmu_buf_hold(os, object, offset, zgd, &db,
-			    DMU_READ_NO_PREFETCH);
+			error = dmu_buf_hold_noread(os, object, offset, zgd,
+			    &db);
 
 		if (error == 0) {
 			blkptr_t *bp = &lr->lr_blkptr;
