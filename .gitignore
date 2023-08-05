@@ -45,6 +45,7 @@
 !.cirrus.yml
 !.gitignore
 !.gitmodules
+!.mailmap
 !AUTHORS
 !autogen.sh
 !CODE_OF_CONDUCT.md
