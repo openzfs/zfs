@@ -9,6 +9,7 @@ dist_noinst_SCRIPTS = \
 	%D%/man-dates.sh \
 	%D%/mancheck.sh \
 	%D%/paxcheck.sh \
+	%D%/update_authors.pl \
 	%D%/zfs-tests-color.sh
 
 scripts_scripts = \
