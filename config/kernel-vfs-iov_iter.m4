@@ -6,8 +6,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_IOV_ITER], [
 		#include <linux/fs.h>
 		#include <linux/uio.h>
 	],[
-		int type __attribute__ ((unused)) =
-		    ITER_IOVEC | ITER_KVEC | ITER_BVEC | ITER_PIPE;
+		int type __attribute__ ((unused)) = ITER_KVEC;
 	])
 
 	ZFS_LINUX_TEST_SRC([iov_iter_advance], [
