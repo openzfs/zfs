@@ -1147,8 +1147,8 @@ spa_ld_log_sm_data(spa_t *spa)
 	/* Prefetch log spacemaps dnodes. */
 	for (sls = avl_first(&spa->spa_sm_logs_by_txg); sls;
 	    sls = AVL_NEXT(&spa->spa_sm_logs_by_txg, sls)) {
-		dmu_prefetch(spa_meta_objset(spa), sls->sls_sm_obj,
-		    0, 0, 0, ZIO_PRIORITY_SYNC_READ);
+		dmu_prefetch_dnode(spa_meta_objset(spa), sls->sls_sm_obj,
+		    ZIO_PRIORITY_SYNC_READ);
 	}
 
 	uint_t pn = 0;
