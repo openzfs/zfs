@@ -1323,7 +1323,11 @@ const struct file_operations zpl_file_operations = {
 	.read_iter	= zpl_iter_read,
 	.write_iter	= zpl_iter_write,
 #ifdef HAVE_VFS_IOV_ITER
+#ifdef HAVE_FILEMAP_SPLICE_READ
+	.splice_read	= filemap_splice_read,
+#else
 	.splice_read	= generic_file_splice_read,
+#endif
 	.splice_write	= iter_file_splice_write,
 #endif
 #else
