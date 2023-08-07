@@ -484,13 +484,11 @@ dsl_bookmark_create_sync_impl_snap(const char *bookmark, const char *snapshot,
 		dsl_redaction_list_long_hold(dp, local_rl, tag);
 
 		if (!spill) {
-			ASSERT3U((local_rl)->rl_bonus->db_size, >=,
-			    sizeof (redaction_list_phys_t) + num_redact_snaps *
-			    sizeof (uint64_t));
+			ASSERT3U(local_rl->rl_bonus->db_size, >=, bonuslen);
 			dmu_buf_will_dirty(local_rl->rl_bonus, tx);
 		} else {
 			dmu_buf_t *db;
-			VERIFY0(dmu_spill_hold_by_bonus((local_rl)->rl_bonus,
+			VERIFY0(dmu_spill_hold_by_bonus(local_rl->rl_bonus,
 			    DB_RF_MUST_SUCCEED, FTAG, &db));
 			dmu_buf_will_fill(db, tx);
 			VERIFY0(dbuf_spill_set_blksz(db, P2ROUNDUP(bonuslen,
@@ -656,8 +654,9 @@ dsl_bookmark_create_redacted_check(void *arg, dmu_tx_t *tx)
 	    SPA_FEATURE_REDACTION_BOOKMARKS))
 		return (SET_ERROR(ENOTSUP));
 	/*
-	 * If the list of redact snaps will not fit in the bonus buffer with
-	 * the furthest reached object and offset, fail.
+	 * If the list of redact snaps will not fit in the bonus buffer (or
+	 * spill block, with the REDACTION_LIST_SPILL feature) with the
+	 * furthest reached object and offset, fail.
 	 */
 	uint64_t snaplimit = ((spa_feature_is_enabled(dp->dp_spa,
 	    SPA_FEATURE_REDACTION_LIST_SPILL) ? spa_maxblocksize(dp->dp_spa) :

@@ -744,8 +744,8 @@ zpool_feature_init(void)
 		};
 		zfeature_register(SPA_FEATURE_REDACTION_LIST_SPILL,
 		    "com.delphix:redaction_list_spill", "redaction_list_spill",
-		    "Support for expanding redaction list objects with a "
-		    "spill block.", 0, ZFEATURE_TYPE_BOOLEAN,
+		    "Support for increased number of redaction_snapshot "
+		    "arguments in zfs redact.", 0, ZFEATURE_TYPE_BOOLEAN,
 		    redact_list_spill_deps, sfeatures);
 	}
 
