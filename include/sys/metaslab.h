@@ -39,6 +39,7 @@ extern "C" {
 
 
 typedef struct metaslab_ops {
+	const char *msop_name;
 	uint64_t (*msop_alloc)(metaslab_t *, uint64_t);
 } metaslab_ops_t;
 

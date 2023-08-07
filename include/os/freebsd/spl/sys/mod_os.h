@@ -73,6 +73,9 @@
 #define	param_set_deadman_failmode_args(var) \
     CTLTYPE_STRING, NULL, 0, param_set_deadman_failmode, "A"
 
+#define	param_set_active_allocator_args(var) \
+    CTLTYPE_STRING, NULL, 0, param_set_active_allocator, "A"
+
 #define	param_set_deadman_synctime_args(var) \
     CTLTYPE_U64, NULL, 0, param_set_deadman_synctime, "QU"
 

@@ -263,6 +263,7 @@ struct spa {
 	 */
 	spa_alloc_t	*spa_allocs;
 	int		spa_alloc_count;
+	int		spa_active_allocator;	/* selectable allocator */
 
 	spa_aux_vdev_t	spa_spares;		/* hot spares */
 	spa_aux_vdev_t	spa_l2cache;		/* L2ARC cache devices */
@@ -467,6 +468,8 @@ extern int param_set_deadman_failmode_common(const char *val);
 extern void spa_set_deadman_synctime(hrtime_t ns);
 extern void spa_set_deadman_ziotime(hrtime_t ns);
 extern const char *spa_history_zone(void);
+extern const char *zfs_active_allocator;
+extern int param_set_active_allocator_common(const char *val);
 
 #ifdef	__cplusplus
 }

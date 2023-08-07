@@ -1295,24 +1295,26 @@ spa_thread(void *arg)
 }
 #endif
 
+extern metaslab_ops_t *metaslab_allocator(spa_t *spa);
+
 /*
  * Activate an uninitialized pool.
  */
 static void
 spa_activate(spa_t *spa, spa_mode_t mode)
 {
+	metaslab_ops_t *msp = metaslab_allocator(spa);
 	ASSERT(spa->spa_state == POOL_STATE_UNINITIALIZED);
 
 	spa->spa_state = POOL_STATE_ACTIVE;
 	spa->spa_mode = mode;
 	spa->spa_read_spacemaps = spa_mode_readable_spacemaps;
 
-	spa->spa_normal_class = metaslab_class_create(spa, &zfs_metaslab_ops);
-	spa->spa_log_class = metaslab_class_create(spa, &zfs_metaslab_ops);
-	spa->spa_embedded_log_class =
-	    metaslab_class_create(spa, &zfs_metaslab_ops);
-	spa->spa_special_class = metaslab_class_create(spa, &zfs_metaslab_ops);
-	spa->spa_dedup_class = metaslab_class_create(spa, &zfs_metaslab_ops);
+	spa->spa_normal_class = metaslab_class_create(spa, msp);
+	spa->spa_log_class = metaslab_class_create(spa, msp);
+	spa->spa_embedded_log_class = metaslab_class_create(spa, msp);
+	spa->spa_special_class = metaslab_class_create(spa, msp);
+	spa->spa_dedup_class = metaslab_class_create(spa, msp);
 
 	/* Try to create a covering process */
 	mutex_enter(&spa->spa_proc_lock);

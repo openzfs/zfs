@@ -40,8 +40,6 @@
 #include <sys/zap.h>
 #include <sys/btree.h>
 
-#define	WITH_DF_BLOCK_ALLOCATOR
-
 #define	GANG_ALLOCATION(flags) \
 	((flags) & (METASLAB_GANG_CHILD | METASLAB_GANG_HEADER))
 
@@ -1622,9 +1620,6 @@ metaslab_block_find(zfs_btree_t *t, range_tree_t *rt, uint64_t start,
 	return (rs);
 }
 
-#if defined(WITH_DF_BLOCK_ALLOCATOR) || \
-    defined(WITH_CF_BLOCK_ALLOCATOR)
-
 /*
  * This is a helper function that can be used by the allocator to find a
  * suitable block to allocate. This will search the specified B-tree looking
@@ -1659,9 +1654,74 @@ metaslab_block_picker(range_tree_t *rt, uint64_t *cursor, uint64_t size,
 	*cursor = 0;
 	return (-1ULL);
 }
-#endif /* WITH_DF/CF_BLOCK_ALLOCATOR */
 
-#if defined(WITH_DF_BLOCK_ALLOCATOR)
+static uint64_t metaslab_df_alloc(metaslab_t *msp, uint64_t size);
+static uint64_t metaslab_cf_alloc(metaslab_t *msp, uint64_t size);
+static uint64_t metaslab_ndf_alloc(metaslab_t *msp, uint64_t size);
+metaslab_ops_t *metaslab_allocator(spa_t *spa);
+
+static metaslab_ops_t metaslab_allocators[] = {
+	{ "dynamic", metaslab_df_alloc },
+	{ "cursor", metaslab_cf_alloc },
+	{ "new-dynamic", metaslab_ndf_alloc },
+};
+
+static int
+spa_find_allocator_byname(const char *val)
+{
+	int a = ARRAY_SIZE(metaslab_allocators) - 1;
+	if (strcmp("new-dynamic", val) == 0)
+		return (-1); /* remove when ndf is working */
+	for (; a >= 0; a--) {
+		if (strcmp(val, metaslab_allocators[a].msop_name) == 0)
+			return (a);
+	}
+	return (-1);
+}
+
+void
+spa_set_allocator(spa_t *spa, const char *allocator)
+{
+	int a = spa_find_allocator_byname(allocator);
+	if (a < 0) a = 0;
+	spa->spa_active_allocator = a;
+	zfs_dbgmsg("spa allocator: %s\n", metaslab_allocators[a].msop_name);
+}
+
+int
+spa_get_allocator(spa_t *spa)
+{
+	return (spa->spa_active_allocator);
+}
+
+#if defined(_KERNEL)
+int
+param_set_active_allocator_common(const char *val)
+{
+	char *p;
+
+	if (val == NULL)
+		return (SET_ERROR(EINVAL));
+
+	if ((p = strchr(val, '\n')) != NULL)
+		*p = '\0';
+
+	int a = spa_find_allocator_byname(val);
+	if (a < 0)
+		return (SET_ERROR(EINVAL));
+
+	zfs_active_allocator = metaslab_allocators[a].msop_name;
+	return (0);
+}
+#endif
+
+metaslab_ops_t *
+metaslab_allocator(spa_t *spa)
+{
+	int allocator = spa_get_allocator(spa);
+	return (&metaslab_allocators[allocator]);
+}
+
 /*
  * ==========================================================================
  * Dynamic Fit (df) block allocator
@@ -1736,12 +1796,6 @@ metaslab_df_alloc(metaslab_t *msp, uint64_t size)
 	return (offset);
 }
 
-const metaslab_ops_t zfs_metaslab_ops = {
-	metaslab_df_alloc
-};
-#endif /* WITH_DF_BLOCK_ALLOCATOR */
-
-#if defined(WITH_CF_BLOCK_ALLOCATOR)
 /*
  * ==========================================================================
  * Cursor fit block allocator -
@@ -1784,12 +1838,6 @@ metaslab_cf_alloc(metaslab_t *msp, uint64_t size)
 	return (offset);
 }
 
-const metaslab_ops_t zfs_metaslab_ops = {
-	metaslab_cf_alloc
-};
-#endif /* WITH_CF_BLOCK_ALLOCATOR */
-
-#if defined(WITH_NDF_BLOCK_ALLOCATOR)
 /*
  * ==========================================================================
  * New dynamic fit allocator -
@@ -1845,12 +1893,6 @@ metaslab_ndf_alloc(metaslab_t *msp, uint64_t size)
 	}
 	return (-1ULL);
 }
-
-const metaslab_ops_t zfs_metaslab_ops = {
-	metaslab_ndf_alloc
-};
-#endif /* WITH_NDF_BLOCK_ALLOCATOR */
-
 
 /*
  * ==========================================================================
@@ -6232,3 +6274,9 @@ ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, try_hard_before_gang, INT,
 
 ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, find_max_tries, UINT, ZMOD_RW,
 	"Normally only consider this many of the best metaslabs in each vdev");
+
+/* BEGIN CSTYLED */
+ZFS_MODULE_PARAM_CALL(zfs, zfs_, active_allocator,
+	param_set_active_allocator, param_get_charp, ZMOD_RW,
+	"SPA active allocator");
+/* END CSTYLED */
