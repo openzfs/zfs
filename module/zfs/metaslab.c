@@ -1292,7 +1292,7 @@ metaslab_group_allocatable(metaslab_group_t *mg, metaslab_group_t *rotor,
 
 		/*
 		 * If this metaslab group is below its qmax or it's
-		 * the only allocatable metasable group, then attempt
+		 * the only allocatable metaslab group, then attempt
 		 * to allocate from it.
 		 */
 		if (qdepth < qmax || mc->mc_alloc_groups == 1)
