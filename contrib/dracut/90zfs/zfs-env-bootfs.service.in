@@ -12,11 +12,12 @@ ExecStart=/bin/sh -c '                                                          
     decode_root_args || exit 0;                                                                \
     [ "$root" = "zfs:AUTO" ] && root="$(@sbindir@/zpool list -H -o bootfs | grep -m1 -vFx -)"; \
     rootflags="$(getarg rootflags=)";                                                          \
-    case ",$rootflags," in                                                                     \
-        *,zfsutil,*) ;;                                                                        \
-        ,,) rootflags=zfsutil ;;                                                               \
-        *)  rootflags="zfsutil,$rootflags" ;;                                                  \
-    esac;                                                                                      \
+    [ "$(@sbindir@/zfs get -H -o value mountpoint "$root")" = legacy ] ||                      \
+        case ",$rootflags," in                                                                 \
+            *,zfsutil,*) ;;                                                                    \
+            ,,) rootflags=zfsutil ;;                                                           \
+            *)  rootflags="zfsutil,$rootflags" ;;                                              \
+        esac;                                                                                  \
     exec systemctl set-environment BOOTFS="$root" BOOTFSFLAGS="$rootflags"'
 
 [Install]
