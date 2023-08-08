@@ -1061,10 +1061,8 @@ bio_map(struct bio *bio, void *buf_ptr, unsigned int bio_size)
 			 * This is a split page, so we need to ensure that we
 			 * have room for the tail within this bio.
 			 */
-			if ((i + 1) == bio->bi_max_vecs) {
-				cmn_err(CE_NOTE, "bio_map: avoided misalignment! bio %p", bio);
+			if ((i + 1) == bio->bi_max_vecs)
 				break;
-			}
 
 			/* Take up to the end of the page */
 			size = PAGE_SIZE - offset;
@@ -1180,10 +1178,8 @@ abd_bio_map_off(struct bio *bio, abd_t *abd,
 			 * This is a split page, so we need to ensure that we
 			 * have room for the tail within this bio.
 			 */
-			if ((i + 1) == bio->bi_max_vecs) {
-				cmn_err(CE_NOTE, "abd_bio_map_off: avoided misalignment! bio %p", bio);
+			if ((i + 1) == bio->bi_max_vecs)
 				break;
-			}
 
 			/* Take up to the end of the page */
 			len = PAGE_SIZE - pgoff;
