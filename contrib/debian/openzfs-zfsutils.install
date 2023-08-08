@@ -27,6 +27,7 @@ sbin/zfs
 sbin/zfs_ids_to_path
 sbin/zgenhostid
 sbin/zhack
+sbin/zinject
 sbin/zpool
 sbin/zstream
 sbin/zstreamdump
@@ -92,6 +93,7 @@ usr/share/man/man8/zfs_ids_to_path.8
 usr/share/man/man7/zfsconcepts.7
 usr/share/man/man7/zfsprops.7
 usr/share/man/man8/zgenhostid.8
+usr/share/man/man8/zinject.8
 usr/share/man/man8/zpool-add.8
 usr/share/man/man8/zpool-attach.8
 usr/share/man/man8/zpool-checkpoint.8
