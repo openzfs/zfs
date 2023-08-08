@@ -174,7 +174,7 @@
  *	                size_t len, unsigned int flags);
  *
  * Even though offsets and length represent bytes, they have to be
- * block-aligned or we will return the EXDEV error so the upper layer can
+ * block-aligned or we will return an error so the upper layer can
  * fallback to the generic mechanism that will just copy the data.
  * Using copy_file_range(2) will call OS-independent zfs_clone_range() function.
  * This function was implemented based on zfs_write(), but instead of writing
@@ -192,9 +192,9 @@
  * Some special cases to consider and how we address them:
  * - The block we want to clone may have been created within the same
  *   transaction group that we are trying to clone. Such block has no BP
- *   allocated yet, so cannot be immediately cloned. We return EXDEV.
+ *   allocated yet, so cannot be immediately cloned. We return EAGAIN.
  * - The block we want to clone may have been modified within the same
- *   transaction group. We return EXDEV.
+ *   transaction group. We return EAGAIN.
  * - A block may be cloned multiple times during one transaction group (that's
  *   why pending list is actually a tree and not an append-only list - this
  *   way we can figure out faster if this block is cloned for the first time
