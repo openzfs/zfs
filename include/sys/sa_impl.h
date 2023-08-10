@@ -177,8 +177,11 @@ typedef struct sa_hdr_phys {
 	 *
 	 */
 	uint16_t sa_layout_info;
-	uint16_t sa_lengths[1];	/* optional sizes for variable length attrs */
-	/* ... Data follows the lengths.  */
+	uint16_t sa_lengths[VARLEN_ARRAY_IDX];
+	/*
+	 * optional sizes for variable length attrs
+	 * ... Data follows the lengths.
+	 */
 } sa_hdr_phys_t;
 
 #define	SA_HDR_LAYOUT_NUM(hdr) BF32_GET(hdr->sa_layout_info, 0, 10)

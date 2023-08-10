@@ -231,6 +231,7 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS], [
 	ZFS_AC_CONFIG_ALWAYS_CPPCHECK
 	ZFS_AC_CONFIG_ALWAYS_SHELLCHECK
 	ZFS_AC_CONFIG_ALWAYS_PARALLEL
+	ZFS_AC_CONFIG_ALWAYS_CC_VARSIZE_ARRAY_IN_STRUCT
 ])
 
 AC_DEFUN([ZFS_AC_CONFIG], [
@@ -628,5 +629,31 @@ AC_DEFUN([ZFS_AC_PACKAGE], [
 		ZFS_AC_RPM
 		ZFS_AC_DPKG
 		ZFS_AC_ALIEN
+	])
+])
+
+dnl #
+dnl # Test whether C compiler supports variable-length array at the
+dnl # end of a struct definition, and if it needs a constant or not
+dnl # declaring a size
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_VARSIZE_ARRAY_IN_STRUCT], [
+	AC_MSG_CHECKING(
+	    [if C compiler handles empty-index var-length array members])
+	AC_COMPILE_IFELSE([AC_LANG_SOURCE([
+		struct s {
+			int a;
+			int v[];
+		};
+
+		struct s test_array __attribute__((unused));
+	])], [
+		AC_MSG_RESULT([yes])
+		AC_DEFINE([VARLEN_ARRAY_IDX], [],
+		    [Index to use for variable-length array struct members])
+	], [
+		AC_MSG_RESULT([no])
+		AC_DEFINE([VARLEN_ARRAY_IDX], 1,
+		    [Index to use for variable-length array struct members])
 	])
 ])
