@@ -290,7 +290,7 @@ zil_read_log_block(zilog_t *zilog, boolean_t decrypt, const blkptr_t *bp,
 			char *lr = (char *)(zilc + 1);
 
 			if (memcmp(&cksum, &zilc->zc_next_blk.blk_cksum,
-			    sizeof (cksum)) || BP_IS_HOLE(&zilc->zc_next_blk) ||
+			    sizeof (cksum)) ||
 			    zilc->zc_nused < sizeof (*zilc) ||
 			    zilc->zc_nused > size) {
 				error = SET_ERROR(ECKSUM);
@@ -304,7 +304,7 @@ zil_read_log_block(zilog_t *zilog, boolean_t decrypt, const blkptr_t *bp,
 			zil_chain_t *zilc = (zil_chain_t *)(lr + size) - 1;
 
 			if (memcmp(&cksum, &zilc->zc_next_blk.blk_cksum,
-			    sizeof (cksum)) || BP_IS_HOLE(&zilc->zc_next_blk) ||
+			    sizeof (cksum)) ||
 			    (zilc->zc_nused > (size - sizeof (*zilc)))) {
 				error = SET_ERROR(ECKSUM);
 			} else {
