@@ -1246,9 +1246,10 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 		    &nbps);
 		if (error != 0) {
 			/*
-			 * If we are tyring to clone a block that was created
-			 * in the current transaction group. Return an error,
-			 * so the caller can fallback to just copying the data.
+			 * If we are trying to clone a block that was created
+			 * in the current transaction group, error will be
+			 * EAGAIN here, which we can just return to the caller
+			 * so it can fallback if it likes.
 			 */
 			break;
 		}
