@@ -145,8 +145,16 @@ zio_compress_data(enum zio_compress c, abd_t *src, void **dst, size_t s_len,
 	if (c == ZIO_COMPRESS_EMPTY)
 		return (s_len);
 
-	/* Compress at least 12.5% */
-	d_len = s_len - (s_len >> 3);
+	/*
+	 * Compress at least 12.5%...
+	 * ...upper bounded by 16k, since above 128k, the savings requirements
+	 * start to become the limiting factor.
+	 */
+	
+	if (s_len > SPA_OLD_MAXBLOCKSIZE)
+		d_len = s_len - (SPA_OLD_MAXBLOCKSIZE >> 3);
+	else
+		d_len = s_len - (s_len >> 3);
 
 	complevel = ci->ci_level;
 
