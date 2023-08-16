@@ -110,9 +110,10 @@ Removes ZFS label information from the specified
 .It Xo
 .Xr zpool-attach 8 Ns / Ns Xr zpool-detach 8
 .Xc
-Makes a non-redundant vdev (virtual device) redundant, or increases the redundancy level by
-.Cm attach Ns ing, or reduces the redundancy level or makes a redundant vdev non-redundant by
-.Cm detach Ns ing a device on an existing vdev.
+Converts a non-redundant disk into a mirror, or increases the redundancy level of an existing mirror
+.Ns (
+.Cm attach Ns ), or performs the inverse operation (
+.Cm detach Ns ).
 .It Xo
 .Xr zpool-add 8 Ns / Ns Xr zpool-remove 8
 .Xc
@@ -264,7 +265,7 @@ While not recommended, a pool based on files can be useful for experimental
 purposes.
 .Dl # Nm zpool Cm create Ar tank Pa /path/to/file/a /path/to/file/b
 .
-.Ss Example 5 : No Making a non-mirrored ZFS Storage Pool mirrrored.
+.Ss Example 5 : No Making a non-mirrored ZFS Storage Pool mirrored.
 The following command converts an existing single device
 .Ar sda
 into a mirror by attaching a second device to it,
