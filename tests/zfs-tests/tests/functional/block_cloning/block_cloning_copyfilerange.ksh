@@ -54,7 +54,7 @@ log_must sync_pool $TESTPOOL
 
 log_must have_same_content /$TESTPOOL/file1 /$TESTPOOL/file2
 
-typeset blocks=$(unique_blocks $TESTPOOL file1 $TESTPOOL file2)
-log_must [ "$blocks" = "1 2 3 4" ]
+typeset blocks=$(get_same_blocks $TESTPOOL file1 $TESTPOOL file2)
+log_must [ "$blocks" = "0 1 2 3" ]
 
 log_pass $claim
