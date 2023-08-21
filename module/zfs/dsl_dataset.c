@@ -4551,6 +4551,58 @@ dsl_dataset_set_compression(const char *dsname, zprop_source_t source,
 	    ZFS_SPACE_CHECK_EXTRA_RESERVED));
 }
 
+typedef struct dsl_dataset_set_fancy_butter_arg {
+	const char *ddsfba_name;
+	zprop_source_t ddsfba_source;
+	uint64_t ddsfba_onoff;
+} dsl_dataset_set_fancy_butter_arg_t;
+
+static int
+dsl_dataset_set_fancy_butter_check(void *arg, dmu_tx_t *tx)
+{
+	(void) arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+
+	if (!spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_FANCY_BUTTER))
+		return (SET_ERROR(ENOTSUP));
+
+	return (0);
+}
+
+static void
+dsl_dataset_set_fancy_butter_sync(void *arg, dmu_tx_t *tx)
+{
+	dsl_dataset_set_fancy_butter_arg_t *ddsfba = arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	dsl_dataset_t *ds = NULL;
+
+	spa_feature_t f = SPA_FEATURE_FANCY_BUTTER;
+
+	VERIFY0(dsl_dataset_hold(dp, ddsfba->ddsfba_name, FTAG, &ds));
+	if (zfeature_active(f, ds->ds_feature[f]) != B_TRUE) {
+		ds->ds_feature_activation[f] = (void *)B_TRUE;
+		dsl_dataset_activate_feature(ds->ds_object, f,
+		    ds->ds_feature_activation[f], tx);
+		ds->ds_feature[f] = ds->ds_feature_activation[f];
+	}
+	dsl_dataset_rele(ds, FTAG);
+}
+
+int
+dsl_dataset_set_fancy_butter(const char *dsname, zprop_source_t source,
+    uint64_t onoff)
+{
+	dsl_dataset_set_fancy_butter_arg_t ddsfba;
+
+	ddsfba.ddsfba_name = dsname;
+	ddsfba.ddsfba_source = source;
+	ddsfba.ddsfba_onoff = onoff;
+
+	return (dsl_sync_task(dsname, dsl_dataset_set_fancy_butter_check,
+	    dsl_dataset_set_fancy_butter_sync, &ddsfba, 0,
+	    ZFS_SPACE_CHECK_NONE));
+}
+
 /*
  * Return (in *usedp) the amount of space referenced by "new" that was not
  * referenced at the time the bookmark corresponds to.  "New" may be a

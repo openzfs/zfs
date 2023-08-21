@@ -126,11 +126,17 @@ typedef enum drr_headertype {
 #define	DMU_BACKUP_FEATURE_SWITCH_TO_LARGE_BLOCKS (1 << 27)
 /* flag #28 is reserved for a Nutanix feature */
 /*
- * flag #29 is the last unused bit. It is reserved to indicate a to-be-designed
- * extension to the stream format which will accomodate more feature flags.
- * If you need to add another feature flag, please reach out to the OpenZFS
- * community, e.g., on GitHub or Slack.
+ * The EXT_FEATURES feature indicates that the nvlist in the BEGIN record has a
+ * BEGINNV_FEATURES nvlist with a list of additional features names required
+ * to recieve this stream.
+ *
+ * All future stream features must be added this way, as there are no unused
+ * feature flags available.
  */
+#define DMU_BACKUP_FEATURE_EXT_FEATURES		(1 << 29)
+
+/* Extended features */
+#define DMU_BACKUP_FEATURE_EXT_FANCY_BUTTER	"despairlabs.com:fancy_butter"
 
 /*
  * Mask of all supported backup features
@@ -141,7 +147,7 @@ typedef enum drr_headertype {
     DMU_BACKUP_FEATURE_COMPRESSED | DMU_BACKUP_FEATURE_LARGE_DNODE | \
     DMU_BACKUP_FEATURE_RAW | DMU_BACKUP_FEATURE_HOLDS | \
     DMU_BACKUP_FEATURE_REDACTED | DMU_BACKUP_FEATURE_SWITCH_TO_LARGE_BLOCKS | \
-    DMU_BACKUP_FEATURE_ZSTD)
+    DMU_BACKUP_FEATURE_ZSTD | DMU_BACKUP_FEATURE_EXT_FEATURES)
 
 /* Are all features in the given flag word currently supported? */
 #define	DMU_STREAM_SUPPORTED(x)	(!((x) & ~DMU_BACKUP_FEATURE_MASK))

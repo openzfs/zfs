@@ -40,6 +40,7 @@
 #define	BEGINNV_REDACT_FROM_SNAPS	"redact_from_snaps"
 #define	BEGINNV_RESUME_OBJECT		"resume_object"
 #define	BEGINNV_RESUME_OFFSET		"resume_offset"
+#define	BEGINNV_FEATURES		"features"
 
 struct vnode;
 struct dsl_dataset;

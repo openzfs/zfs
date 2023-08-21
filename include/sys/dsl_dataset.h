@@ -446,6 +446,8 @@ int dsl_dataset_set_refreservation(const char *dsname, zprop_source_t source,
     uint64_t reservation);
 int dsl_dataset_set_compression(const char *dsname, zprop_source_t source,
     uint64_t compression);
+int dsl_dataset_set_fancy_butter(const char *dsname, zprop_source_t source,
+    uint64_t onoff);
 
 boolean_t dsl_dataset_is_before(dsl_dataset_t *later, dsl_dataset_t *earlier,
     uint64_t earlier_txg);

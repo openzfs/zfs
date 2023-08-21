@@ -503,6 +503,9 @@ zfs_prop_init(void)
 	zprop_register_index(ZFS_PROP_OVERLAY, "overlay", 1, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM, "on | off", "OVERLAY", boolean_table,
 	    sfeatures);
+	zprop_register_index(ZFS_PROP_FANCY_BUTTER, "fancy_butter", 0,
+	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
+	    "on | off", "FANCY_BUTTER", boolean_table, sfeatures);
 
 	/* default index properties */
 	zprop_register_index(ZFS_PROP_VERSION, "version", 0, PROP_DEFAULT,

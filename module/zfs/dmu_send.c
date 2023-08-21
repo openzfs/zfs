@@ -299,12 +299,13 @@ dump_record(dmu_send_cookie_t *dscp, void *payload, int payload_len)
 		 * not inadvertently break backwards compatibility (causing the
 		 * assertion in receive_read() to trigger on old software).
 		 *
-		 * Raw sends cannot be received on old software, and so can
-		 * bypass this assertion.
+		 * Raw sends and new-style features cannot be received on old
+		 * software, and so can bypass this assertion.
 		 */
 
-		ASSERT((payload_len % 8 == 0) ||
-		    (dscp->dsc_featureflags & DMU_BACKUP_FEATURE_RAW));
+		ASSERT((payload_len % 8 == 0) || (dscp->dsc_featureflags &
+		     (DMU_BACKUP_FEATURE_RAW |
+		      DMU_BACKUP_FEATURE_EXT_FEATURES)));
 
 		dscp->dsc_err = dso->dso_outfunc(dscp->dsc_os, payload,
 		    payload_len, dso->dso_arg);
@@ -1951,7 +1952,7 @@ struct dmu_send_params {
 
 static int
 setup_featureflags(struct dmu_send_params *dspp, objset_t *os,
-    uint64_t *featureflags)
+    uint64_t *featureflags, nvlist_t **featurenvl)
 {
 	dsl_dataset_t *to_ds = dspp->to_ds;
 	dsl_pool_t *dp = dspp->dp;
@@ -2013,6 +2014,31 @@ setup_featureflags(struct dmu_send_params *dspp, objset_t *os,
 	if (dsl_dataset_feature_is_active(to_ds, SPA_FEATURE_LARGE_DNODE)) {
 		*featureflags |= DMU_BACKUP_FEATURE_LARGE_DNODE;
 	}
+
+	/* Additional dataset features to check and declare on the stream. */
+	typedef struct {
+		spa_feature_t	f_spa;
+		const char	*f_dmu;
+	} dmu_feature_map_t;
+	const dmu_feature_map_t dsfeatures[] = {
+		{ SPA_FEATURE_FANCY_BUTTER, DMU_BACKUP_FEATURE_EXT_FANCY_BUTTER },
+		{ SPA_FEATURE_NONE,	    NULL },
+	};
+	*featurenvl = NULL;
+
+	for (const dmu_feature_map_t *fm = dsfeatures;
+	    fm->f_spa != SPA_FEATURE_NONE; fm++) {
+		if (dsl_dataset_feature_is_active(to_ds, fm->f_spa)) {
+			if (*featurenvl == NULL) {
+				*featurenvl = fnvlist_alloc();
+				*featureflags |=
+				    DMU_BACKUP_FEATURE_EXT_FEATURES;
+			}
+			fnvlist_add_boolean_value(*featurenvl,
+			    fm->f_dmu, B_TRUE);
+		}
+	}
+
 	return (0);
 }
 
@@ -2353,6 +2379,7 @@ dmu_send_impl(struct dmu_send_params *dspp)
 	int err;
 	uint64_t fromtxg = dspp->ancestor_zb.zbm_creation_txg;
 	uint64_t featureflags = 0;
+	nvlist_t *featurenvl = NULL;
 	struct redact_list_thread_arg *from_arg;
 	struct send_thread_arg *to_arg;
 	struct redact_list_thread_arg *rlt_arg;
@@ -2397,7 +2424,8 @@ dmu_send_impl(struct dmu_send_params *dspp)
 		ASSERT0(arc_is_unauthenticated(os->os_phys_buf));
 	}
 
-	if ((err = setup_featureflags(dspp, os, &featureflags)) != 0) {
+	if ((err = setup_featureflags(dspp, os, &featureflags,
+	    &featurenvl)) != 0) {
 		dsl_pool_rele(dp, tag);
 		return (err);
 	}
@@ -2411,6 +2439,8 @@ dmu_send_impl(struct dmu_send_params *dspp)
 		    &redact_rl);
 		if (err != 0) {
 			dsl_pool_rele(dp, tag);
+			if (featurenvl != NULL)
+				fnvlist_free(featurenvl);
 			return (SET_ERROR(EINVAL));
 		}
 		dsl_redaction_list_long_hold(dp, redact_rl, FTAG);
@@ -2429,6 +2459,8 @@ dmu_send_impl(struct dmu_send_params *dspp)
 				dsl_redaction_list_rele(redact_rl, FTAG);
 			}
 			dsl_pool_rele(dp, tag);
+			if (featurenvl != NULL)
+				fnvlist_free(featurenvl);
 			return (SET_ERROR(EINVAL));
 		}
 		dsl_redaction_list_long_hold(dp, from_rl, FTAG);
@@ -2461,6 +2493,9 @@ dmu_send_impl(struct dmu_send_params *dspp)
 	void *payload = NULL;
 	size_t payload_len = 0;
 	nvlist_t *nvl = fnvlist_alloc();
+
+	if (featurenvl != NULL)
+		fnvlist_add_nvlist(nvl, BEGINNV_FEATURES, featurenvl);
 
 	/*
 	 * If we're doing a redacted send, we include the snapshots we're

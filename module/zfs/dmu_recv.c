@@ -557,7 +557,8 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
  * explicitly check.
  */
 static int
-recv_begin_check_feature_flags_impl(uint64_t featureflags, spa_t *spa)
+recv_begin_check_feature_flags_impl(uint64_t featureflags,
+    nvlist_t *featurenvl, spa_t *spa)
 {
 	/*
 	 * Check if there are any unsupported feature flags.
@@ -602,6 +603,27 @@ recv_begin_check_feature_flags_impl(uint64_t featureflags, spa_t *spa)
 	    !spa_feature_is_enabled(spa, SPA_FEATURE_REDACTED_DATASETS))
 		return (SET_ERROR(ENOTSUP));
 
+	/* Nothing left to do if no extended features */
+	if (!(featureflags & DMU_BACKUP_FEATURE_EXT_FEATURES))
+		return (0);
+
+	/* Already checked in dmu_recv_begin_check() */
+	ASSERT3P(featurenvl, !=, NULL);
+
+	/* Check we can support all of the offered features */
+	for (const nvpair_t *nvp = nvlist_next_nvpair(featurenvl, NULL); nvp;
+	    nvp = nvlist_next_nvpair(featurenvl, nvp)) {
+		const char *feature = nvpair_name(nvp);
+
+		/* Receiving fancy butter requires appropriate storage for it. */
+		if (!strcmp(feature, DMU_BACKUP_FEATURE_EXT_FANCY_BUTTER) &&
+		    spa_feature_is_enabled(spa, SPA_FEATURE_FANCY_BUTTER))
+			continue;
+
+		/* Unknown or unsupported feature */
+		return (SET_ERROR(ENOTSUP));
+	}
+
 	return (0);
 }
 
@@ -616,6 +638,7 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 	ds_hold_flags_t dsflags = DS_HOLD_FLAG_NONE;
 	int error;
 	uint64_t featureflags = drba->drba_cookie->drc_featureflags;
+	nvlist_t *featurenvl = NULL;
 	dsl_dataset_t *ds;
 	const char *tofs = drba->drba_cookie->drc_tofs;
 
@@ -629,7 +652,19 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 	    ((flags & DRR_FLAG_CLONE) && drba->drba_origin == NULL))
 		return (SET_ERROR(EINVAL));
 
-	error = recv_begin_check_feature_flags_impl(featureflags, dp->dp_spa);
+	if (featureflags & DMU_BACKUP_FEATURE_EXT_FEATURES) {
+		if (drba->drba_cookie->drc_begin_nvl == NULL)
+			return (SET_ERROR(EINVAL));
+		error = nvlist_lookup_nvlist(drba->drba_cookie->drc_begin_nvl,
+		    BEGINNV_FEATURES, &featurenvl);
+		if (error == ENOENT)
+			return (SET_ERROR(EINVAL));
+		if (error != 0)
+			return (error);
+	}
+
+	error = recv_begin_check_feature_flags_impl(
+	    featureflags, featurenvl, dp->dp_spa);
 	if (error != 0)
 		return (error);
 
@@ -1022,6 +1057,7 @@ dmu_recv_resume_begin_check(void *arg, dmu_tx_t *tx)
 	ds_hold_flags_t dsflags = DS_HOLD_FLAG_NONE;
 	dsl_dataset_t *ds;
 	const char *tofs = drc->drc_tofs;
+	nvlist_t *featurenvl = NULL;
 
 	/* already checked */
 	ASSERT3U(drrb->drr_magic, ==, DMU_BACKUP_MAGIC);
@@ -1036,8 +1072,19 @@ dmu_recv_resume_begin_check(void *arg, dmu_tx_t *tx)
 	 * This is mostly a sanity check since we should have already done these
 	 * checks during a previous attempt to receive the data.
 	 */
+	if (drc->drc_featureflags & DMU_BACKUP_FEATURE_EXT_FEATURES) {
+		if (drc->drc_begin_nvl == NULL)
+			return (SET_ERROR(EINVAL));
+		error = nvlist_lookup_nvlist(drc->drc_begin_nvl,
+		    BEGINNV_FEATURES, &featurenvl);
+		if (error == ENOENT)
+			return (SET_ERROR(EINVAL));
+		if (error != 0)
+			return (error);
+	}
+
 	error = recv_begin_check_feature_flags_impl(drc->drc_featureflags,
-	    dp->dp_spa);
+	    featurenvl, dp->dp_spa);
 	if (error != 0)
 		return (error);
 
@@ -1522,10 +1569,10 @@ receive_read(dmu_recv_cookie_t *drc, int len, void *buf)
 
 	/*
 	 * The code doesn't rely on this (lengths being multiples of 8).  See
-	 * comment in dump_bytes.
+	 * comment in dump_record().
 	 */
-	ASSERT(len % 8 == 0 ||
-	    (drc->drc_featureflags & DMU_BACKUP_FEATURE_RAW) != 0);
+	ASSERT(len % 8 == 0 || (drc->drc_featureflags &
+	    (DMU_BACKUP_FEATURE_RAW | DMU_BACKUP_FEATURE_EXT_FEATURES)) != 0);
 
 	while (done < len) {
 		ssize_t resid = len - done;

@@ -737,6 +737,18 @@ zpool_feature_init(void)
 	    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN, NULL,
 	    sfeatures);
 
+	{
+		static const spa_feature_t fancy_butter_deps[] = {
+			SPA_FEATURE_EXTENSIBLE_DATASET,
+			SPA_FEATURE_NONE
+		};
+		zfeature_register(SPA_FEATURE_FANCY_BUTTER,
+		    "com.despairlabs:fancy_butter", "fancy_butter",
+		    "Pool is storing some really fancy butter.",
+		    ZFEATURE_FLAG_PER_DATASET, ZFEATURE_TYPE_BOOLEAN,
+		    fancy_butter_deps, sfeatures);
+	}
+
 	zfs_mod_list_supported_free(sfeatures);
 }
 
