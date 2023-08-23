@@ -142,3 +142,8 @@ ZED_SYSLOG_SUBCLASS_EXCLUDE="history_event"
 # Disabled by default, 1 to enable and 0 to disable.
 #ZED_SYSLOG_DISPLAY_GUIDS=1
 
+##
+# Power off the drive's slot in the enclosure if it becomes FAULTED.  This can
+# help silence misbehaving drives.  This assumes your drive enclosure fully
+# supports slot power control via sysfs.
+#ZED_POWER_OFF_ENCLOUSRE_SLOT_ON_FAULT=1
