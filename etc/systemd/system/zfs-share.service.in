@@ -17,4 +17,4 @@ EnvironmentFile=-@initconfdir@/zfs
 ExecStart=@sbindir@/zfs share -a
 
 [Install]
-WantedBy=zfs.target
+WantedBy=multi-user.target

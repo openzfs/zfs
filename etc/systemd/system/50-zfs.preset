@@ -3,7 +3,7 @@ enable zfs-import-cache.service
 disable zfs-import-scan.service
 enable zfs-import.target
 enable zfs-mount.service
-enable zfs-share.service
+disable zfs-share.service
 enable zfs-zed.service
 enable zfs-volume-wait.service
 enable zfs.target

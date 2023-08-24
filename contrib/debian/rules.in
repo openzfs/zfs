@@ -168,7 +168,6 @@ override_dh_installinit:
 	dh_installinit -r --no-restart-after-upgrade --name zfs-import
 	dh_installinit -r --no-restart-after-upgrade --name zfs-mount
 	dh_installinit -r --no-restart-after-upgrade --name zfs-load-key
-	dh_installinit -R --name zfs-share
 	dh_installinit -R --name zfs-zed
 
 override_dh_installsystemd:
