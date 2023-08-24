@@ -1711,7 +1711,7 @@ vdev_uberblock_sync_list(vdev_t **svd, int svdcount, uberblock_t *ub, int flags)
 
 	for (int v = 0; v < svdcount; v++) {
 		if (vdev_writeable(svd[v])) {
-			zio_flush(zio, svd[v], ZIO_FLAG_DONT_PROPAGATE);
+			zio_flush(zio, svd[v], B_FALSE);
 		}
 	}
 
@@ -1848,7 +1848,7 @@ vdev_label_sync_list(spa_t *spa, int l, uint64_t txg, int flags)
 	zio = zio_root(spa, NULL, NULL, flags);
 
 	for (vd = list_head(dl); vd != NULL; vd = list_next(dl, vd))
-		zio_flush(zio, vd, ZIO_FLAG_DONT_PROPAGATE);
+		zio_flush(zio, vd, B_FALSE);
 
 	(void) zio_wait(zio);
 
@@ -1921,7 +1921,7 @@ retry:
 	for (vdev_t *vd =
 	    txg_list_head(&spa->spa_vdev_txg_list, TXG_CLEAN(txg)); vd != NULL;
 	    vd = txg_list_next(&spa->spa_vdev_txg_list, vd, TXG_CLEAN(txg)))
-		zio_flush(zio, vd, ZIO_FLAG_DONT_PROPAGATE);
+		zio_flush(zio, vd, B_FALSE);
 
 	(void) zio_wait(zio);
 

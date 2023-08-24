@@ -563,9 +563,6 @@ extern zio_t *zio_claim(zio_t *pio, spa_t *spa, uint64_t txg,
     const blkptr_t *bp,
     zio_done_func_t *done, void *priv, enum zio_flag flags);
 
-extern zio_t *zio_ioctl(zio_t *pio, spa_t *spa, vdev_t *vd, int cmd,
-    zio_done_func_t *done, void *priv, enum zio_flag flags);
-
 extern zio_t *zio_trim(zio_t *pio, vdev_t *vd, uint64_t offset, uint64_t size,
     zio_done_func_t *done, void *priv, zio_priority_t priority,
     enum zio_flag flags, enum trim_flag trim_flags);
@@ -585,7 +582,7 @@ extern zio_t *zio_free_sync(zio_t *pio, spa_t *spa, uint64_t txg,
 
 extern int zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg,
     blkptr_t *new_bp, uint64_t size, boolean_t *slog);
-extern void zio_flush(zio_t *zio, vdev_t *vd, enum zio_flag flags);
+extern void zio_flush(zio_t *zio, vdev_t *vd, boolean_t propagate);
 extern void zio_shrink(zio_t *zio, uint64_t size);
 
 extern int zio_wait(zio_t *zio);

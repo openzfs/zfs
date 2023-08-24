@@ -1706,7 +1706,7 @@ zil_lwb_write_done(zio_t *zio)
 			 * that had their flushes deferred. Flush errors will
 			 * be delivered to zil_lwb_flush_vdevs_done().
 			 */
-			zio_flush(lwb->lwb_root_zio, vd, 0);
+			zio_flush(lwb->lwb_root_zio, vd, B_TRUE);
 		}
 		kmem_free(zv, sizeof (*zv));
 	}

@@ -1307,30 +1307,6 @@ zio_claim(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 }
 
 zio_t *
-zio_ioctl(zio_t *pio, spa_t *spa, vdev_t *vd, int cmd,
-    zio_done_func_t *done, void *private, enum zio_flag flags)
-{
-	zio_t *zio;
-	int c;
-
-	if (vd->vdev_children == 0) {
-		zio = zio_create(pio, spa, 0, NULL, NULL, 0, 0, done, private,
-		    ZIO_TYPE_IOCTL, ZIO_PRIORITY_NOW, flags, vd, 0, NULL,
-		    ZIO_STAGE_OPEN, ZIO_IOCTL_PIPELINE);
-
-		zio->io_cmd = cmd;
-	} else {
-		zio = zio_null(pio, spa, NULL, NULL, NULL, flags);
-
-		for (c = 0; c < vd->vdev_children; c++)
-			zio_nowait(zio_ioctl(zio, spa, vd->vdev_child[c], cmd,
-			    done, private, flags));
-	}
-
-	return (zio);
-}
-
-zio_t *
 zio_trim(zio_t *pio, vdev_t *vd, uint64_t offset, uint64_t size,
     zio_done_func_t *done, void *private, zio_priority_t priority,
     enum zio_flag flags, enum trim_flag trim_flags)
@@ -1501,11 +1477,36 @@ zio_vdev_delegated_io(vdev_t *vd, uint64_t offset, abd_t *data, uint64_t size,
 	return (zio);
 }
 
+/*
+ * Send a flush command to the given vdev. Unlike most zio creation functions,
+ * the flush zios are issued immediately. You can wait on pio to pause until
+ * the flushes complete.
+ *
+ * Set propagate to true to have flush errors propagated to the parent.
+ * Otherwise, flush errors are ignored.
+ */
 void
-zio_flush(zio_t *zio, vdev_t *vd, enum zio_flag flags)
+zio_flush(zio_t *pio, vdev_t *vd, boolean_t propagate)
 {
-	zio_nowait(zio_ioctl(zio, zio->io_spa, vd, DKIOCFLUSHWRITECACHE,
-	    NULL, NULL, flags | ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_RETRY));
+	const int cmd = DKIOCFLUSHWRITECACHE;
+	const enum zio_flag flags =
+	    ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_RETRY |
+	    (propagate ? 0 : ZIO_FLAG_DONT_PROPAGATE);
+	spa_t *spa = pio->io_spa;
+	zio_t *zio;
+
+	if (vd->vdev_children == 0) {
+		zio = zio_create(pio, spa, 0, NULL, NULL, 0, 0, NULL, NULL,
+		    ZIO_TYPE_IOCTL, ZIO_PRIORITY_NOW, flags, vd, 0, NULL,
+		    ZIO_STAGE_OPEN, ZIO_IOCTL_PIPELINE);
+		zio->io_cmd = cmd;
+	} else {
+		zio = zio_null(pio, spa, NULL, NULL, NULL, flags);
+		for (int c = 0; c < vd->vdev_children; c++)
+			zio_flush(zio, vd->vdev_child[c], propagate);
+	}
+
+	zio_nowait(zio);
 }
 
 void
