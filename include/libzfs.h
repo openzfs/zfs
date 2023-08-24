@@ -156,6 +156,7 @@ typedef enum zfs_error {
 	EZFS_NOT_USER_NAMESPACE,	/* a file is not a user namespace */
 	EZFS_CKSUM,		/* insufficient replicas */
 	EZFS_RESUME_EXISTS,	/* Resume on existing dataset without force */
+	EZFS_SHAREFAILED,	/* filesystem share failed */
 	EZFS_UNKNOWN
 } zfs_error_t;
 
