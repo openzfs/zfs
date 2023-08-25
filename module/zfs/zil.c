@@ -1239,10 +1239,16 @@ zil_fail(zilog_t *zilog)
 	ASSERT(list_is_empty(&zilog->zl_itx_commit_list));
 
 	/*
-	 * If this fails, then we didn't take any itxs at all. If that's true,
-	 * how did we end up here?
+	 * Its possible that we took no itxs if all the work was committed to
+	 * the pool before the ZIL write errored; in that case there's only
+	 * commit waiters left on the lists, and we just completed those.
+	 *
+	 * We've already flagged the itxs for failure though, so we still have
+	 * to fail the whole ZIL. We'll just set its highest to be the last
+	 * synced txg, so it can immediately reopen if the circumstances suit.
 	 */
-	ASSERT3U(fail_itxg->itxg_txg, <, UINT64_MAX);
+	if (fail_itxg->itxg_txg == UINT64_MAX)
+		fail_itxg->itxg_txg = highest_txg;
 
 	/* Prepare the live itxgs for failure */
 	for (int i = 0; i < TXG_SIZE; i++) {
