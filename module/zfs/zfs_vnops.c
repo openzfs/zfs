@@ -1028,6 +1028,10 @@ zfs_exit_two(zfsvfs_t *zfsvfs1, zfsvfs_t *zfsvfs2, const char *tag)
  *
  * On success, the function return the number of bytes copied in *lenp.
  * Note, it doesn't return how much bytes are left to be copied.
+ * On errors which are caused by any file system limitations or
+ * brt limitations `EINVAL` is returned. In the most cases a user
+ * requested bad parameters, it could be possible to clone the file but
+ * some parameters don't match the requirements.
  */
 int
 zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
@@ -1171,7 +1175,7 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 	 * We cannot clone into files with different block size.
 	 */
 	if (inblksz != outzp->z_blksz && outzp->z_size > inblksz) {
-		error = SET_ERROR(EXDEV);
+		error = SET_ERROR(EINVAL);
 		goto unlock;
 	}
 
@@ -1179,7 +1183,7 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 	 * Offsets and len must be at block boundries.
 	 */
 	if ((inoff % inblksz) != 0 || (outoff % inblksz) != 0) {
-		error = SET_ERROR(EXDEV);
+		error = SET_ERROR(EINVAL);
 		goto unlock;
 	}
 	/*
@@ -1187,7 +1191,7 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 	 */
 	if ((len % inblksz) != 0 &&
 	    (len < inzp->z_size - inoff || len < outzp->z_size - outoff)) {
-		error = SET_ERROR(EXDEV);
+		error = SET_ERROR(EINVAL);
 		goto unlock;
 	}
 
@@ -1242,13 +1246,11 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 		    &nbps);
 		if (error != 0) {
 			/*
-			 * If we are tyring to clone a block that was created
-			 * in the current transaction group. Return an error,
-			 * so the caller can fallback to just copying the data.
+			 * If we are trying to clone a block that was created
+			 * in the current transaction group, error will be
+			 * EAGAIN here, which we can just return to the caller
+			 * so it can fallback if it likes.
 			 */
-			if (error == EAGAIN) {
-				error = SET_ERROR(EXDEV);
-			}
 			break;
 		}
 		/*

@@ -103,7 +103,8 @@ zpl_copy_file_range(struct file *src_file, loff_t src_off,
 	 * Since Linux 5.3 the filesystem driver is responsible for executing
 	 * an appropriate fallback, and a generic fallback function is provided.
 	 */
-	if (ret == -EOPNOTSUPP || ret == -EXDEV)
+	if (ret == -EOPNOTSUPP || ret == -EINVAL || ret == -EXDEV ||
+	    ret == -EAGAIN)
 		ret = generic_copy_file_range(src_file, src_off, dst_file,
 		    dst_off, len, flags);
 #else
@@ -111,7 +112,7 @@ zpl_copy_file_range(struct file *src_file, loff_t src_off,
 	 * Before Linux 5.3 the filesystem has to return -EOPNOTSUPP to signal
 	 * to the kernel that it should fallback to a content copy.
 	 */
-	if (ret == -EXDEV)
+	if (ret == -EINVAL || ret == -EXDEV || ret == -EAGAIN)
 		ret = -EOPNOTSUPP;
 #endif /* HAVE_VFS_GENERIC_COPY_FILE_RANGE */
 
