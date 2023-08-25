@@ -38,7 +38,7 @@
 .\" Copyright (c) 2019, Kjeld Schouten-Lebbing
 .\" Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
 .\"
-.Dd April 18, 2023
+.Dd August 8, 2023
 .Dt ZFSPROPS 7
 .Os
 .
@@ -1916,13 +1916,15 @@ See
 for more information.
 Jails are a
 .Fx
-feature and are not relevant on other platforms.
-The default value is
-.Sy off .
-.It Sy zoned Ns = Ns Sy on Ns | Ns Sy off
+feature and this property is not available on other platforms.
+.It Sy zoned Ns = Ns Sy off Ns | Ns Sy on
 Controls whether the dataset is managed from a non-global zone or namespace.
-The default value is
-.Sy off .
+See
+.Xr zfs-zone 8
+for more information.
+Zoning is a
+Linux
+feature and this property is not available on other platforms.
 .El
 .Pp
 The following three properties cannot be changed after the file system is
