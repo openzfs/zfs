@@ -1292,7 +1292,7 @@ metaslab_group_allocatable(metaslab_group_t *mg, metaslab_group_t *rotor,
 
 		/*
 		 * If this metaslab group is below its qmax or it's
-		 * the only allocatable metasable group, then attempt
+		 * the only allocatable metaslab group, then attempt
 		 * to allocate from it.
 		 */
 		if (qdepth < qmax || mc->mc_alloc_groups == 1)
@@ -5101,7 +5101,7 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
     zio_alloc_list_t *zal, int allocator)
 {
 	metaslab_class_allocator_t *mca = &mc->mc_allocator[allocator];
-	metaslab_group_t *mg, *fast_mg, *rotor;
+	metaslab_group_t *mg, *rotor;
 	vdev_t *vd;
 	boolean_t try_hard = B_FALSE;
 
@@ -5164,15 +5164,6 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 	} else if (d != 0) {
 		vd = vdev_lookup_top(spa, DVA_GET_VDEV(&dva[d - 1]));
 		mg = vd->vdev_mg->mg_next;
-	} else if (flags & METASLAB_FASTWRITE) {
-		mg = fast_mg = mca->mca_rotor;
-
-		do {
-			if (fast_mg->mg_vd->vdev_pending_fastwrite <
-			    mg->mg_vd->vdev_pending_fastwrite)
-				mg = fast_mg;
-		} while ((fast_mg = fast_mg->mg_next) != mca->mca_rotor);
-
 	} else {
 		ASSERT(mca->mca_rotor != NULL);
 		mg = mca->mca_rotor;
@@ -5297,7 +5288,7 @@ top:
 				mg->mg_bias = 0;
 			}
 
-			if ((flags & METASLAB_FASTWRITE) ||
+			if ((flags & METASLAB_ZIL) ||
 			    atomic_add_64_nv(&mca->mca_aliquot, asize) >=
 			    mg->mg_aliquot + mg->mg_bias) {
 				mca->mca_rotor = mg->mg_next;
@@ -5309,11 +5300,6 @@ top:
 			DVA_SET_GANG(&dva[d],
 			    ((flags & METASLAB_GANG_HEADER) ? 1 : 0));
 			DVA_SET_ASIZE(&dva[d], asize);
-
-			if (flags & METASLAB_FASTWRITE) {
-				atomic_add_64(&vd->vdev_pending_fastwrite,
-				    psize);
-			}
 
 			return (0);
 		}
@@ -5948,55 +5934,6 @@ metaslab_claim(spa_t *spa, const blkptr_t *bp, uint64_t txg)
 	ASSERT(error == 0 || txg == 0);
 
 	return (error);
-}
-
-void
-metaslab_fastwrite_mark(spa_t *spa, const blkptr_t *bp)
-{
-	const dva_t *dva = bp->blk_dva;
-	int ndvas = BP_GET_NDVAS(bp);
-	uint64_t psize = BP_GET_PSIZE(bp);
-	int d;
-	vdev_t *vd;
-
-	ASSERT(!BP_IS_HOLE(bp));
-	ASSERT(!BP_IS_EMBEDDED(bp));
-	ASSERT(psize > 0);
-
-	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
-
-	for (d = 0; d < ndvas; d++) {
-		if ((vd = vdev_lookup_top(spa, DVA_GET_VDEV(&dva[d]))) == NULL)
-			continue;
-		atomic_add_64(&vd->vdev_pending_fastwrite, psize);
-	}
-
-	spa_config_exit(spa, SCL_VDEV, FTAG);
-}
-
-void
-metaslab_fastwrite_unmark(spa_t *spa, const blkptr_t *bp)
-{
-	const dva_t *dva = bp->blk_dva;
-	int ndvas = BP_GET_NDVAS(bp);
-	uint64_t psize = BP_GET_PSIZE(bp);
-	int d;
-	vdev_t *vd;
-
-	ASSERT(!BP_IS_HOLE(bp));
-	ASSERT(!BP_IS_EMBEDDED(bp));
-	ASSERT(psize > 0);
-
-	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
-
-	for (d = 0; d < ndvas; d++) {
-		if ((vd = vdev_lookup_top(spa, DVA_GET_VDEV(&dva[d]))) == NULL)
-			continue;
-		ASSERT3U(vd->vdev_pending_fastwrite, >=, psize);
-		atomic_sub_64(&vd->vdev_pending_fastwrite, psize);
-	}
-
-	spa_config_exit(spa, SCL_VDEV, FTAG);
 }
 
 static void

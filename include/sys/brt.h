@@ -36,6 +36,7 @@ extern "C" {
 #endif
 
 extern boolean_t brt_entry_decref(spa_t *spa, const blkptr_t *bp);
+extern uint64_t brt_entry_get_refcount(spa_t *spa, const blkptr_t *bp);
 
 extern uint64_t brt_get_dspace(spa_t *spa);
 extern uint64_t brt_get_used(spa_t *spa);

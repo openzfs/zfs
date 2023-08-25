@@ -266,7 +266,6 @@ struct vdev {
 	metaslab_group_t *vdev_mg;	/* metaslab group		*/
 	metaslab_group_t *vdev_log_mg;	/* embedded slog metaslab group	*/
 	metaslab_t	**vdev_ms;	/* metaslab array		*/
-	uint64_t	vdev_pending_fastwrite; /* allocated fastwrites */
 	txg_list_t	vdev_ms_list;	/* per-txg dirty metaslab lists	*/
 	txg_list_t	vdev_dtl_list;	/* per-txg dirty DTL lists	*/
 	txg_node_t	vdev_txg_node;	/* per-txg dirty vdev linkage	*/

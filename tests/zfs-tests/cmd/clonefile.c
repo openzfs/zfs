@@ -212,7 +212,7 @@ main(int argc, char **argv)
 
 	int dfd = open(argv[optind+1], O_WRONLY|O_CREAT,
 	    S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
-	if (sfd < 0) {
+	if (dfd < 0) {
 		fprintf(stderr, "open: %s: %s\n",
 		    argv[optind+1], strerror(errno));
 		close(sfd);

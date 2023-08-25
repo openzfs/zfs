@@ -174,7 +174,7 @@
  *	                size_t len, unsigned int flags);
  *
  * Even though offsets and length represent bytes, they have to be
- * block-aligned or we will return the EXDEV error so the upper layer can
+ * block-aligned or we will return an error so the upper layer can
  * fallback to the generic mechanism that will just copy the data.
  * Using copy_file_range(2) will call OS-independent zfs_clone_range() function.
  * This function was implemented based on zfs_write(), but instead of writing
@@ -192,9 +192,9 @@
  * Some special cases to consider and how we address them:
  * - The block we want to clone may have been created within the same
  *   transaction group that we are trying to clone. Such block has no BP
- *   allocated yet, so cannot be immediately cloned. We return EXDEV.
+ *   allocated yet, so cannot be immediately cloned. We return EAGAIN.
  * - The block we want to clone may have been modified within the same
- *   transaction group. We return EXDEV.
+ *   transaction group. We return EAGAIN.
  * - A block may be cloned multiple times during one transaction group (that's
  *   why pending list is actually a tree and not an append-only list - this
  *   way we can figure out faster if this block is cloned for the first time
@@ -1542,6 +1542,37 @@ out:
 	brt_unlock(brt);
 
 	return (B_FALSE);
+}
+
+uint64_t
+brt_entry_get_refcount(spa_t *spa, const blkptr_t *bp)
+{
+	brt_t *brt = spa->spa_brt;
+	brt_vdev_t *brtvd;
+	brt_entry_t bre_search, *bre;
+	uint64_t vdevid, refcnt;
+	int error;
+
+	brt_entry_fill(bp, &bre_search, &vdevid);
+
+	brt_rlock(brt);
+
+	brtvd = brt_vdev(brt, vdevid);
+	ASSERT(brtvd != NULL);
+
+	bre = avl_find(&brtvd->bv_tree, &bre_search, NULL);
+	if (bre == NULL) {
+		error = brt_entry_lookup(brt, brtvd, &bre_search);
+		ASSERT(error == 0 || error == ENOENT);
+		if (error == ENOENT)
+			refcnt = 0;
+		else
+			refcnt = bre_search.bre_refcount;
+	} else
+		refcnt = bre->bre_refcount;
+
+	brt_unlock(brt);
+	return (refcnt);
 }
 
 static void

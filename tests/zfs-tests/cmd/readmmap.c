@@ -44,6 +44,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/mman.h>
+#include <sys/types.h>
 #include <time.h>
 
 int
