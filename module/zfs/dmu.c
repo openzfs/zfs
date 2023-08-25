@@ -165,7 +165,7 @@ dmu_object_byteswap_info_t dmu_ot_byteswap[DMU_BSWAP_NUMFUNCS] = {
 	{	zfs_acl_byteswap,	"acl"		}
 };
 
-static int
+int
 dmu_buf_hold_noread_by_dnode(dnode_t *dn, uint64_t offset,
     const void *tag, dmu_buf_t **dbp)
 {
@@ -185,6 +185,7 @@ dmu_buf_hold_noread_by_dnode(dnode_t *dn, uint64_t offset,
 	*dbp = &db->db;
 	return (0);
 }
+
 int
 dmu_buf_hold_noread(objset_t *os, uint64_t object, uint64_t offset,
     const void *tag, dmu_buf_t **dbp)
@@ -1653,10 +1654,22 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 {
 	dmu_sync_arg_t *dsa;
 	dmu_tx_t *tx;
+	int error;
+
+	error = dbuf_read((dmu_buf_impl_t *)zgd->zgd_db, NULL,
+	    DB_RF_CANFAIL | DB_RF_NOPREFETCH);
+	if (error != 0)
+		return (error);
 
 	tx = dmu_tx_create(os);
 	dmu_tx_hold_space(tx, zgd->zgd_db->db_size);
-	if (dmu_tx_assign(tx, TXG_WAIT) != 0) {
+	/*
+	 * This transaction does not produce any dirty data or log blocks, so
+	 * it should not be throttled.  All other cases wait for TXG sync, by
+	 * which time the log block we are writing will be obsolete, so we can
+	 * skip waiting and just return error here instead.
+	 */
+	if (dmu_tx_assign(tx, TXG_NOWAIT | TXG_NOTHROTTLE) != 0) {
 		dmu_tx_abort(tx);
 		/* Make zl_get_data do txg_waited_synced() */
 		return (SET_ERROR(EIO));

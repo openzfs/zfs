@@ -839,7 +839,6 @@ zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
 	uint64_t zp_gen;
 
 	ASSERT3P(lwb, !=, NULL);
-	ASSERT3P(zio, !=, NULL);
 	ASSERT3U(size, !=, 0);
 
 	/*
@@ -889,6 +888,7 @@ zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
 		}
 		ASSERT(error == 0 || error == ENOENT);
 	} else { /* indirect write */
+		ASSERT3P(zio, !=, NULL);
 		/*
 		 * Have to lock the whole block to ensure when it's
 		 * written out and its checksum is being calculated
@@ -917,8 +917,8 @@ zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
 		}
 #endif
 		if (error == 0)
-			error = dmu_buf_hold(os, object, offset, zgd, &db,
-			    DMU_READ_NO_PREFETCH);
+			error = dmu_buf_hold_noread(os, object, offset, zgd,
+			    &db);
 
 		if (error == 0) {
 			blkptr_t *bp = &lr->lr_blkptr;

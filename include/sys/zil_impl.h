@@ -38,14 +38,22 @@ extern "C" {
 /*
  * Possible states for a given lwb structure.
  *
- * An lwb will start out in the "closed" state, and then transition to
- * the "opened" state via a call to zil_lwb_write_open(). When
- * transitioning from "closed" to "opened" the zilog's "zl_issuer_lock"
- * must be held.
+ * An lwb will start out in the "new" state, and transition to the "opened"
+ * state via a call to zil_lwb_write_open() on first itx assignment.  When
+ * transitioning from "new" to "opened" the zilog's "zl_issuer_lock" must be
+ * held.
  *
- * After the lwb is "opened", it can transition into the "issued" state
- * via zil_lwb_write_close(). Again, the zilog's "zl_issuer_lock" must
- * be held when making this transition.
+ * After the lwb is "opened", it can be assigned number of itxs and transition
+ * into the "closed" state via zil_lwb_write_close() when full or on timeout.
+ * When transitioning from "opened" to "closed" the zilog's "zl_issuer_lock"
+ * must be held.  New lwb allocation also takes "zl_lock" to protect the list.
+ *
+ * After the lwb is "closed", it can transition into the "ready" state via
+ * zil_lwb_write_issue().  "zl_lock" must be held when making this transition.
+ * Since it is done by the same thread, "zl_issuer_lock" is not needed.
+ *
+ * When lwb in "ready" state receives its block pointer, it can transition to
+ * "issued". "zl_lock" must be held when making this transition.
  *
  * After the lwb's write zio completes, it transitions into the "write
  * done" state via zil_lwb_write_done(); and then into the "flush done"
@@ -62,17 +70,20 @@ extern "C" {
  *
  * Additionally, correctness when reading an lwb's state is often
  * achieved by exploiting the fact that these state transitions occur in
- * this specific order; i.e. "closed" to "opened" to "issued" to "done".
+ * this specific order; i.e. "new" to "opened" to "closed" to "ready" to
+ * "issued" to "write_done" and finally "flush_done".
  *
- * Thus, if an lwb is in the "closed" or "opened" state, holding the
+ * Thus, if an lwb is in the "new" or "opened" state, holding the
  * "zl_issuer_lock" will prevent a concurrent thread from transitioning
- * that lwb to the "issued" state. Likewise, if an lwb is already in the
- * "issued" state, holding the "zl_lock" will prevent a concurrent
- * thread from transitioning that lwb to the "write done" state.
+ * that lwb to the "closed" state. Likewise, if an lwb is already in the
+ * "ready" state, holding the "zl_lock" will prevent a concurrent thread
+ * from transitioning that lwb to the "issued" state.
  */
 typedef enum {
-    LWB_STATE_CLOSED,
+    LWB_STATE_NEW,
     LWB_STATE_OPENED,
+    LWB_STATE_CLOSED,
+    LWB_STATE_READY,
     LWB_STATE_ISSUED,
     LWB_STATE_WRITE_DONE,
     LWB_STATE_FLUSH_DONE,
@@ -91,18 +102,21 @@ typedef enum {
 typedef struct lwb {
 	zilog_t		*lwb_zilog;	/* back pointer to log struct */
 	blkptr_t	lwb_blk;	/* on disk address of this log blk */
-	boolean_t	lwb_fastwrite;	/* is blk marked for fastwrite? */
+	boolean_t	lwb_slim;	/* log block has slim format */
 	boolean_t	lwb_slog;	/* lwb_blk is on SLOG device */
-	boolean_t	lwb_indirect;	/* do not postpone zil_lwb_commit() */
+	int		lwb_error;	/* log block allocation error */
+	int		lwb_nmax;	/* max bytes in the buffer */
 	int		lwb_nused;	/* # used bytes in buffer */
 	int		lwb_nfilled;	/* # filled bytes in buffer */
 	int		lwb_sz;		/* size of block and buffer */
 	lwb_state_t	lwb_state;	/* the state of this lwb */
 	char		*lwb_buf;	/* log write buffer */
+	zio_t		*lwb_child_zio;	/* parent zio for children */
 	zio_t		*lwb_write_zio;	/* zio for the lwb buffer */
 	zio_t		*lwb_root_zio;	/* root zio for lwb write and flushes */
 	hrtime_t	lwb_issued_timestamp; /* when was the lwb issued? */
 	uint64_t	lwb_issued_txg;	/* the txg when the write is issued */
+	uint64_t	lwb_alloc_txg;	/* the txg when lwb_blk is allocated */
 	uint64_t	lwb_max_txg;	/* highest txg in this lwb */
 	list_node_t	lwb_node;	/* zilog->zl_lwb_list linkage */
 	list_node_t	lwb_issue_node;	/* linkage of lwbs ready for issue */
