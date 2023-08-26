@@ -947,6 +947,18 @@ once all filesystems that have ever had their
 property set to
 .Sy zstd
 are destroyed.
+.
+.feature com.delphix redaction_list_spill no redaction_bookmarks
+This feature enables the redaction list created by zfs redact to store
+many more entries.
+It becomes
+.Sy active
+when a redaction list is created with more than 36 entries,
+and returns to being
+.Sy enabled
+when no long redaction lists remain in the pool.
+For more information about redacted sends, see
+.Xr zfs-send 8 .
 .El
 .
 .Sh SEE ALSO

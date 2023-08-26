@@ -1125,6 +1125,16 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 		while ((dbn = avl_destroy_nodes(&ds->ds_bookmarks, &cookie)) !=
 		    NULL) {
 			if (dbn->dbn_phys.zbm_redaction_obj != 0) {
+				dnode_t *rl;
+				VERIFY0(dnode_hold(mos,
+				    dbn->dbn_phys.zbm_redaction_obj, FTAG,
+				    &rl));
+				if (rl->dn_have_spill) {
+					spa_feature_decr(dmu_objset_spa(mos),
+					    SPA_FEATURE_REDACTION_LIST_SPILL,
+					    tx);
+				}
+				dnode_rele(rl, FTAG);
 				VERIFY0(dmu_object_free(mos,
 				    dbn->dbn_phys.zbm_redaction_obj, tx));
 				spa_feature_decr(dmu_objset_spa(mos),

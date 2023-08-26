@@ -3978,6 +3978,10 @@ zfs_do_redact(int argc, char **argv)
 		(void) fprintf(stderr, gettext("potentially invalid redaction "
 		    "snapshot; full dataset names required\n"));
 		break;
+	case ESRCH:
+		(void) fprintf(stderr, gettext("attempted to resume redaction "
+		    " with a mismatched redaction list\n"));
+		break;
 	default:
 		(void) fprintf(stderr, gettext("internal error: %s\n"),
 		    strerror(errno));

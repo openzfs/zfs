@@ -737,6 +737,18 @@ zpool_feature_init(void)
 	    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN, NULL,
 	    sfeatures);
 
+	{
+		static const spa_feature_t redact_list_spill_deps[] = {
+			SPA_FEATURE_REDACTION_BOOKMARKS,
+			SPA_FEATURE_NONE
+		};
+		zfeature_register(SPA_FEATURE_REDACTION_LIST_SPILL,
+		    "com.delphix:redaction_list_spill", "redaction_list_spill",
+		    "Support for increased number of redaction_snapshot "
+		    "arguments in zfs redact.", 0, ZFEATURE_TYPE_BOOLEAN,
+		    redact_list_spill_deps, sfeatures);
+	}
+
 	zfs_mod_list_supported_free(sfeatures);
 }
 
