@@ -21,6 +21,7 @@ dist_zedexec_SCRIPTS = \
 	scrub_finish-notify.sh \
 	statechange-led.sh \
 	statechange-notify.sh \
+	statechange-slot_off.sh \
 	vdev_clear-led.sh \
 	vdev_attach-led.sh \
 	pool_import-led.sh \
@@ -39,6 +40,7 @@ zedconfdefaults = \
 	scrub_finish-notify.sh \
 	statechange-led.sh \
 	statechange-notify.sh \
+	statechange-slot_off.sh \
 	vdev_clear-led.sh \
 	vdev_attach-led.sh \
 	pool_import-led.sh \
