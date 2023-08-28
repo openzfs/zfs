@@ -1038,6 +1038,7 @@ zil_failed(zilog_t *zilog)
 
 static void zil_commit_waiter_skip(zil_commit_waiter_t *zcw);
 static itxs_t *zil_alloc_itxs(void);
+static void zil_itxg_clean_failed(zilog_t *zilog, uint64_t synced_txg);
 
 /*
  * Fail the ZIL. This will collect up all failed itxs, and note that the ZIL
@@ -1135,8 +1136,18 @@ zil_fail(zilog_t *zilog)
 		mutex_exit(&itxg->itxg_lock);
 	}
 
-	ASSERT3U(fail_itxg->itxg_txg, ==, 0);
-	ASSERT3P(fail_itxg->itxg_itxs, ==, NULL);
+	/*
+	 * Anything left in the failed itx must be from a previous failure
+	 * in the past. We force it to empty out (signalling waiters) here
+	 * so that we can properly calculate the new resume txg without
+	 * having to scan the fail itx list. Those things have waited for
+	 * zil_clean() to service them for a while already anyway.
+	 */
+	if (fail_itxg->itxg_txg > 0) {
+		zil_itxg_clean_failed(zilog, last_synced_txg); 
+		ASSERT3U(fail_itxg->itxg_txg, ==, 0);
+		ASSERT3P(fail_itxg->itxg_itxs, ==, NULL);
+	}
 
 	fail_itxg->itxg_itxs = zil_alloc_itxs();
 
@@ -2476,17 +2487,9 @@ zil_itxg_clean_failed(zilog_t *zilog, uint64_t synced_txg)
 {
 	itxg_t *fail_itxg = &zilog->zl_fail_itxg;
 
-	/*
-	 * If zil_fail() is currently running, we will pause here until its
-	 * done. If its not (ie most of the time), we're the only one checking,
-	 * once per txg sync, so we should always get the lock without fuss.
-	 */
-	mutex_enter(&fail_itxg->itxg_lock);
-	if (fail_itxg->itxg_txg == 0 || fail_itxg->itxg_txg > synced_txg) {
-		mutex_exit(&fail_itxg->itxg_lock);
-		return;
-	}
+	ASSERT(MUTEX_HELD(&fail_itxg->itxg_lock));
 
+	ASSERT3U(fail_itxg->itxg_txg, >, 0);
 	ASSERT3U(fail_itxg->itxg_txg, <=, synced_txg);
 
 	uint64_t next_txg = UINT64_MAX;
@@ -2516,7 +2519,7 @@ zil_itxg_clean_failed(zilog_t *zilog, uint64_t synced_txg)
 		fail_itxg->itxg_txg = 0;
 	}
 
-	mutex_exit(&fail_itxg->itxg_lock);
+	ASSERT(MUTEX_HELD(&fail_itxg->itxg_lock));
 }
 
 /*
@@ -2530,15 +2533,21 @@ void
 zil_clean(zilog_t *zilog, uint64_t synced_txg)
 {
 	itxg_t *itxg = &zilog->zl_itxg[synced_txg & TXG_MASK];
+	itxg_t *fail_itxg = &zilog->zl_fail_itxg;
 	itxs_t *clean_me;
 
 	ASSERT3U(synced_txg, <, ZILTEST_TXG);
 
 	/*
-	 * First clean up the failed itxg if it has anything for this txg or
-	 * any before it.
+	 * If zil_fail() is currently running, we will pause here until its
+	 * done. If its not (ie most of the time), we're the only one checking,
+	 * once per txg sync, so we should always get the lock without fuss.
 	 */
-	zil_itxg_clean_failed(zilog, synced_txg);
+	mutex_enter(&fail_itxg->itxg_lock);
+	if (fail_itxg->itxg_txg > 0 && fail_itxg->itxg_txg <= synced_txg)
+		/* We've moved past the restart point, so prune any old itxs. */
+		zil_itxg_clean_failed(zilog, synced_txg);
+	mutex_exit(&fail_itxg->itxg_lock);
 
 	mutex_enter(&itxg->itxg_lock);
 	if (itxg->itxg_itxs == NULL || itxg->itxg_txg == ZILTEST_TXG) {
