@@ -172,15 +172,6 @@ typedef struct itx_async_node {
 	avl_node_t	ia_node;	/* AVL tree linkage */
 } itx_async_node_t;
 
-/*
- * Vdev flushing: during a zil_commit(), we build up an AVL tree of the vdevs
- * we've touched so we know which ones need a write cache flush at the end.
- */
-typedef struct zil_vdev_node {
-	uint64_t	zv_vdev;	/* vdev to be flushed */
-	avl_node_t	zv_node;	/* AVL tree linkage */
-} zil_vdev_node_t;
-
 #define	ZIL_BURSTS 8
 
 /*

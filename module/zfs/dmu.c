@@ -1806,12 +1806,11 @@ dmu_sync_done(zio_t *zio, arc_buf_t *buf, void *varg)
 	zgd_t *zgd = dsa->dsa_zgd;
 
 	/*
-	 * Record the vdev(s) backing this blkptr so they can be flushed after
-	 * the writes for the lwb have completed.
+	 * Capture the trace records for this zio so the vdevs can be flushed
+	 * after the writes for the lwb have completed.
 	 */
-	if (zio->io_error == 0) {
-		zil_lwb_add_block(zgd->zgd_lwb, zgd->zgd_bp);
-	}
+	if (zio->io_error == 0)
+		zil_lwb_add_flush(zgd->zgd_lwb, zio);
 
 	mutex_enter(&db->db_mtx);
 	ASSERT(dr->dt.dl.dr_override_state == DR_IN_DMU_SYNC);
@@ -1865,10 +1864,10 @@ dmu_sync_late_arrival_done(zio_t *zio)
 
 	if (zio->io_error == 0) {
 		/*
-		 * Record the vdev(s) backing this blkptr so they can be
+		 * Capture the trace records for this zio so the vdevs can be
 		 * flushed after the writes for the lwb have completed.
 		 */
-		zil_lwb_add_block(zgd->zgd_lwb, zgd->zgd_bp);
+		zil_lwb_add_flush(zgd->zgd_lwb, zio);
 
 		if (!BP_IS_HOLE(bp)) {
 			blkptr_t *bp_orig __maybe_unused = &zio->io_bp_orig;
@@ -1955,7 +1954,8 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 	    abd_get_from_buf(zgd->zgd_db->db_data, zgd->zgd_db->db_size),
 	    zgd->zgd_db->db_size, zgd->zgd_db->db_size, zp,
 	    dmu_sync_late_arrival_ready, NULL, dmu_sync_late_arrival_done,
-	    dsa, ZIO_PRIORITY_SYNC_WRITE, ZIO_FLAG_CANFAIL, zb));
+	    dsa, ZIO_PRIORITY_SYNC_WRITE,
+	    ZIO_FLAG_CANFAIL | ZIO_FLAG_VDEV_TRACE, zb));
 
 	return (0);
 }
@@ -2122,7 +2122,8 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 	zio_nowait(arc_write(pio, os->os_spa, txg, zgd->zgd_bp,
 	    dr->dt.dl.dr_data, !DBUF_IS_CACHEABLE(db), dbuf_is_l2cacheable(db),
 	    &zp, dmu_sync_ready, NULL, dmu_sync_done, dsa,
-	    ZIO_PRIORITY_SYNC_WRITE, ZIO_FLAG_CANFAIL, &zb));
+	    ZIO_PRIORITY_SYNC_WRITE, ZIO_FLAG_CANFAIL | ZIO_FLAG_VDEV_TRACE,
+	    &zb));
 
 	return (0);
 }
