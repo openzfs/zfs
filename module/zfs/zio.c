@@ -1614,6 +1614,36 @@ zio_flush(zio_t *pio, vdev_t *vd, boolean_t propagate)
 }
 
 void
+zio_flush_traced(zio_t *pio, avl_tree_t *t, boolean_t propagate)
+{
+	const int cmd = DKIOCFLUSHWRITECACHE;
+	const zio_flag_t flags =
+	    ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_RETRY |
+	    (propagate ? 0 : ZIO_FLAG_DONT_PROPAGATE);
+	spa_t *spa = pio->io_spa;
+	zio_t *fio, *zio;
+	zio_vdev_trace_t *zvt;
+	vdev_t *vd;
+
+	fio = zio_null(pio, spa, NULL, NULL, NULL, flags);
+
+	for (zvt = avl_first(t); zvt != NULL; zvt = AVL_NEXT(t, zvt)) {
+		vd = vdev_lookup_by_guid(spa->spa_root_vdev, zvt->zvt_guid);
+		if (vd == NULL)
+			continue;
+		if (vd->vdev_children == 0) {
+			zio = zio_create(fio, spa, 0, NULL, NULL, 0, 0, NULL,
+			    NULL, ZIO_TYPE_IOCTL, ZIO_PRIORITY_NOW, flags, vd,
+			    0, NULL, ZIO_STAGE_OPEN, ZIO_IOCTL_PIPELINE);
+			zio->io_cmd = cmd;
+			zio_nowait(zio);
+		}
+	}
+
+	zio_nowait(fio);
+}
+
+void
 zio_shrink(zio_t *zio, uint64_t size)
 {
 	ASSERT3P(zio->io_executor, ==, NULL);
