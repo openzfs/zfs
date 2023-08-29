@@ -633,6 +633,10 @@ extern void zio_vdev_io_bypass(zio_t *zio);
 extern void zio_vdev_io_reissue(zio_t *zio);
 extern void zio_vdev_io_redone(zio_t *zio);
 
+extern zio_vdev_trace_t * zio_vdev_trace_alloc(void);
+extern void zio_vdev_trace_free(zio_vdev_trace_t *zvt);
+extern int zio_vdev_trace_compare(const void *x1, const void *x2);
+
 extern void zio_change_priority(zio_t *pio, zio_priority_t priority);
 
 extern void zio_checksum_verified(zio_t *zio);

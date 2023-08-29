@@ -756,8 +756,7 @@ zio_notify_parent(zio_t *pio, zio_t *zio, enum zio_wait_type wait,
 		if (zio->io_error == 0) {
 			zvt_search.zvt_guid = zio->io_vd->vdev_guid;
 			if (avl_find(t, &zvt_search, &where) == NULL) {
-				zvt = kmem_cache_alloc(zio_vdev_trace_cache,
-				    KM_SLEEP);
+				zvt = zio_vdev_trace_alloc();
 				zvt->zvt_guid = zio->io_vd->vdev_guid;
 				avl_insert(t, zvt, where);
 			}
@@ -774,8 +773,7 @@ zio_notify_parent(zio_t *pio, zio_t *zio, enum zio_wait_type wait,
 			for (czvt = avl_first(ct); czvt != NULL;
 			    czvt = AVL_NEXT(ct, czvt)) {
 				if (avl_find(t, czvt, &where) == NULL) {
-					zvt = kmem_cache_alloc(
-					    zio_vdev_trace_cache, KM_SLEEP);
+					zvt = zio_vdev_trace_alloc();
 					zvt->zvt_guid = czvt->zvt_guid;
 					avl_insert(t, zvt, where);
 				}
@@ -864,7 +862,23 @@ zio_bookmark_compare(const void *x1, const void *x2)
 	return (0);
 }
 
-static int
+/*
+ * vdev tracing support. These are exposed so that tracing clients can build
+ * their own trees compatible with functions that operate on a trace tree.
+ */
+zio_vdev_trace_t *
+zio_vdev_trace_alloc(void)
+{
+	return (kmem_cache_alloc(zio_vdev_trace_cache, KM_SLEEP));
+}
+
+void
+zio_vdev_trace_free(zio_vdev_trace_t *zvt)
+{
+	kmem_cache_free(zio_vdev_trace_cache, zvt);
+}
+
+int
 zio_vdev_trace_compare(const void *x1, const void *x2)
 {
 	const uint64_t v1 = ((zio_vdev_trace_t *)x1)->zvt_guid;
@@ -981,7 +995,7 @@ zio_destroy(zio_t *zio)
 		zio_vdev_trace_t *zvt;
 		void *cookie = NULL;
 		while ((zvt = avl_destroy_nodes(t, &cookie)) != NULL)
-			kmem_cache_free(zio_vdev_trace_cache, zvt);
+			zio_vdev_trace_free(zvt);
 		avl_destroy(t);
 	}
 	metaslab_trace_fini(&zio->io_alloc_list);
