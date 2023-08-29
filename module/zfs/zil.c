@@ -798,15 +798,6 @@ zil_free_log_record(zilog_t *zilog, const lr_t *lrc, void *tx,
 	}
 }
 
-static int
-zil_lwb_vdev_compare(const void *x1, const void *x2)
-{
-	const uint64_t v1 = ((zil_vdev_node_t *)x1)->zv_vdev;
-	const uint64_t v2 = ((zil_vdev_node_t *)x2)->zv_vdev;
-
-	return (TREE_CMP(v1, v2));
-}
-
 /*
  * Allocate a new lwb.  We may already have a block pointer for it, in which
  * case we get size and version from there.  Or we may not yet, in which case
@@ -1369,14 +1360,8 @@ zil_commit_waiter_link_nolwb(zil_commit_waiter_t *zcw, list_t *nolwb)
 }
 
 void
-zil_lwb_add_block(lwb_t *lwb, const blkptr_t *bp)
+zil_lwb_add_flush(struct lwb *lwb, zio_t *zio)
 {
-	avl_tree_t *t = &lwb->lwb_vdev_tree;
-	avl_index_t where;
-	zil_vdev_node_t *zv, zvsearch;
-	int ndvas = BP_GET_NDVAS(bp);
-	int i;
-
 	ASSERT3S(lwb->lwb_state, !=, LWB_STATE_WRITE_DONE);
 	ASSERT3S(lwb->lwb_state, !=, LWB_STATE_FLUSH_DONE);
 
@@ -1384,51 +1369,8 @@ zil_lwb_add_block(lwb_t *lwb, const blkptr_t *bp)
 		return;
 
 	mutex_enter(&lwb->lwb_vdev_lock);
-	for (i = 0; i < ndvas; i++) {
-		zvsearch.zv_vdev = DVA_GET_VDEV(&bp->blk_dva[i]);
-		if (avl_find(t, &zvsearch, &where) == NULL) {
-			zv = kmem_alloc(sizeof (*zv), KM_SLEEP);
-			zv->zv_vdev = zvsearch.zv_vdev;
-			avl_insert(t, zv, where);
-		}
-	}
+	zio_vdev_trace_copy(&zio->io_vdev_trace_tree, &lwb->lwb_vdev_tree);
 	mutex_exit(&lwb->lwb_vdev_lock);
-}
-
-static void
-zil_lwb_flush_defer(lwb_t *lwb, lwb_t *nlwb)
-{
-	avl_tree_t *src = &lwb->lwb_vdev_tree;
-	avl_tree_t *dst = &nlwb->lwb_vdev_tree;
-	void *cookie = NULL;
-	zil_vdev_node_t *zv;
-
-	ASSERT3S(lwb->lwb_state, ==, LWB_STATE_WRITE_DONE);
-	ASSERT3S(nlwb->lwb_state, !=, LWB_STATE_WRITE_DONE);
-	ASSERT3S(nlwb->lwb_state, !=, LWB_STATE_FLUSH_DONE);
-
-	/*
-	 * While 'lwb' is at a point in its lifetime where lwb_vdev_tree does
-	 * not need the protection of lwb_vdev_lock (it will only be modified
-	 * while holding zilog->zl_lock) as its writes and those of its
-	 * children have all completed.  The younger 'nlwb' may be waiting on
-	 * future writes to additional vdevs.
-	 */
-	mutex_enter(&nlwb->lwb_vdev_lock);
-	/*
-	 * Tear down the 'lwb' vdev tree, ensuring that entries which do not
-	 * exist in 'nlwb' are moved to it, freeing any would-be duplicates.
-	 */
-	while ((zv = avl_destroy_nodes(src, &cookie)) != NULL) {
-		avl_index_t where;
-
-		if (avl_find(dst, zv, &where) == NULL) {
-			avl_insert(dst, zv, where);
-		} else {
-			kmem_free(zv, sizeof (*zv));
-		}
-	}
-	mutex_exit(&nlwb->lwb_vdev_lock);
 }
 
 void
@@ -1573,9 +1515,6 @@ zil_lwb_write_done(zio_t *zio)
 	lwb_t *lwb = zio->io_private;
 	spa_t *spa = zio->io_spa;
 	zilog_t *zilog = lwb->lwb_zilog;
-	avl_tree_t *t = &lwb->lwb_vdev_tree;
-	void *cookie = NULL;
-	zil_vdev_node_t *zv;
 	lwb_t *nlwb;
 
 	ASSERT3S(spa_config_held(spa, SCL_STATE, RW_READER), !=, 0);
@@ -1601,13 +1540,9 @@ zil_lwb_write_done(zio_t *zio)
 		nlwb = NULL;
 	mutex_exit(&zilog->zl_lock);
 
-	if (avl_numnodes(t) == 0)
-		return;
-
 	/*
-	 * If there was an IO error, we're not going to call zio_flush()
-	 * on these vdevs, so we simply empty the tree and free the
-	 * nodes. We avoid calling zio_flush() since there isn't any
+	 * If there was an IO error, there's no point continuing. We
+	 * avoid calling zio_flush() since there isn't any
 	 * good reason for doing so, after the lwb block failed to be
 	 * written out.
 	 *
@@ -1617,38 +1552,78 @@ zil_lwb_write_done(zio_t *zio)
 	 * we expect any error seen here, to have been propagated to
 	 * that function).
 	 */
-	if (zio->io_error != 0) {
-		while ((zv = avl_destroy_nodes(t, &cookie)) != NULL)
-			kmem_free(zv, sizeof (*zv));
+	if (zio->io_error != 0 || zil_nocacheflush) {
+		/*
+		 * Trace records may have been passed on to us from a
+		 * previously-deferred lwb. Since we're not going to use them,
+		 * we clean them up now.
+		 */
+		zio_vdev_trace_empty(&lwb->lwb_vdev_tree);
 		return;
 	}
 
 	/*
-	 * If this lwb does not have any threads waiting for it to complete, we
-	 * want to defer issuing the flush command to the vdevs written to by
-	 * "this" lwb, and instead rely on the "next" lwb to handle the flush
-	 * command for those vdevs. Thus, we merge the vdev tree of "this" lwb
-	 * with the vdev tree of the "next" lwb in the list, and assume the
-	 * "next" lwb will handle flushing the vdevs (or deferring the flush(s)
-	 * again).
+	 * This zio was issued with ZIO_FLAG_VDEV_TRACE, and so its
+	 * io_vdev_trace_tree has the set of zio_vdev_trace_t records for vdevs
+	 * that were written to by "this" lwb.
 	 *
-	 * This is a useful performance optimization, especially for workloads
+	 * To complete the commit, we need to issue a flush to those vdevs. If
+	 * this lwb does not have any threads waiting for it to complete, we
+	 * want to defer issuing that flush, and instead rely on the "next" lwb
+	 * to hndle the flush command for those vdevs.
+	 *
+	 * (This is a useful performance optimization, especially for workloads
 	 * with lots of async write activity and few sync write and/or fsync
 	 * activity, as it has the potential to coalesce multiple flush
-	 * commands to a vdev into one.
+	 * commands to a vdev into one).
+	 *
+	 * However, if this lwb does have threads waiting for it, we must issue
+	 * the flush now.
+	 *
+	 * Regardless of whether or not we issue the flush now or defer it to
+	 * the "next" lwb, our lwb_vdev_tree may also have entries on it that
+	 * were deferred to us.
+	 *
+	 * So, our job here is to assemble a single tree of vdev trace records
+	 * including all those that were written by this zio, plus any that
+	 * were deferred to us, and either issue the flush now, or pass them on
+	 * to the "next" lwb.
+	 *
+	 * Because the zio owns the entries on its trace tree, and it is no
+	 * longer available to us after this function returns, so we make our
+	 * own copies instead of just stealing them.
 	 */
 	if (list_is_empty(&lwb->lwb_waiters) && nlwb != NULL) {
-		zil_lwb_flush_defer(lwb, nlwb);
-		ASSERT(avl_is_empty(&lwb->lwb_vdev_tree));
+		ASSERT3S(nlwb->lwb_state, !=, LWB_STATE_WRITE_DONE);
+		ASSERT3S(nlwb->lwb_state, !=, LWB_STATE_FLUSH_DONE);
+
+		/*
+		 * While 'lwb' is at a point in its lifetime where
+		 * lwb_vdev_tree does not need the protection of lwb_vdev_lock
+		 * (it will only be modified while holding zilog->zl_lock) as
+		 * its writes and those of its children have all completed.
+		 * The younger 'nlwb' may be waiting on future writes to
+		 * additional vdevs.
+		 */
+		mutex_enter(&nlwb->lwb_vdev_lock);
+		zio_vdev_trace_copy(&zio->io_vdev_trace_tree,
+		    &nlwb->lwb_vdev_tree);
+
+		/*
+		 * Also move any trace records from this lwb to the next.
+		 */
+		zio_vdev_trace_move(&lwb->lwb_vdev_tree, &nlwb->lwb_vdev_tree);
+		mutex_exit(&nlwb->lwb_vdev_lock);
 		return;
 	}
 
-	while ((zv = avl_destroy_nodes(t, &cookie)) != NULL) {
-		vdev_t *vd = vdev_lookup_top(spa, zv->zv_vdev);
-		if (vd != NULL)
-			zio_flush(lwb->lwb_root_zio, vd, B_TRUE);
-		kmem_free(zv, sizeof (*zv));
-	}
+	/*
+	 * Fill out the trace tree with records, then issue the flush,
+	 * delivering errors to zil_lwb_flush_vdevs_done().
+	 */
+	zio_vdev_trace_copy(&zio->io_vdev_trace_tree, &lwb->lwb_vdev_tree);
+	zio_vdev_trace_flush(lwb->lwb_root_zio, &lwb->lwb_vdev_tree);
+	zio_vdev_trace_empty(&lwb->lwb_vdev_tree);
 }
 
 /*
@@ -1931,8 +1906,7 @@ next_lwb:
 		    lwb->lwb_blk.blk_cksum.zc_word[ZIL_ZC_SEQ]);
 		lwb->lwb_write_zio = zio_rewrite(lwb->lwb_root_zio, spa, 0,
 		    &lwb->lwb_blk, lwb_abd, lwb->lwb_sz, zil_lwb_write_done,
-		    lwb, prio, ZIO_FLAG_CANFAIL, &zb);
-		zil_lwb_add_block(lwb, &lwb->lwb_blk);
+		    lwb, prio, ZIO_FLAG_CANFAIL | ZIO_FLAG_VDEV_TRACE, &zb);
 
 		if (lwb->lwb_slim) {
 			/* For Slim ZIL only write what is used. */
@@ -3773,8 +3747,7 @@ zil_lwb_cons(void *vbuf, void *unused, int kmflag)
 	list_create(&lwb->lwb_itxs, sizeof (itx_t), offsetof(itx_t, itx_node));
 	list_create(&lwb->lwb_waiters, sizeof (zil_commit_waiter_t),
 	    offsetof(zil_commit_waiter_t, zcw_node));
-	avl_create(&lwb->lwb_vdev_tree, zil_lwb_vdev_compare,
-	    sizeof (zil_vdev_node_t), offsetof(zil_vdev_node_t, zv_node));
+	zio_vdev_trace_init(&lwb->lwb_vdev_tree);
 	mutex_init(&lwb->lwb_vdev_lock, NULL, MUTEX_DEFAULT, NULL);
 	return (0);
 }
@@ -3785,7 +3758,7 @@ zil_lwb_dest(void *vbuf, void *unused)
 	(void) unused;
 	lwb_t *lwb = vbuf;
 	mutex_destroy(&lwb->lwb_vdev_lock);
-	avl_destroy(&lwb->lwb_vdev_tree);
+	zio_vdev_trace_fini(&lwb->lwb_vdev_tree);
 	list_destroy(&lwb->lwb_waiters);
 	list_destroy(&lwb->lwb_itxs);
 }
@@ -4373,7 +4346,6 @@ EXPORT_SYMBOL(zil_sync);
 EXPORT_SYMBOL(zil_clean);
 EXPORT_SYMBOL(zil_suspend);
 EXPORT_SYMBOL(zil_resume);
-EXPORT_SYMBOL(zil_lwb_add_block);
 EXPORT_SYMBOL(zil_bp_tree_add);
 EXPORT_SYMBOL(zil_set_sync);
 EXPORT_SYMBOL(zil_set_logbias);

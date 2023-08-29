@@ -180,16 +180,17 @@ typedef uint64_t zio_flag_t;
 #define	ZIO_FLAG_SCRUB		(1ULL << 4)
 #define	ZIO_FLAG_SCAN_THREAD	(1ULL << 5)
 #define	ZIO_FLAG_PHYSICAL	(1ULL << 6)
+#define	ZIO_FLAG_VDEV_TRACE	(1ULL << 7)
 
 #define	ZIO_FLAG_AGG_INHERIT	(ZIO_FLAG_CANFAIL - 1)
 
 	/*
 	 * Flags inherited by ddt, gang, and vdev children.
 	 */
-#define	ZIO_FLAG_CANFAIL	(1ULL << 7)	/* must be first for INHERIT */
-#define	ZIO_FLAG_SPECULATIVE	(1ULL << 8)
-#define	ZIO_FLAG_CONFIG_WRITER	(1ULL << 9)
-#define	ZIO_FLAG_DONT_RETRY	(1ULL << 10)
+#define	ZIO_FLAG_CANFAIL	(1ULL << 8)	/* must be first for INHERIT */
+#define	ZIO_FLAG_SPECULATIVE	(1ULL << 9)
+#define	ZIO_FLAG_CONFIG_WRITER	(1ULL << 10)
+#define	ZIO_FLAG_DONT_RETRY	(1ULL << 11)
 #define	ZIO_FLAG_NODATA		(1ULL << 12)
 #define	ZIO_FLAG_INDUCE_DAMAGE	(1ULL << 13)
 #define	ZIO_FLAG_IO_ALLOCATING	(1ULL << 14)
@@ -445,6 +446,11 @@ enum zio_qstate {
 	ZIO_QS_ACTIVE,
 };
 
+typedef struct zio_vdev_trace {
+	uint64_t	zvt_guid;
+	avl_node_t	zvt_node;
+} zio_vdev_trace_t;
+
 struct zio {
 	/* Core information about this I/O */
 	zbookmark_phys_t	io_bookmark;
@@ -513,6 +519,7 @@ struct zio {
 	int		io_error;
 	int		io_child_error[ZIO_CHILD_TYPES];
 	uint64_t	io_children[ZIO_CHILD_TYPES][ZIO_WAIT_TYPES];
+	avl_tree_t	io_vdev_trace_tree;
 	uint64_t	*io_stall;
 	zio_t		*io_gang_leader;
 	zio_gang_node_t	*io_gang_tree;
@@ -635,6 +642,13 @@ extern zio_t *zio_vdev_delegated_io(vdev_t *vd, uint64_t offset,
 extern void zio_vdev_io_bypass(zio_t *zio);
 extern void zio_vdev_io_reissue(zio_t *zio);
 extern void zio_vdev_io_redone(zio_t *zio);
+
+extern void zio_vdev_trace_init(avl_tree_t *t);
+extern void zio_vdev_trace_fini(avl_tree_t *t);
+extern void zio_vdev_trace_copy(avl_tree_t *src, avl_tree_t *dst);
+extern void zio_vdev_trace_move(avl_tree_t *src, avl_tree_t *dst);
+extern void zio_vdev_trace_flush(zio_t *zio, avl_tree_t *t);
+extern void zio_vdev_trace_empty(avl_tree_t *t);
 
 extern void zio_change_priority(zio_t *pio, zio_priority_t priority);
 
