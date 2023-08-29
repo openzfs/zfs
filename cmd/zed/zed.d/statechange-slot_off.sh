@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC3014,SC2154,SC2086,SC2034
 #
 # Turn off disk's enclosure slot if it becomes FAULTED.
 #
