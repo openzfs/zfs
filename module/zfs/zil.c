@@ -536,15 +536,6 @@ zil_free_log_record(zilog_t *zilog, const lr_t *lrc, void *tx,
 	return (0);
 }
 
-static int
-zil_lwb_vdev_compare(const void *x1, const void *x2)
-{
-	const uint64_t v1 = ((zil_vdev_node_t *)x1)->zv_vdev;
-	const uint64_t v2 = ((zil_vdev_node_t *)x2)->zv_vdev;
-
-	return (TREE_CMP(v1, v2));
-}
-
 static lwb_t *
 zil_alloc_lwb(zilog_t *zilog, blkptr_t *bp, boolean_t slog, uint64_t txg,
     boolean_t fastwrite)
@@ -575,7 +566,6 @@ zil_alloc_lwb(zilog_t *zilog, blkptr_t *bp, boolean_t slog, uint64_t txg,
 	list_insert_tail(&zilog->zl_lwb_list, lwb);
 	mutex_exit(&zilog->zl_lock);
 
-	ASSERT(!MUTEX_HELD(&lwb->lwb_vdev_lock));
 	ASSERT(avl_is_empty(&lwb->lwb_vdev_tree));
 	VERIFY(list_is_empty(&lwb->lwb_waiters));
 	VERIFY(list_is_empty(&lwb->lwb_itxs));
@@ -589,7 +579,6 @@ static void
 zil_free_lwb(zilog_t *zilog, lwb_t *lwb)
 {
 	ASSERT(MUTEX_HELD(&zilog->zl_lock));
-	ASSERT(!MUTEX_HELD(&lwb->lwb_vdev_lock));
 	VERIFY(list_is_empty(&lwb->lwb_waiters));
 	VERIFY(list_is_empty(&lwb->lwb_itxs));
 	ASSERT(avl_is_empty(&lwb->lwb_vdev_tree));
@@ -1398,66 +1387,6 @@ zil_commit_waiter_link_nolwb(zil_commit_waiter_t *zcw, list_t *nolwb)
 }
 
 void
-zil_lwb_add_block(lwb_t *lwb, const blkptr_t *bp)
-{
-	avl_tree_t *t = &lwb->lwb_vdev_tree;
-	avl_index_t where;
-	zil_vdev_node_t *zv, zvsearch;
-	int ndvas = BP_GET_NDVAS(bp);
-	int i;
-
-	if (zil_nocacheflush)
-		return;
-
-	mutex_enter(&lwb->lwb_vdev_lock);
-	for (i = 0; i < ndvas; i++) {
-		zvsearch.zv_vdev = DVA_GET_VDEV(&bp->blk_dva[i]);
-		if (avl_find(t, &zvsearch, &where) == NULL) {
-			zv = kmem_alloc(sizeof (*zv), KM_SLEEP);
-			zv->zv_vdev = zvsearch.zv_vdev;
-			avl_insert(t, zv, where);
-		}
-	}
-	mutex_exit(&lwb->lwb_vdev_lock);
-}
-
-static void
-zil_lwb_flush_defer(lwb_t *lwb, lwb_t *nlwb)
-{
-	avl_tree_t *src = &lwb->lwb_vdev_tree;
-	avl_tree_t *dst = &nlwb->lwb_vdev_tree;
-	void *cookie = NULL;
-	zil_vdev_node_t *zv;
-
-	ASSERT3S(lwb->lwb_state, ==, LWB_STATE_WRITE_DONE);
-	ASSERT3S(nlwb->lwb_state, !=, LWB_STATE_WRITE_DONE);
-	ASSERT3S(nlwb->lwb_state, !=, LWB_STATE_FLUSH_DONE);
-
-	/*
-	 * While 'lwb' is at a point in its lifetime where lwb_vdev_tree does
-	 * not need the protection of lwb_vdev_lock (it will only be modified
-	 * while holding zilog->zl_lock) as its writes and those of its
-	 * children have all completed.  The younger 'nlwb' may be waiting on
-	 * future writes to additional vdevs.
-	 */
-	mutex_enter(&nlwb->lwb_vdev_lock);
-	/*
-	 * Tear down the 'lwb' vdev tree, ensuring that entries which do not
-	 * exist in 'nlwb' are moved to it, freeing any would-be duplicates.
-	 */
-	while ((zv = avl_destroy_nodes(src, &cookie)) != NULL) {
-		avl_index_t where;
-
-		if (avl_find(dst, zv, &where) == NULL) {
-			avl_insert(dst, zv, where);
-		} else {
-			kmem_free(zv, sizeof (*zv));
-		}
-	}
-	mutex_exit(&nlwb->lwb_vdev_lock);
-}
-
-void
 zil_lwb_add_txg(lwb_t *lwb, uint64_t txg)
 {
 	lwb->lwb_max_txg = MAX(lwb->lwb_max_txg, txg);
@@ -1629,10 +1558,11 @@ zil_lwb_write_done(zio_t *zio)
 	lwb_t *lwb = zio->io_private;
 	spa_t *spa = zio->io_spa;
 	zilog_t *zilog = lwb->lwb_zilog;
-	avl_tree_t *t = &lwb->lwb_vdev_tree;
-	void *cookie = NULL;
-	zil_vdev_node_t *zv;
 	lwb_t *nlwb;
+	void *cookie;
+	avl_tree_t *vt, *t;
+	zio_vdev_trace_t *zvt, *nzvt, zvt_search;
+	avl_index_t where;
 
 	ASSERT3S(spa_config_held(spa, SCL_STATE, RW_READER), !=, 0);
 
@@ -1654,27 +1584,17 @@ zil_lwb_write_done(zio_t *zio)
 	nlwb = list_next(&zilog->zl_lwb_list, lwb);
 	mutex_exit(&zilog->zl_lock);
 
-	if (avl_numnodes(t) == 0)
+	/* Flushes disabled, so skip everything */
+	if (zil_nocacheflush)
 		return;
 
 	/*
-	 * If there was an IO error, we're not going to call zio_flush()
-	 * on these vdevs, so we simply empty the tree and free the
-	 * nodes. We avoid calling zio_flush() since there isn't any
-	 * good reason for doing so, after the lwb block failed to be
-	 * written out.
-	 *
-	 * Additionally, we don't perform any further error handling at
-	 * this point (e.g. setting "zcw_zio_error" appropriately), as
-	 * we expect that to occur in "zil_lwb_flush_vdevs_done" (thus,
-	 * we expect any error seen here, to have been propagated to
-	 * that function).
+	 * If there was an IO error, or the ZIL failed, there's no point
+	 * issuing flushes, just get out. Any error handling or cleanup will be
+	 * done in zil_lwb_flush_vdevs_done().
 	 */
-	if (zil_failed(zilog) || zio->io_error != 0) {
-		while ((zv = avl_destroy_nodes(t, &cookie)) != NULL)
-			kmem_free(zv, sizeof (*zv));
+	if (zil_failed(zilog) || zio->io_error != 0)
 		return;
-	}
 
 	/*
 	 * If this lwb does not have any threads waiting for it to
@@ -1691,25 +1611,53 @@ zil_lwb_write_done(zio_t *zio)
 	 * write and/or fsync activity, as it has the potential to
 	 * coalesce multiple flush commands to a vdev into one.
 	 */
-	if (list_head(&lwb->lwb_waiters) == NULL && nlwb != NULL) {
-		zil_lwb_flush_defer(lwb, nlwb);
-		ASSERT(avl_is_empty(&lwb->lwb_vdev_tree));
+	boolean_t defer =
+	    (list_head(&lwb->lwb_waiters) == NULL && nlwb != NULL);
+
+	/* Select the right lwb vdev tree to copy the trace tree to */
+	vt = &zio->io_vdev_trace_tree;
+	if (defer)
+		t = &nlwb->lwb_vdev_tree;
+	else
+		t = &lwb->lwb_vdev_tree;
+
+	/*
+	 * And copy it. Note that we can't just take these, as they're owned
+	 * by the zio.
+	 */
+	for (zvt = avl_first(vt); zvt != NULL; zvt = AVL_NEXT(vt, zvt)) {
+		zvt_search.zvt_guid = zvt->zvt_guid;
+		if (avl_find(t, &zvt_search, &where) == NULL) {
+			nzvt = zio_vdev_trace_alloc();
+			nzvt->zvt_guid = zvt->zvt_guid;
+			avl_insert(t, nzvt, where);
+		}
+	}
+
+	if (defer) {
+		/*
+		 * If we're deferring, copy any remaining vdev nodes to the
+		 * next lwb. There might still be some here if a previous
+		 * write deferred to us.
+		 */
+		vt = &lwb->lwb_vdev_tree;
+		cookie = NULL;
+		while ((zvt = avl_destroy_nodes(vt, &cookie)) != NULL) {
+			if (avl_find(t, zvt, &where) == NULL)
+				avl_insert(t, zvt, where);
+			else
+				zio_vdev_trace_free(zvt);
+		}
+		avl_destroy(vt);
 		return;
 	}
 
-	while ((zv = avl_destroy_nodes(t, &cookie)) != NULL) {
-		vdev_t *vd = vdev_lookup_top(spa, zv->zv_vdev);
-		if (vd != NULL) {
-			/*
-			 * Issue DKIOCFLUSHWRITECACHE to all vdevs that have
-			 * been touched by writes for this or previous lwbs
-			 * that had their flushes deferred. Flush errors will
-			 * be delivered to zil_lwb_flush_vdevs_done().
-			 */
-			zio_flush(lwb->lwb_root_zio, vd, B_TRUE);
-		}
-		kmem_free(zv, sizeof (*zv));
-	}
+	zio_flush_traced(lwb->lwb_root_zio, t, B_TRUE);
+
+	cookie = NULL;
+	while ((zvt = avl_destroy_nodes(t, &cookie)) != NULL)
+		zio_vdev_trace_free(zvt);
+	avl_destroy(t);
 }
 
 static void
@@ -1824,7 +1772,8 @@ zil_lwb_write_open(zilog_t *zilog, lwb_t *lwb)
 		lwb->lwb_write_zio = zio_rewrite(lwb->lwb_root_zio,
 		    zilog->zl_spa, 0, &lwb->lwb_blk, lwb_abd,
 		    BP_GET_LSIZE(&lwb->lwb_blk), zil_lwb_write_done, lwb,
-		    prio, ZIO_FLAG_CANFAIL | ZIO_FLAG_FASTWRITE, &zb);
+		    prio, ZIO_FLAG_CANFAIL | ZIO_FLAG_FASTWRITE |
+		    ZIO_FLAG_VDEV_TRACE, &zb);
 		ASSERT3P(lwb->lwb_write_zio, !=, NULL);
 
 		lwb->lwb_state = LWB_STATE_OPENED;
@@ -1995,7 +1944,6 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 
 	spa_config_enter(zilog->zl_spa, SCL_STATE, lwb, RW_READER);
 
-	zil_lwb_add_block(lwb, &lwb->lwb_blk);
 	lwb->lwb_issued_timestamp = gethrtime();
 	lwb->lwb_state = LWB_STATE_ISSUED;
 
@@ -3858,9 +3806,8 @@ zil_lwb_cons(void *vbuf, void *unused, int kmflag)
 	list_create(&lwb->lwb_itxs, sizeof (itx_t), offsetof(itx_t, itx_node));
 	list_create(&lwb->lwb_waiters, sizeof (zil_commit_waiter_t),
 	    offsetof(zil_commit_waiter_t, zcw_node));
-	avl_create(&lwb->lwb_vdev_tree, zil_lwb_vdev_compare,
-	    sizeof (zil_vdev_node_t), offsetof(zil_vdev_node_t, zv_node));
-	mutex_init(&lwb->lwb_vdev_lock, NULL, MUTEX_DEFAULT, NULL);
+	avl_create(&lwb->lwb_vdev_tree, zio_vdev_trace_compare,
+	    sizeof (zio_vdev_trace_t), offsetof(zio_vdev_trace_t, zvt_node));
 	return (0);
 }
 
@@ -3869,7 +3816,6 @@ zil_lwb_dest(void *vbuf, void *unused)
 {
 	(void) unused;
 	lwb_t *lwb = vbuf;
-	mutex_destroy(&lwb->lwb_vdev_lock);
 	avl_destroy(&lwb->lwb_vdev_tree);
 	list_destroy(&lwb->lwb_waiters);
 	list_destroy(&lwb->lwb_itxs);
@@ -4484,7 +4430,6 @@ EXPORT_SYMBOL(zil_sync);
 EXPORT_SYMBOL(zil_clean);
 EXPORT_SYMBOL(zil_suspend);
 EXPORT_SYMBOL(zil_resume);
-EXPORT_SYMBOL(zil_lwb_add_block);
 EXPORT_SYMBOL(zil_bp_tree_add);
 EXPORT_SYMBOL(zil_set_sync);
 EXPORT_SYMBOL(zil_set_logbias);

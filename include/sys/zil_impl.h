@@ -105,7 +105,6 @@ typedef struct lwb {
 	list_t		lwb_itxs;	/* list of itx's */
 	list_t		lwb_waiters;	/* list of zil_commit_waiter's */
 	avl_tree_t	lwb_vdev_tree;	/* vdevs to flush after lwb write */
-	kmutex_t	lwb_vdev_lock;	/* protects lwb_vdev_tree */
 	hrtime_t	lwb_issued_timestamp; /* when was the lwb issued? */
 } lwb_t;
 
