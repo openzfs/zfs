@@ -212,6 +212,7 @@ typedef uint64_t zio_flag_t;
 #define	ZIO_FLAG_NODATA		(1ULL << 12)
 #define	ZIO_FLAG_INDUCE_DAMAGE	(1ULL << 13)
 #define	ZIO_FLAG_IO_ALLOCATING	(1ULL << 14)
+#define	ZIO_FLAG_VDEV_TRACE	(1ULL << 15)
 
 #define	ZIO_FLAG_DDT_INHERIT	(ZIO_FLAG_IO_RETRY - 1)
 #define	ZIO_FLAG_GANG_INHERIT	(ZIO_FLAG_IO_RETRY - 1)
@@ -219,29 +220,29 @@ typedef uint64_t zio_flag_t;
 	/*
 	 * Flags inherited by vdev children.
 	 */
-#define	ZIO_FLAG_IO_RETRY	(1ULL << 15)	/* must be first for INHERIT */
-#define	ZIO_FLAG_PROBE		(1ULL << 16)
-#define	ZIO_FLAG_TRYHARD	(1ULL << 17)
-#define	ZIO_FLAG_OPTIONAL	(1ULL << 18)
+#define	ZIO_FLAG_IO_RETRY	(1ULL << 16)	/* must be first for INHERIT */
+#define	ZIO_FLAG_PROBE		(1ULL << 17)
+#define	ZIO_FLAG_TRYHARD	(1ULL << 18)
+#define	ZIO_FLAG_OPTIONAL	(1ULL << 19)
 
 #define	ZIO_FLAG_VDEV_INHERIT	(ZIO_FLAG_DONT_QUEUE - 1)
 
 	/*
 	 * Flags not inherited by any children.
 	 */
-#define	ZIO_FLAG_DONT_QUEUE	(1ULL << 19)	/* must be first for INHERIT */
-#define	ZIO_FLAG_DONT_PROPAGATE	(1ULL << 20)
-#define	ZIO_FLAG_IO_BYPASS	(1ULL << 21)
-#define	ZIO_FLAG_IO_REWRITE	(1ULL << 22)
-#define	ZIO_FLAG_RAW_COMPRESS	(1ULL << 23)
-#define	ZIO_FLAG_RAW_ENCRYPT	(1ULL << 24)
-#define	ZIO_FLAG_GANG_CHILD	(1ULL << 25)
-#define	ZIO_FLAG_DDT_CHILD	(1ULL << 26)
-#define	ZIO_FLAG_GODFATHER	(1ULL << 27)
-#define	ZIO_FLAG_NOPWRITE	(1ULL << 28)
-#define	ZIO_FLAG_REEXECUTED	(1ULL << 29)
-#define	ZIO_FLAG_DELEGATED	(1ULL << 30)
-#define	ZIO_FLAG_FASTWRITE	(1ULL << 31)
+#define	ZIO_FLAG_DONT_QUEUE	(1ULL << 20)	/* must be first for INHERIT */
+#define	ZIO_FLAG_DONT_PROPAGATE	(1ULL << 21)
+#define	ZIO_FLAG_IO_BYPASS	(1ULL << 22)
+#define	ZIO_FLAG_IO_REWRITE	(1ULL << 23)
+#define	ZIO_FLAG_RAW_COMPRESS	(1ULL << 24)
+#define	ZIO_FLAG_RAW_ENCRYPT	(1ULL << 25)
+#define	ZIO_FLAG_GANG_CHILD	(1ULL << 26)
+#define	ZIO_FLAG_DDT_CHILD	(1ULL << 27)
+#define	ZIO_FLAG_GODFATHER	(1ULL << 28)
+#define	ZIO_FLAG_NOPWRITE	(1ULL << 29)
+#define	ZIO_FLAG_REEXECUTED	(1ULL << 30)
+#define	ZIO_FLAG_DELEGATED	(1ULL << 31)
+#define	ZIO_FLAG_FASTWRITE	(1ULL << 32)
 
 #define	ZIO_FLAG_MUSTSUCCEED		0
 #define	ZIO_FLAG_RAW	(ZIO_FLAG_RAW_COMPRESS | ZIO_FLAG_RAW_ENCRYPT)
@@ -441,6 +442,11 @@ typedef struct zio_link {
 	list_node_t	zl_child_node;
 } zio_link_t;
 
+typedef struct zio_vdev_trace {
+	uint64_t	zvt_guid;
+	avl_node_t	zvt_node;
+} zio_vdev_trace_t;
+
 struct zio {
 	/* Core information about this I/O */
 	zbookmark_phys_t	io_bookmark;
@@ -511,6 +517,7 @@ struct zio {
 	uint64_t	io_child_count;
 	uint64_t	io_phys_children;
 	uint64_t	io_parent_count;
+	avl_tree_t	io_vdev_trace_tree;
 	uint64_t	*io_stall;
 	zio_t		*io_gang_leader;
 	zio_gang_node_t	*io_gang_tree;

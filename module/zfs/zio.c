@@ -75,6 +75,7 @@ int zio_deadman_log_all = B_FALSE;
  */
 kmem_cache_t *zio_cache;
 kmem_cache_t *zio_link_cache;
+kmem_cache_t *zio_vdev_trace_cache;
 kmem_cache_t *zio_buf_cache[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
 kmem_cache_t *zio_data_buf_cache[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
 #if defined(ZFS_DEBUG) && !defined(_KERNEL)
@@ -150,6 +151,8 @@ zio_init(void)
 	    sizeof (zio_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
 	zio_link_cache = kmem_cache_create("zio_link_cache",
 	    sizeof (zio_link_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
+	zio_vdev_trace_cache = kmem_cache_create("zio_vdev_trace_cache",
+	    sizeof (zio_vdev_trace_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
 
 	/*
 	 * For small buffers, we want a cache for each multiple of
@@ -294,6 +297,7 @@ zio_fini(void)
 		VERIFY3P(zio_data_buf_cache[i], ==, NULL);
 	}
 
+	kmem_cache_destroy(zio_vdev_trace_cache);
 	kmem_cache_destroy(zio_link_cache);
 	kmem_cache_destroy(zio_cache);
 
@@ -716,6 +720,69 @@ zio_notify_parent(zio_t *pio, zio_t *zio, enum zio_wait_type wait,
 	pio->io_reexecute |= zio->io_reexecute;
 	ASSERT3U(*countp, >, 0);
 
+	/*
+	 * If all of the following are true:
+	 *
+	 * - the parent has requested vdev tracing
+	 * - the child has just completed
+	 * - the child was for a real vdev
+	 * - the child is "interesting" for tracing purposes (see below)
+	 *
+	 * then we can stash some information about the vdev on the trace tree.
+	 *
+	 * "Interesting" means a vdev whose response was a direct contributor
+	 * to the success of the overall zio; that is, we only consider zios
+	 * that succeeded, and weren't something that was allowed or expected
+	 * to fail (eg an aggregation padding write).
+	 *
+	 * This is important for the initial use case (knowing which vdevs were
+	 * written to but not flushed), and is arguably correct for all cases
+	 * (a vdev that returned an error, by definition, did not participate
+	 * in the completing the zio). Its necessary in practice because an
+	 * error from a leaf does not necessarily mean its parent will error
+	 * out too (eg raidz can sometimes compensate for failed writes). If
+	 * some future case requires more complex filtering we can look at
+	 * stashing more info into zio_vdev_trace_t.
+	 *
+	 */
+	if (pio->io_flags & ZIO_FLAG_VDEV_TRACE &&
+	    wait == ZIO_WAIT_DONE && zio->io_vd != NULL &&
+	    ((zio->io_flags & (ZIO_FLAG_OPTIONAL | ZIO_FLAG_IO_REPAIR)) == 0))
+	{
+		avl_tree_t *t = &pio->io_vdev_trace_tree;
+		zio_vdev_trace_t *zvt, zvt_search;
+		avl_index_t where;
+
+		if (zio->io_error == 0) {
+			zvt_search.zvt_guid = zio->io_vd->vdev_guid;
+			if (avl_find(t, &zvt_search, &where) == NULL) {
+				zvt = kmem_cache_alloc(zio_vdev_trace_cache,
+				    KM_SLEEP);
+				zvt->zvt_guid = zio->io_vd->vdev_guid;
+				avl_insert(t, zvt, where);
+			}
+		}
+
+		/*
+		 * If the child has itself collected trace records, copy them
+		 * to ours. Note that we can't steal them, as there may be
+		 * multiple parents.
+		 */
+		if (zio->io_flags & ZIO_FLAG_VDEV_TRACE) {
+			avl_tree_t *ct = &zio->io_vdev_trace_tree;
+			zio_vdev_trace_t *czvt;
+			for (czvt = avl_first(ct); czvt != NULL;
+			    czvt = AVL_NEXT(ct, czvt)) {
+				if (avl_find(t, czvt, &where) == NULL) {
+					zvt = kmem_cache_alloc(
+					    zio_vdev_trace_cache, KM_SLEEP);
+					zvt->zvt_guid = czvt->zvt_guid;
+					avl_insert(t, zvt, where);
+				}
+			}
+		}
+	}
+
 	(*countp)--;
 
 	if (*countp == 0 && pio->io_stall == countp) {
@@ -797,6 +864,15 @@ zio_bookmark_compare(const void *x1, const void *x2)
 	return (0);
 }
 
+static int
+zio_vdev_trace_compare(const void *x1, const void *x2)
+{
+	const uint64_t v1 = ((zio_vdev_trace_t *)x1)->zvt_guid;
+	const uint64_t v2 = ((zio_vdev_trace_t *)x2)->zvt_guid;
+
+	return (TREE_CMP(v1, v2));
+}
+
 /*
  * ==========================================================================
  * Create the various types of I/O (read, write, free, etc)
@@ -833,6 +909,11 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 	list_create(&zio->io_child_list, sizeof (zio_link_t),
 	    offsetof(zio_link_t, zl_child_node));
 	metaslab_trace_init(&zio->io_alloc_list);
+
+	if (flags & ZIO_FLAG_VDEV_TRACE)
+		avl_create(&zio->io_vdev_trace_tree, zio_vdev_trace_compare,
+		    sizeof (zio_vdev_trace_t),
+		    offsetof(zio_vdev_trace_t, zvt_node));
 
 	if (vd != NULL)
 		zio->io_child_type = ZIO_CHILD_VDEV;
@@ -895,6 +976,14 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 static void
 zio_destroy(zio_t *zio)
 {
+	if (zio->io_flags & ZIO_FLAG_VDEV_TRACE) {
+		avl_tree_t *t = &zio->io_vdev_trace_tree;
+		zio_vdev_trace_t *zvt;
+		void *cookie = NULL;
+		while ((zvt = avl_destroy_nodes(t, &cookie)) != NULL)
+			kmem_cache_free(zio_vdev_trace_cache, zvt);
+		avl_destroy(t);
+	}
 	metaslab_trace_fini(&zio->io_alloc_list);
 	list_destroy(&zio->io_parent_list);
 	list_destroy(&zio->io_child_list);
