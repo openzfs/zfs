@@ -107,8 +107,8 @@ do {									\
 	const uintptr_t __right = (uintptr_t)(RIGHT);			\
 	if (!(__left OP __right))					\
 		libspl_assertf(__FILE__, __FUNCTION__, __LINE__,	\
-		    "%s %s %s (0x%llx %s 0x%llx)", #LEFT, #OP, #RIGHT,	\
-		    (u_longlong_t)__left, #OP, (u_longlong_t)__right);	\
+		    "%s %s %s (%p %s %p)", #LEFT, #OP, #RIGHT,		\
+		    (void *)__left, #OP, (void *)__right);		\
 } while (0)
 
 #define	VERIFY0(LEFT)							\
