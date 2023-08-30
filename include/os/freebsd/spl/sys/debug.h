@@ -89,8 +89,8 @@ spl_assert(const char *buf, const char *file, const char *func, int line)
 		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
 		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
 		    "failed (%d " #OP " %d)\n",				\
-		    (boolean_t)(_verify3_left),				\
-		    (boolean_t)(_verify3_right));			\
+		    (boolean_t)_verify3_left,				\
+		    (boolean_t)_verify3_right);				\
 	} while (0)
 
 #define	VERIFY3S(LEFT, OP, RIGHT)	do {				\
@@ -100,8 +100,8 @@ spl_assert(const char *buf, const char *file, const char *func, int line)
 		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
 		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
 		    "failed (%lld " #OP " %lld)\n",			\
-		    (long long) (_verify3_left),			\
-		    (long long) (_verify3_right));			\
+		    (long long)_verify3_left,				\
+		    (long long)_verify3_right);				\
 	} while (0)
 
 #define	VERIFY3U(LEFT, OP, RIGHT)	do {				\
@@ -111,8 +111,8 @@ spl_assert(const char *buf, const char *file, const char *func, int line)
 		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
 		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
 		    "failed (%llu " #OP " %llu)\n",			\
-		    (unsigned long long) (_verify3_left),		\
-		    (unsigned long long) (_verify3_right));		\
+		    (unsigned long long)_verify3_left,			\
+		    (unsigned long long)_verify3_right);		\
 	} while (0)
 
 #define	VERIFY3P(LEFT, OP, RIGHT)	do {				\
@@ -121,19 +121,18 @@ spl_assert(const char *buf, const char *file, const char *func, int line)
 		if (unlikely(!(_verify3_left OP _verify3_right)))	\
 		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
 		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
-		    "failed (%px " #OP " %px)\n",			\
-		    (void *) (_verify3_left),				\
-		    (void *) (_verify3_right));				\
+		    "failed (%p " #OP " %p)\n",				\
+		    (void *)_verify3_left,				\
+		    (void *)_verify3_right);				\
 	} while (0)
 
 #define	VERIFY0(RIGHT)	do {						\
-		const int64_t _verify3_left = (int64_t)(0);		\
-		const int64_t _verify3_right = (int64_t)(RIGHT);	\
-		if (unlikely(!(_verify3_left == _verify3_right)))	\
+		const int64_t _verify0_right = (int64_t)(RIGHT);	\
+		if (unlikely(!(0 == _verify0_right)))			\
 		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
-		    "VERIFY0(0 == " #RIGHT ") "				\
+		    "VERIFY0(" #RIGHT ") "				\
 		    "failed (0 == %lld)\n",				\
-		    (long long) (_verify3_right));			\
+		    (long long)_verify0_right);				\
 	} while (0)
 
 /*
