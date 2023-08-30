@@ -378,6 +378,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 		case ZPOOL_PROP_BCLONEUSED:
 		case ZPOOL_PROP_DEDUP_TABLE_SIZE:
 		case ZPOOL_PROP_DEDUPCACHED:
+		case ZPOOL_PROP_LAST_SCRUBBED_TXG:
 			if (literal)
 				(void) snprintf(buf, len, "%llu",
 				    (u_longlong_t)intval);

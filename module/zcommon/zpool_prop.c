@@ -129,6 +129,10 @@ zpool_prop_init(void)
 	    0, PROP_READONLY, ZFS_TYPE_POOL, "<size>", "DDTSIZE", B_FALSE,
 	    sfeatures);
 
+	zprop_register_number(ZPOOL_PROP_LAST_SCRUBBED_TXG,
+	    "last_scrubbed_txg", 0, PROP_READONLY, ZFS_TYPE_POOL, "<txg>",
+	    "LAST_SCRUBBED_TXG", B_FALSE, sfeatures);
+
 	/* default number properties */
 	zprop_register_number(ZPOOL_PROP_VERSION, "version", SPA_VERSION,
 	    PROP_DEFAULT, ZFS_TYPE_POOL, "<version>", "VERSION", B_FALSE,
