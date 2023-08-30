@@ -1729,6 +1729,11 @@ zfs_ioc_pool_scrub(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 		if (scan_txgstart != 0 || scan_txgend != 0)
 			return (SET_ERROR(EINVAL));
 		error = spa_scan_stop(spa);
+	} else if (scan_cmd == POOL_SCRUB_FROM_LAST_TXG) {
+		if (scan_txgstart != 0)
+			return (SET_ERROR(EINVAL));
+		error = spa_scan_range(spa, scan_type,
+		    spa_get_last_scrubbed_txg(spa), scan_txgend);
 	} else {
 		error = spa_scan_range(spa, scan_type, scan_txgstart,
 		    scan_txgend);

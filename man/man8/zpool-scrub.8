@@ -39,6 +39,7 @@
 .Op Fl s Ns | Ns Fl p
 .Op Fl w
 .Op Fl e
+.Op Fl C
 .Op Fl T Ar txg
 .Op Fl E Ar txg
 .Ar pool Ns …
@@ -116,6 +117,10 @@ The pool must have been scrubbed at least once with the
 feature enabled to use this option.
 Error scrubbing cannot be run simultaneously with regular scrubbing or
 resilvering, nor can it be run when a regular scrub is paused.
+.It Fl C
+Continue scrub from last saved txg (see zpool
+.Sy last_scrubbed_txg
+property).
 .It Fl T
 Specify the txg to use for a start point of scrub.
 .It Fl E

@@ -256,6 +256,7 @@ typedef enum {
 	ZPOOL_PROP_BCLONEUSED,
 	ZPOOL_PROP_BCLONESAVED,
 	ZPOOL_PROP_BCLONERATIO,
+	ZPOOL_PROP_LAST_SCRUBBED_TXG,
 	ZPOOL_NUM_PROPS
 } zpool_prop_t;
 
@@ -1046,6 +1047,7 @@ typedef enum pool_scan_func {
 typedef enum pool_scrub_cmd {
 	POOL_SCRUB_NORMAL = 0,
 	POOL_SCRUB_PAUSE,
+	POOL_SCRUB_FROM_LAST_TXG,
 	POOL_SCRUB_FLAGS_END
 } pool_scrub_cmd_t;
 
