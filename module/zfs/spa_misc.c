@@ -2677,6 +2677,12 @@ spa_mode(spa_t *spa)
 }
 
 uint64_t
+spa_get_last_scrubbed_txg(spa_t *spa)
+{
+	return (spa->spa_scrubbed_last_txg);
+}
+
+uint64_t
 spa_bootfs(spa_t *spa)
 {
 	return (spa->spa_bootfs);

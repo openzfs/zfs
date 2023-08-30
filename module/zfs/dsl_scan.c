@@ -231,6 +231,9 @@ static uint_t zfs_resilver_defer_percent = 10;
 	((scn)->scn_phys.scn_func == POOL_SCAN_SCRUB || \
 	(scn)->scn_phys.scn_func == POOL_SCAN_RESILVER)
 
+#define	DSL_SCAN_IS_SCRUB(scn)		\
+	((scn)->scn_phys.scn_func == POOL_SCAN_SCRUB)
+
 /*
  * Enable/disable the processing of the free_bpobj object.
  */
@@ -1131,15 +1134,24 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 
 	spa_notify_waiters(spa);
 
-	if (dsl_scan_restarting(scn, tx))
+	if (dsl_scan_restarting(scn, tx)) {
 		spa_history_log_internal(spa, "scan aborted, restarting", tx,
 		    "errors=%llu", (u_longlong_t)spa_approx_errlog_size(spa));
-	else if (!complete)
+	} else if (!complete) {
 		spa_history_log_internal(spa, "scan cancelled", tx,
 		    "errors=%llu", (u_longlong_t)spa_approx_errlog_size(spa));
-	else
+	} else {
 		spa_history_log_internal(spa, "scan done", tx,
 		    "errors=%llu", (u_longlong_t)spa_approx_errlog_size(spa));
+		if (DSL_SCAN_IS_SCRUB(scn)) {
+			VERIFY0(zap_update(dp->dp_meta_objset,
+			    DMU_POOL_DIRECTORY_OBJECT,
+			    DMU_POOL_LAST_SCRUBBED_TXG,
+			    sizeof (uint64_t), 1,
+			    &scn->scn_phys.scn_max_txg, tx));
+			spa->spa_scrubbed_last_txg = scn->scn_phys.scn_max_txg;
+		}
+	}
 
 	if (DSL_SCAN_IS_SCRUB_RESILVER(scn)) {
 		spa->spa_scrub_active = B_FALSE;
