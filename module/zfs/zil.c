@@ -1924,10 +1924,10 @@ next_lwb:
 		    BP_GET_LSIZE(&lwb->lwb_blk));
 	}
 	lwb->lwb_issued_timestamp = gethrtime();
-	zio_nowait(lwb->lwb_root_zio);
-	zio_nowait(lwb->lwb_write_zio);
 	if (lwb->lwb_child_zio)
 		zio_nowait(lwb->lwb_child_zio);
+	zio_nowait(lwb->lwb_write_zio);
+	zio_nowait(lwb->lwb_root_zio);
 
 	/*
 	 * If nlwb was ready when we gave it the block pointer,
