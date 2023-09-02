@@ -814,17 +814,17 @@ static void
 zil_free_lwb(zilog_t *zilog, lwb_t *lwb)
 {
 	ASSERT(MUTEX_HELD(&zilog->zl_lock));
-	ASSERT(!MUTEX_HELD(&lwb->lwb_vdev_lock));
-	VERIFY(list_is_empty(&lwb->lwb_waiters));
-	VERIFY(list_is_empty(&lwb->lwb_itxs));
-	ASSERT(avl_is_empty(&lwb->lwb_vdev_tree));
+	ASSERT(lwb->lwb_state == LWB_STATE_NEW ||
+	    lwb->lwb_state == LWB_STATE_FLUSH_DONE);
 	ASSERT3P(lwb->lwb_child_zio, ==, NULL);
 	ASSERT3P(lwb->lwb_write_zio, ==, NULL);
 	ASSERT3P(lwb->lwb_root_zio, ==, NULL);
 	ASSERT3U(lwb->lwb_alloc_txg, <=, spa_syncing_txg(zilog->zl_spa));
 	ASSERT3U(lwb->lwb_max_txg, <=, spa_syncing_txg(zilog->zl_spa));
-	ASSERT(lwb->lwb_state == LWB_STATE_NEW ||
-	    lwb->lwb_state == LWB_STATE_FLUSH_DONE);
+	VERIFY(list_is_empty(&lwb->lwb_itxs));
+	VERIFY(list_is_empty(&lwb->lwb_waiters));
+	ASSERT(avl_is_empty(&lwb->lwb_vdev_tree));
+	ASSERT(!MUTEX_HELD(&lwb->lwb_vdev_lock));
 
 	/*
 	 * Clear the zilog's field to indicate this lwb is no longer
@@ -1328,6 +1328,9 @@ zil_lwb_add_block(lwb_t *lwb, const blkptr_t *bp)
 	zil_vdev_node_t *zv, zvsearch;
 	int ndvas = BP_GET_NDVAS(bp);
 	int i;
+
+	ASSERT3S(lwb->lwb_state, !=, LWB_STATE_WRITE_DONE);
+	ASSERT3S(lwb->lwb_state, !=, LWB_STATE_FLUSH_DONE);
 
 	if (zil_nocacheflush)
 		return;
