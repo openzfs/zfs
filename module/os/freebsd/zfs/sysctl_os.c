@@ -503,6 +503,24 @@ SYSCTL_UINT(_vfs_zfs_zfetch, OID_AUTO, max_idistance,
 
 /* metaslab.c */
 
+int
+param_set_active_allocator(SYSCTL_HANDLER_ARGS)
+{
+	char buf[16];
+	int rc;
+
+	if (req->newptr == NULL)
+		strlcpy(buf, zfs_active_allocator, sizeof (buf));
+
+	rc = sysctl_handle_string(oidp, buf, sizeof (buf), req);
+	if (rc || req->newptr == NULL)
+		return (rc);
+	if (strcmp(buf, zfs_active_allocator) == 0)
+		return (0);
+
+	return (param_set_active_allocator_common(buf));
+}
+
 /*
  * In pools where the log space map feature is not enabled we touch
  * multiple metaslabs (and their respective space maps) with each

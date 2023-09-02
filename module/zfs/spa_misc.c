@@ -389,6 +389,11 @@ static const uint64_t spa_min_slop = 128ULL * 1024 * 1024;
 static const uint64_t spa_max_slop = 128ULL * 1024 * 1024 * 1024;
 static const int spa_allocators = 4;
 
+/*
+ * Spa active allocator.
+ * Valid values are zfs_active_allocator=<dynamic|cursor|new-dynamic>.
+ */
+const char *zfs_active_allocator = "dynamic";
 
 void
 spa_load_failed(spa_t *spa, const char *fmt, ...)
@@ -710,6 +715,7 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	spa->spa_deadman_synctime = MSEC2NSEC(zfs_deadman_synctime_ms);
 	spa->spa_deadman_ziotime = MSEC2NSEC(zfs_deadman_ziotime_ms);
 	spa_set_deadman_failmode(spa, zfs_deadman_failmode);
+	spa_set_allocator(spa, zfs_active_allocator);
 
 	zfs_refcount_create(&spa->spa_refcount);
 	spa_config_lock_init(spa);
