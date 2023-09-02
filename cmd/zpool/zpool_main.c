@@ -3143,6 +3143,7 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
     nvlist_t *props, int flags)
 {
 	int ret = 0;
+	int ms_status = 0;
 	zpool_handle_t *zhp;
 	const char *name;
 	uint64_t version;
@@ -3232,10 +3233,15 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 			ret = 1;
 
 	if (zpool_get_state(zhp) != POOL_STATE_UNAVAIL &&
-	    !(flags & ZFS_IMPORT_ONLY) &&
-	    zpool_enable_datasets(zhp, mntopts, 0) != 0) {
-		zpool_close(zhp);
-		return (1);
+	    !(flags & ZFS_IMPORT_ONLY)) {
+		ms_status = zpool_enable_datasets(zhp, mntopts, 0);
+		if (ms_status == EZFS_SHAREFAILED) {
+			(void) fprintf(stderr, gettext("Import was "
+			    "successful, but unable to share some datasets"));
+		} else if (ms_status == EZFS_MOUNTFAILED) {
+			(void) fprintf(stderr, gettext("Import was "
+			    "successful, but unable to mount some datasets"));
+		}
 	}
 
 	zpool_close(zhp);
@@ -6755,6 +6761,7 @@ zpool_do_split(int argc, char **argv)
 	char *mntopts = NULL;
 	splitflags_t flags;
 	int c, ret = 0;
+	int ms_status = 0;
 	boolean_t loadkeys = B_FALSE;
 	zpool_handle_t *zhp;
 	nvlist_t *config, *props = NULL;
@@ -6891,13 +6898,18 @@ zpool_do_split(int argc, char **argv)
 			ret = 1;
 	}
 
-	if (zpool_get_state(zhp) != POOL_STATE_UNAVAIL &&
-	    zpool_enable_datasets(zhp, mntopts, 0) != 0) {
-		ret = 1;
-		(void) fprintf(stderr, gettext("Split was successful, but "
-		    "the datasets could not all be mounted\n"));
-		(void) fprintf(stderr, gettext("Try doing '%s' with a "
-		    "different altroot\n"), "zpool import");
+	if (zpool_get_state(zhp) != POOL_STATE_UNAVAIL) {
+		ms_status = zpool_enable_datasets(zhp, mntopts, 0);
+		if (ms_status == EZFS_SHAREFAILED) {
+			(void) fprintf(stderr, gettext("Split was successful, "
+			    "datasets are mounted but sharing of some datasets "
+			    "has failed\n"));
+		} else if (ms_status == EZFS_MOUNTFAILED) {
+			(void) fprintf(stderr, gettext("Split was successful"
+			    ", but some datasets could not be mounted\n"));
+			(void) fprintf(stderr, gettext("Try doing '%s' with a "
+			    "different altroot\n"), "zpool import");
+		}
 	}
 	zpool_close(zhp);
 	nvlist_free(config);
