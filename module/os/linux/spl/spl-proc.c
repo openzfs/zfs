@@ -659,6 +659,21 @@ static struct ctl_table spl_root[] = {
 };
 #endif
 
+static void spl_proc_cleanup(void)
+{
+	remove_proc_entry("kstat", proc_spl);
+	remove_proc_entry("slab", proc_spl_kmem);
+	remove_proc_entry("kmem", proc_spl);
+	remove_proc_entry("taskq-all", proc_spl);
+	remove_proc_entry("taskq", proc_spl);
+	remove_proc_entry("spl", NULL);
+
+	if (spl_header) {
+		unregister_sysctl_table(spl_header);
+		spl_header = NULL;
+	}
+}
+
 int
 spl_proc_init(void)
 {
@@ -723,15 +738,8 @@ spl_proc_init(void)
 		goto out;
 	}
 out:
-	if (rc) {
-		remove_proc_entry("kstat", proc_spl);
-		remove_proc_entry("slab", proc_spl_kmem);
-		remove_proc_entry("kmem", proc_spl);
-		remove_proc_entry("taskq-all", proc_spl);
-		remove_proc_entry("taskq", proc_spl);
-		remove_proc_entry("spl", NULL);
-		unregister_sysctl_table(spl_header);
-	}
+	if (rc)
+		spl_proc_cleanup();
 
 	return (rc);
 }
@@ -739,13 +747,5 @@ out:
 void
 spl_proc_fini(void)
 {
-	remove_proc_entry("kstat", proc_spl);
-	remove_proc_entry("slab", proc_spl_kmem);
-	remove_proc_entry("kmem", proc_spl);
-	remove_proc_entry("taskq-all", proc_spl);
-	remove_proc_entry("taskq", proc_spl);
-	remove_proc_entry("spl", NULL);
-
-	ASSERT(spl_header != NULL);
-	unregister_sysctl_table(spl_header);
+	spl_proc_cleanup();
 }
