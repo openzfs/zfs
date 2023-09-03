@@ -329,9 +329,14 @@ dmu_zfetch_prepare(zfetch_t *zf, uint64_t blkid, uint64_t nblks,
 {
 	zstream_t *zs;
 	spa_t *spa = zf->zf_dnode->dn_objset->os_spa;
+	zfs_prefetch_type_t os_prefetch = zf->zf_dnode->dn_objset->os_prefetch;
 
-	if (zfs_prefetch_disable)
+	if (zfs_prefetch_disable || os_prefetch == ZFS_PREFETCH_NONE)
 		return (NULL);
+
+	if (os_prefetch == ZFS_PREFETCH_METADATA)
+		fetch_data = B_FALSE;
+
 	/*
 	 * If we haven't yet loaded the indirect vdevs' mappings, we
 	 * can only read from blocks that we carefully ensure are on
