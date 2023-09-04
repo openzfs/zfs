@@ -110,9 +110,10 @@ Removes ZFS label information from the specified
 .It Xo
 .Xr zpool-attach 8 Ns / Ns Xr zpool-detach 8
 .Xc
-Increases or decreases redundancy by
-.Cm attach Ns ing or
-.Cm detach Ns ing a device on an existing vdev (virtual device).
+Converts a non-redundant disk into a mirror, or increases
+the redundancy level of an existing mirror
+.Cm ( attach Ns ), or performs the inverse operation (
+.Cm detach Ns ).
 .It Xo
 .Xr zpool-add 8 Ns / Ns Xr zpool-remove 8
 .Xc
@@ -233,16 +234,16 @@ Invalid command line options were specified.
 .El
 .
 .Sh EXAMPLES
-.\" Examples 1, 2, 3, 4, 11, 12 are shared with zpool-create.8.
-.\" Examples 5, 13 are shared with zpool-add.8.
-.\" Examples 6, 15 are shared with zpool-list.8.
-.\" Examples 7 are shared with zpool-destroy.8.
-.\" Examples 8 are shared with zpool-export.8.
-.\" Examples 9 are shared with zpool-import.8.
-.\" Examples 10 are shared with zpool-upgrade.8.
-.\" Examples 14 are shared with zpool-remove.8.
-.\" Examples 16 are shared with zpool-status.8.
-.\" Examples 13, 16 are also shared with zpool-iostat.8.
+.\" Examples 1, 2, 3, 4, 12, 13 are shared with zpool-create.8.
+.\" Examples 6, 14 are shared with zpool-add.8.
+.\" Examples 7, 16 are shared with zpool-list.8.
+.\" Examples 8 are shared with zpool-destroy.8.
+.\" Examples 9 are shared with zpool-export.8.
+.\" Examples 10 are shared with zpool-import.8.
+.\" Examples 11 are shared with zpool-upgrade.8.
+.\" Examples 15 are shared with zpool-remove.8.
+.\" Examples 17 are shared with zpool-status.8.
+.\" Examples 14, 17 are also shared with zpool-iostat.8.
 .\" Make sure to update them omnidirectionally
 .Ss Example 1 : No Creating a RAID-Z Storage Pool
 The following command creates a pool with a single raidz root vdev that
@@ -264,14 +265,21 @@ While not recommended, a pool based on files can be useful for experimental
 purposes.
 .Dl # Nm zpool Cm create Ar tank Pa /path/to/file/a /path/to/file/b
 .
-.Ss Example 5 : No Adding a Mirror to a ZFS Storage Pool
+.Ss Example 5 : No Making a non-mirrored ZFS Storage Pool mirrored
+The following command converts an existing single device
+.Ar sda
+into a mirror by attaching a second device to it,
+.Ar sdb .
+.Dl # Nm zpool Cm attach Ar tank Pa sda sdb
+.
+.Ss Example 6 : No Adding a Mirror to a ZFS Storage Pool
 The following command adds two mirrored disks to the pool
 .Ar tank ,
 assuming the pool is already made up of two-way mirrors.
 The additional space is immediately available to any datasets within the pool.
 .Dl # Nm zpool Cm add Ar tank Sy mirror Pa sda sdb
 .
-.Ss Example 6 : No Listing Available ZFS Storage Pools
+.Ss Example 7 : No Listing Available ZFS Storage Pools
 The following command lists all available pools on the system.
 In this case, the pool
 .Ar zion
@@ -285,19 +293,19 @@ tank   61.5G  20.0G  41.5G         -    48%    32%  1.00x  ONLINE  -
 zion       -      -      -         -      -      -      -  FAULTED -
 .Ed
 .
-.Ss Example 7 : No Destroying a ZFS Storage Pool
+.Ss Example 8 : No Destroying a ZFS Storage Pool
 The following command destroys the pool
 .Ar tank
 and any datasets contained within:
 .Dl # Nm zpool Cm destroy Fl f Ar tank
 .
-.Ss Example 8 : No Exporting a ZFS Storage Pool
+.Ss Example 9 : No Exporting a ZFS Storage Pool
 The following command exports the devices in pool
 .Ar tank
 so that they can be relocated or later imported:
 .Dl # Nm zpool Cm export Ar tank
 .
-.Ss Example 9 : No Importing a ZFS Storage Pool
+.Ss Example 10 : No Importing a ZFS Storage Pool
 The following command displays available pools, and then imports the pool
 .Ar tank
 for use on the system.
@@ -318,7 +326,7 @@ config:
 .No # Nm zpool Cm import Ar tank
 .Ed
 .
-.Ss Example 10 : No Upgrading All ZFS Storage Pools to the Current Version
+.Ss Example 11 : No Upgrading All ZFS Storage Pools to the Current Version
 The following command upgrades all ZFS Storage pools to the current version of
 the software:
 .Bd -literal -compact -offset Ds
@@ -326,7 +334,7 @@ the software:
 This system is currently running ZFS version 2.
 .Ed
 .
-.Ss Example 11 : No Managing Hot Spares
+.Ss Example 12 : No Managing Hot Spares
 The following command creates a new pool with an available hot spare:
 .Dl # Nm zpool Cm create Ar tank Sy mirror Pa sda sdb Sy spare Pa sdc
 .Pp
@@ -341,12 +349,12 @@ The hot spare can be permanently removed from the pool using the following
 command:
 .Dl # Nm zpool Cm remove Ar tank Pa sdc
 .
-.Ss Example 12 : No Creating a ZFS Pool with Mirrored Separate Intent Logs
+.Ss Example 13 : No Creating a ZFS Pool with Mirrored Separate Intent Logs
 The following command creates a ZFS storage pool consisting of two, two-way
 mirrors and mirrored log devices:
 .Dl # Nm zpool Cm create Ar pool Sy mirror Pa sda sdb Sy mirror Pa sdc sdd Sy log mirror Pa sde sdf
 .
-.Ss Example 13 : No Adding Cache Devices to a ZFS Pool
+.Ss Example 14 : No Adding Cache Devices to a ZFS Pool
 The following command adds two disks for use as cache devices to a ZFS storage
 pool:
 .Dl # Nm zpool Cm add Ar pool Sy cache Pa sdc sdd
@@ -359,7 +367,7 @@ Capacity and reads can be monitored using the
 subcommand as follows:
 .Dl # Nm zpool Cm iostat Fl v Ar pool 5
 .
-.Ss Example 14 : No Removing a Mirrored top-level (Log or Data) Device
+.Ss Example 15 : No Removing a Mirrored top-level (Log or Data) Device
 The following commands remove the mirrored log device
 .Sy mirror-2
 and mirrored top-level data device
@@ -394,7 +402,7 @@ The command to remove the mirrored data
 .Ar mirror-1 No is :
 .Dl # Nm zpool Cm remove Ar tank mirror-1
 .
-.Ss Example 15 : No Displaying expanded space on a device
+.Ss Example 16 : No Displaying expanded space on a device
 The following command displays the detailed information for the pool
 .Ar data .
 This pool is comprised of a single raidz vdev where one of its devices
@@ -411,7 +419,7 @@ data        23.9G  14.6G  9.30G         -    48%    61%  1.00x  ONLINE  -
     sdc         -      -      -         -      -
 .Ed
 .
-.Ss Example 16 : No Adding output columns
+.Ss Example 17 : No Adding output columns
 Additional columns can be added to the
 .Nm zpool Cm status No and Nm zpool Cm iostat No output with Fl c .
 .Bd -literal -compact -offset Ds

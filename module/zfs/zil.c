@@ -814,17 +814,17 @@ static void
 zil_free_lwb(zilog_t *zilog, lwb_t *lwb)
 {
 	ASSERT(MUTEX_HELD(&zilog->zl_lock));
-	ASSERT(!MUTEX_HELD(&lwb->lwb_vdev_lock));
-	VERIFY(list_is_empty(&lwb->lwb_waiters));
-	VERIFY(list_is_empty(&lwb->lwb_itxs));
-	ASSERT(avl_is_empty(&lwb->lwb_vdev_tree));
+	ASSERT(lwb->lwb_state == LWB_STATE_NEW ||
+	    lwb->lwb_state == LWB_STATE_FLUSH_DONE);
 	ASSERT3P(lwb->lwb_child_zio, ==, NULL);
 	ASSERT3P(lwb->lwb_write_zio, ==, NULL);
 	ASSERT3P(lwb->lwb_root_zio, ==, NULL);
 	ASSERT3U(lwb->lwb_alloc_txg, <=, spa_syncing_txg(zilog->zl_spa));
 	ASSERT3U(lwb->lwb_max_txg, <=, spa_syncing_txg(zilog->zl_spa));
-	ASSERT(lwb->lwb_state == LWB_STATE_NEW ||
-	    lwb->lwb_state == LWB_STATE_FLUSH_DONE);
+	VERIFY(list_is_empty(&lwb->lwb_itxs));
+	VERIFY(list_is_empty(&lwb->lwb_waiters));
+	ASSERT(avl_is_empty(&lwb->lwb_vdev_tree));
+	ASSERT(!MUTEX_HELD(&lwb->lwb_vdev_lock));
 
 	/*
 	 * Clear the zilog's field to indicate this lwb is no longer
@@ -1329,6 +1329,9 @@ zil_lwb_add_block(lwb_t *lwb, const blkptr_t *bp)
 	int ndvas = BP_GET_NDVAS(bp);
 	int i;
 
+	ASSERT3S(lwb->lwb_state, !=, LWB_STATE_WRITE_DONE);
+	ASSERT3S(lwb->lwb_state, !=, LWB_STATE_FLUSH_DONE);
+
 	if (zil_nocacheflush)
 		return;
 
@@ -1408,14 +1411,8 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 	zilog_t *zilog = lwb->lwb_zilog;
 	zil_commit_waiter_t *zcw;
 	itx_t *itx;
-	uint64_t txg;
-	list_t itxs, waiters;
 
 	spa_config_exit(zilog->zl_spa, SCL_STATE, lwb);
-
-	list_create(&itxs, sizeof (itx_t), offsetof(itx_t, itx_node));
-	list_create(&waiters, sizeof (zil_commit_waiter_t),
-	    offsetof(zil_commit_waiter_t, zcw_node));
 
 	hrtime_t t = gethrtime() - lwb->lwb_issued_timestamp;
 
@@ -1424,6 +1421,9 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 	zilog->zl_last_lwb_latency = (zilog->zl_last_lwb_latency * 7 + t) / 8;
 
 	lwb->lwb_root_zio = NULL;
+
+	ASSERT3S(lwb->lwb_state, ==, LWB_STATE_WRITE_DONE);
+	lwb->lwb_state = LWB_STATE_FLUSH_DONE;
 
 	if (zilog->zl_last_lwb_opened == lwb) {
 		/*
@@ -1435,22 +1435,13 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 		zilog->zl_commit_lr_seq = zilog->zl_lr_seq;
 	}
 
-	list_move_tail(&itxs, &lwb->lwb_itxs);
-	list_move_tail(&waiters, &lwb->lwb_waiters);
-	txg = lwb->lwb_issued_txg;
-
-	ASSERT3S(lwb->lwb_state, ==, LWB_STATE_WRITE_DONE);
-	lwb->lwb_state = LWB_STATE_FLUSH_DONE;
-
-	mutex_exit(&zilog->zl_lock);
-
-	while ((itx = list_remove_head(&itxs)) != NULL)
+	while ((itx = list_remove_head(&lwb->lwb_itxs)) != NULL)
 		zil_itx_destroy(itx);
-	list_destroy(&itxs);
 
-	while ((zcw = list_remove_head(&waiters)) != NULL) {
+	while ((zcw = list_remove_head(&lwb->lwb_waiters)) != NULL) {
 		mutex_enter(&zcw->zcw_lock);
 
+		ASSERT3P(zcw->zcw_lwb, ==, lwb);
 		zcw->zcw_lwb = NULL;
 		/*
 		 * We expect any ZIO errors from child ZIOs to have been
@@ -1475,7 +1466,11 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 
 		mutex_exit(&zcw->zcw_lock);
 	}
-	list_destroy(&waiters);
+
+	uint64_t txg = lwb->lwb_issued_txg;
+
+	/* Once we drop the lock, lwb may be freed by zil_sync(). */
+	mutex_exit(&zilog->zl_lock);
 
 	mutex_enter(&zilog->zl_lwb_io_lock);
 	ASSERT3U(zilog->zl_lwb_inflight[txg & TXG_MASK], >, 0);
@@ -1929,10 +1924,10 @@ next_lwb:
 		    BP_GET_LSIZE(&lwb->lwb_blk));
 	}
 	lwb->lwb_issued_timestamp = gethrtime();
-	zio_nowait(lwb->lwb_root_zio);
-	zio_nowait(lwb->lwb_write_zio);
 	if (lwb->lwb_child_zio)
 		zio_nowait(lwb->lwb_child_zio);
+	zio_nowait(lwb->lwb_write_zio);
+	zio_nowait(lwb->lwb_root_zio);
 
 	/*
 	 * If nlwb was ready when we gave it the block pointer,

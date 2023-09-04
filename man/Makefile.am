@@ -38,7 +38,6 @@ dist_man_MANS = \
 	%D%/man8/zfs-groupspace.8 \
 	%D%/man8/zfs-hold.8 \
 	%D%/man8/zfs-inherit.8 \
-	%D%/man8/zfs-jail.8 \
 	%D%/man8/zfs-list.8 \
 	%D%/man8/zfs-load-key.8 \
 	%D%/man8/zfs-mount.8 \
@@ -57,14 +56,11 @@ dist_man_MANS = \
 	%D%/man8/zfs-share.8 \
 	%D%/man8/zfs-snapshot.8 \
 	%D%/man8/zfs-unallow.8 \
-	%D%/man8/zfs-unjail.8 \
 	%D%/man8/zfs-unload-key.8 \
 	%D%/man8/zfs-unmount.8 \
-	%D%/man8/zfs-unzone.8 \
 	%D%/man8/zfs-upgrade.8 \
 	%D%/man8/zfs-userspace.8 \
 	%D%/man8/zfs-wait.8 \
-	%D%/man8/zfs-zone.8 \
 	%D%/man8/zfs_ids_to_path.8 \
 	%D%/man8/zgenhostid.8 \
 	%D%/man8/zinject.8 \
@@ -103,6 +99,18 @@ dist_man_MANS = \
 	%D%/man8/zstream.8 \
 	%D%/man8/zstreamdump.8 \
 	%D%/man8/zpool_influxdb.8
+
+if BUILD_FREEBSD
+dist_man_MANS += \
+	%D%/man8/zfs-jail.8 \
+	%D%/man8/zfs-unjail.8
+endif
+
+if BUILD_LINUX
+dist_man_MANS += \
+	%D%/man8/zfs-unzone.8 \
+	%D%/man8/zfs-zone.8
+endif
 
 nodist_man_MANS = \
 	%D%/man8/zed.8 \

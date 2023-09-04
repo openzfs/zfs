@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC3014,SC2154,SC2086,SC2034
 #
 # Turn off disk's enclosure slot if it becomes FAULTED.
 #
@@ -43,15 +44,17 @@ if [ ! -f "$ZEVENT_VDEV_ENC_SYSFS_PATH/power_status" ] ; then
 	exit 4
 fi
 
-echo "off" | tee "$ZEVENT_VDEV_ENC_SYSFS_PATH/power_status"
-
-# Wait for sysfs for report that the slot is off.  It can take ~400ms on some
-# enclosures.
+# Turn off the slot and wait for sysfs to report that the slot is off.
+# It can take ~400ms on some enclosures and multiple retries may be needed.
 for i in $(seq 1 20) ; do
-	if [ "$(cat $ZEVENT_VDEV_ENC_SYSFS_PATH/power_status)" == "off" ] ; then
-		break
-	fi
-	sleep 0.1
+	echo "off" | tee "$ZEVENT_VDEV_ENC_SYSFS_PATH/power_status"
+
+	for j in $(seq 1 5) ; do
+		if [ "$(cat $ZEVENT_VDEV_ENC_SYSFS_PATH/power_status)" == "off" ] ; then
+			break 2
+		fi
+		sleep 0.1
+	done
 done
 
 if [ "$(cat $ZEVENT_VDEV_ENC_SYSFS_PATH/power_status)" != "off" ] ; then

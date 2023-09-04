@@ -54,7 +54,7 @@ log_must sync_pool $TESTPOOL
 
 log_must have_same_content /$TESTPOOL/file1 /$TESTPOOL/file2
 
-typeset blocks=$(unique_blocks $TESTPOOL file1 $TESTPOOL file2)
+typeset blocks=$(get_same_blocks $TESTPOOL file1 $TESTPOOL file2)
 log_must [ "$blocks" = "" ]
 
 log_must clonefile -f /$TESTPOOL/file1 /$TESTPOOL/file2 131072 131072 262144
@@ -62,7 +62,7 @@ log_must sync_pool $TESTPOOL
 
 log_must have_same_content /$TESTPOOL/file1 /$TESTPOOL/file2
 
-typeset blocks=$(unique_blocks $TESTPOOL file1 $TESTPOOL file2)
-log_must [ "$blocks" = "2 3" ]
+typeset blocks=$(get_same_blocks $TESTPOOL file1 $TESTPOOL file2)
+log_must [ "$blocks" = "1 2" ]
 
 log_pass $claim
