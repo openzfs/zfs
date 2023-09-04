@@ -59,7 +59,7 @@ log_must sync_pool $TESTPOOL
 
 log_must have_same_content /$TESTPOOL/file /$TESTPOOL/clone
 
-typeset blocks=$(unique_blocks $TESTPOOL file $TESTPOOL clone)
+typeset blocks=$(get_same_blocks $TESTPOOL file $TESTPOOL clone)
 log_must [ "$blocks" = "" ]
 
 log_pass $claim

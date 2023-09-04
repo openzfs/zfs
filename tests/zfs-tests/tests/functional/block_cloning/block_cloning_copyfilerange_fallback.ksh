@@ -58,8 +58,8 @@ log_must sync_pool $TESTPOOL
 
 log_must have_same_content /$TESTPOOL/file /$TESTPOOL/clone
 
-typeset blocks=$(unique_blocks $TESTPOOL file $TESTPOOL clone)
-log_must [ "$blocks" = "1 2 3 4" ]
+typeset blocks=$(get_same_blocks $TESTPOOL file $TESTPOOL clone)
+log_must [ "$blocks" = "0 1 2 3" ]
 
 
 log_note "Copying within a block with copy_file_range"
@@ -69,8 +69,8 @@ log_must sync_pool $TESTPOOL
 
 log_must have_same_content /$TESTPOOL/file /$TESTPOOL/clone
 
-typeset blocks=$(unique_blocks $TESTPOOL file $TESTPOOL clone)
-log_must [ "$blocks" = "2 3 4" ]
+typeset blocks=$(get_same_blocks $TESTPOOL file $TESTPOOL clone)
+log_must [ "$blocks" = "1 2 3" ]
 
 
 log_note "Copying across a block with copy_file_range"
@@ -80,7 +80,7 @@ log_must sync_pool $TESTPOOL
 
 log_must have_same_content /$TESTPOOL/file /$TESTPOOL/clone
 
-typeset blocks=$(unique_blocks $TESTPOOL file $TESTPOOL clone)
-log_must [ "$blocks" = "2" ]
+typeset blocks=$(get_same_blocks $TESTPOOL file $TESTPOOL clone)
+log_must [ "$blocks" = "1" ]
 
 log_pass $claim
