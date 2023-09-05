@@ -4198,8 +4198,9 @@ static int
 set_callback(zfs_handle_t *zhp, void *data)
 {
 	nvlist_t *props = data;
+	int ret = zfs_prop_set_list(zhp, props);
 
-	if (zfs_prop_set_list(zhp, props) != 0) {
+	if (ret != 0 || libzfs_errno(g_zfs) != EZFS_SUCCESS) {
 		switch (libzfs_errno(g_zfs)) {
 		case EZFS_MOUNTFAILED:
 			(void) fprintf(stderr, gettext("property may be set "
@@ -4208,11 +4209,11 @@ set_callback(zfs_handle_t *zhp, void *data)
 		case EZFS_SHARENFSFAILED:
 			(void) fprintf(stderr, gettext("property may be set "
 			    "but unable to reshare filesystem\n"));
+			ret = 1;
 			break;
 		}
-		return (1);
 	}
-	return (0);
+	return (ret);
 }
 
 static int
