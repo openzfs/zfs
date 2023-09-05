@@ -4214,7 +4214,6 @@ set_callback(zfs_handle_t *zhp, void *data)
 		case EZFS_SHARENFSFAILED:
 			(void) fprintf(stderr, gettext("property may be set "
 			    "but unable to reshare filesystem\n"));
-			ret = 1;
 			break;
 		}
 	}
