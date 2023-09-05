@@ -71,7 +71,7 @@ log_must mkfile 1M $testfile $testfile1
 
 log_must zfs unmount $fs1
 log_must zfs set mountpoint=$mntpnt $fs1
-log_must zfs mount $fs1
+log_must ismounted $fs1
 log_must zfs unmount $fs1
 log_must zfs mount -O $fs1
 
@@ -85,7 +85,7 @@ log_must ls $mntpnt/$TESTFILE1 $mntpnt/$TESTFILE2
 # Verify $TESTFILE2 was created in $fs1, rather than $fs
 log_must zfs unmount $fs1
 log_must zfs set mountpoint=$mntpnt1 $fs1
-log_must zfs mount $fs1
+log_must ismounted $fs1
 log_must ls $testfile1 $mntpnt1/$TESTFILE2
 
 # Verify $TESTFILE2 was not created in $fs, and $fs is accessible again.
