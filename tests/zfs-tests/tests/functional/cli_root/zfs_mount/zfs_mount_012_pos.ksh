@@ -25,13 +25,12 @@
 # STRATEGY:
 # 1. Unmount the dataset
 # 2. Create a new empty directory
-# 3. Set the dataset's mountpoint
-# 4. Attempt to mount the dataset
-# 5. Verify the mount succeeds
-# 6. Unmount the dataset
-# 7. Create a file in the directory created in step 2
-# 8. Attempt to mount the dataset
-# 9. Verify the mount succeeds
+# 3. Set the dataset's mountpoint, this should mount the dataset
+# 4. Verify the mount succeeds
+# 5. Unmount the dataset
+# 6. Create a file in the directory created in step 2
+# 7. Attempt to mount the dataset
+# 8. Verify the mount succeeds
 #
 
 verify_runnable "both"
@@ -43,7 +42,7 @@ fs=$TESTPOOL/$TESTFS
 log_must zfs umount $fs
 log_must mkdir -p $TESTDIR
 log_must zfs set mountpoint=$TESTDIR $fs
-log_must zfs mount $fs
+log_must ismounted $fs
 log_must zfs umount $fs
 log_must touch $TESTDIR/testfile.$$
 log_must zfs mount $fs

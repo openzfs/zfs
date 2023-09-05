@@ -94,7 +94,7 @@ while (( depth < MAXDEPTH )); do
 done
 
 log_must zfs set mountpoint=$mtpt $TESTPOOL/$TESTFS
-log_must zfs $mountcmd $TESTPOOL/$TESTFS
+log_must ismounted $TESTPOOL/$TESTFS
 
 log_must zfs set overlay=off $TESTPOOL/$TESTFS
 if ! is_illumos; then

@@ -244,13 +244,13 @@ changelist_postfix(prop_changelist_t *clp)
 		    zfs_is_mounted(cn->cn_handle, NULL);
 
 		if (!mounted && !needs_key && (cn->cn_mounted ||
-		    ((sharenfs || sharesmb || clp->cl_waslegacy) &&
+		    (((clp->cl_prop == ZFS_PROP_MOUNTPOINT &&
+		    clp->cl_prop == clp->cl_realprop) ||
+		    sharenfs || sharesmb || clp->cl_waslegacy) &&
 		    (zfs_prop_get_int(cn->cn_handle,
 		    ZFS_PROP_CANMOUNT) == ZFS_CANMOUNT_ON)))) {
 
-			if (zfs_mount(cn->cn_handle, NULL, 0) != 0)
-				errors++;
-			else
+			if (zfs_mount(cn->cn_handle, NULL, 0) == 0)
 				mounted = TRUE;
 		}
 
