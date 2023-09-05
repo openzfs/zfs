@@ -174,7 +174,6 @@ changelist_postfix(prop_changelist_t *clp)
 	prop_changenode_t *cn;
 	uu_avl_walk_t *walk;
 	char shareopts[ZFS_MAXPROPLEN];
-	int errors = 0;
 	boolean_t commit_smb_shares = B_FALSE;
 	boolean_t commit_nfs_shares = B_FALSE;
 
@@ -262,19 +261,19 @@ changelist_postfix(prop_changelist_t *clp)
 		const enum sa_protocol nfs[] =
 		    {SA_PROTOCOL_NFS, SA_NO_PROTOCOL};
 		if (sharenfs && mounted) {
-			errors += zfs_share(cn->cn_handle, nfs);
+			zfs_share(cn->cn_handle, nfs);
 			commit_nfs_shares = B_TRUE;
 		} else if (cn->cn_shared || clp->cl_waslegacy) {
-			errors += zfs_unshare(cn->cn_handle, NULL, nfs);
+			zfs_unshare(cn->cn_handle, NULL, nfs);
 			commit_nfs_shares = B_TRUE;
 		}
 		const enum sa_protocol smb[] =
 		    {SA_PROTOCOL_SMB, SA_NO_PROTOCOL};
 		if (sharesmb && mounted) {
-			errors += zfs_share(cn->cn_handle, smb);
+			zfs_share(cn->cn_handle, smb);
 			commit_smb_shares = B_TRUE;
 		} else if (cn->cn_shared || clp->cl_waslegacy) {
-			errors += zfs_unshare(cn->cn_handle, NULL, smb);
+			zfs_unshare(cn->cn_handle, NULL, smb);
 			commit_smb_shares = B_TRUE;
 		}
 	}
@@ -288,7 +287,7 @@ changelist_postfix(prop_changelist_t *clp)
 	zfs_commit_shares(proto);
 	uu_avl_walk_end(walk);
 
-	return (errors ? -1 : 0);
+	return (0);
 }
 
 /*
