@@ -47,6 +47,10 @@ static unsigned long table_min = 0;
 static unsigned long table_max = ~0;
 
 static struct ctl_table_header *spl_header = NULL;
+#ifndef HAVE_REGISTER_SYSCTL_TABLE
+static struct ctl_table_header *spl_kmem = NULL;
+static struct ctl_table_header *spl_kstat = NULL;
+#endif
 static struct proc_dir_entry *proc_spl = NULL;
 static struct proc_dir_entry *proc_spl_kmem = NULL;
 static struct proc_dir_entry *proc_spl_kmem_slab = NULL;
@@ -668,6 +672,16 @@ static void spl_proc_cleanup(void)
 	remove_proc_entry("taskq", proc_spl);
 	remove_proc_entry("spl", NULL);
 
+#ifndef HAVE_REGISTER_SYSCTL_TABLE
+	if (spl_kstat) {
+		unregister_sysctl_table(spl_kstat);
+		spl_kstat = NULL;
+	}
+	if (spl_kmem) {
+		unregister_sysctl_table(spl_kmem);
+		spl_kmem = NULL;
+	}
+#endif
 	if (spl_header) {
 		unregister_sysctl_table(spl_header);
 		spl_header = NULL;
@@ -688,12 +702,13 @@ spl_proc_init(void)
 	if (spl_header == NULL)
 		return (-EUNATCH);
 
-	if (register_sysctl("kernel/spl/kmem", spl_kmem_table) == NULL) {
+	spl_kmem = register_sysctl("kernel/spl/kmem", spl_kmem_table);
+	if (spl_kmem == NULL) {
 		rc = -EUNATCH;
 		goto out;
 	}
-
-	if (register_sysctl("kernel/spl/kstat", spl_kstat_table) == NULL) {
+	spl_kstat = register_sysctl("kernel/spl/kstat", spl_kstat_table);
+	if (spl_kstat == NULL) {
 		rc = -EUNATCH;
 		goto out;
 	}
