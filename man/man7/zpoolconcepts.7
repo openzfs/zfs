@@ -203,11 +203,9 @@ For more information, see the
 section.
 .El
 .Pp
-Virtual devices cannot be nested, so a mirror or raidz virtual device can only
-contain files or disks.
-Mirrors of mirrors
-.Pq or other combinations
-are not allowed.
+Virtual devices cannot be nested arbitrarily.
+A mirror, raidz or draid virtual device can only be created with files or disks.
+Mirrors of mirrors or other such combinations are not allowed.
 .Pp
 A pool can have any number of virtual devices at the top of the configuration
 .Po known as
