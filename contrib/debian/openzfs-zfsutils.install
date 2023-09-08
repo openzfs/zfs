@@ -35,6 +35,7 @@ usr/bin/zvol_wait
 usr/lib/modules-load.d/ lib/
 usr/lib/zfs-linux/zpool.d/
 usr/lib/zfs-linux/zpool_influxdb
+usr/lib/zfs-linux/zfs_prepare_disk
 usr/sbin/arc_summary
 usr/sbin/arcstat
 usr/sbin/dbufstat
@@ -88,6 +89,7 @@ usr/share/man/man8/zfs-wait.8
 usr/share/man/man8/zfs-zone.8
 usr/share/man/man8/zfs.8
 usr/share/man/man8/zfs_ids_to_path.8
+usr/share/man/man8/zfs_prepare_disk.8
 usr/share/man/man7/zfsconcepts.7
 usr/share/man/man7/zfsprops.7
 usr/share/man/man8/zgenhostid.8
