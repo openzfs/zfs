@@ -1172,9 +1172,20 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 	inblksz = inzp->z_blksz;
 
 	/*
-	 * We cannot clone into files with different block size.
+	 * We cannot clone into files with different block size if we can't
+	 * grow it (block size is already bigger or more than one block).
 	 */
-	if (inblksz != outzp->z_blksz && outzp->z_size > inblksz) {
+	if (inblksz != outzp->z_blksz && (outzp->z_size > outzp->z_blksz ||
+	    outzp->z_size > inblksz)) {
+		error = SET_ERROR(EINVAL);
+		goto unlock;
+	}
+
+	/*
+	 * Block size must be power-of-2 if destination offset != 0.
+	 * There can be no multiple blocks of non-power-of-2 size.
+	 */
+	if (outoff != 0 && !ISP2(inblksz)) {
 		error = SET_ERROR(EINVAL);
 		goto unlock;
 	}
@@ -1358,6 +1369,12 @@ unlock:
 		*inoffp += done;
 		*outoffp += done;
 		*lenp = done;
+	} else {
+		/*
+		 * If we made no progress, there must be a good reason.
+		 * EOF is handled explicitly above, before the loop.
+		 */
+		ASSERT3S(error, !=, 0);
 	}
 
 	zfs_exit_two(inzfsvfs, outzfsvfs, FTAG);
