@@ -722,6 +722,10 @@ tests = ['nopwrite_copies', 'nopwrite_mtime', 'nopwrite_negative',
     'nopwrite_varying_compression', 'nopwrite_volume']
 tags = ['functional', 'nopwrite']
 
+[tests/functional/libnvpair]
+tests = ['packed']
+tags = ['functional', 'libnvpair']
+
 [tests/functional/online_offline]
 tests = ['online_offline_001_pos', 'online_offline_002_neg',
     'online_offline_003_neg']

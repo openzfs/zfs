@@ -72,6 +72,10 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/mmap_libaio
 endif
 
 
+scripts_zfs_tests_bin_PROGRAMS += %D%/nvlist_packed
+%C%_nvlist_packed_LDADD = \
+	libnvpair.la
+
 scripts_zfs_tests_bin_PROGRAMS += %D%/nvlist_to_lua
 %C%_nvlist_to_lua_LDADD = \
 	libzfs_core.la \
