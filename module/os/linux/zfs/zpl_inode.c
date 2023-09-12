@@ -774,7 +774,7 @@ zpl_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
 		return (-EMLINK);
 
 	crhold(cr);
-	ip->i_ctime = current_time(ip);
+	zpl_inode_set_ctime_to_ts(ip, current_time(ip));
 	/* Must have an existing ref, so igrab() cannot return NULL */
 	VERIFY3P(igrab(ip), !=, NULL);
 
