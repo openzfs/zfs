@@ -9111,7 +9111,7 @@ l2arc_apply_transforms(spa_t *spa, arc_buf_hdr_t *hdr, uint64_t asize,
 		}
 		ASSERT3U(psize, <=, HDR_GET_PSIZE(hdr));
 		if (psize < asize)
-			memset((char *)tmp + psize, 0, asize - psize);
+			memset((char *)tmp + psize, 0, bufsize - psize);
 		psize = HDR_GET_PSIZE(hdr);
 		abd_return_buf_copy(cabd, tmp, bufsize);
 		to_write = cabd;
