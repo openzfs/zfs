@@ -510,7 +510,7 @@ zpl_xattr_set_dir(struct inode *ip, const char *name, const void *value,
 	error = -zfs_write_simple(xzp, value, size, pos, NULL);
 out:
 	if (error == 0) {
-		ip->i_ctime = current_time(ip);
+		zpl_inode_set_ctime_to_ts(ip, current_time(ip));
 		zfs_mark_inode_dirty(ip);
 	}
 
@@ -960,7 +960,8 @@ zpl_set_acl_impl(struct inode *ip, struct posix_acl *acl, int type)
 				 */
 				if (ip->i_mode != mode) {
 					ip->i_mode = mode;
-					ip->i_ctime = current_time(ip);
+					zpl_inode_set_ctime_to_ts(ip,
+					    current_time(ip));
 					zfs_mark_inode_dirty(ip);
 				}
 
@@ -1119,7 +1120,7 @@ zpl_init_acl(struct inode *ip, struct inode *dir)
 			return (PTR_ERR(acl));
 		if (!acl) {
 			ip->i_mode &= ~current_umask();
-			ip->i_ctime = current_time(ip);
+			zpl_inode_set_ctime_to_ts(ip, current_time(ip));
 			zfs_mark_inode_dirty(ip);
 			return (0);
 		}
