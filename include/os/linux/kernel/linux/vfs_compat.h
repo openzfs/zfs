@@ -461,10 +461,16 @@ zpl_is_32bit_api(void)
  * 6.3 API change
  * generic_fillattr() first arg is changed to struct mnt_idmap *
  *
+ * 6.6 API change
+ * generic_fillattr() gets new second arg request_mask, a u32 type
+ *
  */
 #ifdef HAVE_GENERIC_FILLATTR_IDMAP
 #define	zpl_generic_fillattr(idmap, ip, sp)	\
     generic_fillattr(idmap, ip, sp)
+#elif defined(HAVE_GENERIC_FILLATTR_IDMAP_REQMASK)
+#define	zpl_generic_fillattr(idmap, rqm, ip, sp)	\
+    generic_fillattr(idmap, rqm, ip, sp)
 #elif defined(HAVE_GENERIC_FILLATTR_USERNS)
 #define	zpl_generic_fillattr(user_ns, ip, sp)	\
     generic_fillattr(user_ns, ip, sp)
