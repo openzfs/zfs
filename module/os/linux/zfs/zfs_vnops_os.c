@@ -1675,7 +1675,12 @@ out:
  */
 /* ARGSUSED */
 int
+#ifdef HAVE_GENERIC_FILLATTR_IDMAP_REQMASK
+zfs_getattr_fast(zidmap_t *user_ns, u32 request_mask, struct inode *ip,
+    struct kstat *sp)
+#else
 zfs_getattr_fast(zidmap_t *user_ns, struct inode *ip, struct kstat *sp)
+#endif
 {
 	znode_t *zp = ITOZ(ip);
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
@@ -1687,7 +1692,11 @@ zfs_getattr_fast(zidmap_t *user_ns, struct inode *ip, struct kstat *sp)
 
 	mutex_enter(&zp->z_lock);
 
+#ifdef HAVE_GENERIC_FILLATTR_IDMAP_REQMASK
+	zpl_generic_fillattr(user_ns, request_mask, ip, sp);
+#else
 	zpl_generic_fillattr(user_ns, ip, sp);
+#endif
 	/*
 	 * +1 link count for root inode with visible '.zfs' directory.
 	 */

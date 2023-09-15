@@ -54,7 +54,12 @@ extern int zfs_mkdir(znode_t *dzp, char *dirname, vattr_t *vap,
 extern int zfs_rmdir(znode_t *dzp, char *name, znode_t *cwd,
     cred_t *cr, int flags);
 extern int zfs_readdir(struct inode *ip, zpl_dir_context_t *ctx, cred_t *cr);
+#ifdef HAVE_GENERIC_FILLATTR_IDMAP_REQMASK
+extern int zfs_getattr_fast(zidmap_t *, u32 request_mask, struct inode *ip,
+    struct kstat *sp);
+#else
 extern int zfs_getattr_fast(zidmap_t *, struct inode *ip, struct kstat *sp);
+#endif
 extern int zfs_setattr(znode_t *zp, vattr_t *vap, int flag, cred_t *cr);
 extern int zfs_rename(znode_t *sdzp, char *snm, znode_t *tdzp,
     char *tnm, cred_t *cr, int flags);
