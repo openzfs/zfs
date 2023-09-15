@@ -121,6 +121,8 @@ zpl_root_getattr_impl(const struct path *path, struct kstat *stat,
 	generic_fillattr(user_ns, ip, stat);
 #elif defined(HAVE_GENERIC_FILLATTR_IDMAP)
 	generic_fillattr(user_ns, ip, stat);
+#elif defined(HAVE_GENERIC_FILLATTR_IDMAP_REQMASK)
+	generic_fillattr(user_ns, request_mask, ip, stat);
 #else
 	(void) user_ns;
 #endif
@@ -425,6 +427,8 @@ zpl_snapdir_getattr_impl(const struct path *path, struct kstat *stat,
 	generic_fillattr(user_ns, ip, stat);
 #elif defined(HAVE_GENERIC_FILLATTR_IDMAP)
 	generic_fillattr(user_ns, ip, stat);
+#elif defined(HAVE_GENERIC_FILLATTR_IDMAP_REQMASK)
+	generic_fillattr(user_ns, request_mask, ip, stat);
 #else
 	(void) user_ns;
 #endif
@@ -583,6 +587,8 @@ zpl_shares_getattr_impl(const struct path *path, struct kstat *stat,
 		generic_fillattr(user_ns, path->dentry->d_inode, stat);
 #elif defined(HAVE_GENERIC_FILLATTR_IDMAP)
 		generic_fillattr(user_ns, path->dentry->d_inode, stat);
+#elif defined(HAVE_GENERIC_FILLATTR_IDMAP_REQMASK)
+	generic_fillattr(user_ns, request_mask, ip, stat);
 #else
 		(void) user_ns;
 #endif
@@ -597,7 +603,10 @@ zpl_shares_getattr_impl(const struct path *path, struct kstat *stat,
 
 	error = -zfs_zget(zfsvfs, zfsvfs->z_shares_dir, &dzp);
 	if (error == 0) {
-#if (defined(HAVE_USERNS_IOPS_GETATTR) || defined(HAVE_IDMAP_IOPS_GETATTR))
+#ifdef HAVE_GENERIC_FILLATTR_IDMAP_REQMASK
+		error = -zfs_getattr_fast(user_ns, request_mask, ZTOI(dzp),
+		    stat);
+#elif (defined(HAVE_USERNS_IOPS_GETATTR) || defined(HAVE_IDMAP_IOPS_GETATTR))
 		error = -zfs_getattr_fast(user_ns, ZTOI(dzp), stat);
 #else
 		error = -zfs_getattr_fast(kcred->user_ns, ZTOI(dzp), stat);
