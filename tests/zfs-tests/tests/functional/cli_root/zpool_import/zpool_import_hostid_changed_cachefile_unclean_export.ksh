@@ -20,8 +20,8 @@
 
 #
 # DESCRIPTION:
-# A pool that wasn't cleanly exported should be importable from a cachefile
-# without force even if the local hostid doesn't match the on-disk hostid.
+# A pool that wasn't cleanly exported should not be importable from a cachefile
+# without force if the local hostid doesn't match the on-disk hostid.
 #
 # STRATEGY:
 #	1. Set a hostid.
@@ -32,8 +32,9 @@
 #	4.2. Export the pool.
 #	4.3. Restore the device state from the copy.
 #	5. Change the hostid.
-#	6. Verify that importing the pool from the cachefile succeeds
-#	   without force.
+#	6. Verify that importing the pool from the cachefile fails.
+#	7. Verify that importing the pool from the cachefile with force
+#	   succeeds.
 #
 
 verify_runnable "global"
@@ -64,8 +65,11 @@ log_must rm -f $VDEV0.bak
 # 5. Change the hostid.
 log_must zgenhostid -f $HOSTID2
 
-# 6. Verify that importing the pool from the cachefile succeeds without force.
-log_must zpool import -c $CPATHBKP $TESTPOOL1
+# 6. Verify that importing the pool from the cachefile fails.
+log_mustnot zpool import -c $CPATHBKP $TESTPOOL1
 
-log_pass "zpool import can import pool from cachefile if not cleanly " \
-    "exported when hostid changes."
+# 7. Verify that importing the pool from the cachefile with force succeeds.
+log_must zpool import -f -c $CPATHBKP $TESTPOOL1
+
+log_pass "zpool import from cachefile requires force if not cleanly " \
+    "exported and hostid changes."
