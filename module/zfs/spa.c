@@ -4201,6 +4201,24 @@ spa_ld_trusted_config(spa_t *spa, spa_import_type_t type,
 	spa_config_exit(spa, SCL_ALL, FTAG);
 
 	/*
+	 * If 'zpool import' used a cached config, then the on-disk hostid and
+	 * hostname may be different to the cached config in ways that should
+	 * prevent import.  Userspace can't discover this without a scan, but
+	 * we know, so we add these values to LOAD_INFO so the caller can know
+	 * the difference.
+	 *
+	 * Note that we have to do this before the config is regenerated,
+	 * because the new config will have the hostid and hostname for this
+	 * host, in readiness for import.
+	 */
+	if (nvlist_exists(mos_config, ZPOOL_CONFIG_HOSTID))
+		fnvlist_add_uint64(spa->spa_load_info, ZPOOL_CONFIG_HOSTID,
+		    fnvlist_lookup_uint64(mos_config, ZPOOL_CONFIG_HOSTID));
+	if (nvlist_exists(mos_config, ZPOOL_CONFIG_HOSTNAME))
+		fnvlist_add_string(spa->spa_load_info, ZPOOL_CONFIG_HOSTNAME,
+		    fnvlist_lookup_string(mos_config, ZPOOL_CONFIG_HOSTNAME));
+
+	/*
 	 * We will use spa_config if we decide to reload the spa or if spa_load
 	 * fails and we rewind. We must thus regenerate the config using the
 	 * MOS information with the updated paths. ZPOOL_LOAD_POLICY is used to
