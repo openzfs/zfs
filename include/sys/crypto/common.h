@@ -109,6 +109,7 @@ typedef uint32_t crypto_keysize_unit_t;
 #define	SUN_CKM_AES_CCM			"CKM_AES_CCM"
 #define	SUN_CKM_AES_GCM			"CKM_AES_GCM"
 #define	SUN_CKM_AES_GMAC		"CKM_AES_GMAC"
+#define	SUN_CKM_CHACHA20_POLY1305	"CKM_CHACHA20_POLY1305"
 
 /* Data arguments of cryptographic operations */
 
