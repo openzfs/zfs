@@ -5968,7 +5968,8 @@
       <enumerator name='SPA_FEATURE_AVZ_V2' value='38'/>
       <enumerator name='SPA_FEATURE_REDACTION_LIST_SPILL' value='39'/>
       <enumerator name='SPA_FEATURE_RAIDZ_EXPANSION' value='40'/>
-      <enumerator name='SPA_FEATURES' value='41'/>
+      <enumerator name='SPA_FEATURE_CHACHA20_POLY1305' value='41'/>
+      <enumerator name='SPA_FEATURES' value='42'/>
     </enum-decl>
     <typedef-decl name='spa_feature_t' type-id='33ecb627' id='d6618c78'/>
     <qualified-type-def type-id='22cce67b' const='yes' id='d2816df0'/>
