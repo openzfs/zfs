@@ -1104,6 +1104,10 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_import/zpool_import_features_001_pos.ksh \
 	functional/cli_root/zpool_import/zpool_import_features_002_neg.ksh \
 	functional/cli_root/zpool_import/zpool_import_features_003_pos.ksh \
+	functional/cli_root/zpool_import/zpool_import_hostid_changed.ksh \
+	functional/cli_root/zpool_import/zpool_import_hostid_changed_unclean_export.ksh \
+	functional/cli_root/zpool_import/zpool_import_hostid_changed_cachefile.ksh \
+	functional/cli_root/zpool_import/zpool_import_hostid_changed_cachefile_unclean_export.ksh \
 	functional/cli_root/zpool_import/zpool_import_missing_001_pos.ksh \
 	functional/cli_root/zpool_import/zpool_import_missing_002_pos.ksh \
 	functional/cli_root/zpool_import/zpool_import_missing_003_pos.ksh \
