@@ -93,7 +93,6 @@ struct zfsvfs {
 	zfs_teardown_lock_t z_teardown_lock;
 	zfs_teardown_inactive_lock_t z_teardown_inactive_lock;
 	list_t		z_all_znodes;	/* all vnodes in the fs */
-	uint64_t	z_nr_znodes;	/* number of znodes in the fs */
 	kmutex_t	z_znodes_lock;	/* lock for z_all_znodes */
 	struct zfsctl_root	*z_ctldir;	/* .zfs directory pointer */
 	boolean_t	z_show_ctldir;	/* expose .zfs in the root dir */
