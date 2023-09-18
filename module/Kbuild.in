@@ -120,8 +120,10 @@ ICP_OBJS := \
 	core/kcf_prov_tabs.o \
 	core/kcf_sched.o \
 	illumos-crypto.o \
+	monocypher.o \
 	io/aes.o \
 	io/sha2_mod.o \
+	io/chapoly.o \
 	spi/kcf_spi.o
 
 ICP_OBJS_X86_64 := \
