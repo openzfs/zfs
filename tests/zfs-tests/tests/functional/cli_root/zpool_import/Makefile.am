@@ -36,6 +36,10 @@ dist_pkgdata_SCRIPTS = \
 	zpool_import_features_001_pos.ksh \
 	zpool_import_features_002_neg.ksh \
 	zpool_import_features_003_pos.ksh \
+	zpool_import_hostid_changed.ksh \
+	zpool_import_hostid_changed_unclean_export.ksh \
+	zpool_import_hostid_changed_cachefile.ksh \
+	zpool_import_hostid_changed_cachefile_unclean_export.ksh \
 	zpool_import_missing_001_pos.ksh \
 	zpool_import_missing_002_pos.ksh \
 	zpool_import_missing_003_pos.ksh \
