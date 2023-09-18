@@ -845,6 +845,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_receive/zfs_receive_corrective.ksh \
 	functional/cli_root/zfs_receive/zfs_receive_compressed_corrective.ksh \
 	functional/cli_root/zfs_receive/zfs_receive_large_block_corrective.ksh \
+	functional/cli_root/zfs_receive/zfs_receive_chapoly_feature.ksh \
 	functional/cli_root/zfs_rename/cleanup.ksh \
 	functional/cli_root/zfs_rename/setup.ksh \
 	functional/cli_root/zfs_rename/zfs_rename_001_pos.ksh \
