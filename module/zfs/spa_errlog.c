@@ -930,12 +930,21 @@ spa_upgrade_errlog(spa_t *spa, dmu_tx_t *tx)
 	if (spa->spa_errlog_last != 0) {
 		sync_upgrade_errlog(spa, spa->spa_errlog_last, &newobj, tx);
 		spa->spa_errlog_last = newobj;
+
+		(void) zap_update(spa->spa_meta_objset,
+		    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_ERRLOG_LAST,
+		    sizeof (uint64_t), 1, &spa->spa_errlog_last, tx);
 	}
 
 	if (spa->spa_errlog_scrub != 0) {
 		sync_upgrade_errlog(spa, spa->spa_errlog_scrub, &newobj, tx);
 		spa->spa_errlog_scrub = newobj;
+
+		(void) zap_update(spa->spa_meta_objset,
+		    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_ERRLOG_SCRUB,
+		    sizeof (uint64_t), 1, &spa->spa_errlog_scrub, tx);
 	}
+
 	mutex_exit(&spa->spa_errlog_lock);
 }
 
