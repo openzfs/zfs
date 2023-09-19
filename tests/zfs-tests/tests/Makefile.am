@@ -1588,7 +1588,9 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/online_offline/setup.ksh \
 	functional/pam/cleanup.ksh \
 	functional/pam/pam_basic.ksh \
+	functional/pam/pam_change_unmounted.ksh \
 	functional/pam/pam_nounmount.ksh \
+	functional/pam/pam_recursive.ksh \
 	functional/pam/pam_short_password.ksh \
 	functional/pam/setup.ksh \
 	functional/pool_checkpoint/checkpoint_after_rewind.ksh \
