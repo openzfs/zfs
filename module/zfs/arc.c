@@ -9092,15 +9092,16 @@ l2arc_apply_transforms(spa_t *spa, arc_buf_hdr_t *hdr, uint64_t asize,
 		 * write things before deciding to fail compression in nearly
 		 * every case.)
 		 */
-		cabd = abd_alloc_for_io(size, ismd);
-		tmp = abd_borrow_buf(cabd, size);
+		uint64_t bufsize = MAX(size, asize);
+		cabd = abd_alloc_for_io(bufsize, ismd);
+		tmp = abd_borrow_buf(cabd, bufsize);
 
 		psize = zio_compress_data(compress, to_write, &tmp, size,
 		    hdr->b_complevel);
 
 		if (psize >= asize) {
 			psize = HDR_GET_PSIZE(hdr);
-			abd_return_buf_copy(cabd, tmp, size);
+			abd_return_buf_copy(cabd, tmp, bufsize);
 			HDR_SET_COMPRESS(hdr, ZIO_COMPRESS_OFF);
 			to_write = cabd;
 			abd_copy(to_write, hdr->b_l1hdr.b_pabd, psize);
@@ -9110,9 +9111,9 @@ l2arc_apply_transforms(spa_t *spa, arc_buf_hdr_t *hdr, uint64_t asize,
 		}
 		ASSERT3U(psize, <=, HDR_GET_PSIZE(hdr));
 		if (psize < asize)
-			memset((char *)tmp + psize, 0, asize - psize);
+			memset((char *)tmp + psize, 0, bufsize - psize);
 		psize = HDR_GET_PSIZE(hdr);
-		abd_return_buf_copy(cabd, tmp, size);
+		abd_return_buf_copy(cabd, tmp, bufsize);
 		to_write = cabd;
 	}
 
