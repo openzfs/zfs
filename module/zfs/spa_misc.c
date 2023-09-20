@@ -27,6 +27,7 @@
  * Copyright (c) 2017 Datto Inc.
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
+ * Copyright (c) 2023, Klara Inc.
  */
 
 #include <sys/zfs_context.h>
@@ -2762,8 +2763,7 @@ spa_state_to_name(spa_t *spa)
 	vdev_state_t state = rvd->vdev_state;
 	vdev_aux_t aux = rvd->vdev_stat.vs_aux;
 
-	if (spa_suspended(spa) &&
-	    (spa_get_failmode(spa) != ZIO_FAILURE_MODE_CONTINUE))
+	if (spa_suspended(spa))
 		return ("SUSPENDED");
 
 	switch (state) {
