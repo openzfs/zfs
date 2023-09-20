@@ -1,7 +1,6 @@
 etc/default/zfs
 etc/zfs/zfs-functions
 etc/zfs/zpool.d/
-etc/bash_completion.d/zfs
 lib/systemd/system-generators/
 lib/systemd/system-preset/
 lib/systemd/system/zfs-import-cache.service
