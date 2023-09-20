@@ -617,6 +617,17 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 		AC_MSG_RESULT([no])
 	fi
 	AC_SUBST(RPM_DEFINE_INITRAMFS)
+
+	AC_MSG_CHECKING([default bash completion directory])
+	case "$VENDOR" in
+		ubuntu)     bashcompletiondir=/usr/share/bash-completion/completions   ;;
+		debian)     bashcompletiondir=/usr/share/bash-completion/completions   ;;
+		freebsd)    bashcompletiondir=$sysconfdir/bash_completion.d;;
+		*)          bashcompletiondir=/etc/bash_completion.d   ;;
+	esac
+	AC_MSG_RESULT([$bashcompletiondir])
+	AC_SUBST(bashcompletiondir)
+
 ])
 
 dnl #
