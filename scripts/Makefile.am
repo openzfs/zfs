@@ -20,6 +20,8 @@ scripts_scripts = \
 
 if CONFIG_USER
 dist_scripts_SCRIPTS = $(scripts_scripts)
+dist_zfsexec_SCRIPTS = \
+	%D%/zfs_prepare_disk
 else
 dist_noinst_SCRIPTS += $(scripts_scripts)
 endif
