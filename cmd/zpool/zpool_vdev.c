@@ -921,6 +921,15 @@ zero_label(char *path)
 	return (0);
 }
 
+static void
+lines_to_stderr(char *lines[], int lines_cnt)
+{
+	int i;
+	for (i = 0; i < lines_cnt; i++) {
+		fprintf(stderr, "%s\n", lines[i]);
+	}
+}
+
 /*
  * Go through and find any whole disks in the vdev specification, labelling them
  * as appropriate.  When constructing the vdev spec, we were unable to open this
@@ -932,7 +941,7 @@ zero_label(char *path)
  * need to get the devid after we label the disk.
  */
 static int
-make_disks(zpool_handle_t *zhp, nvlist_t *nv)
+make_disks(zpool_handle_t *zhp, nvlist_t *nv, boolean_t replacing)
 {
 	nvlist_t **child;
 	uint_t c, children;
@@ -1017,6 +1026,8 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 		 */
 		if (!is_exclusive && !is_spare(NULL, udevpath)) {
 			char *devnode = strrchr(devpath, '/') + 1;
+			char **lines = NULL;
+			int lines_cnt = 0;
 
 			ret = strncmp(udevpath, UDISK_ROOT, strlen(UDISK_ROOT));
 			if (ret == 0) {
@@ -1028,9 +1039,27 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 			/*
 			 * When labeling a pool the raw device node name
 			 * is provided as it appears under /dev/.
+			 *
+			 * Note that 'zhp' will be NULL when we're creating a
+			 * pool.
 			 */
-			if (zpool_label_disk(g_zfs, zhp, devnode) == -1)
+			if (zpool_prepare_and_label_disk(g_zfs, zhp, devnode,
+			    nv, zhp == NULL ? "create" :
+			    replacing ? "replace" : "add", &lines,
+			    &lines_cnt) != 0) {
+				(void) fprintf(stderr,
+				    gettext(
+				    "Error preparing/labeling disk.\n"));
+				if (lines_cnt > 0) {
+					(void) fprintf(stderr,
+					gettext("zfs_prepare_disk output:\n"));
+					lines_to_stderr(lines, lines_cnt);
+				}
+
+				libzfs_free_str_array(lines, lines_cnt);
 				return (-1);
+			}
+			libzfs_free_str_array(lines, lines_cnt);
 
 			/*
 			 * Wait for udev to signal the device is available
@@ -1067,19 +1096,19 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 	}
 
 	for (c = 0; c < children; c++)
-		if ((ret = make_disks(zhp, child[c])) != 0)
+		if ((ret = make_disks(zhp, child[c], replacing)) != 0)
 			return (ret);
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_SPARES,
 	    &child, &children) == 0)
 		for (c = 0; c < children; c++)
-			if ((ret = make_disks(zhp, child[c])) != 0)
+			if ((ret = make_disks(zhp, child[c], replacing)) != 0)
 				return (ret);
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_L2CACHE,
 	    &child, &children) == 0)
 		for (c = 0; c < children; c++)
-			if ((ret = make_disks(zhp, child[c])) != 0)
+			if ((ret = make_disks(zhp, child[c], replacing)) != 0)
 				return (ret);
 
 	return (0);
@@ -1740,7 +1769,7 @@ split_mirror_vdev(zpool_handle_t *zhp, char *newname, nvlist_t *props,
 			return (NULL);
 		}
 
-		if (!flags.dryrun && make_disks(zhp, newroot) != 0) {
+		if (!flags.dryrun && make_disks(zhp, newroot, B_FALSE) != 0) {
 			nvlist_free(newroot);
 			return (NULL);
 		}
@@ -1861,7 +1890,7 @@ make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force, int check_rep,
 	/*
 	 * Run through the vdev specification and label any whole disks found.
 	 */
-	if (!dryrun && make_disks(zhp, newroot) != 0) {
+	if (!dryrun && make_disks(zhp, newroot, replacing) != 0) {
 		nvlist_free(newroot);
 		return (NULL);
 	}
