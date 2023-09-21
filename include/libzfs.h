@@ -532,6 +532,7 @@ _LIBZFS_H nvlist_t *zfs_valid_proplist(libzfs_handle_t *, zfs_type_t,
 _LIBZFS_H const char *zfs_prop_to_name(zfs_prop_t);
 _LIBZFS_H int zfs_prop_set(zfs_handle_t *, const char *, const char *);
 _LIBZFS_H int zfs_prop_set_list(zfs_handle_t *, nvlist_t *);
+_LIBZFS_H int zfs_prop_set_list_flags(zfs_handle_t *, nvlist_t *, int);
 _LIBZFS_H int zfs_prop_get(zfs_handle_t *, zfs_prop_t, char *, size_t,
     zprop_source_t *, char *, size_t, boolean_t);
 _LIBZFS_H int zfs_prop_get_recvd(zfs_handle_t *, const char *, char *, size_t,
@@ -653,6 +654,13 @@ typedef struct zprop_get_cbdata {
 	zfs_type_t cb_type;
 	vdev_cbdata_t cb_vdevs;
 } zprop_get_cbdata_t;
+
+#define	ZFS_SET_NOMOUNT		1
+
+typedef struct zprop_set_cbdata {
+	int cb_flags;
+	nvlist_t *cb_proplist;
+} zprop_set_cbdata_t;
 
 _LIBZFS_H void zprop_print_one_property(const char *, zprop_get_cbdata_t *,
     const char *, const char *, zprop_source_t, const char *,
