@@ -147,6 +147,17 @@ zfs_unavail_pool(zpool_handle_t *zhp, void *data)
 }
 
 /*
+ * Write an array of strings to the zed log
+ */
+static void lines_to_zed_log_msg(char **lines, int lines_cnt)
+{
+	int i;
+	for (i = 0; i < lines_cnt; i++) {
+		zed_log_msg(LOG_INFO, "%s", lines[i]);
+	}
+}
+
+/*
  * Two stage replace on Linux
  * since we get disk notifications
  * we can wait for partitioned disk slice to show up!
@@ -200,6 +211,8 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	boolean_t is_mpath_wholedisk = B_FALSE;
 	uint_t c;
 	vdev_stat_t *vs;
+	char **lines = NULL;
+	int lines_cnt = 0;
 
 	if (nvlist_lookup_string(vdev, ZPOOL_CONFIG_PATH, &path) != 0)
 		return;
@@ -383,6 +396,22 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 
 	if (is_mpath_wholedisk) {
 		/* Don't label device mapper or multipath disks. */
+		zed_log_msg(LOG_INFO,
+		    "  it's a multipath wholedisk, don't label");
+		if (zpool_prepare_disk(zhp, vdev, "autoreplace", &lines,
+		    &lines_cnt) != 0) {
+			zed_log_msg(LOG_INFO,
+			    "  zpool_prepare_disk: could not "
+			    "prepare '%s' (%s)", fullpath,
+			    libzfs_error_description(g_zfshdl));
+			if (lines_cnt > 0) {
+				zed_log_msg(LOG_INFO,
+				    "  zfs_prepare_disk output:");
+				lines_to_zed_log_msg(lines, lines_cnt);
+			}
+			libzfs_free_str_array(lines, lines_cnt);
+			return;
+		}
 	} else if (!labeled) {
 		/*
 		 * we're auto-replacing a raw disk, so label it first
@@ -405,10 +434,18 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 		 * If this is a request to label a whole disk, then attempt to
 		 * write out the label.
 		 */
-		if (zpool_label_disk(g_zfshdl, zhp, leafname) != 0) {
-			zed_log_msg(LOG_INFO, "  zpool_label_disk: could not "
+		if (zpool_prepare_and_label_disk(g_zfshdl, zhp, leafname,
+		    vdev, "autoreplace", &lines, &lines_cnt) != 0) {
+			zed_log_msg(LOG_INFO,
+			    "  zpool_prepare_and_label_disk: could not "
 			    "label '%s' (%s)", leafname,
 			    libzfs_error_description(g_zfshdl));
+			if (lines_cnt > 0) {
+				zed_log_msg(LOG_INFO,
+				"  zfs_prepare_disk output:");
+				lines_to_zed_log_msg(lines, lines_cnt);
+			}
+			libzfs_free_str_array(lines, lines_cnt);
 
 			(void) zpool_vdev_online(zhp, fullpath,
 			    ZFS_ONLINE_FORCEFAULT, &newstate);
@@ -467,6 +504,8 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 		(void) snprintf(devpath, sizeof (devpath), "%s%s",
 		    DEV_BYID_PATH, new_devid);
 	}
+
+	libzfs_free_str_array(lines, lines_cnt);
 
 	/*
 	 * Construct the root vdev to pass to zpool_vdev_attach().  While adding
