@@ -104,7 +104,8 @@ dist_man_MANS = \
 
 nodist_man_MANS = \
 	man8/zed.8 \
-	man8/zfs-mount-generator.8
+	man8/zfs-mount-generator.8 \
+	man8/zfs_prepare_disk.8
 
 SUBSTFILES += $(nodist_man_MANS)
 
