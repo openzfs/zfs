@@ -3251,6 +3251,15 @@ static boolean_t
 metaslab_should_allocate(metaslab_t *msp, uint64_t asize, boolean_t try_hard)
 {
 	/*
+	 * This case will usually but not always get caught by the checks below;
+	 * metaslabs can be loaded by various means, including the trim and
+	 * initialize code. Once that happens, without this check they are
+	 * allocatable even before they finish their first txg sync.
+	 */
+	if (unlikely(msp->ms_new))
+		return (B_FALSE);
+
+	/*
 	 * If the metaslab is loaded, ms_max_size is definitive and we can use
 	 * the fast check. If it's not, the ms_max_size is a lower bound (once
 	 * set), and we should use the fast check as long as we're not in
