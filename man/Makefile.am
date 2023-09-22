@@ -127,10 +127,28 @@ mancheck:
 
 
 if BUILD_LINUX
-# The manual pager in most Linux distros defaults to "BSD" when .Os is blank,
-# but leaving it blank makes things a lot easier on
-# FreeBSD when OpenZFS is vendored in the base system.
+# - The manual pager in most Linux distros defaults to "BSD" when .Os is blank,
+#   but leaving it blank makes things a lot easier on FreeBSD when OpenZFS is
+#   vendored in the base system.
+# - Remove non-Linux content from man pages
 INSTALL_DATA_HOOKS += man-install-data-hook
 man-install-data-hook:
-	cd $(DESTDIR)$(mandir) && $(SED) $(ac_inplace) 's/^\.Os$$/.Os OpenZFS/' $(subst %D%/,,$(dist_man_MANS) $(nodist_man_MANS))
+	cd $(DESTDIR)$(mandir) && \
+	$(SED) $(ac_inplace) 's/^\.Os$$/.Os OpenZFS/' \
+	    $(subst %D%/,,$(dist_man_MANS) $(nodist_man_MANS)) && \
+	$(SED) $(ac_inplace) \
+	    -e 's/^LINUX://' \
+	    -e '/^FREEBSD:/d' \
+	    $(subst %D%/,,$(dist_man_MANS) $(nodist_man_MANS))
+endif
+
+if BUILD_FREEBSD
+# - Remove non-FreeBSD content from man pages
+INSTALL_DATA_HOOKS += man-install-data-hook
+man-install-data-hook:
+	cd $(DESTDIR)$(mandir) && \
+	$(SED) $(ac_inplace) \
+	    -e 's/^FREEBSD://' \
+	    -e '/^LINUX:/d' \
+	    $(subst %D%/,,$(dist_man_MANS) $(nodist_man_MANS))
 endif
