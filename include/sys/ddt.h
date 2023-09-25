@@ -296,6 +296,8 @@ typedef struct {
 
 	uint64_t	ddt_flush_force_txg;	/* flush hard before this txg */
 
+	kstat_t		*ddt_ksp;	/* kstats context */
+
 	enum zio_checksum ddt_checksum;	/* checksum algorithm in use */
 	spa_t		*ddt_spa;	/* pool this ddt is on */
 	objset_t	*ddt_os;	/* ddt objset (always MOS) */
