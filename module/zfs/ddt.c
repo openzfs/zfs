@@ -271,6 +271,78 @@ static const uint64_t ddt_version_flags[] = {
 /* Dummy version to signal that configure is still necessary */
 #define	DDT_VERSION_UNCONFIGURED	(UINT64_MAX)
 
+#ifdef _KERNEL
+/* per-DDT kstats */
+typedef struct {
+	/* total lookups and whether they returned new or existing entries */
+	kstat_named_t dds_lookup;
+	kstat_named_t dds_lookup_new;
+	kstat_named_t dds_lookup_existing;
+
+	/* entries found on live tree, and if we had to wait for load */
+	kstat_named_t dds_lookup_live_hit;
+	kstat_named_t dds_lookup_live_wait;
+	kstat_named_t dds_lookup_live_miss;
+
+	/* entries found on log trees */
+	kstat_named_t dds_lookup_log_hit;
+	kstat_named_t dds_lookup_log_active_hit;
+	kstat_named_t dds_lookup_log_flushing_hit;
+	kstat_named_t dds_lookup_log_miss;
+
+	/* entries found on store objects */
+	kstat_named_t dds_lookup_stored_hit;
+	kstat_named_t dds_lookup_stored_miss;
+
+	/* number of entries on log trees */
+	kstat_named_t dds_log_active_entries;
+	kstat_named_t dds_log_flushing_entries;
+
+	/* avg updated/flushed entries per txg */
+	kstat_named_t dds_log_ingest_rate;
+	kstat_named_t dds_log_flush_rate;
+	kstat_named_t dds_log_flush_time_rate;
+} ddt_kstats_t;
+
+static const ddt_kstats_t ddt_kstats_template = {
+	{ "lookup",			KSTAT_DATA_UINT64 },
+	{ "lookup_new",			KSTAT_DATA_UINT64 },
+	{ "lookup_existing",		KSTAT_DATA_UINT64 },
+	{ "lookup_live_hit",		KSTAT_DATA_UINT64 },
+	{ "lookup_live_wait",		KSTAT_DATA_UINT64 },
+	{ "lookup_live_miss",		KSTAT_DATA_UINT64 },
+	{ "lookup_log_hit",		KSTAT_DATA_UINT64 },
+	{ "lookup_log_active_hit",	KSTAT_DATA_UINT64 },
+	{ "lookup_log_flushing_hit",	KSTAT_DATA_UINT64 },
+	{ "lookup_log_miss",		KSTAT_DATA_UINT64 },
+	{ "lookup_stored_hit",		KSTAT_DATA_UINT64 },
+	{ "lookup_stored_miss",		KSTAT_DATA_UINT64 },
+	{ "log_active_entries",		KSTAT_DATA_UINT64 },
+	{ "log_flushing_entries",	KSTAT_DATA_UINT64 },
+	{ "log_ingest_rate",		KSTAT_DATA_UINT32 },
+	{ "log_flush_rate",		KSTAT_DATA_UINT32 },
+	{ "log_flush_time_rate",	KSTAT_DATA_UINT32 },
+};
+
+#define	_DDT_KSTAT_STAT(ddt, stat) \
+	&((ddt_kstats_t *)(ddt)->ddt_ksp->ks_data)->stat.value.ui64
+#define	DDT_KSTAT_BUMP(ddt, stat) \
+	do { atomic_inc_64(_DDT_KSTAT_STAT(ddt, stat)); } while (0)
+#define	DDT_KSTAT_ADD(ddt, stat, val) \
+	do { atomic_add_64(_DDT_KSTAT_STAT(ddt, stat), val); } while (0)
+#define	DDT_KSTAT_SUB(ddt, stat, val) \
+	do { atomic_sub_64(_DDT_KSTAT_STAT(ddt, stat), val); } while (0)
+#define	DDT_KSTAT_SET(ddt, stat, val) \
+	do { atomic_store_64(_DDT_KSTAT_STAT(ddt, stat), val); } while (0)
+#define	DDT_KSTAT_ZERO(ddt, stat) DDT_KSTAT_SET(ddt, stat, 0)
+#else
+#define	DDT_KSTAT_BUMP(ddt, stat) do {} while (0)
+#define	DDT_KSTAT_ADD(ddt, stat, val) do {} while (0)
+#define	DDT_KSTAT_SUB(ddt, stat, val) do {} while (0)
+#define	DDT_KSTAT_SET(ddt, stat, val) do {} while (0)
+#define	DDT_KSTAT_ZERO(ddt, stat) do {} while (0)
+#endif /* _KERNEL */
+
 static void
 ddt_object_create(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
     dmu_tx_t *tx)
@@ -969,6 +1041,8 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp)
 		ASSERT3U(ddt->ddt_version, !=, DDT_VERSION_UNCONFIGURED);
 	}
 
+	DDT_KSTAT_BUMP(ddt, dds_lookup);
+
 	ddt_key_fill(&search, bp);
 
 	/* Find an existing live entry */
@@ -979,11 +1053,13 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp)
 			return (NULL);
 
 		/* If it's already loaded, we can just return it. */
+		DDT_KSTAT_BUMP(ddt, dds_lookup_live_hit);
 		if (dde->dde_flags & DDE_FLAG_LOADED)
 			return (dde);
 
 		/* Someone else is loading it, wait for it. */
 		dde->dde_waiters++;
+		DDT_KSTAT_BUMP(ddt, dds_lookup_live_wait);
 		while (!(dde->dde_flags & DDE_FLAG_LOADED))
 			cv_wait(&dde->dde_cv, &ddt->ddt_lock);
 		dde->dde_waiters--;
@@ -997,8 +1073,10 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp)
 			return (NULL);
 		}
 
+		DDT_KSTAT_BUMP(ddt, dds_lookup_existing);
 		return (dde);
-	}
+	} else
+		DDT_KSTAT_BUMP(ddt, dds_lookup_live_miss);
 
 	/* Time to make a new entry. */
 	dde = ddt_alloc(ddt, &search);
@@ -1012,11 +1090,19 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp)
 	/* If its in the log tree, we can "load" it from there */
 	if (ddt->ddt_flags & DDT_FLAG_LOG) {
 		ddt_lightweight_entry_t ddlwe;
+		boolean_t found = B_FALSE;
 
 		if (ddt_log_take_key(ddt, ddt->ddt_log_active,
-		    &search, &ddlwe) ||
-		    ddt_log_take_key(ddt, ddt->ddt_log_flushing,
 		    &search, &ddlwe)) {
+			DDT_KSTAT_BUMP(ddt, dds_lookup_log_active_hit);
+			found = B_TRUE;
+		} else if (ddt_log_take_key(ddt, ddt->ddt_log_flushing,
+		    &search, &ddlwe)) {
+			DDT_KSTAT_BUMP(ddt, dds_lookup_log_flushing_hit);
+			found = B_TRUE;
+		}
+
+		if (found) {
 			dde->dde_flags = DDE_FLAG_LOADED | DDE_FLAG_LOGGED;
 
 			dde->dde_type = ddlwe.ddlwe_type;
@@ -1024,8 +1110,13 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp)
 			memcpy(dde->dde_phys, &ddlwe.ddlwe_phys,
 			    DDT_PHYS_SIZE(ddt));
 
+			DDT_KSTAT_BUMP(ddt, dds_lookup_log_hit);
+			DDT_KSTAT_BUMP(ddt, dds_lookup_existing);
+
 			return (dde);
 		}
+
+		DDT_KSTAT_BUMP(ddt, dds_lookup_log_miss);
 	}
 
 	/*
@@ -1069,6 +1160,9 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp)
 		/* Flag cleanup required */
 		dde->dde_flags |= DDE_FLAG_OVERQUOTA;
 	} else if (error == 0) {
+		DDT_KSTAT_BUMP(ddt, dds_lookup_stored_hit);
+		DDT_KSTAT_BUMP(ddt, dds_lookup_existing);
+
 		/*
 		 * The histograms only track inactive (stored or logged) blocks.
 		 * We've just put an entry onto the live list, so we need to
@@ -1085,6 +1179,9 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp)
 		ddt_lightweight_entry_t ddlwe;
 		DDT_ENTRY_TO_LIGHTWEIGHT(ddt, dde, &ddlwe);
 		ddt_histogram_sub_entry(ddt, ddh, &ddlwe);
+	} else {
+		DDT_KSTAT_BUMP(ddt, dds_lookup_stored_miss);
+		DDT_KSTAT_BUMP(ddt, dds_lookup_new);
 	}
 
 	/* Entry loaded, everyone can proceed now */
@@ -1317,6 +1414,30 @@ not_found:
 	return (0);
 }
 
+static void
+ddt_table_alloc_kstats(ddt_t *ddt)
+{
+#ifdef _KERNEL
+	char *mod = kmem_asprintf("zfs/%s", spa_name(ddt->ddt_spa));
+	char *name = kmem_asprintf("ddt_stats_%s",
+	    zio_checksum_table[ddt->ddt_checksum].ci_name);
+
+	ddt->ddt_ksp = kstat_create(mod, 0, name, "misc", KSTAT_TYPE_NAMED,
+	    sizeof (ddt_kstats_t) / sizeof (kstat_named_t), KSTAT_FLAG_VIRTUAL);
+	if (ddt->ddt_ksp != NULL) {
+		ddt_kstats_t *dds = kmem_alloc(sizeof (ddt_kstats_t), KM_SLEEP);
+		memcpy(dds, &ddt_kstats_template, sizeof (ddt_kstats_t));
+		ddt->ddt_ksp->ks_data = dds;
+		kstat_install(ddt->ddt_ksp);
+	}
+
+	kmem_strfree(name);
+	kmem_strfree(mod);
+#else
+	(void) ddt;
+#endif /* _KERNEL */
+}
+
 static ddt_t *
 ddt_table_alloc(spa_t *spa, enum zio_checksum c)
 {
@@ -1336,6 +1457,7 @@ ddt_table_alloc(spa_t *spa, enum zio_checksum c)
 	ddt->ddt_version = DDT_VERSION_UNCONFIGURED;
 
 	ddt_log_alloc(ddt);
+	ddt_table_alloc_kstats(ddt);
 
 	return (ddt);
 }
@@ -1343,6 +1465,14 @@ ddt_table_alloc(spa_t *spa, enum zio_checksum c)
 static void
 ddt_table_free(ddt_t *ddt)
 {
+#ifdef _KERNEL
+	if (ddt->ddt_ksp != NULL) {
+		kmem_free(ddt->ddt_ksp->ks_data, sizeof (ddt_kstats_t));
+		ddt->ddt_ksp->ks_data = NULL;
+		kstat_delete(ddt->ddt_ksp);
+	}
+#endif /* _KERNEL */
+
 	ddt_log_free(ddt);
 	ASSERT0(avl_numnodes(&ddt->ddt_tree));
 	ASSERT0(avl_numnodes(&ddt->ddt_repair_tree));
@@ -1399,6 +1529,11 @@ ddt_load(spa_t *spa)
 		error = ddt_log_load(ddt);
 		if (error != 0 && error != ENOENT)
 			return (error);
+
+		DDT_KSTAT_SET(ddt, dds_log_active_entries,
+		    avl_numnodes(&ddt->ddt_log_active->ddl_tree));
+		DDT_KSTAT_SET(ddt, dds_log_flushing_entries,
+		    avl_numnodes(&ddt->ddt_log_flushing->ddl_tree));
 
 		/*
 		 * Seed the cached histograms.
@@ -1860,12 +1995,15 @@ ddt_sync_flush_log_incremental(ddt_t *ddt, dmu_tx_t *tx)
 
 	if (avl_is_empty(&ddt->ddt_log_flushing->ddl_tree)) {
 		/* We emptied it, so truncate on-disk */
+		DDT_KSTAT_ZERO(ddt, dds_log_flushing_entries);
 		ddt_log_truncate(ddt, tx);
 		/* No more passes needed this txg */
 		ddt->ddt_flush_pass = 0;
-	} else
+	} else {
 		/* More to do next time, save checkpoint */
+		DDT_KSTAT_SUB(ddt, dds_log_flushing_entries, count);
 		ddt_log_checkpoint(ddt, &ddlwe, tx);
+	}
 
 	ddt_sync_update_stats(ddt, tx);
 
@@ -1928,7 +2066,11 @@ ddt_sync_flush_log(ddt_t *ddt, dmu_tx_t *tx)
 		 * No more to flush, and the active list has stuff, so
 		 * try to swap the logs for next time.
 		 */
-		(void) ddt_log_swap(ddt, tx);
+		if (ddt_log_swap(ddt, tx)) {
+			DDT_KSTAT_ZERO(ddt, dds_log_active_entries);
+			DDT_KSTAT_SET(ddt, dds_log_flushing_entries,
+			    avl_numnodes(&ddt->ddt_log_flushing->ddl_tree));
+		}
 	}
 
 	/* If force flush is no longer necessary, turn it off. */
@@ -1941,6 +2083,7 @@ ddt_sync_flush_log(ddt_t *ddt, dmu_tx_t *tx)
 	ddt->ddt_log_flush_rate = _ewma(
 	    ddt->ddt_flush_count, ddt->ddt_log_flush_rate,
 	    zfs_dedup_log_flush_flow_rate_txgs);
+	DDT_KSTAT_SET(ddt, dds_log_flush_rate, ddt->ddt_log_flush_rate);
 
 	/*
 	 * Update flush time rate. This is an exponential weighted moving
@@ -1950,6 +2093,8 @@ ddt_sync_flush_log(ddt_t *ddt, dmu_tx_t *tx)
 	    ddt->ddt_log_flush_time_rate,
 	    ((int32_t)(NSEC2MSEC(gethrtime() - ddt->ddt_flush_start))),
 	    zfs_dedup_log_flush_flow_rate_txgs);
+	DDT_KSTAT_SET(ddt, dds_log_flush_time_rate,
+	    ddt->ddt_log_flush_time_rate);
 }
 
 static void
@@ -1975,6 +2120,9 @@ ddt_sync_table_log(ddt_t *ddt, dmu_tx_t *tx)
 
 		ddt_log_commit(ddt, &dlu);
 
+		DDT_KSTAT_SET(ddt, dds_log_active_entries,
+		    avl_numnodes(&ddt->ddt_log_active->ddl_tree));
+
 		/*
 		 * Sync the stats for the store objects. Even though we haven't
 		 * modified anything on those objects, they're no longer the
@@ -1996,7 +2144,7 @@ ddt_sync_table_log(ddt_t *ddt, dmu_tx_t *tx)
 		ddt->ddt_spa->spa_dedup_dsize = ~0ULL;
 	}
 
-	if (spa_sync_pass(ddt->ddt_spa) == 1)
+	if (spa_sync_pass(ddt->ddt_spa) == 1) {
 		/*
 		 * Update ingest rate. This is an exponential weighted moving
 		 * average of the number of entries changed over recent txgs.
@@ -2006,6 +2154,9 @@ ddt_sync_table_log(ddt_t *ddt, dmu_tx_t *tx)
 		ddt->ddt_log_ingest_rate = _ewma(
 		    count, ddt->ddt_log_ingest_rate,
 		    zfs_dedup_log_flush_flow_rate_txgs);
+		DDT_KSTAT_SET(ddt, dds_log_ingest_rate,
+		    ddt->ddt_log_ingest_rate);
+	}
 }
 
 static void
