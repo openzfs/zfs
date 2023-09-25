@@ -6754,6 +6754,7 @@ zdb_brt_entry_compare(const void *zcn1, const void *zcn2)
 	return (cmp);
 }
 
+static int
 chain_map_count_blk_cb(spa_t *spa, const blkptr_t *bp, void *arg)
 {
 	(void) spa;

@@ -1447,7 +1447,6 @@ zil_lwb_flush_defer(lwb_t *lwb, lwb_t *nlwb)
 	 * future writes to additional vdevs.
 	 */
 	mutex_enter(&nlwb->lwb_vdev_lock);
-	mutex_exit(&lwb->lwb_zilog->zl_lock);
 	/*
 	 * Tear down the 'lwb' vdev tree, ensuring that entries which do not
 	 * exist in 'nlwb' are moved to it, freeing any would-be duplicates.
@@ -1641,10 +1640,10 @@ zil_lwb_write_done(zio_t *zio)
 	nlwb = list_next(&zilog->zl_lwb_list, lwb);
 	if (nlwb && nlwb->lwb_state != LWB_STATE_ISSUED)
 		nlwb = NULL;
-	if (avl_numnodes(t) == 0) {
-		mutex_exit(&zilog->zl_lock);
+	mutex_exit(&zilog->zl_lock);
+
+	if (avl_numnodes(t) == 0)
 		return;
-	}
 
 	/*
 	 * If there was an IO error, we're not going to call zio_flush()
@@ -1660,7 +1659,6 @@ zil_lwb_write_done(zio_t *zio)
 	 * that function).
 	 */
 	if (zio->io_error != 0) {
-		mutex_exit(&zilog->zl_lock);
 		while ((zv = avl_destroy_nodes(t, &cookie)) != NULL)
 			kmem_free(zv, sizeof (*zv));
 		return;
@@ -1686,8 +1684,6 @@ zil_lwb_write_done(zio_t *zio)
 		ASSERT(avl_is_empty(&lwb->lwb_vdev_tree));
 		return;
 	}
-	mutex_enter(&lwb->lwb_vdev_lock);
-	mutex_exit(&zilog->zl_lock);
 
 	while ((zv = avl_destroy_nodes(t, &cookie)) != NULL) {
 		vdev_t *vd = vdev_lookup_top(spa, zv->zv_vdev);
@@ -1704,7 +1700,6 @@ zil_lwb_write_done(zio_t *zio)
 		}
 		kmem_free(zv, sizeof (*zv));
 	}
-	mutex_exit(&lwb->lwb_vdev_lock);
 }
 
 /*
@@ -1966,7 +1961,7 @@ next_lwb:
 		IMPLY(spa == io_spa, bp->blk_birth == txg);
 		BP_SET_CHECKSUM(bp, nlwb->lwb_slim ? ZIO_CHECKSUM_ZILOG2 :
 		    ZIO_CHECKSUM_ZILOG);
-		VERIFY(zfs_blkptr_verify(io_spa, bp, B_FALSE,
+		VERIFY(zfs_blkptr_verify(io_spa, bp, BLK_CONFIG_NEEDED,
 		    BLK_VERIFY_HALT));
 		bp->blk_cksum = lwb->lwb_blk.blk_cksum;
 		bp->blk_cksum.zc_word[ZIL_ZC_SEQ]++;
