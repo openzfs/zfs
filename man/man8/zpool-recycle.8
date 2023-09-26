@@ -34,8 +34,10 @@
 .Op Ar pool
 .
 .Sh DESCRIPTION
-Iterate over the list of ZIL chains in the provided shared log pool,
-and delete the chains belonging to pools that are not currently imported.
+Iterate over the list of ZIL chains in the provided shared log pool (from 
+.Xr zpool-create 8
+.Fl L
+), and delete the chains belonging to pools that are not currently imported.
 Prints out a list of pool GUIDs for the deleted chains.
 .
 .Sh OPTIONS
