@@ -388,13 +388,13 @@ zfs_agent_consumer_thread(void *arg)
 }
 
 void
-zfs_agent_init(libzfs_handle_t *zfs_hdl)
+zfs_agent_init(libzfs_handle_t *zfs_hdl, const char *zedlet_dir)
 {
 	fmd_hdl_t *hdl;
 
 	g_zfs_hdl = zfs_hdl;
 
-	if (zfs_slm_init() != 0)
+	if (zfs_slm_init(zedlet_dir) != 0)
 		zed_log_die("Failed to initialize zfs slm");
 	zed_log_msg(LOG_INFO, "Add Agent: init");
 

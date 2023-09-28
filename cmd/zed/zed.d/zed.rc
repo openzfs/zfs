@@ -147,3 +147,11 @@ ZED_SYSLOG_SUBCLASS_EXCLUDE="history_event"
 # help silence misbehaving drives.  This assumes your drive enclosure fully
 # supports slot power control via sysfs.
 #ZED_POWER_OFF_ENCLOUSRE_SLOT_ON_FAULT=1
+
+# During auto-replace of vdev device, the device is labeled
+# asynchronously on Linux. Use ZED_DISK_LABEL_WAIT_TIME to
+# change how long to wait for the partitioned device symlinks
+# to show up before giving up. The time is in milliseconds and
+# defaults to 3000 if not specified here.
+#
+#ZED_DISK_LABEL_WAIT_TIME=3000

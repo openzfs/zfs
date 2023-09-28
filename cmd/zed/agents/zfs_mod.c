@@ -24,6 +24,7 @@
  * Copyright 2014 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2016, 2017, Intel Corporation.
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+ * Copyright (c) 2023, Klara Inc.
  */
 
 /*
@@ -91,6 +92,9 @@
 #define	DEV_BYPATH_PATH	"/dev/disk/by-path/"
 #define	DEV_BYVDEV_PATH	"/dev/disk/by-vdev/"
 
+#define	ZED_CONFIG_FILE		"zed.rc"
+#define	ZED_DISK_LABEL_WAIT	"ZED_DISK_LABEL_WAIT_TIME"
+
 typedef void (*zfs_process_func_t)(zpool_handle_t *, nvlist_t *, boolean_t);
 
 libzfs_handle_t *g_zfshdl;
@@ -99,6 +103,12 @@ list_t g_device_list;	/* list of disks with asynchronous label request */
 tpool_t *g_tpool;
 boolean_t g_enumeration_done;
 pthread_t g_zfs_tid;	/* zfs_enum_pools() thread */
+
+/*
+ * The maximum time to wait in milliseconds for the udev layer to set up
+ * the device link after a auto-replaced disk has been partitioned.
+ */
+uint_t zed_label_wait_max = 3000;
 
 typedef struct unavailpool {
 	zpool_handle_t	*uap_zhp;
@@ -436,7 +446,7 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 		 */
 		if (zpool_prepare_and_label_disk(g_zfshdl, zhp, leafname,
 		    vdev, "autoreplace", &lines, &lines_cnt) != 0) {
-			zed_log_msg(LOG_INFO,
+			zed_log_msg(LOG_WARNING,
 			    "  zpool_prepare_and_label_disk: could not "
 			    "label '%s' (%s)", leafname,
 			    libzfs_error_description(g_zfshdl));
@@ -468,7 +478,7 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 		    sizeof (device->pd_physpath));
 		list_insert_tail(&g_device_list, device);
 
-		zed_log_msg(LOG_INFO, "  zpool_label_disk: async '%s' (%llu)",
+		zed_log_msg(LOG_NOTICE, "  zpool_label_disk: async '%s' (%llu)",
 		    leafname, (u_longlong_t)guid);
 
 		return;	/* resumes at EC_DEV_ADD.ESC_DISK for partition */
@@ -545,9 +555,10 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	 * Wait for udev to verify the links exist, then auto-replace
 	 * the leaf disk at same physical location.
 	 */
-	if (zpool_label_disk_wait(path, 3000) != 0) {
-		zed_log_msg(LOG_WARNING, "zfs_mod: expected replacement "
-		    "disk %s is missing", path);
+	if (zpool_label_disk_wait(path, zed_label_wait_max) != 0) {
+		zed_log_msg(LOG_WARNING, "zfs_mod: after labeling replacement "
+		    "disk, the expected disk partition link '%s' is missing "
+		    "after waiting %u ms", path, zed_label_wait_max);
 		nvlist_free(nvroot);
 		return;
 	}
@@ -562,7 +573,7 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 		    B_TRUE, B_FALSE);
 	}
 
-	zed_log_msg(LOG_INFO, "  zpool_vdev_replace: %s with %s (%s)",
+	zed_log_msg(LOG_WARNING, "  zpool_vdev_replace: %s with %s (%s)",
 	    fullpath, path, (ret == 0) ? "no errors" :
 	    libzfs_error_description(g_zfshdl));
 
@@ -1279,6 +1290,41 @@ zfs_enum_pools(void *arg)
 	return (NULL);
 }
 
+#define	CONFIG_LINE_MAX 100
+
+static int
+zed_lookup_tunable(const char *zedlet_dir, const char *tuneable,
+    unsigned int *wait_time)
+{
+	char path[MAXPATHLEN];
+	char linebuf[CONFIG_LINE_MAX];
+	char name[50];
+	unsigned int value;
+
+	sprintf(path, "%s/%s", zedlet_dir, ZED_CONFIG_FILE);
+	FILE *file = fopen(path, "r");
+
+	if (file == NULL) {
+		zed_log_msg(LOG_WARNING, "can't open config file '%s'", path);
+		return (ENOENT);
+	}
+
+	/* parse zed.rc for wait time */
+	while (fgets(linebuf, sizeof (linebuf), file) != NULL) {
+		if (linebuf[0] == '#' || linebuf[0] == '\n')
+			continue;
+
+		if (sscanf(linebuf, "%49[A-Z0-9_] = %u ", name, &value) == 2) {
+			if (strcmp(tuneable, name) == 0) {
+				*wait_time = value;
+				return (0);
+			}
+		}
+	}
+
+	return (ENOENT);
+}
+
 /*
  * called from zed daemon at startup
  *
@@ -1287,7 +1333,7 @@ zfs_enum_pools(void *arg)
  * For now, each agent has its own libzfs instance
  */
 int
-zfs_slm_init(void)
+zfs_slm_init(const char *zedlet_dir)
 {
 	if ((g_zfshdl = libzfs_init()) == NULL)
 		return (-1);
@@ -1308,6 +1354,15 @@ zfs_slm_init(void)
 	pthread_setname_np(g_zfs_tid, "enum-pools");
 	list_create(&g_device_list, sizeof (struct pendingdev),
 	    offsetof(struct pendingdev, pd_node));
+
+	unsigned int wait_time;
+
+	if (zed_lookup_tunable(zedlet_dir, ZED_DISK_LABEL_WAIT,
+	    &wait_time) == 0) {
+		zed_log_msg(LOG_NOTICE, "setting zed_label_wait_max to %u ms",
+		    wait_time);
+		zed_label_wait_max = wait_time;
+	}
 
 	return (0);
 }

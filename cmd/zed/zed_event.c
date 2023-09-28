@@ -64,7 +64,7 @@ zed_event_init(struct zed_conf *zcp)
 		    ZFS_DEV, strerror(errno));
 	}
 
-	zfs_agent_init(zcp->zfs_hdl);
+	zfs_agent_init(zcp->zfs_hdl, zcp->zedlet_dir);
 
 	if (zed_disk_event_init() != 0) {
 		if (zcp->do_idle)

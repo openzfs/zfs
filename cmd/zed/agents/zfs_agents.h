@@ -28,14 +28,14 @@ extern "C" {
 /*
  * Agent abstraction presented to ZED
  */
-extern void zfs_agent_init(libzfs_handle_t *);
+extern void zfs_agent_init(libzfs_handle_t *, const char *);
 extern void zfs_agent_fini(void);
 extern void zfs_agent_post_event(const char *, const char *, nvlist_t *);
 
 /*
  * ZFS Sysevent Linkable Module (SLM)
  */
-extern int zfs_slm_init(void);
+extern int zfs_slm_init(const char *);
 extern void zfs_slm_fini(void);
 extern void zfs_slm_event(const char *, const char *, nvlist_t *);
 

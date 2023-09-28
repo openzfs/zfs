@@ -34,7 +34,7 @@ extern "C" {
 #endif
 
 /*
- * Default wait time for a device name to be created.
+ * Default wait time in milliseconds for a device name to be created.
  */
 #define	DISK_LABEL_WAIT		(30 * 1000)  /* 30 seconds */
 
