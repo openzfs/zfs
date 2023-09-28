@@ -582,9 +582,8 @@ zfs_device_get_physical(struct udev_device *dev, char *bufptr, size_t buflen)
  * Wait up to timeout_ms for udev to set up the device node.  The device is
  * considered ready when libudev determines it has been initialized, all of
  * the device links have been verified to exist, and it has been allowed to
- * settle.  At this point the device the device can be accessed reliably.
- * Depending on the complexity of the udev rules this process could take
- * several seconds.
+ * settle.  At this point the device can be accessed reliably. Depending on
+ * the complexity of the udev rules this process could take several seconds.
  */
 int
 zpool_label_disk_wait(const char *path, int timeout_ms)
