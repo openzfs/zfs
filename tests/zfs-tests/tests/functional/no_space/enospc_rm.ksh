@@ -17,6 +17,7 @@
 #
 # Copyright (c) 2014, 2016 by Delphix. All rights reserved.
 # Copyright (c) 2022 by Lawrence Livermore National Security, LLC.
+# Copyright (c) 2023 Hewlett Packard Enterprise Development LP.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -51,9 +52,18 @@ log_must zfs create $TESTPOOL/$TESTFS
 log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 log_must zfs set compression=off $TESTPOOL/$TESTFS
 
-log_note "Writing files until ENOSPC."
+log_note "Writing Big(1G) files until ENOSPC."
 log_mustnot_expect "No space left on device" fio --name=test \
     --fallocate=none --rw=write --bs=1M --size=1G --numjobs=4 \
+    --sync=1 --directory=$TESTDIR/ --group_reporting
+
+log_must rm $TESTDIR/test.*
+log_must test -z "$(ls -A $TESTDIR)"
+sync_pool $TESTPOOL true
+
+log_note "Writing small(10M) files until ENOSPC."
+log_mustnot_expect "No space left on device" fio --name=test \
+    --fallocate=none --rw=write --bs=1M --size=10M --numjobs=200 \
     --sync=1 --directory=$TESTDIR/ --group_reporting
 
 log_must rm $TESTDIR/test.*
