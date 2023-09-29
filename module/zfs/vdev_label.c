@@ -403,6 +403,7 @@ vdev_config_generate_stats(vdev_t *vd, nvlist_t *nv)
 }
 
 static const char *condense_type_keys[] = {
+	POOL_CONDENSE_LOG_SPACEMAP,
 #ifdef ZFS_DEBUG
 	"debug",
 #endif
