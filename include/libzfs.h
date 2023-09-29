@@ -29,6 +29,7 @@
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  * Copyright (c) 2019 Datto Inc.
  * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
+ * Copyright (c) 2024, Klara, Inc.
  */
 
 #ifndef	_LIBZFS_H
@@ -297,6 +298,8 @@ _LIBZFS_H int zpool_initialize_wait(zpool_handle_t *, pool_initialize_func_t,
     nvlist_t *);
 _LIBZFS_H int zpool_trim(zpool_handle_t *, pool_trim_func_t, nvlist_t *,
     trimflags_t *);
+_LIBZFS_H int zpool_condense(zpool_handle_t *, pool_condense_func_t,
+    pool_condense_type_t);
 
 _LIBZFS_H int zpool_clear(zpool_handle_t *, const char *, nvlist_t *);
 _LIBZFS_H int zpool_reguid(zpool_handle_t *);
