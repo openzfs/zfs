@@ -35,7 +35,8 @@
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
  * Copyright (c) 2023 Hewlett Packard Enterprise Development LP.
- * Copyright (c) 2023, 2024, Klara Inc.
+ * Copyright (c) 2023-2026, Klara, Inc.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 /*
@@ -2165,6 +2166,8 @@ spa_unload_log_sm_metadata(spa_t *spa)
 	spa->spa_unflushed_stats.sus_nblocks = 0;
 	spa->spa_unflushed_stats.sus_memused = 0;
 	spa->spa_unflushed_stats.sus_blocklimit = 0;
+
+	spa_log_sm_stats_update(spa);
 }
 
 static void
@@ -11011,6 +11014,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 	spa_sync_close_syncing_log_sm(spa);
 
 	spa_update_dspace(spa);
+	spa_log_sm_stats_update(spa);
 
 	if (spa_get_autotrim(spa) == SPA_AUTOTRIM_ON)
 		vdev_autotrim_kick(spa);
