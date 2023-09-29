@@ -3453,11 +3453,10 @@ arc_hdr_realloc(arc_buf_hdr_t *hdr, kmem_cache_t *old, kmem_cache_t *new)
  * header and vice versa. If we are going to a crypt header, the
  * new fields will be zeroed out.
  */
-static arc_buf_hdr_t *
-arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t need_crypt)
+void
+arc_realloc_crypt(arc_buf_t *buf, boolean_t need_crypt)
 {
-	arc_buf_hdr_t *nhdr;
-	arc_buf_t *buf;
+	arc_buf_hdr_t *hdr = buf->b_hdr, *nhdr;
 	kmem_cache_t *ncache, *ocache;
 
 	/*
@@ -3467,11 +3466,15 @@ arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t need_crypt)
 	 */
 	ASSERT(HDR_HAS_L1HDR(hdr));
 	ASSERT(!HDR_HAS_L2HDR(hdr));
-	ASSERT3U(!!HDR_PROTECTED(hdr), !=, need_crypt);
 	ASSERT3P(hdr->b_l1hdr.b_state, ==, arc_anon);
 	ASSERT(!multilist_link_active(&hdr->b_l1hdr.b_arc_node));
 	ASSERT(!list_link_active(&hdr->b_l2hdr.b_l2node));
 	ASSERT3P(hdr->b_hash_next, ==, NULL);
+	ASSERT3P(hdr->b_l1hdr.b_buf, ==, buf);
+	ASSERT3P(buf->b_next, ==, NULL);
+
+	if (need_crypt == !!HDR_PROTECTED(hdr))
+		return;
 
 	if (need_crypt) {
 		ncache = hdr_full_crypt_cache;
@@ -3495,10 +3498,6 @@ arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t need_crypt)
 	nhdr->b_psize = hdr->b_psize;
 	nhdr->b_lsize = hdr->b_lsize;
 	nhdr->b_spa = hdr->b_spa;
-#ifdef ZFS_DEBUG
-	nhdr->b_l1hdr.b_freeze_cksum = hdr->b_l1hdr.b_freeze_cksum;
-#endif
-	nhdr->b_l1hdr.b_bufcnt = hdr->b_l1hdr.b_bufcnt;
 	nhdr->b_l1hdr.b_byteswap = hdr->b_l1hdr.b_byteswap;
 	nhdr->b_l1hdr.b_state = hdr->b_l1hdr.b_state;
 	nhdr->b_l1hdr.b_arc_access = hdr->b_l1hdr.b_arc_access;
@@ -3506,8 +3505,13 @@ arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t need_crypt)
 	nhdr->b_l1hdr.b_mru_ghost_hits = hdr->b_l1hdr.b_mru_ghost_hits;
 	nhdr->b_l1hdr.b_mfu_hits = hdr->b_l1hdr.b_mfu_hits;
 	nhdr->b_l1hdr.b_mfu_ghost_hits = hdr->b_l1hdr.b_mfu_ghost_hits;
+	nhdr->b_l1hdr.b_bufcnt = hdr->b_l1hdr.b_bufcnt;
+	nhdr->b_l1hdr.b_buf = hdr->b_l1hdr.b_buf;
 	nhdr->b_l1hdr.b_acb = hdr->b_l1hdr.b_acb;
 	nhdr->b_l1hdr.b_pabd = hdr->b_l1hdr.b_pabd;
+#ifdef ZFS_DEBUG
+	nhdr->b_l1hdr.b_freeze_cksum = hdr->b_l1hdr.b_freeze_cksum;
+#endif
 
 	/*
 	 * This zfs_refcount_add() exists only to ensure that the individual
@@ -3515,9 +3519,7 @@ arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t need_crypt)
 	 * a small race condition that could trigger ASSERTs.
 	 */
 	(void) zfs_refcount_add(&nhdr->b_l1hdr.b_refcnt, FTAG);
-	nhdr->b_l1hdr.b_buf = hdr->b_l1hdr.b_buf;
-	for (buf = nhdr->b_l1hdr.b_buf; buf != NULL; buf = buf->b_next)
-		buf->b_hdr = nhdr;
+	buf->b_hdr = nhdr;
 
 	zfs_refcount_transfer(&nhdr->b_l1hdr.b_refcnt, &hdr->b_l1hdr.b_refcnt);
 	(void) zfs_refcount_remove(&nhdr->b_l1hdr.b_refcnt, FTAG);
@@ -3537,11 +3539,6 @@ arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t need_crypt)
 	hdr->b_psize = 0;
 	hdr->b_lsize = 0;
 	hdr->b_spa = 0;
-#ifdef ZFS_DEBUG
-	hdr->b_l1hdr.b_freeze_cksum = NULL;
-#endif
-	hdr->b_l1hdr.b_buf = NULL;
-	hdr->b_l1hdr.b_bufcnt = 0;
 	hdr->b_l1hdr.b_byteswap = 0;
 	hdr->b_l1hdr.b_state = NULL;
 	hdr->b_l1hdr.b_arc_access = 0;
@@ -3549,8 +3546,13 @@ arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t need_crypt)
 	hdr->b_l1hdr.b_mru_ghost_hits = 0;
 	hdr->b_l1hdr.b_mfu_hits = 0;
 	hdr->b_l1hdr.b_mfu_ghost_hits = 0;
+	hdr->b_l1hdr.b_bufcnt = 0;
+	hdr->b_l1hdr.b_buf = NULL;
 	hdr->b_l1hdr.b_acb = NULL;
 	hdr->b_l1hdr.b_pabd = NULL;
+#ifdef ZFS_DEBUG
+	hdr->b_l1hdr.b_freeze_cksum = NULL;
+#endif
 
 	if (ocache == hdr_full_crypt_cache) {
 		ASSERT(!HDR_HAS_RABD(hdr));
@@ -3564,8 +3566,6 @@ arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t need_crypt)
 
 	buf_discard_identity(hdr);
 	kmem_cache_free(ocache, hdr);
-
-	return (nhdr);
 }
 
 /*
@@ -3587,8 +3587,8 @@ arc_convert_to_raw(arc_buf_t *buf, uint64_t dsobj, boolean_t byteorder,
 	ASSERT3P(hdr->b_l1hdr.b_state, ==, arc_anon);
 
 	buf->b_flags |= (ARC_BUF_FLAG_COMPRESSED | ARC_BUF_FLAG_ENCRYPTED);
-	if (!HDR_PROTECTED(hdr))
-		hdr = arc_hdr_realloc_crypt(hdr, B_TRUE);
+	arc_realloc_crypt(buf, B_TRUE);
+	hdr = buf->b_hdr;
 	hdr->b_crypt_hdr.b_dsobj = dsobj;
 	hdr->b_crypt_hdr.b_ot = ot;
 	hdr->b_l1hdr.b_byteswap = (byteorder == ZFS_HOST_BYTEORDER) ?
@@ -6545,15 +6545,19 @@ arc_write_ready(zio_t *zio)
 
 	callback->awcb_ready(zio, buf, callback->awcb_private);
 
+	/*
+	 * The upper level is required to call arc_realloc_crypt(),
+	 * following its own buffer locking semantics.
+	 */
+	hdr = buf->b_hdr;
+	ASSERT3B(BP_IS_PROTECTED(bp), ==, !!HDR_PROTECTED(hdr));
+
 	if (HDR_IO_IN_PROGRESS(hdr)) {
 		ASSERT(zio->io_flags & ZIO_FLAG_REEXECUTED);
 	} else {
 		arc_hdr_set_flags(hdr, ARC_FLAG_IO_IN_PROGRESS);
 		add_reference(hdr, hdr); /* For IO_IN_PROGRESS. */
 	}
-
-	if (BP_IS_PROTECTED(bp) != !!HDR_PROTECTED(hdr))
-		hdr = arc_hdr_realloc_crypt(hdr, BP_IS_PROTECTED(bp));
 
 	if (BP_IS_PROTECTED(bp)) {
 		/* ZIL blocks are written through zio_rewrite */

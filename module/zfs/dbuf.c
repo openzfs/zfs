@@ -4653,6 +4653,7 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 	}
 
 	mutex_enter(&db->db_mtx);
+	arc_realloc_crypt(buf, BP_IS_PROTECTED(bp));
 
 #ifdef ZFS_DEBUG
 	if (db->db_blkid == DMU_SPILL_BLKID) {

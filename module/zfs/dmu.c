@@ -1550,10 +1550,13 @@ typedef struct {
 static void
 dmu_sync_ready(zio_t *zio, arc_buf_t *buf, void *varg)
 {
-	(void) buf;
 	dmu_sync_arg_t *dsa = varg;
-	dmu_buf_t *db = dsa->dsa_zgd->zgd_db;
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)dsa->dsa_zgd->zgd_db;
 	blkptr_t *bp = zio->io_bp;
+
+	mutex_enter(&db->db_mtx);
+	arc_realloc_crypt(buf, BP_IS_PROTECTED(bp));
+	mutex_exit(&db->db_mtx);
 
 	if (zio->io_error == 0) {
 		if (BP_IS_HOLE(bp)) {
@@ -1561,7 +1564,7 @@ dmu_sync_ready(zio_t *zio, arc_buf_t *buf, void *varg)
 			 * A block of zeros may compress to a hole, but the
 			 * block size still needs to be known for replay.
 			 */
-			BP_SET_LSIZE(bp, db->db_size);
+			BP_SET_LSIZE(bp, db->db.db_size);
 		} else if (!BP_IS_EMBEDDED(bp)) {
 			ASSERT(BP_GET_LEVEL(bp) == 0);
 			BP_SET_FILL(bp, 1);

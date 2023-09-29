@@ -1570,9 +1570,8 @@ dmu_objset_sync_dnodes(multilist_sublist_t *list, dmu_tx_t *tx)
 }
 
 static void
-dmu_objset_write_ready(zio_t *zio, arc_buf_t *abuf, void *arg)
+dmu_objset_write_ready(zio_t *zio, arc_buf_t *buf, void *arg)
 {
-	(void) abuf;
 	blkptr_t *bp = zio->io_bp;
 	objset_t *os = arg;
 	dnode_phys_t *dnp = &os->os_phys->os_meta_dnode;
@@ -1581,6 +1580,8 @@ dmu_objset_write_ready(zio_t *zio, arc_buf_t *abuf, void *arg)
 	ASSERT(!BP_IS_EMBEDDED(bp));
 	ASSERT3U(BP_GET_TYPE(bp), ==, DMU_OT_OBJSET);
 	ASSERT0(BP_GET_LEVEL(bp));
+
+	arc_realloc_crypt(buf, BP_IS_PROTECTED(bp));
 
 	/*
 	 * Update rootbp fill count: it should be the number of objects
