@@ -536,6 +536,7 @@
     <elf-symbol name='zpool_close' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_collect_leaves' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_collect_unsup_feat' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zpool_condense' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_create' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_ddt_prune' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_default_search_paths' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -6352,6 +6353,19 @@
       <enumerator name='POOL_TRIM_FUNCS' value='3'/>
     </enum-decl>
     <typedef-decl name='pool_trim_func_t' type-id='54ed608a' id='b1146b8d'/>
+    <enum-decl name='pool_condense_func' id='a6e2d8e3'>
+      <underlying-type type-id='9cac1fee'/>
+      <enumerator name='POOL_CONDENSE_START' value='0'/>
+      <enumerator name='POOL_CONDENSE_CANCEL' value='1'/>
+      <enumerator name='POOL_CONDENSE_FUNCS' value='2'/>
+    </enum-decl>
+    <typedef-decl name='pool_condense_func_t' type-id='a6e2d8e3' id='53221d6c'/>
+    <enum-decl name='pool_condense_type' id='c8633051'>
+      <underlying-type type-id='9cac1fee'/>
+      <enumerator name='POOL_CONDENSE_LOG_SPACEMAP' value='0'/>
+      <enumerator name='POOL_CONDENSE_TYPES' value='1'/>
+    </enum-decl>
+    <typedef-decl name='pool_condense_type_t' type-id='c8633051' id='d285ab1e'/>
     <enum-decl name='zfs_ioc' id='12033f13'>
       <underlying-type type-id='9cac1fee'/>
       <enumerator name='ZFS_IOC_FIRST' value='23040'/>
@@ -6446,6 +6460,7 @@
       <enumerator name='ZFS_IOC_POOL_SCRUB' value='23127'/>
       <enumerator name='ZFS_IOC_POOL_PREFETCH' value='23128'/>
       <enumerator name='ZFS_IOC_DDT_PRUNE' value='23129'/>
+      <enumerator name='ZFS_IOC_POOL_CONDENSE' value='23130'/>
       <enumerator name='ZFS_IOC_PLATFORM' value='23168'/>
       <enumerator name='ZFS_IOC_EVENTS_NEXT' value='23169'/>
       <enumerator name='ZFS_IOC_EVENTS_CLEAR' value='23170'/>
@@ -6612,6 +6627,12 @@
     <function-decl name='lzc_reopen' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='80f4b756'/>
       <parameter type-id='c19b74c3'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='lzc_condense' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='53221d6c'/>
+      <parameter type-id='d285ab1e'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='lzc_pool_checkpoint' visibility='default' binding='global' size-in-bits='64'>
@@ -7224,6 +7245,12 @@
     <function-decl name='zpool_sync_one' mangled-name='zpool_sync_one' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_sync_one'>
       <parameter type-id='4c81de99' name='zhp'/>
       <parameter type-id='eaa32e2f' name='data'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='zpool_condense' mangled-name='zpool_condense' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_condense'>
+      <parameter type-id='4c81de99' name='zhp'/>
+      <parameter type-id='53221d6c' name='func'/>
+      <parameter type-id='d285ab1e' name='type'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zpool_vdev_name' mangled-name='zpool_vdev_name' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_vdev_name'>

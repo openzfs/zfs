@@ -360,6 +360,7 @@ struct spa {
 	avl_tree_t	spa_metaslabs_by_flushed;
 	spa_unflushed_stats_t	spa_unflushed_stats;
 	list_t		spa_log_summary;
+
 	spa_log_flushall_mode_t	spa_log_flushall_mode;
 	uint64_t	spa_log_flushall_txg;
 
@@ -477,6 +478,9 @@ struct spa {
 	uint64_t	spa_dedup_table_quota;	/* property DDT maximum size */
 	uint64_t	spa_dedup_dsize;	/* cached on-disk size of DDT */
 	uint64_t	spa_dedup_class_full_txg; /* txg dedup class was full */
+
+	/* stats for user-initiated condense operations */
+	pool_condense_stat_t	spa_condense_stats[POOL_CONDENSE_TYPES];
 
 	/*
 	 * spa_refcount & spa_config_lock must be the last elements
