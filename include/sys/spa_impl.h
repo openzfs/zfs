@@ -28,6 +28,7 @@
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2019 Datto Inc.
+ * Copyright (c) 2024-2026, Klara, Inc.
  */
 
 #ifndef _SYS_SPA_IMPL_H
@@ -359,6 +360,7 @@ struct spa {
 	avl_tree_t	spa_metaslabs_by_flushed;
 	spa_unflushed_stats_t	spa_unflushed_stats;
 	list_t		spa_log_summary;
+	spa_log_flushall_mode_t	spa_log_flushall_mode;
 	uint64_t	spa_log_flushall_txg;
 
 	zthr_t		*spa_livelist_delete_zthr; /* deleting livelists */
