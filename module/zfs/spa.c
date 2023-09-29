@@ -1984,8 +1984,8 @@ spa_unload_log_sm_flush_all(spa_t *spa)
 	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
 	VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
 
-	ASSERT3U(spa->spa_log_flushall_txg, ==, 0);
-	spa->spa_log_flushall_txg = dmu_tx_get_txg(tx);
+	spa_log_flushall_start(spa, SPA_LOG_FLUSHALL_EXPORT,
+	    dmu_tx_get_txg(tx));
 
 	dmu_tx_commit(tx);
 	txg_wait_synced(spa_get_dsl(spa), spa->spa_log_flushall_txg);
@@ -2070,6 +2070,8 @@ spa_unload(spa_t *spa)
 		 */
 		if (spa_should_flush_logs_on_unload(spa))
 			spa_unload_log_sm_flush_all(spa);
+		else
+			spa_log_flushall_done(spa);
 
 		/*
 		 * Stop async tasks.
