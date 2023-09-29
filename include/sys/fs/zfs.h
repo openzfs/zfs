@@ -870,6 +870,7 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_CHECKPOINT_STATS	"checkpoint_stats" /* not on disk */
 #define	ZPOOL_CONFIG_RAIDZ_EXPAND_STATS	"raidz_expand_stats" /* not on disk */
 #define	ZPOOL_CONFIG_VDEV_STATS		"vdev_stats"	/* not stored on disk */
+#define	ZPOOL_CONFIG_CONDENSE_STATS	"com.klarasystems:condense_stats"
 #define	ZPOOL_CONFIG_INDIRECT_SIZE	"indirect_size"	/* not stored on disk */
 
 /* container nvlist of extended stats */
@@ -1511,6 +1512,11 @@ typedef enum pool_trim_func {
 } pool_trim_func_t;
 
 /*
+ * Condense types.
+ */
+/* ... */
+
+/*
  * DDT statistics.  Note: all fields should be 64-bit because this
  * is passed between kernel and userland as an nvlist uint64 array.
  */
@@ -1689,6 +1695,7 @@ typedef enum zfs_ioc {
 	ZFS_IOC_POOL_SCRUB,			/* 0x5a57 */
 	ZFS_IOC_POOL_PREFETCH,			/* 0x5a58 */
 	ZFS_IOC_DDT_PRUNE,			/* 0x5a59 */
+	ZFS_IOC_POOL_CONDENSE,			/* 0x5a5a */
 
 	/*
 	 * Per-platform (Optional) - 8/128 numbers reserved.
@@ -1829,6 +1836,7 @@ typedef enum {
 	ZPOOL_WAIT_SCRUB,
 	ZPOOL_WAIT_TRIM,
 	ZPOOL_WAIT_RAIDZ_EXPAND,
+	ZPOOL_WAIT_CONDENSE,
 	ZPOOL_WAIT_NUM_ACTIVITIES
 } zpool_wait_activity_t;
 
@@ -1916,6 +1924,12 @@ typedef enum {
 #define	ZPOOL_TRIM_VDEVS		"trim_vdevs"
 #define	ZPOOL_TRIM_RATE			"trim_rate"
 #define	ZPOOL_TRIM_SECURE		"trim_secure"
+
+/*
+ * The following are names used when invoking ZPOOL_IOC_POOL_CONDENSE.
+ */
+#define	ZPOOL_CONDENSE_COMMAND		"condense_command"
+#define	ZPOOL_CONDENSE_TYPE		"condense_type"
 
 /*
  * The following are names used when invoking ZFS_IOC_POOL_WAIT.
