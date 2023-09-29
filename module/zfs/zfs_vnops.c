@@ -1206,6 +1206,19 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 		goto unlock;
 	}
 
+	/*
+	 * If we are copying only one block and it is smaller than recordsize
+	 * property, do not allow destination to grow beyond one block if it
+	 * is not there yet.  Otherwise the destination will get stuck with
+	 * that block size forever, that can be as small as 512 bytes, no
+	 * matter how big the destination grow later.
+	 */
+	if (len <= inblksz && inblksz < outzfsvfs->z_max_blksz &&
+	    outzp->z_size <= inblksz && outoff + len > inblksz) {
+		error = SET_ERROR(EINVAL);
+		goto unlock;
+	}
+
 	error = zn_rlimit_fsize(outoff + len);
 	if (error != 0) {
 		goto unlock;
