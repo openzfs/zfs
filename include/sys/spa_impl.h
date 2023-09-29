@@ -220,6 +220,7 @@ typedef enum spa_config_source {
 } spa_config_source_t;
 
 typedef enum spa_condense_type {
+	SPA_CONDENSE_LOG_SPACEMAP = 0,
 #ifdef ZFS_DEBUG
 	SPA_CONDENSE_DEBUG,
 #endif
@@ -231,7 +232,6 @@ typedef struct spa_condense_stat {
 	uint64_t scns_end_time;		/* time_t */
 	uint64_t scns_processed;	/* items processed */
 	uint64_t scns_total;		/* total items to process */
-	kmutex_t scns_lock;		/* protects all of the above */
 } spa_condense_stat_t;
 
 
@@ -382,6 +382,7 @@ struct spa {
 	avl_tree_t	spa_metaslabs_by_flushed;
 	spa_unflushed_stats_t	spa_unflushed_stats;
 	list_t		spa_log_summary;
+	spa_log_flushall_mode_t	spa_log_flushall_mode;
 	uint64_t	spa_log_flushall_txg;
 
 	zthr_t		*spa_livelist_delete_zthr; /* deleting livelists */
