@@ -1514,7 +1514,7 @@ typedef enum pool_trim_func {
 /*
  * Condense types.
  */
-/* ... */
+#define	POOL_CONDENSE_LOG_SPACEMAP	"log_spacemap"
 
 /*
  * DDT statistics.  Note: all fields should be 64-bit because this

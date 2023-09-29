@@ -7574,7 +7574,7 @@ zfs_ioc_pool_sync(const char *pool, nvlist_t *innvl, nvlist_t *onvl)
  *
  * innvl: {
  *     "command" -> "start" or "cancel"
- *     "type"    -> "debug"
+ *     "type"    -> "log_spacemap" (or "debug" in debug builds)
  * }
  */
 static const zfs_ioc_key_t zfs_keys_pool_condense[] = {
@@ -7597,8 +7597,10 @@ zfs_ioc_pool_condense(const char *pool, nvlist_t *innvl, nvlist_t *onvl)
 		return (SET_ERROR(EINVAL));
 
 	spa_condense_type_t ty = SPA_CONDENSE_TYPES;
+	if (strcmp(type, POOL_CONDENSE_LOG_SPACEMAP) == 0)
+		ty = SPA_CONDENSE_LOG_SPACEMAP;
 #ifdef ZFS_DEBUG
-	if (strcmp(type, "debug") == 0)
+	else if (strcmp(type, "debug") == 0)
 		ty = SPA_CONDENSE_DEBUG;
 #endif
 
@@ -7621,6 +7623,19 @@ zfs_ioc_pool_condense(const char *pool, nvlist_t *innvl, nvlist_t *onvl)
 	}
 
 	switch (ty) {
+	case SPA_CONDENSE_LOG_SPACEMAP:
+		if (!spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP)) {
+			spa_close(spa, FTAG);
+			return (SET_ERROR(ENOTSUP));
+		}
+
+		if (start)
+			spa_log_flushall_start(spa,
+			    SPA_LOG_FLUSHALL_REQUEST, 0);
+		else
+			spa_log_flushall_cancel(spa);
+		break;
+
 #ifdef ZFS_DEBUG
 	case SPA_CONDENSE_DEBUG:
 		if (start)
@@ -7629,6 +7644,7 @@ zfs_ioc_pool_condense(const char *pool, nvlist_t *innvl, nvlist_t *onvl)
 			spa_condense_debug_cancel(spa);
 		break;
 #endif
+
 	default:
 		__builtin_unreachable();
 	}
