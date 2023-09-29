@@ -365,13 +365,13 @@ static const char *vdev_trim_state_str[] = {
 };
 
 static const char *condense_type_str[POOL_CONDENSE_TYPES] = {
-	/* ... */
+	"log spacemap",
 };
 static const char *condense_type_nv_str[POOL_CONDENSE_TYPES] = {
-	/* ... */
+	"log_spacemap",
 };
 static const char *condense_type_unit_str[POOL_CONDENSE_TYPES] = {
-	/* ... */
+	"metaslabs",
 };
 
 #define	ZFS_NICE_TIMESTAMP	100
@@ -8910,7 +8910,7 @@ zpool_do_condense(int argc, char **argv)
 		const char *name;
 		pool_condense_type_t type;
 	} targets[] = {
-		/* ... */
+		{"log-spacemap",	POOL_CONDENSE_LOG_SPACEMAP},
 		{0, 0}
 	};
 

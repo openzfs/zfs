@@ -44,16 +44,15 @@ even if it affects overall performance.
 .Sy condense
 allows an operator to request that a specific background operation be
 prioritised to complete as soon as possible.
-.Pp
 .Bl -tag -width Ds
 .It Fl t , -target
 What to condense.
 If not specified, all targets will be condensed.
 These are the possible values for
 .Ar target :
-.Bl -tag -compact -offset Ds -width "..."
-.It Sy ...
-...
+.Bl -tag -compact -offset Ds -width "log-spacemap"
+.It Sy log-spacemap
+flushing log spacemap entries to their underlying metaslabs.
 .El
 .It Fl a , -all
 Begin, cancel or wait on condense for all pools.

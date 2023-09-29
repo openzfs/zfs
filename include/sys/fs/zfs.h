@@ -1518,7 +1518,7 @@ typedef enum pool_condense_func {
 } pool_condense_func_t;
 
 typedef enum pool_condense_type {
-	/* ... */
+	POOL_CONDENSE_LOG_SPACEMAP,
 	POOL_CONDENSE_TYPES,
 } pool_condense_type_t;
 

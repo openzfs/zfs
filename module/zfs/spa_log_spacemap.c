@@ -22,6 +22,8 @@
 
 /*
  * Copyright (c) 2018, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2024-2026, Klara, Inc.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #include <sys/dmu_objset.h>
@@ -284,6 +286,13 @@ static uint64_t zfs_max_logsm_summary_length = 10;
  * want to flush more metaslabs than our adaptable heuristic plans to flush.
  */
 static uint64_t zfs_min_metaslabs_to_flush = 1;
+
+/*
+ * Tunable that sets the lower bound on the number of unflushed metaslabs
+ * to flush every TXG during a condense operation, as a percentage of the
+ * number of unflushed metaslabs at the time the condense operation started.
+ */
+static uint_t zfs_min_metaslabs_to_condense_pct = 5;
 
 /*
  * Tunable that specifies how far in the past do we want to look when trying to
@@ -765,10 +774,98 @@ spa_log_sm_decrement_unflushed_metaslabs(spa_t *spa)
 	spa->spa_unflushed_stats.sus_nmetaslabs--;
 }
 
-boolean_t
-spa_flush_all_logs_requested(spa_t *spa)
+void
+spa_log_flushall_start(spa_t *spa, spa_log_flushall_mode_t mode, uint64_t txg)
 {
-	return (spa->spa_log_flushall_txg != 0);
+	/* Shouldn't happen, but its not dangerous if it does. */
+	ASSERT3U(mode, !=, SPA_LOG_FLUSHALL_NONE);
+	if (mode == SPA_LOG_FLUSHALL_NONE)
+		return;
+
+	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
+
+	if (txg == 0)
+		txg = spa_last_synced_txg(spa);
+
+	if (spa->spa_log_flushall_mode != SPA_LOG_FLUSHALL_EXPORT) {
+		/*
+		 * We can set _REQUEST even if its already in _REQUEST; this
+		 * has the effect of just pushing out the end txg.
+		 */
+		spa->spa_log_flushall_mode = mode;
+		spa->spa_log_flushall_txg = txg;
+	}
+
+	if (spa->spa_log_flushall_mode == SPA_LOG_FLUSHALL_REQUEST) {
+		/* Reset stats */
+		pool_condense_stat_t *pcns =
+		    &spa->spa_condense_stats[POOL_CONDENSE_LOG_SPACEMAP];
+		memset(pcns, 0, sizeof (pool_condense_stat_t));
+		pcns->pcns_start_time = gethrestime_sec();
+		pcns->pcns_total = spa_log_sm_unflushed_metaslabs(spa);
+
+		/* Get it started immediately. */
+		txg_kick(spa->spa_dsl_pool, txg + 1);
+	}
+
+	spa_config_exit(spa, SCL_VDEV, FTAG);
+}
+
+void
+spa_log_flushall_done(spa_t *spa)
+{
+	if (spa->spa_log_flushall_mode == SPA_LOG_FLUSHALL_NONE)
+		return;
+
+	IMPLY(spa->spa_log_flushall_mode == SPA_LOG_FLUSHALL_REQUEST,
+	    spa_state(spa) == POOL_STATE_ACTIVE);
+	IMPLY(spa->spa_log_flushall_mode == SPA_LOG_FLUSHALL_EXPORT,
+	    spa_state(spa) == POOL_STATE_EXPORTED);
+	ASSERT3U(spa->spa_log_flushall_txg, >, 0);
+
+	if (spa->spa_log_flushall_mode == SPA_LOG_FLUSHALL_REQUEST) {
+		/*
+		 * Finish stats. Note that the condense technically ends when
+		 * all metaslabs have been considered, not when we've flushed
+		 * as many as we've intended. So, we set the processed to the
+		 * total just so everything looks right for the user even if
+		 * if we actually flushed one or two less than requested.
+		 */
+		pool_condense_stat_t *pcns =
+		    &spa->spa_condense_stats[POOL_CONDENSE_LOG_SPACEMAP];
+		pcns->pcns_end_time = gethrestime_sec();
+		pcns->pcns_processed = pcns->pcns_total;
+	}
+
+	spa->spa_log_flushall_mode = SPA_LOG_FLUSHALL_NONE;
+	spa->spa_log_flushall_txg = 0;
+
+	spa_notify_waiters(spa);
+}
+
+void
+spa_log_flushall_cancel(spa_t *spa)
+{
+	if (spa->spa_log_flushall_mode == SPA_LOG_FLUSHALL_NONE)
+		return;
+
+	ASSERT3U(spa->spa_log_flushall_mode, ==, SPA_LOG_FLUSHALL_REQUEST);
+
+	spa->spa_log_flushall_mode = SPA_LOG_FLUSHALL_NONE;
+	spa->spa_log_flushall_txg = 0;
+
+	/* Finish stats. */
+	pool_condense_stat_t *pcns =
+	    &spa->spa_condense_stats[POOL_CONDENSE_LOG_SPACEMAP];
+	pcns->pcns_end_time = gethrestime_sec();
+
+	spa_notify_waiters(spa);
+}
+
+boolean_t
+spa_log_flushall_active(spa_t *spa)
+{
+	return (!!(spa->spa_log_flushall_mode == SPA_LOG_FLUSHALL_REQUEST));
 }
 
 void
@@ -804,7 +901,7 @@ spa_flush_metaslabs(spa_t *spa, dmu_tx_t *tx)
 	 */
 	if (BP_GET_LOGICAL_BIRTH(&spa->spa_uberblock.ub_rootbp) < txg &&
 	    !dmu_objset_is_dirty(spa_meta_objset(spa), txg) &&
-	    !spa_flush_all_logs_requested(spa))
+	    spa->spa_log_flushall_mode == SPA_LOG_FLUSHALL_NONE)
 		return;
 
 	/*
@@ -822,17 +919,38 @@ spa_flush_metaslabs(spa_t *spa, dmu_tx_t *tx)
 	spa_generate_syncing_log_sm(spa, tx);
 
 	/*
-	 * This variable tells us how many metaslabs we want to flush based
-	 * on the block-heuristic of our flushing algorithm (see block comment
-	 * of log space map feature). We also decrement this as we flush
-	 * metaslabs and attempt to destroy old log space maps.
+	 * Determine how much to flush this this round, depending on the
+	 * flushall mode.
 	 */
 	uint64_t want_to_flush;
-	if (spa_flush_all_logs_requested(spa)) {
-		ASSERT3S(spa_state(spa), ==, POOL_STATE_EXPORTED);
+	switch (spa->spa_log_flushall_mode) {
+	case SPA_LOG_FLUSHALL_EXPORT:
+		/*
+		 * At export, flush everything we can until the export loop
+		 * calls spa_log_flushall_done() to stop us.
+		 */
 		want_to_flush = UINT64_MAX;
-	} else {
+		break;
+
+	case SPA_LOG_FLUSHALL_REQUEST: {
+		/*
+		 * If admin requested flush, flush some percentage of the
+		 * total dirty metaslabs at the moment the request was made.
+		 */
+		pool_condense_stat_t *pcns =
+		    &spa->spa_condense_stats[POOL_CONDENSE_LOG_SPACEMAP];
+		want_to_flush = MAX(pcns->pcns_total, pcns->pcns_total *
+		    MAX(MIN(zfs_min_metaslabs_to_condense_pct, 100), 1) / 100);
+		break;
+	}
+	default:
+		/*
+		 * Flush some number of metaslabs based on the block-heuristic
+		 * of our flushing algorithm (see block comment of log space
+		 * map feature).
+		 */
 		want_to_flush = spa_estimate_metaslabs_to_flush(spa);
+		break;
 	}
 
 	/* Used purely for verification purposes */
@@ -855,8 +973,24 @@ spa_flush_metaslabs(spa_t *spa, dmu_tx_t *tx)
 		 * If this metaslab has been flushed this txg then we've done
 		 * a full circle over the metaslabs.
 		 */
-		if (metaslab_unflushed_txg(curr) == txg)
+		uint64_t unflushed_txg = metaslab_unflushed_txg(curr);
+		if (unflushed_txg == txg) {
+			spa_log_flushall_done(spa);
 			break;
+		}
+
+		/*
+		 * If the admin requested flush, and we've reached a metaslab
+		 * was was dirtied after the flush request began, then we've
+		 * done all we can (metaslabs are sorted by their last dirtied
+		 * txg, so all future ones on the list will also be dirtied
+		 * after the requested txg).
+		 */
+		if (spa->spa_log_flushall_mode == SPA_LOG_FLUSHALL_REQUEST &&
+		    unflushed_txg > spa->spa_log_flushall_txg) {
+			spa_log_flushall_done(spa);
+			break;
+		}
 
 		/*
 		 * If we are done flushing for the block heuristic and the
@@ -865,14 +999,27 @@ spa_flush_metaslabs(spa_t *spa, dmu_tx_t *tx)
 		if (want_to_flush == 0 && !spa_log_exceeds_memlimit(spa))
 			break;
 
+		/*
+		 * If this metaslab had dirty blocks on it, flush it and update
+		 * the counters.
+		 */
 		if (metaslab_unflushed_dirty(curr)) {
 			mutex_enter(&curr->ms_sync_lock);
 			mutex_enter(&curr->ms_lock);
 			metaslab_flush(curr, tx);
 			mutex_exit(&curr->ms_lock);
 			mutex_exit(&curr->ms_sync_lock);
+
 			if (want_to_flush > 0)
 				want_to_flush--;
+
+			if (spa->spa_log_flushall_mode ==
+			    SPA_LOG_FLUSHALL_REQUEST) {
+				pool_condense_stat_t *pcns =
+				    &spa->spa_condense_stats
+				    [POOL_CONDENSE_LOG_SPACEMAP];
+				pcns->pcns_processed--;
+			}
 		} else
 			metaslab_unflushed_bump(curr, tx, B_FALSE);
 
@@ -920,9 +1067,9 @@ spa_sync_close_syncing_log_sm(spa_t *spa)
 	 * so the last few TXGs before closing the pool can be empty
 	 * (e.g. not dirty).
 	 */
-	if (spa_flush_all_logs_requested(spa)) {
+	if (spa->spa_log_flushall_mode == SPA_LOG_FLUSHALL_EXPORT) {
 		ASSERT3S(spa_state(spa), ==, POOL_STATE_EXPORTED);
-		spa->spa_log_flushall_txg = 0;
+		spa_log_flushall_done(spa);
 	}
 }
 
@@ -1422,3 +1569,7 @@ ZFS_MODULE_PARAM(zfs, zfs_, max_logsm_summary_length, U64, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, min_metaslabs_to_flush, U64, ZMOD_RW,
 	"Minimum number of metaslabs to flush per dirty TXG");
+
+ZFS_MODULE_PARAM(zfs, zfs_, min_metaslabs_to_condense_pct, UINT, ZMOD_RW,
+	"Minimum number of metaslabs to flush per TXG when condensing, "
+	"as a percent of the number of dirty metaslabs at condense start.");

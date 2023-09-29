@@ -535,12 +535,13 @@ txg_sync_thread(void *arg)
 		uint64_t txg;
 
 		/*
-		 * We sync when we're scanning, there's someone waiting
-		 * on us, or the quiesce thread has handed off a txg to
+		 * We sync when we're scanning or condensing, there's someone
+		 * waiting on us, or the quiesce thread has handed off a txg to
 		 * us, or we have reached our timeout.
 		 */
 		timer = (delta >= timeout ? 0 : timeout - delta);
 		while (!dsl_scan_active(dp->dp_scan) &&
+		    !spa_log_flushall_active(spa) &&
 		    !tx->tx_exiting && timer > 0 &&
 		    tx->tx_synced_txg >= tx->tx_sync_txg_waiting &&
 		    !txg_has_quiesced_to_sync(dp)) {
