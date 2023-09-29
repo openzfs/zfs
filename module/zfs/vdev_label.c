@@ -24,6 +24,8 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
+ * Copyright (c) 2024-2026, Klara, Inc.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 /*
@@ -400,6 +402,13 @@ vdev_config_generate_stats(vdev_t *vd, nvlist_t *nv)
 	kmem_free(vsx, sizeof (*vsx));
 }
 
+static const char *condense_type_keys[] = {
+#ifdef ZFS_DEBUG
+	"debug",
+#endif
+	NULL,
+};
+
 static void
 root_vdev_actions_getprogress(vdev_t *vd, nvlist_t *nvl)
 {
@@ -436,6 +445,34 @@ root_vdev_actions_getprogress(vdev_t *vd, nvlist_t *nvl)
 		    ZPOOL_CONFIG_RAIDZ_EXPAND_STATS, (uint64_t *)&pres,
 		    sizeof (pres) / sizeof (uint64_t));
 	}
+
+	nvlist_t *cnv = fnvlist_alloc();
+	for (spa_condense_type_t type = 0; type < SPA_CONDENSE_TYPES; type++) {
+		const spa_condense_stat_t *scns =
+		    &spa->spa_condense_stats[type];
+		if (scns->scns_start_time == 0)
+			continue;
+
+		nvlist_t *tnv = fnvlist_alloc();
+		mutex_enter(&spa->spa_condense_stats_lock);
+
+		if (scns->scns_start_time == 0) {
+			/* It was cleared before we could get the lock, skip. */
+			mutex_exit(&spa->spa_condense_stats_lock);
+			fnvlist_free(tnv);
+			continue;
+		}
+
+		fnvlist_add_uint64(tnv, "start_time", scns->scns_start_time);
+		fnvlist_add_uint64(tnv, "end_time", scns->scns_end_time);
+		fnvlist_add_uint64(tnv, "processed", scns->scns_processed);
+		fnvlist_add_uint64(tnv, "total", scns->scns_total);
+
+		mutex_exit(&spa->spa_condense_stats_lock);
+
+		fnvlist_add_nvlist(cnv, condense_type_keys[type], tnv);
+	}
+	fnvlist_add_nvlist(nvl, ZPOOL_CONFIG_CONDENSE_STATS, cnv);
 }
 
 static void

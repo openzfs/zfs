@@ -33,8 +33,9 @@
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>
  * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
- * Copyright (c) 2021, 2023, 2025, Klara, Inc.
+ * Copyright (c) 2021, 2023-2026, Klara, Inc.
  * Copyright (c) 2021, 2025 Hewlett Packard Enterprise Development LP.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #include <assert.h>
@@ -127,6 +128,7 @@ static int zpool_do_get(int, char **);
 static int zpool_do_set(int, char **);
 
 static int zpool_do_sync(int, char **);
+static int zpool_do_condense(int, char **);
 
 static int zpool_do_version(int, char **);
 
@@ -146,7 +148,8 @@ enum zpool_options {
 	ZPOOL_OPTION_ALLOW_ASHIFT_MISMATCH,
 	ZPOOL_OPTION_POOL_KEY_GUID,
 	ZPOOL_OPTION_JSON_NUMS_AS_INT,
-	ZPOOL_OPTION_JSON_FLAT_VDEVS
+	ZPOOL_OPTION_JSON_FLAT_VDEVS,
+	ZPOOL_OPTION_CONDENSE_LIST_TYPES
 };
 
 /*
@@ -174,6 +177,7 @@ typedef enum {
 	HELP_CLEAR,
 	HELP_CREATE,
 	HELP_CHECKPOINT,
+	HELP_CONDENSE,
 	HELP_DDT_PRUNE,
 	HELP_DESTROY,
 	HELP_DETACH,
@@ -361,6 +365,15 @@ static const char *vdev_trim_state_str[] = {
 	"COMPLETE"
 };
 
+static const char *condense_unit(const char *type) {
+	(void) type;
+#ifdef ZFS_DEBUG
+	if (strcmp(type, "debug") == 0)
+		return ("nits");	/* fundamental unit of debugging? ;) */
+#endif
+	return ("items");
+}
+
 #define	ZFS_NICE_TIMESTAMP	100
 
 /*
@@ -417,6 +430,7 @@ static zpool_command_t command_table[] = {
 	{ "resilver",	zpool_do_resilver,	HELP_RESILVER		},
 	{ "scrub",	zpool_do_scrub,		HELP_SCRUB		},
 	{ "trim",	zpool_do_trim,		HELP_TRIM		},
+	{ "condense",	zpool_do_condense,	HELP_CONDENSE		},
 	{ NULL },
 	{ "import",	zpool_do_import,	HELP_IMPORT		},
 	{ "export",	zpool_do_export,	HELP_EXPORT		},
@@ -428,6 +442,7 @@ static zpool_command_t command_table[] = {
 	{ NULL },
 	{ "get",	zpool_do_get,		HELP_GET		},
 	{ "set",	zpool_do_set,		HELP_SET		},
+	{ NULL },
 	{ "sync",	zpool_do_sync,		HELP_SYNC		},
 	{ NULL },
 	{ "wait",	zpool_do_wait,		HELP_WAIT		},
@@ -547,6 +562,10 @@ get_usage(zpool_help_t idx)
 		return (gettext("\treguid [-g guid] <pool>\n"));
 	case HELP_SYNC:
 		return (gettext("\tsync [pool] ...\n"));
+	case HELP_CONDENSE:
+		return (gettext("\tcondense [-t <type>] [-c | -w] "
+		    "[-a | <pool> ...]\n"
+		    "\tcondense --types\n"));
 	case HELP_VERSION:
 		return (gettext("\tversion [-j]\n"));
 	case HELP_WAIT:
@@ -8850,6 +8869,150 @@ zpool_do_trim(int argc, char **argv)
 	return (error);
 }
 
+static const char *condense_types[] = {
+#ifdef ZFS_DEBUG
+	"debug",
+#endif
+	NULL,
+};
+
+typedef struct {
+	const char *cmd;
+	const char *type;
+} condense_cb_t;
+
+static int
+condense_cb(zpool_handle_t *zhp, void *data)
+{
+	condense_cb_t *cb = data;
+	if (cb->type != NULL)
+		return (zpool_condense(zhp, cb->cmd, cb->type));
+
+	int err = 0;
+	for (uint_t i = 0; condense_types[i] != NULL; i++) {
+#ifdef ZFS_DEBUG
+		/*
+		 * Skip the debug type when no type is specificed. This is
+		 * the "condense everything" mode, and people _do_ run debug
+		 * builds, and we don't want them to be accidentally running
+		 * the debug condense op.
+		 */
+		if (strcmp(condense_types[i], "debug") == 0)
+			continue;
+#endif
+		err = zpool_condense(zhp, cb->cmd, condense_types[i]);
+		if (err != 0)
+			break;
+	}
+
+	return (err);
+}
+
+/*
+ * zpool condense [-t <type>] [-c | -w] [-a | <pool> ...]
+ *
+ *	-t <type>	What to condense.
+ *	-a		Condense all pools.
+ *	-c		Cancel. Ends any in-progress condense.
+ *	-w		Wait. Blocks until condense has completed.
+ *
+ * Condense (flush, garbage-collect) the pool metadata on the specfied pools.
+ */
+static int
+zpool_do_condense(int argc, char **argv)
+{
+	struct option long_options[] = {
+		{"type",	required_argument,	NULL,	't'},
+		{"all",		no_argument,		NULL,	'a'},
+		{"cancel",	no_argument,		NULL,	'c'},
+		{"wait",	no_argument,		NULL,	'w'},
+		{"types",	no_argument,		NULL,
+		    ZPOOL_OPTION_CONDENSE_LIST_TYPES},
+		{0, 0, 0, 0}
+	};
+
+	condense_cb_t cb = {
+		.cmd = "start",
+		.type = NULL,
+	};
+
+	boolean_t cancel = B_FALSE;
+	boolean_t all_pools = B_FALSE;
+	boolean_t wait = B_FALSE;
+
+	int c;
+	while ((c = getopt_long(argc, argv, "at:cw", long_options, NULL))
+	    != -1) {
+		switch (c) {
+		case 'a':
+			all_pools = B_TRUE;
+			break;
+		case 't': {
+			for (uint_t i = 0; condense_types[i] != NULL; i++) {
+				if (strcmp(condense_types[i], optarg) == 0) {
+					cb.type = condense_types[i];
+					break;
+				}
+			}
+			if (cb.type == NULL) {
+				(void) fprintf(stderr,
+				    gettext("invalid condense type '%s'\n"),
+				    optarg);
+				usage(B_FALSE);
+			}
+			break;
+		}
+		case 'c':
+			cb.cmd = "cancel";
+			cancel = B_TRUE;
+			break;
+		case 'w':
+			wait = B_TRUE;
+			break;
+		case ZPOOL_OPTION_CONDENSE_LIST_TYPES:
+			for (uint_t i = 0; condense_types[i] != NULL; i++)
+				printf("%s\n", condense_types[i]);
+			return (0);
+		case '?':
+			if (optopt != 0) {
+				(void) fprintf(stderr,
+				    gettext("invalid option '%c'\n"), optopt);
+			} else {
+				(void) fprintf(stderr,
+				    gettext("invalid option '%s'\n"),
+				    argv[optind - 1]);
+			}
+			usage(B_FALSE);
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1 && !all_pools) {
+		(void) fprintf(stderr, gettext("missing pool name argument\n"));
+		usage(B_FALSE);
+		return (-1);
+	}
+
+	if (wait && cancel) {
+		(void) fprintf(stderr, gettext("-w cannot be used with -c\n"));
+		usage(B_FALSE);
+	}
+
+	int error = for_each_pool(argc, argv, B_FALSE, NULL, ZFS_TYPE_POOL,
+	    B_FALSE, condense_cb, &cb);
+
+	if (wait && !error) {
+		zpool_wait_activity_t act = ZPOOL_WAIT_CONDENSE;
+		error = for_each_pool(argc, argv, B_FALSE, NULL, ZFS_TYPE_POOL,
+		    B_FALSE, wait_callback, &act);
+	}
+
+	return (error);
+}
+
+
 /*
  * Converts a total number of seconds to a human readable string broken
  * down in to days/hours/minutes/seconds.
@@ -9930,6 +10093,53 @@ removal_status_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb,
 }
 
 static void
+condense_status_nvlist(nvlist_t *nvroot, status_cbdata_t *cb, nvlist_t *item)
+{
+	nvlist_t *cnv = NULL;
+	nvlist_lookup_nvlist(nvroot, ZPOOL_CONFIG_CONDENSE_STATS, &cnv);
+	if (cnv == NULL)
+		return;
+
+	nvlist_t *onv = fnvlist_alloc();
+	for (nvpair_t *nvp = nvlist_next_nvpair(cnv, NULL);
+	    nvp != NULL; nvp = nvlist_next_nvpair(cnv, nvp)) {
+		const char *type = nvpair_name(nvp);
+		nvlist_t *tnv = fnvpair_value_nvlist(nvp);
+
+		uint64_t start_time = fnvlist_lookup_uint64(tnv, "start_time");
+		if (start_time == 0)
+			continue;
+
+		uint64_t end_time = fnvlist_lookup_uint64(tnv, "end_time");
+		uint64_t processed = fnvlist_lookup_uint64(tnv, "processed");
+		uint64_t total = fnvlist_lookup_uint64(tnv, "total");
+
+		nvlist_t *nv = fnvlist_alloc();
+		nice_num_str_nvlist(nv, "start_time", start_time,
+		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICE_TIMESTAMP);
+		if (end_time > 0)
+			nice_num_str_nvlist(nv, "end_time", end_time,
+			    cb->cb_literal, cb->cb_json_as_int,
+			    ZFS_NICE_TIMESTAMP);
+		nice_num_str_nvlist(nv, "processed", processed,
+		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_1024);
+		nice_num_str_nvlist(nv, "total", total,
+		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_1024);
+
+		fnvlist_add_string(nv, "unit", condense_unit(type));
+
+		fnvlist_add_nvlist(onv, type, nv);
+		fnvlist_free(nv);
+	}
+
+	if (fnvlist_num_pairs(onv))
+		fnvlist_add_nvlist(item, "condense", onv);
+
+	fnvlist_free(onv);
+}
+
+
+static void
 scan_status_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb,
     nvlist_t *nvroot, nvlist_t *item)
 {
@@ -10371,6 +10581,50 @@ print_checkpoint_status(pool_checkpoint_stat_t *pcs)
 
 	(void) printf(gettext("discarding, %s remaining.\n"),
 	    space_buf);
+}
+
+static void
+print_condense_status(nvlist_t *nv)
+{
+	if (nv == NULL)
+		return;
+
+	for (nvpair_t *nvp = nvlist_next_nvpair(nv, NULL);
+	    nvp != NULL; nvp = nvlist_next_nvpair(nv, nvp)) {
+		const char *type = nvpair_name(nvp);
+		nvlist_t *tnv = fnvpair_value_nvlist(nvp);
+
+		uint64_t start_time = fnvlist_lookup_uint64(tnv, "start_time");
+		if (start_time == 0)
+			continue;
+
+		uint64_t end_time = fnvlist_lookup_uint64(tnv, "end_time");
+		uint64_t processed = fnvlist_lookup_uint64(tnv, "processed");
+		uint64_t total = fnvlist_lookup_uint64(tnv, "total");
+
+		const char *units = condense_unit(type);
+
+		char cur[32], tot[32], elapsed[32];
+		zfs_nicenum(processed, cur, sizeof (cur));
+		zfs_nicenum(total, tot, sizeof (tot));
+
+		if (end_time == 0) {
+			secs_to_dhms(time(NULL) - start_time, elapsed);
+			(void) printf(gettext(
+			    "condense: %s: condensing, %s/%s %s done in %s\n"),
+			    type, cur, tot, units, elapsed);
+		} else if (processed < total) {
+			secs_to_dhms(end_time - start_time, elapsed);
+			(void) printf(gettext(
+			    "condense: %s: cancelled, %s/%s %s done in %s\n"),
+			    type, cur, tot, units, elapsed);
+		} else {
+			secs_to_dhms(end_time - start_time, elapsed);
+			(void) printf(gettext(
+			    "condense: %s: done, %s %s done in %s\n"),
+			    type, cur, units, elapsed);
+		}
+	}
 }
 
 static void
@@ -10952,6 +11206,7 @@ status_callback_json(zpool_handle_t *zhp, void *data)
 		scan_status_nvlist(zhp, cbp, nvroot, item);
 		removal_status_nvlist(zhp, cbp, nvroot, item);
 		checkpoint_status_nvlist(nvroot, cbp, item);
+		condense_status_nvlist(nvroot, cbp, item);
 		raidz_expand_status_nvlist(zhp, cbp, nvroot, item);
 		vdev_stats_nvlist(zhp, cbp, nvroot, 0, B_FALSE, NULL, vds);
 		if (cbp->cb_flat_vdevs) {
@@ -11098,6 +11353,10 @@ status_callback(zpool_handle_t *zhp, void *data)
 		(void) nvlist_lookup_uint64_array(nvroot,
 		    ZPOOL_CONFIG_RAIDZ_EXPAND_STATS, (uint64_t **)&pres, &c);
 		print_raidz_expand_status(zhp, pres);
+
+		nvlist_t *cnv = NULL;
+		nvlist_lookup_nvlist(nvroot, ZPOOL_CONFIG_CONDENSE_STATS, &cnv);
+		print_condense_status(cnv);
 
 		cbp->cb_namewidth = max_width(zhp, nvroot, 0, 0,
 		    cbp->cb_name_flags | VDEV_NAME_TYPE_ID);
@@ -13325,8 +13584,10 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp, int row)
 	pool_scan_stat_t *pss = NULL;
 	pool_removal_stat_t *prs = NULL;
 	pool_raidz_expand_stat_t *pres = NULL;
+	nvlist_t *cnv = NULL;
 	const char *const headers[] = {"DISCARD", "FREE", "INITIALIZE",
-	    "REPLACE", "REMOVE", "RESILVER", "SCRUB", "TRIM", "RAIDZ_EXPAND"};
+	    "REPLACE", "REMOVE", "RESILVER", "SCRUB", "TRIM", "RAIDZ_EXPAND",
+	    "CONDENSE"};
 	int col_widths[ZPOOL_WAIT_NUM_ACTIVITIES];
 
 	/* Calculate the width of each column */
@@ -13393,6 +13654,22 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp, int row)
 	if (pres != NULL && pres->pres_state == DSS_SCANNING) {
 		int64_t rem = pres->pres_to_reflow - pres->pres_reflowed;
 		bytes_rem[ZPOOL_WAIT_RAIDZ_EXPAND] = rem;
+	}
+
+	/*
+	 * Count each outstanding condense item as a "byte". Its not true,
+	 * but its a counter, and it'll display nicely.
+	 */
+	if (nvlist_lookup_nvlist(nvroot,
+	    ZPOOL_CONFIG_CONDENSE_STATS, &cnv) == 0) {
+		for (nvpair_t *nvp = nvlist_next_nvpair(cnv, NULL);
+		    nvp != NULL; nvp = nvlist_next_nvpair(cnv, nvp)) {
+			nvlist_t *tnv = fnvpair_value_nvlist(nvp);
+			uint64_t total = fnvlist_lookup_uint64(tnv, "total");
+			uint64_t processed =
+			    fnvlist_lookup_uint64(tnv, "processed");
+			bytes_rem[ZPOOL_WAIT_CONDENSE] += (total - processed);
+		}
 	}
 
 	bytes_rem[ZPOOL_WAIT_INITIALIZE] =
@@ -13533,7 +13810,7 @@ zpool_do_wait(int argc, char **argv)
 				static const char *const col_opts[] = {
 				    "discard", "free", "initialize", "replace",
 				    "remove", "resilver", "scrub", "trim",
-				    "raidz_expand" };
+				    "raidz_expand", "condense" };
 
 				for (i = 0; i < ARRAY_SIZE(col_opts); ++i)
 					if (strcmp(tok, col_opts[i]) == 0) {
