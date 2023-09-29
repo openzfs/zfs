@@ -1273,6 +1273,12 @@ extern int spa_wait_tag(const char *name, zpool_wait_activity_t activity,
 extern void spa_notify_waiters(spa_t *spa);
 extern void spa_wake_waiters(spa_t *spa);
 
+/* a no-op condense op for test & debug */
+#ifdef ZFS_DEBUG
+extern void spa_condense_debug_start(spa_t *spa);
+extern void spa_condense_debug_cancel(spa_t *spa);
+#endif
+
 extern void spa_import_os(spa_t *spa);
 extern void spa_export_os(spa_t *spa);
 extern void spa_activate_os(spa_t *spa);
