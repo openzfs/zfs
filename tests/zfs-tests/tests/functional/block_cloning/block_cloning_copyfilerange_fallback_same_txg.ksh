@@ -48,9 +48,9 @@ function cleanup
 
 log_onexit cleanup
 
-log_must zpool create -o feature@block_cloning=enabled $TESTPOOL $DISKS
-
 log_must set_tunable64 TXG_TIMEOUT 5000
+
+log_must zpool create -o feature@block_cloning=enabled $TESTPOOL $DISKS
 
 log_must dd if=/dev/urandom of=/$TESTPOOL/file bs=128K count=4
 log_must clonefile -f /$TESTPOOL/file /$TESTPOOL/clone 0 0 524288

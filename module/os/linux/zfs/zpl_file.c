@@ -301,15 +301,10 @@ zpl_uio_init(zfs_uio_t *uio, struct kiocb *kiocb, struct iov_iter *to,
 #if defined(HAVE_VFS_IOV_ITER)
 	zfs_uio_iov_iter_init(uio, to, pos, count, skip);
 #else
-#ifdef HAVE_IOV_ITER_TYPE
-	zfs_uio_iovec_init(uio, to->iov, to->nr_segs, pos,
-	    iov_iter_type(to) & ITER_KVEC ? UIO_SYSSPACE : UIO_USERSPACE,
+	zfs_uio_iovec_init(uio, zfs_uio_iter_iov(to), to->nr_segs, pos,
+	    zfs_uio_iov_iter_type(to) & ITER_KVEC ?
+	    UIO_SYSSPACE : UIO_USERSPACE,
 	    count, skip);
-#else
-	zfs_uio_iovec_init(uio, to->iov, to->nr_segs, pos,
-	    to->type & ITER_KVEC ? UIO_SYSSPACE : UIO_USERSPACE,
-	    count, skip);
-#endif
 #endif
 }
 
@@ -1328,7 +1323,11 @@ const struct file_operations zpl_file_operations = {
 	.read_iter	= zpl_iter_read,
 	.write_iter	= zpl_iter_write,
 #ifdef HAVE_VFS_IOV_ITER
+#ifdef HAVE_COPY_SPLICE_READ
+	.splice_read	= copy_splice_read,
+#else
 	.splice_read	= generic_file_splice_read,
+#endif
 	.splice_write	= iter_file_splice_write,
 #endif
 #else

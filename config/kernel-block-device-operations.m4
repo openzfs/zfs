@@ -49,12 +49,42 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS_RELEASE_VOID], [
 	], [], [])
 ])
 
+dnl #
+dnl # 5.9.x API change
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS_RELEASE_1ARG], [
+	ZFS_LINUX_TEST_SRC([block_device_operations_release_void_1arg], [
+		#include <linux/blkdev.h>
+
+		void blk_release(struct gendisk *g) {
+			(void) g;
+			return;
+		}
+
+		static const struct block_device_operations
+		    bops __attribute__ ((unused)) = {
+			.open		= NULL,
+			.release	= blk_release,
+			.ioctl		= NULL,
+			.compat_ioctl	= NULL,
+		};
+	], [], [])
+])
+
 AC_DEFUN([ZFS_AC_KERNEL_BLOCK_DEVICE_OPERATIONS_RELEASE_VOID], [
-	AC_MSG_CHECKING([whether bops->release() is void])
+	AC_MSG_CHECKING([whether bops->release() is void and takes 2 args])
 	ZFS_LINUX_TEST_RESULT([block_device_operations_release_void], [
 		AC_MSG_RESULT(yes)
 	],[
-		ZFS_LINUX_TEST_ERROR([bops->release()])
+		AC_MSG_RESULT(no)
+		AC_MSG_CHECKING([whether bops->release() is void and takes 1 arg])
+		ZFS_LINUX_TEST_RESULT([block_device_operations_release_void_1arg], [
+			AC_MSG_RESULT(yes)
+			AC_DEFINE([HAVE_BLOCK_DEVICE_OPERATIONS_RELEASE_1ARG], [1],
+				[Define if release() in block_device_operations takes 1 arg])
+		],[
+			ZFS_LINUX_TEST_ERROR([bops->release()])
+		])
 	])
 ])
 
@@ -92,6 +122,7 @@ AC_DEFUN([ZFS_AC_KERNEL_BLOCK_DEVICE_OPERATIONS_REVALIDATE_DISK], [
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS], [
 	ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS_CHECK_EVENTS
 	ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS_RELEASE_VOID
+	ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS_RELEASE_1ARG
 	ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS_REVALIDATE_DISK
 ])
 

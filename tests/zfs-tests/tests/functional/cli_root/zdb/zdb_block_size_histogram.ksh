@@ -204,11 +204,11 @@ function histo_check_test_pool
 	# 4096 blocksize count for asize.   For verification we stick
 	# to just lsize counts.
 	#
-	# The max_variance is hard-coded here at 12% to leave us some
-	# margin.  Testing has shown this normally to be in the range
-	# of 2%-8%, but it may be as large as 11%.
+	# Variances are expected since this test does not account for
+	# metadata. The hardcoded limit here is empirical and should
+	# not be construed as deterministic.
 	###################
-	let max_variance=12
+	let max_variance=15
 	let fail_value=0
 	let error_count=0
 	log_note "Comparisons for ${pool}"

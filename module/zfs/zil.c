@@ -1550,7 +1550,16 @@ zil_lwb_write_done(zio_t *zio)
 	lwb->lwb_state = LWB_STATE_WRITE_DONE;
 	lwb->lwb_child_zio = NULL;
 	lwb->lwb_write_zio = NULL;
+
+	/*
+	 * If nlwb is not yet issued, zil_lwb_set_zio_dependency() is not
+	 * called for it yet, and when it will be, it won't be able to make
+	 * its write ZIO a parent this ZIO.  In such case we can not defer
+	 * our flushes or below may be a race between the done callbacks.
+	 */
 	nlwb = list_next(&zilog->zl_lwb_list, lwb);
+	if (nlwb && nlwb->lwb_state != LWB_STATE_ISSUED)
+		nlwb = NULL;
 	mutex_exit(&zilog->zl_lock);
 
 	if (avl_numnodes(t) == 0)

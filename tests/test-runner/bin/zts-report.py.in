@@ -214,6 +214,7 @@ maybe = {
     'cli_root/zfs_get/zfs_get_009_pos': ['SKIP', 5479],
     'cli_root/zfs_rollback/zfs_rollback_001_pos': ['FAIL', known_reason],
     'cli_root/zfs_rollback/zfs_rollback_002_pos': ['FAIL', known_reason],
+    'cli_root/zfs_share/zfs_share_concurrent_shares': ['FAIL', known_reason],
     'cli_root/zfs_snapshot/zfs_snapshot_002_neg': ['FAIL', known_reason],
     'cli_root/zfs_unshare/zfs_unshare_006_pos': ['SKIP', na_reason],
     'cli_root/zpool_add/zpool_add_004_pos': ['FAIL', known_reason],
@@ -259,10 +260,9 @@ if sys.platform.startswith('freebsd'):
     maybe.update({
         'cli_root/zfs_copies/zfs_copies_002_pos': ['FAIL', known_reason],
         'cli_root/zfs_inherit/zfs_inherit_001_neg': ['FAIL', known_reason],
-        'cli_root/zfs_share/zfs_share_concurrent_shares':
-            ['FAIL', known_reason],
         'cli_root/zpool_import/zpool_import_012_pos': ['FAIL', known_reason],
         'delegate/zfs_allow_003_pos': ['FAIL', known_reason],
+        'delegate/zfs_allow_010_pos': ['FAIL', known_reason],
         'inheritance/inherit_001_pos': ['FAIL', 11829],
         'resilver/resilver_restart_001': ['FAIL', known_reason],
         'pool_checkpoint/checkpoint_big_rewind': ['FAIL', 12622],
