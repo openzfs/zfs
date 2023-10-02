@@ -73,6 +73,7 @@
 .type	zfs_sha512_block_armv7,%function
 .align	6
 zfs_sha512_block_armv7:
+	hint	#34					// bti c
 	stp	x29,x30,[sp,#-128]!
 	add	x29,sp,#0
 
@@ -1040,6 +1041,7 @@ zfs_sha512_block_armv7:
 .type	zfs_sha512_block_armv8,%function
 .align	6
 zfs_sha512_block_armv8:
+	hint		#34				// bti c
 .Lv8_entry:
 	// Armv8.3-A PAuth: even though x30 is pushed to stack it is not popped later
 	stp		x29,x30,[sp,#-16]!
