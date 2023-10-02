@@ -105,6 +105,15 @@ changelist_prefix(prop_changelist_t *clp)
 	    clp->cl_prop != ZFS_PROP_SHARESMB)
 		return (0);
 
+	/*
+	 * If CL_GATHER_DONT_UNMOUNT is set, don't want to unmount/unshare and
+	 * later (re)mount/(re)share the filesystem in postfix phase, so we
+	 * return from here. If filesystem is mounted or unmounted, leave it
+	 * as it is.
+	 */
+	if (clp->cl_gflags & CL_GATHER_DONT_UNMOUNT)
+		return (0);
+
 	if ((walk = uu_avl_walk_start(clp->cl_tree, UU_WALK_ROBUST)) == NULL)
 		return (-1);
 
@@ -129,8 +138,6 @@ changelist_prefix(prop_changelist_t *clp)
 			 */
 			switch (clp->cl_prop) {
 			case ZFS_PROP_MOUNTPOINT:
-				if (clp->cl_gflags & CL_GATHER_DONT_UNMOUNT)
-					break;
 				if (zfs_unmount(cn->cn_handle, NULL,
 				    clp->cl_mflags) != 0) {
 					ret = -1;
@@ -164,9 +171,8 @@ changelist_prefix(prop_changelist_t *clp)
  * reshare the filesystems as necessary.  In changelist_gather() we recorded
  * whether the filesystem was previously shared or mounted.  The action we take
  * depends on the previous state, and whether the value was previously 'legacy'.
- * For non-legacy properties, we only remount/reshare the filesystem if it was
- * previously mounted/shared.  Otherwise, we always remount/reshare the
- * filesystem.
+ * For non-legacy properties, we always remount/reshare the filesystem,
+ * if CL_GATHER_DONT_UNMOUNT is not set.
  */
 int
 changelist_postfix(prop_changelist_t *clp)
@@ -176,6 +182,14 @@ changelist_postfix(prop_changelist_t *clp)
 	char shareopts[ZFS_MAXPROPLEN];
 	boolean_t commit_smb_shares = B_FALSE;
 	boolean_t commit_nfs_shares = B_FALSE;
+
+	/*
+	 * If CL_GATHER_DONT_UNMOUNT is set, it means we don't want to (un)mount
+	 * or (re/un)share the filesystem, so we return from here. If filesystem
+	 * is mounted or unmounted, leave it as it is.
+	 */
+	if (clp->cl_gflags & CL_GATHER_DONT_UNMOUNT)
+		return (0);
 
 	/*
 	 * If we're changing the mountpoint, attempt to destroy the underlying
@@ -239,8 +253,7 @@ changelist_postfix(prop_changelist_t *clp)
 		needs_key = (zfs_prop_get_int(cn->cn_handle,
 		    ZFS_PROP_KEYSTATUS) == ZFS_KEYSTATUS_UNAVAILABLE);
 
-		mounted = (clp->cl_gflags & CL_GATHER_DONT_UNMOUNT) ||
-		    zfs_is_mounted(cn->cn_handle, NULL);
+		mounted = zfs_is_mounted(cn->cn_handle, NULL);
 
 		if (!mounted && !needs_key && (cn->cn_mounted ||
 		    (((clp->cl_prop == ZFS_PROP_MOUNTPOINT &&
