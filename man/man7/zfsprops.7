@@ -1248,10 +1248,18 @@ Otherwise, they are automatically remounted in the new location if the property
 was previously
 .Sy legacy
 or
-.Sy none ,
-or if they were mounted before the property was changed.
+.Sy none .
 In addition, any shared file systems are unshared and shared in the new
 location.
+.Pp
+When the
+.Sy mountpoint
+property is set with
+.Nm zfs Cm set Fl u
+, the
+.Sy mountpoint
+property is updated but dataset is not mounted or unmounted and remains
+as it was before.
 .It Sy nbmand Ns = Ns Sy on Ns | Ns Sy off
 Controls whether the file system should be mounted with
 .Sy nbmand
@@ -1656,6 +1664,13 @@ by default.
 This means that any additional access control
 (disallow specific user specific access etc) must be done on the underlying file
 system.
+.Pp
+When the
+.Sy sharesmb
+property is updated with
+.Nm zfs Cm set Fl u
+, the property is set to desired value, but the operation to share, reshare
+or unshare the the dataset is not performed.
 .It Sy sharenfs Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Ar opts
 Controls whether the file system is shared via NFS, and what options are to be
 used.
@@ -1699,6 +1714,13 @@ or if they were shared before the property was changed.
 If the new property is
 .Sy off ,
 the file systems are unshared.
+.Pp
+When the
+.Sy sharenfs
+property is updated with
+.Nm zfs Cm set Fl u
+, the property is set to desired value, but the operation to share, reshare
+or unshare the the dataset is not performed.
 .It Sy logbias Ns = Ns Sy latency Ns | Ns Sy throughput
 Provide a hint to ZFS about handling of synchronous requests in this dataset.
 If
