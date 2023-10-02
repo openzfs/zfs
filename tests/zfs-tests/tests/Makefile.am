@@ -870,6 +870,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_set/zfs_set_003_neg.ksh \
 	functional/cli_root/zfs_set/zfs_set_feature_activation.ksh \
 	functional/cli_root/zfs_set/zfs_set_keylocation.ksh \
+	functional/cli_root/zfs_set/zfs_set_nomount.ksh \
 	functional/cli_root/zfs_share/cleanup.ksh \
 	functional/cli_root/zfs_share/setup.ksh \
 	functional/cli_root/zfs_share/zfs_share_001_pos.ksh \

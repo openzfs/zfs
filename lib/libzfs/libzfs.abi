@@ -396,6 +396,7 @@
     <elf-symbol name='zfs_prop_readonly' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_prop_set' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_prop_set_list' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_prop_set_list_flags' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_prop_setonce' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_prop_string_to_index' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_prop_to_name' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -4426,6 +4427,12 @@
     <function-decl name='zfs_prop_set_list' mangled-name='zfs_prop_set_list' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_prop_set_list'>
       <parameter type-id='9200a744' name='zhp'/>
       <parameter type-id='5ce45b60' name='props'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='zfs_prop_set_list_flags' mangled-name='zfs_prop_set_list_flags' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_prop_set_list_flags'>
+      <parameter type-id='9200a744' name='zhp'/>
+      <parameter type-id='5ce45b60' name='props'/>
+      <parameter type-id='95e97e5e' name='flags'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zfs_prop_inherit' mangled-name='zfs_prop_inherit' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_prop_inherit'>

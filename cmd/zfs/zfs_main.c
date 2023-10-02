@@ -339,7 +339,7 @@ get_usage(zfs_help_t idx)
 		    "\tsend [-nVvPe] -t <receive_resume_token>\n"
 		    "\tsend [-PnVv] --saved filesystem\n"));
 	case HELP_SET:
-		return (gettext("\tset <property=value> ... "
+		return (gettext("\tset [-u] <property=value> ... "
 		    "<filesystem|volume|snapshot> ...\n"));
 	case HELP_SHARE:
 		return (gettext("\tshare [-l] <-a [nfs|smb] | filesystem>\n"));
@@ -4206,8 +4206,8 @@ out:
 static int
 set_callback(zfs_handle_t *zhp, void *data)
 {
-	nvlist_t *props = data;
-	int ret = zfs_prop_set_list(zhp, props);
+	zprop_set_cbdata_t *cb = data;
+	int ret = zfs_prop_set_list_flags(zhp, cb->cb_proplist, cb->cb_flags);
 
 	if (ret != 0 || libzfs_errno(g_zfs) != EZFS_SUCCESS) {
 		switch (libzfs_errno(g_zfs)) {
@@ -4227,25 +4227,35 @@ set_callback(zfs_handle_t *zhp, void *data)
 static int
 zfs_do_set(int argc, char **argv)
 {
-	nvlist_t *props = NULL;
+	zprop_set_cbdata_t cb = { 0 };
 	int ds_start = -1; /* argv idx of first dataset arg */
 	int ret = 0;
-	int i;
+	int i, c;
 
-	/* check for options */
-	if (argc > 1 && argv[1][0] == '-') {
-		(void) fprintf(stderr, gettext("invalid option '%c'\n"),
-		    argv[1][1]);
-		usage(B_FALSE);
+	/* check options */
+	while ((c = getopt(argc, argv, "u")) != -1) {
+		switch (c) {
+		case 'u':
+			cb.cb_flags |= ZFS_SET_NOMOUNT;
+			break;
+		case '?':
+		default:
+			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
+			    optopt);
+			usage(B_FALSE);
+		}
 	}
 
+	argc -= optind;
+	argv += optind;
+
 	/* check number of arguments */
-	if (argc < 2) {
+	if (argc < 1) {
 		(void) fprintf(stderr, gettext("missing arguments\n"));
 		usage(B_FALSE);
 	}
-	if (argc < 3) {
-		if (strchr(argv[1], '=') == NULL) {
+	if (argc < 2) {
+		if (strchr(argv[0], '=') == NULL) {
 			(void) fprintf(stderr, gettext("missing property=value "
 			    "argument(s)\n"));
 		} else {
@@ -4256,7 +4266,7 @@ zfs_do_set(int argc, char **argv)
 	}
 
 	/* validate argument order:  prop=val args followed by dataset args */
-	for (i = 1; i < argc; i++) {
+	for (i = 0; i < argc; i++) {
 		if (strchr(argv[i], '=') != NULL) {
 			if (ds_start > 0) {
 				/* out-of-order prop=val argument */
@@ -4274,20 +4284,20 @@ zfs_do_set(int argc, char **argv)
 	}
 
 	/* Populate a list of property settings */
-	if (nvlist_alloc(&props, NV_UNIQUE_NAME, 0) != 0)
+	if (nvlist_alloc(&cb.cb_proplist, NV_UNIQUE_NAME, 0) != 0)
 		nomem();
-	for (i = 1; i < ds_start; i++) {
-		if (!parseprop(props, argv[i])) {
+	for (i = 0; i < ds_start; i++) {
+		if (!parseprop(cb.cb_proplist, argv[i])) {
 			ret = -1;
 			goto error;
 		}
 	}
 
 	ret = zfs_for_each(argc - ds_start, argv + ds_start, 0,
-	    ZFS_TYPE_DATASET, NULL, NULL, 0, set_callback, props);
+	    ZFS_TYPE_DATASET, NULL, NULL, 0, set_callback, &cb);
 
 error:
-	nvlist_free(props);
+	nvlist_free(cb.cb_proplist);
 	return (ret);
 }
 
