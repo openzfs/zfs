@@ -5179,7 +5179,7 @@ dump_label(const char *dev)
 			if (nvlist_size(config, &size, NV_ENCODE_XDR) != 0)
 				size = buflen;
 
-			/* If the device is a cache device clear the header. */
+			/* If the device is a cache device read the header. */
 			if (!read_l2arc_header) {
 				if (nvlist_lookup_uint64(config,
 				    ZPOOL_CONFIG_POOL_STATE, &l2cache) == 0 &&
