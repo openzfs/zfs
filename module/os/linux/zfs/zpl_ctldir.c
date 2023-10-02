@@ -42,7 +42,7 @@
 static int
 zpl_common_open(struct inode *ip, struct file *filp)
 {
-	if (filp->f_mode & FMODE_WRITE)
+	if (blk_mode_is_open_write(filp->f_mode))
 		return (-EACCES);
 
 	return (generic_file_open(ip, filp));

@@ -16,12 +16,63 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_GET_BY_PATH], [
 	])
 ])
 
+dnl #
+dnl # 6.5.x API change,
+dnl # blkdev_get_by_path() takes 4 args
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_GET_BY_PATH_4ARG], [
+	ZFS_LINUX_TEST_SRC([blkdev_get_by_path_4arg], [
+		#include <linux/fs.h>
+		#include <linux/blkdev.h>
+	], [
+		struct block_device *bdev __attribute__ ((unused)) = NULL;
+		const char *path = "path";
+		fmode_t mode = 0;
+		void *holder = NULL;
+		struct blk_holder_ops h;
+
+		bdev = blkdev_get_by_path(path, mode, holder, &h);
+	])
+])
+
 AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_GET_BY_PATH], [
-	AC_MSG_CHECKING([whether blkdev_get_by_path() exists])
+	AC_MSG_CHECKING([whether blkdev_get_by_path() exists and takes 3 args])
 	ZFS_LINUX_TEST_RESULT([blkdev_get_by_path], [
 		AC_MSG_RESULT(yes)
 	], [
-		ZFS_LINUX_TEST_ERROR([blkdev_get_by_path()])
+		AC_MSG_RESULT(no)
+		AC_MSG_CHECKING([whether blkdev_get_by_path() exists and takes 4 args])
+		ZFS_LINUX_TEST_RESULT([blkdev_get_by_path_4arg], [
+			AC_DEFINE(HAVE_BLKDEV_GET_BY_PATH_4ARG, 1,
+				[blkdev_get_by_path() exists and takes 4 args])
+			AC_MSG_RESULT(yes)
+		], [
+			ZFS_LINUX_TEST_ERROR([blkdev_get_by_path()])
+		])
+	])
+])
+
+dnl #
+dnl # 6.5.x API change
+dnl # blk_mode_t was added as a type to supercede some places where fmode_t
+dnl # is used
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_BLK_MODE_T], [
+	ZFS_LINUX_TEST_SRC([blk_mode_t], [
+		#include <linux/fs.h>
+		#include <linux/blkdev.h>
+	], [
+		blk_mode_t m __attribute((unused)) = (blk_mode_t)0;
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_BLK_MODE_T], [
+	AC_MSG_CHECKING([whether blk_mode_t is defined])
+	ZFS_LINUX_TEST_RESULT([blk_mode_t], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_BLK_MODE_T, 1, [blk_mode_t is defined])
+	], [
+		AC_MSG_RESULT(no)
 	])
 ])
 
@@ -41,12 +92,35 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_PUT], [
 	])
 ])
 
+dnl #
+dnl # 6.5.x API change.
+dnl # blkdev_put() takes (void* holder) as arg 2
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_PUT_HOLDER], [
+	ZFS_LINUX_TEST_SRC([blkdev_put_holder], [
+		#include <linux/fs.h>
+		#include <linux/blkdev.h>
+	], [
+		struct block_device *bdev = NULL;
+		void *holder = NULL;
+
+		blkdev_put(bdev, holder);
+	])
+])
+
 AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_PUT], [
 	AC_MSG_CHECKING([whether blkdev_put() exists])
 	ZFS_LINUX_TEST_RESULT([blkdev_put], [
 		AC_MSG_RESULT(yes)
 	], [
-		ZFS_LINUX_TEST_ERROR([blkdev_put()])
+		AC_MSG_CHECKING([whether blkdev_put() accepts void* as arg 2])
+		ZFS_LINUX_TEST_RESULT([blkdev_put_holder], [
+			AC_MSG_RESULT(yes)
+			AC_DEFINE(HAVE_BLKDEV_PUT_HOLDER, 1,
+				[blkdev_put() accepts void* as arg 2])
+		], [
+			ZFS_LINUX_TEST_ERROR([blkdev_put()])
+		])
 	])
 ])
 
@@ -495,7 +569,9 @@ AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_BLK_STS_RESV_CONFLICT], [
 
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV], [
 	ZFS_AC_KERNEL_SRC_BLKDEV_GET_BY_PATH
+	ZFS_AC_KERNEL_SRC_BLKDEV_GET_BY_PATH_4ARG
 	ZFS_AC_KERNEL_SRC_BLKDEV_PUT
+	ZFS_AC_KERNEL_SRC_BLKDEV_PUT_HOLDER
 	ZFS_AC_KERNEL_SRC_BLKDEV_REREAD_PART
 	ZFS_AC_KERNEL_SRC_BLKDEV_INVALIDATE_BDEV
 	ZFS_AC_KERNEL_SRC_BLKDEV_LOOKUP_BDEV
@@ -510,6 +586,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV], [
 	ZFS_AC_KERNEL_SRC_BLKDEV_PART_TO_DEV
 	ZFS_AC_KERNEL_SRC_BLKDEV_DISK_CHECK_MEDIA_CHANGE
 	ZFS_AC_KERNEL_SRC_BLKDEV_BLK_STS_RESV_CONFLICT
+	ZFS_AC_KERNEL_SRC_BLKDEV_BLK_MODE_T
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BLKDEV], [
@@ -530,4 +607,5 @@ AC_DEFUN([ZFS_AC_KERNEL_BLKDEV], [
 	ZFS_AC_KERNEL_BLKDEV_PART_TO_DEV
 	ZFS_AC_KERNEL_BLKDEV_DISK_CHECK_MEDIA_CHANGE
 	ZFS_AC_KERNEL_BLKDEV_BLK_STS_RESV_CONFLICT
+	ZFS_AC_KERNEL_BLKDEV_BLK_MODE_T
 ])

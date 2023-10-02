@@ -347,6 +347,7 @@ zfs_check_media_change(struct block_device *bdev)
 #define	vdev_bdev_reread_part(bdev)	zfs_check_media_change(bdev)
 #elif defined(HAVE_DISK_CHECK_MEDIA_CHANGE)
 #define	vdev_bdev_reread_part(bdev)	disk_check_media_change(bdev->bd_disk)
+#define	zfs_check_media_change(bdev)	disk_check_media_change(bdev->bd_disk)
 #else
 /*
  * This is encountered if check_disk_change() and bdev_check_media_change()
@@ -396,6 +397,12 @@ vdev_lookup_bdev(const char *path, dev_t *dev)
 #error "Unsupported kernel"
 #endif
 }
+
+#if defined(HAVE_BLK_MODE_T)
+#define	blk_mode_is_open_write(flag)	((flag) & BLK_OPEN_WRITE)
+#else
+#define	blk_mode_is_open_write(flag)	((flag) & FMODE_WRITE)
+#endif
 
 /*
  * Kernels without bio_set_op_attrs use bi_rw for the bio flags.
