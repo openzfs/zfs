@@ -1151,7 +1151,6 @@ hdr_full_cons(void *vbuf, void *unused, int kmflag)
 
 	memset(hdr, 0, HDR_FULL_SIZE);
 	hdr->b_l1hdr.b_byteswap = DMU_BSWAP_NUMFUNCS;
-	cv_init(&hdr->b_l1hdr.b_cv, NULL, CV_DEFAULT, NULL);
 	zfs_refcount_create(&hdr->b_l1hdr.b_refcnt);
 #ifdef ZFS_DEBUG
 	mutex_init(&hdr->b_l1hdr.b_freeze_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -1211,7 +1210,6 @@ hdr_full_dest(void *vbuf, void *unused)
 	arc_buf_hdr_t *hdr = vbuf;
 
 	ASSERT(HDR_EMPTY(hdr));
-	cv_destroy(&hdr->b_l1hdr.b_cv);
 	zfs_refcount_destroy(&hdr->b_l1hdr.b_refcnt);
 #ifdef ZFS_DEBUG
 	mutex_destroy(&hdr->b_l1hdr.b_freeze_lock);
@@ -5586,13 +5584,6 @@ arc_read_done(zio_t *zio)
 			buf_hash_remove(hdr);
 	}
 
-	/*
-	 * Broadcast before we drop the hash_lock to avoid the possibility
-	 * that the hdr (and hence the cv) might be freed before we get to
-	 * the cv_broadcast().
-	 */
-	cv_broadcast(&hdr->b_l1hdr.b_cv);
-
 	arc_hdr_clear_flags(hdr, ARC_FLAG_IO_IN_PROGRESS);
 	(void) remove_reference(hdr, hdr);
 
@@ -5787,8 +5778,7 @@ top:
 				}
 				acb->acb_zio_head = head_zio;
 				acb->acb_next = hdr->b_l1hdr.b_acb;
-				if (hdr->b_l1hdr.b_acb)
-					hdr->b_l1hdr.b_acb->acb_prev = acb;
+				hdr->b_l1hdr.b_acb->acb_prev = acb;
 				hdr->b_l1hdr.b_acb = acb;
 			}
 			mutex_exit(hash_lock);
@@ -5928,8 +5918,28 @@ top:
 				 * and so the performance impact shouldn't
 				 * matter.
 				 */
-				cv_wait(&hdr->b_l1hdr.b_cv, hash_lock);
+				arc_callback_t *acb = kmem_zalloc(
+				    sizeof (arc_callback_t), KM_SLEEP);
+				acb->acb_wait = B_TRUE;
+				mutex_init(&acb->acb_wait_lock, NULL,
+				    MUTEX_DEFAULT, NULL);
+				cv_init(&acb->acb_wait_cv, NULL, CV_DEFAULT,
+				    NULL);
+				acb->acb_zio_head =
+				    hdr->b_l1hdr.b_acb->acb_zio_head;
+				acb->acb_next = hdr->b_l1hdr.b_acb;
+				hdr->b_l1hdr.b_acb->acb_prev = acb;
+				hdr->b_l1hdr.b_acb = acb;
 				mutex_exit(hash_lock);
+				mutex_enter(&acb->acb_wait_lock);
+				while (acb->acb_wait) {
+					cv_wait(&acb->acb_wait_cv,
+					    &acb->acb_wait_lock);
+				}
+				mutex_exit(&acb->acb_wait_lock);
+				mutex_destroy(&acb->acb_wait_lock);
+				cv_destroy(&acb->acb_wait_cv);
+				kmem_free(acb, sizeof (arc_callback_t));
 				goto top;
 			}
 		}
