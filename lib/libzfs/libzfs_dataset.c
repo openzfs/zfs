@@ -1771,14 +1771,24 @@ error:
 	return (ret);
 }
 
-
-
 /*
  * Given an nvlist of property names and values, set the properties for the
  * given dataset.
  */
 int
 zfs_prop_set_list(zfs_handle_t *zhp, nvlist_t *props)
+{
+	return (zfs_prop_set_list_flags(zhp, props, 0));
+}
+
+/*
+ * Given an nvlist of property names, values and flags, set the properties
+ * for the given dataset. If ZFS_SET_NOMOUNT is set, it allows to update
+ * mountpoint, sharenfs and sharesmb properties without (un/re)mounting
+ * and (un/re)sharing the dataset.
+ */
+int
+zfs_prop_set_list_flags(zfs_handle_t *zhp, nvlist_t *props, int flags)
 {
 	zfs_cmd_t zc = {"\0"};
 	int ret = -1;
@@ -1848,7 +1858,9 @@ zfs_prop_set_list(zfs_handle_t *zhp, nvlist_t *props)
 		if (prop != ZFS_PROP_CANMOUNT ||
 		    (fnvpair_value_uint64(elem) == ZFS_CANMOUNT_OFF &&
 		    zfs_is_mounted(zhp, NULL))) {
-			cls[cl_idx] = changelist_gather(zhp, prop, 0, 0);
+			cls[cl_idx] = changelist_gather(zhp, prop,
+			    ((flags & ZFS_SET_NOMOUNT) ?
+			    CL_GATHER_DONT_UNMOUNT : 0), 0);
 			if (cls[cl_idx] == NULL)
 				goto error;
 		}

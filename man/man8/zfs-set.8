@@ -39,6 +39,7 @@
 .Sh SYNOPSIS
 .Nm zfs
 .Cm set
+.Op Fl u
 .Ar property Ns = Ns Ar value Oo Ar property Ns = Ns Ar value Oc Ns …
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns …
 .Nm zfs
@@ -60,6 +61,7 @@
 .It Xo
 .Nm zfs
 .Cm set
+.Op Fl u
 .Ar property Ns = Ns Ar value Oo Ar property Ns = Ns Ar value Oc Ns …
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns …
 .Xc
@@ -79,6 +81,11 @@ For more information, see the
 .Em User Properties
 section of
 .Xr zfsprops 7 .
+.Bl -tag -width "-u"
+.It Fl u
+Update mountpoint, sharenfs, sharesmb property but do not mount or share the
+dataset.
+.El
 .It Xo
 .Nm zfs
 .Cm get
