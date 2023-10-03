@@ -2666,7 +2666,8 @@
       <enumerator name='ZPOOL_WAIT_SCRUB' value='6'/>
       <enumerator name='ZPOOL_WAIT_TRIM' value='7'/>
       <enumerator name='ZPOOL_WAIT_RAIDZ_EXPAND' value='8'/>
-      <enumerator name='ZPOOL_WAIT_NUM_ACTIVITIES' value='9'/>
+      <enumerator name='ZPOOL_WAIT_CONDENSE' value='9'/>
+      <enumerator name='ZPOOL_WAIT_NUM_ACTIVITIES' value='10'/>
     </enum-decl>
     <typedef-decl name='zpool_wait_activity_t' type-id='849338e3' id='73446457'/>
     <enum-decl name='zfs_wait_activity_t' naming-typedef-id='3024501a' id='527d5dc6'>

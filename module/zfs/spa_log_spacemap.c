@@ -816,6 +816,8 @@ spa_log_flushall_done(spa_t *spa)
 
 	spa->spa_log_flushall_mode = SPA_LOG_FLUSHALL_NONE;
 	spa->spa_log_flushall_txg = 0;
+
+	spa_notify_waiters(spa);
 }
 
 void
@@ -833,6 +835,8 @@ spa_log_flushall_cancel(spa_t *spa)
 	pool_condense_stat_t *pcns =
 	    &spa->spa_condense_stats[POOL_CONDENSE_LOG_SPACEMAP];
 	pcns->pcns_end_time = gethrestime_sec();
+
+	spa_notify_waiters(spa);
 }
 
 void

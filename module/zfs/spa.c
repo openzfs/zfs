@@ -11093,6 +11093,20 @@ spa_activity_in_progress(spa_t *spa, zpool_wait_activity_t activity,
 		*in_progress = (vre != NULL && vre->vre_state == DSS_SCANNING);
 		break;
 	}
+	case ZPOOL_WAIT_CONDENSE: {
+		pool_condense_stat_t *pcns;
+		*in_progress = B_FALSE;
+		for (pool_condense_type_t type = 0;
+		    type < POOL_CONDENSE_TYPES; type++) {
+			pcns = &spa->spa_condense_stats[type];
+			if (pcns->pcns_start_time > 0 &&
+			    pcns->pcns_end_time == 0) {
+				*in_progress = B_TRUE;
+				break;
+			}
+		}
+		break;
+	}
 	default:
 		panic("unrecognized value for activity %d", activity);
 	}
