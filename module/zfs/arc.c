@@ -1150,7 +1150,7 @@ hdr_full_cons(void *vbuf, void *unused, int kmflag)
 	arc_buf_hdr_t *hdr = vbuf;
 
 	memset(hdr, 0, HDR_FULL_SIZE);
-	hdr->b_l1hdr.b_byteswap = DMU_BSWAP_NUMFUNCS;
+	hdr->b_byteswap = DMU_BSWAP_NUMFUNCS;
 	zfs_refcount_create(&hdr->b_l1hdr.b_refcnt);
 #ifdef ZFS_DEBUG
 	mutex_init(&hdr->b_l1hdr.b_freeze_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -1351,7 +1351,7 @@ arc_get_raw_params(arc_buf_t *buf, boolean_t *byteorder, uint8_t *salt,
 	memcpy(salt, hdr->b_crypt_hdr.b_salt, ZIO_DATA_SALT_LEN);
 	memcpy(iv, hdr->b_crypt_hdr.b_iv, ZIO_DATA_IV_LEN);
 	memcpy(mac, hdr->b_crypt_hdr.b_mac, ZIO_DATA_MAC_LEN);
-	*byteorder = (hdr->b_l1hdr.b_byteswap == DMU_BSWAP_NUMFUNCS) ?
+	*byteorder = (hdr->b_byteswap == DMU_BSWAP_NUMFUNCS) ?
 	    ZFS_HOST_BYTEORDER : !ZFS_HOST_BYTEORDER;
 }
 
@@ -1829,7 +1829,7 @@ arc_hdr_authenticate(arc_buf_hdr_t *hdr, spa_t *spa, uint64_t dsobj)
 		ASSERT3U(HDR_GET_COMPRESS(hdr), ==, ZIO_COMPRESS_OFF);
 		ASSERT3U(lsize, ==, psize);
 		ret = spa_do_crypt_objset_mac_abd(B_FALSE, spa, dsobj, abd,
-		    psize, hdr->b_l1hdr.b_byteswap != DMU_BSWAP_NUMFUNCS);
+		    psize, hdr->b_byteswap != DMU_BSWAP_NUMFUNCS);
 	} else {
 		ret = spa_do_crypt_mac_abd(B_FALSE, spa, dsobj, abd, psize,
 		    hdr->b_crypt_hdr.b_mac);
@@ -1865,7 +1865,7 @@ arc_hdr_decrypt(arc_buf_hdr_t *hdr, spa_t *spa, const zbookmark_phys_t *zb)
 	abd_t *cabd = NULL;
 	void *tmp = NULL;
 	boolean_t no_crypt = B_FALSE;
-	boolean_t bswap = (hdr->b_l1hdr.b_byteswap != DMU_BSWAP_NUMFUNCS);
+	boolean_t bswap = (hdr->b_byteswap != DMU_BSWAP_NUMFUNCS);
 
 	ASSERT(HDR_EMPTY_OR_LOCKED(hdr));
 	ASSERT(HDR_ENCRYPTED(hdr));
@@ -2019,7 +2019,7 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 	    (arc_hdr_get_compress(hdr) != ZIO_COMPRESS_OFF);
 	boolean_t compressed = (flags & ARC_FILL_COMPRESSED) != 0;
 	boolean_t encrypted = (flags & ARC_FILL_ENCRYPTED) != 0;
-	dmu_object_byteswap_t bswap = hdr->b_l1hdr.b_byteswap;
+	dmu_object_byteswap_t bswap = hdr->b_byteswap;
 	kmutex_t *hash_lock = (flags & ARC_FILL_LOCKED) ? NULL : HDR_LOCK(hdr);
 
 	ASSERT3P(buf->b_data, !=, NULL);
@@ -2739,7 +2739,7 @@ arc_can_share(arc_buf_hdr_t *hdr, arc_buf_t *buf)
 	boolean_t buf_compressed = ARC_BUF_COMPRESSED(buf) != 0;
 	return (!ARC_BUF_ENCRYPTED(buf) &&
 	    buf_compressed == hdr_compressed &&
-	    hdr->b_l1hdr.b_byteswap == DMU_BSWAP_NUMFUNCS &&
+	    hdr->b_byteswap == DMU_BSWAP_NUMFUNCS &&
 	    !HDR_SHARED_DATA(hdr) &&
 	    (ARC_BUF_LAST(buf) || ARC_BUF_COMPRESSED(buf)));
 }
@@ -3260,7 +3260,7 @@ arc_hdr_free_abd(arc_buf_hdr_t *hdr, boolean_t free_rdata)
 	}
 
 	if (hdr->b_l1hdr.b_pabd == NULL && !HDR_HAS_RABD(hdr))
-		hdr->b_l1hdr.b_byteswap = DMU_BSWAP_NUMFUNCS;
+		hdr->b_byteswap = DMU_BSWAP_NUMFUNCS;
 
 	ARCSTAT_INCR(arcstat_compressed_size, -size);
 	ARCSTAT_INCR(arcstat_uncompressed_size, -HDR_GET_LSIZE(hdr));
@@ -3489,6 +3489,8 @@ arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t need_crypt)
 	nhdr->b_dva = hdr->b_dva;
 	nhdr->b_birth = hdr->b_birth;
 	nhdr->b_type = hdr->b_type;
+	nhdr->b_complevel = hdr->b_complevel;
+	nhdr->b_byteswap = hdr->b_byteswap;
 	nhdr->b_flags = hdr->b_flags;
 	nhdr->b_psize = hdr->b_psize;
 	nhdr->b_lsize = hdr->b_lsize;
@@ -3497,7 +3499,6 @@ arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t need_crypt)
 	nhdr->b_l1hdr.b_freeze_cksum = hdr->b_l1hdr.b_freeze_cksum;
 #endif
 	nhdr->b_l1hdr.b_bufcnt = hdr->b_l1hdr.b_bufcnt;
-	nhdr->b_l1hdr.b_byteswap = hdr->b_l1hdr.b_byteswap;
 	nhdr->b_l1hdr.b_state = hdr->b_l1hdr.b_state;
 	nhdr->b_l1hdr.b_arc_access = hdr->b_l1hdr.b_arc_access;
 	nhdr->b_l1hdr.b_mru_hits = hdr->b_l1hdr.b_mru_hits;
@@ -3531,6 +3532,8 @@ arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t need_crypt)
 	memset(&hdr->b_dva, 0, sizeof (dva_t));
 	hdr->b_birth = 0;
 	hdr->b_type = 0;
+	hdr->b_complevel = 0;
+	hdr->b_byteswap = 0;
 	hdr->b_flags = 0;
 	hdr->b_psize = 0;
 	hdr->b_lsize = 0;
@@ -3540,7 +3543,6 @@ arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t need_crypt)
 #endif
 	hdr->b_l1hdr.b_buf = NULL;
 	hdr->b_l1hdr.b_bufcnt = 0;
-	hdr->b_l1hdr.b_byteswap = 0;
 	hdr->b_l1hdr.b_state = NULL;
 	hdr->b_l1hdr.b_arc_access = 0;
 	hdr->b_l1hdr.b_mru_hits = 0;
@@ -3589,7 +3591,7 @@ arc_convert_to_raw(arc_buf_t *buf, uint64_t dsobj, boolean_t byteorder,
 		hdr = arc_hdr_realloc_crypt(hdr, B_TRUE);
 	hdr->b_crypt_hdr.b_dsobj = dsobj;
 	hdr->b_crypt_hdr.b_ot = ot;
-	hdr->b_l1hdr.b_byteswap = (byteorder == ZFS_HOST_BYTEORDER) ?
+	hdr->b_byteswap = (byteorder == ZFS_HOST_BYTEORDER) ?
 	    DMU_BSWAP_NUMFUNCS : DMU_OT_BYTESWAP(ot);
 	if (!arc_hdr_has_uncompressed_buf(hdr))
 		arc_cksum_free(hdr);
@@ -3673,7 +3675,7 @@ arc_alloc_raw_buf(spa_t *spa, const void *tag, uint64_t dsobj,
 
 	hdr->b_crypt_hdr.b_dsobj = dsobj;
 	hdr->b_crypt_hdr.b_ot = ot;
-	hdr->b_l1hdr.b_byteswap = (byteorder == ZFS_HOST_BYTEORDER) ?
+	hdr->b_byteswap = (byteorder == ZFS_HOST_BYTEORDER) ?
 	    DMU_BSWAP_NUMFUNCS : DMU_OT_BYTESWAP(ot);
 	memcpy(hdr->b_crypt_hdr.b_salt, salt, ZIO_DATA_SALT_LEN);
 	memcpy(hdr->b_crypt_hdr.b_iv, iv, ZIO_DATA_IV_LEN);
@@ -5477,13 +5479,13 @@ arc_read_done(zio_t *zio)
 		/* byteswap if necessary */
 		if (BP_SHOULD_BYTESWAP(zio->io_bp)) {
 			if (BP_GET_LEVEL(zio->io_bp) > 0) {
-				hdr->b_l1hdr.b_byteswap = DMU_BSWAP_UINT64;
+				hdr->b_byteswap = DMU_BSWAP_UINT64;
 			} else {
-				hdr->b_l1hdr.b_byteswap =
+				hdr->b_byteswap =
 				    DMU_OT_BYTESWAP(BP_GET_TYPE(zio->io_bp));
 			}
 		} else {
-			hdr->b_l1hdr.b_byteswap = DMU_BSWAP_NUMFUNCS;
+			hdr->b_byteswap = DMU_BSWAP_NUMFUNCS;
 		}
 		if (!HDR_L2_READING(hdr)) {
 			hdr->b_complevel = zio->io_prop.zp_complevel;
@@ -6572,13 +6574,13 @@ arc_write_ready(zio_t *zio)
 
 		if (BP_SHOULD_BYTESWAP(bp)) {
 			if (BP_GET_LEVEL(bp) > 0) {
-				hdr->b_l1hdr.b_byteswap = DMU_BSWAP_UINT64;
+				hdr->b_byteswap = DMU_BSWAP_UINT64;
 			} else {
-				hdr->b_l1hdr.b_byteswap =
+				hdr->b_byteswap =
 				    DMU_OT_BYTESWAP(BP_GET_TYPE(bp));
 			}
 		} else {
-			hdr->b_l1hdr.b_byteswap = DMU_BSWAP_NUMFUNCS;
+			hdr->b_byteswap = DMU_BSWAP_NUMFUNCS;
 		}
 
 		hdr->b_crypt_hdr.b_ot = BP_GET_TYPE(bp);
@@ -6800,7 +6802,7 @@ arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
 		localprop.zp_compress = HDR_GET_COMPRESS(hdr);
 		localprop.zp_complevel = hdr->b_complevel;
 		localprop.zp_byteorder =
-		    (hdr->b_l1hdr.b_byteswap == DMU_BSWAP_NUMFUNCS) ?
+		    (hdr->b_byteswap == DMU_BSWAP_NUMFUNCS) ?
 		    ZFS_HOST_BYTEORDER : !ZFS_HOST_BYTEORDER;
 		memcpy(localprop.zp_salt, hdr->b_crypt_hdr.b_salt,
 		    ZIO_DATA_SALT_LEN);
@@ -9057,7 +9059,7 @@ l2arc_apply_transforms(spa_t *spa, arc_buf_hdr_t *hdr, uint64_t asize,
 	uint64_t psize = HDR_GET_PSIZE(hdr);
 	uint64_t size = arc_hdr_size(hdr);
 	boolean_t ismd = HDR_ISTYPE_METADATA(hdr);
-	boolean_t bswap = (hdr->b_l1hdr.b_byteswap != DMU_BSWAP_NUMFUNCS);
+	boolean_t bswap = (hdr->b_byteswap != DMU_BSWAP_NUMFUNCS);
 	dsl_crypto_key_t *dck = NULL;
 	uint8_t mac[ZIO_DATA_MAC_LEN] = { 0 };
 	boolean_t no_crypt = B_FALSE;

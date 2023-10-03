@@ -159,8 +159,6 @@ struct arc_write_callback {
  * these two allocation states.
  */
 typedef struct l1arc_buf_hdr {
-	uint8_t			b_byteswap;
-
 	/* protected by arc state mutex */
 	arc_state_t		*b_state;
 	multilist_node_t	b_arc_node;
@@ -477,7 +475,7 @@ struct arc_buf_hdr {
 
 	arc_buf_contents_t	b_type;
 	uint8_t			b_complevel;
-	uint8_t			b_reserved1; /* used for 4 byte alignment */
+	uint8_t			b_byteswap; /* could be in b_l1hdr, but fits */
 	uint16_t		b_reserved2; /* used for 4 byte alignment */
 	arc_buf_hdr_t		*b_hash_next;
 	arc_flags_t		b_flags;
