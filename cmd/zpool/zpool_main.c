@@ -561,7 +561,7 @@ get_usage(zpool_help_t idx)
 	case HELP_SYNC:
 		return (gettext("\tsync [pool] ...\n"));
 	case HELP_CONDENSE:
-		return (gettext("\tcondense -t <target> [-c] <pool>\n"));
+		return (gettext("\tcondense -t <target> [-c | -w] <pool>\n"));
 	case HELP_VERSION:
 		return (gettext("\tversion [-j]\n"));
 	case HELP_WAIT:
@@ -8717,10 +8717,11 @@ condense_cb(zpool_handle_t *zhp, void *data)
 }
 
 /*
- * zpool condense -t <target> [-c] <pool>
+ * zpool condense -t <target> [-c | -w] <pool>
  *
  *	-t <target>	What to condense.
  *	-c		Cancel. Ends any in-progress condense.
+ *	-w		Wait. Blocks until condense has completed.
  *
  * Condense (flush) the log spacemap on the specified pool(s).
  */
@@ -8730,6 +8731,7 @@ zpool_do_condense(int argc, char **argv)
 	struct option long_options[] = {
 		{"target",	required_argument,	NULL,	't'},
 		{"cancel",	no_argument,		NULL,	'c'},
+		{"wait",	no_argument,		NULL,	'w'},
 		{0, 0, 0, 0}
 	};
 
@@ -8745,6 +8747,7 @@ zpool_do_condense(int argc, char **argv)
 		.func = POOL_CONDENSE_START,
 		.type = POOL_CONDENSE_TYPES,
 	};
+	boolean_t wait = B_FALSE;
 
 	int c;
 	while ((c = getopt_long(argc, argv, "t:cw", long_options, NULL))
@@ -8768,6 +8771,9 @@ zpool_do_condense(int argc, char **argv)
 		}
 		case 'c':
 			cb.func = POOL_CONDENSE_CANCEL;
+			break;
+		case 'w':
+			wait = B_TRUE;
 			break;
 		case '?':
 			if (optopt != 0) {
@@ -8796,8 +8802,19 @@ zpool_do_condense(int argc, char **argv)
 		return (-1);
 	}
 
+	if (wait && (cb.func != POOL_CONDENSE_START)) {
+		(void) fprintf(stderr, gettext("-w cannot be used with -c\n"));
+		usage(B_FALSE);
+	}
+
 	int error = for_each_pool(argc, argv, B_FALSE, NULL, ZFS_TYPE_POOL,
 	    B_FALSE, condense_cb, &cb);
+
+	if (wait && !error) {
+		zpool_wait_activity_t act = ZPOOL_WAIT_CONDENSE;
+		error = for_each_pool(argc, argv, B_FALSE, NULL, ZFS_TYPE_POOL,
+		    B_FALSE, wait_callback, &act);
+	}
 
 	return (error);
 }
@@ -13314,8 +13331,10 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp, int row)
 	pool_scan_stat_t *pss = NULL;
 	pool_removal_stat_t *prs = NULL;
 	pool_raidz_expand_stat_t *pres = NULL;
+	pool_condense_stat_t *pcns = NULL;
 	const char *const headers[] = {"DISCARD", "FREE", "INITIALIZE",
-	    "REPLACE", "REMOVE", "RESILVER", "SCRUB", "TRIM", "RAIDZ_EXPAND"};
+	    "REPLACE", "REMOVE", "RESILVER", "SCRUB", "TRIM", "RAIDZ_EXPAND",
+	    "CONDENSE"};
 	int col_widths[ZPOOL_WAIT_NUM_ACTIVITIES];
 
 	/* Calculate the width of each column */
@@ -13382,6 +13401,21 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp, int row)
 	if (pres != NULL && pres->pres_state == DSS_SCANNING) {
 		int64_t rem = pres->pres_to_reflow - pres->pres_reflowed;
 		bytes_rem[ZPOOL_WAIT_RAIDZ_EXPAND] = rem;
+	}
+
+	/*
+	 * Count each outstanding condense item as a "byte". Its not true,
+	 * but its a counter, and it'll display nicely.
+	 */
+	(void) nvlist_lookup_uint64_array(nvroot,
+	    ZPOOL_CONFIG_CONDENSE_STATS, (uint64_t **)&pcns, &c);
+	c = c / (sizeof (pool_condense_stat_t) / sizeof (uint64_t));
+	if (pcns != NULL && c > 0) {
+		do {
+			c--;
+			bytes_rem[ZPOOL_WAIT_CONDENSE] +=
+			    (pcns[c].pcns_total - pcns[c].pcns_processed);
+		} while (c > 0);
 	}
 
 	bytes_rem[ZPOOL_WAIT_INITIALIZE] =
@@ -13522,7 +13556,7 @@ zpool_do_wait(int argc, char **argv)
 				static const char *const col_opts[] = {
 				    "discard", "free", "initialize", "replace",
 				    "remove", "resilver", "scrub", "trim",
-				    "raidz_expand" };
+				    "raidz_expand", "condense" };
 
 				for (i = 0; i < ARRAY_SIZE(col_opts); ++i)
 					if (strcmp(tok, col_opts[i]) == 0) {
