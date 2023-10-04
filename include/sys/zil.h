@@ -551,7 +551,7 @@ typedef int zil_parse_raw_lr_func_t(spa_t *spa, const lr_t *lr, void *arg);
 extern int zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
     zil_parse_lr_func_t *parse_lr_func, void *arg, uint64_t txg,
     boolean_t decrypt);
-extern int zil_parse_raw(spa_t *spa, blkptr_t *bp,
+extern int zil_parse_raw(spa_t *spa, const blkptr_t *bp,
     zil_parse_raw_blk_func_t *parse_func,
     zil_parse_raw_lr_func_t *parse_lr_func, void *arg);
 
