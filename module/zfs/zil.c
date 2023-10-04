@@ -1008,7 +1008,7 @@ zil_create(zilog_t *zilog)
 	int error = 0;
 	boolean_t slog = FALSE;
 	dsl_dataset_t *ds = dmu_objset_ds(zilog->zl_os);
-
+	spa_t *spa = zilog->zl_spa;
 
 	/*
 	 * Wait for any previous destroy to complete.
@@ -1032,19 +1032,23 @@ zil_create(zilog_t *zilog)
 		txg = dmu_tx_get_txg(tx);
 
 		if (!BP_IS_HOLE(&blk)) {
-			if (spa_uses_shared_log(zilog->zl_spa)) {
-				spa_zil_delete(zilog->zl_spa, zilog->zl_os);
+			if (spa_uses_shared_log(spa)) {
+				spa_zil_delete(spa, zilog->zl_os);
 			} else {
-				zio_free(zilog->zl_spa, txg, &blk);
+				zio_free(spa, txg, &blk);
 			}
 			BP_ZERO(&blk);
 		}
 
-		error = zio_alloc_zil(zilog->zl_spa, zilog->zl_os, txg, &blk,
+		error = zio_alloc_zil(spa, zilog->zl_os, txg, &blk,
 		    ZIL_MIN_BLKSZ, &slog);
 		if (error == 0)
 			zil_init_log_chain(zilog, &blk);
-		spa_zil_map_insert(zilog->zl_spa, zilog->zl_os, NULL, &blk);
+		spa_zil_map_insert(spa, zilog->zl_os, NULL, &blk);
+		if (spa_uses_shared_log(spa)) {
+			spa_t *shared_log = spa_get_shared_log_pool(spa);
+			txg_wait_synced(shared_log->spa_dsl_pool, 0);
+		}
 	}
 
 	/*
@@ -1065,9 +1069,8 @@ zil_create(zilog_t *zilog)
 		 * this until we write the first xattr log record because we
 		 * need to wait for the feature activation to sync out.
 		 */
-		if (spa_feature_is_enabled(zilog->zl_spa,
-		    SPA_FEATURE_ZILSAXATTR) && dmu_objset_type(zilog->zl_os) !=
-		    DMU_OST_ZVOL) {
+		if (spa_feature_is_enabled(spa, SPA_FEATURE_ZILSAXATTR) &&
+		    dmu_objset_type(zilog->zl_os) != DMU_OST_ZVOL) {
 			mutex_enter(&ds->ds_lock);
 			ds->ds_feature_activation[SPA_FEATURE_ZILSAXATTR] =
 			    (void *)B_TRUE;
@@ -1083,7 +1086,7 @@ zil_create(zilog_t *zilog)
 		 */
 		zil_commit_activate_saxattr_feature(zilog);
 	}
-	IMPLY(spa_feature_is_enabled(zilog->zl_spa, SPA_FEATURE_ZILSAXATTR) &&
+	IMPLY(spa_feature_is_enabled(spa, SPA_FEATURE_ZILSAXATTR) &&
 	    dmu_objset_type(zilog->zl_os) != DMU_OST_ZVOL,
 	    dsl_dataset_feature_is_active(ds, SPA_FEATURE_ZILSAXATTR));
 

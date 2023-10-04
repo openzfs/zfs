@@ -174,6 +174,8 @@ static int spa_load_impl(spa_t *spa, spa_import_type_t type,
     const char **ereport);
 static void spa_vdev_resilver_done(spa_t *spa);
 static void spa_chain_map_update(spa_t *spa);
+static void spa_cleanup_pool(spa_t *client);
+void spa_zil_delete_impl(spa_t *spa, uint64_t id);
 
 static uint_t	zio_taskq_batch_pct = 80;	  /* 1 thread per cpu in pset */
 static uint_t	zio_taskq_batch_tpq;		  /* threads per taskq */
@@ -1354,7 +1356,7 @@ get_shared_log_pool(nvlist_t *config, spa_t **out)
 	return (0);
 }
 
-extern metaslab_ops_t *metaslab_allocator(spa_t *spa);
+extern metaslab_ops_t *metaslab_allocator(spa_t *shared_log);
 
 /*
  * Activate an uninitialized pool.
@@ -5356,6 +5358,8 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 		 */
 		(void) dmu_objset_find(spa_name(spa),
 		    dsl_destroy_inconsistent, NULL, DS_FIND_CHILDREN);
+
+		spa_cleanup_pool(spa);
 
 		/*
 		 * Clean up any stale temporary dataset userrefs.
@@ -10524,16 +10528,16 @@ spa_zil_map_set_final(spa_t *spa, objset_t *os, blkptr_t *bp)
 }
 
 void
-spa_zil_delete(spa_t *spa, objset_t *os)
+spa_zil_delete_impl(spa_t *spa, uint64_t id)
 {
 	if (!spa_uses_shared_log(spa))
 		return;
 
 	list_t *l = &spa->spa_zil_deletes;
 	zil_delete_entry_t *entry = kmem_alloc(sizeof (*entry), KM_SLEEP);
-	entry->zde_guid = dmu_objset_id(os);
+	entry->zde_guid = id;
 	avl_tree_t *t = &spa->spa_zil_map;
-	spa_zil_update_head_t search = {.szuh_id = dmu_objset_id(os)};
+	spa_zil_update_head_t search = {.szuh_id = id};
 	spa_zil_update_head_t *uentry;
 
 	mutex_enter(&spa->spa_zil_map_lock);
@@ -10550,6 +10554,12 @@ spa_zil_delete(spa_t *spa, objset_t *os)
 		return;
 	}
 	mutex_exit(&spa->spa_zil_map_lock);
+}
+
+void
+spa_zil_delete(spa_t *spa, objset_t *os)
+{
+	spa_zil_delete_impl(spa, dmu_objset_id(os));
 }
 
 struct spa_chain_map_update_cb_arg {
@@ -10807,7 +10817,7 @@ spa_recycle(spa_t *spa, boolean_t dryrun, nvlist_t *outnvl)
 	}
 
 	spa_t *search = kmem_zalloc(sizeof (spa_t), KM_SLEEP);
-	mutex_exit(&spa->spa_chain_map_lock);
+	mutex_enter(&spa->spa_chain_map_lock);
 	avl_tree_t *t = &spa->spa_chain_map;
 	spa_chain_map_pool_t *entry = avl_first(t);
 	while (entry != NULL) {
@@ -10834,8 +10844,7 @@ spa_recycle(spa_t *spa, boolean_t dryrun, nvlist_t *outnvl)
 			arg.smcfca_guid = os->scmo_id;
 			arg.smcfca_txg = spa->spa_syncing_txg;
 			int this_err = zil_parse_raw(spa, &os->scmo_chain_head,
-			    spa_chain_map_free_blk_cb, spa_chain_map_free_lr_cb,
-			    &arg);
+			        spa_chain_map_free_blk_cb, spa_chain_map_free_lr_cb, &arg);
 			if (this_err != 0 && err == 0)
 				err = this_err;
 			kmem_free(os, sizeof (*os));
@@ -10850,6 +10859,38 @@ spa_recycle(spa_t *spa, boolean_t dryrun, nvlist_t *outnvl)
 	return (err);
 }
 
+static void
+spa_cleanup_pool(spa_t *client)
+{
+	if (!spa_uses_shared_log(client))
+		return;
+	dsl_pool_t *dp = client->spa_dsl_pool;
+	dsl_pool_config_enter(dp, FTAG);
+	spa_t *shared_log = spa_get_shared_log_pool(client);
+	spa_chain_map_pool_t search;
+	mutex_enter(&shared_log->spa_chain_map_lock);
+
+	avl_tree_t *t = &shared_log->spa_chain_map;
+	search.scmp_guid = client->spa_config_guid;;
+	spa_chain_map_pool_t *pool_entry = avl_find(t, &search, NULL);
+	ASSERT(pool_entry);
+
+	t = &pool_entry->scmp_os_tree;
+	for (spa_chain_map_os_t *entry = avl_first(t); entry;
+	    entry = AVL_NEXT(t, entry)) {
+		dsl_dataset_t *ds;
+		int res = dsl_dataset_hold_obj(dp,
+		    entry->scmo_id, FTAG, &ds);
+		if (res == 0) {
+			dsl_dataset_rele(ds, FTAG);
+			continue;
+		}
+		ASSERT3U(res, ==, ENOENT);
+		spa_zil_delete_impl(client, entry->scmo_id);
+	}
+	mutex_exit(&shared_log->spa_chain_map_lock);
+	dsl_pool_config_exit(dp, FTAG);
+}
 
 spa_t *
 spa_get_shared_log_pool(spa_t *spa)
