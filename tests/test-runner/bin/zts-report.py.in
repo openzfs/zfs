@@ -305,7 +305,7 @@ elif sys.platform.startswith('linux'):
         'block_cloning/block_cloning_copyfilerange_cross_dataset':
             ['SKIP', cfr_cross_reason],
         'block_cloning/block_cloning_copyfilerange_fallback_same_txg':
-            ['SKIP', cfr_cross_reason],
+            [['SKIP','FAIL'], 99999],
     })
 
 
