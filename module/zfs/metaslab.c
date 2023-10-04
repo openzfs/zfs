@@ -5856,11 +5856,14 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
 	if (mc->mc_ops->msop_type == METASLAB_TYPE_VIRTUAL) {
 		ASSERT3P(mc->mc_virtual, !=, NULL);
 		spa_t *target_spa = mc->mc_virtual;
-		// XXX Is this the right value for the txg? What should it be?
-		return (metaslab_alloc(target_spa, spa_normal_class(target_spa),
-		    psize, bp, ndvas,
-		    spa_get_dsl(target_spa)->dp_tx.tx_open_txg, hintbp, flags,
-		    zal, zio, allocator));
+		dmu_tx_t *tx = dmu_tx_create_mos(target_spa->spa_dsl_pool);
+		VERIFY0(dmu_tx_assign(tx, TXG_WAIT | TXG_NOTHROTTLE));
+		uint64_t target_txg = dmu_tx_get_txg(tx);
+		int ret = metaslab_alloc(target_spa, spa_normal_class(target_spa),
+		    psize, bp, ndvas, target_txg, hintbp, flags,
+		    zal, zio, allocator);
+		dmu_tx_commit(tx);
+		return (ret);
 	}
 
 	dva_t *dva = bp->blk_dva;
