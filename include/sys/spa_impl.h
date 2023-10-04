@@ -317,7 +317,7 @@ struct spa {
 	boolean_t	spa_extreme_rewind;	/* rewind past deferred frees */
 	kmutex_t	spa_scrub_lock;		/* resilver/scrub lock */
 	uint64_t	spa_scrub_inflight;	/* in-flight scrub bytes */
-	spa_pool_type_t	spa_pool_type;	/* normal or shared log */
+	spa_pool_type_t	spa_pool_type;		/* normal or shared log */
 
 	/* in-flight verification bytes */
 	uint64_t	spa_load_verify_bytes;
