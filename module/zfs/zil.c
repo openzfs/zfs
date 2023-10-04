@@ -243,17 +243,16 @@ zil_kstats_global_update(kstat_t *ksp, int rw)
 	return (0);
 }
 
-/*
- * Read a log block and make sure it's valid.
- */
 static int
-zil_read_log_block_impl(spa_t *spa, zio_flag_t zio_flags, boolean_t decrypt,
+zil_read_log_block(spa_t *spa, boolean_t decrypt, zio_flag_t zio_flags,
     const blkptr_t *bp, blkptr_t *nbp, char **begin, char **end,
     arc_buf_t **abuf)
 {
+
 	arc_flags_t aflags = ARC_FLAG_WAIT;
 	zbookmark_phys_t zb;
 	int error;
+	zio_flags |= ZIO_FLAG_CANFAIL;
 
 	if (!decrypt)
 		zio_flags |= ZIO_FLAG_RAW;
@@ -309,29 +308,6 @@ zil_read_log_block_impl(spa_t *spa, zio_flag_t zio_flags, boolean_t decrypt,
 	}
 
 	return (error);
-}
-
-static int
-zil_read_log_block(zilog_t *zilog, boolean_t decrypt, const blkptr_t *bp,
-    blkptr_t *nbp, char **begin, char **end, arc_buf_t **abuf)
-{
-	zio_flag_t zio_flags = ZIO_FLAG_CANFAIL;
-	if (zilog->zl_header->zh_claim_txg == 0)
-		zio_flags |= ZIO_FLAG_SPECULATIVE | ZIO_FLAG_SCRUB;
-
-	if (!(zilog->zl_header->zh_flags & ZIL_CLAIM_LR_SEQ_VALID))
-		zio_flags |= ZIO_FLAG_SPECULATIVE;
-
-	return (zil_read_log_block_impl(zilog->zl_io_spa, zio_flags, decrypt,
-	    bp, nbp, begin, end, abuf));
-}
-
-static int
-zil_read_log_block_spa(spa_t *spa, boolean_t decrypt, const blkptr_t *bp,
-    blkptr_t *nbp, char **begin, char **end, arc_buf_t **abuf)
-{
-	return (zil_read_log_block_impl(spa, ZIO_FLAG_CANFAIL, decrypt, bp, nbp,
-	    begin, end, abuf));
 }
 
 /*
@@ -467,10 +443,10 @@ zil_kstat_values_update(zil_kstat_values_t *zs, zil_sums_t *zil_sums)
  * Parse the intent log, and call parse_blk_func for each valid block within
  * and parse_lr_func for each valid record within.
  */
-int
-zil_parse_raw(spa_t *spa, const blkptr_t *bp,
+static int
+zil_parse_raw_impl(spa_t *spa, const blkptr_t *bp,
     zil_parse_raw_blk_func_t *parse_blk_func,
-    zil_parse_raw_lr_func_t *parse_lr_func, void *arg)
+    zil_parse_raw_lr_func_t *parse_lr_func, void *arg, zio_flag_t zio_flags)
 {
 	(void) parse_lr_func;
 	blkptr_t next_blk = {{{{0}}}};
@@ -485,8 +461,8 @@ zil_parse_raw(spa_t *spa, const blkptr_t *bp,
 		 * parse function frees the block, we still have next_blk so we
 		 * can continue the chain.
 		 */
-		int read_error = zil_read_log_block_spa(spa, B_FALSE, &blk,
-		    &next_blk, &lrp, &end, &abuf);
+		int read_error = zil_read_log_block(spa, B_FALSE, zio_flags,
+		    &blk, &next_blk, &lrp, &end, &abuf);
 
 		error = parse_blk_func(spa, &blk, arg);
 		if (error != 0) {
@@ -518,6 +494,76 @@ zil_parse_raw(spa_t *spa, const blkptr_t *bp,
 	return (error);
 }
 
+int
+zil_parse_raw(spa_t *spa, const blkptr_t *bp,
+    zil_parse_raw_blk_func_t *parse_blk_func,
+    zil_parse_raw_lr_func_t *parse_lr_func, void *arg)
+{
+	return (zil_parse_raw_impl(spa, bp, parse_blk_func, parse_lr_func, arg,
+	    0));
+}
+
+struct parse_arg {
+	zilog_t *zilog;
+	zil_parse_blk_func_t *parse_blk_func;
+	zil_parse_lr_func_t *parse_lr_func;
+	void *arg;
+	uint64_t txg;
+	boolean_t decrypt;
+	uint64_t blk_seq;
+	uint64_t claim_blk_seq;
+	uint64_t claim_lr_seq;
+	uint64_t max_blk_seq;
+	uint64_t max_lr_seq;
+	uint64_t blk_count;
+	uint64_t lr_count;
+	int error;
+};
+
+static int
+parse_blk_wrapper(spa_t *spa, const blkptr_t *bp, void *arg)
+{
+	(void) spa;
+	struct parse_arg *pa = arg;
+	pa->blk_seq = bp->blk_cksum.zc_word[ZIL_ZC_SEQ];
+
+	if (pa->blk_seq > pa->claim_blk_seq)
+		return (EINTR);
+	int error = pa->parse_blk_func(pa->zilog, bp, pa->arg, pa->txg);
+	if (error) {
+		pa->error = error;
+		return (EINTR);
+	}
+
+	ASSERT3U(pa->max_blk_seq, <, pa->blk_seq);
+	pa->max_blk_seq = pa->blk_seq;
+	pa->blk_count++;
+
+	if (pa->max_lr_seq == pa->claim_lr_seq &&
+	    pa->max_blk_seq == pa->claim_blk_seq) {
+		return (EINTR);
+	}
+	return (0);
+
+}
+static int
+parse_lr_wrapper(spa_t *spa, const lr_t *lr, void *arg)
+{
+	(void) spa;
+	struct parse_arg *pa = arg;
+	if (lr->lrc_seq > pa->claim_lr_seq)
+		return (EINTR);
+
+	int error = pa->parse_lr_func(pa->zilog, lr, pa->arg, pa->txg);
+	if (error != 0) {
+		pa->error = error;
+		return (EINTR);
+	}
+	ASSERT3U(pa->max_lr_seq, <, lr->lrc_seq);
+	pa->max_lr_seq = lr->lrc_seq;
+	pa->lr_count++;
+	return (0);
+}
 
 /*
  * Parse the intent log, and call parse_func for each valid record within.
@@ -529,94 +575,58 @@ zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
 {
 	const zil_header_t *zh = zilog->zl_header;
 	boolean_t claimed = !!zh->zh_claim_txg;
-	uint64_t claim_blk_seq = claimed ? zh->zh_claim_blk_seq : UINT64_MAX;
-	uint64_t claim_lr_seq = claimed ? zh->zh_claim_lr_seq : UINT64_MAX;
-	uint64_t max_blk_seq = 0;
-	uint64_t max_lr_seq = 0;
-	uint64_t blk_count = 0;
-	uint64_t lr_count = 0;
-	blkptr_t blk, next_blk = {{{{0}}}};
-	int error = 0;
+	struct parse_arg arg2;
+	arg2.claim_blk_seq =  claimed ? zh->zh_claim_blk_seq : UINT64_MAX;
+	arg2.claim_lr_seq = claimed ? zh->zh_claim_lr_seq : UINT64_MAX;
+	arg2.max_blk_seq = 0;
+	arg2.max_lr_seq = 0;
+	arg2.blk_count = 0;
+	arg2.lr_count = 0;
+	arg2.arg = arg;
+	arg2.parse_blk_func = parse_blk_func;
+	arg2.parse_lr_func = parse_lr_func;
+	arg2.txg = txg;
+	arg2.decrypt = decrypt;
+	arg2.zilog = zilog;
+	arg2.error = 0;
+	arg2.blk_seq = 0;
+
+	zio_flag_t zio_flags = 0;
+	if (!claimed)
+		zio_flags |= ZIO_FLAG_SPECULATIVE | ZIO_FLAG_SCRUB;
+
+	if (!(zh->zh_flags & ZIL_CLAIM_LR_SEQ_VALID))
+		zio_flags |= ZIO_FLAG_SPECULATIVE;
 
 	/*
 	 * Old logs didn't record the maximum zh_claim_lr_seq.
 	 */
 	if (!(zh->zh_flags & ZIL_CLAIM_LR_SEQ_VALID))
-		claim_lr_seq = UINT64_MAX;
+		arg2.claim_lr_seq = UINT64_MAX;
 
-	/*
-	 * Starting at the block pointed to by zh_log we read the log chain.
-	 * For each block in the chain we strongly check that block to
-	 * ensure its validity.  We stop when an invalid block is found.
-	 * For each block pointer in the chain we call parse_blk_func().
-	 * For each record in each valid block we call parse_lr_func().
-	 * If the log has been claimed, stop if we encounter a sequence
-	 * number greater than the highest claimed sequence number.
-	 */
 	zil_bp_tree_init(zilog);
 
-	for (blk = zh->zh_log; !BP_IS_HOLE(&blk); blk = next_blk) {
-		uint64_t blk_seq = blk.blk_cksum.zc_word[ZIL_ZC_SEQ];
-		int reclen;
-		char *lrp, *end;
-		arc_buf_t *abuf = NULL;
+	int error = zil_parse_raw_impl(zilog->zl_io_spa, &zh->zh_log,
+	    parse_blk_wrapper, parse_lr_wrapper, &arg2, zio_flags);
 
-		if (blk_seq > claim_blk_seq)
-			break;
+	// If this happens, we got an error from zil_read_log_block_spa
+	if (error != 0 && error != EINTR && claimed) {
+		char name[ZFS_MAX_DATASET_NAME_LEN];
 
-		error = parse_blk_func(zilog, &blk, arg, txg);
-		if (error != 0)
-			break;
-		ASSERT3U(max_blk_seq, <, blk_seq);
-		max_blk_seq = blk_seq;
-		blk_count++;
+		dmu_objset_name(zilog->zl_os, name);
 
-		if (max_lr_seq == claim_lr_seq && max_blk_seq == claim_blk_seq)
-			break;
-
-		error = zil_read_log_block(zilog, decrypt, &blk, &next_blk,
-		    &lrp, &end, &abuf);
-		if (error != 0) {
-			if (abuf)
-				arc_buf_destroy(abuf, &abuf);
-			if (claimed) {
-				char name[ZFS_MAX_DATASET_NAME_LEN];
-
-				dmu_objset_name(zilog->zl_os, name);
-
-				cmn_err(CE_WARN, "ZFS read log block error %d, "
-				    "dataset %s, seq 0x%llx\n", error, name,
-				    (u_longlong_t)blk_seq);
-			}
-			break;
-		}
-
-		for (; lrp < end; lrp += reclen) {
-			lr_t *lr = (lr_t *)lrp;
-			reclen = lr->lrc_reclen;
-			ASSERT3U(reclen, >=, sizeof (lr_t));
-			if (lr->lrc_seq > claim_lr_seq) {
-				arc_buf_destroy(abuf, &abuf);
-				goto done;
-			}
-
-			error = parse_lr_func(zilog, lr, arg, txg);
-			if (error != 0) {
-				arc_buf_destroy(abuf, &abuf);
-				goto done;
-			}
-			ASSERT3U(max_lr_seq, <, lr->lrc_seq);
-			max_lr_seq = lr->lrc_seq;
-			lr_count++;
-		}
-		arc_buf_destroy(abuf, &abuf);
+		cmn_err(CE_WARN, "ZFS read log block error %d, "
+		    "dataset %s, seq 0x%llx\n", error, name,
+		    (u_longlong_t)arg2.blk_seq);
 	}
-done:
+
+	if (error == EINTR)
+		error = arg2.error;
 	zilog->zl_parse_error = error;
-	zilog->zl_parse_blk_seq = max_blk_seq;
-	zilog->zl_parse_lr_seq = max_lr_seq;
-	zilog->zl_parse_blk_count = blk_count;
-	zilog->zl_parse_lr_count = lr_count;
+	zilog->zl_parse_blk_seq = arg2.max_blk_seq;
+	zilog->zl_parse_lr_seq = arg2.max_lr_seq;
+	zilog->zl_parse_blk_count = arg2.blk_count;
+	zilog->zl_parse_lr_count = arg2.lr_count;
 
 	zil_bp_tree_fini(zilog);
 
