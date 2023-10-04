@@ -565,8 +565,9 @@ dsl_pool_create(spa_t *spa, nvlist_t *zplprops __attribute__((unused)),
 
 	if (spa_is_shared_log(spa)) {
 		dp->dp_chain_map_obj = zap_create_flags(dp->dp_meta_objset, 0,
-		    ZAP_FLAG_HASH64 | ZAP_FLAG_UINT64_KEY,
-		    DMU_OTN_ZAP_METADATA, 0, 0, DMU_OT_NONE, 0, tx);
+		    ZAP_FLAG_HASH64 | ZAP_FLAG_UINT64_KEY |
+		    ZAP_FLAG_PRE_HASHED_KEY, DMU_OTN_ZAP_METADATA, 0, 0,
+		    DMU_OT_NONE, 0, tx);
 		VERIFY0(zap_add(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
 		    DMU_POOL_CHAIN_MAP_OBJ, sizeof (uint64_t), 1,
 		    &dp->dp_chain_map_obj, tx));

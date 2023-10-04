@@ -465,7 +465,7 @@ zil_kstat_values_update(zil_kstat_values_t *zs, zil_sums_t *zil_sums)
 
 /*
  * Parse the intent log, and call parse_blk_func for each valid block within
- *  and parse_lr_func for each valid record within.
+ * and parse_lr_func for each valid record within.
  */
 int
 zil_parse_raw(spa_t *spa, blkptr_t *bp,
@@ -473,13 +473,18 @@ zil_parse_raw(spa_t *spa, blkptr_t *bp,
     zil_parse_raw_lr_func_t *parse_lr_func, void *arg)
 {
 	(void) parse_lr_func;
-	blkptr_t blk, next_blk = {{{{0}}}};
+	blkptr_t next_blk = {{{{0}}}};
 	int error = 0;
 
-	for (blk = *bp; !BP_IS_HOLE(&blk); blk = next_blk) {
+	for (blkptr_t blk = *bp; !BP_IS_HOLE(&blk); blk = next_blk) {
 		char *lrp, *end;
 		arc_buf_t *abuf = NULL;
 
+		/*
+		 * We do the read before the parse function so that if the
+		 * parse function frees the block, we still have next_blk so we
+		 * can continue the chain.
+		 */
 		int read_error = zil_read_log_block_spa(spa, B_FALSE, &blk,
 		    &next_blk, &lrp, &end, &abuf);
 
@@ -625,7 +630,7 @@ zil_clear_log_block(zilog_t *zilog, const blkptr_t *bp, void *tx,
 	(void) tx;
 	ASSERT(!BP_IS_HOLE(bp));
 
-	// XXX how do we handle checkpoints?
+	// We do not support checkpoints of shared log client pools.
 	ASSERT(!zilog->zl_spa->spa_uses_shared_log);
 	/*
 	 * As we call this function from the context of a rewind to a
@@ -3687,7 +3692,7 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 		 */
 		if (list_is_empty(&zilog->zl_lwb_list))
 			BP_ZERO(&zh->zh_log);
-	spa_zil_map_set_final(spa, zilog->zl_os, &zh->zh_log);
+		spa_zil_map_set_final(spa, zilog->zl_os, &zh->zh_log);
 	}
 
 	mutex_exit(&zilog->zl_lock);

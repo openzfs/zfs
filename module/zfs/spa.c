@@ -1333,6 +1333,11 @@ spa_thread(void *arg)
 }
 #endif
 
+/*
+ * Returns with the spa_chain_map_lock held. This prevents the shared log
+ * pool from being exported or deleted while a pool is being activated that
+ * depends on it.
+ */
 static int
 get_shared_log_pool(nvlist_t *config, spa_t **out)
 {
@@ -4333,7 +4338,7 @@ load_chain_map_cb(void *arg)
 	int error = zil_parse_raw(spa, bp, load_chain_map_claim_blk_cb,
 	    load_chain_map_claim_lr_cb, NULL);
 	if (error != 0 && error != ECKSUM)
-		*lcmca->error = error;
+		atomic_store_64((volatile uint64_t *)lcmca->error, error);
 	kmem_free(lcmca, sizeof (*lcmca));
 }
 
@@ -4407,8 +4412,9 @@ spa_load_chain_map(spa_t *spa)
 	}
 	zap_cursor_fini(&zc);
 	taskq_wait(spa->spa_chain_map_taskq);
-	if (dispatch_error != 0 && error == 0)
-		error = dispatch_error;
+	int dispatch_value = atomic_load_64(&dispatch_error);
+	if (dispatch_value != 0 && error == 0)
+		error = dispatch_value;
 	return (error);
 }
 
