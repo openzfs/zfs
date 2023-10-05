@@ -10850,7 +10850,8 @@ spa_recycle(spa_t *spa, boolean_t dryrun, nvlist_t *outnvl)
 			arg.smcfca_guid = os->scmo_id;
 			arg.smcfca_txg = spa->spa_syncing_txg;
 			int this_err = zil_parse_raw(spa, &os->scmo_chain_head,
-			        spa_chain_map_free_blk_cb, spa_chain_map_free_lr_cb, &arg);
+			    spa_chain_map_free_blk_cb,
+			    spa_chain_map_free_lr_cb, &arg);
 			if (this_err != 0 && err == 0)
 				err = this_err;
 			kmem_free(os, sizeof (*os));
@@ -10877,7 +10878,7 @@ spa_cleanup_pool(spa_t *client)
 	mutex_enter(&shared_log->spa_chain_map_lock);
 
 	avl_tree_t *t = &shared_log->spa_chain_map;
-	search.scmp_guid = client->spa_config_guid;;
+	search.scmp_guid = client->spa_config_guid;
 	spa_chain_map_pool_t *pool_entry = avl_find(t, &search, NULL);
 	ASSERT(pool_entry);
 

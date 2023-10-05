@@ -5859,9 +5859,9 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
 		dmu_tx_t *tx = dmu_tx_create_mos(target_spa->spa_dsl_pool);
 		VERIFY0(dmu_tx_assign(tx, TXG_WAIT | TXG_NOTHROTTLE));
 		uint64_t target_txg = dmu_tx_get_txg(tx);
-		int ret = metaslab_alloc(target_spa, spa_normal_class(target_spa),
-		    psize, bp, ndvas, target_txg, hintbp, flags,
-		    zal, zio, allocator);
+		int ret = metaslab_alloc(target_spa,
+		    spa_normal_class(target_spa), psize, bp, ndvas, target_txg,
+		    hintbp, flags, zal, zio, allocator);
 		dmu_tx_commit(tx);
 		return (ret);
 	}
