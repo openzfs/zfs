@@ -246,7 +246,7 @@ uint64_t	zfs_max_missing_tvds_scan = 0;
 /*
  * Debugging aid that pauses spa_sync() towards the end.
  */
-static const boolean_t	zfs_pause_spa_sync = B_FALSE;
+static boolean_t zfs_pause_spa_sync = B_FALSE;
 
 /*
  * Variables to indicate the livelist condense zthr func should wait at certain
@@ -10181,3 +10181,6 @@ ZFS_MODULE_PARAM(zfs_livelist_condense, zfs_livelist_condense_, new_alloc, INT,
 	"Whether extra ALLOC blkptrs were added to a livelist entry while it "
 	"was being condensed");
 /* END CSTYLED */
+
+ZFS_MODULE_PARAM(zfs, zfs_, pause_spa_sync, INT, ZMOD_RW,
+	"Set to pause sync thread; clear to resume (debug use only)");
