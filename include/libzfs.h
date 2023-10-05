@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2022 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2023 by Delphix. All rights reserved.
  * Copyright Joyent, Inc.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2016, Intel Corporation.
@@ -157,6 +157,8 @@ typedef enum zfs_error {
 	EZFS_CKSUM,		/* insufficient replicas */
 	EZFS_RESUME_EXISTS,	/* Resume on existing dataset without force */
 	EZFS_SHAREFAILED,	/* filesystem share failed */
+	/* Operation cannot be performed on a shared log pool */
+	EZFS_SHAREDLOG,
 	EZFS_UNKNOWN
 } zfs_error_t;
 

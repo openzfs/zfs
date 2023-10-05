@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2023 by Delphix. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -190,6 +190,7 @@ struct zilog {
 	kmutex_t	zl_lock;	/* protects most zilog_t fields */
 	struct dsl_pool	*zl_dmu_pool;	/* DSL pool */
 	spa_t		*zl_spa;	/* handle for read/write log */
+	spa_t		*zl_io_spa;	/* handle for read/write log */
 	const zil_header_t *zl_header;	/* log header buffer */
 	objset_t	*zl_os;		/* object set we're logging */
 	zil_get_data_t	*zl_get_data;	/* callback to get object content */

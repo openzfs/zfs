@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2023 by Delphix. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -545,10 +545,15 @@ typedef int zil_parse_lr_func_t(zilog_t *zilog, const lr_t *lr, void *arg,
 typedef int zil_replay_func_t(void *arg1, void *arg2, boolean_t byteswap);
 typedef int zil_get_data_t(void *arg, uint64_t arg2, lr_write_t *lr, char *dbuf,
     struct lwb *lwb, zio_t *zio);
+typedef int zil_parse_raw_blk_func_t(spa_t *spa, const blkptr_t *bp, void *arg);
+typedef int zil_parse_raw_lr_func_t(spa_t *spa, const lr_t *lr, void *arg);
 
 extern int zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
     zil_parse_lr_func_t *parse_lr_func, void *arg, uint64_t txg,
     boolean_t decrypt);
+extern int zil_parse_raw(spa_t *spa, const blkptr_t *bp,
+    zil_parse_raw_blk_func_t *parse_func,
+    zil_parse_raw_lr_func_t *parse_lr_func, void *arg);
 
 extern void	zil_init(void);
 extern void	zil_fini(void);
@@ -601,6 +606,8 @@ extern void zil_sums_init(zil_sums_t *zs);
 extern void zil_sums_fini(zil_sums_t *zs);
 extern void zil_kstat_values_update(zil_kstat_values_t *zs,
     zil_sums_t *zil_sums);
+
+extern boolean_t zil_shared_log(zilog_t *zl);
 
 extern int zil_replay_disable;
 

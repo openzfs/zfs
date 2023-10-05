@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2023 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2013, 2017 Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
@@ -831,6 +831,8 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_EXPANSION_TIME	"expansion_time"	/* not stored */
 #define	ZPOOL_CONFIG_REBUILD_STATS	"org.openzfs:rebuild_stats"
 #define	ZPOOL_CONFIG_COMPATIBILITY	"compatibility"
+#define	ZPOOL_CONFIG_SHARED_LOG_POOL	"com.delphix:shared_log_pool"
+#define	ZPOOL_CONFIG_IS_SHARED_LOG	"com.delphix:is_shared_log"
 
 /*
  * The persistent vdev state is stored as separate values rather than a single
@@ -1473,6 +1475,7 @@ typedef enum zfs_ioc {
 	ZFS_IOC_VDEV_GET_PROPS,			/* 0x5a55 */
 	ZFS_IOC_VDEV_SET_PROPS,			/* 0x5a56 */
 	ZFS_IOC_POOL_SCRUB,			/* 0x5a57 */
+	ZFS_IOC_POOL_RECYCLE,			/* 0x5a58 */
 
 	/*
 	 * Per-platform (Optional) - 8/128 numbers reserved.
@@ -1677,6 +1680,11 @@ typedef enum {
  */
 #define	ZFS_WAIT_ACTIVITY		"wait_activity"
 #define	ZFS_WAIT_WAITED			"wait_waited"
+
+/*
+ * The following name is used when invoking ZFS_IOC_POOL_RECYCLE.
+ */
+#define	ZPOOL_RECYCLE_DRYRUN		"dryrun"
 
 /*
  * Flags for ZFS_IOC_VDEV_SET_STATE
