@@ -58,27 +58,20 @@
 #include <sys/zfs_znode.h>
 
 
-static ulong_t zfs_fsync_sync_cnt = 4;
-
 int
 zfs_fsync(znode_t *zp, int syncflag, cred_t *cr)
 {
 	int error = 0;
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
 
-	(void) tsd_set(zfs_fsyncer_key, (void *)(uintptr_t)zfs_fsync_sync_cnt);
-
 	if (zfsvfs->z_os->os_sync != ZFS_SYNC_DISABLED) {
 		if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
-			goto out;
+			return (error);
 		atomic_inc_32(&zp->z_sync_writes_cnt);
 		zil_commit(zfsvfs->z_log, zp->z_id);
 		atomic_dec_32(&zp->z_sync_writes_cnt);
 		zfs_exit(zfsvfs, FTAG);
 	}
-out:
-	tsd_set(zfs_fsyncer_key, NULL);
-
 	return (error);
 }
 
@@ -520,6 +513,8 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 
 	uint64_t end_size = MAX(zp->z_size, woff + n);
 	zilog_t *zilog = zfsvfs->z_log;
+	boolean_t commit = (ioflag & (O_SYNC | O_DSYNC)) ||
+	    (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS);
 
 	const uint64_t uid = KUID_TO_SUID(ZTOUID(zp));
 	const uint64_t gid = KGID_TO_SGID(ZTOGID(zp));
@@ -741,7 +736,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		 * zfs_clear_setid_bits_if_necessary must precede any of
 		 * the TX_WRITE records logged here.
 		 */
-		zfs_log_write(zilog, tx, TX_WRITE, zp, woff, tx_bytes, ioflag,
+		zfs_log_write(zilog, tx, TX_WRITE, zp, woff, tx_bytes, commit,
 		    NULL, NULL);
 
 		dmu_tx_commit(tx);
@@ -767,8 +762,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		return (error);
 	}
 
-	if (ioflag & (O_SYNC | O_DSYNC) ||
-	    zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
+	if (commit)
 		zil_commit(zilog, zp->z_id);
 
 	const int64_t nwritten = start_resid - zfs_uio_resid(uio);

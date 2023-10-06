@@ -192,9 +192,15 @@ zfs_open(struct inode *ip, int mode, int flag, cred_t *cr)
 		return (SET_ERROR(EPERM));
 	}
 
-	/* Keep a count of the synchronous opens in the znode */
-	if (flag & O_SYNC)
-		atomic_inc_32(&zp->z_sync_cnt);
+	/*
+	 * Keep a count of the synchronous opens in the znode.  On first
+	 * synchronous open we must convert all previous async transactions
+	 * into sync to keep correct ordering.
+	 */
+	if (flag & O_SYNC) {
+		if (atomic_inc_32_nv(&zp->z_sync_cnt) == 1)
+			zil_async_to_sync(zfsvfs->z_log, zp->z_id);
+	}
 
 	zfs_exit(zfsvfs, FTAG);
 	return (0);
@@ -3826,21 +3832,14 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 
 	err = sa_bulk_update(zp->z_sa_hdl, bulk, cnt, tx);
 
-	zfs_log_write(zfsvfs->z_log, tx, TX_WRITE, zp, pgoff, pglen, 0,
-	    for_sync ? zfs_putpage_sync_commit_cb :
-	    zfs_putpage_async_commit_cb, pp);
-
-	dmu_tx_commit(tx);
-
-	zfs_rangelock_exit(lr);
-
+	boolean_t commit = B_FALSE;
 	if (wbc->sync_mode != WB_SYNC_NONE) {
 		/*
 		 * Note that this is rarely called under writepages(), because
 		 * writepages() normally handles the entire commit for
 		 * performance reasons.
 		 */
-		zil_commit(zfsvfs->z_log, zp->z_id);
+		commit = B_TRUE;
 	} else if (!for_sync && atomic_load_32(&zp->z_sync_writes_cnt) > 0) {
 		/*
 		 * If the caller does not intend to wait synchronously
@@ -3850,8 +3849,19 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 		 * our writeback to complete. Refer to the comment in
 		 * zpl_fsync() (when HAVE_FSYNC_RANGE is defined) for details.
 		 */
-		zil_commit(zfsvfs->z_log, zp->z_id);
+		commit = B_TRUE;
 	}
+
+	zfs_log_write(zfsvfs->z_log, tx, TX_WRITE, zp, pgoff, pglen, commit,
+	    for_sync ? zfs_putpage_sync_commit_cb :
+	    zfs_putpage_async_commit_cb, pp);
+
+	dmu_tx_commit(tx);
+
+	zfs_rangelock_exit(lr);
+
+	if (commit)
+		zil_commit(zfsvfs->z_log, zp->z_id);
 
 	dataset_kstats_update_write_kstats(&zfsvfs->z_kstat, pglen);
 

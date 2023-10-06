@@ -387,7 +387,7 @@ zvol_discard(zv_request_t *zvr)
 	if (error != 0) {
 		dmu_tx_abort(tx);
 	} else {
-		zvol_log_truncate(zv, tx, start, size, B_TRUE);
+		zvol_log_truncate(zv, tx, start, size);
 		dmu_tx_commit(tx);
 		error = dmu_free_long_range(zv->zv_objset,
 		    ZVOL_OBJ, start, size);

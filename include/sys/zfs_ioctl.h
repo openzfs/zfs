@@ -575,7 +575,6 @@ typedef struct zfsdev_state {
 extern void *zfsdev_get_state(minor_t minor, enum zfsdev_state_type which);
 extern int zfsdev_getminor(zfs_file_t *fp, minor_t *minorp);
 
-extern uint_t zfs_fsyncer_key;
 extern uint_t zfs_allow_log_key;
 
 #endif	/* _KERNEL */
