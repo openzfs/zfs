@@ -402,6 +402,12 @@ Practical upper limit of total metaslabs per top-level vdev.
 .It Sy metaslab_preload_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Enable metaslab group preloading.
 .
+.It Sy metaslab_preload_limit Ns = Ns Sy 10 Pq uint
+Maximum number of metaslabs per group to preload
+.
+.It Sy metaslab_preload_pct Ns = Ns Sy 50 Pq uint
+Percentage of CPUs to run a metaslab preload taskq
+.
 .It Sy metaslab_lba_weighting_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Give more weight to metaslabs with lower LBAs,
 assuming they have greater bandwidth,
