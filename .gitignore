@@ -42,6 +42,7 @@
 !udev/**
 
 !.editorconfig
+!.cirrus.yml
 !.gitignore
 !.gitmodules
 !AUTHORS
@@ -59,7 +60,6 @@
 !RELEASES.md
 !TEST
 !zfs.release.in
-
 
 #
 # Normal rules
