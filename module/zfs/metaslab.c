@@ -206,11 +206,6 @@ static const uint32_t metaslab_min_search_count = 100;
 static int metaslab_df_use_largest_segment = B_FALSE;
 
 /*
- * Percentage of all cpus that can be used by the metaslab taskq.
- */
-int metaslab_load_pct = 50;
-
-/*
  * These tunables control how long a metaslab will remain loaded after the
  * last allocation from it.  A metaslab can't be unloaded until at least
  * metaslab_unload_delay TXG's and metaslab_unload_delay_ms milliseconds
@@ -854,9 +849,6 @@ metaslab_group_create(metaslab_class_t *mc, vdev_t *vd, int allocators)
 		zfs_refcount_create_tracked(&mga->mga_alloc_queue_depth);
 	}
 
-	mg->mg_taskq = taskq_create("metaslab_group_taskq", metaslab_load_pct,
-	    maxclsyspri, 10, INT_MAX, TASKQ_THREADS_CPU_PCT | TASKQ_DYNAMIC);
-
 	return (mg);
 }
 
@@ -872,7 +864,6 @@ metaslab_group_destroy(metaslab_group_t *mg)
 	 */
 	ASSERT(mg->mg_activation_count <= 0);
 
-	taskq_destroy(mg->mg_taskq);
 	avl_destroy(&mg->mg_metaslab_tree);
 	mutex_destroy(&mg->mg_lock);
 	mutex_destroy(&mg->mg_ms_disabled_lock);
@@ -963,7 +954,7 @@ metaslab_group_passivate(metaslab_group_t *mg)
 	 * allocations from taking place and any changes to the vdev tree.
 	 */
 	spa_config_exit(spa, locks & ~(SCL_ZIO - 1), spa);
-	taskq_wait_outstanding(mg->mg_taskq, 0);
+	taskq_wait_outstanding(spa->spa_metaslab_taskq, 0);
 	spa_config_enter(spa, locks & ~(SCL_ZIO - 1), spa, RW_WRITER);
 	metaslab_group_alloc_update(mg);
 	for (int i = 0; i < mg->mg_allocators; i++) {
@@ -3571,10 +3562,8 @@ metaslab_group_preload(metaslab_group_t *mg)
 	avl_tree_t *t = &mg->mg_metaslab_tree;
 	int m = 0;
 
-	if (spa_shutting_down(spa) || !metaslab_preload_enabled) {
-		taskq_wait_outstanding(mg->mg_taskq, 0);
+	if (spa_shutting_down(spa) || !metaslab_preload_enabled)
 		return;
-	}
 
 	mutex_enter(&mg->mg_lock);
 
@@ -3594,8 +3583,9 @@ metaslab_group_preload(metaslab_group_t *mg)
 			continue;
 		}
 
-		VERIFY(taskq_dispatch(mg->mg_taskq, metaslab_preload,
-		    msp, TQ_SLEEP) != TASKQID_INVALID);
+		VERIFY(taskq_dispatch(spa->spa_metaslab_taskq, metaslab_preload,
+		    msp, TQ_SLEEP | (m <= mg->mg_allocators ? TQ_FRONT : 0))
+		    != TASKQID_INVALID);
 	}
 	mutex_exit(&mg->mg_lock);
 }
@@ -6223,6 +6213,9 @@ ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, debug_unload, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, preload_enabled, INT, ZMOD_RW,
 	"Preload potential metaslabs during reassessment");
+
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, preload_limit, UINT, ZMOD_RW,
+	"Max number of metaslabs per group to preload");
 
 ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, unload_delay, UINT, ZMOD_RW,
 	"Delay in txgs after metaslab was last used before unloading");

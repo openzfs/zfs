@@ -250,7 +250,6 @@ struct metaslab_group {
 	int64_t			mg_activation_count;
 	metaslab_class_t	*mg_class;
 	vdev_t			*mg_vd;
-	taskq_t			*mg_taskq;
 	metaslab_group_t	*mg_prev;
 	metaslab_group_t	*mg_next;
 
