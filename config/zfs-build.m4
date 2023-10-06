@@ -358,6 +358,9 @@ AC_DEFUN([ZFS_AC_RPM], [
 	AS_IF([test -n "$udevruledir" ], [
 		RPM_DEFINE_UTIL=${RPM_DEFINE_UTIL}' --define "_udevruledir $(udevruledir)"'
 	])
+	AS_IF([test -n "$bashcompletiondir" ], [
+		RPM_DEFINE_UTIL=${RPM_DEFINE_UTIL}' --define "_bashcompletiondir $(bashcompletiondir)"'
+	])
 	RPM_DEFINE_UTIL=${RPM_DEFINE_UTIL}' $(DEFINE_SYSTEMD)'
 	RPM_DEFINE_UTIL=${RPM_DEFINE_UTIL}' $(DEFINE_PYZFS)'
 	RPM_DEFINE_UTIL=${RPM_DEFINE_UTIL}' $(DEFINE_PAM)'
