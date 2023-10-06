@@ -91,7 +91,7 @@ log_must zpool export $TESTPOOL
 # Record the partition UUID for later comparison
 part_uuid=$(udevadm info --query=property --property=ID_PART_TABLE_UUID \
     --value /dev/disk/by-id/$SD_DEVICE_ID)
-log_note original disk GPT uuid ${part_uuid}
+[[ -z "$part_uuid" ]] || log_note original disk GPT uuid ${part_uuid}
 
 #
 # Wipe and offline the disk
@@ -123,11 +123,18 @@ log_must wait_replacing $TESTPOOL 60
 # Validate auto-replace was successful
 log_must check_state $TESTPOOL "" "ONLINE"
 
+#
 # Confirm the partition UUID changed so we know the new disk was relabeled
-new_uuid=$(udevadm info --query=property --property=ID_PART_TABLE_UUID \
-    --value /dev/disk/by-id/$SD_DEVICE_ID)
-log_note new disk GPT uuid ${new_uuid}
-[[ "$part_uuid" = "$new_uuid" ]] && \
-    log_fail "The new disk was not relabeled as expected"
+#
+# Note: some older versions of udevadm don't support "--property" option so
+# we'll # skip this test when it is not supported
+#
+if [ ! -z "$part_uuid" ]; then
+	new_uuid=$(udevadm info --query=property --property=ID_PART_TABLE_UUID \
+	    --value /dev/disk/by-id/$SD_DEVICE_ID)
+	log_note new disk GPT uuid ${new_uuid}
+	[[ "$part_uuid" = "$new_uuid" ]] && \
+	    log_fail "The new disk was not relabeled as expected"
+fi
 
 log_pass "Auto-replace test successful"
