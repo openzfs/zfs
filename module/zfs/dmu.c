@@ -95,6 +95,12 @@ uint_t dmu_prefetch_max = 8 * 1024 * 1024;
 uint_t dmu_prefetch_max = 8 * SPA_MAXBLOCKSIZE;
 #endif
 
+/*
+ * Override copies= for dedup state objects. 0 means the traditional behaviour
+ * (ie the default for the containing objset ie 3 for the MOS).
+ */
+uint_t dmu_ddt_copies = 0;
+
 const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
 	{DMU_BSWAP_UINT8,  TRUE,  FALSE, FALSE, "unallocated"		},
 	{DMU_BSWAP_ZAP,    TRUE,  TRUE,  FALSE, "object directory"	},
@@ -2271,6 +2277,28 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 		case ZFS_REDUNDANT_METADATA_NONE:
 			break;
 		}
+
+		if (dmu_ddt_copies > 0) {
+			/*
+			 * If this tuneable is set, and this is a write for a
+			 * dedup entry store (zap or log), then we treat it
+			 * something like ZFS_REDUNDANT_METADATA_MOST on a
+			 * regular dataset: this many copies, and one more for
+			 * "higher" indirect blocks. This specific exception is
+			 * necessary because dedup objects are stored in the
+			 * MOS, which always has the highest possible copies.
+			 */
+			dmu_object_type_t stype =
+			    dn ? dn->dn_storage_type : DMU_OT_NONE;
+			if (stype == DMU_OT_NONE)
+				stype = type;
+			if (stype == DMU_OT_DDT_ZAP) {
+				copies = dmu_ddt_copies;
+				if (level >=
+				    zfs_redundant_metadata_most_ditto_level)
+					copies++;
+			}
+		}
 	} else if (wp & WP_NOFILL) {
 		ASSERT(level == 0);
 
@@ -2825,3 +2853,7 @@ ZFS_MODULE_PARAM(zfs, zfs_, dmu_offset_next_sync, INT, ZMOD_RW,
 /* CSTYLED */
 ZFS_MODULE_PARAM(zfs, , dmu_prefetch_max, UINT, ZMOD_RW,
 	"Limit one prefetch call to this size");
+
+/* CSTYLED */
+ZFS_MODULE_PARAM(zfs, , dmu_ddt_copies, UINT, ZMOD_RW,
+	"Override copies= for dedup objects");
