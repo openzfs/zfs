@@ -1958,26 +1958,28 @@ zil_max_log_data(zilog_t *zilog, size_t hdrsize)
 
 /*
  * Maximum amount of log space we agree to waste to reduce number of
- * WR_NEED_COPY chunks to reduce zl_get_data() overhead (~12%).
+ * WR_NEED_COPY chunks to reduce zl_get_data() overhead (~6%).
  */
 static inline uint64_t
 zil_max_waste_space(zilog_t *zilog)
 {
-	return (zil_max_log_data(zilog, sizeof (lr_write_t)) / 8);
+	return (zil_max_log_data(zilog, sizeof (lr_write_t)) / 16);
 }
 
 /*
  * Maximum amount of write data for WR_COPIED.  For correctness, consumers
  * must fall back to WR_NEED_COPY if we can't fit the entire record into one
  * maximum sized log block, because each WR_COPIED record must fit in a
- * single log block.  For space efficiency, we want to fit two records into a
- * max-sized log block.
+ * single log block.  Below that it is a tradeoff of additional memory copy
+ * and possibly worse log space efficiency vs additional range lock/unlock.
  */
+static uint_t zil_maxcopied = 7680;
+
 uint64_t
 zil_max_copied_data(zilog_t *zilog)
 {
-	return ((zilog->zl_max_block_size - sizeof (zil_chain_t)) / 2 -
-	    sizeof (lr_write_t));
+	uint64_t max_data = zil_max_log_data(zilog, sizeof (lr_write_t));
+	return (MIN(max_data, zil_maxcopied));
 }
 
 /*
@@ -4226,3 +4228,6 @@ ZFS_MODULE_PARAM(zfs_zil, zil_, slog_bulk, U64, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_zil, zil_, maxblocksize, UINT, ZMOD_RW,
 	"Limit in bytes of ZIL log block size");
+
+ZFS_MODULE_PARAM(zfs_zil, zil_, maxcopied, UINT, ZMOD_RW,
+	"Limit in bytes WR_COPIED size");

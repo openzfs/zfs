@@ -2150,6 +2150,11 @@ On very fragmented pools, lowering this
 .Pq typically to Sy 36 KiB
 can improve performance.
 .
+.It Sy zil_maxcopied Ns = Ns Sy 7680 Ns B Po 7.5 KiB Pc Pq uint
+This sets the maximum number of write bytes logged via WR_COPIED.
+It tunes a tradeoff between additional memory copy and possibly worse log
+space efficiency vs additional range lock/unlock.
+.
 .It Sy zil_min_commit_timeout Ns = Ns Sy 5000 Pq u64
 This sets the minimum delay in nanoseconds ZIL care to delay block commit,
 waiting for more records.
