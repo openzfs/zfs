@@ -1626,18 +1626,6 @@ MODULE_PARM_DESC(zvol_prefetch_bytes, "Prefetch N bytes at zvol start+end");
 module_param(zvol_volmode, uint, 0644);
 MODULE_PARM_DESC(zvol_volmode, "Default volmode property value");
 
-#ifdef HAVE_BLK_MQ
-module_param(zvol_blk_mq_queue_depth, uint, 0644);
-MODULE_PARM_DESC(zvol_blk_mq_queue_depth, "Default blk-mq queue depth");
-
-module_param(zvol_use_blk_mq, uint, 0644);
-MODULE_PARM_DESC(zvol_use_blk_mq, "Use the blk-mq API for zvols");
-
-module_param(zvol_blk_mq_blocks_per_thread, uint, 0644);
-MODULE_PARM_DESC(zvol_blk_mq_blocks_per_thread,
-    "Process volblocksize blocks per thread");
-#endif
-
 #ifndef HAVE_BLKDEV_GET_ERESTARTSYS
 module_param(zvol_open_timeout_ms, uint, 0644);
 MODULE_PARM_DESC(zvol_open_timeout_ms, "Timeout for ZVOL open retries");
