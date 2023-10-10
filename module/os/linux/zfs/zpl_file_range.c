@@ -202,8 +202,10 @@ zpl_ioctl_ficlone(struct file *dst_file, void *arg)
 	if (src_file == NULL)
 		return (-EBADF);
 
-	if (dst_file->f_op != src_file->f_op)
+	if (dst_file->f_op != src_file->f_op) {
+		fput(src_file);
 		return (-EXDEV);
+	}
 
 	size_t len = i_size_read(file_inode(src_file));
 
@@ -237,8 +239,10 @@ zpl_ioctl_ficlonerange(struct file *dst_file, void __user *arg)
 	if (src_file == NULL)
 		return (-EBADF);
 
-	if (dst_file->f_op != src_file->f_op)
+	if (dst_file->f_op != src_file->f_op) {
+		fput(src_file);
 		return (-EXDEV);
+	}
 
 	size_t len = fcr.fcr_src_length;
 	if (len == 0)
