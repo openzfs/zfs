@@ -91,15 +91,7 @@
  * committed to stable storage. Please refer to the zil_commit_waiter()
  * function (and the comments within it) for more details.
  */
-static uint_t zfs_commit_timeout_pct = 5;
-
-/*
- * Minimal time we care to delay commit waiting for more ZIL records.
- * At least FreeBSD kernel can't sleep for less than 2us at its best.
- * So requests to sleep for less then 5us is a waste of CPU time with
- * a risk of significant log latency increase due to oversleep.
- */
-static uint64_t zil_min_commit_timeout = 5000;
+static uint_t zfs_commit_timeout_pct = 10;
 
 /*
  * See zil.h for more information about these fields.
@@ -2696,6 +2688,19 @@ zil_commit_writer_stall(zilog_t *zilog)
 	ASSERT(list_is_empty(&zilog->zl_lwb_list));
 }
 
+static void
+zil_burst_done(zilog_t *zilog)
+{
+	if (!list_is_empty(&zilog->zl_itx_commit_list) ||
+	    zilog->zl_cur_used == 0)
+		return;
+
+	if (zilog->zl_parallel)
+		zilog->zl_parallel--;
+
+	zilog->zl_cur_used = 0;
+}
+
 /*
  * This function will traverse the commit list, creating new lwbs as
  * needed, and committing the itxs from the commit list to these newly
@@ -2710,7 +2715,6 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 	list_t nolwb_waiters;
 	lwb_t *lwb, *plwb;
 	itx_t *itx;
-	boolean_t first = B_TRUE;
 
 	ASSERT(MUTEX_HELD(&zilog->zl_issuer_lock));
 
@@ -2736,9 +2740,22 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 		zil_commit_activate_saxattr_feature(zilog);
 		ASSERT(lwb->lwb_state == LWB_STATE_NEW ||
 		    lwb->lwb_state == LWB_STATE_OPENED);
-		first = (lwb->lwb_state == LWB_STATE_NEW) &&
-		    ((plwb = list_prev(&zilog->zl_lwb_list, lwb)) == NULL ||
-		    plwb->lwb_state == LWB_STATE_FLUSH_DONE);
+
+		/*
+		 * If the lwb is still opened, it means the workload is really
+		 * multi-threaded and we won the chance of write aggregation.
+		 * If it is not opened yet, but previous lwb is still not
+		 * flushed, it still means the workload is multi-threaded, but
+		 * there was too much time between the commits to aggregate, so
+		 * we try aggregation next times, but without too much hopes.
+		 */
+		if (lwb->lwb_state == LWB_STATE_OPENED) {
+			zilog->zl_parallel = ZIL_BURSTS;
+		} else if ((plwb = list_prev(&zilog->zl_lwb_list, lwb))
+		    != NULL && plwb->lwb_state != LWB_STATE_FLUSH_DONE) {
+			zilog->zl_parallel = MAX(zilog->zl_parallel,
+			    ZIL_BURSTS / 2);
+		}
 	}
 
 	while ((itx = list_remove_head(&zilog->zl_itx_commit_list)) != NULL) {
@@ -2813,7 +2830,7 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 					 * Our lwb is done, leave the rest of
 					 * itx list to somebody else who care.
 					 */
-					first = B_FALSE;
+					zilog->zl_parallel = ZIL_BURSTS;
 					break;
 				}
 			} else {
@@ -2905,28 +2922,15 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 		 * try and pack as many itxs into as few lwbs as
 		 * possible, without significantly impacting the latency
 		 * of each individual itx.
-		 *
-		 * If we had no already running or open LWBs, it can be
-		 * the workload is single-threaded.  And if the ZIL write
-		 * latency is very small or if the LWB is almost full, it
-		 * may be cheaper to bypass the delay.
 		 */
-		if (lwb->lwb_state == LWB_STATE_OPENED && first) {
-			hrtime_t sleep = zilog->zl_last_lwb_latency *
-			    zfs_commit_timeout_pct / 100;
-			if (sleep < zil_min_commit_timeout ||
-			    lwb->lwb_nmax - lwb->lwb_nused <
-			    lwb->lwb_nmax / 8) {
-				list_insert_tail(ilwbs, lwb);
-				lwb = zil_lwb_write_close(zilog, lwb,
-				    LWB_STATE_NEW);
-				zilog->zl_cur_used = 0;
-				if (lwb == NULL) {
-					while ((lwb = list_remove_head(ilwbs))
-					    != NULL)
-						zil_lwb_write_issue(zilog, lwb);
-					zil_commit_writer_stall(zilog);
-				}
+		if (lwb->lwb_state == LWB_STATE_OPENED && !zilog->zl_parallel) {
+			list_insert_tail(ilwbs, lwb);
+			lwb = zil_lwb_write_close(zilog, lwb, LWB_STATE_NEW);
+			zil_burst_done(zilog);
+			if (lwb == NULL) {
+				while ((lwb = list_remove_head(ilwbs)) != NULL)
+					zil_lwb_write_issue(zilog, lwb);
+				zil_commit_writer_stall(zilog);
 			}
 		}
 	}
@@ -3084,19 +3088,7 @@ zil_commit_waiter_timeout(zilog_t *zilog, zil_commit_waiter_t *zcw)
 
 	ASSERT3S(lwb->lwb_state, ==, LWB_STATE_CLOSED);
 
-	/*
-	 * Since the lwb's zio hadn't been issued by the time this thread
-	 * reached its timeout, we reset the zilog's "zl_cur_used" field
-	 * to influence the zil block size selection algorithm.
-	 *
-	 * By having to issue the lwb's zio here, it means the size of the
-	 * lwb was too large, given the incoming throughput of itxs.  By
-	 * setting "zl_cur_used" to zero, we communicate this fact to the
-	 * block size selection algorithm, so it can take this information
-	 * into account, and potentially select a smaller size for the
-	 * next lwb block that is allocated.
-	 */
-	zilog->zl_cur_used = 0;
+	zil_burst_done(zilog);
 
 	if (nlwb == NULL) {
 		/*
@@ -4213,9 +4205,6 @@ EXPORT_SYMBOL(zil_kstat_values_update);
 
 ZFS_MODULE_PARAM(zfs, zfs_, commit_timeout_pct, UINT, ZMOD_RW,
 	"ZIL block open timeout percentage");
-
-ZFS_MODULE_PARAM(zfs_zil, zil_, min_commit_timeout, U64, ZMOD_RW,
-	"Minimum delay we care for ZIL block commit");
 
 ZFS_MODULE_PARAM(zfs_zil, zil_, replay_disable, INT, ZMOD_RW,
 	"Disable intent logging replay");
