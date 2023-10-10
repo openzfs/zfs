@@ -36,7 +36,7 @@
 # DESCRIPTION:
 #	Try each 'zfs mount' with inapplicable scenarios to make sure
 #	it returns an error. include:
-#		* '-a', but also with a specific filesystem.
+#		* Multiple filesystems specified
 #
 # STRATEGY:
 #	1. Create an array of parameters
@@ -53,7 +53,8 @@ for fs in $multifs ; do
 	datasets="$datasets $TESTPOOL/$fs"
 done
 
-set -A args "$mountall $TESTPOOL/$TESTFS"
+set -A args "$mountall $datasets" \
+	"$mountcmd $datasets"
 
 function setup_all
 {
