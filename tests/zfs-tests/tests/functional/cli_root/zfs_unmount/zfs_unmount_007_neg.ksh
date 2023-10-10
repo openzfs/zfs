@@ -37,7 +37,6 @@
 #	Try each 'zfs unmount' with inapplicable scenarios to make sure
 #	it returns an error. include:
 #		* Multiple filesystem|mountpoint specified
-#		* '-a', but also with a specific filesystem|mountpoint.
 #
 # STRATEGY:
 #	1. Create an array of parameters
@@ -54,7 +53,7 @@ for fs in $multifs ; do
 	datasets="$datasets $TESTPOOL/$fs"
 done
 
-set -A args "$unmountall $TESTPOOL/$TESTFS" \
+set -A args "$unmountall $datasets" \
 	"$unmountcmd $datasets"
 
 function setup_all

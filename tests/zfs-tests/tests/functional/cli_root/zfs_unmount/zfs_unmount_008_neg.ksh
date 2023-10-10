@@ -73,7 +73,7 @@ log_onexit cleanup
 fs=$TESTPOOL/$TESTFS
 vol=$TESTPOOL/vol.$$
 snap=$TESTPOOL/$TESTFS@snap.$$
-set -A badargs "A" "-A" "F" "-F" "-" "-x" "-?"
+set -A badargs "A" "F" "-F" "-" "-x" "-?"
 
 if ! ismounted $fs; then
 	log_must zfs mount $fs

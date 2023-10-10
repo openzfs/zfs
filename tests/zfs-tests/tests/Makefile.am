@@ -923,6 +923,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_unmount/zfs_unmount_008_neg.ksh \
 	functional/cli_root/zfs_unmount/zfs_unmount_009_pos.ksh \
 	functional/cli_root/zfs_unmount/zfs_unmount_all_001_pos.ksh \
+	functional/cli_root/zfs_unmount/zfs_unmount_all_002_pos.ksh \
 	functional/cli_root/zfs_unmount/zfs_unmount_nested.ksh \
 	functional/cli_root/zfs_unmount/zfs_unmount_unload_keys.ksh \
 	functional/cli_root/zfs_unshare/cleanup.ksh \

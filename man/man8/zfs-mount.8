@@ -47,7 +47,7 @@
 .Nm zfs
 .Cm unmount
 .Op Fl fu
-.Fl a Ns | Ns Ar filesystem Ns | Ns Ar mountpoint
+.Fl a Oo filesystem Oc | Oo Fl A Oc Ar filesystem | Ar mountpoint
 .
 .Sh DESCRIPTION
 .Bl -tag -width ""
@@ -115,21 +115,26 @@ be mounted (e.g. redacted datasets).
 .Nm zfs
 .Cm unmount
 .Op Fl fu
-.Fl a Ns | Ns Ar filesystem Ns | Ns Ar mountpoint
+.Fl a Oo filesystem Oc | Oo Fl A Oc Ar filesystem | Ar mountpoint
 .Xc
 Unmounts currently mounted ZFS file systems.
 .Bl -tag -width "-a"
-.It Fl a
-Unmount all available ZFS file systems.
+.It Fl a Op filesystem
+Unmount the specified filesystem and its children, provided they are available.
+If no filesystem is specified,
+then all available ZFS file systems are unmounted.
 Invoked automatically as part of the shutdown process.
-.It Fl f
-Forcefully unmount the file system, even if it is currently in use.
-This option is not supported on Linux.
-.It Fl u
-Unload keys for any encryption roots unmounted by this command.
+.It Fl A Ar filesystem
+Unmount the specified filesystem and its children, provided they are available.
+Note: datasets with the `canmount=noauto` property will also be unmounted.
 .It Ar filesystem Ns | Ns Ar mountpoint
 Unmount the specified filesystem.
 The command can also be given a path to a ZFS file system mount point on the
 system.
+.It Fl u
+Unload keys for any encryption roots unmounted by this command.
+.It Fl f
+Forcefully unmount the file system, even if it is currently in use.
+This option is not supported on Linux.
 .El
 .El
