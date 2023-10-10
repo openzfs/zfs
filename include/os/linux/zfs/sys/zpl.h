@@ -196,6 +196,8 @@ extern int zpl_clone_file_range(struct file *src_file, loff_t src_off,
     struct file *dst_file, loff_t dst_off, uint64_t len);
 extern int zpl_dedupe_file_range(struct file *src_file, loff_t src_off,
     struct file *dst_file, loff_t dst_off, uint64_t len);
+extern int zpl_dedupe_file_compare(struct file *src_file, loff_t src_off,
+	struct file *dst_file, loff_t dst_off, uint64_t len, bool *is_same);
 
 /* compat for FICLONE/FICLONERANGE/FIDEDUPERANGE ioctls */
 typedef struct {

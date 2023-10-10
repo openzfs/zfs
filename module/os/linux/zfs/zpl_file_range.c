@@ -147,18 +147,36 @@ zpl_remap_file_range(struct file *src_file, loff_t src_off,
 	 * doesn't do that, so we just turn the flag off.
 	 */
 	flags &= ~REMAP_FILE_CAN_SHORTEN;
+	if (flags & REMAP_FILE_DEDUP) {
+		/* Zero length means to clone everything to the end of the file
+		 */
+		if (len == 0)
+			len = i_size_read(file_inode(src_file)) - src_off;
+		// Both nodes must be range locked
+		zfs_locked_range_t *src_zlr = zfs_rangelock_enter(
+		    &ITOZ(file_inode(src_file))->z_rangelock, src_off, len,
+		    RL_READER);
+		zfs_locked_range_t *dst_zlr = zfs_rangelock_enter(
+		    &ITOZ(file_inode(dst_file))->z_rangelock, dst_off, len,
+		    RL_WRITER);
+		bool same = false;
+		int ret = zpl_dedupe_file_compare(src_file, src_off, dst_file,
+						  dst_off, len, &same);
+		if (ret)
+			return ret;
+		if (!same)
+			return -EBADE;
+		/* TODO(locked version) */
+		ret = __zpl_clone_file_range(src_file, src_off, dst_file,
+						dst_off, len);
+		zfs_rangelock_exit(src_zlr);
+		zfs_rangelock_exit(dst_zlr);
+		return ret;
+	}
 
-	if (flags & REMAP_FILE_DEDUP)
-		/* No support for dedup yet */
-		return (-EOPNOTSUPP);
-
-	/* Zero length means to clone everything to the end of the file */
-	if (len == 0)
-		len = i_size_read(file_inode(src_file)) - src_off;
-
-	return (__zpl_clone_file_range(src_file, src_off,
-	    dst_file, dst_off, len));
-}
+	return (__zpl_clone_file_range(src_file, src_off, dst_file,
+		dst_off, len));
+	}
 #endif /* HAVE_VFS_REMAP_FILE_RANGE */
 
 #if defined(HAVE_VFS_CLONE_FILE_RANGE) || \
@@ -202,9 +220,10 @@ zpl_ioctl_ficlone(struct file *dst_file, void *arg)
 	if (src_file == NULL)
 		return (-EBADF);
 
-	if (dst_file->f_op != src_file->f_op)
+	if (dst_file->f_op != src_file->f_op) {
+		fput(src_file);
 		return (-EXDEV);
-
+	}
 	size_t len = i_size_read(file_inode(src_file));
 
 	ssize_t ret =
@@ -237,8 +256,10 @@ zpl_ioctl_ficlonerange(struct file *dst_file, void __user *arg)
 	if (src_file == NULL)
 		return (-EBADF);
 
-	if (dst_file->f_op != src_file->f_op)
+	if (dst_file->f_op != src_file->f_op) {
+		fput(src_file);
 		return (-EXDEV);
+	}
 
 	size_t len = fcr.fcr_src_length;
 	if (len == 0)
@@ -263,10 +284,132 @@ zpl_ioctl_ficlonerange(struct file *dst_file, void __user *arg)
 
 /* Entry point for FIDEDUPERANGE, before Linux 4.5. */
 long
-zpl_ioctl_fideduperange(struct file *filp, void *arg)
-{
-	(void) arg;
+zpl_ioctl_fideduperange(struct file *src_file, void *arg) {
+	zfs_ioc_compat_dedupe_range_t dup;
+	int i;
 
-	/* No support for dedup yet */
-	return (-ENOTTY);
+	if (copy_from_user(&dup, arg, sizeof(dup)))
+		return (-EFAULT);
+
+	u16 count = dup.fdr_dest_count;
+	struct inode *src_inode = file_inode(src_file);
+
+	/* Nothing to duplicate to */
+	if (count == 0)
+		return -EINVAL;
+
+	/* Check the src file */
+	if (!(src_file->f_mode & FMODE_READ))
+		return -EINVAL;
+
+	if (S_ISDIR(src_inode->i_mode))
+		return -EISDIR;
+
+	if (!S_ISREG(src_inode->i_mode))
+		return -EINVAL;
+
+	if (dup.fdr_src_offset + dup.fdr_src_length > i_size_read(src_inode))
+		return -EINVAL;
+
+	/* Check the dup structure */
+	if (dup.fdr_reserved1 || dup.fdr_reserved2)
+		return -EINVAL;
+
+	/* Set output values to safe results */
+	for (i = 0; i < count; i++) {
+		dup.fdr_info[i].fdri_bytes_deduped = 0ULL;
+		dup.fdr_info[i].fdri_status = FILE_DEDUPE_RANGE_SAME;
+	}
+
+	for (i = 0; i < count; i++) {
+		struct fd dst_fd = fdget(dup.fdr_info[i].fdri_dest_fd);
+		struct file *dst_file = dst_fd.file;
+
+		if (!dst_file) {
+			dup.fdr_info[i].fdri_status = -EBADF;
+			continue;
+		}
+		if (dup.fdr_info[i].fdri_reserved) {
+			dup.fdr_info[i].fdri_status = -EINVAL;
+			goto do_fdput;
+		}
+		loff_t deduped =
+		    zpl_remap_file_range(src_file, dup.fdr_src_offset, dst_file,
+					 dup.fdr_info[i].fdri_dest_offset,
+					 dup.fdr_src_length, REMAP_FILE_DEDUP);
+		if (deduped == -EBADE) {
+			dup.fdr_info[i].fdri_status = FILE_DEDUPE_RANGE_DIFFERS;
+		} else if (deduped < 0) {
+			dup.fdr_info[i].fdri_status = deduped;
+		} else {
+			dup.fdr_info[i].fdri_bytes_deduped = dup.fdr_src_length;
+		}
+	do_fdput:
+		fdput(dst_fd);
+	}
+	return 0;
+}
+
+int
+zpl_dedupe_file_compare(struct file *src_file, loff_t src_off,
+			struct file *dst_file, loff_t dst_off, uint64_t len,
+			bool *is_same) {
+	bool same = true;
+	int err = 0;
+	znode_t *src_znode = ITOZ(file_inode(src_file));
+	znode_t *dst_znode = ITOZ(file_inode(dst_file));
+	fstrans_cookie_t cookie;
+	cred_t *cr = CRED();
+	void *src_buf = kmem_zalloc(PAGE_SIZE, KM_SLEEP);
+	void *dst_buf = kmem_zalloc(PAGE_SIZE, KM_SLEEP);
+
+
+	while (len) {
+		zfs_uio_t uio;
+
+		uint64_t cmp_len = min(((uint64_t)PAGE_SIZE), len);
+
+		if (cmp_len == 0)
+			break;
+		struct iovec iov;
+		iov.iov_base = src_buf;
+		iov.iov_len = cmp_len;
+
+		zfs_uio_iovec_init(&uio, &iov, 1, 0, UIO_SYSSPACE, cmp_len, 0);
+		crhold(cr);
+		cookie = spl_fstrans_mark();
+		err = -zfs_read(src_znode, &uio, src_file->f_flags, cr);
+		spl_fstrans_unmark(cookie);
+		crfree(cr);
+
+		if (err)
+			goto done;
+		iov.iov_base = dst_buf;
+		iov.iov_len = cmp_len;
+		crhold(cr);
+		cookie = spl_fstrans_mark();
+		err = -zfs_read(dst_znode, &uio, dst_file->f_flags, cr);
+		spl_fstrans_unmark(cookie);
+		crfree(cr);
+
+		if (err)
+			goto done;
+
+		if (memcmp(src_buf, dst_buf, cmp_len))
+			same = false;
+
+		if (!same)
+			break;
+
+		src_off += cmp_len;
+		dst_off += cmp_len;
+		len -= cmp_len;
+	}
+
+	*is_same = same;
+
+done:
+	kmem_free(src_buf, PAGE_SIZE);
+	kmem_free(dst_buf, PAGE_SIZE);
+	return err;
 }
