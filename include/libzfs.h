@@ -887,6 +887,7 @@ _LIBZFS_H int zfs_name_valid(const char *, zfs_type_t);
 _LIBZFS_H zfs_handle_t *zfs_path_to_zhandle(libzfs_handle_t *, const char *,
     zfs_type_t);
 _LIBZFS_H int zfs_parent_name(zfs_handle_t *, char *, size_t);
+_LIBZFS_H boolean_t zfs_dataset_related(zfs_handle_t *, const char *);
 _LIBZFS_H boolean_t zfs_dataset_exists(libzfs_handle_t *, const char *,
     zfs_type_t);
 _LIBZFS_H int zfs_spa_version(zfs_handle_t *, int *);

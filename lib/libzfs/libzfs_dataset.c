@@ -3447,6 +3447,35 @@ is_descendant(const char *ds1, const char *ds2)
 }
 
 /*
+ * Is one dataset is related to another, including self-relation?
+ *
+ * Needs to handle these cases:
+ * Dataset 1	"a/foo"		"a/foo"		"a/foo"		"a/foo"
+ * Dataset 2	"a/foo"		"a/fo"		"a/foobar"	"a/foo/bar"
+ * Related?	Yes.		No.		No.		Yes.
+ */
+static boolean_t
+dataset_related(const char *ds1, const char *ds2)
+{
+	/* ds1 and ds2 are identical */
+	if (strcmp(ds1, ds2) == 0)
+		return (B_TRUE);
+
+	/* ds2 is a descendant of ds1 */
+	if (is_descendant(ds1, ds2))
+		return (B_TRUE);
+
+	/* dataset are not related. */
+	return (B_FALSE);
+}
+
+boolean_t
+zfs_dataset_related(zfs_handle_t *zhp, const char *parent)
+{
+	return (dataset_related(parent, zfs_get_name(zhp)));
+}
+
+/*
  * Given a complete name, return just the portion that refers to the parent.
  * Will return -1 if there is no parent (path is just the name of the
  * pool).
