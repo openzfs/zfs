@@ -347,7 +347,7 @@ get_usage(zfs_help_t idx)
 		    "<filesystem|volume>@<snap> ...\n"));
 	case HELP_UNMOUNT:
 		return (gettext("\tunmount [-fu] "
-		    "<-a | filesystem|mountpoint>\n"));
+		    "<-a [filesystem] | [-A] filesystem|mountpoint>\n"));
 	case HELP_UNSHARE:
 		return (gettext("\tunshare "
 		    "<-a [nfs|smb] | filesystem|mountpoint>\n"));
@@ -7488,7 +7488,8 @@ out:
 static int
 unshare_unmount(int op, int argc, char **argv)
 {
-	int do_all = 0;
+	boolean_t do_all = B_FALSE;
+	boolean_t do_noauto = B_FALSE;
 	int flags = 0;
 	int ret = 0;
 	int c;
@@ -7497,10 +7498,13 @@ unshare_unmount(int op, int argc, char **argv)
 	char sharesmb[ZFS_MAXPROPLEN];
 
 	/* check options */
-	while ((c = getopt(argc, argv, op == OP_SHARE ? ":a" : "afu")) != -1) {
+	while ((c = getopt(argc, argv, op == OP_SHARE ? ":a" : "aAfu")) != -1) {
 		switch (c) {
 		case 'a':
-			do_all = 1;
+			do_all = B_TRUE;
+			break;
+		case 'A':
+			do_noauto = B_TRUE;
 			break;
 		case 'f':
 			flags |= MS_FORCE;
@@ -7523,7 +7527,7 @@ unshare_unmount(int op, int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if (do_all) {
+	if (do_all || do_noauto) {
 		/*
 		 * We could make use of zfs_for_each() to walk all datasets in
 		 * the system, but this would be very inefficient, especially
@@ -7555,10 +7559,30 @@ unshare_unmount(int op, int argc, char **argv)
 			argv++;
 		}
 
-		if (argc != 0) {
+		/* check number of arguments */
+		if (do_noauto && argc < 1) {
+			(void) fprintf(stderr, gettext("missing "
+			    "dataset argument\n"));
+			usage(B_FALSE);
+		}
+		if ((op == OP_SHARE && argc != 0) || argc > 1) {
 			(void) fprintf(stderr, gettext("too many arguments\n"));
 			usage(B_FALSE);
 		}
+
+		/*
+		 * Limit `-a filesystem` to unmount only
+		 */
+		const char *filesystem = NULL;
+		if (op == OP_MOUNT)
+			filesystem = argv[0];
+
+		/*
+		 * Validate filesystem is actually a valid zfs filesystem
+		 */
+		if (filesystem != NULL && (zhp = zfs_open(g_zfs,
+		    filesystem, ZFS_TYPE_FILESYSTEM)) == NULL)
+			return (1);
 
 		if (((pool = uu_avl_pool_create("unmount_pool",
 		    sizeof (unshare_unmount_node_t),
@@ -7621,14 +7645,24 @@ unshare_unmount(int op, int argc, char **argv)
 				    NULL, NULL, 0, B_FALSE) == 0);
 				if (strcmp(nfs_mnt_prop, "legacy") == 0)
 					continue;
-				/* Ignore canmount=noauto mounts */
+				/*
+				 * Ignore canmount=noauto mounts if
+				 * 'do_noauto' is set to false (default: false)
+				 */
 				if (zfs_prop_get_int(zhp, ZFS_PROP_CANMOUNT) ==
-				    ZFS_CANMOUNT_NOAUTO)
+				    ZFS_CANMOUNT_NOAUTO && !do_noauto)
 					continue;
 				break;
 			default:
 				break;
 			}
+
+			/*
+			 * Skip any dataset that's not related to filesystem.
+			 */
+			if (filesystem != NULL &&
+			    !zfs_dataset_related(zhp, filesystem))
+				continue;
 
 			node = safe_malloc(sizeof (unshare_unmount_node_t));
 			node->un_zhp = zhp;
