@@ -9,7 +9,6 @@ dist_noinst_SCRIPTS = \
 	%D%/man-dates.sh \
 	%D%/mancheck.sh \
 	%D%/paxcheck.sh \
-	%D%/update_authors.pl \
 	%D%/zfs-tests-color.sh
 
 scripts_scripts = \
@@ -30,6 +29,7 @@ endif
 dist_noinst_DATA += \
 	%D%/cstyle.pl \
 	%D%/enum-extract.pl \
+	%D%/update_authors.pl \
 	%D%/zfs2zol-patch.sed \
 	%D%/zol2zfs-patch.sed
 
