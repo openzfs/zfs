@@ -307,7 +307,8 @@ get_usage(zfs_help_t idx)
 		    "[filesystem|volume|snapshot] ...\n"));
 	case HELP_MOUNT:
 		return (gettext("\tmount\n"
-		    "\tmount [-flvO] [-o opts] <-a | filesystem>\n"));
+		    "\tmount [-flvO] [-o opts] "
+		    "<-a [filesystem] | [-A] filesystem>\n"));
 	case HELP_PROMOTE:
 		return (gettext("\tpromote <clone-filesystem>\n"));
 	case HELP_RECEIVE:
@@ -6731,6 +6732,7 @@ zfs_do_holds(int argc, char **argv)
 typedef struct get_all_state {
 	boolean_t	ga_verbose;
 	get_all_cb_t	*ga_cbp;
+	const char	*ga_parent;
 } get_all_state_t;
 
 static int
@@ -6769,6 +6771,16 @@ get_one_dataset(zfs_handle_t *zhp, void *data)
 		zfs_close(zhp);
 		return (0);
 	}
+
+	/*
+	 * Skip any dataset that's not related to ga_parent.
+	 */
+	if (state->ga_parent != NULL &&
+	    !zfs_dataset_related(zhp, state->ga_parent)) {
+		zfs_close(zhp);
+		return (0);
+	}
+
 	libzfs_add_handle(state->ga_cbp, zhp);
 	assert(state->ga_cbp->cb_used <= state->ga_cbp->cb_alloc);
 
@@ -6776,11 +6788,12 @@ get_one_dataset(zfs_handle_t *zhp, void *data)
 }
 
 static void
-get_all_datasets(get_all_cb_t *cbp, boolean_t verbose)
+get_all_datasets(get_all_cb_t *cbp, boolean_t verbose, const char *parent)
 {
 	get_all_state_t state = {
 	    .ga_verbose = verbose,
-	    .ga_cbp = cbp
+	    .ga_cbp = cbp,
+	    .ga_parent = parent
 	};
 
 	if (verbose)
@@ -6808,6 +6821,7 @@ typedef struct share_mount_state {
 	uint_t	sm_total; /* number of filesystems to process */
 	uint_t	sm_done; /* number of filesystems processed */
 	int	sm_status; /* -1 if any of the share/mount operations failed */
+	boolean_t	sm_mount_noauto; /* treat 'canmount=noauto' as 'on' */
 } share_mount_state_t;
 
 /*
@@ -6815,7 +6829,7 @@ typedef struct share_mount_state {
  */
 static int
 share_mount_one(zfs_handle_t *zhp, int op, int flags, enum sa_protocol protocol,
-    boolean_t explicit, const char *options)
+    boolean_t explicit, const char *options, boolean_t mount_noauto)
 {
 	char mountpoint[ZFS_MAXPROPLEN];
 	char shareopts[ZFS_MAXPROPLEN];
@@ -6905,13 +6919,14 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, enum sa_protocol protocol,
 	}
 
 	/*
-	 * canmount	explicit	outcome
-	 * on		no		pass through
-	 * on		yes		pass through
-	 * off		no		return 0
-	 * off		yes		display error, return 1
-	 * noauto	no		return 0
-	 * noauto	yes		pass through
+	 * canmount	explicit	mount_noauto	outcome
+	 * on		no		n/a		pass through
+	 * on		yes		n/a		pass through
+	 * off		no		n/a		return 0
+	 * off		yes		n/a		display error, return 1
+	 * noauto	no		no		return 0
+	 * noauto	no		yes		pass through
+	 * noauto	yes		yes/no		pass through
 	 */
 	canmount = zfs_prop_get_int(zhp, ZFS_PROP_CANMOUNT);
 	if (canmount == ZFS_CANMOUNT_OFF) {
@@ -6922,11 +6937,13 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, enum sa_protocol protocol,
 		    "'canmount' property is set to 'off'\n"), cmdname,
 		    zfs_get_name(zhp));
 		return (1);
-	} else if (canmount == ZFS_CANMOUNT_NOAUTO && !explicit) {
+	} else if (canmount == ZFS_CANMOUNT_NOAUTO &&
+	    !explicit && !mount_noauto) {
 		/*
 		 * When performing a 'zfs mount -a', we skip any mounts for
-		 * datasets that have 'noauto' set. Sharing a dataset with
-		 * 'noauto' set is only allowed if it's mounted.
+		 * datasets that have 'noauto' set. However, 'zfs mount -A'
+		 * will mount datasets with 'noauto' set. Sharing a dataset
+		 * with 'noauto' set is only allowed if it's mounted.
 		 */
 		if (op == OP_MOUNT)
 			return (0);
@@ -7082,7 +7099,7 @@ share_mount_one_cb(zfs_handle_t *zhp, void *arg)
 	int ret;
 
 	ret = share_mount_one(zhp, sms->sm_op, sms->sm_flags, sms->sm_proto,
-	    B_FALSE, sms->sm_options);
+	    B_FALSE, sms->sm_options, sms->sm_mount_noauto);
 
 	pthread_mutex_lock(&sms->sm_lock);
 	if (ret != 0)
@@ -7132,18 +7149,22 @@ sa_protocol_decode(const char *protocol)
 static int
 share_mount(int op, int argc, char **argv)
 {
-	int do_all = 0;
+	boolean_t do_all = B_FALSE;
+	boolean_t do_noauto = B_FALSE;
 	boolean_t verbose = B_FALSE;
 	int c, ret = 0;
 	char *options = NULL;
 	int flags = 0;
 
 	/* check options */
-	while ((c = getopt(argc, argv, op == OP_MOUNT ? ":alvo:Of" : "al"))
+	while ((c = getopt(argc, argv, op == OP_MOUNT ? ":aAlvo:Of" : "al"))
 	    != -1) {
 		switch (c) {
 		case 'a':
-			do_all = 1;
+			do_all = B_TRUE;
+			break;
+		case 'A':
+			do_noauto = B_TRUE;
 			break;
 		case 'v':
 			verbose = B_TRUE;
@@ -7186,7 +7207,7 @@ share_mount(int op, int argc, char **argv)
 	argv += optind;
 
 	/* check number of arguments */
-	if (do_all) {
+	if (do_all || do_noauto) {
 		enum sa_protocol protocol = SA_NO_PROTOCOL;
 
 		if (op == OP_SHARE && argc > 0) {
@@ -7194,15 +7215,40 @@ share_mount(int op, int argc, char **argv)
 			argc--;
 			argv++;
 		}
-
-		if (argc != 0) {
+		/* check number of arguments */
+		if (do_noauto && argc < 1) {
+			(void) fprintf(stderr, gettext("missing "
+			    "dataset argument\n"));
+			usage(B_FALSE);
+		}
+		if ((op == OP_SHARE && argc != 0) || argc > 1) {
 			(void) fprintf(stderr, gettext("too many arguments\n"));
 			usage(B_FALSE);
 		}
 
+		/*
+		 * Limit `-a filesystem` to mount only
+		 */
+		const char *filesystem = NULL;
+		if (op == OP_MOUNT)
+			filesystem = argv[0];
+
+		/*
+		 * Validate filesystem is actually a valid zfs filesystem
+		 */
+		if (filesystem != NULL) {
+			zfs_handle_t *zhp = zfs_open(g_zfs, filesystem,
+			    ZFS_TYPE_FILESYSTEM);
+			if (zhp == NULL) {
+				free(options);
+				return (1);
+			}
+			zfs_close(zhp);
+		}
+
 		start_progress_timer();
 		get_all_cb_t cb = { 0 };
-		get_all_datasets(&cb, verbose);
+		get_all_datasets(&cb, verbose, filesystem);
 
 		if (cb.cb_used == 0) {
 			free(options);
@@ -7216,6 +7262,7 @@ share_mount(int op, int argc, char **argv)
 		share_mount_state.sm_options = options;
 		share_mount_state.sm_proto = protocol;
 		share_mount_state.sm_total = cb.cb_used;
+		share_mount_state.sm_mount_noauto = do_noauto;
 		pthread_mutex_init(&share_mount_state.sm_lock, NULL);
 
 		/* For a 'zfs share -a' operation start with a clean slate. */
@@ -7283,7 +7330,7 @@ share_mount(int op, int argc, char **argv)
 			ret = 1;
 		} else {
 			ret = share_mount_one(zhp, op, flags, SA_NO_PROTOCOL,
-			    B_TRUE, options);
+			    B_TRUE, options, B_FALSE);
 			zfs_commit_shares(NULL);
 			zfs_close(zhp);
 		}
