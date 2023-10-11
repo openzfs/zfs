@@ -87,8 +87,9 @@ __zpl_clone_file_range(struct file *src_file, loff_t src_off,
  */
 static ssize_t
 __zpl_clone_file_range_locked(struct file *src_file, loff_t src_off,
-		       struct file *dst_file, loff_t dst_off, size_t len,
-			   zfs_locked_range_t *src_zlr, zfs_locked_range_t *dst_zlr) {
+    struct file *dst_file, loff_t dst_off, size_t len,
+    zfs_locked_range_t *src_zlr, zfs_locked_range_t *dst_zlr)
+{
 	struct inode *src_i = file_inode(src_file);
 	struct inode *dst_i = file_inode(dst_file);
 	uint64_t src_off_o = (uint64_t)src_off;
@@ -98,8 +99,8 @@ __zpl_clone_file_range_locked(struct file *src_file, loff_t src_off,
 	fstrans_cookie_t cookie;
 	int err;
 
-	if (!spa_feature_is_enabled(dmu_objset_spa(ITOZSB(dst_i)->z_os),
-				    SPA_FEATURE_BLOCK_CLONING))
+	if (!spa_feature_is_enabled(
+	        dmu_objset_spa(ITOZSB(dst_i)->z_os), SPA_FEATURE_BLOCK_CLONING))
 		return (-EOPNOTSUPP);
 
 	if (src_i != dst_i)
@@ -108,9 +109,8 @@ __zpl_clone_file_range_locked(struct file *src_file, loff_t src_off,
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
-
-	err = -zfs_clone_range_locked(ITOZ(src_i), &src_off_o, ITOZ(dst_i), &dst_off_o,
-			       &len_o, cr, src_zlr, dst_zlr);
+	err = -zfs_clone_range_locked(ITOZ(src_i), &src_off_o, ITOZ(dst_i),
+	    &dst_off_o, &len_o, cr, src_zlr, dst_zlr);
 
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
@@ -124,7 +124,6 @@ __zpl_clone_file_range_locked(struct file *src_file, loff_t src_off,
 
 	return ((ssize_t)len_o);
 }
-
 
 #if defined(HAVE_VFS_COPY_FILE_RANGE) ||                                       \
     defined(HAVE_VFS_FILE_OPERATIONS_EXTEND)
@@ -196,11 +195,6 @@ zpl_remap_file_range(struct file *src_file, loff_t src_off,
 	 * doesn't do that, so we just turn the flag off.
 	 */
 	flags &= ~REMAP_FILE_CAN_SHORTEN;
-	/* Zero length means to clone everything to the end of the file
-	 */
-	if (len == 0)
-		len = i_size_read(file_inode(src_file)) - src_off;
-
 	if (flags & REMAP_FILE_DEDUP) {
 		/* Both nodes must be range locked */
 		zfs_locked_range_t *src_zlr;
@@ -229,9 +223,8 @@ zpl_remap_file_range(struct file *src_file, loff_t src_off,
 		}
 
 		bool same = false;
-		int ret = zpl_dedupe_file_compare_locked(
-		    src_file, src_off, dst_file, dst_off, len, &same, src_zlr,
-		    dst_zlr);
+		int ret = zpl_dedupe_file_compare_locked(src_file, src_off,
+		    dst_file, dst_off, len, &same, src_zlr, dst_zlr);
 		if (ret) {
 			goto cleanup;
 		}
@@ -240,11 +233,11 @@ zpl_remap_file_range(struct file *src_file, loff_t src_off,
 			goto cleanup;
 		}
 		ret = __zpl_clone_file_range_locked(src_file, src_off, dst_file,
-						    dst_off, len, src_zlr, dst_zlr);
+		    dst_off, len, src_zlr, dst_zlr);
 	cleanup:
 		zfs_rangelock_exit(src_zlr);
 		zfs_rangelock_exit(dst_zlr);
-		return ret;
+		return (ret);
 	}
 	if (len == 0)
 		len = i_size_read(file_inode(src_file)) - src_off;
@@ -261,7 +254,8 @@ zpl_remap_file_range(struct file *src_file, loff_t src_off,
  */
 int
 zpl_clone_file_range(struct file *src_file, loff_t src_off,
-		     struct file *dst_file, loff_t dst_off, uint64_t len) {
+		     struct file *dst_file, loff_t dst_off, uint64_t len)
+{
 	/* Zero length means to clone everything to the end of the file */
 	if (len == 0)
 		len = i_size_read(file_inode(src_file)) - src_off;
@@ -358,11 +352,11 @@ zpl_ioctl_ficlonerange(struct file *dst_file, void __user *arg)
 
 /* Entry point for FIDEDUPERANGE, before Linux 4.5. */
 long
-zpl_ioctl_fideduperange(struct file *src_file, void *arg) {
+zpl_ioctl_fideduperange(struct file *src_file, void *arg)
+{
 	zfs_ioc_compat_dedupe_range_t dup;
 	int i;
-
-	if (copy_from_user(&dup, arg, sizeof(dup)))
+	if (copy_from_user(&dup, arg, sizeof (dup)))
 		return (-EFAULT);
 
 	u16 count = dup.fdr_dest_count;
@@ -370,24 +364,24 @@ zpl_ioctl_fideduperange(struct file *src_file, void *arg) {
 
 	/* Nothing to duplicate to */
 	if (count == 0)
-		return -EINVAL;
+		return (-EINVAL);
 
 	/* Check the src file */
 	if (!(src_file->f_mode & FMODE_READ))
-		return -EINVAL;
+		return (-EINVAL);
 
 	if (S_ISDIR(src_inode->i_mode))
-		return -EISDIR;
+		return (-EISDIR);
 
 	if (!S_ISREG(src_inode->i_mode))
-		return -EINVAL;
+		return (-EINVAL);
 
 	if (dup.fdr_src_offset + dup.fdr_src_length > i_size_read(src_inode))
-		return -EINVAL;
+		return (-EINVAL);
 
 	/* Check the dup structure */
 	if (dup.fdr_reserved1 || dup.fdr_reserved2)
-		return -EINVAL;
+		return (-EINVAL);
 
 	/* Set output values to safe results */
 	for (i = 0; i < count; i++) {
@@ -409,8 +403,8 @@ zpl_ioctl_fideduperange(struct file *src_file, void *arg) {
 		}
 		loff_t deduped =
 		    zpl_remap_file_range(src_file, dup.fdr_src_offset, dst_file,
-					 dup.fdr_info[i].fdri_dest_offset,
-					 dup.fdr_src_length, REMAP_FILE_DEDUP);
+		        dup.fdr_info[i].fdri_dest_offset, dup.fdr_src_length,
+		        REMAP_FILE_DEDUP);
 		if (deduped == -EBADE) {
 			dup.fdr_info[i].fdri_status = FILE_DEDUPE_RANGE_DIFFERS;
 		} else if (deduped < 0) {
@@ -421,15 +415,14 @@ zpl_ioctl_fideduperange(struct file *src_file, void *arg) {
 	do_fdput:
 		fdput(dst_fd);
 	}
-	return 0;
+	return (0);
 }
 
 int
 zpl_dedupe_file_compare_locked(struct file *src_file, loff_t src_off,
-			       struct file *dst_file, loff_t dst_off,
-			       uint64_t len, bool *is_same,
-			       zfs_locked_range_t *src_zlr,
-			       zfs_locked_range_t *dst_zlr) {
+    struct file *dst_file, loff_t dst_off, uint64_t len, bool *is_same,
+    zfs_locked_range_t *src_zlr, zfs_locked_range_t *dst_zlr)
+{
 	bool same = true;
 	int err = 0;
 	znode_t *src_znode = ITOZ(file_inode(src_file));
@@ -443,7 +436,7 @@ zpl_dedupe_file_compare_locked(struct file *src_file, loff_t src_off,
 		zfs_uio_t uio;
 
 		uint64_t cmp_len = min(PAGE_SIZE - offset_in_page(src_off),
-				       PAGE_SIZE - offset_in_page(dst_off));
+		    PAGE_SIZE - offset_in_page(dst_off));
 
 		cmp_len = min(cmp_len, len);
 
@@ -456,25 +449,29 @@ zpl_dedupe_file_compare_locked(struct file *src_file, loff_t src_off,
 		zfs_uio_iovec_init(&uio, &iov, 1, 0, UIO_SYSSPACE, cmp_len, 0);
 		crhold(cr);
 		cookie = spl_fstrans_mark();
-		err = -zfs_read_locked(src_znode, &uio, src_file->f_flags, cr,
-				       src_zlr);
+		err = -zfs_read_locked(
+		    src_znode, &uio, src_file->f_flags, cr, src_zlr);
 		spl_fstrans_unmark(cookie);
 		crfree(cr);
-
+		if (zfs_uio_resid(&uio) != 0)
+			err = -EIO;
 		if (err)
 			goto done;
 		iov.iov_base = dst_buf;
 		iov.iov_len = cmp_len;
+
+		zfs_uio_iovec_init(&uio, &iov, 1, 0, UIO_SYSSPACE, cmp_len, 0);
 		crhold(cr);
 		cookie = spl_fstrans_mark();
-		err = -zfs_read_locked(dst_znode, &uio, dst_file->f_flags, cr,
-				       dst_zlr);
+		err = -zfs_read_locked(
+		    dst_znode, &uio, dst_file->f_flags, cr, dst_zlr);
 		spl_fstrans_unmark(cookie);
 		crfree(cr);
+		if (zfs_uio_resid(&uio) != 0)
+			err = -EIO;
 
 		if (err)
 			goto done;
-
 		if (memcmp(src_buf, dst_buf, cmp_len))
 			same = false;
 
@@ -487,9 +484,8 @@ zpl_dedupe_file_compare_locked(struct file *src_file, loff_t src_off,
 	}
 
 	*is_same = same;
-
 done:
 	kmem_free(src_buf, PAGE_SIZE);
 	kmem_free(dst_buf, PAGE_SIZE);
-	return err;
+	return (err);
 }

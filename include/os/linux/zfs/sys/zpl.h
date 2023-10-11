@@ -190,24 +190,22 @@ typedef struct zfs_locked_range zfs_locked_range_t;
 /* handlers for file_operations of the same name */
 extern ssize_t
 zpl_copy_file_range(struct file *src_file, loff_t src_off,
-		    struct file *dst_file, loff_t dst_off, size_t len,
+    struct file *dst_file, loff_t dst_off, size_t len,
 		    unsigned int flags);
 extern loff_t
 zpl_remap_file_range(struct file *src_file, loff_t src_off,
-		     struct file *dst_file, loff_t dst_off, loff_t len,
-		     unsigned int flags);
+    struct file *dst_file, loff_t dst_off, loff_t len,
+    unsigned int flags);
 extern int
 zpl_clone_file_range(struct file *src_file, loff_t src_off,
-		     struct file *dst_file, loff_t dst_off, uint64_t len);
+    struct file *dst_file, loff_t dst_off, uint64_t len);
 extern int
 zpl_dedupe_file_range(struct file *src_file, loff_t src_off,
-		      struct file *dst_file, loff_t dst_off, uint64_t len);
+    struct file *dst_file, loff_t dst_off, uint64_t len);
 extern int
 zpl_dedupe_file_compare_locked(struct file *src_file, loff_t src_off,
-			       struct file *dst_file, loff_t dst_off,
-			       uint64_t len, bool *is_same,
-			       zfs_locked_range_t *src_zlr,
-			       zfs_locked_range_t *dst_zlr);
+    struct file *dst_file, loff_t dst_off, uint64_t len, bool *is_same,
+    zfs_locked_range_t *src_zlr, zfs_locked_range_t *dst_zlr);
 
 /* compat for FICLONE/FICLONERANGE/FIDEDUPERANGE ioctls */
 typedef struct {

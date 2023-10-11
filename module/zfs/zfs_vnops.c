@@ -354,7 +354,7 @@ out:
  */
 int
 zfs_read_locked(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
-				zfs_locked_range_t *zrl)
+    zfs_locked_range_t *zrl)
 {
 	(void) cr;
 	int error = 0;
@@ -362,7 +362,7 @@ zfs_read_locked(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 
 	/* The range is verified below */
 	if (!zrl) {
-		return -EINVAL;
+		return (-EINVAL);
 	}
 
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
@@ -412,11 +412,12 @@ zfs_read_locked(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 		zil_commit(zfsvfs->z_log, zp->z_id);
 
 	/*
-	 * Ensure the lock covers the range. 
+	 * Ensure the lock covers the range.
 	 */
 	if (zrl->lr_offset > zfs_uio_offset(uio) ||
-	    (zfs_uio_offset(uio) + zfs_uio_resid(uio)) > (zrl->lr_offset + zrl->lr_length)) {
-		return -EINVAL;
+	    (zfs_uio_offset(uio) + zfs_uio_resid(uio)) >
+		    (zrl->lr_offset + zrl->lr_length)) {
+		return (-EINVAL);
 	}
 	/*
 	 * If we are reading past end-of-file we can skip
@@ -1550,10 +1551,10 @@ unlock:
 /*
  * This function is exactly the same as zfs_clone_range, except
  * it is called with the range locks already held.
- * 
+ *
  * It verifies that we hold locks for the src/dest clone range.
  * It performs no unlocking of the locks.
- * 
+ *
  * On success, the function return the number of bytes copied in *lenp.
  * Note, it doesn't return how much bytes are left to be copied.
  * On errors which are caused by any file system limitations or
@@ -1563,8 +1564,8 @@ unlock:
  */
 int
 zfs_clone_range_locked(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
-    uint64_t *outoffp, uint64_t *lenp, cred_t *cr,
-	zfs_locked_range_t *src_zlr, zfs_locked_range_t *dst_zlr)
+    uint64_t *outoffp, uint64_t *lenp, cred_t *cr, zfs_locked_range_t *src_zlr,
+    zfs_locked_range_t *dst_zlr)
 {
 	zfsvfs_t	*inzfsvfs, *outzfsvfs;
 	objset_t	*inos, *outos;
@@ -1686,15 +1687,15 @@ zfs_clone_range_locked(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 	 * Verify locks
 	 */
 	if (!src_zlr || !dst_zlr || dst_zlr->lr_type != RL_WRITER) {
-		return -EINVAL;
+		return (-EINVAL);
 	}
 	if (src_zlr->lr_offset > inoff ||
 	    (inoff + len) > (src_zlr->lr_offset + src_zlr->lr_length)) {
-		return -EINVAL;
+		return (-EINVAL);
 	}
 	if (dst_zlr->lr_offset > outoff ||
 	    (outoff + len) > (dst_zlr->lr_offset + dst_zlr->lr_length)) {
-		return -EINVAL;
+		return (-EINVAL);
 	}
 
 	inblksz = inzp->z_blksz;
