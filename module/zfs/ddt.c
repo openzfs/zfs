@@ -1038,29 +1038,25 @@ ddt_prefetch(spa_t *spa, const blkptr_t *bp)
 }
 
 /*
- * Key comparison. Any struct wanting to make use of this function must have
- * the key as the first element.
+ * ddt_key_t comparison. Any struct wanting to make use of this function must
+ * have the key as the first element. Casts it to N uint64_ts, and checks until
+ * we find there's a difference. This is intended to match how ddt_zap.c drives
+ * the ZAPs (first uint64_t as the key prehash), which will minimise the number
+ * of ZAP blocks touched when flushing logged entries from an AVL walk. This is
+ * not an invariant for this function though, should you wish to change it.
  */
-#define	DDT_KEY_CMP_LEN	(sizeof (ddt_key_t) / sizeof (uint16_t))
-
-typedef struct ddt_key_cmp {
-	uint16_t	u16[DDT_KEY_CMP_LEN];
-} ddt_key_cmp_t;
-
 int
 ddt_key_compare(const void *x1, const void *x2)
 {
-	const ddt_key_cmp_t *k1 = (const ddt_key_cmp_t *)x1;
-	const ddt_key_cmp_t *k2 = (const ddt_key_cmp_t *)x2;
-	int32_t cmp = 0;
+	const uint64_t *k1 = (const uint64_t *)x1;
+	const uint64_t *k2 = (const uint64_t *)x2;
 
-	for (int i = 0; i < DDT_KEY_CMP_LEN; i++) {
-		cmp = (int32_t)k1->u16[i] - (int32_t)k2->u16[i];
-		if (likely(cmp))
-			break;
-	}
+	int cmp;
+	for (int i = 0; i < (sizeof (ddt_key_t) / sizeof (uint64_t)); i++)
+		if (likely((cmp = TREE_CMP(k1[i], k2[i])) != 0))
+			return (cmp);
 
-	return (TREE_ISIGN(cmp));
+	return (0);
 }
 
 /* Create the containing dir for this DDT and bump the feature count */
