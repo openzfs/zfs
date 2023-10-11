@@ -1541,6 +1541,7 @@ typedef struct zvol_set_prop_int_arg {
 	const char *zsda_name;
 	uint64_t zsda_value;
 	zprop_source_t zsda_source;
+	zfs_prop_t zsda_prop;
 	dmu_tx_t *zsda_tx;
 } zvol_set_prop_int_arg_t;
 
@@ -1549,7 +1550,7 @@ typedef struct zvol_set_prop_int_arg {
  * conditions are imposed.
  */
 static int
-zvol_set_snapdev_check(void *arg, dmu_tx_t *tx)
+zvol_set_common_check(void *arg, dmu_tx_t *tx)
 {
 	zvol_set_prop_int_arg_t *zsda = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
@@ -1566,17 +1567,33 @@ zvol_set_snapdev_check(void *arg, dmu_tx_t *tx)
 }
 
 static int
-zvol_set_snapdev_sync_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
+zvol_set_common_sync_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
 {
-	(void) arg;
+	zvol_set_prop_int_arg_t *zsda = arg;
 	char dsname[MAXNAMELEN];
 	zvol_task_t *task;
-	uint64_t snapdev;
+	uint64_t prop;
 
+	const char *prop_name = zfs_prop_to_name(zsda->zsda_prop);
 	dsl_dataset_name(ds, dsname);
-	if (dsl_prop_get_int_ds(ds, "snapdev", &snapdev) != 0)
+
+	if (dsl_prop_get_int_ds(ds, prop_name, &prop) != 0)
 		return (0);
-	task = zvol_task_alloc(ZVOL_ASYNC_SET_SNAPDEV, dsname, NULL, snapdev);
+
+	switch (zsda->zsda_prop) {
+		case ZFS_PROP_VOLMODE:
+			task = zvol_task_alloc(ZVOL_ASYNC_SET_VOLMODE, dsname,
+			    NULL, prop);
+			break;
+		case ZFS_PROP_SNAPDEV:
+			task = zvol_task_alloc(ZVOL_ASYNC_SET_SNAPDEV, dsname,
+			    NULL, prop);
+			break;
+		default:
+			task = NULL;
+			break;
+	}
+
 	if (task == NULL)
 		return (0);
 
@@ -1586,14 +1603,14 @@ zvol_set_snapdev_sync_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
 }
 
 /*
- * Traverse all child datasets and apply snapdev appropriately.
+ * Traverse all child datasets and apply the property appropriately.
  * We call dsl_prop_set_sync_impl() here to set the value only on the toplevel
- * dataset and read the effective "snapdev" on every child in the callback
+ * dataset and read the effective "property" on every child in the callback
  * function: this is because the value is not guaranteed to be the same in the
  * whole dataset hierarchy.
  */
 static void
-zvol_set_snapdev_sync(void *arg, dmu_tx_t *tx)
+zvol_set_common_sync(void *arg, dmu_tx_t *tx)
 {
 	zvol_set_prop_int_arg_t *zsda = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
@@ -1606,115 +1623,31 @@ zvol_set_snapdev_sync(void *arg, dmu_tx_t *tx)
 
 	error = dsl_dataset_hold(dp, zsda->zsda_name, FTAG, &ds);
 	if (error == 0) {
-		dsl_prop_set_sync_impl(ds, zfs_prop_to_name(ZFS_PROP_SNAPDEV),
+		dsl_prop_set_sync_impl(ds, zfs_prop_to_name(zsda->zsda_prop),
 		    zsda->zsda_source, sizeof (zsda->zsda_value), 1,
 		    &zsda->zsda_value, zsda->zsda_tx);
 		dsl_dataset_rele(ds, FTAG);
 	}
-	dmu_objset_find_dp(dp, dd->dd_object, zvol_set_snapdev_sync_cb,
+
+	dmu_objset_find_dp(dp, dd->dd_object, zvol_set_common_sync_cb,
 	    zsda, DS_FIND_CHILDREN);
 
 	dsl_dir_rele(dd, FTAG);
 }
 
 int
-zvol_set_snapdev(const char *ddname, zprop_source_t source, uint64_t snapdev)
+zvol_set_common(const char *ddname, zfs_prop_t prop, zprop_source_t source,
+    uint64_t val)
 {
 	zvol_set_prop_int_arg_t zsda;
 
 	zsda.zsda_name = ddname;
 	zsda.zsda_source = source;
-	zsda.zsda_value = snapdev;
+	zsda.zsda_value = val;
+	zsda.zsda_prop = prop;
 
-	return (dsl_sync_task(ddname, zvol_set_snapdev_check,
-	    zvol_set_snapdev_sync, &zsda, 0, ZFS_SPACE_CHECK_NONE));
-}
-
-/*
- * Sanity check the dataset for safe use by the sync task.  No additional
- * conditions are imposed.
- */
-static int
-zvol_set_volmode_check(void *arg, dmu_tx_t *tx)
-{
-	zvol_set_prop_int_arg_t *zsda = arg;
-	dsl_pool_t *dp = dmu_tx_pool(tx);
-	dsl_dir_t *dd;
-	int error;
-
-	error = dsl_dir_hold(dp, zsda->zsda_name, FTAG, &dd, NULL);
-	if (error != 0)
-		return (error);
-
-	dsl_dir_rele(dd, FTAG);
-
-	return (error);
-}
-
-static int
-zvol_set_volmode_sync_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
-{
-	(void) arg;
-	char dsname[MAXNAMELEN];
-	zvol_task_t *task;
-	uint64_t volmode;
-
-	dsl_dataset_name(ds, dsname);
-	if (dsl_prop_get_int_ds(ds, "volmode", &volmode) != 0)
-		return (0);
-	task = zvol_task_alloc(ZVOL_ASYNC_SET_VOLMODE, dsname, NULL, volmode);
-	if (task == NULL)
-		return (0);
-
-	(void) taskq_dispatch(dp->dp_spa->spa_zvol_taskq, zvol_task_cb,
-	    task, TQ_SLEEP);
-	return (0);
-}
-
-/*
- * Traverse all child datasets and apply volmode appropriately.
- * We call dsl_prop_set_sync_impl() here to set the value only on the toplevel
- * dataset and read the effective "volmode" on every child in the callback
- * function: this is because the value is not guaranteed to be the same in the
- * whole dataset hierarchy.
- */
-static void
-zvol_set_volmode_sync(void *arg, dmu_tx_t *tx)
-{
-	zvol_set_prop_int_arg_t *zsda = arg;
-	dsl_pool_t *dp = dmu_tx_pool(tx);
-	dsl_dir_t *dd;
-	dsl_dataset_t *ds;
-	int error;
-
-	VERIFY0(dsl_dir_hold(dp, zsda->zsda_name, FTAG, &dd, NULL));
-	zsda->zsda_tx = tx;
-
-	error = dsl_dataset_hold(dp, zsda->zsda_name, FTAG, &ds);
-	if (error == 0) {
-		dsl_prop_set_sync_impl(ds, zfs_prop_to_name(ZFS_PROP_VOLMODE),
-		    zsda->zsda_source, sizeof (zsda->zsda_value), 1,
-		    &zsda->zsda_value, zsda->zsda_tx);
-		dsl_dataset_rele(ds, FTAG);
-	}
-
-	dmu_objset_find_dp(dp, dd->dd_object, zvol_set_volmode_sync_cb,
-	    zsda, DS_FIND_CHILDREN);
-
-	dsl_dir_rele(dd, FTAG);
-}
-
-int
-zvol_set_volmode(const char *ddname, zprop_source_t source, uint64_t volmode)
-{
-	zvol_set_prop_int_arg_t zsda;
-
-	zsda.zsda_name = ddname;
-	zsda.zsda_source = source;
-	zsda.zsda_value = volmode;
-
-	return (dsl_sync_task(ddname, zvol_set_volmode_check,
-	    zvol_set_volmode_sync, &zsda, 0, ZFS_SPACE_CHECK_NONE));
+	return (dsl_sync_task(ddname, zvol_set_common_check,
+	    zvol_set_common_sync, &zsda, 0, ZFS_SPACE_CHECK_NONE));
 }
 
 void
