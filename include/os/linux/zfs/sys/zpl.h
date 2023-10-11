@@ -184,20 +184,30 @@ zpl_dir_emit_dots(struct file *file, zpl_dir_context_t *ctx)
 }
 #endif /* HAVE_VFS_ITERATE */
 
-
+typedef struct zfs_locked_range zfs_locked_range_t;
 /* zpl_file_range.c */
 
 /* handlers for file_operations of the same name */
-extern ssize_t zpl_copy_file_range(struct file *src_file, loff_t src_off,
-    struct file *dst_file, loff_t dst_off, size_t len, unsigned int flags);
-extern loff_t zpl_remap_file_range(struct file *src_file, loff_t src_off,
-    struct file *dst_file, loff_t dst_off, loff_t len, unsigned int flags);
-extern int zpl_clone_file_range(struct file *src_file, loff_t src_off,
-    struct file *dst_file, loff_t dst_off, uint64_t len);
-extern int zpl_dedupe_file_range(struct file *src_file, loff_t src_off,
-    struct file *dst_file, loff_t dst_off, uint64_t len);
-extern int zpl_dedupe_file_compare(struct file *src_file, loff_t src_off,
-	struct file *dst_file, loff_t dst_off, uint64_t len, bool *is_same);
+extern ssize_t
+zpl_copy_file_range(struct file *src_file, loff_t src_off,
+		    struct file *dst_file, loff_t dst_off, size_t len,
+		    unsigned int flags);
+extern loff_t
+zpl_remap_file_range(struct file *src_file, loff_t src_off,
+		     struct file *dst_file, loff_t dst_off, loff_t len,
+		     unsigned int flags);
+extern int
+zpl_clone_file_range(struct file *src_file, loff_t src_off,
+		     struct file *dst_file, loff_t dst_off, uint64_t len);
+extern int
+zpl_dedupe_file_range(struct file *src_file, loff_t src_off,
+		      struct file *dst_file, loff_t dst_off, uint64_t len);
+extern int
+zpl_dedupe_file_compare_locked(struct file *src_file, loff_t src_off,
+			       struct file *dst_file, loff_t dst_off,
+			       uint64_t len, bool *is_same,
+			       zfs_locked_range_t *src_zlr,
+			       zfs_locked_range_t *dst_zlr);
 
 /* compat for FICLONE/FICLONERANGE/FIDEDUPERANGE ioctls */
 typedef struct {
