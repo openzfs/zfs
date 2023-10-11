@@ -210,10 +210,12 @@ dmu_tx_check_ioerr(zio_t *zio, dnode_t *dn, int level, uint64_t blkid)
 	dmu_buf_impl_t *db;
 
 	rw_enter(&dn->dn_struct_rwlock, RW_READER);
-	db = dbuf_hold_level(dn, level, blkid, FTAG);
+	err = dbuf_hold_impl(dn, level, blkid, TRUE, FALSE, FTAG, &db);
 	rw_exit(&dn->dn_struct_rwlock);
-	if (db == NULL)
-		return (SET_ERROR(EIO));
+	if (err == ENOENT)
+		return (0);
+	if (err != 0)
+		return (err);
 	/*
 	 * PARTIAL_FIRST allows caching for uncacheable blocks.  It will
 	 * be cleared after dmu_buf_will_dirty() call dbuf_read() again.
