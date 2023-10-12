@@ -1,0 +1,318 @@
+#!/usr/bin/env @PYTHON_SHEBANG@
+#
+# This script will display the NFSv4 ACLs for a file or directory on a
+# ZFS filesystem with acltype set to nfsv4 that exposes NFSv4 ACLs as a
+# system.nfs4_acl_xdr xattr.
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License, Version 1.0 only
+# (the "License").  You may not use this file except in compliance
+# with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or https://opensource.org/licenses/CDDL-1.0.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# This script must remain compatible with Python 3.6+.
+#
+
+#
+# Copyright (c) 2023 by iXsystems, Inc. All rights reserved.
+#
+
+import sys
+import os
+import grp
+import pwd
+import argparse
+import json
+import libzfsacl
+
+SUCCESSFUL_ACCESS_ACE_FLAG = 0x10
+FAILED_ACCESS_ACE_FLAG = 0x20
+ACE_IDENTIFIER_GROUP = 0x40
+
+def parse_args():
+	info = \
+"""An NFSv4 ACL consists of one or more NFSv4 ACEs, each delimited by commas or whitespace.
+An NFSv4 ACE is written as a colon-delimited string in one of the following formats:\n
+	<principal>:<permissions>:<flags>:<type>:<numerical id>
+	<principal>:<permissions>:<flags>:<type>\n
+	* <principal> - named user or group, or one of: \"owner@\", \"group@\", \"everyone@\"
+		in case of named users or groups, principal must be preceded with one of the following:
+		'user:' or 'u:'
+		'group:' or 'g:'\n
+		note: numerical user or group IDs may be specified in lieu of user or group name.\n
+	* <permissions> - one or more of:
+		'r'  read-data / list-directory
+		'w'  write-data / create-file
+		'p'  append-data / create-subdirectory
+		'x'  execute
+		'd'  delete
+		'D'  delete-child
+		'a'  read-attrs
+		'A'  write-attrs
+		'R'  read-named-attrs
+		'W'  write-named-attrs
+		'c'  read-ACL
+		'C'  write-ACL
+		'o'  write-owner
+		's'  synchronize\n
+	* <flags> - zero or more (depending on <type>) of:
+		'f'  file-inherit
+		'd'  directory-inherit
+		'n'  no-propagate-inherit
+		'i'  inherit-only
+		'I'  inherited\n
+	* <type> - one of:
+		'allow'  allow
+		'deny'  deny"""
+	parser = argparse.ArgumentParser(
+		description='Get NFSv4 file/directory access control lists',
+		add_help=True, formatter_class=argparse.RawTextHelpFormatter,
+		epilog=info)
+
+	parser.add_argument('-i', '--append-id', action='store_true',
+		help='append numerical ids to end of entries containing user or group name')
+	parser.add_argument('-j', '--json', action='store_true',
+		help='output ACL in JSON format')
+	parser.add_argument('-n', '--numeric', action='store_true',
+		help='display user and group IDs rather than user or group name')
+	parser.add_argument('-v', '--verbose', action='store_true',
+		help='display access mask and flags in a verbose form')
+	parser.add_argument('-q', '--quiet', action='store_true',
+		help='do not write commented information about file name and ownership')
+	parser.add_argument('file', nargs='+', type=str,
+		help='File(s) to process')
+
+	return parser.parse_args()
+
+def validate_filepath(files):
+	for x in files:
+		if not os.path.exists(x):
+			print(sys.argv[0] + ': File not found: ' + x, file=sys.stderr)
+			sys.exit(1)
+
+def stat(file):
+	st = os.stat(file)
+	print('# File: ' + file)
+	print('# owner: ' + str(st.st_uid))
+	print('# group: ' + str(st.st_gid))
+	print('# mode: ' + str(oct(st.st_mode)))
+
+def nfs4_acl_is_trivial(acl_flags):
+	trivial = (acl_flags & libzfsacl.ACL_IS_TRIVIAL) != 0
+	print('# trivial_acl: ' + str(trivial))
+
+def nfs4_acl_flags(acl_flags, to_json):
+	nfs4_acl_str = {
+		libzfsacl.ACL_AUTO_INHERIT : ('autoinherit', ''),
+		libzfsacl.ACL_DEFAULT : ('defaulted', ''),
+		libzfsacl.ACL_PROTECTED : ('protected', '')
+	}
+	if to_json:
+		return format_to_json(acl_flags, nfs4_acl_str)
+	else:
+		flags = ""
+		for x in nfs4_acl_str:
+			if acl_flags & x != 0:
+				flags += nfs4_acl_str[x][0] + ','
+		if not flags:
+			flags = 'none'
+		else:
+			flags = flags[:-1] + ':'
+		print('# ACL flags: ' + flags)
+
+def format_who(who, numeric, to_json):
+	who_strs = {
+		libzfsacl.WHOTYPE_UNDEFINED : '',
+		libzfsacl.WHOTYPE_USER_OBJ : 'owner@',
+		libzfsacl.WHOTYPE_GROUP_OBJ : 'group@',
+		libzfsacl.WHOTYPE_EVERYONE : 'everyone@',
+		libzfsacl.WHOTYPE_USER : 'user',
+		libzfsacl.WHOTYPE_GROUP : 'group'
+	}
+
+	if who[0] == libzfsacl.WHOTYPE_GROUP:
+		name = grp.getgrgid(who[1])[0]
+	elif who[0] == libzfsacl.WHOTYPE_USER:
+		name = pwd.getpwuid(who[1])[0]
+
+	if who[0] == libzfsacl.WHOTYPE_GROUP or who[0] == libzfsacl.WHOTYPE_USER:
+		if not to_json and not numeric:
+			return who_strs[who[0]] + ':' + name
+		elif not to_json and numeric:
+			return who_strs[who[0]] + ':' + str(who[1])
+		elif to_json:
+			return {
+				'tag' : who_strs[who[0]],
+				'name' : name,
+				'id' : who[1]
+			}
+	elif who[0] <= libzfsacl.WHOTYPE_EVERYONE:
+		if not to_json:
+			return who_strs[who[0]]
+		else:
+			return {
+				'tag' : who_strs[who[0]],
+				'id' : -1
+			}
+
+def format_id(who):
+	if who[0] == libzfsacl.WHOTYPE_GROUP or who[0] == libzfsacl.WHOTYPE_USER:
+		return str(who[1])
+	else:
+		return None
+
+def format_to_text(field, to_text, verbose):
+	text = ''
+	if verbose:
+		seperator = '/'
+		selector = 0
+		skip = ''
+	else:
+		seperator = ''
+		selector = 1
+		skip = '-'
+	for x in to_text:
+		if field & x != 0:
+			text += (to_text[x][selector] + seperator)
+		else:
+			text += skip
+	if verbose:
+		text = text[:-1]
+	return text
+
+def format_to_json(field, to_text):
+	data = {}
+	selector = 0
+	for x in to_text:
+		if field & x != 0:
+			data[to_text[x][selector].upper()] = True
+		else:
+			data[to_text[x][selector].upper()] = False
+	return data
+
+def format_perms(permset, verbose, to_json):
+	perms_to_text = {
+		libzfsacl.PERM_READ_DATA : ('read_data', 'r'),
+		libzfsacl.PERM_WRITE_DATA : ('write_data', 'w'),
+		libzfsacl.PERM_EXECUTE : ('execute', 'x'),
+		libzfsacl.PERM_APPEND_DATA : ('append_data', 'p'),
+		libzfsacl.PERM_DELETE_CHILD : ('delete_child', 'D'),
+		libzfsacl.PERM_DELETE : ('delete', 'd'),
+		libzfsacl.PERM_READ_ATTRIBUTES : ('read_attributes', 'a'),
+		libzfsacl.PERM_WRITE_ATTRIBUTES : ('write_attributes', 'A'),
+		libzfsacl.PERM_READ_NAMED_ATTRS : ('read_named_attrs', 'R'),
+		libzfsacl.PERM_WRITE_NAMED_ATTRS : ('write_named_attrs', 'W'),
+		libzfsacl.PERM_READ_ACL : ('read_acl', 'c'),
+		libzfsacl.PERM_WRITE_ACL : ('write_acl', 'C'),
+		libzfsacl.PERM_WRITE_OWNER : ('write_owner', 'o'),
+		libzfsacl.PERM_SYNCHRONIZE : ('synchronize', 's')
+	}
+	if to_json:
+		return format_to_json(permset, perms_to_text)
+	else:
+		return format_to_text(permset, perms_to_text, verbose)
+
+def format_flagset(flagset, verbose, to_json):
+	flags_to_text = {
+		libzfsacl.FLAG_FILE_INHERIT : ('file_inherit', 'f'),
+		libzfsacl.FLAG_DIRECTORY_INHERIT : ('dir_inherit', 'd'),
+		libzfsacl.FLAG_INHERIT_ONLY : ('inherit_only', 'i'),
+		libzfsacl.FLAG_NO_PROPAGATE_INHERIT : ('no_propagate', 'n'),
+		SUCCESSFUL_ACCESS_ACE_FLAG : ('successful_access', 'S'),
+		FAILED_ACCESS_ACE_FLAG : ('failed_access', 'F'),
+		libzfsacl.FLAG_INHERITED : ('inherited', 'I'),
+	}
+	if to_json:
+		if flagset == 0 or flagset == ACE_IDENTIFIER_GROUP:
+			return {"BASIC" : "NOINHERIT"}
+		return format_to_json(flagset, flags_to_text)
+	else:
+		return format_to_text(flagset, flags_to_text, verbose)
+
+def format_type(etype):
+	if etype == libzfsacl.ENTRY_TYPE_ALLOW:
+		return 'allow'
+	elif etype == libzfsacl.ENTRY_TYPE_DENY:
+		return 'deny'
+
+def format_entry(entry, flags):
+	return {
+		'who' : format_who(entry.who, flags['numeric'], flags['to_json']),
+		'permset' : format_perms(entry.permset, flags['verbose'], flags['to_json']),
+		'flagset' : format_flagset(entry.flagset, flags['verbose'], flags['to_json']),
+		'type' : format_type(entry.entry_type),
+		'id' : format_id(entry.who)
+	}
+
+def print_acl_text(acl, numeric, verbose, append_id):
+	flags = {
+		'numeric' : numeric,
+		'verbose' : verbose,
+		'append_id' : append_id,
+		'to_json' : False
+	}
+	aces = []
+	for i in range (acl.ace_count):
+		aces.append(format_entry(acl.get_entry(i), flags))
+	for ace in aces:
+		if append_id and ace['id'] is not None:
+			print(f"{ace['who']:>18}:{ace['permset']}:{ace['flagset']}:{ace['type']}:{ace['id']}")
+		else:
+			print(f"{ace['who']:>18}:{ace['permset']}:{ace['flagset']}:{ace['type']}")
+
+def print_acl_json(acl, path):
+	flags = {
+		'numeric' : False,
+		'verbose' : False,
+		'append_id' : False,
+		'to_json' : True
+	}
+	aces = []
+	for i in range (acl.ace_count):
+		ace = format_entry(acl.get_entry(i), flags)
+		entry = ace.pop('who')
+		entry['perms'] = ace['permset']
+		entry['flags'] = ace['flagset']
+		entry['type'] = ace['type'].upper()
+		aces.append(entry)
+	data = {}
+	data['acl'] = aces
+	data['nfs41_flags'] = nfs4_acl_flags(acl.acl_flags, True)
+	data['trivial'] = (acl.acl_flags & libzfsacl.ACL_IS_TRIVIAL) != 0
+	data['uid'] = os.stat(path).st_uid
+	data['gid'] = os.stat(path).st_gid
+	data['path'] = path
+	print(json.dumps(data))
+
+def main():
+	args = parse_args()
+	validate_filepath(args.file)
+	for x in args.file:
+		try:
+			acl = libzfsacl.Acl(path=x)
+		except RuntimeError as e:
+			print(f"{e}")
+			sys.exit(1)
+		if not args.quiet and not args.json:
+			stat(x)
+			nfs4_acl_is_trivial(acl.acl_flags)
+			nfs4_acl_flags(acl.acl_flags, False)
+		if args.json:
+			print_acl_json(acl, x)
+		else:
+			print_acl_text(acl, args.numeric, args.verbose, args.append_id)
+
+if __name__ == '__main__':
+	main()
