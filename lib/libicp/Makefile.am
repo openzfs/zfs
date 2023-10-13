@@ -16,7 +16,6 @@ nodist_libicp_la_SOURCES = \
 	module/icp/algs/blake3/blake3.c \
 	module/icp/algs/blake3/blake3_generic.c \
 	module/icp/algs/blake3/blake3_impl.c \
-	module/icp/algs/blake3/blake3_x86-64.c \
 	module/icp/algs/edonr/edonr.c \
 	module/icp/algs/modes/modes.c \
 	module/icp/algs/modes/cbc.c \
@@ -26,7 +25,9 @@ nodist_libicp_la_SOURCES = \
 	module/icp/algs/modes/ctr.c \
 	module/icp/algs/modes/ccm.c \
 	module/icp/algs/modes/ecb.c \
-	module/icp/algs/sha2/sha2.c \
+	module/icp/algs/sha2/sha2_generic.c \
+	module/icp/algs/sha2/sha256_impl.c \
+	module/icp/algs/sha2/sha512_impl.c \
 	module/icp/algs/skein/skein.c \
 	module/icp/algs/skein/skein_block.c \
 	module/icp/algs/skein/skein_iv.c \
@@ -38,18 +39,31 @@ nodist_libicp_la_SOURCES = \
 	module/icp/core/kcf_prov_lib.c \
 	module/icp/core/kcf_callprov.c \
 	module/icp/core/kcf_mech_tabs.c \
-	module/icp/core/kcf_prov_tabs.c
+	module/icp/core/kcf_prov_tabs.c \
+	module/zfs/zfs_impl.c
 
 if TARGET_CPU_AARCH64
 nodist_libicp_la_SOURCES += \
 	module/icp/asm-aarch64/blake3/b3_aarch64_sse2.S \
-	module/icp/asm-aarch64/blake3/b3_aarch64_sse41.S
+	module/icp/asm-aarch64/blake3/b3_aarch64_sse41.S \
+	module/icp/asm-aarch64/sha2/sha256-armv8.S \
+	module/icp/asm-aarch64/sha2/sha512-armv8.S
+endif
+
+if TARGET_CPU_ARM
+nodist_libicp_la_SOURCES += \
+	module/icp/asm-arm/sha2/sha256-armv7.S \
+	module/icp/asm-arm/sha2/sha512-armv7.S
 endif
 
 if TARGET_CPU_POWERPC
 nodist_libicp_la_SOURCES += \
 	module/icp/asm-ppc64/blake3/b3_ppc64le_sse2.S \
-	module/icp/asm-ppc64/blake3/b3_ppc64le_sse41.S
+	module/icp/asm-ppc64/blake3/b3_ppc64le_sse41.S \
+	module/icp/asm-ppc64/sha2/sha256-ppc.S \
+	module/icp/asm-ppc64/sha2/sha512-ppc.S \
+	module/icp/asm-ppc64/sha2/sha256-p8.S \
+	module/icp/asm-ppc64/sha2/sha512-p8.S
 endif
 
 if TARGET_CPU_X86_64
@@ -60,10 +74,11 @@ nodist_libicp_la_SOURCES += \
 	module/icp/asm-x86_64/modes/gcm_pclmulqdq.S \
 	module/icp/asm-x86_64/modes/aesni-gcm-x86_64.S \
 	module/icp/asm-x86_64/modes/ghash-x86_64.S \
-	module/icp/asm-x86_64/sha2/sha256_impl.S \
-	module/icp/asm-x86_64/sha2/sha512_impl.S \
+	module/icp/asm-x86_64/sha2/sha256-x86_64.S \
+	module/icp/asm-x86_64/sha2/sha512-x86_64.S \
 	module/icp/asm-x86_64/blake3/blake3_avx2.S \
 	module/icp/asm-x86_64/blake3/blake3_avx512.S \
 	module/icp/asm-x86_64/blake3/blake3_sse2.S \
 	module/icp/asm-x86_64/blake3/blake3_sse41.S
 endif
+

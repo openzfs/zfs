@@ -402,10 +402,10 @@ fnvlist_lookup_uint64(const nvlist_t *nvl, const char *name)
 	return (rv);
 }
 
-char *
-fnvlist_lookup_string(nvlist_t *nvl, const char *name)
+const char *
+fnvlist_lookup_string(const nvlist_t *nvl, const char *name)
 {
-	char *rv;
+	const char *rv;
 	VERIFY0(nvlist_lookup_string(nvl, name, &rv));
 	return (rv);
 }
@@ -577,10 +577,10 @@ fnvpair_value_uint64(const nvpair_t *nvp)
 	return (rv);
 }
 
-char *
-fnvpair_value_string(nvpair_t *nvp)
+const char *
+fnvpair_value_string(const nvpair_t *nvp)
 {
-	char *rv;
+	const char *rv;
 	VERIFY0(nvpair_value_string(nvp, &rv));
 	return (rv);
 }

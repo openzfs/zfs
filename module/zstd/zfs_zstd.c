@@ -784,9 +784,9 @@ create_fallback_mem(struct zstd_fallback_mem *mem, size_t size)
 static void __init
 zstd_mempool_init(void)
 {
-	zstd_mempool_cctx = (struct zstd_pool *)
+	zstd_mempool_cctx =
 	    kmem_zalloc(ZSTD_POOL_MAX * sizeof (struct zstd_pool), KM_SLEEP);
-	zstd_mempool_dctx = (struct zstd_pool *)
+	zstd_mempool_dctx =
 	    kmem_zalloc(ZSTD_POOL_MAX * sizeof (struct zstd_pool), KM_SLEEP);
 
 	for (int i = 0; i < ZSTD_POOL_MAX; i++) {

@@ -3,7 +3,7 @@
 
 # Set the default udev directory based on distribution.
 %if %{undefined _udevdir}
-%if 0%{?fedora}%{?rhel}%{?centos}%{?openEuler}
+%if 0%{?rhel}%{?fedora}%{?centos}%{?suse_version}%{?openEuler}
 %global _udevdir    %{_prefix}/lib/udev
 %else
 %global _udevdir    /lib/udev
@@ -12,16 +12,25 @@
 
 # Set the default udevrule directory based on distribution.
 %if %{undefined _udevruledir}
-%if 0%{?fedora}%{?rhel}%{?centos}%{?openEuler}
+%if 0%{?rhel}%{?fedora}%{?centos}%{?suse_version}%{?openEuler}
 %global _udevruledir    %{_prefix}/lib/udev/rules.d
 %else
 %global _udevruledir    /lib/udev/rules.d
 %endif
 %endif
 
+# Set the default _bashcompletiondir directory based on distribution.
+%if %{undefined _bashcompletiondir}
+%if 0%{?rhel}%{?fedora}%{?centos}%{?suse_version}%{?openEuler}
+%global _bashcompletiondir    /etc/bash_completion.d
+%else
+%global _bashcompletiondir    /usr/share/bash-completion
+%endif
+%endif
+
 # Set the default dracut directory based on distribution.
 %if %{undefined _dracutdir}
-%if 0%{?fedora}%{?rhel}%{?centos}%{?openEuler}
+%if 0%{?rhel}%{?fedora}%{?centos}%{?suse_version}%{?openEuler}
 %global _dracutdir  %{_prefix}/lib/dracut
 %else
 %global _dracutdir  %{_prefix}/share/dracut
@@ -110,7 +119,7 @@ BuildRequires:  libblkid-devel
 BuildRequires:  libudev-devel
 BuildRequires:  libattr-devel
 BuildRequires:  openssl-devel
-%if 0%{?fedora}%{?openEuler} || 0%{?rhel} >= 8 || 0%{?centos} >= 8
+%if 0%{?fedora}%{?suse_version}%{?openEuler} || 0%{?rhel} >= 8 || 0%{?centos} >= 8
 BuildRequires:  libtirpc-devel
 %endif
 
@@ -522,7 +531,7 @@ systemctl --system daemon-reload >/dev/null || true
 %config(noreplace) %{_sysconfdir}/%{name}/vdev_id.conf.*.example
 %attr(440, root, root) %config(noreplace) %{_sysconfdir}/sudoers.d/*
 
-%config(noreplace) %{_sysconfdir}/bash_completion.d/zfs
+%config(noreplace) %{_bashcompletiondir}/zfs
 
 %files -n libzpool5
 %{_libdir}/libzpool.so.*

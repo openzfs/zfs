@@ -25,16 +25,16 @@
  * Copyright (c) 2021-2022 Tino Reichardt <milky-zfs@mcmilk.de>
  */
 
-#ifndef BLAKE3_IMPL_H
+#ifndef	BLAKE3_IMPL_H
 #define	BLAKE3_IMPL_H
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
 
-#include <sys/types.h>
 #include <sys/blake3.h>
 #include <sys/simd.h>
+#include <sys/asm_linkage.h>
 
 /*
  * Methods used to define BLAKE3 assembler implementations
@@ -55,7 +55,7 @@ typedef void (*blake3_hash_many_f)(const uint8_t * const *inputs,
 
 typedef boolean_t (*blake3_is_supported_f)(void);
 
-typedef struct blake3_impl_ops {
+typedef struct {
 	blake3_compress_in_place_f compress_in_place;
 	blake3_compress_xof_f compress_xof;
 	blake3_hash_many_f hash_many;
@@ -64,30 +64,8 @@ typedef struct blake3_impl_ops {
 	const char *name;
 } blake3_ops_t;
 
-/* Return selected BLAKE3 implementation ops */
-extern const blake3_ops_t *blake3_impl_get_ops(void);
-
-extern const blake3_ops_t blake3_generic_impl;
-
-#if defined(__aarch64__) || \
-	(defined(__x86_64) && defined(HAVE_SSE2)) || \
-	(defined(__PPC64__) && defined(__LITTLE_ENDIAN__))
-extern const blake3_ops_t blake3_sse2_impl;
-#endif
-
-#if defined(__aarch64__) || \
-	(defined(__x86_64) && defined(HAVE_SSE4_1)) || \
-	(defined(__PPC64__) && defined(__LITTLE_ENDIAN__))
-extern const blake3_ops_t blake3_sse41_impl;
-#endif
-
-#if defined(__x86_64) && defined(HAVE_SSE4_1) && defined(HAVE_AVX2)
-extern const blake3_ops_t blake3_avx2_impl;
-#endif
-
-#if defined(__x86_64) && defined(HAVE_AVX512F) && defined(HAVE_AVX512VL)
-extern const blake3_ops_t blake3_avx512_impl;
-#endif
+/* return selected BLAKE3 implementation ops */
+extern const blake3_ops_t *blake3_get_ops(void);
 
 #if defined(__x86_64)
 #define	MAX_SIMD_DEGREE 16

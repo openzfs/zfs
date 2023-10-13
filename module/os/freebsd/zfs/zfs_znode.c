@@ -34,6 +34,7 @@
 #include <sys/systm.h>
 #include <sys/sysmacros.h>
 #include <sys/resource.h>
+#include <sys/resourcevar.h>
 #include <sys/mntent.h>
 #include <sys/u8_textprep.h>
 #include <sys/dsl_dataset.h>
@@ -386,7 +387,6 @@ void
 zfs_znode_dmu_fini(znode_t *zp)
 {
 	ASSERT(MUTEX_HELD(ZFS_OBJ_MUTEX(zp->z_zfsvfs, zp->z_id)) ||
-	    zp->z_unlinked ||
 	    ZFS_TEARDOWN_INACTIVE_WRITE_HELD(zp->z_zfsvfs));
 
 	sa_handle_destroy(zp->z_sa_hdl);
@@ -449,6 +449,13 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	zp->z_vnode = vp;
 	vp->v_data = zp;
 
+	/*
+	 * Acquire the vnode lock before any possible interaction with the
+	 * outside world.  Specifically, there is an error path that calls
+	 * zfs_vnode_forget() and the vnode should be exclusively locked.
+	 */
+	vn_lock(vp, LK_EXCLUSIVE | LK_RETRY);
+
 	ASSERT(!POINTER_IS_VALID(zp->z_zfsvfs));
 
 	zp->z_sa_hdl = NULL;
@@ -464,8 +471,6 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 #if __FreeBSD_version >= 1300139
 	atomic_store_ptr(&zp->z_cached_symlink, NULL);
 #endif
-
-	vp = ZTOV(zp);
 
 	zfs_znode_sa_init(zfsvfs, zp, db, obj_type, hdl);
 
@@ -532,14 +537,9 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 
 	mutex_enter(&zfsvfs->z_znodes_lock);
 	list_insert_tail(&zfsvfs->z_all_znodes, zp);
-	zfsvfs->z_nr_znodes++;
 	zp->z_zfsvfs = zfsvfs;
 	mutex_exit(&zfsvfs->z_znodes_lock);
 
-	/*
-	 * Acquire vnode lock before making it available to the world.
-	 */
-	vn_lock(vp, LK_EXCLUSIVE | LK_RETRY);
 #if __FreeBSD_version >= 1400077
 	vn_set_state(vp, VSTATE_CONSTRUCTED);
 #endif
@@ -1285,7 +1285,6 @@ zfs_znode_free(znode_t *zp)
 	mutex_enter(&zfsvfs->z_znodes_lock);
 	POINTER_INVALIDATE(&zp->z_zfsvfs);
 	list_remove(&zfsvfs->z_all_znodes, zp);
-	zfsvfs->z_nr_znodes--;
 	mutex_exit(&zfsvfs->z_znodes_lock);
 
 #if __FreeBSD_version >= 1300139
@@ -1689,7 +1688,7 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	while ((elem = nvlist_next_nvpair(zplprops, elem)) != NULL) {
 		/* For the moment we expect all zpl props to be uint64_ts */
 		uint64_t val;
-		char *name;
+		const char *name;
 
 		ASSERT3S(nvpair_type(elem), ==, DATA_TYPE_UINT64);
 		val = fnvpair_value_uint64(elem);
@@ -1708,6 +1707,7 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	}
 	ASSERT3U(version, !=, 0);
 	error = zap_update(os, moid, ZPL_VERSION_STR, 8, 1, &version, tx);
+	ASSERT0(error);
 
 	/*
 	 * Create zap object used for SA attribute registration
@@ -2067,6 +2067,93 @@ zfs_obj_to_stats(objset_t *osp, uint64_t obj, zfs_stat_t *sb,
 	return (error);
 }
 
+/*
+ * Read a property stored within the master node.
+ */
+int
+zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value)
+{
+	uint64_t *cached_copy = NULL;
+
+	/*
+	 * Figure out where in the objset_t the cached copy would live, if it
+	 * is available for the requested property.
+	 */
+	if (os != NULL) {
+		switch (prop) {
+		case ZFS_PROP_VERSION:
+			cached_copy = &os->os_version;
+			break;
+		case ZFS_PROP_NORMALIZE:
+			cached_copy = &os->os_normalization;
+			break;
+		case ZFS_PROP_UTF8ONLY:
+			cached_copy = &os->os_utf8only;
+			break;
+		case ZFS_PROP_CASE:
+			cached_copy = &os->os_casesensitivity;
+			break;
+		default:
+			break;
+		}
+	}
+	if (cached_copy != NULL && *cached_copy != OBJSET_PROP_UNINITIALIZED) {
+		*value = *cached_copy;
+		return (0);
+	}
+
+	/*
+	 * If the property wasn't cached, look up the file system's value for
+	 * the property. For the version property, we look up a slightly
+	 * different string.
+	 */
+	const char *pname;
+	int error = ENOENT;
+	if (prop == ZFS_PROP_VERSION) {
+		pname = ZPL_VERSION_STR;
+	} else {
+		pname = zfs_prop_to_name(prop);
+	}
+
+	if (os != NULL) {
+		ASSERT3U(os->os_phys->os_type, ==, DMU_OST_ZFS);
+		error = zap_lookup(os, MASTER_NODE_OBJ, pname, 8, 1, value);
+	}
+
+	if (error == ENOENT) {
+		/* No value set, use the default value */
+		switch (prop) {
+		case ZFS_PROP_VERSION:
+			*value = ZPL_VERSION;
+			break;
+		case ZFS_PROP_NORMALIZE:
+		case ZFS_PROP_UTF8ONLY:
+			*value = 0;
+			break;
+		case ZFS_PROP_CASE:
+			*value = ZFS_CASE_SENSITIVE;
+			break;
+		case ZFS_PROP_ACLTYPE:
+			*value = ZFS_ACLTYPE_NFSV4;
+			break;
+		default:
+			return (error);
+		}
+		error = 0;
+	}
+
+	/*
+	 * If one of the methods for getting the property value above worked,
+	 * copy it into the objset_t's cache.
+	 */
+	if (error == 0 && cached_copy != NULL) {
+		*cached_copy = *value;
+	}
+
+	return (error);
+}
+
+
 
 void
 zfs_znode_update_vfs(znode_t *zp)
@@ -2110,5 +2197,30 @@ zfs_znode_parent_and_name(znode_t *zp, znode_t **dzpp, char *buf)
 		return (err);
 	err = zfs_zget(zfsvfs, parent, dzpp);
 	return (err);
+}
+#endif /* _KERNEL */
+
+#ifdef _KERNEL
+int
+zfs_rlimit_fsize(off_t fsize)
+{
+	struct thread *td = curthread;
+	off_t lim;
+
+	if (td == NULL)
+		return (0);
+
+	lim = lim_cur(td, RLIMIT_FSIZE);
+	if (__predict_true((uoff_t)fsize <= lim))
+		return (0);
+
+	/*
+	 * The limit is reached.
+	 */
+	PROC_LOCK(td->td_proc);
+	kern_psignal(td->td_proc, SIGXFSZ);
+	PROC_UNLOCK(td->td_proc);
+
+	return (EFBIG);
 }
 #endif /* _KERNEL */

@@ -135,6 +135,12 @@ ci_reason = 'CI runner doesn\'t have all requirements'
 idmap_reason = 'Idmapped mount needs kernel 5.12+'
 
 #
+# copy_file_range() is not supported by all kernels
+#
+cfr_reason = 'Kernel copy_file_range support required'
+cfr_cross_reason = 'copy_file_range(2) cross-filesystem needs kernel 5.3+'
+
+#
 # These tests are known to fail, thus we use this list to prevent these
 # failures from failing the job as a whole; only unexpected failures
 # bubble up to cause this script to exit with a non-zero exit status.
@@ -152,6 +158,7 @@ known = {
         ['FAIL', rewind_reason],
     'cli_user/misc/zfs_share_001_neg': ['SKIP', na_reason],
     'cli_user/misc/zfs_unshare_001_neg': ['SKIP', na_reason],
+    'pool_checkpoint/checkpoint_discard_busy': ['SKIP', 12053],
     'privilege/setup': ['SKIP', na_reason],
     'refreserv/refreserv_004_pos': ['FAIL', known_reason],
     'rootpool/setup': ['SKIP', na_reason],
@@ -163,6 +170,8 @@ if sys.platform.startswith('freebsd'):
     known.update({
         'cli_root/zfs_receive/receive-o-x_props_override':
             ['FAIL', known_reason],
+        'cli_root/zpool_resilver/zpool_resilver_concurrent':
+            ['SKIP', na_reason],
         'cli_root/zpool_wait/zpool_wait_trim_basic': ['SKIP', trim_reason],
         'cli_root/zpool_wait/zpool_wait_trim_cancel': ['SKIP', trim_reason],
         'cli_root/zpool_wait/zpool_wait_trim_flag': ['SKIP', trim_reason],
@@ -170,6 +179,7 @@ if sys.platform.startswith('freebsd'):
         'link_count/link_count_001': ['SKIP', na_reason],
         'casenorm/mixed_create_failure': ['FAIL', 13215],
         'mmap/mmap_sync_001_pos': ['SKIP', na_reason],
+        'rsend/send_raw_ashift': ['SKIP', 14961],
     })
 elif sys.platform.startswith('linux'):
     known.update({
@@ -194,6 +204,7 @@ elif sys.platform.startswith('linux'):
 # reasons listed above can be used.
 #
 maybe = {
+    'append/threadsappend_001_pos': ['FAIL', 6136],
     'chattr/setup': ['SKIP', exec_reason],
     'crtime/crtime_001_pos': ['SKIP', statx_reason],
     'cli_root/zdb/zdb_006_pos': ['FAIL', known_reason],
@@ -203,6 +214,7 @@ maybe = {
     'cli_root/zfs_get/zfs_get_009_pos': ['SKIP', 5479],
     'cli_root/zfs_rollback/zfs_rollback_001_pos': ['FAIL', known_reason],
     'cli_root/zfs_rollback/zfs_rollback_002_pos': ['FAIL', known_reason],
+    'cli_root/zfs_share/zfs_share_concurrent_shares': ['FAIL', known_reason],
     'cli_root/zfs_snapshot/zfs_snapshot_002_neg': ['FAIL', known_reason],
     'cli_root/zfs_unshare/zfs_unshare_006_pos': ['SKIP', na_reason],
     'cli_root/zpool_add/zpool_add_004_pos': ['FAIL', known_reason],
@@ -224,6 +236,7 @@ maybe = {
     'io/mmap': ['SKIP', fio_reason],
     'largest_pool/largest_pool_001_pos': ['FAIL', known_reason],
     'mmp/mmp_on_uberblocks': ['FAIL', known_reason],
+    'pam/setup': ['SKIP', "pamtester might be not available"],
     'pool_checkpoint/checkpoint_discard_busy': ['FAIL', 11946],
     'projectquota/setup': ['SKIP', exec_reason],
     'removal/removal_condense_export': ['FAIL', known_reason],
@@ -235,34 +248,36 @@ maybe = {
     'snapshot/snapshot_010_pos': ['FAIL', 7961],
     'snapused/snapused_004_pos': ['FAIL', 5513],
     'tmpfile/setup': ['SKIP', tmpfile_reason],
-    'append/threadsappend_001_pos': ['FAIL', 6136],
     'trim/setup': ['SKIP', trim_reason],
     'upgrade/upgrade_projectquota_001_pos': ['SKIP', project_id_reason],
     'user_namespace/setup': ['SKIP', user_ns_reason],
     'userquota/setup': ['SKIP', exec_reason],
+    'vdev_zaps/vdev_zaps_004_pos': ['FAIL', known_reason],
     'zvol/zvol_ENOSPC/zvol_ENOSPC_001_pos': ['FAIL', 5848],
-    'pam/setup': ['SKIP', "pamtester might be not available"],
 }
 
 if sys.platform.startswith('freebsd'):
     maybe.update({
         'cli_root/zfs_copies/zfs_copies_002_pos': ['FAIL', known_reason],
         'cli_root/zfs_inherit/zfs_inherit_001_neg': ['FAIL', known_reason],
-        'cli_root/zfs_share/zfs_share_concurrent_shares':
-            ['FAIL', known_reason],
         'cli_root/zpool_import/zpool_import_012_pos': ['FAIL', known_reason],
         'delegate/zfs_allow_003_pos': ['FAIL', known_reason],
         'inheritance/inherit_001_pos': ['FAIL', 11829],
         'resilver/resilver_restart_001': ['FAIL', known_reason],
         'pool_checkpoint/checkpoint_big_rewind': ['FAIL', 12622],
         'pool_checkpoint/checkpoint_indirect': ['FAIL', 12623],
+        'snapshot/snapshot_002_pos': ['FAIL', '14831'],
     })
 elif sys.platform.startswith('linux'):
     maybe.update({
         'cli_root/zfs_rename/zfs_rename_002_pos': ['FAIL', known_reason],
         'cli_root/zpool_reopen/zpool_reopen_003_pos': ['FAIL', known_reason],
-        'fault/auto_spare_shared': ['FAIL', 11889],
+        'fault/auto_online_002_pos': ['FAIL', 11889],
+        'fault/auto_replace_001_pos': ['FAIL', 14851],
+        'fault/auto_spare_002_pos': ['FAIL', 11889],
         'fault/auto_spare_multiple': ['FAIL', 11889],
+        'fault/auto_spare_shared': ['FAIL', 11889],
+        'fault/decompress_fault': ['FAIL', 11889],
         'io/io_uring': ['SKIP', 'io_uring support required'],
         'limits/filesystem_limit': ['SKIP', known_reason],
         'limits/snapshot_limit': ['SKIP', known_reason],
@@ -271,11 +286,25 @@ elif sys.platform.startswith('linux'):
         'mmp/mmp_inactive_import': ['FAIL', known_reason],
         'zvol/zvol_misc/zvol_misc_snapdev': ['FAIL', 12621],
         'zvol/zvol_misc/zvol_misc_volmode': ['FAIL', known_reason],
+        'zvol/zvol_misc/zvol_misc_fua': ['SKIP', 14872],
+        'zvol/zvol_misc/zvol_misc_trim': ['SKIP', 14872],
         'idmap_mount/idmap_mount_001': ['SKIP', idmap_reason],
         'idmap_mount/idmap_mount_002': ['SKIP', idmap_reason],
         'idmap_mount/idmap_mount_003': ['SKIP', idmap_reason],
         'idmap_mount/idmap_mount_004': ['SKIP', idmap_reason],
         'idmap_mount/idmap_mount_005': ['SKIP', idmap_reason],
+        'block_cloning/block_cloning_disabled_copyfilerange':
+            ['SKIP', cfr_reason],
+        'block_cloning/block_cloning_copyfilerange':
+            ['SKIP', cfr_reason],
+        'block_cloning/block_cloning_copyfilerange_partial':
+            ['SKIP', cfr_reason],
+        'block_cloning/block_cloning_copyfilerange_fallback':
+            ['SKIP', cfr_reason],
+        'block_cloning/block_cloning_copyfilerange_cross_dataset':
+            ['SKIP', cfr_cross_reason],
+        'block_cloning/block_cloning_copyfilerange_fallback_same_txg':
+            ['SKIP', cfr_cross_reason],
     })
 
 

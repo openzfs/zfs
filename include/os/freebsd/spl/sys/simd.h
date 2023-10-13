@@ -32,6 +32,12 @@
 #if defined(__amd64__) || defined(__i386__)
 #include <sys/simd_x86.h>
 
+#elif defined(__arm__)
+#include <sys/simd_arm.h>
+
+#elif defined(__aarch64__)
+#include <sys/simd_aarch64.h>
+
 #elif defined(__powerpc__)
 #include <sys/simd_powerpc.h>
 

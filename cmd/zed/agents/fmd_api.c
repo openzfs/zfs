@@ -359,7 +359,7 @@ static void
 zed_log_fault(nvlist_t *nvl, const char *uuid, const char *code)
 {
 	nvlist_t *rsrc;
-	char *strval;
+	const char *strval;
 	uint64_t guid;
 	uint8_t byte;
 
@@ -389,7 +389,7 @@ zed_log_fault(nvlist_t *nvl, const char *uuid, const char *code)
 static const char *
 fmd_fault_mkcode(nvlist_t *fault)
 {
-	char *class;
+	const char *class;
 	const char *code = "-";
 
 	/*
@@ -708,7 +708,7 @@ int
 fmd_nvl_class_match(fmd_hdl_t *hdl, nvlist_t *nvl, const char *pattern)
 {
 	(void) hdl;
-	char *class;
+	const char *class;
 
 	return (nvl != NULL &&
 	    nvlist_lookup_string(nvl, FM_CLASS, &class) == 0 &&

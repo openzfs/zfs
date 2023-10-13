@@ -38,7 +38,7 @@
 .\" Copyright (c) 2019, Kjeld Schouten-Lebbing
 .\" Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
 .\"
-.Dd July 21, 2022
+.Dd August 8, 2023
 .Dt ZFSPROPS 7
 .Os
 .
@@ -80,7 +80,9 @@ for zettabyte
 The following are all valid
 .Pq and equal
 specifications:
-.Li 1536M, 1.5g, 1.50GB .
+.Li 1536M ,
+.Li 1.5g ,
+.Li 1.50GB .
 .Pp
 The values of non-numeric properties are case sensitive and must be lowercase,
 except for
@@ -1246,18 +1248,28 @@ Otherwise, they are automatically remounted in the new location if the property
 was previously
 .Sy legacy
 or
-.Sy none ,
-or if they were mounted before the property was changed.
+.Sy none .
 In addition, any shared file systems are unshared and shared in the new
 location.
+.Pp
+When the
+.Sy mountpoint
+property is set with
+.Nm zfs Cm set Fl u
+, the
+.Sy mountpoint
+property is updated but dataset is not mounted or unmounted and remains
+as it was before.
 .It Sy nbmand Ns = Ns Sy on Ns | Ns Sy off
 Controls whether the file system should be mounted with
 .Sy nbmand
 .Pq Non-blocking mandatory locks .
-This is used for SMB clients.
 Changes to this property only take effect when the file system is umounted and
 remounted.
-Support for these locks is scarce and not described by POSIX.
+This was only supported by Linux prior to 5.15, and was buggy there,
+and is not supported by
+.Fx .
+On Solaris it's used for SMB clients.
 .It Sy overlay Ns = Ns Sy on Ns | Ns Sy off
 Allow mounting on a busy directory or a directory which already contains
 files or directories.
@@ -1652,6 +1664,13 @@ by default.
 This means that any additional access control
 (disallow specific user specific access etc) must be done on the underlying file
 system.
+.Pp
+When the
+.Sy sharesmb
+property is updated with
+.Nm zfs Cm set Fl u
+, the property is set to desired value, but the operation to share, reshare
+or unshare the the dataset is not performed.
 .It Sy sharenfs Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Ar opts
 Controls whether the file system is shared via NFS, and what options are to be
 used.
@@ -1695,6 +1714,13 @@ or if they were shared before the property was changed.
 If the new property is
 .Sy off ,
 the file systems are unshared.
+.Pp
+When the
+.Sy sharenfs
+property is updated with
+.Nm zfs Cm set Fl u
+, the property is set to desired value, but the operation to share, reshare
+or unshare the the dataset is not performed.
 .It Sy logbias Ns = Ns Sy latency Ns | Ns Sy throughput
 Provide a hint to ZFS about handling of synchronous requests in this dataset.
 If
@@ -1912,13 +1938,15 @@ See
 for more information.
 Jails are a
 .Fx
-feature and are not relevant on other platforms.
-The default value is
-.Sy off .
-.It Sy zoned Ns = Ns Sy on Ns | Ns Sy off
+feature and this property is not available on other platforms.
+.It Sy zoned Ns = Ns Sy off Ns | Ns Sy on
 Controls whether the dataset is managed from a non-global zone or namespace.
-The default value is
-.Sy off .
+See
+.Xr zfs-zone 8
+for more information.
+Zoning is a
+Linux
+feature and this property is not available on other platforms.
 .El
 .Pp
 The following three properties cannot be changed after the file system is

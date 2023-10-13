@@ -120,7 +120,11 @@ extern "C" {
 #define	DN_MAX_LEVELS	(DIV_ROUND_UP(DN_MAX_OFFSET_SHIFT - SPA_MINBLOCKSHIFT, \
 	DN_MIN_INDBLKSHIFT - SPA_BLKPTRSHIFT) + 1)
 
-#define	DN_BONUS(dnp)	((void*)((dnp)->dn_bonus + \
+/*
+ * Use the flexible array instead of the fixed length one dn_bonus
+ * to address memcpy/memmove fortify error
+ */
+#define	DN_BONUS(dnp)	((void*)((dnp)->dn_bonus_flexible + \
 	(((dnp)->dn_nblkptr - 1) * sizeof (blkptr_t))))
 #define	DN_MAX_BONUS_LEN(dnp) \
 	((dnp->dn_flags & DNODE_FLAG_SPILL_BLKPTR) ? \
@@ -265,6 +269,10 @@ typedef struct dnode_phys {
 			uint8_t __dn_ignore3[DN_OLD_MAX_BONUSLEN -
 			    sizeof (blkptr_t)];
 			blkptr_t dn_spill;
+		};
+		struct {
+			blkptr_t __dn_ignore4;
+			uint8_t dn_bonus_flexible[];
 		};
 	};
 } dnode_phys_t;

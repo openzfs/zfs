@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2011, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2023, Datto Inc. All rights reserved.
  */
 
 
@@ -276,11 +277,14 @@ zpl_test_super(struct super_block *s, void *data)
 {
 	zfsvfs_t *zfsvfs = s->s_fs_info;
 	objset_t *os = data;
-
-	if (zfsvfs == NULL)
-		return (0);
-
-	return (os == zfsvfs->z_os);
+	/*
+	 * If the os doesn't match the z_os in the super_block, assume it is
+	 * not a match. Matching would imply a multimount of a dataset. It is
+	 * possible that during a multimount, there is a simultaneous operation
+	 * that changes the z_os, e.g., rollback, where the match will be
+	 * missed, but in that case the user will get an EBUSY.
+	 */
+	return (zfsvfs != NULL && os == zfsvfs->z_os);
 }
 
 static struct super_block *
@@ -306,11 +310,34 @@ zpl_mount_impl(struct file_system_type *fs_type, int flags, zfs_mnt_t *zm)
 
 	s = sget(fs_type, zpl_test_super, set_anon_super, flags, os);
 
+	/*
+	 * Recheck with the lock held to prevent mounting the wrong dataset
+	 * since z_os can be stale when the teardown lock is held.
+	 *
+	 * We can't do this in zpl_test_super in since it's under spinlock and
+	 * also s_umount lock is not held there so it would race with
+	 * zfs_umount and zfsvfs can be freed.
+	 */
+	if (!IS_ERR(s) && s->s_fs_info != NULL) {
+		zfsvfs_t *zfsvfs = s->s_fs_info;
+		if (zpl_enter(zfsvfs, FTAG) == 0) {
+			if (os != zfsvfs->z_os)
+				err = -SET_ERROR(EBUSY);
+			zpl_exit(zfsvfs, FTAG);
+		} else {
+			err = -SET_ERROR(EBUSY);
+		}
+	}
 	dsl_dataset_long_rele(dmu_objset_ds(os), FTAG);
 	dsl_dataset_rele(dmu_objset_ds(os), FTAG);
 
 	if (IS_ERR(s))
 		return (ERR_CAST(s));
+
+	if (err) {
+		deactivate_locked_super(s);
+		return (ERR_PTR(err));
+	}
 
 	if (s->s_root == NULL) {
 		err = zpl_fill_super(s, zm, flags & SB_SILENT ? 1 : 0);

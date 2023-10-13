@@ -29,8 +29,8 @@
 typedef struct zfs_dbgmsg {
 	procfs_list_node_t	zdm_node;
 	uint64_t		zdm_timestamp;
-	uint_t		zdm_size;
-	char			zdm_msg[1]; /* variable length allocation */
+	uint_t			zdm_size;
+	char			zdm_msg[]; /* variable length allocation */
 } zfs_dbgmsg_t;
 
 static procfs_list_t zfs_dbgmsgs;
@@ -135,7 +135,7 @@ __set_error(const char *file, const char *func, int line, int err)
 void
 __zfs_dbgmsg(char *buf)
 {
-	uint_t size = sizeof (zfs_dbgmsg_t) + strlen(buf);
+	uint_t size = sizeof (zfs_dbgmsg_t) + strlen(buf) + 1;
 	zfs_dbgmsg_t *zdm = kmem_zalloc(size, KM_SLEEP);
 	zdm->zdm_size = size;
 	zdm->zdm_timestamp = gethrestime_sec();

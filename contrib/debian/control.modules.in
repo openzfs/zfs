@@ -5,7 +5,7 @@ Maintainer: ZFS on Linux specific mailing list <zfs-discuss@list.zfsonlinux.org>
 Build-Depends: debhelper-compat (= 10),
                dkms (>> 2.1.1.2-5),
                libtool,
-               linux-headers-_KVERS_
+               linux-headers-_KVERS_ | raspberrypi-kernel-headers
 Standards-Version: 4.3.0
 Homepage: http://www.openzfs.org/
 Vcs-Git: https://github.com/openzfs/zfs.git
@@ -14,7 +14,7 @@ Vcs-Browser: https://github.com/openzfs/zfs
 Package: openzfs-zfs-modules-_KVERS_
 Architecture: _ARCH_
 Provides: openzfs-zfs-modules
-Depends: linux-image-_KVERS_
+Depends: linux-image-_KVERS_ | raspberrypi-kernel
 Recommends: openzfsutils
 Replaces: zfs-modules-_KVERS_
 Conflicts: zfs-modules-_KVERS_

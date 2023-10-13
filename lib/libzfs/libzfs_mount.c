@@ -291,7 +291,7 @@ static int
 zfs_add_option(zfs_handle_t *zhp, char *options, int len,
     zfs_prop_t prop, const char *on, const char *off)
 {
-	char *source;
+	const char *source;
 	uint64_t value;
 
 	/* Skip adding duplicate default options */
@@ -940,7 +940,7 @@ zfs_iter_cb(zfs_handle_t *zhp, void *data)
 	}
 
 	libzfs_add_handle(cbp, zhp);
-	if (zfs_iter_filesystems(zhp, 0, zfs_iter_cb, cbp) != 0) {
+	if (zfs_iter_filesystems_v2(zhp, 0, zfs_iter_cb, cbp) != 0) {
 		zfs_close(zhp);
 		return (-1);
 	}
@@ -1289,7 +1289,7 @@ zpool_enable_datasets(zpool_handle_t *zhp, const char *mntopts, int flags)
 	 * over all child filesystems.
 	 */
 	libzfs_add_handle(&cb, zfsp);
-	if (zfs_iter_filesystems(zfsp, 0, zfs_iter_cb, &cb) != 0)
+	if (zfs_iter_filesystems_v2(zfsp, 0, zfs_iter_cb, &cb) != 0)
 		goto out;
 
 	/*
@@ -1300,7 +1300,7 @@ zpool_enable_datasets(zpool_handle_t *zhp, const char *mntopts, int flags)
 	zfs_foreach_mountpoint(zhp->zpool_hdl, cb.cb_handles, cb.cb_used,
 	    zfs_mount_one, &ms, B_TRUE);
 	if (ms.ms_mntstatus != 0)
-		ret = ms.ms_mntstatus;
+		ret = EZFS_MOUNTFAILED;
 
 	/*
 	 * Share all filesystems that need to be shared. This needs to be
@@ -1311,7 +1311,7 @@ zpool_enable_datasets(zpool_handle_t *zhp, const char *mntopts, int flags)
 	zfs_foreach_mountpoint(zhp->zpool_hdl, cb.cb_handles, cb.cb_used,
 	    zfs_share_one, &ms, B_FALSE);
 	if (ms.ms_mntstatus != 0)
-		ret = ms.ms_mntstatus;
+		ret = EZFS_SHAREFAILED;
 	else
 		zfs_commit_shares(NULL);
 
@@ -1422,10 +1422,10 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 	 * Walk through and first unshare everything.
 	 */
 	for (i = 0; i < used; i++) {
-		for (enum sa_protocol i = 0; i < SA_PROTOCOL_COUNT; ++i) {
-			if (sa_is_shared(sets[i].mountpoint, i) &&
+		for (enum sa_protocol p = 0; p < SA_PROTOCOL_COUNT; ++p) {
+			if (sa_is_shared(sets[i].mountpoint, p) &&
 			    unshare_one(hdl, sets[i].mountpoint,
-			    sets[i].mountpoint, i) != 0)
+			    sets[i].mountpoint, p) != 0)
 				goto out;
 		}
 	}

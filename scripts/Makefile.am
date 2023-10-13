@@ -20,6 +20,8 @@ scripts_scripts = \
 
 if CONFIG_USER
 dist_scripts_SCRIPTS = $(scripts_scripts)
+dist_zfsexec_SCRIPTS = \
+	%D%/zfs_prepare_disk
 else
 dist_noinst_SCRIPTS += $(scripts_scripts)
 endif
@@ -27,6 +29,7 @@ endif
 dist_noinst_DATA += \
 	%D%/cstyle.pl \
 	%D%/enum-extract.pl \
+	%D%/update_authors.pl \
 	%D%/zfs2zol-patch.sed \
 	%D%/zol2zfs-patch.sed
 

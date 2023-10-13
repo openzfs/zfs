@@ -20,8 +20,10 @@ COMMON_H = \
 	sys/aggsum.h \
 	sys/arc.h \
 	sys/arc_impl.h \
+	sys/asm_linkage.h \
 	sys/avl.h \
 	sys/avl_impl.h \
+	sys/bitmap.h \
 	sys/bitops.h \
 	sys/blake3.h \
 	sys/blkptr.h \
@@ -30,6 +32,7 @@ COMMON_H = \
 	sys/bptree.h \
 	sys/bqueue.h \
 	sys/btree.h \
+	sys/brt.h \
 	sys/dataset_kstats.h \
 	sys/dbuf.h \
 	sys/ddt.h \
@@ -74,6 +77,7 @@ COMMON_H = \
 	sys/rrwlock.h \
 	sys/sa.h \
 	sys/sa_impl.h \
+	sys/sha2.h \
 	sys/skein.h \
 	sys/spa.h \
 	sys/spa_checkpoint.h \
@@ -123,6 +127,7 @@ COMMON_H = \
 	sys/zfs_delay.h \
 	sys/zfs_file.h \
 	sys/zfs_fuid.h \
+	sys/zfs_impl.h \
 	sys/zfs_project.h \
 	sys/zfs_quota.h \
 	sys/zfs_racct.h \

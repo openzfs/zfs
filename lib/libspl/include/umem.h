@@ -83,7 +83,7 @@ const char *_umem_debug_init(void);
 const char *_umem_options_init(void);
 const char *_umem_logging_init(void);
 
-__attribute__((alloc_size(1)))
+__attribute__((malloc, alloc_size(1)))
 static inline void *
 umem_alloc(size_t size, int flags)
 {
@@ -96,7 +96,7 @@ umem_alloc(size_t size, int flags)
 	return (ptr);
 }
 
-__attribute__((alloc_size(1)))
+__attribute__((malloc, alloc_size(1)))
 static inline void *
 umem_alloc_aligned(size_t size, size_t align, int flags)
 {
@@ -118,7 +118,7 @@ umem_alloc_aligned(size_t size, size_t align, int flags)
 	return (ptr);
 }
 
-__attribute__((alloc_size(1)))
+__attribute__((malloc, alloc_size(1)))
 static inline void *
 umem_zalloc(size_t size, int flags)
 {
@@ -188,6 +188,7 @@ umem_cache_destroy(umem_cache_t *cp)
 	umem_free(cp, sizeof (umem_cache_t));
 }
 
+__attribute__((malloc))
 static inline void *
 umem_cache_alloc(umem_cache_t *cp, int flags)
 {

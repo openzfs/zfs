@@ -5,8 +5,9 @@ After=zfs-import.target dracut-pre-mount.service
 Before=dracut-mount.service
 DefaultDependencies=no
 ConditionKernelCommandLine=bootfs.snapshot
+ConditionEnvironment=BOOTFS
 
 [Service]
 Type=oneshot
-ExecStart=-/bin/sh -c '. /lib/dracut-zfs-lib.sh; decode_root_args || exit; [ "$root" = "zfs:AUTO" ] && root="$BOOTFS"; SNAPNAME="$(getarg bootfs.snapshot)"; exec @sbindir@/zfs snapshot "$root@${SNAPNAME:-%v}"'
+ExecStart=-/bin/sh -c '. /lib/dracut-lib.sh; SNAPNAME="$(getarg bootfs.snapshot)"; exec @sbindir@/zfs snapshot "$BOOTFS@${SNAPNAME:-%v}"'
 RemainAfterExit=yes

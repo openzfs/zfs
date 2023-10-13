@@ -135,6 +135,7 @@
 #include <libnvpair.h>
 #include <libzutil.h>
 #include <sys/crypto/icp.h>
+#include <sys/zfs_impl.h>
 #if (__GLIBC__ && !__UCLIBC__)
 #include <execinfo.h> /* for backtrace() */
 #endif
@@ -1901,7 +1902,7 @@ ztest_log_write(ztest_ds_t *zd, dmu_tx_t *tx, lr_write_t *lr)
 	if (zil_replaying(zd->zd_zilog, tx))
 		return;
 
-	if (lr->lr_length > zil_max_log_data(zd->zd_zilog))
+	if (lr->lr_length > zil_max_log_data(zd->zd_zilog, sizeof (lr_write_t)))
 		write_state = WR_INDIRECT;
 
 	itx = zil_itx_create(TX_WRITE,
@@ -2411,7 +2412,6 @@ ztest_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 	int error;
 
 	ASSERT3P(lwb, !=, NULL);
-	ASSERT3P(zio, !=, NULL);
 	ASSERT3U(size, !=, 0);
 
 	ztest_object_lock(zd, object, RL_READER);
@@ -2445,6 +2445,7 @@ ztest_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 		    DMU_READ_NO_PREFETCH);
 		ASSERT0(error);
 	} else {
+		ASSERT3P(zio, !=, NULL);
 		size = doi.doi_data_block_size;
 		if (ISP2(size)) {
 			offset = P2ALIGN(offset, size);
@@ -2456,8 +2457,7 @@ ztest_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 		zgd->zgd_lr = (struct zfs_locked_range *)ztest_range_lock(zd,
 		    object, offset, size, RL_READER);
 
-		error = dmu_buf_hold(os, object, offset, zgd, &db,
-		    DMU_READ_NO_PREFETCH);
+		error = dmu_buf_hold_noread(os, object, offset, zgd, &db);
 
 		if (error == 0) {
 			blkptr_t *bp = &lr->lr_blkptr;
@@ -3766,7 +3766,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	else if (ashift > oldvd->vdev_top->vdev_ashift)
 		expected_error = EDOM;
 	else if (newvd_is_dspare && pvd != vdev_draid_spare_get_parent(newvd))
-		expected_error = ENOTSUP;
+		expected_error = EINVAL;
 	else
 		expected_error = 0;
 
@@ -4638,8 +4638,11 @@ ztest_dmu_object_alloc_free(ztest_ds_t *zd, uint64_t id)
 	 * Destroy the previous batch of objects, create a new batch,
 	 * and do some I/O on the new objects.
 	 */
-	if (ztest_object_init(zd, od, size, B_TRUE) != 0)
+	if (ztest_object_init(zd, od, size, B_TRUE) != 0) {
+		zd->zd_od = NULL;
+		umem_free(od, size);
 		return;
+	}
 
 	while (ztest_random(4 * batchsize) != 0)
 		ztest_io(zd, od[ztest_random(batchsize)].od_object,
@@ -6375,6 +6378,7 @@ ztest_reguid(ztest_ds_t *zd, uint64_t id)
 	spa_t *spa = ztest_spa;
 	uint64_t orig, load;
 	int error;
+	ztest_shared_t *zs = ztest_shared;
 
 	if (ztest_opts.zo_mmp_test)
 		return;
@@ -6384,6 +6388,7 @@ ztest_reguid(ztest_ds_t *zd, uint64_t id)
 
 	(void) pthread_rwlock_wrlock(&ztest_name_lock);
 	error = spa_change_guid(spa);
+	zs->zs_guid = spa_guid(spa);
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
 
 	if (error != 0)
@@ -6410,6 +6415,7 @@ ztest_blake3(ztest_ds_t *zd, uint64_t id)
 	int i, *ptr;
 	uint32_t size;
 	BLAKE3_CTX ctx;
+	const zfs_impl_t *blake3 = zfs_impl_get_ops("blake3");
 
 	size = ztest_random_blocksize();
 	buf = umem_alloc(size, UMEM_NOFAIL);
@@ -6434,7 +6440,7 @@ ztest_blake3(ztest_ds_t *zd, uint64_t id)
 		void *res2 = &zc_res2;
 
 		/* BLAKE3_KEY_LEN = 32 */
-		VERIFY0(blake3_impl_setname("generic"));
+		VERIFY0(blake3->setname("generic"));
 		templ = abd_checksum_blake3_tmpl_init(&salt);
 		Blake3_InitKeyed(&ctx, salt_ptr);
 		Blake3_Update(&ctx, buf, size);
@@ -6443,7 +6449,7 @@ ztest_blake3(ztest_ds_t *zd, uint64_t id)
 		ZIO_CHECKSUM_BSWAP(&zc_ref2);
 		abd_checksum_blake3_tmpl_free(templ);
 
-		VERIFY0(blake3_impl_setname("cycle"));
+		VERIFY0(blake3->setname("cycle"));
 		while (run_count-- > 0) {
 
 			/* Test current implementation */
@@ -6912,7 +6918,7 @@ ztest_trim(ztest_ds_t *zd, uint64_t id)
  * Verify pool integrity by running zdb.
  */
 static void
-ztest_run_zdb(const char *pool)
+ztest_run_zdb(uint64_t guid)
 {
 	int status;
 	char *bin;
@@ -6936,13 +6942,13 @@ ztest_run_zdb(const char *pool)
 	free(set_gvars_args);
 
 	size_t would = snprintf(zdb, len,
-	    "%s -bcc%s%s -G -d -Y -e -y %s -p %s %s",
+	    "%s -bcc%s%s -G -d -Y -e -y %s -p %s %"PRIu64,
 	    bin,
 	    ztest_opts.zo_verbose >= 3 ? "s" : "",
 	    ztest_opts.zo_verbose >= 4 ? "v" : "",
 	    set_gvars_args_joined,
 	    ztest_opts.zo_dir,
-	    pool);
+	    guid);
 	ASSERT3U(would, <, len);
 
 	umem_free(set_gvars_args_joined, strlen(set_gvars_args_joined) + 1);
@@ -7520,14 +7526,15 @@ ztest_import(ztest_shared_t *zs)
 	VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
 	zs->zs_metaslab_sz =
 	    1ULL << spa->spa_root_vdev->vdev_child[0]->vdev_ms_shift;
+	zs->zs_guid = spa_guid(spa);
 	spa_close(spa, FTAG);
 
 	kernel_fini();
 
 	if (!ztest_opts.zo_mmp_test) {
-		ztest_run_zdb(ztest_opts.zo_pool);
+		ztest_run_zdb(zs->zs_guid);
 		ztest_freeze();
-		ztest_run_zdb(ztest_opts.zo_pool);
+		ztest_run_zdb(zs->zs_guid);
 	}
 
 	(void) pthread_rwlock_destroy(&ztest_name_lock);
@@ -7598,7 +7605,6 @@ ztest_run(ztest_shared_t *zs)
 	dsl_pool_config_enter(dmu_objset_pool(os), FTAG);
 	dmu_objset_fast_stat(os, &dds);
 	dsl_pool_config_exit(dmu_objset_pool(os), FTAG);
-	zs->zs_guid = dds.dds_guid;
 	dmu_objset_disown(os, B_TRUE, FTAG);
 
 	/*
@@ -7869,14 +7875,15 @@ ztest_init(ztest_shared_t *zs)
 	VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
 	zs->zs_metaslab_sz =
 	    1ULL << spa->spa_root_vdev->vdev_child[0]->vdev_ms_shift;
+	zs->zs_guid = spa_guid(spa);
 	spa_close(spa, FTAG);
 
 	kernel_fini();
 
 	if (!ztest_opts.zo_mmp_test) {
-		ztest_run_zdb(ztest_opts.zo_pool);
+		ztest_run_zdb(zs->zs_guid);
 		ztest_freeze();
-		ztest_run_zdb(ztest_opts.zo_pool);
+		ztest_run_zdb(zs->zs_guid);
 	}
 
 	(void) pthread_rwlock_destroy(&ztest_name_lock);
@@ -8299,7 +8306,7 @@ main(int argc, char **argv)
 		}
 
 		if (!ztest_opts.zo_mmp_test)
-			ztest_run_zdb(ztest_opts.zo_pool);
+			ztest_run_zdb(zs->zs_guid);
 	}
 
 	if (ztest_opts.zo_verbose >= 1) {

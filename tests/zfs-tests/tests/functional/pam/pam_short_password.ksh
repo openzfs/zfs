@@ -52,7 +52,7 @@ log_must ismounted "$TESTPOOL/pam/${username}"
 keystatus available
 
 # Change user and dataset password to short one.
-printf "short\nshort\n" | pamtester ${pamservice} ${username} chauthtok
+printf "testpass\nshort\nshort\n" | pamtester -v ${pamservice} ${username} chauthtok
 
 # Unmount and unload key.
 log_must pamtester ${pamservice} ${username} close_session

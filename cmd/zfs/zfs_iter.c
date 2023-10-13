@@ -143,19 +143,19 @@ zfs_callback(zfs_handle_t *zhp, void *data)
 		    (cb->cb_types &
 		    (ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME))) &&
 		    zfs_get_type(zhp) == ZFS_TYPE_FILESYSTEM) {
-			(void) zfs_iter_filesystems(zhp, cb->cb_flags,
+			(void) zfs_iter_filesystems_v2(zhp, cb->cb_flags,
 			    zfs_callback, data);
 		}
 
 		if (((zfs_get_type(zhp) & (ZFS_TYPE_SNAPSHOT |
 		    ZFS_TYPE_BOOKMARK)) == 0) && include_snaps) {
-			(void) zfs_iter_snapshots(zhp, cb->cb_flags,
+			(void) zfs_iter_snapshots_v2(zhp, cb->cb_flags,
 			    zfs_callback, data, 0, 0);
 		}
 
 		if (((zfs_get_type(zhp) & (ZFS_TYPE_SNAPSHOT |
 		    ZFS_TYPE_BOOKMARK)) == 0) && include_bmarks) {
-			(void) zfs_iter_bookmarks(zhp, cb->cb_flags,
+			(void) zfs_iter_bookmarks_v2(zhp, cb->cb_flags,
 			    zfs_callback, data);
 		}
 
@@ -348,7 +348,7 @@ zfs_sort(const void *larg, const void *rarg, void *data)
 
 	for (psc = sc; psc != NULL; psc = psc->sc_next) {
 		char lbuf[ZFS_MAXPROPLEN], rbuf[ZFS_MAXPROPLEN];
-		char *lstr, *rstr;
+		const char *lstr, *rstr;
 		uint64_t lnum = 0, rnum = 0;
 		boolean_t lvalid, rvalid;
 		int ret = 0;

@@ -96,7 +96,7 @@ zpool_relabel_disk(libzfs_handle_t *hdl, const char *path, const char *msg)
 static int
 read_efi_label(nvlist_t *config, diskaddr_t *sb)
 {
-	char *path;
+	const char *path;
 	int fd;
 	char diskname[MAXPATHLEN];
 	int err = -1;

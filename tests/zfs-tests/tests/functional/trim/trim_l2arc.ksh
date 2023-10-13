@@ -67,7 +67,7 @@ typeset VDEV_MIN_MB=$((MINVDEVSIZE * 0.30 / 1024 / 1024))
 log_must zpool create -f $TESTPOOL $TRIM_VDEV1 cache $TRIM_VDEV2
 verify_vdevs "-le" "$VDEV_MIN_MB" $TRIM_VDEV2
 
-typeset fill_mb=$(( floor(2 * MINVDEVSIZE) ))
+typeset fill_mb=$(( floor(3 * MINVDEVSIZE) ))
 export DIRECTORY=/$TESTPOOL
 export NUMJOBS=1
 export FILE_SIZE=${fill_mb}

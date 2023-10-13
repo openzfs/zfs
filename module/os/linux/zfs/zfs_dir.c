@@ -649,6 +649,8 @@ zfs_rmnode(znode_t *zp)
 	objset_t	*os = zfsvfs->z_os;
 	znode_t		*xzp = NULL;
 	dmu_tx_t	*tx;
+	znode_hold_t	*zh;
+	uint64_t	z_id = zp->z_id;
 	uint64_t	acl_obj;
 	uint64_t	xattr_obj;
 	uint64_t	links;
@@ -666,8 +668,9 @@ zfs_rmnode(znode_t *zp)
 			 * Not enough space to delete some xattrs.
 			 * Leave it in the unlinked set.
 			 */
+			zh = zfs_znode_hold_enter(zfsvfs, z_id);
 			zfs_znode_dmu_fini(zp);
-
+			zfs_znode_hold_exit(zfsvfs, zh);
 			return;
 		}
 	}
@@ -686,7 +689,9 @@ zfs_rmnode(znode_t *zp)
 			 * Not enough space or we were interrupted by unmount.
 			 * Leave the file in the unlinked set.
 			 */
+			zh = zfs_znode_hold_enter(zfsvfs, z_id);
 			zfs_znode_dmu_fini(zp);
+			zfs_znode_hold_exit(zfsvfs, zh);
 			return;
 		}
 	}
@@ -726,7 +731,9 @@ zfs_rmnode(znode_t *zp)
 		 * which point we'll call zfs_unlinked_drain() to process it).
 		 */
 		dmu_tx_abort(tx);
+		zh = zfs_znode_hold_enter(zfsvfs, z_id);
 		zfs_znode_dmu_fini(zp);
+		zfs_znode_hold_exit(zfsvfs, zh);
 		goto out;
 	}
 
@@ -1113,7 +1120,7 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, znode_t **xzpp, cred_t *cr)
 	*xzpp = NULL;
 
 	if ((error = zfs_acl_ids_create(zp, IS_XATTR, vap, cr, NULL,
-	    &acl_ids, kcred->user_ns)) != 0)
+	    &acl_ids, zfs_init_idmap)) != 0)
 		return (error);
 	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids, zp->z_projid)) {
 		zfs_acl_ids_free(&acl_ids);
@@ -1262,7 +1269,7 @@ zfs_sticky_remove_access(znode_t *zdp, znode_t *zp, cred_t *cr)
 
 	if ((uid = crgetuid(cr)) == downer || uid == fowner ||
 	    zfs_zaccess(zp, ACE_WRITE_DATA, 0, B_FALSE, cr,
-	    kcred->user_ns) == 0)
+	    zfs_init_idmap) == 0)
 		return (0);
 	else
 		return (secpolicy_vnode_remove(cr));

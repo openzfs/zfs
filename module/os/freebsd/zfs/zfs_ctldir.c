@@ -204,6 +204,10 @@ sfs_vgetx(struct mount *mp, int flags, uint64_t parent_id, uint64_t id,
 		return (error);
 	}
 
+#if __FreeBSD_version >= 1400077
+	vn_set_state(vp, VSTATE_CONSTRUCTED);
+#endif
+
 	*vpp = vp;
 	return (0);
 }
@@ -675,6 +679,17 @@ zfsctl_root_readdir(struct vop_readdir_args *ap)
 
 	ASSERT3S(vp->v_type, ==, VDIR);
 
+	/*
+	 * FIXME: this routine only ever emits 3 entries and does not tolerate
+	 * being called with a buffer too small to handle all of them.
+	 *
+	 * The check below facilitates the idiom of repeating calls until the
+	 * count to return is 0.
+	 */
+	if (zfs_uio_offset(&uio) == 3 * sizeof (entry)) {
+		return (0);
+	}
+
 	error = sfs_readdir_common(zfsvfs->z_root, ZFSCTL_INO_ROOT, ap, &uio,
 	    &dots_offset);
 	if (error != 0) {
@@ -801,6 +816,9 @@ static struct vop_vector zfsctl_ops_root = {
 	.vop_default =	&default_vnodeops,
 #if __FreeBSD_version >= 1300121
 	.vop_fplookup_vexec = VOP_EAGAIN,
+#endif
+#if __FreeBSD_version >= 1300139
+	.vop_fplookup_symlink = VOP_EAGAIN,
 #endif
 	.vop_open =	zfsctl_common_open,
 	.vop_close =	zfsctl_common_close,
@@ -1130,6 +1148,9 @@ static struct vop_vector zfsctl_ops_snapdir = {
 #if __FreeBSD_version >= 1300121
 	.vop_fplookup_vexec = VOP_EAGAIN,
 #endif
+#if __FreeBSD_version >= 1300139
+	.vop_fplookup_symlink = VOP_EAGAIN,
+#endif
 	.vop_open =	zfsctl_common_open,
 	.vop_close =	zfsctl_common_close,
 	.vop_getattr =	zfsctl_snapdir_getattr,
@@ -1153,7 +1174,7 @@ zfsctl_snapshot_inactive(struct vop_inactive_args *ap)
 {
 	vnode_t *vp = ap->a_vp;
 
-	VERIFY3S(vrecycle(vp), ==, 1);
+	vrecycle(vp);
 	return (0);
 }
 
@@ -1237,6 +1258,11 @@ static struct vop_vector zfsctl_ops_snapshot = {
 #if __FreeBSD_version >= 1300121
 	.vop_fplookup_vexec =	VOP_EAGAIN,
 #endif
+#if __FreeBSD_version >= 1300139
+	.vop_fplookup_symlink = VOP_EAGAIN,
+#endif
+	.vop_open =		zfsctl_common_open,
+	.vop_close =		zfsctl_common_close,
 	.vop_inactive =		zfsctl_snapshot_inactive,
 #if __FreeBSD_version >= 1300045
 	.vop_need_inactive = vop_stdneed_inactive,

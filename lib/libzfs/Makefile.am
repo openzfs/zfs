@@ -34,8 +34,6 @@ dist_libzfs_la_SOURCES += \
 endif
 
 nodist_libzfs_la_SOURCES = \
-	module/icp/algs/sha2/sha2.c \
-	\
 	module/zcommon/cityhash.c \
 	module/zcommon/zfeature_common.c \
 	module/zcommon/zfs_comutil.c \
@@ -52,7 +50,6 @@ nodist_libzfs_la_SOURCES = \
 	module/zcommon/zpool_prop.c \
 	module/zcommon/zprop_common.c
 
-
 libzfs_la_LIBADD = \
 	libshare.la \
 	libzfs_core.la \
@@ -60,7 +57,7 @@ libzfs_la_LIBADD = \
 	libzutil.la \
 	libuutil.la
 
-libzfs_la_LIBADD += -lm $(LIBCRYPTO_LIBS) $(ZLIB_LIBS) $(LIBFETCH_LIBS) $(LTLIBINTL)
+libzfs_la_LIBADD += -lrt -lm $(LIBCRYPTO_LIBS) $(ZLIB_LIBS) $(LIBFETCH_LIBS) $(LTLIBINTL)
 
 libzfs_la_LDFLAGS = -pthread
 

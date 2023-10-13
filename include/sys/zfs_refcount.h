@@ -27,6 +27,7 @@
 #define	_SYS_ZFS_REFCOUNT_H
 
 #include <sys/inttypes.h>
+#include <sys/avl.h>
 #include <sys/list.h>
 #include <sys/zfs_context.h>
 
@@ -43,19 +44,22 @@ extern "C" {
 
 #ifdef	ZFS_DEBUG
 typedef struct reference {
-	list_node_t ref_link;
+	union {
+		avl_node_t a;
+		list_node_t l;
+	} ref_link;
 	const void *ref_holder;
 	uint64_t ref_number;
-	uint8_t *ref_removed;
+	boolean_t ref_search;
 } reference_t;
 
 typedef struct refcount {
-	kmutex_t rc_mtx;
-	boolean_t rc_tracked;
-	list_t rc_list;
-	list_t rc_removed;
 	uint64_t rc_count;
-	uint64_t rc_removed_count;
+	kmutex_t rc_mtx;
+	avl_tree_t rc_tree;
+	list_t rc_removed;
+	uint_t rc_removed_count;
+	boolean_t rc_tracked;
 } zfs_refcount_t;
 
 /*
@@ -73,13 +77,15 @@ int64_t zfs_refcount_count(zfs_refcount_t *);
 int64_t zfs_refcount_add(zfs_refcount_t *, const void *);
 int64_t zfs_refcount_remove(zfs_refcount_t *, const void *);
 /*
- * Note that (add|remove)_many add/remove one reference with "number" N,
- * _not_ make N references with "number" 1, which is what vanilla
- * zfs_refcount_(add|remove) would do if called N times.
+ * Note that (add|remove)_many adds/removes one reference with "number" N,
+ * _not_ N references with "number" 1, which is what (add|remove)_few does,
+ * or what vanilla zfs_refcount_(add|remove) called N times would do.
  *
  * Attempting to remove a reference with number N when none exists is a
  * panic on debug kernels with reference_tracking enabled.
  */
+void zfs_refcount_add_few(zfs_refcount_t *, uint64_t, const void *);
+void zfs_refcount_remove_few(zfs_refcount_t *, uint64_t, const void *);
 int64_t zfs_refcount_add_many(zfs_refcount_t *, uint64_t, const void *);
 int64_t zfs_refcount_remove_many(zfs_refcount_t *, uint64_t, const void *);
 void zfs_refcount_transfer(zfs_refcount_t *, zfs_refcount_t *);
@@ -108,6 +114,10 @@ typedef struct refcount {
 #define	zfs_refcount_count(rc) atomic_load_64(&(rc)->rc_count)
 #define	zfs_refcount_add(rc, holder) atomic_inc_64_nv(&(rc)->rc_count)
 #define	zfs_refcount_remove(rc, holder) atomic_dec_64_nv(&(rc)->rc_count)
+#define	zfs_refcount_add_few(rc, number, holder) \
+	atomic_add_64(&(rc)->rc_count, number)
+#define	zfs_refcount_remove_few(rc, number, holder) \
+	atomic_add_64(&(rc)->rc_count, -number)
 #define	zfs_refcount_add_many(rc, number, holder) \
 	atomic_add_64_nv(&(rc)->rc_count, number)
 #define	zfs_refcount_remove_many(rc, number, holder) \

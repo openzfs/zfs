@@ -234,14 +234,11 @@ if the volume is not sparse.
 Print verbose information about the created dataset.
 .El
 .El
-.Ss ZFS Volumes as Swap
-ZFS volumes may be used as swap devices.
-After creating the volume with the
-.Nm zfs Cm create Fl V
-enable the swap area using the
-.Xr swapon 8
-command.
-Swapping to files on ZFS filesystems is not supported.
+.Ss ZFS for Swap
+Swapping to a ZFS volume is prone to deadlock and not recommended.
+See OpenZFS FAQ.
+.Pp
+Swapping to a file on a ZFS filesystem is not supported.
 .
 .Sh EXAMPLES
 .\" These are, respectively, examples 1, 10 from zfs.8

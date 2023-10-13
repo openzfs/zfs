@@ -30,6 +30,28 @@
 #include <sys/isa_defs.h>
 #include <sys/types.h>
 
+/* including <sys/auxv.h> clashes with AT_UID and others */
+#if defined(__arm__) || defined(__aarch64__) || defined(__powerpc__)
+#if defined(__FreeBSD__)
+#define	AT_HWCAP	25
+#define	AT_HWCAP2	26
+extern int elf_aux_info(int aux, void *buf, int buflen);
+static inline unsigned long getauxval(unsigned long key)
+{
+	unsigned long val = 0UL;
+
+	if (elf_aux_info((int)key, &val, sizeof (val)) != 0)
+		return (0UL);
+
+	return (val);
+}
+#elif defined(__linux__)
+#define	AT_HWCAP	16
+#define	AT_HWCAP2	26
+extern unsigned long getauxval(unsigned long type);
+#endif /* __linux__ */
+#endif /* arm || aarch64 || powerpc */
+
 #if defined(__x86)
 #include <cpuid.h>
 
@@ -78,7 +100,8 @@ typedef enum cpuid_inst_sets {
 	AVX512VL,
 	AES,
 	PCLMULQDQ,
-	MOVBE
+	MOVBE,
+	SHA_NI
 } cpuid_inst_sets_t;
 
 /*
@@ -103,6 +126,7 @@ typedef struct cpuid_feature_desc {
 #define	_AES_BIT		(1U << 25)
 #define	_PCLMULQDQ_BIT		(1U << 1)
 #define	_MOVBE_BIT		(1U << 22)
+#define	_SHA_NI_BIT		(1U << 29)
 
 /*
  * Descriptions of supported instruction sets
@@ -131,6 +155,7 @@ static const cpuid_feature_desc_t cpuid_features[] = {
 	[AES]		= {1U, 0U, _AES_BIT,		ECX	},
 	[PCLMULQDQ]	= {1U, 0U, _PCLMULQDQ_BIT,	ECX	},
 	[MOVBE]		= {1U, 0U, _MOVBE_BIT,		ECX	},
+	[SHA_NI]	= {7U, 0U, _SHA_NI_BIT,		EBX	},
 };
 
 /*
@@ -204,6 +229,7 @@ CPUID_FEATURE_CHECK(avx512vl, AVX512VL);
 CPUID_FEATURE_CHECK(aes, AES);
 CPUID_FEATURE_CHECK(pclmulqdq, PCLMULQDQ);
 CPUID_FEATURE_CHECK(movbe, MOVBE);
+CPUID_FEATURE_CHECK(shani, SHA_NI);
 
 /*
  * Detect register set support
@@ -346,6 +372,15 @@ zfs_movbe_available(void)
 }
 
 /*
+ * Check if SHA_NI instruction is available
+ */
+static inline boolean_t
+zfs_shani_available(void)
+{
+	return (__cpuid_has_shani());
+}
+
+/*
  * AVX-512 family of instruction sets:
  *
  * AVX512F	Foundation
@@ -443,6 +478,36 @@ zfs_avx512vbmi_available(void)
 	    __zmm_enabled());
 }
 
+#elif defined(__arm__)
+
+#define	kfpu_allowed()		1
+#define	kfpu_initialize(tsk)	do {} while (0)
+#define	kfpu_begin()		do {} while (0)
+#define	kfpu_end()		do {} while (0)
+
+#define	HWCAP_NEON		0x00001000
+#define	HWCAP2_SHA2		0x00000008
+
+/*
+ * Check if NEON is available
+ */
+static inline boolean_t
+zfs_neon_available(void)
+{
+	unsigned long hwcap = getauxval(AT_HWCAP);
+	return (hwcap & HWCAP_NEON);
+}
+
+/*
+ * Check if SHA2 is available
+ */
+static inline boolean_t
+zfs_sha256_available(void)
+{
+	unsigned long hwcap = getauxval(AT_HWCAP);
+	return (hwcap & HWCAP2_SHA2);
+}
+
 #elif defined(__aarch64__)
 
 #define	kfpu_allowed()		1
@@ -450,59 +515,70 @@ zfs_avx512vbmi_available(void)
 #define	kfpu_begin()		do {} while (0)
 #define	kfpu_end()		do {} while (0)
 
+#define	HWCAP_FP		0x00000001
+#define	HWCAP_SHA2		0x00000040
+#define	HWCAP_SHA512		0x00200000
+
+/*
+ * Check if NEON is available
+ */
+static inline boolean_t
+zfs_neon_available(void)
+{
+	unsigned long hwcap = getauxval(AT_HWCAP);
+	return (hwcap & HWCAP_FP);
+}
+
+/*
+ * Check if SHA2 is available
+ */
+static inline boolean_t
+zfs_sha256_available(void)
+{
+	unsigned long hwcap = getauxval(AT_HWCAP);
+	return (hwcap & HWCAP_SHA2);
+}
+
+/*
+ * Check if SHA512 is available
+ */
+static inline boolean_t
+zfs_sha512_available(void)
+{
+	unsigned long hwcap = getauxval(AT_HWCAP);
+	return (hwcap & HWCAP_SHA512);
+}
+
 #elif defined(__powerpc__)
 
-/* including <sys/auxv.h> clashes with AT_UID and others */
-#if defined(__FreeBSD__)
-#define	AT_HWCAP	25	/* CPU feature flags. */
-#define	AT_HWCAP2	26	/* CPU feature flags 2. */
-extern int elf_aux_info(int aux, void *buf, int buflen);
-static inline unsigned long
-getauxval(unsigned long key)
-{
-	unsigned long val = 0UL;
-
-	if (elf_aux_info((int)key, &val, sizeof (val)) != 0)
-		return (0UL);
-
-	return (val);
-}
-#elif defined(__linux__)
-#define	AT_HWCAP	16	/* CPU feature flags. */
-#define	AT_HWCAP2	26	/* CPU feature flags 2. */
-extern unsigned long getauxval(unsigned long type);
-#endif
-
-#define	kfpu_allowed()		1
+#define	kfpu_allowed()		0
 #define	kfpu_initialize(tsk)	do {} while (0)
 #define	kfpu_begin()		do {} while (0)
 #define	kfpu_end()		do {} while (0)
 
 #define	PPC_FEATURE_HAS_ALTIVEC	0x10000000
+#define	PPC_FEATURE_HAS_VSX	0x00000080
+#define	PPC_FEATURE2_ARCH_2_07	0x80000000
+
 static inline boolean_t
 zfs_altivec_available(void)
 {
 	unsigned long hwcap = getauxval(AT_HWCAP);
-
 	return (hwcap & PPC_FEATURE_HAS_ALTIVEC);
 }
 
-#define	PPC_FEATURE_HAS_VSX	0x00000080
 static inline boolean_t
 zfs_vsx_available(void)
 {
 	unsigned long hwcap = getauxval(AT_HWCAP);
-
 	return (hwcap & PPC_FEATURE_HAS_VSX);
 }
 
-#define	PPC_FEATURE2_ARCH_2_07	0x80000000
 static inline boolean_t
 zfs_isa207_available(void)
 {
 	unsigned long hwcap = getauxval(AT_HWCAP);
 	unsigned long hwcap2 = getauxval(AT_HWCAP2);
-
 	return ((hwcap & PPC_FEATURE_HAS_VSX) &&
 	    (hwcap2 & PPC_FEATURE2_ARCH_2_07));
 }

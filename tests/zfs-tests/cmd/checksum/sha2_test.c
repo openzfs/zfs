@@ -33,11 +33,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+
 #include <sys/time.h>
-#define	_SHA2_IMPL
 #include <sys/sha2.h>
 #include <sys/stdtypes.h>
-
+#include <sys/zfs_impl.h>
 
 /*
  * Test messages from:
@@ -174,8 +174,18 @@ main(int argc, char *argv[])
 	boolean_t	failed = B_FALSE;
 	uint64_t	cpu_mhz = 0;
 
+	const zfs_impl_t *sha256 = zfs_impl_get_ops("sha256");
+	const zfs_impl_t *sha512 = zfs_impl_get_ops("sha512");
+	uint32_t id;
+
 	if (argc == 2)
 		cpu_mhz = atoi(argv[1]);
+
+	if (!sha256)
+		return (1);
+
+	if (!sha512)
+		return (1);
 
 #define	SHA2_ALGO_TEST(_m, mode, diglen, testdigest)			\
 	do {								\
@@ -194,7 +204,7 @@ main(int argc, char *argv[])
 		}							\
 	} while (0)
 
-#define	SHA2_PERF_TEST(mode, diglen)					\
+#define	SHA2_PERF_TEST(mode, diglen, name)				\
 	do {								\
 		SHA2_CTX	ctx;					\
 		uint8_t		digest[diglen / 8];			\
@@ -216,8 +226,8 @@ main(int argc, char *argv[])
 			cpb = (cpu_mhz * 1e6 * ((double)delta /		\
 			    1000000)) / (8192 * 128 * 1024);		\
 		}							\
-		(void) printf("SHA%-9s%llu us (%.02f CPB)\n", #mode,	\
-		    (u_longlong_t)delta, cpb);				\
+		(void) printf("sha%s-%-9s%7llu us (%.02f CPB)\n", #mode,\
+		    name, (u_longlong_t)delta, cpb);			\
 	} while (0)
 
 	(void) printf("Running algorithm correctness tests:\n");
@@ -237,8 +247,18 @@ main(int argc, char *argv[])
 
 	(void) printf("Running performance tests (hashing 1024 MiB of "
 	    "data):\n");
-	SHA2_PERF_TEST(256, 256);
-	SHA2_PERF_TEST(512, 512);
+
+	for (id = 0; id < sha256->getcnt(); id++) {
+		sha256->setid(id);
+		const char *name = sha256->getname();
+		SHA2_PERF_TEST(256, 256, name);
+	}
+
+	for (id = 0; id < sha512->getcnt(); id++) {
+		sha512->setid(id);
+		const char *name = sha512->getname();
+		SHA2_PERF_TEST(512, 512, name);
+	}
 
 	return (0);
 }

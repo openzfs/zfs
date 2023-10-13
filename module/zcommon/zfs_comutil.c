@@ -70,7 +70,7 @@ zfs_allocatable_devs(nvlist_t *nv)
 boolean_t
 zfs_special_devs(nvlist_t *nv, const char *type)
 {
-	char *bias;
+	const char *bias;
 	uint_t c;
 	nvlist_t **child;
 	uint_t children;
@@ -98,7 +98,7 @@ zpool_get_load_policy(nvlist_t *nvl, zpool_load_policy_t *zlpp)
 {
 	nvlist_t *policy;
 	nvpair_t *elem;
-	char *nm;
+	const char *nm;
 
 	/* Defaults */
 	zlpp->zlp_rewind = ZPOOL_NO_REWIND;

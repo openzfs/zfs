@@ -40,6 +40,15 @@
 #include "fmd_api.h"
 
 /*
+ * Default values for the serd engine when processing checksum or io errors. The
+ * semantics are N <events> in T <seconds>.
+ */
+#define	DEFAULT_CHECKSUM_N	10	/* events */
+#define	DEFAULT_CHECKSUM_T	600	/* seconds */
+#define	DEFAULT_IO_N		10	/* events */
+#define	DEFAULT_IO_T		600	/* seconds */
+
+/*
  * Our serd engines are named 'zfs_<pool_guid>_<vdev_guid>_{checksum,io}'.  This
  * #define reserves enough space for two 64-bit hex values plus the length of
  * the longest string.
@@ -448,12 +457,14 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 	zfs_case_t *zcp, *dcp;
 	int32_t pool_state;
 	uint64_t ena, pool_guid, vdev_guid;
+	uint64_t checksum_n, checksum_t;
+	uint64_t io_n, io_t;
 	er_timeval_t pool_load;
 	er_timeval_t er_when;
 	nvlist_t *detector;
 	boolean_t pool_found = B_FALSE;
 	boolean_t isresource;
-	char *type;
+	const char *type;
 
 	/*
 	 * We subscribe to notifications for vdev or pool removal.  In these
@@ -769,7 +780,7 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 	    ZFS_MAKE_EREPORT(FM_EREPORT_ZFS_IO_FAILURE)) ||
 	    fmd_nvl_class_match(hdl, nvl,
 	    ZFS_MAKE_EREPORT(FM_EREPORT_ZFS_PROBE_FAILURE))) {
-		char *failmode = NULL;
+		const char *failmode = NULL;
 		boolean_t checkremove = B_FALSE;
 		uint32_t pri = 0;
 		int32_t flags = 0;
@@ -784,11 +795,21 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 		if (fmd_nvl_class_match(hdl, nvl,
 		    ZFS_MAKE_EREPORT(FM_EREPORT_ZFS_IO))) {
 			if (zcp->zc_data.zc_serd_io[0] == '\0') {
+				if (nvlist_lookup_uint64(nvl,
+				    FM_EREPORT_PAYLOAD_ZFS_VDEV_IO_N,
+				    &io_n) != 0) {
+					io_n = DEFAULT_IO_N;
+				}
+				if (nvlist_lookup_uint64(nvl,
+				    FM_EREPORT_PAYLOAD_ZFS_VDEV_IO_T,
+				    &io_t) != 0) {
+					io_t = DEFAULT_IO_T;
+				}
 				zfs_serd_name(zcp->zc_data.zc_serd_io,
 				    pool_guid, vdev_guid, "io");
 				fmd_serd_create(hdl, zcp->zc_data.zc_serd_io,
-				    fmd_prop_get_int32(hdl, "io_N"),
-				    fmd_prop_get_int64(hdl, "io_T"));
+				    io_n,
+				    SEC2NSEC(io_t));
 				zfs_case_serialize(zcp);
 			}
 			if (fmd_serd_record(hdl, zcp->zc_data.zc_serd_io, ep))
@@ -813,12 +834,23 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 			}
 
 			if (zcp->zc_data.zc_serd_checksum[0] == '\0') {
+				if (nvlist_lookup_uint64(nvl,
+				    FM_EREPORT_PAYLOAD_ZFS_VDEV_CKSUM_N,
+				    &checksum_n) != 0) {
+					checksum_n = DEFAULT_CHECKSUM_N;
+				}
+				if (nvlist_lookup_uint64(nvl,
+				    FM_EREPORT_PAYLOAD_ZFS_VDEV_CKSUM_T,
+				    &checksum_t) != 0) {
+					checksum_t = DEFAULT_CHECKSUM_T;
+				}
+
 				zfs_serd_name(zcp->zc_data.zc_serd_checksum,
 				    pool_guid, vdev_guid, "checksum");
 				fmd_serd_create(hdl,
 				    zcp->zc_data.zc_serd_checksum,
-				    fmd_prop_get_int32(hdl, "checksum_N"),
-				    fmd_prop_get_int64(hdl, "checksum_T"));
+				    checksum_n,
+				    SEC2NSEC(checksum_t));
 				zfs_case_serialize(zcp);
 			}
 			if (fmd_serd_record(hdl,

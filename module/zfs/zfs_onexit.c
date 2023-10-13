@@ -87,8 +87,7 @@ zfs_onexit_destroy(zfs_onexit_t *zo)
 	zfs_onexit_action_node_t *ap;
 
 	mutex_enter(&zo->zo_lock);
-	while ((ap = list_head(&zo->zo_actions)) != NULL) {
-		list_remove(&zo->zo_actions, ap);
+	while ((ap = list_remove_head(&zo->zo_actions)) != NULL) {
 		mutex_exit(&zo->zo_lock);
 		ap->za_func(ap->za_data);
 		kmem_free(ap, sizeof (zfs_onexit_action_node_t));

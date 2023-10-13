@@ -14,7 +14,7 @@
 .\" Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 .\" Copyright (c) 2017 Intel Corporation.
 .\"
-.Dd October 7, 2020
+.Dd June 27, 2023
 .Dt ZDB 8
 .Os
 .
@@ -30,18 +30,28 @@
 .Op Fl t Ar txg
 .Op Fl U Ar cache
 .Op Fl x Ar dumpdir
+.Op Fl K Ar key
 .Op Ar poolname Ns Op / Ns Ar dataset Ns | Ns Ar objset-ID
 .Op Ar object Ns | Ns Ar range Ns …
 .Nm
 .Op Fl AdiPv
 .Op Fl e Oo Fl V Oc Oo Fl p Ar path Oc Ns …
 .Op Fl U Ar cache
+.Op Fl K Ar key
 .Ar poolname Ns Op Ar / Ns Ar dataset Ns | Ns Ar objset-ID
 .Op Ar object Ns | Ns Ar range Ns …
+.Nm
+.Fl B
+.Op Fl e Oo Fl V Oc Oo Fl p Ar path Oc Ns …
+.Op Fl U Ar cache
+.Op Fl K Ar key
+.Ar poolname Ns Ar / Ns Ar objset-ID
+.Op Ar backup-flags
 .Nm
 .Fl C
 .Op Fl A
 .Op Fl U Ar cache
+.Op Ar poolname
 .Nm
 .Fl E
 .Op Fl A
@@ -59,9 +69,11 @@
 .Ar poolname Op Ar vdev Oo Ar metaslab Oc Ns …
 .Nm
 .Fl O
+.Op Fl K Ar key
 .Ar dataset path
 .Nm
 .Fl r
+.Op Fl K Ar key
 .Ar dataset path destination
 .Nm
 .Fl R
@@ -103,6 +115,12 @@ characters, it is interpreted as a pool name.
 The root dataset can be specified as
 .Qq Ar pool Ns / .
 .Pp
+.Nm
+is an
+.Qq offline
+tool; it accesses the block devices underneath the pools directly from
+userspace and does not care if the pool is imported or datasets are mounted
+(or even if the system understands ZFS at all).
 When operating on an imported and active pool it is possible, though unlikely,
 that zdb may interpret inconsistent pool data and behave erratically.
 .
@@ -113,6 +131,22 @@ Display options:
 Display statistics regarding the number, size
 .Pq logical, physical and allocated
 and deduplication of blocks.
+.It Fl B , -backup
+Generate a backup stream, similar to
+.Nm zfs Cm send ,
+but for the numeric objset ID, and without opening the dataset.
+This can be useful in recovery scenarios if dataset metadata has become
+corrupted but the dataset itself is readable.
+The optional
+.Ar flags
+argument is a string of one or more of the letters
+.Sy e ,
+.Sy L ,
+.Sy c ,
+and
+.Sy w ,
+which correspond to the same flags in
+.Xr zfs-send 8 .
 .It Fl c , -checksum
 Verify the checksum of all metadata blocks while printing block statistics
 .Po see
@@ -412,6 +446,24 @@ The default value is 200.
 This option affects the performance of the
 .Fl c
 option.
+.It Fl K , -key Ns = Ns Ar key
+Decryption key needed to access an encrypted dataset.
+This will cause
+.Nm
+to attempt to unlock the dataset using the encryption root, key format and other
+encryption parameters on the given dataset.
+.Nm
+can still inspect pool and dataset structures on encrypted datasets without
+unlocking them, but will not be able to access file names and attributes and
+object contents. \fBWARNING:\fP The raw decryption key and any decrypted data
+will be in user memory while
+.Nm
+is running.
+Other user programs may be able to extract it by inspecting
+.Nm
+as it runs.
+Exercise extreme caution when using this option in shared or uncontrolled
+environments.
 .It Fl o , -option Ns = Ns Ar var Ns = Ns Ar value Ns …
 Set the given global libzpool variable to the provided value.
 The value must be an unsigned 32-bit integer.

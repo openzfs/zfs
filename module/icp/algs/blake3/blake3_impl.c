@@ -23,10 +23,237 @@
  * Copyright (c) 2021-2022 Tino Reichardt <milky-zfs@mcmilk.de>
  */
 
+#include <sys/simd.h>
 #include <sys/zfs_context.h>
-#include <sys/zio_checksum.h>
+#include <sys/zfs_impl.h>
+#include <sys/blake3.h>
 
 #include "blake3_impl.h"
+
+#if defined(__aarch64__) || \
+	(defined(__x86_64) && defined(HAVE_SSE2)) || \
+	(defined(__PPC64__) && defined(__LITTLE_ENDIAN__))
+
+extern void ASMABI zfs_blake3_compress_in_place_sse2(uint32_t cv[8],
+    const uint8_t block[BLAKE3_BLOCK_LEN], uint8_t block_len,
+    uint64_t counter, uint8_t flags);
+
+extern void ASMABI zfs_blake3_compress_xof_sse2(const uint32_t cv[8],
+    const uint8_t block[BLAKE3_BLOCK_LEN], uint8_t block_len,
+    uint64_t counter, uint8_t flags, uint8_t out[64]);
+
+extern void ASMABI zfs_blake3_hash_many_sse2(const uint8_t * const *inputs,
+    size_t num_inputs, size_t blocks, const uint32_t key[8],
+    uint64_t counter, boolean_t increment_counter, uint8_t flags,
+    uint8_t flags_start, uint8_t flags_end, uint8_t *out);
+
+static void blake3_compress_in_place_sse2(uint32_t cv[8],
+    const uint8_t block[BLAKE3_BLOCK_LEN], uint8_t block_len,
+    uint64_t counter, uint8_t flags) {
+	kfpu_begin();
+	zfs_blake3_compress_in_place_sse2(cv, block, block_len, counter,
+	    flags);
+	kfpu_end();
+}
+
+static void blake3_compress_xof_sse2(const uint32_t cv[8],
+    const uint8_t block[BLAKE3_BLOCK_LEN], uint8_t block_len,
+    uint64_t counter, uint8_t flags, uint8_t out[64]) {
+	kfpu_begin();
+	zfs_blake3_compress_xof_sse2(cv, block, block_len, counter, flags,
+	    out);
+	kfpu_end();
+}
+
+static void blake3_hash_many_sse2(const uint8_t * const *inputs,
+    size_t num_inputs, size_t blocks, const uint32_t key[8],
+    uint64_t counter, boolean_t increment_counter, uint8_t flags,
+    uint8_t flags_start, uint8_t flags_end, uint8_t *out) {
+	kfpu_begin();
+	zfs_blake3_hash_many_sse2(inputs, num_inputs, blocks, key, counter,
+	    increment_counter, flags, flags_start, flags_end, out);
+	kfpu_end();
+}
+
+static boolean_t blake3_is_sse2_supported(void)
+{
+#if defined(__x86_64)
+	return (kfpu_allowed() && zfs_sse2_available());
+#elif defined(__PPC64__)
+	return (kfpu_allowed() && zfs_vsx_available());
+#else
+	return (kfpu_allowed());
+#endif
+}
+
+const blake3_ops_t blake3_sse2_impl = {
+	.compress_in_place = blake3_compress_in_place_sse2,
+	.compress_xof = blake3_compress_xof_sse2,
+	.hash_many = blake3_hash_many_sse2,
+	.is_supported = blake3_is_sse2_supported,
+	.degree = 4,
+	.name = "sse2"
+};
+#endif
+
+#if defined(__aarch64__) || \
+	(defined(__x86_64) && defined(HAVE_SSE2)) || \
+	(defined(__PPC64__) && defined(__LITTLE_ENDIAN__))
+
+extern void ASMABI zfs_blake3_compress_in_place_sse41(uint32_t cv[8],
+    const uint8_t block[BLAKE3_BLOCK_LEN], uint8_t block_len,
+    uint64_t counter, uint8_t flags);
+
+extern void ASMABI zfs_blake3_compress_xof_sse41(const uint32_t cv[8],
+    const uint8_t block[BLAKE3_BLOCK_LEN], uint8_t block_len,
+    uint64_t counter, uint8_t flags, uint8_t out[64]);
+
+extern void ASMABI zfs_blake3_hash_many_sse41(const uint8_t * const *inputs,
+    size_t num_inputs, size_t blocks, const uint32_t key[8],
+    uint64_t counter, boolean_t increment_counter, uint8_t flags,
+    uint8_t flags_start, uint8_t flags_end, uint8_t *out);
+
+static void blake3_compress_in_place_sse41(uint32_t cv[8],
+    const uint8_t block[BLAKE3_BLOCK_LEN], uint8_t block_len,
+    uint64_t counter, uint8_t flags) {
+	kfpu_begin();
+	zfs_blake3_compress_in_place_sse41(cv, block, block_len, counter,
+	    flags);
+	kfpu_end();
+}
+
+static void blake3_compress_xof_sse41(const uint32_t cv[8],
+    const uint8_t block[BLAKE3_BLOCK_LEN], uint8_t block_len,
+    uint64_t counter, uint8_t flags, uint8_t out[64]) {
+	kfpu_begin();
+	zfs_blake3_compress_xof_sse41(cv, block, block_len, counter, flags,
+	    out);
+	kfpu_end();
+}
+
+static void blake3_hash_many_sse41(const uint8_t * const *inputs,
+    size_t num_inputs, size_t blocks, const uint32_t key[8],
+    uint64_t counter, boolean_t increment_counter, uint8_t flags,
+    uint8_t flags_start, uint8_t flags_end, uint8_t *out) {
+	kfpu_begin();
+	zfs_blake3_hash_many_sse41(inputs, num_inputs, blocks, key, counter,
+	    increment_counter, flags, flags_start, flags_end, out);
+	kfpu_end();
+}
+
+static boolean_t blake3_is_sse41_supported(void)
+{
+#if defined(__x86_64)
+	return (kfpu_allowed() && zfs_sse4_1_available());
+#elif defined(__PPC64__)
+	return (kfpu_allowed() && zfs_vsx_available());
+#else
+	return (kfpu_allowed());
+#endif
+}
+
+const blake3_ops_t blake3_sse41_impl = {
+	.compress_in_place = blake3_compress_in_place_sse41,
+	.compress_xof = blake3_compress_xof_sse41,
+	.hash_many = blake3_hash_many_sse41,
+	.is_supported = blake3_is_sse41_supported,
+	.degree = 4,
+	.name = "sse41"
+};
+#endif
+
+#if defined(__x86_64) && defined(HAVE_SSE4_1) && defined(HAVE_AVX2)
+extern void ASMABI zfs_blake3_hash_many_avx2(const uint8_t * const *inputs,
+    size_t num_inputs, size_t blocks, const uint32_t key[8],
+    uint64_t counter, boolean_t increment_counter, uint8_t flags,
+    uint8_t flags_start, uint8_t flags_end, uint8_t *out);
+
+static void blake3_hash_many_avx2(const uint8_t * const *inputs,
+    size_t num_inputs, size_t blocks, const uint32_t key[8],
+    uint64_t counter, boolean_t increment_counter, uint8_t flags,
+    uint8_t flags_start, uint8_t flags_end, uint8_t *out) {
+	kfpu_begin();
+	zfs_blake3_hash_many_avx2(inputs, num_inputs, blocks, key, counter,
+	    increment_counter, flags, flags_start, flags_end, out);
+	kfpu_end();
+}
+
+static boolean_t blake3_is_avx2_supported(void)
+{
+	return (kfpu_allowed() && zfs_sse4_1_available() &&
+	    zfs_avx2_available());
+}
+
+const blake3_ops_t
+blake3_avx2_impl = {
+	.compress_in_place = blake3_compress_in_place_sse41,
+	.compress_xof = blake3_compress_xof_sse41,
+	.hash_many = blake3_hash_many_avx2,
+	.is_supported = blake3_is_avx2_supported,
+	.degree = 8,
+	.name = "avx2"
+};
+#endif
+
+#if defined(__x86_64) && defined(HAVE_AVX512F) && defined(HAVE_AVX512VL)
+extern void ASMABI zfs_blake3_compress_in_place_avx512(uint32_t cv[8],
+    const uint8_t block[BLAKE3_BLOCK_LEN], uint8_t block_len,
+    uint64_t counter, uint8_t flags);
+
+extern void ASMABI zfs_blake3_compress_xof_avx512(const uint32_t cv[8],
+    const uint8_t block[BLAKE3_BLOCK_LEN], uint8_t block_len,
+    uint64_t counter, uint8_t flags, uint8_t out[64]);
+
+extern void ASMABI zfs_blake3_hash_many_avx512(const uint8_t * const *inputs,
+    size_t num_inputs, size_t blocks, const uint32_t key[8],
+    uint64_t counter, boolean_t increment_counter, uint8_t flags,
+    uint8_t flags_start, uint8_t flags_end, uint8_t *out);
+
+static void blake3_compress_in_place_avx512(uint32_t cv[8],
+    const uint8_t block[BLAKE3_BLOCK_LEN], uint8_t block_len,
+    uint64_t counter, uint8_t flags) {
+	kfpu_begin();
+	zfs_blake3_compress_in_place_avx512(cv, block, block_len, counter,
+	    flags);
+	kfpu_end();
+}
+
+static void blake3_compress_xof_avx512(const uint32_t cv[8],
+    const uint8_t block[BLAKE3_BLOCK_LEN], uint8_t block_len,
+    uint64_t counter, uint8_t flags, uint8_t out[64]) {
+	kfpu_begin();
+	zfs_blake3_compress_xof_avx512(cv, block, block_len, counter, flags,
+	    out);
+	kfpu_end();
+}
+
+static void blake3_hash_many_avx512(const uint8_t * const *inputs,
+    size_t num_inputs, size_t blocks, const uint32_t key[8],
+    uint64_t counter, boolean_t increment_counter, uint8_t flags,
+    uint8_t flags_start, uint8_t flags_end, uint8_t *out) {
+	kfpu_begin();
+	zfs_blake3_hash_many_avx512(inputs, num_inputs, blocks, key, counter,
+	    increment_counter, flags, flags_start, flags_end, out);
+	kfpu_end();
+}
+
+static boolean_t blake3_is_avx512_supported(void)
+{
+	return (kfpu_allowed() && zfs_avx512f_available() &&
+	    zfs_avx512vl_available());
+}
+
+const blake3_ops_t blake3_avx512_impl = {
+	.compress_in_place = blake3_compress_in_place_avx512,
+	.compress_xof = blake3_compress_xof_avx512,
+	.hash_many = blake3_hash_many_avx512,
+	.is_supported = blake3_is_avx512_supported,
+	.degree = 16,
+	.name = "avx512"
+};
+#endif
+
+extern const blake3_ops_t blake3_generic_impl;
 
 static const blake3_ops_t *const blake3_impls[] = {
 	&blake3_generic_impl,
@@ -48,198 +275,15 @@ static const blake3_ops_t *const blake3_impls[] = {
 #endif
 };
 
-/* Select BLAKE3 implementation */
-#define	IMPL_FASTEST	(UINT32_MAX)
-#define	IMPL_CYCLE	(UINT32_MAX - 1)
+/* use the generic implementation functions */
+#define	IMPL_NAME		"blake3"
+#define	IMPL_OPS_T		blake3_ops_t
+#define	IMPL_ARRAY		blake3_impls
+#define	IMPL_GET_OPS		blake3_get_ops
+#define	ZFS_IMPL_OPS		zfs_blake3_ops
+#include <generic_impl.c>
 
-#define	IMPL_READ(i)	(*(volatile uint32_t *) &(i))
-
-/* Indicate that benchmark has been done */
-static boolean_t blake3_initialized = B_FALSE;
-
-/* Implementation that contains the fastest methods */
-static blake3_ops_t blake3_fastest_impl = {
-	.name = "fastest"
-};
-
-/* Hold all supported implementations */
-static const blake3_ops_t *blake3_supp_impls[ARRAY_SIZE(blake3_impls)];
-static uint32_t blake3_supp_impls_cnt = 0;
-
-/* Currently selected implementation */
-static uint32_t blake3_impl_chosen = IMPL_FASTEST;
-
-static struct blake3_impl_selector {
-	const char *name;
-	uint32_t sel;
-} blake3_impl_selectors[] = {
-	{ "cycle",	IMPL_CYCLE },
-	{ "fastest",	IMPL_FASTEST }
-};
-
-/* check the supported implementations */
-static void blake3_impl_init(void)
-{
-	int i, c;
-
-	/* init only once */
-	if (likely(blake3_initialized))
-		return;
-
-	/* move supported implementations into blake3_supp_impls */
-	for (i = 0, c = 0; i < ARRAY_SIZE(blake3_impls); i++) {
-		const blake3_ops_t *impl = blake3_impls[i];
-
-		if (impl->is_supported && impl->is_supported())
-			blake3_supp_impls[c++] = impl;
-	}
-	blake3_supp_impls_cnt = c;
-
-	/* first init generic impl, may be changed via set_fastest() */
-	memcpy(&blake3_fastest_impl, blake3_impls[0],
-	    sizeof (blake3_fastest_impl));
-	blake3_initialized = B_TRUE;
-}
-
-/* get number of supported implementations */
-uint32_t
-blake3_impl_getcnt(void)
-{
-	blake3_impl_init();
-	return (blake3_supp_impls_cnt);
-}
-
-/* get id of selected implementation */
-uint32_t
-blake3_impl_getid(void)
-{
-	return (IMPL_READ(blake3_impl_chosen));
-}
-
-/* get name of selected implementation */
-const char *
-blake3_impl_getname(void)
-{
-	uint32_t impl = IMPL_READ(blake3_impl_chosen);
-
-	blake3_impl_init();
-	switch (impl) {
-	case IMPL_FASTEST:
-		return ("fastest");
-	case IMPL_CYCLE:
-		return ("cycle");
-	default:
-		return (blake3_supp_impls[impl]->name);
-	}
-}
-
-/* setup id as fastest implementation */
-void
-blake3_impl_set_fastest(uint32_t id)
-{
-	/* setup fastest impl */
-	memcpy(&blake3_fastest_impl, blake3_supp_impls[id],
-	    sizeof (blake3_fastest_impl));
-}
-
-/* set implementation by id */
-void
-blake3_impl_setid(uint32_t id)
-{
-	blake3_impl_init();
-	switch (id) {
-	case IMPL_FASTEST:
-		atomic_swap_32(&blake3_impl_chosen, IMPL_FASTEST);
-		break;
-	case IMPL_CYCLE:
-		atomic_swap_32(&blake3_impl_chosen, IMPL_CYCLE);
-		break;
-	default:
-		ASSERT3U(id, <, blake3_supp_impls_cnt);
-		atomic_swap_32(&blake3_impl_chosen, id);
-		break;
-	}
-}
-
-/* set implementation by name */
-int
-blake3_impl_setname(const char *val)
-{
-	uint32_t impl = IMPL_READ(blake3_impl_chosen);
-	size_t val_len;
-	int i, err = -EINVAL;
-
-	blake3_impl_init();
-	val_len = strlen(val);
-	while ((val_len > 0) && !!isspace(val[val_len-1])) /* trim '\n' */
-		val_len--;
-
-	/* check mandatory implementations */
-	for (i = 0; i < ARRAY_SIZE(blake3_impl_selectors); i++) {
-		const char *name = blake3_impl_selectors[i].name;
-
-		if (val_len == strlen(name) &&
-		    strncmp(val, name, val_len) == 0) {
-			impl = blake3_impl_selectors[i].sel;
-			err = 0;
-			break;
-		}
-	}
-
-	if (err != 0 && blake3_initialized) {
-		/* check all supported implementations */
-		for (i = 0; i < blake3_supp_impls_cnt; i++) {
-			const char *name = blake3_supp_impls[i]->name;
-
-			if (val_len == strlen(name) &&
-			    strncmp(val, name, val_len) == 0) {
-				impl = i;
-				err = 0;
-				break;
-			}
-		}
-	}
-
-	if (err == 0) {
-		atomic_swap_32(&blake3_impl_chosen, impl);
-	}
-
-	return (err);
-}
-
-const blake3_ops_t *
-blake3_impl_get_ops(void)
-{
-	const blake3_ops_t *ops = NULL;
-	uint32_t impl = IMPL_READ(blake3_impl_chosen);
-
-	blake3_impl_init();
-	switch (impl) {
-	case IMPL_FASTEST:
-		ASSERT(blake3_initialized);
-		ops = &blake3_fastest_impl;
-		break;
-	case IMPL_CYCLE:
-		/* Cycle through supported implementations */
-		ASSERT(blake3_initialized);
-		ASSERT3U(blake3_supp_impls_cnt, >, 0);
-		static uint32_t cycle_count = 0;
-		uint32_t idx = (++cycle_count) % blake3_supp_impls_cnt;
-		ops = blake3_supp_impls[idx];
-		break;
-	default:
-		ASSERT3U(blake3_supp_impls_cnt, >, 0);
-		ASSERT3U(impl, <, blake3_supp_impls_cnt);
-		ops = blake3_supp_impls[impl];
-		break;
-	}
-
-	ASSERT3P(ops, !=, NULL);
-	return (ops);
-}
-
-#if defined(_KERNEL)
-
+#ifdef _KERNEL
 void **blake3_per_cpu_ctx;
 
 void
@@ -253,9 +297,6 @@ blake3_per_cpu_ctx_init(void)
 		blake3_per_cpu_ctx[i] = kmem_alloc(sizeof (BLAKE3_CTX),
 		    KM_SLEEP);
 	}
-
-	/* init once in kernel mode */
-	blake3_impl_init();
 }
 
 void
@@ -276,7 +317,7 @@ blake3_per_cpu_ctx_fini(void)
 static int
 blake3_param_get(char *buffer, zfs_kernel_param_t *unused)
 {
-	const uint32_t impl = IMPL_READ(blake3_impl_chosen);
+	const uint32_t impl = IMPL_READ(generic_impl_chosen);
 	char *fmt;
 	int cnt = 0;
 
@@ -289,10 +330,11 @@ blake3_param_get(char *buffer, zfs_kernel_param_t *unused)
 	cnt += kmem_scnprintf(buffer + cnt, PAGE_SIZE - cnt, fmt, "fastest");
 
 	/* list all supported implementations */
-	for (uint32_t i = 0; i < blake3_supp_impls_cnt; ++i) {
+	generic_impl_init();
+	for (uint32_t i = 0; i < generic_supp_impls_cnt; ++i) {
 		fmt = IMPL_FMT(impl, i);
 		cnt += kmem_scnprintf(buffer + cnt, PAGE_SIZE - cnt, fmt,
-		    blake3_supp_impls[i]->name);
+		    blake3_impls[i]->name);
 	}
 
 	return (cnt);
@@ -302,7 +344,7 @@ static int
 blake3_param_set(const char *val, zfs_kernel_param_t *unused)
 {
 	(void) unused;
-	return (blake3_impl_setname(val));
+	return (generic_impl_setname(val));
 }
 
 #elif defined(__FreeBSD__)
@@ -314,8 +356,9 @@ blake3_param(ZFS_MODULE_PARAM_ARGS)
 {
 	int err;
 
+	generic_impl_init();
 	if (req->newptr == NULL) {
-		const uint32_t impl = IMPL_READ(blake3_impl_chosen);
+		const uint32_t impl = IMPL_READ(generic_impl_chosen);
 		const int init_buflen = 64;
 		const char *fmt;
 		struct sbuf *s;
@@ -331,9 +374,9 @@ blake3_param(ZFS_MODULE_PARAM_ARGS)
 		(void) sbuf_printf(s, fmt, "fastest");
 
 		/* list all supported implementations */
-		for (uint32_t i = 0; i < blake3_supp_impls_cnt; ++i) {
+		for (uint32_t i = 0; i < generic_supp_impls_cnt; ++i) {
 			fmt = IMPL_FMT(impl, i);
-			(void) sbuf_printf(s, fmt, blake3_supp_impls[i]->name);
+			(void) sbuf_printf(s, fmt, generic_supp_impls[i]->name);
 		}
 
 		err = sbuf_finish(s);
@@ -349,7 +392,7 @@ blake3_param(ZFS_MODULE_PARAM_ARGS)
 		return (err);
 	}
 
-	return (-blake3_impl_setname(buf));
+	return (-generic_impl_setname(buf));
 }
 #endif
 

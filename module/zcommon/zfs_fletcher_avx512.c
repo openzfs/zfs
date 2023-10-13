@@ -35,15 +35,12 @@
 #define	__asm __asm__ __volatile__
 #endif
 
-ZFS_NO_SANITIZE_UNDEFINED
 static void
 fletcher_4_avx512f_init(fletcher_4_ctx_t *ctx)
 {
-	kfpu_begin();
 	memset(ctx->avx512, 0, 4 * sizeof (zfs_fletcher_avx512_t));
 }
 
-ZFS_NO_SANITIZE_UNDEFINED
 static void
 fletcher_4_avx512f_fini(fletcher_4_ctx_t *ctx, zio_cksum_t *zcp)
 {
@@ -73,7 +70,6 @@ fletcher_4_avx512f_fini(fletcher_4_ctx_t *ctx, zio_cksum_t *zcp)
 	}
 
 	ZIO_SET_CHECKSUM(zcp, A, B, C, D);
-	kfpu_end();
 }
 
 #define	FLETCHER_4_AVX512_RESTORE_CTX(ctx)				\
@@ -166,6 +162,7 @@ const fletcher_4_ops_t fletcher_4_avx512f_ops = {
 	.fini_byteswap = fletcher_4_avx512f_fini,
 	.compute_byteswap = fletcher_4_avx512f_byteswap,
 	.valid = fletcher_4_avx512f_valid,
+	.uses_fpu = B_TRUE,
 	.name = "avx512f"
 };
 
@@ -216,6 +213,7 @@ const fletcher_4_ops_t fletcher_4_avx512bw_ops = {
 	.fini_byteswap = fletcher_4_avx512f_fini,
 	.compute_byteswap = fletcher_4_avx512bw_byteswap,
 	.valid = fletcher_4_avx512bw_valid,
+	.uses_fpu = B_TRUE,
 	.name = "avx512bw"
 };
 #endif

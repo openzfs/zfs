@@ -76,7 +76,7 @@ typedef struct nvpair {
 	int16_t	nvp_reserve;	/* not used */
 	int32_t	nvp_value_elem;	/* number of elements for array types */
 	data_type_t nvp_type;	/* type of value */
-	/* name string */
+	char	nvp_name[];	/* name string */
 	/* aligned ptr array for string arrays */
 	/* aligned array of data for value */
 } nvpair_t;
@@ -109,7 +109,7 @@ typedef struct nvlist {
 #define	NV_ALIGN4(x)		(((x) + 3) & ~3)
 
 #define	NVP_SIZE(nvp)		((nvp)->nvp_size)
-#define	NVP_NAME(nvp)		((char *)(nvp) + sizeof (nvpair_t))
+#define	NVP_NAME(nvp)		((nvp)->nvp_name)
 #define	NVP_TYPE(nvp)		((nvp)->nvp_type)
 #define	NVP_NELEM(nvp)		((nvp)->nvp_value_elem)
 #define	NVP_VALUE(nvp)		((char *)(nvp) + NV_ALIGN(sizeof (nvpair_t) \
@@ -232,7 +232,8 @@ _SYS_NVPAIR_H int nvlist_lookup_int64(const nvlist_t *, const char *,
     int64_t *);
 _SYS_NVPAIR_H int nvlist_lookup_uint64(const nvlist_t *, const char *,
     uint64_t *);
-_SYS_NVPAIR_H int nvlist_lookup_string(nvlist_t *, const char *, char **);
+_SYS_NVPAIR_H int nvlist_lookup_string(const nvlist_t *, const char *,
+    const char **);
 _SYS_NVPAIR_H int nvlist_lookup_nvlist(nvlist_t *, const char *, nvlist_t **);
 _SYS_NVPAIR_H int nvlist_lookup_boolean_array(nvlist_t *, const char *,
     boolean_t **, uint_t *);
@@ -267,14 +268,14 @@ _SYS_NVPAIR_H int nvlist_lookup_double(const nvlist_t *, const char *,
 
 _SYS_NVPAIR_H int nvlist_lookup_nvpair(nvlist_t *, const char *, nvpair_t **);
 _SYS_NVPAIR_H int nvlist_lookup_nvpair_embedded_index(nvlist_t *, const char *,
-    nvpair_t **, int *, char **);
+    nvpair_t **, int *, const char **);
 _SYS_NVPAIR_H boolean_t nvlist_exists(const nvlist_t *, const char *);
 _SYS_NVPAIR_H boolean_t nvlist_empty(const nvlist_t *);
 
 /* processing nvpair */
 _SYS_NVPAIR_H nvpair_t *nvlist_next_nvpair(nvlist_t *, const nvpair_t *);
 _SYS_NVPAIR_H nvpair_t *nvlist_prev_nvpair(nvlist_t *, const nvpair_t *);
-_SYS_NVPAIR_H char *nvpair_name(const nvpair_t *);
+_SYS_NVPAIR_H const char *nvpair_name(const nvpair_t *);
 _SYS_NVPAIR_H data_type_t nvpair_type(const nvpair_t *);
 _SYS_NVPAIR_H int nvpair_type_is_array(const nvpair_t *);
 _SYS_NVPAIR_H int nvpair_value_boolean_value(const nvpair_t *, boolean_t *);
@@ -287,7 +288,7 @@ _SYS_NVPAIR_H int nvpair_value_int32(const nvpair_t *, int32_t *);
 _SYS_NVPAIR_H int nvpair_value_uint32(const nvpair_t *, uint32_t *);
 _SYS_NVPAIR_H int nvpair_value_int64(const nvpair_t *, int64_t *);
 _SYS_NVPAIR_H int nvpair_value_uint64(const nvpair_t *, uint64_t *);
-_SYS_NVPAIR_H int nvpair_value_string(nvpair_t *, char **);
+_SYS_NVPAIR_H int nvpair_value_string(const nvpair_t *, const char **);
 _SYS_NVPAIR_H int nvpair_value_nvlist(nvpair_t *, nvlist_t **);
 _SYS_NVPAIR_H int nvpair_value_boolean_array(nvpair_t *, boolean_t **,
     uint_t *);
@@ -300,7 +301,8 @@ _SYS_NVPAIR_H int nvpair_value_int32_array(nvpair_t *, int32_t **, uint_t *);
 _SYS_NVPAIR_H int nvpair_value_uint32_array(nvpair_t *, uint32_t **, uint_t *);
 _SYS_NVPAIR_H int nvpair_value_int64_array(nvpair_t *, int64_t **, uint_t *);
 _SYS_NVPAIR_H int nvpair_value_uint64_array(nvpair_t *, uint64_t **, uint_t *);
-_SYS_NVPAIR_H int nvpair_value_string_array(nvpair_t *, char ***, uint_t *);
+_SYS_NVPAIR_H int nvpair_value_string_array(nvpair_t *, const char ***,
+    uint_t *);
 _SYS_NVPAIR_H int nvpair_value_nvlist_array(nvpair_t *, nvlist_t ***, uint_t *);
 _SYS_NVPAIR_H int nvpair_value_hrtime(nvpair_t *, hrtime_t *);
 #if !defined(_KERNEL) && !defined(_STANDALONE)
@@ -373,7 +375,8 @@ _SYS_NVPAIR_H uint8_t fnvlist_lookup_uint8(const nvlist_t *, const char *);
 _SYS_NVPAIR_H uint16_t fnvlist_lookup_uint16(const nvlist_t *, const char *);
 _SYS_NVPAIR_H uint32_t fnvlist_lookup_uint32(const nvlist_t *, const char *);
 _SYS_NVPAIR_H uint64_t fnvlist_lookup_uint64(const nvlist_t *, const char *);
-_SYS_NVPAIR_H char *fnvlist_lookup_string(nvlist_t *, const char *);
+_SYS_NVPAIR_H const char *fnvlist_lookup_string(const nvlist_t *,
+    const char *);
 _SYS_NVPAIR_H nvlist_t *fnvlist_lookup_nvlist(nvlist_t *, const char *);
 _SYS_NVPAIR_H boolean_t *fnvlist_lookup_boolean_array(nvlist_t *, const char *,
     uint_t *);
@@ -406,7 +409,7 @@ _SYS_NVPAIR_H uint8_t fnvpair_value_uint8(const nvpair_t *nvp);
 _SYS_NVPAIR_H uint16_t fnvpair_value_uint16(const nvpair_t *nvp);
 _SYS_NVPAIR_H uint32_t fnvpair_value_uint32(const nvpair_t *nvp);
 _SYS_NVPAIR_H uint64_t fnvpair_value_uint64(const nvpair_t *nvp);
-_SYS_NVPAIR_H char *fnvpair_value_string(nvpair_t *nvp);
+_SYS_NVPAIR_H const char *fnvpair_value_string(const nvpair_t *nvp);
 _SYS_NVPAIR_H nvlist_t *fnvpair_value_nvlist(nvpair_t *nvp);
 
 #ifdef	__cplusplus

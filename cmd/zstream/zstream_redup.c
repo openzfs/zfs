@@ -254,7 +254,10 @@ zfs_redup_stream(int infd, int outfd, boolean_t verbose)
 			/* cppcheck-suppress syntaxError */
 			DMU_SET_FEATUREFLAGS(drrb->drr_versioninfo, fflags);
 
-			int sz = drr->drr_payloadlen;
+			uint32_t sz = drr->drr_payloadlen;
+
+			VERIFY3U(sz, <=, 1U << 28);
+
 			if (sz != 0) {
 				if (sz > bufsz) {
 					free(buf);

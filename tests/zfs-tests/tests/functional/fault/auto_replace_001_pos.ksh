@@ -54,6 +54,7 @@ fi
 
 function cleanup
 {
+	zpool status $TESTPOOL
 	destroy_pool $TESTPOOL
 	sed -i '/alias scsidebug/d' $VDEVID_CONF
 	unload_scsi_debug
@@ -99,8 +100,8 @@ block_device_wait
 insert_disk $SD $SD_HOST
 
 # Wait for the new disk to be online and replaced
-log_must wait_vdev_state $TESTPOOL "scsidebug" "ONLINE" $MAXTIMEOUT
-log_must wait_replacing $TESTPOOL
+log_must wait_vdev_state $TESTPOOL "scsidebug" "ONLINE" 60
+log_must wait_replacing $TESTPOOL 60
 
 # Validate auto-replace was successful
 log_must check_state $TESTPOOL "" "ONLINE"

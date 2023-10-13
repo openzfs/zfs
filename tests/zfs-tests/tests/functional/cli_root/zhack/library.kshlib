@@ -1,0 +1,361 @@
+#!/bin/ksh
+
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright (c) 2021 by vStack. All rights reserved.
+#
+
+. "$STF_SUITE"/include/libtest.shlib
+. "$STF_SUITE"/include/blkdev.shlib
+
+#
+# Description:
+#
+# Test whether zhack label repair commands can recover detached devices
+# and corrupted checksums with a variety of sizes, and ensure
+# the purposes of either command is cleanly separated from the others.
+#
+# Strategy:
+#
+# Tests are done on loopback devices with sizes divisible by label size and sizes that are not.
+#
+# Test one:
+#
+# 1. Create pool on a loopback device with some test data
+# 2. Export the pool.
+# 3. Corrupt all label checksums in the pool
+# 4. Check that pool cannot be imported
+# 5. Verify that it cannot be imported after using zhack label repair -u
+#    to ensure that the -u option will quit on corrupted checksums.
+# 6. Use zhack label repair -c on device
+# 7. Check that pool can be imported and that data is intact
+#
+# Test two:
+#
+# 1. Create pool on a loopback device with some test data
+# 2. Detach either device from the mirror
+# 3. Export the pool
+# 4. Remove the non-detached device and its backing file
+# 5. Verify that the remaining detached device cannot be imported
+# 6. Verify that it cannot be imported after using zhack label repair -c
+#    to ensure that the -c option will not undetach a device.
+# 7. Use zhack label repair -u on device
+# 8. Verify that the detached device can be imported and that data is intact
+#
+# Test three:
+#
+# 1. Create pool on a loopback device with some test data
+# 2. Detach either device from the mirror
+# 3. Export the pool
+# 4. Remove the non-detached device and its backing file
+# 5. Corrupt all label checksums on the remaining device
+# 6. Verify that the remaining detached device cannot be imported
+# 7. Verify that it cannot be imported after using zhack label repair -u
+#    to ensure that the -u option will quit on corrupted checksums.
+# 8. Verify that it cannot be imported after using zhack label repair -c
+#    -c should repair the checksums, but not undetach a device.
+# 9. Use zhack label repair -u on device
+# 10. Verify that the detached device can be imported and that data is intact
+#
+# Test four:
+#
+# 1. Create pool on a loopback device with some test data
+# 2. Detach either device from the mirror
+# 3. Export the pool
+# 4. Remove the non-detached device and its backing file
+# 5. Corrupt all label checksums on the remaining device
+# 6. Verify that the remaining detached device cannot be imported
+# 7. Use zhack label repair -cu on device to attempt to fix checksums and
+#    undetach the device in a single operation.
+# 8. Verify that the detached device can be imported and that data is intact
+#
+
+log_assert "Verify zhack label repair <operation> <vdev> will repair label checksums and uberblocks"
+log_onexit cleanup
+
+LABEL_SIZE="$((2**18))"
+LABEL_NVLIST_END="$((LABEL_SIZE / 2))"
+LABEL_CKSUM_SIZE="32"
+LABEL_CKSUM_START="$(( LABEL_NVLIST_END - LABEL_CKSUM_SIZE ))"
+
+VIRTUAL_DISK=$TEST_BASE_DIR/disk
+VIRTUAL_MIRROR_DISK=$TEST_BASE_DIR/mirrordisk
+
+VIRTUAL_DEVICE=
+VIRTUAL_MIRROR_DEVICE=
+
+function cleanup_lo
+{
+	L_DEVICE="$1"
+
+	if [[ -e $L_DEVICE ]]; then
+		if is_linux; then
+			log_must losetup -d "$L_DEVICE"
+		elif is_freebsd; then
+			log_must mdconfig -d -u "$L_DEVICE"
+		else
+			log_must lofiadm -d "$L_DEVICE"
+		fi
+	fi
+}
+
+function cleanup
+{
+	poolexists "$TESTPOOL" && destroy_pool "$TESTPOOL"
+	cleanup_lo "$VIRTUAL_DEVICE"
+	cleanup_lo "$VIRTUAL_MIRROR_DEVICE"
+	VIRTUAL_DEVICE=
+	VIRTUAL_MIRROR_DEVICE=
+	[[ -f "$VIRTUAL_DISK" ]] && log_must rm "$VIRTUAL_DISK"
+	[[ -f "$VIRTUAL_MIRROR_DISK" ]] && log_must rm "$VIRTUAL_MIRROR_DISK"
+}
+
+RAND_MAX="$((2**15 - 1))"
+function get_devsize
+{
+	if [ "$RANDOM" -gt "$(( RAND_MAX / 2 ))" ]; then
+		echo "$(( MINVDEVSIZE + RANDOM ))"
+	else
+		echo "$MINVDEVSIZE"
+	fi
+}
+
+function pick_logop
+{
+	L_SHOULD_SUCCEED="$1"
+
+	l_logop="log_mustnot"
+	if [ "$L_SHOULD_SUCCEED" == true ]; then
+		l_logop="log_must"
+	fi
+
+	echo "$l_logop"
+}
+
+function check_dataset
+{
+	L_SHOULD_SUCCEED="$1"
+	L_LOGOP="$(pick_logop "$L_SHOULD_SUCCEED")"
+
+	"$L_LOGOP" mounted "$TESTPOOL"/"$TESTFS"
+
+	"$L_LOGOP" test -f "$TESTDIR"/"test"
+}
+
+function setup_dataset
+{
+	log_must zfs create "$TESTPOOL"/"$TESTFS"
+
+	log_must mkdir -p "$TESTDIR"
+	log_must zfs set mountpoint="$TESTDIR" "$TESTPOOL"/"$TESTFS"
+
+	log_must mounted "$TESTPOOL"/"$TESTFS"
+
+	log_must touch "$TESTDIR"/"test"
+	log_must test -f "$TESTDIR"/"test"
+
+	log_must zpool sync "$TESTPOOL"
+
+	check_dataset true
+}
+
+function get_practical_size
+{
+	L_SIZE="$1"
+
+	if [ "$((L_SIZE % LABEL_SIZE))" -ne 0 ]; then
+		echo "$(((L_SIZE / LABEL_SIZE) * LABEL_SIZE))"
+	else
+		echo "$L_SIZE"
+	fi
+}
+
+function corrupt_sized_label_checksum
+{
+	L_SIZE="$1"
+	L_LABEL="$2"
+	L_DEVICE="$3"
+
+	L_PRACTICAL_SIZE="$(get_practical_size "$L_SIZE")"
+
+	typeset -a L_OFFSETS=("$LABEL_CKSUM_START" \
+	    "$((LABEL_SIZE + LABEL_CKSUM_START))" \
+		"$(((L_PRACTICAL_SIZE - LABEL_SIZE*2) + LABEL_CKSUM_START))" \
+		"$(((L_PRACTICAL_SIZE - LABEL_SIZE) + LABEL_CKSUM_START))")
+
+	dd if=/dev/urandom of="$L_DEVICE" \
+	    seek="${L_OFFSETS["$L_LABEL"]}" bs=1 count="$LABEL_CKSUM_SIZE" \
+	    conv=notrunc
+}
+
+function corrupt_labels
+{
+	L_SIZE="$1"
+	L_DISK="$2"
+
+	corrupt_sized_label_checksum "$L_SIZE" 0 "$L_DISK"
+	corrupt_sized_label_checksum "$L_SIZE" 1 "$L_DISK"
+	corrupt_sized_label_checksum "$L_SIZE" 2 "$L_DISK"
+	corrupt_sized_label_checksum "$L_SIZE" 3 "$L_DISK"
+}
+
+function try_import_and_repair
+{
+	L_REPAIR_SHOULD_SUCCEED="$1"
+	L_IMPORT_SHOULD_SUCCEED="$2"
+	L_OP="$3"
+	L_POOLDISK="$4"
+	L_REPAIR_LOGOP="$(pick_logop "$L_REPAIR_SHOULD_SUCCEED")"
+	L_IMPORT_LOGOP="$(pick_logop "$L_IMPORT_SHOULD_SUCCEED")"
+
+	log_mustnot zpool import "$TESTPOOL" -d "$L_POOLDISK"
+
+	"$L_REPAIR_LOGOP" zhack label repair "$L_OP" "$L_POOLDISK"
+
+	"$L_IMPORT_LOGOP" zpool import "$TESTPOOL" -d "$L_POOLDISK"
+
+	check_dataset "$L_IMPORT_SHOULD_SUCCEED"
+}
+
+function prepare_vdev
+{
+	L_SIZE="$1"
+	L_BACKFILE="$2"
+
+	l_devname=
+	if truncate -s "$L_SIZE" "$L_BACKFILE"; then
+		if is_linux; then
+			l_devname="$(losetup -f "$L_BACKFILE" --show)"
+		elif is_freebsd; then
+			l_devname=/dev/"$(mdconfig -a -t vnode -f "$L_BACKFILE")"
+		else
+			l_devname="$(lofiadm -a "$L_BACKFILE")"
+		fi
+	fi
+	echo "$l_devname"
+}
+
+function run_test_one
+{
+	L_SIZE="$1"
+
+	VIRTUAL_DEVICE="$(prepare_vdev "$L_SIZE" "$VIRTUAL_DISK")"
+	log_must test -e "$VIRTUAL_DEVICE"
+
+	log_must zpool create "$TESTPOOL" "$VIRTUAL_DEVICE"
+
+	setup_dataset
+
+	log_must zpool export "$TESTPOOL"
+
+	corrupt_labels "$L_SIZE" "$VIRTUAL_DISK"
+
+	try_import_and_repair false false "-u" "$VIRTUAL_DEVICE"
+
+	try_import_and_repair true true "-c" "$VIRTUAL_DEVICE"
+
+	cleanup
+
+	log_pass "zhack label repair corruption test passed with a randomized size of $L_SIZE"
+}
+
+function make_mirrored_pool
+{
+	L_SIZE="$1"
+
+	VIRTUAL_DEVICE="$(prepare_vdev "$L_SIZE" "$VIRTUAL_DISK")"
+	log_must test -e "$VIRTUAL_DEVICE"
+	VIRTUAL_MIRROR_DEVICE="$(prepare_vdev "$L_SIZE" "$VIRTUAL_MIRROR_DISK")"
+	log_must test -e "$VIRTUAL_MIRROR_DEVICE"
+
+	log_must zpool create "$TESTPOOL" "$VIRTUAL_DEVICE"
+	log_must zpool attach "$TESTPOOL" "$VIRTUAL_DEVICE" "$VIRTUAL_MIRROR_DEVICE"
+}
+
+function export_and_cleanup_vdisk
+{
+	log_must zpool export "$TESTPOOL"
+
+	cleanup_lo "$VIRTUAL_DEVICE"
+
+	VIRTUAL_DEVICE=
+
+	log_must rm "$VIRTUAL_DISK"
+}
+
+function run_test_two
+{
+	L_SIZE="$1"
+
+	make_mirrored_pool "$L_SIZE"
+
+	setup_dataset
+
+	log_must zpool detach "$TESTPOOL" "$VIRTUAL_MIRROR_DEVICE"
+
+	export_and_cleanup_vdisk
+
+	try_import_and_repair false false "-c" "$VIRTUAL_MIRROR_DEVICE"
+
+	try_import_and_repair true true "-u" "$VIRTUAL_MIRROR_DEVICE"
+
+	cleanup
+
+	log_pass "zhack label repair detached test passed with a randomized size of $L_SIZE"
+}
+
+function run_test_three
+{
+	L_SIZE="$1"
+
+	make_mirrored_pool "$L_SIZE"
+
+	setup_dataset
+
+	log_must zpool detach "$TESTPOOL" "$VIRTUAL_MIRROR_DEVICE"
+
+	export_and_cleanup_vdisk
+
+	corrupt_labels "$L_SIZE" "$VIRTUAL_MIRROR_DISK"
+
+	try_import_and_repair false false "-u" "$VIRTUAL_MIRROR_DEVICE"
+
+	try_import_and_repair true false "-c" "$VIRTUAL_MIRROR_DEVICE"
+
+	try_import_and_repair true true "-u" "$VIRTUAL_MIRROR_DEVICE"
+
+	cleanup
+
+	log_pass "zhack label repair corruption and detached test passed with a randomized size of $L_SIZE"
+}
+
+function run_test_four
+{
+	L_SIZE="$1"
+
+	make_mirrored_pool "$L_SIZE"
+
+	setup_dataset
+
+	log_must zpool detach "$TESTPOOL" "$VIRTUAL_MIRROR_DEVICE"
+
+	export_and_cleanup_vdisk
+
+	corrupt_labels "$L_SIZE" "$VIRTUAL_MIRROR_DISK"
+
+	try_import_and_repair true true "-cu" "$VIRTUAL_MIRROR_DEVICE"
+
+	cleanup
+
+	log_pass "zhack label repair corruption and detached single-command test passed with a randomized size of $L_SIZE."
+}

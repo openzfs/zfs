@@ -35,6 +35,25 @@
 #define	d_make_root(inode)	d_alloc_root(inode)
 #endif /* HAVE_D_MAKE_ROOT */
 
+#ifdef HAVE_DENTRY_D_U_ALIASES
+#define	d_alias			d_u.d_alias
+#endif
+
+/*
+ * Starting from Linux 5.13, flush_dcache_page() becomes an inline function
+ * and under some configurations, may indirectly referencing GPL-only
+ * cpu_feature_keys on powerpc. Override this function when it is detected
+ * being GPL-only.
+ */
+#if defined __powerpc__ && defined HAVE_FLUSH_DCACHE_PAGE_GPL_ONLY
+#include <linux/simd_powerpc.h>
+#define	flush_dcache_page(page)	do {					\
+		if (!cpu_has_feature(CPU_FTR_COHERENT_ICACHE) &&	\
+		    test_bit(PG_dcache_clean, &(page)->flags))		\
+			clear_bit(PG_dcache_clean, &(page)->flags);	\
+	} while (0)
+#endif
+
 /*
  * 2.6.30 API change,
  * The const keyword was added to the 'struct dentry_operations' in
@@ -70,11 +89,7 @@ zpl_d_drop_aliases(struct inode *inode)
 {
 	struct dentry *dentry;
 	spin_lock(&inode->i_lock);
-#ifdef HAVE_DENTRY_D_U_ALIASES
-	hlist_for_each_entry(dentry, &inode->i_dentry, d_u.d_alias) {
-#else
 	hlist_for_each_entry(dentry, &inode->i_dentry, d_alias) {
-#endif
 		if (!IS_ROOT(dentry) && !d_mountpoint(dentry) &&
 		    (dentry->d_inode == inode)) {
 			d_drop(dentry);

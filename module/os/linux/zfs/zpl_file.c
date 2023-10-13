@@ -301,15 +301,10 @@ zpl_uio_init(zfs_uio_t *uio, struct kiocb *kiocb, struct iov_iter *to,
 #if defined(HAVE_VFS_IOV_ITER)
 	zfs_uio_iov_iter_init(uio, to, pos, count, skip);
 #else
-#ifdef HAVE_IOV_ITER_TYPE
-	zfs_uio_iovec_init(uio, to->iov, to->nr_segs, pos,
-	    iov_iter_type(to) & ITER_KVEC ? UIO_SYSSPACE : UIO_USERSPACE,
+	zfs_uio_iovec_init(uio, zfs_uio_iter_iov(to), to->nr_segs, pos,
+	    zfs_uio_iov_iter_type(to) & ITER_KVEC ?
+	    UIO_SYSSPACE : UIO_USERSPACE,
 	    count, skip);
-#else
-	zfs_uio_iovec_init(uio, to->iov, to->nr_segs, pos,
-	    to->type & ITER_KVEC ? UIO_SYSSPACE : UIO_USERSPACE,
-	    count, skip);
-#endif
 #endif
 }
 
@@ -625,7 +620,6 @@ static int
 zpl_mmap(struct file *filp, struct vm_area_struct *vma)
 {
 	struct inode *ip = filp->f_mapping->host;
-	znode_t *zp = ITOZ(ip);
 	int error;
 	fstrans_cookie_t cookie;
 
@@ -640,9 +634,12 @@ zpl_mmap(struct file *filp, struct vm_area_struct *vma)
 	if (error)
 		return (error);
 
+#if !defined(HAVE_FILEMAP_RANGE_HAS_PAGE)
+	znode_t *zp = ITOZ(ip);
 	mutex_enter(&zp->z_lock);
 	zp->z_is_mapped = B_TRUE;
 	mutex_exit(&zp->z_lock);
+#endif
 
 	return (error);
 }
@@ -655,29 +652,16 @@ zpl_mmap(struct file *filp, struct vm_area_struct *vma)
 static inline int
 zpl_readpage_common(struct page *pp)
 {
-	struct inode *ip;
-	struct page *pl[1];
-	int error = 0;
 	fstrans_cookie_t cookie;
 
 	ASSERT(PageLocked(pp));
-	ip = pp->mapping->host;
-	pl[0] = pp;
 
 	cookie = spl_fstrans_mark();
-	error = -zfs_getpage(ip, pl, 1);
+	int error = -zfs_getpage(pp->mapping->host, pp);
 	spl_fstrans_unmark(cookie);
 
-	if (error) {
-		SetPageError(pp);
-		ClearPageUptodate(pp);
-	} else {
-		ClearPageError(pp);
-		SetPageUptodate(pp);
-		flush_dcache_page(pp);
-	}
-
 	unlock_page(pp);
+
 	return (error);
 }
 
@@ -747,6 +731,29 @@ zpl_putpage(struct page *pp, struct writeback_control *wbc, void *data)
 	return (0);
 }
 
+#ifdef HAVE_WRITEPAGE_T_FOLIO
+static int
+zpl_putfolio(struct folio *pp, struct writeback_control *wbc, void *data)
+{
+	(void) zpl_putpage(&pp->page, wbc, data);
+	return (0);
+}
+#endif
+
+static inline int
+zpl_write_cache_pages(struct address_space *mapping,
+    struct writeback_control *wbc, void *data)
+{
+	int result;
+
+#ifdef HAVE_WRITEPAGE_T_FOLIO
+	result = write_cache_pages(mapping, wbc, zpl_putfolio, data);
+#else
+	result = write_cache_pages(mapping, wbc, zpl_putpage, data);
+#endif
+	return (result);
+}
+
 static int
 zpl_writepages(struct address_space *mapping, struct writeback_control *wbc)
 {
@@ -771,7 +778,7 @@ zpl_writepages(struct address_space *mapping, struct writeback_control *wbc)
 	 */
 	boolean_t for_sync = (sync_mode == WB_SYNC_ALL);
 	wbc->sync_mode = WB_SYNC_NONE;
-	result = write_cache_pages(mapping, wbc, zpl_putpage, &for_sync);
+	result = zpl_write_cache_pages(mapping, wbc, &for_sync);
 	if (sync_mode != wbc->sync_mode) {
 		if ((result = zpl_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 			return (result);
@@ -787,8 +794,7 @@ zpl_writepages(struct address_space *mapping, struct writeback_control *wbc)
 		 * details). That being said, this is a no-op in most cases.
 		 */
 		wbc->sync_mode = sync_mode;
-		result = write_cache_pages(mapping, wbc, zpl_putpage,
-		    &for_sync);
+		result = zpl_write_cache_pages(mapping, wbc, &for_sync);
 	}
 	return (result);
 }
@@ -937,7 +943,7 @@ zpl_fadvise(struct file *filp, loff_t offset, loff_t len, int advice)
 	case POSIX_FADV_SEQUENTIAL:
 	case POSIX_FADV_WILLNEED:
 #ifdef HAVE_GENERIC_FADVISE
-		if (zn_has_cached_data(zp))
+		if (zn_has_cached_data(zp, offset, offset + len - 1))
 			error = generic_fadvise(filp, offset, len, advice);
 #endif
 		/*
@@ -1038,7 +1044,7 @@ __zpl_ioctl_setflags(struct inode *ip, uint32_t ioctl_flags, xvattr_t *xva)
 	    !capable(CAP_LINUX_IMMUTABLE))
 		return (-EPERM);
 
-	if (!zpl_inode_owner_or_capable(kcred->user_ns, ip))
+	if (!zpl_inode_owner_or_capable(zfs_init_idmap, ip))
 		return (-EACCES);
 
 	xva_init(xva);
@@ -1085,7 +1091,7 @@ zpl_ioctl_setflags(struct file *filp, void __user *arg)
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
-	err = -zfs_setattr(ITOZ(ip), (vattr_t *)&xva, 0, cr, kcred->user_ns);
+	err = -zfs_setattr(ITOZ(ip), (vattr_t *)&xva, 0, cr, zfs_init_idmap);
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 
@@ -1133,7 +1139,7 @@ zpl_ioctl_setxattr(struct file *filp, void __user *arg)
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
-	err = -zfs_setattr(ITOZ(ip), (vattr_t *)&xva, 0, cr, kcred->user_ns);
+	err = -zfs_setattr(ITOZ(ip), (vattr_t *)&xva, 0, cr, zfs_init_idmap);
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 
@@ -1168,7 +1174,7 @@ __zpl_ioctl_setdosflags(struct inode *ip, uint64_t ioctl_flags, xvattr_t *xva)
 	    !capable(CAP_LINUX_IMMUTABLE))
 		return (-EPERM);
 
-	if (!zpl_inode_owner_or_capable(kcred->user_ns, ip))
+	if (!zpl_inode_owner_or_capable(zfs_init_idmap, ip))
 		return (-EACCES);
 
 	xva_init(xva);
@@ -1221,7 +1227,7 @@ zpl_ioctl_setdosflags(struct file *filp, void __user *arg)
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
-	err = -zfs_setattr(ITOZ(ip), (vattr_t *)&xva, 0, cr, kcred->user_ns);
+	err = -zfs_setattr(ITOZ(ip), (vattr_t *)&xva, 0, cr, zfs_init_idmap);
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 
@@ -1246,6 +1252,12 @@ zpl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		return (zpl_ioctl_getdosflags(filp, (void *)arg));
 	case ZFS_IOC_SETDOSFLAGS:
 		return (zpl_ioctl_setdosflags(filp, (void *)arg));
+	case ZFS_IOC_COMPAT_FICLONE:
+		return (zpl_ioctl_ficlone(filp, (void *)arg));
+	case ZFS_IOC_COMPAT_FICLONERANGE:
+		return (zpl_ioctl_ficlonerange(filp, (void *)arg));
+	case ZFS_IOC_COMPAT_FIDEDUPERANGE:
+		return (zpl_ioctl_fideduperange(filp, (void *)arg));
 	default:
 		return (-ENOTTY);
 	}
@@ -1272,7 +1284,6 @@ zpl_compat_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 }
 #endif /* CONFIG_COMPAT */
 
-
 const struct address_space_operations zpl_address_space_operations = {
 #ifdef HAVE_VFS_READPAGES
 	.readpages	= zpl_readpages,
@@ -1295,7 +1306,12 @@ const struct address_space_operations zpl_address_space_operations = {
 #endif
 };
 
+#ifdef HAVE_VFS_FILE_OPERATIONS_EXTEND
+const struct file_operations_extend zpl_file_operations = {
+	.kabi_fops = {
+#else
 const struct file_operations zpl_file_operations = {
+#endif
 	.open		= zpl_open,
 	.release	= zpl_release,
 	.llseek		= zpl_llseek,
@@ -1307,7 +1323,11 @@ const struct file_operations zpl_file_operations = {
 	.read_iter	= zpl_iter_read,
 	.write_iter	= zpl_iter_write,
 #ifdef HAVE_VFS_IOV_ITER
+#ifdef HAVE_COPY_SPLICE_READ
+	.splice_read	= copy_splice_read,
+#else
 	.splice_read	= generic_file_splice_read,
+#endif
 	.splice_write	= iter_file_splice_write,
 #endif
 #else
@@ -1322,12 +1342,29 @@ const struct file_operations zpl_file_operations = {
 	.aio_fsync	= zpl_aio_fsync,
 #endif
 	.fallocate	= zpl_fallocate,
+#ifdef HAVE_VFS_COPY_FILE_RANGE
+	.copy_file_range	= zpl_copy_file_range,
+#endif
+#ifdef HAVE_VFS_CLONE_FILE_RANGE
+	.clone_file_range	= zpl_clone_file_range,
+#endif
+#ifdef HAVE_VFS_REMAP_FILE_RANGE
+	.remap_file_range	= zpl_remap_file_range,
+#endif
+#ifdef HAVE_VFS_DEDUPE_FILE_RANGE
+	.dedupe_file_range	= zpl_dedupe_file_range,
+#endif
 #ifdef HAVE_FILE_FADVISE
 	.fadvise	= zpl_fadvise,
 #endif
 	.unlocked_ioctl	= zpl_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl	= zpl_compat_ioctl,
+#endif
+#ifdef HAVE_VFS_FILE_OPERATIONS_EXTEND
+	}, /* kabi_fops */
+	.copy_file_range	= zpl_copy_file_range,
+	.clone_file_range	= zpl_clone_file_range,
 #endif
 };
 

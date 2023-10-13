@@ -72,6 +72,11 @@
 
 #define	NAME_MAX_LEN 64
 
+typedef struct clones {
+	uint64_t clone_ds;
+	list_node_t node;
+} clones_t;
+
 /*
  * spa_upgrade_errlog_limit : A zfs module parameter that controls the number
  *		of on-disk error log entries that will be converted to the new
@@ -105,7 +110,7 @@ errphys_to_name(zbookmark_err_phys_t *zep, char *buf, size_t len)
 /*
  * Convert a string to a err_phys.
  */
-static void
+void
 name_to_errphys(char *buf, zbookmark_err_phys_t *zep)
 {
 	zep->zb_object = zfs_strtonum(buf, &buf);
@@ -134,8 +139,7 @@ name_to_bookmark(char *buf, zbookmark_phys_t *zb)
 	ASSERT(*buf == '\0');
 }
 
-#ifdef _KERNEL
-static void
+void
 zep_to_zb(uint64_t dataset, zbookmark_err_phys_t *zep, zbookmark_phys_t *zb)
 {
 	zb->zb_objset = dataset;
@@ -143,7 +147,6 @@ zep_to_zb(uint64_t dataset, zbookmark_err_phys_t *zep, zbookmark_phys_t *zb)
 	zb->zb_level = zep->zb_level;
 	zb->zb_blkid = zep->zb_blkid;
 }
-#endif
 
 static void
 name_to_object(char *buf, uint64_t *obj)
@@ -152,74 +155,22 @@ name_to_object(char *buf, uint64_t *obj)
 	ASSERT(*buf == '\0');
 }
 
-static int
-get_head_and_birth_txg(spa_t *spa, zbookmark_err_phys_t *zep, uint64_t ds_obj,
-    uint64_t *head_dataset_id)
+/*
+ * Retrieve the head filesystem.
+ */
+static int get_head_ds(spa_t *spa, uint64_t dsobj, uint64_t *head_ds)
 {
-	dsl_pool_t *dp = spa->spa_dsl_pool;
 	dsl_dataset_t *ds;
-	objset_t *os;
+	int error = dsl_dataset_hold_obj_flags(spa->spa_dsl_pool,
+	    dsobj, DS_HOLD_FLAG_DECRYPT, FTAG, &ds);
 
-	int error = dsl_dataset_hold_obj(dp, ds_obj, FTAG, &ds);
-	if (error != 0) {
+	if (error != 0)
 		return (error);
-	}
-	ASSERT(head_dataset_id);
-	*head_dataset_id = dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj;
 
-	error = dmu_objset_from_ds(ds, &os);
-	if (error != 0) {
-		dsl_dataset_rele(ds, FTAG);
-		return (error);
-	}
+	ASSERT(head_ds);
+	*head_ds = dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj;
+	dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 
-	/*
-	 * If the key is not loaded dbuf_dnode_findbp() will error out with
-	 * EACCES. However in that case dnode_hold() will eventually call
-	 * dbuf_read()->zio_wait() which may call spa_log_error(). This will
-	 * lead to a deadlock due to us holding the mutex spa_errlist_lock.
-	 * Avoid this by checking here if the keys are loaded, if not return.
-	 * If the keys are not loaded the head_errlog feature is meaningless
-	 * as we cannot figure out the birth txg of the block pointer.
-	 */
-	if (dsl_dataset_get_keystatus(ds->ds_dir) ==
-	    ZFS_KEYSTATUS_UNAVAILABLE) {
-		zep->zb_birth = 0;
-		dsl_dataset_rele(ds, FTAG);
-		return (0);
-	}
-
-	dnode_t *dn;
-	blkptr_t bp;
-
-	error = dnode_hold(os, zep->zb_object, FTAG, &dn);
-	if (error != 0) {
-		dsl_dataset_rele(ds, FTAG);
-		return (error);
-	}
-
-	rw_enter(&dn->dn_struct_rwlock, RW_READER);
-	error = dbuf_dnode_findbp(dn, zep->zb_level, zep->zb_blkid, &bp, NULL,
-	    NULL);
-	if (error == 0 && BP_IS_HOLE(&bp))
-		error = SET_ERROR(ENOENT);
-
-	/*
-	 * If the key is loaded but the encrypted filesystem is unmounted when
-	 * a scrub is run, then dbuf_dnode_findbp() will still error out with
-	 * EACCES (possibly due to the key mapping being removed upon
-	 * unmounting). In that case the head_errlog feature is also
-	 * meaningless as we cannot figure out the birth txg of the block
-	 * pointer.
-	 */
-	if (error == EACCES)
-		error = 0;
-	else if (!error)
-		zep->zb_birth = bp.blk_birth;
-
-	rw_exit(&dn->dn_struct_rwlock);
-	dnode_rele(dn, FTAG);
-	dsl_dataset_rele(ds, FTAG);
 	return (error);
 }
 
@@ -229,7 +180,7 @@ get_head_and_birth_txg(spa_t *spa, zbookmark_err_phys_t *zep, uint64_t ds_obj,
  * during spa_errlog_sync().
  */
 void
-spa_log_error(spa_t *spa, const zbookmark_phys_t *zb)
+spa_log_error(spa_t *spa, const zbookmark_phys_t *zb, const uint64_t *birth)
 {
 	spa_error_entry_t search;
 	spa_error_entry_t *new;
@@ -262,13 +213,30 @@ spa_log_error(spa_t *spa, const zbookmark_phys_t *zb)
 
 	new = kmem_zalloc(sizeof (spa_error_entry_t), KM_SLEEP);
 	new->se_bookmark = *zb;
-	avl_insert(tree, new, where);
 
+	/*
+	 * If the head_errlog feature is enabled, store the birth txg now. In
+	 * case the file is deleted before spa_errlog_sync() runs, we will not
+	 * be able to retrieve the birth txg.
+	 */
+	if (spa_feature_is_enabled(spa, SPA_FEATURE_HEAD_ERRLOG)) {
+		new->se_zep.zb_object = zb->zb_object;
+		new->se_zep.zb_level = zb->zb_level;
+		new->se_zep.zb_blkid = zb->zb_blkid;
+
+		/*
+		 * birth may end up being NULL, e.g. in zio_done(). We
+		 * will handle this in process_error_block().
+		 */
+		if (birth != NULL)
+			new->se_zep.zb_birth = *birth;
+	}
+
+	avl_insert(tree, new, where);
 	mutex_exit(&spa->spa_errlist_lock);
 }
 
-#ifdef _KERNEL
-static int
+int
 find_birth_txg(dsl_dataset_t *ds, zbookmark_err_phys_t *zep,
     uint64_t *birth_txg)
 {
@@ -297,6 +265,34 @@ find_birth_txg(dsl_dataset_t *ds, zbookmark_err_phys_t *zep,
 }
 
 /*
+ * This function finds the oldest affected filesystem containing an error
+ * block.
+ */
+int
+find_top_affected_fs(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
+    uint64_t *top_affected_fs)
+{
+	uint64_t oldest_dsobj;
+	int error = dsl_dataset_oldest_snapshot(spa, head_ds, zep->zb_birth,
+	    &oldest_dsobj);
+	if (error != 0)
+		return (error);
+
+	dsl_dataset_t *ds;
+	error = dsl_dataset_hold_obj_flags(spa->spa_dsl_pool, oldest_dsobj,
+	    DS_HOLD_FLAG_DECRYPT, FTAG, &ds);
+	if (error != 0)
+		return (error);
+
+	*top_affected_fs =
+	    dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj;
+	dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
+	return (0);
+}
+
+
+#ifdef _KERNEL
+/*
  * Copy the bookmark to the end of the user-space buffer which starts at
  * uaddr and has *count unused entries, and decrement *count by 1.
  */
@@ -317,16 +313,18 @@ copyout_entry(const zbookmark_phys_t *zb, void *uaddr, uint64_t *count)
  * Each time the error block is referenced by a snapshot or clone, add a
  * zbookmark_phys_t entry to the userspace array at uaddr. The array is
  * filled from the back and the in-out parameter *count is modified to be the
- * number of unused entries at the beginning of the array.
+ * number of unused entries at the beginning of the array. The function
+ * scrub_filesystem() is modelled after this one.
  */
 static int
 check_filesystem(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
-    void *uaddr, uint64_t *count)
+    void *uaddr, uint64_t *count, list_t *clones_list)
 {
 	dsl_dataset_t *ds;
 	dsl_pool_t *dp = spa->spa_dsl_pool;
 
-	int error = dsl_dataset_hold_obj(dp, head_ds, FTAG, &ds);
+	int error = dsl_dataset_hold_obj_flags(dp, head_ds,
+	    DS_HOLD_FLAG_DECRYPT, FTAG, &ds);
 	if (error != 0)
 		return (error);
 
@@ -336,67 +334,70 @@ check_filesystem(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 	error = find_birth_txg(ds, zep, &latest_txg);
 
 	/*
-	 * If we cannot figure out the current birth txg of the block pointer
-	 * error out. If the filesystem is encrypted and the key is not loaded
-	 * or the encrypted filesystem is not mounted the error will be EACCES.
-	 * In that case do not return an error.
+	 * If find_birth_txg() errors out otherwise, let txg_to_consider be
+	 * equal to the spa's syncing txg: if check_filesystem() errors out
+	 * then affected snapshots or clones will not be checked.
 	 */
-	if (error == EACCES) {
-		dsl_dataset_rele(ds, FTAG);
-		return (0);
-	}
-	if (error) {
-		dsl_dataset_rele(ds, FTAG);
-		return (error);
-	}
-	if (zep->zb_birth == latest_txg) {
+	if (error == 0 && zep->zb_birth == latest_txg) {
 		/* Block neither free nor rewritten. */
 		zbookmark_phys_t zb;
 		zep_to_zb(head_ds, zep, &zb);
 		error = copyout_entry(&zb, uaddr, count);
 		if (error != 0) {
-			dsl_dataset_rele(ds, FTAG);
+			dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 			return (error);
 		}
 		check_snapshot = B_FALSE;
-	} else {
-		ASSERT3U(zep->zb_birth, <, latest_txg);
+	} else if (error == 0) {
 		txg_to_consider = latest_txg;
 	}
 
-	/* How many snapshots reference this block. */
-	uint64_t snap_count;
-	error = zap_count(spa->spa_meta_objset,
-	    dsl_dataset_phys(ds)->ds_snapnames_zapobj, &snap_count);
-	if (error != 0) {
-		dsl_dataset_rele(ds, FTAG);
-		return (error);
+	/*
+	 * Retrieve the number of snapshots if the dataset is not a snapshot.
+	 */
+	uint64_t snap_count = 0;
+	if (dsl_dataset_phys(ds)->ds_snapnames_zapobj != 0) {
+
+		error = zap_count(spa->spa_meta_objset,
+		    dsl_dataset_phys(ds)->ds_snapnames_zapobj, &snap_count);
+
+		if (error != 0) {
+			dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
+			return (error);
+		}
 	}
 
 	if (snap_count == 0) {
-		/* File system has no snapshot. */
-		dsl_dataset_rele(ds, FTAG);
+		/* Filesystem without snapshots. */
+		dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 		return (0);
 	}
 
-	uint64_t *snap_obj_array = kmem_alloc(snap_count * sizeof (uint64_t),
+	uint64_t *snap_obj_array = kmem_zalloc(snap_count * sizeof (uint64_t),
 	    KM_SLEEP);
 
 	int aff_snap_count = 0;
 	uint64_t snap_obj = dsl_dataset_phys(ds)->ds_prev_snap_obj;
 	uint64_t snap_obj_txg = dsl_dataset_phys(ds)->ds_prev_snap_txg;
+	uint64_t zap_clone = dsl_dir_phys(ds->ds_dir)->dd_clones;
+
+	dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 
 	/* Check only snapshots created from this file system. */
 	while (snap_obj != 0 && zep->zb_birth < snap_obj_txg &&
 	    snap_obj_txg <= txg_to_consider) {
 
-		dsl_dataset_rele(ds, FTAG);
-		error = dsl_dataset_hold_obj(dp, snap_obj, FTAG, &ds);
+		error = dsl_dataset_hold_obj_flags(dp, snap_obj,
+		    DS_HOLD_FLAG_DECRYPT, FTAG, &ds);
 		if (error != 0)
 			goto out;
 
-		if (dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj != head_ds)
-			break;
+		if (dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj != head_ds) {
+			snap_obj = dsl_dataset_phys(ds)->ds_prev_snap_obj;
+			snap_obj_txg = dsl_dataset_phys(ds)->ds_prev_snap_txg;
+			dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
+			continue;
+		}
 
 		boolean_t affected = B_TRUE;
 		if (check_snapshot) {
@@ -405,6 +406,7 @@ check_filesystem(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 			affected = (error == 0 && zep->zb_birth == blk_txg);
 		}
 
+		/* Report errors in snapshots. */
 		if (affected) {
 			snap_obj_array[aff_snap_count] = snap_obj;
 			aff_snap_count++;
@@ -413,34 +415,60 @@ check_filesystem(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 			zep_to_zb(snap_obj, zep, &zb);
 			error = copyout_entry(&zb, uaddr, count);
 			if (error != 0) {
-				dsl_dataset_rele(ds, FTAG);
+				dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT,
+				    FTAG);
 				goto out;
 			}
-
-			/*
-			 * Only clones whose origins were affected could also
-			 * have affected snapshots.
-			 */
-			zap_cursor_t zc;
-			zap_attribute_t za;
-			for (zap_cursor_init(&zc, spa->spa_meta_objset,
-			    dsl_dataset_phys(ds)->ds_next_clones_obj);
-			    zap_cursor_retrieve(&zc, &za) == 0;
-			    zap_cursor_advance(&zc)) {
-				error = check_filesystem(spa,
-				    za.za_first_integer, zep, uaddr, count);
-
-				if (error != 0) {
-					zap_cursor_fini(&zc);
-					goto out;
-				}
-			}
-			zap_cursor_fini(&zc);
 		}
-		snap_obj_txg = dsl_dataset_phys(ds)->ds_prev_snap_txg;
 		snap_obj = dsl_dataset_phys(ds)->ds_prev_snap_obj;
+		snap_obj_txg = dsl_dataset_phys(ds)->ds_prev_snap_txg;
+		dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 	}
-	dsl_dataset_rele(ds, FTAG);
+
+	if (zap_clone == 0 || aff_snap_count == 0)
+		return (0);
+
+	/* Check clones. */
+	zap_cursor_t *zc;
+	zap_attribute_t *za;
+
+	zc = kmem_zalloc(sizeof (zap_cursor_t), KM_SLEEP);
+	za = kmem_zalloc(sizeof (zap_attribute_t), KM_SLEEP);
+
+	for (zap_cursor_init(zc, spa->spa_meta_objset, zap_clone);
+	    zap_cursor_retrieve(zc, za) == 0;
+	    zap_cursor_advance(zc)) {
+
+		dsl_dataset_t *clone;
+		error = dsl_dataset_hold_obj_flags(dp, za->za_first_integer,
+		    DS_HOLD_FLAG_DECRYPT, FTAG, &clone);
+
+		if (error != 0)
+			break;
+
+		/*
+		 * Only clones whose origins were affected could also
+		 * have affected snapshots.
+		 */
+		boolean_t found = B_FALSE;
+		for (int i = 0; i < snap_count; i++) {
+			if (dsl_dir_phys(clone->ds_dir)->dd_origin_obj
+			    == snap_obj_array[i])
+				found = B_TRUE;
+		}
+		dsl_dataset_rele_flags(clone, DS_HOLD_FLAG_DECRYPT, FTAG);
+
+		if (!found)
+			continue;
+
+		clones_t *ct = kmem_zalloc(sizeof (*ct), KM_SLEEP);
+		ct->clone_ds = za->za_first_integer;
+		list_insert_tail(clones_list, ct);
+	}
+
+	zap_cursor_fini(zc);
+	kmem_free(za, sizeof (*za));
+	kmem_free(zc, sizeof (*zc));
 
 out:
 	kmem_free(snap_obj_array, sizeof (*snap_obj_array));
@@ -448,38 +476,17 @@ out:
 }
 
 static int
-find_top_affected_fs(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
-    uint64_t *top_affected_fs)
-{
-	uint64_t oldest_dsobj;
-	int error = dsl_dataset_oldest_snapshot(spa, head_ds, zep->zb_birth,
-	    &oldest_dsobj);
-	if (error != 0)
-		return (error);
-
-	dsl_dataset_t *ds;
-	error = dsl_dataset_hold_obj(spa->spa_dsl_pool, oldest_dsobj,
-	    FTAG, &ds);
-	if (error != 0)
-		return (error);
-
-	*top_affected_fs =
-	    dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj;
-	dsl_dataset_rele(ds, FTAG);
-	return (0);
-}
-
-static int
 process_error_block(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
     void *uaddr, uint64_t *count)
 {
 	/*
-	 * If the zb_birth is 0 it means we failed to retrieve the birth txg
-	 * of the block pointer. This happens when an encrypted filesystem is
-	 * not mounted or when the key is not loaded. Do not proceed to
+	 * If zb_birth == 0 or head_ds == 0 it means we failed to retrieve the
+	 * birth txg or the head filesystem of the block pointer. This may
+	 * happen e.g. when an encrypted filesystem is not mounted or when
+	 * the key is not loaded. In this case do not proceed to
 	 * check_filesystem(), instead do the accounting here.
 	 */
-	if (zep->zb_birth == 0) {
+	if (zep->zb_birth == 0 || head_ds == 0) {
 		zbookmark_phys_t zb;
 		zep_to_zb(head_ds, zep, &zb);
 		int error = copyout_entry(&zb, uaddr, count);
@@ -490,52 +497,174 @@ process_error_block(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 	}
 
 	uint64_t top_affected_fs;
+	uint64_t init_count = *count;
 	int error = find_top_affected_fs(spa, head_ds, zep, &top_affected_fs);
 	if (error == 0) {
+		clones_t *ct;
+		list_t clones_list;
+
+		list_create(&clones_list, sizeof (clones_t),
+		    offsetof(clones_t, node));
+
 		error = check_filesystem(spa, top_affected_fs, zep,
-		    uaddr, count);
+		    uaddr, count, &clones_list);
+
+		while ((ct = list_remove_head(&clones_list)) != NULL) {
+			error = check_filesystem(spa, ct->clone_ds, zep,
+			    uaddr, count, &clones_list);
+			kmem_free(ct, sizeof (*ct));
+
+			if (error) {
+				while (!list_is_empty(&clones_list)) {
+					ct = list_remove_head(&clones_list);
+					kmem_free(ct, sizeof (*ct));
+				}
+				break;
+			}
+		}
+
+		list_destroy(&clones_list);
+	}
+	if (error == 0 && init_count == *count) {
+		/*
+		 * If we reach this point, no errors have been detected
+		 * in the checked filesystems/snapshots. Before returning mark
+		 * the error block to be removed from the error lists and logs.
+		 */
+		zbookmark_phys_t zb;
+		zep_to_zb(head_ds, zep, &zb);
+		spa_remove_error(spa, &zb, &zep->zb_birth);
 	}
 
 	return (error);
 }
 #endif
 
+/* Return the number of errors in the error log */
+uint64_t
+spa_get_last_errlog_size(spa_t *spa)
+{
+	uint64_t total = 0, count;
+	mutex_enter(&spa->spa_errlog_lock);
+
+	if (spa->spa_errlog_last != 0 &&
+	    zap_count(spa->spa_meta_objset, spa->spa_errlog_last,
+	    &count) == 0)
+		total += count;
+	mutex_exit(&spa->spa_errlog_lock);
+	return (total);
+}
+
 /*
  * If a healed bookmark matches an entry in the error log we stash it in a tree
  * so that we can later remove the related log entries in sync context.
  */
 static void
-spa_add_healed_error(spa_t *spa, uint64_t obj, zbookmark_phys_t *healed_zb)
+spa_add_healed_error(spa_t *spa, uint64_t obj, zbookmark_phys_t *healed_zb,
+    const uint64_t *birth)
 {
 	char name[NAME_MAX_LEN];
 
 	if (obj == 0)
 		return;
 
-	bookmark_to_name(healed_zb, name, sizeof (name));
-	mutex_enter(&spa->spa_errlog_lock);
-	if (zap_contains(spa->spa_meta_objset, obj, name) == 0) {
-		/*
-		 * Found an error matching healed zb, add zb to our
-		 * tree of healed errors
-		 */
-		avl_tree_t *tree = &spa->spa_errlist_healed;
-		spa_error_entry_t search;
-		spa_error_entry_t *new;
-		avl_index_t where;
-		search.se_bookmark = *healed_zb;
-		mutex_enter(&spa->spa_errlist_lock);
-		if (avl_find(tree, &search, &where) != NULL) {
-			mutex_exit(&spa->spa_errlist_lock);
-			mutex_exit(&spa->spa_errlog_lock);
-			return;
+	boolean_t held_list = B_FALSE;
+	boolean_t held_log = B_FALSE;
+
+	if (!spa_feature_is_enabled(spa, SPA_FEATURE_HEAD_ERRLOG)) {
+		bookmark_to_name(healed_zb, name, sizeof (name));
+
+		if (zap_contains(spa->spa_meta_objset, healed_zb->zb_objset,
+		    name) == 0) {
+			if (!MUTEX_HELD(&spa->spa_errlog_lock)) {
+				mutex_enter(&spa->spa_errlog_lock);
+				held_log = B_TRUE;
+			}
+
+			/*
+			 * Found an error matching healed zb, add zb to our
+			 * tree of healed errors
+			 */
+			avl_tree_t *tree = &spa->spa_errlist_healed;
+			spa_error_entry_t search;
+			spa_error_entry_t *new;
+			avl_index_t where;
+			search.se_bookmark = *healed_zb;
+			if (!MUTEX_HELD(&spa->spa_errlist_lock)) {
+				mutex_enter(&spa->spa_errlist_lock);
+				held_list = B_TRUE;
+			}
+			if (avl_find(tree, &search, &where) != NULL) {
+				if (held_list)
+					mutex_exit(&spa->spa_errlist_lock);
+				if (held_log)
+					mutex_exit(&spa->spa_errlog_lock);
+				return;
+			}
+			new = kmem_zalloc(sizeof (spa_error_entry_t), KM_SLEEP);
+			new->se_bookmark = *healed_zb;
+			avl_insert(tree, new, where);
+			if (held_list)
+				mutex_exit(&spa->spa_errlist_lock);
+			if (held_log)
+				mutex_exit(&spa->spa_errlog_lock);
 		}
-		new = kmem_zalloc(sizeof (spa_error_entry_t), KM_SLEEP);
-		new->se_bookmark = *healed_zb;
-		avl_insert(tree, new, where);
-		mutex_exit(&spa->spa_errlist_lock);
+		return;
 	}
-	mutex_exit(&spa->spa_errlog_lock);
+
+	zbookmark_err_phys_t healed_zep;
+	healed_zep.zb_object = healed_zb->zb_object;
+	healed_zep.zb_level = healed_zb->zb_level;
+	healed_zep.zb_blkid = healed_zb->zb_blkid;
+
+	if (birth != NULL)
+		healed_zep.zb_birth = *birth;
+	else
+		healed_zep.zb_birth = 0;
+
+	errphys_to_name(&healed_zep, name, sizeof (name));
+
+	zap_cursor_t zc;
+	zap_attribute_t za;
+	for (zap_cursor_init(&zc, spa->spa_meta_objset, spa->spa_errlog_last);
+	    zap_cursor_retrieve(&zc, &za) == 0; zap_cursor_advance(&zc)) {
+		if (zap_contains(spa->spa_meta_objset, za.za_first_integer,
+		    name) == 0) {
+			if (!MUTEX_HELD(&spa->spa_errlog_lock)) {
+				mutex_enter(&spa->spa_errlog_lock);
+				held_log = B_TRUE;
+			}
+
+			avl_tree_t *tree = &spa->spa_errlist_healed;
+			spa_error_entry_t search;
+			spa_error_entry_t *new;
+			avl_index_t where;
+			search.se_bookmark = *healed_zb;
+
+			if (!MUTEX_HELD(&spa->spa_errlist_lock)) {
+				mutex_enter(&spa->spa_errlist_lock);
+				held_list = B_TRUE;
+			}
+
+			if (avl_find(tree, &search, &where) != NULL) {
+				if (held_list)
+					mutex_exit(&spa->spa_errlist_lock);
+				if (held_log)
+					mutex_exit(&spa->spa_errlog_lock);
+				continue;
+			}
+			new = kmem_zalloc(sizeof (spa_error_entry_t), KM_SLEEP);
+			new->se_bookmark = *healed_zb;
+			new->se_zep = healed_zep;
+			avl_insert(tree, new, where);
+
+			if (held_list)
+				mutex_exit(&spa->spa_errlist_lock);
+			if (held_log)
+				mutex_exit(&spa->spa_errlog_lock);
+		}
+	}
+	zap_cursor_fini(&zc);
 }
 
 /*
@@ -573,12 +702,36 @@ spa_remove_healed_errors(spa_t *spa, avl_tree_t *s, avl_tree_t *l, dmu_tx_t *tx)
 	    &cookie)) != NULL) {
 		remove_error_from_list(spa, s, &se->se_bookmark);
 		remove_error_from_list(spa, l, &se->se_bookmark);
-		bookmark_to_name(&se->se_bookmark, name, sizeof (name));
+
+		if (!spa_feature_is_enabled(spa, SPA_FEATURE_HEAD_ERRLOG)) {
+			bookmark_to_name(&se->se_bookmark, name, sizeof (name));
+			(void) zap_remove(spa->spa_meta_objset,
+			    spa->spa_errlog_last, name, tx);
+			(void) zap_remove(spa->spa_meta_objset,
+			    spa->spa_errlog_scrub, name, tx);
+		} else {
+			errphys_to_name(&se->se_zep, name, sizeof (name));
+			zap_cursor_t zc;
+			zap_attribute_t za;
+			for (zap_cursor_init(&zc, spa->spa_meta_objset,
+			    spa->spa_errlog_last);
+			    zap_cursor_retrieve(&zc, &za) == 0;
+			    zap_cursor_advance(&zc)) {
+				zap_remove(spa->spa_meta_objset,
+				    za.za_first_integer, name, tx);
+			}
+			zap_cursor_fini(&zc);
+
+			for (zap_cursor_init(&zc, spa->spa_meta_objset,
+			    spa->spa_errlog_scrub);
+			    zap_cursor_retrieve(&zc, &za) == 0;
+			    zap_cursor_advance(&zc)) {
+				zap_remove(spa->spa_meta_objset,
+				    za.za_first_integer, name, tx);
+			}
+			zap_cursor_fini(&zc);
+		}
 		kmem_free(se, sizeof (spa_error_entry_t));
-		(void) zap_remove(spa->spa_meta_objset,
-		    spa->spa_errlog_last, name, tx);
-		(void) zap_remove(spa->spa_meta_objset,
-		    spa->spa_errlog_scrub, name, tx);
 	}
 }
 
@@ -587,14 +740,10 @@ spa_remove_healed_errors(spa_t *spa, avl_tree_t *s, avl_tree_t *l, dmu_tx_t *tx)
  * later in spa_remove_healed_errors().
  */
 void
-spa_remove_error(spa_t *spa, zbookmark_phys_t *zb)
+spa_remove_error(spa_t *spa, zbookmark_phys_t *zb, const uint64_t *birth)
 {
-	char name[NAME_MAX_LEN];
-
-	bookmark_to_name(zb, name, sizeof (name));
-
-	spa_add_healed_error(spa, spa->spa_errlog_last, zb);
-	spa_add_healed_error(spa, spa->spa_errlog_scrub, zb);
+	spa_add_healed_error(spa, spa->spa_errlog_last, zb, birth);
+	spa_add_healed_error(spa, spa->spa_errlog_scrub, zb, birth);
 }
 
 static uint64_t
@@ -697,21 +846,20 @@ sync_upgrade_errlog(spa_t *spa, uint64_t spa_err_obj, uint64_t *newobj,
 		zep.zb_birth = 0;
 
 		/*
-		 * We cannot use get_head_and_birth_txg() because it will
-		 * acquire the pool config lock, which we already have. In case
-		 * of an error we simply continue.
+		 * In case of an error we should simply continue instead of
+		 * returning prematurely. See the next comment.
 		 */
-		uint64_t head_dataset_obj;
+		uint64_t head_ds;
 		dsl_pool_t *dp = spa->spa_dsl_pool;
 		dsl_dataset_t *ds;
 		objset_t *os;
 
-		int error = dsl_dataset_hold_obj(dp, zb.zb_objset, FTAG, &ds);
+		int error = dsl_dataset_hold_obj_flags(dp, zb.zb_objset,
+		    DS_HOLD_FLAG_DECRYPT, FTAG, &ds);
 		if (error != 0)
 			continue;
 
-		head_dataset_obj =
-		    dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj;
+		head_ds = dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj;
 
 		/*
 		 * The objset and the dnode are required for getting the block
@@ -722,7 +870,7 @@ sync_upgrade_errlog(spa_t *spa, uint64_t spa_err_obj, uint64_t *newobj,
 		 * truly persistent, it should re-appear after a scan.
 		 */
 		if (dmu_objset_from_ds(ds, &os) != 0) {
-			dsl_dataset_rele(ds, FTAG);
+			dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 			continue;
 		}
 
@@ -730,7 +878,7 @@ sync_upgrade_errlog(spa_t *spa, uint64_t spa_err_obj, uint64_t *newobj,
 		blkptr_t bp;
 
 		if (dnode_hold(os, zep.zb_object, FTAG, &dn) != 0) {
-			dsl_dataset_rele(ds, FTAG);
+			dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 			continue;
 		}
 
@@ -744,21 +892,21 @@ sync_upgrade_errlog(spa_t *spa, uint64_t spa_err_obj, uint64_t *newobj,
 
 		rw_exit(&dn->dn_struct_rwlock);
 		dnode_rele(dn, FTAG);
-		dsl_dataset_rele(ds, FTAG);
+		dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 
 		if (error != 0 || BP_IS_HOLE(&bp))
 			continue;
 
 		uint64_t err_obj;
 		error = zap_lookup_int_key(spa->spa_meta_objset, *newobj,
-		    head_dataset_obj, &err_obj);
+		    head_ds, &err_obj);
 
 		if (error == ENOENT) {
 			err_obj = zap_create(spa->spa_meta_objset,
 			    DMU_OT_ERROR_LOG, DMU_OT_NONE, 0, tx);
 
 			(void) zap_update_int_key(spa->spa_meta_objset,
-			    *newobj, head_dataset_obj, err_obj, tx);
+			    *newobj, head_ds, err_obj, tx);
 		}
 
 		char buf[64];
@@ -782,12 +930,21 @@ spa_upgrade_errlog(spa_t *spa, dmu_tx_t *tx)
 	if (spa->spa_errlog_last != 0) {
 		sync_upgrade_errlog(spa, spa->spa_errlog_last, &newobj, tx);
 		spa->spa_errlog_last = newobj;
+
+		(void) zap_update(spa->spa_meta_objset,
+		    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_ERRLOG_LAST,
+		    sizeof (uint64_t), 1, &spa->spa_errlog_last, tx);
 	}
 
 	if (spa->spa_errlog_scrub != 0) {
 		sync_upgrade_errlog(spa, spa->spa_errlog_scrub, &newobj, tx);
 		spa->spa_errlog_scrub = newobj;
+
+		(void) zap_update(spa->spa_meta_objset,
+		    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_ERRLOG_SCRUB,
+		    sizeof (uint64_t), 1, &spa->spa_errlog_scrub, tx);
 	}
+
 	mutex_exit(&spa->spa_errlog_lock);
 }
 
@@ -798,62 +955,84 @@ spa_upgrade_errlog(spa_t *spa, dmu_tx_t *tx)
 static int
 process_error_log(spa_t *spa, uint64_t obj, void *uaddr, uint64_t *count)
 {
-	zap_cursor_t zc;
-	zap_attribute_t za;
-
 	if (obj == 0)
 		return (0);
 
+	zap_cursor_t *zc;
+	zap_attribute_t *za;
+
+	zc = kmem_zalloc(sizeof (zap_cursor_t), KM_SLEEP);
+	za = kmem_zalloc(sizeof (zap_attribute_t), KM_SLEEP);
+
 	if (!spa_feature_is_enabled(spa, SPA_FEATURE_HEAD_ERRLOG)) {
-		for (zap_cursor_init(&zc, spa->spa_meta_objset, obj);
-		    zap_cursor_retrieve(&zc, &za) == 0;
-		    zap_cursor_advance(&zc)) {
+		for (zap_cursor_init(zc, spa->spa_meta_objset, obj);
+		    zap_cursor_retrieve(zc, za) == 0;
+		    zap_cursor_advance(zc)) {
 			if (*count == 0) {
-				zap_cursor_fini(&zc);
+				zap_cursor_fini(zc);
+				kmem_free(zc, sizeof (*zc));
+				kmem_free(za, sizeof (*za));
 				return (SET_ERROR(ENOMEM));
 			}
 
 			zbookmark_phys_t zb;
-			name_to_bookmark(za.za_name, &zb);
+			name_to_bookmark(za->za_name, &zb);
 
 			int error = copyout_entry(&zb, uaddr, count);
 			if (error != 0) {
-				zap_cursor_fini(&zc);
+				zap_cursor_fini(zc);
+				kmem_free(zc, sizeof (*zc));
+				kmem_free(za, sizeof (*za));
 				return (error);
 			}
 		}
-		zap_cursor_fini(&zc);
+		zap_cursor_fini(zc);
+		kmem_free(zc, sizeof (*zc));
+		kmem_free(za, sizeof (*za));
 		return (0);
 	}
 
-	for (zap_cursor_init(&zc, spa->spa_meta_objset, obj);
-	    zap_cursor_retrieve(&zc, &za) == 0;
-	    zap_cursor_advance(&zc)) {
+	for (zap_cursor_init(zc, spa->spa_meta_objset, obj);
+	    zap_cursor_retrieve(zc, za) == 0;
+	    zap_cursor_advance(zc)) {
 
-		zap_cursor_t head_ds_cursor;
-		zap_attribute_t head_ds_attr;
+		zap_cursor_t *head_ds_cursor;
+		zap_attribute_t *head_ds_attr;
 
-		uint64_t head_ds_err_obj = za.za_first_integer;
+		head_ds_cursor = kmem_zalloc(sizeof (zap_cursor_t), KM_SLEEP);
+		head_ds_attr = kmem_zalloc(sizeof (zap_attribute_t), KM_SLEEP);
+
+		uint64_t head_ds_err_obj = za->za_first_integer;
 		uint64_t head_ds;
-		name_to_object(za.za_name, &head_ds);
-		for (zap_cursor_init(&head_ds_cursor, spa->spa_meta_objset,
-		    head_ds_err_obj); zap_cursor_retrieve(&head_ds_cursor,
-		    &head_ds_attr) == 0; zap_cursor_advance(&head_ds_cursor)) {
+		name_to_object(za->za_name, &head_ds);
+		for (zap_cursor_init(head_ds_cursor, spa->spa_meta_objset,
+		    head_ds_err_obj); zap_cursor_retrieve(head_ds_cursor,
+		    head_ds_attr) == 0; zap_cursor_advance(head_ds_cursor)) {
 
 			zbookmark_err_phys_t head_ds_block;
-			name_to_errphys(head_ds_attr.za_name, &head_ds_block);
+			name_to_errphys(head_ds_attr->za_name, &head_ds_block);
 			int error = process_error_block(spa, head_ds,
 			    &head_ds_block, uaddr, count);
 
 			if (error != 0) {
-				zap_cursor_fini(&head_ds_cursor);
-				zap_cursor_fini(&zc);
+				zap_cursor_fini(head_ds_cursor);
+				kmem_free(head_ds_cursor,
+				    sizeof (*head_ds_cursor));
+				kmem_free(head_ds_attr, sizeof (*head_ds_attr));
+
+				zap_cursor_fini(zc);
+				kmem_free(za, sizeof (*za));
+				kmem_free(zc, sizeof (*zc));
 				return (error);
 			}
 		}
-		zap_cursor_fini(&head_ds_cursor);
+		zap_cursor_fini(head_ds_cursor);
+		kmem_free(head_ds_cursor, sizeof (*head_ds_cursor));
+		kmem_free(head_ds_attr, sizeof (*head_ds_attr));
 	}
-	zap_cursor_fini(&zc);
+	zap_cursor_fini(zc);
+	kmem_free(za, sizeof (*za));
+	kmem_free(zc, sizeof (*zc));
 	return (0);
 }
 
@@ -875,20 +1054,21 @@ process_error_list(spa_t *spa, avl_tree_t *list, void *uaddr, uint64_t *count)
 	}
 
 	for (se = avl_first(list); se != NULL; se = AVL_NEXT(list, se)) {
-		zbookmark_err_phys_t zep;
-		zep.zb_object = se->se_bookmark.zb_object;
-		zep.zb_level = se->se_bookmark.zb_level;
-		zep.zb_blkid = se->se_bookmark.zb_blkid;
-		zep.zb_birth = 0;
+		uint64_t head_ds = 0;
+		int error = get_head_ds(spa, se->se_bookmark.zb_objset,
+		    &head_ds);
 
-		uint64_t head_ds_obj;
-		int error = get_head_and_birth_txg(spa, &zep,
-		    se->se_bookmark.zb_objset, &head_ds_obj);
+		/*
+		 * If get_head_ds() errors out, set the head filesystem
+		 * to the filesystem stored in the bookmark of the
+		 * error block.
+		 */
+		if (error != 0)
+			head_ds = se->se_bookmark.zb_objset;
 
-		if (!error)
-			error = process_error_block(spa, head_ds_obj, &zep,
-			    uaddr, count);
-		if (error)
+		error = process_error_block(spa, head_ds,
+		    &se->se_zep, uaddr, count);
+		if (error != 0)
 			return (error);
 	}
 	return (0);
@@ -914,8 +1094,9 @@ spa_get_errlog(spa_t *spa, void *uaddr, uint64_t *count)
 #ifdef _KERNEL
 	/*
 	 * The pool config lock is needed to hold a dataset_t via (among other
-	 * places) process_error_list() -> get_head_and_birth_txg(), and lock
-	 * ordering requires that we get it before the spa_errlog_lock.
+	 * places) process_error_list() -> process_error_block()->
+	 * find_top_affected_fs(), and lock ordering requires that we get it
+	 * before the spa_errlog_lock.
 	 */
 	dsl_pool_config_enter(spa->spa_dsl_pool, FTAG);
 	mutex_enter(&spa->spa_errlog_lock);
@@ -1011,34 +1192,33 @@ sync_error_list(spa_t *spa, avl_tree_t *t, uint64_t *obj, dmu_tx_t *tx)
 	} else {
 		for (se = avl_first(t); se != NULL; se = AVL_NEXT(t, se)) {
 			zbookmark_err_phys_t zep;
-			zep.zb_object = se->se_bookmark.zb_object;
-			zep.zb_level = se->se_bookmark.zb_level;
-			zep.zb_blkid = se->se_bookmark.zb_blkid;
-			zep.zb_birth = 0;
+			zep.zb_object = se->se_zep.zb_object;
+			zep.zb_level = se->se_zep.zb_level;
+			zep.zb_blkid = se->se_zep.zb_blkid;
+			zep.zb_birth = se->se_zep.zb_birth;
+
+			uint64_t head_ds = 0;
+			int error = get_head_ds(spa, se->se_bookmark.zb_objset,
+			    &head_ds);
 
 			/*
-			 * If we cannot find out the head dataset and birth txg
-			 * of the present error block, we simply continue.
-			 * Reinserting that error block to the error lists,
-			 * even if we are not syncing the final txg, results
-			 * in duplicate posting of errors.
+			 * If get_head_ds() errors out, set the head filesystem
+			 * to the filesystem stored in the bookmark of the
+			 * error block.
 			 */
-			uint64_t head_dataset_obj;
-			int error = get_head_and_birth_txg(spa, &zep,
-			    se->se_bookmark.zb_objset, &head_dataset_obj);
-			if (error)
-				continue;
+			if (error != 0)
+				head_ds = se->se_bookmark.zb_objset;
 
 			uint64_t err_obj;
 			error = zap_lookup_int_key(spa->spa_meta_objset,
-			    *obj, head_dataset_obj, &err_obj);
+			    *obj, head_ds, &err_obj);
 
 			if (error == ENOENT) {
 				err_obj = zap_create(spa->spa_meta_objset,
 				    DMU_OT_ERROR_LOG, DMU_OT_NONE, 0, tx);
 
 				(void) zap_update_int_key(spa->spa_meta_objset,
-				    *obj, head_dataset_obj, err_obj, tx);
+				    *obj, head_ds, err_obj, tx);
 			}
 			errphys_to_name(&zep, buf, sizeof (buf));
 
@@ -1108,7 +1288,7 @@ spa_errlog_sync(spa_t *spa, uint64_t txg)
 
 	/*
 	 * The pool config lock is needed to hold a dataset_t via
-	 * sync_error_list() -> get_head_and_birth_txg(), and lock ordering
+	 * sync_error_list() -> get_head_ds(), and lock ordering
 	 * requires that we get it before the spa_errlog_lock.
 	 */
 	dsl_pool_config_enter(spa->spa_dsl_pool, FTAG);
@@ -1199,7 +1379,8 @@ find_txg_ancestor_snapshot(spa_t *spa, uint64_t new_head, uint64_t old_head,
 	dsl_dataset_t *ds;
 	dsl_pool_t *dp = spa->spa_dsl_pool;
 
-	int error = dsl_dataset_hold_obj(dp, old_head, FTAG, &ds);
+	int error = dsl_dataset_hold_obj_flags(dp, old_head,
+	    DS_HOLD_FLAG_DECRYPT, FTAG, &ds);
 	if (error != 0)
 		return (error);
 
@@ -1207,9 +1388,9 @@ find_txg_ancestor_snapshot(spa_t *spa, uint64_t new_head, uint64_t old_head,
 	uint64_t prev_obj_txg = dsl_dataset_phys(ds)->ds_prev_snap_txg;
 
 	while (prev_obj != 0) {
-		dsl_dataset_rele(ds, FTAG);
-		if ((error = dsl_dataset_hold_obj(dp, prev_obj,
-		    FTAG, &ds)) == 0 &&
+		dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
+		if ((error = dsl_dataset_hold_obj_flags(dp, prev_obj,
+		    DS_HOLD_FLAG_DECRYPT, FTAG, &ds)) == 0 &&
 		    dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj == new_head)
 			break;
 
@@ -1219,7 +1400,7 @@ find_txg_ancestor_snapshot(spa_t *spa, uint64_t new_head, uint64_t old_head,
 		prev_obj_txg = dsl_dataset_phys(ds)->ds_prev_snap_txg;
 		prev_obj = dsl_dataset_phys(ds)->ds_prev_snap_obj;
 	}
-	dsl_dataset_rele(ds, FTAG);
+	dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 	ASSERT(prev_obj != 0);
 	*txg = prev_obj_txg;
 	return (0);
@@ -1294,6 +1475,7 @@ spa_swap_errlog(spa_t *spa, uint64_t new_head_ds, uint64_t old_head_ds,
 /* error handling */
 EXPORT_SYMBOL(spa_log_error);
 EXPORT_SYMBOL(spa_approx_errlog_size);
+EXPORT_SYMBOL(spa_get_last_errlog_size);
 EXPORT_SYMBOL(spa_get_errlog);
 EXPORT_SYMBOL(spa_errlog_rotate);
 EXPORT_SYMBOL(spa_errlog_drain);
@@ -1303,6 +1485,10 @@ EXPORT_SYMBOL(spa_delete_dataset_errlog);
 EXPORT_SYMBOL(spa_swap_errlog);
 EXPORT_SYMBOL(sync_error_list);
 EXPORT_SYMBOL(spa_upgrade_errlog);
+EXPORT_SYMBOL(find_top_affected_fs);
+EXPORT_SYMBOL(find_birth_txg);
+EXPORT_SYMBOL(zep_to_zb);
+EXPORT_SYMBOL(name_to_errphys);
 #endif
 
 /* BEGIN CSTYLED */

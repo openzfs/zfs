@@ -493,6 +493,7 @@ dmu_dump_write(dmu_send_cookie_t *dscp, dmu_object_type_t type, uint64_t object,
 	    (bp != NULL ? BP_GET_COMPRESS(bp) != ZIO_COMPRESS_OFF &&
 	    io_compressed : lsize != psize);
 	if (raw || compressed) {
+		ASSERT(bp != NULL);
 		ASSERT(raw || dscp->dsc_featureflags &
 		    DMU_BACKUP_FEATURE_COMPRESSED);
 		ASSERT(!BP_IS_EMBEDDED(bp));
@@ -1122,7 +1123,7 @@ send_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	 */
 	if (sta->os->os_encrypted &&
 	    !BP_IS_HOLE(bp) && !BP_USES_CRYPT(bp)) {
-		spa_log_error(spa, zb);
+		spa_log_error(spa, zb, &bp->blk_birth);
 		zfs_panic_recover("unencrypted block in encrypted "
 		    "object set %llu", dmu_objset_id(sta->os));
 		return (SET_ERROR(EIO));
@@ -1842,8 +1843,7 @@ send_reader_thread(void *arg)
 				continue;
 			}
 			uint64_t file_max =
-			    (dn->dn_maxblkid < range->end_blkid ?
-			    dn->dn_maxblkid : range->end_blkid);
+			    MIN(dn->dn_maxblkid, range->end_blkid);
 			/*
 			 * The object exists, so we need to try to find the
 			 * blkptr for each block in the range we're processing.
@@ -1955,7 +1955,7 @@ setup_featureflags(struct dmu_send_params *dspp, objset_t *os,
 {
 	dsl_dataset_t *to_ds = dspp->to_ds;
 	dsl_pool_t *dp = dspp->dp;
-#ifdef _KERNEL
+
 	if (dmu_objset_type(os) == DMU_OST_ZFS) {
 		uint64_t version;
 		if (zfs_get_zplprop(os, ZFS_PROP_VERSION, &version) != 0)
@@ -1964,7 +1964,6 @@ setup_featureflags(struct dmu_send_params *dspp, objset_t *os,
 		if (version >= ZPL_VERSION_SA)
 			*featureflags |= DMU_BACKUP_FEATURE_SA_SPILL;
 	}
-#endif
 
 	/* raw sends imply large_block_ok */
 	if ((dspp->rawok || dspp->large_block_ok) &&
@@ -2793,6 +2792,7 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
 			}
 
 			if (err == 0) {
+				owned = B_TRUE;
 				err = zap_lookup(dspp.dp->dp_meta_objset,
 				    dspp.to_ds->ds_object,
 				    DS_FIELD_RESUME_TOGUID, 8, 1,
@@ -2806,21 +2806,24 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
 				    sizeof (dspp.saved_toname),
 				    dspp.saved_toname);
 			}
-			if (err != 0)
+			/* Only disown if there was an error in the lookups */
+			if (owned && (err != 0))
 				dsl_dataset_disown(dspp.to_ds, dsflags, FTAG);
 
 			kmem_strfree(name);
 		} else {
 			err = dsl_dataset_own(dspp.dp, tosnap, dsflags,
 			    FTAG, &dspp.to_ds);
+			if (err == 0)
+				owned = B_TRUE;
 		}
-		owned = B_TRUE;
 	} else {
 		err = dsl_dataset_hold_flags(dspp.dp, tosnap, dsflags, FTAG,
 		    &dspp.to_ds);
 	}
 
 	if (err != 0) {
+		/* Note: dsl dataset is not owned at this point */
 		dsl_pool_rele(dspp.dp, FTAG);
 		return (err);
 	}
@@ -3029,8 +3032,7 @@ dmu_send_estimate_fast(dsl_dataset_t *origds, dsl_dataset_t *fromds,
 
 		dsl_dataset_name(origds, dsname);
 		(void) strcat(dsname, "/");
-		(void) strlcat(dsname, recv_clone_name,
-		    sizeof (dsname) - strlen(dsname));
+		(void) strlcat(dsname, recv_clone_name, sizeof (dsname));
 
 		err = dsl_dataset_hold(origds->ds_dir->dd_pool,
 		    dsname, FTAG, &ds);

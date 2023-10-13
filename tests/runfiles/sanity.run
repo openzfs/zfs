@@ -212,7 +212,7 @@ tests = ['cache_001_pos', 'cache_002_neg', 'canmount_001_pos',
     'user_property_001_pos', 'user_property_003_neg', 'readonly_001_pos',
     'user_property_004_pos', 'version_001_neg',
     'zfs_set_003_neg', 'property_alias_001_pos',
-    'zfs_set_keylocation', 'zfs_set_feature_activation']
+    'zfs_set_keylocation', 'zfs_set_feature_activation', 'zfs_set_nomount']
 tags = ['functional', 'cli_root', 'zfs_set']
 
 [tests/functional/cli_root/zfs_snapshot]
@@ -550,6 +550,7 @@ tests = ['recv_dedup', 'recv_dedup_encrypted_zvol', 'rsend_001_pos',
     'rsend_014_pos', 'rsend_016_neg', 'send-c_verify_contents',
     'send-c_volume', 'send-c_zstreamdump', 'send-c_recv_dedup',
     'send-L_toggle', 'send_encrypted_hierarchy', 'send_encrypted_props',
+    'send_encrypted_freeobjects',
     'send_encrypted_truncated_files', 'send_freeobjects', 'send_holds',
     'send_mixed_raw', 'send-wR_encrypted_zvol', 'send_partial_dataset',
     'send_invalid']

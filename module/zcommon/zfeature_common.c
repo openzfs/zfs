@@ -725,6 +725,30 @@ zpool_feature_init(void)
 		    blake3_deps, sfeatures);
 	}
 
+	zfeature_register(SPA_FEATURE_BLOCK_CLONING,
+	    "com.fudosecurity:block_cloning", "block_cloning",
+	    "Support for block cloning via Block Reference Table.",
+	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN, NULL,
+	    sfeatures);
+
+	zfeature_register(SPA_FEATURE_AVZ_V2,
+	    "com.klarasystems:vdev_zaps_v2", "vdev_zaps_v2",
+	    "Support for root vdev ZAP.",
+	    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN, NULL,
+	    sfeatures);
+
+	{
+		static const spa_feature_t redact_list_spill_deps[] = {
+			SPA_FEATURE_REDACTION_BOOKMARKS,
+			SPA_FEATURE_NONE
+		};
+		zfeature_register(SPA_FEATURE_REDACTION_LIST_SPILL,
+		    "com.delphix:redaction_list_spill", "redaction_list_spill",
+		    "Support for increased number of redaction_snapshot "
+		    "arguments in zfs redact.", 0, ZFEATURE_TYPE_BOOLEAN,
+		    redact_list_spill_deps, sfeatures);
+	}
+
 	zfs_mod_list_supported_free(sfeatures);
 }
 

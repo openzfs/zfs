@@ -315,7 +315,7 @@ zap_leaf_array_read(zap_leaf_t *l, uint16_t chunk,
 		struct zap_leaf_array *la = &ZAP_LEAF_CHUNK(l, chunk).l_array;
 
 		ASSERT3U(chunk, <, ZAP_LEAF_NUMCHUNKS(l));
-		for (int i = 0; i < ZAP_LEAF_ARRAY_BYTES && len > 0; i++) {
+		for (int i = 0; i < ZAP_LEAF_ARRAY_BYTES; i++) {
 			value = (value << 8) | la->la_array[i];
 			byten++;
 			if (byten == array_int_len) {

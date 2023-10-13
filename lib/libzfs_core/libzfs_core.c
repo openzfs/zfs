@@ -248,6 +248,13 @@ out:
 }
 
 int
+lzc_scrub(zfs_ioc_t ioc, const char *name,
+    nvlist_t *source, nvlist_t **resultp)
+{
+	return (lzc_ioctl(ioc, name, source, resultp));
+}
+
+int
 lzc_create(const char *fsname, enum lzc_dataset_type type, nvlist_t *props,
     uint8_t *wkeydata, uint_t wkeylen)
 {
@@ -643,10 +650,12 @@ send_worker(void *arg)
 	unsigned int bufsiz = max_pipe_buffer(ctx->from);
 	ssize_t rd;
 
-	while ((rd = splice(ctx->from, NULL, ctx->to, NULL, bufsiz,
-	    SPLICE_F_MOVE | SPLICE_F_MORE)) > 0)
-		;
-
+	for (;;) {
+		rd = splice(ctx->from, NULL, ctx->to, NULL, bufsiz,
+		    SPLICE_F_MOVE | SPLICE_F_MORE);
+		if ((rd == -1 && errno != EINTR) || rd == 0)
+			break;
+	}
 	int err = (rd == -1) ? errno : 0;
 	close(ctx->from);
 	return ((void *)(uintptr_t)err);

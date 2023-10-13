@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2015, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2022 by Pawel Jakub Dawidek
  */
 
 
@@ -889,6 +890,55 @@ zfs_log_acl(zilog_t *zilog, dmu_tx_t *tx, znode_t *zp,
 
 	itx->itx_sync = (zp->z_sync_cnt != 0);
 	zil_itx_assign(zilog, itx, tx);
+}
+
+/*
+ * Handles TX_CLONE_RANGE transactions.
+ */
+void
+zfs_log_clone_range(zilog_t *zilog, dmu_tx_t *tx, int txtype, znode_t *zp,
+    uint64_t off, uint64_t len, uint64_t blksz, const blkptr_t *bps,
+    size_t nbps)
+{
+	itx_t *itx;
+	lr_clone_range_t *lr;
+	uint64_t partlen, max_log_data;
+	size_t i, partnbps;
+
+	if (zil_replaying(zilog, tx) || zp->z_unlinked)
+		return;
+
+	max_log_data = zil_max_log_data(zilog, sizeof (lr_clone_range_t));
+
+	while (nbps > 0) {
+		partnbps = MIN(nbps, max_log_data / sizeof (bps[0]));
+		partlen = 0;
+		for (i = 0; i < partnbps; i++) {
+			partlen += BP_GET_LSIZE(&bps[i]);
+		}
+		partlen = MIN(partlen, len);
+
+		itx = zil_itx_create(txtype,
+		    sizeof (*lr) + sizeof (bps[0]) * partnbps);
+		lr = (lr_clone_range_t *)&itx->itx_lr;
+		lr->lr_foid = zp->z_id;
+		lr->lr_offset = off;
+		lr->lr_length = partlen;
+		lr->lr_blksz = blksz;
+		lr->lr_nbps = partnbps;
+		memcpy(lr->lr_bps, bps, sizeof (bps[0]) * partnbps);
+
+		itx->itx_sync = (zp->z_sync_cnt != 0);
+
+		zil_itx_assign(zilog, itx, tx);
+
+		bps += partnbps;
+		ASSERT3U(nbps, >=, partnbps);
+		nbps -= partnbps;
+		off += partlen;
+		ASSERT3U(len, >=, partlen);
+		len -= partlen;
+	}
 }
 
 ZFS_MODULE_PARAM(zfs, zfs_, immediate_write_sz, S64, ZMOD_RW,

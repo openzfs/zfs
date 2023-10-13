@@ -50,14 +50,21 @@
 #define _ASM
 #include <sys/asm_linkage.h>
 
+/* Windows userland links with OpenSSL */
+#if !defined (_WIN32) || defined (_KERNEL)
+
+/* Apple needs _ */
+#if defined (__APPLE__)
+#define	gcm_avx_can_use_movbe _gcm_avx_can_use_movbe
+#endif
+
 .extern gcm_avx_can_use_movbe
 
 .text
 
 #ifdef HAVE_MOVBE
-.type	_aesni_ctr32_ghash_6x,@function
-.align	32
-_aesni_ctr32_ghash_6x:
+.balign 32
+FUNCTION(_aesni_ctr32_ghash_6x)
 .cfi_startproc
 	ENDBR
 	vmovdqu	32(%r11),%xmm2
@@ -73,7 +80,7 @@ _aesni_ctr32_ghash_6x:
 	vmovdqu	%xmm4,16+8(%rsp)
 	jmp	.Loop6x
 
-.align	32
+.balign	32
 .Loop6x:
 	addl	$100663296,%ebx
 	jc	.Lhandle_ctr32
@@ -285,7 +292,7 @@ _aesni_ctr32_ghash_6x:
 	vmovups	224-128(%rcx),%xmm1
 	jmp	.Lenc_tail
 
-.align	32
+.balign	32
 .Lhandle_ctr32:
 	vmovdqu	(%r11),%xmm0
 	vpshufb	%xmm0,%xmm1,%xmm6
@@ -307,7 +314,7 @@ _aesni_ctr32_ghash_6x:
 	vpshufb	%xmm0,%xmm1,%xmm1
 	jmp	.Lresume_ctr32
 
-.align	32
+.balign	32
 .Lenc_tail:
 	vaesenc	%xmm15,%xmm9,%xmm9
 	vmovdqu	%xmm7,16+8(%rsp)
@@ -369,12 +376,11 @@ _aesni_ctr32_ghash_6x:
 
 	RET
 .cfi_endproc
-.size	_aesni_ctr32_ghash_6x,.-_aesni_ctr32_ghash_6x
+SET_SIZE(_aesni_ctr32_ghash_6x)
 #endif /* ifdef HAVE_MOVBE */
 
-.type	_aesni_ctr32_ghash_no_movbe_6x,@function
-.align	32
-_aesni_ctr32_ghash_no_movbe_6x:
+.balign 32
+FUNCTION(_aesni_ctr32_ghash_no_movbe_6x)
 .cfi_startproc
 	ENDBR
 	vmovdqu	32(%r11),%xmm2
@@ -390,7 +396,7 @@ _aesni_ctr32_ghash_no_movbe_6x:
 	vmovdqu	%xmm4,16+8(%rsp)
 	jmp	.Loop6x_nmb
 
-.align	32
+.balign	32
 .Loop6x_nmb:
 	addl	$100663296,%ebx
 	jc	.Lhandle_ctr32_nmb
@@ -614,7 +620,7 @@ _aesni_ctr32_ghash_no_movbe_6x:
 	vmovups	224-128(%rcx),%xmm1
 	jmp	.Lenc_tail_nmb
 
-.align	32
+.balign	32
 .Lhandle_ctr32_nmb:
 	vmovdqu	(%r11),%xmm0
 	vpshufb	%xmm0,%xmm1,%xmm6
@@ -636,7 +642,7 @@ _aesni_ctr32_ghash_no_movbe_6x:
 	vpshufb	%xmm0,%xmm1,%xmm1
 	jmp	.Lresume_ctr32_nmb
 
-.align	32
+.balign	32
 .Lenc_tail_nmb:
 	vaesenc	%xmm15,%xmm9,%xmm9
 	vmovdqu	%xmm7,16+8(%rsp)
@@ -698,12 +704,9 @@ _aesni_ctr32_ghash_no_movbe_6x:
 
 	RET
 .cfi_endproc
-.size	_aesni_ctr32_ghash_no_movbe_6x,.-_aesni_ctr32_ghash_no_movbe_6x
+SET_SIZE(_aesni_ctr32_ghash_no_movbe_6x)
 
-.globl	aesni_gcm_decrypt
-.type	aesni_gcm_decrypt,@function
-.align	32
-aesni_gcm_decrypt:
+ENTRY_ALIGN(aesni_gcm_decrypt, 32)
 .cfi_startproc
 	ENDBR
 	xorq	%r10,%r10
@@ -818,10 +821,10 @@ aesni_gcm_decrypt:
 	movq	%r10,%rax
 	RET
 .cfi_endproc
-.size	aesni_gcm_decrypt,.-aesni_gcm_decrypt
-.type	_aesni_ctr32_6x,@function
-.align	32
-_aesni_ctr32_6x:
+SET_SIZE(aesni_gcm_decrypt)
+
+.balign 32
+FUNCTION(_aesni_ctr32_6x)
 .cfi_startproc
 	ENDBR
 	vmovdqu	0-128(%rcx),%xmm4
@@ -845,7 +848,7 @@ _aesni_ctr32_6x:
 	vpxor	%xmm4,%xmm14,%xmm14
 	jmp	.Loop_ctr32
 
-.align	16
+.balign	16
 .Loop_ctr32:
 	vaesenc	%xmm15,%xmm9,%xmm9
 	vaesenc	%xmm15,%xmm10,%xmm10
@@ -888,7 +891,7 @@ _aesni_ctr32_6x:
 	leaq	96(%rsi),%rsi
 
 	RET
-.align	32
+.balign	32
 .Lhandle_ctr32_2:
 	vpshufb	%xmm0,%xmm1,%xmm6
 	vmovdqu	48(%r11),%xmm5
@@ -911,12 +914,9 @@ _aesni_ctr32_6x:
 	vpxor	%xmm4,%xmm14,%xmm14
 	jmp	.Loop_ctr32
 .cfi_endproc
-.size	_aesni_ctr32_6x,.-_aesni_ctr32_6x
+SET_SIZE(_aesni_ctr32_6x)
 
-.globl	aesni_gcm_encrypt
-.type	aesni_gcm_encrypt,@function
-.align	32
-aesni_gcm_encrypt:
+ENTRY_ALIGN(aesni_gcm_encrypt, 32)
 .cfi_startproc
 	ENDBR
 	xorq	%r10,%r10
@@ -1196,7 +1196,9 @@ aesni_gcm_encrypt:
 	movq	%r10,%rax
 	RET
 .cfi_endproc
-.size	aesni_gcm_encrypt,.-aesni_gcm_encrypt
+SET_SIZE(aesni_gcm_encrypt)
+
+#endif /* !_WIN32 || _KERNEL */
 
 /* Some utility routines */
 
@@ -1204,13 +1206,10 @@ aesni_gcm_encrypt:
  * clear all fpu registers
  * void clear_fpu_regs_avx(void);
  */
-.globl	clear_fpu_regs_avx
-.type	clear_fpu_regs_avx,@function
-.align	32
-clear_fpu_regs_avx:
+ENTRY_ALIGN(clear_fpu_regs_avx, 32)
 	vzeroall
 	RET
-.size	clear_fpu_regs_avx,.-clear_fpu_regs_avx
+SET_SIZE(clear_fpu_regs_avx)
 
 /*
  * void gcm_xor_avx(const uint8_t *src, uint8_t *dst);
@@ -1219,25 +1218,19 @@ clear_fpu_regs_avx:
  * stores the result at `dst'. The XOR is performed using FPU registers,
  * so make sure FPU state is saved when running this in the kernel.
  */
-.globl  gcm_xor_avx
-.type	gcm_xor_avx,@function
-.align	32
-gcm_xor_avx:
+ENTRY_ALIGN(gcm_xor_avx, 32)
 	movdqu  (%rdi), %xmm0
 	movdqu  (%rsi), %xmm1
 	pxor    %xmm1, %xmm0
 	movdqu  %xmm0, (%rsi)
 	RET
-.size	gcm_xor_avx,.-gcm_xor_avx
+SET_SIZE(gcm_xor_avx)
 
 /*
  * Toggle a boolean_t value atomically and return the new value.
  * boolean_t atomic_toggle_boolean_nv(volatile boolean_t *);
  */
-.globl	atomic_toggle_boolean_nv
-.type	atomic_toggle_boolean_nv,@function
-.align	32
-atomic_toggle_boolean_nv:
+ENTRY_ALIGN(atomic_toggle_boolean_nv, 32)
 	xorl	%eax, %eax
 	lock
 	xorl	$1, (%rdi)
@@ -1245,10 +1238,11 @@ atomic_toggle_boolean_nv:
 	movl	$1, %eax
 1:
 	RET
-.size	atomic_toggle_boolean_nv,.-atomic_toggle_boolean_nv
+SET_SIZE(atomic_toggle_boolean_nv)
 
-.pushsection .rodata
-.align	64
+SECTION_STATIC
+
+.balign	64
 .Lbswap_mask:
 .byte	15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0
 .Lpoly:
@@ -1260,8 +1254,7 @@ atomic_toggle_boolean_nv:
 .Lone_lsb:
 .byte	1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 .byte	65,69,83,45,78,73,32,71,67,77,32,109,111,100,117,108,101,32,102,111,114,32,120,56,54,95,54,52,44,32,67,82,89,80,84,79,71,65,77,83,32,98,121,32,60,97,112,112,114,111,64,111,112,101,110,115,115,108,46,111,114,103,62,0
-.align	64
-.popsection
+.balign	64
 
 /* Mark the stack non-executable. */
 #if defined(__linux__) && defined(__ELF__)

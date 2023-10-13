@@ -501,7 +501,7 @@ main(int argc, char *argv[])
 	srandom(seed);
 
 	zfs_btree_init();
-	zfs_btree_create(&bt, zfs_btree_compare, sizeof (uint64_t));
+	zfs_btree_create(&bt, zfs_btree_compare, NULL, sizeof (uint64_t));
 
 	/*
 	 * This runs the named negative test. None of them should

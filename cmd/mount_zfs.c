@@ -74,7 +74,7 @@ parse_dataset(const char *target, char **dataset)
 
 	nvlist_t *cfg = NULL;
 	if (zpool_read_label(fd, &cfg, NULL) == 0) {
-		char *nm = NULL;
+		const char *nm = NULL;
 		if (!nvlist_lookup_string(cfg, ZPOOL_CONFIG_POOL_NAME, &nm))
 			strlcpy(*dataset, nm, PATH_MAX);
 		nvlist_free(cfg);

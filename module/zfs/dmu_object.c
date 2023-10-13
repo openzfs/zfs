@@ -409,6 +409,8 @@ dmu_object_next(objset_t *os, uint64_t *objectp, boolean_t hole, uint64_t txg)
 		 * hand off to dnode_next_offset() for further scanning.
 		 */
 		while (i <= last_obj) {
+			if (i == 0)
+				return (SET_ERROR(ESRCH));
 			error = dmu_object_info(os, i, &doi);
 			if (error == ENOENT) {
 				if (hole) {

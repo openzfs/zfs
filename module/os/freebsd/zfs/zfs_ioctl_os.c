@@ -59,7 +59,7 @@ zfs_vfs_ref(zfsvfs_t **zfvp)
 	return (error);
 }
 
-int
+boolean_t
 zfs_vfs_held(zfsvfs_t *zfsvfs)
 {
 	return (zfsvfs->z_vfs != NULL);
@@ -99,7 +99,7 @@ zfs_ioc_nextboot(const char *unused, nvlist_t *innvl, nvlist_t *outnvl)
 	char name[MAXNAMELEN];
 	spa_t *spa;
 	vdev_t *vd;
-	char *command;
+	const char *command;
 	uint64_t pool_guid;
 	uint64_t vdev_guid;
 	int error;

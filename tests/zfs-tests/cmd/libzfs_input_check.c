@@ -27,6 +27,7 @@
 #include <sys/vdev_impl.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/zfs_bootenv.h>
+#include <sys/fs/zfs.h>
 
 /*
  * Test the nvpair inputs for the non-legacy zfs ioctl commands.
@@ -563,7 +564,7 @@ test_recv_new(const char *dataset, int fd)
 	fnvlist_add_uint64(optional, "action_handle", *action_handle);
 #endif
 	IOC_INPUT_TEST(ZFS_IOC_RECV_NEW, dataset, required, optional,
-	    ZFS_ERR_STREAM_TRUNCATED);
+	    ENOTSUP);
 
 	nvlist_free(props);
 	nvlist_free(optional);
@@ -685,6 +686,17 @@ test_vdev_trim(const char *pool)
 	IOC_INPUT_TEST(ZFS_IOC_POOL_TRIM, pool, required, optional, EINVAL);
 	nvlist_free(vdev_guids);
 	nvlist_free(optional);
+	nvlist_free(required);
+}
+
+/* Test with invalid values */
+static void
+test_scrub(const char *pool)
+{
+	nvlist_t *required = fnvlist_alloc();
+	fnvlist_add_uint64(required, "scan_type", POOL_SCAN_FUNCS + 1);
+	fnvlist_add_uint64(required, "scan_command", POOL_SCRUB_FLAGS_END + 1);
+	IOC_INPUT_TEST(ZFS_IOC_POOL_SCRUB, pool, required, NULL, EINVAL);
 	nvlist_free(required);
 }
 
@@ -868,6 +880,8 @@ zfs_ioc_input_tests(const char *pool)
 	test_set_bootenv(pool);
 	test_get_bootenv(pool);
 
+	test_scrub(pool);
+
 	/*
 	 * cleanup
 	 */
@@ -1022,6 +1036,7 @@ validate_ioc_values(void)
 	CHECK(ZFS_IOC_BASE + 82 == ZFS_IOC_GET_BOOKMARK_PROPS);
 	CHECK(ZFS_IOC_BASE + 83 == ZFS_IOC_WAIT);
 	CHECK(ZFS_IOC_BASE + 84 == ZFS_IOC_WAIT_FS);
+	CHECK(ZFS_IOC_BASE + 87 == ZFS_IOC_POOL_SCRUB);
 	CHECK(ZFS_IOC_PLATFORM_BASE + 1 == ZFS_IOC_EVENTS_NEXT);
 	CHECK(ZFS_IOC_PLATFORM_BASE + 2 == ZFS_IOC_EVENTS_CLEAR);
 	CHECK(ZFS_IOC_PLATFORM_BASE + 3 == ZFS_IOC_EVENTS_SEEK);

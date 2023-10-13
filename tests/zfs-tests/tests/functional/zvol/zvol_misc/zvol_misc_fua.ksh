@@ -45,6 +45,15 @@ fi
 
 if ! is_linux ; then
 	log_unsupported "Only linux supports dd with oflag=dsync for FUA writes"
+else
+	if [[ $(linux_version) -gt $(linux_version "6.2") ]]; then
+		log_unsupported "Disabled while issue #14872 is being worked"
+	fi
+
+	# Disabled for the CentOS 9 kernel
+	if [[ $(linux_version) -eq $(linux_version "5.14") ]]; then
+		log_unsupported "Disabled while issue #14872 is being worked"
+	fi
 fi
 
 typeset datafile1="$(mktemp zvol_misc_fua1.XXXXXX)"

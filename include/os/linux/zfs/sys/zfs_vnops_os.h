@@ -46,25 +46,29 @@ extern int zfs_lookup(znode_t *dzp, char *nm, znode_t **zpp, int flags,
     cred_t *cr, int *direntflags, pathname_t *realpnp);
 extern int zfs_create(znode_t *dzp, char *name, vattr_t *vap, int excl,
     int mode, znode_t **zpp, cred_t *cr, int flag, vsecattr_t *vsecp,
-    zuserns_t *mnt_ns);
+    zidmap_t *mnt_ns);
 extern int zfs_tmpfile(struct inode *dip, vattr_t *vapzfs, int excl,
     int mode, struct inode **ipp, cred_t *cr, int flag, vsecattr_t *vsecp,
-    zuserns_t *mnt_ns);
+    zidmap_t *mnt_ns);
 extern int zfs_remove(znode_t *dzp, char *name, cred_t *cr, int flags);
 extern int zfs_mkdir(znode_t *dzp, char *dirname, vattr_t *vap,
-    znode_t **zpp, cred_t *cr, int flags, vsecattr_t *vsecp, zuserns_t *mnt_ns);
+    znode_t **zpp, cred_t *cr, int flags, vsecattr_t *vsecp, zidmap_t *mnt_ns);
 extern int zfs_rmdir(znode_t *dzp, char *name, znode_t *cwd,
     cred_t *cr, int flags);
 extern int zfs_readdir(struct inode *ip, zpl_dir_context_t *ctx, cred_t *cr);
-extern int zfs_getattr_fast(struct user_namespace *, struct inode *ip,
-	struct kstat *sp);
+#ifdef HAVE_GENERIC_FILLATTR_IDMAP_REQMASK
+extern int zfs_getattr_fast(zidmap_t *, u32 request_mask, struct inode *ip,
+    struct kstat *sp);
+#else
+extern int zfs_getattr_fast(zidmap_t *, struct inode *ip, struct kstat *sp);
+#endif
 extern int zfs_setattr(znode_t *zp, vattr_t *vap, int flag, cred_t *cr,
-    zuserns_t *mnt_ns);
+    zidmap_t *mnt_ns);
 extern int zfs_rename(znode_t *sdzp, char *snm, znode_t *tdzp,
     char *tnm, cred_t *cr, int flags, uint64_t rflags, vattr_t *wo_vap,
-    zuserns_t *mnt_ns);
+    zidmap_t *mnt_ns);
 extern int zfs_symlink(znode_t *dzp, char *name, vattr_t *vap,
-    char *link, znode_t **zpp, cred_t *cr, int flags, zuserns_t *mnt_ns);
+    char *link, znode_t **zpp, cred_t *cr, int flags, zidmap_t *mnt_ns);
 extern int zfs_readlink(struct inode *ip, zfs_uio_t *uio, cred_t *cr);
 extern int zfs_link(znode_t *tdzp, znode_t *szp,
     char *name, cred_t *cr, int flags);
@@ -72,7 +76,7 @@ extern void zfs_inactive(struct inode *ip);
 extern int zfs_space(znode_t *zp, int cmd, flock64_t *bfp, int flag,
     offset_t offset, cred_t *cr);
 extern int zfs_fid(struct inode *ip, fid_t *fidp);
-extern int zfs_getpage(struct inode *ip, struct page *pl[], int nr_pages);
+extern int zfs_getpage(struct inode *ip, struct page *pp);
 extern int zfs_putpage(struct inode *ip, struct page *pp,
     struct writeback_control *wbc, boolean_t for_sync);
 extern int zfs_dirty_inode(struct inode *ip, int flags);

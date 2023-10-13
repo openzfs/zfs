@@ -244,6 +244,8 @@ typedef struct gcm_ctx {
 #define	AES_GMAC_IV_LEN		12
 #define	AES_GMAC_TAG_BITS	128
 
+void gcm_clear_ctx(gcm_ctx_t *ctx);
+
 typedef struct aes_ctx {
 	union {
 		ecb_ctx_t acu_ecb;

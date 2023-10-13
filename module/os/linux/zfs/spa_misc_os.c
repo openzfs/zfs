@@ -103,6 +103,18 @@ param_set_slop_shift(const char *buf, zfs_kernel_param_t *kp)
 	return (0);
 }
 
+int
+param_set_active_allocator(const char *val, zfs_kernel_param_t *kp)
+{
+	int error;
+
+	error = -param_set_active_allocator_common(val);
+	if (error == 0)
+		error = param_set_charp(val, kp);
+
+	return (error);
+}
+
 const char *
 spa_history_zone(void)
 {

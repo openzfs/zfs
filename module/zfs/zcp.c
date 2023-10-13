@@ -544,7 +544,7 @@ zcp_nvpair_value_to_lua(lua_State *state, nvpair_t *pair,
 		    fnvpair_value_nvlist(pair), errbuf, errbuf_len);
 		break;
 	case DATA_TYPE_STRING_ARRAY: {
-		char **strarr;
+		const char **strarr;
 		uint_t nelem;
 		(void) nvpair_value_string_array(pair, &strarr, &nelem);
 		lua_newtable(state);

@@ -54,7 +54,7 @@
 #ifdef PPC64_ELF_ABI_v2
 
 #define	ENTRY(name) \
-	.align 2 ; \
+	.balign 2 ; \
 	.type name,@function; \
 	.weak name; \
 name:
@@ -64,7 +64,7 @@ name:
 #define	XGLUE(a,b) a##b
 #define	GLUE(a,b) XGLUE(a,b)
 #define	ENTRY(name) \
-	.align 2 ; \
+	.balign 2 ; \
 	.weak name; \
 	.weak GLUE(.,name); \
 	.pushsection ".opd","aw"; \

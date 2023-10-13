@@ -30,6 +30,10 @@
 
 /* Portions Copyright 2010 Robert Milkowski */
 
+#if defined(_KERNEL)
+#include <sys/simd.h>
+#endif
+
 #include <sys/zio.h>
 #include <sys/spa.h>
 #include <sys/u8_textprep.h>
@@ -1036,8 +1040,6 @@ zfs_prop_align_right(zfs_prop_t prop)
 #endif
 
 #if defined(_KERNEL)
-
-#include <sys/simd.h>
 
 #if defined(HAVE_KERNEL_FPU_INTERNAL)
 uint8_t **zfs_kfpu_fpregs;

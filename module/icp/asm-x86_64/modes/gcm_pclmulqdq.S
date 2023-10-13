@@ -101,8 +101,8 @@ gcm_mul_pclmulqdq(uint64_t *x_in, uint64_t *y, uint64_t *res) {
 
 // static uint8_t byte_swap16_mask[] = {
 //	 15, 14, 13, 12, 11, 10, 9, 8, 7, 6 ,5, 4, 3, 2, 1, 0 };
-.section .rodata
-.align XMM_ALIGN
+SECTION_STATIC
+.balign XMM_ALIGN
 .Lbyte_swap16_mask:
 	.byte	15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
 

@@ -98,11 +98,26 @@ function test_share # filesystem
 
 	zfs set sharenfs=on $filesystem || \
 	    sub_fail "zfs set sharenfs=on $filesystem failed."
-	is_shared $mntp || \
-	    sub_fail "File system $filesystem is not shared (set sharenfs)."
 
 	#
-	# Verify 'zfs share' works as well.
+	# Verify 'zfs share' results in a shared mount.  We check this
+	# multiple times because of Fedora 37+ it's been observed in
+	# the CI that the share may not be immediately reported.
+	#
+	for retry in $(seq 1 10); do
+		is_shared $mntp && break
+
+		log_note "Wait $retry / 10 for is_shared $mntp (set sharenfs)"
+
+		if [[ $retry -eq 10 ]]; then
+			sub_fail "File system $filesystem is not shared (set sharenfs)."
+		fi
+
+		sleep 1
+	done
+
+	#
+	# Verify 'zfs unshare' works as well.
 	#
 	zfs unshare $filesystem || \
 	    sub_fail "zfs unshare $filesystem failed."
@@ -112,9 +127,23 @@ function test_share # filesystem
 
 	zfs share $filesystem || \
 	    sub_fail "zfs share $filesystem failed."
-	is_shared $mntp || \
-	    sub_fail "file system $filesystem is not shared (zfs share)."
 
+	#
+	# Verify 'zfs share' results in a shared mount.  We check this
+	# multiple times because of Fedora 37+ it's been observed in
+	# the CI that the share may not be immediately reported.
+	#
+	for retry in $(seq 1 10); do
+		is_shared $mntp && break
+
+		log_note "Wait $retry / 10 for is_shared $mntp (zfs share)"
+
+		if [[ $retry -eq 10 ]]; then
+			sub_fail "File system $filesystem is not shared (zfs share)."
+		fi
+
+		sleep 1
+	done
 
 	#log_note "Sharing a shared file system fails."
 	zfs share $filesystem && \

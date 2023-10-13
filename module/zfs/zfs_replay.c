@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012 Cyril Plisko. All rights reserved.
  * Copyright (c) 2013, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2021, 2022 by Pawel Jakub Dawidek
  */
 
 #include <sys/types.h>
@@ -388,7 +389,7 @@ zfs_replay_create_acl(void *arg1, void *arg2, boolean_t byteswap)
 
 #if defined(__linux__)
 		error = zfs_create(dzp, name, &xva.xva_vattr,
-		    0, 0, &zp, kcred, vflg, &vsec, kcred->user_ns);
+		    0, 0, &zp, kcred, vflg, &vsec, zfs_init_idmap);
 #else
 		error = zfs_create(dzp, name, &xva.xva_vattr,
 		    0, 0, &zp, kcred, vflg, &vsec, NULL);
@@ -423,7 +424,7 @@ zfs_replay_create_acl(void *arg1, void *arg2, boolean_t byteswap)
 		}
 #if defined(__linux__)
 		error = zfs_mkdir(dzp, name, &xva.xva_vattr,
-		    &zp, kcred, vflg, &vsec, kcred->user_ns);
+		    &zp, kcred, vflg, &vsec, zfs_init_idmap);
 #else
 		error = zfs_mkdir(dzp, name, &xva.xva_vattr,
 		    &zp, kcred, vflg, &vsec, NULL);
@@ -512,9 +513,9 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 	 *
 	 * The _ATTR versions will grab the fuid info in their subcases.
 	 */
-	if ((int)lr->lr_common.lrc_txtype != TX_SYMLINK &&
-	    (int)lr->lr_common.lrc_txtype != TX_MKDIR_ATTR &&
-	    (int)lr->lr_common.lrc_txtype != TX_CREATE_ATTR) {
+	if (txtype != TX_SYMLINK &&
+	    txtype != TX_MKDIR_ATTR &&
+	    txtype != TX_CREATE_ATTR) {
 		start = (lr + 1);
 		zfsvfs->z_fuid_replay =
 		    zfs_replay_fuid_domain(start, &start,
@@ -539,7 +540,7 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 
 #if defined(__linux__)
 		error = zfs_create(dzp, name, &xva.xva_vattr,
-		    0, 0, &zp, kcred, vflg, NULL, kcred->user_ns);
+		    0, 0, &zp, kcred, vflg, NULL, zfs_init_idmap);
 #else
 		error = zfs_create(dzp, name, &xva.xva_vattr,
 		    0, 0, &zp, kcred, vflg, NULL, NULL);
@@ -562,7 +563,7 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 
 #if defined(__linux__)
 		error = zfs_mkdir(dzp, name, &xva.xva_vattr,
-		    &zp, kcred, vflg, NULL, kcred->user_ns);
+		    &zp, kcred, vflg, NULL, zfs_init_idmap);
 #else
 		error = zfs_mkdir(dzp, name, &xva.xva_vattr,
 		    &zp, kcred, vflg, NULL, NULL);
@@ -577,7 +578,7 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 		link = name + strlen(name) + 1;
 #if defined(__linux__)
 		error = zfs_symlink(dzp, name, &xva.xva_vattr,
-		    link, &zp, kcred, vflg, kcred->user_ns);
+		    link, &zp, kcred, vflg, zfs_init_idmap);
 #else
 		error = zfs_symlink(dzp, name, &xva.xva_vattr,
 		    link, &zp, kcred, vflg, NULL);
@@ -698,7 +699,7 @@ do_zfs_replay_rename(zfsvfs_t *zfsvfs, lr_rename_t *lr, char *sname,
 
 #if defined(__linux__)
 	error = zfs_rename(sdzp, sname, tdzp, tname, kcred, vflg, rflags,
-	    wo_vap, kcred->user_ns);
+	    wo_vap, zfs_init_idmap);
 #else
 	error = zfs_rename(sdzp, sname, tdzp, tname, kcred, vflg, rflags,
 	    wo_vap, NULL);
@@ -976,7 +977,7 @@ zfs_replay_setattr(void *arg1, void *arg2, boolean_t byteswap)
 	    lr->lr_uid, lr->lr_gid);
 
 #if defined(__linux__)
-	error = zfs_setattr(zp, vap, 0, kcred, kcred->user_ns);
+	error = zfs_setattr(zp, vap, 0, kcred, zfs_init_idmap);
 #else
 	error = zfs_setattr(zp, vap, 0, kcred, NULL);
 #endif
@@ -1162,6 +1163,34 @@ zfs_replay_acl(void *arg1, void *arg2, boolean_t byteswap)
 	return (error);
 }
 
+static int
+zfs_replay_clone_range(void *arg1, void *arg2, boolean_t byteswap)
+{
+	zfsvfs_t *zfsvfs = arg1;
+	lr_clone_range_t *lr = arg2;
+	znode_t *zp;
+	int error;
+
+	if (byteswap)
+		byteswap_uint64_array(lr, sizeof (*lr));
+
+	if ((error = zfs_zget(zfsvfs, lr->lr_foid, &zp)) != 0) {
+		/*
+		 * Clones can be logged out of order, so don't be surprised if
+		 * the file is gone - just return success.
+		 */
+		if (error == ENOENT)
+			error = 0;
+		return (error);
+	}
+
+	error = zfs_clone_range_replay(zp, lr->lr_offset, lr->lr_length,
+	    lr->lr_blksz, lr->lr_bps, lr->lr_nbps);
+
+	zrele(zp);
+	return (error);
+}
+
 /*
  * Callback vectors for replaying records
  */
@@ -1190,4 +1219,5 @@ zil_replay_func_t *const zfs_replay_vector[TX_MAX_TYPE] = {
 	zfs_replay_setsaxattr,	/* TX_SETSAXATTR */
 	zfs_replay_rename_exchange,	/* TX_RENAME_EXCHANGE */
 	zfs_replay_rename_whiteout,	/* TX_RENAME_WHITEOUT */
+	zfs_replay_clone_range,	/* TX_CLONE_RANGE */
 };

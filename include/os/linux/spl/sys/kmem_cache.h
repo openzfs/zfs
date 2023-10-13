@@ -98,9 +98,6 @@ extern struct rw_semaphore spl_kmem_cache_sem;
 #define	SPL_MAX_KMEM_ORDER_NR_PAGES	(KMALLOC_MAX_SIZE >> PAGE_SHIFT)
 #endif
 
-#define	POINTER_IS_VALID(p)		0	/* Unimplemented */
-#define	POINTER_INVALIDATE(pp)			/* Unimplemented */
-
 typedef int (*spl_kmem_ctor_t)(void *, void *, int);
 typedef void (*spl_kmem_dtor_t)(void *, void *);
 
@@ -201,6 +198,14 @@ extern uint64_t spl_kmem_cache_entry_size(kmem_cache_t *cache);
     spl_kmem_cache_create(name, size, align, ctor, dtor, rclm, priv, vmp, fl)
 #define	kmem_cache_set_move(skc, move)	spl_kmem_cache_set_move(skc, move)
 #define	kmem_cache_destroy(skc)		spl_kmem_cache_destroy(skc)
+/*
+ * This is necessary to be compatible with other kernel modules
+ * or in-tree filesystem that may define kmem_cache_alloc,
+ * like bcachefs does it now.
+ */
+#ifdef kmem_cache_alloc
+#undef kmem_cache_alloc
+#endif
 #define	kmem_cache_alloc(skc, flags)	spl_kmem_cache_alloc(skc, flags)
 #define	kmem_cache_free(skc, obj)	spl_kmem_cache_free(skc, obj)
 #define	kmem_cache_reap_now(skc)	spl_kmem_cache_reap_now(skc)

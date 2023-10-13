@@ -62,7 +62,7 @@ static const char *const criteria_name[] = {
 static void
 print_ereport_line(nvlist_t *nvl)
 {
-	char *class;
+	const char *class;
 	int last = CRITERIA_NAMES_COUNT - 1;
 
 	/*
@@ -81,7 +81,7 @@ print_ereport_line(nvlist_t *nvl)
 		nvpair_t *nvp;
 		uint32_t i32 = 0;
 		uint64_t i64 = 0;
-		char *str = NULL;
+		const char *str = NULL;
 
 		if (nvlist_lookup_nvpair(nvl, criteria_name[i], &nvp) != 0) {
 			/* print a proxy for optional criteria */

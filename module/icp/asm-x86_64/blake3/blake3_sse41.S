@@ -31,17 +31,10 @@
 #include <sys/asm_linkage.h>
 
 .intel_syntax noprefix
-.global zfs_blake3_compress_in_place_sse41
-.global zfs_blake3_compress_xof_sse41
-.global zfs_blake3_hash_many_sse41
 
 .text
-.type zfs_blake3_hash_many_sse41,@function
-.type zfs_blake3_compress_in_place_sse41,@function
-.type zfs_blake3_compress_xof_sse41,@function
 
-.p2align  6
-zfs_blake3_hash_many_sse41:
+ENTRY_ALIGN(zfs_blake3_hash_many_sse41, 64)
         ENDBR
         push    r15
         push    r14
@@ -1800,8 +1793,9 @@ zfs_blake3_hash_many_sse41:
         movups  xmmword ptr [rbx], xmm0
         movups  xmmword ptr [rbx+0x10], xmm1
         jmp     4b
-.p2align 6
-zfs_blake3_compress_in_place_sse41:
+SET_SIZE(zfs_blake3_hash_many_sse41)
+
+ENTRY_ALIGN(zfs_blake3_compress_in_place_sse41, 64)
         ENDBR
         movups  xmm0, xmmword ptr [rdi]
         movups  xmm1, xmmword ptr [rdi+0x10]
@@ -1899,8 +1893,9 @@ zfs_blake3_compress_in_place_sse41:
         movups  xmmword ptr [rdi], xmm0
         movups  xmmword ptr [rdi+0x10], xmm1
         RET
-.p2align 6
-zfs_blake3_compress_xof_sse41:
+SET_SIZE(zfs_blake3_compress_in_place_sse41)
+
+ENTRY_ALIGN(zfs_blake3_compress_xof_sse41, 64)
         ENDBR
         movups  xmm0, xmmword ptr [rdi]
         movups  xmm1, xmmword ptr [rdi+0x10]
@@ -2006,16 +2001,10 @@ zfs_blake3_compress_xof_sse41:
         movups  xmmword ptr [r9+0x20], xmm2
         movups  xmmword ptr [r9+0x30], xmm3
         RET
+SET_SIZE(zfs_blake3_compress_xof_sse41)
 
-.size zfs_blake3_hash_many_sse41, . - zfs_blake3_hash_many_sse41
-.size zfs_blake3_compress_in_place_sse41, . - zfs_blake3_compress_in_place_sse41
-.size zfs_blake3_compress_xof_sse41, . - zfs_blake3_compress_xof_sse41
+SECTION_STATIC
 
-#ifdef __APPLE__
-.static_data
-#else
-.section .rodata
-#endif
 .p2align  6
 BLAKE3_IV:
         .long  0x6A09E667, 0xBB67AE85
@@ -2024,7 +2013,7 @@ ROT16:
         .byte  2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 14, 15, 12, 13
 ROT8:
         .byte  1, 2, 3, 0, 5, 6, 7, 4, 9, 10, 11, 8, 13, 14, 15, 12
-ADD0:	
+ADD0:
         .long  0, 1, 2, 3
 ADD1:
 	.long  4, 4, 4, 4

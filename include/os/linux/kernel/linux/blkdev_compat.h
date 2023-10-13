@@ -181,7 +181,11 @@ bi_status_to_errno(blk_status_t status)
 		return (ENOLINK);
 	case BLK_STS_TARGET:
 		return (EREMOTEIO);
+#ifdef HAVE_BLK_STS_RESV_CONFLICT
+	case BLK_STS_RESV_CONFLICT:
+#else
 	case BLK_STS_NEXUS:
+#endif
 		return (EBADE);
 	case BLK_STS_MEDIUM:
 		return (ENODATA);
@@ -215,7 +219,11 @@ errno_to_bi_status(int error)
 	case EREMOTEIO:
 		return (BLK_STS_TARGET);
 	case EBADE:
+#ifdef HAVE_BLK_STS_RESV_CONFLICT
+		return (BLK_STS_RESV_CONFLICT);
+#else
 		return (BLK_STS_NEXUS);
+#endif
 	case ENODATA:
 		return (BLK_STS_MEDIUM);
 	case EILSEQ:
@@ -337,6 +345,9 @@ zfs_check_media_change(struct block_device *bdev)
 	return (0);
 }
 #define	vdev_bdev_reread_part(bdev)	zfs_check_media_change(bdev)
+#elif defined(HAVE_DISK_CHECK_MEDIA_CHANGE)
+#define	vdev_bdev_reread_part(bdev)	disk_check_media_change(bdev->bd_disk)
+#define	zfs_check_media_change(bdev)	disk_check_media_change(bdev->bd_disk)
 #else
 /*
  * This is encountered if check_disk_change() and bdev_check_media_change()
@@ -387,6 +398,12 @@ vdev_lookup_bdev(const char *path, dev_t *dev)
 #endif
 }
 
+#if defined(HAVE_BLK_MODE_T)
+#define	blk_mode_is_open_write(flag)	((flag) & BLK_OPEN_WRITE)
+#else
+#define	blk_mode_is_open_write(flag)	((flag) & FMODE_WRITE)
+#endif
+
 /*
  * Kernels without bio_set_op_attrs use bi_rw for the bio flags.
  */
@@ -426,7 +443,7 @@ static inline void
 bio_set_flush(struct bio *bio)
 {
 #if defined(HAVE_REQ_PREFLUSH)	/* >= 4.10 */
-	bio_set_op_attrs(bio, 0, REQ_PREFLUSH);
+	bio_set_op_attrs(bio, 0, REQ_PREFLUSH | REQ_OP_WRITE);
 #elif defined(WRITE_FLUSH_FUA)	/* >= 2.6.37 and <= 4.9 */
 	bio_set_op_attrs(bio, 0, WRITE_FLUSH_FUA);
 #else
@@ -592,7 +609,10 @@ blk_generic_start_io_acct(struct request_queue *q __attribute__((unused)),
     struct gendisk *disk __attribute__((unused)),
     int rw __attribute__((unused)), struct bio *bio)
 {
-#if defined(HAVE_BDEV_IO_ACCT)
+#if defined(HAVE_BDEV_IO_ACCT_63)
+	return (bdev_start_io_acct(bio->bi_bdev, bio_op(bio),
+	    jiffies));
+#elif defined(HAVE_BDEV_IO_ACCT_OLD)
 	return (bdev_start_io_acct(bio->bi_bdev, bio_sectors(bio),
 	    bio_op(bio), jiffies));
 #elif defined(HAVE_DISK_IO_ACCT)
@@ -618,7 +638,10 @@ blk_generic_end_io_acct(struct request_queue *q __attribute__((unused)),
     struct gendisk *disk __attribute__((unused)),
     int rw __attribute__((unused)), struct bio *bio, unsigned long start_time)
 {
-#if defined(HAVE_BDEV_IO_ACCT)
+#if defined(HAVE_BDEV_IO_ACCT_63)
+	bdev_end_io_acct(bio->bi_bdev, bio_op(bio), bio_sectors(bio),
+	    start_time);
+#elif defined(HAVE_BDEV_IO_ACCT_OLD)
 	bdev_end_io_acct(bio->bi_bdev, bio_op(bio), start_time);
 #elif defined(HAVE_DISK_IO_ACCT)
 	disk_end_io_acct(disk, bio_op(bio), start_time);

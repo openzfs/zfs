@@ -39,6 +39,7 @@ conf="$TESTDIR/vz006"
 log_must eval "zdb -PC $TESTPOOL > $conf"
 
 assert_has_sentinel "$conf"
+assert_root_zap $TESTPOOL "$conf"
 orig_top=$(get_top_vd_zap ${DISK_ARR[1]} $conf)
 assert_zap_common $TESTPOOL ${DISK_ARR[1]} "top" $orig_top
 assert_leaf_zap $TESTPOOL ${DISK_ARR[1]} "$conf"

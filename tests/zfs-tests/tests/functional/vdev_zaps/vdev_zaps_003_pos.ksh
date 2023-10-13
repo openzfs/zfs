@@ -37,6 +37,7 @@ conf="$TESTDIR/vz003"
 log_must eval "zdb -PC $TESTPOOL > $conf"
 
 assert_has_sentinel "$conf"
+assert_root_zap $TESTPOOL "$conf"
 assert_top_zap $TESTPOOL "type: 'mirror'" "$conf"
 for DISK in $DISKS; do
 	assert_leaf_zap $TESTPOOL $DISK "$conf"

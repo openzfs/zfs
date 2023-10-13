@@ -145,6 +145,7 @@ dist_zpoolcompat_DATA = \
 	%D%/compatibility.d/openzfs-2.0-linux \
 	%D%/compatibility.d/openzfs-2.1-freebsd \
 	%D%/compatibility.d/openzfs-2.1-linux \
+	%D%/compatibility.d/openzfs-2.2 \
 	%D%/compatibility.d/openzfsonosx-1.7.0 \
 	%D%/compatibility.d/openzfsonosx-1.8.1 \
 	%D%/compatibility.d/openzfsonosx-1.9.3 \
@@ -168,12 +169,20 @@ zpoolcompatlinks = \
 	"freebsd-11.3		freebsd-12.0" \
 	"freebsd-11.3		freebsd-12.1" \
 	"freebsd-11.3		freebsd-12.2" \
+	"freebsd-11.3		freebsd-12.3" \
+	"freebsd-11.3		freebsd-12.4" \
+	"openzfs-2.1-freebsd	freebsd-13.0" \
+	"openzfs-2.1-freebsd	freebsd-13.1" \
+	"openzfs-2.1-freebsd	freebsd-13.2" \
 	"freebsd-11.3		freenas-11.3" \
 	"freenas-11.0		freenas-11.1" \
 	"openzfsonosx-1.9.3	openzfsonosx-1.9.4" \
 	"openzfs-2.0-freebsd	truenas-12.0" \
 	"zol-0.7		ubuntu-18.04" \
-	"zol-0.8		ubuntu-20.04"
+	"zol-0.8		ubuntu-20.04" \
+	"openzfs-2.1-linux	ubuntu-22.04" \
+	"openzfs-2.2		openzfs-2.2-linux" \
+	"openzfs-2.2		openzfs-2.2-freebsd"
 
 zpoolconfdir = $(sysconfdir)/zfs/zpool.d
 INSTALL_DATA_HOOKS += zpool-install-data-hook

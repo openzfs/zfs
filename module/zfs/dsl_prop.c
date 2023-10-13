@@ -123,7 +123,7 @@ dsl_prop_get_dd(dsl_dir_t *dd, const char *propname,
 		/* Check for a iuv value. */
 		err = zap_lookup(mos, dsl_dir_phys(dd)->dd_props_zapobj,
 		    iuvstr, intsz, numints, buf);
-		if (dsl_prop_known_index(zfs_name_to_prop(propname),
+		if (err == 0 && dsl_prop_known_index(prop,
 		    *(uint64_t *)buf) != 1)
 			err = ENOENT;
 		if (err != ENOENT) {
@@ -956,7 +956,7 @@ dsl_props_set_check(void *arg, dmu_tx_t *tx)
 			return (SET_ERROR(ENAMETOOLONG));
 		}
 		if (nvpair_type(elem) == DATA_TYPE_STRING) {
-			char *valstr = fnvpair_value_string(elem);
+			const char *valstr = fnvpair_value_string(elem);
 			if (strlen(valstr) >= (version <
 			    SPA_VERSION_STMF_PROP ?
 			    ZAP_OLDMAXVALUELEN : ZAP_MAXVALUELEN)) {

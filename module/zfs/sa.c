@@ -1201,6 +1201,7 @@ sa_attr_iter(objset_t *os, sa_hdr_phys_t *hdr, dmu_object_type_t type,
 		uint8_t idx_len;
 
 		reg_length = sa->sa_attr_table[tb->lot_attrs[i]].sa_length;
+		IMPLY(reg_length == 0, IS_SA_BONUSTYPE(type));
 		if (reg_length) {
 			attr_length = reg_length;
 			idx_len = 0;
@@ -1917,7 +1918,7 @@ sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
 	count = bonus_attr_count;
 	hdr = SA_GET_HDR(hdl, SA_BONUS);
 	idx_tab = SA_IDX_TAB_GET(hdl, SA_BONUS);
-	for (; k != 2; k++) {
+	for (; ; k++) {
 		/*
 		 * Iterate over each attribute in layout.  Fetch the
 		 * size of variable-length attributes needing rewrite

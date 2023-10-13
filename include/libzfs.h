@@ -125,11 +125,14 @@ typedef enum zfs_error {
 	EZFS_THREADCREATEFAILED, /* thread create failed */
 	EZFS_POSTSPLIT_ONLINE,	/* onlining a disk after splitting it */
 	EZFS_SCRUBBING,		/* currently scrubbing */
+	EZFS_ERRORSCRUBBING,	/* currently error scrubbing */
+	EZFS_ERRORSCRUB_PAUSED,	/* error scrub currently paused */
 	EZFS_NO_SCRUB,		/* no active scrub */
 	EZFS_DIFF,		/* general failure of zfs diff */
 	EZFS_DIFFDATA,		/* bad zfs diff data */
 	EZFS_POOLREADONLY,	/* pool is in read-only mode */
 	EZFS_SCRUB_PAUSED,	/* scrub currently paused */
+	EZFS_SCRUB_PAUSED_TO_CANCEL,	/* scrub currently paused */
 	EZFS_ACTIVE_POOL,	/* pool is imported on a different system */
 	EZFS_CRYPTOFAILED,	/* failed to setup encryption */
 	EZFS_NO_PENDING,	/* cannot cancel, no operation is pending */
@@ -153,6 +156,7 @@ typedef enum zfs_error {
 	EZFS_NOT_USER_NAMESPACE,	/* a file is not a user namespace */
 	EZFS_CKSUM,		/* insufficient replicas */
 	EZFS_RESUME_EXISTS,	/* Resume on existing dataset without force */
+	EZFS_SHAREFAILED,	/* filesystem share failed */
 	EZFS_UNKNOWN
 } zfs_error_t;
 
@@ -322,6 +326,15 @@ _LIBZFS_H nvlist_t *zpool_find_vdev_by_physpath(zpool_handle_t *, const char *,
     boolean_t *, boolean_t *, boolean_t *);
 _LIBZFS_H int zpool_label_disk(libzfs_handle_t *, zpool_handle_t *,
     const char *);
+_LIBZFS_H int zpool_prepare_disk(zpool_handle_t *zhp, nvlist_t *vdev_nv,
+    const char *prepare_str, char **lines[], int *lines_cnt);
+_LIBZFS_H int zpool_prepare_and_label_disk(libzfs_handle_t *hdl,
+    zpool_handle_t *, const char *, nvlist_t *vdev_nv, const char *prepare_str,
+    char **lines[], int *lines_cnt);
+_LIBZFS_H char ** zpool_vdev_script_alloc_env(const char *pool_name,
+    const char *vdev_path, const char *vdev_upath,
+    const char *vdev_enc_sysfs_path, const char *opt_key, const char *opt_val);
+_LIBZFS_H void zpool_vdev_script_free_env(char **env);
 _LIBZFS_H uint64_t zpool_vdev_path_to_guid(zpool_handle_t *zhp,
     const char *path);
 
@@ -333,6 +346,8 @@ _LIBZFS_H const char *zpool_get_state_str(zpool_handle_t *);
 _LIBZFS_H int zpool_set_prop(zpool_handle_t *, const char *, const char *);
 _LIBZFS_H int zpool_get_prop(zpool_handle_t *, zpool_prop_t, char *,
     size_t proplen, zprop_source_t *, boolean_t literal);
+_LIBZFS_H int zpool_get_userprop(zpool_handle_t *, const char *, char *,
+    size_t proplen, zprop_source_t *);
 _LIBZFS_H uint64_t zpool_get_prop_int(zpool_handle_t *, zpool_prop_t,
     zprop_source_t *);
 _LIBZFS_H int zpool_props_refresh(zpool_handle_t *);
@@ -517,6 +532,7 @@ _LIBZFS_H nvlist_t *zfs_valid_proplist(libzfs_handle_t *, zfs_type_t,
 _LIBZFS_H const char *zfs_prop_to_name(zfs_prop_t);
 _LIBZFS_H int zfs_prop_set(zfs_handle_t *, const char *, const char *);
 _LIBZFS_H int zfs_prop_set_list(zfs_handle_t *, nvlist_t *);
+_LIBZFS_H int zfs_prop_set_list_flags(zfs_handle_t *, nvlist_t *, int);
 _LIBZFS_H int zfs_prop_get(zfs_handle_t *, zfs_prop_t, char *, size_t,
     zprop_source_t *, char *, size_t, boolean_t);
 _LIBZFS_H int zfs_prop_get_recvd(zfs_handle_t *, const char *, char *, size_t,
@@ -533,7 +549,7 @@ _LIBZFS_H int zfs_prop_get_written(zfs_handle_t *zhp, const char *propname,
     char *propbuf, int proplen, boolean_t literal);
 _LIBZFS_H int zfs_prop_get_feature(zfs_handle_t *zhp, const char *propname,
     char *buf, size_t len);
-_LIBZFS_H uint64_t getprop_uint64(zfs_handle_t *, zfs_prop_t, char **);
+_LIBZFS_H uint64_t getprop_uint64(zfs_handle_t *, zfs_prop_t, const char **);
 _LIBZFS_H uint64_t zfs_prop_get_int(zfs_handle_t *, zfs_prop_t);
 _LIBZFS_H int zfs_prop_inherit(zfs_handle_t *, const char *, boolean_t);
 _LIBZFS_H const char *zfs_prop_values(zfs_prop_t);
@@ -639,6 +655,13 @@ typedef struct zprop_get_cbdata {
 	vdev_cbdata_t cb_vdevs;
 } zprop_get_cbdata_t;
 
+#define	ZFS_SET_NOMOUNT		1
+
+typedef struct zprop_set_cbdata {
+	int cb_flags;
+	nvlist_t *cb_proplist;
+} zprop_set_cbdata_t;
+
 _LIBZFS_H void zprop_print_one_property(const char *, zprop_get_cbdata_t *,
     const char *, const char *, zprop_source_t, const char *,
     const char *);
@@ -656,17 +679,29 @@ _LIBZFS_H void zprop_print_one_property(const char *, zprop_get_cbdata_t *,
 
 typedef int (*zfs_iter_f)(zfs_handle_t *, void *);
 _LIBZFS_H int zfs_iter_root(libzfs_handle_t *, zfs_iter_f, void *);
-_LIBZFS_H int zfs_iter_children(zfs_handle_t *, int, zfs_iter_f, void *);
-_LIBZFS_H int zfs_iter_dependents(zfs_handle_t *, int, boolean_t, zfs_iter_f,
+_LIBZFS_H int zfs_iter_children(zfs_handle_t *, zfs_iter_f, void *);
+_LIBZFS_H int zfs_iter_dependents(zfs_handle_t *, boolean_t, zfs_iter_f,
     void *);
-_LIBZFS_H int zfs_iter_filesystems(zfs_handle_t *, int, zfs_iter_f, void *);
-_LIBZFS_H int zfs_iter_snapshots(zfs_handle_t *, int, zfs_iter_f, void *,
+_LIBZFS_H int zfs_iter_filesystems(zfs_handle_t *, zfs_iter_f, void *);
+_LIBZFS_H int zfs_iter_snapshots(zfs_handle_t *, boolean_t, zfs_iter_f, void *,
     uint64_t, uint64_t);
-_LIBZFS_H int zfs_iter_snapshots_sorted(zfs_handle_t *, int, zfs_iter_f, void *,
+_LIBZFS_H int zfs_iter_snapshots_sorted(zfs_handle_t *, zfs_iter_f, void *,
     uint64_t, uint64_t);
-_LIBZFS_H int zfs_iter_snapspec(zfs_handle_t *, int, const char *, zfs_iter_f,
+_LIBZFS_H int zfs_iter_snapspec(zfs_handle_t *, const char *, zfs_iter_f,
     void *);
-_LIBZFS_H int zfs_iter_bookmarks(zfs_handle_t *, int, zfs_iter_f, void *);
+_LIBZFS_H int zfs_iter_bookmarks(zfs_handle_t *, zfs_iter_f, void *);
+
+_LIBZFS_H int zfs_iter_children_v2(zfs_handle_t *, int, zfs_iter_f, void *);
+_LIBZFS_H int zfs_iter_dependents_v2(zfs_handle_t *, int, boolean_t, zfs_iter_f,
+    void *);
+_LIBZFS_H int zfs_iter_filesystems_v2(zfs_handle_t *, int, zfs_iter_f, void *);
+_LIBZFS_H int zfs_iter_snapshots_v2(zfs_handle_t *, int, zfs_iter_f, void *,
+    uint64_t, uint64_t);
+_LIBZFS_H int zfs_iter_snapshots_sorted_v2(zfs_handle_t *, int, zfs_iter_f,
+    void *, uint64_t, uint64_t);
+_LIBZFS_H int zfs_iter_snapspec_v2(zfs_handle_t *, int, const char *,
+    zfs_iter_f, void *);
+_LIBZFS_H int zfs_iter_bookmarks_v2(zfs_handle_t *, int, zfs_iter_f, void *);
 _LIBZFS_H int zfs_iter_mounted(zfs_handle_t *, zfs_iter_f, void *);
 
 typedef struct get_all_cb {
@@ -739,6 +774,9 @@ typedef struct sendflags {
 
 	/* show progress (ie. -v) */
 	boolean_t progress;
+
+	/* show progress as process title (ie. -V) */
+	boolean_t progressastitle;
 
 	/* large blocks (>128K) are permitted */
 	boolean_t largeblock;

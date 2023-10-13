@@ -36,31 +36,49 @@ import argparse
 from argparse import RawTextHelpFormatter
 
 cols = {
-	# hdr:       [size,      scale, 	 kstat name]
+	# hdr:       [size,      scale,      kstat name]
 	"time":      [8,         -1,         "time"],
 	"pool":      [12,        -1,         "pool"],
 	"ds":        [12,        -1,         "dataset_name"],
 	"obj":       [12,        -1,         "objset"],
-	"zcc":       [10,        1000,       "zil_commit_count"],
-	"zcwc":      [10,        1000,       "zil_commit_writer_count"],
-	"ziic":      [10,        1000,       "zil_itx_indirect_count"],
-	"zic":       [10,        1000,       "zil_itx_count"],
-	"ziib":      [10,        1024,       "zil_itx_indirect_bytes"],
-	"zicc":      [10,        1000,       "zil_itx_copied_count"],
-	"zicb":      [10,        1024,       "zil_itx_copied_bytes"],
-	"zinc":      [10,        1000,       "zil_itx_needcopy_count"],
-	"zinb":      [10,        1024,       "zil_itx_needcopy_bytes"],
-	"zimnc":     [10,        1000,       "zil_itx_metaslab_normal_count"],
-	"zimnb":     [10,        1024,       "zil_itx_metaslab_normal_bytes"],
-	"zimsc":     [10,        1000,       "zil_itx_metaslab_slog_count"],
-	"zimsb":     [10,        1024,       "zil_itx_metaslab_slog_bytes"],
+	"cc":        [5,         1000,       "zil_commit_count"],
+	"cwc":       [5,         1000,       "zil_commit_writer_count"],
+	"ic":        [5,         1000,       "zil_itx_count"],
+	"iic":       [5,         1000,       "zil_itx_indirect_count"],
+	"iib":       [5,         1024,       "zil_itx_indirect_bytes"],
+	"icc":       [5,         1000,       "zil_itx_copied_count"],
+	"icb":       [5,         1024,       "zil_itx_copied_bytes"],
+	"inc":       [5,         1000,       "zil_itx_needcopy_count"],
+	"inb":       [5,         1024,       "zil_itx_needcopy_bytes"],
+	"idc":       [5,         1000,       "icc+inc"],
+	"idb":       [5,         1024,       "icb+inb"],
+	"iwc":       [5,         1000,       "iic+idc"],
+	"iwb":       [5,         1024,       "iib+idb"],
+	"imnc":      [6,         1000,       "zil_itx_metaslab_normal_count"],
+	"imnb":      [6,         1024,       "zil_itx_metaslab_normal_bytes"],
+	"imnw":      [6,         1024,       "zil_itx_metaslab_normal_write"],
+	"imna":      [6,         1024,       "zil_itx_metaslab_normal_alloc"],
+	"imsc":      [6,         1000,       "zil_itx_metaslab_slog_count"],
+	"imsb":      [6,         1024,       "zil_itx_metaslab_slog_bytes"],
+	"imsw":      [6,         1024,       "zil_itx_metaslab_slog_write"],
+	"imsa":      [6,         1024,       "zil_itx_metaslab_slog_alloc"],
+	"imc":       [5,         1000,       "imnc+imsc"],
+	"imb":       [5,         1024,       "imnb+imsb"],
+	"imw":       [5,         1024,       "imnw+imsw"],
+	"ima":       [5,         1024,       "imna+imsa"],
+	"se%":       [3,         100,        "imb/ima"],
+	"sen%":      [4,         100,        "imnb/imna"],
+	"ses%":      [4,         100,        "imsb/imsa"],
+	"te%":       [3,         100,        "imb/imw"],
+	"ten%":      [4,         100,        "imnb/imnw"],
+	"tes%":      [4,         100,        "imsb/imsw"],
 }
 
-hdr = ["time", "pool", "ds", "obj", "zcc", "zcwc", "ziic", "zic", "ziib", \
-	"zicc", "zicb", "zinc", "zinb", "zimnc", "zimnb", "zimsc", "zimsb"]
+hdr = ["time", "ds", "cc", "ic", "idc", "idb", "iic", "iib",
+	"imnc", "imnw", "imsc", "imsw"]
 
-ghdr = ["time", "zcc", "zcwc", "ziic", "zic", "ziib", "zicc", "zicb",
-	"zinc", "zinb", "zimnc", "zimnb", "zimsc", "zimsb"]
+ghdr = ["time", "cc", "ic", "idc", "idb", "iic", "iib",
+	"imnc", "imnw", "imsc", "imsw"]
 
 cmd = ("Usage: zilstat [-hgdv] [-i interval] [-p pool_name]")
 
@@ -105,7 +123,7 @@ def print_header():
 	global sep
 	for col in hdr:
 		new_col = col
-		if interval > 0 and col not in ['time', 'pool', 'ds', 'obj']:
+		if interval > 0 and cols[col][1] > 100:
 			new_col += "/s"
 		sys.stdout.write("%*s%s" % (cols[col][0], new_col, sep))
 	sys.stdout.write("\n")
@@ -115,7 +133,7 @@ def print_values(v):
 	global sep
 	for col in hdr:
 		val = v[cols[col][2]]
-		if col not in ['time', 'pool', 'ds', 'obj'] and interval > 0:
+		if interval > 0 and cols[col][1] > 100:
 			val = v[cols[col][2]] // interval
 		sys.stdout.write("%s%s" % (
 			prettynum(cols[col][0], cols[col][1], val), sep))
@@ -237,9 +255,7 @@ def init():
 
 		invalid = []
 		for ele in hdr:
-			if gFlag and ele not in ghdr:
-				invalid.append(ele)
-			elif ele not in cols:
+			if ele not in cols:
 				invalid.append(ele)
 
 		if len(invalid) > 0:
@@ -403,17 +419,17 @@ def calculate_diff():
 	diff = copy.deepcopy(curr)
 	for pool in curr:
 		for objset in curr[pool]:
-			for col in hdr:
-				if col not in ['time', 'pool', 'ds', 'obj']:
-					key = cols[col][2]
-					# If prev is NULL, this is the
-					# first time we are here
-					if not prev:
-						diff[pool][objset][key] = 0
-					else:
-						diff[pool][objset][key] \
-							= curr[pool][objset][key] \
-							- prev[pool][objset][key]
+			for key in curr[pool][objset]:
+				if not isinstance(diff[pool][objset][key], int):
+					continue
+				# If prev is NULL, this is the
+				# first time we are here
+				if not prev:
+					diff[pool][objset][key] = 0
+				else:
+					diff[pool][objset][key] \
+						= curr[pool][objset][key] \
+						- prev[pool][objset][key]
 
 def zil_build_dict(pool = "GLOBAL"):
 	global kstat
@@ -425,10 +441,77 @@ def zil_build_dict(pool = "GLOBAL"):
 			if objset not in curr[pool]:
 				curr[pool][objset] = dict()
 			curr[pool][objset][key] = val
-		curr[pool][objset]["pool"] = pool
-		curr[pool][objset]["objset"] = objset
-		curr[pool][objset]["time"] = time.strftime("%H:%M:%S", \
-			time.localtime())
+
+def zil_extend_dict():
+	global diff
+	for pool in diff:
+		for objset in diff[pool]:
+			diff[pool][objset]["pool"] = pool
+			diff[pool][objset]["objset"] = objset
+			diff[pool][objset]["time"] = time.strftime("%H:%M:%S", \
+				time.localtime())
+			diff[pool][objset]["icc+inc"] = \
+				diff[pool][objset]["zil_itx_copied_count"] + \
+				diff[pool][objset]["zil_itx_needcopy_count"]
+			diff[pool][objset]["icb+inb"] = \
+				diff[pool][objset]["zil_itx_copied_bytes"] + \
+				diff[pool][objset]["zil_itx_needcopy_bytes"]
+			diff[pool][objset]["iic+idc"] = \
+				diff[pool][objset]["zil_itx_indirect_count"] + \
+				diff[pool][objset]["zil_itx_copied_count"] + \
+				diff[pool][objset]["zil_itx_needcopy_count"]
+			diff[pool][objset]["iib+idb"] = \
+				diff[pool][objset]["zil_itx_indirect_bytes"] + \
+				diff[pool][objset]["zil_itx_copied_bytes"] + \
+				diff[pool][objset]["zil_itx_needcopy_bytes"]
+			diff[pool][objset]["imnc+imsc"] = \
+				diff[pool][objset]["zil_itx_metaslab_normal_count"] + \
+				diff[pool][objset]["zil_itx_metaslab_slog_count"]
+			diff[pool][objset]["imnb+imsb"] = \
+				diff[pool][objset]["zil_itx_metaslab_normal_bytes"] + \
+				diff[pool][objset]["zil_itx_metaslab_slog_bytes"]
+			diff[pool][objset]["imnw+imsw"] = \
+				diff[pool][objset]["zil_itx_metaslab_normal_write"] + \
+				diff[pool][objset]["zil_itx_metaslab_slog_write"]
+			diff[pool][objset]["imna+imsa"] = \
+				diff[pool][objset]["zil_itx_metaslab_normal_alloc"] + \
+				diff[pool][objset]["zil_itx_metaslab_slog_alloc"]
+			if diff[pool][objset]["imna+imsa"] > 0:
+				diff[pool][objset]["imb/ima"] = 100 * \
+					diff[pool][objset]["imnb+imsb"] // \
+					diff[pool][objset]["imna+imsa"]
+			else:
+				diff[pool][objset]["imb/ima"] = 100
+			if diff[pool][objset]["zil_itx_metaslab_normal_alloc"] > 0:
+				diff[pool][objset]["imnb/imna"] = 100 * \
+					diff[pool][objset]["zil_itx_metaslab_normal_bytes"] // \
+					diff[pool][objset]["zil_itx_metaslab_normal_alloc"]
+			else:
+				diff[pool][objset]["imnb/imna"] = 100
+			if diff[pool][objset]["zil_itx_metaslab_slog_alloc"] > 0:
+				diff[pool][objset]["imsb/imsa"] = 100 * \
+					diff[pool][objset]["zil_itx_metaslab_slog_bytes"] // \
+					diff[pool][objset]["zil_itx_metaslab_slog_alloc"]
+			else:
+				diff[pool][objset]["imsb/imsa"] = 100
+			if diff[pool][objset]["imnw+imsw"] > 0:
+				diff[pool][objset]["imb/imw"] = 100 * \
+					diff[pool][objset]["imnb+imsb"] // \
+					diff[pool][objset]["imnw+imsw"]
+			else:
+				diff[pool][objset]["imb/imw"] = 100
+			if diff[pool][objset]["zil_itx_metaslab_normal_alloc"] > 0:
+				diff[pool][objset]["imnb/imnw"] = 100 * \
+					diff[pool][objset]["zil_itx_metaslab_normal_bytes"] // \
+					diff[pool][objset]["zil_itx_metaslab_normal_write"]
+			else:
+				diff[pool][objset]["imnb/imnw"] = 100
+			if diff[pool][objset]["zil_itx_metaslab_slog_alloc"] > 0:
+				diff[pool][objset]["imsb/imsw"] = 100 * \
+					diff[pool][objset]["zil_itx_metaslab_slog_bytes"] // \
+					diff[pool][objset]["zil_itx_metaslab_slog_write"]
+			else:
+				diff[pool][objset]["imsb/imsw"] = 100
 
 def sign_handler_epipe(sig, frame):
 	print("Caught EPIPE signal: " + str(frame))
@@ -437,30 +520,31 @@ def sign_handler_epipe(sig, frame):
 
 def main():
 	global interval
-	global curr
+	global curr, diff
 	hprint = False
 	init()
 	signal.signal(signal.SIGINT, signal.SIG_DFL)
 	signal.signal(signal.SIGPIPE, sign_handler_epipe)
 
+	zil_process_kstat()
+	if not curr:
+		print ("Error: No stats to show")
+		sys.exit(0)
+	print_header()
 	if interval > 0:
+		time.sleep(interval)
 		while True:
 			calculate_diff()
 			if not diff:
 				print ("Error: No stats to show")
 				sys.exit(0)
-			if hprint == False:
-				print_header()
-				hprint = True
+			zil_extend_dict()
 			print_dict(diff)
 			time.sleep(interval)
 	else:
-		zil_process_kstat()
-		if not curr:
-			print ("Error: No stats to show")
-			sys.exit(0)
-		print_header()
-		print_dict(curr)
+		diff = curr
+		zil_extend_dict()
+		print_dict(diff)
 
 if __name__ == '__main__':
 	main()

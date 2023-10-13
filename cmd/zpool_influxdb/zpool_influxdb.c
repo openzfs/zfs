@@ -238,6 +238,7 @@ print_scan_status(nvlist_t *nvroot, const char *pool_name)
 	print_kv("end_ts", ps->pss_end_time);
 	print_kv(",errors", ps->pss_errors);
 	print_kv(",examined", examined);
+	print_kv(",skipped", ps->pss_skipped);
 	print_kv(",issued", ps->pss_issued);
 	print_kv(",pass_examined", pass_exam);
 	print_kv(",pass_issued", ps->pss_pass_issued);
@@ -249,7 +250,6 @@ print_scan_status(nvlist_t *nvroot, const char *pool_name)
 	print_kv(",remaining_t", remaining_time);
 	print_kv(",start_ts", ps->pss_start_time);
 	print_kv(",to_examine", ps->pss_to_examine);
-	print_kv(",to_process", ps->pss_to_process);
 	printf(" %llu\n", (u_longlong_t)timestamp);
 	return (0);
 }
@@ -264,7 +264,7 @@ get_vdev_name(nvlist_t *nvroot, const char *parent_name)
 	static char vdev_name[256];
 	uint64_t vdev_id = 0;
 
-	char *vdev_type = (char *)"unknown";
+	const char *vdev_type = "unknown";
 	(void) nvlist_lookup_string(nvroot, ZPOOL_CONFIG_TYPE, &vdev_type);
 
 	if (nvlist_lookup_uint64(
@@ -299,9 +299,9 @@ get_vdev_desc(nvlist_t *nvroot, const char *parent_name)
 	char vdev_value[MAXPATHLEN];
 	char *s, *t;
 
-	char *vdev_type = (char *)"unknown";
+	const char *vdev_type = "unknown";
 	uint64_t vdev_id = UINT64_MAX;
-	char *vdev_path = NULL;
+	const char *vdev_path = NULL;
 	(void) nvlist_lookup_string(nvroot, ZPOOL_CONFIG_TYPE, &vdev_type);
 	(void) nvlist_lookup_uint64(nvroot, ZPOOL_CONFIG_ID, &vdev_id);
 	(void) nvlist_lookup_string(nvroot, ZPOOL_CONFIG_PATH, &vdev_path);

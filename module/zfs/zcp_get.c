@@ -391,7 +391,7 @@ get_special_prop(lua_State *state, dsl_dataset_t *ds, const char *dsname,
 		dsl_dataset_crypt_stats(ds, nvl);
 		if (nvlist_lookup_nvlist(nvl, zfs_prop_to_name(zfs_prop),
 		    &propval) == 0) {
-			char *source;
+			const char *source;
 
 			(void) nvlist_lookup_uint64(propval, ZPROP_VALUE,
 			    &numval);

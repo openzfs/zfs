@@ -48,15 +48,12 @@
 #include <sys/string.h>
 #include <zfs_fletcher.h>
 
-ZFS_NO_SANITIZE_UNDEFINED
 static void
 fletcher_4_aarch64_neon_init(fletcher_4_ctx_t *ctx)
 {
-	kfpu_begin();
 	memset(ctx->aarch64_neon, 0, 4 * sizeof (zfs_fletcher_aarch64_neon_t));
 }
 
-ZFS_NO_SANITIZE_UNDEFINED
 static void
 fletcher_4_aarch64_neon_fini(fletcher_4_ctx_t *ctx, zio_cksum_t *zcp)
 {
@@ -70,7 +67,6 @@ fletcher_4_aarch64_neon_fini(fletcher_4_ctx_t *ctx, zio_cksum_t *zcp)
 	    8 * ctx->aarch64_neon[3].v[1] - 8 * ctx->aarch64_neon[2].v[1] +
 	    ctx->aarch64_neon[1].v[1];
 	ZIO_SET_CHECKSUM(zcp, A, B, C, D);
-	kfpu_end();
 }
 
 #define	NEON_INIT_LOOP()			\
@@ -205,6 +201,7 @@ const fletcher_4_ops_t fletcher_4_aarch64_neon_ops = {
 	.compute_byteswap = fletcher_4_aarch64_neon_byteswap,
 	.fini_byteswap = fletcher_4_aarch64_neon_fini,
 	.valid = fletcher_4_aarch64_neon_valid,
+	.uses_fpu = B_TRUE,
 	.name = "aarch64_neon"
 };
 

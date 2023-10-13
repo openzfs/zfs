@@ -482,6 +482,60 @@ zvol_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 	return (error);
 }
 
+/*
+ * Replay a TX_CLONE_RANGE ZIL transaction that didn't get committed
+ * after a system failure.
+ *
+ * TODO: For now we drop block cloning transations for ZVOLs as they are
+ *       unsupported, but we still need to inform BRT about that as we
+ *       claimed them during pool import.
+ *       This situation can occur when we try to import a pool from a ZFS
+ *       version supporting block cloning for ZVOLs into a system that
+ *       has this ZFS version, that doesn't support block cloning for ZVOLs.
+ */
+static int
+zvol_replay_clone_range(void *arg1, void *arg2, boolean_t byteswap)
+{
+	char name[ZFS_MAX_DATASET_NAME_LEN];
+	zvol_state_t *zv = arg1;
+	objset_t *os = zv->zv_objset;
+	lr_clone_range_t *lr = arg2;
+	blkptr_t *bp;
+	dmu_tx_t *tx;
+	spa_t *spa;
+	uint_t ii;
+	int error;
+
+	dmu_objset_name(os, name);
+	cmn_err(CE_WARN, "ZFS dropping block cloning transaction for %s.",
+	    name);
+
+	if (byteswap)
+		byteswap_uint64_array(lr, sizeof (*lr));
+
+	tx = dmu_tx_create(os);
+	error = dmu_tx_assign(tx, TXG_WAIT);
+	if (error) {
+		dmu_tx_abort(tx);
+		return (error);
+	}
+
+	spa = os->os_spa;
+
+	for (ii = 0; ii < lr->lr_nbps; ii++) {
+		bp = &lr->lr_bps[ii];
+
+		if (!BP_IS_HOLE(bp)) {
+			zio_free(spa, dmu_tx_get_txg(tx), bp);
+		}
+	}
+
+	(void) zil_replaying(zv->zv_zilog, tx);
+	dmu_tx_commit(tx);
+
+	return (0);
+}
+
 static int
 zvol_replay_err(void *arg1, void *arg2, boolean_t byteswap)
 {
@@ -516,6 +570,7 @@ zil_replay_func_t *const zvol_replay_vector[TX_MAX_TYPE] = {
 	zvol_replay_err,	/* TX_SETSAXATTR */
 	zvol_replay_err,	/* TX_RENAME_EXCHANGE */
 	zvol_replay_err,	/* TX_RENAME_WHITEOUT */
+	zvol_replay_clone_range	/* TX_CLONE_RANGE */
 };
 
 /*
@@ -643,10 +698,9 @@ zvol_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 	int error;
 
 	ASSERT3P(lwb, !=, NULL);
-	ASSERT3P(zio, !=, NULL);
 	ASSERT3U(size, !=, 0);
 
-	zgd = (zgd_t *)kmem_zalloc(sizeof (zgd_t), KM_SLEEP);
+	zgd = kmem_zalloc(sizeof (zgd_t), KM_SLEEP);
 	zgd->zgd_lwb = lwb;
 
 	/*
@@ -662,6 +716,7 @@ zvol_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 		error = dmu_read_by_dnode(zv->zv_dn, offset, size, buf,
 		    DMU_READ_NO_PREFETCH);
 	} else { /* indirect write */
+		ASSERT3P(zio, !=, NULL);
 		/*
 		 * Have to lock the whole block to ensure when it's written out
 		 * and its checksum is being calculated that no one can change
@@ -672,8 +727,8 @@ zvol_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 		offset = P2ALIGN_TYPED(offset, size, uint64_t);
 		zgd->zgd_lr = zfs_rangelock_enter(&zv->zv_rangelock, offset,
 		    size, RL_READER);
-		error = dmu_buf_hold_by_dnode(zv->zv_dn, offset, zgd, &db,
-		    DMU_READ_NO_PREFETCH);
+		error = dmu_buf_hold_noread_by_dnode(zv->zv_dn, offset, zgd,
+		    &db);
 		if (error == 0) {
 			blkptr_t *bp = &lr->lr_blkptr;
 
@@ -926,7 +981,7 @@ zvol_prefetch_minors_impl(void *arg)
 	job->error = dmu_objset_own(dsname, DMU_OST_ZVOL, B_TRUE, B_TRUE,
 	    FTAG, &os);
 	if (job->error == 0) {
-		dmu_prefetch(os, ZVOL_OBJ, 0, 0, 0, ZIO_PRIORITY_SYNC_READ);
+		dmu_prefetch_dnode(os, ZVOL_OBJ, ZIO_PRIORITY_SYNC_READ);
 		dmu_objset_disown(os, B_TRUE, FTAG);
 	}
 }
@@ -1076,7 +1131,7 @@ zvol_create_minors_cb(const char *dsname, void *arg)
 			 * traverse snapshots only, do not traverse children,
 			 * and skip the 'dsname'
 			 */
-			error = dmu_objset_find(dsname,
+			(void) dmu_objset_find(dsname,
 			    zvol_create_snap_minor_cb, (void *)job,
 			    DS_FIND_SNAPSHOTS);
 		}
@@ -1148,8 +1203,7 @@ zvol_create_minors_recursive(const char *name)
 	 * Prefetch is completed, we can do zvol_os_create_minor
 	 * sequentially.
 	 */
-	while ((job = list_head(&minors_list)) != NULL) {
-		list_remove(&minors_list, job);
+	while ((job = list_remove_head(&minors_list)) != NULL) {
 		if (!job->error)
 			(void) zvol_os_create_minor(job->name);
 		kmem_strfree(job->name);
@@ -1256,10 +1310,8 @@ zvol_remove_minors_impl(const char *name)
 	rw_exit(&zvol_state_lock);
 
 	/* Drop zvol_state_lock before calling zvol_free() */
-	while ((zv = list_head(&free_list)) != NULL) {
-		list_remove(&free_list, zv);
+	while ((zv = list_remove_head(&free_list)) != NULL)
 		zvol_os_free(zv);
-	}
 }
 
 /* Remove minor for this specific volume only */

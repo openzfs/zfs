@@ -25,5 +25,6 @@
 rmconfig
 destroy_pool $TESTPOOL
 del_user ${username}
+del_user ${username}rec
 del_group pamtestgroup
 log_must rm -rf "$runstatedir" $TESTDIRS

@@ -188,13 +188,13 @@
 #include <sys/types.h>
 void
 aes_encrypt_amd64(const uint32_t rk[], int Nr, const uint32_t pt[4],
-	uint32_t ct[4]) {
-   (void) rk, (void) Nr, (void) pt, (void) ct;
+       uint32_t ct[4]) {
+		(void) rk, (void) Nr, (void) pt, (void) ct;
 }
 void
 aes_decrypt_amd64(const uint32_t rk[], int Nr, const uint32_t ct[4],
-	uint32_t pt[4]) {
-   (void) rk, (void) Nr, (void) pt, (void) ct;
+       uint32_t pt[4]) {
+		(void) rk, (void) Nr, (void) pt, (void) ct;
 }
 
 
@@ -221,23 +221,23 @@ aes_decrypt_amd64(const uint32_t rk[], int Nr, const uint32_t ct[4],
 
 // finite field multiplies by {02}, {04} and {08}
 
-#define	f2(x) [[x<<1]^[[[x>>7]&1]*0x11b]]
-#define	f4(x) [[x<<2]^[[[x>>6]&1]*0x11b]^[[[x>>6]&2]*0x11b]]
-#define	f8(x) [[x<<3]^[[[x>>5]&1]*0x11b]^[[[x>>5]&2]*0x11b]^[[[x>>5]&4]*0x11b]]
+#define	f2(x) ((x<<1)^(((x>>7)&1)*0x11b))
+#define	f4(x) ((x<<2)^(((x>>6)&1)*0x11b)^(((x>>6)&2)*0x11b))
+#define	f8(x) ((x<<3)^(((x>>5)&1)*0x11b)^(((x>>5)&2)*0x11b)^(((x>>5)&4)*0x11b))
 
 // finite field multiplies required in table generation
 
-#define	f3(x) [[f2(x)] ^ [x]]
-#define	f9(x) [[f8(x)] ^ [x]]
-#define	fb(x) [[f8(x)] ^ [f2(x)] ^ [x]]
-#define	fd(x) [[f8(x)] ^ [f4(x)] ^ [x]]
-#define	fe(x) [[f8(x)] ^ [f4(x)] ^ [f2(x)]]
+#define	f3(x) ((f2(x)) ^ (x))
+#define	f9(x) ((f8(x)) ^ (x))
+#define	fb(x) ((f8(x)) ^ (f2(x)) ^ (x))
+#define	fd(x) ((f8(x)) ^ (f4(x)) ^ (x))
+#define	fe(x) ((f8(x)) ^ (f4(x)) ^ (f2(x)))
 
 // macros for expanding S-box data
 
-#define	u8(x) [f2(x)], [x], [x], [f3(x)], [f2(x)], [x], [x], [f3(x)]
-#define	v8(x) [fe(x)], [f9(x)], [fd(x)], [fb(x)], [fe(x)], [f9(x)], [fd(x)], [x]
-#define	w8(x) [x], 0, 0, 0, [x], 0, 0, 0
+#define	u8(x) (f2(x)), (x), (x), (f3(x)), (f2(x)), (x), (x), (f3(x))
+#define	v8(x) (fe(x)), (f9(x)), (fd(x)), (fb(x)), (fe(x)), (f9(x)), (fd(x)), (x)
+#define	w8(x) (x), 0, 0, 0, (x), 0, 0, 0
 
 #define	enc_vals(x)	\
    .byte x(0x63),x(0x7c),x(0x77),x(0x7b),x(0xf2),x(0x6b),x(0x6f),x(0xc5); \
@@ -693,8 +693,8 @@ aes_decrypt_amd64(const uint32_t rk[], int Nr, const uint32_t ct[4],
  * int aes_encrypt(const unsigned char *in,
  *	unsigned char *out, const aes_encrypt_ctx cx[1])/
  */
-.section .rodata
-.align	64
+SECTION_STATIC
+.balign	64
 enc_tab:
 	enc_vals(u8)
 #ifdef	LAST_ROUND_TABLES
@@ -718,7 +718,7 @@ ENTRY_NP(aes_encrypt_amd64)
 
 #else
 	// OpenSolaris OS interface
-	sub	$[4*8], %rsp	// Make room on stack to save registers
+	sub	$(4*8), %rsp	// Make room on stack to save registers
 	mov	%rcx, (%rsp)	// Save output pointer (P4) on stack
 	mov	%rdi, %r8	// context (P1)
 	mov	%rdx, %rdi	// P3: save input pointer
@@ -749,11 +749,11 @@ ENTRY_NP(aes_encrypt_amd64)
 
 	lea	(kptr,%rsi), kptr
 	// Jump based on byte key length * 16:
-	cmp	$[10*16], %esi
+	cmp	$(10*16), %esi
 	je	3f
-	cmp	$[12*16], %esi
+	cmp	$(12*16), %esi
 	je	2f
-	cmp	$[14*16], %esi
+	cmp	$(14*16), %esi
 	je	1f
 	mov	$-1, %rax	// error
 	jmp	4f
@@ -785,7 +785,7 @@ ENTRY_NP(aes_encrypt_amd64)
 	mov	1*8(%rsp), %rbx
 	mov	2*8(%rsp), %rbp
 	mov	3*8(%rsp), %r12
-	add	$[4*8], %rsp
+	add	$(4*8), %rsp
 	RET
 
 	SET_SIZE(aes_encrypt_amd64)
@@ -799,8 +799,8 @@ ENTRY_NP(aes_encrypt_amd64)
  * int aes_decrypt(const unsigned char *in,
  *	unsigned char *out, const aes_encrypt_ctx cx[1])/
  */
-.section .rodata
-.align	64
+SECTION_STATIC
+.balign	64
 dec_tab:
 	dec_vals(v8)
 #ifdef	LAST_ROUND_TABLES
@@ -824,7 +824,7 @@ ENTRY_NP(aes_decrypt_amd64)
 
 #else
 	// OpenSolaris OS interface
-	sub	$[4*8], %rsp	// Make room on stack to save registers
+	sub	$(4*8), %rsp	// Make room on stack to save registers
 	mov	%rcx, (%rsp)	// Save output pointer (P4) on stack
 	mov	%rdi, %r8	// context (P1)
 	mov	%rdx, %rdi	// P3: save input pointer
@@ -861,11 +861,11 @@ ENTRY_NP(aes_decrypt_amd64)
 	xor	rofs+12(%rdi), %edx
 
 	// Jump based on byte key length * 16:
-	cmp	$[10*16], %esi
+	cmp	$(10*16), %esi
 	je	3f
-	cmp	$[12*16], %esi
+	cmp	$(12*16), %esi
 	je	2f
-	cmp	$[14*16], %esi
+	cmp	$(14*16), %esi
 	je	1f
 	mov	$-1, %rax	// error
 	jmp	4f
@@ -897,11 +897,11 @@ ENTRY_NP(aes_decrypt_amd64)
 	mov	1*8(%rsp), %rbx
 	mov	2*8(%rsp), %rbp
 	mov	3*8(%rsp), %r12
-	add	$[4*8], %rsp
+	add	$(4*8), %rsp
 	RET
 
 	SET_SIZE(aes_decrypt_amd64)
-#endif	/* lint || __lint */
+#endif /* lint || __lint */
 
 #ifdef __ELF__
 .section .note.GNU-stack,"",%progbits

@@ -173,8 +173,8 @@ dsl_deadlist_load_tree(dsl_deadlist_t *dl)
 		 * in parallel.  Then open them all in a second pass.
 		 */
 		dle->dle_bpobj.bpo_object = za.za_first_integer;
-		dmu_prefetch(dl->dl_os, dle->dle_bpobj.bpo_object,
-		    0, 0, 0, ZIO_PRIORITY_SYNC_READ);
+		dmu_prefetch_dnode(dl->dl_os, dle->dle_bpobj.bpo_object,
+		    ZIO_PRIORITY_SYNC_READ);
 
 		avl_add(&dl->dl_tree, dle);
 	}
@@ -235,8 +235,8 @@ dsl_deadlist_load_cache(dsl_deadlist_t *dl)
 		 * in parallel.  Then open them all in a second pass.
 		 */
 		dlce->dlce_bpobj = za.za_first_integer;
-		dmu_prefetch(dl->dl_os, dlce->dlce_bpobj,
-		    0, 0, 0, ZIO_PRIORITY_SYNC_READ);
+		dmu_prefetch_dnode(dl->dl_os, dlce->dlce_bpobj,
+		    ZIO_PRIORITY_SYNC_READ);
 		avl_add(&dl->dl_cache, dlce);
 	}
 	VERIFY3U(error, ==, ENOENT);
@@ -436,6 +436,18 @@ dle_enqueue_subobj(dsl_deadlist_t *dl, dsl_deadlist_entry_t *dle,
 		VERIFY0(zap_update_int_key(dl->dl_os, dl->dl_object,
 		    dle->dle_mintxg, obj, tx));
 	}
+}
+
+/*
+ * Prefetch metadata required for dle_enqueue_subobj().
+ */
+static void
+dle_prefetch_subobj(dsl_deadlist_t *dl, dsl_deadlist_entry_t *dle,
+    uint64_t obj)
+{
+	if (dle->dle_bpobj.bpo_object !=
+	    dmu_objset_pool(dl->dl_os)->dp_empty_bpobj)
+		bpobj_prefetch_subobj(&dle->dle_bpobj, obj);
 }
 
 void
@@ -810,6 +822,27 @@ dsl_deadlist_insert_bpobj(dsl_deadlist_t *dl, uint64_t obj, uint64_t birth,
 	dle_enqueue_subobj(dl, dle, obj, tx);
 }
 
+/*
+ * Prefetch metadata required for dsl_deadlist_insert_bpobj().
+ */
+static void
+dsl_deadlist_prefetch_bpobj(dsl_deadlist_t *dl, uint64_t obj, uint64_t birth)
+{
+	dsl_deadlist_entry_t dle_tofind;
+	dsl_deadlist_entry_t *dle;
+	avl_index_t where;
+
+	ASSERT(MUTEX_HELD(&dl->dl_lock));
+
+	dsl_deadlist_load_tree(dl);
+
+	dle_tofind.dle_mintxg = birth;
+	dle = avl_find(&dl->dl_tree, &dle_tofind, &where);
+	if (dle == NULL)
+		dle = avl_nearest(&dl->dl_tree, where, AVL_BEFORE);
+	dle_prefetch_subobj(dl, dle, obj);
+}
+
 static int
 dsl_deadlist_insert_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
     dmu_tx_t *tx)
@@ -826,12 +859,12 @@ dsl_deadlist_insert_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
 void
 dsl_deadlist_merge(dsl_deadlist_t *dl, uint64_t obj, dmu_tx_t *tx)
 {
-	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_cursor_t zc, pzc;
+	zap_attribute_t *za, *pza;
 	dmu_buf_t *bonus;
 	dsl_deadlist_phys_t *dlp;
 	dmu_object_info_t doi;
-	int error;
+	int error, perror, i;
 
 	VERIFY0(dmu_object_info(dl->dl_os, obj, &doi));
 	if (doi.doi_type == DMU_OT_BPOBJ) {
@@ -842,16 +875,36 @@ dsl_deadlist_merge(dsl_deadlist_t *dl, uint64_t obj, dmu_tx_t *tx)
 		return;
 	}
 
+	za = kmem_alloc(sizeof (*za), KM_SLEEP);
+	pza = kmem_alloc(sizeof (*pza), KM_SLEEP);
+
 	mutex_enter(&dl->dl_lock);
+	/*
+	 * Prefetch up to 128 deadlists first and then more as we progress.
+	 * The limit is a balance between ARC use and diminishing returns.
+	 */
+	for (zap_cursor_init(&pzc, dl->dl_os, obj), i = 0;
+	    (perror = zap_cursor_retrieve(&pzc, pza)) == 0 && i < 128;
+	    zap_cursor_advance(&pzc), i++) {
+		dsl_deadlist_prefetch_bpobj(dl, pza->za_first_integer,
+		    zfs_strtonum(pza->za_name, NULL));
+	}
 	for (zap_cursor_init(&zc, dl->dl_os, obj);
-	    (error = zap_cursor_retrieve(&zc, &za)) == 0;
+	    (error = zap_cursor_retrieve(&zc, za)) == 0;
 	    zap_cursor_advance(&zc)) {
-		uint64_t mintxg = zfs_strtonum(za.za_name, NULL);
-		dsl_deadlist_insert_bpobj(dl, za.za_first_integer, mintxg, tx);
-		VERIFY0(zap_remove_int(dl->dl_os, obj, mintxg, tx));
+		dsl_deadlist_insert_bpobj(dl, za->za_first_integer,
+		    zfs_strtonum(za->za_name, NULL), tx);
+		VERIFY0(zap_remove(dl->dl_os, obj, za->za_name, tx));
+		if (perror == 0) {
+			dsl_deadlist_prefetch_bpobj(dl, pza->za_first_integer,
+			    zfs_strtonum(pza->za_name, NULL));
+			zap_cursor_advance(&pzc);
+			perror = zap_cursor_retrieve(&pzc, pza);
+		}
 	}
 	VERIFY3U(error, ==, ENOENT);
 	zap_cursor_fini(&zc);
+	zap_cursor_fini(&pzc);
 
 	VERIFY0(dmu_bonus_hold(dl->dl_os, obj, FTAG, &bonus));
 	dlp = bonus->db_data;
@@ -859,6 +912,9 @@ dsl_deadlist_merge(dsl_deadlist_t *dl, uint64_t obj, dmu_tx_t *tx)
 	memset(dlp, 0, sizeof (*dlp));
 	dmu_buf_rele(bonus, FTAG);
 	mutex_exit(&dl->dl_lock);
+
+	kmem_free(za, sizeof (*za));
+	kmem_free(pza, sizeof (*pza));
 }
 
 /*
@@ -869,8 +925,9 @@ dsl_deadlist_move_bpobj(dsl_deadlist_t *dl, bpobj_t *bpo, uint64_t mintxg,
     dmu_tx_t *tx)
 {
 	dsl_deadlist_entry_t dle_tofind;
-	dsl_deadlist_entry_t *dle;
+	dsl_deadlist_entry_t *dle, *pdle;
 	avl_index_t where;
+	int i;
 
 	ASSERT(!dl->dl_oldfmt);
 
@@ -882,11 +939,23 @@ dsl_deadlist_move_bpobj(dsl_deadlist_t *dl, bpobj_t *bpo, uint64_t mintxg,
 	dle = avl_find(&dl->dl_tree, &dle_tofind, &where);
 	if (dle == NULL)
 		dle = avl_nearest(&dl->dl_tree, where, AVL_AFTER);
+	/*
+	 * Prefetch up to 128 deadlists first and then more as we progress.
+	 * The limit is a balance between ARC use and diminishing returns.
+	 */
+	for (pdle = dle, i = 0; pdle && i < 128; i++) {
+		bpobj_prefetch_subobj(bpo, pdle->dle_bpobj.bpo_object);
+		pdle = AVL_NEXT(&dl->dl_tree, pdle);
+	}
 	while (dle) {
 		uint64_t used, comp, uncomp;
 		dsl_deadlist_entry_t *dle_next;
 
 		bpobj_enqueue_subobj(bpo, dle->dle_bpobj.bpo_object, tx);
+		if (pdle) {
+			bpobj_prefetch_subobj(bpo, pdle->dle_bpobj.bpo_object);
+			pdle = AVL_NEXT(&dl->dl_tree, pdle);
+		}
 
 		VERIFY0(bpobj_space(&dle->dle_bpobj,
 		    &used, &comp, &uncomp));

@@ -165,10 +165,10 @@ zio_checksum_info_t zio_checksum_table[ZIO_CHECKSUM_FUNCTIONS] = {
 	{{NULL, NULL}, NULL, NULL, 0, "on"},
 	{{abd_checksum_off,		abd_checksum_off},
 	    NULL, NULL, 0, "off"},
-	{{abd_checksum_SHA256,		abd_checksum_SHA256},
+	{{abd_checksum_sha256,		abd_checksum_sha256},
 	    NULL, NULL, ZCHECKSUM_FLAG_METADATA | ZCHECKSUM_FLAG_EMBEDDED,
 	    "label"},
-	{{abd_checksum_SHA256,		abd_checksum_SHA256},
+	{{abd_checksum_sha256,		abd_checksum_sha256},
 	    NULL, NULL, ZCHECKSUM_FLAG_METADATA | ZCHECKSUM_FLAG_EMBEDDED,
 	    "gang_header"},
 	{{abd_fletcher_2_native,	abd_fletcher_2_byteswap},
@@ -177,14 +177,14 @@ zio_checksum_info_t zio_checksum_table[ZIO_CHECKSUM_FUNCTIONS] = {
 	    NULL, NULL, 0, "fletcher2"},
 	{{abd_fletcher_4_native,	abd_fletcher_4_byteswap},
 	    NULL, NULL, ZCHECKSUM_FLAG_METADATA, "fletcher4"},
-	{{abd_checksum_SHA256,		abd_checksum_SHA256},
+	{{abd_checksum_sha256,		abd_checksum_sha256},
 	    NULL, NULL, ZCHECKSUM_FLAG_METADATA | ZCHECKSUM_FLAG_DEDUP |
 	    ZCHECKSUM_FLAG_NOPWRITE, "sha256"},
 	{{abd_fletcher_4_native,	abd_fletcher_4_byteswap},
 	    NULL, NULL, ZCHECKSUM_FLAG_EMBEDDED, "zilog2"},
 	{{abd_checksum_off,		abd_checksum_off},
 	    NULL, NULL, 0, "noparity"},
-	{{abd_checksum_SHA512_native,	abd_checksum_SHA512_byteswap},
+	{{abd_checksum_sha512_native,	abd_checksum_sha512_byteswap},
 	    NULL, NULL, ZCHECKSUM_FLAG_METADATA | ZCHECKSUM_FLAG_DEDUP |
 	    ZCHECKSUM_FLAG_NOPWRITE, "sha512"},
 	{{abd_checksum_skein_native,	abd_checksum_skein_byteswap},
@@ -423,6 +423,9 @@ zio_checksum_error_impl(spa_t *spa, const blkptr_t *bp,
 
 	zio_checksum_template_init(checksum, spa);
 
+	IMPLY(bp == NULL, ci->ci_flags & ZCHECKSUM_FLAG_EMBEDDED);
+	IMPLY(bp == NULL, checksum == ZIO_CHECKSUM_LABEL);
+
 	if (ci->ci_flags & ZCHECKSUM_FLAG_EMBEDDED) {
 		zio_cksum_t verifier;
 		size_t eck_offset;
@@ -512,8 +515,6 @@ zio_checksum_error_impl(spa_t *spa, const blkptr_t *bp,
 	}
 
 	if (info != NULL) {
-		info->zbc_expected = expected_cksum;
-		info->zbc_actual = actual_cksum;
 		info->zbc_checksum_name = ci->ci_name;
 		info->zbc_byteswapped = byteswap;
 		info->zbc_injected = 0;

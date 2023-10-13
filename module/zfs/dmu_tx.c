@@ -210,10 +210,12 @@ dmu_tx_check_ioerr(zio_t *zio, dnode_t *dn, int level, uint64_t blkid)
 	dmu_buf_impl_t *db;
 
 	rw_enter(&dn->dn_struct_rwlock, RW_READER);
-	db = dbuf_hold_level(dn, level, blkid, FTAG);
+	err = dbuf_hold_impl(dn, level, blkid, TRUE, FALSE, FTAG, &db);
 	rw_exit(&dn->dn_struct_rwlock);
-	if (db == NULL)
-		return (SET_ERROR(EIO));
+	if (err == ENOENT)
+		return (0);
+	if (err != 0)
+		return (err);
 	/*
 	 * PARTIAL_FIRST allows caching for uncacheable blocks.  It will
 	 * be cleared after dmu_buf_will_dirty() call dbuf_read() again.
@@ -295,6 +297,53 @@ dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 }
 
 static void
+dmu_tx_count_append(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
+{
+	dnode_t *dn = txh->txh_dnode;
+	int err = 0;
+
+	if (len == 0)
+		return;
+
+	(void) zfs_refcount_add_many(&txh->txh_space_towrite, len, FTAG);
+
+	if (dn == NULL)
+		return;
+
+	/*
+	 * For i/o error checking, read the blocks that will be needed
+	 * to perform the append; first level-0 block (if not aligned, i.e.
+	 * if they are partial-block writes), no additional blocks are read.
+	 */
+	if (dn->dn_maxblkid == 0) {
+		if (off < dn->dn_datablksz &&
+		    (off > 0 || len < dn->dn_datablksz)) {
+			err = dmu_tx_check_ioerr(NULL, dn, 0, 0);
+			if (err != 0) {
+				txh->txh_tx->tx_err = err;
+			}
+		}
+	} else {
+		zio_t *zio = zio_root(dn->dn_objset->os_spa,
+		    NULL, NULL, ZIO_FLAG_CANFAIL);
+
+		/* first level-0 block */
+		uint64_t start = off >> dn->dn_datablkshift;
+		if (P2PHASE(off, dn->dn_datablksz) || len < dn->dn_datablksz) {
+			err = dmu_tx_check_ioerr(zio, dn, 0, start);
+			if (err != 0) {
+				txh->txh_tx->tx_err = err;
+			}
+		}
+
+		err = zio_wait(zio);
+		if (err != 0) {
+			txh->txh_tx->tx_err = err;
+		}
+	}
+}
+
+static void
 dmu_tx_count_dnode(dmu_tx_hold_t *txh)
 {
 	(void) zfs_refcount_add_many(&txh->txh_space_towrite,
@@ -335,6 +384,42 @@ dmu_tx_hold_write_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off, int len)
 }
 
 /*
+ * Should be used when appending to an object and the exact offset is unknown.
+ * The write must occur at or beyond the specified offset.  Only the L0 block
+ * at provided offset will be prefetched.
+ */
+void
+dmu_tx_hold_append(dmu_tx_t *tx, uint64_t object, uint64_t off, int len)
+{
+	dmu_tx_hold_t *txh;
+
+	ASSERT0(tx->tx_txg);
+	ASSERT3U(len, <=, DMU_MAX_ACCESS);
+
+	txh = dmu_tx_hold_object_impl(tx, tx->tx_objset,
+	    object, THT_APPEND, off, DMU_OBJECT_END);
+	if (txh != NULL) {
+		dmu_tx_count_append(txh, off, len);
+		dmu_tx_count_dnode(txh);
+	}
+}
+
+void
+dmu_tx_hold_append_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off, int len)
+{
+	dmu_tx_hold_t *txh;
+
+	ASSERT0(tx->tx_txg);
+	ASSERT3U(len, <=, DMU_MAX_ACCESS);
+
+	txh = dmu_tx_hold_dnode_impl(tx, dn, THT_APPEND, off, DMU_OBJECT_END);
+	if (txh != NULL) {
+		dmu_tx_count_append(txh, off, len);
+		dmu_tx_count_dnode(txh);
+	}
+}
+
+/*
  * This function marks the transaction as being a "net free".  The end
  * result is that refquotas will be disabled for this transaction, and
  * this transaction will be able to use half of the pool space overhead
@@ -349,7 +434,7 @@ dmu_tx_mark_netfree(dmu_tx_t *tx)
 }
 
 static void
-dmu_tx_hold_free_impl(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
+dmu_tx_count_free(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 {
 	dmu_tx_t *tx = txh->txh_tx;
 	dnode_t *dn = txh->txh_dnode;
@@ -357,14 +442,10 @@ dmu_tx_hold_free_impl(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 
 	ASSERT(tx->tx_txg == 0);
 
-	dmu_tx_count_dnode(txh);
-
 	if (off >= (dn->dn_maxblkid + 1) * dn->dn_datablksz)
 		return;
 	if (len == DMU_OBJECT_END)
 		len = (dn->dn_maxblkid + 1) * dn->dn_datablksz - off;
-
-	dmu_tx_count_dnode(txh);
 
 	/*
 	 * For i/o error checking, we read the first and last level-0
@@ -445,8 +526,10 @@ dmu_tx_hold_free(dmu_tx_t *tx, uint64_t object, uint64_t off, uint64_t len)
 
 	txh = dmu_tx_hold_object_impl(tx, tx->tx_objset,
 	    object, THT_FREE, off, len);
-	if (txh != NULL)
-		(void) dmu_tx_hold_free_impl(txh, off, len);
+	if (txh != NULL) {
+		dmu_tx_count_dnode(txh);
+		dmu_tx_count_free(txh, off, len);
+	}
 }
 
 void
@@ -455,8 +538,35 @@ dmu_tx_hold_free_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off, uint64_t len)
 	dmu_tx_hold_t *txh;
 
 	txh = dmu_tx_hold_dnode_impl(tx, dn, THT_FREE, off, len);
-	if (txh != NULL)
-		(void) dmu_tx_hold_free_impl(txh, off, len);
+	if (txh != NULL) {
+		dmu_tx_count_dnode(txh);
+		dmu_tx_count_free(txh, off, len);
+	}
+}
+
+static void
+dmu_tx_count_clone(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
+{
+
+	/*
+	 * Reuse dmu_tx_count_free(), it does exactly what we need for clone.
+	 */
+	dmu_tx_count_free(txh, off, len);
+}
+
+void
+dmu_tx_hold_clone_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off, int len)
+{
+	dmu_tx_hold_t *txh;
+
+	ASSERT0(tx->tx_txg);
+	ASSERT(len == 0 || UINT64_MAX - off >= len - 1);
+
+	txh = dmu_tx_hold_dnode_impl(tx, dn, THT_CLONE, off, len);
+	if (txh != NULL) {
+		dmu_tx_count_dnode(txh);
+		dmu_tx_count_clone(txh, off, len);
+	}
 }
 
 static void
@@ -643,6 +753,26 @@ dmu_tx_dirty_buf(dmu_tx_t *tx, dmu_buf_impl_t *db)
 				if (blkid == 0)
 					match_offset = TRUE;
 				break;
+			case THT_APPEND:
+				if (blkid >= beginblk && (blkid <= endblk ||
+				    txh->txh_arg2 == DMU_OBJECT_END))
+					match_offset = TRUE;
+
+				/*
+				 * THT_WRITE used for bonus and spill blocks.
+				 */
+				ASSERT(blkid != DMU_BONUS_BLKID &&
+				    blkid != DMU_SPILL_BLKID);
+
+				/*
+				 * They might have to increase nlevels,
+				 * thus dirtying the new TLIBs.  Or the
+				 * might have to change the block size,
+				 * thus dirying the new lvl=0 blk=0.
+				 */
+				if (blkid == 0)
+					match_offset = TRUE;
+				break;
 			case THT_FREE:
 				/*
 				 * We will dirty all the level 1 blocks in
@@ -666,6 +796,10 @@ dmu_tx_dirty_buf(dmu_tx_t *tx, dmu_buf_impl_t *db)
 				break;
 			case THT_NEWOBJECT:
 				match_object = TRUE;
+				break;
+			case THT_CLONE:
+				if (blkid >= beginblk && blkid <= endblk)
+					match_offset = TRUE;
 				break;
 			default:
 				cmn_err(CE_PANIC, "bad txh_type %d",
@@ -1264,8 +1398,7 @@ dmu_tx_do_callbacks(list_t *cb_list, int error)
 {
 	dmu_tx_callback_t *dcb;
 
-	while ((dcb = list_tail(cb_list)) != NULL) {
-		list_remove(cb_list, dcb);
+	while ((dcb = list_remove_tail(cb_list)) != NULL) {
 		dcb->dcb_func(dcb->dcb_data, error);
 		kmem_free(dcb, sizeof (dmu_tx_callback_t));
 	}
@@ -1425,6 +1558,8 @@ dmu_tx_fini(void)
 EXPORT_SYMBOL(dmu_tx_create);
 EXPORT_SYMBOL(dmu_tx_hold_write);
 EXPORT_SYMBOL(dmu_tx_hold_write_by_dnode);
+EXPORT_SYMBOL(dmu_tx_hold_append);
+EXPORT_SYMBOL(dmu_tx_hold_append_by_dnode);
 EXPORT_SYMBOL(dmu_tx_hold_free);
 EXPORT_SYMBOL(dmu_tx_hold_free_by_dnode);
 EXPORT_SYMBOL(dmu_tx_hold_zap);

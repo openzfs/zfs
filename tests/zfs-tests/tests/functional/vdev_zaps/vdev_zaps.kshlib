@@ -34,6 +34,10 @@ function get_top_vd_zap # dsk conf
 {
         get_conf_section "$1" "$2" | awk '/com.delphix:vdev_zap_top: [0-9]+/ {print $2}'
 }
+function get_root_vd_zap # conf
+{
+        awk '/com.klarasystems:vdev_zap_root: [0-9]+/ {print $2}' "$1"
+}
 
 function assert_has_sentinel # conf
 {
@@ -52,6 +56,15 @@ function assert_zap_common # pool vd lvl zapobj
         elif ! zdb -d $pool $zapobj | grep -q 'zap'; then
                 log_fail "$vd on $pool has no $lvl ZAP in MOS"
         fi
+}
+
+function assert_root_zap # pool conf
+{
+        typeset pool=$1
+        typeset conf=$2
+
+        root_zap=$(get_root_vd_zap $conf)
+        assert_zap_common $pool "root vdev" "root" $root_zap
 }
 
 function assert_top_zap # pool vd conf

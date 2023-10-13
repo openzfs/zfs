@@ -34,12 +34,14 @@
  * ASSERT3U()	- Assert unsigned X OP Y is true, if not panic.
  * ASSERT3P()	- Assert pointer X OP Y is true, if not panic.
  * ASSERT0()	- Assert value is zero, if not panic.
+ * ASSERT0P()	- Assert pointer is null, if not panic.
  * VERIFY()	- Verify X is true, if not panic.
  * VERIFY3B()	- Verify boolean X OP Y is true, if not panic.
  * VERIFY3S()	- Verify signed X OP Y is true, if not panic.
  * VERIFY3U()	- Verify unsigned X OP Y is true, if not panic.
  * VERIFY3P()	- Verify pointer X OP Y is true, if not panic.
  * VERIFY0()	- Verify value is zero, if not panic.
+ * VERIFY0P()	- Verify pointer is null, if not panic.
  */
 
 #ifndef _SPL_DEBUG_H
@@ -93,8 +95,8 @@ spl_assert(const char *buf, const char *file, const char *func, int line)
 		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
 		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
 		    "failed (%d " #OP " %d)\n",				\
-		    (boolean_t)(_verify3_left),				\
-		    (boolean_t)(_verify3_right));			\
+		    (boolean_t)_verify3_left,				\
+		    (boolean_t)_verify3_right);				\
 	} while (0)
 
 #define	VERIFY3S(LEFT, OP, RIGHT)	do {				\
@@ -104,8 +106,8 @@ spl_assert(const char *buf, const char *file, const char *func, int line)
 		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
 		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
 		    "failed (%lld " #OP " %lld)\n",			\
-		    (long long)(_verify3_left),				\
-		    (long long)(_verify3_right));			\
+		    (long long)_verify3_left,				\
+		    (long long)_verify3_right);				\
 	} while (0)
 
 #define	VERIFY3U(LEFT, OP, RIGHT)	do {				\
@@ -115,8 +117,8 @@ spl_assert(const char *buf, const char *file, const char *func, int line)
 		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
 		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
 		    "failed (%llu " #OP " %llu)\n",			\
-		    (unsigned long long)(_verify3_left),		\
-		    (unsigned long long)(_verify3_right));		\
+		    (unsigned long long)_verify3_left,			\
+		    (unsigned long long)_verify3_right);		\
 	} while (0)
 
 #define	VERIFY3P(LEFT, OP, RIGHT)	do {				\
@@ -126,18 +128,26 @@ spl_assert(const char *buf, const char *file, const char *func, int line)
 		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
 		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
 		    "failed (%px " #OP " %px)\n",			\
-		    (void *) (_verify3_left),				\
-		    (void *) (_verify3_right));				\
+		    (void *)_verify3_left,				\
+		    (void *)_verify3_right);				\
 	} while (0)
 
 #define	VERIFY0(RIGHT)	do {						\
-		const int64_t _verify3_left = (int64_t)(0);		\
-		const int64_t _verify3_right = (int64_t)(RIGHT);	\
-		if (unlikely(!(_verify3_left == _verify3_right)))	\
+		const int64_t _verify0_right = (int64_t)(RIGHT);	\
+		if (unlikely(!(0 == _verify0_right)))			\
 		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
-		    "VERIFY0(0 == " #RIGHT ") "				\
+		    "VERIFY0(" #RIGHT ") "				\
 		    "failed (0 == %lld)\n",				\
-		    (long long) (_verify3_right));			\
+		    (long long)_verify0_right);				\
+	} while (0)
+
+#define	VERIFY0P(RIGHT)	do {						\
+		const uintptr_t _verify0_right = (uintptr_t)(RIGHT);	\
+		if (unlikely(!(0 == _verify0_right)))			\
+		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
+		    "VERIFY0P(" #RIGHT ") "				\
+		    "failed (NULL == %px)\n",				\
+		    (void *)_verify0_right);				\
 	} while (0)
 
 #define	VERIFY_IMPLY(A, B) \
@@ -165,6 +175,7 @@ spl_assert(const char *buf, const char *file, const char *func, int line)
 #define	ASSERT3P(x, y, z)						\
 	((void) sizeof ((uintptr_t)(x)), (void) sizeof ((uintptr_t)(z)))
 #define	ASSERT0(x)		((void) sizeof ((uintptr_t)(x)))
+#define	ASSERT0P(x)		((void) sizeof ((uintptr_t)(x)))
 #define	IMPLY(A, B)							\
 	((void) sizeof ((uintptr_t)(A)), (void) sizeof ((uintptr_t)(B)))
 #define	EQUIV(A, B)		\
@@ -180,6 +191,7 @@ spl_assert(const char *buf, const char *file, const char *func, int line)
 #define	ASSERT3U	VERIFY3U
 #define	ASSERT3P	VERIFY3P
 #define	ASSERT0		VERIFY0
+#define	ASSERT0P	VERIFY0P
 #define	ASSERT		VERIFY
 #define	IMPLY		VERIFY_IMPLY
 #define	EQUIV		VERIFY_EQUIV

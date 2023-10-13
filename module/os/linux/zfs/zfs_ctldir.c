@@ -392,7 +392,20 @@ zfsctl_snapshot_unmount_delay_impl(zfs_snapentry_t *se, int delay)
 
 	zfsctl_snapshot_hold(se);
 	rw_enter(&se->se_taskqid_lock, RW_WRITER);
-	ASSERT3S(se->se_taskqid, ==, TASKQID_INVALID);
+	/*
+	 * If this condition happens, we managed to:
+	 * - dispatch once
+	 * - want to dispatch _again_ before it returned
+	 *
+	 * So let's just return - if that task fails at unmounting,
+	 * we'll eventually dispatch again, and if it succeeds,
+	 * no problem.
+	 */
+	if (se->se_taskqid != TASKQID_INVALID) {
+		rw_exit(&se->se_taskqid_lock);
+		zfsctl_snapshot_rele(se);
+		return;
+	}
 	se->se_taskqid = taskq_dispatch_delay(system_delay_taskq,
 	    snapentry_expire, se, TQ_SLEEP, ddi_get_lbolt() + delay * HZ);
 	rw_exit(&se->se_taskqid_lock);
@@ -465,17 +478,19 @@ zfsctl_is_snapdir(struct inode *ip)
  */
 static struct inode *
 zfsctl_inode_alloc(zfsvfs_t *zfsvfs, uint64_t id,
-    const struct file_operations *fops, const struct inode_operations *ops)
+    const struct file_operations *fops, const struct inode_operations *ops,
+    uint64_t creation)
 {
-	inode_timespec_t now;
 	struct inode *ip;
 	znode_t *zp;
+	inode_timespec_t now = {.tv_sec = creation};
 
 	ip = new_inode(zfsvfs->z_sb);
 	if (ip == NULL)
 		return (NULL);
 
-	now = current_time(ip);
+	if (!creation)
+		now = current_time(ip);
 	zp = ITOZ(ip);
 	ASSERT3P(zp->z_dirlocks, ==, NULL);
 	ASSERT3P(zp->z_acl_cached, ==, NULL);
@@ -485,7 +500,9 @@ zfsctl_inode_alloc(zfsvfs_t *zfsvfs, uint64_t id,
 	zp->z_atime_dirty = B_FALSE;
 	zp->z_zn_prefetch = B_FALSE;
 	zp->z_is_sa = B_FALSE;
+#if !defined(HAVE_FILEMAP_RANGE_HAS_PAGE)
 	zp->z_is_mapped = B_FALSE;
+#endif
 	zp->z_is_ctldir = B_TRUE;
 	zp->z_sa_hdl = NULL;
 	zp->z_blksz = 0;
@@ -505,7 +522,7 @@ zfsctl_inode_alloc(zfsvfs_t *zfsvfs, uint64_t id,
 	ip->i_blkbits = SPA_MINBLOCKSHIFT;
 	ip->i_atime = now;
 	ip->i_mtime = now;
-	ip->i_ctime = now;
+	zpl_inode_set_ctime_to_ts(ip, now);
 	ip->i_fop = fops;
 	ip->i_op = ops;
 #if defined(IOP_XATTR)
@@ -520,7 +537,6 @@ zfsctl_inode_alloc(zfsvfs_t *zfsvfs, uint64_t id,
 
 	mutex_enter(&zfsvfs->z_znodes_lock);
 	list_insert_tail(&zfsvfs->z_all_znodes, zp);
-	zfsvfs->z_nr_znodes++;
 	membar_producer();
 	mutex_exit(&zfsvfs->z_znodes_lock);
 
@@ -537,14 +553,28 @@ zfsctl_inode_lookup(zfsvfs_t *zfsvfs, uint64_t id,
     const struct file_operations *fops, const struct inode_operations *ops)
 {
 	struct inode *ip = NULL;
+	uint64_t creation = 0;
+	dsl_dataset_t *snap_ds;
+	dsl_pool_t *pool;
 
 	while (ip == NULL) {
 		ip = ilookup(zfsvfs->z_sb, (unsigned long)id);
 		if (ip)
 			break;
 
+		if (id <= ZFSCTL_INO_SNAPDIRS && !creation) {
+			pool = dmu_objset_pool(zfsvfs->z_os);
+			dsl_pool_config_enter(pool, FTAG);
+			if (!dsl_dataset_hold_obj(pool,
+			    ZFSCTL_INO_SNAPDIRS - id, FTAG, &snap_ds)) {
+				creation = dsl_get_creation(snap_ds);
+				dsl_dataset_rele(snap_ds, FTAG);
+			}
+			dsl_pool_config_exit(pool, FTAG);
+		}
+
 		/* May fail due to concurrent zfsctl_inode_alloc() */
-		ip = zfsctl_inode_alloc(zfsvfs, id, fops, ops);
+		ip = zfsctl_inode_alloc(zfsvfs, id, fops, ops, creation);
 	}
 
 	return (ip);
@@ -566,7 +596,7 @@ zfsctl_create(zfsvfs_t *zfsvfs)
 	ASSERT(zfsvfs->z_ctldir == NULL);
 
 	zfsvfs->z_ctldir = zfsctl_inode_alloc(zfsvfs, ZFSCTL_INO_ROOT,
-	    &zpl_fops_root, &zpl_ops_root);
+	    &zpl_fops_root, &zpl_ops_root, 0);
 	if (zfsvfs->z_ctldir == NULL)
 		return (SET_ERROR(ENOENT));
 

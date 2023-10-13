@@ -942,7 +942,7 @@ proplist_has_encryption_props(nvlist_t *props)
 {
 	int ret;
 	uint64_t intval;
-	char *strval;
+	const char *strval;
 
 	ret = nvlist_lookup_uint64(props,
 	    zfs_prop_to_name(ZFS_PROP_ENCRYPTION), &intval);
@@ -1007,7 +1007,7 @@ zfs_crypto_create(libzfs_handle_t *hdl, char *parent_name, nvlist_t *props,
 	char errbuf[ERRBUFLEN];
 	uint64_t crypt = ZIO_CRYPT_INHERIT, pcrypt = ZIO_CRYPT_INHERIT;
 	uint64_t keyformat = ZFS_KEYFORMAT_NONE;
-	char *keylocation = NULL;
+	const char *keylocation = NULL;
 	zfs_handle_t *pzhp = NULL;
 	uint8_t *wkeydata = NULL;
 	uint_t wkeylen = 0;
@@ -1226,7 +1226,7 @@ load_keys_cb(zfs_handle_t *zhp, void *arg)
 		cb->cb_numfailed++;
 
 out:
-	(void) zfs_iter_filesystems(zhp, 0, load_keys_cb, cb);
+	(void) zfs_iter_filesystems_v2(zhp, 0, load_keys_cb, cb);
 	zfs_close(zhp);
 
 	/* always return 0, since this function is best effort */
@@ -1405,6 +1405,11 @@ try_again:
 			correctible = B_TRUE;
 			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
 			    "Incorrect key provided for '%s'."),
+			    zfs_get_name(zhp));
+			break;
+		case ZFS_ERR_CRYPTO_NOTSUP:
+			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
+			    "'%s' uses an unsupported encryption suite."),
 			    zfs_get_name(zhp));
 			break;
 		}
@@ -1590,7 +1595,7 @@ zfs_crypto_rewrap(zfs_handle_t *zhp, nvlist_t *raw_props, boolean_t inheritkey)
 	uint64_t crypt, pcrypt, keystatus, pkeystatus;
 	uint64_t keyformat = ZFS_KEYFORMAT_NONE;
 	zfs_handle_t *pzhp = NULL;
-	char *keylocation = NULL;
+	const char *keylocation = NULL;
 	char origin_name[MAXNAMELEN];
 	char prop_keylocation[MAXNAMELEN];
 	char parent_name[ZFS_MAX_DATASET_NAME_LEN];
@@ -1700,7 +1705,7 @@ zfs_crypto_rewrap(zfs_handle_t *zhp, nvlist_t *raw_props, boolean_t inheritkey)
 
 			/* default to prompt if no keylocation is specified */
 			if (keylocation == NULL) {
-				keylocation = (char *)"prompt";
+				keylocation = "prompt";
 				ret = nvlist_add_string(props,
 				    zfs_prop_to_name(ZFS_PROP_KEYLOCATION),
 				    keylocation);

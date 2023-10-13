@@ -248,6 +248,8 @@ extern int ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_entry_t *dde);
 extern int ddt_object_update(ddt_t *ddt, enum ddt_type type,
     enum ddt_class clazz, ddt_entry_t *dde, dmu_tx_t *tx);
 
+extern boolean_t ddt_addref(spa_t *spa, const blkptr_t *bp);
+
 extern const ddt_ops_t ddt_zap_ops;
 
 #ifdef	__cplusplus

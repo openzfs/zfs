@@ -26,15 +26,16 @@
 
 #include <sys/simd.h>
 #include <sys/types.h>
+#include <sys/asm_linkage.h>
 
 /* These functions are used to execute AES-NI instructions: */
-extern int rijndael_key_setup_enc_intel(uint32_t rk[],
+extern ASMABI int rijndael_key_setup_enc_intel(uint32_t rk[],
 	const uint32_t cipherKey[], uint64_t keyBits);
-extern int rijndael_key_setup_dec_intel(uint32_t rk[],
+extern ASMABI int rijndael_key_setup_dec_intel(uint32_t rk[],
 	const uint32_t cipherKey[], uint64_t keyBits);
-extern void aes_encrypt_intel(const uint32_t rk[], int Nr,
+extern ASMABI void aes_encrypt_intel(const uint32_t rk[], int Nr,
 	const uint32_t pt[4], uint32_t ct[4]);
-extern void aes_decrypt_intel(const uint32_t rk[], int Nr,
+extern ASMABI void aes_decrypt_intel(const uint32_t rk[], int Nr,
 	const uint32_t ct[4], uint32_t pt[4]);
 
 

@@ -40,7 +40,7 @@
 #define	ENTRY(x) \
 	.text; \
 	.syntax unified; \
-	.align 2; \
+	.balign 2; \
 	.global x; \
 	.type x,#function; \
 	_FUNC_MODE; \

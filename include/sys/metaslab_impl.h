@@ -250,7 +250,6 @@ struct metaslab_group {
 	int64_t			mg_activation_count;
 	metaslab_class_t	*mg_class;
 	vdev_t			*mg_vd;
-	taskq_t			*mg_taskq;
 	metaslab_group_t	*mg_prev;
 	metaslab_group_t	*mg_next;
 
@@ -313,7 +312,7 @@ struct metaslab_group {
  * Each metaslab maintains a set of in-core trees to track metaslab
  * operations.  The in-core free tree (ms_allocatable) contains the list of
  * free segments which are eligible for allocation.  As blocks are
- * allocated, the allocated segment are removed from the ms_allocatable and
+ * allocated, the allocated segments are removed from the ms_allocatable and
  * added to a per txg allocation tree (ms_allocating).  As blocks are
  * freed, they are added to the free tree (ms_freeing).  These trees
  * allow us to process all allocations and frees in syncing context
@@ -366,9 +365,9 @@ struct metaslab_group {
 struct metaslab {
 	/*
 	 * This is the main lock of the metaslab and its purpose is to
-	 * coordinate our allocations and frees [e.g metaslab_block_alloc(),
+	 * coordinate our allocations and frees [e.g., metaslab_block_alloc(),
 	 * metaslab_free_concrete(), ..etc] with our various syncing
-	 * procedures [e.g. metaslab_sync(), metaslab_sync_done(), ..etc].
+	 * procedures [e.g., metaslab_sync(), metaslab_sync_done(), ..etc].
 	 *
 	 * The lock is also used during some miscellaneous operations like
 	 * using the metaslab's histogram for the metaslab group's histogram

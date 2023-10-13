@@ -26,6 +26,7 @@
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
+ * Copyright (c) 2023 Hewlett Packard Enterprise Development LP.
  */
 
 #include <sys/dmu.h>
@@ -1186,10 +1187,9 @@ dsl_dir_space_towrite(dsl_dir_t *dd)
 
 	ASSERT(MUTEX_HELD(&dd->dd_lock));
 
-	for (int i = 0; i < TXG_SIZE; i++) {
+	for (int i = 0; i < TXG_SIZE; i++)
 		space += dd->dd_space_towrite[i & TXG_MASK];
-		ASSERT3U(dd->dd_space_towrite[i & TXG_MASK], >=, 0);
-	}
+
 	return (space);
 }
 
@@ -1359,30 +1359,23 @@ top_of_function:
 		ext_quota = 0;
 
 	if (used_on_disk >= quota) {
+		if (retval == ENOSPC && (used_on_disk - quota) <
+		    dsl_pool_deferred_space(dd->dd_pool)) {
+			retval = SET_ERROR(ERESTART);
+		}
 		/* Quota exceeded */
 		mutex_exit(&dd->dd_lock);
 		DMU_TX_STAT_BUMP(dmu_tx_quota);
 		return (retval);
 	} else if (used_on_disk + est_inflight >= quota + ext_quota) {
-		if (est_inflight > 0 || used_on_disk < quota) {
-			retval = SET_ERROR(ERESTART);
-		} else {
-			ASSERT3U(used_on_disk, >=, quota);
-
-			if (retval == ENOSPC && (used_on_disk - quota) <
-			    dsl_pool_deferred_space(dd->dd_pool)) {
-				retval = SET_ERROR(ERESTART);
-			}
-		}
-
 		dprintf_dd(dd, "failing: used=%lluK inflight = %lluK "
-		    "quota=%lluK tr=%lluK err=%d\n",
+		    "quota=%lluK tr=%lluK\n",
 		    (u_longlong_t)used_on_disk>>10,
 		    (u_longlong_t)est_inflight>>10,
-		    (u_longlong_t)quota>>10, (u_longlong_t)asize>>10, retval);
+		    (u_longlong_t)quota>>10, (u_longlong_t)asize>>10);
 		mutex_exit(&dd->dd_lock);
 		DMU_TX_STAT_BUMP(dmu_tx_quota);
-		return (retval);
+		return (SET_ERROR(ERESTART));
 	}
 
 	/* We need to up our estimated delta before dropping dd_lock */
@@ -1491,7 +1484,7 @@ dsl_dir_tempreserve_clear(void *tr_cookie, dmu_tx_t *tx)
 	if (tr_cookie == NULL)
 		return;
 
-	while ((tr = list_head(tr_list)) != NULL) {
+	while ((tr = list_remove_head(tr_list)) != NULL) {
 		if (tr->tr_ds) {
 			mutex_enter(&tr->tr_ds->dd_lock);
 			ASSERT3U(tr->tr_ds->dd_tempreserved[txgidx], >=,
@@ -1501,7 +1494,6 @@ dsl_dir_tempreserve_clear(void *tr_cookie, dmu_tx_t *tx)
 		} else {
 			arc_tempreserve_clear(tr->tr_size);
 		}
-		list_remove(tr_list, tr);
 		kmem_free(tr, sizeof (struct tempreserve));
 	}
 
@@ -2125,6 +2117,8 @@ dsl_dir_rename_sync(void *arg, dmu_tx_t *tx)
 	VERIFY0(dsl_dir_hold(dp, ddra->ddra_oldname, FTAG, &dd, NULL));
 	VERIFY0(dsl_dir_hold(dp, ddra->ddra_newname, FTAG, &newparent,
 	    &mynewname));
+
+	ASSERT3P(mynewname, !=, NULL);
 
 	/* Log this before we change the name. */
 	spa_history_log_internal_dd(dd, "rename", tx,

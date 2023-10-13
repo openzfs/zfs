@@ -47,14 +47,12 @@
 #include <sys/string.h>
 #include <zfs_fletcher.h>
 
-ZFS_NO_SANITIZE_UNDEFINED
 static void
 fletcher_4_superscalar4_init(fletcher_4_ctx_t *ctx)
 {
 	memset(ctx->superscalar, 0, 4 * sizeof (zfs_fletcher_superscalar_t));
 }
 
-ZFS_NO_SANITIZE_UNDEFINED
 static void
 fletcher_4_superscalar4_fini(fletcher_4_ctx_t *ctx, zio_cksum_t *zcp)
 {
@@ -84,7 +82,6 @@ fletcher_4_superscalar4_fini(fletcher_4_ctx_t *ctx, zio_cksum_t *zcp)
 	ZIO_SET_CHECKSUM(zcp, A, B, C, D);
 }
 
-ZFS_NO_SANITIZE_UNDEFINED
 static void
 fletcher_4_superscalar4_native(fletcher_4_ctx_t *ctx,
     const void *buf, uint64_t size)
@@ -150,7 +147,6 @@ fletcher_4_superscalar4_native(fletcher_4_ctx_t *ctx,
 	ctx->superscalar[3].v[3] = d4;
 }
 
-ZFS_NO_SANITIZE_UNDEFINED
 static void
 fletcher_4_superscalar4_byteswap(fletcher_4_ctx_t *ctx,
     const void *buf, uint64_t size)
@@ -229,5 +225,6 @@ const fletcher_4_ops_t fletcher_4_superscalar4_ops = {
 	.compute_byteswap = fletcher_4_superscalar4_byteswap,
 	.fini_byteswap = fletcher_4_superscalar4_fini,
 	.valid = fletcher_4_superscalar4_valid,
+	.uses_fpu = B_FALSE,
 	.name = "superscalar4"
 };

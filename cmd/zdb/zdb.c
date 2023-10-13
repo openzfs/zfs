@@ -33,6 +33,7 @@
  *     under sponsorship from the FreeBSD Foundation.
  * Copyright (c) 2021 Allan Jude
  * Copyright (c) 2021 Toomas Soome <tsoome@me.com>
+ * Copyright (c) 2023, Klara Inc.
  */
 
 #include <stdio.h>
@@ -40,6 +41,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <getopt.h>
+#include <openssl/evp.h>
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
@@ -77,6 +79,7 @@
 #include <sys/dsl_crypt.h>
 #include <sys/dsl_scan.h>
 #include <sys/btree.h>
+#include <sys/brt.h>
 #include <zfs_comutil.h>
 #include <sys/zstd/zstd.h>
 
@@ -116,7 +119,6 @@ zdb_ot_name(dmu_object_type_t type)
 
 extern int reference_tracking_enable;
 extern int zfs_recover;
-extern unsigned long zfs_arc_meta_min, zfs_arc_meta_limit;
 extern uint_t zfs_vdev_async_read_max_active;
 extern boolean_t spa_load_verify_dryrun;
 extern boolean_t spa_mode_readable_spacemaps;
@@ -326,7 +328,7 @@ sublivelist_verify_func(void *args, dsl_deadlist_entry_t *dle)
 	int err;
 	struct sublivelist_verify *sv = args;
 
-	zfs_btree_create(&sv->sv_pair, sublivelist_block_refcnt_compare,
+	zfs_btree_create(&sv->sv_pair, sublivelist_block_refcnt_compare, NULL,
 	    sizeof (sublivelist_verify_block_refcnt_t));
 
 	err = bpobj_iterate_nofree(&dle->dle_bpobj, sublivelist_verify_blkptr,
@@ -390,7 +392,7 @@ sublivelist_verify_lightweight(void *args, dsl_deadlist_entry_t *dle)
 {
 	(void) args;
 	sublivelist_verify_t sv;
-	zfs_btree_create(&sv.sv_leftover, livelist_block_compare,
+	zfs_btree_create(&sv.sv_leftover, livelist_block_compare, NULL,
 	    sizeof (sublivelist_verify_block_t));
 	int err = sublivelist_verify_func(&sv, dle);
 	zfs_btree_clear(&sv.sv_leftover);
@@ -682,7 +684,7 @@ livelist_metaslab_validate(spa_t *spa)
 	(void) printf("Verifying deleted livelist entries\n");
 
 	sublivelist_verify_t sv;
-	zfs_btree_create(&sv.sv_leftover, livelist_block_compare,
+	zfs_btree_create(&sv.sv_leftover, livelist_block_compare, NULL,
 	    sizeof (sublivelist_verify_block_t));
 	iterate_deleted_livelists(spa, livelist_verify, &sv);
 
@@ -716,7 +718,7 @@ livelist_metaslab_validate(spa_t *spa)
 			mv.mv_start = m->ms_start;
 			mv.mv_end = m->ms_start + m->ms_size;
 			zfs_btree_create(&mv.mv_livelist_allocs,
-			    livelist_block_compare,
+			    livelist_block_compare, NULL,
 			    sizeof (sublivelist_verify_block_t));
 
 			mv_populate_livelist_allocs(&mv, &sv);
@@ -785,23 +787,27 @@ usage(void)
 	    "Usage:\t%s [-AbcdDFGhikLMPsvXy] [-e [-V] [-p <path> ...]] "
 	    "[-I <inflight I/Os>]\n"
 	    "\t\t[-o <var>=<value>]... [-t <txg>] [-U <cache>] [-x <dumpdir>]\n"
+	    "\t\t[-K <key>]\n"
 	    "\t\t[<poolname>[/<dataset | objset id>] [<object | range> ...]]\n"
-	    "\t%s [-AdiPv] [-e [-V] [-p <path> ...]] [-U <cache>]\n"
+	    "\t%s [-AdiPv] [-e [-V] [-p <path> ...]] [-U <cache>] [-K <key>]\n"
 	    "\t\t[<poolname>[/<dataset | objset id>] [<object | range> ...]\n"
+	    "\t%s -B [-e [-V] [-p <path> ...]] [-I <inflight I/Os>]\n"
+	    "\t\t[-o <var>=<value>]... [-t <txg>] [-U <cache>] [-x <dumpdir>]\n"
+	    "\t\t[-K <key>] <poolname>/<objset id> [<backupflags>]\n"
 	    "\t%s [-v] <bookmark>\n"
-	    "\t%s -C [-A] [-U <cache>]\n"
+	    "\t%s -C [-A] [-U <cache>] [<poolname>]\n"
 	    "\t%s -l [-Aqu] <device>\n"
 	    "\t%s -m [-AFLPX] [-e [-V] [-p <path> ...]] [-t <txg>] "
 	    "[-U <cache>]\n\t\t<poolname> [<vdev> [<metaslab> ...]]\n"
-	    "\t%s -O <dataset> <path>\n"
-	    "\t%s -r <dataset> <path> <destination>\n"
+	    "\t%s -O [-K <key>] <dataset> <path>\n"
+	    "\t%s -r [-K <key>] <dataset> <path> <destination>\n"
 	    "\t%s -R [-A] [-e [-V] [-p <path> ...]] [-U <cache>]\n"
 	    "\t\t<poolname> <vdev>:<offset>:<size>[:<flags>]\n"
 	    "\t%s -E [-A] word0:word1:...:word15\n"
 	    "\t%s -S [-AP] [-e [-V] [-p <path> ...]] [-U <cache>] "
 	    "<poolname>\n\n",
 	    cmdname, cmdname, cmdname, cmdname, cmdname, cmdname, cmdname,
-	    cmdname, cmdname, cmdname, cmdname);
+	    cmdname, cmdname, cmdname, cmdname, cmdname);
 
 	(void) fprintf(stderr, "    Dataset name must include at least one "
 	    "separator character '/' or '@'\n");
@@ -824,6 +830,8 @@ usage(void)
 	(void) fprintf(stderr, "    Options to control amount of output:\n");
 	(void) fprintf(stderr, "        -b --block-stats             "
 	    "block statistics\n");
+	(void) fprintf(stderr, "        -B --backup                  "
+	    "backup stream\n");
 	(void) fprintf(stderr, "        -c --checksum                "
 	    "checksum all metadata (twice for all data) blocks\n");
 	(void) fprintf(stderr, "        -C --config                  "
@@ -879,6 +887,8 @@ usage(void)
 	(void) fprintf(stderr, "        -I --inflight=INTEGER        "
 	    "specify the maximum number of checksumming I/Os "
 	    "[default is 200]\n");
+	(void) fprintf(stderr, "        -K --key=KEY                 "
+	    "decryption key for encrypted dataset\n");
 	(void) fprintf(stderr, "        -o --option=\"OPTION=INTEGER\" "
 	    "set global variable to an unsigned 32-bit integer\n");
 	(void) fprintf(stderr, "        -p --path==PATH              "
@@ -1001,11 +1011,13 @@ dump_histogram(const uint64_t *histo, int size, int offset)
 	uint64_t max = 0;
 
 	for (i = 0; i < size; i++) {
+		if (histo[i] == 0)
+			continue;
 		if (histo[i] > max)
 			max = histo[i];
-		if (histo[i] > 0 && i > maxidx)
+		if (i > maxidx)
 			maxidx = i;
-		if (histo[i] > 0 && i < minidx)
+		if (i < minidx)
 			minidx = i;
 	}
 
@@ -2377,7 +2389,8 @@ snprintf_blkptr_compact(char *blkbuf, size_t buflen, const blkptr_t *bp,
 			(void) snprintf(blkbuf + strlen(blkbuf),
 			    buflen - strlen(blkbuf), " %s", "FREE");
 		(void) snprintf(blkbuf + strlen(blkbuf),
-		    buflen - strlen(blkbuf), " cksum=%llx:%llx:%llx:%llx",
+		    buflen - strlen(blkbuf),
+		    " cksum=%016llx:%016llx:%016llx:%016llx",
 		    (u_longlong_t)bp->blk_cksum.zc_word[0],
 		    (u_longlong_t)bp->blk_cksum.zc_word[1],
 		    (u_longlong_t)bp->blk_cksum.zc_word[2],
@@ -3022,6 +3035,118 @@ verify_dd_livelist(objset_t *os)
 	return (0);
 }
 
+static char *key_material = NULL;
+
+static boolean_t
+zdb_derive_key(dsl_dir_t *dd, uint8_t *key_out)
+{
+	uint64_t keyformat, salt, iters;
+	int i;
+	unsigned char c;
+
+	VERIFY0(zap_lookup(dd->dd_pool->dp_meta_objset, dd->dd_crypto_obj,
+	    zfs_prop_to_name(ZFS_PROP_KEYFORMAT), sizeof (uint64_t),
+	    1, &keyformat));
+
+	switch (keyformat) {
+	case ZFS_KEYFORMAT_HEX:
+		for (i = 0; i < WRAPPING_KEY_LEN * 2; i += 2) {
+			if (!isxdigit(key_material[i]) ||
+			    !isxdigit(key_material[i+1]))
+				return (B_FALSE);
+			if (sscanf(&key_material[i], "%02hhx", &c) != 1)
+				return (B_FALSE);
+			key_out[i / 2] = c;
+		}
+		break;
+
+	case ZFS_KEYFORMAT_PASSPHRASE:
+		VERIFY0(zap_lookup(dd->dd_pool->dp_meta_objset,
+		    dd->dd_crypto_obj, zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT),
+		    sizeof (uint64_t), 1, &salt));
+		VERIFY0(zap_lookup(dd->dd_pool->dp_meta_objset,
+		    dd->dd_crypto_obj, zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS),
+		    sizeof (uint64_t), 1, &iters));
+
+		if (PKCS5_PBKDF2_HMAC_SHA1(key_material, strlen(key_material),
+		    ((uint8_t *)&salt), sizeof (uint64_t), iters,
+		    WRAPPING_KEY_LEN, key_out) != 1)
+			return (B_FALSE);
+
+		break;
+
+	default:
+		fatal("no support for key format %u\n",
+		    (unsigned int) keyformat);
+	}
+
+	return (B_TRUE);
+}
+
+static char encroot[ZFS_MAX_DATASET_NAME_LEN];
+static boolean_t key_loaded = B_FALSE;
+
+static void
+zdb_load_key(objset_t *os)
+{
+	dsl_pool_t *dp;
+	dsl_dir_t *dd, *rdd;
+	uint8_t key[WRAPPING_KEY_LEN];
+	uint64_t rddobj;
+	int err;
+
+	dp = spa_get_dsl(os->os_spa);
+	dd = os->os_dsl_dataset->ds_dir;
+
+	dsl_pool_config_enter(dp, FTAG);
+	VERIFY0(zap_lookup(dd->dd_pool->dp_meta_objset, dd->dd_crypto_obj,
+	    DSL_CRYPTO_KEY_ROOT_DDOBJ, sizeof (uint64_t), 1, &rddobj));
+	VERIFY0(dsl_dir_hold_obj(dd->dd_pool, rddobj, NULL, FTAG, &rdd));
+	dsl_dir_name(rdd, encroot);
+	dsl_dir_rele(rdd, FTAG);
+
+	if (!zdb_derive_key(dd, key))
+		fatal("couldn't derive encryption key");
+
+	dsl_pool_config_exit(dp, FTAG);
+
+	ASSERT3U(dsl_dataset_get_keystatus(dd), ==, ZFS_KEYSTATUS_UNAVAILABLE);
+
+	dsl_crypto_params_t *dcp;
+	nvlist_t *crypto_args;
+
+	crypto_args = fnvlist_alloc();
+	fnvlist_add_uint8_array(crypto_args, "wkeydata",
+	    (uint8_t *)key, WRAPPING_KEY_LEN);
+	VERIFY0(dsl_crypto_params_create_nvlist(DCP_CMD_NONE,
+	    NULL, crypto_args, &dcp));
+	err = spa_keystore_load_wkey(encroot, dcp, B_FALSE);
+
+	dsl_crypto_params_free(dcp, (err != 0));
+	fnvlist_free(crypto_args);
+
+	if (err != 0)
+		fatal(
+		    "couldn't load encryption key for %s: %s",
+		    encroot, err == ZFS_ERR_CRYPTO_NOTSUP ?
+		    "crypto params not supported" : strerror(err));
+
+	ASSERT3U(dsl_dataset_get_keystatus(dd), ==, ZFS_KEYSTATUS_AVAILABLE);
+
+	printf("Unlocked encryption root: %s\n", encroot);
+	key_loaded = B_TRUE;
+}
+
+static void
+zdb_unload_key(void)
+{
+	if (!key_loaded)
+		return;
+
+	VERIFY0(spa_keystore_unload_wkey(encroot));
+	key_loaded = B_FALSE;
+}
+
 static avl_tree_t idx_tree;
 static avl_tree_t domain_tree;
 static boolean_t fuid_table_loaded;
@@ -3036,12 +3161,36 @@ open_objset(const char *path, const void *tag, objset_t **osp)
 	uint64_t version = 0;
 
 	VERIFY3P(sa_os, ==, NULL);
+
 	/*
 	 * We can't own an objset if it's redacted.  Therefore, we do this
 	 * dance: hold the objset, then acquire a long hold on its dataset, then
 	 * release the pool (which is held as part of holding the objset).
 	 */
-	err = dmu_objset_hold(path, tag, osp);
+
+	if (dump_opt['K']) {
+		/* decryption requested, try to load keys */
+		err = dmu_objset_hold(path, tag, osp);
+		if (err != 0) {
+			(void) fprintf(stderr, "failed to hold dataset "
+			    "'%s': %s\n",
+			    path, strerror(err));
+			return (err);
+		}
+		dsl_dataset_long_hold(dmu_objset_ds(*osp), tag);
+		dsl_pool_rele(dmu_objset_pool(*osp), tag);
+
+		/* succeeds or dies */
+		zdb_load_key(*osp);
+
+		/* release it all */
+		dsl_dataset_long_rele(dmu_objset_ds(*osp), tag);
+		dsl_dataset_rele(dmu_objset_ds(*osp), tag);
+	}
+
+	int ds_hold_flags = key_loaded ? DS_HOLD_FLAG_DECRYPT : 0;
+
+	err = dmu_objset_hold_flags(path, ds_hold_flags, tag, osp);
 	if (err != 0) {
 		(void) fprintf(stderr, "failed to hold dataset '%s': %s\n",
 		    path, strerror(err));
@@ -3050,7 +3199,8 @@ open_objset(const char *path, const void *tag, objset_t **osp)
 	dsl_dataset_long_hold(dmu_objset_ds(*osp), tag);
 	dsl_pool_rele(dmu_objset_pool(*osp), tag);
 
-	if (dmu_objset_type(*osp) == DMU_OST_ZFS && !(*osp)->os_encrypted) {
+	if (dmu_objset_type(*osp) == DMU_OST_ZFS &&
+	    (key_loaded || !(*osp)->os_encrypted)) {
 		(void) zap_lookup(*osp, MASTER_NODE_OBJ, ZPL_VERSION_STR,
 		    8, 1, &version);
 		if (version >= ZPL_VERSION_SA) {
@@ -3063,7 +3213,8 @@ open_objset(const char *path, const void *tag, objset_t **osp)
 			(void) fprintf(stderr, "sa_setup failed: %s\n",
 			    strerror(err));
 			dsl_dataset_long_rele(dmu_objset_ds(*osp), tag);
-			dsl_dataset_rele(dmu_objset_ds(*osp), tag);
+			dsl_dataset_rele_flags(dmu_objset_ds(*osp),
+			    ds_hold_flags, tag);
 			*osp = NULL;
 		}
 	}
@@ -3079,9 +3230,12 @@ close_objset(objset_t *os, const void *tag)
 	if (os->os_sa != NULL)
 		sa_tear_down(os);
 	dsl_dataset_long_rele(dmu_objset_ds(os), tag);
-	dsl_dataset_rele(dmu_objset_ds(os), tag);
+	dsl_dataset_rele_flags(dmu_objset_ds(os),
+	    key_loaded ? DS_HOLD_FLAG_DECRYPT : 0, tag);
 	sa_attr_table = NULL;
 	sa_os = NULL;
+
+	zdb_unload_key();
 }
 
 static void
@@ -3175,13 +3329,22 @@ dump_znode_sa_xattr(sa_handle_t *hdl)
 	(void) printf("\tSA xattrs: %d bytes, %d entries\n\n",
 	    sa_xattr_size, sa_xattr_entries);
 	while ((elem = nvlist_next_nvpair(sa_xattr, elem)) != NULL) {
+		boolean_t can_print = !dump_opt['P'];
 		uchar_t *value;
 		uint_t cnt, idx;
 
 		(void) printf("\t\t%s = ", nvpair_name(elem));
 		nvpair_value_byte_array(elem, &value, &cnt);
+
 		for (idx = 0; idx < cnt; ++idx) {
-			if (isprint(value[idx]))
+			if (!isprint(value[idx])) {
+				can_print = B_FALSE;
+				break;
+			}
+		}
+
+		for (idx = 0; idx < cnt; ++idx) {
+			if (can_print)
 				(void) putchar(value[idx]);
 			else
 				(void) printf("\\%3.3o", value[idx]);
@@ -3463,7 +3626,7 @@ dump_object(objset_t *os, uint64_t object, int verbosity,
 		if (error)
 			fatal("dmu_object_info() failed, errno %u", error);
 
-		if (os->os_encrypted &&
+		if (!key_loaded && os->os_encrypted &&
 		    DMU_OT_IS_ENCRYPTED(doi.doi_bonus_type)) {
 			error = dnode_hold(os, object, FTAG, &dn);
 			if (error)
@@ -3560,7 +3723,8 @@ dump_object(objset_t *os, uint64_t object, int verbosity,
 			(void) printf("\t\t(bonus encrypted)\n");
 		}
 
-		if (!os->os_encrypted || !DMU_OT_IS_ENCRYPTED(doi.doi_type)) {
+		if (key_loaded ||
+		    (!os->os_encrypted || !DMU_OT_IS_ENCRYPTED(doi.doi_type))) {
 			object_viewer[ZDB_OT_TYPE(doi.doi_type)](os, object,
 			    NULL, 0);
 		} else {
@@ -4061,7 +4225,7 @@ collect_nvlist_stats(nvlist_t *nvl, zdb_nvl_stats_t *stats)
 {
 	nvlist_t *list, **array;
 	nvpair_t *nvp = NULL;
-	char *name;
+	const char *name;
 	uint_t i, items;
 
 	stats->zns_list_count++;
@@ -4719,6 +4883,81 @@ dump_path(char *ds, char *path, uint64_t *retobj)
 }
 
 static int
+dump_backup_bytes(objset_t *os, void *buf, int len, void *arg)
+{
+	const char *p = (const char *)buf;
+	ssize_t nwritten;
+
+	(void) os;
+	(void) arg;
+
+	/* Write the data out, handling short writes and signals. */
+	while ((nwritten = write(STDOUT_FILENO, p, len)) < len) {
+		if (nwritten < 0) {
+			if (errno == EINTR)
+				continue;
+			return (errno);
+		}
+		p += nwritten;
+		len -= nwritten;
+	}
+
+	return (0);
+}
+
+static void
+dump_backup(const char *pool, uint64_t objset_id, const char *flagstr)
+{
+	boolean_t embed = B_FALSE;
+	boolean_t large_block = B_FALSE;
+	boolean_t compress = B_FALSE;
+	boolean_t raw = B_FALSE;
+
+	const char *c;
+	for (c = flagstr; c != NULL && *c != '\0'; c++) {
+		switch (*c) {
+			case 'e':
+				embed = B_TRUE;
+				break;
+			case 'L':
+				large_block = B_TRUE;
+				break;
+			case 'c':
+				compress = B_TRUE;
+				break;
+			case 'w':
+				raw = B_TRUE;
+				break;
+			default:
+				fprintf(stderr, "dump_backup: invalid flag "
+				    "'%c'\n", *c);
+				return;
+		}
+	}
+
+	if (isatty(STDOUT_FILENO)) {
+		fprintf(stderr, "dump_backup: stream cannot be written "
+		    "to a terminal\n");
+		return;
+	}
+
+	offset_t off = 0;
+	dmu_send_outparams_t out = {
+	    .dso_outfunc = dump_backup_bytes,
+	    .dso_dryrun  = B_FALSE,
+	};
+
+	int err = dmu_send_obj(pool, objset_id, /* fromsnap */0, embed,
+	    large_block, compress, raw, /* saved */ B_FALSE, STDOUT_FILENO,
+	    &off, &out);
+	if (err != 0) {
+		fprintf(stderr, "dump_backup: dmu_send_obj: %s\n",
+		    strerror(err));
+		return;
+	}
+}
+
+static int
 zdb_copy_object(objset_t *os, uint64_t srcobj, char *destfile)
 {
 	int err = 0;
@@ -4940,7 +5179,7 @@ dump_label(const char *dev)
 			if (nvlist_size(config, &size, NV_ENCODE_XDR) != 0)
 				size = buflen;
 
-			/* If the device is a cache device clear the header. */
+			/* If the device is a cache device read the header. */
 			if (!read_l2arc_header) {
 				if (nvlist_lookup_uint64(config,
 				    ZPOOL_CONFIG_POOL_STATE, &l2cache) == 0 &&
@@ -5054,8 +5293,18 @@ dump_one_objset(const char *dsname, void *arg)
 	    avl_first(&dmu_objset_ds(os)->ds_bookmarks); dbn != NULL;
 	    dbn = AVL_NEXT(&dmu_objset_ds(os)->ds_bookmarks, dbn)) {
 		mos_obj_refd(dbn->dbn_phys.zbm_redaction_obj);
-		if (dbn->dbn_phys.zbm_redaction_obj != 0)
-			global_feature_count[SPA_FEATURE_REDACTION_BOOKMARKS]++;
+		if (dbn->dbn_phys.zbm_redaction_obj != 0) {
+			global_feature_count[
+			    SPA_FEATURE_REDACTION_BOOKMARKS]++;
+			objset_t *mos = os->os_spa->spa_meta_objset;
+			dnode_t *rl;
+			VERIFY0(dnode_hold(mos,
+			    dbn->dbn_phys.zbm_redaction_obj, FTAG, &rl));
+			if (rl->dn_have_spill) {
+				global_feature_count[
+				    SPA_FEATURE_REDACTION_LIST_SPILL]++;
+			}
+		}
 		if (dbn->dbn_phys.zbm_flags & ZBM_FLAG_HAS_FBN)
 			global_feature_count[SPA_FEATURE_BOOKMARK_WRITTEN]++;
 	}
@@ -5104,12 +5353,20 @@ static const char *zdb_ot_extname[] = {
 #define	ZB_TOTAL	DN_MAX_LEVELS
 #define	SPA_MAX_FOR_16M	(SPA_MAXBLOCKSHIFT+1)
 
+typedef struct zdb_brt_entry {
+	dva_t		zbre_dva;
+	uint64_t	zbre_refcount;
+	avl_node_t	zbre_node;
+} zdb_brt_entry_t;
+
 typedef struct zdb_cb {
 	zdb_blkstats_t	zcb_type[ZB_TOTAL + 1][ZDB_OT_TOTAL + 1];
 	uint64_t	zcb_removing_size;
 	uint64_t	zcb_checkpoint_size;
 	uint64_t	zcb_dedup_asize;
 	uint64_t	zcb_dedup_blocks;
+	uint64_t	zcb_clone_asize;
+	uint64_t	zcb_clone_blocks;
 	uint64_t	zcb_psize_count[SPA_MAX_FOR_16M];
 	uint64_t	zcb_lsize_count[SPA_MAX_FOR_16M];
 	uint64_t	zcb_asize_count[SPA_MAX_FOR_16M];
@@ -5130,6 +5387,8 @@ typedef struct zdb_cb {
 	int		zcb_haderrors;
 	spa_t		*zcb_spa;
 	uint32_t	**zcb_vd_obsolete_counts;
+	avl_tree_t	zcb_brt;
+	boolean_t	zcb_brt_is_active;
 } zdb_cb_t;
 
 /* test if two DVA offsets from same vdev are within the same metaslab */
@@ -5423,6 +5682,45 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 	zcb->zcb_asize_count[bin]++;
 	zcb->zcb_asize_len[bin] += BP_GET_ASIZE(bp);
 	zcb->zcb_asize_total += BP_GET_ASIZE(bp);
+
+	if (zcb->zcb_brt_is_active && brt_maybe_exists(zcb->zcb_spa, bp)) {
+		/*
+		 * Cloned blocks are special. We need to count them, so we can
+		 * later uncount them when reporting leaked space, and we must
+		 * only claim them them once.
+		 *
+		 * To do this, we keep our own in-memory BRT. For each block
+		 * we haven't seen before, we look it up in the real BRT and
+		 * if its there, we note it and its refcount then proceed as
+		 * normal. If we see the block again, we count it as a clone
+		 * and then give it no further consideration.
+		 */
+		zdb_brt_entry_t zbre_search, *zbre;
+		avl_index_t where;
+
+		zbre_search.zbre_dva = bp->blk_dva[0];
+		zbre = avl_find(&zcb->zcb_brt, &zbre_search, &where);
+		if (zbre != NULL) {
+			zcb->zcb_clone_asize += BP_GET_ASIZE(bp);
+			zcb->zcb_clone_blocks++;
+
+			zbre->zbre_refcount--;
+			if (zbre->zbre_refcount == 0) {
+				avl_remove(&zcb->zcb_brt, zbre);
+				umem_free(zbre, sizeof (zdb_brt_entry_t));
+			}
+			return;
+		}
+
+		uint64_t crefcnt = brt_entry_get_refcount(zcb->zcb_spa, bp);
+		if (crefcnt > 0) {
+			zbre = umem_zalloc(sizeof (zdb_brt_entry_t),
+			    UMEM_NOFAIL);
+			zbre->zbre_dva = bp->blk_dva[0];
+			zbre->zbre_refcount = crefcnt;
+			avl_insert(&zcb->zcb_brt, zbre, where);
+		}
+	}
 
 	if (dump_opt['L'])
 		return;
@@ -6427,6 +6725,20 @@ deleted_livelists_dump_mos(spa_t *spa)
 }
 
 static int
+zdb_brt_entry_compare(const void *zcn1, const void *zcn2)
+{
+	const dva_t *dva1 = &((const zdb_brt_entry_t *)zcn1)->zbre_dva;
+	const dva_t *dva2 = &((const zdb_brt_entry_t *)zcn2)->zbre_dva;
+	int cmp;
+
+	cmp = TREE_CMP(DVA_GET_VDEV(dva1), DVA_GET_VDEV(dva2));
+	if (cmp == 0)
+		cmp = TREE_CMP(DVA_GET_OFFSET(dva1), DVA_GET_OFFSET(dva2));
+
+	return (cmp);
+}
+
+static int
 dump_block_stats(spa_t *spa)
 {
 	zdb_cb_t *zcb;
@@ -6439,6 +6751,13 @@ dump_block_stats(spa_t *spa)
 	bp_embedded_type_t i;
 
 	zcb = umem_zalloc(sizeof (zdb_cb_t), UMEM_NOFAIL);
+
+	if (spa_feature_is_active(spa, SPA_FEATURE_BLOCK_CLONING)) {
+		avl_create(&zcb->zcb_brt, zdb_brt_entry_compare,
+		    sizeof (zdb_brt_entry_t),
+		    offsetof(zdb_brt_entry_t, zbre_node));
+		zcb->zcb_brt_is_active = B_TRUE;
+	}
 
 	(void) printf("\nTraversing all blocks %s%s%s%s%s...\n\n",
 	    (dump_opt['c'] || !dump_opt['L']) ? "to verify " : "",
@@ -6541,7 +6860,8 @@ dump_block_stats(spa_t *spa)
 	    metaslab_class_get_alloc(spa_special_class(spa)) +
 	    metaslab_class_get_alloc(spa_dedup_class(spa)) +
 	    get_unflushed_alloc_space(spa);
-	total_found = tzb->zb_asize - zcb->zcb_dedup_asize +
+	total_found =
+	    tzb->zb_asize - zcb->zcb_dedup_asize - zcb->zcb_clone_asize +
 	    zcb->zcb_removing_size + zcb->zcb_checkpoint_size;
 
 	if (total_found == total_alloc && !dump_opt['L']) {
@@ -6582,6 +6902,9 @@ dump_block_stats(spa_t *spa)
 	    "bp deduped:", (u_longlong_t)zcb->zcb_dedup_asize,
 	    (u_longlong_t)zcb->zcb_dedup_blocks,
 	    (double)zcb->zcb_dedup_asize / tzb->zb_asize + 1.0);
+	(void) printf("\t%-16s %14llu    count: %6llu\n",
+	    "bp cloned:", (u_longlong_t)zcb->zcb_clone_asize,
+	    (u_longlong_t)zcb->zcb_clone_blocks);
 	(void) printf("\t%-16s %14llu     used: %5.2f%%\n", "Normal class:",
 	    (u_longlong_t)norm_alloc, 100.0 * norm_alloc / norm_space);
 
@@ -6664,12 +6987,15 @@ dump_block_stats(spa_t *spa)
 
 	if (dump_opt['b'] >= 2) {
 		int l, t, level;
+		char csize[32], lsize[32], psize[32], asize[32];
+		char avg[32], gang[32];
 		(void) printf("\nBlocks\tLSIZE\tPSIZE\tASIZE"
 		    "\t  avg\t comp\t%%Total\tType\n");
 
+		zfs_blkstat_t *mdstats = umem_zalloc(sizeof (zfs_blkstat_t),
+		    UMEM_NOFAIL);
+
 		for (t = 0; t <= ZDB_OT_TOTAL; t++) {
-			char csize[32], lsize[32], psize[32], asize[32];
-			char avg[32], gang[32];
 			const char *typename;
 
 			/* make sure nicenum has enough space */
@@ -6711,6 +7037,15 @@ dump_block_stats(spa_t *spa)
 
 				if (zb->zb_asize == 0)
 					continue;
+
+				if (level != ZB_TOTAL && t < DMU_OT_NUMTYPES &&
+				    (level > 0 || DMU_OT_IS_METADATA(t))) {
+					mdstats->zb_count += zb->zb_count;
+					mdstats->zb_lsize += zb->zb_lsize;
+					mdstats->zb_psize += zb->zb_psize;
+					mdstats->zb_asize += zb->zb_asize;
+					mdstats->zb_gangs += zb->zb_gangs;
+				}
 
 				if (dump_opt['b'] < 3 && level != ZB_TOTAL)
 					continue;
@@ -6757,11 +7092,31 @@ dump_block_stats(spa_t *spa)
 				}
 			}
 		}
+		zdb_nicenum(mdstats->zb_count, csize,
+		    sizeof (csize));
+		zdb_nicenum(mdstats->zb_lsize, lsize,
+		    sizeof (lsize));
+		zdb_nicenum(mdstats->zb_psize, psize,
+		    sizeof (psize));
+		zdb_nicenum(mdstats->zb_asize, asize,
+		    sizeof (asize));
+		zdb_nicenum(mdstats->zb_asize / mdstats->zb_count, avg,
+		    sizeof (avg));
+		zdb_nicenum(mdstats->zb_gangs, gang, sizeof (gang));
+
+		(void) printf("%6s\t%5s\t%5s\t%5s\t%5s"
+		    "\t%5.2f\t%6.2f\t",
+		    csize, lsize, psize, asize, avg,
+		    (double)mdstats->zb_lsize / mdstats->zb_psize,
+		    100.0 * mdstats->zb_asize / tzb->zb_asize);
+		(void) printf("%s\n", "Metadata Total");
 
 		/* Output a table summarizing block sizes in the pool */
 		if (dump_opt['b'] >= 2) {
 			dump_size_histograms(zcb);
 		}
+
+		umem_free(mdstats, sizeof (zfs_blkstat_t));
 	}
 
 	(void) printf("\n");
@@ -7482,6 +7837,9 @@ mos_leak_vdev(vdev_t *vd)
 		mos_obj_refd(space_map_object(ms->ms_sm));
 	}
 
+	if (vd->vdev_root_zap != 0)
+		mos_obj_refd(vd->vdev_root_zap);
+
 	if (vd->vdev_top_zap != 0) {
 		mos_obj_refd(vd->vdev_top_zap);
 		mos_leak_vdev_top_zap(vd);
@@ -7509,6 +7867,19 @@ mos_leak_log_spacemaps(spa_t *spa)
 		mos_obj_refd(sls->sls_sm_obj);
 }
 
+static void
+errorlog_count_refd(objset_t *mos, uint64_t errlog)
+{
+	zap_cursor_t zc;
+	zap_attribute_t za;
+	for (zap_cursor_init(&zc, mos, errlog);
+	    zap_cursor_retrieve(&zc, &za) == 0;
+	    zap_cursor_advance(&zc)) {
+		mos_obj_refd(za.za_first_integer);
+	}
+	zap_cursor_fini(&zc);
+}
+
 static int
 dump_mos_leaks(spa_t *spa)
 {
@@ -7529,6 +7900,12 @@ dump_mos_leaks(spa_t *spa)
 	mos_obj_refd(spa->spa_history);
 	mos_obj_refd(spa->spa_errlog_last);
 	mos_obj_refd(spa->spa_errlog_scrub);
+
+	if (spa_feature_is_enabled(spa, SPA_FEATURE_HEAD_ERRLOG)) {
+		errorlog_count_refd(mos, spa->spa_errlog_last);
+		errorlog_count_refd(mos, spa->spa_errlog_scrub);
+	}
+
 	mos_obj_refd(spa->spa_all_vdev_zaps);
 	mos_obj_refd(spa->spa_dsl_pool->dp_bptree_obj);
 	mos_obj_refd(spa->spa_dsl_pool->dp_tmp_userrefs_obj);
@@ -7768,6 +8145,7 @@ dump_zpool(spa_t *spa)
 		for (spa_feature_t f = 0; f < SPA_FEATURES; f++)
 			global_feature_count[f] = UINT64_MAX;
 		global_feature_count[SPA_FEATURE_REDACTION_BOOKMARKS] = 0;
+		global_feature_count[SPA_FEATURE_REDACTION_LIST_SPILL] = 0;
 		global_feature_count[SPA_FEATURE_BOOKMARK_WRITTEN] = 0;
 		global_feature_count[SPA_FEATURE_LIVELIST] = 0;
 
@@ -8254,9 +8632,9 @@ zdb_read_block(char *thing, spa_t *spa)
 		 */
 		zio_nowait(zio_vdev_child_io(zio, bp, vd, offset, pabd,
 		    psize, ZIO_TYPE_READ, ZIO_PRIORITY_SYNC_READ,
-		    ZIO_FLAG_DONT_CACHE | ZIO_FLAG_DONT_PROPAGATE |
-		    ZIO_FLAG_DONT_RETRY | ZIO_FLAG_CANFAIL | ZIO_FLAG_RAW |
-		    ZIO_FLAG_OPTIONAL, NULL, NULL));
+		    ZIO_FLAG_DONT_PROPAGATE | ZIO_FLAG_DONT_RETRY |
+		    ZIO_FLAG_CANFAIL | ZIO_FLAG_RAW | ZIO_FLAG_OPTIONAL,
+		    NULL, NULL));
 	}
 
 	error = zio_wait(zio);
@@ -8288,8 +8666,8 @@ zdb_read_block(char *thing, spa_t *spa)
 	    !(flags & ZDB_FLAG_DECOMPRESS)) {
 		const blkptr_t *b = (const blkptr_t *)(void *)
 		    ((uintptr_t)buf + (uintptr_t)blkptr_offset);
-		if (zfs_blkptr_verify(spa, b, B_FALSE, BLK_VERIFY_ONLY) ==
-		    B_FALSE) {
+		if (zfs_blkptr_verify(spa, b,
+		    BLK_CONFIG_NEEDED, BLK_VERIFY_ONLY) == B_FALSE) {
 			abd_return_buf_copy(pabd, buf, lsize);
 			borrowed = B_FALSE;
 			buf = lbuf;
@@ -8297,8 +8675,8 @@ zdb_read_block(char *thing, spa_t *spa)
 			    lbuf, lsize, psize, flags);
 			b = (const blkptr_t *)(void *)
 			    ((uintptr_t)buf + (uintptr_t)blkptr_offset);
-			if (failed || zfs_blkptr_verify(spa, b, B_FALSE,
-			    BLK_VERIFY_LOG) == B_FALSE) {
+			if (failed || zfs_blkptr_verify(spa, b,
+			    BLK_CONFIG_NEEDED, BLK_VERIFY_LOG) == B_FALSE) {
 				printf("invalid block pointer at this DVA\n");
 				goto out;
 			}
@@ -8350,7 +8728,6 @@ zdb_read_block(char *thing, spa_t *spa)
 				zio_nowait(zio_vdev_child_io(czio, bp, vd,
 				    offset, pabd, psize, ZIO_TYPE_READ,
 				    ZIO_PRIORITY_SYNC_READ,
-				    ZIO_FLAG_DONT_CACHE |
 				    ZIO_FLAG_DONT_PROPAGATE |
 				    ZIO_FLAG_DONT_RETRY |
 				    ZIO_FLAG_CANFAIL | ZIO_FLAG_RAW |
@@ -8364,7 +8741,9 @@ zdb_read_block(char *thing, spa_t *spa)
 				    DVA_GET_OFFSET(&bp->blk_dva[0]);
 				ck_zio->io_bp = bp;
 				zio_checksum_compute(ck_zio, ck, pabd, lsize);
-				printf("%12s\tcksum=%llx:%llx:%llx:%llx\n",
+				printf(
+				    "%12s\t"
+				    "cksum=%016llx:%016llx:%016llx:%016llx\n",
 				    zio_checksum_table[ck].ci_name,
 				    (u_longlong_t)bp->blk_cksum.zc_word[0],
 				    (u_longlong_t)bp->blk_cksum.zc_word[1],
@@ -8482,6 +8861,7 @@ main(int argc, char **argv)
 	struct option long_options[] = {
 		{"ignore-assertions",	no_argument,		NULL, 'A'},
 		{"block-stats",		no_argument,		NULL, 'b'},
+		{"backup",		no_argument,		NULL, 'B'},
 		{"checksum",		no_argument,		NULL, 'c'},
 		{"config",		no_argument,		NULL, 'C'},
 		{"datasets",		no_argument,		NULL, 'd'},
@@ -8494,6 +8874,7 @@ main(int argc, char **argv)
 		{"intent-logs",		no_argument,		NULL, 'i'},
 		{"inflight",		required_argument,	NULL, 'I'},
 		{"checkpointed-state",	no_argument,		NULL, 'k'},
+		{"key",			required_argument,	NULL, 'K'},
 		{"label",		no_argument,		NULL, 'l'},
 		{"disable-leak-tracking",	no_argument,	NULL, 'L'},
 		{"metaslabs",		no_argument,		NULL, 'm'},
@@ -8522,10 +8903,11 @@ main(int argc, char **argv)
 	};
 
 	while ((c = getopt_long(argc, argv,
-	    "AbcCdDeEFGhiI:klLmMNo:Op:PqrRsSt:uU:vVx:XYyZ",
+	    "AbBcCdDeEFGhiI:kK:lLmMNo:Op:PqrRsSt:uU:vVx:XYyZ",
 	    long_options, NULL)) != -1) {
 		switch (c) {
 		case 'b':
+		case 'B':
 		case 'c':
 		case 'C':
 		case 'd':
@@ -8572,6 +8954,12 @@ main(int argc, char **argv)
 				    "than 0\n");
 				usage();
 			}
+			break;
+		case 'K':
+			dump_opt[c]++;
+			key_material = strdup(optarg);
+			/* redact key material in process table */
+			while (*optarg != '\0') { *optarg++ = '*'; }
 			break;
 		case 'o':
 			error = set_global_var(optarg);
@@ -8634,8 +9022,8 @@ main(int argc, char **argv)
 	 * ZDB does not typically re-read blocks; therefore limit the ARC
 	 * to 256 MB, which can be used entirely for metadata.
 	 */
-	zfs_arc_min = zfs_arc_meta_min = 2ULL << SPA_MAXBLOCKSHIFT;
-	zfs_arc_max = zfs_arc_meta_limit = 256 * 1024 * 1024;
+	zfs_arc_min = 2ULL << SPA_MAXBLOCKSHIFT;
+	zfs_arc_max = 256 * 1024 * 1024;
 #endif
 
 	/*
@@ -8667,7 +9055,7 @@ main(int argc, char **argv)
 		verbose = MAX(verbose, 1);
 
 	for (c = 0; c < 256; c++) {
-		if (dump_all && strchr("AeEFklLNOPrRSXy", c) == NULL)
+		if (dump_all && strchr("ABeEFkKlLNOPrRSXy", c) == NULL)
 			dump_opt[c] = 1;
 		if (dump_opt[c])
 			dump_opt[c] += verbose;
@@ -8853,7 +9241,8 @@ main(int argc, char **argv)
 				    checkpoint_pool, error);
 			}
 
-		} else if (target_is_spa || dump_opt['R'] || objset_id == 0) {
+		} else if (target_is_spa || dump_opt['R'] || dump_opt['B'] ||
+		    objset_id == 0) {
 			zdb_set_skip_mmp(target);
 			error = spa_open_rewind(target, &spa, FTAG, policy,
 			    NULL);
@@ -8989,7 +9378,10 @@ retry_lookup:
 					    strerror(errno));
 			}
 		}
-		if (os != NULL) {
+		if (dump_opt['B']) {
+			dump_backup(target, objset_id,
+			    argc > 0 ? argv[0] : NULL);
+		} else if (os != NULL) {
 			dump_objset(os);
 		} else if (zopt_object_args > 0 && !dump_opt['m']) {
 			dump_objset(spa->spa_meta_objset);

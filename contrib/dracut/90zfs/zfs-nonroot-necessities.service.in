@@ -1,0 +1,20 @@
+[Unit]
+Before=initrd-root-fs.target
+After=sysroot.mount
+DefaultDependencies=no
+ConditionEnvironment=BOOTFS
+
+[Service]
+Type=oneshot
+PassEnvironment=BOOTFS
+ExecStart=/bin/sh -c '                                                \
+    . /lib/dracut-zfs-lib.sh;                                         \
+    _zfs_nonroot_necessities_cb() {                                   \
+        @sbindir@/zfs mount | grep -m1 -q "^$1 " && return 0;         \
+        echo "Mounting $1 on /sysroot$2";                             \
+        mount -o zfsutil -t zfs "$1" "/sysroot$2";                    \
+    };                                                                \
+    for_relevant_root_children "${BOOTFS}" _zfs_nonroot_necessities_cb'
+
+[Install]
+RequiredBy=initrd-root-fs.target

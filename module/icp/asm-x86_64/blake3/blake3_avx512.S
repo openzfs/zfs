@@ -31,17 +31,9 @@
 #include <sys/asm_linkage.h>
 
 .intel_syntax noprefix
-.global zfs_blake3_hash_many_avx512
-.global zfs_blake3_compress_in_place_avx512
-.global zfs_blake3_compress_xof_avx512
 .text
 
-.type zfs_blake3_hash_many_avx512,@function
-.type zfs_blake3_compress_xof_avx512,@function
-.type zfs_blake3_compress_in_place_avx512,@function
-
-.p2align  6
-zfs_blake3_hash_many_avx512:
+ENTRY_ALIGN(zfs_blake3_hash_many_avx512, 64)
         ENDBR
         push    r15
         push    r14
@@ -2397,8 +2389,9 @@ zfs_blake3_hash_many_avx512:
         vmovdqu xmmword ptr [rbx], xmm0
         vmovdqu xmmword ptr [rbx+0x10], xmm1
         jmp     4b
-.p2align 6
-zfs_blake3_compress_in_place_avx512:
+SET_SIZE(zfs_blake3_hash_many_avx512)
+
+ENTRY_ALIGN(zfs_blake3_compress_in_place_avx512, 64)
         ENDBR
         vmovdqu xmm0, xmmword ptr [rdi]
         vmovdqu xmm1, xmmword ptr [rdi+0x10]
@@ -2478,9 +2471,9 @@ zfs_blake3_compress_in_place_avx512:
         vmovdqu xmmword ptr [rdi], xmm0
         vmovdqu xmmword ptr [rdi+0x10], xmm1
         RET
+SET_SIZE(zfs_blake3_compress_in_place_avx512)
 
-.p2align 6
-zfs_blake3_compress_xof_avx512:
+ENTRY_ALIGN(zfs_blake3_compress_xof_avx512, 64)
         ENDBR
         vmovdqu xmm0, xmmword ptr [rdi]
         vmovdqu xmm1, xmmword ptr [rdi+0x10]
@@ -2564,16 +2557,9 @@ zfs_blake3_compress_xof_avx512:
         vmovdqu xmmword ptr [r9+0x20], xmm2
         vmovdqu xmmword ptr [r9+0x30], xmm3
         RET
+SET_SIZE(zfs_blake3_compress_xof_avx512)
 
-.size zfs_blake3_hash_many_avx512, . - zfs_blake3_hash_many_avx512
-.size zfs_blake3_compress_in_place_avx512, . - zfs_blake3_compress_in_place_avx512
-.size zfs_blake3_compress_xof_avx512, . - zfs_blake3_compress_xof_avx512
-
-#ifdef __APPLE__
-.static_data
-#else
-.section .rodata
-#endif
+SECTION_STATIC
 
 .p2align  6
 INDEX0:

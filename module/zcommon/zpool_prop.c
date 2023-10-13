@@ -116,6 +116,15 @@ zpool_prop_init(void)
 	zprop_register_number(ZPOOL_PROP_DEDUPRATIO, "dedupratio", 0,
 	    PROP_READONLY, ZFS_TYPE_POOL, "<1.00x or higher if deduped>",
 	    "DEDUP", B_FALSE, sfeatures);
+	zprop_register_number(ZPOOL_PROP_BCLONEUSED, "bcloneused", 0,
+	    PROP_READONLY, ZFS_TYPE_POOL, "<size>",
+	    "BCLONE_USED", B_FALSE, sfeatures);
+	zprop_register_number(ZPOOL_PROP_BCLONESAVED, "bclonesaved", 0,
+	    PROP_READONLY, ZFS_TYPE_POOL, "<size>",
+	    "BCLONE_SAVED", B_FALSE, sfeatures);
+	zprop_register_number(ZPOOL_PROP_BCLONERATIO, "bcloneratio", 0,
+	    PROP_READONLY, ZFS_TYPE_POOL, "<1.00x or higher if cloned>",
+	    "BCLONE_RATIO", B_FALSE, sfeatures);
 
 	/* default number properties */
 	zprop_register_number(ZPOOL_PROP_VERSION, "version", SPA_VERSION,
@@ -151,7 +160,7 @@ zpool_prop_init(void)
 	    "wait | continue | panic", "FAILMODE", failuremode_table,
 	    sfeatures);
 	zprop_register_index(ZPOOL_PROP_AUTOTRIM, "autotrim",
-	    SPA_AUTOTRIM_DEFAULT, PROP_DEFAULT, ZFS_TYPE_POOL,
+	    SPA_AUTOTRIM_OFF, PROP_DEFAULT, ZFS_TYPE_POOL,
 	    "on | off", "AUTOTRIM", boolean_table, sfeatures);
 
 	/* hidden properties */
@@ -410,6 +419,18 @@ vdev_prop_init(void)
 	    sfeatures);
 
 	/* default numeric properties */
+	zprop_register_number(VDEV_PROP_CHECKSUM_N, "checksum_n", UINT64_MAX,
+	    PROP_DEFAULT, ZFS_TYPE_VDEV, "<events>", "CKSUM_N", B_FALSE,
+	    sfeatures);
+	zprop_register_number(VDEV_PROP_CHECKSUM_T, "checksum_t", UINT64_MAX,
+	    PROP_DEFAULT, ZFS_TYPE_VDEV, "<seconds>", "CKSUM_T", B_FALSE,
+	    sfeatures);
+	zprop_register_number(VDEV_PROP_IO_N, "io_n", UINT64_MAX,
+	    PROP_DEFAULT, ZFS_TYPE_VDEV, "<events>", "IO_N", B_FALSE,
+	    sfeatures);
+	zprop_register_number(VDEV_PROP_IO_T, "io_t", UINT64_MAX,
+	    PROP_DEFAULT, ZFS_TYPE_VDEV, "<seconds>", "IO_T", B_FALSE,
+	    sfeatures);
 
 	/* default index (boolean) properties */
 	zprop_register_index(VDEV_PROP_REMOVING, "removing", 0,

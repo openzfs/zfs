@@ -53,6 +53,8 @@
  *	zfs_bmi1_available()
  *	zfs_bmi2_available()
  *
+ *	zfs_shani_available()
+ *
  *	zfs_avx512f_available()
  *	zfs_avx512cd_available()
  *	zfs_avx512er_available()
@@ -143,6 +145,15 @@
  */
 #if !defined(HAVE_XSAVE)
 #error "Toolchain needs to support the XSAVE assembler instruction"
+#endif
+
+#ifndef XFEATURE_MASK_XTILE
+/*
+ * For kernels where this doesn't exist yet, we still don't want to break
+ * by save/restoring this broken nonsense.
+ * See issue #14989 or Intel errata SPR4 for why
+ */
+#define	XFEATURE_MASK_XTILE	0x60000
 #endif
 
 #include <linux/mm.h>
@@ -313,18 +324,18 @@ kfpu_begin(void)
 	uint8_t *state = zfs_kfpu_fpregs[smp_processor_id()];
 #if defined(HAVE_XSAVES)
 	if (static_cpu_has(X86_FEATURE_XSAVES)) {
-		kfpu_do_xsave("xsaves", state, ~0);
+		kfpu_do_xsave("xsaves", state, ~XFEATURE_MASK_XTILE);
 		return;
 	}
 #endif
 #if defined(HAVE_XSAVEOPT)
 	if (static_cpu_has(X86_FEATURE_XSAVEOPT)) {
-		kfpu_do_xsave("xsaveopt", state, ~0);
+		kfpu_do_xsave("xsaveopt", state, ~XFEATURE_MASK_XTILE);
 		return;
 	}
 #endif
 	if (static_cpu_has(X86_FEATURE_XSAVE)) {
-		kfpu_do_xsave("xsave", state, ~0);
+		kfpu_do_xsave("xsave", state, ~XFEATURE_MASK_XTILE);
 	} else if (static_cpu_has(X86_FEATURE_FXSR)) {
 		kfpu_save_fxsr(state);
 	} else {
@@ -374,12 +385,12 @@ kfpu_end(void)
 	uint8_t  *state = zfs_kfpu_fpregs[smp_processor_id()];
 #if defined(HAVE_XSAVES)
 	if (static_cpu_has(X86_FEATURE_XSAVES)) {
-		kfpu_do_xrstor("xrstors", state, ~0);
+		kfpu_do_xrstor("xrstors", state, ~XFEATURE_MASK_XTILE);
 		goto out;
 	}
 #endif
 	if (static_cpu_has(X86_FEATURE_XSAVE)) {
-		kfpu_do_xrstor("xrstor", state, ~0);
+		kfpu_do_xrstor("xrstor", state, ~XFEATURE_MASK_XTILE);
 	} else if (static_cpu_has(X86_FEATURE_FXSR)) {
 		kfpu_restore_fxsr(state);
 	} else {
@@ -581,6 +592,19 @@ zfs_movbe_available(void)
 {
 #if defined(X86_FEATURE_MOVBE)
 	return (!!boot_cpu_has(X86_FEATURE_MOVBE));
+#else
+	return (B_FALSE);
+#endif
+}
+
+/*
+ * Check if SHA_NI instruction set is available
+ */
+static inline boolean_t
+zfs_shani_available(void)
+{
+#if defined(X86_FEATURE_SHA_NI)
+	return (!!boot_cpu_has(X86_FEATURE_SHA_NI));
 #else
 	return (B_FALSE);
 #endif

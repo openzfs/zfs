@@ -15,7 +15,7 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.Dd January 11, 2023
+.Dd July 21, 2023
 .Dt ZFS 4
 .Os
 .
@@ -239,6 +239,21 @@ relative to the pool.
 Make some blocks above a certain size be gang blocks.
 This option is used by the test suite to facilitate testing.
 .
+.It Sy metaslab_force_ganging_pct Ns = Ns Sy 3 Ns % Pq uint
+For blocks that could be forced to be a gang block (due to
+.Sy metaslab_force_ganging ) ,
+force this many of them to be gang blocks.
+.
+.It Sy zfs_ddt_zap_default_bs Ns = Ns Sy 15 Po 32 KiB Pc Pq int
+Default DDT ZAP data block size as a power of 2. Note that changing this after
+creating a DDT on the pool will not affect existing DDTs, only newly created
+ones.
+.
+.It Sy zfs_ddt_zap_default_ibs Ns = Ns Sy 15 Po 32 KiB Pc Pq int
+Default DDT ZAP indirect block size as a power of 2. Note that changing this
+after creating a DDT on the pool will not affect existing DDTs, only newly
+created ones.
+.
 .It Sy zfs_default_bs Ns = Ns Sy 9 Po 512 B Pc Pq int
 Default dnode block size as a power of 2.
 .
@@ -357,7 +372,10 @@ and the allocation can't actually be satisfied
 When a vdev is added, target this number of metaslabs per top-level vdev.
 .
 .It Sy zfs_vdev_default_ms_shift Ns = Ns Sy 29 Po 512 MiB Pc Pq uint
-Default limit for metaslab size.
+Default lower limit for metaslab size.
+.
+.It Sy zfs_vdev_max_ms_shift Ns = Ns Sy 34 Po 16 GiB Pc Pq uint
+Default upper limit for metaslab size.
 .
 .It Sy zfs_vdev_max_auto_ashift Ns = Ns Sy 14 Pq uint
 Maximum ashift used when optimizing for logical \[->] physical sector size on
@@ -383,6 +401,12 @@ Practical upper limit of total metaslabs per top-level vdev.
 .
 .It Sy metaslab_preload_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Enable metaslab group preloading.
+.
+.It Sy metaslab_preload_limit Ns = Ns Sy 10 Pq uint
+Maximum number of metaslabs per group to preload
+.
+.It Sy metaslab_preload_pct Ns = Ns Sy 50 Pq uint
+Percentage of CPUs to run a metaslab preload taskq
 .
 .It Sy metaslab_lba_weighting_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Give more weight to metaslabs with lower LBAs,
@@ -506,9 +530,6 @@ However, this is limited by
 Maximum micro ZAP size.
 A micro ZAP is upgraded to a fat ZAP, once it grows beyond the specified size.
 .
-.It Sy zfetch_array_rd_sz Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq u64
-If prefetching is enabled, disable prefetching for reads larger than this size.
-.
 .It Sy zfetch_min_distance Ns = Ns Sy 4194304 Ns B Po 4 MiB Pc Pq uint
 Min bytes to prefetch per stream.
 Prefetch distance starts from the demand access size and quickly grows to
@@ -558,14 +579,6 @@ This value acts as a ceiling to the amount of dnode metadata, and defaults to
 which indicates that a percent which is based on
 .Sy zfs_arc_dnode_limit_percent
 of the ARC meta buffers that may be used for dnodes.
-.Pp
-Also see
-.Sy zfs_arc_meta_prune
-which serves a similar purpose but is used
-when the amount of metadata in the ARC exceeds
-.Sy zfs_arc_meta_limit
-rather than in response to overall demand for non-metadata.
-.
 .It Sy zfs_arc_dnode_limit_percent Ns = Ns Sy 10 Ns % Pq u64
 Percentage that can be consumed by dnodes of ARC meta buffers.
 .Pp
@@ -648,62 +661,10 @@ It cannot be set back to
 while running, and reducing it below the current ARC size will not cause
 the ARC to shrink without memory pressure to induce shrinking.
 .
-.It Sy zfs_arc_meta_adjust_restarts Ns = Ns Sy 4096 Pq uint
-The number of restart passes to make while scanning the ARC attempting
-the free buffers in order to stay below the
-.Sy fs_arc_meta_limit .
-This value should not need to be tuned but is available to facilitate
-performance analysis.
-.
-.It Sy zfs_arc_meta_limit Ns = Ns Sy 0 Ns B Pq u64
-The maximum allowed size in bytes that metadata buffers are allowed to
-consume in the ARC.
-When this limit is reached, metadata buffers will be reclaimed,
-even if the overall
-.Sy arc_c_max
-has not been reached.
-It defaults to
-.Sy 0 ,
-which indicates that a percentage based on
-.Sy zfs_arc_meta_limit_percent
-of the ARC may be used for metadata.
-.Pp
-This value my be changed dynamically, except that must be set to an explicit
-value
-.Pq cannot be set back to Sy 0 .
-.
-.It Sy zfs_arc_meta_limit_percent Ns = Ns Sy 75 Ns % Pq u64
-Percentage of ARC buffers that can be used for metadata.
-.Pp
-See also
-.Sy zfs_arc_meta_limit ,
-which serves a similar purpose but has a higher priority if nonzero.
-.
-.It Sy zfs_arc_meta_min Ns = Ns Sy 0 Ns B Pq u64
-The minimum allowed size in bytes that metadata buffers may consume in
-the ARC.
-.
-.It Sy zfs_arc_meta_prune Ns = Ns Sy 10000 Pq int
-The number of dentries and inodes to be scanned looking for entries
-which can be dropped.
-This may be required when the ARC reaches the
-.Sy zfs_arc_meta_limit
-because dentries and inodes can pin buffers in the ARC.
-Increasing this value will cause to dentry and inode caches
-to be pruned more aggressively.
-Setting this value to
-.Sy 0
-will disable pruning the inode and dentry caches.
-.
-.It Sy zfs_arc_meta_strategy Ns = Ns Sy 1 Ns | Ns 0 Pq uint
-Define the strategy for ARC metadata buffer eviction (meta reclaim strategy):
-.Bl -tag -compact -offset 4n -width "0 (META_ONLY)"
-.It Sy 0 Pq META_ONLY
-evict only the ARC metadata buffers
-.It Sy 1 Pq BALANCED
-additional data buffers may be evicted if required
-to evict the required number of metadata buffers.
-.El
+.It Sy zfs_arc_meta_balance Ns = Ns Sy 500 Pq uint
+Balance between metadata and data on ghost hits.
+Values above 100 increase metadata caching by proportionally reducing effect
+of ghost data hits on target data/metadata rate.
 .
 .It Sy zfs_arc_min Ns = Ns Sy 0 Ns B Pq u64
 Min size of ARC in bytes.
@@ -785,20 +746,6 @@ causes the ARC to start reclamation if it exceeds the target size by
 .Em 0.2%
 of the target size, and block allocations by
 .Em 0.6% .
-.
-.It Sy zfs_arc_p_min_shift Ns = Ns Sy 0 Pq uint
-If nonzero, this will update
-.Sy arc_p_min_shift Pq default Sy 4
-with the new value.
-.Sy arc_p_min_shift No is used as a shift of Sy arc_c
-when calculating the minumum
-.Sy arc_p No size .
-.
-.It Sy zfs_arc_p_dampener_disable Ns = Ns Sy 1 Ns | Ns 0 Pq int
-Disable
-.Sy arc_p
-adapt dampener, which reduces the maximum single adjustment to
-.Sy arc_p .
 .
 .It Sy zfs_arc_shrink_shift Ns = Ns Sy 0 Pq uint
 If nonzero, this will update
@@ -1104,7 +1051,10 @@ This parameter takes precedence over
 .No See Sx ZFS TRANSACTION DELAY .
 .Pp
 Defaults to
-.Sy physical_ram/4 ,
+.Sy min(physical_ram/4, 4GiB) ,
+or
+.Sy min(physical_ram/4, 1GiB)
+for 32-bit systems.
 .
 .It Sy zfs_dirty_data_max_max_percent Ns = Ns Sy 25 Ns % Pq uint
 Maximum allowable value of
@@ -1362,6 +1312,11 @@ as fuller devices will tend to be slower than empty devices.
 .Pp
 Also see
 .Sy zio_dva_throttle_enabled .
+.
+.It Sy zfs_vdev_def_queue_depth Ns = Ns Sy 32 Pq uint
+Default queue depth for each vdev IO allocator.
+Higher values allow for better coalescing of sequential writes before sending
+them to the disk, but can increase transaction commit times.
 .
 .It Sy zfs_vdev_failfast_mask Ns = Ns Sy 1 Pq uint
 Defines if the driver should retire on a given error type.
@@ -1766,7 +1721,7 @@ completes in order to verify the checksums of all blocks which have been
 resilvered.
 This is enabled by default and strongly recommended.
 .
-.It Sy zfs_rebuild_vdev_limit Ns = Ns Sy 33554432 Ns B Po 32 MiB Pc Pq u64
+.It Sy zfs_rebuild_vdev_limit Ns = Ns Sy 67108864 Ns B Po 64 MiB Pc Pq u64
 Maximum amount of I/O that can be concurrently issued for a sequential
 resilver per leaf device, given in bytes.
 .
@@ -1826,6 +1781,9 @@ stop resilvering when the pool is next imported.
 Scrubs are processed by the sync thread.
 While scrubbing, it will spend at least this much time
 working on a scrub between TXG flushes.
+.
+.It Sy zfs_scrub_error_blocks_per_txg Ns = Ns Sy 4096 Pq uint
+Error blocks to be scrubbed in one txg.
 .
 .It Sy zfs_scan_checkpoint_intval Ns = Ns Sy 7200 Ns s Po 2 hour Pc Pq uint
 To preserve progress across reboots, the sequential scan algorithm periodically
@@ -1887,6 +1845,13 @@ I/O.
 In this case (unless the metadata scan is done) we stop issuing verification I/O
 and start scanning metadata again until we get to the hard limit.
 .
+.It Sy zfs_scan_report_txgs Ns = Ns Sy 0 Ns | Ns 1 Pq uint
+When reporting resilver throughput and estimated completion time use the
+performance observed over roughly the last
+.Sy zfs_scan_report_txgs
+TXGs.
+When set to zero performance is calculated over the time between checkpoints.
+.
 .It Sy zfs_scan_strict_mem_lim Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Enforce tight memory limits on pool scans when a sequential scan is in progress.
 When disabled, the memory limit may be exceeded by fast disks.
@@ -1895,7 +1860,7 @@ When disabled, the memory limit may be exceeded by fast disks.
 Freezes a scrub/resilver in progress without actually pausing it.
 Intended for testing/debugging.
 .
-.It Sy zfs_scan_vdev_limit Ns = Ns Sy 4194304 Ns B Po 4 MiB Pc Pq int
+.It Sy zfs_scan_vdev_limit Ns = Ns Sy 16777216 Ns B Po 16 MiB Pc Pq int
 Maximum amount of data that can be concurrently issued at once for scrubs and
 resilvers per leaf device, given in bytes.
 .
@@ -2069,32 +2034,11 @@ Historical statistics for this many latest TXGs will be available in
 Flush dirty data to disk at least every this many seconds (maximum TXG
 duration).
 .
-.It Sy zfs_vdev_aggregate_trim Ns = Ns Sy 0 Ns | Ns 1 Pq uint
-Allow TRIM I/O operations to be aggregated.
-This is normally not helpful because the extents to be trimmed
-will have been already been aggregated by the metaslab.
-This option is provided for debugging and performance analysis.
-.
 .It Sy zfs_vdev_aggregation_limit Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq uint
 Max vdev I/O aggregation size.
 .
 .It Sy zfs_vdev_aggregation_limit_non_rotating Ns = Ns Sy 131072 Ns B Po 128 KiB Pc Pq uint
 Max vdev I/O aggregation size for non-rotating media.
-.
-.It Sy zfs_vdev_cache_bshift Ns = Ns Sy 16 Po 64 KiB Pc Pq uint
-Shift size to inflate reads to.
-.
-.It Sy zfs_vdev_cache_max Ns = Ns Sy 16384 Ns B Po 16 KiB Pc Pq uint
-Inflate reads smaller than this value to meet the
-.Sy zfs_vdev_cache_bshift
-size
-.Pq default Sy 64 KiB .
-.
-.It Sy zfs_vdev_cache_size Ns = Ns Sy 0 Pq uint
-Total size of the per-disk cache in bytes.
-.Pp
-Currently this feature is disabled, as it has been found to not be helpful
-for performance and in some cases harmful.
 .
 .It Sy zfs_vdev_mirror_rotating_inc Ns = Ns Sy 0 Pq int
 A number by which the balancing algorithm increments the load calculation for
@@ -2205,6 +2149,18 @@ This sets the maximum block size used by the ZIL.
 On very fragmented pools, lowering this
 .Pq typically to Sy 36 KiB
 can improve performance.
+.
+.It Sy zil_maxcopied Ns = Ns Sy 7680 Ns B Po 7.5 KiB Pc Pq uint
+This sets the maximum number of write bytes logged via WR_COPIED.
+It tunes a tradeoff between additional memory copy and possibly worse log
+space efficiency vs additional range lock/unlock.
+.
+.It Sy zil_min_commit_timeout Ns = Ns Sy 5000 Pq u64
+This sets the minimum delay in nanoseconds ZIL care to delay block commit,
+waiting for more records.
+If ZIL writes are too fast, kernel may not be able sleep for so short interval,
+increasing log latency above allowed by
+.Sy zfs_commit_timeout_pct .
 .
 .It Sy zil_nocacheflush Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Disable the cache flush commands that are normally sent to disk by
@@ -2360,63 +2316,6 @@ If
 (the default) then internally set
 .Sy zvol_threads
 to the number of CPUs present or 32 (whichever is greater).
-.
-.It Sy zvol_blk_mq_threads Ns = Ns Sy 0 Pq uint
-The number of threads per zvol to use for queuing IO requests.
-This parameter will only appear if your kernel supports
-.Li blk-mq
-and is only read and assigned to a zvol at zvol load time.
-If
-.Sy 0
-(the default) then internally set
-.Sy zvol_blk_mq_threads
-to the number of CPUs present.
-.
-.It Sy zvol_use_blk_mq Ns = Ns Sy 0 Ns | Ns 1 Pq uint
-Set to
-.Sy 1
-to use the
-.Li blk-mq
-API for zvols.
-Set to
-.Sy 0
-(the default) to use the legacy zvol APIs.
-This setting can give better or worse zvol performance depending on
-the workload.
-This parameter will only appear if your kernel supports
-.Li blk-mq
-and is only read and assigned to a zvol at zvol load time.
-.
-.It Sy zvol_blk_mq_blocks_per_thread Ns = Ns Sy 8 Pq uint
-If
-.Sy zvol_use_blk_mq
-is enabled, then process this number of
-.Sy volblocksize Ns -sized blocks per zvol thread.
-This tunable can be use to favor better performance for zvol reads (lower
-values) or writes (higher values).
-If set to
-.Sy 0 ,
-then the zvol layer will process the maximum number of blocks
-per thread that it can.
-This parameter will only appear if your kernel supports
-.Li blk-mq
-and is only applied at each zvol's load time.
-.
-.It Sy zvol_blk_mq_queue_depth Ns = Ns Sy 0 Pq uint
-The queue_depth value for the zvol
-.Li blk-mq
-interface.
-This parameter will only appear if your kernel supports
-.Li blk-mq
-and is only applied at each zvol's load time.
-If
-.Sy 0
-(the default) then use the kernel's default queue depth.
-Values are clamped to the kernel's
-.Dv BLKDEV_MIN_RQ
-and
-.Dv BLKDEV_MAX_RQ Ns / Ns Dv BLKDEV_DEFAULT_RQ
-limits.
 .
 .It Sy zvol_volmode Ns = Ns Sy 1 Pq uint
 Defines zvol block devices behaviour when

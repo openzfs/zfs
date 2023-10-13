@@ -54,7 +54,7 @@ static unsigned int zvol_prefetch_bytes = (128 * 1024);
 static unsigned long zvol_max_discard_blocks = 16384;
 
 #ifndef HAVE_BLKDEV_GET_ERESTARTSYS
-static const unsigned int zvol_open_timeout_ms = 1000;
+static unsigned int zvol_open_timeout_ms = 1000;
 #endif
 
 static unsigned int zvol_threads = 0;
@@ -342,8 +342,7 @@ zvol_discard(zv_request_t *zvr)
 	struct request_queue *q = zv->zv_zso->zvo_queue;
 	struct gendisk *disk = zv->zv_zso->zvo_disk;
 	unsigned long start_time = 0;
-
-	boolean_t acct = blk_queue_io_stat(q);
+	boolean_t acct = B_FALSE;
 
 	ASSERT3P(zv, !=, NULL);
 	ASSERT3U(zv->zv_open_count, >, 0);
@@ -672,7 +671,11 @@ zvol_request(struct request_queue *q, struct bio *bio)
 }
 
 static int
+#ifdef HAVE_BLK_MODE_T
+zvol_open(struct gendisk *disk, blk_mode_t flag)
+#else
 zvol_open(struct block_device *bdev, fmode_t flag)
+#endif
 {
 	zvol_state_t *zv;
 	int error = 0;
@@ -687,10 +690,14 @@ retry:
 	/*
 	 * Obtain a copy of private_data under the zvol_state_lock to make
 	 * sure that either the result of zvol free code path setting
-	 * bdev->bd_disk->private_data to NULL is observed, or zvol_os_free()
+	 * disk->private_data to NULL is observed, or zvol_os_free()
 	 * is not called on this zv because of the positive zv_open_count.
 	 */
+#ifdef HAVE_BLK_MODE_T
+	zv = disk->private_data;
+#else
 	zv = bdev->bd_disk->private_data;
+#endif
 	if (zv == NULL) {
 		rw_exit(&zvol_state_lock);
 		return (SET_ERROR(-ENXIO));
@@ -770,14 +777,15 @@ retry:
 			}
 		}
 
-		error = -zvol_first_open(zv, !(flag & FMODE_WRITE));
+		error = -zvol_first_open(zv, !(blk_mode_is_open_write(flag)));
 
 		if (drop_namespace)
 			mutex_exit(&spa_namespace_lock);
 	}
 
 	if (error == 0) {
-		if ((flag & FMODE_WRITE) && (zv->zv_flags & ZVOL_RDONLY)) {
+		if ((blk_mode_is_open_write(flag)) &&
+		    (zv->zv_flags & ZVOL_RDONLY)) {
 			if (zv->zv_open_count == 0)
 				zvol_last_close(zv);
 
@@ -792,14 +800,25 @@ retry:
 		rw_exit(&zv->zv_suspend_lock);
 
 	if (error == 0)
+#ifdef HAVE_BLK_MODE_T
+		disk_check_media_change(disk);
+#else
 		zfs_check_media_change(bdev);
+#endif
 
 	return (error);
 }
 
 static void
-zvol_release(struct gendisk *disk, fmode_t mode)
+#ifdef HAVE_BLOCK_DEVICE_OPERATIONS_RELEASE_1ARG
+zvol_release(struct gendisk *disk)
+#else
+zvol_release(struct gendisk *disk, fmode_t unused)
+#endif
 {
+#if !defined(HAVE_BLOCK_DEVICE_OPERATIONS_RELEASE_1ARG)
+	(void) unused;
+#endif
 	zvol_state_t *zv;
 	boolean_t drop_suspend = B_TRUE;
 
@@ -854,7 +873,13 @@ zvol_ioctl(struct block_device *bdev, fmode_t mode,
 
 	switch (cmd) {
 	case BLKFLSBUF:
+#ifdef HAVE_FSYNC_BDEV
 		fsync_bdev(bdev);
+#elif defined(HAVE_SYNC_BLOCKDEV)
+		sync_blockdev(bdev);
+#else
+#error "Neither fsync_bdev() nor sync_blockdev() found"
+#endif
 		invalidate_bdev(bdev);
 		rw_enter(&zv->zv_suspend_lock, RW_READER);
 
@@ -1601,16 +1626,9 @@ MODULE_PARM_DESC(zvol_prefetch_bytes, "Prefetch N bytes at zvol start+end");
 module_param(zvol_volmode, uint, 0644);
 MODULE_PARM_DESC(zvol_volmode, "Default volmode property value");
 
-#ifdef HAVE_BLK_MQ
-module_param(zvol_blk_mq_queue_depth, uint, 0644);
-MODULE_PARM_DESC(zvol_blk_mq_queue_depth, "Default blk-mq queue depth");
-
-module_param(zvol_use_blk_mq, uint, 0644);
-MODULE_PARM_DESC(zvol_use_blk_mq, "Use the blk-mq API for zvols");
-
-module_param(zvol_blk_mq_blocks_per_thread, uint, 0644);
-MODULE_PARM_DESC(zvol_blk_mq_blocks_per_thread,
-    "Process volblocksize blocks per thread");
+#ifndef HAVE_BLKDEV_GET_ERESTARTSYS
+module_param(zvol_open_timeout_ms, uint, 0644);
+MODULE_PARM_DESC(zvol_open_timeout_ms, "Timeout for ZVOL open retries");
 #endif
 
 /* END CSTYLED */

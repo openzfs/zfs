@@ -28,6 +28,7 @@
  */
 
 #include <sys/zfs_context.h>
+#include <sys/arc_impl.h>
 #include <sys/dnode.h>
 #include <sys/dmu_objset.h>
 #include <sys/dmu_zfetch.h>
@@ -51,27 +52,34 @@ static unsigned int	zfetch_max_streams = 8;
 static unsigned int	zfetch_min_sec_reap = 1;
 /* max time before stream delete */
 static unsigned int	zfetch_max_sec_reap = 2;
+#ifdef _ILP32
+/* min bytes to prefetch per stream (default 2MB) */
+static unsigned int	zfetch_min_distance = 2 * 1024 * 1024;
+/* max bytes to prefetch per stream (default 8MB) */
+unsigned int	zfetch_max_distance = 8 * 1024 * 1024;
+#else
 /* min bytes to prefetch per stream (default 4MB) */
 static unsigned int	zfetch_min_distance = 4 * 1024 * 1024;
 /* max bytes to prefetch per stream (default 64MB) */
 unsigned int	zfetch_max_distance = 64 * 1024 * 1024;
+#endif
 /* max bytes to prefetch indirects for per stream (default 64MB) */
 unsigned int	zfetch_max_idistance = 64 * 1024 * 1024;
-/* max number of bytes in an array_read in which we allow prefetching (1MB) */
-uint64_t	zfetch_array_rd_sz = 1024 * 1024;
 
 typedef struct zfetch_stats {
 	kstat_named_t zfetchstat_hits;
 	kstat_named_t zfetchstat_misses;
 	kstat_named_t zfetchstat_max_streams;
 	kstat_named_t zfetchstat_io_issued;
+	kstat_named_t zfetchstat_io_active;
 } zfetch_stats_t;
 
 static zfetch_stats_t zfetch_stats = {
 	{ "hits",			KSTAT_DATA_UINT64 },
 	{ "misses",			KSTAT_DATA_UINT64 },
 	{ "max_streams",		KSTAT_DATA_UINT64 },
-	{ "io_issued",		KSTAT_DATA_UINT64 },
+	{ "io_issued",			KSTAT_DATA_UINT64 },
+	{ "io_active",			KSTAT_DATA_UINT64 },
 };
 
 struct {
@@ -79,6 +87,7 @@ struct {
 	wmsum_t zfetchstat_misses;
 	wmsum_t zfetchstat_max_streams;
 	wmsum_t zfetchstat_io_issued;
+	aggsum_t zfetchstat_io_active;
 } zfetch_sums;
 
 #define	ZFETCHSTAT_BUMP(stat)					\
@@ -104,6 +113,8 @@ zfetch_kstats_update(kstat_t *ksp, int rw)
 	    wmsum_value(&zfetch_sums.zfetchstat_max_streams);
 	zs->zfetchstat_io_issued.value.ui64 =
 	    wmsum_value(&zfetch_sums.zfetchstat_io_issued);
+	zs->zfetchstat_io_active.value.ui64 =
+	    aggsum_value(&zfetch_sums.zfetchstat_io_active);
 	return (0);
 }
 
@@ -114,6 +125,7 @@ zfetch_init(void)
 	wmsum_init(&zfetch_sums.zfetchstat_misses, 0);
 	wmsum_init(&zfetch_sums.zfetchstat_max_streams, 0);
 	wmsum_init(&zfetch_sums.zfetchstat_io_issued, 0);
+	aggsum_init(&zfetch_sums.zfetchstat_io_active, 0);
 
 	zfetch_ksp = kstat_create("zfs", 0, "zfetchstats", "misc",
 	    KSTAT_TYPE_NAMED, sizeof (zfetch_stats) / sizeof (kstat_named_t),
@@ -138,6 +150,8 @@ zfetch_fini(void)
 	wmsum_fini(&zfetch_sums.zfetchstat_misses);
 	wmsum_fini(&zfetch_sums.zfetchstat_max_streams);
 	wmsum_fini(&zfetch_sums.zfetchstat_io_issued);
+	ASSERT0(aggsum_value(&zfetch_sums.zfetchstat_io_active));
+	aggsum_fini(&zfetch_sums.zfetchstat_io_active);
 }
 
 /*
@@ -294,6 +308,7 @@ dmu_zfetch_done(void *arg, uint64_t level, uint64_t blkid, boolean_t io_issued)
 		zs->zs_more = B_TRUE;
 	if (zfs_refcount_remove(&zs->zs_refs, NULL) == 0)
 		dmu_zfetch_stream_fini(zs);
+	aggsum_add(&zfetch_sums.zfetchstat_io_active, -1);
 }
 
 /*
@@ -407,20 +422,28 @@ dmu_zfetch_prepare(zfetch_t *zf, uint64_t blkid, uint64_t nblks,
 	 * Start prefetch from the demand access size (nblks).  Double the
 	 * distance every access up to zfetch_min_distance.  After that only
 	 * if needed increase the distance by 1/8 up to zfetch_max_distance.
+	 *
+	 * Don't double the distance beyond single block if we have more
+	 * than ~6% of ARC held by active prefetches.  It should help with
+	 * getting out of RAM on some badly mispredicted read patterns.
 	 */
-	unsigned int nbytes = nblks << zf->zf_dnode->dn_datablkshift;
+	unsigned int dbs = zf->zf_dnode->dn_datablkshift;
+	unsigned int nbytes = nblks << dbs;
 	unsigned int pf_nblks;
 	if (fetch_data) {
 		if (unlikely(zs->zs_pf_dist < nbytes))
 			zs->zs_pf_dist = nbytes;
-		else if (zs->zs_pf_dist < zfetch_min_distance)
+		else if (zs->zs_pf_dist < zfetch_min_distance &&
+		    (zs->zs_pf_dist < (1 << dbs) ||
+		    aggsum_compare(&zfetch_sums.zfetchstat_io_active,
+		    arc_c_max >> (4 + dbs)) < 0))
 			zs->zs_pf_dist *= 2;
 		else if (zs->zs_more)
 			zs->zs_pf_dist += zs->zs_pf_dist / 8;
 		zs->zs_more = B_FALSE;
 		if (zs->zs_pf_dist > zfetch_max_distance)
 			zs->zs_pf_dist = zfetch_max_distance;
-		pf_nblks = zs->zs_pf_dist >> zf->zf_dnode->dn_datablkshift;
+		pf_nblks = zs->zs_pf_dist >> dbs;
 	} else {
 		pf_nblks = 0;
 	}
@@ -439,7 +462,7 @@ dmu_zfetch_prepare(zfetch_t *zf, uint64_t blkid, uint64_t nblks,
 		zs->zs_ipf_dist *= 2;
 	if (zs->zs_ipf_dist > zfetch_max_idistance)
 		zs->zs_ipf_dist = zfetch_max_idistance;
-	pf_nblks = zs->zs_ipf_dist >> zf->zf_dnode->dn_datablkshift;
+	pf_nblks = zs->zs_ipf_dist >> dbs;
 	if (zs->zs_ipf_start < zs->zs_pf_end)
 		zs->zs_ipf_start = zs->zs_pf_end;
 	if (zs->zs_ipf_end < zs->zs_pf_end + pf_nblks)
@@ -502,14 +525,14 @@ dmu_zfetch_run(zstream_t *zs, boolean_t missed, boolean_t have_lock)
 	issued = pf_end - pf_start + ipf_end - ipf_start;
 	if (issued > 1) {
 		/* More references on top of taken in dmu_zfetch_prepare(). */
-		for (int i = 0; i < issued - 1; i++)
-			zfs_refcount_add(&zs->zs_refs, NULL);
+		zfs_refcount_add_few(&zs->zs_refs, issued - 1, NULL);
 	} else if (issued == 0) {
 		/* Some other thread has done our work, so drop the ref. */
 		if (zfs_refcount_remove(&zs->zs_refs, NULL) == 0)
 			dmu_zfetch_stream_fini(zs);
 		return;
 	}
+	aggsum_add(&zfetch_sums.zfetchstat_io_active, issued);
 
 	if (!have_lock)
 		rw_enter(&zf->zf_dnode->dn_struct_rwlock, RW_READER);
@@ -562,6 +585,3 @@ ZFS_MODULE_PARAM(zfs_prefetch, zfetch_, max_distance, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_prefetch, zfetch_, max_idistance, UINT, ZMOD_RW,
 	"Max bytes to prefetch indirects for per stream");
-
-ZFS_MODULE_PARAM(zfs_prefetch, zfetch_, array_rd_sz, U64, ZMOD_RW,
-	"Number of bytes in a array_read");

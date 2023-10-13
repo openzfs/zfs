@@ -42,9 +42,10 @@ extern "C" {
  * are all imported from <sys/nvpair.h> included above.
  */
 
-_LIBNVPAIR_H int nvpair_value_match(nvpair_t *, int, char *, char **);
-_LIBNVPAIR_H int nvpair_value_match_regex(nvpair_t *, int, char *, regex_t *,
-    char **);
+_LIBNVPAIR_H int nvpair_value_match(nvpair_t *, int, const char *,
+    const char **);
+_LIBNVPAIR_H int nvpair_value_match_regex(nvpair_t *, int, const char *,
+    regex_t *, const char **);
 
 _LIBNVPAIR_H void nvlist_print(FILE *, nvlist_t *);
 _LIBNVPAIR_H int nvlist_print_json(FILE *, nvlist_t *);
@@ -156,7 +157,7 @@ NVLIST_PRINTCTL_SVDECL(nvlist_prtctlop_uint32, uint32_t);
 NVLIST_PRINTCTL_SVDECL(nvlist_prtctlop_int64, int64_t);
 NVLIST_PRINTCTL_SVDECL(nvlist_prtctlop_uint64, uint64_t);
 NVLIST_PRINTCTL_SVDECL(nvlist_prtctlop_double, double);
-NVLIST_PRINTCTL_SVDECL(nvlist_prtctlop_string, char *);
+NVLIST_PRINTCTL_SVDECL(nvlist_prtctlop_string, const char *);
 NVLIST_PRINTCTL_SVDECL(nvlist_prtctlop_hrtime, hrtime_t);
 NVLIST_PRINTCTL_SVDECL(nvlist_prtctlop_nvlist, nvlist_t *);
 
@@ -185,7 +186,7 @@ NVLIST_PRINTCTL_AVDECL(nvlist_prtctlop_int32_array, int32_t *);
 NVLIST_PRINTCTL_AVDECL(nvlist_prtctlop_uint32_array, uint32_t *);
 NVLIST_PRINTCTL_AVDECL(nvlist_prtctlop_int64_array, int64_t *);
 NVLIST_PRINTCTL_AVDECL(nvlist_prtctlop_uint64_array, uint64_t *);
-NVLIST_PRINTCTL_AVDECL(nvlist_prtctlop_string_array, char **);
+NVLIST_PRINTCTL_AVDECL(nvlist_prtctlop_string_array, const char **);
 NVLIST_PRINTCTL_AVDECL(nvlist_prtctlop_nvlist_array, nvlist_t **);
 
 #undef	NVLIST_PRINTCTL_AVDECL	/* was just for "clarity" above */

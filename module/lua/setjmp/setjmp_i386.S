@@ -25,7 +25,7 @@
 
 #define	ENTRY(x) \
 	.text; \
-	.align	8; \
+	.balign	8; \
 	.globl	x; \
 	.type	x, @function; \
 x:

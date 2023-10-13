@@ -66,6 +66,7 @@ typedef struct spa_error_entry {
 	zbookmark_phys_t	se_bookmark;
 	char			*se_name;
 	avl_node_t		se_avl;
+	zbookmark_err_phys_t	se_zep;		/* not accounted in avl_find */
 } spa_error_entry_t;
 
 typedef struct spa_history_phys {
@@ -249,6 +250,7 @@ struct spa {
 	uint64_t	spa_min_ashift;		/* of vdevs in normal class */
 	uint64_t	spa_max_ashift;		/* of vdevs in normal class */
 	uint64_t	spa_min_alloc;		/* of vdevs in normal class */
+	uint64_t	spa_gcd_alloc;		/* of vdevs in normal class */
 	uint64_t	spa_config_guid;	/* config pool guid */
 	uint64_t	spa_load_guid;		/* spa_load initialized guid */
 	uint64_t	spa_last_synced_guid;	/* last synced guid */
@@ -261,6 +263,7 @@ struct spa {
 	 */
 	spa_alloc_t	*spa_allocs;
 	int		spa_alloc_count;
+	int		spa_active_allocator;	/* selectable allocator */
 
 	spa_aux_vdev_t	spa_spares;		/* hot spares */
 	spa_aux_vdev_t	spa_l2cache;		/* L2ARC cache devices */
@@ -294,6 +297,10 @@ struct spa {
 	uint64_t	spa_scan_pass_exam;	/* examined bytes per pass */
 	uint64_t	spa_scan_pass_issued;	/* issued bytes per pass */
 
+	/* error scrub pause time in milliseconds */
+	uint64_t	spa_scan_pass_errorscrub_pause;
+	/* total error scrub paused time in milliseconds */
+	uint64_t	spa_scan_pass_errorscrub_spent_paused;
 	/*
 	 * We are in the middle of a resilver, and another resilver
 	 * is needed once this one completes. This is set iff any
@@ -380,6 +387,7 @@ struct spa {
 	uint64_t	spa_dedup_dspace;	/* Cache get_dedup_dspace() */
 	uint64_t	spa_dedup_checksum;	/* default dedup checksum */
 	uint64_t	spa_dspace;		/* dspace in normal class */
+	struct brt	*spa_brt;		/* in-core BRT */
 	kmutex_t	spa_vdev_top_lock;	/* dueling offline/remove */
 	kmutex_t	spa_proc_lock;		/* protects spa_proc* */
 	kcondvar_t	spa_proc_cv;		/* spa_proc_state transitions */
@@ -416,7 +424,9 @@ struct spa {
 
 	hrtime_t	spa_ccw_fail_time;	/* Conf cache write fail time */
 	taskq_t		*spa_zvol_taskq;	/* Taskq for minor management */
+	taskq_t		*spa_metaslab_taskq;	/* Taskq for metaslab preload */
 	taskq_t		*spa_prefetch_taskq;	/* Taskq for prefetch threads */
+	taskq_t		*spa_upgrade_taskq;	/* Taskq for upgrade jobs */
 	uint64_t	spa_multihost;		/* multihost aware (mmp) */
 	mmp_thread_t	spa_mmp;		/* multihost mmp thread */
 	list_t		spa_leaf_list;		/* list of leaf vdevs */
@@ -440,8 +450,6 @@ struct spa {
 	 */
 	spa_config_lock_t spa_config_lock[SCL_LOCKS]; /* config changes */
 	zfs_refcount_t	spa_refcount;		/* number of opens */
-
-	taskq_t		*spa_upgrade_taskq;	/* taskq for upgrade jobs */
 };
 
 extern char *spa_config_path;
@@ -460,6 +468,8 @@ extern int param_set_deadman_failmode_common(const char *val);
 extern void spa_set_deadman_synctime(hrtime_t ns);
 extern void spa_set_deadman_ziotime(hrtime_t ns);
 extern const char *spa_history_zone(void);
+extern const char *zfs_active_allocator;
+extern int param_set_active_allocator_common(const char *val);
 
 #ifdef	__cplusplus
 }

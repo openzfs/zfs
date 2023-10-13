@@ -1267,7 +1267,7 @@ draid_merge_impl(nvlist_t *allcfgs, const char *srcfilename, int *mergedp)
 		uint64_t nv_worst_ratio;
 		uint64_t allcfg_worst_ratio;
 		nvlist_t *cfg, *allcfg;
-		char *key;
+		const char *key;
 
 		switch (nvpair_type(elem)) {
 		case DATA_TYPE_NVLIST:

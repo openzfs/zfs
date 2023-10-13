@@ -133,7 +133,7 @@ zfs_fuid_table_load(objset_t *os, uint64_t fuid_obj, avl_tree_t *idx_tree,
 
 		for (i = 0; i != count; i++) {
 			fuid_domain_t *domnode;
-			char *domain;
+			const char *domain;
 			uint64_t idx;
 
 			VERIFY(nvlist_lookup_string(fuidnvp[i], FUID_DOMAIN,
@@ -622,7 +622,7 @@ zfs_fuid_create(zfsvfs_t *zfsvfs, uint64_t id, cred_t *cr,
 			rid = FUID_RID(fuidp->z_fuid_group);
 			idx = FUID_INDEX(fuidp->z_fuid_group);
 			break;
-		};
+		}
 		domain = fuidp->z_domain_table[idx - 1];
 	} else {
 		if (type == ZFS_OWNER || type == ZFS_ACE_USER)
@@ -699,19 +699,15 @@ zfs_fuid_info_free(zfs_fuid_info_t *fuidp)
 	zfs_fuid_t *zfuid;
 	zfs_fuid_domain_t *zdomain;
 
-	while ((zfuid = list_head(&fuidp->z_fuids)) != NULL) {
-		list_remove(&fuidp->z_fuids, zfuid);
+	while ((zfuid = list_remove_head(&fuidp->z_fuids)) != NULL)
 		kmem_free(zfuid, sizeof (zfs_fuid_t));
-	}
 
 	if (fuidp->z_domain_table != NULL)
 		kmem_free(fuidp->z_domain_table,
 		    (sizeof (char *)) * fuidp->z_domain_cnt);
 
-	while ((zdomain = list_head(&fuidp->z_domains)) != NULL) {
-		list_remove(&fuidp->z_domains, zdomain);
+	while ((zdomain = list_remove_head(&fuidp->z_domains)) != NULL)
 		kmem_free(zdomain, sizeof (zfs_fuid_domain_t));
-	}
 
 	kmem_free(fuidp, sizeof (zfs_fuid_info_t));
 }

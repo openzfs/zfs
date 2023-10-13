@@ -861,7 +861,7 @@ function verify_fs_mount
 	fi
 
 	if ! ismounted $fs ; then
-		log_must zfs set mountpoint=$newmntpt $fs
+		log_must zfs set -u mountpoint=$newmntpt $fs
 		log_must rm -rf $newmntpt
 		log_must mkdir $newmntpt
 
@@ -878,7 +878,7 @@ function verify_fs_mount
 		fi
 		log_must zfs umount $fs
 		log_must rm -rf $newmntpt
-		log_must zfs set mountpoint=$mntpt $fs
+		log_must zfs set -u mountpoint=$mntpt $fs
 	fi
 
 	return 0

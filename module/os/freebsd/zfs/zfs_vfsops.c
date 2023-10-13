@@ -153,7 +153,12 @@ struct vfsops zfs_vfsops = {
 	.vfs_quotactl =		zfs_quotactl,
 };
 
-VFS_SET(zfs_vfsops, zfs, VFCF_JAIL | VFCF_DELEGADMIN);
+#ifdef VFCF_CROSS_COPY_FILE_RANGE
+VFS_SET(zfs_vfsops, zfs,
+    VFCF_DELEGADMIN | VFCF_JAIL | VFCF_CROSS_COPY_FILE_RANGE);
+#else
+VFS_SET(zfs_vfsops, zfs, VFCF_DELEGADMIN | VFCF_JAIL);
+#endif
 
 /*
  * We need to keep a count of active fs's.
@@ -230,7 +235,8 @@ zfs_get_temporary_prop(dsl_dataset_t *ds, zfs_prop_t zfs_prop, uint64_t *val,
 
 	vfs_unbusy(vfsp);
 	if (tmp != *val) {
-		(void) strcpy(setpoint, "temporary");
+		if (setpoint)
+			(void) strcpy(setpoint, "temporary");
 		*val = tmp;
 	}
 	return (0);
@@ -1148,7 +1154,6 @@ zfsvfs_free(zfsvfs_t *zfsvfs)
 
 	mutex_destroy(&zfsvfs->z_znodes_lock);
 	mutex_destroy(&zfsvfs->z_lock);
-	ASSERT3U(zfsvfs->z_nr_znodes, ==, 0);
 	list_destroy(&zfsvfs->z_all_znodes);
 	ZFS_TEARDOWN_DESTROY(zfsvfs);
 	ZFS_TEARDOWN_INACTIVE_DESTROY(zfsvfs);
@@ -1552,12 +1557,11 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 		 * may add the parents of dir-based xattrs to the taskq
 		 * so we want to wait for these.
 		 *
-		 * We can safely read z_nr_znodes without locking because the
-		 * VFS has already blocked operations which add to the
-		 * z_all_znodes list and thus increment z_nr_znodes.
+		 * We can safely check z_all_znodes for being empty because the
+		 * VFS has already blocked operations which add to it.
 		 */
 		int round = 0;
-		while (zfsvfs->z_nr_znodes > 0) {
+		while (!list_is_empty(&zfsvfs->z_all_znodes)) {
 			taskq_wait_outstanding(dsl_pool_zrele_taskq(
 			    dmu_objset_pool(zfsvfs->z_os)), 0);
 			if (++round > 1 && !unmounting)
@@ -2211,92 +2215,6 @@ zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers)
 }
 
 /*
- * Read a property stored within the master node.
- */
-int
-zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value)
-{
-	uint64_t *cached_copy = NULL;
-
-	/*
-	 * Figure out where in the objset_t the cached copy would live, if it
-	 * is available for the requested property.
-	 */
-	if (os != NULL) {
-		switch (prop) {
-		case ZFS_PROP_VERSION:
-			cached_copy = &os->os_version;
-			break;
-		case ZFS_PROP_NORMALIZE:
-			cached_copy = &os->os_normalization;
-			break;
-		case ZFS_PROP_UTF8ONLY:
-			cached_copy = &os->os_utf8only;
-			break;
-		case ZFS_PROP_CASE:
-			cached_copy = &os->os_casesensitivity;
-			break;
-		default:
-			break;
-		}
-	}
-	if (cached_copy != NULL && *cached_copy != OBJSET_PROP_UNINITIALIZED) {
-		*value = *cached_copy;
-		return (0);
-	}
-
-	/*
-	 * If the property wasn't cached, look up the file system's value for
-	 * the property. For the version property, we look up a slightly
-	 * different string.
-	 */
-	const char *pname;
-	int error = ENOENT;
-	if (prop == ZFS_PROP_VERSION) {
-		pname = ZPL_VERSION_STR;
-	} else {
-		pname = zfs_prop_to_name(prop);
-	}
-
-	if (os != NULL) {
-		ASSERT3U(os->os_phys->os_type, ==, DMU_OST_ZFS);
-		error = zap_lookup(os, MASTER_NODE_OBJ, pname, 8, 1, value);
-	}
-
-	if (error == ENOENT) {
-		/* No value set, use the default value */
-		switch (prop) {
-		case ZFS_PROP_VERSION:
-			*value = ZPL_VERSION;
-			break;
-		case ZFS_PROP_NORMALIZE:
-		case ZFS_PROP_UTF8ONLY:
-			*value = 0;
-			break;
-		case ZFS_PROP_CASE:
-			*value = ZFS_CASE_SENSITIVE;
-			break;
-		case ZFS_PROP_ACLTYPE:
-			*value = ZFS_ACLTYPE_NFSV4;
-			break;
-		default:
-			return (error);
-		}
-		error = 0;
-	}
-
-	/*
-	 * If one of the methods for getting the property value above worked,
-	 * copy it into the objset_t's cache.
-	 */
-	if (error == 0 && cached_copy != NULL) {
-		*cached_copy = *value;
-	}
-
-	return (error);
-}
-
-/*
  * Return true if the corresponding vfs's unmounted flag is set.
  * Otherwise return false.
  * If this function returns true we know VFS unmount has been initiated.
@@ -2494,7 +2412,9 @@ zfs_jailparam_set(void *obj, void *data)
 		mount_snapshot = -1;
 	else
 		jsys = JAIL_SYS_NEW;
-	if (jsys == JAIL_SYS_NEW) {
+	switch (jsys) {
+	case JAIL_SYS_NEW:
+	{
 		/* "zfs=new" or "zfs.*": the prison gets its own ZFS info. */
 		struct zfs_jailparam *zjp;
 
@@ -2512,12 +2432,22 @@ zfs_jailparam_set(void *obj, void *data)
 		if (mount_snapshot != -1)
 			zjp->mount_snapshot = mount_snapshot;
 		mtx_unlock(&pr->pr_mtx);
-	} else {
+		break;
+	}
+	case JAIL_SYS_INHERIT:
 		/* "zfs=inherit": inherit the parent's ZFS info. */
 		mtx_lock(&pr->pr_mtx);
 		osd_jail_del(pr, zfs_jailparam_slot);
 		mtx_unlock(&pr->pr_mtx);
+		break;
+	case -1:
+		/*
+		 * If the setting being changed is not ZFS related
+		 * then do nothing.
+		 */
+		break;
 	}
+
 	return (0);
 }
 

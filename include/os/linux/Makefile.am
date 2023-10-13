@@ -10,6 +10,7 @@ kernel_linux_HEADERS = \
 	%D%/kernel/linux/percpu_compat.h \
 	%D%/kernel/linux/simd.h \
 	%D%/kernel/linux/simd_aarch64.h \
+	%D%/kernel/linux/simd_arm.h \
 	%D%/kernel/linux/simd_powerpc.h \
 	%D%/kernel/linux/simd_x86.h \
 	%D%/kernel/linux/utsname_compat.h \
@@ -19,7 +20,6 @@ kernel_linux_HEADERS = \
 kernel_sysdir = $(kerneldir)/sys
 kernel_sys_HEADERS = \
 	%D%/zfs/sys/policy.h \
-	%D%/zfs/sys/sha2.h \
 	%D%/zfs/sys/trace_acl.h \
 	%D%/zfs/sys/trace_arc.h \
 	%D%/zfs/sys/trace_common.h \
@@ -109,4 +109,8 @@ kernel_spl_sys_HEADERS = \
 	%D%/spl/sys/wmsum.h \
 	%D%/spl/sys/zmod.h \
 	%D%/spl/sys/zone.h
+
+kernel_spl_ia32dir = $(kernel_spl_sysdir)/ia32
+kernel_spl_ia32_HEADERS = \
+	%D%/spl/sys/ia32/asm_linkage.h
 endif

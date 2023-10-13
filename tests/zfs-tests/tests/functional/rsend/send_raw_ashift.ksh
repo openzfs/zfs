@@ -37,6 +37,10 @@ verify_runnable "both"
 
 log_assert "Verify raw sending to pools with greater ashift succeeds"
 
+if is_freebsd; then
+	log_unsupported "Runs too long on FreeBSD 14 (Issue #14961)"
+fi
+
 function cleanup
 {
 	rm -f $BACKDIR/fs@*
