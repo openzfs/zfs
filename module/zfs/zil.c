@@ -145,7 +145,7 @@ static int zil_nocacheflush = 0;
  * Any writes above that will be executed with lower (asynchronous) priority
  * to limit potential SLOG device abuse by single active ZIL writer.
  */
-static uint64_t zil_slog_bulk = 768 * 1024;
+static uint64_t zil_slog_bulk = 64 * 1024 * 1024;
 
 static kmem_cache_t *zil_lwb_cache;
 static kmem_cache_t *zil_zcw_cache;

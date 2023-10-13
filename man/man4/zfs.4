@@ -2172,7 +2172,7 @@ if a volatile out-of-order write cache is enabled.
 Disable intent logging replay.
 Can be disabled for recovery from corrupted ZIL.
 .
-.It Sy zil_slog_bulk Ns = Ns Sy 786432 Ns B Po 768 KiB Pc Pq u64
+.It Sy zil_slog_bulk Ns = Ns Sy 67108864 Ns B Po 64 MiB Pc Pq u64
 Limit SLOG write size per commit executed with synchronous priority.
 Any writes above that will be executed with lower (asynchronous) priority
 to limit potential SLOG device abuse by single active ZIL writer.
