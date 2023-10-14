@@ -4215,6 +4215,7 @@ vdev_online(spa_t *spa, uint64_t guid, uint64_t flags, vdev_state_t *newstate)
 		/* XXX - L2ARC 1.0 does not support expansion */
 		if (vd->vdev_aux)
 			return (spa_vdev_state_exit(spa, vd, ENOTSUP));
+		spa->spa_ccw_fail_time = 0;
 		spa_async_request(spa, SPA_ASYNC_CONFIG_UPDATE);
 	}
 
