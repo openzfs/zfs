@@ -294,6 +294,8 @@ typedef struct {
 	int32_t		ddt_log_flush_rate;	/* rolling log flush rate */
 	int32_t		ddt_log_flush_time_rate; /* avg time spent flushing */
 
+	uint64_t	ddt_flush_force_txg;	/* flush hard before this txg */
+
 	enum zio_checksum ddt_checksum;	/* checksum algorithm in use */
 	spa_t		*ddt_spa;	/* pool this ddt is on */
 	objset_t	*ddt_os;	/* ddt objset (always MOS) */
@@ -393,6 +395,9 @@ extern void ddt_create(spa_t *spa);
 extern int ddt_load(spa_t *spa);
 extern void ddt_unload(spa_t *spa);
 extern void ddt_sync(spa_t *spa, uint64_t txg);
+
+extern void ddt_walk_init(spa_t *spa, uint64_t txg);
+extern boolean_t ddt_walk_ready(spa_t *spa);
 extern int ddt_walk(spa_t *spa, ddt_bookmark_t *ddb,
     ddt_lightweight_entry_t *ddlwe);
 
