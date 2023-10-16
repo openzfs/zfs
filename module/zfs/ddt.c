@@ -179,6 +179,12 @@
  * position on the object even if the object changes, the pool is exported, or
  * OpenZFS is upgraded.
  *
+ * If the "fast_dedup" feature is enabled and the table has a log, the scan
+ * cannot begin until entries on the log are flushed, as the on-disk log has no
+ * concept of a "stable position". Instead, the log flushing process will enter
+ * a more aggressive mode, to flush out as much as is necesary as soon as
+ * possible, in order to begin the scan as soon as possible.
+ *
  * ## Interaction with block cloning
  *
  * If block cloning and dedup are both enabled on a pool, BRT will look for the
@@ -1623,6 +1629,16 @@ ddt_sync_flush_log_incremental(ddt_t *ddt, dmu_tx_t *tx)
 			ddt->ddt_flush_min = MAX(
 			    ddt->ddt_log_ingest_rate,
 			    zfs_dedup_log_flush_entries_min);
+
+			/*
+			 * If we've been asked to flush everything in a hurry,
+			 * try to dump as much as possible on this txg. In
+			 * this case we're only limited by time, not amount.
+			 */
+			if (ddt->ddt_flush_force_txg > 0)
+				ddt->ddt_flush_min =
+				    MAX(ddt->ddt_flush_min, avl_numnodes(
+				    &ddt->ddt_log_flushing->ddl_tree));
 		} else {
 			/* We already decided we're done for this txg */
 			return (B_FALSE);
@@ -1757,6 +1773,12 @@ ddt_sync_flush_log(ddt_t *ddt, dmu_tx_t *tx)
 		 */
 		(void) ddt_log_swap(ddt, tx);
 	}
+
+	if (ddt->ddt_flush_force_txg > 0 &&
+	    avl_is_empty(&ddt->ddt_log_active->ddl_tree) &&
+	    avl_is_empty(&ddt->ddt_log_flushing->ddl_tree))
+		/* Both logs are empty, so no more force flush */
+		ddt->ddt_flush_force_txg = 0;
 
 	/*
 	 * Update flush rate. This is an exponential weighted moving average of
@@ -1926,6 +1948,48 @@ ddt_sync(spa_t *spa, uint64_t txg)
 	dmu_tx_commit(tx);
 }
 
+void
+ddt_walk_init(spa_t *spa, uint64_t txg)
+{
+	if (txg == 0)
+		txg = spa_syncing_txg(spa);
+
+	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
+		ddt_t *ddt = spa->spa_ddt[c];
+		if (ddt == NULL || !(ddt->ddt_flags & DDT_FLAG_LOG))
+			continue;
+
+		ddt_enter(ddt);
+
+		/*
+		 * If either of the logs have live entries from the past,
+		 * then we need to get flushing.
+		 */
+		if ((!avl_is_empty(&ddt->ddt_log_active->ddl_tree) &&
+		    ddt->ddt_log_active->ddl_first_txg <= txg) ||
+		    (!avl_is_empty(&ddt->ddt_log_flushing->ddl_tree) &&
+		    ddt->ddt_log_flushing->ddl_first_txg <= txg))
+			ddt->ddt_flush_force_txg = txg;
+
+		ddt_exit(ddt);
+	}
+}
+
+boolean_t
+ddt_walk_ready(spa_t *spa)
+{
+	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
+		ddt_t *ddt = spa->spa_ddt[c];
+		if (ddt == NULL || !(ddt->ddt_flags & DDT_FLAG_LOG))
+			continue;
+
+		if (ddt->ddt_flush_force_txg > 0)
+			return (B_FALSE);
+	}
+
+	return (B_TRUE);
+}
+
 int
 ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_lightweight_entry_t *ddlwe)
 {
@@ -1935,6 +1999,10 @@ ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_lightweight_entry_t *ddlwe)
 				ddt_t *ddt = spa->spa_ddt[ddb->ddb_checksum];
 				if (ddt == NULL)
 					continue;
+
+				if (ddt->ddt_flush_force_txg > 0)
+					return (EAGAIN);
+
 				int error = ENOENT;
 				if (ddt_object_exists(ddt, ddb->ddb_type,
 				    ddb->ddb_class)) {
