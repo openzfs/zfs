@@ -95,6 +95,10 @@ while (( i < 16384 )); do
 	done
 	((i += 1))
 done
+
+# Force the DDT logs to disk with a scrub so they can be prefetched
+log_must zpool scrub -w $TESTPOOL
+
 log_note "Dataset generation completed."
 
 typeset -A generated

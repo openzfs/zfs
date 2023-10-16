@@ -435,7 +435,8 @@ ddt_log_swap(ddt_t *ddt, dmu_tx_t *tx)
 	/*
 	 * Swap policy. We swap the logs (and so begin flushing) when the
 	 * active tree grows too large, or when we haven't swapped it in
-	 * some amount of time.
+	 * some amount of time, or if something has requested the logs be
+	 * flushed ASAP (see ddt_walk_init()).
 	 */
 
 	/*
@@ -452,7 +453,10 @@ ddt_log_swap(ddt_t *ddt, dmu_tx_t *tx)
 	    (ddt->ddt_log_active->ddl_first_txg +
 	    MAX(1, zfs_dedup_log_txg_max));
 
-	if (!(too_large || too_old))
+	const boolean_t force =
+	    ddt->ddt_log_active->ddl_first_txg <= ddt->ddt_flush_force_txg;
+
+	if (!(too_large || too_old || force))
 		return (B_FALSE);
 
 	ddt_log_t *swap = ddt->ddt_log_active;
