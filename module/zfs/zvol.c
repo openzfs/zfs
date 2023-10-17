@@ -384,6 +384,26 @@ zvol_set_volthreading(const char *name, boolean_t value)
 }
 
 /*
+ * Update zvol ro property.
+ */
+int
+zvol_set_ro(const char *name, boolean_t value)
+{
+	zvol_state_t *zv = zvol_find_by_name(name, RW_NONE);
+	if (zv == NULL)
+		return (-1);
+	if (value) {
+		zvol_os_set_disk_ro(zv, 1);
+		zv->zv_flags |= ZVOL_RDONLY;
+	} else {
+		zvol_os_set_disk_ro(zv, 0);
+		zv->zv_flags &= ~ZVOL_RDONLY;
+	}
+	mutex_exit(&zv->zv_state_lock);
+	return (0);
+}
+
+/*
  * Sanity check volume block size.
  */
 int
