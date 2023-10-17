@@ -644,10 +644,7 @@ Max size of ARC in bytes.
 If
 .Sy 0 ,
 then the max size of ARC is determined by the amount of system memory installed.
-Under Linux, half of system memory will be used as the limit.
-Under
-.Fx ,
-the larger of
+The larger of
 .Sy all_system_memory No \- Sy 1 GiB
 and
 .Sy 5/8 No \(mu Sy all_system_memory
