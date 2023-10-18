@@ -448,10 +448,12 @@ vdev_disk_close(vdev_t *v)
 }
 
 static dio_request_t *
-vdev_disk_dio_alloc(int bio_count)
+vdev_disk_dio_alloc(zio_t *zio, int bio_count)
 {
 	dio_request_t *dr = kmem_zalloc(sizeof (dio_request_t) +
 	    sizeof (struct bio *) * bio_count, KM_SLEEP);
+
+	dr->dr_zio = zio;
 	atomic_set(&dr->dr_ref, 0);
 	dr->dr_bio_count = bio_count;
 	dr->dr_error = 0;
@@ -460,6 +462,26 @@ vdev_disk_dio_alloc(int bio_count)
 		dr->dr_bio[i] = NULL;
 
 	return (dr);
+}
+
+static dio_request_t *
+vdev_disk_dio_expand(dio_request_t *dr)
+{
+	dio_request_t *ndr = kmem_zalloc(sizeof (dio_request_t) +
+	    sizeof (struct bio *) * dr->dr_bio_count * 2, KM_SLEEP);
+
+	ndr->dr_zio = dr->dr_zio;
+	atomic_set(&ndr->dr_ref, atomic_read(&dr->dr_ref));
+	ndr->dr_bio_count = dr->dr_bio_count * 2;
+	ndr->dr_error = 0;
+
+	for (int i = 0; i < ndr->dr_bio_count; i++)
+		ndr->dr_bio[i] = (i < dr->dr_bio_count) ? dr->dr_bio[i] : NULL;
+
+	kmem_free(dr, sizeof (dio_request_t) +
+	    sizeof (struct bio *) * dr->dr_bio_count);
+
+	return (ndr);
 }
 
 static void
@@ -705,7 +727,7 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio,
 	uint64_t abd_offset;
 	uint64_t bio_offset;
 	int bio_size;
-	int bio_count = 16;
+	int bio_count;
 	int error = 0;
 	struct blk_plug plug;
 	unsigned short nr_vecs;
@@ -722,27 +744,45 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio,
 		return (SET_ERROR(EIO));
 	}
 
-retry:
-	dr = vdev_disk_dio_alloc(bio_count);
-
 	if (!(zio->io_flags & (ZIO_FLAG_IO_RETRY | ZIO_FLAG_TRYHARD)) &&
 	    zio->io_vd->vdev_failfast == B_TRUE) {
 		bio_set_flags_failfast(bdev, &flags, zfs_vdev_failfast_mask & 1,
 		    zfs_vdev_failfast_mask & 2, zfs_vdev_failfast_mask & 4);
 	}
 
-	dr->dr_zio = zio;
-
 	/*
-	 * Since bio's can have up to BIO_MAX_PAGES=256 iovec's, each of which
-	 * is at least 512 bytes and at most PAGESIZE (typically 4K), one bio
-	 * can cover at least 128KB and at most 1MB.  When the required number
-	 * of iovec's exceeds this, we are forced to break the IO in multiple
-	 * bio's and wait for them all to complete.  This is likely if the
-	 * recordsize property is increased beyond 1MB.  The default
-	 * bio_count=16 should typically accommodate the maximum-size zio of
-	 * 16MB.
+	 * We create each bio with the maximum number of iovecs the
+	 * driver/device can support, up to the kernel maximum
+	 * (bio_max_segs(N)=256). This varies by device type, but 128 is common
+	 * for SCSI disks, and 64 for NVMe devices.
+	 *
+	 * Each iovec can carry at least 512 and at most PAGESIZE bytes
+	 * (typically 4K). This means that a single bio can cover at most 1MB
+	 * of data, but usually significantly less.
+	 *
+	 * If the kernel is passed a bio that has more iovecs than the
+	 * driver/device can support, it will split it into multiple bios. Due
+	 * to complications in the way we allocated IO memory and load it into
+	 * the bio, splits can cause a bio to be not properly aligned to the
+	 * block size, which some devices reject. We try to avoid this
+	 * happening by never passing a bio with more iovecs than the
+	 * driver/device can handle.
+	 *
+	 * All this means that in many cases, a single zio will require
+	 * multiple bios to service. Each bio adds a tiny bit of overhead to
+	 * the overall zio, as we have to wait for them all to complete.
+	 *
+	 * We track the set of bios for this zio in a single dio_request_t,
+	 * which we use to count the the bios as they complete, and so know
+	 * when we have them all and so can finish the operation and complete
+	 * the zio. We have to allocate enough room to keep the bio pointers.
+	 * We guess how many bios we will need by simple division, but if there
+	 * are short blocks, or split pages, we may end up needing more. If
+	 * this happens, we just expand the array and keep going.
 	 */
+	nr_vecs = vdev_bio_max_segs(bdev);
+	bio_count = ((((io_size / PAGESIZE)+1) / nr_vecs)+1);
+	dr = vdev_disk_dio_alloc(zio, bio_count);
 
 	abd_offset = 0;
 	bio_offset = io_offset;
@@ -753,17 +793,10 @@ retry:
 		if (bio_size <= 0)
 			break;
 
-		/*
-		 * If additional bio's are required, we have to retry, but
-		 * this should be rare - see the comment above.
-		 */
-		if (dr->dr_bio_count == i) {
-			vdev_disk_dio_free(dr);
-			bio_count *= 2;
-			goto retry;
-		}
+		/* If additional bio's are required, expand tracking space */
+		if (dr->dr_bio_count == i)
+			dr = vdev_disk_dio_expand(dr);
 
-		nr_vecs = vdev_bio_max_segs(bdev);
 		dr->dr_bio[i] = vdev_bio_alloc(bdev, GFP_NOIO, nr_vecs);
 		if (unlikely(dr->dr_bio[i] == NULL)) {
 			vdev_disk_dio_free(dr);
@@ -774,9 +807,6 @@ retry:
 		vdev_disk_dio_get(dr);
 
 		BIO_BI_SECTOR(dr->dr_bio[i]) = bio_offset >> 9;
-		dr->dr_bio[i]->bi_end_io = vdev_disk_physio_completion;
-		dr->dr_bio[i]->bi_private = dr;
-		bio_set_op_attrs(dr->dr_bio[i], rw, flags);
 
 		/* Remaining size is returned to become the new size */
 		bio_size = abd_bio_map_off(dr->dr_bio[i], zio->io_abd,
@@ -795,8 +825,13 @@ retry:
 
 	/* Submit all bio's associated with this dio */
 	for (int i = 0; i < dr->dr_bio_count; i++) {
-		if (dr->dr_bio[i])
-			vdev_submit_bio(dr->dr_bio[i]);
+		struct bio *bio = dr->dr_bio[i];
+		if (bio) {
+			bio->bi_end_io = vdev_disk_physio_completion;
+			bio->bi_private = dr;
+			bio_set_op_attrs(bio, rw, flags);
+			vdev_submit_bio(bio);
+		}
 	}
 
 	if (dr->dr_bio_count > 1)
