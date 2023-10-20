@@ -141,7 +141,11 @@ remove_disk $SDISK
 # background since the command will hang when the pool gets suspended.  The
 # command will resume and exit after we restore the missing disk later on.
 zpool scrub $TESTPOOL2 &
-sleep 3		# Give the scrub some time to run before we check if it fails
+# Once we trigger the zpool scrub, all zpool/zfs command gets stuck for 180 seconds.
+# Post 180 seconds zpool/zfs commands gets start executing however few more seconds(10s)
+# it take to update the status.
+# hence sleeping for 200 seconds so that we get the correct status.
+sleep 200		# Give the scrub some time to run before we check if it fails
 
 log_must check_all $TESTPOOL2 "SUSPENDED"
 
