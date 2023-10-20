@@ -64,8 +64,6 @@ taskq_t *dynamic_taskq = NULL;
 
 proc_t *system_proc;
 
-extern int uma_align_cache;
-
 static MALLOC_DEFINE(M_TASKQ, "taskq", "taskq structures");
 
 static LIST_HEAD(tqenthashhead, taskq_ent) *tqenthashtbl;
