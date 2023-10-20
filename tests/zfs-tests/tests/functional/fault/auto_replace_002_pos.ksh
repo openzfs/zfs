@@ -21,6 +21,7 @@
 #
 #
 # Copyright (c) 2017 by Intel Corporation. All rights reserved.
+# Copyright (c) 2023 by Klara, Inc. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -29,6 +30,7 @@
 #
 # DESCRIPTION:
 # Testing Fault Management Agent ZED Logic - Automated Auto-Replace Test.
+# Verifys that auto-replace works with by-id paths.
 #
 # STRATEGY:
 # 1. Update /etc/zfs/vdev_id.conf with scsidebug alias for a persistent path.
@@ -37,12 +39,11 @@
 # 3. Export the pool
 # 4. Wipe and offline the scsi_debug disk
 # 5. Import the pool with missing disk
-# 6. Re-online the wiped scsi_debug disk
+# 6. Re-online the wiped scsi_debug disk with a new serial number
 # 7. Verify ZED detects the new blank disk and replaces the missing vdev
 # 8. Verify that the scsi_debug disk was re-partitioned
 #
-# Creates a raidz1 zpool using persistent /dev/disk/by-vdev path names
-# (ie not /dev/sdc)
+# Creates a raidz1 zpool using persistent /dev/disk/by-id path names
 #
 # Auto-replace is opt in, and matches by phys_path.
 #
@@ -61,7 +62,36 @@ function cleanup
 	unload_scsi_debug
 }
 
-log_assert "Testing automated auto-replace FMA test"
+#
+# Wait until a vdev transitions to its replacement vdev
+#
+# Return 0 when vdev reaches expected state, 1 on timeout.
+#
+# Note: index +2 is to skip over root and raidz-0 vdevs
+#
+function wait_vdev_online # pool index oldguid timeout
+{
+	typeset pool=$1
+	typeset -i index=$2+2
+	typeset guid=$3
+	typeset timeout=${4:-60}
+	typeset -i i=0
+
+	while [[ $i -lt $timeout ]]; do
+		vdev_guids=( $(zpool get -H -o value guid $pool all-vdevs) )
+
+		if [ "${vdev_guids[$index]}" != "${guid}" ]; then
+			log_note "new vdev[$((index-2))]: ${vdev_guids[$index]}, replacing ${guid}"
+			return 0
+		fi
+
+		i=$((i+1))
+		sleep 1
+	done
+
+	return 1
+}
+log_assert "automated auto-replace with by-id paths"
 log_onexit cleanup
 
 load_scsi_debug $SDSIZE $SDHOSTS $SDTGTS $SDLUNS '512b'
@@ -78,7 +108,10 @@ SD_DEVICE=$(udevadm info -q all -n $DEV_DSKDIR/$SD | \
 [ -z $SD_DEVICE ] && log_fail "vdev rule was not registered properly"
 
 log_must zpool events -c
-log_must zpool create -f $TESTPOOL raidz1 $SD_DEVICE $DISK1 $DISK2 $DISK3
+log_must zpool create -f $TESTPOOL raidz1 $SD_DEVICE_ID $DISK1 $DISK2 $DISK3
+
+vdev_guid=$(zpool get guid -H -o value $TESTPOOL $SD_DEVICE_ID)
+log_note original vdev guid ${vdev_guid}
 
 # Auto-replace is opt-in so need to set property
 log_must zpool set autoreplace=on $TESTPOOL
@@ -113,12 +146,31 @@ log_must zpool import $TESTPOOL
 log_must check_state $TESTPOOL "" "DEGRADED"
 block_device_wait
 
-# Online an empty disk in the same physical location
+#
+# Online an empty disk in the same physical location, with a different by-id
+# symlink. We use vpd_use_hostno to make sure the underlying serial number
+# changes for the new disk which in turn gives us a different by-id path.
+#
+# The original names were something like:
+# 	/dev/disk/by-id/scsi-SLinux_scsi_debug_16000-part1
+# 	/dev/disk/by-id/wwn-0x33333330000007d0-part1
+#
+# This new inserted disk, will have different links like:
+# 	/dev/disk/by-id/scsi-SLinux_scsi_debug_2000-part1
+# 	/dev/disk/by-id/wwn-0x0x3333333000003e80 -part1
+#
+echo '0' > /sys/bus/pseudo/drivers/scsi_debug/vpd_use_hostno
+
 insert_disk $SD $SD_HOST
 
+# make sure the physical path points to the same scsi-debug device
+SD_DEVICE_ID=$(get_persistent_disk_name $SD)
+echo "alias scsidebug /dev/disk/by-id/$SD_DEVICE_ID" >>$VDEVID_CONF
+block_device_wait
+
 # Wait for the new disk to be online and replaced
-log_must wait_vdev_state $TESTPOOL "scsidebug" "ONLINE" 60
-log_must wait_replacing $TESTPOOL 60
+log_must wait_vdev_online $TESTPOOL 0 $vdev_guid 45
+log_must wait_replacing $TESTPOOL 45
 
 # Validate auto-replace was successful
 log_must check_state $TESTPOOL "" "ONLINE"
@@ -137,4 +189,4 @@ if [ ! -z "$part_uuid" ]; then
 	    log_fail "The new disk was not relabeled as expected"
 fi
 
-log_pass "Auto-replace test successful"
+log_pass "automated auto-replace with by-id paths"

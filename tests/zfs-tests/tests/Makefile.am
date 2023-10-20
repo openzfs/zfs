@@ -1431,6 +1431,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/fault/auto_online_001_pos.ksh \
 	functional/fault/auto_online_002_pos.ksh \
 	functional/fault/auto_replace_001_pos.ksh \
+	functional/fault/auto_replace_002_pos.ksh \
 	functional/fault/auto_spare_001_pos.ksh \
 	functional/fault/auto_spare_002_pos.ksh \
 	functional/fault/auto_spare_ashift.ksh \

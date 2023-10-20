@@ -122,10 +122,10 @@ tags = ['functional', 'fallocate']
 
 [tests/functional/fault:Linux]
 tests = ['auto_offline_001_pos', 'auto_online_001_pos', 'auto_online_002_pos',
-    'auto_replace_001_pos', 'auto_spare_001_pos', 'auto_spare_002_pos',
-    'auto_spare_multiple', 'auto_spare_ashift', 'auto_spare_shared',
-    'decrypt_fault', 'decompress_fault', 'scrub_after_resilver',
-    'zpool_status_-s']
+    'auto_replace_001_pos', 'auto_replace_002_pos', 'auto_spare_001_pos',
+    'auto_spare_002_pos', 'auto_spare_multiple', 'auto_spare_ashift',
+    'auto_spare_shared', 'decrypt_fault', 'decompress_fault',
+    'scrub_after_resilver', 'zpool_status_-s']
 tags = ['functional', 'fault']
 
 [tests/functional/features/large_dnode:Linux]

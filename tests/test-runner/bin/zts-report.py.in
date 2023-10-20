@@ -328,6 +328,7 @@ if os.environ.get('CI') == 'true':
         'fault/auto_online_001_pos': ['SKIP', ci_reason],
         'fault/auto_online_002_pos': ['SKIP', ci_reason],
         'fault/auto_replace_001_pos': ['SKIP', ci_reason],
+        'fault/auto_replace_002_pos': ['SKIP', ci_reason],
         'fault/auto_spare_ashift': ['SKIP', ci_reason],
         'fault/auto_spare_shared': ['SKIP', ci_reason],
         'procfs/pool_state': ['SKIP', ci_reason],
