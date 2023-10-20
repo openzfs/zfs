@@ -24,6 +24,7 @@
  * Copyright 2014 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2016, 2017, Intel Corporation.
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+ * Copyright (c) 2023, Klara Inc.
  */
 
 /*
@@ -204,7 +205,7 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	uint64_t is_spare = 0;
 	const char *physpath = NULL, *new_devid = NULL, *enc_sysfs_path = NULL;
 	char rawpath[PATH_MAX], fullpath[PATH_MAX];
-	char devpath[PATH_MAX];
+	char pathbuf[PATH_MAX];
 	int ret;
 	int online_flag = ZFS_ONLINE_CHECKREMOVE | ZFS_ONLINE_UNSPARE;
 	boolean_t is_sd = B_FALSE;
@@ -214,6 +215,11 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	char **lines = NULL;
 	int lines_cnt = 0;
 
+	/*
+	 * Get the persistent path, typically under the '/dev/disk/by-id' or
+	 * '/dev/disk/by-vdev' directories.  Note that this path can change
+	 * when a vdev is replaced with a new disk.
+	 */
 	if (nvlist_lookup_string(vdev, ZPOOL_CONFIG_PATH, &path) != 0)
 		return;
 
@@ -370,15 +376,17 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	(void) snprintf(rawpath, sizeof (rawpath), "%s%s",
 	    is_sd ? DEV_BYVDEV_PATH : DEV_BYPATH_PATH, physpath);
 
-	if (realpath(rawpath, devpath) == NULL && !is_mpath_wholedisk) {
+	if (realpath(rawpath, pathbuf) == NULL && !is_mpath_wholedisk) {
 		zed_log_msg(LOG_INFO, "  realpath: %s failed (%s)",
 		    rawpath, strerror(errno));
 
-		(void) zpool_vdev_online(zhp, fullpath, ZFS_ONLINE_FORCEFAULT,
-		    &newstate);
+		int err = zpool_vdev_online(zhp, fullpath,
+		    ZFS_ONLINE_FORCEFAULT, &newstate);
 
-		zed_log_msg(LOG_INFO, "  zpool_vdev_online: %s FORCEFAULT (%s)",
-		    fullpath, libzfs_error_description(g_zfshdl));
+		zed_log_msg(LOG_INFO, "  zpool_vdev_online: %s FORCEFAULT (%s) "
+		    "err %d, new state %d",
+		    fullpath, libzfs_error_description(g_zfshdl), err,
+		    err ? (int)newstate : 0);
 		return;
 	}
 
@@ -428,7 +436,7 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 		 * to trigger a ZFS fault for the device (and any hot spare
 		 * replacement).
 		 */
-		leafname = strrchr(devpath, '/') + 1;
+		leafname = strrchr(pathbuf, '/') + 1;
 
 		/*
 		 * If this is a request to label a whole disk, then attempt to
@@ -436,7 +444,7 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 		 */
 		if (zpool_prepare_and_label_disk(g_zfshdl, zhp, leafname,
 		    vdev, "autoreplace", &lines, &lines_cnt) != 0) {
-			zed_log_msg(LOG_INFO,
+			zed_log_msg(LOG_WARNING,
 			    "  zpool_prepare_and_label_disk: could not "
 			    "label '%s' (%s)", leafname,
 			    libzfs_error_description(g_zfshdl));
@@ -468,7 +476,7 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 		    sizeof (device->pd_physpath));
 		list_insert_tail(&g_device_list, device);
 
-		zed_log_msg(LOG_INFO, "  zpool_label_disk: async '%s' (%llu)",
+		zed_log_msg(LOG_NOTICE, "  zpool_label_disk: async '%s' (%llu)",
 		    leafname, (u_longlong_t)guid);
 
 		return;	/* resumes at EC_DEV_ADD.ESC_DISK for partition */
@@ -491,8 +499,8 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 		}
 		if (!found) {
 			/* unexpected partition slice encountered */
-			zed_log_msg(LOG_INFO, "labeled disk %s unexpected here",
-			    fullpath);
+			zed_log_msg(LOG_WARNING, "labeled disk %s was "
+			    "unexpected here", fullpath);
 			(void) zpool_vdev_online(zhp, fullpath,
 			    ZFS_ONLINE_FORCEFAULT, &newstate);
 			return;
@@ -501,8 +509,17 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 		zed_log_msg(LOG_INFO, "  zpool_label_disk: resume '%s' (%llu)",
 		    physpath, (u_longlong_t)guid);
 
-		(void) snprintf(devpath, sizeof (devpath), "%s%s",
-		    DEV_BYID_PATH, new_devid);
+		/*
+		 * Paths that begin with '/dev/disk/by-id/' will change and so
+		 * they must be updated before calling zpool_vdev_attach().
+		 */
+		if (strncmp(path, DEV_BYID_PATH, strlen(DEV_BYID_PATH)) == 0) {
+			(void) snprintf(pathbuf, sizeof (pathbuf), "%s%s",
+			    DEV_BYID_PATH, new_devid);
+			zed_log_msg(LOG_INFO, "  zpool_label_disk: path '%s' "
+			    "replaced by '%s'", path, pathbuf);
+			path = pathbuf;
+		}
 	}
 
 	libzfs_free_str_array(lines, lines_cnt);
@@ -545,9 +562,11 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	 * Wait for udev to verify the links exist, then auto-replace
 	 * the leaf disk at same physical location.
 	 */
-	if (zpool_label_disk_wait(path, 3000) != 0) {
-		zed_log_msg(LOG_WARNING, "zfs_mod: expected replacement "
-		    "disk %s is missing", path);
+	if (zpool_label_disk_wait(path, DISK_LABEL_WAIT) != 0) {
+		zed_log_msg(LOG_WARNING, "zfs_mod: pool '%s', after labeling "
+		    "replacement disk, the expected disk partition link '%s' "
+		    "is missing after waiting %u ms",
+		    zpool_get_name(zhp), path, DISK_LABEL_WAIT);
 		nvlist_free(nvroot);
 		return;
 	}
@@ -562,7 +581,7 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 		    B_TRUE, B_FALSE);
 	}
 
-	zed_log_msg(LOG_INFO, "  zpool_vdev_replace: %s with %s (%s)",
+	zed_log_msg(LOG_WARNING, "  zpool_vdev_replace: %s with %s (%s)",
 	    fullpath, path, (ret == 0) ? "no errors" :
 	    libzfs_error_description(g_zfshdl));
 
@@ -660,7 +679,7 @@ zfs_iter_vdev(zpool_handle_t *zhp, nvlist_t *nvl, void *data)
 		    dp->dd_prop, path);
 		dp->dd_found = B_TRUE;
 
-		/* pass the new devid for use by replacing code */
+		/* pass the new devid for use by auto-replacing code */
 		if (dp->dd_new_devid != NULL) {
 			(void) nvlist_add_string(nvl, "new_devid",
 			    dp->dd_new_devid);
