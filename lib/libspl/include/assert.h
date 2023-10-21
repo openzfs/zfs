@@ -107,8 +107,8 @@ do {									\
 	const uintptr_t __right = (uintptr_t)(RIGHT);			\
 	if (!(__left OP __right))					\
 		libspl_assertf(__FILE__, __FUNCTION__, __LINE__,	\
-		    "%s %s %s (0x%llx %s 0x%llx)", #LEFT, #OP, #RIGHT,	\
-		    (u_longlong_t)__left, #OP, (u_longlong_t)__right);	\
+		    "%s %s %s (%p %s %p)", #LEFT, #OP, #RIGHT,		\
+		    (void *)__left, #OP, (void *)__right);		\
 } while (0)
 
 #define	VERIFY0(LEFT)							\
@@ -118,6 +118,15 @@ do {									\
 		libspl_assertf(__FILE__, __FUNCTION__, __LINE__,	\
 		    "%s == 0 (0x%llx == 0)", #LEFT,			\
 		    (u_longlong_t)__left);				\
+} while (0)
+
+#define	VERIFY0P(LEFT)							\
+do {									\
+	const uintptr_t __left = (uintptr_t)(LEFT);			\
+	if (!(__left == 0))						\
+		libspl_assertf(__FILE__, __FUNCTION__, __LINE__,	\
+		    "%s == 0 (%p == 0)", #LEFT,				\
+		    (void *)__left);					\
 } while (0)
 
 #ifdef assert
@@ -134,6 +143,7 @@ do {									\
 #define	ASSERT3P(x, y, z)						\
 	((void) sizeof ((uintptr_t)(x)), (void) sizeof ((uintptr_t)(z)))
 #define	ASSERT0(x)		((void) sizeof ((uintptr_t)(x)))
+#define	ASSERT0P(x)		((void) sizeof ((uintptr_t)(x)))
 #define	ASSERT(x)		((void) sizeof ((uintptr_t)(x)))
 #define	assert(x)		((void) sizeof ((uintptr_t)(x)))
 #define	IMPLY(A, B)							\
@@ -146,6 +156,7 @@ do {									\
 #define	ASSERT3U	VERIFY3U
 #define	ASSERT3P	VERIFY3P
 #define	ASSERT0		VERIFY0
+#define	ASSERT0P	VERIFY0P
 #define	ASSERT		VERIFY
 #define	assert		VERIFY
 #define	IMPLY(A, B) \

@@ -2701,7 +2701,7 @@ dmu_buf_will_clone(dmu_buf_t *db_fake, dmu_tx_t *tx)
 	 */
 	mutex_enter(&db->db_mtx);
 	VERIFY(!dbuf_undirty(db, tx));
-	ASSERT3P(dbuf_find_dirty_eq(db, tx->tx_txg), ==, NULL);
+	ASSERT0P(dbuf_find_dirty_eq(db, tx->tx_txg));
 	if (db->db_buf != NULL) {
 		arc_buf_destroy(db->db_buf, db);
 		db->db_buf = NULL;

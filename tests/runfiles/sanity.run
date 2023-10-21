@@ -212,7 +212,7 @@ tests = ['cache_001_pos', 'cache_002_neg', 'canmount_001_pos',
     'user_property_001_pos', 'user_property_003_neg', 'readonly_001_pos',
     'user_property_004_pos', 'version_001_neg',
     'zfs_set_003_neg', 'property_alias_001_pos',
-    'zfs_set_keylocation', 'zfs_set_feature_activation']
+    'zfs_set_keylocation', 'zfs_set_feature_activation', 'zfs_set_nomount']
 tags = ['functional', 'cli_root', 'zfs_set']
 
 [tests/functional/cli_root/zfs_snapshot]

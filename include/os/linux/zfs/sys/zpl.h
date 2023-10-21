@@ -263,4 +263,15 @@ extern long zpl_ioctl_fideduperange(struct file *filp, void *arg);
 #define	zpl_setattr_prepare(ns, dentry, ia)	setattr_prepare(dentry, ia)
 #endif
 
+#ifdef HAVE_INODE_GET_CTIME
+#define	zpl_inode_get_ctime(ip)	inode_get_ctime(ip)
+#else
+#define	zpl_inode_get_ctime(ip)	(ip->i_ctime)
+#endif
+#ifdef HAVE_INODE_SET_CTIME_TO_TS
+#define	zpl_inode_set_ctime_to_ts(ip, ts)	inode_set_ctime_to_ts(ip, ts)
+#else
+#define	zpl_inode_set_ctime_to_ts(ip, ts)	(ip->i_ctime = ts)
+#endif
+
 #endif	/* _SYS_ZPL_H */

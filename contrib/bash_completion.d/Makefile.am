@@ -1,5 +1,3 @@
-bashcompletiondir = $(sysconfdir)/bash_completion.d
-
 nodist_bashcompletion_DATA  = %D%/zfs
 SUBSTFILES                 += $(nodist_bashcompletion_DATA)
 

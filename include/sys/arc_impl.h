@@ -159,10 +159,6 @@ struct arc_write_callback {
  * these two allocation states.
  */
 typedef struct l1arc_buf_hdr {
-	/* for waiting on reads to complete */
-	kcondvar_t		b_cv;
-	uint8_t			b_byteswap;
-
 	/* protected by arc state mutex */
 	arc_state_t		*b_state;
 	multilist_node_t	b_arc_node;
@@ -173,7 +169,7 @@ typedef struct l1arc_buf_hdr {
 	uint32_t		b_mru_ghost_hits;
 	uint32_t		b_mfu_hits;
 	uint32_t		b_mfu_ghost_hits;
-	uint32_t		b_bufcnt;
+	uint8_t			b_byteswap;
 	arc_buf_t		*b_buf;
 
 	/* self protecting */
@@ -436,11 +432,11 @@ typedef struct l2arc_dev {
  */
 typedef struct arc_buf_hdr_crypt {
 	abd_t			*b_rabd;	/* raw encrypted data */
-	dmu_object_type_t	b_ot;		/* object type */
-	uint32_t		b_ebufcnt;	/* count of encrypted buffers */
 
 	/* dsobj for looking up encryption key for l2arc encryption */
 	uint64_t		b_dsobj;
+
+	dmu_object_type_t	b_ot;		/* object type */
 
 	/* encryption parameters */
 	uint8_t			b_salt[ZIO_DATA_SALT_LEN];

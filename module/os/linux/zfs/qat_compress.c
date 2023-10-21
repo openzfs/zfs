@@ -193,7 +193,9 @@ qat_dc_init(void)
 		sd.huffType = CPA_DC_HT_FULL_DYNAMIC;
 		sd.sessDirection = CPA_DC_DIR_COMBINED;
 		sd.sessState = CPA_DC_STATELESS;
+#if (CPA_DC_API_VERSION_NUM_MAJOR == 1 && CPA_DC_API_VERSION_NUM_MINOR < 6)
 		sd.deflateWindowSize = 7;
+#endif
 		sd.checksum = CPA_DC_ADLER32;
 		status = cpaDcGetSessionSize(dc_inst_handles[i],
 		    &sd, &sess_size, &ctx_size);

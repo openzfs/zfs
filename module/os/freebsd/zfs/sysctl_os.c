@@ -614,28 +614,6 @@ SYSCTL_UINT(_vfs_zfs_metaslab, OID_AUTO, df_free_pct,
 	" space map to continue allocations in a first-fit fashion");
 /* END CSTYLED */
 
-/*
- * Percentage of all cpus that can be used by the metaslab taskq.
- */
-extern int metaslab_load_pct;
-
-/* BEGIN CSTYLED */
-SYSCTL_INT(_vfs_zfs_metaslab, OID_AUTO, load_pct,
-	CTLFLAG_RWTUN, &metaslab_load_pct, 0,
-	"Percentage of cpus that can be used by the metaslab taskq");
-/* END CSTYLED */
-
-/*
- * Max number of metaslabs per group to preload.
- */
-extern uint_t metaslab_preload_limit;
-
-/* BEGIN CSTYLED */
-SYSCTL_UINT(_vfs_zfs_metaslab, OID_AUTO, preload_limit,
-	CTLFLAG_RWTUN, &metaslab_preload_limit, 0,
-	"Max number of metaslabs per group to preload");
-/* END CSTYLED */
-
 /* mmp.c */
 
 int

@@ -34,13 +34,14 @@
 # 1. Update /etc/zfs/vdev_id.conf with scsidebug alias for a persistent path.
 #    This creates keys ID_VDEV and ID_VDEV_PATH and set phys_path="scsidebug".
 # 2. Create a pool and set autoreplace=on (auto-replace is opt-in)
-# 3. Export a pool
+# 3. Export the pool
 # 4. Wipe and offline the scsi_debug disk
-# 5. Import pool with missing disk
+# 5. Import the pool with missing disk
 # 6. Re-online the wiped scsi_debug disk
-# 7. Verify the ZED detects the new unused disk and adds it back to the pool
+# 7. Verify ZED detects the new blank disk and replaces the missing vdev
+# 8. Verify that the scsi_debug disk was re-partitioned
 #
-# Creates a raidz1 zpool using persistent disk path names
+# Creates a raidz1 zpool using persistent /dev/disk/by-vdev path names
 # (ie not /dev/sdc)
 #
 # Auto-replace is opt in, and matches by phys_path.
@@ -83,11 +84,27 @@ log_must zpool create -f $TESTPOOL raidz1 $SD_DEVICE $DISK1 $DISK2 $DISK3
 log_must zpool set autoreplace=on $TESTPOOL
 
 # Add some data to the pool
-log_must mkfile $FSIZE /$TESTPOOL/data
+log_must zfs create $TESTPOOL/fs
+log_must fill_fs /$TESTPOOL/fs 4 100 4096 512 Z
 log_must zpool export $TESTPOOL
 
+# Record the partition UUID for later comparison
+part_uuid=$(udevadm info --query=property --property=ID_PART_TABLE_UUID \
+    --value /dev/disk/by-id/$SD_DEVICE_ID)
+[[ -z "$part_uuid" ]] || log_note original disk GPT uuid ${part_uuid}
+
+#
 # Wipe and offline the disk
+#
+# Note that it is not enough to zero the disk to expunge the partitions.
+# You also need to inform the kernel (e.g., 'hdparm -z' or 'partprobe').
+#
+# Using partprobe is overkill and hdparm is not as common as wipefs. So
+# we use wipefs which lets the kernel know the partition was removed
+# from the device (i.e., calls BLKRRPART ioctl).
+#
 log_must dd if=/dev/zero of=/dev/disk/by-id/$SD_DEVICE_ID bs=1M count=$SDSIZE
+log_must /usr/sbin/wipefs -a /dev/disk/by-id/$SD_DEVICE_ID
 remove_disk $SD
 block_device_wait
 
@@ -105,5 +122,19 @@ log_must wait_replacing $TESTPOOL 60
 
 # Validate auto-replace was successful
 log_must check_state $TESTPOOL "" "ONLINE"
+
+#
+# Confirm the partition UUID changed so we know the new disk was relabeled
+#
+# Note: some older versions of udevadm don't support "--property" option so
+# we'll # skip this test when it is not supported
+#
+if [ ! -z "$part_uuid" ]; then
+	new_uuid=$(udevadm info --query=property --property=ID_PART_TABLE_UUID \
+	    --value /dev/disk/by-id/$SD_DEVICE_ID)
+	log_note new disk GPT uuid ${new_uuid}
+	[[ "$part_uuid" = "$new_uuid" ]] && \
+	    log_fail "The new disk was not relabeled as expected"
+fi
 
 log_pass "Auto-replace test successful"

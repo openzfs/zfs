@@ -390,7 +390,6 @@ zfs_inode_destroy(struct inode *ip)
 	mutex_enter(&zfsvfs->z_znodes_lock);
 	if (list_link_active(&zp->z_link_node)) {
 		list_remove(&zfsvfs->z_all_znodes, zp);
-		zfsvfs->z_nr_znodes--;
 	}
 	mutex_exit(&zfsvfs->z_znodes_lock);
 
@@ -543,6 +542,7 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	uint64_t links;
 	uint64_t z_uid, z_gid;
 	uint64_t atime[2], mtime[2], ctime[2], btime[2];
+	inode_timespec_t tmp_ctime;
 	uint64_t projid = ZFS_DEFAULT_PROJID;
 	sa_bulk_attr_t bulk[12];
 	int count = 0;
@@ -616,7 +616,8 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 
 	ZFS_TIME_DECODE(&ip->i_atime, atime);
 	ZFS_TIME_DECODE(&ip->i_mtime, mtime);
-	ZFS_TIME_DECODE(&ip->i_ctime, ctime);
+	ZFS_TIME_DECODE(&tmp_ctime, ctime);
+	zpl_inode_set_ctime_to_ts(ip, tmp_ctime);
 	ZFS_TIME_DECODE(&zp->z_btime, btime);
 
 	ip->i_ino = zp->z_id;
@@ -641,7 +642,6 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 
 	mutex_enter(&zfsvfs->z_znodes_lock);
 	list_insert_tail(&zfsvfs->z_all_znodes, zp);
-	zfsvfs->z_nr_znodes++;
 	mutex_exit(&zfsvfs->z_znodes_lock);
 
 	if (links > 0)
@@ -1197,6 +1197,7 @@ zfs_rezget(znode_t *zp)
 	uint64_t gen;
 	uint64_t z_uid, z_gid;
 	uint64_t atime[2], mtime[2], ctime[2], btime[2];
+	inode_timespec_t tmp_ctime;
 	uint64_t projid = ZFS_DEFAULT_PROJID;
 	znode_hold_t *zh;
 
@@ -1291,7 +1292,8 @@ zfs_rezget(znode_t *zp)
 
 	ZFS_TIME_DECODE(&ZTOI(zp)->i_atime, atime);
 	ZFS_TIME_DECODE(&ZTOI(zp)->i_mtime, mtime);
-	ZFS_TIME_DECODE(&ZTOI(zp)->i_ctime, ctime);
+	ZFS_TIME_DECODE(&tmp_ctime, ctime);
+	zpl_inode_set_ctime_to_ts(ZTOI(zp), tmp_ctime);
 	ZFS_TIME_DECODE(&zp->z_btime, btime);
 
 	if ((uint32_t)gen != ZTOI(zp)->i_generation) {
@@ -1399,7 +1401,7 @@ zfs_zinactive(znode_t *zp)
 boolean_t
 zfs_relatime_need_update(const struct inode *ip)
 {
-	inode_timespec_t now;
+	inode_timespec_t now, tmp_ctime;
 
 	gethrestime(&now);
 	/*
@@ -1410,7 +1412,8 @@ zfs_relatime_need_update(const struct inode *ip)
 	if (zfs_compare_timespec(&ip->i_mtime, &ip->i_atime) >= 0)
 		return (B_TRUE);
 
-	if (zfs_compare_timespec(&ip->i_ctime, &ip->i_atime) >= 0)
+	tmp_ctime = zpl_inode_get_ctime(ip);
+	if (zfs_compare_timespec(&tmp_ctime, &ip->i_atime) >= 0)
 		return (B_TRUE);
 
 	if ((hrtime_t)now.tv_sec - (hrtime_t)ip->i_atime.tv_sec >= 24*60*60)
@@ -1436,7 +1439,7 @@ void
 zfs_tstamp_update_setup(znode_t *zp, uint_t flag, uint64_t mtime[2],
     uint64_t ctime[2])
 {
-	inode_timespec_t now;
+	inode_timespec_t now, tmp_ctime;
 
 	gethrestime(&now);
 
@@ -1453,7 +1456,8 @@ zfs_tstamp_update_setup(znode_t *zp, uint_t flag, uint64_t mtime[2],
 
 	if (flag & ATTR_CTIME) {
 		ZFS_TIME_ENCODE(&now, ctime);
-		ZFS_TIME_DECODE(&(ZTOI(zp)->i_ctime), ctime);
+		ZFS_TIME_DECODE(&tmp_ctime, ctime);
+		zpl_inode_set_ctime_to_ts(ZTOI(zp), tmp_ctime);
 		if (ZTOZSB(zp)->z_use_fuids)
 			zp->z_pflags |= ZFS_ARCHIVE;
 	}

@@ -26,6 +26,7 @@
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
+ * Copyright (c) 2023 Hewlett Packard Enterprise Development LP.
  */
 
 #include <sys/dmu.h>
@@ -1358,30 +1359,23 @@ top_of_function:
 		ext_quota = 0;
 
 	if (used_on_disk >= quota) {
+		if (retval == ENOSPC && (used_on_disk - quota) <
+		    dsl_pool_deferred_space(dd->dd_pool)) {
+			retval = SET_ERROR(ERESTART);
+		}
 		/* Quota exceeded */
 		mutex_exit(&dd->dd_lock);
 		DMU_TX_STAT_BUMP(dmu_tx_quota);
 		return (retval);
 	} else if (used_on_disk + est_inflight >= quota + ext_quota) {
-		if (est_inflight > 0 || used_on_disk < quota) {
-			retval = SET_ERROR(ERESTART);
-		} else {
-			ASSERT3U(used_on_disk, >=, quota);
-
-			if (retval == ENOSPC && (used_on_disk - quota) <
-			    dsl_pool_deferred_space(dd->dd_pool)) {
-				retval = SET_ERROR(ERESTART);
-			}
-		}
-
 		dprintf_dd(dd, "failing: used=%lluK inflight = %lluK "
-		    "quota=%lluK tr=%lluK err=%d\n",
+		    "quota=%lluK tr=%lluK\n",
 		    (u_longlong_t)used_on_disk>>10,
 		    (u_longlong_t)est_inflight>>10,
-		    (u_longlong_t)quota>>10, (u_longlong_t)asize>>10, retval);
+		    (u_longlong_t)quota>>10, (u_longlong_t)asize>>10);
 		mutex_exit(&dd->dd_lock);
 		DMU_TX_STAT_BUMP(dmu_tx_quota);
-		return (retval);
+		return (SET_ERROR(ERESTART));
 	}
 
 	/* We need to up our estimated delta before dropping dd_lock */

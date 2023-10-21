@@ -522,7 +522,7 @@ zfsctl_inode_alloc(zfsvfs_t *zfsvfs, uint64_t id,
 	ip->i_blkbits = SPA_MINBLOCKSHIFT;
 	ip->i_atime = now;
 	ip->i_mtime = now;
-	ip->i_ctime = now;
+	zpl_inode_set_ctime_to_ts(ip, now);
 	ip->i_fop = fops;
 	ip->i_op = ops;
 #if defined(IOP_XATTR)
@@ -537,7 +537,6 @@ zfsctl_inode_alloc(zfsvfs_t *zfsvfs, uint64_t id,
 
 	mutex_enter(&zfsvfs->z_znodes_lock);
 	list_insert_tail(&zfsvfs->z_all_znodes, zp);
-	zfsvfs->z_nr_znodes++;
 	membar_producer();
 	mutex_exit(&zfsvfs->z_znodes_lock);
 
