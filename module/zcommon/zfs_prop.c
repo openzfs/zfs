@@ -226,6 +226,13 @@ zfs_prop_init(void)
 		{ NULL }
 	};
 
+	static const zprop_index_t key_kdf_table[] = {
+		{ "none",		ZFS_KEY_KDF_NONE },
+		{ "PBKDF2",		ZFS_KEY_KDF_PBKDF2 },
+		{ "Argon2id",		ZFS_KEY_KDF_ARGON2ID },
+		{ NULL }
+	};
+
 	static const zprop_index_t keyformat_table[] = {
 		{ "none",		ZFS_KEYFORMAT_NONE },
 		{ "raw",		ZFS_KEYFORMAT_RAW },
@@ -533,6 +540,11 @@ zfs_prop_init(void)
 	    ZFS_CASE_SENSITIVE, PROP_ONETIME, ZFS_TYPE_FILESYSTEM |
 	    ZFS_TYPE_SNAPSHOT,
 	    "sensitive | insensitive | mixed", "CASE", case_table, sfeatures);
+	zprop_register_index(ZFS_PROP_KEY_KDF, "keykdf",
+	    ZFS_KEY_KDF_NONE, PROP_ONETIME_DEFAULT,
+	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
+	    "none | PBKDF2 | Argon2id", "KEYKDF", key_kdf_table,
+	    sfeatures);
 	zprop_register_index(ZFS_PROP_KEYFORMAT, "keyformat",
 	    ZFS_KEYFORMAT_NONE, PROP_ONETIME_DEFAULT,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
@@ -655,6 +667,15 @@ zfs_prop_init(void)
 	zprop_register_number(ZFS_PROP_PBKDF2_ITERS, "pbkdf2iters",
 	    0, PROP_ONETIME_DEFAULT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
 	    "<iters>", "PBKDF2ITERS", B_TRUE, sfeatures);
+	zprop_register_number(ZFS_PROP_ARGON2_T_COST, "argon2_t_cost",
+	    0, PROP_ONETIME_DEFAULT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
+	    "<argon2 iters>", "ARGON2TCOST", B_TRUE, sfeatures);
+	zprop_register_number(ZFS_PROP_ARGON2_M_COST, "argon2_m_cost",
+	    0, PROP_ONETIME_DEFAULT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
+	    "<argon2 memory cost>", "ARGON2MCOST", B_TRUE, sfeatures);
+	zprop_register_number(ZFS_PROP_ARGON2_PARALLELISM, "argon2_parallelism",
+	    0, PROP_ONETIME_DEFAULT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
+	    "<argon2 thread count>", "ARGON2PARALLELISM", B_TRUE, sfeatures);
 	zprop_register_number(ZFS_PROP_OBJSETID, "objsetid", 0,
 	    PROP_READONLY, ZFS_TYPE_DATASET, "<uint64>", "OBJSETID", B_TRUE,
 	    sfeatures);
@@ -721,6 +742,10 @@ zfs_prop_init(void)
 	zprop_register_hidden(ZFS_PROP_PBKDF2_SALT, "pbkdf2salt",
 	    PROP_TYPE_NUMBER, PROP_ONETIME_DEFAULT,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME, "PBKDF2SALT", B_FALSE,
+	    sfeatures);
+	zprop_register_hidden(ZFS_PROP_ARGON2_VERSION, "argon2_version",
+	    PROP_TYPE_NUMBER, PROP_ONETIME_DEFAULT,
+	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME, "ARGON2VERISON", B_FALSE,
 	    sfeatures);
 	zprop_register_hidden(ZFS_PROP_KEY_GUID, "keyguid", PROP_TYPE_NUMBER,
 	    PROP_READONLY, ZFS_TYPE_DATASET, "KEYGUID", B_TRUE, sfeatures);
@@ -958,7 +983,8 @@ zfs_prop_encryption_key_param(zfs_prop_t prop)
 	 * changed at will without needing the master keys.
 	 */
 	return (prop == ZFS_PROP_PBKDF2_SALT || prop == ZFS_PROP_PBKDF2_ITERS ||
-	    prop == ZFS_PROP_KEYFORMAT);
+	    prop == ZFS_PROP_KEYFORMAT || prop == ZFS_PROP_KEY_KDF || prop == ZFS_PROP_ARGON2_T_COST ||
+	    prop == ZFS_PROP_ARGON2_M_COST || prop == ZFS_PROP_ARGON2_PARALLELISM || prop == ZFS_PROP_ARGON2_VERSION);
 }
 
 /*

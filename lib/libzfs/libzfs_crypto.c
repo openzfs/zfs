@@ -26,6 +26,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <openssl/evp.h>
+#include <argon2.h>
 #if LIBFETCH_DYNAMIC
 #include <dlfcn.h>
 #endif
@@ -775,7 +776,8 @@ error:
 static int
 derive_key(libzfs_handle_t *hdl, zfs_keyformat_t format, uint64_t iters,
     uint8_t *key_material, uint64_t salt,
-    uint8_t **key_out)
+    zfs_key_kdf_t key_kdf, uint64_t argon2_t_cost, uint64_t argon2_m_cost,
+    uint64_t argon2_parallelism, uint64_t argon2_version, uint8_t **key_out)
 {
 	int ret;
 	uint8_t *key;
@@ -799,11 +801,27 @@ derive_key(libzfs_handle_t *hdl, zfs_keyformat_t format, uint64_t iters,
 		break;
 	case ZFS_KEYFORMAT_PASSPHRASE:
 		salt = LE_64(salt);
+		ret = 0;
 
-		ret = PKCS5_PBKDF2_HMAC_SHA1((char *)key_material,
-		    strlen((char *)key_material), ((uint8_t *)&salt),
-		    sizeof (uint64_t), iters, WRAPPING_KEY_LEN, key);
-		if (ret != 1) {
+		if (key_kdf == ZFS_KEY_KDF_PBKDF2) {
+			ret = PKCS5_PBKDF2_HMAC_SHA1((char *)key_material,
+			    strlen((char *)key_material), ((uint8_t *)&salt),
+			    sizeof (uint64_t), iters, WRAPPING_KEY_LEN, key) != 1;
+		} else if (key_kdf == ZFS_KEY_KDF_ARGON2ID) {
+			ret = argon2_hash(argon2_t_cost, argon2_m_cost,
+			    argon2_parallelism, key_material,
+			    strlen((char *)key_material), &salt, sizeof (uint64_t),
+			    key, WRAPPING_KEY_LEN, NULL,
+			    0, Argon2_id,
+			    argon2_version)
+			    != ARGON2_OK;
+		} else {
+			ret = EINVAL;
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "KDF not supported"));
+			goto error;
+		}
+		if (ret) {
 			ret = EIO;
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "Failed to generate key from passphrase."));
@@ -847,13 +865,38 @@ encryption_feature_is_enabled(zpool_handle_t *zph)
 }
 
 static int
+check_and_add_encryption_param_to_nvlist(libzfs_handle_t *hdl,
+    nvlist_t *props, zfs_prop_t prop, uint64_t *value, uint64_t default_value,
+    const char *error_msg)
+{
+	int ret;
+	ret = nvlist_lookup_uint64(props,
+	    zfs_prop_to_name(prop), value);
+	if (ret == ENOENT) {
+		*value = default_value;
+		ret = nvlist_add_uint64(props,
+		    zfs_prop_to_name(prop), *value);
+		if (ret != 0)
+			return (ret);
+	} else if (ret != 0) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    error_msg));
+		return (ret);
+	}
+	return (0);
+}
+
+static int
 populate_create_encryption_params_nvlists(libzfs_handle_t *hdl,
     zfs_handle_t *zhp, boolean_t newkey, zfs_keyformat_t keyformat,
-    const char *keylocation, nvlist_t *props, uint8_t **wkeydata,
+    const char *keylocation, zfs_key_kdf_t key_kdf,
+    nvlist_t *props, uint8_t **wkeydata,
     uint_t *wkeylen)
 {
 	int ret;
 	uint64_t iters = 0, salt = 0;
+	uint64_t argon2_t_cost = 0, argon2_m_cost = 0, argon2_parallelism = 0;
+	uint64_t argon2_version = 0;
 	uint8_t *key_material = NULL;
 	size_t key_material_len = 0;
 	uint8_t *key_data = NULL;
@@ -883,24 +926,34 @@ populate_create_encryption_params_nvlists(libzfs_handle_t *hdl,
 			goto error;
 		}
 
-		/*
-		 * If not otherwise specified, use the default number of
-		 * pbkdf2 iterations. If specified, we have already checked
-		 * that the given value is greater than MIN_PBKDF2_ITERATIONS
-		 * during zfs_valid_proplist().
-		 */
-		ret = nvlist_lookup_uint64(props,
-		    zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS), &iters);
-		if (ret == ENOENT) {
-			iters = DEFAULT_PBKDF2_ITERATIONS;
-			ret = nvlist_add_uint64(props,
-			    zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS), iters);
-			if (ret != 0)
+		if (key_kdf == ZFS_KEY_KDF_PBKDF2) {
+			/*
+			 * If not otherwise specified, use the default number of
+			 * pbkdf2 iterations. If specified, we have already checked
+			 * that the given value is greater than MIN_PBKDF2_ITERATIONS
+			 * during zfs_valid_proplist().
+			 */
+			if (check_and_add_encryption_param_to_nvlist(hdl, props,
+			    ZFS_PROP_PBKDF2_ITERS, &iters, DEFAULT_PBKDF2_ITERATIONS,
+			    "Failed to get argon2_t_cost"))
 				goto error;
-		} else if (ret != 0) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "Failed to get pbkdf2 iterations."));
-			goto error;
+		} else if (key_kdf == ZFS_KEY_KDF_ARGON2ID) {
+			if (check_and_add_encryption_param_to_nvlist(hdl, props,
+			    ZFS_PROP_ARGON2_T_COST, &argon2_t_cost, DEFAULT_ARGON2_T_COST,
+			    "Failed to get argon2_t_cost"))
+				goto error;
+			if (check_and_add_encryption_param_to_nvlist(hdl, props,
+			    ZFS_PROP_ARGON2_M_COST, &argon2_m_cost, DEFAULT_ARGON2_M_COST,
+			    "Failed to get argon2_m_cost"))
+				goto error;
+			if (check_and_add_encryption_param_to_nvlist(hdl, props,
+			    ZFS_PROP_ARGON2_PARALLELISM, &argon2_parallelism, DEFAULT_ARGON2_PARALLELISM,
+			    "Failed to get argon2_parallelism"))
+				goto error;
+			if (check_and_add_encryption_param_to_nvlist(hdl, props,
+			    ZFS_PROP_ARGON2_VERSION, &argon2_version, DEFAULT_ARGON2_VERSION,
+			    "Failed to get argon2_version"))
+				goto error;
 		}
 	} else {
 		/* check that pbkdf2iters was not specified by the user */
@@ -916,7 +969,9 @@ populate_create_encryption_params_nvlists(libzfs_handle_t *hdl,
 	}
 
 	/* derive a key from the key material */
-	ret = derive_key(hdl, keyformat, iters, key_material, salt, &key_data);
+	ret = derive_key(hdl, keyformat, iters, key_material, salt,
+	    key_kdf, argon2_t_cost, argon2_m_cost, argon2_parallelism, argon2_version,
+	    &key_data);
 	if (ret != 0)
 		goto error;
 
@@ -964,6 +1019,31 @@ proplist_has_encryption_props(nvlist_t *props)
 	if (ret == 0)
 		return (B_TRUE);
 
+	ret = nvlist_lookup_uint64(props,
+	    zfs_prop_to_name(ZFS_PROP_KEY_KDF), &intval);
+	if (ret == 0 && intval != ZFS_KEY_KDF_NONE)
+		return (B_TRUE);
+
+	ret = nvlist_lookup_uint64(props,
+	    zfs_prop_to_name(ZFS_PROP_ARGON2_T_COST), &intval);
+	if (ret == 0)
+		return (B_TRUE);
+
+	ret = nvlist_lookup_uint64(props,
+	    zfs_prop_to_name(ZFS_PROP_ARGON2_M_COST), &intval);
+	if (ret == 0)
+		return (B_TRUE);
+
+	ret = nvlist_lookup_uint64(props,
+	    zfs_prop_to_name(ZFS_PROP_ARGON2_PARALLELISM), &intval);
+	if (ret == 0)
+		return (B_TRUE);
+
+	ret = nvlist_lookup_uint64(props,
+	    zfs_prop_to_name(ZFS_PROP_ARGON2_VERSION), &intval);
+	if (ret == 0)
+		return (B_TRUE);
+
 	return (B_FALSE);
 }
 
@@ -1007,6 +1087,7 @@ zfs_crypto_create(libzfs_handle_t *hdl, char *parent_name, nvlist_t *props,
 	char errbuf[ERRBUFLEN];
 	uint64_t crypt = ZIO_CRYPT_INHERIT, pcrypt = ZIO_CRYPT_INHERIT;
 	uint64_t keyformat = ZFS_KEYFORMAT_NONE;
+	uint64_t key_kdf = ZFS_KEY_KDF_NONE;
 	const char *keylocation = NULL;
 	zfs_handle_t *pzhp = NULL;
 	uint8_t *wkeydata = NULL;
@@ -1027,6 +1108,8 @@ zfs_crypto_create(libzfs_handle_t *hdl, char *parent_name, nvlist_t *props,
 	    zfs_prop_to_name(ZFS_PROP_KEYFORMAT), &keyformat);
 	(void) nvlist_lookup_string(props,
 	    zfs_prop_to_name(ZFS_PROP_KEYLOCATION), &keylocation);
+	(void) nvlist_lookup_uint64(props,
+	    zfs_prop_to_name(ZFS_PROP_KEY_KDF), &key_kdf);
 
 	if (parent_name != NULL) {
 		/* get a reference to parent dataset */
@@ -1129,6 +1212,15 @@ zfs_crypto_create(libzfs_handle_t *hdl, char *parent_name, nvlist_t *props,
 			goto out;
 	}
 
+	if (key_kdf == ZFS_KEY_KDF_NONE) {
+		/* default kdf is set to PBKDF2 if no KDF is specified */
+		key_kdf = ZFS_KEY_KDF_PBKDF2;
+		ret = nvlist_add_uint64(props,
+		    zfs_prop_to_name(ZFS_PROP_KEY_KDF), key_kdf);
+		if (ret != 0)
+			goto out;
+	}
+
 	/*
 	 * If a local key is provided, this dataset will be a new
 	 * encryption root. Populate the encryption params.
@@ -1146,7 +1238,7 @@ zfs_crypto_create(libzfs_handle_t *hdl, char *parent_name, nvlist_t *props,
 		}
 
 		ret = populate_create_encryption_params_nvlists(hdl, NULL,
-		    B_TRUE, keyformat, keylocation, props, &wkeydata,
+		    B_TRUE, keyformat, keylocation, key_kdf, props, &wkeydata,
 		    &wkeylen);
 		if (ret != 0)
 			goto out;
@@ -1186,6 +1278,11 @@ zfs_crypto_clone_check(libzfs_handle_t *hdl, zfs_handle_t *origin_zhp,
 	 */
 	if (nvlist_exists(props, zfs_prop_to_name(ZFS_PROP_KEYFORMAT)) ||
 	    nvlist_exists(props, zfs_prop_to_name(ZFS_PROP_KEYLOCATION)) ||
+	    nvlist_exists(props, zfs_prop_to_name(ZFS_PROP_KEY_KDF)) ||
+	    nvlist_exists(props, zfs_prop_to_name(ZFS_PROP_ARGON2_T_COST)) ||
+	    nvlist_exists(props, zfs_prop_to_name(ZFS_PROP_ARGON2_M_COST)) ||
+	    nvlist_exists(props, zfs_prop_to_name(ZFS_PROP_ARGON2_PARALLELISM)) ||
+	    nvlist_exists(props, zfs_prop_to_name(ZFS_PROP_ARGON2_VERSION)) ||
 	    nvlist_exists(props, zfs_prop_to_name(ZFS_PROP_ENCRYPTION)) ||
 	    nvlist_exists(props, zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS))) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -1280,6 +1377,8 @@ zfs_crypto_load_key(zfs_handle_t *zhp, boolean_t noop,
 	char errbuf[ERRBUFLEN];
 	uint64_t keystatus, iters = 0, salt = 0;
 	uint64_t keyformat = ZFS_KEYFORMAT_NONE;
+	zfs_key_kdf_t key_kdf = ZFS_KEY_KDF_NONE;
+	uint64_t argon2_t_cost = 0, argon2_m_cost = 0, argon2_parallelism = 0, argon2_version = 0;
 	char prop_keylocation[MAXNAMELEN];
 	char prop_encroot[MAXNAMELEN];
 	const char *keylocation = NULL;
@@ -1358,7 +1457,24 @@ zfs_crypto_load_key(zfs_handle_t *zhp, boolean_t noop,
 	/* passphrase formats require a salt and pbkdf2_iters property */
 	if (keyformat == ZFS_KEYFORMAT_PASSPHRASE) {
 		salt = zfs_prop_get_int(zhp, ZFS_PROP_PBKDF2_SALT);
-		iters = zfs_prop_get_int(zhp, ZFS_PROP_PBKDF2_ITERS);
+		key_kdf = zfs_prop_get_int(zhp, ZFS_PROP_KEY_KDF);
+		/*
+		 * the old kdf is PBKDF2 if no upgrade is performed the dataset is encrypted
+		 * but no kdf is set, the iters are not loaded correctly.
+		 */
+		if (key_kdf == ZFS_KEY_KDF_PBKDF2 || key_kdf == ZFS_KEY_KDF_NONE) {
+			key_kdf = ZFS_KEY_KDF_PBKDF2;
+			iters = zfs_prop_get_int(zhp, ZFS_PROP_PBKDF2_ITERS);
+		} else if (key_kdf == ZFS_KEY_KDF_ARGON2ID) {
+			argon2_t_cost = zfs_prop_get_int(zhp, ZFS_PROP_ARGON2_T_COST);
+			argon2_m_cost = zfs_prop_get_int(zhp, ZFS_PROP_ARGON2_M_COST);
+			argon2_parallelism = zfs_prop_get_int(zhp, ZFS_PROP_ARGON2_PARALLELISM);
+			argon2_version = zfs_prop_get_int(zhp, ZFS_PROP_ARGON2_VERSION);
+		} else {
+			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
+			    "No KDF fits."));
+			goto error;
+		}
 	}
 
 try_again:
@@ -1374,6 +1490,7 @@ try_again:
 
 	/* derive a key from the key material */
 	ret = derive_key(zhp->zfs_hdl, keyformat, iters, key_material, salt,
+	    key_kdf, argon2_t_cost, argon2_m_cost, argon2_parallelism, argon2_version,
 	    &key_data);
 	if (ret != 0)
 		goto error;
@@ -1555,11 +1672,15 @@ zfs_crypto_verify_rewrap_nvlist(zfs_handle_t *zhp, nvlist_t *props,
 		case ZFS_PROP_PBKDF2_ITERS:
 		case ZFS_PROP_KEYFORMAT:
 		case ZFS_PROP_KEYLOCATION:
+		case ZFS_PROP_KEY_KDF:
+		case ZFS_PROP_ARGON2_T_COST:
+		case ZFS_PROP_ARGON2_M_COST:
+		case ZFS_PROP_ARGON2_PARALLELISM:
 			break;
 		default:
 			ret = EINVAL;
 			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
-			    "Only keyformat, keylocation and pbkdf2iters may "
+			    "Only keyformat, keylocation and pbkdf2iters, keykdf, argon2_t_cost, argon2_m_cost, argon2_parallelism may "
 			    "be set with this command."));
 			goto error;
 		}
@@ -1594,6 +1715,7 @@ zfs_crypto_rewrap(zfs_handle_t *zhp, nvlist_t *raw_props, boolean_t inheritkey)
 	dcp_cmd_t cmd = (inheritkey) ? DCP_CMD_INHERIT : DCP_CMD_NEW_KEY;
 	uint64_t crypt, pcrypt, keystatus, pkeystatus;
 	uint64_t keyformat = ZFS_KEYFORMAT_NONE;
+	uint64_t key_kdf = ZFS_KEY_KDF_NONE;
 	zfs_handle_t *pzhp = NULL;
 	const char *keylocation = NULL;
 	char origin_name[MAXNAMELEN];
@@ -1658,8 +1780,20 @@ zfs_crypto_rewrap(zfs_handle_t *zhp, nvlist_t *raw_props, boolean_t inheritkey)
 		    zfs_prop_to_name(ZFS_PROP_KEYFORMAT), &keyformat);
 		(void) nvlist_lookup_string(props,
 		    zfs_prop_to_name(ZFS_PROP_KEYLOCATION), &keylocation);
+		(void) nvlist_lookup_uint64(props,
+		    zfs_prop_to_name(ZFS_PROP_KEY_KDF), &key_kdf);
+
+		if (key_kdf == ZFS_KEY_KDF_NONE) {
+			/* default kdf is set to PBKDF2 if no KDF is specified */
+			key_kdf = ZFS_KEY_KDF_PBKDF2;
+			ret = nvlist_add_uint64(props,
+			    zfs_prop_to_name(ZFS_PROP_KEY_KDF), key_kdf);
+			if (ret != 0)
+				goto error;
+		}
 
 		if (is_encroot) {
+			// TODO keep existing settings if root is enc
 			/*
 			 * If this is already an encryption root, just keep
 			 * any properties not set by the user.
@@ -1716,7 +1850,7 @@ zfs_crypto_rewrap(zfs_handle_t *zhp, nvlist_t *raw_props, boolean_t inheritkey)
 
 		/* fetch the new wrapping key and associated properties */
 		ret = populate_create_encryption_params_nvlists(zhp->zfs_hdl,
-		    zhp, B_TRUE, keyformat, keylocation, props, &wkeydata,
+		    zhp, B_TRUE, keyformat, keylocation, key_kdf, props, &wkeydata,
 		    &wkeylen);
 		if (ret != 0)
 			goto error;

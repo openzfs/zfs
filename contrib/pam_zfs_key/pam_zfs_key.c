@@ -348,6 +348,15 @@ change_key(pam_handle_t *pamh, const char *ds_name,
 		return (-1);
 	}
 	if (nvlist_add_uint64(nvlist,
+	    zfs_prop_to_name(ZFS_PROP_KEY_KDF),
+	    ZFS_KEY_KDF_PBKDF2)) {
+		pam_syslog(pamh, LOG_ERR, "nvlist_add failed for key_kdf");
+		pw_free(key);
+		nvlist_free(nvlist);
+		zfs_close(ds);
+		return (-1);
+	}
+	if (nvlist_add_uint64(nvlist,
 	    zfs_prop_to_name(ZFS_PROP_KEYFORMAT),
 	    ZFS_KEYFORMAT_PASSPHRASE)) {
 		pam_syslog(pamh, LOG_ERR, "nvlist_add failed for keyformat");

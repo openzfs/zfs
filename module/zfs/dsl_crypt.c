@@ -108,8 +108,10 @@ dsl_wrapping_key_free(dsl_wrapping_key_t *wkey)
 }
 
 static void
-dsl_wrapping_key_create(uint8_t *wkeydata, zfs_keyformat_t keyformat,
-    uint64_t salt, uint64_t iters, dsl_wrapping_key_t **wkey_out)
+dsl_wrapping_key_create(uint8_t *wkeydata, zfs_keyformat_t keyformat, zfs_key_kdf_t key_kdf,
+    uint64_t salt, uint64_t iters,
+    uint64_t argon2_t_cost, uint64_t argon2_m_cost, uint64_t argon2_parallelism, uint64_t argon2_version,
+    dsl_wrapping_key_t **wkey_out)
 {
 	dsl_wrapping_key_t *wkey;
 
@@ -125,6 +127,11 @@ dsl_wrapping_key_create(uint8_t *wkeydata, zfs_keyformat_t keyformat,
 	/* initialize the rest of the struct */
 	zfs_refcount_create(&wkey->wk_refcnt);
 	wkey->wk_keyformat = keyformat;
+	wkey->wk_key_kdf = key_kdf;
+	wkey->wk_argon2_t_cost = argon2_t_cost;
+	wkey->wk_argon2_m_cost = argon2_m_cost;
+	wkey->wk_argon2_parallelism = argon2_parallelism;
+	wkey->wk_argon2_version = argon2_version;
 	wkey->wk_salt = salt;
 	wkey->wk_iters = iters;
 
@@ -139,6 +146,8 @@ dsl_crypto_params_create_nvlist(dcp_cmd_t cmd, nvlist_t *props,
 	uint64_t crypt = ZIO_CRYPT_INHERIT;
 	uint64_t keyformat = ZFS_KEYFORMAT_NONE;
 	uint64_t salt = 0, iters = 0;
+	uint64_t key_kdf = ZFS_KEY_KDF_NONE;
+	uint64_t argon2_t_cost = 0, argon2_m_cost = 0, argon2_parallelism = 0, argon2_version = 0;
 	dsl_crypto_params_t *dcp = NULL;
 	dsl_wrapping_key_t *wkey = NULL;
 	uint8_t *wkeydata = NULL;
@@ -157,9 +166,19 @@ dsl_crypto_params_create_nvlist(dcp_cmd_t cmd, nvlist_t *props,
 		(void) nvlist_lookup_string(props,
 		    zfs_prop_to_name(ZFS_PROP_KEYLOCATION), &keylocation);
 		(void) nvlist_lookup_uint64(props,
+		    zfs_prop_to_name(ZFS_PROP_KEY_KDF), &key_kdf);
+		(void) nvlist_lookup_uint64(props,
 		    zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT), &salt);
 		(void) nvlist_lookup_uint64(props,
 		    zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS), &iters);
+		(void) nvlist_lookup_uint64(props,
+		    zfs_prop_to_name(ZFS_PROP_ARGON2_T_COST), &argon2_t_cost);
+		(void) nvlist_lookup_uint64(props,
+		    zfs_prop_to_name(ZFS_PROP_ARGON2_M_COST), &argon2_m_cost);
+		(void) nvlist_lookup_uint64(props,
+		    zfs_prop_to_name(ZFS_PROP_ARGON2_PARALLELISM), &argon2_parallelism);
+		(void) nvlist_lookup_uint64(props,
+		    zfs_prop_to_name(ZFS_PROP_ARGON2_VERSION), &argon2_version);
 
 		dcp->cp_crypt = crypt;
 	}
@@ -214,8 +233,10 @@ dsl_crypto_params_create_nvlist(dcp_cmd_t cmd, nvlist_t *props,
 	/* create the wrapping key from the raw data */
 	if (wkeydata != NULL) {
 		/* create the wrapping key with the verified parameters */
-		dsl_wrapping_key_create(wkeydata, keyformat, salt,
-		    iters, &wkey);
+		dsl_wrapping_key_create(wkeydata, keyformat, key_kdf, salt,
+		    iters,
+		    argon2_t_cost, argon2_m_cost, argon2_parallelism, argon2_version,
+		    &wkey);
 		dcp->cp_wkey = wkey;
 	}
 
@@ -226,8 +247,12 @@ dsl_crypto_params_create_nvlist(dcp_cmd_t cmd, nvlist_t *props,
 	(void) nvlist_remove_all(props, zfs_prop_to_name(ZFS_PROP_ENCRYPTION));
 	(void) nvlist_remove_all(props, zfs_prop_to_name(ZFS_PROP_KEYFORMAT));
 	(void) nvlist_remove_all(props, zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT));
-	(void) nvlist_remove_all(props,
-	    zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS));
+	(void) nvlist_remove_all(props, zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS));
+	(void) nvlist_remove_all(props, zfs_prop_to_name(ZFS_PROP_KEY_KDF));
+	(void) nvlist_remove_all(props, zfs_prop_to_name(ZFS_PROP_ARGON2_T_COST));
+	(void) nvlist_remove_all(props, zfs_prop_to_name(ZFS_PROP_ARGON2_M_COST));
+	(void) nvlist_remove_all(props, zfs_prop_to_name(ZFS_PROP_ARGON2_PARALLELISM));
+	(void) nvlist_remove_all(props, zfs_prop_to_name(ZFS_PROP_ARGON2_VERSION));
 
 	*dcp_out = dcp;
 
@@ -743,6 +768,8 @@ spa_keystore_load_wkey(const char *dsname, dsl_crypto_params_t *dcp,
 	dsl_wrapping_key_t *wkey = dcp->cp_wkey;
 	dsl_pool_t *dp = NULL;
 	uint64_t rddobj, keyformat, salt, iters;
+	uint64_t key_kdf, argon2_t_cost, argon2_m_cost, argon2_parallelism;
+	uint64_t argon2_version;
 
 	/*
 	 * We don't validate the wrapping key's keyformat, salt, or iters
@@ -802,9 +829,37 @@ spa_keystore_load_wkey(const char *dsname, dsl_crypto_params_t *dcp,
 	if (ret != 0)
 		goto error;
 
+	ret = zap_lookup(dp->dp_meta_objset, dd->dd_crypto_obj,
+	    zfs_prop_to_name(ZFS_PROP_KEY_KDF), 8, 1, &key_kdf);
+	if (ret != 0)
+		goto error;
+
+	ret = zap_lookup(dp->dp_meta_objset, dd->dd_crypto_obj,
+	    zfs_prop_to_name(ZFS_PROP_ARGON2_T_COST), 8, 1, &argon2_t_cost);
+	if (ret != 0)
+		goto error;
+
+	ret = zap_lookup(dp->dp_meta_objset, dd->dd_crypto_obj,
+	    zfs_prop_to_name(ZFS_PROP_ARGON2_M_COST), 8, 1, &argon2_m_cost);
+	if (ret != 0)
+		goto error;
+
+	ret = zap_lookup(dp->dp_meta_objset, dd->dd_crypto_obj,
+	    zfs_prop_to_name(ZFS_PROP_ARGON2_PARALLELISM), 8, 1, &argon2_parallelism);
+	if (ret != 0)
+		goto error;
+
+	ret = zap_lookup(dp->dp_meta_objset, dd->dd_crypto_obj,
+	    zfs_prop_to_name(ZFS_PROP_ARGON2_VERSION), 8, 1, &argon2_version);
+	if (ret != 0)
+		goto error;
+
 	ASSERT3U(keyformat, <, ZFS_KEYFORMAT_FORMATS);
 	ASSERT3U(keyformat, !=, ZFS_KEYFORMAT_NONE);
-	IMPLY(keyformat == ZFS_KEYFORMAT_PASSPHRASE, iters != 0);
+	/* should only run if kdf is PBKDF2 */
+	IMPLY((keyformat == ZFS_KEYFORMAT_PASSPHRASE
+	    && (key_kdf == ZFS_KEY_KDF_PBKDF2 || key_kdf == ZFS_KEY_KDF_NONE)),
+	    iters != 0);
 	IMPLY(keyformat == ZFS_KEYFORMAT_PASSPHRASE, salt != 0);
 	IMPLY(keyformat != ZFS_KEYFORMAT_PASSPHRASE, iters == 0);
 	IMPLY(keyformat != ZFS_KEYFORMAT_PASSPHRASE, salt == 0);
@@ -812,6 +867,11 @@ spa_keystore_load_wkey(const char *dsname, dsl_crypto_params_t *dcp,
 	wkey->wk_keyformat = keyformat;
 	wkey->wk_salt = salt;
 	wkey->wk_iters = iters;
+	wkey->wk_key_kdf = key_kdf;
+	wkey->wk_argon2_t_cost = argon2_t_cost;
+	wkey->wk_argon2_m_cost = argon2_m_cost;
+	wkey->wk_argon2_parallelism = argon2_parallelism;
+	wkey->wk_argon2_version = argon2_version;
 
 	/*
 	 * At this point we have verified the wkey and confirmed that it can
@@ -1170,7 +1230,10 @@ static void
 dsl_crypto_key_sync_impl(objset_t *mos, uint64_t dckobj, uint64_t crypt,
     uint64_t root_ddobj, uint64_t guid, uint8_t *iv, uint8_t *mac,
     uint8_t *keydata, uint8_t *hmac_keydata, uint64_t keyformat,
-    uint64_t salt, uint64_t iters, dmu_tx_t *tx)
+    uint64_t salt, uint64_t iters,
+    uint64_t key_kdf,
+    uint64_t argon2_t_cost, uint64_t argon2_m_cost, uint64_t argon2_parallelism, uint64_t argon2_version,
+    dmu_tx_t *tx)
 {
 	VERIFY0(zap_update(mos, dckobj, DSL_CRYPTO_KEY_CRYPTO_SUITE, 8, 1,
 	    &crypt, tx));
@@ -1192,6 +1255,17 @@ dsl_crypto_key_sync_impl(objset_t *mos, uint64_t dckobj, uint64_t crypt,
 	    8, 1, &salt, tx));
 	VERIFY0(zap_update(mos, dckobj, zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS),
 	    8, 1, &iters, tx));
+	VERIFY0(zap_update(mos, dckobj, zfs_prop_to_name(ZFS_PROP_KEY_KDF),
+	    8, 1, &key_kdf, tx));
+	VERIFY0(zap_update(mos, dckobj, zfs_prop_to_name(ZFS_PROP_ARGON2_T_COST),
+	    8, 1, &argon2_t_cost, tx));
+	VERIFY0(zap_update(mos, dckobj, zfs_prop_to_name(ZFS_PROP_ARGON2_M_COST),
+	    8, 1, &argon2_m_cost, tx));
+	VERIFY0(zap_update(mos, dckobj, zfs_prop_to_name(ZFS_PROP_ARGON2_PARALLELISM),
+	    8, 1, &argon2_parallelism, tx));
+	VERIFY0(zap_update(mos, dckobj, zfs_prop_to_name(ZFS_PROP_ARGON2_VERSION),
+	    8, 1, &argon2_version, tx));
+
 }
 
 static void
@@ -1215,6 +1289,8 @@ dsl_crypto_key_sync(dsl_crypto_key_t *dck, dmu_tx_t *tx)
 	dsl_crypto_key_sync_impl(tx->tx_pool->dp_meta_objset, dck->dck_obj,
 	    key->zk_crypt, wkey->wk_ddobj, key->zk_guid, iv, mac, keydata,
 	    hmac_keydata, wkey->wk_keyformat, wkey->wk_salt, wkey->wk_iters,
+	    wkey->wk_key_kdf,
+	    wkey->wk_argon2_t_cost, wkey->wk_argon2_m_cost, wkey->wk_argon2_parallelism, wkey->wk_argon2_version,
 	    tx);
 }
 
@@ -1368,8 +1444,10 @@ spa_keystore_change_key_check(void *arg, dmu_tx_t *tx)
 
 	/* passphrases require pbkdf2 salt and iters */
 	if (dcp->cp_wkey->wk_keyformat == ZFS_KEYFORMAT_PASSPHRASE) {
-		if (dcp->cp_wkey->wk_salt == 0 ||
-		    dcp->cp_wkey->wk_iters < MIN_PBKDF2_ITERATIONS) {
+		if ((dcp->cp_wkey->wk_key_kdf == ZFS_KEY_KDF_NONE ||
+		    dcp->cp_wkey->wk_key_kdf == ZFS_KEY_KDF_PBKDF2) &&
+		    (dcp->cp_wkey->wk_salt == 0 ||
+		    dcp->cp_wkey->wk_iters < MIN_PBKDF2_ITERATIONS)) {
 			ret = SET_ERROR(EINVAL);
 			goto error;
 		}
@@ -1540,6 +1618,7 @@ spa_keystore_change_key_sync(void *arg, dmu_tx_t *tx)
 			    ZPROP_SRC_LOCAL, 1, strlen(keylocation) + 1,
 			    keylocation, tx);
 		}
+
 
 		VERIFY0(dsl_dir_get_encryption_root_ddobj(ds->ds_dir, &rddobj));
 		new_rddobj = ds->ds_dir->dd_object;
@@ -1854,8 +1933,10 @@ dmu_objset_create_crypt_check(dsl_dir_t *parentdd, dsl_crypto_params_t *dcp,
 		break;
 	case ZFS_KEYFORMAT_PASSPHRASE:
 		/* requires pbkdf2 iters and salt */
-		if (dcp->cp_wkey->wk_salt == 0 ||
-		    dcp->cp_wkey->wk_iters < MIN_PBKDF2_ITERATIONS)
+		if ((dcp->cp_wkey->wk_key_kdf == ZFS_KEY_KDF_NONE ||
+		    dcp->cp_wkey->wk_key_kdf == ZFS_KEY_KDF_PBKDF2) &&
+		    (dcp->cp_wkey->wk_salt == 0 ||
+		    dcp->cp_wkey->wk_iters < MIN_PBKDF2_ITERATIONS))
 			return (SET_ERROR(EINVAL));
 		break;
 	case ZFS_KEYFORMAT_NONE:
@@ -2236,7 +2317,8 @@ dsl_crypto_recv_raw_key_sync(dsl_dataset_t *ds, nvlist_t *nvl, dmu_tx_t *tx)
 	uint_t len;
 	uint64_t rddobj, one = 1;
 	uint8_t *keydata, *hmac_keydata, *iv, *mac;
-	uint64_t crypt, key_guid, keyformat, iters, salt;
+	uint64_t crypt, key_guid, keyformat, iters, salt, key_kdf;
+	uint64_t argon2_t_cost, argon2_m_cost, argon2_parallelism, argon2_version;
 	uint64_t version = ZIO_CRYPT_KEY_CURRENT_VERSION;
 	const char *keylocation = "prompt";
 
@@ -2247,8 +2329,18 @@ dsl_crypto_recv_raw_key_sync(dsl_dataset_t *ds, nvlist_t *nvl, dmu_tx_t *tx)
 	    zfs_prop_to_name(ZFS_PROP_KEYFORMAT));
 	iters = fnvlist_lookup_uint64(nvl,
 	    zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS));
+	key_kdf = fnvlist_lookup_uint64(nvl,
+	    zfs_prop_to_name(ZFS_PROP_KEY_KDF));
 	salt = fnvlist_lookup_uint64(nvl,
 	    zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT));
+	argon2_t_cost = fnvlist_lookup_uint64(nvl,
+	    zfs_prop_to_name(ZFS_PROP_ARGON2_T_COST));
+	argon2_m_cost = fnvlist_lookup_uint64(nvl,
+	    zfs_prop_to_name(ZFS_PROP_ARGON2_M_COST));
+	argon2_parallelism = fnvlist_lookup_uint64(nvl,
+	    zfs_prop_to_name(ZFS_PROP_ARGON2_PARALLELISM));
+	argon2_version = fnvlist_lookup_uint64(nvl,
+	    zfs_prop_to_name(ZFS_PROP_ARGON2_VERSION));
 	VERIFY0(nvlist_lookup_uint8_array(nvl, DSL_CRYPTO_KEY_MASTER_KEY,
 	    &keydata, &len));
 	VERIFY0(nvlist_lookup_uint8_array(nvl, DSL_CRYPTO_KEY_HMAC_KEY,
@@ -2298,7 +2390,9 @@ dsl_crypto_recv_raw_key_sync(dsl_dataset_t *ds, nvlist_t *nvl, dmu_tx_t *tx)
 	/* sync the key data to the ZAP object on disk */
 	dsl_crypto_key_sync_impl(mos, dd->dd_crypto_obj, crypt,
 	    rddobj, key_guid, iv, mac, keydata, hmac_keydata, keyformat, salt,
-	    iters, tx);
+	    iters, key_kdf,
+	    argon2_t_cost, argon2_m_cost, argon2_parallelism, argon2_version,
+	    tx);
 }
 
 static int
@@ -2391,8 +2485,9 @@ dsl_crypto_populate_key_nvlist(objset_t *os, uint64_t from_ivset_guid,
 	dsl_dir_t *rdd = NULL;
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
 	objset_t *mos = dp->dp_meta_objset;
-	uint64_t crypt = 0, key_guid = 0, format = 0;
+	uint64_t crypt = 0, key_guid = 0, format = 0, key_kdf = 0;
 	uint64_t iters = 0, salt = 0, version = 0;
+	uint64_t argon2_t_cost = 0, argon2_m_cost = 0, argon2_parallelism = 0, argon2_version = 0;
 	uint64_t to_ivset_guid = 0;
 	uint8_t raw_keydata[MASTER_KEY_MAX_LEN];
 	uint8_t raw_hmac_keydata[SHA512_HMAC_KEYLEN];
@@ -2484,6 +2579,31 @@ dsl_crypto_populate_key_nvlist(objset_t *os, uint64_t from_ivset_guid,
 		    zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT), 8, 1, &salt);
 		if (ret != 0)
 			goto error_unlock;
+
+		ret = zap_lookup(dp->dp_meta_objset, rdd->dd_crypto_obj,
+		    zfs_prop_to_name(ZFS_PROP_KEY_KDF), 8, 1, &key_kdf);
+		if (ret != 0)
+			goto error_unlock;
+
+		ret = zap_lookup(dp->dp_meta_objset, rdd->dd_crypto_obj,
+		    zfs_prop_to_name(ZFS_PROP_ARGON2_T_COST), 8, 1, &argon2_t_cost);
+		if (ret != 0)
+			goto error_unlock;
+
+		ret = zap_lookup(dp->dp_meta_objset, rdd->dd_crypto_obj,
+		    zfs_prop_to_name(ZFS_PROP_ARGON2_M_COST), 8, 1, &argon2_m_cost);
+		if (ret != 0)
+			goto error_unlock;
+
+		ret = zap_lookup(dp->dp_meta_objset, rdd->dd_crypto_obj,
+		    zfs_prop_to_name(ZFS_PROP_ARGON2_PARALLELISM), 8, 1, &argon2_parallelism);
+		if (ret != 0)
+			goto error_unlock;
+
+		ret = zap_lookup(dp->dp_meta_objset, rdd->dd_crypto_obj,
+		    zfs_prop_to_name(ZFS_PROP_ARGON2_VERSION), 8, 1, &argon2_version);
+		if (ret != 0)
+			goto error_unlock;
 	}
 
 	dsl_dir_rele(rdd, FTAG);
@@ -2504,7 +2624,12 @@ dsl_crypto_populate_key_nvlist(objset_t *os, uint64_t from_ivset_guid,
 	    os->os_phys->os_portable_mac, ZIO_OBJSET_MAC_LEN));
 	fnvlist_add_uint64(nvl, zfs_prop_to_name(ZFS_PROP_KEYFORMAT), format);
 	fnvlist_add_uint64(nvl, zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS), iters);
+	fnvlist_add_uint64(nvl, zfs_prop_to_name(ZFS_PROP_KEY_KDF), key_kdf);
 	fnvlist_add_uint64(nvl, zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT), salt);
+	fnvlist_add_uint64(nvl, zfs_prop_to_name(ZFS_PROP_ARGON2_T_COST), argon2_t_cost);
+	fnvlist_add_uint64(nvl, zfs_prop_to_name(ZFS_PROP_ARGON2_M_COST), argon2_m_cost);
+	fnvlist_add_uint64(nvl, zfs_prop_to_name(ZFS_PROP_ARGON2_PARALLELISM), argon2_parallelism);
+	fnvlist_add_uint64(nvl, zfs_prop_to_name(ZFS_PROP_ARGON2_VERSION), argon2_version);
 	fnvlist_add_uint64(nvl, "mdn_checksum", mdn->dn_checksum);
 	fnvlist_add_uint64(nvl, "mdn_compress", mdn->dn_compress);
 	fnvlist_add_uint64(nvl, "mdn_nlevels", mdn->dn_nlevels);
@@ -2615,6 +2740,26 @@ dsl_dataset_crypt_stats(dsl_dataset_t *ds, nvlist_t *nv)
 	if (zap_lookup(dd->dd_pool->dp_meta_objset, dd->dd_crypto_obj,
 	    zfs_prop_to_name(ZFS_PROP_KEYFORMAT), 8, 1, &intval) == 0) {
 		dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_KEYFORMAT, intval);
+	}
+	if (zap_lookup(dd->dd_pool->dp_meta_objset, dd->dd_crypto_obj,
+	    zfs_prop_to_name(ZFS_PROP_KEY_KDF), 8, 1, &intval) == 0) {
+		dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_KEY_KDF, intval);
+	}
+	if (zap_lookup(dd->dd_pool->dp_meta_objset, dd->dd_crypto_obj,
+	    zfs_prop_to_name(ZFS_PROP_ARGON2_T_COST), 8, 1, &intval) == 0) {
+		dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_ARGON2_T_COST, intval);
+	}
+	if (zap_lookup(dd->dd_pool->dp_meta_objset, dd->dd_crypto_obj,
+	    zfs_prop_to_name(ZFS_PROP_ARGON2_M_COST), 8, 1, &intval) == 0) {
+		dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_ARGON2_M_COST, intval);
+	}
+	if (zap_lookup(dd->dd_pool->dp_meta_objset, dd->dd_crypto_obj,
+	    zfs_prop_to_name(ZFS_PROP_ARGON2_PARALLELISM), 8, 1, &intval) == 0) {
+		dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_ARGON2_PARALLELISM, intval);
+	}
+	if (zap_lookup(dd->dd_pool->dp_meta_objset, dd->dd_crypto_obj,
+	    zfs_prop_to_name(ZFS_PROP_ARGON2_VERSION), 8, 1, &intval) == 0) {
+		dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_ARGON2_VERSION, intval);
 	}
 	if (zap_lookup(dd->dd_pool->dp_meta_objset, dd->dd_crypto_obj,
 	    zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT), 8, 1, &intval) == 0) {

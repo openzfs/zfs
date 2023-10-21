@@ -42,6 +42,7 @@
 #include <ctype.h>
 #include <getopt.h>
 #include <openssl/evp.h>
+#include <argon2.h>
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
@@ -3040,7 +3041,8 @@ static char *key_material = NULL;
 static boolean_t
 zdb_derive_key(dsl_dir_t *dd, uint8_t *key_out)
 {
-	uint64_t keyformat, salt, iters;
+	uint64_t keyformat, salt, iters, key_kdf;
+	uint64_t argon2_t_cost, argon2_m_cost, argon2_parallelism, argon2_version;
 	int i;
 	unsigned char c;
 
@@ -3062,16 +3064,47 @@ zdb_derive_key(dsl_dir_t *dd, uint8_t *key_out)
 
 	case ZFS_KEYFORMAT_PASSPHRASE:
 		VERIFY0(zap_lookup(dd->dd_pool->dp_meta_objset,
-		    dd->dd_crypto_obj, zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT),
-		    sizeof (uint64_t), 1, &salt));
-		VERIFY0(zap_lookup(dd->dd_pool->dp_meta_objset,
-		    dd->dd_crypto_obj, zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS),
-		    sizeof (uint64_t), 1, &iters));
+		    dd->dd_crypto_obj, zfs_prop_to_name(ZFS_PROP_KEY_KDF),
+		    sizeof (uint64_t), 1, &key_kdf));
+		if (key_kdf == ZFS_KEY_KDF_PBKDF2 || key_kdf == ZFS_KEY_KDF_NONE) {
+			VERIFY0(zap_lookup(dd->dd_pool->dp_meta_objset,
+			    dd->dd_crypto_obj, zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT),
+			    sizeof (uint64_t), 1, &salt));
+			VERIFY0(zap_lookup(dd->dd_pool->dp_meta_objset,
+			    dd->dd_crypto_obj, zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS),
+			    sizeof (uint64_t), 1, &iters));
 
-		if (PKCS5_PBKDF2_HMAC_SHA1(key_material, strlen(key_material),
-		    ((uint8_t *)&salt), sizeof (uint64_t), iters,
-		    WRAPPING_KEY_LEN, key_out) != 1)
-			return (B_FALSE);
+			if (PKCS5_PBKDF2_HMAC_SHA1(key_material, strlen(key_material),
+			    ((uint8_t *)&salt), sizeof (uint64_t), iters,
+			    WRAPPING_KEY_LEN, key_out) != 1)
+				return (B_FALSE);
+		} else if (key_kdf == ZFS_KEY_KDF_ARGON2ID) {
+			VERIFY0(zap_lookup(dd->dd_pool->dp_meta_objset,
+			    dd->dd_crypto_obj, zfs_prop_to_name(ZFS_PROP_ARGON2_T_COST),
+			    sizeof (uint64_t), 1, &argon2_t_cost));
+			VERIFY0(zap_lookup(dd->dd_pool->dp_meta_objset,
+			    dd->dd_crypto_obj, zfs_prop_to_name(ZFS_PROP_ARGON2_M_COST),
+			    sizeof (uint64_t), 1, &argon2_m_cost));
+			VERIFY0(zap_lookup(dd->dd_pool->dp_meta_objset,
+			    dd->dd_crypto_obj, zfs_prop_to_name(ZFS_PROP_ARGON2_PARALLELISM),
+			    sizeof (uint64_t), 1, &argon2_parallelism));
+			VERIFY0(zap_lookup(dd->dd_pool->dp_meta_objset,
+			    dd->dd_crypto_obj, zfs_prop_to_name(ZFS_PROP_ARGON2_VERSION),
+			    sizeof (uint64_t), 1, &argon2_version));
+
+			if (argon2_hash(argon2_t_cost, argon2_m_cost,
+			    argon2_parallelism, key_material,
+			    strlen((char *)key_material), &salt, sizeof (uint64_t),
+			    key_out, WRAPPING_KEY_LEN, NULL,
+			    0, Argon2_id,
+			    argon2_version)
+			    != ARGON2_OK)
+				return (B_FALSE);
+		} else {
+			fatal("no support for kdf %u\n",
+			    (unsigned int) key_kdf);
+			return (B_TRUE);
+		}
 
 		break;
 
