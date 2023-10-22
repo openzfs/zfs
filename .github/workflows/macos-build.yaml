@@ -1,0 +1,54 @@
+name: Build on macOS
+on: push
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      #- name: csrutil disable
+      #  run: |
+      #    sudo csrutil disable
+      #- name: csrutil enable
+      #  run: |
+      #    sudo csrutil enable --without kext
+      #- name: spctl kext-consent disable
+      #  run: |
+      #    sudo spctl kext-consent disable
+      - name: install deps
+        run: |
+          brew install automake libtool gawk coreutils
+      - name: install deps
+        run: |
+          #brew install openssl@3
+      - name: autogen
+        run: |
+          ./autogen.sh
+      - name: configure
+        run: |
+          #https://stackoverflow.com/a/62591864
+          ./configure CPPFLAGS="-I/usr/local/opt/gettext/include -I/usr/local/opt/openssl/include" LDFLAGS="-L/usr/local/opt/gettext/lib/ -L/usr/local/opt/openssl/lib"
+      - name: build
+        run: |
+          make -j 2
+      #- name: install
+      #  run: |
+      #    sudo make install DESTDIR=///
+
+      #- name: load
+      #  run: |
+      #    sudo kextload -v /Library/Extensions/zfs.kext
+
+      #- name: ls
+      #  run: |
+      #    sudo ls -Rla
+      #    ls -Rla
+      #- name: rsync
+      #  run: |
+      #    rsync -avx --exclude /out/ ${{github.workspace}}/ ${{github.workspace}}/out/ --no-links
+      #- name: Upload dev build
+      #  uses: actions/upload-artifact@v3.1.0
+      #  with:
+      #    name: dev_build
+      #    path: ${{github.workspace}}/out/*
