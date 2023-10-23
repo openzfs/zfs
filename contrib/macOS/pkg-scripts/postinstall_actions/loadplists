@@ -1,0 +1,29 @@
+#!/bin/bash
+date '+%s' >> /tmp/o3x.log
+echo $0 >> /tmp/o3x.log
+
+launchctl list | grep org.openzfsonosx.zconfigd 1>/dev/null
+[ $? -eq 0 ] && /bin/launchctl remove org.openzfsonosx.zconfigd
+
+/bin/launchctl load -w /Library/LaunchDaemons/org.openzfsonosx.zconfigd.plist
+
+launchctl list | grep org.openzfsonosx.zed.service 1>/dev/null
+[ $? -eq 0 ] && /bin/launchctl remove org.openzfsonosx.zed.service
+
+launchctl list | grep org.openzfsonosx.zed 1>/dev/null
+[ $? -eq 0 ] && /bin/launchctl remove org.openzfsonosx.zed
+
+/bin/launchctl load -w /Library/LaunchDaemons/org.openzfsonosx.zed.plist
+
+launchctl list | grep org.openzfsonosx.InvariantDisks 1>/dev/null
+[ $? -eq 0 ] && /bin/launchctl remove org.openzfsonosx.InvariantDisks
+
+/bin/launchctl load -w /Library/LaunchDaemons/org.openzfsonosx.InvariantDisks.plist
+
+launchctl list | grep org.openzfsonosx.zpool-autoimport 1>/dev/null
+[ $? -eq 0 ] && /bin/launchctl remove org.openzfsonosx.zpool-autoimport
+
+launchctl list | grep org.openzfsonosx.zpool-import-all 1>/dev/null
+[ $? -eq 0 ] && /bin/launchctl remove org.openzfsonosx.zpool-import-all
+
+/bin/launchctl load -w /Library/LaunchDaemons/org.openzfsonosx.zpool-import-all.plist

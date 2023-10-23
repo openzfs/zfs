@@ -355,3 +355,23 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_KERNEL_CC_NO_IPA_SRA], [
 	CFLAGS="$saved_flags"
 	AC_SUBST([KERNEL_NO_IPA_SRA])
 ])
+
+dnl # Check if cc supports -finline-hint-functions
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_INLINE_HINT_FUNCTIONS], [
+	AC_MSG_CHECKING([whether $CC supports -finline-hint-functions])
+
+	saved_flags="$CFLAGS"
+	CFLAGS="$CFLAGS -Werror -finline-hint-functions"
+
+	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
+		INLINE_HINT_FUNCTIONS=-finline-hint-functions
+		AC_MSG_RESULT([yes])
+	], [
+		INLINE_HINT_FUNCTIONS=
+		AC_MSG_RESULT([no])
+	])
+
+	CFLAGS="$saved_flags"
+	AC_SUBST([INLINE_HINT_FUNCTIONS])
+])

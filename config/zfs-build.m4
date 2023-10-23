@@ -543,6 +543,8 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 			VENDOR=debian ;
 		elif test -f /etc/redhat-release ; then
 			VENDOR=redhat ;
+		elif test -f /usr/bin/sw_vers ; then
+			VENDOR=apple ;
 		else
 			VENDOR= ;
 		fi],
@@ -555,6 +557,7 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 
 	AC_MSG_CHECKING([default package type])
 	case "$VENDOR" in
+<<<<<<< HEAD
 		alpine|arch|artix|gentoo|lunar|slackware)
 			DEFAULT_PACKAGE=tgz  ;;
 		debian|ubuntu)
@@ -564,6 +567,23 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 		*)
 		# fedora|openeuler|redhat|sles|toss
 			DEFAULT_PACKAGE=rpm  ;;
+=======
+		toss)       DEFAULT_PACKAGE=rpm  ;;
+		redhat)     DEFAULT_PACKAGE=rpm  ;;
+		fedora)     DEFAULT_PACKAGE=rpm  ;;
+		gentoo)     DEFAULT_PACKAGE=tgz  ;;
+		alpine)     DEFAULT_PACKAGE=tgz  ;;
+		arch)       DEFAULT_PACKAGE=tgz  ;;
+		sles)       DEFAULT_PACKAGE=rpm  ;;
+		slackware)  DEFAULT_PACKAGE=tgz  ;;
+		lunar)      DEFAULT_PACKAGE=tgz  ;;
+		ubuntu)     DEFAULT_PACKAGE=deb  ;;
+		debian)     DEFAULT_PACKAGE=deb  ;;
+		freebsd)    DEFAULT_PACKAGE=pkg  ;;
+		openeuler)  DEFAULT_PACKAGE=rpm  ;;
+		apple)      DEFAULT_PACKAGE=pkg  ;;
+		*)          DEFAULT_PACKAGE=rpm  ;;
+>>>>>>> 5b2f117f5... 4: config/* scripts/* contrib/*
 	esac
 	AC_MSG_RESULT([$DEFAULT_PACKAGE])
 	AC_SUBST(DEFAULT_PACKAGE)
@@ -600,6 +620,7 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 
 	AC_MSG_CHECKING([default init config directory])
 	case "$VENDOR" in
+<<<<<<< HEAD
 		alpine|artix|gentoo)
 			initconfdir=/etc/conf.d
 			;;
@@ -613,6 +634,20 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 		# debian|ubuntu
 			initconfdir=/etc/default
 			;;
+=======
+		alpine)     initconfdir=/etc/conf.d    ;;
+		gentoo)     initconfdir=/etc/conf.d    ;;
+		toss)       initconfdir=/etc/sysconfig ;;
+		redhat)     initconfdir=/etc/sysconfig ;;
+		fedora)     initconfdir=/etc/sysconfig ;;
+		sles)       initconfdir=/etc/sysconfig ;;
+		openeuler)  initconfdir=/etc/sysconfig ;;
+		ubuntu)     initconfdir=/etc/default   ;;
+		debian)     initconfdir=/etc/default   ;;
+		freebsd)    initconfdir=$sysconfdir/rc.conf.d;;
+		apple)      initconfdir=${prefix}/etc/launchd/launchd.d/ ;;
+		*)          initconfdir=/etc/default   ;;
+>>>>>>> 5b2f117f5... 4: config/* scripts/* contrib/*
 	esac
 	AC_MSG_RESULT([$initconfdir])
 	AC_SUBST(initconfdir)
@@ -649,7 +684,7 @@ dnl # Default ZFS package configuration
 dnl #
 AC_DEFUN([ZFS_AC_PACKAGE], [
 	ZFS_AC_DEFAULT_PACKAGE
-	AS_IF([test x$VENDOR != xfreebsd], [
+	AS_IF([test x$VENDOR != xfreebsd -a x$VENDOR != xapple], [
 		ZFS_AC_RPM
 		ZFS_AC_DPKG
 		ZFS_AC_ALIEN
