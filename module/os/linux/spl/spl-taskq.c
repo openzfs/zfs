@@ -673,16 +673,12 @@ out:
 }
 EXPORT_SYMBOL(taskq_dispatch_delay);
 
-void
-taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
+static void
+taskq_dispatch_ent_impl(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
     taskq_ent_t *t)
 {
-	unsigned long irqflags;
 	ASSERT(tq);
 	ASSERT(func);
-
-	spin_lock_irqsave_nested(&tq->tq_lock, irqflags,
-	    tq->tq_lock_class);
 
 	/* Taskq being destroyed and all tasks drained */
 	if (!(tq->tq_flags & TASKQ_ACTIVE)) {
@@ -694,7 +690,7 @@ taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
 		/* Dynamic taskq may be able to spawn another thread */
 		if (!(tq->tq_flags & TASKQ_DYNAMIC) ||
 		    taskq_thread_spawn(tq) == 0)
-			goto out2;
+			return;
 		flags |= TQ_FRONT;
 	}
 
@@ -734,10 +730,44 @@ out:
 	/* Spawn additional taskq threads if required. */
 	if (tq->tq_nactive == tq->tq_nthreads)
 		(void) taskq_thread_spawn(tq);
-out2:
+}
+
+void
+taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
+    taskq_ent_t *t)
+{
+	unsigned long irqflags;
+
+	spin_lock_irqsave_nested(&tq->tq_lock, irqflags,
+	    tq->tq_lock_class);
+
+	taskq_dispatch_ent_impl(tq, func, arg, flags, t);
+
 	spin_unlock_irqrestore(&tq->tq_lock, irqflags);
 }
 EXPORT_SYMBOL(taskq_dispatch_ent);
+
+boolean_t
+taskq_try_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
+    taskq_ent_t *t)
+{
+	unsigned long irqflags;
+
+	/*
+	 * XXX I don't _think_ losing _nested matters, because I think its
+	 *     only related to lockdep, and we don't have access to that anyway
+	 *       -- robn, 2023-10-23
+	 */
+	if (!spin_trylock_irqsave(&tq->tq_lock, irqflags))
+		return (B_FALSE);
+
+	taskq_dispatch_ent_impl(tq, func, arg, flags, t);
+
+	spin_unlock_irqrestore(&tq->tq_lock, irqflags);
+
+	return (B_TRUE);
+}
+EXPORT_SYMBOL(taskq_try_dispatch_ent);
 
 int
 taskq_empty_ent(taskq_ent_t *t)

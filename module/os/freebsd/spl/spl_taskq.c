@@ -411,6 +411,15 @@ taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint32_t flags,
 	taskqueue_enqueue(tq->tq_queue, &task->tqent_task);
 }
 
+boolean_t
+taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint32_t flags,
+    taskq_ent_t *task)
+{
+	/* XXX: implement me -- robn, 2023-10-23 */
+	taskq_dispatch_ent(tq, func, arg, flags, task);
+	return (B_TRUE);
+}
+
 void
 taskq_wait(taskq_t *tq)
 {

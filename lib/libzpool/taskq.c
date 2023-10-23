@@ -156,8 +156,8 @@ taskq_init_ent(taskq_ent_t *t)
 	t->tqent_flags = 0;
 }
 
-void
-taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
+static void
+taskq_dispatch_ent_impl(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
     taskq_ent_t *t)
 {
 	ASSERT(func != NULL);
@@ -170,7 +170,6 @@ taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
 	/*
 	 * Enqueue the task to the underlying queue.
 	 */
-	mutex_enter(&tq->tq_lock);
 
 	if (flags & TQ_FRONT) {
 		t->tqent_next = tq->tq_task.tqent_next;
@@ -184,7 +183,26 @@ taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
 	t->tqent_func = func;
 	t->tqent_arg = arg;
 	cv_signal(&tq->tq_dispatch_cv);
+}
+
+void
+taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
+    taskq_ent_t *t)
+{
+	mutex_enter(&tq->tq_lock);
+	taskq_dispatch_ent_impl(tq, func, arg, flags, t);
 	mutex_exit(&tq->tq_lock);
+}
+
+boolean_t
+taskq_try_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
+    taskq_ent_t *t)
+{
+	if (!mutex_tryenter(&tq->tq_lock))
+		return (B_FALSE);
+	taskq_dispatch_ent_impl(tq, func, arg, flags, t);
+	mutex_exit(&tq->tq_lock);
+	return (B_TRUE);
 }
 
 void
