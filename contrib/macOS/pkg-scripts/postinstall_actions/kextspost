@@ -1,0 +1,44 @@
+#!/bin/sh
+date '+%s' >> /tmp/o3x.log
+echo $0 >> /tmp/o3x.log
+
+if [ "$(uname -r | awk -F '.' '{print $1;}')" -lt 13 ] ; then
+	kernelextensionsdir=$3System/Library/Extensions
+else
+	kernelextensionsdir=$3Library/Extensions
+	if [ ! -d $3Library/Extensions/zfs.kext/ ] ; then
+		kernelextensionsdir=$3System/Library/Extensions
+	fi
+fi
+
+if [ $(/usr/sbin/kextstat -b org.openzfsonosx.zfs | wc -l) -gt 1 ] ; then
+	printf "\nUnloading zfs.kext...\n"
+	/sbin/kextunload -b org.openzfsonosx.zfs
+fi
+if [ $(/usr/sbin/kextstat -b net.lundman.zfs | wc -l) -gt 1 ] ; then
+	printf "\nUnloading zfs.kext...\n"
+	/sbin/kextunload -b net.lundman.zfs
+fi
+if [ $(/usr/sbin/kextstat -b net.lundman.spl | wc -l) -gt 1 ] ; then
+	printf "\nUnloading spl.kext...\n"
+	/sbin/kextunload -b net.lundman.spl
+fi
+
+printf "\nTouching %s\n" "${kernelextensionsdir}"
+/usr/bin/touch "${kernelextensionsdir}"
+
+# HUP kextd
+/usr/bin/killall -HUP kextd
+
+# Load kext
+printf "\nLoading spl.kext...\n"
+/usr/bin/kextutil "${kernelextensionsdir}/zfs.kext" 2>&1 | grep -q "rejected due to system policy"
+
+if [[ $? -eq 0 ]]; then
+	open /System/Library/PreferencePanes/Security.prefPane
+else
+	printf "\nLoading zfs.kext...\n"
+	/sbin/kextload "${kernelextensionsdir}/zfs.kext"
+fi
+
+exit 0
