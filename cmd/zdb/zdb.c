@@ -2366,16 +2366,16 @@ dump_history(spa_t *spa)
 			if (ievent >= ZFS_NUM_LEGACY_HISTORY_EVENTS)
 				goto next;
 
-			(void) printf(" %s [internal %s txg:%ju] %s\n",
+			(void) printf(" %s [internal %s txg:%llu] %s\n",
 			    tbuf,
 			    zfs_history_event_names[ievent],
-			    fnvlist_lookup_uint64(events[i],
+			    (u_longlong_t)fnvlist_lookup_uint64(events[i],
 			    ZPOOL_HIST_TXG),
 			    fnvlist_lookup_string(events[i],
 			    ZPOOL_HIST_INT_STR));
 		} else if (nvlist_exists(events[i], ZPOOL_HIST_INT_NAME)) {
-			(void) printf("%s [txg:%ju] %s", tbuf,
-			    fnvlist_lookup_uint64(events[i],
+			(void) printf("%s [txg:%llu] %s", tbuf,
+			    (u_longlong_t)fnvlist_lookup_uint64(events[i],
 			    ZPOOL_HIST_TXG),
 			    fnvlist_lookup_string(events[i],
 			    ZPOOL_HIST_INT_NAME));
