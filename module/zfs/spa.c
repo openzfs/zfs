@@ -1493,11 +1493,13 @@ spa_taskq_param_get(zio_type_t t, char *buf, boolean_t add_newline)
 	for (uint_t q = 0; q < ZIO_TASKQ_TYPES; q++) {
 		const zio_taskq_info_t *zti = &zio_taskqs[t][q];
 		if (zti->zti_mode == ZTI_MODE_FIXED)
-			pos += sprintf(&buf[pos], "%s%s,%u,%u", sep,
+			pos += snprintf(&buf[pos], LINUX_MAX_MODULE_PARAM_LEN,
+			    "%s%s,%u,%u", sep,
 			    modes[zti->zti_mode], zti->zti_count,
 			    zti->zti_value);
 		else
-			pos += sprintf(&buf[pos], "%s%s", sep,
+			pos += snprintf(&buf[pos], LINUX_MAX_MODULE_PARAM_LEN,
+			    "%s%s", sep,
 			    modes[zti->zti_mode]);
 		sep = " ";
 	}
@@ -7691,10 +7693,12 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	 * to make it distinguishable from newvd, and unopenable from now on.
 	 */
 	if (strcmp(oldvdpath, newvdpath) == 0) {
+		int n = strlen(newvdpath) + 5;
 		spa_strfree(oldvd->vdev_path);
-		oldvd->vdev_path = kmem_alloc(strlen(newvdpath) + 5,
+		oldvd->vdev_path = kmem_alloc(n,
 		    KM_SLEEP);
-		(void) sprintf(oldvd->vdev_path, "%s/old",
+		(void) snprintf(oldvd->vdev_path, n,
+		    "%s/old",
 		    newvdpath);
 		if (oldvd->vdev_devid != NULL) {
 			spa_strfree(oldvd->vdev_devid);

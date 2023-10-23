@@ -508,7 +508,7 @@ zvol_os_unmap(zvol_state_t *zv, uint64_t off, uint64_t bytes)
 		dmu_tx_abort(tx);
 	} else {
 
-		zvol_log_truncate(zv, tx, off, bytes, B_TRUE);
+		zvol_log_truncate(zv, tx, off, bytes);
 
 		dmu_tx_commit(tx);
 

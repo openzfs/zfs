@@ -42,7 +42,6 @@
 
 #include <kern/locks.h>
 
-
 // Be aware that Apple defines "typedef struct vnode *vnode_t" and
 // ZFS uses "typedef struct vnode vnode_t".
 // uio and vnode wrappers can be removed now.

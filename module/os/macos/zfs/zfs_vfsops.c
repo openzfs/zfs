@@ -48,6 +48,7 @@
 #include <sys/ZFSDatasetScheme.h>
 #include <sys/dsl_dir.h>
 #include <sys/dataset_kstats.h>
+#include <sys/spa_impl.h> // spa_freeze_txg
 
 unsigned int zfs_vnop_skip_unlinked_drain = 0;
 
@@ -2023,7 +2024,6 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 			    dmu_objset_pool(zfsvfs->z_os)), 0);
 			if (++round > 1 && !unmounting)
 				break;
-			break; /* Only loop once - osx can get stuck */
 		}
 	}
 
@@ -2160,6 +2160,10 @@ zfs_vfs_unmount(struct mount *mp, int mntflags, vfs_context_t context)
 
 	/* Save osname for later */
 	dmu_objset_name(zfsvfs->z_os, osname);
+
+	spa_t *spa = dmu_objset_spa(zfsvfs->z_os);
+	if (spa != NULL)
+		spa->spa_freeze_txg = UINT64_MAX;
 
 	/*
 	 * We might skip the sync called in the unmount path, since
@@ -2413,7 +2417,7 @@ zfs_vget_internal(zfsvfs_t *zfsvfs, ino64_t ino, vnode_t **vpp)
 			    &parent, sizeof (parent)) == 0);
 
 			if (zap_value_search(zfsvfs->z_os, parent, zp->z_id,
-			    ZFS_DIRENT_OBJ(-1ULL), name) == 0) {
+			    ZFS_DIRENT_OBJ(-1ULL), name, MAXPATHLEN) == 0) {
 
 				dprintf("vget: set name '%s'\n", name);
 				vnode_update_identity(*vpp, NULL, name,
@@ -2939,92 +2943,6 @@ zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers)
 	zfs_set_fuid_feature(zfsvfs);
 
 	return (0);
-}
-
-/*
- * Read a property stored within the master node.
- */
-int
-zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value)
-{
-	uint64_t *cached_copy = NULL;
-
-	/*
-	 * Figure out where in the objset_t the cached copy would live, if it
-	 * is available for the requested property.
-	 */
-	if (os != NULL) {
-		switch (prop) {
-			case ZFS_PROP_VERSION:
-				cached_copy = &os->os_version;
-				break;
-			case ZFS_PROP_NORMALIZE:
-				cached_copy = &os->os_normalization;
-				break;
-			case ZFS_PROP_UTF8ONLY:
-				cached_copy = &os->os_utf8only;
-				break;
-			case ZFS_PROP_CASE:
-				cached_copy = &os->os_casesensitivity;
-				break;
-			default:
-				break;
-		}
-	}
-	if (cached_copy != NULL && *cached_copy != OBJSET_PROP_UNINITIALIZED) {
-		*value = *cached_copy;
-		return (0);
-	}
-
-	/*
-	 * If the property wasn't cached, look up the file system's value for
-	 * the property. For the version property, we look up a slightly
-	 * different string.
-	 */
-	const char *pname;
-	int error = ENOENT;
-	if (prop == ZFS_PROP_VERSION) {
-		pname = ZPL_VERSION_STR;
-	} else {
-		pname = zfs_prop_to_name(prop);
-	}
-
-	if (os != NULL) {
-		ASSERT3U(os->os_phys->os_type, ==, DMU_OST_ZFS);
-		error = zap_lookup(os, MASTER_NODE_OBJ, pname, 8, 1, value);
-	}
-
-	if (error == ENOENT) {
-		/* No value set, use the default value */
-		switch (prop) {
-		case ZFS_PROP_VERSION:
-			*value = ZPL_VERSION;
-			break;
-		case ZFS_PROP_NORMALIZE:
-		case ZFS_PROP_UTF8ONLY:
-			*value = 0;
-			break;
-		case ZFS_PROP_CASE:
-			*value = ZFS_CASE_SENSITIVE;
-			break;
-		case ZFS_PROP_ACLMODE:
-			*value = ZFS_ACLTYPE_OFF;
-			break;
-		default:
-			return (error);
-		}
-		error = 0;
-	}
-
-	/*
-	 * If one of the methods for getting the property value above worked,
-	 * copy it into the objset_t's cache.
-	 */
-	if (error == 0 && cached_copy != NULL) {
-		*cached_copy = *value;
-	}
-
-	return (error);
 }
 
 /*

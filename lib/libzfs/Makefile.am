@@ -67,7 +67,10 @@ libzfs_la_LIBADD = \
 	libzutil.la \
 	libuutil.la
 
-libzfs_la_LIBADD += -lrt -lm $(LIBCRYPTO_LIBS) $(ZLIB_LIBS) $(LIBFETCH_LIBS) $(LTLIBINTL)
+libzfs_la_LIBADD += -lm $(LIBCRYPTO_LIBS) $(ZLIB_LIBS) $(LIBFETCH_LIBS) $(LTLIBINTL)
+if !BUILD_MACOS
+libzfs_la_LIBADD += -lrt
+endif
 
 libzfs_la_LDFLAGS = -pthread
 

@@ -33,6 +33,7 @@
 
 #include <libkern/OSByteOrder.h>
 #include <machine/byte_order.h>
+#include <sys/sysmacros.h>
 
 #define	LE_16(x) OSSwapHostToLittleInt16(x)
 #define	LE_32(x) OSSwapHostToLittleInt32(x)

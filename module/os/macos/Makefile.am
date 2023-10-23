@@ -151,9 +151,12 @@ zfs_common_SRCS = \
 	%D%/../../zfs/dbuf.c \
 	%D%/../../zfs/dbuf_stats.c \
 	%D%/../../zfs/ddt.c \
+	%D%/../../zfs/ddt_log.c \
+	%D%/../../zfs/ddt_stats.c \
 	%D%/../../zfs/ddt_zap.c \
 	%D%/../../zfs/dmu.c \
 	%D%/../../zfs/dmu_diff.c \
+	%D%/../../zfs/dmu_direct.c \
 	%D%/../../zfs/dmu_object.c \
 	%D%/../../zfs/dmu_objset.c \
 	%D%/../../zfs/dmu_recv.c \
@@ -249,6 +252,7 @@ zfs_common_SRCS = \
 	%D%/../../zfs/zfs_rlock.c \
 	%D%/../../zfs/zfs_sa.c \
 	%D%/../../zfs/zfs_vnops.c \
+	%D%/../../zfs/zfs_znode.c \
 	%D%/../../zfs/zil.c \
 	%D%/../../zfs/zio.c \
 	%D%/../../zfs/zio_checksum.c \
@@ -269,6 +273,7 @@ zfs_os_SRCS = \
 	%D%/zfs/sysctl_os.c \
 	%D%/zfs/vdev_disk.c \
 	%D%/zfs/vdev_file.c \
+	%D%/zfs/vdev_label_os.c \
 	%D%/zfs/zfs_acl.c \
 	%D%/zfs/zfs_boot.cpp \
 	%D%/zfs/zfs_ctldir.c \
@@ -284,7 +289,7 @@ zfs_os_SRCS = \
 	%D%/zfs/zfs_vnops_osx.c \
 	%D%/zfs/zfs_vnops_osx_lib.c \
 	%D%/zfs/zfs_vnops_osx_xattr.c \
-	%D%/zfs/zfs_znode.c \
+	%D%/zfs/zfs_znode_os.c \
 	%D%/zfs/zio_crypt.c \
 	%D%/zfs/zvol_os.c \
 	%D%/zfs/zvolIO.cpp \
@@ -299,7 +304,6 @@ zcommon_SRCS = \
 	%D%/../../nvpair/nvpair_alloc_fixed.c \
 	%D%/../../nvpair/nvpair_alloc_spl.c \
 	%D%/../../unicode/u8_textprep.c \
-	%D%/../../unicode/uconv.c \
 	%D%/../../zcommon/zfs_comutil.c \
 	%D%/../../zcommon/zfs_deleg.c \
 	%D%/../../zcommon/zfs_fletcher.c \
@@ -322,7 +326,6 @@ icp_SRCS = \
 	%D%/../../icp/spi/kcf_spi.c \
 	%D%/../../icp/io/aes.c \
 	%D%/../../icp/io/sha2_mod.c \
-	%D%/../../icp/io/skein_mod.c \
 	%D%/../../icp/algs/aes/aes_impl_aesni.c \
 	%D%/../../icp/algs/aes/aes_impl_aesv8.c \
 	%D%/../../icp/algs/aes/aes_impl_generic.c \
@@ -333,10 +336,7 @@ icp_SRCS = \
 	%D%/../../icp/algs/blake3/blake3_generic.c \
 	%D%/../../icp/algs/blake3/blake3_impl.c \
 	%D%/../../icp/algs/edonr/edonr.c \
-	%D%/../../icp/algs/modes/cbc.c \
 	%D%/../../icp/algs/modes/ccm.c \
-	%D%/../../icp/algs/modes/ctr.c \
-	%D%/../../icp/algs/modes/ecb.c \
 	%D%/../../icp/algs/modes/gcm_generic.c \
 	%D%/../../icp/algs/modes/gcm.c \
 	%D%/../../icp/algs/modes/modes.c \

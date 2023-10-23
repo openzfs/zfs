@@ -52,6 +52,16 @@ OS=$(sw_vers | awk '{if ($1 == "ProductVersion:") print $2;}')
 OS=$(echo "$OS" | awk -F . '{if ($1 == 10) print $1"."$2; else print $1}')
 RC=$(grep Release: META | awk '$2 ~ /rc/ { print $2}')
 
+friendly=$(awk '/SOFTWARE LICENSE AGREEMENT FOR macOS/' '/System/Library/CoreServices/Setup Assistant.app/Contents/Resources/en.lproj/OSXSoftwareLicense.rtf' | awk -F 'macOS ' '{print $NF}' | tr -d '\\')
+if [ -z "$friendly" ]; then
+    friendly=$(awk '/SOFTWARE LICENSE AGREEMENT FOR OS X/' '/System/Library/CoreServices/Setup Assistant.app/Contents/Resources/en.lproj/OSXSoftwareLicense.rtf' | awk -F 'OS X ' '{print $NF}' | awk '{print substr($0, 0, length($0)-1)}')
+fi
+if [ -z "$friendly" ]; then
+    friendly=$(awk '/SOFTWARE LICENSE AGREEMENT FOR macOS/' '/System/Library/CoreServices/Setup Assistant.app/Contents/Resources/en.lproj/OSXSoftwareLicense.rtf' | awk -F 'macOS ' '{print $NF}' | awk '{print substr($0, 0, length($0)-1)}')
+fi
+
+friendly=$(echo "$friendly" | tr ' ' '.')
+
 function usage
 {
     echo "$0: Create installable pkg for macOS"
@@ -59,6 +69,7 @@ function usage
     echo " Options:"
     echo "   -l  skip make install step, using a folder of a previous run"
     echo "   -L  copy and fix external libraries"
+    echo "   -A  use obsolete altool to notarize"
     exit
 }
 
@@ -66,6 +77,7 @@ while getopts "hlL" opt; do
     case $opt in
 	l ) skip_install=1 ;;
 	L ) fix_libraries=1 ;;
+	A ) use_altool=1 ;;
 	h ) usage
 	    exit 2
 	    ;;
@@ -108,9 +120,24 @@ if [ -f "${BASE_DIR}/../config.status" ]; then
     prefix=$(grep 'S\["prefix"\]' "${BASE_DIR}/../config.status" | tr '=' ' ' | awk '{print $2;}' | tr -d '"')
 fi
 
+if [ -z "$NOTARYTOOL" ]; then
+    xcrun notarytool > /dev/null 2>&1
+    if [ $? != 0 ]; then
+	use_altool=1
+    else
+	NOTARYTOOL="$(xcrun -f notarytool)"
+    fi
+fi
+
 echo "Version is $version"
 echo "Prefix set to $prefix"
 echo "RC, if set: $RC"
+echo "OS name: $friendly"
+if [ -n "$use_altool" ]; then
+    echo "notarize: altool"
+else
+    echo "notarize: notarytool ($NOTARYTOOL)"
+fi
 echo ""
 
 sleep 3
@@ -205,7 +232,7 @@ function do_codesign
        [ x"$OS" == x"10.11" ] ||
        [ x"$OS" == x"10.10" ] ||
        [ x"$OS" == x"10.9" ]; then
-	extra=""
+	extra="--signature-size=12000"
     else
 	extra="--options runtime"
     fi
@@ -267,6 +294,9 @@ function do_prune
 "./${prefix}/share/zfs-macos/runfiles" \
 "./${prefix}/share/zfs-macos/test-runner" \
 "./${prefix}/share/zfs-macos/zfs-tests" \
+"./${prefix}/share/zfs/runfiles" \
+"./${prefix}/share/zfs/test-runner" \
+"./${prefix}/share/zfs/zfs-tests" \
 "./${prefix}/src"
 
     popd || fail "failed to popd"
@@ -280,7 +310,7 @@ function do_prune
 function copy_fix_libraries
 {
     echo "Fixing external libraries ... "
-    fixlib=$(otool -L ${codesign_files} | egrep '/usr/local/opt/|/opt/local/lib/' |awk '{print $1;}' | grep '\.dylib$' | sort | uniq)
+    fixlib=$(otool -L ${codesign_files} | egrep '/usr/local/opt/|/opt/local/lib/|/opt/local/libexec/' |awk '{print $1;}' | grep '\.dylib$' | sort | uniq)
 
     # Add the libs into codesign list - both to be codesigned, and updated
     # between themselves (libssl depends on libcrypt)
@@ -314,7 +344,7 @@ function copy_fix_libraries
 	for file in $codesign_files
 	do
 	    chmod u+w "${file}"
-	    src=$(otool -L "$file" | awk '{print $1;}' | grep "${name}.dylib")
+	    src=$(otool -L "$file" | grep -v ":$" | awk '{print $1;}' | grep "${name}.dylib")
 	    install_name_tool -change "${src}" "${prefix}/lib/${name}.dylib" "${file}"
 	done
     done
@@ -322,7 +352,7 @@ function copy_fix_libraries
 
 # Upload .pkg file
 # Staple .pkg file
-function do_notarize
+function do_notarize_altool
 {
     echo "Uploading PKG to Apple ..."
 
@@ -361,6 +391,39 @@ function do_notarize
 
 }
 
+# Upload .pkg file
+# Staple .pkg file
+function do_notarize_notarytool
+{
+    echo "Uploading PKG to Apple ..."
+
+    TFILE="out-altool.xml"
+    RFILE="req-altool.xml"
+    # xcrun altool --notarize-app -f my_package_new.pkg --primary-bundle-id org.openzfsonosx.zfs -u lundman@lundman.net -p "$PKG_NOTARIZE_KEY" --output-format xml > ${TFILE}
+    $NOTARYTOOL submit --wait --apple-id lundman@lundman.net --team-id "735AM5QEU3" --password "$PKG_NOTARIZE_KEY" my_package_new.pkg
+
+    echo "Stapling PKG ..."
+    xcrun stapler staple my_package_new.pkg
+    ret=$?
+    xcrun stapler validate -v my_package_new.pkg
+
+    if [ $ret != 0 ]; then
+	echo "Failed to notarize: $ret"
+	grep "https://" ${RFILE}
+	exit 1
+    fi
+
+}
+
+function do_notarize
+{
+    if [ -n "$use_altool" ]; then
+	do_notarize_altool
+    else
+	do_notarize_notarytool
+    fi
+}
+
 echo "Pruning install area ..."
 do_prune
 
@@ -396,13 +459,6 @@ echo "pkgbuild result $ret"
 if [ $ret != 0 ]; then
     fail "pkgbuild failed"
 fi
-
-friendly=$(awk '/SOFTWARE LICENSE AGREEMENT FOR macOS/' '/System/Library/CoreServices/Setup Assistant.app/Contents/Resources/en.lproj/OSXSoftwareLicense.rtf' | awk -F 'macOS ' '{print $NF}' | tr -d '\\')
-if [ -z "$friendly" ]; then
-    friendly=$(awk '/SOFTWARE LICENSE AGREEMENT FOR OS X/' '/System/Library/CoreServices/Setup Assistant.app/Contents/Resources/en.lproj/OSXSoftwareLicense.rtf' | awk -F 'OS X ' '{print $NF}' | awk '{print substr($0, 0, length($0)-1)}')
-fi
-
-friendly=$(echo "$friendly" | tr ' ' '.')
 
 # Now fiddle with pkg to make it nicer
 productbuild --synthesize --package ./my_package.pkg distribution.xml

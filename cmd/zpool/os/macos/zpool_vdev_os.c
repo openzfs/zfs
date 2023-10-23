@@ -199,3 +199,24 @@ after_zpool_upgrade(zpool_handle_t *zhp)
 {
 	(void) zhp;
 }
+
+int
+zpool_power_current_state(zpool_handle_t *zhp, char *vdev)
+{
+
+	(void) zhp;
+	(void) vdev;
+	/* Enclosure slot power not supported on macOS yet */
+	return (-1);
+}
+
+int
+zpool_power(zpool_handle_t *zhp, char *vdev, boolean_t turn_on)
+{
+
+	(void) zhp;
+	(void) vdev;
+	(void) turn_on;
+	/* Enclosure slot power not supported on macOS yet */
+	return (ENOTSUP);
+}

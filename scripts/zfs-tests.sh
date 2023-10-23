@@ -650,6 +650,29 @@ if [ "$UNAME" = "Darwin" ]; then
 	# BigSur gets even harder.
 	sudo /sbin/mount -uw /
 	export SHELL=ksh
+	# We can guess common pool names used by the testers,
+	# and add to synthetic
+	if [ ! -f "/etc/synthetic.d/zfs-tests" ]; then
+	    sudo mkdir -p /etc/synthetic.d
+	    sudo touch /etc/synthetic.conf
+	    sudo touch /etc/synthetic.d/zfs-tests
+	    sudo chmod 666 /etc/synthetic.d/zfs-tests
+	    cat << EOF > /etc/synthetic.d/zfs-tests
+testpool
+testpool1
+testpool2
+logsm_import
+lgcypool
+ldnpool
+zonepool
+perfpool
+EOF
+	    sudo chmod 444 /etc/synthetic.d/zfs-tests
+	    echo ""
+	    echo "Please reboot to activate /etc/synthetic.d/zfs-tests"
+	    echo ""
+	    exit 0
+	fi
 fi
 #
 # Verify the ZFS module stack is loaded.

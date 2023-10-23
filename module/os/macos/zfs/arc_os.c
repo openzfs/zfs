@@ -169,7 +169,7 @@ arc_memory_throttle(spa_t *spa, uint64_t reserve, uint64_t txg)
  */
 static void arc_kmem_reap_now(void)
 {
-	arc_wait_for_eviction(0, B_FALSE);
+	arc_wait_for_eviction(0, B_FALSE, B_FALSE);
 
 	/* arc.c will do the heavy lifting */
 	arc_kmem_reap_soon();
@@ -223,7 +223,7 @@ arc_reclaim_thread(void *unused)
 			    (arc_c >> arc_shrink_shift)));
 		}
 
-		arc_wait_for_eviction(0, B_FALSE);
+		arc_wait_for_eviction(0, B_FALSE, B_FALSE);
 
 		int64_t free_memory = arc_available_memory();
 

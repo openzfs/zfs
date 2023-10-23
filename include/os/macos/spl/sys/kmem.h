@@ -53,6 +53,7 @@ extern uint64_t physmem;
 #define	KM_NODEBUG	0x0010  /* NOT IMPLEMENTED ON OSX */
 #define	KM_NO_VBA	0x0020  /* OSX: don't descend to the bucket layer */
 #define	KM_VMFLAGS	0x00ff	/* flags that must match VM_* flags */
+#define	KMC_RECLAIMABLE		0x0
 
 #define	KM_FLAGS	0xffff	/* all settable kmem flags */
 

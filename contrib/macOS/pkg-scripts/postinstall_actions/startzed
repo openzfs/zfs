@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# zed is now run by launctl, so this script should not be required.
+exit 0
+
+ZED=/usr/local/zfs/bin/zed
+
 set +e
 pgrep zed 1>/dev/null
 pgrepret=$?
@@ -7,11 +12,11 @@ set -e
 
 if [ $pgrepret -ne 0 ] ; then
 	echo "zed not started"
-	if [ -f /usr/sbin/zed ] ; then
+	if [ -f $ZED ] ; then
 		echo "Starting zed ..."
-			/usr/sbin/zed
+			$ZED
 	else
-		echo "zed binary /usr/sbin/zed not found"
+		echo "zed binary $ZED not found"
 	fi
 else
 	echo "zed already running"

@@ -349,7 +349,7 @@ zfs_getattr_znode_unlocked(struct vnode *vp, vattr_t *vap)
 				// Go find the name.
 				if (zap_value_search(zfsvfs->z_os, parent,
 				    zp->z_id, ZFS_DIRENT_OBJ(-1ULL),
-				    vap->va_name) == 0) {
+				    vap->va_name, MAXPATHLEN) == 0) {
 					VATTR_SET_SUPPORTED(vap, va_name);
 					// Might as well keep this name too.
 					strlcpy(zp->z_name_cache, vap->va_name,
@@ -648,8 +648,10 @@ zfs_getbsdflags(znode_t *zp)
 	if (zflags & ZFS_TRACKED)
 		bsdflags |= UF_TRACKED;
 
+#ifdef	SF_NOUNLINK
 	if (zflags & ZFS_NOUNLINK)
 		bsdflags |= SF_NOUNLINK;
+#endif
 	if (zflags & ZFS_SIMMUTABLE)
 		bsdflags |= SF_IMMUTABLE;
 	if (zflags & ZFS_SAPPENDONLY)
@@ -704,8 +706,10 @@ zfs_setbsdflags(znode_t *zp, uint32_t ioctl_flags, xvattr_t *xva)
 	    XAT_SIMMUTABLE, xoap->xoa_simmutable);
 	FLAG_CHANGE(ZFS_ARCHIVE, SF_ARCHIVED,
 	    XAT_ARCHIVE, xoap->xoa_archive);
+#ifdef	SF_NOUNLINK
 	FLAG_CHANGE(ZFS_NOUNLINK, SF_NOUNLINK,
 	    XAT_NOUNLINK, xoap->xoa_nounlink);
+#endif
 	// FLAG_CHANGE(ZFS_READONLY, XAT_READONLY, xoap->xoa_readonly);
 	// FLAG_CHANGE(ZFS_SYSTEM, XAT_SYSTEM, xoap->xoa_system);
 	// FLAG_CHANGE(ZFS_REPARSE, XAT_REPARSE, xoap->xoa_reparse);
@@ -1950,7 +1954,7 @@ zfs_setattr_generate_id(znode_t *zp, uint64_t val, char *name)
 			/* Lookup filename */
 			filename = kmem_zalloc(MAXPATHLEN + 2, KM_SLEEP);
 			if (zap_value_search(zfsvfs->z_os, parent, zp->z_id,
-			    ZFS_DIRENT_OBJ(-1ULL), filename) == 0) {
+			    ZFS_DIRENT_OBJ(-1ULL), filename, MAXPATHLEN) == 0) {
 
 				nameptr = filename;
 				// Might as well keep this name too.

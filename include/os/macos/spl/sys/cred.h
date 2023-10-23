@@ -28,11 +28,15 @@
 #ifndef _SPL_CRED_H
 #define	_SPL_CRED_H
 
+struct ucred;
+typedef struct ucred *kauth_cred_t;
+typedef struct ucred cred_t;
+
+#include <sys/ucred.h>
+
 #include <sys/types.h>
 #include <sys/vfs.h>
 #include <sys/kauth.h>
-
-typedef struct ucred cred_t;
 
 #define	kcred	spl_kcred()
 #define	CRED()	(cred_t *)kauth_cred_get()

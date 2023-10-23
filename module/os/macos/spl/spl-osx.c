@@ -49,6 +49,7 @@
 static utsname_t utsname_static = { { 0 } };
 
 unsigned int max_ncpus = 0;
+unsigned int boot_ncpus = 0;
 unsigned int num_ecores = 0;
 uint64_t  total_memory = 0;
 uint64_t  real_total_memory = 0;
@@ -70,9 +71,9 @@ utsname(void)
  * 1 HZ is 10 milliseconds
  */
 void
-osx_delay(int ticks)
+osx_delay(clock_t ticks)
 {
-	ASSERT3S(ticks, >, 0);
+	ASSERT3U(ticks, <, SEC_TO_TICK(60));
 
 	// ticks are 10 msec units
 	int64_t ticks_to_go = (int64_t)ticks;
@@ -108,7 +109,7 @@ osx_delay(int ticks)
 
 		bool forced_sleep = false;
 
-		ASSERT3S(ticks_to_go, >, 0);
+		ASSERT3U(ticks_to_go, <, SEC_TO_TICK(60));
 		unsigned milliseconds_remaining = ticks_to_go * 10;
 
 		if (milliseconds_remaining < 2) {
@@ -495,6 +496,9 @@ spl_start(kmod_info_t *ki, void *d)
 
 #if defined(__arm64__)
 	num_ecores = (max_ncpus > 4) ? 4 : 0;
+	boot_ncpus = MAX(1, (int)max_ncpus - (int)num_ecores);
+#else
+	boot_ncpus = max_ncpus;
 #endif
 
 	/*
@@ -571,7 +575,7 @@ spl_start(kmod_info_t *ki, void *d)
 	spl_kmem_thread_init();
 	spl_kmem_mp_init();
 
-	spl_cpuid_features();
+	spl_processor_init();
 
 	return (KERN_SUCCESS);
 }

@@ -29,6 +29,8 @@
 #ifndef _MACOS_SIMD_H
 #define	_MACOS_SIMD_H
 
+#include <sys/processor.h>
+
 #if defined(__amd64__) || defined(__i386__)
 #include <sys/simd_x86.h>
 
@@ -43,5 +45,8 @@
 #define	kfpu_init()		(0)
 #define	kfpu_fini()		do {} while (0)
 #endif
+
+#define	simd_stat_init()	do {} while (0)
+#define	simd_stat_fini()	do {} while (0)
 
 #endif

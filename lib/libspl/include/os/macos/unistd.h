@@ -91,4 +91,43 @@ setproctitle(const char *fmt, ...)
 	(void) fmt;
 }
 
+#include <copyfile.h>
+#include <sys/kernel_types.h>
+inline static ssize_t
+copy_file_range(int sfd, loff_t *soff, int dfd, loff_t *doff,
+    size_t len, unsigned int flags)
+{
+	(void) len;
+	(void) flags;
+	/*
+	 * int fcopyfile(int from, int to, copyfile_state_t state,
+	 *   copyfile_flags_t flags);
+	 *
+	 * Does not handle `len`, nor does not update `soff/doff`,
+	 * ignores `flags`.
+	 */
+	if (soff && *soff != 0)
+		if (lseek(sfd, *soff, SEEK_SET) == -1)
+			return (-1);
+	if (doff && *doff != 0)
+		if (lseek(dfd, *doff, SEEK_SET) == -1)
+			return (-1);
+
+	copyfile_state_t state = copyfile_state_alloc();
+	copyfile_flags_t fl = COPYFILE_ALL;
+
+	int result = fcopyfile(sfd, dfd, state, fl);
+
+	off_t bytes_copied = 0;
+	copyfile_state_get(state, COPYFILE_STATE_COPIED, &bytes_copied);
+
+	copyfile_state_free(state);
+
+	if (result == -1)
+		return (-1);
+
+	/* Return number of bytes copied */
+	return (bytes_copied);
+}
+
 #endif

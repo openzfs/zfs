@@ -23,6 +23,8 @@
 #ifndef LIBSPL_SYS_KERNEL_TYPES_H
 #define	LIBSPL_SYS_KERNEL_TYPES_H
 
+#define	_STRUCT_TIMEVAL32
+
 /*
  * Unfortunately, XNU defines uio_t, proc_t and vnode_t differently to
  * ZFS, so we need to hack around it.

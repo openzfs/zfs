@@ -105,6 +105,7 @@ extern "C" {
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_rlock.h>
 #include <sys/dataset_kstats.h>
+#include <sys/zvol.h>
 #include <sys/zvol_impl.h>
 #include <sys/nvpair.h>
 

@@ -40,4 +40,10 @@
 #undef copyinstr
 #define	copyinstr(U, K, L, D) ddi_copyinstr((U), (K), (L), (D))
 
+#if defined(MAC_OS_X_VERSION_10_11) && \
+	(MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_11)
+#else
+#define	IOSleepWithLeeway(S, D) IOSleep((S))
+#endif
+
 #endif

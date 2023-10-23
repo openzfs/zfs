@@ -41,7 +41,7 @@ extern proc_t p0; /* process 0 */
 static inline boolean_t
 zfs_proc_is_caller(proc_t *p)
 {
-	return (p == curproc);
+	return (p == (struct proc *)current_proc());
 }
 
 #endif /* SPL_PROC_H */

@@ -21,6 +21,15 @@
 
 #if defined(__x86_64)
 
+#if defined(__APPLE__) && (__clang_major__ == 16) && (__clang_minor__ == 0)
+// There is a bug in Xcode 16.0
+// let sadd #if version == here?
+#define cfi_restore set ignore,
+#define cfi_def_cfa_register set ignore,
+#define cfi_def_cfa set ignore,nothing #
+#define cfi_escape set ignore,nothing #
+#endif
+
 #define _ASM
 #include <sys/asm_linkage.h>
 

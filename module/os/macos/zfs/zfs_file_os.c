@@ -360,7 +360,7 @@ zfs_file_fsync(zfs_file_t *filp, int flags)
  * OPTIONAL
  */
 int
-zfs_file_fallocate(zfs_file_t *fp, int mode, loff_t offset, loff_t len)
+zfs_file_deallocate(zfs_file_t *fp, loff_t offset, loff_t len)
 {
 	int rc;
 	struct flock flck = { 0 };

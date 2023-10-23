@@ -48,6 +48,11 @@
 extern "C" {
 #endif
 
+/*
+ * uio_extflg: extended flags
+ */
+#define	UIO_DIRECT	0x0001	/* Direct I/O request */
+
 typedef struct iovec iovec_t;
 
 typedef enum uio_seg zfs_uio_seg_t;
@@ -66,6 +71,15 @@ typedef size_t (*zfs_uio_func)(char *addr, uint64_t offset, size_t len,
     zfs_uio_rw_t rw, const void *privptr);
 
 /*
+ * This structure is used when doing Direct I/O.
+ */
+typedef void vm_page_t;
+typedef struct {
+	vm_page_t	*pages;
+	int		npages;
+} zfs_uio_dio_t;
+
+/*
  * Hybrid uio, use OS uio for IO and communicating with XNU
  * and internal uio for ZFS / crypto. The default mode is
  * ZFS style, as zio_crypt.c creates uios on the stack, and
@@ -81,6 +95,7 @@ typedef struct zfs_uio {
 	const struct iovec	*uio_iov;
 	int			uio_iovcnt;
 	off_t			uio_loffset;
+	off_t			uio_soffset;
 	zfs_uio_seg_t		uio_segflg;
 	boolean_t		uio_fault_disable;
 	uint16_t		uio_fmode;
@@ -88,6 +103,7 @@ typedef struct zfs_uio {
 	ssize_t			uio_resid;
 	size_t			uio_skip;
 	zfs_uio_func		uio_iofunc;
+	zfs_uio_dio_t	uio_dio;
 } zfs_uio_t;
 
 
@@ -142,6 +158,12 @@ zfs_uio_offset(zfs_uio_t *uio)
 	return (uio->uio_loffset);
 }
 
+static inline off_t
+zfs_uio_soffset(zfs_uio_t *uio)
+{
+	return (uio->uio_soffset);
+}
+
 static inline size_t
 zfs_uio_resid(zfs_uio_t *uio)
 {
@@ -158,6 +180,12 @@ zfs_uio_setoffset(zfs_uio_t *uio, off_t off)
 		return;
 	}
 	uio->uio_loffset = off;
+}
+
+static inline void
+zfs_uio_setsoffset(zfs_uio_t *uio, offset_t off)
+{
+	uio->uio_soffset = off;
 }
 
 static inline void
@@ -204,6 +232,7 @@ zfs_uio_iovec_init(zfs_uio_t *uio, const struct iovec *iov,
 	uio->uio_iov = iov;
 	uio->uio_iovcnt = nr_segs;
 	uio->uio_loffset = offset;
+	uio->uio_soffset = offset;
 	uio->uio_segflg = seg;
 	uio->uio_fmode = 0;
 	uio->uio_extflg = 0;

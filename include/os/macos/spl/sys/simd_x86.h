@@ -85,31 +85,9 @@
 #if defined(_KERNEL)
 #include <i386/cpuid.h>
 #include <i386/proc_reg.h>
-
-#ifdef __APPLE__
-// XNU fpu.h
-static inline uint64_t
-xgetbv(uint32_t c)
-{
-	uint32_t mask_hi, mask_lo;
-	__asm__ __volatile__("xgetbv" : "=a"(mask_lo), "=d"(mask_hi) : "c" (c));
-	return (((uint64_t)mask_hi<<32) + (uint64_t)mask_lo);
-}
-
-#endif
-
-extern uint64_t spl_cpuid_features(void);
-extern uint64_t spl_cpuid_leaf7_features(void);
-
-#endif
-
-/*
- * CPUID feature tests for user-space. Linux kernel provides an interface for
- * CPU feature testing.
- */
-#if !defined(_KERNEL)
-
+#else
 #include <assert.h>
+#endif // KERNEL
 
 /*
  * x86 registers used implicitly by CPUID
@@ -147,7 +125,9 @@ typedef enum cpuid_inst_sets {
 	AVX512ER,
 	AVX512VL,
 	AES,
-	PCLMULQDQ
+	PCLMULQDQ,
+	MOVBE,
+	SHANI,
 } cpuid_inst_sets_t;
 
 /*
@@ -171,6 +151,8 @@ typedef struct cpuid_feature_desc {
 #define	_AVX512VL_BIT		(1U << 31) /* if used also check other levels */
 #define	_AES_BIT		(1U << 25)
 #define	_PCLMULQDQ_BIT		(1U << 1)
+#define	_MOVBE_BIT		(1U << 22)
+#define	_SHANI_BIT		(1U << 29)
 
 /*
  * Descriptions of supported instruction sets
@@ -198,6 +180,8 @@ static const cpuid_feature_desc_t spl_cpuid_features[] = {
 	[AVX512VL]	= {7U, 0U, _AVX512ER_BIT,	EBX	},
 	[AES]		= {1U, 0U, _AES_BIT,		ECX	},
 	[PCLMULQDQ]	= {1U, 0U, _PCLMULQDQ_BIT,	ECX	},
+	[MOVBE]	= {1U, 0U, _MOVBE_BIT,	ECX	},
+	[SHANI]	= {1U, 0U, _SHANI_BIT,	EBX	},
 };
 
 /*
@@ -238,11 +222,11 @@ __cpuid_check_feature(const cpuid_feature_desc_t *desc)
 	return (B_FALSE);
 }
 
-#define	CPUID_FEATURE_CHECK(name, id)				\
-static inline boolean_t						\
-__cpuid_has_ ## name(void)					\
-{								\
-	return (__cpuid_check_feature(&spl_cpuid_features[id]));	\
+#define	CPUID_FEATURE_CHECK(name, id) \
+static inline boolean_t \
+__cpuid_has_ ## name(void) \
+{ \
+	return (__cpuid_check_feature(&spl_cpuid_features[id])); \
 }
 
 /*
@@ -270,8 +254,8 @@ CPUID_FEATURE_CHECK(avx512er, AVX512ER);
 CPUID_FEATURE_CHECK(avx512vl, AVX512VL);
 CPUID_FEATURE_CHECK(aes, AES);
 CPUID_FEATURE_CHECK(pclmulqdq, PCLMULQDQ);
-
-#endif /* !defined(_KERNEL) */
+CPUID_FEATURE_CHECK(shani, SHANI);
+CPUID_FEATURE_CHECK(movbe, MOVBE);
 
 
 /*
@@ -283,11 +267,8 @@ __simd_state_enabled(const uint64_t state)
 	boolean_t has_osxsave;
 	uint64_t xcr0;
 
-#if defined(_KERNEL)
-	has_osxsave = !!(spl_cpuid_features() & CPUID_FEATURE_OSXSAVE);
-#elif !defined(_KERNEL)
 	has_osxsave = __cpuid_has_osxsave();
-#endif
+
 	if (!has_osxsave)
 		return (B_FALSE);
 
@@ -301,18 +282,13 @@ __simd_state_enabled(const uint64_t state)
 #define	__ymm_enabled() __simd_state_enabled(_XSTATE_SSE_AVX)
 #define	__zmm_enabled() __simd_state_enabled(_XSTATE_AVX512)
 
-
 /*
  * Check if SSE instruction set is available
  */
 static inline boolean_t
 zfs_sse_available(void)
 {
-#if defined(_KERNEL)
-	return (!!(spl_cpuid_features() & CPUID_FEATURE_SSE));
-#elif !defined(_KERNEL)
 	return (__cpuid_has_sse());
-#endif
 }
 
 /*
@@ -321,11 +297,7 @@ zfs_sse_available(void)
 static inline boolean_t
 zfs_sse2_available(void)
 {
-#if defined(_KERNEL)
-	return (!!(spl_cpuid_features() & CPUID_FEATURE_SSE2));
-#elif !defined(_KERNEL)
 	return (__cpuid_has_sse2());
-#endif
 }
 
 /*
@@ -334,11 +306,7 @@ zfs_sse2_available(void)
 static inline boolean_t
 zfs_sse3_available(void)
 {
-#if defined(_KERNEL)
-	return (!!(spl_cpuid_features() & CPUID_FEATURE_SSE3));
-#elif !defined(_KERNEL)
 	return (__cpuid_has_sse3());
-#endif
 }
 
 /*
@@ -347,11 +315,7 @@ zfs_sse3_available(void)
 static inline boolean_t
 zfs_ssse3_available(void)
 {
-#if defined(_KERNEL)
-	return (!!(spl_cpuid_features() & CPUID_FEATURE_SSSE3));
-#elif !defined(_KERNEL)
 	return (__cpuid_has_ssse3());
-#endif
 }
 
 /*
@@ -360,11 +324,7 @@ zfs_ssse3_available(void)
 static inline boolean_t
 zfs_sse4_1_available(void)
 {
-#if defined(_KERNEL)
-	return (!!(spl_cpuid_features() & CPUID_FEATURE_SSE4_1));
-#elif !defined(_KERNEL)
 	return (__cpuid_has_sse4_1());
-#endif
 }
 
 /*
@@ -373,11 +333,16 @@ zfs_sse4_1_available(void)
 static inline boolean_t
 zfs_sse4_2_available(void)
 {
-#if defined(_KERNEL)
-	return (!!(spl_cpuid_features() & CPUID_FEATURE_SSE4_2));
-#elif !defined(_KERNEL)
 	return (__cpuid_has_sse4_2());
-#endif
+}
+
+/*
+ * Check if SSE4.2 instruction set is available
+ */
+static inline boolean_t
+zfs_osxsave_available(void)
+{
+	return (__cpuid_has_osxsave());
 }
 
 /*
@@ -387,12 +352,7 @@ static inline boolean_t
 zfs_avx_available(void)
 {
 	boolean_t has_avx;
-	return (FALSE); // Currently broken on macOS
-#if defined(_KERNEL)
-	return (!!(spl_cpuid_features() & CPUID_FEATURE_AVX1_0));
-#elif !defined(_KERNEL)
 	has_avx = __cpuid_has_avx();
-#endif
 
 	return (has_avx && __ymm_enabled());
 }
@@ -404,17 +364,7 @@ static inline boolean_t
 zfs_avx2_available(void)
 {
 	boolean_t has_avx2;
-	return (FALSE); // Currently broken on macOS
-#if defined(_KERNEL)
-#if defined(HAVE_AVX2)
-	has_avx2 = (!!(spl_cpuid_leaf7_features() & CPUID_LEAF7_FEATURE_AVX2));
-#else
-	has_avx2 = B_FALSE;
-#endif
-#elif !defined(_KERNEL)
 	has_avx2 = __cpuid_has_avx2();
-#endif
-
 	return (has_avx2 && __ymm_enabled());
 }
 
@@ -424,15 +374,7 @@ zfs_avx2_available(void)
 static inline boolean_t
 zfs_bmi1_available(void)
 {
-#if defined(_KERNEL)
-#if defined(CPUID_LEAF7_FEATURE_BMI1)
-	return (!!(spl_cpuid_leaf7_features() & CPUID_LEAF7_FEATURE_BMI1));
-#else
-	return (B_FALSE);
-#endif
-#elif !defined(_KERNEL)
 	return (__cpuid_has_bmi1());
-#endif
 }
 
 /*
@@ -441,15 +383,7 @@ zfs_bmi1_available(void)
 static inline boolean_t
 zfs_bmi2_available(void)
 {
-#if defined(_KERNEL)
-#if defined(CPUID_LEAF7_FEATURE_BMI2)
-	return (!!(spl_cpuid_leaf7_features() & CPUID_LEAF7_FEATURE_BMI2));
-#else
-	return (B_FALSE);
-#endif
-#elif !defined(_KERNEL)
 	return (__cpuid_has_bmi2());
-#endif
 }
 
 /*
@@ -458,15 +392,7 @@ zfs_bmi2_available(void)
 static inline boolean_t
 zfs_aes_available(void)
 {
-#if defined(_KERNEL)
-#if defined(HAVE_AES)
-	return (!!(spl_cpuid_features() & CPUID_FEATURE_AES));
-#else
-	return (B_FALSE);
-#endif
-#elif !defined(_KERNEL)
 	return (__cpuid_has_aes());
-#endif
 }
 
 /*
@@ -475,15 +401,7 @@ zfs_aes_available(void)
 static inline boolean_t
 zfs_pclmulqdq_available(void)
 {
-#if defined(_KERNEL)
-#if defined(HAVE_PCLMULQDQ)
-	return (!!(spl_cpuid_features() & CPUID_FEATURE_PCLMULQDQ));
-#else
-	return (B_FALSE);
-#endif
-#elif !defined(_KERNEL)
 	return (__cpuid_has_pclmulqdq());
-#endif
 }
 
 /*
@@ -492,11 +410,7 @@ zfs_pclmulqdq_available(void)
 static inline boolean_t
 zfs_movbe_available(void)
 {
-#if defined(X86_FEATURE_MOVBE)
-	return (!!(spl_cpuid_features() & CPUID_FEATURE_MOVBE));
-#else
-	return (B_FALSE);
-#endif
+	return (__cpuid_has_movbe());
 }
 
 /*
@@ -505,11 +419,7 @@ zfs_movbe_available(void)
 static inline boolean_t
 zfs_shani_available(void)
 {
-#if defined(X86_FEATURE_SHA_NI)
-	return (!!(spl_cpuid_features() & X86_FEATURE_SHA_NI));
-#else
-	return (B_FALSE);
-#endif
+	return (__cpuid_has_shani());
 }
 
 /*
@@ -534,18 +444,7 @@ static inline boolean_t
 zfs_avx512f_available(void)
 {
 	boolean_t has_avx512 = B_FALSE;
-
-	return (FALSE); // Currently broken on macOS
-#if defined(_KERNEL)
-#if defined(HAVE_AVX512F) && defined(CPUID_LEAF7_FEATURE_AVX512F)
-	return (!!(spl_cpuid_leaf7_features() & CPUID_LEAF7_FEATURE_AVX512F));
-#else
-	has_avx512 = B_FALSE;
-#endif
-#elif !defined(_KERNEL)
 	has_avx512 = __cpuid_has_avx512f();
-#endif
-
 	return (has_avx512 && __zmm_enabled());
 }
 
@@ -555,21 +454,7 @@ zfs_avx512cd_available(void)
 {
 	boolean_t has_avx512 = B_FALSE;
 
-	return (FALSE); // Currently broken on macOS
-#if defined(_KERNEL)
-#if defined(HAVE_AVX512F) && defined(HAVE_AVX512CD) && \
-	defined(CPUID_LEAF7_FEATURE_AVX512F) && \
-	defined(CPUID_LEAF7_FEATURE_AVX512CD)
-	has_avx512 = (spl_cpuid_leaf7_features() &
-	    (CPUID_LEAF7_FEATURE_AVX512F | CPUID_LEAF7_FEATURE_AVX512CD)) ==
-	    (CPUID_LEAF7_FEATURE_AVX512F | CPUID_LEAF7_FEATURE_AVX512CD);
-#else
-	has_avx512 = B_FALSE;
-#endif
-#elif !defined(_KERNEL)
 	has_avx512 = __cpuid_has_avx512cd();
-#endif
-
 	return (has_avx512 && __zmm_enabled());
 }
 
@@ -579,20 +464,7 @@ zfs_avx512er_available(void)
 {
 	boolean_t has_avx512 = B_FALSE;
 
-	return (FALSE); // Currently broken on macOS
-#if defined(_KERNEL)
-#if defined(HAVE_AVX512F) && defined(HAVE_AVX512ER) && \
-	defined(CPUID_LEAF7_FEATURE_AVX512ER)
-	has_avx512 = (spl_cpuid_leaf7_features() &
-	    (CPUID_LEAF7_FEATURE_AVX512F | CPUID_LEAF7_FEATURE_AVX512ER)) ==
-	    (CPUID_LEAF7_FEATURE_AVX512F | CPUID_LEAF7_FEATURE_AVX512ER);
-#else
-	has_avx512 = B_FALSE;
-#endif
-#elif !defined(_KERNEL)
 	has_avx512 = __cpuid_has_avx512er();
-#endif
-
 	return (has_avx512 && __zmm_enabled());
 }
 
@@ -602,20 +474,7 @@ zfs_avx512pf_available(void)
 {
 	boolean_t has_avx512 = B_FALSE;
 
-	return (FALSE); // Currently broken on macOS
-#if defined(_KERNEL)
-#if defined(HAVE_AVX512PF) && defined(HAVE_AVX512F) && \
-	defined(CPUID_LEAF7_FEATURE_AVX512PF)
-	has_avx512 = (spl_cpuid_leaf7_features() &
-	    (CPUID_LEAF7_FEATURE_AVX512F | CPUID_LEAF7_FEATURE_AVX512PF)) ==
-	    (CPUID_LEAF7_FEATURE_AVX512F | CPUID_LEAF7_FEATURE_AVX512PF);
-#else
-	has_avx512 = B_FALSE;
-#endif
-#elif !defined(_KERNEL)
 	has_avx512 = __cpuid_has_avx512pf();
-#endif
-
 	return (has_avx512 && __zmm_enabled());
 }
 
@@ -625,21 +484,7 @@ zfs_avx512bw_available(void)
 {
 	boolean_t has_avx512 = B_FALSE;
 
-	return (FALSE); // Currently broken on macOS
-#if defined(_KERNEL)
-#if defined(HAVE_AVX512BW) && defined(HAVE_AVX512F) && \
-	defined(CPUID_LEAF7_FEATURE_AVX512F) && \
-	defined(CPUID_LEAF7_FEATURE_AVX512BW)
-	has_avx512 = (spl_cpuid_leaf7_features() &
-	    (CPUID_LEAF7_FEATURE_AVX512F | CPUID_LEAF7_FEATURE_AVX512BW)) ==
-	    (CPUID_LEAF7_FEATURE_AVX512F | CPUID_LEAF7_FEATURE_AVX512BW);
-#else
-	has_avx512 = B_FALSE;
-#endif
-#elif !defined(_KERNEL)
 	has_avx512 = __cpuid_has_avx512bw();
-#endif
-
 	return (has_avx512 && __zmm_enabled());
 }
 
@@ -649,21 +494,7 @@ zfs_avx512dq_available(void)
 {
 	boolean_t has_avx512 = B_FALSE;
 
-	return (FALSE); // Currently broken on macOS
-#if defined(_KERNEL)
-#if defined(HAVE_AVX512DQ) && defined(HAVE_AVX512F) && \
-	defined(CPUID_LEAF7_FEATURE_AVX512F) && \
-	defined(CPUID_LEAF7_FEATURE_AVX512DQ)
-	has_avx512 = (spl_cpuid_leaf7_features() &
-	    (CPUID_LEAF7_FEATURE_AVX512F|CPUID_LEAF7_FEATURE_AVX512DQ)) ==
-	    (CPUID_LEAF7_FEATURE_AVX512F|CPUID_LEAF7_FEATURE_AVX512DQ);
-#else
-	has_avx512 = B_FALSE;
-#endif
-#elif !defined(_KERNEL)
 	has_avx512 = __cpuid_has_avx512dq();
-#endif
-
 	return (has_avx512 && __zmm_enabled());
 }
 
@@ -673,21 +504,7 @@ zfs_avx512vl_available(void)
 {
 	boolean_t has_avx512 = B_FALSE;
 
-	return (FALSE); // Currently broken on macOS
-#if defined(_KERNEL)
-#if defined(HAVE_AVX512VL) && defined(HAVE_AVX512F) && \
-	defined(CPUID_LEAF7_FEATURE_AVX512F) && \
-	defined(CPUID_LEAF7_FEATURE_AVX512VL)
-	has_avx512 = (spl_cpuid_leaf7_features() &
-	    (CPUID_LEAF7_FEATURE_AVX512F|CPUID_LEAF7_FEATURE_AVX512VL)) ==
-	    (CPUID_LEAF7_FEATURE_AVX512F|CPUID_LEAF7_FEATURE_AVX512VL);
-#else
-	has_avx512 = B_FALSE;
-#endif
-#elif !defined(_KERNEL)
 	has_avx512 = __cpuid_has_avx512vl();
-#endif
-
 	return (has_avx512 && __zmm_enabled());
 }
 
@@ -697,21 +514,7 @@ zfs_avx512ifma_available(void)
 {
 	boolean_t has_avx512 = B_FALSE;
 
-	return (FALSE); // Currently broken on macOS
-#if defined(_KERNEL)
-#if defined(HAVE_AVX512IFMA) && defined(HAVE_AVX512F) && \
-	defined(CPUID_LEAF7_FEATURE_AVX512F) && \
-	defined(CPUID_LEAF7_FEATURE_AVX512IFMA)
-	has_avx512 = (spl_cpuid_leaf7_features() &
-	    (CPUID_LEAF7_FEATURE_AVX512F|CPUID_LEAF7_FEATURE_AVX512IFMA)) ==
-	    (CPUID_LEAF7_FEATURE_AVX512F|CPUID_LEAF7_FEATURE_AVX512IFMA);
-#else
-	has_avx512 = B_FALSE;
-#endif
-#elif !defined(_KERNEL)
 	has_avx512 = __cpuid_has_avx512ifma();
-#endif
-
 	return (has_avx512 && __zmm_enabled());
 }
 
@@ -721,22 +524,8 @@ zfs_avx512vbmi_available(void)
 {
 	boolean_t has_avx512 = B_FALSE;
 
-	return (FALSE); // Currently broken on macOS
-#if defined(_KERNEL)
-#if defined(HAVE_AVX512VBMI) && defined(HAVE_AVX512F) && \
-	defined(CPUID_LEAF7_FEATURE_AVX512F) && \
-	defined(CPUID_LEAF7_FEATURE_AVX512VBMI)
-	has_avx512 = (spl_cpuid_leaf7_features() &
-	    (CPUID_LEAF7_FEATURE_AVX512F|CPUID_LEAF7_FEATURE_AVX512VBMI)) ==
-	    (CPUID_LEAF7_FEATURE_AVX512F|CPUID_LEAF7_FEATURE_AVX512VBMI);
-#else
-	has_avx512 = B_FALSE;
-#endif
-#elif !defined(_KERNEL)
 	has_avx512 = __cpuid_has_avx512f() &&
 	    __cpuid_has_avx512vbmi();
-#endif
-
 	return (has_avx512 && __zmm_enabled());
 }
 

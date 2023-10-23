@@ -1727,8 +1727,6 @@ out:
 	return (error);
 }
 
-static ulong_t zfs_fsync_sync_cnt = 4;
-
 /* Explore if we can use zfs/zfs_vnops.c's zfs_fsync() */
 int
 zfs_fsync(znode_t *zp, int syncflag, cred_t *cr)
@@ -1742,16 +1740,15 @@ zfs_fsync(znode_t *zp, int syncflag, cred_t *cr)
 		cluster_push(vp, /* waitdata ? IO_SYNC : */ 0);
 	}
 
-	(void) tsd_set(zfs_fsyncer_key, (void *)zfs_fsync_sync_cnt);
-
 	if (zfsvfs->z_os->os_sync != ZFS_SYNC_DISABLED &&
 	    !vnode_isrecycled(ZTOV(zp))) {
 		if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 			return (error);
+		atomic_inc_32(&zp->z_sync_writes_cnt);
 		zil_commit(zfsvfs->z_log, zp->z_id);
+		atomic_dec_32(&zp->z_sync_writes_cnt);
 		zfs_exit(zfsvfs, FTAG);
 	}
-	tsd_set(zfs_fsyncer_key, NULL);
 
 	return (0);
 }

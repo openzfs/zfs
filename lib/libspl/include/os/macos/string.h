@@ -37,4 +37,6 @@ spl_strlcpy(char *__dst, const char *__source, size_t __size)
 #undef strlcpy
 #define	strlcpy spl_strlcpy
 
+#define	strerror_l(X, Y) strerror(X)
+
 #endif /* _LIBSPL_OSX_STRING_H */

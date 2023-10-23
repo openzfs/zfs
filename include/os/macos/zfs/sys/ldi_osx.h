@@ -41,6 +41,7 @@
 #define	_SYS_LDI_OSX_H
 
 #include <sys/ldi_buf.h>
+#include <sys/dkio.h>
 
 /*
  * OS X - The initialization/destructor functions are available

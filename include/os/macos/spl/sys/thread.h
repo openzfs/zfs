@@ -31,12 +31,12 @@
 
 #include <sys/types.h>
 #include <sys/sysmacros.h>
-#include <sys/tsd.h>
 #include <sys/condvar.h>
 #include <kern/sched_prim.h>
 #include <mach/thread_policy.h>
 #include <TargetConditionals.h>
 #include <AvailabilityMacros.h>
+#include <mach/mach_types.h> // thread_t
 
 #ifdef	__cplusplus
 extern "C" {
@@ -50,6 +50,8 @@ extern "C" {
  */
 #define	kthread thread
 #define	kthread_t struct kthread
+
+#include <sys/tsd.h>
 
 /*
  * Thread interfaces
@@ -74,6 +76,33 @@ typedef void (*thread_func_t)(void *);
 #define	thread_join(t)	VERIFY(0)
 
 // Drop the p0 argument, not used.
+
+#if defined(MAC_OS_X_VERSION_10_9) && \
+	(MAC_OS_X_VERSION_MIN_REQUIRED <= MAC_OS_X_VERSION_10_9)
+/* Missing in 10.9 - none of this will be run, but handles us compile */
+#define	THREAD_LATENCY_QOS_POLICY 7
+#define	THREAD_LATENCY_QOS_POLICY_COUNT ((mach_msg_type_number_t) \
+	(sizeof (thread_latency_qos_policy_data_t) / sizeof (integer_t)))
+#define	THREAD_THROUGHPUT_QOS_POLICY 8
+#define	THREAD_THROUGHPUT_QOS_POLICY_COUNT ((mach_msg_type_number_t) \
+	(sizeof (thread_throughput_qos_policy_data_t) / sizeof (integer_t)))
+typedef integer_t thread_latency_qos_t;
+typedef integer_t thread_throughput_qos_t;
+struct thread_throughput_qos_policy {
+	thread_throughput_qos_t thread_throughput_qos_tier;
+};
+struct thread_latency_qos_policy {
+	thread_latency_qos_t thread_latency_qos_tier;
+};
+typedef struct thread_throughput_qos_policy
+thread_throughput_qos_policy_data_t;
+typedef struct thread_latency_qos_policy
+thread_latency_qos_policy_data_t;
+typedef struct thread_throughput_qos_policy
+*thread_throughput_qos_policy_t;
+typedef struct thread_latency_qos_policy
+*thread_latency_qos_policy_t;
+#endif
 
 #ifdef SPL_DEBUG_THREAD
 
@@ -130,29 +159,6 @@ extern kthread_t *spl_thread_create_named_with_extpol_and_qos(
 
 #endif
 
-#if defined(MAC_OS_X_VERSION_10_9) && \
-	(MAC_OS_X_VERSION_MIN_REQUIRED <= MAC_OS_X_VERSION_10_9)
-/* Missing in 10.9 - none of this will be run, but handles us compile */
-#define	THREAD_LATENCY_QOS_POLICY 7
-#define	THREAD_LATENCY_QOS_POLICY_COUNT ((mach_msg_type_number_t) \
-	(sizeof (thread_latency_qos_policy_data_t) / sizeof (integer_t)))
-#define	THREAD_THROUGHPUT_QOS_POLICY 8
-#define	THREAD_THROUGHPUT_QOS_POLICY_COUNT ((mach_msg_type_number_t) \
-	(sizeof (thread_throughput_qos_policy_data_t) / sizeof (integer_t)))
-typedef integer_t thread_latency_qos_t;
-typedef integer_t thread_throughput_qos_t;
-struct thread_throughput_qos_policy {
-	thread_throughput_qos_t thread_throughput_qos_tier;
-};
-struct thread_latency_qos_policy {
-	thread_latency_qos_t thread_latency_qos_tier;
-};
-typedef struct thread_throughput_qos_policy
-thread_throughput_qos_policy_data_t;
-typedef struct thread_latency_qos_policy
-thread_latency_qos_policy_data_t;
-#endif
-
 #define	thread_exit spl_thread_exit
 extern void spl_thread_exit(void) __attribute__((noreturn));
 
@@ -170,7 +176,7 @@ extern void spl_set_thread_latency(thread_t,
     thread_latency_qos_policy_data_t *, const char *);
 
 #define	delay osx_delay
-extern void osx_delay(int);
+extern void osx_delay(clock_t);
 
 #define	KPREEMPT_SYNC 0
 static inline void kpreempt(int flags)

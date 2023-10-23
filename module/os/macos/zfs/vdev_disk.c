@@ -159,8 +159,8 @@ vdev_disk_off_finalize(ldi_handle_t lh, ldi_ev_cookie_t ecookie,
 	 * unsuccessful.
 	 */
 	if (ldi_result != LDI_EV_SUCCESS) {
-		vd->vdev_probe_wanted = B_TRUE;
-		spa_async_request(vd->vdev_spa, SPA_ASYNC_PROBE);
+		vd->vdev_fault_wanted = B_TRUE;
+		spa_async_request(vd->vdev_spa, SPA_ASYNC_FAULT_VDEV);
 	}
 }
 
@@ -486,6 +486,30 @@ vdev_disk_io_intr(ldi_buf_t *bp)
 		    zio->io_size);
 	}
 
+	/*
+	 * thread_block / yield if this is an automated / low-priority read or
+	 * write, in order to avoid CPU starvation of user-initiated threads.
+	 *
+	 * kpreempt(KPREEMPT_SYNC) is cheap and fast on a mac with idle cores,
+	 *
+	 * However, on a busy system it effectively asks xnu to impose a
+	 * system-load-dependent delay on the forthcoming insertion of this
+	 * I/O into a z_{rd,wr}_int taskq (which even on a busy many-cored
+	 * system might send the zio without delay to checksuming and other
+	 * expensive pipeline operations).
+	 *
+	 * During a scrub this also tends to increase the difference in queue
+	 * depth and latency (zpool iostat -{q,w}) between scrubq_read and
+	 * [a]syncq I/Os to the same pool.
+	 */
+	if (zio->io_priority == ZIO_PRIORITY_SCRUB ||
+	    zio->io_priority == ZIO_PRIORITY_REMOVAL ||
+	    zio->io_priority == ZIO_PRIORITY_INITIALIZING ||
+	    zio->io_priority == ZIO_PRIORITY_TRIM ||
+	    zio->io_priority == ZIO_PRIORITY_REBUILD) {
+		kpreempt(KPREEMPT_SYNC);
+	}
+
 	zio_delay_interrupt(zio);
 }
 
@@ -543,7 +567,11 @@ vdev_disk_io_strategy(void *arg)
 	case ZIO_TYPE_READ:
 		if (zio->io_priority == ZIO_PRIORITY_SYNC_READ) {
 			flags = B_READ;
-		} else if (zio->io_priority == ZIO_PRIORITY_SCRUB) {
+		} else if (zio->io_priority == ZIO_PRIORITY_SCRUB ||
+		    zio->io_priority == ZIO_PRIORITY_REMOVAL ||
+		    zio->io_priority == ZIO_PRIORITY_INITIALIZING ||
+		    zio->io_priority == ZIO_PRIORITY_TRIM ||
+		    zio->io_priority == ZIO_PRIORITY_REBUILD) {
 			/*
 			 *  Signal using  B_THROTTLED_IO.
 			 *  This is safe because our path through
@@ -601,7 +629,7 @@ vdev_disk_io_start(zio_t *zio)
 	}
 
 	switch (zio->io_type) {
-	case ZIO_TYPE_IOCTL:
+	case ZIO_TYPE_FLUSH:
 
 		if (!vdev_readable(vd)) {
 			zio->io_error = SET_ERROR(ENXIO);
@@ -609,44 +637,34 @@ vdev_disk_io_start(zio_t *zio)
 			return;
 		}
 
-		switch (zio->io_cmd) {
-		case DKIOCFLUSHWRITECACHE:
-
-			if (zfs_nocacheflush)
-				break;
-
-			if (vd->vdev_nowritecache) {
-				zio->io_error = SET_ERROR(ENOTSUP);
-				break;
-			}
-
-			zio->io_vsd = dkc = kmem_alloc(sizeof (*dkc), KM_SLEEP);
-			zio->io_vsd_ops = &vdev_disk_vsd_ops;
-
-			dkc->dkc_callback = vdev_disk_ioctl_done;
-			dkc->dkc_flag = FLUSH_VOLATILE;
-			dkc->dkc_cookie = zio;
-
-			error = ldi_ioctl(dvd->vd_lh, zio->io_cmd,
-			    (uintptr_t)dkc, FKIOCTL, kcred, NULL);
-
-			if (error == 0) {
-				/*
-				 * The ioctl will be done asychronously,
-				 * and will call vdev_disk_ioctl_done()
-				 * upon completion.
-				 */
-				return;
-			}
-
-			zio->io_error = error;
-
+		if (zfs_nocacheflush)
 			break;
 
-		default:
+		if (vd->vdev_nowritecache) {
 			zio->io_error = SET_ERROR(ENOTSUP);
-		} /* io_cmd */
+			break;
+		}
 
+		zio->io_vsd = dkc = kmem_alloc(sizeof (*dkc), KM_SLEEP);
+		zio->io_vsd_ops = &vdev_disk_vsd_ops;
+
+		dkc->dkc_callback = vdev_disk_ioctl_done;
+		dkc->dkc_flag = FLUSH_VOLATILE;
+		dkc->dkc_cookie = zio;
+
+		error = ldi_ioctl(dvd->vd_lh, DKIOCFLUSHWRITECACHE,
+		    (uintptr_t)dkc, FKIOCTL, kcred, NULL);
+
+		if (error == 0) {
+			/*
+			 * The ioctl will be done asychronously,
+			 * and will call vdev_disk_ioctl_done()
+			 * upon completion.
+			 */
+			return;
+		}
+
+		zio->io_error = error;
 		zio_execute(zio);
 		return;
 
@@ -692,9 +710,10 @@ vdev_disk_io_start(zio_t *zio)
 	}
 
 	/*
-	 * dispatch async or scrub reads on appropriate taskq,
-	 * dispatch async writes on appropriate taskq,
-	 * do everything else on this thread
+	 * Dispatch scrub and other low-priority reads on a
+	 * lower-thread-priority and lower-thread-number taskq,
+	 * with other async I/Os dispatched to an appropriate
+	 * taskq, and other I/Os into a default taskq for observability.
 	 */
 	if (zio->io_type == ZIO_TYPE_READ) {
 		if (zio->io_priority == ZIO_PRIORITY_ASYNC_READ) {
@@ -702,7 +721,15 @@ vdev_disk_io_start(zio_t *zio)
 			    vdev_disk_io_strategy,
 			    zio, TQ_SLEEP), !=, 0);
 			return;
-		} else if (zio->io_priority == ZIO_PRIORITY_SCRUB) {
+		} else if (zio->io_priority == ZIO_PRIORITY_SCRUB ||
+		    zio->io_priority == ZIO_PRIORITY_REMOVAL ||
+		    zio->io_priority == ZIO_PRIORITY_INITIALIZING ||
+		    zio->io_priority == ZIO_PRIORITY_TRIM ||
+		    zio->io_priority == ZIO_PRIORITY_REBUILD) {
+			/*
+			 * dispatch automated / low-priority reads onto a
+			 * lowered-priority taskq
+			 */
 			VERIFY3U(taskq_dispatch(vdev_disk_taskq_scrub,
 			    vdev_disk_io_strategy,
 			    zio, TQ_SLEEP), !=, 0);
@@ -850,7 +877,7 @@ vdev_disk_init(void)
 	 * Apple Silicon we deflate further.
 	 */
 
-	const int cpus = MAX(1, max_ncpus - num_ecores - 2);
+	const int cpus = MAX(1, (int)(max_ncpus - num_ecores - 2));
 
 	/*
 	 * Keep vdev_disk_taskq_stack as in-order as we can, and use

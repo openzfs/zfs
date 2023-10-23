@@ -146,3 +146,39 @@ zfs_uio_prefaultpages(ssize_t n, zfs_uio_t *uio)
 {
 	return (0);
 }
+
+/*
+ * Check if the uio is page-aligned in memory.
+ */
+boolean_t
+zfs_uio_page_aligned(zfs_uio_t *uio)
+{
+	for (int i = zfs_uio_iovcnt(uio); i > 0; i--) {
+		uintptr_t addr = (uintptr_t)zfs_uio_iovbase(uio, i);
+		size_t size = zfs_uio_iovlen(uio, i);
+		if ((addr & (PAGE_SIZE - 1)) || (size & (PAGE_SIZE - 1))) {
+				return (B_FALSE);
+		}
+	}
+
+	return (B_TRUE);
+}
+
+void
+zfs_uio_free_dio_pages(zfs_uio_t *uio, zfs_uio_rw_t rw)
+{
+#if 0
+	ASSERT(uio->uio_extflg & UIO_DIRECT);
+	ASSERT3P(uio->uio_dio.pages, !=, NULL);
+	ASSERT(zfs_uio_rw(uio) == rw);
+
+	if (rw == UIO_WRITE)
+		zfs_uio_release_stable_pages(uio);
+
+	vm_page_unhold_pages(&uio->uio_dio.pages[0],
+	    uio->uio_dio.npages);
+
+	kmem_free(uio->uio_dio.pages,
+	    uio->uio_dio.npages * sizeof (vm_page_t));
+#endif
+}

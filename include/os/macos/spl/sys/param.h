@@ -38,6 +38,8 @@
 #define	ptob(pages)			(pages << PAGE_SHIFT)
 #define	btop(bytes)			(bytes >> PAGE_SHIFT)
 
+#define	PAGESHIFT			PAGE_SHIFT
+
 #define	MAXUID				UINT32_MAX
 
 #endif /* SPL_PARAM_H */

@@ -302,7 +302,7 @@ ATOMIC_AND(ushort, ushort_t)
 	type atomic_cas_##name(volatile type *target, type exp, type des) \
 	{                                                               \
 		__atomic_compare_exchange_n(target,			\
-		    &exp, des, B_FALSE,					\
+		    &exp, des, FALSE,					\
 		    __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);                \
 		return (exp);                                           \
 	}

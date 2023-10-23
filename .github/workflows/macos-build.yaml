@@ -28,10 +28,10 @@ jobs:
       - name: configure
         run: |
           #https://stackoverflow.com/a/62591864
-          ./configure CPPFLAGS="-I/usr/local/opt/gettext/include -I/usr/local/opt/openssl/include" LDFLAGS="-L/usr/local/opt/gettext/lib/ -L/usr/local/opt/openssl/lib"
+          ./configure CPPFLAGS="-I${HOMEBREW_PREFIX}/opt/gettext/include -I${HOMEBREW_PREFIX}/opt/openssl/include" LDFLAGS="-L${HOMEBREW_PREFIX}/opt/gettext/lib/ -L${HOMEBREW_PREFIX}/opt/openssl/lib"
       - name: build
         run: |
-          make -j 2
+          make -j $(($(sysctl -n hw.ncpu)+1))
       #- name: install
       #  run: |
       #    sudo make install DESTDIR=///

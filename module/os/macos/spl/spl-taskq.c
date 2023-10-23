@@ -1758,9 +1758,9 @@ taskq_resume(taskq_t *tq)
 }
 
 int
-taskq_member(taskq_t *tq, kthread_t *thread)
+taskq_member(taskq_t *tq, kthread_t *xthread)
 {
-	return (tq == (taskq_t *)tsd_get_by_thread(taskq_tsd, thread));
+	return (tq == (taskq_t *)tsd_get_by_thread(taskq_tsd, xthread));
 }
 
 taskq_t *
@@ -2401,7 +2401,9 @@ taskq_create_common(const char *name, int instance, int nthreads, pri_t pri,
 {
 	taskq_t *tq = kmem_cache_alloc(taskq_cache, KM_SLEEP);
 #ifdef __APPLE__
-	uint_t ncpus = max_ncpus - num_ecores;
+	uint_t ncpus = max_ncpus;
+	if (!(flags & TASKQ_CREATE_SYNCED))
+		ncpus = boot_ncpus; /* possibly deflated by num_ecores */
 #else
 	uint_t ncpus = ((boot_max_ncpus == -1) ? max_ncpus : boot_max_ncpus);
 #endif
@@ -2820,6 +2822,98 @@ taskq_bucket_extend(void *arg)
 	setrun_locked(tqe->tqent_thread);
 	thread_unlock(tqe->tqent_thread);
 #endif /* __APPLE__ */
+}
+
+typedef struct taskq_sync_arg {
+	kthread_t *tqa_thread;
+	kcondvar_t tqa_cv;
+	kmutex_t tqa_lock;
+	int tqa_ready;
+} taskq_sync_arg_t;
+
+static void
+taskq_sync_assign(void *arg)
+{
+	taskq_sync_arg_t *tqa = arg;
+
+	mutex_enter(&tqa->tqa_lock);
+	tqa->tqa_thread = curthread;
+	tqa->tqa_ready = 1;
+	cv_signal(&tqa->tqa_cv);
+	while (tqa->tqa_ready == 1)
+		cv_wait(&tqa->tqa_cv, &tqa->tqa_lock);
+	mutex_exit(&tqa->tqa_lock);
+}
+
+/*
+ * Create a taskq with a specified number of pool threads. Allocate
+ * and return an array of nthreads kthread_t pointers, one for each
+ * thread in the pool. The array is not ordered and must be freed
+ * by the caller.
+ */
+taskq_t *
+taskq_create_synced(const char *name, int nthreads, pri_t pri,
+    int minalloc, int maxalloc, uint_t flags, kthread_t ***ktpp)
+{
+	taskq_t *tq;
+	taskq_sync_arg_t *tqs = kmem_zalloc(sizeof (*tqs) * nthreads, KM_SLEEP);
+	kthread_t **kthreads = kmem_zalloc(sizeof (*kthreads) * nthreads,
+	    KM_SLEEP);
+
+	flags &= ~(TASKQ_DYNAMIC | TASKQ_THREADS_CPU_PCT | TASKQ_DC_BATCH);
+
+	tq = taskq_create(name, nthreads, minclsyspri, nthreads, INT_MAX,
+	    flags | TASKQ_PREPOPULATE | TASKQ_CREATE_SYNCED);
+
+	VERIFY(tq != NULL);
+
+	/* wait until our minalloc (nthreads) threads are created */
+	mutex_enter(&tq->tq_lock);
+	for (int i = 1; tq->tq_nthreads != nthreads; i++) {
+		printf("SPL: %s:%d: waiting for tq_nthreads (%d)"
+		    " to be nthreads (%d), (target = %d, pass %d)\n",
+		    __func__, __LINE__,
+		    tq->tq_nthreads, tq->tq_nthreads_target,  nthreads, i);
+		cv_wait(&tq->tq_wait_cv, &tq->tq_lock);
+	}
+	mutex_exit(&tq->tq_lock);
+
+	VERIFY3U(tq->tq_nthreads, ==, nthreads);
+
+	/* spawn all syncthreads */
+	for (int i = 0; i < nthreads; i++) {
+		cv_init(&tqs[i].tqa_cv, NULL, CV_DEFAULT, NULL);
+		mutex_init(&tqs[i].tqa_lock, NULL, MUTEX_DEFAULT, NULL);
+		(void) taskq_dispatch(tq, taskq_sync_assign,
+		    &tqs[i], TQ_FRONT);
+	}
+
+	/* wait on all syncthreads to start */
+	for (int i = 0; i < nthreads; i++) {
+		mutex_enter(&tqs[i].tqa_lock);
+		while (tqs[i].tqa_ready == 0)
+			cv_wait(&tqs[i].tqa_cv, &tqs[i].tqa_lock);
+		mutex_exit(&tqs[i].tqa_lock);
+	}
+
+	/* let all syncthreads resume, finish */
+	for (int i = 0; i < nthreads; i++) {
+		mutex_enter(&tqs[i].tqa_lock);
+		tqs[i].tqa_ready = 2;
+		cv_broadcast(&tqs[i].tqa_cv);
+		mutex_exit(&tqs[i].tqa_lock);
+	}
+	taskq_wait(tq);
+
+	for (int i = 0; i < nthreads; i++) {
+		kthreads[i] = tqs[i].tqa_thread;
+		mutex_destroy(&tqs[i].tqa_lock);
+		cv_destroy(&tqs[i].tqa_cv);
+	}
+	kmem_free(tqs, sizeof (*tqs) * nthreads);
+
+	*ktpp = kthreads;
+	return (tq);
 }
 
 static int

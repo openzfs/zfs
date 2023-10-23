@@ -231,6 +231,8 @@ vdev_file_io_start(zio_t *zio)
 {
 	vdev_t *vd = zio->io_vd;
 	vdev_file_t *vf = vd->vdev_tsd;
+	zfs_file_t *fp = vf->vf_file;
+	int error = 0;
 
 #ifdef CLOSE_ON_UNMOUNT
 	if (vf != NULL && vf->vf_file == NULL) {
@@ -254,33 +256,34 @@ vdev_file_io_start(zio_t *zio)
 	}
 #endif
 
-	if (zio->io_type == ZIO_TYPE_IOCTL) {
+	if (zio->io_type == ZIO_TYPE_FLUSH) {
 
 		if (!vdev_readable(vd)) {
-			zio->io_error = SET_ERROR(ENXIO);
-			zio_interrupt(zio);
-			return;
+			/* Drive not there, can't flush */
+			error = SET_ERROR(ENXIO);
+		} else if (zfs_nocacheflush) {
+			/* Flushing disabled by operator, declare success */
+			error = 0;
+		} else if (vd->vdev_nowritecache) {
+			/* This vdev not capable of flushing */
+			error = SET_ERROR(ENOTSUP);
+		} else {
+			/*
+			 * Issue the flush. If successful, the response will
+			 * be handled in the completion callback, so we're done.
+			 */
+			zio->io_error = zfs_file_fsync(fp, 0);
 		}
 
-		switch (zio->io_cmd) {
-			case DKIOCFLUSHWRITECACHE:
-				zio->io_error = zfs_file_fsync(vf->vf_file,
-				    O_SYNC|O_DSYNC);
-				break;
-			default:
-				zio->io_error = SET_ERROR(ENOTSUP);
-		}
-
+		zio->io_error = error;
 		zio_execute(zio);
 		return;
-	} else if (zio->io_type == ZIO_TYPE_TRIM) {
-		int mode = 0;
 
+	} else if (zio->io_type == ZIO_TYPE_TRIM) {
 		ASSERT3U(zio->io_size, !=, 0);
 
-		/* XXX FreeBSD has no fallocate routine in file ops */
-		zio->io_error = zfs_file_fallocate(vf->vf_file,
-		    mode, zio->io_offset, zio->io_size);
+		zio->io_error = zfs_file_deallocate(vf->vf_file,
+		    zio->io_offset, zio->io_size);
 		zio_execute(zio);
 		return;
 	}

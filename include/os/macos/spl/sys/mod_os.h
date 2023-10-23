@@ -40,6 +40,9 @@ extern "C" {
 #define	__init __attribute__((unused))
 #define	__exit __attribute__((unused))
 
+// Glancing at Linux kernel, module parameters limit:
+#define	LINUX_MAX_MODULE_PARAM_LEN 1024
+
 /*
  * The init/fini functions need to be called, but they are all static
  */
@@ -213,6 +216,12 @@ extern "C" {
 
 #define	param_set_max_auto_ashift_args(var) \
     CTLTYPE_U64, &var, sizeof (var), param_set_max_auto_ashift, "QU"
+
+#define	spa_taskq_read_param_set_args(var) \
+    CTLTYPE_STRING, NULL, 0, spa_taskq_read_param, "A"
+
+#define	spa_taskq_write_param_set_args(var)	\
+	CTLTYPE_STRING, NULL, 0, spa_taskq_write_param, "A"
 
 #define	fletcher_4_param_set_args(var) \
     CTLTYPE_STRING, NULL, 0, fletcher_4_param, "A"

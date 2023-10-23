@@ -281,31 +281,27 @@ segkmem_abd_init()
 	/*
 	 * OpenZFS does not segregate the abd kmem cache out of the general
 	 * heap, leading to large numbers of short-lived slabs exchanged
-	 * between the kmem cache and it's parent.  XNU absorbs this with a
-	 * qcache, following its history of absorbing the pre-ABD zio file and
-	 * metadata caches being qcached (which raises the exchanges with the
-	 * general heap from PAGESIZE to 256k).
+	 * between the kmem cache and it's parent.  XNU absorbs this with a a
+	 * large minimum request to the parent vmem_caches on large-memory
+	 * MacOS systems.
 	 */
 
 	extern vmem_t *spl_heap_arena;
 
-#define	BIG_SLAB 131072
-#ifdef __arm64__
-#define	BIG_BIG_SLAB (BIG_SLAB * 2)
-#else
-#define	BIG_BIG_SLAB BIG_SLAB
-#endif
+#define	BIG_SLAB (PAGESIZE * 16)
 
 #define	SMALL_RAM_MACHINE (4ULL * 1024ULL * 1024ULL * 1024ULL)
 
 	if (total_memory >= SMALL_RAM_MACHINE) {
 		abd_arena = vmem_create("abd_cache", NULL, 0,
-		    PAGESIZE, vmem_alloc_impl, vmem_free_impl, spl_heap_arena,
-		    BIG_BIG_SLAB, VM_SLEEP | VMC_NO_QCACHE);
+		    sizeof (void *),
+		    vmem_alloc_impl, vmem_free_impl, spl_heap_arena,
+		    BIG_SLAB, VM_SLEEP | VMC_NO_QCACHE);
 	} else {
 		abd_arena = vmem_create("abd_cache", NULL, 0,
-		    PAGESIZE, vmem_alloc_impl, vmem_free_impl, spl_heap_arena,
-		    131072, VM_SLEEP | VMC_NO_QCACHE);
+		    sizeof (void *),
+		    vmem_alloc_impl, vmem_free_impl, spl_heap_arena,
+		    PAGESIZE, VM_SLEEP | VMC_NO_QCACHE);
 	}
 
 	VERIFY3P(abd_arena, !=, NULL);
@@ -322,13 +318,15 @@ segkmem_abd_init()
 
 	if (total_memory >= SMALL_RAM_MACHINE) {
 		abd_subpage_arena = vmem_create("abd_subpage_cache", NULL, 0,
-		    sizeof (void *), vmem_alloc_impl, vmem_free_impl,
+		    sizeof (void *),
+		    vmem_alloc_impl, vmem_free_impl,
 		    spl_heap_arena,
 		    BIG_SLAB, VM_SLEEP | VMC_NO_QCACHE);
 	} else {
 		abd_subpage_arena = vmem_create("abd_subpage_cache", NULL, 0,
-		    512, vmem_alloc_impl, vmem_free_impl, abd_arena,
-		    131072, VM_SLEEP | VMC_NO_QCACHE);
+		    sizeof (void *),
+		    vmem_alloc_impl, vmem_free_impl, abd_arena,
+		    PAGESIZE, VM_SLEEP | VMC_NO_QCACHE);
 	}
 
 	VERIFY3P(abd_subpage_arena, !=, NULL);

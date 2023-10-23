@@ -29,6 +29,8 @@
 #include <sys/cmn_err.h>
 #include <sys/debug.h>
 
+void IOSleep(int);
+
 void
 vcmn_err(int ce, const char *fmt, va_list ap)
 {
@@ -49,6 +51,8 @@ vcmn_err(int ce, const char *fmt, va_list ap)
 			printf("SPL: Warning: %s\n", msg);
 			break;
 		case CE_PANIC:
+			printf("PANIC: %s\n", msg);
+			IOSleep(4000);
 			PANIC("%s", msg);
 			break;
 	}

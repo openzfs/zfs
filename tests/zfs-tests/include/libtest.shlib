@@ -304,7 +304,7 @@ function default_setup_noexit
 		if poolexists $TESTPOOL ; then
 			destroy_pool $TESTPOOL
 		fi
-		[[ -d /$TESTPOOL ]] && rm -rf /$TESTPOOL
+		[[ -d /$TESTPOOL ]] && rm -f /$TESTPOOL
 		log_must zpool create -f $TESTPOOL $disklist
 	else
 		reexport_pool
@@ -506,7 +506,7 @@ function default_mirror_setup_noexit
 		log_fail "$func: No parameters passed"
 	[[ -z $secondary ]] && \
 		log_fail "$func: No secondary partition passed"
-	[[ -d /$TESTPOOL ]] && rm -rf /$TESTPOOL
+	[[ -d /$TESTPOOL ]] && rm -f /$TESTPOOL
 	log_must zpool create -f $TESTPOOL mirror $@
 	log_must zfs create $TESTPOOL/$TESTFS
 	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
@@ -543,7 +543,7 @@ function default_raidz_setup_noexit
 		log_fail "A raid-z requires a minimum of two disks."
 	fi
 
-	[[ -d /$TESTPOOL ]] && rm -rf /$TESTPOOL
+	[[ -d /$TESTPOOL ]] && rm -f /$TESTPOOL
 	log_must zpool create -f $TESTPOOL raidz $disklist
 	log_must zfs create $TESTPOOL/$TESTFS
 	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
@@ -1697,7 +1697,7 @@ function create_pool #pool devs_list
 	fi
 
 	if is_global_zone ; then
-		[[ -d /$pool ]] && rm -rf /$pool
+		[[ -d /$pool ]] && rm -f /$pool
 		log_must zpool create -f $pool $@
 	fi
 
@@ -1731,7 +1731,7 @@ function destroy_pool #pool
 			log_must_busy zpool destroy -f $pool
 
 			[[ -d $mtpt ]] && \
-				log_must rm -rf $mtpt
+				rm -f $mtpt
 		else
 			log_note "Pool does not exist. ($pool)"
 			return 1
@@ -1789,7 +1789,7 @@ function destroy_dataset # dataset [args]
 			mtpt=$(get_prop mountpoint "$dataset")
 			log_must_busy zfs destroy $args $dataset
 
-			[ -d $mtpt ] && log_must rm -rf $mtpt
+			[ -d $mtpt ] && rm -f $mtpt
 		else
 			log_note "Dataset does not exist. ($dataset)"
 			return 1
