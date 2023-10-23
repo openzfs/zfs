@@ -347,32 +347,18 @@ zfs_set_userquota(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 	if (*objp == 0) {
 		*objp = zap_create(zfsvfs->z_os, DMU_OT_USERGROUP_QUOTA,
 		    DMU_OT_NONE, 0, tx);
-		VERIFY0(zap_add(zfsvfs->z_os, MASTER_NODE_OBJ,
+		VERIFY(0 == zap_add(zfsvfs->z_os, MASTER_NODE_OBJ,
 		    zfs_userquota_prop_prefixes[type], 8, 1, objp, tx));
 	}
+	mutex_exit(&zfsvfs->z_lock);
 
 	if (quota == 0) {
 		err = zap_remove(zfsvfs->z_os, *objp, buf, tx);
 		if (err == ENOENT)
 			err = 0;
-		/*
-		 * If the quota contains no more entries after the entry
-		 * was removed, destroy the quota zap and remove the
-		 * reference from zfsvfs. This will save us unnecessary
-		 * zap_lookups for the quota during writes.
-		 */
-		uint64_t zap_nentries;
-		VERIFY0(zap_count(zfsvfs->z_os, *objp, &zap_nentries));
-		if (zap_nentries == 0) {
-			VERIFY0(zap_remove(zfsvfs->z_os, MASTER_NODE_OBJ,
-			    zfs_userquota_prop_prefixes[type], tx));
-			VERIFY0(zap_destroy(zfsvfs->z_os, *objp, tx));
-			*objp = 0;
-		}
 	} else {
 		err = zap_update(zfsvfs->z_os, *objp, buf, 8, 1, &quota, tx);
 	}
-	mutex_exit(&zfsvfs->z_lock);
 	ASSERT(err == 0);
 	if (fuid_dirtied)
 		zfs_fuid_sync(zfsvfs, tx);
