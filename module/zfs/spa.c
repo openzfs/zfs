@@ -1390,15 +1390,14 @@ spa_taskq_write_param(ZFS_MODULE_PARAM_ARGS)
 /*
  * Dispatch a task to the appropriate taskq for the ZFS I/O type and priority.
  * Note that a type may have multiple discrete taskqs to avoid lock contention
- * on the taskq itself. In that case we choose which taskq at random by using
- * the low bits of gethrtime().
+ * on the taskq itself. In that case we try each one until it goes in, before
+ * falling back to waiting on a lock.
  */
 void
 spa_taskq_dispatch_ent(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
     task_func_t *func, void *arg, uint_t flags, taskq_ent_t *ent)
 {
 	spa_taskqs_t *tqs = &spa->spa_zio_taskq[t][q];
-	taskq_t *tq;
 
 	ASSERT3P(tqs->stqs_taskq, !=, NULL);
 	ASSERT3U(tqs->stqs_count, !=, 0);
@@ -1407,13 +1406,21 @@ spa_taskq_dispatch_ent(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
 	    spa_taskqs_t *, tqs, taskq_ent_t *, ent);
 
 	if (tqs->stqs_count == 1) {
-		tq = tqs->stqs_taskq[0];
-	} else {
-		tq = tqs->stqs_taskq[((uint64_t)gethrtime()) % tqs->stqs_count];
+		taskq_dispatch_ent(tqs->stqs_taskq[0], func, arg, flags, ent);
+		goto out;
 	}
 
-	taskq_dispatch_ent(tq, func, arg, flags, ent);
+	int select = ((uint64_t)gethrtime()) % tqs->stqs_count;
+	for (int i = 0; i < tqs->stqs_count; i++) {
+		if (taskq_try_dispatch_ent(
+		    tqs->stqs_taskq[select], func, arg, flags, ent))
+			goto out;
+		select = (select+1) % tqs->stqs_count;
+	}
 
+	taskq_dispatch_ent(tqs->stqs_taskq[select], func, arg, flags, ent);
+
+out:
 	DTRACE_PROBE2(spa_taskqs_ent__dispatched,
 	    spa_taskqs_t *, tqs, taskq_ent_t *, ent);
 }
