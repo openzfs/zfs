@@ -19,8 +19,10 @@ libuutil_la_LIBADD += $(LTLIBINTL)
 
 libuutil_la_LDFLAGS = -pthread
 
+if !BUILD_MACOS
 if !ASAN_ENABLED
 libuutil_la_LDFLAGS += -Wl,-z,defs
+endif
 endif
 
 libuutil_la_LDFLAGS += -version-info 3:0:0

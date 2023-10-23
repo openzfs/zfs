@@ -43,14 +43,10 @@
 #include <sys/types.h>
 #include_next <sys/uio.h>
 
-#ifdef __APPLE__
-#include <sys/_types/_iovec_t.h>
-#endif
-
 #include <stdint.h>
 typedef struct iovec iovec_t;
 
-#if defined(__linux__) || defined(__APPLE__)
+#if defined(__linux__)
 typedef enum zfs_uio_rw {
 	UIO_READ =	0,
 	UIO_WRITE =	1,

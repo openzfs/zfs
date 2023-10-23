@@ -39,6 +39,9 @@ int icp_init(void);
 void icp_fini(void);
 
 int aes_impl_set(const char *);
+int aes_impl_get(char *, size_t);
 int gcm_impl_set(const char *);
+int gcm_impl_get(char *, size_t);
+
 
 #endif /* _SYS_CRYPTO_ALGS_H */
