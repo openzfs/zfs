@@ -209,6 +209,22 @@ FreeBSD)
 	NEWFS_DEFAULT_FS="ufs"
 	SLICE_PREFIX="p"
 	;;
+Darwin)
+	unpack_opts="xv"
+	pack_opts="cf"
+	verbose="v"
+	unpack_preserve="xpf"
+	pack_preserve="cpf"
+
+	ZVOL_DEVDIR="/dev/zvol"
+	ZVOL_RDEVDIR="/dev/zvol"
+	DEV_DSKDIR="/dev"
+	DEV_RDSKDIR="/dev"
+	DEV_MPATHDIR="/dev/multipath"
+
+	NEWFS_DEFAULT_FS="hfs"
+	SLICE_PREFIX="s"
+	;;
 *)
 	export AUTO_SNAP=$(svcs -a | \
 	    awk '/auto-snapshot/ && /online/ { print $3 }')
@@ -230,6 +246,22 @@ FreeBSD)
 	DEV_RDSKDIR="/dev/rdsk"
 
 	NEWFS_DEFAULT_FS="ufs"
+	SLICE_PREFIX="s"
+	;;
+darwin)
+	unpack_opts="xv"
+	pack_opts="cf"
+	verbose="v"
+	unpack_preserve="xpf"
+	pack_preserve="cpf"
+
+	ZVOL_DEVDIR="/var/run/zfs/"
+	ZVOL_RDEVDIR="/var/run/zfs/"
+	DEV_DSKDIR="/dev"
+	DEV_RDSKDIR="/dev"
+	DEV_MPATHDIR="/dev/multipath"
+
+	NEWFS_DEFAULT_FS="hfs"
 	SLICE_PREFIX="s"
 	;;
 esac

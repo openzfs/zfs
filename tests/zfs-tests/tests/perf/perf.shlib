@@ -387,6 +387,9 @@ function get_min_arc_size
 	FreeBSD)
 		sysctl -n kstat.zfs.misc.arcstats.c_min
 		;;
+	Darwin)
+		sysctl -n kstat.zfs.misc.arcstats.c_min
+		;;
 	*)
 		dtrace -qn 'BEGIN {
 		    printf("%u\n", `arc_stats.arcstat_c_min.value.ui64);
@@ -405,6 +408,9 @@ function get_max_arc_size
 	FreeBSD)
 		sysctl -n kstat.zfs.misc.arcstats.c_max
 		;;
+	Darwin)
+		sysctl -n kstat.zfs.misc.arcstats.c_max
+		;;
 	*)
 		dtrace -qn 'BEGIN {
 		    printf("%u\n", `arc_stats.arcstat_c_max.value.ui64);
@@ -421,6 +427,9 @@ function get_arc_target
 		awk '$1 == "c" { print $3 }' /proc/spl/kstat/zfs/arcstats
 		;;
 	FreeBSD)
+		sysctl -n kstat.zfs.misc.arcstats.c
+		;;
+	Darwin)
 		sysctl -n kstat.zfs.misc.arcstats.c
 		;;
 	*)

@@ -220,7 +220,23 @@ elif sys.platform.startswith('linux'):
 
             name, unused, value = s.split()
             kstat[name] = int(value)
+elif sys.platform.startswith('darwin'):
+    import subprocess
 
+    def kstat_update():
+        global kstat
+
+        process = subprocess.Popen(['sysctl', 'kstat.zfs.misc.arcstats'],
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT)
+        kstats = process.communicate()[0].decode('ascii').splitlines()
+
+        kstat = {}
+        for l in kstats:
+            items = l.split(':')
+            name = items[0]
+            value = items[1].strip()
+            kstat[name[24:]] = int(value)
 
 def detailed_usage():
     sys.stderr.write("%s\n" % cmd)
