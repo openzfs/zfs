@@ -536,8 +536,8 @@ sa_copy_data(sa_data_locator_t *func, void *datastart, void *target, int buflen)
  * buffers.
  *
  * Return the size of the sa_hdr_phys_t header for the buffer. Each
- * variable length attribute except the first contributes two bytes to
- * the header size, which is then rounded up to an 8-byte boundary.
+ * variable length attribute contributes two bytes to the header size,
+ * which is then rounded up to an 8-byte boundary.
  *
  * The following output parameters are also computed.
  *
@@ -555,7 +555,6 @@ sa_find_sizes(sa_os_t *sa, sa_bulk_attr_t *attr_desc, int attr_count,
     dmu_buf_t *db, sa_buf_type_t buftype, int full_space, int *index,
     int *total, boolean_t *will_spill)
 {
-	int var_size_count = 0;
 	int i;
 	int hdrsize;
 	int extra_hdrsize;
@@ -587,15 +586,12 @@ sa_find_sizes(sa_os_t *sa, sa_bulk_attr_t *attr_desc, int attr_count,
 			continue;
 
 		is_var_sz = (SA_REGISTERED_LEN(sa, attr_desc[i].sa_attr) == 0);
-		if (is_var_sz)
-			var_size_count++;
 
 		/*
 		 * Calculate what the SA header size would be if this
 		 * attribute doesn't spill.
 		 */
-		tmp_hdrsize = hdrsize + ((is_var_sz && var_size_count > 1) ?
-		    sizeof (uint16_t) : 0);
+		tmp_hdrsize = hdrsize + (is_var_sz ? sizeof (uint16_t) : 0);
 
 		/*
 		 * Check whether this attribute spans into the space
@@ -607,7 +603,7 @@ sa_find_sizes(sa_os_t *sa, sa_bulk_attr_t *attr_desc, int attr_count,
 		    (*total + P2ROUNDUP(tmp_hdrsize, 8)) >
 		    (full_space - sizeof (blkptr_t));
 
-		if (is_var_sz && var_size_count > 1) {
+		if (is_var_sz) {
 			if (buftype == SA_SPILL ||
 			    tmp_hdrsize + *total < full_space) {
 				/*
@@ -1234,7 +1230,7 @@ sa_byteswap(sa_handle_t *hdl, sa_buf_type_t buftype)
 {
 	sa_hdr_phys_t *sa_hdr_phys = SA_GET_HDR(hdl, buftype);
 	dmu_buf_impl_t *db;
-	int num_lengths = 1;
+	int num_lengths = 0;
 	int i;
 	sa_os_t *sa __maybe_unused = hdl->sa_os->os_sa;
 
@@ -1254,8 +1250,8 @@ sa_byteswap(sa_handle_t *hdl, sa_buf_type_t buftype)
 
 	/*
 	 * Determine number of variable lengths in header
-	 * The standard 8 byte header has one for free and a
-	 * 16 byte header would have 4 + 1;
+	 * The standard 8 byte header has none element included, and each
+	 * element is 2 bytes, so add half of (total_size - header_size)
 	 */
 	if (SA_HDR_SIZE(sa_hdr_phys) > 8)
 		num_lengths += (SA_HDR_SIZE(sa_hdr_phys) - 8) >> 1;

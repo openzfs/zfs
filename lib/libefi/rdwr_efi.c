@@ -370,7 +370,7 @@ efi_alloc_and_init(int fd, uint32_t nparts, struct dk_gpt **vtoc)
 	}
 
 	length = sizeof (struct dk_gpt) +
-	    sizeof (struct dk_part) * (nparts - 1);
+	    sizeof (struct dk_part) * nparts;
 
 	vptr = calloc(1, length);
 	if (vptr == NULL)
@@ -410,7 +410,7 @@ efi_alloc_and_read(int fd, struct dk_gpt **vtoc)
 	/* figure out the number of entries that would fit into 16K */
 	nparts = EFI_MIN_ARRAY_SIZE / sizeof (efi_gpe_t);
 	length = (int) sizeof (struct dk_gpt) +
-	    (int) sizeof (struct dk_part) * (nparts - 1);
+	    (int) sizeof (struct dk_part) * nparts;
 	vptr = calloc(1, length);
 
 	if (vptr == NULL)
@@ -422,7 +422,7 @@ efi_alloc_and_read(int fd, struct dk_gpt **vtoc)
 	if ((rval == VT_EINVAL) && vptr->efi_nparts > nparts) {
 		void *tmp;
 		length = (int) sizeof (struct dk_gpt) +
-		    (int) sizeof (struct dk_part) * (vptr->efi_nparts - 1);
+		    (int) sizeof (struct dk_part) * vptr->efi_nparts;
 		if ((tmp = realloc(vptr, length)) == NULL) {
 			/* cppcheck-suppress doubleFree */
 			free(vptr);

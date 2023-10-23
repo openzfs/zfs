@@ -324,7 +324,7 @@ typedef struct dk_gpt {
 	uint_t		efi_reserved1;	/* future use - set to zero */
 	diskaddr_t	efi_altern_lba;	/* lba of alternate GPT header */
 	uint_t		efi_reserved[12]; /* future use - set to zero */
-	struct dk_part	efi_parts[1];	/* array of partitions */
+	struct dk_part	efi_parts[];	/* array of partitions */
 } dk_gpt_t;
 
 /* possible values for "efi_flags" */

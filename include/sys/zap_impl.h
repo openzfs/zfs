@@ -61,7 +61,7 @@ typedef struct mzap_phys {
 	uint64_t mz_salt;
 	uint64_t mz_normflags;
 	uint64_t mz_pad[5];
-	mzap_ent_phys_t mz_chunk[1];
+	mzap_ent_phys_t mz_chunk[];
 	/* actually variable size depending on block size */
 } mzap_phys_t;
 

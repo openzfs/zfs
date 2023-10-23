@@ -177,7 +177,7 @@ typedef struct sa_hdr_phys {
 	 *
 	 */
 	uint16_t sa_layout_info;
-	uint16_t sa_lengths[1];	/* optional sizes for variable length attrs */
+	uint16_t sa_lengths[];	/* optional sizes for variable length attrs */
 	/* ... Data follows the lengths.  */
 } sa_hdr_phys_t;
 
@@ -265,7 +265,7 @@ struct sa_handle {
 
 #define	SA_HDR_SIZE_MATCH_LAYOUT(hdr, tb) \
 	(SA_HDR_SIZE(hdr) == (sizeof (sa_hdr_phys_t) + \
-	(tb->lot_var_sizes > 1 ? P2ROUNDUP((tb->lot_var_sizes - 1) * \
+	(tb->lot_var_sizes > 1 ? P2ROUNDUP(tb->lot_var_sizes * \
 	sizeof (uint16_t), 8) : 0)))
 
 int sa_add_impl(sa_handle_t *, sa_attr_type_t,
