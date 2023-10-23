@@ -91,4 +91,13 @@ zfs_sha512_available(void)
 	return (elf_hwcap & HWCAP_SHA512);
 }
 
+/*
+ * Check if AESV8 is available
+ */
+static inline boolean_t
+zfs_aesv8_available(void)
+{
+	return (elf_hwcap & HWCAP_AES);
+}
+
 #endif /* _FREEBSD_SIMD_AARCH64_H */

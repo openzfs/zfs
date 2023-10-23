@@ -475,6 +475,9 @@ struct spa {
 	uint64_t	spa_dedup_table_quota;	/* property DDT maximum size */
 	uint64_t	spa_dedup_dsize;	/* cached on-disk size of DDT */
 	uint64_t	spa_dedup_class_full_txg; /* txg dedup class was full */
+#ifdef __APPLE__
+	spa_iokit_t	*spa_iokit_proxy;	/* IOKit pool proxy */
+#endif
 
 	/*
 	 * spa_refcount & spa_config_lock must be the last elements
