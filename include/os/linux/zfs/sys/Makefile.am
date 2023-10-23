@@ -11,6 +11,7 @@ KERNEL_H = \
 	trace_dnode.h \
 	trace_multilist.h \
 	trace_rrwlock.h \
+	trace_spa_taskqs.h \
 	trace_txg.h \
 	trace_vdev.h \
 	trace_zil.h \

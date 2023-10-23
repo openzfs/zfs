@@ -87,6 +87,7 @@
 #include <sys/zfeature.h>
 #include <sys/dsl_destroy.h>
 #include <sys/zvol.h>
+#include <sys/trace_zfs.h>
 
 #ifdef	_KERNEL
 #include <sys/fm/protocol.h>
@@ -982,6 +983,9 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 	uint_t cpus, flags = TASKQ_DYNAMIC;
 	boolean_t batch = B_FALSE;
 
+	tqs->stqs_type = q;
+	tqs->stqs_zio_type = t;
+
 	switch (mode) {
 	case ZTI_MODE_FIXED:
 		ASSERT3U(value, >, 0);
@@ -1399,6 +1403,9 @@ spa_taskq_dispatch_ent(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
 	ASSERT3P(tqs->stqs_taskq, !=, NULL);
 	ASSERT3U(tqs->stqs_count, !=, 0);
 
+	DTRACE_PROBE2(spa_taskqs_ent__dispatch,
+	    spa_taskqs_t *, tqs, taskq_ent_t *, ent);
+
 	if (tqs->stqs_count == 1) {
 		tq = tqs->stqs_taskq[0];
 	} else {
@@ -1406,6 +1413,9 @@ spa_taskq_dispatch_ent(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
 	}
 
 	taskq_dispatch_ent(tq, func, arg, flags, ent);
+
+	DTRACE_PROBE2(spa_taskqs_ent__dispatched,
+	    spa_taskqs_t *, tqs, taskq_ent_t *, ent);
 }
 
 /*

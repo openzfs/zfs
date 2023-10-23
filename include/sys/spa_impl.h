@@ -183,6 +183,8 @@ typedef enum spa_proc_state {
 } spa_proc_state_t;
 
 typedef struct spa_taskqs {
+	zio_taskq_type_t stqs_type;
+	zio_type_t stqs_zio_type;
 	uint_t stqs_count;
 	taskq_t **stqs_taskq;
 } spa_taskqs_t;

@@ -44,6 +44,7 @@
 #include <sys/trace_dnode.h>
 #include <sys/trace_multilist.h>
 #include <sys/trace_rrwlock.h>
+#include <sys/trace_spa_taskqs.h>
 #include <sys/trace_txg.h>
 #include <sys/trace_vdev.h>
 #include <sys/trace_zil.h>
