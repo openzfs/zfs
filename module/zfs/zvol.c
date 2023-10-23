@@ -91,7 +91,7 @@ unsigned int zvol_inhibit_dev = 0;
 unsigned int zvol_volmode = ZFS_VOLMODE_GEOM;
 
 struct hlist_head *zvol_htable;
-static list_t zvol_state_list;
+list_t zvol_state_list;
 krwlock_t zvol_state_lock;
 extern int zfs_bclone_wait_dirty;
 

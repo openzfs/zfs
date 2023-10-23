@@ -233,6 +233,9 @@ static const aes_impl_ops_t *aes_all_impl[] = {
 #if defined(__x86_64) && defined(HAVE_AES)
 	&aes_aesni_impl,
 #endif
+#if defined(__aarch64__) && defined(HAVE_AESV8)
+	&aes_aesv8_impl,
+#endif
 };
 
 /* Indicate that benchmark has been completed */
@@ -307,12 +310,21 @@ aes_impl_init(void)
 		if (curr_impl->is_supported())
 			aes_supp_impl[c++] = (aes_impl_ops_t *)curr_impl;
 	}
+
 	aes_supp_impl_cnt = c;
 
 	/*
 	 * Set the fastest implementation given the assumption that the
 	 * hardware accelerated version is the fastest.
 	 */
+#if defined(__aarch64__)
+#if defined(HAVE_AESV8)
+	if (aes_aesv8_impl.is_supported()) {
+		memcpy(&aes_fastest_impl, &aes_aesv8_impl,
+		    sizeof (aes_fastest_impl));
+	} else
+#endif
+#endif
 #if defined(__x86_64)
 #if defined(HAVE_AES)
 	if (aes_aesni_impl.is_supported()) {
@@ -334,6 +346,7 @@ aes_impl_init(void)
 	/* Finish initialization */
 	atomic_swap_32(&icp_aes_impl, user_sel_impl);
 	aes_impl_initialized = B_TRUE;
+
 }
 
 static const struct {
@@ -404,14 +417,17 @@ aes_impl_set(const char *val)
 	return (err);
 }
 
-#if defined(_KERNEL) && defined(__linux__)
+#if defined(_KERNEL)
 
+#if defined(__linux__)
 static int
 icp_aes_impl_set(const char *val, zfs_kernel_param_t *kp)
 {
 	return (aes_impl_set(val));
 }
+#endif
 
+#if defined(__linux__) || defined(__APPLE__)
 static int
 icp_aes_impl_get(char *buffer, zfs_kernel_param_t *kp)
 {
@@ -437,6 +453,28 @@ icp_aes_impl_get(char *buffer, zfs_kernel_param_t *kp)
 
 	return (cnt);
 }
+#endif /* defined(Linux) || defined(APPLE) */
+
+#if defined(__APPLE__)
+/* get / set function */
+int
+param_icp_aes_impl_set(ZFS_MODULE_PARAM_ARGS)
+{
+	char buf[1024]; /* Linux module string limit */
+	int rc = 0;
+
+	/* Always fill in value before calling sysctl_handle_*() */
+	if (req->newptr == (user_addr_t)NULL)
+		(void) icp_aes_impl_get(buf, NULL);
+
+	rc = sysctl_handle_string(oidp, buf, sizeof (buf), req);
+	if (rc || req->newptr == (user_addr_t)NULL)
+		return (rc);
+
+	rc = aes_impl_set(buf);
+	return (rc);
+}
+#endif /* defined(APPLE) */
 
 module_param_call(icp_aes_impl, icp_aes_impl_set, icp_aes_impl_get,
     NULL, 0644);

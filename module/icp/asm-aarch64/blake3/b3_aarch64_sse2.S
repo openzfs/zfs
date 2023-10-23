@@ -41,7 +41,9 @@
 #endif
 
 	.text
+#ifndef __APPLE__
 	.section	.note.gnu.property,"a",@note
+#endif
 	.p2align	3
 	.word	4
 	.word	16
@@ -55,7 +57,9 @@
 	.text
 	.globl	zfs_blake3_compress_in_place_sse2
 	.p2align	2
+#ifndef __APPLE__
 	.type	zfs_blake3_compress_in_place_sse2,@function
+#endif
 zfs_blake3_compress_in_place_sse2:
 	.cfi_startproc
 	hint	#25
@@ -87,17 +91,24 @@ zfs_blake3_compress_in_place_sse2:
 	hint	#29
 	ret
 .Lfunc_end0:
-	.size	zfs_blake3_compress_in_place_sse2, .Lfunc_end0-zfs_blake3_compress_in_place_sse2
+#ifndef __APPLE__
+.size	zfs_blake3_compress_in_place_sse2, .Lfunc_end0-zfs_blake3_compress_in_place_sse2
+#endif	
 	.cfi_endproc
 
+
+#ifndef __APPLE__
 	.section	.rodata.cst16,"aM",@progbits,16
+#endif
 	.p2align	4
 .LCPI1_0:
 	.xword	-4942790177982912921
 	.xword	-6534734903820487822
 	.text
 	.p2align	2
+#ifndef __APPLE__
 	.type	compress_pre,@function
+#endif
 compress_pre:
 	.cfi_startproc
 	hint	#34
@@ -105,10 +116,18 @@ compress_pre:
 	movi	d0, #0x0000ff000000ff
 	ldr	q2, [x1]
 	fmov	d3, x4
+#ifndef __APPLE__
 	adrp	x8, .LCPI1_0
+#else
+	adrp	x8, .LCPI1_0@PAGE
+#endif
 	mov	v1.s[1], w5
 	str	q2, [x0]
+#ifndef __APPLE__
 	ldr	q4, [x8, :lo12:.LCPI1_0]
+#else
+	ldr	q4, [x8, :lo12:.LCPI1_0@PAGEOFF]
+#endif
 	add	x8, x2, #32
 	ldr	q5, [x1, #16]
 	and	v0.8b, v1.8b, v0.8b
@@ -554,12 +573,16 @@ compress_pre:
 	stp	q0, q1, [x0]
 	ret
 .Lfunc_end1:
+#ifndef __APPLE__
 	.size	compress_pre, .Lfunc_end1-compress_pre
+#endif
 	.cfi_endproc
 
 	.globl	zfs_blake3_compress_xof_sse2
 	.p2align	2
+#ifndef __APPLE__
 	.type	zfs_blake3_compress_xof_sse2,@function
+#endif
 zfs_blake3_compress_xof_sse2:
 	.cfi_startproc
 	hint	#25
@@ -599,10 +622,14 @@ zfs_blake3_compress_xof_sse2:
 	hint	#29
 	ret
 .Lfunc_end2:
+#ifndef __APPLE__
 	.size	zfs_blake3_compress_xof_sse2, .Lfunc_end2-zfs_blake3_compress_xof_sse2
+#endif
 	.cfi_endproc
 
+#ifndef __APPLE__
 	.section	.rodata.cst16,"aM",@progbits,16
+#endif
 	.p2align	4
 .LCPI3_0:
 	.word	0
@@ -612,7 +639,9 @@ zfs_blake3_compress_xof_sse2:
 	.text
 	.globl	zfs_blake3_hash_many_sse2
 	.p2align	2
+#ifndef __APPLE__
 	.type	zfs_blake3_hash_many_sse2,@function
+#endif
 zfs_blake3_hash_many_sse2:
 	.cfi_startproc
 	hint	#25
@@ -658,13 +687,21 @@ zfs_blake3_hash_many_sse2:
 	cmp	x1, #4
 	str	x3, [sp, #40]
 	b.lo	.LBB3_6
+#ifndef __APPLE__
 	adrp	x8, .LCPI3_0
+#else
+	adrp	x8, .LCPI3_0@PAGE
+#endif
 	sbfx	w9, w5, #0, #1
 	mov	w10, #44677
 	mov	w11, #62322
 	movk	w10, #47975, lsl #16
 	movk	w11, #15470, lsl #16
+#ifndef __APPLE__
 	ldr	q0, [x8, :lo12:.LCPI3_0]
+#else
+	ldr	q0, [x8, :lo12:.LCPI3_0@PAGEOFF]
+#endif
 	dup	v1.4s, w9
 	mov	w9, #58983
 	orr	w8, w7, w19
@@ -2063,7 +2100,11 @@ zfs_blake3_hash_many_sse2:
 	hint	#29
 	ret
 .Lfunc_end3:
+#ifndef __APPLE__
 	.size	zfs_blake3_hash_many_sse2, .Lfunc_end3-zfs_blake3_hash_many_sse2
+#endif
 	.cfi_endproc
+#ifndef __APPLE__
 	.section	".note.GNU-stack","",@progbits
+#endif
 #endif

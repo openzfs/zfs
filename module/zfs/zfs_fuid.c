@@ -409,7 +409,24 @@ zfs_fuid_map_id(zfsvfs_t *zfsvfs, uint64_t fuid,
 	 */
 	return (fuid);
 }
+#elif defined(__APPLE__)
+uid_t
+zfs_fuid_map_id(zfsvfs_t *zfsvfs, uint64_t fuid,
+    cred_t *cr, zfs_fuid_type_t type)
+{
+	uint32_t index = FUID_INDEX(fuid);
+	const char *domain;
+	uid_t id;
 
+	if (index == 0)
+		return (fuid);
+
+	domain = zfs_fuid_find_by_idx(zfsvfs, index);
+	ASSERT(domain != NULL);
+
+	id = UID_NOBODY;
+	return (id);
+}
 #else
 uid_t
 zfs_fuid_map_id(zfsvfs_t *zfsvfs, uint64_t fuid,
