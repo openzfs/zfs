@@ -181,6 +181,7 @@ typedef struct zil_vdev_node {
 	avl_node_t	zv_node;	/* AVL tree linkage */
 } zil_vdev_node_t;
 
+#define	ZIL_BURSTS 8
 #define	ZIL_PREV_BLKS 16
 
 /*
@@ -222,8 +223,9 @@ struct zilog {
 	clock_t		zl_replay_time;	/* lbolt of when replay started */
 	uint64_t	zl_replay_blks;	/* number of log blocks replayed */
 	zil_header_t	zl_old_header;	/* debugging aid */
-	uint_t		zl_prev_blks[ZIL_PREV_BLKS]; /* size - sector rounded */
+	uint_t		zl_parallel;	/* workload is multi-threaded */
 	uint_t		zl_prev_rotor;	/* rotor for zl_prev[] */
+	uint_t		zl_prev_blks[ZIL_PREV_BLKS]; /* size - sector rounded */
 	txg_node_t	zl_dirty_link;	/* protected by dp_dirty_zilogs list */
 	uint64_t	zl_dirty_max_txg; /* highest txg used to dirty zilog */
 
