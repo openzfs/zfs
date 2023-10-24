@@ -527,7 +527,7 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 	uint64_t size = io_size(bio, rq);
 	int rw = io_data_dir(bio, rq);
 
-	if (zvol_request_sync)
+	if (zvol_request_sync || zv->zv_threading == B_FALSE)
 		force_sync = 1;
 
 	zv_request_t zvr = {
@@ -1611,6 +1611,7 @@ zvol_os_create_minor(const char *name)
 	int error = 0;
 	int idx;
 	uint64_t hash = zvol_name_hash(name);
+	uint64_t volthreading;
 	bool replayed_zil = B_FALSE;
 
 	if (zvol_inhibit_dev)
@@ -1663,6 +1664,12 @@ zvol_os_create_minor(const char *name)
 
 	zv->zv_volsize = volsize;
 	zv->zv_objset = os;
+
+	/* Default */
+	zv->zv_threading = B_TRUE;
+	if (dsl_prop_get_integer(name, "volthreading", &volthreading, NULL)
+	    == 0)
+		zv->zv_threading = volthreading;
 
 	set_capacity(zv->zv_zso->zvo_disk, zv->zv_volsize >> 9);
 
