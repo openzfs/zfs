@@ -1017,12 +1017,12 @@ abd_cmp(abd_t *dabd, abd_t *sabd)
  *                 is the same when taking linear and when taking scatter
  */
 void
-abd_raidz_gen_iterate(abd_t **cabds, abd_t *dabd,
-    ssize_t csize, ssize_t dsize, const unsigned parity,
+abd_raidz_gen_iterate(abd_t **cabds, abd_t *dabd, size_t off,
+    size_t csize, size_t dsize, const unsigned parity,
     void (*func_raidz_gen)(void **, const void *, size_t, size_t))
 {
 	int i;
-	ssize_t len, dlen;
+	size_t len, dlen;
 	struct abd_iter caiters[3];
 	struct abd_iter daiter;
 	void *caddrs[3];
@@ -1033,16 +1033,15 @@ abd_raidz_gen_iterate(abd_t **cabds, abd_t *dabd,
 	ASSERT3U(parity, <=, 3);
 	for (i = 0; i < parity; i++) {
 		abd_verify(cabds[i]);
-		ASSERT3U(csize, <=, cabds[i]->abd_size);
-		c_cabds[i] = abd_init_abd_iter(cabds[i], &caiters[i], 0);
+		ASSERT3U(off + csize, <=, cabds[i]->abd_size);
+		c_cabds[i] = abd_init_abd_iter(cabds[i], &caiters[i], off);
 	}
 
-	ASSERT3S(dsize, >=, 0);
 	if (dsize > 0) {
 		ASSERT(dabd);
 		abd_verify(dabd);
-		ASSERT3U(dsize, <=, dabd->abd_size);
-		c_dabd = abd_init_abd_iter(dabd, &daiter, 0);
+		ASSERT3U(off + dsize, <=, dabd->abd_size);
+		c_dabd = abd_init_abd_iter(dabd, &daiter, off);
 	}
 
 	abd_enter_critical(flags);
@@ -1064,7 +1063,7 @@ abd_raidz_gen_iterate(abd_t **cabds, abd_t *dabd,
 			dlen = 0;
 
 		/* must be progressive */
-		ASSERT3S(len, >, 0);
+		ASSERT3U(len, >, 0);
 		/*
 		 * The iterated function likely will not do well if each
 		 * segment except the last one is not multiple of 512 (raidz).
@@ -1089,9 +1088,6 @@ abd_raidz_gen_iterate(abd_t **cabds, abd_t *dabd,
 		}
 
 		csize -= len;
-
-		ASSERT3S(dsize, >=, 0);
-		ASSERT3S(csize, >=, 0);
 	}
 	abd_exit_critical(flags);
 }
@@ -1108,13 +1104,13 @@ abd_raidz_gen_iterate(abd_t **cabds, abd_t *dabd,
  */
 void
 abd_raidz_rec_iterate(abd_t **cabds, abd_t **tabds,
-    ssize_t tsize, const unsigned parity,
+    size_t tsize, const unsigned parity,
     void (*func_raidz_rec)(void **t, const size_t tsize, void **c,
     const unsigned *mul),
     const unsigned *mul)
 {
 	int i;
-	ssize_t len;
+	size_t len;
 	struct abd_iter citers[3];
 	struct abd_iter xiters[3];
 	void *caddrs[3], *xaddrs[3];

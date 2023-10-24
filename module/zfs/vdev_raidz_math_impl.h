@@ -214,9 +214,10 @@ raidz_copy_abd_cb(void *dc, void *sc, size_t size, void *private)
 }
 
 
-#define	raidz_copy(dabd, sabd, size)					\
+#define	raidz_copy(dabd, sabd, off, size)				\
 {									\
-	abd_iterate_func2(dabd, sabd, 0, 0, size, raidz_copy_abd_cb, NULL);\
+	abd_iterate_func2(dabd, sabd, off, off, size, raidz_copy_abd_cb, \
+	    NULL);							\
 }
 
 /*
@@ -254,9 +255,10 @@ raidz_add_abd_cb(void *dc, void *sc, size_t size, void *private)
 	return (0);
 }
 
-#define	raidz_add(dabd, sabd, size)					\
+#define	raidz_add(dabd, sabd, off, size)				\
 {									\
-	abd_iterate_func2(dabd, sabd, 0, 0, size, raidz_add_abd_cb, NULL);\
+	abd_iterate_func2(dabd, sabd, off, off, size, raidz_add_abd_cb, \
+	    NULL);							\
 }
 
 /*
@@ -343,7 +345,10 @@ raidz_mul_abd_cb(void *dc, size_t size, void *private)
  * the parity/syndrome if data column is shorter.
  *
  * P parity is calculated using raidz_add_abd().
+ *
+ * For CPU L2 cache blocking we process 64KB at a time.
  */
+#define	CHUNK		65536
 
 /*
  * Generate P parity (RAIDZ1)
@@ -357,20 +362,26 @@ raidz_generate_p_impl(raidz_row_t * const rr)
 	const size_t ncols = rr->rr_cols;
 	const size_t psize = rr->rr_col[CODE_P].rc_size;
 	abd_t *pabd = rr->rr_col[CODE_P].rc_abd;
-	size_t size;
-	abd_t *dabd;
+	size_t off, size;
 
 	raidz_math_begin();
 
-	/* start with first data column */
-	raidz_copy(pabd, rr->rr_col[1].rc_abd, psize);
+	for (off = 0; off < psize; off += CHUNK) {
 
-	for (c = 2; c < ncols; c++) {
-		dabd = rr->rr_col[c].rc_abd;
-		size = rr->rr_col[c].rc_size;
+		/* start with first data column */
+		size = MIN(CHUNK, psize - off);
+		raidz_copy(pabd, rr->rr_col[1].rc_abd, off, size);
 
-		/* add data column */
-		raidz_add(pabd, dabd, size);
+		for (c = 2; c < ncols; c++) {
+			size = rr->rr_col[c].rc_size;
+			if (size <= off)
+				continue;
+
+			/* add data column */
+			size = MIN(CHUNK, size - off);
+			abd_t *dabd = rr->rr_col[c].rc_abd;
+			raidz_add(pabd, dabd, off, size);
+		}
 	}
 
 	raidz_math_end();
@@ -423,7 +434,7 @@ raidz_generate_pq_impl(raidz_row_t * const rr)
 	size_t c;
 	const size_t ncols = rr->rr_cols;
 	const size_t csize = rr->rr_col[CODE_P].rc_size;
-	size_t dsize;
+	size_t off, size, dsize;
 	abd_t *dabd;
 	abd_t *cabds[] = {
 		rr->rr_col[CODE_P].rc_abd,
@@ -432,15 +443,20 @@ raidz_generate_pq_impl(raidz_row_t * const rr)
 
 	raidz_math_begin();
 
-	raidz_copy(cabds[CODE_P], rr->rr_col[2].rc_abd, csize);
-	raidz_copy(cabds[CODE_Q], rr->rr_col[2].rc_abd, csize);
+	for (off = 0; off < csize; off += CHUNK) {
 
-	for (c = 3; c < ncols; c++) {
-		dabd = rr->rr_col[c].rc_abd;
-		dsize = rr->rr_col[c].rc_size;
+		size = MIN(CHUNK, csize - off);
+		raidz_copy(cabds[CODE_P], rr->rr_col[2].rc_abd, off, size);
+		raidz_copy(cabds[CODE_Q], rr->rr_col[2].rc_abd, off, size);
 
-		abd_raidz_gen_iterate(cabds, dabd, csize, dsize, 2,
-		    raidz_gen_pq_add);
+		for (c = 3; c < ncols; c++) {
+			dabd = rr->rr_col[c].rc_abd;
+			dsize = rr->rr_col[c].rc_size;
+			dsize = (dsize > off) ? MIN(CHUNK, dsize - off) : 0;
+
+			abd_raidz_gen_iterate(cabds, dabd, off, size, dsize, 2,
+			    raidz_gen_pq_add);
+		}
 	}
 
 	raidz_math_end();
@@ -496,7 +512,7 @@ raidz_generate_pqr_impl(raidz_row_t * const rr)
 	size_t c;
 	const size_t ncols = rr->rr_cols;
 	const size_t csize = rr->rr_col[CODE_P].rc_size;
-	size_t dsize;
+	size_t off, size, dsize;
 	abd_t *dabd;
 	abd_t *cabds[] = {
 		rr->rr_col[CODE_P].rc_abd,
@@ -506,16 +522,21 @@ raidz_generate_pqr_impl(raidz_row_t * const rr)
 
 	raidz_math_begin();
 
-	raidz_copy(cabds[CODE_P], rr->rr_col[3].rc_abd, csize);
-	raidz_copy(cabds[CODE_Q], rr->rr_col[3].rc_abd, csize);
-	raidz_copy(cabds[CODE_R], rr->rr_col[3].rc_abd, csize);
+	for (off = 0; off < csize; off += CHUNK) {
 
-	for (c = 4; c < ncols; c++) {
-		dabd = rr->rr_col[c].rc_abd;
-		dsize = rr->rr_col[c].rc_size;
+		size = MIN(CHUNK, csize - off);
+		raidz_copy(cabds[CODE_P], rr->rr_col[3].rc_abd, off, size);
+		raidz_copy(cabds[CODE_Q], rr->rr_col[3].rc_abd, off, size);
+		raidz_copy(cabds[CODE_R], rr->rr_col[3].rc_abd, off, size);
 
-		abd_raidz_gen_iterate(cabds, dabd, csize, dsize, 3,
-		    raidz_gen_pqr_add);
+		for (c = 4; c < ncols; c++) {
+			dabd = rr->rr_col[c].rc_abd;
+			dsize = rr->rr_col[c].rc_size;
+			dsize = (dsize > off) ? MIN(CHUNK, dsize - off) : 0;
+
+			abd_raidz_gen_iterate(cabds, dabd, off, size, dsize, 3,
+			    raidz_gen_pqr_add);
+		}
 	}
 
 	raidz_math_end();
@@ -592,26 +613,31 @@ raidz_reconstruct_p_impl(raidz_row_t *rr, const int *tgtidx)
 	const size_t x = tgtidx[TARGET_X];
 	const size_t xsize = rr->rr_col[x].rc_size;
 	abd_t *xabd = rr->rr_col[x].rc_abd;
-	size_t size;
-	abd_t *dabd;
+	size_t off, size;
 
 	if (xabd == NULL)
 		return (1 << CODE_P);
 
 	raidz_math_begin();
 
-	/* copy P into target */
-	raidz_copy(xabd, rr->rr_col[CODE_P].rc_abd, xsize);
+	for (off = 0; off < xsize; off += CHUNK) {
 
-	/* generate p_syndrome */
-	for (c = firstdc; c < ncols; c++) {
-		if (c == x)
-			continue;
+		/* copy P into target */
+		size = MIN(CHUNK, xsize - off);
+		raidz_copy(xabd, rr->rr_col[CODE_P].rc_abd, off, size);
 
-		dabd = rr->rr_col[c].rc_abd;
-		size = MIN(rr->rr_col[c].rc_size, xsize);
+		/* generate p_syndrome */
+		for (c = firstdc; c < ncols; c++) {
+			if (c == x)
+				continue;
+			size = rr->rr_col[c].rc_size;
+			if (size <= off)
+				continue;
 
-		raidz_add(xabd, dabd, size);
+			size = MIN(CHUNK, MIN(size, xsize) - off);
+			abd_t *dabd = rr->rr_col[c].rc_abd;
+			raidz_add(xabd, dabd, off, size);
+		}
 	}
 
 	raidz_math_end();
@@ -683,7 +709,7 @@ raidz_reconstruct_q_impl(raidz_row_t *rr, const int *tgtidx)
 
 	/* Start with first data column if present */
 	if (firstdc != x) {
-		raidz_copy(xabd, rr->rr_col[firstdc].rc_abd, xsize);
+		raidz_copy(xabd, rr->rr_col[firstdc].rc_abd, 0, xsize);
 	} else {
 		raidz_zero(xabd, xsize);
 	}
@@ -698,12 +724,12 @@ raidz_reconstruct_q_impl(raidz_row_t *rr, const int *tgtidx)
 			dsize = rr->rr_col[c].rc_size;
 		}
 
-		abd_raidz_gen_iterate(tabds, dabd, xsize, dsize, 1,
+		abd_raidz_gen_iterate(tabds, dabd, 0, xsize, dsize, 1,
 		    raidz_syn_q_abd);
 	}
 
 	/* add Q to the syndrome */
-	raidz_add(xabd, rr->rr_col[CODE_Q].rc_abd, xsize);
+	raidz_add(xabd, rr->rr_col[CODE_Q].rc_abd, 0, xsize);
 
 	/* transform the syndrome */
 	abd_iterate_func(xabd, 0, xsize, raidz_mul_abd_cb, (void*) coeff);
@@ -777,7 +803,7 @@ raidz_reconstruct_r_impl(raidz_row_t *rr, const int *tgtidx)
 
 	/* Start with first data column if present */
 	if (firstdc != x) {
-		raidz_copy(xabd, rr->rr_col[firstdc].rc_abd, xsize);
+		raidz_copy(xabd, rr->rr_col[firstdc].rc_abd, 0, xsize);
 	} else {
 		raidz_zero(xabd, xsize);
 	}
@@ -793,12 +819,12 @@ raidz_reconstruct_r_impl(raidz_row_t *rr, const int *tgtidx)
 			dsize = rr->rr_col[c].rc_size;
 		}
 
-		abd_raidz_gen_iterate(tabds, dabd, xsize, dsize, 1,
+		abd_raidz_gen_iterate(tabds, dabd, 0, xsize, dsize, 1,
 		    raidz_syn_r_abd);
 	}
 
 	/* add R to the syndrome */
-	raidz_add(xabd, rr->rr_col[CODE_R].rc_abd, xsize);
+	raidz_add(xabd, rr->rr_col[CODE_R].rc_abd, 0, xsize);
 
 	/* transform the syndrome */
 	abd_iterate_func(xabd, 0, xsize, raidz_mul_abd_cb, (void *)coeff);
@@ -934,8 +960,8 @@ raidz_reconstruct_pq_impl(raidz_row_t *rr, const int *tgtidx)
 
 	/* Start with first data column if present */
 	if (firstdc != x) {
-		raidz_copy(xabd, rr->rr_col[firstdc].rc_abd, xsize);
-		raidz_copy(yabd, rr->rr_col[firstdc].rc_abd, xsize);
+		raidz_copy(xabd, rr->rr_col[firstdc].rc_abd, 0, xsize);
+		raidz_copy(yabd, rr->rr_col[firstdc].rc_abd, 0, xsize);
 	} else {
 		raidz_zero(xabd, xsize);
 		raidz_zero(yabd, xsize);
@@ -951,7 +977,7 @@ raidz_reconstruct_pq_impl(raidz_row_t *rr, const int *tgtidx)
 			dsize = rr->rr_col[c].rc_size;
 		}
 
-		abd_raidz_gen_iterate(tabds, dabd, xsize, dsize, 2,
+		abd_raidz_gen_iterate(tabds, dabd, 0, xsize, dsize, 2,
 		    raidz_syn_pq_abd);
 	}
 
@@ -959,7 +985,7 @@ raidz_reconstruct_pq_impl(raidz_row_t *rr, const int *tgtidx)
 
 	/* Copy shorter targets back to the original abd buffer */
 	if (ysize < xsize)
-		raidz_copy(rr->rr_col[y].rc_abd, yabd, ysize);
+		raidz_copy(rr->rr_col[y].rc_abd, yabd, 0, ysize);
 
 	raidz_math_end();
 
@@ -1094,8 +1120,8 @@ raidz_reconstruct_pr_impl(raidz_row_t *rr, const int *tgtidx)
 
 	/* Start with first data column if present */
 	if (firstdc != x) {
-		raidz_copy(xabd, rr->rr_col[firstdc].rc_abd, xsize);
-		raidz_copy(yabd, rr->rr_col[firstdc].rc_abd, xsize);
+		raidz_copy(xabd, rr->rr_col[firstdc].rc_abd, 0, xsize);
+		raidz_copy(yabd, rr->rr_col[firstdc].rc_abd, 0, xsize);
 	} else {
 		raidz_zero(xabd, xsize);
 		raidz_zero(yabd, xsize);
@@ -1111,7 +1137,7 @@ raidz_reconstruct_pr_impl(raidz_row_t *rr, const int *tgtidx)
 			dsize = rr->rr_col[c].rc_size;
 		}
 
-		abd_raidz_gen_iterate(tabds, dabd, xsize, dsize, 2,
+		abd_raidz_gen_iterate(tabds, dabd, 0, xsize, dsize, 2,
 		    raidz_syn_pr_abd);
 	}
 
@@ -1121,7 +1147,7 @@ raidz_reconstruct_pr_impl(raidz_row_t *rr, const int *tgtidx)
 	 * Copy shorter targets back to the original abd buffer
 	 */
 	if (ysize < xsize)
-		raidz_copy(rr->rr_col[y].rc_abd, yabd, ysize);
+		raidz_copy(rr->rr_col[y].rc_abd, yabd, 0, ysize);
 
 	raidz_math_end();
 
@@ -1261,8 +1287,8 @@ raidz_reconstruct_qr_impl(raidz_row_t *rr, const int *tgtidx)
 
 	/* Start with first data column if present */
 	if (firstdc != x) {
-		raidz_copy(xabd, rr->rr_col[firstdc].rc_abd, xsize);
-		raidz_copy(yabd, rr->rr_col[firstdc].rc_abd, xsize);
+		raidz_copy(xabd, rr->rr_col[firstdc].rc_abd, 0, xsize);
+		raidz_copy(yabd, rr->rr_col[firstdc].rc_abd, 0, xsize);
 	} else {
 		raidz_zero(xabd, xsize);
 		raidz_zero(yabd, xsize);
@@ -1278,7 +1304,7 @@ raidz_reconstruct_qr_impl(raidz_row_t *rr, const int *tgtidx)
 			dsize = rr->rr_col[c].rc_size;
 		}
 
-		abd_raidz_gen_iterate(tabds, dabd, xsize, dsize, 2,
+		abd_raidz_gen_iterate(tabds, dabd, 0, xsize, dsize, 2,
 		    raidz_syn_qr_abd);
 	}
 
@@ -1288,7 +1314,7 @@ raidz_reconstruct_qr_impl(raidz_row_t *rr, const int *tgtidx)
 	 * Copy shorter targets back to the original abd buffer
 	 */
 	if (ysize < xsize)
-		raidz_copy(rr->rr_col[y].rc_abd, yabd, ysize);
+		raidz_copy(rr->rr_col[y].rc_abd, yabd, 0, ysize);
 
 	raidz_math_end();
 
@@ -1456,9 +1482,9 @@ raidz_reconstruct_pqr_impl(raidz_row_t *rr, const int *tgtidx)
 
 	/* Start with first data column if present */
 	if (firstdc != x) {
-		raidz_copy(xabd, rr->rr_col[firstdc].rc_abd, xsize);
-		raidz_copy(yabd, rr->rr_col[firstdc].rc_abd, xsize);
-		raidz_copy(zabd, rr->rr_col[firstdc].rc_abd, xsize);
+		raidz_copy(xabd, rr->rr_col[firstdc].rc_abd, 0, xsize);
+		raidz_copy(yabd, rr->rr_col[firstdc].rc_abd, 0, xsize);
+		raidz_copy(zabd, rr->rr_col[firstdc].rc_abd, 0, xsize);
 	} else {
 		raidz_zero(xabd, xsize);
 		raidz_zero(yabd, xsize);
@@ -1475,7 +1501,7 @@ raidz_reconstruct_pqr_impl(raidz_row_t *rr, const int *tgtidx)
 			dsize = rr->rr_col[c].rc_size;
 		}
 
-		abd_raidz_gen_iterate(tabds, dabd, xsize, dsize, 3,
+		abd_raidz_gen_iterate(tabds, dabd, 0, xsize, dsize, 3,
 		    raidz_syn_pqr_abd);
 	}
 
@@ -1485,9 +1511,9 @@ raidz_reconstruct_pqr_impl(raidz_row_t *rr, const int *tgtidx)
 	 * Copy shorter targets back to the original abd buffer
 	 */
 	if (ysize < xsize)
-		raidz_copy(rr->rr_col[y].rc_abd, yabd, ysize);
+		raidz_copy(rr->rr_col[y].rc_abd, yabd, 0, ysize);
 	if (zsize < xsize)
-		raidz_copy(rr->rr_col[z].rc_abd, zabd, zsize);
+		raidz_copy(rr->rr_col[z].rc_abd, zabd, 0, zsize);
 
 	raidz_math_end();
 
