@@ -1868,7 +1868,8 @@
       <enumerator name='ZFS_PROP_REDACT_SNAPS' value='94'/>
       <enumerator name='ZFS_PROP_SNAPSHOTS_CHANGED' value='95'/>
       <enumerator name='ZFS_PROP_PREFETCH' value='96'/>
-      <enumerator name='ZFS_NUM_PROPS' value='97'/>
+      <enumerator name='ZFS_PROP_VOLTHREADING' value='97'/>
+      <enumerator name='ZFS_NUM_PROPS' value='98'/>
     </enum-decl>
     <typedef-decl name='zfs_prop_t' type-id='4b000d60' id='58603c44'/>
     <enum-decl name='zprop_source_t' naming-typedef-id='a2256d42' id='5903f80e'>

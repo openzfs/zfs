@@ -58,6 +58,7 @@ typedef struct zvol_state {
 	atomic_t		zv_suspend_ref;	/* refcount for suspend */
 	krwlock_t		zv_suspend_lock;	/* suspend lock */
 	struct zvol_state_os	*zv_zso;	/* private platform state */
+	boolean_t		zv_threading;	/* volthreading property */
 } zvol_state_t;
 
 
