@@ -370,6 +370,20 @@ out:
 }
 
 /*
+ * Update volthreading.
+ */
+int
+zvol_set_volthreading(const char *name, boolean_t value)
+{
+	zvol_state_t *zv = zvol_find_by_name(name, RW_NONE);
+	if (zv == NULL)
+		return (ENOENT);
+	zv->zv_threading = value;
+	mutex_exit(&zv->zv_state_lock);
+	return (0);
+}
+
+/*
  * Sanity check volume block size.
  */
 int
