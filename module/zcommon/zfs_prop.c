@@ -345,6 +345,13 @@ zfs_prop_init(void)
 		{ NULL }
 	};
 
+	static const zprop_index_t prefetch_table[] = {
+		{ "none",	ZFS_PREFETCH_NONE },
+		{ "metadata",	ZFS_PREFETCH_METADATA },
+		{ "all",	ZFS_PREFETCH_ALL },
+		{ NULL }
+	};
+
 	static const zprop_index_t sync_table[] = {
 		{ "standard",	ZFS_SYNC_STANDARD },
 		{ "always",	ZFS_SYNC_ALWAYS },
@@ -453,6 +460,10 @@ zfs_prop_init(void)
 	    ZFS_CACHE_ALL, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT | ZFS_TYPE_VOLUME,
 	    "all | none | metadata", "SECONDARYCACHE", cache_table, sfeatures);
+	zprop_register_index(ZFS_PROP_PREFETCH, "prefetch",
+	    ZFS_PREFETCH_ALL, PROP_INHERIT,
+	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT | ZFS_TYPE_VOLUME,
+	    "none | metadata | all", "PREFETCH", prefetch_table, sfeatures);
 	zprop_register_index(ZFS_PROP_LOGBIAS, "logbias", ZFS_LOGBIAS_LATENCY,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
 	    "latency | throughput", "LOGBIAS", logbias_table, sfeatures);
