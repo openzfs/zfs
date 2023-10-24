@@ -798,7 +798,7 @@ Note that this should not be set below the ZED thresholds
 (currently 10 checksums over 10 seconds)
 or else the daemon may not trigger any action.
 .
-.It Sy zfs_commit_timeout_pct Ns = Ns Sy 5 Ns % Pq uint
+.It Sy zfs_commit_timeout_pct Ns = Ns Sy 10 Ns % Pq uint
 This controls the amount of time that a ZIL block (lwb) will remain "open"
 when it isn't "full", and it has a thread waiting for it to be committed to
 stable storage.
@@ -2154,13 +2154,6 @@ can improve performance.
 This sets the maximum number of write bytes logged via WR_COPIED.
 It tunes a tradeoff between additional memory copy and possibly worse log
 space efficiency vs additional range lock/unlock.
-.
-.It Sy zil_min_commit_timeout Ns = Ns Sy 5000 Pq u64
-This sets the minimum delay in nanoseconds ZIL care to delay block commit,
-waiting for more records.
-If ZIL writes are too fast, kernel may not be able sleep for so short interval,
-increasing log latency above allowed by
-.Sy zfs_commit_timeout_pct .
 .
 .It Sy zil_nocacheflush Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Disable the cache flush commands that are normally sent to disk by
