@@ -1197,6 +1197,18 @@ are equivalent to the
 and
 .Sy noexec
 mount options.
+.It Sy volthreading Ns = Ns Sy on Ns | Ns Sy off
+Controls internal zvol threading.
+The value
+.Sy off
+disables zvol threading, and zvol relies on application threads.
+The default value is
+.Sy on ,
+which enables threading within a zvol.
+Please note that this property will be overridden by
+.Sy zvol_request_sync
+module parameter.
+This property is only applicable to Linux.
 .It Sy filesystem_limit Ns = Ns Ar count Ns | Ns Sy none
 Limits the number of filesystems and volumes that can exist under this point in
 the dataset tree.
