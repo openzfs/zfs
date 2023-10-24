@@ -802,13 +802,10 @@ abd_iterate_func(abd_t *abd, size_t off, size_t size,
 	abd_verify(abd);
 	ASSERT3U(off + size, <=, abd->abd_size);
 
-	boolean_t gang = abd_is_gang(abd);
 	abd_t *c_abd = abd_init_abd_iter(abd, &aiter, off);
 
 	while (size > 0) {
-		/* If we are at the end of the gang ABD we are done */
-		if (gang && !c_abd)
-			break;
+		IMPLY(abd_is_gang(abd), c_abd != NULL);
 
 		abd_iter_map(&aiter);
 
@@ -930,7 +927,6 @@ abd_iterate_func2(abd_t *dabd, abd_t *sabd, size_t doff, size_t soff,
 {
 	int ret = 0;
 	struct abd_iter daiter, saiter;
-	boolean_t dabd_is_gang_abd, sabd_is_gang_abd;
 	abd_t *c_dabd, *c_sabd;
 
 	if (size == 0)
@@ -942,16 +938,12 @@ abd_iterate_func2(abd_t *dabd, abd_t *sabd, size_t doff, size_t soff,
 	ASSERT3U(doff + size, <=, dabd->abd_size);
 	ASSERT3U(soff + size, <=, sabd->abd_size);
 
-	dabd_is_gang_abd = abd_is_gang(dabd);
-	sabd_is_gang_abd = abd_is_gang(sabd);
 	c_dabd = abd_init_abd_iter(dabd, &daiter, doff);
 	c_sabd = abd_init_abd_iter(sabd, &saiter, soff);
 
 	while (size > 0) {
-		/* if we are at the end of the gang ABD we are done */
-		if ((dabd_is_gang_abd && !c_dabd) ||
-		    (sabd_is_gang_abd && !c_sabd))
-			break;
+		IMPLY(abd_is_gang(dabd), c_dabd != NULL);
+		IMPLY(abd_is_gang(sabd), c_sabd != NULL);
 
 		abd_iter_map(&daiter);
 		abd_iter_map(&saiter);
@@ -1032,66 +1024,40 @@ abd_raidz_gen_iterate(abd_t **cabds, abd_t *dabd,
 	int i;
 	ssize_t len, dlen;
 	struct abd_iter caiters[3];
-	struct abd_iter daiter = {0};
+	struct abd_iter daiter;
 	void *caddrs[3];
 	unsigned long flags __maybe_unused = 0;
 	abd_t *c_cabds[3];
 	abd_t *c_dabd = NULL;
-	boolean_t cabds_is_gang_abd[3];
-	boolean_t dabd_is_gang_abd = B_FALSE;
 
 	ASSERT3U(parity, <=, 3);
-
 	for (i = 0; i < parity; i++) {
-		cabds_is_gang_abd[i] = abd_is_gang(cabds[i]);
+		abd_verify(cabds[i]);
+		ASSERT3U(csize, <=, cabds[i]->abd_size);
 		c_cabds[i] = abd_init_abd_iter(cabds[i], &caiters[i], 0);
 	}
 
-	if (dabd) {
-		dabd_is_gang_abd = abd_is_gang(dabd);
+	ASSERT3S(dsize, >=, 0);
+	if (dsize > 0) {
+		ASSERT(dabd);
+		abd_verify(dabd);
+		ASSERT3U(dsize, <=, dabd->abd_size);
 		c_dabd = abd_init_abd_iter(dabd, &daiter, 0);
 	}
 
-	ASSERT3S(dsize, >=, 0);
-
 	abd_enter_critical(flags);
 	while (csize > 0) {
-		/* if we are at the end of the gang ABD we are done */
-		if (dabd_is_gang_abd && !c_dabd)
-			break;
-
+		len = csize;
 		for (i = 0; i < parity; i++) {
-			/*
-			 * If we are at the end of the gang ABD we are
-			 * done.
-			 */
-			if (cabds_is_gang_abd[i] && !c_cabds[i])
-				break;
+			IMPLY(abd_is_gang(cabds[i]), c_cabds[i] != NULL);
 			abd_iter_map(&caiters[i]);
 			caddrs[i] = caiters[i].iter_mapaddr;
+			len = MIN(caiters[i].iter_mapsize, len);
 		}
 
-		len = csize;
-
-		if (dabd && dsize > 0)
+		if (dsize > 0) {
+			IMPLY(abd_is_gang(dabd), c_dabd != NULL);
 			abd_iter_map(&daiter);
-
-		switch (parity) {
-			case 3:
-				len = MIN(caiters[2].iter_mapsize, len);
-				zfs_fallthrough;
-			case 2:
-				len = MIN(caiters[1].iter_mapsize, len);
-				zfs_fallthrough;
-			case 1:
-				len = MIN(caiters[0].iter_mapsize, len);
-		}
-
-		/* must be progressive */
-		ASSERT3S(len, >, 0);
-
-		if (dabd && dsize > 0) {
-			/* this needs precise iter.length */
 			len = MIN(daiter.iter_mapsize, len);
 			dlen = len;
 		} else
@@ -1114,7 +1080,7 @@ abd_raidz_gen_iterate(abd_t **cabds, abd_t *dabd,
 			    &caiters[i], len);
 		}
 
-		if (dabd && dsize > 0) {
+		if (dsize > 0) {
 			abd_iter_unmap(&daiter);
 			c_dabd =
 			    abd_advance_abd_iter(dabd, c_dabd, &daiter,
@@ -1153,16 +1119,16 @@ abd_raidz_rec_iterate(abd_t **cabds, abd_t **tabds,
 	struct abd_iter xiters[3];
 	void *caddrs[3], *xaddrs[3];
 	unsigned long flags __maybe_unused = 0;
-	boolean_t cabds_is_gang_abd[3];
-	boolean_t tabds_is_gang_abd[3];
 	abd_t *c_cabds[3];
 	abd_t *c_tabds[3];
 
 	ASSERT3U(parity, <=, 3);
 
 	for (i = 0; i < parity; i++) {
-		cabds_is_gang_abd[i] = abd_is_gang(cabds[i]);
-		tabds_is_gang_abd[i] = abd_is_gang(tabds[i]);
+		abd_verify(cabds[i]);
+		abd_verify(tabds[i]);
+		ASSERT3U(tsize, <=, cabds[i]->abd_size);
+		ASSERT3U(tsize, <=, tabds[i]->abd_size);
 		c_cabds[i] =
 		    abd_init_abd_iter(cabds[i], &citers[i], 0);
 		c_tabds[i] =
@@ -1171,36 +1137,18 @@ abd_raidz_rec_iterate(abd_t **cabds, abd_t **tabds,
 
 	abd_enter_critical(flags);
 	while (tsize > 0) {
-
+		len = tsize;
 		for (i = 0; i < parity; i++) {
-			/*
-			 * If we are at the end of the gang ABD we
-			 * are done.
-			 */
-			if (cabds_is_gang_abd[i] && !c_cabds[i])
-				break;
-			if (tabds_is_gang_abd[i] && !c_tabds[i])
-				break;
+			IMPLY(abd_is_gang(cabds[i]), c_cabds[i] != NULL);
+			IMPLY(abd_is_gang(tabds[i]), c_tabds[i] != NULL);
 			abd_iter_map(&citers[i]);
 			abd_iter_map(&xiters[i]);
 			caddrs[i] = citers[i].iter_mapaddr;
 			xaddrs[i] = xiters[i].iter_mapaddr;
+			len = MIN(citers[i].iter_mapsize, len);
+			len = MIN(xiters[i].iter_mapsize, len);
 		}
 
-		len = tsize;
-		switch (parity) {
-			case 3:
-				len = MIN(xiters[2].iter_mapsize, len);
-				len = MIN(citers[2].iter_mapsize, len);
-				zfs_fallthrough;
-			case 2:
-				len = MIN(xiters[1].iter_mapsize, len);
-				len = MIN(citers[1].iter_mapsize, len);
-				zfs_fallthrough;
-			case 1:
-				len = MIN(xiters[0].iter_mapsize, len);
-				len = MIN(citers[0].iter_mapsize, len);
-		}
 		/* must be progressive */
 		ASSERT3S(len, >, 0);
 		/*
