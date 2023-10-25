@@ -634,6 +634,11 @@ zio_add_child(zio_t *pio, zio_t *cio)
 	 */
 	ASSERT3S(cio->io_child_type, <=, pio->io_child_type);
 
+	/* Parent should not have READY stage if child doesn't have it. */
+	IMPLY((cio->io_pipeline & ZIO_STAGE_READY) == 0 &&
+	    (cio->io_child_type != ZIO_CHILD_VDEV),
+	    (pio->io_pipeline & ZIO_STAGE_READY) == 0);
+
 	zio_link_t *zl = kmem_cache_alloc(zio_link_cache, KM_SLEEP);
 	zl->zl_parent = pio;
 	zl->zl_child = cio;
@@ -664,6 +669,11 @@ zio_add_child_first(zio_t *pio, zio_t *cio)
 	 * The following ASSERT captures all of these constraints.
 	 */
 	ASSERT3S(cio->io_child_type, <=, pio->io_child_type);
+
+	/* Parent should not have READY stage if child doesn't have it. */
+	IMPLY((cio->io_pipeline & ZIO_STAGE_READY) == 0 &&
+	    (cio->io_child_type != ZIO_CHILD_VDEV),
+	    (pio->io_pipeline & ZIO_STAGE_READY) == 0);
 
 	zio_link_t *zl = kmem_cache_alloc(zio_link_cache, KM_SLEEP);
 	zl->zl_parent = pio;
@@ -901,7 +911,8 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 	zio->io_orig_pipeline = zio->io_pipeline = pipeline;
 	zio->io_pipeline_trace = ZIO_STAGE_OPEN;
 
-	zio->io_state[ZIO_WAIT_READY] = (stage >= ZIO_STAGE_READY);
+	zio->io_state[ZIO_WAIT_READY] = (stage >= ZIO_STAGE_READY) ||
+	    (pipeline & ZIO_STAGE_READY) == 0;
 	zio->io_state[ZIO_WAIT_DONE] = (stage >= ZIO_STAGE_DONE);
 
 	if (zb != NULL)
@@ -932,6 +943,10 @@ zio_destroy(zio_t *zio)
 	kmem_cache_free(zio_cache, zio);
 }
 
+/*
+ * ZIO intended to be between others.  Provides synchronization at READY
+ * and DONE pipeline stages and calls the respective callbacks.
+ */
 zio_t *
 zio_null(zio_t *pio, spa_t *spa, vdev_t *vd, zio_done_func_t *done,
     void *private, zio_flag_t flags)
@@ -945,10 +960,22 @@ zio_null(zio_t *pio, spa_t *spa, vdev_t *vd, zio_done_func_t *done,
 	return (zio);
 }
 
+/*
+ * ZIO intended to be a root of a tree.  Unlike null ZIO does not have a
+ * READY pipeline stage (is ready on creation), so it should not be used
+ * as child of any ZIO that may need waiting for grandchildren READY stage
+ * (any other ZIO type).
+ */
 zio_t *
 zio_root(spa_t *spa, zio_done_func_t *done, void *private, zio_flag_t flags)
 {
-	return (zio_null(NULL, spa, NULL, done, private, flags));
+	zio_t *zio;
+
+	zio = zio_create(NULL, spa, 0, NULL, NULL, 0, 0, done, private,
+	    ZIO_TYPE_NULL, ZIO_PRIORITY_NOW, flags, NULL, 0, NULL,
+	    ZIO_STAGE_OPEN, ZIO_ROOT_PIPELINE);
+
+	return (zio);
 }
 
 static int
@@ -2396,13 +2423,14 @@ static void
 zio_reexecute(void *arg)
 {
 	zio_t *pio = arg;
-	zio_t *cio, *cio_next;
+	zio_t *cio, *cio_next, *gio;
 
 	ASSERT(pio->io_child_type == ZIO_CHILD_LOGICAL);
 	ASSERT(pio->io_orig_stage == ZIO_STAGE_OPEN);
 	ASSERT(pio->io_gang_leader == NULL);
 	ASSERT(pio->io_gang_tree == NULL);
 
+	mutex_enter(&pio->io_lock);
 	pio->io_flags = pio->io_orig_flags;
 	pio->io_stage = pio->io_orig_stage;
 	pio->io_pipeline = pio->io_orig_pipeline;
@@ -2410,8 +2438,16 @@ zio_reexecute(void *arg)
 	pio->io_flags |= ZIO_FLAG_REEXECUTED;
 	pio->io_pipeline_trace = 0;
 	pio->io_error = 0;
-	for (int w = 0; w < ZIO_WAIT_TYPES; w++)
-		pio->io_state[w] = 0;
+	pio->io_state[ZIO_WAIT_READY] = (pio->io_stage >= ZIO_STAGE_READY) ||
+	    (pio->io_pipeline & ZIO_STAGE_READY) == 0;
+	pio->io_state[ZIO_WAIT_DONE] = (pio->io_stage >= ZIO_STAGE_DONE);
+	zio_link_t *zl = NULL;
+	while ((gio = zio_walk_parents(pio, &zl)) != NULL) {
+		for (int w = 0; w < ZIO_WAIT_TYPES; w++) {
+			gio->io_children[pio->io_child_type][w] +=
+			    !pio->io_state[w];
+		}
+	}
 	for (int c = 0; c < ZIO_CHILD_TYPES; c++)
 		pio->io_child_error[c] = 0;
 
@@ -2425,12 +2461,9 @@ zio_reexecute(void *arg)
 	 * the remainder of pio's io_child_list, from 'cio_next' onward,
 	 * cannot be affected by any side effects of reexecuting 'cio'.
 	 */
-	zio_link_t *zl = NULL;
-	mutex_enter(&pio->io_lock);
+	zl = NULL;
 	for (cio = zio_walk_children(pio, &zl); cio != NULL; cio = cio_next) {
 		cio_next = zio_walk_children(pio, &zl);
-		for (int w = 0; w < ZIO_WAIT_TYPES; w++)
-			pio->io_children[cio->io_child_type][w]++;
 		mutex_exit(&pio->io_lock);
 		zio_reexecute(cio);
 		mutex_enter(&pio->io_lock);

@@ -2155,8 +2155,8 @@ zil_lwb_commit(zilog_t *zilog, lwb_t *lwb, itx_t *itx)
 				ZIL_STAT_INCR(zilog, zil_itx_indirect_bytes,
 				    lrw->lr_length);
 				if (lwb->lwb_child_zio == NULL) {
-					lwb->lwb_child_zio = zio_root(
-					    zilog->zl_spa, NULL, NULL,
+					lwb->lwb_child_zio = zio_null(NULL,
+					    zilog->zl_spa, NULL, NULL, NULL,
 					    ZIO_FLAG_CANFAIL);
 				}
 			}

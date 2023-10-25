@@ -8716,8 +8716,6 @@ zdb_read_block(char *thing, spa_t *spa)
 			BP_SET_CHECKSUM(bp, ck);
 			spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
 			czio = zio_root(spa, NULL, NULL, ZIO_FLAG_CANFAIL);
-			czio->io_bp = bp;
-
 			if (vd == vd->vdev_top) {
 				zio_nowait(zio_read(czio, spa, bp, pabd, psize,
 				    NULL, NULL,
@@ -8736,7 +8734,8 @@ zdb_read_block(char *thing, spa_t *spa)
 			}
 			error = zio_wait(czio);
 			if (error == 0 || error == ECKSUM) {
-				zio_t *ck_zio = zio_root(spa, NULL, NULL, 0);
+				zio_t *ck_zio = zio_null(NULL, spa, NULL,
+				    NULL, NULL, 0);
 				ck_zio->io_offset =
 				    DVA_GET_OFFSET(&bp->blk_dva[0]);
 				ck_zio->io_bp = bp;
