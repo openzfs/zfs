@@ -1961,6 +1961,7 @@ function check_pool_status # pool token keyword <verbose>
 
 #
 # The following functions are instance of check_pool_status()
+#	if_pool_without_errors - to check if the pool has errors
 #	is_pool_resilvering - to check if the pool resilver is in progress
 #	is_pool_resilvered - to check if the pool resilver is completed
 #	is_pool_scrubbing - to check if the pool scrub is in progress
@@ -1972,6 +1973,13 @@ function check_pool_status # pool token keyword <verbose>
 #	is_pool_discarding - to check if the pool checkpoint is being discarded
 #	is_pool_replacing - to check if the pool is performing a replacement
 #
+
+function is_pool_without_errors #pool <verbose>
+{
+	check_pool_status "$1" "errors" "No known data errors" $2
+	return $?
+}
+
 function is_pool_resilvering #pool <verbose>
 {
 	check_pool_status "$1" "scan" \
