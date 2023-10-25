@@ -2216,6 +2216,16 @@ If
 .Sy 0 ,
 generate a system-dependent value close to 6 threads per taskq.
 .
+.It Sy zio_taskq_read Ns = Ns Sy fixed,1,8 null scale null Pq charp
+Set the queue and thread configuration for the IO read queues.
+This is an advanced debugging parameter.
+Don't change this unless you understand what it does.
+.
+.It Sy zio_taskq_write Ns = Ns Sy batch fixed,1,5 scale fixed,1,5 Pq charp
+Set the queue and thread configuration for the IO write queues.
+This is an advanced debugging parameter.
+Don't change this unless you understand what it does.
+.
 .It Sy zvol_inhibit_dev Ns = Ns Sy 0 Ns | Ns 1 Pq uint
 Do not create zvol device nodes.
 This may slightly improve startup time on
