@@ -64,6 +64,7 @@ typedef enum {
 } while (0)
 #define	mutex_destroy(lock)	sx_destroy(lock)
 #define	mutex_enter(lock)	sx_xlock(lock)
+#define	mutex_enter_interruptible(lock)	sx_xlock_sig(lock)
 #define	mutex_enter_nested(lock, type)	sx_xlock(lock)
 #define	mutex_tryenter(lock)	sx_try_xlock(lock)
 #define	mutex_exit(lock)	sx_xunlock(lock)

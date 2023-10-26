@@ -128,7 +128,6 @@ spl_mutex_lockdep_on_maybe(kmutex_t *mp)			\
 
 #define	NESTED_SINGLE 1
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
 #define	mutex_enter_nested(mp, subclass)			\
 {								\
 	ASSERT3P(mutex_owner(mp), !=, current);			\
@@ -137,16 +136,22 @@ spl_mutex_lockdep_on_maybe(kmutex_t *mp)			\
 	spl_mutex_lockdep_on_maybe(mp);				\
 	spl_mutex_set_owner(mp);				\
 }
-#else /* CONFIG_DEBUG_LOCK_ALLOC */
-#define	mutex_enter_nested(mp, subclass)			\
-{								\
+
+#define	mutex_enter_interruptible(mp)				\
+/* CSTYLED */							\
+({								\
+	int _rc_;						\
+								\
 	ASSERT3P(mutex_owner(mp), !=, current);			\
 	spl_mutex_lockdep_off_maybe(mp);			\
-	mutex_lock(MUTEX(mp));					\
+	_rc_ = mutex_lock_interruptible(MUTEX(mp));		\
 	spl_mutex_lockdep_on_maybe(mp);				\
-	spl_mutex_set_owner(mp);				\
-}
-#endif /*  CONFIG_DEBUG_LOCK_ALLOC */
+	if (!_rc_) {						\
+		spl_mutex_set_owner(mp);			\
+	}							\
+								\
+	_rc_;							\
+})
 
 #define	mutex_enter(mp) mutex_enter_nested((mp), 0)
 
