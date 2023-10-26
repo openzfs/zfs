@@ -206,6 +206,15 @@ mutex_enter(kmutex_t *mp)
 }
 
 int
+mutex_enter_check_return(kmutex_t *mp)
+{
+	int error = pthread_mutex_lock(&mp->m_lock);
+	if (error == 0)
+		mp->m_owner = pthread_self();
+	return (error);
+}
+
+int
 mutex_tryenter(kmutex_t *mp)
 {
 	int error = pthread_mutex_trylock(&mp->m_lock);

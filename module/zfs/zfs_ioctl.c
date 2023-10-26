@@ -1582,8 +1582,9 @@ zfs_ioc_pool_configs(zfs_cmd_t *zc)
 	nvlist_t *configs;
 	int error;
 
-	if ((configs = spa_all_configs(&zc->zc_cookie)) == NULL)
-		return (SET_ERROR(EEXIST));
+	error = spa_all_configs(&zc->zc_cookie, &configs);
+	if (error)
+		return (error);
 
 	error = put_nvlist(zc, configs);
 
