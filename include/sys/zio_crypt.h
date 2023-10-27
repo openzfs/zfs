@@ -148,6 +148,11 @@ int zio_crypt_do_hmac(zio_crypt_key_t *key, uint8_t *data, uint_t datalen,
     uint8_t *digestbuf, uint_t digestlen);
 int zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
     boolean_t byteswap, uint8_t *portable_mac, uint8_t *local_mac);
+#ifdef __APPLE__
+int zio_crypt_do_objset_hmacs_errata1(zio_crypt_key_t *key, void *data,
+    uint_t datalen, boolean_t should_bswap, uint8_t *portable_mac,
+    uint8_t *local_mac);
+#endif
 int zio_do_crypt_data(boolean_t encrypt, zio_crypt_key_t *key,
     dmu_object_type_t ot, boolean_t byteswap, uint8_t *salt, uint8_t *iv,
     uint8_t *mac, uint_t datalen, uint8_t *plainbuf, uint8_t *cipherbuf,

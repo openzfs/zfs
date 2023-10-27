@@ -18,6 +18,12 @@ if BUILD_LINUX
 include $(srcdir)/%D%/rpm/Makefile.am
 endif
 
+if BUILD_MACOS
+bin_PROGRAMS=
+noinst_PROGRAMS=
+include $(srcdir)/%D%/module/os/macos/Makefile.am
+endif
+
 if CONFIG_USER
 include $(srcdir)/%D%/cmd/Makefile.am
 include $(srcdir)/%D%/contrib/Makefile.am
@@ -194,11 +200,12 @@ cscopelist:
 PHONY += tags
 tags: ctags etags
 
-PHONY += pkg pkg-dkms pkg-kmod pkg-utils
+PHONY += pkg pkg-dkms pkg-kmod pkg-utils pkg-macos
 pkg: @DEFAULT_PACKAGE@
 pkg-dkms: @DEFAULT_PACKAGE@-dkms
 pkg-kmod: @DEFAULT_PACKAGE@-kmod
 pkg-utils: @DEFAULT_PACKAGE@-utils
+pkg-macos: @DEFAULT_PACKAGE@-macos
 
 include config/rpm.am
 include config/deb.am

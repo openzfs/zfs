@@ -64,6 +64,7 @@ int vdev_raidz_math_generate(struct raidz_map *, struct raidz_row *);
 int vdev_raidz_math_reconstruct(struct raidz_map *, struct raidz_row *,
     const int *, const int *, const int);
 int vdev_raidz_impl_set(const char *);
+int vdev_raidz_impl_get(char *buffer, size_t max);
 
 typedef struct vdev_raidz {
 	int vd_logical_width;

@@ -33,6 +33,10 @@
 
 #include <sys/ia32/asm_linkage.h>	/* XX64	x86/sys/asm_linkage.h */
 
+#elif defined(__aarch64__)
+
+#include <sys/aarch64/asm_linkage.h>
+
 #endif
 
 #if defined(_KERNEL) && defined(HAVE_KERNEL_OBJTOOL)

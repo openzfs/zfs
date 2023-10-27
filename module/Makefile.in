@@ -10,13 +10,15 @@ uninstall: modules_uninstall data_uninstall
 check:
 
 .PHONY: all distclean maintainer-clean install uninstall check distdir \
-	modules modules-Linux modules-FreeBSD modules-unknown \
-	clean clean-Linux clean-FreeBSD \
+	modules modules-Linux modules-FreeBSD modules-macOS modules-unknown \
+	clean clean-Linux clean-FreeBSD clean-macOS \
 	modules_install modules_install-Linux modules_install-FreeBSD \
-	data_install data_install-Linux data_install-FreeBSD \
+	modules_install-macOS data_install data_install-Linux \
+	data_install-FreeBSD data_install-macOS \
 	modules_uninstall modules_uninstall-Linux modules_uninstall-FreeBSD \
-	data_uninstall data_uninstall-Linux data_uninstall-FreeBSD \
-	cppcheck cppcheck-Linux cppcheck-FreeBSD
+	modules_uninstall-macOS data_uninstall data_uninstall-Linux \
+	data_uninstall-FreeBSD data_uninstall-macOS \
+	cppcheck cppcheck-Linux cppcheck-FreeBSD cppcheck-macOS
 
 # For FreeBSD, use debug options from ./configure if not overridden.
 export WITH_DEBUG ?= @WITH_DEBUG@
@@ -60,6 +62,9 @@ modules-Linux:
 modules-FreeBSD:
 	+$(FMAKE)
 
+modules-macOS:
+	@true
+
 modules-unknown:
 	@true
 
@@ -75,6 +80,9 @@ clean-Linux:
 
 clean-FreeBSD:
 	+$(FMAKE) clean
+
+clean-macOS:
+	@true
 
 clean: clean-@ac_system@
 
@@ -110,6 +118,9 @@ modules_install-FreeBSD:
 	@# Install the kernel modules
 	+$(FMAKE) install
 
+modules_install-macOS:
+	@true
+
 modules_install: modules_install-@ac_system@
 
 data_install-Linux:
@@ -117,6 +128,9 @@ data_install-Linux:
 	cp ../zfs.release ../zfs_config.h @LINUX_SYMBOLS@ $(DESTDIR)/@prefix@/src/zfs-@VERSION@/@LINUX_VERSION@
 
 data_install-FreeBSD:
+	@
+
+data_install-macOS:
 	@
 
 data_install: data_install-@ac_system@
@@ -128,12 +142,18 @@ modules_uninstall-Linux: modules_uninstall-Linux-legacy
 modules_uninstall-FreeBSD:
 	@false
 
+modules_uninstall-macOS:
+	@false
+
 modules_uninstall: modules_uninstall-@ac_system@
 
 data_uninstall-Linux:
 	$(RM) $(addprefix $(DESTDIR)/@prefix@/src/zfs-@VERSION@/@LINUX_VERSION@/,zfs.release zfs_config.h @LINUX_SYMBOLS@)
 
 data_uninstall-FreeBSD:
+	@
+
+data_uninstall-macOS:
 	@
 
 data_uninstall: data_uninstall-@ac_system@
@@ -156,6 +176,9 @@ cppcheck-Linux:
 		avl icp lua nvpair unicode zcommon zfs zstd os/linux
 
 cppcheck-FreeBSD:
+	@true
+
+cppcheck-macOS:
 	@true
 
 cppcheck: cppcheck-@ac_system@

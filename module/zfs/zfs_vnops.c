@@ -58,6 +58,8 @@
 #include <sys/zfs_znode.h>
 
 
+#ifndef __APPLE__
+
 static ulong_t zfs_fsync_sync_cnt = 4;
 
 int
@@ -81,7 +83,7 @@ out:
 
 	return (error);
 }
-
+#endif
 
 #if defined(SEEK_HOLE) && defined(SEEK_DATA)
 /*
@@ -579,7 +581,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 			ASSERT(abuf != NULL);
 			ASSERT(arc_buf_size(abuf) == blksz);
 			if ((error = zfs_uiocopy(abuf->b_data, blksz,
-			    UIO_WRITE, uio, &nbytes))) {
+			    UIO_WRITE, uio, (size_t *)&nbytes))) {
 				dmu_return_arcbuf(abuf);
 				break;
 			}
@@ -844,8 +846,13 @@ zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
 	/*
 	 * Nothing to do if the file has been removed
 	 */
+#ifndef __APPLE__
 	if (zfs_zget(zfsvfs, object, &zp) != 0)
 		return (SET_ERROR(ENOENT));
+#else
+	if (zfs_zget_ext(zfsvfs, object, &zp, ZGET_FLAG_ASYNC) != 0)
+		return (SET_ERROR(ENOENT));
+#endif
 	if (zp->z_unlinked) {
 		/*
 		 * Release the vnode asynchronously as we currently have the

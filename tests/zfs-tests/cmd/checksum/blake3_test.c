@@ -452,10 +452,12 @@ static blake3_test_t TestArray[] = {
 	}
 };
 
+#ifndef dprintf
 #ifdef BLAKE3_DEBUG
 #define	dprintf printf
 #else
 #define	dprintf(...)
+#endif
 #endif
 
 static char fmt_tohex(char c);

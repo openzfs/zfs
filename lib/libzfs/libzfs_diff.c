@@ -761,7 +761,12 @@ zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
 		return (-1);
 	}
 
+#if defined(__APPLE__)
+	/* Can't do IO on pipes, open fds mkfifo */
+	if (libzfs_macos_pipefd(&pipefd[0], &pipefd[1])) {
+#else
 	if (pipe2(pipefd, O_CLOEXEC)) {
+#endif
 		zfs_error_aux(zhp->zfs_hdl, "%s", strerror(errno));
 		teardown_differ_info(&di);
 		return (zfs_error(zhp->zfs_hdl, EZFS_PIPEFAILED, errbuf));

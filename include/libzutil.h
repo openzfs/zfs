@@ -109,7 +109,11 @@ _LIBZUTIL_H void update_vdev_config_dev_strs(nvlist_t *);
  * Default device paths
  */
 #define	DISK_ROOT	"/dev"
+#ifdef __APPLE__
+#define	UDISK_ROOT	"/private/var/run/disk"
+#else
 #define	UDISK_ROOT	"/dev/disk"
+#endif
 #define	ZVOL_ROOT	"/dev/zvol"
 
 _LIBZUTIL_H int zfs_append_partition(char *path, size_t max_len);

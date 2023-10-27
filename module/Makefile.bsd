@@ -15,6 +15,7 @@ KMOD=	openzfs
 	${SRCDIR}/icp/algs/blake3 \
 	${SRCDIR}/icp/algs/edonr \
 	${SRCDIR}/icp/algs/sha2 \
+	${SRCDIR}/icp/asm-aarch64/aes \
 	${SRCDIR}/icp/asm-aarch64/blake3 \
 	${SRCDIR}/icp/asm-aarch64/sha2 \
 	${SRCDIR}/icp/asm-arm/sha2 \
@@ -87,6 +88,9 @@ SRCS+=	avl.c
 
 # icp
 SRCS+=	edonr.c
+
+#icp/asm-aarch64/aes
+SRCS+=	aesv8-armx.S
 
 #icp/algs/blake3
 SRCS+=	blake3.c \

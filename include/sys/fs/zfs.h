@@ -192,6 +192,11 @@ typedef enum {
 	ZFS_PROP_REDACT_SNAPS,
 	ZFS_PROP_SNAPSHOTS_CHANGED,
 	ZFS_PROP_PREFETCH,
+	ZFS_PROP_BROWSE,		/* macOS: nobrowse/browse */
+	ZFS_PROP_IGNOREOWNER,	/* macOS: ignoreowner mount */
+	ZFS_PROP_LASTUNMOUNT,	/* macOS: Spotlight required */
+	ZFS_PROP_MIMIC,			/* macOS: mimic=hfs|apfs */
+	ZFS_PROP_DEVDISK,		/* macOS: create IOkit virtual disk */
 	ZFS_NUM_PROPS
 } zfs_prop_t;
 
@@ -549,6 +554,18 @@ typedef enum {
 	ZFS_PREFETCH_METADATA = 1,
 	ZFS_PREFETCH_ALL = 2
 } zfs_prefetch_type_t;
+
+typedef enum zfs_mimic {
+	ZFS_MIMIC_OFF = 0,
+	ZFS_MIMIC_HFS,
+	ZFS_MIMIC_APFS
+} zfs_mimic_t;
+
+typedef enum zfs_devdisk {
+	ZFS_DEVDISK_POOLONLY = 0,
+	ZFS_DEVDISK_OFF,
+	ZFS_DEVDISK_ON
+} zfs_devdisk_t;
 
 #define	DEFAULT_PBKDF2_ITERATIONS 350000
 #define	MIN_PBKDF2_ITERATIONS 100000
@@ -1386,7 +1403,7 @@ typedef enum zfs_ioc {
 	/*
 	 * Core features - 88/128 numbers reserved.
 	 */
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(__APPLE__)
 	ZFS_IOC_FIRST =	0,
 #else
 	ZFS_IOC_FIRST =	('Z' << 8),
@@ -1495,6 +1512,8 @@ typedef enum zfs_ioc {
 	ZFS_IOC_USERNS_DETACH = ZFS_IOC_UNJAIL,	/* 0x86 (Linux) */
 	ZFS_IOC_SET_BOOTENV,			/* 0x87 */
 	ZFS_IOC_GET_BOOTENV,			/* 0x88 */
+	ZFS_IOC_PROXY_DATASET,			/* 0x89 (macOS) */
+	ZFS_IOC_PROXY_REMOVE,			/* 0x8a (macOS) */
 	ZFS_IOC_LAST
 } zfs_ioc_t;
 

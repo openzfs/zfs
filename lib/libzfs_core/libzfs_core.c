@@ -94,6 +94,9 @@
 #if __FreeBSD__
 #define	BIG_PIPE_SIZE (64 * 1024) /* From sys/pipe.h */
 #endif
+#if __APPLE__
+#define	BIG_PIPE_SIZE (64 * 1024)
+#endif
 
 static int g_fd = -1;
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;

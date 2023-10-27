@@ -75,6 +75,9 @@ int zfs_secpolicy_config(zfs_cmd_t *, nvlist_t *, cred_t *);
 
 void zfs_ioctl_register_dataset_nolog(zfs_ioc_t, zfs_ioc_legacy_func_t *,
     zfs_secpolicy_func_t *, zfs_ioc_poolcheck_t);
+void zfs_ioctl_register_pool(zfs_ioc_t, zfs_ioc_legacy_func_t *,
+    zfs_secpolicy_func_t *, boolean_t, zfs_ioc_poolcheck_t);
+
 
 void zfs_ioctl_register(const char *, zfs_ioc_t, zfs_ioc_func_t *,
     zfs_secpolicy_func_t *, zfs_ioc_namecheck_t, zfs_ioc_poolcheck_t,

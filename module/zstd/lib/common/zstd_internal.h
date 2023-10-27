@@ -19,7 +19,7 @@
 /*-*************************************
 *  Dependencies
 ***************************************/
-#if !defined(ZSTD_NO_INTRINSICS) && defined(__ARM_NEON)
+#if !defined(ZSTD_NO_INTRINSICS) && defined(__ARM_NEON) && !defined(__APPLE__)
 #include <arm_neon.h>
 #endif
 #include "compiler.h"
@@ -227,7 +227,7 @@ static const U32 OF_defaultNormLog = OF_DEFAULTNORMLOG;
 *  Shared functions to include for inlining
 *********************************************/
 static void ZSTD_copy8(void* dst, const void* src) {
-#if !defined(ZSTD_NO_INTRINSICS) && defined(__ARM_NEON)
+#if !defined(ZSTD_NO_INTRINSICS) && defined(__ARM_NEON) && !defined(__APPLE__)
     vst1_u8((uint8_t*)dst, vld1_u8((const uint8_t*)src));
 #else
     memcpy(dst, src, 8);
@@ -236,7 +236,7 @@ static void ZSTD_copy8(void* dst, const void* src) {
 
 #define COPY8(d,s) { ZSTD_copy8(d,s); d+=8; s+=8; }
 static void ZSTD_copy16(void* dst, const void* src) {
-#if !defined(ZSTD_NO_INTRINSICS) && defined(__ARM_NEON)
+#if !defined(ZSTD_NO_INTRINSICS) && defined(__ARM_NEON) && !defined(__APPLE__)
     vst1q_u8((uint8_t*)dst, vld1q_u8((const uint8_t*)src));
 #else
     memcpy(dst, src, 16);
@@ -260,7 +260,7 @@ typedef enum {
  *         - ZSTD_overlap_src_before_dst: The src and dst may overlap, but they MUST be at least 8 bytes apart.
  *           The src buffer must be before the dst buffer.
  */
-MEM_STATIC FORCE_INLINE_ATTR 
+MEM_STATIC FORCE_INLINE_ATTR
 void ZSTD_wildcopy(void* dst, const void* src, ptrdiff_t length, ZSTD_overlap_e const ovtype)
 {
     ptrdiff_t diff = (BYTE*)dst - (const BYTE*)src;

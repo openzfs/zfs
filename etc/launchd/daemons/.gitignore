@@ -1,0 +1,5 @@
+org.openzfsonosx.zconfigd.plist
+org.openzfsonosx.zed.plist
+org.openzfsonosx.zpool-import.plist
+org.openzfsonosx.zpool-import-all.plist
+org.openzfsonosx.InvariantDisks.plist

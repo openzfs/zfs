@@ -1,0 +1,95 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
+.\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+.\" Copyright (c) 2011, Pawel Jakub Dawidek <pjd@FreeBSD.org>
+.\" Copyright (c) 2012, Glen Barber <gjb@FreeBSD.org>
+.\" Copyright (c) 2012, Bryan Drewery <bdrewery@FreeBSD.org>
+.\" Copyright (c) 2013, Steven Hartland <smh@FreeBSD.org>
+.\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+.\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
+.\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
+.\" Copyright (c) 2014 Integros [integros.com]
+.\" Copyright (c) 2016 Nexenta Systems, Inc. All Rights Reserved.
+.\" Copyright (c) 2014, Xin LI <delphij@FreeBSD.org>
+.\" Copyright (c) 2014-2015, The FreeBSD Foundation, All Rights Reserved.
+.\" Copyright 2019 Richard Laager. All rights reserved.
+.\" Copyright 2018 Nexenta Systems, Inc.
+.\" Copyright 2019 Joyent, Inc.
+.\" Copyright (c) 2019, Kjeld Schouten-Lebbing
+.\"
+.Dd April 29, 2021
+.Dt ZFSPROPS-MACOS 7
+.Os
+.
+.Sh NAME
+.Nm zfsprops-macos
+.Nd native properties of ZFS datasets specific to macOS
+.
+.Sh DESCRIPTION
+These properties are like the native properties described in
+.Xr zfsprops 8
+but they are specific to macOS.
+.Pp
+The following native properties can be used to change the behavior of a ZFS
+dataset.
+.Bl -tag -width ""
+.It Xo
+.Sy com.apple.browse Ns = Ns Sy on Ns | Ns Sy off
+.Xc
+Equivalent to mount option
+.Sy browse/nobrowse .
+This option indicates
+that the mount point should not be visible via the GUI (i.e., appear
+on the Desktop as a separate volume).  Setting it to off will result
+in Spotlight being unavailable for the specified mount point.
+The default value is
+.Sy off .
+.It Xo
+.Sy com.apple.ignoreowner Ns = Ns Sy on Ns | Ns Sy off
+.Xc
+Equivalent to mount option
+.Sy noowners .
+Ignore the ownership field for the entire volume.
+The default value is
+.Sy off .
+.It Xo
+.Sy com.apple.mimic Ns = Ns Sy hfs Ns | Ns Sy off
+.Xc
+Some applications check if the filesystem type is "hfs" and refuse to work with
+ZFS.
+In this situation, this property can be enabled and the filesystem type will be
+reported as "hfs".
+The default value is
+.Sy off .
+.It Xo
+.Sy com.apple.devdisk Ns = Ns Sy poolonly Ns | Ns Sy on Ns | Ns Sy off
+.Xc
+Create a /dev/diskX pseudo-disk for the mount, which has better compatibility
+with macOS UI.
+Due to the cost of creating a /dev/disk entry, the default value is set to
+.Sy poolonly
+as to only create an entry for the pool's root dataset.
+For lower datasets, set to
+.Sy on .
+.El

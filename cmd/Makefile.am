@@ -98,6 +98,10 @@ SHELLCHECKSCRIPTS += %D%/zvol_wait
 include $(srcdir)/%D%/zed/Makefile.am
 endif
 
+if BUILD_MACOS
+include $(srcdir)/%D%/zed/Makefile.am
+include $(srcdir)/%D%/os/Makefile.am
+endif
 
 if USING_PYTHON
 bin_SCRIPTS      += arc_summary     arcstat        dbufstat        zilstat
@@ -110,7 +114,6 @@ $(call SUBST,zilstat,%D%/)
 arc_summary: %D%/arc_summary
 	$(AM_V_at)cp $< $@
 endif
-
 
 PHONY += cmd
 cmd: $(bin_SCRIPTS) $(bin_PROGRAMS) $(sbin_SCRIPTS) $(sbin_PROGRAMS) $(dist_bin_SCRIPTS) $(zfsexec_PROGRAMS) $(mounthelper_PROGRAMS)

@@ -39,6 +39,13 @@ libspl_la_SOURCES += \
 	%D%/os/freebsd/zone.c
 endif
 
+if BUILD_MACOS
+libspl_la_SOURCES += \
+	%D%/os/macos/getexecname.c \
+	%D%/os/macos/gethostid.c \
+	%D%/os/macos/zone.c
+endif
+
 libspl_la_LIBADD = \
 	libspl_assert.la
 

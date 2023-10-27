@@ -343,13 +343,13 @@ atomic_swap_ptr(volatile void *target, void *bits)
 uint64_t
 atomic_load_64(volatile uint64_t *target)
 {
-	return (__atomic_load_n(target, __ATOMIC_RELAXED));
+	return (__atomic_load_n(target, __ATOMIC_ACQUIRE));
 }
 
 void
 atomic_store_64(volatile uint64_t *target, uint64_t bits)
 {
-	return (__atomic_store_n(target, bits, __ATOMIC_RELAXED));
+	return (__atomic_store_n(target, bits, __ATOMIC_RELEASE));
 }
 #endif
 
@@ -390,11 +390,11 @@ membar_sync(void)
 void
 membar_producer(void)
 {
-	__atomic_thread_fence(__ATOMIC_RELEASE);
+	__atomic_thread_fence(__ATOMIC_SEQ_CST);
 }
 
 void
 membar_consumer(void)
 {
-	__atomic_thread_fence(__ATOMIC_ACQUIRE);
+	__atomic_thread_fence(__ATOMIC_SEQ_CST);
 }

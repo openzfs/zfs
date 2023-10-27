@@ -44,7 +44,7 @@ AM_INIT_AUTOMAKE([subdir-objects foreign])
 # Remove default macros from config.h:
 #   PACKAGE, PACKAGE_{BUGREPORT,NAME,STRING,TARNAME,VERSION}, STDC_HEADERS, VERSION
 AC_CONFIG_HEADERS([zfs_config.h], [
-	sed -nri~ -e '/^$/be' -e 'N;N;/#define (PACKAGE|VERSION|STDC_HEADERS)/d' -e ':e' -e 'p' zfs_config.h && rm zfs_config.h~ || exit])
+	$SED -nri~ -e '/^$/be' -e 'N;N;/#define (PACKAGE|VERSION|STDC_HEADERS)/d' -e ':e' -e 'p' zfs_config.h && rm zfs_config.h~ || exit])
 
 LT_INIT
 AC_PROG_INSTALL
@@ -55,6 +55,9 @@ AM_PROG_AS
 AM_PROG_CC_C_O
 AX_CODE_COVERAGE
 _AM_PROG_TAR(pax)
+AC_PROG_CXX(clang++)
+AC_PROG_OBJC(clang)
+AC_PROG_OBJCXX(clang++)
 
 ZFS_AC_LICENSE
 ZFS_AC_CONFIG

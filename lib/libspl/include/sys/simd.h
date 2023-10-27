@@ -49,6 +49,27 @@ static inline unsigned long getauxval(unsigned long key)
 #define	AT_HWCAP	16
 #define	AT_HWCAP2	26
 extern unsigned long getauxval(unsigned long type);
+#elif defined(__APPLE__)
+#include <sys/sysctl.h>
+#define	AT_HWCAP	0
+static inline unsigned long getauxval(unsigned long key)
+{
+	(void) key;
+	/* HWCAP_ are all defined halfway down this file */
+	unsigned long val = 1 /* HWCAP_FP */;
+	int intval;
+	size_t intvallen = sizeof (intval);
+	int err;
+	err = sysctlbyname("hw.optional.arm.FEAT_SHA256",
+	    &intval, &intvallen, NULL, 0);
+	if (err == 0 && intval != 0)
+		val |= 0x00000040; /* SHA256 */
+	err = sysctlbyname("hw.optional.arm.FEAT_SHA512",
+	    &intval, &intvallen, NULL, 0);
+	if (err == 0 && intval != 0)
+		val |= 0x00200000; /* SHA512 */
+	return (val);
+}
 #endif /* __linux__ */
 #endif /* arm || aarch64 || powerpc */
 
@@ -516,6 +537,7 @@ zfs_sha256_available(void)
 #define	kfpu_end()		do {} while (0)
 
 #define	HWCAP_FP		0x00000001
+#define	HWCAP_AES		0x00000008
 #define	HWCAP_SHA2		0x00000040
 #define	HWCAP_SHA512		0x00200000
 
@@ -547,6 +569,16 @@ zfs_sha512_available(void)
 {
 	unsigned long hwcap = getauxval(AT_HWCAP);
 	return (hwcap & HWCAP_SHA512);
+}
+
+/*
+ * Check if AESV8 is available
+ */
+static inline boolean_t
+zfs_aesv8_available(void)
+{
+	unsigned long hwcap = getauxval(AT_HWCAP);
+	return (hwcap & HWCAP_AES);
 }
 
 #elif defined(__powerpc__)

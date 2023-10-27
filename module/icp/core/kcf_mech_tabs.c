@@ -170,6 +170,7 @@ kcf_create_mech_entry(kcf_ops_class_t class, const char *mechname)
 			strlcpy(me_tab[i].me_name, mechname,
 			    CRYPTO_MAX_MECH_NAME);
 			me_tab[i].me_mechid = KCF_MECHID(class, i);
+			me_tab[i].me_sw_prov = NULL;
 
 			/* Add the new mechanism to the hash table */
 			avl_insert(&kcf_mech_hash, &me_tab[i], where);

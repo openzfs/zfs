@@ -22,6 +22,7 @@
 #include <sys/crypto/icp.h>
 #include <sys/sha2.h>
 #include <sys/hkdf.h>
+#include <sys/sysmacros.h>
 
 /*
  * Byte arrays are given as char pointers so that they

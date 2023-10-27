@@ -105,7 +105,7 @@ typedef struct fmd_stat {
 	uint_t fmds_type;		/* statistic type (see above) */
 	char fmds_desc[64];		/* statistic description */
 	union {
-		int bool;		/* FMD_TYPE_BOOL */
+		int fmds_bool;		/* FMD_TYPE_BOOL */
 		int32_t i32;		/* FMD_TYPE_INT32 */
 		uint32_t ui32;		/* FMD_TYPE_UINT32 */
 		int64_t i64;		/* FMD_TYPE_INT64 */

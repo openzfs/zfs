@@ -79,6 +79,13 @@
 #elif defined(__FreeBSD__)
 #define	MNTOPT_SETUID	"setuid"	/* Set uid allowed */
 #define	MNTOPT_NOSETUID	"nosetuid"	/* Set uid not allowed */
+#elif defined(__APPLE__)
+#define	MNTOPT_SETUID	"setuid"	/* Set uid allowed */
+#define	MNTOPT_NOSETUID	"nosetuid"	/* Set uid not allowed */
+#define	MNTOPT_BROWSE	"browse"	/* browsable autofs mount */
+#define	MNTOPT_NOBROWSE	"nobrowse"	/* non-browsable autofs mount */
+#define	MNTOPT_OWNERS	"owners"	/* use ownership */
+#define	MNTOPT_NOOWNERS	"noowners"	/* ignore ownership */
 #else
 #error "unknown OS"
 #endif

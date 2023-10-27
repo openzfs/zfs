@@ -54,6 +54,16 @@
 noinst_LTLIBRARIES =
 lib_LTLIBRARIES =
 pkgconfig_DATA =
+
+if BUILD_MACOS
+include $(srcdir)/%D%/os/macos/libdiskmgt/Makefile.am
+include $(srcdir)/%D%/libefi/Makefile.am
+endif
+
+if BUILD_LINUX
+include $(srcdir)/%D%/libefi/Makefile.am
+endif
+
 include $(srcdir)/%D%/libavl/Makefile.am
 include $(srcdir)/%D%/libicp/Makefile.am
 include $(srcdir)/%D%/libnvpair/Makefile.am
@@ -68,10 +78,6 @@ include $(srcdir)/%D%/libzfsbootenv/Makefile.am
 include $(srcdir)/%D%/libzpool/Makefile.am
 include $(srcdir)/%D%/libzstd/Makefile.am
 include $(srcdir)/%D%/libzutil/Makefile.am
-if BUILD_LINUX
-include $(srcdir)/%D%/libefi/Makefile.am
-endif
-
 
 PHONY += lib
 lib: $(noinst_LTLIBRARIES) $(lib_LTLIBRARIES)

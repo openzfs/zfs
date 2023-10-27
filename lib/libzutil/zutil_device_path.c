@@ -24,6 +24,7 @@
  */
 
 #include <errno.h>
+#include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -158,6 +159,8 @@ zfs_strcmp_pathname(const char *name, const char *cmp, int wholedisk)
 	char path_name[MAXPATHLEN];
 	char cmp_name[MAXPATHLEN];
 	char *dir, *tmp = NULL;
+	char *d, *b;
+	const char *dpath, *bname;
 
 	/* Strip redundant slashes if they exist due to ZPOOL_IMPORT_PATH */
 	cmp_name[0] = '\0';
@@ -182,8 +185,39 @@ zfs_strcmp_pathname(const char *name, const char *cmp, int wholedisk)
 			return (ENOMEM);
 	}
 
-	if ((path_len != cmp_len) || strcmp(path_name, cmp_name))
-		return (ENOENT);
+	if ((path_len == cmp_len) && strcmp(path_name, cmp_name) == 0)
+		return (0);
+	else {
+		int idx;
+		d = strdup(path_name);
+		b = strdup(path_name);
+		idx = zfs_dirnamelen(d);
+		if (idx != -1)
+			d[idx] = 0;
+		dpath = d;
+		bname = zfs_basename(b);
+		if (realpath(dpath, path_name) == NULL) {
+			(void) fprintf(stderr, "cannot resolve path '%s'\n",
+			    dpath);
+			free(d);
+			free(b);
+			return (ENOENT);
+		}
 
-	return (0);
+		if (strcmp(dpath, path_name) == 0) {
+			free(d);
+			free(b);
+			return (ENOENT); // We already tried this path
+		}
+
+		strlcat(path_name, "/", sizeof (path_name));
+		path_len = strlcat(path_name, bname, sizeof (path_name));
+		free(d);
+		free(b);
+
+		if ((path_len == cmp_len) && strcmp(path_name, cmp_name) == 0)
+			return (0);
+	}
+
+	return (ENOENT);
 }

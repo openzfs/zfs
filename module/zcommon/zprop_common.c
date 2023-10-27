@@ -82,7 +82,8 @@ zfs_mod_supported_prop(const char *name, zfs_type_t type,
  * The equivalent _can_ be done on FreeBSD by way of the sysctl
  * tree, but this has not been done yet.
  */
-#if defined(_KERNEL) || defined(LIB_ZPOOL_BUILD) || defined(__FreeBSD__)
+#if defined(_KERNEL) || defined(LIB_ZPOOL_BUILD) || \
+	defined(__FreeBSD__) || defined(__APPLE__)
 	(void) name, (void) type, (void) sfeatures;
 	return (B_TRUE);
 #else
