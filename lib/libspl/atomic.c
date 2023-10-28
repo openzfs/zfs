@@ -62,6 +62,24 @@ ATOMIC_DEC(uchar, uchar_t)
 ATOMIC_DEC(ushort, ushort_t)
 ATOMIC_DEC(uint, uint_t)
 ATOMIC_DEC(ulong, ulong_t)
+
+int
+atomic_dec_not_last_64(volatile uint64_t *target)
+{
+	uint64_t val, oldval;
+
+	val = *target;
+	for (;;) {
+		if (val <= 1) {
+			return (0);
+		}
+		oldval = atomic_cas_64(target, val, val - 1);
+		if (oldval == val)
+			return (1);
+		val = oldval;
+	}
+}
+
 /* END CSTYLED */
 
 

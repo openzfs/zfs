@@ -62,6 +62,7 @@
 #define	atomic_swap_64(v, x)	atomic64_xchg((atomic64_t *)(v), x)
 #define	atomic_load_64(v)	atomic64_read((atomic64_t *)(v))
 #define	atomic_store_64(v, x)	atomic64_set((atomic64_t *)(v), x)
+#define	atomic_dec_not_last_64(v) atomic64_dec_if_positive((atomic64_t *)(v))
 
 #ifdef _LP64
 static __inline__ void *
