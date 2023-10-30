@@ -583,7 +583,7 @@ static const ssize_t zvol_immediate_write_sz = 32768;
 
 void
 zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
-    uint64_t size, int sync)
+    uint64_t size, boolean_t commit)
 {
 	uint32_t blocksize = zv->zv_volblocksize;
 	zilog_t *zilog = zv->zv_zilog;
@@ -598,7 +598,7 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
 	else if (!spa_has_slogs(zilog->zl_spa) &&
 	    size >= blocksize && blocksize > zvol_immediate_write_sz)
 		write_state = WR_INDIRECT;
-	else if (sync)
+	else if (commit)
 		write_state = WR_COPIED;
 	else
 		write_state = WR_NEED_COPY;
@@ -633,7 +633,6 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
 		BP_ZERO(&lr->lr_blkptr);
 
 		itx->itx_private = zv;
-		itx->itx_sync = sync;
 
 		(void) zil_itx_assign(zilog, itx, tx);
 
@@ -650,8 +649,7 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
  * Log a DKIOCFREE/free-long-range to the ZIL with TX_TRUNCATE.
  */
 void
-zvol_log_truncate(zvol_state_t *zv, dmu_tx_t *tx, uint64_t off, uint64_t len,
-    boolean_t sync)
+zvol_log_truncate(zvol_state_t *zv, dmu_tx_t *tx, uint64_t off, uint64_t len)
 {
 	itx_t *itx;
 	lr_truncate_t *lr;
@@ -666,7 +664,6 @@ zvol_log_truncate(zvol_state_t *zv, dmu_tx_t *tx, uint64_t off, uint64_t len,
 	lr->lr_offset = off;
 	lr->lr_length = len;
 
-	itx->itx_sync = sync;
 	zil_itx_assign(zilog, itx, tx);
 }
 

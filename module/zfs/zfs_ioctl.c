@@ -238,7 +238,6 @@ uint64_t zfs_max_nvlist_src_size = 0;
  */
 static uint64_t zfs_history_output_max = 1024 * 1024;
 
-uint_t zfs_fsyncer_key;
 uint_t zfs_allow_log_key;
 
 /* DATA_TYPE_ANY is used when zkey_type can vary. */
@@ -7882,7 +7881,6 @@ zfs_kmod_init(void)
 	if ((error = zfsdev_attach()) != 0)
 		goto out;
 
-	tsd_create(&zfs_fsyncer_key, NULL);
 	tsd_create(&rrw_tsd_key, rrw_tsd_destroy);
 	tsd_create(&zfs_allow_log_key, zfs_allow_log_destroy);
 
@@ -7919,7 +7917,6 @@ zfs_kmod_fini(void)
 	spa_fini();
 	zvol_fini();
 
-	tsd_destroy(&zfs_fsyncer_key);
 	tsd_destroy(&rrw_tsd_key);
 	tsd_destroy(&zfs_allow_log_key);
 }

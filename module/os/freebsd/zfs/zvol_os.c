@@ -123,7 +123,6 @@ struct zvol_state_os {
 		/* volmode=dev */
 		struct zvol_state_dev {
 			struct cdev *zsd_cdev;
-			uint64_t zsd_sync_cnt;
 			struct selinfo zsd_selinfo;
 		} _zso_dev;
 
@@ -669,7 +668,7 @@ zvol_geom_bio_strategy(struct bio *bp)
 	int error = 0;
 	boolean_t doread = B_FALSE;
 	boolean_t is_dumpified;
-	boolean_t sync;
+	boolean_t commit;
 
 	if (bp->bio_to)
 		zv = bp->bio_to->private;
@@ -696,7 +695,7 @@ zvol_geom_bio_strategy(struct bio *bp)
 		}
 		zvol_ensure_zilog(zv);
 		if (bp->bio_cmd == BIO_FLUSH)
-			goto sync;
+			goto commit;
 		break;
 	default:
 		error = SET_ERROR(EOPNOTSUPP);
@@ -718,7 +717,7 @@ zvol_geom_bio_strategy(struct bio *bp)
 	}
 
 	is_dumpified = B_FALSE;
-	sync = !doread && !is_dumpified &&
+	commit = !doread && !is_dumpified &&
 	    zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS;
 
 	/*
@@ -734,7 +733,7 @@ zvol_geom_bio_strategy(struct bio *bp)
 		if (error != 0) {
 			dmu_tx_abort(tx);
 		} else {
-			zvol_log_truncate(zv, tx, off, resid, sync);
+			zvol_log_truncate(zv, tx, off, resid);
 			dmu_tx_commit(tx);
 			error = dmu_free_long_range(zv->zv_objset, ZVOL_OBJ,
 			    off, resid);
@@ -755,7 +754,7 @@ zvol_geom_bio_strategy(struct bio *bp)
 				dmu_tx_abort(tx);
 			} else {
 				dmu_write(os, ZVOL_OBJ, off, size, addr, tx);
-				zvol_log_write(zv, tx, off, size, sync);
+				zvol_log_write(zv, tx, off, size, commit);
 				dmu_tx_commit(tx);
 			}
 		}
@@ -793,8 +792,8 @@ unlock:
 		break;
 	}
 
-	if (sync) {
-sync:
+	if (commit) {
+commit:
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 	}
 resume:
@@ -866,7 +865,7 @@ zvol_cdev_write(struct cdev *dev, struct uio *uio_s, int ioflag)
 	uint64_t volsize;
 	zfs_locked_range_t *lr;
 	int error = 0;
-	boolean_t sync;
+	boolean_t commit;
 	zfs_uio_t uio;
 
 	zv = dev->si_drv2;
@@ -880,7 +879,7 @@ zvol_cdev_write(struct cdev *dev, struct uio *uio_s, int ioflag)
 		return (SET_ERROR(EIO));
 
 	ssize_t start_resid = zfs_uio_resid(&uio);
-	sync = (ioflag & IO_SYNC) ||
+	commit = (ioflag & IO_SYNC) ||
 	    (zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS);
 
 	rw_enter(&zv->zv_suspend_lock, ZVOL_RW_READER);
@@ -904,7 +903,7 @@ zvol_cdev_write(struct cdev *dev, struct uio *uio_s, int ioflag)
 		}
 		error = dmu_write_uio_dnode(zv->zv_dn, &uio, bytes, tx);
 		if (error == 0)
-			zvol_log_write(zv, tx, off, bytes, sync);
+			zvol_log_write(zv, tx, off, bytes, commit);
 		dmu_tx_commit(tx);
 
 		if (error)
@@ -913,7 +912,7 @@ zvol_cdev_write(struct cdev *dev, struct uio *uio_s, int ioflag)
 	zfs_rangelock_exit(lr);
 	int64_t nwritten = start_resid - zfs_uio_resid(&uio);
 	dataset_kstats_update_write_kstats(&zv->zv_kstat, nwritten);
-	if (sync)
+	if (commit)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 	rw_exit(&zv->zv_suspend_lock);
 	return (error);
@@ -923,7 +922,6 @@ static int
 zvol_cdev_open(struct cdev *dev, int flags, int fmt, struct thread *td)
 {
 	zvol_state_t *zv;
-	struct zvol_state_dev *zsd;
 	int err = 0;
 	boolean_t drop_suspend = B_FALSE;
 
@@ -1017,13 +1015,6 @@ retry:
 	}
 
 	zv->zv_open_count++;
-	if (flags & O_SYNC) {
-		zsd = &zv->zv_zso->zso_dev;
-		zsd->zsd_sync_cnt++;
-		if (zsd->zsd_sync_cnt == 1 &&
-		    (zv->zv_flags & ZVOL_WRITTEN_TO) != 0)
-			zil_async_to_sync(zv->zv_zilog, ZVOL_OBJ);
-	}
 out_opened:
 	if (zv->zv_open_count == 0) {
 		zvol_last_close(zv);
@@ -1041,7 +1032,6 @@ static int
 zvol_cdev_close(struct cdev *dev, int flags, int fmt, struct thread *td)
 {
 	zvol_state_t *zv;
-	struct zvol_state_dev *zsd;
 	boolean_t drop_suspend = B_TRUE;
 
 	rw_enter(&zvol_state_lock, ZVOL_RW_READER);
@@ -1091,10 +1081,6 @@ zvol_cdev_close(struct cdev *dev, int flags, int fmt, struct thread *td)
 	 * You may get multiple opens, but only one close.
 	 */
 	zv->zv_open_count--;
-	if (flags & O_SYNC) {
-		zsd = &zv->zv_zso->zso_dev;
-		zsd->zsd_sync_cnt--;
-	}
 
 	if (zv->zv_open_count == 0) {
 		ASSERT(ZVOL_RW_READ_HELD(&zv->zv_suspend_lock));
@@ -1163,7 +1149,7 @@ zvol_cdev_ioctl(struct cdev *dev, ulong_t cmd, caddr_t data,
 			dmu_tx_abort(tx);
 		} else {
 			sync = (zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS);
-			zvol_log_truncate(zv, tx, offset, length, sync);
+			zvol_log_truncate(zv, tx, offset, length);
 			dmu_tx_commit(tx);
 			error = dmu_free_long_range(zv->zv_objset, ZVOL_OBJ,
 			    offset, length);

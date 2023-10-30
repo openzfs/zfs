@@ -81,9 +81,9 @@ void zvol_remove_minors_impl(const char *name);
 void zvol_last_close(zvol_state_t *zv);
 void zvol_insert(zvol_state_t *zv);
 void zvol_log_truncate(zvol_state_t *zv, dmu_tx_t *tx, uint64_t off,
-    uint64_t len, boolean_t sync);
+    uint64_t len);
 void zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
-    uint64_t size, int sync);
+    uint64_t size, boolean_t commit);
 int zvol_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
     struct lwb *lwb, zio_t *zio);
 int zvol_init_impl(void);

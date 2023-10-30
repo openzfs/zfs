@@ -606,13 +606,12 @@ static int64_t zfs_immediate_write_sz = 32768;
 
 void
 zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
-    znode_t *zp, offset_t off, ssize_t resid, int ioflag,
+    znode_t *zp, offset_t off, ssize_t resid, boolean_t commit,
     zil_callback_t callback, void *callback_data)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)sa_get_db(zp->z_sa_hdl);
 	uint32_t blocksize = zp->z_blksz;
 	itx_wr_state_t write_state;
-	uintptr_t fsync_cnt;
 	uint64_t gen = 0;
 	ssize_t size = resid;
 
@@ -628,14 +627,10 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 	else if (!spa_has_slogs(zilog->zl_spa) &&
 	    resid >= zfs_immediate_write_sz)
 		write_state = WR_INDIRECT;
-	else if (ioflag & (O_SYNC | O_DSYNC))
+	else if (commit)
 		write_state = WR_COPIED;
 	else
 		write_state = WR_NEED_COPY;
-
-	if ((fsync_cnt = (uintptr_t)tsd_get(zfs_fsyncer_key)) != 0) {
-		(void) tsd_set(zfs_fsyncer_key, (void *)(fsync_cnt - 1));
-	}
 
 	(void) sa_lookup(zp->z_sa_hdl, SA_ZPL_GEN(ZTOZSB(zp)), &gen,
 	    sizeof (gen));
@@ -687,11 +682,8 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 		BP_ZERO(&lr->lr_blkptr);
 
 		itx->itx_private = ZTOZSB(zp);
+		itx->itx_sync = (zp->z_sync_cnt != 0);
 		itx->itx_gen = gen;
-
-		if (!(ioflag & (O_SYNC | O_DSYNC)) && (zp->z_sync_cnt == 0) &&
-		    (fsync_cnt == 0))
-			itx->itx_sync = B_FALSE;
 
 		itx->itx_callback = callback;
 		itx->itx_callback_data = callback_data;
