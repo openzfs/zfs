@@ -158,23 +158,22 @@ zio_init(void)
 	zio_link_cache = kmem_cache_create("zio_link_cache",
 	    sizeof (zio_link_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
 
-	/*
-	 * For small buffers, we want a cache for each multiple of
-	 * SPA_MINBLOCKSIZE.  For larger buffers, we want a cache
-	 * for each quarter-power of 2.
-	 */
 	for (c = 0; c < SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT; c++) {
 		size_t size = (c + 1) << SPA_MINBLOCKSHIFT;
+		size_t align, cflags, data_cflags;
+		char name[32];
+
+		/*
+		 * Create cache for each half-power of 2 size, starting from
+		 * SPA_MINBLOCKSIZE.  It should give us memory space efficiency
+		 * of ~7/8, sufficient for transient allocations mostly using
+		 * these caches.
+		 */
 		size_t p2 = size;
-		size_t align = 0;
-		size_t data_cflags, cflags;
-
-		data_cflags = KMC_NODEBUG;
-		cflags = (zio_exclude_metadata || size > zio_buf_debug_limit) ?
-		    KMC_NODEBUG : 0;
-
 		while (!ISP2(p2))
 			p2 &= p2 - 1;
+		if (!IS_P2ALIGNED(size, p2 / 2))
+			continue;
 
 #ifndef _KERNEL
 		/*
@@ -185,47 +184,37 @@ zio_init(void)
 		 */
 		if (arc_watch && !IS_P2ALIGNED(size, PAGESIZE))
 			continue;
-		/*
-		 * Here's the problem - on 4K native devices in userland on
-		 * Linux using O_DIRECT, buffers must be 4K aligned or I/O
-		 * will fail with EINVAL, causing zdb (and others) to coredump.
-		 * Since userland probably doesn't need optimized buffer caches,
-		 * we just force 4K alignment on everything.
-		 */
-		align = 8 * SPA_MINBLOCKSIZE;
-#else
-		if (size < PAGESIZE) {
-			align = SPA_MINBLOCKSIZE;
-		} else if (IS_P2ALIGNED(size, p2 >> 2)) {
-			align = PAGESIZE;
-		}
 #endif
 
-		if (align != 0) {
-			char name[36];
-			if (cflags == data_cflags) {
-				/*
-				 * Resulting kmem caches would be identical.
-				 * Save memory by creating only one.
-				 */
-				(void) snprintf(name, sizeof (name),
-				    "zio_buf_comb_%lu", (ulong_t)size);
-				zio_buf_cache[c] = kmem_cache_create(name,
-				    size, align, NULL, NULL, NULL, NULL, NULL,
-				    cflags);
-				zio_data_buf_cache[c] = zio_buf_cache[c];
-				continue;
-			}
-			(void) snprintf(name, sizeof (name), "zio_buf_%lu",
-			    (ulong_t)size);
-			zio_buf_cache[c] = kmem_cache_create(name, size,
-			    align, NULL, NULL, NULL, NULL, NULL, cflags);
+		if (IS_P2ALIGNED(size, PAGESIZE))
+			align = PAGESIZE;
+		else
+			align = 1 << (highbit64(size ^ (size - 1)) - 1);
 
-			(void) snprintf(name, sizeof (name), "zio_data_buf_%lu",
-			    (ulong_t)size);
-			zio_data_buf_cache[c] = kmem_cache_create(name, size,
-			    align, NULL, NULL, NULL, NULL, NULL, data_cflags);
+		cflags = (zio_exclude_metadata || size > zio_buf_debug_limit) ?
+		    KMC_NODEBUG : 0;
+		data_cflags = KMC_NODEBUG;
+		if (cflags == data_cflags) {
+			/*
+			 * Resulting kmem caches would be identical.
+			 * Save memory by creating only one.
+			 */
+			(void) snprintf(name, sizeof (name),
+			    "zio_buf_comb_%lu", (ulong_t)size);
+			zio_buf_cache[c] = kmem_cache_create(name, size, align,
+			    NULL, NULL, NULL, NULL, NULL, cflags);
+			zio_data_buf_cache[c] = zio_buf_cache[c];
+			continue;
 		}
+		(void) snprintf(name, sizeof (name), "zio_buf_%lu",
+		    (ulong_t)size);
+		zio_buf_cache[c] = kmem_cache_create(name, size, align,
+		    NULL, NULL, NULL, NULL, NULL, cflags);
+
+		(void) snprintf(name, sizeof (name), "zio_data_buf_%lu",
+		    (ulong_t)size);
+		zio_data_buf_cache[c] = kmem_cache_create(name, size, align,
+		    NULL, NULL, NULL, NULL, NULL, data_cflags);
 	}
 
 	while (--c != 0) {
