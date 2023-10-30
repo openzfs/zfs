@@ -1094,6 +1094,15 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 
 	ASSERT(!outzfsvfs->z_replay);
 
+	/*
+	 * Block cloning from an unencrypted dataset into an encrypted
+	 * dataset and vice versa is not supported.
+	 */
+	if (inos->os_encrypted != outos->os_encrypted) {
+		zfs_exit_two(inzfsvfs, outzfsvfs, FTAG);
+		return (SET_ERROR(EXDEV));
+	}
+
 	error = zfs_verify_zp(inzp);
 	if (error == 0)
 		error = zfs_verify_zp(outzp);
