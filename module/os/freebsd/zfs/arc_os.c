@@ -51,11 +51,6 @@
 #include <sys/vm.h>
 #include <sys/vmmeter.h>
 
-#if __FreeBSD_version >= 1300139
-static struct sx arc_vnlru_lock;
-static struct vnode *arc_vnlru_marker;
-#endif
-
 extern struct vfsops zfs_vfsops;
 
 uint_t zfs_arc_free_target = 0;
@@ -151,53 +146,6 @@ arc_default_max(uint64_t min, uint64_t allmem)
 	return (MAX(allmem * 5 / 8, size));
 }
 
-/*
- * Helper function for arc_prune_async() it is responsible for safely
- * handling the execution of a registered arc_prune_func_t.
- */
-static void
-arc_prune_task(void *arg)
-{
-	int64_t nr_scan = (intptr_t)arg;
-
-#ifndef __ILP32__
-	if (nr_scan > INT_MAX)
-		nr_scan = INT_MAX;
-#endif
-
-#if __FreeBSD_version >= 1300139
-	sx_xlock(&arc_vnlru_lock);
-	vnlru_free_vfsops(nr_scan, &zfs_vfsops, arc_vnlru_marker);
-	sx_xunlock(&arc_vnlru_lock);
-#else
-	vnlru_free(nr_scan, &zfs_vfsops);
-#endif
-}
-
-/*
- * Notify registered consumers they must drop holds on a portion of the ARC
- * buffered they reference.  This provides a mechanism to ensure the ARC can
- * honor the arc_meta_limit and reclaim otherwise pinned ARC buffers.  This
- * is analogous to dnlc_reduce_cache() but more generic.
- *
- * This operation is performed asynchronously so it may be safely called
- * in the context of the arc_reclaim_thread().  A reference is taken here
- * for each registered arc_prune_t and the arc_prune_task() is responsible
- * for releasing it once the registered arc_prune_func_t has completed.
- */
-void
-arc_prune_async(int64_t adjust)
-{
-
-#ifndef __LP64__
-	if (adjust > INTPTR_MAX)
-		adjust = INTPTR_MAX;
-#endif
-	taskq_dispatch(arc_prune_taskq, arc_prune_task,
-	    (void *)(intptr_t)adjust, TQ_SLEEP);
-	ARCSTAT_BUMP(arcstat_prune);
-}
-
 uint64_t
 arc_all_memory(void)
 {
@@ -248,10 +196,6 @@ arc_lowmem_init(void)
 {
 	arc_event_lowmem = EVENTHANDLER_REGISTER(vm_lowmem, arc_lowmem, NULL,
 	    EVENTHANDLER_PRI_FIRST);
-#if __FreeBSD_version >= 1300139
-	arc_vnlru_marker = vnlru_alloc_marker();
-	sx_init(&arc_vnlru_lock, "arc vnlru lock");
-#endif
 }
 
 void
@@ -259,12 +203,6 @@ arc_lowmem_fini(void)
 {
 	if (arc_event_lowmem != NULL)
 		EVENTHANDLER_DEREGISTER(vm_lowmem, arc_event_lowmem);
-#if __FreeBSD_version >= 1300139
-	if (arc_vnlru_marker != NULL) {
-		vnlru_free_marker(arc_vnlru_marker);
-		sx_destroy(&arc_vnlru_lock);
-	}
-#endif
 }
 
 void
