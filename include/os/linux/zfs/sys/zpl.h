@@ -52,7 +52,7 @@ extern const struct file_operations zpl_file_operations;
 extern const struct file_operations zpl_dir_file_operations;
 
 /* zpl_super.c */
-extern void zpl_prune_sb(int64_t nr_to_scan, void *arg);
+extern void zpl_prune_sb(uint64_t nr_to_scan, void *arg);
 
 extern const struct super_operations zpl_super_operations;
 extern const struct export_operations zpl_export_operations;

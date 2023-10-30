@@ -994,7 +994,6 @@ extern void arc_wait_for_eviction(uint64_t, boolean_t);
 
 extern void arc_lowmem_init(void);
 extern void arc_lowmem_fini(void);
-extern void arc_prune_async(int64_t);
 extern int arc_memory_throttle(spa_t *spa, uint64_t reserve, uint64_t txg);
 extern uint64_t arc_free_memory(void);
 extern int64_t arc_available_memory(void);
