@@ -47,6 +47,7 @@
 
 
 static boolean_t nfs_available(void);
+static boolean_t exports_available(void);
 
 typedef int (*nfs_shareopt_callback_t)(const char *opt, const char *value,
     void *cookie);
@@ -539,6 +540,8 @@ nfs_commit_shares(void)
 static void
 nfs_truncate_shares(void)
 {
+	if (!exports_available())
+		return;
 	nfs_reset_shares(ZFS_EXPORTS_LOCK, ZFS_EXPORTS_FILE);
 }
 
@@ -559,6 +562,21 @@ nfs_available(void)
 
 	if (!avail) {
 		if (access("/usr/sbin/exportfs", F_OK) != 0)
+			avail = -1;
+		else
+			avail = 1;
+	}
+
+	return (avail == 1);
+}
+
+static boolean_t
+exports_available(void)
+{
+	static int avail;
+
+	if (!avail) {
+		if (access(ZFS_EXPORTS_DIR, F_OK) != 0)
 			avail = -1;
 		else
 			avail = 1;
