@@ -410,6 +410,7 @@ zfs_prop_init(void)
 		{ "off",		ZFS_MIMIC_OFF },
 		{ "hfs",		ZFS_MIMIC_HFS },
 		{ "apfs",		ZFS_MIMIC_APFS },
+		{ "ntfs",		ZFS_MIMIC_NTFS },
 		{ NULL }
 	};
 	/* __APPLE__ */
@@ -625,7 +626,10 @@ zfs_prop_init(void)
 	    ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK, "<snapshot>[,...]",
 	    "RSNAPS", sfeatures);
 
-	/* __APPLE__ */
+	/*
+	 * These props are needed for compatability with pools created
+	 * using openzfsonosx
+	 */
 	zprop_register_index(ZFS_PROP_BROWSE, "com.apple.browse", 1,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM, "on | off",
 	    "COM.APPLE.BROWSE", boolean_table, sfeatures);
@@ -641,7 +645,6 @@ zfs_prop_init(void)
 	zprop_register_index(ZFS_PROP_DEVDISK, "com.apple.devdisk", 0,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM, "poolonly | on | off",
 	    "COM.APPLE.DEVDISK", devdisk_table, sfeatures);
-	/* __APPLE__ */
 
 	/* readonly number properties */
 	zprop_register_number(ZFS_PROP_USED, "used", 0, PROP_READONLY,
