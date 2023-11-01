@@ -1414,6 +1414,13 @@ dmu_objset_clone_check(void *arg, dmu_tx_t *tx)
 		return (error);
 	}
 
+	error = dmu_objset_clone_crypt_check(pdd, origin->ds_dir);
+	if (error != 0) {
+		dsl_dataset_rele(origin, FTAG);
+		dsl_dir_rele(pdd, FTAG);
+		return (error);
+	}
+
 	/* You can only clone snapshots, not the head datasets. */
 	if (!origin->ds_is_snapshot) {
 		dsl_dataset_rele(origin, FTAG);

@@ -4091,6 +4091,17 @@ zfs_clone(zfs_handle_t *zhp, const char *target, nvlist_t *props)
 			    "no such parent '%s'"), parent);
 			return (zfs_error(zhp->zfs_hdl, EZFS_NOENT, errbuf));
 
+		case EACCES:
+			/*
+			 * Cloning encrypted dataset outside its
+			 * encryption root.
+			 */
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "cannot clone dataset outside its encryption "
+			    "root or an unencrypted dataset under an "
+			    "encryption root"));
+			return (zfs_error(hdl, EZFS_EXISTS, errbuf));
+
 		case EXDEV:
 			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
 			    "source and target pools differ"));
@@ -4648,7 +4659,8 @@ zfs_rename(zfs_handle_t *zhp, const char *target, renameflags_t flags)
 		} else if (errno == EACCES) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "cannot move encrypted child outside of "
-			    "its encryption root"));
+			    "its encryption root or an unencrypted dataset "
+                            "under an encryption root"));
 			(void) zfs_error(hdl, EZFS_CRYPTOFAILED, errbuf);
 		} else {
 			(void) zfs_standard_error(zhp->zfs_hdl, errno, errbuf);

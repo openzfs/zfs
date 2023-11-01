@@ -1623,8 +1623,13 @@ dsl_dir_rename_crypt_check(dsl_dir_t *dd, dsl_dir_t *newparent)
 	int ret;
 	uint64_t curr_rddobj, parent_rddobj;
 
-	if (dd->dd_crypto_obj == 0)
+	if (dd->dd_crypto_obj == 0) {
+		if (newparent->dd_crypto_obj != 0) {
+			ret = SET_ERROR(EACCES);
+			goto error;
+		}
 		return (0);
+	}
 
 	ret = dsl_dir_get_encryption_root_ddobj(dd, &curr_rddobj);
 	if (ret != 0)
@@ -1637,10 +1642,7 @@ dsl_dir_rename_crypt_check(dsl_dir_t *dd, dsl_dir_t *newparent)
 	if (dd->dd_object != curr_rddobj) {
 		ret = dsl_dir_get_encryption_root_ddobj(newparent,
 		    &parent_rddobj);
-		if (ret != 0)
-			goto error;
-
-		if (parent_rddobj != curr_rddobj) {
+		if (ret != 0 || parent_rddobj != curr_rddobj) {
 			ret = SET_ERROR(EACCES);
 			goto error;
 		}
@@ -1865,6 +1867,12 @@ dmu_objset_create_crypt_check(dsl_dir_t *parentdd, dsl_crypto_params_t *dcp,
 	}
 
 	return (0);
+}
+
+int
+dmu_objset_clone_crypt_check(dsl_dir_t *clone, dsl_dir_t *origin)
+{
+	return dsl_dir_rename_crypt_check(origin, clone);
 }
 
 void
