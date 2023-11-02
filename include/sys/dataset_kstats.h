@@ -71,6 +71,7 @@ typedef struct dataset_kstats {
 
 int dataset_kstats_create(dataset_kstats_t *, objset_t *);
 void dataset_kstats_destroy(dataset_kstats_t *);
+void dataset_kstats_rename(dataset_kstats_t *dk, const char *);
 
 void dataset_kstats_update_write_kstats(dataset_kstats_t *, int64_t);
 void dataset_kstats_update_read_kstats(dataset_kstats_t *, int64_t);
