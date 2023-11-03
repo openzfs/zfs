@@ -206,9 +206,8 @@ dataset_kstats_rename(dataset_kstats_t *dk, const char *name)
 
 	ds_name = KSTAT_NAMED_STR_PTR(&dkv->dkv_ds_name);
 	ASSERT3S(ds_name, !=, NULL);
-	ASSERT3S(KSTAT_NAMED_STR_BUFLEN(&dkv->dkv_ds_name), ==,
-	    ZFS_MAX_DATASET_NAME_LEN);
-	(void) strlcpy(ds_name, name, ZFS_MAX_DATASET_NAME_LEN);
+	(void) strlcpy(ds_name, name,
+	    KSTAT_NAMED_STR_BUFLEN(&dkv->dkv_ds_name));
 }
 
 void
