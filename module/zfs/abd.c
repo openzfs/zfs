@@ -1025,7 +1025,7 @@ abd_raidz_gen_iterate(abd_t **cabds, abd_t *dabd, size_t off,
 	size_t len, dlen;
 	struct abd_iter caiters[3];
 	struct abd_iter daiter;
-	void *caddrs[3];
+	void *caddrs[3], *daddr;
 	unsigned long flags __maybe_unused = 0;
 	abd_t *c_cabds[3];
 	abd_t *c_dabd = NULL;
@@ -1057,10 +1057,13 @@ abd_raidz_gen_iterate(abd_t **cabds, abd_t *dabd, size_t off,
 		if (dsize > 0) {
 			IMPLY(abd_is_gang(dabd), c_dabd != NULL);
 			abd_iter_map(&daiter);
+			daddr = daiter.iter_mapaddr;
 			len = MIN(daiter.iter_mapsize, len);
 			dlen = len;
-		} else
+		} else {
+			daddr = NULL;
 			dlen = 0;
+		}
 
 		/* must be progressive */
 		ASSERT3U(len, >, 0);
@@ -1070,7 +1073,7 @@ abd_raidz_gen_iterate(abd_t **cabds, abd_t *dabd, size_t off,
 		 */
 		ASSERT3U(((uint64_t)len & 511ULL), ==, 0);
 
-		func_raidz_gen(caddrs, daiter.iter_mapaddr, len, dlen);
+		func_raidz_gen(caddrs, daddr, len, dlen);
 
 		for (i = parity-1; i >= 0; i--) {
 			abd_iter_unmap(&caiters[i]);
