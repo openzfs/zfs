@@ -31,6 +31,8 @@
 
 #include <sys/zfs_context.h>
 #include <sys/arc.h>
+#include <sys/multilist.h>
+#include <sys/arc_impl.h>
 #include <sys/dmu.h>
 #include <sys/dmu_send.h>
 #include <sys/dmu_impl.h>
@@ -817,7 +819,8 @@ dbuf_evict_thread(void *unused)
 
 	mutex_enter(&dbuf_evict_lock);
 	while (!dbuf_evict_thread_exit) {
-		while (!dbuf_cache_above_lowater() && !dbuf_evict_thread_exit) {
+		while (!dbuf_cache_above_lowater() && !arc_reclaim_needed() &&
+		    !dbuf_evict_thread_exit) {
 			CALLB_CPR_SAFE_BEGIN(&cpr);
 			(void) cv_timedwait_idle_hires(&dbuf_evict_cv,
 			    &dbuf_evict_lock, SEC2NSEC(1), MSEC2NSEC(1), 0);
@@ -830,7 +833,8 @@ dbuf_evict_thread(void *unused)
 		 * for the cache. We do this without holding the locks to
 		 * minimize lock contention.
 		 */
-		while (dbuf_cache_above_lowater() && !dbuf_evict_thread_exit) {
+		while ((dbuf_cache_above_lowater() || arc_reclaim_needed()) &&
+		    !dbuf_evict_thread_exit) {
 			dbuf_evict_one();
 		}
 
