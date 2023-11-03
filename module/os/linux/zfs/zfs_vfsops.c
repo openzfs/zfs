@@ -1488,7 +1488,7 @@ zfs_domount(struct super_block *sb, zfs_mnt_t *zm, int silent)
 	 * read-only flag, pretend it was set, as done for snapshots.
 	 */
 	if (!canwrite)
-		vfs->vfs_readonly = true;
+		vfs->vfs_readonly = B_TRUE;
 
 	error = zfsvfs_create(osname, vfs->vfs_readonly, &zfsvfs);
 	if (error) {
