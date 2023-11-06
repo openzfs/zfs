@@ -1262,6 +1262,42 @@ taskq_destroy(taskq_t *tq)
 }
 EXPORT_SYMBOL(taskq_destroy);
 
+/*
+ * Create a taskq with a specified number of pool threads. Allocate
+ * and return an array of nthreads kthread_t pointers, one for each
+ * thread in the pool. The array is not ordered and must be freed
+ * by the caller.
+ */
+taskq_t *
+taskq_create_synced(const char *name, int nthreads, pri_t pri,
+    int minalloc, int maxalloc, uint_t flags, kthread_t ***ktpp)
+{
+	taskq_t *tq;
+	taskq_thread_t *tqt;
+	int i = 0;
+	kthread_t **kthreads = kmem_zalloc(sizeof (*kthreads) * nthreads,
+	    KM_SLEEP);
+
+	flags &= ~(TASKQ_DYNAMIC | TASKQ_THREADS_CPU_PCT | TASKQ_DC_BATCH);
+
+	/* taskq_create spawns all the threads before returning */
+	tq = taskq_create(name, nthreads, minclsyspri, nthreads, INT_MAX,
+	    flags | TASKQ_PREPOPULATE);
+	VERIFY(tq != NULL);
+	VERIFY(tq->tq_nthreads == nthreads);
+
+	list_for_each_entry(tqt, &tq->tq_thread_list, tqt_thread_list) {
+		kthreads[i] = tqt->tqt_thread;
+		i++;
+	}
+
+	ASSERT3S(i, ==, nthreads);
+	*ktpp = kthreads;
+
+	return (tq);
+}
+EXPORT_SYMBOL(taskq_create_synced);
+
 static unsigned int spl_taskq_kick = 0;
 
 /*

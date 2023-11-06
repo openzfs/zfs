@@ -496,6 +496,13 @@ If we have less than this amount of free space,
 most ZPL operations (e.g. write, create) will return
 .Sy ENOSPC .
 .
+.It Sy spa_num_allocators Ns = Ns Sy 4 Pq int
+Determines the number of block alloctators to use per spa instance.
+Capped by the number of actual CPUs in the system.
+.Pp
+Note that setting this value too high could result in performance
+degredation and/or excess fragmentation.
+.
 .It Sy spa_upgrade_errlog_limit Ns = Ns Sy 0 Pq uint
 Limits the number of on-disk error log entries that will be converted to the
 new format when enabling the
@@ -1974,13 +1981,6 @@ and may need to load new metaslabs to satisfy these allocations.
 .It Sy zfs_sync_pass_rewrite Ns = Ns Sy 2 Pq uint
 Rewrite new block pointers starting in this pass.
 .
-.It Sy zfs_sync_taskq_batch_pct Ns = Ns Sy 75 Ns % Pq int
-This controls the number of threads used by
-.Sy dp_sync_taskq .
-The default value of
-.Sy 75%
-will create a maximum of one thread per CPU.
-.
 .It Sy zfs_trim_extent_bytes_max Ns = Ns Sy 134217728 Ns B Po 128 MiB Pc Pq uint
 Maximum size of TRIM command.
 Larger ranges will be split into chunks no larger than this value before
@@ -2264,6 +2264,14 @@ while higher reduces lock contention.
 If
 .Sy 0 ,
 generate a system-dependent value close to 6 threads per taskq.
+.
+.It Sy zio_taskq_wr_iss_ncpus Ns = Ns Sy 0 Pq uint
+Determines the number of CPUs to run write issue taskqs.
+.Pp
+When 0 (the default), the value to use is computed internally
+as the number of actual CPUs in the system divided by the
+.Sy spa_num_allocators
+value.
 .
 .It Sy zvol_inhibit_dev Ns = Ns Sy 0 Ns | Ns 1 Pq uint
 Do not create zvol device nodes.
