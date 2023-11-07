@@ -65,4 +65,15 @@ log_mustnot vdevs_in_pool $TESTPOOL $DISK2
 log_must zpool add -f $TESTPOOL $DISK2
 log_must vdevs_in_pool $TESTPOOL $DISK2
 
+log_must zpool destroy $TESTPOOL
+
+create_pool $TESTPOOL mirror $DISK0 $DISK1
+log_must poolexists $TESTPOOL
+
+log_mustnot zpool add $TESTPOOL $DISK2
+log_mustnot vdevs_in_pool $TESTPOOL $DISK2
+
+log_must zpool add --allow-replication-mismatch $TESTPOOL $DISK2
+log_must vdevs_in_pool $TESTPOOL $DISK2
+
 log_pass "'zpool add -f <pool> <vdev> ...' executes successfully."

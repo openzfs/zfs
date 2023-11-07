@@ -64,7 +64,9 @@ log_mustnot zpool add -f $TESTPOOL $DISK0
 for type in "" "mirror" "raidz" "draid" "spare" "log" "dedup" "special" "cache"
 do
 	log_mustnot zpool add -f $TESTPOOL $type $DISK0 $DISK1
+	log_mustnot zpool add --allow-in-use $TESTPOOL $type $DISK0 $DISK1
 	log_mustnot zpool add -f $TESTPOOL $type $DISK1 $DISK1
+	log_mustnot zpool add --allow-in-use $TESTPOOL $type $DISK1 $DISK1
 done
 
 log_pass "'zpool add' get fail as expected if vdevs are the same or vdev is " \
