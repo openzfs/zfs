@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2023 by Delphix. All rights reserved.
  * Copyright (c) 2018, Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2013 Saso Kiselkov. All rights reserved.
@@ -6776,7 +6776,7 @@ spa_draid_feature_incr(void *arg, dmu_tx_t *tx)
  * Add a device to a storage pool.
  */
 int
-spa_vdev_add(spa_t *spa, nvlist_t *nvroot)
+spa_vdev_add(spa_t *spa, nvlist_t *nvroot, boolean_t ashift_check)
 {
 	uint64_t txg, ndraid = 0;
 	int error;
@@ -6863,6 +6863,16 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot)
 						    txg, EINVAL));
 					}
 				}
+			}
+		}
+	}
+
+	if (ashift_check) {
+		for (int c = 0; c < vd->vdev_children; c++) {
+			tvd = vd->vdev_child[c];
+			if (tvd->vdev_ashift != spa->spa_max_ashift) {
+				return (spa_vdev_exit(spa, vd, txg,
+				    ZFS_ERR_ASHIFT_MISMATCH));
 			}
 		}
 	}

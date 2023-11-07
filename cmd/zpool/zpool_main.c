@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2023 by Delphix. All rights reserved.
  * Copyright (c) 2012 by Frederik Wessels. All rights reserved.
  * Copyright (c) 2012 by Cyril Plisko. All rights reserved.
  * Copyright (c) 2013 by Prasad Joshi (sTec). All rights reserved.
@@ -955,6 +955,7 @@ zpool_do_add(int argc, char **argv)
 {
 	boolean_t force = B_FALSE;
 	boolean_t dryrun = B_FALSE;
+	boolean_t validate_ashift = B_TRUE;
 	int name_flags = 0;
 	int c;
 	nvlist_t *nvroot;
@@ -966,7 +967,7 @@ zpool_do_add(int argc, char **argv)
 	char *propval;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "fgLno:P")) != -1) {
+	while ((c = getopt(argc, argv, "afgLno:PV")) != -1) {
 		switch (c) {
 		case 'f':
 			force = B_TRUE;
@@ -995,6 +996,9 @@ zpool_do_add(int argc, char **argv)
 			break;
 		case 'P':
 			name_flags |= VDEV_NAME_PATH;
+			break;
+		case 'V':
+			validate_ashift = B_FALSE;
 			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
@@ -1151,7 +1155,7 @@ zpool_do_add(int argc, char **argv)
 
 		ret = 0;
 	} else {
-		ret = (zpool_add(zhp, nvroot) != 0);
+		ret = (zpool_add(zhp, nvroot, validate_ashift) != 0);
 	}
 
 	nvlist_free(props);
