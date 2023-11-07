@@ -342,6 +342,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 		case ZPOOL_PROP_MAXDNODESIZE:
 		case ZPOOL_PROP_BCLONESAVED:
 		case ZPOOL_PROP_BCLONEUSED:
+		case ZPOOL_PROP_LAST_SCRUBBED_TXG:
 			if (literal)
 				(void) snprintf(buf, len, "%llu",
 				    (u_longlong_t)intval);
@@ -2647,7 +2648,8 @@ out:
  * Scan the pool.
  */
 int
-zpool_scan(zpool_handle_t *zhp, pool_scan_func_t func, pool_scrub_cmd_t cmd)
+zpool_scan(zpool_handle_t *zhp, pool_scan_func_t func, pool_scrub_cmd_t cmd,
+    uint64_t txgstart, uint64_t txgend)
 {
 	char errbuf[ERRBUFLEN];
 	int err;
@@ -2656,6 +2658,8 @@ zpool_scan(zpool_handle_t *zhp, pool_scan_func_t func, pool_scrub_cmd_t cmd)
 	nvlist_t *args = fnvlist_alloc();
 	fnvlist_add_uint64(args, "scan_type", (uint64_t)func);
 	fnvlist_add_uint64(args, "scan_command", (uint64_t)cmd);
+	fnvlist_add_uint64(args, "scan_txgstart", txgstart);
+	fnvlist_add_uint64(args, "scan_txgend", txgend);
 
 	err = lzc_scrub(ZFS_IOC_POOL_SCRUB, zhp->zpool_name, args, NULL);
 	fnvlist_free(args);
