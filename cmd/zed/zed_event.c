@@ -35,6 +35,7 @@
 #include "zed_strings.h"
 
 #include "agents/zfs_agents.h"
+#include <libzutil.h>
 
 #define	MAXBUF	4096
 
@@ -907,6 +908,25 @@ _zed_event_add_time_strings(uint64_t eid, zed_strings_t *zsp, int64_t etime[])
 	}
 }
 
+
+static void
+_zed_event_update_enc_sysfs_path(nvlist_t *nvl)
+{
+	char *vdev_path;
+
+	if (nvlist_lookup_string(nvl, FM_EREPORT_PAYLOAD_ZFS_VDEV_PATH,
+	    &vdev_path) != 0) {
+		return; /* some other kind of event, ignore it */
+	}
+
+	if (vdev_path == NULL) {
+		return;
+	}
+
+	update_vdev_config_dev_sysfs_path(nvl, vdev_path,
+	    FM_EREPORT_PAYLOAD_ZFS_VDEV_ENC_SYSFS_PATH);
+}
+
 /*
  * Service the next zevent, blocking until one is available.
  */
@@ -954,6 +974,17 @@ zed_event_service(struct zed_conf *zcp)
 		zed_log_msg(LOG_WARNING,
 		    "Failed to lookup zevent class (eid=%llu)", eid);
 	} else {
+		/*
+		 * Special case: If we can dynamically detect an enclosure sysfs
+		 * path, then use that value rather than the one stored in the
+		 * vd->vdev_enc_sysfs_path.  There have been rare cases where
+		 * vd->vdev_enc_sysfs_path becomes outdated.  However, there
+		 * will be other times when we can not dynamically detect the
+		 * sysfs path (like if a disk disappears) and have to rely on
+		 * the old value for things like turning on the fault LED.
+		 */
+		_zed_event_update_enc_sysfs_path(nvl);
+
 		/* let internal modules see this event first */
 		zfs_agent_post_event(class, NULL, nvl);
 
