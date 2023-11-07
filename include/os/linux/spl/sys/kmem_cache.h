@@ -70,8 +70,6 @@ typedef enum kmem_cbrc {
 #define	KMC_REAP_CHUNK		INT_MAX
 #define	KMC_DEFAULT_SEEKS	1
 
-#define	KMC_RECLAIM_ONCE	0x1	/* Force a single shrinker pass */
-
 extern struct list_head spl_kmem_cache_list;
 extern struct rw_semaphore spl_kmem_cache_sem;
 
