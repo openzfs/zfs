@@ -547,6 +547,8 @@ extern zio_t *zio_null(zio_t *pio, spa_t *spa, vdev_t *vd,
 
 extern zio_t *zio_root(spa_t *spa,
     zio_done_func_t *done, void *priv, zio_flag_t flags);
+extern zio_t *zio_root_done(spa_t *spa,
+    zio_done_func_t *done, void *priv, zio_flag_t flags);
 
 extern void zio_destroy(zio_t *zio);
 

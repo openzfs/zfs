@@ -950,19 +950,33 @@ zio_null(zio_t *pio, spa_t *spa, vdev_t *vd, zio_done_func_t *done,
 }
 
 /*
- * ZIO intended to be a root of a tree.  Unlike null ZIO does not have a
- * READY pipeline stage (is ready on creation), so it should not be used
- * as child of any ZIO that may need waiting for grandchildren READY stage
- * (any other ZIO type).
+ * Root ZIO that runs through all the interlock stages. Although it does
+ * not provide a callback, it can be used to drive functionality and
+ * synchronization in the READY and DONE stages of the pipeline.
  */
 zio_t *
 zio_root(spa_t *spa, zio_done_func_t *done, void *private, zio_flag_t flags)
+{
+	return (zio_null(NULL, spa, NULL, done, private, flags));
+}
+
+/*
+ * Optimized Root ZIO that can be used when READY stage interlocking
+ * is not necessary or required. Unlike a standard root ZIO, this ZIO
+ * is READY on creation and immediates moves to the DONE stage when
+ * the pipeline is invoked. Unlike a null ZIO or a root ZIO, this ZIO
+ * should not be used as child of any ZIO that may need waiting for
+ * grandchildren READY stage (any other ZIO type).
+ */
+zio_t *
+zio_root_done(spa_t *spa, zio_done_func_t *done, void *private,
+    zio_flag_t flags)
 {
 	zio_t *zio;
 
 	zio = zio_create(NULL, spa, 0, NULL, NULL, 0, 0, done, private,
 	    ZIO_TYPE_NULL, ZIO_PRIORITY_NOW, flags, NULL, 0, NULL,
-	    ZIO_STAGE_OPEN, ZIO_ROOT_PIPELINE);
+	    ZIO_STAGE_OPEN, ZIO_DONE_PIPELINE);
 
 	return (zio);
 }

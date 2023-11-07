@@ -3548,7 +3548,7 @@ spa_ld_parse_config(spa_t *spa, spa_import_type_t type)
 	spa->spa_async_zio_root = kmem_alloc(max_ncpus * sizeof (void *),
 	    KM_SLEEP);
 	for (int i = 0; i < max_ncpus; i++) {
-		spa->spa_async_zio_root[i] = zio_root(spa, NULL, NULL,
+		spa->spa_async_zio_root[i] = zio_root_done(spa, NULL, NULL,
 		    ZIO_FLAG_CANFAIL | ZIO_FLAG_SPECULATIVE |
 		    ZIO_FLAG_GODFATHER);
 	}
@@ -6016,7 +6016,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	spa->spa_async_zio_root = kmem_alloc(max_ncpus * sizeof (void *),
 	    KM_SLEEP);
 	for (int i = 0; i < max_ncpus; i++) {
-		spa->spa_async_zio_root[i] = zio_root(spa, NULL, NULL,
+		spa->spa_async_zio_root[i] = zio_root_done(spa, NULL, NULL,
 		    ZIO_FLAG_CANFAIL | ZIO_FLAG_SPECULATIVE |
 		    ZIO_FLAG_GODFATHER);
 	}

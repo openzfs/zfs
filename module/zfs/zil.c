@@ -1787,7 +1787,7 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 		zil_lwb_commit(zilog, lwb, itx);
 	lwb->lwb_nused = lwb->lwb_nfilled;
 
-	lwb->lwb_root_zio = zio_root(spa, zil_lwb_flush_vdevs_done, lwb,
+	lwb->lwb_root_zio = zio_root_done(spa, zil_lwb_flush_vdevs_done, lwb,
 	    ZIO_FLAG_CANFAIL);
 
 	/*
