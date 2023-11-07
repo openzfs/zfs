@@ -260,6 +260,7 @@
     <elf-symbol name='tpool_suspended' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='tpool_wait' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='update_vdev_config_dev_strs' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='update_vdev_config_dev_sysfs_path' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='use_color' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='vdev_expand_proplist' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='vdev_name_to_prop' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -8331,6 +8332,12 @@
       <parameter type-id='26a90f95' name='bufptr'/>
       <parameter type-id='b59d7dce' name='buflen'/>
       <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='update_vdev_config_dev_sysfs_path' mangled-name='update_vdev_config_dev_sysfs_path' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='update_vdev_config_dev_sysfs_path'>
+      <parameter type-id='5ce45b60' name='nv'/>
+      <parameter type-id='80f4b756' name='path'/>
+      <parameter type-id='80f4b756' name='key'/>
+      <return type-id='48b5725f'/>
     </function-decl>
     <function-type size-in-bits='64' id='2ec2411e'>
       <parameter type-id='eaa32e2f'/>

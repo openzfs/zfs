@@ -766,9 +766,12 @@ no_dev:
  * Rescan the enclosure sysfs path for turning on enclosure LEDs and store it
  * in the nvlist * (if applicable).  Like:
  *    vdev_enc_sysfs_path: '/sys/class/enclosure/11:0:1:0/SLOT 4'
+ *
+ * key: The nvlist_t name (like ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH)
  */
-static void
-update_vdev_config_dev_sysfs_path(nvlist_t *nv, const char *path)
+void
+update_vdev_config_dev_sysfs_path(nvlist_t *nv, const char *path,
+    const char *key)
 {
 	char *upath, *spath;
 
@@ -777,9 +780,9 @@ update_vdev_config_dev_sysfs_path(nvlist_t *nv, const char *path)
 	spath = zfs_get_enclosure_sysfs_path(upath);
 
 	if (spath) {
-		nvlist_add_string(nv, ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH, spath);
+		(void) nvlist_add_string(nv, key, spath);
 	} else {
-		nvlist_remove_all(nv, ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH);
+		(void) nvlist_remove_all(nv, key);
 	}
 
 	free(upath);
@@ -799,7 +802,8 @@ sysfs_path_pool_vdev_iter_f(void *hdl_data, nvlist_t *nv, void *data)
 		return (1);
 
 	/* Rescan our enclosure sysfs path for this vdev */
-	update_vdev_config_dev_sysfs_path(nv, path);
+	update_vdev_config_dev_sysfs_path(nv, path,
+	    ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH);
 	return (0);
 }
 
@@ -888,7 +892,8 @@ update_vdev_config_dev_strs(nvlist_t *nv)
 			(void) nvlist_add_string(nv, ZPOOL_CONFIG_PHYS_PATH,
 			    vds.vds_devphys);
 		}
-		update_vdev_config_dev_sysfs_path(nv, path);
+		update_vdev_config_dev_sysfs_path(nv, path,
+		    ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH);
 	} else {
 		/* Clear out any stale entries. */
 		(void) nvlist_remove_all(nv, ZPOOL_CONFIG_DEVID);

@@ -372,6 +372,10 @@ make_leaf_vdev(nvlist_t *props, const char *arg, boolean_t is_primary)
 	verify(nvlist_add_string(vdev, ZPOOL_CONFIG_PATH, path) == 0);
 	verify(nvlist_add_string(vdev, ZPOOL_CONFIG_TYPE, type) == 0);
 
+	/* Lookup and add the enclosure sysfs path (if exists) */
+	update_vdev_config_dev_sysfs_path(vdev, path,
+	    ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH);
+
 	if (strcmp(type, VDEV_TYPE_DISK) == 0)
 		verify(nvlist_add_uint64(vdev, ZPOOL_CONFIG_WHOLE_DISK,
 		    (uint64_t)wholedisk) == 0);
