@@ -187,19 +187,18 @@ kstat_sysctl_dataset_string(SYSCTL_HANDLER_ARGS)
 static int
 kstat_sysctl_io(SYSCTL_HANDLER_ARGS)
 {
-	struct sbuf *sb;
+	struct sbuf sb;
 	kstat_t *ksp = arg1;
 	kstat_io_t *kip = ksp->ks_data;
 	int rc;
 
-	sb = sbuf_new_auto();
-	if (sb == NULL)
-		return (ENOMEM);
+	sbuf_new_for_sysctl(&sb, NULL, 0, req);
+
 	/* Update the aggsums before reading */
 	(void) ksp->ks_update(ksp, KSTAT_READ);
 
 	/* though wlentime & friends are signed, they will never be negative */
-	sbuf_printf(sb,
+	sbuf_printf(&sb,
 	    "%-8llu %-8llu %-8u %-8u %-8llu %-8llu "
 	    "%-8llu %-8llu %-8llu %-8llu %-8u %-8u\n",
 	    kip->nread, kip->nwritten,
@@ -207,25 +206,21 @@ kstat_sysctl_io(SYSCTL_HANDLER_ARGS)
 	    kip->wtime, kip->wlentime, kip->wlastupdate,
 	    kip->rtime, kip->rlentime, kip->rlastupdate,
 	    kip->wcnt,  kip->rcnt);
-	rc = sbuf_finish(sb);
-	if (rc == 0)
-		rc = SYSCTL_OUT(req, sbuf_data(sb), sbuf_len(sb));
-	sbuf_delete(sb);
+	rc = sbuf_finish(&sb);
+	sbuf_delete(&sb);
 	return (rc);
 }
 
 static int
 kstat_sysctl_raw(SYSCTL_HANDLER_ARGS)
 {
-	struct sbuf *sb;
+	struct sbuf sb;
 	void *data;
 	kstat_t *ksp = arg1;
 	void *(*addr_op)(kstat_t *ksp, loff_t index);
 	int n, has_header, rc = 0;
 
-	sb = sbuf_new_auto();
-	if (sb == NULL)
-		return (ENOMEM);
+	sbuf_new_for_sysctl(&sb, NULL, PAGE_SIZE, req);
 
 	if (ksp->ks_raw_ops.addr)
 		addr_op = ksp->ks_raw_ops.addr;
@@ -258,8 +253,10 @@ restart_headers:
 	if (has_header) {
 		if (rc == ENOMEM && !kstat_resize_raw(ksp))
 			goto restart_headers;
-		if (rc == 0)
-			sbuf_printf(sb, "\n%s", ksp->ks_raw_buf);
+		if (rc == 0) {
+			sbuf_cat(&sb, "\n");
+			sbuf_cat(&sb, ksp->ks_raw_buf);
+		}
 	}
 
 	while ((data = addr_op(ksp, n)) != NULL) {
@@ -270,22 +267,19 @@ restart:
 			if (rc == ENOMEM && !kstat_resize_raw(ksp))
 				goto restart;
 			if (rc == 0)
-				sbuf_printf(sb, "%s", ksp->ks_raw_buf);
+				sbuf_cat(&sb, ksp->ks_raw_buf);
 
 		} else {
 			ASSERT3U(ksp->ks_ndata, ==, 1);
-			sbuf_hexdump(sb, ksp->ks_data,
+			sbuf_hexdump(&sb, ksp->ks_data,
 			    ksp->ks_data_size, NULL, 0);
 		}
 		n++;
 	}
 	free(ksp->ks_raw_buf, M_TEMP);
 	mutex_exit(ksp->ks_lock);
-	sbuf_trim(sb);
-	rc = sbuf_finish(sb);
-	if (rc == 0)
-		rc = SYSCTL_OUT(req, sbuf_data(sb), sbuf_len(sb));
-	sbuf_delete(sb);
+	rc = sbuf_finish(&sb);
+	sbuf_delete(&sb);
 	return (rc);
 }
 
