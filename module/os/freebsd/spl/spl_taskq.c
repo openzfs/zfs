@@ -480,19 +480,31 @@ void
 taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint32_t flags,
     taskq_ent_t *task)
 {
-	int prio;
-
 	/*
 	 * If TQ_FRONT is given, we want higher priority for this task, so it
 	 * can go at the front of the queue.
 	 */
-	prio = !!(flags & TQ_FRONT);
-	task->tqent_id = 0;
+	task->tqent_task.ta_priority = !!(flags & TQ_FRONT);
 	task->tqent_func = func;
 	task->tqent_arg = arg;
-
-	TASK_INIT(&task->tqent_task, prio, taskq_run_ent, task);
 	taskqueue_enqueue(tq->tq_queue, &task->tqent_task);
+}
+
+void
+taskq_init_ent(taskq_ent_t *task)
+{
+	TASK_INIT(&task->tqent_task, 0, taskq_run_ent, task);
+	task->tqent_func = NULL;
+	task->tqent_arg = NULL;
+	task->tqent_id = 0;
+	task->tqent_type = NORMAL_TASK;
+	task->tqent_rc = 0;
+}
+
+int
+taskq_empty_ent(taskq_ent_t *task)
+{
+	return (task->tqent_task.ta_pending == 0);
 }
 
 void
@@ -520,10 +532,4 @@ void
 taskq_wait_outstanding(taskq_t *tq, taskqid_t id __unused)
 {
 	taskqueue_drain_all(tq->tq_queue);
-}
-
-int
-taskq_empty_ent(taskq_ent_t *t)
-{
-	return (t->tqent_task.ta_pending == 0);
 }
