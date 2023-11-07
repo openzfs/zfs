@@ -195,15 +195,26 @@ typedef struct blkptr_auth_buf {
 } blkptr_auth_buf_t;
 
 const zio_crypt_info_t zio_crypt_table[ZIO_CRYPT_FUNCTIONS] = {
-	{"",			ZC_TYPE_NONE,	0,	"inherit"},
-	{"",			ZC_TYPE_NONE,	0,	"on"},
-	{"",			ZC_TYPE_NONE,	0,	"off"},
-	{SUN_CKM_AES_CCM,	ZC_TYPE_CCM,	16,	"aes-128-ccm"},
-	{SUN_CKM_AES_CCM,	ZC_TYPE_CCM,	24,	"aes-192-ccm"},
-	{SUN_CKM_AES_CCM,	ZC_TYPE_CCM,	32,	"aes-256-ccm"},
-	{SUN_CKM_AES_GCM,	ZC_TYPE_GCM,	16,	"aes-128-gcm"},
-	{SUN_CKM_AES_GCM,	ZC_TYPE_GCM,	24,	"aes-192-gcm"},
-	{SUN_CKM_AES_GCM,	ZC_TYPE_GCM,	32,	"aes-256-gcm"}
+	{"",				ZC_TYPE_NONE,
+	    0,	"inherit"},
+	{"",				ZC_TYPE_NONE,
+	    0,	"on"},
+	{"",				ZC_TYPE_NONE,
+	    0,	"off"},
+	{SUN_CKM_AES_CCM,		ZC_TYPE_CCM,
+	    16,	"aes-128-ccm"},
+	{SUN_CKM_AES_CCM,		ZC_TYPE_CCM,
+	    24,	"aes-192-ccm"},
+	{SUN_CKM_AES_CCM,		ZC_TYPE_CCM,
+	    32,	"aes-256-ccm"},
+	{SUN_CKM_AES_GCM,		ZC_TYPE_GCM,
+	    16,	"aes-128-gcm"},
+	{SUN_CKM_AES_GCM,		ZC_TYPE_GCM,
+	    24,	"aes-192-gcm"},
+	{SUN_CKM_AES_GCM,		ZC_TYPE_GCM,
+	    32,	"aes-256-gcm"},
+	{SUN_CKM_CHACHA20_POLY1305,	ZC_TYPE_CHACHA20_POLY1305,
+	    32,	"chacha20-poly1305"},
 };
 
 void

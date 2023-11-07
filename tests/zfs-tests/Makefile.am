@@ -21,6 +21,11 @@ scripts_zfs_tests_functional_tmpfile_PROGRAMS = \
 	%D%/tests/functional/tmpfile/tmpfile_003_pos \
 	%D%/tests/functional/tmpfile/tmpfile_stat_mode \
 	%D%/tests/functional/tmpfile/tmpfile_test
+
+scripts_zfs_tests_functional_chapolydir = $(datadir)/$(PACKAGE)/zfs-tests/tests/functional/chapoly
+scripts_zfs_tests_functional_chapoly_PROGRAMS = %D%/tests/functional/chapoly/chapoly_test
+%C%_tests_functional_chapoly_chapoly_test_LDADD = \
+	libzpool.la
 endif
 
 

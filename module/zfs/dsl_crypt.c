@@ -1819,6 +1819,12 @@ dmu_objset_create_crypt_check(dsl_dir_t *parentdd, dsl_crypto_params_t *dcp,
 		return (SET_ERROR(EOPNOTSUPP));
 	}
 
+	if (crypt == ZIO_CRYPT_CHACHA20_POLY1305 && parentdd != NULL &&
+	    !spa_feature_is_enabled(parentdd->dd_pool->dp_spa,
+	    SPA_FEATURE_CHACHA20_POLY1305)) {
+		return (SET_ERROR(EOPNOTSUPP));
+	}
+
 	/* handle inheritance */
 	if (dcp->cp_wkey == NULL) {
 		ASSERT3P(parentdd, !=, NULL);
@@ -1937,6 +1943,9 @@ dsl_dataset_create_crypt_sync(uint64_t dsobj, dsl_dir_t *dd,
 	    tx));
 	dsl_dataset_activate_feature(dsobj, SPA_FEATURE_ENCRYPTION,
 	    (void *)B_TRUE, tx);
+	if (crypt == ZIO_CRYPT_CHACHA20_POLY1305)
+		dsl_dataset_activate_feature(dsobj,
+		    SPA_FEATURE_CHACHA20_POLY1305, (void *)B_TRUE, tx);
 
 	/*
 	 * If we inherited the wrapping key we release our reference now.
@@ -2157,6 +2166,11 @@ dsl_crypto_recv_raw_key_check(dsl_dataset_t *ds, nvlist_t *nvl, dmu_tx_t *tx)
 	if (intval >= ZIO_CRYPT_FUNCTIONS)
 		return (SET_ERROR(ZFS_ERR_CRYPTO_NOTSUP));
 
+	if (intval == ZIO_CRYPT_CHACHA20_POLY1305 &&
+	    !spa_feature_is_enabled(ds->ds_dir->dd_pool->dp_spa,
+	    SPA_FEATURE_CHACHA20_POLY1305))
+		return (SET_ERROR(EOPNOTSUPP));
+
 	ret = nvlist_lookup_uint64(nvl, DSL_CRYPTO_KEY_GUID, &intval);
 	if (ret != 0)
 		return (SET_ERROR(EINVAL));
@@ -2275,6 +2289,13 @@ dsl_crypto_recv_raw_key_sync(dsl_dataset_t *ds, nvlist_t *nvl, dmu_tx_t *tx)
 		dsl_dataset_activate_feature(ds->ds_object,
 		    SPA_FEATURE_ENCRYPTION, (void *)B_TRUE, tx);
 		ds->ds_feature[SPA_FEATURE_ENCRYPTION] = (void *)B_TRUE;
+
+		if (crypt == ZIO_CRYPT_CHACHA20_POLY1305) {
+			dsl_dataset_activate_feature(ds->ds_object,
+			    SPA_FEATURE_CHACHA20_POLY1305, (void *)B_TRUE, tx);
+			ds->ds_feature[SPA_FEATURE_CHACHA20_POLY1305] =
+			    (void *)B_TRUE;
+		}
 
 		/* save the dd_crypto_obj on disk */
 		VERIFY0(zap_add(mos, dd->dd_object, DD_FIELD_CRYPTO_KEY_OBJ,

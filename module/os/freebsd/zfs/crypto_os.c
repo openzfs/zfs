@@ -305,6 +305,17 @@ freebsd_crypt_newsession(freebsd_crypt_session_t *sessp,
 			break;
 		}
 		break;
+	case ZC_TYPE_CHACHA20_POLY1305:
+		csp.csp_cipher_alg = CRYPTO_CHACHA20_POLY1305;
+		csp.csp_ivlen = CHACHA20_POLY1305_IV_LEN;
+		switch (key->ck_length/8) {
+		case CHACHA20_POLY1305_KEY:
+			break;
+		default:
+			error = EINVAL;
+			goto bad;
+		}
+		break;
 	default:
 		error = ENOTSUP;
 		goto bad;
@@ -453,6 +464,10 @@ freebsd_crypt_newsession(freebsd_crypt_session_t *sessp,
 			break;
 		}
 		break;
+	case ZC_TYPE_CHACHA20_POLY1305:
+		xform = &enc_xform_chacha20_poly1305;
+		xauth = &auth_hash_poly1305;
+		break;
 	default:
 		error = ENOTSUP;
 		goto bad;
@@ -554,6 +569,10 @@ freebsd_crypt_uio(boolean_t encrypt,
 			goto bad;
 			break;
 		}
+		break;
+	case ZC_TYPE_CHACHA20_POLY1305:
+		xform = &enc_xform_chacha20_poly1305;
+		xauth = &auth_hash_poly1305;
 		break;
 	default:
 		error = ENOTSUP;
