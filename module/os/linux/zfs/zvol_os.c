@@ -1521,6 +1521,8 @@ zvol_os_rename_minor(zvol_state_t *zv, const char *newname)
 	 */
 	set_disk_ro(zv->zv_zso->zvo_disk, !readonly);
 	set_disk_ro(zv->zv_zso->zvo_disk, readonly);
+
+	dataset_kstats_rename(&zv->zv_kstat, newname);
 }
 
 void
