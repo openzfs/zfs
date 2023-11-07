@@ -65,6 +65,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/spa_impl.h>
 #include <sys/stat.h>
 #include <sys/sunddi.h>
+#include <sys/sysctl.h>
 #include <sys/systm.h>
 #include <sys/taskqueue.h>
 #include <sys/uio.h>
@@ -335,6 +336,8 @@ static moduledata_t zfs_mod = {
 #ifdef _KERNEL
 EVENTHANDLER_DEFINE(mountroot, spa_boot_init, NULL, 0);
 #endif
+
+FEATURE(zfs, "OpenZFS support");
 
 DECLARE_MODULE(zfsctrl, zfs_mod, SI_SUB_CLOCKS, SI_ORDER_ANY);
 MODULE_VERSION(zfsctrl, 1);
