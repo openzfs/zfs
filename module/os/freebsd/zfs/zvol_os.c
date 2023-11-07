@@ -1333,6 +1333,7 @@ zvol_os_rename_minor(zvol_state_t *zv, const char *newname)
 		}
 	}
 	strlcpy(zv->zv_name, newname, sizeof (zv->zv_name));
+	dataset_kstats_rename(&zv->zv_kstat, newname);
 }
 
 /*
