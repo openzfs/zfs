@@ -33,10 +33,18 @@ for i in $scripts ; do
 	val=""
 	case $i in
 	enc)
-		val=$(ls "$VDEV_ENC_SYSFS_PATH/../../" 2>/dev/null)
+		if echo "$VDEV_ENC_SYSFS_PATH" | grep -q '/sys/bus/pci/slots' ; then
+			val="$VDEV_ENC_SYSFS_PATH"
+		else
+			val="$(ls """$VDEV_ENC_SYSFS_PATH/../../""" 2>/dev/null)"
+		fi
 		;;
 	slot)
-		val=$(cat "$VDEV_ENC_SYSFS_PATH/slot" 2>/dev/null)
+		if echo "$VDEV_ENC_SYSFS_PATH" | grep -q '/sys/bus/pci/slots' ; then
+			val="$(basename """$VDEV_ENC_SYSFS_PATH""")"
+		else
+			val="$(cat """$VDEV_ENC_SYSFS_PATH/slot""" 2>/dev/null)"
+		fi
 		;;
 	encdev)
 		val=$(ls "$VDEV_ENC_SYSFS_PATH/../device/scsi_generic" 2>/dev/null)
