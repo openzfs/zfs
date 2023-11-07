@@ -14,7 +14,6 @@ large_blocks
 livelist
 log_spacemap
 lz4_compress
-obsolete_counts
 project_quota
 resilver_defer
 spacemap_histogram
