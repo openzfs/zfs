@@ -197,7 +197,6 @@ Recommends: openzfs-zfs-zed, openzfs-zfsutils (>= ${source:Version}), ${linux:Re
 Suggests: debhelper
 Breaks: spl-dkms (<< 0.8.0~rc1)
 Replaces: spl-dkms, zfs-dkms
-Conflicts: zfs-dkms
 Provides: openzfs-zfs-modules
 Description: OpenZFS filesystem kernel modules for Linux
  OpenZFS is a storage platform that encompasses the functionality of
