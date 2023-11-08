@@ -142,6 +142,7 @@
 #include <sys/zap.h>
 #include <sys/vdev.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_raidz.h>
 #include <sys/vdev_draid.h>
 #include <sys/uberblock_impl.h>
 #include <sys/metaslab.h>
@@ -422,6 +423,13 @@ root_vdev_actions_getprogress(vdev_t *vd, nvlist_t *nvl)
 		fnvlist_add_uint64_array(nvl,
 		    ZPOOL_CONFIG_CHECKPOINT_STATS, (uint64_t *)&pcs,
 		    sizeof (pcs) / sizeof (uint64_t));
+	}
+
+	pool_raidz_expand_stat_t pres;
+	if (spa_raidz_expand_get_stats(spa, &pres) == 0) {
+		fnvlist_add_uint64_array(nvl,
+		    ZPOOL_CONFIG_RAIDZ_EXPAND_STATS, (uint64_t *)&pres,
+		    sizeof (pres) / sizeof (uint64_t));
 	}
 }
 
@@ -1504,7 +1512,8 @@ vdev_uberblock_compare(const uberblock_t *ub1, const uberblock_t *ub2)
 }
 
 struct ubl_cbdata {
-	uberblock_t	*ubl_ubbest;	/* Best uberblock */
+	uberblock_t	ubl_latest;	/* Most recent uberblock */
+	uberblock_t	*ubl_ubbest;	/* Best uberblock (w/r/t max_txg) */
 	vdev_t		*ubl_vd;	/* vdev associated with the above */
 };
 
@@ -1521,6 +1530,9 @@ vdev_uberblock_load_done(zio_t *zio)
 
 	if (zio->io_error == 0 && uberblock_verify(ub) == 0) {
 		mutex_enter(&rio->io_lock);
+		if (vdev_uberblock_compare(ub, &cbp->ubl_latest) > 0) {
+			cbp->ubl_latest = *ub;
+		}
 		if (ub->ub_txg <= spa->spa_load_max_txg &&
 		    vdev_uberblock_compare(ub, cbp->ubl_ubbest) > 0) {
 			/*
@@ -1578,10 +1590,10 @@ vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
 	ASSERT(config);
 
 	memset(ub, 0, sizeof (uberblock_t));
+	memset(&cb, 0, sizeof (cb));
 	*config = NULL;
 
 	cb.ubl_ubbest = ub;
-	cb.ubl_vd = NULL;
 
 	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
 	zio = zio_root(spa, NULL, &cb, flags);
@@ -1597,6 +1609,22 @@ vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
 	if (cb.ubl_vd != NULL) {
 		vdev_dbgmsg(cb.ubl_vd, "best uberblock found for spa %s. "
 		    "txg %llu", spa->spa_name, (u_longlong_t)ub->ub_txg);
+
+		if (ub->ub_raidz_reflow_info !=
+		    cb.ubl_latest.ub_raidz_reflow_info) {
+			vdev_dbgmsg(cb.ubl_vd,
+			    "spa=%s best uberblock (txg=%llu info=0x%llx) "
+			    "has different raidz_reflow_info than latest "
+			    "uberblock (txg=%llu info=0x%llx)",
+			    spa->spa_name,
+			    (u_longlong_t)ub->ub_txg,
+			    (u_longlong_t)ub->ub_raidz_reflow_info,
+			    (u_longlong_t)cb.ubl_latest.ub_txg,
+			    (u_longlong_t)cb.ubl_latest.ub_raidz_reflow_info);
+			memset(ub, 0, sizeof (uberblock_t));
+			spa_config_exit(spa, SCL_ALL, FTAG);
+			return;
+		}
 
 		*config = vdev_label_read_config(cb.ubl_vd, ub->ub_txg);
 		if (*config == NULL && spa->spa_extreme_rewind) {
@@ -1719,8 +1747,23 @@ vdev_uberblock_sync(zio_t *zio, uint64_t *good_writes,
 		vd->vdev_copy_uberblocks = B_FALSE;
 	}
 
+	/*
+	 * We chose a slot based on the txg.  If this uberblock has a special
+	 * RAIDZ expansion state, then it is essentially an update of the
+	 * current uberblock (it has the same txg).  However, the current
+	 * state is committed, so we want to write it to a different slot. If
+	 * we overwrote the same slot, and we lose power during the uberblock
+	 * write, and the disk does not do single-sector overwrites
+	 * atomically (even though it is required to - i.e. we should see
+	 * either the old or the new uberblock), then we could lose this
+	 * txg's uberblock. Rewinding to the previous txg's uberblock may not
+	 * be possible because RAIDZ expansion may have already overwritten
+	 * some of the data, so we need the progress indicator in the
+	 * uberblock.
+	 */
 	int m = spa_multihost(vd->vdev_spa) ? MMP_BLOCKS_PER_LABEL : 0;
-	int n = ub->ub_txg % (VDEV_UBERBLOCK_COUNT(vd) - m);
+	int n = (ub->ub_txg - (RRSS_GET_STATE(ub) == RRSS_SCRATCH_VALID)) %
+	    (VDEV_UBERBLOCK_COUNT(vd) - m);
 
 	/* Copy the uberblock_t into the ABD */
 	abd_t *ub_abd = abd_alloc_for_io(VDEV_UBERBLOCK_SIZE(vd), B_TRUE);
@@ -1737,7 +1780,7 @@ vdev_uberblock_sync(zio_t *zio, uint64_t *good_writes,
 }
 
 /* Sync the uberblocks to all vdevs in svd[] */
-static int
+int
 vdev_uberblock_sync_list(vdev_t **svd, int svdcount, uberblock_t *ub, int flags)
 {
 	spa_t *spa = svd[0]->vdev_spa;

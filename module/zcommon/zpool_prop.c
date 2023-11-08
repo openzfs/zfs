@@ -439,6 +439,9 @@ vdev_prop_init(void)
 	zprop_register_index(VDEV_PROP_ALLOCATING, "allocating", 1,
 	    PROP_DEFAULT, ZFS_TYPE_VDEV, "on | off", "ALLOCATING",
 	    boolean_na_table, sfeatures);
+	zprop_register_index(VDEV_PROP_RAIDZ_EXPANDING, "raidz_expanding", 0,
+	    PROP_READONLY, ZFS_TYPE_VDEV, "on | off", "RAIDZ_EXPANDING",
+	    boolean_table, sfeatures);
 
 	/* default index properties */
 	zprop_register_index(VDEV_PROP_FAILFAST, "failfast", B_TRUE,

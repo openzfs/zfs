@@ -445,6 +445,7 @@ ZFS_OBJS_OS := \
 	trace.o \
 	vdev_disk.o \
 	vdev_file.o \
+	vdev_label_os.o \
 	zfs_acl.o \
 	zfs_ctldir.o \
 	zfs_debug.o \

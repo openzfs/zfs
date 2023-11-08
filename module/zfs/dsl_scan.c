@@ -3066,7 +3066,6 @@ dsl_scan_visit(dsl_scan_t *scn, dmu_tx_t *tx)
 		scn->scn_phys.scn_cur_max_txg = scn->scn_phys.scn_max_txg;
 		dsl_scan_visit_rootbp(scn, NULL,
 		    &dp->dp_meta_rootbp, tx);
-		spa_set_rootblkptr(dp->dp_spa, &dp->dp_meta_rootbp);
 		if (scn->scn_suspending)
 			return;
 

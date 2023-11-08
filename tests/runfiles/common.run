@@ -769,8 +769,12 @@ tests = ['redacted_compressed', 'redacted_contents', 'redacted_deleted',
 tags = ['functional', 'redacted_send']
 
 [tests/functional/raidz]
-tests = ['raidz_001_neg', 'raidz_002_pos', 'raidz_003_pos', 'raidz_004_pos']
+tests = ['raidz_001_neg', 'raidz_002_pos', 'raidz_expand_001_pos',
+    'raidz_expand_002_pos', 'raidz_expand_003_neg', 'raidz_expand_003_pos',
+    'raidz_expand_004_pos', 'raidz_expand_005_pos', 'raidz_expand_006_neg',
+    'raidz_expand_007_neg']
 tags = ['functional', 'raidz']
+timeout = 1200
 
 [tests/functional/redundancy]
 tests = ['redundancy_draid', 'redundancy_draid1', 'redundancy_draid2',

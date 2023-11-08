@@ -4134,6 +4134,11 @@ dump_uberblock(uberblock_t *ub, const char *header, const char *footer)
 	}
 	(void) printf("\tcheckpoint_txg = %llu\n",
 	    (u_longlong_t)ub->ub_checkpoint_txg);
+
+	(void) printf("\traidz_reflow state=%u off=%llu\n",
+	    (int)RRSS_GET_STATE(ub),
+	    (u_longlong_t)RRSS_GET_OFFSET(ub));
+
 	(void) printf("%s", footer ? footer : "");
 }
 

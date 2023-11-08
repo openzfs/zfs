@@ -1360,7 +1360,9 @@
       <enumerator name='ZFS_IOC_EVENTS_SEEK' value='23171'/>
       <enumerator name='ZFS_IOC_NEXTBOOT' value='23172'/>
       <enumerator name='ZFS_IOC_JAIL' value='23173'/>
+      <enumerator name='ZFS_IOC_USERNS_ATTACH' value='23173'/>
       <enumerator name='ZFS_IOC_UNJAIL' value='23174'/>
+      <enumerator name='ZFS_IOC_USERNS_DETACH' value='23174'/>
       <enumerator name='ZFS_IOC_SET_BOOTENV' value='23175'/>
       <enumerator name='ZFS_IOC_GET_BOOTENV' value='23176'/>
       <enumerator name='ZFS_IOC_LAST' value='23177'/>
@@ -1376,7 +1378,8 @@
       <enumerator name='ZPOOL_WAIT_RESILVER' value='5'/>
       <enumerator name='ZPOOL_WAIT_SCRUB' value='6'/>
       <enumerator name='ZPOOL_WAIT_TRIM' value='7'/>
-      <enumerator name='ZPOOL_WAIT_NUM_ACTIVITIES' value='8'/>
+      <enumerator name='ZPOOL_WAIT_RAIDZ_EXPAND' value='8'/>
+      <enumerator name='ZPOOL_WAIT_NUM_ACTIVITIES' value='9'/>
     </enum-decl>
     <typedef-decl name='zpool_wait_activity_t' type-id='849338e3' id='73446457'/>
     <enum-decl name='zfs_wait_activity_t' naming-typedef-id='3024501a' id='527d5dc6'>
@@ -2537,6 +2540,13 @@
     </function-decl>
     <function-decl name='libzfs_core_fini' mangled-name='libzfs_core_fini' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='libzfs_core_fini'>
       <return type-id='48b5725f'/>
+    </function-decl>
+    <function-decl name='lzc_scrub' mangled-name='lzc_scrub' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_scrub'>
+      <parameter type-id='5b35941c' name='ioc'/>
+      <parameter type-id='80f4b756' name='name'/>
+      <parameter type-id='5ce45b60' name='source'/>
+      <parameter type-id='857bb57e' name='resultp'/>
+      <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='lzc_create' mangled-name='lzc_create' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_create'>
       <parameter type-id='80f4b756' name='fsname'/>

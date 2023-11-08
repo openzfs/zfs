@@ -430,6 +430,19 @@ TXGs must pass before unloading will occur.
 .It Sy reference_history Ns = Ns Sy 3 Pq uint
 Maximum reference holders being tracked when reference_tracking_enable is
 active.
+.It Sy raidz_expand_max_copy_bytes Ns = Ns Sy 160MB Pq ulong
+Max amount of memory to use for RAID-Z expansion I/O.
+This limits how much I/O can be outstanding at once.
+.
+.It Sy raidz_expand_max_reflow_bytes Ns = Ns Sy 0 Pq ulong
+For testing, pause RAID-Z expansion when reflow amount reaches this value.
+.
+.It Sy raidz_io_aggregate_rows Ns = Ns Sy 4 Pq ulong
+For expanded RAID-Z, aggregate reads that have more rows than this.
+.
+.It Sy reference_history Ns = Ns Sy 3 Pq int
+Maximum reference holders being tracked when reference_tracking_enable is
+active.
 .
 .It Sy reference_tracking_enable Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Track reference holders to
@@ -1780,6 +1793,12 @@ If set, remove the DTL (dirty time list) upon completion of a pool scan (scrub),
 even if there were unrepairable errors.
 Intended to be used during pool repair or recovery to
 stop resilvering when the pool is next imported.
+.
+.It Sy zfs_scrub_after_expand Ns = Ns Sy 1 Ns | Ns 0 Pq int
+Automatically start a pool scrub after a RAIDZ expansion completes
+in order to verify the checksums of all blocks which have been
+copied during the expansion.
+This is enabled by default and strongly recommended.
 .
 .It Sy zfs_scrub_min_time_ms Ns = Ns Sy 1000 Ns ms Po 1 s Pc Pq uint
 Scrubs are processed by the sync thread.

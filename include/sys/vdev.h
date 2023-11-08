@@ -132,15 +132,19 @@ extern void vdev_space_update(vdev_t *vd,
 
 extern int64_t vdev_deflated_space(vdev_t *vd, int64_t space);
 
+extern uint64_t vdev_psize_to_asize_txg(vdev_t *vd, uint64_t psize,
+    uint64_t txg);
 extern uint64_t vdev_psize_to_asize(vdev_t *vd, uint64_t psize);
 
 /*
- * Return the amount of space allocated for a gang block header.
+ * Return the amount of space allocated for a gang block header.  Note that
+ * since the physical birth txg is not provided, this must be constant for
+ * a given vdev.  (e.g. raidz expansion can't change this)
  */
 static inline uint64_t
 vdev_gang_header_asize(vdev_t *vd)
 {
-	return (vdev_psize_to_asize(vd, SPA_GANGBLOCKSIZE));
+	return (vdev_psize_to_asize_txg(vd, SPA_GANGBLOCKSIZE, 0));
 }
 
 extern int vdev_fault(spa_t *spa, uint64_t guid, vdev_aux_t aux);
@@ -204,6 +208,8 @@ extern void vdev_label_write(zio_t *zio, vdev_t *vd, int l, abd_t *buf, uint64_t
     offset, uint64_t size, zio_done_func_t *done, void *priv, int flags);
 extern int vdev_label_read_bootenv(vdev_t *, nvlist_t *);
 extern int vdev_label_write_bootenv(vdev_t *, nvlist_t *);
+extern int vdev_uberblock_sync_list(vdev_t **, int, struct uberblock *, int);
+extern int vdev_check_boot_reserve(spa_t *, vdev_t *);
 
 typedef enum {
 	VDEV_LABEL_CREATE,	/* create/add a new device */

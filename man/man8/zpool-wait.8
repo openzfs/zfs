@@ -20,7 +20,7 @@
 .\"
 .\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
-.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+.\" Copyright (c) 2012, 2021 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
 .\" Copyright (c) 2017 Datto Inc.
 .\" Copyright (c) 2018 George Melikov. All Rights Reserved.
@@ -57,7 +57,7 @@ immediately.
 These are the possible values for
 .Ar activity ,
 along with what each one waits for:
-.Bl -tag -compact -offset Ds -width "initialize"
+.Bl -tag -compact -offset Ds -width "raidz_expand"
 .It Sy discard
 Checkpoint to be discarded
 .It Sy free
@@ -76,6 +76,8 @@ Resilver to cease
 Scrub to cease
 .It Sy trim
 Manual trim to cease
+.It Sy raidz_expand
+Attaching to a RAID-Z vdev to complete
 .El
 .Pp
 If an
