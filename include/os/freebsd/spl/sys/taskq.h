@@ -120,6 +120,7 @@ void	taskq_resume(taskq_t *);
 #endif /* _KERNEL */
 
 #ifdef _STANDALONE
+typedef void taskq_t;
 typedef int taskq_ent_t;
 #define	taskq_init_ent(x)
 #endif /* _STANDALONE */
