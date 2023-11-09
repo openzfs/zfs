@@ -97,7 +97,7 @@ and only applicable in related situations.
 .It Sy l2arc_feed_secs Ns = Ns Sy 1 Pq u64
 Seconds between L2ARC writing.
 .
-.It Sy l2arc_headroom Ns = Ns Sy 2 Pq u64
+.It Sy l2arc_headroom Ns = Ns Sy 8 Pq u64
 How far through the ARC lists to search for L2ARC cacheable content,
 expressed as a multiplier of
 .Sy l2arc_write_max .
@@ -200,12 +200,12 @@ to enable caching/reading prefetches to/from L2ARC.
 .It Sy l2arc_norw Ns = Ns Sy 0 Ns | Ns 1 Pq int
 No reads during writes.
 .
-.It Sy l2arc_write_boost Ns = Ns Sy 8388608 Ns B Po 8 MiB Pc Pq u64
+.It Sy l2arc_write_boost Ns = Ns Sy 33554432 Ns B Po 32 MiB Pc Pq u64
 Cold L2ARC devices will have
 .Sy l2arc_write_max
 increased by this amount while they remain cold.
 .
-.It Sy l2arc_write_max Ns = Ns Sy 8388608 Ns B Po 8 MiB Pc Pq u64
+.It Sy l2arc_write_max Ns = Ns Sy 33554432 Ns B Po 32 MiB Pc Pq u64
 Max write bytes per interval.
 .
 .It Sy l2arc_rebuild_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
