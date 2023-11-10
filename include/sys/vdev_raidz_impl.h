@@ -136,7 +136,7 @@ typedef struct raidz_row {
 	uint64_t rr_offset;		/* Logical offset for *_io_verify() */
 	uint64_t rr_size;		/* Physical size for *_io_verify() */
 #endif
-	raidz_col_t rr_col[0];		/* Flexible array of I/O columns */
+	raidz_col_t rr_col[];		/* Flexible array of I/O columns */
 } raidz_row_t;
 
 typedef struct raidz_map {
@@ -149,7 +149,7 @@ typedef struct raidz_map {
 	zfs_locked_range_t *rm_lr;
 	const raidz_impl_ops_t *rm_ops;	/* RAIDZ math operations */
 	raidz_col_t *rm_phys_col;	/* if non-NULL, read i/o aggregation */
-	raidz_row_t *rm_row[0];		/* flexible array of rows */
+	raidz_row_t *rm_row[];		/* flexible array of rows */
 } raidz_map_t;
 
 /*
