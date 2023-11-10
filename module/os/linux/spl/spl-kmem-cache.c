@@ -76,17 +76,6 @@ module_param(spl_kmem_cache_magazine_size, uint, 0444);
 MODULE_PARM_DESC(spl_kmem_cache_magazine_size,
 	"Default magazine size (2-256), set automatically (0)");
 
-/*
- * The default behavior is to report the number of objects remaining in the
- * cache.  This allows the Linux VM to repeatedly reclaim objects from the
- * cache when memory is low satisfy other memory allocations.  Alternately,
- * setting this value to KMC_RECLAIM_ONCE limits how aggressively the cache
- * is reclaimed.  This may increase the likelihood of out of memory events.
- */
-static unsigned int spl_kmem_cache_reclaim = 0 /* KMC_RECLAIM_ONCE */;
-module_param(spl_kmem_cache_reclaim, uint, 0644);
-MODULE_PARM_DESC(spl_kmem_cache_reclaim, "Single reclaim pass (0x1)");
-
 static unsigned int spl_kmem_cache_obj_per_slab = SPL_KMEM_CACHE_OBJ_PER_SLAB;
 module_param(spl_kmem_cache_obj_per_slab, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_cache_obj_per_slab, "Number of objects per slab");
