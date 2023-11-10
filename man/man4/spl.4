@@ -31,14 +31,6 @@ for use by the kmem caches.
 For the majority of systems and workloads only a small number of threads are
 required.
 .
-.It Sy spl_kmem_cache_reclaim Ns = Ns Sy 0 Pq uint
-When this is set it prevents Linux from being able to rapidly reclaim all the
-memory held by the kmem caches.
-This may be useful in circumstances where it's preferable that Linux
-reclaim memory from some other subsystem first.
-Setting this will increase the likelihood out of memory events on a memory
-constrained system.
-.
 .It Sy spl_kmem_cache_obj_per_slab Ns = Ns Sy 8 Pq uint
 The preferred number of objects per slab in the cache.
 In general, a larger value will increase the caches memory footprint
