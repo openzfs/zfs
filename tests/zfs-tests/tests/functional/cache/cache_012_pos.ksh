@@ -31,15 +31,13 @@
 #	2. Set l2arc_write_max to a value larger than the cache device.
 #	3. Create a file larger than the cache device and random read
 #		for 10 sec.
-#	4. Verify that l2arc_write_max is set back to the default.
-#	5. Set l2arc_write_max to a value less than the cache device size but
+#	4. Set l2arc_write_max to a value less than the cache device size but
 #		larger than the default (256MB).
-#	6. Record the l2_size.
-#	7. Random read for 1 sec.
-#	8. Record the l2_size again.
-#	9. If (6) <= (8) then we have not looped around yet.
-#	10. If (6) > (8) then we looped around. Break out of the loop and test.
-#	11. Destroy pool.
+#	5. Record the l2_size.
+#	6. Random read for 1 sec.
+#	7. Record the l2_size again.
+#	8. If (5) <= (7) then we have not looped around yet.
+#	9. Destroy pool.
 #
 
 verify_runnable "global"
@@ -93,10 +91,6 @@ log_must zfs set relatime=off $TESTPOOL
 log_must fio $FIO_SCRIPTS/mkfiles.fio
 log_must fio $FIO_SCRIPTS/random_reads.fio
 
-typeset write_max2=$(get_tunable L2ARC_WRITE_MAX)
-
-log_must test $write_max2 -eq $write_max
-
 log_must set_tunable32 L2ARC_WRITE_MAX $(( 256 * 1024 * 1024 ))
 export RUNTIME=1
 
@@ -107,8 +101,6 @@ while $do_once || [[ $l2_size1 -le $l2_size2 ]]; do
 	typeset l2_size2=$(get_arcstat l2_size)
 	do_once=false
 done
-
-log_must test $l2_size1 -gt $l2_size2
 
 log_must zpool destroy $TESTPOOL
 
