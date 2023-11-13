@@ -3036,6 +3036,9 @@ zpool_vdev_is_interior(const char *name)
 	return (B_FALSE);
 }
 
+/*
+ * Lookup the nvlist for a given vdev.
+ */
 nvlist_t *
 zpool_find_vdev(zpool_handle_t *zhp, const char *path, boolean_t *avail_spare,
     boolean_t *l2cache, boolean_t *log)
@@ -3043,6 +3046,7 @@ zpool_find_vdev(zpool_handle_t *zhp, const char *path, boolean_t *avail_spare,
 	char *end;
 	nvlist_t *nvroot, *search, *ret;
 	uint64_t guid;
+	boolean_t __avail_spare, __l2cache, __log;
 
 	search = fnvlist_alloc();
 
@@ -3057,6 +3061,18 @@ zpool_find_vdev(zpool_handle_t *zhp, const char *path, boolean_t *avail_spare,
 
 	nvroot = fnvlist_lookup_nvlist(zhp->zpool_config,
 	    ZPOOL_CONFIG_VDEV_TREE);
+
+	/*
+	 * User can pass NULL for avail_spare, l2cache, and log, but
+	 * we still need to provide variables to vdev_to_nvlist_iter(), so
+	 * just point them to junk variables here.
+	 */
+	if (!avail_spare)
+		avail_spare = &__avail_spare;
+	if (!l2cache)
+		l2cache = &__l2cache;
+	if (!log)
+		log = &__log;
 
 	*avail_spare = B_FALSE;
 	*l2cache = B_FALSE;
@@ -3313,27 +3329,50 @@ zpool_vdev_fault(zpool_handle_t *zhp, uint64_t guid, vdev_aux_t aux)
 }
 
 /*
- * Mark the given vdev degraded.
+ * Generic set vdev state function
  */
-int
-zpool_vdev_degrade(zpool_handle_t *zhp, uint64_t guid, vdev_aux_t aux)
+static int
+zpool_vdev_set_state(zpool_handle_t *zhp, uint64_t guid, vdev_aux_t aux,
+    vdev_state_t state)
 {
 	zfs_cmd_t zc = {"\0"};
 	char errbuf[ERRBUFLEN];
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 
 	(void) snprintf(errbuf, sizeof (errbuf),
-	    dgettext(TEXT_DOMAIN, "cannot degrade %llu"), (u_longlong_t)guid);
+	    dgettext(TEXT_DOMAIN, "cannot set %s %llu"),
+	    zpool_state_to_name(state, aux), (u_longlong_t)guid);
 
 	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
 	zc.zc_guid = guid;
-	zc.zc_cookie = VDEV_STATE_DEGRADED;
+	zc.zc_cookie = state;
 	zc.zc_obj = aux;
 
 	if (zfs_ioctl(hdl, ZFS_IOC_VDEV_SET_STATE, &zc) == 0)
 		return (0);
 
 	return (zpool_standard_error(hdl, errno, errbuf));
+}
+
+/*
+ * Mark the given vdev degraded.
+ */
+int
+zpool_vdev_degrade(zpool_handle_t *zhp, uint64_t guid, vdev_aux_t aux)
+{
+	return (zpool_vdev_set_state(zhp, guid, aux, VDEV_STATE_DEGRADED));
+}
+
+/*
+ * Mark the given vdev as in a removed state (as if the device does not exist).
+ *
+ * This is different than zpool_vdev_remove() which does a removal of a device
+ * from the pool (but the device does exist).
+ */
+int
+zpool_vdev_set_removed_state(zpool_handle_t *zhp, uint64_t guid, vdev_aux_t aux)
+{
+	return (zpool_vdev_set_state(zhp, guid, aux, VDEV_STATE_REMOVED));
 }
 
 /*

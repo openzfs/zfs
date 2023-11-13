@@ -36,6 +36,7 @@
 .Sh SYNOPSIS
 .Nm zpool
 .Cm clear
+.Op Fl -power
 .Ar pool
 .Oo Ar device Oc Ns …
 .
@@ -52,6 +53,16 @@ Pools with
 enabled which have been suspended cannot be resumed.
 While the pool was suspended, it may have been imported on
 another host, and resuming I/O could result in pool damage.
+.Bl -tag -width Ds
+.It Fl -power
+Power on the devices's slot in the storage enclosure and wait for the device
+to show up before attempting to clear errors.
+This is done on all the devices specified.
+Alternatively, you can set the
+.Sy ZPOOL_AUTO_POWER_ON_SLOT
+environment variable to always enable this behavior.
+Note: This flag currently works on Linux only.
+.El
 .
 .Sh SEE ALSO
 .Xr zdb 8 ,

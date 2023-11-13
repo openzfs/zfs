@@ -353,7 +353,7 @@ get_usage(zpool_help_t idx)
 		return (gettext("\tattach [-fsw] [-o property=value] "
 		    "<pool> <device> <new-device>\n"));
 	case HELP_CLEAR:
-		return (gettext("\tclear [-nF] <pool> [device]\n"));
+		return (gettext("\tclear [[--power]|[-nF]] <pool> [device]\n"));
 	case HELP_CREATE:
 		return (gettext("\tcreate [-fnd] [-o property=value] ... \n"
 		    "\t    [-O file-system-property=value] ... \n"
@@ -389,9 +389,11 @@ get_usage(zpool_help_t idx)
 		    "[-T d|u] [pool] ... \n"
 		    "\t    [interval [count]]\n"));
 	case HELP_OFFLINE:
-		return (gettext("\toffline [-f] [-t] <pool> <device> ...\n"));
+		return (gettext("\toffline [--power]|[[-f][-t]] <pool> "
+		    "<device> ...\n"));
 	case HELP_ONLINE:
-		return (gettext("\tonline [-e] <pool> <device> ...\n"));
+		return (gettext("\tonline [--power][-e] <pool> <device> "
+		    "...\n"));
 	case HELP_REPLACE:
 		return (gettext("\treplace [-fsw] [-o property=value] "
 		    "<pool> <device> [new-device]\n"));
@@ -410,7 +412,7 @@ get_usage(zpool_help_t idx)
 		return (gettext("\ttrim [-dw] [-r <rate>] [-c | -s] <pool> "
 		    "[<device> ...]\n"));
 	case HELP_STATUS:
-		return (gettext("\tstatus [-c [script1,script2,...]] "
+		return (gettext("\tstatus [--power] [-c [script1,script2,...]] "
 		    "[-igLpPstvxD]  [-T d|u] [pool] ... \n"
 		    "\t    [interval [count]]\n"));
 	case HELP_UPGRADE:
@@ -514,6 +516,77 @@ print_vdev_prop_cb(int prop, void *cb)
 		(void) fprintf(fp, "%s\n", vdev_prop_values(prop));
 
 	return (ZPROP_CONT);
+}
+
+/*
+ * Given a leaf vdev name like 'L5' return its VDEV_CONFIG_PATH like
+ * '/dev/disk/by-vdev/L5'.
+ */
+static const char *
+vdev_name_to_path(zpool_handle_t *zhp, char *vdev)
+{
+	nvlist_t *vdev_nv = zpool_find_vdev(zhp, vdev, NULL, NULL, NULL);
+	if (vdev_nv == NULL) {
+		return (NULL);
+	}
+	return (fnvlist_lookup_string(vdev_nv, ZPOOL_CONFIG_PATH));
+}
+
+static int
+zpool_power_on(zpool_handle_t *zhp, char *vdev)
+{
+	return (zpool_power(zhp, vdev, B_TRUE));
+}
+
+static int
+zpool_power_on_and_disk_wait(zpool_handle_t *zhp, char *vdev)
+{
+	int rc;
+
+	rc = zpool_power_on(zhp, vdev);
+	if (rc != 0)
+		return (rc);
+
+	zpool_disk_wait(vdev_name_to_path(zhp, vdev));
+
+	return (0);
+}
+
+static int
+zpool_power_on_pool_and_wait_for_devices(zpool_handle_t *zhp)
+{
+	nvlist_t *nv;
+	const char *path = NULL;
+	int rc;
+
+	/* Power up all the devices first */
+	FOR_EACH_REAL_LEAF_VDEV(zhp, nv) {
+		path = fnvlist_lookup_string(nv, ZPOOL_CONFIG_PATH);
+		if (path != NULL) {
+			rc = zpool_power_on(zhp, (char *)path);
+			if (rc != 0) {
+				return (rc);
+			}
+		}
+	}
+
+	/*
+	 * Wait for their devices to show up.  Since we powered them on
+	 * at roughly the same time, they should all come online around
+	 * the same time.
+	 */
+	FOR_EACH_REAL_LEAF_VDEV(zhp, nv) {
+		path = fnvlist_lookup_string(nv, ZPOOL_CONFIG_PATH);
+		zpool_disk_wait(path);
+	}
+
+	return (0);
+}
+
+static int
+zpool_power_off(zpool_handle_t *zhp, char *vdev)
+{
+	return (zpool_power(zhp, vdev, B_FALSE));
 }
 
 /*
@@ -2093,6 +2166,7 @@ typedef struct status_cbdata {
 	boolean_t	cb_print_vdev_init;
 	boolean_t	cb_print_vdev_trim;
 	vdev_cmd_data_list_t	*vcdl;
+	boolean_t	cb_print_power;
 } status_cbdata_t;
 
 /* Return 1 if string is NULL, empty, or whitespace; return 0 otherwise. */
@@ -2377,6 +2451,26 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 				printf(" %5llu", (u_longlong_t)vs->vs_slow_ios);
 			else
 				printf(" %5s", rbuf);
+		}
+		if (cb->cb_print_power) {
+			if (children == 0)  {
+				/* Only leaf vdevs have physical slots */
+				switch (zpool_power_current_state(zhp, (char *)
+				    fnvlist_lookup_string(nv,
+				    ZPOOL_CONFIG_PATH))) {
+				case 0:
+					printf_color(ANSI_RED, " %5s",
+					    gettext("off"));
+					break;
+				case 1:
+					printf(" %5s", gettext("on"));
+					break;
+				default:
+					printf(" %5s", "-");
+				}
+			} else {
+				printf(" %5s", "-");
+			}
 		}
 	}
 
@@ -5430,19 +5524,6 @@ get_interval_count_filter_guids(int *argc, char **argv, float *interval,
 }
 
 /*
- * Floating point sleep().  Allows you to pass in a floating point value for
- * seconds.
- */
-static void
-fsleep(float sec)
-{
-	struct timespec req;
-	req.tv_sec = floor(sec);
-	req.tv_nsec = (sec - (float)req.tv_sec) * NANOSEC;
-	nanosleep(&req, NULL);
-}
-
-/*
  * Terminal height, in rows. Returns -1 if stdout is not connected to a TTY or
  * if we were unable to determine its size.
  */
@@ -6950,10 +7031,12 @@ zpool_do_split(int argc, char **argv)
 	return (ret);
 }
 
-
+#define	POWER_OPT 1024
 
 /*
- * zpool online <pool> <device> ...
+ * zpool online [--power] <pool> <device> ...
+ *
+ * --power: Power on the enclosure slot to the drive (if possible)
  */
 int
 zpool_do_online(int argc, char **argv)
@@ -6964,12 +7047,20 @@ zpool_do_online(int argc, char **argv)
 	int ret = 0;
 	vdev_state_t newstate;
 	int flags = 0;
+	boolean_t is_power_on = B_FALSE;
+	struct option long_options[] = {
+		{"power", no_argument, NULL, POWER_OPT},
+		{0, 0, 0, 0}
+	};
 
 	/* check options */
-	while ((c = getopt(argc, argv, "e")) != -1) {
+	while ((c = getopt_long(argc, argv, "e", long_options, NULL)) != -1) {
 		switch (c) {
 		case 'e':
 			flags |= ZFS_ONLINE_EXPAND;
+			break;
+		case POWER_OPT:
+			is_power_on = B_TRUE;
 			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
@@ -6977,6 +7068,9 @@ zpool_do_online(int argc, char **argv)
 			usage(B_FALSE);
 		}
 	}
+
+	if (libzfs_envvar_is_set("ZPOOL_AUTO_POWER_ON_SLOT"))
+		is_power_on = B_TRUE;
 
 	argc -= optind;
 	argv += optind;
@@ -6999,6 +7093,18 @@ zpool_do_online(int argc, char **argv)
 	for (i = 1; i < argc; i++) {
 		vdev_state_t oldstate;
 		boolean_t avail_spare, l2cache;
+		int rc;
+
+		if (is_power_on) {
+			rc = zpool_power_on_and_disk_wait(zhp, argv[i]);
+			if (rc == ENOTSUP) {
+				(void) fprintf(stderr,
+				    gettext("Power control not supported\n"));
+			}
+			if (rc != 0)
+				return (rc);
+		}
+
 		nvlist_t *tgt = zpool_find_vdev(zhp, argv[i], &avail_spare,
 		    &l2cache, NULL);
 		if (tgt == NULL) {
@@ -7044,12 +7150,15 @@ zpool_do_online(int argc, char **argv)
 }
 
 /*
- * zpool offline [-ft] <pool> <device> ...
+ * zpool offline [-ft]|[--power] <pool> <device> ...
+ *
  *
  *	-f	Force the device into a faulted state.
  *
  *	-t	Only take the device off-line temporarily.  The offline/faulted
  *		state will not be persistent across reboots.
+ *
+ *	--power Power off the enclosure slot to the drive (if possible)
  */
 int
 zpool_do_offline(int argc, char **argv)
@@ -7060,9 +7169,15 @@ zpool_do_offline(int argc, char **argv)
 	int ret = 0;
 	boolean_t istmp = B_FALSE;
 	boolean_t fault = B_FALSE;
+	boolean_t is_power_off = B_FALSE;
+
+	struct option long_options[] = {
+		{"power", no_argument, NULL, POWER_OPT},
+		{0, 0, 0, 0}
+	};
 
 	/* check options */
-	while ((c = getopt(argc, argv, "ft")) != -1) {
+	while ((c = getopt_long(argc, argv, "ft", long_options, NULL)) != -1) {
 		switch (c) {
 		case 'f':
 			fault = B_TRUE;
@@ -7070,11 +7185,28 @@ zpool_do_offline(int argc, char **argv)
 		case 't':
 			istmp = B_TRUE;
 			break;
+		case POWER_OPT:
+			is_power_off = B_TRUE;
+			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
 			    optopt);
 			usage(B_FALSE);
 		}
+	}
+
+	if (is_power_off && fault) {
+		(void) fprintf(stderr,
+		    gettext("-0 and -f cannot be used together\n"));
+		usage(B_FALSE);
+		return (1);
+	}
+
+	if (is_power_off && istmp) {
+		(void) fprintf(stderr,
+		    gettext("-0 and -t cannot be used together\n"));
+		usage(B_FALSE);
+		return (1);
 	}
 
 	argc -= optind;
@@ -7096,8 +7228,22 @@ zpool_do_offline(int argc, char **argv)
 		return (1);
 
 	for (i = 1; i < argc; i++) {
-		if (fault) {
-			uint64_t guid = zpool_vdev_path_to_guid(zhp, argv[i]);
+		uint64_t guid = zpool_vdev_path_to_guid(zhp, argv[i]);
+		if (is_power_off) {
+			/*
+			 * Note: we have to power off first, then set REMOVED,
+			 * or else zpool_vdev_set_removed_state() returns
+			 * EAGAIN.
+			 */
+			ret = zpool_power_off(zhp, argv[i]);
+			if (ret != 0) {
+				(void) fprintf(stderr, "%s %s %d\n",
+				    gettext("unable to power off slot for"),
+				    argv[i], ret);
+			}
+			zpool_vdev_set_removed_state(zhp, guid, VDEV_AUX_NONE);
+
+		} else if (fault) {
 			vdev_aux_t aux;
 			if (istmp == B_FALSE) {
 				/* Force the fault to persist across imports */
@@ -7120,7 +7266,7 @@ zpool_do_offline(int argc, char **argv)
 }
 
 /*
- * zpool clear <pool> [device]
+ * zpool clear [-nF]|[--power] <pool> [device]
  *
  * Clear all errors associated with a pool or a particular device.
  */
@@ -7132,13 +7278,20 @@ zpool_do_clear(int argc, char **argv)
 	boolean_t dryrun = B_FALSE;
 	boolean_t do_rewind = B_FALSE;
 	boolean_t xtreme_rewind = B_FALSE;
+	boolean_t is_power_on = B_FALSE;
 	uint32_t rewind_policy = ZPOOL_NO_REWIND;
 	nvlist_t *policy = NULL;
 	zpool_handle_t *zhp;
 	char *pool, *device;
 
+	struct option long_options[] = {
+		{"power", no_argument, NULL, POWER_OPT},
+		{0, 0, 0, 0}
+	};
+
 	/* check options */
-	while ((c = getopt(argc, argv, "FnX")) != -1) {
+	while ((c = getopt_long(argc, argv, "FnX", long_options,
+	    NULL)) != -1) {
 		switch (c) {
 		case 'F':
 			do_rewind = B_TRUE;
@@ -7149,12 +7302,18 @@ zpool_do_clear(int argc, char **argv)
 		case 'X':
 			xtreme_rewind = B_TRUE;
 			break;
+		case POWER_OPT:
+			is_power_on = B_TRUE;
+			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
 			    optopt);
 			usage(B_FALSE);
 		}
 	}
+
+	if (libzfs_envvar_is_set("ZPOOL_AUTO_POWER_ON_SLOT"))
+		is_power_on = B_TRUE;
 
 	argc -= optind;
 	argv += optind;
@@ -7194,6 +7353,14 @@ zpool_do_clear(int argc, char **argv)
 	if ((zhp = zpool_open_canfail(g_zfs, pool)) == NULL) {
 		nvlist_free(policy);
 		return (1);
+	}
+
+	if (is_power_on) {
+		if (device == NULL) {
+			zpool_power_on_pool_and_wait_for_devices(zhp);
+		} else {
+			zpool_power_on_and_disk_wait(zhp, device);
+		}
 	}
 
 	if (zpool_clear(zhp, device, policy) != 0)
@@ -8908,6 +9075,10 @@ status_callback(zpool_handle_t *zhp, void *data)
 			printf_color(ANSI_BOLD, " %5s", gettext("SLOW"));
 		}
 
+		if (cbp->cb_print_power) {
+			printf_color(ANSI_BOLD, " %5s", gettext("POWER"));
+		}
+
 		if (cbp->vcdl != NULL)
 			print_cmd_columns(cbp->vcdl, 0);
 
@@ -8954,8 +9125,8 @@ status_callback(zpool_handle_t *zhp, void *data)
 }
 
 /*
- * zpool status [-c [script1,script2,...]] [-igLpPstvx] [-T d|u] [pool] ...
- *              [interval [count]]
+ * zpool status [-c [script1,script2,...]] [-igLpPstvx] [--power] [-T d|u] ...
+ *              [pool] [interval [count]]
  *
  *	-c CMD	For each vdev, run command CMD
  *	-i	Display vdev initialization status.
@@ -8969,6 +9140,7 @@ status_callback(zpool_handle_t *zhp, void *data)
  *	-D	Display dedup status (undocumented)
  *	-t	Display vdev TRIM status.
  *	-T	Display a timestamp in date(1) or Unix format
+ *	--power	Display vdev enclosure slot power status
  *
  * Describes the health status of all pools or some subset.
  */
@@ -8982,8 +9154,14 @@ zpool_do_status(int argc, char **argv)
 	status_cbdata_t cb = { 0 };
 	char *cmd = NULL;
 
+	struct option long_options[] = {
+		{"power", no_argument, NULL, POWER_OPT},
+		{0, 0, 0, 0}
+	};
+
 	/* check options */
-	while ((c = getopt(argc, argv, "c:igLpPsvxDtT:")) != -1) {
+	while ((c = getopt_long(argc, argv, "c:igLpPsvxDtT:", long_options,
+	    NULL)) != -1) {
 		switch (c) {
 		case 'c':
 			if (cmd != NULL) {
@@ -9041,6 +9219,9 @@ zpool_do_status(int argc, char **argv)
 			break;
 		case 'T':
 			get_timestamp_arg(*optarg);
+			break;
+		case POWER_OPT:
+			cb.cb_print_power = B_TRUE;
 			break;
 		case '?':
 			if (optopt == 'c') {

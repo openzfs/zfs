@@ -170,25 +170,17 @@ zpool_open_func(void *arg)
 	if (rn->rn_labelpaths) {
 		const char *path = NULL;
 		const char *devid = NULL;
-		const char *env = NULL;
 		rdsk_node_t *slice;
 		avl_index_t where;
-		int timeout;
 		int error;
 
 		if (label_paths(rn->rn_hdl, rn->rn_config, &path, &devid))
 			return;
 
-		env = getenv("ZPOOL_IMPORT_UDEV_TIMEOUT_MS");
-		if ((env == NULL) || sscanf(env, "%d", &timeout) != 1 ||
-		    timeout < 0) {
-			timeout = DISK_LABEL_WAIT;
-		}
-
 		/*
 		 * Allow devlinks to stabilize so all paths are available.
 		 */
-		zpool_label_disk_wait(rn->rn_name, timeout);
+		zpool_disk_wait(rn->rn_name);
 
 		if (path != NULL) {
 			slice = zutil_alloc(hdl, sizeof (rdsk_node_t));
@@ -683,6 +675,20 @@ zpool_label_disk_wait(const char *path, int timeout_ms)
 }
 
 /*
+ * Simplified version of zpool_label_disk_wait() where we wait for a device
+ * to appear using the default timeouts.
+ */
+int
+zpool_disk_wait(const char *path)
+{
+	int timeout;
+	timeout = zpool_getenv_int("ZPOOL_IMPORT_UDEV_TIMEOUT_MS",
+	    DISK_LABEL_WAIT);
+
+	return (zpool_label_disk_wait(path, timeout));
+}
+
+/*
  * Encode the persistent devices strings
  * used for the vdev disk label
  */
@@ -767,6 +773,10 @@ no_dev:
  * in the nvlist * (if applicable).  Like:
  *    vdev_enc_sysfs_path: '/sys/class/enclosure/11:0:1:0/SLOT 4'
  *
+ * If an old path was in the nvlist, and the rescan can not find a new path,
+ * then keep the old path, since the disk may have been removed.
+ *
+ * path: The vdev path (value from ZPOOL_CONFIG_PATH)
  * key: The nvlist_t name (like ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH)
  */
 void
@@ -774,6 +784,9 @@ update_vdev_config_dev_sysfs_path(nvlist_t *nv, const char *path,
     const char *key)
 {
 	char *upath, *spath;
+	const char *oldpath = NULL;
+
+	(void) nvlist_lookup_string(nv, key, &oldpath);
 
 	/* Add enclosure sysfs path (if disk is in an enclosure). */
 	upath = zfs_get_underlying_path(path);
@@ -782,7 +795,14 @@ update_vdev_config_dev_sysfs_path(nvlist_t *nv, const char *path,
 	if (spath) {
 		(void) nvlist_add_string(nv, key, spath);
 	} else {
-		(void) nvlist_remove_all(nv, key);
+		/*
+		 * We couldn't dynamically scan the disk's enclosure sysfs path.
+		 * This could be because the disk went away.  If there's an old
+		 * enclosure sysfs path in the nvlist, then keep using it.
+		 */
+		if (!oldpath) {
+			(void) nvlist_remove_all(nv, key);
+		}
 	}
 
 	free(upath);

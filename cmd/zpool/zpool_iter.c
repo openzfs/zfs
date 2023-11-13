@@ -554,6 +554,10 @@ for_each_vdev_run_cb(void *zhp_data, nvlist_t *nv, void *cb_vcdl)
 	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) != 0)
 		return (1);
 
+	/* Make sure we're getting the updated enclosure sysfs path */
+	update_vdev_config_dev_sysfs_path(nv, path,
+	    ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH);
+
 	nvlist_lookup_string(nv, ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH,
 	    &vdev_enc_sysfs_path);
 
