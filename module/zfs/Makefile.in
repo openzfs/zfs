@@ -159,4 +159,8 @@ CFLAGS_REMOVE_vdev_raidz_math_aarch64_neon.o += -mgeneral-regs-only
 CFLAGS_REMOVE_vdev_raidz_math_aarch64_neonx2.o += -mgeneral-regs-only
 endif
 
+UBSAN_SANITIZE_zap_leaf.o := n
+UBSAN_SANITIZE_zap_micro.o := n
+UBSAN_SANITIZE_sa.o := n
+
 include $(mfdir)/../os/linux/zfs/Makefile

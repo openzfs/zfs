@@ -69,6 +69,8 @@ OBJECT_FILES_NON_STANDARD_aesni-gcm-x86_64.o := y
 OBJECT_FILES_NON_STANDARD_sha256_impl.o := y
 OBJECT_FILES_NON_STANDARD_sha512_impl.o := y
 
+UBSAN_SANITIZE_modhash.o := n
+
 ICP_DIRS = \
 	api \
 	core \
