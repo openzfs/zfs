@@ -111,7 +111,7 @@ typedef struct spl_kmem_magazine {
 	uint32_t		skm_refill;	/* Batch refill size */
 	struct spl_kmem_cache	*skm_cache;	/* Owned by cache */
 	unsigned int		skm_cpu;	/* Owned by cpu */
-	void			*skm_objs[0];	/* Object pointers */
+	void			*skm_objs[];	/* Object pointers */
 } spl_kmem_magazine_t;
 
 typedef struct spl_kmem_obj {
