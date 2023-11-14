@@ -8031,9 +8031,8 @@ l2arc_write_size(l2arc_dev_t *dev)
 	 */
 	size = l2arc_write_max;
 	if (size == 0) {
-		cmn_err(CE_NOTE, "Bad value for l2arc_write_max, value must "
-		    "be greater than zero, resetting it to the default (%d)",
-		    L2ARC_WRITE_SIZE);
+		cmn_err(CE_NOTE, "l2arc_write_max must be greater than zero, "
+		    "resetting it to the default (%d)", L2ARC_WRITE_SIZE);
 		size = l2arc_write_max = L2ARC_WRITE_SIZE;
 	}
 
@@ -8056,30 +8055,9 @@ l2arc_write_size(l2arc_dev_t *dev)
 	 * device. This is important in l2arc_evict(), otherwise infinite
 	 * iteration can occur.
 	 */
-	if (size > dev->l2ad_end - dev->l2ad_start) {
-		cmn_err(CE_NOTE, "l2arc_write_max or l2arc_write_boost "
-		    "plus the overhead of log blocks (persistent L2ARC, "
-		    "%llu bytes) exceeds the size of the cache device "
-		    "(guid %llu), resetting them to the default (%d)",
-		    (u_longlong_t)l2arc_log_blk_overhead(size, dev),
-		    (u_longlong_t)dev->l2ad_vdev->vdev_guid, L2ARC_WRITE_SIZE);
+	size = MIN(size, (dev->l2ad_end - dev->l2ad_start) / 4);
 
-		size = l2arc_write_max = l2arc_write_boost = L2ARC_WRITE_SIZE;
-
-		if (l2arc_trim_ahead > 1) {
-			cmn_err(CE_NOTE, "l2arc_trim_ahead set to 1");
-			l2arc_trim_ahead = 1;
-		}
-
-		if (arc_warm == B_FALSE)
-			size += l2arc_write_boost;
-
-		size += l2arc_log_blk_overhead(size, dev);
-		if (dev->l2ad_vdev->vdev_has_trim && l2arc_trim_ahead > 0) {
-			size += MAX(64 * 1024 * 1024,
-			    (size * l2arc_trim_ahead) / 100);
-		}
-	}
+	size = P2ROUNDUP(size, 1ULL << dev->l2ad_vdev->vdev_ashift);
 
 	return (size);
 
