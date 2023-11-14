@@ -113,4 +113,14 @@ zfs_sha512_available(void)
 	return (ftr & 0x2);
 }
 
+/*
+ * Check if AESV8 is available
+ */
+static inline boolean_t
+zfs_aesv8_available(void)
+{
+	unsigned long ftr = ((get_ftr(ID_AA64ISAR0_EL1)) >> 4) & 0x3;
+	return (ftr);
+}
+
 #endif /* _LINUX_SIMD_AARCH64_H */

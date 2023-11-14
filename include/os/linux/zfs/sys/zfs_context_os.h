@@ -37,4 +37,8 @@
 #undef longjmp
 #endif
 
+#ifndef MODULE_PARAM_MAX
+#define	MODULE_PARAM_MAX 1024
+#endif
+
 #endif
