@@ -425,8 +425,10 @@ check_filesystem(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 		dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 	}
 
-	if (zap_clone == 0 || aff_snap_count == 0)
-		return (0);
+	if (zap_clone == 0 || aff_snap_count == 0) {
+		error = 0;
+		goto out;
+	}
 
 	/* Check clones. */
 	zap_cursor_t *zc;
