@@ -26,9 +26,6 @@
  * Copyright (c) 2020, 2022 by Delphix. All rights reserved.
  */
 
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
-
 #include <sys/param.h>
 #include <sys/vfs.h>
 
