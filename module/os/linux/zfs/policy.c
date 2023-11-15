@@ -120,10 +120,7 @@ secpolicy_vnode_access2(const cred_t *cr, struct inode *ip, uid_t owner,
 		return (0);
 	}
 
-	if ((uid == owner) || (uid == 0))
-		return (0);
-
-	if (zpl_inode_owner_or_capable(zfs_init_idmap, ip))
+	if (uid == 0)
 		return (0);
 
 #if defined(CONFIG_USER_NS)
