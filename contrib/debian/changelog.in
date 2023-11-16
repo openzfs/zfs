@@ -1,3 +1,9 @@
+openzfs-linux (@VERSION@-1) unstable; urgency=low
+
+  * OpenZFS @VERSION@ is tagged.
+
+ -- Umer Saleem <usaleem@ixsystems.com>  Wed, 15 Nov 2023 15:00:00 +0500
+
 openzfs-linux (2.2.99-1) unstable; urgency=low
 
   * OpenZFS 2.2 is tagged.
