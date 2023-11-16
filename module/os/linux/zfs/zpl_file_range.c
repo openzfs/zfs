@@ -31,6 +31,8 @@
 #include <sys/zfs_vnops.h>
 #include <sys/zfeature.h>
 
+int zfs_bclone_enabled = 1;
+
 /*
  * Clone part of a file via block cloning.
  *
@@ -49,6 +51,9 @@ __zpl_clone_file_range(struct file *src_file, loff_t src_off,
 	cred_t *cr = CRED();
 	fstrans_cookie_t cookie;
 	int err;
+
+	if (!zfs_bclone_enabled)
+		return (-EOPNOTSUPP);
 
 	if (!spa_feature_is_enabled(
 	    dmu_objset_spa(ITOZSB(dst_i)->z_os), SPA_FEATURE_BLOCK_CLONING))

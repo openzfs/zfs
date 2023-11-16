@@ -33,4 +33,9 @@ fi
 
 verify_runnable "global"
 
+if tunable_exists BCLONE_ENABLED ; then
+    log_must save_tunable BCLONE_ENABLED
+    log_must set_tunable32 BCLONE_ENABLED 1
+fi
+
 log_pass

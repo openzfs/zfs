@@ -6250,6 +6250,11 @@ zfs_freebsd_copy_file_range(struct vop_copy_file_range_args *ap)
 	int error;
 	uint64_t len = *ap->a_lenp;
 
+	if (!zfs_bclone_enabled) {
+		mp = NULL;
+		goto bad_write_fallback;
+	}
+
 	/*
 	 * TODO: If offset/length is not aligned to recordsize, use
 	 * vn_generic_copy_file_range() on this fragment.

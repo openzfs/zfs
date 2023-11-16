@@ -1154,6 +1154,11 @@ Selecting any option other than
 results in vector instructions
 from the respective CPU instruction set being used.
 .
+.It Sy zfs_bclone_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
+Enable the experimental block cloning feature.
+If this setting is 0, then even if feature@block_cloning is enabled,
+attempts to clone blocks will act as though the feature is disabled.
+.
 .It Sy zfs_blake3_impl Ns = Ns Sy fastest Pq string
 Select a BLAKE3 implementation.
 .Pp

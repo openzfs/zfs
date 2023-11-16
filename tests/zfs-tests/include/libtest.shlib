@@ -3334,6 +3334,21 @@ function set_tunable_impl
 	esac
 }
 
+function save_tunable
+{
+	[[ ! -d $TEST_BASE_DIR ]] && return 1
+	[[ -e $TEST_BASE_DIR/tunable-$1 ]] && return 2
+	echo "$(get_tunable """$1""")" > "$TEST_BASE_DIR"/tunable-"$1"
+}
+
+function restore_tunable
+{
+	[[ ! -e $TEST_BASE_DIR/tunable-$1 ]] && return 1
+	val="$(cat $TEST_BASE_DIR/tunable-"""$1""")"
+	set_tunable64 "$1" "$val"
+	rm $TEST_BASE_DIR/tunable-$1
+}
+
 #
 # Get a global system tunable
 #
