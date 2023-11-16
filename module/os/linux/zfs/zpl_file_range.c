@@ -31,7 +31,7 @@
 #include <sys/zfs_vnops.h>
 #include <sys/zfeature.h>
 
-int zfs_bclone_enabled = 1;
+int zfs_bclone_enabled = 0;
 
 /*
  * Clone part of a file via block cloning.
