@@ -2142,7 +2142,7 @@ dsl_scan_check_resume(dsl_scan_t *scn, const dnode_phys_t *dnp,
 	return (B_FALSE);
 }
 
-static void dsl_scan_visitbp(blkptr_t *bp, const zbookmark_phys_t *zb,
+static void dsl_scan_visitbp(const blkptr_t *bp, const zbookmark_phys_t *zb,
     dnode_phys_t *dnp, dsl_dataset_t *ds, dsl_scan_t *scn,
     dmu_objset_type_t ostype, dmu_tx_t *tx);
 inline __attribute__((always_inline)) static void dsl_scan_visitdnode(
@@ -2307,12 +2307,11 @@ dsl_scan_visitdnode(dsl_scan_t *scn, dsl_dataset_t *ds,
  * first 5; we want them to be useful.
  */
 static void
-dsl_scan_visitbp(blkptr_t *bp, const zbookmark_phys_t *zb,
+dsl_scan_visitbp(const blkptr_t *bp, const zbookmark_phys_t *zb,
     dnode_phys_t *dnp, dsl_dataset_t *ds, dsl_scan_t *scn,
     dmu_objset_type_t ostype, dmu_tx_t *tx)
 {
 	dsl_pool_t *dp = scn->scn_dp;
-	blkptr_t *bp_toread = NULL;
 
 	if (dsl_scan_check_suspend(scn, zb))
 		return;
@@ -2353,11 +2352,8 @@ dsl_scan_visitbp(blkptr_t *bp, const zbookmark_phys_t *zb,
 		return;
 	}
 
-	bp_toread = kmem_alloc(sizeof (blkptr_t), KM_SLEEP);
-	*bp_toread = *bp;
-
-	if (dsl_scan_recurse(scn, ds, ostype, dnp, bp_toread, zb, tx) != 0)
-		goto out;
+	if (dsl_scan_recurse(scn, ds, ostype, dnp, bp, zb, tx) != 0)
+		return;
 
 	/*
 	 * If dsl_scan_ddt() has already visited this block, it will have
@@ -2367,7 +2363,7 @@ dsl_scan_visitbp(blkptr_t *bp, const zbookmark_phys_t *zb,
 	if (ddt_class_contains(dp->dp_spa,
 	    scn->scn_phys.scn_ddt_class_max, bp)) {
 		scn->scn_ddt_contained_this_txg++;
-		goto out;
+		return;
 	}
 
 	/*
@@ -2379,13 +2375,10 @@ dsl_scan_visitbp(blkptr_t *bp, const zbookmark_phys_t *zb,
 	 */
 	if (BP_PHYSICAL_BIRTH(bp) > scn->scn_phys.scn_cur_max_txg) {
 		scn->scn_gt_max_this_txg++;
-		goto out;
+		return;
 	}
 
 	scan_funcs[scn->scn_phys.scn_func](dp, bp, zb);
-
-out:
-	kmem_free(bp_toread, sizeof (blkptr_t));
 }
 
 static void
