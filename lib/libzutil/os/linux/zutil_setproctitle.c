@@ -82,25 +82,6 @@ spt_min(size_t a, size_t b)
 	return ((a < b) ? a : b);
 }
 
-/*
- * For discussion on the portability of the various methods, see
- * https://lists.freebsd.org/pipermail/freebsd-stable/2008-June/043136.html
- */
-static int
-spt_clearenv(void)
-{
-	char **tmp;
-
-	tmp = malloc(sizeof (*tmp));
-	if (tmp == NULL)
-		return (errno);
-
-	tmp[0] = NULL;
-	environ = tmp;
-
-	return (0);
-}
-
 static int
 spt_copyenv(int envc, char *envp[])
 {
@@ -124,12 +105,7 @@ spt_copyenv(int envc, char *envp[])
 		return (errno);
 	memcpy(envcopy, envp, envsize);
 
-	error = spt_clearenv();
-	if (error) {
-		environ = envp;
-		free(envcopy);
-		return (error);
-	}
+	environ = NULL;
 
 	for (i = 0; envcopy[i]; i++) {
 		eq = strchr(envcopy[i], '=');
@@ -142,6 +118,7 @@ spt_copyenv(int envc, char *envp[])
 		*eq = '=';
 
 		if (error) {
+			clearenv();
 			environ = envp;
 			free(envcopy);
 			return (error);
