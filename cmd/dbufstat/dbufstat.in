@@ -37,7 +37,7 @@ import re
 
 bhdr = ["pool", "objset", "object", "level", "blkid", "offset", "dbsize"]
 bxhdr = ["pool", "objset", "object", "level", "blkid", "offset", "dbsize",
-         "meta", "state", "dbholds", "dbc", "list", "atype", "flags",
+         "usize", "meta", "state", "dbholds", "dbc", "list", "atype", "flags",
          "count", "asize", "access", "mru", "gmru", "mfu", "gmfu", "l2",
          "l2_dattr", "l2_asize", "l2_comp", "aholds", "dtype", "btype",
          "data_bs", "meta_bs", "bsize", "lvls", "dholds", "blocks", "dsize"]
@@ -47,17 +47,17 @@ dhdr = ["pool", "objset", "object", "dtype", "cached"]
 dxhdr = ["pool", "objset", "object", "dtype", "btype", "data_bs", "meta_bs",
          "bsize", "lvls", "dholds", "blocks", "dsize", "cached", "direct",
          "indirect", "bonus", "spill"]
-dincompat = ["level", "blkid", "offset", "dbsize", "meta", "state", "dbholds",
-             "dbc", "list", "atype", "flags", "count", "asize", "access",
-             "mru", "gmru", "mfu", "gmfu", "l2", "l2_dattr", "l2_asize",
-             "l2_comp", "aholds"]
+dincompat = ["level", "blkid", "offset", "dbsize", "usize", "meta", "state",
+             "dbholds", "dbc", "list", "atype", "flags", "count", "asize",
+             "access", "mru", "gmru", "mfu", "gmfu", "l2", "l2_dattr",
+             "l2_asize", "l2_comp", "aholds"]
 
 thdr = ["pool", "objset", "dtype", "cached"]
 txhdr = ["pool", "objset", "dtype", "cached", "direct", "indirect",
          "bonus", "spill"]
-tincompat = ["object", "level", "blkid", "offset", "dbsize", "meta", "state",
-             "dbc", "dbholds", "list", "atype", "flags", "count", "asize",
-             "access", "mru", "gmru", "mfu", "gmfu", "l2", "l2_dattr",
+tincompat = ["object", "level", "blkid", "offset", "dbsize", "usize", "meta",
+             "state", "dbc", "dbholds", "list", "atype", "flags", "count",
+             "asize", "access", "mru", "gmru", "mfu", "gmfu", "l2", "l2_dattr",
              "l2_asize", "l2_comp", "aholds", "btype", "data_bs", "meta_bs",
              "bsize", "lvls", "dholds", "blocks", "dsize"]
 
@@ -70,6 +70,7 @@ cols = {
     "blkid":      [8,    -1, "block number of buffer"],
     "offset":     [12, 1024, "offset in object of buffer"],
     "dbsize":     [7,  1024, "size of buffer"],
+    "usize":      [7,  1024, "size of attached user data"],
     "meta":       [4,    -1, "is this buffer metadata?"],
     "state":      [5,    -1, "state of buffer (read, cached, etc)"],
     "dbholds":    [7,  1000, "number of holds on buffer"],
@@ -399,6 +400,7 @@ def update_dict(d, k, line, labels):
     key = line[labels[k]]
 
     dbsize = int(line[labels['dbsize']])
+    usize = int(line[labels['usize']])
     blkid = int(line[labels['blkid']])
     level = int(line[labels['level']])
 
@@ -416,7 +418,7 @@ def update_dict(d, k, line, labels):
         d[pool][objset][key]['indirect'] = 0
         d[pool][objset][key]['spill'] = 0
 
-    d[pool][objset][key]['cached'] += dbsize
+    d[pool][objset][key]['cached'] += dbsize + usize
 
     if blkid == -1:
         d[pool][objset][key]['bonus'] += dbsize
