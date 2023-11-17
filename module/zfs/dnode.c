@@ -1237,9 +1237,11 @@ dnode_check_slots_free(dnode_children_t *children, int idx, int slots)
 	return (B_TRUE);
 }
 
-static void
+static uint_t
 dnode_reclaim_slots(dnode_children_t *children, int idx, int slots)
 {
+	uint_t reclaimed = 0;
+
 	ASSERT3S(idx + slots, <=, DNODES_PER_BLOCK);
 
 	for (int i = idx; i < idx + slots; i++) {
@@ -1251,8 +1253,11 @@ dnode_reclaim_slots(dnode_children_t *children, int idx, int slots)
 			ASSERT3S(dnh->dnh_dnode->dn_type, ==, DMU_OT_NONE);
 			dnode_destroy(dnh->dnh_dnode);
 			dnh->dnh_dnode = DN_SLOT_FREE;
+			reclaimed++;
 		}
 	}
+
+	return (reclaimed);
 }
 
 void
@@ -1565,6 +1570,8 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 			} else {
 				dn = dnode_create(os, dn_block + idx, db,
 				    object, dnh);
+				dmu_buf_add_user_size(&db->db,
+				    sizeof (dnode_t));
 			}
 		}
 
@@ -1622,8 +1629,13 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 		 * to be freed.  Single slot dnodes can be safely
 		 * re-purposed as a performance optimization.
 		 */
-		if (slots > 1)
-			dnode_reclaim_slots(dnc, idx + 1, slots - 1);
+		if (slots > 1) {
+			uint_t reclaimed =
+			    dnode_reclaim_slots(dnc, idx + 1, slots - 1);
+			if (reclaimed > 0)
+				dmu_buf_sub_user_size(&db->db,
+				    reclaimed * sizeof (dnode_t));
+		}
 
 		dnh = &dnc->dnc_children[idx];
 		if (DN_SLOT_IS_PTR(dnh->dnh_dnode)) {
@@ -1631,6 +1643,7 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 		} else {
 			dn = dnode_create(os, dn_block + idx, db,
 			    object, dnh);
+			dmu_buf_add_user_size(&db->db, sizeof (dnode_t));
 		}
 
 		mutex_enter(&dn->dn_mtx);
