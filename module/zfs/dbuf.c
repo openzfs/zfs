@@ -2706,23 +2706,35 @@ dmu_buf_will_clone(dmu_buf_t *db_fake, dmu_tx_t *tx)
 		arc_buf_destroy(db->db_buf, db);
 		db->db_buf = NULL;
 	}
+	dmu_buf_will_not_fill(db_fake, tx, B_TRUE);
+
+	/*
+	 * We could refactor dbuf_noread to not take the lock, but
+	 * that seems unnecessary here...
+	 */
+
+	dbuf_clear_data(db);
 	mutex_exit(&db->db_mtx);
 
-	dmu_buf_will_not_fill(db_fake, tx);
+	(void) dbuf_dirty(db, tx);
+
+
 }
 
 void
-dmu_buf_will_not_fill(dmu_buf_t *db_fake, dmu_tx_t *tx)
+dmu_buf_will_not_fill(dmu_buf_t *db_fake, dmu_tx_t *tx, boolean_t lock_held)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
 
-	mutex_enter(&db->db_mtx);
+	if (!lock_held)
+		mutex_enter(&db->db_mtx);
 	db->db_state = DB_NOFILL;
 	DTRACE_SET_STATE(db, "allocating NOFILL buffer");
-	mutex_exit(&db->db_mtx);
-
-	dbuf_noread(db);
-	(void) dbuf_dirty(db, tx);
+	if (!lock_held) {
+		mutex_exit(&db->db_mtx);
+		dbuf_noread(db);
+		(void) dbuf_dirty(db, tx);
+	}
 }
 
 void
@@ -2857,7 +2869,7 @@ dmu_buf_write_embedded(dmu_buf_t *dbuf, void *data,
 	ASSERT0(db->db_level);
 	ASSERT(db->db_blkid != DMU_BONUS_BLKID);
 
-	dmu_buf_will_not_fill(dbuf, tx);
+	dmu_buf_will_not_fill(dbuf, tx, B_FALSE);
 
 	dr = list_head(&db->db_dirty_records);
 	ASSERT3P(dr, !=, NULL);
@@ -2887,7 +2899,7 @@ dmu_buf_redact(dmu_buf_t *dbuf, dmu_tx_t *tx)
 	DB_DNODE_EXIT(db);
 
 	ASSERT0(db->db_level);
-	dmu_buf_will_not_fill(dbuf, tx);
+	dmu_buf_will_not_fill(dbuf, tx, B_FALSE);
 
 	blkptr_t bp = { { { {0} } } };
 	BP_SET_TYPE(&bp, type);

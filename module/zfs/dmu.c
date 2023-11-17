@@ -1200,7 +1200,7 @@ dmu_prealloc(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	for (i = 0; i < numbufs; i++) {
 		dmu_buf_t *db = dbp[i];
 
-		dmu_buf_will_not_fill(db, tx);
+		dmu_buf_will_not_fill(db, tx, B_FALSE);
 	}
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 }
