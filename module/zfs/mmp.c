@@ -517,8 +517,9 @@ mmp_write_uberblock(spa_t *spa)
 
 	zio_t *zio  = zio_null(mmp->mmp_zio_root, spa, NULL, NULL, NULL, flags);
 	abd_t *ub_abd = abd_alloc_for_io(VDEV_UBERBLOCK_SIZE(vd), B_TRUE);
-	abd_zero(ub_abd, VDEV_UBERBLOCK_SIZE(vd));
 	abd_copy_from_buf(ub_abd, ub, sizeof (uberblock_t));
+	abd_zero_off(ub_abd, sizeof (uberblock_t),
+	    VDEV_UBERBLOCK_SIZE(vd) - sizeof (uberblock_t));
 
 	mmp->mmp_seq++;
 	mmp->mmp_kstat_id++;

@@ -55,8 +55,8 @@ vdev_label_write_pad2(vdev_t *vd, const char *buf, size_t size)
 	ASSERT3U(spa_config_held(spa, SCL_ALL, RW_WRITER), ==, SCL_ALL);
 
 	pad2 = abd_alloc_for_io(VDEV_PAD_SIZE, B_TRUE);
-	abd_zero(pad2, VDEV_PAD_SIZE);
 	abd_copy_from_buf(pad2, buf, size);
+	abd_zero_off(pad2, size, VDEV_PAD_SIZE - size);
 
 retry:
 	zio = zio_root(spa, NULL, NULL, flags);
