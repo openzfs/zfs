@@ -25,9 +25,6 @@
  *
  */
 
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
-
 #include <sys/dmu.h>
 #include <sys/dmu_impl.h>
 #include <sys/dmu_recv.h>
