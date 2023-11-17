@@ -27,9 +27,6 @@
  * Portions of this file are derived from sys/geom/eli/g_eli_hmac.c
  */
 
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
-
 #include <sys/types.h>
 #include <sys/errno.h>
 
