@@ -1599,7 +1599,7 @@ zil_lwb_write_done(zio_t *zio)
 
 	while ((zv = avl_destroy_nodes(t, &cookie)) != NULL) {
 		vdev_t *vd = vdev_lookup_top(spa, zv->zv_vdev);
-		if (vd != NULL && !vd->vdev_nowritecache) {
+		if (vd != NULL) {
 			/*
 			 * The "ZIO_FLAG_DONT_PROPAGATE" is currently
 			 * always used within "zio_flush". This means,
