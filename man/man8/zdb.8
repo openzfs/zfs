@@ -14,7 +14,7 @@
 .\" Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 .\" Copyright (c) 2017 Intel Corporation.
 .\"
-.Dd June 27, 2023
+.Dd November 18, 2023
 .Dt ZDB 8
 .Os
 .
@@ -23,7 +23,7 @@
 .Nd display ZFS storage pool debugging and consistency information
 .Sh SYNOPSIS
 .Nm
-.Op Fl AbcdDFGhikLMNPsvXYy
+.Op Fl AbcdDFGhikLMNPsTvXYy
 .Op Fl e Oo Fl V Oc Oo Fl p Ar path Oc Ns …
 .Op Fl I Ar inflight-I/O-ops
 .Oo Fl o Ar var Ns = Ns Ar value Oc Ns …
@@ -403,6 +403,13 @@ Display operation counts, bandwidth, and error counts of I/O to the pool from
 Simulate the effects of deduplication, constructing a DDT and then display
 that DDT as with
 .Fl DD .
+.It Fl T , -brt-stats
+Display block reference table (BRT) statistics, including the size of uniques
+blocks cloned, the space saving as a result of cloning, and the saving ratio.
+.It Fl TT
+Display the per-vdev BRT statistics, including total references.
+.It Fl TTT
+Dump the contents of the block reference tables.
 .It Fl u , -uberblock
 Display the current uberblock.
 .El
