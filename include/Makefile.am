@@ -33,6 +33,7 @@ COMMON_H = \
 	sys/bqueue.h \
 	sys/btree.h \
 	sys/brt.h \
+	sys/brt_impl.h \
 	sys/dataset_kstats.h \
 	sys/dbuf.h \
 	sys/ddt.h \
