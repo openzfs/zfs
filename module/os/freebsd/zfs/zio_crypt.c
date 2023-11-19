@@ -1364,6 +1364,19 @@ zio_crypt_init_uios_zil(boolean_t encrypt, uint8_t *plainbuf,
 				vec++;
 				total_len += crypt_len;
 			}
+		} else if (txtype == TX_CLONE_RANGE) {
+			const size_t o = offsetof(lr_clone_range_t, lr_nbps);
+			crypt_len = o - sizeof (lr_t);
+			dst_iovecs[vec].iov_base = (char *)dlrp + sizeof (lr_t);
+			dst_iovecs[vec].iov_len = crypt_len;
+
+			/* copy the bps now since they will not be encrypted */
+			memcpy(dlrp + o, slrp + o, lr_len - o);
+			memcpy(aadp, slrp + o, lr_len - o);
+			aadp += lr_len - o;
+			aad_len += lr_len - o;
+			vec++;
+			total_len += crypt_len;
 		} else {
 			crypt_len = lr_len - sizeof (lr_t);
 			dst_iovecs[vec].iov_base = (char *)dlrp +
