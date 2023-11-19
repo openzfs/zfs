@@ -206,6 +206,7 @@ void dsl_dataset_promote_crypt_sync(dsl_dir_t *target, dsl_dir_t *origin,
     dmu_tx_t *tx);
 int dmu_objset_create_crypt_check(dsl_dir_t *parentdd,
     dsl_crypto_params_t *dcp, boolean_t *will_encrypt);
+boolean_t dmu_objset_crypto_key_equal(objset_t *osa, objset_t *osb);
 void dsl_dataset_create_crypt_sync(uint64_t dsobj, dsl_dir_t *dd,
     struct dsl_dataset *origin, dsl_crypto_params_t *dcp, dmu_tx_t *tx);
 uint64_t dsl_crypto_key_create_sync(uint64_t crypt, dsl_wrapping_key_t *wkey,
