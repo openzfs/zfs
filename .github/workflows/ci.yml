@@ -18,9 +18,11 @@ jobs:
 
       - name: Build deb package
         run: |
-          cp -a contrib/debian debian
-          mk-build-deps --build-dep
+          mk-build-deps --build-dep contrib/debian/control
           apt install -y ./*.deb
+          sh autogen.sh
+          ./configure
+          cp -a contrib/debian debian
           sed 's/@CFGOPTS@/--enable-debuginfo/g' debian/rules.in > debian/rules
           chmod +x debian/rules
           dch -b -M --force-distribution --distribution bullseye-truenas-unstable 'Tagged from zfs CI'
