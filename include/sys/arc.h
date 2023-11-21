@@ -81,7 +81,7 @@ typedef struct arc_prune arc_prune_t;
 typedef void arc_read_done_func_t(zio_t *zio, const zbookmark_phys_t *zb,
     const blkptr_t *bp, arc_buf_t *buf, void *priv);
 typedef void arc_write_done_func_t(zio_t *zio, arc_buf_t *buf, void *priv);
-typedef void arc_prune_func_t(int64_t bytes, void *priv);
+typedef void arc_prune_func_t(uint64_t bytes, void *priv);
 
 /* Shared module parameters */
 extern uint_t zfs_arc_average_blocksize;

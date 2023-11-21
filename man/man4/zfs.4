@@ -402,6 +402,12 @@ Practical upper limit of total metaslabs per top-level vdev.
 .It Sy metaslab_preload_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Enable metaslab group preloading.
 .
+.It Sy metaslab_preload_limit Ns = Ns Sy 10 Pq uint
+Maximum number of metaslabs per group to preload
+.
+.It Sy metaslab_preload_pct Ns = Ns Sy 50 Pq uint
+Percentage of CPUs to run a metaslab preload taskq
+.
 .It Sy metaslab_lba_weighting_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Give more weight to metaslabs with lower LBAs,
 assuming they have greater bandwidth,
@@ -1130,6 +1136,11 @@ Selecting any option other than
 .Sy fastest No or Sy scalar
 results in vector instructions
 from the respective CPU instruction set being used.
+.
+.It Sy zfs_bclone_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
+Enable the experimental block cloning feature.
+If this setting is 0, then even if feature@block_cloning is enabled,
+attempts to clone blocks will act as though the feature is disabled.
 .
 .It Sy zfs_blake3_impl Ns = Ns Sy fastest Pq string
 Select a BLAKE3 implementation.
@@ -2144,6 +2155,11 @@ On very fragmented pools, lowering this
 .Pq typically to Sy 36 KiB
 can improve performance.
 .
+.It Sy zil_maxcopied Ns = Ns Sy 7680 Ns B Po 7.5 KiB Pc Pq uint
+This sets the maximum number of write bytes logged via WR_COPIED.
+It tunes a tradeoff between additional memory copy and possibly worse log
+space efficiency vs additional range lock/unlock.
+.
 .It Sy zil_min_commit_timeout Ns = Ns Sy 5000 Pq u64
 This sets the minimum delay in nanoseconds ZIL care to delay block commit,
 waiting for more records.
@@ -2161,7 +2177,7 @@ if a volatile out-of-order write cache is enabled.
 Disable intent logging replay.
 Can be disabled for recovery from corrupted ZIL.
 .
-.It Sy zil_slog_bulk Ns = Ns Sy 786432 Ns B Po 768 KiB Pc Pq u64
+.It Sy zil_slog_bulk Ns = Ns Sy 67108864 Ns B Po 64 MiB Pc Pq u64
 Limit SLOG write size per commit executed with synchronous priority.
 Any writes above that will be executed with lower (asynchronous) priority
 to limit potential SLOG device abuse by single active ZIL writer.

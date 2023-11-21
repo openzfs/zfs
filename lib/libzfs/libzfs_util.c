@@ -2071,3 +2071,196 @@ printf_color(const char *color, const char *format, ...)
 
 	return (rc);
 }
+
+/* PATH + 5 env vars + a NULL entry = 7 */
+#define	ZPOOL_VDEV_SCRIPT_ENV_COUNT 7
+
+/*
+ * There's a few places where ZFS will call external scripts (like the script
+ * in zpool.d/ and `zfs_prepare_disk`).  These scripts are called with a
+ * reduced $PATH, and some vdev specific environment vars set.  This function
+ * will allocate an populate the environment variable array that is passed to
+ * these scripts.  The user must free the arrays with zpool_vdev_free_env() when
+ * they are done.
+ *
+ * The following env vars will be set (but value could be blank):
+ *
+ * POOL_NAME
+ * VDEV_PATH
+ * VDEV_UPATH
+ * VDEV_ENC_SYSFS_PATH
+ *
+ * In addition, you can set an optional environment variable named 'opt_key'
+ * to 'opt_val' if you want.
+ *
+ * Returns allocated env[] array on success, NULL otherwise.
+ */
+char **
+zpool_vdev_script_alloc_env(const char *pool_name,
+    const char *vdev_path, const char *vdev_upath,
+    const char *vdev_enc_sysfs_path, const char *opt_key, const char *opt_val)
+{
+	char **env = NULL;
+	int rc;
+
+	env = calloc(ZPOOL_VDEV_SCRIPT_ENV_COUNT, sizeof (*env));
+	if (!env)
+		return (NULL);
+
+	env[0] = strdup("PATH=/bin:/sbin:/usr/bin:/usr/sbin");
+	if (!env[0])
+		goto error;
+
+	/* Setup our custom environment variables */
+	rc = asprintf(&env[1], "POOL_NAME=%s", pool_name ? pool_name : "");
+	if (rc == -1) {
+		env[1] = NULL;
+		goto error;
+	}
+
+	rc = asprintf(&env[2], "VDEV_PATH=%s", vdev_path ? vdev_path : "");
+	if (rc == -1) {
+		env[2] = NULL;
+		goto error;
+	}
+
+	rc = asprintf(&env[3], "VDEV_UPATH=%s", vdev_upath ? vdev_upath : "");
+	if (rc == -1) {
+		env[3] = NULL;
+		goto error;
+	}
+
+	rc = asprintf(&env[4], "VDEV_ENC_SYSFS_PATH=%s",
+	    vdev_enc_sysfs_path ?  vdev_enc_sysfs_path : "");
+	if (rc == -1) {
+		env[4] = NULL;
+		goto error;
+	}
+
+	if (opt_key != NULL) {
+		rc = asprintf(&env[5], "%s=%s", opt_key,
+		    opt_val ? opt_val : "");
+		if (rc == -1) {
+			env[5] = NULL;
+			goto error;
+		}
+	}
+
+	return (env);
+
+error:
+	for (int i = 0; i < ZPOOL_VDEV_SCRIPT_ENV_COUNT; i++)
+		free(env[i]);
+
+	free(env);
+
+	return (NULL);
+}
+
+/*
+ * Free the env[] array that was allocated by zpool_vdev_script_alloc_env().
+ */
+void
+zpool_vdev_script_free_env(char **env)
+{
+	for (int i = 0; i < ZPOOL_VDEV_SCRIPT_ENV_COUNT; i++)
+		free(env[i]);
+
+	free(env);
+}
+
+/*
+ * Prepare a disk by (optionally) running a program before labeling the disk.
+ * This can be useful for installing disk firmware or doing some pre-flight
+ * checks on the disk before it becomes part of the pool.  The program run is
+ * located at ZFSEXECDIR/zfs_prepare_disk
+ * (E.x: /usr/local/libexec/zfs/zfs_prepare_disk).
+ *
+ * Return 0 on success, non-zero on failure.
+ */
+int
+zpool_prepare_disk(zpool_handle_t *zhp, nvlist_t *vdev_nv,
+    const char *prepare_str, char **lines[], int *lines_cnt)
+{
+	const char *script_path = ZFSEXECDIR "/zfs_prepare_disk";
+	const char *pool_name;
+	int rc = 0;
+
+	/* Path to script and a NULL entry */
+	char *argv[2] = {(char *)script_path};
+	char **env = NULL;
+	const char *path = NULL, *enc_sysfs_path = NULL;
+	char *upath;
+	*lines_cnt = 0;
+
+	if (access(script_path, X_OK) != 0) {
+		/* No script, nothing to do */
+		return (0);
+	}
+
+	(void) nvlist_lookup_string(vdev_nv, ZPOOL_CONFIG_PATH, &path);
+	(void) nvlist_lookup_string(vdev_nv, ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH,
+	    &enc_sysfs_path);
+
+	upath = zfs_get_underlying_path(path);
+	pool_name = zhp ? zpool_get_name(zhp) : NULL;
+
+	env = zpool_vdev_script_alloc_env(pool_name, path, upath,
+	    enc_sysfs_path, "VDEV_PREPARE", prepare_str);
+
+	free(upath);
+
+	if (env == NULL) {
+		return (ENOMEM);
+	}
+
+	rc = libzfs_run_process_get_stdout(script_path, argv, env, lines,
+	    lines_cnt);
+
+	zpool_vdev_script_free_env(env);
+
+	return (rc);
+}
+
+/*
+ * Optionally run a script and then label a disk.  The script can be used to
+ * prepare a disk for inclusion into the pool.  For example, it might update
+ * the disk's firmware or check its health.
+ *
+ * The 'name' provided is the short name, stripped of any leading
+ * /dev path, and is passed to zpool_label_disk. vdev_nv is the nvlist for
+ * the vdev.  prepare_str is a string that gets passed as the VDEV_PREPARE
+ * env variable to the script.
+ *
+ * The following env vars are passed to the script:
+ *
+ * POOL_NAME:		The pool name (blank during zpool create)
+ * VDEV_PREPARE:	Reason why the disk is being prepared for inclusion:
+ *			"create", "add", "replace", or "autoreplace"
+ * VDEV_PATH:		Path to the disk
+ * VDEV_UPATH:		One of the 'underlying paths' to the disk.  This is
+ * 			useful for DM devices.
+ * VDEV_ENC_SYSFS_PATH:	Path to the disk's enclosure sysfs path, if available.
+ *
+ * Note, some of these values can be blank.
+ *
+ * Return 0 on success, non-zero otherwise.
+ */
+int
+zpool_prepare_and_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp,
+    const char *name, nvlist_t *vdev_nv, const char *prepare_str,
+    char **lines[], int *lines_cnt)
+{
+	int rc;
+	char vdev_path[MAXPATHLEN];
+	(void) snprintf(vdev_path, sizeof (vdev_path), "%s/%s", DISK_ROOT,
+	    name);
+
+	/* zhp will be NULL when creating a pool */
+	rc = zpool_prepare_disk(zhp, vdev_nv, prepare_str, lines, lines_cnt);
+	if (rc != 0)
+		return (rc);
+
+	rc = zpool_label_disk(hdl, zhp, name);
+	return (rc);
+}

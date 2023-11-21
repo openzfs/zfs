@@ -131,7 +131,10 @@ typedef const struct vdev_ops {
  * Virtual device properties
  */
 typedef union vdev_queue_class {
-	list_t		vqc_list;
+	struct {
+		ulong_t 	vqc_list_numnodes;
+		list_t		vqc_list;
+	};
 	avl_tree_t	vqc_tree;
 } vdev_queue_class_t;
 

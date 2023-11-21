@@ -711,7 +711,7 @@ def section_archits(kstats_dict):
     pd_total = int(arc_stats['prefetch_data_hits']) +\
         int(arc_stats['prefetch_data_iohits']) +\
         int(arc_stats['prefetch_data_misses'])
-    prt_2('ARC prefetch metadata accesses:', f_perc(pd_total, all_accesses),
+    prt_2('ARC prefetch data accesses:', f_perc(pd_total, all_accesses),
           f_hits(pd_total))
     pd_todo = (('Prefetch data hits:', arc_stats['prefetch_data_hits']),
                ('Prefetch data I/O hits:', arc_stats['prefetch_data_iohits']),

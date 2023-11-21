@@ -27,6 +27,31 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_TIMES], [
 		memset(&ip, 0, sizeof(ip));
 		ts = ip.i_mtime;
 	])
+
+	dnl #
+	dnl # 6.6 API change
+	dnl # i_ctime no longer directly accessible, must use
+	dnl # inode_get_ctime(ip), inode_set_ctime*(ip) to
+	dnl # read/write.
+	dnl #
+	ZFS_LINUX_TEST_SRC([inode_get_ctime], [
+		#include <linux/fs.h>
+	],[
+		struct inode ip;
+
+		memset(&ip, 0, sizeof(ip));
+		inode_get_ctime(&ip);
+	])
+
+	ZFS_LINUX_TEST_SRC([inode_set_ctime_to_ts], [
+		#include <linux/fs.h>
+	],[
+		struct inode ip;
+		struct timespec64 ts;
+
+		memset(&ip, 0, sizeof(ip));
+		inode_set_ctime_to_ts(&ip, ts);
+	])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_INODE_TIMES], [
@@ -46,5 +71,23 @@ AC_DEFUN([ZFS_AC_KERNEL_INODE_TIMES], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_INODE_TIMESPEC64_TIMES, 1,
 		    [inode->i_*time's are timespec64])
+	])
+
+	AC_MSG_CHECKING([whether inode_get_ctime() exists])
+	ZFS_LINUX_TEST_RESULT([inode_get_ctime], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_INODE_GET_CTIME, 1,
+		    [inode_get_ctime() exists in linux/fs.h])
+	],[
+		AC_MSG_RESULT(no)
+	])
+
+	AC_MSG_CHECKING([whether inode_set_ctime_to_ts() exists])
+	ZFS_LINUX_TEST_RESULT([inode_set_ctime_to_ts], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_INODE_SET_CTIME_TO_TS, 1,
+		    [inode_set_ctime_to_ts() exists in linux/fs.h])
+	],[
+		AC_MSG_RESULT(no)
 	])
 ])

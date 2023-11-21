@@ -28,8 +28,9 @@
 .\" Copyright 2019 Richard Laager. All rights reserved.
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
+.\" Copyright 2023 Klara, Inc.
 .\"
-.Dd June 30, 2019
+.Dd October 6, 2023
 .Dt ZFSCONCEPTS 7
 .Os
 .
@@ -205,3 +206,40 @@ practices, such as regular backups.
 Consider using the
 .Sy compression
 property as a less resource-intensive alternative.
+.Ss Block cloning
+Block cloning is a facility that allows a file (or parts of a file) to be
+.Qq cloned ,
+that is, a shallow copy made where the existing data blocks are referenced
+rather than copied.
+Later modifications to the data will cause a copy of the data block to be taken
+and that copy modified.
+This facility is used to implement
+.Qq reflinks
+or
+.Qq file-level copy-on-write .
+.Pp
+Cloned blocks are tracked in a special on-disk structure called the Block
+Reference Table
+.Po BRT
+.Pc .
+Unlike deduplication, this table has minimal overhead, so can be enabled at all
+times.
+.Pp
+Also unlike deduplication, cloning must be requested by a user program.
+Many common file copying programs, including newer versions of
+.Nm /bin/cp ,
+will try to create clones automatically.
+Look for
+.Qq clone ,
+.Qq dedupe
+or
+.Qq reflink
+in the documentation for more information.
+.Pp
+There are some limitations to block cloning.
+Only whole blocks can be cloned, and blocks can not be cloned if they are not
+yet written to disk, or if they are encrypted, or the source and destination
+.Sy recordsize
+properties differ.
+The OS may add additional restrictions;
+for example, most versions of Linux will not allow clones across datasets.

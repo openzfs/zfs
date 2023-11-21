@@ -219,8 +219,11 @@ to the end of the line is ignored.
 .Bd -literal -compact -offset 4n
 .No example# Nm cat Pa /usr/share/zfs/compatibility.d/grub2
 # Features which are supported by GRUB2
+allocation_classes
 async_destroy
+block_cloning
 bookmarks
+device_rebuild
 embedded_data
 empty_bpobj
 enabled_txg
@@ -229,8 +232,14 @@ filesystem_limits
 hole_birth
 large_blocks
 livelist
+log_spacemap
 lz4_compress
+project_quota
+resilver_defer
 spacemap_histogram
+spacemap_v2
+userobj_accounting
+zilsaxattr
 zpool_checkpoint
 
 .No example# Nm zpool Cm create Fl o Sy compatibility Ns = Ns Ar grub2 Ar bootpool Ar vdev

@@ -60,8 +60,12 @@
 
 #define	DBUF_TP_FAST_ASSIGN						\
 	if (db != NULL) {						\
-		__assign_str(os_spa,					\
-		spa_name(DB_DNODE(db)->dn_objset->os_spa));		\
+		if (POINTER_IS_VALID(DB_DNODE(db)->dn_objset)) {	\
+			__assign_str(os_spa,				\
+			spa_name(DB_DNODE(db)->dn_objset->os_spa));	\
+		} else {						\
+			__assign_str(os_spa, "NULL");			\
+		}							\
 									\
 		__entry->ds_object = db->db_objset->os_dsl_dataset ?	\
 		db->db_objset->os_dsl_dataset->ds_object : 0;		\

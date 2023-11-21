@@ -435,7 +435,9 @@ zpl_getattr_impl(const struct path *path, struct kstat *stat, u32 request_mask,
 	 * XXX query_flags currently ignored.
 	 */
 
-#if (defined(HAVE_USERNS_IOPS_GETATTR) || defined(HAVE_IDMAP_IOPS_GETATTR))
+#ifdef HAVE_GENERIC_FILLATTR_IDMAP_REQMASK
+	error = -zfs_getattr_fast(user_ns, request_mask, ip, stat);
+#elif (defined(HAVE_USERNS_IOPS_GETATTR) || defined(HAVE_IDMAP_IOPS_GETATTR))
 	error = -zfs_getattr_fast(user_ns, ip, stat);
 #else
 	error = -zfs_getattr_fast(kcred->user_ns, ip, stat);
@@ -774,7 +776,7 @@ zpl_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
 		return (-EMLINK);
 
 	crhold(cr);
-	ip->i_ctime = current_time(ip);
+	zpl_inode_set_ctime_to_ts(ip, current_time(ip));
 	/* Must have an existing ref, so igrab() cannot return NULL */
 	VERIFY3P(igrab(ip), !=, NULL);
 

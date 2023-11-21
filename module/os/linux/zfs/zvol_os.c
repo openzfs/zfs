@@ -873,7 +873,13 @@ zvol_ioctl(struct block_device *bdev, fmode_t mode,
 
 	switch (cmd) {
 	case BLKFLSBUF:
+#ifdef HAVE_FSYNC_BDEV
 		fsync_bdev(bdev);
+#elif defined(HAVE_SYNC_BLOCKDEV)
+		sync_blockdev(bdev);
+#else
+#error "Neither fsync_bdev() nor sync_blockdev() found"
+#endif
 		invalidate_bdev(bdev);
 		rw_enter(&zv->zv_suspend_lock, RW_READER);
 

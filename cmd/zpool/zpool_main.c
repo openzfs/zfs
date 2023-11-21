@@ -3122,12 +3122,21 @@ zfs_force_import_required(nvlist_t *config)
 	nvlist_t *nvinfo;
 
 	state = fnvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_STATE);
-	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_HOSTID, &hostid);
+	nvinfo = fnvlist_lookup_nvlist(config, ZPOOL_CONFIG_LOAD_INFO);
+
+	/*
+	 * The hostid on LOAD_INFO comes from the MOS label via
+	 * spa_tryimport(). If its not there then we're likely talking to an
+	 * older kernel, so use the top one, which will be from the label
+	 * discovered in zpool_find_import(), or if a cachefile is in use, the
+	 * local hostid.
+	 */
+	if (nvlist_lookup_uint64(nvinfo, ZPOOL_CONFIG_HOSTID, &hostid) != 0)
+		nvlist_lookup_uint64(config, ZPOOL_CONFIG_HOSTID, &hostid);
 
 	if (state != POOL_STATE_EXPORTED && hostid != get_system_hostid())
 		return (B_TRUE);
 
-	nvinfo = fnvlist_lookup_nvlist(config, ZPOOL_CONFIG_LOAD_INFO);
 	if (nvlist_exists(nvinfo, ZPOOL_CONFIG_MMP_STATE)) {
 		mmp_state_t mmp_state = fnvlist_lookup_uint64(nvinfo,
 		    ZPOOL_CONFIG_MMP_STATE);
@@ -3198,7 +3207,10 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 			time_t timestamp = 0;
 			uint64_t hostid = 0;
 
-			if (nvlist_exists(config, ZPOOL_CONFIG_HOSTNAME))
+			if (nvlist_exists(nvinfo, ZPOOL_CONFIG_HOSTNAME))
+				hostname = fnvlist_lookup_string(nvinfo,
+				    ZPOOL_CONFIG_HOSTNAME);
+			else if (nvlist_exists(config, ZPOOL_CONFIG_HOSTNAME))
 				hostname = fnvlist_lookup_string(config,
 				    ZPOOL_CONFIG_HOSTNAME);
 
@@ -3206,7 +3218,10 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 				timestamp = fnvlist_lookup_uint64(config,
 				    ZPOOL_CONFIG_TIMESTAMP);
 
-			if (nvlist_exists(config, ZPOOL_CONFIG_HOSTID))
+			if (nvlist_exists(nvinfo, ZPOOL_CONFIG_HOSTID))
+				hostid = fnvlist_lookup_uint64(nvinfo,
+				    ZPOOL_CONFIG_HOSTID);
+			else if (nvlist_exists(config, ZPOOL_CONFIG_HOSTID))
 				hostid = fnvlist_lookup_uint64(config,
 				    ZPOOL_CONFIG_HOSTID);
 

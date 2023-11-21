@@ -1,0 +1,21 @@
+env:
+  CIRRUS_CLONE_DEPTH: 1
+  ARCH: amd64
+
+build_task:
+  matrix:
+    freebsd_instance:
+      image_family: freebsd-12-4
+    freebsd_instance:
+      image_family: freebsd-13-2
+    freebsd_instance:
+      image_family: freebsd-14-0-snap
+  prepare_script:
+    - pkg install -y autoconf automake libtool gettext-runtime gmake ksh93 py39-packaging py39-cffi py39-sysctl
+  configure_script:
+    - env MAKE=gmake ./autogen.sh
+    - env MAKE=gmake ./configure --with-config="user" --with-python=3.9
+  build_script:
+    - gmake -j `sysctl -n kern.smp.cpus`
+  install_script:
+    - gmake install

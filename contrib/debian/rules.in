@@ -71,10 +71,6 @@ override_dh_auto_install:
 	@# Install the utilities.
 	$(MAKE) install DESTDIR='$(CURDIR)/debian/tmp'
 
-	# Use upstream's bash completion
-	install -D -t '$(CURDIR)/debian/tmp/usr/share/bash-completion/completions/' \
-		'$(CURDIR)/contrib/bash_completion.d/zfs'
-
 	# Move from bin_dir to /usr/sbin
 	# Remove suffix (.py) as per policy 10.4 - Scripts
 	# https://www.debian.org/doc/debian-policy/ch-files.html#s-scripts
@@ -136,7 +132,6 @@ override_dh_auto_install:
 
 	chmod a-x '$(CURDIR)/debian/tmp/etc/zfs/zfs-functions'
 	chmod a-x '$(CURDIR)/debian/tmp/etc/default/zfs'
-	chmod a-x '$(CURDIR)/debian/tmp/usr/share/bash-completion/completions/zfs'
 
 override_dh_python3:
 	dh_python3 -p openzfs-python3-pyzfs

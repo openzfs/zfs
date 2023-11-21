@@ -11,6 +11,7 @@
 
 #
 # Copyright (c) 2016 by Delphix. All rights reserved.
+# Copyright (c) 2023 by Klara, Inc.
 #
 
 . $STF_SUITE/include/libtest.shlib
