@@ -50,6 +50,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_TIMES], [
 		struct timespec64 ts;
 
 		memset(&ip, 0, sizeof(ip));
+		memset(&ts, 0, sizeof(ts));
 		inode_set_ctime_to_ts(&ip, ts);
 	])
 ])
