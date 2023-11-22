@@ -965,18 +965,18 @@ dsl_pool_need_dirty_delay(dsl_pool_t *dp)
 	uint64_t delay_min_bytes =
 	    zfs_dirty_data_max * zfs_delay_min_dirty_percent / 100;
 
-	mutex_enter(&dp->dp_lock);
-	uint64_t dirty = dp->dp_dirty_total;
-	mutex_exit(&dp->dp_lock);
-
-	return (dirty > delay_min_bytes);
+	/*
+	 * We are not taking the dp_lock here and few other places, since torn
+	 * reads are unlikely: on 64-bit systems due to register size and on
+	 * 32-bit due to memory constraints.  Pool-wide locks in hot path may
+	 * be too expensive, while we do not need a precise result here.
+	 */
+	return (dp->dp_dirty_total > delay_min_bytes);
 }
 
 static boolean_t
 dsl_pool_need_dirty_sync(dsl_pool_t *dp, uint64_t txg)
 {
-	ASSERT(MUTEX_HELD(&dp->dp_lock));
-
 	uint64_t dirty_min_bytes =
 	    zfs_dirty_data_max * zfs_dirty_data_sync_percent / 100;
 	uint64_t dirty = dp->dp_dirty_pertxg[txg & TXG_MASK];

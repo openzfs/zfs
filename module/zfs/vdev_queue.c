@@ -273,8 +273,10 @@ vdev_queue_class_add(vdev_queue_t *vq, zio_t *zio)
 {
 	zio_priority_t p = zio->io_priority;
 	vq->vq_cqueued |= 1U << p;
-	if (vdev_queue_class_fifo(p))
+	if (vdev_queue_class_fifo(p)) {
 		list_insert_tail(&vq->vq_class[p].vqc_list, zio);
+		vq->vq_class[p].vqc_list_numnodes++;
+	}
 	else
 		avl_add(&vq->vq_class[p].vqc_tree, zio);
 }
@@ -288,6 +290,7 @@ vdev_queue_class_remove(vdev_queue_t *vq, zio_t *zio)
 		list_t *list = &vq->vq_class[p].vqc_list;
 		list_remove(list, zio);
 		empty = list_is_empty(list);
+		vq->vq_class[p].vqc_list_numnodes--;
 	} else {
 		avl_tree_t *tree = &vq->vq_class[p].vqc_tree;
 		avl_remove(tree, zio);
@@ -1069,7 +1072,7 @@ vdev_queue_class_length(vdev_t *vd, zio_priority_t p)
 {
 	vdev_queue_t *vq = &vd->vdev_queue;
 	if (vdev_queue_class_fifo(p))
-		return (list_is_empty(&vq->vq_class[p].vqc_list) == 0);
+		return (vq->vq_class[p].vqc_list_numnodes);
 	else
 		return (avl_numnodes(&vq->vq_class[p].vqc_tree));
 }

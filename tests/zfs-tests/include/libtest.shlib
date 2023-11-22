@@ -37,6 +37,12 @@
 . ${STF_SUITE}/include/math.shlib
 . ${STF_SUITE}/include/blkdev.shlib
 
+# On AlmaLinux 9 we will see $PWD = '.' instead of the full path.  This causes
+# some tests to fail.  Fix it up here.
+if [ "$PWD" = "." ] ; then
+	PWD="$(readlink -f $PWD)"
+fi
+
 #
 # Apply constrained path when available.  This is required since the
 # PATH may have been modified by sudo's secure_path behavior.
@@ -3332,6 +3338,21 @@ function set_tunable_impl
 		echo "${tunable}/${mdb_cmd}0t${value}" | mdb -kw
 		;;
 	esac
+}
+
+function save_tunable
+{
+	[[ ! -d $TEST_BASE_DIR ]] && return 1
+	[[ -e $TEST_BASE_DIR/tunable-$1 ]] && return 2
+	echo "$(get_tunable """$1""")" > "$TEST_BASE_DIR"/tunable-"$1"
+}
+
+function restore_tunable
+{
+	[[ ! -e $TEST_BASE_DIR/tunable-$1 ]] && return 1
+	val="$(cat $TEST_BASE_DIR/tunable-"""$1""")"
+	set_tunable64 "$1" "$val"
+	rm $TEST_BASE_DIR/tunable-$1
 }
 
 #

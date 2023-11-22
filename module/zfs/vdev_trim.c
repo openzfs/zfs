@@ -23,6 +23,7 @@
  * Copyright (c) 2016 by Delphix. All rights reserved.
  * Copyright (c) 2019 by Lawrence Livermore National Security, LLC.
  * Copyright (c) 2021 Hewlett Packard Enterprise Development LP
+ * Copyright 2023 RackTop Systems, Inc.
  */
 
 #include <sys/spa.h>
@@ -591,6 +592,7 @@ vdev_trim_ranges(trim_args_t *ta)
 	uint64_t extent_bytes_max = ta->trim_extent_bytes_max;
 	uint64_t extent_bytes_min = ta->trim_extent_bytes_min;
 	spa_t *spa = vd->vdev_spa;
+	int error = 0;
 
 	ta->trim_start_time = gethrtime();
 	ta->trim_bytes_done = 0;
@@ -610,19 +612,32 @@ vdev_trim_ranges(trim_args_t *ta)
 		uint64_t writes_required = ((size - 1) / extent_bytes_max) + 1;
 
 		for (uint64_t w = 0; w < writes_required; w++) {
-			int error;
-
 			error = vdev_trim_range(ta, VDEV_LABEL_START_SIZE +
 			    rs_get_start(rs, ta->trim_tree) +
 			    (w *extent_bytes_max), MIN(size -
 			    (w * extent_bytes_max), extent_bytes_max));
 			if (error != 0) {
-				return (error);
+				goto done;
 			}
 		}
 	}
 
-	return (0);
+done:
+	/*
+	 * Make sure all TRIMs for this metaslab have completed before
+	 * returning. TRIM zios have lower priority over regular or syncing
+	 * zios, so all TRIM zios for this metaslab must complete before the
+	 * metaslab is re-enabled. Otherwise it's possible write zios to
+	 * this metaslab could cut ahead of still queued TRIM zios for this
+	 * metaslab causing corruption if the ranges overlap.
+	 */
+	mutex_enter(&vd->vdev_trim_io_lock);
+	while (vd->vdev_trim_inflight[0] > 0) {
+		cv_wait(&vd->vdev_trim_io_cv, &vd->vdev_trim_io_lock);
+	}
+	mutex_exit(&vd->vdev_trim_io_lock);
+
+	return (error);
 }
 
 static void
@@ -941,11 +956,6 @@ vdev_trim_thread(void *arg)
 	}
 
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
-	mutex_enter(&vd->vdev_trim_io_lock);
-	while (vd->vdev_trim_inflight[0] > 0) {
-		cv_wait(&vd->vdev_trim_io_cv, &vd->vdev_trim_io_lock);
-	}
-	mutex_exit(&vd->vdev_trim_io_lock);
 
 	range_tree_destroy(ta.trim_tree);
 

@@ -19,6 +19,15 @@
 %endif
 %endif
 
+# Set the default _bashcompletiondir directory based on distribution.
+%if %{undefined _bashcompletiondir}
+%if 0%{?rhel}%{?fedora}%{?centos}%{?suse_version}%{?openEuler}
+%global _bashcompletiondir    /etc/bash_completion.d
+%else
+%global _bashcompletiondir    /usr/share/bash-completion
+%endif
+%endif
+
 # Set the default dracut directory based on distribution.
 %if %{undefined _dracutdir}
 %if 0%{?rhel}%{?fedora}%{?centos}%{?suse_version}%{?openEuler}
@@ -522,7 +531,7 @@ systemctl --system daemon-reload >/dev/null || true
 %config(noreplace) %{_sysconfdir}/%{name}/vdev_id.conf.*.example
 %attr(440, root, root) %config(noreplace) %{_sysconfdir}/sudoers.d/*
 
-%config(noreplace) %{_sysconfdir}/bash_completion.d/zfs
+%config(noreplace) %{_bashcompletiondir}/zfs
 
 %files -n libzpool5
 %{_libdir}/libzpool.so.*

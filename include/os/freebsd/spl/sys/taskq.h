@@ -30,9 +30,9 @@
 
 #include <sys/types.h>
 #include <sys/proc.h>
+#include <sys/queue.h>
 #include <sys/taskqueue.h>
 #include <sys/thread.h>
-#include <sys/ck.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -48,16 +48,16 @@ typedef uintptr_t taskqid_t;
 typedef void (task_func_t)(void *);
 
 typedef struct taskq_ent {
-	struct task	 tqent_task;
-	struct timeout_task tqent_timeout_task;
+	union {
+		struct task	 tqent_task;
+		struct timeout_task tqent_timeout_task;
+	};
 	task_func_t	*tqent_func;
 	void		*tqent_arg;
-	taskqid_t tqent_id;
-	CK_LIST_ENTRY(taskq_ent) tqent_hash;
-	uint8_t tqent_type;
-	uint8_t tqent_registered;
-	uint8_t tqent_cancelled;
-	volatile uint32_t tqent_rc;
+	taskqid_t	 tqent_id;
+	LIST_ENTRY(taskq_ent) tqent_hash;
+	uint_t		 tqent_type;
+	volatile uint_t	 tqent_rc;
 } taskq_ent_t;
 
 /*

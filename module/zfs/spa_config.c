@@ -367,23 +367,24 @@ spa_write_cachefile(spa_t *target, boolean_t removing, boolean_t postsysevent,
  * So we have to invent the ZFS_IOC_CONFIG ioctl to grab the configuration
  * information for all pool visible within the zone.
  */
-nvlist_t *
-spa_all_configs(uint64_t *generation)
+int
+spa_all_configs(uint64_t *generation, nvlist_t **pools)
 {
-	nvlist_t *pools;
 	spa_t *spa = NULL;
 
 	if (*generation == spa_config_generation)
-		return (NULL);
+		return (SET_ERROR(EEXIST));
 
-	pools = fnvlist_alloc();
+	int error = mutex_enter_interruptible(&spa_namespace_lock);
+	if (error)
+		return (SET_ERROR(EINTR));
 
-	mutex_enter(&spa_namespace_lock);
+	*pools = fnvlist_alloc();
 	while ((spa = spa_next(spa)) != NULL) {
 		if (INGLOBALZONE(curproc) ||
 		    zone_dataset_visible(spa_name(spa), NULL)) {
 			mutex_enter(&spa->spa_props_lock);
-			fnvlist_add_nvlist(pools, spa_name(spa),
+			fnvlist_add_nvlist(*pools, spa_name(spa),
 			    spa->spa_config);
 			mutex_exit(&spa->spa_props_lock);
 		}
@@ -391,7 +392,7 @@ spa_all_configs(uint64_t *generation)
 	*generation = spa_config_generation;
 	mutex_exit(&spa_namespace_lock);
 
-	return (pools);
+	return (0);
 }
 
 void

@@ -489,6 +489,10 @@ zfs-$(CONFIG_ARM64) += $(addprefix zfs/,$(ZFS_OBJS_ARM64))
 zfs-$(CONFIG_PPC)   += $(addprefix zfs/,$(ZFS_OBJS_PPC_PPC64))
 zfs-$(CONFIG_PPC64) += $(addprefix zfs/,$(ZFS_OBJS_PPC_PPC64))
 
+UBSAN_SANITIZE_zap_leaf.o := n
+UBSAN_SANITIZE_zap_micro.o := n
+UBSAN_SANITIZE_sa.o := n
+
 # Suppress incorrect warnings from versions of objtool which are not
 # aware of x86 EVEX prefix instructions used for AVX512.
 OBJECT_FILES_NON_STANDARD_vdev_raidz_math_avx512bw.o := y

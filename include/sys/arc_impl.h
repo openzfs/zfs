@@ -159,10 +159,6 @@ struct arc_write_callback {
  * these two allocation states.
  */
 typedef struct l1arc_buf_hdr {
-	/* for waiting on reads to complete */
-	kcondvar_t		b_cv;
-	uint8_t			b_byteswap;
-
 	/* protected by arc state mutex */
 	arc_state_t		*b_state;
 	multilist_node_t	b_arc_node;
@@ -173,7 +169,7 @@ typedef struct l1arc_buf_hdr {
 	uint32_t		b_mru_ghost_hits;
 	uint32_t		b_mfu_hits;
 	uint32_t		b_mfu_ghost_hits;
-	uint32_t		b_bufcnt;
+	uint8_t			b_byteswap;
 	arc_buf_t		*b_buf;
 
 	/* self protecting */
@@ -436,11 +432,11 @@ typedef struct l2arc_dev {
  */
 typedef struct arc_buf_hdr_crypt {
 	abd_t			*b_rabd;	/* raw encrypted data */
-	dmu_object_type_t	b_ot;		/* object type */
-	uint32_t		b_ebufcnt;	/* count of encrypted buffers */
 
 	/* dsobj for looking up encryption key for l2arc encryption */
 	uint64_t		b_dsobj;
+
+	dmu_object_type_t	b_ot;		/* object type */
 
 	/* encryption parameters */
 	uint8_t			b_salt[ZIO_DATA_SALT_LEN];
@@ -1069,7 +1065,6 @@ extern void arc_wait_for_eviction(uint64_t, boolean_t);
 
 extern void arc_lowmem_init(void);
 extern void arc_lowmem_fini(void);
-extern void arc_prune_async(uint64_t);
 extern int arc_memory_throttle(spa_t *spa, uint64_t reserve, uint64_t txg);
 extern uint64_t arc_free_memory(void);
 extern int64_t arc_available_memory(void);

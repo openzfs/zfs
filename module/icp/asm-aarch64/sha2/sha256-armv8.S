@@ -49,6 +49,7 @@
 .type	zfs_sha256_block_armv7,%function
 .align	6
 zfs_sha256_block_armv7:
+	hint	#34					// bti c
 	stp	x29,x30,[sp,#-128]!
 	add	x29,sp,#0
 
@@ -1015,6 +1016,7 @@ zfs_sha256_block_armv7:
 .type	zfs_sha256_block_armv8,%function
 .align	6
 zfs_sha256_block_armv8:
+	hint		#34				// bti c
 .Lv8_entry:
 	stp		x29,x30,[sp,#-16]!
 	add		x29,sp,#0
@@ -1155,6 +1157,7 @@ zfs_sha256_block_armv8:
 .type	zfs_sha256_block_neon,%function
 .align	4
 zfs_sha256_block_neon:
+	hint	#34					// bti c
 .Lneon_entry:
 	stp	x29, x30, [sp, #-16]!
 	mov	x29, sp

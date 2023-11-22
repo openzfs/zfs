@@ -62,6 +62,7 @@ dist_man_MANS = \
 	%D%/man8/zfs-userspace.8 \
 	%D%/man8/zfs-wait.8 \
 	%D%/man8/zfs_ids_to_path.8 \
+	%D%/man8/zfs_prepare_disk.8 \
 	%D%/man8/zgenhostid.8 \
 	%D%/man8/zinject.8 \
 	%D%/man8/zpool.8 \

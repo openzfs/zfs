@@ -1094,6 +1094,15 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 
 	ASSERT(!outzfsvfs->z_replay);
 
+	/*
+	 * Block cloning from an unencrypted dataset into an encrypted
+	 * dataset and vice versa is not supported.
+	 */
+	if (inos->os_encrypted != outos->os_encrypted) {
+		zfs_exit_two(inzfsvfs, outzfsvfs, FTAG);
+		return (SET_ERROR(EXDEV));
+	}
+
 	error = zfs_verify_zp(inzp);
 	if (error == 0)
 		error = zfs_verify_zp(outzp);
@@ -1202,6 +1211,19 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 	 */
 	if ((len % inblksz) != 0 &&
 	    (len < inzp->z_size - inoff || len < outzp->z_size - outoff)) {
+		error = SET_ERROR(EINVAL);
+		goto unlock;
+	}
+
+	/*
+	 * If we are copying only one block and it is smaller than recordsize
+	 * property, do not allow destination to grow beyond one block if it
+	 * is not there yet.  Otherwise the destination will get stuck with
+	 * that block size forever, that can be as small as 512 bytes, no
+	 * matter how big the destination grow later.
+	 */
+	if (len <= inblksz && inblksz < outzfsvfs->z_max_blksz &&
+	    outzp->z_size <= inblksz && outoff + len > inblksz) {
 		error = SET_ERROR(EINVAL);
 		goto unlock;
 	}

@@ -141,7 +141,7 @@ zfsdev_ioctl(struct cdev *dev, ulong_t zcmd, caddr_t arg, int flag,
 	if (len != sizeof (zfs_iocparm_t))
 		return (EINVAL);
 
-	uaddr = (void *)zp->zfs_cmd;
+	uaddr = (void *)(uintptr_t)zp->zfs_cmd;
 	zc = vmem_zalloc(sizeof (zfs_cmd_t), KM_SLEEP);
 #ifdef ZFS_LEGACY_SUPPORT
 	/*

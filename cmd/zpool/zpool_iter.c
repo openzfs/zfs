@@ -443,37 +443,22 @@ vdev_run_cmd(vdev_cmd_data_t *data, char *cmd)
 {
 	int rc;
 	char *argv[2] = {cmd};
-	char *env[5] = {(char *)"PATH=/bin:/sbin:/usr/bin:/usr/sbin"};
+	char **env;
 	char **lines = NULL;
 	int lines_cnt = 0;
 	int i;
 
-	/* Setup our custom environment variables */
-	rc = asprintf(&env[1], "VDEV_PATH=%s",
-	    data->path ? data->path : "");
-	if (rc == -1) {
-		env[1] = NULL;
+	env = zpool_vdev_script_alloc_env(data->pool, data->path, data->upath,
+	    data->vdev_enc_sysfs_path, NULL, NULL);
+	if (env == NULL)
 		goto out;
-	}
-
-	rc = asprintf(&env[2], "VDEV_UPATH=%s",
-	    data->upath ? data->upath : "");
-	if (rc == -1) {
-		env[2] = NULL;
-		goto out;
-	}
-
-	rc = asprintf(&env[3], "VDEV_ENC_SYSFS_PATH=%s",
-	    data->vdev_enc_sysfs_path ?
-	    data->vdev_enc_sysfs_path : "");
-	if (rc == -1) {
-		env[3] = NULL;
-		goto out;
-	}
 
 	/* Run the command */
 	rc = libzfs_run_process_get_stdout_nopath(cmd, argv, env, &lines,
 	    &lines_cnt);
+
+	zpool_vdev_script_free_env(env);
+
 	if (rc != 0)
 		goto out;
 
@@ -485,10 +470,6 @@ vdev_run_cmd(vdev_cmd_data_t *data, char *cmd)
 out:
 	if (lines != NULL)
 		libzfs_free_str_array(lines, lines_cnt);
-
-	/* Start with i = 1 since env[0] was statically allocated */
-	for (i = 1; i < ARRAY_SIZE(env); i++)
-		free(env[i]);
 }
 
 /*

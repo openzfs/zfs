@@ -807,12 +807,12 @@ vdev_rebuild_thread(void *arg)
 
 		/*
 		 * Calculate the max number of in-flight bytes for top-level
-		 * vdev scanning operations (minimum 1MB, maximum 1/4 of
+		 * vdev scanning operations (minimum 1MB, maximum 1/2 of
 		 * arc_c_max shared by all top-level vdevs).  Limits for the
 		 * issuing phase are done per top-level vdev and are handled
 		 * separately.
 		 */
-		uint64_t limit = (arc_c_max / 4) / MAX(rvd->vdev_children, 1);
+		uint64_t limit = (arc_c_max / 2) / MAX(rvd->vdev_children, 1);
 		vr->vr_bytes_inflight_max = MIN(limit, MAX(1ULL << 20,
 		    zfs_rebuild_vdev_limit * vd->vdev_children));
 

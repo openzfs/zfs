@@ -60,7 +60,7 @@ extern const struct file_operations zpl_file_operations;
 extern const struct file_operations zpl_dir_file_operations;
 
 /* zpl_super.c */
-extern void zpl_prune_sb(int64_t nr_to_scan, void *arg);
+extern void zpl_prune_sb(uint64_t nr_to_scan, void *arg);
 
 extern const struct super_operations zpl_super_operations;
 extern const struct export_operations zpl_export_operations;
@@ -270,6 +270,17 @@ extern long zpl_ioctl_fideduperange(struct file *filp, void *arg);
  * linux/vfs_compat.h
  */
 #define	zpl_setattr_prepare(ns, dentry, ia)	setattr_prepare(dentry, ia)
+#endif
+
+#ifdef HAVE_INODE_GET_CTIME
+#define	zpl_inode_get_ctime(ip)	inode_get_ctime(ip)
+#else
+#define	zpl_inode_get_ctime(ip)	(ip->i_ctime)
+#endif
+#ifdef HAVE_INODE_SET_CTIME_TO_TS
+#define	zpl_inode_set_ctime_to_ts(ip, ts)	inode_set_ctime_to_ts(ip, ts)
+#else
+#define	zpl_inode_set_ctime_to_ts(ip, ts)	(ip->i_ctime = ts)
 #endif
 
 #endif	/* _SYS_ZPL_H */
