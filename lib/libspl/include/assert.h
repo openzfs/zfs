@@ -64,6 +64,9 @@ libspl_assert(const char *buf, const char *file, const char *func, int line)
 #undef verify
 #endif
 
+#define	PANIC(fmt, a...)						\
+	libspl_assertf(__FILE__, __FUNCTION__, __LINE__, fmt, ## a)
+
 #define	VERIFY(cond)							\
 	(void) ((!(cond)) &&						\
 	    libspl_assert(#cond, __FILE__, __FUNCTION__, __LINE__))
