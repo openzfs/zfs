@@ -21,8 +21,11 @@
 
 #if defined(__arm__)
 
-#define	__ARM_ARCH__      7
-#define	__ARM_MAX_ARCH__  7
+#ifndef __ARM_ARCH
+# define __ARM_ARCH__	7
+#else
+# define __ARM_ARCH__	__ARM_ARCH
+#endif
 
 #if defined(__thumb2__)
 .syntax unified
