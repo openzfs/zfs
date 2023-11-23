@@ -7063,12 +7063,13 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 
 	if (!replacing) {
 		/*
-		 * For attach, the only allowable parent is a mirror or the root
-		 * vdev.
+		 * For attach, the only allowable parent is a mirror or
+		 * the root vdev. A raidz vdev can be attached to, but
+		 * you cannot attach to a raidz child.
 		 */
 		if (pvd->vdev_ops != &vdev_mirror_ops &&
-		    pvd->vdev_ops != &vdev_raidz_ops &&
-		    pvd->vdev_ops != &vdev_root_ops)
+		    pvd->vdev_ops != &vdev_root_ops &&
+		    !raidz)
 			return (spa_vdev_exit(spa, newrootvd, txg, ENOTSUP));
 
 		pvops = &vdev_mirror_ops;
