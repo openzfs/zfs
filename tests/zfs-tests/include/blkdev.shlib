@@ -289,7 +289,7 @@ function get_persistent_disk_name #device
 	if is_linux; then
 		if is_real_device $device; then
 			udevadm info -q all -n $DEV_DSKDIR/$device \
-			    | awk '/disk\/by-id/ {print $2; exit}' | cut -d/ -f3
+			    | awk '/disk\/by-id/ {print $2; exit}' | cut -d/ -f3-
 		elif is_mpath_device $device; then
 			udevadm info -q all -n $DEV_DSKDIR/$device \
 			    | awk '/disk\/by-id\/dm-uuid/ {print $2; exit}' \
