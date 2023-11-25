@@ -103,6 +103,7 @@ if [ -d ${dkms_root}/%{module} ]; then
             fi
         fi
     done
+    cd ${dkms_root}
 fi
 
 # Uninstall this version of zfs dkms modules before installation of the package.
