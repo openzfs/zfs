@@ -6069,7 +6069,7 @@ arc_prune_task(void *ptr)
 	if (func != NULL)
 		func(ap->p_adjust, ap->p_private);
 
-	zfs_refcount_remove(&ap->p_refcnt, func);
+	(void) zfs_refcount_remove(&ap->p_refcnt, func);
 }
 
 /*
@@ -6098,7 +6098,7 @@ arc_prune_async(uint64_t adjust)
 		ap->p_adjust = adjust;
 		if (taskq_dispatch(arc_prune_taskq, arc_prune_task,
 		    ap, TQ_SLEEP) == TASKQID_INVALID) {
-			zfs_refcount_remove(&ap->p_refcnt, ap->p_pfunc);
+			(void) zfs_refcount_remove(&ap->p_refcnt, ap->p_pfunc);
 			continue;
 		}
 		ARCSTAT_BUMP(arcstat_prune);
@@ -7720,7 +7720,7 @@ arc_fini(void)
 
 	mutex_enter(&arc_prune_mtx);
 	while ((p = list_remove_head(&arc_prune_list)) != NULL) {
-		zfs_refcount_remove(&p->p_refcnt, &arc_prune_list);
+		(void) zfs_refcount_remove(&p->p_refcnt, &arc_prune_list);
 		zfs_refcount_destroy(&p->p_refcnt);
 		kmem_free(p, sizeof (*p));
 	}
@@ -8301,7 +8301,8 @@ top:
 			ARCSTAT_BUMPDOWN(arcstat_l2_log_blk_count);
 			zfs_refcount_remove_many(&dev->l2ad_lb_asize, asize,
 			    lb_ptr_buf);
-			zfs_refcount_remove(&dev->l2ad_lb_count, lb_ptr_buf);
+			(void) zfs_refcount_remove(&dev->l2ad_lb_count,
+			    lb_ptr_buf);
 			kmem_free(lb_ptr_buf->lb_ptr,
 			    sizeof (l2arc_log_blkptr_t));
 			kmem_free(lb_ptr_buf, sizeof (l2arc_lb_ptr_buf_t));
@@ -8772,7 +8773,8 @@ retry:
 			ARCSTAT_BUMPDOWN(arcstat_l2_log_blk_count);
 			zfs_refcount_remove_many(&dev->l2ad_lb_asize, asize,
 			    lb_ptr_buf);
-			zfs_refcount_remove(&dev->l2ad_lb_count, lb_ptr_buf);
+			(void) zfs_refcount_remove(&dev->l2ad_lb_count,
+			    lb_ptr_buf);
 			list_remove(&dev->l2ad_lbptr_list, lb_ptr_buf);
 			kmem_free(lb_ptr_buf->lb_ptr,
 			    sizeof (l2arc_log_blkptr_t));
