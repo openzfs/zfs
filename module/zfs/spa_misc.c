@@ -2221,6 +2221,7 @@ spa_import_progress_truncate(spa_history_list_t *shl, unsigned int size)
 	spa_import_progress_t *sip;
 	while (shl->size > size) {
 		sip = list_remove_head(&shl->procfs_list.pl_list);
+		VERIFY(sip);
 		if (sip->pool_name)
 			spa_strfree(sip->pool_name);
 		kmem_free(sip, sizeof (spa_import_progress_t));
