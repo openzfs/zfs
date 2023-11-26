@@ -616,6 +616,7 @@ spa_mmp_history_truncate(spa_history_list_t *shl, unsigned int size)
 	spa_mmp_history_t *smh;
 	while (shl->size > size) {
 		smh = list_remove_head(&shl->procfs_list.pl_list);
+		VERIFY(smh);
 		if (smh->vdev_path)
 			kmem_strfree(smh->vdev_path);
 		kmem_free(smh, sizeof (spa_mmp_history_t));
