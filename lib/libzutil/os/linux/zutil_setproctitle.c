@@ -88,7 +88,7 @@ spt_copyenv(int envc, char *envp[])
 	char **envcopy;
 	char *eq;
 	int envsize;
-	int i, error;
+	int i, error = 0;
 
 	if (environ != envp)
 		return (0);
