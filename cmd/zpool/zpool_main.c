@@ -3132,7 +3132,7 @@ zfs_force_import_required(nvlist_t *config)
 	 * local hostid.
 	 */
 	if (nvlist_lookup_uint64(nvinfo, ZPOOL_CONFIG_HOSTID, &hostid) != 0)
-		nvlist_lookup_uint64(config, ZPOOL_CONFIG_HOSTID, &hostid);
+		hostid = fnvlist_lookup_uint64(config, ZPOOL_CONFIG_HOSTID);
 
 	if (state != POOL_STATE_EXPORTED && hostid != get_system_hostid())
 		return (B_TRUE);
