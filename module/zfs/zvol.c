@@ -111,13 +111,10 @@ typedef struct {
 uint64_t
 zvol_name_hash(const char *name)
 {
-	int i;
 	uint64_t crc = -1ULL;
-	const uint8_t *p = (const uint8_t *)name;
 	ASSERT(zfs_crc64_table[128] == ZFS_CRC64_POLY);
-	for (i = 0; i < MAXNAMELEN - 1 && *p; i++, p++) {
+	for (const uint8_t *p = (const uint8_t *)name; *p != 0; p++)
 		crc = (crc >> 8) ^ zfs_crc64_table[(crc ^ (*p)) & 0xFF];
-	}
 	return (crc);
 }
 
@@ -138,8 +135,7 @@ zvol_find_by_name_hash(const char *name, uint64_t hash, int mode)
 	hlist_for_each(p, ZVOL_HT_HEAD(hash)) {
 		zv = hlist_entry(p, zvol_state_t, zv_hlink);
 		mutex_enter(&zv->zv_state_lock);
-		if (zv->zv_hash == hash &&
-		    strncmp(zv->zv_name, name, MAXNAMELEN) == 0) {
+		if (zv->zv_hash == hash && strcmp(zv->zv_name, name) == 0) {
 			/*
 			 * this is the right zvol, take the locks in the
 			 * right order
@@ -154,8 +150,7 @@ zvol_find_by_name_hash(const char *name, uint64_t hash, int mode)
 				 * to hold zvol_state_lock
 				 */
 				ASSERT(zv->zv_hash == hash &&
-				    strncmp(zv->zv_name, name, MAXNAMELEN)
-				    == 0);
+				    strcmp(zv->zv_name, name) == 0);
 			}
 			rw_exit(&zvol_state_lock);
 			return (zv);
@@ -1526,9 +1521,9 @@ zvol_task_alloc(zvol_async_op_t op, const char *name1, const char *name2,
 	task->op = op;
 	task->value = value;
 
-	strlcpy(task->name1, name1, MAXNAMELEN);
+	strlcpy(task->name1, name1, sizeof (task->name1));
 	if (name2 != NULL)
-		strlcpy(task->name2, name2, MAXNAMELEN);
+		strlcpy(task->name2, name2, sizeof (task->name2));
 
 	return (task);
 }
@@ -1573,7 +1568,6 @@ typedef struct zvol_set_prop_int_arg {
 	uint64_t zsda_value;
 	zprop_source_t zsda_source;
 	zfs_prop_t zsda_prop;
-	dmu_tx_t *zsda_tx;
 } zvol_set_prop_int_arg_t;
 
 /*
@@ -1601,7 +1595,7 @@ static int
 zvol_set_common_sync_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
 {
 	zvol_set_prop_int_arg_t *zsda = arg;
-	char dsname[MAXNAMELEN];
+	char dsname[ZFS_MAX_DATASET_NAME_LEN];
 	zvol_task_t *task;
 	uint64_t prop;
 
@@ -1650,13 +1644,12 @@ zvol_set_common_sync(void *arg, dmu_tx_t *tx)
 	int error;
 
 	VERIFY0(dsl_dir_hold(dp, zsda->zsda_name, FTAG, &dd, NULL));
-	zsda->zsda_tx = tx;
 
 	error = dsl_dataset_hold(dp, zsda->zsda_name, FTAG, &ds);
 	if (error == 0) {
 		dsl_prop_set_sync_impl(ds, zfs_prop_to_name(zsda->zsda_prop),
 		    zsda->zsda_source, sizeof (zsda->zsda_value), 1,
-		    &zsda->zsda_value, zsda->zsda_tx);
+		    &zsda->zsda_value, tx);
 		dsl_dataset_rele(ds, FTAG);
 	}
 
