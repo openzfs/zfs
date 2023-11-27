@@ -9164,22 +9164,6 @@ main(int argc, char **argv)
 	if (dump_opt['l'])
 		return (dump_label(argv[0]));
 
-	if (dump_opt['O']) {
-		if (argc != 2)
-			usage();
-		dump_opt['v'] = verbose + 3;
-		return (dump_path(argv[0], argv[1], NULL));
-	}
-	if (dump_opt['r']) {
-		target_is_spa = B_FALSE;
-		if (argc != 3)
-			usage();
-		dump_opt['v'] = verbose;
-		error = dump_path(argv[0], argv[1], &object);
-		if (error != 0)
-			fatal("internal error: %s", strerror(error));
-	}
-
 	if (dump_opt['X'] || dump_opt['F'])
 		rewind = ZPOOL_DO_REWIND |
 		    (dump_opt['X'] ? ZPOOL_EXTREME_REWIND : 0);
@@ -9278,6 +9262,29 @@ main(int argc, char **argv)
 	if (searchdirs != NULL) {
 		umem_free(searchdirs, nsearch * sizeof (char *));
 		searchdirs = NULL;
+	}
+
+	/*
+	 * We need to make sure to process -O option or call
+	 * dump_path after the -e option has been processed,
+	 * which imports the pool to the namespace if it's
+	 * not in the cachefile.
+	 */
+	if (dump_opt['O']) {
+		if (argc != 2)
+			usage();
+		dump_opt['v'] = verbose + 3;
+		return (dump_path(argv[0], argv[1], NULL));
+	}
+
+	if (dump_opt['r']) {
+		target_is_spa = B_FALSE;
+		if (argc != 3)
+			usage();
+		dump_opt['v'] = verbose;
+		error = dump_path(argv[0], argv[1], &object);
+		if (error != 0)
+			fatal("internal error: %s", strerror(error));
 	}
 
 	/*
