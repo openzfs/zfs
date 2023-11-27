@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2009, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2023, Klara Inc.
  */
 
 #ifndef _SYS_DDT_H
@@ -39,10 +40,16 @@ extern "C" {
 struct abd;
 
 /*
- * On-disk DDT formats, in the desired search order (newest version first).
+ * DDT on-disk storage object types. Each one corresponds to specific
+ * implementation, see ddt_ops_t. The value itself is not stored on disk.
+ *
+ * When searching for an entry, objects types will be searched in this order.
+ *
+ * Note that DDT_TYPES is used as the "no type" for new entries that have not
+ * yet been written to a storage object.
  */
 typedef enum {
-	DDT_TYPE_ZAP = 0,
+	DDT_TYPE_ZAP = 0,	/* ZAP storage object, ddt_zap */
 	DDT_TYPES
 } ddt_type_t;
 
@@ -53,12 +60,18 @@ _Static_assert(DDT_TYPES <= UINT8_MAX,
 #define	DDT_TYPE_DEFAULT	(DDT_TYPE_ZAP)
 
 /*
- * DDT classes, in the desired search order (highest replication level first).
+ * DDT storage classes. Each class has a separate storage object for each type.
+ * The value itself is not stored on disk.
+ *
+ * When search for an entry, object classes will be searched in this order.
+ *
+ * Note that DDT_CLASSES is used as the "no class" for new entries that have not
+ * yet been written to a storage object.
  */
 typedef enum {
-	DDT_CLASS_DITTO = 0,
-	DDT_CLASS_DUPLICATE,
-	DDT_CLASS_UNIQUE,
+	DDT_CLASS_DITTO = 0,	/* entry has ditto blocks (obsolete) */
+	DDT_CLASS_DUPLICATE,	/* entry has multiple references */
+	DDT_CLASS_UNIQUE,	/* entry has a single reference */
 	DDT_CLASSES
 } ddt_class_t;
 
@@ -66,7 +79,9 @@ _Static_assert(DDT_CLASSES < UINT8_MAX,
 	"ddt_class_t must fit in a uint8_t");
 
 /*
- * On-disk ddt entry:  key (name) and physical storage (value).
+ * The "key" part of an on-disk entry. This is the unique "name" for a block,
+ * that is, that parts of the block pointer that will always be the same for
+ * the same data.
  */
 typedef struct {
 	zio_cksum_t	ddk_cksum;	/* 256-bit block checksum */
@@ -80,6 +95,10 @@ typedef struct {
 	uint64_t	ddk_prop;
 } ddt_key_t;
 
+/*
+ * Macros for accessing parts of a ddt_key_t. These are similar to their BP_*
+ * counterparts.
+ */
 #define	DDK_GET_LSIZE(ddk)	\
 	BF64_GET_SB((ddk)->ddk_prop, 0, 16, SPA_MINBLOCKSHIFT, 1)
 #define	DDK_SET_LSIZE(ddk, x)	\
@@ -96,6 +115,16 @@ typedef struct {
 #define	DDK_GET_CRYPT(ddk)		BF64_GET((ddk)->ddk_prop, 39, 1)
 #define	DDK_SET_CRYPT(ddk, x)	BF64_SET((ddk)->ddk_prop, 39, 1, x)
 
+/*
+ * The "value" part for an on-disk entry. These are the "physical"
+ * characteristics of the stored block, such as its location on disk (DVAs),
+ * birth txg and ref count.
+ *
+ * Note that an entry has an array of four ddt_phys_t, one for each number of
+ * DVAs (copies= property) and another for additional "ditto" copies. Most
+ * users of ddt_phys_t will handle indexing into or counting the phys they
+ * want.
+ */
 typedef struct {
 	dva_t		ddp_dva[SPA_DVAS_PER_BP];
 	uint64_t	ddp_refcnt;
@@ -103,6 +132,8 @@ typedef struct {
 } ddt_phys_t;
 
 /*
+ * Named indexes into the ddt_phys_t array in each entry.
+ *
  * Note, we no longer generate new DDT_PHYS_DITTO-type blocks.  However,
  * we maintain the ability to free existing dedup-ditto blocks.
  */
@@ -115,7 +146,8 @@ enum ddt_phys_type {
 };
 
 /*
- * In-core ddt entry
+ * A "live" entry, holding changes to an entry made this txg, and other data to
+ * support loading, updating and repairing the entry.
  */
 
 /* State flags for dde_flags */
@@ -123,36 +155,56 @@ enum ddt_phys_type {
 
 typedef struct {
 	/* key must be first for ddt_key_compare */
-	ddt_key_t	dde_key;
-	ddt_phys_t	dde_phys[DDT_PHYS_TYPES];
+	ddt_key_t	dde_key;			/* ddt_tree key */
+	ddt_phys_t	dde_phys[DDT_PHYS_TYPES];	/* on-disk data */
+
+	/* in-flight update IOs */
 	zio_t		*dde_lead_zio[DDT_PHYS_TYPES];
+
+	/* copy of data after a repair read, to be rewritten */
 	struct abd	*dde_repair_abd;
+
+	/* storage type and class the entry was loaded from */
 	ddt_type_t	dde_type;
 	ddt_class_t	dde_class;
-	uint8_t		dde_flags;
-	kcondvar_t	dde_cv;
-	avl_node_t	dde_node;
+
+	uint8_t		dde_flags;	/* load state flags */
+	kcondvar_t	dde_cv;		/* signaled when load completes */
+
+	avl_node_t	dde_node;	/* ddt_tree node */
 } ddt_entry_t;
 
 /*
- * In-core ddt
+ * In-core DDT object. This covers all entries and stats for a the whole pool
+ * for a given checksum type.
  */
 typedef struct {
-	kmutex_t	ddt_lock;
-	avl_tree_t	ddt_tree;
-	avl_tree_t	ddt_repair_tree;
-	enum zio_checksum ddt_checksum;
-	spa_t		*ddt_spa;
-	objset_t	*ddt_os;
-	uint64_t	ddt_stat_object;
+	kmutex_t	ddt_lock;	/* protects changes to all fields */
+
+	avl_tree_t	ddt_tree;	/* "live" (changed) entries this txg */
+
+	avl_tree_t	ddt_repair_tree;	/* entries being repaired */
+
+	enum zio_checksum ddt_checksum;		/* checksum algorithm in use */
+	spa_t		*ddt_spa;		/* pool this ddt is on */
+	objset_t	*ddt_os;		/* ddt objset (always MOS) */
+
+	/* per-type/per-class entry store objects */
 	uint64_t	ddt_object[DDT_TYPES][DDT_CLASSES];
+
+	/* object ids for whole-ddt and per-type/per-class stats */
+	uint64_t	ddt_stat_object;
+	ddt_object_t	ddt_object_stats[DDT_TYPES][DDT_CLASSES];
+
+	/* type/class stats by power-2-sized referenced blocks */
 	ddt_histogram_t	ddt_histogram[DDT_TYPES][DDT_CLASSES];
 	ddt_histogram_t	ddt_histogram_cache[DDT_TYPES][DDT_CLASSES];
-	ddt_object_t	ddt_object_stats[DDT_TYPES][DDT_CLASSES];
 } ddt_t;
 
 /*
- * In-core and on-disk bookmark for DDT walks
+ * In-core and on-disk bookmark for DDT walks. This is a cursor for ddt_walk(),
+ * and is stable across calls, even if the DDT is updated, the pool is
+ * restarted or loaded on another system, or OpenZFS is upgraded.
  */
 typedef struct {
 	uint64_t	ddb_class;

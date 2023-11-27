@@ -23,6 +23,7 @@
  * Copyright (c) 2009, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
  * Copyright (c) 2022 by Pawel Jakub Dawidek
+ * Copyright (c) 2023, Klara Inc.
  */
 
 #include <sys/zfs_context.h>
@@ -38,6 +39,101 @@
 #include <sys/zio_checksum.h>
 #include <sys/dsl_scan.h>
 #include <sys/abd.h>
+
+/*
+ * # DDT: Deduplication tables
+ *
+ * The dedup subsystem provides block-level deduplication. When enabled, blocks
+ * to be written will have the dedup (D) bit set, which causes them to be
+ * tracked in a "dedup table", or DDT. If a block has been seen before (exists
+ * in the DDT), instead of being written, it will instead be made to reference
+ * the existing on-disk data, and a refcount bumped in the DDT instead.
+ *
+ * ## Dedup tables and entries
+ *
+ * Conceptually, a DDT is a dictionary or map. Each entry has a "key"
+ * (ddt_key_t) made up a block's checksum and certian properties, and a "value"
+ * (one or more ddt_phys_t) containing valid DVAs for the block's data, birth
+ * time and refcount. Together these are enough to track references to a
+ * specific block, to build a valid block pointer to reference that block (for
+ * freeing, scrubbing, etc), and to fill a new block pointer with the missing
+ * pieces to make it seem like it was written.
+ *
+ * There's a single DDT (ddt_t) for each checksum type, held in spa_ddt[].
+ * Within each DDT, there can be multiple storage "types" (ddt_type_t, on-disk
+ * object data formats, each with their own implementations) and "classes"
+ * (ddt_class_t, instance of a storage type object, for entries with a specific
+ * characteristic). An entry (key) will only ever exist on one of these objects
+ * at any given time, but may be moved from one to another if their type or
+ * class changes.
+ *
+ * The DDT is driven by the write IO pipeline (zio_ddt_write()). When a block
+ * is to be written, before DVAs have been allocated, ddt_lookup() is called to
+ * see if the block has been seen before. If its not found, the write proceeds
+ * as normal, and after it succeeds, a new entry is created. If it is found, we
+ * fill the BP with the DVAs from the entry, increment the refcount and cause
+ * the write IO to return immediately.
+ *
+ * Each ddt_phys_t slot in the entry represents a separate dedup block for the
+ * same content/checksum. The slot is selected based on the zp_copies parameter
+ * the block is written with, that is, the number of DVAs in the block. The
+ * "ditto" slot (DDT_PHYS_DITTO) used to be used for now-removed "dedupditto"
+ * feature. These are no longer written, and will be freed if encountered on
+ * old pools.
+ *
+ * ## Lifetime of an entry
+ *
+ * A DDT can be enormous, and typically is not held in memory all at once.
+ * Instead, the changes to an entry are tracked in memory, and written down to
+ * disk at the end of each txg.
+ *
+ * A "live" in-memory entry (ddt_entry_t) is a node on the live tree
+ * (ddt_tree).  At the start of a txg, ddt_tree is empty. When an entry is
+ * required for IO, ddt_lookup() is called. If an entry already exists on
+ * ddt_tree, it is returned. Otherwise, a new one is created, and the
+ * type/class objects for the DDT are searched for that key. If its found, its
+ * value is copied into the live entry. If not, an empty entry is created.
+ *
+ * The live entry will be modified during the txg, usually by modifying the
+ * refcount, but sometimes by adding or updating DVAs. At the end of the txg
+ * (during spa_sync()), type and class are recalculated for entry (see
+ * ddt_sync_entry()), and the entry is written to the appropriate storage
+ * object and (if necessary), removed from an old one. ddt_tree is cleared and
+ * the next txg can start.
+ *
+ * ## Repair IO
+ *
+ * If a read on a dedup block fails, but there are other copies of the block in
+ * the other ddt_phys_t slots, reads will be issued for those instead
+ * (zio_ddt_read_start()). If one of those succeeds, the read is returned to
+ * the caller, and a copy is stashed on the entry's dde_repair_abd.
+ *
+ * During the end-of-txg sync, any entries with a dde_repair_abd get a
+ * "rewrite" write issued for the original block pointer, with the data read
+ * from the alternate block. If the block is actually damaged, this will invoke
+ * the pool's "self-healing" mechanism, and repair the block.
+ *
+ * ## Scanning (scrub/resilver)
+ *
+ * If dedup is active, the scrub machinery will walk the dedup table first, and
+ * scrub all blocks with refcnt > 1 first. After that it will move on to the
+ * regular top-down scrub, and exclude the refcnt > 1 blocks when it sees them.
+ * In this way, heavily deduplicated blocks are only scrubbed once. See the
+ * commentary on dsl_scan_ddt() for more details.
+ *
+ * Walking the DDT is done via ddt_walk(). The current position is stored in a
+ * ddt_bookmark_t, which represents a stable position in the storage object.
+ * This bookmark is stored by the scan machinery, and must reference the same
+ * position on the object even if the object changes, the pool is exported, or
+ * OpenZFS is upgraded.
+ *
+ * ## Interaction with block cloning
+ *
+ * If block cloning and dedup are both enabled on a pool, BRT will look for the
+ * dedup bit on an incoming block pointer. If set, it will call into the DDT
+ * (ddt_addref()) to add a reference to the block, instead of adding a
+ * reference to the BRT. See brt_pending_apply().
+ */
 
 /*
  * These are the only checksums valid for dedup. They must match the list
