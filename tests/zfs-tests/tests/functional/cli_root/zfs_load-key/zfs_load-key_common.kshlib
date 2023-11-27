@@ -123,7 +123,10 @@ if not httpd:
 with open('$HTTPS_PORT_FILE', 'w') as portf:
 	print(port, file=portf)
 
-httpd.socket = ssl.wrap_socket(httpd.socket, server_side=True, keyfile='/$TESTPOOL/snakeoil.key', certfile='$SSL_CA_CERT_FILE', ssl_version=ssl.PROTOCOL_TLS)
+sslctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+sslctx.check_hostname = False
+sslctx.load_cert_chain(certfile='$SSL_CA_CERT_FILE', keyfile='/$TESTPOOL/snakeoil.key')
+httpd.socket = httpd.socket = sslctx.wrap_socket(httpd.socket, server_side=True)
 
 os.chdir('$STF_SUITE/tests/functional/cli_root/zfs_load-key')
 
