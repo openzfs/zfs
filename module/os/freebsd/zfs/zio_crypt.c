@@ -1251,7 +1251,7 @@ zio_crypt_init_uios_zil(boolean_t encrypt, uint8_t *plainbuf,
 	iovec_t *dst_iovecs;
 	zil_chain_t *zilc;
 	lr_t *lr;
-	uint64_t txtype, lr_len;
+	uint64_t txtype, lr_len, nused;
 	uint_t crypt_len, nr_iovecs, vec;
 	uint_t aad_len = 0, total_len = 0;
 
@@ -1268,7 +1268,10 @@ zio_crypt_init_uios_zil(boolean_t encrypt, uint8_t *plainbuf,
 	zilc = (zil_chain_t *)src;
 	slrp = src + sizeof (zil_chain_t);
 	aadp = aadbuf;
-	blkend = src + ((byteswap) ? BSWAP_64(zilc->zc_nused) : zilc->zc_nused);
+	nused = ((byteswap) ? BSWAP_64(zilc->zc_nused) : zilc->zc_nused);
+	ASSERT3U(nused, >=, sizeof (zil_chain_t));
+	ASSERT3U(nused, <=, datalen);
+	blkend = src + nused;
 
 	/*
 	 * Calculate the number of encrypted iovecs we will need.
@@ -1287,6 +1290,8 @@ zio_crypt_init_uios_zil(boolean_t encrypt, uint8_t *plainbuf,
 			txtype = lr->lrc_txtype;
 			lr_len = lr->lrc_reclen;
 		}
+		ASSERT3U(lr_len, >=, sizeof (lr_t));
+		ASSERT3U(lr_len, <=, blkend - slrp);
 
 		nr_iovecs++;
 		if (txtype == TX_WRITE && lr_len != sizeof (lr_write_t))

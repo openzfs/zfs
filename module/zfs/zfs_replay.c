@@ -309,6 +309,8 @@ zfs_replay_create_acl(void *arg1, void *arg2, boolean_t byteswap)
 	uint64_t dnodesize;
 	int error;
 
+	ASSERT3U(lr->lr_common.lrc_reclen, >=, sizeof (*lracl));
+
 	txtype = (lr->lr_common.lrc_txtype & ~TX_CI);
 	if (byteswap) {
 		byteswap_uint64_array(lracl, sizeof (*lracl));
@@ -470,6 +472,8 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 	uint64_t dnodesize;
 	int error;
 
+	ASSERT3U(lr->lr_common.lrc_reclen, >, sizeof (*lr));
+
 	txtype = (lr->lr_common.lrc_txtype & ~TX_CI);
 	if (byteswap) {
 		byteswap_uint64_array(lr, sizeof (*lr));
@@ -613,6 +617,8 @@ zfs_replay_remove(void *arg1, void *arg2, boolean_t byteswap)
 	int error;
 	int vflg = 0;
 
+	ASSERT3U(lr->lr_common.lrc_reclen, >, sizeof (*lr));
+
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
 
@@ -647,6 +653,8 @@ zfs_replay_link(void *arg1, void *arg2, boolean_t byteswap)
 	znode_t *dzp, *zp;
 	int error;
 	int vflg = 0;
+
+	ASSERT3U(lr->lr_common.lrc_reclen, >, sizeof (*lr));
 
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
@@ -715,12 +723,14 @@ zfs_replay_rename(void *arg1, void *arg2, boolean_t byteswap)
 {
 	zfsvfs_t *zfsvfs = arg1;
 	lr_rename_t *lr = arg2;
-	char *sname = (char *)(lr + 1);	/* sname and tname follow lr_rename_t */
-	char *tname = sname + strlen(sname) + 1;
+
+	ASSERT3U(lr->lr_common.lrc_reclen, >, sizeof (*lr));
 
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
 
+	char *sname = (char *)(lr + 1);	/* sname and tname follow lr_rename_t */
+	char *tname = sname + strlen(sname) + 1;
 	return (do_zfs_replay_rename(zfsvfs, lr, sname, tname, 0, NULL));
 }
 
@@ -730,12 +740,14 @@ zfs_replay_rename_exchange(void *arg1, void *arg2, boolean_t byteswap)
 #ifdef __linux__
 	zfsvfs_t *zfsvfs = arg1;
 	lr_rename_t *lr = arg2;
-	char *sname = (char *)(lr + 1);	/* sname and tname follow lr_rename_t */
-	char *tname = sname + strlen(sname) + 1;
+
+	ASSERT3U(lr->lr_common.lrc_reclen, >, sizeof (*lr));
 
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
 
+	char *sname = (char *)(lr + 1);	/* sname and tname follow lr_rename_t */
+	char *tname = sname + strlen(sname) + 1;
 	return (do_zfs_replay_rename(zfsvfs, lr, sname, tname, RENAME_EXCHANGE,
 	    NULL));
 #else
@@ -750,13 +762,12 @@ zfs_replay_rename_whiteout(void *arg1, void *arg2, boolean_t byteswap)
 	zfsvfs_t *zfsvfs = arg1;
 	lr_rename_whiteout_t *lr = arg2;
 	int error;
-	/* sname and tname follow lr_rename_whiteout_t */
-	char *sname = (char *)(lr + 1);
-	char *tname = sname + strlen(sname) + 1;
 	/* For the whiteout file. */
 	xvattr_t xva;
 	uint64_t objid;
 	uint64_t dnodesize;
+
+	ASSERT3U(lr->lr_rename.lr_common.lrc_reclen, >, sizeof (*lr));
 
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
@@ -783,6 +794,9 @@ zfs_replay_rename_whiteout(void *arg1, void *arg2, boolean_t byteswap)
 	if (error)
 		return (error);
 
+	/* sname and tname follow lr_rename_whiteout_t */
+	char *sname = (char *)(lr + 1);
+	char *tname = sname + strlen(sname) + 1;
 	return (do_zfs_replay_rename(zfsvfs, &lr->lr_rename, sname, tname,
 	    RENAME_WHITEOUT, &xva.xva_vattr));
 #else
@@ -799,6 +813,8 @@ zfs_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 	znode_t	*zp;
 	int error;
 	uint64_t eod, offset, length;
+
+	ASSERT3U(lr->lr_common.lrc_reclen, >=, sizeof (*lr));
 
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
@@ -863,6 +879,8 @@ zfs_replay_write2(void *arg1, void *arg2, boolean_t byteswap)
 	int error;
 	uint64_t end;
 
+	ASSERT3U(lr->lr_common.lrc_reclen, >=, sizeof (*lr));
+
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
 
@@ -910,6 +928,8 @@ zfs_replay_truncate(void *arg1, void *arg2, boolean_t byteswap)
 	flock64_t fl = {0};
 	int error;
 
+	ASSERT3U(lr->lr_common.lrc_reclen, >=, sizeof (*lr));
+
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
 
@@ -939,6 +959,8 @@ zfs_replay_setattr(void *arg1, void *arg2, boolean_t byteswap)
 	vattr_t *vap = &xva.xva_vattr;
 	int error;
 	void *start;
+
+	ASSERT3U(lr->lr_common.lrc_reclen, >=, sizeof (*lr));
 
 	xva_init(&xva);
 	if (byteswap) {
@@ -1001,6 +1023,9 @@ zfs_replay_setsaxattr(void *arg1, void *arg2, boolean_t byteswap)
 	char *value;
 	size_t size;
 	int error = 0;
+
+	ASSERT3U(lr->lr_common.lrc_reclen, >=, sizeof (*lr));
+	ASSERT3U(lr->lr_common.lrc_reclen, >, sizeof (*lr) + lr->lr_size);
 
 	ASSERT(spa_feature_is_active(zfsvfs->z_os->os_spa,
 	    SPA_FEATURE_ZILSAXATTR));
@@ -1079,6 +1104,10 @@ zfs_replay_acl_v0(void *arg1, void *arg2, boolean_t byteswap)
 	znode_t *zp;
 	int error;
 
+	ASSERT3U(lr->lr_common.lrc_reclen, >=, sizeof (*lr));
+	ASSERT3U(lr->lr_common.lrc_reclen, >=, sizeof (*lr) +
+	    sizeof (ace_t) * lr->lr_aclcnt);
+
 	if (byteswap) {
 		byteswap_uint64_array(lr, sizeof (*lr));
 		zfs_oldace_byteswap(ace, lr->lr_aclcnt);
@@ -1123,6 +1152,9 @@ zfs_replay_acl(void *arg1, void *arg2, boolean_t byteswap)
 	vsecattr_t vsa = {0};
 	znode_t *zp;
 	int error;
+
+	ASSERT3U(lr->lr_common.lrc_reclen, >=, sizeof (*lr));
+	ASSERT3U(lr->lr_common.lrc_reclen, >=, sizeof (*lr) + lr->lr_acl_bytes);
 
 	if (byteswap) {
 		byteswap_uint64_array(lr, sizeof (*lr));
@@ -1170,6 +1202,10 @@ zfs_replay_clone_range(void *arg1, void *arg2, boolean_t byteswap)
 	lr_clone_range_t *lr = arg2;
 	znode_t *zp;
 	int error;
+
+	ASSERT3U(lr->lr_common.lrc_reclen, >=, sizeof (*lr));
+	ASSERT3U(lr->lr_common.lrc_reclen, >=, offsetof(lr_clone_range_t,
+	    lr_bps[lr->lr_nbps]));
 
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
