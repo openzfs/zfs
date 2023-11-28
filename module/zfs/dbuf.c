@@ -2715,15 +2715,23 @@ dmu_buf_will_clone(dmu_buf_t *db_fake, dmu_tx_t *tx)
 	 * writes and clones into this block.
 	 */
 	mutex_enter(&db->db_mtx);
+	DBUF_VERIFY(db);
 	VERIFY(!dbuf_undirty(db, tx));
 	ASSERT0P(dbuf_find_dirty_eq(db, tx->tx_txg));
 	if (db->db_buf != NULL) {
 		arc_buf_destroy(db->db_buf, db);
 		db->db_buf = NULL;
+		dbuf_clear_data(db);
 	}
+
+	db->db_state = DB_NOFILL;
+	DTRACE_SET_STATE(db, "allocating NOFILL buffer for clone");
+
+	DBUF_VERIFY(db);
 	mutex_exit(&db->db_mtx);
 
-	dmu_buf_will_not_fill(db_fake, tx);
+	dbuf_noread(db);
+	(void) dbuf_dirty(db, tx);
 }
 
 void
