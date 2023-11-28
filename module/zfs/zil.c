@@ -514,6 +514,7 @@ zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
 			lr_t *lr = (lr_t *)lrp;
 			reclen = lr->lrc_reclen;
 			ASSERT3U(reclen, >=, sizeof (lr_t));
+			ASSERT3U(reclen, <=, end - lrp);
 			if (lr->lrc_seq > claim_lr_seq) {
 				arc_buf_destroy(abuf, &abuf);
 				goto done;
@@ -596,7 +597,7 @@ zil_claim_write(zilog_t *zilog, const lr_t *lrc, void *tx, uint64_t first_txg)
 	lr_write_t *lr = (lr_write_t *)lrc;
 	int error;
 
-	ASSERT(lrc->lrc_txtype == TX_WRITE);
+	ASSERT3U(lrc->lrc_reclen, >=, sizeof (*lr));
 
 	/*
 	 * If the block is not readable, don't claim it.  This can happen
@@ -623,7 +624,9 @@ zil_claim_clone_range(zilog_t *zilog, const lr_t *lrc, void *tx)
 	spa_t *spa;
 	uint_t ii;
 
-	ASSERT(lrc->lrc_txtype == TX_CLONE_RANGE);
+	ASSERT3U(lrc->lrc_reclen, >=, sizeof (*lr));
+	ASSERT3U(lrc->lrc_reclen, >=, offsetof(lr_clone_range_t,
+	    lr_bps[lr->lr_nbps]));
 
 	if (tx == NULL) {
 		return (0);
@@ -683,7 +686,7 @@ zil_free_write(zilog_t *zilog, const lr_t *lrc, void *tx, uint64_t claim_txg)
 	lr_write_t *lr = (lr_write_t *)lrc;
 	blkptr_t *bp = &lr->lr_blkptr;
 
-	ASSERT(lrc->lrc_txtype == TX_WRITE);
+	ASSERT3U(lrc->lrc_reclen, >=, sizeof (*lr));
 
 	/*
 	 * If we previously claimed it, we need to free it.
@@ -704,7 +707,9 @@ zil_free_clone_range(zilog_t *zilog, const lr_t *lrc, void *tx)
 	spa_t *spa;
 	uint_t ii;
 
-	ASSERT(lrc->lrc_txtype == TX_CLONE_RANGE);
+	ASSERT3U(lrc->lrc_reclen, >=, sizeof (*lr));
+	ASSERT3U(lrc->lrc_reclen, >=, offsetof(lr_clone_range_t,
+	    lr_bps[lr->lr_nbps]));
 
 	if (tx == NULL) {
 		return (0);
@@ -1786,6 +1791,7 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 	    itx = list_next(&lwb->lwb_itxs, itx))
 		zil_lwb_commit(zilog, lwb, itx);
 	lwb->lwb_nused = lwb->lwb_nfilled;
+	ASSERT3U(lwb->lwb_nused, <=, lwb->lwb_nmax);
 
 	lwb->lwb_root_zio = zio_root(spa, zil_lwb_flush_vdevs_done, lwb,
 	    ZIO_FLAG_CANFAIL);
@@ -2015,13 +2021,16 @@ zil_lwb_assign(zilog_t *zilog, lwb_t *lwb, itx_t *itx, list_t *ilwbs)
 		return (lwb);
 	}
 
+	reclen = lr->lrc_reclen;
 	if (lr->lrc_txtype == TX_WRITE && itx->itx_wr_state == WR_NEED_COPY) {
+		ASSERT3U(reclen, ==, sizeof (lr_write_t));
 		dlen = P2ROUNDUP_TYPED(
 		    lrw->lr_length, sizeof (uint64_t), uint64_t);
 	} else {
+		ASSERT3U(reclen, >=, sizeof (lr_t));
 		dlen = 0;
 	}
-	reclen = lr->lrc_reclen;
+	ASSERT3U(reclen, <=, zil_max_log_data(zilog, 0));
 	zilog->zl_cur_used += (reclen + dlen);
 
 cont:
@@ -2040,18 +2049,18 @@ cont:
 		if (lwb == NULL)
 			return (NULL);
 		lwb_sp = lwb->lwb_nmax - lwb->lwb_nused;
-
-		/*
-		 * There must be enough space in the new, empty log block to
-		 * hold reclen.  For WR_COPIED, we need to fit the whole
-		 * record in one block, and reclen is the header size + the
-		 * data size. For WR_NEED_COPY, we can create multiple
-		 * records, splitting the data into multiple blocks, so we
-		 * only need to fit one word of data per block; in this case
-		 * reclen is just the header size (no data).
-		 */
-		ASSERT3U(reclen + MIN(dlen, sizeof (uint64_t)), <=, lwb_sp);
 	}
+
+	/*
+	 * There must be enough space in the log block to hold reclen.
+	 * For WR_COPIED, we need to fit the whole record in one block,
+	 * and reclen is the write record header size + the data size.
+	 * For WR_NEED_COPY, we can create multiple records, splitting
+	 * the data into multiple blocks, so we only need to fit one
+	 * word of data per block; in this case reclen is just the header
+	 * size (no data).
+	 */
+	ASSERT3U(reclen + MIN(dlen, sizeof (uint64_t)), <=, lwb_sp);
 
 	dnow = MIN(dlen, lwb_sp - reclen);
 	if (dlen > dnow) {
@@ -2228,7 +2237,9 @@ zil_itx_create(uint64_t txtype, size_t olrsize)
 	size_t itxsize, lrsize;
 	itx_t *itx;
 
+	ASSERT3U(olrsize, >=, sizeof (lr_t));
 	lrsize = P2ROUNDUP_TYPED(olrsize, sizeof (uint64_t), size_t);
+	ASSERT3U(lrsize, >=, olrsize);
 	itxsize = offsetof(itx_t, itx_lr) + lrsize;
 
 	itx = zio_data_buf_alloc(itxsize);
@@ -2247,6 +2258,10 @@ zil_itx_create(uint64_t txtype, size_t olrsize)
 static itx_t *
 zil_itx_clone(itx_t *oitx)
 {
+	ASSERT3U(oitx->itx_size, >=, sizeof (itx_t));
+	ASSERT3U(oitx->itx_size, ==,
+	    offsetof(itx_t, itx_lr) + oitx->itx_lr.lrc_reclen);
+
 	itx_t *itx = zio_data_buf_alloc(oitx->itx_size);
 	memcpy(itx, oitx, oitx->itx_size);
 	itx->itx_callback = NULL;
@@ -2257,6 +2272,9 @@ zil_itx_clone(itx_t *oitx)
 void
 zil_itx_destroy(itx_t *itx)
 {
+	ASSERT3U(itx->itx_size, >=, sizeof (itx_t));
+	ASSERT3U(itx->itx_lr.lrc_reclen, ==,
+	    itx->itx_size - offsetof(itx_t, itx_lr));
 	IMPLY(itx->itx_lr.lrc_txtype == TX_COMMIT, itx->itx_callback == NULL);
 	IMPLY(itx->itx_callback != NULL, itx->itx_lr.lrc_txtype != TX_COMMIT);
 
@@ -2340,7 +2358,7 @@ void
 zil_remove_async(zilog_t *zilog, uint64_t oid)
 {
 	uint64_t otxg, txg;
-	itx_async_node_t *ian;
+	itx_async_node_t *ian, ian_search;
 	avl_tree_t *t;
 	avl_index_t where;
 	list_t clean_list;
@@ -2367,7 +2385,8 @@ zil_remove_async(zilog_t *zilog, uint64_t oid)
 		 * Locate the object node and append its list.
 		 */
 		t = &itxg->itxg_itxs->i_async_tree;
-		ian = avl_find(t, &oid, &where);
+		ian_search.ia_foid = oid;
+		ian = avl_find(t, &ian_search, &where);
 		if (ian != NULL)
 			list_move_tail(&clean_list, &ian->ia_list);
 		mutex_exit(&itxg->itxg_lock);
@@ -2565,7 +2584,7 @@ void
 zil_async_to_sync(zilog_t *zilog, uint64_t foid)
 {
 	uint64_t otxg, txg;
-	itx_async_node_t *ian;
+	itx_async_node_t *ian, ian_search;
 	avl_tree_t *t;
 	avl_index_t where;
 
@@ -2595,7 +2614,8 @@ zil_async_to_sync(zilog_t *zilog, uint64_t foid)
 		 */
 		t = &itxg->itxg_itxs->i_async_tree;
 		if (foid != 0) {
-			ian = avl_find(t, &foid, &where);
+			ian_search.ia_foid = foid;
+			ian = avl_find(t, &ian_search, &where);
 			if (ian != NULL) {
 				list_move_tail(&itxg->itxg_itxs->i_sync_list,
 				    &ian->ia_list);

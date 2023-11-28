@@ -446,6 +446,8 @@ zvol_replay_truncate(void *arg1, void *arg2, boolean_t byteswap)
 	lr_truncate_t *lr = arg2;
 	uint64_t offset, length;
 
+	ASSERT3U(lr->lr_common.lrc_reclen, >=, sizeof (*lr));
+
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
 
@@ -481,6 +483,8 @@ zvol_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 	uint64_t offset, length;
 	dmu_tx_t *tx;
 	int error;
+
+	ASSERT3U(lr->lr_common.lrc_reclen, >=, sizeof (*lr));
 
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
@@ -534,6 +538,10 @@ zvol_replay_clone_range(void *arg1, void *arg2, boolean_t byteswap)
 	spa_t *spa;
 	uint_t ii;
 	int error;
+
+	ASSERT3U(lr->lr_common.lrc_reclen, >=, sizeof (*lr));
+	ASSERT3U(lr->lr_common.lrc_reclen, >=, offsetof(lr_clone_range_t,
+	    lr_bps[lr->lr_nbps]));
 
 	dmu_objset_name(os, name);
 	cmn_err(CE_WARN, "ZFS dropping block cloning transaction for %s.",
