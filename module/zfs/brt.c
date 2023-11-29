@@ -235,13 +235,13 @@
  * destination dataset is mounted and its ZIL replayed.
  * To address this situation we leverage zil_claim() mechanism where ZFS will
  * parse all the ZILs on pool import. When we come across TX_CLONE_RANGE
- * entries, we will bump reference counters for their BPs in the BRT and then
- * on mount and ZIL replay we will just attach BPs to the file without
- * bumping reference counters.
- * Note it is still possible that after zil_claim() we never mount the
- * destination, so we never replay its ZIL and we destroy it. This way we would
- * end up with leaked references in BRT. We address that too as ZFS gives us
- * a chance to clean this up on dataset destroy (see zil_free_clone_range()).
+ * entries, we will bump reference counters for their BPs in the BRT.  Then
+ * on mount and ZIL replay we bump the reference counters once more, while the
+ * first references are dropped during ZIL destroy by zil_free_clone_range().
+ * It is possible that after zil_claim() we never mount the destination, so
+ * we never replay its ZIL and just destroy it.  In this case the only taken
+ * references will be dropped by zil_free_clone_range(), since the cloning is
+ * not going to ever take place.
  */
 
 static kmem_cache_t *brt_entry_cache;
