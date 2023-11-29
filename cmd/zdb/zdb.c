@@ -2126,14 +2126,14 @@ dump_brt(spa_t *spa)
 			continue;
 
 		if (!brtvd->bv_initiated) {
-			printf("BRT: vdev %lu: empty\n", vdevid);
+			printf("BRT: vdev %" PRIu64 ": empty\n", vdevid);
 			continue;
 		}
 
 		zdb_nicenum(brtvd->bv_totalcount, count, sizeof (count));
 		zdb_nicebytes(brtvd->bv_usedspace, used, sizeof (used));
 		zdb_nicebytes(brtvd->bv_savedspace, saved, sizeof (saved));
-		printf("BRT: vdev %lu: refcnt %s; used %s; saved %s\n",
+		printf("BRT: vdev %" PRIu64 ": refcnt %s; used %s; saved %s\n",
 		    vdevid, count, used, saved);
 	}
 
@@ -2156,7 +2156,7 @@ dump_brt(spa_t *spa)
 			uint64_t offset = *(uint64_t *)za.za_name;
 			uint64_t refcnt = za.za_first_integer;
 
-			snprintf(dva, sizeof (dva), "%lu:%llx", vdevid,
+			snprintf(dva, sizeof (dva), "%" PRIu64 ":%llx", vdevid,
 			    (u_longlong_t)offset);
 			printf("%-16s %-10llu\n", dva, (u_longlong_t)refcnt);
 		}
