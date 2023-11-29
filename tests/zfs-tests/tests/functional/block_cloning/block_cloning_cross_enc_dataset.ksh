@@ -39,17 +39,19 @@ log_assert $claim
 
 DS1="$TESTPOOL/encrypted1"
 DS2="$TESTPOOL/encrypted2"
+DS1_NC="$TESTPOOL/notcrypted1"
 PASSPHRASE="top_secret"
 
 function prepare_enc
 {
     log_must zpool create -o feature@block_cloning=enabled $TESTPOOL $DISKS
     log_must eval "echo $PASSPHRASE | zfs create -o encryption=on" \
-	    "-o keyformat=passphrase $DS1"
+	    "-o keyformat=passphrase -o keylocation=prompt $DS1"
     log_must eval "echo $PASSPHRASE | zfs create -o encryption=on" \
 	    "-o keyformat=passphrase -o keylocation=prompt $DS2"
     log_must zfs create $DS1/child1
     log_must zfs create $DS1/child2
+    log_must zfs create $DS1_NC
 
     log_note "Create test file"
     # we must wait until the src file txg is written to the disk otherwise we
@@ -58,6 +60,7 @@ function prepare_enc
     # "zfs/module/zfs/zfs_vnops.c"
     log_must dd if=/dev/urandom of=/$DS1/file bs=128K count=4
     log_must dd if=/dev/urandom of=/$DS1/child1/file bs=128K count=4
+    log_must dd if=/dev/urandom of=/$DS1_NC/file bs=128K count=4
     log_must sync_pool $TESTPOOL
 }
 
@@ -149,6 +152,18 @@ log_must zfs destroy -r $DS2@s1
 log_must sync_pool $TESTPOOL
 typeset hash2=$(md5digest "/$DS1/file")
 log_must [ "$hash1" = "$hash2" ]
+
+cleanup_enc
+prepare_enc
+
+log_note "Copying with copy_file_range from non encrypted to encrypted"
+clone_and_check "file" "copy" $DS1_NC $DS1 "" true
+
+cleanup_enc
+prepare_enc
+
+log_note "Copying with copy_file_range from encrypted to non encrypted"
+clone_and_check "file" "copy" $DS1 $DS1_NC "" true
 
 log_must sync_pool $TESTPOOL
 
