@@ -617,11 +617,12 @@ zil_claim_write(zilog_t *zilog, const lr_t *lrc, void *tx, uint64_t first_txg)
 }
 
 static int
-zil_claim_clone_range(zilog_t *zilog, const lr_t *lrc, void *tx)
+zil_claim_clone_range(zilog_t *zilog, const lr_t *lrc, void *tx,
+    uint64_t first_txg)
 {
 	const lr_clone_range_t *lr = (const lr_clone_range_t *)lrc;
 	const blkptr_t *bp;
-	spa_t *spa;
+	spa_t *spa = zilog->zl_spa;
 	uint_t ii;
 
 	ASSERT3U(lrc->lrc_reclen, >=, sizeof (*lr));
@@ -636,19 +637,36 @@ zil_claim_clone_range(zilog_t *zilog, const lr_t *lrc, void *tx)
 	 * XXX: Do we need to byteswap lr?
 	 */
 
-	spa = zilog->zl_spa;
-
 	for (ii = 0; ii < lr->lr_nbps; ii++) {
 		bp = &lr->lr_bps[ii];
 
 		/*
-		 * When data in embedded into BP there is no need to create
-		 * BRT entry as there is no data block. Just copy the BP as
-		 * it contains the data.
+		 * When data is embedded into the BP there is no need to create
+		 * BRT entry as there is no data block.  Just copy the BP as it
+		 * contains the data.
 		 */
-		if (!BP_IS_HOLE(bp) && !BP_IS_EMBEDDED(bp)) {
+		if (BP_IS_HOLE(bp) || BP_IS_EMBEDDED(bp))
+			continue;
+
+		/*
+		 * We can not handle block pointers from the future, since they
+		 * are not yet allocated.  It should not normally happen, but
+		 * just in case lets be safe and just stop here now instead of
+		 * corrupting the pool.
+		 */
+		if (BP_PHYSICAL_BIRTH(bp) >= first_txg)
+			return (SET_ERROR(ENOENT));
+
+		/*
+		 * Assert the block is really allocated before we reference it.
+		 */
+		metaslab_check_free(spa, bp);
+	}
+
+	for (ii = 0; ii < lr->lr_nbps; ii++) {
+		bp = &lr->lr_bps[ii];
+		if (!BP_IS_HOLE(bp) && !BP_IS_EMBEDDED(bp))
 			brt_pending_add(spa, bp, tx);
-		}
 	}
 
 	return (0);
@@ -663,7 +681,7 @@ zil_claim_log_record(zilog_t *zilog, const lr_t *lrc, void *tx,
 	case TX_WRITE:
 		return (zil_claim_write(zilog, lrc, tx, first_txg));
 	case TX_CLONE_RANGE:
-		return (zil_claim_clone_range(zilog, lrc, tx));
+		return (zil_claim_clone_range(zilog, lrc, tx, first_txg));
 	default:
 		return (0);
 	}
