@@ -597,6 +597,7 @@ zpool_label_disk_wait(const char *path, int timeout_ms)
 	int settle_ms = 50;
 	long sleep_ms = 10;
 	hrtime_t start, settle;
+	boolean_t c = B_TRUE;
 
 	if ((udev = udev_new()) == NULL)
 		return (ENXIO);
@@ -650,7 +651,11 @@ zpool_label_disk_wait(const char *path, int timeout_ms)
 		udev_device_unref(dev);
 		(void) usleep(sleep_ms * MILLISEC);
 
-	} while (NSEC2MSEC(gethrtime() - start) < timeout_ms);
+	} while ((c = (NSEC2MSEC(gethrtime() - start) < timeout_ms)));
+
+	if (c == B_FALSE)
+		fprintf(stderr, "error: %s",
+		    "ZPOOL_IMPORT_UDEV_TIMEOUT_MS exceeded\n");
 
 	udev_unref(udev);
 
