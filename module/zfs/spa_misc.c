@@ -426,6 +426,8 @@ spa_load_note(spa_t *spa, const char *fmt, ...)
 
 	zfs_dbgmsg("spa_load(%s, config %s): %s", spa->spa_name,
 	    spa->spa_trust_config ? "trusted" : "untrusted", buf);
+
+	spa_import_progress_set_notes_nolog(spa, "%s", buf);
 }
 
 /*
@@ -2184,6 +2186,7 @@ typedef struct spa_import_progress {
 	uint64_t		pool_guid;	/* unique id for updates */
 	char			*pool_name;
 	spa_load_state_t	spa_load_state;
+	char			*spa_load_notes;
 	uint64_t		mmp_sec_remaining;	/* MMP activity check */
 	uint64_t		spa_load_max_txg;	/* rewind txg */
 	procfs_list_node_t	smh_node;
@@ -2194,9 +2197,9 @@ spa_history_list_t *spa_import_progress_list = NULL;
 static int
 spa_import_progress_show_header(struct seq_file *f)
 {
-	seq_printf(f, "%-20s %-14s %-14s %-12s %s\n", "pool_guid",
+	seq_printf(f, "%-20s %-14s %-14s %-12s %-16s %s\n", "pool_guid",
 	    "load_state", "multihost_secs", "max_txg",
-	    "pool_name");
+	    "pool_name", "notes");
 	return (0);
 }
 
@@ -2205,11 +2208,12 @@ spa_import_progress_show(struct seq_file *f, void *data)
 {
 	spa_import_progress_t *sip = (spa_import_progress_t *)data;
 
-	seq_printf(f, "%-20llu %-14llu %-14llu %-12llu %s\n",
+	seq_printf(f, "%-20llu %-14llu %-14llu %-12llu %-16s %s\n",
 	    (u_longlong_t)sip->pool_guid, (u_longlong_t)sip->spa_load_state,
 	    (u_longlong_t)sip->mmp_sec_remaining,
 	    (u_longlong_t)sip->spa_load_max_txg,
-	    (sip->pool_name ? sip->pool_name : "-"));
+	    (sip->pool_name ? sip->pool_name : "-"),
+	    (sip->spa_load_notes ? sip->spa_load_notes : "-"));
 
 	return (0);
 }
@@ -2223,6 +2227,8 @@ spa_import_progress_truncate(spa_history_list_t *shl, unsigned int size)
 		sip = list_remove_head(&shl->procfs_list.pl_list);
 		if (sip->pool_name)
 			spa_strfree(sip->pool_name);
+		if (sip->spa_load_notes)
+			kmem_strfree(sip->spa_load_notes);
 		kmem_free(sip, sizeof (spa_import_progress_t));
 		shl->size--;
 	}
@@ -2278,6 +2284,10 @@ spa_import_progress_set_state(uint64_t pool_guid,
 	    sip = list_prev(&shl->procfs_list.pl_list, sip)) {
 		if (sip->pool_guid == pool_guid) {
 			sip->spa_load_state = load_state;
+			if (sip->spa_load_notes != NULL) {
+				kmem_strfree(sip->spa_load_notes);
+				sip->spa_load_notes = NULL;
+			}
 			error = 0;
 			break;
 		}
@@ -2285,6 +2295,59 @@ spa_import_progress_set_state(uint64_t pool_guid,
 	mutex_exit(&shl->procfs_list.pl_lock);
 
 	return (error);
+}
+
+static void
+spa_import_progress_set_notes_impl(spa_t *spa, boolean_t log_dbgmsg,
+    const char *fmt, va_list adx)
+{
+	spa_history_list_t *shl = spa_import_progress_list;
+	spa_import_progress_t *sip;
+	uint64_t pool_guid = spa_guid(spa);
+
+	if (shl->size == 0)
+		return;
+
+	char *notes = kmem_vasprintf(fmt, adx);
+
+	mutex_enter(&shl->procfs_list.pl_lock);
+	for (sip = list_tail(&shl->procfs_list.pl_list); sip != NULL;
+	    sip = list_prev(&shl->procfs_list.pl_list, sip)) {
+		if (sip->pool_guid == pool_guid) {
+			if (sip->spa_load_notes != NULL) {
+				kmem_strfree(sip->spa_load_notes);
+				sip->spa_load_notes = NULL;
+			}
+			sip->spa_load_notes = notes;
+			if (log_dbgmsg)
+				zfs_dbgmsg("'%s' %s", sip->pool_name, notes);
+			notes = NULL;
+			break;
+		}
+	}
+	mutex_exit(&shl->procfs_list.pl_lock);
+	if (notes != NULL)
+		kmem_strfree(notes);
+}
+
+void
+spa_import_progress_set_notes(spa_t *spa, const char *fmt, ...)
+{
+	va_list adx;
+
+	va_start(adx, fmt);
+	spa_import_progress_set_notes_impl(spa, B_TRUE, fmt, adx);
+	va_end(adx);
+}
+
+void
+spa_import_progress_set_notes_nolog(spa_t *spa, const char *fmt, ...)
+{
+	va_list adx;
+
+	va_start(adx, fmt);
+	spa_import_progress_set_notes_impl(spa, B_FALSE, fmt, adx);
+	va_end(adx);
 }
 
 int
@@ -2355,6 +2418,7 @@ spa_import_progress_add(spa_t *spa)
 		poolname = spa_name(spa);
 	sip->pool_name = spa_strdup(poolname);
 	sip->spa_load_state = spa_load_state(spa);
+	sip->spa_load_notes = NULL;
 
 	mutex_enter(&shl->procfs_list.pl_lock);
 	procfs_list_add(&shl->procfs_list, sip);
@@ -2374,6 +2438,8 @@ spa_import_progress_remove(uint64_t pool_guid)
 		if (sip->pool_guid == pool_guid) {
 			if (sip->pool_name)
 				spa_strfree(sip->pool_name);
+			if (sip->spa_load_notes)
+				spa_strfree(sip->spa_load_notes);
 			list_remove(&shl->procfs_list.pl_list, sip);
 			shl->size--;
 			kmem_free(sip, sizeof (spa_import_progress_t));

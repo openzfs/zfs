@@ -425,7 +425,8 @@ tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'import_devices_missing', 'import_log_missing',
     'import_paths_changed',
     'import_rewind_config_changed',
-    'import_rewind_device_replaced']
+    'import_rewind_device_replaced',
+    'zpool_import_status']
 tags = ['functional', 'cli_root', 'zpool_import']
 timeout = 1200
 
