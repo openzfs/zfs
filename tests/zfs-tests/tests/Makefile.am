@@ -452,6 +452,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/block_cloning/block_cloning_ficlonerange.ksh \
 	functional/block_cloning/block_cloning_ficlonerange_partial.ksh \
 	functional/block_cloning/block_cloning_cross_enc_dataset.ksh \
+	functional/block_cloning/block_cloning_replay.ksh \
+	functional/block_cloning/block_cloning_replay_encrypted.ksh \
 	functional/bootfs/bootfs_001_pos.ksh \
 	functional/bootfs/bootfs_002_neg.ksh \
 	functional/bootfs/bootfs_003_pos.ksh \
