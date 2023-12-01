@@ -515,64 +515,6 @@ zvol_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 	return (error);
 }
 
-/*
- * Replay a TX_CLONE_RANGE ZIL transaction that didn't get committed
- * after a system failure.
- *
- * TODO: For now we drop block cloning transations for ZVOLs as they are
- *       unsupported, but we still need to inform BRT about that as we
- *       claimed them during pool import.
- *       This situation can occur when we try to import a pool from a ZFS
- *       version supporting block cloning for ZVOLs into a system that
- *       has this ZFS version, that doesn't support block cloning for ZVOLs.
- */
-static int
-zvol_replay_clone_range(void *arg1, void *arg2, boolean_t byteswap)
-{
-	char name[ZFS_MAX_DATASET_NAME_LEN];
-	zvol_state_t *zv = arg1;
-	objset_t *os = zv->zv_objset;
-	lr_clone_range_t *lr = arg2;
-	blkptr_t *bp;
-	dmu_tx_t *tx;
-	spa_t *spa;
-	uint_t ii;
-	int error;
-
-	ASSERT3U(lr->lr_common.lrc_reclen, >=, sizeof (*lr));
-	ASSERT3U(lr->lr_common.lrc_reclen, >=, offsetof(lr_clone_range_t,
-	    lr_bps[lr->lr_nbps]));
-
-	dmu_objset_name(os, name);
-	cmn_err(CE_WARN, "ZFS dropping block cloning transaction for %s.",
-	    name);
-
-	if (byteswap)
-		byteswap_uint64_array(lr, sizeof (*lr));
-
-	tx = dmu_tx_create(os);
-	error = dmu_tx_assign(tx, TXG_WAIT);
-	if (error) {
-		dmu_tx_abort(tx);
-		return (error);
-	}
-
-	spa = os->os_spa;
-
-	for (ii = 0; ii < lr->lr_nbps; ii++) {
-		bp = &lr->lr_bps[ii];
-
-		if (!BP_IS_HOLE(bp)) {
-			zio_free(spa, dmu_tx_get_txg(tx), bp);
-		}
-	}
-
-	(void) zil_replaying(zv->zv_zilog, tx);
-	dmu_tx_commit(tx);
-
-	return (0);
-}
-
 static int
 zvol_replay_err(void *arg1, void *arg2, boolean_t byteswap)
 {
@@ -607,7 +549,7 @@ zil_replay_func_t *const zvol_replay_vector[TX_MAX_TYPE] = {
 	zvol_replay_err,	/* TX_SETSAXATTR */
 	zvol_replay_err,	/* TX_RENAME_EXCHANGE */
 	zvol_replay_err,	/* TX_RENAME_WHITEOUT */
-	zvol_replay_clone_range	/* TX_CLONE_RANGE */
+	zvol_replay_err,	/* TX_CLONE_RANGE */
 };
 
 /*
