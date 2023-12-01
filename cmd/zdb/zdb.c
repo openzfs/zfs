@@ -34,6 +34,7 @@
  * Copyright (c) 2021 Allan Jude
  * Copyright (c) 2021 Toomas Soome <tsoome@me.com>
  * Copyright (c) 2023, Klara Inc.
+ * Copyright (c) 2023, Rob Norris <robn@despairlabs.com>
  */
 
 #include <stdio.h>
@@ -80,6 +81,7 @@
 #include <sys/dsl_scan.h>
 #include <sys/btree.h>
 #include <sys/brt.h>
+#include <sys/brt_impl.h>
 #include <zfs_comutil.h>
 #include <sys/zstd/zstd.h>
 
@@ -899,6 +901,8 @@ usage(void)
 	    "don't print label contents\n");
 	(void) fprintf(stderr, "        -t --txg=INTEGER             "
 	    "highest txg to use when searching for uberblocks\n");
+	(void) fprintf(stderr, "        -T --brt-stats               "
+	    "BRT statistics\n");
 	(void) fprintf(stderr, "        -u --uberblock               "
 	    "uberblock\n");
 	(void) fprintf(stderr, "        -U --cachefile=PATH          "
@@ -997,6 +1001,15 @@ zdb_nicenum(uint64_t num, char *buf, size_t buflen)
 		(void) snprintf(buf, buflen, "%llu", (longlong_t)num);
 	else
 		nicenum(num, buf, buflen);
+}
+
+static void
+zdb_nicebytes(uint64_t bytes, char *buf, size_t buflen)
+{
+	if (dump_opt['P'])
+		(void) snprintf(buf, buflen, "%llu", (longlong_t)bytes);
+	else
+		zfs_nicebytes(bytes, buf, buflen);
 }
 
 static const char histo_stars[] = "****************************************";
@@ -2079,6 +2092,76 @@ dump_all_ddts(spa_t *spa)
 	}
 
 	dump_dedup_ratio(&dds_total);
+}
+
+static void
+dump_brt(spa_t *spa)
+{
+	if (!spa_feature_is_enabled(spa, SPA_FEATURE_BLOCK_CLONING)) {
+		printf("BRT: unsupported on this pool\n");
+		return;
+	}
+
+	if (!spa_feature_is_active(spa, SPA_FEATURE_BLOCK_CLONING)) {
+		printf("BRT: empty\n");
+		return;
+	}
+
+	brt_t *brt = spa->spa_brt;
+	VERIFY(brt);
+
+	char count[32], used[32], saved[32];
+	zdb_nicebytes(brt_get_used(spa), used, sizeof (used));
+	zdb_nicebytes(brt_get_saved(spa), saved, sizeof (saved));
+	uint64_t ratio = brt_get_ratio(spa);
+	printf("BRT: used %s; saved %s; ratio %llu.%02llux\n", used, saved,
+	    (u_longlong_t)(ratio / 100), (u_longlong_t)(ratio % 100));
+
+	if (dump_opt['T'] < 2)
+		return;
+
+	for (uint64_t vdevid = 0; vdevid < brt->brt_nvdevs; vdevid++) {
+		brt_vdev_t *brtvd = &brt->brt_vdevs[vdevid];
+		if (brtvd == NULL)
+			continue;
+
+		if (!brtvd->bv_initiated) {
+			printf("BRT: vdev %" PRIu64 ": empty\n", vdevid);
+			continue;
+		}
+
+		zdb_nicenum(brtvd->bv_totalcount, count, sizeof (count));
+		zdb_nicebytes(brtvd->bv_usedspace, used, sizeof (used));
+		zdb_nicebytes(brtvd->bv_savedspace, saved, sizeof (saved));
+		printf("BRT: vdev %" PRIu64 ": refcnt %s; used %s; saved %s\n",
+		    vdevid, count, used, saved);
+	}
+
+	if (dump_opt['T'] < 3)
+		return;
+
+	char dva[64];
+	printf("\n%-16s %-10s\n", "DVA", "REFCNT");
+
+	for (uint64_t vdevid = 0; vdevid < brt->brt_nvdevs; vdevid++) {
+		brt_vdev_t *brtvd = &brt->brt_vdevs[vdevid];
+		if (brtvd == NULL || !brtvd->bv_initiated)
+			continue;
+
+		zap_cursor_t zc;
+		zap_attribute_t za;
+		for (zap_cursor_init(&zc, brt->brt_mos, brtvd->bv_mos_entries);
+		    zap_cursor_retrieve(&zc, &za) == 0;
+		    zap_cursor_advance(&zc)) {
+			uint64_t offset = *(uint64_t *)za.za_name;
+			uint64_t refcnt = za.za_first_integer;
+
+			snprintf(dva, sizeof (dva), "%" PRIu64 ":%llx", vdevid,
+			    (u_longlong_t)offset);
+			printf("%-16s %-10llu\n", dva, (u_longlong_t)refcnt);
+		}
+		zap_cursor_fini(&zc);
+	}
 }
 
 static void
@@ -8093,6 +8176,9 @@ dump_zpool(spa_t *spa)
 	if (dump_opt['D'])
 		dump_all_ddts(spa);
 
+	if (dump_opt['T'])
+		dump_brt(spa);
+
 	if (dump_opt['d'] > 2 || dump_opt['m'])
 		dump_metaslabs(spa);
 	if (dump_opt['M'])
@@ -8879,6 +8965,7 @@ main(int argc, char **argv)
 		{"io-stats",		no_argument,		NULL, 's'},
 		{"simulate-dedup",	no_argument,		NULL, 'S'},
 		{"txg",			required_argument,	NULL, 't'},
+		{"brt-stats",		no_argument,		NULL, 'T'},
 		{"uberblock",		no_argument,		NULL, 'u'},
 		{"cachefile",		required_argument,	NULL, 'U'},
 		{"verbose",		no_argument,		NULL, 'v'},
@@ -8892,7 +8979,7 @@ main(int argc, char **argv)
 	};
 
 	while ((c = getopt_long(argc, argv,
-	    "AbBcCdDeEFGhiI:kK:lLmMNo:Op:PqrRsSt:uU:vVx:XYyZ",
+	    "AbBcCdDeEFGhiI:kK:lLmMNo:Op:PqrRsSt:TuU:vVx:XYyZ",
 	    long_options, NULL)) != -1) {
 		switch (c) {
 		case 'b':
@@ -8914,6 +9001,7 @@ main(int argc, char **argv)
 		case 'R':
 		case 's':
 		case 'S':
+		case 'T':
 		case 'u':
 		case 'y':
 		case 'Z':
@@ -9076,22 +9164,6 @@ main(int argc, char **argv)
 	if (dump_opt['l'])
 		return (dump_label(argv[0]));
 
-	if (dump_opt['O']) {
-		if (argc != 2)
-			usage();
-		dump_opt['v'] = verbose + 3;
-		return (dump_path(argv[0], argv[1], NULL));
-	}
-	if (dump_opt['r']) {
-		target_is_spa = B_FALSE;
-		if (argc != 3)
-			usage();
-		dump_opt['v'] = verbose;
-		error = dump_path(argv[0], argv[1], &object);
-		if (error != 0)
-			fatal("internal error: %s", strerror(error));
-	}
-
 	if (dump_opt['X'] || dump_opt['F'])
 		rewind = ZPOOL_DO_REWIND |
 		    (dump_opt['X'] ? ZPOOL_EXTREME_REWIND : 0);
@@ -9190,6 +9262,29 @@ main(int argc, char **argv)
 	if (searchdirs != NULL) {
 		umem_free(searchdirs, nsearch * sizeof (char *));
 		searchdirs = NULL;
+	}
+
+	/*
+	 * We need to make sure to process -O option or call
+	 * dump_path after the -e option has been processed,
+	 * which imports the pool to the namespace if it's
+	 * not in the cachefile.
+	 */
+	if (dump_opt['O']) {
+		if (argc != 2)
+			usage();
+		dump_opt['v'] = verbose + 3;
+		return (dump_path(argv[0], argv[1], NULL));
+	}
+
+	if (dump_opt['r']) {
+		target_is_spa = B_FALSE;
+		if (argc != 3)
+			usage();
+		dump_opt['v'] = verbose;
+		error = dump_path(argv[0], argv[1], &object);
+		if (error != 0)
+			fatal("internal error: %s", strerror(error));
 	}
 
 	/*

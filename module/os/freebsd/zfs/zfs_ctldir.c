@@ -1026,7 +1026,8 @@ zfsctl_snapdir_lookup(struct vop_lookup_args *ap)
 	    "%s/" ZFS_CTLDIR_NAME "/snapshot/%s",
 	    dvp->v_vfsp->mnt_stat.f_mntonname, name);
 
-	err = mount_snapshot(curthread, vpp, "zfs", mountpoint, fullname, 0);
+	err = mount_snapshot(curthread, vpp, "zfs", mountpoint, fullname, 0,
+	    dvp->v_vfsp);
 	kmem_free(mountpoint, mountpoint_len);
 	if (err == 0) {
 		/*

@@ -2255,6 +2255,21 @@ dmu_read_l0_bps(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 			goto out;
 		}
 
+		/*
+		 * If the block was allocated in transaction group that is not
+		 * yet synced, we could clone it, but we couldn't write this
+		 * operation into ZIL, or it may be impossible to replay, since
+		 * the block may appear not yet allocated at that point.
+		 */
+		if (BP_PHYSICAL_BIRTH(bp) > spa_freeze_txg(os->os_spa)) {
+			error = SET_ERROR(EINVAL);
+			goto out;
+		}
+		if (BP_PHYSICAL_BIRTH(bp) > spa_last_synced_txg(os->os_spa)) {
+			error = SET_ERROR(EAGAIN);
+			goto out;
+		}
+
 		bps[i] = *bp;
 	}
 
@@ -2267,7 +2282,7 @@ out:
 
 int
 dmu_brt_clone(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
-    dmu_tx_t *tx, const blkptr_t *bps, size_t nbps, boolean_t replay)
+    dmu_tx_t *tx, const blkptr_t *bps, size_t nbps)
 {
 	spa_t *spa;
 	dmu_buf_t **dbp, *dbuf;
@@ -2341,10 +2356,8 @@ dmu_brt_clone(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 		 * When data in embedded into BP there is no need to create
 		 * BRT entry as there is no data block. Just copy the BP as
 		 * it contains the data.
-		 * Also, when replaying ZIL we don't want to bump references
-		 * in the BRT as it was already done during ZIL claim.
 		 */
-		if (!replay && !BP_IS_HOLE(bp) && !BP_IS_EMBEDDED(bp)) {
+		if (!BP_IS_HOLE(bp) && !BP_IS_EMBEDDED(bp)) {
 			brt_pending_add(spa, bp, tx);
 		}
 	}

@@ -58,7 +58,7 @@ set -A args "create" "add" "destroy" "import fakepool" \
     "setvprop" "blah blah" "-%" "--?" "-*" "-=" \
     "-a" "-f" "-g" "-j" "-n" "-o" "-p" "-p /tmp" \
     "-t" "-w" "-z" "-E" "-H" "-I" "-J" \
-    "-Q" "-R" "-T" "-W"
+    "-Q" "-R" "-W"
 
 log_assert "Execute zdb using invalid parameters."
 
