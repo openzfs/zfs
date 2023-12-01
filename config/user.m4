@@ -31,7 +31,7 @@ AC_DEFUN([ZFS_AC_CONFIG_USER], [
 	ZFS_AC_CONFIG_USER_MAKEDEV_IN_MKDEV
 	ZFS_AC_CONFIG_USER_ZFSEXEC
 
-	AC_CHECK_FUNCS([issetugid mlockall strlcat strlcpy])
+	AC_CHECK_FUNCS([execvpe issetugid mlockall strlcat strlcpy])
 
 	AC_SUBST(RM)
 ])
