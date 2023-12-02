@@ -493,6 +493,7 @@ zfs_sha512_block_armv7:
 #endif
 .size	zfs_sha512_block_armv7,.-zfs_sha512_block_armv7
 
+#if __ARM_ARCH__ >= 7
 .arch	armv7-a
 .fpu	neon
 
@@ -1822,4 +1823,5 @@ zfs_sha512_block_neon:
 	VFP_ABI_POP
 	bx	lr				@ .word	0xe12fff1e
 .size	zfs_sha512_block_neon,.-zfs_sha512_block_neon
-#endif
+#endif // #if __ARM_ARCH__ >= 7
+#endif // #if defined(__arm__)
