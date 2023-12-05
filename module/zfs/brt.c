@@ -157,10 +157,8 @@
  * (copying the file content to the new dataset and removing the source file).
  * In that case Block Cloning will only be used briefly, because the BRT entries
  * will be removed when the source is removed.
- * Note: currently it is not possible to clone blocks between encrypted
- * datasets, even if those datasets use the same encryption key (this includes
- * snapshots of encrypted datasets). Cloning blocks between datasets that use
- * the same keys should be possible and should be implemented in the future.
+ * Block Cloning across encrypted datasets is supported as long as both
+ * datasets share the same master key (e.g. snapshots and clones)
  *
  * Block Cloning flow through ZFS layers.
  *
