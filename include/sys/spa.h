@@ -971,6 +971,10 @@ extern int spa_import_progress_set_max_txg(uint64_t pool_guid,
     uint64_t max_txg);
 extern int spa_import_progress_set_state(uint64_t pool_guid,
     spa_load_state_t spa_load_state);
+extern void spa_import_progress_set_notes(spa_t *spa,
+    const char *fmt, ...) __printflike(2, 3);
+extern void spa_import_progress_set_notes_nolog(spa_t *spa,
+    const char *fmt, ...) __printflike(2, 3);
 
 /* Pool configuration locks */
 extern int spa_config_tryenter(spa_t *spa, int locks, const void *tag,
