@@ -2274,6 +2274,21 @@ dmu_read_l0_bps(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 			goto out;
 		}
 
+		/*
+		 * If the block was allocated in transaction group that is not
+		 * yet synced, we could clone it, but we couldn't write this
+		 * operation into ZIL, or it may be impossible to replay, since
+		 * the block may appear not yet allocated at that point.
+		 */
+		if (BP_PHYSICAL_BIRTH(bp) > spa_freeze_txg(os->os_spa)) {
+			error = SET_ERROR(EINVAL);
+			goto out;
+		}
+		if (BP_PHYSICAL_BIRTH(bp) > spa_last_synced_txg(os->os_spa)) {
+			error = SET_ERROR(EAGAIN);
+			goto out;
+		}
+
 		bps[i] = *bp;
 	}
 
