@@ -266,6 +266,40 @@ spa_crypto_key_compare(const void *a, const void *b)
 	return (0);
 }
 
+/*
+ * this compares a crypto key based on zk_guid. See comment on
+ * spa_crypto_key_compare for more information.
+ */
+boolean_t
+dmu_objset_crypto_key_equal(objset_t *osa, objset_t *osb)
+{
+	dsl_crypto_key_t *dcka = NULL;
+	dsl_crypto_key_t *dckb = NULL;
+	uint64_t obja, objb;
+	boolean_t equal;
+	spa_t *spa;
+
+	spa = dmu_objset_spa(osa);
+	if (spa != dmu_objset_spa(osb))
+		return (B_FALSE);
+	obja = dmu_objset_ds(osa)->ds_object;
+	objb = dmu_objset_ds(osb)->ds_object;
+
+	if (spa_keystore_lookup_key(spa, obja, FTAG, &dcka) != 0)
+		return (B_FALSE);
+	if (spa_keystore_lookup_key(spa, objb, FTAG, &dckb) != 0) {
+		spa_keystore_dsl_key_rele(spa, dcka, FTAG);
+		return (B_FALSE);
+	}
+
+	equal = (dcka->dck_key.zk_guid == dckb->dck_key.zk_guid);
+
+	spa_keystore_dsl_key_rele(spa, dcka, FTAG);
+	spa_keystore_dsl_key_rele(spa, dckb, FTAG);
+
+	return (equal);
+}
+
 static int
 spa_key_mapping_compare(const void *a, const void *b)
 {
