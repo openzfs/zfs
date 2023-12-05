@@ -88,7 +88,7 @@ const sha512_ops_t sha512_avx2_impl = {
 };
 #endif
 
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(__arm__)
 extern void zfs_sha512_block_armv7(uint64_t s[8], const void *, size_t);
 const sha512_ops_t sha512_armv7_impl = {
 	.is_supported = sha2_is_supported,
@@ -96,6 +96,7 @@ const sha512_ops_t sha512_armv7_impl = {
 	.name = "armv7"
 };
 
+#if defined(__aarch64__)
 static boolean_t sha512_have_armv8ce(void)
 {
 	return (kfpu_allowed() && zfs_sha512_available());
@@ -107,15 +108,9 @@ const sha512_ops_t sha512_armv8_impl = {
 	.transform = tf_sha512_armv8ce,
 	.name = "armv8-ce"
 };
+#endif
 
-#elif defined(__arm__) && __ARM_ARCH > 6
-extern void zfs_sha512_block_armv7(uint64_t s[8], const void *, size_t);
-const sha512_ops_t sha512_armv7_impl = {
-	.is_supported = sha2_is_supported,
-	.transform = zfs_sha512_block_armv7,
-	.name = "armv7"
-};
-
+#if defined(__arm__) && __ARM_ARCH > 6
 static boolean_t sha512_have_neon(void)
 {
 	return (kfpu_allowed() && zfs_neon_available());
@@ -127,6 +122,7 @@ const sha512_ops_t sha512_neon_impl = {
 	.transform = tf_sha512_neon,
 	.name = "neon"
 };
+#endif
 
 #elif defined(__PPC64__)
 TF(zfs_sha512_ppc, tf_sha512_ppc);
@@ -164,13 +160,14 @@ static const sha512_ops_t *const sha512_impls[] = {
 #if defined(__x86_64) && defined(HAVE_AVX2)
 	&sha512_avx2_impl,
 #endif
-#if defined(__aarch64__)
+#if defined(__aarch64__) || defined(__arm__)
 	&sha512_armv7_impl,
+#if defined(__aarch64__)
 	&sha512_armv8_impl,
 #endif
 #if defined(__arm__) && __ARM_ARCH > 6
-	&sha512_armv7_impl,
 	&sha512_neon_impl,
+#endif
 #endif
 #if defined(__PPC64__)
 	&sha512_ppc_impl,

@@ -1837,6 +1837,7 @@ zfs_sha256_block_armv7:
 #endif
 .size	zfs_sha256_block_armv7,.-zfs_sha256_block_armv7
 
+#if __ARM_ARCH__ >= 7
 .arch	armv7-a
 .fpu	neon
 
@@ -1849,11 +1850,7 @@ zfs_sha256_block_neon:
 	stmdb	sp!,{r4-r12,lr}
 
 	sub	r11,sp,#16*4+16
-#if __ARM_ARCH__ >=7
 	adr	r14,K256
-#else
-	ldr	r14,=K256
-#endif
 	bic	r11,r11,#15		@ align for 128-bit stores
 	mov	r12,sp
 	mov	sp,r11			@ alloca
@@ -2773,4 +2770,5 @@ zfs_sha256_block_armv8:
 	bx	lr		@ bx lr
 .size	zfs_sha256_block_armv8,.-zfs_sha256_block_armv8
 
-#endif
+#endif // #if __ARM_ARCH__ >= 7
+#endif // #if defined(__arm__)
