@@ -448,7 +448,7 @@ ddt_alloc(const ddt_key_t *ddk)
 static void
 ddt_free(ddt_entry_t *dde)
 {
-	ASSERT(!dde->dde_loading);
+	ASSERT(dde->dde_flags & DDE_FLAG_LOADED);
 
 	for (int p = 0; p < DDT_PHYS_TYPES; p++)
 		ASSERT3P(dde->dde_lead_zio[p], ==, NULL);
@@ -483,26 +483,37 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 
 	ddt_key_fill(&search, bp);
 
+	/* Find an existing live entry */
 	dde = avl_find(&ddt->ddt_tree, &search, &where);
-	if (dde == NULL) {
-		if (!add)
-			return (NULL);
-		dde = ddt_alloc(&search);
-		avl_insert(&ddt->ddt_tree, dde, where);
+	if (dde != NULL) {
+		/* Found it. If it's already loaded, we can just return it. */
+		if (dde->dde_flags & DDE_FLAG_LOADED)
+			return (dde);
+
+		/* Someone else is loading it, wait for it. */
+		while (!(dde->dde_flags & DDE_FLAG_LOADED))
+			cv_wait(&dde->dde_cv, &ddt->ddt_lock);
+
+		return (dde);
 	}
 
-	while (dde->dde_loading)
-		cv_wait(&dde->dde_cv, &ddt->ddt_lock);
+	/* Not found. */
+	if (!add)
+		return (NULL);
 
-	if (dde->dde_loaded)
-		return (dde);
+	/* Time to make a new entry. */
+	dde = ddt_alloc(&search);
+	avl_insert(&ddt->ddt_tree, dde, where);
 
-	dde->dde_loading = B_TRUE;
-
+	/*
+	 * ddt_tree is now stable, so unlock and let everyone else keep moving.
+	 * Anyone landing on this entry will find it without DDE_FLAG_LOADED,
+	 * and go to sleep waiting for it above.
+	 */
 	ddt_exit(ddt);
 
+	/* Search all store objects for the entry. */
 	error = ENOENT;
-
 	for (type = 0; type < DDT_TYPES; type++) {
 		for (class = 0; class < DDT_CLASSES; class++) {
 			error = ddt_object_lookup(ddt, type, class, dde);
@@ -517,17 +528,16 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 
 	ddt_enter(ddt);
 
-	ASSERT(!dde->dde_loaded);
-	ASSERT(dde->dde_loading);
+	ASSERT(!(dde->dde_flags & DDE_FLAG_LOADED));
 
 	dde->dde_type = type;	/* will be DDT_TYPES if no entry found */
 	dde->dde_class = class;	/* will be DDT_CLASSES if no entry found */
-	dde->dde_loaded = B_TRUE;
-	dde->dde_loading = B_FALSE;
 
 	if (error == 0)
 		ddt_stat_update(ddt, dde, -1ULL);
 
+	/* Entry loaded, everyone can proceed now */
+	dde->dde_flags |= DDE_FLAG_LOADED;
 	cv_broadcast(&dde->dde_cv);
 
 	return (dde);
@@ -812,8 +822,7 @@ ddt_sync_entry(ddt_t *ddt, ddt_entry_t *dde, dmu_tx_t *tx, uint64_t txg)
 	ddt_class_t nclass;
 	uint64_t total_refcnt = 0;
 
-	ASSERT(dde->dde_loaded);
-	ASSERT(!dde->dde_loading);
+	ASSERT(dde->dde_flags & DDE_FLAG_LOADED);
 
 	for (int p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
 		ASSERT3P(dde->dde_lead_zio[p], ==, NULL);
