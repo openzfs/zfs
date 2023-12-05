@@ -1837,6 +1837,7 @@ zfs_sha256_block_armv7:
 #endif
 .size	zfs_sha256_block_armv7,.-zfs_sha256_block_armv7
 
+#if __ARM_ARCH__ >= 7
 .arch	armv7-a
 .fpu	neon
 
@@ -2769,4 +2770,5 @@ zfs_sha256_block_armv8:
 	bx	lr		@ bx lr
 .size	zfs_sha256_block_armv8,.-zfs_sha256_block_armv8
 
-#endif
+#endif // #if __ARM_ARCH__ >= 7
+#endif // #if defined(__arm__)
