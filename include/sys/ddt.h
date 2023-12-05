@@ -117,6 +117,10 @@ enum ddt_phys_type {
 /*
  * In-core ddt entry
  */
+
+/* State flags for dde_flags */
+#define	DDE_FLAG_LOADED (1 << 0)	/* entry ready for use */
+
 typedef struct {
 	/* key must be first for ddt_key_compare */
 	ddt_key_t	dde_key;
@@ -125,8 +129,7 @@ typedef struct {
 	struct abd	*dde_repair_abd;
 	ddt_type_t	dde_type;
 	ddt_class_t	dde_class;
-	uint8_t		dde_loading;
-	uint8_t		dde_loaded;
+	uint8_t		dde_flags;
 	kcondvar_t	dde_cv;
 	avl_node_t	dde_node;
 } ddt_entry_t;
