@@ -1725,8 +1725,6 @@ static const struct {
 	{ 8192 + 4096,	8192 + 4096 },		/* database */
 	{ 32768 + 4096,	32768 + 4096 },		/* NFS writes */
 	{ 65536 + 4096,	65536 + 4096 },		/* 64KB writes */
-	{ 131072,	131072 },		/* < 128KB writes */
-	{ 131072 +4096,	65536 + 4096 },		/* 128KB writes */
 	{ UINT64_MAX,	SPA_OLD_MAXBLOCKSIZE},	/* > 128KB writes */
 };
 
