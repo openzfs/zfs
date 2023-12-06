@@ -53,6 +53,6 @@ function get_same_blocks
 	    awk '/ L0 / { print l++ " " $3 " " $7 }' > $zdbout.a
 	zdb $KEY -vvvvv $3 -O $4 | \
 	    awk '/ L0 / { print l++ " " $3 " " $7 }' > $zdbout.b
-	echo $(sort $zdbout.a $zdbout.b | uniq -d | cut -f1 -d' ')
+	echo $(sort -n $zdbout.a $zdbout.b | uniq -d | cut -f1 -d' ')
 }
 
