@@ -1501,9 +1501,9 @@ dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset, arc_buf_t *buf,
 	rw_enter(&dn->dn_struct_rwlock, RW_READER);
 	blkid = dbuf_whichblock(dn, 0, offset);
 	db = dbuf_hold(dn, blkid, FTAG);
+	rw_exit(&dn->dn_struct_rwlock);
 	if (db == NULL)
 		return (SET_ERROR(EIO));
-	rw_exit(&dn->dn_struct_rwlock);
 
 	/*
 	 * We can only assign if the offset is aligned and the arc buf is the
