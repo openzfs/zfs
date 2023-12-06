@@ -42,14 +42,25 @@
 /*
  * Starting from Linux 5.13, flush_dcache_page() becomes an inline function
  * and under some configurations, may indirectly referencing GPL-only
- * cpu_feature_keys on powerpc. Override this function when it is detected
- * being GPL-only.
+ * symbols, e.g., cpu_feature_keys on powerpc and PageHuge on riscv.
+ * Override this function when it is detected being GPL-only.
  */
 #if defined __powerpc__ && defined HAVE_FLUSH_DCACHE_PAGE_GPL_ONLY
 #include <linux/simd_powerpc.h>
 #define	flush_dcache_page(page)	do {					\
 		if (!cpu_has_feature(CPU_FTR_COHERENT_ICACHE) &&	\
 		    test_bit(PG_dcache_clean, &(page)->flags))		\
+			clear_bit(PG_dcache_clean, &(page)->flags);	\
+	} while (0)
+#endif
+/*
+ * For riscv implementation, the use of PageHuge can be safely removed.
+ * Because it handles pages allocated by HugeTLB, while flush_dcache_page
+ * in zfs module is only called on kernel pages.
+ */
+#if defined __riscv && defined HAVE_FLUSH_DCACHE_PAGE_GPL_ONLY
+#define	flush_dcache_page(page)	do {					\
+		if (test_bit(PG_dcache_clean, &(page)->flags))		\
 			clear_bit(PG_dcache_clean, &(page)->flags);	\
 	} while (0)
 #endif
