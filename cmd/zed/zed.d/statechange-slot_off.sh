@@ -5,7 +5,7 @@
 #
 # Bad SCSI disks can often "disappear and reappear" causing all sorts of chaos
 # as they flip between FAULTED and ONLINE.  If
-# ZED_POWER_OFF_ENCLOUSRE_SLOT_ON_FAULT is set in zed.rc, and the disk gets
+# ZED_POWER_OFF_ENCLOSURE_SLOT_ON_FAULT is set in zed.rc, and the disk gets
 # FAULTED, then power down the slot via sysfs:
 #
 # /sys/class/enclosure/<enclosure>/<slot>/power_status
@@ -19,7 +19,7 @@
 # Exit codes:
 #   0: slot successfully powered off
 #   1: enclosure not available
-#   2: ZED_POWER_OFF_ENCLOUSRE_SLOT_ON_FAULT disabled
+#   2: ZED_POWER_OFF_ENCLOSURE_SLOT_ON_FAULT disabled
 #   3: vdev was not FAULTED
 #   4: The enclosure sysfs path passed from ZFS does not exist
 #   5: Enclosure slot didn't actually turn off after we told it to
@@ -32,7 +32,7 @@ if [ ! -d /sys/class/enclosure ] ; then
 	exit 1
 fi
 
-if [ "${ZED_POWER_OFF_ENCLOUSRE_SLOT_ON_FAULT}" != "1" ] ; then
+if [ "${ZED_POWER_OFF_ENCLOSURE_SLOT_ON_FAULT}" != "1" ] ; then
 	exit 2
 fi
 
