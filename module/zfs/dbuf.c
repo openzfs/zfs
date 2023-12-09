@@ -1919,7 +1919,6 @@ dbuf_unoverride(dbuf_dirty_record_t *dr)
 	dmu_buf_impl_t *db = dr->dr_dbuf;
 	blkptr_t *bp = &dr->dt.dl.dr_overridden_by;
 	uint64_t txg = dr->dr_txg;
-	boolean_t release;
 
 	ASSERT(MUTEX_HELD(&db->db_mtx));
 	/*
@@ -1940,7 +1939,10 @@ dbuf_unoverride(dbuf_dirty_record_t *dr)
 	if (!BP_IS_HOLE(bp) && !dr->dt.dl.dr_nopwrite)
 		zio_free(db->db_objset->os_spa, txg, bp);
 
-	release = !dr->dt.dl.dr_brtwrite;
+	if (dr->dt.dl.dr_brtwrite) {
+		ASSERT0P(dr->dt.dl.dr_data);
+		dr->dt.dl.dr_data = db->db_buf;
+	}
 	dr->dt.dl.dr_override_state = DR_NOT_OVERRIDDEN;
 	dr->dt.dl.dr_nopwrite = B_FALSE;
 	dr->dt.dl.dr_brtwrite = B_FALSE;
@@ -1954,7 +1956,7 @@ dbuf_unoverride(dbuf_dirty_record_t *dr)
 	 * the buf thawed to save the effort of freezing &
 	 * immediately re-thawing it.
 	 */
-	if (release)
+	if (dr->dt.dl.dr_data)
 		arc_release(dr->dt.dl.dr_data, db);
 }
 
