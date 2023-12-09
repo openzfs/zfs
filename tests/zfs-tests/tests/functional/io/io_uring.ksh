@@ -44,6 +44,13 @@ if ! $(grep -q "CONFIG_IO_URING=y" /boot/config-$(uname -r)); then
 	log_unsupported "Requires io_uring support"
 fi
 
+if [ -e /etc/os-release ] ; then
+	source /etc/os-release
+	if [ -n "$REDHAT_SUPPORT_PRODUCT_VERSION" ] && ((floor($REDHAT_SUPPORT_PRODUCT_VERSION) == 9)) ; then
+		log_unsupported "Disabled on CentOS 9, fails with 'Operation not permitted'"
+	fi
+fi
+
 fio --ioengine=io_uring --parse-only || log_unsupported "io_uring support required"
 
 function cleanup
