@@ -364,10 +364,10 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 			if (v->vdev_removed)
 				break;
 
-			schedule_timeout(MSEC_TO_TICK(10));
+			msleep(10);
 		} else if (unlikely(PTR_ERR(bdev) == -ERESTARTSYS)) {
 			timeout = MSEC2NSEC(zfs_vdev_open_timeout_ms * 10);
-			continue;
+			msleep(10);
 		} else if (IS_ERR(bdev)) {
 			break;
 		}

@@ -769,7 +769,7 @@ retry:
 				if ((gethrtime() - start) > timeout)
 					return (SET_ERROR(-ERESTARTSYS));
 
-				schedule_timeout(MSEC_TO_TICK(10));
+				msleep(10);
 				goto retry;
 #endif
 			} else {
