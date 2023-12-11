@@ -1369,6 +1369,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/compression/setup.ksh \
 	functional/cp_files/cleanup.ksh \
 	functional/cp_files/cp_files_001_pos.ksh \
+	functional/cp_files/cp_stress.ksh \
 	functional/cp_files/setup.ksh \
 	functional/crtime/cleanup.ksh \
 	functional/crtime/crtime_001_pos.ksh \

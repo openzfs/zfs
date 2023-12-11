@@ -598,7 +598,7 @@ tests = ['compress_001_pos', 'compress_002_pos', 'compress_003_pos',
 tags = ['functional', 'compression']
 
 [tests/functional/cp_files]
-tests = ['cp_files_001_pos']
+tests = ['cp_files_001_pos', 'cp_stress']
 tags = ['functional', 'cp_files']
 
 [tests/functional/crtime]
