@@ -79,6 +79,7 @@ extern "C" {
  * dbuf_states_t (see comment on dn_dbufs in dnode.h).
  */
 typedef enum dbuf_states {
+	DB_MARKER = -2,
 	DB_SEARCH = -1,
 	DB_UNCACHED,
 	DB_FILL,
