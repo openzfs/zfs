@@ -13,6 +13,9 @@ scripts_zfs_tests_functional_hkdf_PROGRAMS = %D%/tests/functional/hkdf/hkdf_test
 %C%_tests_functional_hkdf_hkdf_test_LDADD = \
 	libzpool.la
 
+scripts_zfs_tests_functional_cp_filesdir = $(datadir)/$(PACKAGE)/zfs-tests/tests/functional/cp_files
+scripts_zfs_tests_functional_cp_files_PROGRAMS = %D%/tests/functional/cp_files/seekflood
+
 if BUILD_LINUX
 scripts_zfs_tests_functional_tmpfiledir = $(datadir)/$(PACKAGE)/zfs-tests/tests/functional/tmpfile
 scripts_zfs_tests_functional_tmpfile_PROGRAMS = \
