@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2014 by Chunwei Chen. All rights reserved.
  * Copyright (c) 2016, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2023, 2024, Klara Inc.
  */
 
 #ifndef _ABD_IMPL_H
@@ -38,12 +39,30 @@ typedef enum abd_stats_op {
 	ABDSTAT_DECR  /* Decrease abdstat values */
 } abd_stats_op_t;
 
-struct scatterlist; /* forward declaration */
+/* forward declarations */
+struct scatterlist;
+struct page;
 
 struct abd_iter {
 	/* public interface */
-	void		*iter_mapaddr;	/* addr corresponding to iter_pos */
-	size_t		iter_mapsize;	/* length of data valid at mapaddr */
+	union {
+		/* for abd_iter_map()/abd_iter_unmap() */
+		struct {
+			/* addr corresponding to iter_pos */
+			void		*iter_mapaddr;
+			/* length of data valid at mapaddr */
+			size_t		iter_mapsize;
+		};
+		/* for abd_iter_page() */
+		struct {
+			/* current page */
+			struct page	*iter_page;
+			/* offset of data in page */
+			size_t		iter_page_doff;
+			/* size of data in page */
+			size_t		iter_page_dsize;
+		};
+	};
 
 	/* private */
 	abd_t		*iter_abd;	/* ABD being iterated through */
@@ -78,6 +97,7 @@ boolean_t abd_iter_at_end(struct abd_iter *);
 void abd_iter_advance(struct abd_iter *, size_t);
 void abd_iter_map(struct abd_iter *);
 void abd_iter_unmap(struct abd_iter *);
+void abd_iter_page(struct abd_iter *);
 
 /*
  * Helper macros
