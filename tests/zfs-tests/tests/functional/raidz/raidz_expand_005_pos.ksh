@@ -113,7 +113,7 @@ function test_replace # <pool> <devices> <parity>
 	log_must zpool scrub -w $pool
 
 	log_must zpool status -v
-	log_must check_pool_status $pool "scan" "repaired 0B"
+	log_must check_pool_status $pool "scan" "with 0 errors"
 }
 
 log_must set_tunable32 EMBEDDED_SLOG_MIN_MS 99999
