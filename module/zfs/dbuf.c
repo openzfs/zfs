@@ -2945,7 +2945,8 @@ dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx)
 	while (db->db_state == DB_READ || db->db_state == DB_FILL)
 		cv_wait(&db->db_changed, &db->db_mtx);
 
-	ASSERT(db->db_state == DB_CACHED || db->db_state == DB_UNCACHED);
+	ASSERT(db->db_state == DB_CACHED || db->db_state == DB_UNCACHED ||
+	    db->db_state == DB_NOFILL);
 
 	if (db->db_state == DB_CACHED &&
 	    zfs_refcount_count(&db->db_holds) - 1 > db->db_dirtycnt) {
@@ -2982,6 +2983,15 @@ dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx)
 			arc_buf_destroy(db->db_buf, db);
 		}
 		db->db_buf = NULL;
+	} else if (db->db_state == DB_NOFILL) {
+		/*
+		 * We will be completely replacing the cloned block.  In case
+		 * it was cloned in this transaction group, let's undirty the
+		 * pending clone and mark the block as uncached. This will be
+		 * as if the clone was never done.
+		 */
+		VERIFY(!dbuf_undirty(db, tx));
+		db->db_state = DB_UNCACHED;
 	}
 	ASSERT(db->db_buf == NULL);
 	dbuf_set_data(db, buf);
