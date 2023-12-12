@@ -1134,14 +1134,14 @@ dmu_write_impl(dmu_buf_t **dbp, int numbufs, uint64_t offset, uint64_t size,
 		ASSERT(i == 0 || i == numbufs-1 || tocpy == db->db_size);
 
 		if (tocpy == db->db_size)
-			dmu_buf_will_fill(db, tx);
+			dmu_buf_will_fill(db, tx, B_FALSE);
 		else
 			dmu_buf_will_dirty(db, tx);
 
 		(void) memcpy((char *)db->db_data + bufoff, buf, tocpy);
 
 		if (tocpy == db->db_size)
-			dmu_buf_fill_done(db, tx);
+			dmu_buf_fill_done(db, tx, B_FALSE);
 
 		offset += tocpy;
 		size -= tocpy;
@@ -1349,27 +1349,24 @@ dmu_write_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size, dmu_tx_t *tx)
 
 		ASSERT(size > 0);
 
-		bufoff = zfs_uio_offset(uio) - db->db_offset;
+		offset_t off = zfs_uio_offset(uio);
+		bufoff = off - db->db_offset;
 		tocpy = MIN(db->db_size - bufoff, size);
 
 		ASSERT(i == 0 || i == numbufs-1 || tocpy == db->db_size);
 
 		if (tocpy == db->db_size)
-			dmu_buf_will_fill(db, tx);
+			dmu_buf_will_fill(db, tx, B_TRUE);
 		else
 			dmu_buf_will_dirty(db, tx);
 
-		/*
-		 * XXX zfs_uiomove could block forever (eg.nfs-backed
-		 * pages).  There needs to be a uiolockdown() function
-		 * to lock the pages in memory, so that zfs_uiomove won't
-		 * block.
-		 */
 		err = zfs_uio_fault_move((char *)db->db_data + bufoff,
 		    tocpy, UIO_WRITE, uio);
 
-		if (tocpy == db->db_size)
-			dmu_buf_fill_done(db, tx);
+		if (tocpy == db->db_size && dmu_buf_fill_done(db, tx, err)) {
+			/* The fill was reverted.  Undo any uio progress. */
+			zfs_uio_advance(uio, off - zfs_uio_offset(uio));
+		}
 
 		if (err)
 			break;
