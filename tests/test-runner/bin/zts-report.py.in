@@ -311,6 +311,8 @@ elif sys.platform.startswith('linux'):
             ['SKIP', cfr_cross_reason],
         'block_cloning/block_cloning_cross_enc_dataset':
             ['SKIP', cfr_cross_reason],
+        'block_cloning/block_cloning_ficlone_and_write':
+            ['SKIP', cfr_reason],
     })
 
 # Not all Github actions runners have scsi_debug module, so we may skip
