@@ -62,7 +62,7 @@ zfs_uio_setoffset(zfs_uio_t *uio, offset_t off)
 }
 
 static inline void
-zfs_uio_advance(zfs_uio_t *uio, size_t size)
+zfs_uio_advance(zfs_uio_t *uio, ssize_t size)
 {
 	zfs_uio_resid(uio) -= size;
 	zfs_uio_offset(uio) += size;

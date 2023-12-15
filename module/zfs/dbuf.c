@@ -2751,7 +2751,7 @@ dmu_buf_will_not_fill(dmu_buf_t *db_fake, dmu_tx_t *tx)
 }
 
 void
-dmu_buf_will_fill(dmu_buf_t *db_fake, dmu_tx_t *tx)
+dmu_buf_will_fill(dmu_buf_t *db_fake, dmu_tx_t *tx, boolean_t canfail)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
 
@@ -2769,8 +2769,14 @@ dmu_buf_will_fill(dmu_buf_t *db_fake, dmu_tx_t *tx)
 		 * Block cloning: We will be completely overwriting a block
 		 * cloned in this transaction group, so let's undirty the
 		 * pending clone and mark the block as uncached. This will be
-		 * as if the clone was never done.
+		 * as if the clone was never done.  But if the fill can fail
+		 * we should have a way to return back to the cloned data.
 		 */
+		if (canfail && dbuf_find_dirty_eq(db, tx->tx_txg) != NULL) {
+			mutex_exit(&db->db_mtx);
+			dmu_buf_will_dirty(db_fake, tx);
+			return;
+		}
 		VERIFY(!dbuf_undirty(db, tx));
 		db->db_state = DB_UNCACHED;
 	}
@@ -2831,32 +2837,41 @@ dbuf_override_impl(dmu_buf_impl_t *db, const blkptr_t *bp, dmu_tx_t *tx)
 	dl->dr_overridden_by.blk_birth = dr->dr_txg;
 }
 
-void
-dmu_buf_fill_done(dmu_buf_t *dbuf, dmu_tx_t *tx)
+boolean_t
+dmu_buf_fill_done(dmu_buf_t *dbuf, dmu_tx_t *tx, boolean_t failed)
 {
 	(void) tx;
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)dbuf;
-	dbuf_states_t old_state;
 	mutex_enter(&db->db_mtx);
 	DBUF_VERIFY(db);
 
-	old_state = db->db_state;
-	db->db_state = DB_CACHED;
-	if (old_state == DB_FILL) {
+	if (db->db_state == DB_FILL) {
 		if (db->db_level == 0 && db->db_freed_in_flight) {
 			ASSERT(db->db_blkid != DMU_BONUS_BLKID);
 			/* we were freed while filling */
 			/* XXX dbuf_undirty? */
 			memset(db->db.db_data, 0, db->db.db_size);
 			db->db_freed_in_flight = FALSE;
+			db->db_state = DB_CACHED;
 			DTRACE_SET_STATE(db,
 			    "fill done handling freed in flight");
+			failed = B_FALSE;
+		} else if (failed) {
+			VERIFY(!dbuf_undirty(db, tx));
+			db->db_buf = NULL;
+			dbuf_clear_data(db);
+			DTRACE_SET_STATE(db, "fill failed");
 		} else {
+			db->db_state = DB_CACHED;
 			DTRACE_SET_STATE(db, "fill done");
 		}
 		cv_broadcast(&db->db_changed);
+	} else {
+		db->db_state = DB_CACHED;
+		failed = B_FALSE;
 	}
 	mutex_exit(&db->db_mtx);
+	return (failed);
 }
 
 void
@@ -3001,7 +3016,7 @@ dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx)
 	DTRACE_SET_STATE(db, "filling assigned arcbuf");
 	mutex_exit(&db->db_mtx);
 	(void) dbuf_dirty(db, tx);
-	dmu_buf_fill_done(&db->db, tx);
+	dmu_buf_fill_done(&db->db, tx, B_FALSE);
 }
 
 void

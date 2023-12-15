@@ -490,7 +490,7 @@ dsl_bookmark_create_sync_impl_snap(const char *bookmark, const char *snapshot,
 			dmu_buf_t *db;
 			VERIFY0(dmu_spill_hold_by_bonus(local_rl->rl_bonus,
 			    DB_RF_MUST_SUCCEED, FTAG, &db));
-			dmu_buf_will_fill(db, tx);
+			dmu_buf_will_fill(db, tx, B_FALSE);
 			VERIFY0(dbuf_spill_set_blksz(db, P2ROUNDUP(bonuslen,
 			    SPA_MINBLOCKSIZE), tx));
 			local_rl->rl_phys = db->db_data;
