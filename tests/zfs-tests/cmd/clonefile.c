@@ -135,14 +135,23 @@ usage(void)
 {
 	printf(
 	    "usage:\n"
+	    "\n"
 	    "  FICLONE:\n"
 	    "    clonefile -c <src> <dst>\n"
+	    "    clonefile [opts] -c <src> <dst>\n"
 	    "  FICLONERANGE:\n"
 	    "    clonefile -r <src> <dst> <soff> <doff> <len>\n"
+	    "    clonefile [opts] -r <src> <dst> <soff> <doff> <len>\n"
 	    "  copy_file_range:\n"
 	    "    clonefile -f <src> <dst> <soff> <doff> <len>\n"
+	    "    clonefile [opts] -f <src> <dst> <soff> <doff> <len>\n"
 	    "  FIDEDUPERANGE:\n"
-	    "    clonefile -d <src> <dst> <soff> <doff> <len>\n");
+	    "    clonefile -d <src> <dst> <soff> <doff> <len>\n"
+	    "    clonefile [opts] -d <src> <dst> <soff> <doff> <len>\n"
+	    "\n"
+	    "  options:\n"
+	    "    -t  truncate dstfile (open with O_TRUNC)\n"
+	    "\n");
 	return (1);
 }
 
@@ -157,9 +166,10 @@ int
 main(int argc, char **argv)
 {
 	cf_mode_t mode = CF_MODE_NONE;
+	int dstflags = 0;
 
 	char c;
-	while ((c = getopt(argc, argv, "crfdq")) != -1) {
+	while ((c = getopt(argc, argv, "crfdqt")) != -1) {
 		switch (c) {
 			case 'c':
 				mode = CF_MODE_CLONE;
@@ -175,6 +185,9 @@ main(int argc, char **argv)
 				break;
 			case 'q':
 				quiet = 1;
+				break;
+			case 't':
+				dstflags = O_TRUNC;
 				break;
 		}
 	}
@@ -210,7 +223,7 @@ main(int argc, char **argv)
 		return (1);
 	}
 
-	int dfd = open(argv[optind+1], O_WRONLY|O_CREAT,
+	int dfd = open(argv[optind+1], O_WRONLY|O_CREAT|dstflags,
 	    S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
 	if (dfd < 0) {
 		fprintf(stderr, "open: %s: %s\n",

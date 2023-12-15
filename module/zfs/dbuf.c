@@ -3010,6 +3010,7 @@ dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx)
 		VERIFY(!dbuf_undirty(db, tx));
 		db->db_state = DB_UNCACHED;
 	}
+
 	ASSERT(db->db_buf == NULL);
 	dbuf_set_data(db, buf);
 	db->db_state = DB_FILL;
