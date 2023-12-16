@@ -526,7 +526,8 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 	vap->va_ctime = ia->ia_ctime;
 
 	if (vap->va_mask & ATTR_ATIME)
-		ip->i_atime = zpl_inode_timestamp_truncate(ia->ia_atime, ip);
+		zpl_inode_set_atime_to_ts(ip,
+		    zpl_inode_timestamp_truncate(ia->ia_atime, ip));
 
 	cookie = spl_fstrans_mark();
 #ifdef HAVE_USERNS_IOPS_SETATTR

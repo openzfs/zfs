@@ -2438,15 +2438,17 @@ top:
 
 	if ((mask & ATTR_ATIME) || zp->z_atime_dirty) {
 		zp->z_atime_dirty = B_FALSE;
-		ZFS_TIME_ENCODE(&ip->i_atime, atime);
+		inode_timespec_t tmp_atime;
+		ZFS_TIME_ENCODE(&tmp_atime, atime);
+		zpl_inode_set_atime_to_ts(ZTOI(zp), tmp_atime);
 		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_ATIME(zfsvfs), NULL,
 		    &atime, sizeof (atime));
 	}
 
 	if (mask & (ATTR_MTIME | ATTR_SIZE)) {
 		ZFS_TIME_ENCODE(&vap->va_mtime, mtime);
-		ZTOI(zp)->i_mtime = zpl_inode_timestamp_truncate(
-		    vap->va_mtime, ZTOI(zp));
+		zpl_inode_set_mtime_to_ts(ZTOI(zp),
+		    zpl_inode_timestamp_truncate(vap->va_mtime, ZTOI(zp)));
 
 		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(zfsvfs), NULL,
 		    mtime, sizeof (mtime));
@@ -3660,7 +3662,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 	caddr_t		va;
 	int		err = 0;
 	uint64_t	mtime[2], ctime[2];
-	inode_timespec_t tmp_ctime;
+	inode_timespec_t tmp_ts;
 	sa_bulk_attr_t	bulk[3];
 	int		cnt = 0;
 	struct address_space *mapping;
@@ -3824,9 +3826,10 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 	    &zp->z_pflags, 8);
 
 	/* Preserve the mtime and ctime provided by the inode */
-	ZFS_TIME_ENCODE(&ip->i_mtime, mtime);
-	tmp_ctime = zpl_inode_get_ctime(ip);
-	ZFS_TIME_ENCODE(&tmp_ctime, ctime);
+	tmp_ts = zpl_inode_get_mtime(ip);
+	ZFS_TIME_ENCODE(&tmp_ts, mtime);
+	tmp_ts = zpl_inode_get_ctime(ip);
+	ZFS_TIME_ENCODE(&tmp_ts, ctime);
 	zp->z_atime_dirty = B_FALSE;
 	zp->z_seq++;
 
@@ -3880,7 +3883,7 @@ zfs_dirty_inode(struct inode *ip, int flags)
 	zfsvfs_t	*zfsvfs = ITOZSB(ip);
 	dmu_tx_t	*tx;
 	uint64_t	mode, atime[2], mtime[2], ctime[2];
-	inode_timespec_t tmp_ctime;
+	inode_timespec_t tmp_ts;
 	sa_bulk_attr_t	bulk[4];
 	int		error = 0;
 	int		cnt = 0;
@@ -3925,10 +3928,12 @@ zfs_dirty_inode(struct inode *ip, int flags)
 	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_CTIME(zfsvfs), NULL, &ctime, 16);
 
 	/* Preserve the mode, mtime and ctime provided by the inode */
-	ZFS_TIME_ENCODE(&ip->i_atime, atime);
-	ZFS_TIME_ENCODE(&ip->i_mtime, mtime);
-	tmp_ctime = zpl_inode_get_ctime(ip);
-	ZFS_TIME_ENCODE(&tmp_ctime, ctime);
+	tmp_ts = zpl_inode_get_atime(ip);
+	ZFS_TIME_ENCODE(&tmp_ts, atime);
+	tmp_ts = zpl_inode_get_mtime(ip);
+	ZFS_TIME_ENCODE(&tmp_ts, mtime);
+	tmp_ts = zpl_inode_get_ctime(ip);
+	ZFS_TIME_ENCODE(&tmp_ts, ctime);
 	mode = ip->i_mode;
 
 	zp->z_mode = mode;
@@ -3971,7 +3976,9 @@ zfs_inactive(struct inode *ip)
 		if (error) {
 			dmu_tx_abort(tx);
 		} else {
-			ZFS_TIME_ENCODE(&ip->i_atime, atime);
+			inode_timespec_t tmp_atime;
+			tmp_atime = zpl_inode_get_atime(ip);
+			ZFS_TIME_ENCODE(&tmp_atime, atime);
 			mutex_enter(&zp->z_lock);
 			(void) sa_update(zp->z_sa_hdl, SA_ZPL_ATIME(zfsvfs),
 			    (void *)&atime, sizeof (atime), tx);

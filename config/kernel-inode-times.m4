@@ -52,6 +52,48 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_TIMES], [
 		memset(&ip, 0, sizeof(ip));
 		inode_set_ctime_to_ts(&ip, ts);
 	])
+
+	dnl #
+	dnl # 6.7 API change
+	dnl # i_atime/i_mtime no longer directly accessible, must use
+	dnl # inode_get_mtime(ip), inode_set_mtime*(ip) to
+	dnl # read/write.
+	dnl #
+	ZFS_LINUX_TEST_SRC([inode_get_atime], [
+		#include <linux/fs.h>
+	],[
+		struct inode ip;
+
+		memset(&ip, 0, sizeof(ip));
+		inode_get_atime(&ip);
+	])
+	ZFS_LINUX_TEST_SRC([inode_get_mtime], [
+		#include <linux/fs.h>
+	],[
+		struct inode ip;
+
+		memset(&ip, 0, sizeof(ip));
+		inode_get_mtime(&ip);
+	])
+
+	ZFS_LINUX_TEST_SRC([inode_set_atime_to_ts], [
+		#include <linux/fs.h>
+	],[
+		struct inode ip;
+		struct timespec64 ts = {0};
+
+		memset(&ip, 0, sizeof(ip));
+		inode_set_atime_to_ts(&ip, ts);
+	])
+	ZFS_LINUX_TEST_SRC([inode_set_mtime_to_ts], [
+		#include <linux/fs.h>
+	],[
+		struct inode ip;
+		struct timespec64 ts = {0};
+
+		memset(&ip, 0, sizeof(ip));
+		inode_set_mtime_to_ts(&ip, ts);
+	])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_INODE_TIMES], [
@@ -87,6 +129,42 @@ AC_DEFUN([ZFS_AC_KERNEL_INODE_TIMES], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_INODE_SET_CTIME_TO_TS, 1,
 		    [inode_set_ctime_to_ts() exists in linux/fs.h])
+	],[
+		AC_MSG_RESULT(no)
+	])
+
+	AC_MSG_CHECKING([whether inode_get_atime() exists])
+	ZFS_LINUX_TEST_RESULT([inode_get_atime], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_INODE_GET_ATIME, 1,
+		    [inode_get_atime() exists in linux/fs.h])
+	],[
+		AC_MSG_RESULT(no)
+	])
+
+	AC_MSG_CHECKING([whether inode_set_atime_to_ts() exists])
+	ZFS_LINUX_TEST_RESULT([inode_set_atime_to_ts], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_INODE_SET_ATIME_TO_TS, 1,
+		    [inode_set_atime_to_ts() exists in linux/fs.h])
+	],[
+		AC_MSG_RESULT(no)
+	])
+
+	AC_MSG_CHECKING([whether inode_get_mtime() exists])
+	ZFS_LINUX_TEST_RESULT([inode_get_mtime], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_INODE_GET_MTIME, 1,
+		    [inode_get_mtime() exists in linux/fs.h])
+	],[
+		AC_MSG_RESULT(no)
+	])
+
+	AC_MSG_CHECKING([whether inode_set_mtime_to_ts() exists])
+	ZFS_LINUX_TEST_RESULT([inode_set_mtime_to_ts], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_INODE_SET_MTIME_TO_TS, 1,
+		    [inode_set_mtime_to_ts() exists in linux/fs.h])
 	],[
 		AC_MSG_RESULT(no)
 	])
