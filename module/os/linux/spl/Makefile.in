@@ -8,6 +8,7 @@ $(MODULE)-objs += ../os/linux/spl/spl-kmem-cache.o
 $(MODULE)-objs += ../os/linux/spl/spl-kstat.o
 $(MODULE)-objs += ../os/linux/spl/spl-proc.o
 $(MODULE)-objs += ../os/linux/spl/spl-procfs-list.o
+$(MODULE)-objs += ../os/linux/spl/spl-shrinker.o
 $(MODULE)-objs += ../os/linux/spl/spl-taskq.o
 $(MODULE)-objs += ../os/linux/spl/spl-thread.o
 $(MODULE)-objs += ../os/linux/spl/spl-trace.o
