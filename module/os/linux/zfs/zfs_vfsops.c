@@ -1238,12 +1238,18 @@ zfs_prune_aliases(zfsvfs_t *zfsvfs, unsigned long nr_to_scan)
  * and inode caches.  This can occur when the ARC needs to free meta data
  * blocks but can't because they are all pinned by entries in these caches.
  */
+#if defined(HAVE_SUPER_BLOCK_S_SHRINK)
+#define	S_SHRINK(sb)	(&(sb)->s_shrink)
+#elif defined(HAVE_SUPER_BLOCK_S_SHRINK_PTR)
+#define	S_SHRINK(sb)	((sb)->s_shrink)
+#endif
+
 int
 zfs_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 {
 	zfsvfs_t *zfsvfs = sb->s_fs_info;
 	int error = 0;
-	struct shrinker *shrinker = &sb->s_shrink;
+	struct shrinker *shrinker = S_SHRINK(sb);
 	struct shrink_control sc = {
 		.nr_to_scan = nr_to_scan,
 		.gfp_mask = GFP_KERNEL,
@@ -1254,7 +1260,7 @@ zfs_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 #if defined(HAVE_SPLIT_SHRINKER_CALLBACK) && \
 	defined(SHRINK_CONTROL_HAS_NID) && \
 	defined(SHRINKER_NUMA_AWARE)
-	if (sb->s_shrink.flags & SHRINKER_NUMA_AWARE) {
+	if (shrinker->flags & SHRINKER_NUMA_AWARE) {
 		*objects = 0;
 		for_each_online_node(sc.nid) {
 			*objects += (*shrinker->scan_objects)(shrinker, &sc);
