@@ -273,5 +273,25 @@ extern long zpl_ioctl_fideduperange(struct file *filp, void *arg);
 #else
 #define	zpl_inode_set_ctime_to_ts(ip, ts)	(ip->i_ctime = ts)
 #endif
+#ifdef HAVE_INODE_GET_ATIME
+#define	zpl_inode_get_atime(ip)	inode_get_atime(ip)
+#else
+#define	zpl_inode_get_atime(ip)	(ip->i_atime)
+#endif
+#ifdef HAVE_INODE_SET_ATIME_TO_TS
+#define	zpl_inode_set_atime_to_ts(ip, ts)	inode_set_atime_to_ts(ip, ts)
+#else
+#define	zpl_inode_set_atime_to_ts(ip, ts)	(ip->i_atime = ts)
+#endif
+#ifdef HAVE_INODE_GET_MTIME
+#define	zpl_inode_get_mtime(ip)	inode_get_mtime(ip)
+#else
+#define	zpl_inode_get_mtime(ip)	(ip->i_mtime)
+#endif
+#ifdef HAVE_INODE_SET_MTIME_TO_TS
+#define	zpl_inode_set_mtime_to_ts(ip, ts)	inode_set_mtime_to_ts(ip, ts)
+#else
+#define	zpl_inode_set_mtime_to_ts(ip, ts)	(ip->i_mtime = ts)
+#endif
 
 #endif	/* _SYS_ZPL_H */
