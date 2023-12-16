@@ -520,8 +520,8 @@ zfsctl_inode_alloc(zfsvfs_t *zfsvfs, uint64_t id,
 	ip->i_uid = SUID_TO_KUID(0);
 	ip->i_gid = SGID_TO_KGID(0);
 	ip->i_blkbits = SPA_MINBLOCKSHIFT;
-	ip->i_atime = now;
-	ip->i_mtime = now;
+	zpl_inode_set_atime_to_ts(ip, now);
+	zpl_inode_set_mtime_to_ts(ip, now);
 	zpl_inode_set_ctime_to_ts(ip, now);
 	ip->i_fop = fops;
 	ip->i_op = ops;
