@@ -79,6 +79,7 @@ SPL_OBJS := \
 	spl-kstat.o \
 	spl-proc.o \
 	spl-procfs-list.o \
+	spl-shrinker.o \
 	spl-taskq.o \
 	spl-thread.o \
 	spl-trace.o \
