@@ -378,13 +378,16 @@ get_special_prop(lua_State *state, dsl_dataset_t *ds, const char *dsname,
 	}
 
 	case ZFS_PROP_KEYSTATUS:
-	case ZFS_PROP_KEYFORMAT: {
+	case ZFS_PROP_KEYFORMAT:
+	case ZFS_PROP_PASSPHRASE_KDF: {
 		/* provide defaults in case no crypto obj exists */
 		setpoint[0] = '\0';
 		if (zfs_prop == ZFS_PROP_KEYSTATUS)
 			numval = ZFS_KEYSTATUS_NONE;
-		else
+		else if (zfs_prop == ZFS_PROP_KEYFORMAT)
 			numval = ZFS_KEYFORMAT_NONE;
+		else
+			numval = ZFS_PASSPHRASE_KDF_PBKDF2;
 
 		nvlist_t *nvl, *propval;
 		nvl = fnvlist_alloc();

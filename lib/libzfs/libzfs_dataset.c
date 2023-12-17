@@ -1035,6 +1035,9 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 	int chosen_normal = -1;
 	int chosen_utf = -1;
 	int set_maxbs = 0;
+	zfs_passphrase_kdf_t chosen_kdf = ZFS_PASSPHRASE_KDF_PBKDF2;
+	uint64_t chosen_iters;
+	boolean_t have_chosen_iters = B_FALSE;
 
 	if (nvlist_alloc(&ret, NV_UNIQUE_NAME, 0) != 0) {
 		(void) no_memory(hdl);
@@ -1503,14 +1506,13 @@ badlabel:
 			}
 			break;
 
+		case ZFS_PROP_PASSPHRASE_KDF:
+			chosen_kdf = intval;
+			break;
+
 		case ZFS_PROP_PBKDF2_ITERS:
-			if (intval < MIN_PBKDF2_ITERATIONS) {
-				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "minimum pbkdf2 iterations is %u"),
-				    MIN_PBKDF2_ITERATIONS);
-				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
-				goto error;
-			}
+			chosen_iters = intval;
+			have_chosen_iters = B_TRUE;
 			break;
 
 		case ZFS_PROP_UTF8ONLY:
@@ -1583,6 +1585,15 @@ badlabel:
 				break;
 			}
 		}
+	}
+
+	if (have_chosen_iters &&
+	    !zfs_passphrase_kdf_min_parameters[chosen_kdf](chosen_iters)) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "minimum KDF iterations is %s"),
+		    zfs_passphrase_kdf_min_parameters_str[chosen_kdf]);
+		(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+		goto error;
 	}
 
 	/*

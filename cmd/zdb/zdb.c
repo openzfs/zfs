@@ -42,6 +42,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <getopt.h>
+#include <argon2.h>
 #include <openssl/evp.h>
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
@@ -3123,7 +3124,7 @@ static char *key_material = NULL;
 static boolean_t
 zdb_derive_key(dsl_dir_t *dd, uint8_t *key_out)
 {
-	uint64_t keyformat, salt, iters;
+	uint64_t keyformat, kdf = ZFS_PASSPHRASE_KDF_PBKDF2, salt, iters;
 	int i;
 	unsigned char c;
 
@@ -3151,10 +3152,35 @@ zdb_derive_key(dsl_dir_t *dd, uint8_t *key_out)
 		    dd->dd_crypto_obj, zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS),
 		    sizeof (uint64_t), 1, &iters));
 
-		if (PKCS5_PBKDF2_HMAC_SHA1(key_material, strlen(key_material),
-		    ((uint8_t *)&salt), sizeof (uint64_t), iters,
-		    WRAPPING_KEY_LEN, key_out) != 1)
-			return (B_FALSE);
+		int err = zap_lookup(dd->dd_pool->dp_meta_objset,
+		    dd->dd_crypto_obj,
+		    zfs_prop_to_name(ZFS_PROP_PASSPHRASE_KDF),
+		    sizeof (uint64_t), 1, &kdf);
+		VERIFY(err == 0 || err == ENOENT);
+
+		switch (kdf) {
+		case ZFS_PASSPHRASE_KDF_PBKDF2:
+			if (PKCS5_PBKDF2_HMAC_SHA1(key_material,
+			    strlen(key_material), ((uint8_t *)&salt),
+			    sizeof (uint64_t), iters,
+			    WRAPPING_KEY_LEN, key_out) != 1)
+				return (B_FALSE);
+			break;
+		case ZFS_PASSPHRASE_KDF_ARGON2ID:
+			zfs_passphrase_kdf_argon2id_params_t params =
+			    zfs_passphrase_kdf_argon2id_params(iters);
+			if (argon2_hash(params.t_cost, params.m_cost,
+			    params.parallelism,
+			    key_material, strlen(key_material),
+			    &salt, sizeof (uint64_t), key_out, WRAPPING_KEY_LEN,
+			    NULL, 0, Argon2_id, ARGON2_VERSION_13)
+			    != ARGON2_OK)
+				return (B_FALSE);
+			break;
+		default:
+			fatal("no support for KDF %u\n",
+			    (unsigned int) kdf);
+		}
 
 		break;
 

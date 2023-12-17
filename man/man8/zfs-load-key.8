@@ -29,7 +29,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd January 13, 2020
+.Dd December 17, 2023
 .Dt ZFS-LOAD-KEY 8
 .Os
 .
@@ -51,6 +51,7 @@
 .Op Fl l
 .Op Fl o Ar keylocation Ns = Ns Ar value
 .Op Fl o Ar keyformat Ns = Ns Ar value
+.Op Fl o Ar passphrasekdf Ns = Ns Ar value
 .Op Fl o Ar pbkdf2iters Ns = Ns Ar value
 .Ar filesystem
 .Nm zfs
@@ -83,6 +84,9 @@ Note that if the
 is set to
 .Sy prompt
 the terminal will interactively wait for the key to be entered.
+If
+.Sy passphrasekdf
+isn't specified, the current value is preserved.
 Loading a key will not automatically mount the dataset.
 If that functionality is desired,
 .Nm zfs Cm mount Fl l
@@ -152,6 +156,7 @@ Unloads the keys for all encryption roots in all imported pools.
 .Op Fl l
 .Op Fl o Ar keylocation Ns = Ns Ar value
 .Op Fl o Ar keyformat Ns = Ns Ar value
+.Op Fl o Ar passphrasekdf Ns = Ns Ar value
 .Op Fl o Ar pbkdf2iters Ns = Ns Ar value
 .Ar filesystem
 .Xc
@@ -167,6 +172,7 @@ This command requires that the existing key for the dataset is already loaded.
 This command may also be used to change the
 .Sy keylocation ,
 .Sy keyformat ,
+.Sy passphrasekdf ,
 and
 .Sy pbkdf2iters
 properties as needed.
@@ -204,10 +210,11 @@ This is effectively equivalent to running
 .Nm zfs Cm load-key Ar filesystem ; Nm zfs Cm change-key Ar filesystem
 .It Fl o Ar property Ns = Ns Ar value
 Allows the user to set encryption key properties
-.Pq Sy keyformat , keylocation , No and Sy pbkdf2iters
+.Pq Sy keyformat , keylocation , passphrasekdf , No and Sy pbkdf2iters
 while changing the key.
 This is the only way to alter
-.Sy keyformat
+.Sy keyformat ,
+.Sy passphrasekdf ,
 and
 .Sy pbkdf2iters
 after the dataset has been created.
@@ -244,7 +251,7 @@ subcommand for more info on key loading).
 Creating an encrypted dataset requires specifying the
 .Sy encryption No and Sy keyformat
 properties at creation time, along with an optional
-.Sy keylocation No and Sy pbkdf2iters .
+.Sy keylocation , passphrasekdf , No and Sy pbkdf2iters .
 After entering an encryption key, the
 created dataset will become an encryption root.
 Any descendant datasets will
@@ -265,7 +272,7 @@ property alone does not create a new encryption root; this would simply use a
 different cipher suite with the same key as its encryption root.
 The one exception is that clones will always use their origin's encryption key.
 As a result of this exception, some encryption-related properties
-.Pq namely Sy keystatus , keyformat ,  keylocation , No and Sy pbkdf2iters
+.Pq namely Sy keystatus , keyformat , passphrasekdf ,  keylocation , No and Sy pbkdf2iters
 do not inherit like other ZFS properties and instead use the value determined
 by their encryption root.
 Encryption root inheritance can be tracked via the read-only

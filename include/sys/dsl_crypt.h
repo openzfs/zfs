@@ -28,8 +28,9 @@
 
 /*
  * ZAP entry keys for DSL Crypto Keys stored on disk. In addition,
- * ZFS_PROP_KEYFORMAT, ZFS_PROP_PBKDF2_SALT, and ZFS_PROP_PBKDF2_ITERS are
- * also maintained here using their respective property names.
+ * ZFS_PROP_KEYFORMAT, ZFS_PROP_PBKDF2_SALT, ZFS_PROP_PBKDF2_ITERS,
+ * and ZFS_PROP_PASSPHRASE_KDF are also maintained here using their
+ * respective property names.
  */
 #define	DSL_CRYPTO_KEY_CRYPTO_SUITE	"DSL_CRYPTO_SUITE"
 #define	DSL_CRYPTO_KEY_GUID		"DSL_CRYPTO_GUID"
@@ -52,10 +53,13 @@ typedef struct dsl_wrapping_key {
 	/* keyformat property enum */
 	zfs_keyformat_t wk_keyformat;
 
-	/* the pbkdf2 salt, if the keyformat is of type passphrase */
+	/* the KDF to use, if the keyformat is of type passphrase */
+	zfs_passphrase_kdf_t wk_kdf;
+
+	/* the KDF salt, if the keyformat is of type passphrase */
 	uint64_t wk_salt;
 
-	/* the pbkdf2 iterations, if the keyformat is of type passphrase */
+	/* the KDF iterations, if the keyformat is of type passphrase */
 	uint64_t wk_iters;
 
 	/* actual wrapping key */
