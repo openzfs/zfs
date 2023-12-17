@@ -838,10 +838,10 @@ zfs_prop_userquota(const char *name)
 boolean_t
 zfs_prop_written(const char *name)
 {
-	static const char *prop_prefix = "written@";
-	static const char *book_prefix = "written#";
-	return (strncmp(name, prop_prefix, strlen(prop_prefix)) == 0 ||
-	    strncmp(name, book_prefix, strlen(book_prefix)) == 0);
+	static const char prop_prefix[] = "written@";
+	static const char book_prefix[] = "written#";
+	return (strncmp(name, prop_prefix, sizeof (prop_prefix) - 1) == 0 ||
+	    strncmp(name, book_prefix, sizeof (book_prefix) - 1) == 0);
 }
 
 /*
