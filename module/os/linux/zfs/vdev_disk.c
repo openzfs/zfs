@@ -224,6 +224,9 @@ vdev_blkdev_get_by_path(const char *path, spa_mode_t mode, void *holder,
     const struct blk_holder_ops *hops)
 {
 #ifdef HAVE_BLKDEV_GET_BY_PATH_4ARG
+#if !defined(BLK_OPEN_EXCL)
+#define BLK_OPEN_EXCL	FMODE_EXCL
+#endif
 	return (blkdev_get_by_path(path,
 	    vdev_bdev_mode(mode) | BLK_OPEN_EXCL, holder, hops));
 #else
