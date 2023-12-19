@@ -169,3 +169,24 @@ ZED_SYSLOG_SUBCLASS_EXCLUDE="history_event"
 #  <https://docs.ntfy.sh/install/>
 # https://ntfy.sh by default; uncomment to enable an alternative service url.
 #ZED_NTFY_URL="https://ntfy.sh"
+
+##
+# Gotify server URL
+# This defines a URL that the Gotify call will be directed toward.
+# <https://gotify.net/docs/index>
+# Disabled by default; uncomment to enable.
+#ZED_GOTIFY_URL=""
+
+##
+# Gotify application token
+# This defines a Gotify application token which a message is associated with.
+# This token is generated when an application is created on the Gotify server.
+# Disabled by default; uncomment to enable.
+#ZED_GOTIFY_APPTOKEN=""
+
+##
+# Gotify priority (optional)
+# If defined, this overrides the default priority of the
+# Gotify application associated with ZED_GOTIFY_APPTOKEN.
+# Value is an integer 0 and up.
+#ZED_GOTIFY_PRIORITY=""
