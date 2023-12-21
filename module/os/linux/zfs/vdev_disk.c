@@ -85,7 +85,7 @@ static blk_mode_t
 #else
 static fmode_t
 #endif
-vdev_bdev_mode(spa_mode_t spa_mode)
+vdev_bdev_mode(spa_mode_t spa_mode, boolean_t exclusive)
 {
 #ifdef HAVE_BLK_MODE_T
 	blk_mode_t mode = 0;
@@ -95,6 +95,9 @@ vdev_bdev_mode(spa_mode_t spa_mode)
 
 	if (spa_mode & SPA_MODE_WRITE)
 		mode |= BLK_OPEN_WRITE;
+
+	if (exclusive)
+		mode |= BLK_OPEN_EXCL;
 #else
 	fmode_t mode = 0;
 
@@ -103,6 +106,9 @@ vdev_bdev_mode(spa_mode_t spa_mode)
 
 	if (spa_mode & SPA_MODE_WRITE)
 		mode |= FMODE_WRITE;
+
+	if (exclusive)
+		mode |= FMODE_EXCL;
 #endif
 
 	return (mode);
@@ -225,10 +231,10 @@ vdev_blkdev_get_by_path(const char *path, spa_mode_t mode, void *holder,
 {
 #ifdef HAVE_BLKDEV_GET_BY_PATH_4ARG
 	return (blkdev_get_by_path(path,
-	    vdev_bdev_mode(mode) | BLK_OPEN_EXCL, holder, hops));
+	    vdev_bdev_mode(mode, B_TRUE), holder, hops));
 #else
 	return (blkdev_get_by_path(path,
-	    vdev_bdev_mode(mode) | FMODE_EXCL, holder));
+	    vdev_bdev_mode(mode, B_TRUE), holder));
 #endif
 }
 
@@ -238,7 +244,7 @@ vdev_blkdev_put(struct block_device *bdev, spa_mode_t mode, void *holder)
 #ifdef HAVE_BLKDEV_PUT_HOLDER
 	return (blkdev_put(bdev, holder));
 #else
-	return (blkdev_put(bdev, vdev_bdev_mode(mode) | FMODE_EXCL));
+	return (blkdev_put(bdev, vdev_bdev_mode(mode, B_TRUE)));
 #endif
 }
 
@@ -248,9 +254,9 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 {
 	struct block_device *bdev;
 #ifdef HAVE_BLK_MODE_T
-	blk_mode_t mode = vdev_bdev_mode(spa_mode(v->vdev_spa));
+	blk_mode_t mode = vdev_bdev_mode(spa_mode(v->vdev_spa), B_FALSE);
 #else
-	fmode_t mode = vdev_bdev_mode(spa_mode(v->vdev_spa));
+	fmode_t mode = vdev_bdev_mode(spa_mode(v->vdev_spa), B_FALSE);
 #endif
 	hrtime_t timeout = MSEC2NSEC(zfs_vdev_open_timeout_ms);
 	vdev_disk_t *vd;
