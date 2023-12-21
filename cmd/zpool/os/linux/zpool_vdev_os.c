@@ -410,3 +410,258 @@ void
 after_zpool_upgrade(zpool_handle_t *zhp)
 {
 }
+
+/*
+ * Read from a sysfs file and return an allocated string.  Removes
+ * the newline from the end of the string if there is one.
+ *
+ * Returns a string on success (which must be freed), or NULL on error.
+ */
+static char *zpool_sysfs_gets(char *path)
+{
+	int fd;
+	struct stat statbuf;
+	char *buf = NULL;
+	ssize_t count = 0;
+	fd = open(path, O_RDONLY);
+	if (fd < 0)
+		return (NULL);
+
+	if (fstat(fd, &statbuf) != 0) {
+		close(fd);
+		return (NULL);
+	}
+
+	buf = calloc(sizeof (*buf), statbuf.st_size + 1);
+	if (buf == NULL) {
+		close(fd);
+		return (NULL);
+	}
+
+	/*
+	 * Note, we can read less bytes than st_size, and that's ok.  Sysfs
+	 * files will report their size is 4k even if they only return a small
+	 * string.
+	 */
+	count = read(fd, buf, statbuf.st_size);
+	if (count < 0) {
+		/* Error doing read() or we overran the buffer */
+		close(fd);
+		free(buf);
+		return (NULL);
+	}
+
+	/* Remove trailing newline */
+	if (buf[count - 1] == '\n')
+		buf[count - 1] = 0;
+
+	close(fd);
+
+	return (buf);
+}
+
+/*
+ * Write a string to a sysfs file.
+ *
+ * Returns 0 on success, non-zero otherwise.
+ */
+static int zpool_sysfs_puts(char *path, char *str)
+{
+	FILE *file;
+
+	file = fopen(path, "w");
+	if (!file) {
+		return (-1);
+	}
+
+	if (fputs(str, file) < 0) {
+		fclose(file);
+		return (-2);
+	}
+	fclose(file);
+	return (0);
+}
+
+/* Given a vdev nvlist_t, rescan its enclosure sysfs path */
+static void
+rescan_vdev_config_dev_sysfs_path(nvlist_t *vdev_nv)
+{
+	update_vdev_config_dev_sysfs_path(vdev_nv,
+	    fnvlist_lookup_string(vdev_nv, ZPOOL_CONFIG_PATH),
+	    ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH);
+}
+
+/*
+ * Given a power string: "on", "off", "1", or "0", return 0 if it's an
+ * off value, 1 if it's an on value, and -1 if the value is unrecognized.
+ */
+static int zpool_power_parse_value(char *str)
+{
+	if ((strcmp(str, "off") == 0) || (strcmp(str, "0") == 0))
+		return (0);
+
+	if ((strcmp(str, "on") == 0) || (strcmp(str, "1") == 0))
+		return (1);
+
+	return (-1);
+}
+
+/*
+ * Given a vdev string return an allocated string containing the sysfs path to
+ * its power control file.  Also do a check if the power control file really
+ * exists and has correct permissions.
+ *
+ * Example returned strings:
+ *
+ * /sys/class/enclosure/0:0:122:0/10/power_status
+ * /sys/bus/pci/slots/10/power
+ *
+ * Returns allocated string on success (which must be freed), NULL on failure.
+ */
+static char *
+zpool_power_sysfs_path(zpool_handle_t *zhp, char *vdev)
+{
+	char *enc_sysfs_dir = NULL;
+	char *path = NULL;
+	nvlist_t *vdev_nv = zpool_find_vdev(zhp, vdev, NULL, NULL, NULL);
+
+	if (vdev_nv == NULL) {
+		return (NULL);
+	}
+
+	/* Make sure we're getting the updated enclosure sysfs path */
+	rescan_vdev_config_dev_sysfs_path(vdev_nv);
+
+	if (nvlist_lookup_string(vdev_nv, ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH,
+	    &enc_sysfs_dir) != 0) {
+		return (NULL);
+	}
+
+	if (asprintf(&path, "%s/power_status", enc_sysfs_dir) == -1)
+		return (NULL);
+
+	if (access(path, W_OK) != 0) {
+		free(path);
+		path = NULL;
+		/* No HDD 'power_control' file, maybe it's NVMe? */
+		if (asprintf(&path, "%s/power", enc_sysfs_dir) == -1) {
+			return (NULL);
+		}
+
+		if (access(path, R_OK | W_OK) != 0) {
+			/* Not NVMe either */
+			free(path);
+			return (NULL);
+		}
+	}
+
+	return (path);
+}
+
+/*
+ * Given a path to a sysfs power control file, return B_TRUE if you should use
+ * "on/off" words to control it, or B_FALSE otherwise ("0/1" to control).
+ */
+static boolean_t
+zpool_power_use_word(char *sysfs_path)
+{
+	if (strcmp(&sysfs_path[strlen(sysfs_path) - strlen("power_status")],
+	    "power_status") == 0) {
+		return (B_TRUE);
+	}
+	return (B_FALSE);
+}
+
+/*
+ * Check the sysfs power control value for a vdev.
+ *
+ * Returns:
+ *  0 - Power is off
+ *  1 - Power is on
+ * -1 - Error or unsupported
+ */
+int
+zpool_power_current_state(zpool_handle_t *zhp, char *vdev)
+{
+	char *val;
+	int rc;
+
+	char *path = zpool_power_sysfs_path(zhp, vdev);
+	if (path == NULL)
+		return (-1);
+
+	val = zpool_sysfs_gets(path);
+	if (val == NULL) {
+		free(path);
+		return (-1);
+	}
+
+	rc = zpool_power_parse_value(val);
+	free(val);
+	free(path);
+	return (rc);
+}
+
+/*
+ * Turn on or off the slot to a device
+ *
+ * Device path is the full path to the device (like /dev/sda or /dev/sda1).
+ *
+ * Return code:
+ * 0:		Success
+ * ENOTSUP:	Power control not supported for OS
+ * EBADSLT:	Couldn't read current power state
+ * ENOENT:	No sysfs path to power control
+ * EIO:	Couldn't write sysfs power value
+ * EBADE:	Sysfs power value didn't change
+ */
+int
+zpool_power(zpool_handle_t *zhp, char *vdev, boolean_t turn_on)
+{
+	char *sysfs_path;
+	const char *val;
+	int rc;
+	int timeout_ms;
+
+	rc = zpool_power_current_state(zhp, vdev);
+	if (rc == -1) {
+		return (EBADSLT);
+	}
+
+	/* Already correct value? */
+	if (rc == (int)turn_on)
+		return (0);
+
+	sysfs_path = zpool_power_sysfs_path(zhp, vdev);
+	if (sysfs_path == NULL)
+		return (ENOENT);
+
+	if (zpool_power_use_word(sysfs_path)) {
+		val = turn_on ? "on" : "off";
+	} else {
+		val = turn_on ? "1" : "0";
+	}
+
+	rc = zpool_sysfs_puts(sysfs_path, (char *)val);
+
+	free(sysfs_path);
+	if (rc != 0) {
+		return (EIO);
+	}
+
+	/*
+	 * Wait up to 30 seconds for sysfs power value to change after
+	 * writing it.
+	 */
+	timeout_ms = zpool_getenv_int("ZPOOL_POWER_ON_SLOT_TIMEOUT_MS", 30000);
+	for (int i = 0; i < MAX(1, timeout_ms / 200); i++) {
+		rc = zpool_power_current_state(zhp, vdev);
+		if (rc == (int)turn_on)
+			return (0);	/* success */
+
+		fsleep(0.200);	/* 200ms */
+	}
+
+	/* sysfs value never changed */
+	return (EBADE);
+}
