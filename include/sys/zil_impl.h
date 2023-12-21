@@ -182,7 +182,6 @@ typedef struct zil_vdev_node {
 } zil_vdev_node_t;
 
 #define	ZIL_BURSTS 8
-#define	ZIL_PREV_BLKS 16
 
 /*
  * Stable storage intent log management structure.  One per dataset.
@@ -217,7 +216,9 @@ struct zilog {
 	uint64_t	zl_parse_lr_count; /* number of log records parsed */
 	itxg_t		zl_itxg[TXG_SIZE]; /* intent log txg chains */
 	list_t		zl_itx_commit_list; /* itx list to be committed */
-	uint64_t	zl_cur_used;	/* current commit log size used */
+	uint64_t	zl_cur_size;	/* current burst full size */
+	uint64_t	zl_cur_left;	/* current burst remaining size */
+	uint64_t	zl_cur_max;	/* biggest record in current burst */
 	list_t		zl_lwb_list;	/* in-flight log write list */
 	avl_tree_t	zl_bp_tree;	/* track bps during log parse */
 	clock_t		zl_replay_time;	/* lbolt of when replay started */
@@ -225,7 +226,8 @@ struct zilog {
 	zil_header_t	zl_old_header;	/* debugging aid */
 	uint_t		zl_parallel;	/* workload is multi-threaded */
 	uint_t		zl_prev_rotor;	/* rotor for zl_prev[] */
-	uint_t		zl_prev_blks[ZIL_PREV_BLKS]; /* size - sector rounded */
+	uint_t		zl_prev_opt[ZIL_BURSTS]; /* optimal block size */
+	uint_t		zl_prev_min[ZIL_BURSTS]; /* minimal first block size */
 	txg_node_t	zl_dirty_link;	/* protected by dp_dirty_zilogs list */
 	uint64_t	zl_dirty_max_txg; /* highest txg used to dirty zilog */
 
