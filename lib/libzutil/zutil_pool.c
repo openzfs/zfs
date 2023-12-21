@@ -28,6 +28,7 @@
 #include <string.h>
 #include <sys/nvpair.h>
 #include <sys/fs/zfs.h>
+#include <math.h>
 
 #include <libzutil.h>
 
@@ -142,4 +143,34 @@ zpool_history_unpack(char *buf, uint64_t bytes_read, uint64_t *leftover,
 
 	*leftover = bytes_read;
 	return (0);
+}
+
+/*
+ * Floating point sleep().  Allows you to pass in a floating point value for
+ * seconds.
+ */
+void
+fsleep(float sec)
+{
+	struct timespec req;
+	req.tv_sec = floor(sec);
+	req.tv_nsec = (sec - (float)req.tv_sec) * NANOSEC;
+	nanosleep(&req, NULL);
+}
+
+/*
+ * Get environment variable 'env' and return it as an integer.
+ * If 'env' is not set, then return 'default_val' instead.
+ */
+int
+zpool_getenv_int(const char *env, int default_val)
+{
+	char *str;
+	int val;
+	str = getenv(env);
+	if ((str == NULL) || sscanf(str, "%d", &val) != 1 ||
+	    val < 0) {
+		val = default_val;
+	}
+	return (val);
 }

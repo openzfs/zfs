@@ -424,7 +424,7 @@ rpool       14.6G  54.9G      4     55   250K  2.69M
 .El
 .
 .Sh ENVIRONMENT VARIABLES
-.Bl -tag -compact -width "ZPOOL_IMPORT_UDEV_TIMEOUT_MS"
+.Bl -tag -compact -width "ZPOOL_STATUS_NON_NATIVE_ASHIFT_IGNORE"
 .It Sy ZFS_ABORT
 Cause
 .Nm
@@ -436,6 +436,23 @@ Use ANSI color in
 and
 .Nm zpool iostat
 output.
+.It Sy ZPOOL_AUTO_POWER_ON_SLOT
+Automatically attempt to turn on the drives enclosure slot power to a drive when
+running the
+.Nm zpool Cm online
+or
+.Nm zpool Cm clear
+commands.
+This has the same effect as passing the
+.Fl -power
+option to those commands.
+.It Sy ZPOOL_POWER_ON_SLOT_TIMEOUT_MS
+The maximum time in milliseconds to wait for a slot power sysfs value
+to return the correct value after writing it.
+For example, after writing "on" to the sysfs enclosure slot power_control file,
+it can take some time for the enclosure to power down the slot and return
+"on" if you read back the 'power_control' value.
+Defaults to 30 seconds (30000ms) if not set.
 .It Sy ZPOOL_IMPORT_PATH
 The search path for devices or files to use with the pool.
 This is a colon-separated list of directories in which

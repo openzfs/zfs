@@ -311,6 +311,8 @@ _LIBZFS_H int zpool_vdev_remove_wanted(zpool_handle_t *, const char *);
 
 extern int zpool_vdev_fault(zpool_handle_t *, uint64_t, vdev_aux_t);
 extern int zpool_vdev_degrade(zpool_handle_t *, uint64_t, vdev_aux_t);
+extern int zpool_vdev_set_removed_state(zpool_handle_t *, uint64_t,
+    vdev_aux_t);
 extern int zpool_vdev_clear(zpool_handle_t *, uint64_t);
 
 extern nvlist_t *zpool_find_vdev(zpool_handle_t *, const char *, boolean_t *,
