@@ -36,12 +36,13 @@
 .Sh SYNOPSIS
 .Nm zpool
 .Cm offline
-.Op Fl ft
+.Op Fl Sy -power Ns | Ns Op Fl Sy ft
 .Ar pool
 .Ar device Ns …
 .Nm zpool
 .Cm online
-.Op Fl e
+.Op Fl Sy -power
+.Op Fl Sy e
 .Ar pool
 .Ar device Ns …
 .
@@ -50,7 +51,7 @@
 .It Xo
 .Nm zpool
 .Cm offline
-.Op Fl ft
+.Op Fl Sy -power Ns | Ns Op Fl Sy ft
 .Ar pool
 .Ar device Ns …
 .Xc
@@ -60,6 +61,9 @@ While the
 is offline, no attempt is made to read or write to the device.
 This command is not applicable to spares.
 .Bl -tag -width Ds
+.It Fl -power
+Power off the device's slot in the storage enclosure.
+This flag currently works on Linux only
 .It Fl f
 Force fault.
 Instead of offlining the disk, put it into a faulted state.
@@ -73,6 +77,7 @@ Upon reboot, the specified physical device reverts to its previous state.
 .It Xo
 .Nm zpool
 .Cm online
+.Op Fl -power
 .Op Fl e
 .Ar pool
 .Ar device Ns …
@@ -80,6 +85,13 @@ Upon reboot, the specified physical device reverts to its previous state.
 Brings the specified physical device online.
 This command is not applicable to spares.
 .Bl -tag -width Ds
+.It Fl -power
+Power on the device's slot in the storage enclosure and wait for the device
+to show up before attempting to online it.
+Alternatively, you can set the
+.Sy ZPOOL_AUTO_POWER_ON_SLOT
+environment variable to always enable this behavior.
+This flag currently works on Linux only
 .It Fl e
 Expand the device to use all available space.
 If the device is part of a mirror or raidz then all devices must be expanded
