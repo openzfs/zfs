@@ -173,6 +173,14 @@ uint_t		zio_taskq_batch_tpq;		/* threads per taskq */
 boolean_t	zio_taskq_sysdc = B_TRUE;	/* use SDC scheduling class */
 uint_t		zio_taskq_basedc = 80;		/* base duty cycle */
 
+/*
+ * If enabled, try to find an unlocked IO taskq to dispatch an IO onto before
+ * falling back to waiting on a lock. This should only be enabled in
+ * conjunction with careful performance testing, and will likely require
+ * zio_taskq_read/zio_taskq_write to be adjusted as well.
+ */
+boolean_t	zio_taskq_trylock = B_FALSE;
+
 boolean_t	spa_create_process = B_TRUE;	/* no process ==> no sysdc */
 
 /*
@@ -1411,11 +1419,13 @@ spa_taskq_dispatch_ent(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
 	}
 
 	int select = ((uint64_t)gethrtime()) % tqs->stqs_count;
-	for (int i = 0; i < tqs->stqs_count; i++) {
-		if (taskq_try_dispatch_ent(
-		    tqs->stqs_taskq[select], func, arg, flags, ent))
-			goto out;
-		select = (select+1) % tqs->stqs_count;
+	if (zio_taskq_trylock) {
+		for (int i = 0; i < tqs->stqs_count; i++) {
+			if (taskq_try_dispatch_ent(
+			    tqs->stqs_taskq[select], func, arg, flags, ent))
+				goto out;
+			select = (select+1) % tqs->stqs_count;
+		}
 	}
 
 	taskq_dispatch_ent(tqs->stqs_taskq[select], func, arg, flags, ent);
@@ -10484,6 +10494,9 @@ ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_batch_pct, UINT, ZMOD_RD,
 
 ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_batch_tpq, UINT, ZMOD_RD,
 	"Number of threads per IO worker taskqueue");
+
+ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_trylock, UINT, ZMOD_RD,
+	"Try to dispatch IO to an unlocked IO taskqueue before sleeping");
 
 ZFS_MODULE_PARAM(zfs, zfs_, max_missing_tvds, ULONG, ZMOD_RW,
 	"Allow importing pool with up to this number of missing top-level "
