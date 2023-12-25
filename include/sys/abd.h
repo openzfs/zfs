@@ -69,7 +69,9 @@ typedef struct abd {
 		} abd_scatter;
 		struct abd_linear {
 			void		*abd_buf;
+#if defined(__linux__) && defined(_KERNEL)
 			struct scatterlist *abd_sgl; /* for LINEAR_PAGE */
+#endif
 		} abd_linear;
 		struct abd_gang {
 			list_t abd_gang_chain;

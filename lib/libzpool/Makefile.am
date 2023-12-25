@@ -9,6 +9,7 @@ lib_LTLIBRARIES += libzpool.la
 CPPCHECKTARGETS += libzpool.la
 
 dist_libzpool_la_SOURCES = \
+	%D%/abd_os.c \
 	%D%/kernel.c \
 	%D%/taskq.c \
 	%D%/util.c
@@ -39,7 +40,6 @@ nodist_libzpool_la_SOURCES = \
 	module/lua/lvm.c \
 	module/lua/lzio.c \
 	\
-	module/os/linux/zfs/abd_os.c \
 	module/os/linux/zfs/arc_os.c \
 	module/os/linux/zfs/trace.c \
 	module/os/linux/zfs/vdev_file.c \
