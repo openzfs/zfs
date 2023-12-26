@@ -1,0 +1,315 @@
+#! /bin/ksh -p
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or https://opensource.org/licenses/CDDL-1.0.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright (c) 2023 by Pawel Jakub Dawidek
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/include/math.shlib
+. $STF_SUITE/tests/functional/bclone/bclone_common.kshlib
+
+function first_half_checksum
+{
+    typeset -r file=$1
+
+    dd if=$file bs=$HALFRECORDSIZE count=1 2>/dev/null | sha256digest
+}
+
+function second_half_checksum
+{
+    typeset -r file=$1
+
+    dd if=$file bs=$HALFRECORDSIZE count=1 skip=1 2>/dev/null | sha256digest
+}
+
+function bclone_corner_cases_init
+{
+    typeset -r srcdir=$1
+    typeset -r dstdir=$2
+
+    export RECORDSIZE=4096
+    export HALFRECORDSIZE=$((RECORDSIZE / 2))
+
+    export CLONE="$dstdir/clone0"
+    export ORIG0="$srcdir/orig0"
+    export ORIG1="$srcdir/orig1"
+    export ORIG2="$srcdir/orig2"
+
+    # Create source files.
+    log_must dd if=/dev/urandom of="$ORIG0" bs=$RECORDSIZE count=1
+    log_must dd if=/dev/urandom of="$ORIG1" bs=$RECORDSIZE count=1
+    log_must dd if=/dev/urandom of="$ORIG2" bs=$RECORDSIZE count=1
+
+    export FIRST_HALF_ORIG0_CHECKSUM=$(first_half_checksum $ORIG0)
+    export FIRST_HALF_ORIG1_CHECKSUM=$(first_half_checksum $ORIG1)
+    export FIRST_HALF_ORIG2_CHECKSUM=$(first_half_checksum $ORIG2)
+    export SECOND_HALF_ORIG0_CHECKSUM=$(second_half_checksum $ORIG0)
+    export SECOND_HALF_ORIG1_CHECKSUM=$(second_half_checksum $ORIG1)
+    export SECOND_HALF_ORIG2_CHECKSUM=$(second_half_checksum $ORIG2)
+    export ZEROS_CHECKSUM=$(dd if=/dev/zero bs=$HALFRECORDSIZE count=1 | sha256digest)
+    export FIRST_HALF_CHECKSUM=""
+    export SECOND_HALF_CHECKSUM=""
+}
+
+function cache_clone
+{
+    typeset -r cached=$1
+
+    case "$cached" in
+    "cached")
+        dd if=$CLONE of=/dev/null bs=$RECORDSIZE 2>/dev/null
+        ;;
+    "uncached")
+        ;;
+    *)
+        log_fail "invalid cached: $cached"
+        ;;
+    esac
+}
+
+function create_existing
+{
+    typeset -r existing=$1
+
+    case "$existing" in
+    "no")
+        ;;
+    "small empty")
+        log_must truncate_test -s $HALFRECORDSIZE -f $CLONE
+        ;;
+    "full empty")
+        log_must truncate_test -s $RECORDSIZE -f $CLONE
+        ;;
+    "small data")
+        log_must dd if=/dev/urandom of=$CLONE bs=$HALFRECORDSIZE count=1 \
+         2>/dev/null
+        ;;
+    "full data")
+        log_must dd if=/dev/urandom of=$CLONE bs=$RECORDSIZE count=1 2>/dev/null
+        ;;
+    *)
+        log_fail "invalid existing: $existing"
+        ;;
+    esac
+}
+
+function create_clone
+{
+    typeset -r clone=$1
+    typeset -r file=$2
+
+    case "$clone" in
+    "no")
+        ;;
+    "yes")
+        clonefile -f $file $CLONE
+        case "$file" in
+        $ORIG0)
+            FIRST_HALF_CHECKSUM=$FIRST_HALF_ORIG0_CHECKSUM
+            SECOND_HALF_CHECKSUM=$SECOND_HALF_ORIG0_CHECKSUM
+            ;;
+        $ORIG2)
+            FIRST_HALF_CHECKSUM=$FIRST_HALF_ORIG2_CHECKSUM
+            SECOND_HALF_CHECKSUM=$SECOND_HALF_ORIG2_CHECKSUM
+            ;;
+        *)
+            log_fail "invalid file: $file"
+            ;;
+        esac
+        ;;
+    *)
+        log_fail "invalid clone: $clone"
+        ;;
+    esac
+}
+
+function overwrite_clone
+{
+    typeset -r overwrite=$1
+
+    case "$overwrite" in
+    "no")
+        ;;
+    "free")
+        log_must truncate_test -s 0 -f $CLONE
+        log_must truncate_test -s $RECORDSIZE -f $CLONE
+        FIRST_HALF_CHECKSUM=$ZEROS_CHECKSUM
+        SECOND_HALF_CHECKSUM=$ZEROS_CHECKSUM
+        ;;
+    "full")
+        log_must dd if=$ORIG1 of=$CLONE bs=$RECORDSIZE count=1 2>/dev/null
+        FIRST_HALF_CHECKSUM=$FIRST_HALF_ORIG1_CHECKSUM
+        SECOND_HALF_CHECKSUM=$SECOND_HALF_ORIG1_CHECKSUM
+        ;;
+    "first half")
+        log_must dd if=$ORIG1 of=$CLONE bs=$HALFRECORDSIZE skip=0 seek=0 \
+          count=1 conv=notrunc 2>/dev/null
+        FIRST_HALF_CHECKSUM=$FIRST_HALF_ORIG1_CHECKSUM
+        ;;
+    "second half")
+        log_must dd if=$ORIG1 of=$CLONE bs=$HALFRECORDSIZE skip=1 seek=1 \
+          count=1 conv=notrunc 2>/dev/null
+        SECOND_HALF_CHECKSUM=$SECOND_HALF_ORIG1_CHECKSUM
+        ;;
+    *)
+        log_fail "invalid overwrite: $overwrite"
+        ;;
+    esac
+}
+
+function checksum_compare
+{
+    typeset -r compare=$1
+    typeset first_half_calculated_checksum second_half_calculated_checksum
+
+    case "$compare" in
+    "no")
+        ;;
+    "yes")
+        first_half_calculated_checksum=$(first_half_checksum $CLONE)
+        second_half_calculated_checksum=$(second_half_checksum $CLONE)
+
+        if [[ $first_half_calculated_checksum != $FIRST_HALF_CHECKSUM ]] || \
+           [[ $second_half_calculated_checksum != $SECOND_HALF_CHECKSUM ]]; then
+            return 1
+        fi
+        ;;
+    *)
+        log_fail "invalid compare: $compare"
+        ;;
+    esac
+}
+
+function bclone_corner_cases_test
+{
+    typeset cached existing
+    typeset first_clone first_overwrite
+    typeset read_after read_before
+    typeset second_clone second_overwrite
+    typeset -r srcdir=$1
+    typeset -r dstdir=$2
+    typeset limit=$3
+    typeset -i count=0
+
+    if [[ $srcdir != "count" ]]; then
+        if [[ -n "$limit" ]]; then
+            typeset -r total_count=$(bclone_corner_cases_test count)
+            limit=$(random_int_between 1 $total_count $((limit*2)) | sort -nu | head -n $limit | xargs)
+        fi
+        bclone_corner_cases_init $srcdir $dstdir
+    fi
+
+    #
+    # (create) / (cache) / (clone) / (overwrite) / (read) / (clone) / (overwrite) / (read) / read next txg
+    #
+    for existing in "no" "small empty" "full empty" "small data" "full data"; do
+        for cached in "uncached" "cached"; do
+            for first_clone in "no" "yes"; do
+                for first_overwrite in "no" "free" "full" "first half" "second half"; do
+                    for read_before in "no" "yes"; do
+                        for second_clone in "no" "yes"; do
+                            for second_overwrite in "no" "free" "full" "first half" "second half"; do
+                                for read_after in "no" "yes"; do
+                                    if [[ $first_clone = "no" ]] && \
+                                       [[ $second_clone = "no" ]]; then
+                                        continue
+                                    fi
+                                    if [[ $first_clone = "no" ]] && \
+                                       [[ $read_before = "yes" ]]; then
+                                        continue
+                                    fi
+                                    if [[ $second_clone = "no" ]] && \
+                                       [[ $read_before = "yes" ]] && \
+                                       [[ $read_after = "yes" ]]; then
+                                        continue
+                                    fi
+
+                                    count=$((count+1))
+
+                                    if [[ $srcdir = "count" ]]; then
+                                        # Just counting.
+                                        continue
+                                    fi
+
+                                    if [[ -n "$limit" ]]; then
+                                        if ! echo " $limit " | grep -q " $count "; then
+                                            continue
+                                        fi
+                                    fi
+
+                                    FIRST_HALF_CHECKSUM=""
+                                    SECOND_HALF_CHECKSUM=""
+
+                                    log_must zpool export $TESTPOOL
+                                    log_must zpool import $TESTPOOL
+
+                                    create_existing "$existing"
+
+                                    log_must zpool export $TESTPOOL
+                                    log_must zpool import $TESTPOOL
+
+                                    cache_clone "$cached"
+
+                                    create_clone "$first_clone" "$ORIG0"
+
+                                    overwrite_clone "$first_overwrite"
+
+                                    if checksum_compare $read_before; then
+                                        log_note "existing: $existing / cached: $cached / first_clone: $first_clone / first_overwrite: $first_overwrite / read_before: $read_before"
+                                    else
+                                        log_fail "FAIL: existing: $existing / cached: $cached / first_clone: $first_clone / first_overwrite: $first_overwrite / read_before: $read_before"
+                                    fi
+
+                                    create_clone "$second_clone" "$ORIG2"
+
+                                    overwrite_clone "$second_overwrite"
+
+                                    if checksum_compare $read_after; then
+                                        log_note "existing: $existing / cached: $cached / first_clone: $first_clone / first_overwrite: $first_overwrite / read_before: $read_before / second_clone: $second_clone / read_after: $read_after"
+                                    else
+                                        log_fail "FAIL: existing: $existing / cached: $cached / first_clone: $first_clone / first_overwrite: $first_overwrite / read_before: $read_before / second_clone: $second_clone / read_after: $read_after"
+                                    fi
+
+                                    log_must zpool export $TESTPOOL
+                                    log_must zpool import $TESTPOOL
+
+                                    if checksum_compare "yes"; then
+                                        log_note "existing: $existing / cached: $cached / first_clone: $first_clone / first_overwrite: $first_overwrite / read_before: $read_before / second_clone: $second_clone / read_after: $read_after / read_next_txg"
+                                    else
+                                        log_fail "FAIL: existing: $existing / cached: $cached / first_clone: $first_clone / first_overwrite: $first_overwrite / read_before: $read_before / second_clone: $second_clone / read_after: $read_after / read_next_txg"
+                                    fi
+
+                                    rm -f "$CLONE"
+                                done
+                            done
+                        done
+                    done
+                done
+            done
+        done
+    done
+
+    if [[ $srcdir = "count" ]]; then
+        echo $count
+    fi
+}
