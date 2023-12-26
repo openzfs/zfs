@@ -263,13 +263,50 @@ if sys.platform.startswith('freebsd'):
         'cli_root/zpool_import/zpool_import_012_pos': ['FAIL', known_reason],
         'delegate/zfs_allow_003_pos': ['FAIL', known_reason],
         'inheritance/inherit_001_pos': ['FAIL', 11829],
-        'resilver/resilver_restart_001': ['FAIL', known_reason],
         'pool_checkpoint/checkpoint_big_rewind': ['FAIL', 12622],
         'pool_checkpoint/checkpoint_indirect': ['FAIL', 12623],
+        'resilver/resilver_restart_001': ['FAIL', known_reason],
         'snapshot/snapshot_002_pos': ['FAIL', '14831'],
     })
 elif sys.platform.startswith('linux'):
     maybe.update({
+        'bclone/bclone_crossfs_corner_cases': ['SKIP', cfr_cross_reason],
+        'bclone/bclone_crossfs_corner_cases_limited':
+            ['SKIP', cfr_cross_reason],
+        'bclone/bclone_crossfs_data': ['SKIP', cfr_cross_reason],
+        'bclone/bclone_crossfs_embedded': ['SKIP', cfr_cross_reason],
+        'bclone/bclone_crossfs_hole': ['SKIP', cfr_cross_reason],
+        'bclone/bclone_diffprops_all': ['SKIP', cfr_cross_reason],
+        'bclone/bclone_diffprops_checksum': ['SKIP', cfr_cross_reason],
+        'bclone/bclone_diffprops_compress': ['SKIP', cfr_cross_reason],
+        'bclone/bclone_diffprops_copies': ['SKIP', cfr_cross_reason],
+        'bclone/bclone_diffprops_recordsize': ['SKIP', cfr_cross_reason],
+        'bclone/bclone_prop_sync': ['SKIP', cfr_cross_reason],
+        'bclone/bclone_samefs_corner_cases': ['SKIP', cfr_reason],
+        'bclone/bclone_samefs_corner_cases_limited': ['SKIP', cfr_reason],
+        'bclone/bclone_samefs_data': ['SKIP', cfr_reason],
+        'bclone/bclone_samefs_embedded': ['SKIP', cfr_reason],
+        'bclone/bclone_samefs_hole': ['SKIP', cfr_reason],
+        'block_cloning/block_cloning_copyfilerange':
+            ['SKIP', cfr_reason],
+        'block_cloning/block_cloning_copyfilerange_cross_dataset':
+            ['SKIP', cfr_cross_reason],
+        'block_cloning/block_cloning_copyfilerange_fallback':
+            ['SKIP', cfr_reason],
+        'block_cloning/block_cloning_copyfilerange_fallback_same_txg':
+            ['SKIP', cfr_cross_reason],
+        'block_cloning/block_cloning_copyfilerange_partial':
+            ['SKIP', cfr_reason],
+        'block_cloning/block_cloning_cross_enc_dataset':
+            ['SKIP', cfr_cross_reason],
+        'block_cloning/block_cloning_disabled_copyfilerange':
+            ['SKIP', cfr_reason],
+        'block_cloning/block_cloning_lwb_buffer_overflow':
+            ['SKIP', cfr_reason],
+        'block_cloning/block_cloning_replay':
+            ['SKIP', cfr_reason],
+        'block_cloning/block_cloning_replay_encrypted':
+            ['SKIP', cfr_reason],
         'cli_root/zfs_rename/zfs_rename_002_pos': ['FAIL', known_reason],
         'cli_root/zpool_reopen/zpool_reopen_003_pos': ['FAIL', known_reason],
         'fault/auto_online_002_pos': ['FAIL', 11889],
@@ -278,41 +315,21 @@ elif sys.platform.startswith('linux'):
         'fault/auto_spare_multiple': ['FAIL', 11889],
         'fault/auto_spare_shared': ['FAIL', 11889],
         'fault/decompress_fault': ['FAIL', 11889],
+        'idmap_mount/idmap_mount_001': ['SKIP', idmap_reason],
+        'idmap_mount/idmap_mount_002': ['SKIP', idmap_reason],
+        'idmap_mount/idmap_mount_003': ['SKIP', idmap_reason],
+        'idmap_mount/idmap_mount_004': ['SKIP', idmap_reason],
+        'idmap_mount/idmap_mount_005': ['SKIP', idmap_reason],
         'io/io_uring': ['SKIP', 'io_uring support required'],
         'limits/filesystem_limit': ['SKIP', known_reason],
         'limits/snapshot_limit': ['SKIP', known_reason],
         'mmp/mmp_active_import': ['FAIL', known_reason],
         'mmp/mmp_exported_import': ['FAIL', known_reason],
         'mmp/mmp_inactive_import': ['FAIL', known_reason],
-        'zvol/zvol_misc/zvol_misc_snapdev': ['FAIL', 12621],
-        'zvol/zvol_misc/zvol_misc_volmode': ['FAIL', known_reason],
         'zvol/zvol_misc/zvol_misc_fua': ['SKIP', 14872],
+        'zvol/zvol_misc/zvol_misc_snapdev': ['FAIL', 12621],
         'zvol/zvol_misc/zvol_misc_trim': ['SKIP', 14872],
-        'idmap_mount/idmap_mount_001': ['SKIP', idmap_reason],
-        'idmap_mount/idmap_mount_002': ['SKIP', idmap_reason],
-        'idmap_mount/idmap_mount_003': ['SKIP', idmap_reason],
-        'idmap_mount/idmap_mount_004': ['SKIP', idmap_reason],
-        'idmap_mount/idmap_mount_005': ['SKIP', idmap_reason],
-        'block_cloning/block_cloning_disabled_copyfilerange':
-            ['SKIP', cfr_reason],
-        'block_cloning/block_cloning_copyfilerange':
-            ['SKIP', cfr_reason],
-        'block_cloning/block_cloning_copyfilerange_partial':
-            ['SKIP', cfr_reason],
-        'block_cloning/block_cloning_copyfilerange_fallback':
-            ['SKIP', cfr_reason],
-        'block_cloning/block_cloning_replay':
-            ['SKIP', cfr_reason],
-        'block_cloning/block_cloning_replay_encrypted':
-            ['SKIP', cfr_reason],
-        'block_cloning/block_cloning_lwb_buffer_overflow':
-            ['SKIP', cfr_reason],
-        'block_cloning/block_cloning_copyfilerange_cross_dataset':
-            ['SKIP', cfr_cross_reason],
-        'block_cloning/block_cloning_copyfilerange_fallback_same_txg':
-            ['SKIP', cfr_cross_reason],
-        'block_cloning/block_cloning_cross_enc_dataset':
-            ['SKIP', cfr_cross_reason],
+        'zvol/zvol_misc/zvol_misc_volmode': ['FAIL', known_reason],
     })
 
 # Not all Github actions runners have scsi_debug module, so we may skip

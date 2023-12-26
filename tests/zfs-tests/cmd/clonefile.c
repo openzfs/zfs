@@ -59,6 +59,10 @@
 #endif
 #endif /* __NR_copy_file_range */
 
+#ifdef __FreeBSD__
+#define	loff_t	off_t
+#endif
+
 ssize_t
 copy_file_range(int, loff_t *, int, loff_t *, size_t, unsigned int)
     __attribute__((weak));
@@ -140,7 +144,7 @@ usage(void)
 	    "  FICLONERANGE:\n"
 	    "    clonefile -r <src> <dst> <soff> <doff> <len>\n"
 	    "  copy_file_range:\n"
-	    "    clonefile -f <src> <dst> <soff> <doff> <len>\n"
+	    "    clonefile -f <src> <dst> [<soff> <doff> <len | \"all\">]\n"
 	    "  FIDEDUPERANGE:\n"
 	    "    clonefile -d <src> <dst> <soff> <doff> <len>\n");
 	return (1);
@@ -179,13 +183,29 @@ main(int argc, char **argv)
 		}
 	}
 
-	if (mode == CF_MODE_NONE || (argc-optind) < 2 ||
-	    (mode != CF_MODE_CLONE && (argc-optind) < 5))
-		return (usage());
+	switch (mode) {
+		case CF_MODE_NONE:
+			return (usage());
+		case CF_MODE_CLONE:
+			if ((argc-optind) != 2)
+				return (usage());
+			break;
+		case CF_MODE_CLONERANGE:
+		case CF_MODE_DEDUPERANGE:
+			if ((argc-optind) != 5)
+				return (usage());
+			break;
+		case CF_MODE_COPYFILERANGE:
+			if ((argc-optind) != 2 && (argc-optind) != 5)
+				return (usage());
+			break;
+		default:
+			abort();
+	}
 
 	loff_t soff = 0, doff = 0;
-	size_t len = 0;
-	if (mode != CF_MODE_CLONE) {
+	size_t len = SSIZE_MAX;
+	if ((argc-optind) == 5) {
 		soff = strtoull(argv[optind+2], NULL, 10);
 		if (soff == ULLONG_MAX) {
 			fprintf(stderr, "invalid source offset");
@@ -196,10 +216,15 @@ main(int argc, char **argv)
 			fprintf(stderr, "invalid dest offset");
 			return (1);
 		}
-		len = strtoull(argv[optind+4], NULL, 10);
-		if (len == ULLONG_MAX) {
-			fprintf(stderr, "invalid length");
-			return (1);
+		if (mode == CF_MODE_COPYFILERANGE &&
+		    strcmp(argv[optind+4], "all") == 0) {
+			len = SSIZE_MAX;
+		} else {
+			len = strtoull(argv[optind+4], NULL, 10);
+			if (len == ULLONG_MAX) {
+				fprintf(stderr, "invalid length");
+				return (1);
+			}
 		}
 	}
 
@@ -237,13 +262,15 @@ main(int argc, char **argv)
 			abort();
 	}
 
-	off_t spos = lseek(sfd, 0, SEEK_CUR);
-	off_t slen = lseek(sfd, 0, SEEK_END);
-	off_t dpos = lseek(dfd, 0, SEEK_CUR);
-	off_t dlen = lseek(dfd, 0, SEEK_END);
+	if (!quiet) {
+		off_t spos = lseek(sfd, 0, SEEK_CUR);
+		off_t slen = lseek(sfd, 0, SEEK_END);
+		off_t dpos = lseek(dfd, 0, SEEK_CUR);
+		off_t dlen = lseek(dfd, 0, SEEK_END);
 
-	fprintf(stderr, "file offsets: src=%lu/%lu; dst=%lu/%lu\n", spos, slen,
-	    dpos, dlen);
+		fprintf(stderr, "file offsets: src=%lu/%lu; dst=%lu/%lu\n",
+		    spos, slen, dpos, dlen);
+	}
 
 	close(dfd);
 	close(sfd);
@@ -254,7 +281,8 @@ main(int argc, char **argv)
 int
 do_clone(int sfd, int dfd)
 {
-	fprintf(stderr, "using FICLONE\n");
+	if (!quiet)
+		fprintf(stderr, "using FICLONE\n");
 	int err = ioctl(dfd, CF_FICLONE, sfd);
 	if (err < 0) {
 		fprintf(stderr, "ioctl(FICLONE): %s\n", strerror(errno));
@@ -266,7 +294,8 @@ do_clone(int sfd, int dfd)
 int
 do_clonerange(int sfd, int dfd, loff_t soff, loff_t doff, size_t len)
 {
-	fprintf(stderr, "using FICLONERANGE\n");
+	if (!quiet)
+		fprintf(stderr, "using FICLONERANGE\n");
 	cf_file_clone_range_t fcr = {
 		.src_fd = sfd,
 		.src_offset = soff,
@@ -284,11 +313,21 @@ do_clonerange(int sfd, int dfd, loff_t soff, loff_t doff, size_t len)
 int
 do_copyfilerange(int sfd, int dfd, loff_t soff, loff_t doff, size_t len)
 {
-	fprintf(stderr, "using copy_file_range\n");
+	if (!quiet)
+		fprintf(stderr, "using copy_file_range\n");
 	ssize_t copied = cf_copy_file_range(sfd, &soff, dfd, &doff, len, 0);
 	if (copied < 0) {
 		fprintf(stderr, "copy_file_range: %s\n", strerror(errno));
 		return (1);
+	}
+	if (len == SSIZE_MAX) {
+		struct stat sb;
+
+		if (fstat(sfd, &sb) < 0) {
+			fprintf(stderr, "fstat(sfd): %s\n", strerror(errno));
+			return (1);
+		}
+		len = sb.st_size;
 	}
 	if (copied != len) {
 		fprintf(stderr, "copy_file_range: copied less than requested: "
@@ -301,7 +340,8 @@ do_copyfilerange(int sfd, int dfd, loff_t soff, loff_t doff, size_t len)
 int
 do_deduperange(int sfd, int dfd, loff_t soff, loff_t doff, size_t len)
 {
-	fprintf(stderr, "using FIDEDUPERANGE\n");
+	if (!quiet)
+		fprintf(stderr, "using FIDEDUPERANGE\n");
 
 	char buf[sizeof (cf_file_dedupe_range_t)+
 	    sizeof (cf_file_dedupe_range_info_t)] = {0};

@@ -1,0 +1,46 @@
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+# This run file contains all of the common functional tests.  When
+# adding a new test consider also adding it to the sanity.run file
+# if the new test runs to completion in only a few seconds.
+#
+# Approximate run time: 5 hours
+#
+
+[DEFAULT]
+pre = setup
+quiet = False
+pre_user = root
+user = root
+timeout = 28800
+post_user = root
+post = cleanup
+failsafe_user = root
+failsafe = callbacks/zfs_failsafe
+outputdir = /var/tmp/test_results
+tags = ['bclone']
+
+[tests/functional/bclone]
+tests = ['bclone_crossfs_corner_cases',
+    'bclone_crossfs_data',
+    'bclone_crossfs_embedded',
+    'bclone_crossfs_hole',
+    'bclone_diffprops_all',
+    'bclone_diffprops_checksum',
+    'bclone_diffprops_compress',
+    'bclone_diffprops_copies',
+    'bclone_diffprops_recordsize',
+    'bclone_prop_sync',
+    'bclone_samefs_corner_cases',
+    'bclone_samefs_data',
+    'bclone_samefs_embedded',
+    'bclone_samefs_hole']
+tags = ['bclone']
