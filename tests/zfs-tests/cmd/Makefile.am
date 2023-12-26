@@ -2,6 +2,7 @@ scripts_zfs_tests_bindir = $(datadir)/$(PACKAGE)/zfs-tests/bin
 
 
 scripts_zfs_tests_bin_PROGRAMS  = %D%/chg_usr_exec
+scripts_zfs_tests_bin_PROGRAMS += %D%/clonefile
 scripts_zfs_tests_bin_PROGRAMS += %D%/cp_files
 scripts_zfs_tests_bin_PROGRAMS += %D%/ctime
 scripts_zfs_tests_bin_PROGRAMS += %D%/dir_rd_update
@@ -119,7 +120,6 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/renameat2
 scripts_zfs_tests_bin_PROGRAMS += %D%/xattrtest
 scripts_zfs_tests_bin_PROGRAMS += %D%/zed_fd_spill-zedlet
 scripts_zfs_tests_bin_PROGRAMS += %D%/idmap_util
-scripts_zfs_tests_bin_PROGRAMS += %D%/clonefile
 
 %C%_idmap_util_LDADD = libspl.la
 

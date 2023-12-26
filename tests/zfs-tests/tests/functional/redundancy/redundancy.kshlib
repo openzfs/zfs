@@ -45,28 +45,6 @@ function cleanup
 }
 
 #
-# Get random number between min and max number.
-#
-# $1 Minimal value
-# $2 Maximal value
-#
-function random
-{
-	typeset -i min=$1
-	typeset -i max=$2
-	typeset -i value
-
-	while true; do
-		((value = RANDOM % (max + 1)))
-		if ((value >= min)); then
-			break
-		fi
-	done
-
-	echo $value
-}
-
-#
 # Get the number of checksum errors for the pool.
 #
 # $1 Pool

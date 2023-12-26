@@ -16,6 +16,7 @@ dist_scripts_test_runner_include_DATA = \
 
 scripts_runfilesdir = $(datadir)/$(PACKAGE)/runfiles
 dist_scripts_runfiles_DATA = \
+	%D%/runfiles/bclone.run \
 	%D%/runfiles/common.run \
 	%D%/runfiles/freebsd.run \
 	%D%/runfiles/linux.run \
