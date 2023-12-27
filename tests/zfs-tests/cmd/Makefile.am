@@ -3,6 +3,7 @@ scripts_zfs_tests_bindir = $(datadir)/$(PACKAGE)/zfs-tests/bin
 
 scripts_zfs_tests_bin_PROGRAMS  = %D%/chg_usr_exec
 scripts_zfs_tests_bin_PROGRAMS += %D%/clonefile
+scripts_zfs_tests_bin_PROGRAMS += %D%/clone_mmap_write
 scripts_zfs_tests_bin_PROGRAMS += %D%/cp_files
 scripts_zfs_tests_bin_PROGRAMS += %D%/ctime
 scripts_zfs_tests_bin_PROGRAMS += %D%/dir_rd_update
