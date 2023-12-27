@@ -261,3 +261,11 @@ void
 update_vdevs_config_dev_sysfs_path(nvlist_t *config)
 {
 }
+
+int
+zpool_disk_wait(const char *path)
+{
+
+	(void) path;
+	return (ENOTSUP);
+}
