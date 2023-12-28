@@ -5848,9 +5848,21 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
 	dva_t *dva = bp->blk_dva;
 	dva_t *hintdva = (hintbp != NULL) ? hintbp->blk_dva : NULL;
 	int error = 0;
+	boolean_t is_special_failsafe = B_FALSE;
+
+	if ((spa->spa_special_failsafe && ((mc == spa_special_class(spa)) ||
+	    (mc == spa_dedup_class(spa))))) {
+		is_special_failsafe = B_TRUE;
+	}
 
 	ASSERT0(BP_GET_LOGICAL_BIRTH(bp));
 	ASSERT0(BP_GET_PHYSICAL_BIRTH(bp));
+
+	/*
+	 * Earlier layers of the code should set nvdas > 1 if the
+	 * alloc class vdev is being backed up.
+	 */
+	ASSERT(!(is_special_failsafe && ndvas == 1));
 
 	spa_config_enter(spa, SCL_ALLOC, FTAG, RW_READER);
 
@@ -5866,7 +5878,21 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
 	ASSERT3P(zal, !=, NULL);
 
 	for (int d = 0; d < ndvas; d++) {
-		error = metaslab_alloc_dva(spa, mc, psize, dva, d, hintdva,
+		metaslab_class_t *_mc;
+		if (is_special_failsafe && (d == 1)) {
+			/*
+			 * If we have the special_failsafe prop set, then make
+			 * the 2nd copy of the data we are going to write go to
+			 * the regular pool rather than yet another copy to the
+			 * alloc class device.  That way, if the special device
+			 * is lost, there's still a backup in the pool.
+			 */
+			_mc = spa_normal_class(spa);
+		} else {
+			_mc = mc;
+		}
+
+		error = metaslab_alloc_dva(spa, _mc, psize, dva, d, hintdva,
 		    txg, flags, zal, allocator);
 		if (error != 0) {
 			for (d--; d >= 0; d--) {

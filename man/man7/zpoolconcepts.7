@@ -181,14 +181,18 @@ section.
 .It Sy dedup
 A device solely dedicated for deduplication tables.
 The redundancy of this device should match the redundancy of the other normal
-devices in the pool.
+devices in the pool except if the
+.Sy special_failsafe
+pool property is enabled.
 If more than one dedup device is specified, then
 allocations are load-balanced between those devices.
 .It Sy special
 A device dedicated solely for allocating various kinds of internal metadata,
 and optionally small file blocks.
 The redundancy of this device should match the redundancy of the other normal
-devices in the pool.
+devices in the pool except if the
+.Sy special_failsafe
+pool property is enabled.
 If more than one special device is specified, then
 allocations are load-balanced between those devices.
 .Pp

@@ -85,6 +85,7 @@
  */
 boolean_t error_seen;
 boolean_t is_force;
+boolean_t is_alloc_class;
 
 void
 vdev_error(const char *fmt, ...)
@@ -94,8 +95,15 @@ vdev_error(const char *fmt, ...)
 	if (!error_seen) {
 		(void) fprintf(stderr, gettext("invalid vdev specification\n"));
 		if (!is_force)
-			(void) fprintf(stderr, gettext("use '-f' to override "
-			    "the following errors:\n"));
+			if (is_alloc_class) {
+				(void) fprintf(stderr, gettext("Turn on the "
+				    "special_failsafe pool property or use '-f'"
+				    " to override the following errors:\n"));
+				is_alloc_class = B_FALSE;
+			} else {
+				(void) fprintf(stderr, gettext("use '-f' to "
+				    "override the following errors:\n"));
+			}
 		else
 			(void) fprintf(stderr, gettext("the following errors "
 			    "must be manually repaired:\n"));
@@ -442,6 +450,7 @@ typedef struct replication_level {
 	const char *zprl_type;
 	uint64_t zprl_children;
 	uint64_t zprl_parity;
+	boolean_t zprl_is_alloc_class;
 } replication_level_t;
 
 #define	ZPOOL_FUZZ	(16 * 1024 * 1024)
@@ -481,12 +490,42 @@ is_raidz_draid(replication_level_t *a, replication_level_t *b)
 }
 
 /*
+ * Return true if 'props' contains:
+ *
+ *     special_failsafe=on
+ *
+ * ... and feature@special_failsafe is NOT disabled.
+ */
+static boolean_t
+is_special_failsafe_enabled_in_props(nvlist_t *props)
+{
+	const char *str = NULL;
+
+	if (nvlist_lookup_string(props, "feature@special_failsafe",
+	    &str) == 0) {
+		if ((str != NULL) && strcmp(str, "disabled") == 0) {
+			return (B_FALSE);
+		}
+	}
+
+	if (nvlist_lookup_string(props,
+	    zpool_prop_to_name(ZPOOL_PROP_SPECIAL_FAILSAFE),
+	    &str) == 0) {
+		if ((str != NULL) && strcmp(str, "on") == 0) {
+			return (B_TRUE);	/* It is enabled */
+		}
+	}
+
+	return (B_FALSE);
+}
+
+/*
  * Given a list of toplevel vdevs, return the current replication level.  If
  * the config is inconsistent, then NULL is returned.  If 'fatal' is set, then
  * an error message will be displayed for each self-inconsistent vdev.
  */
 static replication_level_t *
-get_replication(nvlist_t *nvroot, boolean_t fatal)
+get_replication(nvlist_t *props, nvlist_t *nvroot, boolean_t fatal)
 {
 	nvlist_t **top;
 	uint_t t, toplevels;
@@ -495,7 +534,7 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 	nvlist_t *nv;
 	const char *type;
 	replication_level_t lastrep = {0};
-	replication_level_t rep;
+	replication_level_t rep = {0};
 	replication_level_t *ret;
 	replication_level_t *raidz, *mirror;
 	boolean_t dontreport;
@@ -507,6 +546,7 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 
 	for (t = 0; t < toplevels; t++) {
 		uint64_t is_log = B_FALSE;
+		const char *str = NULL;
 
 		nv = top[t];
 
@@ -528,12 +568,32 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 		    strcmp(type, VDEV_TYPE_INDIRECT) == 0)
 			continue;
 
+		rep.zprl_type = type;
+
+		/*
+		 * If special_failsafe=on then we know the special allocation
+		 * class devices have at least one copy of their data on the
+		 * pool so we can ignore their replication level.
+		 */
+		(void) nvlist_lookup_string(nv, ZPOOL_CONFIG_ALLOCATION_BIAS,
+		    &str);
+		if (str &&
+		    ((strcmp(str, VDEV_ALLOC_BIAS_SPECIAL) == 0) ||
+		    (strcmp(str, VDEV_ALLOC_BIAS_DEDUP) == 0))) {
+			rep.zprl_is_alloc_class = B_TRUE;
+			is_alloc_class = B_TRUE;
+			if (is_special_failsafe_enabled_in_props(props)) {
+				continue; /* We're backed up, skip redundancy */
+			}
+		} else {
+			is_alloc_class = B_FALSE;
+		}
+
 		if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
 		    &child, &children) != 0) {
 			/*
 			 * This is a 'file' or 'disk' vdev.
 			 */
-			rep.zprl_type = type;
 			rep.zprl_children = 1;
 			rep.zprl_parity = 0;
 		} else {
@@ -548,7 +608,6 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 			 * We also check that the size of each vdev (if it can
 			 * be determined) is the same.
 			 */
-			rep.zprl_type = type;
 			rep.zprl_children = 0;
 
 			if (strcmp(type, VDEV_TYPE_RAIDZ) == 0 ||
@@ -808,7 +867,7 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
  * report any difference between the two.
  */
 static int
-check_replication(nvlist_t *config, nvlist_t *newroot)
+check_replication(nvlist_t *props, nvlist_t *config, nvlist_t *newroot)
 {
 	nvlist_t **child;
 	uint_t	children;
@@ -825,7 +884,7 @@ check_replication(nvlist_t *config, nvlist_t *newroot)
 
 		verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
 		    &nvroot) == 0);
-		if ((current = get_replication(nvroot, B_FALSE)) == NULL)
+		if ((current = get_replication(props, nvroot, B_FALSE)) == NULL)
 			return (0);
 	}
 	/*
@@ -850,17 +909,31 @@ check_replication(nvlist_t *config, nvlist_t *newroot)
 	 * Get the replication level of the new vdev spec, reporting any
 	 * inconsistencies found.
 	 */
-	if ((new = get_replication(newroot, B_TRUE)) == NULL) {
+	if ((new = get_replication(props, newroot, B_TRUE)) == NULL) {
 		free(current);
 		return (-1);
 	}
-
 	/*
 	 * Check to see if the new vdev spec matches the replication level of
 	 * the current pool.
 	 */
 	ret = 0;
 	if (current != NULL) {
+		if (current->zprl_is_alloc_class || new->zprl_is_alloc_class)
+			is_alloc_class = B_TRUE;
+		else
+			is_alloc_class = B_FALSE;
+
+		/*
+		 * Special case:
+		 * If there were any redundancy problems with alloc class vdevs
+		 * BUT the pool had special_failsafe on, then we're fine since
+		 * all the alloc class data has a copy in the main pool.
+		 */
+		if (is_special_failsafe_enabled_in_props(props) &&
+		    is_alloc_class)
+			goto out;
+
 		if (is_raidz_mirror(current, new, &raidz, &mirror) ||
 		    is_raidz_mirror(new, current, &raidz, &mirror)) {
 			if (raidz->zprl_parity != mirror->zprl_children - 1) {
@@ -899,7 +972,7 @@ check_replication(nvlist_t *config, nvlist_t *newroot)
 			ret = -1;
 		}
 	}
-
+out:
 	free(new);
 	if (current != NULL)
 		free(current);
@@ -1888,7 +1961,7 @@ make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force, int check_rep,
 	 * found.  We include the existing pool spec, if any, as we need to
 	 * catch changes against the existing replication level.
 	 */
-	if (check_rep && check_replication(poolconfig, newroot) != 0) {
+	if (check_rep && check_replication(props, poolconfig, newroot) != 0) {
 		nvlist_free(newroot);
 		return (NULL);
 	}

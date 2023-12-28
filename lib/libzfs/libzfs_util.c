@@ -775,6 +775,15 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 	case ZFS_ERR_ASHIFT_MISMATCH:
 		zfs_verror(hdl, EZFS_ASHIFT_MISMATCH, fmt, ap);
 		break;
+	case ZFS_ERR_SPECIAL_FAILSAFE_NOT_POSSIBLE:
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "Cannot set pool prop special_failsafe=on since "
+		    "feature@special_failsafe is not set to 'enabled'.\n"
+		    "This could be because the special_failsafe pool prop was "
+		    "manually turned off while the special_failsafe feature "
+		    "flag was active, or the feature flag was disabled."));
+		zfs_verror(hdl, EZFS_IOC_NOTSUPPORTED, fmt, ap);
+		break;
 	default:
 		zfs_error_aux(hdl, "%s", zfs_strerror(error));
 		zfs_verror(hdl, EZFS_UNKNOWN, fmt, ap);

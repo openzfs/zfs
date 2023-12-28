@@ -464,6 +464,34 @@ command, though this property can be used when a specific version is needed for
 backwards compatibility.
 Once feature flags are enabled on a pool this property will no longer have a
 value.
+.It Sy special_failsafe Ns = Ns Sy on Ns | Ns Sy off
+Controls the special failsafe subsystem for special allocation
+class vdevs.
+When it's turned on, all writes to special allocation class vdevs
+(like 'special' and 'dedup' vdevs) will also write an additional copy of the
+data to the main pool.
+This allows alloc class vdev data to be "backed up" to the pool.
+When
+.Sy special_failsafe
+is turned on, alloc class vdevs can fail regardless of their redundancy level
+without the pool loosing data.
+To use
+.Sy special_failsafe
+simply turn it on at zpool create time, or turn it on prior to adding
+alloc class devices.
+It's important to note that after alloc class vdevs are added to the pool with
+.Sy special_failsafe
+on, you can still turn
+.Sy special_failsafe
+off again, but once it's off you can't turn it back on.
+.Sy special_failsafe
+can be freely toggled on/off if alloc class devices haven't been added to the
+pool, since the pool prop would have no effect.
+The
+.Sy feature@special_failsafe
+feature flag must be enabled in order to use the
+.Sy special_failsafe
+pool property.
 .El
 .
 .Ss User Properties

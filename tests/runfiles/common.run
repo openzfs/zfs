@@ -53,6 +53,14 @@ tags = ['functional', 'arc']
 tests = ['atime_001_pos', 'atime_002_neg', 'root_atime_off', 'root_atime_on']
 tags = ['functional', 'atime']
 
+
+[tests/functional/special_failsafe]
+tests = ['special_failsafe_add', 'special_failsafe_create',
+    'special_failsafe_files', 'special_failsafe_import',
+    'special_failsafe_offline', 'special_failsafe_prop',
+    'special_failsafe_scrub', 'special_failsafe_split']
+tags = ['functional', 'special_failsafe']
+
 [tests/functional/bclone]
 tests = ['bclone_crossfs_corner_cases_limited',
     'bclone_crossfs_data',

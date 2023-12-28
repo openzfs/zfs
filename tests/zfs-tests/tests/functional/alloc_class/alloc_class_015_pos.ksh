@@ -26,20 +26,22 @@ log_assert $claim
 log_onexit cleanup
 log_must disk_setup
 
-for size in 8192 32768 131072 524288 1048576
-do
-	let smaller=$size/2
-	log_must zpool create -O recordsize=$size \
-		-O special_small_blocks=$smaller \
-		$TESTPOOL raidz $ZPOOL_DISKS special mirror \
-		$CLASS_DISK0 $CLASS_DISK1
-	log_must zpool destroy -f "$TESTPOOL"
+for arg in '-o special_failsafe=on' '' ; do
+	for size in 8192 32768 131072 524288 1048576
+	do
+		let smaller=$size/2
+		log_must zpool create $arg -O recordsize=$size \
+			-O special_small_blocks=$smaller \
+			$TESTPOOL raidz $ZPOOL_DISKS special mirror \
+			$CLASS_DISK0 $CLASS_DISK1
+		log_must zpool destroy -f "$TESTPOOL"
 
-	log_must zpool create -O recordsize=$size \
-		-O special_small_blocks=$size \
-		$TESTPOOL raidz $ZPOOL_DISKS special mirror \
-		$CLASS_DISK0 $CLASS_DISK1
-	log_must zpool destroy -f "$TESTPOOL"
+		log_must zpool create $arg -O recordsize=$size \
+			-O special_small_blocks=$size \
+			$TESTPOOL raidz $ZPOOL_DISKS special mirror \
+			$CLASS_DISK0 $CLASS_DISK1
+		log_must zpool destroy -f "$TESTPOOL"
+	done
 done
 
 log_pass $claim

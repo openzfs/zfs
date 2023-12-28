@@ -1525,6 +1525,23 @@ zpool_do_add(int argc, char **argv)
 		}
 	}
 
+	/*
+	 * Special case:
+	 *
+	 * We need to know the special_failsafe pool property value to determine
+	 * if the new vdev configuration has the correct redundancy requirements
+	 * for special and dedup vdevs.
+	 *
+	 * Pass in the current value for special_failsafe to the proplist.
+	 */
+	char strval[ZFS_MAXPROPLEN];
+	if (zpool_get_prop(zhp, ZPOOL_PROP_SPECIAL_FAILSAFE, strval,
+	    ZFS_MAXPROPLEN, NULL, B_FALSE) == 0) {
+		verify(add_prop_list(
+		    zpool_prop_to_name(ZPOOL_PROP_SPECIAL_FAILSAFE), strval,
+		    &props, B_TRUE) == 0);
+	}
+
 	/* pass off to make_root_vdev for processing */
 	nvroot = make_root_vdev(zhp, props, !check_inuse,
 	    check_replication, B_FALSE, dryrun, argc, argv);
@@ -7595,6 +7612,23 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 			verify(add_prop_list(ZPOOL_CONFIG_ASHIFT, strval,
 			    &props, B_TRUE) == 0);
 		}
+	}
+
+	/*
+	 * Special case:
+	 *
+	 * We need to know the special_failsafe pool property value to determine
+	 * if the new vdev configuration has the correct redundancy requirements
+	 * for special and dedup vdevs.
+	 *
+	 * Pass in the current value for special_failsafe to the proplist.
+	 */
+	char strval[ZFS_MAXPROPLEN];
+	if (zpool_get_prop(zhp, ZPOOL_PROP_SPECIAL_FAILSAFE, strval,
+	    ZFS_MAXPROPLEN, NULL, B_FALSE) == 0) {
+		verify(add_prop_list(
+		    zpool_prop_to_name(ZPOOL_PROP_SPECIAL_FAILSAFE), strval,
+		    &props, B_TRUE) == 0);
 	}
 
 	nvroot = make_root_vdev(zhp, props, force, B_FALSE, replacing, B_FALSE,

@@ -738,6 +738,17 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 
 	spa->spa_deadman_synctime = MSEC2NSEC(zfs_deadman_synctime_ms);
 	spa->spa_deadman_ziotime = MSEC2NSEC(zfs_deadman_ziotime_ms);
+
+	/*
+	 * Testing showed that spa_special_failsafe needs to be on by default
+	 * here no matter what.  Later on it will be turned off since
+	 * the feature is off by default.  If you don't have it on at early
+	 * SPA creation time, then it's impossible to import the pool with all
+	 * the special devices missing.  This could be due to the need to
+	 * write two copies of early metadata.
+	 */
+	spa->spa_special_failsafe = B_TRUE;
+
 	spa_set_deadman_failmode(spa, zfs_deadman_failmode);
 	spa_set_allocator(spa, zfs_active_allocator);
 
@@ -1682,6 +1693,9 @@ spa_activate_allocation_classes(spa_t *spa, dmu_tx_t *tx)
 	 */
 	ASSERT(spa_feature_is_enabled(spa, SPA_FEATURE_ALLOCATION_CLASSES));
 	spa_feature_incr(spa, SPA_FEATURE_ALLOCATION_CLASSES, tx);
+
+	if (spa->spa_special_failsafe)
+		spa_feature_incr(spa, SPA_FEATURE_SPECIAL_FAILSAFE, tx);
 }
 
 /*
@@ -2871,10 +2885,21 @@ spa_syncing_log_sm(spa_t *spa)
 	return (spa->spa_syncing_log_sm);
 }
 
+/*
+ * Record the total number of missing top-level vdevs ('missing'), and the
+ * number of missing top-level vdevs that are recoverable ('missing_recovered').
+ * In this case, missing_recovered is the number of top-level alloc class vdevs
+ * that are recoverable since the special_failsafe pool prop was on, and thus
+ * their data is "backed up" to the main pool.
+ *
+ * The separate 'missing_recovered' count is used during pool import to
+ * determine if we can import a pool with missing alloc class vdevs.
+ */
 void
-spa_set_missing_tvds(spa_t *spa, uint64_t missing)
+spa_set_missing_tvds(spa_t *spa, uint64_t missing, uint64_t missing_recovered)
 {
 	spa->spa_missing_tvds = missing;
+	spa->spa_missing_recovered_tvds = missing_recovered;
 }
 
 /*

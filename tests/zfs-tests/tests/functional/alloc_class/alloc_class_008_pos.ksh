@@ -35,22 +35,24 @@ typeset special_type=""
 typeset create_disks=""
 typeset added_disks=""
 
-for type in "" "raidz"
-do
-	if [ "$type" = "raidz" ]; then
-		special_type="mirror"
-		create_disks="${CLASS_DISK0} ${CLASS_DISK1}"
-		added_disks="${CLASS_DISK2} ${CLASS_DISK3}"
-	else
-		special_type=""
-		create_disks="${CLASS_DISK0}"
-		added_disks="${CLASS_DISK1}"
-	fi
-	log_must zpool create $TESTPOOL $type $ZPOOL_DISKS \
-	    special $special_type $create_disks
-	log_must zpool add $TESTPOOL special $special_type $added_disks
-	log_must zpool iostat $TESTPOOL $added_disks
-	log_must zpool destroy -f $TESTPOOL
+for arg in '-o special_failsafe=on' '' ; do
+	for type in "" "raidz"
+	do
+		if [ "$type" = "raidz" ]; then
+			special_type="mirror"
+			create_disks="${CLASS_DISK0} ${CLASS_DISK1}"
+			added_disks="${CLASS_DISK2} ${CLASS_DISK3}"
+		else
+			special_type=""
+			create_disks="${CLASS_DISK0}"
+			added_disks="${CLASS_DISK1}"
+		fi
+		log_must zpool create $args$TESTPOOL $type $ZPOOL_DISKS \
+		    special $special_type $create_disks
+		log_must zpool add $TESTPOOL special $special_type $added_disks
+		log_must zpool iostat $TESTPOOL $added_disks
+		log_must zpool destroy -f $TESTPOOL
+	done
 done
 
 log_pass $claim

@@ -347,6 +347,40 @@ With device removal, it can be returned to the
 .Sy enabled
 state if all the dedicated allocation class vdevs are removed.
 .
+.feature org.zfsonlinux special_failsafe yes allocation_classes
+This feature allows the
+.Sy special_failsafe
+pool property to be used.
+When the
+.Sy special_failsafe
+pool property is set to "on" all proceeding writes to allocation class vdevs
+(like special and dedup vdevs) will also generate an additional copy of the data
+to be written to the pool.
+This allows alloc class vdev data to be "backed up" to the pool.
+A fully backed up allocation device vdev can fail without causing the pool to be
+suspended, even if the alloc class device is not redundant.
+.Pp
+It is important to note the difference between the
+.Sy special_failsafe
+feature flag and a
+.Sy special_failsafe
+pool property since they appear similar.
+The
+.Sy special_failsafe
+feature flag is a safeguard to prevent a pool that is using special_failsafe
+from being imported read/write on an older version of ZFS that does not support
+special_failsafe (and possibly compromising the integrity of the backup
+guarantees).
+The pool property is what actually allows you to turn on/off the backup copy
+writes.
+The
+.Sy special_failsafe
+feature will switch from "enabled" to "active" when allocation class devices
+are added.
+See the
+.Sy special_failsafe
+pool property for more details.
+.
 .feature com.delphix async_destroy yes
 Destroying a file system requires traversing all of its data in order to
 return its used space to the pool.

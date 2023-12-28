@@ -753,6 +753,18 @@ zpool_feature_init(void)
 	    "org.openzfs:raidz_expansion", "raidz_expansion",
 	    "Support for raidz expansion",
 	    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN, NULL, sfeatures);
+	{
+		static const spa_feature_t special_failsafe_deps[] = {
+			SPA_FEATURE_ALLOCATION_CLASSES,
+			SPA_FEATURE_NONE
+		};
+		zfeature_register(SPA_FEATURE_SPECIAL_FAILSAFE,
+		    "org.openzfs:special_failsafe", "special_failsafe",
+		    "Save a copy of allocation class device data to main pool",
+		    ZFEATURE_FLAG_MOS,
+		    ZFEATURE_TYPE_BOOLEAN, special_failsafe_deps,
+		    sfeatures);
+	}
 
 	zfeature_register(SPA_FEATURE_FAST_DEDUP,
 	    "com.klarasystems:fast_dedup", "fast_dedup",

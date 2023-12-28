@@ -31,27 +31,29 @@ log_onexit cleanup
 
 log_must disk_setup
 
-for type in "" "mirror" "raidz"
-do
-	log_must zpool create $TESTPOOL $type $ZPOOL_DISKS
+for arg in '-o special_failsafe=on' '' ; do
+	for type in "" "mirror" "raidz"
+	do
+		log_must zpool create $arg $TESTPOOL $type $ZPOOL_DISKS
 
-	if [ "$type" = "mirror" ]; then
-		log_must zpool add $TESTPOOL special mirror \
-		    $CLASS_DISK0 $CLASS_DISK1 $CLASS_DISK2
-		log_must zpool iostat -H $TESTPOOL $CLASS_DISK0
-		log_must zpool iostat -H $TESTPOOL $CLASS_DISK1
-		log_must zpool iostat -H $TESTPOOL $CLASS_DISK2
-	elif [ "$type" = "raidz" ]; then
-		log_must zpool add $TESTPOOL special mirror \
-		    $CLASS_DISK0 $CLASS_DISK1
-		log_must zpool iostat -H $TESTPOOL $CLASS_DISK0
-		log_must zpool iostat -H $TESTPOOL $CLASS_DISK1
-	else
-		log_must zpool add $TESTPOOL special $CLASS_DISK0
-		log_must zpool iostat -H $TESTPOOL $CLASS_DISK0
-	fi
+		if [ "$type" = "mirror" ]; then
+			log_must zpool add $TESTPOOL special mirror \
+			    $CLASS_DISK0 $CLASS_DISK1 $CLASS_DISK2
+			log_must zpool iostat -H $TESTPOOL $CLASS_DISK0
+			log_must zpool iostat -H $TESTPOOL $CLASS_DISK1
+			log_must zpool iostat -H $TESTPOOL $CLASS_DISK2
+		elif [ "$type" = "raidz" ]; then
+			log_must zpool add $TESTPOOL special mirror \
+			    $CLASS_DISK0 $CLASS_DISK1
+			log_must zpool iostat -H $TESTPOOL $CLASS_DISK0
+			log_must zpool iostat -H $TESTPOOL $CLASS_DISK1
+		else
+			log_must zpool add $TESTPOOL special $CLASS_DISK0
+			log_must zpool iostat -H $TESTPOOL $CLASS_DISK0
+		fi
 
-	log_must zpool destroy -f $TESTPOOL
+		log_must zpool destroy -f $TESTPOOL
+	done
 done
 
 log_pass $claim

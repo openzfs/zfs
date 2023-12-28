@@ -32,13 +32,17 @@ log_assert $claim
 log_onexit cleanup
 
 log_must disk_setup
-log_must zpool create $TESTPOOL raidz $ZPOOL_DISKS special mirror \
-	$CLASS_DISK0 $CLASS_DISK1
 
-for value in 256 1025 33554432
-do
-	log_mustnot zfs set special_small_blocks=$value $TESTPOOL
+for arg in '-o special_failsafe=on' '' ; do
+	log_must zpool create $arg $TESTPOOL raidz $ZPOOL_DISKS special mirror \
+		$CLASS_DISK0 $CLASS_DISK1
+
+	for value in 256 1025 33554432
+	do
+		log_mustnot zfs set special_small_blocks=$value $TESTPOOL
+	done
+
+	log_must zpool destroy -f "$TESTPOOL"
 done
 
-log_must zpool destroy -f "$TESTPOOL"
 log_pass $claim

@@ -645,6 +645,11 @@ extern int vdev_obsolete_counts_are_precise(vdev_t *vd, boolean_t *are_precise);
 int vdev_checkpoint_sm_object(vdev_t *vd, uint64_t *sm_obj);
 void vdev_metaslab_group_create(vdev_t *vd);
 uint64_t vdev_best_ashift(uint64_t logical, uint64_t a, uint64_t b);
+extern boolean_t vdev_is_leaf(vdev_t *vd);
+extern boolean_t vdev_is_special(vdev_t *vd);
+extern boolean_t vdev_is_dedup(vdev_t *vd);
+extern boolean_t vdev_is_alloc_class(vdev_t *vd);
+extern boolean_t vdev_is_special_failsafe(vdev_t *vd);
 
 /*
  * Vdev ashift optimization tunables
