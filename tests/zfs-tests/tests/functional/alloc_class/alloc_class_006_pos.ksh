@@ -32,10 +32,14 @@ log_onexit cleanup
 
 log_must disk_setup
 
-log_must zpool create $TESTPOOL \
-    mirror $ZPOOL_DISK0 $ZPOOL_DISK1 \
-    special mirror $CLASS_DISK0 $CLASS_DISK1
-log_must zpool split $TESTPOOL split_pool
-log_must zpool destroy -f $TESTPOOL
+for arg in '-o special_failsafe=on' '' ; do
+    log_must zpool create $arg $TESTPOOL \
+        mirror $ZPOOL_DISK0 $ZPOOL_DISK1 \
+        special mirror $CLASS_DISK0 $CLASS_DISK1
+    log_must zpool split $TESTPOOL split_pool
+    log_must zpool import -d $(dirname $CLASS_DISK1) split_pool
+    log_must zpool destroy -f $TESTPOOL
+    log_must zpool destroy -f split_pool
+done
 
 log_pass $claim
