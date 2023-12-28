@@ -1,0 +1,283 @@
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright (c) 2017, Intel Corporation.
+# Copyright (c) 2018 by Delphix. All rights reserved.
+# Copyright (C) 2024 Lawrence Livermore National Security, LLC.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/backup_alloc_class/backup_alloc_class.cfg
+
+BACKUP_DIR=$TEST_BASE_DIR/backups
+
+function disk_setup
+{
+	truncate -s $ZPOOL_DEVSIZE $ZPOOL_DISKS
+	truncate -s $CLASS_DEVSIZE $CLASS_DISKS
+
+	if [ -d $BACKUP_DIR ] ; then
+		log_fail "Existing $TEST_BASE_DIR/backups directory (maybe leftover from failed test run?)"
+	fi
+
+	mkdir -p $BACKUP_DIR
+}
+
+function disk_cleanup
+{
+	rm -f $ZPOOL_DEVSIZE $ZPOOL_DISKS 2> /dev/null
+	rm -f $CLASS_DEVSIZE $CLASS_DISKS 2> /dev/null
+
+	rm -f backup_alloc_class.key
+	rm -fr $BACKUP_DIR
+}
+
+function cleanup
+{
+	if datasetexists $TESTPOOL ; then
+		zpool destroy -f $TESTPOOL 2> /dev/null
+	fi
+
+	disk_cleanup
+}
+
+# Write zeros to an existing file, keeping the same size.
+function zero_file {
+	dd status=none if=/dev/zero of="$1" bs=$(stat_size "$1") count=1
+}
+
+# Write a verifiable file that will end up on a 'dedup' or 'special' vdev.
+# The filename will include the sha256 of the file for easy verification later.
+#
+# $1: Write type - "dedup" or "special"
+# $2: Path to directory to write the file to
+#
+# Note: we don't use log_must here since this can get really chatty and
+# we don't want to spam the logs.  It will log_fail if there is an error.
+function write_verifiable_file {
+	class="$1"
+	writedir="$2"
+
+	if [[ "$class" == "dedup" ]] ; then
+		# Our dedup file size can be up to a megabyte-ish
+		filesize=$((32768 + ($RANDOM * $RANDOM % 1000000)))
+
+		# Make write a multiple of the recordsize for dedup
+		bs=32768
+		count=$(($filesize / $bs))
+
+		# Fill data with the letter 'a' for dedup
+		file_write -b $bs -c $count -d 'a' -o create -f $writedir/tmp || return
+	else
+		# Make all files less than the 32k special_small_blocks size we
+		# setup at dataset creation time
+		filesize=$((($RANDOM % 32767) + 1))
+		bs=$filesize
+		count=1
+		dd status=none if=/dev/urandom bs=$bs count=$count of="$writedir/tmp" || return
+	fi
+
+
+	csum=$(sha256digest "$writedir/tmp")
+	newfile=$csum.$class$totalwritten
+	mv "$writedir/tmp" "$writedir/$newfile"
+
+	# Basic sanity that we created our final file, and it has a non-zero size
+	expectedsize=$(($bs * $count))
+	actualsize=$(stat_size "$writedir/$newfile")
+	if [[ "$actualsize" != "$expectedsize" ]] || [[ "$actualsize" == "0" ]] ; then
+		log_fail "File $writedir/$newfile bad size $actualsize (expected $expectedsize)"
+		return
+	fi
+
+	totalwritten=$(($totalwritten + 1))
+}
+
+# Write some files to all our datasets.
+#
+# For each dataset:
+#
+# - 10 files should hit special vdevs
+# - 10 files should hit dedup vdevs
+function write_some_files {
+	typeset i
+	for i in $TESTFS 2copies 3copies encrypted encrypted2copies encrypted3copies ; do
+		for j in $(seq 1 10) ; do
+			write_verifiable_file special /$TESTPOOL/$i
+			write_verifiable_file dedup /$TESTPOOL/$i
+		done
+	done
+}
+
+# Given a directory containing only files created by write_verifiable_file(),
+# verify that the contents of the file match the sha256sum in the file's name.
+#
+# $1: Dir path with files to verify
+function verify_directory {
+	typeset verifydir="$1"
+	typeset i
+	for i in $(ls $verifydir) ; do
+
+		# Files will look like:
+		#
+		# ed324386045fa39d3f41d4f13c8c3e6a4698466e2b694c327f7e490be9e4e33f.dedup13
+		#
+		# Just grab the sha256 part
+
+		shaname="$(echo $i | cut -f1 -d'.')"
+		if [[ $(sha256digest "$verifydir/$i") != "$shaname" ]] ; then
+			log_fail "$verifydir/$i sha256 not $shaname"
+			false
+			return
+		fi
+	done
+	true
+}
+
+function backup_alloc_class_disks {
+	typeset i
+	for i in $@ ; do
+		cp ${i} $BACKUP_DIR/$(basename $i)
+	done
+}
+
+function restore_alloc_class_disks {
+	typeset i
+	for i in $@ ; do
+		 mv $BACKUP_DIR/$(basename $i) ${i}
+	done
+}
+
+function zero_alloc_class_disks {
+	typeset i
+	for i in $@ ; do
+		zero_file "${i}"
+	done
+}
+
+# Create multiple datasets with different permutations of copies and encryption
+function backup_alloc_class_make_datasets {
+
+	log_must zfs create -o compression=off -o special_small_blocks=32K -o recordsize=32K \
+		-o dedup=on $TESTPOOL/$TESTFS
+
+	keyfile=$(pwd)/backup_alloc_class.key
+       dd if=/dev/random of=$keyfile bs=32 count=1
+
+	log_must zfs create -o copies=2 -o special_small_blocks=32K -o recordsize=32K -o dedup=on \
+		$TESTPOOL/2copies
+
+	log_must zfs create -o copies=3 -o special_small_blocks=32K -o recordsize=32K -o dedup=on \
+		$TESTPOOL/3copies
+
+	log_must zfs create -o encryption=on -o keylocation=file:///$keyfile -o keyformat=raw -o special_small_blocks=32K -o recordsize=32K -o dedup=on \
+		$TESTPOOL/encrypted
+
+	log_must zfs create -o copies=2 -o encryption=on -o keylocation=file:///$keyfile -o keyformat=raw -o special_small_blocks=32K -o recordsize=32K -o dedup=on \
+		$TESTPOOL/encrypted2copies
+
+	log_must zfs create -o copies=3 -o encryption=on -o keylocation=file:///$keyfile -o keyformat=raw -o special_small_blocks=32K -o recordsize=32K -o dedup=on \
+		$TESTPOOL/encrypted3copies
+}
+
+# For each dataset we created in backup_alloc_class_make_datasets, go though
+# and check that all the files in the datasets have the correct data.
+function verify_all_directories {
+	typeset i
+	for i in $TESTFS 2copies 3copies encrypted encrypted2copies encrypted3copies ; do
+		verify_directory  /$TESTPOOL/$i
+	done
+
+	# ...we should also have the correct number of files
+	totalfiles=0
+	for i in $TESTFS 2copies 3copies encrypted encrypted2copies encrypted3copies ; do
+		totalfiles=$(($totalfiles + $(ls /$TESTPOOL/$i | wc -w)))
+	done
+
+	if [[ "$totalfiles" != "$totalwritten" ]] ; then
+		log_fail "Wrong file count: expected $totalwritten, got $totalfiles"
+	else
+		log_note "Verified $totalfiles files"
+	fi
+}
+
+# Return a space separated string of disks that are alloc class vdevs.  Disk
+# names will include the full path.
+function get_list_of_alloc_class_disks {
+       typeset special_disks=$(get_list_of_vdevs_that_are "special")
+       typeset dedup_disks=$(get_list_of_vdevs_that_are "dedup")
+	typeset disks="$dedup_disks"
+
+	if [ -n "$special_disks" ] ; then
+		disks="$special_disks $disks"
+	fi
+
+	echo "$disks"
+}
+
+# Check that backup_to_pool is set to $1 on all disks in $2.
+function check_backup_to_pool_is {
+	typeset val=$1
+	typeset disks="$2"
+	typeset i
+	for i in $disks ; do
+		# Backup to pool should be enabled on all leaf vdevs
+		str="$(zpool get -H -o value backup_to_pool $TESTPOOL $i)"
+		if [ "$str" != "$val" ] ; then
+			log_fail "$i reported $str, expected $val"
+		fi
+	done
+}
+
+# Check that the pool/vdev proprieties and features for alloc class backups
+# are sane.  For example, if the feature is disabled, then backup_to_pool
+# should not be enabled on any of the disks.
+function check_pool_alloc_class_props {
+	typeset allow_backup_to_pool=$(get_pool_prop feature@allow_backup_to_pool $TESTPOOL)
+	typeset backup_alloc_class_to_pool=$(get_pool_prop backup_alloc_class_to_pool $TESTPOOL)
+	typeset alloc_class_disks="$(get_list_of_alloc_class_disks)"
+
+	if [ "$allow_backup_to_pool" == "disabled" ] ; then
+		log_must [ "$backup_alloc_class_to_pool" == "off" ]
+	fi
+
+	if [ "$backup_alloc_class_to_pool" == "off" ] ; then
+		check_backup_to_pool_is "off" "$alloc_class_disks"
+	fi
+}
+
+
+# Simple function to check pool and vdev proprieties are what we expect. The
+# values we expect are passed to this function:
+#
+# $1: 'feature@allow_backup_to_pool' pool feature
+# $2: 'backup_alloc_class_to_pool' pool prop
+# $3: All alloc class vdev's 'backup_to_pool' vdev prop
+#
+# This function will log_fail on error.
+function boilerplate_check {
+	typeset allow_backup_to_pool=$1
+	typeset backup_alloc_class_to_pool=$2
+	typeset special_val=$3
+
+	typeset alloc_class_disks="$(get_list_of_alloc_class_disks)"
+
+	if [ "$(get_pool_prop feature@allow_backup_to_pool $TESTPOOL)" != "$allow_backup_to_pool" ] ; then
+		log_fail "feature@allow_backup_to_pool = $(get_pool_prop feature@allow_backup_to_pool $TESTPOOL), expected $allow_backup_to_pool"
+	fi
+
+	if [ "$(get_pool_prop backup_alloc_class_to_pool $TESTPOOL)" != "$backup_alloc_class_to_pool" ] ; then
+		log_fail "backup_alloc_class_to_pool = $(get_pool_prop backup_alloc_class_to_pool $TESTPOOL), expected $backup_alloc_class_to_pool"
+	fi
+
+	check_backup_to_pool_is "$special_val" "$alloc_class_disks"
+}

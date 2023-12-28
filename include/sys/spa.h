@@ -1113,7 +1113,8 @@ extern boolean_t spa_remap_blkptr(spa_t *spa, blkptr_t *bp,
 extern uint64_t spa_get_last_removal_txg(spa_t *spa);
 extern boolean_t spa_trust_config(spa_t *spa);
 extern uint64_t spa_missing_tvds_allowed(spa_t *spa);
-extern void spa_set_missing_tvds(spa_t *spa, uint64_t missing);
+extern void spa_set_missing_tvds(spa_t *spa, uint64_t missing,
+    uint64_t missing_special);
 extern boolean_t spa_top_vdevs_spacemap_addressable(spa_t *spa);
 extern uint64_t spa_total_metaslabs(spa_t *spa);
 extern boolean_t spa_multihost(spa_t *spa);

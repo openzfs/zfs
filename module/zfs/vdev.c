@@ -722,6 +722,60 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 	return (vd);
 }
 
+boolean_t
+vdev_is_leaf(vdev_t *vd)
+{
+	return (vd->vdev_children == 0);
+}
+
+/* Return true if vdev or TLD vdev is special alloc class */
+boolean_t
+vdev_is_special(vdev_t *vd)
+{
+	if (vd->vdev_alloc_bias == VDEV_BIAS_SPECIAL)
+		return (B_TRUE);
+
+	/*
+	 * If the vdev is a leaf vdev, and is part of a mirror, its parent
+	 * 'mirror' TLD will have vdev_alloc_bias == VDEV_BIAS_SPECIAL, but the
+	 * leaf vdev itself will not.  So we also need to check the parent
+	 * in those cases.
+	 */
+	if (vdev_is_leaf(vd) &&
+	    (vd->vdev_parent != NULL && vdev_is_special(vd->vdev_parent))) {
+		return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
+/* Return true if vdev or TLD vdev is dedup alloc class */
+boolean_t
+vdev_is_dedup(vdev_t *vd)
+{
+	if (vd->vdev_alloc_bias == VDEV_BIAS_DEDUP)
+		return (B_TRUE);
+
+	/*
+	 * If the vdev is a leaf vdev, and is part of a mirror, it's parent
+	 * 'mirror' TLD will have vdev_alloc_bias == VDEV_BIAS_DEDUP, but the
+	 * leaf vdev itself will not.  So we also need to check the parent
+	 * in those cases.
+	 */
+	if (vdev_is_leaf(vd) &&
+	    (vd->vdev_parent != NULL && vdev_is_dedup(vd->vdev_parent))) {
+		return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
+boolean_t
+vdev_is_alloc_class(vdev_t *vd)
+{
+	return (vdev_is_special(vd) || vdev_is_dedup(vd));
+}
+
 /*
  * Allocate a new vdev.  The 'alloctype' is used to control whether we are
  * creating a new vdev or loading an existing one - the behavior is slightly
@@ -740,6 +794,7 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	int rc;
 	vdev_alloc_bias_t alloc_bias = VDEV_BIAS_NONE;
 	boolean_t top_level = (parent && !parent->vdev_parent);
+	const char *bias = NULL;
 
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
 
@@ -791,8 +846,6 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 		return (SET_ERROR(ENOTSUP));
 
 	if (top_level && alloctype == VDEV_ALLOC_ADD) {
-		const char *bias;
-
 		/*
 		 * If creating a top-level vdev, check for allocation
 		 * classes input.
@@ -833,6 +886,11 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	vd = vdev_alloc_common(spa, id, guid, ops);
 	vd->vdev_tsd = tsd;
 	vd->vdev_islog = islog;
+
+	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_ALLOCATION_BIAS,
+	    &bias) == 0) {
+		alloc_bias = vdev_derive_alloc_bias(bias);
+	}
 
 	if (top_level && alloc_bias != VDEV_BIAS_NONE)
 		vd->vdev_alloc_bias = alloc_bias;
@@ -1027,6 +1085,40 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	 * Add ourselves to the parent's list of children.
 	 */
 	vdev_add_child(parent, vd);
+
+	/*
+	 * Now that we're added to our parent, we can lookup if we're an alloc
+	 * class device.  Functions like vdev_is_special() and vdev_is_dedup()
+	 * will look at the parent.
+	 */
+	vd->vdev_backup_to_pool = B_FALSE;
+	if (vdev_is_alloc_class(vd)) {
+		if (alloctype == VDEV_ALLOC_LOAD ||
+		    alloctype == VDEV_ALLOC_SPLIT) {
+			/*
+			 * If ZPOOL_CONFIG_BACKUP_TO_POOL exists then
+			 * vdev_backup_to_pool is true
+			 */
+			if (nvlist_lookup_boolean(nv,
+			    ZPOOL_CONFIG_BACKUP_TO_POOL) == 0) {
+				vd->vdev_backup_to_pool = B_TRUE;
+			}
+		} else if (alloctype == VDEV_ALLOC_ADD) {
+			vd->vdev_backup_to_pool = spa->spa_backup_alloc_class;
+		}
+	} else if ((nvlist_lookup_boolean(nv,
+	    ZPOOL_CONFIG_BACKUP_TO_POOL) == 0) &&
+	    alloctype == VDEV_ALLOC_SPLIT) {
+		/*
+		 * Special case: our vd may not be marked as alloc class if
+		 * it's in a mirror and its parent 'mirror-1' device is not
+		 * initialized fully (as in the case of a split).  If the user
+		 * is doing a split, and the old vdev had
+		 * ZPOOL_CONFIG_BACKUP_TO_POOL set, then also set it for the
+		 * new vdev.
+		 */
+		vd->vdev_backup_to_pool = B_TRUE;
+	}
 
 	*vdp = vd;
 
@@ -3680,8 +3772,9 @@ vdev_load(vdev_t *vd)
 		    VDEV_TOP_ZAP_ALLOCATION_BIAS, 1, sizeof (bias_str),
 		    bias_str);
 		if (error == 0) {
-			ASSERT(vd->vdev_alloc_bias == VDEV_BIAS_NONE);
-			vd->vdev_alloc_bias = vdev_derive_alloc_bias(bias_str);
+			if (vd->vdev_alloc_bias == VDEV_BIAS_NONE)
+				vd->vdev_alloc_bias =
+				    vdev_derive_alloc_bias(bias_str);
 		} else if (error != ENOENT) {
 			vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
 			    VDEV_AUX_CORRUPT_DATA);
@@ -4140,7 +4233,8 @@ vdev_fault(spa_t *spa, uint64_t guid, vdev_aux_t aux)
 	 * If this device has the only valid copy of the data, then
 	 * back off and simply mark the vdev as degraded instead.
 	 */
-	if (!tvd->vdev_islog && vd->vdev_aux == NULL && vdev_dtl_required(vd)) {
+	if (!tvd->vdev_islog && !vdev_is_fully_backed_up(vd) &&
+	    vd->vdev_aux == NULL && vdev_dtl_required(vd)) {
 		vd->vdev_degraded = 1ULL;
 		vd->vdev_faulted = 0ULL;
 
@@ -4356,8 +4450,8 @@ top:
 		 * don't allow it to be offlined. Log devices are always
 		 * expendable.
 		 */
-		if (!tvd->vdev_islog && vd->vdev_aux == NULL &&
-		    vdev_dtl_required(vd))
+		if (!tvd->vdev_islog && !vdev_is_fully_backed_up(vd) &&
+		    vd->vdev_aux == NULL && vdev_dtl_required(vd))
 			return (spa_vdev_state_exit(spa, NULL,
 			    SET_ERROR(EBUSY)));
 
@@ -4413,7 +4507,8 @@ top:
 		vd->vdev_offline = B_TRUE;
 		vdev_reopen(tvd);
 
-		if (!tvd->vdev_islog && vd->vdev_aux == NULL &&
+		if (!tvd->vdev_islog && !vdev_is_fully_backed_up(vd) &&
+		    vd->vdev_aux == NULL &&
 		    vdev_is_dead(tvd)) {
 			vd->vdev_offline = B_FALSE;
 			vdev_reopen(tvd);
@@ -5095,6 +5190,104 @@ vdev_space_update(vdev_t *vd, int64_t alloc_delta, int64_t defer_delta,
 	/* Note: metaslab_class_space_update moved to metaslab_space_update */
 }
 
+
+/* If the vdev matches any of the flags, then return true. */
+static boolean_t vdev_array_vdev_is_in_flags(vdev_t *vd, uint64_t flags)
+{
+	uint64_t vdflags = 0;
+
+	if (vdev_is_leaf(vd)) {
+		vdflags |= VDEV_ARRAY_ANY_LEAF;
+		if (vdev_is_special(vd))
+			vdflags |= VDEV_ARRAY_SPECIAL_LEAF;
+
+		if (vdev_is_dedup(vd))
+			vdflags |= VDEV_ARRAY_DEDUP_LEAF;
+	}
+
+	/* If any flags match then success */
+	if (flags & vdflags)
+		return (B_TRUE);
+
+	return (B_FALSE);
+}
+
+/*
+ * We assume vda->vds[] is already allocated with the correct number of entries.
+ */
+static void
+vdev_array_visit(vdev_t *vd, uint64_t flags, struct vdev_array *vda)
+{
+	if (vdev_array_vdev_is_in_flags(vd, flags)) {
+		if (!(flags & VDEV_ARRAY_COUNT)) {
+			/* Add it to our array */
+			vda->vds[vda->count] = vd;
+		}
+		vda->count++;
+	}
+
+	for (uint64_t i = 0; i < vd->vdev_children; i++) {
+		vdev_array_visit(vd->vdev_child[i], flags, vda);
+	}
+}
+
+void
+vdev_array_free(struct vdev_array *vda)
+{
+	if (vda->vds != NULL)
+		kmem_free(vda->vds, sizeof (*vda->vds) * vda->count);
+
+	kmem_free(vda, sizeof (*vda));
+}
+
+/*
+ * Convenience function to iterate over the vdev tree, selecting only the vdevs
+ * you want, and return an array of the vdevs.
+ *
+ * Flags are OR'd to include vdevs.  When flags == 0x0, no vdevs are matched.
+ *
+ * Array entries are returned in breadth first search order.
+ *
+ * The vdev_array returned needs to be freed with vdev_array_free() when you
+ * are done with it.
+ *
+ * You must have SCL_VDEV held so that the vdev tree doesn't change out from
+ * under you while calling this function or using the vdev_array returned.
+ */
+struct vdev_array *
+vdev_array_alloc(vdev_t *rvd, uint64_t flags)
+{
+	struct vdev_array *vda;
+
+	ASSERT(spa_config_held(rvd->vdev_spa, SCL_VDEV, RW_READER));
+
+	vda = kmem_zalloc(sizeof (*vda), KM_SLEEP);
+	if (!vda)
+		return (NULL);
+
+	/*
+	 * We're going to do a first pass where we visit all the vdevs
+	 * to get the count.  After we get the count, we can then do the
+	 * real visit to all the vdevs and add them to the array.
+	 */
+	vda->count = 0;
+	vda->vds = NULL;
+
+	/* Do a dry run to get the count only */
+	vdev_array_visit(rvd, VDEV_ARRAY_COUNT | flags, vda);
+
+	/* We have the count, allocate the array */
+	vda->vds = kmem_zalloc(sizeof (vda->vds[0]) * vda->count, KM_SLEEP);
+	if (vda->vds == NULL) {
+		vdev_array_free(vda);
+		return (NULL);
+	}
+
+	vda->count = 0;	/* init count to 0 again for vdev_array_visit() */
+	vdev_array_visit(rvd, flags, vda);
+	return (vda);
+}
+
 /*
  * Mark a top-level vdev's config as dirty, placing it on the dirty list
  * so that it will be written out next time the vdev configuration is synced.
@@ -5259,10 +5452,14 @@ vdev_propagate_state(vdev_t *vd)
 				 * device, treat the root vdev as if it were
 				 * degraded.
 				 */
-				if (child->vdev_islog && vd == rvd)
+				if ((child->vdev_islog ||
+				    vdev_is_fully_backed_up(child)) &&
+				    (vd == rvd)) {
 					degraded++;
-				else
+				} else {
 					faulted++;
+				}
+
 			} else if (child->vdev_state <= VDEV_STATE_DEGRADED) {
 				degraded++;
 			}
@@ -5438,8 +5635,9 @@ vdev_set_state(vdev_t *vd, boolean_t isopen, vdev_state_t state, vdev_aux_t aux)
 			zfs_post_state_change(spa, vd, save_state);
 	}
 
-	if (!isopen && vd->vdev_parent)
+	if (!isopen && vd->vdev_parent) {
 		vdev_propagate_state(vd->vdev_parent);
+	}
 }
 
 boolean_t
@@ -5486,6 +5684,54 @@ vdev_is_concrete(vdev_t *vd)
 	} else {
 		return (B_TRUE);
 	}
+}
+
+/*
+ * Given a TLD vdev one level under the root vdev, return true if the TLD
+ * is fully backed-up to the pool.  Backed-up means:
+ *
+ * 1. TLD is an alloc class device
+ * 2. The TLD has vdev_backup_to_pool set.  If the TLD is a group (like a
+ *    mirror) then all the child devices in the group must have
+ *    vdev_backup_to_pool set.
+ * 3. vdev_backup_to_pool has always been set since the creation of this vdev.
+ *    That means that all it's data has a copy in the pool.
+ */
+static boolean_t
+tld_is_fully_backed_up(vdev_t *tvd)
+{
+	if (!vdev_is_alloc_class(tvd))
+		return (B_FALSE);
+
+	/* Just a single device under the root */
+	if (vdev_is_leaf(tvd))
+		return (tvd->vdev_backup_to_pool);
+
+	for (int c = 0; c < tvd->vdev_children; c++) {
+		vdev_t *cvd = tvd->vdev_child[c];
+
+		if (!cvd->vdev_backup_to_pool)
+			return (B_FALSE);
+	}
+
+	return (B_TRUE);
+}
+
+/*
+ * Is the vdev an alloc class vdev that is fully backed up to the pool?
+ *
+ * This function works for both top-level vdevs and leaf vdevs.
+ */
+boolean_t
+vdev_is_fully_backed_up(vdev_t *vd)
+{
+	if (!vdev_is_alloc_class(vd))
+		return (B_FALSE);
+
+	if (!vdev_is_leaf(vd))
+		return (tld_is_fully_backed_up(vd));
+
+	return (vd->vdev_backup_to_pool);
 }
 
 /*
@@ -6296,8 +6542,22 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 				}
 				continue;
 			/* Numeric Properites */
+			case VDEV_PROP_BACKUP_TO_POOL:
+				/*
+				 * Property is only used on leaf alloc class
+				 * vdevs.
+				 */
+				if (vdev_is_leaf(vd) && vdev_is_alloc_class(vd))
+					vdev_prop_add_list(outnvl, propname,
+					    NULL, vd->vdev_backup_to_pool,
+					    ZPROP_SRC_NONE);
+				else
+					vdev_prop_add_list(outnvl, propname,
+					    NULL, ZPROP_BOOLEAN_NA,
+					    ZPROP_SRC_NONE);
+				continue;
+
 			case VDEV_PROP_ALLOCATING:
-				/* Leaf vdevs cannot have this property */
 				if (vd->vdev_mg == NULL &&
 				    vd->vdev_top != NULL) {
 					src = ZPROP_SRC_NONE;

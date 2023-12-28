@@ -327,6 +327,12 @@ struct spa {
 	uint64_t	spa_missing_tvds;	/* unopenable tvds on load */
 	uint64_t	spa_missing_tvds_allowed; /* allow loading spa? */
 
+	/*
+	 * number of 'spa_missing_tvds' that are alloc class devices
+	 * backed up to the pool, and thus recoverable from errors.
+	 */
+	uint64_t	spa_missing_recovered_tvds;
+
 	uint64_t	spa_nonallocating_dspace;
 	spa_removing_phys_t spa_removing_phys;
 	spa_vdev_removal_t *spa_vdev_removal;
@@ -465,6 +471,9 @@ struct spa {
 	 */
 	spa_config_lock_t spa_config_lock[SCL_LOCKS]; /* config changes */
 	zfs_refcount_t	spa_refcount;		/* number of opens */
+
+	/* Backup special/dedup devices data to the pool */
+	boolean_t	spa_backup_alloc_class;
 };
 
 extern char *spa_config_path;

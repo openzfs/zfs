@@ -90,6 +90,8 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/alloc_class/alloc_class.kshlib \
 	functional/atime/atime.cfg \
 	functional/atime/atime_common.kshlib \
+	functional/backup_alloc_class/backup_alloc_class.cfg \
+	functional/backup_alloc_class/backup_alloc_class.kshlib \
 	functional/bclone/bclone.cfg \
 	functional/bclone/bclone_common.kshlib \
 	functional/bclone/bclone_corner_cases.kshlib \
@@ -441,6 +443,16 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/atime/root_atime_on.ksh \
 	functional/atime/root_relatime_on.ksh \
 	functional/atime/setup.ksh \
+	functional/backup_alloc_class/backup_alloc_class_add.ksh \
+	functional/backup_alloc_class/backup_alloc_class_create.ksh \
+	functional/backup_alloc_class/backup_alloc_class_files.ksh \
+	functional/backup_alloc_class/backup_alloc_class_import.ksh \
+	functional/backup_alloc_class/backup_alloc_class_prop.ksh \
+	functional/backup_alloc_class/backup_alloc_class_offline.ksh \
+	functional/backup_alloc_class/backup_alloc_class_scrub.ksh \
+	functional/backup_alloc_class/backup_alloc_class_split.ksh \
+	functional/backup_alloc_class/cleanup.ksh \
+	functional/backup_alloc_class/setup.ksh \
 	functional/bclone/bclone_crossfs_corner_cases.ksh \
 	functional/bclone/bclone_crossfs_corner_cases_limited.ksh \
 	functional/bclone/bclone_crossfs_data.ksh \

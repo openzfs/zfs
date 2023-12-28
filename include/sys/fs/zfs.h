@@ -258,6 +258,7 @@ typedef enum {
 	ZPOOL_PROP_BCLONEUSED,
 	ZPOOL_PROP_BCLONESAVED,
 	ZPOOL_PROP_BCLONERATIO,
+	ZPOOL_PROP_BACKUP_ALLOC_CLASS_TO_POOL,
 	ZPOOL_NUM_PROPS
 } zpool_prop_t;
 
@@ -368,6 +369,7 @@ typedef enum {
 	VDEV_PROP_RAIDZ_EXPANDING,
 	VDEV_PROP_SLOW_IO_N,
 	VDEV_PROP_SLOW_IO_T,
+	VDEV_PROP_BACKUP_TO_POOL,
 	VDEV_NUM_PROPS
 } vdev_prop_t;
 
@@ -845,6 +847,7 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_EXPANSION_TIME	"expansion_time"	/* not stored */
 #define	ZPOOL_CONFIG_REBUILD_STATS	"org.openzfs:rebuild_stats"
 #define	ZPOOL_CONFIG_COMPATIBILITY	"compatibility"
+#define	ZPOOL_CONFIG_BACKUP_TO_POOL	"backup_to_pool"
 
 /*
  * The persistent vdev state is stored as separate values rather than a single
@@ -1604,6 +1607,7 @@ typedef enum {
 	ZFS_ERR_CRYPTO_NOTSUP,
 	ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS,
 	ZFS_ERR_ASHIFT_MISMATCH,
+	ZFS_ERR_BACKUP_DISABLED_BUT_REQUESTED,
 } zfs_errno_t;
 
 /*

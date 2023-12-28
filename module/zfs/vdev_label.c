@@ -521,8 +521,7 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 			    vd->vdev_removing);
 		}
 
-		/* zpool command expects alloc class data */
-		if (getstats && vd->vdev_alloc_bias != VDEV_BIAS_NONE) {
+		if (vd->vdev_alloc_bias != VDEV_BIAS_NONE) {
 			const char *bias = NULL;
 
 			switch (vd->vdev_alloc_bias) {
@@ -539,9 +538,15 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 				ASSERT3U(vd->vdev_alloc_bias, ==,
 				    VDEV_BIAS_NONE);
 			}
+
 			fnvlist_add_string(nv, ZPOOL_CONFIG_ALLOCATION_BIAS,
 			    bias);
 		}
+	}
+
+	if (vdev_is_alloc_class(vd) && vdev_is_leaf(vd) &&
+	    vd->vdev_backup_to_pool) {
+		fnvlist_add_boolean(nv, ZPOOL_CONFIG_BACKUP_TO_POOL);
 	}
 
 	if (vd->vdev_dtl_sm != NULL) {
@@ -1804,9 +1809,10 @@ vdev_uberblock_sync_list(vdev_t **svd, int svdcount, uberblock_t *ub, int flags)
 	spa_t *spa = svd[0]->vdev_spa;
 	zio_t *zio;
 	uint64_t good_writes = 0;
+	boolean_t all_failures_are_backed_up = B_FALSE;
+	int rc;
 
 	zio = zio_root(spa, NULL, NULL, flags);
-
 	for (int v = 0; v < svdcount; v++)
 		vdev_uberblock_sync(zio, &good_writes, ub, svd[v], flags);
 
@@ -1850,7 +1856,38 @@ vdev_uberblock_sync_list(vdev_t **svd, int svdcount, uberblock_t *ub, int flags)
 
 	(void) zio_wait(zio);
 
-	return (good_writes >= 1 ? 0 : EIO);
+	/*
+	 * Special case:
+	 *
+	 * If we had zero good writes, but all the writes were to alloc class
+	 * disks that were fully backed up to the pool, then it's not fatal.
+	 */
+	if (good_writes == 0) {
+		all_failures_are_backed_up = B_TRUE;
+
+		for (int v = 0; v < svdcount; v++) {
+			if (!vdev_is_fully_backed_up(svd[v])) {
+				all_failures_are_backed_up = B_FALSE;
+				break;
+			}
+		}
+	}
+
+	if (good_writes >= 1) {
+		/* success */
+		rc = 0;
+	} else if (all_failures_are_backed_up) {
+		/*
+		 * All the failures are on allocation class disks that were
+		 * fully backed up to the pool, so this isn't fatal.
+		 */
+		rc = 0;
+	} else {
+		/* failure */
+		rc = EIO;
+	}
+
+	return (rc);
 }
 
 /*
@@ -1966,7 +2003,8 @@ vdev_label_sync_list(spa_t *spa, int l, uint64_t txg, int flags)
 
 		good_writes = kmem_zalloc(sizeof (uint64_t), KM_SLEEP);
 		zio_t *vio = zio_null(zio, spa, NULL,
-		    (vd->vdev_islog || vd->vdev_aux != NULL) ?
+		    (vd->vdev_islog || vd->vdev_aux != NULL ||
+		    vdev_is_fully_backed_up(vd)) ?
 		    vdev_label_sync_ignore_done : vdev_label_sync_top_done,
 		    good_writes, flags);
 		vdev_label_sync(vio, good_writes, vd, l, txg, flags);
@@ -2019,6 +2057,7 @@ retry:
 	if (error != 0) {
 		if ((flags & ZIO_FLAG_TRYHARD) != 0)
 			return (error);
+
 		flags |= ZIO_FLAG_TRYHARD;
 	}
 

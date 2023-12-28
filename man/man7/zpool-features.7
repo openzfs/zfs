@@ -322,6 +322,46 @@ With device removal, it can be returned to the
 .Sy enabled
 state if all the dedicated allocation class vdevs are removed.
 .
+.feature org.zfsonlinux allow_backup_to_pool yes allocation_classes
+This feature allows the
+.Sy backup_alloc_class_to_pool
+pool property to be used.
+When the
+.Sy backup_alloc_class_to_pool
+pool property is set to "on" all proceeding writes to allocation class vdevs
+(like special and dedup vdevs) will also generate an additional copy of the data
+to be written to the pool.
+This allows alloc class vdev data to be "backed up" to the pool.
+A fully backed up allocation device vdev can fail without causing the pool to be
+suspended, even if the alloc class device is not redundant.
+.Pp
+It is important to note the difference between the
+.Sy allow_backup_to_pool
+feature flag and a
+.Sy backup_alloc_class_to_pool
+pool property since they appear similar.
+The
+.Sy allow_backup_to_pool
+feature flag is a safeguard to prevent a pool that is backed up from being
+imported read/write on an older version of ZFS that does not support backup to
+pool (and possibly compromising the integrity of the backup guarantees).
+The pool property is what actually allows you to turn on/off the backup copy
+writes.
+You can think of it as if the
+.Sy allow_backup_to_pool
+feature "unlocks" the
+.Sy backup_alloc_class_to_pool
+pool property.
+See the
+.Sy backup_alloc_class_to_pool
+pool property and
+.Sy backup_to_pool
+vdev property for more details.
+.Pp
+This feature becomes
+.Sy active
+by default on new pools (unless explicitly disabled at zpool creation time).
+.
 .feature com.delphix async_destroy yes
 Destroying a file system requires traversing all of its data in order to
 return its used space to the pool.

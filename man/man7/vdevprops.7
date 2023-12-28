@@ -148,6 +148,25 @@ If this device should perform new allocations, used to disable a device
 when it is scheduled for later removal.
 See
 .Xr zpool-remove 8 .
+.It Sy backup_to_pool
+When
+.Sy backup_to_pool
+is "on" it means the vdev is fully backed up to the pool.
+That is, there is an extra copy of all the vdev's data on the pool itself.
+This allows vdevs with
+.Sy backup_to_pool=on
+to fail without losing data, regardless
+of their redundancy level.
+.Sy backup_to_pool
+is only used for alloc class devices
+(special and dedup) and is controlled by the
+.Sy feature@allow_backup_to_pool
+feature flag and
+.Sy backup_alloc_class_to_pool
+pool property.
+The
+.Sy backup_to_pool
+vdev property is read-only.
 .El
 .Ss User Properties
 In addition to the standard native properties, ZFS supports arbitrary user

@@ -481,12 +481,42 @@ is_raidz_draid(replication_level_t *a, replication_level_t *b)
 }
 
 /*
+ * Return true if 'props' contains either:
+ *
+ *     feature@allow_backup_to_pool=disabled
+ *
+ * or
+ *
+ *     backup_alloc_class_to_pool=off
+ */
+static boolean_t
+is_backup_to_pool_disabled_in_props(nvlist_t *props)
+{
+	const char *str = NULL;
+	if (nvlist_lookup_string(props, "feature@allow_backup_to_pool",
+	    &str) == 0) {
+		if ((str != NULL) && strcmp(str, "disabled") == 0) {
+			return (B_TRUE);	/* It is disabled */
+		}
+	}
+
+	if (nvlist_lookup_string(props, "backup_alloc_class_to_pool",
+	    &str) == 0) {
+		if ((str != NULL) && strcmp(str, "off") == 0) {
+			return (B_TRUE);	/* It is disabled */
+		}
+	}
+
+	return (B_FALSE);
+}
+
+/*
  * Given a list of toplevel vdevs, return the current replication level.  If
  * the config is inconsistent, then NULL is returned.  If 'fatal' is set, then
  * an error message will be displayed for each self-inconsistent vdev.
  */
 static replication_level_t *
-get_replication(nvlist_t *nvroot, boolean_t fatal)
+get_replication(nvlist_t *props, nvlist_t *nvroot, boolean_t fatal)
 {
 	nvlist_t **top;
 	uint_t t, toplevels;
@@ -507,6 +537,7 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 
 	for (t = 0; t < toplevels; t++) {
 		uint64_t is_log = B_FALSE;
+		const char *str = NULL;
 
 		nv = top[t];
 
@@ -517,6 +548,21 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 		(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_IS_LOG, &is_log);
 		if (is_log)
 			continue;
+
+		/*
+		 * By default, all alloc class devices have their backup to pool
+		 * props enabled, so their replication level doesn't matter.
+		 * However, if they're disabled for any reason, then we do need
+		 * to force redundancy.
+		 */
+		(void) nvlist_lookup_string(nv, ZPOOL_CONFIG_ALLOCATION_BIAS,
+		    &str);
+		if (str &&
+		    ((strcmp(str, VDEV_ALLOC_BIAS_SPECIAL) == 0) ||
+		    (strcmp(str, VDEV_ALLOC_BIAS_DEDUP) == 0))) {
+			if (!is_backup_to_pool_disabled_in_props(props))
+				continue; /* We're backed up, skip redundancy */
+		}
 
 		/*
 		 * Ignore holes introduced by removing aux devices, along
@@ -808,7 +854,7 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
  * report any difference between the two.
  */
 static int
-check_replication(nvlist_t *config, nvlist_t *newroot)
+check_replication(nvlist_t *props, nvlist_t *config, nvlist_t *newroot)
 {
 	nvlist_t **child;
 	uint_t	children;
@@ -825,7 +871,7 @@ check_replication(nvlist_t *config, nvlist_t *newroot)
 
 		verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
 		    &nvroot) == 0);
-		if ((current = get_replication(nvroot, B_FALSE)) == NULL)
+		if ((current = get_replication(props, nvroot, B_FALSE)) == NULL)
 			return (0);
 	}
 	/*
@@ -850,7 +896,7 @@ check_replication(nvlist_t *config, nvlist_t *newroot)
 	 * Get the replication level of the new vdev spec, reporting any
 	 * inconsistencies found.
 	 */
-	if ((new = get_replication(newroot, B_TRUE)) == NULL) {
+	if ((new = get_replication(props, newroot, B_TRUE)) == NULL) {
 		free(current);
 		return (-1);
 	}
@@ -1888,7 +1934,7 @@ make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force, int check_rep,
 	 * found.  We include the existing pool spec, if any, as we need to
 	 * catch changes against the existing replication level.
 	 */
-	if (check_rep && check_replication(poolconfig, newroot) != 0) {
+	if (check_rep && check_replication(props, poolconfig, newroot) != 0) {
 		nvlist_free(newroot);
 		return (NULL);
 	}

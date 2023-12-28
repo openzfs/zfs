@@ -606,7 +606,7 @@
     <elf-symbol name='fletcher_4_superscalar_ops' size='128' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='libzfs_config_ops' size='16' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='sa_protocol_names' size='16' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='spa_feature_table' size='2296' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='spa_feature_table' size='2352' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfeature_checks_disable' size='4' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_deleg_perm_tab' size='512' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_history_event_names' size='328' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -2895,7 +2895,8 @@
       <enumerator name='ZPOOL_PROP_BCLONEUSED' value='33'/>
       <enumerator name='ZPOOL_PROP_BCLONESAVED' value='34'/>
       <enumerator name='ZPOOL_PROP_BCLONERATIO' value='35'/>
-      <enumerator name='ZPOOL_NUM_PROPS' value='36'/>
+      <enumerator name='ZPOOL_PROP_BACKUP_ALLOC_CLASS_TO_POOL' value='36'/>
+      <enumerator name='ZPOOL_NUM_PROPS' value='37'/>
     </enum-decl>
     <typedef-decl name='zpool_prop_t' type-id='af1ba157' id='5d0c23fb'/>
     <typedef-decl name='regoff_t' type-id='95e97e5e' id='54a2a2a8'/>
@@ -5675,7 +5676,8 @@
       <enumerator name='VDEV_PROP_RAIDZ_EXPANDING' value='46'/>
       <enumerator name='VDEV_PROP_SLOW_IO_N' value='47'/>
       <enumerator name='VDEV_PROP_SLOW_IO_T' value='48'/>
-      <enumerator name='VDEV_NUM_PROPS' value='49'/>
+      <enumerator name='VDEV_PROP_BACKUP_TO_POOL' value='49'/>
+      <enumerator name='VDEV_NUM_PROPS' value='50'/>
     </enum-decl>
     <typedef-decl name='vdev_prop_t' type-id='1573bec8' id='5aa5c90c'/>
     <class-decl name='zpool_load_policy' size-in-bits='256' is-struct='yes' visibility='default' id='2f65b36f'>
@@ -5936,7 +5938,8 @@
       <enumerator name='SPA_FEATURE_AVZ_V2' value='38'/>
       <enumerator name='SPA_FEATURE_REDACTION_LIST_SPILL' value='39'/>
       <enumerator name='SPA_FEATURE_RAIDZ_EXPANSION' value='40'/>
-      <enumerator name='SPA_FEATURES' value='41'/>
+      <enumerator name='SPA_FEATURE_ALLOW_BACKUP_TO_POOL' value='41'/>
+      <enumerator name='SPA_FEATURES' value='42'/>
     </enum-decl>
     <typedef-decl name='spa_feature_t' type-id='33ecb627' id='d6618c78'/>
     <qualified-type-def type-id='22cce67b' const='yes' id='d2816df0'/>
@@ -6251,6 +6254,11 @@
       <parameter type-id='8c85230f'/>
       <return type-id='26a90f95'/>
     </function-decl>
+    <function-decl name='ctime_r' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='d6e2847c'/>
+      <parameter type-id='266fe297'/>
+      <return type-id='26a90f95'/>
+    </function-decl>
     <function-decl name='__realpath_chk' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='9d26089a'/>
       <parameter type-id='266fe297'/>
@@ -6362,7 +6370,7 @@
     <function-decl name='zpool_add' mangled-name='zpool_add' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_add'>
       <parameter type-id='4c81de99' name='zhp'/>
       <parameter type-id='5ce45b60' name='nvroot'/>
-      <parameter type-id='c19b74c3' name='ashift_check'/>
+      <parameter type-id='c19b74c3' name='check_ashift'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zpool_export' mangled-name='zpool_export' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_export'>
@@ -8987,8 +8995,8 @@
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='module/zcommon/zfeature_common.c' language='LANG_C99'>
-    <array-type-def dimensions='1' type-id='83f29ca2' size-in-bits='18368' id='b93e4d14'>
-      <subrange length='41' type-id='7359adad' id='cb834f44'/>
+    <array-type-def dimensions='1' type-id='83f29ca2' size-in-bits='18816' id='b937914f'>
+      <subrange length='42' type-id='7359adad' id='cb7c937f'/>
     </array-type-def>
     <enum-decl name='zfeature_flags' id='6db816a4'>
       <underlying-type type-id='9cac1fee'/>
@@ -9065,7 +9073,7 @@
     <pointer-type-def type-id='611586a1' size-in-bits='64' id='2e243169'/>
     <qualified-type-def type-id='eaa32e2f' const='yes' id='83be723c'/>
     <pointer-type-def type-id='83be723c' size-in-bits='64' id='7acd98a2'/>
-    <var-decl name='spa_feature_table' type-id='b93e4d14' mangled-name='spa_feature_table' visibility='default' elf-symbol-id='spa_feature_table'/>
+    <var-decl name='spa_feature_table' type-id='b937914f' mangled-name='spa_feature_table' visibility='default' elf-symbol-id='spa_feature_table'/>
     <var-decl name='zfeature_checks_disable' type-id='c19b74c3' mangled-name='zfeature_checks_disable' visibility='default' elf-symbol-id='zfeature_checks_disable'/>
     <function-decl name='opendir' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='80f4b756'/>

@@ -31,18 +31,31 @@ log_onexit cleanup
 
 log_must disk_setup
 
-log_mustnot zpool create $TESTPOOL raidz $ZPOOL_DISKS special $CLASS_DISK0
-log_mustnot display_status $TESTPOOL
-log_mustnot zpool destroy -f $TESTPOOL
+# Test with the older mode where there was no allow_backup_to_pool
+# feature.  With this configuration, the special device redundancy needs
+# to match the pool.
+arg='-o feature@allow_backup_to_pool=disabled'
+for atype in "special" "dedup" ; do
+    log_mustnot zpool create $arg $TESTPOOL raidz $ZPOOL_DISKS $atype $CLASS_DISK0
 
-log_mustnot zpool create $TESTPOOL $ZPOOL_DISKS special mirror \
-    $CLASS_DISK0 $CLASS_DISK1
-log_mustnot display_status $TESTPOOL
-log_mustnot zpool destroy -f $TESTPOOL
+    log_mustnot zpool create $arg $TESTPOOL $ZPOOL_DISKS $atype mirror \
+        $CLASS_DISK0 $CLASS_DISK1
 
-log_mustnot zpool create $TESTPOOL raidz $ZPOOL_DISKS special raidz \
-    $CLASS_DISK0 $CLASS_DISK1 $CLASS_DISK2
-log_mustnot display_status $TESTPOOL
-log_mustnot zpool destroy -f $TESTPOOL
+    log_mustnot zpool create $arg $TESTPOOL raidz $ZPOOL_DISKS $atype raidz \
+        $CLASS_DISK0 $CLASS_DISK1 $CLASS_DISK2
+
+    # Now test with backup_allocation_classes=enabled (default setting)
+    log_must zpool create $TESTPOOL raidz $ZPOOL_DISKS $atype $CLASS_DISK0
+    log_must zpool destroy $TESTPOOL
+
+    log_must zpool create $TESTPOOL $ZPOOL_DISKS $atype mirror \
+        $CLASS_DISK0 $CLASS_DISK1
+
+    log_must zpool destroy $TESTPOOL
+
+    log_mustnot zpool create $TESTPOOL raidz $ZPOOL_DISKS $atype raidz \
+        $CLASS_DISK0 $CLASS_DISK1 $CLASS_DISK2
+
+done
 
 log_pass $claim

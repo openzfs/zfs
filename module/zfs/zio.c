@@ -3505,6 +3505,19 @@ zio_ddt_write(zio_t *zio)
 	ASSERT(BP_IS_HOLE(bp) || zio->io_bp_override);
 	ASSERT(!(zio->io_bp_override && (zio->io_flags & ZIO_FLAG_RAW)));
 
+	/*
+	 * Dedup writes can either to do a dedicated dedup device or to a
+	 * dedicated special device.  If we have alloc class backups on, we need
+	 * to make an extra copy of the data to go on the pool.  To do this
+	 * we need to adjust the ZIO's copies here so the later stages in the
+	 * ZIO pipeline work correctly.
+	 */
+	if (spa->spa_backup_alloc_class && zp->zp_copies == 1) {
+		zp->zp_copies = 2;
+	}
+
+	p = zp->zp_copies;
+
 	ddt_enter(ddt);
 	dde = ddt_lookup(ddt, bp, B_TRUE);
 	ddp = &dde->dde_phys[p];
@@ -3634,6 +3647,22 @@ zio_dva_throttle(zio_t *zio)
 	/* locate an appropriate allocation class */
 	mc = spa_preferred_class(spa, zio->io_size, zio->io_prop.zp_type,
 	    zio->io_prop.zp_level, zio->io_prop.zp_zpl_smallblk);
+
+	/*
+	 * If backup alloc classes is enabled, we will do the regular
+	 * write to the special/dedup device and an additional "backup"
+	 * write to the normal pool.  That way if the special/dedup devices
+	 * all fail, we don't lose all data in our pool.
+	 *
+	 * Reserve that 2nd write to the regular pool here.  The DVAs
+	 * for both writes will later be allocated in the
+	 * next step in the ZIO pipeline in
+	 * zio_dva_allocate()->metaslab_alloc().
+	 */
+	if ((spa->spa_backup_alloc_class && (mc == spa_special_class(spa) ||
+	    mc == spa_dedup_class(spa))) && zio->io_prop.zp_copies == 1) {
+		zio->io_prop.zp_copies = 2;
+	}
 
 	if (zio->io_priority == ZIO_PRIORITY_SYNC_WRITE ||
 	    !mc->mc_alloc_throttle_enabled ||

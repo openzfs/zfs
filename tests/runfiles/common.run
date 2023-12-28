@@ -53,6 +53,14 @@ tags = ['functional', 'arc']
 tests = ['atime_001_pos', 'atime_002_neg', 'root_atime_off', 'root_atime_on']
 tags = ['functional', 'atime']
 
+
+[tests/functional/backup_alloc_class]
+tests = ['backup_alloc_class_add', 'backup_alloc_class_create',
+    'backup_alloc_class_files', 'backup_alloc_class_import',
+    'backup_alloc_class_offline', 'backup_alloc_class_prop',
+    'backup_alloc_class_scrub', 'backup_alloc_class_split']
+tags = ['functional', 'backup_alloc_class']
+
 [tests/functional/bclone]
 tests = ['bclone_crossfs_corner_cases_limited',
     'bclone_crossfs_data',

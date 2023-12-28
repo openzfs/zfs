@@ -753,6 +753,18 @@ zpool_feature_init(void)
 	    "org.openzfs:raidz_expansion", "raidz_expansion",
 	    "Support for raidz expansion",
 	    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN, NULL, sfeatures);
+	{
+		static const spa_feature_t allow_backup_to_pool_deps[] = {
+			SPA_FEATURE_ALLOCATION_CLASSES,
+			SPA_FEATURE_NONE
+		};
+		zfeature_register(SPA_FEATURE_ALLOW_BACKUP_TO_POOL,
+		    "org.openzfs:allow_backup_to_pool", "allow_backup_to_pool",
+		    "Allow backing up allocation class device data to pool",
+		    ZFEATURE_FLAG_MOS | ZFEATURE_FLAG_ACTIVATE_ON_ENABLE,
+		    ZFEATURE_TYPE_BOOLEAN, allow_backup_to_pool_deps,
+		    sfeatures);
+	}
 
 	zfs_mod_list_supported_free(sfeatures);
 }

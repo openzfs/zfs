@@ -471,6 +471,15 @@ spa_prop_get_config(spa_t *spa, nvlist_t **nvp)
 		    DNODE_MIN_SIZE, ZPROP_SRC_NONE);
 	}
 
+	if (spa_feature_is_active(spa, SPA_FEATURE_ALLOW_BACKUP_TO_POOL)) {
+		spa_prop_add_list(*nvp, ZPOOL_PROP_BACKUP_ALLOC_CLASS_TO_POOL,
+		    NULL, spa->spa_backup_alloc_class, ZPROP_SRC_NONE);
+	} else {
+		/* Feature not active, turn off backup to pool */
+		spa_prop_add_list(*nvp, ZPOOL_PROP_BACKUP_ALLOC_CLASS_TO_POOL,
+		    NULL, B_FALSE, ZPROP_SRC_NONE);
+	}
+
 	if ((dp = list_head(&spa->spa_config_list)) != NULL) {
 		if (dp->scd_path == NULL) {
 			spa_prop_add_list(*nvp, ZPOOL_PROP_CACHEFILE,
@@ -604,6 +613,8 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 	int error = 0, reset_bootfs = 0;
 	uint64_t objnum = 0;
 	boolean_t has_feature = B_FALSE;
+	boolean_t allow_backup_to_pool = B_FALSE;
+	boolean_t backup_alloc_class_to_pool = B_FALSE;
 
 	elem = NULL;
 	while ((elem = nvlist_next_nvpair(props, elem)) != NULL) {
@@ -611,6 +622,7 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 		const char *strval, *slash, *check, *fname;
 		const char *propname = nvpair_name(elem);
 		zpool_prop_t prop = zpool_name_to_prop(propname);
+		spa_feature_t fid = 0;
 
 		switch (prop) {
 		case ZPOOL_PROP_INVAL:
@@ -645,11 +657,30 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 				}
 
 				fname = strchr(propname, '@') + 1;
-				if (zfeature_lookup_name(fname, NULL) != 0) {
+				if (zfeature_lookup_name(fname, &fid) != 0) {
 					error = SET_ERROR(EINVAL);
 					break;
 				}
 
+				/*
+				 * Special case - If both:
+				 *
+				 * SPA_FEATURE_ALLOW_BACKUP_TO_POOL = disabled
+				 *
+				 * ... and ...
+				 *
+				 * ZPOOL_PROP_BACKUP_ALLOC_CLASS_TO_POOL = on
+				 *
+				 * then we need to fail.  Note that the presence
+				 * of SPA_FEATURE_ALLOW_BACKUP_TO_POOL in the
+				 * nvlist means it is enabled (although its
+				 * intval will be 0).  If it's disabled, then
+				 * SPA_FEATURE_ALLOW_BACKUP_TO_POOL will not
+				 * be in the nvlist at all.
+				 */
+				if (fid == SPA_FEATURE_ALLOW_BACKUP_TO_POOL) {
+					allow_backup_to_pool = B_TRUE;
+				}
 				has_feature = B_TRUE;
 			} else {
 				error = SET_ERROR(EINVAL);
@@ -793,6 +824,15 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 			if (strlen(strval) > ZPROP_MAX_COMMENT)
 				error = SET_ERROR(E2BIG);
 			break;
+		case ZPOOL_PROP_BACKUP_ALLOC_CLASS_TO_POOL:
+			error = nvpair_value_uint64(elem, &intval);
+			if (!error && intval > 1)
+				error = SET_ERROR(EINVAL);
+
+			if (intval == 1) {
+				backup_alloc_class_to_pool = B_TRUE;
+			}
+			break;
 
 		default:
 			break;
@@ -804,6 +844,18 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 
 	(void) nvlist_remove_all(props,
 	    zpool_prop_to_name(ZPOOL_PROP_DEDUPDITTO));
+
+	if (spa_feature_is_active(spa, SPA_FEATURE_ALLOW_BACKUP_TO_POOL)) {
+		allow_backup_to_pool = B_TRUE;
+	}
+
+	if (!allow_backup_to_pool && backup_alloc_class_to_pool) {
+		/*
+		 * We can't enable pool props BACKUP_ALLOC_CLASS_TO_POOL if the
+		 * feature flag SPA_FEATURE_ALLOW_BACKUP_TO_POOL is disabled.
+		 */
+		error = SET_ERROR(ZFS_ERR_BACKUP_DISABLED_BUT_REQUESTED);
+	}
 
 	if (!error && reset_bootfs) {
 		error = nvlist_remove(props,
@@ -2485,6 +2537,52 @@ spa_check_removed(vdev_t *vd)
 	}
 }
 
+/*
+ * Decide what to do if we have missing/corrupted alloc class devices.
+ *
+ * If we have missing top-level vdevs and they are all alloc class devices with
+ * backup_to_pool set, then we may still be able to import the pool.
+ */
+static int
+spa_check_for_bad_alloc_class_devices(spa_t *spa)
+{
+	if (spa->spa_missing_recovered_tvds == 0)
+		return (0);
+
+	/*
+	 * Are there missing alloc class devices but
+	 * SPA_FEATURE_ALLOW_BACKUP_TO_POOL is not enabled?  If so,
+	 * then we can't import.
+	 */
+	if (!spa_feature_is_active(spa, SPA_FEATURE_ALLOW_BACKUP_TO_POOL)) {
+		spa_load_note(spa, "some alloc class devices are missing, "
+		    "cannot import.");
+		return (SET_ERROR(ENXIO));
+	}
+
+	/*
+	 * If all the missing top-level devices are alloc class devices, and
+	 * if they have all their data backed up to the pool, then we can still
+	 * import the pool.
+	 */
+	if (spa->spa_missing_tvds > 0 &&
+	    spa->spa_missing_tvds == spa->spa_missing_recovered_tvds) {
+		spa_load_note(spa, "only alloc class devices are missing, and "
+		    "the normal pool has copies of the alloc class data, so "
+		    "it's still possible to import.");
+		return (0);
+	}
+
+	/*
+	 * If we're here, then it means that not all the missing top-level vdevs
+	 * were alloc class devices.  This should have been caught earlier.
+	 */
+	spa_load_note(spa, "some alloc class devices that are not backed up to "
+	    "the pool are amongst those that are missing, cannot import");
+
+	return (SET_ERROR(ENXIO));
+}
+
 static int
 spa_check_for_missing_logs(spa_t *spa)
 {
@@ -3914,7 +4012,24 @@ spa_ld_open_vdevs(spa_t *spa)
 	error = vdev_open(spa->spa_root_vdev);
 	spa_config_exit(spa, SCL_ALL, FTAG);
 
-	if (spa->spa_missing_tvds != 0) {
+	if (spa->spa_missing_tvds != 0 &&
+	    spa->spa_missing_tvds == spa->spa_missing_recovered_tvds &&
+	    (error == 0 || error == ENOENT)) {
+		/*
+		 * Special case: If all the missing top-level vdevs are special
+		 * devices, we may or may not be able to import the pool,
+		 * depending on if the relevant "backup to pool" feature and
+		 * properties are set.  At this early stage of import we do not
+		 * have the feature flags loaded yet, so for now proceed
+		 * with the import.  We will do the backup checks later after
+		 * the feature flags are loaded.
+		 */
+		spa_load_note(spa, "vdev tree has %lld missing special "
+		    "top-level vdevs.  Keep importing for now until we "
+		    "can check the feature flags.",
+		    (u_longlong_t)spa->spa_missing_tvds);
+		error = 0;
+	} else if (spa->spa_missing_tvds != 0) {
 		spa_load_note(spa, "vdev tree has %lld missing top-level "
 		    "vdevs.", (u_longlong_t)spa->spa_missing_tvds);
 		if (spa->spa_trust_config && (spa->spa_mode & SPA_MODE_WRITE)) {
@@ -5337,6 +5452,13 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 	if (error != 0)
 		return (error);
 
+	spa_import_progress_set_notes(spa, "Checking for bad alloc class "
+	    "devices");
+	spa_check_for_bad_alloc_class_devices(spa);
+	if (error != 0)
+		return (error);
+
+
 	spa_import_progress_set_notes(spa, "Loading dedup tables");
 	error = spa_ld_load_dedup_tables(spa);
 	if (error != 0)
@@ -6241,6 +6363,47 @@ spa_create_check_encryption_params(dsl_crypto_params_t *dcp,
 }
 
 /*
+ * For each special or dedup vdev, disable backing up its data to the pool.
+ *
+ * Return 0 on success, non-zero otherwise.
+ */
+static int
+spa_disable_alloc_class_backup(spa_t *spa)
+{
+	struct vdev_array *vda;
+	int rc;
+
+	/*
+	 * TODO: I don't know what locks are required here
+	 *
+	 * I need to iterate over the vdev tree and write
+	 * vd->vdev_backup_to_pool.
+	 *
+	 * Take more locks than I need to just to be sure.
+	 */
+	int locks = SCL_CONFIG | SCL_STATE | SCL_VDEV;
+
+	spa_config_enter(spa, locks, FTAG, RW_READER);
+
+	/* Get an array of alloc class vdev_t's */
+	vda = vdev_array_alloc(spa->spa_root_vdev, VDEV_ARRAY_SPECIAL_LEAF |
+	    VDEV_ARRAY_DEDUP_LEAF);
+	if (vda == NULL) {
+		spa_config_exit(spa, locks, FTAG);
+		return (-1);
+	}
+
+	for (int i = 0; i < vda->count; i++) {
+		vda->vds[i]->vdev_backup_to_pool = B_FALSE;
+	}
+
+	spa_config_exit(spa, locks, FTAG);
+
+	vdev_array_free(vda);
+	return (rc);
+}
+
+/*
  * Pool Creation
  */
 int
@@ -6521,10 +6684,39 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	spa->spa_multihost = zpool_prop_default_numeric(ZPOOL_PROP_MULTIHOST);
 	spa->spa_autotrim = zpool_prop_default_numeric(ZPOOL_PROP_AUTOTRIM);
 
+	/*
+	 * Set initial backup settings.  These may change after the nvlist
+	 * properties are processed a little later in spa_sync_props().
+	 */
+	spa->spa_backup_alloc_class = (boolean_t)
+	    zpool_prop_default_numeric(ZPOOL_PROP_BACKUP_ALLOC_CLASS_TO_POOL);
+
 	if (props != NULL) {
 		spa_configfile_set(spa, props, B_FALSE);
 		spa_sync_props(props, tx);
 	}
+
+	/*
+	 * At this point in the code, the pool features are loaded and
+	 * we can query them.  If SPA_FEATURE_ALLOW_BACKUP_TO_POOL is disabled,
+	 * then disable the pool prop.
+	 */
+	if (!spa_feature_is_active(spa, SPA_FEATURE_ALLOW_BACKUP_TO_POOL)) {
+		spa->spa_backup_alloc_class = B_FALSE;
+	}
+
+	/*
+	 * We now have the spa->spa_backup_alloc_class correctly set.
+	 *
+	 * Unfortunately, our vdev's vd->vdev_backup_to_pool values were
+	 * already set earlier in spa_config_parse().  We need to update
+	 * these vdev values to reflect our pool backup settings.
+	 *
+	 * Make things right by setting the vd->backup_to_pool to the correct
+	 * value on all the alloc class vdevs.
+	 */
+	if (!spa->spa_backup_alloc_class)
+		spa_disable_alloc_class_backup(spa);
 
 	for (int i = 0; i < ndraid; i++)
 		spa_feature_incr(spa, SPA_FEATURE_DRAID, tx);
@@ -7351,6 +7543,14 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	if ((oldvd->vdev_top->vdev_alloc_bias != VDEV_BIAS_NONE ||
 	    oldvd->vdev_top->vdev_islog) && newvd->vdev_isspare) {
 		return (spa_vdev_exit(spa, newrootvd, txg, ENOTSUP));
+	}
+
+	/*
+	 * Our new/replaced alloc class vdev's backup setting should inherit
+	 * the current pool property.
+	 */
+	if (vdev_is_leaf(oldvd) && vdev_is_alloc_class(oldvd)) {
+		newvd->vdev_backup_to_pool = spa->spa_backup_alloc_class;
 	}
 
 	/*
@@ -9381,6 +9581,7 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 		const char *elemname = nvpair_name(elem);
 		zprop_type_t proptype;
 		spa_feature_t fid;
+		boolean_t boolval;
 
 		switch (prop = zpool_name_to_prop(elemname)) {
 		case ZPOOL_PROP_VERSION:
@@ -9442,6 +9643,29 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 
 			spa_history_log_internal(spa, "set", tx,
 			    "%s=%s", nvpair_name(elem), strval);
+			break;
+
+		case ZPOOL_PROP_BACKUP_ALLOC_CLASS_TO_POOL:
+			boolval = (boolean_t)fnvpair_value_uint64(elem);
+
+			/*
+			 * If we're disabling backup, then mark all the alloc
+			 * class vdevs as not fully backed-up anymore.
+			 */
+			spa->spa_backup_alloc_class = boolval;
+			if (boolval == B_FALSE)
+				spa_disable_alloc_class_backup(spa);
+
+			/*
+			 * Dirty the configuration on vdevs as above.
+			 */
+			if (tx->tx_txg != TXG_INITIAL) {
+				vdev_config_dirty(spa->spa_root_vdev);
+				spa_async_request(spa, SPA_ASYNC_CONFIG_UPDATE);
+			}
+
+			spa_history_log_internal(spa, "set", tx,
+			    "%s=%s", nvpair_name(elem), boolval ? "on" : "off");
 			break;
 
 		case ZPOOL_PROP_INVAL:

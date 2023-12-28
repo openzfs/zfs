@@ -437,6 +437,37 @@ command, though this property can be used when a specific version is needed for
 backwards compatibility.
 Once feature flags are enabled on a pool this property will no longer have a
 value.
+.It Sy backup_alloc_class_to_pool Ns = Ns Sy on Ns | Ns Sy off
+When set to "on" all proceeding writes to allocation class vdevs (like special
+and dedup vdevs) will also write an additional copy of the data to the pool.
+This allows alloc class vdev data to be "backed up" to the pool.
+If an alloc class vdev has all of its data backed up to the pool, then the vdev
+will be considered "fully backed up" and will have the
+.Sy backup_to_pool
+vdev property set to "on".
+Fully backed up alloc class vdevs can fail regardless of their redundancy level
+without the pool losing data.
+If
+.Sy backup_alloc_class_to_pool
+is set to "off" then all alloc class vdevs will no longer be considered fully
+backed up, and will have their
+.Sy backup_to_pool
+vdev property automatically
+set to "off".
+If
+.Sy backup_alloc_class_to_pool
+is set to "on" after being set to "off", the alloc class data writes will still
+write an extra copy of the data to the pool, and new top-level alloc class
+vdevs added after that point will be fully backed up, but the older alloc class
+vdevs will remain not fully backed up.
+Essentially, an alloc class vdev must have had
+.Sy backup_alloc_class_to_pool
+set to "on" for the entirety of its lifetime to be considered fully backed up.
+Note that the
+.Sy feature@allow_backup_to_pool
+feature flag must be active in order to use the
+.Sy backup_alloc_class_to_pool
+pool property.
 .El
 .
 .Ss User Properties

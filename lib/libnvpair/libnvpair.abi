@@ -1156,6 +1156,11 @@
       <parameter type-id='80f4b756'/>
       <return type-id='95e97e5e'/>
     </function-decl>
+    <function-decl name='strchr' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='95e97e5e'/>
+      <return type-id='26a90f95'/>
+    </function-decl>
     <function-decl name='strcspn' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='80f4b756'/>
       <parameter type-id='80f4b756'/>
@@ -2535,11 +2540,6 @@
       <parameter type-id='80f4b756'/>
       <parameter type-id='b59d7dce'/>
       <return type-id='95e97e5e'/>
-    </function-decl>
-    <function-decl name='strchr' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='80f4b756'/>
-      <parameter type-id='95e97e5e'/>
-      <return type-id='26a90f95'/>
     </function-decl>
     <function-decl name='strlen' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='80f4b756'/>

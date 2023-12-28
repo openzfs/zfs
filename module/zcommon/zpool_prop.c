@@ -153,6 +153,10 @@ zpool_prop_init(void)
 	zprop_register_index(ZPOOL_PROP_MULTIHOST, "multihost", 0,
 	    PROP_DEFAULT, ZFS_TYPE_POOL, "on | off", "MULTIHOST",
 	    boolean_table, sfeatures);
+	zprop_register_index(ZPOOL_PROP_BACKUP_ALLOC_CLASS_TO_POOL,
+	    "backup_alloc_class_to_pool", 1, PROP_DEFAULT, ZFS_TYPE_POOL,
+	    "on | off", "BACKUP_ALLOC_CLASS_TO_POOL", boolean_table,
+	    sfeatures);
 
 	/* default index properties */
 	zprop_register_index(ZPOOL_PROP_FAILUREMODE, "failmode",
@@ -447,6 +451,9 @@ vdev_prop_init(void)
 	    boolean_na_table, sfeatures);
 	zprop_register_index(VDEV_PROP_RAIDZ_EXPANDING, "raidz_expanding", 0,
 	    PROP_READONLY, ZFS_TYPE_VDEV, "on | off", "RAIDZ_EXPANDING",
+	    boolean_table, sfeatures);
+	zprop_register_index(VDEV_PROP_BACKUP_TO_POOL, "backup_to_pool", B_TRUE,
+	    PROP_READONLY, ZFS_TYPE_VDEV, "on | off", "BACKUP_TO_POOL",
 	    boolean_table, sfeatures);
 
 	/* default index properties */

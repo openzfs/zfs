@@ -180,17 +180,31 @@ For more information, see the
 section.
 .It Sy dedup
 A device solely dedicated for deduplication tables.
-The redundancy of this device should match the redundancy of the other normal
-devices in the pool.
 If more than one dedup device is specified, then
 allocations are load-balanced between those devices.
+The dedup vdevs only need to match the redundancy level of the normal devices
+if they are not being backed-up to the pool (backed-up is the default).
+See the
+.Sy feature@allow_backup_to_pool
+feature flag,
+.Sy backup_alloc_class_to_pool
+pool property and
+.Sy backup_to_pool
+vdev property for more details.
 .It Sy special
 A device dedicated solely for allocating various kinds of internal metadata,
 and optionally small file blocks.
-The redundancy of this device should match the redundancy of the other normal
-devices in the pool.
 If more than one special device is specified, then
 allocations are load-balanced between those devices.
+The special vdevs only need to match the redundancy level of the normal devices
+if they are not being backed-up to the pool (backed-up is the default).
+See the
+.Sy feature@allow_backup_to_pool
+feature flag,
+.Sy backup_alloc_class_to_pool
+pool property and
+.Sy backup_to_pool
+vdev property for more details.
 .Pp
 For more information on special allocations, see the
 .Sx Special Allocation Class

@@ -284,6 +284,13 @@ struct vdev {
 	uint64_t	vdev_failfast;	/* device failfast setting	*/
 	boolean_t	vdev_rz_expanding; /* raidz is being expanded?	*/
 	boolean_t	vdev_ishole;	/* is a hole in the namespace	*/
+
+	/*
+	 * If this is set to true, then all the data on this vdev is backed up
+	 * to the pool.  This is only used by allocation class devices.
+	 */
+	boolean_t	vdev_backup_to_pool;
+
 	uint64_t	vdev_top_zap;
 	vdev_alloc_bias_t vdev_alloc_bias; /* metaslab allocation bias	*/
 
@@ -641,6 +648,11 @@ extern int vdev_obsolete_counts_are_precise(vdev_t *vd, boolean_t *are_precise);
 int vdev_checkpoint_sm_object(vdev_t *vd, uint64_t *sm_obj);
 void vdev_metaslab_group_create(vdev_t *vd);
 uint64_t vdev_best_ashift(uint64_t logical, uint64_t a, uint64_t b);
+extern boolean_t vdev_is_fully_backed_up(vdev_t *vd);
+extern boolean_t vdev_is_leaf(vdev_t *vd);
+extern boolean_t vdev_is_special(vdev_t *vd);
+extern boolean_t vdev_is_dedup(vdev_t *vd);
+extern boolean_t vdev_is_alloc_class(vdev_t *vd);
 
 /*
  * Vdev ashift optimization tunables

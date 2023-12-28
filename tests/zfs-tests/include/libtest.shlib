@@ -1081,6 +1081,16 @@ function get_pool_prop # property pool
 	zpool get -Hpo value "$prop" "$pool" || log_fail "zpool get $prop $pool"
 }
 
+# Get the specified vdev property in parsable format or fail
+function get_vdev_prop
+{
+	typeset prop=$1
+	typeset pool=$2
+	typeset vdev=$3
+
+	zpool get -Hpo value "$prop" "$pool" "$vdev" || log_fail "zpool get $prop $pool $vdev"
+}
+
 # Return 0 if a pool exists; $? otherwise
 #
 # $1 - pool name
@@ -1815,7 +1825,7 @@ function verify_pool
 function get_disklist # pool
 {
 	echo $(zpool iostat -v $1 | awk '(NR > 4) {print $1}' | \
-	    grep -vEe '^-----' -e "^(mirror|raidz[1-3]|draid[1-3]|spare|log|cache|special|dedup)|\-[0-9]$")
+	    grep -vEe '^-----' -e "^(mirror|raidz[1-3]|draid[1-3]|spare|log|cache|special|dedup)(\-[0-9])+$")
 }
 
 #
@@ -3906,4 +3916,29 @@ function pop_coredump_pattern
 		sysctl kern.corefile="$(<"$1")" >/dev/null
 		;;
 	esac
+}
+
+# Get a list of all vdevs in the pool that are a certain type.
+#
+# The returned list is in a space-separated string, with the full path of each
+# vdev included:
+#
+#	"/dev/sda /dev/sdb /dev/sdc"
+#
+# $1: Type of disk to get ('special', 'dedup', 'log', 'cache', 'spare')
+# $2: (optional) pool name
+function get_list_of_vdevs_that_are {
+	poolname=${2:-$TESTPOOL}
+
+	zpool status -P $poolname | sed -r '/\s+(mirror|draid|raidz)/d' | \
+	awk -v token="$1" '{
+	if (tmp == 1 && substr($1,1,1) == "/") {
+		if (first != 1) {
+			printf "%s", $1;
+			first=1;
+		} else {
+			printf " %s", $1;
+		}
+	} else {tmp=0}; if ($1 == token) {tmp=1}}
+	END {print ""}'
 }

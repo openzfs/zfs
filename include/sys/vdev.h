@@ -172,6 +172,24 @@ extern uint32_t vdev_queue_length(vdev_t *vd);
 extern uint64_t vdev_queue_last_offset(vdev_t *vd);
 extern uint64_t vdev_queue_class_length(vdev_t *vq, zio_priority_t p);
 
+typedef enum {
+	/* (special flag) dry-run, get count only */
+	VDEV_ARRAY_COUNT = 1ULL << 0,
+
+	VDEV_ARRAY_ANY_LEAF = 1ULL << 1, /* match any leaf */
+	VDEV_ARRAY_SPECIAL_LEAF = 1ULL << 2, /* match special vdev leaves */
+	VDEV_ARRAY_DEDUP_LEAF = 1ULL << 3, /* match dedup vdev leaves */
+} vdev_array_flag_t;
+
+struct vdev_array
+{
+	vdev_t **vds; /* Array of vdev_t's */
+	int count;
+};
+
+extern struct vdev_array *vdev_array_alloc(vdev_t *rvd, uint64_t flags);
+extern void vdev_array_free(struct vdev_array *vda);
+
 extern void vdev_config_dirty(vdev_t *vd);
 extern void vdev_config_clean(vdev_t *vd);
 extern int vdev_config_sync(vdev_t **svd, int svdcount, uint64_t txg);

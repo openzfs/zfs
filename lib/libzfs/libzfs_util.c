@@ -774,6 +774,12 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 	case ZFS_ERR_ASHIFT_MISMATCH:
 		zfs_verror(hdl, EZFS_ASHIFT_MISMATCH, fmt, ap);
 		break;
+	case ZFS_ERR_BACKUP_DISABLED_BUT_REQUESTED:
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "Cannot enable backup to pool since "
+		    "feature@allow_backup_to_pool is not active."));
+		zfs_verror(hdl, EZFS_IOC_NOTSUPPORTED, fmt, ap);
+		break;
 	default:
 		zfs_error_aux(hdl, "%s", zfs_strerror(error));
 		zfs_verror(hdl, EZFS_UNKNOWN, fmt, ap);
