@@ -1445,8 +1445,6 @@ spa_taskq_write_param_get(char *buf, zfs_kernel_param_t *kp)
 	return (spa_taskq_param_get(ZIO_TYPE_WRITE, buf));
 }
 #else
-#include <sys/sbuf.h>
-
 /*
  * On FreeBSD load-time parameters can be set up before malloc() is available,
  * so we have to do all the parsing work on the stack.
@@ -1457,19 +1455,11 @@ static int
 spa_taskq_read_param(ZFS_MODULE_PARAM_ARGS)
 {
 	char buf[SPA_TASKQ_PARAM_MAX];
-	int err = 0;
+	int err;
 
-	if (req->newptr == NULL) {
-		int len = spa_taskq_param_get(ZIO_TYPE_READ, buf);
-		struct sbuf *s = sbuf_new_for_sysctl(NULL, NULL, len+1, req);
-		sbuf_cpy(s, buf);
-		err = sbuf_finish(s);
-		sbuf_delete(s);
-		return (err);
-	}
-
+	(void) spa_taskq_param_get(ZIO_TYPE_READ, buf);
 	err = sysctl_handle_string(oidp, buf, sizeof (buf), req);
-	if (err)
+	if (err || req->newptr == NULL)
 		return (err);
 	return (spa_taskq_param_set(ZIO_TYPE_READ, buf));
 }
@@ -1478,19 +1468,11 @@ static int
 spa_taskq_write_param(ZFS_MODULE_PARAM_ARGS)
 {
 	char buf[SPA_TASKQ_PARAM_MAX];
-	int err = 0;
+	int err;
 
-	if (req->newptr == NULL) {
-		int len = spa_taskq_param_get(ZIO_TYPE_WRITE, buf);
-		struct sbuf *s = sbuf_new_for_sysctl(NULL, NULL, len+1, req);
-		sbuf_cpy(s, buf);
-		err = sbuf_finish(s);
-		sbuf_delete(s);
-		return (err);
-	}
-
+	(void) spa_taskq_param_get(ZIO_TYPE_WRITE, buf);
 	err = sysctl_handle_string(oidp, buf, sizeof (buf), req);
-	if (err)
+	if (err || req->newptr == NULL)
 		return (err);
 	return (spa_taskq_param_set(ZIO_TYPE_WRITE, buf));
 }
