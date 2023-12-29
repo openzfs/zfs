@@ -1295,7 +1295,7 @@ spa_taskq_param_set(zio_type_t t, char *cfg)
 }
 
 static int
-spa_taskq_param_get(zio_type_t t, char *buf)
+spa_taskq_param_get(zio_type_t t, char *buf, boolean_t add_newline)
 {
 	int pos = 0;
 
@@ -1313,7 +1313,8 @@ spa_taskq_param_get(zio_type_t t, char *buf)
 		sep = " ";
 	}
 
-	buf[pos++] = '\n';
+	if (add_newline)
+		buf[pos++] = '\n';
 	buf[pos] = '\0';
 
 	return (pos);
@@ -1331,7 +1332,7 @@ spa_taskq_read_param_set(const char *val, zfs_kernel_param_t *kp)
 static int
 spa_taskq_read_param_get(char *buf, zfs_kernel_param_t *kp)
 {
-	return (spa_taskq_param_get(ZIO_TYPE_READ, buf));
+	return (spa_taskq_param_get(ZIO_TYPE_READ, buf, TRUE));
 }
 
 static int
@@ -1345,7 +1346,7 @@ spa_taskq_write_param_set(const char *val, zfs_kernel_param_t *kp)
 static int
 spa_taskq_write_param_get(char *buf, zfs_kernel_param_t *kp)
 {
-	return (spa_taskq_param_get(ZIO_TYPE_WRITE, buf));
+	return (spa_taskq_param_get(ZIO_TYPE_WRITE, buf, TRUE));
 }
 #else
 /*
@@ -1360,7 +1361,7 @@ spa_taskq_read_param(ZFS_MODULE_PARAM_ARGS)
 	char buf[SPA_TASKQ_PARAM_MAX];
 	int err;
 
-	(void) spa_taskq_param_get(ZIO_TYPE_READ, buf);
+	(void) spa_taskq_param_get(ZIO_TYPE_READ, buf, FALSE);
 	err = sysctl_handle_string(oidp, buf, sizeof (buf), req);
 	if (err || req->newptr == NULL)
 		return (err);
@@ -1373,7 +1374,7 @@ spa_taskq_write_param(ZFS_MODULE_PARAM_ARGS)
 	char buf[SPA_TASKQ_PARAM_MAX];
 	int err;
 
-	(void) spa_taskq_param_get(ZIO_TYPE_WRITE, buf);
+	(void) spa_taskq_param_get(ZIO_TYPE_WRITE, buf, FALSE);
 	err = sysctl_handle_string(oidp, buf, sizeof (buf), req);
 	if (err || req->newptr == NULL)
 		return (err);
