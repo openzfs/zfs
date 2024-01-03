@@ -1186,11 +1186,18 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 	inblksz = inzp->z_blksz;
 
 	/*
-	 * We cannot clone into files with different block size if we can't
-	 * grow it (block size is already bigger or more than one block).
+	 * We cannot clone into a file with different block size if we can't
+	 * grow it (block size is already bigger, has more than one block, or
+	 * not locked for growth).  There are other possible reasons for the
+	 * grow to fail, but we cover what we can before opening transaction
+	 * and the rest detect after we try to do it.
 	 */
+	if (inblksz < outzp->z_blksz) {
+		error = SET_ERROR(EINVAL);
+		goto unlock;
+	}
 	if (inblksz != outzp->z_blksz && (outzp->z_size > outzp->z_blksz ||
-	    outzp->z_size > inblksz)) {
+	    outlr->lr_length != UINT64_MAX)) {
 		error = SET_ERROR(EINVAL);
 		goto unlock;
 	}
@@ -1309,12 +1316,24 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 		}
 
 		/*
-		 * Copy source znode's block size. This only happens on the
-		 * first iteration since zfs_rangelock_reduce() will shrink down
-		 * lr_len to the appropriate size.
+		 * Copy source znode's block size. This is done only if the
+		 * whole znode is locked (see zfs_rangelock_cb()) and only
+		 * on the first iteration since zfs_rangelock_reduce() will
+		 * shrink down lr_length to the appropriate size.
 		 */
 		if (outlr->lr_length == UINT64_MAX) {
 			zfs_grow_blocksize(outzp, inblksz, tx);
+
+			/*
+			 * Block growth may fail for many reasons we can not
+			 * predict here.  If it happen the cloning is doomed.
+			 */
+			if (inblksz != outzp->z_blksz) {
+				error = SET_ERROR(EINVAL);
+				dmu_tx_abort(tx);
+				break;
+			}
+
 			/*
 			 * Round range lock up to the block boundary, so we
 			 * prevent appends until we are done.
