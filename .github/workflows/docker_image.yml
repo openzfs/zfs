@@ -3,7 +3,7 @@ name: build_image
 on:
   push:
     branches:
-      - 'truenas/zfs-2.1-release'
+      - 'truenas/zfs-2.2-release'
 
 jobs:
   docker:
