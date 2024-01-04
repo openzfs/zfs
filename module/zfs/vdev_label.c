@@ -1156,6 +1156,14 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 		 */
 		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_ASHIFT,
 		    vd->vdev_ashift) == 0);
+
+		/*
+		 * When spare or l2cache (aux) vdev is added during pool
+		 * creation, spa->spa_uberblock is not written until this
+		 * point. Write it on next config sync.
+		 */
+		if (uberblock_verify(&spa->spa_uberblock))
+			spa->spa_aux_sync_uber = B_TRUE;
 	} else {
 		uint64_t txg = 0ULL;
 
@@ -1794,6 +1802,16 @@ vdev_uberblock_sync_list(vdev_t **svd, int svdcount, uberblock_t *ub, int flags)
 	for (int v = 0; v < svdcount; v++)
 		vdev_uberblock_sync(zio, &good_writes, ub, svd[v], flags);
 
+	if (spa->spa_aux_sync_uber) {
+		for (int v = 0; v < spa->spa_spares.sav_count; v++) {
+			vdev_uberblock_sync(zio, &good_writes, ub,
+			    spa->spa_spares.sav_vdevs[v], flags);
+		}
+		for (int v = 0; v < spa->spa_l2cache.sav_count; v++) {
+			vdev_uberblock_sync(zio, &good_writes, ub,
+			    spa->spa_l2cache.sav_vdevs[v], flags);
+		}
+	}
 	(void) zio_wait(zio);
 
 	/*
@@ -1806,6 +1824,19 @@ vdev_uberblock_sync_list(vdev_t **svd, int svdcount, uberblock_t *ub, int flags)
 	for (int v = 0; v < svdcount; v++) {
 		if (vdev_writeable(svd[v])) {
 			zio_flush(zio, svd[v]);
+		}
+	}
+	if (spa->spa_aux_sync_uber) {
+		spa->spa_aux_sync_uber = B_FALSE;
+		for (int v = 0; v < spa->spa_spares.sav_count; v++) {
+			if (vdev_writeable(spa->spa_spares.sav_vdevs[v])) {
+				zio_flush(zio, spa->spa_spares.sav_vdevs[v]);
+			}
+		}
+		for (int v = 0; v < spa->spa_l2cache.sav_count; v++) {
+			if (vdev_writeable(spa->spa_l2cache.sav_vdevs[v])) {
+				zio_flush(zio, spa->spa_l2cache.sav_vdevs[v]);
+			}
 		}
 	}
 
