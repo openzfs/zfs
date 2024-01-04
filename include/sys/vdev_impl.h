@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
+ * Copyright (c) 2023, Klara Inc.
  */
 
 #ifndef _SYS_VDEV_IMPL_H
@@ -454,12 +455,14 @@ struct vdev {
 	zfs_ratelimit_t vdev_checksum_rl;
 
 	/*
-	 * Checksum and IO thresholds for tuning ZED
+	 * Vdev properties for tuning ZED
 	 */
 	uint64_t	vdev_checksum_n;
 	uint64_t	vdev_checksum_t;
 	uint64_t	vdev_io_n;
 	uint64_t	vdev_io_t;
+	uint64_t	vdev_slow_io_n;
+	uint64_t	vdev_slow_io_t;
 };
 
 #define	VDEV_PAD_SIZE		(8 << 10)

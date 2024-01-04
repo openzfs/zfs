@@ -5264,6 +5264,8 @@ zpool_get_vdev_prop_value(nvlist_t *nvprop, vdev_prop_t prop, char *prop_name,
 		case VDEV_PROP_CHECKSUM_T:
 		case VDEV_PROP_IO_N:
 		case VDEV_PROP_IO_T:
+		case VDEV_PROP_SLOW_IO_N:
+		case VDEV_PROP_SLOW_IO_T:
 			if (intval == UINT64_MAX) {
 				(void) strlcpy(buf, "-", len);
 			} else {

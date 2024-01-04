@@ -32,5 +32,6 @@ cleanup_devices $DISKS
 
 zed_stop
 zed_cleanup resilver_finish-start-scrub.sh
+zed_events_drain
 
 log_pass

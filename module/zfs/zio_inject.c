@@ -605,6 +605,10 @@ zio_handle_io_delay(zio_t *zio)
 		if (vd->vdev_guid != handler->zi_record.zi_guid)
 			continue;
 
+		if (handler->zi_record.zi_iotype != ZIO_TYPES &&
+		    handler->zi_record.zi_iotype != zio->io_type)
+				continue;
+
 		/*
 		 * Defensive; should never happen as the array allocation
 		 * occurs prior to inserting this handler on the list.

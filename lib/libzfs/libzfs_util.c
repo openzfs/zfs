@@ -1704,7 +1704,9 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 		    (prop == VDEV_PROP_CHECKSUM_N ||
 		    prop == VDEV_PROP_CHECKSUM_T ||
 		    prop == VDEV_PROP_IO_N ||
-		    prop == VDEV_PROP_IO_T)) {
+		    prop == VDEV_PROP_IO_T ||
+		    prop == VDEV_PROP_SLOW_IO_N ||
+		    prop == VDEV_PROP_SLOW_IO_T)) {
 			*ivalp = UINT64_MAX;
 		}
 
