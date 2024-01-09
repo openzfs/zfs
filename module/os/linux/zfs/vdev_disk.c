@@ -1536,6 +1536,29 @@ vdev_disk_rele(vdev_t *vd)
 }
 
 /*
+ * BIO submission method. See comment above about vdev_classic.
+ * Set zfs_vdev_disk_classic=0 for new, =1 for classic
+ */
+static uint_t zfs_vdev_disk_classic = 0;	/* default new */
+
+/* Set submission function from module parameter */
+static int
+vdev_disk_param_set_classic(const char *buf, zfs_kernel_param_t *kp)
+{
+	int err = param_set_uint(buf, kp);
+	if (err < 0)
+		return (SET_ERROR(err));
+
+	vdev_disk_io_rw_fn =
+	    zfs_vdev_disk_classic ? vdev_classic_physio : vdev_disk_io_rw;
+
+	printk(KERN_INFO "ZFS: forcing %s BIO submission\n",
+	    zfs_vdev_disk_classic ? "classic" : "new");
+
+	return (0);
+}
+
+/*
  * At first use vdev use, set the submission function from the default value if
  * it hasn't been set already.
  */
@@ -1547,8 +1570,8 @@ vdev_disk_init(spa_t *spa, nvlist_t *nv, void **tsd)
 	(void) tsd;
 
 	if (vdev_disk_io_rw_fn == NULL)
-		/* XXX make configurable */
-		vdev_disk_io_rw_fn = 0 ? vdev_classic_physio : vdev_disk_io_rw;
+		vdev_disk_io_rw_fn = zfs_vdev_disk_classic ?
+		    vdev_classic_physio : vdev_disk_io_rw;
 
 	return (0);
 }
@@ -1650,3 +1673,7 @@ ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, failfast_mask, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_vdev_disk, zfs_vdev_disk_, max_segs, UINT, ZMOD_RW,
 	"Maximum number of data segments to add to an IO request (min 4)");
+
+ZFS_MODULE_PARAM_CALL(zfs_vdev_disk, zfs_vdev_disk_, classic,
+    vdev_disk_param_set_classic, param_get_uint, ZMOD_RD,
+	"Use classic BIO submission method");
