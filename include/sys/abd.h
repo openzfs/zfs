@@ -220,6 +220,8 @@ void abd_fini(void);
 
 /*
  * Linux ABD bio functions
+ * Note: these are only needed to support vdev_classic. See comment in
+ * vdev_disk.c.
  */
 #if defined(__linux__) && defined(_KERNEL)
 unsigned int abd_bio_map_off(struct bio *, abd_t *, unsigned int, size_t);
