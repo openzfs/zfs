@@ -8533,11 +8533,14 @@ zdb_decompress_block(abd_t *pabd, void *buf, void *lbuf, uint64_t lsize,
 			}
 
 			/*
-			 * We randomize lbuf2, and decompress to both
-			 * lbuf and lbuf2. This way, we will know if
-			 * decompression fill exactly to lsize.
+			 * We set lbuf to all zeros and lbuf2 to all
+			 * ones, then decompress to both buffers and
+			 * compare their contents. This way we can
+			 * know if decompression filled exactly to
+			 * lsize or if it left some bytes unwritten.
 			 */
-			VERIFY0(random_get_pseudo_bytes(lbuf2, lsize));
+			memset(lbuf, 0x00, lsize);
+			memset(lbuf2, 0xff, lsize);
 
 			if (zio_decompress_data(*cfuncp, pabd,
 			    lbuf, psize, lsize, NULL) == 0 &&
