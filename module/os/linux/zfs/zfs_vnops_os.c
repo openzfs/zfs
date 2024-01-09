@@ -1856,7 +1856,7 @@ zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr, zidmap_t *mnt_ns)
 {
 	struct inode	*ip;
 	zfsvfs_t	*zfsvfs = ZTOZSB(zp);
-	objset_t	*os = zfsvfs->z_os;
+	objset_t	*os;
 	zilog_t		*zilog;
 	dmu_tx_t	*tx;
 	vattr_t		oldva;
@@ -1888,6 +1888,7 @@ zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr, zidmap_t *mnt_ns)
 	if ((err = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (err);
 	ip = ZTOI(zp);
+	os = zfsvfs->z_os;
 
 	/*
 	 * If this is a xvattr_t, then get a pointer to the structure of
