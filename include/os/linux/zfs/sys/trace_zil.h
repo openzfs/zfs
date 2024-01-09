@@ -51,7 +51,9 @@
 		__field(uint64_t,	zl_parse_lr_seq)		    \
 		__field(uint64_t,	zl_parse_blk_count)		    \
 		__field(uint64_t,	zl_parse_lr_count)		    \
-		__field(uint64_t,	zl_cur_used)			    \
+		__field(uint64_t,	zl_cur_size)			    \
+		__field(uint64_t,	zl_cur_left)			    \
+		__field(uint64_t,	zl_cur_max)			    \
 		__field(clock_t,	zl_replay_time)			    \
 		__field(uint64_t,	zl_replay_blks)
 
@@ -72,7 +74,9 @@
 		__entry->zl_parse_lr_seq	= zilog->zl_parse_lr_seq;   \
 		__entry->zl_parse_blk_count	= zilog->zl_parse_blk_count;\
 		__entry->zl_parse_lr_count	= zilog->zl_parse_lr_count; \
-		__entry->zl_cur_used	= zilog->zl_cur_used;		    \
+		__entry->zl_cur_size	= zilog->zl_cur_size;		    \
+		__entry->zl_cur_left	= zilog->zl_cur_left;		    \
+		__entry->zl_cur_max	= zilog->zl_cur_max;		    \
 		__entry->zl_replay_time	= zilog->zl_replay_time;	    \
 		__entry->zl_replay_blks	= zilog->zl_replay_blks;
 
@@ -82,7 +86,8 @@
 	"replay %u stop_sync %u logbias %u sync %u "			    \
 	"parse_error %u parse_blk_seq %llu parse_lr_seq %llu "		    \
 	"parse_blk_count %llu parse_lr_count %llu "			    \
-	"cur_used %llu replay_time %lu replay_blks %llu }"
+	"cur_size %llu cur_left %llu cur_max %llu replay_time %lu "	    \
+	"replay_blks %llu }"
 
 #define	ZILOG_TP_PRINTK_ARGS						    \
 	    __entry->zl_lr_seq, __entry->zl_commit_lr_seq,		    \
@@ -92,7 +97,8 @@
 	    __entry->zl_stop_sync, __entry->zl_logbias, __entry->zl_sync,   \
 	    __entry->zl_parse_error, __entry->zl_parse_blk_seq,		    \
 	    __entry->zl_parse_lr_seq, __entry->zl_parse_blk_count,	    \
-	    __entry->zl_parse_lr_count, __entry->zl_cur_used,		    \
+	    __entry->zl_parse_lr_count, __entry->zl_cur_size,		    \
+	    __entry->zl_cur_left, __entry->zl_cur_max,			    \
 	    __entry->zl_replay_time, __entry->zl_replay_blks
 
 #define	ITX_TP_STRUCT_ENTRY						    \
