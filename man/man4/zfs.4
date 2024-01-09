@@ -1382,6 +1382,22 @@ If this is higher than the maximum allowed by the device queue or the kernel
 itself, it will be clamped.
 Setting it to zero will cause the kernel's ideal size to be used.
 This parameter only applies on Linux.
+This parameter is ignored if
+.Sy zfs_vdev_disk_classic Ns = Ns Sy 1 .
+.
+.It Sy zfs_vdev_disk_classic Ns = Ns Sy 0 Ns | Ns 1 Pq uint
+If set to 1, OpenZFS will submit IO to Linux using the method it used in 2.2
+and earlier.
+This "classic" method has known issues with highly fragmented IO requests and
+is slower on many workloads, but it has been in use for many years and is known
+to be very stable.
+If you set this parameter, please also open a bug report why you did so,
+including the workload involved and any error messages.
+.Pp
+This parameter and the classic submission method will be removed once we have
+total confidence in the new method.
+.Pp
+This parameter only applies on Linux, and can only be set at module load time.
 .
 .It Sy zfs_expire_snapshot Ns = Ns Sy 300 Ns s Pq int
 Time before expiring
