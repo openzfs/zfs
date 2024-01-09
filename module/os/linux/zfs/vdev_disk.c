@@ -84,17 +84,6 @@ static uint_t zfs_vdev_open_timeout_ms = 1000;
 #define	EFI_MIN_RESV_SIZE	(16 * 1024)
 
 /*
- * Virtual device vector for disks.
- */
-typedef struct dio_request {
-	zio_t			*dr_zio;	/* Parent ZIO */
-	atomic_t		dr_ref;		/* References */
-	int			dr_error;	/* Bio error */
-	int			dr_bio_count;	/* Count of bio's */
-	struct bio		*dr_bio[];	/* Attached bio's */
-} dio_request_t;
-
-/*
  * BIO request failfast mask.
  */
 
@@ -467,85 +456,6 @@ vdev_disk_close(vdev_t *v)
 	v->vdev_tsd = NULL;
 }
 
-static dio_request_t *
-vdev_disk_dio_alloc(int bio_count)
-{
-	dio_request_t *dr = kmem_zalloc(sizeof (dio_request_t) +
-	    sizeof (struct bio *) * bio_count, KM_SLEEP);
-	atomic_set(&dr->dr_ref, 0);
-	dr->dr_bio_count = bio_count;
-	dr->dr_error = 0;
-
-	for (int i = 0; i < dr->dr_bio_count; i++)
-		dr->dr_bio[i] = NULL;
-
-	return (dr);
-}
-
-static void
-vdev_disk_dio_free(dio_request_t *dr)
-{
-	int i;
-
-	for (i = 0; i < dr->dr_bio_count; i++)
-		if (dr->dr_bio[i])
-			bio_put(dr->dr_bio[i]);
-
-	kmem_free(dr, sizeof (dio_request_t) +
-	    sizeof (struct bio *) * dr->dr_bio_count);
-}
-
-static void
-vdev_disk_dio_get(dio_request_t *dr)
-{
-	atomic_inc(&dr->dr_ref);
-}
-
-static void
-vdev_disk_dio_put(dio_request_t *dr)
-{
-	int rc = atomic_dec_return(&dr->dr_ref);
-
-	/*
-	 * Free the dio_request when the last reference is dropped and
-	 * ensure zio_interpret is called only once with the correct zio
-	 */
-	if (rc == 0) {
-		zio_t *zio = dr->dr_zio;
-		int error = dr->dr_error;
-
-		vdev_disk_dio_free(dr);
-
-		if (zio) {
-			zio->io_error = error;
-			ASSERT3S(zio->io_error, >=, 0);
-			if (zio->io_error)
-				vdev_disk_error(zio);
-
-			zio_delay_interrupt(zio);
-		}
-	}
-}
-
-BIO_END_IO_PROTO(vdev_disk_physio_completion, bio, error)
-{
-	dio_request_t *dr = bio->bi_private;
-
-	if (dr->dr_error == 0) {
-#ifdef HAVE_1ARG_BIO_END_IO_T
-		dr->dr_error = BIO_END_IO_ERROR(bio);
-#else
-		if (error)
-			dr->dr_error = -(error);
-		else if (!test_bit(BIO_UPTODATE, &bio->bi_flags))
-			dr->dr_error = EIO;
-#endif
-	}
-
-	/* Drop reference acquired by __vdev_disk_physio */
-	vdev_disk_dio_put(dr);
-}
-
 static inline void
 vdev_submit_bio_impl(struct bio *bio)
 {
@@ -697,8 +607,107 @@ vdev_bio_alloc(struct block_device *bdev, gfp_t gfp_mask,
 	return (bio);
 }
 
+/* ========== */
+
+/*
+ * This is the classic, battle-tested BIO submission code.
+ *
+ * These functions have been renamed to vdev_classic_* to make it clear what
+ * they belong to, but their implementations are unchanged.
+ */
+
+/*
+ * Virtual device vector for disks.
+ */
+typedef struct dio_request {
+	zio_t			*dr_zio;	/* Parent ZIO */
+	atomic_t		dr_ref;		/* References */
+	int			dr_error;	/* Bio error */
+	int			dr_bio_count;	/* Count of bio's */
+	struct bio		*dr_bio[];	/* Attached bio's */
+} dio_request_t;
+
+static dio_request_t *
+vdev_classic_dio_alloc(int bio_count)
+{
+	dio_request_t *dr = kmem_zalloc(sizeof (dio_request_t) +
+	    sizeof (struct bio *) * bio_count, KM_SLEEP);
+	atomic_set(&dr->dr_ref, 0);
+	dr->dr_bio_count = bio_count;
+	dr->dr_error = 0;
+
+	for (int i = 0; i < dr->dr_bio_count; i++)
+		dr->dr_bio[i] = NULL;
+
+	return (dr);
+}
+
+static void
+vdev_classic_dio_free(dio_request_t *dr)
+{
+	int i;
+
+	for (i = 0; i < dr->dr_bio_count; i++)
+		if (dr->dr_bio[i])
+			bio_put(dr->dr_bio[i]);
+
+	kmem_free(dr, sizeof (dio_request_t) +
+	    sizeof (struct bio *) * dr->dr_bio_count);
+}
+
+static void
+vdev_classic_dio_get(dio_request_t *dr)
+{
+	atomic_inc(&dr->dr_ref);
+}
+
+static void
+vdev_classic_dio_put(dio_request_t *dr)
+{
+	int rc = atomic_dec_return(&dr->dr_ref);
+
+	/*
+	 * Free the dio_request when the last reference is dropped and
+	 * ensure zio_interpret is called only once with the correct zio
+	 */
+	if (rc == 0) {
+		zio_t *zio = dr->dr_zio;
+		int error = dr->dr_error;
+
+		vdev_classic_dio_free(dr);
+
+		if (zio) {
+			zio->io_error = error;
+			ASSERT3S(zio->io_error, >=, 0);
+			if (zio->io_error)
+				vdev_disk_error(zio);
+
+			zio_delay_interrupt(zio);
+		}
+	}
+}
+
+BIO_END_IO_PROTO(vdev_classic_physio_completion, bio, error)
+{
+	dio_request_t *dr = bio->bi_private;
+
+	if (dr->dr_error == 0) {
+#ifdef HAVE_1ARG_BIO_END_IO_T
+		dr->dr_error = BIO_END_IO_ERROR(bio);
+#else
+		if (error)
+			dr->dr_error = -(error);
+		else if (!test_bit(BIO_UPTODATE, &bio->bi_flags))
+			dr->dr_error = EIO;
+#endif
+	}
+
+	/* Drop reference acquired by vdev_classic_physio */
+	vdev_classic_dio_put(dr);
+}
+
 static inline unsigned int
-vdev_bio_max_segs(zio_t *zio, int bio_size, uint64_t abd_offset)
+vdev_classic_bio_max_segs(zio_t *zio, int bio_size, uint64_t abd_offset)
 {
 	unsigned long nr_segs = abd_nr_pages_off(zio->io_abd,
 	    bio_size, abd_offset);
@@ -711,7 +720,7 @@ vdev_bio_max_segs(zio_t *zio, int bio_size, uint64_t abd_offset)
 }
 
 static int
-__vdev_disk_physio(struct block_device *bdev, zio_t *zio,
+vdev_classic_physio(struct block_device *bdev, zio_t *zio,
     size_t io_size, uint64_t io_offset, int rw, int flags)
 {
 	dio_request_t *dr;
@@ -736,7 +745,7 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio,
 	}
 
 retry:
-	dr = vdev_disk_dio_alloc(bio_count);
+	dr = vdev_classic_dio_alloc(bio_count);
 
 	if (!(zio->io_flags & (ZIO_FLAG_IO_RETRY | ZIO_FLAG_TRYHARD)) &&
 	    zio->io_vd->vdev_failfast == B_TRUE) {
@@ -771,23 +780,23 @@ retry:
 		 * this should be rare - see the comment above.
 		 */
 		if (dr->dr_bio_count == i) {
-			vdev_disk_dio_free(dr);
+			vdev_classic_dio_free(dr);
 			bio_count *= 2;
 			goto retry;
 		}
 
-		nr_vecs = vdev_bio_max_segs(zio, bio_size, abd_offset);
+		nr_vecs = vdev_classic_bio_max_segs(zio, bio_size, abd_offset);
 		dr->dr_bio[i] = vdev_bio_alloc(bdev, GFP_NOIO, nr_vecs);
 		if (unlikely(dr->dr_bio[i] == NULL)) {
-			vdev_disk_dio_free(dr);
+			vdev_classic_dio_free(dr);
 			return (SET_ERROR(ENOMEM));
 		}
 
-		/* Matching put called by vdev_disk_physio_completion */
-		vdev_disk_dio_get(dr);
+		/* Matching put called by vdev_classic_physio_completion */
+		vdev_classic_dio_get(dr);
 
 		BIO_BI_SECTOR(dr->dr_bio[i]) = bio_offset >> 9;
-		dr->dr_bio[i]->bi_end_io = vdev_disk_physio_completion;
+		dr->dr_bio[i]->bi_end_io = vdev_classic_physio_completion;
 		dr->dr_bio[i]->bi_private = dr;
 		bio_set_op_attrs(dr->dr_bio[i], rw, flags);
 
@@ -801,7 +810,7 @@ retry:
 	}
 
 	/* Extra reference to protect dio_request during vdev_submit_bio */
-	vdev_disk_dio_get(dr);
+	vdev_classic_dio_get(dr);
 
 	if (dr->dr_bio_count > 1)
 		blk_start_plug(&plug);
@@ -815,10 +824,12 @@ retry:
 	if (dr->dr_bio_count > 1)
 		blk_finish_plug(&plug);
 
-	vdev_disk_dio_put(dr);
+	vdev_classic_dio_put(dr);
 
 	return (error);
 }
+
+/* ========== */
 
 BIO_END_IO_PROTO(vdev_disk_io_flush_completion, bio, error)
 {
@@ -1023,7 +1034,7 @@ vdev_disk_io_start(zio_t *zio)
 	}
 
 	zio->io_target_timestamp = zio_handle_io_delay(zio);
-	error = __vdev_disk_physio(BDH_BDEV(vd->vd_bdh), zio,
+	error = vdev_classic_physio(BDH_BDEV(vd->vd_bdh), zio,
 	    zio->io_size, zio->io_offset, rw, 0);
 	rw_exit(&vd->vd_lock);
 
