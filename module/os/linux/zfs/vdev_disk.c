@@ -720,9 +720,16 @@ vdev_classic_bio_max_segs(zio_t *zio, int bio_size, uint64_t abd_offset)
 }
 
 static int
-vdev_classic_physio(struct block_device *bdev, zio_t *zio,
-    size_t io_size, uint64_t io_offset, int rw, int flags)
+vdev_classic_physio(zio_t *zio)
 {
+	vdev_t *v = zio->io_vd;
+	vdev_disk_t *vd = v->vdev_tsd;
+	struct block_device *bdev = BDH_BDEV(vd->vd_bdh);
+	size_t io_size = zio->io_size;
+	uint64_t io_offset = zio->io_offset;
+	int rw = zio->io_type == ZIO_TYPE_READ ? READ : WRITE;
+	int flags = 0;
+
 	dio_request_t *dr;
 	uint64_t abd_offset;
 	uint64_t bio_offset;
@@ -944,7 +951,7 @@ vdev_disk_io_start(zio_t *zio)
 {
 	vdev_t *v = zio->io_vd;
 	vdev_disk_t *vd = v->vdev_tsd;
-	int rw, error;
+	int error;
 
 	/*
 	 * If the vdev is closed, it's likely in the REMOVED or FAULTED state.
@@ -1007,13 +1014,6 @@ vdev_disk_io_start(zio_t *zio)
 		rw_exit(&vd->vd_lock);
 		zio_execute(zio);
 		return;
-	case ZIO_TYPE_WRITE:
-		rw = WRITE;
-		break;
-
-	case ZIO_TYPE_READ:
-		rw = READ;
-		break;
 
 	case ZIO_TYPE_TRIM:
 		zio->io_error = vdev_disk_io_trim(zio);
@@ -1026,23 +1026,34 @@ vdev_disk_io_start(zio_t *zio)
 #endif
 		return;
 
+	case ZIO_TYPE_READ:
+	case ZIO_TYPE_WRITE:
+		zio->io_target_timestamp = zio_handle_io_delay(zio);
+		error = vdev_classic_physio(zio);
+		rw_exit(&vd->vd_lock);
+		if (error) {
+			zio->io_error = error;
+			zio_interrupt(zio);
+		}
+		return;
+
 	default:
+		/*
+		 * Getting here means our parent vdev has made a very strange
+		 * request of us, and shouldn't happen. Assert here to force a
+		 * crash in dev builds, but in production return the IO
+		 * unhandled. The pool will likely suspend anyway but that's
+		 * nicer than crashing the kernel.
+		 */
+		ASSERT3S(zio->io_type, ==, -1);
+
 		rw_exit(&vd->vd_lock);
 		zio->io_error = SET_ERROR(ENOTSUP);
 		zio_interrupt(zio);
 		return;
 	}
 
-	zio->io_target_timestamp = zio_handle_io_delay(zio);
-	error = vdev_classic_physio(BDH_BDEV(vd->vd_bdh), zio,
-	    zio->io_size, zio->io_offset, rw, 0);
-	rw_exit(&vd->vd_lock);
-
-	if (error) {
-		zio->io_error = error;
-		zio_interrupt(zio);
-		return;
-	}
+	__builtin_unreachable();
 }
 
 static void
