@@ -946,6 +946,8 @@ vdev_disk_io_trim(zio_t *zio)
 #endif
 }
 
+int (*vdev_disk_io_rw_fn)(zio_t *zio) = NULL;
+
 static void
 vdev_disk_io_start(zio_t *zio)
 {
@@ -1029,7 +1031,7 @@ vdev_disk_io_start(zio_t *zio)
 	case ZIO_TYPE_READ:
 	case ZIO_TYPE_WRITE:
 		zio->io_target_timestamp = zio_handle_io_delay(zio);
-		error = vdev_classic_physio(zio);
+		error = vdev_disk_io_rw_fn(zio);
 		rw_exit(&vd->vd_lock);
 		if (error) {
 			zio->io_error = error;
@@ -1102,8 +1104,25 @@ vdev_disk_rele(vdev_t *vd)
 	/* XXX: Implement me as a vnode rele for the device */
 }
 
+/*
+ * At first use vdev use, set the submission function from the default value if
+ * it hasn't been set already.
+ */
+static int
+vdev_disk_init(spa_t *spa, nvlist_t *nv, void **tsd)
+{
+	(void) spa;
+	(void) nv;
+	(void) tsd;
+
+	if (vdev_disk_io_rw_fn == NULL)
+		vdev_disk_io_rw_fn = vdev_classic_physio;
+
+	return (0);
+}
+
 vdev_ops_t vdev_disk_ops = {
-	.vdev_op_init = NULL,
+	.vdev_op_init = vdev_disk_init,
 	.vdev_op_fini = NULL,
 	.vdev_op_open = vdev_disk_open,
 	.vdev_op_close = vdev_disk_close,
