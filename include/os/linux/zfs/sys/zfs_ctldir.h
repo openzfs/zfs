@@ -39,6 +39,11 @@
 #define	ZFS_CTLDIR_NAME		".zfs"
 #define	ZFS_SNAPDIR_NAME	"snapshot"
 #define	ZFS_SHAREDIR_NAME	"shares"
+#define	ZFS_SPACEDIR_NAME	"space"
+#define	ZFS_QUOTADIR_NAME	"quota"
+#define	ZFS_USERFILE_NAME	"user"
+#define	ZFS_GROUPFILE_NAME	"group"
+#define	ZFS_PROJECTFILE_NAME	"project"
 
 #define	zfs_has_ctldir(zdp)	\
 	((zdp)->z_id == ZTOZSB(zdp)->z_root && \
@@ -48,6 +53,7 @@
 	(ZTOZSB(zdp)->z_show_ctldir))
 
 extern int zfs_expire_snapshot;
+extern int zfs_ctldir_spacefiles;
 
 /* zfsctl generic functions */
 extern int zfsctl_create(zfsvfs_t *);
@@ -86,6 +92,16 @@ extern int zfsctl_shares_lookup(struct inode *dip, char *name,
     struct inode **ipp, int flags, cred_t *cr, int *direntflags,
     pathname_t *realpnp);
 
+/* zfsctl '.zfs/space' functions */
+extern int zfsctl_spacedir_lookup(struct inode *dip, char *name,
+    struct inode **ipp, int flags, cred_t *cr, int *direntflags,
+    pathname_t *realpnp);
+
+/* zfsctl '.zfs/quota' functions */
+extern int zfsctl_quotadir_lookup(struct inode *dip, char *name,
+    struct inode **ipp, int flags, cred_t *cr, int *direntflags,
+    pathname_t *realpnp);
+
 /*
  * These inodes numbers are reserved for the .zfs control directory.
  * It is important that they be no larger that 48-bits because only
@@ -95,8 +111,22 @@ extern int zfsctl_shares_lookup(struct inode *dip, char *name,
  */
 #define	ZFSCTL_INO_ROOT		0x0000FFFFFFFFFFFFULL
 #define	ZFSCTL_INO_SHARES	0x0000FFFFFFFFFFFEULL
-#define	ZFSCTL_INO_SNAPDIR	0x0000FFFFFFFFFFFDULL
-#define	ZFSCTL_INO_SNAPDIRS	0x0000FFFFFFFFFFFCULL
+#define	ZFSCTL_INO_SPACEDIR	0x0000FFFFFFFFFFFDULL
+#define	ZFSCTL_INO_SPACE_USER	0x0000FFFFFFFFFFFCULL
+#define	ZFSCTL_INO_SPACE_GROUP  0x0000FFFFFFFFFFFBULL
+#define	ZFSCTL_INO_SPACE_PROJ	0x0000FFFFFFFFFFFAULL
+#define	ZFSCTL_INO_QUOTADIR	0x0000FFFFFFFFFFF9ULL
+#define	ZFSCTL_INO_QUOTA_USER	0x0000FFFFFFFFFFF8ULL
+#define	ZFSCTL_INO_QUOTA_GROUP	0x0000FFFFFFFFFFF7ULL
+#define	ZFSCTL_INO_QUOTA_PROJ	0x0000FFFFFFFFFFF6ULL
+/*
+ * snapdir inode numbers must be lowest; each snapshot gets its own
+ * directory and inode number, assigned by decrementing from
+ * ZFSCTL_INO_SNAPDIRS.
+ */
+#define	ZFSCTL_INO_SNAPDIR	0x0000FFFFFFFFFFF5ULL
+#define	ZFSCTL_INO_SNAPDIRS	0x0000FFFFFFFFFFF4ULL
+
 
 #define	ZFSCTL_EXPIRE_SNAPSHOT	300
 
