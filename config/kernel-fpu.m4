@@ -91,6 +91,13 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_FPU], [
 		__kernel_fpu_end();
 	], [], [ZFS_META_LICENSE])
 
+	ZFS_LINUX_TEST_SRC([kernel_neon], [
+		#include <asm/neon.h>
+	], [
+		kernel_neon_begin();
+		kernel_neon_end();
+	], [], [ZFS_META_LICENSE])
+
 	ZFS_LINUX_TEST_SRC([fpu_internal], [
 		#if defined(__x86_64) || defined(__x86_64__) || \
 		    defined(__i386) || defined(__i386__)
@@ -186,18 +193,28 @@ AC_DEFUN([ZFS_AC_KERNEL_FPU], [
 			AC_DEFINE(KERNEL_EXPORTS_X86_FPU, 1,
 			    [kernel exports FPU functions])
 		],[
-			ZFS_LINUX_TEST_RESULT([fpu_internal], [
-				AC_MSG_RESULT(internal)
-				AC_DEFINE(HAVE_KERNEL_FPU_INTERNAL, 1,
-				    [kernel fpu internal])
+			dnl #
+			dnl # ARM neon symbols (only on arm and arm64)
+			dnl # could be GPL-only on arm64 after Linux 6.2
+			dnl #
+			ZFS_LINUX_TEST_RESULT([kernel_neon_license],[
+				AC_MSG_RESULT(kernel_neon_*)
+				AC_DEFINE(HAVE_KERNEL_NEON, 1,
+				    [kernel has kernel_neon_* functions])
 			],[
-				ZFS_LINUX_TEST_RESULT([fpu_xsave_internal], [
-				    AC_MSG_RESULT(internal with internal XSAVE)
-				    AC_DEFINE(HAVE_KERNEL_FPU_XSAVE_INTERNAL, 1,
-					[kernel fpu and XSAVE internal])
-			    ],[
-				AC_MSG_RESULT(unavailable)
-			    ])
+				ZFS_LINUX_TEST_RESULT([fpu_internal], [
+					AC_MSG_RESULT(internal)
+					AC_DEFINE(HAVE_KERNEL_FPU_INTERNAL, 1,
+						[kernel fpu internal])
+				],[
+					ZFS_LINUX_TEST_RESULT([fpu_xsave_internal], [
+						AC_MSG_RESULT(internal with internal XSAVE)
+						AC_DEFINE(HAVE_KERNEL_FPU_XSAVE_INTERNAL, 1,
+						[kernel fpu and XSAVE internal])
+					],[
+					AC_MSG_RESULT(unavailable)
+					])
+				])
 			])
 		])
 	])

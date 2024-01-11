@@ -43,9 +43,15 @@
 #include <sys/types.h>
 #include <asm/neon.h>
 
+#if (defined(HAVE_KERNEL_NEON) && defined(CONFIG_KERNEL_MODE_NEON))
 #define	kfpu_allowed()		1
 #define	kfpu_begin()		kernel_neon_begin()
 #define	kfpu_end()		kernel_neon_end()
+#else
+#define	kfpu_allowed()		0
+#define	kfpu_begin()		do {} while (0)
+#define	kfpu_end()		do {} while (0)
+#endif
 #define	kfpu_init()		0
 #define	kfpu_fini()		((void) 0)
 
