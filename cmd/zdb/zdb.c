@@ -2360,7 +2360,7 @@ static void
 snprintf_zstd_header(spa_t *spa, char *blkbuf, size_t buflen,
     const blkptr_t *bp)
 {
-	abd_t *pabd;
+	static abd_t *pabd = NULL;
 	void *buf;
 	zio_t *zio;
 	zfs_zstdhdr_t zstd_hdr;
@@ -2391,7 +2391,8 @@ snprintf_zstd_header(spa_t *spa, char *blkbuf, size_t buflen,
 		return;
 	}
 
-	pabd = abd_alloc_for_io(SPA_MAXBLOCKSIZE, B_FALSE);
+	if (!pabd)
+		pabd = abd_alloc_for_io(SPA_MAXBLOCKSIZE, B_FALSE);
 	zio = zio_root(spa, NULL, NULL, 0);
 
 	/* Decrypt but don't decompress so we can read the compression header */
