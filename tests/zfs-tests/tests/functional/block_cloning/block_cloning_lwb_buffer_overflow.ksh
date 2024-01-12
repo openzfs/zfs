@@ -45,7 +45,7 @@
 
 verify_runnable "global"
 
-if [[ $(linux_version) -lt $(linux_version "4.5") ]]; then
+if is_linux && [[ $(linux_version) -lt $(linux_version "4.5") ]]; then
   log_unsupported "copy_file_range not available before Linux 4.5"
 fi
 
@@ -77,13 +77,14 @@ log_must zfs create -o recordsize=32K $TESTPOOL/$TESTFS
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/file1 bs=32K count=1022 \
 	conv=fsync
 sync_pool $TESTPOOL
-log_must clonefile -c /$TESTPOOL/$TESTFS/file1 /$TESTPOOL/$TESTFS/file2
+log_must clonefile -f /$TESTPOOL/$TESTFS/file1 /$TESTPOOL/$TESTFS/file2
 log_must sync
 
 sync_pool $TESTPOOL
 log_must have_same_content /$TESTPOOL/$TESTFS/file1 /$TESTPOOL/$TESTFS/file2
 typeset blocks=$(get_same_blocks $TESTPOOL/$TESTFS file1 $TESTPOOL/$TESTFS file2)
-log_must [ "$blocks" = "$(seq -s " " 0 1021)" ]
+# FreeBSD's seq(1) leaves a trailing space, remove it with sed(1).
+log_must [ "$blocks" = "$(seq -s " " 0 1021 | sed 's/ $//')" ]
 
 log_pass "LWB buffer overflow is not triggered with multiple VDEVs ZIL"
 

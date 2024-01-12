@@ -35,17 +35,9 @@ tests = ['atime_003_pos', 'root_relatime_on']
 tags = ['functional', 'atime']
 
 [tests/functional/block_cloning:Linux]
-tests = ['block_cloning_copyfilerange', 'block_cloning_copyfilerange_partial',
-    'block_cloning_copyfilerange_fallback',
-    'block_cloning_ficlone', 'block_cloning_ficlonerange',
-    'block_cloning_ficlonerange_partial',
-    'block_cloning_disabled_copyfilerange', 'block_cloning_disabled_ficlone',
-    'block_cloning_disabled_ficlonerange',
-    'block_cloning_copyfilerange_cross_dataset',
-    'block_cloning_cross_enc_dataset',
-    'block_cloning_copyfilerange_fallback_same_txg',
-    'block_cloning_replay', 'block_cloning_replay_encrypted',
-    'block_cloning_lwb_buffer_overflow']
+tests = ['block_cloning_ficlone', 'block_cloning_ficlonerange',
+    'block_cloning_ficlonerange_partial', 'block_cloning_disabled_ficlone',
+    'block_cloning_disabled_ficlonerange']
 tags = ['functional', 'block_cloning']
 
 [tests/functional/chattr:Linux]
