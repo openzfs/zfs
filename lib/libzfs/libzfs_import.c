@@ -291,10 +291,8 @@ zpool_in_use(libzfs_handle_t *hdl, int fd, pool_state_t *state, char **namestr,
 
 	*inuse = B_FALSE;
 
-	if (zpool_read_label(fd, &config, NULL) != 0) {
-		(void) no_memory(hdl);
+	if (zpool_read_label(fd, &config, NULL) != 0)
 		return (-1);
-	}
 
 	if (config == NULL)
 		return (0);
