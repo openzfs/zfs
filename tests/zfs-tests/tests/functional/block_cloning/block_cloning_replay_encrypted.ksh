@@ -42,7 +42,7 @@
 
 verify_runnable "global"
 
-if [[ $(linux_version) -lt $(linux_version "4.5") ]]; then
+if is_linux && [[ $(linux_version) -lt $(linux_version "4.5") ]]; then
   log_unsupported "copy_file_range not available before Linux 4.5"
 fi
 
@@ -92,8 +92,8 @@ log_must zpool freeze $TESTPOOL
 #
 # 4. TX_CLONE_RANGE: Clone the file
 #
-log_must clonefile -c /$TESTPOOL/$TESTFS/file1 /$TESTPOOL/$TESTFS/clone1
-log_must clonefile -c /$TESTPOOL/$TESTFS/file2 /$TESTPOOL/$TESTFS/clone2
+log_must clonefile -f /$TESTPOOL/$TESTFS/file1 /$TESTPOOL/$TESTFS/clone1
+log_must clonefile -f /$TESTPOOL/$TESTFS/file2 /$TESTPOOL/$TESTFS/clone2
 
 #
 # 5. Unmount filesystem and export the pool
@@ -128,6 +128,7 @@ log_must [ "$blocks" = "0 1 2 3" ]
 
 typeset blocks=$(get_same_blocks $TESTPOOL/$TESTFS file2 \
 	$TESTPOOL/$TESTFS clone2 $PASSPHRASE)
-log_must [ "$blocks" = "$(seq -s " " 0 2047)" ]
+# FreeBSD's seq(1) leaves a trailing space, remove it with sed(1).
+log_must [ "$blocks" = "$(seq -s " " 0 2047 | sed 's/ $//')" ]
 
 log_pass $claim
