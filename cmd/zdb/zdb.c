@@ -8488,11 +8488,45 @@ zdb_parse_block_sizes(char *sizes, uint64_t *lsize, uint64_t *psize)
 #define	ZIO_COMPRESS_MASK(alg)	(1ULL << (ZIO_COMPRESS_##alg))
 
 static boolean_t
+try_decompress_block(abd_t *pabd, uint64_t lsize, uint64_t psize,
+    int flags, int cfunc, void *lbuf, void *lbuf2)
+{
+	if (flags & ZDB_FLAG_VERBOSE) {
+		(void) fprintf(stderr,
+		    "Trying %05llx -> %05llx (%s)\n",
+		    (u_longlong_t)psize,
+		    (u_longlong_t)lsize,
+		    zio_compress_table[cfunc].ci_name);
+	}
+
+	/*
+	 * We set lbuf to all zeros and lbuf2 to all
+	 * ones, then decompress to both buffers and
+	 * compare their contents. This way we can
+	 * know if decompression filled exactly to
+	 * lsize or if it left some bytes unwritten.
+	 */
+
+	memset(lbuf, 0x00, lsize);
+	memset(lbuf2, 0xff, lsize);
+
+	if (zio_decompress_data(cfunc, pabd,
+	    lbuf, psize, lsize, NULL) == 0 &&
+	    zio_decompress_data(cfunc, pabd,
+	    lbuf2, psize, lsize, NULL) == 0 &&
+	    memcmp(lbuf, lbuf2, lsize) == 0)
+		return (B_TRUE);
+	return (B_FALSE);
+}
+
+static uint64_t
 zdb_decompress_block(abd_t *pabd, void *buf, void *lbuf, uint64_t lsize,
     uint64_t psize, int flags)
 {
 	(void) buf;
-	boolean_t exceeded = B_FALSE;
+	uint64_t orig_lsize = lsize;
+	boolean_t tryzle = ((getenv("ZDB_NO_ZLE") == NULL));
+	boolean_t found = B_FALSE;
 	/*
 	 * We don't know how the data was compressed, so just try
 	 * every decompress function at every inflated blocksize.
@@ -8503,7 +8537,7 @@ zdb_decompress_block(abd_t *pabd, void *buf, void *lbuf, uint64_t lsize,
 	uint64_t maxlsize = SPA_MAXBLOCKSIZE;
 	uint64_t mask = ZIO_COMPRESS_MASK(ON) | ZIO_COMPRESS_MASK(OFF) |
 	    ZIO_COMPRESS_MASK(INHERIT) | ZIO_COMPRESS_MASK(EMPTY) |
-	    (getenv("ZDB_NO_ZLE") ? ZIO_COMPRESS_MASK(ZLE) : 0);
+	    ZIO_COMPRESS_MASK(ZLE);
 	*cfuncp++ = ZIO_COMPRESS_LZ4;
 	*cfuncp++ = ZIO_COMPRESS_LZJB;
 	mask |= ZIO_COMPRESS_MASK(LZ4) | ZIO_COMPRESS_MASK(LZJB);
@@ -8530,49 +8564,38 @@ zdb_decompress_block(abd_t *pabd, void *buf, void *lbuf, uint64_t lsize,
 		lsize += SPA_MINBLOCKSIZE;
 	else
 		maxlsize = lsize;
+
 	for (; lsize <= maxlsize; lsize += SPA_MINBLOCKSIZE) {
 		for (cfuncp = cfuncs; *cfuncp; cfuncp++) {
-			if (flags & ZDB_FLAG_VERBOSE) {
-				(void) fprintf(stderr,
-				    "Trying %05llx -> %05llx (%s)\n",
-				    (u_longlong_t)psize,
-				    (u_longlong_t)lsize,
-				    zio_compress_table[*cfuncp].\
-				    ci_name);
-			}
-
-			/*
-			 * We set lbuf to all zeros and lbuf2 to all
-			 * ones, then decompress to both buffers and
-			 * compare their contents. This way we can
-			 * know if decompression filled exactly to
-			 * lsize or if it left some bytes unwritten.
-			 */
-			memset(lbuf, 0x00, lsize);
-			memset(lbuf2, 0xff, lsize);
-
-			if (zio_decompress_data(*cfuncp, pabd,
-			    lbuf, psize, lsize, NULL) == 0 &&
-			    zio_decompress_data(*cfuncp, pabd,
-			    lbuf2, psize, lsize, NULL) == 0 &&
-			    memcmp(lbuf, lbuf2, lsize) == 0)
+			if (try_decompress_block(pabd, lsize, psize, flags,
+			    *cfuncp, lbuf, lbuf2)) {
+				found = B_TRUE;
 				break;
+			}
 		}
 		if (*cfuncp != 0)
 			break;
 	}
+	if (!found && tryzle) {
+		for (lsize = orig_lsize; lsize <= maxlsize;
+		    lsize += SPA_MINBLOCKSIZE) {
+			if (try_decompress_block(pabd, lsize, psize, flags,
+			    ZIO_COMPRESS_ZLE, lbuf, lbuf2)) {
+				*cfuncp = ZIO_COMPRESS_ZLE;
+				found = B_TRUE;
+				break;
+			}
+		}
+	}
 	umem_free(lbuf2, SPA_MAXBLOCKSIZE);
 
-	if (lsize > maxlsize) {
-		exceeded = B_TRUE;
-	}
 	if (*cfuncp == ZIO_COMPRESS_ZLE) {
 		printf("\nZLE decompression was selected. If you "
 		    "suspect the results are wrong,\ntry avoiding ZLE "
 		    "by setting and exporting ZDB_NO_ZLE=\"true\"\n");
 	}
 
-	return (exceeded);
+	return (lsize > maxlsize ? -1 : lsize);
 }
 
 /*
@@ -8751,9 +8774,9 @@ zdb_read_block(char *thing, spa_t *spa)
 	uint64_t orig_lsize = lsize;
 	buf = lbuf;
 	if (flags & ZDB_FLAG_DECOMPRESS) {
-		boolean_t failed = zdb_decompress_block(pabd, buf, lbuf,
+		lsize = zdb_decompress_block(pabd, buf, lbuf,
 		    lsize, psize, flags);
-		if (failed) {
+		if (lsize == -1) {
 			(void) printf("Decompress of %s failed\n", thing);
 			goto out;
 		}
@@ -8774,11 +8797,11 @@ zdb_read_block(char *thing, spa_t *spa)
 			abd_return_buf_copy(pabd, buf, lsize);
 			borrowed = B_FALSE;
 			buf = lbuf;
-			boolean_t failed = zdb_decompress_block(pabd, buf,
+			lsize = zdb_decompress_block(pabd, buf,
 			    lbuf, lsize, psize, flags);
 			b = (const blkptr_t *)(void *)
 			    ((uintptr_t)buf + (uintptr_t)blkptr_offset);
-			if (failed || zfs_blkptr_verify(spa, b,
+			if (lsize == -1 || zfs_blkptr_verify(spa, b,
 			    BLK_CONFIG_NEEDED, BLK_VERIFY_LOG) == B_FALSE) {
 				printf("invalid block pointer at this DVA\n");
 				goto out;
