@@ -182,6 +182,8 @@ extern int lz4_decompress_zfs(void *src, void *dst, size_t s_len, size_t d_len,
     int level);
 extern size_t slack_compress(void *src, void *dst, size_t s_len, size_t d_len,
     int level);
+extern int slack_decompress(void *src, void *dst, size_t s_len, size_t d_len,
+    int level);
 
 /*
  * Compress and decompress data if necessary.
