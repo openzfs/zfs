@@ -1056,9 +1056,20 @@ zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 				case EINVAL:
 					break;
 				case EINPROGRESS:
-					// This shouldn't be possible to
-					// encounter, die if we do.
+					/*
+					 * This shouldn't be possible to
+					 * encounter, die if we do.
+					 */
 					ASSERT(B_FALSE);
+					zfs_fallthrough;
+				case EREMOTEIO:
+					/*
+					 * May be returned by an NVMe device
+					 * which is visible in /dev/ but due
+					 * to a low-level format change, or
+					 * other error, needs to be rescanned.
+					 * Try the slow method.
+					 */
 					zfs_fallthrough;
 				case EOPNOTSUPP:
 				case ENOSYS:
