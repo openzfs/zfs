@@ -7234,7 +7234,8 @@ share_mount(int op, int argc, char **argv)
 		pthread_mutex_init(&share_mount_state.sm_lock, NULL);
 
 		/* For a 'zfs share -a' operation start with a clean slate. */
-		zfs_truncate_shares(NULL);
+		if (op == OP_SHARE)
+			zfs_truncate_shares(NULL);
 
 		/*
 		 * libshare isn't mt-safe, so only do the operation in parallel

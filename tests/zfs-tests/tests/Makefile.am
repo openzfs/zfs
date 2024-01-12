@@ -912,6 +912,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_share/zfs_share_012_pos.ksh \
 	functional/cli_root/zfs_share/zfs_share_013_pos.ksh \
 	functional/cli_root/zfs_share/zfs_share_concurrent_shares.ksh \
+	functional/cli_root/zfs_share/zfs_share_after_mount.ksh \
 	functional/cli_root/zfs_snapshot/cleanup.ksh \
 	functional/cli_root/zfs_snapshot/setup.ksh \
 	functional/cli_root/zfs_snapshot/zfs_snapshot_001_neg.ksh \
