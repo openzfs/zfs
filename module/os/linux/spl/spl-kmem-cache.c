@@ -91,7 +91,8 @@ MODULE_PARM_DESC(spl_kmem_cache_max_size, "Maximum size of slab in MB");
  * of 16K was determined to be optimal for architectures using 4K pages and
  * to also work well on architecutres using larger 64K page sizes.
  */
-static unsigned int spl_kmem_cache_slab_limit = SPL_MAX_KMEM_ORDER_NR_PAGES * PAGE_SIZE;
+static unsigned int spl_kmem_cache_slab_limit =
+    SPL_MAX_KMEM_ORDER_NR_PAGES * PAGE_SIZE;
 module_param(spl_kmem_cache_slab_limit, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_cache_slab_limit,
 	"Objects less than N bytes use the Linux slab");
