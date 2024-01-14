@@ -30,6 +30,9 @@
 if ! command -v clonefile > /dev/null ; then
   log_unsupported "clonefile program required to test block cloning"
 fi
+if ! command -v clone_mmap_cached > /dev/null ; then
+  log_unsupported "clone_mmap_cached program required to test block cloning"
+fi
 
 verify_runnable "global"
 
