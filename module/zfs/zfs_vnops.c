@@ -1349,6 +1349,10 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 			break;
 		}
 
+		if (zn_has_cached_data(outzp, outoff, outoff + size - 1)) {
+			update_pages(outzp, outoff, size, outos);
+		}
+
 		zfs_clear_setid_bits_if_necessary(outzfsvfs, outzp, cr,
 		    &clear_setid_bits_txg, tx);
 
