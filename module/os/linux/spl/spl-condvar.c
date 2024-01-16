@@ -20,7 +20,7 @@
  *  You should have received a copy of the GNU General Public License along
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
  *
- *  Solaris Porting Layer (SPL) Credential Implementation.
+ *  Solaris Porting Layer (SPL) Condition Variables Implementation.
  */
 
 #include <sys/condvar.h>
