@@ -362,12 +362,20 @@ main(int argc, char *argv[])
 			return (1);
 		}
 
-		if (t1 == t2) {
-			(void) fprintf(stderr, "%s: t1(%ld) == t2(%ld)\n",
+
+		/*
+		 * Ideally, time change would be exactly two seconds, but allow
+		 * a little slack in case of scheduling delays or similar.
+		 */
+		long delta = (long)t2 - (long)t1;
+		if (delta < 2 || delta > 4) {
+			(void) fprintf(stderr,
+			    "%s: BAD time change: t1(%ld), t2(%ld)\n",
 			    timetest_table[i].name, (long)t1, (long)t2);
 			return (1);
 		} else {
-			(void) fprintf(stderr, "%s: t1(%ld) != t2(%ld)\n",
+			(void) fprintf(stderr,
+			    "%s: good time change: t1(%ld), t2(%ld)\n",
 			    timetest_table[i].name, (long)t1, (long)t2);
 		}
 	}
