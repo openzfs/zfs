@@ -196,7 +196,8 @@ vdev_autotrim_wait_kick(vdev_t *vd, int num_of_kick)
 	for (int i = 0; i < num_of_kick; i++) {
 		if (vd->vdev_autotrim_exit_wanted)
 			break;
-		cv_wait(&vd->vdev_autotrim_kick_cv, &vd->vdev_autotrim_lock);
+		cv_wait_idle(&vd->vdev_autotrim_kick_cv,
+		    &vd->vdev_autotrim_lock);
 	}
 	boolean_t exit_wanted = vd->vdev_autotrim_exit_wanted;
 	mutex_exit(&vd->vdev_autotrim_lock);
