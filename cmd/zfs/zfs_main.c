@@ -311,7 +311,7 @@ get_usage(zfs_help_t idx)
 		return (gettext("\tmount\n"
 		    "\tmount [-flvO] [-o opts] <-a | filesystem>\n"));
 	case HELP_PROMOTE:
-		return (gettext("\tpromote <clone-filesystem>\n"));
+		return (gettext("\tpromote [-r] <clone-filesystem>\n"));
 	case HELP_RECEIVE:
 		return (gettext("\treceive [-vMnsFhu] "
 		    "[-o <property>=<value>] ... [-x <property>] ...\n"
@@ -3869,32 +3869,36 @@ static int
 zfs_do_promote(int argc, char **argv)
 {
 	zfs_handle_t *zhp;
-	int ret = 0;
+	int c, ret = 0;
+	boolean_t recursive = B_FALSE;
 
-	/* check options */
-	if (argc > 1 && argv[1][0] == '-') {
-		(void) fprintf(stderr, gettext("invalid option '%c'\n"),
-		    argv[1][1]);
-		usage(B_FALSE);
+	while ((c = getopt(argc, argv, "r")) != -1) {
+		switch (c) {
+		case 'r':
+			recursive = B_TRUE;
+			break;
+		default:
+			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
+			    optopt);
+			usage(B_FALSE);
+		}
 	}
 
+	argc -= optind;
+	argv += optind;
+
 	/* check number of arguments */
-	if (argc < 2) {
+	if (argc < 1) {
 		(void) fprintf(stderr, gettext("missing clone filesystem"
 		    " argument\n"));
 		usage(B_FALSE);
 	}
-	if (argc > 2) {
-		(void) fprintf(stderr, gettext("too many arguments\n"));
-		usage(B_FALSE);
-	}
 
-	zhp = zfs_open(g_zfs, argv[1], ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME);
+	zhp = zfs_open(g_zfs, argv[0], ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME);
 	if (zhp == NULL)
 		return (1);
 
-	ret = (zfs_promote(zhp) != 0);
-
+	ret = (zfs_promote(zhp, recursive) != 0);
 
 	zfs_close(zhp);
 	return (ret);

@@ -4106,11 +4106,8 @@ zfs_clone(zfs_handle_t *zhp, const char *target, nvlist_t *props)
 	return (ret);
 }
 
-/*
- * Promotes the given clone fs to be the clone parent.
- */
-int
-zfs_promote(zfs_handle_t *zhp)
+static int
+zfs_promote_impl(zfs_handle_t *zhp)
 {
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	char snapname[ZFS_MAX_DATASET_NAME_LEN];
@@ -4161,6 +4158,42 @@ zfs_promote(zfs_handle_t *zhp)
 		}
 	}
 	return (ret);
+}
+
+static int
+zfs_promote_recursive_cb(zfs_handle_t *zhp, void *arg)
+{
+	int err, *ret = (void *)arg;
+
+	/* Bubble up last non-zero error to caller, best we can do */
+	if ((err = zfs_promote_impl(zhp)) != 0)
+		*ret = err;
+
+	return (zfs_iter_filesystems(zhp, zfs_promote_recursive_cb, arg));
+}
+
+static int
+zfs_promote_recursive_impl(zfs_handle_t *zhp)
+{
+	int err, ret = 0;
+
+	/* Bubble up last non-zero error to caller, best we can do */
+	if ((err = zfs_promote_recursive_cb(zhp, &ret)) != 0)
+		ret = err;
+
+	return (ret);
+}
+
+/*
+ * Promotes the given clone fs to be the clone parent.
+ */
+int
+zfs_promote(zfs_handle_t *zhp, boolean_t recurse)
+{
+	if (recurse)
+		return (zfs_promote_recursive_impl(zhp));
+
+	return (zfs_promote_impl(zhp));
 }
 
 typedef struct snapdata {
