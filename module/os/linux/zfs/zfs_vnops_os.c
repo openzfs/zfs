@@ -2439,9 +2439,8 @@ top:
 
 	if ((mask & ATTR_ATIME) || zp->z_atime_dirty) {
 		zp->z_atime_dirty = B_FALSE;
-		inode_timespec_t tmp_atime;
+		inode_timespec_t tmp_atime = zpl_inode_get_atime(ip);
 		ZFS_TIME_ENCODE(&tmp_atime, atime);
-		zpl_inode_set_atime_to_ts(ZTOI(zp), tmp_atime);
 		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_ATIME(zfsvfs), NULL,
 		    &atime, sizeof (atime));
 	}
