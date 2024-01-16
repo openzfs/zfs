@@ -32,6 +32,14 @@
  */
 
 #if defined(__aarch64__)
+
+/* make gcc <= 9 happy */
+#if LD_VERSION >= 233010000
+#define CFI_NEGATE_RA_STATE .cfi_negate_ra_state
+#else
+#define CFI_NEGATE_RA_STATE
+#endif
+
 	.text
 	.section	.note.gnu.property,"a",@note
 	.p2align	3
@@ -51,7 +59,7 @@
 zfs_blake3_compress_in_place_sse2:
 	.cfi_startproc
 	hint	#25
-	.cfi_negate_ra_state
+	CFI_NEGATE_RA_STATE
 	sub	sp, sp, #96
 	stp	x29, x30, [sp, #64]
 	add	x29, sp, #64
@@ -555,7 +563,7 @@ compress_pre:
 zfs_blake3_compress_xof_sse2:
 	.cfi_startproc
 	hint	#25
-	.cfi_negate_ra_state
+	CFI_NEGATE_RA_STATE
 	sub	sp, sp, #96
 	stp	x29, x30, [sp, #64]
 	add	x29, sp, #64
@@ -608,7 +616,7 @@ zfs_blake3_compress_xof_sse2:
 zfs_blake3_hash_many_sse2:
 	.cfi_startproc
 	hint	#25
-	.cfi_negate_ra_state
+	CFI_NEGATE_RA_STATE
 	stp	d15, d14, [sp, #-160]!
 	stp	d13, d12, [sp, #16]
 	stp	d11, d10, [sp, #32]
