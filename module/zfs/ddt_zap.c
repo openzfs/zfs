@@ -109,24 +109,23 @@ ddt_zap_lookup(objset_t *os, uint64_t object, ddt_entry_t *dde)
 	uint64_t one, csize;
 	int error;
 
-	cbuf = kmem_alloc(sizeof (dde->dde_phys) + 1, KM_SLEEP);
-
 	error = zap_length_uint64(os, object, (uint64_t *)&dde->dde_key,
 	    DDT_KEY_WORDS, &one, &csize);
 	if (error)
-		goto out;
+		return (error);
 
 	ASSERT3U(one, ==, 1);
 	ASSERT3U(csize, <=, (sizeof (dde->dde_phys) + 1));
 
+	cbuf = kmem_alloc(csize, KM_SLEEP);
+
 	error = zap_lookup_uint64(os, object, (uint64_t *)&dde->dde_key,
 	    DDT_KEY_WORDS, 1, csize, cbuf);
-	if (error)
-		goto out;
+	if (error == 0)
+		ddt_zap_decompress(cbuf, dde->dde_phys, csize,
+		    sizeof (dde->dde_phys));
 
-	ddt_zap_decompress(cbuf, dde->dde_phys, csize, sizeof (dde->dde_phys));
-out:
-	kmem_free(cbuf, sizeof (dde->dde_phys) + 1);
+	kmem_free(cbuf, csize);
 
 	return (error);
 }
@@ -141,14 +140,19 @@ ddt_zap_prefetch(objset_t *os, uint64_t object, ddt_entry_t *dde)
 static int
 ddt_zap_update(objset_t *os, uint64_t object, ddt_entry_t *dde, dmu_tx_t *tx)
 {
-	uchar_t cbuf[sizeof (dde->dde_phys) + 1];
-	uint64_t csize;
+	const size_t cbuf_size = sizeof (dde->dde_phys) + 1;
 
-	csize = ddt_zap_compress(dde->dde_phys, cbuf,
-	    sizeof (dde->dde_phys), sizeof (cbuf));
+	uchar_t *cbuf = kmem_alloc(cbuf_size, KM_SLEEP);
 
-	return (zap_update_uint64(os, object, (uint64_t *)&dde->dde_key,
-	    DDT_KEY_WORDS, 1, csize, cbuf, tx));
+	uint64_t csize = ddt_zap_compress(dde->dde_phys, cbuf,
+	    sizeof (dde->dde_phys), cbuf_size);
+
+	int error = zap_update_uint64(os, object, (uint64_t *)&dde->dde_key,
+	    DDT_KEY_WORDS, 1, csize, cbuf, tx);
+
+	kmem_free(cbuf, cbuf_size);
+
+	return (error);
 }
 
 static int
@@ -178,9 +182,13 @@ ddt_zap_walk(objset_t *os, uint64_t object, ddt_entry_t *dde, uint64_t *walk)
 		zap_cursor_init_serialized(&zc, os, object, *walk);
 	}
 	if ((error = zap_cursor_retrieve(&zc, &za)) == 0) {
-		uchar_t cbuf[sizeof (dde->dde_phys) + 1];
 		uint64_t csize = za.za_num_integers;
+
 		ASSERT3U(za.za_integer_length, ==, 1);
+		ASSERT3U(csize, <=, sizeof (dde->dde_phys) + 1);
+
+		uchar_t *cbuf = kmem_alloc(csize, KM_SLEEP);
+
 		error = zap_lookup_uint64(os, object, (uint64_t *)za.za_name,
 		    DDT_KEY_WORDS, 1, csize, cbuf);
 		ASSERT0(error);
@@ -189,6 +197,9 @@ ddt_zap_walk(objset_t *os, uint64_t object, ddt_entry_t *dde, uint64_t *walk)
 			    sizeof (dde->dde_phys));
 			dde->dde_key = *(ddt_key_t *)za.za_name;
 		}
+
+		kmem_free(cbuf, csize);
+
 		zap_cursor_advance(&zc);
 		*walk = zap_cursor_serialize(&zc);
 	}
