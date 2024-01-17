@@ -3170,6 +3170,9 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
 	boolean_t isproject;
 	struct passwd *pw;
 	struct group *gr;
+	struct passwd rpwd;
+	struct group rgrp;
+	char rgetbuf[1024];
 
 	domain[0] = '\0';
 
@@ -3195,11 +3198,15 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
 
 	cp = strchr(propname, '@') + 1;
 
-	if (isuser && (pw = getpwnam(cp)) != NULL) {
+	if (isuser &&
+	    getpwnam_r(cp, &rpwd, rgetbuf, sizeof (rgetbuf), &pw) == 0 &&
+	    pw != NULL) {
 		if (zoned && getzoneid() == GLOBAL_ZONEID)
 			return (ENOENT);
 		*ridp = pw->pw_uid;
-	} else if (isgroup && (gr = getgrnam(cp)) != NULL) {
+	} else if (isgroup &&
+	    getgrnam_r(cp, &rgrp, rgetbuf, sizeof (rgetbuf), &gr) == 0 &&
+	    gr != NULL) {
 		if (zoned && getzoneid() == GLOBAL_ZONEID)
 			return (ENOENT);
 		*ridp = gr->gr_gid;
