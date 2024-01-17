@@ -247,8 +247,7 @@ arc_shrinker_scan(struct shrinker *shrink, struct shrink_control *sc)
 	return (sc->nr_to_scan);
 }
 
-SPL_SHRINKER_DECLARE(arc_shrinker,
-    arc_shrinker_count, arc_shrinker_scan, DEFAULT_SEEKS);
+static struct shrinker *arc_shrinker = NULL;
 
 int
 arc_memory_throttle(spa_t *spa, uint64_t reserve, uint64_t txg)
@@ -351,14 +350,18 @@ arc_lowmem_init(void)
 	 * reclaim from the arc.  This is done to prevent kswapd from
 	 * swapping out pages when it is preferable to shrink the arc.
 	 */
-	spl_register_shrinker(&arc_shrinker);
+	arc_shrinker = spl_register_shrinker("zfs-arc-shrinker",
+	    arc_shrinker_count, arc_shrinker_scan, DEFAULT_SEEKS);
+	VERIFY(arc_shrinker);
+
 	arc_set_sys_free(allmem);
 }
 
 void
 arc_lowmem_fini(void)
 {
-	spl_unregister_shrinker(&arc_shrinker);
+	spl_unregister_shrinker(arc_shrinker);
+	arc_shrinker = NULL;
 }
 
 int

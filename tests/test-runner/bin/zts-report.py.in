@@ -270,6 +270,7 @@ if sys.platform.startswith('freebsd'):
     })
 elif sys.platform.startswith('linux'):
     maybe.update({
+        'block_cloning/block_cloning_clone_mmap_cached': ['SKIP', cfr_reason],
         'cli_root/zfs_rename/zfs_rename_002_pos': ['FAIL', known_reason],
         'cli_root/zpool_reopen/zpool_reopen_003_pos': ['FAIL', known_reason],
         'fault/auto_online_002_pos': ['FAIL', 11889],
@@ -304,6 +305,8 @@ elif sys.platform.startswith('linux'):
         'block_cloning/block_cloning_copyfilerange_cross_dataset':
             ['SKIP', cfr_cross_reason],
         'block_cloning/block_cloning_copyfilerange_fallback_same_txg':
+            ['SKIP', cfr_cross_reason],
+        'block_cloning/block_cloning_cross_enc_dataset':
             ['SKIP', cfr_cross_reason],
     })
 

@@ -47,6 +47,7 @@
 #include <sys/fs/zfs.h>
 #include <sys/dmu.h>
 #include <sys/dmu_objset.h>
+#include <sys/dsl_crypt.h>
 #include <sys/spa.h>
 #include <sys/txg.h>
 #include <sys/dbuf.h>
@@ -1103,6 +1104,16 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 		return (SET_ERROR(EXDEV));
 	}
 
+	/*
+	 * Cloning across encrypted datasets is possible only if they
+	 * share the same master key.
+	 */
+	if (inos != outos && inos->os_encrypted &&
+	    !dmu_objset_crypto_key_equal(inos, outos)) {
+		zfs_exit_two(inzfsvfs, outzfsvfs, FTAG);
+		return (SET_ERROR(EXDEV));
+	}
+
 	error = zfs_verify_zp(inzp);
 	if (error == 0)
 		error = zfs_verify_zp(outzp);
@@ -1181,11 +1192,18 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 	inblksz = inzp->z_blksz;
 
 	/*
-	 * We cannot clone into files with different block size if we can't
-	 * grow it (block size is already bigger or more than one block).
+	 * We cannot clone into a file with different block size if we can't
+	 * grow it (block size is already bigger, has more than one block, or
+	 * not locked for growth).  There are other possible reasons for the
+	 * grow to fail, but we cover what we can before opening transaction
+	 * and the rest detect after we try to do it.
 	 */
+	if (inblksz < outzp->z_blksz) {
+		error = SET_ERROR(EINVAL);
+		goto unlock;
+	}
 	if (inblksz != outzp->z_blksz && (outzp->z_size > outzp->z_blksz ||
-	    outzp->z_size > inblksz)) {
+	    outlr->lr_length != UINT64_MAX)) {
 		error = SET_ERROR(EINVAL);
 		goto unlock;
 	}
@@ -1286,20 +1304,6 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 			 */
 			break;
 		}
-		/*
-		 * Encrypted data is fine as long as it comes from the same
-		 * dataset.
-		 * TODO: We want to extend it in the future to allow cloning to
-		 * datasets with the same keys, like clones or to be able to
-		 * clone a file from a snapshot of an encrypted dataset into the
-		 * dataset itself.
-		 */
-		if (BP_IS_PROTECTED(&bps[0])) {
-			if (inzfsvfs != outzfsvfs) {
-				error = SET_ERROR(EXDEV);
-				break;
-			}
-		}
 
 		/*
 		 * Start a transaction.
@@ -1318,12 +1322,24 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 		}
 
 		/*
-		 * Copy source znode's block size. This only happens on the
-		 * first iteration since zfs_rangelock_reduce() will shrink down
-		 * lr_len to the appropriate size.
+		 * Copy source znode's block size. This is done only if the
+		 * whole znode is locked (see zfs_rangelock_cb()) and only
+		 * on the first iteration since zfs_rangelock_reduce() will
+		 * shrink down lr_length to the appropriate size.
 		 */
 		if (outlr->lr_length == UINT64_MAX) {
 			zfs_grow_blocksize(outzp, inblksz, tx);
+
+			/*
+			 * Block growth may fail for many reasons we can not
+			 * predict here.  If it happen the cloning is doomed.
+			 */
+			if (inblksz != outzp->z_blksz) {
+				error = SET_ERROR(EINVAL);
+				dmu_tx_abort(tx);
+				break;
+			}
+
 			/*
 			 * Round range lock up to the block boundary, so we
 			 * prevent appends until we are done.
@@ -1337,6 +1353,10 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 		if (error != 0) {
 			dmu_tx_commit(tx);
 			break;
+		}
+
+		if (zn_has_cached_data(outzp, outoff, outoff + size - 1)) {
+			update_pages(outzp, outoff, size, outos);
 		}
 
 		zfs_clear_setid_bits_if_necessary(outzfsvfs, outzp, cr,

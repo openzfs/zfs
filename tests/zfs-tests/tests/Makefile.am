@@ -440,6 +440,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/atime/setup.ksh \
 	functional/block_cloning/cleanup.ksh \
 	functional/block_cloning/setup.ksh \
+	functional/block_cloning/block_cloning_clone_mmap_cached.ksh \
 	functional/block_cloning/block_cloning_copyfilerange_cross_dataset.ksh \
 	functional/block_cloning/block_cloning_copyfilerange_fallback.ksh \
 	functional/block_cloning/block_cloning_copyfilerange_fallback_same_txg.ksh \
@@ -451,6 +452,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/block_cloning/block_cloning_ficlone.ksh \
 	functional/block_cloning/block_cloning_ficlonerange.ksh \
 	functional/block_cloning/block_cloning_ficlonerange_partial.ksh \
+	functional/block_cloning/block_cloning_cross_enc_dataset.ksh \
 	functional/bootfs/bootfs_001_pos.ksh \
 	functional/bootfs/bootfs_002_neg.ksh \
 	functional/bootfs/bootfs_003_pos.ksh \

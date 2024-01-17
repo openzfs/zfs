@@ -1,7 +1,8 @@
 dnl #
 dnl # Starting from Linux 5.13, flush_dcache_page() becomes an inline
-dnl # function and may indirectly referencing GPL-only cpu_feature_keys on
-dnl # powerpc
+dnl # function and may indirectly referencing GPL-only symbols:
+dnl # on powerpc: cpu_feature_keys
+dnl # on riscv: PageHuge (added from 6.2)
 dnl #
 
 dnl #

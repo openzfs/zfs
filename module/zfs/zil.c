@@ -91,15 +91,7 @@
  * committed to stable storage. Please refer to the zil_commit_waiter()
  * function (and the comments within it) for more details.
  */
-static uint_t zfs_commit_timeout_pct = 5;
-
-/*
- * Minimal time we care to delay commit waiting for more ZIL records.
- * At least FreeBSD kernel can't sleep for less than 2us at its best.
- * So requests to sleep for less then 5us is a waste of CPU time with
- * a risk of significant log latency increase due to oversleep.
- */
-static uint64_t zil_min_commit_timeout = 5000;
+static uint_t zfs_commit_timeout_pct = 10;
 
 /*
  * See zil.h for more information about these fields.
@@ -152,6 +144,7 @@ static kmem_cache_t *zil_zcw_cache;
 
 static void zil_lwb_commit(zilog_t *zilog, lwb_t *lwb, itx_t *itx);
 static itx_t *zil_itx_clone(itx_t *oitx);
+static uint64_t zil_max_waste_space(zilog_t *zilog);
 
 static int
 zil_bp_compare(const void *x1, const void *x2)
@@ -522,6 +515,7 @@ zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
 			lr_t *lr = (lr_t *)lrp;
 			reclen = lr->lrc_reclen;
 			ASSERT3U(reclen, >=, sizeof (lr_t));
+			ASSERT3U(reclen, <=, end - lrp);
 			if (lr->lrc_seq > claim_lr_seq) {
 				arc_buf_destroy(abuf, &abuf);
 				goto done;
@@ -604,7 +598,7 @@ zil_claim_write(zilog_t *zilog, const lr_t *lrc, void *tx, uint64_t first_txg)
 	lr_write_t *lr = (lr_write_t *)lrc;
 	int error;
 
-	ASSERT(lrc->lrc_txtype == TX_WRITE);
+	ASSERT3U(lrc->lrc_reclen, >=, sizeof (*lr));
 
 	/*
 	 * If the block is not readable, don't claim it.  This can happen
@@ -632,7 +626,9 @@ zil_claim_clone_range(zilog_t *zilog, const lr_t *lrc, void *tx,
 	spa_t *spa = zilog->zl_spa;
 	uint_t ii;
 
-	ASSERT(lrc->lrc_txtype == TX_CLONE_RANGE);
+	ASSERT3U(lrc->lrc_reclen, >=, sizeof (*lr));
+	ASSERT3U(lrc->lrc_reclen, >=, offsetof(lr_clone_range_t,
+	    lr_bps[lr->lr_nbps]));
 
 	if (tx == NULL) {
 		return (0);
@@ -646,9 +642,9 @@ zil_claim_clone_range(zilog_t *zilog, const lr_t *lrc, void *tx,
 		bp = &lr->lr_bps[ii];
 
 		/*
-		 * When data are embedded into BP there is no need to create
-		 * BRT entry as there is no data block. Just copy the BP as
-		 * it contains the data.
+		 * When data is embedded into the BP there is no need to create
+		 * BRT entry as there is no data block.  Just copy the BP as it
+		 * contains the data.
 		 */
 		if (BP_IS_HOLE(bp) || BP_IS_EMBEDDED(bp))
 			continue;
@@ -709,7 +705,7 @@ zil_free_write(zilog_t *zilog, const lr_t *lrc, void *tx, uint64_t claim_txg)
 	lr_write_t *lr = (lr_write_t *)lrc;
 	blkptr_t *bp = &lr->lr_blkptr;
 
-	ASSERT(lrc->lrc_txtype == TX_WRITE);
+	ASSERT3U(lrc->lrc_reclen, >=, sizeof (*lr));
 
 	/*
 	 * If we previously claimed it, we need to free it.
@@ -730,7 +726,9 @@ zil_free_clone_range(zilog_t *zilog, const lr_t *lrc, void *tx)
 	spa_t *spa;
 	uint_t ii;
 
-	ASSERT(lrc->lrc_txtype == TX_CLONE_RANGE);
+	ASSERT3U(lrc->lrc_reclen, >=, sizeof (*lr));
+	ASSERT3U(lrc->lrc_reclen, >=, offsetof(lr_clone_range_t,
+	    lr_bps[lr->lr_nbps]));
 
 	if (tx == NULL) {
 		return (0);
@@ -1625,7 +1623,7 @@ zil_lwb_write_done(zio_t *zio)
 
 	while ((zv = avl_destroy_nodes(t, &cookie)) != NULL) {
 		vdev_t *vd = vdev_lookup_top(spa, zv->zv_vdev);
-		if (vd != NULL && !vd->vdev_nowritecache) {
+		if (vd != NULL) {
 			/*
 			 * The "ZIO_FLAG_DONT_PROPAGATE" is currently
 			 * always used within "zio_flush". This means,
@@ -1714,29 +1712,96 @@ zil_lwb_write_open(zilog_t *zilog, lwb_t *lwb)
 }
 
 /*
- * Define a limited set of intent log block sizes.
- *
- * These must be a multiple of 4KB. Note only the amount used (again
- * aligned to 4KB) actually gets written. However, we can't always just
- * allocate SPA_OLD_MAXBLOCKSIZE as the slog space could be exhausted.
- */
-static const struct {
-	uint64_t	limit;
-	uint64_t	blksz;
-} zil_block_buckets[] = {
-	{ 4096,		4096 },			/* non TX_WRITE */
-	{ 8192 + 4096,	8192 + 4096 },		/* database */
-	{ 32768 + 4096,	32768 + 4096 },		/* NFS writes */
-	{ 65536 + 4096,	65536 + 4096 },		/* 64KB writes */
-	{ UINT64_MAX,	SPA_OLD_MAXBLOCKSIZE},	/* > 128KB writes */
-};
-
-/*
  * Maximum block size used by the ZIL.  This is picked up when the ZIL is
  * initialized.  Otherwise this should not be used directly; see
  * zl_max_block_size instead.
  */
 static uint_t zil_maxblocksize = SPA_OLD_MAXBLOCKSIZE;
+
+/*
+ * Plan splitting of the provided burst size between several blocks.
+ */
+static uint_t
+zil_lwb_plan(zilog_t *zilog, uint64_t size, uint_t *minsize)
+{
+	uint_t md = zilog->zl_max_block_size - sizeof (zil_chain_t);
+
+	if (size <= md) {
+		/*
+		 * Small bursts are written as-is in one block.
+		 */
+		*minsize = size;
+		return (size);
+	} else if (size > 8 * md) {
+		/*
+		 * Big bursts use maximum blocks.  The first block size
+		 * is hard to predict, but it does not really matter.
+		 */
+		*minsize = 0;
+		return (md);
+	}
+
+	/*
+	 * Medium bursts try to divide evenly to better utilize several SLOG
+	 * VDEVs.  The first block size we predict assuming the worst case of
+	 * maxing out others.  Fall back to using maximum blocks if due to
+	 * large records or wasted space we can not predict anything better.
+	 */
+	uint_t s = size;
+	uint_t n = DIV_ROUND_UP(s, md - sizeof (lr_write_t));
+	uint_t chunk = DIV_ROUND_UP(s, n);
+	uint_t waste = zil_max_waste_space(zilog);
+	waste = MAX(waste, zilog->zl_cur_max);
+	if (chunk <= md - waste) {
+		*minsize = MAX(s - (md - waste) * (n - 1), waste);
+		return (chunk);
+	} else {
+		*minsize = 0;
+		return (md);
+	}
+}
+
+/*
+ * Try to predict next block size based on previous history.  Make prediction
+ * sufficient for 7 of 8 previous bursts.  Don't try to save if the saving is
+ * less then 50%, extra writes may cost more, but we don't want single spike
+ * to badly affect our predictions.
+ */
+static uint_t
+zil_lwb_predict(zilog_t *zilog)
+{
+	uint_t m, o;
+
+	/* If we are in the middle of a burst, take it into account also. */
+	if (zilog->zl_cur_size > 0) {
+		o = zil_lwb_plan(zilog, zilog->zl_cur_size, &m);
+	} else {
+		o = UINT_MAX;
+		m = 0;
+	}
+
+	/* Find minimum optimal size.  We don't need to go below that. */
+	for (int i = 0; i < ZIL_BURSTS; i++)
+		o = MIN(o, zilog->zl_prev_opt[i]);
+
+	/* Find two biggest minimal first block sizes above the optimal. */
+	uint_t m1 = MAX(m, o), m2 = o;
+	for (int i = 0; i < ZIL_BURSTS; i++) {
+		m = zilog->zl_prev_min[i];
+		if (m >= m1) {
+			m2 = m1;
+			m1 = m;
+		} else if (m > m2) {
+			m2 = m;
+		}
+	}
+
+	/*
+	 * If second minimum size gives 50% saving -- use it.  It may cost us
+	 * one additional write later, but the space saving is just too big.
+	 */
+	return ((m1 < m2 * 2) ? m1 : m2);
+}
 
 /*
  * Close the log block for being issued and allocate the next one.
@@ -1745,7 +1810,7 @@ static uint_t zil_maxblocksize = SPA_OLD_MAXBLOCKSIZE;
 static lwb_t *
 zil_lwb_write_close(zilog_t *zilog, lwb_t *lwb, lwb_state_t state)
 {
-	int i;
+	uint64_t blksz, plan, plan2;
 
 	ASSERT(MUTEX_HELD(&zilog->zl_issuer_lock));
 	ASSERT3S(lwb->lwb_state, ==, LWB_STATE_OPENED);
@@ -1760,34 +1825,40 @@ zil_lwb_write_close(zilog_t *zilog, lwb_t *lwb, lwb_state_t state)
 		return (NULL);
 
 	/*
-	 * Log blocks are pre-allocated. Here we select the size of the next
-	 * block, based on size used in the last block.
-	 * - first find the smallest bucket that will fit the block from a
-	 *   limited set of block sizes. This is because it's faster to write
-	 *   blocks allocated from the same metaslab as they are adjacent or
-	 *   close.
-	 * - next find the maximum from the new suggested size and an array of
-	 *   previous sizes. This lessens a picket fence effect of wrongly
-	 *   guessing the size if we have a stream of say 2k, 64k, 2k, 64k
-	 *   requests.
-	 *
-	 * Note we only write what is used, but we can't just allocate
-	 * the maximum block size because we can exhaust the available
-	 * pool log space.
+	 * Log blocks are pre-allocated.  Here we select the size of the next
+	 * block, based on what's left of this burst and the previous history.
+	 * While we try to only write used part of the block, we can't just
+	 * always allocate the maximum block size because we can exhaust all
+	 * available pool log space, so we try to be reasonable.
 	 */
-	uint64_t zil_blksz = zilog->zl_cur_used + sizeof (zil_chain_t);
-	for (i = 0; zil_blksz > zil_block_buckets[i].limit; i++)
-		continue;
-	zil_blksz = MIN(zil_block_buckets[i].blksz, zilog->zl_max_block_size);
-	zilog->zl_prev_blks[zilog->zl_prev_rotor] = zil_blksz;
-	for (i = 0; i < ZIL_PREV_BLKS; i++)
-		zil_blksz = MAX(zil_blksz, zilog->zl_prev_blks[i]);
-	DTRACE_PROBE3(zil__block__size, zilog_t *, zilog,
-	    uint64_t, zil_blksz,
-	    uint64_t, zilog->zl_prev_blks[zilog->zl_prev_rotor]);
-	zilog->zl_prev_rotor = (zilog->zl_prev_rotor + 1) & (ZIL_PREV_BLKS - 1);
+	if (zilog->zl_cur_left > 0) {
+		/*
+		 * We are in the middle of a burst and know how much is left.
+		 * But if workload is multi-threaded there may be more soon.
+		 * Try to predict what can it be and plan for the worst case.
+		 */
+		uint_t m;
+		plan = zil_lwb_plan(zilog, zilog->zl_cur_left, &m);
+		if (zilog->zl_parallel) {
+			plan2 = zil_lwb_plan(zilog, zilog->zl_cur_left +
+			    zil_lwb_predict(zilog), &m);
+			if (plan < plan2)
+				plan = plan2;
+		}
+	} else {
+		/*
+		 * The previous burst is done and we can only predict what
+		 * will come next.
+		 */
+		plan = zil_lwb_predict(zilog);
+	}
+	blksz = plan + sizeof (zil_chain_t);
+	blksz = P2ROUNDUP_TYPED(blksz, ZIL_MIN_BLKSZ, uint64_t);
+	blksz = MIN(blksz, zilog->zl_max_block_size);
+	DTRACE_PROBE3(zil__block__size, zilog_t *, zilog, uint64_t, blksz,
+	    uint64_t, plan);
 
-	return (zil_alloc_lwb(zilog, zil_blksz, NULL, 0, 0, state));
+	return (zil_alloc_lwb(zilog, blksz, NULL, 0, 0, state));
 }
 
 /*
@@ -1810,6 +1881,7 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 	    itx = list_next(&lwb->lwb_itxs, itx))
 		zil_lwb_commit(zilog, lwb, itx);
 	lwb->lwb_nused = lwb->lwb_nfilled;
+	ASSERT3U(lwb->lwb_nused, <=, lwb->lwb_nmax);
 
 	lwb->lwb_root_zio = zio_root(spa, zil_lwb_flush_vdevs_done, lwb,
 	    ZIO_FLAG_CANFAIL);
@@ -1837,7 +1909,7 @@ next_lwb:
 	int wsz = lwb->lwb_sz;
 	if (lwb->lwb_error == 0) {
 		abd_t *lwb_abd = abd_get_from_buf(lwb->lwb_buf, lwb->lwb_sz);
-		if (!lwb->lwb_slog || zilog->zl_cur_used <= zil_slog_bulk)
+		if (!lwb->lwb_slog || zilog->zl_cur_size <= zil_slog_bulk)
 			prio = ZIO_PRIORITY_SYNC_WRITE;
 		else
 			prio = ZIO_PRIORITY_ASYNC_WRITE;
@@ -1998,6 +2070,42 @@ zil_max_copied_data(zilog_t *zilog)
 	return (MIN(max_data, zil_maxcopied));
 }
 
+static uint64_t
+zil_itx_record_size(itx_t *itx)
+{
+	lr_t *lr = &itx->itx_lr;
+
+	if (lr->lrc_txtype == TX_COMMIT)
+		return (0);
+	ASSERT3U(lr->lrc_reclen, >=, sizeof (lr_t));
+	return (lr->lrc_reclen);
+}
+
+static uint64_t
+zil_itx_data_size(itx_t *itx)
+{
+	lr_t *lr = &itx->itx_lr;
+	lr_write_t *lrw = (lr_write_t *)lr;
+
+	if (lr->lrc_txtype == TX_WRITE && itx->itx_wr_state == WR_NEED_COPY) {
+		ASSERT3U(lr->lrc_reclen, ==, sizeof (lr_write_t));
+		return (P2ROUNDUP_TYPED(lrw->lr_length, sizeof (uint64_t),
+		    uint64_t));
+	}
+	return (0);
+}
+
+static uint64_t
+zil_itx_full_size(itx_t *itx)
+{
+	lr_t *lr = &itx->itx_lr;
+
+	if (lr->lrc_txtype == TX_COMMIT)
+		return (0);
+	ASSERT3U(lr->lrc_reclen, >=, sizeof (lr_t));
+	return (lr->lrc_reclen + zil_itx_data_size(itx));
+}
+
 /*
  * Estimate space needed in the lwb for the itx.  Allocate more lwbs or
  * split the itx as needed, but don't touch the actual transaction data.
@@ -2039,14 +2147,10 @@ zil_lwb_assign(zilog_t *zilog, lwb_t *lwb, itx_t *itx, list_t *ilwbs)
 		return (lwb);
 	}
 
-	if (lr->lrc_txtype == TX_WRITE && itx->itx_wr_state == WR_NEED_COPY) {
-		dlen = P2ROUNDUP_TYPED(
-		    lrw->lr_length, sizeof (uint64_t), uint64_t);
-	} else {
-		dlen = 0;
-	}
 	reclen = lr->lrc_reclen;
-	zilog->zl_cur_used += (reclen + dlen);
+	ASSERT3U(reclen, >=, sizeof (lr_t));
+	ASSERT3U(reclen, <=, zil_max_log_data(zilog, 0));
+	dlen = zil_itx_data_size(itx);
 
 cont:
 	/*
@@ -2064,18 +2168,18 @@ cont:
 		if (lwb == NULL)
 			return (NULL);
 		lwb_sp = lwb->lwb_nmax - lwb->lwb_nused;
-
-		/*
-		 * There must be enough space in the new, empty log block to
-		 * hold reclen.  For WR_COPIED, we need to fit the whole
-		 * record in one block, and reclen is the header size + the
-		 * data size. For WR_NEED_COPY, we can create multiple
-		 * records, splitting the data into multiple blocks, so we
-		 * only need to fit one word of data per block; in this case
-		 * reclen is just the header size (no data).
-		 */
-		ASSERT3U(reclen + MIN(dlen, sizeof (uint64_t)), <=, lwb_sp);
 	}
+
+	/*
+	 * There must be enough space in the log block to hold reclen.
+	 * For WR_COPIED, we need to fit the whole record in one block,
+	 * and reclen is the write record header size + the data size.
+	 * For WR_NEED_COPY, we can create multiple records, splitting
+	 * the data into multiple blocks, so we only need to fit one
+	 * word of data per block; in this case reclen is just the header
+	 * size (no data).
+	 */
+	ASSERT3U(reclen + MIN(dlen, sizeof (uint64_t)), <=, lwb_sp);
 
 	dnow = MIN(dlen, lwb_sp - reclen);
 	if (dlen > dnow) {
@@ -2087,6 +2191,7 @@ cont:
 		clrw->lr_length = dnow;
 		lrw->lr_offset += dnow;
 		lrw->lr_length -= dnow;
+		zilog->zl_cur_left -= dnow;
 	} else {
 		citx = itx;
 		clr = lr;
@@ -2108,10 +2213,8 @@ cont:
 	list_insert_tail(&lwb->lwb_itxs, citx);
 
 	dlen -= dnow;
-	if (dlen > 0) {
-		zilog->zl_cur_used += reclen;
+	if (dlen > 0)
 		goto cont;
-	}
 
 	if (lr->lrc_txtype == TX_WRITE &&
 	    lr->lrc_txg > spa_freeze_txg(zilog->zl_spa))
@@ -2138,13 +2241,8 @@ zil_lwb_commit(zilog_t *zilog, lwb_t *lwb, itx_t *itx)
 	if (lr->lrc_txtype == TX_COMMIT)
 		return;
 
-	if (lr->lrc_txtype == TX_WRITE && itx->itx_wr_state == WR_NEED_COPY) {
-		dlen = P2ROUNDUP_TYPED(
-		    lrw->lr_length, sizeof (uint64_t), uint64_t);
-	} else {
-		dlen = 0;
-	}
 	reclen = lr->lrc_reclen;
+	dlen = zil_itx_data_size(itx);
 	ASSERT3U(reclen + dlen, <=, lwb->lwb_nused - lwb->lwb_nfilled);
 
 	lr_buf = lwb->lwb_buf + lwb->lwb_nfilled;
@@ -2252,7 +2350,9 @@ zil_itx_create(uint64_t txtype, size_t olrsize)
 	size_t itxsize, lrsize;
 	itx_t *itx;
 
+	ASSERT3U(olrsize, >=, sizeof (lr_t));
 	lrsize = P2ROUNDUP_TYPED(olrsize, sizeof (uint64_t), size_t);
+	ASSERT3U(lrsize, >=, olrsize);
 	itxsize = offsetof(itx_t, itx_lr) + lrsize;
 
 	itx = zio_data_buf_alloc(itxsize);
@@ -2271,6 +2371,10 @@ zil_itx_create(uint64_t txtype, size_t olrsize)
 static itx_t *
 zil_itx_clone(itx_t *oitx)
 {
+	ASSERT3U(oitx->itx_size, >=, sizeof (itx_t));
+	ASSERT3U(oitx->itx_size, ==,
+	    offsetof(itx_t, itx_lr) + oitx->itx_lr.lrc_reclen);
+
 	itx_t *itx = zio_data_buf_alloc(oitx->itx_size);
 	memcpy(itx, oitx, oitx->itx_size);
 	itx->itx_callback = NULL;
@@ -2281,6 +2385,9 @@ zil_itx_clone(itx_t *oitx)
 void
 zil_itx_destroy(itx_t *itx)
 {
+	ASSERT3U(itx->itx_size, >=, sizeof (itx_t));
+	ASSERT3U(itx->itx_lr.lrc_reclen, ==,
+	    itx->itx_size - offsetof(itx_t, itx_lr));
 	IMPLY(itx->itx_lr.lrc_txtype == TX_COMMIT, itx->itx_callback == NULL);
 	IMPLY(itx->itx_callback != NULL, itx->itx_lr.lrc_txtype != TX_COMMIT);
 
@@ -2364,7 +2471,7 @@ void
 zil_remove_async(zilog_t *zilog, uint64_t oid)
 {
 	uint64_t otxg, txg;
-	itx_async_node_t *ian;
+	itx_async_node_t *ian, ian_search;
 	avl_tree_t *t;
 	avl_index_t where;
 	list_t clean_list;
@@ -2391,7 +2498,8 @@ zil_remove_async(zilog_t *zilog, uint64_t oid)
 		 * Locate the object node and append its list.
 		 */
 		t = &itxg->itxg_itxs->i_async_tree;
-		ian = avl_find(t, &oid, &where);
+		ian_search.ia_foid = oid;
+		ian = avl_find(t, &ian_search, &where);
 		if (ian != NULL)
 			list_move_tail(&clean_list, &ian->ia_list);
 		mutex_exit(&itxg->itxg_lock);
@@ -2565,6 +2673,7 @@ zil_get_commit_list(zilog_t *zilog)
 		ASSERT(zilog_is_dirty_in_txg(zilog, txg) ||
 		    spa_freeze_txg(zilog->zl_spa) != UINT64_MAX);
 		list_t *sync_list = &itxg->itxg_itxs->i_sync_list;
+		itx_t *itx = NULL;
 		if (unlikely(zilog->zl_suspend > 0)) {
 			/*
 			 * ZIL was just suspended, but we lost the race.
@@ -2574,10 +2683,20 @@ zil_get_commit_list(zilog_t *zilog)
 			if (!list_is_empty(sync_list))
 				wtxg = MAX(wtxg, txg);
 		} else {
+			itx = list_head(sync_list);
 			list_move_tail(commit_list, sync_list);
 		}
 
 		mutex_exit(&itxg->itxg_lock);
+
+		while (itx != NULL) {
+			uint64_t s = zil_itx_full_size(itx);
+			zilog->zl_cur_size += s;
+			zilog->zl_cur_left += s;
+			s = zil_itx_record_size(itx);
+			zilog->zl_cur_max = MAX(zilog->zl_cur_max, s);
+			itx = list_next(commit_list, itx);
+		}
 	}
 	return (wtxg);
 }
@@ -2589,7 +2708,7 @@ void
 zil_async_to_sync(zilog_t *zilog, uint64_t foid)
 {
 	uint64_t otxg, txg;
-	itx_async_node_t *ian;
+	itx_async_node_t *ian, ian_search;
 	avl_tree_t *t;
 	avl_index_t where;
 
@@ -2619,7 +2738,8 @@ zil_async_to_sync(zilog_t *zilog, uint64_t foid)
 		 */
 		t = &itxg->itxg_itxs->i_async_tree;
 		if (foid != 0) {
-			ian = avl_find(t, &foid, &where);
+			ian_search.ia_foid = foid;
+			ian = avl_find(t, &ian_search, &where);
 			if (ian != NULL) {
 				list_move_tail(&itxg->itxg_itxs->i_sync_list,
 				    &ian->ia_list);
@@ -2712,6 +2832,26 @@ zil_commit_writer_stall(zilog_t *zilog)
 	ASSERT(list_is_empty(&zilog->zl_lwb_list));
 }
 
+static void
+zil_burst_done(zilog_t *zilog)
+{
+	if (!list_is_empty(&zilog->zl_itx_commit_list) ||
+	    zilog->zl_cur_size == 0)
+		return;
+
+	if (zilog->zl_parallel)
+		zilog->zl_parallel--;
+
+	uint_t r = (zilog->zl_prev_rotor + 1) & (ZIL_BURSTS - 1);
+	zilog->zl_prev_rotor = r;
+	zilog->zl_prev_opt[r] = zil_lwb_plan(zilog, zilog->zl_cur_size,
+	    &zilog->zl_prev_min[r]);
+
+	zilog->zl_cur_size = 0;
+	zilog->zl_cur_max = 0;
+	zilog->zl_cur_left = 0;
+}
+
 /*
  * This function will traverse the commit list, creating new lwbs as
  * needed, and committing the itxs from the commit list to these newly
@@ -2726,7 +2866,6 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 	list_t nolwb_waiters;
 	lwb_t *lwb, *plwb;
 	itx_t *itx;
-	boolean_t first = B_TRUE;
 
 	ASSERT(MUTEX_HELD(&zilog->zl_issuer_lock));
 
@@ -2752,9 +2891,22 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 		zil_commit_activate_saxattr_feature(zilog);
 		ASSERT(lwb->lwb_state == LWB_STATE_NEW ||
 		    lwb->lwb_state == LWB_STATE_OPENED);
-		first = (lwb->lwb_state == LWB_STATE_NEW) &&
-		    ((plwb = list_prev(&zilog->zl_lwb_list, lwb)) == NULL ||
-		    plwb->lwb_state == LWB_STATE_FLUSH_DONE);
+
+		/*
+		 * If the lwb is still opened, it means the workload is really
+		 * multi-threaded and we won the chance of write aggregation.
+		 * If it is not opened yet, but previous lwb is still not
+		 * flushed, it still means the workload is multi-threaded, but
+		 * there was too much time between the commits to aggregate, so
+		 * we try aggregation next times, but without too much hopes.
+		 */
+		if (lwb->lwb_state == LWB_STATE_OPENED) {
+			zilog->zl_parallel = ZIL_BURSTS;
+		} else if ((plwb = list_prev(&zilog->zl_lwb_list, lwb))
+		    != NULL && plwb->lwb_state != LWB_STATE_FLUSH_DONE) {
+			zilog->zl_parallel = MAX(zilog->zl_parallel,
+			    ZIL_BURSTS / 2);
+		}
 	}
 
 	while ((itx = list_remove_head(&zilog->zl_itx_commit_list)) != NULL) {
@@ -2829,7 +2981,9 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 					 * Our lwb is done, leave the rest of
 					 * itx list to somebody else who care.
 					 */
-					first = B_FALSE;
+					zilog->zl_parallel = ZIL_BURSTS;
+					zilog->zl_cur_left -=
+					    zil_itx_full_size(itx);
 					break;
 				}
 			} else {
@@ -2839,8 +2993,10 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 				}
 				list_insert_tail(&nolwb_itxs, itx);
 			}
+			zilog->zl_cur_left -= zil_itx_full_size(itx);
 		} else {
 			ASSERT3S(lrc->lrc_txtype, !=, TX_COMMIT);
+			zilog->zl_cur_left -= zil_itx_full_size(itx);
 			zil_itx_destroy(itx);
 		}
 	}
@@ -2921,28 +3077,15 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 		 * try and pack as many itxs into as few lwbs as
 		 * possible, without significantly impacting the latency
 		 * of each individual itx.
-		 *
-		 * If we had no already running or open LWBs, it can be
-		 * the workload is single-threaded.  And if the ZIL write
-		 * latency is very small or if the LWB is almost full, it
-		 * may be cheaper to bypass the delay.
 		 */
-		if (lwb->lwb_state == LWB_STATE_OPENED && first) {
-			hrtime_t sleep = zilog->zl_last_lwb_latency *
-			    zfs_commit_timeout_pct / 100;
-			if (sleep < zil_min_commit_timeout ||
-			    lwb->lwb_nmax - lwb->lwb_nused <
-			    lwb->lwb_nmax / 8) {
-				list_insert_tail(ilwbs, lwb);
-				lwb = zil_lwb_write_close(zilog, lwb,
-				    LWB_STATE_NEW);
-				zilog->zl_cur_used = 0;
-				if (lwb == NULL) {
-					while ((lwb = list_remove_head(ilwbs))
-					    != NULL)
-						zil_lwb_write_issue(zilog, lwb);
-					zil_commit_writer_stall(zilog);
-				}
+		if (lwb->lwb_state == LWB_STATE_OPENED && !zilog->zl_parallel) {
+			zil_burst_done(zilog);
+			list_insert_tail(ilwbs, lwb);
+			lwb = zil_lwb_write_close(zilog, lwb, LWB_STATE_NEW);
+			if (lwb == NULL) {
+				while ((lwb = list_remove_head(ilwbs)) != NULL)
+					zil_lwb_write_issue(zilog, lwb);
+				zil_commit_writer_stall(zilog);
 			}
 		}
 	}
@@ -3096,23 +3239,10 @@ zil_commit_waiter_timeout(zilog_t *zilog, zil_commit_waiter_t *zcw)
 	 * since we've reached the commit waiter's timeout and it still
 	 * hasn't been issued.
 	 */
+	zil_burst_done(zilog);
 	lwb_t *nlwb = zil_lwb_write_close(zilog, lwb, LWB_STATE_NEW);
 
 	ASSERT3S(lwb->lwb_state, ==, LWB_STATE_CLOSED);
-
-	/*
-	 * Since the lwb's zio hadn't been issued by the time this thread
-	 * reached its timeout, we reset the zilog's "zl_cur_used" field
-	 * to influence the zil block size selection algorithm.
-	 *
-	 * By having to issue the lwb's zio here, it means the size of the
-	 * lwb was too large, given the incoming throughput of itxs.  By
-	 * setting "zl_cur_used" to zero, we communicate this fact to the
-	 * block size selection algorithm, so it can take this information
-	 * into account, and potentially select a smaller size for the
-	 * next lwb block that is allocated.
-	 */
-	zilog->zl_cur_used = 0;
 
 	if (nlwb == NULL) {
 		/*
@@ -3708,7 +3838,9 @@ zil_alloc(objset_t *os, zil_header_t *zh_phys)
 	zilog->zl_dirty_max_txg = 0;
 	zilog->zl_last_lwb_opened = NULL;
 	zilog->zl_last_lwb_latency = 0;
-	zilog->zl_max_block_size = zil_maxblocksize;
+	zilog->zl_max_block_size = MIN(MAX(P2ALIGN_TYPED(zil_maxblocksize,
+	    ZIL_MIN_BLKSZ, uint64_t), ZIL_MIN_BLKSZ),
+	    spa_maxblocksize(dmu_objset_spa(os)));
 
 	mutex_init(&zilog->zl_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&zilog->zl_issuer_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -3727,6 +3859,11 @@ zil_alloc(objset_t *os, zil_header_t *zh_phys)
 
 	cv_init(&zilog->zl_cv_suspend, NULL, CV_DEFAULT, NULL);
 	cv_init(&zilog->zl_lwb_io_cv, NULL, CV_DEFAULT, NULL);
+
+	for (int i = 0; i < ZIL_BURSTS; i++) {
+		zilog->zl_prev_opt[i] = zilog->zl_max_block_size -
+		    sizeof (zil_chain_t);
+	}
 
 	return (zilog);
 }
@@ -4229,9 +4366,6 @@ EXPORT_SYMBOL(zil_kstat_values_update);
 
 ZFS_MODULE_PARAM(zfs, zfs_, commit_timeout_pct, UINT, ZMOD_RW,
 	"ZIL block open timeout percentage");
-
-ZFS_MODULE_PARAM(zfs_zil, zil_, min_commit_timeout, U64, ZMOD_RW,
-	"Minimum delay we care for ZIL block commit");
 
 ZFS_MODULE_PARAM(zfs_zil, zil_, replay_disable, INT, ZMOD_RW,
 	"Disable intent logging replay");

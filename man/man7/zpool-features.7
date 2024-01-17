@@ -364,9 +364,12 @@ When this feature is enabled ZFS will use block cloning for operations like
 Block cloning allows to create multiple references to a single block.
 It is much faster than copying the data (as the actual data is neither read nor
 written) and takes no additional space.
-Blocks can be cloned across datasets under some conditions (like disabled
-encryption and equal
-.Nm recordsize ) .
+Blocks can be cloned across datasets under some conditions (like equal
+.Nm recordsize ,
+the same master encryption key, etc.).
+ZFS tries its best to clone across datasets including encrypted ones.
+This is limited for various (nontrivial) reasons depending on the OS
+and/or ZFS internals.
 .Pp
 This feature becomes
 .Sy active

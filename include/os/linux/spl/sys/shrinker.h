@@ -29,12 +29,13 @@
 
 /*
  * Due to frequent changes in the shrinker API the following
- * compatibility wrappers should be used.  They are as follows:
+ * compatibility wrapper should be used.
  *
- *   SPL_SHRINKER_DECLARE(varname, countfunc, scanfunc, seek_cost);
+ *   shrinker = spl_register_shrinker(name, countfunc, scanfunc, seek_cost);
+ *   spl_unregister_shrinker(shrinker);
  *
- * SPL_SHRINKER_DECLARE is used to declare a shrinker with the name varname,
- * which is passed to spl_register_shrinker()/spl_unregister_shrinker().
+ * spl_register_shrinker is used to create and register a shrinker with the
+ * given name.
  * The countfunc returns the number of free-able objects.
  * The scanfunc returns the number of objects that were freed.
  * The callbacks can return SHRINK_STOP if further calls can't make any more
@@ -57,57 +58,28 @@
  *	...scan objects in the cache and reclaim them...
  * }
  *
- * SPL_SHRINKER_DECLARE(my_shrinker, my_count, my_scan, DEFAULT_SEEKS);
+ * static struct shrinker *my_shrinker;
  *
  * void my_init_func(void) {
- *	spl_register_shrinker(&my_shrinker);
+ *	my_shrinker = spl_register_shrinker("my-shrinker",
+ *	    my_count, my_scan, DEFAULT_SEEKS);
+ * }
+ *
+ * void my_fini_func(void) {
+ *	spl_unregister_shrinker(my_shrinker);
  * }
  */
 
-#ifdef HAVE_REGISTER_SHRINKER_VARARG
-#define	spl_register_shrinker(x)	register_shrinker(x, "zfs-arc-shrinker")
-#else
-#define	spl_register_shrinker(x)	register_shrinker(x)
-#endif
-#define	spl_unregister_shrinker(x)	unregister_shrinker(x)
+typedef unsigned long (*spl_shrinker_cb)
+	(struct shrinker *, struct shrink_control *);
 
-/*
- * Linux 3.0 to 3.11 Shrinker API Compatibility.
- */
-#if defined(HAVE_SINGLE_SHRINKER_CALLBACK)
-#define	SPL_SHRINKER_DECLARE(varname, countfunc, scanfunc, seek_cost)	\
-static int								\
-__ ## varname ## _wrapper(struct shrinker *shrink, struct shrink_control *sc)\
-{									\
-	if (sc->nr_to_scan != 0) {					\
-		(void) scanfunc(shrink, sc);				\
-	}								\
-	return (countfunc(shrink, sc));					\
-}									\
-									\
-static struct shrinker varname = {					\
-	.shrink = __ ## varname ## _wrapper,				\
-	.seeks = seek_cost,						\
-}
+struct shrinker *spl_register_shrinker(const char *name,
+    spl_shrinker_cb countfunc, spl_shrinker_cb scanfunc, int seek_cost);
+void spl_unregister_shrinker(struct shrinker *);
 
+#ifndef SHRINK_STOP
+/* 3.0-3.11 compatibility */
 #define	SHRINK_STOP	(-1)
-
-/*
- * Linux 3.12 and later Shrinker API Compatibility.
- */
-#elif defined(HAVE_SPLIT_SHRINKER_CALLBACK)
-#define	SPL_SHRINKER_DECLARE(varname, countfunc, scanfunc, seek_cost)	\
-static struct shrinker varname = {					\
-	.count_objects = countfunc,					\
-	.scan_objects = scanfunc,					\
-	.seeks = seek_cost,						\
-}
-
-#else
-/*
- * Linux 2.x to 2.6.22, or a newer shrinker API has been introduced.
- */
-#error "Unknown shrinker callback"
 #endif
 
 #endif /* SPL_SHRINKER_H */

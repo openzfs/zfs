@@ -168,6 +168,9 @@ AC_DEFUN([ZFS_AC_KERNEL_TEST_SRC], [
 			ZFS_AC_KERNEL_SRC_CPU_HAS_FEATURE
 			ZFS_AC_KERNEL_SRC_FLUSH_DCACHE_PAGE
 			;;
+		riscv*)
+			ZFS_AC_KERNEL_SRC_FLUSH_DCACHE_PAGE
+			;;
 	esac
 
 	AC_MSG_CHECKING([for available kernel interfaces])
@@ -308,6 +311,9 @@ AC_DEFUN([ZFS_AC_KERNEL_TEST_RESULT], [
 	case "$host_cpu" in
 		powerpc*)
 			ZFS_AC_KERNEL_CPU_HAS_FEATURE
+			ZFS_AC_KERNEL_FLUSH_DCACHE_PAGE
+			;;
+		riscv*)
 			ZFS_AC_KERNEL_FLUSH_DCACHE_PAGE
 			;;
 	esac

@@ -306,6 +306,53 @@ zio_fini(void)
  * ==========================================================================
  */
 
+#ifdef ZFS_DEBUG
+static const ulong_t zio_buf_canary = (ulong_t)0xdeadc0dedead210b;
+#endif
+
+/*
+ * Use empty space after the buffer to detect overflows.
+ *
+ * Since zio_init() creates kmem caches only for certain set of buffer sizes,
+ * allocations of different sizes may have some unused space after the data.
+ * Filling part of that space with a known pattern on allocation and checking
+ * it on free should allow us to detect some buffer overflows.
+ */
+static void
+zio_buf_put_canary(ulong_t *p, size_t size, kmem_cache_t **cache, size_t c)
+{
+#ifdef ZFS_DEBUG
+	size_t off = P2ROUNDUP(size, sizeof (ulong_t));
+	ulong_t *canary = p + off / sizeof (ulong_t);
+	size_t asize = (c + 1) << SPA_MINBLOCKSHIFT;
+	if (c + 1 < SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT &&
+	    cache[c] == cache[c + 1])
+		asize = (c + 2) << SPA_MINBLOCKSHIFT;
+	for (; off < asize; canary++, off += sizeof (ulong_t))
+		*canary = zio_buf_canary;
+#endif
+}
+
+static void
+zio_buf_check_canary(ulong_t *p, size_t size, kmem_cache_t **cache, size_t c)
+{
+#ifdef ZFS_DEBUG
+	size_t off = P2ROUNDUP(size, sizeof (ulong_t));
+	ulong_t *canary = p + off / sizeof (ulong_t);
+	size_t asize = (c + 1) << SPA_MINBLOCKSHIFT;
+	if (c + 1 < SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT &&
+	    cache[c] == cache[c + 1])
+		asize = (c + 2) << SPA_MINBLOCKSHIFT;
+	for (; off < asize; canary++, off += sizeof (ulong_t)) {
+		if (unlikely(*canary != zio_buf_canary)) {
+			PANIC("ZIO buffer overflow %p (%zu) + %zu %#lx != %#lx",
+			    p, size, (canary - p) * sizeof (ulong_t),
+			    *canary, zio_buf_canary);
+		}
+	}
+#endif
+}
+
 /*
  * Use zio_buf_alloc to allocate ZFS metadata.  This data will appear in a
  * crashdump if the kernel panics, so use it judiciously.  Obviously, it's
@@ -322,7 +369,9 @@ zio_buf_alloc(size_t size)
 	atomic_add_64(&zio_buf_cache_allocs[c], 1);
 #endif
 
-	return (kmem_cache_alloc(zio_buf_cache[c], KM_PUSHPAGE));
+	void *p = kmem_cache_alloc(zio_buf_cache[c], KM_PUSHPAGE);
+	zio_buf_put_canary(p, size, zio_buf_cache, c);
+	return (p);
 }
 
 /*
@@ -338,7 +387,9 @@ zio_data_buf_alloc(size_t size)
 
 	VERIFY3U(c, <, SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT);
 
-	return (kmem_cache_alloc(zio_data_buf_cache[c], KM_PUSHPAGE));
+	void *p = kmem_cache_alloc(zio_data_buf_cache[c], KM_PUSHPAGE);
+	zio_buf_put_canary(p, size, zio_data_buf_cache, c);
+	return (p);
 }
 
 void
@@ -351,6 +402,7 @@ zio_buf_free(void *buf, size_t size)
 	atomic_add_64(&zio_buf_cache_frees[c], 1);
 #endif
 
+	zio_buf_check_canary(buf, size, zio_buf_cache, c);
 	kmem_cache_free(zio_buf_cache[c], buf);
 }
 
@@ -361,6 +413,7 @@ zio_data_buf_free(void *buf, size_t size)
 
 	VERIFY3U(c, <, SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT);
 
+	zio_buf_check_canary(buf, size, zio_data_buf_cache, c);
 	kmem_cache_free(zio_data_buf_cache[c], buf);
 }
 
@@ -1382,23 +1435,10 @@ zio_t *
 zio_ioctl(zio_t *pio, spa_t *spa, vdev_t *vd, int cmd,
     zio_done_func_t *done, void *private, zio_flag_t flags)
 {
-	zio_t *zio;
-	int c;
-
-	if (vd->vdev_children == 0) {
-		zio = zio_create(pio, spa, 0, NULL, NULL, 0, 0, done, private,
-		    ZIO_TYPE_IOCTL, ZIO_PRIORITY_NOW, flags, vd, 0, NULL,
-		    ZIO_STAGE_OPEN, ZIO_IOCTL_PIPELINE);
-
-		zio->io_cmd = cmd;
-	} else {
-		zio = zio_null(pio, spa, NULL, NULL, NULL, flags);
-
-		for (c = 0; c < vd->vdev_children; c++)
-			zio_nowait(zio_ioctl(zio, spa, vd->vdev_child[c], cmd,
-			    done, private, flags));
-	}
-
+	zio_t *zio = zio_create(pio, spa, 0, NULL, NULL, 0, 0, done, private,
+	    ZIO_TYPE_IOCTL, ZIO_PRIORITY_NOW, flags, vd, 0, NULL,
+	    ZIO_STAGE_OPEN, ZIO_IOCTL_PIPELINE);
+	zio->io_cmd = cmd;
 	return (zio);
 }
 
@@ -1569,11 +1609,18 @@ zio_vdev_delegated_io(vdev_t *vd, uint64_t offset, abd_t *data, uint64_t size,
 }
 
 void
-zio_flush(zio_t *zio, vdev_t *vd)
+zio_flush(zio_t *pio, vdev_t *vd)
 {
-	zio_nowait(zio_ioctl(zio, zio->io_spa, vd, DKIOCFLUSHWRITECACHE,
-	    NULL, NULL,
-	    ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_PROPAGATE | ZIO_FLAG_DONT_RETRY));
+	if (vd->vdev_nowritecache)
+		return;
+	if (vd->vdev_children == 0) {
+		zio_nowait(zio_ioctl(pio, vd->vdev_spa, vd,
+		    DKIOCFLUSHWRITECACHE, NULL, NULL, ZIO_FLAG_CANFAIL |
+		    ZIO_FLAG_DONT_PROPAGATE | ZIO_FLAG_DONT_RETRY));
+	} else {
+		for (uint64_t c = 0; c < vd->vdev_children; c++)
+			zio_flush(pio, vd->vdev_child[c]);
+	}
 }
 
 void
