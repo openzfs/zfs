@@ -72,7 +72,9 @@ tags = ['functional', 'bclone']
 timeout = 7200
 
 [tests/functional/block_cloning]
-tests = ['block_cloning_copyfilerange', 'block_cloning_copyfilerange_partial',
+tests = ['block_cloning_clone_mmap_cached',
+    'block_cloning_copyfilerange',
+    'block_cloning_copyfilerange_partial',
     'block_cloning_copyfilerange_fallback',
     'block_cloning_disabled_copyfilerange',
     'block_cloning_copyfilerange_cross_dataset',
