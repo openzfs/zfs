@@ -461,6 +461,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/bclone/setup.ksh \
 	functional/block_cloning/cleanup.ksh \
 	functional/block_cloning/setup.ksh \
+	functional/block_cloning/block_cloning_clone_mmap_cached.ksh \
 	functional/block_cloning/block_cloning_clone_mmap_write.ksh \
 	functional/block_cloning/block_cloning_copyfilerange_cross_dataset.ksh \
 	functional/block_cloning/block_cloning_copyfilerange_fallback.ksh \

@@ -287,6 +287,7 @@ elif sys.platform.startswith('linux'):
         'bclone/bclone_samefs_data': ['SKIP', cfr_reason],
         'bclone/bclone_samefs_embedded': ['SKIP', cfr_reason],
         'bclone/bclone_samefs_hole': ['SKIP', cfr_reason],
+        'block_cloning/block_cloning_clone_mmap_cached': ['SKIP', cfr_reason],
         'block_cloning/block_cloning_clone_mmap_write':
             ['SKIP', cfr_reason],
         'block_cloning/block_cloning_copyfilerange':
