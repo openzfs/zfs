@@ -67,6 +67,10 @@
 #include "libzfs_impl.h"
 #include "zfs_deleg.h"
 
+static __thread struct passwd gpwd;
+static __thread struct group ggrp;
+static __thread char rpbuf[2048];
+
 static int userquota_propname_decode(const char *propname, boolean_t zoned,
     zfs_userquota_prop_t *typep, char *domain, int domainlen, uint64_t *ridp);
 
@@ -3195,11 +3199,15 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
 
 	cp = strchr(propname, '@') + 1;
 
-	if (isuser && (pw = getpwnam(cp)) != NULL) {
+	if (isuser &&
+	    getpwnam_r(cp, &gpwd, rpbuf, sizeof (rpbuf), &pw) == 0 &&
+	    pw != NULL) {
 		if (zoned && getzoneid() == GLOBAL_ZONEID)
 			return (ENOENT);
 		*ridp = pw->pw_uid;
-	} else if (isgroup && (gr = getgrnam(cp)) != NULL) {
+	} else if (isgroup &&
+	    getgrnam_r(cp, &ggrp, rpbuf, sizeof (rpbuf), &gr) == 0 &&
+	    gr != NULL) {
 		if (zoned && getzoneid() == GLOBAL_ZONEID)
 			return (ENOENT);
 		*ridp = gr->gr_gid;
