@@ -2,6 +2,7 @@
 /btree_test
 /chg_usr_exec
 /clonefile
+/clone_mmap_cached
 /clone_mmap_write
 /devname2devid
 /dir_rd_update
