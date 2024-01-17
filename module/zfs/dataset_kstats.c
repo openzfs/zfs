@@ -199,6 +199,18 @@ dataset_kstats_destroy(dataset_kstats_t *dk)
 }
 
 void
+dataset_kstats_rename(dataset_kstats_t *dk, const char *name)
+{
+	dataset_kstat_values_t *dkv = dk->dk_kstats->ks_data;
+	char *ds_name;
+
+	ds_name = KSTAT_NAMED_STR_PTR(&dkv->dkv_ds_name);
+	ASSERT3S(ds_name, !=, NULL);
+	(void) strlcpy(ds_name, name,
+	    KSTAT_NAMED_STR_BUFLEN(&dkv->dkv_ds_name));
+}
+
+void
 dataset_kstats_update_write_kstats(dataset_kstats_t *dk,
     int64_t nwritten)
 {

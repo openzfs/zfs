@@ -151,7 +151,7 @@ static const char *const zio_taskq_types[ZIO_TASKQ_TYPES] = {
  * and interrupt) and then to reserve threads for ZIO_PRIORITY_NOW I/Os that
  * need to be handled with minimum delay.
  */
-static const zio_taskq_info_t zio_taskqs[ZIO_TYPES][ZIO_TASKQ_TYPES] = {
+static zio_taskq_info_t zio_taskqs[ZIO_TYPES][ZIO_TASKQ_TYPES] = {
 	/* ISSUE	ISSUE_HIGH	INTR		INTR_HIGH */
 	{ ZTI_ONE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* NULL */
 	{ ZTI_N(8),	ZTI_NULL,	ZTI_SCALE,	ZTI_NULL }, /* READ */
@@ -1163,6 +1163,275 @@ spa_taskqs_fini(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 	kmem_free(tqs->stqs_taskq, tqs->stqs_count * sizeof (taskq_t *));
 	tqs->stqs_taskq = NULL;
 }
+
+#ifdef _KERNEL
+/*
+ * The READ and WRITE rows of zio_taskqs are configurable at module load time
+ * by setting zio_taskq_read or zio_taskq_write.
+ *
+ * Example (the defaults for READ and WRITE)
+ *   zio_taskq_read='fixed,1,8 null scale null'
+ *   zio_taskq_write='batch fixed,1,5 scale fixed,1,5'
+ *
+ * Each sets the entire row at a time.
+ *
+ * 'fixed' is parameterised: fixed,Q,T where Q is number of taskqs, T is number
+ * of threads per taskq.
+ *
+ * 'null' can only be set on the high-priority queues (queue selection for
+ * high-priority queues will fall back to the regular queue if the high-pri
+ * is NULL.
+ */
+static const char *const modes[ZTI_NMODES] = {
+	"fixed", "batch", "scale", "null"
+};
+
+/* Parse the incoming config string. Modifies cfg */
+static int
+spa_taskq_param_set(zio_type_t t, char *cfg)
+{
+	int err = 0;
+
+	zio_taskq_info_t row[ZIO_TASKQ_TYPES] = {{0}};
+
+	char *next = cfg, *tok, *c;
+
+	/*
+	 * Parse out each element from the string and fill `row`. The entire
+	 * row has to be set at once, so any errors are flagged by just
+	 * breaking out of this loop early.
+	 */
+	uint_t q;
+	for (q = 0; q < ZIO_TASKQ_TYPES; q++) {
+		/* `next` is the start of the config */
+		if (next == NULL)
+			break;
+
+		/* Eat up leading space */
+		while (isspace(*next))
+			next++;
+		if (*next == '\0')
+			break;
+
+		/* Mode ends at space or end of string */
+		tok = next;
+		next = strchr(tok, ' ');
+		if (next != NULL) *next++ = '\0';
+
+		/* Parameters start after a comma */
+		c = strchr(tok, ',');
+		if (c != NULL) *c++ = '\0';
+
+		/* Match mode string */
+		uint_t mode;
+		for (mode = 0; mode < ZTI_NMODES; mode++)
+			if (strcmp(tok, modes[mode]) == 0)
+				break;
+		if (mode == ZTI_NMODES)
+			break;
+
+		/* Invalid canary */
+		row[q].zti_mode = ZTI_NMODES;
+
+		/* Per-mode setup */
+		switch (mode) {
+
+		/*
+		 * FIXED is parameterised: number of queues, and number of
+		 * threads per queue.
+		 */
+		case ZTI_MODE_FIXED: {
+			/* No parameters? */
+			if (c == NULL || *c == '\0')
+				break;
+
+			/* Find next parameter */
+			tok = c;
+			c = strchr(tok, ',');
+			if (c == NULL)
+				break;
+
+			/* Take digits and convert */
+			unsigned long long nq;
+			if (!(isdigit(*tok)))
+				break;
+			err = ddi_strtoull(tok, &tok, 10, &nq);
+			/* Must succeed and also end at the next param sep */
+			if (err != 0 || tok != c)
+				break;
+
+			/* Move past the comma */
+			tok++;
+			/* Need another number */
+			if (!(isdigit(*tok)))
+				break;
+			/* Remember start to make sure we moved */
+			c = tok;
+
+			/* Take digits */
+			unsigned long long ntpq;
+			err = ddi_strtoull(tok, &tok, 10, &ntpq);
+			/* Must succeed, and moved forward */
+			if (err != 0 || tok == c || *tok != '\0')
+				break;
+
+			/*
+			 * sanity; zero queues/threads make no sense, and
+			 * 16K is almost certainly more than anyone will ever
+			 * need and avoids silly numbers like UINT32_MAX
+			 */
+			if (nq == 0 || nq >= 16384 ||
+			    ntpq == 0 || ntpq >= 16384)
+				break;
+
+			const zio_taskq_info_t zti = ZTI_P(ntpq, nq);
+			row[q] = zti;
+			break;
+		}
+
+		case ZTI_MODE_BATCH: {
+			const zio_taskq_info_t zti = ZTI_BATCH;
+			row[q] = zti;
+			break;
+		}
+
+		case ZTI_MODE_SCALE: {
+			const zio_taskq_info_t zti = ZTI_SCALE;
+			row[q] = zti;
+			break;
+		}
+
+		case ZTI_MODE_NULL: {
+			/*
+			 * Can only null the high-priority queues; the general-
+			 * purpose ones have to exist.
+			 */
+			if (q != ZIO_TASKQ_ISSUE_HIGH &&
+			    q != ZIO_TASKQ_INTERRUPT_HIGH)
+				break;
+
+			const zio_taskq_info_t zti = ZTI_NULL;
+			row[q] = zti;
+			break;
+		}
+
+		default:
+			break;
+		}
+
+		/* Ensure we set a mode */
+		if (row[q].zti_mode == ZTI_NMODES)
+			break;
+	}
+
+	/* Didn't get a full row, fail */
+	if (q < ZIO_TASKQ_TYPES)
+		return (SET_ERROR(EINVAL));
+
+	/* Eat trailing space */
+	if (next != NULL)
+		while (isspace(*next))
+			next++;
+
+	/* If there's anything left over then fail */
+	if (next != NULL && *next != '\0')
+		return (SET_ERROR(EINVAL));
+
+	/* Success! Copy it into the real config */
+	for (q = 0; q < ZIO_TASKQ_TYPES; q++)
+		zio_taskqs[t][q] = row[q];
+
+	return (0);
+}
+
+static int
+spa_taskq_param_get(zio_type_t t, char *buf, boolean_t add_newline)
+{
+	int pos = 0;
+
+	/* Build paramater string from live config */
+	const char *sep = "";
+	for (uint_t q = 0; q < ZIO_TASKQ_TYPES; q++) {
+		const zio_taskq_info_t *zti = &zio_taskqs[t][q];
+		if (zti->zti_mode == ZTI_MODE_FIXED)
+			pos += sprintf(&buf[pos], "%s%s,%u,%u", sep,
+			    modes[zti->zti_mode], zti->zti_count,
+			    zti->zti_value);
+		else
+			pos += sprintf(&buf[pos], "%s%s", sep,
+			    modes[zti->zti_mode]);
+		sep = " ";
+	}
+
+	if (add_newline)
+		buf[pos++] = '\n';
+	buf[pos] = '\0';
+
+	return (pos);
+}
+
+#ifdef __linux__
+static int
+spa_taskq_read_param_set(const char *val, zfs_kernel_param_t *kp)
+{
+	char *cfg = kmem_strdup(val);
+	int err = spa_taskq_param_set(ZIO_TYPE_READ, cfg);
+	kmem_free(cfg, strlen(val)+1);
+	return (-err);
+}
+static int
+spa_taskq_read_param_get(char *buf, zfs_kernel_param_t *kp)
+{
+	return (spa_taskq_param_get(ZIO_TYPE_READ, buf, TRUE));
+}
+
+static int
+spa_taskq_write_param_set(const char *val, zfs_kernel_param_t *kp)
+{
+	char *cfg = kmem_strdup(val);
+	int err = spa_taskq_param_set(ZIO_TYPE_WRITE, cfg);
+	kmem_free(cfg, strlen(val)+1);
+	return (-err);
+}
+static int
+spa_taskq_write_param_get(char *buf, zfs_kernel_param_t *kp)
+{
+	return (spa_taskq_param_get(ZIO_TYPE_WRITE, buf, TRUE));
+}
+#else
+/*
+ * On FreeBSD load-time parameters can be set up before malloc() is available,
+ * so we have to do all the parsing work on the stack.
+ */
+#define	SPA_TASKQ_PARAM_MAX	(128)
+
+static int
+spa_taskq_read_param(ZFS_MODULE_PARAM_ARGS)
+{
+	char buf[SPA_TASKQ_PARAM_MAX];
+	int err;
+
+	(void) spa_taskq_param_get(ZIO_TYPE_READ, buf, FALSE);
+	err = sysctl_handle_string(oidp, buf, sizeof (buf), req);
+	if (err || req->newptr == NULL)
+		return (err);
+	return (spa_taskq_param_set(ZIO_TYPE_READ, buf));
+}
+
+static int
+spa_taskq_write_param(ZFS_MODULE_PARAM_ARGS)
+{
+	char buf[SPA_TASKQ_PARAM_MAX];
+	int err;
+
+	(void) spa_taskq_param_get(ZIO_TYPE_WRITE, buf, FALSE);
+	err = sysctl_handle_string(oidp, buf, sizeof (buf), req);
+	if (err || req->newptr == NULL)
+		return (err);
+	return (spa_taskq_param_set(ZIO_TYPE_WRITE, buf));
+}
+#endif
+#endif /* _KERNEL */
 
 /*
  * Dispatch a task to the appropriate taskq for the ZFS I/O type and priority.
@@ -10210,4 +10479,13 @@ ZFS_MODULE_PARAM(zfs_livelist_condense, zfs_livelist_condense_, new_alloc, INT,
 	ZMOD_RW,
 	"Whether extra ALLOC blkptrs were added to a livelist entry while it "
 	"was being condensed");
+
+#ifdef _KERNEL
+ZFS_MODULE_VIRTUAL_PARAM_CALL(zfs_zio, zio_, taskq_read,
+	spa_taskq_read_param_set, spa_taskq_read_param_get, ZMOD_RD,
+	"Configure IO queues for read IO");
+ZFS_MODULE_VIRTUAL_PARAM_CALL(zfs_zio, zio_, taskq_write,
+	spa_taskq_write_param_set, spa_taskq_write_param_get, ZMOD_RD,
+	"Configure IO queues for write IO");
+#endif
 /* END CSTYLED */

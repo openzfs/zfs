@@ -157,10 +157,8 @@
  * (copying the file content to the new dataset and removing the source file).
  * In that case Block Cloning will only be used briefly, because the BRT entries
  * will be removed when the source is removed.
- * Note: currently it is not possible to clone blocks between encrypted
- * datasets, even if those datasets use the same encryption key (this includes
- * snapshots of encrypted datasets). Cloning blocks between datasets that use
- * the same keys should be possible and should be implemented in the future.
+ * Block Cloning across encrypted datasets is supported as long as both
+ * datasets share the same master key (e.g. snapshots and clones)
  *
  * Block Cloning flow through ZFS layers.
  *
@@ -344,7 +342,7 @@ brt_vdev_entcount_get(const brt_vdev_t *brtvd, uint64_t idx)
 
 	ASSERT3U(idx, <, brtvd->bv_size);
 
-	if (brtvd->bv_need_byteswap) {
+	if (unlikely(brtvd->bv_need_byteswap)) {
 		return (BSWAP_16(brtvd->bv_entcount[idx]));
 	} else {
 		return (brtvd->bv_entcount[idx]);
@@ -357,7 +355,7 @@ brt_vdev_entcount_set(brt_vdev_t *brtvd, uint64_t idx, uint16_t entcnt)
 
 	ASSERT3U(idx, <, brtvd->bv_size);
 
-	if (brtvd->bv_need_byteswap) {
+	if (unlikely(brtvd->bv_need_byteswap)) {
 		brtvd->bv_entcount[idx] = BSWAP_16(entcnt);
 	} else {
 		brtvd->bv_entcount[idx] = entcnt;
@@ -392,55 +390,39 @@ brt_vdev_entcount_dec(brt_vdev_t *brtvd, uint64_t idx)
 
 #ifdef ZFS_DEBUG
 static void
-brt_vdev_dump(brt_t *brt)
+brt_vdev_dump(brt_vdev_t *brtvd)
 {
-	brt_vdev_t *brtvd;
-	uint64_t vdevid;
+	uint64_t idx;
 
-	if ((zfs_flags & ZFS_DEBUG_BRT) == 0) {
-		return;
-	}
-
-	if (brt->brt_nvdevs == 0) {
-		zfs_dbgmsg("BRT empty");
-		return;
-	}
-
-	zfs_dbgmsg("BRT vdev dump:");
-	for (vdevid = 0; vdevid < brt->brt_nvdevs; vdevid++) {
-		uint64_t idx;
-
-		brtvd = &brt->brt_vdevs[vdevid];
-		zfs_dbgmsg("  vdevid=%llu/%llu meta_dirty=%d entcount_dirty=%d "
-		    "size=%llu totalcount=%llu nblocks=%llu bitmapsize=%zu\n",
-		    (u_longlong_t)vdevid, (u_longlong_t)brtvd->bv_vdevid,
-		    brtvd->bv_meta_dirty, brtvd->bv_entcount_dirty,
-		    (u_longlong_t)brtvd->bv_size,
-		    (u_longlong_t)brtvd->bv_totalcount,
-		    (u_longlong_t)brtvd->bv_nblocks,
-		    (size_t)BT_SIZEOFMAP(brtvd->bv_nblocks));
-		if (brtvd->bv_totalcount > 0) {
-			zfs_dbgmsg("    entcounts:");
-			for (idx = 0; idx < brtvd->bv_size; idx++) {
-				if (brt_vdev_entcount_get(brtvd, idx) > 0) {
-					zfs_dbgmsg("      [%04llu] %hu",
-					    (u_longlong_t)idx,
-					    brt_vdev_entcount_get(brtvd, idx));
-				}
+	zfs_dbgmsg("  BRT vdevid=%llu meta_dirty=%d entcount_dirty=%d "
+	    "size=%llu totalcount=%llu nblocks=%llu bitmapsize=%zu\n",
+	    (u_longlong_t)brtvd->bv_vdevid,
+	    brtvd->bv_meta_dirty, brtvd->bv_entcount_dirty,
+	    (u_longlong_t)brtvd->bv_size,
+	    (u_longlong_t)brtvd->bv_totalcount,
+	    (u_longlong_t)brtvd->bv_nblocks,
+	    (size_t)BT_SIZEOFMAP(brtvd->bv_nblocks));
+	if (brtvd->bv_totalcount > 0) {
+		zfs_dbgmsg("    entcounts:");
+		for (idx = 0; idx < brtvd->bv_size; idx++) {
+			uint16_t entcnt = brt_vdev_entcount_get(brtvd, idx);
+			if (entcnt > 0) {
+				zfs_dbgmsg("      [%04llu] %hu",
+				    (u_longlong_t)idx, entcnt);
 			}
 		}
-		if (brtvd->bv_entcount_dirty) {
-			char *bitmap;
+	}
+	if (brtvd->bv_entcount_dirty) {
+		char *bitmap;
 
-			bitmap = kmem_alloc(brtvd->bv_nblocks + 1, KM_SLEEP);
-			for (idx = 0; idx < brtvd->bv_nblocks; idx++) {
-				bitmap[idx] =
-				    BT_TEST(brtvd->bv_bitmap, idx) ? 'x' : '.';
-			}
-			bitmap[idx] = '\0';
-			zfs_dbgmsg("    bitmap: %s", bitmap);
-			kmem_free(bitmap, brtvd->bv_nblocks + 1);
+		bitmap = kmem_alloc(brtvd->bv_nblocks + 1, KM_SLEEP);
+		for (idx = 0; idx < brtvd->bv_nblocks; idx++) {
+			bitmap[idx] =
+			    BT_TEST(brtvd->bv_bitmap, idx) ? 'x' : '.';
 		}
+		bitmap[idx] = '\0';
+		zfs_dbgmsg("    dirty: %s", bitmap);
+		kmem_free(bitmap, brtvd->bv_nblocks + 1);
 	}
 }
 #endif
@@ -769,7 +751,8 @@ brt_vdev_addref(brt_t *brt, brt_vdev_t *brtvd, const brt_entry_t *bre,
 	BT_SET(brtvd->bv_bitmap, idx);
 
 #ifdef ZFS_DEBUG
-	brt_vdev_dump(brt);
+	if (zfs_flags & ZFS_DEBUG_BRT)
+		brt_vdev_dump(brtvd);
 #endif
 }
 
@@ -805,7 +788,8 @@ brt_vdev_decref(brt_t *brt, brt_vdev_t *brtvd, const brt_entry_t *bre,
 	BT_SET(brtvd->bv_bitmap, idx);
 
 #ifdef ZFS_DEBUG
-	brt_vdev_dump(brt);
+	if (zfs_flags & ZFS_DEBUG_BRT)
+		brt_vdev_dump(brtvd);
 #endif
 }
 

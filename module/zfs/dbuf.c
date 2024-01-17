@@ -1619,8 +1619,6 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags,
 	 */
 	if (db->db_objset->os_encrypted && !BP_USES_CRYPT(bpp)) {
 		spa_log_error(db->db_objset->os_spa, &zb, &bpp->blk_birth);
-		zfs_panic_recover("unencrypted block in encrypted "
-		    "object set %llu", dmu_objset_id(db->db_objset));
 		err = SET_ERROR(EIO);
 		goto early_unlock;
 	}
@@ -1925,7 +1923,7 @@ dbuf_unoverride(dbuf_dirty_record_t *dr)
 		zio_free(db->db_objset->os_spa, txg, bp);
 
 	if (dr->dt.dl.dr_brtwrite) {
-		ASSERT0P(dr->dt.dl.dr_data);
+		ASSERT0(dr->dt.dl.dr_data);
 		dr->dt.dl.dr_data = db->db_buf;
 	}
 	dr->dt.dl.dr_override_state = DR_NOT_OVERRIDDEN;
