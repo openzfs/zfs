@@ -74,12 +74,11 @@ Ignore the ownership field for the entire volume.
 The default value is
 .Sy off .
 .It Xo
-.Sy mimic Ns = Ns Sy hfs Ns | Ns Sy off
+.Sy mimic Ns = Ns Sy hfs Ns | Ns Sy apfs Ns | Ns Sy ntfs Ns | Ns Sy off
 .Xc
-Some applications check if the filesystem type is "hfs" and refuse to work with
-ZFS.
-In this situation, this property can be enabled and the filesystem type will be
-reported as "hfs".
+Some applications check if the filesystem type is and refuse to work with ZFS.
+In this situation, this property can be enabled and the chosen filesystem type
+will be reported.
 The default value is
 .Sy off .
 .It Xo
