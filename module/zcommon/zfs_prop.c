@@ -630,19 +630,19 @@ zfs_prop_init(void)
 	 * These props are needed for compatability with pools created
 	 * using openzfsonosx
 	 */
-	zprop_register_index(ZFS_PROP_BROWSE, "com.apple.browse", 1,
+	zprop_register_index(ZFS_PROP_BROWSE, "browse", 1,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM, "on | off",
 	    "COM.APPLE.BROWSE", boolean_table, sfeatures);
-	zprop_register_index(ZFS_PROP_IGNOREOWNER, "com.apple.ignoreowner", 0,
+	zprop_register_index(ZFS_PROP_IGNOREOWNER, "ignoreowner", 0,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM, "on | off",
 	    "COM.APPLE.IGNOREOWNER", boolean_table, sfeatures);
 	zprop_register_hidden(ZFS_PROP_LASTUNMOUNT, "COM.APPLE.LASTUNMOUNT",
 	    PROP_TYPE_NUMBER, PROP_READONLY, ZFS_TYPE_DATASET, "LASTUNMOUNT",
 	    B_FALSE, sfeatures);
-	zprop_register_index(ZFS_PROP_MIMIC, "com.apple.mimic", 0,
+	zprop_register_index(ZFS_PROP_MIMIC, "mimic", 0,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM, "off | hfs | apfs",
 	    "COM.APPLE.MIMIC_HFS", mimic_table, sfeatures);
-	zprop_register_index(ZFS_PROP_DEVDISK, "com.apple.devdisk", 0,
+	zprop_register_index(ZFS_PROP_DEVDISK, "devdisk", 0,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM, "poolonly | on | off",
 	    "COM.APPLE.DEVDISK", devdisk_table, sfeatures);
 
