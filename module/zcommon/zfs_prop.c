@@ -640,7 +640,7 @@ zfs_prop_init(void)
 	    PROP_TYPE_NUMBER, PROP_READONLY, ZFS_TYPE_DATASET, "LASTUNMOUNT",
 	    B_FALSE, sfeatures);
 	zprop_register_index(ZFS_PROP_MIMIC, "mimic", 0,
-	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM, "off | hfs | apfs",
+	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM, "off | hfs | apfs | ntfs",
 	    "COM.APPLE.MIMIC_HFS", mimic_table, sfeatures);
 	zprop_register_index(ZFS_PROP_DEVDISK, "devdisk", 0,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM, "poolonly | on | off",
