@@ -146,6 +146,7 @@ struct spa_aux_vdev {
 	vdev_t		**sav_vdevs;		/* devices */
 	int		sav_count;		/* number devices */
 	boolean_t	sav_sync;		/* sync the device list */
+	boolean_t	sav_label_sync;		/* sync aux labels */
 	nvlist_t	**sav_pending;		/* pending device additions */
 	uint_t		sav_npending;		/* # pending devices */
 };
