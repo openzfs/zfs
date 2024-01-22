@@ -7,7 +7,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_GETATTR], [
 	ZFS_LINUX_TEST_SRC([inode_operations_getattr_mnt_idmap], [
 		#include <linux/fs.h>
 
-		int test_getattr(
+		static int test_getattr(
 		    struct mnt_idmap *idmap,
 		    const struct path *p, struct kstat *k,
 		    u32 request_mask, unsigned int query_flags)
@@ -28,7 +28,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_GETATTR], [
 	ZFS_LINUX_TEST_SRC([inode_operations_getattr_userns], [
 		#include <linux/fs.h>
 
-		int test_getattr(
+		static int test_getattr(
 			struct user_namespace *userns,
 		    const struct path *p, struct kstat *k,
 		    u32 request_mask, unsigned int query_flags)
@@ -47,7 +47,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_GETATTR], [
 	ZFS_LINUX_TEST_SRC([inode_operations_getattr_path], [
 		#include <linux/fs.h>
 
-		int test_getattr(
+		static int test_getattr(
 		    const struct path *p, struct kstat *k,
 		    u32 request_mask, unsigned int query_flags)
 		    { return 0; }
@@ -61,7 +61,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_GETATTR], [
 	ZFS_LINUX_TEST_SRC([inode_operations_getattr_vfsmount], [
 		#include <linux/fs.h>
 
-		int test_getattr(
+		static int test_getattr(
 		    struct vfsmount *mnt, struct dentry *d,
 		    struct kstat *k)
 		    { return 0; }

@@ -172,7 +172,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_GET_ACL], [
 	ZFS_LINUX_TEST_SRC([inode_operations_get_acl], [
 		#include <linux/fs.h>
 
-		struct posix_acl *get_acl_fn(struct inode *inode, int type)
+		static struct posix_acl *get_acl_fn(struct inode *inode, int type)
 		    { return NULL; }
 
 		static const struct inode_operations
@@ -184,7 +184,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_GET_ACL], [
 	ZFS_LINUX_TEST_SRC([inode_operations_get_acl_rcu], [
 		#include <linux/fs.h>
 
-		struct posix_acl *get_acl_fn(struct inode *inode, int type,
+		static struct posix_acl *get_acl_fn(struct inode *inode, int type,
 		    bool rcu) { return NULL; }
 
 		static const struct inode_operations
@@ -196,7 +196,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_GET_ACL], [
 	ZFS_LINUX_TEST_SRC([inode_operations_get_inode_acl], [
 		#include <linux/fs.h>
 
-		struct posix_acl *get_inode_acl_fn(struct inode *inode, int type,
+		static struct posix_acl *get_inode_acl_fn(struct inode *inode, int type,
 		    bool rcu) { return NULL; }
 
 		static const struct inode_operations
@@ -243,7 +243,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_SET_ACL], [
 	ZFS_LINUX_TEST_SRC([inode_operations_set_acl_mnt_idmap_dentry], [
 		#include <linux/fs.h>
 
-		int set_acl_fn(struct mnt_idmap *idmap,
+		static int set_acl_fn(struct mnt_idmap *idmap,
 		    struct dentry *dent, struct posix_acl *acl,
 		    int type) { return 0; }
 
@@ -255,7 +255,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_SET_ACL], [
 	ZFS_LINUX_TEST_SRC([inode_operations_set_acl_userns_dentry], [
 		#include <linux/fs.h>
 
-		int set_acl_fn(struct user_namespace *userns,
+		static int set_acl_fn(struct user_namespace *userns,
 		    struct dentry *dent, struct posix_acl *acl,
 		    int type) { return 0; }
 
@@ -267,7 +267,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_SET_ACL], [
 	ZFS_LINUX_TEST_SRC([inode_operations_set_acl_userns], [
 		#include <linux/fs.h>
 
-		int set_acl_fn(struct user_namespace *userns,
+		static int set_acl_fn(struct user_namespace *userns,
 		    struct inode *inode, struct posix_acl *acl,
 		    int type) { return 0; }
 
@@ -279,7 +279,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_SET_ACL], [
 	ZFS_LINUX_TEST_SRC([inode_operations_set_acl], [
 		#include <linux/fs.h>
 
-		int set_acl_fn(struct inode *inode, struct posix_acl *acl,
+		static int set_acl_fn(struct inode *inode, struct posix_acl *acl,
 		    int type) { return 0; }
 
 		static const struct inode_operations
