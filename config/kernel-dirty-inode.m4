@@ -8,7 +8,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_DIRTY_INODE], [
 	ZFS_LINUX_TEST_SRC([dirty_inode_with_flags], [
 		#include <linux/fs.h>
 
-		void dirty_inode(struct inode *a, int b) { return; }
+		static void dirty_inode(struct inode *a, int b) { return; }
 
 		static const struct super_operations
 		    sops __attribute__ ((unused)) = {

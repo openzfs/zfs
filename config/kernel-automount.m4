@@ -8,7 +8,7 @@ dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_AUTOMOUNT], [
 	ZFS_LINUX_TEST_SRC([dentry_operations_d_automount], [
 		#include <linux/dcache.h>
-		struct vfsmount *d_automount(struct path *p) { return NULL; }
+		static struct vfsmount *d_automount(struct path *p) { return NULL; }
 		struct dentry_operations dops __attribute__ ((unused)) = {
 			.d_automount = d_automount,
 		};

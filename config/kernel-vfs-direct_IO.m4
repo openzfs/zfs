@@ -5,7 +5,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_DIRECT_IO], [
 	ZFS_LINUX_TEST_SRC([direct_io_iter], [
 		#include <linux/fs.h>
 
-		ssize_t test_direct_IO(struct kiocb *kiocb,
+		static ssize_t test_direct_IO(struct kiocb *kiocb,
 		    struct iov_iter *iter) { return 0; }
 
 		static const struct address_space_operations
@@ -17,7 +17,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_DIRECT_IO], [
 	ZFS_LINUX_TEST_SRC([direct_io_iter_offset], [
 		#include <linux/fs.h>
 
-		ssize_t test_direct_IO(struct kiocb *kiocb,
+		static ssize_t test_direct_IO(struct kiocb *kiocb,
 		    struct iov_iter *iter, loff_t offset) { return 0; }
 
 		static const struct address_space_operations
@@ -29,7 +29,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_DIRECT_IO], [
 	ZFS_LINUX_TEST_SRC([direct_io_iter_rw_offset], [
 		#include <linux/fs.h>
 
-		ssize_t test_direct_IO(int rw, struct kiocb *kiocb,
+		static ssize_t test_direct_IO(int rw, struct kiocb *kiocb,
 		    struct iov_iter *iter, loff_t offset) { return 0; }
 
 		static const struct address_space_operations
@@ -41,7 +41,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_DIRECT_IO], [
 	ZFS_LINUX_TEST_SRC([direct_io_iovec], [
 		#include <linux/fs.h>
 
-		ssize_t test_direct_IO(int rw, struct kiocb *kiocb,
+		static ssize_t test_direct_IO(int rw, struct kiocb *kiocb,
 		    const struct iovec *iov, loff_t offset,
 		    unsigned long nr_segs) { return 0; }
 

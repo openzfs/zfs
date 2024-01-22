@@ -5,7 +5,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_FSYNC], [
 	ZFS_LINUX_TEST_SRC([fsync_without_dentry], [
 		#include <linux/fs.h>
 
-		int test_fsync(struct file *f, int x) { return 0; }
+		static int test_fsync(struct file *f, int x) { return 0; }
 
 		static const struct file_operations
 		    fops __attribute__ ((unused)) = {
@@ -16,7 +16,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_FSYNC], [
 	ZFS_LINUX_TEST_SRC([fsync_range], [
 		#include <linux/fs.h>
 
-		int test_fsync(struct file *f, loff_t a, loff_t b, int c)
+		static int test_fsync(struct file *f, loff_t a, loff_t b, int c)
 		    { return 0; }
 
 		static const struct file_operations
