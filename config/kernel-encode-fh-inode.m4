@@ -7,7 +7,7 @@ dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_ENCODE_FH_WITH_INODE], [
 	ZFS_LINUX_TEST_SRC([export_operations_encode_fh], [
 		#include <linux/exportfs.h>
-		int encode_fh(struct inode *inode, __u32 *fh, int *max_len,
+		static int encode_fh(struct inode *inode, __u32 *fh, int *max_len,
 		              struct inode *parent) { return 0; }
 		static struct export_operations eops __attribute__ ((unused))={
 			.encode_fh = encode_fh,

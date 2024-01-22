@@ -9,7 +9,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_MKDIR], [
 	ZFS_LINUX_TEST_SRC([mkdir_mnt_idmap], [
 		#include <linux/fs.h>
 
-		int mkdir(struct mnt_idmap *idmap,
+		static int mkdir(struct mnt_idmap *idmap,
 			struct inode *inode, struct dentry *dentry,
 			umode_t umode) { return 0; }
 		static const struct inode_operations
@@ -26,7 +26,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_MKDIR], [
 	ZFS_LINUX_TEST_SRC([mkdir_user_namespace], [
 		#include <linux/fs.h>
 
-		int mkdir(struct user_namespace *userns,
+		static int mkdir(struct user_namespace *userns,
 			struct inode *inode, struct dentry *dentry,
 		    umode_t umode) { return 0; }
 
@@ -47,7 +47,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_MKDIR], [
 	ZFS_LINUX_TEST_SRC([inode_operations_mkdir], [
 		#include <linux/fs.h>
 
-		int mkdir(struct inode *inode, struct dentry *dentry,
+		static int mkdir(struct inode *inode, struct dentry *dentry,
 		    umode_t umode) { return 0; }
 
 		static const struct inode_operations
