@@ -7,7 +7,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_MKNOD], [
 		#include <linux/fs.h>
 		#include <linux/sched.h>
 
-		int tmp_mknod(struct mnt_idmap *idmap,
+		static int tmp_mknod(struct mnt_idmap *idmap,
 		    struct inode *inode ,struct dentry *dentry,
 		    umode_t u, dev_t d) { return 0; }
 
@@ -25,7 +25,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_MKNOD], [
 		#include <linux/fs.h>
 		#include <linux/sched.h>
 
-		int tmp_mknod(struct user_namespace *userns,
+		static int tmp_mknod(struct user_namespace *userns,
 		    struct inode *inode ,struct dentry *dentry,
 		    umode_t u, dev_t d) { return 0; }
 

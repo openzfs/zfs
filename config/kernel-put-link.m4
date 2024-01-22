@@ -4,7 +4,7 @@ dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_PUT_LINK], [
 	ZFS_LINUX_TEST_SRC([put_link_cookie], [
 		#include <linux/fs.h>
-		void put_link(struct inode *ip, void *cookie)
+		static void put_link(struct inode *ip, void *cookie)
 		    { return; }
 		static struct inode_operations
 		    iops __attribute__ ((unused)) = {
@@ -14,7 +14,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_PUT_LINK], [
 
 	ZFS_LINUX_TEST_SRC([put_link_nameidata], [
 		#include <linux/fs.h>
-		void put_link(struct dentry *de, struct
+		static void put_link(struct dentry *de, struct
 		    nameidata *nd, void *ptr) { return; }
 		static struct inode_operations
 		    iops __attribute__ ((unused)) = {

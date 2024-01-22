@@ -6,7 +6,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_WRITEPAGE_T], [
 	dnl #
 	ZFS_LINUX_TEST_SRC([writepage_t_folio], [
 		#include <linux/writeback.h>
-		int putpage(struct folio *folio,
+		static int putpage(struct folio *folio,
 		    struct writeback_control *wbc, void *data)
 		{ return 0; }
 		writepage_t func = putpage;

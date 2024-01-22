@@ -18,7 +18,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_TIMER_SETUP], [
 			int data;
 		};
 
-		void task_expire(struct timer_list *tl)
+		static void task_expire(struct timer_list *tl)
 		{
 			struct my_task_timer *task_timer =
 			    from_timer(task_timer, tl, timer);
@@ -31,7 +31,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_TIMER_SETUP], [
 
 	ZFS_LINUX_TEST_SRC([timer_list_function], [
 		#include <linux/timer.h>
-		void task_expire(struct timer_list *tl) {}
+		static void task_expire(struct timer_list *tl) {}
 	],[
 		struct timer_list tl;
 		tl.function = task_expire;
