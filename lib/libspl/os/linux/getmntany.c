@@ -38,6 +38,7 @@
 #include <sys/sysmacros.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <libzutil.h>
 
 #define	BUFSIZE	(MNT_LINE_MAX + 2)
 
@@ -122,7 +123,7 @@ getextmntent(const char *path, struct extmnttab *entry, struct stat64 *statbuf)
 	 */
 	if (stat64(path, statbuf) != 0) {
 		(void) fprintf(stderr, "cannot open '%s': %s\n",
-		    path, strerror(errno));
+		    path, zfs_strerror(errno));
 		return (-1);
 	}
 

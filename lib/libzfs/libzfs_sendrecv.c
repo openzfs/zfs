@@ -793,7 +793,7 @@ zfs_send_space(zfs_handle_t *zhp, const char *snapname, const char *from,
 	case EFAULT:
 	case EROFS:
 	case EINVAL:
-		zfs_error_aux(hdl, "%s", strerror(error));
+		zfs_error_aux(hdl, "%s", zfs_strerror(error));
 		return (zfs_error(hdl, EZFS_BADBACKUP, errbuf));
 
 	default:
@@ -876,7 +876,7 @@ dump_ioctl(zfs_handle_t *zhp, const char *fromsnap, uint64_t fromsnap_obj,
 		case EFAULT:
 		case EROFS:
 		case EINVAL:
-			zfs_error_aux(hdl, "%s", strerror(errno));
+			zfs_error_aux(hdl, "%s", zfs_strerror(errno));
 			return (zfs_error(hdl, EZFS_BADBACKUP, errbuf));
 
 		default:
@@ -1632,7 +1632,7 @@ estimate_size(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 		err = pthread_create(&ptid, NULL,
 		    send_progress_thread, &pa);
 		if (err != 0) {
-			zfs_error_aux(zhp->zfs_hdl, "%s", strerror(errno));
+			zfs_error_aux(zhp->zfs_hdl, "%s", zfs_strerror(errno));
 			return (zfs_error(zhp->zfs_hdl,
 			    EZFS_THREADCREATEFAILED, errbuf));
 		}
@@ -1651,7 +1651,7 @@ estimate_size(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 		return (err);
 
 	if (err != 0) {
-		zfs_error_aux(zhp->zfs_hdl, "%s", strerror(err));
+		zfs_error_aux(zhp->zfs_hdl, "%s", zfs_strerror(err));
 		return (zfs_error(zhp->zfs_hdl, EZFS_BADBACKUP,
 		    errbuf));
 	}
@@ -1767,7 +1767,7 @@ find_redact_book(libzfs_handle_t *hdl, const char *path,
 			    "dataset to be sent no longer exists"));
 		} else {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "unknown error: %s"), strerror(error));
+			    "unknown error: %s"), zfs_strerror(error));
 		}
 		return (zfs_error(hdl, EZFS_BADPROP, errbuf));
 	}
@@ -2004,7 +2004,7 @@ zfs_send_resume_impl_cb_impl(libzfs_handle_t *hdl, sendflags_t *flags,
 		case ERANGE:
 		case EFAULT:
 		case EROFS:
-			zfs_error_aux(hdl, "%s", strerror(errno));
+			zfs_error_aux(hdl, "%s", zfs_strerror(errno));
 			return (zfs_error(hdl, EZFS_BADBACKUP, errbuf));
 
 		default:
@@ -2290,13 +2290,13 @@ send_prelim_records(zfs_handle_t *zhp, const char *from, int fd,
 		err = dump_record(&drr, packbuf, buflen, &zc, fd);
 		free(packbuf);
 		if (err != 0) {
-			zfs_error_aux(zhp->zfs_hdl, "%s", strerror(err));
+			zfs_error_aux(zhp->zfs_hdl, "%s", zfs_strerror(err));
 			return (zfs_error(zhp->zfs_hdl, EZFS_BADBACKUP,
 			    errbuf));
 		}
 		err = send_conclusion_record(fd, &zc);
 		if (err != 0) {
-			zfs_error_aux(zhp->zfs_hdl, "%s", strerror(err));
+			zfs_error_aux(zhp->zfs_hdl, "%s", zfs_strerror(err));
 			return (zfs_error(zhp->zfs_hdl, EZFS_BADBACKUP,
 			    errbuf));
 		}
@@ -2765,7 +2765,7 @@ zfs_send_one_cb_impl(zfs_handle_t *zhp, const char *from, int fd,
 		err = pthread_create(&ptid, NULL,
 		    send_progress_thread, &pa);
 		if (err != 0) {
-			zfs_error_aux(zhp->zfs_hdl, "%s", strerror(errno));
+			zfs_error_aux(zhp->zfs_hdl, "%s", zfs_strerror(errno));
 			return (zfs_error(zhp->zfs_hdl,
 			    EZFS_THREADCREATEFAILED, errbuf));
 		}
@@ -2823,7 +2823,7 @@ zfs_send_one_cb_impl(zfs_handle_t *zhp, const char *from, int fd,
 		case EPIPE:
 		case ERANGE:
 		case EROFS:
-			zfs_error_aux(hdl, "%s", strerror(errno));
+			zfs_error_aux(hdl, "%s", zfs_strerror(errno));
 			return (zfs_error(hdl, EZFS_BADBACKUP, errbuf));
 
 		default:
