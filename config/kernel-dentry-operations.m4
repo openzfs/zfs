@@ -98,7 +98,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_D_REVALIDATE_NAMEIDATA], [
 		#include <linux/dcache.h>
 		#include <linux/sched.h>
 
-		int revalidate (struct dentry *dentry,
+		static int revalidate (struct dentry *dentry,
 		    struct nameidata *nidata) { return 0; }
 
 		static const struct dentry_operations

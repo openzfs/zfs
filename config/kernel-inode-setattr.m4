@@ -7,7 +7,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_SETATTR], [
 	ZFS_LINUX_TEST_SRC([inode_operations_setattr_mnt_idmap], [
 		#include <linux/fs.h>
 
-		int test_setattr(
+		static int test_setattr(
 		    struct mnt_idmap *idmap,
 		    struct dentry *de, struct iattr *ia)
 		    { return 0; }
@@ -27,7 +27,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_SETATTR], [
 	ZFS_LINUX_TEST_SRC([inode_operations_setattr_userns], [
 		#include <linux/fs.h>
 
-		int test_setattr(
+		static int test_setattr(
 		    struct user_namespace *userns,
 		    struct dentry *de, struct iattr *ia)
 		    { return 0; }
@@ -41,7 +41,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_SETATTR], [
 	ZFS_LINUX_TEST_SRC([inode_operations_setattr], [
 		#include <linux/fs.h>
 
-		int test_setattr(
+		static int test_setattr(
 		    struct dentry *de, struct iattr *ia)
 		    { return 0; }
 

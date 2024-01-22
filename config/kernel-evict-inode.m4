@@ -6,7 +6,7 @@ dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_EVICT_INODE], [
 	ZFS_LINUX_TEST_SRC([evict_inode], [
 		#include <linux/fs.h>
-		void evict_inode (struct inode * t) { return; }
+		static void evict_inode (struct inode * t) { return; }
 		static struct super_operations sops __attribute__ ((unused)) = {
 			.evict_inode = evict_inode,
 		};

@@ -6,7 +6,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_RENAME], [
 	dnl #
 	ZFS_LINUX_TEST_SRC([inode_operations_rename_flags], [
 		#include <linux/fs.h>
-		int rename_fn(struct inode *sip, struct dentry *sdp,
+		static int rename_fn(struct inode *sip, struct dentry *sdp,
 			struct inode *tip, struct dentry *tdp,
 			unsigned int flags) { return 0; }
 
@@ -24,7 +24,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_RENAME], [
 	dnl #
 	ZFS_LINUX_TEST_SRC([inode_operations_rename_userns], [
 		#include <linux/fs.h>
-		int rename_fn(struct user_namespace *user_ns, struct inode *sip,
+		static int rename_fn(struct user_namespace *user_ns, struct inode *sip,
 			struct dentry *sdp, struct inode *tip, struct dentry *tdp,
 			unsigned int flags) { return 0; }
 
@@ -39,7 +39,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_RENAME], [
 	dnl #
 	ZFS_LINUX_TEST_SRC([inode_operations_rename_mnt_idmap], [
 		#include <linux/fs.h>
-		int rename_fn(struct mnt_idmap *idmap, struct inode *sip,
+		static int rename_fn(struct mnt_idmap *idmap, struct inode *sip,
 			struct dentry *sdp, struct inode *tip, struct dentry *tdp,
 			unsigned int flags) { return 0; }
 
