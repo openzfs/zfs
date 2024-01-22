@@ -62,6 +62,7 @@ include $(srcdir)/%D%/libspl/Makefile.am
 include $(srcdir)/%D%/libtpool/Makefile.am
 include $(srcdir)/%D%/libunicode/Makefile.am
 include $(srcdir)/%D%/libuutil/Makefile.am
+include $(srcdir)/%D%/libzdb/Makefile.am
 include $(srcdir)/%D%/libzfs_core/Makefile.am
 include $(srcdir)/%D%/libzfs/Makefile.am
 include $(srcdir)/%D%/libzfsbootenv/Makefile.am

@@ -10,6 +10,7 @@ zdb_SOURCES = \
 	%D%/zdb_il.c
 
 zdb_LDADD = \
+	libzdb.la \
 	libzpool.la \
 	libzfs_core.la \
 	libnvpair.la
