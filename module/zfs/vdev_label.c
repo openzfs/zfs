@@ -1007,6 +1007,47 @@ vdev_inuse(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason,
 	return (state == POOL_STATE_ACTIVE);
 }
 
+static nvlist_t *
+vdev_aux_label_generate(vdev_t *vd, boolean_t reason_spare)
+{
+	/*
+	 * For inactive hot spares and level 2 ARC devices, we generate
+	 * a special label that identifies as a mutually shared hot
+	 * spare or l2cache device. We write the label in case of
+	 * addition or removal of hot spare or l2cache vdev (in which
+	 * case we want to revert the labels).
+	 */
+	nvlist_t *label = fnvlist_alloc();
+	fnvlist_add_uint64(label, ZPOOL_CONFIG_VERSION,
+	    spa_version(vd->vdev_spa));
+	fnvlist_add_uint64(label, ZPOOL_CONFIG_POOL_STATE, reason_spare ?
+	    POOL_STATE_SPARE : POOL_STATE_L2CACHE);
+	fnvlist_add_uint64(label, ZPOOL_CONFIG_GUID, vd->vdev_guid);
+
+	/*
+	 * This is merely to facilitate reporting the ashift of the
+	 * cache device through zdb. The actual retrieval of the
+	 * ashift (in vdev_alloc()) uses the nvlist
+	 * spa->spa_l2cache->sav_config (populated in
+	 * spa_ld_open_aux_vdevs()).
+	 */
+	if (!reason_spare)
+		fnvlist_add_uint64(label, ZPOOL_CONFIG_ASHIFT, vd->vdev_ashift);
+
+	/*
+	 * Add path information to help find it during pool import
+	 */
+	if (vd->vdev_path != NULL)
+		fnvlist_add_string(label, ZPOOL_CONFIG_PATH, vd->vdev_path);
+	if (vd->vdev_devid != NULL)
+		fnvlist_add_string(label, ZPOOL_CONFIG_DEVID, vd->vdev_devid);
+	if (vd->vdev_physpath != NULL) {
+		fnvlist_add_string(label, ZPOOL_CONFIG_PHYS_PATH,
+		    vd->vdev_physpath);
+	}
+	return (label);
+}
+
 /*
  * Initialize a vdev label.  We check to make sure each leaf device is not in
  * use, and writable.  We put down an initial label which we will later
@@ -1121,49 +1162,7 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 	 * be written again with a meaningful txg by spa_sync().
 	 */
 	if (reason_spare || reason_l2cache) {
-		/*
-		 * For inactive hot spares and level 2 ARC devices, we generate
-		 * a special label that identifies as a mutually shared hot
-		 * spare or l2cache device. We write the label in case of
-		 * addition or removal of hot spare or l2cache vdev (in which
-		 * case we want to revert the labels).
-		 */
-		VERIFY(nvlist_alloc(&label, NV_UNIQUE_NAME, KM_SLEEP) == 0);
-
-		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_VERSION,
-		    spa_version(spa)) == 0);
-		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_POOL_STATE,
-		    reason_spare ? POOL_STATE_SPARE : POOL_STATE_L2CACHE) == 0);
-		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_GUID,
-		    vd->vdev_guid) == 0);
-
-		/*
-		 * This is merely to facilitate reporting the ashift of the
-		 * cache device through zdb. The actual retrieval of the
-		 * ashift (in vdev_alloc()) uses the nvlist
-		 * spa->spa_l2cache->sav_config (populated in
-		 * spa_ld_open_aux_vdevs()).
-		 */
-		if (reason_l2cache) {
-			VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_ASHIFT,
-			    vd->vdev_ashift) == 0);
-		}
-
-		/*
-		 * Add path information to help find it during pool import
-		 */
-		if (vd->vdev_path != NULL) {
-			VERIFY(nvlist_add_string(label, ZPOOL_CONFIG_PATH,
-			    vd->vdev_path) == 0);
-		}
-		if (vd->vdev_devid != NULL) {
-			VERIFY(nvlist_add_string(label, ZPOOL_CONFIG_DEVID,
-			    vd->vdev_devid) == 0);
-		}
-		if (vd->vdev_physpath != NULL) {
-			VERIFY(nvlist_add_string(label, ZPOOL_CONFIG_PHYS_PATH,
-			    vd->vdev_physpath) == 0);
-		}
+		label = vdev_aux_label_generate(vd, reason_spare);
 
 		/*
 		 * When spare or l2cache (aux) vdev is added during pool
@@ -1900,6 +1899,8 @@ vdev_label_sync(zio_t *zio, uint64_t *good_writes,
 	abd_t *vp_abd;
 	char *buf;
 	size_t buflen;
+	vdev_t *pvd = vd->vdev_parent;
+	boolean_t spare_in_use = B_FALSE;
 
 	for (int c = 0; c < vd->vdev_children; c++) {
 		vdev_label_sync(zio, good_writes,
@@ -1920,10 +1921,17 @@ vdev_label_sync(zio_t *zio, uint64_t *good_writes,
 	if (vd->vdev_ops == &vdev_draid_spare_ops)
 		return;
 
+	if (pvd && pvd->vdev_ops == &vdev_spare_ops)
+		spare_in_use = B_TRUE;
+
 	/*
 	 * Generate a label describing the top-level config to which we belong.
 	 */
-	label = spa_config_generate(vd->vdev_spa, vd, txg, B_FALSE);
+	if ((vd->vdev_isspare && !spare_in_use) || vd->vdev_isl2cache) {
+		label = vdev_aux_label_generate(vd, vd->vdev_isspare);
+	} else {
+		label = spa_config_generate(vd->vdev_spa, vd, txg, B_FALSE);
+	}
 
 	vp_abd = abd_alloc_linear(sizeof (vdev_phys_t), B_TRUE);
 	abd_zero(vp_abd, sizeof (vdev_phys_t));
@@ -1973,6 +1981,24 @@ vdev_label_sync_list(spa_t *spa, int l, uint64_t txg, int flags)
 		zio_nowait(vio);
 	}
 
+	/*
+	 * AUX path may have changed during import
+	 */
+	spa_aux_vdev_t *sav[2] = {&spa->spa_spares, &spa->spa_l2cache};
+	for (int i = 0; i < 2; i++) {
+		for (int v = 0; v < sav[i]->sav_count; v++) {
+			uint64_t *good_writes;
+			if (!sav[i]->sav_label_sync)
+				continue;
+			good_writes = kmem_zalloc(sizeof (uint64_t), KM_SLEEP);
+			zio_t *vio = zio_null(zio, spa, NULL,
+			    vdev_label_sync_ignore_done, good_writes, flags);
+			vdev_label_sync(vio, good_writes, sav[i]->sav_vdevs[v],
+			    l, txg, flags);
+			zio_nowait(vio);
+		}
+	}
+
 	error = zio_wait(zio);
 
 	/*
@@ -1982,6 +2008,15 @@ vdev_label_sync_list(spa_t *spa, int l, uint64_t txg, int flags)
 
 	for (vd = list_head(dl); vd != NULL; vd = list_next(dl, vd))
 		zio_flush(zio, vd);
+
+	for (int i = 0; i < 2; i++) {
+		if (!sav[i]->sav_label_sync)
+			continue;
+		for (int v = 0; v < sav[i]->sav_count; v++)
+			zio_flush(zio, sav[i]->sav_vdevs[v]);
+		if (l == 1)
+			sav[i]->sav_label_sync = B_FALSE;
+	}
 
 	(void) zio_wait(zio);
 
