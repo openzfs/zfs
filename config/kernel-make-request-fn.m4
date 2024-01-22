@@ -4,7 +4,7 @@ dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_MAKE_REQUEST_FN], [
 	ZFS_LINUX_TEST_SRC([make_request_fn_void], [
 		#include <linux/blkdev.h>
-		void make_request(struct request_queue *q,
+		static void make_request(struct request_queue *q,
 		    struct bio *bio) { return; }
 	],[
 		blk_queue_make_request(NULL, &make_request);
@@ -12,7 +12,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_MAKE_REQUEST_FN], [
 
 	ZFS_LINUX_TEST_SRC([make_request_fn_blk_qc_t], [
 		#include <linux/blkdev.h>
-		blk_qc_t make_request(struct request_queue *q,
+		static blk_qc_t make_request(struct request_queue *q,
 		    struct bio *bio) { return (BLK_QC_T_NONE); }
 	],[
 		blk_queue_make_request(NULL, &make_request);
@@ -20,7 +20,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_MAKE_REQUEST_FN], [
 
 	ZFS_LINUX_TEST_SRC([blk_alloc_queue_request_fn], [
 		#include <linux/blkdev.h>
-		blk_qc_t make_request(struct request_queue *q,
+		static blk_qc_t make_request(struct request_queue *q,
 		    struct bio *bio) { return (BLK_QC_T_NONE); }
 	],[
 		struct request_queue *q __attribute__ ((unused));
@@ -29,7 +29,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_MAKE_REQUEST_FN], [
 
 	ZFS_LINUX_TEST_SRC([blk_alloc_queue_request_fn_rh], [
 		#include <linux/blkdev.h>
-		blk_qc_t make_request(struct request_queue *q,
+		static blk_qc_t make_request(struct request_queue *q,
 		    struct bio *bio) { return (BLK_QC_T_NONE); }
 	],[
 		struct request_queue *q __attribute__ ((unused));

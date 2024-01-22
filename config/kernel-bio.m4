@@ -247,7 +247,7 @@ dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO_END_IO_T_ARGS], [
 	ZFS_LINUX_TEST_SRC([bio_end_io_t_args], [
 		#include <linux/bio.h>
-		void wanted_end_io(struct bio *bio) { return; }
+		static void wanted_end_io(struct bio *bio) { return; }
 		bio_end_io_t *end_io __attribute__ ((unused)) = wanted_end_io;
 	], [])
 ])

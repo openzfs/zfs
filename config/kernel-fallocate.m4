@@ -11,7 +11,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_FALLOCATE], [
 	ZFS_LINUX_TEST_SRC([file_fallocate], [
 		#include <linux/fs.h>
 
-		long test_fallocate(struct file *file, int mode,
+		static long test_fallocate(struct file *file, int mode,
 		    loff_t offset, loff_t len) { return 0; }
 
 		static const struct file_operations
