@@ -74,6 +74,7 @@
 #include <sys/dsl_crypt.h>
 
 #include <libzfs.h>
+#include <libzutil.h>
 
 #include "libzfs_impl.h"
 #include <thread_pool.h>
@@ -466,7 +467,7 @@ zfs_mount_at(zfs_handle_t *zhp, const char *options, int flags,
 		if (mkdirp(mountpoint, 0755) != 0) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "failed to create mountpoint: %s"),
-			    strerror(errno));
+			    zfs_strerror(errno));
 			return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
 			    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
 			    mountpoint));
@@ -524,7 +525,7 @@ zfs_mount_at(zfs_handle_t *zhp, const char *options, int flags,
 			    (u_longlong_t)zfs_prop_get_int(zhp,
 			    ZFS_PROP_VERSION), spa_version);
 		} else {
-			zfs_error_aux(hdl, "%s", strerror(rc));
+			zfs_error_aux(hdl, "%s", zfs_strerror(rc));
 		}
 		return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
 		    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),

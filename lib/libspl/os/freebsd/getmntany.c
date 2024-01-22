@@ -36,6 +36,7 @@
 #include <sys/sysmacros.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <libzutil.h>
 
 int
 getextmntent(const char *path, struct extmnttab *entry, struct stat64 *statbuf)
@@ -49,13 +50,13 @@ getextmntent(const char *path, struct extmnttab *entry, struct stat64 *statbuf)
 
 	if (stat64(path, statbuf) != 0) {
 		(void) fprintf(stderr, "cannot open '%s': %s\n",
-		    path, strerror(errno));
+		    path, zfs_strerror(errno));
 		return (-1);
 	}
 
 	if (statfs(path, &sfs) != 0) {
 		(void) fprintf(stderr, "%s: %s\n", path,
-		    strerror(errno));
+		    zfs_strerror(errno));
 		return (-1);
 	}
 	statfs2mnttab(&sfs, (struct mnttab *)entry);
