@@ -212,6 +212,9 @@ static uint64_t zfs_max_async_dedup_frees = 100000;
 /* set to disable resilver deferring */
 static int zfs_resilver_disable_defer = B_FALSE;
 
+/* Don't defer a resilver if the one in progress only got this far: */
+static uint_t zfs_resilver_defer_percent = 10;
+
 /*
  * We wait a few txgs after importing a pool to begin scanning so that
  * the import / mounting code isn't held up by scrub / resilver IO.
@@ -4260,19 +4263,39 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	dsl_scan_t *scn = dp->dp_scan;
 	spa_t *spa = dp->dp_spa;
 	state_sync_type_t sync_type = SYNC_OPTIONAL;
-
-	if (spa->spa_resilver_deferred &&
-	    !spa_feature_is_active(dp->dp_spa, SPA_FEATURE_RESILVER_DEFER))
-		spa_feature_incr(spa, SPA_FEATURE_RESILVER_DEFER, tx);
+	uint64_t to_issue, issued;
+	int restart_early;
 
 	/*
 	 * Check for scn_restart_txg before checking spa_load_state, so
 	 * that we can restart an old-style scan while the pool is being
 	 * imported (see dsl_scan_init). We also restart scans if there
 	 * is a deferred resilver and the user has manually disabled
-	 * deferred resilvers via the tunable.
+	 * deferred resilvers via the tunable, or if the curent scan progress
+	 * is below zfs_resilver_defer_percent.
 	 */
-	if (dsl_scan_restarting(scn, tx) ||
+
+	/*
+	 * Taken from spa_misc.c spa_scan_get_stats():
+	 */
+	to_issue = scn->scn_phys.scn_to_examine - scn->scn_phys.scn_skipped;
+	issued = scn->scn_issued_before_pass + spa->spa_scan_pass_issued;
+
+	/*
+	 * Make sure we're not in a restart loop and check the threshold
+	 */
+	restart_early = spa->spa_resilver_deferred &&
+	    !dsl_scan_restarting(scn, tx) &&
+	    (issued < (to_issue * zfs_resilver_defer_percent / 100));
+
+	/*
+	 * Only increment the feature if we're not about to restart early
+	 */
+	if (!restart_early && spa->spa_resilver_deferred &&
+	    !spa_feature_is_active(dp->dp_spa, SPA_FEATURE_RESILVER_DEFER))
+		spa_feature_incr(spa, SPA_FEATURE_RESILVER_DEFER, tx);
+
+	if (dsl_scan_restarting(scn, tx) || restart_early ||
 	    (spa->spa_resilver_deferred && zfs_resilver_disable_defer)) {
 		pool_scan_func_t func = POOL_SCAN_SCRUB;
 		dsl_scan_done(scn, B_FALSE, tx);
@@ -5257,6 +5280,9 @@ ZFS_MODULE_PARAM(zfs, zfs_, scan_report_txgs, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, resilver_disable_defer, INT, ZMOD_RW,
 	"Process all resilvers immediately");
+
+ZFS_MODULE_PARAM(zfs, zfs_, resilver_defer_percent, UINT, ZMOD_RW,
+	"Issued IO percent complete after which resilvers are deferred");
 
 ZFS_MODULE_PARAM(zfs, zfs_, scrub_error_blocks_per_txg, UINT, ZMOD_RW,
 	"Error blocks to be scrubbed in one txg");
