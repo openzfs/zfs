@@ -4260,6 +4260,8 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	dsl_scan_t *scn = dp->dp_scan;
 	spa_t *spa = dp->dp_spa;
 	state_sync_type_t sync_type = SYNC_OPTIONAL;
+	uint64_t to_issue, issued;
+	int restart_early;
 
 	if (spa->spa_resilver_deferred &&
 	    !spa_feature_is_active(dp->dp_spa, SPA_FEATURE_RESILVER_DEFER))
@@ -4270,9 +4272,23 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	 * that we can restart an old-style scan while the pool is being
 	 * imported (see dsl_scan_init). We also restart scans if there
 	 * is a deferred resilver and the user has manually disabled
-	 * deferred resilvers via the tunable.
+	 * deferred resilvers via the tunable, or if the curent scan progress
+	 * is below 12.5%.
 	 */
-	if (dsl_scan_restarting(scn, tx) ||
+
+	/*
+	 * Taken from spa_misc.c spa_scan_get_stats():
+	 */
+	to_issue = scn->scn_phys.scn_to_examine - scn->scn_phys.scn_skipped;
+	issued = scn->scn_issued_before_pass + spa->spa_scan_pass_issued;
+	/*
+	 * Make sure we're not in a restart loop and check the 12.5% threshold
+	 */
+	restart_early = spa->spa_resilver_deferred &&
+	    !dsl_scan_restarting(scn, tx) &&
+	    (issued < (to_issue >> 3));
+
+	if (dsl_scan_restarting(scn, tx) || restart_early ||
 	    (spa->spa_resilver_deferred && zfs_resilver_disable_defer)) {
 		pool_scan_func_t func = POOL_SCAN_SCRUB;
 		dsl_scan_done(scn, B_FALSE, tx);
