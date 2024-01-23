@@ -5105,7 +5105,6 @@ metaslab_group_alloc(metaslab_group_t *mg, zio_alloc_list_t *zal,
     int allocator, boolean_t try_hard)
 {
 	uint64_t offset;
-	ASSERT(mg->mg_initialized);
 
 	offset = metaslab_group_alloc_normal(mg, zal, asize, txg, want_unique,
 	    dva, d, allocator, try_hard);
@@ -5255,8 +5254,6 @@ top:
 			    TRACE_NOT_ALLOCATABLE, allocator);
 			goto next;
 		}
-
-		ASSERT(mg->mg_initialized);
 
 		/*
 		 * Avoid writing single-copy data to an unhealthy,
