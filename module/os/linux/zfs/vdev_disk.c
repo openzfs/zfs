@@ -41,8 +41,28 @@
 #include <linux/blk-cgroup.h>
 #endif
 
+/*
+ * Linux 6.8.x uses a bdev_handle as an instance/refcount for an underlying
+ * block_device. Since it carries the block_device inside, its convenient to
+ * just use the handle as a proxy. For pre-6.8, we just emulate this with
+ * a cast, since we don't need any of the other fields inside the handle.
+ */
+#ifdef HAVE_BDEV_OPEN_BY_PATH
+typedef struct bdev_handle zfs_bdev_handle_t;
+#define	BDH_BDEV(bdh)		((bdh)->bdev)
+#define	BDH_IS_ERR(bdh)		(IS_ERR(bdh))
+#define	BDH_PTR_ERR(bdh)	(PTR_ERR(bdh))
+#define	BDH_ERR_PTR(err)	(ERR_PTR(err))
+#else
+typedef void zfs_bdev_handle_t;
+#define	BDH_BDEV(bdh)		((struct block_device *)bdh)
+#define	BDH_IS_ERR(bdh)		(IS_ERR(BDH_BDEV(bdh)))
+#define	BDH_PTR_ERR(bdh)	(PTR_ERR(BDH_BDEV(bdh)))
+#define	BDH_ERR_PTR(err)	(ERR_PTR(err))
+#endif
+
 typedef struct vdev_disk {
-	struct block_device		*vd_bdev;
+	zfs_bdev_handle_t		*vd_bdh;
 	krwlock_t			vd_lock;
 } vdev_disk_t;
 
@@ -209,29 +229,23 @@ static void
 vdev_disk_kobj_evt_post(vdev_t *v)
 {
 	vdev_disk_t *vd = v->vdev_tsd;
-	if (vd && vd->vd_bdev) {
-		spl_signal_kobj_evt(vd->vd_bdev);
+	if (vd && vd->vd_bdh) {
+		spl_signal_kobj_evt(BDH_BDEV(vd->vd_bdh));
 	} else {
 		vdev_dbgmsg(v, "vdev_disk_t is NULL for VDEV:%s\n",
 		    v->vdev_path);
 	}
 }
 
-#if !defined(HAVE_BLKDEV_GET_BY_PATH_4ARG)
-/*
- * Define a dummy struct blk_holder_ops for kernel versions
- * prior to 6.5.
- */
-struct blk_holder_ops {};
-#endif
-
-static struct block_device *
-vdev_blkdev_get_by_path(const char *path, spa_mode_t mode, void *holder,
-    const struct blk_holder_ops *hops)
+static zfs_bdev_handle_t *
+vdev_blkdev_get_by_path(const char *path, spa_mode_t mode, void *holder)
 {
-#ifdef HAVE_BLKDEV_GET_BY_PATH_4ARG
+#if defined(HAVE_BDEV_OPEN_BY_PATH)
+	return (bdev_open_by_path(path,
+	    vdev_bdev_mode(mode, B_TRUE), holder, NULL));
+#elif defined(HAVE_BLKDEV_GET_BY_PATH_4ARG)
 	return (blkdev_get_by_path(path,
-	    vdev_bdev_mode(mode, B_TRUE), holder, hops));
+	    vdev_bdev_mode(mode, B_TRUE), holder, NULL));
 #else
 	return (blkdev_get_by_path(path,
 	    vdev_bdev_mode(mode, B_TRUE), holder));
@@ -239,12 +253,15 @@ vdev_blkdev_get_by_path(const char *path, spa_mode_t mode, void *holder,
 }
 
 static void
-vdev_blkdev_put(struct block_device *bdev, spa_mode_t mode, void *holder)
+vdev_blkdev_put(zfs_bdev_handle_t *bdh, spa_mode_t mode, void *holder)
 {
-#ifdef HAVE_BLKDEV_PUT_HOLDER
-	return (blkdev_put(bdev, holder));
+#if defined(HAVE_BDEV_RELEASE)
+	return (bdev_release(bdh));
+#elif defined(HAVE_BLKDEV_PUT_HOLDER)
+	return (blkdev_put(BDH_BDEV(bdh), holder));
 #else
-	return (blkdev_put(bdev, vdev_bdev_mode(mode, B_TRUE)));
+	return (blkdev_put(BDH_BDEV(bdh),
+	    vdev_bdev_mode(mode, B_TRUE)));
 #endif
 }
 
@@ -252,7 +269,7 @@ static int
 vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
     uint64_t *logical_ashift, uint64_t *physical_ashift)
 {
-	struct block_device *bdev;
+	zfs_bdev_handle_t *bdh;
 #ifdef HAVE_BLK_MODE_T
 	blk_mode_t mode = vdev_bdev_mode(spa_mode(v->vdev_spa), B_FALSE);
 #else
@@ -282,10 +299,11 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 		boolean_t reread_part = B_FALSE;
 
 		rw_enter(&vd->vd_lock, RW_WRITER);
-		bdev = vd->vd_bdev;
-		vd->vd_bdev = NULL;
+		bdh = vd->vd_bdh;
+		vd->vd_bdh = NULL;
 
-		if (bdev) {
+		if (bdh) {
+			struct block_device *bdev = BDH_BDEV(bdh);
 			if (v->vdev_expanding && bdev != bdev_whole(bdev)) {
 				vdev_bdevname(bdev_whole(bdev), disk_name + 5);
 				/*
@@ -307,15 +325,16 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 					reread_part = B_TRUE;
 			}
 
-			vdev_blkdev_put(bdev, mode, zfs_vdev_holder);
+			vdev_blkdev_put(bdh, mode, zfs_vdev_holder);
 		}
 
 		if (reread_part) {
-			bdev = vdev_blkdev_get_by_path(disk_name, mode,
-			    zfs_vdev_holder, NULL);
-			if (!IS_ERR(bdev)) {
-				int error = vdev_bdev_reread_part(bdev);
-				vdev_blkdev_put(bdev, mode, zfs_vdev_holder);
+			bdh = vdev_blkdev_get_by_path(disk_name, mode,
+			    zfs_vdev_holder);
+			if (!BDH_IS_ERR(bdh)) {
+				int error =
+				    vdev_bdev_reread_part(BDH_BDEV(bdh));
+				vdev_blkdev_put(bdh, mode, zfs_vdev_holder);
 				if (error == 0) {
 					timeout = MSEC2NSEC(
 					    zfs_vdev_open_timeout_ms * 2);
@@ -358,11 +377,11 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	 * subsequent attempts are expected to eventually succeed.
 	 */
 	hrtime_t start = gethrtime();
-	bdev = ERR_PTR(-ENXIO);
-	while (IS_ERR(bdev) && ((gethrtime() - start) < timeout)) {
-		bdev = vdev_blkdev_get_by_path(v->vdev_path, mode,
-		    zfs_vdev_holder, NULL);
-		if (unlikely(PTR_ERR(bdev) == -ENOENT)) {
+	bdh = BDH_ERR_PTR(-ENXIO);
+	while (BDH_IS_ERR(bdh) && ((gethrtime() - start) < timeout)) {
+		bdh = vdev_blkdev_get_by_path(v->vdev_path, mode,
+		    zfs_vdev_holder);
+		if (unlikely(BDH_PTR_ERR(bdh) == -ENOENT)) {
 			/*
 			 * There is no point of waiting since device is removed
 			 * explicitly
@@ -371,52 +390,54 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 				break;
 
 			schedule_timeout(MSEC_TO_TICK(10));
-		} else if (unlikely(PTR_ERR(bdev) == -ERESTARTSYS)) {
+		} else if (unlikely(BDH_PTR_ERR(bdh) == -ERESTARTSYS)) {
 			timeout = MSEC2NSEC(zfs_vdev_open_timeout_ms * 10);
 			continue;
-		} else if (IS_ERR(bdev)) {
+		} else if (BDH_IS_ERR(bdh)) {
 			break;
 		}
 	}
 
-	if (IS_ERR(bdev)) {
-		int error = -PTR_ERR(bdev);
+	if (BDH_IS_ERR(bdh)) {
+		int error = -BDH_PTR_ERR(bdh);
 		vdev_dbgmsg(v, "open error=%d timeout=%llu/%llu", error,
 		    (u_longlong_t)(gethrtime() - start),
 		    (u_longlong_t)timeout);
-		vd->vd_bdev = NULL;
+		vd->vd_bdh = NULL;
 		v->vdev_tsd = vd;
 		rw_exit(&vd->vd_lock);
 		return (SET_ERROR(error));
 	} else {
-		vd->vd_bdev = bdev;
+		vd->vd_bdh = bdh;
 		v->vdev_tsd = vd;
 		rw_exit(&vd->vd_lock);
 	}
 
+	struct block_device *bdev = BDH_BDEV(vd->vd_bdh);
+
 	/*  Determine the physical block size */
-	int physical_block_size = bdev_physical_block_size(vd->vd_bdev);
+	int physical_block_size = bdev_physical_block_size(bdev);
 
 	/*  Determine the logical block size */
-	int logical_block_size = bdev_logical_block_size(vd->vd_bdev);
+	int logical_block_size = bdev_logical_block_size(bdev);
 
 	/* Clear the nowritecache bit, causes vdev_reopen() to try again. */
 	v->vdev_nowritecache = B_FALSE;
 
 	/* Set when device reports it supports TRIM. */
-	v->vdev_has_trim = bdev_discard_supported(vd->vd_bdev);
+	v->vdev_has_trim = bdev_discard_supported(bdev);
 
 	/* Set when device reports it supports secure TRIM. */
-	v->vdev_has_securetrim = bdev_secure_discard_supported(vd->vd_bdev);
+	v->vdev_has_securetrim = bdev_secure_discard_supported(bdev);
 
 	/* Inform the ZIO pipeline that we are non-rotational */
-	v->vdev_nonrot = blk_queue_nonrot(bdev_get_queue(vd->vd_bdev));
+	v->vdev_nonrot = blk_queue_nonrot(bdev_get_queue(bdev));
 
 	/* Physical volume size in bytes for the partition */
-	*psize = bdev_capacity(vd->vd_bdev);
+	*psize = bdev_capacity(bdev);
 
 	/* Physical volume size in bytes including possible expansion space */
-	*max_psize = bdev_max_capacity(vd->vd_bdev, v->vdev_wholedisk);
+	*max_psize = bdev_max_capacity(bdev, v->vdev_wholedisk);
 
 	/* Based on the minimum sector size set the block size */
 	*physical_ashift = highbit64(MAX(physical_block_size,
@@ -436,8 +457,8 @@ vdev_disk_close(vdev_t *v)
 	if (v->vdev_reopening || vd == NULL)
 		return;
 
-	if (vd->vd_bdev != NULL) {
-		vdev_blkdev_put(vd->vd_bdev, spa_mode(v->vdev_spa),
+	if (vd->vd_bdh != NULL) {
+		vdev_blkdev_put(vd->vd_bdh, spa_mode(v->vdev_spa),
 		    zfs_vdev_holder);
 	}
 
@@ -849,10 +870,10 @@ vdev_disk_io_trim(zio_t *zio)
 
 #if defined(HAVE_BLKDEV_ISSUE_SECURE_ERASE)
 	if (zio->io_trim_flags & ZIO_TRIM_SECURE) {
-		return (-blkdev_issue_secure_erase(vd->vd_bdev,
+		return (-blkdev_issue_secure_erase(BDH_BDEV(vd->vd_bdh),
 		    zio->io_offset >> 9, zio->io_size >> 9, GFP_NOFS));
 	} else {
-		return (-blkdev_issue_discard(vd->vd_bdev,
+		return (-blkdev_issue_discard(BDH_BDEV(vd->vd_bdh),
 		    zio->io_offset >> 9, zio->io_size >> 9, GFP_NOFS));
 	}
 #elif defined(HAVE_BLKDEV_ISSUE_DISCARD)
@@ -861,7 +882,7 @@ vdev_disk_io_trim(zio_t *zio)
 	if (zio->io_trim_flags & ZIO_TRIM_SECURE)
 		trim_flags |= BLKDEV_DISCARD_SECURE;
 #endif
-	return (-blkdev_issue_discard(vd->vd_bdev,
+	return (-blkdev_issue_discard(BDH_BDEV(vd->vd_bdh),
 	    zio->io_offset >> 9, zio->io_size >> 9, GFP_NOFS, trim_flags));
 #else
 #error "Unsupported kernel"
@@ -891,7 +912,7 @@ vdev_disk_io_start(zio_t *zio)
 	 * If the vdev is closed, it's likely due to a failed reopen and is
 	 * in the UNAVAIL state.  Nothing to be done here but return failure.
 	 */
-	if (vd->vd_bdev == NULL) {
+	if (vd->vd_bdh == NULL) {
 		rw_exit(&vd->vd_lock);
 		zio->io_error = ENXIO;
 		zio_interrupt(zio);
@@ -919,7 +940,7 @@ vdev_disk_io_start(zio_t *zio)
 				break;
 			}
 
-			error = vdev_disk_io_flush(vd->vd_bdev, zio);
+			error = vdev_disk_io_flush(BDH_BDEV(vd->vd_bdh), zio);
 			if (error == 0) {
 				rw_exit(&vd->vd_lock);
 				return;
@@ -958,7 +979,7 @@ vdev_disk_io_start(zio_t *zio)
 	}
 
 	zio->io_target_timestamp = zio_handle_io_delay(zio);
-	error = __vdev_disk_physio(vd->vd_bdev, zio,
+	error = __vdev_disk_physio(BDH_BDEV(vd->vd_bdh), zio,
 	    zio->io_size, zio->io_offset, rw, 0);
 	rw_exit(&vd->vd_lock);
 
@@ -981,8 +1002,8 @@ vdev_disk_io_done(zio_t *zio)
 		vdev_t *v = zio->io_vd;
 		vdev_disk_t *vd = v->vdev_tsd;
 
-		if (!zfs_check_disk_status(vd->vd_bdev)) {
-			invalidate_bdev(vd->vd_bdev);
+		if (!zfs_check_disk_status(BDH_BDEV(vd->vd_bdh))) {
+			invalidate_bdev(BDH_BDEV(vd->vd_bdh));
 			v->vdev_remove_wanted = B_TRUE;
 			spa_async_request(zio->io_spa, SPA_ASYNC_REMOVE);
 		}
