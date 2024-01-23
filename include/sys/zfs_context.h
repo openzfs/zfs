@@ -57,6 +57,7 @@ extern "C" {
 #include <sys/disp.h>
 #include <sys/debug.h>
 #include <sys/random.h>
+#include <sys/string.h>
 #include <sys/strings.h>
 #include <sys/byteorder.h>
 #include <sys/list.h>

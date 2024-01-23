@@ -28,6 +28,7 @@
 #include <sys/timer.h>
 #include <sys/vmem.h>
 #include <sys/wait.h>
+#include <sys/string.h>
 #include <linux/slab.h>
 #include <linux/swap.h>
 #include <linux/prefetch.h>
