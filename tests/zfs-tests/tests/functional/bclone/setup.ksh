@@ -36,6 +36,11 @@ if ! command -v clonefile > /dev/null ; then
 	log_unsupported "clonefile program required to test block cloning"
 fi
 
+if tunable_exists BCLONE_ENABLED ; then
+	log_must save_tunable BCLONE_ENABLED
+	log_must set_tunable32 BCLONE_ENABLED 1
+fi
+
 DISK=${DISKS%% *}
 
 default_setup_noexit $DISK "true"
