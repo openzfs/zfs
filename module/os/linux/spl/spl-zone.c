@@ -30,6 +30,7 @@
 #include <linux/file.h>
 #include <linux/magic.h>
 #include <sys/zone.h>
+#include <sys/string.h>
 
 #if defined(CONFIG_USER_NS)
 #include <linux/statfs.h>
