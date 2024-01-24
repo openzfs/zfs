@@ -4284,7 +4284,8 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	/*
 	 * Make sure we're not in a restart loop and check the threshold
 	 */
-	restart_early = spa->spa_resilver_deferred &&
+	restart_early = (spa_sync_pass(spa) == 1) &&
+	    spa->spa_resilver_deferred &&
 	    !dsl_scan_restarting(scn, tx) &&
 	    (issued < (to_issue * zfs_resilver_defer_percent / 100));
 
