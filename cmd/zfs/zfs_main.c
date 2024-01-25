@@ -417,7 +417,7 @@ get_usage(zfs_help_t idx)
 		return (gettext("\tchange-key [-l] [-o keyformat=<value>]\n"
 		    "\t    [-o keylocation=<value>] [-o pbkdf2iters=<value>]\n"
 		    "\t    <filesystem|volume>\n"
-		    "\tchange-key -i [-l] <filesystem|volume>\n"));
+		    "\tchange-key -i [-lf] <filesystem|volume>\n"));
 	case HELP_VERSION:
 		return (gettext("\tversion\n"));
 	case HELP_REDACT:
@@ -8373,17 +8373,20 @@ zfs_do_change_key(int argc, char **argv)
 {
 	int c, ret;
 	uint64_t keystatus;
-	boolean_t loadkey = B_FALSE, inheritkey = B_FALSE;
+	boolean_t loadkey = B_FALSE, inheritkey = B_FALSE, force = B_FALSE;
 	zfs_handle_t *zhp = NULL;
 	nvlist_t *props = fnvlist_alloc();
 
-	while ((c = getopt(argc, argv, "lio:")) != -1) {
+	while ((c = getopt(argc, argv, "lifo:")) != -1) {
 		switch (c) {
 		case 'l':
 			loadkey = B_TRUE;
 			break;
 		case 'i':
 			inheritkey = B_TRUE;
+			break;
+		case 'f':
+			force = B_TRUE;
 			break;
 		case 'o':
 			if (!parseprop(props, optarg)) {
@@ -8401,6 +8404,12 @@ zfs_do_change_key(int argc, char **argv)
 	if (inheritkey && !nvlist_empty(props)) {
 		(void) fprintf(stderr,
 		    gettext("Properties not allowed for inheriting\n"));
+		usage(B_FALSE);
+	}
+
+	if (force && !inheritkey) {
+		(void) fprintf(stderr,
+		    gettext("Force option only applies to inherit\n"));
 		usage(B_FALSE);
 	}
 
@@ -8437,7 +8446,7 @@ zfs_do_change_key(int argc, char **argv)
 		zfs_refresh_properties(zhp);
 	}
 
-	ret = zfs_crypto_rewrap(zhp, props, inheritkey);
+	ret = zfs_crypto_rewrap(zhp, props, inheritkey, force);
 	if (ret != 0) {
 		nvlist_free(props);
 		zfs_close(zhp);

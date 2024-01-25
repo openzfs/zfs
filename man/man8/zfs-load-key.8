@@ -56,7 +56,7 @@
 .Nm zfs
 .Cm change-key
 .Fl i
-.Op Fl l
+.Op Fl lf
 .Ar filesystem
 .
 .Sh DESCRIPTION
@@ -159,7 +159,7 @@ Unloads the keys for all encryption roots in all imported pools.
 .Nm zfs
 .Cm change-key
 .Fl i
-.Op Fl l
+.Op Fl lf
 .Ar filesystem
 .Xc
 Changes the user's key (e.g. a passphrase) used to access a dataset.
@@ -217,6 +217,12 @@ Indicates that zfs should make
 inherit the key of its parent.
 Note that this command can only be run on an encryption root
 that has an encrypted parent.
+.It Fl f
+When used with
+.Fl i
+the key will be force-inherited.
+This should only be used when it is known that the parent is a replica of the
+original encryptionroot and has the same key.
 .El
 .El
 .Ss Encryption
