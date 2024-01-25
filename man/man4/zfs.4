@@ -1797,7 +1797,7 @@ Ignore the
 feature, causing an operation that would start a resilver to
 immediately restart the one in progress.
 .
-.It Sy zfs_resilver_defer_percent Ns = Ns Sy 10 Ns | Ns % Pq uint
+.It Sy zfs_resilver_defer_percent Ns = Ns Sy 10 Ns % Pq uint
 If the ongoing resilver progress is below this threshold, a new resilver will
 restart from scratch instead of being deferred after the current one finishes,
 even if the
