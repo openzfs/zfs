@@ -4267,47 +4267,6 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	int restart_early;
 
 	/*
-	 * Check for scn_restart_txg before checking spa_load_state, so
-	 * that we can restart an old-style scan while the pool is being
-	 * imported (see dsl_scan_init). We also restart scans if there
-	 * is a deferred resilver and the user has manually disabled
-	 * deferred resilvers via the tunable, or if the curent scan progress
-	 * is below zfs_resilver_defer_percent.
-	 */
-
-	/*
-	 * Taken from spa_misc.c spa_scan_get_stats():
-	 */
-	to_issue = scn->scn_phys.scn_to_examine - scn->scn_phys.scn_skipped;
-	issued = scn->scn_issued_before_pass + spa->spa_scan_pass_issued;
-
-	/*
-	 * Make sure we're not in a restart loop and check the threshold
-	 */
-	restart_early = (spa_sync_pass(spa) == 1) &&
-	    spa->spa_resilver_deferred &&
-	    (issued < (to_issue * zfs_resilver_defer_percent / 100));
-
-	/*
-	 * Only increment the feature if we're not about to restart early
-	 */
-	if (!restart_early && spa->spa_resilver_deferred &&
-	    !spa_feature_is_active(dp->dp_spa, SPA_FEATURE_RESILVER_DEFER))
-		spa_feature_incr(spa, SPA_FEATURE_RESILVER_DEFER, tx);
-
-	if (dsl_scan_restarting(scn, tx) || restart_early ||
-	    (spa->spa_resilver_deferred && zfs_resilver_disable_defer)) {
-		pool_scan_func_t func = POOL_SCAN_SCRUB;
-		dsl_scan_done(scn, B_FALSE, tx);
-		if (vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL))
-			func = POOL_SCAN_RESILVER;
-		zfs_dbgmsg("restarting scan func=%u on %s txg=%llu early=%d",
-		    func, dp->dp_spa->spa_name, (longlong_t)tx->tx_txg,
-		    restart_early);
-		dsl_scan_setup_sync(&func, tx);
-	}
-
-	/*
 	 * Only process scans in sync pass 1.
 	 */
 	if (spa_sync_pass(spa) > 1)
@@ -4326,6 +4285,40 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	 */
 	if (!scn->scn_async_stalled && !dsl_scan_active(scn))
 		return;
+
+	/*
+	 * issued/to_issue as presented to the user
+	 * in print_scan_scrub_resilver_status() issued/total_i
+	 * @ cmd/zpool/zpool_main.c
+	 */
+	to_issue = scn->scn_phys.scn_to_examine - scn->scn_phys.scn_skipped;
+	issued = scn->scn_issued_before_pass + spa->spa_scan_pass_issued;
+	restart_early = spa->spa_resilver_deferred && (
+	    zfs_resilver_disable_defer ||
+	    (issued < (to_issue * zfs_resilver_defer_percent / 100)));
+
+	if (spa->spa_resilver_deferred &&
+	    !spa_feature_is_active(dp->dp_spa, SPA_FEATURE_RESILVER_DEFER))
+		spa_feature_incr(spa, SPA_FEATURE_RESILVER_DEFER, tx);
+
+	/*
+	 * Check for scn_restart_txg before checking spa_load_state, so
+	 * that we can restart an old-style scan while the pool is being
+	 * imported (see dsl_scan_init). We also restart scans if there
+	 * is a deferred resilver and the user has manually disabled
+	 * deferred resilvers via zfs_resilver_disable_defer, or if the
+	 * curent scan progress is below zfs_resilver_defer_percent.
+	 */
+	if (dsl_scan_restarting(scn, tx) || restart_early) {
+		pool_scan_func_t func = POOL_SCAN_SCRUB;
+		dsl_scan_done(scn, B_FALSE, tx);
+		if (vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL))
+			func = POOL_SCAN_RESILVER;
+		zfs_dbgmsg("restarting scan func=%u on %s txg=%llu early=%d",
+		    func, dp->dp_spa->spa_name, (longlong_t)tx->tx_txg,
+		    restart_early);
+		dsl_scan_setup_sync(&func, tx);
+	}
 
 	/* reset scan statistics */
 	scn->scn_visited_this_txg = 0;
