@@ -4286,7 +4286,6 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	 */
 	restart_early = (spa_sync_pass(spa) == 1) &&
 	    spa->spa_resilver_deferred &&
-	    !dsl_scan_restarting(scn, tx) &&
 	    (issued < (to_issue * zfs_resilver_defer_percent / 100));
 
 	/*
@@ -4302,8 +4301,9 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		dsl_scan_done(scn, B_FALSE, tx);
 		if (vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL))
 			func = POOL_SCAN_RESILVER;
-		zfs_dbgmsg("restarting scan func=%u on %s txg=%llu",
-		    func, dp->dp_spa->spa_name, (longlong_t)tx->tx_txg);
+		zfs_dbgmsg("restarting scan func=%u on %s txg=%llu early=%d",
+		    func, dp->dp_spa->spa_name, (longlong_t)tx->tx_txg,
+		    restart_early);
 		dsl_scan_setup_sync(&func, tx);
 	}
 
