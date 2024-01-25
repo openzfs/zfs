@@ -5657,7 +5657,9 @@ vdev_deadman(vdev_t *vd, const char *tag)
 			 * if any I/O has been outstanding for longer than
 			 * the spa_deadman_synctime invoke the deadman logic.
 			 */
+			mutex_enter(&vq->vq_active_list_lock);
 			fio = list_head(&vq->vq_active_list);
+			mutex_exit(&vq->vq_active_list_lock);
 			delta = gethrtime() - fio->io_timestamp;
 			if (delta > spa_deadman_synctime(spa))
 				zio_deadman(fio, tag);

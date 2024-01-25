@@ -144,10 +144,21 @@ struct vdev_queue {
 	zio_priority_t	vq_last_prio;	/* Last sent I/O priority. */
 	uint32_t	vq_cqueued;	/* Classes with queued I/Os. */
 	uint32_t	vq_cactive[ZIO_PRIORITY_NUM_QUEUEABLE];
-	uint32_t	vq_active;	/* Number of active I/Os. */
+	/*
+	 *  Number of active I/Os. This includes I/Os that were previously
+	 *  queued and are now active, plus all the 'bypass' I/Os that bypassed
+	 *  the queue.
+	 */
+	uint32_t	vq_active;
+	/*
+	 * Number of active I/Os that were previously queued. This is a subset
+	 * of vq_active.
+	 */
+	uint32_t	vq_queued_active;
 	uint32_t	vq_ia_active;	/* Active interactive I/Os. */
 	uint32_t	vq_nia_credit;	/* Non-interactive I/Os credit. */
 	list_t		vq_active_list;	/* List of active I/Os. */
+	kmutex_t	vq_active_list_lock;
 	hrtime_t	vq_io_complete_ts; /* time last i/o completed */
 	hrtime_t	vq_io_delta_ts;
 	zio_t		vq_io_search; /* used as local for stack reduction */

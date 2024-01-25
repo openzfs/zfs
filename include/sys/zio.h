@@ -249,6 +249,24 @@ typedef uint64_t zio_flag_t;
 #define	ZIO_CHILD_BIT(x)		(1U << (x))
 #define	ZIO_CHILD_BIT_IS_SET(val, x)	((val) & (1U << (x)))
 
+
+/*
+ * ZIOs that are ZIO_FLAG_IMPORTANT are always queued so that they never get
+ * starved out. This allows us to bypass the queue for "normal" reads and
+ * writes when the queues are low for better IOPS. If the queues get too high
+ * then we go back to queuing the "normal" reads/writes so as not to starve
+ * out more important IOs like scrub/resilver/retry. See
+ * zfs_vdev_queue_bypass_pct for details.
+ */
+
+#define	ZIO_FLAG_IMPORTANT					\
+	ZIO_FLAG_IO_REPAIR | ZIO_FLAG_SELF_HEAL |		\
+	ZIO_FLAG_RESILVER | ZIO_FLAG_SCRUB |			\
+	ZIO_FLAG_IO_RETRY | ZIO_FLAG_NODATA
+
+#define	ZIO_IS_NORMAL(zio)					\
+	!((zio)->io_flags & (ZIO_FLAG_IMPORTANT))
+
 enum zio_child {
 	ZIO_CHILD_VDEV = 0,
 	ZIO_CHILD_GANG,
@@ -450,6 +468,7 @@ enum zio_qstate {
 	ZIO_QS_NONE = 0,
 	ZIO_QS_QUEUED,
 	ZIO_QS_ACTIVE,
+	ZIO_QS_BYPASS,
 };
 
 struct zio {
