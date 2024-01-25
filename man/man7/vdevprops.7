@@ -156,6 +156,9 @@ If this device should perform new allocations, used to disable a device
 when it is scheduled for later removal.
 See
 .Xr zpool-remove 8 .
+.It Sy queue_io
+Add io to the vdev queue when reading or writing to this vdev.
+Disabling this property can sometimes improve performance for direct IOs.
 .El
 .Ss User Properties
 In addition to the standard native properties, ZFS supports arbitrary user
