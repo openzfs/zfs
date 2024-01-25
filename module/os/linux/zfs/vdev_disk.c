@@ -862,27 +862,66 @@ vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 	return (0);
 }
 
+#if defined(HAVE_BLKDEV_ISSUE_SECURE_ERASE) || \
+	defined(HAVE_BLKDEV_ISSUE_DISCARD_ASYNC)
+BIO_END_IO_PROTO(vdev_disk_discard_end_io, bio, error)
+{
+	zio_t *zio = bio->bi_private;
+#ifdef HAVE_1ARG_BIO_END_IO_T
+	zio->io_error = BIO_END_IO_ERROR(bio);
+#else
+	zio->io_error = -error;
+#endif
+	bio_put(bio);
+	if (zio->io_error)
+		vdev_disk_error(zio);
+	zio_interrupt(zio);
+}
+
+static int
+vdev_issue_discard_trim(zio_t *zio, unsigned long flags)
+{
+	int ret;
+	struct bio *bio = NULL;
+
+#if defined(BLKDEV_DISCARD_SECURE)
+	ret = - __blkdev_issue_discard(
+	    BDH_BDEV(((vdev_disk_t *)zio->io_vd->vdev_tsd)->vd_bdh),
+	    zio->io_offset >> 9, zio->io_size >> 9, GFP_NOFS, flags, &bio);
+#else
+	(void) flags;
+	ret = - __blkdev_issue_discard(
+	    BDH_BDEV(((vdev_disk_t *)zio->io_vd->vdev_tsd)->vd_bdh),
+	    zio->io_offset >> 9, zio->io_size >> 9, GFP_NOFS, &bio);
+#endif
+	if (!ret && bio) {
+		bio->bi_private = zio;
+		bio->bi_end_io = vdev_disk_discard_end_io;
+		vdev_submit_bio(bio);
+	}
+	return (ret);
+}
+#endif
+
 static int
 vdev_disk_io_trim(zio_t *zio)
 {
-	vdev_t *v = zio->io_vd;
-	vdev_disk_t *vd = v->vdev_tsd;
-
-#if defined(HAVE_BLKDEV_ISSUE_SECURE_ERASE)
-	if (zio->io_trim_flags & ZIO_TRIM_SECURE) {
-		return (-blkdev_issue_secure_erase(BDH_BDEV(vd->vd_bdh),
-		    zio->io_offset >> 9, zio->io_size >> 9, GFP_NOFS));
-	} else {
-		return (-blkdev_issue_discard(BDH_BDEV(vd->vd_bdh),
-		    zio->io_offset >> 9, zio->io_size >> 9, GFP_NOFS));
-	}
-#elif defined(HAVE_BLKDEV_ISSUE_DISCARD)
 	unsigned long trim_flags = 0;
-#if defined(BLKDEV_DISCARD_SECURE)
-	if (zio->io_trim_flags & ZIO_TRIM_SECURE)
+	if (zio->io_trim_flags & ZIO_TRIM_SECURE) {
+#if defined(HAVE_BLKDEV_ISSUE_SECURE_ERASE)
+		return (-blkdev_issue_secure_erase(
+		    BDH_BDEV(((vdev_disk_t *)zio->io_vd->vdev_tsd)->vd_bdh),
+		    zio->io_offset >> 9, zio->io_size >> 9, GFP_NOFS));
+#elif defined(BLKDEV_DISCARD_SECURE)
 		trim_flags |= BLKDEV_DISCARD_SECURE;
 #endif
-	return (-blkdev_issue_discard(BDH_BDEV(vd->vd_bdh),
+	}
+#if defined(HAVE_BLKDEV_ISSUE_SECURE_ERASE) || \
+	defined(HAVE_BLKDEV_ISSUE_DISCARD_ASYNC)
+	return (vdev_issue_discard_trim(zio, trim_flags));
+#elif defined(HAVE_BLKDEV_ISSUE_DISCARD)
+	return (-blkdev_issue_discard(
+	    BDH_BDEV(((vdev_disk_t *)zio->io_vd->vdev_tsd)->vd_bdh),
 	    zio->io_offset >> 9, zio->io_size >> 9, GFP_NOFS, trim_flags));
 #else
 #error "Unsupported kernel"
@@ -968,7 +1007,12 @@ vdev_disk_io_start(zio_t *zio)
 	case ZIO_TYPE_TRIM:
 		zio->io_error = vdev_disk_io_trim(zio);
 		rw_exit(&vd->vd_lock);
+#if defined(HAVE_BLKDEV_ISSUE_SECURE_ERASE)
+		if (zio->io_trim_flags & ZIO_TRIM_SECURE)
+			zio_interrupt(zio);
+#elif defined(HAVE_BLKDEV_ISSUE_DISCARD)
 		zio_interrupt(zio);
+#endif
 		return;
 
 	default:
