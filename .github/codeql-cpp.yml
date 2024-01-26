@@ -1,0 +1,4 @@
+name: "Custom CodeQL Analysis"
+
+queries:
+  - uses: ./.github/codeql/custom-queries/cpp/deprecatedFunctionUsage.ql
