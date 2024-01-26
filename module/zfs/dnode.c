@@ -2656,6 +2656,32 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 }
 
 /*
+ * Adjust *offset to the next (or previous) block byte offset at lvl.
+ * Returns FALSE if *offset would overflow or underflow.
+ */
+static boolean_t
+dnode_next_block(dnode_t *dn, int flags, uint64_t *offset, int lvl)
+{
+	int epbs = dn->dn_indblkshift - SPA_BLKPTRSHIFT;
+	int span = lvl * epbs + dn->dn_datablkshift;
+	uint64_t blkid, maxblkid;
+
+	if (span >= 8 * sizeof (uint64_t))
+		return (B_FALSE);
+
+	blkid = *offset >> span;
+	maxblkid = 1ULL << (8 * sizeof (*offset) - span);
+	if (!(flags & DNODE_FIND_BACKWARDS) && blkid + 1 < maxblkid)
+		*offset = (blkid + 1) << span;
+	else if ((flags & DNODE_FIND_BACKWARDS) && blkid > 0)
+		*offset = (blkid << span) - 1;
+	else
+		return (B_FALSE);
+
+	return (B_TRUE);
+}
+
+/*
  * Find the next hole, data, or sparse region at or after *offset.
  * The value 'blkfill' tells us how many items we expect to find
  * in an L0 data block; this value is 1 for normal objects,
@@ -2682,7 +2708,7 @@ int
 dnode_next_offset(dnode_t *dn, int flags, uint64_t *offset,
     int minlvl, uint64_t blkfill, uint64_t txg)
 {
-	uint64_t initial_offset = *offset;
+	uint64_t matched = *offset;
 	int lvl, maxlvl;
 	int error = 0;
 
@@ -2706,16 +2732,36 @@ dnode_next_offset(dnode_t *dn, int flags, uint64_t *offset,
 
 	maxlvl = dn->dn_phys->dn_nlevels;
 
-	for (lvl = minlvl; lvl <= maxlvl; lvl++) {
+	for (lvl = minlvl; lvl <= maxlvl; ) {
 		error = dnode_next_offset_level(dn,
 		    flags, offset, lvl, blkfill, txg);
-		if (error != ESRCH)
+		if (error == 0 && lvl > minlvl) {
+			--lvl;
+			matched = *offset;
+		} else if (error == ESRCH && lvl < maxlvl &&
+		    dnode_next_block(dn, flags, &matched, lvl)) {
+			/*
+			 * Continue search at next/prev offset in lvl+1 block.
+			 *
+			 * Usually we only search upwards at the start of the
+			 * search as higher level blocks point at a matching
+			 * minlvl block in most cases, but we backtrack if not.
+			 *
+			 * This can happen for txg > 0 searches if the block
+			 * contains only BPs/dnodes freed at that txg. It also
+			 * happens if we are still syncing out the tree, and
+			 * some BP's at higher levels are not updated yet.
+			 *
+			 * We must adjust offset to avoid coming back to the
+			 * same offset and getting stuck looping forever. This
+			 * also deals with the case where offset is already at
+			 * the beginning or end of the object.
+			 */
+			++lvl;
+			*offset = matched;
+		} else {
 			break;
-	}
-
-	while (error == 0 && --lvl >= minlvl) {
-		error = dnode_next_offset_level(dn,
-		    flags, offset, lvl, blkfill, txg);
+		}
 	}
 
 	/*
@@ -2727,9 +2773,6 @@ dnode_next_offset(dnode_t *dn, int flags, uint64_t *offset,
 		error = 0;
 	}
 
-	if (error == 0 && (flags & DNODE_FIND_BACKWARDS ?
-	    initial_offset < *offset : initial_offset > *offset))
-		error = SET_ERROR(ESRCH);
 out:
 	if (!(flags & DNODE_FIND_HAVELOCK))
 		rw_exit(&dn->dn_struct_rwlock);
