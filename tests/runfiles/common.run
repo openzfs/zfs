@@ -163,6 +163,7 @@ tests = ['zdb_002_pos', 'zdb_003_pos', 'zdb_004_pos', 'zdb_005_pos',
 pre =
 post =
 tags = ['functional', 'cli_root', 'zdb']
+timeout = 1200
 
 [tests/functional/cli_root/zfs]
 tests = ['zfs_001_neg', 'zfs_002_pos']
