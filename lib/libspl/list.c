@@ -65,7 +65,8 @@ list_create(list_t *list, size_t size, size_t offset)
 	ASSERT(size > 0);
 	ASSERT(size >= offset + sizeof (list_node_t));
 
-	list->list_size = size;
+	(void) size;
+
 	list->list_offset = offset;
 	list->list_head.next = list->list_head.prev = &list->list_head;
 }
@@ -194,7 +195,6 @@ list_move_tail(list_t *dst, list_t *src)
 	list_node_t *dstnode = &dst->list_head;
 	list_node_t *srcnode = &src->list_head;
 
-	ASSERT(dst->list_size == src->list_size);
 	ASSERT(dst->list_offset == src->list_offset);
 
 	if (list_empty(src))
