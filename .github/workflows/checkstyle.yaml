@@ -8,7 +8,7 @@ jobs:
   checkstyle:
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         ref: ${{ github.event.pull_request.head.sha }}
     - name: Install dependencies
@@ -52,7 +52,7 @@ jobs:
       if: failure() && steps.CheckABI.outcome == 'failure'
       run: |
         find -name *.abi | tar -cf abi_files.tar -T -
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       if: failure() && steps.CheckABI.outcome == 'failure'
       with:
         name: New ABI files (use only if you're sure about interface changes)
