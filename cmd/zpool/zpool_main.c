@@ -11042,6 +11042,9 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp, int row)
 		col_widths[i] = MAX(strlen(headers[i]), 6) + 2;
 	}
 
+	if (timestamp_fmt != NODATE)
+		print_timestamp(timestamp_fmt);
+
 	/* Print header if appropriate */
 	int term_height = terminal_height();
 	boolean_t reprint_header = (!wd->wd_headers_once && term_height > 0 &&
@@ -11115,9 +11118,6 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp, int row)
 	 */
 	if (vdev_any_spare_replacing(nvroot))
 		bytes_rem[ZPOOL_WAIT_REPLACE] =  bytes_rem[ZPOOL_WAIT_RESILVER];
-
-	if (timestamp_fmt != NODATE)
-		print_timestamp(timestamp_fmt);
 
 	for (i = 0; i < ZPOOL_WAIT_NUM_ACTIVITIES; i++) {
 		char buf[64];
