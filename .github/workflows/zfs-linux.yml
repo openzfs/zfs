@@ -14,14 +14,14 @@ jobs:
         os: [20.04, 22.04]
     runs-on: ubuntu-${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         ref: ${{ github.event.pull_request.head.sha }}
     - name: Build modules
       run: .github/workflows/scripts/setup-dependencies.sh build
     - name: Prepare modules upload
       run: tar czf modules-${{ matrix.os }}.tgz *.deb .github tests/test-runner tests/ImageOS.txt
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: modules-${{ matrix.os }}
         path: modules-${{ matrix.os }}.tgz
@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-22.04
     needs: testings
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
     - name: Generating summary
       run: |
         tar xzf modules-22.04/modules-22.04.tgz .github tests
@@ -58,7 +58,7 @@ jobs:
       run: .github/workflows/scripts/generate-summary.sh 3
     - name: Summary for errors #4
       run: .github/workflows/scripts/generate-summary.sh 4
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: Summary Files
         path: Summary/
