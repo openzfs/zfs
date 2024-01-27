@@ -566,8 +566,16 @@ txg_sync_thread(void *arg)
 			txg_thread_wait(tx, &cpr, &tx->tx_quiesce_done_cv, 0);
 		}
 
-		if (tx->tx_exiting)
-			txg_thread_exit(tx, &cpr, &tx->tx_sync_thread);
+		/*
+		 * Wait until the quiesce thread has exited to ensure every
+		 * quiesced txg has been synced before exiting.
+		 */
+		if (tx->tx_exiting) {
+			while (tx->tx_threads != 1)
+				txg_thread_wait(tx, &cpr, &tx->tx_exit_cv, 0);
+			if (tx->tx_quiesced_txg == 0)
+				txg_thread_exit(tx, &cpr, &tx->tx_sync_thread);
+		}
 
 		/*
 		 * Consume the quiesced txg which has been handed off to
