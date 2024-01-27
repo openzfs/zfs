@@ -167,6 +167,21 @@ for managing zpools
 %postun -n libzpool5 -p /sbin/ldconfig
 %endif
 
+%package -n libzdb1
+Summary:        ZDB library
+Group:          System Environment/Kernel
+
+%description -n libzdb1
+This package contains the zdb library, which is an unstable
+library exposing the innards of zdb.
+
+%if %{defined ldconfig_scriptlets}
+%ldconfig_scriptlets -n libzdb1
+%else
+%post -n libzdb1 -p /sbin/ldconfig
+%postun -n libzdb1 -p /sbin/ldconfig
+%endif
+
 %package -n libnvpair3
 Summary:        Solaris name-value library for Linux
 Group:          System Environment/Kernel

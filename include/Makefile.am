@@ -186,6 +186,7 @@ USER_H = \
 	libuutil.h \
 	libuutil_common.h \
 	libuutil_impl.h \
+	libzdb.h \
 	libzfs.h \
 	libzfs_core.h \
 	libzfsbootenv.h \
