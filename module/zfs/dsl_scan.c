@@ -4266,6 +4266,10 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	uint64_t to_issue, issued;
 	int restart_early;
 
+	if (spa->spa_resilver_deferred &&
+	    !spa_feature_is_active(dp->dp_spa, SPA_FEATURE_RESILVER_DEFER))
+		spa_feature_incr(spa, SPA_FEATURE_RESILVER_DEFER, tx);
+
 	/*
 	 * Only process scans in sync pass 1.
 	 */
@@ -4296,10 +4300,6 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	restart_early = spa->spa_resilver_deferred && (
 	    zfs_resilver_disable_defer ||
 	    (issued < (to_issue * zfs_resilver_defer_percent / 100)));
-
-	if (spa->spa_resilver_deferred &&
-	    !spa_feature_is_active(dp->dp_spa, SPA_FEATURE_RESILVER_DEFER))
-		spa_feature_incr(spa, SPA_FEATURE_RESILVER_DEFER, tx);
 
 	/*
 	 * Check for scn_restart_txg before checking spa_load_state, so
