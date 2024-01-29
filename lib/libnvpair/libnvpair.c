@@ -383,7 +383,7 @@ nvlist_prtctl_setfmt(nvlist_prtctl_t pctl, enum nvlist_prtctl_fmt which,
 			pctl->nvprt_btwnarrfmt_nl = 0;
 		} else {
 			pctl->nvprt_btwnarrfmt = fmt;
-			pctl->nvprt_btwnarrfmt_nl = (strstr(fmt, "\n") != NULL);
+			pctl->nvprt_btwnarrfmt_nl = (strchr(fmt, '\n') != NULL);
 		}
 		break;
 
