@@ -9,11 +9,11 @@
 # These library interfaces are subject to change at any time.
 #
 #
-# CMDS:   zhack/ztest/zdb/            zfs/zpool/zed/
+# CMDS:   zhack/ztest/                zfs/zpool/zed/
 #        raidz_{test,bench}          zinject/zstream
 #                |                          |
 # LIBS:          |                          |              libzfsbootenv*
-#                |                          |                    |
+#                |--libzdb--zdb             |                    |
 #                |                          |                    |
 #             libzpool                   libzfs* ----------------+
 #             | | |  \                  / | | |
