@@ -13,10 +13,10 @@ jobs:
   zloop:
     runs-on: ubuntu-${{ inputs.os }}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         ref: ${{ github.event.pull_request.head.sha }}
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: modules-${{ inputs.os }}
     - name: Install modules
@@ -34,7 +34,7 @@ jobs:
       if: failure()
       run: |
         sudo chmod +r -R /var/tmp/zloop/
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       if: failure()
       with:
         name: Zpool-logs-${{ inputs.os }}
@@ -43,7 +43,7 @@ jobs:
           !/var/tmp/zloop/*/vdev/
         retention-days: 14
         if-no-files-found: ignore
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       if: failure()
       with:
         name: Zpool-files-${{ inputs.os }}
@@ -55,10 +55,10 @@ jobs:
   sanity:
     runs-on: ubuntu-${{ inputs.os }}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         ref: ${{ github.event.pull_request.head.sha }}
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: modules-${{ inputs.os }}
     - name: Install modules
@@ -77,7 +77,7 @@ jobs:
         RESPATH="/var/tmp/test_results"
         mv -f $RESPATH/current $RESPATH/testfiles
         tar cf $RESPATH/sanity.tar -h -C $RESPATH testfiles
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       if: success() || failure()
       with:
         name: Logs-${{ inputs.os }}-sanity
@@ -91,10 +91,10 @@ jobs:
       matrix:
         tests: [ part1, part2, part3, part4 ]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         ref: ${{ github.event.pull_request.head.sha }}
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: modules-${{ inputs.os }}
     - name: Install modules
@@ -116,9 +116,9 @@ jobs:
         RESPATH="/var/tmp/test_results"
         mv -f $RESPATH/current $RESPATH/testfiles
         tar cf $RESPATH/${{ matrix.tests }}.tar -h -C $RESPATH testfiles
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       if: success() || failure()
       with:
-        name: Logs-${{ inputs.os }}-functional
+        name: Logs-${{ inputs.os }}-functional-${{ matrix.tests }}
         path: /var/tmp/test_results/${{ matrix.tests }}.tar
         if-no-files-found: ignore

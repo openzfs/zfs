@@ -60,8 +60,16 @@
 #ifdef _KERNEL
 #include <linux/kmap_compat.h>
 #include <linux/scatterlist.h>
+#endif
+
+#ifdef _KERNEL
+#if defined(MAX_ORDER)
+#define	ABD_MAX_ORDER	(MAX_ORDER)
+#elif defined(MAX_PAGE_ORDER)
+#define	ABD_MAX_ORDER	(MAX_PAGE_ORDER)
+#endif
 #else
-#define	MAX_ORDER	1
+#define	ABD_MAX_ORDER	(1)
 #endif
 
 typedef struct abd_stats {
@@ -71,7 +79,7 @@ typedef struct abd_stats {
 	kstat_named_t abdstat_scatter_cnt;
 	kstat_named_t abdstat_scatter_data_size;
 	kstat_named_t abdstat_scatter_chunk_waste;
-	kstat_named_t abdstat_scatter_orders[MAX_ORDER];
+	kstat_named_t abdstat_scatter_orders[ABD_MAX_ORDER];
 	kstat_named_t abdstat_scatter_page_multi_chunk;
 	kstat_named_t abdstat_scatter_page_multi_zone;
 	kstat_named_t abdstat_scatter_page_alloc_retry;
@@ -139,7 +147,7 @@ static struct {
 	wmsum_t abdstat_scatter_cnt;
 	wmsum_t abdstat_scatter_data_size;
 	wmsum_t abdstat_scatter_chunk_waste;
-	wmsum_t abdstat_scatter_orders[MAX_ORDER];
+	wmsum_t abdstat_scatter_orders[ABD_MAX_ORDER];
 	wmsum_t abdstat_scatter_page_multi_chunk;
 	wmsum_t abdstat_scatter_page_multi_zone;
 	wmsum_t abdstat_scatter_page_alloc_retry;
@@ -222,7 +230,7 @@ abd_free_struct_impl(abd_t *abd)
 }
 
 #ifdef _KERNEL
-static unsigned zfs_abd_scatter_max_order = MAX_ORDER - 1;
+static unsigned zfs_abd_scatter_max_order = ABD_MAX_ORDER - 1;
 
 /*
  * Mark zfs data pages so they can be excluded from kernel crash dumps
@@ -272,7 +280,8 @@ abd_alloc_chunks(abd_t *abd, size_t size)
 	struct page *page, *tmp_page = NULL;
 	gfp_t gfp = __GFP_NOWARN | GFP_NOIO;
 	gfp_t gfp_comp = (gfp | __GFP_NORETRY | __GFP_COMP) & ~__GFP_RECLAIM;
-	unsigned int max_order = MIN(zfs_abd_scatter_max_order, MAX_ORDER - 1);
+	unsigned int max_order = MIN(zfs_abd_scatter_max_order,
+	    ABD_MAX_ORDER - 1);
 	unsigned int nr_pages = abd_chunkcnt_for_bytes(size);
 	unsigned int chunks = 0, zones = 0;
 	size_t remaining_size;
@@ -729,7 +738,7 @@ abd_kstats_update(kstat_t *ksp, int rw)
 	    wmsum_value(&abd_sums.abdstat_scatter_data_size);
 	as->abdstat_scatter_chunk_waste.value.ui64 =
 	    wmsum_value(&abd_sums.abdstat_scatter_chunk_waste);
-	for (int i = 0; i < MAX_ORDER; i++) {
+	for (int i = 0; i < ABD_MAX_ORDER; i++) {
 		as->abdstat_scatter_orders[i].value.ui64 =
 		    wmsum_value(&abd_sums.abdstat_scatter_orders[i]);
 	}
@@ -758,7 +767,7 @@ abd_init(void)
 	wmsum_init(&abd_sums.abdstat_scatter_cnt, 0);
 	wmsum_init(&abd_sums.abdstat_scatter_data_size, 0);
 	wmsum_init(&abd_sums.abdstat_scatter_chunk_waste, 0);
-	for (i = 0; i < MAX_ORDER; i++)
+	for (i = 0; i < ABD_MAX_ORDER; i++)
 		wmsum_init(&abd_sums.abdstat_scatter_orders[i], 0);
 	wmsum_init(&abd_sums.abdstat_scatter_page_multi_chunk, 0);
 	wmsum_init(&abd_sums.abdstat_scatter_page_multi_zone, 0);
@@ -768,7 +777,7 @@ abd_init(void)
 	abd_ksp = kstat_create("zfs", 0, "abdstats", "misc", KSTAT_TYPE_NAMED,
 	    sizeof (abd_stats) / sizeof (kstat_named_t), KSTAT_FLAG_VIRTUAL);
 	if (abd_ksp != NULL) {
-		for (i = 0; i < MAX_ORDER; i++) {
+		for (i = 0; i < ABD_MAX_ORDER; i++) {
 			snprintf(abd_stats.abdstat_scatter_orders[i].name,
 			    KSTAT_STRLEN, "scatter_order_%d", i);
 			abd_stats.abdstat_scatter_orders[i].data_type =
@@ -798,7 +807,7 @@ abd_fini(void)
 	wmsum_fini(&abd_sums.abdstat_scatter_cnt);
 	wmsum_fini(&abd_sums.abdstat_scatter_data_size);
 	wmsum_fini(&abd_sums.abdstat_scatter_chunk_waste);
-	for (int i = 0; i < MAX_ORDER; i++)
+	for (int i = 0; i < ABD_MAX_ORDER; i++)
 		wmsum_fini(&abd_sums.abdstat_scatter_orders[i]);
 	wmsum_fini(&abd_sums.abdstat_scatter_page_multi_chunk);
 	wmsum_fini(&abd_sums.abdstat_scatter_page_multi_zone);

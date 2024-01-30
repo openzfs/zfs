@@ -24,11 +24,12 @@ jobs:
         echo "MAKEFLAGS=-j$(nproc)" >> $GITHUB_ENV
 
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v2
       with:
+        config-file: .github/codeql-${{ matrix.language }}.yml
         languages: ${{ matrix.language }}
 
     - name: Autobuild

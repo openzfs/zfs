@@ -1023,6 +1023,10 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 	int error;
 	uint64_t spare_guid = 0, l2cache_guid = 0;
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL;
+	boolean_t reason_spare = (reason == VDEV_LABEL_SPARE || (reason ==
+	    VDEV_LABEL_REMOVE && vd->vdev_isspare));
+	boolean_t reason_l2cache = (reason == VDEV_LABEL_L2CACHE || (reason ==
+	    VDEV_LABEL_REMOVE && vd->vdev_isl2cache));
 
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
 
@@ -1108,34 +1112,20 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 	 * really part of an active pool just yet.  The labels will
 	 * be written again with a meaningful txg by spa_sync().
 	 */
-	if (reason == VDEV_LABEL_SPARE ||
-	    (reason == VDEV_LABEL_REMOVE && vd->vdev_isspare)) {
+	if (reason_spare || reason_l2cache) {
 		/*
-		 * For inactive hot spares, we generate a special label that
-		 * identifies as a mutually shared hot spare.  We write the
-		 * label if we are adding a hot spare, or if we are removing an
-		 * active hot spare (in which case we want to revert the
-		 * labels).
+		 * For inactive hot spares and level 2 ARC devices, we generate
+		 * a special label that identifies as a mutually shared hot
+		 * spare or l2cache device. We write the label in case of
+		 * addition or removal of hot spare or l2cache vdev (in which
+		 * case we want to revert the labels).
 		 */
 		VERIFY(nvlist_alloc(&label, NV_UNIQUE_NAME, KM_SLEEP) == 0);
 
 		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_VERSION,
 		    spa_version(spa)) == 0);
 		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_POOL_STATE,
-		    POOL_STATE_SPARE) == 0);
-		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_GUID,
-		    vd->vdev_guid) == 0);
-	} else if (reason == VDEV_LABEL_L2CACHE ||
-	    (reason == VDEV_LABEL_REMOVE && vd->vdev_isl2cache)) {
-		/*
-		 * For level 2 ARC devices, add a special label.
-		 */
-		VERIFY(nvlist_alloc(&label, NV_UNIQUE_NAME, KM_SLEEP) == 0);
-
-		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_VERSION,
-		    spa_version(spa)) == 0);
-		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_POOL_STATE,
-		    POOL_STATE_L2CACHE) == 0);
+		    reason_spare ? POOL_STATE_SPARE : POOL_STATE_L2CACHE) == 0);
 		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_GUID,
 		    vd->vdev_guid) == 0);
 
@@ -1146,8 +1136,34 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 		 * spa->spa_l2cache->sav_config (populated in
 		 * spa_ld_open_aux_vdevs()).
 		 */
-		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_ASHIFT,
-		    vd->vdev_ashift) == 0);
+		if (reason_l2cache) {
+			VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_ASHIFT,
+			    vd->vdev_ashift) == 0);
+		}
+
+		/*
+		 * Add path information to help find it during pool import
+		 */
+		if (vd->vdev_path != NULL) {
+			VERIFY(nvlist_add_string(label, ZPOOL_CONFIG_PATH,
+			    vd->vdev_path) == 0);
+		}
+		if (vd->vdev_devid != NULL) {
+			VERIFY(nvlist_add_string(label, ZPOOL_CONFIG_DEVID,
+			    vd->vdev_devid) == 0);
+		}
+		if (vd->vdev_physpath != NULL) {
+			VERIFY(nvlist_add_string(label, ZPOOL_CONFIG_PHYS_PATH,
+			    vd->vdev_physpath) == 0);
+		}
+
+		/*
+		 * When spare or l2cache (aux) vdev is added during pool
+		 * creation, spa->spa_uberblock is not written until this
+		 * point. Write it on next config sync.
+		 */
+		if (uberblock_verify(&spa->spa_uberblock))
+			spa->spa_aux_sync_uber = B_TRUE;
 	} else {
 		uint64_t txg = 0ULL;
 
@@ -1749,6 +1765,16 @@ vdev_uberblock_sync_list(vdev_t **svd, int svdcount, uberblock_t *ub, int flags)
 	for (int v = 0; v < svdcount; v++)
 		vdev_uberblock_sync(zio, &good_writes, ub, svd[v], flags);
 
+	if (spa->spa_aux_sync_uber) {
+		for (int v = 0; v < spa->spa_spares.sav_count; v++) {
+			vdev_uberblock_sync(zio, &good_writes, ub,
+			    spa->spa_spares.sav_vdevs[v], flags);
+		}
+		for (int v = 0; v < spa->spa_l2cache.sav_count; v++) {
+			vdev_uberblock_sync(zio, &good_writes, ub,
+			    spa->spa_l2cache.sav_vdevs[v], flags);
+		}
+	}
 	(void) zio_wait(zio);
 
 	/*
@@ -1761,6 +1787,19 @@ vdev_uberblock_sync_list(vdev_t **svd, int svdcount, uberblock_t *ub, int flags)
 	for (int v = 0; v < svdcount; v++) {
 		if (vdev_writeable(svd[v])) {
 			zio_flush(zio, svd[v]);
+		}
+	}
+	if (spa->spa_aux_sync_uber) {
+		spa->spa_aux_sync_uber = B_FALSE;
+		for (int v = 0; v < spa->spa_spares.sav_count; v++) {
+			if (vdev_writeable(spa->spa_spares.sav_vdevs[v])) {
+				zio_flush(zio, spa->spa_spares.sav_vdevs[v]);
+			}
+		}
+		for (int v = 0; v < spa->spa_l2cache.sav_count; v++) {
+			if (vdev_writeable(spa->spa_l2cache.sav_vdevs[v])) {
+				zio_flush(zio, spa->spa_l2cache.sav_vdevs[v]);
+			}
 		}
 	}
 

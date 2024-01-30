@@ -1056,9 +1056,20 @@ zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 				case EINVAL:
 					break;
 				case EINPROGRESS:
-					// This shouldn't be possible to
-					// encounter, die if we do.
+					/*
+					 * This shouldn't be possible to
+					 * encounter, die if we do.
+					 */
 					ASSERT(B_FALSE);
+					zfs_fallthrough;
+				case EREMOTEIO:
+					/*
+					 * May be returned by an NVMe device
+					 * which is visible in /dev/ but due
+					 * to a low-level format change, or
+					 * other error, needs to be rescanned.
+					 * Try the slow method.
+					 */
 					zfs_fallthrough;
 				case EOPNOTSUPP:
 				case ENOSYS:
@@ -1210,13 +1221,26 @@ label_paths(libpc_handle_t *hdl, nvlist_t *label, const char **path,
 	nvlist_t *nvroot;
 	uint64_t pool_guid;
 	uint64_t vdev_guid;
+	uint64_t state;
 
 	*path = NULL;
 	*devid = NULL;
+	if (nvlist_lookup_uint64(label, ZPOOL_CONFIG_GUID, &vdev_guid) != 0)
+		return (ENOENT);
+
+	/*
+	 * In case of spare or l2cache, we directly return path/devid from the
+	 * label.
+	 */
+	if (!(nvlist_lookup_uint64(label, ZPOOL_CONFIG_POOL_STATE, &state)) &&
+	    (state == POOL_STATE_SPARE || state == POOL_STATE_L2CACHE)) {
+		(void) nvlist_lookup_string(label, ZPOOL_CONFIG_PATH, path);
+		(void) nvlist_lookup_string(label, ZPOOL_CONFIG_DEVID, devid);
+		return (0);
+	}
 
 	if (nvlist_lookup_nvlist(label, ZPOOL_CONFIG_VDEV_TREE, &nvroot) ||
-	    nvlist_lookup_uint64(label, ZPOOL_CONFIG_POOL_GUID, &pool_guid) ||
-	    nvlist_lookup_uint64(label, ZPOOL_CONFIG_GUID, &vdev_guid))
+	    nvlist_lookup_uint64(label, ZPOOL_CONFIG_POOL_GUID, &pool_guid))
 		return (ENOENT);
 
 	return (label_paths_impl(hdl, nvroot, pool_guid, vdev_guid, path,
@@ -1896,6 +1920,104 @@ zpool_find_config(libpc_handle_t *hdl, const char *target, nvlist_t **configp,
 	free(targetdup);
 
 	return (0);
+}
+
+/* Return if a vdev is a leaf vdev.  Note: draid spares are leaf vdevs. */
+static boolean_t
+vdev_is_leaf(nvlist_t *nv)
+{
+	uint_t children = 0;
+	nvlist_t **child;
+
+	(void) nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children);
+
+	return (children == 0);
+}
+
+/* Return if a vdev is a leaf vdev and a real device (disk or file) */
+static boolean_t
+vdev_is_real_leaf(nvlist_t *nv)
+{
+	const char *type = NULL;
+	if (!vdev_is_leaf(nv))
+		return (B_FALSE);
+
+	(void) nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type);
+	if ((strcmp(type, VDEV_TYPE_DISK) == 0) ||
+	    (strcmp(type, VDEV_TYPE_FILE) == 0)) {
+		return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
+/*
+ * This function is called by our FOR_EACH_VDEV() macros.
+ *
+ * state:   State machine status (stored inside of a (nvlist_t *))
+ * nv:	     The current vdev nvlist_t we are iterating over.
+ * last_nv: The previous vdev nvlist_t we returned to the user in
+ *          the last iteration of FOR_EACH_VDEV().  We use it
+ *          to find the next vdev nvlist_t we should return.
+ * real_leaves_only: Only return leaf vdevs.
+ *
+ * Returns 1 if we found the next vdev nvlist_t for this iteration.  0 if
+ * we're still searching for it.
+ */
+static int
+__for_each_vdev_macro_helper_func(void *state, nvlist_t *nv, void *last_nv,
+    boolean_t real_leaves_only)
+{
+	enum {FIRST_NV = 0, NEXT_IS_MATCH = 1, STOP_LOOKING = 2};
+
+	/* The very first entry in the NV list is a special case */
+	if (*((nvlist_t **)state) == (nvlist_t *)FIRST_NV) {
+		if (real_leaves_only && !vdev_is_real_leaf(nv))
+			return (0);
+
+		*((nvlist_t **)last_nv) = nv;
+		*((nvlist_t **)state) = (nvlist_t *)STOP_LOOKING;
+		return (1);
+	}
+
+	/*
+	 * We came across our last_nv, meaning the next one is the one we
+	 * want
+	 */
+	if (nv == *((nvlist_t **)last_nv)) {
+		/* Next iteration of this function will return the nvlist_t */
+		*((nvlist_t **)state) = (nvlist_t *)NEXT_IS_MATCH;
+		return (0);
+	}
+
+	/*
+	 * We marked NEXT_IS_MATCH on the previous iteration, so this is the one
+	 * we want.
+	 */
+	if (*(nvlist_t **)state == (nvlist_t *)NEXT_IS_MATCH) {
+		if (real_leaves_only && !vdev_is_real_leaf(nv))
+			return (0);
+
+		*((nvlist_t **)last_nv) = nv;
+		*((nvlist_t **)state) = (nvlist_t *)STOP_LOOKING;
+		return (1);
+	}
+
+	return (0);
+}
+
+int
+for_each_vdev_macro_helper_func(void *state, nvlist_t *nv, void *last_nv)
+{
+	return (__for_each_vdev_macro_helper_func(state, nv, last_nv, B_FALSE));
+}
+
+int
+for_each_real_leaf_vdev_macro_helper_func(void *state, nvlist_t *nv,
+    void *last_nv)
+{
+	return (__for_each_vdev_macro_helper_func(state, nv, last_nv, B_TRUE));
 }
 
 /*

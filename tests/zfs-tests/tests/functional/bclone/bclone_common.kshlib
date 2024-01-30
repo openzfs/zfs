@@ -1,0 +1,280 @@
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or https://opensource.org/licenses/CDDL-1.0.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright (c) 2023 by Pawel Jakub Dawidek
+#
+
+. $STF_SUITE/tests/functional/bclone/bclone.cfg
+
+export RECORDSIZE=$(zfs get -Hp -o value recordsize $TESTPOOL/$TESTFS)
+
+MINBLKSIZE1=512
+MINBLKSIZE2=1024
+
+function verify_block_cloning
+{
+	if is_linux && [[ $(linux_version) -lt $(linux_version "4.5") ]]; then
+		log_unsupported "copy_file_range not available before Linux 4.5"
+	fi
+}
+
+function verify_crossfs_block_cloning
+{
+	if is_linux && [[ $(linux_version) -lt $(linux_version "5.3") ]]; then
+		log_unsupported "copy_file_range can't copy cross-filesystem before Linux 5.3"
+	fi
+}
+
+# Unused.
+function size_to_dsize
+{
+    typeset -r size=$1
+    typeset -r dir=$2
+
+    typeset -r dataset=$(df $dir | tail -1 | awk '{print $1}')
+    typeset -r recordsize=$(get_prop recordsize $dataset)
+    typeset -r copies=$(get_prop copies $dataset)
+    typeset dsize
+
+    if [[ $size -le $recordsize ]]; then
+        dsize=$(( ((size - 1) / MINBLOCKSIZE + 1) * MINBLOCKSIZE ))
+    else
+        dsize=$(( ((size - 1) / recordsize + 1) * recordsize ))
+    fi
+    dsize=$((dsize*copies))
+
+    echo $dsize
+}
+
+function test_file_integrity
+{
+    typeset -r original_checksum=$1
+    typeset -r clone=$2
+    typeset -r filesize=$3
+
+    typeset -r clone_checksum=$(sha256digest $clone)
+
+    if [[ $original_checksum != $clone_checksum ]]; then
+        log_fail "Clone $clone is corrupted with file size $filesize"
+    fi
+}
+
+function verify_pool_prop_eq
+{
+    typeset -r prop=$1
+    typeset -r expected=$2
+
+    typeset -r value=$(get_pool_prop $prop $TESTPOOL)
+    if [[ $value != $expected ]]; then
+        log_fail "Pool property $prop is incorrect: expected $expected, got $value"
+    fi
+}
+
+function verify_pool_props
+{
+    typeset -r dsize=$1
+    typeset -r ratio=$2
+
+    if [[ $dsize -eq 0 ]]; then
+        verify_pool_prop_eq bcloneused 0
+        verify_pool_prop_eq bclonesaved 0
+        verify_pool_prop_eq bcloneratio 1.00
+    else
+        if [[ $ratio -eq 1 ]]; then
+            verify_pool_prop_eq bcloneused 0
+        else
+            verify_pool_prop_eq bcloneused $dsize
+        fi
+        verify_pool_prop_eq bclonesaved $((dsize*(ratio-1)))
+        verify_pool_prop_eq bcloneratio "${ratio}.00"
+    fi
+}
+
+# Function to test file copying and integrity check.
+function bclone_test
+{
+    typeset -r datatype=$1
+    typeset filesize=$2
+    typeset -r embedded=$3
+    typeset -r srcdir=$4
+    typeset -r dstdir=$5
+    typeset dsize
+
+    typeset -r original="${srcdir}/original"
+    typeset -r clone="${dstdir}/clone"
+
+    log_note "Testing file copy with datatype $datatype, file size $filesize, embedded $embedded"
+
+    # Create a test file with known content.
+    case $datatype in
+        random|text)
+            sync_pool $TESTPOOL
+            if [[ $datatype = "random" ]]; then
+                dd if=/dev/urandom of=$original bs=$filesize count=1 2>/dev/null
+            else
+                filesize=$(((filesize/4)*4))
+                dd if=/dev/urandom bs=$(((filesize/4)*3)) count=1 | \
+                  openssl base64 -A > $original
+            fi
+            sync_pool $TESTPOOL
+            clonefile -f $original "${clone}-tmp"
+            sync_pool $TESTPOOL
+            # It is hard to predict block sizes that will be used,
+            # so just do one clone and take it from bcloneused.
+            filesize=$(zpool get -Hp -o value bcloneused $TESTPOOL)
+            if [[ $embedded = "false" ]]; then
+                log_must test $filesize -gt 0
+            fi
+            rm -f "${clone}-tmp"
+            sync_pool $TESTPOOL
+            dsize=$filesize
+            ;;
+        hole)
+            log_must truncate_test -s $filesize -f $original
+            dsize=0
+            ;;
+        *)
+            log_fail "Unknown datatype $datatype"
+            ;;
+    esac
+    if [[ $embedded = "true" ]]; then
+        dsize=0
+    fi
+
+    typeset -r original_checksum=$(sha256digest $original)
+
+    sync_pool $TESTPOOL
+
+    # Create a first clone of the entire file.
+    clonefile -f $original "${clone}0"
+    # Try to clone the clone in the same transaction group.
+    clonefile -f "${clone}0" "${clone}2"
+
+    # Clone the original again...
+    clonefile -f $original "${clone}1"
+    # ...and overwrite it in the same transaction group.
+    clonefile -f $original "${clone}1"
+
+    # Clone the clone...
+    clonefile -f "${clone}1" "${clone}3"
+    sync_pool $TESTPOOL
+    # ...and overwrite in the new transaction group.
+    clonefile -f "${clone}1" "${clone}3"
+
+    sync_pool $TESTPOOL
+
+    # Test removal of the pending clones (before they are committed to disk).
+    clonefile -f $original "${clone}4"
+    clonefile -f "${clone}4" "${clone}5"
+    rm -f "${clone}4" "${clone}5"
+
+    # Clone into one file, but remove another file, but with the same data in
+    # the same transaction group.
+    clonefile -f $original "${clone}5"
+    sync_pool $TESTPOOL
+    clonefile -f $original "${clone}4"
+    rm -f "${clone}5"
+    test_file_integrity $original_checksum "${clone}4" $filesize
+    sync_pool $TESTPOOL
+    test_file_integrity $original_checksum "${clone}4" $filesize
+
+    clonefile -f "${clone}4" "${clone}5"
+    # Verify integrity of the cloned file before it is committed to disk.
+    test_file_integrity $original_checksum "${clone}5" $filesize
+
+    sync_pool $TESTPOOL
+
+    # Verify integrity in the new transaction group.
+    test_file_integrity $original_checksum "${clone}0" $filesize
+    test_file_integrity $original_checksum "${clone}1" $filesize
+    test_file_integrity $original_checksum "${clone}2" $filesize
+    test_file_integrity $original_checksum "${clone}3" $filesize
+    test_file_integrity $original_checksum "${clone}4" $filesize
+    test_file_integrity $original_checksum "${clone}5" $filesize
+
+    verify_pool_props $dsize 7
+
+    # Clear cache and test after fresh import.
+    log_must zpool export $TESTPOOL
+    log_must zpool import $TESTPOOL
+
+    # Cloned uncached file.
+    clonefile -f $original "${clone}6"
+    # Cloned uncached clone.
+    clonefile -f "${clone}6" "${clone}7"
+
+    # Cache the file.
+    cat $original >/dev/null
+    clonefile -f $original "${clone}8"
+    clonefile -f "${clone}8" "${clone}9"
+
+    test_file_integrity $original_checksum "${clone}6" $filesize
+    test_file_integrity $original_checksum "${clone}7" $filesize
+    test_file_integrity $original_checksum "${clone}8" $filesize
+    test_file_integrity $original_checksum "${clone}9" $filesize
+
+    sync_pool $TESTPOOL
+
+    verify_pool_props $dsize 11
+
+    log_must zpool export $TESTPOOL
+    log_must zpool import $TESTPOOL
+
+    test_file_integrity $original_checksum "${clone}0" $filesize
+    test_file_integrity $original_checksum "${clone}1" $filesize
+    test_file_integrity $original_checksum "${clone}2" $filesize
+    test_file_integrity $original_checksum "${clone}3" $filesize
+    test_file_integrity $original_checksum "${clone}4" $filesize
+    test_file_integrity $original_checksum "${clone}5" $filesize
+    test_file_integrity $original_checksum "${clone}6" $filesize
+    test_file_integrity $original_checksum "${clone}7" $filesize
+    test_file_integrity $original_checksum "${clone}8" $filesize
+    test_file_integrity $original_checksum "${clone}9" $filesize
+
+    rm -f $original
+    rm -f "${clone}1" "${clone}3" "${clone}5" "${clone}7"
+
+    sync_pool $TESTPOOL
+
+    test_file_integrity $original_checksum "${clone}0" $filesize
+    test_file_integrity $original_checksum "${clone}2" $filesize
+    test_file_integrity $original_checksum "${clone}4" $filesize
+    test_file_integrity $original_checksum "${clone}6" $filesize
+    test_file_integrity $original_checksum "${clone}8" $filesize
+    test_file_integrity $original_checksum "${clone}9" $filesize
+
+    verify_pool_props $dsize 6
+
+    rm -f "${clone}0" "${clone}2" "${clone}4" "${clone}8" "${clone}9"
+
+    sync_pool $TESTPOOL
+
+    test_file_integrity $original_checksum "${clone}6" $filesize
+
+    verify_pool_props $dsize 1
+
+    rm -f "${clone}6"
+
+    sync_pool $TESTPOOL
+
+    verify_pool_props $dsize 1
+}

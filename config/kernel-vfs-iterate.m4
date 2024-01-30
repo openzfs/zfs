@@ -1,7 +1,7 @@
 AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_ITERATE], [
 	ZFS_LINUX_TEST_SRC([file_operations_iterate_shared], [
 		#include <linux/fs.h>
-		int iterate(struct file *filp, struct dir_context * context)
+		static int iterate(struct file *filp, struct dir_context * context)
 		    { return 0; }
 
 		static const struct file_operations fops
@@ -12,7 +12,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_ITERATE], [
 
 	ZFS_LINUX_TEST_SRC([file_operations_iterate], [
 		#include <linux/fs.h>
-		int iterate(struct file *filp,
+		static int iterate(struct file *filp,
 		    struct dir_context *context) { return 0; }
 
 		static const struct file_operations fops
@@ -27,7 +27,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_ITERATE], [
 
 	ZFS_LINUX_TEST_SRC([file_operations_readdir], [
 		#include <linux/fs.h>
-		int readdir(struct file *filp, void *entry,
+		static int readdir(struct file *filp, void *entry,
 		    filldir_t func) { return 0; }
 
 		static const struct file_operations fops

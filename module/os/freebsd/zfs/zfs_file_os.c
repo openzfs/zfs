@@ -53,26 +53,65 @@ int
 zfs_file_open(const char *path, int flags, int mode, zfs_file_t **fpp)
 {
 	struct thread *td;
-	int rc, fd;
+	struct vnode *vp;
+	struct file *fp;
+	struct nameidata nd;
+	int error;
 
 	td = curthread;
 	pwd_ensure_dirs();
-	/* 12.x doesn't take a const char * */
-	rc = kern_openat(td, AT_FDCWD, __DECONST(char *, path),
-	    UIO_SYSSPACE, flags, mode);
-	if (rc)
-		return (SET_ERROR(rc));
-	fd = td->td_retval[0];
-	td->td_retval[0] = 0;
-	if (fget(curthread, fd, &cap_no_rights, fpp))
-		kern_close(td, fd);
+
+	KASSERT((flags & (O_EXEC | O_PATH)) == 0,
+	    ("invalid flags: 0x%x", flags));
+	KASSERT((flags & O_ACCMODE) != O_ACCMODE,
+	    ("invalid flags: 0x%x", flags));
+	flags = FFLAGS(flags);
+
+	error = falloc_noinstall(td, &fp);
+	if (error != 0) {
+		return (error);
+	}
+	fp->f_flag = flags & FMASK;
+
+#if __FreeBSD_version >= 1400043
+	NDINIT(&nd, LOOKUP, FOLLOW, UIO_SYSSPACE, path);
+#else
+	NDINIT(&nd, LOOKUP, FOLLOW, UIO_SYSSPACE, path, td);
+#endif
+	error = vn_open(&nd, &flags, mode, fp);
+	if (error != 0) {
+		falloc_abort(td, fp);
+		return (SET_ERROR(error));
+	}
+	NDFREE_PNBUF(&nd);
+	vp = nd.ni_vp;
+	fp->f_vnode = vp;
+	if (fp->f_ops == &badfileops) {
+		finit_vnode(fp, flags, NULL, &vnops);
+	}
+	VOP_UNLOCK(vp);
+	if (vp->v_type != VREG) {
+		zfs_file_close(fp);
+		return (SET_ERROR(EACCES));
+	}
+
+	if (flags & O_TRUNC) {
+		error = fo_truncate(fp, 0, td->td_ucred, td);
+		if (error != 0) {
+			zfs_file_close(fp);
+			return (SET_ERROR(error));
+		}
+	}
+
+	*fpp = fp;
+
 	return (0);
 }
 
 void
 zfs_file_close(zfs_file_t *fp)
 {
-	fo_close(fp, curthread);
+	fdrop(fp, curthread);
 }
 
 static int
@@ -263,7 +302,7 @@ zfs_file_get(int fd)
 void
 zfs_file_put(zfs_file_t *fp)
 {
-	fdrop(fp, curthread);
+	zfs_file_close(fp);
 }
 
 loff_t

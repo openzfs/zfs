@@ -29,7 +29,7 @@
 
 verify_runnable "global"
 
-if [[ $(linux_version) -lt $(linux_version "5.3") ]]; then
+if is_linux && [[ $(linux_version) -lt $(linux_version "5.3") ]]; then
   log_unsupported "copy_file_range can't copy cross-filesystem before Linux 5.3"
 fi
 
