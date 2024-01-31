@@ -93,6 +93,10 @@ int zfs_bclone_enabled = 1;
 SYSCTL_INT(_vfs_zfs, OID_AUTO, bclone_enabled, CTLFLAG_RWTUN,
 	&zfs_bclone_enabled, 0, "Enable block cloning");
 
+int zfs_bclone_wait_dirty = 0;
+SYSCTL_INT(_vfs_zfs, OID_AUTO, bclone_wait_dirty, CTLFLAG_RWTUN,
+	&zfs_bclone_wait_dirty, 0, "Wait for dirty blocks when cloning");
+
 struct zfs_jailparam {
 	int mount_snapshot;
 };

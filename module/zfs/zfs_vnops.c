@@ -1049,6 +1049,7 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 	size_t		maxblocks, nbps;
 	uint_t		inblksz;
 	uint64_t	clear_setid_bits_txg = 0;
+	uint64_t	last_synced_txg = 0;
 
 	inoff = *inoffp;
 	outoff = *outoffp;
@@ -1287,15 +1288,23 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 		}
 
 		nbps = maxblocks;
+		last_synced_txg = spa_last_synced_txg(dmu_objset_spa(inos));
 		error = dmu_read_l0_bps(inos, inzp->z_id, inoff, size, bps,
 		    &nbps);
 		if (error != 0) {
 			/*
 			 * If we are trying to clone a block that was created
-			 * in the current transaction group, error will be
-			 * EAGAIN here, which we can just return to the caller
-			 * so it can fallback if it likes.
+			 * in the current transaction group, the error will be
+			 * EAGAIN here.  Based on zfs_bclone_wait_dirty either
+			 * return a shortened range to the caller so it can
+			 * fallback, or wait for the next TXG and check again.
 			 */
+			if (error == EAGAIN && zfs_bclone_wait_dirty) {
+				txg_wait_synced(dmu_objset_pool(inos),
+				    last_synced_txg + 1);
+				continue;
+			}
+
 			break;
 		}
 

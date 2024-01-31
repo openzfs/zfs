@@ -4257,7 +4257,11 @@ module_param(zfs_delete_blocks, ulong, 0644);
 MODULE_PARM_DESC(zfs_delete_blocks, "Delete files larger than N blocks async");
 
 /* CSTYLED */
-module_param(zfs_bclone_enabled, uint, 0644);
+module_param(zfs_bclone_enabled, int, 0644);
 MODULE_PARM_DESC(zfs_bclone_enabled, "Enable block cloning");
+
+/* CSTYLED */
+module_param(zfs_bclone_wait_dirty, int, 0644);
+MODULE_PARM_DESC(zfs_bclone_wait_dirty, "Wait for dirty blocks when cloning");
 
 #endif
