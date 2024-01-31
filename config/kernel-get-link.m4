@@ -5,7 +5,7 @@ dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_GET_LINK], [
 	ZFS_LINUX_TEST_SRC([inode_operations_get_link], [
 		#include <linux/fs.h>
-		const char *get_link(struct dentry *de, struct inode *ip,
+		static const char *get_link(struct dentry *de, struct inode *ip,
 		    struct delayed_call *done) { return "symlink"; }
 		static struct inode_operations
 		     iops __attribute__ ((unused)) = {
@@ -15,7 +15,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_GET_LINK], [
 
 	ZFS_LINUX_TEST_SRC([inode_operations_get_link_cookie], [
 		#include <linux/fs.h>
-		const char *get_link(struct dentry *de, struct
+		static const char *get_link(struct dentry *de, struct
 		    inode *ip, void **cookie) { return "symlink"; }
 		static struct inode_operations
 		     iops __attribute__ ((unused)) = {
@@ -25,7 +25,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_GET_LINK], [
 
 	ZFS_LINUX_TEST_SRC([inode_operations_follow_link], [
 		#include <linux/fs.h>
-		const char *follow_link(struct dentry *de,
+		static const char *follow_link(struct dentry *de,
 		    void **cookie) { return "symlink"; }
 		static struct inode_operations
 		    iops __attribute__ ((unused)) = {
@@ -35,7 +35,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_GET_LINK], [
 
 	ZFS_LINUX_TEST_SRC([inode_operations_follow_link_nameidata], [
 		#include <linux/fs.h>
-		void *follow_link(struct dentry *de, struct
+		static void *follow_link(struct dentry *de, struct
 		    nameidata *nd) { return (void *)NULL; }
 		static struct inode_operations
 		    iops __attribute__ ((unused)) = {

@@ -2360,7 +2360,7 @@ static void
 snprintf_zstd_header(spa_t *spa, char *blkbuf, size_t buflen,
     const blkptr_t *bp)
 {
-	abd_t *pabd;
+	static abd_t *pabd = NULL;
 	void *buf;
 	zio_t *zio;
 	zfs_zstdhdr_t zstd_hdr;
@@ -2391,7 +2391,8 @@ snprintf_zstd_header(spa_t *spa, char *blkbuf, size_t buflen,
 		return;
 	}
 
-	pabd = abd_alloc_for_io(SPA_MAXBLOCKSIZE, B_FALSE);
+	if (!pabd)
+		pabd = abd_alloc_for_io(SPA_MAXBLOCKSIZE, B_FALSE);
 	zio = zio_root(spa, NULL, NULL, 0);
 
 	/* Decrypt but don't decompress so we can read the compression header */
@@ -8490,6 +8491,14 @@ zdb_decompress_block(abd_t *pabd, void *buf, void *lbuf, uint64_t lsize,
 	*cfuncp++ = ZIO_COMPRESS_LZ4;
 	*cfuncp++ = ZIO_COMPRESS_LZJB;
 	mask |= ZIO_COMPRESS_MASK(LZ4) | ZIO_COMPRESS_MASK(LZJB);
+	/*
+	 * Every gzip level has the same decompressor, no need to
+	 * run it 9 times per bruteforce attempt.
+	 */
+	mask |= ZIO_COMPRESS_MASK(GZIP_2) | ZIO_COMPRESS_MASK(GZIP_3);
+	mask |= ZIO_COMPRESS_MASK(GZIP_4) | ZIO_COMPRESS_MASK(GZIP_5);
+	mask |= ZIO_COMPRESS_MASK(GZIP_6) | ZIO_COMPRESS_MASK(GZIP_7);
+	mask |= ZIO_COMPRESS_MASK(GZIP_8) | ZIO_COMPRESS_MASK(GZIP_9);
 	for (int c = 0; c < ZIO_COMPRESS_FUNCTIONS; c++)
 		if (((1ULL << c) & mask) == 0)
 			*cfuncp++ = c;

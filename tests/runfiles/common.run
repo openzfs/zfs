@@ -53,10 +53,35 @@ tags = ['functional', 'arc']
 tests = ['atime_001_pos', 'atime_002_neg', 'root_atime_off', 'root_atime_on']
 tags = ['functional', 'atime']
 
+[tests/functional/bclone]
+tests = ['bclone_crossfs_corner_cases_limited',
+    'bclone_crossfs_data',
+    'bclone_crossfs_embedded',
+    'bclone_crossfs_hole',
+    'bclone_diffprops_all',
+    'bclone_diffprops_checksum',
+    'bclone_diffprops_compress',
+    'bclone_diffprops_copies',
+    'bclone_diffprops_recordsize',
+    'bclone_prop_sync',
+    'bclone_samefs_corner_cases_limited',
+    'bclone_samefs_data',
+    'bclone_samefs_embedded',
+    'bclone_samefs_hole']
+tags = ['functional', 'bclone']
+timeout = 7200
+
 [tests/functional/block_cloning]
 tests = ['block_cloning_clone_mmap_cached',
     'block_cloning_copyfilerange',
-    'block_cloning_copyfilerange_partial']
+    'block_cloning_copyfilerange_partial',
+    'block_cloning_copyfilerange_fallback',
+    'block_cloning_disabled_copyfilerange',
+    'block_cloning_copyfilerange_cross_dataset',
+    'block_cloning_cross_enc_dataset',
+    'block_cloning_copyfilerange_fallback_same_txg',
+    'block_cloning_replay', 'block_cloning_replay_encrypted',
+    'block_cloning_lwb_buffer_overflow', 'block_cloning_clone_mmap_write']
 tags = ['functional', 'block_cloning']
 
 [tests/functional/bootfs]
@@ -138,6 +163,7 @@ tests = ['zdb_002_pos', 'zdb_003_pos', 'zdb_004_pos', 'zdb_005_pos',
 pre =
 post =
 tags = ['functional', 'cli_root', 'zdb']
+timeout = 1200
 
 [tests/functional/cli_root/zfs]
 tests = ['zfs_001_neg', 'zfs_002_pos']
@@ -293,7 +319,8 @@ tags = ['functional', 'cli_root', 'zfs_set']
 [tests/functional/cli_root/zfs_share]
 tests = ['zfs_share_001_pos', 'zfs_share_002_pos', 'zfs_share_003_pos',
     'zfs_share_004_pos', 'zfs_share_006_pos', 'zfs_share_008_neg',
-    'zfs_share_010_neg', 'zfs_share_011_pos', 'zfs_share_concurrent_shares']
+    'zfs_share_010_neg', 'zfs_share_011_pos', 'zfs_share_concurrent_shares',
+    'zfs_share_after_mount']
 tags = ['functional', 'cli_root', 'zfs_share']
 
 [tests/functional/cli_root/zfs_snapshot]
@@ -603,7 +630,7 @@ tests = ['compress_001_pos', 'compress_002_pos', 'compress_003_pos',
 tags = ['functional', 'compression']
 
 [tests/functional/cp_files]
-tests = ['cp_files_001_pos']
+tests = ['cp_files_001_pos', 'cp_stress']
 tags = ['functional', 'cp_files']
 
 [tests/functional/crtime]

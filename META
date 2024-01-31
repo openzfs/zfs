@@ -1,10 +1,10 @@
 Meta:          1
 Name:          zfs
 Branch:        1.0
-Version:       2.2.2
+Version:       2.2.3
 Release:       1
 Release-Tags:  relext
 License:       CDDL
 Author:        OpenZFS
-Linux-Maximum: 6.6
+Linux-Maximum: 6.7
 Linux-Minimum: 3.10

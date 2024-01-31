@@ -87,7 +87,7 @@ function summarize_f() {
   output "\n## $headline\n"
   rm -rf testfiles
   for i in $(seq 1 $FUNCTIONAL_PARTS); do
-    tarfile="$2/part$i.tar"
+    tarfile="$2-part$i/part$i.tar"
     check_tarfile "$tarfile"
     check_logfile "testfiles/log"
   done

@@ -8,9 +8,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_SUPER_BLOCK_S_SHRINK], [
 	ZFS_LINUX_TEST_SRC([super_block_s_shrink], [
 		#include <linux/fs.h>
 
-		int shrink(struct shrinker *s, struct shrink_control *sc)
-		    { return 0; }
-
 		static const struct super_block
 		    sb __attribute__ ((unused)) = {
 			.s_shrink.seeks = DEFAULT_SEEKS,
@@ -26,7 +23,7 @@ dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_SUPER_BLOCK_S_SHRINK_PTR], [
 	ZFS_LINUX_TEST_SRC([super_block_s_shrink_ptr], [
 		#include <linux/fs.h>
-		unsigned long shrinker_cb(struct shrinker *shrink,
+		static unsigned long shrinker_cb(struct shrinker *shrink,
 		    struct shrink_control *sc) { return 0; }
 		static struct shrinker shrinker = {
 			.count_objects = shrinker_cb,
@@ -89,7 +86,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SHRINK_CONTROL_HAS_NID], [
 AC_DEFUN([ZFS_AC_KERNEL_SRC_REGISTER_SHRINKER_VARARG], [
 	ZFS_LINUX_TEST_SRC([register_shrinker_vararg], [
 		#include <linux/mm.h>
-		unsigned long shrinker_cb(struct shrinker *shrink,
+		static unsigned long shrinker_cb(struct shrinker *shrink,
 		    struct shrink_control *sc) { return 0; }
 	],[
 		struct shrinker cache_shrinker = {
@@ -104,7 +101,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_REGISTER_SHRINKER_VARARG], [
 AC_DEFUN([ZFS_AC_KERNEL_SRC_SHRINKER_CALLBACK], [
 	ZFS_LINUX_TEST_SRC([shrinker_cb_shrink_control], [
 		#include <linux/mm.h>
-		int shrinker_cb(struct shrinker *shrink,
+		static int shrinker_cb(struct shrinker *shrink,
 		    struct shrink_control *sc) { return 0; }
 	],[
 		struct shrinker cache_shrinker = {
@@ -116,7 +113,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_SHRINKER_CALLBACK], [
 
 	ZFS_LINUX_TEST_SRC([shrinker_cb_shrink_control_split], [
 		#include <linux/mm.h>
-		unsigned long shrinker_cb(struct shrinker *shrink,
+		static unsigned long shrinker_cb(struct shrinker *shrink,
 		    struct shrink_control *sc) { return 0; }
 	],[
 		struct shrinker cache_shrinker = {
@@ -135,7 +132,7 @@ dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_SHRINKER_REGISTER], [
 	ZFS_LINUX_TEST_SRC([shrinker_register], [
 		#include <linux/shrinker.h>
-		unsigned long shrinker_cb(struct shrinker *shrink,
+		static unsigned long shrinker_cb(struct shrinker *shrink,
 		    struct shrink_control *sc) { return 0; }
 	],[
 		struct shrinker cache_shrinker = {

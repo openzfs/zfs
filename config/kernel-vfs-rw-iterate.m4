@@ -5,9 +5,9 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_RW_ITERATE], [
 	ZFS_LINUX_TEST_SRC([file_operations_rw], [
 		#include <linux/fs.h>
 
-		ssize_t test_read(struct kiocb *kiocb, struct iov_iter *to)
+		static ssize_t test_read(struct kiocb *kiocb, struct iov_iter *to)
 		    { return 0; }
-		ssize_t test_write(struct kiocb *kiocb, struct iov_iter *from)
+		static ssize_t test_write(struct kiocb *kiocb, struct iov_iter *from)
 		    { return 0; }
 
 		static const struct file_operations

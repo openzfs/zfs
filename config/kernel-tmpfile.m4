@@ -9,7 +9,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_TMPFILE], [
 	dnl #
 	ZFS_LINUX_TEST_SRC([inode_operations_tmpfile_mnt_idmap], [
 		#include <linux/fs.h>
-		int tmpfile(struct mnt_idmap *idmap,
+		static int tmpfile(struct mnt_idmap *idmap,
 		    struct inode *inode, struct file *file,
 		    umode_t mode) { return 0; }
 		static struct inode_operations
@@ -22,7 +22,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_TMPFILE], [
 	dnl #
 	ZFS_LINUX_TEST_SRC([inode_operations_tmpfile], [
 		#include <linux/fs.h>
-		int tmpfile(struct user_namespace *userns,
+		static int tmpfile(struct user_namespace *userns,
 		    struct inode *inode, struct file *file,
 		    umode_t mode) { return 0; }
 		static struct inode_operations
@@ -36,7 +36,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_TMPFILE], [
 	dnl #
 	ZFS_LINUX_TEST_SRC([inode_operations_tmpfile_dentry_userns], [
 		#include <linux/fs.h>
-		int tmpfile(struct user_namespace *userns,
+		static int tmpfile(struct user_namespace *userns,
 		    struct inode *inode, struct dentry *dentry,
 		    umode_t mode) { return 0; }
 		static struct inode_operations
@@ -46,7 +46,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_TMPFILE], [
 	],[])
 	ZFS_LINUX_TEST_SRC([inode_operations_tmpfile_dentry], [
 			#include <linux/fs.h>
-			int tmpfile(struct inode *inode, struct dentry *dentry,
+			static int tmpfile(struct inode *inode, struct dentry *dentry,
 			    umode_t mode) { return 0; }
 			static struct inode_operations
 			    iops __attribute__ ((unused)) = {

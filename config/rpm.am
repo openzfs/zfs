@@ -83,6 +83,11 @@ srpm-common:
 		rpm-local || exit 1; \
 	LANG=C $(RPMBUILD) \
 		--define "_tmppath $$rpmbuild/TMP" \
+		--define "_builddir $$rpmbuild/BUILD" \
+		--define "_rpmdir $$rpmbuild/RPMS" \
+		--define "_srcrpmdir $$rpmbuild/SRPMS" \
+		--define "_specdir $$rpmbuild/SPECS" \
+		--define "_sourcedir $$rpmbuild/SOURCES" \
 		--define "_topdir $$rpmbuild" \
 		$(def) -bs $$rpmbuild/SPECS/$$rpmspec || exit 1; \
 	cp $$rpmbuild/SRPMS/$$rpmpkg . || exit 1; \
@@ -99,6 +104,11 @@ rpm-common:
 		rpm-local || exit 1; \
 	LANG=C ${RPMBUILD} \
 		--define "_tmppath $$rpmbuild/TMP" \
+		--define "_builddir $$rpmbuild/BUILD" \
+		--define "_rpmdir $$rpmbuild/RPMS" \
+		--define "_srcrpmdir $$rpmbuild/SRPMS" \
+		--define "_specdir $$rpmbuild/SPECS" \
+		--define "_sourcedir $$rpmbuild/SOURCES" \
 		--define "_topdir $$rpmbuild" \
 		$(def) --rebuild $$rpmpkg || exit 1; \
 	cp $$rpmbuild/RPMS/*/* . || exit 1; \

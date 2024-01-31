@@ -90,6 +90,9 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/alloc_class/alloc_class.kshlib \
 	functional/atime/atime.cfg \
 	functional/atime/atime_common.kshlib \
+	functional/bclone/bclone.cfg \
+	functional/bclone/bclone_common.kshlib \
+	functional/bclone/bclone_corner_cases.kshlib \
 	functional/block_cloning/block_cloning.kshlib \
 	functional/cache/cache.cfg \
 	functional/cache/cache.kshlib \
@@ -438,9 +441,28 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/atime/root_atime_on.ksh \
 	functional/atime/root_relatime_on.ksh \
 	functional/atime/setup.ksh \
+	functional/bclone/bclone_crossfs_corner_cases.ksh \
+	functional/bclone/bclone_crossfs_corner_cases_limited.ksh \
+	functional/bclone/bclone_crossfs_data.ksh \
+	functional/bclone/bclone_crossfs_embedded.ksh \
+	functional/bclone/bclone_crossfs_hole.ksh \
+	functional/bclone/bclone_diffprops_all.ksh \
+	functional/bclone/bclone_diffprops_checksum.ksh \
+	functional/bclone/bclone_diffprops_compress.ksh \
+	functional/bclone/bclone_diffprops_copies.ksh \
+	functional/bclone/bclone_diffprops_recordsize.ksh \
+	functional/bclone/bclone_prop_sync.ksh \
+	functional/bclone/bclone_samefs_corner_cases.ksh \
+	functional/bclone/bclone_samefs_corner_cases_limited.ksh \
+	functional/bclone/bclone_samefs_data.ksh \
+	functional/bclone/bclone_samefs_embedded.ksh \
+	functional/bclone/bclone_samefs_hole.ksh \
+	functional/bclone/cleanup.ksh \
+	functional/bclone/setup.ksh \
 	functional/block_cloning/cleanup.ksh \
 	functional/block_cloning/setup.ksh \
 	functional/block_cloning/block_cloning_clone_mmap_cached.ksh \
+	functional/block_cloning/block_cloning_clone_mmap_write.ksh \
 	functional/block_cloning/block_cloning_copyfilerange_cross_dataset.ksh \
 	functional/block_cloning/block_cloning_copyfilerange_fallback.ksh \
 	functional/block_cloning/block_cloning_copyfilerange_fallback_same_txg.ksh \
@@ -453,6 +475,9 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/block_cloning/block_cloning_ficlonerange.ksh \
 	functional/block_cloning/block_cloning_ficlonerange_partial.ksh \
 	functional/block_cloning/block_cloning_cross_enc_dataset.ksh \
+	functional/block_cloning/block_cloning_replay.ksh \
+	functional/block_cloning/block_cloning_replay_encrypted.ksh \
+	functional/block_cloning/block_cloning_lwb_buffer_overflow.ksh \
 	functional/bootfs/bootfs_001_pos.ksh \
 	functional/bootfs/bootfs_002_neg.ksh \
 	functional/bootfs/bootfs_003_pos.ksh \
@@ -889,6 +914,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_share/zfs_share_012_pos.ksh \
 	functional/cli_root/zfs_share/zfs_share_013_pos.ksh \
 	functional/cli_root/zfs_share/zfs_share_concurrent_shares.ksh \
+	functional/cli_root/zfs_share/zfs_share_after_mount.ksh \
 	functional/cli_root/zfs_snapshot/cleanup.ksh \
 	functional/cli_root/zfs_snapshot/setup.ksh \
 	functional/cli_root/zfs_snapshot/zfs_snapshot_001_neg.ksh \
@@ -1367,6 +1393,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/compression/setup.ksh \
 	functional/cp_files/cleanup.ksh \
 	functional/cp_files/cp_files_001_pos.ksh \
+	functional/cp_files/cp_stress.ksh \
 	functional/cp_files/setup.ksh \
 	functional/crtime/cleanup.ksh \
 	functional/crtime/crtime_001_pos.ksh \

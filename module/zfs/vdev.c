@@ -2485,22 +2485,36 @@ vdev_validate(vdev_t *vd)
 }
 
 static void
+vdev_update_path(const char *prefix, char *svd, char **dvd, uint64_t guid)
+{
+	if (svd != NULL && *dvd != NULL) {
+		if (strcmp(svd, *dvd) != 0) {
+			zfs_dbgmsg("vdev_copy_path: vdev %llu: %s changed "
+			    "from '%s' to '%s'", (u_longlong_t)guid, prefix,
+			    *dvd, svd);
+			spa_strfree(*dvd);
+			*dvd = spa_strdup(svd);
+		}
+	} else if (svd != NULL) {
+		*dvd = spa_strdup(svd);
+		zfs_dbgmsg("vdev_copy_path: vdev %llu: path set to '%s'",
+		    (u_longlong_t)guid, *dvd);
+	}
+}
+
+static void
 vdev_copy_path_impl(vdev_t *svd, vdev_t *dvd)
 {
 	char *old, *new;
-	if (svd->vdev_path != NULL && dvd->vdev_path != NULL) {
-		if (strcmp(svd->vdev_path, dvd->vdev_path) != 0) {
-			zfs_dbgmsg("vdev_copy_path: vdev %llu: path changed "
-			    "from '%s' to '%s'", (u_longlong_t)dvd->vdev_guid,
-			    dvd->vdev_path, svd->vdev_path);
-			spa_strfree(dvd->vdev_path);
-			dvd->vdev_path = spa_strdup(svd->vdev_path);
-		}
-	} else if (svd->vdev_path != NULL) {
-		dvd->vdev_path = spa_strdup(svd->vdev_path);
-		zfs_dbgmsg("vdev_copy_path: vdev %llu: path set to '%s'",
-		    (u_longlong_t)dvd->vdev_guid, dvd->vdev_path);
-	}
+
+	vdev_update_path("vdev_path", svd->vdev_path, &dvd->vdev_path,
+	    dvd->vdev_guid);
+
+	vdev_update_path("vdev_devid", svd->vdev_devid, &dvd->vdev_devid,
+	    dvd->vdev_guid);
+
+	vdev_update_path("vdev_physpath", svd->vdev_physpath,
+	    &dvd->vdev_physpath, dvd->vdev_guid);
 
 	/*
 	 * Our enclosure sysfs path may have changed between imports

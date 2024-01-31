@@ -8,12 +8,12 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_PERMISSION], [
 		#include <linux/fs.h>
 		#include <linux/sched.h>
 
-		int inode_permission(struct mnt_idmap *idmap,
+		static int test_permission(struct mnt_idmap *idmap,
 		    struct inode *inode, int mask) { return 0; }
 
 		static const struct inode_operations
 			iops __attribute__ ((unused)) = {
-			.permission             = inode_permission,
+			.permission             = test_permission,
 		};
 	],[])
 
@@ -25,12 +25,12 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_PERMISSION], [
 		#include <linux/fs.h>
 		#include <linux/sched.h>
 
-		int inode_permission(struct user_namespace *userns,
+		static int test_permission(struct user_namespace *userns,
 		    struct inode *inode, int mask) { return 0; }
 
 		static const struct inode_operations
 			iops __attribute__ ((unused)) = {
-			.permission		= inode_permission,
+			.permission		= test_permission,
 		};
 	],[])
 ])

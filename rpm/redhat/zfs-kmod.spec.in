@@ -72,6 +72,30 @@ fi
         %{?kernel_llvm}
 make %{?_smp_mflags}
 
+# Module signing (modsign)
+#
+# This must be run _after_ find-debuginfo.sh runs, otherwise that will strip
+# the signature off of the modules.
+# (Based on Fedora's kernel.spec workaround)
+%define __modsign_install_post \
+        sign_pem="%{ksrc}/certs/signing_key.pem"; \
+        sign_x509="%{ksrc}/certs/signing_key.x509"; \
+        if [ -f "${sign_x509}" ]\
+        then \
+            echo "Signing kernel modules ..."; \
+            for kmod in $(find %{buildroot}/lib/modules/%{kverrel}/extra/ -name \*.ko); do \
+                    %{ksrc}/scripts/sign-file sha256 ${sign_pem} ${sign_x509} ${kmod}; \
+            done \
+        fi \
+%{nil}
+
+# hack to ensure signing happens after find-debuginfo.sh runs
+%define __spec_install_post \
+        %{?__debug_package:%{__debug_install_post}}\
+        %{__arch_install_post}\
+        %{__os_install_post}\
+        %{__modsign_install_post}
+
 %install
 make install \
         DESTDIR=${RPM_BUILD_ROOT} \

@@ -7,7 +7,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_CREATE], [
 		#include <linux/fs.h>
 		#include <linux/sched.h>
 
-		int inode_create(struct mnt_idmap *idmap,
+		static int inode_create(struct mnt_idmap *idmap,
 		    struct inode *inode ,struct dentry *dentry,
 		    umode_t umode, bool flag) { return 0; }
 
@@ -25,7 +25,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_CREATE], [
 		#include <linux/fs.h>
 		#include <linux/sched.h>
 
-		int inode_create(struct user_namespace *userns,
+		static int inode_create(struct user_namespace *userns,
 		    struct inode *inode ,struct dentry *dentry,
 		    umode_t umode, bool flag) { return 0; }
 
@@ -42,7 +42,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_CREATE], [
 		#include <linux/fs.h>
 		#include <linux/sched.h>
 
-		int inode_create(struct inode *inode ,struct dentry *dentry,
+		static int inode_create(struct inode *inode ,struct dentry *dentry,
 		    umode_t umode, bool flag) { return 0; }
 
 		static const struct inode_operations

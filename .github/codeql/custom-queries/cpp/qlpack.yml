@@ -1,0 +1,4 @@
+name: openzfs-cpp-queries
+version: 0.0.0
+libraryPathDependencies: codeql-cpp
+suites: openzfs-cpp-suite

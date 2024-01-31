@@ -138,6 +138,9 @@ int check_file(const char *file, boolean_t force, boolean_t isspare);
 void after_zpool_upgrade(zpool_handle_t *zhp);
 int check_file_generic(const char *file, boolean_t force, boolean_t isspare);
 
+int zpool_power(zpool_handle_t *zhp, char *vdev, boolean_t turn_on);
+int zpool_power_current_state(zpool_handle_t *zhp, char *vdev);
+
 #ifdef	__cplusplus
 }
 #endif

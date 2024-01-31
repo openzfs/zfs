@@ -35,6 +35,25 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_GET_BY_PATH_4ARG], [
 	])
 ])
 
+dnl #
+dnl # 6.8.x API change
+dnl # bdev_open_by_path() replaces blkdev_get_by_path()
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_OPEN_BY_PATH], [
+	ZFS_LINUX_TEST_SRC([bdev_open_by_path], [
+		#include <linux/fs.h>
+		#include <linux/blkdev.h>
+	], [
+		struct bdev_handle *bdh __attribute__ ((unused)) = NULL;
+		const char *path = "path";
+		fmode_t mode = 0;
+		void *holder = NULL;
+		struct blk_holder_ops h;
+
+		bdh = bdev_open_by_path(path, mode, holder, &h);
+	])
+])
+
 AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_GET_BY_PATH], [
 	AC_MSG_CHECKING([whether blkdev_get_by_path() exists and takes 3 args])
 	ZFS_LINUX_TEST_RESULT([blkdev_get_by_path], [
@@ -47,7 +66,15 @@ AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_GET_BY_PATH], [
 				[blkdev_get_by_path() exists and takes 4 args])
 			AC_MSG_RESULT(yes)
 		], [
-			ZFS_LINUX_TEST_ERROR([blkdev_get_by_path()])
+			AC_MSG_RESULT(no)
+			AC_MSG_CHECKING([whether bdev_open_by_path() exists])
+			ZFS_LINUX_TEST_RESULT([bdev_open_by_path], [
+				AC_DEFINE(HAVE_BDEV_OPEN_BY_PATH, 1,
+					[bdev_open_by_path() exists])
+				AC_MSG_RESULT(yes)
+			], [
+				ZFS_LINUX_TEST_ERROR([blkdev_get_by_path()])
+			])
 		])
 	])
 ])
@@ -108,18 +135,41 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_PUT_HOLDER], [
 	])
 ])
 
+dnl #
+dnl # 6.8.x API change
+dnl # bdev_release() replaces blkdev_put()
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_RELEASE], [
+	ZFS_LINUX_TEST_SRC([bdev_release], [
+		#include <linux/fs.h>
+		#include <linux/blkdev.h>
+	], [
+		struct bdev_handle *bdh = NULL;
+		bdev_release(bdh);
+	])
+])
+
 AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_PUT], [
 	AC_MSG_CHECKING([whether blkdev_put() exists])
 	ZFS_LINUX_TEST_RESULT([blkdev_put], [
 		AC_MSG_RESULT(yes)
 	], [
+		AC_MSG_RESULT(no)
 		AC_MSG_CHECKING([whether blkdev_put() accepts void* as arg 2])
 		ZFS_LINUX_TEST_RESULT([blkdev_put_holder], [
 			AC_MSG_RESULT(yes)
 			AC_DEFINE(HAVE_BLKDEV_PUT_HOLDER, 1,
 				[blkdev_put() accepts void* as arg 2])
 		], [
-			ZFS_LINUX_TEST_ERROR([blkdev_put()])
+			AC_MSG_RESULT(no)
+			AC_MSG_CHECKING([whether bdev_release() exists])
+			ZFS_LINUX_TEST_RESULT([bdev_release], [
+				AC_MSG_RESULT(yes)
+				AC_DEFINE(HAVE_BDEV_RELEASE, 1,
+					[bdev_release() exists])
+			], [
+				ZFS_LINUX_TEST_ERROR([blkdev_put()])
+			])
 		])
 	])
 ])
@@ -570,8 +620,10 @@ AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_BLK_STS_RESV_CONFLICT], [
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV], [
 	ZFS_AC_KERNEL_SRC_BLKDEV_GET_BY_PATH
 	ZFS_AC_KERNEL_SRC_BLKDEV_GET_BY_PATH_4ARG
+	ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_OPEN_BY_PATH
 	ZFS_AC_KERNEL_SRC_BLKDEV_PUT
 	ZFS_AC_KERNEL_SRC_BLKDEV_PUT_HOLDER
+	ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_RELEASE
 	ZFS_AC_KERNEL_SRC_BLKDEV_REREAD_PART
 	ZFS_AC_KERNEL_SRC_BLKDEV_INVALIDATE_BDEV
 	ZFS_AC_KERNEL_SRC_BLKDEV_LOOKUP_BDEV
