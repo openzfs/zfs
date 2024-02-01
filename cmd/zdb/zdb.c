@@ -1965,6 +1965,8 @@ dump_all_ddts(spa_t *spa)
 
 	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
 		ddt_t *ddt = spa->spa_ddt[c];
+		if (!ddt)
+			continue;
 		for (ddt_type_t type = 0; type < DDT_TYPES; type++) {
 			for (ddt_class_t class = 0; class < DDT_CLASSES;
 			    class++) {
@@ -6062,6 +6064,8 @@ zdb_ddt_leak_init(spa_t *spa, zdb_cb_t *zcb)
 			return;
 
 		ASSERT(ddt_phys_total_refcnt(&dde) > 1);
+		ddt_t *ddt = spa->spa_ddt[ddb.ddb_checksum];
+		VERIFY(ddt);
 
 		for (p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
 			if (ddp->ddp_phys_birth == 0)
@@ -6076,7 +6080,7 @@ zdb_ddt_leak_init(spa_t *spa, zdb_cb_t *zcb)
 				zcb->zcb_dedup_blocks++;
 			}
 		}
-		ddt_t *ddt = spa->spa_ddt[ddb.ddb_checksum];
+
 		ddt_enter(ddt);
 		VERIFY(ddt_lookup(ddt, &blk, B_TRUE) != NULL);
 		ddt_exit(ddt);
@@ -7949,6 +7953,8 @@ dump_mos_leaks(spa_t *spa)
 			for (uint64_t cksum = 0;
 			    cksum < ZIO_CHECKSUM_FUNCTIONS; cksum++) {
 				ddt_t *ddt = spa->spa_ddt[cksum];
+				if (!ddt)
+					continue;
 				mos_obj_refd(ddt->ddt_object[type][class]);
 			}
 		}
