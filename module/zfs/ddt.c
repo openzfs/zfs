@@ -39,6 +39,15 @@
 #include <sys/dsl_scan.h>
 #include <sys/abd.h>
 
+/*
+ * These are the only checksums valid for dedup. They must match the list
+ * from dedup_table in zfs_prop.c
+ */
+#define	DDT_CHECKSUM_VALID(c)	\
+	(c == ZIO_CHECKSUM_SHA256 || c == ZIO_CHECKSUM_SHA512 || \
+	c == ZIO_CHECKSUM_SKEIN || c == ZIO_CHECKSUM_EDONR || \
+	c == ZIO_CHECKSUM_BLAKE3)
+
 static kmem_cache_t *ddt_cache;
 static kmem_cache_t *ddt_entry_cache;
 
@@ -400,6 +409,7 @@ ddt_phys_total_refcnt(const ddt_entry_t *dde)
 ddt_t *
 ddt_select(spa_t *spa, const blkptr_t *bp)
 {
+	ASSERT(DDT_CHECKSUM_VALID(BP_GET_CHECKSUM(bp)));
 	return (spa->spa_ddt[BP_GET_CHECKSUM(bp)]);
 }
 
@@ -629,8 +639,10 @@ ddt_create(spa_t *spa)
 {
 	spa->spa_dedup_checksum = ZIO_DEDUPCHECKSUM;
 
-	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++)
-		spa->spa_ddt[c] = ddt_table_alloc(spa, c);
+	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
+		if (DDT_CHECKSUM_VALID(c))
+			spa->spa_ddt[c] = ddt_table_alloc(spa, c);
+	}
 }
 
 int
@@ -648,6 +660,9 @@ ddt_load(spa_t *spa)
 		return (error == ENOENT ? 0 : error);
 
 	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
+		if (!DDT_CHECKSUM_VALID(c))
+			continue;
+
 		ddt_t *ddt = spa->spa_ddt[c];
 		for (ddt_type_t type = 0; type < DDT_TYPES; type++) {
 			for (ddt_class_t class = 0; class < DDT_CLASSES;
@@ -967,6 +982,8 @@ ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_entry_t *dde)
 		do {
 			do {
 				ddt_t *ddt = spa->spa_ddt[ddb->ddb_checksum];
+				if (ddt == NULL)
+					continue;
 				int error = ENOENT;
 				if (ddt_object_exists(ddt, ddb->ddb_type,
 				    ddb->ddb_class)) {
