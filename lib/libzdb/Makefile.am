@@ -1,4 +1,5 @@
-libzdb_la_CFLAGS = $(AM_CFLAGS) $(KERNEL_CFLAGS) $(LIBRARY_CFLAGS)
+libzdb_la_CFLAGS = $(AM_CFLAGS) $(LIBRARY_CFLAGS)
+libzdb_la_CFLAGS += -fvisibility=hidden
 
 noinst_LTLIBRARIES += libzdb.la
 
