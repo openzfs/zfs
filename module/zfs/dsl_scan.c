@@ -4277,20 +4277,6 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		return;
 
 	/*
-	 * If the spa is shutting down, then stop scanning. This will
-	 * ensure that the scan does not dirty any new data during the
-	 * shutdown phase.
-	 */
-	if (spa_shutting_down(spa))
-		return;
-
-	/*
-	 * If the scan is inactive due to a stalled async destroy, try again.
-	 */
-	if (!scn->scn_async_stalled && !dsl_scan_active(scn))
-		return;
-
-	/*
 	 * issued/to_issue as presented to the user
 	 * in print_scan_scrub_resilver_status() issued/total_i
 	 * @ cmd/zpool/zpool_main.c
@@ -4319,6 +4305,20 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		    restart_early);
 		dsl_scan_setup_sync(&func, tx);
 	}
+
+	/*
+	 * If the spa is shutting down, then stop scanning. This will
+	 * ensure that the scan does not dirty any new data during the
+	 * shutdown phase.
+	 */
+	if (spa_shutting_down(spa))
+		return;
+
+	/*
+	 * If the scan is inactive due to a stalled async destroy, try again.
+	 */
+	if (!scn->scn_async_stalled && !dsl_scan_active(scn))
+		return;
 
 	/* reset scan statistics */
 	scn->scn_visited_this_txg = 0;
