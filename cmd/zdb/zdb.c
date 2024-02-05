@@ -88,36 +88,10 @@
 #include <libnvpair.h>
 #include <libzutil.h>
 
+#include <libzdb.h>
+
 #include "zdb.h"
 
-#define	ZDB_COMPRESS_NAME(idx) ((idx) < ZIO_COMPRESS_FUNCTIONS ?	\
-	zio_compress_table[(idx)].ci_name : "UNKNOWN")
-#define	ZDB_CHECKSUM_NAME(idx) ((idx) < ZIO_CHECKSUM_FUNCTIONS ?	\
-	zio_checksum_table[(idx)].ci_name : "UNKNOWN")
-#define	ZDB_OT_TYPE(idx) ((idx) < DMU_OT_NUMTYPES ? (idx) :		\
-	(idx) == DMU_OTN_ZAP_DATA || (idx) == DMU_OTN_ZAP_METADATA ?	\
-	DMU_OT_ZAP_OTHER : \
-	(idx) == DMU_OTN_UINT64_DATA || (idx) == DMU_OTN_UINT64_METADATA ? \
-	DMU_OT_UINT64_OTHER : DMU_OT_NUMTYPES)
-
-/* Some platforms require part of inode IDs to be remapped */
-#ifdef __APPLE__
-#define	ZDB_MAP_OBJECT_ID(obj) INO_XNUTOZFS(obj, 2)
-#else
-#define	ZDB_MAP_OBJECT_ID(obj) (obj)
-#endif
-
-static const char *
-zdb_ot_name(dmu_object_type_t type)
-{
-	if (type < DMU_OT_NUMTYPES)
-		return (dmu_ot[type].ot_name);
-	else if ((type & DMU_OT_NEWTYPE) &&
-	    ((type & DMU_OT_BYTESWAP_MASK) < DMU_BSWAP_NUMFUNCS))
-		return (dmu_ot_byteswap[type & DMU_OT_BYTESWAP_MASK].ob_name);
-	else
-		return ("UNKNOWN");
-}
 
 extern int reference_tracking_enable;
 extern int zfs_recover;
@@ -135,35 +109,12 @@ typedef void object_viewer_t(objset_t *, uint64_t, void *data, size_t size);
 static uint64_t *zopt_metaslab = NULL;
 static unsigned zopt_metaslab_args = 0;
 
-typedef struct zopt_object_range {
-	uint64_t zor_obj_start;
-	uint64_t zor_obj_end;
-	uint64_t zor_flags;
-} zopt_object_range_t;
 
 static zopt_object_range_t *zopt_object_ranges = NULL;
 static unsigned zopt_object_args = 0;
 
 static int flagbits[256];
 
-#define	ZOR_FLAG_PLAIN_FILE	0x0001
-#define	ZOR_FLAG_DIRECTORY	0x0002
-#define	ZOR_FLAG_SPACE_MAP	0x0004
-#define	ZOR_FLAG_ZAP		0x0008
-#define	ZOR_FLAG_ALL_TYPES	-1
-#define	ZOR_SUPPORTED_FLAGS	(ZOR_FLAG_PLAIN_FILE	| \
-				ZOR_FLAG_DIRECTORY	| \
-				ZOR_FLAG_SPACE_MAP	| \
-				ZOR_FLAG_ZAP)
-
-#define	ZDB_FLAG_CHECKSUM	0x0001
-#define	ZDB_FLAG_DECOMPRESS	0x0002
-#define	ZDB_FLAG_BSWAP		0x0004
-#define	ZDB_FLAG_GBH		0x0008
-#define	ZDB_FLAG_INDIRECT	0x0010
-#define	ZDB_FLAG_RAW		0x0020
-#define	ZDB_FLAG_PRINT_BLKPTR	0x0040
-#define	ZDB_FLAG_VERBOSE	0x0080
 
 static uint64_t max_inflight_bytes = 256 * 1024 * 1024; /* 256MB */
 static int leaked_objects = 0;
@@ -176,62 +127,7 @@ static void mos_obj_refd_multiple(uint64_t);
 static int dump_bpobj_cb(void *arg, const blkptr_t *bp, boolean_t free,
     dmu_tx_t *tx);
 
-typedef struct sublivelist_verify {
-	/* FREE's that haven't yet matched to an ALLOC, in one sub-livelist */
-	zfs_btree_t sv_pair;
 
-	/* ALLOC's without a matching FREE, accumulates across sub-livelists */
-	zfs_btree_t sv_leftover;
-} sublivelist_verify_t;
-
-static int
-livelist_compare(const void *larg, const void *rarg)
-{
-	const blkptr_t *l = larg;
-	const blkptr_t *r = rarg;
-
-	/* Sort them according to dva[0] */
-	uint64_t l_dva0_vdev, r_dva0_vdev;
-	l_dva0_vdev = DVA_GET_VDEV(&l->blk_dva[0]);
-	r_dva0_vdev = DVA_GET_VDEV(&r->blk_dva[0]);
-	if (l_dva0_vdev < r_dva0_vdev)
-		return (-1);
-	else if (l_dva0_vdev > r_dva0_vdev)
-		return (+1);
-
-	/* if vdevs are equal, sort by offsets. */
-	uint64_t l_dva0_offset;
-	uint64_t r_dva0_offset;
-	l_dva0_offset = DVA_GET_OFFSET(&l->blk_dva[0]);
-	r_dva0_offset = DVA_GET_OFFSET(&r->blk_dva[0]);
-	if (l_dva0_offset < r_dva0_offset) {
-		return (-1);
-	} else if (l_dva0_offset > r_dva0_offset) {
-		return (+1);
-	}
-
-	/*
-	 * Since we're storing blkptrs without cancelling FREE/ALLOC pairs,
-	 * it's possible the offsets are equal. In that case, sort by txg
-	 */
-	if (l->blk_birth < r->blk_birth) {
-		return (-1);
-	} else if (l->blk_birth > r->blk_birth) {
-		return (+1);
-	}
-	return (0);
-}
-
-typedef struct sublivelist_verify_block {
-	dva_t svb_dva;
-
-	/*
-	 * We need this to check if the block marked as allocated
-	 * in the livelist was freed (and potentially reallocated)
-	 * in the metaslab spacemaps at a later TXG.
-	 */
-	uint64_t svb_allocated_txg;
-} sublivelist_verify_block_t;
 
 static void zdb_print_blkptr(const blkptr_t *bp, int flags);
 

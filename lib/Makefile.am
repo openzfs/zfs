@@ -9,11 +9,11 @@
 # These library interfaces are subject to change at any time.
 #
 #
-# CMDS:   zhack/ztest/zdb/            zfs/zpool/zed/
+# CMDS:   zhack/ztest/                zfs/zpool/zed/
 #        raidz_{test,bench}          zinject/zstream
 #                |                          |
 # LIBS:          |                          |              libzfsbootenv*
-#                |                          |                    |
+#                |--libzdb--zdb             |                    |
 #                |                          |                    |
 #             libzpool                   libzfs* ----------------+
 #             | | |  \                  / | | |
@@ -62,6 +62,7 @@ include $(srcdir)/%D%/libspl/Makefile.am
 include $(srcdir)/%D%/libtpool/Makefile.am
 include $(srcdir)/%D%/libunicode/Makefile.am
 include $(srcdir)/%D%/libuutil/Makefile.am
+include $(srcdir)/%D%/libzdb/Makefile.am
 include $(srcdir)/%D%/libzfs_core/Makefile.am
 include $(srcdir)/%D%/libzfs/Makefile.am
 include $(srcdir)/%D%/libzfsbootenv/Makefile.am
