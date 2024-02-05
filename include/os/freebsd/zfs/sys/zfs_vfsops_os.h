@@ -285,7 +285,6 @@ typedef struct zfid_long {
 #define	LONG_FID_LEN	(sizeof (zfid_long_t) - sizeof (uint16_t))
 
 extern int zfs_super_owner;
-extern int zfs_bclone_enabled;
 
 extern void zfs_init(void);
 extern void zfs_fini(void);

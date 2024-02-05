@@ -45,9 +45,6 @@ extern "C" {
 typedef struct zfsvfs zfsvfs_t;
 struct znode;
 
-extern int zfs_bclone_enabled;
-extern int zfs_bclone_wait_dirty;
-
 /*
  * This structure emulates the vfs_t from other platforms.  It's purpose
  * is to facilitate the handling of mount options and minimize structural

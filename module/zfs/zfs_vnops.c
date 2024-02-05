@@ -58,6 +58,26 @@
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_znode.h>
 
+/*
+ * Enable the experimental block cloning feature.  If this setting is 0, then
+ * even if feature@block_cloning is enabled, attempts to clone blocks will act
+ * as though the feature is disabled.
+ */
+int zfs_bclone_enabled = 1;
+
+/*
+ * When set zfs_clone_range() waits for dirty data to be written to disk.
+ * This allows the clone operation to reliably succeed when a file is modified
+ * and then immediately cloned. For small files this may be slower than making
+ * a copy of the file and is therefore not the default.  However, in certain
+ * scenarios this behavior may be desirable so a tunable is provided.
+ */
+static int zfs_bclone_wait_dirty = 0;
+
+/*
+ * Maximum bytes to read per chunk in zfs_read().
+ */
+static uint64_t zfs_vnops_read_chunk_size = 1024 * 1024;
 
 int
 zfs_fsync(znode_t *zp, int syncflag, cred_t *cr)
@@ -181,8 +201,6 @@ zfs_access(znode_t *zp, int mode, int flag, cred_t *cr)
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
 }
-
-static uint64_t zfs_vnops_read_chunk_size = 1024 * 1024; /* Tunable */
 
 /*
  * Read bytes from specified file into supplied buffer.
@@ -1526,3 +1544,9 @@ EXPORT_SYMBOL(zfs_clone_range_replay);
 
 ZFS_MODULE_PARAM(zfs_vnops, zfs_vnops_, read_chunk_size, U64, ZMOD_RW,
 	"Bytes to read per chunk");
+
+ZFS_MODULE_PARAM(zfs, zfs_, bclone_enabled, INT, ZMOD_RW,
+	"Enable block cloning");
+
+ZFS_MODULE_PARAM(zfs, zfs_, bclone_wait_dirty, INT, ZMOD_RW,
+	"Wait for dirty blocks when cloning");
