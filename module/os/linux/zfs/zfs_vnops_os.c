@@ -4248,9 +4248,4 @@ EXPORT_SYMBOL(zfs_map);
 /* CSTYLED */
 module_param(zfs_delete_blocks, ulong, 0644);
 MODULE_PARM_DESC(zfs_delete_blocks, "Delete files larger than N blocks async");
-
-/* CSTYLED */
-module_param(zfs_bclone_enabled, uint, 0644);
-MODULE_PARM_DESC(zfs_bclone_enabled, "Enable block cloning");
-
 #endif
