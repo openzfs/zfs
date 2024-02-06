@@ -58,6 +58,26 @@
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_znode.h>
 
+/*
+ * Enable the experimental block cloning feature.  If this setting is 0, then
+ * even if feature@block_cloning is enabled, attempts to clone blocks will act
+ * as though the feature is disabled.
+ */
+int zfs_bclone_enabled = 1;
+
+/*
+ * When set zfs_clone_range() waits for dirty data to be written to disk.
+ * This allows the clone operation to reliably succeed when a file is modified
+ * and then immediately cloned. For small files this may be slower than making
+ * a copy of the file and is therefore not the default.  However, in certain
+ * scenarios this behavior may be desirable so a tunable is provided.
+ */
+static int zfs_bclone_wait_dirty = 0;
+
+/*
+ * Maximum bytes to read per chunk in zfs_read().
+ */
+static uint64_t zfs_vnops_read_chunk_size = 1024 * 1024;
 
 int
 zfs_fsync(znode_t *zp, int syncflag, cred_t *cr)
@@ -181,8 +201,6 @@ zfs_access(znode_t *zp, int mode, int flag, cred_t *cr)
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
 }
-
-static uint64_t zfs_vnops_read_chunk_size = 1024 * 1024; /* Tunable */
 
 /*
  * Read bytes from specified file into supplied buffer.
@@ -1049,6 +1067,7 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 	size_t		maxblocks, nbps;
 	uint_t		inblksz;
 	uint64_t	clear_setid_bits_txg = 0;
+	uint64_t	last_synced_txg = 0;
 
 	inoff = *inoffp;
 	outoff = *outoffp;
@@ -1287,15 +1306,23 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 		}
 
 		nbps = maxblocks;
+		last_synced_txg = spa_last_synced_txg(dmu_objset_spa(inos));
 		error = dmu_read_l0_bps(inos, inzp->z_id, inoff, size, bps,
 		    &nbps);
 		if (error != 0) {
 			/*
 			 * If we are trying to clone a block that was created
-			 * in the current transaction group, error will be
-			 * EAGAIN here, which we can just return to the caller
-			 * so it can fallback if it likes.
+			 * in the current transaction group, the error will be
+			 * EAGAIN here.  Based on zfs_bclone_wait_dirty either
+			 * return a shortened range to the caller so it can
+			 * fallback, or wait for the next TXG and check again.
 			 */
+			if (error == EAGAIN && zfs_bclone_wait_dirty) {
+				txg_wait_synced(dmu_objset_pool(inos),
+				    last_synced_txg + 1);
+				continue;
+			}
+
 			break;
 		}
 
@@ -1517,3 +1544,9 @@ EXPORT_SYMBOL(zfs_clone_range_replay);
 
 ZFS_MODULE_PARAM(zfs_vnops, zfs_vnops_, read_chunk_size, U64, ZMOD_RW,
 	"Bytes to read per chunk");
+
+ZFS_MODULE_PARAM(zfs, zfs_, bclone_enabled, INT, ZMOD_RW,
+	"Enable block cloning");
+
+ZFS_MODULE_PARAM(zfs, zfs_, bclone_wait_dirty, INT, ZMOD_RW,
+	"Wait for dirty blocks when cloning");

@@ -1159,6 +1159,15 @@ Enable the experimental block cloning feature.
 If this setting is 0, then even if feature@block_cloning is enabled,
 attempts to clone blocks will act as though the feature is disabled.
 .
+.It Sy zfs_bclone_wait_dirty Ns = Ns Sy 0 Ns | Ns 1 Pq int
+When set to 1 the FICLONE and FICLONERANGE ioctls wait for dirty data to be
+written to disk.
+This allows the clone operation to reliably succeed when a file is
+modified and then immediately cloned.
+For small files this may be slower than making a copy of the file.
+Therefore, this setting defaults to 0 which causes a clone operation to
+immediately fail when encountering a dirty block.
+.
 .It Sy zfs_blake3_impl Ns = Ns Sy fastest Pq string
 Select a BLAKE3 implementation.
 .Pp

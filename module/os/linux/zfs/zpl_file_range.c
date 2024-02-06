@@ -31,8 +31,6 @@
 #include <sys/zfs_vnops.h>
 #include <sys/zfeature.h>
 
-int zfs_bclone_enabled = 1;
-
 /*
  * Clone part of a file via block cloning.
  *
@@ -40,7 +38,7 @@ int zfs_bclone_enabled = 1;
  * care of that depending on how it was called.
  */
 static ssize_t
-__zpl_clone_file_range(struct file *src_file, loff_t src_off,
+zpl_clone_file_range_impl(struct file *src_file, loff_t src_off,
     struct file *dst_file, loff_t dst_off, size_t len)
 {
 	struct inode *src_i = file_inode(src_file);
@@ -96,11 +94,12 @@ zpl_copy_file_range(struct file *src_file, loff_t src_off,
 {
 	ssize_t ret;
 
+	/* Flags is reserved for future extensions and must be zero. */
 	if (flags != 0)
 		return (-EINVAL);
 
-	/* Try to do it via zfs_clone_range() */
-	ret = __zpl_clone_file_range(src_file, src_off,
+	/* Try to do it via zfs_clone_range() and allow shortening. */
+	ret = zpl_clone_file_range_impl(src_file, src_off,
 	    dst_file, dst_off, len);
 
 #ifdef HAVE_VFS_GENERIC_COPY_FILE_RANGE
@@ -137,6 +136,11 @@ zpl_copy_file_range(struct file *src_file, loff_t src_off,
  * FIDEDUPERANGE is for turning a non-clone into a clone, that is, compare the
  * range in both files and if they're the same, arrange for them to be backed
  * by the same storage.
+ *
+ * REMAP_FILE_CAN_SHORTEN lets us know we can clone less than the given range
+ * if we want. It's designed for filesystems that may need to shorten the
+ * length for alignment, EOF, or any other requirement. ZFS may shorten the
+ * request when there is outstanding dirty data which hasn't been written.
  */
 loff_t
 zpl_remap_file_range(struct file *src_file, loff_t src_off,
@@ -145,24 +149,21 @@ zpl_remap_file_range(struct file *src_file, loff_t src_off,
 	if (flags & ~(REMAP_FILE_DEDUP | REMAP_FILE_CAN_SHORTEN))
 		return (-EINVAL);
 
-	/*
-	 * REMAP_FILE_CAN_SHORTEN lets us know we can clone less than the given
-	 * range if we want. Its designed for filesystems that make data past
-	 * EOF available, and don't want it to be visible in both files. ZFS
-	 * doesn't do that, so we just turn the flag off.
-	 */
-	flags &= ~REMAP_FILE_CAN_SHORTEN;
-
+	/* No support for dedup yet */
 	if (flags & REMAP_FILE_DEDUP)
-		/* No support for dedup yet */
 		return (-EOPNOTSUPP);
 
 	/* Zero length means to clone everything to the end of the file */
 	if (len == 0)
 		len = i_size_read(file_inode(src_file)) - src_off;
 
-	return (__zpl_clone_file_range(src_file, src_off,
-	    dst_file, dst_off, len));
+	ssize_t ret = zpl_clone_file_range_impl(src_file, src_off,
+	    dst_file, dst_off, len);
+
+	if (!(flags & REMAP_FILE_CAN_SHORTEN) && ret >= 0 && ret != len)
+		ret = -EINVAL;
+
+	return (ret);
 }
 #endif /* HAVE_VFS_REMAP_FILE_RANGE */
 
@@ -179,8 +180,14 @@ zpl_clone_file_range(struct file *src_file, loff_t src_off,
 	if (len == 0)
 		len = i_size_read(file_inode(src_file)) - src_off;
 
-	return (__zpl_clone_file_range(src_file, src_off,
-	    dst_file, dst_off, len));
+	/* The entire length must be cloned or this is an error. */
+	ssize_t ret = zpl_clone_file_range_impl(src_file, src_off,
+	    dst_file, dst_off, len);
+
+	if (ret >= 0 && ret != len)
+		ret = -EINVAL;
+
+	return (ret);
 }
 #endif /* HAVE_VFS_CLONE_FILE_RANGE || HAVE_VFS_FILE_OPERATIONS_EXTEND */
 
@@ -214,8 +221,7 @@ zpl_ioctl_ficlone(struct file *dst_file, void *arg)
 
 	size_t len = i_size_read(file_inode(src_file));
 
-	ssize_t ret =
-	    __zpl_clone_file_range(src_file, 0, dst_file, 0, len);
+	ssize_t ret = zpl_clone_file_range_impl(src_file, 0, dst_file, 0, len);
 
 	fput(src_file);
 
@@ -253,7 +259,7 @@ zpl_ioctl_ficlonerange(struct file *dst_file, void __user *arg)
 	if (len == 0)
 		len = i_size_read(file_inode(src_file)) - fcr.fcr_src_offset;
 
-	ssize_t ret = __zpl_clone_file_range(src_file, fcr.fcr_src_offset,
+	ssize_t ret = zpl_clone_file_range_impl(src_file, fcr.fcr_src_offset,
 	    dst_file, fcr.fcr_dest_offset, len);
 
 	fput(src_file);
