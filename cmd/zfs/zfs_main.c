@@ -3672,15 +3672,25 @@ zfs_do_list(int argc, char **argv)
 
 			for (char *tok; (tok = strsep(&optarg, ",")); ) {
 				static const char *const type_subopts[] = {
-					"filesystem", "volume",
-					"snapshot", "snap",
+					"filesystem",
+					"fs",
+					"volume",
+					"vol",
+					"snapshot",
+					"snap",
 					"bookmark",
-					"all" };
+					"all"
+				};
 				static const int type_types[] = {
-					ZFS_TYPE_FILESYSTEM, ZFS_TYPE_VOLUME,
-					ZFS_TYPE_SNAPSHOT, ZFS_TYPE_SNAPSHOT,
+					ZFS_TYPE_FILESYSTEM,
+					ZFS_TYPE_FILESYSTEM,
+					ZFS_TYPE_VOLUME,
+					ZFS_TYPE_VOLUME,
+					ZFS_TYPE_SNAPSHOT,
+					ZFS_TYPE_SNAPSHOT,
 					ZFS_TYPE_BOOKMARK,
-					ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK };
+					ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK
+				};
 
 				for (c = 0; c < ARRAY_SIZE(type_subopts); ++c)
 					if (strcmp(tok, type_subopts[c]) == 0) {
