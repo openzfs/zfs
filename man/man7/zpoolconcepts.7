@@ -260,8 +260,8 @@ sufficient replicas exist to continue functioning.
 The underlying conditions are as follows:
 .Bl -bullet -compact
 .It
-The number of checksum errors exceeds acceptable levels and the device is
-degraded as an indication that something may be wrong.
+The number of checksum errors or slow I/Os exceeds acceptable levels and the
+device is degraded as an indication that something may be wrong.
 ZFS continues to use the device as necessary.
 .It
 The number of I/O errors exceeds acceptable levels.

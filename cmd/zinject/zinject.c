@@ -1083,6 +1083,22 @@ main(int argc, char **argv)
 			libzfs_fini(g_zfs);
 			return (1);
 		}
+
+		if (record.zi_nlanes) {
+			switch (io_type) {
+			case ZIO_TYPE_READ:
+			case ZIO_TYPE_WRITE:
+			case ZIO_TYPES:
+				break;
+			default:
+				(void) fprintf(stderr, "I/O type for a delay "
+				    "must be 'read' or 'write'\n");
+				usage();
+				libzfs_fini(g_zfs);
+				return (1);
+			}
+		}
+
 		if (!error)
 			error = ENXIO;
 

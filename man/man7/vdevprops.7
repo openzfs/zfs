@@ -44,7 +44,7 @@ section, below.
 Every vdev has a set of properties that export statistics about the vdev
 as well as control various behaviors.
 Properties are not inherited from top-level vdevs, with the exception of
-checksum_n, checksum_t, io_n, and io_t.
+checksum_n, checksum_t, io_n, io_t, slow_io_n, and slow_io_t.
 .Pp
 The values of numeric properties can be specified using human-readable suffixes
 .Po for example,
@@ -117,7 +117,7 @@ If this device is currently being removed from the pool
 .Pp
 The following native properties can be used to change the behavior of a vdev.
 .Bl -tag -width "allocating"
-.It Sy checksum_n , checksum_t , io_n , io_t
+.It Sy checksum_n , checksum_t , io_n , io_t , slow_io_n , slow_io_t
 Tune the fault management daemon by specifying checksum/io thresholds of <N>
 errors in <T> seconds, respectively.
 These properties can be set on leaf and top-level vdevs.
