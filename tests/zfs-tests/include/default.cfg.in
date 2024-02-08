@@ -80,7 +80,7 @@ export TESTPOOL=testpool
 export TESTPOOL1=testpool1
 export TESTPOOL2=testpool2
 export TESTPOOL3=testpool3
-export PERFPOOL=perfpool
+export PERFPOOL=${PERFPOOL:-perfpool}
 
 # some test file system names
 export TESTFS=testfs
