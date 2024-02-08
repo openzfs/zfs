@@ -44,13 +44,21 @@
 .Ar dataset Ns @ Ns Ar snapname Ns …
 .
 .Sh DESCRIPTION
-All previous modifications by successful system calls to the file system are
-part of the snapshots.
-Snapshots are taken atomically, so that all snapshots correspond to the same
-moment in time.
+Creates a snapshot of a dataset or multiple snapshots of different
+datasets.
+.Pp
+Snapshots are created atomically.
+That is, a snapshot is a consistent image of a dataset at a specific
+point in time; it includes all modifications to the dataset made by
+system calls that have successfully completed before that point in time.
+Recursive snapshots created through the
+.Fl r
+option are all created at the same time.
+.Pp
 .Nm zfs Cm snap
 can be used as an alias for
 .Nm zfs Cm snapshot .
+.Pp
 See the
 .Sx Snapshots
 section of
