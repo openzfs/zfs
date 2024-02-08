@@ -5626,7 +5626,9 @@
       <enumerator name='VDEV_PROP_IO_N' value='44'/>
       <enumerator name='VDEV_PROP_IO_T' value='45'/>
       <enumerator name='VDEV_PROP_RAIDZ_EXPANDING' value='46'/>
-      <enumerator name='VDEV_NUM_PROPS' value='47'/>
+      <enumerator name='VDEV_PROP_SLOW_IO_N' value='47'/>
+      <enumerator name='VDEV_PROP_SLOW_IO_T' value='48'/>
+      <enumerator name='VDEV_NUM_PROPS' value='49'/>
     </enum-decl>
     <typedef-decl name='vdev_prop_t' type-id='1573bec8' id='5aa5c90c'/>
     <class-decl name='zpool_load_policy' size-in-bits='256' is-struct='yes' visibility='default' id='2f65b36f'>

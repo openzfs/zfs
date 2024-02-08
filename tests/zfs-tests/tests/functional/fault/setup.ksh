@@ -28,6 +28,7 @@
 
 verify_runnable "global"
 
+zed_events_drain
 zed_setup resilver_finish-start-scrub.sh
 zed_start
 

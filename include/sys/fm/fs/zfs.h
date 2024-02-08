@@ -82,6 +82,8 @@ extern "C" {
 #define	FM_EREPORT_PAYLOAD_ZFS_VDEV_CKSUM_T	"vdev_cksum_t"
 #define	FM_EREPORT_PAYLOAD_ZFS_VDEV_IO_N	"vdev_io_n"
 #define	FM_EREPORT_PAYLOAD_ZFS_VDEV_IO_T	"vdev_io_t"
+#define	FM_EREPORT_PAYLOAD_ZFS_VDEV_SLOW_IO_N	"vdev_slow_io_n"
+#define	FM_EREPORT_PAYLOAD_ZFS_VDEV_SLOW_IO_T	"vdev_slow_io_t"
 #define	FM_EREPORT_PAYLOAD_ZFS_VDEV_DELAYS	"vdev_delays"
 #define	FM_EREPORT_PAYLOAD_ZFS_PARENT_GUID	"parent_guid"
 #define	FM_EREPORT_PAYLOAD_ZFS_PARENT_TYPE	"parent_type"

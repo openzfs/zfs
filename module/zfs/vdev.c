@@ -677,6 +677,8 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 	vd->vdev_checksum_t = vdev_prop_default_numeric(VDEV_PROP_CHECKSUM_T);
 	vd->vdev_io_n = vdev_prop_default_numeric(VDEV_PROP_IO_N);
 	vd->vdev_io_t = vdev_prop_default_numeric(VDEV_PROP_IO_T);
+	vd->vdev_slow_io_n = vdev_prop_default_numeric(VDEV_PROP_SLOW_IO_N);
+	vd->vdev_slow_io_t = vdev_prop_default_numeric(VDEV_PROP_SLOW_IO_T);
 
 	list_link_init(&vd->vdev_config_dirty_node);
 	list_link_init(&vd->vdev_state_dirty_node);
@@ -3755,6 +3757,18 @@ vdev_load(vdev_t *vd)
 		if (error && error != ENOENT)
 			vdev_dbgmsg(vd, "vdev_load: zap_lookup(zap=%llu) "
 			    "failed [error=%d]", (u_longlong_t)zapobj, error);
+
+		error = vdev_prop_get_int(vd, VDEV_PROP_SLOW_IO_N,
+		    &vd->vdev_slow_io_n);
+		if (error && error != ENOENT)
+			vdev_dbgmsg(vd, "vdev_load: zap_lookup(zap=%llu) "
+			    "failed [error=%d]", (u_longlong_t)zapobj, error);
+
+		error = vdev_prop_get_int(vd, VDEV_PROP_SLOW_IO_T,
+		    &vd->vdev_slow_io_t);
+		if (error && error != ENOENT)
+			vdev_dbgmsg(vd, "vdev_load: zap_lookup(zap=%llu) "
+			    "failed [error=%d]", (u_longlong_t)zapobj, error);
 	}
 
 	/*
@@ -5970,6 +5984,20 @@ vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 			}
 			vd->vdev_io_t = intval;
 			break;
+		case VDEV_PROP_SLOW_IO_N:
+			if (nvpair_value_uint64(elem, &intval) != 0) {
+				error = EINVAL;
+				break;
+			}
+			vd->vdev_slow_io_n = intval;
+			break;
+		case VDEV_PROP_SLOW_IO_T:
+			if (nvpair_value_uint64(elem, &intval) != 0) {
+				error = EINVAL;
+				break;
+			}
+			vd->vdev_slow_io_t = intval;
+			break;
 		default:
 			/* Most processing is done in vdev_props_set_sync */
 			break;
@@ -6313,6 +6341,8 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 			case VDEV_PROP_CHECKSUM_T:
 			case VDEV_PROP_IO_N:
 			case VDEV_PROP_IO_T:
+			case VDEV_PROP_SLOW_IO_N:
+			case VDEV_PROP_SLOW_IO_T:
 				err = vdev_prop_get_int(vd, prop, &intval);
 				if (err && err != ENOENT)
 					break;

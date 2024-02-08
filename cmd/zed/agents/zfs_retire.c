@@ -524,6 +524,9 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 		    "fault.fs.zfs.vdev.checksum")) {
 			degrade_device = B_TRUE;
 		} else if (fmd_nvl_class_match(hdl, fault,
+		    "fault.fs.zfs.vdev.slow_io")) {
+			degrade_device = B_TRUE;
+		} else if (fmd_nvl_class_match(hdl, fault,
 		    "fault.fs.zfs.device")) {
 			fault_device = B_FALSE;
 		} else if (fmd_nvl_class_match(hdl, fault, "fault.io.*")) {
