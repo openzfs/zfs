@@ -29,7 +29,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd March 16, 2022
+.Dd February 8, 2024
 .Dt ZFS-LIST 8
 .Os
 .
@@ -48,27 +48,26 @@
 .Oo Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Oc Ns …
 .
 .Sh DESCRIPTION
-If specified, you can list property information by the absolute pathname or the
-relative pathname.
-By default, all file systems and volumes are displayed.
+By default, all file systems and volumes are displayed, with the following
+fields:
+.Sy name , Sy used , Sy available , Sy referenced , Sy mountpoint .
 Snapshots are displayed if the
 .Sy listsnapshots
 pool property is
 .Sy on
 .Po the default is
 .Sy off
-.Pc ,
+.Pc
 or if the
 .Fl t Sy snapshot
 or
 .Fl t Sy all
 options are specified.
-The following fields are displayed:
-.Sy name , Sy used , Sy available , Sy referenced , Sy mountpoint .
+.Pp
 .Bl -tag -width "-H"
 .It Fl H
 Used for scripting mode.
-Do not print headers and separate fields by a single tab instead of arbitrary
+Do not print headers, and separate fields by a single tab instead of arbitrary
 white space.
 .It Fl d Ar depth
 Recursively display any children of the dataset, limiting the recursion to
@@ -80,7 +79,7 @@ of
 will display only the dataset and its direct children.
 .It Fl o Ar property
 A comma-separated list of properties to display.
-The property must be:
+Each property must be:
 .Bl -bullet -compact
 .It
 One of the properties described in the
@@ -118,30 +117,41 @@ section of
 or the value
 .Sy name
 to sort by the dataset name.
-Multiple properties can be specified at one time using multiple
+Multiple properties can be specified to operate together using multiple
 .Fl s
-property options.
+or
+.Fl S
+options.
 Multiple
 .Fl s
-options are evaluated from left to right in decreasing order of importance.
-The following is a list of sorting criteria:
+and
+.Fl S
+options are evaluated from left to right to supply sort keys in
+decreasing order of priority.
+Property types operate as follows:
 .Bl -bullet -compact
 .It
 Numeric types sort in numeric order.
 .It
 String types sort in alphabetical order.
 .It
-Types inappropriate for a row sort that row to the literal bottom, regardless of
-the specified ordering.
+Types inappropriate for a row sort that row to the literal bottom,
+regardless of the specified ordering.
 .El
 .Pp
-If no sorting options are specified the existing behavior of
-.Nm zfs Cm list
-is preserved.
+If no sort columns are specified, or if two lines of output would sort
+equally across all specified columns, then datasets and bookmarks are
+sorted by name, whereas snapshots are sorted first by the name of their
+dataset and then by the time of their creation.
+When no sort columns are specified but snapshots are listed, this
+default behavior causes snapshots to be grouped under their datasets in
+chronological order by creation time.
 .It Fl S Ar property
 Same as
 .Fl s ,
-but sorts by property in descending order.
+but sorts by 
+.Ar property
+in descending order.
 .It Fl t Ar type
 A comma-separated list of types to display, where
 .Ar type
@@ -155,6 +165,15 @@ or
 For example, specifying
 .Fl t Sy snapshot
 displays only snapshots.
+.Sy fs ,
+.Sy snap ,
+or
+.Sy vol
+can be used as aliases for
+.Sy filesystem ,
+.Sy snapshot ,
+or
+.Sy volume .
 .El
 .
 .Sh EXAMPLES
