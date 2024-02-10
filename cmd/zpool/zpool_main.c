@@ -2246,7 +2246,6 @@ print_status_initialize(vdev_stat_t *vs, boolean_t verbose)
 		    !vs->vs_scan_removing) {
 			char zbuf[1024];
 			char tbuf[256];
-			struct tm zaction_ts;
 
 			time_t t = vs->vs_initialize_action_time;
 			int initialize_pct = 100;
@@ -2256,8 +2255,8 @@ print_status_initialize(vdev_stat_t *vs, boolean_t verbose)
 				    100 / (vs->vs_initialize_bytes_est + 1));
 			}
 
-			(void) localtime_r(&t, &zaction_ts);
-			(void) strftime(tbuf, sizeof (tbuf), "%c", &zaction_ts);
+			(void) ctime_r(&t, tbuf);
+			tbuf[24] = 0;
 
 			switch (vs->vs_initialize_state) {
 			case VDEV_INITIALIZE_SUSPENDED:
@@ -2297,7 +2296,6 @@ print_status_trim(vdev_stat_t *vs, boolean_t verbose)
 		    !vs->vs_scan_removing) {
 			char zbuf[1024];
 			char tbuf[256];
-			struct tm zaction_ts;
 
 			time_t t = vs->vs_trim_action_time;
 			int trim_pct = 100;
@@ -2306,8 +2304,8 @@ print_status_trim(vdev_stat_t *vs, boolean_t verbose)
 				    100 / (vs->vs_trim_bytes_est + 1));
 			}
 
-			(void) localtime_r(&t, &zaction_ts);
-			(void) strftime(tbuf, sizeof (tbuf), "%c", &zaction_ts);
+			(void) ctime_r(&t, tbuf);
+			tbuf[24] = 0;
 
 			switch (vs->vs_trim_state) {
 			case VDEV_TRIM_SUSPENDED:
