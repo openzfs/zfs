@@ -1822,7 +1822,8 @@ spa_get_slop_space(spa_t *spa)
 	 * deduplicated data, so since it's not useful to reserve more
 	 * space with more deduplicated data, we subtract that out here.
 	 */
-	space = spa_get_dspace(spa) - spa->spa_dedup_dspace;
+	space =
+	    spa_get_dspace(spa) - spa->spa_dedup_dspace - brt_get_dspace(spa);
 	slop = MIN(space >> spa_slop_shift, spa_max_slop);
 
 	/*
