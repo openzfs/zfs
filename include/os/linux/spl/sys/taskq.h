@@ -104,7 +104,7 @@ typedef struct taskq {
 	/* list node for the cpu hotplug callback */
 	struct hlist_node	tq_hp_cb_node;
 	boolean_t		tq_hp_support;
-	unsigned long		lastshouldstop; /* when to purge dynamic */
+	unsigned long		lastspawnstop;	/* when to purge dynamic */
 } taskq_t;
 
 typedef struct taskq_ent {
