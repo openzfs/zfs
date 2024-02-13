@@ -186,18 +186,8 @@ reading it could cause a lock-up if the list grow too large
 without limiting the output.
 "(truncated)" will be shown if the list is larger than the limit.
 .
-.It Sy spl_taskq_thread_timeout_ms Ns = Ns Sy 10000 Pq uint
-(Linux-only)
-How long a taskq has to have had no work before we tear it down.
-Previously, we would tear down a dynamic taskq worker as soon
-as we noticed it had no work, but it was observed that this led
-to a lot of churn in tearing down things we then immediately
-spawned anew.
-In practice, it seems any nonzero value will remove the vast
-majority of this churn, while the nontrivially larger value
-was chosen to help filter out the little remaining churn on
-a mostly idle system.
-Setting this value to
-.Sy 0
-will revert to the previous behavior.
+.It Sy spl_taskq_thread_timeout_ms Ns = Ns Sy 5000 Pq uint
+Minimum idle threads exit interval for dynamic taskqs.
+Smaller values allow idle threads exit more often and potentially be
+respawned again on demand, causing more churn.
 .El
