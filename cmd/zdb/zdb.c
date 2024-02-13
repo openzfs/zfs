@@ -7952,6 +7952,17 @@ dump_mos_leaks(spa_t *spa)
 		}
 	}
 
+	if (spa->spa_brt != NULL) {
+		brt_t *brt = spa->spa_brt;
+		for (uint64_t vdevid = 0; vdevid < brt->brt_nvdevs; vdevid++) {
+			brt_vdev_t *brtvd = &brt->brt_vdevs[vdevid];
+			if (brtvd != NULL && brtvd->bv_initiated) {
+				mos_obj_refd(brtvd->bv_mos_brtvdev);
+				mos_obj_refd(brtvd->bv_mos_entries);
+			}
+		}
+	}
+
 	/*
 	 * Visit all allocated objects and make sure they are referenced.
 	 */
