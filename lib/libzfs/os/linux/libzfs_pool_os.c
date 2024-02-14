@@ -273,6 +273,16 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, const char *name)
 	vtoc->efi_parts[0].p_start = start_block;
 	vtoc->efi_parts[0].p_size = slice_size;
 
+	if (vtoc->efi_parts[0].p_size * vtoc->efi_lbasize < SPA_MINDEVSIZE) {
+		(void) close(fd);
+		efi_free(vtoc);
+
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "cannot "
+		    "label '%s': partition would be less than the minimum "
+		    "device size (64M)"), path);
+		return (zfs_error(hdl, EZFS_LABELFAILED, errbuf));
+	}
+
 	/*
 	 * Why we use V_USR: V_BACKUP confuses users, and is considered
 	 * disposable by some EFI utilities (since EFI doesn't have a backup
