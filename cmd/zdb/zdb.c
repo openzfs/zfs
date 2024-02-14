@@ -5404,6 +5404,7 @@ typedef struct zdb_cb {
 	uint32_t	**zcb_vd_obsolete_counts;
 	avl_tree_t	zcb_brt;
 	boolean_t	zcb_brt_is_active;
+	boolean_t	zcb_active_ddt_logs;
 } zdb_cb_t;
 
 /* test if two DVA offsets from same vdev are within the same metaslab */
@@ -6081,7 +6082,30 @@ zdb_ddt_leak_init(spa_t *spa, zdb_cb_t *zcb)
 	int error;
 
 	ASSERT(!dump_opt['L']);
+#if 1
+	/*
+	 * XXX - need to account for entries in the ddt logs
+	 * For now we only detect that logs are not empty
+	 */
+	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
+		ddt_t *ddt = spa->spa_ddt[c];
+		if (ddt == NULL)
+			continue;
 
+		if (avl_numnodes(&ddt->ddt_log_active->ddl_tree) > 0 ||
+		    avl_numnodes(&ddt->ddt_log_flushing->ddl_tree) > 0) {
+			printf("zdb_ddt_leak_init: has active ddt logs\n");
+			zcb->zcb_active_ddt_logs = B_TRUE;
+			break;
+		}
+		if (ddt->ddt_log_active->ddl_object != 0 ||
+		    ddt->ddt_log_flushing->ddl_object != 0) {
+			printf("zdb_ddt_leak_init: has ddt log objects\n");
+			zcb->zcb_active_ddt_logs = B_TRUE;
+			break;
+		}
+	}
+#endif
 	while ((error = ddt_walk(spa, &ddb, &ddlwe)) == 0) {
 		blkptr_t blk;
 
@@ -6892,7 +6916,14 @@ dump_block_stats(spa_t *spa)
 		    (u_longlong_t)total_alloc,
 		    (dump_opt['L']) ? "unreachable" : "leaked",
 		    (longlong_t)(total_alloc - total_found));
+#if 1
+		/* XXX - need to account for entries in the ddt logs */
+		if (zcb->zcb_active_ddt_logs)
+			(void) printf("DDT log causing false positive leaks\n");
+		leaks = zcb->zcb_active_ddt_logs ? B_FALSE : B_TRUE;
+#else
 		leaks = B_TRUE;
+#endif
 	}
 
 	if (tzb->zb_count == 0) {
@@ -7985,6 +8016,21 @@ dump_mos_leaks(spa_t *spa)
 			}
 		}
 	}
+#if 1
+	/* Account for FDT objects */
+	for (uint64_t cksum = 0; cksum < ZIO_CHECKSUM_FUNCTIONS; cksum++) {
+		ddt_t *ddt = spa->spa_ddt[cksum];
+		if (!ddt)
+			continue;
+		if (ddt->ddt_dir_object > 0)
+			mos_obj_refd(ddt->ddt_dir_object);
+
+		for (int log = 0; log < 2; log++) {
+			if (ddt->ddt_log[log].ddl_object > 0)
+				mos_obj_refd(ddt->ddt_log[log].ddl_object);
+		}
+	}
+#endif
 
 	if (spa->spa_brt != NULL) {
 		brt_t *brt = spa->spa_brt;
