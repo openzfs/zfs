@@ -810,7 +810,9 @@ zfsctl_root_lookup(struct inode *dip, const char *name, struct inode **ipp,
 	if ((error = zfs_enter(zfsvfs, FTAG)) != 0)
 		return (error);
 
-	if (strcmp(name, "..") == 0) {
+	if (zfsvfs->z_show_ctldir == ZFS_SNAPDIR_DISABLED) {
+		error = SET_ERROR(ENOENT);
+	} else if (strcmp(name, "..") == 0) {
 		*ipp = dip->i_sb->s_root->d_inode;
 	} else if (strcmp(name, ZFS_SNAPDIR_NAME) == 0) {
 		*ipp = zfsctl_inode_lookup(zfsvfs, ZFSCTL_INO_SNAPDIR,

@@ -30,7 +30,7 @@ typeset -a logbias_prop_vals=('latency' 'throughput')
 typeset -a primarycache_prop_vals=('all' 'none' 'metadata')
 typeset -a redundant_metadata_prop_vals=('all' 'most' 'some' 'none')
 typeset -a secondarycache_prop_vals=('all' 'none' 'metadata')
-typeset -a snapdir_prop_vals=('hidden' 'visible')
+typeset -a snapdir_prop_vals=('disabled' 'hidden' 'visible')
 typeset -a sync_prop_vals=('standard' 'always' 'disabled')
 
 typeset -a fs_props=('compress' 'checksum' 'recsize'

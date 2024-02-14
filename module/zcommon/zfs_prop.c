@@ -237,6 +237,7 @@ zfs_prop_init(void)
 	static const zprop_index_t snapdir_table[] = {
 		{ "hidden",	ZFS_SNAPDIR_HIDDEN },
 		{ "visible",	ZFS_SNAPDIR_VISIBLE },
+		{ "disabled",	ZFS_SNAPDIR_DISABLED },
 		{ NULL }
 	};
 
@@ -428,7 +429,7 @@ zfs_prop_init(void)
 	    "COMPRESS", compress_table, sfeatures);
 	zprop_register_index(ZFS_PROP_SNAPDIR, "snapdir", ZFS_SNAPDIR_HIDDEN,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
-	    "hidden | visible", "SNAPDIR", snapdir_table, sfeatures);
+	    "disabled | hidden | visible", "SNAPDIR", snapdir_table, sfeatures);
 	zprop_register_index(ZFS_PROP_SNAPDEV, "snapdev", ZFS_SNAPDEV_HIDDEN,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
 	    "hidden | visible", "SNAPDEV", snapdev_table, sfeatures);

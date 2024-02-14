@@ -57,6 +57,10 @@ zpl_root_iterate(struct file *filp, zpl_dir_context_t *ctx)
 	zfsvfs_t *zfsvfs = ITOZSB(file_inode(filp));
 	int error = 0;
 
+	if (zfsvfs->z_show_ctldir == ZFS_SNAPDIR_DISABLED) {
+		return (SET_ERROR(ENOENT));
+	}
+
 	if ((error = zpl_enter(zfsvfs, FTAG)) != 0)
 		return (error);
 
