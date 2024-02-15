@@ -69,8 +69,8 @@ ddt_zap_lookup(objset_t *os, uint64_t object, ddt_entry_t *dde)
 	if (error)
 		goto out;
 
-	ASSERT(one == 1);
-	ASSERT(csize <= (sizeof (dde->dde_phys) + 1));
+	ASSERT3U(one, ==, 1);
+	ASSERT3U(csize, <=, (sizeof (dde->dde_phys) + 1));
 
 	error = zap_lookup_uint64(os, object, (uint64_t *)&dde->dde_key,
 	    DDT_KEY_WORDS, 1, csize, cbuf);
@@ -133,10 +133,10 @@ ddt_zap_walk(objset_t *os, uint64_t object, ddt_entry_t *dde, uint64_t *walk)
 	if ((error = zap_cursor_retrieve(&zc, &za)) == 0) {
 		uchar_t cbuf[sizeof (dde->dde_phys) + 1];
 		uint64_t csize = za.za_num_integers;
-		ASSERT(za.za_integer_length == 1);
+		ASSERT3U(za.za_integer_length, ==, 1);
 		error = zap_lookup_uint64(os, object, (uint64_t *)za.za_name,
 		    DDT_KEY_WORDS, 1, csize, cbuf);
-		ASSERT(error == 0);
+		ASSERT0(error);
 		if (error == 0) {
 			ddt_decompress(cbuf, dde->dde_phys, csize,
 			    sizeof (dde->dde_phys));

@@ -70,16 +70,16 @@ ddt_object_create(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
 
 	ddt_object_name(ddt, type, class, name);
 
-	ASSERT(*objectp == 0);
-	VERIFY(ddt_ops[type]->ddt_op_create(os, objectp, tx, prehash) == 0);
-	ASSERT(*objectp != 0);
+	ASSERT3U(*objectp, ==, 0);
+	VERIFY0(ddt_ops[type]->ddt_op_create(os, objectp, tx, prehash));
+	ASSERT3U(*objectp, !=, 0);
 
-	VERIFY(zap_add(os, DMU_POOL_DIRECTORY_OBJECT, name,
-	    sizeof (uint64_t), 1, objectp, tx) == 0);
+	VERIFY0(zap_add(os, DMU_POOL_DIRECTORY_OBJECT, name,
+	    sizeof (uint64_t), 1, objectp, tx));
 
-	VERIFY(zap_add(os, spa->spa_ddt_stat_object, name,
+	VERIFY0(zap_add(os, spa->spa_ddt_stat_object, name,
 	    sizeof (uint64_t), sizeof (ddt_histogram_t) / sizeof (uint64_t),
-	    &ddt->ddt_histogram[type][class], tx) == 0);
+	    &ddt->ddt_histogram[type][class], tx));
 }
 
 static void
@@ -94,12 +94,13 @@ ddt_object_destroy(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
 
 	ddt_object_name(ddt, type, class, name);
 
-	ASSERT(*objectp != 0);
+	ASSERT3U(*objectp, !=, 0);
 	ASSERT(ddt_histogram_empty(&ddt->ddt_histogram[type][class]));
-	VERIFY(ddt_object_count(ddt, type, class, &count) == 0 && count == 0);
-	VERIFY(zap_remove(os, DMU_POOL_DIRECTORY_OBJECT, name, tx) == 0);
-	VERIFY(zap_remove(os, spa->spa_ddt_stat_object, name, tx) == 0);
-	VERIFY(ddt_ops[type]->ddt_op_destroy(os, *objectp, tx) == 0);
+	VERIFY0(ddt_object_count(ddt, type, class, &count));
+	VERIFY0(count);
+	VERIFY0(zap_remove(os, DMU_POOL_DIRECTORY_OBJECT, name, tx));
+	VERIFY0(zap_remove(os, spa->spa_ddt_stat_object, name, tx));
+	VERIFY0(ddt_ops[type]->ddt_op_destroy(os, *objectp, tx));
 	memset(&ddt->ddt_object_stats[type][class], 0, sizeof (ddt_object_t));
 
 	*objectp = 0;
@@ -156,15 +157,15 @@ ddt_object_sync(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
 
 	ddt_object_name(ddt, type, class, name);
 
-	VERIFY(zap_update(ddt->ddt_os, ddt->ddt_spa->spa_ddt_stat_object, name,
+	VERIFY0(zap_update(ddt->ddt_os, ddt->ddt_spa->spa_ddt_stat_object, name,
 	    sizeof (uint64_t), sizeof (ddt_histogram_t) / sizeof (uint64_t),
-	    &ddt->ddt_histogram[type][class], tx) == 0);
+	    &ddt->ddt_histogram[type][class], tx));
 
 	/*
 	 * Cache DDT statistics; this is the only time they'll change.
 	 */
-	VERIFY(ddt_object_info(ddt, type, class, &doi) == 0);
-	VERIFY(ddt_object_count(ddt, type, class, &count) == 0);
+	VERIFY0(ddt_object_info(ddt, type, class, &doi));
+	VERIFY0(ddt_object_count(ddt, type, class, &count));
 
 	ddo->ddo_count = count;
 	ddo->ddo_dspace = doi.doi_physical_blocks_512 << 9;
@@ -262,7 +263,7 @@ ddt_object_name(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
 void
 ddt_bp_fill(const ddt_phys_t *ddp, blkptr_t *bp, uint64_t txg)
 {
-	ASSERT(txg != 0);
+	ASSERT3U(txg, !=, 0);
 
 	for (int d = 0; d < SPA_DVAS_PER_BP; d++)
 		bp->blk_dva[d] = ddp->ddp_dva[d];
@@ -313,7 +314,7 @@ ddt_key_fill(ddt_key_t *ddk, const blkptr_t *bp)
 void
 ddt_phys_fill(ddt_phys_t *ddp, const blkptr_t *bp)
 {
-	ASSERT(ddp->ddp_phys_birth == 0);
+	ASSERT0(ddp->ddp_phys_birth);
 
 	for (int d = 0; d < SPA_DVAS_PER_BP; d++)
 		ddp->ddp_dva[d] = bp->blk_dva[d];
@@ -336,7 +337,7 @@ void
 ddt_phys_decref(ddt_phys_t *ddp)
 {
 	if (ddp) {
-		ASSERT(ddp->ddp_refcnt > 0);
+		ASSERT3U(ddp->ddp_refcnt, >, 0);
 		ddp->ddp_refcnt--;
 	}
 }
@@ -438,7 +439,7 @@ ddt_stat_update(ddt_t *ddt, ddt_entry_t *dde, uint64_t neg)
 	ddt_stat_generate(ddt, dde, &dds);
 
 	bucket = highbit64(dds.dds_ref_blocks) - 1;
-	ASSERT(bucket >= 0);
+	ASSERT3U(bucket, >=, 0);
 
 	ddh = &ddt->ddt_histogram[dde->dde_type][dde->dde_class];
 
@@ -561,7 +562,7 @@ ddt_compress(void *src, uchar_t *dst, size_t s_len, size_t d_len)
 	zio_compress_info_t *ci = &zio_compress_table[cpfunc];
 	size_t c_len;
 
-	ASSERT(d_len >= s_len + 1);	/* no compression plus version byte */
+	ASSERT3U(d_len, >=, s_len + 1);	/* no compression plus version byte */
 
 	c_len = ci->ci_compress(src, dst, s_len, d_len - 1, ci->ci_level);
 
@@ -648,7 +649,7 @@ ddt_free(ddt_entry_t *dde)
 	ASSERT(!dde->dde_loading);
 
 	for (int p = 0; p < DDT_PHYS_TYPES; p++)
-		ASSERT(dde->dde_lead_zio[p] == NULL);
+		ASSERT3P(dde->dde_lead_zio[p], ==, NULL);
 
 	if (dde->dde_repair_abd != NULL)
 		abd_free(dde->dde_repair_abd);
@@ -713,8 +714,8 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 
 	ddt_enter(ddt);
 
-	ASSERT(dde->dde_loaded == B_FALSE);
-	ASSERT(dde->dde_loading == B_TRUE);
+	ASSERT(!dde->dde_loaded);
+	ASSERT(dde->dde_loading);
 
 	dde->dde_type = type;	/* will be DDT_TYPES if no entry found */
 	dde->dde_class = class;	/* will be DDT_CLASSES if no entry found */
@@ -803,8 +804,8 @@ ddt_table_alloc(spa_t *spa, enum zio_checksum c)
 static void
 ddt_table_free(ddt_t *ddt)
 {
-	ASSERT(avl_numnodes(&ddt->ddt_tree) == 0);
-	ASSERT(avl_numnodes(&ddt->ddt_repair_tree) == 0);
+	ASSERT0(avl_numnodes(&ddt->ddt_tree));
+	ASSERT0(avl_numnodes(&ddt->ddt_repair_tree));
 	avl_destroy(&ddt->ddt_tree);
 	avl_destroy(&ddt->ddt_repair_tree);
 	mutex_destroy(&ddt->ddt_lock);
@@ -1017,9 +1018,9 @@ ddt_sync_entry(ddt_t *ddt, ddt_entry_t *dde, dmu_tx_t *tx, uint64_t txg)
 	ASSERT(!dde->dde_loading);
 
 	for (int p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
-		ASSERT(dde->dde_lead_zio[p] == NULL);
+		ASSERT3P(dde->dde_lead_zio[p], ==, NULL);
 		if (ddp->ddp_phys_birth == 0) {
-			ASSERT(ddp->ddp_refcnt == 0);
+			ASSERT0(ddp->ddp_refcnt);
 			continue;
 		}
 		if (p == DDT_PHYS_DITTO) {
@@ -1044,8 +1045,9 @@ ddt_sync_entry(ddt_t *ddt, ddt_entry_t *dde, dmu_tx_t *tx, uint64_t txg)
 
 	if (otype != DDT_TYPES &&
 	    (otype != ntype || oclass != nclass || total_refcnt == 0)) {
-		VERIFY(ddt_object_remove(ddt, otype, oclass, dde, tx) == 0);
-		ASSERT(ddt_object_lookup(ddt, otype, oclass, dde) == ENOENT);
+		VERIFY0(ddt_object_remove(ddt, otype, oclass, dde, tx));
+		ASSERT3U(
+		    ddt_object_lookup(ddt, otype, oclass, dde), ==, ENOENT);
 	}
 
 	if (total_refcnt != 0) {
@@ -1054,7 +1056,7 @@ ddt_sync_entry(ddt_t *ddt, ddt_entry_t *dde, dmu_tx_t *tx, uint64_t txg)
 		ddt_stat_update(ddt, dde, 0);
 		if (!ddt_object_exists(ddt, ntype, nclass))
 			ddt_object_create(ddt, ntype, nclass, tx);
-		VERIFY(ddt_object_update(ddt, ntype, nclass, dde, tx) == 0);
+		VERIFY0(ddt_object_update(ddt, ntype, nclass, dde, tx));
 
 		/*
 		 * If the class changes, the order that we scan this bp
@@ -1080,7 +1082,7 @@ ddt_sync_table(ddt_t *ddt, dmu_tx_t *tx, uint64_t txg)
 	if (avl_numnodes(&ddt->ddt_tree) == 0)
 		return;
 
-	ASSERT(spa->spa_uberblock.ub_version >= SPA_VERSION_DEDUP);
+	ASSERT3U(spa->spa_uberblock.ub_version, >=, SPA_VERSION_DEDUP);
 
 	if (spa->spa_ddt_stat_object == 0) {
 		spa->spa_ddt_stat_object = zap_create_link(ddt->ddt_os,
@@ -1098,8 +1100,8 @@ ddt_sync_table(ddt_t *ddt, dmu_tx_t *tx, uint64_t txg)
 		for (enum ddt_class class = 0; class < DDT_CLASSES; class++) {
 			if (ddt_object_exists(ddt, type, class)) {
 				ddt_object_sync(ddt, type, class, tx);
-				VERIFY(ddt_object_count(ddt, type, class,
-				    &add) == 0);
+				VERIFY0(ddt_object_count(ddt, type, class,
+				    &add));
 				count += add;
 			}
 		}
@@ -1121,7 +1123,7 @@ ddt_sync(spa_t *spa, uint64_t txg)
 	dmu_tx_t *tx;
 	zio_t *rio;
 
-	ASSERT(spa_syncing_txg(spa) == txg);
+	ASSERT3U(spa_syncing_txg(spa), ==, txg);
 
 	tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
 
@@ -1201,7 +1203,7 @@ ddt_addref(spa_t *spa, const blkptr_t *bp)
 	ddt_enter(ddt);
 
 	dde = ddt_lookup(ddt, bp, B_TRUE);
-	ASSERT(dde != NULL);
+	ASSERT3P(dde, !=, NULL);
 
 	if (dde->dde_type < DDT_TYPES) {
 		ddt_phys_t *ddp;
