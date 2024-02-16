@@ -5815,10 +5815,12 @@ zfs_ioc_clear(zfs_cmd_t *zc)
 
 	/*
 	 * If multihost is enabled, resuming I/O is unsafe as another
-	 * host may have imported the pool.
+	 * host may have imported the pool. Check for remote activity.
 	 */
-	if (spa_multihost(spa) && spa_suspended(spa))
+	if (spa_multihost(spa) && spa_suspended(spa) &&
+	    spa_mmp_remote_host_activity(spa)) {
 		return (SET_ERROR(EINVAL));
+	}
 
 	spa_vdev_state_enter(spa, SCL_NONE);
 
