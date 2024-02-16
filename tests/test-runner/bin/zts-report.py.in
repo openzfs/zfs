@@ -138,7 +138,11 @@ idmap_reason = 'Idmapped mount needs kernel 5.12+'
 # copy_file_range() is not supported by all kernels
 #
 cfr_reason = 'Kernel copy_file_range support required'
-cfr_cross_reason = 'copy_file_range(2) cross-filesystem needs kernel 5.3+'
+
+if sys.platform.startswith('freebsd'):
+    cfr_cross_reason = 'copy_file_range(2) cross-filesystem needs FreeBSD 14+'
+else:
+    cfr_cross_reason = 'copy_file_range(2) cross-filesystem needs kernel 5.3+'
 
 #
 # These tests are known to fail, thus we use this list to prevent these
@@ -268,6 +272,22 @@ if sys.platform.startswith('freebsd'):
         'pool_checkpoint/checkpoint_indirect': ['FAIL', 12623],
         'resilver/resilver_restart_001': ['FAIL', known_reason],
         'snapshot/snapshot_002_pos': ['FAIL', '14831'],
+        'bclone/bclone_crossfs_corner_cases': ['SKIP', cfr_cross_reason],
+        'bclone/bclone_crossfs_corner_cases_limited':
+            ['SKIP', cfr_cross_reason],
+        'bclone/bclone_crossfs_data': ['SKIP', cfr_cross_reason],
+        'bclone/bclone_crossfs_embedded': ['SKIP', cfr_cross_reason],
+        'bclone/bclone_crossfs_hole': ['SKIP', cfr_cross_reason],
+        'bclone/bclone_diffprops_all': ['SKIP', cfr_cross_reason],
+        'bclone/bclone_diffprops_checksum': ['SKIP', cfr_cross_reason],
+        'bclone/bclone_diffprops_compress': ['SKIP', cfr_cross_reason],
+        'bclone/bclone_diffprops_copies': ['SKIP', cfr_cross_reason],
+        'bclone/bclone_diffprops_recordsize': ['SKIP', cfr_cross_reason],
+        'bclone/bclone_prop_sync': ['SKIP', cfr_cross_reason],
+        'block_cloning/block_cloning_cross_enc_dataset':
+            ['SKIP', cfr_cross_reason],
+        'block_cloning/block_cloning_copyfilerange_cross_dataset':
+            ['SKIP', cfr_cross_reason]
     })
 elif sys.platform.startswith('linux'):
     maybe.update({

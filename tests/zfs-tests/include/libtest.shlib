@@ -61,13 +61,8 @@ function compare_version_gte
 	[ "$(printf "$1\n$2" | sort -V | tail -n1)" = "$1" ]
 }
 
-# Linux kernel version comparison function
-#
-# $1 Linux version ("4.10", "2.6.32") or blank for installed Linux version
-#
-# Used for comparison: if [ $(linux_version) -ge $(linux_version "2.6.32") ]
-#
-function linux_version
+# Helper function used by linux_version() and freebsd_version()
+function kernel_version
 {
 	typeset ver="$1"
 
@@ -81,6 +76,24 @@ function linux_version
 	[ -z "$minor" ] && minor=0
 
 	echo $((version * 100000 + major * 1000 + minor))
+}
+
+# Linux kernel version comparison function
+#
+# $1 Linux version ("4.10", "2.6.32") or blank for installed Linux version
+#
+# Used for comparison: if [ $(linux_version) -ge $(linux_version "2.6.32") ]
+function linux_version {
+	kernel_version "$1"
+}
+
+# FreeBSD version comparison function
+#
+# $1 FreeBSD version ("13.2", "14.0") or blank for installed FreeBSD version
+#
+# Used for comparison: if [ $(freebsd_version) -ge $(freebsd_version "13.2") ]
+function freebsd_version {
+	kernel_version "$1"
 }
 
 # Determine if this is a Linux test system
