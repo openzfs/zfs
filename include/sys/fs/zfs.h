@@ -258,6 +258,9 @@ typedef enum {
 	ZPOOL_PROP_BCLONEUSED,
 	ZPOOL_PROP_BCLONESAVED,
 	ZPOOL_PROP_BCLONERATIO,
+	ZPOOL_PROP_DEDUP_TABLE_SIZE,
+	ZPOOL_PROP_DEDUP_TABLE_QUOTA,
+	ZPOOL_PROP_DEDUPCACHED,
 	ZPOOL_NUM_PROPS
 } zpool_prop_t;
 
@@ -1506,6 +1509,7 @@ typedef enum zfs_ioc {
 	ZFS_IOC_VDEV_GET_PROPS,			/* 0x5a55 */
 	ZFS_IOC_VDEV_SET_PROPS,			/* 0x5a56 */
 	ZFS_IOC_POOL_SCRUB,			/* 0x5a57 */
+	ZFS_IOC_POOL_PREFETCH_DDT,		/* 0x5a58 */
 
 	/*
 	 * Per-platform (Optional) - 8/128 numbers reserved.
@@ -1673,6 +1677,17 @@ typedef enum {
  * history log.
  */
 #define	ZPOOL_HIDDEN_ARGS	"hidden_args"
+
+/*
+ * The following is used when invoking ZFS_IOC_POOL_GET_PROPS.
+ */
+#define	ZPOOL_GET_PROPS_NAMES		"get_props_names"
+
+/*
+ * Opt-in property names used with ZPOOL_GET_PROPS_NAMES.
+ * For example, properties that are hidden or expensive to compute.
+ */
+#define	ZPOOL_DEDUPCACHED_PROP_NAME	"dedupcached"
 
 /*
  * The following are names used when invoking ZFS_IOC_POOL_INITIALIZE.
