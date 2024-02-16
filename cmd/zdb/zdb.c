@@ -1862,23 +1862,23 @@ dump_log_spacemaps(spa_t *spa)
 }
 
 static void
-dump_dde(const ddt_t *ddt, const ddt_entry_t *dde, uint64_t index)
+dump_ddt_entry(const ddt_t *ddt, const ddt_lightweight_entry_t *ddlwe,
+    uint64_t index)
 {
-	const ddt_phys_t *ddp = dde->dde_phys;
-	const ddt_key_t *ddk = &dde->dde_key;
-	const char *types[4] = { "ditto", "single", "double", "triple" };
+	const ddt_key_t *ddk = &ddlwe->ddlwe_key;
 	char blkbuf[BP_SPRINTF_LEN];
 	blkptr_t blk;
 	int p;
 
-	for (p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
+	for (p = 0; p < ddlwe->ddlwe_nphys; p++) {
+		const ddt_phys_t *ddp = &ddlwe->ddlwe_phys[p];
 		if (ddp->ddp_phys_birth == 0)
 			continue;
 		ddt_bp_create(ddt->ddt_checksum, ddk, ddp, &blk);
 		snprintf_blkptr(blkbuf, sizeof (blkbuf), &blk);
-		(void) printf("index %llx refcnt %llu %s %s\n",
+		(void) printf("index %llx refcnt %llu phys %d %s\n",
 		    (u_longlong_t)index, (u_longlong_t)ddp->ddp_refcnt,
-		    types[p], blkbuf);
+		    p, blkbuf);
 	}
 }
 
@@ -1905,10 +1905,36 @@ dump_dedup_ratio(const ddt_stat_t *dds)
 }
 
 static void
+dump_ddt_log(ddt_t *ddt)
+{
+	for (int n = 0; n < 2; n++) {
+		ddt_log_t *ddl = &ddt->ddt_log[n];
+
+		uint64_t count = avl_numnodes(&ddl->ddl_tree);
+		if (count == 0)
+			continue;
+
+		printf(DMU_POOL_DDT_LOG ": %lu log entries\n",
+		    zio_checksum_table[ddt->ddt_checksum].ci_name, n, count);
+
+		if (dump_opt['D'] < 4)
+			continue;
+
+		ddt_lightweight_entry_t ddlwe;
+		uint64_t index = 0;
+		for (ddt_log_entry_t *ddle = avl_first(&ddl->ddl_tree);
+		    ddle; ddle = AVL_NEXT(&ddl->ddl_tree, ddle)) {
+			DDT_LOG_ENTRY_TO_LIGHTWEIGHT(ddt, ddle, &ddlwe);
+			dump_ddt_entry(ddt, &ddlwe, index++);
+		}
+	}
+}
+
+static void
 dump_ddt(ddt_t *ddt, ddt_type_t type, ddt_class_t class)
 {
 	char name[DDT_NAMELEN];
-	ddt_entry_t dde;
+	ddt_lightweight_entry_t ddlwe;
 	uint64_t walk = 0;
 	dmu_object_info_t doi;
 	uint64_t count, dspace, mspace;
@@ -1933,8 +1959,8 @@ dump_ddt(ddt_t *ddt, ddt_type_t type, ddt_class_t class)
 	(void) printf("%s: %llu entries, size %llu on disk, %llu in core\n",
 	    name,
 	    (u_longlong_t)count,
-	    (u_longlong_t)(dspace / count),
-	    (u_longlong_t)(mspace / count));
+	    (u_longlong_t)dspace,
+	    (u_longlong_t)mspace);
 
 	if (dump_opt['D'] < 3)
 		return;
@@ -1949,8 +1975,8 @@ dump_ddt(ddt_t *ddt, ddt_type_t type, ddt_class_t class)
 
 	(void) printf("%s contents:\n\n", name);
 
-	while ((error = ddt_object_walk(ddt, type, class, &walk, &dde)) == 0)
-		dump_dde(ddt, &dde, walk);
+	while ((error = ddt_object_walk(ddt, type, class, &walk, &ddlwe)) == 0)
+		dump_ddt_entry(ddt, &ddlwe, walk);
 
 	ASSERT3U(error, ==, ENOENT);
 
@@ -1973,6 +1999,7 @@ dump_all_ddts(spa_t *spa)
 				dump_ddt(ddt, type, class);
 			}
 		}
+		dump_ddt_log(ddt);
 	}
 
 	ddt_get_dedup_stats(spa, &dds_total);
@@ -5377,6 +5404,7 @@ typedef struct zdb_cb {
 	uint32_t	**zcb_vd_obsolete_counts;
 	avl_tree_t	zcb_brt;
 	boolean_t	zcb_brt_is_active;
+	boolean_t	zcb_active_ddt_logs;
 } zdb_cb_t;
 
 /* test if two DVA offsets from same vdev are within the same metaslab */
@@ -5724,10 +5752,10 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 		if (dde == NULL) {
 			refcnt = 0;
 		} else {
-			ddt_phys_t *ddp = ddt_phys_select(dde, bp);
+			ddt_phys_t *ddp = ddt_phys_select(ddt, dde, bp);
 			ddt_phys_decref(ddp);
 			refcnt = ddp->ddp_refcnt;
-			if (ddt_phys_total_refcnt(dde) == 0)
+			if (ddt_phys_total_refcnt(ddt, dde) == 0)
 				ddt_remove(ddt, dde);
 		}
 		ddt_exit(ddt);
@@ -6050,29 +6078,52 @@ static void
 zdb_ddt_leak_init(spa_t *spa, zdb_cb_t *zcb)
 {
 	ddt_bookmark_t ddb = {0};
-	ddt_entry_t dde;
+	ddt_lightweight_entry_t ddlwe;
 	int error;
-	int p;
 
 	ASSERT(!dump_opt['L']);
+#if 1
+	/*
+	 * XXX - need to account for entries in the ddt logs
+	 * For now we only detect that logs are not empty
+	 */
+	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
+		ddt_t *ddt = spa->spa_ddt[c];
+		if (ddt == NULL)
+			continue;
 
-	while ((error = ddt_walk(spa, &ddb, &dde)) == 0) {
+		if (avl_numnodes(&ddt->ddt_log_active->ddl_tree) > 0 ||
+		    avl_numnodes(&ddt->ddt_log_flushing->ddl_tree) > 0) {
+			printf("zdb_ddt_leak_init: has active ddt logs\n");
+			zcb->zcb_active_ddt_logs = B_TRUE;
+			break;
+		}
+		if (ddt->ddt_log_active->ddl_object != 0 ||
+		    ddt->ddt_log_flushing->ddl_object != 0) {
+			printf("zdb_ddt_leak_init: has ddt log objects\n");
+			zcb->zcb_active_ddt_logs = B_TRUE;
+			break;
+		}
+	}
+#endif
+	while ((error = ddt_walk(spa, &ddb, &ddlwe)) == 0) {
 		blkptr_t blk;
-		ddt_phys_t *ddp = dde.dde_phys;
 
 		if (ddb.ddb_class == DDT_CLASS_UNIQUE)
 			return;
 
-		ASSERT(ddt_phys_total_refcnt(&dde) > 1);
 		ddt_t *ddt = spa->spa_ddt[ddb.ddb_checksum];
 		VERIFY(ddt);
 
-		for (p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
+		uint64_t refcnt = 0;
+		for (int p = 0; p < ddlwe.ddlwe_nphys; p++) {
+			ddt_phys_t *ddp = &ddlwe.ddlwe_phys[p];
 			if (ddp->ddp_phys_birth == 0)
 				continue;
+			refcnt += ddp->ddp_refcnt;
 			ddt_bp_create(ddb.ddb_checksum,
-			    &dde.dde_key, ddp, &blk);
-			if (p == DDT_PHYS_DITTO) {
+			    &ddlwe.ddlwe_key, ddp, &blk);
+			if (DDT_PHYS_IS_DITTO(ddt, p)) {
 				zdb_count_block(zcb, NULL, &blk, ZDB_OT_DITTO);
 			} else {
 				zcb->zcb_dedup_asize +=
@@ -6080,6 +6131,7 @@ zdb_ddt_leak_init(spa_t *spa, zdb_cb_t *zcb)
 				zcb->zcb_dedup_blocks++;
 			}
 		}
+		ASSERT3U(refcnt, >, 1);
 
 		ddt_enter(ddt);
 		VERIFY(ddt_lookup(ddt, &blk, B_TRUE) != NULL);
@@ -6864,7 +6916,14 @@ dump_block_stats(spa_t *spa)
 		    (u_longlong_t)total_alloc,
 		    (dump_opt['L']) ? "unreachable" : "leaked",
 		    (longlong_t)(total_alloc - total_found));
+#if 1
+		/* XXX - need to account for entries in the ddt logs */
+		if (zcb->zcb_active_ddt_logs)
+			(void) printf("DDT log causing false positive leaks\n");
+		leaks = zcb->zcb_active_ddt_logs ? B_FALSE : B_TRUE;
+#else
 		leaks = B_TRUE;
+#endif
 	}
 
 	if (tzb->zb_count == 0) {
@@ -7198,29 +7257,27 @@ dump_simulated_ddt(spa_t *spa)
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 
 	while ((zdde = avl_destroy_nodes(&t, &cookie)) != NULL) {
-		ddt_stat_t dds;
 		uint64_t refcnt = zdde->zdde_ref_blocks;
 		ASSERT(refcnt != 0);
 
-		dds.dds_blocks = zdde->zdde_ref_blocks / refcnt;
-		dds.dds_lsize = zdde->zdde_ref_lsize / refcnt;
-		dds.dds_psize = zdde->zdde_ref_psize / refcnt;
-		dds.dds_dsize = zdde->zdde_ref_dsize / refcnt;
+		ddt_stat_t *dds = &ddh_total.ddh_stat[highbit64(refcnt) - 1];
 
-		dds.dds_ref_blocks = zdde->zdde_ref_blocks;
-		dds.dds_ref_lsize = zdde->zdde_ref_lsize;
-		dds.dds_ref_psize = zdde->zdde_ref_psize;
-		dds.dds_ref_dsize = zdde->zdde_ref_dsize;
+		dds->dds_blocks += zdde->zdde_ref_blocks / refcnt;
+		dds->dds_lsize += zdde->zdde_ref_lsize / refcnt;
+		dds->dds_psize += zdde->zdde_ref_psize / refcnt;
+		dds->dds_dsize += zdde->zdde_ref_dsize / refcnt;
 
-		ddt_stat_add(&ddh_total.ddh_stat[highbit64(refcnt) - 1],
-		    &dds, 0);
+		dds->dds_ref_blocks += zdde->zdde_ref_blocks;
+		dds->dds_ref_lsize += zdde->zdde_ref_lsize;
+		dds->dds_ref_psize += zdde->zdde_ref_psize;
+		dds->dds_ref_dsize += zdde->zdde_ref_dsize;
 
 		umem_free(zdde, sizeof (*zdde));
 	}
 
 	avl_destroy(&t);
 
-	ddt_histogram_stat(&dds_total, &ddh_total);
+	ddt_histogram_total(&dds_total, &ddh_total);
 
 	(void) printf("Simulated DDT histogram:\n");
 
@@ -7959,6 +8016,21 @@ dump_mos_leaks(spa_t *spa)
 			}
 		}
 	}
+#if 1
+	/* Account for FDT objects */
+	for (uint64_t cksum = 0; cksum < ZIO_CHECKSUM_FUNCTIONS; cksum++) {
+		ddt_t *ddt = spa->spa_ddt[cksum];
+		if (!ddt)
+			continue;
+		if (ddt->ddt_dir_object > 0)
+			mos_obj_refd(ddt->ddt_dir_object);
+
+		for (int log = 0; log < 2; log++) {
+			if (ddt->ddt_log[log].ddl_object > 0)
+				mos_obj_refd(ddt->ddt_log[log].ddl_object);
+		}
+	}
+#endif
 
 	if (spa->spa_brt != NULL) {
 		brt_t *brt = spa->spa_brt;

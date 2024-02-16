@@ -629,6 +629,8 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 		zap_cursor_fini(&zc);
 	}
 
+	ddt_walk_init(spa, scn->scn_phys.scn_min_txg);
+
 	spa_scan_stat_init(spa);
 	vdev_scan_stat_init(spa->spa_root_vdev);
 
@@ -948,6 +950,8 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 	    ot ? ot : DMU_OT_SCAN_QUEUE, DMU_OT_NONE, 0, tx);
 
 	memcpy(&scn->scn_phys_cached, &scn->scn_phys, sizeof (scn->scn_phys));
+
+	ddt_walk_init(spa, scn->scn_phys.scn_min_txg);
 
 	dsl_scan_sync_state(scn, tx, SYNC_MANDATORY);
 
@@ -1634,7 +1638,8 @@ dsl_scan_check_suspend(dsl_scan_t *scn, const zbookmark_phys_t *zb)
 	    txg_sync_waiting(scn->scn_dp) ||
 	    NSEC2SEC(sync_time_ns) >= zfs_txg_timeout)) ||
 	    spa_shutting_down(scn->scn_dp->dp_spa) ||
-	    (zfs_scan_strict_mem_lim && dsl_scan_should_clear(scn))) {
+	    (zfs_scan_strict_mem_lim && dsl_scan_should_clear(scn)) ||
+	    !ddt_walk_ready(scn->scn_dp->dp_spa)) {
 		if (zb && zb->zb_level == ZB_ROOT_LEVEL) {
 			dprintf("suspending at first available bookmark "
 			    "%llx/%llx/%llx/%llx\n",
@@ -2920,11 +2925,10 @@ enqueue_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
 
 void
 dsl_scan_ddt_entry(dsl_scan_t *scn, enum zio_checksum checksum,
-    ddt_entry_t *dde, dmu_tx_t *tx)
+    ddt_lightweight_entry_t *ddlwe, dmu_tx_t *tx)
 {
 	(void) tx;
-	const ddt_key_t *ddk = &dde->dde_key;
-	ddt_phys_t *ddp = dde->dde_phys;
+	const ddt_key_t *ddk = &ddlwe->ddlwe_key;
 	blkptr_t bp;
 	zbookmark_phys_t zb = { 0 };
 
@@ -2945,7 +2949,9 @@ dsl_scan_ddt_entry(dsl_scan_t *scn, enum zio_checksum checksum,
 	if (scn->scn_done_txg != 0)
 		return;
 
-	for (int p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
+	for (int p = 0; p < ddlwe->ddlwe_nphys; p++) {
+		ddt_phys_t *ddp = &ddlwe->ddlwe_phys[p];
+
 		if (ddp->ddp_phys_birth == 0 ||
 		    ddp->ddp_phys_birth > scn->scn_phys.scn_max_txg)
 			continue;
@@ -2993,11 +2999,11 @@ static void
 dsl_scan_ddt(dsl_scan_t *scn, dmu_tx_t *tx)
 {
 	ddt_bookmark_t *ddb = &scn->scn_phys.scn_ddt_bookmark;
-	ddt_entry_t dde = {{{{0}}}};
+	ddt_lightweight_entry_t ddlwe = {0};
 	int error;
 	uint64_t n = 0;
 
-	while ((error = ddt_walk(scn->scn_dp->dp_spa, ddb, &dde)) == 0) {
+	while ((error = ddt_walk(scn->scn_dp->dp_spa, ddb, &ddlwe)) == 0) {
 		ddt_t *ddt;
 
 		if (ddb->ddb_class > scn->scn_phys.scn_ddt_class_max)
@@ -3012,16 +3018,28 @@ dsl_scan_ddt(dsl_scan_t *scn, dmu_tx_t *tx)
 		ddt = scn->scn_dp->dp_spa->spa_ddt[ddb->ddb_checksum];
 		ASSERT(avl_first(&ddt->ddt_tree) == NULL);
 
-		dsl_scan_ddt_entry(scn, ddb->ddb_checksum, &dde, tx);
+		dsl_scan_ddt_entry(scn, ddb->ddb_checksum, &ddlwe, tx);
 		n++;
 
 		if (dsl_scan_check_suspend(scn, NULL))
 			break;
 	}
 
-	zfs_dbgmsg("scanned %llu ddt entries on %s with class_max = %u; "
-	    "suspending=%u", (longlong_t)n, scn->scn_dp->dp_spa->spa_name,
-	    (int)scn->scn_phys.scn_ddt_class_max, (int)scn->scn_suspending);
+	if (error == EAGAIN) {
+		dsl_scan_check_suspend(scn, NULL);
+		error = 0;
+
+		zfs_dbgmsg("waiting for ddt to become ready for scan "
+		    "on %s with class_max = %u; suspending=%u",
+		    scn->scn_dp->dp_spa->spa_name,
+		    (int)scn->scn_phys.scn_ddt_class_max,
+		    (int)scn->scn_suspending);
+	} else
+		zfs_dbgmsg("scanned %llu ddt entries on %s with "
+		    "class_max = %u; suspending=%u", (longlong_t)n,
+		    scn->scn_dp->dp_spa->spa_name,
+		    (int)scn->scn_phys.scn_ddt_class_max,
+		    (int)scn->scn_suspending);
 
 	ASSERT(error == 0 || error == ENOENT);
 	ASSERT(error != ENOENT ||
