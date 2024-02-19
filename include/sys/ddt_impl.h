@@ -66,7 +66,12 @@ extern void ddt_stat_update(ddt_t *ddt, ddt_entry_t *dde, uint64_t neg);
  * outside of the DDT implementation proper, and if you do, consider moving
  * them up.
  */
-#define	DDT_NAMELEN	110
+
+/*
+ * Enough room to expand DMU_POOL_DDT format for all possible DDT
+ * checksum/class/type combinations.
+ */
+#define	DDT_NAMELEN	32
 
 extern uint64_t ddt_phys_total_refcnt(const ddt_entry_t *dde);
 
