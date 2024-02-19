@@ -1921,8 +1921,8 @@ zfs_acl_ids_create(znode_t *dzp, int flag, vattr_t *vap, cred_t *cr,
 			    zfsvfs->z_acl_inherit != ZFS_ACL_PASSTHROUGH &&
 			    zfsvfs->z_acl_inherit != ZFS_ACL_PASSTHROUGH_X)
 				trim = B_TRUE;
-			zfs_acl_chmod(vap->va_mode, acl_ids->z_mode, B_FALSE,
-			    trim, acl_ids->z_aclp);
+			zfs_acl_chmod(S_ISDIR(vap->va_mode), acl_ids->z_mode,
+			    B_FALSE, trim, acl_ids->z_aclp);
 		}
 	}
 
