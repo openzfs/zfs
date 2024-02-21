@@ -454,10 +454,9 @@ vdev_disk_close(vdev_t *v)
 	if (v->vdev_reopening || vd == NULL)
 		return;
 
-	if (vd->vd_bdh != NULL) {
+	if (vd->vd_bdh != NULL)
 		vdev_blkdev_put(vd->vd_bdh, spa_mode(v->vdev_spa),
 		    zfs_vdev_holder);
-	}
 
 	rw_destroy(&vd->vd_lock);
 	kmem_free(vd, sizeof (vdev_disk_t));
@@ -663,9 +662,6 @@ typedef struct {
 
 	abd_t		*vbio_abd;	/* abd carrying borrowed linear buf */
 
-	atomic_t	vbio_ref;	/* bio refcount */
-	int		vbio_error;	/* error from failed bio */
-
 	uint_t		vbio_max_segs;	/* max segs per bio */
 
 	uint_t		vbio_max_bytes;	/* max bytes per bio */
@@ -674,43 +670,52 @@ typedef struct {
 	uint64_t	vbio_offset;	/* start offset of next bio */
 
 	struct bio	*vbio_bio;	/* pointer to the current bio */
-	struct bio	*vbio_bios;	/* list of all bios */
+	int		vbio_flags;	/* bio flags */
 } vbio_t;
 
 static vbio_t *
-vbio_alloc(zio_t *zio, struct block_device *bdev)
+vbio_alloc(zio_t *zio, struct block_device *bdev, int flags)
 {
 	vbio_t *vbio = kmem_zalloc(sizeof (vbio_t), KM_SLEEP);
 
 	vbio->vbio_zio = zio;
 	vbio->vbio_bdev = bdev;
-	atomic_set(&vbio->vbio_ref, 0);
+	vbio->vbio_abd = NULL;
 	vbio->vbio_max_segs = vdev_bio_max_segs(bdev);
 	vbio->vbio_max_bytes = vdev_bio_max_bytes(bdev);
 	vbio->vbio_lbs_mask = ~(bdev_logical_block_size(bdev)-1);
 	vbio->vbio_offset = zio->io_offset;
+	vbio->vbio_bio = NULL;
+	vbio->vbio_flags = flags;
 
 	return (vbio);
 }
 
+BIO_END_IO_PROTO(vbio_completion, bio, error);
+
 static int
 vbio_add_page(vbio_t *vbio, struct page *page, uint_t size, uint_t offset)
 {
-	struct bio *bio;
+	struct bio *bio = vbio->vbio_bio;
 	uint_t ssize;
 
 	while (size > 0) {
-		bio = vbio->vbio_bio;
 		if (bio == NULL) {
 			/* New BIO, allocate and set up */
 			bio = vdev_bio_alloc(vbio->vbio_bdev, GFP_NOIO,
 			    vbio->vbio_max_segs);
-			if (unlikely(bio == NULL))
-				return (SET_ERROR(ENOMEM));
-			BIO_BI_SECTOR(bio) = vbio->vbio_offset >> 9;
+			VERIFY(bio);
 
-			bio->bi_next = vbio->vbio_bios;
-			vbio->vbio_bios = vbio->vbio_bio = bio;
+			BIO_BI_SECTOR(bio) = vbio->vbio_offset >> 9;
+			bio_set_op_attrs(bio,
+			    vbio->vbio_zio->io_type == ZIO_TYPE_WRITE ?
+			    WRITE : READ, vbio->vbio_flags);
+
+			if (vbio->vbio_bio) {
+				bio_chain(vbio->vbio_bio, bio);
+				vdev_submit_bio(vbio->vbio_bio);
+			}
+			vbio->vbio_bio = bio;
 		}
 
 		/*
@@ -735,157 +740,97 @@ vbio_add_page(vbio_t *vbio, struct page *page, uint_t size, uint_t offset)
 		vbio->vbio_offset += BIO_BI_SIZE(bio);
 
 		/* Signal new BIO allocation wanted */
-		vbio->vbio_bio = NULL;
+		bio = NULL;
 	}
 
 	return (0);
 }
 
-BIO_END_IO_PROTO(vdev_disk_io_rw_completion, bio, error);
-static void vbio_put(vbio_t *vbio);
-
-static void
-vbio_submit(vbio_t *vbio, int flags)
+/* Iterator callback to submit ABD pages to the vbio. */
+static int
+vbio_fill_cb(struct page *page, size_t off, size_t len, void *priv)
 {
-	ASSERT(vbio->vbio_bios);
-	struct bio *bio = vbio->vbio_bios;
-	vbio->vbio_bio = vbio->vbio_bios = NULL;
-
-	/*
-	 * We take a reference for each BIO as we submit it, plus one to
-	 * protect us from BIOs completing before we're done submitting them
-	 * all, causing vbio_put() to free vbio out from under us and/or the
-	 * zio to be returned before all its IO has completed.
-	 */
-	atomic_set(&vbio->vbio_ref, 1);
-
-	/*
-	 * If we're submitting more than one BIO, inform the block layer so
-	 * it can batch them if it wants.
-	 */
-	struct blk_plug plug;
-	boolean_t do_plug = (bio->bi_next != NULL);
-	if (do_plug)
-		blk_start_plug(&plug);
-
-	/* Submit all the BIOs */
-	while (bio != NULL) {
-		atomic_inc(&vbio->vbio_ref);
-
-		struct bio *next = bio->bi_next;
-		bio->bi_next = NULL;
-
-		bio->bi_end_io = vdev_disk_io_rw_completion;
-		bio->bi_private = vbio;
-		bio_set_op_attrs(bio,
-		    vbio->vbio_zio->io_type == ZIO_TYPE_WRITE ?
-		    WRITE : READ, flags);
-
-		vdev_submit_bio(bio);
-
-		bio = next;
-	}
-
-	/* Finish the batch */
-	if (do_plug)
-		blk_finish_plug(&plug);
-
-	/* Release the extra reference */
-	vbio_put(vbio);
+	vbio_t *vbio = priv;
+	return (vbio_add_page(vbio, page, len, off));
 }
 
+/* Create some BIOs, fill them with data and submit them */
 static void
-vbio_return_abd(vbio_t *vbio)
+vbio_submit(vbio_t *vbio, abd_t *abd, uint64_t size)
 {
+	ASSERT(vbio->vbio_bdev);
+
+	/*
+	 * We plug so we can submit the BIOs as we go and only unplug them when
+	 * they are fully created and submitted. This is important; if we don't
+	 * plug, then the kernel may start executing earlier BIOs while we're
+	 * still creating and executing later ones, and if the device goes
+	 * away while that's happening, older kernels can get confused and
+	 * trample memory.
+	 */
+	struct blk_plug plug;
+	blk_start_plug(&plug);
+
+	(void) abd_iterate_page_func(abd, 0, size, vbio_fill_cb, vbio);
+	ASSERT(vbio->vbio_bio);
+
+	vbio->vbio_bio->bi_end_io = vbio_completion;
+	vbio->vbio_bio->bi_private = vbio;
+
+	vdev_submit_bio(vbio->vbio_bio);
+
+	blk_finish_plug(&plug);
+
+	vbio->vbio_bio = NULL;
+	vbio->vbio_bdev = NULL;
+}
+
+/* IO completion callback */
+BIO_END_IO_PROTO(vbio_completion, bio, error)
+{
+	vbio_t *vbio = bio->bi_private;
 	zio_t *zio = vbio->vbio_zio;
-	if (vbio->vbio_abd == NULL)
-		return;
+
+	ASSERT(zio);
+
+	/* Capture and log any errors */
+#ifdef HAVE_1ARG_BIO_END_IO_T
+	zio->io_error = BIO_END_IO_ERROR(bio);
+#else
+	zio->io_error = 0;
+	if (error)
+		zio->io_error = -(error);
+	else if (!test_bit(BIO_UPTODATE, &bio->bi_flags))
+		zio->io_error = EIO;
+#endif
+	ASSERT3U(zio->io_error, >=, 0);
+
+	if (zio->io_error)
+		vdev_disk_error(zio);
+
+	/* Return the BIO to the kernel */
+	bio_put(bio);
 
 	/*
 	 * If we copied the ABD before issuing it, clean up and return the copy
 	 * to the ADB, with changes if appropriate.
 	 */
-	void *buf = abd_to_buf(vbio->vbio_abd);
-	abd_free(vbio->vbio_abd);
-	vbio->vbio_abd = NULL;
+	if (vbio->vbio_abd != NULL) {
+		void *buf = abd_to_buf(vbio->vbio_abd);
+		abd_free(vbio->vbio_abd);
+		vbio->vbio_abd = NULL;
 
-	if (zio->io_type == ZIO_TYPE_READ)
-		abd_return_buf_copy(zio->io_abd, buf, zio->io_size);
-	else
-		abd_return_buf(zio->io_abd, buf, zio->io_size);
-}
+		if (zio->io_type == ZIO_TYPE_READ)
+			abd_return_buf_copy(zio->io_abd, buf, zio->io_size);
+		else
+			abd_return_buf(zio->io_abd, buf, zio->io_size);
+	}
 
-static void
-vbio_free(vbio_t *vbio)
-{
-	VERIFY0(atomic_read(&vbio->vbio_ref));
-
-	vbio_return_abd(vbio);
-
+	/* Final cleanup */
 	kmem_free(vbio, sizeof (vbio_t));
-}
-
-static void
-vbio_put(vbio_t *vbio)
-{
-	if (atomic_dec_return(&vbio->vbio_ref) > 0)
-		return;
-
-	/*
-	 * This was the last reference, so the entire IO is completed. Clean
-	 * up and submit it for processing.
-	 */
-
-	/*
-	 * Get any data buf back to the original ABD, if necessary. We do this
-	 * now so we can get the ZIO into the pipeline as quickly as possible,
-	 * and then do the remaining cleanup after.
-	 */
-	vbio_return_abd(vbio);
-
-	zio_t *zio = vbio->vbio_zio;
-
-	/*
-	 * Set the overall error. If multiple BIOs returned an error, only the
-	 * first will be taken; the others are dropped (see
-	 * vdev_disk_io_rw_completion()). Its pretty much impossible for
-	 * multiple IOs to the same device to fail with different errors, so
-	 * there's no real risk.
-	 */
-	zio->io_error = vbio->vbio_error;
-	if (zio->io_error)
-		vdev_disk_error(zio);
 
 	/* All done, submit for processing */
 	zio_delay_interrupt(zio);
-
-	/* Finish cleanup */
-	vbio_free(vbio);
-}
-
-BIO_END_IO_PROTO(vdev_disk_io_rw_completion, bio, error)
-{
-	vbio_t *vbio = bio->bi_private;
-
-	if (vbio->vbio_error == 0) {
-#ifdef HAVE_1ARG_BIO_END_IO_T
-		vbio->vbio_error = BIO_END_IO_ERROR(bio);
-#else
-		if (error)
-			vbio->vbio_error = -(error);
-		else if (!test_bit(BIO_UPTODATE, &bio->bi_flags))
-			vbio->vbio_error = EIO;
-#endif
-	}
-
-	/*
-	 * Destroy the BIO. This is safe to do; the vbio owns its data and the
-	 * kernel won't touch it again after the completion function runs.
-	 */
-	bio_put(bio);
-
-	/* Drop this BIOs reference acquired by vbio_submit() */
-	vbio_put(vbio);
 }
 
 /*
@@ -946,14 +891,6 @@ vdev_disk_check_pages(abd_t *abd, uint64_t size, struct block_device *bdev)
 		return (B_FALSE);
 
 	return (B_TRUE);
-}
-
-/* Iterator callback to submit ABD pages to the vbio. */
-static int
-vdev_disk_fill_vbio_cb(struct page *page, size_t off, size_t len, void *priv)
-{
-	vbio_t *vbio = priv;
-	return (vbio_add_page(vbio, page, len, off));
 }
 
 static int
@@ -1018,20 +955,12 @@ vdev_disk_io_rw(zio_t *zio)
 	}
 
 	/* Allocate vbio, with a pointer to the borrowed ABD if necessary */
-	int error = 0;
-	vbio_t *vbio = vbio_alloc(zio, bdev);
+	vbio_t *vbio = vbio_alloc(zio, bdev, flags);
 	if (abd != zio->io_abd)
 		vbio->vbio_abd = abd;
 
-	/* Fill it with pages */
-	error = abd_iterate_page_func(abd, 0, zio->io_size,
-	    vdev_disk_fill_vbio_cb, vbio);
-	if (error != 0) {
-		vbio_free(vbio);
-		return (error);
-	}
-
-	vbio_submit(vbio, flags);
+	/* Fill it with data pages and submit it to the kernel */
+	vbio_submit(vbio, abd, zio->io_size);
 	return (0);
 }
 
