@@ -6686,6 +6686,7 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 		spa_load_spares(spa);
 		spa_config_exit(spa, SCL_ALL, FTAG);
 		spa->spa_spares.sav_sync = B_TRUE;
+		spa->spa_spares.sav_label_sync = B_TRUE;
 	}
 	if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_L2CACHE,
 	    &l2cache, &nl2cache) == 0) {
@@ -6701,6 +6702,7 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 		spa_load_l2cache(spa);
 		spa_config_exit(spa, SCL_ALL, FTAG);
 		spa->spa_l2cache.sav_sync = B_TRUE;
+		spa->spa_l2cache.sav_label_sync = B_TRUE;
 	}
 
 	/*
