@@ -127,7 +127,13 @@ If the property is only set on the top-level vdev, this value will be used.
 The value of these properties do not persist across vdev replacement.
 For this reason, it is advisable to set the property on the top-level vdev -
 not on the leaf vdev itself.
-The default values are 10 errors in 600 seconds.
+The default values for
+.Sy OpenZFS on Linux
+are 10 errors in 600 seconds.
+For
+.Sy OpenZFS on FreeBSD
+defaults see
+.Xr zfsd 8 .
 .It Sy comment
 A text comment up to 8192 characters long
 .It Sy bootsize
