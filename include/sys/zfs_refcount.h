@@ -76,6 +76,8 @@ int zfs_refcount_is_zero(zfs_refcount_t *);
 int64_t zfs_refcount_count(zfs_refcount_t *);
 int64_t zfs_refcount_add(zfs_refcount_t *, const void *);
 int64_t zfs_refcount_remove(zfs_refcount_t *, const void *);
+int zfs_refcount_remove_not_last(zfs_refcount_t *, const void *);
+
 /*
  * Note that (add|remove)_many adds/removes one reference with "number" N,
  * _not_ N references with "number" 1, which is what (add|remove)_few does,
@@ -114,6 +116,8 @@ typedef struct refcount {
 #define	zfs_refcount_count(rc) atomic_load_64(&(rc)->rc_count)
 #define	zfs_refcount_add(rc, holder) atomic_inc_64_nv(&(rc)->rc_count)
 #define	zfs_refcount_remove(rc, holder) atomic_dec_64_nv(&(rc)->rc_count)
+#define	zfs_refcount_remove_not_last(rc, holder) \
+	atomic_dec_not_last_64(&(rc)->rc_count)
 #define	zfs_refcount_add_few(rc, number, holder) \
 	atomic_add_64(&(rc)->rc_count, number)
 #define	zfs_refcount_remove_few(rc, number, holder) \
