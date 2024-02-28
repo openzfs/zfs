@@ -119,9 +119,8 @@ function check_feature_set
 	while read line; do
 		typeset flag=1
 
-		if [[ "$line" == "#*" ]]; then
-			continue
-		fi
+		# Skip comments
+		[[ $line = \#* ]] && continue
 
 		for set in "$@"; do
 			if ! grep -q "$line" $ZPOOL_COMPAT_DIR/$set; then

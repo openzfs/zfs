@@ -1,4 +1,4 @@
-# Features which are supported by GRUB2
+# Features which are supported by GRUB2 versions from v2.12 onwards.
 allocation_classes
 async_destroy
 block_cloning
