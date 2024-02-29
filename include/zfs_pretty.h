@@ -33,19 +33,18 @@
 extern "C" {
 #endif
 
-_ZFS_PRETTY_H size_t zfs_pretty_zio_flag_bits(
-    uint64_t bits, char *out, size_t outlen);
-_ZFS_PRETTY_H size_t zfs_pretty_zio_flag_pairs(
-    uint64_t bits, char *out, size_t outlen);
-_ZFS_PRETTY_H size_t zfs_pretty_zio_flag_str(
-    uint64_t bits, char *out, size_t outlen);
+#define	_ZFS_PRETTY_DECLARE(name)	\
+	_ZFS_PRETTY_H size_t zfs_pretty_ ## name ## _bits( \
+	    uint64_t bits, char *out, size_t outlen); \
+	_ZFS_PRETTY_H size_t zfs_pretty_ ## name ## _pairs( \
+	    uint64_t bits, char *out, size_t outlen); \
+	_ZFS_PRETTY_H size_t zfs_pretty_ ## name ## _str( \
+	    uint64_t bits, char *out, size_t outlen); \
 
-_ZFS_PRETTY_H size_t zfs_pretty_abd_flag_bits(
-    uint64_t bits, char *out, size_t outlen);
-_ZFS_PRETTY_H size_t zfs_pretty_abd_flag_pairs(
-    uint64_t bits, char *out, size_t outlen);
-_ZFS_PRETTY_H size_t zfs_pretty_abd_flag_str(
-    uint64_t bits, char *out, size_t outlen);
+_ZFS_PRETTY_DECLARE(zio_flag)
+_ZFS_PRETTY_DECLARE(abd_flag)
+
+#undef _ZFS_PRETTY_DECLARE
 
 #ifdef	__cplusplus
 }
