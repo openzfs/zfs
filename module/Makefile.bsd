@@ -233,6 +233,7 @@ SRCS+=	cityhash.c \
 	zfs_fletcher_superscalar.c \
 	zfs_namecheck.c \
 	zfs_prop.c \
+	zfs_valstr.c \
 	zpool_prop.c \
 	zprop_common.c
 
