@@ -75,6 +75,7 @@
 #include "zpool_util.h"
 #include "zfs_comutil.h"
 #include "zfeature_common.h"
+#include "zfs_pretty.h"
 
 #include "statcommon.h"
 
@@ -10338,7 +10339,15 @@ zpool_do_events_nvprint(nvlist_t *nvl, int depth)
 
 		case DATA_TYPE_INT32:
 			(void) nvpair_value_int32(nvp, (void *)&i32);
-			printf(gettext("0x%x"), i32);
+			if (strcmp(name,
+			    FM_EREPORT_PAYLOAD_ZFS_ZIO_FLAGS) == 0) {
+				static char flagstr[512];
+				zfs_pretty_zio_flag_str(i32, flagstr,
+				    sizeof (flagstr));
+				printf(gettext("0x%x [%s]"), i32, flagstr);
+			} else {
+				printf(gettext("0x%x"), i32);
+			}
 			break;
 
 		case DATA_TYPE_UINT32:
