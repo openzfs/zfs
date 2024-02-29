@@ -43,6 +43,7 @@ extern "C" {
 
 _ZFS_PRETTY_DECLARE(zio_flag)
 _ZFS_PRETTY_DECLARE(abd_flag)
+_ZFS_PRETTY_DECLARE(arc_flag)
 
 #undef _ZFS_PRETTY_DECLARE
 
