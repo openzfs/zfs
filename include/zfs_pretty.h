@@ -40,6 +40,13 @@ _ZFS_PRETTY_H size_t zfs_pretty_zio_flag_pairs(
 _ZFS_PRETTY_H size_t zfs_pretty_zio_flag_str(
     uint64_t bits, char *out, size_t outlen);
 
+_ZFS_PRETTY_H size_t zfs_pretty_abd_flag_bits(
+    uint64_t bits, char *out, size_t outlen);
+_ZFS_PRETTY_H size_t zfs_pretty_abd_flag_pairs(
+    uint64_t bits, char *out, size_t outlen);
+_ZFS_PRETTY_H size_t zfs_pretty_abd_flag_str(
+    uint64_t bits, char *out, size_t outlen);
+
 #ifdef	__cplusplus
 }
 #endif
