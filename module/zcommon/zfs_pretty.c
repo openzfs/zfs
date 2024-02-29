@@ -185,4 +185,40 @@ _PRETTY_BIT_IMPL(abd_flag,
 )
 /* END CSTYLED */
 
+/* BEGIN CSTYLED */
+_PRETTY_BIT_IMPL(arc_flag,
+    { '.', "WT", "WAIT" },
+    { '.', "NW", "NOWAIT" },
+    { '.', "PF", "PREFETCH" },
+    { '.', "1C", "CACHED" },
+    { '.', "2C", "L2CACHE" },
+    { '.', "UC", "UNCACHED" },
+    { '.', "PP", "PRESCIENT_PREFETCH" },
+    { '.', "HT", "IN_HASH_TABLE" },
+    { '.', "IO", "IO_IN_PROGRESS" },
+    { '.', "ER", "IO_ERROR" },
+    { '.', "ID", "INDIRECT" },
+    { '.', "AS", "PRIO_ASYNC_READ" },
+    { '.', "2W", "L2_WRITING" },
+    { '.', "2E", "L2_EVICTED" },
+    { '.', "2A", "L2_WRITE_HEAD" },
+    { '.', "PR", "PROTECTED" },
+    { '.', "NA", "NOAUTH" },
+    { '.', "MD", "BUFC_METADATA" },
+    { '.', "1H", "HAS_L1HDR" },
+    { '.', "2H", "HAS_L2HDR" },
+    { '.', "CA", "COMPRESSED_ARC" },
+    { '.', "SD", "SHARED_DATA" },
+    { '.', "CO", "CACHED_ONLY" },
+    { '.', "NB", "NO_BUF" },
+    { '.', "C0", "COMPRESS_0" },
+    { '.', "C1", "COMPRESS_1" },
+    { '.', "C2", "COMPRESS_2" },
+    { '.', "C3", "COMPRESS_3" },
+    { '.', "C4", "COMPRESS_4" },
+    { '.', "C5", "COMPRESS_5" },
+    { '.', "C6", "COMPRESS_6" },
+)
+/* END CSTYLED */
+
 #undef _PRETTY_BIT_IMPL
