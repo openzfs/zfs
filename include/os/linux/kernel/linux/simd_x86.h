@@ -106,29 +106,8 @@
 #define	kfpu_init()		0
 #define	kfpu_fini()		((void) 0)
 
-#if defined(HAVE_UNDERSCORE_KERNEL_FPU)
-#define	kfpu_begin()		\
-{				\
-	preempt_disable();	\
-	__kernel_fpu_begin();	\
-}
-#define	kfpu_end()		\
-{				\
-	__kernel_fpu_end();	\
-	preempt_enable();	\
-}
-
-#elif defined(HAVE_KERNEL_FPU)
-#define	kfpu_begin()		kernel_fpu_begin()
-#define	kfpu_end()		kernel_fpu_end()
-
-#else
-/*
- * This case is unreachable.  When KERNEL_EXPORTS_X86_FPU is defined then
- * either HAVE_UNDERSCORE_KERNEL_FPU or HAVE_KERNEL_FPU must be defined.
- */
-#error "Unreachable kernel configuration"
-#endif
+extern void kfpu_begin(void);
+extern void kfpu_end(void);
 
 #else /* defined(KERNEL_EXPORTS_X86_FPU) */
 

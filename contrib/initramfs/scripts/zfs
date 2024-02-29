@@ -283,6 +283,7 @@ load_module_initrd()
 	while true; do
 
 		# Wait for all of the /dev/{hd,sd}[a-z] device nodes to appear.
+		echo "1" > /sys/kernel/wait_for_device_probe
 		if command -v wait_for_udev > /dev/null 2>&1 ; then
 			wait_for_udev 10
 		elif command -v wait_for_dev > /dev/null 2>&1 ; then

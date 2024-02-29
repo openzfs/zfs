@@ -3158,8 +3158,10 @@ zpool_vdev_online(zpool_handle_t *zhp, const char *path, int flags,
 	    nvlist_lookup_string(tgt, ZPOOL_CONFIG_PATH, &pathname) == 0) {
 		uint64_t wholedisk = 0;
 
+#ifndef TRUENAS_SCALE_NEVER_WHOLEDISK
 		(void) nvlist_lookup_uint64(tgt, ZPOOL_CONFIG_WHOLE_DISK,
 		    &wholedisk);
+#endif
 
 		/*
 		 * XXX - L2ARC 1.0 devices can't support expansion.
@@ -4314,7 +4316,7 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 		    !(name_flags & VDEV_NAME_PATH)) {
 			path = zfs_strip_path(path);
 		}
-
+#ifndef TRUENAS_SCALE_NEVER_WHOLEDISK
 		/*
 		 * Remove the partition from the path if this is a whole disk.
 		 */
@@ -4323,6 +4325,7 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 		    == 0 && value && !(name_flags & VDEV_NAME_PATH)) {
 			return (zfs_strip_partition(path));
 		}
+#endif
 	} else {
 		path = type;
 

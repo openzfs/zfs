@@ -53,6 +53,7 @@ FMAKE = env -u MAKEFLAGS make $(FMAKEFLAGS)
 modules-Linux:
 	mkdir -p $(sort $(dir $(spl-objs) $(spl-)))
 	mkdir -p $(sort $(dir $(zfs-objs) $(zfs-)))
+	@# Build the kernel modules.
 	$(MAKE) -C @LINUX_OBJ@ $(if @KERNEL_CC@,CC=@KERNEL_CC@) \
 		$(if @KERNEL_LD@,LD=@KERNEL_LD@) $(if @KERNEL_LLVM@,LLVM=@KERNEL_LLVM@) \
 		M="$$PWD" @KERNEL_MAKE@ CONFIG_ZFS=m modules
@@ -161,7 +162,7 @@ cppcheck-FreeBSD:
 cppcheck: cppcheck-@ac_system@
 
 distdir:
-	cd @srcdir@ && find . -name '*.[chS]' -exec sh -c 'for f; do mkdir -p $$distdir/$${f%/*}; cp @srcdir@/$$f $$distdir/$$f; done' _ {} +
+	cd @srcdir@ && find . -name '*.[chxS]' -exec sh -c 'for f; do mkdir -p $$distdir/$${f%/*}; cp @srcdir@/$$f $$distdir/$$f; done' _ {} +
 	cp @srcdir@/Makefile.bsd $$distdir/Makefile.bsd
 
 gen-zstd-symbols:

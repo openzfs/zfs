@@ -28,6 +28,15 @@ if BUILD_FREEBSD
 AM_CFLAGS += -fPIC -Werror -Wno-unknown-pragmas -Wno-enum-conversion
 AM_CFLAGS += -include $(top_srcdir)/include/os/freebsd/spl/sys/ccompile.h
 AM_CFLAGS += -I/usr/include -I/usr/local/include
+
+AM_CXXFLAGS  = -std=c++17 -Wall -Wstrict-prototypes -fno-strict-aliasing
+AM_CXXFLAGS += $(NO_OMIT_FRAME_POINTER)
+AM_CXXFLAGS += $(DEBUG_CFLAGS)
+AM_CXXFLAGS += $(ASAN_CFLAGS)
+AM_CXXFLAGS += $(CODE_COVERAGE_FLAGS) $(NO_FORMAT_ZERO_LENGTH)
+AM_CXXFLAGS += -fPIC -Werror -Wno-unknown-pragmas -Wno-enum-conversion
+AM_CXXFLAGS += -include $(top_srcdir)/include/os/freebsd/spl/sys/ccompile.h
+AM_CXXFLAGS += -I/usr/include -I/usr/local/include
 endif
 
 AM_CPPFLAGS += -D_GNU_SOURCE
@@ -43,6 +52,12 @@ AM_CPPFLAGS += -DPKGDATADIR=\"$(pkgdatadir)\"
 AM_CPPFLAGS += $(DEBUG_CPPFLAGS)
 AM_CPPFLAGS += $(CODE_COVERAGE_CPPFLAGS)
 AM_CPPFLAGS += -DTEXT_DOMAIN=\"zfs-@ac_system_l@-user\"
+if BUILD_LINUX
+# NAS-118236: Vdevs from CORE are labeled with whole_disk=1, but we did not
+# create the partition table in ZFS and must not repartition them.  We know
+# SCALE never creates wholedisk vdevs, so just ignore the config.
+AM_CPPFLAGS += -DTRUENAS_SCALE_NEVER_WHOLEDISK
+endif
 
 if ASAN_ENABLED
 AM_CPPFLAGS += -DZFS_ASAN_ENABLED

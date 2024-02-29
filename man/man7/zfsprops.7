@@ -660,23 +660,18 @@ platform, the behavior is the same as if it were set to
 .Sy off .
 .Bl -tag -compact -offset 4n -width "posixacl"
 .It Sy off
-default on Linux, when a file system has the
+when a file system has the
 .Sy acltype
 property set to off then ACLs are disabled.
 .It Sy noacl
 an alias for
 .Sy off
 .It Sy nfsv4
-default on
-.Fx ,
-indicates that NFSv4-style ZFS ACLs should be used.
+default, indicates that NFSv4-style ZFS ACLs should be used.
 These ACLs can be managed with the
 .Xr getfacl 1
 and
 .Xr setfacl 1 .
-The
-.Sy nfsv4
-ZFS ACL type is not yet supported on Linux.
 .It Sy posix
 indicates POSIX ACLs should be used.
 POSIX ACLs are specific to Linux and are not functional on other platforms.
