@@ -4058,6 +4058,16 @@ zio_vdev_io_start(zio_t *zio)
 	    zio->io_type == ZIO_TYPE_WRITE ||
 	    zio->io_type == ZIO_TYPE_TRIM)) {
 
+		if (zio_handle_device_injection(vd, zio, ENOSYS) != 0) {
+			/*
+			 * "no-op" injections return success, but do no actual
+			 * work. Just skip the remaining vdev stages.
+			 */
+			zio_vdev_io_bypass(zio);
+			zio_interrupt(zio);
+			return (NULL);
+		}
+
 		if ((zio = vdev_queue_io(zio)) == NULL)
 			return (NULL);
 
