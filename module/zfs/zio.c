@@ -52,6 +52,7 @@
 #include <sys/abd.h>
 #include <sys/dsl_crypt.h>
 #include <cityhash.h>
+#include <zfs_pretty.h>
 
 /*
  * ==========================================================================
@@ -4607,6 +4608,18 @@ zio_ready(zio_t *zio)
 	if (bp != NULL && bp != &zio->io_bp_copy)
 		zio->io_bp_copy = *bp;
 #endif
+
+	if (zio->io_abd) {
+		char zioflagstr[256], abdflagstr[256];
+		zfs_pretty_zio_flag_bits(zio->io_flags,
+		    zioflagstr, sizeof (zioflagstr));
+		zfs_pretty_abd_flag_bits(zio->io_abd->abd_flags,
+		    abdflagstr, sizeof (abdflagstr));
+		cmn_err(CE_NOTE, "zio_ready: zio %p type %d flags [%s];"
+		    " abd %p size %08x flags [%s]",
+		    zio, zio->io_type, zioflagstr,
+		    zio->io_abd, zio->io_abd->abd_size, abdflagstr);
+	}
 
 	if (zio->io_error != 0) {
 		zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
