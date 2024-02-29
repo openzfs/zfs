@@ -120,6 +120,9 @@ extern "C" {
 
 /*
  * zio pipeline stage definitions
+ *
+ * NOTE: PLEASE UPDATE THE BITFIELD STRINGS IN zfs_valstr.c IF YOU ADD ANOTHER
+ * FLAG.
  */
 enum zio_stage {
 	ZIO_STAGE_OPEN			= 1 << 0,	/* RWFCXT */
