@@ -109,7 +109,34 @@ zfs_pretty_str(const pretty_bit_t *table, const size_t nelems,
 	return (n);
 }
 
-static const pretty_bit_t pretty_zio_flag_table[] = {
+#define	_PRETTY_BIT_IMPL(name, ...)					\
+static const pretty_bit_t pretty_ ## name ## _table[] = { __VA_ARGS__ };\
+size_t									\
+zfs_pretty_ ## name ## _bits(uint64_t bits, char *out, size_t outlen)	\
+{									\
+	return (zfs_pretty_bits(pretty_ ## name ## _table,		\
+	    sizeof (pretty_ ## name ## _table) / sizeof (pretty_bit_t),	\
+	    bits, out, outlen));					\
+}									\
+									\
+size_t									\
+zfs_pretty_ ## name ## _pairs(uint64_t bits, char *out, size_t outlen)	\
+{									\
+	return (zfs_pretty_pairs(pretty_ ## name ## _table,		\
+	    sizeof (pretty_ ## name ## _table) / sizeof (pretty_bit_t),	\
+	    bits, out, outlen));					\
+}									\
+									\
+size_t									\
+zfs_pretty_ ## name ## _str(uint64_t bits, char *out, size_t outlen)	\
+{									\
+	return (zfs_pretty_str(pretty_ ## name ## _table,		\
+	    sizeof (pretty_ ## name ## _table) / sizeof (pretty_bit_t),	\
+	    bits, out, outlen));					\
+}									\
+
+/* BEGIN CSTYLED */
+_PRETTY_BIT_IMPL(zio_flag,
     { '.', "DA", "DONT_AGGREGATE" },
     { '.', "RP", "IO_REPAIR" },
     { '.', "SH", "SELF_HEAL" },
@@ -140,33 +167,11 @@ static const pretty_bit_t pretty_zio_flag_table[] = {
     { '.', "NP", "NOPWRITE" },
     { '.', "EX", "REEXECUTED" },
     { '.', "DG", "DELEGATED" },
-};
+)
+/* END CSTYLED */
 
-size_t
-zfs_pretty_zio_flag_bits(uint64_t bits, char *out, size_t outlen)
-{
-	return (zfs_pretty_bits(pretty_zio_flag_table,
-	    sizeof (pretty_zio_flag_table) / sizeof (pretty_bit_t),
-	    bits, out, outlen));
-}
-
-size_t
-zfs_pretty_zio_flag_pairs(uint64_t bits, char *out, size_t outlen)
-{
-	return (zfs_pretty_pairs(pretty_zio_flag_table,
-	    sizeof (pretty_zio_flag_table) / sizeof (pretty_bit_t),
-	    bits, out, outlen));
-}
-
-size_t
-zfs_pretty_zio_flag_str(uint64_t bits, char *out, size_t outlen)
-{
-	return (zfs_pretty_str(pretty_zio_flag_table,
-	    sizeof (pretty_zio_flag_table) / sizeof (pretty_bit_t),
-	    bits, out, outlen));
-}
-
-static const pretty_bit_t pretty_abd_flag_table[] = {
+/* BEGIN CSTYLED */
+_PRETTY_BIT_IMPL(abd_flag,
     { 'L', "LN", "LINEAR" },
     { 'O', "OW", "OWNER" },
     { 'M', "MT", "META" },
@@ -177,28 +182,7 @@ static const pretty_bit_t pretty_abd_flag_table[] = {
     { 'F', "GF", "GANG_FREE" },
     { 'Z', "ZR", "ZEROS" },
     { 'A', "AL", "ALLOCD" },
-};
+)
+/* END CSTYLED */
 
-size_t
-zfs_pretty_abd_flag_bits(uint64_t bits, char *out, size_t outlen)
-{
-	return (zfs_pretty_bits(pretty_abd_flag_table,
-	    sizeof (pretty_abd_flag_table) / sizeof (pretty_bit_t),
-	    bits, out, outlen));
-}
-
-size_t
-zfs_pretty_abd_flag_pairs(uint64_t bits, char *out, size_t outlen)
-{
-	return (zfs_pretty_pairs(pretty_abd_flag_table,
-	    sizeof (pretty_abd_flag_table) / sizeof (pretty_bit_t),
-	    bits, out, outlen));
-}
-
-size_t
-zfs_pretty_abd_flag_str(uint64_t bits, char *out, size_t outlen)
-{
-	return (zfs_pretty_str(pretty_abd_flag_table,
-	    sizeof (pretty_abd_flag_table) / sizeof (pretty_bit_t),
-	    bits, out, outlen));
-}
+#undef _PRETTY_BIT_IMPL
