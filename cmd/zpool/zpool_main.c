@@ -75,6 +75,7 @@
 #include "zpool_util.h"
 #include "zfs_comutil.h"
 #include "zfeature_common.h"
+#include "zfs_valstr.h"
 
 #include "statcommon.h"
 
@@ -11936,6 +11937,7 @@ static void
 zpool_do_events_nvprint(nvlist_t *nvl, int depth)
 {
 	nvpair_t *nvp;
+	static char flagstr[256];
 
 	for (nvp = nvlist_next_nvpair(nvl, NULL);
 	    nvp != NULL; nvp = nvlist_next_nvpair(nvl, nvp)) {
@@ -11995,7 +11997,21 @@ zpool_do_events_nvprint(nvlist_t *nvl, int depth)
 
 		case DATA_TYPE_UINT32:
 			(void) nvpair_value_uint32(nvp, &i32);
-			printf(gettext("0x%x"), i32);
+			if (strcmp(name,
+			    FM_EREPORT_PAYLOAD_ZFS_ZIO_STAGE) == 0 ||
+			    strcmp(name,
+			    FM_EREPORT_PAYLOAD_ZFS_ZIO_PIPELINE) == 0) {
+				zfs_valstr_zio_stage(i32, flagstr,
+				    sizeof (flagstr));
+				printf(gettext("0x%x [%s]"), i32, flagstr);
+			} else if (strcmp(name,
+			    FM_EREPORT_PAYLOAD_ZFS_ZIO_PRIORITY) == 0) {
+				zfs_valstr_zio_priority(i32, flagstr,
+				    sizeof (flagstr));
+				printf(gettext("0x%x [%s]"), i32, flagstr);
+			} else {
+				printf(gettext("0x%x"), i32);
+			}
 			break;
 
 		case DATA_TYPE_INT64:
@@ -12016,6 +12032,12 @@ zpool_do_events_nvprint(nvlist_t *nvl, int depth)
 				printf(gettext("\"%s\" (0x%llx)"),
 				    zpool_state_to_name(i64, VDEV_AUX_NONE),
 				    (u_longlong_t)i64);
+			} else if (strcmp(name,
+			    FM_EREPORT_PAYLOAD_ZFS_ZIO_FLAGS) == 0) {
+				zfs_valstr_zio_flag(i64, flagstr,
+				    sizeof (flagstr));
+				printf(gettext("0x%llx [%s]"),
+				    (u_longlong_t)i64, flagstr);
 			} else {
 				printf(gettext("0x%llx"), (u_longlong_t)i64);
 			}
