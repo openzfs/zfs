@@ -245,6 +245,7 @@ ZCOMMON_OBJS := \
 	zfs_fletcher_superscalar4.o \
 	zfs_namecheck.o \
 	zfs_prop.o \
+	zfs_valstr.o \
 	zpool_prop.o \
 	zprop_common.o
 

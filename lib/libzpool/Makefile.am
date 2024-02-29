@@ -64,6 +64,7 @@ nodist_libzpool_la_SOURCES = \
 	module/zcommon/zfs_fletcher_superscalar4.c \
 	module/zcommon/zfs_namecheck.c \
 	module/zcommon/zfs_prop.c \
+	module/zcommon/zfs_valstr.c \
 	module/zcommon/zpool_prop.c \
 	module/zcommon/zprop_common.c \
 	\
