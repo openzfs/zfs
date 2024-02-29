@@ -35,6 +35,80 @@ typedef struct {
 	const char	*pb_name;
 } pretty_bit_t;
 
+static size_t
+zfs_pretty_bits(const pretty_bit_t *table, const size_t nelems,
+    uint64_t bits, char *out, size_t outlen)
+{
+	ASSERT(out);
+	size_t n = 0;
+	for (int b = nelems; b >= 0; b--) {
+		if (n == outlen)
+			break;
+		uint64_t mask = (1ULL << b);
+		out[n++] =
+		    (bits & mask) ? table[b].pb_bit : ' ';
+	}
+	if (n < outlen)
+		out[n++] = '\0';
+	return (n);
+}
+
+static size_t
+zfs_pretty_pairs(const pretty_bit_t *table, const size_t nelems,
+    uint64_t bits, char *out, size_t outlen)
+{
+	ASSERT(out);
+	size_t n = 0;
+	for (int b = nelems; b >= 0; b--) {
+		ASSERT3U(n, <=, outlen);
+		if (n == outlen)
+			break;
+		uint64_t mask = (1ULL << b);
+		if (bits & mask) {
+			size_t len = (n > 0) ? 3 : 2;
+			if (n > outlen-len)
+				break;
+			if (n > 0)
+				out[n++] = '|';
+			out[n++] = table[b].pb_pair[0];
+			out[n++] = table[b].pb_pair[1];
+		}
+	}
+	if (n < outlen)
+		out[n++] = '\0';
+	return (n);
+}
+
+static size_t
+zfs_pretty_str(const pretty_bit_t *table, const size_t nelems,
+    uint64_t bits, char *out, size_t outlen)
+{
+	ASSERT(out);
+	size_t n = 0;
+	for (int b = 0; b < nelems; b++) {
+		ASSERT3U(n, <=, outlen);
+		if (n == outlen)
+			break;
+		uint64_t mask = (1ULL << b);
+		if (bits & mask) {
+			size_t len = strlen(table[b].pb_name);
+			if (n > 0)
+				len++;
+			if (n > outlen-len)
+				break;
+			if (n > 0) {
+				out[n++] = ' ';
+				len--;
+			}
+			memcpy(&out[n], table[b].pb_name, len);
+			n += len;
+		}
+	}
+	if (n < outlen)
+		out[n++] = '\0';
+	return (n);
+}
+
 static const pretty_bit_t pretty_zio_flag_table[] = {
     { '.', "DA", "DONT_AGGREGATE" },
     { '.', "RP", "IO_REPAIR" },
@@ -67,78 +141,29 @@ static const pretty_bit_t pretty_zio_flag_table[] = {
     { '.', "EX", "REEXECUTED" },
     { '.', "DG", "DELEGATED" },
 };
-static const size_t pretty_zio_flag_table_elems =
-    sizeof (pretty_zio_flag_table) / sizeof (pretty_bit_t);
 
 size_t
 zfs_pretty_zio_flag_bits(uint64_t bits, char *out, size_t outlen)
 {
-	ASSERT(out);
-	size_t n = 0;
-	for (int b = pretty_zio_flag_table_elems; b >= 0; b--) {
-		if (n == outlen)
-			break;
-		uint64_t mask = (1ULL << b);
-		out[n++] =
-		    (bits & mask) ? pretty_zio_flag_table[b].pb_bit : ' ';
-	}
-	if (n < outlen)
-		out[n++] = '\0';
-	return (n);
+	return (zfs_pretty_bits(pretty_zio_flag_table,
+	    sizeof (pretty_zio_flag_table) / sizeof (pretty_bit_t),
+	    bits, out, outlen));
 }
 
 size_t
 zfs_pretty_zio_flag_pairs(uint64_t bits, char *out, size_t outlen)
 {
-	ASSERT(out);
-	size_t n = 0;
-	for (int b = pretty_zio_flag_table_elems; b >= 0; b--) {
-		ASSERT3U(n, <=, outlen);
-		if (n == outlen)
-			break;
-		uint64_t mask = (1ULL << b);
-		if (bits & mask) {
-			size_t len = (n > 0) ? 3 : 2;
-			if (n > outlen-len)
-				break;
-			if (n > 0)
-				out[n++] = '|';
-			out[n++] = pretty_zio_flag_table[b].pb_pair[0];
-			out[n++] = pretty_zio_flag_table[b].pb_pair[1];
-		}
-	}
-	if (n < outlen)
-		out[n++] = '\0';
-	return (n);
+	return (zfs_pretty_pairs(pretty_zio_flag_table,
+	    sizeof (pretty_zio_flag_table) / sizeof (pretty_bit_t),
+	    bits, out, outlen));
 }
 
 size_t
 zfs_pretty_zio_flag_str(uint64_t bits, char *out, size_t outlen)
 {
-	ASSERT(out);
-	size_t n = 0;
-	for (int b = pretty_zio_flag_table_elems; b >= 0; b--) {
-		ASSERT3U(n, <=, outlen);
-		if (n == outlen)
-			break;
-		uint64_t mask = (1ULL << b);
-		if (bits & mask) {
-			size_t len = strlen(pretty_zio_flag_table[b].pb_name);
-			if (n > 0)
-				len++;
-			if (n > outlen-len)
-				break;
-			if (n > 0) {
-				out[n++] = ' ';
-				len--;
-			}
-			memcpy(&out[n], pretty_zio_flag_table[b].pb_name, len);
-			n += len;
-		}
-	}
-	if (n < outlen)
-		out[n++] = '\0';
-	return (n);
+	return (zfs_pretty_str(pretty_zio_flag_table,
+	    sizeof (pretty_zio_flag_table) / sizeof (pretty_bit_t),
+	    bits, out, outlen));
 }
 
 static const pretty_bit_t pretty_abd_flag_table[] = {
@@ -153,76 +178,27 @@ static const pretty_bit_t pretty_abd_flag_table[] = {
     { 'Z', "ZR", "ZEROS" },
     { 'A', "AL", "ALLOCD" },
 };
-static const size_t pretty_abd_flag_table_elems =
-    sizeof (pretty_abd_flag_table) / sizeof (pretty_bit_t);
 
 size_t
 zfs_pretty_abd_flag_bits(uint64_t bits, char *out, size_t outlen)
 {
-	ASSERT(out);
-	size_t n = 0;
-	for (int b = pretty_abd_flag_table_elems; b >= 0; b--) {
-		if (n == outlen)
-			break;
-		uint64_t mask = (1ULL << b);
-		out[n++] =
-		    (bits & mask) ? pretty_abd_flag_table[b].pb_bit : ' ';
-	}
-	if (n < outlen)
-		out[n++] = '\0';
-	return (n);
+	return (zfs_pretty_bits(pretty_abd_flag_table,
+	    sizeof (pretty_abd_flag_table) / sizeof (pretty_bit_t),
+	    bits, out, outlen));
 }
 
 size_t
 zfs_pretty_abd_flag_pairs(uint64_t bits, char *out, size_t outlen)
 {
-	ASSERT(out);
-	size_t n = 0;
-	for (int b = pretty_abd_flag_table_elems; b >= 0; b--) {
-		ASSERT3U(n, <=, outlen);
-		if (n == outlen)
-			break;
-		uint64_t mask = (1ULL << b);
-		if (bits & mask) {
-			size_t len = (n > 0) ? 3 : 2;
-			if (n > outlen-len)
-				break;
-			if (n > 0)
-				out[n++] = '|';
-			out[n++] = pretty_abd_flag_table[b].pb_pair[0];
-			out[n++] = pretty_abd_flag_table[b].pb_pair[1];
-		}
-	}
-	if (n < outlen)
-		out[n++] = '\0';
-	return (n);
+	return (zfs_pretty_pairs(pretty_abd_flag_table,
+	    sizeof (pretty_abd_flag_table) / sizeof (pretty_bit_t),
+	    bits, out, outlen));
 }
 
 size_t
 zfs_pretty_abd_flag_str(uint64_t bits, char *out, size_t outlen)
 {
-	ASSERT(out);
-	size_t n = 0;
-	for (int b = 0; b <= pretty_abd_flag_table_elems; b++) {
-		ASSERT3U(n, <=, outlen);
-		if (n == outlen)
-			break;
-		uint64_t mask = (1ULL << b);
-		if (bits & mask) {
-			size_t len = strlen(pretty_abd_flag_table[b].pb_name);
-			if (n > 0)
-				len++;
-			if (n > outlen-len)
-				break;
-			if (n > 0) {
-				out[n++] = ' ';
-				len--;
-			}
-			memcpy(&out[n], pretty_abd_flag_table[b].pb_name, len);
-			n += len;
-		}
-	}
-	if (n < outlen)
-		out[n++] = '\0';
-	return (n);
+	return (zfs_pretty_str(pretty_abd_flag_table,
+	    sizeof (pretty_abd_flag_table) / sizeof (pretty_bit_t),
+	    bits, out, outlen));
 }
