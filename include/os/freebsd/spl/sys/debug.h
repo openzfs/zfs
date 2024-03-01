@@ -56,7 +56,10 @@
 /*
  * Common DEBUG functionality.
  */
+
+#ifndef __printflike
 #define	__printflike(a, b)	__printf(a, b)
+#endif
 
 #ifndef __maybe_unused
 #define	__maybe_unused __attribute__((unused))
