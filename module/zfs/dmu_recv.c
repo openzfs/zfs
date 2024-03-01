@@ -2353,7 +2353,6 @@ receive_process_write_record(struct receive_writer_arg *rwa,
 	if (rwa->heal) {
 		blkptr_t *bp;
 		dmu_buf_t *dbp;
-		dnode_t *dn;
 		int flags = DB_RF_CANFAIL;
 
 		if (rwa->raw)
@@ -2385,19 +2384,15 @@ receive_process_write_record(struct receive_writer_arg *rwa,
 			dmu_buf_rele(dbp, FTAG);
 			return (err);
 		}
-		dn = dmu_buf_dnode_enter(dbp);
 		/* Make sure the on-disk block and recv record sizes match */
-		if (drrw->drr_logical_size !=
-		    dn->dn_datablkszsec << SPA_MINBLOCKSHIFT) {
+		if (drrw->drr_logical_size != dbp->db_size) {
 			err = ENOTSUP;
-			dmu_buf_dnode_exit(dbp);
 			dmu_buf_rele(dbp, FTAG);
 			return (err);
 		}
 		/* Get the block pointer for the corrupted block */
 		bp = dmu_buf_get_blkptr(dbp);
 		err = do_corrective_recv(rwa, drrw, rrd, bp);
-		dmu_buf_dnode_exit(dbp);
 		dmu_buf_rele(dbp, FTAG);
 		return (err);
 	}

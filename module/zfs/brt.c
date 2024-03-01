@@ -955,50 +955,8 @@ brt_entry_prefetch(brt_t *brt, uint64_t vdevid, brt_entry_t *bre)
 	if (mos_entries == 0)
 		return;
 
-	BRT_DEBUG("ZAP prefetch: object=%llu vdev=%llu offset=%llu",
-	    (u_longlong_t)mos_entries, (u_longlong_t)vdevid,
-	    (u_longlong_t)bre->bre_offset);
 	(void) zap_prefetch_uint64(brt->brt_mos, mos_entries,
 	    (uint64_t *)&bre->bre_offset, BRT_KEY_WORDS);
-}
-
-static int
-brt_entry_update(brt_t *brt, brt_vdev_t *brtvd, brt_entry_t *bre, dmu_tx_t *tx)
-{
-	int error;
-
-	ASSERT(RW_LOCK_HELD(&brt->brt_lock));
-	ASSERT(brtvd->bv_mos_entries != 0);
-	ASSERT(bre->bre_refcount > 0);
-
-	error = zap_update_uint64(brt->brt_mos, brtvd->bv_mos_entries,
-	    (uint64_t *)&bre->bre_offset, BRT_KEY_WORDS, 1,
-	    sizeof (bre->bre_refcount), &bre->bre_refcount, tx);
-	BRT_DEBUG("ZAP update: object=%llu vdev=%llu offset=%llu count=%llu "
-	    "error=%d", (u_longlong_t)brtvd->bv_mos_entries,
-	    (u_longlong_t)brtvd->bv_vdevid, (u_longlong_t)bre->bre_offset,
-	    (u_longlong_t)bre->bre_refcount, error);
-
-	return (error);
-}
-
-static int
-brt_entry_remove(brt_t *brt, brt_vdev_t *brtvd, brt_entry_t *bre, dmu_tx_t *tx)
-{
-	int error;
-
-	ASSERT(RW_LOCK_HELD(&brt->brt_lock));
-	ASSERT(brtvd->bv_mos_entries != 0);
-	ASSERT0(bre->bre_refcount);
-
-	error = zap_remove_uint64(brt->brt_mos, brtvd->bv_mos_entries,
-	    (uint64_t *)&bre->bre_offset, BRT_KEY_WORDS, tx);
-	BRT_DEBUG("ZAP remove: object=%llu vdev=%llu offset=%llu count=%llu "
-	    "error=%d", (u_longlong_t)brtvd->bv_mos_entries,
-	    (u_longlong_t)brtvd->bv_vdevid, (u_longlong_t)bre->bre_offset,
-	    (u_longlong_t)bre->bre_refcount, error);
-
-	return (error);
 }
 
 /*
@@ -1559,24 +1517,16 @@ brt_pending_apply(spa_t *spa, uint64_t txg)
 }
 
 static void
-brt_sync_entry(brt_t *brt, brt_vdev_t *brtvd, brt_entry_t *bre, dmu_tx_t *tx)
+brt_sync_entry(dnode_t *dn, brt_entry_t *bre, dmu_tx_t *tx)
 {
-
-	ASSERT(RW_WRITE_HELD(&brt->brt_lock));
-	ASSERT(brtvd->bv_mos_entries != 0);
-
 	if (bre->bre_refcount == 0) {
-		int error;
-
-		error = brt_entry_remove(brt, brtvd, bre, tx);
-		ASSERT(error == 0 || error == ENOENT);
-		/*
-		 * If error == ENOENT then zfs_clone_range() was done from a
-		 * removed (but opened) file (open(), unlink()).
-		 */
-		ASSERT(brt_entry_lookup(brt, brtvd, bre) == ENOENT);
+		int error = zap_remove_uint64_by_dnode(dn, &bre->bre_offset,
+		    BRT_KEY_WORDS, tx);
+		VERIFY(error == 0 || error == ENOENT);
 	} else {
-		VERIFY0(brt_entry_update(brt, brtvd, bre, tx));
+		VERIFY0(zap_update_uint64_by_dnode(dn, &bre->bre_offset,
+		    BRT_KEY_WORDS, 1, sizeof (bre->bre_refcount),
+		    &bre->bre_refcount, tx));
 	}
 }
 
@@ -1585,6 +1535,7 @@ brt_sync_table(brt_t *brt, dmu_tx_t *tx)
 {
 	brt_vdev_t *brtvd;
 	brt_entry_t *bre;
+	dnode_t *dn;
 	uint64_t vdevid;
 	void *c;
 
@@ -1608,13 +1559,18 @@ brt_sync_table(brt_t *brt, dmu_tx_t *tx)
 		if (brtvd->bv_mos_brtvdev == 0)
 			brt_vdev_create(brt, brtvd, tx);
 
+		VERIFY0(dnode_hold(brt->brt_mos, brtvd->bv_mos_entries,
+		    FTAG, &dn));
+
 		c = NULL;
 		while ((bre = avl_destroy_nodes(&brtvd->bv_tree, &c)) != NULL) {
-			brt_sync_entry(brt, brtvd, bre, tx);
+			brt_sync_entry(dn, bre, tx);
 			brt_entry_free(bre);
 			ASSERT(brt->brt_nentries > 0);
 			brt->brt_nentries--;
 		}
+
+		dnode_rele(dn, FTAG);
 
 		brt_vdev_sync(brt, brtvd, tx);
 
