@@ -1554,6 +1554,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/features/large_dnode/setup.ksh \
 	functional/flush/cleanup.ksh \
 	functional/flush/sync_flush_error.ksh \
+	functional/flush/zil_flush_error.ksh \
 	functional/flush/setup.ksh \
 	functional/grow/grow_pool_001_pos.ksh \
 	functional/grow/grow_replicas_001_pos.ksh \
