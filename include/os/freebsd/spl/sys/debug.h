@@ -56,6 +56,9 @@
 /*
  * Common DEBUG functionality.
  */
+#ifdef __FreeBSD__
+#include <linux/compiler.h>
+#endif
 
 #ifndef __printflike
 #define	__printflike(a, b)	__printf(a, b)
