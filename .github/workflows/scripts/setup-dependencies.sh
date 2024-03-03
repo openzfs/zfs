@@ -13,7 +13,7 @@ function prerun() {
   sudo apt upgrade
   sudo xargs --arg-file=.github/workflows/build-dependencies.txt apt-get install -qq
   sudo apt-get clean
-  sudo dmesg -c > /var/tmp/dmesg-prerun
+  sudo dmesg -c > /var/tmp/dmesg-prerun.txt
   echo "::endgroup::"
 }
 
@@ -47,7 +47,7 @@ function mod_install() {
   sudo depmod -a
   sudo modprobe zfs
   sudo dmesg
-  sudo dmesg -c > /var/tmp/dmesg-module-load
+  sudo dmesg -c > /var/tmp/dmesg-module-load.txt
   echo "::endgroup::"
 
   echo "::group::Report CPU information"

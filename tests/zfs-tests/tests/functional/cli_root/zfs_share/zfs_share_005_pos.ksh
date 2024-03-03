@@ -67,6 +67,7 @@ log_onexit cleanup
 
 cleanup
 
+
 typeset -i i=0
 while (( i < ${#shareopts[*]} ))
 do
