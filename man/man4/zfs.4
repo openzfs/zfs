@@ -244,12 +244,25 @@ For blocks that could be forced to be a gang block (due to
 .Sy metaslab_force_ganging ) ,
 force this many of them to be gang blocks.
 .
-.It Sy zfs_ddt_zap_default_bs Ns = Ns Sy 15 Po 32 KiB Pc Pq int
+.It Sy brt_zap_prefetch Ns = Ns Sy 1 Ns | Ns 0 Pq int
+Controls prefetching BRT records for blocks which are going to be cloned.
+.
+.It Sy brt_zap_default_bs Ns = Ns Sy 12 Po 4 KiB Pc Pq int
+Default BRT ZAP data block size as a power of 2. Note that changing this after
+creating a BRT on the pool will not affect existing BRTs, only newly created
+ones.
+.
+.It Sy brt_zap_default_ibs Ns = Ns Sy 12 Po 4 KiB Pc Pq int
+Default BRT ZAP indirect block size as a power of 2. Note that changing this
+after creating a BRT on the pool will not affect existing BRTs, only newly
+created ones.
+.
+.It Sy ddt_zap_default_bs Ns = Ns Sy 15 Po 32 KiB Pc Pq int
 Default DDT ZAP data block size as a power of 2. Note that changing this after
 creating a DDT on the pool will not affect existing DDTs, only newly created
 ones.
 .
-.It Sy zfs_ddt_zap_default_ibs Ns = Ns Sy 15 Po 32 KiB Pc Pq int
+.It Sy ddt_zap_default_ibs Ns = Ns Sy 15 Po 32 KiB Pc Pq int
 Default DDT ZAP indirect block size as a power of 2. Note that changing this
 after creating a DDT on the pool will not affect existing DDTs, only newly
 created ones.
