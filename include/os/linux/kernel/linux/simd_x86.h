@@ -157,6 +157,15 @@
 #endif
 #endif
 
+#ifndef XFEATURE_MASK_XTILE
+/*
+ * For kernels where this doesn't exist yet, we still don't want to break
+ * by save/restoring this broken nonsense.
+ * See issue #14989 or Intel errata SPR4 for why
+ */
+#define	XFEATURE_MASK_XTILE	0x60000
+#endif
+
 #include <linux/mm.h>
 #include <linux/slab.h>
 
@@ -290,7 +299,7 @@ kfpu_begin(void)
 	 */
 	union fpregs_state *state = zfs_kfpu_fpregs[smp_processor_id()];
 	if (static_cpu_has(X86_FEATURE_XSAVE)) {
-		kfpu_save_xsave(&state->xsave, ~0);
+		kfpu_save_xsave(&state->xsave, ~XFEATURE_MASK_XTILE);
 	} else if (static_cpu_has(X86_FEATURE_FXSR)) {
 		kfpu_save_fxsr(&state->fxsave);
 	} else {
@@ -319,18 +328,18 @@ kfpu_begin(void)
 	union fpregs_state *state = zfs_kfpu_fpregs[smp_processor_id()];
 #if defined(HAVE_XSAVES)
 	if (static_cpu_has(X86_FEATURE_XSAVES)) {
-		kfpu_do_xsave("xsaves", &state->xsave, ~0);
+		kfpu_do_xsave("xsaves", &state->xsave, ~XFEATURE_MASK_XTILE);
 		return;
 	}
 #endif
 #if defined(HAVE_XSAVEOPT)
 	if (static_cpu_has(X86_FEATURE_XSAVEOPT)) {
-		kfpu_do_xsave("xsaveopt", &state->xsave, ~0);
+		kfpu_do_xsave("xsaveopt", &state->xsave, ~XFEATURE_MASK_XTILE);
 		return;
 	}
 #endif
 	if (static_cpu_has(X86_FEATURE_XSAVE)) {
-		kfpu_do_xsave("xsave", &state->xsave, ~0);
+		kfpu_do_xsave("xsave", &state->xsave, ~XFEATURE_MASK_XTILE);
 	} else if (static_cpu_has(X86_FEATURE_FXSR)) {
 		kfpu_save_fxsr(&state->fxsave);
 	} else {
@@ -396,7 +405,7 @@ kfpu_end(void)
 	union fpregs_state *state = zfs_kfpu_fpregs[smp_processor_id()];
 
 	if (static_cpu_has(X86_FEATURE_XSAVE)) {
-		kfpu_restore_xsave(&state->xsave, ~0);
+		kfpu_restore_xsave(&state->xsave, ~XFEATURE_MASK_XTILE);
 	} else if (static_cpu_has(X86_FEATURE_FXSR)) {
 		kfpu_restore_fxsr(&state->fxsave);
 	} else {
@@ -415,12 +424,12 @@ kfpu_end(void)
 	union fpregs_state *state = zfs_kfpu_fpregs[smp_processor_id()];
 #if defined(HAVE_XSAVES)
 	if (static_cpu_has(X86_FEATURE_XSAVES)) {
-		kfpu_do_xrstor("xrstors", &state->xsave, ~0);
+		kfpu_do_xrstor("xrstors", &state->xsave, ~XFEATURE_MASK_XTILE);
 		goto out;
 	}
 #endif
 	if (static_cpu_has(X86_FEATURE_XSAVE)) {
-		kfpu_do_xrstor("xrstor", &state->xsave, ~0);
+		kfpu_do_xrstor("xrstor", &state->xsave, ~XFEATURE_MASK_XTILE);
 	} else if (static_cpu_has(X86_FEATURE_FXSR)) {
 		kfpu_restore_fxsr(&state->fxsave);
 	} else {
