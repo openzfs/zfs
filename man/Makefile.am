@@ -119,7 +119,7 @@ nodist_man_MANS = \
 
 dist_noinst_DATA += $(dist_noinst_man_MANS) $(dist_man_MANS)
 
-SUBSTFILES += $(nodist_man_MANS)
+SUBSTFILES += $(nodist_man_MANS) %D%/man8/zfs_prepare_disk.8
 
 CHECKS += mancheck
 mancheck:
