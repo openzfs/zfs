@@ -93,7 +93,8 @@ do_reload()
 
 # ----------------------------------------------------
 
-if [ ! -e /sbin/openrc-run ]; then
+if @IS_SYSV_RC@
+then
 	case "$1" in
 		start)
 			do_start
