@@ -6,5 +6,6 @@ Release:       1
 Release-Tags:  relext
 License:       CDDL
 Author:        OpenZFS
-Linux-Maximum: 6.8
 Linux-Minimum: 3.10
+Linux-Maximum: 6.8
+Linux-Maximum-Experimental: 6.9
