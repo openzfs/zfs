@@ -497,10 +497,39 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 
 	AC_MSG_RESULT([$kernsrcver])
 
-	AS_VERSION_COMPARE([$kernsrcver], [$ZFS_META_KVER_MIN], [
-		 AC_MSG_ERROR([
+	AC_ARG_ENABLE([supported-linux-version-check],
+		AS_HELP_STRING([--disable-supported-linux-version-check],
+		[Do not check if building against a supported Linux version]))
+
+	AX_COMPARE_VERSION([$kernsrcver], [ge], [$ZFS_META_KVER_MIN], [
+		kern_min_version_ok=yes
+	], [
+		kern_min_version_ok=no
+	])
+
+	AX_COMPARE_VERSION([$kernsrcver], [ge], [$ZFS_META_KVER_MAX], [
+		AX_COMPARE_VERSION([$kernsrcver], [eq2], [$ZFS_META_KVER_MAX], [
+			kern_max_version_ok=yes
+		], [
+			kern_max_version_ok=no
+		])
+	], [
+		kern_max_version_ok=yes
+	])
+
+	AS_IF([test "x$enable_supported_linux_version_check" != "xno"], [
+		AS_IF([test "x$kern_min_version_ok" != "xyes"], [
+			AC_MSG_ERROR([
 	*** Cannot build against kernel version $kernsrcver.
 	*** The minimum supported kernel version is $ZFS_META_KVER_MIN.
+			])
+		])
+
+		AS_IF([test "x$kern_max_version_ok" != "xyes"], [
+			AC_MSG_ERROR([
+	*** Cannot build against kernel version $kernsrcver.
+	*** The maximum supported kernel version is $ZFS_META_KVER_MAX.
+			])
 		])
 	])
 
@@ -511,6 +540,32 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 	AC_SUBST(LINUX)
 	AC_SUBST(LINUX_OBJ)
 	AC_SUBST(LINUX_VERSION)
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_VERSION_WARNING], [
+	AS_IF([test "x$enable_supported_linux_version_check" = "xno"], [
+		AS_IF([test "x$kern_min_version_ok" != "xyes" || \
+		    test "x$kern_max_version_ok" != "xyes"], [
+			AC_MSG_WARN([
+
+	You are building OpenZFS against Linux version $kernsrcver.
+
+	This combination IS NOT SUPPORTED by the OpenZFS project. Even if it
+	appears to build and run correctly, there may be bugs that can cause
+	SERIOUS DATA LOSS.
+
+	YOU HAVE BEEN WARNED!
+
+	If you choose to continue, we'd appreciate if you could report your
+	results on the OpenZFS issue tracker at:
+
+	    https://github.com/openzfs/zfs/issues/new
+
+	Your feedback will help us prepare a new OpenZFS release that supports
+	this version of Linux.
+			])
+		])
+	])
 ])
 
 dnl #
