@@ -180,7 +180,7 @@ static int get_head_ds(spa_t *spa, uint64_t dsobj, uint64_t *head_ds)
  * during spa_errlog_sync().
  */
 void
-spa_log_error(spa_t *spa, const zbookmark_phys_t *zb, const uint64_t *birth)
+spa_log_error(spa_t *spa, const zbookmark_phys_t *zb, const uint64_t birth)
 {
 	spa_error_entry_t search;
 	spa_error_entry_t *new;
@@ -223,13 +223,7 @@ spa_log_error(spa_t *spa, const zbookmark_phys_t *zb, const uint64_t *birth)
 		new->se_zep.zb_object = zb->zb_object;
 		new->se_zep.zb_level = zb->zb_level;
 		new->se_zep.zb_blkid = zb->zb_blkid;
-
-		/*
-		 * birth may end up being NULL, e.g. in zio_done(). We
-		 * will handle this in process_error_block().
-		 */
-		if (birth != NULL)
-			new->se_zep.zb_birth = *birth;
+		new->se_zep.zb_birth = birth;
 	}
 
 	avl_insert(tree, new, where);
@@ -258,7 +252,7 @@ find_birth_txg(dsl_dataset_t *ds, zbookmark_err_phys_t *zep,
 	if (error == 0 && BP_IS_HOLE(&bp))
 		error = SET_ERROR(ENOENT);
 
-	*birth_txg = bp.blk_birth;
+	*birth_txg = BP_GET_LOGICAL_BIRTH(&bp);
 	rw_exit(&dn->dn_struct_rwlock);
 	dnode_rele(dn, FTAG);
 	return (error);
@@ -535,7 +529,7 @@ process_error_block(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 		 */
 		zbookmark_phys_t zb;
 		zep_to_zb(head_ds, zep, &zb);
-		spa_remove_error(spa, &zb, &zep->zb_birth);
+		spa_remove_error(spa, &zb, zep->zb_birth);
 	}
 
 	return (error);
@@ -563,7 +557,7 @@ spa_get_last_errlog_size(spa_t *spa)
  */
 static void
 spa_add_healed_error(spa_t *spa, uint64_t obj, zbookmark_phys_t *healed_zb,
-    const uint64_t *birth)
+    const uint64_t birth)
 {
 	char name[NAME_MAX_LEN];
 
@@ -618,11 +612,7 @@ spa_add_healed_error(spa_t *spa, uint64_t obj, zbookmark_phys_t *healed_zb,
 	healed_zep.zb_object = healed_zb->zb_object;
 	healed_zep.zb_level = healed_zb->zb_level;
 	healed_zep.zb_blkid = healed_zb->zb_blkid;
-
-	if (birth != NULL)
-		healed_zep.zb_birth = *birth;
-	else
-		healed_zep.zb_birth = 0;
+	healed_zep.zb_birth = birth;
 
 	errphys_to_name(&healed_zep, name, sizeof (name));
 
@@ -742,7 +732,7 @@ spa_remove_healed_errors(spa_t *spa, avl_tree_t *s, avl_tree_t *l, dmu_tx_t *tx)
  * later in spa_remove_healed_errors().
  */
 void
-spa_remove_error(spa_t *spa, zbookmark_phys_t *zb, const uint64_t *birth)
+spa_remove_error(spa_t *spa, zbookmark_phys_t *zb, uint64_t birth)
 {
 	spa_add_healed_error(spa, spa->spa_errlog_last, zb, birth);
 	spa_add_healed_error(spa, spa->spa_errlog_scrub, zb, birth);
@@ -890,7 +880,7 @@ sync_upgrade_errlog(spa_t *spa, uint64_t spa_err_obj, uint64_t *newobj,
 		if (error == EACCES)
 			error = 0;
 		else if (!error)
-			zep.zb_birth = bp.blk_birth;
+			zep.zb_birth = BP_GET_LOGICAL_BIRTH(&bp);
 
 		rw_exit(&dn->dn_struct_rwlock);
 		dnode_rele(dn, FTAG);

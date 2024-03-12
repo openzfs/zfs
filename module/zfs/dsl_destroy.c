@@ -132,10 +132,11 @@ process_old_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed, dmu_tx_t *tx)
 
 	ASSERT(!BP_IS_HOLE(bp));
 
-	if (bp->blk_birth <= dsl_dataset_phys(poa->ds)->ds_prev_snap_txg) {
+	if (BP_GET_LOGICAL_BIRTH(bp) <=
+	    dsl_dataset_phys(poa->ds)->ds_prev_snap_txg) {
 		dsl_deadlist_insert(&poa->ds->ds_deadlist, bp, bp_freed, tx);
 		if (poa->ds_prev && !poa->after_branch_point &&
-		    bp->blk_birth >
+		    BP_GET_LOGICAL_BIRTH(bp) >
 		    dsl_dataset_phys(poa->ds_prev)->ds_prev_snap_txg) {
 			dsl_dataset_phys(poa->ds_prev)->ds_unique_bytes +=
 			    bp_get_dsize_sync(dp->dp_spa, bp);
@@ -313,7 +314,8 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 
 	ASSERT(RRW_WRITE_HELD(&dp->dp_config_rwlock));
 	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
-	ASSERT3U(dsl_dataset_phys(ds)->ds_bp.blk_birth, <=, tx->tx_txg);
+	ASSERT3U(BP_GET_LOGICAL_BIRTH(&dsl_dataset_phys(ds)->ds_bp), <=,
+	    tx->tx_txg);
 	rrw_exit(&ds->ds_bp_rwlock, FTAG);
 	ASSERT(zfs_refcount_is_zero(&ds->ds_longholds));
 
@@ -727,7 +729,7 @@ kill_blkptr(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		dsl_free(ka->tx->tx_pool, ka->tx->tx_txg, bp);
 	} else {
 		ASSERT(zilog == NULL);
-		ASSERT3U(bp->blk_birth, >,
+		ASSERT3U(BP_GET_LOGICAL_BIRTH(bp), >,
 		    dsl_dataset_phys(ka->ds)->ds_prev_snap_txg);
 		(void) dsl_dataset_block_kill(ka->ds, bp, tx, B_FALSE);
 	}
@@ -1017,7 +1019,8 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 	ASSERT(ds->ds_prev == NULL ||
 	    dsl_dataset_phys(ds->ds_prev)->ds_next_snap_obj != ds->ds_object);
 	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
-	ASSERT3U(dsl_dataset_phys(ds)->ds_bp.blk_birth, <=, tx->tx_txg);
+	ASSERT3U(BP_GET_LOGICAL_BIRTH(&dsl_dataset_phys(ds)->ds_bp), <=,
+	    tx->tx_txg);
 	rrw_exit(&ds->ds_bp_rwlock, FTAG);
 	ASSERT(RRW_WRITE_HELD(&dp->dp_config_rwlock));
 

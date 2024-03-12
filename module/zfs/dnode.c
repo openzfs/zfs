@@ -2557,7 +2557,7 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 	}
 
 	if (db != NULL && txg != 0 && (db->db_blkptr == NULL ||
-	    db->db_blkptr->blk_birth <= txg ||
+	    BP_GET_LOGICAL_BIRTH(db->db_blkptr) <= txg ||
 	    BP_IS_HOLE(db->db_blkptr))) {
 		/*
 		 * This can only happen when we are searching up the tree
@@ -2605,7 +2605,7 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 		    i >= 0 && i < epb; i += inc) {
 			if (BP_GET_FILL(&bp[i]) >= minfill &&
 			    BP_GET_FILL(&bp[i]) <= maxfill &&
-			    (hole || bp[i].blk_birth > txg))
+			    (hole || BP_GET_LOGICAL_BIRTH(&bp[i]) > txg))
 				break;
 			if (inc > 0 || *offset > 0)
 				*offset += inc;

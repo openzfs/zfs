@@ -1014,7 +1014,7 @@ static arc_buf_hdr_t *
 buf_hash_find(uint64_t spa, const blkptr_t *bp, kmutex_t **lockp)
 {
 	const dva_t *dva = BP_IDENTITY(bp);
-	uint64_t birth = BP_PHYSICAL_BIRTH(bp);
+	uint64_t birth = BP_GET_BIRTH(bp);
 	uint64_t idx = BUF_HASH_INDEX(spa, dva, birth);
 	kmutex_t *hash_lock = BUF_HASH_LOCK(idx);
 	arc_buf_hdr_t *hdr;
@@ -2183,7 +2183,7 @@ arc_untransform(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 		 * (and generate an ereport) before leaving the ARC.
 		 */
 		ret = SET_ERROR(EIO);
-		spa_log_error(spa, zb, &buf->b_hdr->b_birth);
+		spa_log_error(spa, zb, buf->b_hdr->b_birth);
 		(void) zfs_ereport_post(FM_EREPORT_ZFS_AUTHENTICATION,
 		    spa, NULL, zb, NULL, 0);
 	}
@@ -5251,7 +5251,7 @@ arc_read_done(zio_t *zio)
 	if (HDR_IN_HASH_TABLE(hdr)) {
 		arc_buf_hdr_t *found;
 
-		ASSERT3U(hdr->b_birth, ==, BP_PHYSICAL_BIRTH(zio->io_bp));
+		ASSERT3U(hdr->b_birth, ==, BP_GET_BIRTH(zio->io_bp));
 		ASSERT3U(hdr->b_dva.dva_word[0], ==,
 		    BP_IDENTITY(zio->io_bp)->dva_word[0]);
 		ASSERT3U(hdr->b_dva.dva_word[1], ==,
@@ -5354,7 +5354,7 @@ arc_read_done(zio_t *zio)
 			error = SET_ERROR(EIO);
 			if ((zio->io_flags & ZIO_FLAG_SPECULATIVE) == 0) {
 				spa_log_error(zio->io_spa, &acb->acb_zb,
-				    &zio->io_bp->blk_birth);
+				    BP_GET_LOGICAL_BIRTH(zio->io_bp));
 				(void) zfs_ereport_post(
 				    FM_EREPORT_ZFS_AUTHENTICATION,
 				    zio->io_spa, NULL, &acb->acb_zb, zio, 0);
@@ -5639,7 +5639,7 @@ top:
 				 */
 				rc = SET_ERROR(EIO);
 				if ((zio_flags & ZIO_FLAG_SPECULATIVE) == 0) {
-					spa_log_error(spa, zb, &hdr->b_birth);
+					spa_log_error(spa, zb, hdr->b_birth);
 					(void) zfs_ereport_post(
 					    FM_EREPORT_ZFS_AUTHENTICATION,
 					    spa, NULL, zb, NULL, 0);
@@ -5686,12 +5686,12 @@ top:
 			 * embedded data.
 			 */
 			arc_buf_hdr_t *exists = NULL;
-			hdr = arc_hdr_alloc(spa_load_guid(spa), psize, lsize,
+			hdr = arc_hdr_alloc(guid, psize, lsize,
 			    BP_IS_PROTECTED(bp), BP_GET_COMPRESS(bp), 0, type);
 
 			if (!embedded_bp) {
 				hdr->b_dva = *BP_IDENTITY(bp);
-				hdr->b_birth = BP_PHYSICAL_BIRTH(bp);
+				hdr->b_birth = BP_GET_BIRTH(bp);
 				exists = buf_hash_insert(hdr, &hash_lock);
 			}
 			if (exists != NULL) {
@@ -6557,7 +6557,7 @@ arc_write_done(zio_t *zio)
 			buf_discard_identity(hdr);
 		} else {
 			hdr->b_dva = *BP_IDENTITY(zio->io_bp);
-			hdr->b_birth = BP_PHYSICAL_BIRTH(zio->io_bp);
+			hdr->b_birth = BP_GET_BIRTH(zio->io_bp);
 		}
 	} else {
 		ASSERT(HDR_EMPTY(hdr));

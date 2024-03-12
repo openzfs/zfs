@@ -70,5 +70,5 @@ uberblock_update(uberblock_t *ub, vdev_t *rvd, uint64_t txg, uint64_t mmp_delay)
 	}
 	ub->ub_checkpoint_txg = 0;
 
-	return (ub->ub_rootbp.blk_birth == txg);
+	return (BP_GET_LOGICAL_BIRTH(&ub->ub_rootbp) == txg);
 }

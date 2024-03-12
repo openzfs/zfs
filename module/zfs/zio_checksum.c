@@ -272,7 +272,7 @@ static void
 zio_checksum_gang_verifier(zio_cksum_t *zcp, const blkptr_t *bp)
 {
 	const dva_t *dva = BP_IDENTITY(bp);
-	uint64_t txg = BP_PHYSICAL_BIRTH(bp);
+	uint64_t txg = BP_GET_BIRTH(bp);
 
 	ASSERT(BP_IS_GANG(bp));
 

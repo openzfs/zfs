@@ -613,7 +613,7 @@ error:
 		zio->io_error = SET_ERROR(EIO);
 		if ((zio->io_flags & ZIO_FLAG_SPECULATIVE) == 0) {
 			spa_log_error(spa, &zio->io_bookmark,
-			    &zio->io_bp->blk_birth);
+			    BP_GET_LOGICAL_BIRTH(zio->io_bp));
 			(void) zfs_ereport_post(FM_EREPORT_ZFS_AUTHENTICATION,
 			    spa, NULL, &zio->io_bookmark, zio, 0);
 		}
@@ -1052,8 +1052,8 @@ zfs_blkptr_verify_log(spa_t *spa, const blkptr_t *bp,
 	    (long long)bp->blk_prop,
 	    (long long)bp->blk_pad[0],
 	    (long long)bp->blk_pad[1],
-	    (long long)bp->blk_phys_birth,
-	    (long long)bp->blk_birth,
+	    (long long)BP_GET_PHYSICAL_BIRTH(bp),
+	    (long long)BP_GET_LOGICAL_BIRTH(bp),
 	    (long long)bp->blk_fill,
 	    (long long)bp->blk_cksum.zc_word[0],
 	    (long long)bp->blk_cksum.zc_word[1],
@@ -1156,10 +1156,11 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp,
 	/*
 	 * Pool-specific checks.
 	 *
-	 * Note: it would be nice to verify that the blk_birth and
-	 * BP_PHYSICAL_BIRTH() are not too large.  However, spa_freeze()
-	 * allows the birth time of log blocks (and dmu_sync()-ed blocks
-	 * that are in the log) to be arbitrarily large.
+	 * Note: it would be nice to verify that the logical birth
+	 * and physical birth are not too large.  However,
+	 * spa_freeze() allows the birth time of log blocks (and
+	 * dmu_sync()-ed blocks that are in the log) to be arbitrarily
+	 * large.
 	 */
 	for (int i = 0; i < BP_GET_NDVAS(bp); i++) {
 		const dva_t *dva = &bp->blk_dva[i];
@@ -1246,7 +1247,7 @@ zio_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
 {
 	zio_t *zio;
 
-	zio = zio_create(pio, spa, BP_PHYSICAL_BIRTH(bp), bp,
+	zio = zio_create(pio, spa, BP_GET_BIRTH(bp), bp,
 	    data, size, size, done, private,
 	    ZIO_TYPE_READ, priority, flags, NULL, 0, zb,
 	    ZIO_STAGE_OPEN, (flags & ZIO_FLAG_DDT_CHILD) ?
@@ -1435,7 +1436,7 @@ zio_claim(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 	 * starts allocating blocks -- so that nothing is allocated twice.
 	 * If txg == 0 we just verify that the block is claimable.
 	 */
-	ASSERT3U(spa->spa_uberblock.ub_rootbp.blk_birth, <,
+	ASSERT3U(BP_GET_LOGICAL_BIRTH(&spa->spa_uberblock.ub_rootbp), <,
 	    spa_min_claim_txg(spa));
 	ASSERT(txg == spa_min_claim_txg(spa) || txg == 0);
 	ASSERT(!BP_GET_DEDUP(bp) || !spa_writeable(spa));	/* zdb(8) */
@@ -1731,7 +1732,7 @@ zio_write_bp_init(zio_t *zio)
 		blkptr_t *bp = zio->io_bp;
 		zio_prop_t *zp = &zio->io_prop;
 
-		ASSERT(bp->blk_birth != zio->io_txg);
+		ASSERT(BP_GET_LOGICAL_BIRTH(bp) != zio->io_txg);
 
 		*bp = *zio->io_bp_override;
 		zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
@@ -1819,7 +1820,7 @@ zio_write_compress(zio_t *zio)
 	ASSERT(zio->io_child_type != ZIO_CHILD_DDT);
 	ASSERT(zio->io_bp_override == NULL);
 
-	if (!BP_IS_HOLE(bp) && bp->blk_birth == zio->io_txg) {
+	if (!BP_IS_HOLE(bp) && BP_GET_LOGICAL_BIRTH(bp) == zio->io_txg) {
 		/*
 		 * We're rewriting an existing block, which means we're
 		 * working on behalf of spa_sync().  For spa_sync() to
@@ -1866,7 +1867,7 @@ zio_write_compress(zio_t *zio)
 			BP_SET_TYPE(bp, zio->io_prop.zp_type);
 			BP_SET_LEVEL(bp, zio->io_prop.zp_level);
 			zio_buf_free(cbuf, lsize);
-			bp->blk_birth = zio->io_txg;
+			BP_SET_LOGICAL_BIRTH(bp, zio->io_txg);
 			zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
 			ASSERT(spa_feature_is_active(spa,
 			    SPA_FEATURE_EMBEDDED_DATA));
@@ -1947,7 +1948,7 @@ zio_write_compress(zio_t *zio)
 	 * spa_sync() to allocate new blocks, but force rewrites after that.
 	 * There should only be a handful of blocks after pass 1 in any case.
 	 */
-	if (!BP_IS_HOLE(bp) && bp->blk_birth == zio->io_txg &&
+	if (!BP_IS_HOLE(bp) && BP_GET_LOGICAL_BIRTH(bp) == zio->io_txg &&
 	    BP_GET_PSIZE(bp) == psize &&
 	    pass >= zfs_sync_pass_rewrite) {
 		VERIFY3U(psize, !=, 0);
@@ -1961,7 +1962,7 @@ zio_write_compress(zio_t *zio)
 	}
 
 	if (psize == 0) {
-		if (zio->io_bp_orig.blk_birth != 0 &&
+		if (BP_GET_LOGICAL_BIRTH(&zio->io_bp_orig) != 0 &&
 		    spa_feature_is_active(spa, SPA_FEATURE_HOLE_BIRTH)) {
 			BP_SET_LSIZE(bp, lsize);
 			BP_SET_TYPE(bp, zp->zp_type);
@@ -3539,7 +3540,7 @@ zio_ddt_write(zio_t *zio)
 		else
 			ddt_phys_addref(ddp);
 	} else if (zio->io_bp_override) {
-		ASSERT(bp->blk_birth == txg);
+		ASSERT(BP_GET_LOGICAL_BIRTH(bp) == txg);
 		ASSERT(BP_EQUAL(bp, zio->io_bp_override));
 		ddt_phys_fill(ddp, bp);
 		ddt_phys_addref(ddp);
@@ -3810,11 +3811,13 @@ zio_dva_claim(zio_t *zio)
 static void
 zio_dva_unallocate(zio_t *zio, zio_gang_node_t *gn, blkptr_t *bp)
 {
-	ASSERT(bp->blk_birth == zio->io_txg || BP_IS_HOLE(bp));
+	ASSERT(BP_GET_LOGICAL_BIRTH(bp) == zio->io_txg || BP_IS_HOLE(bp));
 	ASSERT(zio->io_bp_override == NULL);
 
-	if (!BP_IS_HOLE(bp))
-		metaslab_free(zio->io_spa, bp, bp->blk_birth, B_TRUE);
+	if (!BP_IS_HOLE(bp)) {
+		metaslab_free(zio->io_spa, bp, BP_GET_LOGICAL_BIRTH(bp),
+		    B_TRUE);
+	}
 
 	if (gn != NULL) {
 		for (int g = 0; g < SPA_GBH_NBLKPTRS; g++) {
@@ -4555,8 +4558,8 @@ zio_ready(zio_t *zio)
 
 	if (zio->io_ready) {
 		ASSERT(IO_IS_ALLOCATING(zio));
-		ASSERT(bp->blk_birth == zio->io_txg || BP_IS_HOLE(bp) ||
-		    (zio->io_flags & ZIO_FLAG_NOPWRITE));
+		ASSERT(BP_GET_LOGICAL_BIRTH(bp) == zio->io_txg ||
+		    BP_IS_HOLE(bp) || (zio->io_flags & ZIO_FLAG_NOPWRITE));
 		ASSERT(zio->io_children[ZIO_CHILD_GANG][ZIO_WAIT_READY] == 0);
 
 		zio->io_ready(zio);
@@ -4852,7 +4855,7 @@ zio_done(zio_t *zio)
 			 * error and generate a logical data ereport.
 			 */
 			spa_log_error(zio->io_spa, &zio->io_bookmark,
-			    &zio->io_bp->blk_birth);
+			    BP_GET_LOGICAL_BIRTH(zio->io_bp));
 			(void) zfs_ereport_post(FM_EREPORT_ZFS_DATA,
 			    zio->io_spa, NULL, &zio->io_bookmark, zio, 0);
 		}

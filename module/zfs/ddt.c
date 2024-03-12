@@ -437,7 +437,7 @@ ddt_phys_fill(ddt_phys_t *ddp, const blkptr_t *bp)
 
 	for (int d = 0; d < SPA_DVAS_PER_BP; d++)
 		ddp->ddp_dva[d] = bp->blk_dva[d];
-	ddp->ddp_phys_birth = BP_PHYSICAL_BIRTH(bp);
+	ddp->ddp_phys_birth = BP_GET_BIRTH(bp);
 }
 
 void
@@ -485,7 +485,7 @@ ddt_phys_select(const ddt_entry_t *dde, const blkptr_t *bp)
 
 	for (int p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
 		if (DVA_EQUAL(BP_IDENTITY(bp), &ddp->ddp_dva[0]) &&
-		    BP_PHYSICAL_BIRTH(bp) == ddp->ddp_phys_birth)
+		    BP_GET_BIRTH(bp) == ddp->ddp_phys_birth)
 			return (ddp);
 	}
 	return (NULL);
