@@ -1042,6 +1042,7 @@ extern metaslab_class_t *spa_normal_class(spa_t *spa);
 extern metaslab_class_t *spa_log_class(spa_t *spa);
 extern metaslab_class_t *spa_embedded_log_class(spa_t *spa);
 extern metaslab_class_t *spa_special_class(spa_t *spa);
+extern metaslab_class_t *spa_special_embedded_log_class(spa_t *spa);
 extern metaslab_class_t *spa_dedup_class(spa_t *spa);
 extern metaslab_class_t *spa_preferred_class(spa_t *spa, uint64_t size,
     dmu_object_type_t objtype, uint_t level, uint_t special_smallblk);

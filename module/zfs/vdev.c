@@ -265,8 +265,9 @@ vdev_getops(const char *type)
 metaslab_group_t *
 vdev_get_mg(vdev_t *vd, metaslab_class_t *mc)
 {
-	if (mc == spa_embedded_log_class(vd->vdev_spa) &&
-	    vd->vdev_log_mg != NULL)
+	if ((mc == spa_embedded_log_class(vd->vdev_spa) ||
+	    mc == spa_special_embedded_log_class(vd->vdev_spa)) &&
+	    vd->vdev_log_mg != NULL && vd->use_embedded_log == B_TRUE)
 		return (vd->vdev_log_mg);
 	else
 		return (vd->vdev_mg);
@@ -1470,6 +1471,13 @@ vdev_metaslab_group_create(vdev_t *vd)
 		if (!vd->vdev_islog) {
 			vd->vdev_log_mg = metaslab_group_create(
 			    spa_embedded_log_class(spa), vd, 1);
+			vd->use_embedded_log = B_TRUE;
+		}
+
+		if (vd->vdev_alloc_bias == VDEV_BIAS_SPECIAL) {
+			vd->vdev_log_mg = metaslab_group_create(
+			    spa_special_embedded_log_class(spa), vd, 1);
+			vd->use_embedded_log = B_TRUE;
 		}
 
 		/*
@@ -1555,7 +1563,8 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 	 * embedded slog by moving it from the regular to the log metaslab
 	 * group.
 	 */
-	if (vd->vdev_mg->mg_class == spa_normal_class(spa) &&
+	if ((vd->vdev_mg->mg_class == spa_normal_class(spa) ||
+	    vd->vdev_mg->mg_class == spa_special_class(spa)) &&
 	    vd->vdev_ms_count > zfs_embedded_slog_min_ms &&
 	    avl_is_empty(&vd->vdev_log_mg->mg_metaslab_tree)) {
 		uint64_t slog_msid = 0;
@@ -5998,11 +6007,18 @@ vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 			}
 			vd->vdev_slow_io_t = intval;
 			break;
+		case VDEV_PROP_ELOG:
+			if (nvpair_value_uint64(elem, &intval) != 0) {
+				error = EINVAL;
+				break;
+			}
+			vd->use_embedded_log = intval;
+			break;
 		default:
 			/* Most processing is done in vdev_props_set_sync */
 			break;
 		}
-end:
+	end:
 		if (error != 0) {
 			intval = error;
 			vdev_prop_add_list(outnvl, propname, strval, intval, 0);
@@ -6318,6 +6334,17 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 				vdev_prop_add_list(outnvl, propname, NULL,
 				    intval, src);
 				break;
+			case VDEV_PROP_ELOG:
+				intval = vd->use_embedded_log;
+
+				if (intval == vdev_prop_default_numeric(prop))
+					src = ZPROP_SRC_DEFAULT;
+				else
+					src = ZPROP_SRC_LOCAL;
+				vdev_prop_add_list(outnvl, propname, NULL,
+				    intval, src);
+				break;
+
 			case VDEV_PROP_FAILFAST:
 				src = ZPROP_SRC_LOCAL;
 				strval = NULL;

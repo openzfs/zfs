@@ -1223,6 +1223,15 @@ metaslab_group_allocatable(metaslab_group_t *mg, metaslab_group_t *rotor,
 	metaslab_class_t *mc = mg->mg_class;
 
 	/*
+	 * If we're attempting to allocate from an embedded_log class,
+	 * and we have it set to not use that on this vdev, don't.
+	 */
+	if ((mc == spa_special_embedded_log_class(spa) ||
+	    mc == spa_embedded_log_class(spa)) &&
+	    mg->mg_vd->use_embedded_log == B_FALSE) {
+		return (B_FALSE);
+	}
+	/*
 	 * We can only consider skipping this metaslab group if it's
 	 * in the normal metaslab class and there are other metaslab
 	 * groups to select from. Otherwise, we always consider it eligible
@@ -5226,6 +5235,7 @@ top:
 		ASSERT(mg->mg_activation_count == 1);
 		vd = mg->mg_vd;
 
+
 		/*
 		 * Don't allocate from faulted devices.
 		 */
@@ -5236,6 +5246,18 @@ top:
 		} else {
 			allocatable = vdev_allocatable(vd);
 		}
+
+		/*
+		 * If we're trying a log allocation from an
+		 * embedded_log allocation class, and we
+		 * have turned off allocating those from this vdev,
+		 * don't.
+		 */
+		if ((mc == spa_special_embedded_log_class(spa) ||
+		    mc == spa_embedded_log_class(spa)) &&
+		    ((flags & METASLAB_ZIL) != 0) &&
+		    vd->use_embedded_log == B_FALSE)
+			allocatable = B_FALSE;
 
 		/*
 		 * Determine if the selected metaslab group is eligible

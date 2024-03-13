@@ -3859,6 +3859,11 @@ zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg, blkptr_t *new_bp,
 	    txg, NULL, flags, &io_alloc_list, NULL, allocator);
 	*slog = (error == 0);
 	if (error != 0) {
+		error = metaslab_alloc(spa, spa_special_embedded_log_class(spa),
+		    size, new_bp, 1, txg, NULL, flags,
+		    &io_alloc_list, NULL, allocator);
+	}
+	if (error != 0) {
 		error = metaslab_alloc(spa, spa_embedded_log_class(spa), size,
 		    new_bp, 1, txg, NULL, flags,
 		    &io_alloc_list, NULL, allocator);

@@ -1262,7 +1262,7 @@ spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error,
 
 	int config_changed = B_FALSE;
 
-	ASSERT(txg > spa_last_synced_txg(spa));
+	ASSERT3U(txg, >, spa_last_synced_txg(spa));
 
 	spa->spa_pending_vdev = NULL;
 
@@ -1279,11 +1279,13 @@ spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error,
 	/*
 	 * Verify the metaslab classes.
 	 */
-	ASSERT(metaslab_class_validate(spa_normal_class(spa)) == 0);
-	ASSERT(metaslab_class_validate(spa_log_class(spa)) == 0);
-	ASSERT(metaslab_class_validate(spa_embedded_log_class(spa)) == 0);
-	ASSERT(metaslab_class_validate(spa_special_class(spa)) == 0);
-	ASSERT(metaslab_class_validate(spa_dedup_class(spa)) == 0);
+	ASSERT3U(metaslab_class_validate(spa_normal_class(spa)), ==, 0);
+	ASSERT3U(metaslab_class_validate(spa_log_class(spa)), ==, 0);
+	ASSERT3U(metaslab_class_validate(spa_embedded_log_class(spa)), ==, 0);
+	ASSERT3U(metaslab_class_validate(spa_special_class(spa)), ==, 0);
+	ASSERT3U(metaslab_class_validate(
+	    spa_special_embedded_log_class(spa)), ==, 0);
+	ASSERT3U(metaslab_class_validate(spa_dedup_class(spa)), ==, 0);
 
 	spa_config_exit(spa, SCL_ALL, spa);
 
@@ -1851,6 +1853,10 @@ spa_get_slop_space(spa_t *spa)
 	    metaslab_class_get_dspace(spa_embedded_log_class(spa));
 	slop -= MIN(embedded_log, slop >> 1);
 
+	uint64_t s_embedded_log =
+	    metaslab_class_get_dspace(spa_special_embedded_log_class(spa));
+	slop -= MIN(s_embedded_log, slop >> 1);
+
 	/*
 	 * Slop space should be at least spa_min_slop, but no more than half
 	 * the entire pool.
@@ -1950,6 +1956,12 @@ metaslab_class_t *
 spa_special_class(spa_t *spa)
 {
 	return (spa->spa_special_class);
+}
+
+metaslab_class_t *
+spa_special_embedded_log_class(spa_t *spa)
+{
+	return (spa->spa_special_embedded_log_class);
 }
 
 metaslab_class_t *
