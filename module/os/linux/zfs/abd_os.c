@@ -62,6 +62,7 @@
 #include <linux/kmap_compat.h>
 #include <linux/mm_compat.h>
 #include <linux/scatterlist.h>
+#include <linux/version.h>
 #endif
 
 #ifdef _KERNEL
@@ -1061,6 +1062,7 @@ abd_iter_page(struct abd_iter *aiter)
 	}
 	ASSERT(page);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
 	if (PageTail(page)) {
 		/*
 		 * This page is part of a "compound page", which is a group of
@@ -1082,11 +1084,23 @@ abd_iter_page(struct abd_iter *aiter)
 		 * To do this, we need to adjust the offset to be counted from
 		 * the head page. struct page for compound pages are stored
 		 * contiguously, so we can just adjust by a simple offset.
+		 *
+		 * Before kernel 4.5, compound page heads were refcounted
+		 * separately, such that moving back to the head page would
+		 * require us to take a reference to it and releasing it once
+		 * we're completely finished with it. In practice, that means
+		 * when our caller is done with the ABD, which we have no
+		 * insight into from here. Rather than contort this API to
+		 * track head page references on such ancient kernels, we just
+		 * compile this block out and use the tail pages directly. This
+		 * is slightly less efficient, but makes everything far
+		 * simpler.
 		 */
 		struct page *head = compound_head(page);
 		doff += ((page - head) * PAGESIZE);
 		page = head;
 	}
+#endif
 
 	/* final page and position within it */
 	aiter->iter_page = page;
