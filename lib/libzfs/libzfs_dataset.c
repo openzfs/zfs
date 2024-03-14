@@ -5565,8 +5565,21 @@ volsize_from_vdevs(zpool_handle_t *zhp, uint64_t nblocks, uint64_t blksize)
 		/*
 		 * Scale this size down as a ratio of 128k / tsize.
 		 * See theory statement above.
+		 *
+		 * Bitshift is to avoid the case of nblocks * asize < tsize
+		 * producing a size of 0.
 		 */
-		volsize = nblocks * asize * SPA_OLD_MAXBLOCKSIZE / tsize;
+		volsize = (nblocks * asize) / (tsize >> SPA_MINBLOCKSHIFT);
+		/*
+		 * If we would blow UINT64_MAX with this next multiplication,
+		 * don't.
+		 */
+		if (volsize >
+		    (UINT64_MAX / (SPA_OLD_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT)))
+			volsize = UINT64_MAX;
+		else
+			volsize *= (SPA_OLD_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT);
+
 		if (volsize > ret) {
 			ret = volsize;
 		}
