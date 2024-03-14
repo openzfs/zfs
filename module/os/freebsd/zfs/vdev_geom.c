@@ -457,7 +457,7 @@ vdev_geom_read_config(struct g_consumer *cp, nvlist_t **configp)
 	ZFS_LOG(1, "Reading config from %s...", pp->name);
 
 	psize = pp->mediasize;
-	psize = P2ALIGN(psize, (uint64_t)sizeof (vdev_label_t));
+	psize = P2ALIGN_TYPED(psize, sizeof (vdev_label_t), uint64_t);
 
 	size = sizeof (*vdev_lists[0]) + pp->sectorsize -
 	    ((sizeof (*vdev_lists[0]) - 1) % pp->sectorsize) - 1;

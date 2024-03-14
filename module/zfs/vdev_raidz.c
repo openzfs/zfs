@@ -4039,7 +4039,8 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
 	vdev_t *raidvd = vdev_lookup_top(spa, vre->vre_vdev_id);
 	int ashift = raidvd->vdev_ashift;
-	uint64_t write_size = P2ALIGN(VDEV_BOOT_SIZE, 1 << ashift);
+	uint64_t write_size = P2ALIGN_TYPED(VDEV_BOOT_SIZE, 1 << ashift,
+	    uint64_t);
 	uint64_t logical_size = write_size * raidvd->vdev_children;
 	uint64_t read_size =
 	    P2ROUNDUP(DIV_ROUND_UP(logical_size, (raidvd->vdev_children - 1)),

@@ -627,8 +627,8 @@ metaslab_class_expandable_space(metaslab_class_t *mc)
 		 * metaslabs. We report the expandable space in terms
 		 * of the metaslab size since that's the unit of expansion.
 		 */
-		space += P2ALIGN(tvd->vdev_max_asize - tvd->vdev_asize,
-		    1ULL << tvd->vdev_ms_shift);
+		space += P2ALIGN_TYPED(tvd->vdev_max_asize - tvd->vdev_asize,
+		    1ULL << tvd->vdev_ms_shift, uint64_t);
 	}
 	spa_config_exit(mc->mc_spa, SCL_VDEV, FTAG);
 	return (space);
