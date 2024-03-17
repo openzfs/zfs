@@ -51,6 +51,8 @@
  */
 static unsigned int zfs_fallocate_reserve_percent = 110;
 
+static unsigned int zfs_disable_holey = 1;
+
 static int
 zpl_open(struct inode *ip, struct file *filp)
 {
@@ -550,6 +552,7 @@ zpl_direct_IO(int rw, struct kiocb *kiocb, struct iov_iter *iter, loff_t pos)
 static loff_t
 zpl_llseek(struct file *filp, loff_t offset, int whence)
 {
+if (!(zfs_disable_holey)) {
 #if defined(SEEK_HOLE) && defined(SEEK_DATA)
 	fstrans_cookie_t cookie;
 
@@ -569,7 +572,7 @@ zpl_llseek(struct file *filp, loff_t offset, int whence)
 		return (error);
 	}
 #endif /* SEEK_HOLE && SEEK_DATA */
-
+}
 	return (generic_file_llseek(filp, offset, whence));
 }
 
@@ -1389,3 +1392,8 @@ const struct file_operations zpl_dir_file_operations = {
 module_param(zfs_fallocate_reserve_percent, uint, 0644);
 MODULE_PARM_DESC(zfs_fallocate_reserve_percent,
 	"Percentage of length to use for the available capacity check");
+
+/* CSTYLED */
+module_param(zfs_disable_holey, uint, 0644);
+MODULE_PARM_DESC(zfs_disable_holey,
+	"Disable ZFS-specific implementation of hole detection");
