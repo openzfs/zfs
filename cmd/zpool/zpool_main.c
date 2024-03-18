@@ -413,7 +413,7 @@ get_usage(zpool_help_t idx)
 		    "[<device> ...]\n"));
 	case HELP_STATUS:
 		return (gettext("\tstatus [--power] [-c [script1,script2,...]] "
-		    "[-igLpPstvxD]  [-T d|u] [pool] ... \n"
+		    "[-DegiLpPstvx] [-T d|u] [pool] ...\n"
 		    "\t    [interval [count]]\n"));
 	case HELP_UPGRADE:
 		return (gettext("\tupgrade\n"
@@ -9177,22 +9177,22 @@ status_callback(zpool_handle_t *zhp, void *data)
 }
 
 /*
- * zpool status [-c [script1,script2,...]] [-igLpPstvx] [--power] [-T d|u] ...
+ * zpool status [-c [script1,script2,...]] [-DegiLpPstvx] [--power] [-T d|u] ...
  *              [pool] [interval [count]]
  *
  *	-c CMD	For each vdev, run command CMD
+ *	-D	Display dedup status (undocumented)
  *	-e	Display only unhealthy vdevs
- *	-i	Display vdev initialization status.
  *	-g	Display guid for individual vdev name.
+ *	-i	Display vdev initialization status.
  *	-L	Follow links when resolving vdev path name.
  *	-p	Display values in parsable (exact) format.
  *	-P	Display full path for vdev name.
  *	-s	Display slow IOs column.
- *	-v	Display complete error logs
- *	-x	Display only pools with potential problems
- *	-D	Display dedup status (undocumented)
  *	-t	Display vdev TRIM status.
  *	-T	Display a timestamp in date(1) or Unix format
+ *	-v	Display complete error logs
+ *	-x	Display only pools with potential problems
  *	--power	Display vdev enclosure slot power status
  *
  * Describes the health status of all pools or some subset.
@@ -9213,7 +9213,7 @@ zpool_do_status(int argc, char **argv)
 	};
 
 	/* check options */
-	while ((c = getopt_long(argc, argv, "c:eigLpPsvxDtT:", long_options,
+	while ((c = getopt_long(argc, argv, "c:DegiLpPstT:vx", long_options,
 	    NULL)) != -1) {
 		switch (c) {
 		case 'c':
@@ -9240,14 +9240,17 @@ zpool_do_status(int argc, char **argv)
 			}
 			cmd = optarg;
 			break;
+		case 'D':
+			cb.cb_dedup_stats = B_TRUE;
+			break;
 		case 'e':
 			cb.cb_print_unhealthy = B_TRUE;
 			break;
-		case 'i':
-			cb.cb_print_vdev_init = B_TRUE;
-			break;
 		case 'g':
 			cb.cb_name_flags |= VDEV_NAME_GUID;
+			break;
+		case 'i':
+			cb.cb_print_vdev_init = B_TRUE;
 			break;
 		case 'L':
 			cb.cb_name_flags |= VDEV_NAME_FOLLOW_LINKS;
@@ -9261,20 +9264,17 @@ zpool_do_status(int argc, char **argv)
 		case 's':
 			cb.cb_print_slow_ios = B_TRUE;
 			break;
-		case 'v':
-			cb.cb_verbose = B_TRUE;
-			break;
-		case 'x':
-			cb.cb_explain = B_TRUE;
-			break;
-		case 'D':
-			cb.cb_dedup_stats = B_TRUE;
-			break;
 		case 't':
 			cb.cb_print_vdev_trim = B_TRUE;
 			break;
 		case 'T':
 			get_timestamp_arg(*optarg);
+			break;
+		case 'v':
+			cb.cb_verbose = B_TRUE;
+			break;
+		case 'x':
+			cb.cb_explain = B_TRUE;
 			break;
 		case POWER_OPT:
 			cb.cb_print_power = B_TRUE;
@@ -9315,7 +9315,6 @@ zpool_do_status(int argc, char **argv)
 
 		if (cb.vcdl != NULL)
 			free_vdev_cmd_data_list(cb.vcdl);
-
 		if (argc == 0 && cb.cb_count == 0)
 			(void) fprintf(stderr, gettext("no pools available\n"));
 		else if (cb.cb_explain && cb.cb_first && cb.cb_allpools)
