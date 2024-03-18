@@ -309,7 +309,8 @@ get_usage(zfs_help_t idx)
 		    "[filesystem|volume|snapshot] ...\n"));
 	case HELP_MOUNT:
 		return (gettext("\tmount\n"
-		    "\tmount [-flvO] [-o opts] <-a | filesystem>\n"));
+		    "\tmount [-flvO] [-o opts] <-a|-R filesystem|"
+		    "filesystem>\n"));
 	case HELP_PROMOTE:
 		return (gettext("\tpromote <clone-filesystem>\n"));
 	case HELP_RECEIVE:
@@ -6754,6 +6755,8 @@ zfs_do_holds(int argc, char **argv)
 #define	MOUNT_TIME 1		/* seconds */
 
 typedef struct get_all_state {
+	char		**ga_datasets;
+	int		ga_count;
 	boolean_t	ga_verbose;
 	get_all_cb_t	*ga_cbp;
 } get_all_state_t;
@@ -6800,19 +6803,35 @@ get_one_dataset(zfs_handle_t *zhp, void *data)
 	return (0);
 }
 
-static void
-get_all_datasets(get_all_cb_t *cbp, boolean_t verbose)
+static int
+get_recursive_datasets(zfs_handle_t *zhp, void *data)
 {
-	get_all_state_t state = {
-	    .ga_verbose = verbose,
-	    .ga_cbp = cbp
-	};
+	get_all_state_t *state = data;
+	int len = strlen(zfs_get_name(zhp));
+	for (int i = 0; i < state->ga_count; ++i) {
+		if (strcmp(state->ga_datasets[i], zfs_get_name(zhp)) == 0)
+			return (get_one_dataset(zhp, data));
+		else if ((strncmp(state->ga_datasets[i], zfs_get_name(zhp),
+		    len) == 0) && state->ga_datasets[i][len] == '/') {
+			(void) zfs_iter_filesystems_v2(zhp, 0,
+			    get_recursive_datasets, data);
+		}
+	}
+	zfs_close(zhp);
+	return (0);
+}
 
-	if (verbose)
+static void
+get_all_datasets(get_all_state_t *state)
+{
+	if (state->ga_verbose)
 		set_progress_header(gettext("Reading ZFS config"));
-	(void) zfs_iter_root(g_zfs, get_one_dataset, &state);
+	if (state->ga_datasets == NULL)
+		(void) zfs_iter_root(g_zfs, get_one_dataset, state);
+	else
+		(void) zfs_iter_root(g_zfs, get_recursive_datasets, state);
 
-	if (verbose)
+	if (state->ga_verbose)
 		finish_progress(gettext("done."));
 }
 
@@ -7158,17 +7177,21 @@ static int
 share_mount(int op, int argc, char **argv)
 {
 	int do_all = 0;
+	int recursive = 0;
 	boolean_t verbose = B_FALSE;
 	int c, ret = 0;
 	char *options = NULL;
 	int flags = 0;
 
 	/* check options */
-	while ((c = getopt(argc, argv, op == OP_MOUNT ? ":alvo:Of" : "al"))
+	while ((c = getopt(argc, argv, op == OP_MOUNT ? ":aRlvo:Of" : "al"))
 	    != -1) {
 		switch (c) {
 		case 'a':
 			do_all = 1;
+			break;
+		case 'R':
+			recursive = 1;
 			break;
 		case 'v':
 			verbose = B_TRUE;
@@ -7211,7 +7234,7 @@ share_mount(int op, int argc, char **argv)
 	argv += optind;
 
 	/* check number of arguments */
-	if (do_all) {
+	if (do_all || recursive) {
 		enum sa_protocol protocol = SA_NO_PROTOCOL;
 
 		if (op == OP_SHARE && argc > 0) {
@@ -7220,14 +7243,38 @@ share_mount(int op, int argc, char **argv)
 			argv++;
 		}
 
-		if (argc != 0) {
+		if (argc != 0 && do_all) {
 			(void) fprintf(stderr, gettext("too many arguments\n"));
+			usage(B_FALSE);
+		}
+
+		if (argc == 0 && recursive) {
+			(void) fprintf(stderr,
+			    gettext("no dataset provided\n"));
 			usage(B_FALSE);
 		}
 
 		start_progress_timer();
 		get_all_cb_t cb = { 0 };
-		get_all_datasets(&cb, verbose);
+		get_all_state_t state = { 0 };
+		if (argc == 0) {
+			state.ga_datasets = NULL;
+			state.ga_count = -1;
+		} else {
+			zfs_handle_t *zhp;
+			for (int i = 0; i < argc; i++) {
+				zhp = zfs_open(g_zfs, argv[i],
+				    ZFS_TYPE_FILESYSTEM);
+				if (zhp == NULL)
+					usage(B_FALSE);
+				zfs_close(zhp);
+			}
+			state.ga_datasets = argv;
+			state.ga_count = argc;
+		}
+		state.ga_verbose = verbose;
+		state.ga_cbp = &cb;
+		get_all_datasets(&state);
 
 		if (cb.cb_used == 0) {
 			free(options);
