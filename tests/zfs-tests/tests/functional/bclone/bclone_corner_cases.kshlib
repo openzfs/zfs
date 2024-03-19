@@ -66,7 +66,7 @@ function bclone_corner_cases_init
     export SECOND_HALF_ORIG0_CHECKSUM=$(second_half_checksum $ORIG0)
     export SECOND_HALF_ORIG1_CHECKSUM=$(second_half_checksum $ORIG1)
     export SECOND_HALF_ORIG2_CHECKSUM=$(second_half_checksum $ORIG2)
-    export ZEROS_CHECKSUM=$(dd if=/dev/zero bs=$HALFRECORDSIZE count=1 | sha256digest)
+    export ZEROS_CHECKSUM=$(dd if=/dev/zero bs=$HALFRECORDSIZE count=1 2>/dev/null | sha256digest)
     export FIRST_HALF_CHECKSUM=""
     export SECOND_HALF_CHECKSUM=""
 }
@@ -210,6 +210,8 @@ function bclone_corner_cases_test
     typeset -r dstdir=$2
     typeset limit=$3
     typeset -i count=0
+    typeset oused
+    typeset osaved
 
     if [[ $srcdir != "count" ]]; then
         if [[ -n "$limit" ]]; then
@@ -217,6 +219,11 @@ function bclone_corner_cases_test
             limit=$(random_int_between 1 $total_count $((limit*2)) | sort -nu | head -n $limit | xargs)
         fi
         bclone_corner_cases_init $srcdir $dstdir
+
+        # Save current block cloning stats for later use.
+        sync_pool $TESTPOOL
+        oused=$(get_pool_prop bcloneused $TESTPOOL)
+        osaved=$(get_pool_prop bclonesaved $TESTPOOL)
     fi
 
     #
@@ -285,21 +292,24 @@ function bclone_corner_cases_test
                                     overwrite_clone "$second_overwrite"
 
                                     if checksum_compare $read_after; then
-                                        log_note "existing: $existing / cached: $cached / first_clone: $first_clone / first_overwrite: $first_overwrite / read_before: $read_before / second_clone: $second_clone / read_after: $read_after"
+                                        log_note "existing: $existing / cached: $cached / first_clone: $first_clone / first_overwrite: $first_overwrite / read_before: $read_before / second_clone: $second_clone / second_overwrite: $second_overwrite / read_after: $read_after"
                                     else
-                                        log_fail "FAIL: existing: $existing / cached: $cached / first_clone: $first_clone / first_overwrite: $first_overwrite / read_before: $read_before / second_clone: $second_clone / read_after: $read_after"
+                                        log_fail "FAIL: existing: $existing / cached: $cached / first_clone: $first_clone / first_overwrite: $first_overwrite / read_before: $read_before / second_clone: $second_clone / second_overwrite: $second_overwrite / read_after: $read_after"
                                     fi
 
                                     log_must zpool export $TESTPOOL
                                     log_must zpool import $TESTPOOL
 
                                     if checksum_compare "yes"; then
-                                        log_note "existing: $existing / cached: $cached / first_clone: $first_clone / first_overwrite: $first_overwrite / read_before: $read_before / second_clone: $second_clone / read_after: $read_after / read_next_txg"
+                                        log_note "existing: $existing / cached: $cached / first_clone: $first_clone / first_overwrite: $first_overwrite / read_before: $read_before / second_clone: $second_clone / second_overwrite: $second_overwrite / read_after: $read_after / read_next_txg"
                                     else
-                                        log_fail "FAIL: existing: $existing / cached: $cached / first_clone: $first_clone / first_overwrite: $first_overwrite / read_before: $read_before / second_clone: $second_clone / read_after: $read_after / read_next_txg"
+                                        log_fail "FAIL: existing: $existing / cached: $cached / first_clone: $first_clone / first_overwrite: $first_overwrite / read_before: $read_before / second_clone: $second_clone / second_overwrite: $second_overwrite / read_after: $read_after / read_next_txg"
                                     fi
 
                                     rm -f "$CLONE"
+                                    sync_pool $TESTPOOL
+                                    verify_pool_prop_eq bcloneused $oused
+                                    verify_pool_prop_eq bclonesaved $osaved
                                 done
                             done
                         done
