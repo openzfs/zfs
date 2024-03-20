@@ -26,6 +26,9 @@
 #include <linux/compat.h>
 #endif
 #include <linux/fs.h>
+#ifdef HAVE_VFS_SPLICE_COPY_FILE_RANGE
+#include <linux/splice.h>
+#endif
 #include <sys/file.h>
 #include <sys/zfs_znode.h>
 #include <sys/zfs_vnops.h>
@@ -102,7 +105,7 @@ zpl_copy_file_range(struct file *src_file, loff_t src_off,
 	ret = zpl_clone_file_range_impl(src_file, src_off,
 	    dst_file, dst_off, len);
 
-#ifdef HAVE_VFS_GENERIC_COPY_FILE_RANGE
+#if defined(HAVE_VFS_GENERIC_COPY_FILE_RANGE)
 	/*
 	 * Since Linux 5.3 the filesystem driver is responsible for executing
 	 * an appropriate fallback, and a generic fallback function is provided.
@@ -111,6 +114,15 @@ zpl_copy_file_range(struct file *src_file, loff_t src_off,
 	    ret == -EAGAIN)
 		ret = generic_copy_file_range(src_file, src_off, dst_file,
 		    dst_off, len, flags);
+#elif defined(HAVE_VFS_SPLICE_COPY_FILE_RANGE)
+	/*
+	 * Since 6.8 the fallback function is called splice_copy_file_range
+	 * and has a slightly different signature.
+	 */
+	if (ret == -EOPNOTSUPP || ret == -EINVAL || ret == -EXDEV ||
+	    ret == -EAGAIN)
+		ret = splice_copy_file_range(src_file, src_off, dst_file,
+		    dst_off, len);
 #else
 	/*
 	 * Before Linux 5.3 the filesystem has to return -EOPNOTSUPP to signal
@@ -118,7 +130,7 @@ zpl_copy_file_range(struct file *src_file, loff_t src_off,
 	 */
 	if (ret == -EINVAL || ret == -EXDEV || ret == -EAGAIN)
 		ret = -EOPNOTSUPP;
-#endif /* HAVE_VFS_GENERIC_COPY_FILE_RANGE */
+#endif /* HAVE_VFS_GENERIC_COPY_FILE_RANGE || HAVE_VFS_SPLICE_COPY_FILE_RANGE */
 
 	return (ret);
 }
