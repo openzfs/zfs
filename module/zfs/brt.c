@@ -1420,13 +1420,14 @@ brt_pending_entry_compare(const void *x1, const void *x2)
 	const blkptr_t *bp1 = &bpe1->bpe_bp, *bp2 = &bpe2->bpe_bp;
 	int cmp;
 
-	cmp = TREE_CMP(BP_PHYSICAL_BIRTH(bp1), BP_PHYSICAL_BIRTH(bp2));
+	cmp = TREE_CMP(DVA_GET_VDEV(&bp1->blk_dva[0]),
+	    DVA_GET_VDEV(&bp2->blk_dva[0]));
 	if (cmp == 0) {
-		cmp = TREE_CMP(DVA_GET_VDEV(&bp1->blk_dva[0]),
-		    DVA_GET_VDEV(&bp2->blk_dva[0]));
-		if (cmp == 0) {
-			cmp = TREE_CMP(DVA_GET_OFFSET(&bp1->blk_dva[0]),
-			    DVA_GET_OFFSET(&bp2->blk_dva[0]));
+		cmp = TREE_CMP(DVA_GET_OFFSET(&bp1->blk_dva[0]),
+		    DVA_GET_OFFSET(&bp2->blk_dva[0]));
+		if (unlikely(cmp == 0)) {
+			cmp = TREE_CMP(BP_PHYSICAL_BIRTH(bp1),
+			    BP_PHYSICAL_BIRTH(bp2));
 		}
 	}
 
