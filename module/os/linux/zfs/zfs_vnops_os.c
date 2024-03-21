@@ -227,7 +227,8 @@ zfs_close(struct inode *ip, int flag, cred_t *cr)
 
 #if defined(_KERNEL)
 
-static int zfs_fillpage(struct inode *ip, struct page *pp);
+static int zfs_fillpage(struct inode *ip, struct page *pp,
+    boolean_t rangelock_held);
 
 /*
  * When a file is memory mapped, we must keep the IO data synchronized
@@ -295,13 +296,14 @@ mappedread(znode_t *zp, int nbytes, zfs_uio_t *uio)
 
 		struct page *pp = find_lock_page(mp, start >> PAGE_SHIFT);
 		if (pp) {
+
 			/*
 			 * If filemap_fault() retries there exists a window
 			 * where the page will be unlocked and not up to date.
 			 * In this case we must try and fill the page.
 			 */
 			if (unlikely(!PageUptodate(pp))) {
-				error = zfs_fillpage(ip, pp);
+				error = zfs_fillpage(ip, pp, B_TRUE);
 				if (error) {
 					unlock_page(pp);
 					put_page(pp);
@@ -3856,7 +3858,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 	}
 
 	zfs_log_write(zfsvfs->z_log, tx, TX_WRITE, zp, pgoff, pglen, commit,
-	    for_sync ? zfs_putpage_sync_commit_cb :
+	    B_FALSE, for_sync ? zfs_putpage_sync_commit_cb :
 	    zfs_putpage_async_commit_cb, pp);
 
 	dmu_tx_commit(tx);
@@ -3997,20 +3999,68 @@ zfs_inactive(struct inode *ip)
  * Fill pages with data from the disk.
  */
 static int
-zfs_fillpage(struct inode *ip, struct page *pp)
+zfs_fillpage(struct inode *ip, struct page *pp, boolean_t rangelock_held)
 {
+	znode_t *zp = ITOZ(ip);
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
 	loff_t i_size = i_size_read(ip);
 	u_offset_t io_off = page_offset(pp);
 	size_t io_len = PAGE_SIZE;
+	zfs_locked_range_t *lr = NULL;
 
 	ASSERT3U(io_off, <, i_size);
 
 	if (io_off + io_len > i_size)
 		io_len = i_size - io_off;
 
+	/*
+	 * It is important to hold the rangelock here because it is possible
+	 * a Direct I/O write might be taking place at the same time that a
+	 * page is being faulted in through filemap_fault(). With a Direct I/O
+	 * write, db->db_data will be set to NULL either in:
+	 *  1. dmu_write_direct() -> dmu_buf_will_not_fill() ->
+	 *     dmu_buf_will_fill() -> dbuf_noread() -> dbuf_clear_data()
+	 *  2. dmu_write_direct_done()
+	 * If the  rangelock is not held, then there is a race between faulting
+	 * in a page and writing out a Direct I/O write. Without the rangelock
+	 * a NULL pointer dereference can occur in dmu_read_impl() for
+	 * db->db_data during the mempcy operation.
+	 *
+	 * Another important note here is we have to check to make sure the
+	 * rangelock is not already held from mappedread() -> zfs_fillpage().
+	 * filemap_fault() will first add the page to the inode address_space
+	 * mapping and then will drop the page lock. This leaves open a window
+	 * for mappedread() to begin. In this case he page lock and rangelock,
+	 * are both held and it might have to call here if the page is not
+	 * up to date. In this case the rangelock can not be held twice or a
+	 * deadlock can happen. So the rangelock only needs to be aquired if
+	 * zfs_fillpage() is being called by zfs_getpage().
+	 *
+	 * Finally it is also important to drop the page lock before grabbing
+	 * the rangelock to avoid another deadlock between here and
+	 * zfs_write() -> update_pages(). update_pages() holds both the
+	 * rangelock and the page lock.
+	 */
+	if (rangelock_held == B_FALSE) {
+		/*
+		 * First try grabbing the rangelock. If that can not be done
+		 * the page lock must be dropped before grabbing the rangelock
+		 * to avoid a deadlock with update_pages(). See comment above.
+		 */
+		lr = zfs_rangelock_tryenter(&zp->z_rangelock, io_off, io_len,
+		    RL_READER);
+		if (lr == NULL) {
+			get_page(pp);
+			unlock_page(pp);
+			lr = zfs_rangelock_enter(&zp->z_rangelock, io_off,
+			    io_len, RL_READER);
+			lock_page(pp);
+			put_page(pp);
+		}
+	}
+
 	void *va = kmap(pp);
-	int error = dmu_read(zfsvfs->z_os, ITOZ(ip)->z_id, io_off,
+	int error = dmu_read(zfsvfs->z_os, zp->z_id, io_off,
 	    io_len, va, DMU_READ_PREFETCH);
 	if (io_len != PAGE_SIZE)
 		memset((char *)va + io_len, 0, PAGE_SIZE - io_len);
@@ -4027,6 +4077,10 @@ zfs_fillpage(struct inode *ip, struct page *pp)
 		ClearPageError(pp);
 		SetPageUptodate(pp);
 	}
+
+
+	if (rangelock_held == B_FALSE)
+		zfs_rangelock_exit(lr);
 
 	return (error);
 }
@@ -4052,7 +4106,7 @@ zfs_getpage(struct inode *ip, struct page *pp)
 	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (error);
 
-	error = zfs_fillpage(ip, pp);
+	error = zfs_fillpage(ip, pp, B_FALSE);
 	if (error == 0)
 		dataset_kstats_update_read_kstats(&zfsvfs->z_kstat, PAGE_SIZE);
 

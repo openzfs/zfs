@@ -517,6 +517,7 @@ void dmu_redact(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 #define	WP_NOFILL	0x1
 #define	WP_DMU_SYNC	0x2
 #define	WP_SPILL	0x4
+#define	WP_DIRECT_WR	0x8
 
 void dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp,
     struct zio_prop *zp);
@@ -567,6 +568,8 @@ int dmu_spill_hold_existing(dmu_buf_t *bonus, const void *tag, dmu_buf_t **dbp);
  *
  * The object number must be a valid, allocated object number.
  */
+int dmu_buf_hold_noread(objset_t *os, uint64_t object, uint64_t offset,
+    const void *tag, dmu_buf_t **dbp);
 int dmu_buf_hold(objset_t *os, uint64_t object, uint64_t offset,
     const void *tag, dmu_buf_t **, int flags);
 int dmu_buf_hold_array(objset_t *os, uint64_t object, uint64_t offset,
@@ -581,6 +584,7 @@ int dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset,
     dmu_buf_t ***dbpp, uint32_t flags);
 int dmu_buf_hold_noread_by_dnode(dnode_t *dn, uint64_t offset, const void *tag,
     dmu_buf_t **dbp);
+
 /*
  * Add a reference to a dmu buffer that has already been held via
  * dmu_buf_hold() in the current context.
@@ -867,16 +871,20 @@ int dmu_free_long_object(objset_t *os, uint64_t object);
 #define	DMU_READ_PREFETCH	0 /* prefetch */
 #define	DMU_READ_NO_PREFETCH	1 /* don't prefetch */
 #define	DMU_READ_NO_DECRYPT	2 /* don't decrypt */
+#define	DMU_DIRECTIO		4 /* use Direct I/O */
+
 int dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
-	void *buf, uint32_t flags);
+    void *buf, uint32_t flags);
 int dmu_read_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size, void *buf,
     uint32_t flags);
 void dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
-	const void *buf, dmu_tx_t *tx);
-void dmu_write_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
     const void *buf, dmu_tx_t *tx);
+int dmu_write_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
+    const void *buf, dmu_tx_t *tx);
+int dmu_write_by_dnode_flags(dnode_t *dn, uint64_t offset, uint64_t size,
+    const void *buf, dmu_tx_t *tx, uint32_t flags);
 void dmu_prealloc(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
-	dmu_tx_t *tx);
+    dmu_tx_t *tx);
 #ifdef _KERNEL
 int dmu_read_uio(objset_t *os, uint64_t object, zfs_uio_t *uio, uint64_t size);
 int dmu_read_uio_dbuf(dmu_buf_t *zdb, zfs_uio_t *uio, uint64_t size);
@@ -1070,6 +1078,7 @@ typedef struct zgd {
 	struct blkptr	*zgd_bp;
 	dmu_buf_t	*zgd_db;
 	struct zfs_locked_range *zgd_lr;
+	boolean_t	zgd_grabbed_rangelock;
 	void		*zgd_private;
 } zgd_t;
 

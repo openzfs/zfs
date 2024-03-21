@@ -915,6 +915,7 @@ zvol_cdev_write(struct cdev *dev, struct uio *uio_s, int ioflag)
 	if (commit)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 	rw_exit(&zv->zv_suspend_lock);
+
 	return (error);
 }
 

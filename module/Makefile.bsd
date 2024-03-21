@@ -255,6 +255,7 @@ SRCS+=	abd.c \
 	ddt_stats.c \
 	ddt_zap.c \
 	dmu.c \
+	dmu_direct.c \
 	dmu_diff.c \
 	dmu_object.c \
 	dmu_objset.c \

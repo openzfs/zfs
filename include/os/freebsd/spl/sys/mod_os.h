@@ -100,6 +100,9 @@
 #define	spa_taskq_write_param_set_args(var) \
     CTLTYPE_STRING, NULL, 0, spa_taskq_write_param, "A"
 
+#define	param_set_direct_write_verify_pct_args(var) \
+    CTLTYPE_UINT, NULL, 0, param_set_direct_write_verify_pct, "IU"
+
 #define	fletcher_4_param_set_args(var) \
     CTLTYPE_STRING, NULL, 0, fletcher_4_param, "A"
 

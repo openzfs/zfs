@@ -27,7 +27,7 @@
 #include <sys/racct.h>
 
 void
-zfs_racct_read(uint64_t size, uint64_t iops)
+zfs_racct_read(spa_t *spa, uint64_t size, uint64_t iops, uint32_t flags)
 {
 	curthread->td_ru.ru_inblock += iops;
 #ifdef RACCT
@@ -40,10 +40,12 @@ zfs_racct_read(uint64_t size, uint64_t iops)
 #else
 	(void) size;
 #endif /* RACCT */
+
+	spa_iostats_read_add(spa, size, iops, flags);
 }
 
 void
-zfs_racct_write(uint64_t size, uint64_t iops)
+zfs_racct_write(spa_t *spa, uint64_t size, uint64_t iops, uint32_t flags)
 {
 	curthread->td_ru.ru_oublock += iops;
 #ifdef RACCT
@@ -56,4 +58,6 @@ zfs_racct_write(uint64_t size, uint64_t iops)
 #else
 	(void) size;
 #endif /* RACCT */
+
+	spa_iostats_write_add(spa, size, iops, flags);
 }

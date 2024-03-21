@@ -36,7 +36,7 @@ export PERF_COMPPERCENT=66
 export PERF_COMPCHUNK=0
 export BLOCKSIZE=128K
 export SYNC_TYPE=0
-export DIRECT=1
+export DIRECT=0
 
 #
 # DESCRIPTION:

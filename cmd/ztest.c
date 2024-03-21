@@ -2264,6 +2264,13 @@ ztest_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 		if (ztest_random(4) != 0) {
 			int prefetch = ztest_random(2) ?
 			    DMU_READ_PREFETCH : DMU_READ_NO_PREFETCH;
+
+			/*
+			 * We will randomly set when to do O_DIRECT on a read.
+			 */
+			if (ztest_random(4) == 0)
+				prefetch |= DMU_DIRECTIO;
+
 			ztest_block_tag_t rbt;
 
 			VERIFY(dmu_read(os, lr->lr_foid, offset,
@@ -2815,6 +2822,13 @@ ztest_io(ztest_ds_t *zd, uint64_t object, uint64_t offset)
 	enum ztest_io_type io_type;
 	uint64_t blocksize;
 	void *data;
+	uint32_t dmu_read_flags = DMU_READ_NO_PREFETCH;
+
+	/*
+	 * We will randomly set when to do O_DIRECT on a read.
+	 */
+	if (ztest_random(4) == 0)
+		dmu_read_flags |= DMU_DIRECTIO;
 
 	VERIFY0(dmu_object_info(zd->zd_os, object, &doi));
 	blocksize = doi.doi_data_block_size;
@@ -2880,7 +2894,7 @@ ztest_io(ztest_ds_t *zd, uint64_t object, uint64_t offset)
 		(void) pthread_rwlock_unlock(&ztest_name_lock);
 
 		VERIFY0(dmu_read(zd->zd_os, object, offset, blocksize, data,
-		    DMU_READ_NO_PREFETCH));
+		    dmu_read_flags));
 
 		(void) ztest_write(zd, object, offset, blocksize, data);
 		break;
@@ -5045,6 +5059,13 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 	uint64_t stride = 123456789ULL;
 	uint64_t width = 40;
 	int free_percent = 5;
+	uint32_t dmu_read_flags = DMU_READ_PREFETCH;
+
+	/*
+	 * We will randomly set when to do O_DIRECT on a read.
+	 */
+	if (ztest_random(4) == 0)
+		dmu_read_flags |= DMU_DIRECTIO;
 
 	/*
 	 * This test uses two objects, packobj and bigobj, that are always
@@ -5123,10 +5144,10 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 	 * Read the current contents of our objects.
 	 */
 	error = dmu_read(os, packobj, packoff, packsize, packbuf,
-	    DMU_READ_PREFETCH);
+	    dmu_read_flags);
 	ASSERT0(error);
 	error = dmu_read(os, bigobj, bigoff, bigsize, bigbuf,
-	    DMU_READ_PREFETCH);
+	    dmu_read_flags);
 	ASSERT0(error);
 
 	/*
@@ -5244,9 +5265,9 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 		void *bigcheck = umem_alloc(bigsize, UMEM_NOFAIL);
 
 		VERIFY0(dmu_read(os, packobj, packoff,
-		    packsize, packcheck, DMU_READ_PREFETCH));
+		    packsize, packcheck, dmu_read_flags));
 		VERIFY0(dmu_read(os, bigobj, bigoff,
-		    bigsize, bigcheck, DMU_READ_PREFETCH));
+		    bigsize, bigcheck, dmu_read_flags));
 
 		ASSERT0(memcmp(packbuf, packcheck, packsize));
 		ASSERT0(memcmp(bigbuf, bigcheck, bigsize));
@@ -5336,6 +5357,13 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 	dmu_buf_t *bonus_db;
 	arc_buf_t **bigbuf_arcbufs;
 	dmu_object_info_t doi;
+	uint32_t dmu_read_flags = DMU_READ_PREFETCH;
+
+	/*
+	 * We will randomly set when to do O_DIRECT on a read.
+	 */
+	if (ztest_random(4) == 0)
+		dmu_read_flags |= DMU_DIRECTIO;
 
 	size = sizeof (ztest_od_t) * OD_ARRAY_SIZE;
 	od = umem_alloc(size, UMEM_NOFAIL);
@@ -5466,10 +5494,10 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 		 */
 		if (i != 0 || ztest_random(2) != 0) {
 			error = dmu_read(os, packobj, packoff,
-			    packsize, packbuf, DMU_READ_PREFETCH);
+			    packsize, packbuf, dmu_read_flags);
 			ASSERT0(error);
 			error = dmu_read(os, bigobj, bigoff, bigsize,
-			    bigbuf, DMU_READ_PREFETCH);
+			    bigbuf, dmu_read_flags);
 			ASSERT0(error);
 		}
 		compare_and_update_pbbufs(s, packbuf, bigbuf, bigsize,
@@ -5529,9 +5557,9 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 			void *bigcheck = umem_alloc(bigsize, UMEM_NOFAIL);
 
 			VERIFY0(dmu_read(os, packobj, packoff,
-			    packsize, packcheck, DMU_READ_PREFETCH));
+			    packsize, packcheck, dmu_read_flags));
 			VERIFY0(dmu_read(os, bigobj, bigoff,
-			    bigsize, bigcheck, DMU_READ_PREFETCH));
+			    bigsize, bigcheck, dmu_read_flags));
 
 			ASSERT0(memcmp(packbuf, packcheck, packsize));
 			ASSERT0(memcmp(bigbuf, bigcheck, bigsize));

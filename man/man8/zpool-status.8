@@ -36,7 +36,7 @@
 .Sh SYNOPSIS
 .Nm zpool
 .Cm status
-.Op Fl DeigLpPstvx
+.Op Fl DdeigLpPstvx
 .Op Fl T Sy u Ns | Ns Sy d
 .Op Fl c Op Ar SCRIPT1 Ns Oo , Ns Ar SCRIPT2 Oc Ns …
 .Oo Ar pool Oc Ns …
@@ -69,6 +69,15 @@ See the
 option of
 .Nm zpool Cm iostat
 for complete details.
+.It Fl d
+Display the number of Direct I/O write checksum verify errors that have occured
+on a top-level VDEV.
+See
+.Sx zfs_vdev_direct_write_verify_pct
+in
+.Xr zfs 4
+for details about the conditions that can cause Direct I/O write checksum
+verify failures to occur.
 .It Fl e
 Only show unhealthy vdevs (not-ONLINE or with errors).
 .It Fl i
