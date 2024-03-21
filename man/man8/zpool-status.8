@@ -36,7 +36,7 @@
 .Sh SYNOPSIS
 .Nm zpool
 .Cm status
-.Op Fl DeigLpPstvx
+.Op Fl DegiLpPstvx
 .Op Fl T Sy u Ns | Ns Sy d
 .Op Fl c Op Ar SCRIPT1 Ns Oo , Ns Ar SCRIPT2 Oc Ns …
 .Oo Ar pool Oc Ns …
@@ -69,14 +69,20 @@ See the
 option of
 .Nm zpool Cm iostat
 for complete details.
+.It Fl D
+Display a histogram of deduplication statistics, showing the allocated
+.Pq physically present on disk
+and referenced
+.Pq logically referenced in the pool
+block counts and sizes by reference count.
 .It Fl e
 Only show unhealthy vdevs (not-ONLINE or with errors).
-.It Fl i
-Display vdev initialization status.
 .It Fl g
 Display vdev GUIDs instead of the normal device names
 These GUIDs can be used in place of device names for the zpool
 detach/offline/remove/replace commands.
+.It Fl i
+Display vdev initialization status.
 .It Fl L
 Display real paths for vdevs resolving all symbolic links.
 This can be used to look up the current block device name regardless of the
@@ -90,12 +96,6 @@ the path.
 This can be used in conjunction with the
 .Fl L
 flag.
-.It Fl D
-Display a histogram of deduplication statistics, showing the allocated
-.Pq physically present on disk
-and referenced
-.Pq logically referenced in the pool
-block counts and sizes by reference count.
 .It Fl s
 Display the number of leaf vdev slow I/O operations.
 This is the number of I/O operations that didn't complete in
