@@ -1923,7 +1923,7 @@ dbuf_unoverride(dbuf_dirty_record_t *dr)
 		zio_free(db->db_objset->os_spa, txg, bp);
 
 	if (dr->dt.dl.dr_brtwrite) {
-		ASSERT0(dr->dt.dl.dr_data);
+		ASSERT(dr->dt.dl.dr_data == NULL);
 		dr->dt.dl.dr_data = db->db_buf;
 	}
 	dr->dt.dl.dr_override_state = DR_NOT_OVERRIDDEN;
