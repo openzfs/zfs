@@ -47,7 +47,7 @@ struct zap_stats;
  * entries - header space (2*chunksize)
  */
 #define	ZAP_LEAF_NUMCHUNKS_BS(bs) \
-	(((1<<(bs)) - 2*ZAP_LEAF_HASH_NUMENTRIES_BS(bs)) / \
+	(((1U << (bs)) - 2 * ZAP_LEAF_HASH_NUMENTRIES_BS(bs)) / \
 	ZAP_LEAF_CHUNKSIZE - 2)
 
 #define	ZAP_LEAF_NUMCHUNKS(l) (ZAP_LEAF_NUMCHUNKS_BS(((l)->l_bs)))
@@ -80,7 +80,7 @@ struct zap_stats;
  * chunks per entry (3).
  */
 #define	ZAP_LEAF_HASH_SHIFT_BS(bs) ((bs) - 5)
-#define	ZAP_LEAF_HASH_NUMENTRIES_BS(bs) (1 << ZAP_LEAF_HASH_SHIFT_BS(bs))
+#define	ZAP_LEAF_HASH_NUMENTRIES_BS(bs) (1U << ZAP_LEAF_HASH_SHIFT_BS(bs))
 #define	ZAP_LEAF_HASH_SHIFT(l) (ZAP_LEAF_HASH_SHIFT_BS(((l)->l_bs)))
 #define	ZAP_LEAF_HASH_NUMENTRIES(l) (ZAP_LEAF_HASH_NUMENTRIES_BS(((l)->l_bs)))
 
@@ -163,7 +163,7 @@ typedef struct zap_leaf {
 	dmu_buf_user_t l_dbu;
 	krwlock_t l_rwlock;
 	uint64_t l_blkid;		/* 1<<ZAP_BLOCK_SHIFT byte block off */
-	int l_bs;			/* block size shift */
+	uint_t l_bs;			/* block size shift */
 	dmu_buf_t *l_dbuf;
 } zap_leaf_t;
 
@@ -243,7 +243,7 @@ extern boolean_t zap_entry_normalization_conflict(zap_entry_handle_t *zeh,
  */
 
 extern void zap_leaf_init(zap_leaf_t *l, boolean_t sort);
-extern void zap_leaf_byteswap(zap_leaf_phys_t *buf, int len);
+extern void zap_leaf_byteswap(zap_leaf_phys_t *buf, size_t len);
 extern void zap_leaf_split(zap_leaf_t *l, zap_leaf_t *nl, boolean_t sort);
 extern void zap_leaf_stats(struct zap *zap, zap_leaf_t *l,
     struct zap_stats *zs);
