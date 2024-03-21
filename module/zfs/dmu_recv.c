@@ -2110,6 +2110,16 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		dmu_buf_rele(db, FTAG);
 		dnode_rele(dn, FTAG);
 	}
+
+	/*
+	 * If the receive fails, we want the resume stream to start with the
+	 * same record that we last successfully received. There is no way to
+	 * request resume from the object record, but we can benefit from the
+	 * fact that sender always sends object record before anything else,
+	 * after which it will "resend" data at offset 0 and resume normally.
+	 */
+	save_resume_state(rwa, drro->drr_object, 0, tx);
+
 	dmu_tx_commit(tx);
 
 	return (0);
