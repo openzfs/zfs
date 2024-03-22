@@ -720,23 +720,23 @@ zpl_putpage(struct page *pp, struct writeback_control *wbc, void *data)
 {
 	boolean_t *for_sync = data;
 	fstrans_cookie_t cookie;
+	int ret;
 
 	ASSERT(PageLocked(pp));
 	ASSERT(!PageWriteback(pp));
 
 	cookie = spl_fstrans_mark();
-	(void) zfs_putpage(pp->mapping->host, pp, wbc, *for_sync);
+	ret = zfs_putpage(pp->mapping->host, pp, wbc, *for_sync);
 	spl_fstrans_unmark(cookie);
 
-	return (0);
+	return (ret);
 }
 
 #ifdef HAVE_WRITEPAGE_T_FOLIO
 static int
 zpl_putfolio(struct folio *pp, struct writeback_control *wbc, void *data)
 {
-	(void) zpl_putpage(&pp->page, wbc, data);
-	return (0);
+	return (zpl_putpage(&pp->page, wbc, data));
 }
 #endif
 

@@ -123,7 +123,7 @@ zfs_holey_common(znode_t *zp, ulong_t cmd, loff_t *off)
 
 	/* Flush any mmap()'d data to disk */
 	if (zn_has_cached_data(zp, 0, file_sz - 1))
-		zn_flush_cached_data(zp, B_FALSE);
+		zn_flush_cached_data(zp, B_TRUE);
 
 	lr = zfs_rangelock_enter(&zp->z_rangelock, 0, UINT64_MAX, RL_READER);
 	error = dmu_offset_next(ZTOZSB(zp)->z_os, zp->z_id, hole, &noff);
@@ -1186,6 +1186,10 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 			return (SET_ERROR(EINVAL));
 		}
 	}
+
+	/* Flush any mmap()'d data to disk */
+	if (zn_has_cached_data(inzp, inoff, inoff + len - 1))
+		zn_flush_cached_data(inzp, B_TRUE);
 
 	/*
 	 * Maintain predictable lock order.
