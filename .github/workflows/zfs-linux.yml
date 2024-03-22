@@ -27,8 +27,8 @@ jobs:
         path: modules-${{ matrix.os }}.tgz
         retention-days: 14
 
-  testings:
-    name: Testing
+  tests:
+    name: Tests
     strategy:
       fail-fast: false
       matrix:
@@ -38,27 +38,145 @@ jobs:
     with:
       os: ${{ matrix.os }}
 
+  qemu-vm:
+    name: QEMU
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [almalinux8, almalinux9, archlinux, centos-stream8, centos-stream9, fedora38, fedora39, debian11, debian12, freebsd13, freebsd14, freebsd15, ubuntu22, ubuntu24]
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+    - name: Setup QEMU
+      run: .github/workflows/scripts/qemu-1-setup.sh
+    - name: Start QEMU machine
+      run: .github/workflows/scripts/qemu-2-start.sh ${{ matrix.os }}
+    - name: Install dependencies in QEMU machine
+      timeout-minutes: 15
+      run: |
+        echo "Install dependencies in QEMU machine"
+        echo "StrictHostKeyChecking no" >> $HOME/.ssh/config
+        echo "ConnectTimeout 1" >> $HOME/.ssh/config
+        while pidof /usr/bin/qemu-system-x86_64 >/dev/null; do
+          sleep 1
+          IP=`arp | grep "^192.168.122."| cut -d' ' -f1`
+          test -z "$IP" && continue
+          ssh 2>/dev/null zfs@$IP "uname -a" && break
+        done
+        echo IP=$IP >> $GITHUB_ENV
+        scp .github/workflows/scripts/qemu-3-deps.sh zfs@$IP:qemu-3-deps.sh
+        ssh zfs@$IP '$HOME/qemu-3-deps.sh' ${{ matrix.os }} && true
+        # restart vm with new kernel and so on
+        while pidof /usr/bin/qemu-system-x86_64 >/dev/null; do sleep 5; done
+        sudo virsh start openzfs
+        sleep 5
+    - name: Build modules in QEMU machine
+      timeout-minutes: 30
+      run: |
+        echo "Build modules in QEMU machine"
+        while pidof /usr/bin/qemu-system-x86_64 >/dev/null; do
+          sleep 1
+          ssh 2>/dev/null zfs@${{ env.IP }} "uname -a" && break
+        done
+        rsync -ar $HOME/work/zfs/zfs zfs@${{ env.IP }}:./
+        ssh zfs@${{ env.IP }} '$HOME/zfs/.github/workflows/scripts/qemu-4-build.sh' ${{ matrix.os }}
+    - name: Load modules in QEMU machine
+      timeout-minutes: 2
+      run: |
+        ssh zfs@${{ env.IP }} '$HOME/zfs/.github/workflows/scripts/qemu-5-load.sh' ${{ matrix.os }}
+    - name: Run tests in QEMU machine
+      timeout-minutes: 330
+      run: |
+        ssh zfs@${{ env.IP }} '$HOME/zfs/.github/workflows/scripts/qemu-6-tests.sh' ${{ matrix.os }}
+    - name: Prepare artifacts
+      if: success() || failure()
+      run: |
+        RESPATH="/var/tmp/test_results"
+        rsync -arL zfs@${{ env.IP }}:$RESPATH/current $RESPATH
+        scp zfs@$IP:"/var/tmp/*.txt" /var/tmp
+        cp -f /var/tmp/*.txt $RESPATH
+        tar cf qemu-${{ matrix.os }}.tar -C $RESPATH -h current uname.txt \
+          osname.txt dmesg-prerun.txt dmesg-module-load.txt make-stderr.txt
+    - uses: actions/upload-artifact@v4
+      if: success() || failure()
+      with:
+        name: Logs-functional-${{ matrix.os }}
+        path: qemu-${{ matrix.os }}.tar
+        if-no-files-found: ignore
+
   cleanup:
     if: always()
     name: Cleanup
     runs-on: ubuntu-22.04
-    needs: testings
+    needs: [ qemu-vm, tests ]
     steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
     - uses: actions/download-artifact@v4
     - name: Generating summary
-      run: |
-        tar xzf modules-22.04/modules-22.04.tgz .github tests
-        .github/workflows/scripts/generate-summary.sh
-    # up to 4 steps, each can have 1 MiB output (for debugging log files)
-    - name: Summary for errors #1
+      run: .github/workflows/scripts/generate-summary.sh
+    - name: Generating summary...
       run: .github/workflows/scripts/generate-summary.sh 1
-    - name: Summary for errors #2
+    - name: Generating summary...
       run: .github/workflows/scripts/generate-summary.sh 2
-    - name: Summary for errors #3
+    - name: Generating summary...
       run: .github/workflows/scripts/generate-summary.sh 3
-    - name: Summary for errors #4
+    - name: Generating summary...
       run: .github/workflows/scripts/generate-summary.sh 4
+    - name: Generating summary...
+      run: .github/workflows/scripts/generate-summary.sh 5
+    - name: Generating summary...
+      run: .github/workflows/scripts/generate-summary.sh 6
+    - name: Generating summary...
+      run: .github/workflows/scripts/generate-summary.sh 7
+    - name: Generating summary...
+      run: .github/workflows/scripts/generate-summary.sh 8
+    - name: Generating summary...
+      run: .github/workflows/scripts/generate-summary.sh 9
+    - name: Generating summary...
+      run: .github/workflows/scripts/generate-summary.sh 10
+    - name: Generating summary...
+      run: .github/workflows/scripts/generate-summary.sh 11
+    - name: Generating summary...
+      run: .github/workflows/scripts/generate-summary.sh 12
+    - name: Generating summary...
+      run: .github/workflows/scripts/generate-summary.sh 13
+    - name: Generating summary...
+      run: .github/workflows/scripts/generate-summary.sh 14
+    - name: Generating summary...
+      run: .github/workflows/scripts/generate-summary.sh 15
+    - name: Generating summary...
+      run: .github/workflows/scripts/generate-summary.sh 16
+    - name: Generating summary...
+      run: .github/workflows/scripts/generate-summary.sh 17
+    - name: Generating summary...
+      run: .github/workflows/scripts/generate-summary.sh 18
+    - name: Generating summary...
+      run: .github/workflows/scripts/generate-summary.sh 19
+    - name: Generating summary...
+      run: .github/workflows/scripts/generate-summary.sh 20
+    - name: Generating summary...
+      run: .github/workflows/scripts/generate-summary.sh 21
+    - name: Generating summary...
+      run: .github/workflows/scripts/generate-summary.sh 22
+    - name: Generating summary...
+      run: .github/workflows/scripts/generate-summary.sh 23
+    - name: Generating summary...
+      run: .github/workflows/scripts/generate-summary.sh 24
+    - name: Generating summary...
+      run: .github/workflows/scripts/generate-summary.sh 25
+    - name: Generating summary...
+      run: .github/workflows/scripts/generate-summary.sh 26
+    - name: Generating summary...
+      run: .github/workflows/scripts/generate-summary.sh 27
+    - name: Generating summary...
+      run: .github/workflows/scripts/generate-summary.sh 28
+    - name: Generating summary...
+      run: .github/workflows/scripts/generate-summary.sh 29
     - uses: actions/upload-artifact@v4
       with:
         name: Summary Files
-        path: Summary/
+        path: out-*
