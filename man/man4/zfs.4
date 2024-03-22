@@ -1375,6 +1375,20 @@ which have the
 .Em no_root_squash
 option set.
 .
+.It Sy zfs_ctldir_spacefiles Ns = Ns Sy 0 Ns | Ns 1 Pq int
+Enable the existence of (quota|space)/(user|group|project) files in the
+.Sy .zfs
+directory.
+These files can be used in lieu of the
+.Sy zfs-userspace(8) ,
+.Sy zfs-groupspace(8) ,
+and
+.Sy zfs-projectspace(8)
+tools to determine space and quota utilization for a given dataset.
+These would normally be used when the dataset is being accessed over
+a network, e.g. using NFS, where ZFS command line tools, libzfs,
+etc. are not available.
+.
 .It Sy zfs_flags Ns = Ns Sy 0 Pq int
 Set additional debugging flags.
 The following flags may be bitwise-ored together:

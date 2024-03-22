@@ -118,6 +118,30 @@ extern const struct inode_operations zpl_ops_snapdir;
 extern const struct file_operations zpl_fops_shares;
 extern const struct inode_operations zpl_ops_shares;
 
+extern const struct file_operations zpl_fops_spacedir;
+extern const struct inode_operations zpl_ops_spacedir;
+
+extern const struct file_operations zpl_fops_userspace_file;
+extern const struct inode_operations zpl_ops_userspace_file;
+
+extern const struct file_operations zpl_fops_groupspace_file;
+extern const struct inode_operations zpl_ops_groupspace_file;
+
+extern const struct file_operations zpl_fops_projectspace_file;
+extern const struct inode_operations zpl_ops_projectspace_file;
+
+extern const struct file_operations zpl_fops_quotadir;
+extern const struct inode_operations zpl_ops_quotadir;
+
+extern const struct file_operations zpl_fops_userquota_file;
+extern const struct inode_operations zpl_ops_userquota_file;
+
+extern const struct file_operations zpl_fops_groupquota_file;
+extern const struct inode_operations zpl_ops_groupquota_file;
+
+extern const struct file_operations zpl_fops_projectquota_file;
+extern const struct inode_operations zpl_ops_projectquota_file;
+
 #if defined(HAVE_VFS_ITERATE) || defined(HAVE_VFS_ITERATE_SHARED)
 
 #define	ZPL_DIR_CONTEXT_INIT(_dirent, _actor, _pos) {	\

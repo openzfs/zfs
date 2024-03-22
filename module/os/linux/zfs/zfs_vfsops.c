@@ -1760,13 +1760,37 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 	if ((err = zfs_enter(zfsvfs, FTAG)) != 0)
 		return (err);
 	/* A zero fid_gen means we are in the .zfs control directories */
-	if (fid_gen == 0 &&
-	    (object == ZFSCTL_INO_ROOT || object == ZFSCTL_INO_SNAPDIR)) {
+	if (fid_gen == 0 && object >= ZFSCTL_INO_SNAPDIR &&
+	    object <= ZFSCTL_INO_ROOT && object != ZFSCTL_INO_SHARES) {
 		*ipp = zfsvfs->z_ctldir;
 		ASSERT(*ipp != NULL);
 		if (object == ZFSCTL_INO_SNAPDIR) {
-			VERIFY(zfsctl_root_lookup(*ipp, "snapshot", ipp,
-			    0, kcred, NULL, NULL) == 0);
+			VERIFY0(zfsctl_root_lookup(*ipp,
+			    ZFS_SNAPDIR_NAME, ipp, 0, kcred, NULL, NULL));
+		} else if (object == ZFSCTL_INO_SPACEDIR) {
+			VERIFY0(zfsctl_root_lookup(*ipp,
+			    ZFS_SPACEDIR_NAME, ipp, 0, kcred, NULL, NULL));
+		} else if (object == ZFSCTL_INO_QUOTADIR) {
+			VERIFY0(zfsctl_root_lookup(*ipp,
+			    ZFS_QUOTADIR_NAME, ipp, 0, kcred, NULL, NULL));
+		} else if (object == ZFSCTL_INO_SPACE_USER) {
+			VERIFY0(zfsctl_spacedir_lookup(*ipp,
+			    ZFS_USERFILE_NAME, ipp, 0, kcred, NULL, NULL));
+		} else if (object == ZFSCTL_INO_SPACE_GROUP) {
+			VERIFY0(zfsctl_spacedir_lookup(*ipp,
+			    ZFS_GROUPFILE_NAME, ipp, 0, kcred, NULL, NULL));
+		} else if (object == ZFSCTL_INO_SPACE_PROJ) {
+			VERIFY0(zfsctl_spacedir_lookup(*ipp,
+			    ZFS_PROJECTFILE_NAME, ipp, 0, kcred, NULL, NULL));
+		} else if (object == ZFSCTL_INO_QUOTA_USER) {
+			VERIFY0(zfsctl_quotadir_lookup(*ipp,
+			    ZFS_USERFILE_NAME, ipp, 0, kcred, NULL, NULL));
+		} else if (object == ZFSCTL_INO_QUOTA_GROUP) {
+			VERIFY0(zfsctl_quotadir_lookup(*ipp,
+			    ZFS_GROUPFILE_NAME, ipp, 0, kcred, NULL, NULL));
+		} else if (object == ZFSCTL_INO_QUOTA_PROJ) {
+			VERIFY0(zfsctl_quotadir_lookup(*ipp,
+			    ZFS_PROJECTFILE_NAME, ipp, 0, kcred, NULL, NULL));
 		} else {
 			/*
 			 * Must have an existing ref, so igrab()
