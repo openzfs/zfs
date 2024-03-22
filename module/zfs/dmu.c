@@ -2141,7 +2141,8 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 	memset(zp->zp_salt, 0, ZIO_DATA_SALT_LEN);
 	memset(zp->zp_iv, 0, ZIO_DATA_IV_LEN);
 	memset(zp->zp_mac, 0, ZIO_DATA_MAC_LEN);
-	zp->zp_zpl_smallblk = DMU_OT_IS_FILE(zp->zp_type) ?
+	zp->zp_zpl_smallblk = (DMU_OT_IS_FILE(zp->zp_type) ||
+	    zp->zp_type == DMU_OT_ZVOL) ?
 	    os->os_zpl_special_smallblock : 0;
 
 	ASSERT3U(zp->zp_compress, !=, ZIO_COMPRESS_INHERIT);
