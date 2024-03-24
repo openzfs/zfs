@@ -817,7 +817,7 @@ _LIBZFS_H int zfs_send_saved(zfs_handle_t *, sendflags_t *, int, const char *);
 _LIBZFS_H nvlist_t *zfs_send_resume_token_to_nvlist(libzfs_handle_t *hdl,
     const char *token);
 
-_LIBZFS_H int zfs_promote(zfs_handle_t *);
+_LIBZFS_H int zfs_promote(zfs_handle_t *, boolean_t);
 _LIBZFS_H int zfs_hold(zfs_handle_t *, const char *, const char *,
     boolean_t, int);
 _LIBZFS_H int zfs_hold_nvl(zfs_handle_t *, int, nvlist_t *);
