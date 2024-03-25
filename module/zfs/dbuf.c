@@ -4174,21 +4174,6 @@ dmu_buf_get_objset(dmu_buf_t *db)
 	return (dbi->db_objset);
 }
 
-dnode_t *
-dmu_buf_dnode_enter(dmu_buf_t *db)
-{
-	dmu_buf_impl_t *dbi = (dmu_buf_impl_t *)db;
-	DB_DNODE_ENTER(dbi);
-	return (DB_DNODE(dbi));
-}
-
-void
-dmu_buf_dnode_exit(dmu_buf_t *db)
-{
-	dmu_buf_impl_t *dbi = (dmu_buf_impl_t *)db;
-	DB_DNODE_EXIT(dbi);
-}
-
 static void
 dbuf_check_blkptr(dnode_t *dn, dmu_buf_impl_t *db)
 {

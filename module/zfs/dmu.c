@@ -712,8 +712,6 @@ dmu_prefetch(objset_t *os, uint64_t object, int64_t level, uint64_t offset,
     uint64_t len, zio_priority_t pri)
 {
 	dnode_t *dn;
-	int64_t level2 = level;
-	uint64_t start, end, start2, end2;
 
 	if (dmu_prefetch_max == 0 || len == 0) {
 		dmu_prefetch_dnode(os, object, pri);
@@ -722,6 +720,18 @@ dmu_prefetch(objset_t *os, uint64_t object, int64_t level, uint64_t offset,
 
 	if (dnode_hold(os, object, FTAG, &dn) != 0)
 		return;
+
+	dmu_prefetch_by_dnode(dn, level, offset, len, pri);
+
+	dnode_rele(dn, FTAG);
+}
+
+void
+dmu_prefetch_by_dnode(dnode_t *dn, int64_t level, uint64_t offset,
+    uint64_t len, zio_priority_t pri)
+{
+	int64_t level2 = level;
+	uint64_t start, end, start2, end2;
 
 	/*
 	 * Depending on len we may do two prefetches: blocks [start, end) at
@@ -762,8 +772,6 @@ dmu_prefetch(objset_t *os, uint64_t object, int64_t level, uint64_t offset,
 	for (uint64_t i = start2; i < end2; i++)
 		dbuf_prefetch(dn, level2, i, pri, 0);
 	rw_exit(&dn->dn_struct_rwlock);
-
-	dnode_rele(dn, FTAG);
 }
 
 /*
@@ -2563,6 +2571,8 @@ EXPORT_SYMBOL(dmu_bonus_hold_by_dnode);
 EXPORT_SYMBOL(dmu_buf_hold_array_by_bonus);
 EXPORT_SYMBOL(dmu_buf_rele_array);
 EXPORT_SYMBOL(dmu_prefetch);
+EXPORT_SYMBOL(dmu_prefetch_by_dnode);
+EXPORT_SYMBOL(dmu_prefetch_dnode);
 EXPORT_SYMBOL(dmu_free_range);
 EXPORT_SYMBOL(dmu_free_long_range);
 EXPORT_SYMBOL(dmu_free_long_object);

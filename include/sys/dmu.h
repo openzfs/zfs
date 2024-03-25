@@ -752,8 +752,6 @@ void dmu_buf_sub_user_size(dmu_buf_t *db, uint64_t nsub);
 void *dmu_buf_get_user(dmu_buf_t *db);
 
 objset_t *dmu_buf_get_objset(dmu_buf_t *db);
-dnode_t *dmu_buf_dnode_enter(dmu_buf_t *db);
-void dmu_buf_dnode_exit(dmu_buf_t *db);
 
 /* Block until any in-progress dmu buf user evictions complete. */
 void dmu_buf_user_evict_wait(void);
@@ -901,6 +899,8 @@ extern uint_t zfs_max_recordsize;
  * Asynchronously try to read in the data.
  */
 void dmu_prefetch(objset_t *os, uint64_t object, int64_t level, uint64_t offset,
+	uint64_t len, enum zio_priority pri);
+void dmu_prefetch_by_dnode(dnode_t *dn, int64_t level, uint64_t offset,
 	uint64_t len, enum zio_priority pri);
 void dmu_prefetch_dnode(objset_t *os, uint64_t object, enum zio_priority pri);
 
