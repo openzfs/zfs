@@ -161,7 +161,7 @@ enum zio_stage {
 	ZIO_STAGE_DONE			= 1 << 25	/* RWFCIT */
 };
 
-#define	ZIO_ROOT_PIPELINE			\
+#define	ZIO_DONE_PIPELINE			\
 	ZIO_STAGE_DONE
 
 #define	ZIO_INTERLOCK_STAGES			\
