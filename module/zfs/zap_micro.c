@@ -415,7 +415,7 @@ mze_destroy(zap_t *zap)
 }
 
 static zap_t *
-mzap_open(objset_t *os, uint64_t obj, dmu_buf_t *db)
+mzap_open(dmu_buf_t *db)
 {
 	zap_t *winner;
 	uint64_t *zap_hdr = (uint64_t *)db->db_data;
@@ -427,8 +427,8 @@ mzap_open(objset_t *os, uint64_t obj, dmu_buf_t *db)
 	zap_t *zap = kmem_zalloc(sizeof (zap_t), KM_SLEEP);
 	rw_init(&zap->zap_rwlock, NULL, RW_DEFAULT, NULL);
 	rw_enter(&zap->zap_rwlock, RW_WRITER);
-	zap->zap_objset = os;
-	zap->zap_object = obj;
+	zap->zap_objset = dmu_buf_get_objset(db);
+	zap->zap_object = db->db_object;
 	zap->zap_dbuf = db;
 
 	if (zap_block_type != ZBT_MICRO) {
@@ -518,7 +518,7 @@ handle_winner:
  * have the specified tag.
  */
 static int
-zap_lockdir_impl(dmu_buf_t *db, const void *tag, dmu_tx_t *tx,
+zap_lockdir_impl(dnode_t *dn, dmu_buf_t *db, const void *tag, dmu_tx_t *tx,
     krw_t lti, boolean_t fatreader, boolean_t adding, zap_t **zapp)
 {
 	ASSERT0(db->db_offset);
@@ -528,13 +528,13 @@ zap_lockdir_impl(dmu_buf_t *db, const void *tag, dmu_tx_t *tx,
 
 	*zapp = NULL;
 
-	dmu_object_info_from_db(db, &doi);
+	dmu_object_info_from_dnode(dn, &doi);
 	if (DMU_OT_BYTESWAP(doi.doi_type) != DMU_BSWAP_ZAP)
 		return (SET_ERROR(EINVAL));
 
 	zap_t *zap = dmu_buf_get_user(db);
 	if (zap == NULL) {
-		zap = mzap_open(os, obj, db);
+		zap = mzap_open(db);
 		if (zap == NULL) {
 			/*
 			 * mzap_open() didn't like what it saw on-disk.
@@ -563,6 +563,7 @@ zap_lockdir_impl(dmu_buf_t *db, const void *tag, dmu_tx_t *tx,
 	}
 
 	zap->zap_objset = os;
+	zap->zap_dnode = dn;
 
 	if (lt == RW_WRITER)
 		dmu_buf_will_dirty(db, tx);
@@ -598,23 +599,16 @@ zap_lockdir_by_dnode(dnode_t *dn, dmu_tx_t *tx,
     zap_t **zapp)
 {
 	dmu_buf_t *db;
+	int err;
 
-	int err = dmu_buf_hold_by_dnode(dn, 0, tag, &db, DMU_READ_NO_PREFETCH);
-	if (err != 0) {
+	err = dmu_buf_hold_by_dnode(dn, 0, tag, &db, DMU_READ_NO_PREFETCH);
+	if (err != 0)
 		return (err);
-	}
-#ifdef ZFS_DEBUG
-	{
-		dmu_object_info_t doi;
-		dmu_object_info_from_db(db, &doi);
-		ASSERT3U(DMU_OT_BYTESWAP(doi.doi_type), ==, DMU_BSWAP_ZAP);
-	}
-#endif
-
-	err = zap_lockdir_impl(db, tag, tx, lti, fatreader, adding, zapp);
-	if (err != 0) {
+	err = zap_lockdir_impl(dn, db, tag, tx, lti, fatreader, adding, zapp);
+	if (err != 0)
 		dmu_buf_rele(db, tag);
-	}
+	else
+		VERIFY(dnode_add_ref(dn, tag));
 	return (err);
 }
 
@@ -623,21 +617,23 @@ zap_lockdir(objset_t *os, uint64_t obj, dmu_tx_t *tx,
     krw_t lti, boolean_t fatreader, boolean_t adding, const void *tag,
     zap_t **zapp)
 {
+	dnode_t *dn;
 	dmu_buf_t *db;
+	int err;
 
-	int err = dmu_buf_hold(os, obj, 0, tag, &db, DMU_READ_NO_PREFETCH);
+	err = dnode_hold(os, obj, tag, &dn);
 	if (err != 0)
 		return (err);
-#ifdef ZFS_DEBUG
-	{
-		dmu_object_info_t doi;
-		dmu_object_info_from_db(db, &doi);
-		ASSERT3U(DMU_OT_BYTESWAP(doi.doi_type), ==, DMU_BSWAP_ZAP);
+	err = dmu_buf_hold_by_dnode(dn, 0, tag, &db, DMU_READ_NO_PREFETCH);
+	if (err != 0) {
+		dnode_rele(dn, tag);
+		return (err);
 	}
-#endif
-	err = zap_lockdir_impl(db, tag, tx, lti, fatreader, adding, zapp);
-	if (err != 0)
+	err = zap_lockdir_impl(dn, db, tag, tx, lti, fatreader, adding, zapp);
+	if (err != 0) {
 		dmu_buf_rele(db, tag);
+		dnode_rele(dn, tag);
+	}
 	return (err);
 }
 
@@ -645,6 +641,7 @@ void
 zap_unlockdir(zap_t *zap, const void *tag)
 {
 	rw_exit(&zap->zap_rwlock);
+	dnode_rele(zap->zap_dnode, tag);
 	dmu_buf_rele(zap->zap_dbuf, tag);
 }
 
@@ -730,7 +727,8 @@ mzap_create_impl(dnode_t *dn, int normflags, zap_flags_t flags, dmu_tx_t *tx)
 	if (flags != 0) {
 		zap_t *zap;
 		/* Only fat zap supports flags; upgrade immediately. */
-		VERIFY0(zap_lockdir_impl(db, FTAG, tx, RW_WRITER,
+		VERIFY(dnode_add_ref(dn, FTAG));
+		VERIFY0(zap_lockdir_impl(dn, db, FTAG, tx, RW_WRITER,
 		    B_FALSE, B_FALSE, &zap));
 		VERIFY0(mzap_upgrade(&zap, FTAG, tx, flags));
 		zap_unlockdir(zap, FTAG);
@@ -1325,6 +1323,26 @@ zap_add_by_dnode(dnode_t *dn, const char *key,
 	return (err);
 }
 
+static int
+zap_add_uint64_impl(zap_t *zap, const uint64_t *key,
+    int key_numints, int integer_size, uint64_t num_integers,
+    const void *val, dmu_tx_t *tx, const void *tag)
+{
+	int err;
+
+	zap_name_t *zn = zap_name_alloc_uint64(zap, key, key_numints);
+	if (zn == NULL) {
+		zap_unlockdir(zap, tag);
+		return (SET_ERROR(ENOTSUP));
+	}
+	err = fzap_add(zn, integer_size, num_integers, val, tag, tx);
+	zap = zn->zn_zap;	/* fzap_add() may change zap */
+	zap_name_free(zn);
+	if (zap != NULL)	/* may be NULL if fzap_add() failed */
+		zap_unlockdir(zap, tag);
+	return (err);
+}
+
 int
 zap_add_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
     int key_numints, int integer_size, uint64_t num_integers,
@@ -1336,16 +1354,26 @@ zap_add_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
 	    zap_lockdir(os, zapobj, tx, RW_WRITER, TRUE, TRUE, FTAG, &zap);
 	if (err != 0)
 		return (err);
-	zap_name_t *zn = zap_name_alloc_uint64(zap, key, key_numints);
-	if (zn == NULL) {
-		zap_unlockdir(zap, FTAG);
-		return (SET_ERROR(ENOTSUP));
-	}
-	err = fzap_add(zn, integer_size, num_integers, val, FTAG, tx);
-	zap = zn->zn_zap;	/* fzap_add() may change zap */
-	zap_name_free(zn);
-	if (zap != NULL)	/* may be NULL if fzap_add() failed */
-		zap_unlockdir(zap, FTAG);
+	err = zap_add_uint64_impl(zap, key, key_numints,
+	    integer_size, num_integers, val, tx, FTAG);
+	/* zap_add_uint64_impl() calls zap_unlockdir() */
+	return (err);
+}
+
+int
+zap_add_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
+    int key_numints, int integer_size, uint64_t num_integers,
+    const void *val, dmu_tx_t *tx)
+{
+	zap_t *zap;
+
+	int err =
+	    zap_lockdir_by_dnode(dn, tx, RW_WRITER, TRUE, TRUE, FTAG, &zap);
+	if (err != 0)
+		return (err);
+	err = zap_add_uint64_impl(zap, key, key_numints,
+	    integer_size, num_integers, val, tx, FTAG);
+	/* zap_add_uint64_impl() calls zap_unlockdir() */
 	return (err);
 }
 
@@ -1396,10 +1424,30 @@ zap_update(objset_t *os, uint64_t zapobj, const char *name,
 	return (err);
 }
 
+static int
+zap_update_uint64_impl(zap_t *zap, const uint64_t *key, int key_numints,
+    int integer_size, uint64_t num_integers, const void *val, dmu_tx_t *tx,
+    const void *tag)
+{
+	int err;
+
+	zap_name_t *zn = zap_name_alloc_uint64(zap, key, key_numints);
+	if (zn == NULL) {
+		zap_unlockdir(zap, tag);
+		return (SET_ERROR(ENOTSUP));
+	}
+	err = fzap_update(zn, integer_size, num_integers, val, tag, tx);
+	zap = zn->zn_zap;	/* fzap_update() may change zap */
+	zap_name_free(zn);
+	if (zap != NULL)	/* may be NULL if fzap_upgrade() failed */
+		zap_unlockdir(zap, tag);
+	return (err);
+}
+
 int
 zap_update_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
-    int key_numints,
-    int integer_size, uint64_t num_integers, const void *val, dmu_tx_t *tx)
+    int key_numints, int integer_size, uint64_t num_integers, const void *val,
+    dmu_tx_t *tx)
 {
 	zap_t *zap;
 
@@ -1407,16 +1455,25 @@ zap_update_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
 	    zap_lockdir(os, zapobj, tx, RW_WRITER, TRUE, TRUE, FTAG, &zap);
 	if (err != 0)
 		return (err);
-	zap_name_t *zn = zap_name_alloc_uint64(zap, key, key_numints);
-	if (zn == NULL) {
-		zap_unlockdir(zap, FTAG);
-		return (SET_ERROR(ENOTSUP));
-	}
-	err = fzap_update(zn, integer_size, num_integers, val, FTAG, tx);
-	zap = zn->zn_zap;	/* fzap_update() may change zap */
-	zap_name_free(zn);
-	if (zap != NULL)	/* may be NULL if fzap_upgrade() failed */
-		zap_unlockdir(zap, FTAG);
+	err = zap_update_uint64_impl(zap, key, key_numints,
+	    integer_size, num_integers, val, tx, FTAG);
+	/* zap_update_uint64_impl() calls zap_unlockdir() */
+	return (err);
+}
+
+int
+zap_update_uint64_by_dnode(dnode_t *dn, const uint64_t *key, int key_numints,
+    int integer_size, uint64_t num_integers, const void *val, dmu_tx_t *tx)
+{
+	zap_t *zap;
+
+	int err =
+	    zap_lockdir_by_dnode(dn, tx, RW_WRITER, TRUE, TRUE, FTAG, &zap);
+	if (err != 0)
+		return (err);
+	err = zap_update_uint64_impl(zap, key, key_numints,
+	    integer_size, num_integers, val, tx, FTAG);
+	/* zap_update_uint64_impl() calls zap_unlockdir() */
 	return (err);
 }
 
@@ -1481,6 +1538,23 @@ zap_remove_by_dnode(dnode_t *dn, const char *name, dmu_tx_t *tx)
 	return (err);
 }
 
+static int
+zap_remove_uint64_impl(zap_t *zap, const uint64_t *key, int key_numints,
+    dmu_tx_t *tx, const void *tag)
+{
+	int err;
+
+	zap_name_t *zn = zap_name_alloc_uint64(zap, key, key_numints);
+	if (zn == NULL) {
+		zap_unlockdir(zap, tag);
+		return (SET_ERROR(ENOTSUP));
+	}
+	err = fzap_remove(zn, tx);
+	zap_name_free(zn);
+	zap_unlockdir(zap, tag);
+	return (err);
+}
+
 int
 zap_remove_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
     int key_numints, dmu_tx_t *tx)
@@ -1491,14 +1565,23 @@ zap_remove_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
 	    zap_lockdir(os, zapobj, tx, RW_WRITER, TRUE, FALSE, FTAG, &zap);
 	if (err != 0)
 		return (err);
-	zap_name_t *zn = zap_name_alloc_uint64(zap, key, key_numints);
-	if (zn == NULL) {
-		zap_unlockdir(zap, FTAG);
-		return (SET_ERROR(ENOTSUP));
-	}
-	err = fzap_remove(zn, tx);
-	zap_name_free(zn);
-	zap_unlockdir(zap, FTAG);
+	err = zap_remove_uint64_impl(zap, key, key_numints, tx, FTAG);
+	/* zap_remove_uint64_impl() calls zap_unlockdir() */
+	return (err);
+}
+
+int
+zap_remove_uint64_by_dnode(dnode_t *dn, const uint64_t *key, int key_numints,
+    dmu_tx_t *tx)
+{
+	zap_t *zap;
+
+	int err =
+	    zap_lockdir_by_dnode(dn, tx, RW_WRITER, TRUE, FALSE, FTAG, &zap);
+	if (err != 0)
+		return (err);
+	err = zap_remove_uint64_impl(zap, key, key_numints, tx, FTAG);
+	/* zap_remove_uint64_impl() calls zap_unlockdir() */
 	return (err);
 }
 
@@ -1704,14 +1787,17 @@ EXPORT_SYMBOL(zap_prefetch_uint64);
 EXPORT_SYMBOL(zap_add);
 EXPORT_SYMBOL(zap_add_by_dnode);
 EXPORT_SYMBOL(zap_add_uint64);
+EXPORT_SYMBOL(zap_add_uint64_by_dnode);
 EXPORT_SYMBOL(zap_update);
 EXPORT_SYMBOL(zap_update_uint64);
+EXPORT_SYMBOL(zap_update_uint64_by_dnode);
 EXPORT_SYMBOL(zap_length);
 EXPORT_SYMBOL(zap_length_uint64);
 EXPORT_SYMBOL(zap_remove);
 EXPORT_SYMBOL(zap_remove_by_dnode);
 EXPORT_SYMBOL(zap_remove_norm);
 EXPORT_SYMBOL(zap_remove_uint64);
+EXPORT_SYMBOL(zap_remove_uint64_by_dnode);
 EXPORT_SYMBOL(zap_count);
 EXPORT_SYMBOL(zap_value_search);
 EXPORT_SYMBOL(zap_join);

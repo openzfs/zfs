@@ -133,7 +133,7 @@ fzap_upgrade(zap_t *zap, dmu_tx_t *tx, zap_flags_t flags)
 	 * set up block 1 - the first leaf
 	 */
 	dmu_buf_t *db;
-	VERIFY0(dmu_buf_hold(zap->zap_objset, zap->zap_object,
+	VERIFY0(dmu_buf_hold_by_dnode(zap->zap_dnode,
 	    1<<FZAP_BLOCK_SHIFT(zap), FTAG, &db, DMU_READ_NO_PREFETCH));
 	dmu_buf_will_dirty(db, tx);
 
@@ -182,7 +182,7 @@ zap_table_grow(zap_t *zap, zap_table_phys_t *tbl,
 		newblk = zap_allocate_blocks(zap, tbl->zt_numblks * 2);
 		tbl->zt_nextblk = newblk;
 		ASSERT0(tbl->zt_blks_copied);
-		dmu_prefetch(zap->zap_objset, zap->zap_object, 0,
+		dmu_prefetch_by_dnode(zap->zap_dnode, 0,
 		    tbl->zt_blk << bs, tbl->zt_numblks << bs,
 		    ZIO_PRIORITY_SYNC_READ);
 	}
@@ -193,21 +193,21 @@ zap_table_grow(zap_t *zap, zap_table_phys_t *tbl,
 
 	uint64_t b = tbl->zt_blks_copied;
 	dmu_buf_t *db_old;
-	int err = dmu_buf_hold(zap->zap_objset, zap->zap_object,
+	int err = dmu_buf_hold_by_dnode(zap->zap_dnode,
 	    (tbl->zt_blk + b) << bs, FTAG, &db_old, DMU_READ_NO_PREFETCH);
 	if (err != 0)
 		return (err);
 
 	/* first half of entries in old[b] go to new[2*b+0] */
 	dmu_buf_t *db_new;
-	VERIFY0(dmu_buf_hold(zap->zap_objset, zap->zap_object,
+	VERIFY0(dmu_buf_hold_by_dnode(zap->zap_dnode,
 	    (newblk + 2*b+0) << bs, FTAG, &db_new, DMU_READ_NO_PREFETCH));
 	dmu_buf_will_dirty(db_new, tx);
 	transfer_func(db_old->db_data, db_new->db_data, hepb);
 	dmu_buf_rele(db_new, FTAG);
 
 	/* second half of entries in old[b] go to new[2*b+1] */
-	VERIFY0(dmu_buf_hold(zap->zap_objset, zap->zap_object,
+	VERIFY0(dmu_buf_hold_by_dnode(zap->zap_dnode,
 	    (newblk + 2*b+1) << bs, FTAG, &db_new, DMU_READ_NO_PREFETCH));
 	dmu_buf_will_dirty(db_new, tx);
 	transfer_func((uint64_t *)db_old->db_data + hepb,
@@ -255,7 +255,7 @@ zap_table_store(zap_t *zap, zap_table_phys_t *tbl, uint64_t idx, uint64_t val,
 	uint64_t off = idx & ((1<<(bs-3))-1);
 
 	dmu_buf_t *db;
-	int err = dmu_buf_hold(zap->zap_objset, zap->zap_object,
+	int err = dmu_buf_hold_by_dnode(zap->zap_dnode,
 	    (tbl->zt_blk + blk) << bs, FTAG, &db, DMU_READ_NO_PREFETCH);
 	if (err != 0)
 		return (err);
@@ -267,7 +267,7 @@ zap_table_store(zap_t *zap, zap_table_phys_t *tbl, uint64_t idx, uint64_t val,
 		uint64_t off2 = idx2 & ((1<<(bs-3))-1);
 		dmu_buf_t *db2;
 
-		err = dmu_buf_hold(zap->zap_objset, zap->zap_object,
+		err = dmu_buf_hold_by_dnode(zap->zap_dnode,
 		    (tbl->zt_nextblk + blk2) << bs, FTAG, &db2,
 		    DMU_READ_NO_PREFETCH);
 		if (err != 0) {
@@ -296,16 +296,9 @@ zap_table_load(zap_t *zap, zap_table_phys_t *tbl, uint64_t idx, uint64_t *valp)
 	uint64_t blk = idx >> (bs-3);
 	uint64_t off = idx & ((1<<(bs-3))-1);
 
-	/*
-	 * Note: this is equivalent to dmu_buf_hold(), but we use
-	 * _dnode_enter / _by_dnode because it's faster because we don't
-	 * have to hold the dnode.
-	 */
-	dnode_t *dn = dmu_buf_dnode_enter(zap->zap_dbuf);
 	dmu_buf_t *db;
-	int err = dmu_buf_hold_by_dnode(dn,
+	int err = dmu_buf_hold_by_dnode(zap->zap_dnode,
 	    (tbl->zt_blk + blk) << bs, FTAG, &db, DMU_READ_NO_PREFETCH);
-	dmu_buf_dnode_exit(zap->zap_dbuf);
 	if (err != 0)
 		return (err);
 	*valp = ((uint64_t *)db->db_data)[off];
@@ -319,11 +312,9 @@ zap_table_load(zap_t *zap, zap_table_phys_t *tbl, uint64_t idx, uint64_t *valp)
 		 */
 		blk = (idx*2) >> (bs-3);
 
-		dn = dmu_buf_dnode_enter(zap->zap_dbuf);
-		err = dmu_buf_hold_by_dnode(dn,
+		err = dmu_buf_hold_by_dnode(zap->zap_dnode,
 		    (tbl->zt_nextblk + blk) << bs, FTAG, &db,
 		    DMU_READ_NO_PREFETCH);
-		dmu_buf_dnode_exit(zap->zap_dbuf);
 		if (err == 0)
 			dmu_buf_rele(db, FTAG);
 	}
@@ -368,7 +359,7 @@ zap_grow_ptrtbl(zap_t *zap, dmu_tx_t *tx)
 
 		uint64_t newblk = zap_allocate_blocks(zap, 1);
 		dmu_buf_t *db_new;
-		int err = dmu_buf_hold(zap->zap_objset, zap->zap_object,
+		int err = dmu_buf_hold_by_dnode(zap->zap_dnode,
 		    newblk << FZAP_BLOCK_SHIFT(zap), FTAG, &db_new,
 		    DMU_READ_NO_PREFETCH);
 		if (err != 0)
@@ -433,7 +424,7 @@ zap_create_leaf(zap_t *zap, dmu_tx_t *tx)
 	l->l_blkid = zap_allocate_blocks(zap, 1);
 	l->l_dbuf = NULL;
 
-	VERIFY0(dmu_buf_hold(zap->zap_objset, zap->zap_object,
+	VERIFY0(dmu_buf_hold_by_dnode(zap->zap_dnode,
 	    l->l_blkid << FZAP_BLOCK_SHIFT(zap), NULL, &l->l_dbuf,
 	    DMU_READ_NO_PREFETCH));
 	dmu_buf_init_user(&l->l_dbu, zap_leaf_evict_sync, NULL, &l->l_dbuf);
@@ -533,10 +524,8 @@ zap_get_leaf_byblk(zap_t *zap, uint64_t blkid, dmu_tx_t *tx, krw_t lt,
 		return (SET_ERROR(ENOENT));
 
 	int bs = FZAP_BLOCK_SHIFT(zap);
-	dnode_t *dn = dmu_buf_dnode_enter(zap->zap_dbuf);
-	int err = dmu_buf_hold_by_dnode(dn,
+	int err = dmu_buf_hold_by_dnode(zap->zap_dnode,
 	    blkid << bs, NULL, &db, DMU_READ_NO_PREFETCH);
-	dmu_buf_dnode_exit(zap->zap_dbuf);
 	if (err != 0)
 		return (err);
 
@@ -985,7 +974,7 @@ fzap_prefetch(zap_name_t *zn)
 	if (zap_idx_to_blk(zap, idx, &blk) != 0)
 		return;
 	int bs = FZAP_BLOCK_SHIFT(zap);
-	dmu_prefetch(zap->zap_objset, zap->zap_object, 0, blk << bs, 1 << bs,
+	dmu_prefetch_by_dnode(zap->zap_dnode, 0, blk << bs, 1 << bs,
 	    ZIO_PRIORITY_SYNC_READ);
 }
 
@@ -1228,7 +1217,7 @@ fzap_cursor_retrieve(zap_t *zap, zap_cursor_t *zc, zap_attribute_t *za)
 	 */
 	if (zc->zc_hash == 0 && zap_iterate_prefetch &&
 	    zc->zc_prefetch && zap_f_phys(zap)->zap_freeblk > 2) {
-		dmu_prefetch(zc->zc_objset, zc->zc_zapobj, 0, 0,
+		dmu_prefetch_by_dnode(zap->zap_dnode, 0, 0,
 		    zap_f_phys(zap)->zap_freeblk << FZAP_BLOCK_SHIFT(zap),
 		    ZIO_PRIORITY_ASYNC_READ);
 	}
@@ -1356,7 +1345,7 @@ fzap_get_stats(zap_t *zap, zap_stats_t *zs)
 		zap_stats_ptrtbl(zap, &ZAP_EMBEDDED_PTRTBL_ENT(zap, 0),
 		    1 << ZAP_EMBEDDED_PTRTBL_SHIFT(zap), zs);
 	} else {
-		dmu_prefetch(zap->zap_objset, zap->zap_object, 0,
+		dmu_prefetch_by_dnode(zap->zap_dnode, 0,
 		    zap_f_phys(zap)->zap_ptrtbl.zt_blk << bs,
 		    zap_f_phys(zap)->zap_ptrtbl.zt_numblks << bs,
 		    ZIO_PRIORITY_SYNC_READ);
@@ -1366,7 +1355,7 @@ fzap_get_stats(zap_t *zap, zap_stats_t *zs)
 			dmu_buf_t *db;
 			int err;
 
-			err = dmu_buf_hold(zap->zap_objset, zap->zap_object,
+			err = dmu_buf_hold_by_dnode(zap->zap_dnode,
 			    (zap_f_phys(zap)->zap_ptrtbl.zt_blk + b) << bs,
 			    FTAG, &db, DMU_READ_NO_PREFETCH);
 			if (err == 0) {
