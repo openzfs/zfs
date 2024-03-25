@@ -531,7 +531,7 @@ vdev_mirror_child_select(zio_t *zio)
 	uint64_t txg = zio->io_txg;
 	int c, lowest_load;
 
-	ASSERT(zio->io_bp == NULL || BP_PHYSICAL_BIRTH(zio->io_bp) == txg);
+	ASSERT(zio->io_bp == NULL || BP_GET_BIRTH(zio->io_bp) == txg);
 
 	lowest_load = INT_MAX;
 	mm->mm_preferred_cnt = 0;

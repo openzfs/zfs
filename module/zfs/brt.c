@@ -1384,8 +1384,7 @@ brt_pending_entry_compare(const void *x1, const void *x2)
 		cmp = TREE_CMP(DVA_GET_OFFSET(&bp1->blk_dva[0]),
 		    DVA_GET_OFFSET(&bp2->blk_dva[0]));
 		if (unlikely(cmp == 0)) {
-			cmp = TREE_CMP(BP_PHYSICAL_BIRTH(bp1),
-			    BP_PHYSICAL_BIRTH(bp2));
+			cmp = TREE_CMP(BP_GET_BIRTH(bp1), BP_GET_BIRTH(bp2));
 		}
 	}
 

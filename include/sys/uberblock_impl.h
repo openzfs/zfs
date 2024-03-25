@@ -165,7 +165,7 @@ struct uberblock {
 	 * pool from a checkpointed uberblock [see spa_ld_select_uberblock()],
 	 * the value of the field is used to determine which ZIL blocks have
 	 * been allocated according to the ms_sm when we are rewinding to a
-	 * checkpoint. Specifically, if blk_birth > ub_checkpoint_txg, then
+	 * checkpoint. Specifically, if logical birth > ub_checkpoint_txg,then
 	 * the ZIL block is not allocated [see uses of spa_min_claim_txg()].
 	 */
 	uint64_t	ub_checkpoint_txg;
