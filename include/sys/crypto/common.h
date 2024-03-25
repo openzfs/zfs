@@ -51,12 +51,6 @@ typedef struct crypto_mechanism {
 	size_t			cm_param_len;	/* mech. parameter len */
 } crypto_mechanism_t;
 
-/* CK_AES_CTR_PARAMS provides parameters to the CKM_AES_CTR mechanism */
-typedef struct CK_AES_CTR_PARAMS {
-	ulong_t	ulCounterBits;
-	uint8_t cb[16];
-} CK_AES_CTR_PARAMS;
-
 /* CK_AES_CCM_PARAMS provides parameters to the CKM_AES_CCM mechanism */
 typedef struct CK_AES_CCM_PARAMS {
 	ulong_t ulMACSize;
@@ -77,13 +71,6 @@ typedef struct CK_AES_GCM_PARAMS {
 	ulong_t ulTagBits;
 } CK_AES_GCM_PARAMS;
 
-/* CK_AES_GMAC_PARAMS provides parameters to the CKM_AES_GMAC mechanism */
-typedef struct CK_AES_GMAC_PARAMS {
-	uchar_t *pIv;
-	uchar_t *pAAD;
-	ulong_t ulAADLen;
-} CK_AES_GMAC_PARAMS;
-
 /*
  * The measurement unit bit flag for a mechanism's minimum or maximum key size.
  * The unit are mechanism dependent.  It can be in bits or in bytes.
@@ -103,12 +90,8 @@ typedef uint32_t crypto_keysize_unit_t;
 #define	SUN_CKM_SHA512_HMAC_GENERAL	"CKM_SHA512_HMAC_GENERAL"
 #define	SUN_CKM_SHA512_224		"CKM_SHA512_224"
 #define	SUN_CKM_SHA512_256		"CKM_SHA512_256"
-#define	SUN_CKM_AES_CBC			"CKM_AES_CBC"
-#define	SUN_CKM_AES_ECB			"CKM_AES_ECB"
-#define	SUN_CKM_AES_CTR			"CKM_AES_CTR"
 #define	SUN_CKM_AES_CCM			"CKM_AES_CCM"
 #define	SUN_CKM_AES_GCM			"CKM_AES_GCM"
-#define	SUN_CKM_AES_GMAC		"CKM_AES_GMAC"
 
 /* Data arguments of cryptographic operations */
 
