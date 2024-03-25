@@ -248,7 +248,7 @@ static kmem_cache_t *brt_pending_entry_cache;
 /*
  * Enable/disable prefetching of BRT entries that we are going to modify.
  */
-int zfs_brt_prefetch = 1;
+static int brt_zap_prefetch = 1;
 
 #ifdef ZFS_DEBUG
 #define	BRT_DEBUG(...)	do {						\
@@ -260,8 +260,8 @@ int zfs_brt_prefetch = 1;
 #define	BRT_DEBUG(...)	do { } while (0)
 #endif
 
-int brt_zap_leaf_blockshift = 12;
-int brt_zap_indirect_blockshift = 12;
+static int brt_zap_default_bs = 12;
+static int brt_zap_default_ibs = 12;
 
 static kstat_t	*brt_ksp;
 
@@ -458,8 +458,7 @@ brt_vdev_create(brt_t *brt, brt_vdev_t *brtvd, dmu_tx_t *tx)
 
 	brtvd->bv_mos_entries = zap_create_flags(brt->brt_mos, 0,
 	    ZAP_FLAG_HASH64 | ZAP_FLAG_UINT64_KEY, DMU_OTN_ZAP_METADATA,
-	    brt_zap_leaf_blockshift, brt_zap_indirect_blockshift, DMU_OT_NONE,
-	    0, tx);
+	    brt_zap_default_bs, brt_zap_default_ibs, DMU_OT_NONE, 0, tx);
 	VERIFY(brtvd->bv_mos_entries != 0);
 	BRT_DEBUG("MOS entries created, object=%llu",
 	    (u_longlong_t)brtvd->bv_mos_entries);
@@ -1363,7 +1362,7 @@ brt_prefetch(brt_t *brt, const blkptr_t *bp)
 
 	ASSERT(bp != NULL);
 
-	if (!zfs_brt_prefetch)
+	if (!brt_zap_prefetch)
 		return;
 
 	brt_entry_fill(bp, &bre, &vdevid);
@@ -1679,9 +1678,10 @@ brt_unload(spa_t *spa)
 }
 
 /* BEGIN CSTYLED */
-ZFS_MODULE_PARAM(zfs_brt, zfs_brt_, prefetch, INT, ZMOD_RW,
-    "Enable prefetching of BRT entries");
-#ifdef ZFS_BRT_DEBUG
-ZFS_MODULE_PARAM(zfs_brt, zfs_brt_, debug, INT, ZMOD_RW, "BRT debug");
-#endif
+ZFS_MODULE_PARAM(zfs_brt, , brt_zap_prefetch, INT, ZMOD_RW,
+	"Enable prefetching of BRT ZAP entries");
+ZFS_MODULE_PARAM(zfs_brt, , brt_zap_default_bs, UINT, ZMOD_RW,
+	"BRT ZAP leaf blockshift");
+ZFS_MODULE_PARAM(zfs_brt, , brt_zap_default_ibs, UINT, ZMOD_RW,
+	"BRT ZAP indirect blockshift");
 /* END CSTYLED */
