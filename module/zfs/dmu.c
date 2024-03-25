@@ -569,8 +569,10 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 	for (i = 0; i < nblks; i++) {
 		dmu_buf_impl_t *db = dbuf_hold(dn, blkid + i, tag);
 		if (db == NULL) {
-			if (zs)
-				dmu_zfetch_run(zs, missed, B_TRUE);
+			if (zs) {
+				dmu_zfetch_run(&dn->dn_zfetch, zs, missed,
+				    B_TRUE);
+			}
 			rw_exit(&dn->dn_struct_rwlock);
 			dmu_buf_rele_array(dbp, nblks, tag);
 			if (read)
@@ -606,7 +608,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 		zfs_racct_write(length, nblks);
 
 	if (zs)
-		dmu_zfetch_run(zs, missed, B_TRUE);
+		dmu_zfetch_run(&dn->dn_zfetch, zs, missed, B_TRUE);
 	rw_exit(&dn->dn_struct_rwlock);
 
 	if (read) {
