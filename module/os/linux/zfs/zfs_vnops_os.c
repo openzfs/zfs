@@ -3795,11 +3795,8 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
 	zfs_sa_upgrade_txholds(tx, zp);
 
-	err = dmu_tx_assign(tx, TXG_NOWAIT);
+	err = dmu_tx_assign(tx, TXG_WAIT);
 	if (err != 0) {
-		if (err == ERESTART)
-			dmu_tx_wait(tx);
-
 		dmu_tx_abort(tx);
 #ifdef HAVE_VFS_FILEMAP_DIRTY_FOLIO
 		filemap_dirty_folio(page_mapping(pp), page_folio(pp));
