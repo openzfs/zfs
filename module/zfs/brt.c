@@ -1473,25 +1473,22 @@ brt_pending_remove(spa_t *spa, const blkptr_t *bp, dmu_tx_t *tx)
 void
 brt_pending_apply(spa_t *spa, uint64_t txg)
 {
-	brt_t *brt;
+	brt_t *brt = spa->spa_brt;
 	brt_pending_entry_t *bpe;
 	avl_tree_t *pending_tree;
-	kmutex_t *pending_lock;
 	void *c;
 
 	ASSERT3U(txg, !=, 0);
 
-	brt = spa->spa_brt;
+	/*
+	 * We are in syncing context, so no other brt_pending_tree accesses
+	 * are possible for the TXG. Don't need to acquire brt_pending_lock.
+	 */
 	pending_tree = &brt->brt_pending_tree[txg & TXG_MASK];
-	pending_lock = &brt->brt_pending_lock[txg & TXG_MASK];
-
-	mutex_enter(pending_lock);
 
 	c = NULL;
 	while ((bpe = avl_destroy_nodes(pending_tree, &c)) != NULL) {
 		boolean_t added_to_ddt;
-
-		mutex_exit(pending_lock);
 
 		for (int i = 0; i < bpe->bpe_count; i++) {
 			/*
@@ -1510,10 +1507,7 @@ brt_pending_apply(spa_t *spa, uint64_t txg)
 		}
 
 		kmem_cache_free(brt_pending_entry_cache, bpe);
-		mutex_enter(pending_lock);
 	}
-
-	mutex_exit(pending_lock);
 }
 
 static void
