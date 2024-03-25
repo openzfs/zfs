@@ -1472,10 +1472,10 @@ brt_pending_add(spa_t *spa, const blkptr_t *bp, dmu_tx_t *tx)
 		kmem_cache_free(brt_pending_entry_cache, newbpe);
 	} else {
 		ASSERT(bpe == NULL);
-	}
 
-	/* Prefetch BRT entry, as we will need it in the syncing context. */
-	brt_prefetch(brt, bp);
+		/* Prefetch BRT entry for the syncing context. */
+		brt_prefetch(brt, bp);
+	}
 }
 
 void
