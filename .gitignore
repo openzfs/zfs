@@ -88,3 +88,6 @@ changelog
 *.orig
 *.tmp
 *.log
+
+cscope.out
+*,v
