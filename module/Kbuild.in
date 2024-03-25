@@ -353,6 +353,7 @@ ZFS_OBJS := \
 	fm.o \
 	gzip.o \
 	hkdf.o \
+	jprint.o \
 	lz4.o \
 	lz4_zfs.o \
 	lzjb.o \
@@ -372,6 +373,7 @@ ZFS_OBJS := \
 	spa_config.o \
 	spa_errlog.o \
 	spa_history.o \
+	spa_json_stats.o \
 	spa_log_spacemap.o \
 	spa_misc.o \
 	spa_stats.o \

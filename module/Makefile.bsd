@@ -282,6 +282,7 @@ SRCS+=	abd.c \
 	edonr_zfs.c \
 	fm.c \
 	gzip.c \
+	jprint.c \
 	lz4.c \
 	lz4_zfs.c \
 	lzjb.c \
@@ -303,6 +304,7 @@ SRCS+=	abd.c \
 	spa_config.c \
 	spa_errlog.c \
 	spa_history.c \
+	spa_json_stats.c \
 	spa_log_spacemap.c \
 	spa_misc.c \
 	spa_stats.c \

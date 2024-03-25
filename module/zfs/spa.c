@@ -5956,7 +5956,7 @@ spa_inject_delref(spa_t *spa)
 /*
  * Add spares device information to the nvlist.
  */
-static void
+void
 spa_add_spares(spa_t *spa, nvlist_t *config)
 {
 	nvlist_t **spares;
@@ -6006,7 +6006,7 @@ spa_add_spares(spa_t *spa, nvlist_t *config)
 /*
  * Add l2cache device information to the nvlist, including vdev stats.
  */
-static void
+void
 spa_add_l2cache(spa_t *spa, nvlist_t *config)
 {
 	nvlist_t **l2cache;
@@ -6118,7 +6118,7 @@ spa_feature_stats_from_cache(spa_t *spa, nvlist_t *features)
  * ensures we don't block here on I/O on a suspended pool so 'zpool
  * clear' can resume the pool.
  */
-static void
+void
 spa_add_feature_stats(spa_t *spa, nvlist_t *config)
 {
 	nvlist_t *features;
