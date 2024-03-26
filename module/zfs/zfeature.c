@@ -183,7 +183,7 @@ spa_features_check(spa_t *spa, boolean_t for_write,
 	char *buf;
 
 	zc = kmem_alloc(sizeof (zap_cursor_t), KM_SLEEP);
-	za = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
+	za = zap_attribute_alloc();
 	buf = kmem_alloc(MAXPATHLEN, KM_SLEEP);
 
 	supported = B_TRUE;
@@ -217,7 +217,7 @@ spa_features_check(spa_t *spa, boolean_t for_write,
 	zap_cursor_fini(zc);
 
 	kmem_free(buf, MAXPATHLEN);
-	kmem_free(za, sizeof (zap_attribute_t));
+	zap_attribute_free(za);
 	kmem_free(zc, sizeof (zap_cursor_t));
 
 	return (supported);

@@ -239,7 +239,8 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 				err = zap_value_search(dp->dp_meta_objset,
 				    dsl_dir_phys(dd->dd_parent)->
 				    dd_child_dir_zapobj,
-				    ddobj, 0, dd->dd_myname);
+				    ddobj, 0, dd->dd_myname,
+				    sizeof (dd->dd_myname));
 			}
 			if (err != 0)
 				goto errout;
@@ -586,7 +587,7 @@ dsl_dir_init_fs_ss_count(dsl_dir_t *dd, dmu_tx_t *tx)
 		return;
 
 	zc = kmem_alloc(sizeof (zap_cursor_t), KM_SLEEP);
-	za = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
+	za = zap_attribute_alloc();
 
 	/* Iterate my child dirs */
 	for (zap_cursor_init(zc, os, dsl_dir_phys(dd)->dd_child_dir_zapobj);
@@ -635,7 +636,7 @@ dsl_dir_init_fs_ss_count(dsl_dir_t *dd, dmu_tx_t *tx)
 	dsl_dataset_rele(ds, FTAG);
 
 	kmem_free(zc, sizeof (zap_cursor_t));
-	kmem_free(za, sizeof (zap_attribute_t));
+	zap_attribute_free(za);
 
 	/* we're in a sync task, update counts */
 	dmu_buf_will_dirty(dd->dd_dbuf, tx);

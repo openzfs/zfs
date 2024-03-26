@@ -118,6 +118,7 @@ struct zfsvfs {
 	boolean_t	z_xattr_sa;	/* allow xattrs to be stores as SA */
 	boolean_t	z_draining;	/* is true when drain is active */
 	boolean_t	z_drain_cancel; /* signal the unlinked drain to stop */
+	boolean_t	z_longname;	/* Dataset supports long names */
 	uint64_t	z_version;	/* ZPL version */
 	uint64_t	z_shares_dir;	/* hidden shares dir */
 	dataset_kstats_t	z_kstat;	/* fs kstats */

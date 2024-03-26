@@ -494,7 +494,8 @@ dsl_dataset_get_snapname(dsl_dataset_t *ds)
 		return (err);
 	headphys = headdbuf->db_data;
 	err = zap_value_search(dp->dp_meta_objset,
-	    headphys->ds_snapnames_zapobj, ds->ds_object, 0, ds->ds_snapname);
+	    headphys->ds_snapnames_zapobj, ds->ds_object, 0, ds->ds_snapname,
+	    sizeof (ds->ds_snapname));
 	if (err != 0 && zfs_recover == B_TRUE) {
 		err = 0;
 		(void) snprintf(ds->ds_snapname, sizeof (ds->ds_snapname),
@@ -2290,7 +2291,7 @@ get_clones_stat_impl(dsl_dataset_t *ds, nvlist_t *val)
 	uint64_t count = 0;
 	objset_t *mos = ds->ds_dir->dd_pool->dp_meta_objset;
 	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_attribute_t *za;
 
 	ASSERT(dsl_pool_config_held(ds->ds_dir->dd_pool));
 
@@ -2306,19 +2307,22 @@ get_clones_stat_impl(dsl_dataset_t *ds, nvlist_t *val)
 	if (count != dsl_dataset_phys(ds)->ds_num_children - 1) {
 		return (SET_ERROR(ENOENT));
 	}
+
+	za = zap_attribute_alloc();
 	for (zap_cursor_init(&zc, mos,
 	    dsl_dataset_phys(ds)->ds_next_clones_obj);
-	    zap_cursor_retrieve(&zc, &za) == 0;
+	    zap_cursor_retrieve(&zc, za) == 0;
 	    zap_cursor_advance(&zc)) {
 		dsl_dataset_t *clone;
 		char buf[ZFS_MAX_DATASET_NAME_LEN];
 		VERIFY0(dsl_dataset_hold_obj(ds->ds_dir->dd_pool,
-		    za.za_first_integer, FTAG, &clone));
+		    za->za_first_integer, FTAG, &clone));
 		dsl_dir_name(clone->ds_dir, buf);
 		fnvlist_add_boolean(val, buf);
 		dsl_dataset_rele(clone, FTAG);
 	}
 	zap_cursor_fini(&zc);
+	zap_attribute_free(za);
 	return (0);
 }
 
@@ -3640,16 +3644,16 @@ dsl_dataset_promote_sync(void *arg, dmu_tx_t *tx)
 		if (dsl_dataset_phys(ds)->ds_next_clones_obj &&
 		    spa_version(dp->dp_spa) >= SPA_VERSION_DIR_CLONES) {
 			zap_cursor_t zc;
-			zap_attribute_t za;
+			zap_attribute_t *za = zap_attribute_alloc();
 
 			for (zap_cursor_init(&zc, dp->dp_meta_objset,
 			    dsl_dataset_phys(ds)->ds_next_clones_obj);
-			    zap_cursor_retrieve(&zc, &za) == 0;
+			    zap_cursor_retrieve(&zc, za) == 0;
 			    zap_cursor_advance(&zc)) {
 				dsl_dataset_t *cnds;
 				uint64_t o;
 
-				if (za.za_first_integer == oldnext_obj) {
+				if (za->za_first_integer == oldnext_obj) {
 					/*
 					 * We've already moved the
 					 * origin's reference.
@@ -3658,7 +3662,7 @@ dsl_dataset_promote_sync(void *arg, dmu_tx_t *tx)
 				}
 
 				VERIFY0(dsl_dataset_hold_obj(dp,
-				    za.za_first_integer, FTAG, &cnds));
+				    za->za_first_integer, FTAG, &cnds));
 				o = dsl_dir_phys(cnds->ds_dir)->
 				    dd_head_dataset_obj;
 
@@ -3669,6 +3673,7 @@ dsl_dataset_promote_sync(void *arg, dmu_tx_t *tx)
 				dsl_dataset_rele(cnds, FTAG);
 			}
 			zap_cursor_fini(&zc);
+			zap_attribute_free(za);
 		}
 
 		ASSERT(!dsl_prop_hascb(ds));

@@ -1087,7 +1087,7 @@ dump_zap(objset_t *os, uint64_t object, void *data, size_t size)
 {
 	(void) data, (void) size;
 	zap_cursor_t zc;
-	zap_attribute_t attr;
+	zap_attribute_t *attrp = zap_attribute_long_alloc();
 	void *prop;
 	unsigned i;
 
@@ -1095,36 +1095,37 @@ dump_zap(objset_t *os, uint64_t object, void *data, size_t size)
 	(void) printf("\n");
 
 	for (zap_cursor_init(&zc, os, object);
-	    zap_cursor_retrieve(&zc, &attr) == 0;
+	    zap_cursor_retrieve(&zc, attrp) == 0;
 	    zap_cursor_advance(&zc)) {
-		(void) printf("\t\t%s = ", attr.za_name);
-		if (attr.za_num_integers == 0) {
+		(void) printf("\t\t%s = ", attrp->za_name);
+		if (attrp->za_num_integers == 0) {
 			(void) printf("\n");
 			continue;
 		}
-		prop = umem_zalloc(attr.za_num_integers *
-		    attr.za_integer_length, UMEM_NOFAIL);
-		(void) zap_lookup(os, object, attr.za_name,
-		    attr.za_integer_length, attr.za_num_integers, prop);
-		if (attr.za_integer_length == 1) {
-			if (strcmp(attr.za_name,
+		prop = umem_zalloc(attrp->za_num_integers *
+		    attrp->za_integer_length, UMEM_NOFAIL);
+		(void) zap_lookup(os, object, attrp->za_name,
+		    attrp->za_integer_length, attrp->za_num_integers, prop);
+		if (attrp->za_integer_length == 1) {
+			if (strcmp(attrp->za_name,
 			    DSL_CRYPTO_KEY_MASTER_KEY) == 0 ||
-			    strcmp(attr.za_name,
+			    strcmp(attrp->za_name,
 			    DSL_CRYPTO_KEY_HMAC_KEY) == 0 ||
-			    strcmp(attr.za_name, DSL_CRYPTO_KEY_IV) == 0 ||
-			    strcmp(attr.za_name, DSL_CRYPTO_KEY_MAC) == 0 ||
-			    strcmp(attr.za_name, DMU_POOL_CHECKSUM_SALT) == 0) {
+			    strcmp(attrp->za_name, DSL_CRYPTO_KEY_IV) == 0 ||
+			    strcmp(attrp->za_name, DSL_CRYPTO_KEY_MAC) == 0 ||
+			    strcmp(attrp->za_name,
+			    DMU_POOL_CHECKSUM_SALT) == 0) {
 				uint8_t *u8 = prop;
 
-				for (i = 0; i < attr.za_num_integers; i++) {
+				for (i = 0; i < attrp->za_num_integers; i++) {
 					(void) printf("%02x", u8[i]);
 				}
 			} else {
 				(void) printf("%s", (char *)prop);
 			}
 		} else {
-			for (i = 0; i < attr.za_num_integers; i++) {
-				switch (attr.za_integer_length) {
+			for (i = 0; i < attrp->za_num_integers; i++) {
+				switch (attrp->za_integer_length) {
 				case 2:
 					(void) printf("%u ",
 					    ((uint16_t *)prop)[i]);
@@ -1141,9 +1142,11 @@ dump_zap(objset_t *os, uint64_t object, void *data, size_t size)
 			}
 		}
 		(void) printf("\n");
-		umem_free(prop, attr.za_num_integers * attr.za_integer_length);
+		umem_free(prop,
+		    attrp->za_num_integers * attrp->za_integer_length);
 	}
 	zap_cursor_fini(&zc);
+	zap_attribute_free(attrp);
 }
 
 static void
@@ -1244,26 +1247,27 @@ dump_sa_attrs(objset_t *os, uint64_t object, void *data, size_t size)
 {
 	(void) data, (void) size;
 	zap_cursor_t zc;
-	zap_attribute_t attr;
+	zap_attribute_t *attrp = zap_attribute_alloc();
 
 	dump_zap_stats(os, object);
 	(void) printf("\n");
 
 	for (zap_cursor_init(&zc, os, object);
-	    zap_cursor_retrieve(&zc, &attr) == 0;
+	    zap_cursor_retrieve(&zc, attrp) == 0;
 	    zap_cursor_advance(&zc)) {
-		(void) printf("\t\t%s = ", attr.za_name);
-		if (attr.za_num_integers == 0) {
+		(void) printf("\t\t%s = ", attrp->za_name);
+		if (attrp->za_num_integers == 0) {
 			(void) printf("\n");
 			continue;
 		}
 		(void) printf(" %llx : [%d:%d:%d]\n",
-		    (u_longlong_t)attr.za_first_integer,
-		    (int)ATTR_LENGTH(attr.za_first_integer),
-		    (int)ATTR_BSWAP(attr.za_first_integer),
-		    (int)ATTR_NUM(attr.za_first_integer));
+		    (u_longlong_t)attrp->za_first_integer,
+		    (int)ATTR_LENGTH(attrp->za_first_integer),
+		    (int)ATTR_BSWAP(attrp->za_first_integer),
+		    (int)ATTR_NUM(attrp->za_first_integer));
 	}
 	zap_cursor_fini(&zc);
+	zap_attribute_free(attrp);
 }
 
 static void
@@ -1271,7 +1275,7 @@ dump_sa_layouts(objset_t *os, uint64_t object, void *data, size_t size)
 {
 	(void) data, (void) size;
 	zap_cursor_t zc;
-	zap_attribute_t attr;
+	zap_attribute_t *attrp = zap_attribute_alloc();
 	uint16_t *layout_attrs;
 	unsigned i;
 
@@ -1279,29 +1283,30 @@ dump_sa_layouts(objset_t *os, uint64_t object, void *data, size_t size)
 	(void) printf("\n");
 
 	for (zap_cursor_init(&zc, os, object);
-	    zap_cursor_retrieve(&zc, &attr) == 0;
+	    zap_cursor_retrieve(&zc, attrp) == 0;
 	    zap_cursor_advance(&zc)) {
-		(void) printf("\t\t%s = [", attr.za_name);
-		if (attr.za_num_integers == 0) {
+		(void) printf("\t\t%s = [", attrp->za_name);
+		if (attrp->za_num_integers == 0) {
 			(void) printf("\n");
 			continue;
 		}
 
-		VERIFY(attr.za_integer_length == 2);
-		layout_attrs = umem_zalloc(attr.za_num_integers *
-		    attr.za_integer_length, UMEM_NOFAIL);
+		VERIFY(attrp->za_integer_length == 2);
+		layout_attrs = umem_zalloc(attrp->za_num_integers *
+		    attrp->za_integer_length, UMEM_NOFAIL);
 
-		VERIFY(zap_lookup(os, object, attr.za_name,
-		    attr.za_integer_length,
-		    attr.za_num_integers, layout_attrs) == 0);
+		VERIFY(zap_lookup(os, object, attrp->za_name,
+		    attrp->za_integer_length,
+		    attrp->za_num_integers, layout_attrs) == 0);
 
-		for (i = 0; i != attr.za_num_integers; i++)
+		for (i = 0; i != attrp->za_num_integers; i++)
 			(void) printf(" %d ", (int)layout_attrs[i]);
 		(void) printf("]\n");
 		umem_free(layout_attrs,
-		    attr.za_num_integers * attr.za_integer_length);
+		    attrp->za_num_integers * attrp->za_integer_length);
 	}
 	zap_cursor_fini(&zc);
+	zap_attribute_free(attrp);
 }
 
 static void
@@ -1309,7 +1314,7 @@ dump_zpldir(objset_t *os, uint64_t object, void *data, size_t size)
 {
 	(void) data, (void) size;
 	zap_cursor_t zc;
-	zap_attribute_t attr;
+	zap_attribute_t *attrp = zap_attribute_long_alloc();
 	const char *typenames[] = {
 		/* 0 */ "not specified",
 		/* 1 */ "FIFO",
@@ -1333,13 +1338,14 @@ dump_zpldir(objset_t *os, uint64_t object, void *data, size_t size)
 	(void) printf("\n");
 
 	for (zap_cursor_init(&zc, os, object);
-	    zap_cursor_retrieve(&zc, &attr) == 0;
+	    zap_cursor_retrieve(&zc, attrp) == 0;
 	    zap_cursor_advance(&zc)) {
 		(void) printf("\t\t%s = %lld (type: %s)\n",
-		    attr.za_name, ZFS_DIRENT_OBJ(attr.za_first_integer),
-		    typenames[ZFS_DIRENT_TYPE(attr.za_first_integer)]);
+		    attrp->za_name, ZFS_DIRENT_OBJ(attrp->za_first_integer),
+		    typenames[ZFS_DIRENT_TYPE(attrp->za_first_integer)]);
 	}
 	zap_cursor_fini(&zc);
+	zap_attribute_free(attrp);
 }
 
 static int
@@ -2049,18 +2055,19 @@ dump_brt(spa_t *spa)
 			continue;
 
 		zap_cursor_t zc;
-		zap_attribute_t za;
+		zap_attribute_t *za = zap_attribute_alloc();
 		for (zap_cursor_init(&zc, brt->brt_mos, brtvd->bv_mos_entries);
-		    zap_cursor_retrieve(&zc, &za) == 0;
+		    zap_cursor_retrieve(&zc, za) == 0;
 		    zap_cursor_advance(&zc)) {
-			uint64_t offset = *(uint64_t *)za.za_name;
-			uint64_t refcnt = za.za_first_integer;
+			uint64_t offset = *(uint64_t *)za->za_name;
+			uint64_t refcnt = za->za_first_integer;
 
 			snprintf(dva, sizeof (dva), "%" PRIu64 ":%llx", vdevid,
 			    (u_longlong_t)offset);
 			printf("%-16s %-10llu\n", dva, (u_longlong_t)refcnt);
 		}
 		zap_cursor_fini(&zc);
+		zap_attribute_free(za);
 	}
 }
 
@@ -2842,28 +2849,30 @@ static void
 dump_bookmarks(objset_t *os, int verbosity)
 {
 	zap_cursor_t zc;
-	zap_attribute_t attr;
+	zap_attribute_t *attrp;
 	dsl_dataset_t *ds = dmu_objset_ds(os);
 	dsl_pool_t *dp = spa_get_dsl(os->os_spa);
 	objset_t *mos = os->os_spa->spa_meta_objset;
 	if (verbosity < 4)
 		return;
+	attrp = zap_attribute_alloc();
 	dsl_pool_config_enter(dp, FTAG);
 
 	for (zap_cursor_init(&zc, mos, ds->ds_bookmarks_obj);
-	    zap_cursor_retrieve(&zc, &attr) == 0;
+	    zap_cursor_retrieve(&zc, attrp) == 0;
 	    zap_cursor_advance(&zc)) {
 		char osname[ZFS_MAX_DATASET_NAME_LEN];
 		char buf[ZFS_MAX_DATASET_NAME_LEN];
 		int len;
 		dmu_objset_name(os, osname);
 		len = snprintf(buf, sizeof (buf), "%s#%s", osname,
-		    attr.za_name);
+		    attrp->za_name);
 		VERIFY3S(len, <, ZFS_MAX_DATASET_NAME_LEN);
 		(void) dump_bookmark(dp, buf, verbosity >= 5, verbosity >= 6);
 	}
 	zap_cursor_fini(&zc);
 	dsl_pool_config_exit(dp, FTAG);
+	zap_attribute_free(attrp);
 }
 
 static void
@@ -6637,18 +6646,19 @@ iterate_deleted_livelists(spa_t *spa, ll_iter_t func, void *arg)
 	ASSERT0(err);
 
 	zap_cursor_t zc;
-	zap_attribute_t attr;
+	zap_attribute_t *attrp = zap_attribute_alloc();
 	dsl_deadlist_t ll;
 	/* NULL out os prior to dsl_deadlist_open in case it's garbage */
 	ll.dl_os = NULL;
 	for (zap_cursor_init(&zc, mos, zap_obj);
-	    zap_cursor_retrieve(&zc, &attr) == 0;
+	    zap_cursor_retrieve(&zc, attrp) == 0;
 	    (void) zap_cursor_advance(&zc)) {
-		dsl_deadlist_open(&ll, mos, attr.za_first_integer);
+		dsl_deadlist_open(&ll, mos, attrp->za_first_integer);
 		func(&ll, arg);
 		dsl_deadlist_close(&ll);
 	}
 	zap_cursor_fini(&zc);
+	zap_attribute_free(attrp);
 }
 
 static int
@@ -7863,13 +7873,14 @@ static void
 errorlog_count_refd(objset_t *mos, uint64_t errlog)
 {
 	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_attribute_t *za = zap_attribute_alloc();
 	for (zap_cursor_init(&zc, mos, errlog);
-	    zap_cursor_retrieve(&zc, &za) == 0;
+	    zap_cursor_retrieve(&zc, za) == 0;
 	    zap_cursor_advance(&zc)) {
-		mos_obj_refd(za.za_first_integer);
+		mos_obj_refd(za->za_first_integer);
 	}
 	zap_cursor_fini(&zc);
+	zap_attribute_free(za);
 }
 
 static int
