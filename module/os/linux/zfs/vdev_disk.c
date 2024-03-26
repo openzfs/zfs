@@ -45,12 +45,22 @@
 /*
  * Linux 6.8.x uses a bdev_handle as an instance/refcount for an underlying
  * block_device. Since it carries the block_device inside, its convenient to
- * just use the handle as a proxy. For pre-6.8, we just emulate this with
- * a cast, since we don't need any of the other fields inside the handle.
+ * just use the handle as a proxy.
+ *
+ * Linux 6.9.x uses a file for the same purpose.
+ *
+ * For pre-6.8, we just emulate this with a cast, since we don't need any of
+ * the other fields inside the handle.
  */
-#ifdef HAVE_BDEV_OPEN_BY_PATH
+#if defined(HAVE_BDEV_OPEN_BY_PATH)
 typedef struct bdev_handle zfs_bdev_handle_t;
 #define	BDH_BDEV(bdh)		((bdh)->bdev)
+#define	BDH_IS_ERR(bdh)		(IS_ERR(bdh))
+#define	BDH_PTR_ERR(bdh)	(PTR_ERR(bdh))
+#define	BDH_ERR_PTR(err)	(ERR_PTR(err))
+#elif defined(HAVE_BDEV_FILE_OPEN_BY_PATH)
+typedef struct file zfs_bdev_handle_t;
+#define	BDH_BDEV(bdh)		(file_bdev(bdh))
 #define	BDH_IS_ERR(bdh)		(IS_ERR(bdh))
 #define	BDH_PTR_ERR(bdh)	(PTR_ERR(bdh))
 #define	BDH_ERR_PTR(err)	(ERR_PTR(err))
@@ -237,7 +247,10 @@ vdev_disk_kobj_evt_post(vdev_t *v)
 static zfs_bdev_handle_t *
 vdev_blkdev_get_by_path(const char *path, spa_mode_t mode, void *holder)
 {
-#if defined(HAVE_BDEV_OPEN_BY_PATH)
+#if defined(HAVE_BDEV_FILE_OPEN_BY_PATH)
+	return (bdev_file_open_by_path(path,
+	    vdev_bdev_mode(mode, B_TRUE), holder, NULL));
+#elif defined(HAVE_BDEV_OPEN_BY_PATH)
 	return (bdev_open_by_path(path,
 	    vdev_bdev_mode(mode, B_TRUE), holder, NULL));
 #elif defined(HAVE_BLKDEV_GET_BY_PATH_4ARG)
@@ -256,9 +269,11 @@ vdev_blkdev_put(zfs_bdev_handle_t *bdh, spa_mode_t mode, void *holder)
 	return (bdev_release(bdh));
 #elif defined(HAVE_BLKDEV_PUT_HOLDER)
 	return (blkdev_put(BDH_BDEV(bdh), holder));
-#else
+#elif defined(HAVE_BLKDEV_PUT)
 	return (blkdev_put(BDH_BDEV(bdh),
 	    vdev_bdev_mode(mode, B_TRUE)));
+#else
+	fput(bdh);
 #endif
 }
 
