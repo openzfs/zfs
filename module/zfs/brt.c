@@ -900,7 +900,6 @@ static int
 brt_entry_lookup(brt_t *brt, brt_vdev_t *brtvd, brt_entry_t *bre)
 {
 	uint64_t mos_entries;
-	uint64_t one, physsize;
 	int error;
 
 	ASSERT(RW_LOCK_HELD(&brt->brt_lock));
@@ -918,21 +917,8 @@ brt_entry_lookup(brt_t *brt, brt_vdev_t *brtvd, brt_entry_t *bre)
 
 	brt_unlock(brt);
 
-	error = zap_length_uint64(brt->brt_mos, mos_entries, &bre->bre_offset,
-	    BRT_KEY_WORDS, &one, &physsize);
-	if (error == 0) {
-		ASSERT3U(one, ==, 1);
-		ASSERT3U(physsize, ==, sizeof (bre->bre_refcount));
-
-		error = zap_lookup_uint64(brt->brt_mos, mos_entries,
-		    &bre->bre_offset, BRT_KEY_WORDS, 1,
-		    sizeof (bre->bre_refcount), &bre->bre_refcount);
-		BRT_DEBUG("ZAP lookup: object=%llu vdev=%llu offset=%llu "
-		    "count=%llu error=%d", (u_longlong_t)mos_entries,
-		    (u_longlong_t)brtvd->bv_vdevid,
-		    (u_longlong_t)bre->bre_offset,
-		    error == 0 ? (u_longlong_t)bre->bre_refcount : 0, error);
-	}
+	error = zap_lookup_uint64(brt->brt_mos, mos_entries, &bre->bre_offset,
+	    BRT_KEY_WORDS, 1, sizeof (bre->bre_refcount), &bre->bre_refcount);
 
 	brt_wlock(brt);
 
