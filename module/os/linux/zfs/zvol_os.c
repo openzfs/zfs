@@ -1314,6 +1314,13 @@ zvol_os_create_minor(const char *name)
 	if (idx < 0)
 		return (SET_ERROR(-idx));
 	minor = idx << ZVOL_MINOR_BITS;
+	if (MINOR(minor) != minor) {
+		/* too many partitions can cause an overflow */
+		zfs_dbgmsg("zvol: create minor overflow: %s, minor %u/%u",
+		    name, minor, MINOR(minor));
+		ida_simple_remove(&zvol_ida, idx);
+		return (SET_ERROR(EINVAL));
+	}
 
 	zv = zvol_find_by_name_hash(name, hash, RW_NONE);
 	if (zv) {
