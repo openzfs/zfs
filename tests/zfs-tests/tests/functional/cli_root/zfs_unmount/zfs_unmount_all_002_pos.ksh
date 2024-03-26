@@ -29,26 +29,31 @@
 # Copyright (c) 2016 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_mount/zfs_mount.kshlib
+. $STF_SUITE/tests/functional/cli_root/zfs_unmount/zfs_unmount.kshlib
 
+#
 # DESCRIPTION:
-#       Verify that 'zfs mount -a' succeeds as root.
+#       Verify that 'zfs unmount -a[f]' succeeds as root.
 #
 # STRATEGY:
 #       1. Create a group of pools with specified vdev.
 #       2. Create zfs filesystems within the given pools.
-#       3. Unmount all the filesystems.
-#       4. Verify that 'zfs mount -a' command succeed,
-#          and all available ZFS filesystems are mounted.
+#       3. Mount all the filesystems.
+#       4. Verify that 'zfs unmount -a filesystem' command succeed,
+#          and the related available ZFS filesystems are unmounted,
+#          and the unrelated ZFS filesystems remain mounted
 #       5. Verify that 'zfs mount' is identical with 'df -F zfs'
 #
 
 verify_runnable "both"
 
 set -A fs "$TESTFS" "$TESTFS1"
-set -A ctr "" "$TESTCTR" "$TESTCTR/$TESTCTR1" "$TESTCTR1"
+set -A ctr "" "$TESTCTR" "$TESTCTR1" "$TESTCTR/$TESTCTR1"
 set -A vol "$TESTVOL" "$TESTVOL1"
+
+# Test the mounted state of root dataset (testpool/testctr)
+typeset mnt=$TESTCTR
 
 function setup_all
 {
@@ -71,13 +76,12 @@ function setup_all
 			j=0
 			while (( j < ${#vol[*]} )); do
 				setup_filesystem "$DISKS" "$TESTPOOL" \
-					"${ctr[i]}/${vol[j]}" \
+				"${ctr[i]}/${vol[j]}" \
 					"$path/${vol[j]}" \
 					"vol"
 				((j = j + 1))
 			done
 		fi
-
 		j=0
 		while (( j < ${#fs[*]} )); do
 			setup_filesystem "$DISKS" "$TESTPOOL" \
@@ -96,7 +100,6 @@ function cleanup_all
 {
 	typeset -i i=0
 	typeset -i j=0
-	typeset path
 
 	((i = ${#ctr[*]} - 1))
 
@@ -128,24 +131,22 @@ function cleanup_all
 }
 
 #
-# This function takes a single true/false argument. If true it will verify that
-# all file systems are mounted. If false it will verify that they are not
-# mounted.
+# This function verifies that the file systems in $mnt are unmounted.
+# Next, it ensures that all other file systems in remain mounted.
 #
-function verify_all
+function verify_related
 {
 	typeset -i i=0
 	typeset -i j=0
 	typeset path
-	typeset logfunc
-
-	if $1; then
-		logfunc=log_must
-	else
-		logfunc=log_mustnot
-	fi
 
 	while (( i < ${#ctr[*]} )); do
+
+		if { [[ ${ctr[i]} == $mnt ]] || [[ ${ctr[i]} == $mnt/* ]] }; then
+			logfunc=log_must
+		else
+			logfunc=log_mustnot
+		fi
 
 		path=$TESTPOOL
 		[[ -n ${ctr[i]} ]] && \
@@ -154,18 +155,18 @@ function verify_all
 		if is_global_zone ; then
 			j=0
 			while (( j < ${#vol[*]} )); do
-				log_mustnot mounted "$path/${vol[j]}"
+				log_must unmounted "$path/${vol[j]}"
 				((j = j + 1))
 			done
 		fi
 
 		j=0
 		while (( j < ${#fs[*]} )); do
-			$logfunc mounted "$path/${fs[j]}"
+			$logfunc unmounted "$path/${fs[j]}"
 			((j = j + 1))
 		done
 
-		$logfunc mounted "$path"
+		$logfunc unmounted "$path"
 
 		((i = i + 1))
 	done
@@ -174,29 +175,29 @@ function verify_all
 }
 
 
-log_assert "Verify that 'zfs $mountall' succeeds as root, " \
-	"and all available ZFS filesystems are mounted."
+log_assert "Verify that 'zfs $unmountall $TESTPOOL/$mnt' succeeds as root, " \
+	"and all the related available ZFS filesystems are unmounted."
 
 log_onexit cleanup_all
 
 log_must setup_all
 
-export __ZFS_POOL_RESTRICT="$TESTPOOL"
-log_must zfs $unmountall
-unset __ZFS_POOL_RESTRICT
+typeset opt
+for opt in "-a" "-fa"; do
+	export __ZFS_POOL_RESTRICT="$TESTPOOL"
+	log_must zfs $mountall
+	unset __ZFS_POOL_RESTRICT
 
-verify_all false
+	export __ZFS_POOL_RESTRICT="$TESTPOOL"
+	log_must zfs unmount $opt $TESTPOOL/$mnt
+	unset __ZFS_POOL_RESTRICT
 
-export __ZFS_POOL_RESTRICT="$TESTPOOL"
-log_must zfs $mountall
-unset __ZFS_POOL_RESTRICT
+	log_must verify_related
+	log_note "Verify that 'zfs $mountcmd' will display " \
+	"all available ZFS filesystems related to '$TESTPOOL/$mnt' are unmounted."
+	log_must verify_mount_display
 
-verify_all true
+done
 
-log_note "Verify that 'zfs $mountcmd' will display " \
-	"all ZFS filesystems currently mounted."
-
-verify_mount_display
-
-log_pass "'zfs $mountall' succeeds as root, " \
-	"and all available ZFS filesystems are mounted."
+log_pass "'zfs mount -[f]a $TESTPOOL/$mnt' succeeds as root, " \
+	"and all the related available ZFS filesystems are unmounted."

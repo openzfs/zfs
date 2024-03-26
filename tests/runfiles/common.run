@@ -244,9 +244,9 @@ tags = ['functional', 'cli_root', 'zfs_load-key']
 tests = ['zfs_mount_001_pos', 'zfs_mount_002_pos', 'zfs_mount_003_pos',
     'zfs_mount_004_pos', 'zfs_mount_005_pos', 'zfs_mount_007_pos',
     'zfs_mount_009_neg', 'zfs_mount_010_neg', 'zfs_mount_011_neg',
-    'zfs_mount_012_pos', 'zfs_mount_all_001_pos', 'zfs_mount_encrypted',
-    'zfs_mount_remount', 'zfs_mount_all_fail', 'zfs_mount_all_mountpoints',
-    'zfs_mount_test_race']
+    'zfs_mount_012_pos', 'zfs_mount_all_001_pos', 'zfs_mount_all_002_pos',
+    'zfs_mount_encrypted', 'zfs_mount_remount', 'zfs_mount_all_fail',
+    'zfs_mount_all_mountpoints', 'zfs_mount_test_race']
 tags = ['functional', 'cli_root', 'zfs_mount']
 
 [tests/functional/cli_root/zfs_program]
@@ -338,7 +338,8 @@ tags = ['functional', 'cli_root', 'zfs_unload-key']
 tests = ['zfs_unmount_001_pos', 'zfs_unmount_002_pos', 'zfs_unmount_003_pos',
     'zfs_unmount_004_pos', 'zfs_unmount_005_pos', 'zfs_unmount_006_pos',
     'zfs_unmount_007_neg', 'zfs_unmount_008_neg', 'zfs_unmount_009_pos',
-    'zfs_unmount_all_001_pos', 'zfs_unmount_nested', 'zfs_unmount_unload_keys']
+    'zfs_unmount_all_001_pos', 'zfs_unmount_all_002_pos', 'zfs_unmount_nested',
+    'zfs_unmount_unload_keys']
 tags = ['functional', 'cli_root', 'zfs_unmount']
 
 [tests/functional/cli_root/zfs_unshare]
