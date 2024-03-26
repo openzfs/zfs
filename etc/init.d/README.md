@@ -7,11 +7,7 @@ DESCRIPTION
 
   They have been tested successfully on:
 
-    * Debian GNU/Linux Wheezy
-    * Debian GNU/Linux Jessie
-    * Ubuntu Trusty
-    * CentOS 6.0
-    * CentOS 6.6
+    * Debian GNU/Linux Bookworm
     * Gentoo
 
 SUPPORT

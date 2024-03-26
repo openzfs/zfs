@@ -307,7 +307,7 @@ do_start()
 
 # ----------------------------------------------------
 
-if [ ! -e /sbin/openrc-run ]
+if @IS_SYSV_RC@
 then
 	case "$1" in
 		start)
