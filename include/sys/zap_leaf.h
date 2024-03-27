@@ -132,7 +132,7 @@ typedef struct zap_leaf_phys {
 	 * with the ZAP_LEAF_CHUNK() macro.
 	 */
 
-	uint16_t l_hash[1];
+	uint16_t l_hash[];
 } zap_leaf_phys_t;
 
 typedef union zap_leaf_chunk {
