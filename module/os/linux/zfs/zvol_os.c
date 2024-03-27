@@ -1055,6 +1055,16 @@ zvol_alloc_non_blk_mq(struct zvol_state_os *zso)
 
 	zso->zvo_disk->minors = ZVOL_MINORS;
 	zso->zvo_queue = zso->zvo_disk->queue;
+#elif defined(HAVE_BLK_ALLOC_DISK_2ARG)
+	struct gendisk *disk = blk_alloc_disk(NULL, NUMA_NO_NODE);
+	if (IS_ERR(disk)) {
+		zso->zvo_disk = NULL;
+		return (1);
+	}
+
+	zso->zvo_disk = disk;
+	zso->zvo_disk->minors = ZVOL_MINORS;
+	zso->zvo_queue = zso->zvo_disk->queue;
 #else
 	zso->zvo_queue = blk_alloc_queue(NUMA_NO_NODE);
 	if (zso->zvo_queue == NULL)
@@ -1101,6 +1111,17 @@ zvol_alloc_blk_mq(zvol_state_t *zv)
 		blk_mq_free_tag_set(&zso->tag_set);
 		return (1);
 	}
+	zso->zvo_queue = zso->zvo_disk->queue;
+	zso->zvo_disk->minors = ZVOL_MINORS;
+#elif defined(HAVE_BLK_ALLOC_DISK_2ARG)
+	struct gendisk *disk = blk_mq_alloc_disk(&zso->tag_set, NULL, zv);
+	if (IS_ERR(disk)) {
+		zso->zvo_disk = NULL;
+		blk_mq_free_tag_set(&zso->tag_set);
+		return (1);
+	}
+
+	zso->zvo_disk = disk;
 	zso->zvo_queue = zso->zvo_disk->queue;
 	zso->zvo_disk->minors = ZVOL_MINORS;
 #else
@@ -1256,7 +1277,7 @@ zvol_os_free(zvol_state_t *zv)
 
 	del_gendisk(zv->zv_zso->zvo_disk);
 #if defined(HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS) && \
-	defined(HAVE_BLK_ALLOC_DISK)
+	(defined(HAVE_BLK_ALLOC_DISK) || defined(HAVE_BLK_ALLOC_DISK_2ARG))
 #if defined(HAVE_BLK_CLEANUP_DISK)
 	blk_cleanup_disk(zv->zv_zso->zvo_disk);
 #else
