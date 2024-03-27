@@ -4554,6 +4554,9 @@ ztest_dataset_create(char *dsname)
 		fnvlist_add_string(props,
 		    zfs_prop_to_name(ZFS_PROP_KEYLOCATION), "prompt");
 		fnvlist_add_uint64(props,
+		    zfs_prop_to_name(ZFS_PROP_PASSPHRASE_KDF),
+		    ztest_random(ZFS_PASSPHRASE_KDF_KDFS));
+		fnvlist_add_uint64(props,
 		    zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT), 0ULL);
 		fnvlist_add_uint64(props,
 		    zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS), 0ULL);

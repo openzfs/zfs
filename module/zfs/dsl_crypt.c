@@ -109,7 +109,8 @@ dsl_wrapping_key_free(dsl_wrapping_key_t *wkey)
 
 static void
 dsl_wrapping_key_create(uint8_t *wkeydata, zfs_keyformat_t keyformat,
-    uint64_t salt, uint64_t iters, dsl_wrapping_key_t **wkey_out)
+    zfs_passphrase_kdf_t kdf, uint64_t salt, uint64_t iters,
+    dsl_wrapping_key_t **wkey_out)
 {
 	dsl_wrapping_key_t *wkey;
 
@@ -125,6 +126,7 @@ dsl_wrapping_key_create(uint8_t *wkeydata, zfs_keyformat_t keyformat,
 	/* initialize the rest of the struct */
 	zfs_refcount_create(&wkey->wk_refcnt);
 	wkey->wk_keyformat = keyformat;
+	wkey->wk_kdf = kdf;
 	wkey->wk_salt = salt;
 	wkey->wk_iters = iters;
 
@@ -138,6 +140,7 @@ dsl_crypto_params_create_nvlist(dcp_cmd_t cmd, nvlist_t *props,
 	int ret;
 	uint64_t crypt = ZIO_CRYPT_INHERIT;
 	uint64_t keyformat = ZFS_KEYFORMAT_NONE;
+	uint64_t kdf = ZFS_PASSPHRASE_KDF_PBKDF2;
 	uint64_t salt = 0, iters = 0;
 	dsl_crypto_params_t *dcp = NULL;
 	dsl_wrapping_key_t *wkey = NULL;
@@ -156,6 +159,8 @@ dsl_crypto_params_create_nvlist(dcp_cmd_t cmd, nvlist_t *props,
 		    zfs_prop_to_name(ZFS_PROP_KEYFORMAT), &keyformat);
 		(void) nvlist_lookup_string(props,
 		    zfs_prop_to_name(ZFS_PROP_KEYLOCATION), &keylocation);
+		(void) nvlist_lookup_uint64(props,
+		    zfs_prop_to_name(ZFS_PROP_PASSPHRASE_KDF), &kdf);
 		(void) nvlist_lookup_uint64(props,
 		    zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT), &salt);
 		(void) nvlist_lookup_uint64(props,
@@ -191,6 +196,12 @@ dsl_crypto_params_create_nvlist(dcp_cmd_t cmd, nvlist_t *props,
 		goto error;
 	}
 
+	/* check for valid kdf */
+	if (kdf >= ZFS_PASSPHRASE_KDF_KDFS) {
+		ret = SET_ERROR(EINVAL);
+		goto error;
+	}
+
 	/* check for a valid keylocation (of any kind) and copy it in */
 	if (keylocation != NULL) {
 		if (!zfs_prop_valid_keylocation(keylocation, B_FALSE)) {
@@ -214,7 +225,7 @@ dsl_crypto_params_create_nvlist(dcp_cmd_t cmd, nvlist_t *props,
 	/* create the wrapping key from the raw data */
 	if (wkeydata != NULL) {
 		/* create the wrapping key with the verified parameters */
-		dsl_wrapping_key_create(wkeydata, keyformat, salt,
+		dsl_wrapping_key_create(wkeydata, keyformat, kdf, salt,
 		    iters, &wkey);
 		dcp->cp_wkey = wkey;
 	}
@@ -225,6 +236,8 @@ dsl_crypto_params_create_nvlist(dcp_cmd_t cmd, nvlist_t *props,
 	 */
 	(void) nvlist_remove_all(props, zfs_prop_to_name(ZFS_PROP_ENCRYPTION));
 	(void) nvlist_remove_all(props, zfs_prop_to_name(ZFS_PROP_KEYFORMAT));
+	(void) nvlist_remove_all(props,
+	    zfs_prop_to_name(ZFS_PROP_PASSPHRASE_KDF));
 	(void) nvlist_remove_all(props, zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT));
 	(void) nvlist_remove_all(props,
 	    zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS));
@@ -776,7 +789,7 @@ spa_keystore_load_wkey(const char *dsname, dsl_crypto_params_t *dcp,
 	dsl_crypto_key_t *dck = NULL;
 	dsl_wrapping_key_t *wkey = dcp->cp_wkey;
 	dsl_pool_t *dp = NULL;
-	uint64_t rddobj, keyformat, salt, iters;
+	uint64_t rddobj, keyformat, kdf, salt, iters;
 
 	/*
 	 * We don't validate the wrapping key's keyformat, salt, or iters
@@ -827,6 +840,13 @@ spa_keystore_load_wkey(const char *dsname, dsl_crypto_params_t *dcp,
 		goto error;
 
 	ret = zap_lookup(dp->dp_meta_objset, dd->dd_crypto_obj,
+	    zfs_prop_to_name(ZFS_PROP_PASSPHRASE_KDF), 8, 1, &kdf);
+	if (ret == ENOENT)
+		kdf = ZFS_PASSPHRASE_KDF_PBKDF2;
+	else if (ret != 0)
+		goto error;
+
+	ret = zap_lookup(dp->dp_meta_objset, dd->dd_crypto_obj,
 	    zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT), 8, 1, &salt);
 	if (ret != 0)
 		goto error;
@@ -838,6 +858,7 @@ spa_keystore_load_wkey(const char *dsname, dsl_crypto_params_t *dcp,
 
 	ASSERT3U(keyformat, <, ZFS_KEYFORMAT_FORMATS);
 	ASSERT3U(keyformat, !=, ZFS_KEYFORMAT_NONE);
+	ASSERT3U(kdf, <, ZFS_PASSPHRASE_KDF_KDFS);
 	IMPLY(keyformat == ZFS_KEYFORMAT_PASSPHRASE, iters != 0);
 	IMPLY(keyformat == ZFS_KEYFORMAT_PASSPHRASE, salt != 0);
 	IMPLY(keyformat != ZFS_KEYFORMAT_PASSPHRASE, iters == 0);
@@ -1204,7 +1225,7 @@ static void
 dsl_crypto_key_sync_impl(objset_t *mos, uint64_t dckobj, uint64_t crypt,
     uint64_t root_ddobj, uint64_t guid, uint8_t *iv, uint8_t *mac,
     uint8_t *keydata, uint8_t *hmac_keydata, uint64_t keyformat,
-    uint64_t salt, uint64_t iters, dmu_tx_t *tx)
+    uint64_t kdf, uint64_t salt, uint64_t iters, dmu_tx_t *tx)
 {
 	VERIFY0(zap_update(mos, dckobj, DSL_CRYPTO_KEY_CRYPTO_SUITE, 8, 1,
 	    &crypt, tx));
@@ -1222,6 +1243,9 @@ dsl_crypto_key_sync_impl(objset_t *mos, uint64_t dckobj, uint64_t crypt,
 	    SHA512_HMAC_KEYLEN, hmac_keydata, tx));
 	VERIFY0(zap_update(mos, dckobj, zfs_prop_to_name(ZFS_PROP_KEYFORMAT),
 	    8, 1, &keyformat, tx));
+	VERIFY0(zap_update(mos, dckobj,
+	    zfs_prop_to_name(ZFS_PROP_PASSPHRASE_KDF),
+	    8, 1, &kdf, tx));
 	VERIFY0(zap_update(mos, dckobj, zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT),
 	    8, 1, &salt, tx));
 	VERIFY0(zap_update(mos, dckobj, zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS),
@@ -1248,8 +1272,8 @@ dsl_crypto_key_sync(dsl_crypto_key_t *dck, dmu_tx_t *tx)
 	/* update the ZAP with the obtained values */
 	dsl_crypto_key_sync_impl(tx->tx_pool->dp_meta_objset, dck->dck_obj,
 	    key->zk_crypt, wkey->wk_ddobj, key->zk_guid, iv, mac, keydata,
-	    hmac_keydata, wkey->wk_keyformat, wkey->wk_salt, wkey->wk_iters,
-	    tx);
+	    hmac_keydata, wkey->wk_keyformat, wkey->wk_kdf, wkey->wk_salt,
+	    wkey->wk_iters, tx);
 }
 
 typedef struct spa_keystore_change_key_args {
@@ -1403,7 +1427,8 @@ spa_keystore_change_key_check(void *arg, dmu_tx_t *tx)
 	/* passphrases require pbkdf2 salt and iters */
 	if (dcp->cp_wkey->wk_keyformat == ZFS_KEYFORMAT_PASSPHRASE) {
 		if (dcp->cp_wkey->wk_salt == 0 ||
-		    dcp->cp_wkey->wk_iters < MIN_PBKDF2_ITERATIONS) {
+		    !zfs_passphrase_kdf_min_parameters[
+		    dcp->cp_wkey->wk_kdf](dcp->cp_wkey->wk_iters)) {
 			ret = SET_ERROR(EINVAL);
 			goto error;
 		}
@@ -1889,7 +1914,8 @@ dmu_objset_create_crypt_check(dsl_dir_t *parentdd, dsl_crypto_params_t *dcp,
 	case ZFS_KEYFORMAT_PASSPHRASE:
 		/* requires pbkdf2 iters and salt */
 		if (dcp->cp_wkey->wk_salt == 0 ||
-		    dcp->cp_wkey->wk_iters < MIN_PBKDF2_ITERATIONS)
+		    !zfs_passphrase_kdf_min_parameters[
+		    dcp->cp_wkey->wk_kdf](dcp->cp_wkey->wk_iters))
 			return (SET_ERROR(EINVAL));
 		break;
 	case ZFS_KEYFORMAT_NONE:
@@ -2244,6 +2270,13 @@ dsl_crypto_recv_raw_key_check(dsl_dataset_t *ds, nvlist_t *nvl, dmu_tx_t *tx)
 
 	is_passphrase = (intval == ZFS_KEYFORMAT_PASSPHRASE);
 
+	ret = nvlist_lookup_uint64(nvl,
+	    zfs_prop_to_name(ZFS_PROP_PASSPHRASE_KDF), &intval);
+	if (ret == ENOENT)
+		;
+	else if (ret != 0 || intval >= ZFS_PASSPHRASE_KDF_KDFS)
+		return (SET_ERROR(EINVAL));
+
 	/*
 	 * for raw receives we allow any number of pbkdf2iters since there
 	 * won't be a chance for the user to change it.
@@ -2271,6 +2304,7 @@ dsl_crypto_recv_raw_key_sync(dsl_dataset_t *ds, nvlist_t *nvl, dmu_tx_t *tx)
 	uint64_t rddobj, one = 1;
 	uint8_t *keydata, *hmac_keydata, *iv, *mac;
 	uint64_t crypt, key_guid, keyformat, iters, salt;
+	uint64_t kdf = ZFS_PASSPHRASE_KDF_PBKDF2;
 	uint64_t version = ZIO_CRYPT_KEY_CURRENT_VERSION;
 	const char *keylocation = "prompt";
 
@@ -2279,6 +2313,8 @@ dsl_crypto_recv_raw_key_sync(dsl_dataset_t *ds, nvlist_t *nvl, dmu_tx_t *tx)
 	key_guid = fnvlist_lookup_uint64(nvl, DSL_CRYPTO_KEY_GUID);
 	keyformat = fnvlist_lookup_uint64(nvl,
 	    zfs_prop_to_name(ZFS_PROP_KEYFORMAT));
+	(void) nvlist_lookup_uint64(nvl,
+	    zfs_prop_to_name(ZFS_PROP_PASSPHRASE_KDF), &kdf);
 	iters = fnvlist_lookup_uint64(nvl,
 	    zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS));
 	salt = fnvlist_lookup_uint64(nvl,
@@ -2331,8 +2367,8 @@ dsl_crypto_recv_raw_key_sync(dsl_dataset_t *ds, nvlist_t *nvl, dmu_tx_t *tx)
 
 	/* sync the key data to the ZAP object on disk */
 	dsl_crypto_key_sync_impl(mos, dd->dd_crypto_obj, crypt,
-	    rddobj, key_guid, iv, mac, keydata, hmac_keydata, keyformat, salt,
-	    iters, tx);
+	    rddobj, key_guid, iv, mac, keydata, hmac_keydata, keyformat, kdf,
+	    salt, iters, tx);
 }
 
 static int
@@ -2426,6 +2462,7 @@ dsl_crypto_populate_key_nvlist(objset_t *os, uint64_t from_ivset_guid,
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
 	objset_t *mos = dp->dp_meta_objset;
 	uint64_t crypt = 0, key_guid = 0, format = 0;
+	uint64_t kdf = ZFS_PASSPHRASE_KDF_PBKDF2;
 	uint64_t iters = 0, salt = 0, version = 0;
 	uint64_t to_ivset_guid = 0;
 	uint8_t raw_keydata[MASTER_KEY_MAX_LEN];
@@ -2508,6 +2545,11 @@ dsl_crypto_populate_key_nvlist(objset_t *os, uint64_t from_ivset_guid,
 	if (ret != 0)
 		goto error_unlock;
 
+	ret = zap_lookup(dp->dp_meta_objset, rdd->dd_crypto_obj,
+	    zfs_prop_to_name(ZFS_PROP_PASSPHRASE_KDF), 8, 1, &kdf);
+	if (ret != 0 && ret != ENOENT)
+		goto error_unlock;
+
 	if (format == ZFS_KEYFORMAT_PASSPHRASE) {
 		ret = zap_lookup(dp->dp_meta_objset, rdd->dd_crypto_obj,
 		    zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS), 8, 1, &iters);
@@ -2537,6 +2579,7 @@ dsl_crypto_populate_key_nvlist(objset_t *os, uint64_t from_ivset_guid,
 	VERIFY0(nvlist_add_uint8_array(nvl, "portable_mac",
 	    os->os_phys->os_portable_mac, ZIO_OBJSET_MAC_LEN));
 	fnvlist_add_uint64(nvl, zfs_prop_to_name(ZFS_PROP_KEYFORMAT), format);
+	fnvlist_add_uint64(nvl, zfs_prop_to_name(ZFS_PROP_PASSPHRASE_KDF), kdf);
 	fnvlist_add_uint64(nvl, zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS), iters);
 	fnvlist_add_uint64(nvl, zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT), salt);
 	fnvlist_add_uint64(nvl, "mdn_checksum", mdn->dn_checksum);
@@ -2649,6 +2692,10 @@ dsl_dataset_crypt_stats(dsl_dataset_t *ds, nvlist_t *nv)
 	if (zap_lookup(dd->dd_pool->dp_meta_objset, dd->dd_crypto_obj,
 	    zfs_prop_to_name(ZFS_PROP_KEYFORMAT), 8, 1, &intval) == 0) {
 		dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_KEYFORMAT, intval);
+	}
+	if (zap_lookup(dd->dd_pool->dp_meta_objset, dd->dd_crypto_obj,
+	    zfs_prop_to_name(ZFS_PROP_PASSPHRASE_KDF), 8, 1, &intval) == 0) {
+		dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_PASSPHRASE_KDF, intval);
 	}
 	if (zap_lookup(dd->dd_pool->dp_meta_objset, dd->dd_crypto_obj,
 	    zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT), 8, 1, &intval) == 0) {

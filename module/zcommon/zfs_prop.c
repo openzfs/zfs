@@ -234,6 +234,12 @@ zfs_prop_init(void)
 		{ NULL }
 	};
 
+	static const zprop_index_t passphrase_kdf_table[] = {
+		{ "pbkdf2",		ZFS_PASSPHRASE_KDF_PBKDF2 },
+		{ "argon2id",		ZFS_PASSPHRASE_KDF_ARGON2ID },
+		{ NULL }
+	};
+
 	static const zprop_index_t snapdir_table[] = {
 		{ "hidden",	ZFS_SNAPDIR_HIDDEN },
 		{ "visible",	ZFS_SNAPDIR_VISIBLE },
@@ -554,6 +560,11 @@ zfs_prop_init(void)
 	    "on | off | aes-128-ccm | aes-192-ccm | aes-256-ccm | "
 	    "aes-128-gcm | aes-192-gcm | aes-256-gcm", "ENCRYPTION",
 	    crypto_table, sfeatures);
+	zprop_register_index(ZFS_PROP_PASSPHRASE_KDF, "passphrasekdf",
+	    ZFS_PASSPHRASE_KDF_PBKDF2, PROP_ONETIME_DEFAULT,
+	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
+	    "pbkdf2 | argon2id", "KDF", passphrase_kdf_table,
+	    sfeatures);
 
 	/* set once index (boolean) properties */
 	zprop_register_index(ZFS_PROP_UTF8ONLY, "utf8only", 0, PROP_ONETIME,
@@ -668,7 +679,7 @@ zfs_prop_init(void)
 	    B_TRUE, sfeatures);
 	zprop_register_number(ZFS_PROP_PBKDF2_ITERS, "pbkdf2iters",
 	    0, PROP_ONETIME_DEFAULT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
-	    "<iters>", "PBKDF2ITERS", B_TRUE, sfeatures);
+	    "<iters>", "KDFPARAMS", B_TRUE, sfeatures);
 	zprop_register_number(ZFS_PROP_OBJSETID, "objsetid", 0,
 	    PROP_READONLY, ZFS_TYPE_DATASET, "<uint64>", "OBJSETID", B_TRUE,
 	    sfeatures);
@@ -838,10 +849,10 @@ zfs_prop_userquota(const char *name)
 boolean_t
 zfs_prop_written(const char *name)
 {
-	static const char *prop_prefix = "written@";
-	static const char *book_prefix = "written#";
-	return (strncmp(name, prop_prefix, strlen(prop_prefix)) == 0 ||
-	    strncmp(name, book_prefix, strlen(book_prefix)) == 0);
+	static const char prop_prefix[] = "written@";
+	static const char book_prefix[] = "written#";
+	return (strncmp(name, prop_prefix, sizeof (prop_prefix) - 1) == 0 ||
+	    strncmp(name, book_prefix, sizeof (book_prefix) - 1) == 0);
 }
 
 /*
@@ -972,7 +983,7 @@ zfs_prop_encryption_key_param(zfs_prop_t prop)
 	 * changed at will without needing the master keys.
 	 */
 	return (prop == ZFS_PROP_PBKDF2_SALT || prop == ZFS_PROP_PBKDF2_ITERS ||
-	    prop == ZFS_PROP_KEYFORMAT);
+	    prop == ZFS_PROP_KEYFORMAT || prop == ZFS_PROP_PASSPHRASE_KDF);
 }
 
 /*

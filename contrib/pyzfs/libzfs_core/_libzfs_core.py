@@ -836,8 +836,8 @@ def lzc_change_key(fsname, crypt_cmd, props=None, key=None):
         supported values are "new_key", "inherit", "force_new_key" and
         "force_inherit".
     :param props: a `dict` of encryption-related property name-value pairs;
-        only "keyformat", "keylocation" and "pbkdf2iters" are supported
-        (empty by default).
+        only "keyformat", "keylocation", "passphrasepkdf", and "pbkdf2iters"
+        are supported (empty by default).
     :type props: dict of bytes:Any
     :param key: dataset encryption key data (empty by default).
     :type key: bytes
