@@ -189,7 +189,7 @@ dbuf_stats_hash_table_init(dbuf_hash_table_t *hash)
 	dsh->hash = hash;
 
 	ksp = kstat_create("zfs", 0, "dbufs", "misc",
-	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
+	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL | KSTAT_FLAG_RESTRICTED);
 	dsh->kstat = ksp;
 
 	if (ksp) {
