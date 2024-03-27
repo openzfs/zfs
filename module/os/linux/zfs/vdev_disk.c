@@ -969,8 +969,10 @@ vdev_disk_io_rw(zio_t *zio)
 /*
  * This is the classic, battle-tested BIO submission code. Until we're totally
  * sure that the new code is safe and correct in all cases, this will remain
- * available and can be enabled by setting zfs_vdev_disk_classic=1 at module
- * load time.
+ * available.
+ *
+ * It is enabled by setting zfs_vdev_disk_classic=1 at module load time. It is
+ * enabled (=1) by default since 2.2.4, and disabled by default (=0) on master.
  *
  * These functions have been renamed to vdev_classic_* to make it clear what
  * they belong to, but their implementations are unchanged.
@@ -1468,7 +1470,7 @@ vdev_disk_rele(vdev_t *vd)
  * BIO submission method. See comment above about vdev_classic.
  * Set zfs_vdev_disk_classic=0 for new, =1 for classic
  */
-static uint_t zfs_vdev_disk_classic = 0;	/* default new */
+static uint_t zfs_vdev_disk_classic = 1;	/* default classic */
 
 /* Set submission function from module parameter */
 static int
