@@ -287,7 +287,8 @@ get_usage(zfs_help_t idx)
 		    "\tcreate [-Pnpsv] [-b blocksize] [-o property=value] ... "
 		    "-V <size> <volume>\n"));
 	case HELP_DESTROY:
-		return (gettext("\tdestroy [-fnpRrv] <filesystem|volume>\n"
+		return (gettext("\tdestroy [-fnpRrv] [-t type] "
+		    "<filesystem|volume>\n"
 		    "\tdestroy [-dnpRrv] "
 		    "<filesystem|volume>@<snap>[%<snap>][,...]\n"
 		    "\tdestroy <filesystem|volume>#<bookmark>\n"));
@@ -1642,9 +1643,10 @@ zfs_do_destroy(int argc, char **argv)
 	zfs_handle_t *zhp = NULL;
 	char *at, *pound;
 	zfs_type_t type = ZFS_TYPE_DATASET;
+	char *type_filter = NULL;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "vpndfrR")) != -1) {
+	while ((c = getopt(argc, argv, "vpndfrRt:")) != -1) {
 		switch (c) {
 		case 'v':
 			cb.cb_verbose = B_TRUE;
@@ -1670,6 +1672,9 @@ zfs_do_destroy(int argc, char **argv)
 			cb.cb_recurse = B_TRUE;
 			cb.cb_doclones = B_TRUE;
 			break;
+		case 't':
+			type_filter = optarg;
+			break;
 		case '?':
 		default:
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
@@ -1690,6 +1695,54 @@ zfs_do_destroy(int argc, char **argv)
 		(void) fprintf(stderr, gettext("too many arguments\n"));
 		usage(B_FALSE);
 	}
+
+	/* check type before destroying if specified */
+	if (type_filter != NULL) {
+		zhp = zfs_open(g_zfs, argv[0], ZFS_TYPE_DATASET);
+		if (zhp != NULL) {
+			zfs_type_t type = zfs_get_type(zhp);
+			boolean_t type_matches = B_FALSE;
+
+			switch (type) {
+			case ZFS_TYPE_FILESYSTEM:
+				type_matches = (
+				    (strcmp(type_filter, "fs") == 0) ||
+				    (strcmp(type_filter, "filesystem") == 0));
+				break;
+			case ZFS_TYPE_VOLUME:
+				type_matches = (
+				    (strcmp(type_filter, "vol") == 0) ||
+				    (strcmp(type_filter, "volume") == 0));
+				break;
+			case ZFS_TYPE_SNAPSHOT:
+				type_matches = (
+				    (strcmp(type_filter, "snap") == 0) ||
+				    (strcmp(type_filter, "snapshot") == 0));
+				break;
+			case ZFS_TYPE_BOOKMARK:
+				type_matches =
+				    (strcmp(type_filter, "bookmark") == 0);
+				break;
+			default:
+				type_matches = B_FALSE;
+				break;
+			}
+
+			zfs_close(zhp);
+
+			if (!type_matches) {
+				(void) fprintf(stderr,
+				    gettext("cannot destroy '%s': "
+				    "type does not match '%s'\n"),
+				    argv[0], type_filter);
+				return (1);
+			}
+
+		} else {
+			return (1);
+		}
+	}
+
 
 	at = strchr(argv[0], '@');
 	pound = strchr(argv[0], '#');
