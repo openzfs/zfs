@@ -159,6 +159,11 @@ extern void spa_start_raidz_expansion_thread(spa_t *);
 extern int spa_raidz_expand_get_stats(spa_t *, pool_raidz_expand_stat_t *);
 extern int vdev_raidz_load(vdev_t *);
 
+void vdev_raidz_generate_parity_p(struct raidz_row *);
+void vdev_raidz_generate_parity_pq(struct raidz_row *);
+void vdev_raidz_generate_parity_pqr(struct raidz_row *);
+void vdev_raidz_reconstruct_general(struct raidz_row *, int *, int);
+
 /* RAIDZ scratch area pause points (for testing) */
 #define	RAIDZ_EXPAND_PAUSE_NONE	0
 #define	RAIDZ_EXPAND_PAUSE_PRE_SCRATCH_1 1

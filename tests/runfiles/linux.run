@@ -222,3 +222,7 @@ tags = ['functional', 'zvol', 'zvol_misc']
 tests = ['idmap_mount_001', 'idmap_mount_002', 'idmap_mount_003',
     'idmap_mount_004', 'idmap_mount_005']
 tags = ['functional', 'idmap_mount']
+
+[tests/functional/zia:Linux]
+tests = ['zia_props', 'zia_write_pipeline', 'zia_raidz_resilver']
+tags = ['functional', 'zia']

@@ -34,6 +34,7 @@
 #include <sys/vdev_trim.h>
 #include <sys/abd.h>
 #include <sys/fs/zfs.h>
+#include <sys/zia.h>
 #include <sys/zio.h>
 #include <linux/blkpg.h>
 #include <linux/msdos_fs.h>
@@ -207,7 +208,7 @@ bdev_max_capacity(struct block_device *bdev, uint64_t wholedisk)
 	return (psize);
 }
 
-static void
+void
 vdev_disk_error(zio_t *zio)
 {
 	/*
@@ -322,6 +323,7 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 					reread_part = B_TRUE;
 			}
 
+			zia_disk_close(v);
 			vdev_blkdev_put(bdh, mode, zfs_vdev_holder);
 		}
 
@@ -443,6 +445,11 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	*logical_ashift = highbit64(MAX(logical_block_size,
 	    SPA_MINBLOCKSIZE)) - 1;
 
+	zia_get_props(v->vdev_spa)->min_offload_size = 2 << *physical_ashift;
+
+	/* open disk; ignore errors - will fall back to ZFS */
+	zia_disk_open(v, v->vdev_path, vd->vd_bdh);
+
 	return (0);
 }
 
@@ -454,9 +461,11 @@ vdev_disk_close(vdev_t *v)
 	if (v->vdev_reopening || vd == NULL)
 		return;
 
-	if (vd->vd_bdh != NULL)
+	if (vd->vd_bdh != NULL) {
+		zia_disk_close(v);
 		vdev_blkdev_put(vd->vd_bdh, spa_mode(v->vdev_spa),
 		    zfs_vdev_holder);
+	}
 
 	rw_destroy(&vd->vd_lock);
 	kmem_free(vd, sizeof (vdev_disk_t));
@@ -1079,12 +1088,9 @@ vdev_classic_bio_max_segs(zio_t *zio, int bio_size, uint64_t abd_offset)
 #endif
 }
 
-static int
-vdev_classic_physio(zio_t *zio)
+int
+__vdev_classic_physio(struct block_device *bdev, zio_t *zio)
 {
-	vdev_t *v = zio->io_vd;
-	vdev_disk_t *vd = v->vdev_tsd;
-	struct block_device *bdev = BDH_BDEV(vd->vd_bdh);
 	size_t io_size = zio->io_size;
 	uint64_t io_offset = zio->io_offset;
 	int rw = zio->io_type == ZIO_TYPE_READ ? READ : WRITE;
@@ -1196,6 +1202,16 @@ retry:
 	return (error);
 }
 
+EXPORT_SYMBOL(__vdev_classic_physio);
+
+static int
+vdev_classic_physio(zio_t *zio)
+{
+	vdev_t *v = zio->io_vd;
+	vdev_disk_t *vd = v->vdev_tsd;
+	return (__vdev_classic_physio(BDH_BDEV(vd->vd_bdh), zio));
+}
+
 /* ========== */
 
 BIO_END_IO_PROTO(vdev_disk_io_flush_completion, bio, error)
@@ -1217,7 +1233,7 @@ BIO_END_IO_PROTO(vdev_disk_io_flush_completion, bio, error)
 	zio_interrupt(zio);
 }
 
-static int
+int
 vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 {
 	struct request_queue *q;
@@ -1239,6 +1255,8 @@ vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 
 	return (0);
 }
+
+EXPORT_SYMBOL(vdev_disk_io_flush);
 
 #if defined(HAVE_BLKDEV_ISSUE_SECURE_ERASE) || \
 	defined(HAVE_BLKDEV_ISSUE_DISCARD_ASYNC)
@@ -1359,6 +1377,16 @@ vdev_disk_io_start(zio_t *zio)
 				break;
 			}
 
+			error = zia_disk_flush(v, zio);
+
+			/*
+			 * have to return here in order to not dispatch
+			 * this zio to multiple task queues
+			 */
+			if (error == 0) {
+				rw_exit(&vd->vd_lock);
+				return;
+			}
 			error = vdev_disk_io_flush(BDH_BDEV(vd->vd_bdh), zio);
 			if (error == 0) {
 				rw_exit(&vd->vd_lock);
@@ -1391,6 +1419,37 @@ vdev_disk_io_start(zio_t *zio)
 	case ZIO_TYPE_READ:
 	case ZIO_TYPE_WRITE:
 		zio->io_target_timestamp = zio_handle_io_delay(zio);
+		error = EIO;
+
+		if (zio->io_type == ZIO_TYPE_WRITE) {
+			boolean_t local_offload = B_FALSE;
+			zia_props_t *zia_props = zia_get_props(zio->io_spa);
+			if ((zia_props->disk_write == 1) &&
+			    (zio->io_can_offload == B_TRUE)) {
+				if (zia_offload_abd(zia_props->provider,
+				    zio->io_abd, zio->io_size,
+				    zia_props->min_offload_size,
+				    &local_offload) == ZIA_OK) {
+					error = zia_disk_write(v, zio,
+					    zio->io_size, zio->io_offset, 0);
+				}
+			}
+
+			if (error == 0) {
+				rw_exit(&vd->vd_lock);
+				return;
+			}
+
+			error = zia_cleanup_abd(zio->io_abd, zio->io_size,
+			    local_offload);
+
+			if (error == ZIA_ACCELERATOR_DOWN) {
+				zia_disable_offloading(zio, B_TRUE);
+				rw_exit(&vd->vd_lock);
+				zio_interrupt(zio);
+				return;
+			}
+		}
 		error = vdev_disk_io_rw_fn(zio);
 		rw_exit(&vd->vd_lock);
 		if (error) {
@@ -1431,6 +1490,7 @@ vdev_disk_io_done(zio_t *zio)
 		vdev_disk_t *vd = v->vdev_tsd;
 
 		if (!zfs_check_disk_status(BDH_BDEV(vd->vd_bdh))) {
+			zia_disk_invalidate(v);
 			invalidate_bdev(BDH_BDEV(vd->vd_bdh));
 			v->vdev_remove_wanted = B_TRUE;
 			spa_async_request(zio->io_spa, SPA_ASYNC_REMOVE);

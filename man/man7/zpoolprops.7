@@ -437,6 +437,42 @@ command, though this property can be used when a specific version is needed for
 backwards compatibility.
 Once feature flags are enabled on a pool this property will no longer have a
 value.
+.It Sy zia_checksum Ns = Ns Sy on Ns | Ns Sy off
+Controls whether the pool should offload checksum computations.
+Does not have any effect if the checksum stage is disabled.
+Embedded checksums are onloaded, and will suffer a data movement penalty.
+.It Sy zia_compress Ns = Ns Sy on Ns | Ns Sy off
+Controls whether the pool should offload compression.
+Does not have any effect if the compression stage is disabled.
+Embedded data is onloaded, and will suffer a data movement penalty.
+.It Sy zia_decompress Ns = Ns Sy on Ns | Ns Sy off
+Controls whether the pool should offload decompression.
+.It Sy zia_disk_write Ns = Ns Sy on Ns | Ns Sy off
+Controls whether a pool should offload write I/Os to disks.
+.It Sy zia_file_write Ns = Ns Sy on Ns | Ns Sy off
+Controls whether a pool should offload write I/Os to files.
+.It Sy zia_provider Ns = Ns Sy (unset) | Ns Sy Z.I.A. Provider Name
+Selects an accelerator registered in the Data Processing Unit Services
+Module to offload data to.
+Only one accelerator can be used by a pool at a time.
+.It Sy zia_raidz1_gen Ns = Ns Sy on Ns | Ns Sy off
+Controls whether the pool should offload RAIDZ1 parity generation.
+Does not have any effect if RAIDZ1 is disabled.
+.It Sy zia_raidz1_rec Ns = Ns Sy on Ns | Ns Sy off
+Controls whether the pool should offload RAIDZ1 reconstruction.
+Does not have any effect if RAIDZ1 is disabled.
+.It Sy zia_raidz2_gen Ns = Ns Sy on Ns | Ns Sy off
+Controls whether the pool should offload RAIDZ2 parity generation.
+Does not have any effect if RAIDZ2 is disabled.
+.It Sy zia_raidz2_rec Ns = Ns Sy on Ns | Ns Sy off
+Controls whether the pool should offload RAIDZ2 reconstruction.
+Does not have any effect if RAIDZ2 is disabled.
+.It Sy zia_raidz3_gen Ns = Ns Sy on Ns | Ns Sy off
+Controls whether the pool should offload RAIDZ3 parity generation.
+Does not have any effect if RAIDZ3 is disabled.
+.It Sy zia_raidz3_rec Ns = Ns Sy on Ns | Ns Sy off
+Controls whether the pool should offload RAIDZ3 reconstruction.
+Does not have any effect if RAIDZ3 is disabled.
 .El
 .
 .Ss User Properties
