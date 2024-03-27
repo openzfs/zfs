@@ -50,20 +50,20 @@ extern "C" {
 #define	MMP_SEQ_VALID_BIT	0x02
 #define	MMP_FAIL_INT_VALID_BIT	0x04
 
-#define	MMP_VALID(ubp)		(ubp->ub_magic == UBERBLOCK_MAGIC && \
-				    ubp->ub_mmp_magic == MMP_MAGIC)
-#define	MMP_INTERVAL_VALID(ubp)	(MMP_VALID(ubp) && (ubp->ub_mmp_config & \
+#define	MMP_VALID(ubp)		((ubp)->ub_magic == UBERBLOCK_MAGIC && \
+				    (ubp)->ub_mmp_magic == MMP_MAGIC)
+#define	MMP_INTERVAL_VALID(ubp)	(MMP_VALID(ubp) && ((ubp)->ub_mmp_config & \
 				    MMP_INTERVAL_VALID_BIT))
-#define	MMP_SEQ_VALID(ubp)	(MMP_VALID(ubp) && (ubp->ub_mmp_config & \
+#define	MMP_SEQ_VALID(ubp)	(MMP_VALID(ubp) && ((ubp)->ub_mmp_config & \
 				    MMP_SEQ_VALID_BIT))
-#define	MMP_FAIL_INT_VALID(ubp)	(MMP_VALID(ubp) && (ubp->ub_mmp_config & \
+#define	MMP_FAIL_INT_VALID(ubp)	(MMP_VALID(ubp) && ((ubp)->ub_mmp_config & \
 				    MMP_FAIL_INT_VALID_BIT))
 
-#define	MMP_INTERVAL(ubp)	((ubp->ub_mmp_config & 0x00000000FFFFFF00) \
+#define	MMP_INTERVAL(ubp)	(((ubp)->ub_mmp_config & 0x00000000FFFFFF00) \
 				    >> 8)
-#define	MMP_SEQ(ubp)		((ubp->ub_mmp_config & 0x0000FFFF00000000) \
+#define	MMP_SEQ(ubp)		(((ubp)->ub_mmp_config & 0x0000FFFF00000000) \
 				    >> 32)
-#define	MMP_FAIL_INT(ubp)	((ubp->ub_mmp_config & 0xFFFF000000000000) \
+#define	MMP_FAIL_INT(ubp)	(((ubp)->ub_mmp_config & 0xFFFF000000000000) \
 				    >> 48)
 
 #define	MMP_INTERVAL_SET(write) \
