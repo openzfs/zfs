@@ -97,38 +97,41 @@ static uint_t zfs_vdev_open_timeout_ms = 1000;
 
 static unsigned int zfs_vdev_failfast_mask = 1;
 
+/*
+ * Convert SPA mode flags into bdev open mode flags.
+ */
 #ifdef HAVE_BLK_MODE_T
-static blk_mode_t
+typedef blk_mode_t vdev_bdev_mode_t;
+#define	VDEV_BDEV_MODE_READ	BLK_OPEN_READ
+#define	VDEV_BDEV_MODE_WRITE	BLK_OPEN_WRITE
+#define	VDEV_BDEV_MODE_EXCL	BLK_OPEN_EXCL
+#define	VDEV_BDEV_MODE_MASK	(BLK_OPEN_READ|BLK_OPEN_WRITE|BLK_OPEN_EXCL)
 #else
-static fmode_t
+typedef fmode_t vdev_bdev_mode_t;
+#define	VDEV_BDEV_MODE_READ	FMODE_READ
+#define	VDEV_BDEV_MODE_WRITE	FMODE_WRITE
+#define	VDEV_BDEV_MODE_EXCL	FMODE_EXCL
+#define	VDEV_BDEV_MODE_MASK	(FMODE_READ|FMODE_WRITE|FMODE_EXCL)
 #endif
-vdev_bdev_mode(spa_mode_t spa_mode, boolean_t exclusive)
+
+static vdev_bdev_mode_t
+vdev_bdev_mode(spa_mode_t smode)
 {
-#ifdef HAVE_BLK_MODE_T
-	blk_mode_t mode = 0;
+	ASSERT3U(smode, !=, SPA_MODE_UNINIT);
+	ASSERT0(smode & ~(SPA_MODE_READ|SPA_MODE_WRITE));
 
-	if (spa_mode & SPA_MODE_READ)
-		mode |= BLK_OPEN_READ;
+	vdev_bdev_mode_t bmode = VDEV_BDEV_MODE_EXCL;
 
-	if (spa_mode & SPA_MODE_WRITE)
-		mode |= BLK_OPEN_WRITE;
+	if (smode & SPA_MODE_READ)
+		bmode |= VDEV_BDEV_MODE_READ;
 
-	if (exclusive)
-		mode |= BLK_OPEN_EXCL;
-#else
-	fmode_t mode = 0;
+	if (smode & SPA_MODE_WRITE)
+		bmode |= VDEV_BDEV_MODE_WRITE;
 
-	if (spa_mode & SPA_MODE_READ)
-		mode |= FMODE_READ;
+	ASSERT(bmode & VDEV_BDEV_MODE_MASK);
+	ASSERT0(bmode & ~VDEV_BDEV_MODE_MASK);
 
-	if (spa_mode & SPA_MODE_WRITE)
-		mode |= FMODE_WRITE;
-
-	if (exclusive)
-		mode |= FMODE_EXCL;
-#endif
-
-	return (mode);
+	return (bmode);
 }
 
 /*
@@ -235,30 +238,28 @@ vdev_disk_kobj_evt_post(vdev_t *v)
 }
 
 static zfs_bdev_handle_t *
-vdev_blkdev_get_by_path(const char *path, spa_mode_t mode, void *holder)
+vdev_blkdev_get_by_path(const char *path, spa_mode_t smode, void *holder)
 {
+	vdev_bdev_mode_t bmode = vdev_bdev_mode(smode);
+
 #if defined(HAVE_BDEV_OPEN_BY_PATH)
-	return (bdev_open_by_path(path,
-	    vdev_bdev_mode(mode, B_TRUE), holder, NULL));
+	return (bdev_open_by_path(path, bmode, holder, NULL));
 #elif defined(HAVE_BLKDEV_GET_BY_PATH_4ARG)
-	return (blkdev_get_by_path(path,
-	    vdev_bdev_mode(mode, B_TRUE), holder, NULL));
+	return (blkdev_get_by_path(path, bmode, holder, NULL));
 #else
-	return (blkdev_get_by_path(path,
-	    vdev_bdev_mode(mode, B_TRUE), holder));
+	return (blkdev_get_by_path(path, bmode, holder));
 #endif
 }
 
 static void
-vdev_blkdev_put(zfs_bdev_handle_t *bdh, spa_mode_t mode, void *holder)
+vdev_blkdev_put(zfs_bdev_handle_t *bdh, spa_mode_t smode, void *holder)
 {
 #if defined(HAVE_BDEV_RELEASE)
 	return (bdev_release(bdh));
 #elif defined(HAVE_BLKDEV_PUT_HOLDER)
 	return (blkdev_put(BDH_BDEV(bdh), holder));
 #else
-	return (blkdev_put(BDH_BDEV(bdh),
-	    vdev_bdev_mode(mode, B_TRUE)));
+	return (blkdev_put(BDH_BDEV(bdh), vdev_bdev_mode(smode)));
 #endif
 }
 
@@ -267,11 +268,7 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
     uint64_t *logical_ashift, uint64_t *physical_ashift)
 {
 	zfs_bdev_handle_t *bdh;
-#ifdef HAVE_BLK_MODE_T
-	blk_mode_t mode = vdev_bdev_mode(spa_mode(v->vdev_spa), B_FALSE);
-#else
-	fmode_t mode = vdev_bdev_mode(spa_mode(v->vdev_spa), B_FALSE);
-#endif
+	spa_mode_t smode = spa_mode(v->vdev_spa);
 	hrtime_t timeout = MSEC2NSEC(zfs_vdev_open_timeout_ms);
 	vdev_disk_t *vd;
 
@@ -322,16 +319,16 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 					reread_part = B_TRUE;
 			}
 
-			vdev_blkdev_put(bdh, mode, zfs_vdev_holder);
+			vdev_blkdev_put(bdh, smode, zfs_vdev_holder);
 		}
 
 		if (reread_part) {
-			bdh = vdev_blkdev_get_by_path(disk_name, mode,
+			bdh = vdev_blkdev_get_by_path(disk_name, smode,
 			    zfs_vdev_holder);
 			if (!BDH_IS_ERR(bdh)) {
 				int error =
 				    vdev_bdev_reread_part(BDH_BDEV(bdh));
-				vdev_blkdev_put(bdh, mode, zfs_vdev_holder);
+				vdev_blkdev_put(bdh, smode, zfs_vdev_holder);
 				if (error == 0) {
 					timeout = MSEC2NSEC(
 					    zfs_vdev_open_timeout_ms * 2);
@@ -376,7 +373,7 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	hrtime_t start = gethrtime();
 	bdh = BDH_ERR_PTR(-ENXIO);
 	while (BDH_IS_ERR(bdh) && ((gethrtime() - start) < timeout)) {
-		bdh = vdev_blkdev_get_by_path(v->vdev_path, mode,
+		bdh = vdev_blkdev_get_by_path(v->vdev_path, smode,
 		    zfs_vdev_holder);
 		if (unlikely(BDH_PTR_ERR(bdh) == -ENOENT)) {
 			/*
