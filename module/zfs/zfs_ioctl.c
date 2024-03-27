@@ -201,6 +201,7 @@
 #include <sys/dmu_recv.h>
 #include <sys/dmu_send.h>
 #include <sys/dmu_recv.h>
+#include <sys/dbuf.h>
 #include <sys/dsl_destroy.h>
 #include <sys/dsl_bookmark.h>
 #include <sys/dsl_userhold.h>
@@ -1723,6 +1724,131 @@ zfs_ioc_pool_scrub(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 	}
 
 	spa_close(spa, FTAG);
+	return (error);
+}
+
+/*
+ * inputs:
+ * dataset		name of dataset
+ * object		object number
+ */
+static const zfs_ioc_key_t zfs_keys_pool_scrub_file[] = {
+	{"dataset",	DATA_TYPE_STRING,	0},
+	{"object",	DATA_TYPE_UINT64,	0},
+};
+
+static void
+scrub_file_traverse(spa_t *spa, blkptr_t *bp, const zbookmark_phys_t *zb)
+{
+	uint64_t blk_birth = bp->blk_birth;
+
+	if (blk_birth == 0)
+		return;
+
+	spa_log_error(spa, zb, &blk_birth);
+	if (BP_GET_LEVEL(bp) > 0 && !BP_IS_HOLE(bp)) {
+		arc_flags_t flags = ARC_FLAG_WAIT;
+		int i;
+		blkptr_t *cbp;
+		int epb = BP_GET_LSIZE(bp) >> SPA_BLKPTRSHIFT;
+		arc_buf_t *buf;
+
+		if (arc_read(NULL, spa, bp, arc_getbuf_func, &buf,
+		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, zb))
+			return;
+
+		/* recursively visit blocks below this */
+		cbp = buf->b_data;
+		for (i = 0; i < epb; i++, cbp++) {
+			zbookmark_phys_t czb;
+
+			SET_BOOKMARK(&czb, zb->zb_objset, zb->zb_object,
+			    zb->zb_level - 1,
+			    zb->zb_blkid * epb + i);
+
+			scrub_file_traverse(spa, cbp, &czb);
+		}
+	}
+}
+
+static int
+zfs_ioc_pool_scrub_file(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	spa_t *spa;
+	int error;
+	const char *dataset;
+	uint64_t object;
+	objset_t *os;
+	dmu_object_info_t doi;
+	zbookmark_phys_t zb;
+	dmu_buf_t *db = NULL;
+	dnode_t *dn;
+
+	if (nvlist_lookup_string(innvl, "dataset", &dataset) != 0)
+		return (SET_ERROR(EINVAL));
+	if (nvlist_lookup_uint64(innvl, "object", &object) != 0)
+		return (SET_ERROR(EINVAL));
+
+	error = dmu_objset_hold(dataset, FTAG, &os);
+	if (error != 0) {
+		return (error);
+	}
+	dsl_dataset_long_hold(dmu_objset_ds(os), FTAG);
+	spa = dmu_objset_spa(os);
+
+	if (!spa_feature_is_enabled(spa, SPA_FEATURE_HEAD_ERRLOG)) {
+		dsl_pool_rele(dmu_objset_pool(os), FTAG);
+		dsl_dataset_long_rele(dmu_objset_ds(os), FTAG);
+		dsl_dataset_rele_flags(dmu_objset_ds(os), 0, FTAG);
+		return (SET_ERROR(ENOTSUP));
+	}
+
+	error = dmu_object_info(os, object, &doi);
+	if (error != 0) {
+		dsl_pool_rele(dmu_objset_pool(os), FTAG);
+		dsl_dataset_long_rele(dmu_objset_ds(os), FTAG);
+		dsl_dataset_rele_flags(dmu_objset_ds(os), 0, FTAG);
+		return (error);
+	}
+	if (doi.doi_type != DMU_OT_PLAIN_FILE_CONTENTS) {
+		dsl_pool_rele(dmu_objset_pool(os), FTAG);
+		dsl_dataset_long_rele(dmu_objset_ds(os), FTAG);
+		dsl_dataset_rele_flags(dmu_objset_ds(os), 0, FTAG);
+		return (EINVAL);
+	}
+
+	error = dmu_bonus_hold(os, object, FTAG, &db);
+	if (error != 0) {
+		dsl_pool_rele(dmu_objset_pool(os), FTAG);
+		dsl_dataset_long_rele(dmu_objset_ds(os), FTAG);
+		dsl_dataset_rele_flags(dmu_objset_ds(os), 0, FTAG);
+		return (error);
+	}
+
+	dn = DB_DNODE((dmu_buf_impl_t *)db);
+
+	zb.zb_objset = dmu_objset_id(os);
+	zb.zb_object = object;
+
+	dmu_buf_rele(db, FTAG);
+
+	for (int j = 0; j < dn->dn_phys->dn_nblkptr; j++) {
+		zb.zb_blkid = j;
+		zb.zb_level = BP_GET_LEVEL(&dn->dn_phys->dn_blkptr[j]);
+		scrub_file_traverse(spa, &dn->dn_phys->dn_blkptr[j], &zb);
+	}
+
+	dsl_pool_rele(dmu_objset_pool(os), FTAG);
+	dsl_dataset_long_rele(dmu_objset_ds(os), FTAG);
+	dsl_dataset_rele_flags(dmu_objset_ds(os), 0, FTAG);
+
+	txg_wait_synced(spa_get_dsl(spa), 0);
+
+	if ((error = spa_open(poolname, &spa, FTAG)) != 0)
+		return (error);
+	error = spa_scan(spa, POOL_SCAN_ERRORSCRUB);
+	spa_close(spa, FTAG);
+
 	return (error);
 }
 
@@ -7279,6 +7405,11 @@ zfs_ioctl_init(void)
 	    zfs_ioc_pool_scrub, zfs_secpolicy_config, POOL_NAME,
 	    POOL_CHECK_NONE, B_TRUE, B_TRUE,
 	    zfs_keys_pool_scrub, ARRAY_SIZE(zfs_keys_pool_scrub));
+
+	zfs_ioctl_register("scrub_file", ZFS_IOC_POOL_SCRUB_FILE,
+	    zfs_ioc_pool_scrub_file, zfs_secpolicy_config, POOL_NAME,
+	    POOL_CHECK_NONE, B_TRUE, B_TRUE,
+	    zfs_keys_pool_scrub_file, ARRAY_SIZE(zfs_keys_pool_scrub_file));
 
 	/* IOCTLS that use the legacy function signature */
 
