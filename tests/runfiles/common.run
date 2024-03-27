@@ -153,6 +153,12 @@ tests = [ 'clean_mirror_001_pos', 'clean_mirror_002_pos',
     'clean_mirror_003_pos', 'clean_mirror_004_pos']
 tags = ['functional', 'clean_mirror']
 
+[tests/functional/cli_root/zinject]
+tests = ['zinject_args']
+pre =
+post =
+tags = ['functional', 'cli_root', 'zinject']
+
 [tests/functional/cli_root/zdb]
 tests = ['zdb_002_pos', 'zdb_003_pos', 'zdb_004_pos', 'zdb_005_pos',
     'zdb_006_pos', 'zdb_args_neg', 'zdb_args_pos',
