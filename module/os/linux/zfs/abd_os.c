@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2014 by Chunwei Chen. All rights reserved.
  * Copyright (c) 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2023, 2024, Klara Inc.
  */
 
 /*
@@ -59,7 +60,9 @@
 #include <sys/zfs_znode.h>
 #ifdef _KERNEL
 #include <linux/kmap_compat.h>
+#include <linux/mm_compat.h>
 #include <linux/scatterlist.h>
+#include <linux/version.h>
 #endif
 
 #ifdef _KERNEL
@@ -895,14 +898,9 @@ abd_iter_init(struct abd_iter *aiter, abd_t *abd)
 {
 	ASSERT(!abd_is_gang(abd));
 	abd_verify(abd);
+	memset(aiter, 0, sizeof (struct abd_iter));
 	aiter->iter_abd = abd;
-	aiter->iter_mapaddr = NULL;
-	aiter->iter_mapsize = 0;
-	aiter->iter_pos = 0;
-	if (abd_is_linear(abd)) {
-		aiter->iter_offset = 0;
-		aiter->iter_sg = NULL;
-	} else {
+	if (!abd_is_linear(abd)) {
 		aiter->iter_offset = ABD_SCATTER(abd).abd_offset;
 		aiter->iter_sg = ABD_SCATTER(abd).abd_sgl;
 	}
@@ -915,6 +913,7 @@ abd_iter_init(struct abd_iter *aiter, abd_t *abd)
 boolean_t
 abd_iter_at_end(struct abd_iter *aiter)
 {
+	ASSERT3U(aiter->iter_pos, <=, aiter->iter_abd->abd_size);
 	return (aiter->iter_pos == aiter->iter_abd->abd_size);
 }
 
@@ -926,8 +925,15 @@ abd_iter_at_end(struct abd_iter *aiter)
 void
 abd_iter_advance(struct abd_iter *aiter, size_t amount)
 {
+	/*
+	 * Ensure that last chunk is not in use. abd_iterate_*() must clear
+	 * this state (directly or abd_iter_unmap()) before advancing.
+	 */
 	ASSERT3P(aiter->iter_mapaddr, ==, NULL);
 	ASSERT0(aiter->iter_mapsize);
+	ASSERT3P(aiter->iter_page, ==, NULL);
+	ASSERT0(aiter->iter_page_doff);
+	ASSERT0(aiter->iter_page_dsize);
 
 	/* There's nothing left to advance to, so do nothing */
 	if (abd_iter_at_end(aiter))
@@ -1009,6 +1015,106 @@ abd_cache_reap_now(void)
 }
 
 #if defined(_KERNEL)
+/*
+ * Yield the next page struct and data offset and size within it, without
+ * mapping it into the address space.
+ */
+void
+abd_iter_page(struct abd_iter *aiter)
+{
+	if (abd_iter_at_end(aiter)) {
+		aiter->iter_page = NULL;
+		aiter->iter_page_doff = 0;
+		aiter->iter_page_dsize = 0;
+		return;
+	}
+
+	struct page *page;
+	size_t doff, dsize;
+
+	if (abd_is_linear(aiter->iter_abd)) {
+		ASSERT3U(aiter->iter_pos, ==, aiter->iter_offset);
+
+		/* memory address at iter_pos */
+		void *paddr = ABD_LINEAR_BUF(aiter->iter_abd) + aiter->iter_pos;
+
+		/* struct page for address */
+		page = is_vmalloc_addr(paddr) ?
+		    vmalloc_to_page(paddr) : virt_to_page(paddr);
+
+		/* offset of address within the page */
+		doff = offset_in_page(paddr);
+
+		/* total data remaining in abd from this position */
+		dsize = aiter->iter_abd->abd_size - aiter->iter_offset;
+	} else {
+		ASSERT(!abd_is_gang(aiter->iter_abd));
+
+		/* current scatter page */
+		page = sg_page(aiter->iter_sg);
+
+		/* position within page */
+		doff = aiter->iter_offset;
+
+		/* remaining data in scatterlist */
+		dsize = MIN(aiter->iter_sg->length - aiter->iter_offset,
+		    aiter->iter_abd->abd_size - aiter->iter_pos);
+	}
+	ASSERT(page);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
+	if (PageTail(page)) {
+		/*
+		 * This page is part of a "compound page", which is a group of
+		 * pages that can be referenced from a single struct page *.
+		 * Its organised as a "head" page, followed by a series of
+		 * "tail" pages.
+		 *
+		 * In OpenZFS, compound pages are allocated using the
+		 * __GFP_COMP flag, which we get from scatter ABDs and SPL
+		 * vmalloc slabs (ie >16K allocations). So a great many of the
+		 * IO buffers we get are going to be of this type.
+		 *
+		 * The tail pages are just regular PAGE_SIZE pages, and can be
+		 * safely used as-is. However, the head page has length
+		 * covering itself and all the tail pages. If this ABD chunk
+		 * spans multiple pages, then we can use the head page and a
+		 * >PAGE_SIZE length, which is far more efficient.
+		 *
+		 * To do this, we need to adjust the offset to be counted from
+		 * the head page. struct page for compound pages are stored
+		 * contiguously, so we can just adjust by a simple offset.
+		 *
+		 * Before kernel 4.5, compound page heads were refcounted
+		 * separately, such that moving back to the head page would
+		 * require us to take a reference to it and releasing it once
+		 * we're completely finished with it. In practice, that means
+		 * when our caller is done with the ABD, which we have no
+		 * insight into from here. Rather than contort this API to
+		 * track head page references on such ancient kernels, we just
+		 * compile this block out and use the tail pages directly. This
+		 * is slightly less efficient, but makes everything far
+		 * simpler.
+		 */
+		struct page *head = compound_head(page);
+		doff += ((page - head) * PAGESIZE);
+		page = head;
+	}
+#endif
+
+	/* final page and position within it */
+	aiter->iter_page = page;
+	aiter->iter_page_doff = doff;
+
+	/* amount of data in the chunk, up to the end of the page */
+	aiter->iter_page_dsize = MIN(dsize, page_size(page) - doff);
+}
+
+/*
+ * Note: ABD BIO functions only needed to support vdev_classic. See comments in
+ * vdev_disk.c.
+ */
+
 /*
  * bio_nr_pages for ABD.
  * @off is the offset in @abd
@@ -1163,4 +1269,5 @@ MODULE_PARM_DESC(zfs_abd_scatter_min_size,
 module_param(zfs_abd_scatter_max_order, uint, 0644);
 MODULE_PARM_DESC(zfs_abd_scatter_max_order,
 	"Maximum order allocation used for a scatter ABD.");
-#endif
+
+#endif /* _KERNEL */
