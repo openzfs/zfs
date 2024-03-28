@@ -2008,6 +2008,9 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 	 * further transforms on it.
 	 */
 	if (encrypted) {
+		if (hdr->b_crypt_hdr.b_rabd == NULL)
+			return (ECKSUM);
+
 		ASSERT(HDR_HAS_RABD(hdr));
 		abd_copy_to_buf(buf->b_data, hdr->b_crypt_hdr.b_rabd,
 		    HDR_GET_PSIZE(hdr));
@@ -2056,6 +2059,11 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 
 			if (hash_lock != NULL)
 				mutex_enter(hash_lock);
+			if (hdr->b_l1hdr.b_pabd == NULL) {
+				if (hash_lock != NULL)
+					mutex_exit(hash_lock);
+				return (EACCES);
+			}
 			arc_buf_untransform_in_place(buf);
 			if (hash_lock != NULL)
 				mutex_exit(hash_lock);
@@ -6704,7 +6712,7 @@ arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
 		VERIFY3P(buf->b_data, !=, NULL);
 	}
 
-	if (HDR_HAS_RABD(hdr))
+	if (HDR_HAS_RABD(hdr) && !HDR_IO_IN_PROGRESS(hdr))
 		arc_hdr_free_abd(hdr, B_TRUE);
 
 	if (!(zio_flags & ZIO_FLAG_RAW))
