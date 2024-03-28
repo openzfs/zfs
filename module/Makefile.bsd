@@ -231,6 +231,7 @@ SRCS+=	zfeature_common.c \
 	zfs_fletcher_superscalar.c \
 	zfs_fletcher_superscalar4.c \
 	zfs_namecheck.c \
+	zfs_pretty.c \
 	zfs_prop.c \
 	zpool_prop.c \
 	zprop_common.c

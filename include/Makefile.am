@@ -13,6 +13,7 @@ COMMON_H = \
 	zfs_deleg.h \
 	zfs_fletcher.h \
 	zfs_namecheck.h \
+	zfs_pretty.h \
 	zfs_prop.h \
 	\
 	sys/abd.h \
