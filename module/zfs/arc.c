@@ -8902,7 +8902,6 @@ l2arc_apply_transforms(spa_t *spa, arc_buf_hdr_t *hdr, uint64_t asize,
     abd_t **abd_out)
 {
 	int ret;
-	void *tmp = NULL;
 	abd_t *cabd = NULL, *eabd = NULL, *to_write = hdr->b_l1hdr.b_pabd;
 	enum zio_compress compress = HDR_GET_COMPRESS(hdr);
 	uint64_t psize = HDR_GET_PSIZE(hdr);
@@ -8923,12 +8922,11 @@ l2arc_apply_transforms(spa_t *spa, arc_buf_hdr_t *hdr, uint64_t asize,
 	 * and copy the data. This may be done to eliminate a dependency on a
 	 * shared buffer or to reallocate the buffer to match asize.
 	 */
-	if (HDR_HAS_RABD(hdr) && asize != psize) {
-		ASSERT3U(asize, >=, psize);
+	if (HDR_HAS_RABD(hdr)) {
+		ASSERT3U(asize, >, psize);
 		to_write = abd_alloc_for_io(asize, ismd);
 		abd_copy(to_write, hdr->b_crypt_hdr.b_rabd, psize);
-		if (psize != asize)
-			abd_zero_off(to_write, psize, asize - psize);
+		abd_zero_off(to_write, psize, asize - psize);
 		goto out;
 	}
 
@@ -8937,48 +8935,31 @@ l2arc_apply_transforms(spa_t *spa, arc_buf_hdr_t *hdr, uint64_t asize,
 		ASSERT3U(size, ==, psize);
 		to_write = abd_alloc_for_io(asize, ismd);
 		abd_copy(to_write, hdr->b_l1hdr.b_pabd, size);
-		if (size != asize)
+		if (asize > size)
 			abd_zero_off(to_write, size, asize - size);
 		goto out;
 	}
 
 	if (compress != ZIO_COMPRESS_OFF && !HDR_COMPRESSION_ENABLED(hdr)) {
-		/*
-		 * In some cases, we can wind up with size > asize, so
-		 * we need to opt for the larger allocation option here.
-		 *
-		 * (We also need abd_return_buf_copy in all cases because
-		 * it's an ASSERT() to modify the buffer before returning it
-		 * with arc_return_buf(), and all the compressors
-		 * write things before deciding to fail compression in nearly
-		 * every case.)
-		 */
-		uint64_t bufsize = MAX(size, asize);
-		cabd = abd_alloc_for_io(bufsize, ismd);
-		tmp = abd_borrow_buf(cabd, bufsize);
-
-		psize = zio_compress_data(compress, to_write, &tmp, size,
-		    hdr->b_complevel);
-
-		if (psize >= asize) {
-			psize = HDR_GET_PSIZE(hdr);
-			abd_return_buf_copy(cabd, tmp, bufsize);
-			HDR_SET_COMPRESS(hdr, ZIO_COMPRESS_OFF);
-			to_write = cabd;
-			abd_copy(to_write, hdr->b_l1hdr.b_pabd, psize);
-			if (psize != asize)
-				abd_zero_off(to_write, psize, asize - psize);
-			goto encrypt;
+		size_t bufsize = MAX(size, asize);
+		void *buf = zio_buf_alloc(bufsize);
+		uint64_t csize = zio_compress_data(compress, to_write, &buf,
+		    size, hdr->b_complevel);
+		if (csize > psize) {
+			/*
+			 * We can't re-compress the block into the original
+			 * psize.  Even if it fits into asize, it does not
+			 * matter, since checksum will never match on read.
+			 */
+			zio_buf_free(buf, bufsize);
+			return (SET_ERROR(EIO));
 		}
-		ASSERT3U(psize, <=, HDR_GET_PSIZE(hdr));
-		if (psize < asize)
-			memset((char *)tmp + psize, 0, bufsize - psize);
-		psize = HDR_GET_PSIZE(hdr);
-		abd_return_buf_copy(cabd, tmp, bufsize);
-		to_write = cabd;
+		if (asize > csize)
+			memset((char *)buf + csize, 0, asize - csize);
+		to_write = cabd = abd_get_from_buf(buf, bufsize);
+		abd_take_ownership_of_buf(cabd, B_TRUE);
 	}
 
-encrypt:
 	if (HDR_ENCRYPTED(hdr)) {
 		eabd = abd_alloc_for_io(asize, ismd);
 
