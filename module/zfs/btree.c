@@ -218,7 +218,7 @@ zfs_btree_create_custom(zfs_btree_t *tree,
 	    zfs_btree_find_in_buf : bt_find_in_buf;
 	tree->bt_elem_size = size;
 	tree->bt_leaf_size = lsize;
-	tree->bt_leaf_cap = P2ALIGN(esize / size, 2);
+	tree->bt_leaf_cap = P2ALIGN_TYPED(esize / size, 2, size_t);
 	tree->bt_height = -1;
 	tree->bt_bulk = NULL;
 }

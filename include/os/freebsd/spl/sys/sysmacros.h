@@ -191,7 +191,8 @@ extern unsigned char bcd_to_byte[256];
  * eg, P2ALIGN(0x1234, 0x100) == 0x1200 (0x12*align)
  * eg, P2ALIGN(0x5600, 0x100) == 0x5600 (0x56*align)
  */
-#define	P2ALIGN(x, align)		((x) & -(align))
+// Deprecated. Use P2ALIGN_TYPED instead.
+// #define	P2ALIGN(x, align)		((x) & -(align))
 
 /*
  * return x % (mod) align
