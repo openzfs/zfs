@@ -458,7 +458,7 @@ static char *zpool_sysfs_gets(char *path)
 	}
 
 	/* Remove trailing newline */
-	if (buf[count - 1] == '\n')
+	if (count > 0 && buf[count - 1] == '\n')
 		buf[count - 1] = 0;
 
 	close(fd);
