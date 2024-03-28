@@ -240,6 +240,7 @@ struct spa {
 	metaslab_class_t *spa_normal_class;	/* normal data class */
 	metaslab_class_t *spa_log_class;	/* intent log data class */
 	metaslab_class_t *spa_embedded_log_class; /* log on normal vdevs */
+	metaslab_class_t *spa_special_embedded_log_class; /* "" special */
 	metaslab_class_t *spa_special_class;	/* special allocation class */
 	metaslab_class_t *spa_dedup_class;	/* dedup allocation class */
 	uint64_t	spa_first_txg;		/* first txg after spa_open() */
