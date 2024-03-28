@@ -22,7 +22,7 @@
 
 #
 # Copyright 2017, loli10K. All rights reserved.
-# Copyright (c) 2020 by Delphix. All rights reserved.
+# Copyright (c) 2020, 2024 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -60,12 +60,23 @@ log_must mkfile $SIZE $disk2
 logical_ashift=$(get_tunable VDEV_FILE_LOGICAL_ASHIFT)
 orig_ashift=$(get_tunable VDEV_FILE_PHYSICAL_ASHIFT)
 max_auto_ashift=$(get_tunable VDEV_MAX_AUTO_ASHIFT)
+opt=""
 
 typeset ashifts=("9" "10" "11" "12" "13" "14" "15" "16")
 for ashift in ${ashifts[@]}
 do
+	#
+	# Need to add the --allow-ashift-mismatch option to disable the
+	# ashift mismatch checks in zpool add.
+	#
+	if [[ $ashift -eq $orig_ashift ]]; then
+		opt=""
+	else
+		opt="--allow-ashift-mismatch"
+	fi
+
 	log_must zpool create $TESTPOOL $disk1
-	log_must zpool add -o ashift=$ashift $TESTPOOL $disk2
+	log_must zpool add $opt -o ashift=$ashift $TESTPOOL $disk2
 	log_must verify_ashift $disk2 $ashift
 
 	# clean things for the next run
@@ -78,7 +89,7 @@ do
 	#
 	log_must zpool create $TESTPOOL $disk1
 	log_must set_tunable32 VDEV_FILE_PHYSICAL_ASHIFT $ashift
-	log_must zpool add $TESTPOOL $disk2
+	log_must zpool add $opt $TESTPOOL $disk2
 	exp=$(( (ashift <= max_auto_ashift) ? ashift : logical_ashift ))
 	log_must verify_ashift $disk2 $exp
 

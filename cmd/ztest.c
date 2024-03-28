@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2024 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
@@ -3375,7 +3375,7 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 		    "log" : NULL, raidz_children, zs->zs_mirrors,
 		    1);
 
-		error = spa_vdev_add(spa, nvroot);
+		error = spa_vdev_add(spa, nvroot, B_FALSE);
 		fnvlist_free(nvroot);
 
 		switch (error) {
@@ -3438,7 +3438,7 @@ ztest_vdev_class_add(ztest_ds_t *zd, uint64_t id)
 	nvroot = make_vdev_root(NULL, NULL, NULL, ztest_opts.zo_vdev_size, 0,
 	    class, raidz_children, zs->zs_mirrors, 1);
 
-	error = spa_vdev_add(spa, nvroot);
+	error = spa_vdev_add(spa, nvroot, B_FALSE);
 	fnvlist_free(nvroot);
 
 	if (error == ENOSPC)
@@ -3545,7 +3545,7 @@ ztest_vdev_aux_add_remove(ztest_ds_t *zd, uint64_t id)
 		 */
 		nvlist_t *nvroot = make_vdev_root(NULL, aux, NULL,
 		    (ztest_opts.zo_vdev_size * 5) / 4, 0, NULL, 0, 0, 1);
-		error = spa_vdev_add(spa, nvroot);
+		error = spa_vdev_add(spa, nvroot, B_FALSE);
 
 		switch (error) {
 		case 0:

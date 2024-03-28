@@ -138,7 +138,7 @@ function zpool_create_forced_add
 		while ((j < ${#add_args[@]})); do
 			log_must zpool create $TESTPOOL1 ${create_args[$i]}
 			log_mustnot zpool add $TESTPOOL1 ${add_args[$j]}
-			log_must zpool add -f $TESTPOOL1 ${add_args[$j]}
+			log_must zpool add --allow-replication-mismatch $TESTPOOL1 ${add_args[$j]}
 			log_must zpool destroy -f $TESTPOOL1
 
 			((j += 1))

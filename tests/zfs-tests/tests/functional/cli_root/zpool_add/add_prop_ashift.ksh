@@ -22,7 +22,7 @@
 
 #
 # Copyright 2017, loli10K. All rights reserved.
-# Copyright (c) 2020 by Delphix. All rights reserved.
+# Copyright (c) 2020, 2024 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -68,8 +68,13 @@ log_must set_tunable32 VDEV_FILE_PHYSICAL_ASHIFT 16
 typeset ashifts=("9" "10" "11" "12" "13" "14" "15" "16")
 for ashift in ${ashifts[@]}
 do
+	if [ $ashift -eq $orig_ashift ];then
+		opt=""
+	else
+		opt="--allow-ashift-mismatch"
+	fi
 	log_must zpool create -o ashift=$ashift $TESTPOOL $disk1
-	log_must zpool add $TESTPOOL $disk2
+	log_must zpool add $opt $TESTPOOL $disk2
 	log_must verify_ashift $disk2 $ashift
 
 	# clean things for the next run
@@ -82,8 +87,13 @@ for ashift in ${ashifts[@]}
 do
 	for cmdval in ${ashifts[@]}
 	do
+		if [ $ashift -eq $cmdval ];then
+			opt=""
+		else
+			opt="--allow-ashift-mismatch"
+		fi
 		log_must zpool create -o ashift=$ashift $TESTPOOL $disk1
-		log_must zpool add -o ashift=$cmdval $TESTPOOL $disk2
+		log_must zpool add $opt -o ashift=$cmdval $TESTPOOL $disk2
 		log_must verify_ashift $disk2 $cmdval
 
 		# clean things for the next run

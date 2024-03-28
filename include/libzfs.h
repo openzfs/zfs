@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2022 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2024 by Delphix. All rights reserved.
  * Copyright Joyent, Inc.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2016, Intel Corporation.
@@ -158,6 +158,7 @@ typedef enum zfs_error {
 	EZFS_RESUME_EXISTS,	/* Resume on existing dataset without force */
 	EZFS_SHAREFAILED,	/* filesystem share failed */
 	EZFS_RAIDZ_EXPAND_IN_PROGRESS,	/* a raidz is currently expanding */
+	EZFS_ASHIFT_MISMATCH,   /* can't add vdevs with different ashifts */
 	EZFS_UNKNOWN
 } zfs_error_t;
 
@@ -261,7 +262,7 @@ _LIBZFS_H boolean_t zpool_skip_pool(const char *);
 _LIBZFS_H int zpool_create(libzfs_handle_t *, const char *, nvlist_t *,
     nvlist_t *, nvlist_t *);
 _LIBZFS_H int zpool_destroy(zpool_handle_t *, const char *);
-_LIBZFS_H int zpool_add(zpool_handle_t *, nvlist_t *);
+_LIBZFS_H int zpool_add(zpool_handle_t *, nvlist_t *, boolean_t check_ashift);
 
 typedef struct splitflags {
 	/* do not split, but return the config that would be split off */

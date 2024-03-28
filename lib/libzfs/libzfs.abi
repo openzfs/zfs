@@ -1112,14 +1112,11 @@
         <var-decl name='prev' type-id='b03eadb4' visibility='default'/>
       </data-member>
     </class-decl>
-    <class-decl name='list' size-in-bits='256' is-struct='yes' visibility='default' id='e824dae9'>
+    <class-decl name='list' size-in-bits='192' is-struct='yes' visibility='default' id='e824dae9'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='list_size' type-id='b59d7dce' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='64'>
         <var-decl name='list_offset' type-id='b59d7dce' visibility='default'/>
       </data-member>
-      <data-member access='public' layout-offset-in-bits='128'>
+      <data-member access='public' layout-offset-in-bits='64'>
         <var-decl name='list_head' type-id='b0b5e45e' visibility='default'/>
       </data-member>
     </class-decl>
@@ -2832,6 +2829,9 @@
     </function-type>
   </abi-instr>
   <abi-instr address-size='64' path='lib/libzfs/libzfs_crypto.c' language='LANG_C99'>
+    <array-type-def dimensions='1' type-id='38b51b3c' size-in-bits='832' id='02b72c00'>
+      <subrange length='13' type-id='7359adad' id='487fded1'/>
+    </array-type-def>
     <array-type-def dimensions='1' type-id='fb7c6451' size-in-bits='256' id='64177143'>
       <subrange length='32' type-id='7359adad' id='ae5bde82'/>
     </array-type-def>
@@ -2844,6 +2844,10 @@
     <class-decl name='_IO_codecvt' is-struct='yes' visibility='default' is-declaration-only='yes' id='a4036571'/>
     <class-decl name='_IO_marker' is-struct='yes' visibility='default' is-declaration-only='yes' id='010ae0b9'/>
     <class-decl name='_IO_wide_data' is-struct='yes' visibility='default' is-declaration-only='yes' id='79bd3751'/>
+    <class-decl name='__locale_data' is-struct='yes' visibility='default' is-declaration-only='yes' id='23de8b96'/>
+    <array-type-def dimensions='1' type-id='80f4b756' size-in-bits='832' id='39e6f84a'>
+      <subrange length='13' type-id='7359adad' id='487fded1'/>
+    </array-type-def>
     <array-type-def dimensions='1' type-id='95e97e5e' size-in-bits='896' id='47394ee0'>
       <subrange length='28' type-id='7359adad' id='3db583d7'/>
     </array-type-def>
@@ -2964,6 +2968,24 @@
     <typedef-decl name='__clock_t' type-id='bd54fe1a' id='4d66c6d7'/>
     <typedef-decl name='__ssize_t' type-id='bd54fe1a' id='41060289'/>
     <typedef-decl name='FILE' type-id='ec1ed955' id='aa12d1ba'/>
+    <class-decl name='__locale_struct' size-in-bits='1856' is-struct='yes' visibility='default' id='90cc1ce3'>
+      <data-member access='public' layout-offset-in-bits='0'>
+        <var-decl name='__locales' type-id='02b72c00' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='832'>
+        <var-decl name='__ctype_b' type-id='31347b7a' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='896'>
+        <var-decl name='__ctype_tolower' type-id='6d60f45d' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='960'>
+        <var-decl name='__ctype_toupper' type-id='6d60f45d' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='1024'>
+        <var-decl name='__names' type-id='39e6f84a' visibility='default'/>
+      </data-member>
+    </class-decl>
+    <typedef-decl name='__locale_t' type-id='f01e1813' id='b7ac9b5f'/>
     <class-decl name='__sigset_t' size-in-bits='1024' is-struct='yes' naming-typedef-id='b9c97942' visibility='default' id='2616147f'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='__val' type-id='d2baa450' visibility='default'/>
@@ -2979,6 +3001,7 @@
       </data-member>
     </union-decl>
     <typedef-decl name='__sigval_t' type-id='a094b870' id='eabacd01'/>
+    <typedef-decl name='locale_t' type-id='b7ac9b5f' id='973a4f8d'/>
     <class-decl name='siginfo_t' size-in-bits='1024' is-struct='yes' naming-typedef-id='cb681f62' visibility='default' id='d8149419'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='si_signo' type-id='95e97e5e' visibility='default'/>
@@ -3214,9 +3237,13 @@
     <pointer-type-def type-id='bb4788fa' size-in-bits='64' id='cecf4ea7'/>
     <pointer-type-def type-id='010ae0b9' size-in-bits='64' id='e4c6fa61'/>
     <pointer-type-def type-id='79bd3751' size-in-bits='64' id='c65a1f29'/>
+    <pointer-type-def type-id='23de8b96' size-in-bits='64' id='38b51b3c'/>
+    <pointer-type-def type-id='90cc1ce3' size-in-bits='64' id='f01e1813'/>
     <qualified-type-def type-id='9b23c9ad' restrict='yes' id='8c85230f'/>
     <qualified-type-def type-id='80f4b756' restrict='yes' id='9d26089a'/>
     <pointer-type-def type-id='80f4b756' size-in-bits='64' id='7d3cd834'/>
+    <qualified-type-def type-id='95e97e5e' const='yes' id='2448a865'/>
+    <pointer-type-def type-id='2448a865' size-in-bits='64' id='6d60f45d'/>
     <qualified-type-def type-id='aca3bac8' const='yes' id='2498fd78'/>
     <pointer-type-def type-id='2498fd78' size-in-bits='64' id='eed6c816'/>
     <qualified-type-def type-id='eed6c816' restrict='yes' id='a431a9da'/>
@@ -3249,6 +3276,7 @@
     <class-decl name='_IO_codecvt' is-struct='yes' visibility='default' is-declaration-only='yes' id='a4036571'/>
     <class-decl name='_IO_marker' is-struct='yes' visibility='default' is-declaration-only='yes' id='010ae0b9'/>
     <class-decl name='_IO_wide_data' is-struct='yes' visibility='default' is-declaration-only='yes' id='79bd3751'/>
+    <class-decl name='__locale_data' is-struct='yes' visibility='default' is-declaration-only='yes' id='23de8b96'/>
     <function-decl name='zpool_get_prop_int' mangled-name='zpool_get_prop_int' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_get_prop_int'>
       <parameter type-id='4c81de99'/>
       <parameter type-id='5d0c23fb'/>
@@ -3353,6 +3381,10 @@
     <function-decl name='dlerror' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='26a90f95'/>
     </function-decl>
+    <function-decl name='uselocale' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='973a4f8d'/>
+      <return type-id='973a4f8d'/>
+    </function-decl>
     <function-decl name='PKCS5_PBKDF2_HMAC_SHA1' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='80f4b756'/>
       <parameter type-id='95e97e5e'/>
@@ -3436,8 +3468,9 @@
       <parameter type-id='80f4b756'/>
       <return type-id='26a90f95'/>
     </function-decl>
-    <function-decl name='strerror' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='strerror_l' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='95e97e5e'/>
+      <parameter type-id='973a4f8d'/>
       <return type-id='26a90f95'/>
     </function-decl>
     <function-decl name='tcgetattr' visibility='default' binding='global' size-in-bits='64'>
@@ -3794,12 +3827,18 @@
     <qualified-type-def type-id='9c313c2d' const='yes' id='c3b7ba7d'/>
     <pointer-type-def type-id='c3b7ba7d' size-in-bits='64' id='713a56f5'/>
     <pointer-type-def type-id='01a1b934' size-in-bits='64' id='566b3f52'/>
+    <qualified-type-def type-id='566b3f52' restrict='yes' id='c878edd6'/>
+    <pointer-type-def type-id='566b3f52' size-in-bits='64' id='82d4e9e8'/>
+    <qualified-type-def type-id='82d4e9e8' restrict='yes' id='aa19c230'/>
     <pointer-type-def type-id='7e291ce6' size-in-bits='64' id='ca64ff60'/>
     <pointer-type-def type-id='9da381c4' size-in-bits='64' id='cb785ebf'/>
     <pointer-type-def type-id='1b055409' size-in-bits='64' id='9d424d31'/>
     <pointer-type-def type-id='8e0af06e' size-in-bits='64' id='053457bd'/>
     <pointer-type-def type-id='857bb57e' size-in-bits='64' id='75be733c'/>
     <pointer-type-def type-id='a63d15a3' size-in-bits='64' id='a195f4a3'/>
+    <qualified-type-def type-id='a195f4a3' restrict='yes' id='33518961'/>
+    <pointer-type-def type-id='a195f4a3' size-in-bits='64' id='e80ff3ab'/>
+    <qualified-type-def type-id='e80ff3ab' restrict='yes' id='8f2c7109'/>
     <pointer-type-def type-id='eae6431d' size-in-bits='64' id='0d41d328'/>
     <pointer-type-def type-id='7a6844eb' size-in-bits='64' id='18c91f9e'/>
     <pointer-type-def type-id='dddf6ca2' size-in-bits='64' id='d915a820'/>
@@ -4232,9 +4271,13 @@
       <parameter type-id='9d424d31'/>
       <return type-id='95e97e5e'/>
     </function-decl>
-    <function-decl name='getgrnam' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='80f4b756'/>
-      <return type-id='566b3f52'/>
+    <function-decl name='getgrnam_r' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='9d26089a'/>
+      <parameter type-id='c878edd6'/>
+      <parameter type-id='266fe297'/>
+      <parameter type-id='b59d7dce'/>
+      <parameter type-id='aa19c230'/>
+      <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='hasmntopt' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='48bea5ec'/>
@@ -4258,9 +4301,13 @@
       <parameter type-id='18c91f9e'/>
       <return type-id='95e97e5e'/>
     </function-decl>
-    <function-decl name='getpwnam' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='80f4b756'/>
-      <return type-id='a195f4a3'/>
+    <function-decl name='getpwnam_r' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='9d26089a'/>
+      <parameter type-id='33518961'/>
+      <parameter type-id='266fe297'/>
+      <parameter type-id='b59d7dce'/>
+      <parameter type-id='8f2c7109'/>
+      <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='strtol' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='9d26089a'/>
@@ -6315,6 +6362,7 @@
     <function-decl name='zpool_add' mangled-name='zpool_add' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_add'>
       <parameter type-id='4c81de99' name='zhp'/>
       <parameter type-id='5ce45b60' name='nvroot'/>
+      <parameter type-id='c19b74c3' name='ashift_check'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zpool_export' mangled-name='zpool_export' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_export'>
@@ -6778,7 +6826,7 @@
       <enumerator name='LZC_SEND_FLAG_RAW' value='8'/>
       <enumerator name='LZC_SEND_FLAG_SAVED' value='16'/>
     </enum-decl>
-    <class-decl name='ddt_key' size-in-bits='320' is-struct='yes' visibility='default' id='e0a4a1cb'>
+    <class-decl name='ddt_key_t' size-in-bits='320' is-struct='yes' naming-typedef-id='67f6d2cf' visibility='default' id='5fae1718'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='ddk_cksum' type-id='39730d0b' visibility='default'/>
       </data-member>
@@ -6786,7 +6834,7 @@
         <var-decl name='ddk_prop' type-id='9c313c2d' visibility='default'/>
       </data-member>
     </class-decl>
-    <typedef-decl name='ddt_key_t' type-id='e0a4a1cb' id='67f6d2cf'/>
+    <typedef-decl name='ddt_key_t' type-id='5fae1718' id='67f6d2cf'/>
     <enum-decl name='dmu_object_type' id='04b3b0b9'>
       <underlying-type type-id='9cac1fee'/>
       <enumerator name='DMU_OT_NONE' value='0'/>

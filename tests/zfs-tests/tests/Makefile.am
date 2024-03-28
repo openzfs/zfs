@@ -988,6 +988,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_add/add_prop_ashift.ksh \
 	functional/cli_root/zpool_add/cleanup.ksh \
 	functional/cli_root/zpool_add/setup.ksh \
+	functional/cli_root/zpool_add/zpool_add--allow-ashift-mismatch.ksh \
 	functional/cli_root/zpool_add/zpool_add_001_pos.ksh \
 	functional/cli_root/zpool_add/zpool_add_002_pos.ksh \
 	functional/cli_root/zpool_add/zpool_add_003_pos.ksh \
