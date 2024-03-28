@@ -4,6 +4,7 @@ dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_FILEMAP], [
 	ZFS_LINUX_TEST_SRC([filemap_range_has_page], [
 		#include <linux/fs.h>
+		#include <linux/pagemap.h>
 	],[
 		struct address_space *mapping = NULL;
 		loff_t lstart = 0;
