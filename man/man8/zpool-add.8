@@ -24,8 +24,9 @@
 .\" Copyright (c) 2018 George Melikov. All Rights Reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\" Copyright (c) 2024 by Delphix. All Rights Reserved.
 .\"
-.Dd March 16, 2022
+.Dd March 8, 2024
 .Dt ZPOOL-ADD 8
 .Os
 .
@@ -36,6 +37,7 @@
 .Nm zpool
 .Cm add
 .Op Fl fgLnP
+.Op Fl -allow-in-use -allow-replication-mismatch -allow-ashift-mismatch
 .Oo Fl o Ar property Ns = Ns Ar value Oc
 .Ar pool vdev Ns …
 .
@@ -56,7 +58,8 @@ subcommand.
 .It Fl f
 Forces use of
 .Ar vdev Ns s ,
-even if they appear in use or specify a conflicting replication level.
+even if they appear in use, have conflicting ashift values, or specify
+a conflicting replication level.
 Not all devices can be overridden in this manner.
 .It Fl g
 Display
@@ -91,6 +94,17 @@ See the
 manual page for a list of valid properties that can be set.
 The only property supported at the moment is
 .Sy ashift .
+.It Fl -allow-ashift-mismatch
+Disable the ashift validation which allows mismatched ashift values in the
+pool.
+Adding top-level
+.Ar vdev Ns s
+with different sector sizes will prohibit future device removal operations, see
+.Xr zpool-remove 8 .
+.It Fl -allow-in-use
+Allow vdevs to be added even if they might be in use in another pool.
+.It Fl -allow-replication-mismatch
+Allow vdevs with conflicting replication levels to be added to the pool.
 .El
 .
 .Sh EXAMPLES

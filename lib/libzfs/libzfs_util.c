@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2020 Joyent, Inc. All rights reserved.
- * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2024 by Delphix. All rights reserved.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  * Copyright (c) 2017 Datto Inc.
  * Copyright (c) 2020 The FreeBSD Foundation
@@ -317,6 +317,9 @@ libzfs_error_description(libzfs_handle_t *hdl)
 	case EZFS_RESUME_EXISTS:
 		return (dgettext(TEXT_DOMAIN, "Resuming recv on existing "
 		    "dataset without force"));
+	case EZFS_ASHIFT_MISMATCH:
+		return (dgettext(TEXT_DOMAIN, "adding devices with "
+		    "different physical sector sizes is not allowed"));
 	case EZFS_UNKNOWN:
 		return (dgettext(TEXT_DOMAIN, "unknown error"));
 	default:
@@ -762,6 +765,9 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 	case ZFS_ERR_IOC_ARG_REQUIRED:
 	case ZFS_ERR_IOC_ARG_BADTYPE:
 		zfs_verror(hdl, EZFS_IOC_NOTSUPPORTED, fmt, ap);
+		break;
+	case ZFS_ERR_ASHIFT_MISMATCH:
+		zfs_verror(hdl, EZFS_ASHIFT_MISMATCH, fmt, ap);
 		break;
 	default:
 		zfs_error_aux(hdl, "%s", strerror(error));

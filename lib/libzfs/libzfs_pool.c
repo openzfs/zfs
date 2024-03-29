@@ -22,7 +22,7 @@
 /*
  * Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2024 by Delphix. All rights reserved.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  * Copyright (c) 2018 Datto Inc.
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
@@ -1724,7 +1724,7 @@ zpool_discard_checkpoint(zpool_handle_t *zhp)
  * necessary verification to ensure that the vdev specification is well-formed.
  */
 int
-zpool_add(zpool_handle_t *zhp, nvlist_t *nvroot)
+zpool_add(zpool_handle_t *zhp, nvlist_t *nvroot, boolean_t check_ashift)
 {
 	zfs_cmd_t zc = {"\0"};
 	int ret;
@@ -1756,6 +1756,7 @@ zpool_add(zpool_handle_t *zhp, nvlist_t *nvroot)
 
 	zcmd_write_conf_nvlist(hdl, &zc, nvroot);
 	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
+	zc.zc_flags = check_ashift;
 
 	if (zfs_ioctl(hdl, ZFS_IOC_VDEV_ADD, &zc) != 0) {
 		switch (errno) {
