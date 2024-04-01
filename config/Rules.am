@@ -10,7 +10,8 @@ AM_CPPFLAGS = \
 	-I$(top_srcdir)/include \
 	-I$(top_srcdir)/module/icp/include \
 	-I$(top_srcdir)/lib/libspl/include \
-	-I$(top_srcdir)/lib/libspl/include/os/@ac_system_l@
+	-I$(top_srcdir)/lib/libspl/include/os/@ac_system_l@ \
+	-I$(top_srcdir)/lib/libzpool/include
 
 AM_LIBTOOLFLAGS = --silent
 
