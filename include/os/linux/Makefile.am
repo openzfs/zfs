@@ -19,6 +19,8 @@ kernel_linux_HEADERS = \
 
 kernel_sysdir = $(kerneldir)/sys
 kernel_sys_HEADERS = \
+	%D%/zfs/sys/abd_os.h \
+	%D%/zfs/sys/abd_impl_os.h \
 	%D%/zfs/sys/policy.h \
 	%D%/zfs/sys/trace_acl.h \
 	%D%/zfs/sys/trace_arc.h \
