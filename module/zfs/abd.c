@@ -826,6 +826,48 @@ abd_iterate_func(abd_t *abd, size_t off, size_t size,
 	return (ret);
 }
 
+#if defined(__linux__) && defined(_KERNEL)
+int
+abd_iterate_page_func(abd_t *abd, size_t off, size_t size,
+    abd_iter_page_func_t *func, void *private)
+{
+	struct abd_iter aiter;
+	int ret = 0;
+
+	if (size == 0)
+		return (0);
+
+	abd_verify(abd);
+	ASSERT3U(off + size, <=, abd->abd_size);
+
+	abd_t *c_abd = abd_init_abd_iter(abd, &aiter, off);
+
+	while (size > 0) {
+		IMPLY(abd_is_gang(abd), c_abd != NULL);
+
+		abd_iter_page(&aiter);
+
+		size_t len = MIN(aiter.iter_page_dsize, size);
+		ASSERT3U(len, >, 0);
+
+		ret = func(aiter.iter_page, aiter.iter_page_doff,
+		    len, private);
+
+		aiter.iter_page = NULL;
+		aiter.iter_page_doff = 0;
+		aiter.iter_page_dsize = 0;
+
+		if (ret != 0)
+			break;
+
+		size -= len;
+		c_abd = abd_advance_abd_iter(abd, c_abd, &aiter, len);
+	}
+
+	return (ret);
+}
+#endif
+
 struct buf_arg {
 	void *arg_buf;
 };

@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2024 by Delphix. All rights reserved.
  * Copyright (c) 2018, Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2013 Saso Kiselkov. All rights reserved.
@@ -2655,8 +2655,8 @@ spa_claim_notify(zio_t *zio)
 		return;
 
 	mutex_enter(&spa->spa_props_lock);	/* any mutex will do */
-	if (spa->spa_claim_max_txg < zio->io_bp->blk_birth)
-		spa->spa_claim_max_txg = zio->io_bp->blk_birth;
+	if (spa->spa_claim_max_txg < BP_GET_LOGICAL_BIRTH(zio->io_bp))
+		spa->spa_claim_max_txg = BP_GET_LOGICAL_BIRTH(zio->io_bp);
 	mutex_exit(&spa->spa_props_lock);
 }
 
@@ -6266,7 +6266,8 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	nvlist_t *nvl;
 
 	if (props == NULL ||
-	    nvlist_lookup_string(props, "tname", &poolname) != 0)
+	    nvlist_lookup_string(props,
+	    zpool_prop_to_name(ZPOOL_PROP_TNAME), &poolname) != 0)
 		poolname = (char *)pool;
 
 	/*
@@ -7082,7 +7083,7 @@ spa_draid_feature_incr(void *arg, dmu_tx_t *tx)
  * Add a device to a storage pool.
  */
 int
-spa_vdev_add(spa_t *spa, nvlist_t *nvroot)
+spa_vdev_add(spa_t *spa, nvlist_t *nvroot, boolean_t check_ashift)
 {
 	uint64_t txg, ndraid = 0;
 	int error;
@@ -7169,6 +7170,16 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot)
 						    txg, EINVAL));
 					}
 				}
+			}
+		}
+	}
+
+	if (check_ashift && spa->spa_max_ashift == spa->spa_min_ashift) {
+		for (int c = 0; c < vd->vdev_children; c++) {
+			tvd = vd->vdev_child[c];
+			if (tvd->vdev_ashift != spa->spa_max_ashift) {
+				return (spa_vdev_exit(spa, vd, txg,
+				    ZFS_ERR_ASHIFT_MISMATCH));
 			}
 		}
 	}
@@ -9801,7 +9812,7 @@ spa_sync_iterate_to_convergence(spa_t *spa, dmu_tx_t *tx)
 		 * don't want to rely on that here).
 		 */
 		if (pass == 1 &&
-		    spa->spa_uberblock.ub_rootbp.blk_birth < txg &&
+		    BP_GET_LOGICAL_BIRTH(&spa->spa_uberblock.ub_rootbp) < txg &&
 		    !dmu_objset_is_dirty(mos, txg)) {
 			/*
 			 * Nothing changed on the first pass, therefore this

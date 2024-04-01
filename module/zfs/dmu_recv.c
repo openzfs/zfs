@@ -1352,8 +1352,10 @@ corrective_read_done(zio_t *zio)
 {
 	cr_cb_data_t *data = zio->io_private;
 	/* Corruption corrected; update error log if needed */
-	if (zio->io_error == 0)
-		spa_remove_error(data->spa, &data->zb, &zio->io_bp->blk_birth);
+	if (zio->io_error == 0) {
+		spa_remove_error(data->spa, &data->zb,
+		    BP_GET_LOGICAL_BIRTH(zio->io_bp));
+	}
 	kmem_free(data, sizeof (cr_cb_data_t));
 	abd_free(zio->io_abd);
 }
@@ -1480,8 +1482,9 @@ do_corrective_recv(struct receive_writer_arg *rwa, struct drr_write *drrw,
 	}
 	rrd->abd = abd;
 
-	io = zio_rewrite(NULL, rwa->os->os_spa, bp->blk_birth, bp, abd,
-	    BP_GET_PSIZE(bp), NULL, NULL, ZIO_PRIORITY_SYNC_WRITE, flags, &zb);
+	io = zio_rewrite(NULL, rwa->os->os_spa, BP_GET_LOGICAL_BIRTH(bp), bp,
+	    abd, BP_GET_PSIZE(bp), NULL, NULL, ZIO_PRIORITY_SYNC_WRITE, flags,
+	    &zb);
 
 	ASSERT(abd_get_size(abd) == BP_GET_LSIZE(bp) ||
 	    abd_get_size(abd) == BP_GET_PSIZE(bp));
@@ -2110,6 +2113,16 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		dmu_buf_rele(db, FTAG);
 		dnode_rele(dn, FTAG);
 	}
+
+	/*
+	 * If the receive fails, we want the resume stream to start with the
+	 * same record that we last successfully received. There is no way to
+	 * request resume from the object record, but we can benefit from the
+	 * fact that sender always sends object record before anything else,
+	 * after which it will "resend" data at offset 0 and resume normally.
+	 */
+	save_resume_state(rwa, drro->drr_object, 0, tx);
+
 	dmu_tx_commit(tx);
 
 	return (0);
@@ -2343,7 +2356,6 @@ receive_process_write_record(struct receive_writer_arg *rwa,
 	if (rwa->heal) {
 		blkptr_t *bp;
 		dmu_buf_t *dbp;
-		dnode_t *dn;
 		int flags = DB_RF_CANFAIL;
 
 		if (rwa->raw)
@@ -2375,19 +2387,15 @@ receive_process_write_record(struct receive_writer_arg *rwa,
 			dmu_buf_rele(dbp, FTAG);
 			return (err);
 		}
-		dn = dmu_buf_dnode_enter(dbp);
 		/* Make sure the on-disk block and recv record sizes match */
-		if (drrw->drr_logical_size !=
-		    dn->dn_datablkszsec << SPA_MINBLOCKSHIFT) {
+		if (drrw->drr_logical_size != dbp->db_size) {
 			err = ENOTSUP;
-			dmu_buf_dnode_exit(dbp);
 			dmu_buf_rele(dbp, FTAG);
 			return (err);
 		}
 		/* Get the block pointer for the corrupted block */
 		bp = dmu_buf_get_blkptr(dbp);
 		err = do_corrective_recv(rwa, drrw, rrd, bp);
-		dmu_buf_dnode_exit(dbp);
 		dmu_buf_rele(dbp, FTAG);
 		return (err);
 	}

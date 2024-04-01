@@ -619,7 +619,7 @@ dump_spill(dmu_send_cookie_t *dscp, const blkptr_t *bp, uint64_t object,
 
 	/* See comment in dump_dnode() for full details */
 	if (zfs_send_unmodified_spill_blocks &&
-	    (bp->blk_birth <= dscp->dsc_fromtxg)) {
+	    (BP_GET_LOGICAL_BIRTH(bp) <= dscp->dsc_fromtxg)) {
 		drrs->drr_flags |= DRR_SPILL_UNMODIFIED;
 	}
 
@@ -804,7 +804,7 @@ dump_dnode(dmu_send_cookie_t *dscp, const blkptr_t *bp, uint64_t object,
 	 */
 	if (zfs_send_unmodified_spill_blocks &&
 	    (dnp->dn_flags & DNODE_FLAG_SPILL_BLKPTR) &&
-	    (DN_SPILL_BLKPTR(dnp)->blk_birth <= dscp->dsc_fromtxg)) {
+	    (BP_GET_LOGICAL_BIRTH(DN_SPILL_BLKPTR(dnp)) <= dscp->dsc_fromtxg)) {
 		struct send_range record;
 		blkptr_t *bp = DN_SPILL_BLKPTR(dnp);
 
@@ -1123,7 +1123,7 @@ send_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	 */
 	if (sta->os->os_encrypted &&
 	    !BP_IS_HOLE(bp) && !BP_USES_CRYPT(bp)) {
-		spa_log_error(spa, zb, &bp->blk_birth);
+		spa_log_error(spa, zb, BP_GET_LOGICAL_BIRTH(bp));
 		return (SET_ERROR(EIO));
 	}
 

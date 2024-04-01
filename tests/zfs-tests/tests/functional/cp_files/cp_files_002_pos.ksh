@@ -76,7 +76,7 @@ log_onexit cleanup
 
 SRC_FILE=src.data
 DST_FILE=dst.data
-SRC_SIZE=$(($RANDOM % 2048))
+SRC_SIZE=$((1024 + $RANDOM % 1024))
 
 # A smaller recordsize is used merely to speed up the test.
 RECORDSIZE=4096
@@ -120,7 +120,7 @@ for mode in "never" "auto" "always"; do
 	# Overwrite a random range of an existing file and immediately copy it.
 	sync_pool $TESTPOOL
 	log_must dd if=/dev/urandom of=$SRC_FILE bs=$((RECORDSIZE / 2)) \
-            seek=$(($RANDOM % $SRC_SIZE)) count=$(($RANDOM % 16)) conv=notrunc
+            seek=$(($RANDOM % $SRC_SIZE)) count=$((1 + $RANDOM % 16)) conv=notrunc
 	if [[ "$mode" == "always" ]]; then
 		log_mustnot cp --reflink=$mode $SRC_FILE $DST_FILE
 		log_must ls -l $CP_TESTDIR
@@ -152,7 +152,7 @@ for mode in "never" "auto" "always"; do
 
 	# Overwrite a random range of an existing file and immediately copy it.
 	log_must dd if=/dev/urandom of=$SRC_FILE bs=$((RECORDSIZE / 2)) \
-            seek=$(($RANDOM % $SRC_SIZE)) count=$(($RANDOM % 16)) conv=notrunc
+            seek=$(($RANDOM % $SRC_SIZE)) count=$((1 + $RANDOM % 16)) conv=notrunc
 	log_must cp --reflink=$mode $SRC_FILE $DST_FILE
 	verify_copy $SRC_FILE $DST_FILE
 	log_must rm -f $SRC_FILE $DST_FILE

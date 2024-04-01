@@ -2,6 +2,7 @@
 .\" Copyright (c) 2013 by Turbo Fredriksson <turbo@bayour.com>. All rights reserved.
 .\" Copyright (c) 2019, 2021 by Delphix. All rights reserved.
 .\" Copyright (c) 2019 Datto Inc.
+.\" Copyright (c) 2023, 2024 Klara, Inc.
 .\" The contents of this file are subject to the terms of the Common Development
 .\" and Distribution License (the "License").  You may not use this file except
 .\" in compliance with the License. You can obtain a copy of the license at
@@ -15,7 +16,7 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.Dd July 21, 2023
+.Dd January 9, 2024
 .Dt ZFS 4
 .Os
 .
@@ -244,12 +245,25 @@ For blocks that could be forced to be a gang block (due to
 .Sy metaslab_force_ganging ) ,
 force this many of them to be gang blocks.
 .
-.It Sy zfs_ddt_zap_default_bs Ns = Ns Sy 15 Po 32 KiB Pc Pq int
+.It Sy brt_zap_prefetch Ns = Ns Sy 1 Ns | Ns 0 Pq int
+Controls prefetching BRT records for blocks which are going to be cloned.
+.
+.It Sy brt_zap_default_bs Ns = Ns Sy 12 Po 4 KiB Pc Pq int
+Default BRT ZAP data block size as a power of 2. Note that changing this after
+creating a BRT on the pool will not affect existing BRTs, only newly created
+ones.
+.
+.It Sy brt_zap_default_ibs Ns = Ns Sy 12 Po 4 KiB Pc Pq int
+Default BRT ZAP indirect block size as a power of 2. Note that changing this
+after creating a BRT on the pool will not affect existing BRTs, only newly
+created ones.
+.
+.It Sy ddt_zap_default_bs Ns = Ns Sy 15 Po 32 KiB Pc Pq int
 Default DDT ZAP data block size as a power of 2. Note that changing this after
 creating a DDT on the pool will not affect existing DDTs, only newly created
 ones.
 .
-.It Sy zfs_ddt_zap_default_ibs Ns = Ns Sy 15 Po 32 KiB Pc Pq int
+.It Sy ddt_zap_default_ibs Ns = Ns Sy 15 Po 32 KiB Pc Pq int
 Default DDT ZAP indirect block size as a power of 2. Note that changing this
 after creating a DDT on the pool will not affect existing DDTs, only newly
 created ones.
@@ -1361,6 +1375,29 @@ _
 	2	Transport	No driver retries on transport errors.
 	4	Driver	No driver retries on driver errors.
 .TE
+.
+.It Sy zfs_vdev_disk_max_segs Ns = Ns Sy 0 Pq uint
+Maximum number of segments to add to a BIO (min 4).
+If this is higher than the maximum allowed by the device queue or the kernel
+itself, it will be clamped.
+Setting it to zero will cause the kernel's ideal size to be used.
+This parameter only applies on Linux.
+This parameter is ignored if
+.Sy zfs_vdev_disk_classic Ns = Ns Sy 1 .
+.
+.It Sy zfs_vdev_disk_classic Ns = Ns Sy 0 Ns | Ns 1 Pq uint
+If set to 1, OpenZFS will submit IO to Linux using the method it used in 2.2
+and earlier.
+This "classic" method has known issues with highly fragmented IO requests and
+is slower on many workloads, but it has been in use for many years and is known
+to be very stable.
+If you set this parameter, please also open a bug report why you did so,
+including the workload involved and any error messages.
+.Pp
+This parameter and the classic submission method will be removed once we have
+total confidence in the new method.
+.Pp
+This parameter only applies on Linux, and can only be set at module load time.
 .
 .It Sy zfs_expire_snapshot Ns = Ns Sy 300 Ns s Pq int
 Time before expiring

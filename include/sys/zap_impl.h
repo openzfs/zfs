@@ -145,6 +145,7 @@ typedef struct zap {
 	dmu_buf_user_t zap_dbu;
 	objset_t *zap_objset;
 	uint64_t zap_object;
+	dnode_t *zap_dnode;
 	struct dmu_buf *zap_dbuf;
 	krwlock_t zap_rwlock;
 	boolean_t zap_ismicro;

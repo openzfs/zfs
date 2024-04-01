@@ -783,7 +783,7 @@ spa_flush_metaslabs(spa_t *spa, dmu_tx_t *tx)
 	 * request of flushing everything before we attempt to return
 	 * immediately.
 	 */
-	if (spa->spa_uberblock.ub_rootbp.blk_birth < txg &&
+	if (BP_GET_LOGICAL_BIRTH(&spa->spa_uberblock.ub_rootbp) < txg &&
 	    !dmu_objset_is_dirty(spa_meta_objset(spa), txg) &&
 	    !spa_flush_all_logs_requested(spa))
 		return;
