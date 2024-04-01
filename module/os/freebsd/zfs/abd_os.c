@@ -95,14 +95,12 @@ struct {
  */
 static size_t zfs_abd_scatter_min_size = PAGE_SIZE + 1;
 
-#if defined(_KERNEL)
 SYSCTL_DECL(_vfs_zfs);
 
 SYSCTL_INT(_vfs_zfs, OID_AUTO, abd_scatter_enabled, CTLFLAG_RWTUN,
 	&zfs_abd_scatter_enabled, 0, "Enable scattered ARC data buffers");
 SYSCTL_ULONG(_vfs_zfs, OID_AUTO, abd_scatter_min_size, CTLFLAG_RWTUN,
 	&zfs_abd_scatter_min_size, 0, "Minimum size of scatter allocations.");
-#endif
 
 kmem_cache_t *abd_chunk_cache;
 static kstat_t *abd_ksp;
