@@ -2,6 +2,7 @@
 .\" Copyright (c) 2013 by Turbo Fredriksson <turbo@bayour.com>. All rights reserved.
 .\" Copyright (c) 2019, 2021 by Delphix. All rights reserved.
 .\" Copyright (c) 2019 Datto Inc.
+.\" Copyright (c) 2023, 2024 Klara, Inc.
 .\" The contents of this file are subject to the terms of the Common Development
 .\" and Distribution License (the "License").  You may not use this file except
 .\" in compliance with the License. You can obtain a copy of the license at
@@ -15,7 +16,7 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.Dd July 21, 2023
+.Dd January 9, 2024
 .Dt ZFS 4
 .Os
 .
@@ -1142,6 +1143,15 @@ Enable the experimental block cloning feature.
 If this setting is 0, then even if feature@block_cloning is enabled,
 attempts to clone blocks will act as though the feature is disabled.
 .
+.It Sy zfs_bclone_wait_dirty Ns = Ns Sy 0 Ns | Ns 1 Pq int
+When set to 1 the FICLONE and FICLONERANGE ioctls wait for dirty data to be
+written to disk.
+This allows the clone operation to reliably succeed when a file is
+modified and then immediately cloned.
+For small files this may be slower than making a copy of the file.
+Therefore, this setting defaults to 0 which causes a clone operation to
+immediately fail when encountering a dirty block.
+.
 .It Sy zfs_blake3_impl Ns = Ns Sy fastest Pq string
 Select a BLAKE3 implementation.
 .Pp
@@ -1335,6 +1345,42 @@ _
 	2	Transport	No driver retries on transport errors.
 	4	Driver	No driver retries on driver errors.
 .TE
+.
+.It Sy zfs_vdev_disk_max_segs Ns = Ns Sy 0 Pq uint
+Maximum number of segments to add to a BIO (min 4).
+If this is higher than the maximum allowed by the device queue or the kernel
+itself, it will be clamped.
+Setting it to zero will cause the kernel's ideal size to be used.
+This parameter only applies on Linux.
+This parameter is ignored if
+.Sy zfs_vdev_disk_classic Ns = Ns Sy 1 .
+.
+.It Sy zfs_vdev_disk_classic Ns = Ns 0 Ns | Ns Sy 1 Pq uint
+Controls the method used to submit IO to the Linux block layer
+(default
+.Sy 1 "classic" Ns
+)
+.Pp
+If set to 1, the "classic" method is used.
+This is the method that has been in use since the earliest versions of
+ZFS-on-Linux.
+It has known issues with highly fragmented IO requests and is less efficient on
+many workloads, but it well known and well understood.
+.Pp
+If set to 0, the "new" method is used.
+This method is available since 2.2.4 and should resolve all known issues and be
+far more efficient, but has not had as much testing.
+In the 2.2.x series, this parameter defaults to 1, to use the "classic" method.
+.Pp
+It is not recommended that you change it except on advice from the OpenZFS
+developers.
+If you do change it, please also open a bug report describing why you did so,
+including the workload involved and any error messages.
+.Pp
+This parameter and the "classic" submission method will be removed in a future
+release of OpenZFS once we have total confidence in the new method.
+.Pp
+This parameter only applies on Linux, and can only be set at module load time.
 .
 .It Sy zfs_expire_snapshot Ns = Ns Sy 300 Ns s Pq int
 Time before expiring

@@ -146,4 +146,26 @@ ZED_SYSLOG_SUBCLASS_EXCLUDE="history_event"
 # Power off the drive's slot in the enclosure if it becomes FAULTED.  This can
 # help silence misbehaving drives.  This assumes your drive enclosure fully
 # supports slot power control via sysfs.
-#ZED_POWER_OFF_ENCLOUSRE_SLOT_ON_FAULT=1
+#ZED_POWER_OFF_ENCLOSURE_SLOT_ON_FAULT=1
+
+##
+# Ntfy topic
+# This defines which topic will receive the ntfy notification.
+#  <https://docs.ntfy.sh/publish/>
+# Disabled by default; uncomment to enable.
+#ZED_NTFY_TOPIC=""
+
+##
+# Ntfy access token (optional for public topics)
+# This defines an access token which can be used
+# to allow you to authenticate when sending to topics
+# <https://docs.ntfy.sh/publish/#access-tokens>
+# Disabled by default; uncomment to enable.
+#ZED_NTFY_ACCESS_TOKEN=""
+
+##
+# Ntfy Service URL
+# This defines which service the ntfy call will be directed toward
+#  <https://docs.ntfy.sh/install/>
+# https://ntfy.sh by default; uncomment to enable an alternative service url.
+#ZED_NTFY_URL="https://ntfy.sh"
