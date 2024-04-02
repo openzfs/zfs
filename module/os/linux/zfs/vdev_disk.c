@@ -755,8 +755,6 @@ vbio_fill_cb(struct page *page, size_t off, size_t len, void *priv)
 static void
 vbio_submit(vbio_t *vbio, abd_t *abd, uint64_t size)
 {
-	ASSERT(vbio->vbio_bdev);
-
 	/*
 	 * We plug so we can submit the BIOs as we go and only unplug them when
 	 * they are fully created and submitted. This is important; if we don't
@@ -774,12 +772,15 @@ vbio_submit(vbio_t *vbio, abd_t *abd, uint64_t size)
 	vbio->vbio_bio->bi_end_io = vbio_completion;
 	vbio->vbio_bio->bi_private = vbio;
 
+	/*
+	 * Once submitted, vbio_bio now owns vbio (through bi_private) and we
+	 * can't touch it again. The bio may complete and vbio_completion() be
+	 * called and free the vbio before this task is run again, so we must
+	 * consider it invalid from this point.
+	 */
 	vdev_submit_bio(vbio->vbio_bio);
 
 	blk_finish_plug(&plug);
-
-	vbio->vbio_bio = NULL;
-	vbio->vbio_bdev = NULL;
 }
 
 /* IO completion callback */
