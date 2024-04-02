@@ -89,10 +89,6 @@ int zfs_debug_level;
 SYSCTL_INT(_vfs_zfs, OID_AUTO, debug, CTLFLAG_RWTUN, &zfs_debug_level, 0,
 	"Debug level");
 
-int zfs_bclone_enabled = 0;
-SYSCTL_INT(_vfs_zfs, OID_AUTO, bclone_enabled, CTLFLAG_RWTUN,
-	&zfs_bclone_enabled, 0, "Enable block cloning");
-
 struct zfs_jailparam {
 	int mount_snapshot;
 };

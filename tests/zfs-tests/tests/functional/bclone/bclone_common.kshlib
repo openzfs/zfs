@@ -42,6 +42,12 @@ function verify_crossfs_block_cloning
 	if is_linux && [[ $(linux_version) -lt $(linux_version "5.3") ]]; then
 		log_unsupported "copy_file_range can't copy cross-filesystem before Linux 5.3"
 	fi
+
+	# Cross dataset block cloning only supported on FreeBSD 14+
+	# https://github.com/freebsd/freebsd-src/commit/969071be938c
+        if is_freebsd && [ $(freebsd_version) -lt $(freebsd_version 14.0) ] ; then
+               log_unsupported "Cloning across datasets not supported in $(uname -r)"
+        fi
 }
 
 # Unused.

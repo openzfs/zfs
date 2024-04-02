@@ -32,3 +32,7 @@
 . $STF_SUITE/include/libtest.shlib
 
 default_cleanup
+
+if tunable_exists BCLONE_ENABLED ; then
+	log_must restore_tunable BCLONE_ENABLED
+fi
