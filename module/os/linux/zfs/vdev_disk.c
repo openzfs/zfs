@@ -758,8 +758,6 @@ vbio_fill_cb(struct page *page, size_t off, size_t len, void *priv)
 static void
 vbio_submit(vbio_t *vbio, abd_t *abd, uint64_t size)
 {
-	ASSERT(vbio->vbio_bdev);
-
 	/*
 	 * We plug so we can submit the BIOs as we go and only unplug them when
 	 * they are fully created and submitted. This is important; if we don't
@@ -780,9 +778,6 @@ vbio_submit(vbio_t *vbio, abd_t *abd, uint64_t size)
 	vdev_submit_bio(vbio->vbio_bio);
 
 	blk_finish_plug(&plug);
-
-	vbio->vbio_bio = NULL;
-	vbio->vbio_bdev = NULL;
 }
 
 /* IO completion callback */
