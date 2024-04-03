@@ -10793,11 +10793,10 @@ found:
 		}
 	} else {
 		/*
-		 * The first arg isn't a pool name,
+		 * The first arg isn't the name of a valid pool.
 		 */
-		fprintf(stderr, gettext("missing pool name.\n"));
-		fprintf(stderr, "\n");
-		usage(B_FALSE);
+		fprintf(stderr, gettext("Cannot get properties of %s: "
+		    "no such pool available.\n"), argv[0]);
 		return (1);
 	}
 
