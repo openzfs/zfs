@@ -41,6 +41,7 @@
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/string.h>
+#include <rpc/types.h>
 #include <rpc/xdr.h>
 #include <sys/mod.h>
 

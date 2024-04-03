@@ -23,8 +23,6 @@
 
 #include <sys/types.h>
 
-typedef int bool_t;
-
 /*
  * XDR enums and types.
  */
