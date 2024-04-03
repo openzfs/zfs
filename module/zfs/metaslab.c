@@ -5495,8 +5495,9 @@ remap_blkptr_cb(uint64_t inner_offset, vdev_t *vd, uint64_t offset,
 	vdev_t *oldvd = vdev_lookup_top(vd->vdev_spa,
 	    DVA_GET_VDEV(&bp->blk_dva[0]));
 	vdev_indirect_births_t *vib = oldvd->vdev_indirect_births;
-	bp->blk_phys_birth = vdev_indirect_births_physbirth(vib,
+	uint64_t physical_birth = vdev_indirect_births_physbirth(vib,
 	    DVA_GET_OFFSET(&bp->blk_dva[0]), DVA_GET_ASIZE(&bp->blk_dva[0]));
+	BP_SET_PHYSICAL_BIRTH(bp, physical_birth);
 
 	DVA_SET_VDEV(&bp->blk_dva[0], vd->vdev_id);
 	DVA_SET_OFFSET(&bp->blk_dva[0], offset);
@@ -5845,8 +5846,8 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
 	dva_t *hintdva = (hintbp != NULL) ? hintbp->blk_dva : NULL;
 	int error = 0;
 
-	ASSERT(bp->blk_birth == 0);
-	ASSERT(BP_PHYSICAL_BIRTH(bp) == 0);
+	ASSERT0(BP_GET_LOGICAL_BIRTH(bp));
+	ASSERT0(BP_GET_PHYSICAL_BIRTH(bp));
 
 	spa_config_enter(spa, SCL_ALLOC, FTAG, RW_READER);
 
@@ -5900,7 +5901,7 @@ metaslab_free(spa_t *spa, const blkptr_t *bp, uint64_t txg, boolean_t now)
 	int ndvas = BP_GET_NDVAS(bp);
 
 	ASSERT(!BP_IS_HOLE(bp));
-	ASSERT(!now || bp->blk_birth >= spa_syncing_txg(spa));
+	ASSERT(!now || BP_GET_LOGICAL_BIRTH(bp) >= spa_syncing_txg(spa));
 
 	/*
 	 * If we have a checkpoint for the pool we need to make sure that
@@ -5918,7 +5919,7 @@ metaslab_free(spa_t *spa, const blkptr_t *bp, uint64_t txg, boolean_t now)
 	 * normally as they will be referenced by the checkpointed uberblock.
 	 */
 	boolean_t checkpoint = B_FALSE;
-	if (bp->blk_birth <= spa->spa_checkpoint_txg &&
+	if (BP_GET_LOGICAL_BIRTH(bp) <= spa->spa_checkpoint_txg &&
 	    spa_syncing_txg(spa) > spa->spa_checkpoint_txg) {
 		/*
 		 * At this point, if the block is part of the checkpoint

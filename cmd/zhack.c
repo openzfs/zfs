@@ -612,8 +612,8 @@ zhack_repair_undetach(uberblock_t *ub, nvlist_t *cfg, const int l)
 	 * Uberblock root block pointer has valid birth TXG.
 	 * Copying it to the label NVlist
 	 */
-	if (ub->ub_rootbp.blk_birth != 0) {
-		const uint64_t txg = ub->ub_rootbp.blk_birth;
+	if (BP_GET_LOGICAL_BIRTH(&ub->ub_rootbp) != 0) {
+		const uint64_t txg = BP_GET_LOGICAL_BIRTH(&ub->ub_rootbp);
 		ub->ub_txg = txg;
 
 		if (nvlist_remove_all(cfg, ZPOOL_CONFIG_CREATE_TXG) != 0) {

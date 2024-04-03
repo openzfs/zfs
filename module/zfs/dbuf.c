@@ -1217,7 +1217,7 @@ dbuf_verify(dmu_buf_impl_t *db)
 					ASSERT0(bp->blk_pad[1]);
 					ASSERT(!BP_IS_EMBEDDED(bp));
 					ASSERT(BP_IS_HOLE(bp));
-					ASSERT0(bp->blk_phys_birth);
+					ASSERT0(BP_GET_PHYSICAL_BIRTH(bp));
 				}
 			}
 		}
@@ -1457,7 +1457,7 @@ dbuf_handle_indirect_hole(dmu_buf_impl_t *db, dnode_t *dn, blkptr_t *dbbp)
 		    dn->dn_datablksz : BP_GET_LSIZE(dbbp));
 		BP_SET_TYPE(bp, BP_GET_TYPE(dbbp));
 		BP_SET_LEVEL(bp, BP_GET_LEVEL(dbbp) - 1);
-		BP_SET_BIRTH(bp, dbbp->blk_birth, 0);
+		BP_SET_BIRTH(bp, BP_GET_LOGICAL_BIRTH(dbbp), 0);
 	}
 }
 
@@ -1486,7 +1486,7 @@ dbuf_read_hole(dmu_buf_impl_t *db, dnode_t *dn, blkptr_t *bp)
 		memset(db->db.db_data, 0, db->db.db_size);
 
 		if (bp != NULL && db->db_level > 0 && BP_IS_HOLE(bp) &&
-		    bp->blk_birth != 0) {
+		    BP_GET_LOGICAL_BIRTH(bp) != 0) {
 			dbuf_handle_indirect_hole(db, dn, bp);
 		}
 		db->db_state = DB_CACHED;
@@ -1633,7 +1633,8 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags,
 	 * If this is not true it indicates tampering and we report an error.
 	 */
 	if (db->db_objset->os_encrypted && !BP_USES_CRYPT(bpp)) {
-		spa_log_error(db->db_objset->os_spa, &zb, &bpp->blk_birth);
+		spa_log_error(db->db_objset->os_spa, &zb,
+		    BP_GET_LOGICAL_BIRTH(bpp));
 		err = SET_ERROR(EIO);
 		goto early_unlock;
 	}
@@ -2832,7 +2833,7 @@ dbuf_override_impl(dmu_buf_impl_t *db, const blkptr_t *bp, dmu_tx_t *tx)
 	dl = &dr->dt.dl;
 	dl->dr_overridden_by = *bp;
 	dl->dr_override_state = DR_OVERRIDDEN;
-	dl->dr_overridden_by.blk_birth = dr->dr_txg;
+	BP_SET_LOGICAL_BIRTH(&dl->dr_overridden_by, dr->dr_txg);
 }
 
 boolean_t
@@ -2909,7 +2910,7 @@ dmu_buf_write_embedded(dmu_buf_t *dbuf, void *data,
 	BP_SET_BYTEORDER(&dl->dr_overridden_by, byteorder);
 
 	dl->dr_override_state = DR_OVERRIDDEN;
-	dl->dr_overridden_by.blk_birth = dr->dr_txg;
+	BP_SET_LOGICAL_BIRTH(&dl->dr_overridden_by, dr->dr_txg);
 }
 
 void
@@ -4174,21 +4175,6 @@ dmu_buf_get_objset(dmu_buf_t *db)
 	return (dbi->db_objset);
 }
 
-dnode_t *
-dmu_buf_dnode_enter(dmu_buf_t *db)
-{
-	dmu_buf_impl_t *dbi = (dmu_buf_impl_t *)db;
-	DB_DNODE_ENTER(dbi);
-	return (DB_DNODE(dbi));
-}
-
-void
-dmu_buf_dnode_exit(dmu_buf_t *db)
-{
-	dmu_buf_impl_t *dbi = (dmu_buf_impl_t *)db;
-	DB_DNODE_EXIT(dbi);
-}
-
 static void
 dbuf_check_blkptr(dnode_t *dn, dmu_buf_impl_t *db)
 {
@@ -4727,7 +4713,7 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 	dnode_diduse_space(dn, delta - zio->io_prev_space_delta);
 	zio->io_prev_space_delta = delta;
 
-	if (bp->blk_birth != 0) {
+	if (BP_GET_LOGICAL_BIRTH(bp) != 0) {
 		ASSERT((db->db_blkid != DMU_SPILL_BLKID &&
 		    BP_GET_TYPE(bp) == dn->dn_type) ||
 		    (db->db_blkid == DMU_SPILL_BLKID &&
@@ -5014,7 +5000,7 @@ dbuf_remap_impl(dnode_t *dn, blkptr_t *bp, krwlock_t *rw, dmu_tx_t *tx)
 	ASSERT(dsl_pool_sync_context(spa_get_dsl(spa)));
 
 	drica.drica_os = dn->dn_objset;
-	drica.drica_blk_birth = bp->blk_birth;
+	drica.drica_blk_birth = BP_GET_LOGICAL_BIRTH(bp);
 	drica.drica_tx = tx;
 	if (spa_remap_blkptr(spa, &bp_copy, dbuf_remap_impl_callback,
 	    &drica)) {
@@ -5029,7 +5015,8 @@ dbuf_remap_impl(dnode_t *dn, blkptr_t *bp, krwlock_t *rw, dmu_tx_t *tx)
 		if (dn->dn_objset != spa_meta_objset(spa)) {
 			dsl_dataset_t *ds = dmu_objset_ds(dn->dn_objset);
 			if (dsl_deadlist_is_open(&ds->ds_dir->dd_livelist) &&
-			    bp->blk_birth > ds->ds_dir->dd_origin_txg) {
+			    BP_GET_LOGICAL_BIRTH(bp) >
+			    ds->ds_dir->dd_origin_txg) {
 				ASSERT(!BP_IS_EMBEDDED(bp));
 				ASSERT(dsl_dir_is_clone(ds->ds_dir));
 				ASSERT(spa_feature_is_enabled(spa,
@@ -5151,7 +5138,7 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 	}
 
 	ASSERT(db->db_level == 0 || data == db->db_buf);
-	ASSERT3U(db->db_blkptr->blk_birth, <=, txg);
+	ASSERT3U(BP_GET_LOGICAL_BIRTH(db->db_blkptr), <=, txg);
 	ASSERT(pio);
 
 	SET_BOOKMARK(&zb, os->os_dsl_dataset ?

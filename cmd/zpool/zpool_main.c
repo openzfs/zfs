@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2024 by Delphix. All rights reserved.
  * Copyright (c) 2012 by Frederik Wessels. All rights reserved.
  * Copyright (c) 2012 by Cyril Plisko. All rights reserved.
  * Copyright (c) 2013 by Prasad Joshi (sTec). All rights reserved.
@@ -130,6 +130,13 @@ static int zpool_do_help(int argc, char **argv);
 
 static zpool_compat_status_t zpool_do_load_compat(
     const char *, boolean_t *);
+
+enum zpool_options {
+	ZPOOL_OPTION_POWER = 1024,
+	ZPOOL_OPTION_ALLOW_INUSE,
+	ZPOOL_OPTION_ALLOW_REPLICATION_MISMATCH,
+	ZPOOL_OPTION_ALLOW_ASHIFT_MISMATCH
+};
 
 /*
  * These libumem hooks provide a reasonable set of defaults for the allocator's
@@ -347,7 +354,7 @@ get_usage(zpool_help_t idx)
 {
 	switch (idx) {
 	case HELP_ADD:
-		return (gettext("\tadd [-fgLnP] [-o property=value] "
+		return (gettext("\tadd [-afgLnP] [-o property=value] "
 		    "<pool> <vdev> ...\n"));
 	case HELP_ATTACH:
 		return (gettext("\tattach [-fsw] [-o property=value] "
@@ -413,7 +420,7 @@ get_usage(zpool_help_t idx)
 		    "[<device> ...]\n"));
 	case HELP_STATUS:
 		return (gettext("\tstatus [--power] [-c [script1,script2,...]] "
-		    "[-igLpPstvxD]  [-T d|u] [pool] ... \n"
+		    "[-DegiLpPstvx] [-T d|u] [pool] ...\n"
 		    "\t    [interval [count]]\n"));
 	case HELP_UPGRADE:
 		return (gettext("\tupgrade\n"
@@ -1009,8 +1016,9 @@ add_prop_list_default(const char *propname, const char *propval,
 }
 
 /*
- * zpool add [-fgLnP] [-o property=value] <pool> <vdev> ...
+ * zpool add [-afgLnP] [-o property=value] <pool> <vdev> ...
  *
+ *	-a	Disable the ashift validation checks
  *	-f	Force addition of devices, even if they appear in use
  *	-g	Display guid for individual vdev name.
  *	-L	Follow links when resolving vdev path name.
@@ -1026,8 +1034,11 @@ add_prop_list_default(const char *propname, const char *propval,
 int
 zpool_do_add(int argc, char **argv)
 {
-	boolean_t force = B_FALSE;
+	boolean_t check_replication = B_TRUE;
+	boolean_t check_inuse = B_TRUE;
 	boolean_t dryrun = B_FALSE;
+	boolean_t check_ashift = B_TRUE;
+	boolean_t force = B_FALSE;
 	int name_flags = 0;
 	int c;
 	nvlist_t *nvroot;
@@ -1038,8 +1049,18 @@ zpool_do_add(int argc, char **argv)
 	nvlist_t *props = NULL;
 	char *propval;
 
+	struct option long_options[] = {
+		{"allow-in-use", no_argument, NULL, ZPOOL_OPTION_ALLOW_INUSE},
+		{"allow-replication-mismatch", no_argument, NULL,
+		    ZPOOL_OPTION_ALLOW_REPLICATION_MISMATCH},
+		{"allow-ashift-mismatch", no_argument, NULL,
+		    ZPOOL_OPTION_ALLOW_ASHIFT_MISMATCH},
+		{0, 0, 0, 0}
+	};
+
 	/* check options */
-	while ((c = getopt(argc, argv, "fgLno:P")) != -1) {
+	while ((c = getopt_long(argc, argv, "fgLno:P", long_options, NULL))
+	    != -1) {
 		switch (c) {
 		case 'f':
 			force = B_TRUE;
@@ -1069,6 +1090,15 @@ zpool_do_add(int argc, char **argv)
 		case 'P':
 			name_flags |= VDEV_NAME_PATH;
 			break;
+		case ZPOOL_OPTION_ALLOW_INUSE:
+			check_inuse = B_FALSE;
+			break;
+		case ZPOOL_OPTION_ALLOW_REPLICATION_MISMATCH:
+			check_replication = B_FALSE;
+			break;
+		case ZPOOL_OPTION_ALLOW_ASHIFT_MISMATCH:
+			check_ashift = B_FALSE;
+			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
 			    optopt);
@@ -1087,6 +1117,19 @@ zpool_do_add(int argc, char **argv)
 	if (argc < 2) {
 		(void) fprintf(stderr, gettext("missing vdev specification\n"));
 		usage(B_FALSE);
+	}
+
+	if (force) {
+		if (!check_inuse || !check_replication || !check_ashift) {
+			(void) fprintf(stderr, gettext("'-f' option is not "
+			    "allowed with '--allow-replication-mismatch', "
+			    "'--allow-ashift-mismatch', or "
+			    "'--allow-in-use'\n"));
+			usage(B_FALSE);
+		}
+		check_inuse = B_FALSE;
+		check_replication = B_FALSE;
+		check_ashift = B_FALSE;
 	}
 
 	poolname = argv[0];
@@ -1119,8 +1162,8 @@ zpool_do_add(int argc, char **argv)
 	}
 
 	/* pass off to make_root_vdev for processing */
-	nvroot = make_root_vdev(zhp, props, force, !force, B_FALSE, dryrun,
-	    argc, argv);
+	nvroot = make_root_vdev(zhp, props, !check_inuse,
+	    check_replication, B_FALSE, dryrun, argc, argv);
 	if (nvroot == NULL) {
 		zpool_close(zhp);
 		return (1);
@@ -1224,7 +1267,7 @@ zpool_do_add(int argc, char **argv)
 
 		ret = 0;
 	} else {
-		ret = (zpool_add(zhp, nvroot) != 0);
+		ret = (zpool_add(zhp, nvroot, check_ashift) != 0);
 	}
 
 	nvlist_free(props);
@@ -7081,7 +7124,6 @@ zpool_do_split(int argc, char **argv)
 	return (ret);
 }
 
-#define	POWER_OPT 1024
 
 /*
  * zpool online [--power] <pool> <device> ...
@@ -7099,7 +7141,7 @@ zpool_do_online(int argc, char **argv)
 	int flags = 0;
 	boolean_t is_power_on = B_FALSE;
 	struct option long_options[] = {
-		{"power", no_argument, NULL, POWER_OPT},
+		{"power", no_argument, NULL, ZPOOL_OPTION_POWER},
 		{0, 0, 0, 0}
 	};
 
@@ -7109,7 +7151,7 @@ zpool_do_online(int argc, char **argv)
 		case 'e':
 			flags |= ZFS_ONLINE_EXPAND;
 			break;
-		case POWER_OPT:
+		case ZPOOL_OPTION_POWER:
 			is_power_on = B_TRUE;
 			break;
 		case '?':
@@ -7222,7 +7264,7 @@ zpool_do_offline(int argc, char **argv)
 	boolean_t is_power_off = B_FALSE;
 
 	struct option long_options[] = {
-		{"power", no_argument, NULL, POWER_OPT},
+		{"power", no_argument, NULL, ZPOOL_OPTION_POWER},
 		{0, 0, 0, 0}
 	};
 
@@ -7235,7 +7277,7 @@ zpool_do_offline(int argc, char **argv)
 		case 't':
 			istmp = B_TRUE;
 			break;
-		case POWER_OPT:
+		case ZPOOL_OPTION_POWER:
 			is_power_off = B_TRUE;
 			break;
 		case '?':
@@ -7335,7 +7377,7 @@ zpool_do_clear(int argc, char **argv)
 	char *pool, *device;
 
 	struct option long_options[] = {
-		{"power", no_argument, NULL, POWER_OPT},
+		{"power", no_argument, NULL, ZPOOL_OPTION_POWER},
 		{0, 0, 0, 0}
 	};
 
@@ -7352,7 +7394,7 @@ zpool_do_clear(int argc, char **argv)
 		case 'X':
 			xtreme_rewind = B_TRUE;
 			break;
-		case POWER_OPT:
+		case ZPOOL_OPTION_POWER:
 			is_power_on = B_TRUE;
 			break;
 		case '?':
@@ -9177,22 +9219,22 @@ status_callback(zpool_handle_t *zhp, void *data)
 }
 
 /*
- * zpool status [-c [script1,script2,...]] [-igLpPstvx] [--power] [-T d|u] ...
+ * zpool status [-c [script1,script2,...]] [-DegiLpPstvx] [--power] [-T d|u] ...
  *              [pool] [interval [count]]
  *
  *	-c CMD	For each vdev, run command CMD
+ *	-D	Display dedup status (undocumented)
  *	-e	Display only unhealthy vdevs
- *	-i	Display vdev initialization status.
  *	-g	Display guid for individual vdev name.
+ *	-i	Display vdev initialization status.
  *	-L	Follow links when resolving vdev path name.
  *	-p	Display values in parsable (exact) format.
  *	-P	Display full path for vdev name.
  *	-s	Display slow IOs column.
- *	-v	Display complete error logs
- *	-x	Display only pools with potential problems
- *	-D	Display dedup status (undocumented)
  *	-t	Display vdev TRIM status.
  *	-T	Display a timestamp in date(1) or Unix format
+ *	-v	Display complete error logs
+ *	-x	Display only pools with potential problems
  *	--power	Display vdev enclosure slot power status
  *
  * Describes the health status of all pools or some subset.
@@ -9208,12 +9250,12 @@ zpool_do_status(int argc, char **argv)
 	char *cmd = NULL;
 
 	struct option long_options[] = {
-		{"power", no_argument, NULL, POWER_OPT},
+		{"power", no_argument, NULL, ZPOOL_OPTION_POWER},
 		{0, 0, 0, 0}
 	};
 
 	/* check options */
-	while ((c = getopt_long(argc, argv, "c:eigLpPsvxDtT:", long_options,
+	while ((c = getopt_long(argc, argv, "c:DegiLpPstT:vx", long_options,
 	    NULL)) != -1) {
 		switch (c) {
 		case 'c':
@@ -9240,14 +9282,17 @@ zpool_do_status(int argc, char **argv)
 			}
 			cmd = optarg;
 			break;
+		case 'D':
+			cb.cb_dedup_stats = B_TRUE;
+			break;
 		case 'e':
 			cb.cb_print_unhealthy = B_TRUE;
 			break;
-		case 'i':
-			cb.cb_print_vdev_init = B_TRUE;
-			break;
 		case 'g':
 			cb.cb_name_flags |= VDEV_NAME_GUID;
+			break;
+		case 'i':
+			cb.cb_print_vdev_init = B_TRUE;
 			break;
 		case 'L':
 			cb.cb_name_flags |= VDEV_NAME_FOLLOW_LINKS;
@@ -9261,22 +9306,19 @@ zpool_do_status(int argc, char **argv)
 		case 's':
 			cb.cb_print_slow_ios = B_TRUE;
 			break;
-		case 'v':
-			cb.cb_verbose = B_TRUE;
-			break;
-		case 'x':
-			cb.cb_explain = B_TRUE;
-			break;
-		case 'D':
-			cb.cb_dedup_stats = B_TRUE;
-			break;
 		case 't':
 			cb.cb_print_vdev_trim = B_TRUE;
 			break;
 		case 'T':
 			get_timestamp_arg(*optarg);
 			break;
-		case POWER_OPT:
+		case 'v':
+			cb.cb_verbose = B_TRUE;
+			break;
+		case 'x':
+			cb.cb_explain = B_TRUE;
+			break;
+		case ZPOOL_OPTION_POWER:
 			cb.cb_print_power = B_TRUE;
 			break;
 		case '?':
@@ -9315,7 +9357,6 @@ zpool_do_status(int argc, char **argv)
 
 		if (cb.vcdl != NULL)
 			free_vdev_cmd_data_list(cb.vcdl);
-
 		if (argc == 0 && cb.cb_count == 0)
 			(void) fprintf(stderr, gettext("no pools available\n"));
 		else if (cb.cb_explain && cb.cb_first && cb.cb_allpools)

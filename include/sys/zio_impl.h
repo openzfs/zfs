@@ -25,6 +25,7 @@
 
 /*
  * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2024, Klara Inc.
  */
 
 #ifndef _ZIO_IMPL_H
@@ -39,7 +40,7 @@ extern "C" {
  *
  * The ZFS I/O pipeline is comprised of various stages which are defined
  * in the zio_stage enum below. The individual stages are used to construct
- * these basic I/O operations: Read, Write, Free, Claim, and Ioctl.
+ * these basic I/O operations: Read, Write, Free, Claim, Ioctl and Trim.
  *
  * I/O operations: (XXX - provide detail for each of the operations)
  *
@@ -48,6 +49,7 @@ extern "C" {
  * Free:
  * Claim:
  * Ioctl:
+ * Trim:
  *
  * Although the most common pipeline are used by the basic I/O operations
  * above, there are some helper pipelines (one could consider them
@@ -120,43 +122,43 @@ extern "C" {
  * zio pipeline stage definitions
  */
 enum zio_stage {
-	ZIO_STAGE_OPEN			= 1 << 0,	/* RWFCI */
+	ZIO_STAGE_OPEN			= 1 << 0,	/* RWFCIT */
 
-	ZIO_STAGE_READ_BP_INIT		= 1 << 1,	/* R---- */
-	ZIO_STAGE_WRITE_BP_INIT		= 1 << 2,	/* -W--- */
-	ZIO_STAGE_FREE_BP_INIT		= 1 << 3,	/* --F-- */
-	ZIO_STAGE_ISSUE_ASYNC		= 1 << 4,	/* RWF-- */
-	ZIO_STAGE_WRITE_COMPRESS	= 1 << 5,	/* -W--- */
+	ZIO_STAGE_READ_BP_INIT		= 1 << 1,	/* R----- */
+	ZIO_STAGE_WRITE_BP_INIT		= 1 << 2,	/* -W---- */
+	ZIO_STAGE_FREE_BP_INIT		= 1 << 3,	/* --F--- */
+	ZIO_STAGE_ISSUE_ASYNC		= 1 << 4,	/* -WF--T */
+	ZIO_STAGE_WRITE_COMPRESS	= 1 << 5,	/* -W---- */
 
-	ZIO_STAGE_ENCRYPT		= 1 << 6,	/* -W--- */
-	ZIO_STAGE_CHECKSUM_GENERATE	= 1 << 7,	/* -W--- */
+	ZIO_STAGE_ENCRYPT		= 1 << 6,	/* -W---- */
+	ZIO_STAGE_CHECKSUM_GENERATE	= 1 << 7,	/* -W---- */
 
-	ZIO_STAGE_NOP_WRITE		= 1 << 8,	/* -W--- */
+	ZIO_STAGE_NOP_WRITE		= 1 << 8,	/* -W---- */
 
-	ZIO_STAGE_BRT_FREE		= 1 << 9,	/* --F-- */
+	ZIO_STAGE_BRT_FREE		= 1 << 9,	/* --F--- */
 
-	ZIO_STAGE_DDT_READ_START	= 1 << 10,	/* R---- */
-	ZIO_STAGE_DDT_READ_DONE		= 1 << 11,	/* R---- */
-	ZIO_STAGE_DDT_WRITE		= 1 << 12,	/* -W--- */
-	ZIO_STAGE_DDT_FREE		= 1 << 13,	/* --F-- */
+	ZIO_STAGE_DDT_READ_START	= 1 << 10,	/* R----- */
+	ZIO_STAGE_DDT_READ_DONE		= 1 << 11,	/* R----- */
+	ZIO_STAGE_DDT_WRITE		= 1 << 12,	/* -W---- */
+	ZIO_STAGE_DDT_FREE		= 1 << 13,	/* --F--- */
 
-	ZIO_STAGE_GANG_ASSEMBLE		= 1 << 14,	/* RWFC- */
-	ZIO_STAGE_GANG_ISSUE		= 1 << 15,	/* RWFC- */
+	ZIO_STAGE_GANG_ASSEMBLE		= 1 << 14,	/* RWFC-- */
+	ZIO_STAGE_GANG_ISSUE		= 1 << 15,	/* RWFC-- */
 
-	ZIO_STAGE_DVA_THROTTLE		= 1 << 16,	/* -W--- */
-	ZIO_STAGE_DVA_ALLOCATE		= 1 << 17,	/* -W--- */
-	ZIO_STAGE_DVA_FREE		= 1 << 18,	/* --F-- */
-	ZIO_STAGE_DVA_CLAIM		= 1 << 19,	/* ---C- */
+	ZIO_STAGE_DVA_THROTTLE		= 1 << 16,	/* -W---- */
+	ZIO_STAGE_DVA_ALLOCATE		= 1 << 17,	/* -W---- */
+	ZIO_STAGE_DVA_FREE		= 1 << 18,	/* --F--- */
+	ZIO_STAGE_DVA_CLAIM		= 1 << 19,	/* ---C-- */
 
-	ZIO_STAGE_READY			= 1 << 20,	/* RWFCI */
+	ZIO_STAGE_READY			= 1 << 20,	/* RWFCIT */
 
-	ZIO_STAGE_VDEV_IO_START		= 1 << 21,	/* RW--I */
-	ZIO_STAGE_VDEV_IO_DONE		= 1 << 22,	/* RW--I */
-	ZIO_STAGE_VDEV_IO_ASSESS	= 1 << 23,	/* RW--I */
+	ZIO_STAGE_VDEV_IO_START		= 1 << 21,	/* RW--IT */
+	ZIO_STAGE_VDEV_IO_DONE		= 1 << 22,	/* RW---T */
+	ZIO_STAGE_VDEV_IO_ASSESS	= 1 << 23,	/* RW--IT */
 
-	ZIO_STAGE_CHECKSUM_VERIFY	= 1 << 24,	/* R---- */
+	ZIO_STAGE_CHECKSUM_VERIFY	= 1 << 24,	/* R----- */
 
-	ZIO_STAGE_DONE			= 1 << 25	/* RWFCI */
+	ZIO_STAGE_DONE			= 1 << 25	/* RWFCIT */
 };
 
 #define	ZIO_ROOT_PIPELINE			\

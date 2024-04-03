@@ -248,7 +248,7 @@ static kmem_cache_t *brt_pending_entry_cache;
 /*
  * Enable/disable prefetching of BRT entries that we are going to modify.
  */
-int zfs_brt_prefetch = 1;
+static int brt_zap_prefetch = 1;
 
 #ifdef ZFS_DEBUG
 #define	BRT_DEBUG(...)	do {						\
@@ -260,8 +260,8 @@ int zfs_brt_prefetch = 1;
 #define	BRT_DEBUG(...)	do { } while (0)
 #endif
 
-int brt_zap_leaf_blockshift = 12;
-int brt_zap_indirect_blockshift = 12;
+static int brt_zap_default_bs = 12;
+static int brt_zap_default_ibs = 12;
 
 static kstat_t	*brt_ksp;
 
@@ -458,8 +458,7 @@ brt_vdev_create(brt_t *brt, brt_vdev_t *brtvd, dmu_tx_t *tx)
 
 	brtvd->bv_mos_entries = zap_create_flags(brt->brt_mos, 0,
 	    ZAP_FLAG_HASH64 | ZAP_FLAG_UINT64_KEY, DMU_OTN_ZAP_METADATA,
-	    brt_zap_leaf_blockshift, brt_zap_indirect_blockshift, DMU_OT_NONE,
-	    0, tx);
+	    brt_zap_default_bs, brt_zap_default_ibs, DMU_OT_NONE, 0, tx);
 	VERIFY(brtvd->bv_mos_entries != 0);
 	BRT_DEBUG("MOS entries created, object=%llu",
 	    (u_longlong_t)brtvd->bv_mos_entries);
@@ -901,7 +900,6 @@ static int
 brt_entry_lookup(brt_t *brt, brt_vdev_t *brtvd, brt_entry_t *bre)
 {
 	uint64_t mos_entries;
-	uint64_t one, physsize;
 	int error;
 
 	ASSERT(RW_LOCK_HELD(&brt->brt_lock));
@@ -919,21 +917,8 @@ brt_entry_lookup(brt_t *brt, brt_vdev_t *brtvd, brt_entry_t *bre)
 
 	brt_unlock(brt);
 
-	error = zap_length_uint64(brt->brt_mos, mos_entries, &bre->bre_offset,
-	    BRT_KEY_WORDS, &one, &physsize);
-	if (error == 0) {
-		ASSERT3U(one, ==, 1);
-		ASSERT3U(physsize, ==, sizeof (bre->bre_refcount));
-
-		error = zap_lookup_uint64(brt->brt_mos, mos_entries,
-		    &bre->bre_offset, BRT_KEY_WORDS, 1,
-		    sizeof (bre->bre_refcount), &bre->bre_refcount);
-		BRT_DEBUG("ZAP lookup: object=%llu vdev=%llu offset=%llu "
-		    "count=%llu error=%d", (u_longlong_t)mos_entries,
-		    (u_longlong_t)brtvd->bv_vdevid,
-		    (u_longlong_t)bre->bre_offset,
-		    error == 0 ? (u_longlong_t)bre->bre_refcount : 0, error);
-	}
+	error = zap_lookup_uint64(brt->brt_mos, mos_entries, &bre->bre_offset,
+	    BRT_KEY_WORDS, 1, sizeof (bre->bre_refcount), &bre->bre_refcount);
 
 	brt_wlock(brt);
 
@@ -955,50 +940,8 @@ brt_entry_prefetch(brt_t *brt, uint64_t vdevid, brt_entry_t *bre)
 	if (mos_entries == 0)
 		return;
 
-	BRT_DEBUG("ZAP prefetch: object=%llu vdev=%llu offset=%llu",
-	    (u_longlong_t)mos_entries, (u_longlong_t)vdevid,
-	    (u_longlong_t)bre->bre_offset);
 	(void) zap_prefetch_uint64(brt->brt_mos, mos_entries,
 	    (uint64_t *)&bre->bre_offset, BRT_KEY_WORDS);
-}
-
-static int
-brt_entry_update(brt_t *brt, brt_vdev_t *brtvd, brt_entry_t *bre, dmu_tx_t *tx)
-{
-	int error;
-
-	ASSERT(RW_LOCK_HELD(&brt->brt_lock));
-	ASSERT(brtvd->bv_mos_entries != 0);
-	ASSERT(bre->bre_refcount > 0);
-
-	error = zap_update_uint64(brt->brt_mos, brtvd->bv_mos_entries,
-	    (uint64_t *)&bre->bre_offset, BRT_KEY_WORDS, 1,
-	    sizeof (bre->bre_refcount), &bre->bre_refcount, tx);
-	BRT_DEBUG("ZAP update: object=%llu vdev=%llu offset=%llu count=%llu "
-	    "error=%d", (u_longlong_t)brtvd->bv_mos_entries,
-	    (u_longlong_t)brtvd->bv_vdevid, (u_longlong_t)bre->bre_offset,
-	    (u_longlong_t)bre->bre_refcount, error);
-
-	return (error);
-}
-
-static int
-brt_entry_remove(brt_t *brt, brt_vdev_t *brtvd, brt_entry_t *bre, dmu_tx_t *tx)
-{
-	int error;
-
-	ASSERT(RW_LOCK_HELD(&brt->brt_lock));
-	ASSERT(brtvd->bv_mos_entries != 0);
-	ASSERT0(bre->bre_refcount);
-
-	error = zap_remove_uint64(brt->brt_mos, brtvd->bv_mos_entries,
-	    (uint64_t *)&bre->bre_offset, BRT_KEY_WORDS, tx);
-	BRT_DEBUG("ZAP remove: object=%llu vdev=%llu offset=%llu count=%llu "
-	    "error=%d", (u_longlong_t)brtvd->bv_mos_entries,
-	    (u_longlong_t)brtvd->bv_vdevid, (u_longlong_t)bre->bre_offset,
-	    (u_longlong_t)bre->bre_refcount, error);
-
-	return (error);
 }
 
 /*
@@ -1405,7 +1348,7 @@ brt_prefetch(brt_t *brt, const blkptr_t *bp)
 
 	ASSERT(bp != NULL);
 
-	if (!zfs_brt_prefetch)
+	if (!brt_zap_prefetch)
 		return;
 
 	brt_entry_fill(bp, &bre, &vdevid);
@@ -1420,13 +1363,13 @@ brt_pending_entry_compare(const void *x1, const void *x2)
 	const blkptr_t *bp1 = &bpe1->bpe_bp, *bp2 = &bpe2->bpe_bp;
 	int cmp;
 
-	cmp = TREE_CMP(BP_PHYSICAL_BIRTH(bp1), BP_PHYSICAL_BIRTH(bp2));
+	cmp = TREE_CMP(DVA_GET_VDEV(&bp1->blk_dva[0]),
+	    DVA_GET_VDEV(&bp2->blk_dva[0]));
 	if (cmp == 0) {
-		cmp = TREE_CMP(DVA_GET_VDEV(&bp1->blk_dva[0]),
-		    DVA_GET_VDEV(&bp2->blk_dva[0]));
-		if (cmp == 0) {
-			cmp = TREE_CMP(DVA_GET_OFFSET(&bp1->blk_dva[0]),
-			    DVA_GET_OFFSET(&bp2->blk_dva[0]));
+		cmp = TREE_CMP(DVA_GET_OFFSET(&bp1->blk_dva[0]),
+		    DVA_GET_OFFSET(&bp2->blk_dva[0]));
+		if (unlikely(cmp == 0)) {
+			cmp = TREE_CMP(BP_GET_BIRTH(bp1), BP_GET_BIRTH(bp2));
 		}
 	}
 
@@ -1471,10 +1414,10 @@ brt_pending_add(spa_t *spa, const blkptr_t *bp, dmu_tx_t *tx)
 		kmem_cache_free(brt_pending_entry_cache, newbpe);
 	} else {
 		ASSERT(bpe == NULL);
-	}
 
-	/* Prefetch BRT entry, as we will need it in the syncing context. */
-	brt_prefetch(brt, bp);
+		/* Prefetch BRT entry for the syncing context. */
+		brt_prefetch(brt, bp);
+	}
 }
 
 void
@@ -1514,25 +1457,22 @@ brt_pending_remove(spa_t *spa, const blkptr_t *bp, dmu_tx_t *tx)
 void
 brt_pending_apply(spa_t *spa, uint64_t txg)
 {
-	brt_t *brt;
+	brt_t *brt = spa->spa_brt;
 	brt_pending_entry_t *bpe;
 	avl_tree_t *pending_tree;
-	kmutex_t *pending_lock;
 	void *c;
 
 	ASSERT3U(txg, !=, 0);
 
-	brt = spa->spa_brt;
+	/*
+	 * We are in syncing context, so no other brt_pending_tree accesses
+	 * are possible for the TXG. Don't need to acquire brt_pending_lock.
+	 */
 	pending_tree = &brt->brt_pending_tree[txg & TXG_MASK];
-	pending_lock = &brt->brt_pending_lock[txg & TXG_MASK];
-
-	mutex_enter(pending_lock);
 
 	c = NULL;
 	while ((bpe = avl_destroy_nodes(pending_tree, &c)) != NULL) {
 		boolean_t added_to_ddt;
-
-		mutex_exit(pending_lock);
 
 		for (int i = 0; i < bpe->bpe_count; i++) {
 			/*
@@ -1551,31 +1491,20 @@ brt_pending_apply(spa_t *spa, uint64_t txg)
 		}
 
 		kmem_cache_free(brt_pending_entry_cache, bpe);
-		mutex_enter(pending_lock);
 	}
-
-	mutex_exit(pending_lock);
 }
 
 static void
-brt_sync_entry(brt_t *brt, brt_vdev_t *brtvd, brt_entry_t *bre, dmu_tx_t *tx)
+brt_sync_entry(dnode_t *dn, brt_entry_t *bre, dmu_tx_t *tx)
 {
-
-	ASSERT(RW_WRITE_HELD(&brt->brt_lock));
-	ASSERT(brtvd->bv_mos_entries != 0);
-
 	if (bre->bre_refcount == 0) {
-		int error;
-
-		error = brt_entry_remove(brt, brtvd, bre, tx);
-		ASSERT(error == 0 || error == ENOENT);
-		/*
-		 * If error == ENOENT then zfs_clone_range() was done from a
-		 * removed (but opened) file (open(), unlink()).
-		 */
-		ASSERT(brt_entry_lookup(brt, brtvd, bre) == ENOENT);
+		int error = zap_remove_uint64_by_dnode(dn, &bre->bre_offset,
+		    BRT_KEY_WORDS, tx);
+		VERIFY(error == 0 || error == ENOENT);
 	} else {
-		VERIFY0(brt_entry_update(brt, brtvd, bre, tx));
+		VERIFY0(zap_update_uint64_by_dnode(dn, &bre->bre_offset,
+		    BRT_KEY_WORDS, 1, sizeof (bre->bre_refcount),
+		    &bre->bre_refcount, tx));
 	}
 }
 
@@ -1584,6 +1513,7 @@ brt_sync_table(brt_t *brt, dmu_tx_t *tx)
 {
 	brt_vdev_t *brtvd;
 	brt_entry_t *bre;
+	dnode_t *dn;
 	uint64_t vdevid;
 	void *c;
 
@@ -1607,13 +1537,18 @@ brt_sync_table(brt_t *brt, dmu_tx_t *tx)
 		if (brtvd->bv_mos_brtvdev == 0)
 			brt_vdev_create(brt, brtvd, tx);
 
+		VERIFY0(dnode_hold(brt->brt_mos, brtvd->bv_mos_entries,
+		    FTAG, &dn));
+
 		c = NULL;
 		while ((bre = avl_destroy_nodes(&brtvd->bv_tree, &c)) != NULL) {
-			brt_sync_entry(brt, brtvd, bre, tx);
+			brt_sync_entry(dn, bre, tx);
 			brt_entry_free(bre);
 			ASSERT(brt->brt_nentries > 0);
 			brt->brt_nentries--;
 		}
+
+		dnode_rele(dn, FTAG);
 
 		brt_vdev_sync(brt, brtvd, tx);
 
@@ -1729,9 +1664,10 @@ brt_unload(spa_t *spa)
 }
 
 /* BEGIN CSTYLED */
-ZFS_MODULE_PARAM(zfs_brt, zfs_brt_, prefetch, INT, ZMOD_RW,
-    "Enable prefetching of BRT entries");
-#ifdef ZFS_BRT_DEBUG
-ZFS_MODULE_PARAM(zfs_brt, zfs_brt_, debug, INT, ZMOD_RW, "BRT debug");
-#endif
+ZFS_MODULE_PARAM(zfs_brt, , brt_zap_prefetch, INT, ZMOD_RW,
+	"Enable prefetching of BRT ZAP entries");
+ZFS_MODULE_PARAM(zfs_brt, , brt_zap_default_bs, UINT, ZMOD_RW,
+	"BRT ZAP leaf blockshift");
+ZFS_MODULE_PARAM(zfs_brt, , brt_zap_default_ibs, UINT, ZMOD_RW,
+	"BRT ZAP indirect blockshift");
 /* END CSTYLED */
