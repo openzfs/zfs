@@ -23,7 +23,7 @@
  * Copyright (c) 2011, 2022 by Delphix. All rights reserved.
  * Copyright (c) 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
- * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, 2023, 2024, Klara Inc.
  * Copyright (c) 2019, Allan Jude
  * Copyright (c) 2021, Datto, Inc.
  */
@@ -1450,17 +1450,6 @@ zio_claim(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 }
 
 zio_t *
-zio_ioctl(zio_t *pio, spa_t *spa, vdev_t *vd, int cmd,
-    zio_done_func_t *done, void *private, zio_flag_t flags)
-{
-	zio_t *zio = zio_create(pio, spa, 0, NULL, NULL, 0, 0, done, private,
-	    ZIO_TYPE_IOCTL, ZIO_PRIORITY_NOW, flags, vd, 0, NULL,
-	    ZIO_STAGE_OPEN, ZIO_IOCTL_PIPELINE);
-	zio->io_cmd = cmd;
-	return (zio);
-}
-
-zio_t *
 zio_trim(zio_t *pio, vdev_t *vd, uint64_t offset, uint64_t size,
     zio_done_func_t *done, void *private, zio_priority_t priority,
     zio_flag_t flags, enum trim_flag trim_flags)
@@ -1626,15 +1615,27 @@ zio_vdev_delegated_io(vdev_t *vd, uint64_t offset, abd_t *data, uint64_t size,
 	return (zio);
 }
 
+
+/*
+ * Send a flush command to the given vdev. Unlike most zio creation functions,
+ * the flush zios are issued immediately. You can wait on pio to pause until
+ * the flushes complete.
+ */
 void
 zio_flush(zio_t *pio, vdev_t *vd)
 {
+	const zio_flag_t flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_PROPAGATE |
+	    ZIO_FLAG_DONT_RETRY;
+
 	if (vd->vdev_nowritecache)
 		return;
+
 	if (vd->vdev_children == 0) {
-		zio_nowait(zio_ioctl(pio, vd->vdev_spa, vd,
-		    DKIOCFLUSHWRITECACHE, NULL, NULL, ZIO_FLAG_CANFAIL |
-		    ZIO_FLAG_DONT_PROPAGATE | ZIO_FLAG_DONT_RETRY));
+		zio_t *zio = zio_create(pio, vd->vdev_spa, 0, NULL, NULL, 0, 0,
+		    NULL, NULL, ZIO_TYPE_IOCTL, ZIO_PRIORITY_NOW, flags, vd, 0,
+		    NULL, ZIO_STAGE_OPEN, ZIO_IOCTL_PIPELINE);
+		zio->io_cmd = DKIOCFLUSHWRITECACHE;
+		zio_nowait(zio);
 	} else {
 		for (uint64_t c = 0; c < vd->vdev_children; c++)
 			zio_flush(pio, vd->vdev_child[c]);
