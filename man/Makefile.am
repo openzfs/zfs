@@ -62,7 +62,6 @@ dist_man_MANS = \
 	%D%/man8/zfs-userspace.8 \
 	%D%/man8/zfs-wait.8 \
 	%D%/man8/zfs_ids_to_path.8 \
-	%D%/man8/zfs_prepare_disk.8 \
 	%D%/man8/zgenhostid.8 \
 	%D%/man8/zinject.8 \
 	%D%/man8/zpool.8 \
@@ -115,7 +114,8 @@ endif
 
 nodist_man_MANS = \
 	%D%/man8/zed.8 \
-	%D%/man8/zfs-mount-generator.8
+	%D%/man8/zfs-mount-generator.8 \
+	%D%/man8/zfs_prepare_disk.8
 
 dist_noinst_DATA += $(dist_noinst_man_MANS) $(dist_man_MANS)
 
