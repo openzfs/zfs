@@ -247,7 +247,7 @@ vdev_file_io_start(zio_t *zio)
 	vdev_t *vd = zio->io_vd;
 	vdev_file_t *vf = vd->vdev_tsd;
 
-	if (zio->io_type == ZIO_TYPE_IOCTL) {
+	if (zio->io_type == ZIO_TYPE_FLUSH) {
 		/* XXPOLICY */
 		if (!vdev_readable(vd)) {
 			zio->io_error = SET_ERROR(ENXIO);

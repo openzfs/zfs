@@ -367,7 +367,7 @@ zio_handle_device_injection_impl(vdev_t *vd, zio_t *zio, int err1, int err2)
 	 * We skip over faults in the labels unless it's during device open
 	 * (i.e. zio == NULL) or a device flush (offset is meaningless)
 	 */
-	if (zio != NULL && zio->io_type != ZIO_TYPE_IOCTL) {
+	if (zio != NULL && zio->io_type != ZIO_TYPE_FLUSH) {
 		uint64_t offset = zio->io_offset;
 
 		if (offset < VDEV_LABEL_START_SIZE ||

@@ -364,7 +364,7 @@ that is, the bits set in the good data which are cleared in the bad data.
 .Sh I/O STAGES
 The ZFS I/O pipeline is comprised of various stages which are defined below.
 The individual stages are used to construct these basic I/O
-operations: Read, Write, Free, Claim, Ioctl and Trim.
+operations: Read, Write, Free, Claim, Flush and Trim.
 These stages may be
 set on an event to describe the life cycle of a given I/O request.
 .Pp
@@ -373,7 +373,7 @@ tab(:);
 l l l .
 Stage:Bit Mask:Operations
 _:_:_
-ZIO_STAGE_OPEN:0x00000001:RWFCIT
+ZIO_STAGE_OPEN:0x00000001:RWFCXT
 
 ZIO_STAGE_READ_BP_INIT:0x00000002:R-----
 ZIO_STAGE_WRITE_BP_INIT:0x00000004:-W----
@@ -403,13 +403,13 @@ ZIO_STAGE_DVA_CLAIM:0x00080000:---C--
 
 ZIO_STAGE_READY:0x00100000:RWFCIT
 
-ZIO_STAGE_VDEV_IO_START:0x00200000:RW--IT
-ZIO_STAGE_VDEV_IO_DONE:0x00400000:RW--IT
-ZIO_STAGE_VDEV_IO_ASSESS:0x00800000:RW--IT
+ZIO_STAGE_VDEV_IO_START:0x00200000:RW--XT
+ZIO_STAGE_VDEV_IO_DONE:0x00400000:RW--XT
+ZIO_STAGE_VDEV_IO_ASSESS:0x00800000:RW--XT
 
 ZIO_STAGE_CHECKSUM_VERIFY:0x01000000:R-----
 
-ZIO_STAGE_DONE:0x02000000:RWFCIT
+ZIO_STAGE_DONE:0x02000000:RWFCXT
 .TE
 .
 .Sh I/O FLAGS
