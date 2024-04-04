@@ -2633,26 +2633,24 @@ dmu_buf_will_dirty_impl(dmu_buf_t *db_fake, int flags, dmu_tx_t *tx)
 	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
 
 	/*
-	 * Quick check for dirtiness.  For already dirty blocks, this
-	 * reduces runtime of this function by >90%, and overall performance
-	 * by 50% for some workloads (e.g. file deletion with indirect blocks
-	 * cached).
+	 * Quick check for dirtiness to improve performance for some workloads
+	 * (e.g. file deletion with indirect blocks cached).
 	 */
 	mutex_enter(&db->db_mtx);
-
 	if (db->db_state == DB_CACHED || db->db_state == DB_NOFILL) {
-		dbuf_dirty_record_t *dr = dbuf_find_dirty_eq(db, tx->tx_txg);
 		/*
-		 * It's possible that it is already dirty but not cached,
+		 * It's possible that the dbuf is already dirty but not cached,
 		 * because there are some calls to dbuf_dirty() that don't
 		 * go through dmu_buf_will_dirty().
 		 */
+		dbuf_dirty_record_t *dr = dbuf_find_dirty_eq(db, tx->tx_txg);
 		if (dr != NULL) {
-			if (dr->dt.dl.dr_brtwrite) {
+			if (db->db_level == 0 &&
+			    dr->dt.dl.dr_brtwrite) {
 				/*
 				 * Block cloning: If we are dirtying a cloned
-				 * block, we cannot simply redirty it, because
-				 * this dr has no data associated with it.
+				 * level 0 block, we cannot simply redirty it,
+				 * because this dr has no associated data.
 				 * We will go through a full undirtying below,
 				 * before dirtying it again.
 				 */
