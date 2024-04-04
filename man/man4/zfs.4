@@ -2387,6 +2387,13 @@ The number of requests which can be handled concurrently is controlled by
 is ignored when running on a kernel that supports block multiqueue
 .Pq Li blk-mq .
 .
+.It Sy zvol_num_taskqs Ns = Ns Sy 0 Pq uint
+Number of zvol taskqs.
+If
+.Sy 0
+(the default) then scaling is done internally to prefer 6 threads per taskq.
+This only applies on Linux.
+.
 .It Sy zvol_threads Ns = Ns Sy 0 Pq uint
 The number of system wide threads to use for processing zvol block IOs.
 If
