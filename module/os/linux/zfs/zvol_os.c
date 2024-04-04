@@ -81,8 +81,9 @@ static boolean_t zvol_use_blk_mq = B_FALSE;
  * read and write tests to a zvol in an NVMe pool (with 16 CPUs).
  */
 static unsigned int zvol_blk_mq_blocks_per_thread = 8;
-static unsigned int zvol_num_taskqs = 0;
 #endif
+
+static unsigned int zvol_num_taskqs = 0;
 
 #ifndef	BLKDEV_DEFAULT_RQ
 /* BLKDEV_MAX_RQ was renamed to BLKDEV_DEFAULT_RQ in the 5.16 kernel */
