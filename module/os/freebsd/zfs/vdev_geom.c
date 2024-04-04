@@ -1153,42 +1153,31 @@ vdev_geom_io_start(zio_t *zio)
 
 	vd = zio->io_vd;
 
-	switch (zio->io_type) {
-	case ZIO_TYPE_IOCTL:
+	if (zio->io_type == ZIO_TYPE_IOCTL) {
 		/* XXPOLICY */
 		if (!vdev_readable(vd)) {
 			zio->io_error = SET_ERROR(ENXIO);
 			zio_interrupt(zio);
 			return;
-		} else {
-			switch (zio->io_cmd) {
-			case DKIOCFLUSHWRITECACHE:
-				if (zfs_nocacheflush ||
-				    vdev_geom_bio_flush_disable)
-					break;
-				if (vd->vdev_nowritecache) {
-					zio->io_error = SET_ERROR(ENOTSUP);
-					break;
-				}
-				goto sendreq;
-			default:
-				zio->io_error = SET_ERROR(ENOTSUP);
-			}
 		}
 
-		zio_execute(zio);
-		return;
-	case ZIO_TYPE_TRIM:
-		if (!vdev_geom_bio_delete_disable) {
-			goto sendreq;
+		if (zfs_nocacheflush || vdev_geom_bio_flush_disable) {
+			zio_execute(zio);
+			return;
 		}
-		zio_execute(zio);
-		return;
-	default:
-			;
-		/* PASSTHROUGH --- placate compiler */
+
+		if (vd->vdev_nowritecache) {
+			zio->io_error = SET_ERROR(ENOTSUP);
+			zio_execute(zio);
+			return;
+		}
+	} else if (zio->io_type == ZIO_TYPE_TRIM) {
+		if (vdev_geom_bio_delete_disable) {
+			zio_execute(zio);
+			return;
+		}
 	}
-sendreq:
+
 	ASSERT(zio->io_type == ZIO_TYPE_READ ||
 	    zio->io_type == ZIO_TYPE_WRITE ||
 	    zio->io_type == ZIO_TYPE_TRIM ||

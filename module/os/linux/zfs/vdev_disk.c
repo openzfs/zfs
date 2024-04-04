@@ -1403,38 +1403,29 @@ vdev_disk_io_start(zio_t *zio)
 	case ZIO_TYPE_IOCTL:
 
 		if (!vdev_readable(v)) {
-			rw_exit(&vd->vd_lock);
-			zio->io_error = SET_ERROR(ENXIO);
-			zio_interrupt(zio);
-			return;
-		}
-
-		switch (zio->io_cmd) {
-		case DKIOCFLUSHWRITECACHE:
-
-			if (zfs_nocacheflush)
-				break;
-
-			if (v->vdev_nowritecache) {
-				zio->io_error = SET_ERROR(ENOTSUP);
-				break;
-			}
-
+			/* Drive not there, can't flush */
+			error = SET_ERROR(ENXIO);
+		} else if (zfs_nocacheflush) {
+			/* Flushing disabled by operator, declare success */
+			error = 0;
+		} else if (v->vdev_nowritecache) {
+			/* This vdev not capable of flushing */
+			error = SET_ERROR(ENOTSUP);
+		} else {
+			/*
+			 * Issue the flush. If successful, the response will
+			 * be handled in the completion callback, so we're done.
+			 */
 			error = vdev_disk_io_flush(BDH_BDEV(vd->vd_bdh), zio);
 			if (error == 0) {
 				rw_exit(&vd->vd_lock);
 				return;
 			}
-
-			zio->io_error = error;
-
-			break;
-
-		default:
-			zio->io_error = SET_ERROR(ENOTSUP);
 		}
 
+		/* Couldn't issue the flush, so set the error and return it */
 		rw_exit(&vd->vd_lock);
+		zio->io_error = error;
 		zio_execute(zio);
 		return;
 
