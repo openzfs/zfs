@@ -27,7 +27,7 @@
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright 2016 Toomas Soome <tsoome@me.com>
  * Copyright (c) 2019, Allan Jude
- * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, 2023, 2024, Klara Inc.
  * Copyright (c) 2019-2020, Michael Niewöhner
  */
 
@@ -577,9 +577,6 @@ extern void zio_free(spa_t *spa, uint64_t txg, const blkptr_t *bp);
 
 extern zio_t *zio_claim(zio_t *pio, spa_t *spa, uint64_t txg,
     const blkptr_t *bp,
-    zio_done_func_t *done, void *priv, zio_flag_t flags);
-
-extern zio_t *zio_ioctl(zio_t *pio, spa_t *spa, vdev_t *vd, int cmd,
     zio_done_func_t *done, void *priv, zio_flag_t flags);
 
 extern zio_t *zio_trim(zio_t *pio, vdev_t *vd, uint64_t offset, uint64_t size,
