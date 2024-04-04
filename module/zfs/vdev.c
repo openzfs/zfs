@@ -4924,11 +4924,11 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 
 			/*
 			 * TRIM ops and bytes are reported to user space as
-			 * ZIO_TYPE_IOCTL.  This is done to preserve the
+			 * ZIO_TYPE_FLUSH.  This is done to preserve the
 			 * vdev_stat_t structure layout for user space.
 			 */
 			if (type == ZIO_TYPE_TRIM)
-				vs_type = ZIO_TYPE_IOCTL;
+				vs_type = ZIO_TYPE_FLUSH;
 
 			/*
 			 * Solely for the purposes of 'zpool iostat -lqrw'
@@ -6239,12 +6239,12 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 			case VDEV_PROP_OPS_TRIM:
 				/*
 				 * TRIM ops and bytes are reported to user
-				 * space as ZIO_TYPE_IOCTL.  This is done to
+				 * space as ZIO_TYPE_FLUSH.  This is done to
 				 * preserve the vdev_stat_t structure layout
 				 * for user space.
 				 */
 				vdev_prop_add_list(outnvl, propname, NULL,
-				    vd->vdev_stat.vs_ops[ZIO_TYPE_IOCTL],
+				    vd->vdev_stat.vs_ops[ZIO_TYPE_FLUSH],
 				    ZPROP_SRC_NONE);
 				continue;
 			case VDEV_PROP_BYTES_NULL:
@@ -6275,12 +6275,12 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 			case VDEV_PROP_BYTES_TRIM:
 				/*
 				 * TRIM ops and bytes are reported to user
-				 * space as ZIO_TYPE_IOCTL.  This is done to
+				 * space as ZIO_TYPE_FLUSH.  This is done to
 				 * preserve the vdev_stat_t structure layout
 				 * for user space.
 				 */
 				vdev_prop_add_list(outnvl, propname, NULL,
-				    vd->vdev_stat.vs_bytes[ZIO_TYPE_IOCTL],
+				    vd->vdev_stat.vs_bytes[ZIO_TYPE_FLUSH],
 				    ZPROP_SRC_NONE);
 				continue;
 			case VDEV_PROP_REMOVING:

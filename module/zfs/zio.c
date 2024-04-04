@@ -63,7 +63,7 @@ const char *const zio_type_name[ZIO_TYPES] = {
 	 * Note: Linux kernel thread name length is limited
 	 * so these names will differ from upstream open zfs.
 	 */
-	"z_null", "z_rd", "z_wr", "z_fr", "z_cl", "z_ioctl", "z_trim"
+	"z_null", "z_rd", "z_wr", "z_fr", "z_cl", "z_flush", "z_trim"
 };
 
 int zio_dva_throttle_enabled = B_TRUE;
@@ -1632,8 +1632,8 @@ zio_flush(zio_t *pio, vdev_t *vd)
 
 	if (vd->vdev_children == 0) {
 		zio_nowait(zio_create(pio, vd->vdev_spa, 0, NULL, NULL, 0, 0,
-		    NULL, NULL, ZIO_TYPE_IOCTL, ZIO_PRIORITY_NOW, flags, vd, 0,
-		    NULL, ZIO_STAGE_OPEN, ZIO_IOCTL_PIPELINE));
+		    NULL, NULL, ZIO_TYPE_FLUSH, ZIO_PRIORITY_NOW, flags, vd, 0,
+		    NULL, ZIO_STAGE_OPEN, ZIO_FLUSH_PIPELINE));
 	} else {
 		for (uint64_t c = 0; c < vd->vdev_children; c++)
 			zio_flush(pio, vd->vdev_child[c]);
@@ -4086,7 +4086,7 @@ zio_vdev_io_done(zio_t *zio)
 
 	ASSERT(zio->io_type == ZIO_TYPE_READ ||
 	    zio->io_type == ZIO_TYPE_WRITE ||
-	    zio->io_type == ZIO_TYPE_IOCTL ||
+	    zio->io_type == ZIO_TYPE_FLUSH ||
 	    zio->io_type == ZIO_TYPE_TRIM);
 
 	if (zio->io_delay)
@@ -4094,7 +4094,7 @@ zio_vdev_io_done(zio_t *zio)
 
 	if (vd != NULL && vd->vdev_ops->vdev_op_leaf &&
 	    vd->vdev_ops != &vdev_draid_spare_ops) {
-		if (zio->io_type != ZIO_TYPE_IOCTL)
+		if (zio->io_type != ZIO_TYPE_FLUSH)
 			vdev_queue_io_done(zio);
 
 		if (zio_injection_enabled && zio->io_error == 0)
@@ -4239,7 +4239,7 @@ zio_vdev_io_assess(zio_t *zio)
 	 * boolean flag so that we don't bother with it in the future.
 	 */
 	if ((zio->io_error == ENOTSUP || zio->io_error == ENOTTY) &&
-	    zio->io_type == ZIO_TYPE_IOCTL && vd != NULL)
+	    zio->io_type == ZIO_TYPE_FLUSH && vd != NULL)
 		vd->vdev_nowritecache = B_TRUE;
 
 	if (zio->io_error)

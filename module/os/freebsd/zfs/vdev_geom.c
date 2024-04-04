@@ -1053,7 +1053,7 @@ vdev_geom_io_intr(struct bio *bp)
 	/*
 	 * We have to split bio freeing into two parts, because the ABD code
 	 * cannot be called in this context and vdev_op_io_done is not called
-	 * for ZIO_TYPE_IOCTL zio-s.
+	 * for ZIO_TYPE_FLUSH zio-s.
 	 */
 	if (zio->io_type != ZIO_TYPE_READ && zio->io_type != ZIO_TYPE_WRITE) {
 		g_destroy_bio(bp);
@@ -1153,7 +1153,7 @@ vdev_geom_io_start(zio_t *zio)
 
 	vd = zio->io_vd;
 
-	if (zio->io_type == ZIO_TYPE_IOCTL) {
+	if (zio->io_type == ZIO_TYPE_FLUSH) {
 		/* XXPOLICY */
 		if (!vdev_readable(vd)) {
 			zio->io_error = SET_ERROR(ENXIO);
@@ -1181,7 +1181,7 @@ vdev_geom_io_start(zio_t *zio)
 	ASSERT(zio->io_type == ZIO_TYPE_READ ||
 	    zio->io_type == ZIO_TYPE_WRITE ||
 	    zio->io_type == ZIO_TYPE_TRIM ||
-	    zio->io_type == ZIO_TYPE_IOCTL);
+	    zio->io_type == ZIO_TYPE_FLUSH);
 
 	cp = vd->vdev_tsd;
 	if (cp == NULL) {
@@ -1233,7 +1233,7 @@ vdev_geom_io_start(zio_t *zio)
 		bp->bio_offset = zio->io_offset;
 		bp->bio_length = zio->io_size;
 		break;
-	case ZIO_TYPE_IOCTL:
+	case ZIO_TYPE_FLUSH:
 		bp->bio_cmd = BIO_FLUSH;
 		bp->bio_data = NULL;
 		bp->bio_offset = cp->provider->mediasize;
