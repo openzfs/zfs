@@ -1631,11 +1631,9 @@ zio_flush(zio_t *pio, vdev_t *vd)
 		return;
 
 	if (vd->vdev_children == 0) {
-		zio_t *zio = zio_create(pio, vd->vdev_spa, 0, NULL, NULL, 0, 0,
+		zio_nowait(zio_create(pio, vd->vdev_spa, 0, NULL, NULL, 0, 0,
 		    NULL, NULL, ZIO_TYPE_IOCTL, ZIO_PRIORITY_NOW, flags, vd, 0,
-		    NULL, ZIO_STAGE_OPEN, ZIO_IOCTL_PIPELINE);
-		zio->io_cmd = DKIOCFLUSHWRITECACHE;
-		zio_nowait(zio);
+		    NULL, ZIO_STAGE_OPEN, ZIO_IOCTL_PIPELINE));
 	} else {
 		for (uint64_t c = 0; c < vd->vdev_children; c++)
 			zio_flush(pio, vd->vdev_child[c]);
@@ -4241,8 +4239,7 @@ zio_vdev_io_assess(zio_t *zio)
 	 * boolean flag so that we don't bother with it in the future.
 	 */
 	if ((zio->io_error == ENOTSUP || zio->io_error == ENOTTY) &&
-	    zio->io_type == ZIO_TYPE_IOCTL &&
-	    zio->io_cmd == DKIOCFLUSHWRITECACHE && vd != NULL)
+	    zio->io_type == ZIO_TYPE_IOCTL && vd != NULL)
 		vd->vdev_nowritecache = B_TRUE;
 
 	if (zio->io_error)

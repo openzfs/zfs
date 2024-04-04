@@ -451,7 +451,6 @@ struct zio {
 	zio_type_t	io_type;
 	enum zio_child	io_child_type;
 	enum trim_flag	io_trim_flags;
-	int		io_cmd;
 	zio_priority_t	io_priority;
 	uint8_t		io_reexecute;
 	uint8_t		io_state[ZIO_WAIT_TYPES];

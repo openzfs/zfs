@@ -31,7 +31,6 @@
 /* ZIO macros */
 #define	ZIO_TP_STRUCT_ENTRY						\
 		__field(zio_type_t,		zio_type)		\
-		__field(int,			zio_cmd)		\
 		__field(zio_priority_t,		zio_priority)		\
 		__field(uint64_t,		zio_size)		\
 		__field(uint64_t,		zio_orig_size)		\
@@ -61,7 +60,6 @@
 
 #define	ZIO_TP_FAST_ASSIGN						    \
 		__entry->zio_type		= zio->io_type;		    \
-		__entry->zio_cmd		= zio->io_cmd;		    \
 		__entry->zio_priority		= zio->io_priority;	    \
 		__entry->zio_size		= zio->io_size;		    \
 		__entry->zio_orig_size		= zio->io_orig_size;	    \
@@ -90,7 +88,7 @@
 		__entry->zp_dedup_verify	= zio->io_prop.zp_dedup_verify;
 
 #define	ZIO_TP_PRINTK_FMT						\
-	"zio { type %u cmd %i prio %u size %llu orig_size %llu "	\
+	"zio { type %u prio %u size %llu orig_size %llu "		\
 	"offset %llu timestamp %llu delta %llu delay %llu "		\
 	"flags 0x%llx stage 0x%x pipeline 0x%x orig_flags 0x%llx "	\
 	"orig_stage 0x%x orig_pipeline 0x%x reexecute %u "		\
@@ -98,7 +96,7 @@
 	"type %u level %u copies %u dedup %u dedup_verify %u nopwrite %u } }"
 
 #define	ZIO_TP_PRINTK_ARGS						\
-	__entry->zio_type, __entry->zio_cmd, __entry->zio_priority,	\
+	__entry->zio_type, __entry->zio_priority,			\
 	__entry->zio_size, __entry->zio_orig_size, __entry->zio_offset,	\
 	__entry->zio_timestamp, __entry->zio_delta, __entry->zio_delay,	\
 	__entry->zio_flags, __entry->zio_stage, __entry->zio_pipeline,	\

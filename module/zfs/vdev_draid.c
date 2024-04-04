@@ -2557,15 +2557,11 @@ vdev_draid_spare_ioctl(zio_t *zio)
 	vdev_t *vd = zio->io_vd;
 	int error = 0;
 
-	if (zio->io_cmd == DKIOCFLUSHWRITECACHE) {
-		for (int c = 0; c < vd->vdev_children; c++) {
-			zio_nowait(zio_vdev_child_io(zio, NULL,
-			    vd->vdev_child[c], zio->io_offset, zio->io_abd,
-			    zio->io_size, zio->io_type, zio->io_priority, 0,
-			    vdev_draid_spare_child_done, zio));
-		}
-	} else {
-		error = SET_ERROR(ENOTSUP);
+	for (int c = 0; c < vd->vdev_children; c++) {
+		zio_nowait(zio_vdev_child_io(zio, NULL,
+		    vd->vdev_child[c], zio->io_offset, zio->io_abd,
+		    zio->io_size, zio->io_type, zio->io_priority, 0,
+		    vdev_draid_spare_child_done, zio));
 	}
 
 	return (error);

@@ -255,14 +255,7 @@ vdev_file_io_start(zio_t *zio)
 			return;
 		}
 
-		switch (zio->io_cmd) {
-		case DKIOCFLUSHWRITECACHE:
-			zio->io_error = zfs_file_fsync(vf->vf_file,
-			    O_SYNC|O_DSYNC);
-			break;
-		default:
-			zio->io_error = SET_ERROR(ENOTSUP);
-		}
+		zio->io_error = zfs_file_fsync(vf->vf_file, O_SYNC|O_DSYNC);
 
 		zio_execute(zio);
 		return;
