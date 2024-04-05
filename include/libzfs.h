@@ -628,6 +628,8 @@ _LIBZFS_H int zprop_get_list(libzfs_handle_t *, char *, zprop_list_t **,
     zfs_type_t);
 _LIBZFS_H void zprop_free_list(zprop_list_t *);
 
+_LIBZFS_H void zcmd_print_json(nvlist_t *);
+
 #define	ZFS_GET_NCOLS	5
 
 typedef enum {
@@ -655,9 +657,12 @@ typedef struct zprop_get_cbdata {
 	boolean_t cb_scripted;
 	boolean_t cb_literal;
 	boolean_t cb_first;
+	boolean_t cb_json;
 	zprop_list_t *cb_proplist;
 	zfs_type_t cb_type;
 	vdev_cbdata_t cb_vdevs;
+	nvlist_t *cb_jsobj;
+	boolean_t cb_json_as_int;
 } zprop_get_cbdata_t;
 
 #define	ZFS_SET_NOMOUNT		1
@@ -670,6 +675,9 @@ typedef struct zprop_set_cbdata {
 _LIBZFS_H void zprop_print_one_property(const char *, zprop_get_cbdata_t *,
     const char *, const char *, zprop_source_t, const char *,
     const char *);
+
+_LIBZFS_H int zprop_nvlist_one_property(const char *, const char *,
+    zprop_source_t, const char *, const char *, nvlist_t *, boolean_t);
 
 /*
  * Iterator functions.
@@ -976,6 +984,7 @@ _LIBZFS_H boolean_t libzfs_envvar_is_set(const char *);
 _LIBZFS_H const char *zfs_version_userland(void);
 _LIBZFS_H char *zfs_version_kernel(void);
 _LIBZFS_H int zfs_version_print(void);
+_LIBZFS_H nvlist_t *zfs_version_nvlist(void);
 
 /*
  * Given a device or file, determine if it is part of a pool.
