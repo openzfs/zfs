@@ -265,7 +265,7 @@ usage(void)
 	    "\t\tspa_vdev_exit() will trigger a panic.\n"
 	    "\n"
 	    "\tzinject -d device [-e errno] [-L <nvlist|uber|pad1|pad2>] [-F]\n"
-	    "\t\t[-T <read|write|free|claim|all>] [-f frequency] pool\n\n"
+	    "\t\t[-T <read|write|free|claim|ioctl|all>] [-f frequency] pool\n\n"
 	    "\t\tInject a fault into a particular device or the device's\n"
 	    "\t\tlabel.  Label injection can either be 'nvlist', 'uber',\n "
 	    "\t\t'pad1', or 'pad2'.\n"
@@ -978,12 +978,14 @@ main(int argc, char **argv)
 				io_type = ZIO_TYPE_FREE;
 			} else if (strcasecmp(optarg, "claim") == 0) {
 				io_type = ZIO_TYPE_CLAIM;
+			} else if (strcasecmp(optarg, "ioctl") == 0) {
+				io_type = ZIO_TYPE_IOCTL;
 			} else if (strcasecmp(optarg, "all") == 0) {
 				io_type = ZIO_TYPES;
 			} else {
 				(void) fprintf(stderr, "invalid I/O type "
 				    "'%s': must be 'read', 'write', 'free', "
-				    "'claim' or 'all'\n", optarg);
+				    "'claim', 'ioctl' or 'all'\n", optarg);
 				usage();
 				libzfs_fini(g_zfs);
 				return (1);
