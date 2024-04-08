@@ -563,9 +563,11 @@ static inline boolean_t
 bdev_discard_supported(struct block_device *bdev)
 {
 #if defined(HAVE_BDEV_MAX_DISCARD_SECTORS)
-	return (!!bdev_max_discard_sectors(bdev));
+	return (bdev_max_discard_sectors(bdev) > 0 &&
+	    bdev_discard_granularity(bdev) > 0);
 #elif defined(HAVE_BLK_QUEUE_DISCARD)
-	return (!!blk_queue_discard(bdev_get_queue(bdev)));
+	return (blk_queue_discard(bdev_get_queue(bdev)) > 0 &&
+	    bdev_get_queue(bdev)->limits.discard_granularity > 0);
 #else
 #error "Unsupported kernel"
 #endif
