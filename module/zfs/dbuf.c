@@ -1563,7 +1563,7 @@ dbuf_read_impl(dmu_buf_impl_t *db, dnode_t *dn, zio_t *zio, uint32_t flags,
 	zbookmark_phys_t zb;
 	uint32_t aflags = ARC_FLAG_NOWAIT;
 	int err, zio_flags;
-	blkptr_t bp, *bpp;
+	blkptr_t bp, *bpp = NULL;
 
 	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
 	ASSERT(MUTEX_HELD(&db->db_mtx));
@@ -1577,29 +1577,28 @@ dbuf_read_impl(dmu_buf_impl_t *db, dnode_t *dn, zio_t *zio, uint32_t flags,
 		goto early_unlock;
 	}
 
-	if (db->db_state == DB_UNCACHED) {
-		if (db->db_blkptr == NULL) {
-			bpp = NULL;
-		} else {
-			bp = *db->db_blkptr;
+	/*
+	 * If we have a pending block clone, we don't want to read the
+	 * underlying block, but the content of the block being cloned,
+	 * pointed by the dirty record, so we have the most recent data.
+	 * If there is no dirty record, then we hit a race in a sync
+	 * process when the dirty record is already removed, while the
+	 * dbuf is not yet destroyed. Such case is equivalent to uncached.
+	 */
+	if (db->db_state == DB_NOFILL) {
+		dbuf_dirty_record_t *dr = list_head(&db->db_dirty_records);
+		if (dr != NULL) {
+			if (!dr->dt.dl.dr_brtwrite) {
+				err = EIO;
+				goto early_unlock;
+			}
+			bp = dr->dt.dl.dr_overridden_by;
 			bpp = &bp;
 		}
-	} else {
-		dbuf_dirty_record_t *dr;
+	}
 
-		ASSERT3S(db->db_state, ==, DB_NOFILL);
-
-		/*
-		 * Block cloning: If we have a pending block clone,
-		 * we don't want to read the underlying block, but the content
-		 * of the block being cloned, so we have the most recent data.
-		 */
-		dr = list_head(&db->db_dirty_records);
-		if (dr == NULL || !dr->dt.dl.dr_brtwrite) {
-			err = EIO;
-			goto early_unlock;
-		}
-		bp = dr->dt.dl.dr_overridden_by;
+	if (bpp == NULL && db->db_blkptr != NULL) {
+		bp = *db->db_blkptr;
 		bpp = &bp;
 	}
 
