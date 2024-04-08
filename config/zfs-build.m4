@@ -578,13 +578,15 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 
 	AC_MSG_CHECKING([default shell])
 	case "$VENDOR" in
-		gentoo)     DEFAULT_INIT_SHELL="/sbin/openrc-run";;
-		alpine)     DEFAULT_INIT_SHELL="/sbin/openrc-run";;
-		*)          DEFAULT_INIT_SHELL="/bin/sh"         ;;
+		gentoo|alpine)	DEFAULT_INIT_SHELL=/sbin/openrc-run
+				IS_SYSV_RC=false	;;
+		*)		DEFAULT_INIT_SHELL=/bin/sh
+				IS_SYSV_RC=true		;;
 	esac
 
 	AC_MSG_RESULT([$DEFAULT_INIT_SHELL])
 	AC_SUBST(DEFAULT_INIT_SHELL)
+	AC_SUBST(IS_SYSV_RC)
 
 	AC_MSG_CHECKING([default nfs server init script])
 	AS_IF([test "$VENDOR" = "debian"],
