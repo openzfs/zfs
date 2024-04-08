@@ -377,6 +377,14 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_MQ], [
 		(void) blk_mq_alloc_tag_set(&tag_set);
 		return BLK_STS_OK;
 	], [])
+	ZFS_LINUX_TEST_SRC([blk_mq_rq_hctx], [
+		#include <linux/blk-mq.h>
+		#include <linux/blkdev.h>
+	], [
+		struct request rq = {0};
+		struct blk_mq_hw_ctx *hctx = NULL;
+		rq.mq_hctx = hctx;
+	], [])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BLK_MQ], [
@@ -384,6 +392,13 @@ AC_DEFUN([ZFS_AC_KERNEL_BLK_MQ], [
 	ZFS_LINUX_TEST_RESULT([blk_mq], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_BLK_MQ, 1, [block multiqueue is available])
+		AC_MSG_CHECKING([whether block multiqueue hardware context is cached in struct request])
+		ZFS_LINUX_TEST_RESULT([blk_mq_rq_hctx], [
+			AC_MSG_RESULT(yes)
+			AC_DEFINE(HAVE_BLK_MQ_RQ_HCTX, 1, [block multiqueue hardware context is cached in struct request])
+		], [
+			AC_MSG_RESULT(no)
+		])
 	], [
 		AC_MSG_RESULT(no)
 	])
