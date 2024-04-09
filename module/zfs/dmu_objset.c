@@ -1633,7 +1633,7 @@ sync_dnodes_task(void *arg)
 	sync_dnodes_arg_t *sda = arg;
 
 	multilist_sublist_t *ms =
-	    multilist_sublist_lock(sda->sda_list, sda->sda_sublist_idx);
+	    multilist_sublist_lock_idx(sda->sda_list, sda->sda_sublist_idx);
 
 	dmu_objset_sync_dnodes(ms, sda->sda_tx);
 
@@ -1987,8 +1987,8 @@ userquota_updates_task(void *arg)
 	dnode_t *dn;
 	userquota_cache_t cache = { { 0 } };
 
-	multilist_sublist_t *list =
-	    multilist_sublist_lock(&os->os_synced_dnodes, uua->uua_sublist_idx);
+	multilist_sublist_t *list = multilist_sublist_lock_idx(
+	    &os->os_synced_dnodes, uua->uua_sublist_idx);
 
 	ASSERT(multilist_sublist_head(list) == NULL ||
 	    dmu_objset_userused_enabled(os));
@@ -2070,8 +2070,8 @@ dnode_rele_task(void *arg)
 	userquota_updates_arg_t *uua = arg;
 	objset_t *os = uua->uua_os;
 
-	multilist_sublist_t *list =
-	    multilist_sublist_lock(&os->os_synced_dnodes, uua->uua_sublist_idx);
+	multilist_sublist_t *list = multilist_sublist_lock_idx(
+	    &os->os_synced_dnodes, uua->uua_sublist_idx);
 
 	dnode_t *dn;
 	while ((dn = multilist_sublist_head(list)) != NULL) {
