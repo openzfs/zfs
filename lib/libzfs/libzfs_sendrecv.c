@@ -1053,6 +1053,7 @@ send_progress_thread(void *arg)
 		}
 	}
 	pthread_cleanup_pop(B_TRUE);
+	return (NULL);
 }
 
 static boolean_t
