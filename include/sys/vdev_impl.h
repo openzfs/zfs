@@ -455,7 +455,7 @@ struct vdev {
 	zfs_ratelimit_t vdev_checksum_rl;
 
 	/*
-	 * Vdev properties for tuning ZED
+	 * Vdev properties for tuning ZED or zfsd
 	 */
 	uint64_t	vdev_checksum_n;
 	uint64_t	vdev_checksum_t;

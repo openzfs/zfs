@@ -24,8 +24,6 @@
 #include <sys/types.h>
 #include <sys/sysmacros.h>
 
-typedef int bool_t;
-
 /*
  * XDR enums and types.
  */

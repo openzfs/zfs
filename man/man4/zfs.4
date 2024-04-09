@@ -564,6 +564,10 @@ However, this is limited by
 Maximum micro ZAP size.
 A micro ZAP is upgraded to a fat ZAP, once it grows beyond the specified size.
 .
+.It Sy zfetch_hole_shift Ns = Ns Sy 2 Pq uint
+Log2 fraction of holes in speculative prefetch stream allowed for it to
+proceed.
+.
 .It Sy zfetch_min_distance Ns = Ns Sy 4194304 Ns B Po 4 MiB Pc Pq uint
 Min bytes to prefetch per stream.
 Prefetch distance starts from the demand access size and quickly grows to
@@ -577,6 +581,13 @@ Max bytes to prefetch per stream.
 .
 .It Sy zfetch_max_idistance Ns = Ns Sy 67108864 Ns B Po 64 MiB Pc Pq uint
 Max bytes to prefetch indirects for per stream.
+.
+.It Sy zfetch_max_reorder Ns = Ns Sy 16777216 Ns B Po 16 MiB Pc Pq uint
+Requests within this byte distance from the current prefetch stream position
+are considered parts of the stream, reordered due to parallel processing.
+Such requests do not advance the stream position immediately unless
+.Sy zfetch_hole_shift
+fill threshold is reached, but saved to fill holes in the stream later.
 .
 .It Sy zfetch_max_streams Ns = Ns Sy 8 Pq uint
 Max number of streams per zfetch (prefetch streams per file).
@@ -2386,6 +2397,13 @@ The number of requests which can be handled concurrently is controlled by
 .Sy zvol_request_sync
 is ignored when running on a kernel that supports block multiqueue
 .Pq Li blk-mq .
+.
+.It Sy zvol_num_taskqs Ns = Ns Sy 0 Pq uint
+Number of zvol taskqs.
+If
+.Sy 0
+(the default) then scaling is done internally to prefer 6 threads per taskq.
+This only applies on Linux.
 .
 .It Sy zvol_threads Ns = Ns Sy 0 Pq uint
 The number of system wide threads to use for processing zvol block IOs.

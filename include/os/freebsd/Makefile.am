@@ -4,8 +4,6 @@ noinst_HEADERS = \
 	\
 	%D%/spl/acl/acl_common.h \
 	\
-	%D%/spl/rpc/xdr.h \
-	\
 	%D%/spl/sys/ia32/asm_linkage.h \
 	\
 	%D%/spl/sys/acl.h \

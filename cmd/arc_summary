@@ -793,18 +793,27 @@ def section_dmu(kstats_dict):
 
     zfetch_stats = isolate_section('zfetchstats', kstats_dict)
 
-    zfetch_access_total = int(zfetch_stats['hits'])+int(zfetch_stats['misses'])
+    zfetch_access_total = int(zfetch_stats['hits']) +\
+        int(zfetch_stats['future']) + int(zfetch_stats['stride']) +\
+        int(zfetch_stats['past']) + int(zfetch_stats['misses'])
 
     prt_1('DMU predictive prefetcher calls:', f_hits(zfetch_access_total))
     prt_i2('Stream hits:',
            f_perc(zfetch_stats['hits'], zfetch_access_total),
            f_hits(zfetch_stats['hits']))
+    future = int(zfetch_stats['future']) + int(zfetch_stats['stride'])
+    prt_i2('Hits ahead of stream:', f_perc(future, zfetch_access_total),
+           f_hits(future))
+    prt_i2('Hits behind stream:',
+           f_perc(zfetch_stats['past'], zfetch_access_total),
+           f_hits(zfetch_stats['past']))
     prt_i2('Stream misses:',
            f_perc(zfetch_stats['misses'], zfetch_access_total),
            f_hits(zfetch_stats['misses']))
     prt_i2('Streams limit reached:',
            f_perc(zfetch_stats['max_streams'], zfetch_stats['misses']),
            f_hits(zfetch_stats['max_streams']))
+    prt_i1('Stream strides:', f_hits(zfetch_stats['stride']))
     prt_i1('Prefetches issued', f_hits(zfetch_stats['io_issued']))
     print()
 

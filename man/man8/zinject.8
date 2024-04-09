@@ -19,10 +19,11 @@
 .\" CDDL HEADER END
 .\"
 .\" Copyright 2013 Darik Horn <dajhorn@vanadac.com>. All rights reserved.
+.\" Copyright (c) 2024, Klara Inc.
 .\"
 .\" lint-ok: WARNING: sections out of conventional order: Sh SYNOPSIS
 .\"
-.Dd May 26, 2021
+.Dd April 4, 2024
 .Dt ZINJECT 8
 .Os
 .
@@ -257,6 +258,7 @@ Run for this many seconds before reporting failure.
 .It Fl T Ar failure
 Set the failure type to one of
 .Sy all ,
+.Sy ioctl ,
 .Sy claim ,
 .Sy free ,
 .Sy read ,
