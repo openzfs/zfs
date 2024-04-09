@@ -418,8 +418,8 @@ dmu_zfetch_future(zstream_t *zs, uint64_t blkid, uint64_t nblks)
 				zs->zs_ranges[f].start = zs->zs_ranges[l].start;
 				zs->zs_ranges[f].end = zs->zs_ranges[l].end;
 			}
-			zs->zs_ranges[ZFETCH_RANGES - 1].start = 0;
-			zs->zs_ranges[ZFETCH_RANGES - 1].end = 0;
+			zs->zs_ranges[f].start = 0;
+			zs->zs_ranges[f].end = 0;
 		}
 	} else if (i < ZFETCH_RANGES) {
 		/* Got no intersecting ranges, insert new one. */
