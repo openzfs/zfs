@@ -37,6 +37,7 @@
 #include <sys/spa_impl.h>
 #include <sys/zvol.h>
 #include <sys/zvol_impl.h>
+#include <cityhash.h>
 
 #include <linux/blkdev_compat.h>
 #include <linux/task_io_accounting_ops.h>
@@ -52,6 +53,12 @@ static unsigned int zvol_major = ZVOL_MAJOR;
 static unsigned int zvol_request_sync = 0;
 static unsigned int zvol_prefetch_bytes = (128 * 1024);
 static unsigned long zvol_max_discard_blocks = 16384;
+
+/*
+ * Switch taskq at multiple of 512 MB offset. This can be set to a lower value
+ * to utilize more threads for small files but may affect prefetch hits.
+ */
+#define	ZVOL_TASKQ_OFFSET_SHIFT 29
 
 #ifndef HAVE_BLKDEV_GET_ERESTARTSYS
 static unsigned int zvol_open_timeout_ms = 1000;
@@ -75,6 +82,8 @@ static boolean_t zvol_use_blk_mq = B_FALSE;
  */
 static unsigned int zvol_blk_mq_blocks_per_thread = 8;
 #endif
+
+static unsigned int zvol_num_taskqs = 0;
 
 #ifndef	BLKDEV_DEFAULT_RQ
 /* BLKDEV_MAX_RQ was renamed to BLKDEV_DEFAULT_RQ in the 5.16 kernel */
@@ -114,7 +123,11 @@ struct zvol_state_os {
 	boolean_t use_blk_mq;
 };
 
-static taskq_t *zvol_taskq;
+typedef struct zv_taskq {
+	uint_t tqs_cnt;
+	taskq_t **tqs_taskq;
+} zv_taskq_t;
+static zv_taskq_t zvol_taskqs;
 static struct ida zvol_ida;
 
 typedef struct zv_request_stack {
@@ -532,6 +545,22 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 	}
 
 	zv_request_task_t *task;
+	zv_taskq_t *ztqs = &zvol_taskqs;
+	uint_t blk_mq_hw_queue = 0;
+	uint_t tq_idx;
+	uint_t taskq_hash;
+#ifdef HAVE_BLK_MQ
+	if (rq)
+#ifdef HAVE_BLK_MQ_RQ_HCTX
+		blk_mq_hw_queue = rq->mq_hctx->queue_num;
+#else
+		blk_mq_hw_queue =
+		    rq->q->queue_hw_ctx[rq->q->mq_map[rq->cpu]]->queue_num;
+#endif
+#endif
+	taskq_hash = cityhash4((uintptr_t)zv, offset >> ZVOL_TASKQ_OFFSET_SHIFT,
+	    blk_mq_hw_queue, 0);
+	tq_idx = taskq_hash % ztqs->tqs_cnt;
 
 	if (rw == WRITE) {
 		if (unlikely(zv->zv_flags & ZVOL_RDONLY)) {
@@ -601,7 +630,7 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 				zvol_discard(&zvr);
 			} else {
 				task = zv_request_task_create(zvr);
-				taskq_dispatch_ent(zvol_taskq,
+				taskq_dispatch_ent(ztqs->tqs_taskq[tq_idx],
 				    zvol_discard_task, task, 0, &task->ent);
 			}
 		} else {
@@ -609,7 +638,7 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 				zvol_write(&zvr);
 			} else {
 				task = zv_request_task_create(zvr);
-				taskq_dispatch_ent(zvol_taskq,
+				taskq_dispatch_ent(ztqs->tqs_taskq[tq_idx],
 				    zvol_write_task, task, 0, &task->ent);
 			}
 		}
@@ -631,7 +660,7 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 			zvol_read(&zvr);
 		} else {
 			task = zv_request_task_create(zvr);
-			taskq_dispatch_ent(zvol_taskq,
+			taskq_dispatch_ent(ztqs->tqs_taskq[tq_idx],
 			    zvol_read_task, task, 0, &task->ent);
 		}
 	}
@@ -1055,6 +1084,16 @@ zvol_alloc_non_blk_mq(struct zvol_state_os *zso)
 
 	zso->zvo_disk->minors = ZVOL_MINORS;
 	zso->zvo_queue = zso->zvo_disk->queue;
+#elif defined(HAVE_BLK_ALLOC_DISK_2ARG)
+	struct gendisk *disk = blk_alloc_disk(NULL, NUMA_NO_NODE);
+	if (IS_ERR(disk)) {
+		zso->zvo_disk = NULL;
+		return (1);
+	}
+
+	zso->zvo_disk = disk;
+	zso->zvo_disk->minors = ZVOL_MINORS;
+	zso->zvo_queue = zso->zvo_disk->queue;
 #else
 	zso->zvo_queue = blk_alloc_queue(NUMA_NO_NODE);
 	if (zso->zvo_queue == NULL)
@@ -1101,6 +1140,17 @@ zvol_alloc_blk_mq(zvol_state_t *zv)
 		blk_mq_free_tag_set(&zso->tag_set);
 		return (1);
 	}
+	zso->zvo_queue = zso->zvo_disk->queue;
+	zso->zvo_disk->minors = ZVOL_MINORS;
+#elif defined(HAVE_BLK_ALLOC_DISK_2ARG)
+	struct gendisk *disk = blk_mq_alloc_disk(&zso->tag_set, NULL, zv);
+	if (IS_ERR(disk)) {
+		zso->zvo_disk = NULL;
+		blk_mq_free_tag_set(&zso->tag_set);
+		return (1);
+	}
+
+	zso->zvo_disk = disk;
 	zso->zvo_queue = zso->zvo_disk->queue;
 	zso->zvo_disk->minors = ZVOL_MINORS;
 #else
@@ -1256,7 +1306,7 @@ zvol_os_free(zvol_state_t *zv)
 
 	del_gendisk(zv->zv_zso->zvo_disk);
 #if defined(HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS) && \
-	defined(HAVE_BLK_ALLOC_DISK)
+	(defined(HAVE_BLK_ALLOC_DISK) || defined(HAVE_BLK_ALLOC_DISK_2ARG))
 #if defined(HAVE_BLK_CLEANUP_DISK)
 	blk_cleanup_disk(zv->zv_zso->zvo_disk);
 #else
@@ -1577,8 +1627,40 @@ zvol_init(void)
 		zvol_actual_threads = MIN(MAX(zvol_threads, 1), 1024);
 	}
 
+	/*
+	 * Use atleast 32 zvol_threads but for many core system,
+	 * prefer 6 threads per taskq, but no more taskqs
+	 * than threads in them on large systems.
+	 *
+	 *                 taskq   total
+	 * cpus    taskqs  threads threads
+	 * ------- ------- ------- -------
+	 * 1       1       32       32
+	 * 2       1       32       32
+	 * 4       1       32       32
+	 * 8       2       16       32
+	 * 16      3       11       33
+	 * 32      5       7        35
+	 * 64      8       8        64
+	 * 128     11      12       132
+	 * 256     16      16       256
+	 */
+	zv_taskq_t *ztqs = &zvol_taskqs;
+	uint_t num_tqs = MIN(num_online_cpus(), zvol_num_taskqs);
+	if (num_tqs == 0) {
+		num_tqs = 1 + num_online_cpus() / 6;
+		while (num_tqs * num_tqs > zvol_actual_threads)
+			num_tqs--;
+	}
+	uint_t per_tq_thread = zvol_actual_threads / num_tqs;
+	if (per_tq_thread * num_tqs < zvol_actual_threads)
+		per_tq_thread++;
+	ztqs->tqs_cnt = num_tqs;
+	ztqs->tqs_taskq = kmem_alloc(num_tqs * sizeof (taskq_t *), KM_SLEEP);
 	error = register_blkdev(zvol_major, ZVOL_DRIVER);
 	if (error) {
+		kmem_free(ztqs->tqs_taskq, ztqs->tqs_cnt * sizeof (taskq_t *));
+		ztqs->tqs_taskq = NULL;
 		printk(KERN_INFO "ZFS: register_blkdev() failed %d\n", error);
 		return (error);
 	}
@@ -1598,11 +1680,22 @@ zvol_init(void)
 		    1024);
 	}
 #endif
-	zvol_taskq = taskq_create(ZVOL_DRIVER, zvol_actual_threads, maxclsyspri,
-	    zvol_actual_threads, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
-	if (zvol_taskq == NULL) {
-		unregister_blkdev(zvol_major, ZVOL_DRIVER);
-		return (-ENOMEM);
+	for (uint_t i = 0; i < num_tqs; i++) {
+		char name[32];
+		(void) snprintf(name, sizeof (name), "%s_tq-%u",
+		    ZVOL_DRIVER, i);
+		ztqs->tqs_taskq[i] = taskq_create(name, per_tq_thread,
+		    maxclsyspri, per_tq_thread, INT_MAX,
+		    TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
+		if (ztqs->tqs_taskq[i] == NULL) {
+			for (int j = i - 1; j >= 0; j--)
+				taskq_destroy(ztqs->tqs_taskq[j]);
+			unregister_blkdev(zvol_major, ZVOL_DRIVER);
+			kmem_free(ztqs->tqs_taskq, ztqs->tqs_cnt *
+			    sizeof (taskq_t *));
+			ztqs->tqs_taskq = NULL;
+			return (-ENOMEM);
+		}
 	}
 
 	zvol_init_impl();
@@ -1613,9 +1706,22 @@ zvol_init(void)
 void
 zvol_fini(void)
 {
+	zv_taskq_t *ztqs = &zvol_taskqs;
 	zvol_fini_impl();
 	unregister_blkdev(zvol_major, ZVOL_DRIVER);
-	taskq_destroy(zvol_taskq);
+
+	if (ztqs->tqs_taskq == NULL) {
+		ASSERT3U(ztqs->tqs_cnt, ==, 0);
+	} else {
+		for (uint_t i = 0; i < ztqs->tqs_cnt; i++) {
+			ASSERT3P(ztqs->tqs_taskq[i], !=, NULL);
+			taskq_destroy(ztqs->tqs_taskq[i]);
+		}
+		kmem_free(ztqs->tqs_taskq, ztqs->tqs_cnt *
+		    sizeof (taskq_t *));
+		ztqs->tqs_taskq = NULL;
+	}
+
 	ida_destroy(&zvol_ida);
 }
 
@@ -1635,6 +1741,9 @@ MODULE_PARM_DESC(zvol_request_sync, "Synchronously handle bio requests");
 
 module_param(zvol_max_discard_blocks, ulong, 0444);
 MODULE_PARM_DESC(zvol_max_discard_blocks, "Max number of blocks to discard");
+
+module_param(zvol_num_taskqs, uint, 0444);
+MODULE_PARM_DESC(zvol_num_taskqs, "Number of zvol taskqs");
 
 module_param(zvol_prefetch_bytes, uint, 0644);
 MODULE_PARM_DESC(zvol_prefetch_bytes, "Prefetch N bytes at zvol start+end");

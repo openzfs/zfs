@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
+ * Copyright (c) 2024, Klara Inc.
  */
 
 /*
@@ -208,6 +209,37 @@ type_to_name(uint64_t type)
 	}
 }
 
+struct errstr {
+	int		err;
+	const char	*str;
+};
+static const struct errstr errstrtable[] = {
+	{ EIO,		"io" },
+	{ ECKSUM,	"checksum" },
+	{ EINVAL,	"decompress" },
+	{ EACCES,	"decrypt" },
+	{ ENXIO,	"nxio" },
+	{ ECHILD,	"dtl" },
+	{ EILSEQ,	"corrupt" },
+	{ 0, NULL },
+};
+
+static int
+str_to_err(const char *str)
+{
+	for (int i = 0; errstrtable[i].str != NULL; i++)
+		if (strcasecmp(errstrtable[i].str, str) == 0)
+			return (errstrtable[i].err);
+	return (-1);
+}
+static const char *
+err_to_str(int err)
+{
+	for (int i = 0; errstrtable[i].str != NULL; i++)
+		if (errstrtable[i].err == err)
+			return (errstrtable[i].str);
+	return ("[unknown]");
+}
 
 /*
  * Print usage message.
@@ -233,7 +265,7 @@ usage(void)
 	    "\t\tspa_vdev_exit() will trigger a panic.\n"
 	    "\n"
 	    "\tzinject -d device [-e errno] [-L <nvlist|uber|pad1|pad2>] [-F]\n"
-	    "\t\t[-T <read|write|free|claim|all>] [-f frequency] pool\n\n"
+	    "\t\t[-T <read|write|free|claim|ioctl|all>] [-f frequency] pool\n\n"
 	    "\t\tInject a fault into a particular device or the device's\n"
 	    "\t\tlabel.  Label injection can either be 'nvlist', 'uber',\n "
 	    "\t\t'pad1', or 'pad2'.\n"
@@ -392,6 +424,10 @@ static int
 print_device_handler(int id, const char *pool, zinject_record_t *record,
     void *data)
 {
+	static const char *iotypestr[] = {
+	    "null", "read", "write", "free", "claim", "ioctl", "trim", "all",
+	};
+
 	int *count = data;
 
 	if (record->zi_guid == 0 || record->zi_func[0] != '\0')
@@ -401,14 +437,21 @@ print_device_handler(int id, const char *pool, zinject_record_t *record,
 		return (0);
 
 	if (*count == 0) {
-		(void) printf("%3s  %-15s  %s\n", "ID", "POOL", "GUID");
-		(void) printf("---  ---------------  ----------------\n");
+		(void) printf("%3s  %-15s  %-16s  %-5s  %-10s  %-9s\n",
+		    "ID", "POOL", "GUID", "TYPE", "ERROR", "FREQ");
+		(void) printf(
+		    "---  ---------------  ----------------  "
+		    "-----  ----------  ---------\n");
 	}
 
 	*count += 1;
 
-	(void) printf("%3d  %-15s  %llx\n", id, pool,
-	    (u_longlong_t)record->zi_guid);
+	double freq = record->zi_freq == 0 ? 100.0f :
+	    (((double)record->zi_freq) / ZI_PERCENTAGE_MAX) * 100.0f;
+
+	(void) printf("%3d  %-15s  %llx  %-5s  %-10s  %8.4f%%\n", id, pool,
+	    (u_longlong_t)record->zi_guid, iotypestr[record->zi_iotype],
+	    err_to_str(record->zi_error), freq);
 
 	return (0);
 }
@@ -842,24 +885,12 @@ main(int argc, char **argv)
 			}
 			break;
 		case 'e':
-			if (strcasecmp(optarg, "io") == 0) {
-				error = EIO;
-			} else if (strcasecmp(optarg, "checksum") == 0) {
-				error = ECKSUM;
-			} else if (strcasecmp(optarg, "decompress") == 0) {
-				error = EINVAL;
-			} else if (strcasecmp(optarg, "decrypt") == 0) {
-				error = EACCES;
-			} else if (strcasecmp(optarg, "nxio") == 0) {
-				error = ENXIO;
-			} else if (strcasecmp(optarg, "dtl") == 0) {
-				error = ECHILD;
-			} else if (strcasecmp(optarg, "corrupt") == 0) {
-				error = EILSEQ;
-			} else {
+			error = str_to_err(optarg);
+			if (error < 0) {
 				(void) fprintf(stderr, "invalid error type "
-				    "'%s': must be 'io', 'checksum' or "
-				    "'nxio'\n", optarg);
+				    "'%s': must be one of: io decompress "
+				    "decrypt nxio dtl corrupt\n",
+				    optarg);
 				usage();
 				libzfs_fini(g_zfs);
 				return (1);
@@ -947,12 +978,14 @@ main(int argc, char **argv)
 				io_type = ZIO_TYPE_FREE;
 			} else if (strcasecmp(optarg, "claim") == 0) {
 				io_type = ZIO_TYPE_CLAIM;
+			} else if (strcasecmp(optarg, "ioctl") == 0) {
+				io_type = ZIO_TYPE_IOCTL;
 			} else if (strcasecmp(optarg, "all") == 0) {
 				io_type = ZIO_TYPES;
 			} else {
 				(void) fprintf(stderr, "invalid I/O type "
 				    "'%s': must be 'read', 'write', 'free', "
-				    "'claim' or 'all'\n", optarg);
+				    "'claim', 'ioctl' or 'all'\n", optarg);
 				usage();
 				libzfs_fini(g_zfs);
 				return (1);

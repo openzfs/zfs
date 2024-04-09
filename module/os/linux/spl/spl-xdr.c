@@ -25,6 +25,7 @@
 #include <sys/debug.h>
 #include <sys/types.h>
 #include <sys/sysmacros.h>
+#include <rpc/types.h>
 #include <rpc/xdr.h>
 
 /*

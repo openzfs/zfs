@@ -606,6 +606,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/clean_mirror/clean_mirror_004_pos.ksh \
 	functional/clean_mirror/cleanup.ksh \
 	functional/clean_mirror/setup.ksh \
+	functional/cli_root/zinject/zinject_args.ksh \
 	functional/cli_root/zdb/zdb_002_pos.ksh \
 	functional/cli_root/zdb/zdb_003_pos.ksh \
 	functional/cli_root/zdb/zdb_004_pos.ksh \

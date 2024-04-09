@@ -54,6 +54,26 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_OPEN_BY_PATH], [
 	])
 ])
 
+dnl #
+dnl # 6.9.x API change
+dnl # bdev_file_open_by_path() replaced bdev_open_by_path(),
+dnl # and returns struct file*
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_BDEV_FILE_OPEN_BY_PATH], [
+	ZFS_LINUX_TEST_SRC([bdev_file_open_by_path], [
+		#include <linux/fs.h>
+		#include <linux/blkdev.h>
+	], [
+		struct file *file __attribute__ ((unused)) = NULL;
+		const char *path = "path";
+		fmode_t mode = 0;
+		void *holder = NULL;
+		struct blk_holder_ops h;
+
+		file = bdev_file_open_by_path(path, mode, holder, &h);
+	])
+])
+
 AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_GET_BY_PATH], [
 	AC_MSG_CHECKING([whether blkdev_get_by_path() exists and takes 3 args])
 	ZFS_LINUX_TEST_RESULT([blkdev_get_by_path], [
@@ -73,7 +93,16 @@ AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_GET_BY_PATH], [
 					[bdev_open_by_path() exists])
 				AC_MSG_RESULT(yes)
 			], [
-				ZFS_LINUX_TEST_ERROR([blkdev_get_by_path()])
+				AC_MSG_RESULT(no)
+				AC_MSG_CHECKING([whether bdev_file_open_by_path() exists])
+				ZFS_LINUX_TEST_RESULT([bdev_file_open_by_path], [
+					AC_DEFINE(HAVE_BDEV_FILE_OPEN_BY_PATH, 1,
+						[bdev_file_open_by_path() exists])
+					AC_MSG_RESULT(yes)
+				], [
+					AC_MSG_RESULT(no)
+					ZFS_LINUX_TEST_ERROR([blkdev_get_by_path()])
+				])
 			])
 		])
 	])
@@ -149,10 +178,19 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_RELEASE], [
 	])
 ])
 
+dnl #
+dnl # 6.9.x API change
+dnl #
+dnl # bdev_release() now private, but because bdev_file_open_by_path() returns
+dnl # struct file*, we can just use fput(). So the blkdev_put test no longer
+dnl # fails if not found.
+dnl #
+
 AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_PUT], [
 	AC_MSG_CHECKING([whether blkdev_put() exists])
 	ZFS_LINUX_TEST_RESULT([blkdev_put], [
 		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_BLKDEV_PUT, 1, [blkdev_put() exists])
 	], [
 		AC_MSG_RESULT(no)
 		AC_MSG_CHECKING([whether blkdev_put() accepts void* as arg 2])
@@ -168,7 +206,7 @@ AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_PUT], [
 				AC_DEFINE(HAVE_BDEV_RELEASE, 1,
 					[bdev_release() exists])
 			], [
-				ZFS_LINUX_TEST_ERROR([blkdev_put()])
+				AC_MSG_RESULT(no)
 			])
 		])
 	])
@@ -523,12 +561,29 @@ AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_BDEVNAME], [
 ])
 
 dnl #
-dnl # 5.19 API: blkdev_issue_secure_erase()
-dnl # 4.7  API: __blkdev_issue_discard(..., BLKDEV_DISCARD_SECURE)
-dnl # 3.10 API: blkdev_issue_discard(..., BLKDEV_DISCARD_SECURE)
+dnl # TRIM support: discard and secure erase. We make use of asynchronous
+dnl #               functions when available.
 dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_ISSUE_SECURE_ERASE], [
-	ZFS_LINUX_TEST_SRC([blkdev_issue_secure_erase], [
+dnl # 3.10:
+dnl #   sync discard:  blkdev_issue_discard(..., 0)
+dnl #   sync erase:    blkdev_issue_discard(..., BLKDEV_DISCARD_SECURE)
+dnl #   async discard: [not available]
+dnl #   async erase:   [not available]
+dnl #
+dnl # 4.7:
+dnl #   sync discard:  blkdev_issue_discard(..., 0)
+dnl #   sync erase:    blkdev_issue_discard(..., BLKDEV_DISCARD_SECURE)
+dnl #   async discard: __blkdev_issue_discard(..., 0)
+dnl #   async erase:   __blkdev_issue_discard(..., BLKDEV_DISCARD_SECURE)
+dnl #
+dnl # 5.19:
+dnl #   sync discard:  blkdev_issue_discard(...)
+dnl #   sync erase:    blkdev_issue_secure_erase(...)
+dnl #   async discard: __blkdev_issue_discard(...)
+dnl #   async erase:   [not available]
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_ISSUE_DISCARD], [
+	ZFS_LINUX_TEST_SRC([blkdev_issue_discard_noflags], [
 		#include <linux/blkdev.h>
 	],[
 		struct block_device *bdev = NULL;
@@ -536,10 +591,33 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_ISSUE_SECURE_ERASE], [
 		sector_t nr_sects = 0;
 		int error __attribute__ ((unused));
 
-		error = blkdev_issue_secure_erase(bdev,
+		error = blkdev_issue_discard(bdev,
 		    sector, nr_sects, GFP_KERNEL);
 	])
+	ZFS_LINUX_TEST_SRC([blkdev_issue_discard_flags], [
+		#include <linux/blkdev.h>
+	],[
+		struct block_device *bdev = NULL;
+		sector_t sector = 0;
+		sector_t nr_sects = 0;
+		unsigned long flags = 0;
+		int error __attribute__ ((unused));
 
+		error = blkdev_issue_discard(bdev,
+		    sector, nr_sects, GFP_KERNEL, flags);
+	])
+	ZFS_LINUX_TEST_SRC([blkdev_issue_discard_async_noflags], [
+		#include <linux/blkdev.h>
+	],[
+		struct block_device *bdev = NULL;
+		sector_t sector = 0;
+		sector_t nr_sects = 0;
+		struct bio *biop = NULL;
+		int error __attribute__ ((unused));
+
+		error = __blkdev_issue_discard(bdev,
+		    sector, nr_sects, GFP_KERNEL, &biop);
+	])
 	ZFS_LINUX_TEST_SRC([blkdev_issue_discard_async_flags], [
 		#include <linux/blkdev.h>
 	],[
@@ -553,22 +631,52 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_ISSUE_SECURE_ERASE], [
 		error = __blkdev_issue_discard(bdev,
 		    sector, nr_sects, GFP_KERNEL, flags, &biop);
 	])
-
-	ZFS_LINUX_TEST_SRC([blkdev_issue_discard_flags], [
+	ZFS_LINUX_TEST_SRC([blkdev_issue_secure_erase], [
 		#include <linux/blkdev.h>
 	],[
 		struct block_device *bdev = NULL;
 		sector_t sector = 0;
 		sector_t nr_sects = 0;
-		unsigned long flags = 0;
 		int error __attribute__ ((unused));
 
-		error = blkdev_issue_discard(bdev,
-		    sector, nr_sects, GFP_KERNEL, flags);
+		error = blkdev_issue_secure_erase(bdev,
+		    sector, nr_sects, GFP_KERNEL);
 	])
 ])
 
-AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_ISSUE_SECURE_ERASE], [
+AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_ISSUE_DISCARD], [
+	AC_MSG_CHECKING([whether blkdev_issue_discard() is available])
+	ZFS_LINUX_TEST_RESULT([blkdev_issue_discard_noflags], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_BLKDEV_ISSUE_DISCARD_NOFLAGS, 1,
+		    [blkdev_issue_discard() is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
+	AC_MSG_CHECKING([whether blkdev_issue_discard(flags) is available])
+	ZFS_LINUX_TEST_RESULT([blkdev_issue_discard_flags], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_BLKDEV_ISSUE_DISCARD_FLAGS, 1,
+		    [blkdev_issue_discard(flags) is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
+	AC_MSG_CHECKING([whether __blkdev_issue_discard() is available])
+	ZFS_LINUX_TEST_RESULT([blkdev_issue_discard_async_noflags], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_BLKDEV_ISSUE_DISCARD_ASYNC_NOFLAGS, 1,
+		    [__blkdev_issue_discard() is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
+	AC_MSG_CHECKING([whether __blkdev_issue_discard(flags) is available])
+	ZFS_LINUX_TEST_RESULT([blkdev_issue_discard_async_flags], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_BLKDEV_ISSUE_DISCARD_ASYNC_FLAGS, 1,
+		    [__blkdev_issue_discard(flags) is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
 	AC_MSG_CHECKING([whether blkdev_issue_secure_erase() is available])
 	ZFS_LINUX_TEST_RESULT([blkdev_issue_secure_erase], [
 		AC_MSG_RESULT(yes)
@@ -576,24 +684,6 @@ AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_ISSUE_SECURE_ERASE], [
 		    [blkdev_issue_secure_erase() is available])
 	],[
 		AC_MSG_RESULT(no)
-
-		AC_MSG_CHECKING([whether __blkdev_issue_discard() is available])
-		ZFS_LINUX_TEST_RESULT([blkdev_issue_discard_async_flags], [
-			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_BLKDEV_ISSUE_DISCARD_ASYNC, 1,
-			    [__blkdev_issue_discard() is available])
-		],[
-			AC_MSG_RESULT(no)
-
-			AC_MSG_CHECKING([whether blkdev_issue_discard() is available])
-			ZFS_LINUX_TEST_RESULT([blkdev_issue_discard_flags], [
-				AC_MSG_RESULT(yes)
-				AC_DEFINE(HAVE_BLKDEV_ISSUE_DISCARD, 1,
-					[blkdev_issue_discard() is available])
-			],[
-				ZFS_LINUX_TEST_ERROR([blkdev_issue_discard()])
-			])
-		])
 	])
 ])
 
@@ -645,6 +735,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV], [
 	ZFS_AC_KERNEL_SRC_BLKDEV_GET_BY_PATH
 	ZFS_AC_KERNEL_SRC_BLKDEV_GET_BY_PATH_4ARG
 	ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_OPEN_BY_PATH
+	ZFS_AC_KERNEL_SRC_BDEV_FILE_OPEN_BY_PATH
 	ZFS_AC_KERNEL_SRC_BLKDEV_PUT
 	ZFS_AC_KERNEL_SRC_BLKDEV_PUT_HOLDER
 	ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_RELEASE
@@ -657,7 +748,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV], [
 	ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_CHECK_MEDIA_CHANGE
 	ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_WHOLE
 	ZFS_AC_KERNEL_SRC_BLKDEV_BDEVNAME
-	ZFS_AC_KERNEL_SRC_BLKDEV_ISSUE_SECURE_ERASE
+	ZFS_AC_KERNEL_SRC_BLKDEV_ISSUE_DISCARD
 	ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_KOBJ
 	ZFS_AC_KERNEL_SRC_BLKDEV_PART_TO_DEV
 	ZFS_AC_KERNEL_SRC_BLKDEV_DISK_CHECK_MEDIA_CHANGE
@@ -678,7 +769,7 @@ AC_DEFUN([ZFS_AC_KERNEL_BLKDEV], [
 	ZFS_AC_KERNEL_BLKDEV_BDEV_WHOLE
 	ZFS_AC_KERNEL_BLKDEV_BDEVNAME
 	ZFS_AC_KERNEL_BLKDEV_GET_ERESTARTSYS
-	ZFS_AC_KERNEL_BLKDEV_ISSUE_SECURE_ERASE
+	ZFS_AC_KERNEL_BLKDEV_ISSUE_DISCARD
 	ZFS_AC_KERNEL_BLKDEV_BDEV_KOBJ
 	ZFS_AC_KERNEL_BLKDEV_PART_TO_DEV
 	ZFS_AC_KERNEL_BLKDEV_DISK_CHECK_MEDIA_CHANGE
