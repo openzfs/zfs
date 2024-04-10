@@ -599,6 +599,12 @@ tags = ['functional', 'truncate']
 tests = ['upgrade_userobj_001_pos', 'upgrade_readonly_pool']
 tags = ['functional', 'upgrade']
 
+[tests/functional/vdev_disk:Linux]
+pre =
+post =
+tests = ['page_alignment']
+tags = ['functional', 'vdev_disk']
+
 [tests/functional/vdev_zaps]
 tests = ['vdev_zaps_001_pos', 'vdev_zaps_003_pos', 'vdev_zaps_004_pos',
     'vdev_zaps_005_pos', 'vdev_zaps_006_pos']
