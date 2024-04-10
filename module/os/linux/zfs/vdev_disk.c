@@ -853,6 +853,11 @@ BIO_END_IO_PROTO(vbio_completion, bio, error)
  * pages) but we still have to ensure the data portion is correctly sized and
  * aligned to the logical block size, to ensure that if the kernel wants to
  * split the BIO, the two halves will still be properly aligned.
+ *
+ * NOTE: if you change this function, change the copy in
+ * tests/zfs-tests/tests/functional/vdev_disk/page_alignment.c, and add test
+ * data there to validate the change you're making.
+ *
  */
 typedef struct {
 	uint_t  bmask;
@@ -863,6 +868,7 @@ typedef struct {
 static int
 vdev_disk_check_pages_cb(struct page *page, size_t off, size_t len, void *priv)
 {
+	(void) page;
 	vdev_disk_check_pages_t *s = priv;
 
 	/*
