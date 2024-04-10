@@ -1960,7 +1960,7 @@ arc_buf_untransform_in_place(arc_buf_t *buf)
 	ASSERT(HDR_ENCRYPTED(hdr));
 	ASSERT3U(hdr->b_crypt_hdr.b_ot, ==, DMU_OT_DNODE);
 	ASSERT(HDR_EMPTY_OR_LOCKED(hdr));
-	ASSERT3P(hdr->b_l1hdr.b_pabd, !=, NULL);
+	ASSERT3PF(hdr->b_l1hdr.b_pabd, !=, NULL, "hdr %px buf %px", hdr, buf);
 
 	zio_crypt_copy_dnode_bonus(hdr->b_l1hdr.b_pabd, buf->b_data,
 	    arc_buf_size(buf));
@@ -2083,7 +2083,8 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 		 * allocate a new data buffer for the buf.
 		 */
 		if (ARC_BUF_SHARED(buf)) {
-			ASSERT(ARC_BUF_COMPRESSED(buf));
+			ASSERTF(ARC_BUF_COMPRESSED(buf),
+			"buf %p was uncompressed", buf);
 
 			/* We need to give the buf its own b_data */
 			buf->b_flags &= ~ARC_BUF_FLAG_SHARED;
