@@ -61,7 +61,7 @@ vdev_disk_check_pages_cb(struct page *page, size_t off, size_t len, void *priv)
 	 * Note if we're taking less than a full block, so we can check it
 	 * above on the next call.
 	 */
-	s->end = len & s->bmask;
+	s->end = (off+len) & s->bmask;
 
 	/* All blocks after the first must start on a block size boundary. */
 	if (s->npages != 0 && (off & s->bmask) != 0)
