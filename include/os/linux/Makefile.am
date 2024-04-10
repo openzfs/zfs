@@ -63,7 +63,6 @@ kernel_spl_sys_HEADERS = \
 	%D%/spl/sys/ctype.h \
 	%D%/spl/sys/debug.h \
 	%D%/spl/sys/disp.h \
-	%D%/spl/sys/dkio.h \
 	%D%/spl/sys/errno.h \
 	%D%/spl/sys/fcntl.h \
 	%D%/spl/sys/file.h \

@@ -35,7 +35,6 @@
 #include <sys/nvpair.h>
 #include <sys/space_map.h>
 #include <sys/vdev.h>
-#include <sys/dkio.h>
 #include <sys/uberblock_impl.h>
 #include <sys/vdev_indirect_mapping.h>
 #include <sys/vdev_indirect_births.h>
