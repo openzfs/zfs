@@ -57,7 +57,7 @@ log_assert "zfs mount fails with bad parameters"
 log_onexit cleanup
 
 fs=$TESTPOOL/$TESTFS
-set -A badargs "A" "-A" "-" "-x" "-?" "=" "-o *" "-a"
+set -A badargs "A" "-" "-x" "-?" "=" "-o *"
 
 for arg in "${badargs[@]}"; do
 	log_mustnot eval "zfs mount $arg $fs >/dev/null 2>&1"

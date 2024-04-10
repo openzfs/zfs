@@ -41,8 +41,8 @@
 #       2. Create zfs filesystems within the given pools.
 #       3. Mount all the filesystems.
 #       4. Verify that 'zfs unmount -a[f]' command succeed,
-#	   and all available ZFS filesystems are unmounted.
-#	5. Verify that 'zfs mount' is identical with 'df -F zfs'
+#          and all available ZFS filesystems are unmounted.
+#       5. Verify that 'zfs mount' is identical with 'df -F zfs'
 #
 
 verify_runnable "both"
