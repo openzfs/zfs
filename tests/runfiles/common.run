@@ -466,7 +466,8 @@ tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'import_paths_changed',
     'import_rewind_config_changed',
     'import_rewind_device_replaced',
-    'zpool_import_status']
+    'zpool_import_status', 'zpool_import_parallel_pos',
+    'zpool_import_parallel_neg', 'zpool_import_parallel_admin']
 tags = ['functional', 'cli_root', 'zpool_import']
 timeout = 1200
 
