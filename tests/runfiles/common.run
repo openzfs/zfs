@@ -208,6 +208,10 @@ tests = ['zfs_create_001_pos', 'zfs_create_002_pos', 'zfs_create_003_pos',
     'zfs_create_verbose']
 tags = ['functional', 'cli_root', 'zfs_create']
 
+[tests/functional/cli_root/zpool_prefetch]
+tests = ['zpool_prefetch_001_pos']
+tags = ['functional', 'cli_root', 'zpool_prefetch']
+
 [tests/functional/cli_root/zfs_destroy]
 tests = ['zfs_clone_livelist_condense_and_disable',
     'zfs_clone_livelist_condense_races', 'zfs_clone_livelist_dedup',

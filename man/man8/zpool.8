@@ -26,7 +26,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd March 16, 2022
+.Dd February 14, 2024
 .Dt ZPOOL 8
 .Os
 .
@@ -168,6 +168,8 @@ specified.
 .
 .Ss Maintenance
 .Bl -tag -width Ds
+.It Xr zpool-prefetch 8
+Prefetches specific types of pool data.
 .It Xr zpool-scrub 8
 Begins a scrub or resumes a paused scrub.
 .It Xr zpool-checkpoint 8
@@ -598,6 +600,7 @@ don't wait.
 .Xr zpool-list 8 ,
 .Xr zpool-offline 8 ,
 .Xr zpool-online 8 ,
+.Xr zpool-prefetch 8 ,
 .Xr zpool-reguid 8 ,
 .Xr zpool-remove 8 ,
 .Xr zpool-reopen 8 ,

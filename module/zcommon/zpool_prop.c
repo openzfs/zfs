@@ -183,6 +183,9 @@ zpool_prop_init(void)
 	zprop_register_hidden(ZPOOL_PROP_DEDUPDITTO, "dedupditto",
 	    PROP_TYPE_NUMBER, PROP_DEFAULT, ZFS_TYPE_POOL, "DEDUPDITTO",
 	    B_FALSE, sfeatures);
+	zprop_register_hidden(ZPOOL_PROP_DEDUPCACHED,
+	    ZPOOL_DEDUPCACHED_PROP_NAME, PROP_TYPE_NUMBER, PROP_READONLY,
+	    ZFS_TYPE_POOL, "DEDUPCACHED", B_FALSE, sfeatures);
 
 	zfs_mod_list_supported_free(sfeatures);
 }

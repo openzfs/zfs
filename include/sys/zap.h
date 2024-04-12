@@ -225,6 +225,7 @@ int zap_lookup_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
     int key_numints, uint64_t integer_size, uint64_t num_integers, void *buf);
 int zap_contains(objset_t *ds, uint64_t zapobj, const char *name);
 int zap_prefetch(objset_t *os, uint64_t zapobj, const char *name);
+int zap_prefetch_object(objset_t *os, uint64_t zapobj);
 int zap_prefetch_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
     int key_numints);
 

@@ -23,7 +23,7 @@
  * Copyright (c) 2009, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
  * Copyright (c) 2022 by Pawel Jakub Dawidek
- * Copyright (c) 2023, Klara Inc.
+ * Copyright (c) 2019, 2023, Klara Inc.
  */
 
 #include <sys/zfs_context.h>
@@ -340,6 +340,16 @@ ddt_object_prefetch(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
 	    ddt->ddt_object[type][class], ddk);
 }
 
+static void
+ddt_object_prefetch_all(ddt_t *ddt, ddt_type_t type, ddt_class_t class)
+{
+	if (!ddt_object_exists(ddt, type, class))
+		return;
+
+	ddt_ops[type]->ddt_op_prefetch_all(ddt->ddt_os,
+	    ddt->ddt_object[type][class]);
+}
+
 static int
 ddt_object_update(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
     ddt_entry_t *dde, dmu_tx_t *tx)
@@ -650,6 +660,28 @@ ddt_over_quota(spa_t *spa)
 		return (B_TRUE);
 
 	return (B_FALSE);
+}
+
+void
+ddt_prefetch_all(spa_t *spa)
+{
+	/*
+	 * Load all DDT entries for each type/class combination. This is
+	 * indended to perform a prefetch on all such blocks. For the same
+	 * reason that ddt_prefetch isn't locked, this is also not locked.
+	 */
+	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
+		ddt_t *ddt = spa->spa_ddt[c];
+		if (!ddt)
+			continue;
+
+		for (ddt_type_t type = 0; type < DDT_TYPES; type++) {
+			for (ddt_class_t class = 0; class < DDT_CLASSES;
+			    class++) {
+				ddt_object_prefetch_all(ddt, type, class);
+			}
+		}
+	}
 }
 
 ddt_entry_t *

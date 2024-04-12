@@ -26,7 +26,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd March 16, 2022
+.Dd February 14, 2024
 .Dt ZPOOL-STATUS 8
 .Os
 .
@@ -75,6 +75,8 @@ Display a histogram of deduplication statistics, showing the allocated
 and referenced
 .Pq logically referenced in the pool
 block counts and sizes by reference count.
+If repeated, (-DD), also shows statistics on how much of the DDT is resident
+in the ARC.
 .It Fl e
 Only show unhealthy vdevs (not-ONLINE or with errors).
 .It Fl g
