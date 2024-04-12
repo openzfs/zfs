@@ -79,6 +79,13 @@ zpool_get_all_props(zpool_handle_t *zhp)
 
 	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
 
+	if (zhp->zpool_n_propnames > 0) {
+		nvlist_t *innvl = fnvlist_alloc();
+		fnvlist_add_string_array(innvl, ZPOOL_GET_PROPS_NAMES,
+		    zhp->zpool_propnames, zhp->zpool_n_propnames);
+		zcmd_write_src_nvlist(hdl, &zc, innvl);
+	}
+
 	zcmd_alloc_dst_nvlist(hdl, &zc, 0);
 
 	while (zfs_ioctl(hdl, ZFS_IOC_POOL_GET_PROPS, &zc) != 0) {
@@ -318,6 +325,15 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 		return (0);
 	}
 
+	/*
+	 * ZPOOL_PROP_DEDUPCACHED can be fetched by name only using
+	 * the ZPOOL_GET_PROPS_NAMES mechanism
+	 */
+	if (prop == ZPOOL_PROP_DEDUPCACHED) {
+		zpool_add_propname(zhp, ZPOOL_DEDUPCACHED_PROP_NAME);
+		(void) zpool_get_all_props(zhp);
+	}
+
 	if (zhp->zpool_props == NULL && zpool_get_all_props(zhp) &&
 	    prop != ZPOOL_PROP_NAME)
 		return (-1);
@@ -361,6 +377,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 		case ZPOOL_PROP_BCLONESAVED:
 		case ZPOOL_PROP_BCLONEUSED:
 		case ZPOOL_PROP_DEDUP_TABLE_SIZE:
+		case ZPOOL_PROP_DEDUPCACHED:
 			if (literal)
 				(void) snprintf(buf, len, "%llu",
 				    (u_longlong_t)intval);
@@ -1732,6 +1749,28 @@ zpool_discard_checkpoint(zpool_handle_t *zhp)
 		(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 		    "cannot discard checkpoint in '%s'"), zhp->zpool_name);
 		(void) zpool_standard_error(hdl, error, errbuf);
+		return (-1);
+	}
+
+	return (0);
+}
+
+/*
+ * Load data type for the given pool.
+ */
+int
+zpool_prefetch(zpool_handle_t *zhp, zpool_prefetch_type_t type)
+{
+	libzfs_handle_t *hdl = zhp->zpool_hdl;
+	char msg[1024];
+	int error;
+
+	error = lzc_pool_prefetch(zhp->zpool_name, type);
+	if (error != 0) {
+		(void) snprintf(msg, sizeof (msg), dgettext(TEXT_DOMAIN,
+		    "cannot prefetch %s in '%s'"),
+		    type == ZPOOL_PREFETCH_DDT ? "ddt" : "", zhp->zpool_name);
+		(void) zpool_standard_error(hdl, error, msg);
 		return (-1);
 	}
 
@@ -4399,6 +4438,14 @@ static int
 zbookmark_mem_compare(const void *a, const void *b)
 {
 	return (memcmp(a, b, sizeof (zbookmark_phys_t)));
+}
+
+void
+zpool_add_propname(zpool_handle_t *zhp, const char *propname)
+{
+	assert(zhp->zpool_n_propnames < ZHP_MAX_PROPNAMES);
+	zhp->zpool_propnames[zhp->zpool_n_propnames] = propname;
+	zhp->zpool_n_propnames++;
 }
 
 /*

@@ -26,7 +26,7 @@
  * Copyright (c) 2017, Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
  * Copyright (c) 2020, George Amanakis. All rights reserved.
- * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, 2023, Klara Inc.
  * Copyright (c) 2019, Allan Jude
  * Copyright (c) 2020, The FreeBSD Foundation [1]
  *
@@ -5452,6 +5452,57 @@ arc_read_done(zio_t *zio)
 			kmem_free(acb, sizeof (arc_callback_t));
 		}
 	}
+}
+
+/*
+ * Lookup the block at the specified DVA (in bp), and return the manner in
+ * which the block is cached. A zero return indicates not cached.
+ */
+int
+arc_cached(spa_t *spa, const blkptr_t *bp)
+{
+	arc_buf_hdr_t *hdr = NULL;
+	kmutex_t *hash_lock = NULL;
+	uint64_t guid = spa_load_guid(spa);
+	int flags = 0;
+
+	if (BP_IS_EMBEDDED(bp))
+		return (ARC_CACHED_EMBEDDED);
+
+	hdr = buf_hash_find(guid, bp, &hash_lock);
+	if (hdr == NULL)
+		return (0);
+
+	if (HDR_HAS_L1HDR(hdr)) {
+		arc_state_t *state = hdr->b_l1hdr.b_state;
+		/*
+		 * We switch to ensure that any future arc_state_type_t
+		 * changes are handled. This is just a shift to promote
+		 * more compile-time checking.
+		 */
+		switch (state->arcs_state) {
+		case ARC_STATE_ANON:
+			break;
+		case ARC_STATE_MRU:
+			flags |= ARC_CACHED_IN_MRU | ARC_CACHED_IN_L1;
+			break;
+		case ARC_STATE_MFU:
+			flags |= ARC_CACHED_IN_MFU | ARC_CACHED_IN_L1;
+			break;
+		case ARC_STATE_UNCACHED:
+			/* The header is still in L1, probably not for long */
+			flags |= ARC_CACHED_IN_L1;
+			break;
+		default:
+			break;
+		}
+	}
+	if (HDR_HAS_L2HDR(hdr))
+		flags |= ARC_CACHED_IN_L2;
+
+	mutex_exit(hash_lock);
+
+	return (flags);
 }
 
 /*

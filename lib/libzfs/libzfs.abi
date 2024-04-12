@@ -457,6 +457,7 @@
     <elf-symbol name='zfs_wait_status' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_zpl_version_map' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_add' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zpool_add_propname' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_checkpoint' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_clear' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_clear_label' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -520,6 +521,7 @@
     <elf-symbol name='zpool_open' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_open_canfail' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_pool_state_to_name' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zpool_prefetch' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_prepare_and_label_disk' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_prepare_disk' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_print_unsup_feat' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -1642,6 +1644,9 @@
     <class-decl name='uu_avl' is-struct='yes' visibility='default' is-declaration-only='yes' id='4af029d1'/>
     <class-decl name='uu_avl_pool' is-struct='yes' visibility='default' is-declaration-only='yes' id='12a530a8'/>
     <class-decl name='uu_avl_walk' is-struct='yes' visibility='default' is-declaration-only='yes' id='e70a39e3'/>
+    <array-type-def dimensions='1' type-id='80f4b756' size-in-bits='256' id='71dc54ac'>
+      <subrange length='4' type-id='7359adad' id='16fe7105'/>
+    </array-type-def>
     <type-decl name='int' size-in-bits='32' id='95e97e5e'/>
     <type-decl name='long int' size-in-bits='64' id='bd54fe1a'/>
     <type-decl name='long long int' size-in-bits='64' id='1eb56b1e'/>
@@ -2096,7 +2101,7 @@
         <var-decl name='zfs_props_table' type-id='ae3e8ca6' visibility='default'/>
       </data-member>
     </class-decl>
-    <class-decl name='zpool_handle' size-in-bits='2560' is-struct='yes' visibility='default' id='67002a8a'>
+    <class-decl name='zpool_handle' size-in-bits='2816' is-struct='yes' visibility='default' id='67002a8a'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='zpool_hdl' type-id='b0382bb3' visibility='default'/>
       </data-member>
@@ -2109,19 +2114,25 @@
       <data-member access='public' layout-offset-in-bits='2176'>
         <var-decl name='zpool_state' type-id='95e97e5e' visibility='default'/>
       </data-member>
+      <data-member access='public' layout-offset-in-bits='2208'>
+        <var-decl name='zpool_n_propnames' type-id='f0981eeb' visibility='default'/>
+      </data-member>
       <data-member access='public' layout-offset-in-bits='2240'>
-        <var-decl name='zpool_config_size' type-id='b59d7dce' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='2304'>
-        <var-decl name='zpool_config' type-id='5ce45b60' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='2368'>
-        <var-decl name='zpool_old_config' type-id='5ce45b60' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='2432'>
-        <var-decl name='zpool_props' type-id='5ce45b60' visibility='default'/>
+        <var-decl name='zpool_propnames' type-id='71dc54ac' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='2496'>
+        <var-decl name='zpool_config_size' type-id='b59d7dce' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='2560'>
+        <var-decl name='zpool_config' type-id='5ce45b60' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='2624'>
+        <var-decl name='zpool_old_config' type-id='5ce45b60' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='2688'>
+        <var-decl name='zpool_props' type-id='5ce45b60' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='2752'>
         <var-decl name='zpool_start_block' type-id='804dc465' visibility='default'/>
       </data-member>
     </class-decl>
@@ -2923,7 +2934,8 @@
       <enumerator name='ZPOOL_PROP_BCLONERATIO' value='35'/>
       <enumerator name='ZPOOL_PROP_DEDUP_TABLE_SIZE' value='36'/>
       <enumerator name='ZPOOL_PROP_DEDUP_TABLE_QUOTA' value='37'/>
-      <enumerator name='ZPOOL_NUM_PROPS' value='38'/>
+      <enumerator name='ZPOOL_PROP_DEDUPCACHED' value='38'/>
+      <enumerator name='ZPOOL_NUM_PROPS' value='39'/>
     </enum-decl>
     <typedef-decl name='zpool_prop_t' type-id='af1ba157' id='5d0c23fb'/>
     <typedef-decl name='regoff_t' type-id='95e97e5e' id='54a2a2a8'/>
@@ -5893,6 +5905,7 @@
       <enumerator name='ZFS_IOC_VDEV_GET_PROPS' value='23125'/>
       <enumerator name='ZFS_IOC_VDEV_SET_PROPS' value='23126'/>
       <enumerator name='ZFS_IOC_POOL_SCRUB' value='23127'/>
+      <enumerator name='ZFS_IOC_POOL_PREFETCH' value='23128'/>
       <enumerator name='ZFS_IOC_PLATFORM' value='23168'/>
       <enumerator name='ZFS_IOC_EVENTS_NEXT' value='23169'/>
       <enumerator name='ZFS_IOC_EVENTS_CLEAR' value='23170'/>
@@ -5921,6 +5934,12 @@
       <enumerator name='ZPOOL_WAIT_NUM_ACTIVITIES' value='9'/>
     </enum-decl>
     <typedef-decl name='zpool_wait_activity_t' type-id='849338e3' id='73446457'/>
+    <enum-decl name='zpool_prefetch_type_t' naming-typedef-id='e55ff6bc' id='0299ab50'>
+      <underlying-type type-id='9cac1fee'/>
+      <enumerator name='ZPOOL_PREFETCH_NONE' value='0'/>
+      <enumerator name='ZPOOL_PREFETCH_DDT' value='1'/>
+    </enum-decl>
+    <typedef-decl name='zpool_prefetch_type_t' type-id='0299ab50' id='e55ff6bc'/>
     <enum-decl name='spa_feature' id='33ecb627'>
       <underlying-type type-id='9cac1fee'/>
       <enumerator name='SPA_FEATURE_NONE' value='-1'/>
@@ -5968,6 +5987,8 @@
       <enumerator name='SPA_FEATURES' value='41'/>
     </enum-decl>
     <typedef-decl name='spa_feature_t' type-id='33ecb627' id='d6618c78'/>
+    <qualified-type-def type-id='80f4b756' const='yes' id='b99c00c9'/>
+    <pointer-type-def type-id='b99c00c9' size-in-bits='64' id='13956559'/>
     <qualified-type-def type-id='22cce67b' const='yes' id='d2816df0'/>
     <pointer-type-def type-id='d2816df0' size-in-bits='64' id='3bbfee2e'/>
     <qualified-type-def type-id='b96825af' const='yes' id='2b61797f'/>
@@ -6058,6 +6079,11 @@
       <parameter type-id='73446457'/>
       <parameter type-id='9c313c2d'/>
       <parameter type-id='37e3bd22'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='lzc_pool_prefetch' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='e55ff6bc'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='lzc_set_bootenv' visibility='default' binding='global' size-in-bits='64'>
@@ -6203,6 +6229,13 @@
       <parameter type-id='5ce45b60'/>
       <parameter type-id='80f4b756'/>
       <parameter type-id='9da381c4'/>
+      <return type-id='48b5725f'/>
+    </function-decl>
+    <function-decl name='fnvlist_add_string_array' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='5ce45b60'/>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='13956559'/>
+      <parameter type-id='3502e3ff'/>
       <return type-id='48b5725f'/>
     </function-decl>
     <function-decl name='fnvlist_add_nvlist_array' visibility='default' binding='global' size-in-bits='64'>
@@ -6391,6 +6424,11 @@
     </function-decl>
     <function-decl name='zpool_discard_checkpoint' mangled-name='zpool_discard_checkpoint' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_discard_checkpoint'>
       <parameter type-id='4c81de99' name='zhp'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='zpool_prefetch' mangled-name='zpool_prefetch' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_prefetch'>
+      <parameter type-id='4c81de99' name='zhp'/>
+      <parameter type-id='e55ff6bc' name='type'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zpool_add' mangled-name='zpool_add' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_add'>
@@ -6586,6 +6624,11 @@
       <parameter type-id='5ce45b60' name='nv'/>
       <parameter type-id='95e97e5e' name='name_flags'/>
       <return type-id='26a90f95'/>
+    </function-decl>
+    <function-decl name='zpool_add_propname' mangled-name='zpool_add_propname' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_add_propname'>
+      <parameter type-id='4c81de99' name='zhp'/>
+      <parameter type-id='80f4b756' name='propname'/>
+      <return type-id='48b5725f'/>
     </function-decl>
     <function-decl name='zpool_get_errlog' mangled-name='zpool_get_errlog' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_get_errlog'>
       <parameter type-id='4c81de99' name='zhp'/>
@@ -8686,7 +8729,6 @@
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='lib/libzutil/zutil_device_path.c' language='LANG_C99'>
-    <pointer-type-def type-id='b99c00c9' size-in-bits='64' id='13956559'/>
     <function-decl name='zpool_default_search_paths' mangled-name='zpool_default_search_paths' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_default_search_paths'>
       <parameter type-id='78c01427'/>
       <return type-id='13956559'/>
@@ -9148,7 +9190,6 @@
     <array-type-def dimensions='1' type-id='b99c00c9' size-in-bits='2624' id='5ce15418'>
       <subrange length='41' type-id='7359adad' id='cb834f44'/>
     </array-type-def>
-    <qualified-type-def type-id='80f4b756' const='yes' id='b99c00c9'/>
     <pointer-type-def type-id='8f92235e' size-in-bits='64' id='90421557'/>
     <function-decl name='nvpair_value_uint32' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='dace003f'/>

@@ -1630,6 +1630,26 @@ lzc_pool_checkpoint_discard(const char *pool)
 }
 
 /*
+ * Load the requested data type for the specified pool.
+ */
+int
+lzc_pool_prefetch(const char *pool, zpool_prefetch_type_t type)
+{
+	int error;
+	nvlist_t *result = NULL;
+	nvlist_t *args = fnvlist_alloc();
+
+	fnvlist_add_int32(args, ZPOOL_PREFETCH_TYPE, type);
+
+	error = lzc_ioctl(ZFS_IOC_POOL_PREFETCH, pool, args, &result);
+
+	fnvlist_free(args);
+	fnvlist_free(result);
+
+	return (error);
+}
+
+/*
  * Executes a read-only channel program.
  *
  * A read-only channel program works programmatically the same way as a

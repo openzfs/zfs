@@ -1199,6 +1199,8 @@ extern void spa_boot_init(void);
 /* properties */
 extern int spa_prop_set(spa_t *spa, nvlist_t *nvp);
 extern int spa_prop_get(spa_t *spa, nvlist_t **nvp);
+extern int spa_prop_get_nvlist(spa_t *spa, char **props,
+    unsigned int n_props, nvlist_t **outnvl);
 extern void spa_prop_clear_bootfs(spa_t *spa, uint64_t obj, dmu_tx_t *tx);
 extern void spa_configfile_set(spa_t *, nvlist_t *, boolean_t);
 

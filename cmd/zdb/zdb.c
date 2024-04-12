@@ -1963,8 +1963,8 @@ dump_ddt(ddt_t *ddt, ddt_type_t type, ddt_class_t class)
 	(void) printf("%s: %llu entries, size %llu on disk, %llu in core\n",
 	    name,
 	    (u_longlong_t)count,
-	    (u_longlong_t)(dspace / count),
-	    (u_longlong_t)(mspace / count));
+	    (u_longlong_t)dspace,
+	    (u_longlong_t)mspace);
 
 	if (dump_opt['D'] < 3)
 		return;

@@ -111,6 +111,7 @@ usr/share/man/man8/zpool-labelclear.8
 usr/share/man/man8/zpool-list.8
 usr/share/man/man8/zpool-offline.8
 usr/share/man/man8/zpool-online.8
+usr/share/man/man8/zpool-prefetch.8
 usr/share/man/man8/zpool-reguid.8
 usr/share/man/man8/zpool-remove.8
 usr/share/man/man8/zpool-reopen.8

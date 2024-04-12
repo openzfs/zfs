@@ -47,6 +47,7 @@ typedef struct {
 	    const ddt_key_t *ddk);
 	void (*ddt_op_prefetch)(objset_t *os, uint64_t object,
 	    const ddt_key_t *ddk);
+	void (*ddt_op_prefetch_all)(objset_t *os, uint64_t object);
 	int (*ddt_op_update)(objset_t *os, uint64_t object,
 	    const ddt_key_t *ddk, const ddt_phys_t *phys, size_t psize,
 	    dmu_tx_t *tx);
