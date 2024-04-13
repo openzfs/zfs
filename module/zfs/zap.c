@@ -631,22 +631,14 @@ zap_set_idx_range_to_blk(zap_t *zap, uint64_t idx, uint64_t nptrs, uint64_t blk,
 #define	ZAP_PREFIX_HASH(pref, pref_len)	((pref) << (64 - (pref_len)))
 
 /*
- * This checks whether a leaf with prefix/len exists and returns its blkid.
- *
- * The prefix/len correspond to a distinct range of entries in ptrtbl.
- * If all range entries contain the same value (blkid) and only the range
- * entries contain this blkid, then there exists a leaf with this blkid and
- * given prefix/len.
- *
- * We don't have to check all entries in the range. Instead, we can check only
- * the first and the last one. If both contain the same blkid, then we check
- * the neighbor entries (entry before the first and entry after the last).
- *
- * A leaf with prefix/len exists if
- * (first == last AND before-first != blkid AND after-last != blkid).
+ * Each leaf has single range of entries (block pointers) in the ZAP ptrtbl.
+ * If two leaves are siblings, their ranges are adjecent and contain the same
+ * number of entries. In order to find out if a leaf has a sibling, we need to
+ * check the range corresponding to the sibling leaf. There is no need to check
+ * all entries in the range, we only need to check the frist and the last one.
  */
 static uint64_t
-zap_check_leaf_by_ptrtbl(zap_t *zap, uint64_t prefix, uint64_t prefix_len)
+check_sibling_ptrtbl_range(zap_t *zap, uint64_t prefix, uint64_t prefix_len)
 {
 	ASSERT(RW_LOCK_HELD(&zap->zap_rwlock));
 
@@ -654,7 +646,6 @@ zap_check_leaf_by_ptrtbl(zap_t *zap, uint64_t prefix, uint64_t prefix_len)
 	uint64_t idx = ZAP_HASH_IDX(h, zap_f_phys(zap)->zap_ptrtbl.zt_shift);
 	uint64_t pref_diff = zap_f_phys(zap)->zap_ptrtbl.zt_shift - prefix_len;
 	uint64_t nptrs = (1 << pref_diff);
-	int slbit = prefix & 1;
 	uint64_t first;
 	uint64_t last;
 
@@ -666,45 +657,8 @@ zap_check_leaf_by_ptrtbl(zap_t *zap, uint64_t prefix, uint64_t prefix_len)
 	if (zap_idx_to_blk(zap, idx + nptrs - 1, &last) != 0)
 		return (0);
 
-	/*
-	 * Check the last possible sibling entry. If the first entry and the
-	 * last one differs it is not a sibling.
-	 */
 	if (first != last)
 		return (0);
-
-	/*
-	 * If there are entries after the last one, check it as well.
-	 * It should not be the same as the last entry, otherwise it is
-	 * not a sibling.
-	 */
-	/*
-	 * Check the entry before the first one.
-	 */
-	if (slbit == 0 && idx > 0) {
-		uint64_t before_first;
-
-		if (zap_idx_to_blk(zap, idx - 1, &before_first) != 0)
-			return (0);
-
-		if (before_first == first)
-			return (0);
-	}
-
-	/*
-	 * Check the entry after the last one.
-	 */
-	if (slbit == 1 &&
-	    idx + nptrs < (1UL << zap_f_phys(zap)->zap_ptrtbl.zt_shift)) {
-		uint64_t after_last;
-
-		if (zap_idx_to_blk(zap, idx + nptrs, &after_last) != 0)
-			return (0);
-
-		if (last == after_last)
-			return (0);
-	}
-
 	return (first);
 }
 
@@ -1521,7 +1475,8 @@ zap_trunc(zap_t *zap)
 
 	for (uint64_t idx = 0; idx < nentries; idx++) {
 		uint64_t blk;
-		zap_idx_to_blk(zap, idx, &blk);
+		if (zap_idx_to_blk(zap, idx, &blk) != 0)
+			return;
 		if (blk > lastblk)
 			lastblk = blk;
 	}
@@ -1564,8 +1519,7 @@ zap_shrink(zap_name_t *zn, zap_leaf_t *l, dmu_tx_t *tx)
 	uint64_t hash = zn->zn_hash;
 	uint64_t prefix = zap_leaf_phys(l)->l_hdr.lh_prefix;
 	uint64_t prefix_len = zap_leaf_phys(l)->l_hdr.lh_prefix_len;
-	boolean_t trunc = 0;
-	int nshrunk = 0;
+	boolean_t trunc = B_FALSE;
 	int err = 0;
 
 	ASSERT3U(zap_leaf_phys(l)->l_hdr.lh_nentries, ==, 0);
@@ -1586,14 +1540,12 @@ zap_shrink(zap_name_t *zn, zap_leaf_t *l, dmu_tx_t *tx)
 		uint64_t sl_hash = ZAP_PREFIX_HASH(sl_prefix, prefix_len);
 		int slbit = prefix & 1;
 
-		ASSERT3U(zt_shift, ==, zap_f_phys(zap)->zap_ptrtbl.zt_shift);
-		ASSERT3S(zap_leaf_phys(l)->l_hdr.lh_nentries, ==, 0);
-
+		ASSERT3U(zap_leaf_phys(l)->l_hdr.lh_nentries, ==, 0);
 
 		/*
-		 * Check if there is a sibling by reading prttbl ptrs.
+		 * Check if there is a sibling by reading ptrtbl ptrs.
 		 */
-		if (zap_check_leaf_by_ptrtbl(zap, sl_prefix, prefix_len) == 0)
+		if (check_sibling_ptrtbl_range(zap, sl_prefix, prefix_len) == 0)
 			break;
 
 		/*
@@ -1645,6 +1597,7 @@ zap_shrink(zap_name_t *zn, zap_leaf_t *l, dmu_tx_t *tx)
 			rw_enter(&zap->zap_rwlock, RW_WRITER);
 			dmu_buf_will_dirty(zap->zap_dbuf, tx);
 
+			zt_shift = zap_f_phys(zap)->zap_ptrtbl.zt_shift;
 			writer = B_TRUE;
 		}
 
@@ -1719,8 +1672,6 @@ zap_shrink(zap_name_t *zn, zap_leaf_t *l, dmu_tx_t *tx)
 
 		prefix = zap_leaf_phys(l)->l_hdr.lh_prefix;
 		prefix_len = zap_leaf_phys(l)->l_hdr.lh_prefix_len;
-
-		nshrunk++;
 	}
 
 	if (trunc)
