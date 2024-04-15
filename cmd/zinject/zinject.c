@@ -221,6 +221,7 @@ static const struct errstr errstrtable[] = {
 	{ ENXIO,	"nxio" },
 	{ ECHILD,	"dtl" },
 	{ EILSEQ,	"corrupt" },
+	{ ENOSYS,	"noop" },
 	{ 0, NULL },
 };
 
@@ -269,8 +270,8 @@ usage(void)
 	    "\t\tInject a fault into a particular device or the device's\n"
 	    "\t\tlabel.  Label injection can either be 'nvlist', 'uber',\n "
 	    "\t\t'pad1', or 'pad2'.\n"
-	    "\t\t'errno' can be 'nxio' (the default), 'io', 'dtl', or\n"
-	    "\t\t'corrupt' (bit flip).\n"
+	    "\t\t'errno' can be 'nxio' (the default), 'io', 'dtl',\n"
+	    "\t\t'corrupt' (bit flip), or 'noop' (successfully do nothing).\n"
 	    "\t\t'frequency' is a value between 0.0001 and 100.0 that limits\n"
 	    "\t\tdevice error injection to a percentage of the IOs.\n"
 	    "\n"
@@ -889,7 +890,7 @@ main(int argc, char **argv)
 			if (error < 0) {
 				(void) fprintf(stderr, "invalid error type "
 				    "'%s': must be one of: io decompress "
-				    "decrypt nxio dtl corrupt\n",
+				    "decrypt nxio dtl corrupt noop\n",
 				    optarg);
 				usage();
 				libzfs_fini(g_zfs);
