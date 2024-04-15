@@ -157,6 +157,16 @@ cols = {
     "free":       [5, 1024, "ARC free memory"],
     "avail":      [5, 1024, "ARC available memory"],
     "waste":      [5, 1024, "Wasted memory due to round up to pagesize"],
+    "ztotal":     [6, 1000, "zfetch total prefetcher calls per second"],
+    "zhits":      [5, 1000, "zfetch stream hits per second"],
+    "zahead":     [6, 1000, "zfetch hits ahead of streams per second"],
+    "zpast":      [5, 1000, "zfetch hits behind streams per second"],
+    "zmisses":    [7, 1000, "zfetch stream misses per second"],
+    "zmax":       [4, 1000, "zfetch limit reached per second"],
+    "zfuture":    [7, 1000, "zfetch stream future per second"],
+    "zstride":    [7, 1000, "zfetch stream strides per second"],
+    "zissued":    [7, 1000, "zfetch prefetches issued per second"],
+    "zactive":    [7, 1000, "zfetch prefetches active per second"],
 }
 
 v = {}
@@ -164,6 +174,8 @@ hdr = ["time", "read", "ddread", "ddh%", "dmread", "dmh%", "pread", "ph%",
        "size", "c", "avail"]
 xhdr = ["time", "mfu", "mru", "mfug", "mrug", "unc", "eskip", "mtxmis",
         "dread", "pread", "read"]
+zhdr = ["time", "ztotal", "zhits", "zahead", "zpast", "zmisses", "zmax",
+        "zfuture", "zstride", "zissued", "zactive"]
 sint = 1               # Default interval is 1 second
 count = 1              # Default count is 1
 hdr_intr = 20          # Print header every 20 lines of output
@@ -206,12 +218,17 @@ elif sys.platform.startswith('linux'):
     def kstat_update():
         global kstat
 
-        k = [line.strip() for line in open('/proc/spl/kstat/zfs/arcstats')]
+        k1 = [line.strip() for line in open('/proc/spl/kstat/zfs/arcstats')]
 
-        if not k:
+        k2 = ["zfetch_" + line.strip() for line in
+             open('/proc/spl/kstat/zfs/zfetchstats')]
+
+        if k1 is None or k2 is None:
             sys.exit(1)
 
-        del k[0:2]
+        del k1[0:2]
+        del k2[0:2]
+        k = k1 + k2
         kstat = {}
 
         for s in k:
@@ -239,6 +256,7 @@ def usage():
     sys.stderr.write("\t -v : List all possible field headers and definitions"
                      "\n")
     sys.stderr.write("\t -x : Print extended stats\n")
+    sys.stderr.write("\t -z : Print zfetch stats\n")
     sys.stderr.write("\t -f : Specify specific fields to print (see -v)\n")
     sys.stderr.write("\t -o : Redirect output to the specified file\n")
     sys.stderr.write("\t -s : Override default field separator with custom "
@@ -357,6 +375,7 @@ def init():
     global count
     global hdr
     global xhdr
+    global zhdr
     global opfile
     global sep
     global out
@@ -368,15 +387,17 @@ def init():
     xflag = False
     hflag = False
     vflag = False
+    zflag = False
     i = 1
 
     try:
         opts, args = getopt.getopt(
             sys.argv[1:],
-            "axo:hvs:f:p",
+            "axzo:hvs:f:p",
             [
                 "all",
                 "extended",
+                "zfetch",
                 "outfile",
                 "help",
                 "verbose",
@@ -410,13 +431,15 @@ def init():
             i += 1
         if opt in ('-p', '--parsable'):
             pretty_print = False
+        if opt in ('-z', '--zfetch'):
+            zflag = True
         i += 1
 
     argv = sys.argv[i:]
     sint = int(argv[0]) if argv else sint
     count = int(argv[1]) if len(argv) > 1 else (0 if len(argv) > 0 else 1)
 
-    if hflag or (xflag and desired_cols):
+    if hflag or (xflag and zflag) or ((zflag or xflag) and desired_cols):
         usage()
 
     if vflag:
@@ -424,6 +447,9 @@ def init():
 
     if xflag:
         hdr = xhdr
+
+    if zflag:
+        hdr = zhdr
 
     update_hdr_intr()
 
@@ -569,6 +595,17 @@ def calculate():
     v["el2mru"] = d["evict_l2_eligible_mru"] // sint
     v["el2inel"] = d["evict_l2_ineligible"] // sint
     v["mtxmis"] = d["mutex_miss"] // sint
+    v["ztotal"] = (d["zfetch_hits"] + d["zfetch_future"] + d["zfetch_stride"] +
+                   d["zfetch_past"] + d["zfetch_misses"]) // sint
+    v["zhits"] = d["zfetch_hits"] // sint
+    v["zahead"] = (d["zfetch_future"] + d["zfetch_stride"]) // sint
+    v["zpast"] = d["zfetch_past"] // sint
+    v["zmisses"] = d["zfetch_misses"] // sint
+    v["zmax"] = d["zfetch_max_streams"] // sint
+    v["zfuture"] = d["zfetch_future"] // sint
+    v["zstride"] = d["zfetch_stride"] // sint
+    v["zissued"] = d["zfetch_io_issued"] // sint
+    v["zactive"] = d["zfetch_io_active"] // sint
 
     if l2exist:
         v["l2hits"] = d["l2_hits"] // sint
