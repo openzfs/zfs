@@ -43,7 +43,7 @@
 .Cm mount
 .Op Fl Oflv
 .Op Fl o Ar options
-.Fl a Ns | Ns Ar filesystem
+.Fl a Ns | Ns Fl R Ar filesystem Ns | Ns Ar filesystem
 .Nm zfs
 .Cm unmount
 .Op Fl fu
@@ -61,7 +61,7 @@ Displays all ZFS file systems currently mounted.
 .Cm mount
 .Op Fl Oflv
 .Op Fl o Ar options
-.Fl a Ns | Ns Ar filesystem
+.Fl a Ns | Ns Fl R Ar filesystem Ns | Ns Ar filesystem
 .Xc
 Mount ZFS filesystem on a path described by its
 .Sy mountpoint
@@ -83,6 +83,8 @@ for more information.
 .It Fl a
 Mount all available ZFS file systems.
 Invoked automatically as part of the boot process if configured.
+.It Fl R
+Mount the specified filesystems along with all their children.
 .It Ar filesystem
 Mount the specified filesystem.
 .It Fl o Ar options
