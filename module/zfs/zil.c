@@ -3607,7 +3607,7 @@ zil_commit(zilog_t *zilog, uint64_t foid)
 int
 zil_commit_impl(zilog_t *zilog, uint64_t foid)
 {
-	ASSERT0(zil_failed(zilog) || zilog->zl_suspend > 0);
+	ASSERT0(zil_failed(zilog));
 
 	ZIL_STAT_BUMP(zil_commit_count);
 
