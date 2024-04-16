@@ -50,7 +50,7 @@ function cleanup
 {
 	datasetexists $fs_child && destroy_dataset $fs_child
 
-	log_must zfs set quota=$quota_val $fs
+	reset_quota $fs
 }
 
 log_onexit cleanup

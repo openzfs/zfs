@@ -95,3 +95,10 @@ function exceed_quota
 	    log_fail "Returned error code: $zret. Expected: $EDQUOT."
 	return 0
 }
+
+function reset_quota
+{
+	typeset FILESYSTEM="$1"
+
+	log_must zfs set quota=none $FILESYSTEM
+}
