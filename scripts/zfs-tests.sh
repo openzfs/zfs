@@ -32,6 +32,7 @@ SCRIPT_COMMON=${SCRIPT_COMMON:-${0%/*}/common.sh}
 PROG=zfs-tests.sh
 VERBOSE="no"
 QUIET=""
+DEBUG=""
 CLEANUP="yes"
 CLEANUPALL="no"
 KMSG=""
@@ -313,6 +314,7 @@ OPTIONS:
 	-h          Show this message
 	-v          Verbose zfs-tests.sh output
 	-q          Quiet test-runner output
+	-D          Debug; show all test output immediately (noisy)
 	-x          Remove all testpools, dm, lo, and files (unsafe)
 	-k          Disable cleanup after test failure
 	-K          Log test names to /dev/kmsg
@@ -351,7 +353,7 @@ $0 -x
 EOF
 }
 
-while getopts 'hvqxkKfScRmn:d:s:r:?t:T:u:I:' OPTION; do
+while getopts 'hvqxkKfScRmn:d:Ds:r:?t:T:u:I:' OPTION; do
 	case $OPTION in
 	h)
 		usage
@@ -396,6 +398,9 @@ while getopts 'hvqxkKfScRmn:d:s:r:?t:T:u:I:' OPTION; do
 		;;
 	d)
 		FILEDIR="$OPTARG"
+		;;
+	D)
+		DEBUG="yes"
 		;;
 	I)
 		ITERATIONS="$OPTARG"
@@ -691,6 +696,7 @@ REPORT_FILE=$(mktemp_file zts-report)
 #
 msg "${TEST_RUNNER}" \
     "${QUIET:+-q}" \
+    "${DEBUG:+-D}" \
     "${KMEMLEAK:+-m}" \
     "${KMSG:+-K}" \
     "-c \"${RUNFILES}\"" \
@@ -700,6 +706,7 @@ msg "${TEST_RUNNER}" \
 { PATH=$STF_PATH \
     ${TEST_RUNNER} \
     ${QUIET:+-q} \
+    ${DEBUG:+-D} \
     ${KMEMLEAK:+-m} \
     ${KMSG:+-K} \
     -c "${RUNFILES}" \
@@ -726,6 +733,7 @@ if [ "$RESULT" -eq "2" ] && [ -n "$RERUN" ]; then
 	{ PATH=$STF_PATH \
 	    ${TEST_RUNNER} \
 	        ${QUIET:+-q} \
+	        ${DEBUG:+-D} \
 	        ${KMEMLEAK:+-m} \
 	    -c "${RUNFILES}" \
 	    -T "${TAGS}" \
