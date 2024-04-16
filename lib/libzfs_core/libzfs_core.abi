@@ -168,6 +168,7 @@
     <elf-symbol name='lzc_get_bookmarks' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_get_bootenv' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_get_holds' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='lzc_get_props' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_get_vdev_prop' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_hold' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_initialize' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -2692,6 +2693,11 @@
     <function-decl name='lzc_get_holds' mangled-name='lzc_get_holds' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_get_holds'>
       <parameter type-id='80f4b756' name='snapname'/>
       <parameter type-id='857bb57e' name='holdsp'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='lzc_get_props' mangled-name='lzc_get_props' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_get_props'>
+      <parameter type-id='80f4b756' name='poolname'/>
+      <parameter type-id='857bb57e' name='props'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='lzc_send_wrapper' mangled-name='lzc_send_wrapper' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_send_wrapper'>
