@@ -310,8 +310,9 @@ get_usage(zfs_help_t idx)
 		return (gettext("\tupgrade [-v]\n"
 		    "\tupgrade [-r] [-V version] <-a | filesystem ...>\n"));
 	case HELP_LIST:
-		return (gettext("\tlist [-Hp] [-r|-d max] [-o property[,...]] "
-		    "[-s property]...\n\t    [-S property]... [-t type[,...]] "
+		return (gettext("\tlist [-Hp] [-j [--json-int]] [-r|-d max] "
+		    "[-o property[,...]] [-s property]...\n\t    "
+		    "[-S property]... [-t type[,...]] "
 		    "[filesystem|volume|snapshot] ...\n"));
 	case HELP_MOUNT:
 		return (gettext("\tmount\n"
@@ -3609,6 +3610,9 @@ typedef struct list_cbdata {
 	boolean_t	cb_literal;
 	boolean_t	cb_scripted;
 	zprop_list_t	*cb_proplist;
+	boolean_t	cb_json;
+	nvlist_t	*cb_jsobj;
+	boolean_t	cb_json_as_int;
 } list_cbdata_t;
 
 /*
@@ -3679,10 +3683,11 @@ zfs_list_avail_color(zfs_handle_t *zhp)
 
 /*
  * Given a dataset and a list of fields, print out all the properties according
- * to the described layout.
+ * to the described layout, or return an nvlist containing all the fields, later
+ * to be printed out as JSON object.
  */
 static void
-print_dataset(zfs_handle_t *zhp, list_cbdata_t *cb)
+collect_dataset(zfs_handle_t *zhp, list_cbdata_t *cb)
 {
 	zprop_list_t *pl = cb->cb_proplist;
 	boolean_t first = B_TRUE;
@@ -3691,9 +3696,23 @@ print_dataset(zfs_handle_t *zhp, list_cbdata_t *cb)
 	nvlist_t *propval;
 	const char *propstr;
 	boolean_t right_justify;
+	nvlist_t *item, *d, *props;
+	item = d = props = NULL;
+	zprop_source_t sourcetype = ZPROP_SRC_NONE;
+	char source[ZFS_MAX_DATASET_NAME_LEN];
+	if (cb->cb_json) {
+		d = fnvlist_lookup_nvlist(cb->cb_jsobj, "datasets");
+		if (d == NULL) {
+			fprintf(stderr, "datasets obj not found.\n");
+			exit(1);
+		}
+		item = fnvlist_alloc();
+		props = fnvlist_alloc();
+		fill_dataset_info(item, zhp, cb->cb_json_as_int);
+	}
 
 	for (; pl != NULL; pl = pl->pl_next) {
-		if (!first) {
+		if (!cb->cb_json && !first) {
 			if (cb->cb_scripted)
 				(void) putchar('\t');
 			else
@@ -3709,69 +3728,112 @@ print_dataset(zfs_handle_t *zhp, list_cbdata_t *cb)
 			right_justify = zfs_prop_align_right(pl->pl_prop);
 		} else if (pl->pl_prop != ZPROP_USERPROP) {
 			if (zfs_prop_get(zhp, pl->pl_prop, property,
-			    sizeof (property), NULL, NULL, 0,
-			    cb->cb_literal) != 0)
+			    sizeof (property), &sourcetype, source,
+			    sizeof (source), cb->cb_literal) != 0)
 				propstr = "-";
 			else
 				propstr = property;
 			right_justify = zfs_prop_align_right(pl->pl_prop);
 		} else if (zfs_prop_userquota(pl->pl_user_prop)) {
+			sourcetype = ZPROP_SRC_LOCAL;
 			if (zfs_prop_get_userquota(zhp, pl->pl_user_prop,
-			    property, sizeof (property), cb->cb_literal) != 0)
+			    property, sizeof (property), cb->cb_literal) != 0) {
+				sourcetype = ZPROP_SRC_NONE;
 				propstr = "-";
-			else
+			} else {
 				propstr = property;
+			}
 			right_justify = B_TRUE;
 		} else if (zfs_prop_written(pl->pl_user_prop)) {
+			sourcetype = ZPROP_SRC_LOCAL;
 			if (zfs_prop_get_written(zhp, pl->pl_user_prop,
-			    property, sizeof (property), cb->cb_literal) != 0)
+			    property, sizeof (property), cb->cb_literal) != 0) {
+				sourcetype = ZPROP_SRC_NONE;
 				propstr = "-";
-			else
+			} else {
 				propstr = property;
+			}
 			right_justify = B_TRUE;
 		} else {
 			if (nvlist_lookup_nvlist(userprops,
-			    pl->pl_user_prop, &propval) != 0)
+			    pl->pl_user_prop, &propval) != 0) {
 				propstr = "-";
-			else
+			} else {
 				propstr = fnvlist_lookup_string(propval,
 				    ZPROP_VALUE);
+				strlcpy(source,
+				    fnvlist_lookup_string(propval,
+				    ZPROP_SOURCE), ZFS_MAX_DATASET_NAME_LEN);
+				if (strcmp(source,
+				    zfs_get_name(zhp)) == 0) {
+					sourcetype = ZPROP_SRC_LOCAL;
+				} else if (strcmp(source,
+				    ZPROP_SOURCE_VAL_RECVD) == 0) {
+					sourcetype = ZPROP_SRC_RECEIVED;
+				} else {
+					sourcetype = ZPROP_SRC_INHERITED;
+				}
+			}
 			right_justify = B_FALSE;
 		}
 
-		/*
-		 * zfs_list_avail_color() needs ZFS_PROP_AVAILABLE + USED
-		 * - so we need another for() search for the USED part
-		 * - when no colors wanted, we can skip the whole thing
-		 */
-		if (use_color() && pl->pl_prop == ZFS_PROP_AVAILABLE) {
-			zprop_list_t *pl2 = cb->cb_proplist;
-			for (; pl2 != NULL; pl2 = pl2->pl_next) {
-				if (pl2->pl_prop == ZFS_PROP_USED) {
-					color_start(zfs_list_avail_color(zhp));
-					/* found it, no need for more loops */
-					break;
+		if (cb->cb_json) {
+			if (pl->pl_prop == ZFS_PROP_NAME)
+				continue;
+			if (zprop_nvlist_one_property(
+			    zfs_prop_to_name(pl->pl_prop), propstr,
+			    sourcetype, source, NULL, props,
+			    cb->cb_json_as_int) != 0)
+				nomem();
+		} else {
+			/*
+			 * zfs_list_avail_color() needs
+			 * ZFS_PROP_AVAILABLE + USED, so we need another
+			 * for() search for the USED part when no colors
+			 * wanted, we can skip the whole thing
+			 */
+			if (use_color() && pl->pl_prop == ZFS_PROP_AVAILABLE) {
+				zprop_list_t *pl2 = cb->cb_proplist;
+				for (; pl2 != NULL; pl2 = pl2->pl_next) {
+					if (pl2->pl_prop == ZFS_PROP_USED) {
+						color_start(
+						    zfs_list_avail_color(zhp));
+						/*
+						 * found it, no need for more
+						 * loops
+						 */
+						break;
+					}
 				}
 			}
+
+			/*
+			 * If this is being called in scripted mode, or if
+			 * this is the last column and it is left-justified,
+			 * don't include a width format specifier.
+			 */
+			if (cb->cb_scripted || (pl->pl_next == NULL &&
+			    !right_justify))
+				(void) fputs(propstr, stdout);
+			else if (right_justify) {
+				(void) printf("%*s", (int)pl->pl_width,
+				    propstr);
+			} else {
+				(void) printf("%-*s", (int)pl->pl_width,
+				    propstr);
+			}
+
+			if (pl->pl_prop == ZFS_PROP_AVAILABLE)
+				color_end();
 		}
-
-		/*
-		 * If this is being called in scripted mode, or if this is the
-		 * last column and it is left-justified, don't include a width
-		 * format specifier.
-		 */
-		if (cb->cb_scripted || (pl->pl_next == NULL && !right_justify))
-			(void) fputs(propstr, stdout);
-		else if (right_justify)
-			(void) printf("%*s", (int)pl->pl_width, propstr);
-		else
-			(void) printf("%-*s", (int)pl->pl_width, propstr);
-
-		if (pl->pl_prop == ZFS_PROP_AVAILABLE)
-			color_end();
 	}
-
-	(void) putchar('\n');
+	if (cb->cb_json) {
+		fnvlist_add_nvlist(item, "properties", props);
+		fnvlist_add_nvlist(d, zfs_get_name(zhp), item);
+		fnvlist_free(props);
+		fnvlist_free(item);
+	} else
+		(void) putchar('\n');
 }
 
 /*
@@ -3783,12 +3845,12 @@ list_callback(zfs_handle_t *zhp, void *data)
 	list_cbdata_t *cbp = data;
 
 	if (cbp->cb_first) {
-		if (!cbp->cb_scripted)
+		if (!cbp->cb_scripted && !cbp->cb_json)
 			print_header(cbp);
 		cbp->cb_first = B_FALSE;
 	}
 
-	print_dataset(zhp, cbp);
+	collect_dataset(zhp, cbp);
 
 	return (0);
 }
@@ -3807,9 +3869,16 @@ zfs_do_list(int argc, char **argv)
 	int ret = 0;
 	zfs_sort_column_t *sortcol = NULL;
 	int flags = ZFS_ITER_PROP_LISTSNAPS | ZFS_ITER_ARGS_CAN_BE_PATHS;
+	nvlist_t *data = NULL;
+
+	struct option long_options[] = {
+		{"json-int", no_argument, NULL, ZFS_OPTION_JSON_NUMS_AS_INT},
+		{0, 0, 0, 0}
+	};
 
 	/* check options */
-	while ((c = getopt(argc, argv, "HS:d:o:prs:t:")) != -1) {
+	while ((c = getopt_long(argc, argv, "jHS:d:o:prs:t:", long_options,
+	    NULL)) != -1) {
 		switch (c) {
 		case 'o':
 			fields = optarg;
@@ -3823,6 +3892,17 @@ zfs_do_list(int argc, char **argv)
 			break;
 		case 'r':
 			flags |= ZFS_ITER_RECURSE;
+			break;
+		case 'j':
+			cb.cb_json = B_TRUE;
+			cb.cb_jsobj = zfs_json_schema(0, 1);
+			data = fnvlist_alloc();
+			fnvlist_add_nvlist(cb.cb_jsobj, "datasets", data);
+			fnvlist_free(data);
+			break;
+		case ZFS_OPTION_JSON_NUMS_AS_INT:
+			cb.cb_json_as_int = B_TRUE;
+			cb.cb_literal = B_TRUE;
 			break;
 		case 'H':
 			cb.cb_scripted = B_TRUE;
@@ -3897,6 +3977,12 @@ found3:;
 	argc -= optind;
 	argv += optind;
 
+	if (!cb.cb_json && cb.cb_json_as_int) {
+		(void) fprintf(stderr, gettext("'--json-int' only works with"
+		    " '-j' option\n"));
+		usage(B_FALSE);
+	}
+
 	/*
 	 * If "-o space" and no types were specified, don't display snapshots.
 	 */
@@ -3935,6 +4021,11 @@ found3:;
 
 	ret = zfs_for_each(argc, argv, flags, types, sortcol, &cb.cb_proplist,
 	    limit, list_callback, &cb);
+
+	if (ret == 0 && cb.cb_json)
+		zcmd_print_json(cb.cb_jsobj);
+	else if (ret != 0 && cb.cb_json)
+		nvlist_free(cb.cb_jsobj);
 
 	zprop_free_list(cb.cb_proplist);
 	zfs_free_sort_columns(sortcol);
