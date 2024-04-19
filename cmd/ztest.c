@@ -8045,7 +8045,7 @@ ztest_raidz_expand_run(ztest_shared_t *zs, spa_t *spa)
 	ztest_expand_io_t *thread_args;
 
 	ASSERT3U(ztest_opts.zo_raidz_expand_test, !=, RAIDZ_EXPAND_NONE);
-	ASSERT3U(rzvd->vdev_ops, ==, &vdev_raidz_ops);
+	ASSERT3P(rzvd->vdev_ops, ==, &vdev_raidz_ops);
 	ztest_opts.zo_raidz_expand_test = RAIDZ_EXPAND_STARTED;
 
 	/* Setup a 1 MiB buffer of random data */
