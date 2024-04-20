@@ -2146,15 +2146,25 @@ found2:;
 
 			for (char *tok; (tok = strsep(&optarg, ",")); ) {
 				static const char *const type_opts[] = {
-					"filesystem", "volume",
-					"snapshot", "snap",
+					"filesystem",
+					"fs",
+					"volume",
+					"vol",
+					"snapshot",
+					"snap",
 					"bookmark",
-					"all" };
+					"all"
+				};
 				static const int type_types[] = {
-					ZFS_TYPE_FILESYSTEM, ZFS_TYPE_VOLUME,
-					ZFS_TYPE_SNAPSHOT, ZFS_TYPE_SNAPSHOT,
+					ZFS_TYPE_FILESYSTEM,
+					ZFS_TYPE_FILESYSTEM,
+					ZFS_TYPE_VOLUME,
+					ZFS_TYPE_VOLUME,
+					ZFS_TYPE_SNAPSHOT,
+					ZFS_TYPE_SNAPSHOT,
 					ZFS_TYPE_BOOKMARK,
-					ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK };
+					ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK
+				};
 
 				for (i = 0; i < ARRAY_SIZE(type_opts); ++i)
 					if (strcmp(tok, type_opts[i]) == 0) {
