@@ -2327,8 +2327,8 @@ Prioritize requeued I/O.
 .
 .It Sy zio_taskq_batch_pct Ns = Ns Sy 80 Ns % Pq uint
 Percentage of online CPUs which will run a worker thread for I/O.
-These workers are responsible for I/O work such as compression and
-checksum calculations.
+These workers are responsible for I/O work such as compression, encryption,
+checksum and parity calculations.
 Fractional number of CPUs will be rounded down.
 .Pp
 The default value of
@@ -2336,6 +2336,7 @@ The default value of
 was chosen to avoid using all CPUs which can result in
 latency issues and inconsistent application performance,
 especially when slower compression and/or checksumming is enabled.
+Set value only applies to pools imported/created after that.
 .
 .It Sy zio_taskq_batch_tpq Ns = Ns Sy 0 Pq uint
 Number of worker threads per taskq.
@@ -2345,6 +2346,7 @@ while higher reduces lock contention.
 If
 .Sy 0 ,
 generate a system-dependent value close to 6 threads per taskq.
+Set value only applies to pools imported/created after that.
 .
 .It Sy zio_taskq_wr_iss_ncpus Ns = Ns Sy 0 Pq uint
 Determines the number of CPUs to run write issue taskqs.
@@ -2353,16 +2355,19 @@ When 0 (the default), the value to use is computed internally
 as the number of actual CPUs in the system divided by the
 .Sy spa_num_allocators
 value.
+Set value only applies to pools imported/created after that.
 .
 .It Sy zio_taskq_read Ns = Ns Sy fixed,1,8 null scale null Pq charp
 Set the queue and thread configuration for the IO read queues.
 This is an advanced debugging parameter.
 Don't change this unless you understand what it does.
+Set values only apply to pools imported/created after that.
 .
 .It Sy zio_taskq_write Ns = Ns Sy sync fixed,1,5 scale fixed,1,5 Pq charp
 Set the queue and thread configuration for the IO write queues.
 This is an advanced debugging parameter.
 Don't change this unless you understand what it does.
+Set values only apply to pools imported/created after that.
 .
 .It Sy zvol_inhibit_dev Ns = Ns Sy 0 Ns | Ns 1 Pq uint
 Do not create zvol device nodes.
