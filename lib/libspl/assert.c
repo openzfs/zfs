@@ -22,8 +22,31 @@
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+/*
+ * Copyright (c) 2024, Rob Norris <robn@despairlabs.com>
+ */
 
 #include <assert.h>
+
+#if defined(__linux__)
+#include <errno.h>
+#include <sys/prctl.h>
+#ifdef HAVE_GETTID
+#define	libspl_gettid()		gettid()
+#else
+#include <sys/syscall.h>
+#define	libspl_gettid()		((pid_t)syscall(__NR_gettid))
+#endif
+#define	libspl_getprogname()	(program_invocation_short_name)
+#define	libspl_getthreadname(buf, len)	\
+	prctl(PR_GET_NAME, (unsigned long)(buf), 0, 0, 0)
+#elif defined(__FreeBSD__)
+#include <pthread_np.h>
+#define	libspl_gettid()		pthread_getthreadid_np()
+#define	libspl_getprogname()	getprogname()
+#define	libspl_getthreadname(buf, len)	\
+	pthread_getname_np(pthread_self(), buf, len);
+#endif
 
 static boolean_t libspl_assert_ok = B_FALSE;
 
@@ -39,12 +62,21 @@ libspl_assertf(const char *file, const char *func, int line,
     const char *format, ...)
 {
 	va_list args;
+	char tname[64];
+
+	libspl_getthreadname(tname, sizeof (tname));
+
+	fprintf(stderr, "ASSERT at %s:%d:%s()\n", file, line, func);
 
 	va_start(args, format);
 	vfprintf(stderr, format, args);
-	fprintf(stderr, "\n");
-	fprintf(stderr, "ASSERT at %s:%d:%s()", file, line, func);
 	va_end(args);
+
+	fprintf(stderr, "\n"
+	    "  PID: %-8u  COMM: %s\n"
+	    "  TID: %-8u  NAME: %s\n",
+	    getpid(), libspl_getprogname(),
+	    libspl_gettid(), tname);
 
 #if !__has_feature(attribute_analyzer_noreturn) && !defined(__COVERITY__)
 	if (libspl_assert_ok) {
