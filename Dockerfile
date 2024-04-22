@@ -6,7 +6,8 @@ RUN apt-get update
 
 RUN apt-get install -y \
       debhelper-compat \
-      devscripts
+      devscripts \
+      linux-headers-amd64
 
 ENV WORK_DIR /zfs_app/zfs
 WORKDIR ${WORK_DIR}
