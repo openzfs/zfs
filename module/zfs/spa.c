@@ -3227,8 +3227,6 @@ spa_spawn_aux_threads(spa_t *spa)
 {
 	ASSERT(spa_writeable(spa));
 
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
-
 	spa_start_indirect_condensing_thread(spa);
 	spa_start_livelist_destroy_thread(spa);
 	spa_start_livelist_condensing_thread(spa);
@@ -4905,7 +4903,8 @@ spa_ld_read_checkpoint_txg(spa_t *spa)
 	int error = 0;
 
 	ASSERT0(spa->spa_checkpoint_txg);
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(MUTEX_HELD(&spa_namespace_lock) ||
+	    spa->spa_load_thread == curthread);
 
 	error = zap_lookup(spa->spa_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
 	    DMU_POOL_ZPOOL_CHECKPOINT, sizeof (uint64_t),
@@ -5152,6 +5151,7 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 	boolean_t checkpoint_rewind =
 	    (spa->spa_import_flags & ZFS_IMPORT_CHECKPOINT);
 	boolean_t update_config_cache = B_FALSE;
+	hrtime_t load_start = gethrtime();
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 	ASSERT(spa->spa_config_source != SPA_CONFIG_SRC_NONE);
@@ -5197,12 +5197,18 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 	}
 
 	/*
+	 * Drop the namespace lock for the rest of the function.
+	 */
+	spa->spa_load_thread = curthread;
+	mutex_exit(&spa_namespace_lock);
+
+	/*
 	 * Retrieve the checkpoint txg if the pool has a checkpoint.
 	 */
 	spa_import_progress_set_notes(spa, "Loading checkpoint txg");
 	error = spa_ld_read_checkpoint_txg(spa);
 	if (error != 0)
-		return (error);
+		goto fail;
 
 	/*
 	 * Retrieve the mapping of indirect vdevs. Those vdevs were removed
@@ -5215,7 +5221,7 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 	spa_import_progress_set_notes(spa, "Loading indirect vdev metadata");
 	error = spa_ld_open_indirect_vdev_metadata(spa);
 	if (error != 0)
-		return (error);
+		goto fail;
 
 	/*
 	 * Retrieve the full list of active features from the MOS and check if
@@ -5224,7 +5230,7 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 	spa_import_progress_set_notes(spa, "Checking feature flags");
 	error = spa_ld_check_features(spa, &missing_feat_write);
 	if (error != 0)
-		return (error);
+		goto fail;
 
 	/*
 	 * Load several special directories from the MOS needed by the dsl_pool
@@ -5233,7 +5239,7 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 	spa_import_progress_set_notes(spa, "Loading special MOS directories");
 	error = spa_ld_load_special_directories(spa);
 	if (error != 0)
-		return (error);
+		goto fail;
 
 	/*
 	 * Retrieve pool properties from the MOS.
@@ -5241,7 +5247,7 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 	spa_import_progress_set_notes(spa, "Loading properties");
 	error = spa_ld_get_props(spa);
 	if (error != 0)
-		return (error);
+		goto fail;
 
 	/*
 	 * Retrieve the list of auxiliary devices - cache devices and spares -
@@ -5250,7 +5256,7 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 	spa_import_progress_set_notes(spa, "Loading AUX vdevs");
 	error = spa_ld_open_aux_vdevs(spa, type);
 	if (error != 0)
-		return (error);
+		goto fail;
 
 	/*
 	 * Load the metadata for all vdevs. Also check if unopenable devices
@@ -5259,12 +5265,12 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 	spa_import_progress_set_notes(spa, "Loading vdev metadata");
 	error = spa_ld_load_vdev_metadata(spa);
 	if (error != 0)
-		return (error);
+		goto fail;
 
 	spa_import_progress_set_notes(spa, "Loading dedup tables");
 	error = spa_ld_load_dedup_tables(spa);
 	if (error != 0)
-		return (error);
+		goto fail;
 
 	/*
 	 * Verify the logs now to make sure we don't have any unexpected errors
@@ -5273,7 +5279,7 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 	spa_import_progress_set_notes(spa, "Verifying Log Devices");
 	error = spa_ld_verify_logs(spa, type, ereport);
 	if (error != 0)
-		return (error);
+		goto fail;
 
 	if (missing_feat_write) {
 		ASSERT(spa->spa_load_state == SPA_LOAD_TRYIMPORT);
@@ -5283,8 +5289,9 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 		 * read-only mode but not read-write mode. We now have enough
 		 * information and can return to userland.
 		 */
-		return (spa_vdev_err(spa->spa_root_vdev, VDEV_AUX_UNSUP_FEAT,
-		    ENOTSUP));
+		error = spa_vdev_err(spa->spa_root_vdev, VDEV_AUX_UNSUP_FEAT,
+		    ENOTSUP);
+		goto fail;
 	}
 
 	/*
@@ -5295,7 +5302,7 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 	spa_import_progress_set_notes(spa, "Verifying pool data");
 	error = spa_ld_verify_pool_data(spa);
 	if (error != 0)
-		return (error);
+		goto fail;
 
 	/*
 	 * Calculate the deflated space for the pool. This must be done before
@@ -5413,13 +5420,19 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
 		spa_import_progress_set_notes(spa, "Finished importing");
 	}
+	zio_handle_import_delay(spa, gethrtime() - load_start);
 
 	spa_import_progress_remove(spa_guid(spa));
 	spa_async_request(spa, SPA_ASYNC_L2CACHE_REBUILD);
 
 	spa_load_note(spa, "LOADED");
+fail:
+	mutex_enter(&spa_namespace_lock);
+	spa->spa_load_thread = NULL;
+	cv_broadcast(&spa_namespace_cv);
 
-	return (0);
+	return (error);
+
 }
 
 static int
@@ -6687,9 +6700,14 @@ spa_tryimport(nvlist_t *tryconfig)
 	/*
 	 * Create and initialize the spa structure.
 	 */
+	char *name = kmem_alloc(MAXPATHLEN, KM_SLEEP);
+	(void) snprintf(name, MAXPATHLEN, "%s-%llx-%s",
+	    TRYIMPORT_NAME, (u_longlong_t)curthread, poolname);
+
 	mutex_enter(&spa_namespace_lock);
-	spa = spa_add(TRYIMPORT_NAME, tryconfig, NULL);
+	spa = spa_add(name, tryconfig, NULL);
 	spa_activate(spa, SPA_MODE_READ);
+	kmem_free(name, MAXPATHLEN);
 
 	/*
 	 * Rewind pool if a max txg was provided.
@@ -6829,6 +6847,7 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 	int error;
 	spa_t *spa;
 	boolean_t force_removal, modifying;
+	hrtime_t export_start = gethrtime();
 
 	if (oldconfig)
 		*oldconfig = NULL;
@@ -7039,6 +7058,9 @@ export_spa:
 		 */
 		spa->spa_is_exporting = B_FALSE;
 	}
+
+	if (new_state == POOL_STATE_EXPORTED)
+		zio_handle_export_delay(spa, gethrtime() - export_start);
 
 	mutex_exit(&spa_namespace_lock);
 	return (0);

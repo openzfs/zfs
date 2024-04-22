@@ -44,6 +44,9 @@ dist_pkgdata_SCRIPTS = \
 	zpool_import_missing_002_pos.ksh \
 	zpool_import_missing_003_pos.ksh \
 	zpool_import_rename_001_pos.ksh \
+	zpool_import_parallel_admin.ksh \
+	zpool_import_parallel_neg.ksh \
+	zpool_import_parallel_pos.ksh \
 	zpool_import_encrypted.ksh \
 	zpool_import_encrypted_load.ksh \
 	zpool_import_errata3.ksh \
