@@ -346,6 +346,8 @@ static zpool_command_t command_table[] = {
 
 #define	VDEV_ALLOC_CLASS_LOGS	"logs"
 
+#define	MAX_CMD_LEN	256
+
 static zpool_command_t *current_command;
 static zfs_type_t current_prop_type = (ZFS_TYPE_POOL | ZFS_TYPE_VDEV);
 static char history_str[HIS_MAX_RECORD_LEN];
@@ -446,7 +448,7 @@ get_usage(zpool_help_t idx)
 	case HELP_SYNC:
 		return (gettext("\tsync [pool] ...\n"));
 	case HELP_VERSION:
-		return (gettext("\tversion\n"));
+		return (gettext("\tversion [-j]\n"));
 	case HELP_WAIT:
 		return (gettext("\twait [-Hp] [-T d|u] [-t <activity>[,...]] "
 		    "<pool> [interval]\n"));
@@ -10248,6 +10250,35 @@ zpool_do_history(int argc, char **argv)
 	return (ret);
 }
 
+/*
+ * Generates an nvlist with output version for every command based on params.
+ * Purpose of this is to add a version of JSON output, considering the schema
+ * format might be updated for each command in future.
+ *
+ * Schema:
+ *
+ * "output_version": {
+ *    "command": string,
+ *    "vers_major": integer,
+ *    "vers_minor": integer,
+ *  }
+ */
+static nvlist_t *
+zpool_json_schema(int maj_v, int min_v)
+{
+	char cmd[MAX_CMD_LEN];
+	nvlist_t *sch = fnvlist_alloc();
+	nvlist_t *ov = fnvlist_alloc();
+
+	snprintf(cmd, MAX_CMD_LEN, "zpool %s", current_command->name);
+	fnvlist_add_string(ov, "command", cmd);
+	fnvlist_add_uint32(ov, "vers_major", maj_v);
+	fnvlist_add_uint32(ov, "vers_minor", min_v);
+	fnvlist_add_nvlist(sch, "output_version", ov);
+
+	return (sch);
+}
+
 typedef struct ev_opts {
 	int verbose;
 	int scripted;
@@ -11592,8 +11623,39 @@ find_command_idx(const char *command, int *idx)
 static int
 zpool_do_version(int argc, char **argv)
 {
-	(void) argc, (void) argv;
-	return (zfs_version_print() != 0);
+	int c;
+	nvlist_t *jsobj = NULL, *zfs_ver = NULL;
+	boolean_t json = B_FALSE;
+	while ((c = getopt(argc, argv, "j")) != -1) {
+		switch (c) {
+		case 'j':
+			json = B_TRUE;
+			jsobj = zpool_json_schema(0, 1);
+			break;
+		case '?':
+			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
+			    optopt);
+			usage(B_FALSE);
+		}
+	}
+
+	argc -= optind;
+	if (argc != 0) {
+		(void) fprintf(stderr, "too many arguments\n");
+		usage(B_FALSE);
+	}
+
+	if (json) {
+		zfs_ver = zfs_version_nvlist();
+		if (zfs_ver) {
+			fnvlist_add_nvlist(jsobj, "zfs_version", zfs_ver);
+			zcmd_print_json(jsobj);
+			fnvlist_free(zfs_ver);
+			return (0);
+		} else
+			return (-1);
+	} else
+		return (zfs_version_print() != 0);
 }
 
 /* Display documentation */
