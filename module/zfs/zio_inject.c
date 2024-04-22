@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
+ * Copyright (c) 2024, Klara Inc.
  */
 
 /*
@@ -59,6 +60,7 @@ uint32_t zio_injection_enabled = 0;
 typedef struct inject_handler {
 	int			zi_id;
 	spa_t			*zi_spa;
+	char			*zi_spa_name; /* ZINJECT_DELAY_IMPORT only */
 	zinject_record_t	zi_record;
 	uint64_t		*zi_lanes;
 	int			zi_next_lane;
@@ -703,6 +705,63 @@ zio_handle_io_delay(zio_t *zio)
 	return (min_target);
 }
 
+static void
+zio_handle_pool_delay(spa_t *spa, hrtime_t elapsed, zinject_type_t command)
+{
+	inject_handler_t *handler;
+	hrtime_t delay = 0;
+	int id = 0;
+
+	rw_enter(&inject_lock, RW_READER);
+
+	for (handler = list_head(&inject_handlers);
+	    handler != NULL && handler->zi_record.zi_cmd == command;
+	    handler = list_next(&inject_handlers, handler)) {
+		ASSERT3P(handler->zi_spa_name, !=, NULL);
+		if (strcmp(spa_name(spa), handler->zi_spa_name) == 0) {
+			uint64_t pause =
+			    SEC2NSEC(handler->zi_record.zi_duration);
+			if (pause > elapsed) {
+				delay = pause - elapsed;
+			}
+			id = handler->zi_id;
+			break;
+		}
+	}
+
+	rw_exit(&inject_lock);
+
+	if (delay) {
+		if (command == ZINJECT_DELAY_IMPORT) {
+			spa_import_progress_set_notes(spa, "injecting %llu "
+			    "sec delay", (u_longlong_t)NSEC2SEC(delay));
+		}
+		zfs_sleep_until(gethrtime() + delay);
+	}
+	if (id) {
+		/* all done with this one-shot handler */
+		zio_clear_fault(id);
+	}
+}
+
+/*
+ * For testing, inject a delay during an import
+ */
+void
+zio_handle_import_delay(spa_t *spa, hrtime_t elapsed)
+{
+	zio_handle_pool_delay(spa, elapsed, ZINJECT_DELAY_IMPORT);
+}
+
+/*
+ * For testing, inject a delay during an export
+ */
+void
+zio_handle_export_delay(spa_t *spa, hrtime_t elapsed)
+{
+	zio_handle_pool_delay(spa, elapsed, ZINJECT_DELAY_EXPORT);
+}
+
 static int
 zio_calculate_range(const char *pool, zinject_record_t *record)
 {
@@ -760,6 +819,28 @@ zio_calculate_range(const char *pool, zinject_record_t *record)
 	return (0);
 }
 
+static boolean_t
+zio_pool_handler_exists(const char *name, zinject_type_t command)
+{
+	boolean_t exists = B_FALSE;
+
+	rw_enter(&inject_lock, RW_READER);
+	for (inject_handler_t *handler = list_head(&inject_handlers);
+	    handler != NULL; handler = list_next(&inject_handlers, handler)) {
+		if (command != handler->zi_record.zi_cmd)
+			continue;
+
+		const char *pool = (handler->zi_spa_name != NULL) ?
+		    handler->zi_spa_name : spa_name(handler->zi_spa);
+		if (strcmp(name, pool) == 0) {
+			exists = B_TRUE;
+			break;
+		}
+	}
+	rw_exit(&inject_lock);
+
+	return (exists);
+}
 /*
  * Create a new handler for the given record.  We add it to the list, adding
  * a reference to the spa_t in the process.  We increment zio_injection_enabled,
@@ -810,16 +891,42 @@ zio_inject_fault(char *name, int flags, int *id, zinject_record_t *record)
 
 	if (!(flags & ZINJECT_NULL)) {
 		/*
-		 * spa_inject_ref() will add an injection reference, which will
-		 * prevent the pool from being removed from the namespace while
-		 * still allowing it to be unloaded.
+		 * Pool delays for import or export don't take an
+		 * injection reference on the spa. Instead they
+		 * rely on matching by name.
 		 */
-		if ((spa = spa_inject_addref(name)) == NULL)
-			return (SET_ERROR(ENOENT));
+		if (record->zi_cmd == ZINJECT_DELAY_IMPORT ||
+		    record->zi_cmd == ZINJECT_DELAY_EXPORT) {
+			if (record->zi_duration <= 0)
+				return (SET_ERROR(EINVAL));
+			/*
+			 * Only one import | export delay handler per pool.
+			 */
+			if (zio_pool_handler_exists(name, record->zi_cmd))
+				return (SET_ERROR(EEXIST));
+
+			mutex_enter(&spa_namespace_lock);
+			boolean_t has_spa = spa_lookup(name) != NULL;
+			mutex_exit(&spa_namespace_lock);
+
+			if (record->zi_cmd == ZINJECT_DELAY_IMPORT && has_spa)
+				return (SET_ERROR(EEXIST));
+			if (record->zi_cmd == ZINJECT_DELAY_EXPORT && !has_spa)
+				return (SET_ERROR(ENOENT));
+			spa = NULL;
+		} else {
+			/*
+			 * spa_inject_ref() will add an injection reference,
+			 * which will prevent the pool from being removed
+			 * from the namespace while still allowing it to be
+			 * unloaded.
+			 */
+			if ((spa = spa_inject_addref(name)) == NULL)
+				return (SET_ERROR(ENOENT));
+		}
 
 		handler = kmem_alloc(sizeof (inject_handler_t), KM_SLEEP);
-
-		handler->zi_spa = spa;
+		handler->zi_spa = spa;	/* note: can be NULL */
 		handler->zi_record = *record;
 
 		if (handler->zi_record.zi_cmd == ZINJECT_DELAY_IO) {
@@ -831,6 +938,11 @@ zio_inject_fault(char *name, int flags, int *id, zinject_record_t *record)
 			handler->zi_lanes = NULL;
 			handler->zi_next_lane = 0;
 		}
+
+		if (handler->zi_spa == NULL)
+			handler->zi_spa_name = spa_strdup(name);
+		else
+			handler->zi_spa_name = NULL;
 
 		rw_enter(&inject_lock, RW_WRITER);
 
@@ -891,7 +1003,11 @@ zio_inject_list_next(int *id, char *name, size_t buflen,
 	if (handler) {
 		*record = handler->zi_record;
 		*id = handler->zi_id;
-		(void) strlcpy(name, spa_name(handler->zi_spa), buflen);
+		ASSERT(handler->zi_spa || handler->zi_spa_name);
+		if (handler->zi_spa != NULL)
+			(void) strlcpy(name, spa_name(handler->zi_spa), buflen);
+		else
+			(void) strlcpy(name, handler->zi_spa_name, buflen);
 		ret = 0;
 	} else {
 		ret = SET_ERROR(ENOENT);
@@ -941,7 +1057,11 @@ zio_clear_fault(int id)
 		ASSERT3P(handler->zi_lanes, ==, NULL);
 	}
 
-	spa_inject_delref(handler->zi_spa);
+	if (handler->zi_spa_name != NULL)
+		spa_strfree(handler->zi_spa_name);
+
+	if (handler->zi_spa != NULL)
+		spa_inject_delref(handler->zi_spa);
 	kmem_free(handler, sizeof (inject_handler_t));
 	atomic_dec_32(&zio_injection_enabled);
 

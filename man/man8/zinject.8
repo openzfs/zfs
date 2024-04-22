@@ -129,6 +129,14 @@ Force a vdev error.
 .
 .It Xo
 .Nm zinject
+.Fl i Ar seconds
+.Ar pool
+.Xc
+Add an artificial delay during the future import of a pool.
+This injector is automatically cleared after the import is finished.
+.
+.It Xo
+.Nm zinject
 .Fl I
 .Op Fl s Ar seconds Ns | Ns Fl g Ar txgs
 .Ar pool

@@ -22,7 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
- * Copyright (c) 2024, Klara Inc.
+ * Copyright (c) 2023-2024, Klara Inc.
  */
 
 /*
@@ -310,6 +310,11 @@ usage(void)
 	    "\t\tcreate 3 lanes on the device; one lane with a latency\n"
 	    "\t\tof 10 ms and two lanes with a 25 ms latency.\n"
 	    "\n"
+	    "\tzinject -P import|export -s <seconds> pool\n"
+	    "\t\tAdd an artificial delay to a future pool import or export,\n"
+	    "\t\tsuch that the operation takes a minimum of supplied seconds\n"
+	    "\t\tto complete.\n"
+	    "\n"
 	    "\tzinject -I [-s <seconds> | -g <txgs>] pool\n"
 	    "\t\tCause the pool to stop writing blocks yet not\n"
 	    "\t\treport errors for a duration.  Simulates buggy hardware\n"
@@ -392,8 +397,10 @@ print_data_handler(int id, const char *pool, zinject_record_t *record,
 {
 	int *count = data;
 
-	if (record->zi_guid != 0 || record->zi_func[0] != '\0')
+	if (record->zi_guid != 0 || record->zi_func[0] != '\0' ||
+	    record->zi_duration != 0) {
 		return (0);
+	}
 
 	if (*count == 0) {
 		(void) printf("%3s  %-15s  %-6s  %-6s  %-8s  %3s  %-4s  "
@@ -507,6 +514,33 @@ print_panic_handler(int id, const char *pool, zinject_record_t *record,
 	return (0);
 }
 
+static int
+print_pool_delay_handler(int id, const char *pool, zinject_record_t *record,
+    void *data)
+{
+	int *count = data;
+
+	if (record->zi_cmd != ZINJECT_DELAY_IMPORT &&
+	    record->zi_cmd != ZINJECT_DELAY_EXPORT) {
+		return (0);
+	}
+
+	if (*count == 0) {
+		(void) printf("%3s  %-19s  %-11s  %s\n",
+		    "ID", "POOL", "DELAY (sec)", "COMMAND");
+		(void) printf("---  -------------------  -----------"
+		    "  -------\n");
+	}
+
+	*count += 1;
+
+	(void) printf("%3d  %-19s  %-11llu  %s\n",
+	    id, pool, (u_longlong_t)record->zi_duration,
+	    record->zi_cmd == ZINJECT_DELAY_IMPORT ? "import": "export");
+
+	return (0);
+}
+
 /*
  * Print all registered error handlers.  Returns the number of handlers
  * registered.
@@ -531,6 +565,13 @@ print_all_handlers(void)
 	}
 
 	(void) iter_handlers(print_data_handler, &count);
+	if (count > 0) {
+		total += count;
+		(void) printf("\n");
+		count = 0;
+	}
+
+	(void) iter_handlers(print_pool_delay_handler, &count);
 	if (count > 0) {
 		total += count;
 		(void) printf("\n");
@@ -609,9 +650,27 @@ register_handler(const char *pool, int flags, zinject_record_t *record,
 	zc.zc_guid = flags;
 
 	if (zfs_ioctl(g_zfs, ZFS_IOC_INJECT_FAULT, &zc) != 0) {
-		(void) fprintf(stderr, "failed to add handler: %s\n",
-		    errno == EDOM ? "block level exceeds max level of object" :
-		    strerror(errno));
+		const char *errmsg = strerror(errno);
+
+		switch (errno) {
+		case EDOM:
+			errmsg = "block level exceeds max level of object";
+			break;
+		case EEXIST:
+			if (record->zi_cmd == ZINJECT_DELAY_IMPORT)
+				errmsg = "pool already imported";
+			if (record->zi_cmd == ZINJECT_DELAY_EXPORT)
+				errmsg = "a handler already exists";
+			break;
+		case ENOENT:
+			/* import delay injector running on older zfs module */
+			if (record->zi_cmd == ZINJECT_DELAY_IMPORT)
+				errmsg = "import delay injector not supported";
+			break;
+		default:
+			break;
+		}
+		(void) fprintf(stderr, "failed to add handler: %s\n", errmsg);
 		return (1);
 	}
 
@@ -636,6 +695,9 @@ register_handler(const char *pool, int flags, zinject_record_t *record,
 		} else if (record->zi_duration < 0) {
 			(void) printf(" txgs: %lld \n",
 			    (u_longlong_t)-record->zi_duration);
+		} else if (record->zi_timer > 0) {
+			(void) printf(" timer: %lld ms\n",
+			    (u_longlong_t)NSEC2MSEC(record->zi_timer));
 		} else {
 			(void) printf("objset: %llu\n",
 			    (u_longlong_t)record->zi_objset);
@@ -834,7 +896,7 @@ main(int argc, char **argv)
 	}
 
 	while ((c = getopt(argc, argv,
-	    ":aA:b:C:d:D:f:Fg:qhIc:t:T:l:mr:s:e:uL:p:")) != -1) {
+	    ":aA:b:C:d:D:f:Fg:qhIc:t:T:l:mr:s:e:uL:p:P:")) != -1) {
 		switch (c) {
 		case 'a':
 			flags |= ZINJECT_FLUSH_ARC;
@@ -952,6 +1014,19 @@ main(int argc, char **argv)
 			    sizeof (record.zi_func));
 			record.zi_cmd = ZINJECT_PANIC;
 			break;
+		case 'P':
+			if (strcasecmp(optarg, "import") == 0) {
+				record.zi_cmd = ZINJECT_DELAY_IMPORT;
+			} else if (strcasecmp(optarg, "export") == 0) {
+				record.zi_cmd = ZINJECT_DELAY_EXPORT;
+			} else {
+				(void) fprintf(stderr, "invalid command '%s': "
+				    "must be 'import' or 'export'\n", optarg);
+				usage();
+				libzfs_fini(g_zfs);
+				return (1);
+			}
+			break;
 		case 'q':
 			quiet = 1;
 			break;
@@ -1033,7 +1108,7 @@ main(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if (record.zi_duration != 0)
+	if (record.zi_duration != 0 && record.zi_cmd == 0)
 		record.zi_cmd = ZINJECT_IGNORED_WRITES;
 
 	if (cancel != NULL) {
@@ -1179,8 +1254,8 @@ main(int argc, char **argv)
 		if (raw != NULL || range != NULL || type != TYPE_INVAL ||
 		    level != 0 || device != NULL || record.zi_freq > 0 ||
 		    dvas != 0) {
-			(void) fprintf(stderr, "panic (-p) incompatible with "
-			    "other options\n");
+			(void) fprintf(stderr, "%s incompatible with other "
+			    "options\n", "import|export delay (-P)");
 			usage();
 			libzfs_fini(g_zfs);
 			return (2);
@@ -1198,6 +1273,28 @@ main(int argc, char **argv)
 		if (argv[1] != NULL)
 			record.zi_type = atoi(argv[1]);
 		dataset[0] = '\0';
+	} else if (record.zi_cmd == ZINJECT_DELAY_IMPORT ||
+	    record.zi_cmd == ZINJECT_DELAY_EXPORT) {
+		if (raw != NULL || range != NULL || type != TYPE_INVAL ||
+		    level != 0 || device != NULL || record.zi_freq > 0 ||
+		    dvas != 0) {
+			(void) fprintf(stderr, "%s incompatible with other "
+			    "options\n", "import|export delay (-P)");
+			usage();
+			libzfs_fini(g_zfs);
+			return (2);
+		}
+
+		if (argc != 1 || record.zi_duration <= 0) {
+			(void) fprintf(stderr, "import|export delay (-P) "
+			    "injection requires a duration (-s) and a single "
+			    "pool name\n");
+			usage();
+			libzfs_fini(g_zfs);
+			return (2);
+		}
+
+		(void) strlcpy(pool, argv[0], sizeof (pool));
 	} else if (record.zi_cmd == ZINJECT_IGNORED_WRITES) {
 		if (raw != NULL || range != NULL || type != TYPE_INVAL ||
 		    level != 0 || record.zi_freq > 0 || dvas != 0) {

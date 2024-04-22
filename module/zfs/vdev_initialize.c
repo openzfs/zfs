@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2016, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2016, 2024 by Delphix. All rights reserved.
  */
 
 #include <sys/spa.h>
@@ -775,7 +775,8 @@ vdev_initialize_stop_all(vdev_t *vd, vdev_initializing_state_t tgt_state)
 void
 vdev_initialize_restart(vdev_t *vd)
 {
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(MUTEX_HELD(&spa_namespace_lock) ||
+	    vd->vdev_spa->spa_load_thread == curthread);
 	ASSERT(!spa_config_held(vd->vdev_spa, SCL_ALL, RW_WRITER));
 
 	if (vd->vdev_leaf_zap != 0) {
