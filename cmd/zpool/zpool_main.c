@@ -3445,10 +3445,10 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 		ms_status = zpool_enable_datasets(zhp, mntopts, 0);
 		if (ms_status == EZFS_SHAREFAILED) {
 			(void) fprintf(stderr, gettext("Import was "
-			    "successful, but unable to share some datasets"));
+			    "successful, but unable to share some datasets\n"));
 		} else if (ms_status == EZFS_MOUNTFAILED) {
 			(void) fprintf(stderr, gettext("Import was "
-			    "successful, but unable to mount some datasets"));
+			    "successful, but unable to mount some datasets\n"));
 		}
 	}
 
