@@ -679,6 +679,10 @@ _LIBZFS_H void zprop_print_one_property(const char *, zprop_get_cbdata_t *,
 _LIBZFS_H int zprop_nvlist_one_property(const char *, const char *,
     zprop_source_t, const char *, const char *, nvlist_t *, boolean_t);
 
+_LIBZFS_H int zprop_collect_property(const char *, zprop_get_cbdata_t *,
+    const char *, const char *, zprop_source_t, const char *,
+    const char *, nvlist_t *);
+
 /*
  * Iterator functions.
  */
