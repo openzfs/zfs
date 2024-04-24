@@ -803,9 +803,10 @@ zio_notify_parent(zio_t *pio, zio_t *zio, enum zio_wait_type wait,
 
 		/*
 		 * If we can tell the caller to execute this parent next, do
-		 * so. We only do this if the parent's zio type matches the
-		 * child's type. Otherwise dispatch the parent zio in its
-		 * own taskq.
+		 * so. We do this if the parent's zio type matches the child's
+		 * type, or if it's a zio_null() with no done callback, and so
+		 * has no actual work to do. Otherwise dispatch the parent zio
+		 * in its own taskq.
 		 *
 		 * Having the caller execute the parent when possible reduces
 		 * locking on the zio taskq's, reduces context switch
@@ -825,7 +826,8 @@ zio_notify_parent(zio_t *pio, zio_t *zio, enum zio_wait_type wait,
 		 * of writes for spa_sync(), and the chain of ZIL blocks.
 		 */
 		if (next_to_executep != NULL && *next_to_executep == NULL &&
-		    pio->io_type == zio->io_type) {
+		    (pio->io_type == zio->io_type ||
+		    (pio->io_type == ZIO_TYPE_NULL && !pio->io_done))) {
 			*next_to_executep = pio;
 		} else {
 			zio_taskq_dispatch(pio, type, B_FALSE);
