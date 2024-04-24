@@ -1972,26 +1972,6 @@ fill_dataset_info(nvlist_t *list, zfs_handle_t *zhp, boolean_t as_int)
 	}
 }
 
-static int
-zprop_collect_property(const char *name, zprop_get_cbdata_t *cbp,
-    const char *propname, const char *value, zprop_source_t sourcetype,
-    const char *source, const char *recvd_value, nvlist_t *nvl)
-{
-	if (cbp->cb_json) {
-		if ((sourcetype & cbp->cb_sources) == 0)
-			return (0);
-		else {
-			return (zprop_nvlist_one_property(propname, value,
-			    sourcetype, source, recvd_value, nvl,
-			    cbp->cb_json_as_int));
-		}
-	} else {
-		zprop_print_one_property(name, cbp,
-		    propname, value, sourcetype, source, recvd_value);
-		return (0);
-	}
-}
-
 /*
  * zfs get [-rHp] [-j [--json-int]] [-o all | field[,field]...]
  *		[-s source[,source]...]
