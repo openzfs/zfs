@@ -10561,10 +10561,10 @@ ZFS_MODULE_PARAM(zfs_spa, spa_, load_verify_data, INT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_spa, spa_, load_print_vdev_tree, INT, ZMOD_RW,
 	"Print vdev tree to zfs_dbgmsg during pool import");
 
-ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_batch_pct, UINT, ZMOD_RD,
+ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_batch_pct, UINT, ZMOD_RW,
 	"Percentage of CPUs to run an IO worker thread");
 
-ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_batch_tpq, UINT, ZMOD_RD,
+ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_batch_tpq, UINT, ZMOD_RW,
 	"Number of threads per IO worker taskqueue");
 
 /* BEGIN CSTYLED */
@@ -10595,10 +10595,10 @@ ZFS_MODULE_PARAM(zfs_livelist_condense, zfs_livelist_condense_, new_alloc, INT,
 
 #ifdef _KERNEL
 ZFS_MODULE_VIRTUAL_PARAM_CALL(zfs_zio, zio_, taskq_read,
-	spa_taskq_read_param_set, spa_taskq_read_param_get, ZMOD_RD,
+	spa_taskq_read_param_set, spa_taskq_read_param_get, ZMOD_RW,
 	"Configure IO queues for read IO");
 ZFS_MODULE_VIRTUAL_PARAM_CALL(zfs_zio, zio_, taskq_write,
-	spa_taskq_write_param_set, spa_taskq_write_param_get, ZMOD_RD,
+	spa_taskq_write_param_set, spa_taskq_write_param_get, ZMOD_RW,
 	"Configure IO queues for write IO");
 #endif
 /* END CSTYLED */
