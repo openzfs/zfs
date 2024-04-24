@@ -438,7 +438,7 @@ static char *zpool_sysfs_gets(char *path)
 		return (NULL);
 	}
 
-	buf = calloc(sizeof (*buf), statbuf.st_size + 1);
+	buf = calloc(statbuf.st_size + 1, sizeof (*buf));
 	if (buf == NULL) {
 		close(fd);
 		return (NULL);

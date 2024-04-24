@@ -1891,8 +1891,9 @@ vdev_raidz_matrix_reconstruct(raidz_row_t *rr, int n, int nmissing,
 static void
 vdev_raidz_reconstruct_general(raidz_row_t *rr, int *tgts, int ntgts)
 {
-	int n, i, c, t, tt;
-	int nmissing_rows;
+	int i, c, t, tt;
+	unsigned int n;
+	unsigned int nmissing_rows;
 	int missing_rows[VDEV_RAIDZ_MAXPARITY];
 	int parity_map[VDEV_RAIDZ_MAXPARITY];
 	uint8_t *p, *pp;
