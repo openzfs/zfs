@@ -208,7 +208,7 @@ static const uint_t	zio_taskq_basedc = 80;	  /* base duty cycle */
 static const boolean_t spa_create_process = B_TRUE; /* no process => no sysdc */
 #endif
 
-static uint_t	zio_taskq_wr_iss_ncpus = 0;
+static uint_t	zio_taskq_write_tpq = 16;
 
 /*
  * Report any spa_load_verify errors found, but do not fail spa_load.
@@ -1067,17 +1067,16 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 	case ZTI_MODE_SYNC:
 
 		/*
-		 * Create one wr_iss taskq for every 'zio_taskq_wr_iss_ncpus',
-		 * not to exceed the number of spa allocators.
+		 * Create one wr_iss taskq for every 'zio_taskq_write_tpq' CPUs,
+		 * not to exceed the number of spa allocators, and align to it.
 		 */
-		if (zio_taskq_wr_iss_ncpus == 0) {
-			count = MAX(boot_ncpus / spa->spa_alloc_count, 1);
-		} else {
-			count = MAX(1,
-			    boot_ncpus / MAX(1, zio_taskq_wr_iss_ncpus));
-		}
+		cpus = MAX(1, boot_ncpus * zio_taskq_batch_pct / 100);
+		count = MAX(1, cpus / MAX(1, zio_taskq_write_tpq));
 		count = MAX(count, (zio_taskq_batch_pct + 99) / 100);
 		count = MIN(count, spa->spa_alloc_count);
+		while (spa->spa_alloc_count % count != 0 &&
+		    spa->spa_alloc_count < count * 2)
+			count--;
 
 		/*
 		 * zio_taskq_batch_pct is unbounded and may exceed 100%, but no
@@ -1495,15 +1494,11 @@ spa_taskq_dispatch_select(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
 	ASSERT3P(tqs->stqs_taskq, !=, NULL);
 	ASSERT3U(tqs->stqs_count, !=, 0);
 
-	if ((t == ZIO_TYPE_WRITE) && (q == ZIO_TASKQ_ISSUE) &&
-	    (zio != NULL) && (zio->io_wr_iss_tq != NULL)) {
-		/* dispatch to assigned write issue taskq */
-		tq = zio->io_wr_iss_tq;
-		return (tq);
-	}
-
 	if (tqs->stqs_count == 1) {
 		tq = tqs->stqs_taskq[0];
+	} else if ((t == ZIO_TYPE_WRITE) && (q == ZIO_TASKQ_ISSUE) &&
+	    (zio != NULL) && ZIO_HAS_ALLOCATOR(zio)) {
+		tq = tqs->stqs_taskq[zio->io_allocator % tqs->stqs_count];
 	} else {
 		tq = tqs->stqs_taskq[((uint64_t)gethrtime()) % tqs->stqs_count];
 	}
@@ -10167,16 +10162,10 @@ spa_sync_tq_create(spa_t *spa, const char *name)
 	VERIFY(spa->spa_sync_tq != NULL);
 	VERIFY(kthreads != NULL);
 
-	spa_taskqs_t *tqs =
-	    &spa->spa_zio_taskq[ZIO_TYPE_WRITE][ZIO_TASKQ_ISSUE];
-
 	spa_syncthread_info_t *ti = spa->spa_syncthreads;
-	for (int i = 0, w = 0; i < nthreads; i++, w++, ti++) {
+	for (int i = 0; i < nthreads; i++, ti++) {
 		ti->sti_thread = kthreads[i];
-		if (w == tqs->stqs_count) {
-			w = 0;
-		}
-		ti->sti_wr_iss_tq = tqs->stqs_taskq[w];
+		ti->sti_allocator = i;
 	}
 
 	kmem_free(kthreads, sizeof (*kthreads) * nthreads);
@@ -10193,6 +10182,42 @@ spa_sync_tq_destroy(spa_t *spa)
 	kmem_free(spa->spa_syncthreads,
 	    sizeof (spa_syncthread_info_t) * spa->spa_alloc_count);
 	spa->spa_sync_tq = NULL;
+}
+
+uint_t
+spa_acq_allocator(spa_t *spa)
+{
+	int i;
+
+	if (spa->spa_alloc_count == 1)
+		return (0);
+
+	mutex_enter(&spa->spa_allocs_use->sau_lock);
+	uint_t r = spa->spa_allocs_use->sau_rotor;
+	do {
+		if (++r == spa->spa_alloc_count)
+			r = 0;
+	} while (spa->spa_allocs_use->sau_inuse[r]);
+	spa->spa_allocs_use->sau_inuse[r] = B_TRUE;
+	spa->spa_allocs_use->sau_rotor = r;
+	mutex_exit(&spa->spa_allocs_use->sau_lock);
+
+	spa_syncthread_info_t *ti = spa->spa_syncthreads;
+	for (i = 0; i < spa->spa_alloc_count; i++, ti++) {
+		if (ti->sti_thread == curthread) {
+			ti->sti_allocator = r;
+			break;
+		}
+	}
+	ASSERT3S(i, <, spa->spa_alloc_count);
+	return (r);
+}
+
+void
+spa_rel_allocator(spa_t *spa, uint_t allocator)
+{
+	if (spa->spa_alloc_count > 1)
+		spa->spa_allocs_use->sau_inuse[allocator] = B_FALSE;
 }
 
 void
@@ -10222,8 +10247,7 @@ spa_select_allocator(zio_t *zio)
 		spa_syncthread_info_t *ti = spa->spa_syncthreads;
 		for (int i = 0; i < spa->spa_alloc_count; i++, ti++) {
 			if (ti->sti_thread == curthread) {
-				zio->io_allocator = i;
-				zio->io_wr_iss_tq = ti->sti_wr_iss_tq;
+				zio->io_allocator = ti->sti_allocator;
 				return;
 			}
 		}
@@ -10240,7 +10264,6 @@ spa_select_allocator(zio_t *zio)
 	    bm->zb_blkid >> 20);
 
 	zio->io_allocator = (uint_t)hv % spa->spa_alloc_count;
-	zio->io_wr_iss_tq = NULL;
 }
 
 /*
@@ -10853,5 +10876,5 @@ ZFS_MODULE_VIRTUAL_PARAM_CALL(zfs_zio, zio_, taskq_write,
 #endif
 /* END CSTYLED */
 
-ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_wr_iss_ncpus, UINT, ZMOD_RW,
-	"Number of CPUs to run write issue taskqs");
+ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_write_tpq, UINT, ZMOD_RW,
+	"Number of CPUs per write issue taskq");

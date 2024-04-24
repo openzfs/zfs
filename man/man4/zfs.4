@@ -525,10 +525,17 @@ most ZPL operations (e.g. write, create) will return
 .
 .It Sy spa_num_allocators Ns = Ns Sy 4 Pq int
 Determines the number of block alloctators to use per spa instance.
-Capped by the number of actual CPUs in the system.
+Capped by the number of actual CPUs in the system via
+.Sy spa_cpus_per_allocator .
 .Pp
 Note that setting this value too high could result in performance
 degredation and/or excess fragmentation.
+Set value only applies to pools imported/created after that.
+.
+.It Sy spa_cpus_per_allocator Ns = Ns Sy 4 Pq int
+Determines the minimum number of CPUs in a system for block alloctator
+per spa instance.
+Set value only applies to pools imported/created after that.
 .
 .It Sy spa_upgrade_errlog_limit Ns = Ns Sy 0 Pq uint
 Limits the number of on-disk error log entries that will be converted to the
@@ -2339,21 +2346,19 @@ Set value only applies to pools imported/created after that.
 .
 .It Sy zio_taskq_batch_tpq Ns = Ns Sy 0 Pq uint
 Number of worker threads per taskq.
-Lower values improve I/O ordering and CPU utilization,
-while higher reduces lock contention.
+Higher values improve I/O ordering and CPU utilization,
+while lower reduce lock contention.
+Set value only applies to pools imported/created after that.
 .Pp
 If
 .Sy 0 ,
 generate a system-dependent value close to 6 threads per taskq.
 Set value only applies to pools imported/created after that.
 .
-.It Sy zio_taskq_wr_iss_ncpus Ns = Ns Sy 0 Pq uint
-Determines the number of CPUs to run write issue taskqs.
-.Pp
-When 0 (the default), the value to use is computed internally
-as the number of actual CPUs in the system divided by the
-.Sy spa_num_allocators
-value.
+.It Sy zio_taskq_write_tpq Ns = Ns Sy 16 Pq uint
+Determines the minumum number of threads per write issue taskq.
+Higher values improve CPU utilization on high throughput,
+while lower reduce taskq locks contention on high IOPS.
 Set value only applies to pools imported/created after that.
 .
 .It Sy zio_taskq_read Ns = Ns Sy fixed,1,8 null scale null Pq charp

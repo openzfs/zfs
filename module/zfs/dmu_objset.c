@@ -1664,12 +1664,14 @@ sync_dnodes_task(void *arg)
 	sync_objset_arg_t *soa = sda->sda_soa;
 	objset_t *os = soa->soa_os;
 
+	uint_t allocator = spa_acq_allocator(os->os_spa);
 	multilist_sublist_t *ms =
 	    multilist_sublist_lock_idx(sda->sda_list, sda->sda_sublist_idx);
 
 	dmu_objset_sync_dnodes(ms, soa->soa_tx);
 
 	multilist_sublist_unlock(ms);
+	spa_rel_allocator(os->os_spa, allocator);
 
 	kmem_free(sda, sizeof (*sda));
 

@@ -528,9 +528,6 @@ struct zio {
 
 	/* Taskq dispatching state */
 	taskq_ent_t	io_tqent;
-
-	/* write issue taskq selection, based upon sync thread */
-	taskq_t		*io_wr_iss_tq;
 };
 
 enum blk_verify_flag {
