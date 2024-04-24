@@ -2074,6 +2074,9 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/xattr/xattr_012_pos.ksh \
 	functional/xattr/xattr_013_pos.ksh \
 	functional/xattr/xattr_compat.ksh \
+	functional/zap_shrink/cleanup.ksh \
+	functional/zap_shrink/zap_shrink_001_pos.ksh \
+	functional/zap_shrink/setup.ksh \
 	functional/zpool_influxdb/cleanup.ksh \
 	functional/zpool_influxdb/setup.ksh \
 	functional/zpool_influxdb/zpool_influxdb.ksh \

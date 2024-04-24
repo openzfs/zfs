@@ -22,6 +22,8 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
+ * Copyright 2023 Alexander Stetsenko <alex.stetsenko@gmail.com>
+ * Copyright (c) 2023, Klara Inc.
  */
 
 /*
@@ -41,6 +43,7 @@
 
 #include <sys/spa.h>
 #include <sys/dmu.h>
+#include <sys/dnode.h>
 #include <sys/zfs_context.h>
 #include <sys/zfs_znode.h>
 #include <sys/fs/zfs.h>
@@ -78,9 +81,16 @@
  */
 static int zap_iterate_prefetch = B_TRUE;
 
+/*
+ * Enable ZAP shrinking. When enabled, empty sibling leaf blocks will be
+ * collapsed into a single block.
+ */
+int zap_shrink_enabled = B_TRUE;
+
 int fzap_default_block_shift = 14; /* 16k blocksize */
 
 static uint64_t zap_allocate_blocks(zap_t *zap, int nblocks);
+static int zap_shrink(zap_name_t *zn, zap_leaf_t *l, dmu_tx_t *tx);
 
 void
 fzap_byteswap(void *vbuf, size_t size)
@@ -587,6 +597,72 @@ zap_set_idx_to_blk(zap_t *zap, uint64_t idx, uint64_t blk, dmu_tx_t *tx)
 }
 
 static int
+zap_set_idx_range_to_blk(zap_t *zap, uint64_t idx, uint64_t nptrs, uint64_t blk,
+    dmu_tx_t *tx)
+{
+	int bs = FZAP_BLOCK_SHIFT(zap);
+	int epb = bs >> 3; /* entries per block */
+	int err = 0;
+
+	ASSERT(tx != NULL);
+	ASSERT(RW_WRITE_HELD(&zap->zap_rwlock));
+
+	/*
+	 * Check for i/o errors
+	 */
+	for (int i = 0; i < nptrs; i += epb) {
+		uint64_t blk;
+		err = zap_idx_to_blk(zap, idx + i, &blk);
+		if (err != 0) {
+			return (err);
+		}
+	}
+
+	for (int i = 0; i < nptrs; i++) {
+		err = zap_set_idx_to_blk(zap, idx + i, blk, tx);
+		ASSERT0(err); /* we checked for i/o errors above */
+		if (err != 0)
+			break;
+	}
+
+	return (err);
+}
+
+#define	ZAP_PREFIX_HASH(pref, pref_len)	((pref) << (64 - (pref_len)))
+
+/*
+ * Each leaf has single range of entries (block pointers) in the ZAP ptrtbl.
+ * If two leaves are siblings, their ranges are adjecent and contain the same
+ * number of entries. In order to find out if a leaf has a sibling, we need to
+ * check the range corresponding to the sibling leaf. There is no need to check
+ * all entries in the range, we only need to check the frist and the last one.
+ */
+static uint64_t
+check_sibling_ptrtbl_range(zap_t *zap, uint64_t prefix, uint64_t prefix_len)
+{
+	ASSERT(RW_LOCK_HELD(&zap->zap_rwlock));
+
+	uint64_t h = ZAP_PREFIX_HASH(prefix, prefix_len);
+	uint64_t idx = ZAP_HASH_IDX(h, zap_f_phys(zap)->zap_ptrtbl.zt_shift);
+	uint64_t pref_diff = zap_f_phys(zap)->zap_ptrtbl.zt_shift - prefix_len;
+	uint64_t nptrs = (1 << pref_diff);
+	uint64_t first;
+	uint64_t last;
+
+	ASSERT3U(idx+nptrs, <=, (1UL << zap_f_phys(zap)->zap_ptrtbl.zt_shift));
+
+	if (zap_idx_to_blk(zap, idx, &first) != 0)
+		return (0);
+
+	if (zap_idx_to_blk(zap, idx + nptrs - 1, &last) != 0)
+		return (0);
+
+	if (first != last)
+		return (0);
+	return (first);
+}
+
+static int
 zap_deref_leaf(zap_t *zap, uint64_t h, dmu_tx_t *tx, krw_t lt, zap_leaf_t **lp)
 {
 	uint64_t blk;
@@ -958,6 +1034,10 @@ fzap_remove(zap_name_t *zn, dmu_tx_t *tx)
 	if (err == 0) {
 		zap_entry_remove(&zeh);
 		zap_increment_num_entries(zn->zn_zap, -1, tx);
+
+		if (zap_leaf_phys(l)->l_hdr.lh_nentries == 0 &&
+		    zap_shrink_enabled)
+			return (zap_shrink(zn, l, tx));
 	}
 	zap_put_leaf(l);
 	return (err);
@@ -1222,13 +1302,19 @@ fzap_cursor_retrieve(zap_t *zap, zap_cursor_t *zc, zap_attribute_t *za)
 		    ZIO_PRIORITY_ASYNC_READ);
 	}
 
-	if (zc->zc_leaf &&
-	    (ZAP_HASH_IDX(zc->zc_hash,
-	    zap_leaf_phys(zc->zc_leaf)->l_hdr.lh_prefix_len) !=
-	    zap_leaf_phys(zc->zc_leaf)->l_hdr.lh_prefix)) {
+	if (zc->zc_leaf) {
 		rw_enter(&zc->zc_leaf->l_rwlock, RW_READER);
-		zap_put_leaf(zc->zc_leaf);
-		zc->zc_leaf = NULL;
+
+		/*
+		 * The leaf was either shrunk or split.
+		 */
+		if ((zap_leaf_phys(zc->zc_leaf)->l_hdr.lh_block_type == 0) ||
+		    (ZAP_HASH_IDX(zc->zc_hash,
+		    zap_leaf_phys(zc->zc_leaf)->l_hdr.lh_prefix_len) !=
+		    zap_leaf_phys(zc->zc_leaf)->l_hdr.lh_prefix)) {
+			zap_put_leaf(zc->zc_leaf);
+			zc->zc_leaf = NULL;
+		}
 	}
 
 again:
@@ -1237,8 +1323,6 @@ again:
 		    &zc->zc_leaf);
 		if (err != 0)
 			return (err);
-	} else {
-		rw_enter(&zc->zc_leaf->l_rwlock, RW_READER);
 	}
 	l = zc->zc_leaf;
 
@@ -1367,6 +1451,242 @@ fzap_get_stats(zap_t *zap, zap_stats_t *zs)
 	}
 }
 
+/*
+ * Find last allocated block and update freeblk.
+ */
+static void
+zap_trunc(zap_t *zap)
+{
+	uint64_t nentries;
+	uint64_t lastblk;
+
+	ASSERT(RW_WRITE_HELD(&zap->zap_rwlock));
+
+	if (zap_f_phys(zap)->zap_ptrtbl.zt_blk > 0) {
+		/* External ptrtbl */
+		nentries = (1 << zap_f_phys(zap)->zap_ptrtbl.zt_shift);
+		lastblk = zap_f_phys(zap)->zap_ptrtbl.zt_blk +
+		    zap_f_phys(zap)->zap_ptrtbl.zt_numblks - 1;
+	} else {
+		/* Embedded ptrtbl */
+		nentries = (1 << ZAP_EMBEDDED_PTRTBL_SHIFT(zap));
+		lastblk = 0;
+	}
+
+	for (uint64_t idx = 0; idx < nentries; idx++) {
+		uint64_t blk;
+		if (zap_idx_to_blk(zap, idx, &blk) != 0)
+			return;
+		if (blk > lastblk)
+			lastblk = blk;
+	}
+
+	ASSERT3U(lastblk, <, zap_f_phys(zap)->zap_freeblk);
+
+	zap_f_phys(zap)->zap_freeblk = lastblk + 1;
+}
+
+/*
+ * ZAP shrinking algorithm.
+ *
+ * We shrink ZAP recuresively removing empty leaves. We can remove an empty leaf
+ * only if it has a sibling. Sibling leaves have the same prefix length and
+ * their prefixes differ only by the least significant (sibling) bit. We require
+ * both siblings to be empty. This eliminates a need to rehash the non-empty
+ * remaining leaf. When we have removed one of two empty sibling, we set ptrtbl
+ * entries of the removed leaf to point out to the remaining leaf. Prefix length
+ * of the remaining leaf is decremented. As a result, it has a new prefix and it
+ * might have a new sibling. So, we repeat the process.
+ *
+ * Steps:
+ * 1. Check if a sibling leaf (sl) exists and it is empty.
+ * 2. Release the leaf (l) if it has the sibling bit (slbit) equal to 1.
+ * 3. Release the sibling (sl) to derefer it again with WRITER lock.
+ * 4. Upgrade zapdir lock to WRITER (once).
+ * 5. Derefer released leaves again.
+ * 6. If it is needed, recheck whether both leaves are still siblings and empty.
+ * 7. Set ptrtbl pointers of the removed leaf (slbit 1) to point out to blkid of
+ * the remaining leaf (slbit 0).
+ * 8. Free disk block of the removed leaf (dmu_free_range).
+ * 9. Decrement prefix_len of the remaining leaf.
+ * 10. Repeat the steps.
+ */
+static int
+zap_shrink(zap_name_t *zn, zap_leaf_t *l, dmu_tx_t *tx)
+{
+	zap_t *zap = zn->zn_zap;
+	int64_t zt_shift = zap_f_phys(zap)->zap_ptrtbl.zt_shift;
+	uint64_t hash = zn->zn_hash;
+	uint64_t prefix = zap_leaf_phys(l)->l_hdr.lh_prefix;
+	uint64_t prefix_len = zap_leaf_phys(l)->l_hdr.lh_prefix_len;
+	boolean_t trunc = B_FALSE;
+	int err = 0;
+
+	ASSERT3U(zap_leaf_phys(l)->l_hdr.lh_nentries, ==, 0);
+	ASSERT3U(prefix_len, <=, zap_f_phys(zap)->zap_ptrtbl.zt_shift);
+	ASSERT(RW_LOCK_HELD(&zap->zap_rwlock));
+	ASSERT3U(ZAP_HASH_IDX(hash, prefix_len), ==, prefix);
+
+	boolean_t writer = B_FALSE;
+
+	/*
+	 * To avoid deadlock always deref leaves in the same order -
+	 * sibling 0 first, then sibling 1.
+	 */
+	while (prefix_len) {
+		zap_leaf_t *sl;
+		int64_t prefix_diff = zt_shift - prefix_len;
+		uint64_t sl_prefix = prefix ^ 1;
+		uint64_t sl_hash = ZAP_PREFIX_HASH(sl_prefix, prefix_len);
+		int slbit = prefix & 1;
+
+		ASSERT3U(zap_leaf_phys(l)->l_hdr.lh_nentries, ==, 0);
+
+		/*
+		 * Check if there is a sibling by reading ptrtbl ptrs.
+		 */
+		if (check_sibling_ptrtbl_range(zap, sl_prefix, prefix_len) == 0)
+			break;
+
+		/*
+		 * sibling 1, unlock it - we haven't yet dereferenced sibling 0.
+		 */
+		if (slbit == 1) {
+			zap_put_leaf(l);
+			l = NULL;
+		}
+
+		/*
+		 * Dereference sibling leaf and check if it is empty.
+		 */
+		if ((err = zap_deref_leaf(zap, sl_hash, tx, RW_READER,
+		    &sl)) != 0)
+			break;
+
+		ASSERT3U(ZAP_HASH_IDX(sl_hash, prefix_len), ==, sl_prefix);
+
+		/*
+		 * Check if we have a sibling and it is empty.
+		 */
+		if (zap_leaf_phys(sl)->l_hdr.lh_prefix_len != prefix_len ||
+		    zap_leaf_phys(sl)->l_hdr.lh_nentries != 0) {
+			zap_put_leaf(sl);
+			break;
+		}
+
+		zap_put_leaf(sl);
+
+		/*
+		 * If there two empty sibling, we have work to do, so
+		 * we need to lock ZAP ptrtbl as WRITER.
+		 */
+		if (!writer && (writer = zap_tryupgradedir(zap, tx)) == 0) {
+			/* We failed to upgrade */
+			if (l != NULL) {
+				zap_put_leaf(l);
+				l = NULL;
+			}
+
+			/*
+			 * Usually, the right way to upgrade from a READER lock
+			 * to a WRITER lock is to call zap_unlockdir() and
+			 * zap_lockdir(), but we do not have a tag. Instead,
+			 * we do it in more sophisticated way.
+			 */
+			rw_exit(&zap->zap_rwlock);
+			rw_enter(&zap->zap_rwlock, RW_WRITER);
+			dmu_buf_will_dirty(zap->zap_dbuf, tx);
+
+			zt_shift = zap_f_phys(zap)->zap_ptrtbl.zt_shift;
+			writer = B_TRUE;
+		}
+
+		/*
+		 * Here we have WRITER lock for ptrtbl.
+		 * Now, we need a WRITER lock for both siblings leaves.
+		 * Also, we have to recheck if the leaves are still siblings
+		 * and still empty.
+		 */
+		if (l == NULL) {
+			/* sibling 0 */
+			if ((err = zap_deref_leaf(zap, (slbit ? sl_hash : hash),
+			    tx, RW_WRITER, &l)) != 0)
+				break;
+
+			/*
+			 * The leaf isn't empty anymore or
+			 * it was shrunk/split while our locks were down.
+			 */
+			if (zap_leaf_phys(l)->l_hdr.lh_nentries != 0 ||
+			    zap_leaf_phys(l)->l_hdr.lh_prefix_len != prefix_len)
+				break;
+		}
+
+		/* sibling 1 */
+		if ((err = zap_deref_leaf(zap, (slbit ? hash : sl_hash), tx,
+		    RW_WRITER, &sl)) != 0)
+			break;
+
+		/*
+		 * The leaf isn't empty anymore or
+		 * it was shrunk/split while our locks were down.
+		 */
+		if (zap_leaf_phys(sl)->l_hdr.lh_nentries != 0 ||
+		    zap_leaf_phys(sl)->l_hdr.lh_prefix_len != prefix_len) {
+			zap_put_leaf(sl);
+			break;
+		}
+
+		/* If we have gotten here, we have a leaf to collapse */
+		uint64_t idx = (slbit ? prefix : sl_prefix) << prefix_diff;
+		uint64_t nptrs = (1ULL << prefix_diff);
+		uint64_t sl_blkid = sl->l_blkid;
+
+		/*
+		 * Set ptrtbl entries to point out to the slibling 0 blkid
+		 */
+		if ((err = zap_set_idx_range_to_blk(zap, idx, nptrs, l->l_blkid,
+		    tx)) != 0) {
+			zap_put_leaf(sl);
+			break;
+		}
+
+		/*
+		 * Free sibling 1 disk block.
+		 */
+		int bs = FZAP_BLOCK_SHIFT(zap);
+		if (sl_blkid == zap_f_phys(zap)->zap_freeblk - 1)
+			trunc = B_TRUE;
+
+		(void) dmu_free_range(zap->zap_objset, zap->zap_object,
+		    sl_blkid << bs, 1 << bs, tx);
+		zap_put_leaf(sl);
+
+		zap_f_phys(zap)->zap_num_leafs--;
+
+		/*
+		 * Update prefix and prefix_len.
+		 */
+		zap_leaf_phys(l)->l_hdr.lh_prefix >>= 1;
+		zap_leaf_phys(l)->l_hdr.lh_prefix_len--;
+
+		prefix = zap_leaf_phys(l)->l_hdr.lh_prefix;
+		prefix_len = zap_leaf_phys(l)->l_hdr.lh_prefix_len;
+	}
+
+	if (trunc)
+		zap_trunc(zap);
+
+	if (l != NULL)
+		zap_put_leaf(l);
+
+	return (err);
+}
+
 /* CSTYLED */
 ZFS_MODULE_PARAM(zfs, , zap_iterate_prefetch, INT, ZMOD_RW,
 	"When iterating ZAP object, prefetch it");
+
+/* CSTYLED */
+ZFS_MODULE_PARAM(zfs, , zap_shrink_enabled, INT, ZMOD_RW,
+	"Enable ZAP shrinking");
