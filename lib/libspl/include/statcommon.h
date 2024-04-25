@@ -37,5 +37,7 @@
 
 /* Print a timestamp in either Unix or standard format. */
 void print_timestamp(uint_t);
+/* Return timestamp in either Unix or standard format in provided buffer */
+void get_timestamp(uint_t, char *, int);
 
 #endif /* _STATCOMMON_H */
