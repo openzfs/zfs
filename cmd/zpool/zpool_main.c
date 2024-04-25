@@ -398,7 +398,7 @@ get_usage(zpool_help_t idx)
 	case HELP_LABELCLEAR:
 		return (gettext("\tlabelclear [-f] <vdev>\n"));
 	case HELP_LIST:
-		return (gettext("\tlist [-gHLpPv] [-o property[,...]] "
+		return (gettext("\tlist [-gjHLpPv] [-o property[,...]] "
 		    "[-T d|u] [pool] ... \n"
 		    "\t    [interval [count]]\n"));
 	case HELP_OFFLINE:
@@ -960,14 +960,15 @@ fill_pool_info(nvlist_t *list, zpool_handle_t *zhp, boolean_t addtype,
 
 static void
 fill_vdev_info(nvlist_t *list, zpool_handle_t *zhp, char *name,
-    boolean_t as_int)
+    boolean_t addtype, boolean_t as_int)
 {
 	boolean_t spare, l2c, log;
 	const char *path, *phys, *devid;
 	nvlist_t *nvdev = zpool_find_vdev(zhp, name, &spare, &l2c, &log);
 
 	fnvlist_add_string(list, "name", name);
-	fnvlist_add_string(list, "type", "VDEV");
+	if (addtype)
+		fnvlist_add_string(list, "type", "VDEV");
 	if (nvdev) {
 		const char *type = fnvlist_lookup_string(nvdev,
 		    ZPOOL_CONFIG_TYPE);
@@ -6409,9 +6410,12 @@ typedef struct list_cbdata {
 	boolean_t	cb_verbose;
 	int		cb_name_flags;
 	int		cb_namewidth;
+	boolean_t	cb_json;
 	boolean_t	cb_scripted;
 	zprop_list_t	*cb_proplist;
 	boolean_t	cb_literal;
+	nvlist_t	*cb_jsobj;
+	boolean_t	cb_json_as_int;
 } list_cbdata_t;
 
 
@@ -6472,7 +6476,7 @@ print_header(list_cbdata_t *cb)
  * to the described layout. Used by zpool_do_list().
  */
 static void
-print_pool(zpool_handle_t *zhp, list_cbdata_t *cb)
+collect_pool(zpool_handle_t *zhp, list_cbdata_t *cb)
 {
 	zprop_list_t *pl = cb->cb_proplist;
 	boolean_t first = B_TRUE;
@@ -6480,6 +6484,20 @@ print_pool(zpool_handle_t *zhp, list_cbdata_t *cb)
 	const char *propstr;
 	boolean_t right_justify;
 	size_t width;
+	zprop_source_t sourcetype;
+	nvlist_t *item, *d, *props;
+	item = d = props = NULL;
+
+	if (cb->cb_json) {
+		item = fnvlist_alloc();
+		props = fnvlist_alloc();
+		d = fnvlist_lookup_nvlist(cb->cb_jsobj, "pools");
+		if (d == NULL) {
+			fprintf(stderr, "pools obj not found.\n");
+			exit(1);
+		}
+		fill_pool_info(item, zhp, B_TRUE, cb->cb_json_as_int);
+	}
 
 	for (; pl != NULL; pl = pl->pl_next) {
 
@@ -6492,7 +6510,7 @@ print_pool(zpool_handle_t *zhp, list_cbdata_t *cb)
 			width = cb->cb_namewidth;
 		}
 
-		if (!first) {
+		if (!cb->cb_json && !first) {
 			if (cb->cb_scripted)
 				(void) fputc('\t', stdout);
 			else
@@ -6504,7 +6522,8 @@ print_pool(zpool_handle_t *zhp, list_cbdata_t *cb)
 		right_justify = B_FALSE;
 		if (pl->pl_prop != ZPROP_USERPROP) {
 			if (zpool_get_prop(zhp, pl->pl_prop, property,
-			    sizeof (property), NULL, cb->cb_literal) != 0)
+			    sizeof (property), &sourcetype,
+			    cb->cb_literal) != 0)
 				propstr = "-";
 			else
 				propstr = property;
@@ -6515,33 +6534,55 @@ print_pool(zpool_handle_t *zhp, list_cbdata_t *cb)
 		    zpool_prop_get_feature(zhp, pl->pl_user_prop, property,
 		    sizeof (property)) == 0) {
 			propstr = property;
+			sourcetype = ZPROP_SRC_LOCAL;
 		} else if (zfs_prop_user(pl->pl_user_prop) &&
 		    zpool_get_userprop(zhp, pl->pl_user_prop, property,
-		    sizeof (property), NULL) == 0) {
+		    sizeof (property), &sourcetype) == 0) {
 			propstr = property;
 		} else {
 			propstr = "-";
 		}
 
-		/*
-		 * If this is being called in scripted mode, or if this is the
-		 * last column and it is left-justified, don't include a width
-		 * format specifier.
-		 */
-		if (cb->cb_scripted || (pl->pl_next == NULL && !right_justify))
-			(void) fputs(propstr, stdout);
-		else if (right_justify)
-			(void) printf("%*s", (int)width, propstr);
-		else
-			(void) printf("%-*s", (int)width, propstr);
+		if (cb->cb_json) {
+			if (pl->pl_prop == ZPOOL_PROP_NAME)
+				continue;
+			(void) zprop_nvlist_one_property(
+			    zpool_prop_to_name(pl->pl_prop), propstr,
+			    sourcetype, NULL, NULL, props, cb->cb_json_as_int);
+		} else {
+			/*
+			 * If this is being called in scripted mode, or if this
+			 * is the last column and it is left-justified, don't
+			 * include a width format specifier.
+			 */
+			if (cb->cb_scripted || (pl->pl_next == NULL &&
+			    !right_justify))
+				(void) fputs(propstr, stdout);
+			else if (right_justify)
+				(void) printf("%*s", (int)width, propstr);
+			else
+				(void) printf("%-*s", (int)width, propstr);
+		}
 	}
 
-	(void) fputc('\n', stdout);
+	if (cb->cb_json) {
+		char pool_guid[256];
+		uint64_t guid = fnvlist_lookup_uint64(
+		    zpool_get_config(zhp, NULL),
+		    ZPOOL_CONFIG_POOL_GUID);
+		snprintf(pool_guid, 256, "%llu", (u_longlong_t)guid);
+		fnvlist_add_nvlist(item, "properties", props);
+		fnvlist_add_nvlist(d, pool_guid, item);
+		fnvlist_free(props);
+		fnvlist_free(item);
+	} else
+		(void) fputc('\n', stdout);
 }
 
 static void
-print_one_column(zpool_prop_t prop, uint64_t value, const char *str,
-    boolean_t scripted, boolean_t valid, enum zfs_nicenum_format format)
+collect_vdev_prop(zpool_prop_t prop, uint64_t value, const char *str,
+    boolean_t scripted, boolean_t valid, enum zfs_nicenum_format format,
+    boolean_t json, nvlist_t *nvl, boolean_t as_int)
 {
 	char propval[64];
 	boolean_t fixed;
@@ -6590,10 +6631,15 @@ print_one_column(zpool_prop_t prop, uint64_t value, const char *str,
 	if (!valid)
 		(void) strlcpy(propval, "-", sizeof (propval));
 
-	if (scripted)
-		(void) printf("\t%s", propval);
-	else
-		(void) printf("  %*s", (int)width, propval);
+	if (json) {
+		zprop_nvlist_one_property(zpool_prop_to_name(prop), propval,
+		    ZPROP_SRC_NONE, NULL, NULL, nvl, as_int);
+	} else {
+		if (scripted)
+			(void) printf("\t%s", propval);
+		else
+			(void) printf("  %*s", (int)width, propval);
+	}
 }
 
 /*
@@ -6601,15 +6647,17 @@ print_one_column(zpool_prop_t prop, uint64_t value, const char *str,
  * not compatible with '-o' <proplist> option
  */
 static void
-print_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
-    list_cbdata_t *cb, int depth, boolean_t isspare)
+collect_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
+    list_cbdata_t *cb, int depth, boolean_t isspare, nvlist_t *item)
 {
 	nvlist_t **child;
 	vdev_stat_t *vs;
-	uint_t c, children;
+	uint_t c, children = 0;
 	char *vname;
 	boolean_t scripted = cb->cb_scripted;
 	uint64_t islog = B_FALSE;
+	nvlist_t *props, *ent, *ch, *obj, *l2c, *sp;
+	props = ent = ch = obj = sp = l2c = NULL;
 	const char *dashes = "%-*s      -      -      -        -         "
 	    "-      -      -      -         -\n";
 
@@ -6617,6 +6665,7 @@ print_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 	    (uint64_t **)&vs, &c) == 0);
 
 	if (name != NULL) {
+		int c = 0;
 		boolean_t toplevel = (vs->vs_space != 0);
 		uint64_t cap;
 		enum zfs_nicenum_format format;
@@ -6630,13 +6679,21 @@ print_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 		if (strcmp(name, VDEV_TYPE_INDIRECT) == 0)
 			return;
 
-		if (scripted)
-			(void) printf("\t%s", name);
-		else if (strlen(name) + depth > cb->cb_namewidth)
-			(void) printf("%*s%s", depth, "", name);
-		else
-			(void) printf("%*s%s%*s", depth, "", name,
-			    (int)(cb->cb_namewidth - strlen(name) - depth), "");
+		if (cb->cb_json) {
+			props = fnvlist_alloc();
+			ent = fnvlist_alloc();
+			fill_vdev_info(ent, zhp, (char *)name, B_FALSE,
+			    cb->cb_json_as_int);
+		} else {
+			if (scripted)
+				(void) printf("\t%s", name);
+			else if (strlen(name) + depth > cb->cb_namewidth)
+				(void) printf("%*s%s", depth, "", name);
+			else
+				(void) printf("%*s%s%*s", depth, "", name,
+				    (int)(cb->cb_namewidth - strlen(name) -
+				    depth), "");
+		}
 
 		/*
 		 * Print the properties for the individual vdevs. Some
@@ -6644,30 +6701,39 @@ print_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 		 * 'toplevel' boolean value is passed to the print_one_column()
 		 * to indicate that the value is valid.
 		 */
-		if (VDEV_STAT_VALID(vs_pspace, c) && vs->vs_pspace)
-			print_one_column(ZPOOL_PROP_SIZE, vs->vs_pspace, NULL,
-			    scripted, B_TRUE, format);
-		else
-			print_one_column(ZPOOL_PROP_SIZE, vs->vs_space, NULL,
-			    scripted, toplevel, format);
-		print_one_column(ZPOOL_PROP_ALLOCATED, vs->vs_alloc, NULL,
-		    scripted, toplevel, format);
-		print_one_column(ZPOOL_PROP_FREE, vs->vs_space - vs->vs_alloc,
-		    NULL, scripted, toplevel, format);
-		print_one_column(ZPOOL_PROP_CHECKPOINT,
-		    vs->vs_checkpoint_space, NULL, scripted, toplevel, format);
-		print_one_column(ZPOOL_PROP_EXPANDSZ, vs->vs_esize, NULL,
-		    scripted, B_TRUE, format);
-		print_one_column(ZPOOL_PROP_FRAGMENTATION,
+		if (VDEV_STAT_VALID(vs_pspace, c) && vs->vs_pspace) {
+			collect_vdev_prop(ZPOOL_PROP_SIZE, vs->vs_pspace, NULL,
+			    scripted, B_TRUE, format, cb->cb_json, props,
+			    cb->cb_json_as_int);
+		} else {
+			collect_vdev_prop(ZPOOL_PROP_SIZE, vs->vs_space, NULL,
+			    scripted, toplevel, format, cb->cb_json, props,
+			    cb->cb_json_as_int);
+		}
+		collect_vdev_prop(ZPOOL_PROP_ALLOCATED, vs->vs_alloc, NULL,
+		    scripted, toplevel, format, cb->cb_json, props,
+		    cb->cb_json_as_int);
+		collect_vdev_prop(ZPOOL_PROP_FREE, vs->vs_space - vs->vs_alloc,
+		    NULL, scripted, toplevel, format, cb->cb_json, props,
+		    cb->cb_json_as_int);
+		collect_vdev_prop(ZPOOL_PROP_CHECKPOINT,
+		    vs->vs_checkpoint_space, NULL, scripted, toplevel, format,
+		    cb->cb_json, props, cb->cb_json_as_int);
+		collect_vdev_prop(ZPOOL_PROP_EXPANDSZ, vs->vs_esize, NULL,
+		    scripted, B_TRUE, format, cb->cb_json, props,
+		    cb->cb_json_as_int);
+		collect_vdev_prop(ZPOOL_PROP_FRAGMENTATION,
 		    vs->vs_fragmentation, NULL, scripted,
 		    (vs->vs_fragmentation != ZFS_FRAG_INVALID && toplevel),
-		    format);
+		    format, cb->cb_json, props, cb->cb_json_as_int);
 		cap = (vs->vs_space == 0) ? 0 :
 		    (vs->vs_alloc * 10000 / vs->vs_space);
-		print_one_column(ZPOOL_PROP_CAPACITY, cap, NULL,
-		    scripted, toplevel, format);
-		print_one_column(ZPOOL_PROP_DEDUPRATIO, 0, NULL,
-		    scripted, toplevel, format);
+		collect_vdev_prop(ZPOOL_PROP_CAPACITY, cap, NULL,
+		    scripted, toplevel, format, cb->cb_json, props,
+		    cb->cb_json_as_int);
+		collect_vdev_prop(ZPOOL_PROP_DEDUPRATIO, 0, NULL,
+		    scripted, toplevel, format, cb->cb_json, props,
+		    cb->cb_json_as_int);
 		state = zpool_state_to_name(vs->vs_state, vs->vs_aux);
 		if (isspare) {
 			if (vs->vs_aux == VDEV_AUX_SPARED)
@@ -6675,14 +6741,28 @@ print_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 			else if (vs->vs_state == VDEV_STATE_HEALTHY)
 				state = "AVAIL";
 		}
-		print_one_column(ZPOOL_PROP_HEALTH, 0, state, scripted,
-		    B_TRUE, format);
-		(void) fputc('\n', stdout);
+		collect_vdev_prop(ZPOOL_PROP_HEALTH, 0, state, scripted,
+		    B_TRUE, format, cb->cb_json, props, cb->cb_json_as_int);
+
+		if (cb->cb_json) {
+			fnvlist_add_nvlist(ent, "properties", props);
+			fnvlist_free(props);
+		} else
+			(void) fputc('\n', stdout);
 	}
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
-	    &child, &children) != 0)
+	    &child, &children) != 0) {
+		if (cb->cb_json) {
+			fnvlist_add_nvlist(item, name, ent);
+			fnvlist_free(ent);
+		}
 		return;
+	}
+
+	if (cb->cb_json) {
+		ch = fnvlist_alloc();
+	}
 
 	/* list the normal vdevs first */
 	for (c = 0; c < children; c++) {
@@ -6701,14 +6781,28 @@ print_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 
 		vname = zpool_vdev_name(g_zfs, zhp, child[c],
 		    cb->cb_name_flags | VDEV_NAME_TYPE_ID);
-		print_list_stats(zhp, vname, child[c], cb, depth + 2, B_FALSE);
+
+		if (name == NULL || cb->cb_json != B_TRUE)
+			collect_list_stats(zhp, vname, child[c], cb, depth + 2,
+			    B_FALSE, item);
+		else if (cb->cb_json) {
+			collect_list_stats(zhp, vname, child[c], cb, depth + 2,
+			    B_FALSE, ch);
+		}
 		free(vname);
+	}
+
+	if (cb->cb_json) {
+		if (!nvlist_empty(ch))
+			fnvlist_add_nvlist(ent, "vdevs", ch);
+		fnvlist_free(ch);
 	}
 
 	/* list the classes: 'logs', 'dedup', and 'special' */
 	for (uint_t n = 0; n < ARRAY_SIZE(class_name); n++) {
 		boolean_t printed = B_FALSE;
-
+		if (cb->cb_json)
+			obj = fnvlist_alloc();
 		for (c = 0; c < children; c++) {
 			const char *bias = NULL;
 			const char *type = NULL;
@@ -6727,7 +6821,7 @@ print_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 			if (!islog && strcmp(type, VDEV_TYPE_INDIRECT) == 0)
 				continue;
 
-			if (!printed) {
+			if (!printed && !cb->cb_json) {
 				/* LINTED E_SEC_PRINTF_VAR_FMT */
 				(void) printf(dashes, cb->cb_namewidth,
 				    class_name[n]);
@@ -6735,36 +6829,64 @@ print_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 			}
 			vname = zpool_vdev_name(g_zfs, zhp, child[c],
 			    cb->cb_name_flags | VDEV_NAME_TYPE_ID);
-			print_list_stats(zhp, vname, child[c], cb, depth + 2,
-			    B_FALSE);
+			collect_list_stats(zhp, vname, child[c], cb, depth + 2,
+			    B_FALSE, obj);
 			free(vname);
+		}
+		if (cb->cb_json) {
+			if (!nvlist_empty(obj))
+				fnvlist_add_nvlist(item, class_name[n], obj);
+			fnvlist_free(obj);
 		}
 	}
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_L2CACHE,
 	    &child, &children) == 0 && children > 0) {
-		/* LINTED E_SEC_PRINTF_VAR_FMT */
-		(void) printf(dashes, cb->cb_namewidth, "cache");
+		if (cb->cb_json) {
+			l2c = fnvlist_alloc();
+		} else {
+			/* LINTED E_SEC_PRINTF_VAR_FMT */
+			(void) printf(dashes, cb->cb_namewidth, "cache");
+		}
 		for (c = 0; c < children; c++) {
 			vname = zpool_vdev_name(g_zfs, zhp, child[c],
 			    cb->cb_name_flags);
-			print_list_stats(zhp, vname, child[c], cb, depth + 2,
-			    B_FALSE);
+			collect_list_stats(zhp, vname, child[c], cb, depth + 2,
+			    B_FALSE, l2c);
 			free(vname);
+		}
+		if (cb->cb_json) {
+			if (!nvlist_empty(l2c))
+				fnvlist_add_nvlist(item, "l2cache", l2c);
+			fnvlist_free(l2c);
 		}
 	}
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_SPARES, &child,
 	    &children) == 0 && children > 0) {
-		/* LINTED E_SEC_PRINTF_VAR_FMT */
-		(void) printf(dashes, cb->cb_namewidth, "spare");
+		if (cb->cb_json) {
+			sp = fnvlist_alloc();
+		} else {
+			/* LINTED E_SEC_PRINTF_VAR_FMT */
+			(void) printf(dashes, cb->cb_namewidth, "spare");
+		}
 		for (c = 0; c < children; c++) {
 			vname = zpool_vdev_name(g_zfs, zhp, child[c],
 			    cb->cb_name_flags);
-			print_list_stats(zhp, vname, child[c], cb, depth + 2,
-			    B_TRUE);
+			collect_list_stats(zhp, vname, child[c], cb, depth + 2,
+			    B_TRUE, sp);
 			free(vname);
 		}
+		if (cb->cb_json) {
+			if (nvlist_empty(sp))
+				fnvlist_add_nvlist(item, "spares", sp);
+			fnvlist_free(sp);
+		}
+	}
+
+	if (name != NULL && cb->cb_json) {
+		fnvlist_add_nvlist(item, name, ent);
+		fnvlist_free(ent);
 	}
 }
 
@@ -6774,17 +6896,35 @@ print_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 static int
 list_callback(zpool_handle_t *zhp, void *data)
 {
+	nvlist_t *p, *d, *nvdevs;
+	uint64_t guid;
+	char pool_guid[256];
 	list_cbdata_t *cbp = data;
+	p = d = nvdevs = NULL;
 
-	print_pool(zhp, cbp);
+	collect_pool(zhp, cbp);
 
 	if (cbp->cb_verbose) {
 		nvlist_t *config, *nvroot;
-
 		config = zpool_get_config(zhp, NULL);
 		verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
 		    &nvroot) == 0);
-		print_list_stats(zhp, NULL, nvroot, cbp, 0, B_FALSE);
+		if (cbp->cb_json) {
+			d = fnvlist_lookup_nvlist(cbp->cb_jsobj,
+			    "pools");
+			guid = fnvlist_lookup_uint64(config,
+			    ZPOOL_CONFIG_POOL_GUID);
+			snprintf(pool_guid, 256, "%llu", (u_longlong_t)guid);
+			p = fnvlist_lookup_nvlist(d, pool_guid);
+			nvdevs = fnvlist_alloc();
+		}
+		collect_list_stats(zhp, NULL, nvroot, cbp, 0, B_FALSE, nvdevs);
+		if (cbp->cb_json) {
+			fnvlist_add_nvlist(p, "vdevs", nvdevs);
+			fnvlist_add_nvlist(d, pool_guid, p);
+			fnvlist_add_nvlist(cbp->cb_jsobj, "pools", d);
+			fnvlist_free(nvdevs);
+		}
 	}
 
 	return (0);
@@ -6842,10 +6982,17 @@ zpool_do_list(int argc, char **argv)
 	unsigned long count = 0;
 	zpool_list_t *list;
 	boolean_t first = B_TRUE;
+	nvlist_t *data = NULL;
 	current_prop_type = ZFS_TYPE_POOL;
 
+	struct option long_options[] = {
+		{"json-int", no_argument, NULL, ZPOOL_OPTION_JSON_NUMS_AS_INT},
+		{0, 0, 0, 0}
+	};
+
 	/* check options */
-	while ((c = getopt(argc, argv, ":gHLo:pPT:v")) != -1) {
+	while ((c = getopt_long(argc, argv, ":gjHLo:pPT:v", long_options,
+	    NULL)) != -1) {
 		switch (c) {
 		case 'g':
 			cb.cb_name_flags |= VDEV_NAME_GUID;
@@ -6863,6 +7010,13 @@ zpool_do_list(int argc, char **argv)
 			cb.cb_name_flags |= VDEV_NAME_PATH;
 			break;
 		case 'p':
+			cb.cb_literal = B_TRUE;
+			break;
+		case 'j':
+			cb.cb_json = B_TRUE;
+			break;
+		case ZPOOL_OPTION_JSON_NUMS_AS_INT:
+			cb.cb_json_as_int = B_TRUE;
 			cb.cb_literal = B_TRUE;
 			break;
 		case 'T':
@@ -6887,6 +7041,12 @@ zpool_do_list(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
+	if (!cb.cb_json && cb.cb_json_as_int) {
+		(void) fprintf(stderr, gettext("'--json-int' only works with"
+		    " '-j' option\n"));
+		usage(B_FALSE);
+	}
+
 	get_interval_count(&argc, argv, &interval, &count);
 
 	if (zprop_get_list(g_zfs, props, &cb.cb_proplist, ZFS_TYPE_POOL) != 0)
@@ -6900,17 +7060,40 @@ zpool_do_list(int argc, char **argv)
 		if (pool_list_count(list) == 0)
 			break;
 
+		if (cb.cb_json) {
+			cb.cb_jsobj = zpool_json_schema(0, 1);
+			data = fnvlist_alloc();
+			fnvlist_add_nvlist(cb.cb_jsobj, "pools", data);
+			fnvlist_free(data);
+		}
+
 		cb.cb_namewidth = 0;
 		(void) pool_list_iter(list, B_FALSE, get_namewidth_list, &cb);
 
-		if (timestamp_fmt != NODATE)
-			print_timestamp(timestamp_fmt);
+		if (timestamp_fmt != NODATE) {
+			if (cb.cb_json) {
+				if (cb.cb_json_as_int) {
+					fnvlist_add_uint64(cb.cb_jsobj, "time",
+					    time(NULL));
+				} else {
+					char ts[128];
+					get_timestamp(timestamp_fmt, ts, 128);
+					fnvlist_add_string(cb.cb_jsobj, "time",
+					    ts);
+				}
+			} else
+				print_timestamp(timestamp_fmt);
+		}
 
-		if (!cb.cb_scripted && (first || cb.cb_verbose)) {
+		if (!cb.cb_scripted && (first || cb.cb_verbose) &&
+		    !cb.cb_json) {
 			print_header(&cb);
 			first = B_FALSE;
 		}
 		ret = pool_list_iter(list, B_TRUE, list_callback, &cb);
+
+		if (cb.cb_json)
+			zcmd_print_json(cb.cb_jsobj);
 
 		if (interval == 0)
 			break;
@@ -6924,7 +7107,8 @@ zpool_do_list(int argc, char **argv)
 		(void) fsleep(interval);
 	}
 
-	if (argc == 0 && !cb.cb_scripted && pool_list_count(list) == 0) {
+	if (argc == 0 && !cb.cb_scripted && !cb.cb_json &&
+	    pool_list_count(list) == 0) {
 		(void) printf(gettext("no pools available\n"));
 		ret = 0;
 	}
@@ -10788,7 +10972,7 @@ get_callback_vdev(zpool_handle_t *zhp, char *vdevname, void *data)
 	if (cbp->cb_json) {
 		if (!nvlist_empty(props)) {
 			item = fnvlist_alloc();
-			fill_vdev_info(item, zhp, vdevname,
+			fill_vdev_info(item, zhp, vdevname, B_TRUE,
 			    cbp->cb_json_as_int);
 			fnvlist_add_nvlist(item, "properties", props);
 			fnvlist_add_nvlist(d, vdevname, item);
