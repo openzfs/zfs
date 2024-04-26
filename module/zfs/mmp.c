@@ -664,12 +664,13 @@ mmp_thread(void *arg)
 		    (gethrtime() - mmp->mmp_last_write) > mmp_fail_ns) {
 			zfs_dbgmsg("MMP suspending pool '%s': gethrtime %llu "
 			    "mmp_last_write %llu mmp_interval %llu "
-			    "mmp_fail_intervals %llu mmp_fail_ns %llu",
+			    "mmp_fail_intervals %llu mmp_fail_ns %llu txg %llu",
 			    spa_name(spa), (u_longlong_t)gethrtime(),
 			    (u_longlong_t)mmp->mmp_last_write,
 			    (u_longlong_t)mmp_interval,
 			    (u_longlong_t)mmp_fail_intervals,
-			    (u_longlong_t)mmp_fail_ns);
+			    (u_longlong_t)mmp_fail_ns,
+			    (u_longlong_t)spa->spa_uberblock.ub_txg);
 			cmn_err(CE_WARN, "MMP writes to pool '%s' have not "
 			    "succeeded in over %llu ms; suspending pool. "
 			    "Hrtime %llu",
