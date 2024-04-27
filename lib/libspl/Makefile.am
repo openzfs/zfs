@@ -43,3 +43,5 @@ libspl_la_LIBADD = \
 	libspl_assert.la
 
 libspl_la_LIBADD += $(LIBATOMIC_LIBS) $(LIBCLOCK_GETTIME)
+
+libspl_assert_la_LIBADD = $(BACKTRACE_LIBS)
