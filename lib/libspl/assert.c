@@ -49,6 +49,24 @@
 	pthread_getname_np(pthread_self(), buf, len);
 #endif
 
+#if defined(HAVE_BACKTRACE)
+#include <execinfo.h>
+
+static inline void
+libspl_dump_backtrace(void)
+{
+	void *btptrs[100];
+	size_t nptrs = backtrace(btptrs, 100);
+	char **bt = backtrace_symbols(btptrs, nptrs);
+	fprintf(stderr, "Call trace:\n");
+	for (size_t i = 0; i < nptrs; i++)
+		fprintf(stderr, "  %s\n", bt[i]);
+	free(bt);
+}
+#else
+#define	libspl_dump_backtrace()
+#endif
+
 static boolean_t libspl_assert_ok = B_FALSE;
 
 void
@@ -82,6 +100,8 @@ libspl_assertf(const char *file, const char *func, int line,
 	    "  TID: %-8u  NAME: %s\n",
 	    getpid(), libspl_getprogname(),
 	    libspl_gettid(), tname);
+
+	libspl_dump_backtrace();
 
 #if !__has_feature(attribute_analyzer_noreturn) && !defined(__COVERITY__)
 	if (libspl_assert_ok) {
