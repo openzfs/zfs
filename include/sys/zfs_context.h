@@ -228,9 +228,9 @@ typedef pthread_t	kthread_t;
 
 #define	thread_create_named(name, stk, stksize, func, arg, len, \
     pp, state, pri)	\
-	zk_thread_create(func, arg, stksize, state)
+	zk_thread_create(name, func, arg, stksize, state)
 #define	thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
-	zk_thread_create(func, arg, stksize, state)
+	zk_thread_create(#func, func, arg, stksize, state)
 #define	thread_exit()	pthread_exit(NULL)
 #define	thread_join(t)	pthread_join((pthread_t)(t), NULL)
 
@@ -246,8 +246,8 @@ extern struct proc p0;
 
 #define	PS_NONE		-1
 
-extern kthread_t *zk_thread_create(void (*func)(void *), void *arg,
-    size_t stksize, int state);
+extern kthread_t *zk_thread_create(const char *name, void (*func)(void *),
+    void *arg, size_t stksize, int state);
 
 #define	issig(why)	(FALSE)
 #define	ISSIG(thr, why)	(FALSE)
