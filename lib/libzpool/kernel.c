@@ -92,7 +92,8 @@ zk_thread_wrapper(void *arg)
 }
 
 kthread_t *
-zk_thread_create(void (*func)(void *), void *arg, size_t stksize, int state)
+zk_thread_create(const char *name, void (*func)(void *), void *arg,
+    size_t stksize, int state)
 {
 	pthread_attr_t attr;
 	pthread_t tid;
@@ -139,6 +140,8 @@ zk_thread_create(void (*func)(void *), void *arg, size_t stksize, int state)
 	ztw->arg = arg;
 	VERIFY0(pthread_create(&tid, &attr, zk_thread_wrapper, ztw));
 	VERIFY0(pthread_attr_destroy(&attr));
+
+	pthread_setname_np(tid, name);
 
 	return ((void *)(uintptr_t)tid);
 }
