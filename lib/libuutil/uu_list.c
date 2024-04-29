@@ -505,14 +505,20 @@ uu_list_walk(uu_list_t *lp, uu_walk_fn_t *func, void *private, uint32_t flags)
 	}
 
 	if (lp->ul_debug || robust) {
-		uu_list_walk_t my_walk;
+		uu_list_walk_t *my_walk;
 		void *e;
 
-		list_walk_init(&my_walk, lp, flags);
+		my_walk = uu_zalloc(sizeof (*my_walk));
+		if (my_walk == NULL)
+			return (-1);
+
+		list_walk_init(my_walk, lp, flags);
 		while (status == UU_WALK_NEXT &&
-		    (e = uu_list_walk_next(&my_walk)) != NULL)
+		    (e = uu_list_walk_next(my_walk)) != NULL)
 			status = (*func)(e, private);
-		list_walk_fini(&my_walk);
+		list_walk_fini(my_walk);
+
+		uu_free(my_walk);
 	} else {
 		if (!reverse) {
 			for (np = lp->ul_null_node.uln_next;
