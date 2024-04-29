@@ -27,6 +27,10 @@
  *  [1] https://illumos.org/man/1M/kstat
  *  [2] https://illumos.org/man/9f/kstat_create
  */
+/*
+ * Copyright (c) 2024-2025, Klara, Inc.
+ * Copyright (c) 2024-2025, Syneto
+ */
 
 #include <linux/seq_file.h>
 #include <sys/kstat.h>
@@ -370,6 +374,8 @@ static const struct seq_operations kstat_seq_ops = {
 static kstat_module_t *
 kstat_find_module(char *name)
 {
+	ASSERT(MUTEX_HELD(&kstat_module_lock));
+
 	kstat_module_t *module = NULL;
 
 	list_for_each_entry(module, &kstat_module_list, ksm_module_list) {
@@ -380,33 +386,75 @@ kstat_find_module(char *name)
 	return (NULL);
 }
 
-static kstat_module_t *
-kstat_create_module(char *name)
-{
-	kstat_module_t *module;
-	struct proc_dir_entry *pde;
-
-	pde = proc_mkdir(name, proc_spl_kstat);
-	if (pde == NULL)
-		return (NULL);
-
-	module = kmem_alloc(sizeof (kstat_module_t), KM_SLEEP);
-	module->ksm_proc = pde;
-	strlcpy(module->ksm_name, name, KSTAT_STRLEN);
-	INIT_LIST_HEAD(&module->ksm_kstat_list);
-	list_add_tail(&module->ksm_module_list, &kstat_module_list);
-
-	return (module);
-
-}
-
 static void
 kstat_delete_module(kstat_module_t *module)
 {
+	ASSERT(MUTEX_HELD(&kstat_module_lock));
 	ASSERT(list_empty(&module->ksm_kstat_list));
-	remove_proc_entry(module->ksm_name, proc_spl_kstat);
+	ASSERT0(module->ksm_nchildren);
+
+	kstat_module_t *parent = module->ksm_parent;
+
+	char *p = module->ksm_name, *frag;
+	while (p != NULL && (frag = strsep(&p, "/"))) {}
+
+	remove_proc_entry(frag, parent ? parent->ksm_proc : proc_spl_kstat);
 	list_del(&module->ksm_module_list);
 	kmem_free(module, sizeof (kstat_module_t));
+
+	if (parent) {
+		parent->ksm_nchildren--;
+		if (parent->ksm_nchildren == 0 &&
+		    list_empty(&parent->ksm_kstat_list))
+			kstat_delete_module(parent);
+	}
+}
+
+static kstat_module_t *
+kstat_create_module(char *name)
+{
+	ASSERT(MUTEX_HELD(&kstat_module_lock));
+
+	char buf[KSTAT_STRLEN];
+	kstat_module_t *module, *parent;
+
+	(void) strlcpy(buf, name, KSTAT_STRLEN);
+
+	parent = NULL;
+	char *p = buf, *frag;
+	while ((frag = strsep(&p, "/")) != NULL) {
+		module = kstat_find_module(buf);
+		if (module == NULL) {
+			struct proc_dir_entry *pde = proc_mkdir(frag,
+			    parent ? parent->ksm_proc : proc_spl_kstat);
+			if (pde == NULL) {
+				cmn_err(CE_WARN, "kstat_create('%s'): "
+				    "module dir create failed", buf);
+				if (parent)
+					kstat_delete_module(parent);
+				return (NULL);
+			}
+
+			module = kmem_zalloc(sizeof (kstat_module_t), KM_SLEEP);
+			module->ksm_proc = pde;
+			strlcpy(module->ksm_name, buf, KSTAT_STRLEN);
+			INIT_LIST_HEAD(&module->ksm_kstat_list);
+			list_add_tail(&module->ksm_module_list,
+			    &kstat_module_list);
+
+			if (parent != NULL) {
+				module->ksm_parent = parent;
+				parent->ksm_nchildren++;
+			}
+		}
+
+		parent = module;
+		if (p != NULL)
+			p[-1] = '/';
+	}
+
+	return (module);
+
 }
 
 static int
@@ -625,12 +673,20 @@ kstat_proc_entry_install(kstat_proc_entry_t *kpep, mode_t mode,
 	}
 
 	/*
-	 * Only one entry by this name per-module, on failure the module
-	 * shouldn't be deleted because we know it has at least one entry.
+	 * We can only have one entry of this name per module. If one already
+	 * exists, replace it by first removing the proc entry, then removing
+	 * it from the list. The kstat itself lives on; it just can't be
+	 * inspected through the filesystem.
 	 */
 	list_for_each_entry(tmp, &module->ksm_kstat_list, kpe_list) {
-		if (strncmp(tmp->kpe_name, kpep->kpe_name, KSTAT_STRLEN) == 0)
-			goto out;
+		if (tmp->kpe_proc != NULL &&
+		    strncmp(tmp->kpe_name, kpep->kpe_name, KSTAT_STRLEN) == 0) {
+			ASSERT3P(tmp->kpe_owner, ==, module);
+			remove_proc_entry(tmp->kpe_name, module->ksm_proc);
+			tmp->kpe_proc = NULL;
+			list_del_init(&tmp->kpe_list);
+			break;
+		}
 	}
 
 	list_add_tail(&kpep->kpe_list, &module->ksm_kstat_list);
