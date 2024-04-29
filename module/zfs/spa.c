@@ -3542,11 +3542,16 @@ spa_activity_check_duration(spa_t *spa, uberblock_t *ub)
 }
 
 /*
- * Perform the import activity check.  If the user canceled the import or
- * we detected activity then fail.
+ * Remote host activity check.
+ *
+ * error results:
+ *          0 - no activity detected
+ *  EREMOTEIO - remote activity detected
+ *      EINTR - user canceled the operation
  */
 static int
-spa_activity_check(spa_t *spa, uberblock_t *ub, nvlist_t *config)
+spa_activity_check(spa_t *spa, uberblock_t *ub, nvlist_t *config,
+    boolean_t importing)
 {
 	uint64_t txg = ub->ub_txg;
 	uint64_t timestamp = ub->ub_timestamp;
@@ -3591,19 +3596,23 @@ spa_activity_check(spa_t *spa, uberblock_t *ub, nvlist_t *config)
 
 	import_expire = gethrtime() + import_delay;
 
-	spa_import_progress_set_notes(spa, "Checking MMP activity, waiting "
-	    "%llu ms", (u_longlong_t)NSEC2MSEC(import_delay));
+	if (importing) {
+		spa_import_progress_set_notes(spa, "Checking MMP activity, "
+		    "waiting %llu ms", (u_longlong_t)NSEC2MSEC(import_delay));
+	}
 
-	int interations = 0;
+	int iterations = 0;
 	while ((now = gethrtime()) < import_expire) {
-		if (interations++ % 30 == 0) {
+		if (importing && iterations++ % 30 == 0) {
 			spa_import_progress_set_notes(spa, "Checking MMP "
 			    "activity, %llu ms remaining",
 			    (u_longlong_t)NSEC2MSEC(import_expire - now));
 		}
 
-		(void) spa_import_progress_set_mmp_check(spa_guid(spa),
-		    NSEC2SEC(import_expire - gethrtime()));
+		if (importing) {
+			(void) spa_import_progress_set_mmp_check(spa_guid(spa),
+			    NSEC2SEC(import_expire - gethrtime()));
+		}
 
 		vdev_uberblock_load(rvd, ub, &mmp_label);
 
@@ -3683,6 +3692,61 @@ out:
 		nvlist_free(mmp_label);
 
 	return (error);
+}
+
+/*
+ * Called from zfs_ioc_clear for a pool that was suspended
+ * after failing mmp write checks.
+ */
+boolean_t
+spa_mmp_remote_host_activity(spa_t *spa)
+{
+	ASSERT(spa_multihost(spa) && spa_suspended(spa));
+
+	nvlist_t *best_label;
+	uberblock_t best_ub;
+
+	/*
+	 * Locate the best uberblock on disk
+	 */
+	vdev_uberblock_load(spa->spa_root_vdev, &best_ub, &best_label);
+	if (best_label) {
+		/*
+		 * confirm that the best hostid matches our hostid
+		 */
+		if (nvlist_exists(best_label, ZPOOL_CONFIG_HOSTID) &&
+		    spa_get_hostid(spa) !=
+		    fnvlist_lookup_uint64(best_label, ZPOOL_CONFIG_HOSTID)) {
+			nvlist_free(best_label);
+			return (B_TRUE);
+		}
+		nvlist_free(best_label);
+	} else {
+		return (B_TRUE);
+	}
+
+	if (!MMP_VALID(&best_ub) ||
+	    !MMP_FAIL_INT_VALID(&best_ub) ||
+	    MMP_FAIL_INT(&best_ub) == 0) {
+		return (B_TRUE);
+	}
+
+	if (best_ub.ub_txg != spa->spa_uberblock.ub_txg ||
+	    best_ub.ub_timestamp != spa->spa_uberblock.ub_timestamp) {
+		zfs_dbgmsg("txg mismatch detected during pool clear "
+		    "txg %llu ub_txg %llu timestamp %llu ub_timestamp %llu",
+		    (u_longlong_t)spa->spa_uberblock.ub_txg,
+		    (u_longlong_t)best_ub.ub_txg,
+		    (u_longlong_t)spa->spa_uberblock.ub_timestamp,
+		    (u_longlong_t)best_ub.ub_timestamp);
+		return (B_TRUE);
+	}
+
+	/*
+	 * Perform an activity check looking for any remote writer
+	 */
+	return (spa_activity_check(spa, &spa->spa_uberblock, spa->spa_config,
+	    B_FALSE) != 0);
 }
 
 static int
@@ -4005,7 +4069,8 @@ spa_ld_select_uberblock(spa_t *spa, spa_import_type_t type)
 			return (spa_vdev_err(rvd, VDEV_AUX_ACTIVE, EREMOTEIO));
 		}
 
-		int error = spa_activity_check(spa, ub, spa->spa_config);
+		int error =
+		    spa_activity_check(spa, ub, spa->spa_config, B_TRUE);
 		if (error) {
 			nvlist_free(label);
 			return (error);
@@ -8589,15 +8654,16 @@ spa_async_remove(spa_t *spa, vdev_t *vd)
 }
 
 static void
-spa_async_probe(spa_t *spa, vdev_t *vd)
+spa_async_fault_vdev(spa_t *spa, vdev_t *vd)
 {
-	if (vd->vdev_probe_wanted) {
-		vd->vdev_probe_wanted = B_FALSE;
-		vdev_reopen(vd);	/* vdev_open() does the actual probe */
+	if (vd->vdev_fault_wanted) {
+		vd->vdev_fault_wanted = B_FALSE;
+		vdev_set_state(vd, B_TRUE, VDEV_STATE_FAULTED,
+		    VDEV_AUX_ERR_EXCEEDED);
 	}
 
 	for (int c = 0; c < vd->vdev_children; c++)
-		spa_async_probe(spa, vd->vdev_child[c]);
+		spa_async_fault_vdev(spa, vd->vdev_child[c]);
 }
 
 static void
@@ -8685,11 +8751,11 @@ spa_async_thread(void *arg)
 	}
 
 	/*
-	 * See if any devices need to be probed.
+	 * See if any devices need to be marked faulted.
 	 */
-	if (tasks & SPA_ASYNC_PROBE) {
+	if (tasks & SPA_ASYNC_FAULT_VDEV) {
 		spa_vdev_state_enter(spa, SCL_NONE);
-		spa_async_probe(spa, spa->spa_root_vdev);
+		spa_async_fault_vdev(spa, spa->spa_root_vdev);
 		(void) spa_vdev_state_exit(spa, NULL, 0);
 	}
 
