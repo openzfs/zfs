@@ -607,9 +607,11 @@ zio_handle_io_delay(zio_t *zio)
 		if (vd->vdev_guid != handler->zi_record.zi_guid)
 			continue;
 
+		/* also match on I/O type (e.g., -T read) */
 		if (handler->zi_record.zi_iotype != ZIO_TYPES &&
-		    handler->zi_record.zi_iotype != zio->io_type)
-				continue;
+		    handler->zi_record.zi_iotype != zio->io_type) {
+			continue;
+		}
 
 		/*
 		 * Defensive; should never happen as the array allocation

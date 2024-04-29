@@ -9050,7 +9050,7 @@ status_callback(zpool_handle_t *zhp, void *data)
 		printf_color(ANSI_BOLD, gettext("action: "));
 		printf_color(ANSI_YELLOW, gettext("Make sure the pool's devices"
 		    " are connected, then reboot your system and\n\timport the "
-		    "pool.\n"));
+		    "pool or run 'zpool clear' to resume the pool.\n"));
 		break;
 
 	case ZPOOL_STATUS_IO_FAILURE_WAIT:
