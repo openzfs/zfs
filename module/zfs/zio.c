@@ -2535,8 +2535,11 @@ zio_suspend(spa_t *spa, zio_t *zio, zio_suspend_reason_t reason)
 		    "is set to panic.", spa_name(spa));
 
 	if (!spa_suspended(spa)) {
-		cmn_err(CE_WARN, "Pool '%s' has encountered an uncorrectable "
-		    "I/O failure and has been suspended.\n", spa_name(spa));
+		if (reason != ZIO_SUSPEND_MMP) {
+			cmn_err(CE_WARN, "Pool '%s' has encountered an "
+			    "uncorrectable I/O failure and has been "
+			    "suspended.\n", spa_name(spa));
+		}
 
 		(void) zfs_ereport_post(FM_EREPORT_ZFS_IO_FAILURE, spa, NULL,
 		    NULL, NULL, 0);

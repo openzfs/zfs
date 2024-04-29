@@ -8,6 +8,7 @@ dist_pkgdata_SCRIPTS = \
 	mmp_active_import.ksh \
 	mmp_inactive_import.ksh \
 	mmp_exported_import.ksh \
+	mmp_write_slow_disk.ksh \
 	mmp_write_uberblocks.ksh \
 	mmp_reset_interval.ksh \
 	mmp_on_zdb.ksh \
