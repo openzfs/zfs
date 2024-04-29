@@ -157,6 +157,7 @@ typedef enum zfs_error {
 	EZFS_CKSUM,		/* insufficient replicas */
 	EZFS_RESUME_EXISTS,	/* Resume on existing dataset without force */
 	EZFS_SHAREFAILED,	/* filesystem share failed */
+	EZFS_RAIDZ_EXPAND_IN_PROGRESS,	/* a raidz is currently expanding */
 	EZFS_UNKNOWN
 } zfs_error_t;
 
