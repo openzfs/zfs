@@ -200,6 +200,8 @@ if sys.platform.startswith('freebsd'):
 
         k = [ctl for ctl in sysctl.filter('kstat.zfs.misc.arcstats')
              if ctl.type != sysctl.CTLTYPE_NODE]
+        k += [ctl for ctl in sysctl.filter('kstat.zfs.misc.zfetchstats')
+             if ctl.type != sysctl.CTLTYPE_NODE]
 
         if not k:
             sys.exit(1)
@@ -211,8 +213,12 @@ if sys.platform.startswith('freebsd'):
                 continue
 
             name, value = s.name, s.value
-            # Trims 'kstat.zfs.misc.arcstats' from the name
-            kstat[name[24:]] = int(value)
+
+            if "arcstats" in name:
+                # Trims 'kstat.zfs.misc.arcstats' from the name
+                kstat[name[24:]] = int(value)
+            else:
+                kstat["zfetch_" + name[27:]] = int(value)
 
 elif sys.platform.startswith('linux'):
     def kstat_update():
