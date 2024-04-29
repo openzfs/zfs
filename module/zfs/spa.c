@@ -170,14 +170,19 @@ static const char *const zio_taskq_types[ZIO_TASKQ_TYPES] = {
  * that scales with the number of CPUs.
  *
  * The different taskq priorities are to handle the different contexts (issue
- * and interrupt) and then to reserve threads for ZIO_PRIORITY_NOW I/Os that
- * need to be handled with minimum delay.
+ * and interrupt) and then to reserve threads for high priority I/Os that
+ * need to be handled with minimum delay.  Illumos taskq has unfair TQ_FRONT
+ * implementation, so separate high priority threads are used there.
  */
 static zio_taskq_info_t zio_taskqs[ZIO_TYPES][ZIO_TASKQ_TYPES] = {
 	/* ISSUE	ISSUE_HIGH	INTR		INTR_HIGH */
 	{ ZTI_ONE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* NULL */
 	{ ZTI_N(8),	ZTI_NULL,	ZTI_SCALE,	ZTI_NULL }, /* READ */
+#ifdef illumos
 	{ ZTI_SYNC,	ZTI_N(5),	ZTI_SCALE,	ZTI_N(5) }, /* WRITE */
+#else
+	{ ZTI_SYNC,	ZTI_NULL,	ZTI_SCALE,	ZTI_NULL }, /* WRITE */
+#endif
 	{ ZTI_SCALE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* FREE */
 	{ ZTI_ONE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* CLAIM */
 	{ ZTI_ONE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* FLUSH */
@@ -1218,7 +1223,7 @@ spa_taskqs_fini(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
  *
  * Example (the defaults for READ and WRITE)
  *   zio_taskq_read='fixed,1,8 null scale null'
- *   zio_taskq_write='sync fixed,1,5 scale fixed,1,5'
+ *   zio_taskq_write='sync null scale null'
  *
  * Each sets the entire row at a time.
  *
