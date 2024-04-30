@@ -1,6 +1,6 @@
 include $(srcdir)/%D%/include/Makefile.am
 
-libspl_assert_la_CFLAGS = $(AM_CFLAGS) $(LIBRARY_CFLAGS)
+libspl_assert_la_CFLAGS = $(AM_CFLAGS) $(LIBRARY_CFLAGS) $(LIBUNWIND_CFLAGS)
 libspl_la_CFLAGS        = $(libspl_assert_la_CFLAGS)
 
 noinst_LTLIBRARIES += libspl_assert.la libspl.la
@@ -44,4 +44,4 @@ libspl_la_LIBADD = \
 
 libspl_la_LIBADD += $(LIBATOMIC_LIBS) $(LIBCLOCK_GETTIME)
 
-libspl_assert_la_LIBADD = $(BACKTRACE_LIBS)
+libspl_assert_la_LIBADD = $(BACKTRACE_LIBS) $(LIBUNWIND_LIBS)
