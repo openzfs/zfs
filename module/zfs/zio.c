@@ -2925,7 +2925,6 @@ static void
 zio_gang_inherit_allocator(zio_t *pio, zio_t *cio)
 {
 	cio->io_allocator = pio->io_allocator;
-	cio->io_wr_iss_tq = pio->io_wr_iss_tq;
 }
 
 static void

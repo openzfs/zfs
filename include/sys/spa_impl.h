@@ -63,6 +63,12 @@ typedef struct spa_alloc {
 	avl_tree_t	spaa_tree;
 } ____cacheline_aligned spa_alloc_t;
 
+typedef struct spa_allocs_use {
+	kmutex_t	sau_lock;
+	uint_t		sau_rotor;
+	boolean_t	sau_inuse[];
+} spa_allocs_use_t;
+
 typedef struct spa_error_entry {
 	zbookmark_phys_t	se_bookmark;
 	char			*se_name;
@@ -192,7 +198,7 @@ typedef struct spa_taskqs {
 /* one for each thread in the spa sync taskq */
 typedef struct spa_syncthread_info {
 	kthread_t	*sti_thread;
-	taskq_t		*sti_wr_iss_tq;		/* assigned wr_iss taskq */
+	uint_t		sti_allocator;
 } spa_syncthread_info_t;
 
 typedef enum spa_all_vdev_zap_action {
@@ -270,6 +276,7 @@ struct spa {
 	 * allocation performance in write-heavy workloads.
 	 */
 	spa_alloc_t	*spa_allocs;
+	spa_allocs_use_t *spa_allocs_use;
 	int		spa_alloc_count;
 	int		spa_active_allocator;	/* selectable allocator */
 

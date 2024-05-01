@@ -829,6 +829,8 @@ extern uint_t zfs_sync_pass_deferred_free;
 /* spa sync taskqueues */
 taskq_t *spa_sync_tq_create(spa_t *spa, const char *name);
 void spa_sync_tq_destroy(spa_t *spa);
+uint_t spa_acq_allocator(spa_t *spa);
+void spa_rel_allocator(spa_t *spa, uint_t allocator);
 void spa_select_allocator(zio_t *zio);
 
 /* spa namespace global mutex */
