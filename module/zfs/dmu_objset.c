@@ -400,10 +400,10 @@ dnode_hash(const objset_t *os, uint64_t obj)
 
 	ASSERT(zfs_crc64_table[128] == ZFS_CRC64_POLY);
 	/*
-	 * The low 6 bits of the pointer don't have much entropy, because
-	 * the objset_t is larger than 2^6 bytes long.
+	 * The lower 11 bits of the pointer don't have much entropy, because
+	 * the objset_t is more than 1KB long and so likely aligned to 2KB.
 	 */
-	crc = (crc >> 8) ^ zfs_crc64_table[(crc ^ (osv >> 6)) & 0xFF];
+	crc = (crc >> 8) ^ zfs_crc64_table[(crc ^ (osv >> 11)) & 0xFF];
 	crc = (crc >> 8) ^ zfs_crc64_table[(crc ^ (obj >> 0)) & 0xFF];
 	crc = (crc >> 8) ^ zfs_crc64_table[(crc ^ (obj >> 8)) & 0xFF];
 	crc = (crc >> 8) ^ zfs_crc64_table[(crc ^ (obj >> 16)) & 0xFF];
