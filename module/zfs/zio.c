@@ -2023,7 +2023,6 @@ zio_taskq_dispatch(zio_t *zio, zio_taskq_type_t q, boolean_t cutinline)
 {
 	spa_t *spa = zio->io_spa;
 	zio_type_t t = zio->io_type;
-	int flags = (cutinline ? TQ_FRONT : 0);
 
 	/*
 	 * If we're a config writer or a probe, the normal issue and
@@ -2047,19 +2046,12 @@ zio_taskq_dispatch(zio_t *zio, zio_taskq_type_t q, boolean_t cutinline)
 		if (spa->spa_zio_taskq[t][q + 1].stqs_count != 0)
 			q++;
 		else
-			flags |= TQ_FRONT;
+			cutinline = B_TRUE;
 	}
 
 	ASSERT3U(q, <, ZIO_TASKQ_TYPES);
 
-	/*
-	 * NB: We are assuming that the zio can only be dispatched
-	 * to a single taskq at a time.  It would be a grievous error
-	 * to dispatch the zio to another taskq at the same time.
-	 */
-	ASSERT(taskq_empty_ent(&zio->io_tqent));
-	spa_taskq_dispatch_ent(spa, t, q, zio_execute, zio, flags,
-	    &zio->io_tqent, zio);
+	spa_taskq_dispatch(spa, t, q, zio_execute, zio, cutinline);
 }
 
 static boolean_t
@@ -5007,10 +4999,9 @@ zio_done(zio_t *zio)
 			 * Reexecution is potentially a huge amount of work.
 			 * Hand it off to the otherwise-unused claim taskq.
 			 */
-			ASSERT(taskq_empty_ent(&zio->io_tqent));
-			spa_taskq_dispatch_ent(zio->io_spa,
+			spa_taskq_dispatch(zio->io_spa,
 			    ZIO_TYPE_CLAIM, ZIO_TASKQ_ISSUE,
-			    zio_reexecute, zio, 0, &zio->io_tqent, NULL);
+			    zio_reexecute, zio, B_FALSE);
 		}
 		return (NULL);
 	}
