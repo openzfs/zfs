@@ -27,7 +27,7 @@
  * Copyright (c) 2017 Datto Inc.
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
- * Copyright (c) 2023, Klara Inc.
+ * Copyright (c) 2023, 2024, Klara Inc.
  */
 
 #include <sys/zfs_context.h>
@@ -80,8 +80,8 @@
  *		- Check if spa_refcount is zero
  *		- Rename a spa_t
  *		- add/remove/attach/detach devices
- *		- Held for the duration of create/destroy/export
- *		- Held at the start and end of import
+ *		- Held for the duration of create/destroy
+ *		- Held at the start and end of import and export
  *
  *	It does not need to handle recursion.  A create or destroy may
  *	reference objects (files or zvols) in other pools, but by
@@ -623,8 +623,14 @@ retry:
 	if (spa == NULL)
 		return (NULL);
 
-	if (spa->spa_load_thread != NULL &&
-	    spa->spa_load_thread != curthread) {
+	/*
+	 * Avoid racing with import/export, which don't hold the namespace
+	 * lock for their entire duration.
+	 */
+	if ((spa->spa_load_thread != NULL &&
+	    spa->spa_load_thread != curthread) ||
+	    (spa->spa_export_thread != NULL &&
+	    spa->spa_export_thread != curthread)) {
 		cv_wait(&spa_namespace_cv, &spa_namespace_lock);
 		goto retry;
 	}
@@ -935,14 +941,15 @@ spa_close_common(spa_t *spa, const void *tag)
 
 /*
  * Remove a reference to the given spa_t.  Must have at least one reference, or
- * have the namespace lock held.
+ * have the namespace lock held or be part of a pool import/export.
  */
 void
 spa_close(spa_t *spa, void *tag)
 {
 	ASSERT(zfs_refcount_count(&spa->spa_refcount) > spa->spa_minref ||
 	    MUTEX_HELD(&spa_namespace_lock) ||
-	    spa->spa_load_thread == curthread);
+	    spa->spa_load_thread == curthread ||
+	    spa->spa_export_thread == curthread);
 	spa_close_common(spa, tag);
 }
 
@@ -962,13 +969,15 @@ spa_async_close(spa_t *spa, void *tag)
 
 /*
  * Check to see if the spa refcount is zero.  Must be called with
- * spa_namespace_lock held.  We really compare against spa_minref, which is the
- * number of references acquired when opening a pool
+ * spa_namespace_lock held or be the spa export thread.  We really
+ * compare against spa_minref, which is the  number of references
+ * acquired when opening a pool
  */
 boolean_t
 spa_refcount_zero(spa_t *spa)
 {
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(MUTEX_HELD(&spa_namespace_lock) ||
+	    spa->spa_export_thread == curthread);
 
 	return (zfs_refcount_count(&spa->spa_refcount) == spa->spa_minref);
 }
@@ -1216,6 +1225,8 @@ spa_vdev_enter(spa_t *spa)
 	mutex_enter(&spa->spa_vdev_top_lock);
 	mutex_enter(&spa_namespace_lock);
 
+	ASSERT0(spa->spa_export_thread);
+
 	vdev_autotrim_stop_all(spa);
 
 	return (spa_vdev_config_enter(spa));
@@ -1232,6 +1243,8 @@ spa_vdev_detach_enter(spa_t *spa, uint64_t guid)
 {
 	mutex_enter(&spa->spa_vdev_top_lock);
 	mutex_enter(&spa_namespace_lock);
+
+	ASSERT0(spa->spa_export_thread);
 
 	vdev_autotrim_stop_all(spa);
 

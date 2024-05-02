@@ -8491,11 +8491,11 @@ l2arc_dev_get_next(void)
 			break;
 
 	} while (vdev_is_dead(next->l2ad_vdev) || next->l2ad_rebuild ||
-	    next->l2ad_trim_all);
+	    next->l2ad_trim_all || next->l2ad_spa->spa_is_exporting);
 
 	/* if we were unable to find any usable vdevs, return NULL */
 	if (vdev_is_dead(next->l2ad_vdev) || next->l2ad_rebuild ||
-	    next->l2ad_trim_all)
+	    next->l2ad_trim_all || next->l2ad_spa->spa_is_exporting)
 		next = NULL;
 
 	l2arc_dev_last = next;
@@ -10145,7 +10145,8 @@ l2arc_spa_rebuild_start(spa_t *spa)
 void
 l2arc_spa_rebuild_stop(spa_t *spa)
 {
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(MUTEX_HELD(&spa_namespace_lock) ||
+	    spa->spa_export_thread == curthread);
 
 	/*
 	 * Locate the spa's l2arc devices and kick off rebuild threads.

@@ -33,6 +33,7 @@
  * Copyright 2017 Joyent, Inc.
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
+ * Copyright (c) 2024, Klara Inc.
  */
 
 /*
@@ -1915,7 +1916,8 @@ spa_unload(spa_t *spa, txg_wait_flag_t txg_how)
 	vdev_t *vd;
 	uint64_t t, txg;
 
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(MUTEX_HELD(&spa_namespace_lock) ||
+	    spa->spa_export_thread == curthread);
 	ASSERT(spa_state(spa) != POOL_STATE_UNINITIALIZED);
 
 	spa_import_progress_remove(spa_guid(spa));
@@ -6909,7 +6911,7 @@ static int
 spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
     boolean_t force, boolean_t hardforce)
 {
-	int error;
+	int error = 0;
 	spa_t *spa;
 	boolean_t force_removal, modifying;
 	hrtime_t export_start = gethrtime();
@@ -6943,8 +6945,8 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 	    new_state == POOL_STATE_EXPORTED);
 
 	/*
-	 * Put a hold on the pool, drop the namespace lock, stop async tasks,
-	 * reacquire the namespace lock, and see if we can export.
+	 * Put a hold on the pool, drop the namespace lock, stop async tasks
+	 * and see if we can export.
 	 */
 	spa_open_ref(spa, FTAG);
 
@@ -6981,10 +6983,13 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 		taskq_wait(spa->spa_zvol_taskq);
 	}
 	mutex_enter(&spa_namespace_lock);
+	spa->spa_export_thread = curthread;
 	spa_close(spa, FTAG);
 
-	if (spa->spa_state == POOL_STATE_UNINITIALIZED)
+	if (spa->spa_state == POOL_STATE_UNINITIALIZED) {
+		mutex_exit(&spa_namespace_lock);
 		goto export_spa;
+	}
 
 	/*
 	 * The pool will be in core if it's openable, in which case we can
@@ -7028,6 +7033,14 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 		goto fail;
 	}
 
+	mutex_exit(&spa_namespace_lock);
+	/*
+	 * At this point we no longer hold the spa_namespace_lock and
+	 * there were no references on the spa. Future spa_lookups will
+	 * notice the spa->spa_export_thread and wait until we signal
+	 * that we are finshed.
+	 */
+
 	if (spa->spa_sync_on) {
 		/*
 		 * A pool cannot be exported if it has an active shared spare.
@@ -7038,7 +7051,7 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 		if (!force && new_state == POOL_STATE_EXPORTED &&
 		    spa_has_active_shared_spare(spa)) {
 			error = SET_ERROR(EXDEV);
-			goto fail;
+			goto fail_unlocked;
 		}
 
 		/*
@@ -7104,13 +7117,20 @@ export_spa:
 		error = spa_unload(spa, hardforce ?
 		    TXG_WAIT_F_FORCE_EXPORT : TXG_WAIT_F_NOSUSPEND);
 		if (error != 0)
-			goto fail;
+			goto fail_unlocked;
 		spa_deactivate(spa);
 	}
 
 	if (oldconfig && spa->spa_config)
 		VERIFY(nvlist_dup(spa->spa_config, oldconfig, 0) == 0);
 
+	if (new_state == POOL_STATE_EXPORTED)
+		zio_handle_export_delay(spa, gethrtime() - export_start);
+
+	/*
+	 * Take the namewspace lock for the actual spa_t removal
+	 */
+	mutex_enter(&spa_namespace_lock);
 	if (new_state != POOL_STATE_UNINITIALIZED) {
 		if (!force_removal)
 			spa_write_cachefile(spa, B_TRUE, B_TRUE);
@@ -7122,19 +7142,29 @@ export_spa:
 		 * we make sure to reset the exporting flag.
 		 */
 		spa->spa_is_exporting = B_FALSE;
+		spa->spa_export_thread = NULL;
 	}
 
-	if (new_state == POOL_STATE_EXPORTED)
-		zio_handle_export_delay(spa, gethrtime() - export_start);
-
+	/*
+	 * Wake up any waiters in spa_lookup()
+	 */
+	cv_broadcast(&spa_namespace_cv);
 	mutex_exit(&spa_namespace_lock);
 	return (0);
 
+fail_unlocked:
+	mutex_enter(&spa_namespace_lock);
 fail:
 	if (force_removal)
 		spa_set_export_initiator(spa, NULL);
 	spa->spa_is_exporting = B_FALSE;
+	spa->spa_export_thread = NULL;
+
 	spa_async_resume(spa);
+	/*
+	 * Wake up any waiters in spa_lookup()
+	 */
+	cv_broadcast(&spa_namespace_cv);
 	mutex_exit(&spa_namespace_lock);
 	return (error);
 }
