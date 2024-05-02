@@ -1520,19 +1520,6 @@ spa_taskq_dispatch_ent(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
 	taskq_dispatch_ent(tq, func, arg, flags, ent);
 }
 
-/*
- * Same as spa_taskq_dispatch_ent() but block on the task until completion.
- */
-void
-spa_taskq_dispatch_sync(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
-    task_func_t *func, void *arg, uint_t flags)
-{
-	taskq_t *tq = spa_taskq_dispatch_select(spa, t, q, NULL);
-	taskqid_t id = taskq_dispatch(tq, func, arg, flags);
-	if (id)
-		taskq_wait_id(tq, id);
-}
-
 static void
 spa_create_zio_taskqs(spa_t *spa)
 {
