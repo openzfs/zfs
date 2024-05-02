@@ -2030,9 +2030,18 @@ zpool_do_destroy(int argc, char **argv)
 }
 
 typedef struct export_cbdata {
+	tpool_t *tpool;
+	pthread_mutex_t mnttab_lock;
 	boolean_t force;
 	boolean_t hardforce;
+	int retval;
 } export_cbdata_t;
+
+
+typedef struct {
+	char *aea_poolname;
+	export_cbdata_t	*aea_cbdata;
+} async_export_args_t;
 
 /*
  * Export one pool
@@ -2042,11 +2051,20 @@ zpool_export_one(zpool_handle_t *zhp, void *data)
 {
 	export_cbdata_t *cb = data;
 
-	if (zpool_disable_datasets(zhp, cb->force) != 0)
-		return (1);
+	/*
+	 * zpool_disable_datasets() is not thread-safe for mnttab access.
+	 * So we serialize access here for 'zpool export -a' parallel case.
+	 */
+	if (cb->tpool != NULL)
+		pthread_mutex_lock(&cb->mnttab_lock);
 
-	/* The history must be logged as part of the export */
-	log_history = B_FALSE;
+	int retval = zpool_disable_datasets(zhp, cb->force);
+
+	if (cb->tpool != NULL)
+		pthread_mutex_unlock(&cb->mnttab_lock);
+
+	if (retval)
+		return (1);
 
 	if (cb->hardforce) {
 		if (zpool_export_force(zhp, history_str) != 0)
@@ -2056,6 +2074,48 @@ zpool_export_one(zpool_handle_t *zhp, void *data)
 	}
 
 	return (0);
+}
+
+/*
+ * Asynchronous export request
+ */
+static void
+zpool_export_task(void *arg)
+{
+	async_export_args_t *aea = arg;
+
+	zpool_handle_t *zhp = zpool_open(g_zfs, aea->aea_poolname);
+	if (zhp != NULL) {
+		int ret = zpool_export_one(zhp, aea->aea_cbdata);
+		if (ret != 0)
+			aea->aea_cbdata->retval = ret;
+		zpool_close(zhp);
+	} else {
+		aea->aea_cbdata->retval = 1;
+	}
+
+	free(aea->aea_poolname);
+	free(aea);
+}
+
+/*
+ * Process an export request in parallel
+ */
+static int
+zpool_export_one_async(zpool_handle_t *zhp, void *data)
+{
+	tpool_t *tpool = ((export_cbdata_t *)data)->tpool;
+	async_export_args_t *aea = safe_malloc(sizeof (async_export_args_t));
+
+	/* save pool name since zhp will go out of scope */
+	aea->aea_poolname = strdup(zpool_get_name(zhp));
+	aea->aea_cbdata = data;
+
+	/* ship off actual export to another thread */
+	if (tpool_dispatch(tpool, zpool_export_task, (void *)aea) != 0)
+		return (errno);	/* unlikely */
+	else
+		return (0);
 }
 
 /*
@@ -2098,8 +2158,13 @@ zpool_do_export(int argc, char **argv)
 
 	cb.force = force;
 	cb.hardforce = hardforce;
+	cb.tpool = NULL;
+	cb.retval = 0;
 	argc -= optind;
 	argv += optind;
+
+	/* The history will be logged as part of the export itself */
+	log_history = B_FALSE;
 
 	if (do_all) {
 		if (argc != 0) {
@@ -2107,8 +2172,19 @@ zpool_do_export(int argc, char **argv)
 			usage(B_FALSE);
 		}
 
-		return (for_each_pool(argc, argv, B_TRUE, NULL,
-		    ZFS_TYPE_POOL, B_FALSE, zpool_export_one, &cb));
+		cb.tpool = tpool_create(1, 5 * sysconf(_SC_NPROCESSORS_ONLN),
+		    0, NULL);
+		pthread_mutex_init(&cb.mnttab_lock, NULL);
+
+		/* Asynchronously call zpool_export_one using thread pool */
+		ret = for_each_pool(argc, argv, B_TRUE, NULL, ZFS_TYPE_POOL,
+		    B_FALSE, zpool_export_one_async, &cb);
+
+		tpool_wait(cb.tpool);
+		tpool_destroy(cb.tpool);
+		(void) pthread_mutex_destroy(&cb.mnttab_lock);
+
+		return (ret | cb.retval);
 	}
 
 	/* check arguments */
