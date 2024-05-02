@@ -1490,8 +1490,9 @@ spa_taskq_write_param(ZFS_MODULE_PARAM_ARGS)
  * Note that a type may have multiple discrete taskqs to avoid lock contention
  * on the taskq itself.
  */
-static taskq_t *
-spa_taskq_dispatch_select(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
+void
+spa_taskq_dispatch_ent(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
+    task_func_t *func, void *arg, uint_t flags, taskq_ent_t *ent,
     zio_t *zio)
 {
 	spa_taskqs_t *tqs = &spa->spa_zio_taskq[t][q];
@@ -1508,15 +1509,7 @@ spa_taskq_dispatch_select(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
 	} else {
 		tq = tqs->stqs_taskq[((uint64_t)gethrtime()) % tqs->stqs_count];
 	}
-	return (tq);
-}
 
-void
-spa_taskq_dispatch_ent(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
-    task_func_t *func, void *arg, uint_t flags, taskq_ent_t *ent,
-    zio_t *zio)
-{
-	taskq_t *tq = spa_taskq_dispatch_select(spa, t, q, zio);
 	taskq_dispatch_ent(tq, func, arg, flags, ent);
 }
 
