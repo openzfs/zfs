@@ -430,7 +430,8 @@ tags = ['functional', 'cli_root', 'zpool_events']
 
 [tests/functional/cli_root/zpool_export]
 tests = ['zpool_export_001_pos', 'zpool_export_002_pos',
-    'zpool_export_003_neg', 'zpool_export_004_pos']
+    'zpool_export_003_neg', 'zpool_export_004_pos',
+    'zpool_export_parallel_pos', 'zpool_export_parallel_admin']
 tags = ['functional', 'cli_root', 'zpool_export']
 
 [tests/functional/cli_root/zpool_get]
