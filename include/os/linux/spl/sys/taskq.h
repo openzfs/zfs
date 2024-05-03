@@ -20,6 +20,10 @@
  *  You should have received a copy of the GNU General Public License along
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
  */
+/*
+ * Copyright (c) 2024, Klara Inc.
+ * Copyright (c) 2024, Syneto
+ */
 
 #ifndef _SPL_TASKQ_H
 #define	_SPL_TASKQ_H
@@ -33,6 +37,9 @@
 #include <sys/thread.h>
 #include <sys/rwlock.h>
 #include <sys/wait.h>
+#include <sys/wmsum.h>
+
+typedef struct kstat_s kstat_t;
 
 #define	TASKQ_NAMELEN		31
 
@@ -74,6 +81,32 @@ typedef enum tq_lock_role {
 typedef unsigned long taskqid_t;
 typedef void (task_func_t)(void *);
 
+typedef struct taskq_sums {
+	/* gauges (inc/dec counters, current value) */
+	wmsum_t tqs_threads_active;		/* threads running a task */
+	wmsum_t tqs_threads_idle;		/* threads waiting for work */
+	wmsum_t tqs_threads_total;		/* total threads */
+	wmsum_t tqs_tasks_pending;		/* tasks waiting to execute */
+	wmsum_t tqs_tasks_priority;		/* hi-pri tasks waiting */
+	wmsum_t tqs_tasks_total;		/* total waiting tasks */
+	wmsum_t tqs_tasks_delayed;		/* tasks deferred to future */
+	wmsum_t tqs_entries_free;		/* task entries on free list */
+
+	/* counters (inc only, since taskq creation) */
+	wmsum_t tqs_threads_created;		/* threads created */
+	wmsum_t tqs_threads_destroyed;		/* threads destroyed */
+	wmsum_t tqs_tasks_dispatched;		/* tasks dispatched */
+	wmsum_t tqs_tasks_dispatched_delayed;	/* tasks delayed to future */
+	wmsum_t tqs_tasks_executed_normal;	/* normal pri tasks executed */
+	wmsum_t tqs_tasks_executed_priority;	/* high pri tasks executed */
+	wmsum_t tqs_tasks_executed;		/* total tasks executed */
+	wmsum_t tqs_tasks_delayed_requeued;	/* delayed tasks requeued */
+	wmsum_t tqs_tasks_cancelled;		/* tasks cancelled before run */
+	wmsum_t tqs_thread_wakeups;		/* total thread wakeups */
+	wmsum_t tqs_thread_wakeups_nowork;	/* thread woken but no tasks */
+	wmsum_t tqs_thread_sleeps;		/* total thread sleeps */
+} taskq_sums_t;
+
 typedef struct taskq {
 	spinlock_t		tq_lock;	/* protects taskq_t */
 	char			*tq_name;	/* taskq name */
@@ -105,6 +138,8 @@ typedef struct taskq {
 	struct hlist_node	tq_hp_cb_node;
 	boolean_t		tq_hp_support;
 	unsigned long		lastspawnstop;	/* when to purge dynamic */
+	taskq_sums_t		tq_sums;
+	kstat_t			*tq_ksp;
 } taskq_t;
 
 typedef struct taskq_ent {
@@ -122,6 +157,13 @@ typedef struct taskq_ent {
 
 #define	TQENT_FLAG_PREALLOC	0x1
 #define	TQENT_FLAG_CANCEL	0x2
+
+/* bits 2-3 are which list tqent is on */
+#define	TQENT_LIST_NONE		0x0
+#define	TQENT_LIST_PENDING	0x4
+#define	TQENT_LIST_PRIORITY	0x8
+#define	TQENT_LIST_DELAY	0xc
+#define	TQENT_LIST_MASK		0xc
 
 typedef struct taskq_thread {
 	struct list_head	tqt_thread_list;
