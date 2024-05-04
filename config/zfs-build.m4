@@ -629,6 +629,7 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 		debian)     bashcompletiondir=/usr/share/bash-completion/completions   ;;
 		freebsd)    bashcompletiondir=$sysconfdir/bash_completion.d;;
 		gentoo)     bashcompletiondir=/usr/share/bash-completion/completions   ;;
+		alpine)     bashcompletiondir=/usr/share/bash-completion/completions   ;;
 		*)          bashcompletiondir=/etc/bash_completion.d   ;;
 	esac
 	AC_MSG_RESULT([$bashcompletiondir])
