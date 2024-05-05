@@ -6994,15 +6994,11 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 	mutex_enter(&spa_namespace_lock);
 	spa->spa_export_thread = curthread;
 	spa_close(spa, FTAG);
-	mutex_exit(&spa_namespace_lock);
 
-	/*
-	 * At this point we no longer hold the spa_namespace_lock and
-	 * the spa_export_thread indicates that an export is in progress.
-	 */
-
-	if (spa->spa_state == POOL_STATE_UNINITIALIZED)
+	if (spa->spa_state == POOL_STATE_UNINITIALIZED) {
+		mutex_exit(&spa_namespace_lock);
 		goto export_spa;
+	}
 
 	/*
 	 * The pool will be in core if it's openable, in which case we can
@@ -7024,6 +7020,14 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 		goto fail;
 	}
 
+	mutex_exit(&spa_namespace_lock);
+	/*
+	 * At this point we no longer hold the spa_namespace_lock and
+	 * there were no references on the spa. Future spa_lookups will
+	 * notice the spa->spa_export_thread and wait until we signal
+	 * that we are finshed.
+	 */
+
 	if (spa->spa_sync_on) {
 		vdev_t *rvd = spa->spa_root_vdev;
 		/*
@@ -7035,6 +7039,7 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 		if (!force && new_state == POOL_STATE_EXPORTED &&
 		    spa_has_active_shared_spare(spa)) {
 			error = SET_ERROR(EXDEV);
+			mutex_enter(&spa_namespace_lock);
 			goto fail;
 		}
 
@@ -7102,6 +7107,9 @@ export_spa:
 	if (new_state == POOL_STATE_EXPORTED)
 		zio_handle_export_delay(spa, gethrtime() - export_start);
 
+	/*
+	 * Take the namewspace lock for the actual spa_t removal
+	 */
 	mutex_enter(&spa_namespace_lock);
 	if (new_state != POOL_STATE_UNINITIALIZED) {
 		if (!hardforce)
@@ -7118,20 +7126,20 @@ export_spa:
 	}
 
 	/*
-	 * Wake up any waiters on spa_namespace_lock
-	 * They need to re-attempt a spa_lookup()
+	 * Wake up any waiters in spa_lookup()
 	 */
 	cv_broadcast(&spa_namespace_cv);
 	mutex_exit(&spa_namespace_lock);
 	return (0);
 
 fail:
-	mutex_enter(&spa_namespace_lock);
 	spa->spa_is_exporting = B_FALSE;
 	spa->spa_export_thread = NULL;
-	spa_async_resume(spa);
 
-	/* Wake up any waiters on spa_namespace_lock */
+	spa_async_resume(spa);
+	/*
+	 * Wake up any waiters in spa_lookup()
+	 */
 	cv_broadcast(&spa_namespace_cv);
 	mutex_exit(&spa_namespace_lock);
 	return (error);
