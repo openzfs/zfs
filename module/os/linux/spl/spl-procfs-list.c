@@ -234,7 +234,7 @@ procfs_list_install(const char *module,
 		modulestr = kmem_asprintf("%s/%s", module, submodule);
 	else
 		modulestr = kmem_asprintf("%s", module);
-	mutex_init(&procfs_list->pl_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&procfs_list->pl_lock, NULL, MUTEX_NOLOCKDEP, NULL);
 	list_create(&procfs_list->pl_list,
 	    procfs_list_node_off + sizeof (procfs_list_node_t),
 	    procfs_list_node_off + offsetof(procfs_list_node_t, pln_link));
