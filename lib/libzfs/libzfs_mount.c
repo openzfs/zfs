@@ -1098,7 +1098,10 @@ zfs_dispatch_mount(libzfs_handle_t *hdl, zfs_handle_t **handles,
 	mnt_param->mnt_func = func;
 	mnt_param->mnt_data = data;
 
-	(void) tpool_dispatch(tp, zfs_mount_task, (void*)mnt_param);
+	if (tpool_dispatch(tp, zfs_mount_task, (void*)mnt_param)) {
+		/* Could not dispatch to thread pool; execute directly */
+		zfs_mount_task((void*)mnt_param);
+	}
 }
 
 /*
