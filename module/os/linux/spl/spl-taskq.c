@@ -1557,6 +1557,100 @@ taskq_create_synced(const char *name, int nthreads, pri_t pri,
 }
 EXPORT_SYMBOL(taskq_create_synced);
 
+static kstat_t *taskq_summary_ksp = NULL;
+
+static int
+spl_taskq_kstat_headers(char *buf, size_t size)
+{
+	size_t n = snprintf(buf, size,
+	    "%-20s | %-17s | %-23s\n"
+	    "%-20s | %-17s | %-23s\n"
+	    "%-20s | %-17s | %-23s\n",
+	    "", "threads", "tasks on queue",
+	    "taskq name", "tot [act idl] max", " pend [ norm  high] dly",
+	    "--------------------", "-----------------",
+	    "-----------------------");
+	return (n >= size ? ENOMEM : 0);
+}
+
+static int
+spl_taskq_kstat_data(char *buf, size_t size, void *data)
+{
+	struct list_head *tql = NULL;
+	taskq_t *tq;
+	char name[TASKQ_NAMELEN+5]; /* 5 for dot, 3x instance digits, null */
+	char threads[25];
+	char tasks[30];
+	size_t n;
+	int err = 0;
+
+	down_read(&tq_list_sem);
+	list_for_each_prev(tql, &tq_list) {
+		tq = list_entry(tql, taskq_t, tq_taskqs);
+
+		mutex_enter(tq->tq_ksp->ks_lock);
+		taskq_kstats_update(tq->tq_ksp, KSTAT_READ);
+		taskq_kstats_t *tqks = tq->tq_ksp->ks_data;
+
+		snprintf(name, sizeof (name), "%s.%d", tq->tq_name,
+		    tq->tq_instance);
+		snprintf(threads, sizeof (threads), "%3llu [%3llu %3llu] %3llu",
+		    tqks->tqks_threads_total.value.ui64,
+		    tqks->tqks_threads_active.value.ui64,
+		    tqks->tqks_threads_idle.value.ui64,
+		    tqks->tqks_threads_max.value.ui64);
+		snprintf(tasks, sizeof (tasks), "%5llu [%5llu %5llu] %3llu",
+		    tqks->tqks_tasks_total.value.ui64,
+		    tqks->tqks_tasks_pending.value.ui64,
+		    tqks->tqks_tasks_priority.value.ui64,
+		    tqks->tqks_tasks_delayed.value.ui64);
+
+		mutex_exit(tq->tq_ksp->ks_lock);
+
+		n = snprintf(buf, size, "%-20s | %-17s | %-23s\n",
+		    name, threads, tasks);
+		if (n >= size) {
+			err = ENOMEM;
+			break;
+		}
+
+		buf = &buf[n];
+		size -= n;
+	}
+
+	up_read(&tq_list_sem);
+
+	return (err);
+}
+
+static void
+spl_taskq_kstat_init(void)
+{
+	kstat_t *ksp = kstat_create("taskq", 0, "summary", "misc",
+	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
+
+	if (ksp == NULL)
+		return;
+
+	ksp->ks_data = (void *)(uintptr_t)1;
+	ksp->ks_ndata = 1;
+	kstat_set_raw_ops(ksp, spl_taskq_kstat_headers,
+	    spl_taskq_kstat_data, NULL);
+	kstat_install(ksp);
+
+	taskq_summary_ksp = ksp;
+}
+
+static void
+spl_taskq_kstat_fini(void)
+{
+	if (taskq_summary_ksp == NULL)
+		return;
+
+	kstat_delete(taskq_summary_ksp);
+	taskq_summary_ksp = NULL;
+}
+
 static unsigned int spl_taskq_kick = 0;
 
 /*
@@ -1737,12 +1831,16 @@ spl_taskq_init(void)
 	 */
 	dynamic_taskq->tq_lock_class = TQ_LOCK_DYNAMIC;
 
+	spl_taskq_kstat_init();
+
 	return (0);
 }
 
 void
 spl_taskq_fini(void)
 {
+	spl_taskq_kstat_fini();
+
 	taskq_destroy(dynamic_taskq);
 	dynamic_taskq = NULL;
 
