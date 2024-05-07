@@ -39,6 +39,18 @@
 #include <linux/cpuhotplug.h>
 #endif
 
+typedef struct taskq_time_kstats {
+	/* low- and high-water mark */
+	kstat_named_t tqtks_min;
+	kstat_named_t tqtks_max;
+
+	/* exponential weighted moving average over last N tasks */
+	kstat_named_t tqtks_ewma_10;
+	kstat_named_t tqtks_ewma_100;
+	kstat_named_t tqtks_ewma_1000;
+	kstat_named_t tqtks_ewma_10000;
+} taskq_time_kstats_t;
+
 typedef struct taskq_kstats {
 	/* static values, for completeness */
 	kstat_named_t tqks_threads_max;
@@ -68,6 +80,8 @@ typedef struct taskq_kstats {
 	kstat_named_t tqks_thread_wakeups;
 	kstat_named_t tqks_thread_wakeups_nowork;
 	kstat_named_t tqks_thread_sleeps;
+
+	taskq_time_kstats_t tqks_time[TQ_TIME_MAX];
 } taskq_kstats_t;
 
 static taskq_kstats_t taskq_kstats_template = {
@@ -95,6 +109,43 @@ static taskq_kstats_t taskq_kstats_template = {
 	{ "thread_wakeups",		KSTAT_DATA_UINT64 },
 	{ "thread_wakeups_nowork",	KSTAT_DATA_UINT64 },
 	{ "thread_sleeps",		KSTAT_DATA_UINT64 },
+
+	{ {
+		{ "enqueue_time_min",		KSTAT_DATA_UINT64 },
+		{ "enqueue_time_max",		KSTAT_DATA_UINT64 },
+		{ "enqueue_time_avg_10",	KSTAT_DATA_UINT64 },
+		{ "enqueue_time_avg_100",	KSTAT_DATA_UINT64 },
+		{ "enqueue_time_avg_1000",	KSTAT_DATA_UINT64 },
+		{ "enqueue_time_avg_10000",	KSTAT_DATA_UINT64 },
+	}, {
+		{ "wait_time_min",		KSTAT_DATA_UINT64 },
+		{ "wait_time_max",		KSTAT_DATA_UINT64 },
+		{ "wait_time_avg_10",		KSTAT_DATA_UINT64 },
+		{ "wait_time_avg_100",		KSTAT_DATA_UINT64 },
+		{ "wait_time_avg_1000",		KSTAT_DATA_UINT64 },
+		{ "wait_time_avg_10000",	KSTAT_DATA_UINT64 },
+	}, {
+		{ "dequeue_time_min",		KSTAT_DATA_UINT64 },
+		{ "dequeue_time_max",		KSTAT_DATA_UINT64 },
+		{ "dequeue_time_avg_10",	KSTAT_DATA_UINT64 },
+		{ "dequeue_time_avg_100",	KSTAT_DATA_UINT64 },
+		{ "dequeue_time_avg_1000",	KSTAT_DATA_UINT64 },
+		{ "dequeue_time_avg_10000",	KSTAT_DATA_UINT64 },
+	}, {
+		{ "execute_time_min",		KSTAT_DATA_UINT64 },
+		{ "execute_time_max",		KSTAT_DATA_UINT64 },
+		{ "execute_time_avg_10",	KSTAT_DATA_UINT64 },
+		{ "execute_time_avg_100",	KSTAT_DATA_UINT64 },
+		{ "execute_time_avg_1000",	KSTAT_DATA_UINT64 },
+		{ "execute_time_avg_10000",	KSTAT_DATA_UINT64 },
+	}, {
+		{ "task_time_min",		KSTAT_DATA_UINT64 },
+		{ "task_time_max",		KSTAT_DATA_UINT64 },
+		{ "task_time_avg_10",		KSTAT_DATA_UINT64 },
+		{ "task_time_avg_100",		KSTAT_DATA_UINT64 },
+		{ "task_time_avg_1000",		KSTAT_DATA_UINT64 },
+		{ "task_time_avg_10000",	KSTAT_DATA_UINT64 },
+	} },
 };
 
 #define	TQSTAT_INC(tq, stat)	wmsum_add(&tq->tq_sums.tqs_##stat, 1)
@@ -348,6 +399,8 @@ task_expire_impl(taskq_ent_t *t)
 	wake_up(&tq->tq_work_waitq);
 
 	TQSTAT_INC(tq, tasks_delayed_requeued);
+
+	t->tqent_time[TQENT_TIME_QUEUED] = gethrtime();
 }
 
 static void
@@ -668,6 +721,7 @@ taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 	taskq_ent_t *t;
 	taskqid_t rc = TASKQID_INVALID;
 	unsigned long irqflags;
+	uint64_t dispatch_time = gethrtime();
 
 	ASSERT(tq);
 	ASSERT(func);
@@ -688,6 +742,8 @@ taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 
 	if ((t = task_alloc(tq, flags, &irqflags)) == NULL)
 		goto out;
+
+	t->tqent_time[TQENT_TIME_DISPATCH] = dispatch_time;
 
 	spin_lock(&t->tqent_lock);
 
@@ -725,6 +781,8 @@ taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 
 	TQSTAT_INC(tq, tasks_dispatched);
 
+	t->tqent_time[TQENT_TIME_QUEUED] = gethrtime();
+
 	/* Spawn additional taskq threads if required. */
 	if (!(flags & TQ_NOQUEUE) && tq->tq_nactive == tq->tq_nthreads)
 		(void) taskq_thread_spawn(tq);
@@ -738,6 +796,7 @@ taskqid_t
 taskq_dispatch_delay(taskq_t *tq, task_func_t func, void *arg,
     uint_t flags, clock_t expire_time)
 {
+	uint64_t dispatch_time = gethrtime();
 	taskqid_t rc = TASKQID_INVALID;
 	taskq_ent_t *t;
 	unsigned long irqflags;
@@ -753,6 +812,8 @@ taskq_dispatch_delay(taskq_t *tq, task_func_t func, void *arg,
 
 	if ((t = task_alloc(tq, flags, &irqflags)) == NULL)
 		goto out;
+
+	t->tqent_time[TQENT_TIME_DISPATCH] = dispatch_time;
 
 	spin_lock(&t->tqent_lock);
 
@@ -789,6 +850,7 @@ void
 taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
     taskq_ent_t *t)
 {
+	uint64_t dispatch_time = gethrtime();
 	unsigned long irqflags;
 	ASSERT(tq);
 	ASSERT(func);
@@ -808,6 +870,8 @@ taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
 			goto out;
 		flags |= TQ_FRONT;
 	}
+
+	t->tqent_time[TQENT_TIME_DISPATCH] = dispatch_time;
 
 	spin_lock(&t->tqent_lock);
 
@@ -848,6 +912,8 @@ taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
 	wake_up(&tq->tq_work_waitq);
 
 	TQSTAT_INC(tq, tasks_dispatched);
+
+	t->tqent_time[TQENT_TIME_QUEUED] = gethrtime();
 
 	/* Spawn additional taskq threads if required. */
 	if (tq->tq_nactive == tq->tq_nthreads)
@@ -896,6 +962,67 @@ taskq_next_ent(taskq_t *tq)
 		return (NULL);
 
 	return (list_entry(list->next, taskq_ent_t, tqent_list));
+}
+
+__attribute__((always_inline))
+static inline uint64_t
+_ewma(uint64_t oldavg, uint64_t val, uint64_t weight)
+{
+	const int64_t s_oldavg = oldavg;
+	const int64_t s_val = val;
+	const int64_t s_weight = weight;
+	const int64_t s_avg = s_oldavg + (s_val-s_oldavg) / s_weight;
+	const uint64_t avg = MAX(0, s_avg);
+	return (avg);
+}
+
+static void
+taskq_update_time_stat(taskq_time_t *tqtmp, const uint64_t v)
+{
+	/*
+	 * Atomicity isn't necessary, as it's not a big deal if one or more
+	 * values is not perfectly synced up with its neighbours, and the cost
+	 * of a full barrier feels like it might be too much. Still, it doesn't
+	 * hurt to try and limit this, so we copy the old stats onto the stack,
+	 * update them there then copy back.
+	 */
+	taskq_time_t tqtm = *tqtmp;
+
+	tqtm.tqtm_min = MIN(tqtm.tqtm_min, v);
+	tqtm.tqtm_max = MAX(tqtm.tqtm_max, v);
+
+	tqtm.tqtm_ewma_10    = _ewma(tqtm.tqtm_ewma_10, v, 10);
+	tqtm.tqtm_ewma_100   = _ewma(tqtm.tqtm_ewma_100, v, 100);
+	tqtm.tqtm_ewma_1000  = _ewma(tqtm.tqtm_ewma_1000, v, 1000);
+	tqtm.tqtm_ewma_10000 = _ewma(tqtm.tqtm_ewma_10000, v, 10000);
+
+	*tqtmp = tqtm;
+}
+
+static void
+taskq_update_time_stats(taskq_t *tq, taskq_ent_t *t)
+{
+	uint64_t enqueue_time =
+	    t->tqent_time[TQENT_TIME_QUEUED] -
+	    t->tqent_time[TQENT_TIME_DISPATCH];
+	uint64_t wait_time =
+	    t->tqent_time[TQENT_TIME_EXECUTE] -
+	    t->tqent_time[TQENT_TIME_QUEUED];
+	uint64_t dequeue_time =
+	    t->tqent_time[TQENT_TIME_EXECUTE] -
+	    t->tqent_time[TQENT_TIME_DEQUEUE];
+	uint64_t execute_time =
+	    t->tqent_time[TQENT_TIME_DONE] -
+	    t->tqent_time[TQENT_TIME_EXECUTE];
+	uint64_t task_time =
+	    t->tqent_time[TQENT_TIME_DONE] -
+	    t->tqent_time[TQENT_TIME_DISPATCH];
+
+	taskq_update_time_stat(&tq->tq_time[TQ_TIME_ENQUEUE], enqueue_time);
+	taskq_update_time_stat(&tq->tq_time[TQ_TIME_WAIT], wait_time);
+	taskq_update_time_stat(&tq->tq_time[TQ_TIME_DEQUEUE], dequeue_time);
+	taskq_update_time_stat(&tq->tq_time[TQ_TIME_EXECUTE], execute_time);
+	taskq_update_time_stat(&tq->tq_time[TQ_TIME_TASK], task_time);
 }
 
 /*
@@ -983,6 +1110,7 @@ taskq_thread(void *args)
 	int seq_tasks = 0;
 	unsigned long flags;
 	taskq_ent_t dup_task = {};
+	uint64_t dequeue_time;
 
 	ASSERT(tqt);
 	ASSERT(tqt->tqt_tq);
@@ -1037,12 +1165,16 @@ taskq_thread(void *args)
 			TQSTAT_DEC(tq, threads_idle);
 			TQSTAT_INC(tq, thread_wakeups);
 
+			dequeue_time = gethrtime();
+
 			spin_lock_irqsave_nested(&tq->tq_lock, flags,
 			    tq->tq_lock_class);
 			remove_wait_queue(&tq->tq_work_waitq, &wait);
 		} else {
 			__set_current_state(TASK_RUNNING);
 		}
+
+		dequeue_time = gethrtime();
 
 		if ((t = taskq_next_ent(tq)) != NULL) {
 			list_del_init(&t->tqent_list);
@@ -1073,12 +1205,18 @@ taskq_thread(void *args)
 			spin_unlock_irqrestore(&tq->tq_lock, flags);
 
 			TQSTAT_INC(tq, threads_active);
+
+			t->tqent_time[TQENT_TIME_DEQUEUE] = dequeue_time;
+			t->tqent_time[TQENT_TIME_EXECUTE] = gethrtime();
+
 			DTRACE_PROBE1(taskq_ent__start, taskq_ent_t *, t);
 
 			/* Perform the requested task */
 			t->tqent_func(t->tqent_arg);
 
 			DTRACE_PROBE1(taskq_ent__finish, taskq_ent_t *, t);
+
+			t->tqent_time[TQENT_TIME_DONE] = gethrtime();
 
 			TQSTAT_DEC(tq, threads_active);
 			if ((t->tqent_flags & TQENT_LIST_MASK) ==
@@ -1094,6 +1232,8 @@ taskq_thread(void *args)
 			tq->tq_nactive--;
 			list_del_init(&tqt->tqt_active_list);
 			tqt->tqt_task = NULL;
+
+			taskq_update_time_stats(tq, t);
 
 			/* For prealloc'd tasks, we don't free anything. */
 			if (!(tqt->tqt_flags & TQENT_FLAG_PREALLOC))
@@ -1198,6 +1338,11 @@ taskq_stats_init(taskq_t *tq)
 	wmsum_init(&tqs->tqs_thread_wakeups, 0);
 	wmsum_init(&tqs->tqs_thread_wakeups_nowork, 0);
 	wmsum_init(&tqs->tqs_thread_sleeps, 0);
+
+	for (int i = 0; i < TQ_TIME_MAX; i++) {
+		memset(&tq->tq_time[i], 0, sizeof (taskq_time_t));
+		tq->tq_time[i].tqtm_min = UINT64_MAX;
+	}
 }
 
 static void
@@ -1281,6 +1426,24 @@ taskq_kstats_update(kstat_t *ksp, int rw)
 	    wmsum_value(&tqs->tqs_thread_wakeups_nowork);
 	tqks->tqks_thread_sleeps.value.ui64 =
 	    wmsum_value(&tqs->tqs_thread_sleeps);
+
+	for (int i = 0; i < TQ_TIME_MAX; i++) {
+		taskq_time_t *tqtm = &tq->tq_time[i];
+		taskq_time_kstats_t *tqtks = &tqks->tqks_time[i];
+
+		tqtks->tqtks_min.value.ui64 =
+		    NSEC2USEC(tqtm->tqtm_min);
+		tqtks->tqtks_max.value.ui64 =
+		    NSEC2USEC(tqtm->tqtm_max);
+		tqtks->tqtks_ewma_10.value.ui64 =
+		    NSEC2USEC(tqtm->tqtm_ewma_10);
+		tqtks->tqtks_ewma_100.value.ui64 =
+		    NSEC2USEC(tqtm->tqtm_ewma_100);
+		tqtks->tqtks_ewma_1000.value.ui64 =
+		    NSEC2USEC(tqtm->tqtm_ewma_1000);
+		tqtks->tqtks_ewma_10000.value.ui64 =
+		    NSEC2USEC(tqtm->tqtm_ewma_10000);
+	}
 
 	return (0);
 }

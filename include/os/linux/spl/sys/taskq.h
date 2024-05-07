@@ -107,6 +107,25 @@ typedef struct taskq_sums {
 	wmsum_t tqs_thread_sleeps;		/* total thread sleeps */
 } taskq_sums_t;
 
+typedef struct taskq_time {
+	uint64_t tqtm_min;
+	uint64_t tqtm_max;
+	uint64_t tqtm_ewma_10;
+	uint64_t tqtm_ewma_100;
+	uint64_t tqtm_ewma_1000;
+	uint64_t tqtm_ewma_10000;
+} taskq_time_t;
+
+/* tq_time[] */
+enum {
+	TQ_TIME_ENQUEUE,	/* enqueue time (DISPATCH -> QUEUED) */
+	TQ_TIME_WAIT,		/* time on queue (QUEUED -> EXECUTE) */
+	TQ_TIME_DEQUEUE,	/* dequeue time (WAKEUP -> EXECUTE) */
+	TQ_TIME_EXECUTE,	/* execution time (EXECUTE -> DONE ) */
+	TQ_TIME_TASK,		/* total time (DISPATCH -> DONE) */
+	TQ_TIME_MAX
+};
+
 typedef struct taskq {
 	spinlock_t		tq_lock;	/* protects taskq_t */
 	char			*tq_name;	/* taskq name */
@@ -139,8 +158,19 @@ typedef struct taskq {
 	boolean_t		tq_hp_support;
 	unsigned long		lastspawnstop;	/* when to purge dynamic */
 	taskq_sums_t		tq_sums;
+	taskq_time_t		tq_time[TQ_TIME_MAX];
 	kstat_t			*tq_ksp;
 } taskq_t;
+
+/* tqent_time[] */
+enum {
+	TQENT_TIME_DISPATCH,	/* taskq_dispatch() start */
+	TQENT_TIME_QUEUED,	/* taskq_dispatch() end (on queue) */
+	TQENT_TIME_DEQUEUE,	/* taskq_thread() dequeue start */
+	TQENT_TIME_EXECUTE,	/* taskq_thread() execute start */
+	TQENT_TIME_DONE,	/* taskq_thread() execute done */
+	TQENT_TIME_MAX
+};
 
 typedef struct taskq_ent {
 	spinlock_t		tqent_lock;
@@ -153,6 +183,7 @@ typedef struct taskq_ent {
 	taskq_t			*tqent_taskq;
 	uintptr_t		tqent_flags;
 	unsigned long		tqent_birth;
+	uint64_t		tqent_time[TQENT_TIME_MAX];
 } taskq_ent_t;
 
 #define	TQENT_FLAG_PREALLOC	0x1
