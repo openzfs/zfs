@@ -261,8 +261,7 @@ typedef enum {
 	ZPOOL_NUM_PROPS
 } zpool_prop_t;
 
-/* Small enough to not hog a whole line of printout in zpool(8). */
-#define	ZPROP_MAX_COMMENT	32
+#define	ZPROP_MAX_COMMENT	8192
 #define	ZPROP_BOOLEAN_NA	2
 
 #define	ZPROP_VALUE		"value"
