@@ -80,6 +80,8 @@
 
 libzfs_handle_t *g_zfs;
 
+static int mount_tp_nthr = 512;  /* tpool threads for multi-threaded mounting */
+
 static int zpool_do_create(int, char **);
 static int zpool_do_destroy(int, char **);
 
@@ -3342,7 +3344,7 @@ zfs_force_import_required(nvlist_t *config)
  */
 static int
 do_import(nvlist_t *config, const char *newname, const char *mntopts,
-    nvlist_t *props, int flags)
+    nvlist_t *props, int flags, uint_t mntthreads)
 {
 	int ret = 0;
 	int ms_status = 0;
@@ -3442,7 +3444,7 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 
 	if (zpool_get_state(zhp) != POOL_STATE_UNAVAIL &&
 	    !(flags & ZFS_IMPORT_ONLY)) {
-		ms_status = zpool_enable_datasets(zhp, mntopts, 0);
+		ms_status = zpool_enable_datasets(zhp, mntopts, 0, mntthreads);
 		if (ms_status == EZFS_SHAREFAILED) {
 			(void) fprintf(stderr, gettext("Import was "
 			    "successful, but unable to share some datasets\n"));
@@ -3461,6 +3463,7 @@ typedef struct import_parameters {
 	const char *ip_mntopts;
 	nvlist_t *ip_props;
 	int ip_flags;
+	uint_t ip_mntthreads;
 	int *ip_err;
 } import_parameters_t;
 
@@ -3469,7 +3472,7 @@ do_import_task(void *arg)
 {
 	import_parameters_t *ip = arg;
 	*ip->ip_err |= do_import(ip->ip_config, NULL, ip->ip_mntopts,
-	    ip->ip_props, ip->ip_flags);
+	    ip->ip_props, ip->ip_flags, ip->ip_mntthreads);
 	free(ip);
 }
 
@@ -3483,6 +3486,7 @@ import_pools(nvlist_t *pools, nvlist_t *props, char *mntopts, int flags,
 	uint64_t pool_state;
 	boolean_t pool_specified = (import->poolname != NULL ||
 	    import->guid != 0);
+	uint_t npools = 0;
 
 
 	tpool_t *tp = NULL;
@@ -3500,6 +3504,10 @@ import_pools(nvlist_t *pools, nvlist_t *props, char *mntopts, int flags,
 	int err = 0;
 	nvpair_t *elem = NULL;
 	boolean_t first = B_TRUE;
+	if (!pool_specified && import->do_all) {
+		while ((elem = nvlist_next_nvpair(pools, elem)) != NULL)
+			npools++;
+	}
 	while ((elem = nvlist_next_nvpair(pools, elem)) != NULL) {
 
 		verify(nvpair_value_nvlist(elem, &config) == 0);
@@ -3530,6 +3538,7 @@ import_pools(nvlist_t *pools, nvlist_t *props, char *mntopts, int flags,
 				ip->ip_mntopts = mntopts;
 				ip->ip_props = props;
 				ip->ip_flags = flags;
+				ip->ip_mntthreads = mount_tp_nthr / npools;
 				ip->ip_err = &err;
 
 				(void) tpool_dispatch(tp, do_import_task,
@@ -3597,7 +3606,7 @@ import_pools(nvlist_t *pools, nvlist_t *props, char *mntopts, int flags,
 			err = B_TRUE;
 		} else {
 			err |= do_import(found_config, new_name,
-			    mntopts, props, flags);
+			    mntopts, props, flags, mount_tp_nthr);
 		}
 	}
 
@@ -7141,7 +7150,8 @@ zpool_do_split(int argc, char **argv)
 	}
 
 	if (zpool_get_state(zhp) != POOL_STATE_UNAVAIL) {
-		ms_status = zpool_enable_datasets(zhp, mntopts, 0);
+		ms_status = zpool_enable_datasets(zhp, mntopts, 0,
+		    mount_tp_nthr);
 		if (ms_status == EZFS_SHAREFAILED) {
 			(void) fprintf(stderr, gettext("Split was successful, "
 			    "datasets are mounted but sharing of some datasets "
