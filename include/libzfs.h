@@ -716,7 +716,7 @@ typedef struct get_all_cb {
 } get_all_cb_t;
 
 _LIBZFS_H void zfs_foreach_mountpoint(libzfs_handle_t *, zfs_handle_t **,
-    size_t, zfs_iter_f, void *, boolean_t);
+    size_t, zfs_iter_f, void *, uint_t);
 _LIBZFS_H void libzfs_add_handle(get_all_cb_t *, zfs_handle_t *);
 
 /*
@@ -1004,7 +1004,8 @@ _LIBZFS_H int zfs_smb_acl_rename(libzfs_handle_t *, char *, char *, char *,
  * Enable and disable datasets within a pool by mounting/unmounting and
  * sharing/unsharing them.
  */
-_LIBZFS_H int zpool_enable_datasets(zpool_handle_t *, const char *, int);
+_LIBZFS_H int zpool_enable_datasets(zpool_handle_t *, const char *, int,
+    uint_t);
 _LIBZFS_H int zpool_disable_datasets(zpool_handle_t *, boolean_t);
 _LIBZFS_H void zpool_disable_datasets_os(zpool_handle_t *, boolean_t);
 _LIBZFS_H void zpool_disable_volume_os(const char *);

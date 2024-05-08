@@ -7192,6 +7192,8 @@ share_mount(int op, int argc, char **argv)
 	int c, ret = 0;
 	char *options = NULL;
 	int flags = 0;
+	const uint_t mount_nthr = 512;
+	uint_t nthr;
 
 	/* check options */
 	while ((c = getopt(argc, argv, op == OP_MOUNT ? ":aRlvo:Of" : "al"))
@@ -7310,9 +7312,9 @@ share_mount(int op, int argc, char **argv)
 		 * be serialized so that we can prompt the user for their keys
 		 * in a consistent manner.
 		 */
+		nthr = op == OP_MOUNT && !(flags & MS_CRYPT) ? mount_nthr : 1;
 		zfs_foreach_mountpoint(g_zfs, cb.cb_handles, cb.cb_used,
-		    share_mount_one_cb, &share_mount_state,
-		    op == OP_MOUNT && !(flags & MS_CRYPT));
+		    share_mount_one_cb, &share_mount_state, nthr);
 		zfs_commit_shares(NULL);
 
 		ret = share_mount_state.sm_status;

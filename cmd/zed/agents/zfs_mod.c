@@ -702,7 +702,7 @@ zfs_enable_ds(void *arg)
 {
 	unavailpool_t *pool = (unavailpool_t *)arg;
 
-	(void) zpool_enable_datasets(pool->uap_zhp, NULL, 0);
+	(void) zpool_enable_datasets(pool->uap_zhp, NULL, 0, 512);
 	zpool_close(pool->uap_zhp);
 	free(pool);
 }
