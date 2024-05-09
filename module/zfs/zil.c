@@ -23,6 +23,7 @@
  * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
  * Copyright (c) 2018 Datto Inc.
+ * Copyright (c) 2024, Klara, Inc.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -1495,12 +1496,6 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 		 * includes ZIO errors from either this LWB's write or
 		 * flush, as well as any errors from other dependent LWBs
 		 * (e.g. a root LWB ZIO that might be a child of this LWB).
-		 *
-		 * With that said, it's important to note that LWB flush
-		 * errors are not propagated up to the LWB root ZIO.
-		 * This is incorrect behavior, and results in VDEV flush
-		 * errors not being handled correctly here. See the
-		 * comment above the call to "zio_flush" for details.
 		 */
 
 		zcw->zcw_zio_error = zio->io_error;
@@ -1650,17 +1645,8 @@ zil_lwb_write_done(zio_t *zio)
 
 	while ((zv = avl_destroy_nodes(t, &cookie)) != NULL) {
 		vdev_t *vd = vdev_lookup_top(spa, zv->zv_vdev);
-		if (vd != NULL) {
-			/*
-			 * The "ZIO_FLAG_DONT_PROPAGATE" is currently
-			 * always used within "zio_flush". This means,
-			 * any errors when flushing the vdev(s), will
-			 * (unfortunately) not be handled correctly,
-			 * since these "zio_flush" errors will not be
-			 * propagated up to "zil_lwb_flush_vdevs_done".
-			 */
-			zio_flush(lwb->lwb_root_zio, vd);
-		}
+		if (vd != NULL)
+			zio_flush(lwb->lwb_root_zio, vd, B_TRUE);
 		kmem_free(zv, sizeof (*zv));
 	}
 }
