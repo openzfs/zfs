@@ -41,9 +41,11 @@
 #define	libspl_getprogname()	(program_invocation_short_name)
 #define	libspl_getthreadname(buf, len)	\
 	prctl(PR_GET_NAME, (unsigned long)(buf), 0, 0, 0)
-#elif defined(__FreeBSD__)
+#elif defined(__FreeBSD__) || defined(__APPLE__)
+#if !defined(__APPLE__)
 #include <pthread_np.h>
 #define	libspl_gettid()		pthread_getthreadid_np()
+#endif
 #define	libspl_getprogname()	getprogname()
 #define	libspl_getthreadname(buf, len)	\
 	pthread_getname_np(pthread_self(), buf, len);
@@ -98,6 +100,19 @@ libspl_dump_backtrace(void)
 #define	libspl_dump_backtrace()
 #endif
 
+#if defined(__APPLE__)
+static inline uint64_t
+libspl_gettid(void)
+{
+	uint64_t tid;
+
+	if (pthread_threadid_np(NULL, &tid) != 0)
+		tid = 0;
+
+	return (tid);
+}
+#endif
+
 static boolean_t libspl_assert_ok = B_FALSE;
 
 void
@@ -128,7 +143,11 @@ libspl_assertf(const char *file, const char *func, int line,
 
 	fprintf(stderr, "\n"
 	    "  PID: %-8u  COMM: %s\n"
+#if defined(__APPLE__)
+	    "  TID: %-8" PRIu64 "  NAME: %s\n",
+#else
 	    "  TID: %-8u  NAME: %s\n",
+#endif
 	    getpid(), libspl_getprogname(),
 	    libspl_gettid(), tname);
 
