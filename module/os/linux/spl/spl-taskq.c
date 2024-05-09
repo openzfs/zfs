@@ -158,7 +158,7 @@ retry:
 		 * throttling the task dispatch rate.
 		 */
 		spin_unlock_irqrestore(&tq->tq_lock, *irqflags);
-		schedule_timeout(HZ / 100);
+		schedule_timeout_interruptible(HZ / 100);
 		spin_lock_irqsave_nested(&tq->tq_lock, *irqflags,
 		    tq->tq_lock_class);
 		if (count < 100) {
