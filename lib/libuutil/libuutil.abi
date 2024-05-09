@@ -143,7 +143,9 @@
     <elf-symbol name='avl_update_gt' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='avl_update_lt' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='avl_walk' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='format_timestamp' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='get_system_hostid' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='get_timestamp' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='getexecname' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='getextmntent' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='getmntany' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -1149,6 +1151,18 @@
     </function-decl>
     <function-decl name='print_timestamp' mangled-name='print_timestamp' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='print_timestamp'>
       <parameter type-id='3502e3ff' name='timestamp_fmt'/>
+      <return type-id='48b5725f'/>
+    </function-decl>
+    <function-decl name='get_timestamp' mangled-name='get_timestamp' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='get_timestamp'>
+      <parameter type-id='3502e3ff' name='timestamp_fmt'/>
+      <parameter type-id='26a90f95' name='buf'/>
+      <parameter type-id='95e97e5e' name='len'/>
+      <return type-id='48b5725f'/>
+    </function-decl>
+    <function-decl name='format_timestamp' mangled-name='format_timestamp' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='format_timestamp'>
+      <parameter type-id='c9d12d66' name='t'/>
+      <parameter type-id='26a90f95' name='buf'/>
+      <parameter type-id='95e97e5e' name='len'/>
       <return type-id='48b5725f'/>
     </function-decl>
   </abi-instr>
