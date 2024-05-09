@@ -491,6 +491,7 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 
 	avl_create(&scn->scn_queue, scan_ds_queue_compare, sizeof (scan_ds_t),
 	    offsetof(scan_ds_t, sds_node));
+	mutex_init(&scn->scn_queue_lock, NULL, MUTEX_DEFAULT, NULL);
 	avl_create(&scn->scn_prefetch_queue, scan_prefetch_queue_compare,
 	    sizeof (scan_prefetch_issue_ctx_t),
 	    offsetof(scan_prefetch_issue_ctx_t, spic_avl_node));
@@ -646,6 +647,7 @@ dsl_scan_fini(dsl_pool_t *dp)
 
 		scan_ds_queue_clear(scn);
 		avl_destroy(&scn->scn_queue);
+		mutex_destroy(&scn->scn_queue_lock);
 		scan_ds_prefetch_queue_clear(scn);
 		avl_destroy(&scn->scn_prefetch_queue);
 
@@ -2723,8 +2725,10 @@ enqueue_clones_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
 			return (err);
 		ds = prev;
 	}
+	mutex_enter(&scn->scn_queue_lock);
 	scan_ds_queue_insert(scn, ds->ds_object,
 	    dsl_dataset_phys(ds)->ds_prev_snap_txg);
+	mutex_exit(&scn->scn_queue_lock);
 	dsl_dataset_rele(ds, FTAG);
 	return (0);
 }
@@ -2915,8 +2919,10 @@ enqueue_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
 		ds = prev;
 	}
 
+	mutex_enter(&scn->scn_queue_lock);
 	scan_ds_queue_insert(scn, ds->ds_object,
 	    dsl_dataset_phys(ds)->ds_prev_snap_txg);
+	mutex_exit(&scn->scn_queue_lock);
 	dsl_dataset_rele(ds, FTAG);
 	return (0);
 }
