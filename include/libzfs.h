@@ -469,7 +469,8 @@ _LIBZFS_H int zpool_import(libzfs_handle_t *, nvlist_t *, const char *,
     char *altroot);
 _LIBZFS_H int zpool_import_props(libzfs_handle_t *, nvlist_t *, const char *,
     nvlist_t *, int);
-_LIBZFS_H void zpool_print_unsup_feat(nvlist_t *config);
+_LIBZFS_H void zpool_collect_unsup_feat(nvlist_t *config, char *buf,
+    size_t size);
 
 /*
  * Miscellaneous pool functions
@@ -500,7 +501,7 @@ _LIBZFS_H void zpool_obj_to_path(zpool_handle_t *, uint64_t, uint64_t, char *,
     size_t);
 _LIBZFS_H int zfs_ioctl(libzfs_handle_t *, int, struct zfs_cmd *);
 _LIBZFS_H void zpool_explain_recover(libzfs_handle_t *, const char *, int,
-    nvlist_t *);
+    nvlist_t *, char *, size_t);
 _LIBZFS_H int zpool_checkpoint(zpool_handle_t *);
 _LIBZFS_H int zpool_discard_checkpoint(zpool_handle_t *);
 _LIBZFS_H boolean_t zpool_is_draid_spare(const char *);
