@@ -798,7 +798,8 @@ retry:
 				if ((gethrtime() - start) > timeout)
 					return (SET_ERROR(-ERESTARTSYS));
 
-				schedule_timeout(MSEC_TO_TICK(10));
+				schedule_timeout_interruptible(
+					MSEC_TO_TICK(10));
 				goto retry;
 #endif
 			} else {
