@@ -895,7 +895,7 @@ zfs_log_clone_range(zilog_t *zilog, dmu_tx_t *tx, int txtype, znode_t *zp,
 	itx_t *itx;
 	lr_clone_range_t *lr;
 	uint64_t partlen, max_log_data;
-	size_t i, partnbps;
+	size_t partnbps;
 
 	if (zil_replaying(zilog, tx) || zp->z_unlinked)
 		return;
@@ -904,10 +904,8 @@ zfs_log_clone_range(zilog_t *zilog, dmu_tx_t *tx, int txtype, znode_t *zp,
 
 	while (nbps > 0) {
 		partnbps = MIN(nbps, max_log_data / sizeof (bps[0]));
-		partlen = 0;
-		for (i = 0; i < partnbps; i++) {
-			partlen += BP_GET_LSIZE(&bps[i]);
-		}
+		partlen = partnbps * blksz;
+		ASSERT3U(partlen, <, len + blksz);
 		partlen = MIN(partlen, len);
 
 		itx = zil_itx_create(txtype,
