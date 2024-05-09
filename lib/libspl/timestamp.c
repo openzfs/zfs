@@ -84,3 +84,23 @@ get_timestamp(uint_t timestamp_fmt, char *buf, int len)
 		strftime(buf, len, fmt, localtime_r(&t, &tm));
 	}
 }
+
+/*
+ * Format the provided time stamp to human readable format
+ */
+void
+format_timestamp(time_t t, char *buf, int len)
+{
+	struct tm tm;
+	static const char *fmt = NULL;
+
+	if (t == 0) {
+		snprintf(buf, len, "-");
+		return;
+	}
+
+	/* We only need to retrieve this once per invocation */
+	if (fmt == NULL)
+		fmt = nl_langinfo(_DATE_FMT);
+	strftime(buf, len, fmt, localtime_r(&t, &tm));
+}

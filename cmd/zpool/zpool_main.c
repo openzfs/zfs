@@ -66,7 +66,7 @@
 #include <sys/zfs_ioctl.h>
 #include <sys/mount.h>
 #include <sys/sysmacros.h>
-
+#include <string.h>
 #include <math.h>
 
 #include <libzfs.h>
@@ -139,7 +139,8 @@ enum zpool_options {
 	ZPOOL_OPTION_ALLOW_INUSE,
 	ZPOOL_OPTION_ALLOW_REPLICATION_MISMATCH,
 	ZPOOL_OPTION_ALLOW_ASHIFT_MISMATCH,
-	ZPOOL_OPTION_JSON_NUMS_AS_INT
+	ZPOOL_OPTION_JSON_NUMS_AS_INT,
+	ZPOOL_OPTION_JSON_FLAT_VDEVS
 };
 
 /*
@@ -273,6 +274,130 @@ static const char *vsx_type_to_nvlist[IOS_COUNT][15] = {
 	    NULL},
 };
 
+static const char *status_reason_str[] = {
+	"CORRUPT_CACHE",
+	"MISSING_DEV_R",
+	"MISSING_DEV_NR",
+	"CORRUPT_LABEL_R",
+	"CORRUPT_LABEL_NR",
+	"BAD_GUID_SUM",
+	"CORRUPT_POOL",
+	"CORRUPT_DATA",
+	"FAILING_DEV",
+	"VERSION_NEWER",
+	"HOSTID_MISMATCH",
+	"HOSTID_ACTIVE",
+	"HOSTID_REQUIRED",
+	"IO_FAILURE_WAIT",
+	"IO_FAILURE_CONTINUE",
+	"IO_FAILURE_MMP",
+	"BAD_LOG",
+	"ERRATA",
+	"UNSUP_FEAT_READ",
+	"UNSUP_FEAT_WRITE",
+	"FAULTED_DEV_R",
+	"FAULTED_DEV_NR",
+	"VERSION_OLDER",
+	"FEAT_DISABLED",
+	"RESILVERING",
+	"OFFLINE_DEV",
+	"REMOVED_DEV",
+	"REBUILDING",
+	"REBUILD_SCRUB",
+	"NON_NATIVE_ASHIFT",
+	"COMPATIBILITY_ERR",
+	"INCOMPATIBLE_FEAT",
+	"OK"
+};
+
+static const char *errata_str[] = {
+	"NONE",
+	"ZOL_2094_SCRUB",
+	"ZOL_2094_ASYNC_DESTROY",
+	"ZOL_6845_ENCRYPTION",
+	"ZOL_8308_ENCRYPTION"
+};
+
+static const char *pool_scan_func_str[] = {
+	"NONE",
+	"SCRUB",
+	"RESILVER",
+	"ERRORSCRUB"
+};
+
+static const char *pool_scan_state_str[] = {
+	"NONE",
+	"SCANNING",
+	"FINISHED",
+	"CANCELED",
+	"ERRORSCRUBBING"
+};
+
+static const char *vdev_rebuild_state_str[] = {
+	"NONE",
+	"ACTIVE",
+	"CANCELED",
+	"COMPLETE"
+};
+
+static const char *checkpoint_state_str[] = {
+	"NONE",
+	"EXISTS",
+	"DISCARDING"
+};
+
+static const char *vdev_state_str[] = {
+	"UNKNOWN",
+	"CLOSED",
+	"OFFLINE",
+	"REMOVED",
+	"CANT_OPEN",
+	"FAULTED",
+	"DEGRADED",
+	"HEALTHY"
+};
+
+static const char *vdev_aux_str[] = {
+	"NONE",
+	"OPEN_FAILED",
+	"CORRUPT_DATA",
+	"NO_REPLICAS",
+	"BAD_GUID_SUM",
+	"TOO_SMALL",
+	"BAD_LABEL",
+	"VERSION_NEWER",
+	"VERSION_OLDER",
+	"UNSUP_FEAT",
+	"SPARED",
+	"ERR_EXCEEDED",
+	"IO_FAILURE",
+	"BAD_LOG",
+	"EXTERNAL",
+	"SPLIT_POOL",
+	"BAD_ASHIFT",
+	"EXTERNAL_PERSIST",
+	"ACTIVE",
+	"CHILDREN_OFFLINE",
+	"ASHIFT_TOO_BIG"
+};
+
+static const char *vdev_init_state_str[] = {
+	"NONE",
+	"ACTIVE",
+	"CANCELED",
+	"SUSPENDED",
+	"COMPLETE"
+};
+
+static const char *vdev_trim_state_str[] = {
+	"NONE",
+	"ACTIVE",
+	"CANCELED",
+	"SUSPENDED",
+	"COMPLETE"
+};
+
+#define	ZFS_NICE_TIMESTAMP	100
 
 /*
  * Given a cb->cb_flags with a histogram bit set, return the iostat_type.
@@ -426,8 +551,8 @@ get_usage(zpool_help_t idx)
 		    "[<device> ...]\n"));
 	case HELP_STATUS:
 		return (gettext("\tstatus [--power] [-c [script1,script2,...]] "
-		    "[-DegiLpPstvx] [-T d|u] [pool] ...\n"
-		    "\t    [interval [count]]\n"));
+		    "[-j [--flat]] [-DegiLpPstvx] ...\n"
+		    "\t    [-T d|u] [pool] [interval [count]]\n"));
 	case HELP_UPGRADE:
 		return (gettext("\tupgrade\n"
 		    "\tupgrade -v\n"
@@ -893,6 +1018,84 @@ print_spare_list(nvlist_t *nv, int indent)
 	}
 }
 
+typedef struct spare_cbdata {
+	uint64_t	cb_guid;
+	zpool_handle_t	*cb_zhp;
+} spare_cbdata_t;
+
+static boolean_t
+find_vdev(nvlist_t *nv, uint64_t search)
+{
+	uint64_t guid;
+	nvlist_t **child;
+	uint_t c, children;
+
+	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID, &guid) == 0 &&
+	    search == guid)
+		return (B_TRUE);
+
+	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) == 0) {
+		for (c = 0; c < children; c++)
+			if (find_vdev(child[c], search))
+				return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
+static int
+find_spare(zpool_handle_t *zhp, void *data)
+{
+	spare_cbdata_t *cbp = data;
+	nvlist_t *config, *nvroot;
+
+	config = zpool_get_config(zhp, NULL);
+	verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
+	    &nvroot) == 0);
+
+	if (find_vdev(nvroot, cbp->cb_guid)) {
+		cbp->cb_zhp = zhp;
+		return (1);
+	}
+
+	zpool_close(zhp);
+	return (0);
+}
+
+static void
+nice_num_str_nvlist(nvlist_t *item, const char *key, uint64_t value,
+    boolean_t literal, boolean_t as_int, int format)
+{
+	char buf[256];
+	if (literal) {
+		if (!as_int)
+			snprintf(buf, 256, "%llu", (u_longlong_t)value);
+	} else {
+		switch (format) {
+		case ZFS_NICENUM_1024:
+			zfs_nicenum_format(value, buf, 256, ZFS_NICENUM_1024);
+			break;
+		case ZFS_NICENUM_BYTES:
+			zfs_nicenum_format(value, buf, 256, ZFS_NICENUM_BYTES);
+			break;
+		case ZFS_NICENUM_TIME:
+			zfs_nicenum_format(value, buf, 256, ZFS_NICENUM_TIME);
+			break;
+		case ZFS_NICE_TIMESTAMP:
+			format_timestamp(value, buf, 256);
+			break;
+		default:
+			fprintf(stderr, "Invalid number format");
+			exit(1);
+		}
+	}
+	if (as_int)
+		fnvlist_add_uint64(item, key, value);
+	else
+		fnvlist_add_string(item, key, buf);
+}
+
 /*
  * Generates an nvlist with output version for every command based on params.
  * Purpose of this is to add a version of JSON output, considering the schema
@@ -959,13 +1162,32 @@ fill_pool_info(nvlist_t *list, zpool_handle_t *zhp, boolean_t addtype,
 }
 
 static void
+used_by_other(zpool_handle_t *zhp, nvlist_t *nvdev, nvlist_t *list)
+{
+	spare_cbdata_t spare_cb;
+	verify(nvlist_lookup_uint64(nvdev, ZPOOL_CONFIG_GUID,
+	    &spare_cb.cb_guid) == 0);
+	if (zpool_iter(g_zfs, find_spare, &spare_cb) == 1) {
+		if (strcmp(zpool_get_name(spare_cb.cb_zhp),
+		    zpool_get_name(zhp)) != 0) {
+			fnvlist_add_string(list, "used_by",
+			    zpool_get_name(spare_cb.cb_zhp));
+		}
+		zpool_close(spare_cb.cb_zhp);
+	}
+}
+
+static void
 fill_vdev_info(nvlist_t *list, zpool_handle_t *zhp, char *name,
     boolean_t addtype, boolean_t as_int)
 {
-	boolean_t spare, l2c, log;
-	const char *path, *phys, *devid;
-	nvlist_t *nvdev = zpool_find_vdev(zhp, name, &spare, &l2c, &log);
+	boolean_t l2c = B_FALSE;
+	const char *path, *phys, *devid, *bias = NULL;
+	uint64_t hole = 0, log = 0, spare = 0;
+	vdev_stat_t *vs;
+	uint_t c;
 
+	nvlist_t *nvdev = zpool_find_vdev(zhp, name, NULL, &l2c, NULL);
 	fnvlist_add_string(list, "name", name);
 	if (addtype)
 		fnvlist_add_string(list, "type", "VDEV");
@@ -985,7 +1207,6 @@ fill_vdev_info(nvlist_t *list, zpool_handle_t *zhp, char *name,
 				fnvlist_add_string(list, "guid", buf);
 			}
 		}
-
 		if (nvlist_lookup_string(nvdev, ZPOOL_CONFIG_PATH, &path) == 0)
 			fnvlist_add_string(list, "path", path);
 		if (nvlist_lookup_string(nvdev, ZPOOL_CONFIG_PHYS_PATH,
@@ -994,6 +1215,40 @@ fill_vdev_info(nvlist_t *list, zpool_handle_t *zhp, char *name,
 		if (nvlist_lookup_string(nvdev, ZPOOL_CONFIG_DEVID,
 		    &devid) == 0)
 			fnvlist_add_string(list, "devid", devid);
+		(void) nvlist_lookup_uint64(nvdev, ZPOOL_CONFIG_IS_LOG, &log);
+		(void) nvlist_lookup_uint64(nvdev, ZPOOL_CONFIG_IS_SPARE,
+		    &spare);
+		(void) nvlist_lookup_uint64(nvdev, ZPOOL_CONFIG_IS_HOLE, &hole);
+		if (hole)
+			fnvlist_add_string(list, "class", VDEV_TYPE_HOLE);
+		else if (l2c)
+			fnvlist_add_string(list, "class", VDEV_TYPE_L2CACHE);
+		else if (spare)
+			fnvlist_add_string(list, "class", VDEV_TYPE_SPARE);
+		else if (log)
+			fnvlist_add_string(list, "class", VDEV_TYPE_LOG);
+		else {
+			(void) nvlist_lookup_string(nvdev,
+			    ZPOOL_CONFIG_ALLOCATION_BIAS, &bias);
+			if (bias != NULL)
+				fnvlist_add_string(list, "class", bias);
+			else
+				fnvlist_add_string(list, "class", "normal");
+		}
+		if (nvlist_lookup_uint64_array(nvdev, ZPOOL_CONFIG_VDEV_STATS,
+		    (uint64_t **)&vs, &c) == 0) {
+			fnvlist_add_string(list, "state",
+			    vdev_state_str[vs->vs_state]);
+			if (spare) {
+				if (vs->vs_aux == VDEV_AUX_SPARED) {
+					fnvlist_add_string(list, "state",
+					    "INUSE");
+					used_by_other(zhp, nvdev, list);
+				} else if (vs->vs_state == VDEV_STATE_HEALTHY)
+					fnvlist_add_string(list, "state",
+					    "AVAIL");
+			}
+		}
 	}
 }
 
@@ -2335,51 +2590,6 @@ max_width(zpool_handle_t *zhp, nvlist_t *nv, int depth, int max,
 	return (max);
 }
 
-typedef struct spare_cbdata {
-	uint64_t	cb_guid;
-	zpool_handle_t	*cb_zhp;
-} spare_cbdata_t;
-
-static boolean_t
-find_vdev(nvlist_t *nv, uint64_t search)
-{
-	uint64_t guid;
-	nvlist_t **child;
-	uint_t c, children;
-
-	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID, &guid) == 0 &&
-	    search == guid)
-		return (B_TRUE);
-
-	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
-	    &child, &children) == 0) {
-		for (c = 0; c < children; c++)
-			if (find_vdev(child[c], search))
-				return (B_TRUE);
-	}
-
-	return (B_FALSE);
-}
-
-static int
-find_spare(zpool_handle_t *zhp, void *data)
-{
-	spare_cbdata_t *cbp = data;
-	nvlist_t *config, *nvroot;
-
-	config = zpool_get_config(zhp, NULL);
-	verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
-	    &nvroot) == 0);
-
-	if (find_vdev(nvroot, cbp->cb_guid)) {
-		cbp->cb_zhp = zhp;
-		return (1);
-	}
-
-	zpool_close(zhp);
-	return (0);
-}
-
 typedef struct status_cbdata {
 	int		cb_count;
 	int		cb_name_flags;
@@ -2397,6 +2607,10 @@ typedef struct status_cbdata {
 	boolean_t	cb_print_vdev_trim;
 	vdev_cmd_data_list_t	*vcdl;
 	boolean_t	cb_print_power;
+	boolean_t	cb_json;
+	boolean_t	cb_flat_vdevs;
+	nvlist_t	*cb_jsobj;
+	boolean_t	cb_json_as_int;
 } status_cbdata_t;
 
 /* Return 1 if string is NULL, empty, or whitespace; return 0 otherwise. */
@@ -2407,6 +2621,46 @@ is_blank_str(const char *str)
 		if (!isblank(*str))
 			return (B_FALSE);
 	return (B_TRUE);
+}
+
+static void
+zpool_nvlist_cmd(vdev_cmd_data_list_t *vcdl, const char *pool, const char *path,
+    nvlist_t *item)
+{
+	vdev_cmd_data_t *data;
+	int i, j, k = 1;
+	char tmp[256];
+	const char *val;
+
+	for (i = 0; i < vcdl->count; i++) {
+		if ((strcmp(vcdl->data[i].path, path) != 0) ||
+		    (strcmp(vcdl->data[i].pool, pool) != 0))
+			continue;
+
+		data = &vcdl->data[i];
+		for (j = 0; j < vcdl->uniq_cols_cnt; j++) {
+			val = NULL;
+			for (int k = 0; k < data->cols_cnt; k++) {
+				if (strcmp(data->cols[k],
+				    vcdl->uniq_cols[j]) == 0) {
+					val = data->lines[k];
+					break;
+				}
+			}
+			if (val == NULL || is_blank_str(val))
+				val = "-";
+			fnvlist_add_string(item, vcdl->uniq_cols[j], val);
+		}
+
+		for (j = data->cols_cnt; j < data->lines_cnt; j++) {
+			if (data->lines[j]) {
+				snprintf(tmp, 256, "extra_%d", k++);
+				fnvlist_add_string(item, tmp,
+				    data->lines[j]);
+			}
+		}
+		break;
+	}
 }
 
 /* Print command output lines for specific vdev in a specific pool */
@@ -8719,6 +8973,791 @@ check_rebuilding(nvlist_t *nvroot, uint64_t *rebuild_end_time)
 	return (rebuilding);
 }
 
+static void
+vdev_stats_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t *nv,
+    int depth, boolean_t isspare, char *parent, nvlist_t *item)
+{
+	nvlist_t *vds, **child, *ch = NULL;
+	uint_t vsc, children;
+	vdev_stat_t *vs;
+	char *vname;
+	uint64_t notpresent;
+	const char *type, *path;
+
+	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) != 0)
+		children = 0;
+	verify(nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_VDEV_STATS,
+	    (uint64_t **)&vs, &vsc) == 0);
+	verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type) == 0);
+	if (strcmp(type, VDEV_TYPE_INDIRECT) == 0)
+		return;
+
+	if (cb->cb_print_unhealthy && depth > 0 &&
+	    for_each_vdev_in_nvlist(nv, vdev_health_check_cb, cb) == 0) {
+		return;
+	}
+	vname = zpool_vdev_name(g_zfs, zhp, nv,
+	    cb->cb_name_flags | VDEV_NAME_TYPE_ID);
+	vds = fnvlist_alloc();
+	fill_vdev_info(vds, zhp, vname, B_FALSE, cb->cb_json_as_int);
+	if (cb->cb_flat_vdevs && parent != NULL) {
+		fnvlist_add_string(vds, "parent", parent);
+	}
+
+	if (!isspare) {
+		if (vs->vs_alloc) {
+			nice_num_str_nvlist(vds, "alloc_space", vs->vs_alloc,
+			    cb->cb_literal, cb->cb_json_as_int,
+			    ZFS_NICENUM_BYTES);
+		}
+		if (vs->vs_space) {
+			nice_num_str_nvlist(vds, "total_space", vs->vs_space,
+			    cb->cb_literal, cb->cb_json_as_int,
+			    ZFS_NICENUM_BYTES);
+		}
+		if (vs->vs_dspace) {
+			nice_num_str_nvlist(vds, "def_space", vs->vs_dspace,
+			    cb->cb_literal, cb->cb_json_as_int,
+			    ZFS_NICENUM_BYTES);
+		}
+		if (vs->vs_rsize) {
+			nice_num_str_nvlist(vds, "rep_dev_size", vs->vs_rsize,
+			    cb->cb_literal, cb->cb_json_as_int,
+			    ZFS_NICENUM_BYTES);
+		}
+		if (vs->vs_esize) {
+			nice_num_str_nvlist(vds, "ex_dev_size", vs->vs_esize,
+			    cb->cb_literal, cb->cb_json_as_int,
+			    ZFS_NICENUM_BYTES);
+		}
+		if (vs->vs_self_healed) {
+			nice_num_str_nvlist(vds, "self_healed",
+			    vs->vs_self_healed, cb->cb_literal,
+			    cb->cb_json_as_int, ZFS_NICENUM_BYTES);
+		}
+		if (vs->vs_pspace) {
+			nice_num_str_nvlist(vds, "phys_space", vs->vs_pspace,
+			    cb->cb_literal, cb->cb_json_as_int,
+			    ZFS_NICENUM_BYTES);
+		}
+		nice_num_str_nvlist(vds, "read_errors", vs->vs_read_errors,
+		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_1024);
+		nice_num_str_nvlist(vds, "write_errors", vs->vs_write_errors,
+		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_1024);
+		nice_num_str_nvlist(vds, "checksum_errors",
+		    vs->vs_checksum_errors, cb->cb_literal,
+		    cb->cb_json_as_int, ZFS_NICENUM_1024);
+		if (vs->vs_scan_processed) {
+			nice_num_str_nvlist(vds, "scan_processed",
+			    vs->vs_scan_processed, cb->cb_literal,
+			    cb->cb_json_as_int, ZFS_NICENUM_BYTES);
+		}
+		if (vs->vs_checkpoint_space) {
+			nice_num_str_nvlist(vds, "checkpoint_space",
+			    vs->vs_checkpoint_space, cb->cb_literal,
+			    cb->cb_json_as_int, ZFS_NICENUM_BYTES);
+		}
+		if (vs->vs_resilver_deferred) {
+			nice_num_str_nvlist(vds, "resilver_deferred",
+			    vs->vs_resilver_deferred, B_TRUE,
+			    cb->cb_json_as_int, ZFS_NICENUM_1024);
+		}
+		if (children == 0) {
+			nice_num_str_nvlist(vds, "slow_ios", vs->vs_slow_ios,
+			    cb->cb_literal, cb->cb_json_as_int,
+			    ZFS_NICENUM_1024);
+		}
+		if (cb->cb_print_power) {
+			if (children == 0)  {
+				/* Only leaf vdevs have physical slots */
+				switch (zpool_power_current_state(zhp, (char *)
+				    fnvlist_lookup_string(nv,
+				    ZPOOL_CONFIG_PATH))) {
+				case 0:
+					fnvlist_add_string(vds, "power_state",
+					    "off");
+					break;
+				case 1:
+					fnvlist_add_string(vds, "power_state",
+					    "on");
+					break;
+				default:
+					fnvlist_add_string(vds, "power_state",
+					    "-");
+				}
+			} else {
+				fnvlist_add_string(vds, "power_state", "-");
+			}
+		}
+	}
+
+	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_NOT_PRESENT,
+	    &notpresent) == 0) {
+		nice_num_str_nvlist(vds, ZPOOL_CONFIG_NOT_PRESENT,
+		    1, cb->cb_literal, cb->cb_json_as_int,
+		    ZFS_NICENUM_BYTES);
+		fnvlist_add_string(vds, "was",
+		    fnvlist_lookup_string(nv, ZPOOL_CONFIG_PATH));
+	} else if (vs->vs_aux != VDEV_AUX_NONE) {
+		fnvlist_add_string(vds, "aux", vdev_aux_str[vs->vs_aux]);
+	} else if (children == 0 && !isspare &&
+	    getenv("ZPOOL_STATUS_NON_NATIVE_ASHIFT_IGNORE") == NULL &&
+	    VDEV_STAT_VALID(vs_physical_ashift, vsc) &&
+	    vs->vs_configured_ashift < vs->vs_physical_ashift) {
+		nice_num_str_nvlist(vds, "configured_ashift",
+		    vs->vs_configured_ashift, B_TRUE, cb->cb_json_as_int,
+		    ZFS_NICENUM_1024);
+		nice_num_str_nvlist(vds, "physical_ashift",
+		    vs->vs_physical_ashift, B_TRUE, cb->cb_json_as_int,
+		    ZFS_NICENUM_1024);
+	}
+	if (vs->vs_scan_removing != 0) {
+		nice_num_str_nvlist(vds, "removing", vs->vs_scan_removing,
+		    B_TRUE, cb->cb_json_as_int, ZFS_NICENUM_1024);
+	} else if (VDEV_STAT_VALID(vs_noalloc, vsc) && vs->vs_noalloc != 0) {
+		nice_num_str_nvlist(vds, "noalloc", vs->vs_noalloc,
+		    B_TRUE, cb->cb_json_as_int, ZFS_NICENUM_1024);
+	}
+
+	if (cb->vcdl != NULL) {
+		if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) == 0) {
+			zpool_nvlist_cmd(cb->vcdl, zpool_get_name(zhp),
+			    path, vds);
+		}
+	}
+
+	if (children == 0) {
+		if (cb->cb_print_vdev_init) {
+			if (vs->vs_initialize_state != 0) {
+				uint64_t st = vs->vs_initialize_state;
+				fnvlist_add_string(vds, "init_state",
+				    vdev_init_state_str[st]);
+				nice_num_str_nvlist(vds, "initialized",
+				    vs->vs_initialize_bytes_done,
+				    cb->cb_literal, cb->cb_json_as_int,
+				    ZFS_NICENUM_BYTES);
+				nice_num_str_nvlist(vds, "to_initialize",
+				    vs->vs_initialize_bytes_est,
+				    cb->cb_literal, cb->cb_json_as_int,
+				    ZFS_NICENUM_BYTES);
+				nice_num_str_nvlist(vds, "init_time",
+				    vs->vs_initialize_action_time,
+				    cb->cb_literal, cb->cb_json_as_int,
+				    ZFS_NICE_TIMESTAMP);
+				nice_num_str_nvlist(vds, "init_errors",
+				    vs->vs_initialize_errors,
+				    cb->cb_literal, cb->cb_json_as_int,
+				    ZFS_NICENUM_1024);
+			} else {
+				fnvlist_add_string(vds, "init_state",
+				    "UNINITIALIZED");
+			}
+		}
+		if (cb->cb_print_vdev_trim) {
+			if (vs->vs_trim_notsup == 0) {
+					if (vs->vs_trim_state != 0) {
+					uint64_t st = vs->vs_trim_state;
+					fnvlist_add_string(vds, "trim_state",
+					    vdev_trim_state_str[st]);
+					nice_num_str_nvlist(vds, "trimmed",
+					    vs->vs_trim_bytes_done,
+					    cb->cb_literal, cb->cb_json_as_int,
+					    ZFS_NICENUM_BYTES);
+					nice_num_str_nvlist(vds, "to_trim",
+					    vs->vs_trim_bytes_est,
+					    cb->cb_literal, cb->cb_json_as_int,
+					    ZFS_NICENUM_BYTES);
+					nice_num_str_nvlist(vds, "trim_time",
+					    vs->vs_trim_action_time,
+					    cb->cb_literal, cb->cb_json_as_int,
+					    ZFS_NICE_TIMESTAMP);
+					nice_num_str_nvlist(vds, "trim_errors",
+					    vs->vs_trim_errors,
+					    cb->cb_literal, cb->cb_json_as_int,
+					    ZFS_NICENUM_1024);
+				} else
+					fnvlist_add_string(vds, "trim_state",
+					    "UNTRIMMED");
+			}
+			nice_num_str_nvlist(vds, "trim_notsup",
+			    vs->vs_trim_notsup, B_TRUE,
+			    cb->cb_json_as_int, ZFS_NICENUM_1024);
+		}
+	} else {
+		ch = fnvlist_alloc();
+	}
+
+	if (cb->cb_flat_vdevs && children == 0) {
+		fnvlist_add_nvlist(item, vname, vds);
+	}
+
+	for (int c = 0; c < children; c++) {
+		uint64_t islog = B_FALSE, ishole = B_FALSE;
+		(void) nvlist_lookup_uint64(child[c], ZPOOL_CONFIG_IS_LOG,
+		    &islog);
+		(void) nvlist_lookup_uint64(child[c], ZPOOL_CONFIG_IS_HOLE,
+		    &ishole);
+		if (islog || ishole)
+			continue;
+		if (nvlist_exists(child[c], ZPOOL_CONFIG_ALLOCATION_BIAS))
+			continue;
+		if (cb->cb_flat_vdevs) {
+			vdev_stats_nvlist(zhp, cb, child[c], depth + 2, isspare,
+			    vname, item);
+		}
+		vdev_stats_nvlist(zhp, cb, child[c], depth + 2, isspare,
+		    vname, ch);
+	}
+
+	if (ch != NULL) {
+		if (!nvlist_empty(ch))
+			fnvlist_add_nvlist(vds, "vdevs", ch);
+		fnvlist_free(ch);
+	}
+	fnvlist_add_nvlist(item, vname, vds);
+	fnvlist_free(vds);
+	free(vname);
+}
+
+static void
+class_vdevs_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t *nv,
+    const char *class, nvlist_t *item)
+{
+	uint_t c, children;
+	nvlist_t **child;
+	nvlist_t *class_obj = NULL;
+
+	if (!cb->cb_flat_vdevs)
+		class_obj = fnvlist_alloc();
+
+	assert(zhp != NULL || !cb->cb_verbose);
+
+	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN, &child,
+	    &children) != 0)
+		return;
+
+	for (c = 0; c < children; c++) {
+		uint64_t is_log = B_FALSE;
+		const char *bias = NULL;
+		const char *type = NULL;
+		char *name = zpool_vdev_name(g_zfs, zhp, child[c],
+		    cb->cb_name_flags | VDEV_NAME_TYPE_ID);
+
+		(void) nvlist_lookup_uint64(child[c], ZPOOL_CONFIG_IS_LOG,
+		    &is_log);
+
+		if (is_log) {
+			bias = (char *)VDEV_ALLOC_CLASS_LOGS;
+		} else {
+			(void) nvlist_lookup_string(child[c],
+			    ZPOOL_CONFIG_ALLOCATION_BIAS, &bias);
+			(void) nvlist_lookup_string(child[c],
+			    ZPOOL_CONFIG_TYPE, &type);
+		}
+
+		if (bias == NULL || strcmp(bias, class) != 0)
+			continue;
+		if (!is_log && strcmp(type, VDEV_TYPE_INDIRECT) == 0)
+			continue;
+
+		if (cb->cb_flat_vdevs) {
+			vdev_stats_nvlist(zhp, cb, child[c], 2, B_FALSE,
+			    NULL, item);
+		} else {
+			vdev_stats_nvlist(zhp, cb, child[c], 2, B_FALSE,
+			    NULL, class_obj);
+		}
+		free(name);
+	}
+	if (!cb->cb_flat_vdevs) {
+		if (!nvlist_empty(class_obj))
+			fnvlist_add_nvlist(item, class, class_obj);
+		fnvlist_free(class_obj);
+	}
+}
+
+static void
+l2cache_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t *nv,
+    nvlist_t *item)
+{
+	nvlist_t *l2c = NULL, **l2cache;
+	uint_t nl2cache;
+	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_L2CACHE,
+	    &l2cache, &nl2cache) == 0) {
+		if (nl2cache == 0)
+			return;
+		if (!cb->cb_flat_vdevs)
+			l2c = fnvlist_alloc();
+		for (int i = 0; i < nl2cache; i++) {
+			if (cb->cb_flat_vdevs) {
+				vdev_stats_nvlist(zhp, cb, l2cache[i], 2,
+				    B_FALSE, NULL, item);
+			} else {
+				vdev_stats_nvlist(zhp, cb, l2cache[i], 2,
+				    B_FALSE, NULL, l2c);
+			}
+		}
+	}
+	if (!cb->cb_flat_vdevs) {
+		if (!nvlist_empty(l2c))
+			fnvlist_add_nvlist(item, "l2cache", l2c);
+		fnvlist_free(l2c);
+	}
+}
+
+static void
+spares_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t *nv,
+    nvlist_t *item)
+{
+	nvlist_t *sp = NULL, **spares;
+	uint_t nspares;
+	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_SPARES,
+	    &spares, &nspares) == 0) {
+		if (nspares == 0)
+			return;
+		if (!cb->cb_flat_vdevs)
+			sp = fnvlist_alloc();
+		for (int i = 0; i < nspares; i++) {
+			if (cb->cb_flat_vdevs) {
+				vdev_stats_nvlist(zhp, cb, spares[i], 2, B_TRUE,
+				    NULL, item);
+			} else {
+				vdev_stats_nvlist(zhp, cb, spares[i], 2, B_TRUE,
+				    NULL, sp);
+			}
+		}
+	}
+	if (!cb->cb_flat_vdevs) {
+		if (!nvlist_empty(sp))
+			fnvlist_add_nvlist(item, "spares", sp);
+		fnvlist_free(sp);
+	}
+}
+
+static void
+errors_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t *item)
+{
+	uint64_t nerr;
+	nvlist_t *config = zpool_get_config(zhp, NULL);
+	if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_ERRCOUNT,
+	    &nerr) == 0) {
+		nice_num_str_nvlist(item, ZPOOL_CONFIG_ERRCOUNT, nerr,
+		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_1024);
+		if (nerr != 0 && cb->cb_verbose) {
+			nvlist_t *nverrlist = NULL;
+			if (zpool_get_errlog(zhp, &nverrlist) == 0) {
+				int i = 0;
+				int count = 0;
+				size_t len = MAXPATHLEN * 2;
+				nvpair_t *elem = NULL;
+
+				for (nvpair_t *pair =
+				    nvlist_next_nvpair(nverrlist, NULL);
+				    pair != NULL;
+				    pair = nvlist_next_nvpair(nverrlist, pair))
+					count++;
+				char **errl = (char **)malloc(
+				    count * sizeof (char *));
+
+				while ((elem = nvlist_next_nvpair(nverrlist,
+				    elem)) != NULL) {
+					nvlist_t *nv;
+					uint64_t dsobj, obj;
+
+					verify(nvpair_value_nvlist(elem,
+					    &nv) == 0);
+					verify(nvlist_lookup_uint64(nv,
+					    ZPOOL_ERR_DATASET, &dsobj) == 0);
+					verify(nvlist_lookup_uint64(nv,
+					    ZPOOL_ERR_OBJECT, &obj) == 0);
+					errl[i] = safe_malloc(len);
+					zpool_obj_to_path(zhp, dsobj, obj,
+					    errl[i++], len);
+				}
+				nvlist_free(nverrlist);
+				fnvlist_add_string_array(item, "errlist",
+				    (const char **)errl, count);
+				for (int i = 0; i < count; ++i)
+					free(errl[i]);
+				free(errl);
+			} else
+				fnvlist_add_string(item, "errlist",
+				    strerror(errno));
+		}
+	}
+}
+
+static void
+ddt_stats_nvlist(ddt_stat_t *dds, status_cbdata_t *cb, nvlist_t *item)
+{
+	nice_num_str_nvlist(item, "blocks", dds->dds_blocks,
+	    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_1024);
+	nice_num_str_nvlist(item, "logical_size", dds->dds_lsize,
+	    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_BYTES);
+	nice_num_str_nvlist(item, "physical_size", dds->dds_psize,
+	    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_BYTES);
+	nice_num_str_nvlist(item, "deflated_size", dds->dds_dsize,
+	    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_BYTES);
+	nice_num_str_nvlist(item, "ref_blocks", dds->dds_ref_blocks,
+	    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_1024);
+	nice_num_str_nvlist(item, "ref_lsize", dds->dds_ref_lsize,
+	    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_BYTES);
+	nice_num_str_nvlist(item, "ref_psize", dds->dds_ref_psize,
+	    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_BYTES);
+	nice_num_str_nvlist(item, "ref_dsize", dds->dds_ref_dsize,
+	    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_BYTES);
+}
+
+static void
+dedup_stats_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t *item)
+{
+	nvlist_t *config;
+	if (cb->cb_dedup_stats) {
+		ddt_histogram_t *ddh;
+		ddt_stat_t *dds;
+		ddt_object_t *ddo;
+		nvlist_t *ddt_stat, *ddt_obj, *dedup;
+		uint_t c;
+
+		config = zpool_get_config(zhp, NULL);
+		if (nvlist_lookup_uint64_array(config,
+		    ZPOOL_CONFIG_DDT_OBJ_STATS, (uint64_t **)&ddo, &c) != 0)
+			return;
+
+		dedup = fnvlist_alloc();
+		ddt_obj = fnvlist_alloc();
+		nice_num_str_nvlist(dedup, "obj_count", ddo->ddo_count,
+		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_1024);
+		if (ddo->ddo_count == 0) {
+			fnvlist_add_nvlist(dedup, ZPOOL_CONFIG_DDT_OBJ_STATS,
+			    ddt_obj);
+			fnvlist_add_nvlist(item, "dedup_stats", dedup);
+			fnvlist_free(ddt_obj);
+			fnvlist_free(dedup);
+			return;
+		} else {
+			nice_num_str_nvlist(dedup, "dspace", ddo->ddo_dspace,
+			    cb->cb_literal, cb->cb_json_as_int,
+			    ZFS_NICENUM_BYTES);
+			nice_num_str_nvlist(dedup, "mspace", ddo->ddo_mspace,
+			    cb->cb_literal, cb->cb_json_as_int,
+			    ZFS_NICENUM_BYTES);
+		}
+
+		ddt_stat = fnvlist_alloc();
+		if (nvlist_lookup_uint64_array(config, ZPOOL_CONFIG_DDT_STATS,
+		    (uint64_t **)&dds, &c) == 0) {
+			nvlist_t *total = fnvlist_alloc();
+			if (dds->dds_blocks == 0)
+				fnvlist_add_string(total, "blocks", "0");
+			else
+				ddt_stats_nvlist(dds, cb, total);
+			fnvlist_add_nvlist(ddt_stat, "total", total);
+			fnvlist_free(total);
+		}
+		if (nvlist_lookup_uint64_array(config,
+		    ZPOOL_CONFIG_DDT_HISTOGRAM, (uint64_t **)&ddh, &c) == 0) {
+			nvlist_t *hist = fnvlist_alloc();
+			nvlist_t *entry = NULL;
+			char buf[16];
+			for (int h = 0; h < 64; h++) {
+				if (ddh->ddh_stat[h].dds_blocks != 0) {
+					entry = fnvlist_alloc();
+					ddt_stats_nvlist(&ddh->ddh_stat[h], cb,
+					    entry);
+					snprintf(buf, 16, "%d", h);
+					fnvlist_add_nvlist(hist, buf, entry);
+					fnvlist_free(entry);
+				}
+			}
+			if (!nvlist_empty(hist))
+				fnvlist_add_nvlist(ddt_stat, "histogram", hist);
+			fnvlist_free(hist);
+		}
+
+		if (!nvlist_empty(ddt_obj)) {
+			fnvlist_add_nvlist(dedup, ZPOOL_CONFIG_DDT_OBJ_STATS,
+			    ddt_obj);
+		}
+		fnvlist_free(ddt_obj);
+		if (!nvlist_empty(ddt_stat)) {
+			fnvlist_add_nvlist(dedup, ZPOOL_CONFIG_DDT_STATS,
+			    ddt_stat);
+		}
+		fnvlist_free(ddt_stat);
+		if (!nvlist_empty(dedup))
+			fnvlist_add_nvlist(item, "dedup_stats", dedup);
+		fnvlist_free(dedup);
+	}
+}
+
+static void
+raidz_expand_status_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb,
+    nvlist_t *nvroot, nvlist_t *item)
+{
+	uint_t c;
+	pool_raidz_expand_stat_t *pres = NULL;
+	if (nvlist_lookup_uint64_array(nvroot,
+	    ZPOOL_CONFIG_RAIDZ_EXPAND_STATS, (uint64_t **)&pres, &c) == 0) {
+		nvlist_t **child;
+		uint_t children;
+		nvlist_t *nv = fnvlist_alloc();
+		verify(nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
+		    &child, &children) == 0);
+		assert(pres->pres_expanding_vdev < children);
+		char *name =
+		    zpool_vdev_name(g_zfs, zhp,
+		    child[pres->pres_expanding_vdev], 0);
+		fill_vdev_info(nv, zhp, name, B_FALSE, cb->cb_json_as_int);
+		fnvlist_add_string(nv, "state",
+		    pool_scan_state_str[pres->pres_state]);
+		nice_num_str_nvlist(nv, "expanding_vdev",
+		    pres->pres_expanding_vdev, B_TRUE, cb->cb_json_as_int,
+		    ZFS_NICENUM_1024);
+		nice_num_str_nvlist(nv, "start_time", pres->pres_start_time,
+		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICE_TIMESTAMP);
+		nice_num_str_nvlist(nv, "end_time", pres->pres_end_time,
+		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICE_TIMESTAMP);
+		nice_num_str_nvlist(nv, "to_reflow", pres->pres_to_reflow,
+		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_BYTES);
+		nice_num_str_nvlist(nv, "reflowed", pres->pres_reflowed,
+		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_BYTES);
+		nice_num_str_nvlist(nv, "waiting_for_resilver",
+		    pres->pres_waiting_for_resilver, B_TRUE,
+		    cb->cb_json_as_int, ZFS_NICENUM_1024);
+		fnvlist_add_nvlist(item, ZPOOL_CONFIG_RAIDZ_EXPAND_STATS, nv);
+		fnvlist_free(nv);
+		free(name);
+	}
+}
+
+static void
+checkpoint_status_nvlist(nvlist_t *nvroot, status_cbdata_t *cb,
+    nvlist_t *item)
+{
+	uint_t c;
+	pool_checkpoint_stat_t *pcs = NULL;
+	if (nvlist_lookup_uint64_array(nvroot,
+	    ZPOOL_CONFIG_CHECKPOINT_STATS, (uint64_t **)&pcs, &c) == 0) {
+		nvlist_t *nv = fnvlist_alloc();
+		fnvlist_add_string(nv, "state",
+		    checkpoint_state_str[pcs->pcs_state]);
+		nice_num_str_nvlist(nv, "start_time",
+		    pcs->pcs_start_time, cb->cb_literal, cb->cb_json_as_int,
+		    ZFS_NICE_TIMESTAMP);
+		nice_num_str_nvlist(nv, "space",
+		    pcs->pcs_space, cb->cb_literal, cb->cb_json_as_int,
+		    ZFS_NICENUM_BYTES);
+		fnvlist_add_nvlist(item, ZPOOL_CONFIG_CHECKPOINT_STATS, nv);
+		fnvlist_free(nv);
+	}
+}
+
+static void
+removal_status_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb,
+    nvlist_t *nvroot, nvlist_t *item)
+{
+	uint_t c;
+	pool_removal_stat_t *prs = NULL;
+	if (nvlist_lookup_uint64_array(nvroot, ZPOOL_CONFIG_REMOVAL_STATS,
+	    (uint64_t **)&prs, &c) == 0) {
+		if (prs->prs_state != DSS_NONE) {
+			nvlist_t **child;
+			uint_t children;
+			verify(nvlist_lookup_nvlist_array(nvroot,
+			    ZPOOL_CONFIG_CHILDREN, &child, &children) == 0);
+			assert(prs->prs_removing_vdev < children);
+			char *vdev_name = zpool_vdev_name(g_zfs, zhp,
+			    child[prs->prs_removing_vdev], B_TRUE);
+			nvlist_t *nv = fnvlist_alloc();
+			fill_vdev_info(nv, zhp, vdev_name, B_FALSE,
+			    cb->cb_json_as_int);
+			fnvlist_add_string(nv, "state",
+			    pool_scan_state_str[prs->prs_state]);
+			nice_num_str_nvlist(nv, "removing_vdev",
+			    prs->prs_removing_vdev, B_TRUE, cb->cb_json_as_int,
+			    ZFS_NICENUM_1024);
+			nice_num_str_nvlist(nv, "start_time",
+			    prs->prs_start_time, cb->cb_literal,
+			    cb->cb_json_as_int, ZFS_NICE_TIMESTAMP);
+			nice_num_str_nvlist(nv, "end_time", prs->prs_end_time,
+			    cb->cb_literal, cb->cb_json_as_int,
+			    ZFS_NICE_TIMESTAMP);
+			nice_num_str_nvlist(nv, "to_copy", prs->prs_to_copy,
+			    cb->cb_literal, cb->cb_json_as_int,
+			    ZFS_NICENUM_BYTES);
+			nice_num_str_nvlist(nv, "copied", prs->prs_copied,
+			    cb->cb_literal, cb->cb_json_as_int,
+			    ZFS_NICENUM_BYTES);
+			nice_num_str_nvlist(nv, "mapping_memory",
+			    prs->prs_mapping_memory, cb->cb_literal,
+			    cb->cb_json_as_int, ZFS_NICENUM_BYTES);
+			fnvlist_add_nvlist(item,
+			    ZPOOL_CONFIG_REMOVAL_STATS, nv);
+			fnvlist_free(nv);
+			free(vdev_name);
+		}
+	}
+}
+
+static void
+scan_status_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb,
+    nvlist_t *nvroot, nvlist_t *item)
+{
+	pool_scan_stat_t *ps = NULL;
+	uint_t c;
+	nvlist_t *scan = fnvlist_alloc();
+	nvlist_t **child;
+	uint_t children;
+
+	if (nvlist_lookup_uint64_array(nvroot, ZPOOL_CONFIG_SCAN_STATS,
+	    (uint64_t **)&ps, &c) == 0) {
+		fnvlist_add_string(scan, "function",
+		    pool_scan_func_str[ps->pss_func]);
+		fnvlist_add_string(scan, "state",
+		    pool_scan_state_str[ps->pss_state]);
+		nice_num_str_nvlist(scan, "start_time", ps->pss_start_time,
+		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICE_TIMESTAMP);
+		nice_num_str_nvlist(scan, "end_time", ps->pss_end_time,
+		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICE_TIMESTAMP);
+		nice_num_str_nvlist(scan, "to_examine", ps->pss_to_examine,
+		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_BYTES);
+		nice_num_str_nvlist(scan, "examined", ps->pss_examined,
+		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_BYTES);
+		nice_num_str_nvlist(scan, "skipped", ps->pss_skipped,
+		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_BYTES);
+		nice_num_str_nvlist(scan, "processed", ps->pss_processed,
+		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_BYTES);
+		nice_num_str_nvlist(scan, "errors", ps->pss_errors,
+		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_1024);
+		nice_num_str_nvlist(scan, "bytes_per_scan", ps->pss_pass_exam,
+		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_BYTES);
+		nice_num_str_nvlist(scan, "pass_start", ps->pss_pass_start,
+		    B_TRUE, cb->cb_json_as_int, ZFS_NICENUM_1024);
+		nice_num_str_nvlist(scan, "scrub_pause",
+		    ps->pss_pass_scrub_pause, cb->cb_literal,
+		    cb->cb_json_as_int, ZFS_NICE_TIMESTAMP);
+		nice_num_str_nvlist(scan, "scrub_spent_paused",
+		    ps->pss_pass_scrub_spent_paused,
+		    B_TRUE, cb->cb_json_as_int, ZFS_NICENUM_1024);
+		nice_num_str_nvlist(scan, "issued_bytes_per_scan",
+		    ps->pss_pass_issued, cb->cb_literal,
+		    cb->cb_json_as_int, ZFS_NICENUM_BYTES);
+		nice_num_str_nvlist(scan, "issued", ps->pss_issued,
+		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_BYTES);
+		if (ps->pss_error_scrub_func == POOL_SCAN_ERRORSCRUB &&
+		    ps->pss_error_scrub_start > ps->pss_start_time) {
+			fnvlist_add_string(scan, "err_scrub_func",
+			    pool_scan_func_str[ps->pss_error_scrub_func]);
+			fnvlist_add_string(scan, "err_scrub_state",
+			    pool_scan_state_str[ps->pss_error_scrub_state]);
+			nice_num_str_nvlist(scan, "err_scrub_start_time",
+			    ps->pss_error_scrub_start,
+			    cb->cb_literal, cb->cb_json_as_int,
+			    ZFS_NICE_TIMESTAMP);
+			nice_num_str_nvlist(scan, "err_scrub_end_time",
+			    ps->pss_error_scrub_end,
+			    cb->cb_literal, cb->cb_json_as_int,
+			    ZFS_NICE_TIMESTAMP);
+			nice_num_str_nvlist(scan, "err_scrub_examined",
+			    ps->pss_error_scrub_examined,
+			    cb->cb_literal, cb->cb_json_as_int,
+			    ZFS_NICENUM_1024);
+			nice_num_str_nvlist(scan, "err_scrub_to_examine",
+			    ps->pss_error_scrub_to_be_examined,
+			    cb->cb_literal, cb->cb_json_as_int,
+			    ZFS_NICENUM_1024);
+			nice_num_str_nvlist(scan, "err_scrub_pause",
+			    ps->pss_pass_error_scrub_pause,
+			    B_TRUE, cb->cb_json_as_int, ZFS_NICENUM_1024);
+		}
+	}
+
+	if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) == 0) {
+		vdev_rebuild_stat_t *vrs;
+		uint_t i;
+		char *name;
+		nvlist_t *nv;
+		nvlist_t *rebuild = fnvlist_alloc();
+		uint64_t st;
+		for (uint_t c = 0; c < children; c++) {
+			if (nvlist_lookup_uint64_array(child[c],
+			    ZPOOL_CONFIG_REBUILD_STATS, (uint64_t **)&vrs,
+			    &i) == 0) {
+				if (vrs->vrs_state != VDEV_REBUILD_NONE) {
+					nv = fnvlist_alloc();
+					name = zpool_vdev_name(g_zfs, zhp,
+					    child[c], VDEV_NAME_TYPE_ID);
+					fill_vdev_info(nv, zhp, name, B_FALSE,
+					    cb->cb_json_as_int);
+					st = vrs->vrs_state;
+					fnvlist_add_string(nv, "state",
+					    vdev_rebuild_state_str[st]);
+					nice_num_str_nvlist(nv, "start_time",
+					    vrs->vrs_start_time, cb->cb_literal,
+					    cb->cb_json_as_int,
+					    ZFS_NICE_TIMESTAMP);
+					nice_num_str_nvlist(nv, "end_time",
+					    vrs->vrs_end_time, cb->cb_literal,
+					    cb->cb_json_as_int,
+					    ZFS_NICE_TIMESTAMP);
+					nice_num_str_nvlist(nv, "scan_time",
+					    vrs->vrs_scan_time_ms * 1000000,
+					    cb->cb_literal, cb->cb_json_as_int,
+					    ZFS_NICENUM_TIME);
+					nice_num_str_nvlist(nv, "scanned",
+					    vrs->vrs_bytes_scanned,
+					    cb->cb_literal, cb->cb_json_as_int,
+					    ZFS_NICENUM_BYTES);
+					nice_num_str_nvlist(nv, "issued",
+					    vrs->vrs_bytes_issued,
+					    cb->cb_literal, cb->cb_json_as_int,
+					    ZFS_NICENUM_BYTES);
+					nice_num_str_nvlist(nv, "rebuilt",
+					    vrs->vrs_bytes_rebuilt,
+					    cb->cb_literal, cb->cb_json_as_int,
+					    ZFS_NICENUM_BYTES);
+					nice_num_str_nvlist(nv, "to_scan",
+					    vrs->vrs_bytes_est, cb->cb_literal,
+					    cb->cb_json_as_int,
+					    ZFS_NICENUM_BYTES);
+					nice_num_str_nvlist(nv, "errors",
+					    vrs->vrs_errors, cb->cb_literal,
+					    cb->cb_json_as_int,
+					    ZFS_NICENUM_1024);
+					nice_num_str_nvlist(nv, "pass_time",
+					    vrs->vrs_pass_time_ms * 1000000,
+					    cb->cb_literal, cb->cb_json_as_int,
+					    ZFS_NICENUM_TIME);
+					nice_num_str_nvlist(nv, "pass_scanned",
+					    vrs->vrs_pass_bytes_scanned,
+					    cb->cb_literal, cb->cb_json_as_int,
+					    ZFS_NICENUM_BYTES);
+					nice_num_str_nvlist(nv, "pass_issued",
+					    vrs->vrs_pass_bytes_issued,
+					    cb->cb_literal, cb->cb_json_as_int,
+					    ZFS_NICENUM_BYTES);
+					nice_num_str_nvlist(nv, "pass_skipped",
+					    vrs->vrs_pass_bytes_skipped,
+					    cb->cb_literal, cb->cb_json_as_int,
+					    ZFS_NICENUM_BYTES);
+					fnvlist_add_nvlist(rebuild, name, nv);
+					free(name);
+				}
+			}
+		}
+		if (!nvlist_empty(rebuild))
+			fnvlist_add_nvlist(scan, "rebuild_stats", rebuild);
+		fnvlist_free(rebuild);
+	}
+
+	if (!nvlist_empty(scan))
+		fnvlist_add_nvlist(item, ZPOOL_CONFIG_SCAN_STATS, scan);
+	fnvlist_free(scan);
+}
+
 /*
  * Print the scan status.
  */
@@ -9118,6 +10157,105 @@ print_dedup_stats(nvlist_t *config)
 	verify(nvlist_lookup_uint64_array(config, ZPOOL_CONFIG_DDT_HISTOGRAM,
 	    (uint64_t **)&ddh, &c) == 0);
 	zpool_dump_ddt(dds, ddh);
+}
+
+static int
+status_callback_json(zpool_handle_t *zhp, void *data)
+{
+	status_cbdata_t *cbp = data;
+	nvlist_t *config, *nvroot;
+	const char *msgid;
+	char pool_guid[256];
+	char msgbuf[256];
+	uint64_t guid;
+	zpool_status_t reason;
+	zpool_errata_t errata;
+	uint_t c;
+	vdev_stat_t *vs;
+	nvlist_t *item, *d, *load_info, *vds;
+	item = d = NULL;
+
+	reason = zpool_get_status(zhp, &msgid, &errata);
+	/*
+	 * If we were given 'zpool status -x', only report those pools with
+	 * problems.
+	 */
+	if (cbp->cb_explain &&
+	    (reason == ZPOOL_STATUS_OK ||
+	    reason == ZPOOL_STATUS_VERSION_OLDER ||
+	    reason == ZPOOL_STATUS_FEAT_DISABLED ||
+	    reason == ZPOOL_STATUS_COMPATIBILITY_ERR ||
+	    reason == ZPOOL_STATUS_INCOMPATIBLE_FEAT)) {
+		return (0);
+	}
+
+	d = fnvlist_lookup_nvlist(cbp->cb_jsobj, "pools");
+	item = fnvlist_alloc();
+	vds = fnvlist_alloc();
+	fill_pool_info(item, zhp, B_FALSE, cbp->cb_json_as_int);
+	config = zpool_get_config(zhp, NULL);
+
+	if (config != NULL) {
+		nvroot = fnvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE);
+		verify(nvlist_lookup_uint64_array(nvroot,
+		    ZPOOL_CONFIG_VDEV_STATS, (uint64_t **)&vs, &c) == 0);
+		guid = fnvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_GUID);
+		snprintf(pool_guid, 256, "%lu", guid);
+		cbp->cb_count++;
+
+		fnvlist_add_string(item, "status", status_reason_str[reason]);
+		if (reason == ZPOOL_STATUS_ERRATA)
+			fnvlist_add_string(item, "status", errata_str[errata]);
+		if (msgid != NULL) {
+			snprintf(msgbuf, 256,
+			    "https://openzfs.github.io/openzfs-docs/msg/%s",
+			    msgid);
+			fnvlist_add_string(item, "msgid", msgid);
+			fnvlist_add_string(item, "moreinfo", msgbuf);
+		}
+
+		if (nvlist_lookup_nvlist(config, ZPOOL_CONFIG_LOAD_INFO,
+		    &load_info) == 0) {
+			fnvlist_add_nvlist(item, ZPOOL_CONFIG_LOAD_INFO,
+			    load_info);
+		}
+
+		scan_status_nvlist(zhp, cbp, nvroot, item);
+		removal_status_nvlist(zhp, cbp, nvroot, item);
+		checkpoint_status_nvlist(nvroot, cbp, item);
+		raidz_expand_status_nvlist(zhp, cbp, nvroot, item);
+		vdev_stats_nvlist(zhp, cbp, nvroot, 0, B_FALSE, NULL, vds);
+		if (cbp->cb_flat_vdevs) {
+			class_vdevs_nvlist(zhp, cbp, nvroot,
+			    VDEV_ALLOC_BIAS_DEDUP, vds);
+			class_vdevs_nvlist(zhp, cbp, nvroot,
+			    VDEV_ALLOC_BIAS_SPECIAL, vds);
+			class_vdevs_nvlist(zhp, cbp, nvroot,
+			    VDEV_ALLOC_CLASS_LOGS, vds);
+			l2cache_nvlist(zhp, cbp, nvroot, vds);
+			spares_nvlist(zhp, cbp, nvroot, vds);
+
+			fnvlist_add_nvlist(item, "vdevs", vds);
+			fnvlist_free(vds);
+		} else {
+			fnvlist_add_nvlist(item, "vdevs", vds);
+			fnvlist_free(vds);
+
+			class_vdevs_nvlist(zhp, cbp, nvroot,
+			    VDEV_ALLOC_BIAS_DEDUP, item);
+			class_vdevs_nvlist(zhp, cbp, nvroot,
+			    VDEV_ALLOC_BIAS_SPECIAL, item);
+			class_vdevs_nvlist(zhp, cbp, nvroot,
+			    VDEV_ALLOC_CLASS_LOGS, item);
+			l2cache_nvlist(zhp, cbp, nvroot, item);
+			spares_nvlist(zhp, cbp, nvroot, item);
+		}
+		dedup_stats_nvlist(zhp, cbp, item);
+		errors_nvlist(zhp, cbp, item);
+	}
+	fnvlist_add_nvlist(d, pool_guid, item);
+	fnvlist_free(item);
+	return (0);
 }
 
 /*
@@ -9654,7 +10792,9 @@ status_callback(zpool_handle_t *zhp, void *data)
  *	-T	Display a timestamp in date(1) or Unix format
  *	-v	Display complete error logs
  *	-x	Display only pools with potential problems
+ *	-j	Display output in JSON format
  *	--power	Display vdev enclosure slot power status
+ *	--flat  Display vdevs in flat hierarchy, only works with -j option
  *
  * Describes the health status of all pools or some subset.
  */
@@ -9666,15 +10806,19 @@ zpool_do_status(int argc, char **argv)
 	float interval = 0;
 	unsigned long count = 0;
 	status_cbdata_t cb = { 0 };
+	nvlist_t *data;
 	char *cmd = NULL;
 
 	struct option long_options[] = {
 		{"power", no_argument, NULL, ZPOOL_OPTION_POWER},
+		{"json-int", no_argument, NULL, ZPOOL_OPTION_JSON_NUMS_AS_INT},
+		{"json-flat-vdevs", no_argument, NULL,
+		    ZPOOL_OPTION_JSON_FLAT_VDEVS},
 		{0, 0, 0, 0}
 	};
 
 	/* check options */
-	while ((c = getopt_long(argc, argv, "c:DegiLpPstT:vx", long_options,
+	while ((c = getopt_long(argc, argv, "c:jDegiLpPstT:vx", long_options,
 	    NULL)) != -1) {
 		switch (c) {
 		case 'c':
@@ -9734,11 +10878,21 @@ zpool_do_status(int argc, char **argv)
 		case 'v':
 			cb.cb_verbose = B_TRUE;
 			break;
+		case 'j':
+			cb.cb_json = B_TRUE;
+			break;
 		case 'x':
 			cb.cb_explain = B_TRUE;
 			break;
 		case ZPOOL_OPTION_POWER:
 			cb.cb_print_power = B_TRUE;
+			break;
+		case ZPOOL_OPTION_JSON_FLAT_VDEVS:
+			cb.cb_flat_vdevs = B_TRUE;
+			break;
+		case ZPOOL_OPTION_JSON_NUMS_AS_INT:
+			cb.cb_json_as_int = B_TRUE;
+			cb.cb_literal = B_TRUE;
 			break;
 		case '?':
 			if (optopt == 'c') {
@@ -9763,23 +10917,70 @@ zpool_do_status(int argc, char **argv)
 	cb.cb_first = B_TRUE;
 	cb.cb_print_status = B_TRUE;
 
+	if (cb.cb_flat_vdevs && !cb.cb_json) {
+		fprintf(stderr, gettext("'--json-flat-vdevs' only works with"
+		    " '-j' option\n"));
+		usage(B_FALSE);
+	}
+
+	if (cb.cb_json_as_int && !cb.cb_json) {
+		(void) fprintf(stderr, gettext("'--json-int' only works with"
+		    " '-j' option\n"));
+		usage(B_FALSE);
+	}
+
 	for (;;) {
-		if (timestamp_fmt != NODATE)
-			print_timestamp(timestamp_fmt);
+		if (cb.cb_json) {
+			cb.cb_jsobj = zpool_json_schema(0, 1);
+			data = fnvlist_alloc();
+			fnvlist_add_nvlist(cb.cb_jsobj, "pools", data);
+			fnvlist_free(data);
+		}
+
+		if (timestamp_fmt != NODATE) {
+			if (cb.cb_json) {
+				if (cb.cb_json_as_int) {
+					fnvlist_add_uint64(cb.cb_jsobj, "time",
+					    time(NULL));
+				} else {
+					char ts[128];
+					get_timestamp(timestamp_fmt, ts, 128);
+					fnvlist_add_string(cb.cb_jsobj, "time",
+					    ts);
+				}
+			} else
+				print_timestamp(timestamp_fmt);
+		}
 
 		if (cmd != NULL)
 			cb.vcdl = all_pools_for_each_vdev_run(argc, argv, cmd,
 			    NULL, NULL, 0, 0);
 
-		ret = for_each_pool(argc, argv, B_TRUE, NULL, ZFS_TYPE_POOL,
-		    cb.cb_literal, status_callback, &cb);
+		if (cb.cb_json) {
+			ret = for_each_pool(argc, argv, B_TRUE, NULL,
+			    ZFS_TYPE_POOL, cb.cb_literal,
+			    status_callback_json, &cb);
+		} else {
+			ret = for_each_pool(argc, argv, B_TRUE, NULL,
+			    ZFS_TYPE_POOL, cb.cb_literal,
+			    status_callback, &cb);
+		}
 
 		if (cb.vcdl != NULL)
 			free_vdev_cmd_data_list(cb.vcdl);
-		if (argc == 0 && cb.cb_count == 0)
-			(void) fprintf(stderr, gettext("no pools available\n"));
-		else if (cb.cb_explain && cb.cb_first && cb.cb_allpools)
-			(void) printf(gettext("all pools are healthy\n"));
+
+		if (cb.cb_json) {
+			zcmd_print_json(cb.cb_jsobj);
+		} else {
+			if (argc == 0 && cb.cb_count == 0) {
+				(void) fprintf(stderr, "%s",
+				    gettext("no pools available\n"));
+			} else if (cb.cb_explain && cb.cb_first &&
+			    cb.cb_allpools) {
+				(void) printf("%s",
+				    gettext("all pools are healthy\n"));
+			}
+		}
 
 		if (ret != 0)
 			return (ret);
