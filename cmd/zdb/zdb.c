@@ -85,6 +85,9 @@
 #include <sys/brt_impl.h>
 #include <zfs_comutil.h>
 #include <sys/zstd/zstd.h>
+#if (__GLIBC__ && !__UCLIBC__)
+#include <execinfo.h> /* for backtrace() */
+#endif
 
 #include <libnvpair.h>
 #include <libzutil.h>
@@ -828,11 +831,41 @@ usage(void)
 static void
 dump_debug_buffer(void)
 {
-	if (dump_opt['G']) {
-		(void) printf("\n");
-		(void) fflush(stdout);
-		zfs_dbgmsg_print("zdb");
-	}
+	ssize_t ret __attribute__((unused));
+
+	if (!dump_opt['G'])
+		return;
+	/*
+	 * We use write() instead of printf() so that this function
+	 * is safe to call from a signal handler.
+	 */
+	ret = write(STDOUT_FILENO, "\n", 1);
+	zfs_dbgmsg_print("zdb");
+}
+
+#define	BACKTRACE_SZ	100
+
+static void sig_handler(int signo)
+{
+	struct sigaction action;
+#if (__GLIBC__ && !__UCLIBC__) /* backtrace() is a GNU extension */
+	int nptrs;
+	void *buffer[BACKTRACE_SZ];
+
+	nptrs = backtrace(buffer, BACKTRACE_SZ);
+	backtrace_symbols_fd(buffer, nptrs, STDERR_FILENO);
+#endif
+	dump_debug_buffer();
+
+	/*
+	 * Restore default action and re-raise signal so SIGSEGV and
+	 * SIGABRT can trigger a core dump.
+	 */
+	action.sa_handler = SIG_DFL;
+	sigemptyset(&action.sa_mask);
+	action.sa_flags = 0;
+	(void) sigaction(signo, &action, NULL);
+	raise(signo);
 }
 
 /*
@@ -8899,8 +8932,26 @@ main(int argc, char **argv)
 	char *spa_config_path_env, *objset_str;
 	boolean_t target_is_spa = B_TRUE, dataset_lookup = B_FALSE;
 	nvlist_t *cfg = NULL;
+	struct sigaction action;
 
 	dprintf_setup(&argc, argv);
+
+	/*
+	 * Set up signal handlers, so if we crash due to bad on-disk data we
+	 * can get more info. Unlike ztest, we don't bail out if we can't set
+	 * up signal handlers, because zdb is very useful without them.
+	 */
+	action.sa_handler = sig_handler;
+	sigemptyset(&action.sa_mask);
+	action.sa_flags = 0;
+	if (sigaction(SIGSEGV, &action, NULL) < 0) {
+		(void) fprintf(stderr, "zdb: cannot catch SIGSEGV: %s\n",
+		    strerror(errno));
+	}
+	if (sigaction(SIGABRT, &action, NULL) < 0) {
+		(void) fprintf(stderr, "zdb: cannot catch SIGABRT: %s\n",
+		    strerror(errno));
+	}
 
 	/*
 	 * If there is an environment variable SPA_CONFIG_PATH it overrides
