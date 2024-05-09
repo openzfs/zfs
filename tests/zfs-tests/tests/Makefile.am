@@ -1483,6 +1483,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/fault/decompress_fault.ksh \
 	functional/fault/decrypt_fault.ksh \
 	functional/fault/scrub_after_resilver.ksh \
+	functional/fault/suspend_resume_single.ksh \
 	functional/fault/setup.ksh \
 	functional/fault/zpool_status_-s.ksh \
 	functional/features/async_destroy/async_destroy_001_pos.ksh \
