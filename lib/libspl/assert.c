@@ -55,7 +55,7 @@
 #define	UNW_LOCAL_ONLY
 #include <libunwind.h>
 
-static inline void
+void
 libspl_dump_backtrace(void)
 {
 	unw_context_t uc;
@@ -85,7 +85,7 @@ libspl_dump_backtrace(void)
 #elif defined(HAVE_BACKTRACE)
 #include <execinfo.h>
 
-static inline void
+void
 libspl_dump_backtrace(void)
 {
 	void *btptrs[100];
@@ -97,7 +97,10 @@ libspl_dump_backtrace(void)
 	free(bt);
 }
 #else
-#define	libspl_dump_backtrace()
+void
+libspl_dump_backtrace(void)
+{
+}
 #endif
 
 #if defined(__APPLE__)

@@ -60,6 +60,8 @@ libspl_assert(const char *buf, const char *file, const char *func, int line)
 	return (0);
 }
 
+extern void libspl_dump_backtrace(void);
+
 #ifdef verify
 #undef verify
 #endif

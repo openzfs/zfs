@@ -136,9 +136,6 @@
 #include <libzutil.h>
 #include <sys/crypto/icp.h>
 #include <sys/zfs_impl.h>
-#if (__GLIBC__ && !__UCLIBC__)
-#include <execinfo.h> /* for backtrace() */
-#endif
 
 static int ztest_fd_data = -1;
 static int ztest_fd_rand = -1;
@@ -621,18 +618,11 @@ dump_debug_buffer(void)
 	zfs_dbgmsg_print("ztest");
 }
 
-#define	BACKTRACE_SZ	100
-
 static void sig_handler(int signo)
 {
 	struct sigaction action;
-#if (__GLIBC__ && !__UCLIBC__) /* backtrace() is a GNU extension */
-	int nptrs;
-	void *buffer[BACKTRACE_SZ];
 
-	nptrs = backtrace(buffer, BACKTRACE_SZ);
-	backtrace_symbols_fd(buffer, nptrs, STDERR_FILENO);
-#endif
+	libspl_dump_backtrace();
 	dump_debug_buffer();
 
 	/*

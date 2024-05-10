@@ -85,9 +85,6 @@
 #include <sys/brt_impl.h>
 #include <zfs_comutil.h>
 #include <sys/zstd/zstd.h>
-#if (__GLIBC__ && !__UCLIBC__)
-#include <execinfo.h> /* for backtrace() */
-#endif
 
 #include <libnvpair.h>
 #include <libzutil.h>
@@ -843,18 +840,11 @@ dump_debug_buffer(void)
 	zfs_dbgmsg_print("zdb");
 }
 
-#define	BACKTRACE_SZ	100
-
 static void sig_handler(int signo)
 {
 	struct sigaction action;
-#if (__GLIBC__ && !__UCLIBC__) /* backtrace() is a GNU extension */
-	int nptrs;
-	void *buffer[BACKTRACE_SZ];
 
-	nptrs = backtrace(buffer, BACKTRACE_SZ);
-	backtrace_symbols_fd(buffer, nptrs, STDERR_FILENO);
-#endif
+	libspl_dump_backtrace();
 	dump_debug_buffer();
 
 	/*
