@@ -615,8 +615,8 @@ dump_debug_buffer(void)
 	 * We use write() instead of printf() so that this function
 	 * is safe to call from a signal handler.
 	 */
-	ret = write(STDOUT_FILENO, "\n", 1);
-	zfs_dbgmsg_print("ztest");
+	ret = write(STDERR_FILENO, "\n", 1);
+	zfs_dbgmsg_print(STDERR_FILENO, "ztest");
 }
 
 static void sig_handler(int signo)
