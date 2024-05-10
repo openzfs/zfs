@@ -1586,10 +1586,10 @@ function create_pool #pool devs_list
 
 	if is_global_zone ; then
 		[[ -d /$pool ]] && rm -rf /$pool
-		log_must zpool create -f $pool $@
+		zpool create -f $pool $@
 	fi
 
-	return 0
+	return $?
 }
 
 # Return 0 if destroy successfully or the pool exists; $? otherwise

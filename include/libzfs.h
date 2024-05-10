@@ -346,6 +346,7 @@ _LIBZFS_H uint64_t zpool_vdev_path_to_guid(zpool_handle_t *zhp,
     const char *path);
 
 _LIBZFS_H const char *zpool_get_state_str(zpool_handle_t *);
+_LIBZFS_H zpool_handle_t *zpool_get_shared_log(zpool_handle_t *);
 
 /*
  * Functions to manage pool properties

@@ -55,5 +55,7 @@ log_must dd if=/dev/urandom of="$mntpnt/f1" bs=8k count=128
 log_must zpool export $TESTPOOL
 log_must zpool import $TESTPOOL
 log_must dd if=/dev/urandom of="$mntpnt/f1" bs=8k count=128
+verify_pool $LOGPOOL
+verify_pool $TESTPOOL
 
 log_pass "Using a pool with a shared log device succeeds at basic operations."

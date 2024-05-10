@@ -29,6 +29,10 @@
 
 verify_runnable "global"
 
+zpool import $LOGPOOL
+zpool import ${LOGPOOL}2
+zpool import $TESTPOOL
+zpool import $TESTPOOL2
 if datasetexists $TESTPOOL ; then
 	log_must zpool destroy -f $TESTPOOL
 fi

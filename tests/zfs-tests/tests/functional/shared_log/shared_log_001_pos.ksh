@@ -44,5 +44,7 @@ log_onexit cleanup
 log_must create_pool $LOGPOOL -L "$DISK0"
 log_must create_pool $TESTPOOL -l $LOGPOOL "$DISK1"
 log_must verify_shared_log $TESTPOOL $LOGPOOL
+verify_pool $LOGPOOL
+verify_pool $TESTPOOL
 
 log_pass "Creating a pool with a shared log succeeds."

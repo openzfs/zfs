@@ -31,9 +31,14 @@
 #	Negative shared log testing.
 #
 # STRATEGY:
-#	1. Create shared log pool & client
-#	2. Write some data to the client pool
-#	3. Scrub client and provider pools
+#	1. Attempt to create a client pool with a missing shared log pool
+#	2. Attempt to create a client pool with mis-named shared log pool
+#	3. Attempt to create a client pool with a shared log and a log device
+#	4. Attempt to use a client pool after the shared log has been destroyed
+#	5. Attempt to create a client pool when the feature is disabled
+#	6. Attempt to export/destroy an active shared log
+#	7. Attempt to reguid a client/log pool
+#	8. Attempt to checkpoint a client/log pool
 #
 
 verify_runnable "global"

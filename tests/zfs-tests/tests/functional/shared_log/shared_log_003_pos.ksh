@@ -58,5 +58,7 @@ log_must zpool export $LOGPOOL
 log_must zpool import $LOGPOOL
 log_must zpool import $TESTPOOL
 log_must dd if=/dev/urandom of="$mntpnt/f2" bs=8k count=128
+verify_pool $LOGPOOL
+verify_pool $TESTPOOL
 
 log_pass "Shared log pool can be exported and imported."

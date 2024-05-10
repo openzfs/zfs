@@ -27,6 +27,10 @@
 
 function cleanup
 {
+	zpool import $LOGPOOL
+	zpool import ${LOGPOOL}2
+	zpool import -m $TESTPOOL
+	zpool import -m $TESTPOOL2
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 	poolexists $TESTPOOL2 && destroy_pool $TESTPOOL2
 	poolexists $LOGPOOL && destroy_pool $LOGPOOL
