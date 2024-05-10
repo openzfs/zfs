@@ -635,6 +635,7 @@ zap_expand_leaf(zap_name_t *zn, zap_leaf_t *l,
 		uint64_t object = zap->zap_object;
 
 		zap_put_leaf(l);
+		*lp = l = NULL;
 		zap_unlockdir(zap, tag);
 		err = zap_lockdir(os, object, tx, RW_WRITER,
 		    FALSE, FALSE, tag, &zn->zn_zap);
@@ -844,21 +845,17 @@ retry:
 	} else if (err == EAGAIN) {
 		err = zap_expand_leaf(zn, l, tag, tx, &l);
 		zap = zn->zn_zap;	/* zap_expand_leaf() may change zap */
-		if (err == 0) {
+		if (err == 0)
 			goto retry;
-		} else if (err == ENOSPC) {
-			/*
-			 * If we failed to expand the leaf, then bailout
-			 * as there is no point trying
-			 * zap_put_leaf_maybe_grow_ptrtbl().
-			 */
-			return (err);
-		}
 	}
 
 out:
-	if (zap != NULL)
-		zap_put_leaf_maybe_grow_ptrtbl(zn, l, tag, tx);
+	if (l != NULL) {
+		if (err == ENOSPC)
+			zap_put_leaf(l);
+		else
+			zap_put_leaf_maybe_grow_ptrtbl(zn, l, tag, tx);
+	}
 	return (err);
 }
 
@@ -915,8 +912,12 @@ retry:
 			goto retry;
 	}
 
-	if (zap != NULL)
-		zap_put_leaf_maybe_grow_ptrtbl(zn, l, tag, tx);
+	if (l != NULL) {
+		if (err == ENOSPC)
+			zap_put_leaf(l);
+		else
+			zap_put_leaf_maybe_grow_ptrtbl(zn, l, tag, tx);
+	}
 	return (err);
 }
 
