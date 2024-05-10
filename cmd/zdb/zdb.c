@@ -938,8 +938,8 @@ dump_debug_buffer(void)
 	 * We use write() instead of printf() so that this function
 	 * is safe to call from a signal handler.
 	 */
-	ret = write(STDOUT_FILENO, "\n", 1);
-	zfs_dbgmsg_print("zdb");
+	ret = write(STDERR_FILENO, "\n", 1);
+	zfs_dbgmsg_print(STDERR_FILENO, "zdb");
 }
 
 #define	BACKTRACE_SZ	100
