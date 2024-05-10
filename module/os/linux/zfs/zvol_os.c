@@ -384,7 +384,7 @@ zvol_discard(zv_request_t *zvr)
 	 */
 	if (!io_is_secure_erase(bio, rq)) {
 		start = P2ROUNDUP(start, zv->zv_volblocksize);
-		end = P2ALIGN(end, zv->zv_volblocksize);
+		end = P2ALIGN_TYPED(end, zv->zv_volblocksize, uint64_t);
 		size = end - start;
 	}
 
