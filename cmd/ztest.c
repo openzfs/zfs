@@ -623,7 +623,7 @@ static void sig_handler(int signo)
 {
 	struct sigaction action;
 
-	libspl_backtrace();
+	libspl_backtrace(STDERR_FILENO);
 	dump_debug_buffer();
 
 	/*
