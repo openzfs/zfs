@@ -225,6 +225,8 @@ zfs_dbgmsg_print(const char *tag)
 {
 	ssize_t ret __attribute__((unused));
 
+	mutex_enter(&zfs_dbgmsgs.pl_lock);
+
 	/*
 	 * We use write() in this function instead of printf()
 	 * so it is safe to call from a signal handler.
@@ -233,7 +235,6 @@ zfs_dbgmsg_print(const char *tag)
 	ret = write(STDOUT_FILENO, tag, strlen(tag));
 	ret = write(STDOUT_FILENO, ") START:\n", 9);
 
-	mutex_enter(&zfs_dbgmsgs.pl_lock);
 	for (zfs_dbgmsg_t *zdm = list_head(&zfs_dbgmsgs.pl_list); zdm != NULL;
 	    zdm = list_next(&zfs_dbgmsgs.pl_list, zdm)) {
 		ret = write(STDOUT_FILENO, zdm->zdm_msg,
