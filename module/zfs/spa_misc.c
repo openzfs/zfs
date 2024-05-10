@@ -482,6 +482,7 @@ spa_uses_shared_log(const spa_t *spa)
 	return (spa->spa_uses_shared_log);
 }
 
+
 /*
  * ==========================================================================
  * SPA config locking
@@ -825,8 +826,8 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	    sizeof (metaslab_t), offsetof(metaslab_t, ms_spa_txg_node));
 	avl_create(&spa->spa_sm_logs_by_txg, spa_log_sm_sort_by_txg,
 	    sizeof (spa_log_sm_t), offsetof(spa_log_sm_t, sls_node));
-	avl_create(&spa->spa_registered_clients, spa_guid_compare,
-	    sizeof (spa_t), offsetof(spa_t, spa_client_avl));
+	list_create(&spa->spa_registered_clients, sizeof (spa_t),
+	    offsetof(spa_t, spa_client_node));
 	list_create(&spa->spa_log_summary, sizeof (log_summary_entry_t),
 	    offsetof(log_summary_entry_t, lse_node));
 
@@ -931,7 +932,7 @@ spa_remove(spa_t *spa)
 
 	avl_destroy(&spa->spa_metaslabs_by_flushed);
 	avl_destroy(&spa->spa_sm_logs_by_txg);
-	avl_destroy(&spa->spa_registered_clients);
+	list_destroy(&spa->spa_registered_clients);
 	list_destroy(&spa->spa_log_summary);
 	list_destroy(&spa->spa_config_list);
 	list_destroy(&spa->spa_leaf_list);

@@ -619,6 +619,8 @@ extern void	zil_commit_impl(zilog_t *zilog, uint64_t oid);
 extern void	zil_remove_async(zilog_t *zilog, uint64_t oid);
 
 extern int	zil_reset(const char *osname, void *txarg);
+extern int	zil_clear(struct dsl_pool *dp,
+    struct dsl_dataset *ds, void *txarg);
 extern int	zil_claim(struct dsl_pool *dp,
     struct dsl_dataset *ds, void *txarg);
 extern int 	zil_check_log_chain(struct dsl_pool *dp,

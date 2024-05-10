@@ -246,6 +246,39 @@ zpool_pool_state_to_name(pool_state_t state)
 	return (gettext("UNKNOWN"));
 }
 
+struct shared_log_cbdata {
+	uint64_t guid;
+	zpool_handle_t *shared_log_pool;
+};
+
+static int
+shared_log_cb(zpool_handle_t *hdl, void *arg)
+{
+	struct shared_log_cbdata *data = arg;
+	if (fnvlist_lookup_uint64(hdl->zpool_config, ZPOOL_CONFIG_POOL_GUID) ==
+	    data->guid) {
+		data->shared_log_pool = hdl;
+	}
+	return (0);
+}
+
+zpool_handle_t *
+zpool_get_shared_log(zpool_handle_t *zhp)
+{
+	uint64_t guid;
+	if (nvlist_lookup_uint64(zhp->zpool_config,
+	    ZPOOL_CONFIG_SHARED_LOG_POOL, &guid) != 0) {
+		return (NULL);
+	}
+	struct shared_log_cbdata data;
+	data.guid = guid;
+	int err = zpool_iter(zhp->zpool_hdl, shared_log_cb, &data);
+	if (err != 0) {
+		return (NULL);
+	}
+	return (data.shared_log_pool);
+}
+
 /*
  * Given a pool handle, return the pool health string ("ONLINE", "DEGRADED",
  * "SUSPENDED", etc).
@@ -272,6 +305,10 @@ zpool_get_state_str(zpool_handle_t *zhp)
 		vdev_stat_t *vs = (vdev_stat_t *)fnvlist_lookup_uint64_array(
 		    nvroot, ZPOOL_CONFIG_VDEV_STATS, &vsc);
 		str = zpool_state_to_name(vs->vs_state, vs->vs_aux);
+		zpool_handle_t *shared_log = zpool_get_shared_log(zhp);
+		if (vs->vs_state == VDEV_STATE_HEALTHY && shared_log != NULL) {
+			str = zpool_get_state_str(shared_log);
+		}
 	}
 	return (str);
 }
@@ -1688,23 +1725,48 @@ zpool_destroy(zpool_handle_t *zhp, const char *log_str)
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 	char errbuf[ERRBUFLEN];
 
-	if (zhp->zpool_state == POOL_STATE_ACTIVE &&
-	    (zfp = zfs_open(hdl, zhp->zpool_name, ZFS_TYPE_FILESYSTEM)) == NULL)
-		return (-1);
+	nvlist_t *outnvl;
+	int err = lzc_pool_destroy(zhp->zpool_name, log_str, &outnvl);
+	if (err == ZFS_ERR_IOC_CMD_UNAVAIL) {
+		if (zhp->zpool_state == POOL_STATE_ACTIVE &&
+		    (zfp = zfs_open(hdl, zhp->zpool_name, ZFS_TYPE_FILESYSTEM))
+		    == NULL)
+			return (-1);
 
-	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
-	zc.zc_history = (uint64_t)(uintptr_t)log_str;
+		(void) strlcpy(zc.zc_name, zhp->zpool_name,
+		    sizeof (zc.zc_name));
+		zc.zc_history = (uint64_t)(uintptr_t)log_str;
+		if (zfs_ioctl(hdl, ZFS_IOC_POOL_DESTROY, &zc) != 0)
+			err = errno;
+		else
+			err = 0;
+	}
 
-	if (zfs_ioctl(hdl, ZFS_IOC_POOL_DESTROY, &zc) != 0) {
+	if (err != 0) {
 		(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 		    "cannot destroy '%s'"), zhp->zpool_name);
 
-		if (errno == EROFS) {
+		if (err == EROFS) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "one or more devices is read only"));
 			(void) zfs_error(hdl, EZFS_BADDEV, errbuf);
+		} else if (err == EBUSY && outnvl != NULL) {
+			nvlist_t *clients = fnvlist_lookup_nvlist(outnvl,
+			    ZPOOL_SHARED_LOG_CLIENTS);
+			nvpair_t *elem = nvlist_next_nvpair(clients, NULL);
+			char buf[ERRBUFLEN];
+			int idx = snprintf(buf, ERRBUFLEN, "%s",
+			    nvpair_name(elem));
+			while ((elem = nvlist_next_nvpair(clients, elem))
+			    != NULL && idx < ERRBUFLEN) {
+				idx += snprintf(buf + idx, ERRBUFLEN - idx,
+				    ", %s", nvpair_name(elem));
+			}
+			zfs_error_aux(hdl, "pool has active clients: %s", buf);
+			(void) zfs_error(hdl, EZFS_BUSY, errbuf);
+			fnvlist_free(outnvl);
 		} else {
-			(void) zpool_standard_error(hdl, errno, errbuf);
+			(void) zpool_standard_error(hdl, err, errbuf);
 		}
 
 		if (zfp)
@@ -1904,27 +1966,52 @@ zpool_export_common(zpool_handle_t *zhp, boolean_t force, boolean_t hardforce,
 {
 	zfs_cmd_t zc = {"\0"};
 
-	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
-	zc.zc_cookie = force;
-	zc.zc_guid = hardforce;
-	zc.zc_history = (uint64_t)(uintptr_t)log_str;
+	nvlist_t *outnvl;
+	int err = lzc_pool_export(zhp->zpool_name, log_str, force, hardforce,
+	    &outnvl);
+	if (err == ZFS_ERR_IOC_CMD_UNAVAIL) {
 
-	if (zfs_ioctl(zhp->zpool_hdl, ZFS_IOC_POOL_EXPORT, &zc) != 0) {
-		switch (errno) {
-		case EXDEV:
-			zfs_error_aux(zhp->zpool_hdl, dgettext(TEXT_DOMAIN,
-			    "use '-f' to override the following errors:\n"
-			    "'%s' has an active shared spare which could be"
-			    " used by other pools once '%s' is exported."),
-			    zhp->zpool_name, zhp->zpool_name);
-			return (zfs_error_fmt(zhp->zpool_hdl, EZFS_ACTIVE_SPARE,
-			    dgettext(TEXT_DOMAIN, "cannot export '%s'"),
-			    zhp->zpool_name));
-		default:
-			return (zpool_standard_error_fmt(zhp->zpool_hdl, errno,
-			    dgettext(TEXT_DOMAIN, "cannot export '%s'"),
-			    zhp->zpool_name));
+		(void) strlcpy(zc.zc_name, zhp->zpool_name,
+		    sizeof (zc.zc_name));
+		zc.zc_cookie = force;
+		zc.zc_guid = hardforce;
+		zc.zc_history = (uint64_t)(uintptr_t)log_str;
+
+		if (zfs_ioctl(zhp->zpool_hdl, ZFS_IOC_POOL_EXPORT, &zc) != 0)
+			err = errno;
+		else
+			err = 0;
+	}
+
+	if (err == EXDEV) {
+		zfs_error_aux(zhp->zpool_hdl, dgettext(TEXT_DOMAIN,
+		    "use '-f' to override the following errors:\n"
+		    "'%s' has an active shared spare which could be"
+		    " used by other pools once '%s' is exported."),
+		    zhp->zpool_name, zhp->zpool_name);
+		return (zfs_error_fmt(zhp->zpool_hdl, EZFS_ACTIVE_SPARE,
+		    dgettext(TEXT_DOMAIN, "cannot export '%s'"),
+		    zhp->zpool_name));
+	} else if (err == EBUSY && outnvl != NULL) {
+		libzfs_handle_t *hdl = zhp->zpool_hdl;
+		nvlist_t *clients = fnvlist_lookup_nvlist(outnvl,
+		    ZPOOL_SHARED_LOG_CLIENTS);
+		nvpair_t *elem = nvlist_next_nvpair(clients, NULL);
+		char buf[ERRBUFLEN];
+		int idx = snprintf(buf, ERRBUFLEN, "%s", nvpair_name(elem));
+		while ((elem = nvlist_next_nvpair(clients, elem)) != NULL &&
+		    idx < ERRBUFLEN) {
+			idx += snprintf(buf + idx, ERRBUFLEN - idx, ", %s",
+			    nvpair_name(elem));
 		}
+		fnvlist_free(outnvl);
+		zfs_error_aux(hdl, "pool has active clients: %s", buf);
+		return (zfs_error_fmt(hdl, EZFS_BUSY, dgettext(TEXT_DOMAIN,
+		    "cannot export '%s'"), zhp->zpool_name));
+	} else if (err != 0) {
+		return (zpool_standard_error_fmt(zhp->zpool_hdl, errno,
+		    dgettext(TEXT_DOMAIN, "cannot export '%s'"),
+		    zhp->zpool_name));
 	}
 
 	return (0);
@@ -2364,6 +2451,11 @@ zpool_import_props(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
 			    "new name of at least one dataset is longer than "
 			    "the maximum allowable length"));
 			(void) zfs_error(hdl, EZFS_NAMETOOLONG, desc);
+			break;
+		case ESRCH:
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "shared log pool no longer contains this client"));
+			(void) zfs_error(hdl, EZFS_NOENT, desc);
 			break;
 		default:
 			(void) zpool_standard_error(hdl, error, desc);

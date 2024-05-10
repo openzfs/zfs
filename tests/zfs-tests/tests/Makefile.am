@@ -1997,6 +1997,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/shared_log/shared_log_004_pos.ksh \
 	functional/shared_log/shared_log_005_pos.ksh \
 	functional/shared_log/shared_log_006_neg.ksh \
+	functional/shared_log/shared_log_007_pos.ksh \
+	functional/shared_log/shared_log_008_pos.ksh \
 	functional/slog/cleanup.ksh \
 	functional/slog/setup.ksh \
 	functional/slog/slog_001_pos.ksh \

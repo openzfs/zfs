@@ -3070,7 +3070,7 @@ ztest_spa_create_destroy(ztest_ds_t *zd, uint64_t id)
 	 *	an export concurrently.
 	 */
 	VERIFY0(spa_open(zo->zo_pool, &spa, FTAG));
-	int error = spa_destroy(zo->zo_pool);
+	int error = spa_destroy(zo->zo_pool, NULL);
 	if (error != EBUSY && error != ZFS_ERR_EXPORT_IN_PROGRESS) {
 		fatal(B_FALSE, "spa_destroy(%s) returned unexpected value %d",
 		    spa->spa_name, error);
@@ -3172,7 +3172,7 @@ ztest_spa_upgrade(ztest_ds_t *zd, uint64_t id)
 	/*
 	 * Clean up from previous runs.
 	 */
-	(void) spa_destroy(name);
+	(void) spa_destroy(name, NULL);
 
 	raidz_children = ztest_get_raidz_children(ztest_spa);
 
@@ -3626,7 +3626,7 @@ ztest_split_pool(ztest_ds_t *zd, uint64_t id)
 	}
 
 	/* clean up the old pool, if any */
-	(void) spa_destroy("splitp");
+	(void) spa_destroy("splitp", NULL);
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 
@@ -7432,7 +7432,7 @@ ztest_spa_import_export(char *oldname, char *newname)
 	/*
 	 * Clean up from previous runs.
 	 */
-	(void) spa_destroy(newname);
+	(void) spa_destroy(newname, NULL);
 
 	/*
 	 * Get the pool's configuration and guid.
@@ -7453,7 +7453,7 @@ ztest_spa_import_export(char *oldname, char *newname)
 	/*
 	 * Export it.
 	 */
-	VERIFY0(spa_export(oldname, &config, B_FALSE, B_FALSE));
+	VERIFY0(spa_export(oldname, &config, B_FALSE, B_FALSE, NULL));
 
 	ztest_walk_pool_directory("pools after export");
 
@@ -8611,7 +8611,7 @@ ztest_init(ztest_shared_t *zs)
 	/*
 	 * Create the storage pool.
 	 */
-	(void) spa_destroy(ztest_opts.zo_pool);
+	(void) spa_destroy(ztest_opts.zo_pool, NULL);
 	ztest_shared->zs_vdev_next_leaf = 0;
 	zs->zs_splits = 0;
 	zs->zs_mirrors = ztest_opts.zo_mirrors;

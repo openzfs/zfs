@@ -156,7 +156,8 @@ _LIBZFS_CORE_H int lzc_wait_fs(const char *, zfs_wait_activity_t, boolean_t *);
 _LIBZFS_CORE_H int lzc_set_bootenv(const char *, const nvlist_t *);
 _LIBZFS_CORE_H int lzc_get_bootenv(const char *, nvlist_t **);
 
-_LIBZFS_CORE_H int lzc_recycle(const char *, boolean_t, nvlist_t **);
+_LIBZFS_CORE_H int lzc_recycle(const char *, nvlist_t *, boolean_t,
+    nvlist_t **);
 
 _LIBZFS_CORE_H int lzc_get_vdev_prop(const char *, nvlist_t *, nvlist_t **);
 _LIBZFS_CORE_H int lzc_set_vdev_prop(const char *, nvlist_t *, nvlist_t **);
@@ -165,6 +166,10 @@ _LIBZFS_CORE_H int lzc_scrub(zfs_ioc_t, const char *, nvlist_t *, nvlist_t **);
 
 _LIBZFS_CORE_H int lzc_ddt_prune(const char *, zpool_ddt_prune_unit_t,
     uint64_t);
+
+_LIBZFS_CORE_H int lzc_pool_destroy(const char *, const char *, nvlist_t **);
+_LIBZFS_CORE_H int lzc_pool_export(const char *, const char *, boolean_t,
+    boolean_t, nvlist_t **);
 
 #ifdef	__cplusplus
 }

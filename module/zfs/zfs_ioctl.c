@@ -352,19 +352,24 @@ zpl_earlier_version(const char *name, int version)
 }
 
 static void
-zfs_log_history(zfs_cmd_t *zc)
+zfs_log_history_string(const char *pool, const char *buf)
 {
 	spa_t *spa;
-	char *buf;
-
-	if ((buf = history_str_get(zc)) == NULL)
-		return;
-
-	if (spa_open(zc->zc_name, &spa, FTAG) == 0) {
+	if (spa_open(pool, &spa, FTAG) == 0) {
 		if (spa_version(spa) >= SPA_VERSION_ZPOOL_HISTORY)
 			(void) spa_history_log(spa, buf);
 		spa_close(spa, FTAG);
 	}
+}
+
+static void
+zfs_log_history(zfs_cmd_t *zc)
+{
+	char *buf;
+
+	if ((buf = history_str_get(zc)) == NULL)
+		return;
+	zfs_log_history_string(zc->zc_name, buf);
 	history_str_free(buf);
 }
 
@@ -1501,7 +1506,7 @@ zfs_ioc_pool_create(zfs_cmd_t *zc)
 	 */
 	if (!error && (error = zfs_set_prop_nvlist(spa_name,
 	    ZPROP_SRC_LOCAL, rootprops, NULL)) != 0) {
-		(void) spa_destroy(spa_name);
+		(void) spa_destroy(spa_name, NULL);
 		unload_wkey = B_FALSE; /* spa_destroy() unloads wrapping keys */
 	}
 
@@ -1520,7 +1525,23 @@ zfs_ioc_pool_destroy(zfs_cmd_t *zc)
 {
 	int error;
 	zfs_log_history(zc);
-	error = spa_destroy(zc->zc_name);
+	error = spa_destroy(zc->zc_name, NULL);
+
+	return (error);
+}
+
+static const zfs_ioc_key_t zfs_keys_pool_destroy_new[] = {
+	{ZPOOL_HIST_CMD, DATA_TYPE_STRING, 0},
+};
+
+static int
+zfs_ioc_pool_destroy_new(const char *pool, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	int error;
+
+	zfs_log_history_string(pool, fnvlist_lookup_string(innvl,
+	    ZPOOL_HIST_CMD));
+	error = spa_destroy(pool, outnvl);
 
 	return (error);
 }
@@ -1570,7 +1591,28 @@ zfs_ioc_pool_export(zfs_cmd_t *zc)
 	boolean_t hardforce = (boolean_t)zc->zc_guid;
 
 	zfs_log_history(zc);
-	error = spa_export(zc->zc_name, NULL, force, hardforce);
+	error = spa_export(zc->zc_name, NULL, force, hardforce, NULL);
+
+	return (error);
+}
+
+static const zfs_ioc_key_t zfs_keys_pool_export_new[] = {
+	{ZPOOL_HIST_CMD, DATA_TYPE_STRING, 0},
+	{ZPOOL_EXPORT_FORCE, DATA_TYPE_BOOLEAN_VALUE, 0},
+	{ZPOOL_EXPORT_HARDFORCE, DATA_TYPE_BOOLEAN_VALUE, 0},
+};
+
+static int
+zfs_ioc_pool_export_new(const char *pool, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	int error;
+
+	zfs_log_history_string(pool,
+	    fnvlist_lookup_string(innvl, ZPOOL_HIST_CMD));
+	error = spa_export(pool, NULL,
+	    fnvlist_lookup_boolean_value(innvl, ZPOOL_EXPORT_FORCE),
+	    fnvlist_lookup_boolean_value(innvl, ZPOOL_EXPORT_HARDFORCE),
+	    outnvl);
 
 	return (error);
 }
@@ -7210,6 +7252,7 @@ error:
 
 static const zfs_ioc_key_t zfs_keys_pool_recycle[] = {
 	{ZPOOL_RECYCLE_DRYRUN, DATA_TYPE_BOOLEAN_VALUE, 0},
+	{ZPOOL_RECYCLE_CLIENTS, DATA_TYPE_NVLIST, ZK_OPTIONAL},
 };
 
 static int
@@ -7218,6 +7261,7 @@ zfs_ioc_pool_recycle(const char *pool, nvlist_t *innvl, nvlist_t *outnvl)
 	int err;
 	boolean_t rc, dryrun = B_FALSE;
 	spa_t *spa;
+	nvlist_t *clients = NULL;
 
 	if ((err = spa_open(pool, &spa, FTAG)) != 0)
 		return (err);
@@ -7227,9 +7271,14 @@ zfs_ioc_pool_recycle(const char *pool, nvlist_t *innvl, nvlist_t *outnvl)
 		    &rc);
 		if (err == 0)
 			dryrun = rc;
+		nvlist_lookup_nvlist(innvl, ZPOOL_RECYCLE_CLIENTS,
+		    &clients);
 	}
-
-	err = spa_recycle(spa, dryrun, outnvl);
+	if (clients) {
+		err = spa_recycle_clients(spa, clients, dryrun, outnvl);
+	} else {
+		err = spa_recycle_all(spa, dryrun, outnvl);
+	}
 
 	spa_close(spa, FTAG);
 
@@ -7546,6 +7595,16 @@ zfs_ioctl_init(void)
 	    zfs_ioc_pool_recycle, zfs_secpolicy_config, POOL_NAME,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_FALSE,
 	    zfs_keys_pool_recycle, ARRAY_SIZE(zfs_keys_pool_recycle));
+
+	zfs_ioctl_register("zpool_destroy_new", ZFS_IOC_POOL_DESTROY_NEW,
+	    zfs_ioc_pool_destroy_new, zfs_secpolicy_config, POOL_NAME,
+	    POOL_CHECK_SUSPENDED, B_FALSE, B_FALSE,
+	    zfs_keys_pool_destroy_new, ARRAY_SIZE(zfs_keys_pool_destroy_new));
+
+	zfs_ioctl_register("zpool_export_new", ZFS_IOC_POOL_EXPORT_NEW,
+	    zfs_ioc_pool_export_new, zfs_secpolicy_config, POOL_NAME,
+	    POOL_CHECK_SUSPENDED, B_FALSE, B_FALSE,
+	    zfs_keys_pool_export_new, ARRAY_SIZE(zfs_keys_pool_export_new));
 
 	/* IOCTLS that use the legacy function signature */
 

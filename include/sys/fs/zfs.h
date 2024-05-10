@@ -1537,6 +1537,8 @@ typedef enum zfs_ioc {
 	ZFS_IOC_POOL_PREFETCH,			/* 0x5a58 */
 	ZFS_IOC_DDT_PRUNE,			/* 0x5a59 */
 	ZFS_IOC_POOL_RECYCLE,			/* 0x5a5a */
+	ZFS_IOC_POOL_DESTROY_NEW,		/* 0x5a5b */
+	ZFS_IOC_POOL_EXPORT_NEW,		/* 0x5a5c */
 
 	/*
 	 * Per-platform (Optional) - 8/128 numbers reserved.
@@ -1785,9 +1787,21 @@ typedef enum {
 #define	DDT_PRUNE_AMOUNT	"ddt_prune_amount"
 
 /*
- * The following name is used when invoking ZFS_IOC_POOL_RECYCLE.
+ * The following names are used when invoking ZFS_IOC_POOL_RECYCLE.
  */
 #define	ZPOOL_RECYCLE_DRYRUN		"dryrun"
+#define	ZPOOL_RECYCLE_CLIENTS		"clients"
+
+/*
+ * The following are names used when invoking ZFS_IOC_POOL_EXPORT_NEW.
+ */
+#define	ZPOOL_EXPORT_FORCE		"force"
+#define	ZPOOL_EXPORT_HARDFORCE		"hardforce"
+
+/*
+ * Name that is used to convey client information for shared log pools.
+ */
+#define	ZPOOL_SHARED_LOG_CLIENTS	"clients"
 
 /*
  * Flags for ZFS_IOC_VDEV_SET_STATE

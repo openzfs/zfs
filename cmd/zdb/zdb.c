@@ -7007,7 +7007,8 @@ chain_map_count_blocks(spa_t *spa, zdb_cb_t *zbc)
 		for (spa_chain_map_os_t *os_node = avl_first(os_t);
 		    os_node != NULL; os_node = AVL_NEXT(os_t, os_node)) {
 			(void) zil_parse_raw(spa, &os_node->scmo_chain_head,
-			    chain_map_count_blk_cb, chain_map_count_lr_cb, zbc);
+			    chain_map_count_blk_cb, chain_map_count_lr_cb,
+			    zbc);
 		}
 	}
 }
@@ -8380,6 +8381,57 @@ dump_log_spacemap_obsolete_stats(spa_t *spa)
 	    (u_longlong_t)lsos.lsos_total_entries);
 }
 
+static void print_blkptr(const blkptr_t *bp)
+{
+	char blkbuf[BP_SPRINTF_LEN];
+	snprintf_blkptr(blkbuf, sizeof (blkbuf), bp);
+	if (dump_opt['Z'] && BP_GET_COMPRESS(bp) == ZIO_COMPRESS_ZSTD)
+		snprintf_zstd_header(spa, blkbuf, sizeof (blkbuf), bp);
+	(void) printf("%s\n", blkbuf);
+
+}
+
+static int
+chain_map_dump_blk_cb(spa_t *spa, const blkptr_t *bp, void *arg)
+{
+	(void) spa, (void) arg;
+	printf("\t\t\tBP: ");
+	print_blkptr(bp);
+	return (0);
+}
+
+static int
+chain_map_dump_lr_cb(spa_t *spa, const lr_t *lrc, void *arg)
+{
+	(void) spa, (void) arg;
+	lr_write_t *lr = (lr_write_t *)lrc;
+	blkptr_t *bp = &lr->lr_blkptr;
+	printf("\t\t\tLR BP: ");
+	print_blkptr(bp);
+	return (0);
+}
+
+static void
+dump_chain_map(spa_t *spa)
+{
+	(void) printf("Chain map contents:\n");
+	avl_tree_t *pool_t = &spa->spa_chain_map;
+
+	for (spa_chain_map_pool_t *pool_node = avl_first(pool_t);
+	    pool_node != NULL; pool_node = AVL_NEXT(pool_t, pool_node)) {
+		avl_tree_t *os_t = &pool_node->scmp_os_tree;
+		(void) printf("\tPool entry: %s\n", pool_node->scmp_name);
+		for (spa_chain_map_os_t *os_node = avl_first(os_t);
+		    os_node != NULL; os_node = AVL_NEXT(os_t, os_node)) {
+			(void) printf("\t\tObjset entry: %"PRIu64"\n\t\t\t",
+			    os_node->scmo_id);
+			print_blkptr(&os_node->scmo_chain_head);
+			(void) zil_parse_raw(spa, &os_node->scmo_chain_head,
+			    chain_map_dump_blk_cb, chain_map_dump_lr_cb, NULL);
+		}
+	}
+}
+
 static void
 dump_zpool(spa_t *spa)
 {
@@ -8460,6 +8512,9 @@ dump_zpool(spa_t *spa)
 
 		(void) dmu_objset_find(spa_name(spa), dump_one_objset,
 		    NULL, DS_FIND_SNAPSHOTS | DS_FIND_CHILDREN);
+
+		if (spa_is_shared_log(spa))
+			dump_chain_map(spa);
 
 		if (rc == 0 && !dump_opt['L'])
 			rc = dump_mos_leaks(spa);

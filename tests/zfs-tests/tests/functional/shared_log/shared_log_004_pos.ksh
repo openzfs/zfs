@@ -36,7 +36,7 @@
 #	3. Export client and provider
 #	4. Import client with -m
 #	5. Export client
-#	6. Import client with -m and new pool
+#	6. Import client with -m and new provider
 #
 
 verify_runnable "global"
@@ -63,5 +63,8 @@ log_must zpool import $LOGPOOL
 log_must zpool import -m -L ${LOGPOOL}2 $TESTPOOL
 log_must verify_shared_log $TESTPOOL ${LOGPOOL}2
 log_must dd if=/dev/urandom of="$mntpnt/f3" bs=8k count=128
+verify_pool $LOGPOOL
+verify_pool $LOGPOOL2
+verify_pool $TESTPOOL
 
 log_pass "Client pools can be reimported without provider, with flag."

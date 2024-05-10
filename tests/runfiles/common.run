@@ -949,7 +949,7 @@ tags = ['functional', 'scrub_mirror']
 
 [tests/functional/shared_log]
 tests = ['shared_log_001_pos', 'shared_log_002_pos', 'shared_log_003_pos', 'shared_log_004_pos',
-    'shared_log_005_pos', 'shared_log_006_neg']
+    'shared_log_005_pos', 'shared_log_006_neg', 'shared_log_007_pos', 'shared_log_008_pos']
 tags = ['functional', 'shared_log']
 
 [tests/functional/slog]

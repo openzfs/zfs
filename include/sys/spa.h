@@ -754,11 +754,11 @@ extern int spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 extern int spa_import(char *pool, nvlist_t *config, nvlist_t *props,
     uint64_t flags);
 extern nvlist_t *spa_tryimport(nvlist_t *tryconfig);
-extern int spa_destroy(const char *pool);
+extern int spa_destroy(const char *pool, nvlist_t *ounvl);
 extern int spa_checkpoint(const char *pool);
 extern int spa_checkpoint_discard(const char *pool);
 extern int spa_export(const char *pool, nvlist_t **oldconfig, boolean_t force,
-    boolean_t hardforce);
+    boolean_t hardforce, nvlist_t *outnvl);
 extern int spa_reset(const char *pool);
 extern void spa_async_request(spa_t *spa, int flag);
 extern void spa_async_unrequest(spa_t *spa, int flag);
@@ -1249,7 +1249,9 @@ extern void spa_zil_delete(spa_t *spa, objset_t *os);
 extern void spa_zil_header_convert(spa_t *spa, objset_t *os, blkptr_t *bp);
 extern void spa_zil_header_mask(spa_t *spa, blkptr_t *bp);
 extern spa_t *spa_get_shared_log_pool(spa_t *spa);
-extern int spa_recycle(spa_t *spa, boolean_t dryrun, nvlist_t *outnvl);
+extern int spa_recycle_all(spa_t *spa, boolean_t dryrun, nvlist_t *outnvl);
+extern int spa_recycle_clients(spa_t *spa, nvlist_t *clients,
+    boolean_t dryrun, nvlist_t *outnvl);
 
 /* module param call functions */
 int param_set_deadman_ziotime(ZFS_MODULE_PARAM_ARGS);

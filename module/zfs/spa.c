@@ -1732,6 +1732,19 @@ get_shared_log_pool(nvlist_t *config, spa_t **out)
 	mutex_enter(&result->spa_chain_map_lock);
 	mutex_exit(&spa_shared_log_lock);
 	*out = result;
+
+	avl_tree_t *t = &result->spa_chain_map;
+	spa_chain_map_pool_t *search_scmp = kmem_zalloc(sizeof (*search_scmp),
+	    KM_SLEEP);
+	if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_GUID, &guid))
+		return (0);
+
+	search_scmp->scmp_guid = guid;
+	spa_chain_map_pool_t *result_scmp = avl_find(t, search_scmp, NULL);
+	kmem_free(search_scmp, sizeof (*search_scmp));
+	if (!result_scmp) {
+		return (ESRCH);
+	}
 	return (0);
 }
 
@@ -1741,22 +1754,29 @@ extern metaslab_ops_t *metaslab_allocator(spa_t *shared_log);
  * Activate an uninitialized pool.
  */
 static int
-spa_activate(spa_t *spa, nvlist_t *config, spa_mode_t mode)
+spa_activate(spa_t *spa, nvlist_t *config, spa_mode_t mode, boolean_t creating)
 {
 	metaslab_ops_t *msp = metaslab_allocator(spa);
 	ASSERT(spa->spa_state == POOL_STATE_UNINITIALIZED);
+	boolean_t missing_logs = spa->spa_import_flags & ZFS_IMPORT_MISSING_LOG;
 
 	int error = 0;
 	spa_t *shared_log = NULL;
 	if (strcmp(spa->spa_name, TRYIMPORT_NAME) != 0 &&
 	    (error = get_shared_log_pool(config, &shared_log)) != 0) {
-		// We handle this case in spa_check_for_missing_logs
-		if (error == ENOENT &&
-		    (spa->spa_import_flags & ZFS_IMPORT_MISSING_LOG)) {
+		// We handle the ENOENT case in spa_check_for_missing_logs
+		if (missing_logs && (error == ENOENT || error == ESRCH)) {
+			spa->spa_discarding_shared_log = B_TRUE;
 			error = 0;
-		} else {
-			return (error);
 		}
+		if (error == ESRCH) {
+			if (creating)
+				error = 0;
+			else
+				mutex_exit(&shared_log->spa_chain_map_lock);
+		}
+		if (error)
+			return (error);
 	}
 
 	spa->spa_state = POOL_STATE_ACTIVE;
@@ -1765,7 +1785,7 @@ spa_activate(spa_t *spa, nvlist_t *config, spa_mode_t mode)
 
 	spa->spa_normal_class = metaslab_class_create(spa, msp);
 	if (shared_log != NULL) {
-		avl_add(&shared_log->spa_registered_clients, spa);
+		list_insert_tail(&shared_log->spa_registered_clients, spa);
 		mutex_exit(&shared_log->spa_chain_map_lock);
 
 		spa->spa_log_class = metaslab_class_create(spa,
@@ -1847,6 +1867,12 @@ spa_activate(spa_t *spa, nvlist_t *config, spa_mode_t mode)
 	avl_create(&spa->spa_zil_map,
 	    spa_zil_update_head_compare, sizeof (spa_zil_update_head_t),
 	    offsetof(spa_zil_update_head_t, szuh_avl));
+	if (spa->spa_uses_shared_log) {
+		spa_zil_update_head_t *entry = kmem_zalloc(sizeof (*entry),
+		    KM_SLEEP);
+		entry->szuh_force = B_TRUE;
+		avl_add(&spa->spa_zil_map, entry);
+	}
 
 	spa_activate_os(spa);
 
@@ -1967,7 +1993,7 @@ spa_deactivate(spa_t *spa)
 	spa_t *shared_log;
 	if ((shared_log = spa_get_shared_log_pool(spa)) != NULL) {
 		mutex_enter(&shared_log->spa_chain_map_lock);
-		avl_remove(&shared_log->spa_registered_clients, spa);
+		list_remove(&shared_log->spa_registered_clients, spa);
 		mutex_exit(&shared_log->spa_chain_map_lock);
 	}
 	metaslab_class_destroy(spa->spa_log_class);
@@ -2662,7 +2688,6 @@ static int
 spa_check_for_missing_logs(spa_t *spa)
 {
 	vdev_t *rvd = spa->spa_root_vdev;
-	uint64_t guid;
 
 	/*
 	 * If we're doing a normal import, then build up any additional
@@ -2709,10 +2734,7 @@ spa_check_for_missing_logs(spa_t *spa)
 			vdev_dbgmsg_print_tree(rvd, 2);
 			return (SET_ERROR(ENXIO));
 		}
-	} else if (nvlist_lookup_uint64(spa->spa_config,
-	    ZPOOL_CONFIG_SHARED_LOG_POOL, &guid)) {
-		if (spa_uses_shared_log(spa))
-			return (0);
+	} else if (spa->spa_discarding_shared_log) {
 		spa_set_log_state(spa, SPA_LOG_CLEAR);
 		spa_load_note(spa, "shared log pool is "
 		    "missing, ZIL is dropped.");
@@ -4114,6 +4136,7 @@ spa_ld_parse_config(spa_t *spa, spa_import_type_t type)
 	parse = (type == SPA_IMPORT_EXISTING ?
 	    VDEV_ALLOC_LOAD : VDEV_ALLOC_SPLIT);
 	error = spa_config_parse(spa, &rvd, nvtree, NULL, 0, parse);
+	spa_set_pool_type(spa);
 	spa_config_exit(spa, SCL_ALL, FTAG);
 
 	if (error != 0) {
@@ -4492,6 +4515,7 @@ spa_ld_trusted_config(spa_t *spa, spa_import_type_t type,
 		    error);
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, error));
 	}
+	spa_set_pool_type(spa);
 
 	/*
 	 * Vdev paths in the MOS may be obsolete. If the untrusted config was
@@ -4784,7 +4808,7 @@ spa_ld_check_features(spa_t *spa, boolean_t *missing_feat_writep)
 struct load_chain_map_arg {
 	blkptr_t *bp;
 	spa_t *spa;
-	int *error;
+	uint64_t *error;
 };
 
 static int
@@ -4826,11 +4850,11 @@ load_chain_map_cb(void *arg)
 	kmem_free(lcmca, sizeof (*lcmca));
 }
 
-static int
+noinline static int
 spa_load_chain_map(spa_t *spa)
 {
 	int error = 0;
-	int dispatch_error = 0;
+	uint64_t dispatch_error = 0;
 	uint64_t chain_map_zap = spa->spa_dsl_pool->dp_chain_map_obj;
 	if (!spa_is_shared_log(spa))
 		return (error);
@@ -4839,34 +4863,49 @@ spa_load_chain_map(spa_t *spa)
 	zap_cursor_t zc;
 	zap_attribute_t attr;
 	objset_t *os = spa->spa_dsl_pool->dp_meta_objset;
+	spa_zil_chain_map_value_t *szcmv = kmem_alloc(sizeof (*szcmv),
+	    KM_SLEEP);
 	for (zap_cursor_init(&zc, os, chain_map_zap);
 	    zap_cursor_retrieve(&zc, &attr) == 0; zap_cursor_advance(&zc)) {
 		uint64_t pool_guid = ((uint64_t *)attr.za_name)[0];
 		uint64_t os_guid = ((uint64_t *)attr.za_name)[1];
+		error = zap_lookup_uint64(os, chain_map_zap,
+		    (uint64_t *)attr.za_name, 2, sizeof (uint64_t),
+		    sizeof (*szcmv) / sizeof (uint64_t),
+		    szcmv);
+		if (error != 0) {
+			break;
+		}
 		avl_index_t where;
 		spa_chain_map_pool_t search;
 		search.scmp_guid = pool_guid;
-		spa_chain_map_pool_t *pool_entry = avl_find(&spa->spa_chain_map,
-		    &search, &where);
+		spa_chain_map_pool_t *pool_entry =
+		    avl_find(&spa->spa_chain_map, &search, &where);
 		if (pool_entry == NULL) {
-			pool_entry = kmem_alloc(sizeof (*pool_entry), KM_SLEEP);
+			pool_entry = kmem_alloc(sizeof (*pool_entry),
+			    KM_SLEEP);
 			pool_entry->scmp_guid = pool_guid;
 			avl_create(&pool_entry->scmp_os_tree,
 			    spa_chain_map_os_compare,
 			    sizeof (spa_chain_map_os_t),
 			    offsetof(spa_chain_map_os_t, scmo_avl));
+			strlcpy(pool_entry->scmp_name,
+			    szcmv->szcmv_pool_name, ZFS_MAX_DATASET_NAME_LEN);
 			avl_insert(&spa->spa_chain_map, pool_entry, where);
 		}
+
+		if (os_guid == 0) {
+			/*
+			 * This is the dummy marker to make sure we know about
+			 * the pool; no need to add an os-specific entry
+			 */
+			continue;
+		}
+
 		spa_chain_map_os_t *os_entry = kmem_alloc(sizeof (*os_entry),
 		    KM_SLEEP);
 		os_entry->scmo_id = os_guid;
-		error = zap_lookup_uint64(os, chain_map_zap,
-		    (uint64_t *)attr.za_name, 2, sizeof (uint64_t),
-		    sizeof (blkptr_t) / sizeof (uint64_t),
-		    &os_entry->scmo_chain_head);
-		if (error != 0) {
-			break;
-		}
+		os_entry->scmo_chain_head = szcmv->szcmv_bp;
 		avl_add(&pool_entry->scmp_os_tree, os_entry);
 		struct load_chain_map_arg *arg = kmem_alloc(sizeof (*arg),
 		    KM_SLEEP);
@@ -4876,6 +4915,7 @@ spa_load_chain_map(spa_t *spa)
 		(void) taskq_dispatch(spa->spa_chain_map_taskq,
 		    load_chain_map_cb, arg, TQ_SLEEP);
 	}
+	kmem_free(szcmv, sizeof (*szcmv));
 
 	if (error != 0) {
 		void *cookie = NULL;
@@ -5307,6 +5347,13 @@ spa_ld_claim_log_blocks(spa_t *spa)
 		(void) dmu_objset_find_dp(dp, dp->dp_root_dir_obj,
 		    zil_claim, tx, DS_FIND_CHILDREN);
 		dmu_tx_commit(tx);
+	} else if (spa_get_log_state(spa) == SPA_LOG_CLEAR) {
+		ASSERT(spa->spa_discarding_shared_log);
+		tx = dmu_tx_create_assigned(dp, spa_first_txg(spa));
+		(void) dmu_objset_find_dp(dp, dp->dp_root_dir_obj,
+		    zil_clear, tx, DS_FIND_CHILDREN);
+		dmu_tx_commit(tx);
+		spa->spa_discarding_shared_log = B_FALSE;
 	}
 
 	spa->spa_claiming = B_FALSE;
@@ -5354,7 +5401,7 @@ spa_ld_prepare_for_reload(spa_t *spa)
 
 	spa_unload(spa);
 	spa_deactivate(spa);
-	VERIFY0(spa_activate(spa, spa->spa_config, mode));
+	VERIFY0(spa_activate(spa, spa->spa_config, mode, B_FALSE));
 
 	/*
 	 * We save the value of spa_async_suspended as it gets reset to 0 by
@@ -5932,7 +5979,7 @@ spa_load_retry(spa_t *spa, spa_load_state_t state)
 
 	spa->spa_load_max_txg = spa->spa_uberblock.ub_txg - 1;
 
-	VERIFY0(spa_activate(spa, spa->spa_config, mode));
+	VERIFY0(spa_activate(spa, spa->spa_config, mode, B_FALSE));
 	spa_async_suspend(spa);
 
 	spa_load_note(spa, "spa_load_retry: rewind, max txg: %llu",
@@ -6099,7 +6146,8 @@ spa_open_common(const char *pool, spa_t **spapp, const void *tag,
 		if (policy.zlp_rewind & ZPOOL_DO_REWIND)
 			state = SPA_LOAD_RECOVER;
 
-		error = spa_activate(spa, spa->spa_config, spa_mode_global);
+		error = spa_activate(spa, spa->spa_config, spa_mode_global,
+		    B_FALSE);
 		if (error != 0) {
 			spa_remove(spa);
 			if (locked)
@@ -6710,7 +6758,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	    zpool_prop_to_name(ZPOOL_PROP_ALTROOT), &altroot);
 	spa = spa_add(poolname, nvl, altroot);
 	fnvlist_free(nvl);
-	error = spa_activate(spa, nvroot, spa_mode_global);
+	error = spa_activate(spa, nvroot, spa_mode_global, B_TRUE);
 	if (error != 0) {
 		spa_remove(spa);
 		mutex_exit(&spa_namespace_lock);
@@ -6752,15 +6800,8 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 		}
 	}
 
-	if (!has_shared_log && spa_uses_shared_log(spa)) {
-		spa_deactivate(spa);
-		spa_remove(spa);
-		mutex_exit(&spa_namespace_lock);
-		return (SET_ERROR(ENOTSUP));
-	}
-
-	if (!has_shared_log && fnvlist_lookup_boolean(nvroot,
-	    ZPOOL_CONFIG_IS_SHARED_LOG)) {
+	if (!has_shared_log && (spa_uses_shared_log(spa) ||
+	    fnvlist_lookup_boolean(nvroot, ZPOOL_CONFIG_IS_SHARED_LOG))) {
 		spa_deactivate(spa);
 		spa_remove(spa);
 		mutex_exit(&spa_namespace_lock);
@@ -6817,6 +6858,8 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
 
 	error = spa_config_parse(spa, &rvd, nvroot, NULL, 0, VDEV_ALLOC_ADD);
+	if (error == 0)
+		spa_set_pool_type(spa);
 
 	ASSERT(error != 0 || rvd != NULL);
 	ASSERT(error != 0 || spa->spa_root_vdev == rvd);
@@ -7059,7 +7102,7 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 		return (0);
 	}
 
-	error = spa_activate(spa, config, mode);
+	error = spa_activate(spa, config, mode, B_FALSE);
 	if (error != 0) {
 		spa_remove(spa);
 		mutex_exit(&spa_namespace_lock);
@@ -7222,7 +7265,17 @@ spa_tryimport(nvlist_t *tryconfig)
 	mutex_enter(&spa_namespace_lock);
 	spa = spa_add(name, tryconfig, NULL);
 	kmem_free(name, MAXPATHLEN);
-	error = spa_activate(spa, tryconfig, SPA_MODE_READ);
+
+	/*
+	 * spa_import() relies on a pool config fetched by spa_try_import()
+	 * for spare/cache devices. Import flags are not passed to
+	 * spa_tryimport(), which makes it return early due to a missing log
+	 * device and missing retrieving the cache device and spare eventually.
+	 * Passing ZFS_IMPORT_MISSING_LOG to spa_tryimport() makes it fetch
+	 * the correct configuration regardless of the missing log device.
+	 */
+	spa->spa_import_flags |= ZFS_IMPORT_MISSING_LOG;
+	error = spa_activate(spa, tryconfig, SPA_MODE_READ, B_FALSE);
 	if (error != 0) {
 		spa_remove(spa);
 		mutex_exit(&spa_namespace_lock);
@@ -7250,16 +7303,6 @@ spa_tryimport(nvlist_t *tryconfig)
 		spa->spa_config_source = SPA_CONFIG_SRC_SCAN;
 	}
 
-	/*
-	 * spa_import() relies on a pool config fetched by spa_try_import()
-	 * for spare/cache devices. Import flags are not passed to
-	 * spa_tryimport(), which makes it return early due to a missing log
-	 * device and missing retrieving the cache device and spare eventually.
-	 * Passing ZFS_IMPORT_MISSING_LOG to spa_tryimport() makes it fetch
-	 * the correct configuration regardless of the missing log device.
-	 */
-	spa->spa_import_flags |= ZFS_IMPORT_MISSING_LOG;
-
 	error = spa_load(spa, SPA_LOAD_TRYIMPORT, SPA_IMPORT_EXISTING);
 
 	/*
@@ -7280,7 +7323,6 @@ spa_tryimport(nvlist_t *tryconfig)
 		uint64_t shared_log_guid;
 		if (nvlist_lookup_uint64(tryconfig,
 		    ZPOOL_CONFIG_SHARED_LOG_POOL, &shared_log_guid) == 0) {
-			zfs_dbgmsg("in tryimport: got %llu", (unsigned long long) shared_log_guid);
 			fnvlist_add_uint64(config, ZPOOL_CONFIG_SHARED_LOG_POOL,
 			    shared_log_guid);
 		}
@@ -7346,7 +7388,7 @@ spa_tryimport(nvlist_t *tryconfig)
  */
 static int
 spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
-    boolean_t force, boolean_t hardforce)
+    boolean_t force, boolean_t hardforce, nvlist_t *outnvl)
 {
 	int error = 0;
 	spa_t *spa;
@@ -7366,7 +7408,19 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 
 	if (spa_is_shared_log(spa)) {
 		mutex_enter(&spa->spa_chain_map_lock);
-		if (avl_numnodes(&spa->spa_registered_clients) != 0) {
+		if (!list_is_empty(&spa->spa_registered_clients)) {
+			if (outnvl != NULL) {
+				spa_t *client;
+				list_t *l = &spa->spa_registered_clients;
+				nvlist_t *clients = fnvlist_alloc();
+				for (client = list_head(l); client != NULL;
+				    client = list_next(l, client)) {
+					fnvlist_add_boolean(clients,
+					    spa_name(client));
+				}
+				fnvlist_add_nvlist(outnvl,
+				    ZPOOL_SHARED_LOG_CLIENTS, clients);
+			}
 			mutex_exit(&spa->spa_chain_map_lock);
 			mutex_exit(&spa_namespace_lock);
 			return (SET_ERROR(EBUSY));
@@ -7550,10 +7604,10 @@ fail:
  * Destroy a storage pool.
  */
 int
-spa_destroy(const char *pool)
+spa_destroy(const char *pool, nvlist_t *outnvl)
 {
 	return (spa_export_common(pool, POOL_STATE_DESTROYED, NULL,
-	    B_FALSE, B_FALSE));
+	    B_FALSE, B_FALSE, outnvl));
 }
 
 /*
@@ -7561,10 +7615,10 @@ spa_destroy(const char *pool)
  */
 int
 spa_export(const char *pool, nvlist_t **oldconfig, boolean_t force,
-    boolean_t hardforce)
+    boolean_t hardforce, nvlist_t *outnvl)
 {
 	return (spa_export_common(pool, POOL_STATE_EXPORTED, oldconfig,
-	    force, hardforce));
+	    force, hardforce, outnvl));
 }
 
 /*
@@ -7575,7 +7629,7 @@ int
 spa_reset(const char *pool)
 {
 	return (spa_export_common(pool, POOL_STATE_UNINITIALIZED, NULL,
-	    B_FALSE, B_FALSE));
+	    B_FALSE, B_FALSE, NULL));
 }
 
 /*
@@ -8853,7 +8907,7 @@ spa_vdev_split_mirror(spa_t *spa, const char *newname, nvlist_t *config,
 	if (zio_injection_enabled)
 		zio_handle_panic_injection(spa, FTAG, 1);
 
-	VERIFY0(spa_activate(newspa, config, spa_mode_global));
+	VERIFY0(spa_activate(newspa, config, spa_mode_global, B_TRUE));
 	spa_async_suspend(newspa);
 
 	/*
@@ -8972,7 +9026,7 @@ spa_vdev_split_mirror(spa_t *spa, const char *newname, nvlist_t *config,
 	/* if we're not going to mount the filesystems in userland, export */
 	if (exp)
 		error = spa_export_common(newname, POOL_STATE_EXPORTED, NULL,
-		    B_FALSE, B_FALSE);
+		    B_FALSE, B_FALSE, NULL);
 
 	return (error);
 
@@ -11479,6 +11533,7 @@ spa_chain_map_update(spa_t *spa)
 		    spa_chain_map_os_compare,
 		    sizeof (spa_chain_map_os_t),
 		    offsetof(spa_chain_map_os_t, scmo_avl));
+		strcpy(pool_entry->scmp_name, spa_name(spa));
 		avl_insert(&target->spa_chain_map, pool_entry, where);
 	}
 	avl_tree_t *target_tree = &pool_entry->scmp_os_tree;
@@ -11499,17 +11554,37 @@ spa_chain_map_update(spa_t *spa)
 	list_create(&local_frees, sizeof (spa_zil_update_t),
 	    offsetof(spa_zil_update_t, szu_list));
 	spa_zil_update_head_t *node;
-	uint64_t buf[2];
-	buf[0] = spa_guid(spa);
-	for (node = avl_first(t); node; node = AVL_NEXT(t, node)) {
+	uint64_t keybuf[2];
+	keybuf[0] = spa_guid(spa);
+	spa_zil_chain_map_value_t szcmv = {0};
+	strcpy(szcmv.szcmv_pool_name, spa_name(spa));
+	for (node = avl_first(t); node; ) {
 		uint64_t guid = node->szuh_id;
+
+		if (node->szuh_force) {
+			ASSERT0(node->szuh_id);
+			ASSERT(BP_IS_HOLE(&node->szuh_chain_head));
+			keybuf[1] = 0;
+			int res = zap_add_uint64(target_mos, chain_map_zap,
+			    keybuf, sizeof (keybuf) / sizeof (uint64_t),
+			    sizeof (uint64_t), sizeof (szcmv) /
+			    sizeof (uint64_t), (uint64_t *)&szcmv, tx);
+			IMPLY(res != 0, res == EEXIST);
+			spa_zil_update_head_t *next = AVL_NEXT(t, node);
+			avl_remove(t, node);
+			kmem_free(node, sizeof (*node));
+			node = next;
+			continue;
+		}
+
 		list_t *l = &node->szuh_list;
 		spa_zil_update_t *szu = list_head(l);
 		if (!node->szuh_set || szu == NULL ||
 		    BP_IS_HOLE(&node->szuh_chain_head)) {
+			node = AVL_NEXT(t, node);
 			continue;
 		}
-		buf[1] = guid;
+		keybuf[1] = guid;
 		spa_chain_map_os_t osearch;
 		osearch.scmo_id = guid;
 		spa_chain_map_os_t *os_entry = avl_find(target_tree,
@@ -11539,18 +11614,21 @@ spa_chain_map_update(spa_t *spa)
 			os_entry->scmo_id = guid;
 			os_entry->scmo_chain_head = node->szuh_chain_head;
 			avl_insert(&pool_entry->scmp_os_tree, os_entry, where);
-			blkptr_t *bp = &os_entry->scmo_chain_head;
+			szcmv.szcmv_bp = os_entry->scmo_chain_head;
 
-			zap_add_uint64(target_mos, chain_map_zap, buf, 2,
-			    sizeof (uint64_t), sizeof (*bp) / sizeof (uint64_t),
-			    bp, tx);
+			VERIFY0(zap_add_uint64(target_mos, chain_map_zap,
+			    keybuf, sizeof (keybuf) / sizeof (uint64_t),
+			    sizeof (uint64_t), sizeof (szcmv) /
+			    sizeof (uint64_t), (uint64_t *)&szcmv, tx));
 		} else {
 			os_entry->scmo_chain_head = node->szuh_chain_head;
-			blkptr_t *bp = &os_entry->scmo_chain_head;
-			zap_update_uint64(target_mos, chain_map_zap, buf, 2,
-			    sizeof (uint64_t), sizeof (*bp) / sizeof (uint64_t),
-			    bp, tx);
+			szcmv.szcmv_bp = os_entry->scmo_chain_head;
+			VERIFY0(zap_update_uint64(target_mos, chain_map_zap,
+			    keybuf, sizeof (keybuf) / sizeof (uint64_t),
+			    sizeof (uint64_t), sizeof (szcmv) /
+			    sizeof (uint64_t), (uint64_t *)&szcmv, tx));
 		}
+		node = AVL_NEXT(t, node);
 	}
 
 	/*
@@ -11576,9 +11654,10 @@ spa_chain_map_update(spa_t *spa)
 		avl_remove(target_tree, tree_entry);
 		kmem_free(tree_entry, sizeof (*tree_entry));
 
-		buf[1] = entry->zde_guid;
+		keybuf[1] = entry->zde_guid;
 		kmem_free(entry, sizeof (*entry));
-		zap_remove_uint64(target_mos, chain_map_zap, buf, 2, tx);
+		VERIFY0(zap_remove_uint64(target_mos, chain_map_zap, keybuf, 2,
+		    tx));
 	}
 
 	mutex_exit(&target->spa_chain_map_lock);
@@ -11668,55 +11747,111 @@ spa_zil_header_mask(spa_t *spa, blkptr_t *bp)
 	*bp = masked;
 }
 
+static int
+spa_recycle_one(spa_t *spa, spa_chain_map_pool_t *entry, boolean_t dryrun,
+    nvlist_t *outnvl)
+{
+	int err = 0;
+	uint64_t guid = entry->scmp_guid;
+	spa_t *search = kmem_zalloc(sizeof (spa_t), KM_SLEEP);
+	search->spa_config_guid = guid;
+
+	spa_t *client;
+	list_t *l = &spa->spa_registered_clients;
+	for (client = list_head(l); client != NULL;
+	    client = list_next(l, client)) {
+		if (spa_const_guid(client) == entry->scmp_guid)
+			break;
+	}
+	if (!client) {
+		fnvlist_add_uint64(outnvl, entry->scmp_name, guid);
+	}
+	if (dryrun || client) {
+		return (err);
+	}
+
+	uint64_t chain_map_zap = spa->spa_dsl_pool->dp_chain_map_obj;
+	dmu_tx_t *tx = dmu_tx_create_mos(spa->spa_dsl_pool);
+	dmu_tx_hold_zap(tx, chain_map_zap, B_TRUE, NULL);
+	dmu_tx_assign(tx, TXG_WAIT);
+	uint64_t keybuf[2];
+	keybuf[0] = entry->scmp_guid;
+
+	avl_tree_t *os_tree = &entry->scmp_os_tree;
+	spa_chain_map_os_t *os = NULL;
+	void *cookie = NULL;
+	while ((os = avl_destroy_nodes(os_tree, &cookie))) {
+		struct spa_chain_map_free_cb_arg arg;
+		arg.smcfca_end = NULL;
+		arg.smcfca_guid = os->scmo_id;
+		arg.smcfca_txg = spa->spa_syncing_txg;
+		(void) zil_parse_raw(spa, &os->scmo_chain_head,
+		    spa_chain_map_free_blk_cb, spa_chain_map_free_lr_cb, &arg);
+
+		keybuf[1] = os->scmo_id;
+		zap_remove_uint64(spa->spa_dsl_pool->dp_meta_objset,
+		    chain_map_zap, keybuf, sizeof (keybuf) / sizeof (uint64_t),
+		    tx);
+		kmem_free(os, sizeof (*os));
+	}
+	dmu_tx_commit(tx);
+	avl_destroy(&entry->scmp_os_tree);
+	kmem_free(search, sizeof (*search));
+
+	avl_remove(&spa->spa_chain_map, entry);
+	kmem_free(entry, sizeof (*entry));
+	return (err);
+}
+
 int
-spa_recycle(spa_t *spa, boolean_t dryrun, nvlist_t *outnvl)
+spa_recycle_all(spa_t *spa, boolean_t dryrun, nvlist_t *outnvl)
 {
 	int err = 0;
 	if (!spa_is_shared_log(spa)) {
 		return (SET_ERROR(ENOTSUP));
 	}
-
-	spa_t *search = kmem_zalloc(sizeof (spa_t), KM_SLEEP);
 	mutex_enter(&spa->spa_chain_map_lock);
 	avl_tree_t *t = &spa->spa_chain_map;
 	spa_chain_map_pool_t *entry = avl_first(t);
 	while (entry != NULL) {
-		uint64_t guid = entry->scmp_guid;
-		search->spa_config_guid = guid;
-		spa_t *client = avl_find(&spa->spa_registered_clients, search,
-		    NULL);
 		spa_chain_map_pool_t *next = AVL_NEXT(t, entry);
-		if (!client) {
-			char buf[64];
-			snprintf(buf, sizeof (buf), "%llu", (u_longlong_t)guid);
-			fnvlist_add_boolean(outnvl, buf);
-		}
-		if (dryrun || client) {
-			entry = next;
-			continue;
-		}
-		avl_tree_t *os_tree = &entry->scmp_os_tree;
-		spa_chain_map_os_t *os = NULL;
-		void *cookie = NULL;
-		while ((os = avl_destroy_nodes(os_tree, &cookie))) {
-			struct spa_chain_map_free_cb_arg arg;
-			arg.smcfca_end = NULL;
-			arg.smcfca_guid = os->scmo_id;
-			arg.smcfca_txg = spa->spa_syncing_txg;
-			int this_err = zil_parse_raw(spa, &os->scmo_chain_head,
-			    spa_chain_map_free_blk_cb,
-			    spa_chain_map_free_lr_cb, &arg);
-			if (this_err != 0 && err == 0)
-				err = this_err;
-			kmem_free(os, sizeof (*os));
-		}
-		avl_remove(t, entry);
-		avl_destroy(&entry->scmp_os_tree);
-		kmem_free(entry, sizeof (*entry));
+
+		int this_err = spa_recycle_one(spa, entry, dryrun, outnvl);
+		if (this_err != 0 && err == 0)
+			err = this_err;
+
 		entry = next;
 	}
 	mutex_exit(&spa->spa_chain_map_lock);
-	kmem_free(search, sizeof (*search));
+	return (err);
+}
+
+int
+spa_recycle_clients(spa_t *spa, nvlist_t *clients, boolean_t dryrun,
+    nvlist_t *outnvl)
+{
+	int err = 0;
+	if (!spa_is_shared_log(spa)) {
+		return (SET_ERROR(ENOTSUP));
+	}
+	mutex_enter(&spa->spa_chain_map_lock);
+	for (nvpair_t *pair = nvlist_next_nvpair(clients, NULL);
+	    pair != NULL; pair = nvlist_next_nvpair(clients, pair)) {
+		avl_tree_t *t = &spa->spa_chain_map;
+		spa_chain_map_pool_t *entry = avl_first(t);
+		while (entry != NULL) {
+			spa_chain_map_pool_t *next = AVL_NEXT(t, entry);
+
+			if (strcmp(entry->scmp_name, nvpair_name(pair)) != 0) {
+				entry = next;
+				continue;
+			}
+
+			err = spa_recycle_one(spa, entry, dryrun, outnvl);
+			break;
+		}
+	}
+	mutex_exit(&spa->spa_chain_map_lock);
 	return (err);
 }
 
