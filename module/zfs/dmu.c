@@ -537,7 +537,8 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 	if (dn->dn_datablkshift) {
 		int blkshift = dn->dn_datablkshift;
 		nblks = (P2ROUNDUP(offset + length, 1ULL << blkshift) -
-		    P2ALIGN(offset, 1ULL << blkshift)) >> blkshift;
+		    P2ALIGN_TYPED(offset, 1ULL << blkshift, uint64_t))
+		    >> blkshift;
 	} else {
 		if (offset + length > dn->dn_datablksz) {
 			zfs_panic_recover("zfs: accessing past end of object "
@@ -854,7 +855,7 @@ get_next_chunk(dnode_t *dn, uint64_t *start, uint64_t minimum, uint64_t *l1blks)
 		}
 
 		/* set start to the beginning of this L1 indirect */
-		*start = P2ALIGN(*start, iblkrange);
+		*start = P2ALIGN_TYPED(*start, iblkrange, uint64_t);
 	}
 	if (*start < minimum)
 		*start = minimum;

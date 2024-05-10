@@ -5217,7 +5217,7 @@ dump_label(const char *dev)
 	    sizeof (cksum_record_t), offsetof(cksum_record_t, link));
 
 	psize = statbuf.st_size;
-	psize = P2ALIGN(psize, (uint64_t)sizeof (vdev_label_t));
+	psize = P2ALIGN_TYPED(psize, sizeof (vdev_label_t), uint64_t);
 	ashift = SPA_MINBLOCKSHIFT;
 
 	/*

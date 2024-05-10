@@ -2448,7 +2448,7 @@ ztest_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 		ASSERT3P(zio, !=, NULL);
 		size = doi.doi_data_block_size;
 		if (ISP2(size)) {
-			offset = P2ALIGN(offset, size);
+			offset = P2ALIGN_TYPED(offset, size, uint64_t);
 		} else {
 			ASSERT3U(offset, <, size);
 			offset = 0;
@@ -4668,7 +4668,8 @@ ztest_dmu_object_next_chunk(ztest_ds_t *zd, uint64_t id)
 	 */
 	mutex_enter(&os->os_obj_lock);
 	object = ztest_random(os->os_obj_next_chunk);
-	os->os_obj_next_chunk = P2ALIGN(object, dnodes_per_chunk);
+	os->os_obj_next_chunk = P2ALIGN_TYPED(object, dnodes_per_chunk,
+	    uint64_t);
 	mutex_exit(&os->os_obj_lock);
 }
 
@@ -6284,7 +6285,8 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 		 * the end of the disk (vdev_psize) is aligned to
 		 * sizeof (vdev_label_t).
 		 */
-		uint64_t psize = P2ALIGN(fsize, sizeof (vdev_label_t));
+		uint64_t psize = P2ALIGN_TYPED(fsize, sizeof (vdev_label_t),
+		    uint64_t);
 		if ((leaf & 1) == 1 &&
 		    offset + sizeof (bad) > psize - VDEV_LABEL_END_SIZE)
 			continue;
@@ -6600,8 +6602,8 @@ ztest_fletcher_incr(ztest_ds_t *zd, uint64_t id)
 				size_t inc = 64 * ztest_random(size / 67);
 				/* sometimes add few bytes to test non-simd */
 				if (ztest_random(100) < 10)
-					inc += P2ALIGN(ztest_random(64),
-					    sizeof (uint32_t));
+					inc += P2ALIGN_TYPED(ztest_random(64),
+					    sizeof (uint32_t), uint64_t);
 
 				if (inc > (size - pos))
 					inc = size - pos;

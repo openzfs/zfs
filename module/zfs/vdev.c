@@ -347,7 +347,8 @@ vdev_get_min_asize(vdev_t *vd)
 	 * to the nearest metaslab.
 	 */
 	if (vd == vd->vdev_top)
-		return (P2ALIGN(vd->vdev_asize, 1ULL << vd->vdev_ms_shift));
+		return (P2ALIGN_TYPED(vd->vdev_asize, 1ULL << vd->vdev_ms_shift,
+		    uint64_t));
 
 	return (pvd->vdev_ops->vdev_op_min_asize(pvd));
 }
@@ -2107,8 +2108,8 @@ vdev_open(vdev_t *vd)
 		}
 	}
 
-	osize = P2ALIGN(osize, (uint64_t)sizeof (vdev_label_t));
-	max_osize = P2ALIGN(max_osize, (uint64_t)sizeof (vdev_label_t));
+	osize = P2ALIGN_TYPED(osize, sizeof (vdev_label_t), uint64_t);
+	max_osize = P2ALIGN_TYPED(max_osize, sizeof (vdev_label_t), uint64_t);
 
 	if (vd->vdev_children == 0) {
 		if (osize < SPA_MINDEVSIZE) {
@@ -4730,9 +4731,9 @@ vdev_get_stats_ex(vdev_t *vd, vdev_stat_t *vs, vdev_stat_ex_t *vsx)
 		 * can expand.
 		 */
 		if (vd->vdev_aux == NULL && tvd != NULL) {
-			vs->vs_esize = P2ALIGN(
+			vs->vs_esize = P2ALIGN_TYPED(
 			    vd->vdev_max_asize - vd->vdev_asize,
-			    1ULL << tvd->vdev_ms_shift);
+			    1ULL << tvd->vdev_ms_shift, uint64_t);
 		}
 
 		vs->vs_configured_ashift = vd->vdev_top != NULL
