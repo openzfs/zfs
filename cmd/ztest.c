@@ -136,6 +136,7 @@
 #include <libzutil.h>
 #include <sys/crypto/icp.h>
 #include <sys/zfs_impl.h>
+#include <sys/backtrace.h>
 
 static int ztest_fd_data = -1;
 static int ztest_fd_rand = -1;
@@ -622,7 +623,7 @@ static void sig_handler(int signo)
 {
 	struct sigaction action;
 
-	libspl_dump_backtrace();
+	libspl_backtrace();
 	dump_debug_buffer();
 
 	/*

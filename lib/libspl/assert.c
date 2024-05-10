@@ -28,6 +28,7 @@
 
 #include <assert.h>
 #include <pthread.h>
+#include <sys/backtrace.h>
 
 #if defined(__linux__)
 #include <errno.h>
@@ -49,58 +50,6 @@
 #define	libspl_getprogname()	getprogname()
 #define	libspl_getthreadname(buf, len)	\
 	pthread_getname_np(pthread_self(), buf, len);
-#endif
-
-#if defined(HAVE_LIBUNWIND)
-#define	UNW_LOCAL_ONLY
-#include <libunwind.h>
-
-void
-libspl_dump_backtrace(void)
-{
-	unw_context_t uc;
-	unw_cursor_t cp;
-	unw_word_t ip, off;
-	char funcname[128];
-#ifdef HAVE_LIBUNWIND_ELF
-	char objname[128];
-	unw_word_t objoff;
-#endif
-
-	fprintf(stderr, "Call trace:\n");
-	unw_getcontext(&uc);
-	unw_init_local(&cp, &uc);
-	while (unw_step(&cp) > 0) {
-		unw_get_reg(&cp, UNW_REG_IP, &ip);
-		unw_get_proc_name(&cp, funcname, sizeof (funcname), &off);
-#ifdef HAVE_LIBUNWIND_ELF
-		unw_get_elf_filename(&cp, objname, sizeof (objname), &objoff);
-		fprintf(stderr, "  [0x%08lx] %s+0x%2lx (in %s +0x%2lx)\n",
-		    ip, funcname, off, objname, objoff);
-#else
-		fprintf(stderr, "  [0x%08lx] %s+0x%2lx\n", ip, funcname, off);
-#endif
-	}
-}
-#elif defined(HAVE_BACKTRACE)
-#include <execinfo.h>
-
-void
-libspl_dump_backtrace(void)
-{
-	void *btptrs[100];
-	size_t nptrs = backtrace(btptrs, 100);
-	char **bt = backtrace_symbols(btptrs, nptrs);
-	fprintf(stderr, "Call trace:\n");
-	for (size_t i = 0; i < nptrs; i++)
-		fprintf(stderr, "  %s\n", bt[i]);
-	free(bt);
-}
-#else
-void
-libspl_dump_backtrace(void)
-{
-}
 #endif
 
 #if defined(__APPLE__)
@@ -154,7 +103,7 @@ libspl_assertf(const char *file, const char *func, int line,
 	    getpid(), libspl_getprogname(),
 	    libspl_gettid(), tname);
 
-	libspl_dump_backtrace();
+	libspl_backtrace();
 
 #if !__has_feature(attribute_analyzer_noreturn) && !defined(__COVERITY__)
 	if (libspl_assert_ok) {
