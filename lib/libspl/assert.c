@@ -103,7 +103,7 @@ libspl_assertf(const char *file, const char *func, int line,
 	    getpid(), libspl_getprogname(),
 	    libspl_gettid(), tname);
 
-	libspl_backtrace();
+	libspl_backtrace(STDERR_FILENO);
 
 #if !__has_feature(attribute_analyzer_noreturn) && !defined(__COVERITY__)
 	if (libspl_assert_ok) {

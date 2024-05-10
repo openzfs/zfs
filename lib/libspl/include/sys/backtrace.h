@@ -27,6 +27,6 @@
 #ifndef _LIBSPL_SYS_BACKTRACE_H
 #define	_LIBSPL_SYS_BACKTRACE_H
 
-void libspl_backtrace(void);
+void libspl_backtrace(int fd);
 
 #endif
