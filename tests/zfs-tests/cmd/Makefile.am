@@ -5,7 +5,6 @@ scripts_zfs_tests_bin_PROGRAMS  = %D%/chg_usr_exec
 scripts_zfs_tests_bin_PROGRAMS += %D%/clonefile
 scripts_zfs_tests_bin_PROGRAMS += %D%/clone_mmap_cached
 scripts_zfs_tests_bin_PROGRAMS += %D%/clone_mmap_write
-scripts_zfs_tests_bin_PROGRAMS += %D%/cp_files
 scripts_zfs_tests_bin_PROGRAMS += %D%/ctime
 scripts_zfs_tests_bin_PROGRAMS += %D%/dir_rd_update
 scripts_zfs_tests_bin_PROGRAMS += %D%/dosmode_readonly_write
@@ -14,6 +13,11 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/rename_dir
 scripts_zfs_tests_bin_PROGRAMS += %D%/suid_write_to_file
 scripts_zfs_tests_bin_PROGRAMS += %D%/truncate_test
 scripts_zfs_tests_bin_PROGRAMS += %D%/zfs_diff-socket
+
+
+if WANT_UNISTD_SEEK_DATA
+scripts_zfs_tests_bin_PROGRAMS += %D%/cp_files
+endif
 
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/badsend

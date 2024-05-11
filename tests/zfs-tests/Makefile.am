@@ -16,8 +16,10 @@ scripts_zfs_tests_functional_hkdf_PROGRAMS = %D%/tests/functional/hkdf/hkdf_test
 scripts_zfs_tests_functional_vdev_diskdir = $(datadir)/$(PACKAGE)/zfs-tests/tests/functional/vdev_disk
 scripts_zfs_tests_functional_vdev_disk_PROGRAMS = %D%/tests/functional/vdev_disk/page_alignment
 
+if WANT_UNISTD_SEEK_DATA
 scripts_zfs_tests_functional_cp_filesdir = $(datadir)/$(PACKAGE)/zfs-tests/tests/functional/cp_files
 scripts_zfs_tests_functional_cp_files_PROGRAMS = %D%/tests/functional/cp_files/seekflood
+endif
 
 if BUILD_LINUX
 scripts_zfs_tests_functional_tmpfiledir = $(datadir)/$(PACKAGE)/zfs-tests/tests/functional/tmpfile
