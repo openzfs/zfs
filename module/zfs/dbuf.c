@@ -292,8 +292,8 @@ dbuf_cons(void *vdb, void *unused, int kmflag)
 	dmu_buf_impl_t *db = vdb;
 	memset(db, 0, sizeof (dmu_buf_impl_t));
 
-	mutex_init(&db->db_mtx, NULL, MUTEX_DEFAULT, NULL);
-	rw_init(&db->db_rwlock, NULL, RW_DEFAULT, NULL);
+	mutex_init(&db->db_mtx, NULL, MUTEX_NOLOCKDEP, NULL);
+	rw_init(&db->db_rwlock, NULL, RW_NOLOCKDEP, NULL);
 	cv_init(&db->db_changed, NULL, CV_DEFAULT, NULL);
 	multilist_link_init(&db->db_cache_link);
 	zfs_refcount_create(&db->db_holds);
@@ -958,7 +958,7 @@ dbuf_init(void)
 	    0, dbuf_cons, dbuf_dest, NULL, NULL, NULL, 0);
 
 	for (int i = 0; i < hmsize; i++)
-		mutex_init(&h->hash_mutexes[i], NULL, MUTEX_DEFAULT, NULL);
+		mutex_init(&h->hash_mutexes[i], NULL, MUTEX_NOLOCKDEP, NULL);
 
 	dbuf_stats_init(h);
 
