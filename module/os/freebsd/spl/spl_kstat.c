@@ -420,7 +420,26 @@ kstat_install_named(kstat_t *ksp)
 		if (ksent->data_type != 0) {
 			typelast = ksent->data_type;
 			namelast = ksent->name;
+
+			/*
+			 * If a sysctl with this name already exists on this on
+			 * this root, first remove it by deleting it from its
+			 * old context, and then destroying it.
+			 */
+			struct sysctl_oid *oid = NULL;
+			SYSCTL_FOREACH(oid,
+			    SYSCTL_CHILDREN(ksp->ks_sysctl_root)) {
+				if (strcmp(oid->oid_name, namelast) == 0) {
+					kstat_t *oldksp =
+					    (kstat_t *)oid->oid_arg1;
+					sysctl_ctx_entry_del(
+					    &oldksp->ks_sysctl_ctx, oid);
+					sysctl_remove_oid(oid, 1, 0);
+					break;
+				}
+			}
 		}
+
 		switch (typelast) {
 		case KSTAT_DATA_CHAR:
 			/* Not Implemented */
