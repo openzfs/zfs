@@ -667,12 +667,20 @@ kstat_proc_entry_install(kstat_proc_entry_t *kpep, mode_t mode,
 	}
 
 	/*
-	 * Only one entry by this name per-module, on failure the module
-	 * shouldn't be deleted because we know it has at least one entry.
+	 * We can only have one entry of this name per module. If one already
+	 * exists, replace it by first removing the proc entry, then removing
+	 * it from the list. The kstat itself lives on; it just can't be
+	 * inspected through the filesystem.
 	 */
 	list_for_each_entry(tmp, &module->ksm_kstat_list, kpe_list) {
-		if (strncmp(tmp->kpe_name, kpep->kpe_name, KSTAT_STRLEN) == 0)
-			goto out;
+		if (tmp->kpe_proc != NULL &&
+		    strncmp(tmp->kpe_name, kpep->kpe_name, KSTAT_STRLEN) == 0) {
+			ASSERT3P(tmp->kpe_owner, ==, module);
+			remove_proc_entry(tmp->kpe_name, module->ksm_proc);
+			tmp->kpe_proc = NULL;
+			list_del_init(&tmp->kpe_list);
+			break;
+		}
 	}
 
 	list_add_tail(&kpep->kpe_list, &module->ksm_kstat_list);
