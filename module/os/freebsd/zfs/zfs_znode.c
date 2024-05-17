@@ -1234,7 +1234,6 @@ zfs_znode_delete(znode_t *zp, dmu_tx_t *tx)
 	VERIFY0(dmu_object_free(os, obj, tx));
 	zfs_znode_dmu_fini(zp);
 	ZFS_OBJ_HOLD_EXIT(zfsvfs, obj);
-	zfs_znode_free(zp);
 }
 
 void

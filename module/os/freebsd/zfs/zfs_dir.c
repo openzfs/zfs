@@ -543,6 +543,7 @@ zfs_rmnode(znode_t *zp)
 	dataset_kstats_update_nunlinked_kstat(&zfsvfs->z_kstat, 1);
 
 	zfs_znode_delete(zp, tx);
+	zfs_znode_free(zp);
 
 	dmu_tx_commit(tx);
 

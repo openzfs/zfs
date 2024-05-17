@@ -182,7 +182,6 @@ if sys.platform.startswith('freebsd'):
         'cli_root/zfs_unshare/zfs_unshare_008_pos': ['SKIP', na_reason],
         'cp_files/cp_files_002_pos': ['SKIP', na_reason],
         'link_count/link_count_001': ['SKIP', na_reason],
-        'casenorm/mixed_create_failure': ['FAIL', 13215],
         'mmap/mmap_sync_001_pos': ['SKIP', na_reason],
         'rsend/send_raw_ashift': ['SKIP', 14961],
     })

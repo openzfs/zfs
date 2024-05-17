@@ -1169,10 +1169,25 @@ zfs_create(znode_t *dzp, const char *name, vattr_t *vap, int excl, int mode,
 		return (error);
 	}
 	zfs_mknode(dzp, vap, tx, cr, 0, &zp, &acl_ids);
+
+	error = zfs_link_create(dzp, name, zp, tx, ZNEW);
+	if (error != 0) {
+		/*
+		 * Since, we failed to add the directory entry for it,
+		 * delete the newly created dnode.
+		 */
+		zfs_znode_delete(zp, tx);
+		VOP_UNLOCK1(ZTOV(zp));
+		zrele(zp);
+		zfs_acl_ids_free(&acl_ids);
+		dmu_tx_commit(tx);
+		getnewvnode_drop_reserve();
+		goto out;
+	}
+
 	if (fuid_dirtied)
 		zfs_fuid_sync(zfsvfs, tx);
 
-	(void) zfs_link_create(dzp, name, zp, tx, ZNEW);
 	txtype = zfs_log_create_txtype(Z_FILE, vsecp, vap);
 	zfs_log_create(zilog, tx, txtype, dzp, zp, name,
 	    vsecp, acl_ids.z_fuidp, vap);
@@ -1520,13 +1535,19 @@ zfs_mkdir(znode_t *dzp, const char *dirname, vattr_t *vap, znode_t **zpp,
 	 */
 	zfs_mknode(dzp, vap, tx, cr, 0, &zp, &acl_ids);
 
-	if (fuid_dirtied)
-		zfs_fuid_sync(zfsvfs, tx);
-
 	/*
 	 * Now put new name in parent dir.
 	 */
-	(void) zfs_link_create(dzp, dirname, zp, tx, ZNEW);
+	error = zfs_link_create(dzp, dirname, zp, tx, ZNEW);
+	if (error != 0) {
+		zfs_znode_delete(zp, tx);
+		VOP_UNLOCK1(ZTOV(zp));
+		zrele(zp);
+		goto out;
+	}
+
+	if (fuid_dirtied)
+		zfs_fuid_sync(zfsvfs, tx);
 
 	*zpp = zp;
 
@@ -1534,6 +1555,7 @@ zfs_mkdir(znode_t *dzp, const char *dirname, vattr_t *vap, znode_t **zpp,
 	zfs_log_create(zilog, tx, txtype, dzp, zp, dirname, NULL,
 	    acl_ids.z_fuidp, vap);
 
+out:
 	zfs_acl_ids_free(&acl_ids);
 
 	dmu_tx_commit(tx);
@@ -1544,7 +1566,7 @@ zfs_mkdir(znode_t *dzp, const char *dirname, vattr_t *vap, znode_t **zpp,
 		zil_commit(zilog, 0);
 
 	zfs_exit(zfsvfs, FTAG);
-	return (0);
+	return (error);
 }
 
 #if	__FreeBSD_version < 1300124
@@ -3578,10 +3600,14 @@ zfs_symlink(znode_t *dzp, const char *name, vattr_t *vap,
 	/*
 	 * Insert the new object into the directory.
 	 */
-	(void) zfs_link_create(dzp, name, zp, tx, ZNEW);
-
-	zfs_log_symlink(zilog, tx, txtype, dzp, zp, name, link);
-	*zpp = zp;
+	error = zfs_link_create(dzp, name, zp, tx, ZNEW);
+	if (error != 0) {
+		zfs_znode_delete(zp, tx);
+		VOP_UNLOCK1(ZTOV(zp));
+		zrele(zp);
+	} else {
+		zfs_log_symlink(zilog, tx, txtype, dzp, zp, name, link);
+	}
 
 	zfs_acl_ids_free(&acl_ids);
 
@@ -3589,8 +3615,12 @@ zfs_symlink(znode_t *dzp, const char *name, vattr_t *vap,
 
 	getnewvnode_drop_reserve();
 
-	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
-		zil_commit(zilog, 0);
+	if (error == 0) {
+		*zpp = zp;
+
+		if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
+			zil_commit(zilog, 0);
+	}
 
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
