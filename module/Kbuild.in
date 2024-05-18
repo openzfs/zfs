@@ -101,10 +101,7 @@ ICP_OBJS := \
 	algs/blake3/blake3_generic.o \
 	algs/blake3/blake3_impl.o \
 	algs/edonr/edonr.o \
-	algs/modes/cbc.o \
 	algs/modes/ccm.o \
-	algs/modes/ctr.o \
-	algs/modes/ecb.o \
 	algs/modes/gcm.o \
 	algs/modes/gcm_generic.o \
 	algs/modes/modes.o \
