@@ -222,8 +222,7 @@ kcf_add_mech_provider(short mech_indx,
 
 		if (fg & CRYPTO_FG_DIGEST || fg & CRYPTO_FG_DIGEST_ATOMIC)
 			class = KCF_DIGEST_CLASS;
-		else if (fg & CRYPTO_FG_ENCRYPT || fg & CRYPTO_FG_DECRYPT ||
-		    fg & CRYPTO_FG_ENCRYPT_ATOMIC ||
+		else if (fg & CRYPTO_FG_ENCRYPT_ATOMIC ||
 		    fg & CRYPTO_FG_DECRYPT_ATOMIC)
 			class = KCF_CIPHER_CLASS;
 		else if (fg & CRYPTO_FG_MAC || fg & CRYPTO_FG_MAC_ATOMIC)
