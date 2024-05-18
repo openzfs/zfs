@@ -269,34 +269,6 @@ typedef struct aes_ctx {
 #define	ac_processed_data_len	acu.acu_ccm.ccm_processed_data_len
 #define	ac_tag_len		acu.acu_gcm.gcm_tag_len
 
-typedef struct blowfish_ctx {
-	union {
-		ecb_ctx_t bcu_ecb;
-		cbc_ctx_t bcu_cbc;
-	} bcu;
-} blowfish_ctx_t;
-
-#define	bc_flags		bcu.bcu_ecb.ecb_common.cc_flags
-#define	bc_remainder_len	bcu.bcu_ecb.ecb_common.cc_remainder_len
-#define	bc_keysched		bcu.bcu_ecb.ecb_common.cc_keysched
-#define	bc_keysched_len		bcu.bcu_ecb.ecb_common.cc_keysched_len
-#define	bc_iv			bcu.bcu_ecb.ecb_common.cc_iv
-#define	bc_lastp		bcu.bcu_ecb.ecb_common.cc_lastp
-
-typedef struct des_ctx {
-	union {
-		ecb_ctx_t dcu_ecb;
-		cbc_ctx_t dcu_cbc;
-	} dcu;
-} des_ctx_t;
-
-#define	dc_flags		dcu.dcu_ecb.ecb_common.cc_flags
-#define	dc_remainder_len	dcu.dcu_ecb.ecb_common.cc_remainder_len
-#define	dc_keysched		dcu.dcu_ecb.ecb_common.cc_keysched
-#define	dc_keysched_len		dcu.dcu_ecb.ecb_common.cc_keysched_len
-#define	dc_iv			dcu.dcu_ecb.ecb_common.cc_iv
-#define	dc_lastp		dcu.dcu_ecb.ecb_common.cc_lastp
-
 extern int ecb_cipher_contiguous_blocks(ecb_ctx_t *, char *, size_t,
     crypto_data_t *, size_t, int (*cipher)(const void *, const uint8_t *,
     uint8_t *));
