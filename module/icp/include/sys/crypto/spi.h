@@ -89,27 +89,8 @@ typedef struct crypto_digest_ops {
  * with the kernel using crypto_register_provider(9F).
  */
 typedef struct crypto_cipher_ops {
-	int (*encrypt_init)(crypto_ctx_t *,
-	    crypto_mechanism_t *, crypto_key_t *,
-	    crypto_spi_ctx_template_t);
-	int (*encrypt)(crypto_ctx_t *,
-	    crypto_data_t *, crypto_data_t *);
-	int (*encrypt_update)(crypto_ctx_t *,
-	    crypto_data_t *, crypto_data_t *);
-	int (*encrypt_final)(crypto_ctx_t *,
-	    crypto_data_t *);
 	int (*encrypt_atomic)(crypto_mechanism_t *, crypto_key_t *,
 	    crypto_data_t *, crypto_data_t *, crypto_spi_ctx_template_t);
-
-	int (*decrypt_init)(crypto_ctx_t *,
-	    crypto_mechanism_t *, crypto_key_t *,
-	    crypto_spi_ctx_template_t);
-	int (*decrypt)(crypto_ctx_t *,
-	    crypto_data_t *, crypto_data_t *);
-	int (*decrypt_update)(crypto_ctx_t *,
-	    crypto_data_t *, crypto_data_t *);
-	int (*decrypt_final)(crypto_ctx_t *,
-	    crypto_data_t *);
 	int (*decrypt_atomic)(crypto_mechanism_t *, crypto_key_t *,
 	    crypto_data_t *, crypto_data_t *, crypto_spi_ctx_template_t);
 } __no_const crypto_cipher_ops_t;
@@ -172,8 +153,6 @@ typedef struct crypto_ops {
 typedef uint32_t crypto_func_group_t;
 
 
-#define	CRYPTO_FG_ENCRYPT		0x00000001 /* encrypt_init() */
-#define	CRYPTO_FG_DECRYPT		0x00000002 /* decrypt_init() */
 #define	CRYPTO_FG_DIGEST		0x00000004 /* digest_init() */
 #define	CRYPTO_FG_MAC			0x00001000 /* mac_init() */
 #define	CRYPTO_FG_ENCRYPT_ATOMIC	0x00008000 /* encrypt_atomic() */
