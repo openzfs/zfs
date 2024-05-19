@@ -72,31 +72,6 @@ static const uint8_t	sha256_test_digests[][32] = {
 	/* no test vector for test_msg2 */
 };
 
-static const uint8_t	sha384_test_digests[][48] = {
-	{
-		/* for test_msg0 */
-		0xCB, 0x00, 0x75, 0x3F, 0x45, 0xA3, 0x5E, 0x8B,
-		0xB5, 0xA0, 0x3D, 0x69, 0x9A, 0xC6, 0x50, 0x07,
-		0x27, 0x2C, 0x32, 0xAB, 0x0E, 0xDE, 0xD1, 0x63,
-		0x1A, 0x8B, 0x60, 0x5A, 0x43, 0xFF, 0x5B, 0xED,
-		0x80, 0x86, 0x07, 0x2B, 0xA1, 0xE7, 0xCC, 0x23,
-		0x58, 0xBA, 0xEC, 0xA1, 0x34, 0xC8, 0x25, 0xA7
-	},
-	{
-		/* no test vector for test_msg1 */
-		0
-	},
-	{
-		/* for test_msg2 */
-		0x09, 0x33, 0x0C, 0x33, 0xF7, 0x11, 0x47, 0xE8,
-		0x3D, 0x19, 0x2F, 0xC7, 0x82, 0xCD, 0x1B, 0x47,
-		0x53, 0x11, 0x1B, 0x17, 0x3B, 0x3B, 0x05, 0xD2,
-		0x2F, 0xA0, 0x80, 0x86, 0xE3, 0xB0, 0xF7, 0x12,
-		0xFC, 0xC7, 0xC7, 0x1A, 0x55, 0x7E, 0x2D, 0xB9,
-		0x66, 0xC3, 0xE9, 0xFA, 0x91, 0x74, 0x60, 0x39
-	}
-};
-
 static const uint8_t	sha512_test_digests[][64] = {
 	{
 		/* for test_msg0 */
@@ -123,27 +98,6 @@ static const uint8_t	sha512_test_digests[][64] = {
 		0x33, 0x1B, 0x99, 0xDE, 0xC4, 0xB5, 0x43, 0x3A,
 		0xC7, 0xD3, 0x29, 0xEE, 0xB6, 0xDD, 0x26, 0x54,
 		0x5E, 0x96, 0xE5, 0x5B, 0x87, 0x4B, 0xE9, 0x09
-	}
-};
-
-static const uint8_t	sha512_224_test_digests[][28] = {
-	{
-		/* for test_msg0 */
-		0x46, 0x34, 0x27, 0x0F, 0x70, 0x7B, 0x6A, 0x54,
-		0xDA, 0xAE, 0x75, 0x30, 0x46, 0x08, 0x42, 0xE2,
-		0x0E, 0x37, 0xED, 0x26, 0x5C, 0xEE, 0xE9, 0xA4,
-		0x3E, 0x89, 0x24, 0xAA
-	},
-	{
-		/* no test vector for test_msg1 */
-		0
-	},
-	{
-		/* for test_msg2 */
-		0x23, 0xFE, 0xC5, 0xBB, 0x94, 0xD6, 0x0B, 0x23,
-		0x30, 0x81, 0x92, 0x64, 0x0B, 0x0C, 0x45, 0x33,
-		0x35, 0xD6, 0x64, 0x73, 0x4F, 0xE4, 0x0E, 0x72,
-		0x68, 0x67, 0x4A, 0xF9
 	}
 };
 
@@ -191,7 +145,7 @@ main(int argc, char *argv[])
 	do {								\
 		SHA2_CTX		ctx;				\
 		uint8_t			digest[diglen / 8];		\
-		SHA2Init(SHA ## mode ## _MECH_INFO_TYPE, &ctx);		\
+		SHA2Init(mode, &ctx);					\
 		SHA2Update(&ctx, _m, strlen(_m));			\
 		SHA2Final(digest, &ctx);				\
 		(void) printf("SHA%-9sMessage: " #_m			\
@@ -215,7 +169,7 @@ main(int argc, char *argv[])
 		struct timeval	start, end;				\
 		memset(block, 0, sizeof (block));			\
 		(void) gettimeofday(&start, NULL);			\
-		SHA2Init(SHA ## mode ## _MECH_INFO_TYPE, &ctx);		\
+		SHA2Init(mode, &ctx);					\
 		for (i = 0; i < 8192; i++)				\
 			SHA2Update(&ctx, block, sizeof (block));	\
 		SHA2Final(digest, &ctx);				\
@@ -231,16 +185,12 @@ main(int argc, char *argv[])
 	} while (0)
 
 	(void) printf("Running algorithm correctness tests:\n");
-	SHA2_ALGO_TEST(test_msg0, 256, 256, sha256_test_digests[0]);
-	SHA2_ALGO_TEST(test_msg1, 256, 256, sha256_test_digests[1]);
-	SHA2_ALGO_TEST(test_msg0, 384, 384, sha384_test_digests[0]);
-	SHA2_ALGO_TEST(test_msg2, 384, 384, sha384_test_digests[2]);
-	SHA2_ALGO_TEST(test_msg0, 512, 512, sha512_test_digests[0]);
-	SHA2_ALGO_TEST(test_msg2, 512, 512, sha512_test_digests[2]);
-	SHA2_ALGO_TEST(test_msg0, 512_224, 224, sha512_224_test_digests[0]);
-	SHA2_ALGO_TEST(test_msg2, 512_224, 224, sha512_224_test_digests[2]);
-	SHA2_ALGO_TEST(test_msg0, 512_256, 256, sha512_256_test_digests[0]);
-	SHA2_ALGO_TEST(test_msg2, 512_256, 256, sha512_256_test_digests[2]);
+	SHA2_ALGO_TEST(test_msg0, SHA256, 256, sha256_test_digests[0]);
+	SHA2_ALGO_TEST(test_msg1, SHA256, 256, sha256_test_digests[1]);
+	SHA2_ALGO_TEST(test_msg0, SHA512, 512, sha512_test_digests[0]);
+	SHA2_ALGO_TEST(test_msg2, SHA512, 512, sha512_test_digests[2]);
+	SHA2_ALGO_TEST(test_msg0, SHA512_256, 256, sha512_256_test_digests[0]);
+	SHA2_ALGO_TEST(test_msg2, SHA512_256, 256, sha512_256_test_digests[2]);
 
 	if (failed)
 		return (1);
@@ -251,13 +201,13 @@ main(int argc, char *argv[])
 	for (id = 0; id < sha256->getcnt(); id++) {
 		sha256->setid(id);
 		const char *name = sha256->getname();
-		SHA2_PERF_TEST(256, 256, name);
+		SHA2_PERF_TEST(SHA256, 256, name);
 	}
 
 	for (id = 0; id < sha512->getcnt(); id++) {
 		sha512->setid(id);
 		const char *name = sha512->getname();
-		SHA2_PERF_TEST(512, 512, name);
+		SHA2_PERF_TEST(SHA512, 512, name);
 	}
 
 	return (0);
