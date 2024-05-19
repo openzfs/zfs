@@ -31,34 +31,16 @@
 #include <sys/skein.h>
 
 static const crypto_mech_info_t skein_mech_info_tab[] = {
-	{CKM_SKEIN_256, SKEIN_256_MECH_INFO_TYPE,
-	    CRYPTO_FG_DIGEST | CRYPTO_FG_DIGEST_ATOMIC},
 	{CKM_SKEIN_256_MAC, SKEIN_256_MAC_MECH_INFO_TYPE,
 	    CRYPTO_FG_MAC | CRYPTO_FG_MAC_ATOMIC},
-	{CKM_SKEIN_512, SKEIN_512_MECH_INFO_TYPE,
-	    CRYPTO_FG_DIGEST | CRYPTO_FG_DIGEST_ATOMIC},
 	{CKM_SKEIN_512_MAC, SKEIN_512_MAC_MECH_INFO_TYPE,
 	    CRYPTO_FG_MAC | CRYPTO_FG_MAC_ATOMIC},
-	{CKM_SKEIN1024, SKEIN1024_MECH_INFO_TYPE,
-	    CRYPTO_FG_DIGEST | CRYPTO_FG_DIGEST_ATOMIC},
 	{CKM_SKEIN1024_MAC, SKEIN1024_MAC_MECH_INFO_TYPE,
 	    CRYPTO_FG_MAC | CRYPTO_FG_MAC_ATOMIC},
 };
 
-static int skein_digest_init(crypto_ctx_t *, crypto_mechanism_t *);
-static int skein_digest(crypto_ctx_t *, crypto_data_t *, crypto_data_t *);
 static int skein_update(crypto_ctx_t *, crypto_data_t *);
 static int skein_final(crypto_ctx_t *, crypto_data_t *);
-static int skein_digest_atomic(crypto_mechanism_t *, crypto_data_t *,
-    crypto_data_t *);
-
-static const crypto_digest_ops_t skein_digest_ops = {
-	.digest_init = skein_digest_init,
-	.digest = skein_digest,
-	.digest_update = skein_update,
-	.digest_final = skein_final,
-	.digest_atomic = skein_digest_atomic
-};
 
 static int skein_mac_init(crypto_ctx_t *, crypto_mechanism_t *, crypto_key_t *,
     crypto_spi_ctx_template_t);
@@ -84,7 +66,6 @@ static const crypto_ctx_ops_t skein_ctx_ops = {
 };
 
 static const crypto_ops_t skein_crypto_ops = {
-	&skein_digest_ops,
 	NULL,
 	&skein_mac_ops,
 	&skein_ctx_ops,
@@ -115,15 +96,12 @@ typedef struct skein_ctx {
 	do {								\
 		skein_ctx_t	*sc = (_skein_ctx);			\
 		switch (sc->sc_mech_type) {				\
-		case SKEIN_256_MECH_INFO_TYPE:				\
 		case SKEIN_256_MAC_MECH_INFO_TYPE:			\
 			(void) Skein_256_ ## _op(&sc->sc_256, __VA_ARGS__);\
 			break;						\
-		case SKEIN_512_MECH_INFO_TYPE:				\
 		case SKEIN_512_MAC_MECH_INFO_TYPE:			\
 			(void) Skein_512_ ## _op(&sc->sc_512, __VA_ARGS__);\
 			break;						\
-		case SKEIN1024_MECH_INFO_TYPE:				\
 		case SKEIN1024_MAC_MECH_INFO_TYPE:			\
 			(void) Skein1024_ ## _op(&sc->sc_1024, __VA_ARGS__);\
 			break;						\
@@ -143,19 +121,7 @@ skein_get_digest_bitlen(const crypto_mechanism_t *mechanism, size_t *result)
 		}
 		*result = param->sp_digest_bitlen;
 	} else {
-		switch (mechanism->cm_type) {
-		case SKEIN_256_MECH_INFO_TYPE:
-			*result = 256;
-			break;
-		case SKEIN_512_MECH_INFO_TYPE:
-			*result = 512;
-			break;
-		case SKEIN1024_MECH_INFO_TYPE:
-			*result = 1024;
-			break;
-		default:
-			return (CRYPTO_MECHANISM_INVALID);
-		}
+		return (CRYPTO_MECHANISM_INVALID);
 	}
 	return (CRYPTO_SUCCESS);
 }
@@ -321,73 +287,6 @@ skein_digest_final_uio(skein_ctx_t *ctx, crypto_data_t *digest)
  */
 
 /*
- * Initializes a skein digest context to the configuration in `mechanism'.
- * The mechanism cm_type must be one of SKEIN_*_MECH_INFO_TYPE. The cm_param
- * field may contain a skein_param_t structure indicating the length of the
- * digest the algorithm should produce. Otherwise the default output lengths
- * are applied (32 bytes for Skein-256, 64 bytes for Skein-512 and 128 bytes
- * for Skein-1024).
- */
-static int
-skein_digest_init(crypto_ctx_t *ctx, crypto_mechanism_t *mechanism)
-{
-	int	error = CRYPTO_SUCCESS;
-
-	if (!VALID_SKEIN_DIGEST_MECH(mechanism->cm_type))
-		return (CRYPTO_MECHANISM_INVALID);
-
-	SKEIN_CTX_LVALUE(ctx) = kmem_alloc(sizeof (*SKEIN_CTX(ctx)), KM_SLEEP);
-	if (SKEIN_CTX(ctx) == NULL)
-		return (CRYPTO_HOST_MEMORY);
-
-	SKEIN_CTX(ctx)->sc_mech_type = mechanism->cm_type;
-	error = skein_get_digest_bitlen(mechanism,
-	    &SKEIN_CTX(ctx)->sc_digest_bitlen);
-	if (error != CRYPTO_SUCCESS)
-		goto errout;
-	SKEIN_OP(SKEIN_CTX(ctx), Init, SKEIN_CTX(ctx)->sc_digest_bitlen);
-
-	return (CRYPTO_SUCCESS);
-errout:
-	memset(SKEIN_CTX(ctx), 0, sizeof (*SKEIN_CTX(ctx)));
-	kmem_free(SKEIN_CTX(ctx), sizeof (*SKEIN_CTX(ctx)));
-	SKEIN_CTX_LVALUE(ctx) = NULL;
-	return (error);
-}
-
-/*
- * Executes a skein_update and skein_digest on a pre-initialized crypto
- * context in a single step. See the documentation to these functions to
- * see what to pass here.
- */
-static int
-skein_digest(crypto_ctx_t *ctx, crypto_data_t *data, crypto_data_t *digest)
-{
-	int error = CRYPTO_SUCCESS;
-
-	ASSERT(SKEIN_CTX(ctx) != NULL);
-
-	if (digest->cd_length <
-	    CRYPTO_BITS2BYTES(SKEIN_CTX(ctx)->sc_digest_bitlen)) {
-		digest->cd_length =
-		    CRYPTO_BITS2BYTES(SKEIN_CTX(ctx)->sc_digest_bitlen);
-		return (CRYPTO_BUFFER_TOO_SMALL);
-	}
-
-	error = skein_update(ctx, data);
-	if (error != CRYPTO_SUCCESS) {
-		memset(SKEIN_CTX(ctx), 0, sizeof (*SKEIN_CTX(ctx)));
-		kmem_free(SKEIN_CTX(ctx), sizeof (*SKEIN_CTX(ctx)));
-		SKEIN_CTX_LVALUE(ctx) = NULL;
-		digest->cd_length = 0;
-		return (error);
-	}
-	error = skein_final(ctx, digest);
-
-	return (error);
-}
-
-/*
  * Performs a skein Update with the input message in `data' (successive calls
  * can push more data). This is used both for digest and MAC operation.
  * Supported input data formats are raw, uio and mblk.
@@ -466,46 +365,6 @@ skein_final(crypto_ctx_t *ctx, crypto_data_t *digest)
 	memset(SKEIN_CTX(ctx), 0, sizeof (*SKEIN_CTX(ctx)));
 	kmem_free(SKEIN_CTX(ctx), sizeof (*(SKEIN_CTX(ctx))));
 	SKEIN_CTX_LVALUE(ctx) = NULL;
-
-	return (error);
-}
-
-/*
- * Performs a full skein digest computation in a single call, configuring the
- * algorithm according to `mechanism', reading the input to be digested from
- * `data' and writing the output to `digest'.
- * Supported input/output formats are raw, uio and mblk.
- */
-static int
-skein_digest_atomic(crypto_mechanism_t *mechanism, crypto_data_t *data,
-    crypto_data_t *digest)
-{
-	int	 error;
-	skein_ctx_t skein_ctx;
-	crypto_ctx_t ctx;
-	SKEIN_CTX_LVALUE(&ctx) = &skein_ctx;
-
-	/* Init */
-	if (!VALID_SKEIN_DIGEST_MECH(mechanism->cm_type))
-		return (CRYPTO_MECHANISM_INVALID);
-	skein_ctx.sc_mech_type = mechanism->cm_type;
-	error = skein_get_digest_bitlen(mechanism, &skein_ctx.sc_digest_bitlen);
-	if (error != CRYPTO_SUCCESS)
-		goto out;
-	SKEIN_OP(&skein_ctx, Init, skein_ctx.sc_digest_bitlen);
-
-	if ((error = skein_update(&ctx, data)) != CRYPTO_SUCCESS)
-		goto out;
-	if ((error = skein_final_nofree(&ctx, data)) != CRYPTO_SUCCESS)
-		goto out;
-
-out:
-	if (error == CRYPTO_SUCCESS)
-		digest->cd_length =
-		    CRYPTO_BITS2BYTES(skein_ctx.sc_digest_bitlen);
-	else
-		digest->cd_length = 0;
-	memset(&skein_ctx, 0, sizeof (skein_ctx));
 
 	return (error);
 }
