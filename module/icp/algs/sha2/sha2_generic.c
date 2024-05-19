@@ -400,15 +400,13 @@ SHA2Init(int algotype, SHA2_CTX *ctx)
 	sha256_ctx *ctx256 = &ctx->sha256;
 	sha512_ctx *ctx512 = &ctx->sha512;
 
-	ASSERT3S(algotype, >=, SHA256_HMAC_MECH_INFO_TYPE);
+	ASSERT3S(algotype, >=, SHA512_HMAC_MECH_INFO_TYPE);
 	ASSERT3S(algotype, <=, SHA512_256);
 
 	memset(ctx, 0, sizeof (*ctx));
 	ctx->algotype = algotype;
 	switch (ctx->algotype) {
 		case SHA256:
-		case SHA256_HMAC_MECH_INFO_TYPE:
-		case SHA256_HMAC_GEN_MECH_INFO_TYPE:
 			ctx256->state[0] = 0x6a09e667;
 			ctx256->state[1] = 0xbb67ae85;
 			ctx256->state[2] = 0x3c6ef372;
@@ -420,23 +418,8 @@ SHA2Init(int algotype, SHA2_CTX *ctx)
 			ctx256->count[0] = 0;
 			ctx256->ops = sha256_get_ops();
 			break;
-		case SHA384_HMAC_MECH_INFO_TYPE:
-		case SHA384_HMAC_GEN_MECH_INFO_TYPE:
-			ctx512->state[0] = 0xcbbb9d5dc1059ed8ULL;
-			ctx512->state[1] = 0x629a292a367cd507ULL;
-			ctx512->state[2] = 0x9159015a3070dd17ULL;
-			ctx512->state[3] = 0x152fecd8f70e5939ULL;
-			ctx512->state[4] = 0x67332667ffc00b31ULL;
-			ctx512->state[5] = 0x8eb44a8768581511ULL;
-			ctx512->state[6] = 0xdb0c2e0d64f98fa7ULL;
-			ctx512->state[7] = 0x47b5481dbefa4fa4ULL;
-			ctx512->count[0] = 0;
-			ctx512->count[1] = 0;
-			ctx512->ops = sha512_get_ops();
-			break;
 		case SHA512:
 		case SHA512_HMAC_MECH_INFO_TYPE:
-		case SHA512_HMAC_GEN_MECH_INFO_TYPE:
 			ctx512->state[0] = 0x6a09e667f3bcc908ULL;
 			ctx512->state[1] = 0xbb67ae8584caa73bULL;
 			ctx512->state[2] = 0x3c6ef372fe94f82bULL;
@@ -477,17 +460,10 @@ SHA2Update(SHA2_CTX *ctx, const void *data, size_t len)
 
 	switch (ctx->algotype) {
 		case SHA256:
-		case SHA256_HMAC_MECH_INFO_TYPE:
-		case SHA256_HMAC_GEN_MECH_INFO_TYPE:
 			sha256_update(&ctx->sha256, data, len);
-			break;
-		case SHA384_HMAC_MECH_INFO_TYPE:
-		case SHA384_HMAC_GEN_MECH_INFO_TYPE:
-			sha512_update(&ctx->sha512, data, len);
 			break;
 		case SHA512:
 		case SHA512_HMAC_MECH_INFO_TYPE:
-		case SHA512_HMAC_GEN_MECH_INFO_TYPE:
 			sha512_update(&ctx->sha512, data, len);
 			break;
 		case SHA512_256:
@@ -502,17 +478,10 @@ SHA2Final(void *digest, SHA2_CTX *ctx)
 {
 	switch (ctx->algotype) {
 		case SHA256:
-		case SHA256_HMAC_MECH_INFO_TYPE:
-		case SHA256_HMAC_GEN_MECH_INFO_TYPE:
 			sha256_final(&ctx->sha256, digest, 256);
-			break;
-		case SHA384_HMAC_MECH_INFO_TYPE:
-		case SHA384_HMAC_GEN_MECH_INFO_TYPE:
-			sha512_final(&ctx->sha512, digest, 384);
 			break;
 		case SHA512:
 		case SHA512_HMAC_MECH_INFO_TYPE:
-		case SHA512_HMAC_GEN_MECH_INFO_TYPE:
 			sha512_final(&ctx->sha512, digest, 512);
 			break;
 		case SHA512_256:
