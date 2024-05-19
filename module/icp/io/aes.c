@@ -72,7 +72,6 @@ static const crypto_ctx_ops_t aes_ctx_ops = {
 };
 
 static const crypto_ops_t aes_crypto_ops = {
-	NULL,
 	&aes_cipher_ops,
 	NULL,
 	&aes_ctx_ops,

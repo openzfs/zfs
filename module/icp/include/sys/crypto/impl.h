@@ -55,7 +55,7 @@ extern "C" {
  * When impl.h is broken up (bug# 4703218), this will be done. For now,
  * we hardcode these values.
  */
-#define	KCF_OPS_CLASSSIZE	4
+#define	KCF_OPS_CLASSSIZE	3
 #define	KCF_MAXMECHTAB		32
 
 /*
@@ -200,12 +200,11 @@ _Static_assert(KCF_MAXCIPHER == KCF_MAXMECHTAB,
 	"KCF_MAXCIPHER != KCF_MAXMECHTAB");	/* See KCF_MAXMECHTAB comment */
 
 typedef	enum {
-	KCF_DIGEST_CLASS = 1,
-	KCF_CIPHER_CLASS,
+	KCF_CIPHER_CLASS = 1,
 	KCF_MAC_CLASS,
 } kcf_ops_class_t;
 
-#define	KCF_FIRST_OPSCLASS	KCF_DIGEST_CLASS
+#define	KCF_FIRST_OPSCLASS	KCF_CIPHER_CLASS
 #define	KCF_LAST_OPSCLASS	KCF_MAC_CLASS
 _Static_assert(
     KCF_OPS_CLASSSIZE == (KCF_LAST_OPSCLASS - KCF_FIRST_OPSCLASS + 2),
