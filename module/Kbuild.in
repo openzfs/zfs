@@ -122,7 +122,6 @@ ICP_OBJS := \
 	illumos-crypto.o \
 	io/aes.o \
 	io/sha2_mod.o \
-	io/skein_mod.o \
 	spi/kcf_spi.o
 
 ICP_OBJS_X86_64 := \
