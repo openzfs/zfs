@@ -638,6 +638,7 @@ void
 metaslab_class_evict_old(metaslab_class_t *mc, uint64_t txg)
 {
 	multilist_t *ml = &mc->mc_metaslab_txg_list;
+	hrtime_t now = gethrtime();
 	for (int i = 0; i < multilist_get_num_sublists(ml); i++) {
 		multilist_sublist_t *mls = multilist_sublist_lock_idx(ml, i);
 		metaslab_t *msp = multilist_sublist_head(mls);
@@ -661,8 +662,10 @@ metaslab_class_evict_old(metaslab_class_t *mc, uint64_t txg)
 			multilist_sublist_unlock(mls);
 			if (txg >
 			    msp->ms_selected_txg + metaslab_unload_delay &&
-			    gethrtime() > msp->ms_selected_time +
-			    (uint64_t)MSEC2NSEC(metaslab_unload_delay_ms)) {
+			    now > msp->ms_selected_time +
+			    MSEC2NSEC(metaslab_unload_delay_ms) &&
+			    (msp->ms_allocator == -1 ||
+			    !metaslab_preload_enabled)) {
 				metaslab_evict(msp, txg);
 			} else {
 				/*
