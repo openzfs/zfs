@@ -2853,6 +2853,7 @@ dmu_buf_fill_done(dmu_buf_t *dbuf, dmu_tx_t *tx, boolean_t failed)
 			failed = B_FALSE;
 		} else if (failed) {
 			VERIFY(!dbuf_undirty(db, tx));
+			arc_buf_destroy(db->db_buf, db);
 			db->db_buf = NULL;
 			dbuf_clear_data(db);
 			DTRACE_SET_STATE(db, "fill failed");
