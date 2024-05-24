@@ -116,7 +116,7 @@ diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	dmu_diffarg_t *da = arg;
 	int err = 0;
 
-	if (issig(JUSTLOOKING) && issig(FORREAL))
+	if (issig())
 		return (SET_ERROR(EINTR));
 
 	if (zb->zb_level == ZB_DNODE_LEVEL ||

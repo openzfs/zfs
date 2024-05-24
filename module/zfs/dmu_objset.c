@@ -2437,7 +2437,7 @@ dmu_objset_space_upgrade(objset_t *os)
 		if (err != 0)
 			return (err);
 
-		if (issig(JUSTLOOKING) && issig(FORREAL))
+		if (issig())
 			return (SET_ERROR(EINTR));
 
 		objerr = dmu_bonus_hold(os, obj, FTAG, &db);
