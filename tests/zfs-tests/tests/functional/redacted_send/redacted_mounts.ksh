@@ -71,8 +71,7 @@ log_must ismounted $recvfs
 # deleted.
 contents=$(log_must find $recv_mnt)
 contents_orig=$(log_must find $send_mnt)
-log_must diff <(echo ${contents//$recv_mnt/}) \
-    <(echo ${contents_orig//$send_mnt/})
+log_must [ "${contents//$recv_mnt/}" == "${contents_orig//$send_mnt/}" ]
 log_must zfs redact $sendvol@snap book2 $clonevol@snap
 log_must eval "zfs send --redact book2 $sendvol@snap >$stream"
 log_must eval "zfs receive $recvvol <$stream"
@@ -103,7 +102,6 @@ log_must mount_redacted -f $recvfs
 log_must ismounted $recvfs
 contents=$(log_must find $recv_mnt)
 contents_orig=$(log_must find $send_mnt)
-log_must diff <(echo ${contents//$recv_mnt/}) \
-    <(echo ${contents_orig//$send_mnt/})
+log_must [ "${contents//$recv_mnt/}" == "${contents_orig//$send_mnt/}" ]
 
 log_pass "Received redacted streams can be mounted."
