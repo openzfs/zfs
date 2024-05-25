@@ -2170,7 +2170,8 @@ out:
 static int
 send_conclusion_record(int fd, zio_cksum_t *zc)
 {
-	dmu_replay_record_t drr = { 0 };
+	dmu_replay_record_t drr;
+	memset(&drr, 0, sizeof (dmu_replay_record_t));
 	drr.drr_type = DRR_END;
 	if (zc != NULL)
 		drr.drr_u.drr_end.drr_checksum = *zc;
@@ -2272,7 +2273,8 @@ send_prelim_records(zfs_handle_t *zhp, const char *from, int fd,
 	}
 
 	if (!dryrun) {
-		dmu_replay_record_t drr = { 0 };
+		dmu_replay_record_t drr;
+		memset(&drr, 0, sizeof (dmu_replay_record_t));
 		/* write first begin record */
 		drr.drr_type = DRR_BEGIN;
 		drr.drr_u.drr_begin.drr_magic = DMU_BACKUP_MAGIC;

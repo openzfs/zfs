@@ -521,12 +521,14 @@ test_send_new(const char *snapshot, int fd)
 static void
 test_recv_new(const char *dataset, int fd)
 {
-	dmu_replay_record_t drr = { 0 };
+	dmu_replay_record_t drr;
 	nvlist_t *required = fnvlist_alloc();
 	nvlist_t *optional = fnvlist_alloc();
 	nvlist_t *props = fnvlist_alloc();
 	char snapshot[MAXNAMELEN + 32];
 	ssize_t count;
+
+	memset(&drr, 0, sizeof (dmu_replay_record_t));
 
 	int cleanup_fd = open(ZFS_DEV, O_RDWR);
 	if (cleanup_fd == -1) {
