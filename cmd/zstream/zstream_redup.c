@@ -186,13 +186,15 @@ static void
 zfs_redup_stream(int infd, int outfd, boolean_t verbose)
 {
 	int bufsz = SPA_MAXBLOCKSIZE;
-	dmu_replay_record_t thedrr = { 0 };
+	dmu_replay_record_t thedrr;
 	dmu_replay_record_t *drr = &thedrr;
 	redup_table_t rdt;
 	zio_cksum_t stream_cksum;
 	uint64_t numbuckets;
 	uint64_t num_records = 0;
 	uint64_t num_write_byref_records = 0;
+
+	memset(&thedrr, 0, sizeof (dmu_replay_record_t));
 
 #ifdef _ILP32
 	uint64_t max_rde_size = SMALLEST_POSSIBLE_MAX_RDT_MB << 20;

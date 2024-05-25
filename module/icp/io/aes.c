@@ -832,11 +832,13 @@ aes_encrypt_atomic(crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_data_t *plaintext, crypto_data_t *ciphertext,
     crypto_spi_ctx_template_t template)
 {
-	aes_ctx_t aes_ctx = {{{{0}}}};
+	aes_ctx_t aes_ctx;
 	off_t saved_offset;
 	size_t saved_length;
 	size_t length_needed;
 	int ret;
+
+	memset(&aes_ctx, 0, sizeof (aes_ctx_t));
 
 	ASSERT(ciphertext != NULL);
 
@@ -956,11 +958,13 @@ aes_decrypt_atomic(crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_data_t *ciphertext, crypto_data_t *plaintext,
     crypto_spi_ctx_template_t template)
 {
-	aes_ctx_t aes_ctx = {{{{0}}}};
+	aes_ctx_t aes_ctx;
 	off_t saved_offset;
 	size_t saved_length;
 	size_t length_needed;
 	int ret;
+
+	memset(&aes_ctx, 0, sizeof (aes_ctx_t));
 
 	ASSERT(plaintext != NULL);
 
