@@ -38,7 +38,9 @@ typedef unsigned long		ulong_t;
 typedef unsigned long long	u_longlong_t;
 typedef long long		longlong_t;
 
+#ifndef HAVE_KERNEL_INTPTR_T
 typedef long			intptr_t;
+#endif
 typedef unsigned long long	rlim64_t;
 
 typedef struct task_struct	kthread_t;
