@@ -8886,7 +8886,7 @@ out:
 		 * assertions may be violated without functional consequences
 		 * as the device is about to be removed.
 		 */
-		ASSERT3U(dev->l2ad_hand + distance, <, dev->l2ad_end);
+		ASSERT3U(dev->l2ad_hand + distance, <=, dev->l2ad_end);
 		if (!dev->l2ad_first)
 			ASSERT3U(dev->l2ad_hand, <=, dev->l2ad_evict);
 	}
