@@ -149,6 +149,13 @@ ZED_SYSLOG_SUBCLASS_EXCLUDE="history_event"
 #ZED_POWER_OFF_ENCLOSURE_SLOT_ON_FAULT=1
 
 ##
+# Power off the drive's slot in the enclosure if there is a hung I/O which
+# exceeds the deadman timeout.  This can help prevent a single misbehaving
+# drive from rendering a redundant pool unavailable.  This assumes your drive
+# enclosure fully supports slot power control via sysfs.
+#ZED_POWER_OFF_ENCLOSURE_SLOT_ON_DEADMAN=1
+
+##
 # Ntfy topic
 # This defines which topic will receive the ntfy notification.
 #  <https://docs.ntfy.sh/publish/>
