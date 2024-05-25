@@ -425,20 +425,36 @@ zap_leaf_evict_sync(void *dbu)
 static zap_leaf_t *
 zap_create_leaf(zap_t *zap, dmu_tx_t *tx)
 {
-	zap_leaf_t *l = kmem_zalloc(sizeof (zap_leaf_t), KM_SLEEP);
-
 	ASSERT(RW_WRITE_HELD(&zap->zap_rwlock));
 
-	rw_init(&l->l_rwlock, NULL, RW_NOLOCKDEP, NULL);
-	rw_enter(&l->l_rwlock, RW_WRITER);
-	l->l_blkid = zap_allocate_blocks(zap, 1);
-	l->l_dbuf = NULL;
+	uint64_t blkid = zap_allocate_blocks(zap, 1);
+	dmu_buf_t *db = NULL;
 
 	VERIFY0(dmu_buf_hold_by_dnode(zap->zap_dnode,
-	    l->l_blkid << FZAP_BLOCK_SHIFT(zap), NULL, &l->l_dbuf,
+	    blkid << FZAP_BLOCK_SHIFT(zap), NULL, &db,
 	    DMU_READ_NO_PREFETCH));
-	dmu_buf_init_user(&l->l_dbu, zap_leaf_evict_sync, NULL, &l->l_dbuf);
-	VERIFY3P(NULL, ==, dmu_buf_set_user(l->l_dbuf, &l->l_dbu));
+
+	/*
+	 * Create the leaf structure and stash it on the dbuf. If zap was
+	 * recent shrunk or truncated, the dbuf might have been sitting in the
+	 * cache waiting to be evicted, and so still have the old leaf attached
+	 * to it. If so, just reuse it.
+	 */
+	zap_leaf_t *l = dmu_buf_get_user(db);
+	if (l == NULL) {
+		l = kmem_zalloc(sizeof (zap_leaf_t), KM_SLEEP);
+		l->l_blkid = blkid;
+		l->l_dbuf = db;
+		rw_init(&l->l_rwlock, NULL, RW_NOLOCKDEP, NULL);
+		dmu_buf_init_user(&l->l_dbu, zap_leaf_evict_sync, NULL,
+		    &l->l_dbuf);
+		dmu_buf_set_user(l->l_dbuf, &l->l_dbu);
+	} else {
+		ASSERT3U(l->l_blkid, ==, blkid);
+		ASSERT3P(l->l_dbuf, ==, db);
+	}
+
+	rw_enter(&l->l_rwlock, RW_WRITER);
 	dmu_buf_will_dirty(l->l_dbuf, tx);
 
 	zap_leaf_init(l, zap->zap_normflags != 0);
