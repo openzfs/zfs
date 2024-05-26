@@ -110,6 +110,8 @@ libspl_backtrace(int fd)
 	backtrace_symbols_fd(btptrs, nptrs, fd);
 }
 #else
+#include <sys/debug.h>
+
 void
 libspl_backtrace(int fd __maybe_unused)
 {
