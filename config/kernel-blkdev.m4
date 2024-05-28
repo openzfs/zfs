@@ -535,6 +535,30 @@ AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_BDEV_WHOLE], [
 ])
 
 dnl #
+dnl # 5.16 API change
+dnl # Added bdev_nr_bytes() helper.
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_NR_BYTES], [
+	ZFS_LINUX_TEST_SRC([bdev_nr_bytes], [
+		#include <linux/blkdev.h>
+	],[
+		struct block_device *bdev = NULL;
+		loff_t nr_bytes __attribute__ ((unused)) = 0;
+		nr_bytes = bdev_nr_bytes(bdev);
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_BDEV_NR_BYTES], [
+	AC_MSG_CHECKING([whether bdev_nr_bytes() is available])
+	ZFS_LINUX_TEST_RESULT([bdev_nr_bytes], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_BDEV_NR_BYTES, 1, [bdev_nr_bytes() is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
 dnl # 5.20 API change,
 dnl # Removed bdevname(), snprintf(.., %pg) should be used.
 dnl #
@@ -747,6 +771,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV], [
 	ZFS_AC_KERNEL_SRC_BLKDEV_CHECK_DISK_CHANGE
 	ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_CHECK_MEDIA_CHANGE
 	ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_WHOLE
+	ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_NR_BYTES
 	ZFS_AC_KERNEL_SRC_BLKDEV_BDEVNAME
 	ZFS_AC_KERNEL_SRC_BLKDEV_ISSUE_DISCARD
 	ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_KOBJ
@@ -767,6 +792,7 @@ AC_DEFUN([ZFS_AC_KERNEL_BLKDEV], [
 	ZFS_AC_KERNEL_BLKDEV_CHECK_DISK_CHANGE
 	ZFS_AC_KERNEL_BLKDEV_BDEV_CHECK_MEDIA_CHANGE
 	ZFS_AC_KERNEL_BLKDEV_BDEV_WHOLE
+	ZFS_AC_KERNEL_BLKDEV_BDEV_NR_BYTES
 	ZFS_AC_KERNEL_BLKDEV_BDEVNAME
 	ZFS_AC_KERNEL_BLKDEV_GET_ERESTARTSYS
 	ZFS_AC_KERNEL_BLKDEV_ISSUE_DISCARD
