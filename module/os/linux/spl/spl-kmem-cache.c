@@ -21,6 +21,8 @@
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define	SPL_KMEM_CACHE_IMPLEMENTING
+
 #include <linux/percpu_compat.h>
 #include <sys/kmem.h>
 #include <sys/kmem_cache.h>
@@ -32,16 +34,6 @@
 #include <linux/slab.h>
 #include <linux/swap.h>
 #include <linux/prefetch.h>
-
-/*
- * Within the scope of spl-kmem.c file the kmem_cache_* definitions
- * are removed to allow access to the real Linux slab allocator.
- */
-#undef kmem_cache_destroy
-#undef kmem_cache_create
-#undef kmem_cache_alloc
-#undef kmem_cache_free
-
 
 /*
  * Linux 3.16 replaced smp_mb__{before,after}_{atomic,clear}_{dec,inc,bit}()
