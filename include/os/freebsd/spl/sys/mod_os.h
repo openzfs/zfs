@@ -92,6 +92,12 @@
 #define	param_set_max_auto_ashift_args(var) \
     CTLTYPE_U64, &var, 0, param_set_max_auto_ashift, "QU"
 
+#define	spa_taskq_read_param_set_args(var) \
+    CTLTYPE_STRING, NULL, 0, spa_taskq_read_param, "A"
+
+#define	spa_taskq_write_param_set_args(var) \
+    CTLTYPE_STRING, NULL, 0, spa_taskq_write_param, "A"
+
 #define	fletcher_4_param_set_args(var) \
     CTLTYPE_STRING, NULL, 0, fletcher_4_param, "A"
 

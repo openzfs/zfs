@@ -54,3 +54,11 @@ slack_compress(void *src, void *dst, size_t s_len, size_t d_len, int level)
 	memcpy(dst, src, c_len);
 	return (c_len);
 }
+
+int
+slack_decompress(void *src, void *dst, size_t s_len, size_t d_len, int level)
+{
+	ASSERT3U(d_len, >=, s_len);
+	memcpy(dst, src, s_len);
+	return (0);
+}

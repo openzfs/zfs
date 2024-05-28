@@ -67,7 +67,15 @@ log_must zpool create -f $TESTPOOL $VDEV cache $VDEV_CACHE
 log_must fio $FIO_SCRIPTS/mkfiles.fio
 log_must fio $FIO_SCRIPTS/random_reads.fio
 
+timeout_handler() {
+       log_fail "${TIMEOUT_MESSAGE}"
+}
+
+TIMEOUT_MESSAGE="Time out arcstat_quiescence_noecho l2_size before zpool offline"
+trap timeout_handler USR1
+ppid="$$" && (sleep 600 && kill -USR1 "$ppid") & timeout_pid="$!"
 arcstat_quiescence_noecho l2_size
+trap - USR1
 log_must zpool offline $TESTPOOL $VDEV_CACHE
 arcstat_quiescence_noecho l2_size
 

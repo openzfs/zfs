@@ -10,6 +10,7 @@ KERNEL_H = \
 	simd_x86.h \
 	simd_aarch64.h \
 	simd_powerpc.h \
+	mm_compat.h \
 	mod_compat.h \
 	page_compat.h \
 	compiler_compat.h

@@ -241,6 +241,11 @@ unsigned long zfs_max_nvlist_src_size = 0;
  */
 unsigned long zfs_history_output_max = 1024 * 1024;
 
+/*
+ * Whether or not to allow compression=slack to be set on a dataset.
+ */
+int zfs_slack_compress_enabled = 0;
+
 uint_t zfs_fsyncer_key;
 uint_t zfs_allow_log_key;
 
@@ -4573,6 +4578,9 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 			if (compval == ZIO_COMPRESS_SLACK) {
 				spa_t *spa;
 
+				if (!zfs_slack_compress_enabled)
+					return (SET_ERROR(ENOTSUP));
+
 				if ((err = spa_open(dsname, &spa, FTAG)) != 0)
 					return (err);
 
@@ -5715,10 +5723,13 @@ zfs_ioc_clear(zfs_cmd_t *zc)
 
 	/*
 	 * If multihost is enabled, resuming I/O is unsafe as another
-	 * host may have imported the pool.
+	 * host may have imported the pool. Check for remote activity.
 	 */
-	if (spa_multihost(spa) && spa_suspended(spa))
-		return (SET_ERROR(EINVAL));
+	if (spa_multihost(spa) && spa_suspended(spa) &&
+	    spa_mmp_remote_host_activity(spa)) {
+		spa_close(spa, FTAG);
+		return (SET_ERROR(EREMOTEIO));
+	}
 
 	spa_vdev_state_enter(spa, SCL_NONE);
 
@@ -7770,4 +7781,7 @@ ZFS_MODULE_PARAM(zfs, zfs_, max_nvlist_src_size, ULONG, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, history_output_max, ULONG, ZMOD_RW,
     "Maximum size in bytes of ZFS ioctl output that will be logged");
+
+ZFS_MODULE_PARAM(zfs, zfs_, slack_compress_enabled, INT, ZMOD_RW,
+    "Allow slack compression feature to be set on a dataset");
 /* END CSTYLED */

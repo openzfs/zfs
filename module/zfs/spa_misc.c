@@ -20,13 +20,14 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2024 by Delphix. All rights reserved.
  * Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2013 Saso Kiselkov. All rights reserved.
  * Copyright (c) 2017 Datto Inc.
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
+ * Copyright (c) 2023, 2024, Klara Inc.
  */
 
 #include <sys/zfs_context.h>
@@ -79,7 +80,8 @@
  *		- Check if spa_refcount is zero
  *		- Rename a spa_t
  *		- add/remove/attach/detach devices
- *		- Held for the duration of create/destroy/import/export
+ *		- Held for the duration of create/destroy
+ *		- Held at the start and end of import and export
  *
  *	It does not need to handle recursion.  A create or destroy may
  *	reference objects (files or zvols) in other pools, but by
@@ -232,9 +234,9 @@
  * locking is, always, based on spa_namespace_lock and spa_config_lock[].
  */
 
-static avl_tree_t spa_namespace_avl;
+avl_tree_t spa_namespace_avl;
 kmutex_t spa_namespace_lock;
-static kcondvar_t spa_namespace_cv;
+kcondvar_t spa_namespace_cv;
 int spa_max_replication_override = SPA_DVAS_PER_BP;
 
 static kmutex_t spa_spare_lock;
@@ -417,6 +419,8 @@ spa_load_note(spa_t *spa, const char *fmt, ...)
 
 	zfs_dbgmsg("spa_load(%s, config %s): %s", spa->spa_name,
 	    spa->spa_trust_config ? "trusted" : "untrusted", buf);
+
+	spa_import_progress_set_notes_nolog(spa, "%s", buf);
 }
 
 /*
@@ -604,6 +608,7 @@ spa_lookup(const char *name)
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
+retry:
 	(void) strlcpy(search.spa_name, name, sizeof (search.spa_name));
 
 	/*
@@ -615,6 +620,20 @@ spa_lookup(const char *name)
 		*cp = '\0';
 
 	spa = avl_find(&spa_namespace_avl, &search, &where);
+	if (spa == NULL)
+		return (NULL);
+
+	/*
+	 * Avoid racing with import/export, which don't hold the namespace
+	 * lock for their entire duration.
+	 */
+	if ((spa->spa_load_thread != NULL &&
+	    spa->spa_load_thread != curthread) ||
+	    (spa->spa_export_thread != NULL &&
+	    spa->spa_export_thread != curthread)) {
+		cv_wait(&spa_namespace_cv, &spa_namespace_lock);
+		goto retry;
+	}
 
 	return (spa);
 }
@@ -712,6 +731,7 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	spa_config_lock_init(spa);
 	spa_stats_init(spa);
 
+	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 	avl_add(&spa_namespace_avl, spa);
 
 	/*
@@ -806,7 +826,6 @@ spa_remove(spa_t *spa)
 	nvlist_free(spa->spa_config_splitting);
 
 	avl_remove(&spa_namespace_avl, spa);
-	cv_broadcast(&spa_namespace_cv);
 
 	if (spa->spa_root)
 		spa_strfree(spa->spa_root);
@@ -901,7 +920,8 @@ void
 spa_open_ref(spa_t *spa, void *tag)
 {
 	ASSERT(zfs_refcount_count(&spa->spa_refcount) >= spa->spa_minref ||
-	    MUTEX_HELD(&spa_namespace_lock));
+	    MUTEX_HELD(&spa_namespace_lock) ||
+	    spa->spa_load_thread == curthread);
 	(void) zfs_refcount_add(&spa->spa_refcount, tag);
 }
 
@@ -921,13 +941,15 @@ spa_close_common(spa_t *spa, const void *tag)
 
 /*
  * Remove a reference to the given spa_t.  Must have at least one reference, or
- * have the namespace lock held.
+ * have the namespace lock held or be part of a pool import/export.
  */
 void
 spa_close(spa_t *spa, void *tag)
 {
 	ASSERT(zfs_refcount_count(&spa->spa_refcount) > spa->spa_minref ||
-	    MUTEX_HELD(&spa_namespace_lock));
+	    MUTEX_HELD(&spa_namespace_lock) ||
+	    spa->spa_load_thread == curthread ||
+	    spa->spa_export_thread == curthread);
 	spa_close_common(spa, tag);
 }
 
@@ -947,13 +969,15 @@ spa_async_close(spa_t *spa, void *tag)
 
 /*
  * Check to see if the spa refcount is zero.  Must be called with
- * spa_namespace_lock held.  We really compare against spa_minref, which is the
- * number of references acquired when opening a pool
+ * spa_namespace_lock held or be the spa export thread.  We really
+ * compare against spa_minref, which is the  number of references
+ * acquired when opening a pool
  */
 boolean_t
 spa_refcount_zero(spa_t *spa)
 {
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(MUTEX_HELD(&spa_namespace_lock) ||
+	    spa->spa_export_thread == curthread);
 
 	return (zfs_refcount_count(&spa->spa_refcount) == spa->spa_minref);
 }
@@ -1201,6 +1225,8 @@ spa_vdev_enter(spa_t *spa)
 	mutex_enter(&spa->spa_vdev_top_lock);
 	mutex_enter(&spa_namespace_lock);
 
+	ASSERT0(spa->spa_export_thread);
+
 	vdev_autotrim_stop_all(spa);
 
 	return (spa_vdev_config_enter(spa));
@@ -1217,6 +1243,8 @@ spa_vdev_detach_enter(spa_t *spa, uint64_t guid)
 {
 	mutex_enter(&spa->spa_vdev_top_lock);
 	mutex_enter(&spa_namespace_lock);
+
+	ASSERT0(spa->spa_export_thread);
 
 	vdev_autotrim_stop_all(spa);
 
@@ -2215,6 +2243,7 @@ typedef struct spa_import_progress {
 	uint64_t		pool_guid;	/* unique id for updates */
 	char			*pool_name;
 	spa_load_state_t	spa_load_state;
+	char			*spa_load_notes;
 	uint64_t		mmp_sec_remaining;	/* MMP activity check */
 	uint64_t		spa_load_max_txg;	/* rewind txg */
 	procfs_list_node_t	smh_node;
@@ -2225,9 +2254,9 @@ spa_history_list_t *spa_import_progress_list = NULL;
 static int
 spa_import_progress_show_header(struct seq_file *f)
 {
-	seq_printf(f, "%-20s %-14s %-14s %-12s %s\n", "pool_guid",
+	seq_printf(f, "%-20s %-14s %-14s %-12s %-16s %s\n", "pool_guid",
 	    "load_state", "multihost_secs", "max_txg",
-	    "pool_name");
+	    "pool_name", "notes");
 	return (0);
 }
 
@@ -2236,11 +2265,12 @@ spa_import_progress_show(struct seq_file *f, void *data)
 {
 	spa_import_progress_t *sip = (spa_import_progress_t *)data;
 
-	seq_printf(f, "%-20llu %-14llu %-14llu %-12llu %s\n",
+	seq_printf(f, "%-20llu %-14llu %-14llu %-12llu %-16s %s\n",
 	    (u_longlong_t)sip->pool_guid, (u_longlong_t)sip->spa_load_state,
 	    (u_longlong_t)sip->mmp_sec_remaining,
 	    (u_longlong_t)sip->spa_load_max_txg,
-	    (sip->pool_name ? sip->pool_name : "-"));
+	    (sip->pool_name ? sip->pool_name : "-"),
+	    (sip->spa_load_notes ? sip->spa_load_notes : "-"));
 
 	return (0);
 }
@@ -2254,6 +2284,8 @@ spa_import_progress_truncate(spa_history_list_t *shl, unsigned int size)
 		sip = list_remove_head(&shl->procfs_list.pl_list);
 		if (sip->pool_name)
 			spa_strfree(sip->pool_name);
+		if (sip->spa_load_notes)
+			kmem_strfree(sip->spa_load_notes);
 		kmem_free(sip, sizeof (spa_import_progress_t));
 		shl->size--;
 	}
@@ -2309,6 +2341,10 @@ spa_import_progress_set_state(uint64_t pool_guid,
 	    sip = list_prev(&shl->procfs_list.pl_list, sip)) {
 		if (sip->pool_guid == pool_guid) {
 			sip->spa_load_state = load_state;
+			if (sip->spa_load_notes != NULL) {
+				kmem_strfree(sip->spa_load_notes);
+				sip->spa_load_notes = NULL;
+			}
 			error = 0;
 			break;
 		}
@@ -2316,6 +2352,59 @@ spa_import_progress_set_state(uint64_t pool_guid,
 	mutex_exit(&shl->procfs_list.pl_lock);
 
 	return (error);
+}
+
+static void
+spa_import_progress_set_notes_impl(spa_t *spa, boolean_t log_dbgmsg,
+    const char *fmt, va_list adx)
+{
+	spa_history_list_t *shl = spa_import_progress_list;
+	spa_import_progress_t *sip;
+	uint64_t pool_guid = spa_guid(spa);
+
+	if (shl->size == 0)
+		return;
+
+	char *notes = kmem_vasprintf(fmt, adx);
+
+	mutex_enter(&shl->procfs_list.pl_lock);
+	for (sip = list_tail(&shl->procfs_list.pl_list); sip != NULL;
+	    sip = list_prev(&shl->procfs_list.pl_list, sip)) {
+		if (sip->pool_guid == pool_guid) {
+			if (sip->spa_load_notes != NULL) {
+				kmem_strfree(sip->spa_load_notes);
+				sip->spa_load_notes = NULL;
+			}
+			sip->spa_load_notes = notes;
+			if (log_dbgmsg)
+				zfs_dbgmsg("'%s' %s", sip->pool_name, notes);
+			notes = NULL;
+			break;
+		}
+	}
+	mutex_exit(&shl->procfs_list.pl_lock);
+	if (notes != NULL)
+		kmem_strfree(notes);
+}
+
+void
+spa_import_progress_set_notes(spa_t *spa, const char *fmt, ...)
+{
+	va_list adx;
+
+	va_start(adx, fmt);
+	spa_import_progress_set_notes_impl(spa, B_TRUE, fmt, adx);
+	va_end(adx);
+}
+
+void
+spa_import_progress_set_notes_nolog(spa_t *spa, const char *fmt, ...)
+{
+	va_list adx;
+
+	va_start(adx, fmt);
+	spa_import_progress_set_notes_impl(spa, B_FALSE, fmt, adx);
+	va_end(adx);
 }
 
 int
@@ -2386,6 +2475,7 @@ spa_import_progress_add(spa_t *spa)
 		poolname = spa_name(spa);
 	sip->pool_name = spa_strdup(poolname);
 	sip->spa_load_state = spa_load_state(spa);
+	sip->spa_load_notes = NULL;
 
 	mutex_enter(&shl->procfs_list.pl_lock);
 	procfs_list_add(&shl->procfs_list, sip);
@@ -2405,6 +2495,8 @@ spa_import_progress_remove(uint64_t pool_guid)
 		if (sip->pool_guid == pool_guid) {
 			if (sip->pool_name)
 				spa_strfree(sip->pool_name);
+			if (sip->spa_load_notes)
+				spa_strfree(sip->spa_load_notes);
 			list_remove(&shl->procfs_list.pl_list, sip);
 			shl->size--;
 			kmem_free(sip, sizeof (spa_import_progress_t));
@@ -2801,8 +2893,7 @@ spa_state_to_name(spa_t *spa)
 	vdev_state_t state = rvd->vdev_state;
 	vdev_aux_t aux = rvd->vdev_stat.vs_aux;
 
-	if (spa_suspended(spa) &&
-	    (spa_get_failmode(spa) != ZIO_FAILURE_MODE_CONTINUE))
+	if (spa_suspended(spa))
 		return ("SUSPENDED");
 
 	switch (state) {

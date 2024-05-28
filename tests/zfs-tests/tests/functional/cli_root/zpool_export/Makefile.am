@@ -8,7 +8,9 @@ dist_pkgdata_SCRIPTS = \
 	zpool_export_004_pos.ksh \
 	zpool_export_005_pos.ksh \
 	zpool_export_006_pos.ksh \
-	zpool_export_007_pos.ksh
+	zpool_export_007_pos.ksh \
+	zpool_export_parallel_admin.ksh \
+	zpool_export_parallel_pos.ksh
 
 dist_pkgdata_DATA = \
 	zpool_export.cfg \

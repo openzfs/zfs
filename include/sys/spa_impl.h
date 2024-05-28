@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2024 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2013 Saso Kiselkov. All rights reserved.
@@ -183,6 +183,8 @@ typedef enum spa_proc_state {
 } spa_proc_state_t;
 
 typedef struct spa_taskqs {
+	zio_taskq_type_t stqs_type;
+	zio_type_t stqs_zio_type;
 	uint_t stqs_count;
 	taskq_t **stqs_taskq;
 } spa_taskqs_t;
@@ -229,6 +231,8 @@ struct spa {
 	dsl_pool_t	*spa_dsl_pool;
 	boolean_t	spa_is_initializing;	/* true while opening pool */
 	boolean_t	spa_is_exporting;	/* true while exporting pool */
+	kthread_t	*spa_export_thread;	/* valid during pool export */
+	kthread_t	*spa_load_thread;	/* loading, no namespace lock */
 	metaslab_class_t *spa_normal_class;	/* normal data class */
 	metaslab_class_t *spa_log_class;	/* intent log data class */
 	metaslab_class_t *spa_embedded_log_class; /* log on normal vdevs */

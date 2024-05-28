@@ -798,7 +798,7 @@ extern void spa_add_feature_stats(spa_t *spa, nvlist_t *config);
 
 #define	SPA_ASYNC_CONFIG_UPDATE			0x01
 #define	SPA_ASYNC_REMOVE			0x02
-#define	SPA_ASYNC_PROBE				0x04
+#define	SPA_ASYNC_FAULT_VDEV			0x04
 #define	SPA_ASYNC_RESILVER_DONE			0x08
 #define	SPA_ASYNC_RESILVER			0x10
 #define	SPA_ASYNC_AUTOEXPAND			0x20
@@ -854,6 +854,8 @@ extern int zfs_sync_pass_deferred_free;
 
 /* spa namespace global mutex */
 extern kmutex_t spa_namespace_lock;
+extern avl_tree_t spa_namespace_avl;
+extern kcondvar_t spa_namespace_cv;
 
 /*
  * SPA configuration functions in spa_config.c
@@ -1004,6 +1006,10 @@ extern int spa_import_progress_set_max_txg(uint64_t pool_guid,
     uint64_t max_txg);
 extern int spa_import_progress_set_state(uint64_t pool_guid,
     spa_load_state_t spa_load_state);
+extern void spa_import_progress_set_notes(spa_t *spa,
+    const char *fmt, ...) __printflike(2, 3);
+extern void spa_import_progress_set_notes_nolog(spa_t *spa,
+    const char *fmt, ...) __printflike(2, 3);
 
 /* Pool configuration locks */
 extern int spa_config_tryenter(spa_t *spa, int locks, const void *tag,
@@ -1146,6 +1152,8 @@ extern boolean_t spa_multihost(spa_t *spa);
 extern uint32_t spa_get_hostid(spa_t *spa);
 extern void spa_activate_allocation_classes(spa_t *, dmu_tx_t *);
 extern boolean_t spa_livelist_delete_check(spa_t *spa);
+
+extern boolean_t spa_mmp_remote_host_activity(spa_t *spa);
 
 extern spa_mode_t spa_mode(spa_t *spa);
 extern uint64_t zfs_strtonum(const char *str, char **nptr);

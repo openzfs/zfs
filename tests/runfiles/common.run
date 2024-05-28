@@ -376,7 +376,8 @@ tags = ['functional', 'cli_root', 'zpool_events']
 [tests/functional/cli_root/zpool_export]
 tests = ['zpool_export_001_pos', 'zpool_export_002_pos',
     'zpool_export_003_neg', 'zpool_export_004_pos', 'zpool_export_005_pos',
-    'zpool_export_006_pos', 'zpool_export_007_pos']
+    'zpool_export_006_pos', 'zpool_export_007_pos',
+    'zpool_export_parallel_pos', 'zpool_export_parallel_admin']
 tags = ['functional', 'cli_root', 'zpool_export']
 
 [tests/functional/cli_root/zpool_get]
@@ -401,6 +402,10 @@ tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'zpool_import_rename_001_pos', 'zpool_import_all_001_pos',
     'zpool_import_encrypted', 'zpool_import_encrypted_load',
     'zpool_import_errata3', 'zpool_import_errata4',
+    'zpool_import_hostid_changed',
+    'zpool_import_hostid_changed_unclean_export',
+    'zpool_import_hostid_changed_cachefile',
+    'zpool_import_hostid_changed_cachefile_unclean_export',
     'import_cachefile_device_added',
     'import_cachefile_device_removed',
     'import_cachefile_device_replaced',
@@ -411,7 +416,9 @@ tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'import_devices_missing',
     'import_paths_changed',
     'import_rewind_config_changed',
-    'import_rewind_device_replaced']
+    'import_rewind_device_replaced',
+    'zpool_import_status', 'zpool_import_parallel_pos',
+    'zpool_import_parallel_neg', 'zpool_import_parallel_admin']
 tags = ['functional', 'cli_root', 'zpool_import']
 timeout = 1200
 
