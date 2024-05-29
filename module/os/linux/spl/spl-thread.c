@@ -152,25 +152,15 @@ spl_kthread_create(int (*func)(void *), void *data, const char namefmt[], ...)
 EXPORT_SYMBOL(spl_kthread_create);
 
 /*
- * The "why" argument indicates the allowable side-effects of the call:
- *
- * FORREAL:  Extract the next pending signal from p_sig into p_cursig;
- * stop the process if a stop has been requested or if a traced signal
- * is pending.
- *
- * JUSTLOOKING:  Don't stop the process, just indicate whether or not
- * a signal might be pending (FORREAL is needed to tell for sure).
+ * Extract the next pending signal from p_sig into p_cursig; stop the process
+ * if a stop has been requested or if a traced signal is pending.
  */
 int
-issig(int why)
+issig(void)
 {
-	ASSERT(why == FORREAL || why == JUSTLOOKING);
 
 	if (!signal_pending(current))
 		return (0);
-
-	if (why != FORREAL)
-		return (1);
 
 	struct task_struct *task = current;
 	spl_kernel_siginfo_t __info;

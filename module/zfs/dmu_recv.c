@@ -3389,7 +3389,7 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 	 * stream, then we free drc->drc_rrd and exit.
 	 */
 	while (rwa->err == 0) {
-		if (issig(JUSTLOOKING) && issig(FORREAL)) {
+		if (issig()) {
 			err = SET_ERROR(EINTR);
 			break;
 		}
