@@ -1677,15 +1677,20 @@ zio_roundup_alloc_size(spa_t *spa, uint64_t size)
 }
 
 size_t
-zio_get_compression_max_size(uint64_t gcd_alloc, uint64_t min_alloc,
-    size_t s_len)
+zio_get_compression_max_size(enum zio_compress compress, uint64_t gcd_alloc,
+    uint64_t min_alloc, size_t s_len)
 {
 	size_t d_len;
 
 	/* minimum 12.5% must be saved (legacy value, may be changed later) */
 	d_len = s_len - (s_len >> 3);
 
+	/* ZLE can't use exactly d_len bytes, it needs more, so ignore it */
+	if (compress == ZIO_COMPRESS_ZLE)
+		return (d_len);
+
 	d_len = d_len - d_len % gcd_alloc;
+
 	if (d_len < min_alloc)
 		return (BPE_PAYLOAD_SIZE);
 	return (d_len);
@@ -1867,7 +1872,7 @@ zio_write_compress(zio_t *zio)
 	    !(zio->io_flags & ZIO_FLAG_RAW_COMPRESS)) {
 		void *cbuf = NULL;
 		psize = zio_compress_data(compress, zio->io_abd, &cbuf, lsize,
-		    zio_get_compression_max_size(spa->spa_gcd_alloc,
+		    zio_get_compression_max_size(compress, spa->spa_gcd_alloc,
 		    spa->spa_min_alloc, lsize), zp->zp_complevel);
 		if (psize == 0) {
 			compress = ZIO_COMPRESS_OFF;
