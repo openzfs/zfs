@@ -912,7 +912,7 @@ perform_redaction(objset_t *os, redaction_list_t *rl,
 			object = prev_obj;
 		}
 		while (err == 0 && object <= rec->end_object) {
-			if (issig(JUSTLOOKING) && issig(FORREAL)) {
+			if (issig()) {
 				err = EINTR;
 				break;
 			}
