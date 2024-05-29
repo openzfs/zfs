@@ -10525,7 +10525,8 @@ l2arc_log_blk_commit(l2arc_dev_t *dev, zio_t *pio, l2arc_write_callback_t *cb)
 	/* try to compress the buffer, at least one sector to save */
 	psize = zio_compress_data(ZIO_COMPRESS_LZ4,
 	    abd_buf->abd, &abd, sizeof (*lb),
-	    zio_get_compression_max_size(dev->l2ad_vdev->vdev_ashift,
+	    zio_get_compression_max_size(ZIO_COMPRESS_LZ4,
+	    dev->l2ad_vdev->vdev_ashift,
 	    dev->l2ad_vdev->vdev_ashift, sizeof (*lb)), 0);
 
 	/* a log block is never entirely zero */

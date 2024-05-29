@@ -604,8 +604,8 @@ extern int zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg,
 extern void zio_flush(zio_t *zio, vdev_t *vd);
 extern void zio_shrink(zio_t *zio, uint64_t size);
 
-extern size_t zio_get_compression_max_size(uint64_t gcd_alloc,
-    uint64_t min_alloc, size_t s_len);
+extern size_t zio_get_compression_max_size(enum zio_compress compress,
+    uint64_t gcd_alloc, uint64_t min_alloc, size_t s_len);
 extern int zio_wait(zio_t *zio);
 extern void zio_nowait(zio_t *zio);
 extern void zio_execute(void *zio);
