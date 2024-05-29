@@ -113,6 +113,11 @@ int zfs_vdev_dtl_sm_blksz = (1 << 12);
 static unsigned int zfs_slow_io_events_per_second = 20;
 
 /*
+ * Rate limit deadman "hung IO" events to this many per second.
+ */
+static unsigned int zfs_deadman_events_per_second = 1;
+
+/*
  * Rate limit checksum events after this many checksum errors per second.
  */
 static unsigned int zfs_checksum_events_per_second = 20;
@@ -666,7 +671,7 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 	 */
 	zfs_ratelimit_init(&vd->vdev_delay_rl, &zfs_slow_io_events_per_second,
 	    1);
-	zfs_ratelimit_init(&vd->vdev_deadman_rl, &zfs_slow_io_events_per_second,
+	zfs_ratelimit_init(&vd->vdev_deadman_rl, &zfs_deadman_events_per_second,
 	    1);
 	zfs_ratelimit_init(&vd->vdev_checksum_rl,
 	    &zfs_checksum_events_per_second, 1);
@@ -6475,6 +6480,9 @@ ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, ms_count_limit, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, slow_io_events_per_second, UINT, ZMOD_RW,
 	"Rate limit slow IO (delay) events to this many per second");
+
+ZFS_MODULE_PARAM(zfs, zfs_, deadman_events_per_second, UINT, ZMOD_RW,
+	"Rate limit hung IO (deadman) events to this many per second");
 
 /* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs, zfs_, checksum_events_per_second, UINT, ZMOD_RW,

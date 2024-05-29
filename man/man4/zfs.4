@@ -906,6 +906,13 @@ Historically used for controlling what reporting was available under
 .Pa /proc/spl/kstat/zfs .
 No effect.
 .
+.It Sy zfs_deadman_checktime_ms Ns = Ns Sy 60000 Ns ms Po 1 min Pc Pq u64
+Check time in milliseconds.
+This defines the frequency at which we check for hung I/O requests
+and potentially invoke the
+.Sy zfs_deadman_failmode
+behavior.
+.
 .It Sy zfs_deadman_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 When a pool sync operation takes longer than
 .Sy zfs_deadman_synctime_ms ,
@@ -920,6 +927,10 @@ By default, the deadman is enabled and set to
 .Sy wait
 which results in "hung" I/O operations only being logged.
 The deadman is automatically disabled when a pool gets suspended.
+.
+.It Sy zfs_deadman_events_per_second Ns = Ns Sy 1 Ns /s Pq int
+Rate limit deadman zevents (which report hung I/O operations) to this many per
+second.
 .
 .It Sy zfs_deadman_failmode Ns = Ns Sy wait Pq charp
 Controls the failure behavior when the deadman detects a "hung" I/O operation.
@@ -937,13 +948,6 @@ Panic the system.
 This can be used to facilitate automatic fail-over
 to a properly configured fail-over partner.
 .El
-.
-.It Sy zfs_deadman_checktime_ms Ns = Ns Sy 60000 Ns ms Po 1 min Pc Pq u64
-Check time in milliseconds.
-This defines the frequency at which we check for hung I/O requests
-and potentially invoke the
-.Sy zfs_deadman_failmode
-behavior.
 .
 .It Sy zfs_deadman_synctime_ms Ns = Ns Sy 600000 Ns ms Po 10 min Pc Pq u64
 Interval in milliseconds after which the deadman is triggered and also
@@ -1002,8 +1006,7 @@ will result in objects waiting when there is not actually contention on the
 same object.
 .
 .It Sy zfs_slow_io_events_per_second Ns = Ns Sy 20 Ns /s Pq int
-Rate limit delay and deadman zevents (which report slow I/O operations) to this
-many per
+Rate limit delay zevents (which report slow I/O operations) to this many per
 second.
 .
 .It Sy zfs_unflushed_max_mem_amt Ns = Ns Sy 1073741824 Ns B Po 1 GiB Pc Pq u64
