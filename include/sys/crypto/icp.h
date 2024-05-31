@@ -26,6 +26,9 @@
 #ifndef	_SYS_CRYPTO_ALGS_H
 #define	_SYS_CRYPTO_ALGS_H
 
+int chapoly_mod_init(void);
+int chapoly_mod_fini(void);
+
 int aes_mod_init(void);
 int aes_mod_fini(void);
 
