@@ -25,8 +25,10 @@
 .\" Copyright (c) 2018 George Melikov. All Rights Reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\" Copyright (c) 2024, Klara Inc.
+.\" Copyright (c) 2024, Mateusz Piotrowski
 .\"
-.Dd May 31, 2021
+.Dd June 21, 2023
 .Dt ZPOOL-REGUID 8
 .Os
 .
@@ -36,6 +38,7 @@
 .Sh SYNOPSIS
 .Nm zpool
 .Cm reguid
+.Op Fl g Ar guid
 .Ar pool
 .
 .Sh DESCRIPTION
@@ -43,6 +46,15 @@ Generates a new unique identifier for the pool.
 You must ensure that all devices in this pool are online and healthy before
 performing this action.
 .
+.Bl -tag -width Ds
+.It Fl g Ar guid
+Set the pool GUID to the provided value.
+The GUID can be any 64-bit value accepted by
+.Xr strtoull 3
+in base 10.
+.Nm
+will return an error if the provided GUID is already in use.
+.El
 .Sh SEE ALSO
 .Xr zpool-export 8 ,
 .Xr zpool-import 8
