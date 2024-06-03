@@ -43,8 +43,6 @@ dist_noinst_DATA += README.md RELEASES.md
 dist_noinst_DATA += module/lua/README.zfs module/os/linux/spl/README.md
 
 # Include all the extra licensing information for modules
-dist_noinst_DATA += module/icp/algs/skein/THIRDPARTYLICENSE
-dist_noinst_DATA += module/icp/algs/skein/THIRDPARTYLICENSE.descrip
 dist_noinst_DATA += module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.gladman
 dist_noinst_DATA += module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.gladman.descrip
 dist_noinst_DATA += module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.openssl
