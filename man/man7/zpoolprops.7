@@ -28,7 +28,7 @@
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\" Copyright (c) 2023, Klara Inc.
 .\"
-.Dd January 14, 2024
+.Dd July 29, 2024
 .Dt ZPOOLPROPS 7
 .Os
 .
@@ -488,7 +488,7 @@ The expected convention is that the property name is divided into two portions
 such as
 .Ar module : Ns Ar property ,
 but this namespace is not enforced by ZFS.
-User property names can be at most 256 characters, and cannot begin with a dash
+User property names can be at most 255 characters, and cannot begin with a dash
 .Pq Qq Sy - .
 .Pp
 When making programmatic use of user properties, it is strongly suggested to use
