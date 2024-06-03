@@ -1787,9 +1787,13 @@ arc_hdr_authenticate(arc_buf_hdr_t *hdr, spa_t *spa, uint64_t dsobj)
 	    !HDR_COMPRESSION_ENABLED(hdr)) {
 		abd = NULL;
 		csize = zio_compress_data(HDR_GET_COMPRESS(hdr),
-		    hdr->b_l1hdr.b_pabd, &abd, lsize, lsize, hdr->b_complevel);
+		    hdr->b_l1hdr.b_pabd, &abd, lsize, MIN(lsize, psize),
+		    hdr->b_complevel);
+		if (csize >= lsize || csize > psize) {
+			ret = SET_ERROR(EIO);
+			return (ret);
+		}
 		ASSERT3P(abd, !=, NULL);
-		ASSERT3U(csize, <=, psize);
 		abd_zero_off(abd, csize, psize - csize);
 		free_abd = B_TRUE;
 	}
