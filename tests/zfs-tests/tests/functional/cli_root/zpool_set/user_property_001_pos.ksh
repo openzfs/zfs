@@ -80,8 +80,8 @@ while ((i < ${#names[@]})); do
 	typeset name="${names[$i]}"
 	typeset value="${values[$i]}"
 
-	log_must eval "zpool set $name='$value' $TESTPOOL"
-	log_must eval "check_user_prop $TESTPOOL $name '$value'"
+	log_must zpool set "$name=$value" "$TESTPOOL"
+	log_must check_user_prop "$TESTPOOL" "$name" "$value"
 
 	((i += 1))
 done
