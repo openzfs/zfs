@@ -299,9 +299,12 @@ zio_fini(void)
  * ==========================================================================
  */
 
-#ifdef ZFS_DEBUG
-static const ulong_t zio_buf_canary = (ulong_t)0xdeadc0dedead210b;
+#if defined(ZFS_DEBUG) && defined(_KERNEL)
+#define	ZFS_ZIO_BUF_CANARY	1
 #endif
+
+#ifdef ZFS_ZIO_BUF_CANARY
+static const ulong_t zio_buf_canary = (ulong_t)0xdeadc0dedead210b;
 
 /*
  * Use empty space after the buffer to detect overflows.
@@ -314,7 +317,6 @@ static const ulong_t zio_buf_canary = (ulong_t)0xdeadc0dedead210b;
 static void
 zio_buf_put_canary(ulong_t *p, size_t size, kmem_cache_t **cache, size_t c)
 {
-#ifdef ZFS_DEBUG
 	size_t off = P2ROUNDUP(size, sizeof (ulong_t));
 	ulong_t *canary = p + off / sizeof (ulong_t);
 	size_t asize = (c + 1) << SPA_MINBLOCKSHIFT;
@@ -323,13 +325,11 @@ zio_buf_put_canary(ulong_t *p, size_t size, kmem_cache_t **cache, size_t c)
 		asize = (c + 2) << SPA_MINBLOCKSHIFT;
 	for (; off < asize; canary++, off += sizeof (ulong_t))
 		*canary = zio_buf_canary;
-#endif
 }
 
 static void
 zio_buf_check_canary(ulong_t *p, size_t size, kmem_cache_t **cache, size_t c)
 {
-#ifdef ZFS_DEBUG
 	size_t off = P2ROUNDUP(size, sizeof (ulong_t));
 	ulong_t *canary = p + off / sizeof (ulong_t);
 	size_t asize = (c + 1) << SPA_MINBLOCKSHIFT;
@@ -343,8 +343,8 @@ zio_buf_check_canary(ulong_t *p, size_t size, kmem_cache_t **cache, size_t c)
 			    *canary, zio_buf_canary);
 		}
 	}
-#endif
 }
+#endif
 
 /*
  * Use zio_buf_alloc to allocate ZFS metadata.  This data will appear in a
@@ -363,7 +363,9 @@ zio_buf_alloc(size_t size)
 #endif
 
 	void *p = kmem_cache_alloc(zio_buf_cache[c], KM_PUSHPAGE);
+#ifdef ZFS_ZIO_BUF_CANARY
 	zio_buf_put_canary(p, size, zio_buf_cache, c);
+#endif
 	return (p);
 }
 
@@ -381,7 +383,9 @@ zio_data_buf_alloc(size_t size)
 	VERIFY3U(c, <, SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT);
 
 	void *p = kmem_cache_alloc(zio_data_buf_cache[c], KM_PUSHPAGE);
+#ifdef ZFS_ZIO_BUF_CANARY
 	zio_buf_put_canary(p, size, zio_data_buf_cache, c);
+#endif
 	return (p);
 }
 
@@ -395,7 +399,9 @@ zio_buf_free(void *buf, size_t size)
 	atomic_add_64(&zio_buf_cache_frees[c], 1);
 #endif
 
+#ifdef ZFS_ZIO_BUF_CANARY
 	zio_buf_check_canary(buf, size, zio_buf_cache, c);
+#endif
 	kmem_cache_free(zio_buf_cache[c], buf);
 }
 
@@ -406,7 +412,9 @@ zio_data_buf_free(void *buf, size_t size)
 
 	VERIFY3U(c, <, SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT);
 
+#ifdef ZFS_ZIO_BUF_CANARY
 	zio_buf_check_canary(buf, size, zio_data_buf_cache, c);
+#endif
 	kmem_cache_free(zio_data_buf_cache[c], buf);
 }
 
