@@ -64,17 +64,11 @@ names+=("$(awk '
 	}'
 )")
 values+=("too-long-property-name")
-# A property value that is too long consists of at least 1024 bytes on FreeBSD
-# and 4096 bytes on Linux.
+# A property value that is too long consists of at least 8192 bytes.
 # The smallest too-long value is (1) the limit (2) minus 1 byte for the null
 # byte (2) plus 1 byte to reach back over the limit).
-if is_linux; then
-	typeset ZFS_MAXPROPLEN=4096
-else
-	typeset ZFS_MAXPROPLEN=1024
-fi
 names+=("too:long:property:value")
-values+=("$(awk -v max="$ZFS_MAXPROPLEN" 'BEGIN { while (c++ < (max - 1 + 1)) printf "A" }')")
+values+=("$(awk 'BEGIN { while (c++ < (8192 - 1 + 1)) printf "A" }')")
 # Invalid property names
 for i in {1..10}; do
 	typeset -i len
