@@ -51,8 +51,8 @@ extern "C" {
 /*
  * Miscellaneous ZFS constants
  */
-#define	ZFS_MAXPROPLEN		MAXPATHLEN
-#define	ZPOOL_MAXPROPLEN	MAXPATHLEN
+#define	ZFS_MAXPROPLEN		ZAP_MAXVALUELEN
+#define	ZPOOL_MAXPROPLEN	ZAP_MAXVALUELEN
 
 /*
  * libzfs errors
