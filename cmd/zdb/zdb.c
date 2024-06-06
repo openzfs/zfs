@@ -9185,7 +9185,7 @@ main(int argc, char **argv)
 	    libzfs_core_init() == 0) {
 		char *pname = strdup(target);
 		const char *value;
-		nvlist_t *pnvl;
+		nvlist_t *pnvl = NULL;
 		nvlist_t *vnvl;
 
 		if (strpbrk(pname, "/@") != NULL)
