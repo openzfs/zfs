@@ -155,7 +155,7 @@ __zfs_list_volumes()
 __zfs_argument_chosen()
 {
     local word property
-    for word in $(seq $((COMP_CWORD-1)) -1 2)
+    for word in $(seq $((COMP_CWORD-1)) -1 2 2>/dev/null)
     do
         local prev="${COMP_WORDS[$word]}"
         if [[ ${COMP_WORDS[$word-1]} != -[tos] ]]
