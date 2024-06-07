@@ -44,8 +44,7 @@ typedef enum abd_flags {
 	ABD_FLAG_LINEAR_PAGE 	= 1 << 5, /* linear but allocd from page */
 	ABD_FLAG_GANG		= 1 << 6, /* mult ABDs chained together */
 	ABD_FLAG_GANG_FREE	= 1 << 7, /* gang ABD is responsible for mem */
-	ABD_FLAG_ZEROS		= 1 << 8, /* ABD for zero-filled buffer */
-	ABD_FLAG_ALLOCD		= 1 << 9, /* we allocated the abd_t */
+	ABD_FLAG_ALLOCD		= 1 << 8, /* we allocated the abd_t */
 } abd_flags_t;
 
 typedef struct abd {

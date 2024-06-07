@@ -509,7 +509,7 @@ abd_alloc_zero_scatter(void)
 	ABD_SCATTER(abd_zero_scatter).abd_sgl = table.sgl;
 	ABD_SCATTER(abd_zero_scatter).abd_nents = nr_pages;
 	abd_zero_scatter->abd_size = SPA_MAXBLOCKSIZE;
-	abd_zero_scatter->abd_flags |= ABD_FLAG_MULTI_CHUNK | ABD_FLAG_ZEROS;
+	abd_zero_scatter->abd_flags |= ABD_FLAG_MULTI_CHUNK;
 
 	abd_for_each_sg(abd_zero_scatter, sg, nr_pages, i) {
 		sg_set_page(sg, abd_zero_page, PAGESIZE, 0);
