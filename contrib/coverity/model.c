@@ -172,7 +172,7 @@ spl_kmem_alloc(size_t sz, int fl, const char *func, int line)
 
 	__coverity_negative_sink__(sz);
 
-	if (condition1)
+	if (((fl & KM_NOSLEEP) != KM_NOSLEEP) && condition1)
 		__coverity_sleep__();
 
 	if (((fl & KM_NOSLEEP) != KM_NOSLEEP) || condition0) {
@@ -193,7 +193,7 @@ spl_kmem_zalloc(size_t sz, int fl, const char *func, int line)
 
 	__coverity_negative_sink__(sz);
 
-	if (condition1)
+	if (((fl & KM_NOSLEEP) != KM_NOSLEEP) && condition1)
 		__coverity_sleep__();
 
 	if (((fl & KM_NOSLEEP) != KM_NOSLEEP) || condition0) {
@@ -275,7 +275,7 @@ spl_vmem_alloc(size_t sz, int fl, const char *func, int line)
 
 	__coverity_negative_sink__(sz);
 
-	if (condition1)
+	if (((fl & KM_NOSLEEP) != KM_NOSLEEP) && condition1)
 		__coverity_sleep__();
 
 	if (((fl & KM_NOSLEEP) != KM_NOSLEEP) || condition0) {
@@ -294,7 +294,7 @@ spl_vmem_zalloc(size_t sz, int fl, const char *func, int line)
 	(void) func;
 	(void) line;
 
-	if (condition1)
+	if (((fl & KM_NOSLEEP) != KM_NOSLEEP) && condition1)
 		__coverity_sleep__();
 
 	if (((fl & KM_NOSLEEP) != KM_NOSLEEP) || condition0) {
