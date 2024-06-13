@@ -667,7 +667,9 @@ post =
 tags = ['functional', 'deadman']
 
 [tests/functional/dedup]
-tests = ['dedup_quota']
+tests = ['dedup_legacy_create', 'dedup_fdt_create', 'dedup_fdt_import',
+    'dedup_legacy_create', 'dedup_legacy_import', 'dedup_legacy_fdt_upgrade',
+    'dedup_legacy_fdt_mixed', 'dedup_quota']
 pre =
 post =
 tags = ['functional', 'dedup']

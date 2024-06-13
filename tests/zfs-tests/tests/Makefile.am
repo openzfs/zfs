@@ -1421,6 +1421,12 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/deadman/deadman_zio.ksh \
 	functional/dedup/cleanup.ksh \
 	functional/dedup/setup.ksh \
+	functional/dedup/dedup_fdt_create.ksh \
+	functional/dedup/dedup_fdt_import.ksh \
+	functional/dedup/dedup_legacy_create.ksh \
+	functional/dedup/dedup_legacy_import.ksh \
+	functional/dedup/dedup_legacy_fdt_upgrade.ksh \
+	functional/dedup/dedup_legacy_fdt_mixed.ksh \
 	functional/dedup/dedup_quota.ksh \
 	functional/delegate/cleanup.ksh \
 	functional/delegate/setup.ksh \
