@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2024 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2013 Saso Kiselkov. All rights reserved.
@@ -62,6 +62,12 @@ typedef struct spa_alloc {
 	kmutex_t	spaa_lock;
 	avl_tree_t	spaa_tree;
 } ____cacheline_aligned spa_alloc_t;
+
+typedef struct spa_allocs_use {
+	kmutex_t	sau_lock;
+	uint_t		sau_rotor;
+	boolean_t	sau_inuse[];
+} spa_allocs_use_t;
 
 typedef struct spa_error_entry {
 	zbookmark_phys_t	se_bookmark;
@@ -192,7 +198,7 @@ typedef struct spa_taskqs {
 /* one for each thread in the spa sync taskq */
 typedef struct spa_syncthread_info {
 	kthread_t	*sti_thread;
-	taskq_t		*sti_wr_iss_tq;		/* assigned wr_iss taskq */
+	uint_t		sti_allocator;
 } spa_syncthread_info_t;
 
 typedef enum spa_all_vdev_zap_action {
@@ -237,6 +243,8 @@ struct spa {
 	dsl_pool_t	*spa_dsl_pool;
 	boolean_t	spa_is_initializing;	/* true while opening pool */
 	boolean_t	spa_is_exporting;	/* true while exporting pool */
+	kthread_t	*spa_export_thread;	/* valid during pool export */
+	kthread_t	*spa_load_thread;	/* loading, no namespace lock */
 	metaslab_class_t *spa_normal_class;	/* normal data class */
 	metaslab_class_t *spa_log_class;	/* intent log data class */
 	metaslab_class_t *spa_embedded_log_class; /* log on normal vdevs */
@@ -269,6 +277,7 @@ struct spa {
 	 * allocation performance in write-heavy workloads.
 	 */
 	spa_alloc_t	*spa_allocs;
+	spa_allocs_use_t *spa_allocs_use;
 	int		spa_alloc_count;
 	int		spa_active_allocator;	/* selectable allocator */
 
@@ -470,10 +479,8 @@ struct spa {
 extern char *spa_config_path;
 extern const char *zfs_deadman_failmode;
 extern uint_t spa_slop_shift;
-extern void spa_taskq_dispatch_ent(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
-    task_func_t *func, void *arg, uint_t flags, taskq_ent_t *ent, zio_t *zio);
-extern void spa_taskq_dispatch_sync(spa_t *, zio_type_t t, zio_taskq_type_t q,
-    task_func_t *func, void *arg, uint_t flags);
+extern void spa_taskq_dispatch(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
+    task_func_t *func, zio_t *zio, boolean_t cutinline);
 extern void spa_load_spares(spa_t *spa);
 extern void spa_load_l2cache(spa_t *spa);
 extern sysevent_t *spa_event_create(spa_t *spa, vdev_t *vd, nvlist_t *hist_nvl,

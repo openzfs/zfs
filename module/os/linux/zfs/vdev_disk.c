@@ -397,7 +397,7 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 			if (v->vdev_removed)
 				break;
 
-			schedule_timeout(MSEC_TO_TICK(10));
+			schedule_timeout_interruptible(MSEC_TO_TICK(10));
 		} else if (unlikely(BDH_PTR_ERR(bdh) == -ERESTARTSYS)) {
 			timeout = MSEC2NSEC(zfs_vdev_open_timeout_ms * 10);
 			continue;
@@ -429,8 +429,11 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	/*  Determine the logical block size */
 	int logical_block_size = bdev_logical_block_size(bdev);
 
-	/* Clear the nowritecache bit, causes vdev_reopen() to try again. */
-	v->vdev_nowritecache = B_FALSE;
+	/*
+	 * If the device has a write cache, clear the nowritecache flag,
+	 * so that we start issuing flush requests again.
+	 */
+	v->vdev_nowritecache = !zfs_bdev_has_write_cache(bdev);
 
 	/* Set when device reports it supports TRIM. */
 	v->vdev_has_trim = bdev_discard_supported(bdev);
@@ -853,6 +856,11 @@ BIO_END_IO_PROTO(vbio_completion, bio, error)
  * pages) but we still have to ensure the data portion is correctly sized and
  * aligned to the logical block size, to ensure that if the kernel wants to
  * split the BIO, the two halves will still be properly aligned.
+ *
+ * NOTE: if you change this function, change the copy in
+ * tests/zfs-tests/tests/functional/vdev_disk/page_alignment.c, and add test
+ * data there to validate the change you're making.
+ *
  */
 typedef struct {
 	uint_t  bmask;
@@ -863,6 +871,7 @@ typedef struct {
 static int
 vdev_disk_check_pages_cb(struct page *page, size_t off, size_t len, void *priv)
 {
+	(void) page;
 	vdev_disk_check_pages_t *s = priv;
 
 	/*
@@ -876,7 +885,7 @@ vdev_disk_check_pages_cb(struct page *page, size_t off, size_t len, void *priv)
 	 * Note if we're taking less than a full block, so we can check it
 	 * above on the next call.
 	 */
-	s->end = len & s->bmask;
+	s->end = (off+len) & s->bmask;
 
 	/* All blocks after the first must start on a block size boundary. */
 	if (s->npages != 0 && (off & s->bmask) != 0)
@@ -1394,41 +1403,32 @@ vdev_disk_io_start(zio_t *zio)
 	}
 
 	switch (zio->io_type) {
-	case ZIO_TYPE_IOCTL:
+	case ZIO_TYPE_FLUSH:
 
 		if (!vdev_readable(v)) {
-			rw_exit(&vd->vd_lock);
-			zio->io_error = SET_ERROR(ENXIO);
-			zio_interrupt(zio);
-			return;
-		}
-
-		switch (zio->io_cmd) {
-		case DKIOCFLUSHWRITECACHE:
-
-			if (zfs_nocacheflush)
-				break;
-
-			if (v->vdev_nowritecache) {
-				zio->io_error = SET_ERROR(ENOTSUP);
-				break;
-			}
-
+			/* Drive not there, can't flush */
+			error = SET_ERROR(ENXIO);
+		} else if (zfs_nocacheflush) {
+			/* Flushing disabled by operator, declare success */
+			error = 0;
+		} else if (v->vdev_nowritecache) {
+			/* This vdev not capable of flushing */
+			error = SET_ERROR(ENOTSUP);
+		} else {
+			/*
+			 * Issue the flush. If successful, the response will
+			 * be handled in the completion callback, so we're done.
+			 */
 			error = vdev_disk_io_flush(BDH_BDEV(vd->vd_bdh), zio);
 			if (error == 0) {
 				rw_exit(&vd->vd_lock);
 				return;
 			}
-
-			zio->io_error = error;
-
-			break;
-
-		default:
-			zio->io_error = SET_ERROR(ENOTSUP);
 		}
 
+		/* Couldn't issue the flush, so set the error and return it */
 		rw_exit(&vd->vd_lock);
+		zio->io_error = error;
 		zio_execute(zio);
 		return;
 

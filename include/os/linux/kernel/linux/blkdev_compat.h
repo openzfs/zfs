@@ -94,6 +94,33 @@ blk_queue_set_write_cache(struct request_queue *q, bool wc, bool fua)
 #endif
 }
 
+/*
+ * Detect if a device has a write cache. Used to set the intial value for the
+ * vdev nowritecache flag.
+ *
+ * 4.10: QUEUE_FLAG_WC added. Initialised by the driver, but can be changed
+ *       later by the operator. If not set, kernel will return flush requests
+ *       immediately without doing anything.
+ * 6.6: QUEUE_FLAG_HW_WC added. Initialised by the driver, can't be changed.
+ *      Only controls if the operator is allowed to change _WC. Initial version
+ *      buggy; aliased to QUEUE_FLAG_FUA, so unuseable.
+ * 6.6.10, 6.7: QUEUE_FLAG_HW_WC fixed.
+ *
+ * Older than 4.10 we just assume write cache, and let the normal flush fail
+ * detection apply.
+ */
+static inline boolean_t
+zfs_bdev_has_write_cache(struct block_device *bdev)
+{
+#if defined(QUEUE_FLAG_HW_WC) && QUEUE_FLAG_HW_WC != QUEUE_FLAG_FUA
+	return (test_bit(QUEUE_FLAG_HW_WC, &bdev_get_queue(bdev)->queue_flags));
+#elif defined(QUEUE_FLAG_WC)
+	return (test_bit(QUEUE_FLAG_WC, &bdev_get_queue(bdev)->queue_flags));
+#else
+	return (B_TRUE);
+#endif
+}
+
 static inline void
 blk_queue_set_read_ahead(struct request_queue *q, unsigned long ra_pages)
 {
@@ -563,9 +590,11 @@ static inline boolean_t
 bdev_discard_supported(struct block_device *bdev)
 {
 #if defined(HAVE_BDEV_MAX_DISCARD_SECTORS)
-	return (!!bdev_max_discard_sectors(bdev));
+	return (bdev_max_discard_sectors(bdev) > 0 &&
+	    bdev_discard_granularity(bdev) > 0);
 #elif defined(HAVE_BLK_QUEUE_DISCARD)
-	return (!!blk_queue_discard(bdev_get_queue(bdev)));
+	return (blk_queue_discard(bdev_get_queue(bdev)) > 0 &&
+	    bdev_get_queue(bdev)->limits.discard_granularity > 0);
 #else
 #error "Unsupported kernel"
 #endif

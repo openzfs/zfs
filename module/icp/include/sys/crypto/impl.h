@@ -55,7 +55,7 @@ extern "C" {
  * When impl.h is broken up (bug# 4703218), this will be done. For now,
  * we hardcode these values.
  */
-#define	KCF_OPS_CLASSSIZE	4
+#define	KCF_OPS_CLASSSIZE	3
 #define	KCF_MAXMECHTAB		32
 
 /*
@@ -188,28 +188,6 @@ typedef	struct kcf_mech_entry {
 } kcf_mech_entry_t;
 
 /*
- * If a component has a reference to a kcf_policy_desc_t,
- * it REFHOLD()s. A new policy descriptor which is referenced only
- * by the policy table has a reference count of one.
- */
-#define	KCF_POLICY_REFHOLD(desc) {				\
-	int newval = atomic_add_32_nv(&(desc)->pd_refcnt, 1);	\
-	ASSERT(newval != 0);					\
-}
-
-/*
- * Releases a reference to a policy descriptor. When the last
- * reference is released, the descriptor is freed.
- */
-#define	KCF_POLICY_REFRELE(desc) {				\
-	membar_producer();					\
-	int newval = atomic_add_32_nv(&(desc)->pd_refcnt, -1);	\
-	ASSERT(newval != -1);					\
-	if (newval == 0)					\
-		kcf_policy_free_desc(desc);			\
-}
-
-/*
  * Global tables. The sizes are from the predefined PKCS#11 v2.20 mechanisms,
  * with a margin of few extra empty entry points
  */
@@ -222,12 +200,11 @@ _Static_assert(KCF_MAXCIPHER == KCF_MAXMECHTAB,
 	"KCF_MAXCIPHER != KCF_MAXMECHTAB");	/* See KCF_MAXMECHTAB comment */
 
 typedef	enum {
-	KCF_DIGEST_CLASS = 1,
-	KCF_CIPHER_CLASS,
+	KCF_CIPHER_CLASS = 1,
 	KCF_MAC_CLASS,
 } kcf_ops_class_t;
 
-#define	KCF_FIRST_OPSCLASS	KCF_DIGEST_CLASS
+#define	KCF_FIRST_OPSCLASS	KCF_CIPHER_CLASS
 #define	KCF_LAST_OPSCLASS	KCF_MAC_CLASS
 _Static_assert(
     KCF_OPS_CLASSSIZE == (KCF_LAST_OPSCLASS - KCF_FIRST_OPSCLASS + 2),
@@ -275,28 +252,13 @@ extern const kcf_mech_entry_tab_t kcf_mech_tabs_tab[];
  * of type kcf_prov_desc_t.
  */
 
-#define	KCF_PROV_DIGEST_OPS(pd)		((pd)->pd_ops_vector->co_digest_ops)
 #define	KCF_PROV_CIPHER_OPS(pd)		((pd)->pd_ops_vector->co_cipher_ops)
 #define	KCF_PROV_MAC_OPS(pd)		((pd)->pd_ops_vector->co_mac_ops)
 #define	KCF_PROV_CTX_OPS(pd)		((pd)->pd_ops_vector->co_ctx_ops)
 
 /*
- * Wrappers for crypto_digest_ops(9S) entry points.
- */
-
-#define	KCF_PROV_DIGEST_INIT(pd, ctx, mech) ( \
-	(KCF_PROV_DIGEST_OPS(pd) && KCF_PROV_DIGEST_OPS(pd)->digest_init) ? \
-	KCF_PROV_DIGEST_OPS(pd)->digest_init(ctx, mech) : \
-	CRYPTO_NOT_SUPPORTED)
-
-/*
  * Wrappers for crypto_cipher_ops(9S) entry points.
  */
-
-#define	KCF_PROV_ENCRYPT_INIT(pd, ctx, mech, key, template) ( \
-	(KCF_PROV_CIPHER_OPS(pd) && KCF_PROV_CIPHER_OPS(pd)->encrypt_init) ? \
-	KCF_PROV_CIPHER_OPS(pd)->encrypt_init(ctx, mech, key, template) : \
-	CRYPTO_NOT_SUPPORTED)
 
 #define	KCF_PROV_ENCRYPT_ATOMIC(pd, mech, key, plaintext, ciphertext, \
 	    template) ( \

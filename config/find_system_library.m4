@@ -90,8 +90,8 @@ AC_DEFUN([ZFS_AC_FIND_SYSTEM_LIBRARY], [
 	AC_DEFINE([HAVE_][$1], [1], [Define if you have [$5]])
 	$7
     ],[dnl ELSE
-	AC_SUBST([$1]_CFLAGS, [])
-	AC_SUBST([$1]_LIBS, [])
+	AC_SUBST([$1]_CFLAGS, [""])
+	AC_SUBST([$1]_LIBS, [""])
 	AC_MSG_WARN([cannot find [$5] via pkg-config or in the standard locations])
 	$8
     ])

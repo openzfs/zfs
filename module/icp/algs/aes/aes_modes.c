@@ -75,25 +75,17 @@ aes_encrypt_contiguous_blocks(void *ctx, char *data, size_t length,
 	aes_ctx_t *aes_ctx = ctx;
 	int rv;
 
-	if (aes_ctx->ac_flags & CTR_MODE) {
-		rv = ctr_mode_contiguous_blocks(ctx, data, length, out,
-		    AES_BLOCK_LEN, aes_encrypt_block, aes_xor_block);
-	} else if (aes_ctx->ac_flags & CCM_MODE) {
+	if (aes_ctx->ac_flags & CCM_MODE) {
 		rv = ccm_mode_encrypt_contiguous_blocks(ctx, data, length,
 		    out, AES_BLOCK_LEN, aes_encrypt_block, aes_copy_block,
 		    aes_xor_block);
-	} else if (aes_ctx->ac_flags & (GCM_MODE|GMAC_MODE)) {
+	} else if (aes_ctx->ac_flags & GCM_MODE) {
 		rv = gcm_mode_encrypt_contiguous_blocks(ctx, data, length,
 		    out, AES_BLOCK_LEN, aes_encrypt_block, aes_copy_block,
 		    aes_xor_block);
-	} else if (aes_ctx->ac_flags & CBC_MODE) {
-		rv = cbc_encrypt_contiguous_blocks(ctx,
-		    data, length, out, AES_BLOCK_LEN, aes_encrypt_block,
-		    aes_copy_block, aes_xor_block);
-	} else {
-		rv = ecb_cipher_contiguous_blocks(ctx, data, length, out,
-		    AES_BLOCK_LEN, aes_encrypt_block);
 	}
+	else
+		__builtin_unreachable();
 	return (rv);
 }
 
@@ -108,28 +100,15 @@ aes_decrypt_contiguous_blocks(void *ctx, char *data, size_t length,
 	aes_ctx_t *aes_ctx = ctx;
 	int rv;
 
-	if (aes_ctx->ac_flags & CTR_MODE) {
-		rv = ctr_mode_contiguous_blocks(ctx, data, length, out,
-		    AES_BLOCK_LEN, aes_encrypt_block, aes_xor_block);
-		if (rv == CRYPTO_DATA_LEN_RANGE)
-			rv = CRYPTO_ENCRYPTED_DATA_LEN_RANGE;
-	} else if (aes_ctx->ac_flags & CCM_MODE) {
+	if (aes_ctx->ac_flags & CCM_MODE) {
 		rv = ccm_mode_decrypt_contiguous_blocks(ctx, data, length,
 		    out, AES_BLOCK_LEN, aes_encrypt_block, aes_copy_block,
 		    aes_xor_block);
-	} else if (aes_ctx->ac_flags & (GCM_MODE|GMAC_MODE)) {
+	} else if (aes_ctx->ac_flags & GCM_MODE) {
 		rv = gcm_mode_decrypt_contiguous_blocks(ctx, data, length,
 		    out, AES_BLOCK_LEN, aes_encrypt_block, aes_copy_block,
 		    aes_xor_block);
-	} else if (aes_ctx->ac_flags & CBC_MODE) {
-		rv = cbc_decrypt_contiguous_blocks(ctx, data, length, out,
-		    AES_BLOCK_LEN, aes_decrypt_block, aes_copy_block,
-		    aes_xor_block);
-	} else {
-		rv = ecb_cipher_contiguous_blocks(ctx, data, length, out,
-		    AES_BLOCK_LEN, aes_decrypt_block);
-		if (rv == CRYPTO_DATA_LEN_RANGE)
-			rv = CRYPTO_ENCRYPTED_DATA_LEN_RANGE;
-	}
+	} else
+		__builtin_unreachable();
 	return (rv);
 }

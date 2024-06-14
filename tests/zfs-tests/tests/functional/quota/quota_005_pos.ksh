@@ -50,20 +50,19 @@ function cleanup
 {
 	datasetexists $fs_child && destroy_dataset $fs_child
 
-	log_must zfs set quota=$quota_val $fs
+	reset_quota $fs
 }
 
 log_onexit cleanup
 
-log_assert "Verify that quota doesnot inherit its value from parent."
-log_onexit cleanup
+log_assert "Verify that quota does not inherit its value from parent."
 
 fs=$TESTPOOL/$TESTFS
 fs_child=$TESTPOOL/$TESTFS/$TESTFS
 
 space_avail=$(get_prop available $fs)
 quota_val=$(get_prop quota $fs)
-typeset -i quotasize=$space_avail
+typeset -li quotasize=$space_avail
 ((quotasize = quotasize * 2 ))
 log_must zfs set quota=$quotasize $fs
 
@@ -72,4 +71,4 @@ quota_space=$(get_prop quota $fs_child)
 [[ $quota_space == $quotasize ]] && \
 	log_fail "The quota of child dataset inherits its value from parent."
 
-log_pass "quota doesnot inherit its value from parent as expected."
+log_pass "quota does not inherit its value from parent as expected."

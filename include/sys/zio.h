@@ -22,12 +22,12 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2024 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright 2016 Toomas Soome <tsoome@me.com>
  * Copyright (c) 2019, Allan Jude
- * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, 2023, 2024, Klara Inc.
  * Copyright (c) 2019-2020, Michael Niewöhner
  */
 
@@ -451,7 +451,6 @@ struct zio {
 	zio_type_t	io_type;
 	enum zio_child	io_child_type;
 	enum trim_flag	io_trim_flags;
-	int		io_cmd;
 	zio_priority_t	io_priority;
 	uint8_t		io_reexecute;
 	uint8_t		io_state[ZIO_WAIT_TYPES];
@@ -529,9 +528,6 @@ struct zio {
 
 	/* Taskq dispatching state */
 	taskq_ent_t	io_tqent;
-
-	/* write issue taskq selection, based upon sync thread */
-	taskq_t		*io_wr_iss_tq;
 };
 
 enum blk_verify_flag {
@@ -577,9 +573,6 @@ extern void zio_free(spa_t *spa, uint64_t txg, const blkptr_t *bp);
 
 extern zio_t *zio_claim(zio_t *pio, spa_t *spa, uint64_t txg,
     const blkptr_t *bp,
-    zio_done_func_t *done, void *priv, zio_flag_t flags);
-
-extern zio_t *zio_ioctl(zio_t *pio, spa_t *spa, vdev_t *vd, int cmd,
     zio_done_func_t *done, void *priv, zio_flag_t flags);
 
 extern zio_t *zio_trim(zio_t *pio, vdev_t *vd, uint64_t offset, uint64_t size,
@@ -690,6 +683,8 @@ extern int zio_handle_device_injections(vdev_t *vd, zio_t *zio, int err1,
 extern int zio_handle_label_injection(zio_t *zio, int error);
 extern void zio_handle_ignored_writes(zio_t *zio);
 extern hrtime_t zio_handle_io_delay(zio_t *zio);
+extern void zio_handle_import_delay(spa_t *spa, hrtime_t elapsed);
+extern void zio_handle_export_delay(spa_t *spa, hrtime_t elapsed);
 
 /*
  * Checksum ereport functions

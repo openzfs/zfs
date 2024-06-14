@@ -50,11 +50,6 @@
 static uint32_t icp_gcm_impl = IMPL_FASTEST;
 static uint32_t user_sel_impl = IMPL_FASTEST;
 
-static inline int gcm_init_ctx_impl(boolean_t, gcm_ctx_t *, char *, size_t,
-    int (*)(const void *, const uint8_t *, uint8_t *),
-    void (*)(uint8_t *, uint8_t *),
-    void (*)(uint8_t *, uint8_t *));
-
 #ifdef CAN_USE_GCM_ASM
 /* Does the architecture we run on support the MOVBE instruction? */
 boolean_t gcm_avx_can_use_movbe = B_FALSE;
@@ -591,39 +586,10 @@ gcm_init(gcm_ctx_t *ctx, const uint8_t *iv, size_t iv_len,
 }
 
 /*
- * The following function is called at encrypt or decrypt init time
- * for AES GCM mode.
- */
-int
-gcm_init_ctx(gcm_ctx_t *gcm_ctx, char *param, size_t block_size,
-    int (*encrypt_block)(const void *, const uint8_t *, uint8_t *),
-    void (*copy_block)(uint8_t *, uint8_t *),
-    void (*xor_block)(uint8_t *, uint8_t *))
-{
-	return (gcm_init_ctx_impl(B_FALSE, gcm_ctx, param, block_size,
-	    encrypt_block, copy_block, xor_block));
-}
-
-/*
- * The following function is called at encrypt or decrypt init time
- * for AES GMAC mode.
- */
-int
-gmac_init_ctx(gcm_ctx_t *gcm_ctx, char *param, size_t block_size,
-    int (*encrypt_block)(const void *, const uint8_t *, uint8_t *),
-    void (*copy_block)(uint8_t *, uint8_t *),
-    void (*xor_block)(uint8_t *, uint8_t *))
-{
-	return (gcm_init_ctx_impl(B_TRUE, gcm_ctx, param, block_size,
-	    encrypt_block, copy_block, xor_block));
-}
-
-/*
  * Init the GCM context struct. Handle the cycle and avx implementations here.
- * Initialization of a GMAC context differs slightly from a GCM context.
  */
-static inline int
-gcm_init_ctx_impl(boolean_t gmac_mode, gcm_ctx_t *gcm_ctx, char *param,
+int
+gcm_init_ctx(gcm_ctx_t *gcm_ctx, char *param,
     size_t block_size, int (*encrypt_block)(const void *, const uint8_t *,
     uint8_t *), void (*copy_block)(uint8_t *, uint8_t *),
     void (*xor_block)(uint8_t *, uint8_t *))
@@ -635,22 +601,16 @@ gcm_init_ctx_impl(boolean_t gmac_mode, gcm_ctx_t *gcm_ctx, char *param,
 	if (param != NULL) {
 		gcm_param = (CK_AES_GCM_PARAMS *)(void *)param;
 
-		if (gmac_mode == B_FALSE) {
-			/* GCM mode. */
-			if ((rv = gcm_validate_args(gcm_param)) != 0) {
-				return (rv);
-			}
-			gcm_ctx->gcm_flags |= GCM_MODE;
-
-			size_t tbits = gcm_param->ulTagBits;
-			tag_len = CRYPTO_BITS2BYTES(tbits);
-			iv_len = gcm_param->ulIvLen;
-		} else {
-			/* GMAC mode. */
-			gcm_ctx->gcm_flags |= GMAC_MODE;
-			tag_len = CRYPTO_BITS2BYTES(AES_GMAC_TAG_BITS);
-			iv_len = AES_GMAC_IV_LEN;
+		/* GCM mode. */
+		if ((rv = gcm_validate_args(gcm_param)) != 0) {
+			return (rv);
 		}
+		gcm_ctx->gcm_flags |= GCM_MODE;
+
+		size_t tbits = gcm_param->ulTagBits;
+		tag_len = CRYPTO_BITS2BYTES(tbits);
+		iv_len = gcm_param->ulIvLen;
+
 		gcm_ctx->gcm_tag_len = tag_len;
 		gcm_ctx->gcm_processed_data_len = 0;
 
@@ -684,10 +644,9 @@ gcm_init_ctx_impl(boolean_t gmac_mode, gcm_ctx_t *gcm_ctx, char *param,
 		}
 		/*
 		 * If this is a GCM context, use the MOVBE and the BSWAP
-		 * variants alternately. GMAC contexts code paths do not
-		 * use the MOVBE instruction.
+		 * variants alternately.
 		 */
-		if (gcm_ctx->gcm_use_avx == B_TRUE && gmac_mode == B_FALSE &&
+		if (gcm_ctx->gcm_use_avx == B_TRUE &&
 		    zfs_movbe_available() == B_TRUE) {
 			(void) atomic_toggle_boolean_nv(
 			    (volatile boolean_t *)&gcm_avx_can_use_movbe);
@@ -755,18 +714,6 @@ gcm_alloc_ctx(int kmflag)
 		return (NULL);
 
 	gcm_ctx->gcm_flags = GCM_MODE;
-	return (gcm_ctx);
-}
-
-void *
-gmac_alloc_ctx(int kmflag)
-{
-	gcm_ctx_t *gcm_ctx;
-
-	if ((gcm_ctx = kmem_zalloc(sizeof (gcm_ctx_t), kmflag)) == NULL)
-		return (NULL);
-
-	gcm_ctx->gcm_flags = GMAC_MODE;
 	return (gcm_ctx);
 }
 

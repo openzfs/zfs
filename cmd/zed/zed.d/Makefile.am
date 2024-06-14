@@ -9,6 +9,7 @@ dist_zedexec_SCRIPTS = \
 	%D%/all-debug.sh \
 	%D%/all-syslog.sh \
 	%D%/data-notify.sh \
+	%D%/deadman-slot_off.sh \
 	%D%/generic-notify.sh \
 	%D%/pool_import-led.sh \
 	%D%/resilver_finish-notify.sh \
@@ -29,6 +30,7 @@ SUBSTFILES += $(nodist_zedexec_SCRIPTS)
 zedconfdefaults = \
 	all-syslog.sh \
 	data-notify.sh \
+	deadman-slot_off.sh \
 	history_event-zfs-list-cacher.sh \
 	pool_import-led.sh \
 	resilver_finish-notify.sh \

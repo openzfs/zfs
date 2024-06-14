@@ -1015,10 +1015,50 @@ abd_cache_reap_now(void)
 }
 
 #if defined(_KERNEL)
+
 /*
- * Yield the next page struct and data offset and size within it, without
+ * This is abd_iter_page(), the function underneath abd_iterate_page_func().
+ * It yields the next page struct and data offset and size within it, without
  * mapping it into the address space.
  */
+
+/*
+ * "Compound pages" are a group of pages that can be referenced from a single
+ * struct page *. Its organised as a "head" page, followed by a series of
+ * "tail" pages.
+ *
+ * In OpenZFS, compound pages are allocated using the __GFP_COMP flag, which we
+ * get from scatter ABDs and SPL vmalloc slabs (ie >16K allocations). So a
+ * great many of the IO buffers we get are going to be of this type.
+ *
+ * The tail pages are just regular PAGESIZE pages, and can be safely used
+ * as-is. However, the head page has length covering itself and all the tail
+ * pages. If the ABD chunk spans multiple pages, then we can use the head page
+ * and a >PAGESIZE length, which is far more efficient.
+ *
+ * Before kernel 4.5 however, compound page heads were refcounted separately
+ * from tail pages, such that moving back to the head page would require us to
+ * take a reference to it and releasing it once we're completely finished with
+ * it. In practice, that means when our caller is done with the ABD, which we
+ * have no insight into from here. Rather than contort this API to track head
+ * page references on such ancient kernels, we disable this special compound
+ * page handling on 4.5, instead just using treating each page within it as a
+ * regular PAGESIZE page (which it is). This is slightly less efficient, but
+ * makes everything far simpler.
+ *
+ * The below test sets/clears ABD_ITER_COMPOUND_PAGES to enable/disable the
+ * special handling, and also defines the ABD_ITER_PAGE_SIZE(page) macro to
+ * understand compound pages, or not, as required.
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
+#define	ABD_ITER_COMPOUND_PAGES		1
+#define	ABD_ITER_PAGE_SIZE(page)	\
+	(PageCompound(page) ? page_size(page) : PAGESIZE)
+#else
+#undef ABD_ITER_COMPOUND_PAGES
+#define	ABD_ITER_PAGE_SIZE(page)	(PAGESIZE)
+#endif
+
 void
 abd_iter_page(struct abd_iter *aiter)
 {
@@ -1032,6 +1072,12 @@ abd_iter_page(struct abd_iter *aiter)
 	struct page *page;
 	size_t doff, dsize;
 
+	/*
+	 * Find the page, and the start of the data within it. This is computed
+	 * differently for linear and scatter ABDs; linear is referenced by
+	 * virtual memory location, while scatter is referenced by page
+	 * pointer.
+	 */
 	if (abd_is_linear(aiter->iter_abd)) {
 		ASSERT3U(aiter->iter_pos, ==, aiter->iter_offset);
 
@@ -1044,57 +1090,24 @@ abd_iter_page(struct abd_iter *aiter)
 
 		/* offset of address within the page */
 		doff = offset_in_page(paddr);
-
-		/* total data remaining in abd from this position */
-		dsize = aiter->iter_abd->abd_size - aiter->iter_offset;
 	} else {
 		ASSERT(!abd_is_gang(aiter->iter_abd));
 
 		/* current scatter page */
-		page = sg_page(aiter->iter_sg);
+		page = nth_page(sg_page(aiter->iter_sg),
+		    aiter->iter_offset >> PAGE_SHIFT);
 
 		/* position within page */
-		doff = aiter->iter_offset;
-
-		/* remaining data in scatterlist */
-		dsize = MIN(aiter->iter_sg->length - aiter->iter_offset,
-		    aiter->iter_abd->abd_size - aiter->iter_pos);
+		doff = aiter->iter_offset & (PAGESIZE - 1);
 	}
-	ASSERT(page);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
+#ifdef ABD_ITER_COMPOUND_PAGES
 	if (PageTail(page)) {
 		/*
-		 * This page is part of a "compound page", which is a group of
-		 * pages that can be referenced from a single struct page *.
-		 * Its organised as a "head" page, followed by a series of
-		 * "tail" pages.
-		 *
-		 * In OpenZFS, compound pages are allocated using the
-		 * __GFP_COMP flag, which we get from scatter ABDs and SPL
-		 * vmalloc slabs (ie >16K allocations). So a great many of the
-		 * IO buffers we get are going to be of this type.
-		 *
-		 * The tail pages are just regular PAGE_SIZE pages, and can be
-		 * safely used as-is. However, the head page has length
-		 * covering itself and all the tail pages. If this ABD chunk
-		 * spans multiple pages, then we can use the head page and a
-		 * >PAGE_SIZE length, which is far more efficient.
-		 *
-		 * To do this, we need to adjust the offset to be counted from
-		 * the head page. struct page for compound pages are stored
-		 * contiguously, so we can just adjust by a simple offset.
-		 *
-		 * Before kernel 4.5, compound page heads were refcounted
-		 * separately, such that moving back to the head page would
-		 * require us to take a reference to it and releasing it once
-		 * we're completely finished with it. In practice, that means
-		 * when our caller is done with the ABD, which we have no
-		 * insight into from here. Rather than contort this API to
-		 * track head page references on such ancient kernels, we just
-		 * compile this block out and use the tail pages directly. This
-		 * is slightly less efficient, but makes everything far
-		 * simpler.
+		 * If this is a compound tail page, move back to the head, and
+		 * adjust the offset to match. This may let us yield a much
+		 * larger amount of data from a single logical page, and so
+		 * leave our caller with fewer pages to process.
 		 */
 		struct page *head = compound_head(page);
 		doff += ((page - head) * PAGESIZE);
@@ -1102,12 +1115,27 @@ abd_iter_page(struct abd_iter *aiter)
 	}
 #endif
 
-	/* final page and position within it */
+	ASSERT(page);
+
+	/*
+	 * Compute the maximum amount of data we can take from this page. This
+	 * is the smaller of:
+	 * - the remaining space in the page
+	 * - the remaining space in this scatterlist entry (which may not cover
+	 *   the entire page)
+	 * - the remaining space in the abd (which may not cover the entire
+	 *   scatterlist entry)
+	 */
+	dsize = MIN(ABD_ITER_PAGE_SIZE(page) - doff,
+	    aiter->iter_abd->abd_size - aiter->iter_pos);
+	if (!abd_is_linear(aiter->iter_abd))
+		dsize = MIN(dsize, aiter->iter_sg->length - aiter->iter_offset);
+	ASSERT3U(dsize, >, 0);
+
+	/* final iterator outputs */
 	aiter->iter_page = page;
 	aiter->iter_page_doff = doff;
-
-	/* amount of data in the chunk, up to the end of the page */
-	aiter->iter_page_dsize = MIN(dsize, page_size(page) - doff);
+	aiter->iter_page_dsize = dsize;
 }
 
 /*

@@ -152,25 +152,16 @@ typedef struct skein_param {
 
 /* Module definitions */
 #ifdef	SKEIN_MODULE_IMPL
-#define	CKM_SKEIN_256				"CKM_SKEIN_256"
-#define	CKM_SKEIN_512				"CKM_SKEIN_512"
-#define	CKM_SKEIN1024				"CKM_SKEIN1024"
 #define	CKM_SKEIN_256_MAC			"CKM_SKEIN_256_MAC"
 #define	CKM_SKEIN_512_MAC			"CKM_SKEIN_512_MAC"
 #define	CKM_SKEIN1024_MAC			"CKM_SKEIN1024_MAC"
 
 typedef enum skein_mech_type {
-	SKEIN_256_MECH_INFO_TYPE,
-	SKEIN_512_MECH_INFO_TYPE,
-	SKEIN1024_MECH_INFO_TYPE,
 	SKEIN_256_MAC_MECH_INFO_TYPE,
 	SKEIN_512_MAC_MECH_INFO_TYPE,
 	SKEIN1024_MAC_MECH_INFO_TYPE
 } skein_mech_type_t;
 
-#define	VALID_SKEIN_DIGEST_MECH(__mech)				\
-	((int)(__mech) >= SKEIN_256_MECH_INFO_TYPE &&		\
-	(__mech) <= SKEIN1024_MECH_INFO_TYPE)
 #define	VALID_SKEIN_MAC_MECH(__mech)				\
 	((int)(__mech) >= SKEIN_256_MAC_MECH_INFO_TYPE &&	\
 	(__mech) <= SKEIN1024_MAC_MECH_INFO_TYPE)

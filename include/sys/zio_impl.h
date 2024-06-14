@@ -40,7 +40,7 @@ extern "C" {
  *
  * The ZFS I/O pipeline is comprised of various stages which are defined
  * in the zio_stage enum below. The individual stages are used to construct
- * these basic I/O operations: Read, Write, Free, Claim, Ioctl and Trim.
+ * these basic I/O operations: Read, Write, Free, Claim, Flush and Trim.
  *
  * I/O operations: (XXX - provide detail for each of the operations)
  *
@@ -48,7 +48,7 @@ extern "C" {
  * Write:
  * Free:
  * Claim:
- * Ioctl:
+ * Flush:
  * Trim:
  *
  * Although the most common pipeline are used by the basic I/O operations
@@ -122,7 +122,7 @@ extern "C" {
  * zio pipeline stage definitions
  */
 enum zio_stage {
-	ZIO_STAGE_OPEN			= 1 << 0,	/* RWFCIT */
+	ZIO_STAGE_OPEN			= 1 << 0,	/* RWFCXT */
 
 	ZIO_STAGE_READ_BP_INIT		= 1 << 1,	/* R----- */
 	ZIO_STAGE_WRITE_BP_INIT		= 1 << 2,	/* -W---- */
@@ -150,15 +150,15 @@ enum zio_stage {
 	ZIO_STAGE_DVA_FREE		= 1 << 18,	/* --F--- */
 	ZIO_STAGE_DVA_CLAIM		= 1 << 19,	/* ---C-- */
 
-	ZIO_STAGE_READY			= 1 << 20,	/* RWFCIT */
+	ZIO_STAGE_READY			= 1 << 20,	/* RWFCXT */
 
-	ZIO_STAGE_VDEV_IO_START		= 1 << 21,	/* RW--IT */
-	ZIO_STAGE_VDEV_IO_DONE		= 1 << 22,	/* RW--IT */
-	ZIO_STAGE_VDEV_IO_ASSESS	= 1 << 23,	/* RW--IT */
+	ZIO_STAGE_VDEV_IO_START		= 1 << 21,	/* RW--XT */
+	ZIO_STAGE_VDEV_IO_DONE		= 1 << 22,	/* RW--XT */
+	ZIO_STAGE_VDEV_IO_ASSESS	= 1 << 23,	/* RW--XT */
 
 	ZIO_STAGE_CHECKSUM_VERIFY	= 1 << 24,	/* R----- */
 
-	ZIO_STAGE_DONE			= 1 << 25	/* RWFCIT */
+	ZIO_STAGE_DONE			= 1 << 25	/* RWFCXT */
 };
 
 #define	ZIO_ROOT_PIPELINE			\
@@ -259,7 +259,7 @@ enum zio_stage {
 	(ZIO_INTERLOCK_STAGES |			\
 	ZIO_STAGE_DVA_CLAIM)
 
-#define	ZIO_IOCTL_PIPELINE			\
+#define	ZIO_FLUSH_PIPELINE			\
 	(ZIO_INTERLOCK_STAGES |			\
 	ZIO_VDEV_IO_STAGES)
 

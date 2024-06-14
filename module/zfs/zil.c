@@ -125,10 +125,9 @@ static kstat_t *zil_kstats_global;
 int zil_replay_disable = 0;
 
 /*
- * Disable the DKIOCFLUSHWRITECACHE commands that are normally sent to
- * the disk(s) by the ZIL after an LWB write has completed. Setting this
- * will cause ZIL corruption on power loss if a volatile out-of-order
- * write cache is enabled.
+ * Disable the flush commands that are normally sent to the disk(s) by the ZIL
+ * after an LWB write has completed. Setting this will cause ZIL corruption on
+ * power loss if a volatile out-of-order write cache is enabled.
  */
 static int zil_nocacheflush = 0;
 
@@ -1406,19 +1405,17 @@ zil_lwb_add_txg(lwb_t *lwb, uint64_t txg)
 }
 
 /*
- * This function is a called after all vdevs associated with a given lwb
- * write have completed their DKIOCFLUSHWRITECACHE command; or as soon
- * as the lwb write completes, if "zil_nocacheflush" is set. Further,
- * all "previous" lwb's will have completed before this function is
- * called; i.e. this function is called for all previous lwbs before
- * it's called for "this" lwb (enforced via zio the dependencies
- * configured in zil_lwb_set_zio_dependency()).
+ * This function is a called after all vdevs associated with a given lwb write
+ * have completed their flush command; or as soon as the lwb write completes,
+ * if "zil_nocacheflush" is set. Further, all "previous" lwb's will have
+ * completed before this function is called; i.e. this function is called for
+ * all previous lwbs before it's called for "this" lwb (enforced via zio the
+ * dependencies configured in zil_lwb_set_zio_dependency()).
  *
- * The intention is for this function to be called as soon as the
- * contents of an lwb are considered "stable" on disk, and will survive
- * any sudden loss of power. At this point, any threads waiting for the
- * lwb to reach this state are signalled, and the "waiter" structures
- * are marked "done".
+ * The intention is for this function to be called as soon as the contents of
+ * an lwb are considered "stable" on disk, and will survive any sudden loss of
+ * power. At this point, any threads waiting for the lwb to reach this state
+ * are signalled, and the "waiter" structures are marked "done".
  */
 static void
 zil_lwb_flush_vdevs_done(zio_t *zio)
@@ -1532,17 +1529,16 @@ zil_lwb_flush_wait_all(zilog_t *zilog, uint64_t txg)
 }
 
 /*
- * This is called when an lwb's write zio completes. The callback's
- * purpose is to issue the DKIOCFLUSHWRITECACHE commands for the vdevs
- * in the lwb's lwb_vdev_tree. The tree will contain the vdevs involved
- * in writing out this specific lwb's data, and in the case that cache
- * flushes have been deferred, vdevs involved in writing the data for
- * previous lwbs. The writes corresponding to all the vdevs in the
- * lwb_vdev_tree will have completed by the time this is called, due to
- * the zio dependencies configured in zil_lwb_set_zio_dependency(),
- * which takes deferred flushes into account. The lwb will be "done"
- * once zil_lwb_flush_vdevs_done() is called, which occurs in the zio
- * completion callback for the lwb's root zio.
+ * This is called when an lwb's write zio completes. The callback's purpose is
+ * to issue the flush commands for the vdevs in the lwb's lwb_vdev_tree. The
+ * tree will contain the vdevs involved in writing out this specific lwb's
+ * data, and in the case that cache flushes have been deferred, vdevs involved
+ * in writing the data for previous lwbs. The writes corresponding to all the
+ * vdevs in the lwb_vdev_tree will have completed by the time this is called,
+ * due to the zio dependencies configured in zil_lwb_set_zio_dependency(),
+ * which takes deferred flushes into account. The lwb will be "done" once
+ * zil_lwb_flush_vdevs_done() is called, which occurs in the zio completion
+ * callback for the lwb's root zio.
  */
 static void
 zil_lwb_write_done(zio_t *zio)
@@ -1601,19 +1597,18 @@ zil_lwb_write_done(zio_t *zio)
 	}
 
 	/*
-	 * If this lwb does not have any threads waiting for it to
-	 * complete, we want to defer issuing the DKIOCFLUSHWRITECACHE
-	 * command to the vdevs written to by "this" lwb, and instead
-	 * rely on the "next" lwb to handle the DKIOCFLUSHWRITECACHE
-	 * command for those vdevs. Thus, we merge the vdev tree of
-	 * "this" lwb with the vdev tree of the "next" lwb in the list,
-	 * and assume the "next" lwb will handle flushing the vdevs (or
-	 * deferring the flush(s) again).
+	 * If this lwb does not have any threads waiting for it to complete, we
+	 * want to defer issuing the flush command to the vdevs written to by
+	 * "this" lwb, and instead rely on the "next" lwb to handle the flush
+	 * command for those vdevs. Thus, we merge the vdev tree of "this" lwb
+	 * with the vdev tree of the "next" lwb in the list, and assume the
+	 * "next" lwb will handle flushing the vdevs (or deferring the flush(s)
+	 * again).
 	 *
-	 * This is a useful performance optimization, especially for
-	 * workloads with lots of async write activity and few sync
-	 * write and/or fsync activity, as it has the potential to
-	 * coalesce multiple flush commands to a vdev into one.
+	 * This is a useful performance optimization, especially for workloads
+	 * with lots of async write activity and few sync write and/or fsync
+	 * activity, as it has the potential to coalesce multiple flush
+	 * commands to a vdev into one.
 	 */
 	if (list_is_empty(&lwb->lwb_waiters) && nlwb != NULL) {
 		zil_lwb_flush_defer(lwb, nlwb);
@@ -1663,16 +1658,16 @@ zil_lwb_set_zio_dependency(zilog_t *zilog, lwb_t *lwb)
 	 * If the previous lwb's write hasn't already completed, we also want
 	 * to order the completion of the lwb write zios (above, we only order
 	 * the completion of the lwb root zios). This is required because of
-	 * how we can defer the DKIOCFLUSHWRITECACHE commands for each lwb.
+	 * how we can defer the flush commands for each lwb.
 	 *
-	 * When the DKIOCFLUSHWRITECACHE commands are deferred, the previous
-	 * lwb will rely on this lwb to flush the vdevs written to by that
-	 * previous lwb. Thus, we need to ensure this lwb doesn't issue the
-	 * flush until after the previous lwb's write completes. We ensure
-	 * this ordering by setting the zio parent/child relationship here.
+	 * When the flush commands are deferred, the previous lwb will rely on
+	 * this lwb to flush the vdevs written to by that previous lwb. Thus,
+	 * we need to ensure this lwb doesn't issue the flush until after the
+	 * previous lwb's write completes. We ensure this ordering by setting
+	 * the zio parent/child relationship here.
 	 *
-	 * Without this relationship on the lwb's write zio, it's possible
-	 * for this lwb's write to complete prior to the previous lwb's write
+	 * Without this relationship on the lwb's write zio, it's possible for
+	 * this lwb's write to complete prior to the previous lwb's write
 	 * completing; and thus, the vdevs for the previous lwb would be
 	 * flushed prior to that lwb's data being written to those vdevs (the
 	 * vdevs are flushed in the lwb write zio's completion handler,
@@ -3499,8 +3494,8 @@ zil_commit_itx_assign(zilog_t *zilog, zil_commit_waiter_t *zcw)
  *      callback of the lwb's zio[*].
  *
  *      * Actually, the waiters are signaled in the zio completion
- *        callback of the root zio for the DKIOCFLUSHWRITECACHE commands
- *        that are sent to the vdevs upon completion of the lwb zio.
+ *        callback of the root zio for the flush commands that are sent to
+ *        the vdevs upon completion of the lwb zio.
  *
  *   2. When the itxs are inserted into the ZIL's queue of uncommitted
  *      itxs, the order in which they are inserted is preserved[*]; as

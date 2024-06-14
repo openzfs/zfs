@@ -149,13 +149,8 @@ extern int aes_decrypt_contiguous_blocks(void *ctx, char *data, size_t length,
 #ifdef _AES_IMPL
 
 typedef enum aes_mech_type {
-	AES_ECB_MECH_INFO_TYPE,		/* SUN_CKM_AES_ECB */
-	AES_CBC_MECH_INFO_TYPE,		/* SUN_CKM_AES_CBC */
-	AES_CBC_PAD_MECH_INFO_TYPE,	/* SUN_CKM_AES_CBC_PAD */
-	AES_CTR_MECH_INFO_TYPE,		/* SUN_CKM_AES_CTR */
 	AES_CCM_MECH_INFO_TYPE,		/* SUN_CKM_AES_CCM */
 	AES_GCM_MECH_INFO_TYPE,		/* SUN_CKM_AES_GCM */
-	AES_GMAC_MECH_INFO_TYPE		/* SUN_CKM_AES_GMAC */
 } aes_mech_type_t;
 
 #endif /* _AES_IMPL */

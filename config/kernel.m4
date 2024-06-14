@@ -37,6 +37,7 @@ dnl # only once the compilation can be done in parallel significantly
 dnl # speeding up the process.
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_TEST_SRC], [
+	ZFS_AC_KERNEL_SRC_TYPES
 	ZFS_AC_KERNEL_SRC_OBJTOOL
 	ZFS_AC_KERNEL_SRC_GLOBAL_PAGE_STATE
 	ZFS_AC_KERNEL_SRC_ACCESS_OK_TYPE
@@ -187,6 +188,7 @@ dnl #
 dnl # Check results of kernel interface tests.
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_TEST_RESULT], [
+	ZFS_AC_KERNEL_TYPES
 	ZFS_AC_KERNEL_ACCESS_OK_TYPE
 	ZFS_AC_KERNEL_GLOBAL_PAGE_STATE
 	ZFS_AC_KERNEL_OBJTOOL

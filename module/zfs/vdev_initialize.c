@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2016, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2016, 2024 by Delphix. All rights reserved.
  */
 
 #include <sys/spa.h>
@@ -682,7 +682,8 @@ vdev_initialize_stop_wait(spa_t *spa, list_t *vd_list)
 	(void) spa;
 	vdev_t *vd;
 
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(MUTEX_HELD(&spa_namespace_lock) ||
+	    spa->spa_export_thread == curthread);
 
 	while ((vd = list_remove_head(vd_list)) != NULL) {
 		mutex_enter(&vd->vdev_initialize_lock);
@@ -724,7 +725,8 @@ vdev_initialize_stop(vdev_t *vd, vdev_initializing_state_t tgt_state,
 	if (vd_list == NULL) {
 		vdev_initialize_stop_wait_impl(vd);
 	} else {
-		ASSERT(MUTEX_HELD(&spa_namespace_lock));
+		ASSERT(MUTEX_HELD(&spa_namespace_lock) ||
+		    vd->vdev_spa->spa_export_thread == curthread);
 		list_insert_tail(vd_list, vd);
 	}
 }
@@ -756,7 +758,8 @@ vdev_initialize_stop_all(vdev_t *vd, vdev_initializing_state_t tgt_state)
 	spa_t *spa = vd->vdev_spa;
 	list_t vd_list;
 
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(MUTEX_HELD(&spa_namespace_lock) ||
+	    spa->spa_export_thread == curthread);
 
 	list_create(&vd_list, sizeof (vdev_t),
 	    offsetof(vdev_t, vdev_initialize_node));
@@ -775,7 +778,8 @@ vdev_initialize_stop_all(vdev_t *vd, vdev_initializing_state_t tgt_state)
 void
 vdev_initialize_restart(vdev_t *vd)
 {
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(MUTEX_HELD(&spa_namespace_lock) ||
+	    vd->vdev_spa->spa_load_thread == curthread);
 	ASSERT(!spa_config_held(vd->vdev_spa, SCL_ALL, RW_WRITER));
 
 	if (vd->vdev_leaf_zap != 0) {

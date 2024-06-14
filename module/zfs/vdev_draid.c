@@ -2548,24 +2548,20 @@ vdev_draid_read_config_spare(vdev_t *vd)
 }
 
 /*
- * Handle any ioctl requested of the distributed spare.  Only flushes
- * are supported in which case all children must be flushed.
+ * Handle any flush requested of the distributed spare. All children must be
+ * flushed.
  */
 static int
-vdev_draid_spare_ioctl(zio_t *zio)
+vdev_draid_spare_flush(zio_t *zio)
 {
 	vdev_t *vd = zio->io_vd;
 	int error = 0;
 
-	if (zio->io_cmd == DKIOCFLUSHWRITECACHE) {
-		for (int c = 0; c < vd->vdev_children; c++) {
-			zio_nowait(zio_vdev_child_io(zio, NULL,
-			    vd->vdev_child[c], zio->io_offset, zio->io_abd,
-			    zio->io_size, zio->io_type, zio->io_priority, 0,
-			    vdev_draid_spare_child_done, zio));
-		}
-	} else {
-		error = SET_ERROR(ENOTSUP);
+	for (int c = 0; c < vd->vdev_children; c++) {
+		zio_nowait(zio_vdev_child_io(zio, NULL,
+		    vd->vdev_child[c], zio->io_offset, zio->io_abd,
+		    zio->io_size, zio->io_type, zio->io_priority, 0,
+		    vdev_draid_spare_child_done, zio));
 	}
 
 	return (error);
@@ -2596,8 +2592,8 @@ vdev_draid_spare_io_start(zio_t *zio)
 	}
 
 	switch (zio->io_type) {
-	case ZIO_TYPE_IOCTL:
-		zio->io_error = vdev_draid_spare_ioctl(zio);
+	case ZIO_TYPE_FLUSH:
+		zio->io_error = vdev_draid_spare_flush(zio);
 		break;
 
 	case ZIO_TYPE_WRITE:

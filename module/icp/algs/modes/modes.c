@@ -126,20 +126,7 @@ crypto_free_mode_ctx(void *ctx)
 {
 	common_ctx_t *common_ctx = (common_ctx_t *)ctx;
 
-	switch (common_ctx->cc_flags &
-	    (ECB_MODE|CBC_MODE|CTR_MODE|CCM_MODE|GCM_MODE|GMAC_MODE)) {
-	case ECB_MODE:
-		kmem_free(common_ctx, sizeof (ecb_ctx_t));
-		break;
-
-	case CBC_MODE:
-		kmem_free(common_ctx, sizeof (cbc_ctx_t));
-		break;
-
-	case CTR_MODE:
-		kmem_free(common_ctx, sizeof (ctr_ctx_t));
-		break;
-
+	switch (common_ctx->cc_flags & (CCM_MODE|GCM_MODE)) {
 	case CCM_MODE:
 		if (((ccm_ctx_t *)ctx)->ccm_pt_buf != NULL)
 			vmem_free(((ccm_ctx_t *)ctx)->ccm_pt_buf,
@@ -149,9 +136,12 @@ crypto_free_mode_ctx(void *ctx)
 		break;
 
 	case GCM_MODE:
-	case GMAC_MODE:
 		gcm_clear_ctx((gcm_ctx_t *)ctx);
 		kmem_free(ctx, sizeof (gcm_ctx_t));
+		break;
+
+	default:
+		__builtin_unreachable();
 	}
 }
 

@@ -44,8 +44,6 @@ user_ns_cleanup() {
 	log_must zfs destroy -r "$TESTPOOL/userns"
 }
 
-log_onexit user_ns_cleanup
-
 log_assert "Check zfs zone command handling of non-namespace files"
 
 # Pass if user namespaces are not supported.
@@ -53,6 +51,8 @@ unshare -Urm echo test
 if [ "$?" -ne "0" ]; then
 	log_unsupported "Failed to create user namespace"
 fi
+
+log_onexit user_ns_cleanup
 
 # Create the baseline datasets.
 log_must zfs create -o zoned=on "$TESTPOOL/userns"

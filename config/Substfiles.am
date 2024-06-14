@@ -44,4 +44,4 @@ SUBSTFILES =
 CLEANFILES += $(SUBSTFILES)
 dist_noinst_DATA += $(SUBSTFILES:=.in)
 
-$(call SUBST,%,)
+$(SUBSTFILES): $(call SUBST,%,)

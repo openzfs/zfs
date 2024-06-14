@@ -102,10 +102,7 @@ ICP_OBJS := \
 	algs/blake3/blake3_generic.o \
 	algs/blake3/blake3_impl.o \
 	algs/edonr/edonr.o \
-	algs/modes/cbc.o \
 	algs/modes/ccm.o \
-	algs/modes/ctr.o \
-	algs/modes/ecb.o \
 	algs/modes/gcm.o \
 	algs/modes/gcm_generic.o \
 	algs/modes/modes.o \
@@ -126,7 +123,6 @@ ICP_OBJS := \
 	illumos-crypto.o \
 	io/aes.o \
 	io/sha2_mod.o \
-	io/skein_mod.o \
 	spi/kcf_spi.o
 
 ICP_OBJS_X86_64 := \

@@ -38,8 +38,9 @@
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  * Copyright (c) 2019 Datto Inc.
  * Copyright (c) 2019, 2020 by Christian Schwarz. All rights reserved.
- * Copyright (c) 2019, 2021, Klara Inc.
+ * Copyright (c) 2019, 2021, 2024, Klara Inc.
  * Copyright (c) 2019, Allan Jude
+ * Copyright 2024 Oxide Computer Company
  */
 
 /*
@@ -2335,7 +2336,7 @@ zfs_ioc_snapshot_list_next(zfs_cmd_t *zc)
 	}
 
 	while (error == 0) {
-		if (issig(JUSTLOOKING) && issig(FORREAL)) {
+		if (issig()) {
 			error = SET_ERROR(EINTR);
 			break;
 		}
@@ -5345,8 +5346,9 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 
 	if (dataset_namecheck(zc->zc_value, NULL, NULL) != 0 ||
 	    strchr(zc->zc_value, '@') == NULL ||
-	    strchr(zc->zc_value, '%'))
+	    strchr(zc->zc_value, '%') != NULL) {
 		return (SET_ERROR(EINVAL));
+	}
 
 	(void) strlcpy(tofs, zc->zc_value, sizeof (tofs));
 	tosnap = strchr(tofs, '@');
@@ -5354,13 +5356,15 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 
 	if (zc->zc_nvlist_src != 0 &&
 	    (error = get_nvlist(zc->zc_nvlist_src, zc->zc_nvlist_src_size,
-	    zc->zc_iflags, &recvdprops)) != 0)
-		return (error);
+	    zc->zc_iflags, &recvdprops)) != 0) {
+		goto out;
+	}
 
 	if (zc->zc_nvlist_conf != 0 &&
 	    (error = get_nvlist(zc->zc_nvlist_conf, zc->zc_nvlist_conf_size,
-	    zc->zc_iflags, &localprops)) != 0)
-		return (error);
+	    zc->zc_iflags, &localprops)) != 0) {
+		goto out;
+	}
 
 	if (zc->zc_string[0])
 		origin = zc->zc_string;
@@ -5372,8 +5376,6 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 	error = zfs_ioc_recv_impl(tofs, tosnap, origin, recvdprops, localprops,
 	    NULL, zc->zc_guid, B_FALSE, B_FALSE, zc->zc_cookie, &begin_record,
 	    &zc->zc_cookie, &zc->zc_obj, &errors);
-	nvlist_free(recvdprops);
-	nvlist_free(localprops);
 
 	/*
 	 * Now that all props, initial and delayed, are set, report the prop
@@ -5389,7 +5391,10 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 		error = SET_ERROR(EINVAL);
 	}
 
+out:
 	nvlist_free(errors);
+	nvlist_free(recvdprops);
+	nvlist_free(localprops);
 
 	return (error);
 }
@@ -5456,8 +5461,9 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 
 	if (dataset_namecheck(snapname, NULL, NULL) != 0 ||
 	    strchr(snapname, '@') == NULL ||
-	    strchr(snapname, '%'))
+	    strchr(snapname, '%') != NULL) {
 		return (SET_ERROR(EINVAL));
+	}
 
 	(void) strlcpy(tofs, snapname, sizeof (tofs));
 	tosnap = strchr(tofs, '@');
@@ -5481,15 +5487,15 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	/* we still use "props" here for backwards compatibility */
 	error = nvlist_lookup_nvlist(innvl, "props", &recvprops);
 	if (error && error != ENOENT)
-		return (error);
+		goto out;
 
 	error = nvlist_lookup_nvlist(innvl, "localprops", &localprops);
 	if (error && error != ENOENT)
-		return (error);
+		goto out;
 
 	error = nvlist_lookup_nvlist(innvl, ZPOOL_HIDDEN_ARGS, &hidden_args);
 	if (error && error != ENOENT)
-		return (error);
+		goto out;
 
 	error = zfs_ioc_recv_impl(tofs, tosnap, origin, recvprops, localprops,
 	    hidden_args, force, heal, resumable, input_fd, begin_record,
@@ -5499,12 +5505,22 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	fnvlist_add_uint64(outnvl, "error_flags", errflags);
 	fnvlist_add_nvlist(outnvl, "errors", errors);
 
+out:
 	nvlist_free(errors);
 	nvlist_free(recvprops);
 	nvlist_free(localprops);
+	nvlist_free(hidden_args);
 
 	return (error);
 }
+
+/*
+ * When stack space is limited, we write replication stream data to the target
+ * on a separate taskq thread, to make sure there's enough stack space.
+ */
+#ifndef HAVE_LARGE_STACKS
+#define	USE_SEND_TASKQ	1
+#endif
 
 typedef struct dump_bytes_io {
 	zfs_file_t	*dbi_fp;
@@ -5526,29 +5542,63 @@ dump_bytes_cb(void *arg)
 	dbi->dbi_err = zfs_file_write(fp, buf, dbi->dbi_len, NULL);
 }
 
+typedef struct dump_bytes_arg {
+	zfs_file_t	*dba_fp;
+#ifdef USE_SEND_TASKQ
+	taskq_t		*dba_tq;
+	taskq_ent_t	dba_tqent;
+#endif
+} dump_bytes_arg_t;
+
 static int
 dump_bytes(objset_t *os, void *buf, int len, void *arg)
 {
+	dump_bytes_arg_t *dba = (dump_bytes_arg_t *)arg;
 	dump_bytes_io_t dbi;
 
-	dbi.dbi_fp = arg;
+	dbi.dbi_fp = dba->dba_fp;
 	dbi.dbi_buf = buf;
 	dbi.dbi_len = len;
 
-#if defined(HAVE_LARGE_STACKS)
-	dump_bytes_cb(&dbi);
+#ifdef USE_SEND_TASKQ
+	taskq_dispatch_ent(dba->dba_tq, dump_bytes_cb, &dbi, TQ_SLEEP,
+	    &dba->dba_tqent);
+	taskq_wait(dba->dba_tq);
 #else
-	/*
-	 * The vn_rdwr() call is performed in a taskq to ensure that there is
-	 * always enough stack space to write safely to the target filesystem.
-	 * The ZIO_TYPE_FREE threads are used because there can be a lot of
-	 * them and they are used in vdev_file.c for a similar purpose.
-	 */
-	spa_taskq_dispatch_sync(dmu_objset_spa(os), ZIO_TYPE_FREE,
-	    ZIO_TASKQ_ISSUE, dump_bytes_cb, &dbi, TQ_SLEEP);
-#endif /* HAVE_LARGE_STACKS */
+	dump_bytes_cb(&dbi);
+#endif
 
 	return (dbi.dbi_err);
+}
+
+static int
+dump_bytes_init(dump_bytes_arg_t *dba, int fd, dmu_send_outparams_t *out)
+{
+	zfs_file_t *fp = zfs_file_get(fd);
+	if (fp == NULL)
+		return (SET_ERROR(EBADF));
+
+	dba->dba_fp = fp;
+#ifdef USE_SEND_TASKQ
+	dba->dba_tq = taskq_create("z_send", 1, defclsyspri, 0, 0, 0);
+	taskq_init_ent(&dba->dba_tqent);
+#endif
+
+	memset(out, 0, sizeof (dmu_send_outparams_t));
+	out->dso_outfunc = dump_bytes;
+	out->dso_arg = dba;
+	out->dso_dryrun = B_FALSE;
+
+	return (0);
+}
+
+static void
+dump_bytes_fini(dump_bytes_arg_t *dba)
+{
+	zfs_file_put(dba->dba_fp);
+#ifdef USE_SEND_TASKQ
+	taskq_destroy(dba->dba_tq);
+#endif
 }
 
 /*
@@ -5635,21 +5685,18 @@ zfs_ioc_send(zfs_cmd_t *zc)
 		dsl_dataset_rele(tosnap, FTAG);
 		dsl_pool_rele(dp, FTAG);
 	} else {
-		zfs_file_t *fp;
-		dmu_send_outparams_t out = {0};
+		dump_bytes_arg_t dba;
+		dmu_send_outparams_t out;
+		error = dump_bytes_init(&dba, zc->zc_cookie, &out);
+		if (error)
+			return (error);
 
-		if ((fp = zfs_file_get(zc->zc_cookie)) == NULL)
-			return (SET_ERROR(EBADF));
-
-		off = zfs_file_off(fp);
-		out.dso_outfunc = dump_bytes;
-		out.dso_arg = fp;
-		out.dso_dryrun = B_FALSE;
+		off = zfs_file_off(dba.dba_fp);
 		error = dmu_send_obj(zc->zc_name, zc->zc_sendobj,
 		    zc->zc_fromobj, embedok, large_block_ok, compressok,
 		    rawok, savedok, zc->zc_cookie, &off, &out);
 
-		zfs_file_put(fp);
+		dump_bytes_fini(&dba);
 	}
 	return (error);
 }
@@ -5815,10 +5862,13 @@ zfs_ioc_clear(zfs_cmd_t *zc)
 
 	/*
 	 * If multihost is enabled, resuming I/O is unsafe as another
-	 * host may have imported the pool.
+	 * host may have imported the pool. Check for remote activity.
 	 */
-	if (spa_multihost(spa) && spa_suspended(spa))
-		return (SET_ERROR(EINVAL));
+	if (spa_multihost(spa) && spa_suspended(spa) &&
+	    spa_mmp_remote_host_activity(spa)) {
+		spa_close(spa, FTAG);
+		return (SET_ERROR(EREMOTEIO));
+	}
 
 	spa_vdev_state_enter(spa, SCL_NONE);
 
@@ -6593,7 +6643,6 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	offset_t off;
 	const char *fromname = NULL;
 	int fd;
-	zfs_file_t *fp;
 	boolean_t largeblockok;
 	boolean_t embedok;
 	boolean_t compressok;
@@ -6618,20 +6667,19 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 
 	(void) nvlist_lookup_string(innvl, "redactbook", &redactbook);
 
-	if ((fp = zfs_file_get(fd)) == NULL)
-		return (SET_ERROR(EBADF));
+	dump_bytes_arg_t dba;
+	dmu_send_outparams_t out;
+	error = dump_bytes_init(&dba, fd, &out);
+	if (error)
+		return (error);
 
-	off = zfs_file_off(fp);
-
-	dmu_send_outparams_t out = {0};
-	out.dso_outfunc = dump_bytes;
-	out.dso_arg = fp;
-	out.dso_dryrun = B_FALSE;
+	off = zfs_file_off(dba.dba_fp);
 	error = dmu_send(snapname, fromname, embedok, largeblockok,
 	    compressok, rawok, savedok, resumeobj, resumeoff,
 	    redactbook, fd, &off, &out);
 
-	zfs_file_put(fp);
+	dump_bytes_fini(&dba);
+
 	return (error);
 }
 
