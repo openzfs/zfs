@@ -56,6 +56,20 @@ kmem_cache_t *zfs_btree_leaf_cache;
 uint_t zfs_btree_verify_intensity = 0;
 
 /*
+ * We allocate temporary elements on the stack, so we want them to be small.
+ * If we need larger elements in the future we may need to switch to dynamically
+ * allocating those temporary elements.
+ * As of writing this comment, the largest element used is range_seg_gap_t,
+ * which is 24 bytes in size, but most are either 8 or 16 bytes.
+ * ...except for zdb, which needs 136 bytes.
+ */
+#ifdef _KERNEL
+#define	BTREE_ELEM_MAX_SIZE	(24)
+#else
+#define	BTREE_ELEM_MAX_SIZE	(256)
+#endif
+
+/*
  * Convenience functions to silence warnings from memcpy/memmove's
  * return values and change argument order to src, dest.
  */
@@ -211,6 +225,7 @@ zfs_btree_create_custom(zfs_btree_t *tree,
 {
 	size_t esize = lsize - offsetof(zfs_btree_leaf_t, btl_elems);
 
+	VERIFY3U(size, <=, BTREE_ELEM_MAX_SIZE);
 	ASSERT3U(size, <=, esize / 2);
 	memset(tree, 0, sizeof (*tree));
 	tree->bt_compar = compar;
@@ -732,7 +747,7 @@ zfs_btree_insert_into_parent(zfs_btree_t *tree, zfs_btree_hdr_t *old_node,
 	    0, BSS_TRAPEZOID);
 
 	/* Store the new separator in a buffer. */
-	uint8_t *tmp_buf = kmem_alloc(size, KM_SLEEP);
+	uint8_t tmp_buf[BTREE_ELEM_MAX_SIZE];
 	bcpy(parent->btc_elems + keep_count * size, tmp_buf,
 	    size);
 	zfs_btree_poison_node(tree, par_hdr);
@@ -768,7 +783,6 @@ zfs_btree_insert_into_parent(zfs_btree_t *tree, zfs_btree_hdr_t *old_node,
 		bcpy(tmp_buf, new_parent->btc_elems, size);
 		new_par_hdr->bth_count++;
 	}
-	kmem_free(tmp_buf, size);
 	zfs_btree_poison_node(tree, par_hdr);
 
 	for (uint32_t i = 0; i <= new_parent->btc_hdr.bth_count; i++)
@@ -862,7 +876,7 @@ zfs_btree_insert_into_leaf(zfs_btree_t *tree, zfs_btree_leaf_t *leaf,
 	bt_transfer_leaf(tree, leaf, keep_count + 1, move_count, new_leaf, 0);
 
 	/* We store the new separator in a buffer we control for simplicity. */
-	uint8_t *buf = kmem_alloc(size, KM_SLEEP);
+	uint8_t buf[BTREE_ELEM_MAX_SIZE];
 	bcpy(leaf->btl_elems + (leaf->btl_hdr.bth_first + keep_count) * size,
 	    buf, size);
 
@@ -886,11 +900,10 @@ zfs_btree_insert_into_leaf(zfs_btree_t *tree, zfs_btree_leaf_t *leaf,
 
 	/*
 	 * Now that the node is split, we need to insert the new node into its
-	 * parent. This may cause further splitting, bur only of core nodes.
+	 * parent. This may cause further splitting, but only of core nodes.
 	 */
 	zfs_btree_insert_into_parent(tree, &leaf->btl_hdr, &new_leaf->btl_hdr,
 	    buf);
-	kmem_free(buf, size);
 }
 
 static uint32_t
@@ -1150,7 +1163,7 @@ zfs_btree_add_idx(zfs_btree_t *tree, const void *value,
 		uint32_t off = where->bti_offset;
 		zfs_btree_hdr_t *subtree = node->btc_children[off + 1];
 		size_t size = tree->bt_elem_size;
-		uint8_t *buf = kmem_alloc(size, KM_SLEEP);
+		uint8_t buf[BTREE_ELEM_MAX_SIZE];
 		bcpy(node->btc_elems + off * size, buf, size);
 		bcpy(value, node->btc_elems + off * size, size);
 
@@ -1165,7 +1178,6 @@ zfs_btree_add_idx(zfs_btree_t *tree, const void *value,
 		ASSERT(!zfs_btree_is_core(new_idx.bti_node));
 		zfs_btree_insert_into_leaf(tree,
 		    (zfs_btree_leaf_t *)new_idx.bti_node, buf, 0);
-		kmem_free(buf, size);
 	}
 	zfs_btree_verify(tree);
 }
@@ -1663,11 +1675,10 @@ zfs_btree_remove_idx(zfs_btree_t *tree, zfs_btree_index_t *where)
 		 * bulk_finish.
 		 */
 		uint8_t *value = zfs_btree_get(tree, where);
-		uint8_t *tmp = kmem_alloc(size, KM_SLEEP);
+		uint8_t tmp[BTREE_ELEM_MAX_SIZE];
 		bcpy(value, tmp, size);
 		zfs_btree_bulk_finish(tree);
 		VERIFY3P(zfs_btree_find(tree, tmp, where), !=, NULL);
-		kmem_free(tmp, size);
 		hdr = where->bti_node;
 		idx = where->bti_offset;
 	}
