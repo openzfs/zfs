@@ -113,8 +113,9 @@ class Output(object):
     This class is a slightly modified version of the 'Stream' class found
     here: http://goo.gl/aSGfv
     """
-    def __init__(self, stream):
+    def __init__(self, stream, debug=False):
         self.stream = stream
+        self.debug = debug
         self._buf = b''
         self.lines = []
 
@@ -140,6 +141,8 @@ class Output(object):
         buf = os.read(fd, 4096)
         if not buf:
             return None
+        if self.debug:
+            os.write(sys.stderr.fileno(), buf)
         if b'\n' not in buf:
             self._buf += buf
             return []
@@ -238,14 +241,14 @@ User: %s
         ret = '%s -E -u %s %s' % (SUDO, user, cmd)
         return ret.split(' ')
 
-    def collect_output(self, proc):
+    def collect_output(self, proc, debug=False):
         """
         Read from stdout/stderr as data becomes available, until the
         process is no longer running. Return the lines from the stdout and
         stderr Output objects.
         """
-        out = Output(proc.stdout)
-        err = Output(proc.stderr)
+        out = Output(proc.stdout, debug)
+        err = Output(proc.stderr, debug)
         res = []
         while proc.returncode is None:
             proc.poll()
@@ -308,7 +311,10 @@ User: %s
 
         try:
             t.start()
-            self.result.stdout, self.result.stderr = self.collect_output(proc)
+
+            out, err = self.collect_output(proc, options.debug)
+            self.result.stdout = out
+            self.result.stderr = err
 
             if kmemleak:
                 cmd = f'{SUDO} sh -c "echo scan > {KMEMLEAK_FILE}"'
@@ -624,7 +630,7 @@ Tags: %s
 
 
 class TestRun(object):
-    props = ['quiet', 'outputdir']
+    props = ['quiet', 'outputdir', 'debug']
 
     def __init__(self, options):
         self.tests = {}
@@ -644,7 +650,8 @@ class TestRun(object):
             ('post_user', ''),
             ('failsafe', ''),
             ('failsafe_user', ''),
-            ('tags', [])
+            ('tags', []),
+            ('debug', False)
         ]
 
     def __str__(self):
@@ -1067,6 +1074,8 @@ def parse_args():
                       help='Specify tests to run via config files.')
     parser.add_option('-d', action='store_true', default=False, dest='dryrun',
                       help='Dry run. Print tests, but take no other action.')
+    parser.add_option('-D', action='store_true', default=False, dest='debug',
+                      help='Write all test output to stdout as it arrives.')
     parser.add_option('-l', action='callback', callback=options_cb,
                       default=None, dest='logfile', metavar='logfile',
                       type='string',

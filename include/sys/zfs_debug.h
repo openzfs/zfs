@@ -104,7 +104,7 @@ extern void zfs_dbgmsg_fini(void);
 
 #ifndef _KERNEL
 extern int dprintf_find_string(const char *string);
-extern void zfs_dbgmsg_print(const char *tag);
+extern void zfs_dbgmsg_print(int fd, const char *tag);
 #endif
 
 #ifdef	__cplusplus

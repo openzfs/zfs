@@ -77,6 +77,7 @@ _LIBZFS_CORE_H int lzc_snaprange_space(const char *, const char *, uint64_t *);
 _LIBZFS_CORE_H int lzc_hold(nvlist_t *, int, nvlist_t **);
 _LIBZFS_CORE_H int lzc_release(nvlist_t *, nvlist_t **);
 _LIBZFS_CORE_H int lzc_get_holds(const char *, nvlist_t **);
+_LIBZFS_CORE_H int lzc_get_props(const char *, nvlist_t **);
 
 enum lzc_send_flags {
 	LZC_SEND_FLAG_EMBED_DATA = 1 << 0,

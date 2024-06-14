@@ -41,7 +41,6 @@
  * mech_index  is the index for that mechanism in the table.
  * A mechanism belongs to exactly 1 table.
  * The tables are:
- * . digest_mechs_tab[] for the msg digest mechs.
  * . cipher_mechs_tab[] for encrypt/decrypt and wrap/unwrap mechs.
  * . mac_mechs_tab[] for MAC mechs.
  * . sign_mechs_tab[] for sign & verify mechs.
@@ -75,13 +74,11 @@
 
 /* RFE 4687834 Will deal with the extensibility of these tables later */
 
-static kcf_mech_entry_t kcf_digest_mechs_tab[KCF_MAXDIGEST];
 static kcf_mech_entry_t kcf_cipher_mechs_tab[KCF_MAXCIPHER];
 static kcf_mech_entry_t kcf_mac_mechs_tab[KCF_MAXMAC];
 
 const kcf_mech_entry_tab_t kcf_mech_tabs_tab[KCF_LAST_OPSCLASS + 1] = {
 	{0, NULL},				/* No class zero */
-	{KCF_MAXDIGEST, kcf_digest_mechs_tab},
 	{KCF_MAXCIPHER, kcf_cipher_mechs_tab},
 	{KCF_MAXMAC, kcf_mac_mechs_tab},
 };
@@ -220,10 +217,7 @@ kcf_add_mech_provider(short mech_indx,
 		crypto_func_group_t fg = mech_info->cm_func_group_mask;
 		kcf_ops_class_t class;
 
-		if (fg & CRYPTO_FG_DIGEST || fg & CRYPTO_FG_DIGEST_ATOMIC)
-			class = KCF_DIGEST_CLASS;
-		else if (fg & CRYPTO_FG_ENCRYPT || fg & CRYPTO_FG_DECRYPT ||
-		    fg & CRYPTO_FG_ENCRYPT_ATOMIC ||
+		if (fg & CRYPTO_FG_ENCRYPT_ATOMIC ||
 		    fg & CRYPTO_FG_DECRYPT_ATOMIC)
 			class = KCF_CIPHER_CLASS;
 		else if (fg & CRYPTO_FG_MAC || fg & CRYPTO_FG_MAC_ATOMIC)

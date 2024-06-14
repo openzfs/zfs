@@ -35,7 +35,6 @@
 #include <sys/nvpair.h>
 #include <sys/space_map.h>
 #include <sys/vdev.h>
-#include <sys/dkio.h>
 #include <sys/uberblock_impl.h>
 #include <sys/vdev_indirect_mapping.h>
 #include <sys/vdev_indirect_births.h>
@@ -274,7 +273,7 @@ struct vdev {
 	txg_list_t	vdev_dtl_list;	/* per-txg dirty DTL lists	*/
 	txg_node_t	vdev_txg_node;	/* per-txg dirty vdev linkage	*/
 	boolean_t	vdev_remove_wanted; /* async remove wanted?	*/
-	boolean_t	vdev_probe_wanted; /* async probe wanted?	*/
+	boolean_t	vdev_fault_wanted; /* async faulted wanted?	*/
 	list_node_t	vdev_config_dirty_node; /* config dirty list	*/
 	list_node_t	vdev_state_dirty_node; /* state dirty list	*/
 	uint64_t	vdev_deflate_ratio; /* deflation ratio (x512)	*/

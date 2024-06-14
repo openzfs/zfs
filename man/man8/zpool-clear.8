@@ -50,9 +50,10 @@ If the pool was suspended it will be brought back online provided the
 devices can be accessed.
 Pools with
 .Sy multihost
-enabled which have been suspended cannot be resumed.
-While the pool was suspended, it may have been imported on
-another host, and resuming I/O could result in pool damage.
+enabled which have been suspended cannot be resumed when there is evidence
+that the pool was imported by another host.
+The same checks performed during an import will be applied before the clear
+proceeds.
 .Bl -tag -width Ds
 .It Fl -power
 Power on the devices's slot in the storage enclosure and wait for the device

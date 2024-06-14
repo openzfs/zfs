@@ -232,15 +232,30 @@ __dprintf(boolean_t dprint, const char *file, const char *func,
 #else
 
 void
-zfs_dbgmsg_print(const char *tag)
+zfs_dbgmsg_print(int fd, const char *tag)
 {
-	zfs_dbgmsg_t *zdm;
+	ssize_t ret __attribute__((unused));
 
-	(void) printf("ZFS_DBGMSG(%s):\n", tag);
+	/*
+	 * We use write() in this function instead of printf()
+	 * so it is safe to call from a signal handler.
+	 */
+	ret = write(fd, "ZFS_DBGMSG(", 11);
+	ret = write(fd, tag, strlen(tag));
+	ret = write(fd, ") START:\n", 9);
+
 	mutex_enter(&zfs_dbgmsgs_lock);
-	for (zdm = list_head(&zfs_dbgmsgs); zdm;
+
+	for (zfs_dbgmsg_t *zdm = list_head(&zfs_dbgmsgs); zdm != NULL;
 	    zdm = list_next(&zfs_dbgmsgs, zdm))
-		(void) printf("%s\n", zdm->zdm_msg);
+		ret = write(fd, zdm->zdm_msg, strlen(zdm->zdm_msg));
+		ret = write(fd, "\n", 1);
+	}
+
+	ret = write(fd, "ZFS_DBGMSG(", 11);
+	ret = write(fd, tag, strlen(tag));
+	ret = write(fd, ") END\n", 6);
+
 	mutex_exit(&zfs_dbgmsgs_lock);
 }
 #endif /* _KERNEL */

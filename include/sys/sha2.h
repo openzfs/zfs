@@ -86,30 +86,13 @@ typedef struct {
 
 /* SHA2 algorithm types */
 typedef enum sha2_mech_type {
-	SHA256_MECH_INFO_TYPE,		/* SUN_CKM_SHA256 */
-	SHA256_HMAC_MECH_INFO_TYPE,	/* SUN_CKM_SHA256_HMAC */
-	SHA256_HMAC_GEN_MECH_INFO_TYPE,	/* SUN_CKM_SHA256_HMAC_GENERAL */
-	SHA384_MECH_INFO_TYPE,		/* SUN_CKM_SHA384 */
-	SHA384_HMAC_MECH_INFO_TYPE,	/* SUN_CKM_SHA384_HMAC */
-	SHA384_HMAC_GEN_MECH_INFO_TYPE,	/* SUN_CKM_SHA384_HMAC_GENERAL */
-	SHA512_MECH_INFO_TYPE,		/* SUN_CKM_SHA512 */
 	SHA512_HMAC_MECH_INFO_TYPE,	/* SUN_CKM_SHA512_HMAC */
-	SHA512_HMAC_GEN_MECH_INFO_TYPE,	/* SUN_CKM_SHA512_HMAC_GENERAL */
-	SHA512_224_MECH_INFO_TYPE,	/* SUN_CKM_SHA512_224 */
-	SHA512_256_MECH_INFO_TYPE	/* SUN_CKM_SHA512_256 */
-} sha2_mech_type_t;
 
-#define	SHA256			0
-#define	SHA256_HMAC		1
-#define	SHA256_HMAC_GEN		2
-#define	SHA384			3
-#define	SHA384_HMAC		4
-#define	SHA384_HMAC_GEN		5
-#define	SHA512			6
-#define	SHA512_HMAC		7
-#define	SHA512_HMAC_GEN		8
-#define	SHA512_224		9
-#define	SHA512_256		10
+	/* Not true KCF mech types; used by direct callers to SHA2Init */
+	SHA256,
+	SHA512,
+	SHA512_256,
+} sha2_mech_type_t;
 
 /* SHA2 Init function */
 extern void SHA2Init(int algotype, SHA2_CTX *ctx);

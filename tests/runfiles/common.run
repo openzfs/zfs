@@ -430,7 +430,8 @@ tags = ['functional', 'cli_root', 'zpool_events']
 
 [tests/functional/cli_root/zpool_export]
 tests = ['zpool_export_001_pos', 'zpool_export_002_pos',
-    'zpool_export_003_neg', 'zpool_export_004_pos']
+    'zpool_export_003_neg', 'zpool_export_004_pos',
+    'zpool_export_parallel_pos', 'zpool_export_parallel_admin']
 tags = ['functional', 'cli_root', 'zpool_export']
 
 [tests/functional/cli_root/zpool_get]
@@ -466,7 +467,8 @@ tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'import_paths_changed',
     'import_rewind_config_changed',
     'import_rewind_device_replaced',
-    'zpool_import_status']
+    'zpool_import_status', 'zpool_import_parallel_pos',
+    'zpool_import_parallel_neg', 'zpool_import_parallel_admin']
 tags = ['functional', 'cli_root', 'zpool_import']
 timeout = 1200
 
@@ -641,6 +643,10 @@ tags = ['functional', 'compression']
 [tests/functional/cp_files]
 tests = ['cp_files_001_pos', 'cp_files_002_pos', 'cp_stress']
 tags = ['functional', 'cp_files']
+
+[tests/functional/zap_shrink]
+tests = ['zap_shrink_001_pos']
+tags = ['functional', 'zap_shrink']
 
 [tests/functional/crtime]
 tests = ['crtime_001_pos' ]
@@ -970,6 +976,12 @@ tests = [
     'userspace_001_pos', 'userspace_002_pos', 'userspace_encrypted',
     'userspace_send_encrypted', 'userspace_encrypted_13709']
 tags = ['functional', 'userquota']
+
+[tests/functional/vdev_disk:Linux]
+pre =
+post =
+tests = ['page_alignment']
+tags = ['functional', 'vdev_disk']
 
 [tests/functional/vdev_zaps]
 tests = ['vdev_zaps_001_pos', 'vdev_zaps_002_pos', 'vdev_zaps_003_pos',

@@ -67,49 +67,14 @@ typedef struct crypto_ctx {
 } crypto_ctx_t;
 
 /*
- * The crypto_digest_ops structure contains pointers to digest
- * operations for cryptographic providers.  It is passed through
- * the crypto_ops(9S) structure when providers register with the
- * kernel using crypto_register_provider(9F).
- */
-typedef struct crypto_digest_ops {
-	int (*digest_init)(crypto_ctx_t *, crypto_mechanism_t *);
-	int (*digest)(crypto_ctx_t *, crypto_data_t *, crypto_data_t *);
-	int (*digest_update)(crypto_ctx_t *, crypto_data_t *);
-	int (*digest_key)(crypto_ctx_t *, crypto_key_t *);
-	int (*digest_final)(crypto_ctx_t *, crypto_data_t *);
-	int (*digest_atomic)(crypto_mechanism_t *, crypto_data_t *,
-	    crypto_data_t *);
-} __no_const crypto_digest_ops_t;
-
-/*
  * The crypto_cipher_ops structure contains pointers to encryption
  * and decryption operations for cryptographic providers.  It is
  * passed through the crypto_ops(9S) structure when providers register
  * with the kernel using crypto_register_provider(9F).
  */
 typedef struct crypto_cipher_ops {
-	int (*encrypt_init)(crypto_ctx_t *,
-	    crypto_mechanism_t *, crypto_key_t *,
-	    crypto_spi_ctx_template_t);
-	int (*encrypt)(crypto_ctx_t *,
-	    crypto_data_t *, crypto_data_t *);
-	int (*encrypt_update)(crypto_ctx_t *,
-	    crypto_data_t *, crypto_data_t *);
-	int (*encrypt_final)(crypto_ctx_t *,
-	    crypto_data_t *);
 	int (*encrypt_atomic)(crypto_mechanism_t *, crypto_key_t *,
 	    crypto_data_t *, crypto_data_t *, crypto_spi_ctx_template_t);
-
-	int (*decrypt_init)(crypto_ctx_t *,
-	    crypto_mechanism_t *, crypto_key_t *,
-	    crypto_spi_ctx_template_t);
-	int (*decrypt)(crypto_ctx_t *,
-	    crypto_data_t *, crypto_data_t *);
-	int (*decrypt_update)(crypto_ctx_t *,
-	    crypto_data_t *, crypto_data_t *);
-	int (*decrypt_final)(crypto_ctx_t *,
-	    crypto_data_t *);
 	int (*decrypt_atomic)(crypto_mechanism_t *, crypto_key_t *,
 	    crypto_data_t *, crypto_data_t *, crypto_spi_ctx_template_t);
 } __no_const crypto_cipher_ops_t;
@@ -156,7 +121,6 @@ typedef struct crypto_ctx_ops {
  * by calling crypto_register_provider(9F).
  */
 typedef struct crypto_ops {
-	const crypto_digest_ops_t			*co_digest_ops;
 	const crypto_cipher_ops_t			*co_cipher_ops;
 	const crypto_mac_ops_t			*co_mac_ops;
 	const crypto_ctx_ops_t			*co_ctx_ops;
@@ -172,14 +136,10 @@ typedef struct crypto_ops {
 typedef uint32_t crypto_func_group_t;
 
 
-#define	CRYPTO_FG_ENCRYPT		0x00000001 /* encrypt_init() */
-#define	CRYPTO_FG_DECRYPT		0x00000002 /* decrypt_init() */
-#define	CRYPTO_FG_DIGEST		0x00000004 /* digest_init() */
 #define	CRYPTO_FG_MAC			0x00001000 /* mac_init() */
 #define	CRYPTO_FG_ENCRYPT_ATOMIC	0x00008000 /* encrypt_atomic() */
 #define	CRYPTO_FG_DECRYPT_ATOMIC	0x00010000 /* decrypt_atomic() */
 #define	CRYPTO_FG_MAC_ATOMIC		0x00020000 /* mac_atomic() */
-#define	CRYPTO_FG_DIGEST_ATOMIC		0x00040000 /* digest_atomic() */
 
 /*
  * Maximum length of the pi_provider_description field of the

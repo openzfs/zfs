@@ -1094,10 +1094,16 @@ typedef enum zio_type {
 	ZIO_TYPE_WRITE,
 	ZIO_TYPE_FREE,
 	ZIO_TYPE_CLAIM,
-	ZIO_TYPE_IOCTL,
+	ZIO_TYPE_FLUSH,
 	ZIO_TYPE_TRIM,
 	ZIO_TYPES
 } zio_type_t;
+
+/*
+ * Compatibility: _IOCTL was renamed to _FLUSH; keep the old name available to
+ * user programs.
+ */
+#define	ZIO_TYPE_IOCTL	ZIO_TYPE_FLUSH
 
 /*
  * Pool statistics.  Note: all fields should be 64-bit because this

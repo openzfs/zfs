@@ -2027,6 +2027,7 @@ retry:
 	/*
 	 * If this isn't a resync due to I/O errors,
 	 * and nothing changed in this transaction group,
+	 * and multihost protection isn't enabled,
 	 * and the vdev configuration hasn't changed,
 	 * then there's nothing to do.
 	 */
@@ -2034,7 +2035,8 @@ retry:
 		boolean_t changed = uberblock_update(ub, spa->spa_root_vdev,
 		    txg, spa->spa_mmp.mmp_delay);
 
-		if (!changed && list_is_empty(&spa->spa_config_dirty_list))
+		if (!changed && list_is_empty(&spa->spa_config_dirty_list) &&
+		    !spa_multihost(spa))
 			return (0);
 	}
 

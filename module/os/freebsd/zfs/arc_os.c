@@ -89,17 +89,17 @@ arc_available_memory(void)
 	if (n < lowest) {
 		lowest = n;
 	}
-#if defined(__i386) || !defined(UMA_MD_SMALL_ALLOC)
+#if !defined(UMA_MD_SMALL_ALLOC) && !defined(UMA_USE_DMAP)
 	/*
-	 * If we're on an i386 platform, it's possible that we'll exhaust the
-	 * kernel heap space before we ever run out of available physical
-	 * memory.  Most checks of the size of the heap_area compare against
-	 * tune.t_minarmem, which is the minimum available real memory that we
-	 * can have in the system.  However, this is generally fixed at 25 pages
-	 * which is so low that it's useless.  In this comparison, we seek to
-	 * calculate the total heap-size, and reclaim if more than 3/4ths of the
-	 * heap is allocated.  (Or, in the calculation, if less than 1/4th is
-	 * free)
+	 * If we're on a platform without a direct map, it's possible that we'll
+	 * exhaust the kernel heap space before we ever run out of available
+	 * physical memory.  Most checks of the size of the heap_area compare
+	 * against tune.t_minarmem, which is the minimum available real memory
+	 * that we can have in the system.  However, this is generally fixed at
+	 * 25 pages which is so low that it's useless.  In this comparison, we
+	 * seek to calculate the total heap-size, and reclaim if more than
+	 * 3/4ths of the heap is allocated.  (Or, in the calculation, if less
+	 * than 1/4th is free)
 	 */
 	n = uma_avail() - (long)(uma_limit() / 4);
 	if (n < lowest) {

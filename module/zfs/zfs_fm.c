@@ -1096,10 +1096,7 @@ zfs_ereport_is_valid(const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio)
 		return (B_FALSE);
 
 	if (zio != NULL) {
-		/*
-		 * If this is not a read or write zio, ignore the error.  This
-		 * can occur if the DKIOCFLUSHWRITECACHE ioctl fails.
-		 */
+		/* If this is not a read or write zio, ignore the error */
 		if (zio->io_type != ZIO_TYPE_READ &&
 		    zio->io_type != ZIO_TYPE_WRITE)
 			return (B_FALSE);

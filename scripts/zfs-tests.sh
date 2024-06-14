@@ -32,6 +32,7 @@ SCRIPT_COMMON=${SCRIPT_COMMON:-${0%/*}/common.sh}
 PROG=zfs-tests.sh
 VERBOSE="no"
 QUIET=""
+DEBUG=""
 CLEANUP="yes"
 CLEANUPALL="no"
 KMSG=""
@@ -313,6 +314,7 @@ OPTIONS:
 	-h          Show this message
 	-v          Verbose zfs-tests.sh output
 	-q          Quiet test-runner output
+	-D          Debug; show all test output immediately (noisy)
 	-x          Remove all testpools, dm, lo, and files (unsafe)
 	-k          Disable cleanup after test failure
 	-K          Log test names to /dev/kmsg
@@ -326,7 +328,8 @@ OPTIONS:
 	-d DIR      Use world-writable DIR for files and loopback devices
 	-s SIZE     Use vdevs of SIZE (default: 4G)
 	-r RUNFILES Run tests in RUNFILES (default: ${DEFAULT_RUNFILES})
-	-t PATH     Run single test at PATH relative to test suite
+	-t PATH|NAME  Run single test at PATH relative to test suite,
+	                or search for test by NAME
 	-T TAGS     Comma separated list of tags (default: 'functional')
 	-u USER     Run single test as USER (default: root)
 
@@ -340,6 +343,9 @@ $0 -r linux-fast
 # Run a single test
 $0 -t tests/functional/cli_root/zfs_bookmark/zfs_bookmark_cliargs.ksh
 
+# Run a single test by name
+$0 -t zfs_bookmark_cliargs
+
 # Cleanup a previous run of the test suite prior to testing, run the
 # default ($(echo "${DEFAULT_RUNFILES}" | sed 's/\.run//')) suite of tests and perform no cleanup on exit.
 $0 -x
@@ -347,7 +353,7 @@ $0 -x
 EOF
 }
 
-while getopts 'hvqxkKfScRmn:d:s:r:?t:T:u:I:' OPTION; do
+while getopts 'hvqxkKfScRmn:d:Ds:r:?t:T:u:I:' OPTION; do
 	case $OPTION in
 	h)
 		usage
@@ -392,6 +398,9 @@ while getopts 'hvqxkKfScRmn:d:s:r:?t:T:u:I:' OPTION; do
 		;;
 	d)
 		FILEDIR="$OPTARG"
+		;;
+	D)
+		DEBUG="yes"
 		;;
 	I)
 		ITERATIONS="$OPTARG"
@@ -450,8 +459,15 @@ post_user = root
 post =
 outputdir = /var/tmp/test_results
 EOF
-	SINGLETESTDIR="${SINGLETEST%/*}"
+	if [ "$SINGLETEST" = "${SINGLETEST%/*}" ] ; then
+		NEWSINGLETEST=$(find "$STF_SUITE" -name "$SINGLETEST*" -print -quit)
+		if [ -z "$NEWSINGLETEST" ] ; then
+			fail "couldn't find test matching '$SINGLETEST'"
+		fi
+		SINGLETEST=$NEWSINGLETEST
+	fi
 
+	SINGLETESTDIR="${SINGLETEST%/*}"
 	SETUPDIR="$SINGLETESTDIR"
 	[ "${SETUPDIR#/}" = "$SETUPDIR" ] && SETUPDIR="$STF_SUITE/$SINGLETESTDIR"
 	[ -x "$SETUPDIR/setup.ksh"   ] && SETUPSCRIPT="setup"     || SETUPSCRIPT=
@@ -680,6 +696,7 @@ REPORT_FILE=$(mktemp_file zts-report)
 #
 msg "${TEST_RUNNER}" \
     "${QUIET:+-q}" \
+    "${DEBUG:+-D}" \
     "${KMEMLEAK:+-m}" \
     "${KMSG:+-K}" \
     "-c \"${RUNFILES}\"" \
@@ -689,6 +706,7 @@ msg "${TEST_RUNNER}" \
 { PATH=$STF_PATH \
     ${TEST_RUNNER} \
     ${QUIET:+-q} \
+    ${DEBUG:+-D} \
     ${KMEMLEAK:+-m} \
     ${KMSG:+-K} \
     -c "${RUNFILES}" \
@@ -715,6 +733,7 @@ if [ "$RESULT" -eq "2" ] && [ -n "$RERUN" ]; then
 	{ PATH=$STF_PATH \
 	    ${TEST_RUNNER} \
 	        ${QUIET:+-q} \
+	        ${DEBUG:+-D} \
 	        ${KMEMLEAK:+-m} \
 	    -c "${RUNFILES}" \
 	    -T "${TAGS}" \

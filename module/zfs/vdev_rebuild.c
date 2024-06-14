@@ -23,6 +23,7 @@
  * Copyright (c) 2018, Intel Corporation.
  * Copyright (c) 2020 by Lawrence Livermore National Security, LLC.
  * Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
+ * Copyright (c) 2024 by Delphix. All rights reserved.
  */
 
 #include <sys/vdev_impl.h>
@@ -1071,7 +1072,8 @@ vdev_rebuild_restart_impl(vdev_t *vd)
 void
 vdev_rebuild_restart(spa_t *spa)
 {
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(MUTEX_HELD(&spa_namespace_lock) ||
+	    spa->spa_load_thread == curthread);
 
 	vdev_rebuild_restart_impl(spa->spa_root_vdev);
 }
@@ -1085,7 +1087,8 @@ vdev_rebuild_stop_wait(vdev_t *vd)
 {
 	spa_t *spa = vd->vdev_spa;
 
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(MUTEX_HELD(&spa_namespace_lock) ||
+	    spa->spa_export_thread == curthread);
 
 	if (vd == spa->spa_root_vdev) {
 		for (uint64_t i = 0; i < vd->vdev_children; i++)

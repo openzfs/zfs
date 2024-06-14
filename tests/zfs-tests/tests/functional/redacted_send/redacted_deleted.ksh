@@ -96,7 +96,7 @@ log_must zfs destroy -R $clone2
 log_must eval "zfs send -i $sendfs#book2 --redact book3 $sendfs@snap2 >$stream"
 log_must eval "zfs recv $recvfs <$stream"
 log_must mount_redacted -f $recvfs
-log_must diff <(ls $send_mnt) <(ls $recv_mnt)
+log_must [ "$(ls $send_mnt)" == "$(ls $recv_mnt)" ]
 log_must zfs destroy -R $recvfs
 log_must zfs rollback -R $sendfs@snap
 

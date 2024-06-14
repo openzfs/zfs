@@ -1259,7 +1259,7 @@ zvol_os_rename_minor(zvol_state_t *zv, const char *newname)
 	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
 
 	/* Move to a new hashtable entry.  */
-	zv->zv_hash = zvol_name_hash(zv->zv_name);
+	zv->zv_hash = zvol_name_hash(newname);
 	hlist_del(&zv->zv_hlink);
 	hlist_add_head(&zv->zv_hlink, ZVOL_HT_HEAD(zv->zv_hash));
 

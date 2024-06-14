@@ -384,7 +384,7 @@ zvol_discard(zv_request_t *zvr)
 	 */
 	if (!io_is_secure_erase(bio, rq)) {
 		start = P2ROUNDUP(start, zv->zv_volblocksize);
-		end = P2ALIGN(end, zv->zv_volblocksize);
+		end = P2ALIGN_TYPED(end, zv->zv_volblocksize, uint64_t);
 		size = end - start;
 	}
 
@@ -798,7 +798,8 @@ retry:
 				if ((gethrtime() - start) > timeout)
 					return (SET_ERROR(-ERESTARTSYS));
 
-				schedule_timeout(MSEC_TO_TICK(10));
+				schedule_timeout_interruptible(
+					MSEC_TO_TICK(10));
 				goto retry;
 #endif
 			} else {
@@ -1571,7 +1572,7 @@ zvol_os_rename_minor(zvol_state_t *zv, const char *newname)
 	strlcpy(zv->zv_name, newname, sizeof (zv->zv_name));
 
 	/* move to new hashtable entry  */
-	zv->zv_hash = zvol_name_hash(zv->zv_name);
+	zv->zv_hash = zvol_name_hash(newname);
 	hlist_del(&zv->zv_hlink);
 	hlist_add_head(&zv->zv_hlink, ZVOL_HT_HEAD(zv->zv_hash));
 

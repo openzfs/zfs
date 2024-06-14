@@ -77,7 +77,7 @@ zstream_do_recompress(int argc, char *argv[])
 	while ((c = getopt(argc, argv, "l:")) != -1) {
 		switch (c) {
 		case 'l':
-			if (sscanf(optarg, "%d", &level) != 0) {
+			if (sscanf(optarg, "%d", &level) != 1) {
 				fprintf(stderr,
 				    "failed to parse level '%s'\n",
 				    optarg);

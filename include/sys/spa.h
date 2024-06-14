@@ -770,7 +770,7 @@ extern int bpobj_enqueue_free_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx);
 
 #define	SPA_ASYNC_CONFIG_UPDATE			0x01
 #define	SPA_ASYNC_REMOVE			0x02
-#define	SPA_ASYNC_PROBE				0x04
+#define	SPA_ASYNC_FAULT_VDEV			0x04
 #define	SPA_ASYNC_RESILVER_DONE			0x08
 #define	SPA_ASYNC_RESILVER			0x10
 #define	SPA_ASYNC_AUTOEXPAND			0x20
@@ -829,10 +829,14 @@ extern uint_t zfs_sync_pass_deferred_free;
 /* spa sync taskqueues */
 taskq_t *spa_sync_tq_create(spa_t *spa, const char *name);
 void spa_sync_tq_destroy(spa_t *spa);
+uint_t spa_acq_allocator(spa_t *spa);
+void spa_rel_allocator(spa_t *spa, uint_t allocator);
 void spa_select_allocator(zio_t *zio);
 
 /* spa namespace global mutex */
 extern kmutex_t spa_namespace_lock;
+extern avl_tree_t spa_namespace_avl;
+extern kcondvar_t spa_namespace_cv;
 
 /*
  * SPA configuration functions in spa_config.c
@@ -1120,6 +1124,8 @@ extern boolean_t spa_multihost(spa_t *spa);
 extern uint32_t spa_get_hostid(spa_t *spa);
 extern void spa_activate_allocation_classes(spa_t *, dmu_tx_t *);
 extern boolean_t spa_livelist_delete_check(spa_t *spa);
+
+extern boolean_t spa_mmp_remote_host_activity(spa_t *spa);
 
 extern spa_mode_t spa_mode(spa_t *spa);
 extern uint64_t zfs_strtonum(const char *str, char **nptr);

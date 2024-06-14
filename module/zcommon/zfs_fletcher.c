@@ -471,7 +471,8 @@ fletcher_4_native(const void *buf, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
 	(void) ctx_template;
-	const uint64_t p2size = P2ALIGN(size, FLETCHER_MIN_SIMD_SIZE);
+	const uint64_t p2size = P2ALIGN_TYPED(size, FLETCHER_MIN_SIMD_SIZE,
+	    uint64_t);
 
 	ASSERT(IS_P2ALIGNED(size, sizeof (uint32_t)));
 
@@ -519,7 +520,8 @@ fletcher_4_byteswap(const void *buf, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
 	(void) ctx_template;
-	const uint64_t p2size = P2ALIGN(size, FLETCHER_MIN_SIMD_SIZE);
+	const uint64_t p2size = P2ALIGN_TYPED(size, FLETCHER_MIN_SIMD_SIZE,
+	    uint64_t);
 
 	ASSERT(IS_P2ALIGNED(size, sizeof (uint32_t)));
 
@@ -878,7 +880,7 @@ abd_fletcher_4_iter(void *data, size_t size, void *private)
 	fletcher_4_ctx_t *ctx = cdp->acd_ctx;
 	fletcher_4_ops_t *ops = (fletcher_4_ops_t *)cdp->acd_private;
 	boolean_t native = cdp->acd_byteorder == ZIO_CHECKSUM_NATIVE;
-	uint64_t asize = P2ALIGN(size, FLETCHER_MIN_SIMD_SIZE);
+	uint64_t asize = P2ALIGN_TYPED(size, FLETCHER_MIN_SIMD_SIZE, uint64_t);
 
 	ASSERT(IS_P2ALIGNED(size, sizeof (uint32_t)));
 

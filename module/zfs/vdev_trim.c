@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2016, 2024 by Delphix. All rights reserved.
  * Copyright (c) 2019 by Lawrence Livermore National Security, LLC.
  * Copyright (c) 2021 Hewlett Packard Enterprise Development LP
  * Copyright 2023 RackTop Systems, Inc.
@@ -1040,7 +1040,8 @@ vdev_trim_stop_wait(spa_t *spa, list_t *vd_list)
 	(void) spa;
 	vdev_t *vd;
 
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(MUTEX_HELD(&spa_namespace_lock) ||
+	    spa->spa_export_thread == curthread);
 
 	while ((vd = list_remove_head(vd_list)) != NULL) {
 		mutex_enter(&vd->vdev_trim_lock);
@@ -1079,7 +1080,8 @@ vdev_trim_stop(vdev_t *vd, vdev_trim_state_t tgt_state, list_t *vd_list)
 	if (vd_list == NULL) {
 		vdev_trim_stop_wait_impl(vd);
 	} else {
-		ASSERT(MUTEX_HELD(&spa_namespace_lock));
+		ASSERT(MUTEX_HELD(&spa_namespace_lock) ||
+		    vd->vdev_spa->spa_export_thread == curthread);
 		list_insert_tail(vd_list, vd);
 	}
 }
@@ -1115,7 +1117,8 @@ vdev_trim_stop_all(vdev_t *vd, vdev_trim_state_t tgt_state)
 	list_t vd_list;
 	vdev_t *vd_l2cache;
 
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(MUTEX_HELD(&spa_namespace_lock) ||
+	    spa->spa_export_thread == curthread);
 
 	list_create(&vd_list, sizeof (vdev_t),
 	    offsetof(vdev_t, vdev_trim_node));
@@ -1148,7 +1151,8 @@ vdev_trim_stop_all(vdev_t *vd, vdev_trim_state_t tgt_state)
 void
 vdev_trim_restart(vdev_t *vd)
 {
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(MUTEX_HELD(&spa_namespace_lock) ||
+	    vd->vdev_spa->spa_load_thread == curthread);
 	ASSERT(!spa_config_held(vd->vdev_spa, SCL_ALL, RW_WRITER));
 
 	if (vd->vdev_leaf_zap != 0) {
@@ -1568,8 +1572,8 @@ vdev_autotrim_stop_all(spa_t *spa)
 void
 vdev_autotrim_restart(spa_t *spa)
 {
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
-
+	ASSERT(MUTEX_HELD(&spa_namespace_lock) ||
+	    spa->spa_load_thread == curthread);
 	if (spa->spa_autotrim)
 		vdev_autotrim(spa);
 }

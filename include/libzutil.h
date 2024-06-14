@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2018, 2024 by Delphix. All rights reserved.
  */
 
 #ifndef	_LIBZUTIL_H
@@ -79,6 +79,8 @@ typedef struct importargs {
 	boolean_t can_be_active; /* can the pool be active?		*/
 	boolean_t scan;		/* prefer scanning to libblkid cache    */
 	nvlist_t *policy;	/* load policy (max txg, rewind, etc.)	*/
+	boolean_t do_destroyed;
+	boolean_t do_all;
 } importargs_t;
 
 typedef struct libpc_handle {

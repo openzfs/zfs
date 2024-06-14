@@ -1175,8 +1175,8 @@ efi_use_whole_disk(int fd)
 	 * (for performance reasons). The alignment should match the
 	 * alignment used by the "zpool_label_disk" function.
 	 */
-	limit = P2ALIGN(efi_label->efi_last_lba - nblocks - EFI_MIN_RESV_SIZE,
-	    PARTITION_END_ALIGNMENT);
+	limit = P2ALIGN_TYPED(efi_label->efi_last_lba - nblocks -
+	    EFI_MIN_RESV_SIZE, PARTITION_END_ALIGNMENT, diskaddr_t);
 	if (data_start + data_size != limit || resv_start != limit)
 		sync_needed = B_TRUE;
 

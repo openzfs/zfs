@@ -1412,6 +1412,11 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 		outoff += size;
 		len -= size;
 		done += size;
+
+		if (issig()) {
+			error = SET_ERROR(EINTR);
+			break;
+		}
 	}
 
 	vmem_free(bps, sizeof (bps[0]) * maxblocks);

@@ -29,7 +29,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd March 16, 2022
+.Dd April 20, 2024
 .Dt ZFS-SET 8
 .Os
 .
@@ -158,6 +158,15 @@ A comma-separated list of types to display, where
 .Ar type
 is one of
 .Sy filesystem , snapshot , volume , bookmark , No or Sy all .
+.Sy fs ,
+.Sy snap ,
+or
+.Sy vol
+can be used as aliases for
+.Sy filesystem ,
+.Sy snapshot ,
+or
+.Sy volume .
 .El
 .It Xo
 .Nm zfs

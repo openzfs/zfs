@@ -160,7 +160,7 @@ dmu_object_alloc_impl(objset_t *os, dmu_object_type_t ot, int blocksize,
 			 * is not suitably aligned.
 			 */
 			os->os_obj_next_chunk =
-			    P2ALIGN(object, dnodes_per_chunk) +
+			    P2ALIGN_TYPED(object, dnodes_per_chunk, uint64_t) +
 			    dnodes_per_chunk;
 			(void) atomic_swap_64(cpuobj, object);
 			mutex_exit(&os->os_obj_lock);

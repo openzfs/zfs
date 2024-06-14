@@ -423,20 +423,32 @@ tpool_dispatch(tpool_t *tpool, void (*func)(void *), void *arg)
 
 	pthread_mutex_lock(&tpool->tp_mutex);
 
+	if (!(tpool->tp_flags & TP_SUSPEND)) {
+		if (tpool->tp_idle > 0)
+			(void) pthread_cond_signal(&tpool->tp_workcv);
+		else if (tpool->tp_current >= tpool->tp_maximum) {
+			/* At worker limit.  Leave task on queue */
+		} else {
+			if (create_worker(tpool) == 0) {
+				/* Started a new worker thread */
+				tpool->tp_current++;
+			} else if (tpool->tp_current > 0) {
+				/* Leave task on queue */
+			} else {
+				/* Cannot start a single worker! */
+				pthread_mutex_unlock(&tpool->tp_mutex);
+				free(job);
+				return (-1);
+			}
+		}
+	}
+
 	if (tpool->tp_head == NULL)
 		tpool->tp_head = job;
 	else
 		tpool->tp_tail->tpj_next = job;
 	tpool->tp_tail = job;
 	tpool->tp_njobs++;
-
-	if (!(tpool->tp_flags & TP_SUSPEND)) {
-		if (tpool->tp_idle > 0)
-			(void) pthread_cond_signal(&tpool->tp_workcv);
-		else if (tpool->tp_current < tpool->tp_maximum &&
-		    create_worker(tpool) == 0)
-			tpool->tp_current++;
-	}
 
 	pthread_mutex_unlock(&tpool->tp_mutex);
 	return (0);
