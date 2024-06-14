@@ -28,6 +28,7 @@ libmount-dev
 libpam0g-dev
 libselinux1-dev
 libssl-dev
+libargon2-dev
 libtool
 libudev-dev
 linux-headers-generic

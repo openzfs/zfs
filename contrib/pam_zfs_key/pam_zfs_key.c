@@ -33,6 +33,7 @@
 
 #include <sys/zio_crypt.h>
 #include <openssl/evp.h>
+#include <argon2.h>
 
 #define	PAM_SM_AUTH
 #define	PAM_SM_PASSWORD
@@ -250,17 +251,24 @@ static pw_password_t *
 prepare_passphrase(pam_handle_t *pamh, zfs_handle_t *ds,
     const char *passphrase, nvlist_t *nvlist)
 {
+	const char *errstr = NULL;
 	pw_password_t *key = alloc_pw_size(WRAPPING_KEY_LEN);
 	if (!key) {
 		return (NULL);
 	}
-	uint64_t salt;
-	uint64_t iters;
+	uint64_t kdf, salt, iters;
 	if (nvlist != NULL) {
+		kdf = ZFS_PASSPHRASE_KDF_PBKDF2;
+		if (nvlist_add_uint64(nvlist,
+		    zfs_prop_to_name(ZFS_PROP_PASSPHRASE_KDF), kdf)) {
+			errstr = "failed to add KDF to nvlist";
+			goto err;
+		}
+
 		int fd = open("/dev/urandom", O_RDONLY);
 		if (fd < 0) {
-			pw_free(key);
-			return (NULL);
+			errstr = "/dev/urandom";
+			goto err;
 		}
 		int bytes_read = 0;
 		char *buf = (char *)&salt;
@@ -270,8 +278,8 @@ prepare_passphrase(pam_handle_t *pamh, zfs_handle_t *ds,
 			    - bytes_read);
 			if (len < 0) {
 				close(fd);
-				pw_free(key);
-				return (NULL);
+				errstr = "failed to read salt";
+				goto err;
 			}
 			bytes_read += len;
 		}
@@ -279,34 +287,54 @@ prepare_passphrase(pam_handle_t *pamh, zfs_handle_t *ds,
 
 		if (nvlist_add_uint64(nvlist,
 		    zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT), salt)) {
-			pam_syslog(pamh, LOG_ERR,
-			    "failed to add salt to nvlist");
-			pw_free(key);
-			return (NULL);
+			errstr = "failed to add salt to nvlist";
+			goto err;
 		}
-		iters = DEFAULT_PBKDF2_ITERATIONS;
+		iters = zfs_passphrase_kdf_default_parameters[kdf];
 		if (nvlist_add_uint64(nvlist, zfs_prop_to_name(
 		    ZFS_PROP_PBKDF2_ITERS), iters)) {
-			pam_syslog(pamh, LOG_ERR,
-			    "failed to add iters to nvlist");
-			pw_free(key);
-			return (NULL);
+			errstr = "failed to add iters to nvlist";
+			goto err;
 		}
 	} else {
+		kdf = zfs_prop_get_int(ds, ZFS_PROP_PASSPHRASE_KDF);
 		salt = zfs_prop_get_int(ds, ZFS_PROP_PBKDF2_SALT);
 		iters = zfs_prop_get_int(ds, ZFS_PROP_PBKDF2_ITERS);
 	}
 
 	salt = LE_64(salt);
-	if (!PKCS5_PBKDF2_HMAC_SHA1((char *)passphrase,
-	    strlen(passphrase), (uint8_t *)&salt,
-	    sizeof (uint64_t), iters, WRAPPING_KEY_LEN,
-	    (uint8_t *)key->value)) {
-		pam_syslog(pamh, LOG_ERR, "pbkdf failed");
-		pw_free(key);
-		return (NULL);
+
+	switch (kdf) {
+	case ZFS_PASSPHRASE_KDF_PBKDF2:
+		if (PKCS5_PBKDF2_HMAC_SHA1((char *)passphrase,
+		    strlen(passphrase), ((uint8_t *)&salt),
+		    sizeof (uint64_t), iters, WRAPPING_KEY_LEN,
+		    (uint8_t *)key->value) != 1)
+			errstr = "PBKDF2 failed";
+		break;
+	case ZFS_PASSPHRASE_KDF_ARGON2ID:
+		zfs_passphrase_kdf_argon2id_params_t params =
+		    zfs_passphrase_kdf_argon2id_params(iters);
+		if (argon2_hash(params.t_cost, params.m_cost,
+		    params.parallelism,
+		    passphrase, strlen((char *)passphrase),
+		    &salt, sizeof (uint64_t), (uint8_t *)key->value,
+		    WRAPPING_KEY_LEN, NULL, 0, Argon2_id, ARGON2_VERSION_13)
+		    != ARGON2_OK)
+			errstr = "ARGON2ID13 failed";
+		break;
+	default:
+		errstr = "unknown KDF";
+		break;
 	}
+	if (errstr)
+		goto err;
 	return (key);
+
+err:
+	pam_syslog(pamh, LOG_ERR, "%s", errstr);
+	pw_free(key);
+	return (NULL);
 }
 
 static int
