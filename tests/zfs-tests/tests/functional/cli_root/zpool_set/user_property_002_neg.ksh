@@ -51,20 +51,24 @@ log_onexit cleanup_user_prop $TESTPOOL
 typeset -a names=()
 typeset -a values=()
 
-# Too long property name (256 bytes, which is the 256-byte limit minus 1 byte
-# for the null byte plus 1 byte to reach back over the limit)
-names+=("$(awk 'BEGIN { printf "x:"; while (c++ < (256 - 2 - 1 + 1)) printf "a" }')")
+# A property name that is too long consists of 256 or more bytes (which is (1)
+# the 256-byte limit (2) minus 1 byte for the null byte (3) plus 1 byte to
+# reach back over the limit).
+names+=("$(awk '
+	BEGIN {
+		# Print a 2-byte prefix of the name.
+		printf "x:";
+		# Print the remaining 254 bytes.
+		while (c++ < (256 - 2 - 1 + 1))
+			printf "a"
+	}'
+)")
 values+=("too-long-property-name")
-# Too long property value (the limits are 1024 on FreeBSD and 4096 on Linux, so
-# pick the right one; the too long value is, e.g., the limit minus 1 bytes for the
-# null byte plus 1 byte to reach back over the limit)
-if is_linux; then
-	typeset ZFS_MAXPROPLEN=4096
-else
-	typeset ZFS_MAXPROPLEN=1024
-fi
+# A property value that is too long consists of at least 8192 bytes.
+# The smallest too-long value is (1) the limit (2) minus 1 byte for the null
+# byte (2) plus 1 byte to reach back over the limit).
 names+=("too:long:property:value")
-values+=("$(awk -v max="$ZFS_MAXPROPLEN" 'BEGIN { while (c++ < (max - 1 + 1)) printf "A" }')")
+values+=("$(awk 'BEGIN { while (c++ < (8192 - 1 + 1)) printf "A" }')")
 # Invalid property names
 for i in {1..10}; do
 	typeset -i len
