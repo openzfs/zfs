@@ -29,7 +29,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd March 16, 2022
+.Dd December 25, 2022
 .Dt ZFS-ALLOW 8
 .Os
 .
@@ -212,6 +212,7 @@ release	subcommand	Allows releasing a user hold which might destroy the snapshot
 rename	subcommand	Must also have the \fBmount\fR and \fBcreate\fR ability in the new parent
 rollback	subcommand	Must also have the \fBmount\fR ability
 send	subcommand
+send-raw	subcommand	Allows raw (and only raw) sending of datasets. Is not really a subcommand; instead, allows the \fBsend\fR subcommand, but only when with the --raw option.
 share	subcommand	Allows sharing file systems over NFS or SMB protocols
 snapshot	subcommand	Must also have the \fBmount\fR ability
 
