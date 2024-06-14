@@ -69,6 +69,14 @@ fnvlist_size(nvlist_t *nvl)
 	return (size);
 }
 
+size_t
+fnvlist_size_xdr(nvlist_t *nvl)
+{
+	size_t size;
+	VERIFY0(nvlist_size(nvl, &size, NV_ENCODE_XDR));
+	return (size);
+}
+
 /*
  * Returns allocated buffer of size *sizep.  Caller must free the buffer with
  * fnvlist_pack_free().
@@ -78,6 +86,15 @@ fnvlist_pack(nvlist_t *nvl, size_t *sizep)
 {
 	char *packed = 0;
 	VERIFY3U(nvlist_pack(nvl, &packed, sizep, NV_ENCODE_NATIVE,
+	    KM_SLEEP), ==, 0);
+	return (packed);
+}
+
+char *
+fnvlist_pack_xdr(nvlist_t *nvl, size_t *sizep)
+{
+	char *packed = 0;
+	VERIFY3U(nvlist_pack(nvl, &packed, sizep, NV_ENCODE_XDR,
 	    KM_SLEEP), ==, 0);
 	return (packed);
 }
