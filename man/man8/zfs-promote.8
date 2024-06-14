@@ -39,6 +39,7 @@
 .Sh SYNOPSIS
 .Nm zfs
 .Cm promote
+.Op Fl r
 .Ar clone
 .
 .Sh DESCRIPTION
@@ -55,10 +56,15 @@ The space they use moves from the origin dataset to the promoted clone, so
 enough space must be available to accommodate these snapshots.
 No new space is consumed by this operation, but the space accounting is
 adjusted.
+.Pp
 The promoted clone must not have any conflicting snapshot names of its own.
 The
 .Nm zfs Cm rename
 subcommand can be used to rename any conflicting snapshots.
+.Bl -tag -width "-H"
+.It Fl r
+Recursively promote all descendent datasets.
+.El
 .
 .Sh EXAMPLES
 .\" These are, respectively, examples 10 from zfs.8
