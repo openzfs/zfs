@@ -149,6 +149,23 @@ atomic_cas_64(volatile uint64_t *target, uint64_t cmp, uint64_t newval)
 #endif
 #endif
 
+static inline int
+atomic_dec_not_last_64(volatile uint64_t *target)
+{
+	uint64_t val, oldval;
+
+	val = *target;
+	for (;;) {
+		if (val <= 1) {
+			return (0);
+		}
+		oldval = atomic_cas_64(target, val, val - 1);
+		if (oldval == val)
+			return (1);
+		val = oldval;
+	}
+}
+
 static __inline void
 atomic_inc_64(volatile uint64_t *target)
 {
