@@ -3712,16 +3712,19 @@ dsl_dataset_promote_sync(void *arg, dmu_tx_t *tx)
 	spa_history_log_internal_ds(hds, "promote", tx, " ");
 
 	dsl_dir_rele(odd, FTAG);
-	promote_rele(ddpa, FTAG);
 
 	/*
-	 * Transfer common error blocks from old head to new head.
+	 * Transfer common error blocks from old head to new head, before
+	 * calling promote_rele() on ddpa since we need to dereference
+	 * origin_head and hds.
 	 */
 	if (spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_HEAD_ERRLOG)) {
 		uint64_t old_head = origin_head->ds_object;
 		uint64_t new_head = hds->ds_object;
 		spa_swap_errlog(dp->dp_spa, new_head, old_head, tx);
 	}
+
+	promote_rele(ddpa, FTAG);
 }
 
 /*
