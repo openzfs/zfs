@@ -3859,6 +3859,16 @@ zio_ddt_free(zio_t *zio)
 	}
 	ddt_exit(ddt);
 
+	/*
+	 * When no entry was found, it must have been pruned,
+	 * so we can free it now instead of decrementing the
+	 * refcount in the DDT.
+	 */
+	if (!dde) {
+		BP_SET_DEDUP(bp, 0);
+		zio->io_pipeline |= ZIO_STAGE_DVA_FREE;
+	}
+
 	return (zio);
 }
 

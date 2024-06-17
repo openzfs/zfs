@@ -2045,7 +2045,7 @@ dump_all_ddts(spa_t *spa)
 
 	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
 		ddt_t *ddt = spa->spa_ddt[c];
-		if (!ddt)
+		if (!ddt || ddt->ddt_version == DDT_VERSION_UNCONFIGURED)
 			continue;
 		for (ddt_type_t type = 0; type < DDT_TYPES; type++) {
 			for (ddt_class_t class = 0; class < DDT_CLASSES;
@@ -2072,6 +2072,32 @@ dump_all_ddts(spa_t *spa)
 	}
 
 	dump_dedup_ratio(&dds_total);
+
+	/*
+	 * Dump a histogram of unique class entry age
+	 */
+	if (dump_opt['D'] == 3 && getenv("ZDB_DDT_UNIQUE_AGE_HIST") != NULL) {
+		ddt_age_histo_t histogram;
+
+		(void) printf("DDT walk unique, building age histogram...\n");
+		ddt_prune_walk(spa, 0, &histogram);
+
+		/*
+		 * print out histogram for unique entry class birth
+		 */
+		if (histogram.dah_entries > 0) {
+			(void) printf("%5s  %9s  %4s\n",
+			    "age", "blocks", "amnt");
+			(void) printf("%5s  %9s  %4s\n",
+			    "-----", "---------", "----");
+			for (int i = 0; i < HIST_BINS; i++) {
+				(void) printf("%5d  %9d %4d%%\n", 1 << i,
+				    (int)histogram.dah_age_histo[i],
+				    (int)((histogram.dah_age_histo[i] * 100) /
+				    histogram.dah_entries));
+			}
+		}
+	}
 }
 
 static void
@@ -5749,12 +5775,17 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 		ddt_entry_t *dde = ddt_lookup(ddt, bp);
 
 		/*
-		 * ddt_lookup() can only return NULL if this block didn't exist
+		 * ddt_lookup() can return NULL if this block didn't exist
 		 * in the DDT and creating it would take the DDT over its
 		 * quota. Since we got the block from disk, it must exist in
-		 * the DDT, so this can't happen.
+		 * the DDT, so this can't happen. However, when unique entries
+		 * are pruned, the dedup bit can be set with no corresponding
+		 * entry in the DDT.
 		 */
-		VERIFY3P(dde, !=, NULL);
+		if (dde == NULL) {
+			ddt_exit(ddt);
+			goto skipped;
+		}
 
 		/* Get the phys for this variant */
 		ddt_phys_variant_t v = ddt_phys_select(ddt, dde, bp);
@@ -5774,8 +5805,8 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 			    (void *)(((uintptr_t)dde->dde_io) | (1 << v));
 
 		/* Consume a reference for this block. */
-		VERIFY3U(ddt_phys_total_refcnt(ddt, dde->dde_phys), >, 0);
-		ddt_phys_decref(dde->dde_phys, v);
+		if (ddt_phys_total_refcnt(ddt, dde->dde_phys) > 0)
+			ddt_phys_decref(dde->dde_phys, v);
 
 		/*
 		 * If this entry has a single flat phys, it may have been
@@ -5864,6 +5895,7 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 		}
 	}
 
+skipped:
 	for (i = 0; i < 4; i++) {
 		int l = (i < 2) ? BP_GET_LEVEL(bp) : ZB_TOTAL;
 		int t = (i & 1) ? type : ZDB_OT_TOTAL;
@@ -8138,7 +8170,7 @@ dump_mos_leaks(spa_t *spa)
 
 	for (uint64_t c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
 		ddt_t *ddt = spa->spa_ddt[c];
-		if (!ddt)
+		if (!ddt || ddt->ddt_version == DDT_VERSION_UNCONFIGURED)
 			continue;
 
 		/* DDT store objects */
@@ -8150,11 +8182,14 @@ dump_mos_leaks(spa_t *spa)
 		}
 
 		/* FDT container */
-		mos_obj_refd(ddt->ddt_dir_object);
+		if (ddt->ddt_version == DDT_VERSION_FDT)
+			mos_obj_refd(ddt->ddt_dir_object);
 
 		/* FDT log objects */
-		mos_obj_refd(ddt->ddt_log[0].ddl_object);
-		mos_obj_refd(ddt->ddt_log[1].ddl_object);
+		if (ddt->ddt_flags & DDT_FLAG_LOG) {
+			mos_obj_refd(ddt->ddt_log[0].ddl_object);
+			mos_obj_refd(ddt->ddt_log[1].ddl_object);
+		}
 	}
 
 	if (spa->spa_brt != NULL) {
