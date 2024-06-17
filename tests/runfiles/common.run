@@ -1009,12 +1009,20 @@ tags = ['functional', 'upgrade']
 
 [tests/functional/userquota]
 tests = [
+    'defaultuserquota_001_pos', 'defaultuserquota_002_pos',
+    'defaultuserquota_003_pos', 'defaultuserquota_004_neg',
+    'defaultuserquota_005_pos', 'defaultuserquota_006_pos',
+    'defaultuserquota_007_pos', 'defaultuserquota_008_pos',
+    'defaultuserquota_009_pos', 'defaultuserquota_010_neg',
+    'defaultuserquota_011_neg', 'defaultuserquota_012_neg',
+    'defaultuserquota_013_neg',
     'userquota_001_pos', 'userquota_002_pos', 'userquota_003_pos',
     'userquota_004_pos', 'userquota_005_neg', 'userquota_006_pos',
     'userquota_007_pos', 'userquota_008_pos', 'userquota_009_pos',
     'userquota_010_pos', 'userquota_011_pos', 'userquota_012_neg',
-    'userspace_001_pos', 'userspace_002_pos', 'userspace_encrypted',
-    'userspace_send_encrypted', 'userspace_encrypted_13709']
+    'userspace_001_pos', 'userspace_002_pos', 'userspace_004_pos',
+    'userspace_encrypted', 'userspace_send_encrypted',
+    'userspace_encrypted_13709']
 tags = ['functional', 'userquota']
 
 [tests/functional/vdev_disk:Linux]
