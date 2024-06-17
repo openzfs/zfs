@@ -44,11 +44,17 @@ function cleanup_quota
 		log_must zfs set userobjquota@$QUSER2=none $QFS
 		log_must zfs set groupquota@$QGROUP=none $QFS
 		log_must zfs set groupobjquota@$QGROUP=none $QFS
+		log_must zfs set defaultuserquota=none $QFS
+		log_must zfs set defaultuserobjquota=none $QFS
+		log_must zfs set defaultgroupquota=none $QFS
+		log_must zfs set defaultgroupobjquota=none $QFS
 		recovery_writable $QFS
 	fi
 
 	[[ -f $QFILE ]] && log_must rm -f $QFILE
 	[[ -f $OFILE ]] && log_must rm -f $OFILE
+	[[ -f $QFILE2 ]] && log_must rm -f $QFILE2
+	[[ -f $OFILE2 ]] && log_must rm -f $OFILE2
 	sync_all_pools
 
 	return 0
