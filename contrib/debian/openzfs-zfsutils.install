@@ -100,6 +100,7 @@ usr/share/man/man8/zpool-clear.8
 usr/share/man/man8/zpool-create.8
 usr/share/man/man8/zpool-destroy.8
 usr/share/man/man8/zpool-detach.8
+usr/share/man/man8/zpool-ddtprune.8
 usr/share/man/man8/zpool-events.8
 usr/share/man/man8/zpool-export.8
 usr/share/man/man8/zpool-get.8

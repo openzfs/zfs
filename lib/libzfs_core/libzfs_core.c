@@ -1927,3 +1927,25 @@ lzc_get_bootenv(const char *pool, nvlist_t **outnvl)
 {
 	return (lzc_ioctl(ZFS_IOC_GET_BOOTENV, pool, NULL, outnvl));
 }
+
+/*
+ * Prune the specified amount from the pool's dedup table.
+ */
+int
+lzc_ddt_prune(const char *pool, zpool_ddt_prune_unit_t unit, uint64_t amount)
+{
+	int error;
+
+	nvlist_t *result = NULL;
+	nvlist_t *args = fnvlist_alloc();
+
+	fnvlist_add_int32(args, DDT_PRUNE_UNIT, unit);
+	fnvlist_add_uint64(args, DDT_PRUNE_AMOUNT, amount);
+
+	error = lzc_ioctl(ZFS_IOC_DDT_PRUNE, pool, args, &result);
+
+	fnvlist_free(args);
+	fnvlist_free(result);
+
+	return (error);
+}

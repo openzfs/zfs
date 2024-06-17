@@ -2050,6 +2050,32 @@ dump_all_ddts(spa_t *spa)
 	}
 
 	dump_dedup_ratio(&dds_total);
+
+	/*
+	 * Dump a histogram of unique class entry age
+	 */
+	if (dump_opt['D'] == 3 && getenv("ZDB_DDT_UNIQUE_AGE_HIST") != NULL) {
+		ddt_age_histo_t histogram;
+
+		(void) printf("DDT walk unique, building age histogram...\n");
+		ddt_prune_walk(spa, 0, &histogram);
+
+		/*
+		 * print out histogram for unique entry class birth
+		 */
+		if (histogram.dah_entries > 0) {
+			(void) printf("%5s  %9s  %4s\n",
+			    "age", "blocks", "amnt");
+			(void) printf("%5s  %9s  %4s\n",
+			    "-----", "---------", "----");
+			for (int i = 0; i < HIST_BINS; i++) {
+				(void) printf("%5d  %9d %4d%%\n", 1 << i,
+				    (int)histogram.dah_age_histo[i],
+				    (int)((histogram.dah_age_histo[i] * 100) /
+				    histogram.dah_entries));
+			}
+		}
+	}
 }
 
 static void

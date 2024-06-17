@@ -1419,7 +1419,7 @@ typedef enum {
  */
 typedef enum zfs_ioc {
 	/*
-	 * Core features - 88/128 numbers reserved.
+	 * Core features - 89/128 numbers reserved.
 	 */
 #ifdef __FreeBSD__
 	ZFS_IOC_FIRST =	0,
@@ -1516,6 +1516,7 @@ typedef enum zfs_ioc {
 	ZFS_IOC_VDEV_SET_PROPS,			/* 0x5a56 */
 	ZFS_IOC_POOL_SCRUB,			/* 0x5a57 */
 	ZFS_IOC_POOL_PREFETCH,			/* 0x5a58 */
+	ZFS_IOC_DDT_PRUNE,			/* 0x5a59 */
 
 	/*
 	 * Per-platform (Optional) - 8/128 numbers reserved.
@@ -1652,6 +1653,12 @@ typedef enum {
 	ZPOOL_PREFETCH_DDT
 } zpool_prefetch_type_t;
 
+typedef enum {
+	ZPOOL_DDT_PRUNE_NONE,
+	ZPOOL_DDT_PRUNE_AGE,		/* in seconds */
+	ZPOOL_DDT_PRUNE_PERCENTAGE,	/* 1 - 100 */
+} zpool_ddt_prune_unit_t;
+
 /*
  * Bookmark name values.
  */
@@ -1744,6 +1751,12 @@ typedef enum {
  * The following are names used when invoking ZFS_IOC_POOL_PREFETCH.
  */
 #define	ZPOOL_PREFETCH_TYPE		"prefetch_type"
+
+/*
+ * The following are names used when invoking ZFS_IOC_DDT_PRUNE.
+ */
+#define	DDT_PRUNE_UNIT		"ddt_prune_unit"
+#define	DDT_PRUNE_AMOUNT	"ddt_prune_amount"
 
 /*
  * Flags for ZFS_IOC_VDEV_SET_STATE
