@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # shellcheck disable=SC2154
 #
 # CDDL HEADER START
@@ -208,6 +208,46 @@ find_runfile() {
 	fi
 }
 
+# Given a TAGS with a format like "1/3" or "2/3" then divide up the test list
+# into portions and print that portion.  So "1/3" for "the first third of the
+# test tags".
+#
+#
+split_tags() {
+	# Get numerator and denominator
+	NUM=$(echo $TAGS | cut -d/ -f1)
+	DEN=$(echo $TAGS | cut -d/ -f2)
+	# At the point this is called, RUNFILES will contain a comma separated
+	# list of full paths to the runfiles, like:
+	#
+	# "/home/hutter/qemu/tests/runfiles/common.run,/home/hutter/qemu/tests/runfiles/linux.run"
+	#
+	# So to get tags for our selected tests we do:
+	#
+	# 1. Remove unneeded chars: [],\
+	# 2. Print out the last field of each tag line.  This will be the tag
+	#    for the test (like 'zpool_add').
+	# 3. Remove duplicates between the runfiles.  If the same tag is defined
+	#    in multiple runfiles, then when you do '-T <tag>' ZTS is smart
+	#    enough to know to run the tag in each runfile.  So '-T zpool_add'
+	#    will run the zpool_add from common.run and linux.run.
+	# 4. Ignore the 'functional' tag since we only want individual tests
+	# 5. Print out the tests in our faction of all tests.  This uses modulus
+	#    so "1/3" will run tests 1,3,6,9 etc.  That way the tests are
+	#    interleaved so, say, "3/4" isn't running all the zpool_* tests that
+	#    appear alphabetically at the end.
+	# 6. Remove trailing comma from list
+	#
+	# TAGS will then look like:
+	#
+	# "append,atime,bootfs,cachefile,checksum,cp_files,deadman,dos_attributes, ..."
+
+	cat ${RUNFILES/,/ } | tr -d [],\' | awk '/tags = /{print $NF}' | sort | \
+		uniq | grep -v functional | \
+		awk -v num=$NUM -v den=$DEN '{ if(NR % den == (num - 1)) {printf "%s,",$0}}' | \
+		sed -E 's/,$//'
+}
+
 #
 # Symlink file if it appears under any of the given paths.
 #
@@ -331,6 +371,10 @@ OPTIONS:
 	-t PATH|NAME  Run single test at PATH relative to test suite,
 	                or search for test by NAME
 	-T TAGS     Comma separated list of tags (default: 'functional')
+	            Alternately, specify a fraction like "1/3" or "2/3" to
+		     run the first third of tests or 2nd third of the tests.  This
+		     is useful for splitting up the test amongst different
+		     runners.
 	-u USER     Run single test as USER (default: root)
 
 EXAMPLES:
@@ -489,6 +533,8 @@ fi
 #
 TAGS=${TAGS:='functional'}
 
+
+
 #
 # Attempt to locate the runfiles describing the test workload.
 #
@@ -508,6 +554,23 @@ for RUNFILE in $RUNFILES; do
 done
 unset IFS
 RUNFILES=${R#,}
+
+# The tag can be a fraction to indicate which portion of ZTS to run, Like
+#
+# 	"1/3": Run first one third of all tests in runfiles
+#	"2/3": Run second one third of all test in runfiles
+#	"6/10": Run 6th tenth of all tests in runfiles
+#
+# This is useful for splitting up the test across multiple runners.
+#
+# After this code block, TAGS will be transformed from something like
+# "1/3" to a comma separate taglist, like:
+#
+# "append,atime,bootfs,cachefile,checksum,cp_files,deadman,dos_attributes, ..."
+#
+if echo $TAGS | grep -Eq '^[0-9]+/[0-9]+$' ; then
+	TAGS=$(split_tags)
+fi
 
 #
 # This script should not be run as root.  Instead the test user, which may
