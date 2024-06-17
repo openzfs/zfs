@@ -35,8 +35,11 @@ extern "C" {
 #endif
 
 /* DDT version numbers */
-#define	DDT_VERSION_LEGACY	(0)
-#define	DDT_VERSION_FDT		(1)
+#define	DDT_VERSION_LEGACY		(0)
+#define	DDT_VERSION_FDT			(1)
+
+/* Dummy version to signal that configure is still necessary */
+#define	DDT_VERSION_UNCONFIGURED	(UINT64_MAX)
 
 /* Names of interesting objects in the DDT root dir */
 #define	DDT_DIR_VERSION		"version"
@@ -187,8 +190,11 @@ extern void ddt_log_commit(ddt_t *ddt, ddt_log_update_t *dlu);
 
 extern boolean_t ddt_log_take_first(ddt_t *ddt, ddt_log_t *ddl,
     ddt_lightweight_entry_t *ddlwe);
-extern boolean_t ddt_log_take_key(ddt_t *ddt, ddt_log_t *ddl,
-    const ddt_key_t *ddk, ddt_lightweight_entry_t *ddlwe);
+
+extern boolean_t ddt_log_find_key(ddt_t *ddt, const ddt_key_t *ddk,
+    ddt_lightweight_entry_t *ddlwe);
+extern boolean_t ddt_log_remove_key(ddt_t *ddt, ddt_log_t *ddl,
+    const ddt_key_t *ddk);
 
 extern void ddt_log_checkpoint(ddt_t *ddt, ddt_lightweight_entry_t *ddlwe,
     dmu_tx_t *tx);
@@ -210,6 +216,44 @@ extern void ddt_log_fini(void);
  * outside of the DDT implementation proper, and if you do, consider moving
  * them up.
  */
+
+/*
+ * We use a histogram to convert a percentage request into a
+ * cutoff value where entries older than the cutoff get pruned.
+ *
+ * The histogram bins represent hours in power-of-two increments.
+ * 16 bins covers up to four years.
+ */
+#define	HIST_BINS 16
+
+typedef struct ddt_age_histo {
+	uint64_t dah_entries;
+	uint64_t dah_age_histo[HIST_BINS];
+} ddt_age_histo_t;
+
+void ddt_prune_walk(spa_t *spa, uint64_t cutoff, ddt_age_histo_t *histogram);
+
+#if defined(_KERNEL) || !defined(ZFS_DEBUG)
+#define	ddt_dump_age_histogram(histo, cutoff)	((void)0)
+#else
+static inline void
+ddt_dump_age_histogram(ddt_age_histo_t *histogram, uint64_t cutoff)
+{
+	if (histogram->dah_entries == 0)
+		return;
+
+	(void) printf("DDT prune unique class age, %llu hour cutoff\n",
+	    (u_longlong_t)(gethrestime_sec() - cutoff)/3600);
+	(void) printf("%5s  %9s  %4s\n", "age", "blocks", "amnt");
+	(void) printf("%5s  %9s  %4s\n", "-----", "---------", "----");
+	for (int i = 0; i < HIST_BINS; i++) {
+		(void) printf("%5d  %9llu %4d%%\n", 1<<i,
+		    (u_longlong_t)histogram->dah_age_histo[i],
+		    (int)((histogram->dah_age_histo[i] * 100) /
+		    histogram->dah_entries));
+	}
+}
+#endif
 
 /*
  * Enough room to expand DMU_POOL_DDT format for all possible DDT

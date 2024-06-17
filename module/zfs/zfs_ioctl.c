@@ -4342,6 +4342,51 @@ zfs_ioc_pool_trim(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 	return (total_errors > 0 ? SET_ERROR(EINVAL) : 0);
 }
 
+#define	DDT_PRUNE_UNIT		"ddt_prune_unit"
+#define	DDT_PRUNE_AMOUNT	"ddt_prune_amount"
+
+/*
+ * innvl: {
+ *     "ddt_prune_unit" -> uint32_t
+ *     "ddt_prune_amount" -> uint64_t
+ * }
+ *
+ * outnvl: "waited" -> boolean_t
+ */
+static const zfs_ioc_key_t zfs_keys_ddt_prune[] = {
+	{DDT_PRUNE_UNIT,	DATA_TYPE_INT32,	0},
+	{DDT_PRUNE_AMOUNT,	DATA_TYPE_UINT64,	0},
+};
+
+static int
+zfs_ioc_ddt_prune(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	int32_t unit;
+	uint64_t amount;
+
+	if (nvlist_lookup_int32(innvl, DDT_PRUNE_UNIT, &unit) != 0 ||
+	    nvlist_lookup_uint64(innvl, DDT_PRUNE_AMOUNT, &amount) != 0) {
+		return (EINVAL);
+	}
+
+	spa_t *spa;
+	int error = spa_open(poolname, &spa, FTAG);
+	if (error != 0)
+		return (error);
+
+	if (!spa_feature_is_enabled(spa, SPA_FEATURE_FAST_DEDUP)) {
+		spa_close(spa, FTAG);
+		return (SET_ERROR(ENOTSUP));
+	}
+
+	error = ddt_prune_unique_entries(spa, (zpool_ddt_prune_unit_t)unit,
+	    amount);
+
+	spa_close(spa, FTAG);
+
+	return (error);
+}
+
 /*
  * This ioctl waits for activity of a particular type to complete. If there is
  * no activity of that type in progress, it returns immediately, and the
@@ -7429,6 +7474,11 @@ zfs_ioctl_init(void)
 	    zfs_ioc_pool_get_props, zfs_secpolicy_read, POOL_NAME,
 	    POOL_CHECK_NONE, B_FALSE, B_FALSE,
 	    zfs_keys_get_props, ARRAY_SIZE(zfs_keys_get_props));
+
+	zfs_ioctl_register("zpool_ddt_prune", ZFS_IOC_DDT_PRUNE,
+	    zfs_ioc_ddt_prune, zfs_secpolicy_config, POOL_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE, B_TRUE,
+	    zfs_keys_ddt_prune, ARRAY_SIZE(zfs_keys_ddt_prune));
 
 	/* IOCTLS that use the legacy function signature */
 
