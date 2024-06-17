@@ -585,6 +585,10 @@ usage(boolean_t requested)
 		(void) fprintf(fp, "YES       NO   <size> | none\n");
 		(void) fprintf(fp, "\t%-15s ", "projectobjquota@...");
 		(void) fprintf(fp, "YES       NO   <size> | none\n");
+		(void) fprintf(fp, "\t%-15s ", "defaultuserquota");
+		(void) fprintf(fp, "YES       NO   <size> | none\n");
+		(void) fprintf(fp, "\t%-15s ", "defaultgroupquota");
+		(void) fprintf(fp, "YES       NO   <size> | none\n");
 		(void) fprintf(fp, "\t%-15s ", "written@<snap>");
 		(void) fprintf(fp, " NO       NO   <size>\n");
 		(void) fprintf(fp, "\t%-15s ", "written#<bookmark>");
