@@ -112,6 +112,7 @@ static int zfs_do_hold(int argc, char **argv);
 static int zfs_do_holds(int argc, char **argv);
 static int zfs_do_release(int argc, char **argv);
 static int zfs_do_diff(int argc, char **argv);
+static int zfs_do_scrub(int argc, char **argv);
 static int zfs_do_bookmark(int argc, char **argv);
 static int zfs_do_channel_program(int argc, char **argv);
 static int zfs_do_load_key(int argc, char **argv);
@@ -181,6 +182,7 @@ typedef enum {
 	HELP_HOLDS,
 	HELP_RELEASE,
 	HELP_DIFF,
+	HELP_SCRUB,
 	HELP_BOOKMARK,
 	HELP_CHANNEL_PROGRAM,
 	HELP_LOAD_KEY,
@@ -253,6 +255,7 @@ static zfs_command_t command_table[] = {
 	{ "holds",	zfs_do_holds,		HELP_HOLDS		},
 	{ "release",	zfs_do_release,		HELP_RELEASE		},
 	{ "diff",	zfs_do_diff,		HELP_DIFF		},
+	{ "scrub",	zfs_do_scrub,		HELP_SCRUB		},
 	{ "load-key",	zfs_do_load_key,	HELP_LOAD_KEY		},
 	{ "unload-key",	zfs_do_unload_key,	HELP_UNLOAD_KEY		},
 	{ "change-key",	zfs_do_change_key,	HELP_CHANGE_KEY		},
@@ -401,6 +404,8 @@ get_usage(zfs_help_t idx)
 	case HELP_DIFF:
 		return (gettext("\tdiff [-FHth] <snapshot> "
 		    "[snapshot|filesystem]\n"));
+	case HELP_SCRUB:
+		return (gettext("\tscrub <file>\n"));
 	case HELP_BOOKMARK:
 		return (gettext("\tbookmark <snapshot|bookmark> "
 		    "<newbookmark>\n"));
@@ -7936,6 +7941,98 @@ out:
 	zfs_close(zhp);
 
 	return (err != 0);
+}
+
+static int
+scrub_single_file(zfs_handle_t *zhp, void *data)
+{
+	struct stat64 *filestat = (struct stat64 *)data;
+	struct stat64 mountstat;
+	char mountpoint[ZFS_MAXPROPLEN];
+	int err;
+
+	if (zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, mountpoint,
+	    sizeof (mountpoint), NULL, NULL, 0, B_FALSE) != 0) {
+		return (0);
+	}
+
+	if (stat64(mountpoint, &mountstat) < 0) {
+		return (0);
+	}
+
+	if (mountstat.st_dev != filestat->st_dev) {
+		return (0);
+	}
+
+	nvlist_t *args = fnvlist_alloc();
+	fnvlist_add_string(args, "dataset", zfs_get_name(zhp));
+	fnvlist_add_uint64(args, "object", filestat->st_ino);
+
+	err = lzc_scrub(ZFS_IOC_POOL_SCRUB_FILE, zfs_get_pool_name(zhp),
+	    args, NULL);
+
+	fnvlist_free(args);
+
+	return (err != 0 ? 2 : 1);
+}
+
+static int
+find_dataset_and_scrub(zfs_handle_t *zhp, void *data)
+{
+	int err;
+
+	err = scrub_single_file(zhp, data);
+	if (err == 0) {
+		err = zfs_iter_filesystems_v2(zhp, 0, find_dataset_and_scrub,
+		    data);
+	}
+	zfs_close(zhp);
+	return (err);
+}
+
+/*
+ * zfs scrub <file>
+ *
+ * Scrubs single file.
+ */
+static int
+zfs_do_scrub(int argc, char **argv)
+{
+	char *filetoscrub = NULL;
+	struct stat64 filestat;
+	int err = 0;
+
+	if (argc < 1) {
+		(void) fprintf(stderr,
+		    gettext("must provide a file to scrub\n"));
+		usage(B_FALSE);
+	}
+
+	if (argc > 2) {
+		(void) fprintf(stderr, gettext("too many arguments\n"));
+		usage(B_FALSE);
+	}
+
+	filetoscrub = argv[1];
+	if (stat64(filetoscrub, &filestat) < 0) {
+		(void) fprintf(stderr,
+		    gettext("must provide a file to scrub\n"));
+		usage(B_FALSE);
+	}
+
+	if (S_ISREG(filestat.st_mode) == 0) {
+		(void) fprintf(stderr,
+		    gettext("scrub works only on regular files\n"));
+		usage(B_FALSE);
+	}
+
+	err = zfs_iter_root(g_zfs, find_dataset_and_scrub, &filestat);
+	if (err == 0) {
+		(void) fprintf(stderr,
+		    gettext("unable to scrub file %s\n"), filetoscrub);
+	}
+
+	return (err == 1 ? 0 : -1);
 }
 
 /*

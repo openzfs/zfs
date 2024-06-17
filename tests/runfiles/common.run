@@ -302,6 +302,10 @@ tests = ['zfs_rollback_001_pos', 'zfs_rollback_002_pos',
     'zfs_rollback_003_neg', 'zfs_rollback_004_neg']
 tags = ['functional', 'cli_root', 'zfs_rollback']
 
+[tests/functional/cli_root/zfs_scrub]
+tests = ['zfs_error_scrub_001_pos', 'zfs_error_scrub_002_pos']
+tags = ['functional', 'cli_root', 'zfs_scrub']
+
 [tests/functional/cli_root/zfs_send]
 tests = ['zfs_send_001_pos', 'zfs_send_002_pos', 'zfs_send_003_pos',
     'zfs_send_004_neg', 'zfs_send_005_pos', 'zfs_send_006_pos',
