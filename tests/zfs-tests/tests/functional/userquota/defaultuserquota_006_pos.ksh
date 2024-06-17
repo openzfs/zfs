@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: CDDL-1.0
+#!/bin/ksh -p
 #
 # CDDL HEADER START
 #
@@ -26,24 +26,35 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
-export QUSER1=quser1
-export QUSER2=quser2
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/userquota/userquota_common.kshlib
 
-export QGROUP=qgroup
-export QGROUP1=qgroup1
-export QGROUP1=qgroup2
+#
+# DESCRIPTION:
+#
+#      zfs get all <fs> does print out defaultuserquota/defaultgroupquota
+#
+# STRATEGY:
+#       1. set defaultuserquota and defaultgroupquota to a fs
+#       2. check zfs get all fs
+#
 
-export UQUOTA_SIZE=1000000
-export GQUOTA_SIZE=4000000
+function cleanup
+{
+	log_must cleanup_quota
+}
 
-export QFS=$TESTPOOL/$TESTFS
-export QFILE=$TESTDIR/qf
-export OFILE=$TESTDIR/of
-export QFILE2=$TESTDIR/qf2
-export OFILE2=$TESTDIR/of2
+log_onexit cleanup
 
-export SNAP_QUOTA=100m
-export TEST_QUOTA=88888
+log_assert "Check zfs get all will print out default{user|group}quota"
+
+log_must zfs set defaultuserquota=50m $QFS
+log_must zfs set defaultgroupquota=100m $QFS
+
+log_must zfs get all $QFS | grep defaultuserquota
+log_must zfs get all $QFS | grep defaultgroupquota
+
+log_pass "zfs get all will print out default{user|group}quota"
