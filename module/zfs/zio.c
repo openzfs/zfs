@@ -3552,7 +3552,7 @@ zio_ddt_write(zio_t *zio)
 	ASSERT(!(zio->io_bp_override && (zio->io_flags & ZIO_FLAG_RAW)));
 
 	ddt_enter(ddt);
-	dde = ddt_lookup(ddt, bp, B_TRUE);
+	dde = ddt_lookup(ddt, bp);
 	if (dde == NULL) {
 		/* DDT size is over its quota so no new entries */
 		zp->zp_dedup = B_FALSE;
@@ -3828,7 +3828,7 @@ zio_ddt_free(zio_t *zio)
 	ASSERT(zio->io_child_type == ZIO_CHILD_LOGICAL);
 
 	ddt_enter(ddt);
-	freedde = dde = ddt_lookup(ddt, bp, B_TRUE);
+	freedde = dde = ddt_lookup(ddt, bp);
 	if (dde) {
 		ddt_phys_variant_t v = ddt_phys_select(ddt, dde, bp);
 		if (v != DDT_PHYS_NONE)

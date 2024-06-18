@@ -789,6 +789,9 @@ ddt_phys_dva_count(const ddt_univ_phys_t *ddp, ddt_phys_variant_t v,
 ddt_phys_variant_t
 ddt_phys_select(const ddt_t *ddt, const ddt_entry_t *dde, const blkptr_t *bp)
 {
+	if (dde == NULL)
+		return (DDT_PHYS_NONE);
+
 	const ddt_univ_phys_t *ddp = dde->dde_phys;
 
 	if (ddt->ddt_flags & DDT_FLAG_FLAT) {
@@ -1020,7 +1023,7 @@ ddt_prefetch_all(spa_t *spa)
 static int ddt_configure(ddt_t *ddt, boolean_t new);
 
 ddt_entry_t *
-ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
+ddt_lookup(ddt_t *ddt, const blkptr_t *bp)
 {
 	spa_t *spa = ddt->ddt_spa;
 	ddt_key_t search;
@@ -1077,10 +1080,6 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 		return (dde);
 	} else
 		DDT_KSTAT_BUMP(ddt, dds_lookup_live_miss);
-
-	/* Not found. */
-	if (!add)
-		return (NULL);
 
 	/* Time to make a new entry. */
 	dde = ddt_alloc(ddt, &search);
@@ -2342,7 +2341,7 @@ ddt_addref(spa_t *spa, const blkptr_t *bp)
 	ddt = ddt_select(spa, bp);
 	ddt_enter(ddt);
 
-	dde = ddt_lookup(ddt, bp, B_TRUE);
+	dde = ddt_lookup(ddt, bp);
 
 	/* Can be NULL if the entry for this block was pruned. */
 	if (dde == NULL) {
