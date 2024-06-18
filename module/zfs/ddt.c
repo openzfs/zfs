@@ -789,6 +789,9 @@ ddt_phys_dva_count(const ddt_univ_phys_t *ddp, ddt_phys_variant_t v,
 ddt_phys_variant_t
 ddt_phys_select(const ddt_t *ddt, const ddt_entry_t *dde, const blkptr_t *bp)
 {
+	if (dde == NULL)
+		return (DDT_PHYS_NONE);
+
 	const ddt_univ_phys_t *ddp = dde->dde_phys;
 
 	if (ddt->ddt_flags & DDT_FLAG_FLAT) {
