@@ -41,6 +41,7 @@
 
 #include <linux/blkdev_compat.h>
 #include <linux/task_io_accounting_ops.h>
+#include <linux/workqueue.h>
 
 #ifdef HAVE_BLK_MQ
 #include <linux/blk-mq.h>
@@ -1338,6 +1339,101 @@ zvol_wait_close(zvol_state_t *zv)
 {
 }
 
+struct add_disk_work {
+	struct delayed_work work;
+	struct gendisk *disk;
+	int error;
+};
+
+static int
+__zvol_os_add_disk(struct gendisk *disk)
+{
+	int error = 0;
+#ifdef HAVE_ADD_DISK_RET
+	error = add_disk(disk);
+#else
+	add_disk(disk);
+#endif
+	return (error);
+}
+
+#if defined(HAVE_BDEV_FILE_OPEN_BY_PATH)
+static void
+zvol_os_add_disk_work(struct work_struct *work)
+{
+	struct add_disk_work *add_disk_work;
+	add_disk_work = container_of(work, struct add_disk_work, work.work);
+	add_disk_work->error = __zvol_os_add_disk(add_disk_work->disk);
+}
+#endif
+
+/*
+ * SPECIAL CASE:
+ *
+ * This function basically calls add_disk() from a workqueue.   You may be
+ * thinking: why not just call add_disk() directly?
+ *
+ * When you call add_disk(), the zvol appears to the world.  When this happens,
+ * the kernel calls disk_scan_partitions() on the zvol, which behaves
+ * differently on the 6.9+ kernels:
+ *
+ * - 6.8 and older kernels -
+ * disk_scan_partitions()
+ *	handle = bdev_open_by_dev(
+ *		zvol_open()
+ *	bdev_release(handle);
+ *		zvol_release()
+ *
+ *
+ * - 6.9+ kernels -
+ * disk_scan_partitions()
+ * 	file = bdev_file_open_by_dev()
+ *		zvol_open()
+ *	fput(file)
+ *	< wait for return to userspace >
+ *		zvol_release()
+ *
+ * The difference is that the bdev_release() from the 6.8 kernel is synchronous
+ * while the fput() from the 6.9 kernel is async.  Or more specifically it's
+ * async that has to wait until we return to userspace (since it adds the fput
+ * into the caller's work queue with the TWA_RESUME flag set).  This is not the
+ * behavior we want, since we want do things like create+destroy a zvol within
+ * a single ZFS_IOC_CREATE ioctl, and the "create" part needs to release the
+ * reference to the zvol while we're in the IOCTL, which can't wait until we
+ * return to userspace.
+ *
+ * We can get around this since fput() has a special codepath for when it's
+ * running in a kernel thread or interrupt.  In those cases, it just puts the
+ * fput into the system workqueue, which we can force to run with
+ * __flush_workqueue().  That is why we call add_disk() from a workqueue - so it
+ * run from a kernel thread and "tricks" the fput() codepaths.
+ *
+ * Note that __flush_workqueue() is slowly getting deprecated.  This may be ok
+ * though, since our IOCTL will spin on EBUSY waiting for the zvol release (via
+ * fput) to happen, which it eventually, naturally, will from the system_wq
+ * without us explicitly calling __flush_workqueue().
+ */
+static int
+zvol_os_add_disk(struct gendisk *disk)
+{
+#if defined(HAVE_BDEV_FILE_OPEN_BY_PATH)	/* 6.9+ kernel */
+	struct add_disk_work add_disk_work;
+
+	INIT_DELAYED_WORK(&add_disk_work.work, zvol_os_add_disk_work);
+	add_disk_work.disk = disk;
+	add_disk_work.error = 0;
+
+	/* Use *_delayed_work functions since they're not GPL'd */
+	schedule_delayed_work(&add_disk_work.work, 0);
+	flush_delayed_work(&add_disk_work.work);
+
+	__flush_workqueue(system_wq);
+	return (add_disk_work.error);
+#else	/* <= 6.8 kernel */
+	return (__zvol_os_add_disk(disk));
+#endif
+}
+
 /*
  * Create a block device minor node and setup the linkage between it
  * and the specified volume.  Once this function returns the block
@@ -1549,11 +1645,7 @@ out_doi:
 		rw_enter(&zvol_state_lock, RW_WRITER);
 		zvol_insert(zv);
 		rw_exit(&zvol_state_lock);
-#ifdef HAVE_ADD_DISK_RET
-		error = add_disk(zv->zv_zso->zvo_disk);
-#else
-		add_disk(zv->zv_zso->zvo_disk);
-#endif
+		error = zvol_os_add_disk(zv->zv_zso->zvo_disk);
 	} else {
 		ida_simple_remove(&zvol_ida, idx);
 	}
