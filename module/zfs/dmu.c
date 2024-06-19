@@ -2648,7 +2648,7 @@ dmu_brt_clone(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 		ASSERT(db->db_blkid != DMU_SPILL_BLKID);
 		ASSERT(BP_IS_HOLE(bp) || dbuf->db_size == BP_GET_LSIZE(bp));
 
-		dmu_buf_will_clone(dbuf, tx);
+		dmu_buf_will_clone_or_dio(dbuf, tx);
 
 		mutex_enter(&db->db_mtx);
 
