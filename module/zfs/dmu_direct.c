@@ -90,78 +90,35 @@ dmu_write_direct_done(zio_t *zio)
 	dmu_sync_arg_t *dsa = zio->io_private;
 	dbuf_dirty_record_t *dr = dsa->dsa_dr;
 	dmu_buf_impl_t *db = dr->dr_dbuf;
-	uint64_t txg = dsa->dsa_tx->tx_txg;
 
 	abd_free(zio->io_abd);
+
 	mutex_enter(&db->db_mtx);
+	ASSERT3P(db->db_buf, ==, NULL);
+	ASSERT3P(dr->dt.dl.dr_data, ==, NULL);
+	ASSERT3P(db->db.db_data, ==, NULL);
+	db->db_state = DB_UNCACHED;
+	mutex_exit(&db->db_mtx);
 
-	if (zio->io_error == 0) {
-		/*
-		 * After a successful Direct I/O write any stale contents in
-		 * the ARC must be cleaned up in order to force all future
-		 * reads down to the VDEVs.
-		 *
-		 * If a previous write operation to this dbuf was buffered
-		 * (in the ARC) we have to wait for the previous dirty records
-		 * associated with this dbuf to be synced out if they are in
-		 * the quiesce or sync phase for their TXG. This is done to
-		 * guarantee we are not racing to destroy the ARC buf that
-		 * is associated with the dbuf between this done callback and
-		 * spa_sync(). Outside of using a heavy handed approach of
-		 * locking down the spa_syncing_txg while it is being updated,
-		 * there is no way to synchronize when a dirty record's TXG
-		 * has moved over to the sync phase.
-		 *
-		 * In order to make sure all TXG's are consistent we must
-		 * do this stall if there is an associated ARC buf with this
-		 * dbuf. It is because of this that a user should not really
-		 * be mixing buffered and Direct I/O writes. If they choose to
-		 * do so, there is an associated performance penalty for that
-		 * as we will not give up consistency with a TXG over
-		 * performance.
-		 */
-		if (db->db_buf) {
-			dmu_buf_direct_mixed_io_wait(db, txg - 1, B_FALSE);
-			ASSERT3P(db->db_buf, ==, dr->dt.dl.dr_data);
-			arc_buf_destroy(db->db_buf, db);
-			db->db_buf = NULL;
-			dr->dt.dl.dr_data = NULL;
-			db->db.db_data = NULL;
-			ASSERT3U(db->db_dirtycnt, ==, 1);
-		}
+	dmu_sync_done(zio, NULL, zio->io_private);
 
-		/*
-		 * The current contents of the dbuf are now stale.
-		 */
-		ASSERT3P(dr->dt.dl.dr_data, ==, NULL);
-		ASSERT3P(db->db.db_data, ==, NULL);
-		db->db_state = DB_UNCACHED;
-	} else {
+	if (zio->io_error != 0) {
 		if (zio->io_flags & ZIO_FLAG_DIO_CHKSUM_ERR)
 			ASSERT3U(zio->io_error, ==, EAGAIN);
 
 		/*
-		 * If there is a valid ARC buffer assocatied with this dirty
-		 * record we will stall just like on a successful Direct I/O
-		 * write to make sure all TXG's are consistent. See comment
-		 * above.
+		 * In the event of an I/O error the metaslab cleanup is taken
+		 * care of in zio_done().
+		 *
+		 * Since we are undirtying the record in open-context, we must
+		 * have a hold on the db, so it should never be evicted after
+		 * calling dbuf_undirty().
 		 */
-		if (db->db_buf) {
-			ASSERT3P(db->db_buf, ==, dr->dt.dl.dr_data);
-			dmu_buf_direct_mixed_io_wait(db, txg - 1, B_FALSE);
-			dmu_buf_undirty(db, dsa->dsa_tx);
-			db->db_state = DB_CACHED;
-		} else {
-			ASSERT3P(dr->dt.dl.dr_data, ==, NULL);
-			dmu_buf_undirty(db, dsa->dsa_tx);
-			db->db_state = DB_UNCACHED;
-		}
-
-		ASSERT0(db->db_dirtycnt);
+		mutex_enter(&db->db_mtx);
+		VERIFY3B(dbuf_undirty(db, dsa->dsa_tx), ==, B_FALSE);
+		mutex_exit(&db->db_mtx);
 	}
 
-	mutex_exit(&db->db_mtx);
-	dmu_sync_done(zio, NULL, zio->io_private);
 	kmem_free(zio->io_bp, sizeof (blkptr_t));
 	zio->io_bp = NULL;
 }
@@ -185,25 +142,10 @@ dmu_write_direct(zio_t *pio, dmu_buf_impl_t *db, abd_t *data, dmu_tx_t *tx)
 	DB_DNODE_EXIT(db);
 
 	/*
-	 * If we going to overwrite a previous Direct I/O write that is part of
-	 * the current TXG, then we can can go ahead and undirty it now. Part
-	 * of it being undirtied will be allowing for previously allocated
-	 * space in the dr_overridden_bp BP's DVAs to be freed. This avoids
-	 * ENOSPC errors from possibly occuring when trying to allocate new
-	 * metaslabs in open-context for Direct I/O writes.
-	 */
-	mutex_enter(&db->db_mtx);
-	dr_head = dbuf_find_dirty_eq(db, dmu_tx_get_txg(tx));
-	if (dbuf_dirty_is_direct_write(db, dr_head)) {
-		dmu_buf_undirty(db, tx);
-	}
-	mutex_exit(&db->db_mtx);
-
-	/*
 	 * Dirty this dbuf with DB_NOFILL since we will not have any data
 	 * associated with the dbuf.
 	 */
-	dmu_buf_will_not_fill(&db->db, tx);
+	dmu_buf_will_clone_or_dio(&db->db, tx);
 
 	mutex_enter(&db->db_mtx);
 
@@ -290,7 +232,7 @@ dmu_write_abd(dnode_t *dn, uint64_t offset, uint64_t size,
 
 	/*
 	 * The dbuf must be held until the Direct I/O write has completed in
-	 * the event there was any errors and dmu_buf_undirty() was called.
+	 * the event there was any errors and dbuf_undirty() was called.
 	 */
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 
@@ -326,10 +268,11 @@ dmu_read_abd(dnode_t *dn, uint64_t offset, uint64_t size,
 		    db->db.db_object, db->db_level, db->db_blkid);
 
 		/*
-		 * If there is another buffered read for this dbuf, we will
-		 * wait for that to complete first.
+		 * If there is another read for this dbuf, we will wait for
+		 * that to complete first before checking the db_state below.
 		 */
-		dmu_buf_direct_mixed_io_wait(db, 0, B_TRUE);
+		while (db->db_state == DB_READ)
+			cv_wait(&db->db_changed, &db->db_mtx);
 
 		blkptr_t *bp = dmu_buf_get_bp_from_dbuf(db);
 
