@@ -1,60 +1,107 @@
 #!/usr/bin/env bash
 
-# for runtime reasons we split functional testings into N parts
-# - use a define to check for missing tarfiles
-FUNCTIONAL_PARTS="4"
-
-ZTS_REPORT="tests/test-runner/bin/zts-report.py"
-chmod +x $ZTS_REPORT
+######################################################################
+# generate github summary page of all the testings
+######################################################################
 
 function output() {
-  echo -e $* >> Summary.md
+  echo -e $* >> "out-$logfile.md"
+}
+
+function outfile() {
+  cat "$1" >> "out-$logfile.md"
+}
+
+function send2github() {
+  test -f "$1" && dd if="$1" bs=999k count=1 >> $GITHUB_STEP_SUMMARY
 }
 
 function error() {
   output ":bangbang: $* :bangbang:\n"
 }
 
-# this function generates the real summary
-# - expects a logfile "log" in current directory
+# generate summary of one test
 function generate() {
   # we issued some error already
   test ! -s log && return
 
-  # for overview and zts-report
-  cat log | grep '^Test' > list
+  ######################################################
+  # input:
+  # - log     -> full debug output
+  # - results -> full list with summary in the end
+  ######################################################
+  # output:
+  # - info.txt  -> short summary list (zts-report)
+  # - list.txt  -> full list, but without debugging
+  # - debug.txt -> full list with debugging info
+  ######################################################
+
+  if [ -s results ]; then
+    cat results | grep '^Test[: ]' > list.txt
+    cat results | grep -v '^Test[: ]' > info.txt
+  else
+    cat log | grep '^Test[: ]' > list.txt
+    ./zts-report.py --no-maybes ./list.txt > info.txt
+  fi
 
   # error details
   awk '/\[FAIL\]|\[KILLED\]/{ show=1; print; next; }
-    /\[SKIP\]|\[PASS\]/{ show=0; } show' log > err
+    /\[SKIP\]|\[PASS\]/{ show=0; } show' log > debug.txt
 
-  # summary of errors
-  if [ -s err ]; then
+  # headline of this summary
+  output "\n## $headline\n"
+
+  if [ -s uname.txt ]; then
     output "<pre>"
-    $ZTS_REPORT --no-maybes ./list >> Summary.md
+    outfile uname.txt
     output "</pre>"
+  fi
 
-    # generate seperate error logfile
-    ERRLOGS=$((ERRLOGS+1))
-    errfile="err-$ERRLOGS.md"
-    echo -e "\n## $headline (debugging)\n" >> $errfile
-    echo "<details><summary>Error Listing - with dmesg and dbgmsg</summary><pre>" >> $errfile
-    dd if=err bs=999k count=1 >> $errfile
-    echo "</pre></details>" >> $errfile
+  if [ -s info.txt ]; then
+    output "<pre>"
+    outfile info.txt
+    output "</pre>"
   else
     output "All tests passed :thumbsup:"
   fi
 
-  output "<details><summary>Full Listing</summary><pre>"
-  cat list >> Summary.md
-  output "</pre></details>"
+  if [ -s dmesg-prerun.txt ]; then
+    output "<details><summary>Dmesg - systemstart</summary><pre>"
+    outfile dmesg-prerun.txt
+    output "</pre></details>"
+  fi
+
+  if [ -s dmesg-module-load.txt ]; then
+    output "<details><summary>Dmesg - module loading</summary><pre>"
+    outfile dmesg-module-load.txt
+    output "</pre></details>"
+  fi
+
+  if [ -s make-stderr.txt ]; then
+    output "<details><summary>Stderr of make</summary><pre>"
+    outfile make-stderr.txt
+    output "</pre></details>"
+  fi
+
+  if [ -s list.txt ]; then
+    output "<details><summary>List of all tests</summary><pre>"
+    outfile list.txt
+    output "</pre></details>"
+  fi
+
+  if [ -s debug.txt ]; then
+    output "<details><summary>Debug list with dmesg and dbgmsg</summary><pre>"
+    outfile debug.txt
+    output "</pre></details>"
+  fi
 
   # remove tmp files
-  rm -f err list log
+  rm -f log results *.txt
+  logfile=$((logfile+1))
 }
 
 # check tarfiles and untar
-function check_tarfile() {
+function my_untar() {
   if [ -f "$1" ]; then
     tar xf "$1" || error "Tarfile $1 returns some error"
   else
@@ -62,36 +109,47 @@ function check_tarfile() {
   fi
 }
 
-# check logfile and concatenate test results
-function check_logfile() {
+# check file and copy
+function my_copy() {
   if [ -f "$1" ]; then
-    cat "$1" >> log
+    cat "$1" >> "$2"
   else
-    error "Logfile $1 not found"
+    error "File $1 not found"
   fi
 }
 
-# sanity
-function summarize_s() {
-  headline="$1"
-  output "\n## $headline\n"
+# sanity checks on ubuntu runner
+function summarize_sanity() {
+  headline="Sanity Tests Ubuntu $1"
   rm -rf testfiles
-  check_tarfile "$2/sanity.tar"
-  check_logfile "testfiles/log"
+  my_untar "Logs-$1-sanity/sanity.tar"
+  my_copy "testfiles/log" log
   generate
 }
 
-# functional
-function summarize_f() {
-  headline="$1"
-  output "\n## $headline\n"
+# functional on ubuntu runner matrix
+function summarize_functional() {
+  headline="Functional Tests Ubuntu $1"
   rm -rf testfiles
-  for i in $(seq 1 $FUNCTIONAL_PARTS); do
-    tarfile="$2-part$i/part$i.tar"
-    check_tarfile "$tarfile"
-    check_logfile "testfiles/log"
+  for i in $(seq 1 4); do
+    tarfile="Logs-$1-functional-part$i/part$i.tar"
+    my_untar "$tarfile"
+    my_copy "testfiles/log" log
   done
   generate
+}
+
+# functional tests via qemu
+function summarize_qemu() {
+  for tarfile in Logs-functional*/qemu-*.tar; do
+    rm -rf current
+    my_untar "$tarfile"
+    osname=`cat osname.txt`
+    headline="Functional Tests: $osname"
+    my_copy "current/log" log
+    my_copy "current/results" results
+    generate
+  done
 }
 
 # https://docs.github.com/en/enterprise-server@3.6/actions/using-workflows/workflow-commands-for-github-actions#step-isolation-and-limits
@@ -99,21 +157,23 @@ function summarize_f() {
 # [ ] can not show all error findings here
 # [x] split files into smaller ones and create additional steps
 
-ERRLOGS=0
-if [ ! -f Summary/Summary.md ]; then
-  # first call, we do the default summary (~500k)
-  echo -n > Summary.md
-  summarize_s "Sanity Tests Ubuntu 20.04" Logs-20.04-sanity
-  summarize_s "Sanity Tests Ubuntu 22.04" Logs-22.04-sanity
-  summarize_f "Functional Tests Ubuntu 20.04" Logs-20.04-functional
-  summarize_f "Functional Tests Ubuntu 22.04" Logs-22.04-functional
+# first call, generate all summaries
+if [ ! -f out-0.md ]; then
+  # create ./zts-report.py for generate()
+  TEMPLATE="tests/test-runner/bin/zts-report.py.in"
+  cat $TEMPLATE| sed -e 's|@PYTHON_SHEBANG@|python3|' > ./zts-report.py
+  chmod +x ./zts-report.py
 
-  cat Summary.md >> $GITHUB_STEP_SUMMARY
-  mkdir -p Summary
-  mv *.md Summary
+  logfile="0"
+  summarize_sanity "20.04"
+  summarize_sanity "22.04"
+  summarize_functional "20.04"
+  summarize_functional "22.04"
+  summarize_qemu
+
+  send2github out-0.md
 else
-  # here we get, when errors where returned in first call
-  test -f Summary/err-$1.md && cat Summary/err-$1.md >> $GITHUB_STEP_SUMMARY
+  send2github out-$1.md
 fi
 
 exit 0
