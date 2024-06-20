@@ -151,7 +151,8 @@ enum ddt_phys_type {
  */
 
 /* State flags for dde_flags */
-#define	DDE_FLAG_LOADED (1 << 0)	/* entry ready for use */
+#define	DDE_FLAG_LOADED		(1 << 0)	/* entry ready for use */
+#define	DDE_FLAG_OVERQUOTA	(1 << 1)	/* entry unusable, no space */
 
 typedef struct {
 	/* key must be first for ddt_key_compare */
@@ -170,6 +171,7 @@ typedef struct {
 
 	uint8_t		dde_flags;	/* load state flags */
 	kcondvar_t	dde_cv;		/* signaled when load completes */
+	uint64_t	dde_waiters;	/* count of waiters on dde_cv */
 
 	avl_node_t	dde_node;	/* ddt_tree node */
 } ddt_entry_t;
@@ -228,6 +230,7 @@ extern void ddt_histogram_add(ddt_histogram_t *dst, const ddt_histogram_t *src);
 extern void ddt_histogram_stat(ddt_stat_t *dds, const ddt_histogram_t *ddh);
 extern boolean_t ddt_histogram_empty(const ddt_histogram_t *ddh);
 extern void ddt_get_dedup_object_stats(spa_t *spa, ddt_object_t *ddo);
+extern uint64_t ddt_get_ddt_dsize(spa_t *spa);
 extern void ddt_get_dedup_histogram(spa_t *spa, ddt_histogram_t *ddh);
 extern void ddt_get_dedup_stats(spa_t *spa, ddt_stat_t *dds_total);
 

@@ -8495,17 +8495,24 @@ print_time(hrtime_t t, char *timebuf)
 }
 
 static nvlist_t *
-make_random_props(void)
+make_random_pool_props(void)
 {
 	nvlist_t *props;
 
 	props = fnvlist_alloc();
 
-	if (ztest_random(2) == 0)
-		return (props);
+	/* Twenty percent of the time enable ZPOOL_PROP_DEDUP_TABLE_QUOTA */
+	if (ztest_random(5) == 0) {
+		fnvlist_add_uint64(props,
+		    zpool_prop_to_name(ZPOOL_PROP_DEDUP_TABLE_QUOTA),
+		    2 * 1024 * 1024);
+	}
 
-	fnvlist_add_uint64(props,
-	    zpool_prop_to_name(ZPOOL_PROP_AUTOREPLACE), 1);
+	/* Fifty percent of the time enable ZPOOL_PROP_AUTOREPLACE */
+	if (ztest_random(2) == 0) {
+		fnvlist_add_uint64(props,
+		    zpool_prop_to_name(ZPOOL_PROP_AUTOREPLACE), 1);
+	}
 
 	return (props);
 }
@@ -8537,7 +8544,7 @@ ztest_init(ztest_shared_t *zs)
 	zs->zs_mirrors = ztest_opts.zo_mirrors;
 	nvroot = make_vdev_root(NULL, NULL, NULL, ztest_opts.zo_vdev_size, 0,
 	    NULL, ztest_opts.zo_raid_children, zs->zs_mirrors, 1);
-	props = make_random_props();
+	props = make_random_pool_props();
 
 	/*
 	 * We don't expect the pool to suspend unless maxfaults == 0,
