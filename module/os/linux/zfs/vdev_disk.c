@@ -263,6 +263,8 @@ vdev_blkdev_put(zfs_bdev_handle_t *bdh, spa_mode_t mode, void *holder)
 {
 #if defined(HAVE_BDEV_RELEASE)
 	return (bdev_release(bdh));
+#elif defined(HAVE_BDEV_RELEASE_VIA_FPUT)
+	return (fput(bdh));
 #elif defined(HAVE_BLKDEV_PUT_HOLDER)
 	return (blkdev_put(BDH_BDEV(bdh), holder));
 #else

@@ -178,6 +178,20 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_RELEASE], [
 	])
 ])
 
+dnl #
+dnl # 6.9.x API change
+dnl # fput() replaces bdev_release()
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_FPUT], [
+	ZFS_LINUX_TEST_SRC([fput], [
+		#include <linux/fs.h>
+		#include <linux/blkdev.h>
+	], [
+		struct file *f = NULL;
+		fput(f);
+	])
+])
+
 AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_PUT], [
 	AC_MSG_CHECKING([whether blkdev_put() exists])
 	ZFS_LINUX_TEST_RESULT([blkdev_put], [
@@ -197,7 +211,14 @@ AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_PUT], [
 				AC_DEFINE(HAVE_BDEV_RELEASE, 1,
 					[bdev_release() exists])
 			], [
-				ZFS_LINUX_TEST_ERROR([blkdev_put()])
+				ZFS_LINUX_TEST_RESULT([fput], [
+					AC_MSG_RESULT(yes)
+					AC_DEFINE(HAVE_BDEV_RELEASE_VIA_FPUT, 1,
+						[fput() can release a block device and exists]
+					)
+				], [
+					ZFS_LINUX_TEST_ERROR([blkdev_put()])
+				])
 			])
 		])
 	])
@@ -654,6 +675,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV], [
 	ZFS_AC_KERNEL_SRC_BLKDEV_PUT
 	ZFS_AC_KERNEL_SRC_BLKDEV_PUT_HOLDER
 	ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_RELEASE
+	ZFS_AC_KERNEL_SRC_BLKDEV_FPUT
 	ZFS_AC_KERNEL_SRC_BLKDEV_REREAD_PART
 	ZFS_AC_KERNEL_SRC_BLKDEV_INVALIDATE_BDEV
 	ZFS_AC_KERNEL_SRC_BLKDEV_LOOKUP_BDEV
