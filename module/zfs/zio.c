@@ -3503,6 +3503,15 @@ zio_ddt_write(zio_t *zio)
 
 	ddt_enter(ddt);
 	dde = ddt_lookup(ddt, bp, B_TRUE);
+	if (dde == NULL) {
+		/* DDT size is over its quota so no new entries */
+		zp->zp_dedup = B_FALSE;
+		BP_SET_DEDUP(bp, B_FALSE);
+		if (zio->io_bp_override == NULL)
+			zio->io_pipeline = ZIO_WRITE_PIPELINE;
+		ddt_exit(ddt);
+		return (zio);
+	}
 	ddp = &dde->dde_phys[p];
 
 	if (zp->zp_dedup_verify && zio_ddt_collision(zio, ddt, dde)) {
@@ -3727,6 +3736,26 @@ zio_dva_allocate(zio_t *zio)
 	 * Fallback to normal class when an alloc class is full
 	 */
 	if (error == ENOSPC && mc != spa_normal_class(spa)) {
+		/*
+		 * When the dedup or special class is spilling into the  normal
+		 * class, there can still be significant space available due
+		 * to deferred frees that are in-flight.  We track the txg when
+		 * this occurred and back off adding new DDT entries for a few
+		 * txgs to allow the free blocks to be processed.
+		 */
+		if ((mc == spa_dedup_class(spa) || (spa_special_has_ddt(spa) &&
+		    mc == spa_special_class(spa))) &&
+		    spa->spa_dedup_class_full_txg != zio->io_txg) {
+			spa->spa_dedup_class_full_txg = zio->io_txg;
+			zfs_dbgmsg("%s[%d]: %s class spilling, req size %d, "
+			    "%llu allocated of %llu",
+			    spa_name(spa), (int)zio->io_txg,
+			    mc == spa_dedup_class(spa) ? "dedup" : "special",
+			    (int)zio->io_size,
+			    (u_longlong_t)metaslab_class_get_alloc(mc),
+			    (u_longlong_t)metaslab_class_get_space(mc));
+		}
+
 		/*
 		 * If throttling, transfer reservation over to normal class.
 		 * The io_allocator slot can remain the same even though we

@@ -332,6 +332,24 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 		intval = zpool_get_prop_int(zhp, prop, &src);
 
 		switch (prop) {
+		case ZPOOL_PROP_DEDUP_TABLE_QUOTA:
+			/*
+			 * If dedup quota is 0, we translate this into 'none'
+			 * (unless literal is set). And if it is UINT64_MAX
+			 * we translate that as 'automatic' (limit to size of
+			 * the dedicated dedup VDEV.  Otherwise, fall throught
+			 * into the regular number formating.
+			 */
+			if (intval == 0) {
+				(void) strlcpy(buf, literal ? "0" : "none",
+				    len);
+				break;
+			} else if (intval == UINT64_MAX) {
+				(void) strlcpy(buf, "auto", len);
+				break;
+			}
+			zfs_fallthrough;
+
 		case ZPOOL_PROP_SIZE:
 		case ZPOOL_PROP_ALLOCATED:
 		case ZPOOL_PROP_FREE:
@@ -342,6 +360,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 		case ZPOOL_PROP_MAXDNODESIZE:
 		case ZPOOL_PROP_BCLONESAVED:
 		case ZPOOL_PROP_BCLONEUSED:
+		case ZPOOL_PROP_DEDUP_TABLE_SIZE:
 			if (literal)
 				(void) snprintf(buf, len, "%llu",
 				    (u_longlong_t)intval);

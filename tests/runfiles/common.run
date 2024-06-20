@@ -662,6 +662,12 @@ pre =
 post =
 tags = ['functional', 'deadman']
 
+[tests/functional/dedup]
+tests = ['dedup_quota']
+pre =
+post =
+tags = ['functional', 'dedup']
+
 [tests/functional/delegate]
 tests = ['zfs_allow_001_pos', 'zfs_allow_002_pos', 'zfs_allow_003_pos',
     'zfs_allow_004_pos', 'zfs_allow_005_pos', 'zfs_allow_006_pos',

@@ -2921,7 +2921,9 @@
       <enumerator name='ZPOOL_PROP_BCLONEUSED' value='33'/>
       <enumerator name='ZPOOL_PROP_BCLONESAVED' value='34'/>
       <enumerator name='ZPOOL_PROP_BCLONERATIO' value='35'/>
-      <enumerator name='ZPOOL_NUM_PROPS' value='36'/>
+      <enumerator name='ZPOOL_PROP_DEDUP_TABLE_SIZE' value='36'/>
+      <enumerator name='ZPOOL_PROP_DEDUP_TABLE_QUOTA' value='37'/>
+      <enumerator name='ZPOOL_NUM_PROPS' value='38'/>
     </enum-decl>
     <typedef-decl name='zpool_prop_t' type-id='af1ba157' id='5d0c23fb'/>
     <typedef-decl name='regoff_t' type-id='95e97e5e' id='54a2a2a8'/>
