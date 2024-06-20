@@ -874,7 +874,11 @@ zvol_alloc(dev_t dev, const char *name)
 
 #ifdef HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS
 #ifdef HAVE_BLK_ALLOC_DISK
+#ifdef HAVE_BLK_ALLOC_DISK_2ARGS
+	zso->zvo_disk = blk_alloc_disk(NULL, NUMA_NO_NODE);
+#else
 	zso->zvo_disk = blk_alloc_disk(NUMA_NO_NODE);
+#endif
 	if (zso->zvo_disk == NULL)
 		goto out_kmem;
 
