@@ -272,7 +272,6 @@ int sa_add_impl(sa_handle_t *, sa_attr_type_t,
     uint32_t, sa_data_locator_t, void *, dmu_tx_t *);
 
 void sa_register_update_callback_locked(objset_t *, sa_update_cb_t *);
-int sa_size_locked(sa_handle_t *, sa_attr_type_t, int *);
 
 void sa_default_locator(void **, uint32_t *, uint32_t, boolean_t, void *);
 int sa_attr_size(sa_os_t *, sa_idx_tab_t *, sa_attr_type_t,

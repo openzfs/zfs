@@ -134,6 +134,7 @@ int sa_bulk_lookup(sa_handle_t *, sa_bulk_attr_t *, int count);
 int sa_bulk_lookup_locked(sa_handle_t *, sa_bulk_attr_t *, int count);
 int sa_bulk_update(sa_handle_t *, sa_bulk_attr_t *, int count, dmu_tx_t *);
 int sa_size(sa_handle_t *, sa_attr_type_t, int *);
+int sa_size_locked(sa_handle_t *, sa_attr_type_t, int *);
 void sa_object_info(sa_handle_t *, dmu_object_info_t *);
 void sa_object_size(sa_handle_t *, uint32_t *, u_longlong_t *);
 void *sa_get_userdata(sa_handle_t *);
