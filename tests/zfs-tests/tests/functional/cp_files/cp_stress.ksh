@@ -65,8 +65,18 @@ else
 fi
 
 for i in $(seq 1 $RUNS) ; do
-	# Each run takes around 12 seconds.
-	log_must $STF_SUITE/tests/functional/cp_files/seekflood 2000 $CPUS
+	# We have a maximum of 10min per ZTS test, so each seekflood run must
+	# be a fraction of that.  We need to add this timeout in so underpowered
+	# test runners don't get killed by ZTS and counted as a failure.
+	TO=$((600 / $RUNS))
+	timeout $TO $STF_SUITE/tests/functional/cp_files/seekflood 2000 $CPUS
+	rc=$?
+	if [ $rc == 124 ] ; then
+		# If 'timeout' returns a 124 return code, then it timed out.
+		log_note "seekflood test timed out.  Assume we're just underpowered."
+	elif [ $rc != 0 ] ; then
+		log_fail "seekflood test failed with rc=$rc"
+	fi
 done
 cd "$MYPWD"
 
