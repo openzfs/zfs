@@ -34,7 +34,9 @@
 extern "C" {
 #endif
 
+#if defined(__FreeBSD__) && defined(_KERNEL)
 struct sf_buf;
+#endif
 
 typedef enum abd_flags {
 	ABD_FLAG_LINEAR		= 1 << 0, /* is buffer linear (or scattered)? */
@@ -71,8 +73,11 @@ typedef struct abd {
 		} abd_scatter;
 		struct abd_linear {
 			void		*abd_buf;
-			struct scatterlist *abd_sgl; /* for LINEAR_PAGE Linux */
+#if defined(__FreeBSD__) && defined(_KERNEL)
 			struct sf_buf	*sf; /* for LINEAR_PAGE FreeBSD */
+#else
+			struct scatterlist *abd_sgl; /* for LINEAR_PAGE Linux */
+#endif
 		} abd_linear;
 		struct abd_gang {
 			list_t abd_gang_chain;

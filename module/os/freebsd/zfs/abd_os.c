@@ -144,15 +144,9 @@ abd_update_scatter_stats(abd_t *abd, abd_stats_op_t op)
 {
 	uint_t n;
 
-	if (abd_is_from_pages(abd))
-		n = abd_chunkcnt_for_bytes(abd->abd_size);
-	else
-		n = abd_scatter_chunkcnt(abd);
+	n = abd_scatter_chunkcnt(abd);
 	ASSERT(op == ABDSTAT_INCR || op == ABDSTAT_DECR);
 	int waste = (n << PAGE_SHIFT) - abd->abd_size;
-	ASSERT3U(n, >, 0);
-	ASSERT3S(waste, >=, 0);
-	IMPLY(abd_is_linear_page(abd), waste < PAGE_SIZE);
 	if (op == ABDSTAT_INCR) {
 		ABDSTAT_BUMP(abdstat_scatter_cnt);
 		ABDSTAT_INCR(abdstat_scatter_data_size, abd->abd_size);
@@ -367,7 +361,6 @@ abd_free_linear_page(abd_t *abd)
 	ASSERT3P(abd->abd_u.abd_linear.sf, !=, NULL);
 	zfs_unmap_page(abd->abd_u.abd_linear.sf);
 
-	abd_update_scatter_stats(abd, ABDSTAT_DECR);
 #else
 	/*
 	 * The ABD flag ABD_FLAG_LINEAR_PAGE should only be set in
@@ -477,14 +470,13 @@ abd_alloc_from_pages(vm_page_t *pages, unsigned long offset, uint64_t size)
 	abd->abd_flags |= ABD_FLAG_OWNER | ABD_FLAG_FROM_PAGES;
 	abd->abd_size = size;
 
-	if (size < PAGE_SIZE) {
+	if ((offset + size) <= PAGE_SIZE) {
 		/*
-		 * We do not have a full page so we will just use  a linear ABD.
-		 * We have to make sure to take into account the offset though.
-		 * In all other cases our offset will be 0 as we are always
-		 * PAGE_SIZE aligned.
+		 * There is only a single page worth of data, so we will just
+		 * use  a linear ABD. We have to make sure to take into account
+		 * the offset though. In all other cases our offset will be 0
+		 * as we are always PAGE_SIZE aligned.
 		 */
-		ASSERT3U(offset + size, <=, PAGE_SIZE);
 		abd->abd_flags |= ABD_FLAG_LINEAR | ABD_FLAG_LINEAR_PAGE;
 		ABD_LINEAR_BUF(abd) = (char *)zfs_map_page(pages[0],
 		    &abd->abd_u.abd_linear.sf) + offset;
@@ -498,8 +490,6 @@ abd_alloc_from_pages(vm_page_t *pages, unsigned long offset, uint64_t size)
 		for (int i = 0; i < abd_chunkcnt_for_bytes(size); i++)
 			ABD_SCATTER(abd).abd_chunks[i] = pages[i];
 	}
-
-	abd_update_scatter_stats(abd, ABDSTAT_INCR);
 
 	return (abd);
 }

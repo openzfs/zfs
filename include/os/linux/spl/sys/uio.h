@@ -65,7 +65,7 @@ typedef enum zfs_uio_seg {
  */
 typedef struct {
 	struct page	**pages;	/* Mapped pages */
-	int		npages;		/* Number of mapped pages */
+	size_t		npages;		/* Number of mapped pages */
 } zfs_uio_dio_t;
 
 typedef struct zfs_uio {

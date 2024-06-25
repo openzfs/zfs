@@ -119,7 +119,7 @@ zfs_uio_page_aligned(zfs_uio_t *uio)
 	const struct iovec *iov = GET_UIO_STRUCT(uio)->uio_iov;
 
 	for (int i = zfs_uio_iovcnt(uio); i > 0; iov++, i--) {
-		unsigned long addr = (unsigned long)iov->iov_base;
+		uintptr_t addr = (uintptr_t)iov->iov_base;
 		size_t size = iov->iov_len;
 		if ((addr & (PAGE_SIZE - 1)) || (size & (PAGE_SIZE - 1))) {
 				return (B_FALSE);
@@ -140,7 +140,7 @@ zfs_uio_set_pages_to_stable(zfs_uio_t *uio)
 
 	obj = uio->uio_dio.pages[0]->object;
 	zfs_vmobject_wlock(obj);
-	for (int i = 0; i < uio->uio_dio.npages; i++) {
+	for (size_t i = 0; i < uio->uio_dio.npages; i++) {
 		vm_page_t page = uio->uio_dio.pages[i];
 
 		ASSERT3P(page, !=, NULL);
@@ -160,7 +160,7 @@ static void
 zfs_uio_release_stable_pages(zfs_uio_t *uio)
 {
 	ASSERT3P(uio->uio_dio.pages, !=, NULL);
-	for (int i = 0; i < uio->uio_dio.npages; i++) {
+	for (size_t i = 0; i < uio->uio_dio.npages; i++) {
 		vm_page_t page = uio->uio_dio.pages[i];
 
 		ASSERT3P(page, !=, NULL);
@@ -177,7 +177,7 @@ zfs_uio_set_pages_to_stable(zfs_uio_t *uio)
 	ASSERT3P(uio->uio_dio.pages, !=, NULL);
 	ASSERT3U(uio->uio_dio.npages, >, 0);
 
-	for (int i = 0; i < uio->uio_dio.npages; i++) {
+	for (size_t i = 0; i < uio->uio_dio.npages; i++) {
 		vm_page_t page = uio->uio_dio.pages[i];
 		ASSERT3P(page, !=, NULL);
 
@@ -191,7 +191,7 @@ static void
 zfs_uio_release_stable_pages(zfs_uio_t *uio)
 {
 	ASSERT3P(uio->uio_dio.pages, !=, NULL);
-	for (int i = 0; i < uio->uio_dio.npages; i++) {
+	for (size_t i = 0; i < uio->uio_dio.npages; i++) {
 		vm_page_t page = uio->uio_dio.pages[i];
 
 		ASSERT3P(page, !=, NULL);
@@ -205,13 +205,13 @@ zfs_uio_release_stable_pages(zfs_uio_t *uio)
  * If the operation is marked as read, then we are stating the pages will be
  * written to and must be given write access.
  */
-static int
-zfs_uio_hold_pages(unsigned long start, size_t len, unsigned long nr_pages,
+static size_t
+zfs_uio_hold_pages(unsigned long start, size_t len, size_t nr_pages,
     zfs_uio_rw_t rw, vm_page_t *pages)
 {
 	vm_map_t map;
 	vm_prot_t prot;
-	int count;
+	size_t count;
 
 	map = &curthread->td_proc->p_vmspace->vm_map;
 	ASSERT3S(len, >, 0);
@@ -224,10 +224,10 @@ zfs_uio_hold_pages(unsigned long start, size_t len, unsigned long nr_pages,
 }
 
 static void
-zfs_uio_unhold_pages(vm_page_t *m, int count)
+zfs_uio_unhold_pages(vm_page_t *m, size_t count)
 {
 #if __FreeBSD_version < 1300050
-	for (int i = 0; i < count; i++) {
+	for (size_t i = 0; i < count; i++) {
 		vm_page_t page = m[i];
 		ASSERT3P(page, !=, NULL);
 		vm_page_lock(page);
@@ -256,11 +256,11 @@ zfs_uio_free_dio_pages(zfs_uio_t *uio, zfs_uio_rw_t rw)
 	    uio->uio_dio.npages * sizeof (vm_page_t));
 }
 
-static long
-zfs_uio_get_user_pages(unsigned long start, unsigned long nr_pages,
+static size_t
+zfs_uio_get_user_pages(unsigned long start, size_t nr_pages,
     size_t len, zfs_uio_rw_t rw, vm_page_t *pages)
 {
-	int count;
+	size_t count;
 
 	count = zfs_uio_hold_pages(start, len, nr_pages, rw, pages);
 
@@ -286,21 +286,20 @@ zfs_uio_get_user_pages(unsigned long start, unsigned long nr_pages,
 }
 
 static size_t
-zfs_uio_iov_step(struct iovec v, zfs_uio_t *uio, int *numpages)
+zfs_uio_iov_step(struct iovec v, zfs_uio_t *uio, size_t *numpages)
 {
 	unsigned long addr = (unsigned long)(v.iov_base);
 	size_t len = v.iov_len;
-	int n = DIV_ROUND_UP(len, PAGE_SIZE);
+	size_t n = DIV_ROUND_UP(len, PAGE_SIZE);
 
-	int res = zfs_uio_get_user_pages(
+	size_t res = zfs_uio_get_user_pages(
 	    P2ALIGN_TYPED(addr, PAGE_SIZE, unsigned long), n, len,
 	    zfs_uio_rw(uio), &uio->uio_dio.pages[uio->uio_dio.npages]);
 	if (res != n) {
-		*numpages = -1;
-		return (SET_ERROR(EFAULT));
+		return (0);
 	}
 
-	ASSERT3S(len, ==, res * PAGE_SIZE);
+	ASSERT3U(len, ==, res * PAGE_SIZE);
 	*numpages = res;
 	return (len);
 }
@@ -316,7 +315,7 @@ zfs_uio_get_dio_pages_impl(zfs_uio_t *uio)
 
 	for (int i = 0; i < zfs_uio_iovcnt(uio); i++) {
 		struct iovec iov;
-		int numpages = 0;
+		size_t numpages = 0;
 
 		if (iovp->iov_len == 0) {
 			iovp++;
@@ -326,8 +325,8 @@ zfs_uio_get_dio_pages_impl(zfs_uio_t *uio)
 		iov.iov_base = iovp->iov_base;
 		size_t left = zfs_uio_iov_step(iov, uio, &numpages);
 
-		if (numpages == -1)
-			return (left);
+		if (left == 0)
+			return (SET_ERROR(EFAULT));
 
 		ASSERT3U(left, ==, iov.iov_len);
 		uio->uio_dio.npages += numpages;
@@ -343,7 +342,7 @@ zfs_uio_get_dio_pages_impl(zfs_uio_t *uio)
 
 /*
  * This function maps user pages into the kernel. In the event that the user
- * pages were not mapped successfully an error value is reutrned.
+ * pages were not mapped successfully an error value is returned.
  *
  * On success, 0 is returned.
  */
