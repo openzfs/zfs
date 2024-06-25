@@ -658,7 +658,6 @@ int param_set_max_auto_ashift(ZFS_MODULE_PARAM_ARGS);
  * VDEV checksum verification precentage for Direct I/O writes
  */
 extern uint_t zfs_vdev_direct_write_verify_pct;
-int param_set_direct_write_verify_pct(ZFS_MODULE_PARAM_ARGS);
 
 #ifdef	__cplusplus
 }

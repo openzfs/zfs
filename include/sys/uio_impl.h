@@ -49,12 +49,14 @@ extern void zfs_uio_free_dio_pages(zfs_uio_t *, zfs_uio_rw_t);
 extern int zfs_uio_get_dio_pages_alloc(zfs_uio_t *, zfs_uio_rw_t);
 extern boolean_t zfs_uio_page_aligned(zfs_uio_t *);
 
+#ifdef _KERNEL
 static inline boolean_t
 zfs_dio_page_aligned(void *buf)
 {
-	return ((((unsigned long)(buf) & (PAGESIZE - 1)) == 0) ?
+	return ((((uintptr_t)(buf) & (PAGESIZE - 1)) == 0) ?
 	    B_TRUE : B_FALSE);
 }
+#endif
 
 static inline boolean_t
 zfs_dio_offset_aligned(uint64_t offset, uint64_t blksz)
@@ -65,7 +67,7 @@ zfs_dio_offset_aligned(uint64_t offset, uint64_t blksz)
 static inline boolean_t
 zfs_dio_size_aligned(uint64_t size, uint64_t blksz)
 {
-	return (IS_P2ALIGNED(size, blksz));
+	return ((size % blksz) == 0);
 }
 
 static inline boolean_t

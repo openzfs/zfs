@@ -1054,7 +1054,7 @@ causes every properly aligned read or write to be treated as a direct request.
 .Sy disabled
 causes the O_DIRECT flag to be silently ignored and all direct requests will
 be handled by the ARC.
-This is the default behavior for OpenZFS 2.1 and prior releases.
+This is the default behavior for OpenZFS 2.2 and prior releases.
 .Pp
 Bypassing the ARC requires that a direct request be correctly aligned.
 For write requests the starting offset and size of the request must be

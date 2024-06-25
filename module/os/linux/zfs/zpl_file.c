@@ -801,7 +801,7 @@ zpl_direct_IO_impl(void)
 	 * should call the direct_IO address_space_operations function. We set
 	 * this code path to be fatal if it is executed.
 	 */
-	VERIFY(0);
+	PANIC(0);
 	return (0);
 }
 

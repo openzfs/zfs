@@ -574,8 +574,6 @@ int dmu_spill_hold_existing(dmu_buf_t *bonus, const void *tag, dmu_buf_t **dbp);
  *
  * The object number must be a valid, allocated object number.
  */
-int dmu_buf_hold_noread(objset_t *os, uint64_t object, uint64_t offset,
-    const void *tag, dmu_buf_t **dbp);
 int dmu_buf_hold(objset_t *os, uint64_t object, uint64_t offset,
     const void *tag, dmu_buf_t **, int flags);
 int dmu_buf_hold_array(objset_t *os, uint64_t object, uint64_t offset,

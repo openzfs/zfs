@@ -98,7 +98,7 @@ zfs_dio_offset_aligned(uint64_t offset, uint64_t blksz)
 static inline boolean_t
 zfs_dio_size_aligned(uint64_t size, uint64_t blksz)
 {
-	return (IS_P2ALIGNED(size, blksz));
+	return ((size % blksz) == 0);
 }
 
 static inline boolean_t

@@ -72,9 +72,10 @@ struct abd_iter {
 	size_t		iter_pos;
 	size_t		iter_offset;	/* offset in current sg/abd_buf, */
 					/* abd_offset included */
-	struct scatterlist *iter_sg;	/* current sg */
 #if defined(__FreeBSD__) && defined(_KERNEL)
 	struct sf_buf	*sf;		/* used to map in vm_page_t FreeBSD */
+#else
+	struct scatterlist *iter_sg;	/* current sg */
 #endif
 };
 

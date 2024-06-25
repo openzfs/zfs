@@ -6527,6 +6527,10 @@ ZFS_MODULE_PARAM(zfs, zfs_, dio_write_verify_events_per_second, UINT, ZMOD_RW,
 	"Rate Direct I/O write verify events to this many per second");
 
 /* BEGIN CSTYLED */
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, direct_write_verify_pct, UINT, ZMOD_RW,
+	"Percentage of Direct I/O writes per top-level VDEV for checksum "
+	"verification to be performed");
+
 ZFS_MODULE_PARAM(zfs, zfs_, checksum_events_per_second, UINT, ZMOD_RW,
 	"Rate limit checksum events to this many checksum errors per second "
 	"(do not set below ZED threshold).");
@@ -6553,9 +6557,4 @@ ZFS_MODULE_PARAM_CALL(zfs_vdev, zfs_vdev_, max_auto_ashift,
 	param_set_max_auto_ashift, param_get_uint, ZMOD_RW,
 	"Maximum ashift used when optimizing for logical -> physical sector "
 	"size on new top-level vdevs");
-
-ZFS_MODULE_PARAM_CALL(zfs_vdev, zfs_vdev_, direct_write_verify_pct,
-	param_set_direct_write_verify_pct, param_get_uint, ZMOD_RW,
-	"Percentage of Direct I/O writes per top-level VDEV for checksum "
-	"verification to be performed");
 /* END CSTYLED */

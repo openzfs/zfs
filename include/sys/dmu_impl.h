@@ -138,7 +138,7 @@ extern "C" {
  * 	db_data_pending
  * 	db_dirtied
  * 	db_link
- * 	dbuf_dirty_records
+ * 	db_dirty_records
  * 	db_dirtycnt
  * 	db_d.*
  * 	db.*
