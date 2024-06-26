@@ -468,6 +468,21 @@ typedef struct zil_stats {
 	kstat_named_t zil_commit_writer_count;
 
 	/*
+	 * Number of times a ZIL commit failed and the ZIL was forced to fall
+	 * back to txg_wait_synced(). The separate counts are for different
+	 * reasons:
+	 * -   error: ZIL IO (write/flush) returned an error
+	 *            (see zil_commit_impl())
+	 * -   stall: LWB block allocation failed, ZIL chain abandoned
+	 *            (see zil_commit_writer_stall())
+	 * - suspend: ZIL suspended
+	 *            (see zil_commit(), zil_get_commit_list())
+	 */
+	kstat_named_t zil_commit_error_count;
+	kstat_named_t zil_commit_stall_count;
+	kstat_named_t zil_commit_suspend_count;
+
+	/*
 	 * Number of transactions (reads, writes, renames, etc.)
 	 * that have been committed.
 	 */
@@ -510,6 +525,9 @@ typedef struct zil_stats {
 typedef struct zil_sums {
 	wmsum_t zil_commit_count;
 	wmsum_t zil_commit_writer_count;
+	wmsum_t zil_commit_error_count;
+	wmsum_t zil_commit_stall_count;
+	wmsum_t zil_commit_suspend_count;
 	wmsum_t zil_itx_count;
 	wmsum_t zil_itx_indirect_count;
 	wmsum_t zil_itx_indirect_bytes;
