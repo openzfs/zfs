@@ -125,7 +125,7 @@ tests = ['auto_offline_001_pos', 'auto_online_001_pos', 'auto_online_002_pos',
 tags = ['functional', 'fault']
 
 [tests/functional/flush:Linux]
-tests = ['zil_flush_error']
+tests = ['zil_flush_error', 'zil_flush_fallback']
 tags = ['functional', 'flush']
 
 [tests/functional/features/large_dnode:Linux]
