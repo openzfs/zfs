@@ -332,6 +332,7 @@ void arc_flush(spa_t *spa, boolean_t retry);
 void arc_flush_async(spa_t *spa);
 void arc_tempreserve_clear(uint64_t reserve);
 int arc_tempreserve_space(spa_t *spa, uint64_t reserve, uint64_t txg);
+boolean_t arc_async_flush_guid_inuse(uint64_t load_guid);
 
 uint64_t arc_all_memory(void);
 uint64_t arc_default_max(uint64_t min, uint64_t allmem);
