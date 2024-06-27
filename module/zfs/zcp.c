@@ -970,8 +970,8 @@ zcp_pool_error(zcp_run_info_t *ri, const char *poolname, int error)
 }
 
 /*
- * This callback is called when txg_wait_synced_sig encountered a signal.
- * The txg_wait_synced_sig will continue to wait for the txg to complete
+ * This callback is called when txg_wait_synced_flags encountered a signal.
+ * The txg_wait_synced_flags will continue to wait for the txg to complete
  * after calling this callback.
  */
 static void
