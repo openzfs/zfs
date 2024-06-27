@@ -25,6 +25,7 @@
 /mmap_seek
 /mmap_sync
 /mmapwrite
+/nvlist_packed
 /nvlist_to_lua
 /randfree_file
 /randwritecomp
