@@ -16,7 +16,7 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.Dd February 14, 2024
+.Dd June 27, 2024
 .Dt ZFS 4
 .Os
 .
@@ -2113,7 +2113,7 @@ The default of
 .Sy 32
 was determined to be a reasonable compromise.
 .
-.It Sy zfs_txg_history Ns = Ns Sy 0 Pq uint
+.It Sy zfs_txg_history Ns = Ns Sy 100 Pq uint
 Historical statistics for this many latest TXGs will be available in
 .Pa /proc/spl/kstat/zfs/ Ns Ao Ar pool Ac Ns Pa /TXGs .
 .
