@@ -23,7 +23,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
- * Copyright (c) 2024, Klara, Inc.
+ * Copyright (c) 2024, 2025, Klara, Inc.
  */
 
 #include <sys/dmu.h>
@@ -1017,7 +1017,7 @@ dmu_tx_delay(dmu_tx_t *tx, uint64_t dirty)
  * decreasing performance.
  */
 static int
-dmu_tx_try_assign(dmu_tx_t *tx, uint64_t flags)
+dmu_tx_try_assign(dmu_tx_t *tx)
 {
 	spa_t *spa = tx->tx_pool->dp_spa;
 
@@ -1032,19 +1032,10 @@ dmu_tx_try_assign(dmu_tx_t *tx, uint64_t flags)
 		DMU_TX_STAT_BUMP(dmu_tx_suspended);
 
 		/*
-		 * If the user has indicated a blocking failure mode
-		 * then return ERESTART which will block in dmu_tx_wait().
-		 * Otherwise, return EIO so that an error can get
-		 * propagated back to the VOP calls.
-		 *
-		 * Note that we always honor the `flags` flag regardless
-		 * of the failuremode setting.
+		 * Let dmu_tx_assign() know specifically what happened, so
+		 * it can make the right choice based on the caller flags.
 		 */
-		if (spa_get_failmode(spa) == ZIO_FAILURE_MODE_CONTINUE &&
-		    !(flags & DMU_TX_WAIT))
-			return (SET_ERROR(EIO));
-
-		return (SET_ERROR(ERESTART));
+		return (SET_ERROR(ESHUTDOWN));
 	}
 
 	if (!tx->tx_dirty_delayed &&
@@ -1184,6 +1175,12 @@ dmu_tx_unassign(dmu_tx_t *tx)
  * they have already called dmu_tx_wait() (though most likely on a
  * different tx).
  *
+ * If DMU_TX_SUSPEND is set, this indicates that this tx should ignore
+ * the pool being or becoming suspending while it is in progress. This will
+ * cause dmu_tx_assign() (and dmu_tx_wait()) to block until the pool resumes.
+ * If this flag is not set and the pool suspends, the return will be either
+ * ERESTART or EIO, depending on the value of the pool's failmode= property.
+ *
  * It is guaranteed that subsequent successful calls to dmu_tx_assign()
  * will assign the tx to monotonically increasing txgs. Of course this is
  * not strong monotonicity, because the same txg can be returned multiple
@@ -1206,7 +1203,8 @@ dmu_tx_assign(dmu_tx_t *tx, dmu_tx_flag_t flags)
 	int err;
 
 	ASSERT(tx->tx_txg == 0);
-	ASSERT0(flags & ~(DMU_TX_WAIT | DMU_TX_NOTHROTTLE));
+	ASSERT0(flags & ~(DMU_TX_WAIT | DMU_TX_NOTHROTTLE | DMU_TX_SUSPEND));
+	IMPLY(flags & DMU_TX_SUSPEND, flags & DMU_TX_WAIT);
 	ASSERT(!dsl_pool_sync_context(tx->tx_pool));
 
 	/* If we might wait, we must not hold the config lock. */
@@ -1215,13 +1213,74 @@ dmu_tx_assign(dmu_tx_t *tx, dmu_tx_flag_t flags)
 	if ((flags & DMU_TX_NOTHROTTLE))
 		tx->tx_dirty_delayed = B_TRUE;
 
-	while ((err = dmu_tx_try_assign(tx, flags)) != 0) {
+	if (!(flags & DMU_TX_SUSPEND))
+		tx->tx_break_on_suspend = B_TRUE;
+
+	while ((err = dmu_tx_try_assign(tx)) != 0) {
 		dmu_tx_unassign(tx);
 
+		boolean_t suspended = (err == ESHUTDOWN);
+		if (suspended) {
+			/*
+			 * Pool suspended. We need to decide whether to block
+			 * and retry, or return error, depending on the
+			 * caller's flags and the pool config.
+			 */
+			if (flags & DMU_TX_SUSPEND)
+				/*
+				 * The caller expressly does not care about
+				 * suspend, so treat it as a normal retry.
+				 */
+				err = SET_ERROR(ERESTART);
+			else if ((flags & DMU_TX_WAIT) &&
+			    spa_get_failmode(tx->tx_pool->dp_spa) ==
+			    ZIO_FAILURE_MODE_CONTINUE)
+				/*
+				 * Caller wants to wait, but pool config is
+				 * overriding that, so return EIO to be
+				 * propagated back to userspace.
+				 */
+				err = SET_ERROR(EIO);
+			else
+				/* Anything else, we should just block. */
+				err = SET_ERROR(ERESTART);
+		}
+
+		/*
+		 * Return unless we decided to retry, or the caller does not
+		 * want to block.
+		 */
 		if (err != ERESTART || !(flags & DMU_TX_WAIT))
 			return (err);
 
+		/*
+		 * Wait until there's room in this txg, or until it's been
+		 * synced out and a new one is available.
+		 *
+		 * If we're here because the pool suspended above, then we
+		 * unset tx_break_on_suspend to make sure that if dmu_tx_wait()
+		 * has to fall back to a txg_wait_synced_flags(), it doesn't
+		 * immediately return because the pool is suspended. That would
+		 * then immediately return here, and we'd end up in a busy loop
+		 * until the pool resumes.
+		 *
+		 * On the other hand, if the pool hasn't suspended yet, then it
+		 * should be allowed to break a txg wait if the pool does
+		 * suspend, so we can loop and reassess it in
+		 * dmu_tx_try_assign().
+		 */
+		if (suspended)
+			tx->tx_break_on_suspend = B_FALSE;
+
 		dmu_tx_wait(tx);
+
+		/*
+		 * Reset tx_break_on_suspend for DMU_TX_SUSPEND. We do this
+		 * here so that it's available if we return for some other
+		 * reason, and then the caller calls dmu_tx_wait().
+		 */
+		if (!(flags & DMU_TX_SUSPEND))
+			tx->tx_break_on_suspend = B_TRUE;
 	}
 
 	txg_rele_to_quiesce(&tx->tx_txgh);
@@ -1238,6 +1297,16 @@ dmu_tx_wait(dmu_tx_t *tx)
 
 	ASSERT(tx->tx_txg == 0);
 	ASSERT(!dsl_pool_config_held(tx->tx_pool));
+
+	/*
+	 * Break on suspend according to whether or not DMU_TX_SUSPEND was
+	 * supplied to the previous dmu_tx_assign() call. For clients, this
+	 * ensures that after dmu_tx_assign() fails, the followup dmu_tx_wait()
+	 * gets the same behaviour wrt suspend. See also the comments in
+	 * dmu_tx_assign().
+	 */
+	txg_wait_flag_t flags =
+	    (tx->tx_break_on_suspend ? TXG_WAIT_SUSPEND : TXG_WAIT_NONE);
 
 	before = gethrtime();
 
@@ -1276,7 +1345,7 @@ dmu_tx_wait(dmu_tx_t *tx)
 		 * obtain a tx.  If that's the case then tx_lasttried_txg
 		 * would not have been set.
 		 */
-		txg_wait_synced(dp, spa_last_synced_txg(spa) + 1);
+		txg_wait_synced_flags(dp, spa_last_synced_txg(spa) + 1, flags);
 	} else if (tx->tx_needassign_txh) {
 		dnode_t *dn = tx->tx_needassign_txh->txh_dnode;
 
@@ -1291,7 +1360,7 @@ dmu_tx_wait(dmu_tx_t *tx)
 		 * out a TXG at which point we'll hopefully have synced
 		 * a portion of the changes.
 		 */
-		txg_wait_synced(dp, spa_last_synced_txg(spa) + 1);
+		txg_wait_synced_flags(dp, spa_last_synced_txg(spa) + 1, flags);
 	}
 
 	spa_tx_assign_add_nsecs(spa, gethrtime() - before);
