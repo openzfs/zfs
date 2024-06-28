@@ -192,22 +192,25 @@ extern void spl_kmem_reap(void);
 extern uint64_t spl_kmem_cache_inuse(kmem_cache_t *cache);
 extern uint64_t spl_kmem_cache_entry_size(kmem_cache_t *cache);
 
+#ifndef	SPL_KMEM_CACHE_IMPLEMENTING
+/*
+ * Macros for the kmem_cache_* API expected by ZFS and SPL clients. We don't
+ * define them inside spl-kmem-cache.c, as that uses the kernel's incompatible
+ * kmem_cache_* facilities to implement ours.
+ */
+
+/* Avoid conflicts with kernel names that might be implemented as macros. */
+#undef	kmem_cache_alloc
+
 #define	kmem_cache_create(name, size, align, ctor, dtor, rclm, priv, vmp, fl) \
     spl_kmem_cache_create(name, size, align, ctor, dtor, rclm, priv, vmp, fl)
 #define	kmem_cache_set_move(skc, move)	spl_kmem_cache_set_move(skc, move)
 #define	kmem_cache_destroy(skc)		spl_kmem_cache_destroy(skc)
-/*
- * This is necessary to be compatible with other kernel modules
- * or in-tree filesystem that may define kmem_cache_alloc,
- * like bcachefs does it now.
- */
-#ifdef kmem_cache_alloc
-#undef kmem_cache_alloc
-#endif
 #define	kmem_cache_alloc(skc, flags)	spl_kmem_cache_alloc(skc, flags)
 #define	kmem_cache_free(skc, obj)	spl_kmem_cache_free(skc, obj)
 #define	kmem_cache_reap_now(skc)	spl_kmem_cache_reap_now(skc)
 #define	kmem_reap()			spl_kmem_reap()
+#endif
 
 /*
  * The following functions are only available for internal use.
