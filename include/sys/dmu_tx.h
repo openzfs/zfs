@@ -25,6 +25,7 @@
  */
 /*
  * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2025, Klara, Inc.
  */
 
 #ifndef	_SYS_DMU_TX_H
@@ -79,6 +80,9 @@ struct dmu_tx {
 
 	/* has this transaction already been delayed? */
 	boolean_t tx_dirty_delayed;
+
+	/* whether dmu_tx_wait() should return on suspend */
+	boolean_t tx_break_on_suspend;
 
 	int tx_err;
 };
