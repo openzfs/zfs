@@ -1691,6 +1691,16 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 			    "use 'none' to disable quota/refquota"));
 			goto error;
 		}
+		/*
+		 * Pool dedup table quota; force use of 'none' instead of 0
+		 */
+		if ((type & ZFS_TYPE_POOL) && *ivalp == 0 &&
+		    (!isnone && !isauto) &&
+		    prop == ZPOOL_PROP_DEDUP_TABLE_QUOTA) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "use 'none' to disable ddt table quota"));
+			goto error;
+		}
 
 		/*
 		 * Special handling for "*_limit=none". In this case it's not
@@ -1730,6 +1740,10 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 					    "volumes"), nvpair_name(elem));
 					goto error;
 				}
+				*ivalp = UINT64_MAX;
+				break;
+			case ZPOOL_PROP_DEDUP_TABLE_QUOTA:
+				ASSERT(type & ZFS_TYPE_POOL);
 				*ivalp = UINT64_MAX;
 				break;
 			default:

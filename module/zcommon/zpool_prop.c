@@ -23,7 +23,7 @@
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
- * Copyright (c) 2021, Klara Inc.
+ * Copyright (c) 2021, 2023, Klara Inc.
  */
 
 #include <sys/zio.h>
@@ -125,6 +125,9 @@ zpool_prop_init(void)
 	zprop_register_number(ZPOOL_PROP_BCLONERATIO, "bcloneratio", 0,
 	    PROP_READONLY, ZFS_TYPE_POOL, "<1.00x or higher if cloned>",
 	    "BCLONE_RATIO", B_FALSE, sfeatures);
+	zprop_register_number(ZPOOL_PROP_DEDUP_TABLE_SIZE, "dedup_table_size",
+	    0, PROP_READONLY, ZFS_TYPE_POOL, "<size>", "DDTSIZE", B_FALSE,
+	    sfeatures);
 
 	/* default number properties */
 	zprop_register_number(ZPOOL_PROP_VERSION, "version", SPA_VERSION,
@@ -133,6 +136,9 @@ zpool_prop_init(void)
 	zprop_register_number(ZPOOL_PROP_ASHIFT, "ashift", 0, PROP_DEFAULT,
 	    ZFS_TYPE_POOL, "<ashift, 9-16, or 0=default>", "ASHIFT", B_FALSE,
 	    sfeatures);
+	zprop_register_number(ZPOOL_PROP_DEDUP_TABLE_QUOTA, "dedup_table_quota",
+	    UINT64_MAX, PROP_DEFAULT, ZFS_TYPE_POOL, "<size>", "DDTQUOTA",
+	    B_FALSE, sfeatures);
 
 	/* default index (boolean) properties */
 	zprop_register_index(ZPOOL_PROP_DELEGATION, "delegation", 1,
