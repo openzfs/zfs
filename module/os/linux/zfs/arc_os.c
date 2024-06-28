@@ -49,6 +49,7 @@
 #include <linux/page_compat.h>
 #include <linux/notifier.h>
 #include <linux/memory.h>
+#include <linux/version.h>
 #endif
 #include <sys/callb.h>
 #include <sys/kstat.h>
@@ -58,6 +59,7 @@
 #include <sys/trace_zfs.h>
 #include <sys/aggsum.h>
 
+#ifdef _KERNEL
 /*
  * This is a limit on how many pages the ARC shrinker makes available for
  * eviction in response to one page allocation attempt.  Note that in
@@ -72,10 +74,18 @@
  * See also the comment in arc_shrinker_count().
  * Set to 0 to disable limit.
  */
-int zfs_arc_shrinker_limit = 10000;
+static int zfs_arc_shrinker_limit = 10000;
+
+/*
+ * Relative cost of ARC eviction, AKA number of seeks needed to restore evicted
+ * page.  Bigger values make ARC more precious and evictions smaller comparing
+ * to other kernel subsystems.  Value of 4 means parity with page cache.
+ */
+static int zfs_arc_shrinker_seeks = DEFAULT_SEEKS;
 
 #ifdef CONFIG_MEMORY_HOTPLUG
 static struct notifier_block arc_hotplug_callback_mem_nb;
+#endif
 #endif
 
 /*
@@ -204,9 +214,10 @@ arc_shrinker_count(struct shrinker *shrink, struct shrink_control *sc)
 	 *
 	 * See also the comment above zfs_arc_shrinker_limit.
 	 */
+	int64_t can_free = btop(arc_evictable_memory());
 	int64_t limit = zfs_arc_shrinker_limit != 0 ?
 	    zfs_arc_shrinker_limit : INT64_MAX;
-	return (MIN(limit, btop((int64_t)arc_evictable_memory())));
+	return (MIN(can_free, limit));
 }
 
 static unsigned long
@@ -219,24 +230,24 @@ arc_shrinker_scan(struct shrinker *shrink, struct shrink_control *sc)
 		arc_warm = B_TRUE;
 
 	/*
-	 * Evict the requested number of pages by reducing arc_c and waiting
-	 * for the requested amount of data to be evicted.
-	 */
-	arc_reduce_target_size(ptob(sc->nr_to_scan));
-	arc_wait_for_eviction(ptob(sc->nr_to_scan), B_FALSE);
-	if (current->reclaim_state != NULL)
-#ifdef	HAVE_RECLAIM_STATE_RECLAIMED
-		current->reclaim_state->reclaimed += sc->nr_to_scan;
-#else
-		current->reclaim_state->reclaimed_slab += sc->nr_to_scan;
-#endif
-
-	/*
 	 * We are experiencing memory pressure which the arc_evict_zthr was
-	 * unable to keep up with. Set arc_no_grow to briefly pause arc
+	 * unable to keep up with.  Set arc_no_grow to briefly pause ARC
 	 * growth to avoid compounding the memory pressure.
 	 */
 	arc_no_grow = B_TRUE;
+
+	/*
+	 * Evict the requested number of pages by reducing arc_c and waiting
+	 * for the requested amount of data to be evicted.
+	 */
+	uint64_t to_free = arc_reduce_target_size(ptob(sc->nr_to_scan));
+	arc_wait_for_eviction(to_free, B_FALSE, B_FALSE);
+	if (current->reclaim_state != NULL)
+#ifdef	HAVE_RECLAIM_STATE_RECLAIMED
+		current->reclaim_state->reclaimed += btop(to_free);
+#else
+		current->reclaim_state->reclaimed_slab += btop(to_free);
+#endif
 
 	/*
 	 * When direct reclaim is observed it usually indicates a rapid
@@ -250,7 +261,7 @@ arc_shrinker_scan(struct shrinker *shrink, struct shrink_control *sc)
 		ARCSTAT_BUMP(arcstat_memory_direct_count);
 	}
 
-	return (sc->nr_to_scan);
+	return (btop(to_free));
 }
 
 static struct shrinker *arc_shrinker = NULL;
@@ -325,13 +336,17 @@ arc_set_sys_free(uint64_t allmem)
 	/*
 	 * Base wmark_low is 4 * the square root of Kbytes of RAM.
 	 */
-	long wmark = 4 * int_sqrt(allmem/1024) * 1024;
+	long wmark = int_sqrt(allmem / 1024 * 16) * 1024;
 
 	/*
-	 * Clamp to between 128K and 64MB.
+	 * Clamp to between 128K and 256/64MB.
 	 */
 	wmark = MAX(wmark, 128 * 1024);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 7, 0)
+	wmark = MIN(wmark, 256 * 1024 * 1024);
+#else
 	wmark = MIN(wmark, 64 * 1024 * 1024);
+#endif
 
 	/*
 	 * watermark_boost can increase the wmark by up to 150%.
@@ -357,7 +372,7 @@ arc_lowmem_init(void)
 	 * swapping out pages when it is preferable to shrink the arc.
 	 */
 	arc_shrinker = spl_register_shrinker("zfs-arc-shrinker",
-	    arc_shrinker_count, arc_shrinker_scan, DEFAULT_SEEKS);
+	    arc_shrinker_count, arc_shrinker_scan, zfs_arc_shrinker_seeks);
 	VERIFY(arc_shrinker);
 
 	arc_set_sys_free(allmem);
@@ -500,3 +515,5 @@ arc_unregister_hotplug(void)
 
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, shrinker_limit, INT, ZMOD_RW,
 	"Limit on number of pages that ARC shrinker can reclaim at once");
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, shrinker_seeks, INT, ZMOD_RW,
+	"Relative cost of ARC eviction vs other kernel subsystems");

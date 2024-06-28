@@ -1058,10 +1058,10 @@ extern uint_t arc_lotsfree_percent;
 extern uint64_t zfs_arc_min;
 extern uint64_t zfs_arc_max;
 
-extern void arc_reduce_target_size(int64_t to_free);
+extern uint64_t arc_reduce_target_size(uint64_t to_free);
 extern boolean_t arc_reclaim_needed(void);
 extern void arc_kmem_reap_soon(void);
-extern void arc_wait_for_eviction(uint64_t, boolean_t);
+extern void arc_wait_for_eviction(uint64_t, boolean_t, boolean_t);
 
 extern void arc_lowmem_init(void);
 extern void arc_lowmem_fini(void);
