@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2009, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2023, Klara Inc.
  */
 
 #include <sys/zfs_context.h>
@@ -108,7 +109,7 @@ ddt_zap_destroy(objset_t *os, uint64_t object, dmu_tx_t *tx)
 
 static int
 ddt_zap_lookup(objset_t *os, uint64_t object,
-    const ddt_key_t *ddk, ddt_phys_t *phys, size_t psize)
+    const ddt_key_t *ddk, void *phys, size_t psize)
 {
 	uchar_t *cbuf;
 	uint64_t one, csize;
@@ -147,9 +148,15 @@ ddt_zap_prefetch(objset_t *os, uint64_t object, const ddt_key_t *ddk)
 	(void) zap_prefetch_uint64(os, object, (uint64_t *)ddk, DDT_KEY_WORDS);
 }
 
+static void
+ddt_zap_prefetch_all(objset_t *os, uint64_t object)
+{
+	(void) zap_prefetch_object(os, object);
+}
+
 static int
 ddt_zap_update(objset_t *os, uint64_t object, const ddt_key_t *ddk,
-    const ddt_phys_t *phys, size_t psize, dmu_tx_t *tx)
+    const void *phys, size_t psize, dmu_tx_t *tx)
 {
 	const size_t cbuf_size = psize + 1;
 
@@ -175,7 +182,7 @@ ddt_zap_remove(objset_t *os, uint64_t object, const ddt_key_t *ddk,
 
 static int
 ddt_zap_walk(objset_t *os, uint64_t object, uint64_t *walk, ddt_key_t *ddk,
-    ddt_phys_t *phys, size_t psize)
+    void *phys, size_t psize)
 {
 	zap_cursor_t zc;
 	zap_attribute_t za;
@@ -231,6 +238,7 @@ const ddt_ops_t ddt_zap_ops = {
 	ddt_zap_lookup,
 	ddt_zap_contains,
 	ddt_zap_prefetch,
+	ddt_zap_prefetch_all,
 	ddt_zap_update,
 	ddt_zap_remove,
 	ddt_zap_walk,
