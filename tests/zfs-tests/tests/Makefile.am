@@ -1401,11 +1401,6 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/compression/l2arc_encrypted.ksh \
 	functional/compression/l2arc_encrypted_no_compressed_arc.ksh \
 	functional/compression/setup.ksh \
-	functional/cp_files/cleanup.ksh \
-	functional/cp_files/cp_files_001_pos.ksh \
-	functional/cp_files/cp_files_002_pos.ksh \
-	functional/cp_files/cp_stress.ksh \
-	functional/cp_files/setup.ksh \
 	functional/crtime/cleanup.ksh \
 	functional/crtime/crtime_001_pos.ksh \
 	functional/crtime/setup.ksh \
@@ -2124,3 +2119,12 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/idmap_mount/idmap_mount_003.ksh \
 	functional/idmap_mount/idmap_mount_004.ksh \
 	functional/idmap_mount/idmap_mount_005.ksh
+
+if WANT_UNISTD_SEEK_DATA
+nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
+	functional/cp_files/cleanup.ksh \
+	functional/cp_files/cp_files_001_pos.ksh \
+	functional/cp_files/cp_files_002_pos.ksh \
+	functional/cp_files/cp_stress.ksh \
+	functional/cp_files/setup.ksh
+endif

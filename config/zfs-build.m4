@@ -294,6 +294,7 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 	    [test "x$qatsrc" != x ])
 	AM_CONDITIONAL([WANT_DEVNAME2DEVID], [test "x$user_libudev" = xyes ])
 	AM_CONDITIONAL([WANT_MMAP_LIBAIO], [test "x$user_libaio" = xyes ])
+	AM_CONDITIONAL([WANT_UNISTD_SEEK_DATA], [test "x$user_unistd_seek_data" = xyes ])
 	AM_CONDITIONAL([PAM_ZFS_ENABLED], [test "x$enable_pam" = xyes])
 ])
 
