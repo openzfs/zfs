@@ -154,7 +154,7 @@ defaults to the current kernel release.
 .
 .It Sy bootfs.rollback Ns Op Sy = Ns Ar snapshot-name
 Execute
-.Nm zfs Cm snapshot Fl Rf Ar boot-dataset Ns Sy @ Ns Ar snapshot-name
+.Nm zfs Cm rollback Fl Rf Ar boot-dataset Ns Sy @ Ns Ar snapshot-name
 before pivoting to the real root.
 .Ar snapshot-name
 defaults to the current kernel release.
