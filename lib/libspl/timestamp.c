@@ -62,3 +62,45 @@ print_timestamp(uint_t timestamp_fmt)
 			(void) printf("%s\n", dstr);
 	}
 }
+
+/*
+ * Return timestamp as decimal reprentation (in string) of time_t
+ * value (-T u was specified) or in date(1) format (-T d was specified).
+ */
+void
+get_timestamp(uint_t timestamp_fmt, char *buf, int len)
+{
+	time_t t = time(NULL);
+	static const char *fmt = NULL;
+
+	/* We only need to retrieve this once per invocation */
+	if (fmt == NULL)
+		fmt = nl_langinfo(_DATE_FMT);
+
+	if (timestamp_fmt == UDATE) {
+		(void) snprintf(buf, len, "%lld", (longlong_t)t);
+	} else if (timestamp_fmt == DDATE) {
+		struct tm tm;
+		strftime(buf, len, fmt, localtime_r(&t, &tm));
+	}
+}
+
+/*
+ * Format the provided time stamp to human readable format
+ */
+void
+format_timestamp(time_t t, char *buf, int len)
+{
+	struct tm tm;
+	static const char *fmt = NULL;
+
+	if (t == 0) {
+		snprintf(buf, len, "-");
+		return;
+	}
+
+	/* We only need to retrieve this once per invocation */
+	if (fmt == NULL)
+		fmt = nl_langinfo(_DATE_FMT);
+	strftime(buf, len, fmt, localtime_r(&t, &tm));
+}
