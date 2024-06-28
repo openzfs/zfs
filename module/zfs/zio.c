@@ -3069,7 +3069,7 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 		zp.zp_checksum = gio->io_prop.zp_checksum;
 		zp.zp_compress = ZIO_COMPRESS_OFF;
 		zp.zp_complevel = gio->io_prop.zp_complevel;
-		zp.zp_type = DMU_OT_NONE;
+		zp.zp_type = zp.zp_storage_type = DMU_OT_NONE;
 		zp.zp_level = 0;
 		zp.zp_copies = gio->io_prop.zp_copies;
 		zp.zp_dedup = B_FALSE;
@@ -3628,8 +3628,7 @@ zio_dva_throttle(zio_t *zio)
 	metaslab_class_t *mc;
 
 	/* locate an appropriate allocation class */
-	mc = spa_preferred_class(spa, zio->io_size, zio->io_prop.zp_type,
-	    zio->io_prop.zp_level, zio->io_prop.zp_zpl_smallblk);
+	mc = spa_preferred_class(spa, zio);
 
 	if (zio->io_priority == ZIO_PRIORITY_SYNC_WRITE ||
 	    !mc->mc_alloc_throttle_enabled ||
@@ -3701,9 +3700,7 @@ zio_dva_allocate(zio_t *zio)
 	 */
 	mc = zio->io_metaslab_class;
 	if (mc == NULL) {
-		mc = spa_preferred_class(spa, zio->io_size,
-		    zio->io_prop.zp_type, zio->io_prop.zp_level,
-		    zio->io_prop.zp_zpl_smallblk);
+		mc = spa_preferred_class(spa, zio);
 		zio->io_metaslab_class = mc;
 	}
 
