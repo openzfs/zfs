@@ -46,7 +46,8 @@
 #define	LEMPEL_SIZE	1024
 
 size_t
-lzjb_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
+zfs_lzjb_compress(void *s_start, void *d_start, size_t s_len,
+    size_t d_len, int n)
 {
 	(void) n;
 	uchar_t *src = s_start;
@@ -101,7 +102,8 @@ lzjb_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 }
 
 int
-lzjb_decompress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
+zfs_lzjb_decompress(void *s_start, void *d_start,
+    size_t s_len, size_t d_len, int n)
 {
 	(void) s_len, (void) n;
 	uchar_t *src = s_start;

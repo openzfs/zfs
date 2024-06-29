@@ -35,7 +35,8 @@
 #include <sys/zio_compress.h>
 
 size_t
-zle_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
+zfs_zle_compress(void *s_start, void *d_start, size_t s_len,
+    size_t d_len, int n)
 {
 	uchar_t *src = s_start;
 	uchar_t *dst = d_start;
@@ -65,7 +66,8 @@ zle_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 }
 
 int
-zle_decompress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
+zfs_zle_decompress(void *s_start, void *d_start, size_t s_len,
+    size_t d_len, int n)
 {
 	uchar_t *src = s_start;
 	uchar_t *dst = d_start;
