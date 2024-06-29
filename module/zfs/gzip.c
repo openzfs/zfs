@@ -48,7 +48,8 @@ typedef uLongf zlen_t;
 #endif
 
 size_t
-gzip_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
+zfs_gzip_compress(void *s_start, void *d_start, size_t s_len,
+    size_t d_len, int n)
 {
 	int ret;
 	zlen_t dstlen = d_len;
@@ -83,7 +84,8 @@ gzip_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 }
 
 int
-gzip_decompress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
+zfs_gzip_decompress(void *s_start, void *d_start, size_t s_len,
+    size_t d_len, int n)
 {
 	(void) n;
 	zlen_t dstlen = d_len;

@@ -153,22 +153,22 @@ extern void lz4_fini(void);
 /*
  * Compression routines.
  */
-extern size_t lzjb_compress(void *src, void *dst, size_t s_len, size_t d_len,
-    int level);
-extern int lzjb_decompress(void *src, void *dst, size_t s_len, size_t d_len,
-    int level);
-extern size_t gzip_compress(void *src, void *dst, size_t s_len, size_t d_len,
-    int level);
-extern int gzip_decompress(void *src, void *dst, size_t s_len, size_t d_len,
-    int level);
-extern size_t zle_compress(void *src, void *dst, size_t s_len, size_t d_len,
-    int level);
-extern int zle_decompress(void *src, void *dst, size_t s_len, size_t d_len,
-    int level);
-extern size_t lz4_compress_zfs(void *src, void *dst, size_t s_len, size_t d_len,
-    int level);
-extern int lz4_decompress_zfs(void *src, void *dst, size_t s_len, size_t d_len,
-    int level);
+extern size_t zfs_lzjb_compress(void *src, void *dst, size_t s_len,
+    size_t d_len, int level);
+extern int zfs_lzjb_decompress(void *src, void *dst, size_t s_len,
+    size_t d_len, int level);
+extern size_t zfs_gzip_compress(void *src, void *dst, size_t s_len,
+    size_t d_len, int level);
+extern int zfs_gzip_decompress(void *src, void *dst, size_t s_len,
+    size_t d_len, int level);
+extern size_t zfs_zle_compress(void *src, void *dst, size_t s_len,
+    size_t d_len, int level);
+extern int zfs_zle_decompress(void *src, void *dst, size_t s_len,
+    size_t d_len, int level);
+extern size_t zfs_lz4_compress(void *src, void *dst, size_t s_len,
+    size_t d_len, int level);
+extern int zfs_lz4_decompress(void *src, void *dst, size_t s_len,
+    size_t d_len, int level);
 
 /*
  * Compress and decompress data if necessary.

@@ -2426,7 +2426,7 @@ get_receive_resume_token_impl(dsl_dataset_t *ds)
 	compressed = kmem_alloc(packed_size, KM_SLEEP);
 
 	/* Call compress function directly to avoid hole detection. */
-	compressed_size = gzip_compress(packed, compressed,
+	compressed_size = zfs_gzip_compress(packed, compressed,
 	    packed_size, packed_size, 6);
 
 	zio_cksum_t cksum;
