@@ -130,17 +130,7 @@ typedef int zio_decompress_func_t(void *src, void *dst,
 /* Common signature for all zio decompress and get level functions. */
 typedef int zio_decompresslevel_func_t(void *src, void *dst,
     size_t s_len, size_t d_len, uint8_t *level);
-/* Common signature for all zio get-compression-level functions. */
-typedef int zio_getlevel_func_t(void *src, size_t s_len, uint8_t *level);
 
-
-/*
- * Common signature for all zio decompress functions using an ABD as input.
- * This is helpful if you have both compressed ARC and scatter ABDs enabled,
- * but is not a requirement for all compression algorithms.
- */
-typedef int zio_decompress_abd_func_t(abd_t *src, void *dst,
-    size_t s_len, size_t d_len, int);
 /*
  * Information about each compression function.
  */
