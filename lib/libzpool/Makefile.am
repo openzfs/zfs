@@ -83,6 +83,7 @@ nodist_libzpool_la_SOURCES = \
 	module/zfs/ddt_zap.c \
 	module/zfs/dmu.c \
 	module/zfs/dmu_diff.c \
+	module/zfs/dmu_direct.c \
 	module/zfs/dmu_object.c \
 	module/zfs/dmu_objset.c \
 	module/zfs/dmu_recv.c \

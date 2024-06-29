@@ -3447,6 +3447,18 @@ function md5digest
 }
 
 #
+# Compare the MD5 digest of two files.
+#
+function cmp_md5s {
+	typeset file1=$1
+	typeset file2=$2
+
+	typeset sum1=$(md5digest $file1)
+	typeset sum2=$(md5digest $file2)
+	test "$sum1" = "$sum2"
+}
+
+#
 # Compute SHA256 digest for given file or stdin if no file given.
 # Note: file path must not contain spaces
 #

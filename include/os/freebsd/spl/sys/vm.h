@@ -57,6 +57,15 @@ void	zfs_vmobject_wunlock(vm_object_t object);
 #define	vm_page_grab_valid_unlocked(m, obj, idx, flags)	\
 	vm_page_grab_valid((m), (obj), (idx), (flags))
 #endif
+
+#if __FreeBSD_version >= 1300047
+#define	vm_page_wire_lock(pp)
+#define	vm_page_wire_unlock(pp)
+#else
+#define	vm_page_wire_lock(pp) vm_page_lock(pp)
+#define	vm_page_wire_unlock(pp) vm_page_unlock(pp)
+#endif
+
 static inline caddr_t
 zfs_map_page(vm_page_t pp, struct sf_buf **sfp)
 {
@@ -68,6 +77,18 @@ static inline void
 zfs_unmap_page(struct sf_buf *sf)
 {
 	sf_buf_free(sf);
+}
+
+static inline void
+page_unhold(vm_page_t pp)
+{
+	vm_page_wire_lock(pp);
+#if __FreeBSD_version >= 1300035
+	vm_page_unwire(pp, PQ_ACTIVE);
+#else
+	vm_page_unhold(pp);
+#endif
+	vm_page_wire_unlock(pp);
 }
 
 #endif	/* _OPENSOLARIS_SYS_VM_H_ */

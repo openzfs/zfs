@@ -423,7 +423,7 @@ get_usage(zpool_help_t idx)
 		    "[<device> ...]\n"));
 	case HELP_STATUS:
 		return (gettext("\tstatus [--power] [-c [script1,script2,...]] "
-		    "[-DegiLpPstvx] [-T d|u] [pool] ...\n"
+		    "[-dDegiLpPstvx] [-T d|u] [pool] ...\n"
 		    "\t    [interval [count]]\n"));
 	case HELP_UPGRADE:
 		return (gettext("\tupgrade\n"
@@ -2286,6 +2286,7 @@ typedef struct status_cbdata {
 	boolean_t	cb_print_unhealthy;
 	boolean_t	cb_print_status;
 	boolean_t	cb_print_slow_ios;
+	boolean_t	cb_print_dio_verify;
 	boolean_t	cb_print_vdev_init;
 	boolean_t	cb_print_vdev_trim;
 	vdev_cmd_data_list_t	*vcdl;
@@ -2518,7 +2519,7 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 	uint_t c, i, vsc, children;
 	pool_scan_stat_t *ps = NULL;
 	vdev_stat_t *vs;
-	char rbuf[6], wbuf[6], cbuf[6];
+	char rbuf[6], wbuf[6], cbuf[6], dbuf[6];
 	char *vname;
 	uint64_t notpresent;
 	spare_cbdata_t spare_cb;
@@ -2635,6 +2636,17 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 			} else {
 				printf(" %5s", "-");
 			}
+		}
+		if (VDEV_STAT_VALID(vs_dio_verify_errors, vsc) &&
+		    cb->cb_print_dio_verify) {
+			zfs_nicenum(vs->vs_dio_verify_errors, dbuf,
+			    sizeof (dbuf));
+
+			if (cb->cb_literal)
+				printf(" %5llu",
+				    (u_longlong_t)vs->vs_dio_verify_errors);
+			else
+				printf(" %5s", dbuf);
 		}
 	}
 
@@ -9300,6 +9312,10 @@ status_callback(zpool_handle_t *zhp, void *data)
 			printf_color(ANSI_BOLD, " %5s", gettext("POWER"));
 		}
 
+		if (cbp->cb_print_dio_verify) {
+			printf_color(ANSI_BOLD, " %5s", gettext("DIO"));
+		}
+
 		if (cbp->vcdl != NULL)
 			print_cmd_columns(cbp->vcdl, 0);
 
@@ -9348,10 +9364,11 @@ status_callback(zpool_handle_t *zhp, void *data)
 }
 
 /*
- * zpool status [-c [script1,script2,...]] [-DegiLpPstvx] [--power] [-T d|u] ...
- *              [pool] [interval [count]]
+ * zpool status [-c [script1,script2,...]] [-dDegiLpPstvx] [--power] ...
+ *              [-T d|u] [pool] [interval [count]]
  *
  *	-c CMD	For each vdev, run command CMD
+ *	-d	Display Direct I/O write verify errors
  *	-D	Display dedup status (undocumented)
  *	-e	Display only unhealthy vdevs
  *	-g	Display guid for individual vdev name.
@@ -9384,7 +9401,7 @@ zpool_do_status(int argc, char **argv)
 	};
 
 	/* check options */
-	while ((c = getopt_long(argc, argv, "c:DegiLpPstT:vx", long_options,
+	while ((c = getopt_long(argc, argv, "c:dDegiLpPstT:vx", long_options,
 	    NULL)) != -1) {
 		switch (c) {
 		case 'c':
@@ -9410,6 +9427,9 @@ zpool_do_status(int argc, char **argv)
 				exit(1);
 			}
 			cmd = optarg;
+			break;
+		case 'd':
+			cb.cb_print_dio_verify = B_TRUE;
 			break;
 		case 'D':
 			cb.cb_dedup_stats = B_TRUE;

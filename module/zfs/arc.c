@@ -5872,7 +5872,7 @@ top:
 			ARCSTAT_CONDSTAT(!(*arc_flags & ARC_FLAG_PREFETCH),
 			    demand, prefetch, !HDR_ISTYPE_METADATA(hdr), data,
 			    metadata, misses);
-			zfs_racct_read(size, 1);
+			zfs_racct_read(spa, size, 1, 0);
 		}
 
 		/* Check if the spa even has l2 configured */
