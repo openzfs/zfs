@@ -346,6 +346,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/projectquota/projectquota_common.kshlib \
 	functional/quota/quota.cfg \
 	functional/quota/quota.kshlib \
+	functional/ratelimit/ratelimit_common.kshlib \
 	functional/redacted_send/redacted.cfg \
 	functional/redacted_send/redacted.kshlib \
 	functional/redundancy/redundancy.cfg \
@@ -1720,6 +1721,30 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/raidz/raidz_expand_006_neg.ksh \
 	functional/raidz/raidz_expand_007_neg.ksh \
 	functional/raidz/setup.ksh \
+	functional/ratelimit/cleanup.ksh \
+	functional/ratelimit/filesystem_bw_combined.ksh \
+	functional/ratelimit/filesystem_bw_hierarchical_horizontal.ksh \
+	functional/ratelimit/filesystem_bw_hierarchical_vertical_read.ksh \
+	functional/ratelimit/filesystem_bw_hierarchical_vertical_total.ksh \
+	functional/ratelimit/filesystem_bw_hierarchical_vertical_write.ksh \
+	functional/ratelimit/filesystem_bw_multiple.ksh \
+	functional/ratelimit/filesystem_bw_recv.ksh \
+	functional/ratelimit/filesystem_bw_send.ksh \
+	functional/ratelimit/filesystem_bw_single.ksh \
+	functional/ratelimit/filesystem_op_multiple.ksh \
+	functional/ratelimit/filesystem_op_single.ksh \
+	functional/ratelimit/inheritance.ksh \
+	functional/ratelimit/ratelimit_random.ksh \
+	functional/ratelimit/setup.ksh \
+	functional/ratelimit/volume_bw_combined.ksh \
+	functional/ratelimit/volume_bw_hierarchical_horizontal.ksh \
+	functional/ratelimit/volume_bw_hierarchical_vertical_read.ksh \
+	functional/ratelimit/volume_bw_hierarchical_vertical_total.ksh \
+	functional/ratelimit/volume_bw_hierarchical_vertical_write.ksh \
+	functional/ratelimit/volume_bw_multiple.ksh \
+	functional/ratelimit/volume_bw_recv.ksh \
+	functional/ratelimit/volume_bw_send.ksh \
+	functional/ratelimit/volume_bw_single.ksh \
 	functional/redacted_send/cleanup.ksh \
 	functional/redacted_send/redacted_compressed.ksh \
 	functional/redacted_send/redacted_contents.ksh \
