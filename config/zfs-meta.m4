@@ -156,6 +156,15 @@ AC_DEFUN([ZFS_AC_META], [
 			AC_SUBST([ZFS_META_KVER_MAX])
 		fi
 
+		ZFS_META_KVER_EXP_MAX=_ZFS_AC_META_GETVAL([Linux-Maximum-Experimental]);
+		if test -n "$ZFS_META_KVER_EXP_MAX"; then
+			AC_DEFINE_UNQUOTED([ZFS_META_KVER_EXP_MAX],
+			    ["$ZFS_META_KVER_EXP_MAX"],
+			    [Define the maximum compatible kernel version.]
+			)
+			AC_SUBST([ZFS_META_KVER_EXP_MAX])
+		fi
+
 		m4_pattern_allow([^LT_(CURRENT|REVISION|AGE)$])
 		ZFS_META_LT_CURRENT=_ZFS_AC_META_GETVAL([LT_Current]);
 		ZFS_META_LT_REVISION=_ZFS_AC_META_GETVAL([LT_Revision]);

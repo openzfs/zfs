@@ -303,6 +303,12 @@ openzfs_init_os(void)
 	    "ZFS pool version %s, ZFS filesystem version %s\n",
 	    ZFS_META_VERSION, ZFS_META_RELEASE, ZFS_DEBUG_STR,
 	    SPA_VERSION_STRING, ZPL_VERSION_STRING);
+#ifdef HAVE_LINUX_EXPERIMENTAL
+	printk(KERN_NOTICE "ZFS: Using ZFS with kernel %s is EXPERIMENTAL and "
+	    "SERIOUS DATA LOSS may occur!\n", utsname()->release);
+	printk(KERN_NOTICE "ZFS: Please report your results at: "
+	    "https://github.com/openzfs/zfs/issues/new\n");
+#endif
 #ifndef CONFIG_FS_POSIX_ACL
 	printk(KERN_NOTICE "ZFS: Posix ACLs disabled by kernel\n");
 #endif /* CONFIG_FS_POSIX_ACL */
