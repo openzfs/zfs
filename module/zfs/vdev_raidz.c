@@ -4172,7 +4172,7 @@ io_error_exit:
 		goto io_error_exit;
 	}
 	pio = zio_root(spa, NULL, NULL, 0);
-	zio_flush(pio, raidvd);
+	zio_flush(pio, raidvd, B_FALSE);
 	zio_wait(pio);
 
 	zfs_dbgmsg("reflow: wrote %llu bytes (logical) to scratch area",
@@ -4231,7 +4231,7 @@ overwrite:
 		goto io_error_exit;
 	}
 	pio = zio_root(spa, NULL, NULL, 0);
-	zio_flush(pio, raidvd);
+	zio_flush(pio, raidvd, B_FALSE);
 	zio_wait(pio);
 
 	zfs_dbgmsg("reflow: overwrote %llu bytes (logical) to real location",
@@ -4339,7 +4339,7 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 	}
 	zio_wait(pio);
 	pio = zio_root(spa, NULL, NULL, 0);
-	zio_flush(pio, raidvd);
+	zio_flush(pio, raidvd, B_FALSE);
 	zio_wait(pio);
 
 	zfs_dbgmsg("reflow recovery: overwrote %llu bytes (logical) "
