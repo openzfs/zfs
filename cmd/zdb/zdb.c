@@ -8905,6 +8905,19 @@ zdb_numeric(char *str)
 	return (B_TRUE);
 }
 
+static int
+dummy_get_file_info(dmu_object_type_t bonustype, const void *data,
+    zfs_file_info_t *zoi)
+{
+	(void) data, (void) zoi;
+
+	if (bonustype != DMU_OT_ZNODE && bonustype != DMU_OT_SA)
+		return (ENOENT);
+
+	(void) fprintf(stderr, "dummy_get_file_info: not implemented");
+	abort();
+}
+
 int
 main(int argc, char **argv)
 {
@@ -9220,6 +9233,7 @@ main(int argc, char **argv)
 		libzfs_core_fini();
 	}
 
+	dmu_objset_register_type(DMU_OST_ZFS, dummy_get_file_info);
 	kernel_init(SPA_MODE_READ);
 	kernel_init_done = B_TRUE;
 
