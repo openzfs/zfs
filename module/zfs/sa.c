@@ -1623,6 +1623,19 @@ sa_add_projid(sa_handle_t *hdl, dmu_tx_t *tx, uint64_t projid)
 	if (err != 0 && err != ENOENT)
 		goto out;
 
+	char *dxattr_obj = NULL;
+	int dxattr_size = 0;
+	err = sa_size_locked(hdl, SA_ZPL_DXATTR(zfsvfs), &dxattr_size);
+	if (err != 0 && err != ENOENT)
+		goto out;
+	if (dxattr_size != 0) {
+		dxattr_obj = vmem_alloc(dxattr_size, KM_SLEEP);
+		err = sa_lookup_locked(hdl, SA_ZPL_DXATTR(zfsvfs), dxattr_obj,
+		    dxattr_size);
+		if (err != 0 && err != ENOENT)
+			goto out;
+	}
+
 	zp->z_projid = projid;
 	zp->z_pflags |= ZFS_PROJID;
 	links = ZTONLNK(zp);
@@ -1674,6 +1687,11 @@ sa_add_projid(sa_handle_t *hdl, dmu_tx_t *tx, uint64_t projid)
 		zp->z_pflags &= ~ZFS_BONUS_SCANSTAMP;
 	}
 
+	if (dxattr_obj) {
+		SA_ADD_BULK_ATTR(attrs, count, SA_ZPL_DXATTR(zfsvfs),
+		    NULL, dxattr_obj, dxattr_size);
+	}
+
 	VERIFY(dmu_set_bonustype(db, DMU_OT_SA, tx) == 0);
 	VERIFY(sa_replace_all_by_template_locked(hdl, attrs, count, tx) == 0);
 	if (znode_acl.z_acl_extern_obj) {
@@ -1688,6 +1706,8 @@ out:
 	mutex_exit(&hdl->sa_lock);
 	kmem_free(attrs, sizeof (sa_bulk_attr_t) * ZPL_END);
 	kmem_free(bulk, sizeof (sa_bulk_attr_t) * ZPL_END);
+	if (dxattr_obj)
+		vmem_free(dxattr_obj, dxattr_size);
 	return (err);
 }
 #endif
@@ -2064,6 +2084,26 @@ sa_update(sa_handle_t *hdl, sa_attr_type_t type,
  */
 
 int
+sa_size_locked(sa_handle_t *hdl, sa_attr_type_t attr, int *size)
+{
+	sa_bulk_attr_t bulk;
+	int error;
+
+	bulk.sa_data = NULL;
+	bulk.sa_attr = attr;
+	bulk.sa_data_func = NULL;
+
+	ASSERT(hdl);
+	ASSERT(MUTEX_HELD(&hdl->sa_lock));
+	if ((error = sa_attr_op(hdl, &bulk, 1, SA_LOOKUP, NULL)) != 0) {
+		return (error);
+	}
+	*size = bulk.sa_size;
+
+	return (0);
+}
+
+int
 sa_size(sa_handle_t *hdl, sa_attr_type_t attr, int *size)
 {
 	sa_bulk_attr_t bulk;
@@ -2237,6 +2277,7 @@ EXPORT_SYMBOL(sa_bulk_lookup);
 EXPORT_SYMBOL(sa_bulk_lookup_locked);
 EXPORT_SYMBOL(sa_bulk_update);
 EXPORT_SYMBOL(sa_size);
+EXPORT_SYMBOL(sa_size_locked);
 EXPORT_SYMBOL(sa_object_info);
 EXPORT_SYMBOL(sa_object_size);
 EXPORT_SYMBOL(sa_get_userdata);
