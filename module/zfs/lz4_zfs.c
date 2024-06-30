@@ -52,8 +52,8 @@ int LZ4_uncompress_unknownOutputSize(const char *source, char *dest,
 
 static kmem_cache_t *lz4_cache;
 
-size_t
-zfs_lz4_compress(void *s_start, void *d_start, size_t s_len,
+static size_t
+zfs_lz4_compress_buf(void *s_start, void *d_start, size_t s_len,
     size_t d_len, int n)
 {
 	(void) n;
@@ -80,8 +80,8 @@ zfs_lz4_compress(void *s_start, void *d_start, size_t s_len,
 	return (bufsiz + sizeof (bufsiz));
 }
 
-int
-zfs_lz4_decompress(void *s_start, void *d_start, size_t s_len,
+static int
+zfs_lz4_decompress_buf(void *s_start, void *d_start, size_t s_len,
     size_t d_len, int n)
 {
 	(void) n;
@@ -99,6 +99,9 @@ zfs_lz4_decompress(void *s_start, void *d_start, size_t s_len,
 	return (LZ4_uncompress_unknownOutputSize(&src[sizeof (bufsiz)],
 	    d_start, bufsiz, d_len) < 0);
 }
+
+ZFS_COMPRESS_WRAP_DECL(zfs_lz4_compress)
+ZFS_DECOMPRESS_WRAP_DECL(zfs_lz4_decompress)
 
 /*
  * LZ4 API Description:

@@ -536,8 +536,8 @@ zfs_zstd_compress_impl(void *s_start, void *d_start, size_t s_len, size_t d_len,
 }
 
 
-size_t
-zfs_zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len,
+static size_t
+zfs_zstd_compress_buf(void *s_start, void *d_start, size_t s_len, size_t d_len,
     int level)
 {
 	int16_t zstd_level;
@@ -569,7 +569,10 @@ zfs_zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	if (zstd_earlyabort_pass > 0 && zstd_level >= zstd_cutoff_level &&
 	    s_len >= actual_abort_size) {
 		int pass_len = 1;
-		pass_len = zfs_lz4_compress(s_start, d_start, s_len, d_len, 0);
+		abd_t sabd;
+		abd_get_from_buf_struct(&sabd, s_start, s_len);
+		pass_len = zfs_lz4_compress(&sabd, d_start, s_len, d_len, 0);
+		abd_free(&sabd);
 		if (pass_len < d_len) {
 			ZSTDSTAT_BUMP(zstd_stat_lz4pass_allowed);
 			goto keep_trying;
@@ -595,8 +598,8 @@ keep_trying:
 }
 
 /* Decompress block using zstd and return its stored level */
-int
-zfs_zstd_decompress_level(void *s_start, void *d_start, size_t s_len,
+static int
+zfs_zstd_decompress_level_buf(void *s_start, void *d_start, size_t s_len,
     size_t d_len, uint8_t *level)
 {
 	ZSTD_DCtx *dctx;
@@ -671,14 +674,19 @@ zfs_zstd_decompress_level(void *s_start, void *d_start, size_t s_len,
 }
 
 /* Decompress datablock using zstd */
-int
-zfs_zstd_decompress(void *s_start, void *d_start, size_t s_len, size_t d_len,
-    int level __maybe_unused)
+static int
+zfs_zstd_decompress_buf(void *s_start, void *d_start, size_t s_len,
+    size_t d_len, int level __maybe_unused)
 {
 
-	return (zfs_zstd_decompress_level(s_start, d_start, s_len, d_len,
+	return (zfs_zstd_decompress_level_buf(s_start, d_start, s_len, d_len,
 	    NULL));
 }
+
+ZFS_COMPRESS_WRAP_DECL(zfs_zstd_compress)
+ZFS_DECOMPRESS_WRAP_DECL(zfs_zstd_decompress)
+ZFS_DECOMPRESS_LEVEL_WRAP_DECL(zfs_zstd_decompress_level)
+
 
 /* Allocator for zstd compression context using mempool_allocator */
 static void *
