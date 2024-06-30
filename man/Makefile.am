@@ -83,6 +83,7 @@ dist_man_MANS = \
 	%D%/man8/zpool-list.8 \
 	%D%/man8/zpool-offline.8 \
 	%D%/man8/zpool-online.8 \
+	%D%/man8/zpool-prefetch.8 \
 	%D%/man8/zpool-reguid.8 \
 	%D%/man8/zpool-remove.8 \
 	%D%/man8/zpool-reopen.8 \

@@ -40,6 +40,12 @@ extern "C" {
 struct abd;
 
 /*
+ * DDT-wide feature flags. These are set in ddt_flags by ddt_configure().
+ */
+/* No flags yet. */
+#define	DDT_FLAG_MASK	(0)
+
+/*
  * DDT on-disk storage object types. Each one corresponds to specific
  * implementation, see ddt_ops_t. The value itself is not stored on disk.
  *
@@ -151,7 +157,8 @@ enum ddt_phys_type {
  */
 
 /* State flags for dde_flags */
-#define	DDE_FLAG_LOADED (1 << 0)	/* entry ready for use */
+#define	DDE_FLAG_LOADED		(1 << 0)	/* entry ready for use */
+#define	DDE_FLAG_OVERQUOTA	(1 << 1)	/* entry unusable, no space */
 
 typedef struct {
 	/* key must be first for ddt_key_compare */
@@ -170,6 +177,7 @@ typedef struct {
 
 	uint8_t		dde_flags;	/* load state flags */
 	kcondvar_t	dde_cv;		/* signaled when load completes */
+	uint64_t	dde_waiters;	/* count of waiters on dde_cv */
 
 	avl_node_t	dde_node;	/* ddt_tree node */
 } ddt_entry_t;
@@ -183,11 +191,15 @@ typedef struct {
 
 	avl_tree_t	ddt_tree;	/* "live" (changed) entries this txg */
 
-	avl_tree_t	ddt_repair_tree;	/* entries being repaired */
+	avl_tree_t	ddt_repair_tree; /* entries being repaired */
 
-	enum zio_checksum ddt_checksum;		/* checksum algorithm in use */
-	spa_t		*ddt_spa;		/* pool this ddt is on */
-	objset_t	*ddt_os;		/* ddt objset (always MOS) */
+	enum zio_checksum ddt_checksum;	/* checksum algorithm in use */
+	spa_t		*ddt_spa;	/* pool this ddt is on */
+	objset_t	*ddt_os;	/* ddt objset (always MOS) */
+
+	uint64_t	ddt_dir_object;	/* MOS dir holding ddt objects */
+	uint64_t	ddt_version;	/* DDT version */
+	uint64_t	ddt_flags;	/* FDT option flags */
 
 	/* per-type/per-class entry store objects */
 	uint64_t	ddt_object[DDT_TYPES][DDT_CLASSES];
@@ -228,11 +240,13 @@ extern void ddt_histogram_add(ddt_histogram_t *dst, const ddt_histogram_t *src);
 extern void ddt_histogram_stat(ddt_stat_t *dds, const ddt_histogram_t *ddh);
 extern boolean_t ddt_histogram_empty(const ddt_histogram_t *ddh);
 extern void ddt_get_dedup_object_stats(spa_t *spa, ddt_object_t *ddo);
+extern uint64_t ddt_get_ddt_dsize(spa_t *spa);
 extern void ddt_get_dedup_histogram(spa_t *spa, ddt_histogram_t *ddh);
 extern void ddt_get_dedup_stats(spa_t *spa, ddt_stat_t *dds_total);
 
 extern uint64_t ddt_get_dedup_dspace(spa_t *spa);
 extern uint64_t ddt_get_pool_dedup_ratio(spa_t *spa);
+extern int ddt_get_pool_dedup_cached(spa_t *spa, uint64_t *psize);
 
 extern ddt_t *ddt_select(spa_t *spa, const blkptr_t *bp);
 extern void ddt_enter(ddt_t *ddt);
@@ -240,8 +254,9 @@ extern void ddt_exit(ddt_t *ddt);
 extern void ddt_init(void);
 extern void ddt_fini(void);
 extern ddt_entry_t *ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add);
-extern void ddt_prefetch(spa_t *spa, const blkptr_t *bp);
 extern void ddt_remove(ddt_t *ddt, ddt_entry_t *dde);
+extern void ddt_prefetch(spa_t *spa, const blkptr_t *bp);
+extern void ddt_prefetch_all(spa_t *spa);
 
 extern boolean_t ddt_class_contains(spa_t *spa, ddt_class_t max_class,
     const blkptr_t *bp);

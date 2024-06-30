@@ -33,6 +33,14 @@
 extern "C" {
 #endif
 
+/* DDT version numbers */
+#define	DDT_VERSION_LEGACY	(0)
+#define	DDT_VERSION_FDT		(1)
+
+/* Names of interesting objects in the DDT root dir */
+#define	DDT_DIR_VERSION		"version"
+#define	DDT_DIR_FLAGS		"flags"
+
 /*
  * Ops vector to access a specific DDT object type.
  */
@@ -47,6 +55,7 @@ typedef struct {
 	    const ddt_key_t *ddk);
 	void (*ddt_op_prefetch)(objset_t *os, uint64_t object,
 	    const ddt_key_t *ddk);
+	void (*ddt_op_prefetch_all)(objset_t *os, uint64_t object);
 	int (*ddt_op_update)(objset_t *os, uint64_t object,
 	    const ddt_key_t *ddk, const ddt_phys_t *phys, size_t psize,
 	    dmu_tx_t *tx);
