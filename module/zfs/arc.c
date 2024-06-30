@@ -29,6 +29,7 @@
  * Copyright (c) 2019, Klara Inc.
  * Copyright (c) 2019, Allan Jude
  * Copyright (c) 2020, The FreeBSD Foundation [1]
+ * Copyright (c) 2021, 2024 by George Melikov. All rights reserved.
  *
  * [1] Portions of this software were developed by Allan Jude
  *     under sponsorship from the FreeBSD Foundation.
@@ -1786,9 +1787,13 @@ arc_hdr_authenticate(arc_buf_hdr_t *hdr, spa_t *spa, uint64_t dsobj)
 	    !HDR_COMPRESSION_ENABLED(hdr)) {
 
 		csize = zio_compress_data(HDR_GET_COMPRESS(hdr),
-		    hdr->b_l1hdr.b_pabd, &tmpbuf, lsize, hdr->b_complevel);
+		    hdr->b_l1hdr.b_pabd, &tmpbuf, lsize, MIN(lsize, psize),
+		    hdr->b_complevel);
+		if (csize >= lsize || csize > psize) {
+			ret = SET_ERROR(EIO);
+			goto error;
+		}
 		ASSERT3P(tmpbuf, !=, NULL);
-		ASSERT3U(csize, <=, psize);
 		abd = abd_get_from_buf(tmpbuf, lsize);
 		abd_take_ownership_of_buf(abd, B_TRUE);
 		abd_zero_off(abd, csize, psize - csize);
@@ -8944,8 +8949,8 @@ l2arc_apply_transforms(spa_t *spa, arc_buf_hdr_t *hdr, uint64_t asize,
 		size_t bufsize = MAX(size, asize);
 		void *buf = zio_buf_alloc(bufsize);
 		uint64_t csize = zio_compress_data(compress, to_write, &buf,
-		    size, hdr->b_complevel);
-		if (csize > psize) {
+		    size, MIN(size, psize), hdr->b_complevel);
+		if (csize >= size || csize > psize) {
 			/*
 			 * We can't re-compress the block into the original
 			 * psize.  Even if it fits into asize, it does not
@@ -10429,9 +10434,12 @@ l2arc_log_blk_commit(l2arc_dev_t *dev, zio_t *pio, l2arc_write_callback_t *cb)
 	 */
 	list_insert_tail(&cb->l2wcb_abd_list, abd_buf);
 
-	/* try to compress the buffer */
+	/* try to compress the buffer, at least one sector to save */
 	psize = zio_compress_data(ZIO_COMPRESS_LZ4,
-	    abd_buf->abd, (void **) &tmpbuf, sizeof (*lb), 0);
+	    abd_buf->abd, (void **) &tmpbuf, sizeof (*lb),
+	    zio_get_compression_max_size(ZIO_COMPRESS_LZ4,
+	    dev->l2ad_vdev->vdev_ashift,
+	    dev->l2ad_vdev->vdev_ashift, sizeof (*lb)), 0);
 
 	/* a log block is never entirely zero */
 	ASSERT(psize != 0);
