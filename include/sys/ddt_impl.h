@@ -33,6 +33,23 @@
 extern "C" {
 #endif
 
+/* DDT version numbers */
+#define	DDT_VERSION_LEGACY	(0)
+#define	DDT_VERSION_FDT		(1)
+
+/* Names of interesting objects in the DDT root dir */
+#define	DDT_DIR_VERSION		"version"
+#define	DDT_DIR_FLAGS		"flags"
+
+/* Fill a lightweight entry from a live entry. */
+#define	DDT_ENTRY_TO_LIGHTWEIGHT(ddt, dde, ddlwe) do {			\
+	memset((ddlwe), 0, sizeof (*ddlwe));				\
+	(ddlwe)->ddlwe_key = (dde)->dde_key;				\
+	(ddlwe)->ddlwe_type = (dde)->dde_type;				\
+	(ddlwe)->ddlwe_class = (dde)->dde_class;			\
+	memcpy(&(ddlwe)->ddlwe_phys, (dde)->dde_phys, DDT_PHYS_SIZE(ddt)); \
+} while (0)
+
 /*
  * Ops vector to access a specific DDT object type.
  */
@@ -42,18 +59,19 @@ typedef struct {
 	    boolean_t prehash);
 	int (*ddt_op_destroy)(objset_t *os, uint64_t object, dmu_tx_t *tx);
 	int (*ddt_op_lookup)(objset_t *os, uint64_t object,
-	    const ddt_key_t *ddk, ddt_phys_t *phys, size_t psize);
+	    const ddt_key_t *ddk, void *phys, size_t psize);
 	int (*ddt_op_contains)(objset_t *os, uint64_t object,
 	    const ddt_key_t *ddk);
 	void (*ddt_op_prefetch)(objset_t *os, uint64_t object,
 	    const ddt_key_t *ddk);
+	void (*ddt_op_prefetch_all)(objset_t *os, uint64_t object);
 	int (*ddt_op_update)(objset_t *os, uint64_t object,
-	    const ddt_key_t *ddk, const ddt_phys_t *phys, size_t psize,
+	    const ddt_key_t *ddk, const void *phys, size_t psize,
 	    dmu_tx_t *tx);
 	int (*ddt_op_remove)(objset_t *os, uint64_t object,
 	    const ddt_key_t *ddk, dmu_tx_t *tx);
 	int (*ddt_op_walk)(objset_t *os, uint64_t object, uint64_t *walk,
-	    ddt_key_t *ddk, ddt_phys_t *phys, size_t psize);
+	    ddt_key_t *ddk, void *phys, size_t psize);
 	int (*ddt_op_count)(objset_t *os, uint64_t object, uint64_t *count);
 } ddt_ops_t;
 
@@ -73,7 +91,7 @@ extern void ddt_stat_update(ddt_t *ddt, ddt_entry_t *dde, uint64_t neg);
  */
 #define	DDT_NAMELEN	32
 
-extern uint64_t ddt_phys_total_refcnt(const ddt_entry_t *dde);
+extern uint64_t ddt_phys_total_refcnt(const ddt_t *ddt, const ddt_entry_t *dde);
 
 extern void ddt_key_fill(ddt_key_t *ddk, const blkptr_t *bp);
 
@@ -82,7 +100,7 @@ extern void ddt_stat_add(ddt_stat_t *dst, const ddt_stat_t *src, uint64_t neg);
 extern void ddt_object_name(ddt_t *ddt, ddt_type_t type, ddt_class_t clazz,
     char *name);
 extern int ddt_object_walk(ddt_t *ddt, ddt_type_t type, ddt_class_t clazz,
-    uint64_t *walk, ddt_entry_t *dde);
+    uint64_t *walk, ddt_lightweight_entry_t *ddlwe);
 extern int ddt_object_count(ddt_t *ddt, ddt_type_t type, ddt_class_t clazz,
     uint64_t *count);
 extern int ddt_object_info(ddt_t *ddt, ddt_type_t type, ddt_class_t clazz,

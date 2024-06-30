@@ -573,7 +573,7 @@ typedef struct blkptr {
 #define	BP_IS_RAIDZ(bp)		(DVA_GET_ASIZE(&(bp)->blk_dva[0]) > \
 				BP_GET_PSIZE(bp))
 
-#define	BP_ZERO(bp)				\
+#define	BP_ZERO_DVAS(bp)			\
 {						\
 	(bp)->blk_dva[0].dva_word[0] = 0;	\
 	(bp)->blk_dva[0].dva_word[1] = 0;	\
@@ -581,6 +581,11 @@ typedef struct blkptr {
 	(bp)->blk_dva[1].dva_word[1] = 0;	\
 	(bp)->blk_dva[2].dva_word[0] = 0;	\
 	(bp)->blk_dva[2].dva_word[1] = 0;	\
+}
+
+#define	BP_ZERO(bp)				\
+{						\
+	BP_ZERO_DVAS(bp);			\
 	(bp)->blk_prop = 0;			\
 	(bp)->blk_pad[0] = 0;			\
 	(bp)->blk_pad[1] = 0;			\
@@ -1052,6 +1057,7 @@ extern metaslab_class_t *spa_special_class(spa_t *spa);
 extern metaslab_class_t *spa_dedup_class(spa_t *spa);
 extern metaslab_class_t *spa_preferred_class(spa_t *spa, uint64_t size,
     dmu_object_type_t objtype, uint_t level, uint_t special_smallblk);
+extern boolean_t spa_special_has_ddt(spa_t *spa);
 
 extern void spa_evicting_os_register(spa_t *, objset_t *os);
 extern void spa_evicting_os_deregister(spa_t *, objset_t *os);
@@ -1198,6 +1204,8 @@ extern void spa_boot_init(void);
 /* properties */
 extern int spa_prop_set(spa_t *spa, nvlist_t *nvp);
 extern int spa_prop_get(spa_t *spa, nvlist_t **nvp);
+extern int spa_prop_get_nvlist(spa_t *spa, char **props,
+    unsigned int n_props, nvlist_t **outnvl);
 extern void spa_prop_clear_bootfs(spa_t *spa, uint64_t obj, dmu_tx_t *tx);
 extern void spa_configfile_set(spa_t *, nvlist_t *, boolean_t);
 
