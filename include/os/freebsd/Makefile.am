@@ -77,6 +77,8 @@ noinst_HEADERS = \
 	%D%/spl/sys/zmod.h \
 	%D%/spl/sys/zone.h \
 	\
+	%D%/zfs/sys/abd_os.h \
+	%D%/zfs/sys/abd_impl_os.h \
 	%D%/zfs/sys/arc_os.h \
 	%D%/zfs/sys/freebsd_crypto.h \
 	%D%/zfs/sys/freebsd_event.h \
