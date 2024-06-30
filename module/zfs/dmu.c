@@ -815,6 +815,13 @@ get_next_chunk(dnode_t *dn, uint64_t *start, uint64_t minimum, uint64_t *l1blks)
 
 	ASSERT3U(minimum, <=, *start);
 
+	/* dn_nlevels == 1 means we don't have any L1 blocks */
+	if (dn->dn_nlevels <= 1) {
+		*l1blks = 0;
+		*start = minimum;
+		return (0);
+	}
+
 	/*
 	 * Check if we can free the entire range assuming that all of the
 	 * L1 blocks in this range have data. If we can, we use this
