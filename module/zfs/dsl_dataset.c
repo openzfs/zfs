@@ -2426,8 +2426,13 @@ get_receive_resume_token_impl(dsl_dataset_t *ds)
 	compressed = kmem_alloc(packed_size, KM_SLEEP);
 
 	/* Call compress function directly to avoid hole detection. */
-	compressed_size = zfs_gzip_compress(packed, compressed,
+	abd_t pabd, cabd;
+	abd_get_from_buf_struct(&pabd, packed, packed_size);
+	abd_get_from_buf_struct(&cabd, compressed, packed_size);
+	compressed_size = zfs_gzip_compress(&pabd, &cabd,
 	    packed_size, packed_size, 6);
+	abd_free(&cabd);
+	abd_free(&pabd);
 
 	zio_cksum_t cksum;
 	fletcher_4_native_varsize(compressed, compressed_size, &cksum);

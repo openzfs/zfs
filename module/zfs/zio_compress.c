@@ -29,7 +29,7 @@
 
 /*
  * Copyright (c) 2013, 2018 by Delphix. All rights reserved.
- * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, 2024, Klara, Inc.
  * Copyright (c) 2019, Allan Jude
  */
 
@@ -178,10 +178,10 @@ zio_compress_data(enum zio_compress c, abd_t *src, void **dst, size_t s_len,
 	if (*dst == NULL)
 		*dst = zio_buf_alloc(s_len);
 
-	/* No compression algorithms can read from ABDs directly */
-	void *tmp = abd_borrow_buf_copy(src, s_len);
-	c_len = ci->ci_compress(tmp, *dst, s_len, d_len, complevel);
-	abd_return_buf(src, tmp, s_len);
+	abd_t dabd;
+	abd_get_from_buf_struct(&dabd, dst, d_len);
+	c_len = ci->ci_compress(src, &dabd, s_len, d_len, complevel);
+	abd_free(&dabd);
 
 	if (c_len > d_len)
 		return (s_len);
@@ -198,15 +198,16 @@ zio_decompress_data(enum zio_compress c, abd_t *src, void *dst,
 	if ((uint_t)c >= ZIO_COMPRESS_FUNCTIONS || ci->ci_decompress == NULL)
 		return (SET_ERROR(EINVAL));
 
-	void *sbuf = abd_borrow_buf_copy(src, s_len);
+	abd_t dabd;
+	abd_get_from_buf_struct(&dabd, dst, d_len);
 
 	int err;
 	if (ci->ci_decompress_level != NULL && level != NULL)
-		err = ci->ci_decompress_level(sbuf, dst, s_len, d_len, level);
+		err = ci->ci_decompress_level(src, &dabd, s_len, d_len, level);
 	else
-		err = ci->ci_decompress(sbuf, dst, s_len, d_len, ci->ci_level);
+		err = ci->ci_decompress(src, &dabd, s_len, d_len, ci->ci_level);
 
-	abd_return_buf(src, sbuf, s_len);
+	abd_free(&dabd);
 
 	/*
 	 * Decompression shouldn't fail, because we've already verified

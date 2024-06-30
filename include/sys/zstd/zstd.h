@@ -90,12 +90,12 @@ typedef struct zfs_zstd_meta {
 int zstd_init(void);
 void zstd_fini(void);
 
-size_t zfs_zstd_compress(void *s_start, void *d_start, size_t s_len,
+size_t zfs_zstd_compress(abd_t *src, abd_t *dst, size_t s_len,
     size_t d_len, int level);
 int zfs_zstd_get_level(void *s_start, size_t s_len, uint8_t *level);
-int zfs_zstd_decompress_level(void *s_start, void *d_start, size_t s_len,
+int zfs_zstd_decompress_level(abd_t *src, abd_t *dst, size_t s_len,
     size_t d_len, uint8_t *level);
-int zfs_zstd_decompress(void *s_start, void *d_start, size_t s_len,
+int zfs_zstd_decompress(abd_t *src, abd_t *dst, size_t s_len,
     size_t d_len, int n);
 void zfs_zstd_cache_reap_now(void);
 

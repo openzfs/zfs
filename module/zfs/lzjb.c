@@ -45,8 +45,8 @@
 #define	OFFSET_MASK	((1 << (16 - MATCH_BITS)) - 1)
 #define	LEMPEL_SIZE	1024
 
-size_t
-zfs_lzjb_compress(void *s_start, void *d_start, size_t s_len,
+static size_t
+zfs_lzjb_compress_buf(void *s_start, void *d_start, size_t s_len,
     size_t d_len, int n)
 {
 	(void) n;
@@ -101,8 +101,8 @@ zfs_lzjb_compress(void *s_start, void *d_start, size_t s_len,
 	return (dst - (uchar_t *)d_start);
 }
 
-int
-zfs_lzjb_decompress(void *s_start, void *d_start,
+static int
+zfs_lzjb_decompress_buf(void *s_start, void *d_start,
     size_t s_len, size_t d_len, int n)
 {
 	(void) s_len, (void) n;
@@ -132,3 +132,6 @@ zfs_lzjb_decompress(void *s_start, void *d_start,
 	}
 	return (0);
 }
+
+ZFS_COMPRESS_WRAP_DECL(zfs_lzjb_compress)
+ZFS_DECOMPRESS_WRAP_DECL(zfs_lzjb_decompress)
