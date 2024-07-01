@@ -1775,13 +1775,14 @@ Unlike predictive prefetch, prescient prefetch never issues I/O
 that ends up not being needed, so it can't hurt performance.
 .
 .It Sy zfs_readdir_dnode_prefetch_enabled Ns = Ns 0 Ns | Ns Sy 1 Pq int
-Enable prefetches in readdir. (Normally on) When readdir
-searches a directory, it normally prefetches metadata for
+Enable prefetches in readdir.
+(Normally on)
+When readdir searches a directory, it normally prefetches metadata for
 all objects in the directory it checks, even if it's just
-looking for a single object. Setting this to 0 disables
-that prefetching. Disabling it can greatly lower CPU usage
-on NFS servers where directories have a very large number
-of subdirectories.
+looking for a single object.
+Setting this to 0 disables that prefetching.
+Disabling it can greatly lower CPU usage on NFS servers where directories
+have a very large number of subdirectories.
 .
 .It Sy zfs_qat_checksum_disable Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Disable QAT hardware acceleration for SHA256 checksums.
