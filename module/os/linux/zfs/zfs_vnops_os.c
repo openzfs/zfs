@@ -1504,6 +1504,7 @@ out:
  * We use 0 for '.', and 1 for '..'.  If this is the root of the filesystem,
  * we use the offset 2 for the '.zfs' directory.
  */
+static int zfs_readdir_dnode_prefetch_enabled = B_TRUE;
 int
 zfs_readdir(struct inode *ip, zpl_dir_context_t *ctx, cred_t *cr)
 {
@@ -1536,7 +1537,7 @@ zfs_readdir(struct inode *ip, zpl_dir_context_t *ctx, cred_t *cr)
 	error = 0;
 	os = zfsvfs->z_os;
 	offset = ctx->pos;
-	prefetch = zp->z_zn_prefetch;
+	prefetch = zfs_readdir_dnode_prefetch_enabled && zp->z_zn_prefetch;
 
 	/*
 	 * Initialize the iterator cursor.
@@ -4252,4 +4253,8 @@ EXPORT_SYMBOL(zfs_map);
 /* CSTYLED */
 module_param(zfs_delete_blocks, ulong, 0644);
 MODULE_PARM_DESC(zfs_delete_blocks, "Delete files larger than N blocks async");
+
+module_param(zfs_readdir_dnode_prefetch_enabled, int, 0644);
+MODULE_PARM_DESC(zfs_readdir_dnode_prefetch_enabled,
+	"If 0, never perform zfs_readdir dnode prefetches");
 #endif
