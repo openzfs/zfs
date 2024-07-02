@@ -152,7 +152,7 @@ dmu_write_direct(zio_t *pio, dmu_buf_impl_t *db, abd_t *data, dmu_tx_t *tx)
 	ASSERT3U(txg, >, spa_last_synced_txg(os->os_spa));
 	ASSERT3U(txg, >, spa_syncing_txg(os->os_spa));
 
-	dr_head = dbuf_get_dirty_direct(db);
+	dr_head = list_head(&db->db_dirty_records);
 	ASSERT3U(dr_head->dr_txg, ==, txg);
 	dr_head->dr_accounted = db->db.db_size;
 
@@ -260,6 +260,7 @@ dmu_read_abd(dnode_t *dn, uint64_t offset, uint64_t size,
 		dmu_buf_impl_t *db = (dmu_buf_impl_t *)dbp[i];
 		abd_t *mbuf;
 		zbookmark_phys_t zb;
+		blkptr_t *bp;
 
 		mutex_enter(&db->db_mtx);
 
@@ -273,7 +274,11 @@ dmu_read_abd(dnode_t *dn, uint64_t offset, uint64_t size,
 		while (db->db_state == DB_READ)
 			cv_wait(&db->db_changed, &db->db_mtx);
 
-		blkptr_t *bp = dmu_buf_get_bp_from_dbuf(db);
+		err = dmu_buf_get_bp_from_dbuf(db, &bp);
+		if (err) {
+			mutex_exit(&db->db_mtx);
+			goto error;
+		}
 
 		/*
 		 * There is no need to read if this is a hole or the data is
@@ -310,13 +315,13 @@ dmu_read_abd(dnode_t *dn, uint64_t offset, uint64_t size,
 		/*
 		 * The dbuf mutex (db_mtx) must be held when creating the ZIO
 		 * for the read. The BP returned from
-		 * dmu_buf_get_bp_from_dbuf() could be from a previous Direct
-		 * I/O write that is in the dbuf's dirty record. When
-		 * zio_read() is called, zio_create() will make a copy of the
-		 * BP. However, if zio_read() is called without the mutex
-		 * being held then the dirty record from the dbuf could be
-		 * freed in dbuf_write_done() resulting in garbage being set
-		 * for the zio BP.
+		 * dmu_buf_get_bp_from_dbuf() could be from a pending block
+		 * clone or a yet to be synced Direct I/O write that is in the
+		 * dbuf's dirty record. When zio_read() is called, zio_create()
+		 * will make a copy of the BP. However, if zio_read() is called
+		 * without the mutex being held then the dirty record from the
+		 * dbuf could be freed in dbuf_write_done() resulting in garbage
+		 * being set for the zio BP.
 		 */
 		zio_t *cio = zio_read(rio, spa, bp, mbuf, db->db.db_size,
 		    dmu_read_abd_done, NULL, ZIO_PRIORITY_SYNC_READ,
@@ -330,6 +335,11 @@ dmu_read_abd(dnode_t *dn, uint64_t offset, uint64_t size,
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 
 	return (zio_wait(rio));
+
+error:
+	dmu_buf_rele_array(dbp, numbufs, FTAG);
+	(void) zio_wait(rio);
+	return (err);
 }
 
 #ifdef _KERNEL

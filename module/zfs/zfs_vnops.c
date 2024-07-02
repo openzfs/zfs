@@ -202,25 +202,26 @@ zfs_access(znode_t *zp, int mode, int flag, cred_t *cr)
 	return (error);
 }
 
-zfs_direct_enabled_t
-zfs_check_direct_enabled(znode_t *zp, int ioflags, int *error)
-{
-	zfs_direct_enabled_t is_direct = ZFS_DIRECT_IO_DISABLED;
+int
+zfs_check_direct_enabled(znode_t *zp, int ioflags, boolean_t *is_direct)
+{;
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+	*is_direct = B_FALSE;
+	int error;
 
-	if ((*error = zfs_enter(zfsvfs, FTAG)) != 0)
-		return (ZFS_DIRECT_IO_ERR);
+	if ((error = zfs_enter(zfsvfs, FTAG)) != 0)
+		return (error);
 
 	if (ioflags & O_DIRECT &&
 	    zfsvfs->z_os->os_direct != ZFS_DIRECT_DISABLED) {
-		is_direct = ZFS_DIRECT_IO_ENABLED;
+		*is_direct = B_TRUE;
 	} else if (zfsvfs->z_os->os_direct == ZFS_DIRECT_ALWAYS) {
-		is_direct = ZFS_DIRECT_IO_ENABLED;
+		*is_direct = B_TRUE;
 	}
 
 	zfs_exit(zfsvfs, FTAG);
 
-	return (is_direct);
+	return (0);
 }
 
 /*

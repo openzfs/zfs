@@ -387,14 +387,13 @@ zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
 	struct inode *ip = kiocb->ki_filp->f_mapping->host;
 	struct file *filp = kiocb->ki_filp;
 	int flags = filp->f_flags | zfs_io_flags(kiocb);
-	int error = 0;
+	boolean_t is_direct;
 
-	zfs_direct_enabled_t direct =
-	    zfs_check_direct_enabled(ITOZ(ip), flags, &error);
+	int error = zfs_check_direct_enabled(ITOZ(ip), flags, &is_direct);
 
-	if (direct == ZFS_DIRECT_IO_ERR) {
+	if (error) {
 		return (-error);
-	} else if (direct == ZFS_DIRECT_IO_ENABLED) {
+	} else if (is_direct) {
 		ssize_t read = zpl_iter_read_direct(kiocb, to);
 
 		if (read >= 0 || read != -EAGAIN)
@@ -510,7 +509,7 @@ zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 	struct file *filp = kiocb->ki_filp;
 	int flags = filp->f_flags | zfs_io_flags(kiocb);
 	size_t count = 0;
-	int error = 0;
+	boolean_t is_direct;
 
 	ssize_t ret = zpl_generic_write_checks(kiocb, from, &count);
 	if (ret)
@@ -518,12 +517,11 @@ zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 
 	loff_t offset = kiocb->ki_pos;
 
-	zfs_direct_enabled_t direct =
-	    zfs_check_direct_enabled(ITOZ(ip), flags, &error);
+	ret = zfs_check_direct_enabled(ITOZ(ip), flags, &is_direct);
 
-	if (direct == ZFS_DIRECT_IO_ERR) {
-		return (-error);
-	} else if (direct == ZFS_DIRECT_IO_ENABLED) {
+	if (ret) {
+		return (-ret);
+	} else if (is_direct) {
 		ssize_t wrote = zpl_iter_write_direct(kiocb, from);
 
 		if (wrote >= 0 || wrote != -EAGAIN) {
@@ -638,18 +636,17 @@ zpl_aio_read(struct kiocb *kiocb, const struct iovec *iov,
 	int flags = filp->f_flags | zfs_io_flags(kiocb);
 	size_t count;
 	ssize_t ret;
-	int error = 0;
+	boolean_t is_direct;
 
 	ret = generic_segment_checks(iov, &nr_segs, &count, VERIFY_WRITE);
 	if (ret)
 		return (ret);
 
-	zfs_direct_enabled_t direct =
-	    zfs_check_direct_enabled(ITOZ(ip), flags, &error);
+	ret = zfs_check_direct_enabled(ITOZ(ip), flags, &is_direct);
 
-	if (direct == ZFS_DIRECT_IO_ERR) {
-		return (-error);
-	} else if (direct == ZFS_DIRECT_IO_ENABLED) {
+	if (ret) {
+		return (-ret);
+	} else if (is_direct) {
 		ssize_t read = zpl_aio_read_direct(kiocb, iov, nr_segs, pos);
 
 		if (read >= 0 || read != -EAGAIN)
@@ -754,7 +751,7 @@ zpl_aio_write(struct kiocb *kiocb, const struct iovec *iov,
 	size_t ocount;
 	size_t count;
 	ssize_t ret;
-	int error = 0;
+	boolean_t is_direct;
 
 	ret = generic_segment_checks(iov, &nr_segs, &ocount, VERIFY_READ);
 	if (ret)
@@ -768,12 +765,11 @@ zpl_aio_write(struct kiocb *kiocb, const struct iovec *iov,
 
 	kiocb->ki_pos = pos;
 
-	zfs_direct_enabled_t direct =
-	    zfs_check_direct_enabled(ITOZ(ip), flags, &error);
+	ret = zfs_check_direct_enabled(ITOZ(ip), flags, &is_direct);
 
-	if (direct == ZFS_DIRECT_IO_ERR) {
-		return (-error);
-	} else if (direct == ZFS_DIRECT_IO_ENABLED) {
+	if (ret) {
+		return (-ret);
+	} else if (is_direct) {
 		ssize_t wrote = zpl_aio_write_direct(kiocb, iov, nr_segs, pos);
 
 		if (wrote >= 0 || wrote != -EAGAIN) {
