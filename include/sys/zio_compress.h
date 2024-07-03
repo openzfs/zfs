@@ -55,6 +55,7 @@ enum zio_compress {
 	ZIO_COMPRESS_ZLE,
 	ZIO_COMPRESS_LZ4,
 	ZIO_COMPRESS_ZSTD,
+	ZIO_COMPRESS_SLACK,
 	ZIO_COMPRESS_FUNCTIONS
 };
 
@@ -169,6 +170,10 @@ extern int zfs_zle_decompress(abd_t *src, abd_t *dst, size_t s_len,
 extern size_t zfs_lz4_compress(abd_t *src, abd_t *dst, size_t s_len,
     size_t d_len, int level);
 extern int zfs_lz4_decompress(abd_t *src, abd_t *dst, size_t s_len,
+    size_t d_len, int level);
+extern size_t zfs_slack_compress(abd_t *src, abd_t *dst, size_t s_len,
+    size_t d_len, int level);
+extern int zfs_slack_decompress(abd_t *src, abd_t *dst, size_t s_len,
     size_t d_len, int level);
 
 /*

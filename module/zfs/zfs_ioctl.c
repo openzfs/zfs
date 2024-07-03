@@ -4840,6 +4840,20 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 				}
 				spa_close(spa, FTAG);
 			}
+
+			if (compval == ZIO_COMPRESS_SLACK) {
+				spa_t *spa;
+
+				if ((err = spa_open(dsname, &spa, FTAG)) != 0)
+					return (err);
+
+				if (!spa_feature_is_enabled(spa,
+				    SPA_FEATURE_SLACK_COMPRESS)) {
+					spa_close(spa, FTAG);
+					return (SET_ERROR(ENOTSUP));
+				}
+				spa_close(spa, FTAG);
+			}
 		}
 		break;
 

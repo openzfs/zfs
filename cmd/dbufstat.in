@@ -359,7 +359,8 @@ def get_compstring(c):
                     "ZIO_COMPRESS_GZIP_6",  "ZIO_COMPRESS_GZIP_7",
                     "ZIO_COMPRESS_GZIP_8",  "ZIO_COMPRESS_GZIP_9",
                     "ZIO_COMPRESS_ZLE",     "ZIO_COMPRESS_LZ4",
-                    "ZIO_COMPRESS_ZSTD",    "ZIO_COMPRESS_FUNCTION"]
+                    "ZIO_COMPRESS_ZSTD",    "ZIO_COMPRESS_SLACK",
+                    "ZIO_COMPRESS_FUNCTION"]
 
     # If "-rr" option is used, don't convert to string representation
     if raw > 1:
