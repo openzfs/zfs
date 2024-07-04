@@ -487,11 +487,9 @@ static void
 zio_decompress(zio_t *zio, abd_t *data, uint64_t size)
 {
 	if (zio->io_error == 0) {
-		void *tmp = abd_borrow_buf(data, size);
 		int ret = zio_decompress_data(BP_GET_COMPRESS(zio->io_bp),
-		    zio->io_abd, tmp, zio->io_size, size,
+		    zio->io_abd, data, zio->io_size, size,
 		    &zio->io_prop.zp_complevel);
-		abd_return_buf_copy(data, tmp, size);
 
 		if (zio_injection_enabled && ret == 0)
 			ret = zio_handle_fault_injection(zio, EINVAL);
@@ -538,17 +536,18 @@ zio_decrypt(zio_t *zio, abd_t *data, uint64_t size)
 			 * from the indirect block. We decompress it now and
 			 * throw away the result after we are finished.
 			 */
-			tmp = zio_buf_alloc(lsize);
+			abd_t *abd = abd_alloc_linear(lsize, B_TRUE);
 			ret = zio_decompress_data(BP_GET_COMPRESS(bp),
-			    zio->io_abd, tmp, zio->io_size, lsize,
+			    zio->io_abd, abd, zio->io_size, lsize,
 			    &zio->io_prop.zp_complevel);
 			if (ret != 0) {
+				abd_free(abd);
 				ret = SET_ERROR(EIO);
 				goto error;
 			}
-			ret = zio_crypt_do_indirect_mac_checksum(B_FALSE,
-			    tmp, lsize, BP_SHOULD_BYTESWAP(bp), mac);
-			zio_buf_free(tmp, lsize);
+			ret = zio_crypt_do_indirect_mac_checksum_abd(B_FALSE,
+			    abd, lsize, BP_SHOULD_BYTESWAP(bp), mac);
+			abd_free(abd);
 		} else {
 			ret = zio_crypt_do_indirect_mac_checksum_abd(B_FALSE,
 			    zio->io_abd, size, BP_SHOULD_BYTESWAP(bp), mac);
@@ -1866,30 +1865,32 @@ zio_write_compress(zio_t *zio)
 	/* If it's a compressed write that is not raw, compress the buffer. */
 	if (compress != ZIO_COMPRESS_OFF &&
 	    !(zio->io_flags & ZIO_FLAG_RAW_COMPRESS)) {
-		void *cbuf = NULL;
+		abd_t *cabd = NULL;
 		if (abd_cmp_zero(zio->io_abd, lsize) == 0)
 			psize = 0;
 		else if (compress == ZIO_COMPRESS_EMPTY)
 			psize = lsize;
 		else
-			psize = zio_compress_data(compress, zio->io_abd, &cbuf,
+			psize = zio_compress_data(compress, zio->io_abd, &cabd,
 			    lsize, zp->zp_complevel);
 		if (psize == 0) {
 			compress = ZIO_COMPRESS_OFF;
 		} else if (psize >= lsize) {
 			compress = ZIO_COMPRESS_OFF;
-			if (cbuf != NULL)
-				zio_buf_free(cbuf, lsize);
+			if (cabd != NULL)
+				abd_free(cabd);
 		} else if (!zp->zp_dedup && !zp->zp_encrypt &&
 		    psize <= BPE_PAYLOAD_SIZE &&
 		    zp->zp_level == 0 && !DMU_OT_HAS_FILL(zp->zp_type) &&
 		    spa_feature_is_enabled(spa, SPA_FEATURE_EMBEDDED_DATA)) {
+			void *cbuf = abd_borrow_buf_copy(cabd, lsize);
 			encode_embedded_bp_compressed(bp,
 			    cbuf, compress, lsize, psize);
 			BPE_SET_ETYPE(bp, BP_EMBEDDED_TYPE_DATA);
 			BP_SET_TYPE(bp, zio->io_prop.zp_type);
 			BP_SET_LEVEL(bp, zio->io_prop.zp_level);
-			zio_buf_free(cbuf, lsize);
+			abd_return_buf(cabd, cbuf, lsize);
+			abd_free(cabd);
 			BP_SET_LOGICAL_BIRTH(bp, zio->io_txg);
 			zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
 			ASSERT(spa_feature_is_active(spa,
@@ -1908,14 +1909,12 @@ zio_write_compress(zio_t *zio)
 			    psize);
 			if (rounded >= lsize) {
 				compress = ZIO_COMPRESS_OFF;
-				zio_buf_free(cbuf, lsize);
+				abd_free(cabd);
 				psize = lsize;
 			} else {
-				abd_t *cdata = abd_get_from_buf(cbuf, lsize);
-				abd_take_ownership_of_buf(cdata, B_TRUE);
-				abd_zero_off(cdata, psize, rounded - psize);
+				abd_zero_off(cabd, psize, rounded - psize);
 				psize = rounded;
-				zio_push_transform(zio, cdata,
+				zio_push_transform(zio, cabd,
 				    psize, lsize, NULL);
 			}
 		}
