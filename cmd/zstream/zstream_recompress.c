@@ -259,12 +259,13 @@ zstream_do_recompress(int argc, char *argv[])
 			/* Read and decompress the payload */
 			(void) sfread(cbuf, payload_size, stdin);
 			if (dtype != ZIO_COMPRESS_OFF) {
-				abd_t cabd;
+				abd_t cabd, dabd;
 				abd_get_from_buf_struct(&cabd,
 				    cbuf, payload_size);
-				if (zio_decompress_data(dtype, &cabd, dbuf,
-				    payload_size,
-				    MIN(bufsz, drrw->drr_logical_size),
+				abd_get_from_buf_struct(&dabd, dbuf,
+				    MIN(bufsz, drrw->drr_logical_size));
+				if (zio_decompress_data(dtype, &cabd, &dabd,
+				    payload_size, abd_get_size(&dabd),
 				    NULL) != 0) {
 					warnx("decompression type %d failed "
 					    "for ino %llu offset %llu",
@@ -274,17 +275,20 @@ zstream_do_recompress(int argc, char *argv[])
 					exit(4);
 				}
 				payload_size = drrw->drr_logical_size;
+				abd_free(&dabd);
 				abd_free(&cabd);
 				free(cbuf);
 			}
 
 			/* Recompress the payload */
 			if (ctype != ZIO_COMPRESS_OFF) {
-				abd_t dabd;
+				abd_t dabd, abd;
 				abd_get_from_buf_struct(&dabd,
 				    dbuf, drrw->drr_logical_size);
+				abd_t *pabd =
+				    abd_get_from_buf_struct(&abd, buf, bufsz);
 				payload_size = P2ROUNDUP(zio_compress_data(
-				    ctype, &dabd, (void **)&buf,
+				    ctype, &dabd, &pabd,
 				    drrw->drr_logical_size, level),
 				    SPA_MINBLOCKSIZE);
 				if (payload_size != drrw->drr_logical_size) {
@@ -296,6 +300,7 @@ zstream_do_recompress(int argc, char *argv[])
 					drrw->drr_compressiontype = 0;
 					drrw->drr_compressed_size = 0;
 				}
+				abd_free(&abd);
 				abd_free(&dabd);
 				free(dbuf);
 			} else {

@@ -1391,7 +1391,7 @@ do_corrective_recv(struct receive_writer_arg *rwa, struct drr_write *drrw,
 		abd_t *dabd = abd_alloc_linear(
 		    drrw->drr_logical_size, B_FALSE);
 		err = zio_decompress_data(drrw->drr_compressiontype,
-		    abd, abd_to_buf(dabd), abd_get_size(abd),
+		    abd, dabd, abd_get_size(abd),
 		    abd_get_size(dabd), NULL);
 
 		if (err != 0) {
@@ -1407,9 +1407,8 @@ do_corrective_recv(struct receive_writer_arg *rwa, struct drr_write *drrw,
 		/* Recompress the data */
 		abd_t *cabd = abd_alloc_linear(BP_GET_PSIZE(bp),
 		    B_FALSE);
-		void *buf = abd_to_buf(cabd);
 		uint64_t csize = zio_compress_data(BP_GET_COMPRESS(bp),
-		    abd, &buf, abd_get_size(abd),
+		    abd, &cabd, abd_get_size(abd),
 		    rwa->os->os_complevel);
 		abd_zero_off(cabd, csize, BP_GET_PSIZE(bp) - csize);
 		/* Swap in newly compressed data into the abd */
@@ -2221,7 +2220,7 @@ flush_write_batch_impl(struct receive_writer_arg *rwa)
 
 				err = zio_decompress_data(
 				    drrw->drr_compressiontype,
-				    abd, abd_to_buf(decomp_abd),
+				    abd, decomp_abd,
 				    abd_get_size(abd),
 				    abd_get_size(decomp_abd), NULL);
 
