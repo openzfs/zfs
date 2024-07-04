@@ -82,9 +82,11 @@ ddt_zap_decompress(uchar_t *src, void *dst, size_t s_len, size_t d_len)
 		return;
 	}
 
-	abd_t sabd;
+	abd_t sabd, dabd;
 	abd_get_from_buf_struct(&sabd, src, s_len);
-	VERIFY0(zio_decompress_data(cpfunc, &sabd, dst, s_len, d_len, NULL));
+	abd_get_from_buf_struct(&dabd, dst, d_len);
+	VERIFY0(zio_decompress_data(cpfunc, &sabd, &dabd, s_len, d_len, NULL));
+	abd_free(&dabd);
 	abd_free(&sabd);
 
 	if (((version & DDT_ZAP_COMPRESS_BYTEORDER_MASK) != 0) !=

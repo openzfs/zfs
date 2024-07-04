@@ -137,7 +137,7 @@ zio_compress_zeroed_cb(void *data, size_t len, void *private)
 }
 
 size_t
-zio_compress_data(enum zio_compress c, abd_t *src, void **dst, size_t s_len,
+zio_compress_data(enum zio_compress c, abd_t *src, abd_t **dst, size_t s_len,
     uint8_t level)
 {
 	size_t c_len, d_len;
@@ -176,12 +176,9 @@ zio_compress_data(enum zio_compress c, abd_t *src, void **dst, size_t s_len,
 	}
 
 	if (*dst == NULL)
-		*dst = zio_buf_alloc(s_len);
+		*dst = abd_alloc_sametype(src, s_len);
 
-	abd_t dabd;
-	abd_get_from_buf_struct(&dabd, dst, d_len);
-	c_len = ci->ci_compress(src, &dabd, s_len, d_len, complevel);
-	abd_free(&dabd);
+	c_len = ci->ci_compress(src, *dst, s_len, d_len, complevel);
 
 	if (c_len > d_len)
 		return (s_len);
@@ -191,23 +188,18 @@ zio_compress_data(enum zio_compress c, abd_t *src, void **dst, size_t s_len,
 }
 
 int
-zio_decompress_data(enum zio_compress c, abd_t *src, void *dst,
+zio_decompress_data(enum zio_compress c, abd_t *src, abd_t *dst,
     size_t s_len, size_t d_len, uint8_t *level)
 {
 	zio_compress_info_t *ci = &zio_compress_table[c];
 	if ((uint_t)c >= ZIO_COMPRESS_FUNCTIONS || ci->ci_decompress == NULL)
 		return (SET_ERROR(EINVAL));
 
-	abd_t dabd;
-	abd_get_from_buf_struct(&dabd, dst, d_len);
-
 	int err;
 	if (ci->ci_decompress_level != NULL && level != NULL)
-		err = ci->ci_decompress_level(src, &dabd, s_len, d_len, level);
+		err = ci->ci_decompress_level(src, dst, s_len, d_len, level);
 	else
-		err = ci->ci_decompress(src, &dabd, s_len, d_len, ci->ci_level);
-
-	abd_free(&dabd);
+		err = ci->ci_decompress(src, dst, s_len, d_len, ci->ci_level);
 
 	/*
 	 * Decompression shouldn't fail, because we've already verified
