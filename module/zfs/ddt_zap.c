@@ -51,6 +51,7 @@ ddt_zap_compress(const void *src, uchar_t *dst, size_t s_len, size_t d_len)
 
 	ASSERT3U(d_len, >=, s_len + 1);	/* no compression plus version byte */
 
+	/* Call compress function directly to avoid hole detection. */
 	c_len = ci->ci_compress((void *)src, dst, s_len, d_len - 1,
 	    ci->ci_level);
 
@@ -71,12 +72,16 @@ ddt_zap_decompress(uchar_t *src, void *dst, size_t s_len, size_t d_len)
 {
 	uchar_t version = *src++;
 	int cpfunc = version & DDT_ZAP_COMPRESS_FUNCTION_MASK;
-	zio_compress_info_t *ci = &zio_compress_table[cpfunc];
 
-	if (ci->ci_decompress != NULL)
-		(void) ci->ci_decompress(src, dst, s_len, d_len, ci->ci_level);
-	else
+	if (zio_compress_table[cpfunc].ci_decompress == NULL) {
 		memcpy(dst, src, d_len);
+		return;
+	}
+
+	abd_t sabd;
+	abd_get_from_buf_struct(&sabd, src, s_len);
+	VERIFY0(zio_decompress_data(cpfunc, &sabd, dst, s_len, d_len, NULL));
+	abd_free(&sabd);
 
 	if (((version & DDT_ZAP_COMPRESS_BYTEORDER_MASK) != 0) !=
 	    (ZFS_HOST_BYTEORDER != 0))
