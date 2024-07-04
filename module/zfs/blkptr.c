@@ -142,8 +142,11 @@ decode_embedded_bp(const blkptr_t *bp, void *buf, int buflen)
 	if (BP_GET_COMPRESS(bp) != ZIO_COMPRESS_OFF) {
 		uint8_t dstbuf[BPE_PAYLOAD_SIZE];
 		decode_embedded_bp_compressed(bp, dstbuf);
-		VERIFY0(zio_decompress_data_buf(BP_GET_COMPRESS(bp),
-		    dstbuf, buf, psize, buflen, NULL));
+		abd_t dstabd;
+		abd_get_from_buf_struct(&dstabd, dstbuf, psize);
+		VERIFY0(zio_decompress_data(BP_GET_COMPRESS(bp), &dstabd,
+		    buf, psize, buflen, NULL));
+		abd_free(&dstabd);
 	} else {
 		ASSERT3U(lsize, ==, psize);
 		decode_embedded_bp_compressed(bp, buf);
