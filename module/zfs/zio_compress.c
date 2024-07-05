@@ -135,12 +135,8 @@ zio_compress_data(enum zio_compress c, abd_t *src, abd_t **dst, size_t s_len,
 	uint8_t complevel;
 	zio_compress_info_t *ci = &zio_compress_table[c];
 
-	ASSERT3U(c, <, ZIO_COMPRESS_FUNCTIONS);
 	ASSERT3U(ci->ci_compress, !=, NULL);
 	ASSERT3U(s_len, >, 0);
-
-	/* Compress at least 12.5% */
-	d_len = s_len - (s_len >> 3);
 
 	complevel = ci->ci_level;
 
@@ -159,6 +155,9 @@ zio_compress_data(enum zio_compress c, abd_t *src, abd_t **dst, size_t s_len,
 
 	if (*dst == NULL)
 		*dst = abd_alloc_sametype(src, s_len);
+
+	/* Compress at least 12.5%, but limit to the size of the dest abd. */
+	d_len = MIN(s_len - (s_len >> 3), abd_get_size(*dst));
 
 	c_len = ci->ci_compress(src, *dst, s_len, d_len, complevel);
 
