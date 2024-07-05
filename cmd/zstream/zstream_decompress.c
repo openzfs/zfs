@@ -22,6 +22,8 @@
 /*
  * Copyright 2022 Axcient.  All rights reserved.
  * Use is subject to license terms.
+ *
+ * Copyright (c) 2024, Klara, Inc.
  */
 
 #include <err.h>
@@ -257,83 +259,64 @@ zstream_do_decompress(int argc, char *argv[])
 			ENTRY e = {.key = key};
 
 			p = hsearch(e, FIND);
-			if (p != NULL) {
-				zio_decompress_func_t *xfunc = NULL;
-				switch ((enum zio_compress)(intptr_t)p->data) {
-				case ZIO_COMPRESS_OFF:
-					xfunc = NULL;
-					break;
-				case ZIO_COMPRESS_LZJB:
-					xfunc = lzjb_decompress;
-					break;
-				case ZIO_COMPRESS_GZIP_1:
-					xfunc = gzip_decompress;
-					break;
-				case ZIO_COMPRESS_ZLE:
-					xfunc = zle_decompress;
-					break;
-				case ZIO_COMPRESS_LZ4:
-					xfunc = lz4_decompress_zfs;
-					break;
-				case ZIO_COMPRESS_ZSTD:
-					xfunc = zfs_zstd_decompress;
-					break;
-				default:
-					assert(B_FALSE);
-				}
-
-
-				/*
-				 * Read and decompress the block
-				 */
-				char *lzbuf = safe_calloc(payload_size);
-				(void) sfread(lzbuf, payload_size, stdin);
-				if (xfunc == NULL) {
-					memcpy(buf, lzbuf, payload_size);
-					drrw->drr_compressiontype =
-					    ZIO_COMPRESS_OFF;
-					if (verbose)
-						fprintf(stderr, "Resetting "
-						    "compression type to off "
-						    "for ino %llu offset "
-						    "%llu\n",
-						    (u_longlong_t)
-						    drrw->drr_object,
-						    (u_longlong_t)
-						    drrw->drr_offset);
-				} else if (0 != xfunc(lzbuf, buf,
-				    payload_size, payload_size, 0)) {
-					/*
-					 * The block must not be compressed,
-					 * at least not with this compression
-					 * type, possibly because it gets
-					 * written multiple times in this
-					 * stream.
-					 */
-					warnx("decompression failed for "
-					    "ino %llu offset %llu",
-					    (u_longlong_t)drrw->drr_object,
-					    (u_longlong_t)drrw->drr_offset);
-					memcpy(buf, lzbuf, payload_size);
-				} else if (verbose) {
-					drrw->drr_compressiontype =
-					    ZIO_COMPRESS_OFF;
-					fprintf(stderr, "successfully "
-					    "decompressed ino %llu "
-					    "offset %llu\n",
-					    (u_longlong_t)drrw->drr_object,
-					    (u_longlong_t)drrw->drr_offset);
-				} else {
-					drrw->drr_compressiontype =
-					    ZIO_COMPRESS_OFF;
-				}
-				free(lzbuf);
-			} else {
+			if (p == NULL) {
 				/*
 				 * Read the contents of the block unaltered
 				 */
 				(void) sfread(buf, payload_size, stdin);
+				break;
 			}
+
+			/*
+			 * Read and decompress the block
+			 */
+			enum zio_compress c =
+			    (enum zio_compress)(intptr_t)p->data;
+
+			if (c == ZIO_COMPRESS_OFF) {
+				(void) sfread(buf, payload_size, stdin);
+				drrw->drr_compressiontype = ZIO_COMPRESS_OFF;
+				if (verbose)
+					fprintf(stderr,
+					    "Resetting compression type to "
+					    "off for ino %llu offset %llu\n",
+					    (u_longlong_t)drrw->drr_object,
+					    (u_longlong_t)drrw->drr_offset);
+				break;
+			}
+
+			char *lzbuf = safe_calloc(payload_size);
+			(void) sfread(lzbuf, payload_size, stdin);
+
+			abd_t sabd;
+			abd_get_from_buf_struct(&sabd, lzbuf, payload_size);
+			int err = zio_decompress_data(c, &sabd, buf,
+			    payload_size, payload_size, NULL);
+			abd_free(&sabd);
+
+			if (err != 0) {
+				/*
+				 * The block must not be compressed, at least
+				 * not with this compression type, possibly
+				 * because it gets written multiple times in
+				 * this stream.
+				 */
+				warnx("decompression failed for "
+				    "ino %llu offset %llu",
+				    (u_longlong_t)drrw->drr_object,
+				    (u_longlong_t)drrw->drr_offset);
+				memcpy(buf, lzbuf, payload_size);
+			} else if (verbose) {
+				drrw->drr_compressiontype = ZIO_COMPRESS_OFF;
+				fprintf(stderr, "successfully decompressed "
+				    "ino %llu offset %llu\n",
+				    (u_longlong_t)drrw->drr_object,
+				    (u_longlong_t)drrw->drr_offset);
+			} else {
+				drrw->drr_compressiontype = ZIO_COMPRESS_OFF;
+			}
+
+			free(lzbuf);
 			break;
 		}
 
