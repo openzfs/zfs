@@ -1788,23 +1788,35 @@ zfs_setattr_dir(znode_t *dzp)
 			    &gid, sizeof (gid));
 		}
 
-		if (zp->z_projid != dzp->z_projid) {
+
+		uint64_t projid = dzp->z_projid;
+		if (zp->z_projid != projid) {
 			if (!(zp->z_pflags & ZFS_PROJID)) {
-				zp->z_pflags |= ZFS_PROJID;
-				SA_ADD_BULK_ATTR(bulk, count,
-				    SA_ZPL_FLAGS(zfsvfs), NULL, &zp->z_pflags,
-				    sizeof (zp->z_pflags));
+				err = sa_add_projid(zp->z_sa_hdl, tx, projid);
+				if (unlikely(err == EEXIST)) {
+					err = 0;
+				} else if (err != 0) {
+					goto sa_add_projid_err;
+				} else {
+					projid = ZFS_INVALID_PROJID;
+				}
 			}
 
-			zp->z_projid = dzp->z_projid;
-			SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_PROJID(zfsvfs),
-			    NULL, &zp->z_projid, sizeof (zp->z_projid));
+			if (projid != ZFS_INVALID_PROJID) {
+				zp->z_projid = projid;
+				SA_ADD_BULK_ATTR(bulk, count,
+				    SA_ZPL_PROJID(zfsvfs), NULL, &zp->z_projid,
+				    sizeof (zp->z_projid));
+			}
 		}
 
+sa_add_projid_err:
 		mutex_exit(&dzp->z_lock);
 
 		if (likely(count > 0)) {
 			err = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
+			dmu_tx_commit(tx);
+		} else if (projid == ZFS_INVALID_PROJID) {
 			dmu_tx_commit(tx);
 		} else {
 			dmu_tx_abort(tx);
