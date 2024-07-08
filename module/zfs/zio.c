@@ -1854,8 +1854,13 @@ zio_write_compress(zio_t *zio)
 	if (compress != ZIO_COMPRESS_OFF &&
 	    !(zio->io_flags & ZIO_FLAG_RAW_COMPRESS)) {
 		void *cbuf = NULL;
-		psize = zio_compress_data(compress, zio->io_abd, &cbuf, lsize,
-		    zp->zp_complevel);
+		if (abd_cmp_zero(zio->io_abd, lsize) == 0)
+			psize = 0;
+		else if (compress == ZIO_COMPRESS_EMPTY)
+			psize = lsize;
+		else
+			psize = zio_compress_data(compress, zio->io_abd, &cbuf,
+			    lsize, zp->zp_complevel);
 		if (psize == 0) {
 			compress = ZIO_COMPRESS_OFF;
 		} else if (psize >= lsize) {
@@ -1919,10 +1924,12 @@ zio_write_compress(zio_t *zio)
 		 * receive, we must check whether the block can be compressed
 		 * to a hole.
 		 */
-		psize = zio_compress_data(ZIO_COMPRESS_EMPTY,
-		    zio->io_abd, NULL, lsize, zp->zp_complevel);
-		if (psize == 0 || psize >= lsize)
+		if (abd_cmp_zero(zio->io_abd, lsize) == 0) {
+			psize = 0;
 			compress = ZIO_COMPRESS_OFF;
+		} else {
+			psize = lsize;
+		}
 	} else if (zio->io_flags & ZIO_FLAG_RAW_COMPRESS &&
 	    !(zio->io_flags & ZIO_FLAG_RAW_ENCRYPT)) {
 		/*
