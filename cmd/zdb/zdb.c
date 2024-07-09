@@ -9186,7 +9186,7 @@ main(int argc, char **argv)
 		char *pname = strdup(target);
 		const char *value;
 		nvlist_t *pnvl = NULL;
-		nvlist_t *vnvl;
+		nvlist_t *vnvl = NULL;
 
 		if (strpbrk(pname, "/@") != NULL)
 			*strpbrk(pname, "/@") = '\0';
