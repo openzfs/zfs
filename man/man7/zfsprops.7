@@ -38,7 +38,7 @@
 .\" Copyright (c) 2019, Kjeld Schouten-Lebbing
 .\" Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
 .\"
-.Dd August 8, 2023
+.Dd June 29, 2024
 .Dt ZFSPROPS 7
 .Os
 .
@@ -1726,6 +1726,18 @@ Please note that the options are comma-separated, unlike those found in
 .Xr exports 5 .
 This is done to negate the need for quoting, as well as to make parsing
 with scripts easier.
+.Pp
+For
+.Fx ,
+there may be multiple sets of options separated by semicolon(s).
+Each set of options must apply to different hosts or networks and each
+set of options will create a separate line for
+.Xr exports 5 .
+Any semicolon separated option set that consists entirely of whitespace
+will be ignored.
+This use of semicolons is only for
+.Fx
+at this time.
 .Pp
 See
 .Xr exports 5
