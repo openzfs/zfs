@@ -25,7 +25,7 @@
  * Rewritten for Linux by Brian Behlendorf <behlendorf1@llnl.gov>.
  * LLNL-CODE-403049.
  * Copyright (c) 2012, 2019 by Delphix. All rights reserved.
- * Copyright (c) 2023, 2024, Klara Inc.
+ * Copyright (c) 2023, 2024, 2025, Klara, Inc.
  */
 
 #include <sys/zfs_context.h>
@@ -966,234 +966,6 @@ vdev_disk_io_rw(zio_t *zio)
 	return (0);
 }
 
-/* ========== */
-
-/*
- * This is the classic, battle-tested BIO submission code. Until we're totally
- * sure that the new code is safe and correct in all cases, this will remain
- * available and can be enabled by setting zfs_vdev_disk_classic=1 at module
- * load time.
- *
- * These functions have been renamed to vdev_classic_* to make it clear what
- * they belong to, but their implementations are unchanged.
- */
-
-/*
- * Virtual device vector for disks.
- */
-typedef struct dio_request {
-	zio_t			*dr_zio;	/* Parent ZIO */
-	atomic_t		dr_ref;		/* References */
-	int			dr_error;	/* Bio error */
-	int			dr_bio_count;	/* Count of bio's */
-	struct bio		*dr_bio[];	/* Attached bio's */
-} dio_request_t;
-
-static dio_request_t *
-vdev_classic_dio_alloc(int bio_count)
-{
-	dio_request_t *dr = kmem_zalloc(sizeof (dio_request_t) +
-	    sizeof (struct bio *) * bio_count, KM_SLEEP);
-	atomic_set(&dr->dr_ref, 0);
-	dr->dr_bio_count = bio_count;
-	dr->dr_error = 0;
-
-	for (int i = 0; i < dr->dr_bio_count; i++)
-		dr->dr_bio[i] = NULL;
-
-	return (dr);
-}
-
-static void
-vdev_classic_dio_free(dio_request_t *dr)
-{
-	int i;
-
-	for (i = 0; i < dr->dr_bio_count; i++)
-		if (dr->dr_bio[i])
-			bio_put(dr->dr_bio[i]);
-
-	kmem_free(dr, sizeof (dio_request_t) +
-	    sizeof (struct bio *) * dr->dr_bio_count);
-}
-
-static void
-vdev_classic_dio_get(dio_request_t *dr)
-{
-	atomic_inc(&dr->dr_ref);
-}
-
-static void
-vdev_classic_dio_put(dio_request_t *dr)
-{
-	int rc = atomic_dec_return(&dr->dr_ref);
-
-	/*
-	 * Free the dio_request when the last reference is dropped and
-	 * ensure zio_interpret is called only once with the correct zio
-	 */
-	if (rc == 0) {
-		zio_t *zio = dr->dr_zio;
-		int error = dr->dr_error;
-
-		vdev_classic_dio_free(dr);
-
-		if (zio) {
-			zio->io_error = error;
-			ASSERT3S(zio->io_error, >=, 0);
-			if (zio->io_error)
-				vdev_disk_error(zio);
-
-			zio_delay_interrupt(zio);
-		}
-	}
-}
-
-static void
-vdev_classic_physio_completion(struct bio *bio)
-{
-	dio_request_t *dr = bio->bi_private;
-
-	if (dr->dr_error == 0) {
-		dr->dr_error = bi_status_to_errno(bio->bi_status);
-	}
-
-	/* Drop reference acquired by vdev_classic_physio */
-	vdev_classic_dio_put(dr);
-}
-
-static inline unsigned int
-vdev_classic_bio_max_segs(zio_t *zio, int bio_size, uint64_t abd_offset)
-{
-	unsigned long nr_segs = abd_nr_pages_off(zio->io_abd,
-	    bio_size, abd_offset);
-
-#ifdef HAVE_BIO_MAX_SEGS
-	return (bio_max_segs(nr_segs));
-#else
-	return (MIN(nr_segs, BIO_MAX_PAGES));
-#endif
-}
-
-static int
-vdev_classic_physio(zio_t *zio)
-{
-	vdev_t *v = zio->io_vd;
-	vdev_disk_t *vd = v->vdev_tsd;
-	struct block_device *bdev = BDH_BDEV(vd->vd_bdh);
-	size_t io_size = zio->io_size;
-	uint64_t io_offset = zio->io_offset;
-	int rw = zio->io_type == ZIO_TYPE_READ ? READ : WRITE;
-	int flags = 0;
-
-	dio_request_t *dr;
-	uint64_t abd_offset;
-	uint64_t bio_offset;
-	int bio_size;
-	int bio_count = 16;
-	int error = 0;
-	struct blk_plug plug;
-	unsigned short nr_vecs;
-
-	/*
-	 * Accessing outside the block device is never allowed.
-	 */
-	if (io_offset + io_size > bdev_capacity(bdev)) {
-		vdev_dbgmsg(zio->io_vd,
-		    "Illegal access %llu size %llu, device size %llu",
-		    (u_longlong_t)io_offset,
-		    (u_longlong_t)io_size,
-		    (u_longlong_t)bdev_capacity(bdev));
-		return (SET_ERROR(EIO));
-	}
-
-retry:
-	dr = vdev_classic_dio_alloc(bio_count);
-
-	if (!(zio->io_flags & (ZIO_FLAG_IO_RETRY | ZIO_FLAG_TRYHARD)) &&
-	    zio->io_vd->vdev_failfast == B_TRUE) {
-		bio_set_flags_failfast(bdev, &flags, zfs_vdev_failfast_mask & 1,
-		    zfs_vdev_failfast_mask & 2, zfs_vdev_failfast_mask & 4);
-	}
-
-	dr->dr_zio = zio;
-
-	/*
-	 * Since bio's can have up to BIO_MAX_PAGES=256 iovec's, each of which
-	 * is at least 512 bytes and at most PAGESIZE (typically 4K), one bio
-	 * can cover at least 128KB and at most 1MB.  When the required number
-	 * of iovec's exceeds this, we are forced to break the IO in multiple
-	 * bio's and wait for them all to complete.  This is likely if the
-	 * recordsize property is increased beyond 1MB.  The default
-	 * bio_count=16 should typically accommodate the maximum-size zio of
-	 * 16MB.
-	 */
-
-	abd_offset = 0;
-	bio_offset = io_offset;
-	bio_size = io_size;
-	for (int i = 0; i <= dr->dr_bio_count; i++) {
-
-		/* Finished constructing bio's for given buffer */
-		if (bio_size <= 0)
-			break;
-
-		/*
-		 * If additional bio's are required, we have to retry, but
-		 * this should be rare - see the comment above.
-		 */
-		if (dr->dr_bio_count == i) {
-			vdev_classic_dio_free(dr);
-			bio_count *= 2;
-			goto retry;
-		}
-
-		nr_vecs = vdev_classic_bio_max_segs(zio, bio_size, abd_offset);
-		dr->dr_bio[i] = vdev_bio_alloc(bdev, GFP_NOIO, nr_vecs);
-		if (unlikely(dr->dr_bio[i] == NULL)) {
-			vdev_classic_dio_free(dr);
-			return (SET_ERROR(ENOMEM));
-		}
-
-		/* Matching put called by vdev_classic_physio_completion */
-		vdev_classic_dio_get(dr);
-
-		BIO_BI_SECTOR(dr->dr_bio[i]) = bio_offset >> 9;
-		dr->dr_bio[i]->bi_end_io = vdev_classic_physio_completion;
-		dr->dr_bio[i]->bi_private = dr;
-		bio_set_op_attrs(dr->dr_bio[i], rw, flags);
-
-		/* Remaining size is returned to become the new size */
-		bio_size = abd_bio_map_off(dr->dr_bio[i], zio->io_abd,
-		    bio_size, abd_offset);
-
-		/* Advance in buffer and construct another bio if needed */
-		abd_offset += BIO_BI_SIZE(dr->dr_bio[i]);
-		bio_offset += BIO_BI_SIZE(dr->dr_bio[i]);
-	}
-
-	/* Extra reference to protect dio_request during vdev_submit_bio */
-	vdev_classic_dio_get(dr);
-
-	if (dr->dr_bio_count > 1)
-		blk_start_plug(&plug);
-
-	/* Submit all bio's associated with this dio */
-	for (int i = 0; i < dr->dr_bio_count; i++) {
-		if (dr->dr_bio[i])
-			vdev_submit_bio(dr->dr_bio[i]);
-	}
-
-	if (dr->dr_bio_count > 1)
-		blk_finish_plug(&plug);
-
-	vdev_classic_dio_put(dr);
-
-	return (error);
-}
-
-/* ========== */
-
 static void
 vdev_disk_io_flush_completion(struct bio *bio)
 {
@@ -1339,8 +1111,6 @@ vdev_disk_io_trim(zio_t *zio)
 	return (0);
 }
 
-int (*vdev_disk_io_rw_fn)(zio_t *zio) = NULL;
-
 static void
 vdev_disk_io_start(zio_t *zio)
 {
@@ -1413,7 +1183,7 @@ vdev_disk_io_start(zio_t *zio)
 	case ZIO_TYPE_READ:
 	case ZIO_TYPE_WRITE:
 		zio->io_target_timestamp = zio_handle_io_delay(zio);
-		error = vdev_disk_io_rw_fn(zio);
+		error = vdev_disk_io_rw(zio);
 		rw_exit(&vd->vd_lock);
 		if (error) {
 			zio->io_error = error;
@@ -1508,49 +1278,8 @@ vdev_disk_rele(vdev_t *vd)
 	/* XXX: Implement me as a vnode rele for the device */
 }
 
-/*
- * BIO submission method. See comment above about vdev_classic.
- * Set zfs_vdev_disk_classic=0 for new, =1 for classic
- */
-static uint_t zfs_vdev_disk_classic = 0;	/* default new */
-
-/* Set submission function from module parameter */
-static int
-vdev_disk_param_set_classic(const char *buf, zfs_kernel_param_t *kp)
-{
-	int err = param_set_uint(buf, kp);
-	if (err < 0)
-		return (SET_ERROR(err));
-
-	vdev_disk_io_rw_fn =
-	    zfs_vdev_disk_classic ? vdev_classic_physio : vdev_disk_io_rw;
-
-	printk(KERN_INFO "ZFS: forcing %s BIO submission\n",
-	    zfs_vdev_disk_classic ? "classic" : "new");
-
-	return (0);
-}
-
-/*
- * At first use vdev use, set the submission function from the default value if
- * it hasn't been set already.
- */
-static int
-vdev_disk_init(spa_t *spa, nvlist_t *nv, void **tsd)
-{
-	(void) spa;
-	(void) nv;
-	(void) tsd;
-
-	if (vdev_disk_io_rw_fn == NULL)
-		vdev_disk_io_rw_fn = zfs_vdev_disk_classic ?
-		    vdev_classic_physio : vdev_disk_io_rw;
-
-	return (0);
-}
-
 vdev_ops_t vdev_disk_ops = {
-	.vdev_op_init = vdev_disk_init,
+	.vdev_op_init = NULL,
 	.vdev_op_fini = NULL,
 	.vdev_op_open = vdev_disk_open,
 	.vdev_op_close = vdev_disk_close,
@@ -1624,7 +1353,3 @@ ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, failfast_mask, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_vdev_disk, zfs_vdev_disk_, max_segs, UINT, ZMOD_RW,
 	"Maximum number of data segments to add to an IO request (min 4)");
-
-ZFS_MODULE_PARAM_CALL(zfs_vdev_disk, zfs_vdev_disk_, classic,
-    vdev_disk_param_set_classic, param_get_uint, ZMOD_RD,
-	"Use classic BIO submission method");
