@@ -153,6 +153,10 @@ tests = [ 'clean_mirror_001_pos', 'clean_mirror_002_pos',
     'clean_mirror_003_pos', 'clean_mirror_004_pos']
 tags = ['functional', 'clean_mirror']
 
+[tests/functional/cli_root/json]
+tests = ['json_sanity']
+tags = ['functional', 'cli_root', 'json']
+
 [tests/functional/cli_root/zinject]
 tests = ['zinject_args']
 pre =
