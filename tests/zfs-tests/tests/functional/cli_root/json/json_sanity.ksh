@@ -1,0 +1,57 @@
+#!/bin/ksh -p
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or https://opensource.org/licenses/CDDL-1.0.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+
+# Copyright (c) 2024 by Lawrence Livermore National Security, LLC.
+
+. $STF_SUITE/include/libtest.shlib
+
+#
+# DESCRIPTION:
+# Basic sanity check for valid JSON from zfs & zpool commands.
+#
+# STRATEGY:
+# 1. Run different zfs/zpool -j commands and check for valid JSON
+
+list=(
+    "zpool status -j -g --json-int --json-flat-vdevs --json-pool-key-guid"
+    "zpool status -p -j -g --json-int --json-flat-vdevs --json-pool-key-guid"
+    "zpool status -j -c upath"
+    "zpool status -j"
+    "zpool status -j testpool1"
+    "zpool list -j"
+    "zpool list -j -g"
+    "zpool list -j -o fragmentation"
+    "zpool get -j size"
+    "zpool get -j all"
+    "zpool version -j"
+    "zfs list -j"
+    "zfs list -j testpool1"
+    "zfs get -j all"
+    "zfs get -j available"
+    "zfs mount -j"
+    "zfs version -j"
+)
+
+for cmd in "${list[@]}" ; do
+    log_must eval "$cmd | jq > /dev/null" 
+done
+
+log_pass "zpool and zfs commands outputted valid JSON"
