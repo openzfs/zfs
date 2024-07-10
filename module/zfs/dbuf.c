@@ -2705,6 +2705,9 @@ void
 dmu_buf_will_clone(dmu_buf_t *db_fake, dmu_tx_t *tx)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
+	ASSERT0(db->db_level);
+	ASSERT(db->db_blkid != DMU_BONUS_BLKID);
+	ASSERT(db->db.db_object != DMU_META_DNODE_OBJECT);
 
 	/*
 	 * Block cloning: We are going to clone into this block, so undirty
@@ -2716,10 +2719,21 @@ dmu_buf_will_clone(dmu_buf_t *db_fake, dmu_tx_t *tx)
 	VERIFY(!dbuf_undirty(db, tx));
 	ASSERT0P(dbuf_find_dirty_eq(db, tx->tx_txg));
 	if (db->db_buf != NULL) {
-		arc_buf_destroy(db->db_buf, db);
+		/*
+		 * If there is an associated ARC buffer with this dbuf we can
+		 * only destroy it if the previous dirty record does not
+		 * reference it.
+		 */
+		dbuf_dirty_record_t *dr = list_head(&db->db_dirty_records);
+		if (dr == NULL || dr->dt.dl.dr_data != db->db_buf)
+			arc_buf_destroy(db->db_buf, db);
+
 		db->db_buf = NULL;
 		dbuf_clear_data(db);
 	}
+
+	ASSERT3P(db->db_buf, ==, NULL);
+	ASSERT3P(db->db.db_data, ==, NULL);
 
 	db->db_state = DB_NOFILL;
 	DTRACE_SET_STATE(db, "allocating NOFILL buffer for clone");
