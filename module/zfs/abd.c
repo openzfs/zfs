@@ -603,13 +603,11 @@ abd_get_zeros(size_t size)
 }
 
 /*
- * Allocate a linear ABD structure for buf.
+ * Create a linear ABD for an existing buf.
  */
-abd_t *
-abd_get_from_buf(void *buf, size_t size)
+static abd_t *
+abd_get_from_buf_impl(abd_t *abd, void *buf, size_t size)
 {
-	abd_t *abd = abd_alloc_struct(0);
-
 	VERIFY3U(size, <=, SPA_MAXBLOCKSIZE);
 
 	/*
@@ -623,6 +621,20 @@ abd_get_from_buf(void *buf, size_t size)
 	ABD_LINEAR_BUF(abd) = buf;
 
 	return (abd);
+}
+
+abd_t *
+abd_get_from_buf(void *buf, size_t size)
+{
+	abd_t *abd = abd_alloc_struct(0);
+	return (abd_get_from_buf_impl(abd, buf, size));
+}
+
+abd_t *
+abd_get_from_buf_struct(abd_t *abd, void *buf, size_t size)
+{
+	abd_init_struct(abd);
+	return (abd_get_from_buf_impl(abd, buf, size));
 }
 
 /*
