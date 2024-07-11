@@ -1154,11 +1154,16 @@ fill_vdev_info(nvlist_t *list, zpool_handle_t *zhp, char *name,
 	vdev_stat_t *vs;
 	uint_t c;
 	nvlist_t *nvdev;
+	nvlist_t *nvdev_parent = NULL;
+	char *_name;
 
 	if (strcmp(name, zpool_get_name(zhp)) != 0)
-		nvdev = zpool_find_vdev(zhp, name, NULL, &l2c, NULL);
+		_name = name;
 	else
-		nvdev = zpool_find_vdev(zhp, "root-0", NULL, &l2c, NULL);
+		_name = (char *)"root-0";
+
+	nvdev = zpool_find_vdev(zhp, _name, NULL, &l2c, NULL);
+
 	fnvlist_add_string(list, "name", name);
 	if (addtype)
 		fnvlist_add_string(list, "type", "VDEV");
@@ -1203,8 +1208,32 @@ fill_vdev_info(nvlist_t *list, zpool_handle_t *zhp, char *name,
 			    ZPOOL_CONFIG_ALLOCATION_BIAS, &bias);
 			if (bias != NULL)
 				fnvlist_add_string(list, "class", bias);
-			else
-				fnvlist_add_string(list, "class", "normal");
+			else {
+				nvdev_parent = NULL;
+				nvdev_parent = zpool_find_parent_vdev(zhp,
+				    _name, NULL, NULL, NULL);
+
+				/*
+				 * With a mirrored special device, the parent
+				 * "mirror" vdev will have
+				 * ZPOOL_CONFIG_ALLOCATION_BIAS set to "special"
+				 * not the leaf vdevs.  If we're a leaf vdev
+				 * in that case we need to look at our parent
+				 * to see if they're "special" to know if we
+				 * are "special" too.
+				 */
+				if (nvdev_parent) {
+					(void) nvlist_lookup_string(
+					    nvdev_parent,
+					    ZPOOL_CONFIG_ALLOCATION_BIAS,
+					    &bias);
+				}
+				if (bias != NULL)
+					fnvlist_add_string(list, "class", bias);
+				else
+					fnvlist_add_string(list, "class",
+					    "normal");
+			}
 		}
 		if (nvlist_lookup_uint64_array(nvdev, ZPOOL_CONFIG_VDEV_STATS,
 		    (uint64_t **)&vs, &c) == 0) {
